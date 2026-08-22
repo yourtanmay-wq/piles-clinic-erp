@@ -23,3 +23,21 @@
 .wlv1HistChip{font-size:13px;border-radius:20px;padding:6px 13px;border:1px solid #DBE2EA;background:#fff;color:#7C8A9C;cursor:pointer}
 .wlv1HistChip.on{border-color:#0B4F2A;background:#EAFBF0;color:#0B4F2A;font-weight:700}
 .wlv1HistBox textarea{width:100%;margin-top:10px;min-height:62px}
+
+/* 🖥️🔵🔒 V558 (২২.০৮.২০২৬, TK-অনুমোদিত) — রোগের ছবি
+   উপরে ছবি বাছার সারি · মাঝে আঁকার পর্দা · নিচে কাজের বোতাম।
+   ফোনের চেহারার সাথে মিলিয়ে: বাছা ছবির চারপাশে লাল দাগ, বাছা কাজ সবুজ। */
+.wlv1AnatStrip{display:flex;gap:6px;overflow-x:auto;padding:6px 2px;-webkit-overflow-scrolling:touch}
+.wlv1AnatStrip::-webkit-scrollbar{height:4px}
+.wlv1AnatTh{width:62px;height:62px;flex:0 0 auto;object-fit:cover;border-radius:8px;
+  border:1px solid #DBE2EA;background:#fff;cursor:pointer}
+.wlv1AnatTh.on{border:3px solid #D81E3F}
+.wlv1AnatWrap{position:relative;margin-top:8px;border:1px solid #DBE2EA;border-radius:10px;
+  background:#F7F9FC;overflow:hidden;min-height:120px}
+.wlv1AnatCanvas{display:block;max-width:100%;height:auto;margin:0 auto;touch-action:none}
+.wlv1AnatHint{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);
+  text-align:center;color:#8A93A0;font-size:13px}
+.wlv1AnatTools{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.wlv1AnatTool{font-size:12.5px;padding:6px 10px;border-radius:20px;border:1px solid #DBE2EA;
+  background:#fff;color:#7C8A9C;cursor:pointer}
+.wlv1AnatTool.on{border-color:#0B4F2A;background:#EAFBF0;color:#0B4F2A;font-weight:700}

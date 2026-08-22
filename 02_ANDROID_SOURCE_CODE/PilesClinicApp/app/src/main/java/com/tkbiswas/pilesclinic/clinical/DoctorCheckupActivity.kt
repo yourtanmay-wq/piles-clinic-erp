@@ -217,6 +217,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         buildSymptomRows()   // 🔵 V554
         buildHistoryDetailRows()   // 🔵 V555
         buildLifestyleRows()       // 🔵 V556
+        buildAnatomyBoard()        // 🔵 V558 — রোগের ছবি
         // 🔵 V556: B. আঙুল দিয়ে দেখে (DRE) — পুরোনো সেই একই তালিকা ও একই রং
         buildChecks(findViewById(R.id.dreGroup), dreOptions, dreChecks, dreIcons, "#0B4F2A", dreBn)
         buildChecks(findViewById(R.id.visualGroup), visualOptions, visualChecks, visualIcons, "#D64545", visualBn)
@@ -1013,6 +1014,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         timeAsked = CounselModel.timeAsked(
             findViewById<android.widget.EditText>(R.id.etTimeAsked).text?.toString().orEmpty(),
             CounselModel.UNITS.getOrElse(findViewById<android.widget.Spinner>(R.id.spTimeAskedUnit).selectedItemPosition) { "Days" }),
+        anatomy = collectAnatomy(),                 // 🔵 V558
         dre = checkedText(dreChecks),               // 🔵 V556 (ফেরানো)
         dreOther = findViewById<android.widget.EditText>(R.id.etDreOther).text?.toString().orEmpty(),
         // 🔵 B622 (11.08.2026): Result/Spent/Treatment Duration ঘর বাদ — মডেলের ডিফল্ট "" থাকে।
@@ -1064,6 +1066,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         val ui = CounselModel.UNITS.indexOf(tUnit)
         if (ui >= 0) findViewById<android.widget.Spinner>(R.id.spTimeAskedUnit).setSelection(ui)
         lastSavedCost = r.estimatedCost   // 🔔 V557: এই খরচেই আগে নোটিশ গেছে
+        applyAnatomy(r.anatomy)                 // 🔵 V558
         val dreSel = r.dre.split(", ").map { it.trim() }   // 🔵 V556
         dreChecks.forEach { it.isChecked = dreSel.contains((it.tag as? String) ?: it.text.toString()) }
         findViewById<android.widget.EditText>(R.id.etDreOther).setText(r.dreOther)
@@ -1345,6 +1348,157 @@ class DoctorCheckupActivity : AppCompatActivity() {
        কি না — নইলে প্রতিবার Save-এ স্টাফের ঘণ্টা অকারণে বাজত। */
     private var lastSavedCost: String = ""
 
+    // ══════════════════════════════════════════════════════════════════
+    // 🔵🔒 V558 (২২.০৮.২০২৬, TK-অনুমোদিত) — রোগের ছবি
+    //
+    // TK-এর কথা: *"ডাক্তার চাইলে যে কোন ফটোর উপর যেন সেই কাজটা করতে
+    // পারে"* এবং *"মাংসের উপরে আঙুল দিয়ে টান দিলে যেন মাংস বেড়ে যায়"*।
+    //
+    // উপরে ছবি বাছার সারি · মাঝে আঁকার পর্দা · নিচে কাজের বোতাম।
+    // ⛔ নতুন কলাম বা SQL লাগেনি — লেখাটা চেকআপের সাথেই জমা হয়।
+    // ══════════════════════════════════════════════════════════════════
+
+    private var anatomyView: AnatomyView? = null
+    private val anatomyThumbs = mutableListOf<android.widget.ImageView>()
+    private val anatomyToolChips = mutableListOf<TextView>()
+
+    /** ছবির নাম → ফোনের ভিতরের ছবি। না পেলে ০, তখন ছবিটা বাদ যায়। */
+    private fun anatomyResId(key: String): Int = try {
+        resources.getIdentifier("anat_$key", "drawable", packageName)
+    } catch (_: Throwable) { 0 }
+
+    private fun buildAnatomyBoard() {
+        val holder = findViewById<android.widget.FrameLayout>(R.id.anatomyHolder) ?: return
+        val strip = findViewById<android.widget.LinearLayout>(R.id.anatomyStrip) ?: return
+        val tools = findViewById<android.widget.LinearLayout>(R.id.anatomyTools) ?: return
+
+        val view = AnatomyView(this)
+        anatomyView = view
+        holder.removeAllViews()
+        holder.addView(view, android.widget.FrameLayout.LayoutParams(
+            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+            android.widget.FrameLayout.LayoutParams.MATCH_PARENT))
+
+        // ── ছবি বাছার সারি ──
+        strip.removeAllViews(); anatomyThumbs.clear()
+        for (pic in AnatomyModel.PICTURES) {
+            val resId = anatomyResId(pic.key)
+            if (resId == 0) continue                     // ছবিটা নেই — চুপচাপ বাদ
+            val img = android.widget.ImageView(this).apply {
+                setImageResource(resId)
+                scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
+                tag = pic.key
+                contentDescription = pic.label
+                val lp = android.widget.LinearLayout.LayoutParams(symDp(62), symDp(62))
+                lp.setMargins(0, 0, symDp(6), 0)
+                layoutParams = lp
+                setPadding(symDp(2), symDp(2), symDp(2), symDp(2))
+                setOnClickListener {
+                    view.setPicture(pic.key, resId)
+                    paintAnatomyThumbs(pic.key)
+                }
+            }
+            strip.addView(img)
+            anatomyThumbs.add(img)
+        }
+        paintAnatomyThumbs("")
+
+        // ── কাজের বোতাম ──
+        tools.removeAllViews(); anatomyToolChips.clear()
+        val toolList = listOf(
+            Triple("✋ ফোলান", AnatomyView.Tool.BULGE, ""),
+            Triple("📍 চিহ্ন", AnatomyView.Tool.PILE, ""),
+            Triple("〰️ নালী", AnatomyView.Tool.TRACT, ""),
+            Triple("⭕ গোল", AnatomyView.Tool.RING, ""),
+            Triple("➡️ তীর", AnatomyView.Tool.ARROW, ""),
+            Triple("🩹 মুছুন", AnatomyView.Tool.ERASE, "")
+        )
+        for ((label, tool, _) in toolList) {
+            val chip = TextView(this).apply {
+                text = label
+                textSize = 12.5f
+                setPadding(symDp(10), symDp(6), symDp(10), symDp(6))
+                val lp = android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
+                lp.setMargins(0, 0, symDp(6), 0)
+                layoutParams = lp
+                tag = tool
+                setOnClickListener {
+                    view.tool = tool
+                    if (tool == AnatomyView.Tool.PILE) askPileLabel()
+                    paintAnatomyTools(tool)
+                }
+            }
+            tools.addView(chip)
+            anatomyToolChips.add(chip)
+        }
+        // ↺ একধাপ পিছনে
+        tools.addView(TextView(this).apply {
+            text = "↺ একটা পিছনে"
+            textSize = 12.5f
+            background = histChipBg(false)
+            setTextColor(android.graphics.Color.parseColor("#7C8A9C"))
+            setPadding(symDp(10), symDp(6), symDp(10), symDp(6))
+            setOnClickListener { view.undo() }
+        })
+        paintAnatomyTools(AnatomyView.Tool.BULGE)
+    }
+
+    private fun paintAnatomyThumbs(chosen: String) {
+        for (img in anatomyThumbs) {
+            val on = (img.tag as? String) == chosen
+            img.background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = symDp(8).toFloat()
+                setColor(android.graphics.Color.parseColor("#FFFFFF"))
+                setStroke(symDp(if (on) 3 else 1),
+                    android.graphics.Color.parseColor(if (on) "#D81E3F" else "#DBE2EA"))
+            }
+        }
+    }
+
+    private fun paintAnatomyTools(chosen: AnatomyView.Tool) {
+        for (chip in anatomyToolChips) {
+            val on = (chip.tag as? AnatomyView.Tool) == chosen
+            chip.background = histChipBg(on)
+            chip.setTextColor(android.graphics.Color.parseColor(if (on) "#0B4F2A" else "#7C8A9C"))
+            chip.setTypeface(chip.typeface, if (on) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
+        }
+    }
+
+    /**
+     * চিহ্নের নাম — ঘড়ির কাঁটা (৩টা/৭টা/১১টা) না সোজা বাংলা (ডান পাশ …),
+     * সেটা ডাক্তার এখানেই বেছে নেন। TK-কে জিজ্ঞাসা করা হয়েছিল কোনটা রাখব;
+     * উত্তর না আসা পর্যন্ত **দুটোই** রাখা হল, কোনোটাই নিজে থেকে ঠিক করা হয়নি।
+     */
+    private fun askPileLabel() {
+        val view = anatomyView ?: return
+        val clock = (1..12).map { "${it}টা" }
+        val bangla = listOf("সামনে", "সামনে-ডান", "ডান পাশ", "পিছন-ডান",
+                            "পিছনে", "পিছন-বাঁ", "বাঁ পাশ", "সামনে-বাঁ")
+        val all = listOf("নাম ছাড়াই") + clock + bangla
+        android.app.AlertDialog.Builder(this)
+            .setTitle("চিহ্নের নাম")
+            .setItems(all.toTypedArray()) { d, which ->
+                view.pileLabel = if (which == 0) "" else all[which]
+                d.dismiss()
+            }
+            .show()
+    }
+
+    private fun collectAnatomy(): String {
+        val view = anatomyView ?: return ""
+        view.setNote(findViewById<android.widget.EditText>(R.id.etAnatomyNote)?.text?.toString().orEmpty())
+        return view.save()
+    }
+
+    private fun applyAnatomy(saved: String) {
+        val view = anatomyView ?: return
+        view.load(saved) { key -> anatomyResId(key) }
+        paintAnatomyThumbs(AnatomyModel.parse(saved).pic)
+        findViewById<android.widget.EditText>(R.id.etAnatomyNote)?.setText(AnatomyModel.parse(saved).note)
+    }
+
     private fun buildLifestyleRows() {
         val box = findViewById<android.widget.LinearLayout>(R.id.lifestyleGroup) ?: return
         box.removeAllViews()
@@ -1554,6 +1708,9 @@ class DoctorCheckupActivity : AppCompatActivity() {
         if (r.probableDisease.isNotBlank() && r.probableDisease != CounselModel.PICK_NONE)
             append("Probable Disease: ${r.probableDisease}; ")
         if (r.timeAsked.isNotBlank()) append("Time Asked: ${r.timeAsked}; ")
+        // 🔵 V558: ছবিতে যা দেখানো হয়েছে — কিছু না আঁকলে কিছুই লেখা হয় না
+        if (AnatomyModel.readable(r.anatomy).isNotBlank())
+            append("Disease Picture: ${AnatomyModel.readable(r.anatomy)}; ")
         if (r.prevResult.isNotBlank()) append("Prev Result: ${r.prevResult}; ")
         if (r.prevCost.isNotBlank()) append("Prev Cost: ${r.prevCost}; ")
         if (r.treatmentDuration.isNotBlank()) append("Treatment Duration: ${r.treatmentDuration}; ")

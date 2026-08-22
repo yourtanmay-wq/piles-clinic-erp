@@ -7167,6 +7167,7 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
    <!-- 🔴 V542 (TK-নির্দেশ: "ইনজেকশন চিকিৎসা থাকবে না") — সারিটা সরানো। ⛔ পুরোনো রেকর্ডে মানটা থেকে যায়, ছাপায় আগের মতোই দেখা যায়। -->
   </div>
   ${wlv1CounselBoxHtml(note,p)}
+  ${wlv1AnatBoxHtml(note)}
   <label>Other Treatment Note · অন্যান্য চিকিৎসার কথা (টাইপ করুন)</label><textarea id="dnCounselling" placeholder="রোগীকে কিভাবে চিকিৎসা করবেন বলেছেন সেই কথা এখানে লিখুন">${val('counselling')}</textarea>
  </details>
  <details class="card"><summary><b>4. Estimate &amp; Decision · আনুমানিক খরচ ও রোগীর সিদ্ধান্ত</b></summary><label>Estimated Cost · আনুমানিক খরচ</label><input id="dnEstimatedCost" class="input" value="${val('estimatedCost')}"><label>Estimated Recovery Time · আনুমানিক কতদিন বলা হল</label><input id="dnRecoveryTime" class="input" value="${val('recoveryTime')}"><label>Advance Payment to be Done · অগ্রিম কত টাকা জমা করতে চাইছে</label><input id="dnAdvanceDiscussed" class="input" value="${val('advanceDiscussed')}"></details>
@@ -7178,6 +7179,7 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
  <div class="actions"><button onclick="saveDoctor('${id}')">💾 Save</button><button class="ghost" onclick="prescription('${id}')">Prescription</button><button class="ghost" onclick="medicine('${id}')">Medicine Slip</button><button class="ghost" onclick="blood('${id}')">Blood Test</button><button class="ghost" onclick="diet('${id}')">Diet</button></div>`);
  setTimeout(()=>{try{wlv1CkShow(0)}catch(e){}},40);
  setTimeout(()=>{try{dnWireV547()}catch(e){}},50);   /* 🔵 V547 */
+ setTimeout(()=>{try{dnWireV558()}catch(e){}},60);   /* 🔵 V558 — রোগের ছবি */
 }
 window["doctorCheck"]=doctorCheck;
 /* 🖥️🔵 V547 (২২.০৮.২০২৬) — CHECK-UP পর্দার ফোন-ওয়েব মিল।
@@ -7258,6 +7260,461 @@ function wlv1CounselBoxHtml(note,p){
     +'<select id="dnTimeAskedUnit" class="input wlv1SymUnit">'+WLV1_TA_UNITS.map(function(u){
         return '<option '+(ta[1]===u?'selected':'')+'>'+u+'</option>'}).join('')+'</select></div>';
 }
+/* ============ PILES CLINIC — ছবির উপরে দাগ (V558) ============
+   TK-এর নিয়ম: ডাক্তার রোগীকে বোঝানোর সময় *যে কোনো* ছবির উপরেই
+   দাগ দিতে পারবেন — বইয়ের ছবি, আমাদের আঁকা ছবি, যেটাই হোক।
+   দাগগুলো ছবির শতকরা হিসেবে জমা হয় (যেমন x=42%, y=63%), তাই
+   ছোট ফোন, বড় ফোন, ওয়েব — সব জায়গায় একই জায়গায় বসে।
+   ছবি বদলালে দাগও সেই ছবির নিজের দাগ থাকে।                      */
+(function (root) {
+  'use strict';
+
+  var COLORS = { pile: '#D81E3F', tract: '#F0A400', arrow: '#1B6FD8', ring: '#12A05A', pen: '#111111' };
+
+  /* --------- জমা হওয়ার চেহারা: এক লাইনে, নতুন ঘর লাগে না ---------
+     pic=pic1|pile:42.1,63.4,বড়|tract:20,80;28,72;36,66|ring:55,40,9|note=... */
+  function format(picKey, marks, note) {
+    // ছবি না বাছলে "pic=" লেখা যেন না বসে — নইলে ফোনে ফাঁকা আর ওয়েবে
+    // "pic=" জমা হত, দুই জায়গার লেখা আর এক থাকত না
+    var out = [];
+    if (picKey) out.push('pic=' + picKey);
+    for (var i = 0; i < marks.length; i++) {
+      var m = marks[i];
+      if (m.kind === 'tract' || m.kind === 'pen') {
+        out.push(m.kind + ':' + m.pts.map(function (p) { return n1(p[0]) + ',' + n1(p[1]); }).join(';'));
+      } else if (m.kind === 'bulge') {
+        out.push('bulge:' + n1(m.x) + ',' + n1(m.y) + ',' + n1(m.r) + ',' + n2(m.s));
+      } else if (m.kind === 'ring') {
+        out.push('ring:' + n1(m.x) + ',' + n1(m.y) + ',' + n1(m.r));
+      } else if (m.kind === 'arrow') {
+        out.push('arrow:' + n1(m.x) + ',' + n1(m.y) + ',' + n1(m.x2) + ',' + n1(m.y2));
+      } else {
+        out.push('pile:' + n1(m.x) + ',' + n1(m.y) + ',' + (m.label || ''));
+      }
+    }
+    if (note) out.push('note=' + note.replace(/[|]/g, '/'));
+    return out.join('|');
+  }
+  function n1(v) { return Math.round(v * 10) / 10; }
+  // ফোলার জোর দুই দশমিকে — এক দশমিকে ০.৮৫ হয়ে যেত ০.৯, সীমা ছাড়িয়ে যেত
+  function n2(v) { return Math.round(v * 100) / 100; }
+
+  function parse(saved) {
+    var res = { pic: '', marks: [], note: '' };
+    if (!saved) return res;
+    var parts = String(saved).split('|');
+    for (var i = 0; i < parts.length; i++) {
+      var t = parts[i].trim(); if (!t) continue;
+      if (t.indexOf('pic=') === 0) { res.pic = t.slice(4); continue; }
+      if (t.indexOf('note=') === 0) { res.note = t.slice(5); continue; }
+      var c = t.indexOf(':'); if (c < 0) continue;
+      var kind = t.slice(0, c), body = t.slice(c + 1);
+      if (kind === 'tract' || kind === 'pen') {
+        var pts = body.split(';').map(function (s) {
+          var a = s.split(','); return [parseFloat(a[0]), parseFloat(a[1])];
+        }).filter(function (p) { return !isNaN(p[0]) && !isNaN(p[1]); });
+        if (pts.length > 1) res.marks.push({ kind: kind, pts: pts });
+      } else if (kind === 'bulge') {
+        var g2 = body.split(',');
+        if (g2.length >= 4) res.marks.push({ kind: 'bulge', x: +g2[0], y: +g2[1], r: +g2[2], s: +g2[3] });
+      } else if (kind === 'ring') {
+        // অর্ধেক লেখা দাগ (যেমন "ring:55,40") বাদ — নইলে NaN নিয়ে আঁকতে গিয়ে
+        // ছবিটা ভেঙে যেত। ফোনের `AnatomyModel.parse()`-এ ঠিক একই নিয়ম।
+        var r = body.split(',');
+        if (r.length >= 3) res.marks.push({ kind: 'ring', x: +r[0], y: +r[1], r: +r[2] });
+      } else if (kind === 'arrow') {
+        var q = body.split(',');
+        if (q.length >= 4) res.marks.push({ kind: 'arrow', x: +q[0], y: +q[1], x2: +q[2], y2: +q[3] });
+      } else if (kind === 'pile') {
+        var p2 = body.split(',');
+        if (p2.length >= 2) res.marks.push({ kind: 'pile', x: +p2[0], y: +p2[1], label: p2.slice(2).join(',') });
+      }
+    }
+    return res;
+  }
+
+  /* --------- ছবির মাংস ফুলিয়ে তোলা ----------
+     TK-এর দরকার: শুধু দাগ নয় — যে মাংসটা বেড়ে গেছে, তার উপরে আঙুল
+     রেখে টান দিলে ছবির ওই মাংসটাই সত্যি সত্যি ফুলে উঠবে। এটা দাগ আঁকা
+     নয়, ছবির ওই জায়গাটাকেই ফুলিয়ে দেওয়া (bulge) — আঙুল যত টানবেন
+     তত বড়। উল্টো দিকে টানলে আবার ছোট হয়ে যাবে।
+     শুধু যতটুকু জায়গায় ফোলা, ততটুকু অংশই হিসাব করা হয় — তাই ফোনেও
+     আঙুলের সাথে সাথেই চলে।                                          */
+  function bulge(ctx, W, H, b) {
+    var cxp = b.x * W / 100, cyp = b.y * H / 100, R = b.r * W / 100;
+    var st = Math.max(-0.85, Math.min(0.85, b.s || 0.45));
+    if (R < 2 || st === 0) return;
+    var x0 = Math.max(0, Math.floor(cxp - R)), y0 = Math.max(0, Math.floor(cyp - R));
+    var x1 = Math.min(W, Math.ceil(cxp + R)), y1 = Math.min(H, Math.ceil(cyp + R));
+    var w = x1 - x0, h = y1 - y0;
+    if (w < 2 || h < 2) return;
+    var src, dst;
+    // ব্রাউজার শুধু তখনই ছবির রং পড়তে দেয় যখন পাতাটা সাইট থেকে খোলা হয়।
+    // কেউ যদি ফাইলটা সরাসরি কম্পিউটার থেকে খোলেন, ফোলানো কাজ করবে না —
+    // চুপচাপ কিছু না করে সেটা জানিয়ে দেওয়া হয়, নইলে মনে হত অ্যাপ নষ্ট।
+    try { src = ctx.getImageData(x0, y0, w, h); }
+    catch (e) { root.__wlv1BulgeBlocked = true; return; }
+    dst = ctx.createImageData(w, h);
+    var sd = src.data, dd = dst.data, ix, iy;
+    for (iy = 0; iy < h; iy++) {
+      for (ix = 0; ix < w; ix++) {
+        var dx = (x0 + ix) - cxp, dy = (y0 + iy) - cyp;
+        var d = Math.sqrt(dx * dx + dy * dy), o = (iy * w + ix) * 4;
+        if (d >= R) { copyPx(sd, o, dd, o); continue; }
+        var t = d / R, k = 1 - t * t;
+        var f = 1 - st * k * k;                       // ভিতর থেকে টেনে বাইরে ঠেলা
+        sample(sd, w, h, cxp - x0 + dx * f, cyp - y0 + dy * f, dd, o);
+      }
+    }
+    ctx.putImageData(dst, x0, y0);
+
+    // ফোলা মাংস রক্ত জমে গাঢ় হয়, আর উপরটা ভেজা-চকচকে থাকে
+    var g = ctx.createRadialGradient(cxp, cyp, 0, cxp, cyp, R);
+    g.addColorStop(0, 'rgba(158,18,44,0.42)'); g.addColorStop(0.7, 'rgba(124,12,38,0.22)');
+    g.addColorStop(1, 'rgba(120,15,40,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cxp, cyp, R, 0, 6.3); ctx.fill();
+    var hg = ctx.createRadialGradient(cxp - R * 0.28, cyp - R * 0.30, 0, cxp - R * 0.28, cyp - R * 0.30, R * 0.55);
+    hg.addColorStop(0, 'rgba(255,235,235,0.34)'); hg.addColorStop(1, 'rgba(255,235,235,0)');
+    ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(cxp - R * 0.28, cyp - R * 0.30, R * 0.55, 0, 6.3); ctx.fill();
+  }
+  function copyPx(sd, so, dd, dofs) {
+    dd[dofs] = sd[so]; dd[dofs + 1] = sd[so + 1]; dd[dofs + 2] = sd[so + 2]; dd[dofs + 3] = sd[so + 3];
+  }
+  function sample(sd, w, h, fx, fy, dd, o) {
+    var x = Math.max(0, Math.min(w - 1.001, fx)), y = Math.max(0, Math.min(h - 1.001, fy));
+    var xi = x | 0, yi = y | 0, ax = x - xi, ay = y - yi;
+    var i00 = (yi * w + xi) * 4, i10 = i00 + 4, i01 = i00 + w * 4, i11 = i01 + 4;
+    for (var c = 0; c < 4; c++) {
+      var top = sd[i00 + c] * (1 - ax) + sd[i10 + c] * ax;
+      var bot = sd[i01 + c] * (1 - ax) + sd[i11 + c] * ax;
+      dd[o + c] = top * (1 - ay) + bot * ay;
+    }
+  }
+
+  // আঙুল কতটা টেনেছে → ফোলা কত বড়
+  function bulgeFromDrag(startPct, nowPct, W, H) {
+    var dx = (nowPct[0] - startPct[0]), dy = (nowPct[1] - startPct[1]);
+    var pull = Math.sqrt(dx * dx + dy * dy);
+    return { x: startPct[0], y: startPct[1],
+             r: Math.max(3, Math.min(26, 4 + pull * 1.35)),
+             s: Math.max(0.12, Math.min(0.80, 0.16 + pull * 0.055)) };
+  }
+
+  /* --------- ছবির উপরে আঁকা --------- */
+  function draw(ctx, W, H, marks, opts) {
+    opts = opts || {};
+    var s = Math.min(W, H) / 100;                 // সব মাপ ছবির অনুপাতে
+    for (var b = 0; b < marks.length; b++) {      // মাংস ফোলানো আগে, দাগ পরে
+      if (marks[b].kind === 'bulge') bulge(ctx, W, H, marks[b]);
+    }
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (var i = 0; i < marks.length; i++) {
+      var m = marks[i];
+      if (m.kind === 'tract' || m.kind === 'pen') {
+        var w = (m.kind === 'tract' ? 2.2 : 1.4) * s;
+        stroke(ctx, m.pts, W, H, 'rgba(0,0,0,0.45)', w + 1.6 * s);
+        stroke(ctx, m.pts, W, H, m.kind === 'tract' ? COLORS.tract : COLORS.pen, w,
+               m.kind === 'tract' ? [3.4 * s, 2.4 * s] : null);
+        if (m.kind === 'tract' && opts.showCm) {
+          var last = m.pts[m.pts.length - 1];
+          chip(ctx, last[0] * W / 100 + 3 * s, last[1] * H / 100, tractCm(m.pts, opts) + ' সেমি', COLORS.tract, s);
+        }
+      } else if (m.kind === 'ring') {
+        ctx.beginPath();
+        ctx.ellipse(m.x * W / 100, m.y * H / 100, m.r * W / 100, m.r * W / 100 * 0.82, 0, 0, 6.3);
+        ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 2.8 * s; ctx.stroke();
+        ctx.strokeStyle = COLORS.ring; ctx.lineWidth = 1.6 * s; ctx.stroke();
+      } else if (m.kind === 'arrow') {
+        arrow(ctx, m.x * W / 100, m.y * H / 100, m.x2 * W / 100, m.y2 * H / 100, s);
+      } else if (m.kind === 'pile') {
+        var x = m.x * W / 100, y = m.y * H / 100;
+        ctx.beginPath(); ctx.arc(x, y, 2.4 * s, 0, 6.3);
+        ctx.fillStyle = COLORS.pile; ctx.fill();
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.1 * s; ctx.stroke();
+        if (m.label) chip(ctx, x + 3.4 * s, y, m.label, COLORS.pile, s);
+      }
+    }
+  }
+
+  function stroke(ctx, pts, W, H, col, w, dash) {
+    ctx.save();
+    if (dash) ctx.setLineDash(dash);
+    ctx.beginPath();
+    for (var i = 0; i < pts.length; i++) {
+      var x = pts[i][0] * W / 100, y = pts[i][1] * H / 100;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = col; ctx.lineWidth = w; ctx.stroke();
+    ctx.restore();
+  }
+  function arrow(ctx, x1, y1, x2, y2, s) {
+    var a = Math.atan2(y2 - y1, x2 - x1), hl = 4.2 * s;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 3.2 * s; ctx.stroke();
+    ctx.strokeStyle = COLORS.arrow; ctx.lineWidth = 1.8 * s; ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - hl * Math.cos(a - 0.42), y2 - hl * Math.sin(a - 0.42));
+    ctx.lineTo(x2 - hl * Math.cos(a + 0.42), y2 - hl * Math.sin(a + 0.42));
+    ctx.closePath(); ctx.fillStyle = COLORS.arrow; ctx.fill();
+  }
+  function chip(ctx, x, y, txt, col, s) {
+    ctx.font = '700 ' + (3.1 * s).toFixed(1) + 'px "Noto Sans Bengali", system-ui, sans-serif';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    var w = ctx.measureText(txt).width + 2.6 * s, h = 5.2 * s, r = 2.6 * s;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y - h / 2); ctx.lineTo(x + w - r, y - h / 2);
+    ctx.quadraticCurveTo(x + w, y - h / 2, x + w, y); ctx.quadraticCurveTo(x + w, y + h / 2, x + w - r, y + h / 2);
+    ctx.lineTo(x + r, y + h / 2); ctx.quadraticCurveTo(x, y + h / 2, x, y);
+    ctx.quadraticCurveTo(x, y - h / 2, x + r, y - h / 2);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(255,255,255,0.94)'; ctx.fill();
+    ctx.strokeStyle = col; ctx.lineWidth = 0.9 * s; ctx.stroke();
+    ctx.fillStyle = col; ctx.fillText(txt, x + 1.3 * s, y + 0.2 * s);
+  }
+
+  /* নালীর লম্বা — ছবির গায়ে দেওয়া মাপকাঠি অনুযায়ী (cmPerPct) */
+  function tractCm(pts, opts) {
+    var k = (opts && opts.cmPerPct) || 0.09, sum = 0;
+    for (var i = 1; i < pts.length; i++) {
+      var dx = pts[i][0] - pts[i - 1][0], dy = pts[i][1] - pts[i - 1][1];
+      sum += Math.sqrt(dx * dx + dy * dy);
+    }
+    return Math.round(sum * k * 10) / 10;
+  }
+
+  root.AnatomyMark = { format: format, parse: parse, draw: draw, tractCm: tractCm,
+                       bulge: bulge, bulgeFromDrag: bulgeFromDrag, COLORS: COLORS };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* 🖥️🔵🔒 V558 (২২.০৮.২০২৬, TK-অনুমোদিত) — রোগের ছবি (ওয়েব)
+   ফোনের `AnatomyModel` + `AnatomyView`-এর হুবহু যমজ। উপরের `AnatomyMark`
+   অংশটা ফোনের অঙ্কের সঙ্গে **অক্ষরে অক্ষরে মিলিয়ে** পরীক্ষা করা হয়েছে —
+   একই দাগ ফোনে ও ওয়েবে হুবহু একই লেখা হয়ে জমা হয়।
+   ⛔ নতুন কলাম বা SQL লাগেনি — লেখাটা চেকআপের সাথেই জমা হয়। */
+const WLV1_ANAT_PICS=[
+  { key: "pic3_anal_canal", label: "বই · পায়ুনালীর কাটা ছবি" },
+  { key: "pic1_parks_fistula", label: "বই · ফিস্টুলার ৪ ধরন" },
+  { key: "pic2_fistula_types", label: "বই · ফিস্টুলার নকশা" },
+  { key: "real1_pile_close", label: "ফোলা · কাছ থেকে" },
+  { key: "real2_single_pile", label: "একটা ফোলা" },
+  { key: "real9_single_lump", label: "একটা ঢিবি" },
+  { key: "real20_small_prolapse", label: "ছোট ফোলা" },
+  { key: "real8_pile_wide", label: "ফোলা · চওড়া ছবি" },
+  { key: "real10_prolapse_red", label: "লাল · বেরিয়ে আসা" },
+  { key: "real12_prolapse_ring2", label: "বেরিয়ে আসা · বেগুনি" },
+  { key: "real7_prolapsed_ring", label: "চারপাশ জুড়ে বেরিয়ে আসা" },
+  { key: "real21_rosette_wide", label: "চারপাশ জুড়ে · চওড়া ছবি" },
+  { key: "real14_mucosa_prolapse", label: "ভিতরের পর্দা বেরিয়ে আসা" },
+  { key: "real6_prolapsed_grade4", label: "অনেকটা বেরিয়ে আসা" },
+  { key: "real11_giant_mass", label: "খুব বড় মাংস" },
+  { key: "real19_infected_mass", label: "ঘা হয়ে যাওয়া মাংস" },
+  { key: "real17_warty_mass", label: "আঁচিলের মত মাংস" },
+  { key: "real22_warts_multiple", label: "অনেকগুলো আঁচিল" },
+  { key: "real5_multiple_tags", label: "কয়েকটা ফোলা" },
+  { key: "real3_fistula_opening", label: "ফিস্টুলার মুখ" },
+  { key: "real4_fistula_track", label: "ফিস্টুলা · নালী" },
+  { key: "real18_small_opening", label: "ছোট মুখ" },
+  { key: "real13_discharge", label: "রস গড়াচ্ছে" },
+  { key: "real15_after_procedure", label: "চিকিৎসার পরে" },
+  { key: "real16_operation", label: "অপারেশনের সময়" }
+];
+function wlv1AnatLabelOf(k){for(var i=0;i<WLV1_ANAT_PICS.length;i++){if(WLV1_ANAT_PICS[i].key===k)return WLV1_ANAT_PICS[i].label}return k}
+function wlv1AnatSrc(k){return 'img/anatomy/'+k+'.jpg'}
+
+/* ছবিতে কী কী আঁকা হয়েছে — ছাপা ও হিস্ট্রির জন্য মানুষ-পড়া-যায় লেখা।
+   ⚠️ ফোনের `AnatomyModel.readable()`-এর হুবহু একই কথা লেখে। */
+function wlv1AnatReadable(saved){
+  var b=AnatomyMark.parse(saved||'');
+  if(!b.pic&&!b.marks.length&&!b.note)return '';
+  var bits=[],piles=[],nb=0,nt=0;
+  b.marks.forEach(function(m){
+    if(m.kind==='pile'){ if(m.label)piles.push(m.label); else piles.push('') }
+    else if(m.kind==='bulge')nb++; else if(m.kind==='tract')nt++;
+  });
+  if(piles.length){
+    var named=piles.filter(function(x){return x});
+    bits.push(named.length?('ফোলা: '+named.join(', ')):('ফোলা '+piles.length+' টা'));
+  }
+  if(nb)bits.push('মাংস ফোলানো '+nb+' টা');
+  if(nt)bits.push('নালীর দাগ '+nt+' টা');
+  if(b.note)bits.push(b.note);
+  return bits.join(' · ');
+}
+
+/* এই পর্দার এখনকার অবস্থা — কোন ছবি, কী কী দাগ, কোন কাজ চলছে। */
+var wlv1AnatState={pic:'',marks:[],tool:'bulge',label:'',down:null,live:[]};
+
+function wlv1AnatBoxHtml(note){
+  var saved=String((note&&note.anatomy)||'');
+  var b=AnatomyMark.parse(saved);
+  wlv1AnatState={pic:b.pic||'',marks:b.marks||[],tool:'bulge',label:'',down:null,live:[]};
+  var strip=WLV1_ANAT_PICS.map(function(p){
+    return '<img class="wlv1AnatTh'+(p.key===wlv1AnatState.pic?' on':'')+'" data-k="'+p.key+'" '
+      +'src="'+wlv1AnatSrc(p.key)+'" alt="'+esc(p.label)+'" title="'+esc(p.label)+'" '
+      +'onclick="wlv1AnatPick(\''+p.key+'\')">';
+  }).join('');
+  var tools=[['bulge','✋ ফোলান'],['pile','📍 চিহ্ন'],['tract','〰️ নালী'],
+             ['ring','⭕ গোল'],['arrow','➡️ তীর'],['erase','🩹 মুছুন']].map(function(t){
+    return '<button type="button" class="wlv1AnatTool'+(t[0]==='bulge'?' on':'')+'" data-t="'+t[0]+'" '
+      +'onclick="wlv1AnatTool(\''+t[0]+'\')">'+t[1]+'</button>';
+  }).join('');
+  return '<label>রোগের ছবি · রোগীকে দেখিয়ে বোঝানোর জন্য</label>'
+    +'<div class="wlv1AnatStrip">'+strip+'</div>'
+    +'<div class="wlv1AnatWrap"><canvas id="dnAnatCanvas" class="wlv1AnatCanvas"></canvas>'
+    +'<div id="dnAnatHint" class="wlv1AnatHint">উপর থেকে একটা ছবি বাছুন</div></div>'
+    +'<div class="wlv1AnatTools">'+tools
+    +'<button type="button" class="wlv1AnatTool" onclick="wlv1AnatUndo()">↺ একটা পিছনে</button></div>'
+    +'<textarea id="dnAnatNote" placeholder="ছবি দেখিয়ে রোগীকে যা বোঝালেন, দরকার হলে এখানে লিখুন">'+esc(b.note||'')+'</textarea>';
+}
+
+function wlv1AnatPick(k){
+  if(wlv1AnatState.pic===k)return;
+  wlv1AnatState.pic=k;
+  wlv1AnatState.marks=[];              /* এক ছবির দাগ অন্য ছবিতে বসলে ভুল হত */
+  try{$$('.wlv1AnatTh').forEach(function(el){el.classList.toggle('on',el.getAttribute('data-k')===k)})}catch(_e){}
+  wlv1AnatRedraw();
+}
+function wlv1AnatTool(t){
+  wlv1AnatState.tool=t;
+  try{$$('.wlv1AnatTool').forEach(function(el){el.classList.toggle('on',el.getAttribute('data-t')===t)})}catch(_e){}
+  if(t==='pile'){
+    var v=prompt('চিহ্নের নাম (ঘড়ির কাঁটা যেমন "৩টা", বা "ডান পাশ")। নাম না চাইলে ফাঁকা রাখুন।','');
+    wlv1AnatState.label=(v===null?'':String(v).trim());
+  }
+}
+function wlv1AnatUndo(){ if(wlv1AnatState.marks.length){wlv1AnatState.marks.pop();wlv1AnatRedraw()} }
+
+/* ছবিটা একবারই নামানো হয়, বারবার নয় — নইলে প্রতিবার আঁকায় ঝিমিয়ে যেত। */
+var wlv1AnatImg=null,wlv1AnatImgKey='';
+function wlv1AnatRedraw(){
+  var cv=$('#dnAnatCanvas'),hint=$('#dnAnatHint');
+  if(!cv)return;
+  var k=wlv1AnatState.pic;
+  if(!k){ if(hint)hint.style.display=''; var c0=cv.getContext('2d'); c0.clearRect(0,0,cv.width,cv.height); return }
+  if(hint)hint.style.display='none';
+  if(wlv1AnatImgKey!==k||!wlv1AnatImg){
+    var im=new Image();
+    im.onload=function(){ wlv1AnatImg=im; wlv1AnatImgKey=k; wlv1AnatPaint() };
+    im.onerror=function(){ wlv1AnatImg=null };
+    im.src=wlv1AnatSrc(k);
+    return;
+  }
+  wlv1AnatPaint();
+}
+function wlv1AnatPaint(){
+  var cv=$('#dnAnatCanvas'),im=wlv1AnatImg;
+  if(!cv||!im)return;
+  /* লম্বালম্বি ছবি পুরো চওড়ায় বসালে পর্দা জুড়ে বিশাল হয়ে যেত, নিচের
+     বোতামগুলো দেখতে অনেক নিচে নামতে হত। তাই উচ্চতা ৪২০-এ বাঁধা,
+     ছবিটা তখন মাঝখানে ছোট হয়ে বসে। ফোনেও ঠিক এই কাজটাই হয় (৩০০dp ঘরে
+     ছবি পুরোটা ধরানো হয়)। */
+  var box=(cv.parentNode&&cv.parentNode.clientWidth)||600;
+  var w=box,h=Math.round(w*im.height/im.width);
+  var maxH=420;
+  if(h>maxH){ w=Math.round(w*maxH/h); h=maxH }
+  if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h}
+  cv.style.width=w+'px';
+  var ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,w,h);
+  ctx.drawImage(im,0,0,w,h);
+  AnatomyMark.draw(ctx,w,h,wlv1AnatState.marks,{showCm:false});
+  if(window.__wlv1BulgeBlocked){
+    ctx.font='600 12px system-ui,sans-serif';ctx.textAlign='center';
+    ctx.fillStyle='rgba(0,0,0,0.55)';ctx.fillRect(0,h-24,w,24);
+    ctx.fillStyle='#fff';ctx.fillText('ফোলানো দেখতে ওয়েবসাইট থেকে খুলুন',w/2,h-8);
+    ctx.textAlign='left';
+  }
+}
+
+/* আঙুল/মাউস — ফোনের `AnatomyView.onTouchEvent`-এর মতোই। */
+function wlv1AnatXY(ev){
+  var cv=$('#dnAnatCanvas'); if(!cv)return null;
+  var r=cv.getBoundingClientRect();
+  var t=(ev.touches&&ev.touches[0])||(ev.changedTouches&&ev.changedTouches[0])||ev;
+  var x=(t.clientX-r.left)/r.width*100, y=(t.clientY-r.top)/r.height*100;
+  if(x<0||x>100||y<0||y>100)return null;
+  return [x,y];
+}
+function wlv1AnatDown(ev){
+  if(!wlv1AnatState.pic)return;
+  var p=wlv1AnatXY(ev); if(!p)return;
+  ev.preventDefault();
+  wlv1AnatState.down=p; wlv1AnatState.live=[p.slice()];
+  if(wlv1AnatState.tool==='erase')wlv1AnatErase(p);
+}
+function wlv1AnatMove(ev){
+  var s=wlv1AnatState; if(!s.down)return;
+  var p=wlv1AnatXY(ev); if(!p)return;
+  ev.preventDefault();
+  var t=s.tool,m=s.marks;
+  if(t==='bulge'){
+    if(m.length&&m[m.length-1].kind==='bulge'&&m[m.length-1].x===s.down[0]&&m[m.length-1].y===s.down[1])m.pop();
+    m.push(AnatomyMark.bulgeFromDrag(s.down,p));
+  }else if(t==='tract'||t==='pen'){
+    var last=s.live[s.live.length-1];
+    if(!last||Math.abs(last[0]-p[0])+Math.abs(last[1]-p[1])>0.6)s.live.push(p.slice());
+  }else if(t==='ring'){
+    if(m.length&&m[m.length-1].kind==='ring')m.pop();
+    var dx=p[0]-s.down[0],dy=p[1]-s.down[1];
+    var r=Math.max(2,Math.min(40,Math.sqrt(dx*dx+dy*dy)));
+    m.push({kind:'ring',x:s.down[0],y:s.down[1],r:r});
+  }else if(t==='arrow'){
+    if(m.length&&m[m.length-1].kind==='arrow')m.pop();
+    m.push({kind:'arrow',x:s.down[0],y:s.down[1],x2:p[0],y2:p[1]});
+  }else if(t==='erase'){ wlv1AnatErase(p) }
+  wlv1AnatPaint();
+  if(s.tool==='tract'&&s.live.length>1){
+    var ctx=$('#dnAnatCanvas').getContext('2d'),cv=$('#dnAnatCanvas');
+    AnatomyMark.draw(ctx,cv.width,cv.height,[{kind:'tract',pts:s.live}],{});
+  }
+}
+function wlv1AnatUp(ev){
+  var s=wlv1AnatState; if(!s.down)return;
+  var t=s.tool;
+  if(t==='pile')s.marks.push({kind:'pile',x:s.down[0],y:s.down[1],label:s.label||''});
+  else if(t==='tract'||t==='pen'){ if(s.live.length>1)s.marks.push({kind:t,pts:s.live.slice()}) }
+  else if(t==='bulge'){
+    var m=s.marks;
+    if(!m.length||m[m.length-1].kind!=='bulge')m.push(AnatomyMark.bulgeFromDrag(s.down,s.down));
+  }
+  s.down=null; s.live=[];
+  wlv1AnatPaint();
+}
+function wlv1AnatErase(p){
+  var m=wlv1AnatState.marks,best=-1,bestD=6;
+  for(var i=0;i<m.length;i++){
+    var d;
+    if(m[i].kind==='tract'||m[i].kind==='pen'){
+      d=999; (m[i].pts||[]).forEach(function(q){ var e=Math.hypot(q[0]-p[0],q[1]-p[1]); if(e<d)d=e });
+    }else d=Math.hypot(m[i].x-p[0],m[i].y-p[1]);
+    if(d<bestD){bestD=d;best=i}
+  }
+  if(best>=0){m.splice(best,1);wlv1AnatPaint()}
+}
+
+function wlv1AnatCollect(){
+  var note='';
+  try{note=($('#dnAnatNote')||{}).value||''}catch(_e){}
+  return AnatomyMark.format(wlv1AnatState.pic,wlv1AnatState.marks,note);
+}
+
+function dnWireV558(){
+  var cv=$('#dnAnatCanvas'); if(!cv)return;
+  if(cv.__wlv1Wired)return; cv.__wlv1Wired=true;
+  cv.addEventListener('mousedown',wlv1AnatDown);
+  cv.addEventListener('mousemove',wlv1AnatMove);
+  window.addEventListener('mouseup',wlv1AnatUp);
+  cv.addEventListener('touchstart',wlv1AnatDown,{passive:false});
+  cv.addEventListener('touchmove',wlv1AnatMove,{passive:false});
+  cv.addEventListener('touchend',wlv1AnatUp);
+  wlv1AnatRedraw();
+}
+window["wlv1AnatPick"]=wlv1AnatPick;window["wlv1AnatTool"]=wlv1AnatTool;
+window["wlv1AnatUndo"]=wlv1AnatUndo;window["wlv1AnatCollect"]=wlv1AnatCollect;
+window["wlv1AnatReadable"]=wlv1AnatReadable;window["wlv1AnatBoxHtml"]=wlv1AnatBoxHtml;
+window["dnWireV558"]=dnWireV558;window["wlv1AnatLabelOf"]=wlv1AnatLabelOf;
+
 window["wlv1DiseaseChanged"]=wlv1DiseaseChanged;window["wlv1ShouldNotifyCost"]=wlv1ShouldNotifyCost;
 window["wlv1CostMessage"]=wlv1CostMessage;window["wlv1TimeAsked"]=wlv1TimeAsked;
 const WLV1_LIFE_Q=[
@@ -7591,6 +8048,7 @@ async function saveDoctor(id){
   lifestyle:wlv1LifeCollect(),       /* 🔵 V556 */
   probableDisease:$('#dnProbableDisease')?.value||'',   /* 🔵 V557 */
   timeAsked:wlv1TimeAsked(($('#dnTimeAsked')||{}).value||'',($('#dnTimeAskedUnit')||{}).value||''),
+  anatomy:wlv1AnatCollect(),   /* 🔵 V558 */
   /* 🔵 V556: ওয়েবে `visual`-এর মতোই তালিকা হিসেবে জমা (chk() তালিকাই বোঝে) */
   dre:$$('.dnDre:checked').map(x=>x.value),dreOther:$('#dnDreOther')?.value||'',
   treatmentPlan,amtPerPiles:$('#dnAmtPerPiles')?.value||'8000',amtFistulaPerInch:$('#dnAmtFistulaInch')?.value||'11000',amtKsharSutra:$('#dnAmtKsharSutra')?.value||'6000',
@@ -7602,7 +8060,7 @@ async function saveDoctor(id){
   // নতুন সেভে এই ঘরগুলো আর বসে না।
   beforePhoto:media.beforePhoto||oldNote.beforePhoto||'',duringPhoto:media.duringPhoto||oldNote.duringPhoto||'',afterPhoto:media.afterPhoto||oldNote.afterPhoto||'',updatedAt:new Date().toISOString()
  };
- let details=[`Complaint: ${note.complaint}`,`Duration: ${note.duration}`,`Occupation: ${note.occupation}`,`Patient Said: ${note.patientSaid}`,`Visual: ${visual.join(', ')}`,`Internal Piles Grade: ${note.grade}`,`Proctoscopy: ${note.proctoscopy}`,`On Probing: ${note.onProbing}`,`Investigations: ${investigations.join(', ')}`,`Treatment Plan: ${treatmentPlan.join(', ')}`,`Other Treatment Note: ${note.counselling}`,`Financial: ${note.estimatedCost}`].filter(x=>!x.endsWith(': ')&&!x.endsWith(': ')).join(' | ');
+ let details=[`Complaint: ${note.complaint}`,`Duration: ${note.duration}`,`Occupation: ${note.occupation}`,`Patient Said: ${note.patientSaid}`,`Visual: ${visual.join(', ')}`,`Internal Piles Grade: ${note.grade}`,`Proctoscopy: ${note.proctoscopy}`,`On Probing: ${note.onProbing}`,`Investigations: ${investigations.join(', ')}`,`Treatment Plan: ${treatmentPlan.join(', ')}`,`Other Treatment Note: ${note.counselling}`,`Financial: ${note.estimatedCost}`,`Disease Picture: ${wlv1AnatReadable(note.anatomy)}`].filter(x=>!x.endsWith(': ')&&!x.endsWith(': ')).join(' | ');
  /* 🔴 TK-নির্দেশ (04.08.2026): আগে শুধু "Agree for Treatment"-এই
     doctorComplete=true হত -- বাকি পাঁচটা সিদ্ধান্তে ডাক্তার সত্যিই
     checkup শেষ করেও রোগী CHECK-UP Queue-তে চিরকাল আটকে থাকতেন
