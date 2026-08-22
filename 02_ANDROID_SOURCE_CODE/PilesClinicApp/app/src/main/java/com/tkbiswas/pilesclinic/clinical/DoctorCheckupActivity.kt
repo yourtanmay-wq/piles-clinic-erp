@@ -637,6 +637,25 @@ class DoctorCheckupActivity : AppCompatActivity() {
             } else {
                 tvSexAge.visibility = android.view.View.GONE
             }
+            /* 🔵 V553 (২২.০৮.২০২৬, TK-নির্দেশ): কাগজের **"Refd. by"** ঘরটা হেডারে।
+               ⛔ তথ্যটা **এই একই সারিতেই** আগে থেকে আছে (রেজিস্ট্রেশনের `refBy`
+                  ও `refDoctor` — RegistrationActivity.kt:1014,1050) — তাই
+                  **Supabase-এ একটাও বাড়তি query নেই**, নতুন কলাম/SQL-ও লাগেনি।
+               ⛔ "Dr. Visit" হলে সঙ্গে ডাক্তারের নামটাও দেখায় (দুটোই সেভ করা তথ্য,
+                  কিছু বানানো হয়নি)। কিছুই না থাকলে **লাইনটাই দেখায় না** — তাই
+                  পুরোনো রোগীর কার্ড আগের মতোই থাকে।
+               ⛔ উপরের কোনো লাইন সরানো হয়নি। */
+            val refBy = p.s("refBy")
+            val refDoctor = p.s("refDoctor")
+            val refText = listOf(refBy, refDoctor).map { it.trim() }.filter { it.isNotBlank() }.joinToString(" · ")
+            val tvRefBy = findViewById<TextView>(R.id.tvPatientRefBy)
+            if (refText.isNotBlank()) {
+                tvRefBy.text = "Ref By: $refText"
+                tvRefBy.visibility = android.view.View.VISIBLE
+            } else {
+                tvRefBy.visibility = android.view.View.GONE
+            }
+
             val tvAddress = findViewById<TextView>(R.id.tvPatientAddress)
             if (address.isNotBlank()) {
                 // 🔵 TK-নির্দেশ (07.08.2026): ঠিকানা দু'লাইনে — ১ম লাইনে গ্রাম/

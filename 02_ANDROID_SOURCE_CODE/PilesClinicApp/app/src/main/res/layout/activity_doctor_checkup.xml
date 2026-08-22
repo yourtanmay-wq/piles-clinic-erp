@@ -262,6 +262,12 @@
 
                 <TextView android:id="@+id/tvPatientAddress" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="1dp" android:text="—" android:textColor="#4A5A6B" android:textStyle="bold" android:textSize="11.5sp" android:maxLines="2" android:ellipsize="end" android:visibility="gone" />
 
+                <!-- 🔵 V553 (২২.০৮.২০২৬, TK-নির্দেশ): কাগজের "Refd. by" ঘরটা হেডারে যোগ।
+                     ⛔ উপরের কোনো লাইন সরানো/বদলানো হয়নি — এটা ঠিকানার নিচে **নতুন** লাইন।
+                     ⛔ তথ্যটা রেজিস্ট্রেশনে আগে থেকেই আছে (refBy · refDoctor), তাই
+                        নতুন কোনো ঘর/কলাম বা SQL লাগেনি। না থাকলে লাইনটাই দেখায় না। -->
+                <TextView android:id="@+id/tvPatientRefBy" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="1dp" android:text="—" android:textColor="#4A5A6B" android:textStyle="bold" android:textSize="11.5sp" android:maxLines="1" android:ellipsize="end" android:visibility="gone" />
+
                 <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:orientation="horizontal" android:gravity="center_vertical">
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:background="@drawable/bg_id_badge_purple" android:paddingHorizontal="6dp" android:paddingVertical="3dp" android:text="ID" android:textColor="@color/white" android:textSize="9.5sp" android:textStyle="bold" />
                     <TextView android:id="@+id/tvPatientReg" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="6dp" android:text="Reg ID · Branch" android:textColor="#0E8A6C" android:textSize="12sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />

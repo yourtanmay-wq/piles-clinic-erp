@@ -7109,7 +7109,7 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
     ⛔ এটা `summary()` ও Doctor Queue — দুই **পাতা** থেকেই খোলে, কোনো পপ-আপের
        ভিতর থেকে নয়; তাই পাতার উপরে পাতা বসার ঝুঁকি নেই (কোডে মিলিয়ে দেখা হয়েছে)। */
  page('Doctor Note', `
- <div class="queueRow card">${p.photo?`<img class="miniPatient" src="${p.photo}">`:`<div class="miniPatient blank">👤</div>`}<div><b>${esc(p.name)}</b><br>${esc(p.mobile)} · Age: ${esc(p.age||'-')} · ${esc(p.sex||'-')}<span id="dnOccHeader" class="dnOccHeader" onclick="dnOccChoose()" title="Occupation · পেশা" style="cursor:pointer;font-weight:600"></span><br>Reg ID: ${esc(p.patientId)} · Branch: ${esc(p.branch)}</div></div>
+ <div class="queueRow card">${p.photo?`<img class="miniPatient" src="${p.photo}">`:`<div class="miniPatient blank">👤</div>`}<div><b>${esc(p.name)}</b><br>${esc(p.mobile)} · Age: ${esc(p.age||'-')} · ${esc(p.sex||'-')}<span id="dnOccHeader" class="dnOccHeader" onclick="dnOccChoose()" title="Occupation · পেশা" style="cursor:pointer;font-weight:600"></span>${wlv1RefByLine(p)}<br>Reg ID: ${esc(p.patientId)} · Branch: ${esc(p.branch)}</div></div>
  <div class="card softInfo">ℹ️ Auto filled from Registration. Doctor can edit/add clinical details if needed.</div>
  <div id="wlv1CkChips" class="wlv1CkChips"></div>
  <div id="wlv1CkBox">
@@ -7177,6 +7177,18 @@ window["doctorCheck"]=doctorCheck;
      • Proctoscopy এখন খালি বক্স (টাইপ করার), তালিকা নয়।
    ⛔ কোনো ঘর মোছা হয়নি, কোনো id বদলায়নি — তাই সেভ ও পুরোনো রেকর্ড অটুট।
    ⛔ Android-এর মতোই: টিক তুললে সেভ করা Grade মুছে ফেলা হয় না, শুধু পাশে দেখানো বন্ধ। */
+/* 🖥️🔵 V553 (২২.০৮.২০২৬, TK-নির্দেশ — ফোনের সঙ্গে একই দিনে):
+   কাগজের "Refd. by" ঘরটা CHECK-UP হেডারে। তথ্যটা রেজিস্ট্রেশনে আগে থেকেই আছে
+   (`refBy` · `refDoctor`), তাই নতুন কোনো ঘর/কলাম বা SQL লাগেনি।
+   ⛔ কিছু না থাকলে লাইনটাই বসে না — পুরোনো রোগীর কার্ড আগের মতোই।
+   ⛔ উপরের কোনো লেখা সরানো হয়নি, এটা নতুন একটা লাইন। */
+function wlv1RefByLine(p){
+  try{
+    var t=[String((p&&p.refBy)||'').trim(),String((p&&p.refDoctor)||'').trim()].filter(Boolean).join(' · ');
+    return t?('<br>Ref By: '+esc(t)):'';
+  }catch(e){ return '' }
+}
+window["wlv1RefByLine"]=wlv1RefByLine;
 function dnVisBox(v){try{return $$('.dnVisual').find(x=>String(x.value)===v)||null}catch(e){return null}}
 function dnGradeValue(){try{var g=$('#dnGrade');return g?String(g.value||''):''}catch(e){return ''}}
 function dnRefreshInternalGrade(){
