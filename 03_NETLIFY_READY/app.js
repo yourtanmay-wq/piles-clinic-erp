@@ -7340,6 +7340,20 @@ function wlv1CounselBoxHtml(note,p){
      তত বড়। উল্টো দিকে টানলে আবার ছোট হয়ে যাবে।
      শুধু যতটুকু জায়গায় ফোলা, ততটুকু অংশই হিসাব করা হয় — তাই ফোনেও
      আঙুলের সাথে সাথেই চলে।                                          */
+  /* 🔴 V564 (TK লাইভ টেস্ট): *"মাংসটা টানলে ততটা বড় হচ্ছে না, জাস্ট শুধু
+     ফুলে যাচ্ছে"* — আগের অঙ্কে জোরটা কেন্দ্র থেকে খুব দ্রুত কমে যেত। এখন
+     ভিতরের প্রায় পুরোটা জুড়ে সমান টান, শুধু কিনারায় মিলিয়ে যায় — তাই গোটা
+     ঢিবিটাই বড় হয়। ⚠️ ফোনের `AnatomyModel.pushFactor()`-এর হুবহু একই অঙ্ক। */
+  var BULGE_MAX = 0.92;
+  function pushFactor(t, strength) {
+    if (t >= 1) return 1;
+    var s = Math.max(-BULGE_MAX, Math.min(BULGE_MAX, strength));
+    var flat = 0.62, w;
+    if (t <= flat) w = 1;
+    else { var u = 1 - (t - flat) / (1 - flat); w = u * u * (3 - 2 * u); }
+    return 1 - s * w;
+  }
+
   function bulge(ctx, W, H, b) {
     var cxp = b.x * W / 100, cyp = b.y * H / 100, R = b.r * W / 100;
     var st = Math.max(-0.85, Math.min(0.85, b.s || 0.45));
@@ -7361,8 +7375,7 @@ function wlv1CounselBoxHtml(note,p){
         var dx = (x0 + ix) - cxp, dy = (y0 + iy) - cyp;
         var d = Math.sqrt(dx * dx + dy * dy), o = (iy * w + ix) * 4;
         if (d >= R) { copyPx(sd, o, dd, o); continue; }
-        var t = d / R, k = 1 - t * t;
-        var f = 1 - st * k * k;                       // ভিতর থেকে টেনে বাইরে ঠেলা
+        var f = pushFactor(d / R, st);   // ফোনের AnatomyModel.pushFactor-এর হুবহু নকল
         sample(sd, w, h, cxp - x0 + dx * f, cyp - y0 + dy * f, dd, o);
       }
     }
@@ -7396,8 +7409,8 @@ function wlv1CounselBoxHtml(note,p){
     var dx = (nowPct[0] - startPct[0]), dy = (nowPct[1] - startPct[1]);
     var pull = Math.sqrt(dx * dx + dy * dy);
     return { x: startPct[0], y: startPct[1],
-             r: Math.max(3, Math.min(26, 4 + pull * 1.35)),
-             s: Math.max(0.12, Math.min(0.80, 0.16 + pull * 0.055)) };
+             r: Math.max(3, Math.min(42, 5 + pull * 2.30)),
+             s: Math.max(0.22, Math.min(BULGE_MAX, 0.30 + pull * 0.075)) };
   }
 
   /* --------- ছবির উপরে আঁকা --------- */
@@ -7415,9 +7428,11 @@ function wlv1CounselBoxHtml(note,p){
         stroke(ctx, m.pts, W, H, 'rgba(0,0,0,0.45)', w + 1.6 * s);
         stroke(ctx, m.pts, W, H, m.kind === 'tract' ? COLORS.tract : COLORS.pen, w,
                m.kind === 'tract' ? [3.4 * s, 2.4 * s] : null);
-        if (m.kind === 'tract' && opts.showCm) {
+        if (m.kind === 'tract' && opts.cmWide) {
           var last = m.pts[m.pts.length - 1];
-          chip(ctx, last[0] * W / 100 + 3 * s, last[1] * H / 100, tractCm(m.pts, opts) + ' সেমি', COLORS.tract, s);
+          var cm = tractCm(m.pts, opts.cmWide, H / W);
+          if (cm > 0) chip(ctx, last[0] * W / 100 + 3 * s, last[1] * H / 100,
+                           tractLabel(cm, !!opts.exactScale), COLORS.tract, s);
         }
       } else if (m.kind === 'ring') {
         ctx.beginPath();
@@ -7473,17 +7488,25 @@ function wlv1CounselBoxHtml(note,p){
     ctx.fillStyle = col; ctx.fillText(txt, x + 1.3 * s, y + 0.2 * s);
   }
 
-  /* নালীর লম্বা — ছবির গায়ে দেওয়া মাপকাঠি অনুযায়ী (cmPerPct) */
-  function tractCm(pts, opts) {
-    var k = (opts && opts.cmPerPct) || 0.09, sum = 0;
+  /* 🔴 V564: নালীর লম্বা কত সেমি। ⚠️ আগে x আর y দুটোকেই শতকরা ধরে যোগ করা
+     হত — ছবি চৌকো না হলে ১% চওড়া আর ১% লম্বা এক নয়, তাই লম্বাটে ছবিতে মাপ
+     ভুল আসত। এখন ছবির আকার ধরে y-টাকে চওড়ার মাপে আনা হয়।
+     ⚠️ ফোনের `AnatomyModel.tractCm()`-এর হুবহু একই অঙ্ক। */
+  function tractCm(pts, cmWide, aspect) {
+    var sum = 0;
     for (var i = 1; i < pts.length; i++) {
-      var dx = pts[i][0] - pts[i - 1][0], dy = pts[i][1] - pts[i - 1][1];
+      var dx = pts[i][0] - pts[i - 1][0];
+      var dy = (pts[i][1] - pts[i - 1][1]) * aspect;
       sum += Math.sqrt(dx * dx + dy * dy);
     }
-    return Math.round(sum * k * 10) / 10;
+    return Math.round(sum * cmWide / 100 * 10) / 10;
+  }
+  function tractLabel(cm, exact) {
+    var r = Math.round(cm * 10) / 10;
+    return (exact ? '' : '≈ ') + r + ' সেমি';
   }
 
-  root.AnatomyMark = { format: format, parse: parse, draw: draw, tractCm: tractCm,
+  root.AnatomyMark = { format: format, parse: parse, draw: draw, tractCm: tractCm, tractLabel: tractLabel,
                        bulge: bulge, bulgeFromDrag: bulgeFromDrag, COLORS: COLORS };
 })(typeof window !== 'undefined' ? window : globalThis);
 
@@ -7493,10 +7516,10 @@ function wlv1CounselBoxHtml(note,p){
    একই দাগ ফোনে ও ওয়েবে হুবহু একই লেখা হয়ে জমা হয়।
    ⛔ নতুন কলাম বা SQL লাগেনি — লেখাটা চেকআপের সাথেই জমা হয়। */
 const WLV1_ANAT_PICS=[
-  { key: "anat26", label: "হাতে আঁকা · খালি ছক" },
-  { key: "anat27", label: "৩ডি মডেল · ঘড়ির কাঁটা" },
-  { key: "anat28", label: "কাটা ছবি · নরম রং" },
-  { key: "anat29", label: "কাটা ছবি · গাঢ় রং" },
+  { cmWide: 9, exact: true, key: "anat26", label: "হাতে আঁকা · খালি ছক" },
+  { cmWide: 16.5, exact: true, key: "anat27", label: "৩ডি মডেল · ঘড়ির কাঁটা" },
+  { cmWide: 11.3, exact: true, key: "anat28", label: "কাটা ছবি · নরম রং" },
+  { cmWide: 11.3, exact: true, key: "anat29", label: "কাটা ছবি · গাঢ় রং" },
   { key: "anat01", label: "বই · পায়ুনালীর কাটা ছবি" },
   { key: "anat02", label: "বই · ফিস্টুলার ৪ ধরন" },
   { key: "anat03", label: "বই · ফিস্টুলার নকশা" },
@@ -7523,6 +7546,10 @@ const WLV1_ANAT_PICS=[
   { key: "anat24", label: "চিকিৎসার পরে" },
   { key: "anat25", label: "অপারেশনের সময়" }
 ];
+/* 🔴 V564: ছবির চওড়া কত সেমি — নালীর মাপ বার করার মাপকাঠি। আমাদের আঁকা
+   ছবিতে জানা (exact), আসল ফটোয় আন্দাজি (তখন "≈" দেখানো হয়)। */
+function wlv1AnatPic(k){for(var i=0;i<WLV1_ANAT_PICS.length;i++){if(WLV1_ANAT_PICS[i].key===k)return WLV1_ANAT_PICS[i]}return null}
+function wlv1AnatScale(){var p=wlv1AnatPic(wlv1AnatState.pic)||{};return {cmWide:p.cmWide||10,exactScale:!!p.exact}}
 function wlv1AnatLabelOf(k){for(var i=0;i<WLV1_ANAT_PICS.length;i++){if(WLV1_ANAT_PICS[i].key===k)return WLV1_ANAT_PICS[i].label}return k}
 function wlv1AnatSrc(k){return 'img/anatomy/'+k+'.jpg'}
 
@@ -7633,7 +7660,7 @@ function wlv1AnatPaint(){
   var ctx=cv.getContext('2d');
   ctx.clearRect(0,0,w,h);
   ctx.drawImage(im,0,0,w,h);
-  AnatomyMark.draw(ctx,w,h,wlv1AnatState.marks,{showCm:false});
+  AnatomyMark.draw(ctx,w,h,wlv1AnatState.marks,wlv1AnatScale());
   if(window.__wlv1BulgeBlocked){
     ctx.font='600 12px system-ui,sans-serif';ctx.textAlign='center';
     ctx.fillStyle='rgba(0,0,0,0.55)';ctx.fillRect(0,h-24,w,24);
@@ -7681,7 +7708,7 @@ function wlv1AnatMove(ev){
   wlv1AnatPaint();
   if(s.tool==='tract'&&s.live.length>1){
     var ctx=$('#dnAnatCanvas').getContext('2d'),cv=$('#dnAnatCanvas');
-    AnatomyMark.draw(ctx,cv.width,cv.height,[{kind:'tract',pts:s.live}],{});
+    AnatomyMark.draw(ctx,cv.width,cv.height,[{kind:'tract',pts:s.live}],wlv1AnatScale());
   }
 }
 function wlv1AnatUp(ev){
@@ -7734,7 +7761,7 @@ function dnWireV558(){
 window["wlv1AnatPick"]=wlv1AnatPick;window["wlv1AnatTool"]=wlv1AnatTool;
 window["wlv1AnatUndo"]=wlv1AnatUndo;window["wlv1AnatClear"]=wlv1AnatClear;window["wlv1AnatCollect"]=wlv1AnatCollect;
 window["wlv1AnatReadable"]=wlv1AnatReadable;window["wlv1AnatBoxHtml"]=wlv1AnatBoxHtml;
-window["dnWireV558"]=dnWireV558;window["wlv1AnatLabelOf"]=wlv1AnatLabelOf;
+window["dnWireV558"]=dnWireV558;window["wlv1AnatLabelOf"]=wlv1AnatLabelOf;window["wlv1AnatScale"]=wlv1AnatScale;
 
 window["wlv1DiseaseChanged"]=wlv1DiseaseChanged;window["wlv1ShouldNotifyCost"]=wlv1ShouldNotifyCost;
 window["wlv1CostMessage"]=wlv1CostMessage;window["wlv1TimeAsked"]=wlv1TimeAsked;

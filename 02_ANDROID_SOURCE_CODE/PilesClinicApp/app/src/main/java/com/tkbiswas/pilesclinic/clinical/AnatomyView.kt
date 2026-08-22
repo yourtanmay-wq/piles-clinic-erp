@@ -299,9 +299,9 @@ class AnatomyView(context: Context) : View(context) {
                 val d = Math.sqrt(dx * dx + dy * dy)
                 val o = iy * w + ix
                 if (d >= R) { out[o] = src[o]; continue }
-                val t = d / R
-                val k = 1 - t * t
-                val f = 1 - st * k * k                       // ভিতর থেকে টেনে বাইরে ঠেলা
+                // V564: ঠেলার অঙ্কটা এখন `AnatomyModel.pushFactor()`-এ — ফোন ও
+                // ওয়েব দুই জায়গায় হুবহু একই, আর পরীক্ষাও ওখানেই হয়।
+                val f = AnatomyModel.pushFactor(d / R, st)
                 out[o] = sample(src, w, h, (cx - x0 + dx * f), (cy - y0 + dy * f))
             }
         }
@@ -351,10 +351,16 @@ class AnatomyView(context: Context) : View(context) {
         if (livePts.size > 1 && (tool == Tool.TRACT || tool == Tool.PEN)) {
             strokePts(canvas, livePts, s, if (tool == Tool.TRACT) "#F0A400" else "#111111",
                       if (tool == Tool.TRACT) 2.2f else 1.4f, tool == Tool.TRACT)
+            // আঙুল টানার সময়েই মাপটা দেখা যায় — ছাড়ার অপেক্ষা করতে হয় না
+            if (tool == Tool.TRACT) drawTractCm(canvas, livePts, s)
         }
         for (m in marks) {
             when (m.kind) {
-                AnatomyModel.KIND_TRACT -> strokePts(canvas, m.pts, s, "#F0A400", 2.2f, true)
+                AnatomyModel.KIND_TRACT -> {
+                    strokePts(canvas, m.pts, s, "#F0A400", 2.2f, true)
+                    // 🔴 V564 (TK): নালী কত সেন্টিমিটার — শেষ মাথার পাশে
+                    drawTractCm(canvas, m.pts, s)
+                }
                 AnatomyModel.KIND_PEN   -> strokePts(canvas, m.pts, s, "#111111", 1.4f, false)
                 AnatomyModel.KIND_RING -> {
                     val cx = px(m.x); val cy = py(m.y); val r = (m.r / 100.0 * dst.width()).toFloat()
@@ -375,6 +381,23 @@ class AnatomyView(context: Context) : View(context) {
                 }
             }
         }
+    }
+
+    /**
+     * 🔴 V564 (TK, লাইভ টেস্ট): *"ফিস্টুলার দাগ টানলে যেন কত সেন্টিমিটার সেটা
+     * বোঝা যায় না"*। মাপটা ছবির চওড়া কত সেমি ধরে বার করা হয় — আমাদের আঁকা
+     * ছবিতে সেটা সঠিক জানা, আসল ফটোয় আন্দাজি, তাই সেখানে "≈" বসে।
+     */
+    private fun drawTractCm(canvas: Canvas, pts: List<Pair<Double, Double>>, s: Float) {
+        if (pts.size < 2) return
+        val b = base ?: return
+        val pic = AnatomyModel.pictureOf(picKey)
+        val cmWide = pic?.cmWide ?: 10.0
+        val exact = pic?.exactScale ?: false
+        val cm = AnatomyModel.tractCm(pts, cmWide, b.height.toDouble() / b.width.toDouble())
+        if (cm <= 0.0) return
+        val last = pts[pts.size - 1]
+        chip(canvas, px(last.first) + 3.4f * s, py(last.second), AnatomyModel.tractLabel(cm, exact), s)
     }
 
     private fun strokePts(canvas: Canvas, pts: List<Pair<Double, Double>>, s: Float,

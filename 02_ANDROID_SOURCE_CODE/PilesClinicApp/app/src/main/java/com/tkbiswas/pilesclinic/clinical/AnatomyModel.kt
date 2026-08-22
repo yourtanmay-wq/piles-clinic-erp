@@ -55,15 +55,51 @@ object AnatomyModel {
     const val KIND_BULGE = "bulge"
 
     /** ফোলানোর সীমা — এর বেশি টানলে ছবি ভেঙে যায়, তাই আটকানো। */
-    const val BULGE_MAX = 0.85
-    const val RADIUS_MAX = 26.0
+    const val BULGE_MAX = 0.92
+    const val RADIUS_MAX = 42.0
     const val RADIUS_MIN = 3.0
+
+    /**
+     * 🔴 V564 (TK, ২২.০৮.২০২৬ লাইভ টেস্ট): *"মাংসটা টানলে ততটা বড় হচ্ছে না,
+     * জাস্ট শুধু ফুলে যাচ্ছে — আমি তো বলেছিলাম মাংসটা বড় করতে"*।
+     *
+     * আগের অঙ্কে ঠেলাটা ছিল `1 − s·k²` (k = 1 − t²) — কেন্দ্রে জোর বেশি হলেও
+     * সেটা খুব দ্রুত কমে যেত, তাই মাঝখানটা একটু ফুলে উঠত মাত্র, **মাংসটা
+     * সত্যিকারে বড় হত না**।
+     *
+     * এখন ভিতরের প্রায় পুরোটা জুড়ে **সমান** টান, শুধু কিনারার কাছে এসে
+     * মসৃণভাবে মিলিয়ে যায় — তাই গোটা ঢিবিটাই বড় হয়, চারপাশের চামড়ার সাথে
+     * জোড়াও কাটা-কাটা লাগে না।
+     *
+     * @param t কেন্দ্র থেকে দূরত্ব ÷ ব্যাসার্ধ (০ = ঠিক মাঝখানে, ১ = কিনারা)
+     * @return যত দিয়ে গুণ করে রং তুলতে হবে (১ = কিছুই বদলাবে না)
+     */
+    fun pushFactor(t: Double, strength: Double): Double {
+        if (t >= 1.0) return 1.0
+        val flat = 0.62                       // এতটা জায়গা জুড়ে টান একই থাকে
+        val w = if (t <= flat) 1.0 else {
+            val u = 1.0 - (t - flat) / (1.0 - flat)
+            u * u * (3.0 - 2.0 * u)           // কিনারায় মসৃণভাবে শেষ
+        }
+        return 1.0 - strength.coerceIn(-BULGE_MAX, BULGE_MAX) * w
+    }
 
 
     // ─────────── ছবির তালিকা ───────────
 
     /** এক-একটা ছবি: `key` জমা হয়, `label` ডাক্তার পর্দায় দেখেন। */
-    data class Picture(val key: String, val label: String)
+    /**
+     * @param cmWide ছবিটার **চওড়া কত সেন্টিমিটার** ধরা হবে — নালীর লম্বা
+     *   মাপার জন্য এটাই মাপকাঠি।
+     *   • আমাদের নিজের আঁকা ছবিগুলোয় (anat26–anat29) মাপটা **সঠিক জানা**,
+     *     কারণ ছবিগুলো আমরাই সেন্টিমিটার হিসেবে এঁকেছি।
+     *   • বইয়ের ছবি ও চেম্বারের আসল ফটোয় মাপটা **আন্দাজি** — ক্যামেরা কত
+     *     দূর থেকে তোলা হয়েছে তা জানার উপায় নেই। তাই সেখানে সেমি-র আগে
+     *     "≈" চিহ্ন দেখানো হয়, যেন ডাক্তার বুঝতে পারেন এটা মোটামুটি হিসাব।
+     *   TK চাইলে যেকোনো ছবির আসল চওড়া বলে দিলে সেটাই বসানো হবে।
+     */
+    data class Picture(val key: String, val label: String,
+                       val cmWide: Double = 10.0, val exactScale: Boolean = false)
 
     /**
      * TK-এর পাঠানো ছবি + আমাদের নিজের আঁকা ছবি — মোট ২৯টা।
@@ -77,10 +113,10 @@ object AnatomyModel {
      * ফোনে ছবিটা `<key>` (যেমন anat01), ওয়েবে `img/anatomy/<key>.jpg`.
      */
     val PICTURES: List<Picture> = listOf(
-        Picture("anat26", "হাতে আঁকা · খালি ছক"),
-        Picture("anat27", "৩ডি মডেল · ঘড়ির কাঁটা"),
-        Picture("anat28", "কাটা ছবি · নরম রং"),
-        Picture("anat29", "কাটা ছবি · গাঢ় রং"),
+        Picture("anat26", "হাতে আঁকা · খালি ছক", cmWide = 9.0, exactScale = true),
+        Picture("anat27", "৩ডি মডেল · ঘড়ির কাঁটা", cmWide = 16.5, exactScale = true),
+        Picture("anat28", "কাটা ছবি · নরম রং", cmWide = 11.3, exactScale = true),
+        Picture("anat29", "কাটা ছবি · গাঢ় রং", cmWide = 11.3, exactScale = true),
         Picture("anat01", "বই · পায়ুনালীর কাটা ছবি"),
         Picture("anat02", "বই · ফিস্টুলার ৪ ধরন"),
         Picture("anat03", "বই · ফিস্টুলার নকশা"),
@@ -109,6 +145,7 @@ object AnatomyModel {
     )
 
     fun labelOf(key: String): String = PICTURES.firstOrNull { it.key == key }?.label ?: key
+    fun pictureOf(key: String): Picture? = PICTURES.firstOrNull { it.key == key }
 
     // ─────────── জমা করা ও পড়া ───────────
 
@@ -196,20 +233,42 @@ object AnatomyModel {
         val pull = Math.sqrt(dx * dx + dy * dy)
         return Mark(
             kind = KIND_BULGE, x = startX, y = startY,
-            r = clamp(4.0 + pull * 1.35, RADIUS_MIN, RADIUS_MAX),
-            s = clamp(0.16 + pull * 0.055, 0.12, 0.80)
+            // V564: একই টানে আগের চেয়ে অনেক বড় ফোলা — TK লাইভ টেস্টে বললেন
+            // আগেরটায় "মাংস বড় হচ্ছে না"।
+            r = clamp(5.0 + pull * 2.30, RADIUS_MIN, RADIUS_MAX),
+            s = clamp(0.30 + pull * 0.075, 0.22, BULGE_MAX)
         )
     }
 
-    /** নালীর লম্বা — ছবির গায়ের মাপকাঠি অনুযায়ী সেন্টিমিটারে। */
-    fun tractCm(pts: List<Pair<Double, Double>>, cmPerPct: Double): Double {
+    /**
+     * 🔴 V564 (TK, লাইভ টেস্ট): *"ফিস্টুলার দাগ টানলে যেন কত সেন্টিমিটার সেটা
+     * বোঝা যায় না"* — মাপটা দেখানোই হত না। এখন দেখানো হয়।
+     *
+     * ⚠️ আগের হিসাবে একটা **সত্যিকারের ভুল** ছিল: x আর y দুটোকেই শতকরা ধরে
+     * একসাথে যোগ করা হত, অথচ ছবি চৌকো না হলে ১% চওড়া আর ১% লম্বা এক জিনিস নয়।
+     * লম্বাটে ছবিতে তাই মাপ ভুল আসত। এখন ছবির আকার (উচ্চতা ÷ চওড়া) ধরে
+     * y-টাকে আগে চওড়ার হিসাবে আনা হয়।
+     *
+     * @param cmWide ছবির চওড়া কত সেন্টিমিটার
+     * @param aspect ছবির উচ্চতা ÷ চওড়া
+     */
+    fun tractCm(pts: List<Pair<Double, Double>>, cmWide: Double, aspect: Double): Double {
         var sum = 0.0
         for (i in 1 until pts.size) {
             val dx = pts[i].first - pts[i - 1].first
-            val dy = pts[i].second - pts[i - 1].second
+            val dy = (pts[i].second - pts[i - 1].second) * aspect   // লম্বাটাকে চওড়ার মাপে
             sum += Math.sqrt(dx * dx + dy * dy)
         }
-        return Math.round(sum * cmPerPct * 10.0) / 10.0
+        return Math.round(sum * cmWide / 100.0 * 10.0) / 10.0
+    }
+
+    /** পর্দায় যা লেখা হবে — জানা মাপ হলে "২.৪ সেমি", আন্দাজি হলে "≈ ২.৪ সেমি"। */
+    fun tractLabel(cm: Double, exact: Boolean): String =
+        (if (exact) "" else "≈ ") + trimZero(cm) + " সেমি"
+
+    private fun trimZero(v: Double): String {
+        val r = Math.round(v * 10.0) / 10.0
+        return if (r == Math.floor(r)) r.toLong().toString() else r.toString()
     }
 
     // ─────────── মানুষ-পড়া-যায় লেখা (প্রিন্ট ও হিস্ট্রির জন্য) ───────────
