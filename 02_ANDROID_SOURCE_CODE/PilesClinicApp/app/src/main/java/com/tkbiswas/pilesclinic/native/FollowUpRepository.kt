@@ -700,6 +700,40 @@ class FollowUpRepository(private val context: Context? = null) {
     //    ৩০ মিনিটের নিয়মিত পূর্ণ-fetch স্বয়ংক্রিয়ভাবে ঠিক করে দেয়।
     // =========================================================================
 
+    /**
+     * 🔵🔴🔒 V518 (২২.০৮.২০২৬, TK-অনুমোদিত) — **এক নম্বরে একাধিক রোগী হলে
+     * Follow-up ট্যাবেও প্রত্যেকে আলাদা।**
+     *
+     * এই পর্দায় তিন জায়গায় **মোবাইল ধরে** একত্র/বাদ দেওয়া হয় —
+     *   (১) উঁচু ধাপে চলে গেলে নিচের ট্যাব থেকে বাদ,
+     *   (২) একই ট্যাবে একই নম্বর একবারই,
+     *   (৩) কার্ডের bill · Patient ID · ঠিকানা · বয়স জোড়া লাগানো।
+     * এক পরিবারে দুজন রোগী হলে এতে স্ত্রী নিজের ট্যাব থেকে **উধাও** হয়ে
+     * যেতেন, আর কার্ডে **স্বামীর** বিল/Patient ID বসে যেত।
+     *
+     * **সমাধান — "পরিচয়ের চাবি":** followups সারির `refId`-ই বলে দেয় সারিটা
+     * কার। কিন্তু সেটা অন্ধভাবে ব্যবহার করা যাবে না — ভুল করে একই রোগীর
+     * দুটো রেজিস্ট্রেশন হয়ে থাকলে `refId` পরিত্যক্ত সারিটাকেও দেখাতে পারে,
+     * আর তাতে খাতার সারি **V143**-এর সুরক্ষা ভাঙত।
+     *
+     * তাই V516/V517-এর **একই প্রমাণিত চিহ্ন**: স্টাফ নিজে বেছে "Different
+     * Patient — Same Mobile" চাপলে তবেই রোগীর আইডি হয়
+     * `pat_<১০ সংখ্যা>_<...>` ধাঁচের। অন্য কোনো পথে এই ধাঁচ তৈরি হয় না।
+     *   · এই ধাঁচ ⇒ চাবি হবে **ওই রোগীর নিজের আইডি** (আলাদা মানুষ)
+     *   · বাকি সব ⇒ চাবি **আগের মতোই মোবাইল** (একটুও বদলায়নি)
+     */
+    private fun isDeclaredSeparatePatientId(rowId: String, mobileDigits: String): Boolean {
+        if (mobileDigits.length != 10) return false
+        val prefix = "pat_" + mobileDigits + "_"
+        return rowId.startsWith(prefix) && rowId.length > prefix.length
+    }
+
+    /** এই Follow-up সারিটা কার — আলাদা রোগী হলে তাঁর আইডি, নইলে মোবাইল। */
+    private fun identityKey(refId: String, mobileRaw: String): String {
+        val m = digits(mobileRaw)
+        return if (isDeclaredSeparatePatientId(refId, m)) refId else m
+    }
+
     private fun loadCachedArray(key: String): JSONArray {
         val sp = deltaPrefs() ?: return JSONArray()
         return try {
@@ -1373,7 +1407,7 @@ class FollowUpRepository(private val context: Context? = null) {
         // stage=Inquiry (i.e. not yet converted/closed) and add any whose
         // mobile isn't already represented above.
         if (stage == "Inquiry") {
-            val presentMobiles = items.map { digits(it.mobile) }.toHashSet()
+            val presentMobiles = items.map { identityKey(it.refId, it.mobile) }.toHashSet()  // 🔵 V518: পরিচয় ধরে (একজন রোগী হলে এটা মোবাইলই)
             // TK-FOUND RISK (2026-07-18), fixed before this could ever ship:
             // Reject/Incomplete (updateStatus above) only ever updates the
             // "followups" row's status -- it NEVER touches the "enquiries"
@@ -1634,13 +1668,26 @@ class FollowUpRepository(private val context: Context? = null) {
             } else {
                 for (i in 0 until cloudHigherOrNull.length()) higher.put(cloudHigherOrNull.getJSONObject(i))
             }
-            val higherMobiles = HashSet<String>()
+            /* 🔵🔒 V518: চাবি এখন "পরিচয়" — আলাদা রোগী হলে তাঁর নিজের আইডি,
+               নইলে আগের মতোই মোবাইল। ⇒ স্বামী Treatment-এ চলে গেলে স্ত্রী
+               আর ভুল করে Visit ট্যাব থেকে বাদ পড়েন না।
+               ⛔ একজন রোগীর ক্ষেত্রে দুটো চাবিই মোবাইল — আচরণ অবিকল আগের। */
+            val higherKeys = HashSet<String>()
             for (i in 0 until higher.length()) {
-                val m = digits(higher.getJSONObject(i).s("mobile"))
-                if (m.isNotEmpty()) higherMobiles.add(m)
+                val h = higher.getJSONObject(i)
+                val hm = digits(h.s("mobile"))
+                if (hm.isNotEmpty()) higherKeys.add(hm)
+                /* উঁচু-ধাপের সারিটা যদি ঘোষিত আলাদা রোগীর হয়, তাঁর নিজের
+                   চাবিটাও ধরা হয় — নইলে তিনি দুই ট্যাবে একসঙ্গে থাকতেন। */
+                val hRef = h.s("refId")
+                if (hRef.isNotBlank() && isDeclaredSeparatePatientId(hRef, hm)) higherKeys.add(hRef)
+                /* payments থেকে আসা fallback সারিতে `refId` থাকে না, কিন্তু
+                   `patientId` ঘরে রোগীর row id থাকে — সেটাও চাবি। */
+                val hPid = h.s("patientId")
+                if (hPid.isNotBlank() && isDeclaredSeparatePatientId(hPid, hm)) higherKeys.add(hPid)
             }
-            if (higherMobiles.isNotEmpty()) {
-                val kept = items.filter { digits(it.mobile) !in higherMobiles }
+            if (higherKeys.isNotEmpty()) {
+                val kept = items.filter { identityKey(it.refId, it.mobile) !in higherKeys }
                 items.clear(); items.addAll(kept)
             }
         }
@@ -1648,9 +1695,11 @@ class FollowUpRepository(private val context: Context? = null) {
         // একই ট্যাবে একই নম্বর একবারই — সবচেয়ে নতুন রেকর্ডটা রাখো, বাকিগুলো বাদ।
         run {
             val seen = HashSet<String>()
+            /* 🔵🔒 V518: "একই নম্বর একবারই" → "একই **রোগী** একবারই"।
+               ⛔ একজন রোগীর ক্ষেত্রে চাবিটা মোবাইলই — নিয়ম হুবহু আগের মতোই। */
             val dedup = ArrayList<FollowUpItem>()
             items.sortedByDescending { it.recordDate }.forEach { r ->
-                val m = digits(r.mobile)
+                val m = identityKey(r.refId, r.mobile)
                 if (m.isNotEmpty() && seen.contains(m)) return@forEach
                 if (m.isNotEmpty()) seen.add(m)
                 dedup.add(r)
@@ -1751,11 +1800,24 @@ class FollowUpRepository(private val context: Context? = null) {
             // rows at once instead of depending on the order Supabase returned.
             // With a single row per person (the normal case) every value below is
             // exactly what it was before.
+            /* 🔵🔴🔒 V518: ঘোষিত আলাদা রোগীরা (স্বামী/স্ত্রী) নিচের মোবাইল-ম্যাপে
+               ঢোকেন **না** — তাঁদের তথ্য নিজের আইডি ধরে আলাদা রাখা হয়।
+               ⛔ নইলে দুটো ক্ষতি হত: (ক) স্ত্রীর কার্ডে স্বামীর বিল/Patient ID
+                  বসত, আর (খ) `pickPatientRow` স্ত্রীর সারিটাকেই বেছে নিয়ে
+                  **স্বামীর** কার্ডেও ভুল তথ্য বসিয়ে দিতে পারত।
+               ⛔ একজন রোগীর ক্ষেত্রে এই তালিকা ফাঁকা — নিচের সব হিসাব
+                  হুবহু আগের মতোই চলে, `pickPatientRow`-ও অপরিবর্তিত। */
+            val declaredById = HashMap<String, JSONObject>()
+            /** যে নম্বরে অন্তত একজন ঘোষিত আলাদা রোগী আছেন — সেখানে মোবাইল-ভিত্তিক
+             *  টাকার সেফটি-নেট আর নির্ভরযোগ্য নয় (নিচে দেখুন)। */
+            val mobilesWithDeclared = HashSet<String>()
             val followUpRowsByMobile = HashMap<String, JSONArray>()
             for (i in 0 until patients.length()) {
                 val p = patients.getJSONObject(i)
                 val m = digits(p.s("mobile"))
                 if (m.isEmpty()) continue
+                val rid = p.s("id")
+                if (isDeclaredSeparatePatientId(rid, m)) { declaredById[rid] = p; mobilesWithDeclared.add(m); continue }
                 followUpRowsByMobile.getOrPut(m) { JSONArray() }.put(p)
             }
             for ((m, rows) in followUpRowsByMobile) {
@@ -1838,7 +1900,7 @@ class FollowUpRepository(private val context: Context? = null) {
             // above) gets a fallback entry synthesized directly from the
             // patients row, so a patient can never be invisible here.
             if (stage == "Patient") {
-                val presentMobiles = items.map { digits(it.mobile) }.toHashSet()
+                val presentMobiles = items.map { identityKey(it.refId, it.mobile) }.toHashSet()  // 🔵 V518: পরিচয় ধরে (একজন রোগী হলে এটা মোবাইলই)
                 // TK-FOUND RISK (2026-07-18), fixed before this could ever
                 // ship: this fallback only checked the "patients" table, so
                 // it could wrongly resurrect (a) an already-Rejected visit
@@ -1924,7 +1986,11 @@ class FollowUpRepository(private val context: Context? = null) {
                 for (i in 0 until patients.length()) {
                     val p = patients.getJSONObject(i)
                     val m = digits(p.s("mobile"))
-                    if (m.isEmpty() || presentMobiles.contains(m) || excludeMobiles.contains(m)) continue
+                    /* 🔵 V518: এই রোগীর নিজের চাবি — ঘোষিত আলাদা রোগী হলে তাঁর
+                       আইডি, নইলে মোবাইল। ⇒ স্বামী তালিকায় আছেন বলে স্ত্রী আর
+                       বাদ পড়েন না। ⛔ একজন রোগী হলে চাবিটা মোবাইলই — আচরণ অবিকল আগের। */
+                    val pKey = identityKey(p.s("id"), m)
+                    if (m.isEmpty() || presentMobiles.contains(pKey) || excludeMobiles.contains(m)) continue
                     val pBranch = p.s("branch")
                     // TK-ORDER (2026-07-25): branch only, no creator exception.
                     val visible = allBranch || branchAllows(pBranch, p.s("patientId"), branchFilter)
@@ -2028,7 +2094,7 @@ class FollowUpRepository(private val context: Context? = null) {
             // Treatment/Advance payment recorded (paidByPid > 0) but not
             // yet showing here gets a fallback Treatment entry too.
             if (stage == "Treatment") {
-                val presentMobiles = items.map { digits(it.mobile) }.toHashSet()
+                val presentMobiles = items.map { identityKey(it.refId, it.mobile) }.toHashSet()  // 🔵 V518: পরিচয় ধরে (একজন রোগী হলে এটা মোবাইলই)
                 // TK-FOUND RISK (2026-07-18): a patient marked "Incomplete"
                 // (moved to Draft's Incomplete Patient list) genuinely has
                 // paidByPid > 0 (they DID pay something before treatment
@@ -2068,7 +2134,8 @@ class FollowUpRepository(private val context: Context? = null) {
                 for (i in 0 until patients.length()) {
                     val p = patients.getJSONObject(i)
                     val m = digits(p.s("mobile"))
-                    if (m.isEmpty() || presentMobiles.contains(m) || incompleteMobiles.contains(m)) continue
+                    val pKey = identityKey(p.s("id"), m)   // 🔵 V518 — উপরের একই নিয়ম
+                    if (m.isEmpty() || presentMobiles.contains(pKey) || incompleteMobiles.contains(m)) continue
                     val pid = p.s("id")
                     // See the paidByMobileFallback comment above: id-match
                     // first (exactly as before), mobile-match only as a
@@ -2146,8 +2213,14 @@ class FollowUpRepository(private val context: Context? = null) {
 
             for (idx in items.indices) {
                 val m = digits(items[idx].mobile)
-                val cloudBill = billByMobile[m]
-                val pid = idByMobile[m] ?: ""
+                /* 🔵🔒 V518: এই কার্ডটা ঘোষিত আলাদা রোগীর হলে তাঁর **নিজের**
+                   সারি থেকে সব নেওয়া হয় — বিল · Patient ID · ঠিকানা · বয়স ·
+                   লিঙ্গ · রোগ · নাম · ব্রাঞ্চ।
+                   ⛔ নইলে `own` null, আর নিচের প্রতিটা লাইন **হুবহু আগের
+                      মোবাইল-ম্যাপ** থেকেই পড়ে — একটুও বদলায়নি। */
+                val own = declaredById[items[idx].refId]
+                val cloudBill = if (own != null) own.optDouble("bill", 0.0) else billByMobile[m]
+                val pid = (if (own != null) own.s("id") else idByMobile[m]) ?: ""
                 // TK-REQUESTED (2026-07-27), ধাপ ২: a payment can be filed
                 // under EITHER the patients row id (this app) or the human
                 // Patient ID code (the web app's Chamber screen). Only the
@@ -2156,7 +2229,7 @@ class FollowUpRepository(private val context: Context? = null) {
                 // showed too high. The two buckets are separate (one payment
                 // row carries one identity), so adding them can never count
                 // the same payment twice.
-                val pcode = patientCodeByMobile[m].orEmpty()
+                val pcode = (if (own != null) own.s("patientId") else patientCodeByMobile[m].orEmpty())
                 val paidByCode = if (pcode.isNotBlank() && pcode != pid) (paidByPid[pcode] ?: 0.0) else 0.0
                 val cloudPaid = (paidByPid[pid] ?: 0.0) + paidByCode
                 val bill = maxOf(cloudBill ?: 0.0, items[idx].bill)
@@ -2177,25 +2250,44 @@ class FollowUpRepository(private val context: Context? = null) {
                 // and attendance marks skipped), so this adds no request and can
                 // never count a payment twice -- it only refuses to show LESS
                 // than what was really taken.
-                val paidByMobile = paidByMobileFallback[m] ?: 0.0
+                /* 🔴🔴🔒 V518 (২২.০৮.২০২৬) — **টাকা কখনো মিশতে পারবে না।**
+                   উপরের মন্তব্যে লেখা আছে *"by TK's locked rule ONE MOBILE =
+                   ONE REGISTRATION, so every non-fee payment on this mobile is
+                   this patient's own"* — V516-এর পরে **সেই ধরে-নেওয়াটা আর সত্যি
+                   নয়**। এক নম্বরে স্বামী ও স্ত্রী থাকলে `paidByMobileFallback`
+                   দুজনের টাকা একসঙ্গে যোগ করত ⇒ দুজনেরই Paid বেশি, Due কম দেখাত।
+
+                   তাই যে নম্বরে ঘোষিত আলাদা রোগী আছেন, সেখানে মোবাইল-ভিত্তিক
+                   সেফটি-নেটটা **ব্যবহার করা হয় না** — তখন হিসাব হয় রোগীর নিজের
+                   আইডি ধরে (`cloudPaid`), যেটা পুরোপুরি সঠিক (V516-এ প্রমাণিত:
+                   প্রত্যেকের Visit Fee তাঁর নিজের row id-তেই বসে)।
+                   ⛔ followups সারির নিজের `paid` floor আগের মতোই থাকে — ওটা
+                      প্রতি-সারি, তাই কখনো মেশে না, আর "কম দেখানো"র ঝুঁকিও নেই।
+                   ⛔ সাধারণ নম্বরে (একজন রোগী) `mixedMobile` false ⇒ **হুবহু
+                      আগের আচরণ**, সেফটি-নেট অক্ষত। */
+                val mixedMobile = (own != null) || mobilesWithDeclared.contains(m)
+                val paidByMobile = if (mixedMobile) 0.0 else (paidByMobileFallback[m] ?: 0.0)
                 // 🔴🔴 TK-REPORTED FIX (01.08.2026): `items[idx].paid` (এই ফোনের
                 // স্থানীয় floor) Refund-অন্ধ, তাই যার approved refund আছে তার
                 // জন্য এই floor বাদ — শুধু live payments থেকে সঠিকভাবে
                 // (refund-বিয়োগ সহ) হিসাব-করা দুটো সংখ্যাই ব্যবহার হয়। Refund
                 // নেই এমন সবার জন্য আগের সেফটি-নেট (কখনো কম না দেখানো) অক্ষত।
+                /* 🔵 V518: মিশ্র নম্বরে "এই নম্বরে refund আছে" দিয়ে বিচার করা
+                   যায় না — refund কার তা বলা যায় না। তখন শুধু রোগীর নিজের
+                   আইডি ধরেই দেখা হয়। ⛔ সাধারণ নম্বরে আগের মতোই দুটোই। */
                 val refundExists = (pid.isNotEmpty() && hasApprovedRefundByPid.contains(pid)) ||
-                    hasApprovedRefundByMobile.contains(m)
+                    (!mixedMobile && hasApprovedRefundByMobile.contains(m))
                 val paid = if (refundExists) maxOf(cloudPaid, paidByMobile)
                     else maxOf(cloudPaid, paidByMobile, items[idx].paid)
                 items[idx] = items[idx].copy(
                     bill = bill,
                     paid = paid,
-                    patientId = patientCodeByMobile[m].orEmpty().ifBlank { items[idx].patientId },
-                    address = addressByMobile[m].orEmpty().ifBlank { items[idx].address },
+                    patientId = (if (own != null) own.s("patientId") else patientCodeByMobile[m].orEmpty()).ifBlank { items[idx].patientId },
+                    address = (if (own != null) own.s("address") else addressByMobile[m].orEmpty()).ifBlank { items[idx].address },
                     age = ageByMobile[m].orEmpty().ifBlank { items[idx].age },
                     sex = sexByMobile[m].orEmpty().ifBlank { items[idx].sex },
                     disease = diseaseByMobile[m].orEmpty().ifBlank { items[idx].disease },
-                    name = nameByMobile[m].orEmpty().ifBlank { items[idx].name },
+                    name = (if (own != null) own.s("name") else nameByMobile[m].orEmpty()).ifBlank { items[idx].name },
                     branch = branchByMobile[m].orEmpty().ifBlank { items[idx].branch },
                     hasApprovedRefund = refundExists,
                     refundManuallyRestored = refundRestoredByMobile.containsKey(m)

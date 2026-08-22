@@ -78,7 +78,17 @@ data class FollowUpItem(
     // থেকে হাতে করে Patient কার্ডে ফেরত আনা হলে (নতুন টাকা জমা ছাড়াই) —
     // এটা true হয়, তখন উপরের hasApprovedRefund থাকলেও Patient ট্যাব থেকে
     // আর বাদ পড়ে না। ডিফল্ট false — পুরনো কোনো constructor-call ভাঙে না।
-    val refundManuallyRestored: Boolean = false
+    val refundManuallyRestored: Boolean = false,
+    /**
+     * 🔵🔒 V518 (২২.০৮.২০২৬, TK-অনুমোদিত): followups সারির `refId` — অর্থাৎ
+     * এই সারিটা **কোন রোগীর** (Patient/Visit/Treatment-এ এটা রোগীর row id;
+     * Enquiry-তে এনকোয়ারির id)।
+     * এক মোবাইলে একাধিক রোগী থাকলে (স্বামী/স্ত্রী) এটা দিয়েই কার তালিকা,
+     * কার বিল, কার Patient ID — সব আলাদা রাখা হয়।
+     * ⛔ ডিফল্ট ফাঁকা — তাই এই ক্লাস তৈরি করা পুরোনো কোনো জায়গা বদলাতে
+     *    হয়নি, আর ফাঁকা থাকলে আচরণ **হুবহু আগের মতোই** (মোবাইল ধরে)।
+     */
+    val refId: String = ""
 )
 
 object FollowUpModel {
@@ -86,6 +96,7 @@ object FollowUpModel {
         if (row.isNull(key)) "" else row.optString(key, "")
 
     fun parse(row: JSONObject): FollowUpItem = FollowUpItem(
+        refId = s(row, "refId"),
         id = s(row, "id"),
         name = s(row, "name"),
         mobile = s(row, "mobile"),

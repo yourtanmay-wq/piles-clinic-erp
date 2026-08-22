@@ -5251,13 +5251,32 @@ window.followStats=followStats;
    ══════════════════════════════════════════════════════════════════════════ */
 /* একই মানুষ দুই ভাগে থাকলে **একবারই** — উঁচু ধাপ জেতে (ফোনের নিয়ম:
    Treatment > Patient > Inquiry)। ⛔ যে একবার আছে সে কখনো বাদ পড়ে না। */
+/* 🔵🔴🔒 V518 (২২.০৮.২০২৬, TK-অনুমোদিত) — **এক নম্বরে একাধিক রোগী হলে
+   Follow-up তালিকাতেও প্রত্যেকে আলাদা।** (ফোনের `FollowUpRepository`-র
+   হুবহু একই নিয়ম।)
+
+   এই একত্র-করা নিয়মটা একটা **ভালো কাজ**: একই মানুষ Inquiry ও Patient —
+   দুই ধাপে থাকলে একবারই দেখানো হয় (উঁচু ধাপ জেতে)। সেটা ভাঙা হয়নি।
+
+   শুধু একটা ছাড়: V516-এ স্টাফ নিজে বেছে "Different Patient — Same Mobile"
+   চাপলে তবেই রোগীর আইডি হয় `pat_<১০ সংখ্যা>_<...>` ধাঁচের, আর followups
+   সারির `refId`-তে সেটাই বসে। অন্য কোনো পথে এই ধাঁচ তৈরি হয় না।
+   ⇒ তখন চাবি হয় **ওই রোগীর নিজের আইডি**, নইলে আগের মতোই মোবাইল।
+   ⛔ একজন রোগীর ক্ষেত্রে চাবিটা মোবাইলই — আচরণ এক অক্ষরও বদলায়নি। */
+function wlv1FuIdentityKey(x){
+  var m=mob(x&&x.mobile);
+  var ref=String((x&&x.refId)||'');
+  var pfx='pat_'+m+'_';
+  return (m.length===10 && ref.indexOf(pfx)===0 && ref.length>pfx.length) ? ref : m;
+}
+window["wlv1FuIdentityKey"]=wlv1FuIdentityKey;
 function wlv1FuDedupeAcrossStages(rows){
   var rank={Treatment:3,Patient:2,Inquiry:1};
   var byId=new Set(), best=new Map(), loose=[];
   (rows||[]).forEach(function(x){
     var id=String((x&&x.id)||'');
     if(id){ if(byId.has(id)) return; byId.add(id); }
-    var m=mob(x&&x.mobile);
+    var m=wlv1FuIdentityKey(x);
     if(!m){ loose.push(x); return; }
     var cur=best.get(m);
     if(!cur || (rank[String(x.stage||'')]||0) > (rank[String(cur.stage||'')]||0)) best.set(m,x);
@@ -10592,9 +10611,22 @@ window["v266PatientByFollow"]=v266PatientByFollow;
     function v266PatientIdForFollow(x){let p=v266PatientByFollow(x);return p?p.id:''}
 window["v266PatientIdForFollow"]=v266PatientIdForFollow;
 
+    /* 🔴🔵🔒 V518 (২২.০৮.২০২৬, TK-অনুমোদিত) — **টাকা কখনো মিশতে পারবে না।**
+       নিচের মোবাইল-ভিত্তিক fallback-টা বসানো হয়েছিল "এক মোবাইল = এক
+       রেজিস্ট্রেশন" ধরে নিয়ে। V516-এর পরে সেটা আর সত্যি নয় — এক নম্বরে
+       স্বামী ও স্ত্রী থাকলে ওই fallback **অন্যজনের টাকা** দেখিয়ে দিত
+       (বিশেষত যাঁর নিজের নামে এখনো কোনো পেমেন্ট নেই, তাঁর ক্ষেত্রে)।
+       ⇒ ঘোষিত আলাদা রোগীর হিসাব **শুধু তাঁর নিজের আইডি ধরে**।
+       ⛔ সাধারণ রোগীর ক্ষেত্রে fallback হুবহু আগের মতোই আছে। */
+    function v266IsDeclaredSeparatePatient(p){
+      var id=String((p&&p.id)||''), m=mob(p&&p.mobile), pfx='pat_'+m+'_';
+      return m.length===10 && id.indexOf(pfx)===0 && id.length>pfx.length;
+    }
+    window["v266IsDeclaredSeparatePatient"]=v266IsDeclaredSeparatePatient;
     function v266TreatmentPaidForPatient(p){
       if(!p)return 0;
       let c=_getFollowLookupCache();
+      if(v266IsDeclaredSeparatePatient(p)) return (p.id&&c.paidByPatientId.get(p.id))||0;
       return (p.id&&c.paidByPatientId.get(p.id))||(p.mobile&&c.paidByMobile.get(mob(p.mobile)))||0;
     }
 window["v266TreatmentPaidForPatient"]=v266TreatmentPaidForPatient;
@@ -10602,7 +10634,11 @@ window["v266TreatmentPaidForPatient"]=v266TreatmentPaidForPatient;
       let map=new Map();
       (Array.isArray(rows)?rows:[]).filter(Boolean).forEach(r=>{
         let mm=mob(r.mobile),p=v266PatientByFollow(r),pid=p?.id||r.patientDbId||r.convertedPatientId||r.refId||'';
-        let key=[String(r.stage||''),mm||pid].join('|');
+        /* 🔵🔒 V518: চাবি ছিল **মোবাইল আগে** — তাই এক নম্বরে দুজন রোগী একই
+           ধাপে থাকলে একজন চাপা পড়ে যেতেন। এখন ঘোষিত আলাদা রোগী হলে চাবি
+           তাঁর নিজের আইডি। ⛔ একজন রোগী হলে চাবি আগের মতোই মোবাইল। */
+        let idKey=(p&&v266IsDeclaredSeparatePatient(p))?p.id:(wlv1FuIdentityKey(r)||mm);
+        let key=[String(r.stage||''),idKey||mm||pid].join('|');
         let old=map.get(key);
         if(!old || rowStamp(r)>=rowStamp(old))map.set(key,{...old,...r,id:old?.id||r.id,history:[...(old?.history||[]),...(r.history||[])]});
       });
