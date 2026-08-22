@@ -7452,7 +7452,17 @@ function wlv1CounselBoxHtml(note,p){
   function bulgeFromDrag(startPct, nowPct, W, H) {
     var dx = (nowPct[0] - startPct[0]), dy = (nowPct[1] - startPct[1]);
     var pull = Math.sqrt(dx * dx + dy * dy);
-    return { x: startPct[0], y: startPct[1],
+    /* 🔴🔒 V568 — নিজের যাচাইয়ে ধরা পড়া **আসল বাগ** (V558 থেকেই ছিল):
+       এখানে `kind` লেখাই হত না। ফোনের `AnatomyModel.bulgeFromDrag()` ঠিক
+       `kind = KIND_BULGE` বসায়, ওয়েবে বসত না। তাতে তিনটে ক্ষতি হচ্ছিল —
+         ১. `draw()` "kind==='bulge'" খোঁজে, তাই টেনে বানানো ফোলাটা **আঁকাই
+            হত না** — পর্দায় কিছুই বদলাত না।
+         ২. আঙুল নড়লেই আগেরটা সরানোর হিসাবও "kind==='bulge'" দেখে, তাই
+            প্রতিটা নড়ায় **নতুন একটা ফোলা জমত** — এক টানে ১১টা পর্যন্ত।
+         ৩. জমা করার সময় `format()`-এর শেষ ধাপে গিয়ে ওটা **`pile:` হিসেবে
+            লেখা হত** — অর্থাৎ ভুল তথ্য সেভ হত।
+       এখন ফোনের সঙ্গে হুবহু এক। */
+    return { kind: 'bulge', x: startPct[0], y: startPct[1],
              r: Math.max(3, Math.min(42, 5 + pull * 2.30)),
              s: Math.max(0.22, Math.min(BULGE_MAX, 0.30 + pull * 0.075)) };
   }

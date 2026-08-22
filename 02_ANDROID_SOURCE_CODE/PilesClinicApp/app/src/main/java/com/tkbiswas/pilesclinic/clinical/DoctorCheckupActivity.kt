@@ -1727,18 +1727,36 @@ class DoctorCheckupActivity : AppCompatActivity() {
      * সারিতে। এতে ছোট ফোনেও একটাও বোতাম আড়ালে থাকে না।
      */
     private fun layoutToolChips(box: android.widget.LinearLayout, chips: List<TextView>) {
+        placeToolChips(box, chips, (resources.displayMetrics.widthPixels - symDp(56)).coerceAtLeast(symDp(200)))
+        /* 🔴 V568 (TK-এর লাইভ টেস্টের ছবিতে ধরা পড়ল): "⭕ গোল" বোতামটা পর্দার
+           ডান কিনারায় **কেটে যাচ্ছিল** — লেখাটা দু'লাইনে নেমে গিয়েছিল।
+           কারণ: সারিতে কটা বোতাম ধরবে সেটা হিসাব হত **পর্দার চওড়া** ধরে,
+           কিন্তু বোতামের ঘরটা তার চেয়ে সরু (কার্ডের পাশে ফাঁক আছে)। V567-এ
+           "🔍 পুরো পর্দা" যোগ হওয়ায় ভুলটা চোখে পড়ার মতো হয়ে গেল।
+           এখন ঘরটার **আসল চওড়া** জানা গেলে আবার সাজানো হয় — তাই কোনো ফোনেই
+           একটা বোতামও কাটা যাবে না। ⛔ বোতাম বা কাজ কিছুই বদলায়নি। */
+        box.post {
+            val real = box.width - box.paddingLeft - box.paddingRight
+            if (real > symDp(120)) placeToolChips(box, chips, real)
+        }
+    }
+
+    /** বোতামগুলো `avail` চওড়ার মধ্যে সারি ভাগ করে বসায়। */
+    private fun placeToolChips(box: android.widget.LinearLayout, chips: List<TextView>, avail: Int) {
+        for (chip in chips) (chip.parent as? android.view.ViewGroup)?.removeView(chip)
         box.removeAllViews()
-        val avail = (resources.displayMetrics.widthPixels - symDp(56)).coerceAtLeast(symDp(200))
         var row = newToolRow(); var used = 0
         for (chip in chips) {
             chip.measure(android.view.View.MeasureSpec.UNSPECIFIED, android.view.View.MeasureSpec.UNSPECIFIED)
             val w = chip.measuredWidth + symDp(6)
-            if (used > 0 && used + w > avail) { box.addView(row); row = newToolRow(); used = 0 }
+            // একটু হাতে রাখা হয় (৪dp), নইলে ঠিক কিনারায় গিয়ে বোতামটা চেপে যেত
+            if (used > 0 && used + w > avail - symDp(4)) { box.addView(row); row = newToolRow(); used = 0 }
             val lp = android.widget.LinearLayout.LayoutParams(
                 android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
                 android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
             lp.setMargins(0, 0, symDp(6), symDp(6))
             chip.layoutParams = lp
+            chip.setSingleLine(true)          // লেখা কখনো দু'লাইনে নামবে না
             row.addView(chip); used += w
         }
         if (row.childCount > 0) box.addView(row)
