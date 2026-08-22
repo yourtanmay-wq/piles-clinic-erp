@@ -7005,7 +7005,13 @@ function doctorCheck(id){
  if(!p)return toast('Patient not found');
  let last=(load('medical').filter(x=>x.patientId===id&&x.type==='checkup').sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')))[0]||{});
  let note=p.doctorFullNote||last.doctorFullNote||{};
- let chk=(arr,val)=>Array.isArray(arr)&&arr.includes(val)?'checked':'';
+ let chk=(arr,val)=>Array.isArray(arr)&&arr.includes(val)?'checked':''
+/* 🔵🔒 V541 (২২.০৮.২০২৬, TK-নির্দেশ: "Fistula Per CM (centimetre) করুন")
+   ⛔ পুরোনো রেকর্ডে সেভ আছে "Fistula Per ইঞ্চি" (ওয়েব) বা "Fistula Per Inch"
+      (ফোন)। নতুন মান "Fistula Per CM"। এই ছোট helper তিনটেই মেনে নেয়, তাই
+      **আগের প্রতিটা চেকআপে টিকটা আগের মতোই বসে থাকে**। */
+wlv1ChkFistula=(arr)=>Array.isArray(arr)&&['Fistula Per CM','Fistula Per Inch','Fistula Per \u0987\u099e\u09cd\u099a\u09bf'].some(v=>arr.includes(v))?'checked':'';
+window["wlv1ChkFistula"]=wlv1ChkFistula;;
  let val=(k,fb='')=>esc((note&&note[k])??(p&&p[k])??fb??'');
  let complaint=p.complaint||p.diagnosis||p.disease||'';
  let duration=p.sinceWhen||p.duration||'';
@@ -7051,7 +7057,7 @@ function doctorCheck(id){
   <label>Treatment Plan · কীভাবে চিকিৎসা করা হবে</label>
   <div class="checkGrid premiumChecks wlv1TxPlan">
    <label class="wlv1TxRow"><input class="dnTxPlan" type="checkbox" value="Per Piles" ${chk(note.treatmentPlan,'Per Piles')}> Per Piles <span class="wlv1TxAmt">₹ <input id="dnAmtPerPiles" class="input wlv1TxAmtInput" inputmode="numeric" value="${val('amtPerPiles','8000')}"></span></label>
-   <label class="wlv1TxRow"><input class="dnTxPlan" type="checkbox" value="Fistula Per ইঞ্চি" ${chk(note.treatmentPlan,'Fistula Per ইঞ্চি')}> Fistula Per ইঞ্চি <span class="wlv1TxAmt">₹ <input id="dnAmtFistulaInch" class="input wlv1TxAmtInput" inputmode="numeric" value="${val('amtFistulaPerInch','11000')}"></span></label>
+   <label class="wlv1TxRow"><input class="dnTxPlan" type="checkbox" value="Fistula Per CM" ${wlv1ChkFistula(note.treatmentPlan)}> Fistula Per CM <span class="wlv1TxAmt">₹ <input id="dnAmtFistulaInch" class="input wlv1TxAmtInput" inputmode="numeric" value="${val('amtFistulaPerInch','11000')}"></span></label>
    <label class="wlv1TxRow"><input class="dnTxPlan" type="checkbox" value="মেশিন দিয়ে কাজ হবে · Machine Treatment" ${chk(note.treatmentPlan,'মেশিন দিয়ে কাজ হবে · Machine Treatment')}> মেশিন দিয়ে কাজ হবে · Machine Treatment</label>
    <label class="wlv1TxRow"><input class="dnTxPlan" type="checkbox" value="Per ক্ষারসূত্র হিসাবে চিকিৎসা · Kshar Sutra" ${chk(note.treatmentPlan,'Per ক্ষারসূত্র হিসাবে চিকিৎসা · Kshar Sutra')}> Per ক্ষারসূত্র হিসাবে চিকিৎসা · Kshar Sutra <span class="wlv1TxAmt">₹ <input id="dnAmtKsharSutra" class="input wlv1TxAmtInput" inputmode="numeric" value="${val('amtKsharSutra','6000')}"></span></label>
    <label class="wlv1TxRow"><input class="dnTxPlan" type="checkbox" value="LIS-এর মাধ্যমে চিকিৎসা করা হবে" ${chk(note.treatmentPlan,'LIS-এর মাধ্যমে চিকিৎসা করা হবে')}> LIS-এর মাধ্যমে চিকিৎসা করা হবে</label>
@@ -13235,7 +13241,7 @@ function wlv1CheckupA4Fields(n){
   var plan=Array.isArray(n.treatmentPlan)?n.treatmentPlan:(n.treatmentPlan?[n.treatmentPlan]:[]);
   var rateBits=[];
   if(plan.some(function(x){return /piles|অর্শ/i.test(x)}))rateBits.push('Per Piles ₹'+(n.amtPerPiles||'8000'));
-  if(plan.some(function(x){return /fistula|ভগন্দর/i.test(x)}))rateBits.push('Per Inch ₹'+(n.amtFistulaPerInch||'11000'));
+  if(plan.some(function(x){return /fistula|ভগন্দর/i.test(x)}))rateBits.push('Per CM ₹'+(n.amtFistulaPerInch||'11000'))   /* 🔵 V541 */;
   if(plan.some(function(x){return /kshar|ক্ষার/i.test(x)}))rateBits.push('Kshar Sutra ₹'+(n.amtKsharSutra||'6000'));
   return {
     complaint:n.complaint||'', duration:n.duration||'', occupation:n.occupation||'',

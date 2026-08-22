@@ -747,6 +747,10 @@ object NoBengali {
         // বদলানো হলো (ঠিক DoctorCheckupActivity.kt-এর নতুন cb.tag-এর
         // মানের সাথে মিলিয়ে, যাতে সেভ-হওয়া মান ও দেখানো লেখা একই অর্থ বহন করে)।
         "Fistula Per ইঞ্চি" to "Fistula Per Inch",
+        // 🔵 V541 (২২.০৮.২০২৬, TK-নির্দেশ): ইঞ্চি → সেমি। ⛔ উপরের পুরোনো
+        //    লাইনটা **রাখা হলো**, নইলে পুরোনো রেকর্ডের লেখা ইংরেজিতে যেত না।
+        "Fistula Per সেমি" to "Fistula Per CM",
+        "ফিস্টুলা প্রতি সেমি" to "Fistula Per CM",
         // 🆕 (05.08.2026, TK-নির্দেশ) — "মেশিন দিয়ে কাজ হবে" ও "Machine
         // Treatment" এখন "\n"-এর বদলে " · " দিয়ে জোড়া (পাশাপাশি)।
         "মেশিন দিয়ে কাজ হবে · Machine Treatment" to "Machine Treatment",

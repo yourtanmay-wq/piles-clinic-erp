@@ -186,7 +186,14 @@ class DoctorCheckupActivity : AppCompatActivity() {
         // মান (checkedText() যেটা .tag পড়ে) Kishanganj/অন্য সব স্টাফের ফোনে
         // সবসময় হুবহু একই থাকে, বাংলা লেখা NoBengali.kt-এ মুছে গেলেও।
         cbTxPerPiles.tag = "Per Piles"
-        cbTxFistulaInch.tag = "Fistula Per Inch"
+        /* 🔵🔒 V541 (২২.০৮.২০২৬, TK-নির্দেশ: *"Fistula Per CM (centimetre) করুন"*)
+           ⛔ **পুরোনো রেকর্ড ভাঙবে না:** এতদিন সেভ হত `"Fistula Per Inch"`।
+              নতুন সেভ হবে `"Fistula Per CM"`, আর ফেরত পড়ার সময় **দুটোই**
+              মেনে নেওয়া হয় (নিচে `FISTULA_TAGS`) — তাই আগের প্রতিটা চেকআপে
+              টিকটা আগের মতোই বসে থাকবে।
+           ⛔ ঘরের নাম (`amtFistulaPerInch`) **বদলানো হয়নি** — ওটা ভিতরের নাম,
+              বদলালে ওয়েব ও পুরোনো জমা তথ্যের সাথে মিল নষ্ট হত। */
+        cbTxFistulaInch.tag = FISTULA_TAG_NOW
         cbTxMachine.tag = "Machine Treatment"
         cbTxKsharSutra.tag = "Kshar Sutra"
         cbTxLis.tag = "LIS Treatment"
@@ -893,6 +900,10 @@ class DoctorCheckupActivity : AppCompatActivity() {
         }
     }
 
+    /** 🔵 V541: এখন যেটা সেভ হয়, আর পুরোনো যেগুলোও মেনে নিতে হবে। */
+    private val FISTULA_TAG_NOW = "Fistula Per CM"
+    private val FISTULA_TAGS = listOf("Fistula Per CM", "Fistula Per Inch", "Fistula Per ইঞ্চি")
+
     private fun checkedText(list: List<CheckBox>): String =
         list.filter { it.isChecked }.joinToString(", ") { (it.tag as? String) ?: it.text.toString() }
 
@@ -972,7 +983,13 @@ class DoctorCheckupActivity : AppCompatActivity() {
         val inv = r.investigation.split(", ").map { it.trim() }
         investigationChecks.forEach { it.isChecked = inv.contains((it.tag as? String) ?: it.text.toString()) }
         val tx = r.treatmentPlan.split(", ").map { it.trim() }
-        treatmentChecks().forEach { it.isChecked = tx.contains((it.tag as? String) ?: it.text.toString()) }
+        /* 🔵 V541: Fistula-র বেলায় পুরোনো লেখাগুলোও মেনে নেওয়া হয়, তাই
+           আগে সেভ হওয়া চেকআপে টিকটা আগের মতোই থাকে। ⛔ বাকি প্রতিটা
+           চেকবক্সে মিলের নিয়ম **হুবহু আগের**। */
+        treatmentChecks().forEach { cb ->
+            val tag = (cb.tag as? String) ?: cb.text.toString()
+            cb.isChecked = if (tag == FISTULA_TAG_NOW) tx.any { it in FISTULA_TAGS } else tx.contains(tag)
+        }
         if (r.amtPerPiles.isNotBlank()) etAmtPerPiles.setText(r.amtPerPiles)
         if (r.amtFistulaPerInch.isNotBlank()) etAmtFistulaInch.setText(r.amtFistulaPerInch)
         if (r.amtKsharSutra.isNotBlank()) etAmtKsharSutra.setText(r.amtKsharSutra)
@@ -1104,7 +1121,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         if (r.treatmentPlan.isNotBlank()) {
             val amtParts = mutableListOf<String>()
             if (cbTxPerPiles.isChecked && r.amtPerPiles.isNotBlank()) amtParts.add("Per Piles ₹${r.amtPerPiles}")
-            if (cbTxFistulaInch.isChecked && r.amtFistulaPerInch.isNotBlank()) amtParts.add("Fistula Per Inch ₹${r.amtFistulaPerInch}")
+            if (cbTxFistulaInch.isChecked && r.amtFistulaPerInch.isNotBlank()) amtParts.add("Fistula Per CM ₹${r.amtFistulaPerInch}")   // 🔵 V541
             if (cbTxKsharSutra.isChecked && r.amtKsharSutra.isNotBlank()) amtParts.add("Kshar Sutra ₹${r.amtKsharSutra}")
             val amtText = if (amtParts.isNotEmpty()) " (${amtParts.joinToString(", ")})" else ""
             append("Treatment Plan: ${r.treatmentPlan}$amtText; ")
@@ -1330,7 +1347,8 @@ class DoctorCheckupActivity : AppCompatActivity() {
         val plan = r.treatmentPlan
         val parts = mutableListOf<String>()
         if (plan.contains("Per Piles") && r.amtPerPiles.isNotBlank()) parts.add("₹${r.amtPerPiles} / অর্শ")
-        if (plan.contains("Fistula Per Inch") && r.amtFistulaPerInch.isNotBlank()) parts.add("₹${r.amtFistulaPerInch} / ইঞ্চি")
+        // 🔵 V541: পুরোনো "Inch" লেখা রেকর্ডও ধরা পড়ে, নইলে পুরোনো চেকআপে হার দেখাত না।
+        if (FISTULA_TAGS.any { plan.contains(it) } && r.amtFistulaPerInch.isNotBlank()) parts.add("₹${r.amtFistulaPerInch} / সেমি")
         if (plan.contains("Kshar Sutra") && r.amtKsharSutra.isNotBlank()) parts.add("₹${r.amtKsharSutra} / ক্ষার সূত্র")
         return parts.joinToString(" · ")
     }
