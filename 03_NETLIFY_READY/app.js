@@ -12058,6 +12058,19 @@ let wlv1ChamberFilter = '';   // '' = all, 'expected', 'arrived'
 function wlv1IsFeeRow(t){ t=String(t||'').toLowerCase(); return t==='registration'||t==='visitfee'||t==='visit_fee'; }
 window["wlv1IsFeeRow"]=wlv1IsFeeRow;
 
+/* 🖥️🔴 V550: ঘোষিত আলাদা রোগীর **নিজের** মানুষ-পড়া-যায় Patient ID।
+   সাধারণ ক্ষেত্রে আগের সেই `wlv1PidCode(mobile)`-ই ফেরে — এক অক্ষরও বদলায়নি। */
+function wlv1ChamberCodeFor(rowId,mobile){
+  try{
+    var d=mob(mobile);
+    if(rowId && wlv1IsDeclaredSeparateRowId(rowId,d)){
+      var pr=(load('patients')||[]).find(function(x){return String(x&&x.id)===String(rowId)});
+      if(pr && pr.patientId) return String(pr.patientId);
+    }
+  }catch(e){}
+  return wlv1PidCode(mobile);
+}
+window["wlv1ChamberCodeFor"]=wlv1ChamberCodeFor;
 function wlv1ChamberRows(date, branch){
   const all = !branch || branch==='All';
   /* 🔴🔴🆕🔒 V436 (TK-রিপোর্ট ১৮.০৮.২০২৬, ছবিসহ — *"Web এ এক রকম, Android এ
@@ -12075,16 +12088,29 @@ function wlv1ChamberRows(date, branch){
   const inBr = r => all || sameBranch(r.branch, branch);
   const d10  = v => String(v||'').slice(0,10);
   const rows = {};
-  const ensure = (mobile,name,pid,br)=>{
+  const ensure = (mobile,name,pid,br,rowId)=>{
     const m = mob(mobile); if(!m) return null;
+    /* 🖥️🔴🔒 V550 (২২.০৮.২০২৬) — **এক নম্বরে দুজন রোগী হলে বোর্ডে দুটো সারি**
+       (ফোনে V526-এ যা হয়েছিল, ওয়েবেও হুবহু তাই)।
+       আগে সারির চাবি ছিল **শুধু মোবাইল** (`rows[m]`), তাই দুজনের নাম · Patient ID ·
+       টাকা · রিমার্ক সব **একটাই সারিতে মিশে** যেত।
+       চাবির নিয়ম (V518/V520-এর সেই প্রমাণিত নিয়মই):
+         • স্টাফ নিজে "Different Patient — Same Mobile" বলেছেন এমন রোগী
+           (`pat_<১০ সংখ্যা>_<লেজ>`) ⇒ চাবি **তাঁর নিজের আইডি** — আলাদা সারি;
+         • বাকি সবাই ⇒ চাবি **আগের মতোই মোবাইল** — এক অক্ষরও বদলায়নি।
+       ⛔ `r.mobile` আগের মতোই আসল ১০ সংখ্যার নম্বর (চাবি নয়), তাই নিচের কোনো
+          হিসাব/বোতাম ভাঙে না।
+       ⛔ ভুলে দুবার রেজিস্ট্রেশন (খাতার সারি B30) — আগের মতোই এক সারি। */
+    const own = (rowId && wlv1IsDeclaredSeparateRowId(rowId, m)) ? String(rowId) : '';
+    const key = own || m;
     /* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬: "সব কিছু Android এর মত হোক") — ফোনের
        সারিতে যে ঘরগুলো আছে সেগুলোই এখানেও: `arrivedAt` (কে কখন এসেছেন —
        ছাপা কাগজ ও Review-র ক্রম ফোনে এটা ধরেই হয়), আর ফি কোন উপায়ে জমা
        পড়েছে (`feeCash`/`feeOnline`) — কাগজে CASH না UPI ছাপা হবে, ফোনে এটা
        দিয়েই ঠিক হয়। ⛔ পুরনো `fee` ঘরটা একটুও বদলায়নি। */
-    if(!rows[m]) rows[m] = {mobile:m,name:'',patientId:'',branch:br||'',expected:false,arrived:false,
+    if(!rows[key]) rows[key] = {mobile:m,patientRowId:own,name:'',patientId:'',branch:br||'',expected:false,arrived:false,
                             fee:0,feeCash:0,feeOnline:0,cash:0,online:0,treatment:'',arrivedAt:'',isNewToday:false};
-    const r = rows[m];
+    const r = rows[key];
     if(name && !r.name) r.name = String(name);
     if(pid && !r.patientId) r.patientId = String(pid);
     if(br && !r.branch) r.branch = String(br);
@@ -12102,7 +12128,10 @@ function wlv1ChamberRows(date, branch){
      (patients-index থেকে আসল কোড খুঁজে বের করা, বহু জায়গায় প্রমাণিত পথ)।
      ⛔ payments সারির কোনো ঘর বদলায়নি — শুধু বোর্ডে কোনটা দেখানো হবে তাই ঠিক হলো। */
   load('payments').filter(p=>d10(p.date)===date && inBr(p)).forEach(p=>{
-    const r = ensure(p.mobile,p.name,p.patientCode||wlv1PidCode(p.mobile),p.branch); if(!r) return;
+    /* 🔴 V550: payments সারির `patientId` = রোগীর **সারির আইডি** (উপরের V430-এর
+       মন্তব্যেই প্রমাণিত), তাই এটাই পরিচয়ের চাবি। মানুষ-পড়া-যায় কোডটাও তখন
+       ওই রোগীর সারি থেকেই নেওয়া হয়, মোবাইল ধরে নয় — নইলে অন্যজনের ID বসত। */
+    const r = ensure(p.mobile,p.name,p.patientCode||wlv1ChamberCodeFor(p.patientId,p.mobile),p.branch,p.patientId); if(!r) return;
     const t = String(p.payType||'').toLowerCase();
     if(t==='chamber_expected'){ r.expected = true; return; }
     if(t==='bill_edit') return;
@@ -12136,7 +12165,11 @@ function wlv1ChamberRows(date, branch){
   {
     const wlv1ChamberPick = new Map();
     load('patients').filter(p=>(d10(p.registrationDate)===date||d10(p.date)===date) && inBr(p))
-      .forEach(p=>{const m=mob(p.mobile);if(!m)return;const prev=wlv1ChamberPick.get(m);
+      .forEach(p=>{const m=mob(p.mobile);if(!m)return;
+        /* 🔴 V550: ঘোষিত আলাদা রোগীকে "কোনটা আসল সারি" দলে ঢোকানো হয় না —
+           নইলে তাঁর কার্ডে অন্যজনের Patient ID বসে যেতে পারত (ফোনের V526-এর একই ধাপ)। */
+        if(wlv1IsDeclaredSeparateRowId(p.id,m)){const rr=ensure(p.mobile,p.name,p.patientId,p.branch,p.id); if(rr) rr.isNewToday=true; return;}
+        const prev=wlv1ChamberPick.get(m);
         if(!prev) wlv1ChamberPick.set(m,p);
         else wlv1ChamberPick.set(m, wlv1PickPatientRow([prev,p], all?'':(branch||''))||prev);});
     /* 🔴 V430 — আজই রেজিস্ট্রেশন হয়েছে কিনা মনে রাখা হয় (ফোনের
@@ -12146,7 +12179,15 @@ function wlv1ChamberRows(date, branch){
   }
   const fus = load('followups');
   Object.values(rows).forEach(r=>{
-    const f = fus.find(x=>mob(x.mobile)===r.mobile);
+    /* 🔴 V550: রিমার্ক এখন **নিজের** Follow-up খাতা থেকেই।
+       `followups.refId` = রোগীর সারির আইডি (V518-এ প্রমাণিত)।
+       ঘোষিত আলাদা রোগীর সারিতে নিজের খাতা না পাওয়া গেলে ঘরটা ফাঁকাই থাকে —
+       **অন্যজনের লেখা কখনো দেখানো হয় না**। সাধারণ সারিতে আগের নিয়মই। */
+    const own = String(r.patientRowId||'');
+    const f = own
+      ? fus.find(x=>String(x.refId||'')===own)
+      : (fus.find(x=>mob(x.mobile)===r.mobile && !wlv1IsDeclaredSeparateRowId(x.refId, r.mobile))
+         || fus.find(x=>mob(x.mobile)===r.mobile));
     if(f){ if(!r.name) r.name = f.name||''; r.treatment = String(f.lastRemark||''); }
   });
   /* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬) — এখন হুবহু ফোনের নিয়ম
@@ -12252,8 +12293,8 @@ function wlv1ChamberRowHtml(r){
                           : `<span style="color:#C47B00">${isAutoStubRemark ? 'Nothing written — tap to add' : '\u2014'}</span>`;
   const feeHtml = Number(r.fee||0)>0 ? `<span style="color:#334155">${money(r.fee)}</span>`
                                      : `<span style="color:#8A97AB">OLD</span>`;
-  const idLine = r.patientId ? `<div class="wlv1CbId" onclick="event.stopPropagation();wlv1ChamberPatientChoices('${esc(r.mobile)}')" oncontextmenu="event.preventDefault();event.stopPropagation();copyToClipboard('${esc(r.patientId)}');return false;">${esc(r.patientId)}</div>` : '';
-  const patientBox = `<div class="wlv1CbPat" onclick="wlv1ChamberPatientChoices('${esc(r.mobile)}')" oncontextmenu="event.preventDefault();copyToClipboard('${esc([r.name,r.mobile,r.patientId].filter(Boolean).join(' | '))}');return false;" style="cursor:pointer"><div class="wlv1CbName" onclick="event.stopPropagation();wlv1ChamberPatientChoices('${esc(r.mobile)}')" oncontextmenu="event.preventDefault();event.stopPropagation();copyToClipboard('${esc(r.name||'')}');return false;">${esc(String(r.name||r.mobile).toUpperCase())}</div><div class="wlv1CbMob" onclick="event.stopPropagation();contact('${esc(r.mobile)}','call')" oncontextmenu="event.preventDefault();event.stopPropagation();copyToClipboard('${esc(shownMob(r.mobile))}');return false;">${esc(shownMob(r.mobile))}</div>${idLine}</div>`;
+  const idLine = r.patientId ? `<div class="wlv1CbId" onclick="event.stopPropagation();wlv1ChamberPatientChoices('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')" oncontextmenu="event.preventDefault();event.stopPropagation();copyToClipboard('${esc(r.patientId)}');return false;">${esc(r.patientId)}</div>` : '';
+  const patientBox = `<div class="wlv1CbPat" onclick="wlv1ChamberPatientChoices('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')" oncontextmenu="event.preventDefault();copyToClipboard('${esc([r.name,r.mobile,r.patientId].filter(Boolean).join(' | '))}');return false;" style="cursor:pointer"><div class="wlv1CbName" onclick="event.stopPropagation();wlv1ChamberPatientChoices('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')" oncontextmenu="event.preventDefault();event.stopPropagation();copyToClipboard('${esc(r.name||'')}');return false;">${esc(String(r.name||r.mobile).toUpperCase())}</div><div class="wlv1CbMob" onclick="event.stopPropagation();contact('${esc(r.mobile)}','call')" oncontextmenu="event.preventDefault();event.stopPropagation();copyToClipboard('${esc(shownMob(r.mobile))}');return false;">${esc(shownMob(r.mobile))}</div>${idLine}</div>`;
   /* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬: "সব কিছু Android এর মত হোক") — ফোনে
      এই তিনটে ঘরে **চাপ দিলেই** কাজ হয় (ChamberAttendanceAdapter.kt:176-180):
      · TREATMENT PROGRESS → আজকের চিকিৎসার কথা লেখা/বদলানোর বাক্স
@@ -12263,10 +12304,10 @@ function wlv1ChamberRowHtml(r){
   if(r.arrived){
     return `<div class="wlv1CbRow" style="background:${bg}">
       ${patientBox}
-      <div class="wlv1CbTreat" style="cursor:pointer" onclick="event.stopPropagation();wlv1ChamberWriteTreatment('${esc(r.mobile)}')">${treatHtml}</div>
+      <div class="wlv1CbTreat" style="cursor:pointer" onclick="event.stopPropagation();wlv1ChamberWriteTreatment('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')">${treatHtml}</div>
       <div class="wlv1CbFee">${feeHtml}</div>
-      <div class="wlv1CbCash" style="cursor:pointer" onclick="event.stopPropagation();wlv1ChamberFixPayment('${esc(r.mobile)}')">${money(r.cash)}</div>
-      <div class="wlv1CbOnline" style="cursor:pointer" onclick="event.stopPropagation();wlv1ChamberFixPayment('${esc(r.mobile)}')">${money(r.online)}</div></div>`;
+      <div class="wlv1CbCash" style="cursor:pointer" onclick="event.stopPropagation();wlv1ChamberFixPayment('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')">${money(r.cash)}</div>
+      <div class="wlv1CbOnline" style="cursor:pointer" onclick="event.stopPropagation();wlv1ChamberFixPayment('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')">${money(r.online)}</div></div>`;
   }
   /* 🔴 V430 — ফোনে "আসার কথা" বাতিল করতে **সারিটা চেপে ধরে রাখতে** হয়; আলাদা
      লাল ✕ বোতাম ফোনে নেই। ওয়েবেও তাই — বোতামটা তুলে দিয়ে চেপে-ধরা (long-press)
@@ -12280,7 +12321,17 @@ function wlv1ChamberRowHtml(r){
 /* 🔴 V430 — চেম্বারের TREATMENT PROGRESS ঘরে চাপ দিলে যে বাক্সটা খোলে
    (ফোনের editRemarkInReview / writeTreatment-এর সমান)। যা লেখা হয় সেটা
    রোগীর Follow-up খাতাতেই বসে — ঠিক ফোনের মতোই, আলাদা কোনো নতুন জায়গায় নয়। */
-function wlv1ChamberWriteTreatment(mobile){
+/* 🔴 V550: এই সারির রোগীর **নিজের** Follow-up খাতা খোঁজা।
+   `rowId` ফাঁকা ⇒ হুবহু আগের নিয়ম (মোবাইল ধরে প্রথমটা)। */
+function wlv1ChamberOwnFollow(m, rowId){
+  const fus = load('followups')||[];
+  const own = String(rowId||'');
+  if(own) return fus.find(x=>String(x.refId||'')===own) || null;
+  return fus.find(x=>mob(x.mobile)===m && !wlv1IsDeclaredSeparateRowId(x.refId, m))
+      || fus.find(x=>mob(x.mobile)===m) || null;
+}
+window["wlv1ChamberOwnFollow"]=wlv1ChamberOwnFollow;
+function wlv1ChamberWriteTreatment(mobile, rowId){
   // 🔴🔒 V484 (20.08.2026, Android V482-এর সাথে ওয়েব মেলাতে — TK-নির্দেশ
   // "Android ও ওয়েব দুটোতেই মিলিয়ে দেখুন") — আসল ফাঁক (Android-এর মতোই):
   // এই ফাংশন `wlv1ChamberClosedFor()` কখনো যাচাই করত না, তাই চেম্বার Close
@@ -12288,7 +12339,7 @@ function wlv1ChamberWriteTreatment(mobile){
   // ফাংশন দিয়ে যাচাই — বন্ধ থাকলে স্পষ্ট বার্তা, বদল হয় না। ⛔ দিন খোলা
   // থাকলে (স্বাভাবিক) — এক অক্ষরও বদলায়নি।
   const m = mob(mobile);
-  const f = (load('followups')||[]).find(x=>mob(x.mobile)===m);
+  const f = wlv1ChamberOwnFollow(m, rowId);   /* 🔴 V550 */
   if(!f) return toast('No Follow-up record yet for this patient');
   const cbr = f.branch || (user&&user.branch) || '';
   const cbd = wlv1ChamberDate || today();
@@ -12298,15 +12349,17 @@ function wlv1ChamberWriteTreatment(mobile){
     <label>Treatment Progress</label>
     <textarea id="cbTrIn" class="input" rows="4">${esc(cur)}</textarea>
     <div class="actions"><button class="ghost" onclick="closeModal()">Cancel</button>
-    <button onclick="wlv1ChamberSaveTreatment('${esc(m)}')">Save</button></div>`);
+    <button onclick="wlv1ChamberSaveTreatment('${esc(m)}','${esc(String(rowId||''))}')">Save</button></div>`);   /* 🔴 V550 */
 }
 window["wlv1ChamberWriteTreatment"]=wlv1ChamberWriteTreatment;
-function wlv1ChamberSaveTreatment(mobile){
+function wlv1ChamberSaveTreatment(mobile, rowId){
   const m = mob(mobile);
   const txt = String(($('#cbTrIn')||{}).value||'').trim();
   if(!txt) return toast('Nothing written');
   const rows = load('followups');
-  const i = rows.findIndex(x=>mob(x.mobile)===m);
+  /* 🔴 V550: লেখাটা **এই রোগীরই** খাতায় বসে — অন্যজনের খাতায় নয়। */
+  const own = wlv1ChamberOwnFollow(m, rowId);
+  const i = own ? rows.findIndex(x=>String(x.id)===String(own.id)) : -1;
   if(i<0) return toast('No Follow-up record yet for this patient');
   rows[i] = {...rows[i], lastRemark: txt, updatedAt: new Date().toISOString(),
     history: [...(rows[i].history||[]), {date: today(), time: isoNow(), remark: txt, staff: (user&&(user.name||user.mobile))||''}]};
@@ -12319,11 +12372,15 @@ window["wlv1ChamberSaveTreatment"]=wlv1ChamberSaveTreatment;
 /* 🔴 V430 — CASH / ONLINE ঘরে চাপ দিলে ওই দিনের টাকার সারিগুলো দেখায়, ভুল
    থাকলে সেখান থেকেই সংশোধন (ফোনের fixPaymentInReview-এর সমান)।
    ⛔ কে সংশোধন করতে পারবেন সেই নিয়ম আগেরটাই — `editPaymentEntry` নিজেই দেখে। */
-function wlv1ChamberFixPayment(mobile){
+function wlv1ChamberFixPayment(mobile, rowId){
   // 🔴🔒 V484 (20.08.2026) — Treatment-এর মতোই একই guard, Cash/Online-এও।
   const m = mob(mobile);
   const d10 = v => String(v||'').slice(0,10);
-  const rawList0 = (load('payments')||[]).filter(x=>mob(x.mobile)===m && d10(x.date)===wlv1ChamberDate
+  /* 🔴 V550: এক নম্বরে দুজন রোগী হলে **শুধু এই রোগীরই** টাকার সারি।
+     `rowId` ফাঁকা (রোজকার ৯৯% ক্ষেত্রে) ⇒ ছাঁকনিটা আগের মতোই, এক অক্ষরও বদলায়নি। */
+  const own = String(rowId||'');
+  const mine = x => !own || String(x.patientId||'')===own;
+  const rawList0 = (load('payments')||[]).filter(x=>mob(x.mobile)===m && mine(x) && d10(x.date)===wlv1ChamberDate
     && !['chamber_expected','bill_edit','attendance_mark'].includes(String(x.payType||'').toLowerCase())
     && Number(x.amount||0)>0);
   const cbr = (rawList0[0]&&rawList0[0].branch) || (user&&user.branch) || '';
@@ -12338,8 +12395,12 @@ function wlv1ChamberFixPayment(mobile){
 }
 window["wlv1ChamberFixPayment"]=wlv1ChamberFixPayment;
 window["wlv1ChamberRowHtml"]=wlv1ChamberRowHtml;
-function wlv1ChamberPatientChoices(mobile){
-  const p=(load('patients')||[]).find(x=>mob(x.mobile)===mob(mobile));
+function wlv1ChamberPatientChoices(mobile, rowId){
+  /* 🔴 V550: ঘোষিত আলাদা রোগীর কার্ডে চাপ দিলে **তাঁরই** সারি খোলে।
+     `rowId` ফাঁকা হলে আগের মতোই মোবাইল ধরে। */
+  const __own=String(rowId||'');
+  const p=(__own&&(load('patients')||[]).find(x=>String(x&&x.id)===__own))
+        ||(load('patients')||[]).find(x=>mob(x.mobile)===mob(mobile));
   if(!p)return toast('Patient not found');
   modal(`<h2>${esc(String(p.name||p.mobile||'Patient').toUpperCase())}</h2><div class="card"><button style="width:100%;margin-bottom:10px" onclick="closeModal();summaryByMobile('${esc(mob(p.mobile))}')">👤 Patient Details</button><button style="width:100%" onclick="closeModal();wlv1ReportCard('${esc(p.id||p.mobile)}')">📋 Report Card</button></div>`);
 }
@@ -14152,7 +14213,7 @@ function wlv1CloseReview(rows){
        (ChamberAttendanceActivity.kt:2694-2735): নাম চাপলে রোগীর বিবরণ,
        চিকিৎসার ঘর চাপলে লেখা ঠিক করা, টাকার ঘর চাপলে টাকা ঠিক করা।
        ওয়েবে পাঁচটা ঘরই নিষ্ক্রিয় ছিল — Review ধাপটার মানেই থাকত না। */
-    rows.map(r=>`<div class="cbRevNm" style="cursor:pointer" onclick="closeModal();wlv1ChamberPatientChoices('${esc(r.mobile)}')"><b>${esc(String(r.name||r.mobile).toUpperCase())}</b><span>&#128222; ${esc(shownMob(r.mobile))}</span>${r.patientId?`<span>&#127380; ${esc(r.patientId)}</span>`:''}</div>`
+    rows.map(r=>`<div class="cbRevNm" style="cursor:pointer" onclick="closeModal();wlv1ChamberPatientChoices('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}'"><b>${esc(String(r.name||r.mobile).toUpperCase())}</b><span>&#128222; ${esc(shownMob(r.mobile))}</span>${r.patientId?`<span>&#127380; ${esc(r.patientId)}</span>`:''}</div>`
       /* 🔴 V429 — চিকিৎসার ঘরটা এখন হুবহু ফোনের মতো: কিছু লেখা না থাকলে "—",
          আর সিস্টেমের নিজের বসানো লেখা হলে "Nothing written — tap to add",
          দুটোই হালকা কমলা (#C47B00)। আগে ওয়েবে লাল "Progress not written"
@@ -14160,10 +14221,10 @@ function wlv1CloseReview(rows){
       /* 🔴 V430 — পর্দায় স্টাফের লেখা **হুবহু** দেখানো হয় (ফোনে
          ChamberAttendanceActivity.kt:2719)। ইংরেজি করার নিয়মটা ফোনে শুধু
          **ছাপা কাগজে** চলে, পর্দায় নয় — ওয়েবে ভুল করে পর্দাতেও চলছিল। */
-      + `<div class="cbRevTr${wlv1EffectivelyBlankRemark(r.treatment)?' cbRevTrEmpty':''}" style="cursor:pointer" onclick="closeModal();wlv1ChamberWriteTreatment('${esc(r.mobile)}')">${
+      + `<div class="cbRevTr${wlv1EffectivelyBlankRemark(r.treatment)?' cbRevTrEmpty':''}" style="cursor:pointer" onclick="closeModal();wlv1ChamberWriteTreatment('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}'">${
           !wlv1EffectivelyBlankRemark(r.treatment) ? esc(String(r.treatment||'').trim())
           : (String(r.treatment||'').trim() ? 'Nothing written &#8212; tap to add' : '&#8212;')}</div>`
-      + `<div class="cbRevF" style="cursor:pointer" onclick="closeModal();wlv1ChamberFixPayment('${esc(r.mobile)}')">${rupee(r.fee)}</div><div class="cbRevC" style="cursor:pointer" onclick="closeModal();wlv1ChamberFixPayment('${esc(r.mobile)}')">${rupee(r.cash)}</div><div class="cbRevO" style="cursor:pointer" onclick="closeModal();wlv1ChamberFixPayment('${esc(r.mobile)}')">${rupee(r.online)}</div>`
+      + `<div class="cbRevF" style="cursor:pointer" onclick="closeModal();wlv1ChamberFixPayment('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}'">${rupee(r.fee)}</div><div class="cbRevC" style="cursor:pointer" onclick="closeModal();wlv1ChamberFixPayment('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}'">${rupee(r.cash)}</div><div class="cbRevO" style="cursor:pointer" onclick="closeModal();wlv1ChamberFixPayment('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}'">${rupee(r.online)}</div>`
     ).join('') + '</div>';
   /* 🔴🔒 V426 (TK-নির্দেশ ১৭.০৮.২০২৬: "review পর্দাতে উপরে যে ডেমি লেখা আছে সেগুলি
      থাকবে না · সেখানে কত পরিমান টাকা জমা হয়েছে সেগুলো থাকবে") — নির্দেশ-লাইনটা
