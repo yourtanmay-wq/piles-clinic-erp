@@ -1,0 +1,5 @@
+# V559 — বদলানো ফাইলের SHA256 · ২২.০৮.২০২৬
+
+86ad44f1bfb5bfdf3302ed97fbb74d4223ddbb502b749666d413b3089e140b30  02_ANDROID_SOURCE_CODE/PilesClinicApp/app/build.gradle.kts
+36db2e75bb15c8b05d5c9955e589216c15c9dab8bbf9ba13662a6b30dc987584  02_ANDROID_SOURCE_CODE/PilesClinicApp/app/src/main/java/com/tkbiswas/pilesclinic/clinical/CheckupNoteJson.kt
+a702c45785a7a325b958baf7c4ea85d7c5a5f03b46eeb14863289d05451a5139  02_ANDROID_SOURCE_CODE/PilesClinicApp/app/src/main/java/com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt

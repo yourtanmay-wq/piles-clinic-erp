@@ -357,6 +357,8 @@ class DoctorCheckupActivity : AppCompatActivity() {
             val costBefore = lastSavedCost
             val byName = NativeSession.current(this)?.name.orEmpty().ifBlank { createdBy }
             lastSavedCost = record.estimatedCost
+            // 🔵 V559: এই রোগীর যে লেখাটা রোগীর সারিতে বসবে
+            pendingNote = record
             com.tkbiswas.pilesclinic.native.BackgroundWork.run {
                 ClinicalCloudRepository.saveMedical(appCtx, pid, pname, "Doctor Checkup", "", details, createdBy, photosStr)
                 // 🔴 TK-নির্দেশ (04.08.2026): আগে শুধু "Agree for Treatment"
@@ -367,6 +369,9 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 // হয় — Save-এর সাথে সাথেই doctorComplete=true, Queue থেকে সরে
                 // যায়। Best-effort; কখনো checkup সেভ আটকায় না।
                 markDoctorComplete(pid)
+                // 🔒 কাজ শেষ — সাথে সাথেই মুছে ফেলা হয়, যাতে পরের রোগীর
+                // ঘরে আগেরজনের লেখা বসার কোনো পথ না থাকে (B437-এর শিক্ষা)।
+                pendingNote = null
                 // 🔔 TK-নির্দেশ (04.08.2026): "Agree for Treatment" ছাড়া অন্য
                 // যেকোনো সিদ্ধান্তে সেই রোগীর ব্রাঞ্চের স্টাফের ঘন্টায় নোটিশ
                 // যাবে (কে ফলো-আপ করবেন বোঝার জন্য)। ⛔ "Agree for
@@ -681,6 +686,37 @@ class DoctorCheckupActivity : AppCompatActivity() {
                     )
                 }
             }
+            /* 🔵🔒 V559 (২২.০৮.২০২৬, TK-অনুমোদিত: *"হ্যাঁ"*) — আগে সেভ করা
+               চেকআপ ফর্মে ফিরিয়ে আনা।
+
+               এতদিন ফোনে ফিরত না (B437 সারানোর সময় `populate()`-এর ডাক তুলে
+               দেওয়া হয়েছিল), অথচ ওয়েবে ফিরত। এখন ওয়েব যেখানে রাখে ঠিক
+               সেখান থেকেই পড়া হয় — `patients.doctorFullNote`।
+
+               🔒 B437 যেন না ফেরে: সারিটা এইমাত্র **এই রোগীরই** id দিয়ে আনা
+                  হয়েছে (উপরে `patientId=eq.$enc`), তাই অন্য রোগীর তথ্য এখানে
+                  আসার পথ নেই। তবু নিচে আরেকবার id মিলিয়ে দেখা হয়।
+               ⛔ বাড়তি কোনো query লাগেনি — সারিটা এমনিতেই আনা হচ্ছিল।
+               ⛔ ডাক্তার কিছু টাইপ করে ফেলে থাকলে হাত দেওয়া হয় না। */
+            try {
+                val rowKey = p.s("patientId").ifBlank { p.s("id") }
+                val samePatient = rowKey.isNotBlank() &&
+                    (rowKey.equals(pid, true) || p.s("id").equals(pid, true))
+                // সারিতে ঘরটা সাধারণত JSON হয়ে আসে; কোনো পুরনো সারিতে যদি
+                // লেখা (string) হয়ে থাকে, সেটাও পড়ে নেওয়া হয় — নইলে সেই
+                // রোগীর তথ্য চুপচাপ ফিরত না।
+                val noteObj = p.optJSONObject("doctorFullNote")
+                    ?: try {
+                        val raw = p.s("doctorFullNote")
+                        if (raw.trimStart().startsWith("{")) org.json.JSONObject(raw) else null
+                    } catch (_: Throwable) { null }
+                if (samePatient && noteObj != null && noteObj.length() > 0 &&
+                    etComplaint.text.isNullOrBlank() && !restoredOnce) {
+                    restoredOnce = true
+                    populate(CheckupNoteJson.fromMap(jsonToMap(noteObj)))
+                }
+            } catch (_: Throwable) { }
+
             val branchDisease = listOf(branch, disease).filter { it.isNotBlank() }.joinToString(" - ")
             if (branchDisease.isNotBlank()) findViewById<TextView>(R.id.tvPatientBranchDisease).text = branchDisease
             val tvSexAge = findViewById<TextView>(R.id.tvPatientSexAge)
@@ -993,7 +1029,22 @@ class DoctorCheckupActivity : AppCompatActivity() {
             if (rows.length() == 0) return
             val id = rows.getJSONObject(0).optString("id")
             if (id.isBlank()) return
-            SupabaseClient.updateById("patients", id, org.json.JSONObject().put("doctorComplete", true))
+            /* 🔵 V559: doctorComplete-এর সাথে একই কলে চেকআপের পুরো লেখাটাও
+               বসে যায় — বাড়তি কোনো নেটওয়ার্ক কল নয়। ওয়েব যা লিখে রেখেছিল
+               তার উপরে বসানো হয় (merge), তাই ওয়েবের কোনো ঘর হারায় না। */
+            val body = org.json.JSONObject().put("doctorComplete", true)
+            try {
+                val row0 = rows.getJSONObject(0)
+                val oldNote = row0.optJSONObject("doctorFullNote")
+                    ?: try {
+                        val raw = row0.optString("doctorFullNote", "")
+                        if (raw.trimStart().startsWith("{")) org.json.JSONObject(raw) else null
+                    } catch (_: Throwable) { null }
+                val rec = pendingNote
+                if (rec != null) body.put("doctorFullNote",
+                    mapToJson(CheckupNoteJson.merge(jsonToMap(oldNote), rec)))
+            } catch (_: Throwable) { }
+            SupabaseClient.updateById("patients", id, body)
         } catch (_: Exception) {
         }
     }
@@ -1488,6 +1539,53 @@ class DoctorCheckupActivity : AppCompatActivity() {
 
     /** শেষবার যা জমা ছিল — পর্দা তৈরি না থাকলে এটাই ফেরত যায়, নইলে
         সেভ করতে গিয়ে আগের আঁকা ছবিটা মুছে যেত। */
+    /** V559: এইমাত্র যে চেকআপটা সেভ হচ্ছে — `markDoctorComplete()` ওটাই
+        রোগীর সারিতে বসায়। ⛔ এক রোগীর সেভ শেষ হলেই মুছে ফেলা হয়, যাতে
+        পরের রোগীর ঘরে আগেরজনের তথ্য বসার পথ না থাকে (B437-এর শিক্ষা)। */
+    @Volatile private var pendingNote: CheckupRecord? = null
+
+    /** পর্দা খোলার পর একবারই ফর্ম ভরানো হয়। */
+    private var restoredOnce: Boolean = false
+
+    /** JSON → সাধারণ ম্যাপ। তালিকার ঘরগুলো কমা দিয়ে জোড়া লেখা হয়ে যায়। */
+    private fun jsonToMap(o: org.json.JSONObject?): Map<String, String> {
+        val out = LinkedHashMap<String, String>()
+        if (o == null) return out
+        val it = o.keys()
+        while (it.hasNext()) {
+            val k = it.next()
+            val v = o.opt(k)
+            out[k] = when (v) {
+                null, org.json.JSONObject.NULL -> ""
+                is org.json.JSONArray -> {
+                    val parts = ArrayList<String>()
+                    for (i in 0 until v.length()) {
+                        val e = v.optString(i, "")
+                        if (e.isNotBlank()) parts.add(e)
+                    }
+                    CheckupNoteJson.joinList(parts)
+                }
+                is org.json.JSONObject -> ""      // ভিতরে আরেকটা বাক্স — ফোনে পড়ার দরকার নেই
+                else -> v.toString()
+            }
+        }
+        return out
+    }
+
+    /** ম্যাপ → JSON। ওয়েব যে ঘরগুলো **তালিকা** হিসেবে পড়ে, সেগুলো তালিকা
+        হিসেবেই লেখা হয় — নইলে ওয়েবের টিকগুলো ভেঙে যেত। */
+    private fun mapToJson(m: Map<String, String>): org.json.JSONObject {
+        val o = org.json.JSONObject()
+        for ((k, v) in m) {
+            if (CheckupNoteJson.LIST_KEYS.contains(k)) {
+                val arr = org.json.JSONArray()
+                CheckupNoteJson.splitList(v).forEach { arr.put(it) }
+                o.put(k, arr)
+            } else o.put(k, v)
+        }
+        return o
+    }
+
     private var lastAnatomySaved: String = ""
 
     private fun collectAnatomy(): String {
