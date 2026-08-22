@@ -75,7 +75,14 @@
   function render(ctx, W, H, st) {
     applyStyle(st);
     var SCARY = SCARY_G = (st.style === 'scary');
-    var piles = st.piles || [], cx = W * 0.5, cy = H * 0.86;
+    var T = st.t || 0;                       // ০ থেকে ১ — একটা চক্র
+    // ধুকধুকানি: ব্যথার তালে ফোলা একটু বড়-ছোট হয়
+    var beat = 1 + 0.085 * Math.sin(T * Math.PI * 2);
+    var raw = st.piles || [];
+    var piles = (T ? raw.map(function (q) {
+      return { a: q.a, size: q.size * beat, inner: q.inner, hcm: q.hcm };
+    }) : raw);
+    var cx = W * 0.5, cy = H * 0.86;
     ctx.clearRect(0, 0, W, H);
     var g;
     if (SCARY) {                       // মাঝখানে আলো, চারপাশে ঘুটঘুটে অন্ধকার
@@ -260,6 +267,19 @@
     }
 
     /* ---- মাপকাঠি ও নাম ---- */
+    if (st.bleed && T) {
+      var bt = (T * 1.0) % 1;                              // ফোঁটা কতদূর নেমেছে
+      var bh = (DENTATE_CM + 0.5) * (1 - bt) + 0.05 * bt;
+      var bs = st.bleed.side || 1;
+      var bp = px(ctx, cx, cy, bs * (halfWidth(bh, piles, bs) - 0.06), bh);
+      ctx.save();
+      ctx.globalAlpha = bt < 0.85 ? 1 : (1 - bt) / 0.15;
+      ctx.beginPath();
+      ctx.ellipse(bp[0], bp[1], 0.09 * CM, 0.15 * CM, 0, 0, 6.3);
+      ctx.fillStyle = '#8E0B14'; ctx.fill();
+      ctx.strokeStyle = 'rgba(255,120,120,0.45)'; ctx.lineWidth = 1; ctx.stroke();
+      ctx.restore();
+    }
     if (SCARY) {
       var vg = ctx.createRadialGradient(W * 0.5, H * 0.55, W * 0.20, W * 0.5, H * 0.55, W * 0.60);
       vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.72)');
