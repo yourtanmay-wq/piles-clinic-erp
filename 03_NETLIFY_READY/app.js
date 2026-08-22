@@ -7118,6 +7118,7 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
   <label>Duration · কতদিন থেকে</label><input id="dnDuration" class="input" value="${esc(duration)}">
   ${wlv1SymBoxHtml(note,p)}
   ${wlv1HistBoxHtml(note)}
+  ${wlv1LifeBoxHtml(note)}
   <!-- 🖥️🔵 V547 (ফোনের V540 ওয়েবেও): TK-নির্দেশ *"occupation এটা ফর্ম থেকে সরিয়ে
        উপরে যেখানে পেশেন্টের বয়স Male - 55 তার পাশে রাখুন"*। ঘরটা **মোছা হয়নি** —
        শুধু ফর্ম থেকে সরানো; উপরের লাইনে চাপ দিলেই এই তালিকাটাই খোলে, তাই
@@ -7136,6 +7137,12 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
   <div class="grid"><div class="card"><b>A. Visual Examination · দৃশ্যমান পরীক্ষা</b><div class="checkGrid premiumChecks">
    ${['External Piles','Internal Piles','Fissure','Fistula Opening','Bleeding','Swelling'].map(x=>`<label><input class="dnVisual" type="checkbox" value="${x}" ${chk(note.visual,x)}> <span class="dnVisLbl" data-v="${x}">${x}${WLV1_VISUAL_BN[x]?(' · '+WLV1_VISUAL_BN[x]):''}</span></label>`).join('')}
   </div>
+  <!-- 🖥️🔵 V556 (TK-নির্দেশ "B রাখুন"): কাগজের "B. আঙুল দিয়ে দেখে" —
+       V460-এ ওয়েব থেকে সরানো DRE ফিরে এল। ⛔ পুরোনো সেই একই ঘর ও একই দুটো অপশন। -->
+  <b>B. আঙুল দিয়ে দেখে · DRE</b><div class="checkGrid premiumChecks">
+   ${['Tenderness','Fistula'].map(x=>`<label><input class="dnDre" type="checkbox" value="${x}" ${chk(note.dre,x)}> ${x}${WLV1_DRE_BN[x]?(' · '+WLV1_DRE_BN[x]):''}</label>`).join('')}
+  </div>
+  <input id="dnDreOther" class="input" placeholder="আঙুল দিয়ে দেখে আর যা পাওয়া গেল" value="${esc(note.dreOther||'')}">
   <!-- 🖥️🔵 V547 (ফোনের V539/V540 ওয়েবেও): TK-নির্দেশ *"internal piles এখানে চাপ দিলে
        Grade 1 / Grade 2 / Grade 3 / Grade 4 আসবে, যেটা সিলেক্ট করব সেটাই থাকবে"*।
        ঘরটা আগের সেই Grade-এর ঘরই (id="dnGrade") — মোছা বা নতুন বানানো হয়নি, তাই
@@ -7203,6 +7210,79 @@ const WLV1_SYM_LINES=[
    ফোনের `HistoryDetailModel`-এর হুবহু যমজ — একই দল · একই প্রশ্ন · একই উত্তর ·
    জমা রাখার একই লেখা। TK-এর নির্দেশ: টিকের জিনিস পাশাপাশি চিপ, লেখার জিনিস বক্স,
    আর **প্রতিটা প্রশ্নে একাধিক উত্তর**। ⛔ নতুন কলাম বা SQL লাগে না। */
+/* 🖥️🔵🔒 V556 (২২.০৮.২০২৬) — কাগজের **ভাগ ৪**-এর নতুন অংশ।
+   ফোনের `LifestyleModel`-এর হুবহু যমজ — একই প্রশ্ন · একই উত্তর · জমা রাখার একই লেখা।
+   ⛔ নতুন কলাম বা SQL লাগে না। */
+const WLV1_LIFE_Q=[
+ ['chronic','দীর্ঘমেয়াদী কোনো রোগ আছে কি না?',['ডায়াবেটিস','উচ্চ রক্তচাপ','IBD']],
+ ['fiber','খাবারে ফাইবারের পরিমাণ',['পর্যাপ্ত','কম']],
+ ['toilet','টয়লেটে দীর্ঘক্ষণ বসে থাকার অভ্যাস আছে?',['হ্যাঁ','না']],
+ ['strain','অতিরিক্ত কোঁথ (Straining) দিতে হয়?',['হ্যাঁ','না']]
+];
+function wlv1LifeOpts(k){var r=[];WLV1_LIFE_Q.forEach(function(q){if(q[0]===k)r=q[2]});return r}
+function wlv1LifeWater(v){
+  var kept=String(v||'').replace(/[^0-9.]/g,''); var i=kept.indexOf('.');
+  if(i<0) return kept;
+  return kept.slice(0,i+1)+kept.slice(i+1).split('.').join('');
+}
+function wlv1LifeFormat(picked,water,other){
+  var parts=[];
+  WLV1_LIFE_Q.forEach(function(q){
+    var known=q[2], chosen=(picked[q[0]]||[]).filter(function(v){return known.indexOf(v)>=0});
+    if(chosen.length) parts.push(q[0]+'='+chosen.join(', '));
+  });
+  var w=wlv1LifeWater(water); if(w) parts.push('water='+w);
+  var o=String(other||'').trim(); if(o) parts.push('other='+o.split('|').join('/'));
+  return parts.join(' | ');
+}
+function wlv1LifeParse(text){
+  var map={},water='',other='';
+  WLV1_LIFE_Q.forEach(function(q){map[q[0]]=[]});
+  String(text||'').split('|').forEach(function(raw){
+    var part=String(raw||'').trim(); if(!part) return;
+    var eq=part.indexOf('='); if(eq<=0) return;
+    var k=part.slice(0,eq).trim(), value=part.slice(eq+1).trim();
+    if(k.toLowerCase()==='water'){ water=wlv1LifeWater(value); return }
+    if(k.toLowerCase()==='other'){ other=value; return }
+    if(!map[k]) return;
+    var known=wlv1LifeOpts(k);
+    value.split(',').forEach(function(v){
+      var one=v.trim(); if(one&&known.indexOf(one)>=0&&map[k].indexOf(one)<0) map[k].push(one);
+    });
+  });
+  return {map:map,water:water,other:other};
+}
+function wlv1LifeReadable(text){
+  var r=wlv1LifeParse(text),out=[];
+  WLV1_LIFE_Q.forEach(function(q){ var c=r.map[q[0]]||[]; if(c.length) out.push(q[1]+' '+c.join(', ')) });
+  if(r.water) out.push('দৈনিক জল পানের পরিমাণ '+r.water+' লিটার');
+  if(r.other) out.push(r.other);
+  return out.join('; ');
+}
+function wlv1LifeBoxHtml(note){
+  var r=wlv1LifeParse(String((note&&note.lifestyle)||''));
+  var html=WLV1_LIFE_Q.map(function(q){
+    var chosen=r.map[q[0]]||[];
+    return '<div class="wlv1HistQ">'+esc(q[1])+'</div><div class="wlv1HistChips">'+q[2].map(function(o){
+      return '<button type="button" class="wlv1HistChip'+(chosen.indexOf(o)>=0?' on':'')+'" data-life="'+q[0]+'" data-val="'+esc(o)+'" onclick="wlv1HistToggle(this)">'+esc(o)+'</button>';
+    }).join('')+'</div>';
+  }).join('');
+  return '<label>রোগ ও অভ্যাস</label><div class="wlv1HistBox">'+html
+    +'<div class="wlv1HistQ">দৈনিক জল পানের পরিমাণ</div>'
+    +'<div class="wlv1SymWhen" style="margin-left:0"><input id="dnWaterLitre" class="input wlv1SymAmt" inputmode="decimal" value="'+esc(r.water)+'"><span style="align-self:center">লিটার</span></div>'
+    +'<textarea id="dnLifestyleOther" placeholder="অন্যান্য থাকলে এখানে লিখুন">'+esc(r.other)+'</textarea></div>';
+}
+function wlv1LifeCollect(){
+  try{
+    var picked={};
+    WLV1_LIFE_Q.forEach(function(q){
+      picked[q[0]]=Array.prototype.map.call(document.querySelectorAll('.wlv1HistChip.on[data-life="'+q[0]+'"]'),
+        function(b){return b.getAttribute('data-val')});
+    });
+    return wlv1LifeFormat(picked, ($('#dnWaterLitre')||{}).value||'', ($('#dnLifestyleOther')||{}).value||'');
+  }catch(e){ return '' }
+}
+window["wlv1LifeCollect"]=wlv1LifeCollect;window["wlv1LifeReadable"]=wlv1LifeReadable;
 const WLV1_HIST_GROUPS=[
  ['bleed','🩸 রক্তপাতের ইতিহাস',[
    ['color','রঙ',['টকটকে লাল','কালচে']],
@@ -7461,6 +7541,9 @@ async function saveDoctor(id){
   proctoscopy:$('#dnProctoscopy')?.value||'',patientSaid:$('#dnPatientSaid')?.value||'',
   symptomHistory:wlv1SymCollect(),   /* 🔵 V554 */
   historyDetail:wlv1HistCollect(),   /* 🔵 V555 */
+  lifestyle:wlv1LifeCollect(),       /* 🔵 V556 */
+  /* 🔵 V556: ওয়েবে `visual`-এর মতোই তালিকা হিসেবে জমা (chk() তালিকাই বোঝে) */
+  dre:$$('.dnDre:checked').map(x=>x.value),dreOther:$('#dnDreOther')?.value||'',
   treatmentPlan,amtPerPiles:$('#dnAmtPerPiles')?.value||'8000',amtFistulaPerInch:$('#dnAmtFistulaInch')?.value||'11000',amtKsharSutra:$('#dnAmtKsharSutra')?.value||'6000',
   counselling:$('#dnCounselling')?.value||'',estimatedCost:$('#dnEstimatedCost')?.value||'',recoveryTime:$('#dnRecoveryTime')?.value||'',advanceDiscussed:$('#dnAdvanceDiscussed')?.value||'',
   // V460 (১৯.০৮.২০২৬, Android-এ V455 হিসেবে করা হয়েছিল — এখানে ওয়েবেও একই ফিক্স):
@@ -13760,6 +13843,7 @@ function wlv1CheckupA4Fields(n){
     proctoscopy:n.proctoscopy||'', patientSaid:n.patientSaid||'',
     symptomHistory:wlv1SymReadable(n.symptomHistory||''),   /* 🔵 V554 */
     historyDetail:wlv1HistReadable(n.historyDetail||''),   /* 🔵 V555 */
+    lifestyle:wlv1LifeReadable(n.lifestyle||''),   /* 🔵 V556 */
     treatmentPlan:A(plan), rate:rateBits.join(' · '), counselling:n.counselling||'',
     estCost:n.estimatedCost||'', recovery:n.recoveryTime||'', advance:n.advanceDiscussed||'',
     beforePhoto:n.beforePhoto||'', duringPhoto:n.duringPhoto||'', afterPhoto:n.afterPhoto||''
@@ -13809,6 +13893,7 @@ function wlv1CheckupA4Html(p, dateText){
 '<div class="cell"><span class="k">Patient Said</span><span class="v">'+v(f.patientSaid)+'</span></div>'+   /* 🔵 V547 */
 '<div class="cell"><span class="k">Patient Reported</span><span class="v">'+v(f.symptomHistory)+'</span></div>'+   /* 🔵 V554 */
 '<div class="cell"><span class="k">History Detail</span><span class="v">'+v(f.historyDetail)+'</span></div>'+   /* 🔵 V555 */
+'<div class="cell"><span class="k">Habits</span><span class="v">'+v(f.lifestyle)+'</span></div>'+   /* 🔵 V556 */
 '<div class="cell"><span class="k">Result</span><span class="v">'+v(f.prevResult)+'</span></div>'+
 '<div class="cell"><span class="k">Prev. Cost</span><span class="v">'+v(f.prevCost)+'</span></div>'+
 '<div class="cell"><span class="k">Treatment Duration</span><span class="v">'+v(f.treatmentDuration)+'</span></div>'+

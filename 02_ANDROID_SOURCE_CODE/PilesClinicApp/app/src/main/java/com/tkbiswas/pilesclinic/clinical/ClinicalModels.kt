@@ -80,6 +80,9 @@ data class CheckupRecord(
        ডাক্তারের নিজের লেখা, সবটা একটাই লেখায় (`HistoryDetailModel.format`)।
        ⛔ নতুন কলাম বা SQL লাগেনি। */
     var historyDetail: String = "",
+    /* 🔵🔒 V556: কাগজের ভাগ ৪-এর নতুন অংশ — দীর্ঘমেয়াদী রোগ · ফাইবার · জল ·
+       টয়লেটের অভ্যাস · কোঁথ (`LifestyleModel.format`)। ⛔ নতুন কলাম/SQL লাগেনি। */
+    var lifestyle: String = "",
     // 🆕 TK-নির্দেশ (04.08.2026): নতুন সেকশন — C (Proctoscopy Grade) আর
     // পুরনো D (Investigations, এখন E) এর মাঝে। প্রোব ঢোকানোর পরে নালি
     // কোন দিকে গেল, কতটা গেল — ডাক্তার টাইপ করে লেখেন।

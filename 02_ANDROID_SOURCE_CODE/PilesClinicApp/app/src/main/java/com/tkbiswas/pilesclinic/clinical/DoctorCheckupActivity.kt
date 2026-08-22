@@ -76,6 +76,8 @@ class DoctorCheckupActivity : AppCompatActivity() {
     private var currentPhotoTarget = 0  // 0=before, 1=during, 2=after
 
     private val visualChecks = mutableListOf<CheckBox>()
+    // 🔵 V556 (TK: "B রাখুন") — V455-এ সরানো DRE-র টিকগুলো ফিরে এল
+    private val dreChecks = mutableListOf<CheckBox>()
     // V455 — dreChecks/dreOptions/dreGroup আর ব্যবহার হয় না (B সেকশন UI থেকে বাদ),
     // কিন্তু বাকি বিল্ড-চেইন (buildChecks কল) থেকে সরানো হলো নিচে; পুরনো সেভ
     // করা DRE মান (dreChecks-ভিত্তিক) ছোঁয়া হয়নি, শুধু নতুন টিক করার অপশন নেই।
@@ -214,6 +216,9 @@ class DoctorCheckupActivity : AppCompatActivity() {
 
         buildSymptomRows()   // 🔵 V554
         buildHistoryDetailRows()   // 🔵 V555
+        buildLifestyleRows()       // 🔵 V556
+        // 🔵 V556: B. আঙুল দিয়ে দেখে (DRE) — পুরোনো সেই একই তালিকা ও একই রং
+        buildChecks(findViewById(R.id.dreGroup), dreOptions, dreChecks, dreIcons, "#0B4F2A", dreBn)
         buildChecks(findViewById(R.id.visualGroup), visualOptions, visualChecks, visualIcons, "#D64545", visualBn)
         /* 🔵 V539: Internal Piles-এ চাপ দিলেই Grade বাছার তালিকা। ⛔ বাকি
            চেকবক্সগুলো এক অক্ষরও বদলায়নি। */
@@ -956,6 +961,9 @@ class DoctorCheckupActivity : AppCompatActivity() {
         patientSaid = findViewById<android.widget.EditText>(R.id.etPatientSaid).text?.toString().orEmpty(),   // 🔵 V539
         symptomHistory = collectSymptomHistory(),   // 🔵 V554
         historyDetail = collectHistoryDetail(),     // 🔵 V555
+        lifestyle = collectLifestyle(),             // 🔵 V556
+        dre = checkedText(dreChecks),               // 🔵 V556 (ফেরানো)
+        dreOther = findViewById<android.widget.EditText>(R.id.etDreOther).text?.toString().orEmpty(),
         // 🔵 B622 (11.08.2026): Result/Spent/Treatment Duration ঘর বাদ — মডেলের ডিফল্ট "" থাকে।
         visual = checkedText(visualChecks),
         // V455 (18.08.2026): visualOther · dre · dreOther · otherFindings ঘর বাদ — মডেলের ডিফল্ট থাকে।
@@ -996,6 +1004,10 @@ class DoctorCheckupActivity : AppCompatActivity() {
         findViewById<android.widget.EditText>(R.id.etPatientSaid).setText(r.patientSaid)   // 🔵 V539
         applySymptomHistory(r.symptomHistory)   // 🔵 V554
         applyHistoryDetail(r.historyDetail)     // 🔵 V555
+        applyLifestyle(r.lifestyle)             // 🔵 V556
+        val dreSel = r.dre.split(", ").map { it.trim() }   // 🔵 V556
+        dreChecks.forEach { it.isChecked = dreSel.contains((it.tag as? String) ?: it.text.toString()) }
+        findViewById<android.widget.EditText>(R.id.etDreOther).setText(r.dreOther)
         // 🔵 B622: Result/Spent/Treatment Duration ঘর বাদ।
         val vis = r.visual.split(", ").map { it.trim() }
         visualChecks.forEach { it.isChecked = vis.contains((it.tag as? String) ?: it.text.toString()) }
@@ -1265,6 +1277,85 @@ class DoctorCheckupActivity : AppCompatActivity() {
         }
     }
 
+    /* ═══ 🔵🔒 V556 (TK-অনুমোদিত ডেমো) — কাগজের ভাগ ৪-এর নতুন অংশ।
+       ⛔ চিপ বসানো, একাধিক বাছাই, লেখার বক্স — সবই ভাগ ৩-এর হুবহু একই নিয়মে।
+       ⛔ জল-এর ঘরটা সংখ্যার, পাশে "লিটার" — কাগজে যেমন "—— লিটার"। ═══ */
+    private val lifestyleChips = LinkedHashMap<String, MutableList<TextView>>()
+
+    private fun buildLifestyleRows() {
+        val box = findViewById<android.widget.LinearLayout>(R.id.lifestyleGroup) ?: return
+        box.removeAllViews()
+        lifestyleChips.clear()
+        for (q in LifestyleModel.QUESTIONS) {
+            box.addView(TextView(this).apply {
+                text = q.label
+                textSize = 12f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#5B6B81"))
+                setPadding(0, symDp(8), 0, symDp(3))
+            })
+            val chips = ArrayList<TextView>()
+            for (rowOptions in HistoryDetailModel.rowsFor(q.options)) {
+                val row = android.widget.LinearLayout(this).apply {
+                    orientation = android.widget.LinearLayout.HORIZONTAL
+                    val lp = android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    )
+                    lp.topMargin = symDp(4)
+                    layoutParams = lp
+                }
+                for ((i, opt) in rowOptions.withIndex()) {
+                    val chip = TextView(this).apply {
+                        text = opt
+                        textSize = 12f
+                        gravity = android.view.Gravity.CENTER
+                        setPadding(symDp(10), symDp(6), symDp(10), symDp(6))
+                        isClickable = true
+                        setTag(R.id.historyDetailGroup, false)
+                        tag = opt
+                        val lp = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                        if (i > 0) lp.marginStart = symDp(6)
+                        layoutParams = lp
+                    }
+                    chip.setOnClickListener {
+                        chip.setTag(R.id.historyDetailGroup, chip.getTag(R.id.historyDetailGroup) != true)
+                        paintHistoryChip(chip)
+                    }
+                    paintHistoryChip(chip)
+                    chips.add(chip)
+                    row.addView(chip)
+                }
+                box.addView(row)
+            }
+            lifestyleChips[q.key] = chips
+        }
+    }
+
+    private fun collectLifestyle(): String {
+        val picked = LinkedHashMap<String, List<String>>()
+        for ((key, chips) in lifestyleChips) {
+            picked[key] = chips.filter { it.getTag(R.id.historyDetailGroup) == true }
+                .map { (it.tag as? String).orEmpty() }
+        }
+        val water = findViewById<android.widget.EditText>(R.id.etWaterLitre)?.text?.toString().orEmpty()
+        val other = findViewById<android.widget.EditText>(R.id.etLifestyleOther)?.text?.toString().orEmpty()
+        return LifestyleModel.format(picked, water, other)
+    }
+
+    private fun applyLifestyle(saved: String) {
+        val (map, water, other) = LifestyleModel.parse(saved)
+        for ((key, chips) in lifestyleChips) {
+            val chosen = map[key] ?: emptyList<String>()
+            chips.forEach { chip ->
+                chip.setTag(R.id.historyDetailGroup, chosen.contains((chip.tag as? String).orEmpty()))
+                paintHistoryChip(chip)
+            }
+        }
+        findViewById<android.widget.EditText>(R.id.etWaterLitre)?.setText(water)
+        findViewById<android.widget.EditText>(R.id.etLifestyleOther)?.setText(other)
+    }
+
     private fun collectHistoryDetail(): String {
         val picked = LinkedHashMap<String, List<String>>()
         for ((field, chips) in historyChips) {
@@ -1394,6 +1485,8 @@ class DoctorCheckupActivity : AppCompatActivity() {
         if (r.symptomHistory.isNotBlank()) append("Patient Reported: ${SymptomHistoryModel.readable(r.symptomHistory)}; ")
         // 🔵 V555: কাগজের ভাগ ৩ — চারটে ইতিহাসের বাছাই
         if (r.historyDetail.isNotBlank()) append("History Detail: ${HistoryDetailModel.readable(r.historyDetail)}; ")
+        // 🔵 V556: রোগ ও অভ্যাস
+        if (r.lifestyle.isNotBlank()) append("Habits: ${LifestyleModel.readable(r.lifestyle)}; ")
         if (r.prevResult.isNotBlank()) append("Prev Result: ${r.prevResult}; ")
         if (r.prevCost.isNotBlank()) append("Prev Cost: ${r.prevCost}; ")
         if (r.treatmentDuration.isNotBlank()) append("Treatment Duration: ${r.treatmentDuration}; ")

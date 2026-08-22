@@ -393,6 +393,41 @@
                         </LinearLayout>
                     </LinearLayout>
 
+                    <!-- 🔵🔒 V556 (২২.০৮.২০২৬, TK-অনুমোদিত ডেমো): কাগজের **ভাগ ৪**-এর সেই
+                         অংশটুকু যা অ্যাপে ছিলই না — দীর্ঘমেয়াদী রোগ · ফাইবার · জল ·
+                         টয়লেটের অভ্যাস · কোঁথ। সবটাই কোড থেকে বসে (`LifestyleModel`)। -->
+                    <LinearLayout style="@style/DocNoteFieldBox">
+                        <View style="@style/DocNoteAccentBar" />
+                        <LinearLayout style="@style/DocNoteFieldBoxInner">
+                            <LinearLayout style="@style/DocNoteFieldBoxTopRow">
+                                <TextView style="@style/DocNoteIcon" android:text="🥗" />
+                                <TextView style="@style/DocNoteLabel" android:text="রোগ ও অভ্যাস" />
+                            </LinearLayout>
+                            <View style="@style/DocNoteDivider" />
+                            <LinearLayout
+                                android:id="@+id/lifestyleGroup"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical" />
+                            <!-- দৈনিক জল পানের পরিমাণ — কাগজে "———— লিটার"।
+                                 ⛔ ঘরটা এখানেই (XML) রাখা হলো, তাই আলাদা কোনো id-ফাইল লাগে না। -->
+                            <TextView style="@style/DocNoteLabel" android:layout_marginTop="8dp"
+                                android:text="দৈনিক জল পানের পরিমাণ" />
+                            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                                android:orientation="horizontal" android:gravity="center_vertical">
+                                <EditText android:id="@+id/etWaterLitre" style="@style/DocNoteInputSingle"
+                                    android:layout_width="72dp" android:inputType="numberDecimal"
+                                    android:gravity="center" android:maxLines="1" />
+                                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                    android:layout_marginStart="8dp" android:text="লিটার"
+                                    android:textColor="#10223A" android:textSize="13sp" />
+                            </LinearLayout>
+                            <EditText android:id="@+id/etLifestyleOther" style="@style/DocNoteInputMultiline"
+                                android:minLines="1"
+                                android:hint="অন্যান্য থাকলে এখানে লিখুন" />
+                        </LinearLayout>
+                    </LinearLayout>
+
                     <!-- V455 (TK-নির্দেশ ১৮.০৮.২০২৬) — Acute Onset/Chronic Onset ঘর বাদ।
                          ⛔ ClinicalModels-এর acuteChronic ঘর অটুট (ডিফল্ট ""), শুধু UI সরানো। -->
 
@@ -484,6 +519,18 @@
                     <!-- V455 (TK-নির্দেশ ১৮.০৮.২০২৬) — "Other (Visual)" ও পুরো
                          "B. DRE" সেকশন (Tenderness/Fistula + Other) বাদ। ⛔ ClinicalModels-এর
                          visualOther/dre*/dreOther ঘর অটুট (ডিফল্ট ""/false), শুধু UI সরানো। -->
+
+                    <!-- 🔵🔒 V556 (২২.০৮.২০২৬, TK-নির্দেশ): *"B রাখুন"* — কাগজে
+                         **"B. আঙুল দিয়ে দেখে"** আছে, তাই V455-এ সরানো DRE সেকশনটা
+                         ফিরে এল। ⛔ নতুন কিছু বানানো হয়নি — পুরোনো সেই একই ঘর
+                         (`dre` · `dreOther`) ও একই দুটো অপশন (Tenderness · Fistula);
+                         ছাপা/সারাংশের কোড আগে থেকেই এগুলো পড়ত, ছোঁয়াও হয়নি।
+                         ⛔ "Other (Visual)" আগের মতোই বাদ (TK বলেননি ফেরাতে)। -->
+                    <TextView style="@style/FieldLabel" android:layout_marginTop="10dp" android:text="B. আঙুল দিয়ে দেখে · DRE" android:textColor="@color/brand_navy" />
+                    <LinearLayout android:id="@+id/dreGroup" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="0dp" android:orientation="vertical" />
+                    <EditText android:id="@+id/etDreOther" style="@style/DocNoteInputSingle"
+                        android:layout_marginTop="6dp"
+                        android:hint="আঙুল দিয়ে দেখে আর যা পাওয়া গেল" />
 
                     <LinearLayout style="@style/DocNoteFieldBox">
                         <View style="@style/DocNoteAccentBar" />
