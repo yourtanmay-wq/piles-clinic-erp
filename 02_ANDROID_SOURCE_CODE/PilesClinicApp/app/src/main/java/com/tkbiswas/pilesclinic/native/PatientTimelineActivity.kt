@@ -238,6 +238,9 @@ class PatientTimelineActivity : AppCompatActivity() {
                     Intent(this, PaymentActivity::class.java)
                         .putExtra("mobile", mobile)
                         .putExtra("directForm", true)
+                        /* 🔵🔒 V520: এই Timeline যে রোগীরটা দেখাচ্ছে, টাকাও তাঁরই। */
+                        .putExtra("patientRowId", preferPatientRowId)
+                        .putExtra("patientCode", currentPatientCode)
                 )
             }
             binding.btnTakeAction.setOnClickListener { showTakeActionMenu() }
@@ -665,7 +668,13 @@ class PatientTimelineActivity : AppCompatActivity() {
         if (isRegistered) {
             actionRow("💳", "Payment", "#0C9E33") {
                 dialog.dismiss()
-                startActivity(Intent(this, PaymentActivity::class.java).putExtra("mobile", currentMobile))
+                startActivity(
+                    Intent(this, PaymentActivity::class.java)
+                        .putExtra("mobile", currentMobile)
+                        /* 🔵🔒 V520: এই Timeline যে রোগীরটা দেখাচ্ছে, টাকাও তাঁরই। */
+                        .putExtra("patientRowId", preferPatientRowId)
+                        .putExtra("patientCode", currentPatientCode)
+                )
                 // V215 (§11.5/§11.6, 31.07.2026): Follow-up/Queue → Patient Detail
                 // → Action → Payment-এর পর একবার Back দিলে সরাসরি আগের তালিকায়
                 // ফিরবে (Report/Payment থেকে Back করলে Patient Detail-এ আটকে থাকা

@@ -17,6 +17,7 @@ import com.tkbiswas.pilesclinic.databinding.ActivityPaymentBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.resume
 
 /**
  * Native rebuild Step 5 (final planned step) -- Payment.
@@ -192,7 +193,16 @@ class PaymentActivity : AppCompatActivity() {
         // patient's payment form (Bill stays locked, 3 taps to edit).
         val preMobile = intent.getStringExtra("mobile")?.filter { it.isDigit() }?.takeLast(10)
         if (!preMobile.isNullOrBlank() && preMobile.length == 10) {
-            searchAndOpenPaymentForm(preMobile)
+            /* 🔵🔒 V520 (২২.০৮.২০২৬): ডাকা পর্দা যদি জানে **কোন রোগী** (কার্ডে
+               রোগীর সারির আইডি / Official Patient ID থাকে), সেটা সাথে আসে — তখন
+               এক নম্বরে দুজন থাকলেও ঠিক রোগীরই ফর্ম খোলে, কিছু জিজ্ঞাসা করতে হয় না।
+               ⛔ পুরোনো যে ডাকার জায়গাগুলো এই দুটো পাঠায় না, সেখানে দুটোই ফাঁকা —
+                  একজন রোগী হলে আচরণ হুবহু আগের মতোই। */
+            searchAndOpenPaymentForm(
+                preMobile,
+                intent.getStringExtra("patientRowId").orEmpty(),
+                intent.getStringExtra("patientCode").orEmpty()
+            )
         }
     }
 
@@ -1181,7 +1191,11 @@ class PaymentActivity : AppCompatActivity() {
                 row.addView(textCol)
                 row.setOnClickListener {
                     dialog.dismiss()
-                    searchAndOpenPaymentForm(mobileDigits)
+                    /* 🔵🔒 V520 (২২.০৮.২০২৬): স্টাফ **এই কার্ডটাই** চেপেছেন — তাই
+                       এই সারিরই আইডি সাথে পাঠানো হয়। এক নম্বরে স্বামী ও স্ত্রী
+                       দুজন থাকলে যাঁকে চাপা হল তাঁরই ফর্ম খুলবে, অন্যজনের নয়।
+                       ⛔ একজনই থাকলে কিছুই বদলায় না — একই সারি, একই ফর্ম। */
+                    searchAndOpenPaymentForm(mobileDigits, m.id, m.patientId)
                 }
                 resultsContainer.addView(row)
             }
@@ -1222,7 +1236,54 @@ class PaymentActivity : AppCompatActivity() {
         dialog.show()
     }
 
-    private fun searchAndOpenPaymentForm(mobile: String) {
+    /**
+     * 🔵🔒 V520 (২২.০৮.২০২৬, TK-অনুমোদিত — **walk-in**) — *"এই নম্বরে কে?"*
+     *
+     * **কখন দেখা যায়:** কেবল তখনই, যখন স্টাফ Payment-এ শুধু মোবাইল নম্বর
+     * দিয়েছেন **আর ওই নম্বরে সত্যিই একাধিক আলাদা রোগী আছেন** (স্টাফ নিজে
+     * *"Different Patient — Same Mobile"* চেপে বানিয়েছেন)।
+     * একজন থাকলে এই বাক্স **কখনো** খোলে না — পর্দা আগের মতোই সোজা ফর্ম খোলে।
+     *
+     * ⛔ টাকার কোনো হিসাব এখানে হয় না — শুধু "কার টাকা" সেটা ঠিক করা।
+     * ⛔ Cancel চাপলে কিছুই খোলে না, কোথাও কিছু লেখা হয় না।
+     */
+    private suspend fun askWhichPatient(
+        mobile: String, people: List<PatientBillInfo>
+    ): PatientBillInfo? = kotlinx.coroutines.suspendCancellableCoroutine { cont ->
+        val labels = people.map { p ->
+            "${p.name.ifBlank { "UNKNOWN" }}\n${p.patientId.ifBlank { "-" }} · ${p.branch.ifBlank { "-" }}"
+        }.toTypedArray()
+        var done = false
+        fun finishWith(v: PatientBillInfo?) {
+            if (done) return
+            done = true
+            if (cont.isActive) cont.resume(v)
+        }
+        if (isFinishing || isDestroyed) { finishWith(null); return@suspendCancellableCoroutine }
+        AlertDialog.Builder(this)
+            .setCustomTitle(PremiumAlert.header(this, "📞 $mobile — which patient?"))
+            .setItems(labels) { _, which -> finishWith(people.getOrNull(which)) }
+            .setNegativeButton("Cancel") { _, _ -> finishWith(null) }
+            .setOnCancelListener { finishWith(null) }
+            .show()
+    }
+
+    /**
+     * 🔵🔒 V520 (২২.০৮.২০২৬, TK-অনুমোদিত — **walk-in**)
+     *
+     * `preferRowId` / `preferPatientCode` — ডাকার জায়গা যদি **কোন রোগী** তা
+     * জানে (স্টাফ কার্ড চেপেছেন, বা Follow-up/Timeline থেকে এসেছে), তখন সেই
+     * রোগীরই ফর্ম খোলে।
+     * ⛔ দুটোই ফাঁকা মানে স্টাফ শুধু নম্বর টাইপ করেছেন — তখন নিচে দেখা হয় ওই
+     *    নম্বরে সত্যিই একাধিক আলাদা রোগী আছেন কি না; **থাকলে তবেই** নাম দেখিয়ে
+     *    জিজ্ঞাসা করা হয়। একজন থাকলে (রোজকার ৯৯%) পর্দা **হুবহু আগের মতোই**
+     *    সোজা ফর্ম খোলে — একটাও বাড়তি চাপ নয়।
+     */
+    private fun searchAndOpenPaymentForm(
+        mobile: String,
+        preferRowId: String = "",
+        preferPatientCode: String = ""
+    ) {
         // 🔒 TK-এর নিয়ম (28.07.2026, খাতার সারি B26): চাপ দেওয়ামাত্র স্টাফ বুঝবেন
         // কাজ শুরু হয়েছে — পর্দা যেন মরা মনে না হয়।
         // Tapping a name in Search Patient closes that box and then waits for
@@ -1240,7 +1301,25 @@ class PaymentActivity : AppCompatActivity() {
             // see findPatientByMobile()'s note. Master (blank/All branch)
             // falls back to the same deterministic choice as before.
             val ownBranch = NativeSession.current(this@PaymentActivity)?.branch.orEmpty()
-            val patient = withContext(Dispatchers.IO) { repository.findPatientByMobile(mobile, ownBranch) }
+            // 🔵🔒 V520: ডাকার জায়গা কিছু না জানালে, আগে দেখা হয় ওই নম্বরে কতজন
+            // আলাদা রোগী আছেন। ⛔ এতে বাড়তি cloud-read নেই — ঠিক একই অনুরোধ
+            // findPatientByMobile()-ও করে, CloudReadDedupe দ্বিতীয়বার পাঠায় না।
+            var rowId = preferRowId
+            var code = preferPatientCode
+            if (rowId.isBlank() && code.isBlank()) {
+                val people = withContext(Dispatchers.IO) {
+                    try { repository.identitiesOnMobile(mobile, ownBranch) } catch (_: Throwable) { emptyList() }
+                }
+                if (people.size > 1) {
+                    val chosen = askWhichPatient(mobile, people)
+                    if (chosen == null) { if (directFormOnly) finish(); return@launch }
+                    rowId = chosen.id
+                    code = chosen.patientId
+                }
+            }
+            val patient = withContext(Dispatchers.IO) {
+                repository.findPatientByMobile(mobile, ownBranch, preferPatientCode = code, preferRowId = rowId)
+            }
             if (patient == null) {
                 Toast.makeText(this@PaymentActivity, "No registered patient found with this number", Toast.LENGTH_SHORT).show()
                 // Direct mode has nothing else on screen, so go straight back.

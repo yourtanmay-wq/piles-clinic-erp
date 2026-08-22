@@ -465,7 +465,16 @@ class PaymentRepository(private val context: Context? = null) {
             val nameMatch = qLower.isNotEmpty() && name.lowercase().contains(qLower)
             val mobileMatch = qDigits.length >= 3 && mobileDigits.contains(qDigits)
             if (!nameMatch && !mobileMatch) continue
-            if (!seenMobiles.add(mobileDigits.ifBlank { row.s("id") })) continue
+            /* 🔵🔒 V520 (২২.০৮.২০২৬) — **এক মোবাইলে দুজন হলে দুটোই দেখাবে।**
+               নিচের `seenMobiles` লাইনটা এক মোবাইলের **একটাই** সারি রাখে (ভুলে
+               দুবার রেজিস্ট্রেশন হলে দুটো কার্ড দেখানো ঠিক নয় — সেটা অপরিবর্তিত)।
+               কিন্তু স্টাফ যখন নিজে *"Different Patient — Same Mobile"* চেপে
+               আলাদা রোগী বানিয়েছেন, তখন সেই সারিটা **আলাদা রোগী** — তাকে চাপা
+               দেওয়া চলবে না, নইলে Payment-এ স্বামীকে খুঁজে স্ত্রীকেই পাওয়া যেত।
+               ⛔ পুরোনো সব সারির আইডিতে ওই চিহ্ন নেই, তাই তাদের আচরণ হুবহু আগের। */
+            val declaredSeparate = PatientModel.isDeclaredSeparateRowId(row.s("id"), mobileDigits)
+            if (!declaredSeparate && !seenMobiles.add(mobileDigits.ifBlank { row.s("id") })) continue
+            if (declaredSeparate) seenMobiles.add(row.s("id"))
             out.add(
                 PatientBillInfo(
                     id = row.s("id"),
@@ -511,7 +520,21 @@ class PaymentRepository(private val context: Context? = null) {
      * Callers that don't pass preferBranch behave as before apart from being
      * deterministic. No screen, design or flow is changed.
      */
-    fun findPatientByMobile(mobileDigitsOnly: String, preferBranch: String = ""): PatientBillInfo? {
+    /**
+     * 🔵🔒 V520 (২২.০৮.২০২৬, TK-অনুমোদিত) — `preferPatientCode` / `preferRowId`
+     *
+     * এক মোবাইলে একাধিক রোগী থাকতে পারেন (স্বামী/স্ত্রী)। ডাকার জায়গা যদি
+     * **কোন রোগী** তা জানে (Chamber/Follow-up সারিতে Official Patient ID থাকে,
+     * অথবা স্টাফ নিজে বেছে দিয়েছেন), তাহলে সেটাই ব্যবহার হয়।
+     * ⛔ দুটোই ফাঁকা রাখলে **হুবহু আগের আচরণ** (`pickPatientRow`) — তাই
+     *    পুরোনো কোনো ডাকার জায়গা বদলাতে হয়নি।
+     */
+    fun findPatientByMobile(
+        mobileDigitsOnly: String,
+        preferBranch: String = "",
+        preferPatientCode: String = "",
+        preferRowId: String = ""
+    ): PatientBillInfo? {
         val normalized = PatientModel.normalizedMobile(mobileDigitsOnly)
         val patients = SupabaseClient.findByMobile("patients", normalized, "id,name,mobile,branch,patientId,bill", 20)
         if (patients.length() == 0) return null
@@ -519,7 +542,17 @@ class PaymentRepository(private val context: Context? = null) {
         // place (PatientIdentity.pickPatientRow) and every other screen uses
         // it too, so no two screens can pick a different row for the same
         // person. The rule itself is unchanged, word for word.
-        val p = PatientIdentity.pickPatientRow(patients, preferBranch) ?: patients.getJSONObject(0)
+        /* 🔵🔒 V520: ডাকার জায়গা কোন রোগী তা বলে দিলে ঠিক সেই সারিটাই।
+           ⛔ না বললে, বা ওই আইডি এই নম্বরে না থাকলে — হুবহু আগের পথ। */
+        var forced: org.json.JSONObject? = null
+        if (preferRowId.isNotBlank() || preferPatientCode.isNotBlank()) {
+            for (i in 0 until patients.length()) {
+                val r = patients.optJSONObject(i) ?: continue
+                if ((preferRowId.isNotBlank() && r.s("id") == preferRowId) ||
+                    (preferPatientCode.isNotBlank() && r.s("patientId") == preferPatientCode)) { forced = r; break }
+            }
+        }
+        val p = forced ?: PatientIdentity.pickPatientRow(patients, preferBranch) ?: patients.getJSONObject(0)
         val bill = p.optDouble("bill", 0.0)
         val patientId = p.optString("id")
 
@@ -533,11 +566,30 @@ class PaymentRepository(private val context: Context? = null) {
         // এখন ওই মোবাইলের **সব ক'টা সারির** নামে জমা টাকা একসাথে গোনা হয়।
         // ⛔ দু'বার গোনা হওয়া অসম্ভব: একটাই অনুরোধে সব সারি আনা হয়, তাই একটা
         // পেমেন্টের সারি একবারই আসে।
-        val allIds = LinkedHashSet<String>()
+        /* 🔴🔴🔒 V520 (২২.০৮.২০২৬) — **দুই রোগীর টাকা কখনো মিশবে না।**
+           নিচের নিয়মটা (ওই মোবাইলের **সব** সারির টাকা একসাথে গোনা) বসানো
+           হয়েছিল "এক মোবাইল = এক রোগী" ধরে নিয়ে — একই মানুষের ভুল করে
+           দুটো সারি হলে টাকা যেন হারিয়ে না যায় (খাতার সারি B30)।
+           V516-এর পরে এক নম্বরে **সত্যিই দুজন আলাদা রোগী** থাকতে পারেন;
+           তখন এই যোগফল স্বামীর টাকা স্ত্রীর নামে দেখিয়ে দিত।
+           ⇒ এই নম্বরে ঘোষিত আলাদা রোগী থাকলে হিসাব হয় **শুধু বেছে নেওয়া
+             রোগীর নিজের আইডি ধরে**। ⛔ নইলে হুবহু আগের নিয়ম, B30 অটুট। */
+        val mobDigits = mobileDigitsOnly.filter { it.isDigit() }.takeLast(10)
+        var mixedMobile = false
         for (i in 0 until patients.length()) {
             val row = patients.optJSONObject(i) ?: continue
-            row.optString("id").takeIf { it.isNotBlank() }?.let { allIds.add(it) }
-            row.optString("patientId").takeIf { it.isNotBlank() }?.let { allIds.add(it) }
+            if (PatientModel.isDeclaredSeparateRowId(row.s("id"), mobDigits)) { mixedMobile = true; break }
+        }
+        val allIds = LinkedHashSet<String>()
+        if (mixedMobile) {
+            p.optString("id").takeIf { it.isNotBlank() }?.let { allIds.add(it) }
+            p.optString("patientId").takeIf { it.isNotBlank() }?.let { allIds.add(it) }
+        } else {
+            for (i in 0 until patients.length()) {
+                val row = patients.optJSONObject(i) ?: continue
+                row.optString("id").takeIf { it.isNotBlank() }?.let { allIds.add(it) }
+                row.optString("patientId").takeIf { it.isNotBlank() }?.let { allIds.add(it) }
+            }
         }
         val payFilter = if (allIds.size > 1)
             "patientId=in.(" + allIds.joinToString(",") { java.net.URLEncoder.encode(it, "UTF-8") } + ")"
@@ -684,6 +736,51 @@ class PaymentRepository(private val context: Context? = null) {
         )
     }
 
+    /**
+     * 🔵🔒 V520 (২২.০৮.২০২৬, TK-অনুমোদিত — **walk-in**) — এই নম্বরে কারা কারা আছেন।
+     *
+     * **কেন দরকার:** Payment পর্দায় স্টাফ শুধু **মোবাইল নম্বরটাই** টাইপ করেন —
+     * আর কিছু জানা থাকে না। ওই নম্বরে যদি স্বামী ও স্ত্রী **দুজন আলাদা রোগী**
+     * থাকেন, তাহলে কার টাকা নেওয়া হচ্ছে সেটা অ্যাপের পক্ষে আন্দাজ করা অসম্ভব।
+     * তাই তালিকাটা ফিরিয়ে দেওয়া হয়, আর পর্দা স্টাফকে **নাম দেখিয়ে জিজ্ঞাসা**
+     * করে নেয়।
+     *
+     * ⛔ **নতুন কোনো cloud-read নয়** — `findPatientByMobile()` ঠিক **এই একই**
+     *    অনুরোধটাই করে (একই table · একই filter · একই কলাম · একই limit), তাই
+     *    `CloudReadDedupe` ওটাকে দ্বিতীয়বার নেটে পাঠায় না। Free Plan-এর
+     *    egress-এ **এক বাইটও** বাড়ে না।
+     * ⛔ টাকার কোনো হিসাব এখানে হয় না (bill/paid শূন্য) — হিসাব আগের মতোই
+     *    `findPatientByMobile()`-ই করে, স্টাফ একজনকে বেছে নেওয়ার পরে।
+     * ⛔ একজনই থাকলে (রোজকার ৯৯% ক্ষেত্রে) তালিকায় একটাই নাম — ডাকার জায়গা
+     *    তখন কিছুই জিজ্ঞাসা করে না, আচরণ **হুবহু আগের মতোই**।
+     */
+    fun identitiesOnMobile(mobileDigitsOnly: String, preferBranch: String = ""): List<PatientBillInfo> {
+        val normalized = PatientModel.normalizedMobile(mobileDigitsOnly)
+        val patients = SupabaseClient.findByMobile("patients", normalized, "id,name,mobile,branch,patientId,bill", 20)
+        val mobDigits = mobileDigitsOnly.filter { it.isDigit() }.takeLast(10)
+        fun info(row: org.json.JSONObject) = PatientBillInfo(
+            id = row.s("id"), name = row.s("name"), mobile = row.s("mobile"),
+            branch = row.s("branch"), patientId = row.s("patientId"),
+            bill = row.optDouble("bill", 0.0), paid = 0.0, billLocked = false
+        )
+        val out = mutableListOf<PatientBillInfo>()
+        // ১) ভুলে দুবার রেজিস্ট্রেশন হওয়া সারিগুলো **আগের মতোই এক রোগী** — তাই
+        //    তাদের মধ্যে বাছাই হয় ঠিক সেই এক নিয়মেই যেটা নয়টা পর্দা মানে
+        //    (`PatientIdentity.pickPatientRow`, V143 · খাতার সারি B30)।
+        val ordinary = org.json.JSONArray()
+        for (i in 0 until patients.length()) {
+            val row = patients.optJSONObject(i) ?: continue
+            if (!PatientModel.isDeclaredSeparateRowId(row.s("id"), mobDigits)) ordinary.put(row)
+        }
+        PatientIdentity.pickPatientRow(ordinary, preferBranch)?.let { out.add(info(it)) }
+        // ২) স্টাফ নিজে ঘোষণা-করা প্রত্যেক আলাদা রোগী **নিজের নামে** আলাদা।
+        for (i in 0 until patients.length()) {
+            val row = patients.optJSONObject(i) ?: continue
+            if (PatientModel.isDeclaredSeparateRowId(row.s("id"), mobDigits)) out.add(info(row))
+        }
+        return out
+    }
+
     /** Web openVisitAdvancePayment(): patientForVisit(x) || makePatient(x).
      *  If no patients row exists yet for this mobile, create a minimal one from
      *  the follow-up card's data so Advance is never blocked.
@@ -708,7 +805,10 @@ class PaymentRepository(private val context: Context? = null) {
      *  ⛔ রোগী সত্যিই নতুন হলে আগের মতোই সারি তৈরি হয়, কিছুই আটকায় না।
      */
     fun findOrMakePatient(name: String, mobileDigits: String, branch: String, existingPatientId: String): PatientBillInfo? {
-        findPatientByMobile(mobileDigits)?.let { return it }
+        /* 🔵🔒 V520: কার্ড থেকে আসা Patient ID (`existingPatientId`) **রোগী-প্রতি
+           অনন্য**, তাই এক নম্বরে দুজন থাকলেও ঠিক রোগীটাই বেছে নেওয়া যায়।
+           ⛔ ফাঁকা থাকলে বা ওই আইডি এই নম্বরে না থাকলে — হুবহু আগের পথ। */
+        findPatientByMobile(mobileDigits, preferPatientCode = existingPatientId)?.let { return it }
         val normalized = PatientModel.normalizedMobile(mobileDigits)
 
         // ধাপ ২ — সত্যিই যাচাই করা গেল কি না। না গেলে কিছুই তৈরি হবে না।
@@ -716,7 +816,7 @@ class PaymentRepository(private val context: Context? = null) {
             ?: return null
         if (verify.length() > 0) {
             // এইমাত্র ক্লাউডে পাওয়া গেল (উপরের খোঁজাটা হয়তো ফসকেছিল) — নতুন নয়।
-            findPatientByMobile(mobileDigits)?.let { return it }
+            findPatientByMobile(mobileDigits, preferPatientCode = existingPatientId)?.let { return it }
             return null
         }
 

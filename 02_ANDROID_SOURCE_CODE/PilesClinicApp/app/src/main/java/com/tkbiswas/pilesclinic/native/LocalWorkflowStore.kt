@@ -45,6 +45,36 @@ class LocalWorkflowStore(context: Context) {
      *  end up blank without branch ever being skippable at entry. Now it
      *  MERGES field-by-field (same safe pattern as updateLocalFollowUp below),
      *  so an existing field is only ever changed if the new data actually has it. */
+    /**
+     * 🔵🔒 V520 (২২.০৮.২০২৬, TK-অনুমোদিত — **offline**) — **দুই রোগীর সারি
+     * কখনো এক করে ফেলা যাবে না।**
+     *
+     * নিচের দুটো `upsertFollowUp*()` পুরোনো সারি খুঁজে পায় দু'ভাবে: আইডি মিললে,
+     * **অথবা** "একই যাত্রা" — মানে *একই মোবাইল + একই stage*। এক নম্বরে স্বামী ও
+     * স্ত্রী দুজন আলাদা রোগী থাকলে দুজনেরই stage "Patient" হতে পারে, তখন
+     * দ্বিতীয়জনের সারি প্রথমজনের সারির উপরেই বসে যেত — **দুজনের রেকর্ড এক
+     * হয়ে যেত** (TK-এর ৭ নম্বর নিয়মের সরাসরি লঙ্ঘন)।
+     *
+     * এই ফাংশন **কেবল তখনই** `true` বলে, যখন কোড থেকে **প্রমাণ** করা যায় যে
+     * সারি দুটো আলাদা রোগীর:
+     *   ১. দুটো সারিতেই `refId` আছে এবং **আলাদা** → নিশ্চিতভাবে দুই রোগী।
+     *   ২. একটায় `refId` আছে ও সেটা *"Different Patient — Same Mobile"*-এর
+     *      চিহ্নবহ (`pat_<১০ সংখ্যা>_<লেজ>`), অন্যটায় `refId` **নেই** →
+     *      যার `refId` নেই সেটা পুরোনো সাধারণ সারি, তাই দুজন আলাদা।
+     *      (কারণ ঘোষিত-আলাদা রোগীর সারি **সবসময়** `refId` নিয়েই তৈরি হয় —
+     *      `PatientModel.buildVisitFollowUpRow` এক অক্ষরও ছাড়ে না।)
+     *
+     * ⛔ এর বাইরে সব ক্ষেত্রে `false` — অর্থাৎ **আচরণ হুবহু আগের মতোই**।
+     *    পুরোনো (refId-হীন) সারিগুলোর মিলে-যাওয়া একটুও বদলায়নি।
+     */
+    private fun provablyDifferentPatients(old: JSONObject, neu: JSONObject, mobile: String): Boolean {
+        val a = old.optString("refId")
+        val b = neu.optString("refId")
+        if (a.isNotBlank() && b.isNotBlank()) return a != b
+        val known = if (a.isNotBlank()) a else b
+        return known.isNotBlank() && PatientModel.isDeclaredSeparateRowId(known, mobile)
+    }
+
     fun upsertFollowUp(row: JSONObject, syncStatus: String = "PENDING") {
         synchronized(LOCK) {
         val copy = JSONObject(row.toString()).put("_syncStatus", syncStatus)
@@ -56,7 +86,8 @@ class LocalWorkflowStore(context: Context) {
         for (i in 0 until rows.length()) {
             val old = rows.getJSONObject(i)
             val sameId = id.isNotBlank() && old.optString("id") == id
-            val sameJourney = mobile.isNotBlank() && digits(old.optString("mobile")) == mobile && old.optString("stage") == stage
+            val sameJourney = mobile.isNotBlank() && digits(old.optString("mobile")) == mobile &&
+                old.optString("stage") == stage && !provablyDifferentPatients(old, copy, mobile)
             if (sameId || sameJourney) {
                 // STALE-CLOUD-OVERWRITE GUARD (TK-reported bug, 2026-07-16): a
                 // routine cloud refresh (syncStatus="SYNCED", e.g. just opening a
@@ -110,7 +141,8 @@ class LocalWorkflowStore(context: Context) {
                 for (i in 0 until stored.length()) {
                     val old = stored.getJSONObject(i)
                     val sameId = id.isNotBlank() && old.optString("id") == id
-                    val sameJourney = mobile.isNotBlank() && digits(old.optString("mobile")) == mobile && old.optString("stage") == stage
+                    val sameJourney = mobile.isNotBlank() && digits(old.optString("mobile")) == mobile &&
+                        old.optString("stage") == stage && !provablyDifferentPatients(old, copy, mobile)
                     if (sameId || sameJourney) {
                         if (isStaleCloudRefresh(old, syncStatus, copy)) { replaced = true; break }
                         val keys = copy.keys()
@@ -480,8 +512,35 @@ class LocalWorkflowStore(context: Context) {
         val mobile = digits(patient.mobile)
         val rows = load("followups")
         var found = false
+        /* 🔵🔒 V520 (২২.০৮.২০২৬, TK-অনুমোদিত — **offline**): নিচের লুপ ওই
+           মোবাইলের **সব** Patient/Treatment সারিতে টাকা বসিয়ে দিত। এক নম্বরে
+           স্বামী ও স্ত্রী দুজন থাকলে একজনের টাকা **দুজনের নামেই** বসে যেত।
+           এখন আগে দেখা হয় — এই রোগীর **নিজের আইডি** ধরে চেনা কোনো সারি আছে
+           কিনা (`refId`/`patientId`)। থাকলে **কেবল সেগুলোই** বদলায়।
+           ⛔ পুরোনো (আইডি-হীন) সারির ক্ষেত্রে একটাও মিলবে না, তখন আচরণ
+              **হুবহু আগের মতোই** — কোনো পুরোনো ফোনের জমা তথ্য ভাঙে না। */
+        val ownerId = patient.id
+        fun isOwn(row: JSONObject) =
+            ownerId.isNotBlank() &&
+                (row.optString("refId") == ownerId || row.optString("patientId") == ownerId)
+        /* কোড থেকে **প্রমাণ** করা যায় যে সারিটা অন্য রোগীর — কেবল তখনই বাদ। */
+        fun isSomeoneElse(row: JSONObject): Boolean {
+            if (ownerId.isBlank() || isOwn(row)) return false
+            val rid = row.optString("refId")
+            if (PatientModel.isDeclaredSeparateRowId(ownerId, mobile)) return true
+            return rid.isNotBlank() && PatientModel.isDeclaredSeparateRowId(rid, mobile)
+        }
+        var ownedFound = false
+        for (i in 0 until rows.length()) {
+            val row = rows.optJSONObject(i) ?: continue
+            if (digits(row.optString("mobile")) != mobile) continue
+            if (row.optString("stage") !in listOf("Patient", "Treatment")) continue
+            if (isOwn(row)) { ownedFound = true; break }
+        }
         for (i in 0 until rows.length()) {
             val row = rows.getJSONObject(i)
+            if (ownedFound && !isOwn(row)) continue
+            if (isSomeoneElse(row)) continue
             if (digits(row.optString("mobile")) == mobile && row.optString("stage") in listOf("Patient", "Treatment")) {
                 val priorPaid = row.optDouble("paid", 0.0)
                 // TK-REPORTED BUG FIX (2026-07-15): bump "date" on every payment
@@ -576,6 +635,36 @@ class LocalWorkflowStore(context: Context) {
      * found (caller then behaves exactly as it did before).
      */
     fun findPatientByMobile(mobileRaw: String): JSONObject? = findByMobileIn("patients", mobileRaw)
+
+    /**
+     * 🔵🔒 V520 (২২.০৮.২০২৬, TK-অনুমোদিত — **offline**) — এই ফোনে জমা থাকা
+     * ওই নম্বরের **সব** রোগী, শুধু প্রথমজন নয়।
+     *
+     * **কেন:** নেট না থাকলে ডুপ্লিকেট-চেক ক্লাউডে কিছুই দেখতে পায় না, তখন
+     * ফোনের নিজের তালিকাই ভরসা। উপরের ফাংশনটা **প্রথম** মিলটাই ফেরায় — এক
+     * নম্বরে স্বামী ও স্ত্রী দুজন থাকলে পপ-আপে একজনই দেখা যেত, আর স্টাফ
+     * ভুল জনকে *"Update Existing"* করে ফেলতে পারতেন।
+     *
+     * ⛔ উপরের `findPatientByMobile()` **এক অক্ষরও বদলায়নি** — তার সব পুরোনো
+     *    ডাকার জায়গা হুবহু আগের মতোই চলে। এটা শুধু **অতিরিক্ত** একটা পথ।
+     * ⛔ নেট লাগে না · কোনো cloud-read নেই · কিছু লেখা হয় না (read-only)।
+     * ⛔ একজন থাকলে তালিকায় একটাই — আচরণ আগের মতোই।
+     */
+    fun findPatientsByMobile(mobileRaw: String): List<JSONObject> {
+        val want = digits(mobileRaw)
+        if (want.length != 10) return emptyList()
+        val rows = load("patients")
+        val out = mutableListOf<JSONObject>()
+        val seen = HashSet<String>()
+        for (i in 0 until rows.length()) {
+            val row = rows.optJSONObject(i) ?: continue
+            if (digits(row.optString("mobile")) != want) continue
+            val rid = row.optString("id")
+            if (rid.isNotBlank() && !seen.add(rid)) continue
+            out.add(JSONObject(row.toString()))
+        }
+        return out
+    }
 
     fun findEnquiryByMobile(mobileRaw: String): JSONObject? = findByMobileIn("enquiries", mobileRaw)
 

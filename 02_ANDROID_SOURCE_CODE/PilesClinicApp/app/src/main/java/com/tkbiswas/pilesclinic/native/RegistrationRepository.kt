@@ -101,11 +101,19 @@ class RegistrationRepository(private val context: Context) {
         // was already registered. The phone's own saved list needs no network,
         // so ask it before concluding the number is new. Nothing is blocked: if
         // it is not there either, the save goes ahead exactly as before.
-        val local = LocalWorkflowStore(context).findPatientByMobile(normalized)
-        if (local != null) {
-            val m = Match(local.s("id"), local.s("name"), local.s("branch"), local.s("patientId"))
+        /* 🔵🔒 V520 (২২.০৮.২০২৬, TK-অনুমোদিত — **offline**): আগে ফোনের তালিকা
+           থেকে **একটাই** মিল ফিরত। নেট না থাকা অবস্থায় এক নম্বরে স্বামী ও স্ত্রী
+           দুজন জমা থাকলে পপ-আপে একজনই দেখা যেত — স্টাফ ভুল জনকে *"Update
+           Existing"* করে ফেলতে পারতেন। এখন **সবাই** দেখা যায়, ঠিক যেমন উপরের
+           ক্লাউড-পথে হয়।
+           ⛔ একজন থাকলে হুবহু আগের মতোই একটাই মিল, একই ঘরে, একই আচরণ।
+           ⛔ নতুন কোনো cloud-read নেই — এটা ফোনেরই জমা তালিকা। */
+        val locals = LocalWorkflowStore(context).findPatientsByMobile(normalized)
+        if (locals.isNotEmpty()) {
+            val ms = locals.map { Match(it.s("id"), it.s("name"), it.s("branch"), it.s("patientId")) }
+            val first = ms.first()
             return DuplicatePatient(
-                true, m.name, m.branch, m.patientId, m.rowId, matches = listOf(m)
+                true, first.name, first.branch, first.patientId, first.rowId, matches = ms
             )
         }
         // ক্লাউডে দেখাই গেল না, ফোনেও নেই — তাই "নতুন" বলা যাচ্ছে না, শুধু

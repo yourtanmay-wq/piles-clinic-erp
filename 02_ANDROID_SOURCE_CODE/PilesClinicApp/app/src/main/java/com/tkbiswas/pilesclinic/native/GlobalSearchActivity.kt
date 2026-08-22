@@ -66,7 +66,7 @@ class GlobalSearchActivity : AppCompatActivity() {
             onFullJourney = { hit -> openTimeline(hit.mobile, hit.rowId) },
             onCall = { hit -> callHit(hit.mobile) },
             onWhatsApp = { hit -> whatsAppHit(hit.mobile) },
-            onPayment = { hit -> openPaymentForHit(hit.mobile) },
+            onPayment = { hit -> openPaymentForHit(hit.mobile, hit.rowId, hit.patientId) },
             onPrescription = { hit -> openClinicalDoc(hit, com.tkbiswas.pilesclinic.clinical.PrescriptionActivity::class.java) },
             onMedicineSlip = { hit -> openClinicalDoc(hit, com.tkbiswas.pilesclinic.clinical.MedicineSlipActivity::class.java) },
             onBloodTest = { hit -> openClinicalDoc(hit, com.tkbiswas.pilesclinic.clinical.InvestigationAdviceActivity::class.java) },
@@ -346,9 +346,17 @@ class GlobalSearchActivity : AppCompatActivity() {
         WhatsAppMessageChooser.send(this, mobile)
     }
 
-    private fun openPaymentForHit(mobile: String) {
+    private fun openPaymentForHit(mobile: String, rowId: String = "", patientCode: String = "") {
         val digits = mobile.filter { it.isDigit() }.takeLast(10)
-        startActivity(Intent(this, PaymentActivity::class.java).putExtra("mobile", digits))
+        /* 🔵🔒 V520 (২২.০৮.২০২৬): এক নম্বরে দুজন আলাদা রোগী থাকলে **এই কার্ডটা
+           কার** সেটা সাথে পাঠানো হয়, তাই Payment ঠিক এই রোগীরই ফর্ম খোলে।
+           ⛔ ফাঁকা থাকলে আচরণ হুবহু আগের মতোই। */
+        startActivity(
+            Intent(this, PaymentActivity::class.java)
+                .putExtra("mobile", digits)
+                .putExtra("patientRowId", rowId)
+                .putExtra("patientCode", patientCode)
+        )
     }
 
     // TK APPROVED (2026-07-15): Search result card redesigned -- the four

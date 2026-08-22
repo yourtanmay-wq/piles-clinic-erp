@@ -180,7 +180,20 @@ window["patRowId"]=patRowId;
 const patNewRowIdForSameMobile=v=>{let d=String(v||'').replace(/\D/g,'').slice(-10);
  let sfx=(Math.random().toString(16).slice(2)+Math.random().toString(16).slice(2)).slice(0,8);
  return d.length===10?('pat_'+d+'_'+sfx):uid('pat')};
-window["patNewRowIdForSameMobile"]=patNewRowIdForSameMobile;function fmtDate(v){let m=String(v||'').slice(0,10).match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}.${m[2]}.${m[1]}`:String(v||'')}
+window["patNewRowIdForSameMobile"]=patNewRowIdForSameMobile;
+/* 🔵🔒 V520 (২২.০৮.২০২৬, TK-অনুমোদিত) — **"স্টাফ নিজে আলাদা রোগী বলেছেন" চেনার
+   একটাই নিয়ম** (ফোনের `PatientModel.isDeclaredSeparateRowId`-এর হুবহু নকল)।
+   উপরের `patNewRowIdForSameMobile()` **একমাত্র** জায়গা যেখানে
+   `pat_<১০ সংখ্যা>_<লেজ>` ধাঁচের আইডি তৈরি হয়, আর সেটা কেবল স্টাফ
+   *"Different Patient — Same Mobile"* চাপলেই।
+   ⛔ পুরোনো সব সারির আইডিতে লেজ নেই → সবসময় false → **আচরণ হুবহু আগের মতোই**। */
+function wlv1IsDeclaredSeparateRowId(rowId,mobileDigits){
+  var d=String(mobileDigits||'').replace(/\D/g,'').slice(-10);
+  if(d.length!==10)return false;
+  var pfx='pat_'+d+'_', id=String(rowId||'');
+  return id.indexOf(pfx)===0 && id.length>pfx.length;
+}
+window["wlv1IsDeclaredSeparateRowId"]=wlv1IsDeclaredSeparateRowId;function fmtDate(v){let m=String(v||'').slice(0,10).match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}.${m[2]}.${m[1]}`:String(v||'')}
 window.fmtDate=fmtDate;function wlv1Ampm(hhmm){let p=String(hhmm||'').split(':');if(p.length<2)return String(hhmm||'');let h=parseInt(p[0],10);if(isNaN(h))return String(hhmm||'');let s=h<12?'AM':'PM';let h12=h%12;if(h12===0)h12=12;return h12+'.'+p[1]+' '+s}
 /* 🔒 TK-এর স্থায়ী নিয়ম (২৯.০৭.২০২৬): ছাপা কাগজে কখনো বাংলা যাবে না —
    একমাত্র Diet Chart ছাড়া। পর্দায় বাংলা থাকতে কোনো আপত্তি নেই।
@@ -7386,7 +7399,8 @@ function treatmentTotals(p){
  // refund-কে false ধরত) — তাই approved refund-ও এখানে ধরাই পড়ত না, Report
  // Card-এর PAID বাক্স ভুল দেখাত। এখন refund row-ও অন্তর্ভুক্ত, আর যোগফল
  // wlv1PayEffect দিয়ে (approved বিয়োগ, pending/rejected অপ্রভাবিত)।
- let raw=load('payments').filter(x=>(isTreatmentPaymentRow(x)||wlv1IsRefundRow(x))&&(payOwnedBy(x,p)||mob(x.mobile)===mob(p.mobile)));
+  /* 🔵🔒 V520: `payOwnedBy` নিজেই এখন মোবাইল-fallback সামলায় ও দুই রোগীর টাকা আলাদা রাখে — তাই এখানকার বাড়তি কাঁচা মোবাইল-মিলটা সরানো হয়েছে (নইলে ওই সুরক্ষা ফাঁকি দিয়ে যেত)। ⛔ এক রোগী হলে ফলাফল অবিকল আগের মতোই, কারণ payOwnedBy ওই ক্ষেত্রে মোবাইল মিললেই true বলে। */
+ let raw=load('payments').filter(x=>(isTreatmentPaymentRow(x)||wlv1IsRefundRow(x))&&payOwnedBy(x,p));
  let treats=wlv1MergeDailyTreatmentRows(raw.filter(isTreatmentPaymentRow));
  let refunds=raw.filter(wlv1IsRefundRow),pays=refunds.concat(treats);
  let bill=Number(p.bill||0);
@@ -7611,7 +7625,21 @@ window["ordinalPaymentLabel"]=ordinalPaymentLabel;
 function payOwnedBy(x,p){if(!x||!p)return false;const owner=String(x.patientId||'');
   if(owner&&(owner===String(p.id||'')||(!!p.patientId&&owner===String(p.patientId))))return true;
   const pm=mob(p.mobile),xm=mob(x.mobile);
-  return !!pm&&!!xm&&pm===xm;}
+  if(!pm||!xm||pm!==xm)return false;
+  /* 🔴🔴🔒 V520 (২২.০৮.২০২৬, TK-অনুমোদিত) — **দুই রোগীর টাকা কখনো মিশবে না।**
+     নিচের মোবাইল-fallback বসানো হয়েছিল "এক মোবাইল = এক রোগী" ধরে নিয়ে (পুরোনো
+     সারিতে `patientId` না থাকলে টাকা যেন হারিয়ে না যায়)। V516-এর পরে এক
+     নম্বরে **সত্যিই দুজন আলাদা রোগী** থাকতে পারেন — তখন এই fallback স্বামীর
+     টাকা স্ত্রীর পর্দায় দেখিয়ে দিত। এই একটা ফাংশনই ওয়েবের **১৫টা**
+     টাকা-গোনার জায়গার ভিত্তি, তাই এখানেই একবার ঠিক করা হয়েছে।
+     ⛔ টাকা হারানো অসম্ভব: প্রতিটা পেমেন্টের সারিতে মালিকের আইডি
+        **সবসময়** লেখা হয় (`wlv1BuildTreatmentEventRow` → `patientId:p.id`,
+        ফোনেও একই) — তাই উপরের ১ নম্বর শর্তেই সেটা ধরা পড়ে।
+     ⛔ যে নম্বরে ঘোষিত আলাদা রোগী নেই, সেখানে দুটো শর্তই false → fallback
+        **হুবহু আগের মতোই** চলে (খাতার সারি B30 অটুট)। */
+  if(wlv1IsDeclaredSeparateRowId(String(p.id||''),pm))return false;
+  if(owner&&wlv1IsDeclaredSeparateRowId(owner,pm))return false;
+  return true;}
 /* 🔒 খাতার সারি B106 — নম্বর বাড়ে **দিন ধরে**, সেভ ধরে নয় (ফোনের `PaymentRepository.nextLabelFor`-এর হুবহু নকল)।
    TK-এর নিয়ম (খাতার সারি B52): ১ম টাকা = `Advance`, তারপর `2nd Payment` · `3rd Payment` …।
    **একই দিনে যতবারই টাকা নেওয়া হোক নম্বর একটাই থাকবে**; পরের নম্বর তখনই, যখন রোগী আবার নতুন দিনে টাকা দেবেন।
@@ -9693,7 +9721,7 @@ window["printDirectDiet"]=printDirectDiet;
 function printDirectPaymentSlip(){let p=directPatientFromForm();let amt=Number($('#dpAmount')?.value||0);if(!amt)return toast('Amount required');let mode=$('#dpMode')?.value||'CASH',rem=$('#dpRemarks')?.value||'';let rows=`<tr><td>${esc(fmtDate(today()))}</td><td>Direct Payment Slip</td><td>${esc(mode)}</td><td>${money(amt)}</td></tr><tr><th colspan="3">Total</th><th>${money(amt)}</th></tr>`;closeModal();app().innerHTML=directReturnBar()+printHead(p,'PAYMENT RECEIPT')+`<table class="printTable finalPrintTable"><tr><th>Date</th><th>Type</th><th>Mode</th><th>Amount</th></tr>${rows}</table>${rem?`<p class="printRemark"><b>Remarks:</b> ${esc(rem)}</p>`:''}`+printFoot('',p,'PAYMENT RECEIPT');safePrintNoHome('')}
 window["printDirectPaymentSlip"]=printDirectPaymentSlip;
 
-function printPaymentReceipt(id){let p=load('patients').find(x=>x.id===id);if(!p)return toast('Patient not found');let pays=load('payments').filter(x=>payOwnedBy(x,p)||mob(x.mobile)===mob(p.mobile));if(!pays.length)return toast('No payment data available for printing.');let rows=pays.map((x,i)=>`<tr><td>${esc(fmtDate(x.date||''))}</td><td>${esc(collectionPaymentLabel(x))}${(x.payType||'treatment')==='treatment'?` (${esc(paymentDisplayLabel(x,i))})`:''}</td><td>${esc(x.mode||'')}</td><td>${money(x.amount)}</td></tr>`).join('');let total=pays.reduce((s,x)=>s+Number(x.amount||0),0);
+function printPaymentReceipt(id){let p=load('patients').find(x=>x.id===id);if(!p)return toast('Patient not found');let pays=load('payments').filter(x=>payOwnedBy(x,p));/* 🔵🔒 V520: রসিদে অন্য রোগীর টাকা যেন কখনো না ছাপে। */if(!pays.length)return toast('No payment data available for printing.');let rows=pays.map((x,i)=>`<tr><td>${esc(fmtDate(x.date||''))}</td><td>${esc(collectionPaymentLabel(x))}${(x.payType||'treatment')==='treatment'?` (${esc(paymentDisplayLabel(x,i))})`:''}</td><td>${esc(x.mode||'')}</td><td>${money(x.amount)}</td></tr>`).join('');let total=pays.reduce((s,x)=>s+Number(x.amount||0),0);
 // 🔴 TK-অডিট-অনুরোধ (01.08.2026): রোগীর হাতে যাওয়া ছাপা রসিদে Refund সারিও
 // যোগ হয়ে যাচ্ছিল — প্রতিটা সারি আলাদা করে দেখা যাক (স্বচ্ছতার জন্য), কিন্তু
 // নিচের মোট থেকে approved refund বিয়োগ হওয়া উচিত।
@@ -12678,7 +12706,8 @@ function wlv1TimelineRows(p){
     });
   });
 
-  wlv1MergeDailyTreatmentRows(load('payments').filter(x=>mob(x.mobile)===m || payOwnedBy(x,p))).forEach(x=>{
+  /* 🔵🔒 V520: `payOwnedBy` নিজেই এখন মোবাইল-fallback সামলায় ও দুই রোগীর টাকা আলাদা রাখে — তাই এখানকার বাড়তি কাঁচা মোবাইল-মিলটা সরানো হয়েছে (নইলে ওই সুরক্ষা ফাঁকি দিয়ে যেত)। ⛔ এক রোগী হলে ফলাফল অবিকল আগের মতোই, কারণ payOwnedBy ওই ক্ষেত্রে মোবাইল মিললেই true বলে। */
+  wlv1MergeDailyTreatmentRows(load('payments').filter(x=>payOwnedBy(x,p))).forEach(x=>{
     const amt = Number(x.amount||0);
     if(!(amt>0)) return;
     /* 🚨 TK-REPORTED, LIVE (27.07.2026, SADDAM — TK's photo): the PROGRESS box was
@@ -14134,7 +14163,8 @@ function wlv1JourneyRows(p){
                 note:String(h.remark||''), pay:false});
     });
   });
-  wlv1MergeDailyTreatmentRows(load('payments').filter(x=>mob(x.mobile)===m || payOwnedBy(x,p))).forEach(x=>{
+  /* 🔵🔒 V520: `payOwnedBy` নিজেই এখন মোবাইল-fallback সামলায় ও দুই রোগীর টাকা আলাদা রাখে — তাই এখানকার বাড়তি কাঁচা মোবাইল-মিলটা সরানো হয়েছে (নইলে ওই সুরক্ষা ফাঁকি দিয়ে যেত)। ⛔ এক রোগী হলে ফলাফল অবিকল আগের মতোই, কারণ payOwnedBy ওই ক্ষেত্রে মোবাইল মিললেই true বলে। */
+  wlv1MergeDailyTreatmentRows(load('payments').filter(x=>payOwnedBy(x,p))).forEach(x=>{
     const amt = Number(x.amount||0);
     if(!(amt>0)) return;
     const sp=wlv1PaymentSplit(x),modeText=sp.cash>0&&sp.online>0?'Cash + Online':(sp.online>0?'Online':'Cash');

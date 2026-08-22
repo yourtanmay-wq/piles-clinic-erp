@@ -97,6 +97,30 @@ object PatientModel {
         else "pat_" + UUID.randomUUID().toString().replace("-", "")
     }
 
+    /**
+     * 🔵🔒 V520 (২২.০৮.২০২৬) — **"স্টাফ নিজে আলাদা রোগী বলেছেন" কি না, তা চেনার
+     * একটাই সাধারণ নিয়ম।**
+     *
+     * উপরের `newRowIdForSameMobile()` **একমাত্র** জায়গা যেখানে
+     * `pat_<১০ সংখ্যা>_<লেজ>` আকারের আইডি তৈরি হয় — আর সেটা তৈরি হয় কেবল
+     * স্টাফ *"Different Patient — Same Mobile"* বোতাম চাপলে। তাই এই আকারটাই
+     * নির্ভরযোগ্য চিহ্ন: **ইচ্ছে করে আলাদা করা রোগী** বনাম **ভুলে দুবার
+     * রেজিস্ট্রেশন**।
+     *
+     * ⛔ পুরোনো সব সারির আইডি `pat_<১০ সংখ্যা>` (লেজ নেই) — তাই এই ফাংশন
+     *    তাদের জন্য সবসময় `false` ফেরায়, অর্থাৎ **পুরোনো আচরণ অবিকল একই**।
+     * ⛔ কোনো query, schema বা data ছোঁয়া হয় না — শুধু স্ট্রিং মিলিয়ে দেখা।
+     *
+     * একই নিয়ম আগে `GlobalSearchActivity` (V517) ও `FollowUpRepository`
+     * (V518)-এ আলাদা করে লেখা ছিল; সেগুলো হুবহু এই নিয়মই মানে।
+     */
+    fun isDeclaredSeparateRowId(rowId: String, mobileDigits: String): Boolean {
+        val d = mobileDigits.filter { it.isDigit() }.takeLast(10)
+        if (d.length != 10) return false
+        val prefix = "pat_${d}_"
+        return rowId.startsWith(prefix) && rowId.length > prefix.length
+    }
+
     /** Matches app.js's address-building logic exactly: only non-empty parts,
      * "Label: value" joined by ", ". */
     fun buildAddress(draft: RegistrationDraft): String {

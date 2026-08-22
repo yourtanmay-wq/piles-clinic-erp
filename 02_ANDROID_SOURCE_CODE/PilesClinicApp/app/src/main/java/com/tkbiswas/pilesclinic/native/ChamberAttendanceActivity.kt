@@ -1001,7 +1001,14 @@ class ChamberAttendanceActivity : AppCompatActivity() {
     private fun openPayment(row: ChamberAttendanceRow) {
         val digits = row.mobile.filter { it.isDigit() }.takeLast(10)
         if (digits.length != 10) return
-        startActivity(android.content.Intent(this, PaymentActivity::class.java).putExtra("mobile", digits))
+        /* 🔵🔒 V520 (২২.০৮.২০২৬): এক নম্বরে দুজন আলাদা রোগী থাকলে **এই কার্ডটা
+           কার** সেটা সাথে পাঠানো হয়, তাই Payment ঠিক এই রোগীরই ফর্ম খোলে।
+           ⛔ ফাঁকা থাকলে আচরণ হুবহু আগের মতোই। */
+        startActivity(
+            android.content.Intent(this, PaymentActivity::class.java)
+                .putExtra("mobile", digits)
+                .putExtra("patientCode", row.patientId)
+        )
     }
 
     /** Call-ahead: dials the same number, no data written here at all. */
@@ -1633,7 +1640,12 @@ class ChamberAttendanceActivity : AppCompatActivity() {
         val patientJob = lifecycleScope.async(Dispatchers.IO) {
             try {
                 val repo = PaymentRepository(this@ChamberAttendanceActivity)
-                repo.findPatientByMobile(digits, row.branch) ?: repo.findOrMakePatient(row.name, digits, row.branch, row.patientId)
+                /* 🔵🔒 V520 (২২.০৮.২০২৬): এক মোবাইলে দুজন আলাদা রোগী থাকলে
+                   `row.patientId` (রোগী-প্রতি **অনন্য** Official Patient ID) ধরে
+                   ঠিক রোগীটাই বেছে নেওয়া হয় — টাকা কখনো অন্যজনের নামে যাবে না।
+                   ⛔ আইডি ফাঁকা থাকলে বা ওই নম্বরে না মিললে হুবহু আগের পথ। */
+                repo.findPatientByMobile(digits, row.branch, preferPatientCode = row.patientId)
+                    ?: repo.findOrMakePatient(row.name, digits, row.branch, row.patientId)
             } catch (_: Throwable) { null }
         }
         showTakePaymentDialog(row, mode, digits, patientJob)
@@ -1857,7 +1869,8 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                     // (`findOrMakePatient` তখন কিছুই বানায় না) — তাই এখানে
                     // রোগী না পেলে টাকা নেওয়া যাবে না, স্টাফকে জানাতে হবে।
                     val repo = PaymentRepository(this@ChamberAttendanceActivity)
-                    val patient = repo.findPatientByMobile(digits, row.branch)
+                    /* 🔵🔒 V520: রোগী-প্রতি অনন্য Official Patient ID ধরে ঠিক রোগী। */
+                    val patient = repo.findPatientByMobile(digits, row.branch, preferPatientCode = row.patientId)
                         ?: repo.findOrMakePatient(row.name, digits, row.branch, row.patientId)
                         ?: run { patientNotVerified = true; return@withContext false }
                     // TK-REQUESTED (2026-07-25): backdated entry -- Master
@@ -1928,7 +1941,8 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                 val paidNow = withContext(Dispatchers.IO) {
                     try {
                         val repo = PaymentRepository(this@ChamberAttendanceActivity)
-                        val p2 = repo.findPatientByMobile(digits, row.branch)
+                        /* 🔵🔒 V520: রোগী-প্রতি অনন্য Official Patient ID ধরে ঠিক রোগী। */
+                        val p2 = repo.findPatientByMobile(digits, row.branch, preferPatientCode = row.patientId)
                         if (p2 != null) p2.paid else 0.0
                     } catch (_: Throwable) { 0.0 }
                 }

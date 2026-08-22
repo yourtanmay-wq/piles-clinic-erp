@@ -1883,7 +1883,7 @@ class FollowUpActivity : AppCompatActivity() {
                 background = rounded("#EAF8EF", 7f)
             }
             moneyRow.addView(billView)
-            TripleTapEdit.attach(billView) { openPaymentFor(item.mobile) }
+            TripleTapEdit.attach(billView) { openPaymentFor(item.mobile, item.refId, item.patientId) }
             val dueView = tv("Due\n₹${"%,.0f".format(due)}", 8.3f, "#D92D20", true).apply {
                 gravity = android.view.Gravity.CENTER
                 setPadding(dpx(5), dpx(3), dpx(5), dpx(3))
@@ -1891,7 +1891,7 @@ class FollowUpActivity : AppCompatActivity() {
                 val p = android.widget.LinearLayout.LayoutParams(WRAP, WRAP); p.marginStart = dpx(4); layoutParams = p
             }
             moneyRow.addView(dueView)
-            TripleTapEdit.attach(dueView) { openPaymentFor(item.mobile) }
+            TripleTapEdit.attach(dueView) { openPaymentFor(item.mobile, item.refId, item.patientId) }
             right.addView(moneyRow)
         }
         top.addView(right)
@@ -2567,10 +2567,15 @@ class FollowUpActivity : AppCompatActivity() {
         startActivity(intent)
     }
 
-    private fun openPaymentFor(mobile: String) {
+    private fun openPaymentFor(mobile: String, rowId: String = "", patientCode: String = "") {
         val digits = mobile.filter { it.isDigit() }.takeLast(10)
         val intent = Intent(this, PaymentActivity::class.java)
         intent.putExtra("mobile", digits)
+        /* 🔵🔒 V520 (২২.০৮.২০২৬): এক নম্বরে দুজন আলাদা রোগী থাকলে **এই কার্ডটা
+           কার** সেটা সাথে পাঠানো হয়, তাই Payment ঠিক এই রোগীরই ফর্ম খোলে।
+           ⛔ ফাঁকা থাকলে আচরণ হুবহু আগের মতোই। */
+        intent.putExtra("patientRowId", rowId)
+        intent.putExtra("patientCode", patientCode)
         startActivity(intent)
     }
 
@@ -3049,7 +3054,15 @@ class FollowUpActivity : AppCompatActivity() {
             // "কততম পেমেন্ট" সব ঠিক হয়ে যায় এবং Save কাজ করতে শুরু করে।
             BackgroundWork.run {
                 val loaded = try {
-                    pr.findPatientByMobile(digits, item.branch)
+                    /* 🔵🔒 V520 (২২.০৮.২০২৬): এক মোবাইলে দুজন আলাদা রোগী থাকলে
+                       এই কার্ডটা **কার** — সেটা কার্ডের নিজের দুটো আইডি-ই বলে দেয়
+                       (`refId` = রোগীর সারির আইডি, `patientId` = Official Patient ID)।
+                       তাই টাকার হিসাব ঠিক এই রোগীরই আসে, অন্যজনের নয়।
+                       ⛔ দুটোই ফাঁকা হলে (পুরোনো সারি) হুবহু আগের পথ। */
+                    pr.findPatientByMobile(
+                        digits, item.branch,
+                        preferPatientCode = item.patientId, preferRowId = item.refId
+                    )
                         ?: pr.findOrMakePatient(item.name, digits, item.branch, item.patientId)
                 } catch (_: Throwable) { null }
                 if (loaded == null && !isFinishing && !isDestroyed) {
