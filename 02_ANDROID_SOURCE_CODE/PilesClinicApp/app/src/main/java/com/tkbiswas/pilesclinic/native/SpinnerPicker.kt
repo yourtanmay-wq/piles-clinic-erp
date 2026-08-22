@@ -63,6 +63,22 @@ object SpinnerPicker {
         }
     }
 
+    /**
+     * 🔵🔒 V540 (২২.০৮.২০২৬, TK-নির্দেশ: *"gradation — প্রফেশনাল লুক তৈরি করুন"*)
+     *
+     * এতদিন এই প্রিমিয়াম পিকারটা **শুধু Spinner-এ চাপ দিলেই** খুলত। CHECK-UP
+     * পর্দায় Occupation ও Grade-এর Spinner এখন **লুকানো** (V539) — সেখানে চাপ
+     * দেওয়া যায় না, তাই আমি নিজে দুটো সাদামাটা তালিকা বানিয়েছিলাম, যেগুলো
+     * প্রজেক্টের বাকি পর্দার সঙ্গে মেলেনি।
+     *
+     * ⇒ এখন **এই প্রমাণিত পিকারটাই** সরাসরি খোলা যায় — একই প্রিমিয়াম হেডার,
+     *   একই গোল-বোতামের তালিকা, একই রং (`PremiumAlert`)। **নতুন কোনো নকশা
+     *   বানানো হয়নি।**
+     * ⛔ নিচের `show()` এক অক্ষরও বদলায়নি; পুরোনো `attach()`-ও অপরিবর্তিত।
+     */
+    fun open(sp: Spinner, title: String, hidePlaceholder: Boolean = false) =
+        show(sp, title, hidePlaceholder)
+
     private fun show(sp: Spinner, title: String, hidePlaceholder: Boolean) {
         val adapter = sp.adapter ?: return
         val ctx = sp.context

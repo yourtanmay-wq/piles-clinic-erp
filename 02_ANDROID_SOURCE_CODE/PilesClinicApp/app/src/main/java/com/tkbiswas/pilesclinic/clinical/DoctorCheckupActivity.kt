@@ -209,6 +209,15 @@ class DoctorCheckupActivity : AppCompatActivity() {
         /* 🔵 V539: Internal Piles-এ চাপ দিলেই Grade বাছার তালিকা। ⛔ বাকি
            চেকবক্সগুলো এক অক্ষরও বদলায়নি। */
         internalPilesBox()?.setOnClickListener { askInternalGrade() }
+        /* 🔵 V540: Grade বাছা হলে চেকবক্স নিজে থেকেই টিক পড়ে ও পাশে Grade দেখায়।
+           ⛔ শোনার কাজটা **একবারই** বসে (পপ-আপ খোলার সময় বারবার নয়)। */
+        spGrade.setOnItemSelectedListener(object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(p0: android.widget.AdapterView<*>?, p1: android.view.View?, p2: Int, p3: Long) {
+                internalPilesBox()?.isChecked = gradeOptions.getOrElse(p2) { "" }.isNotBlank()
+                refreshInternalGradeLabel()
+            }
+            override fun onNothingSelected(p0: android.widget.AdapterView<*>?) {}
+        })
         refreshInternalGradeLabel()
         // V455 (18.08.2026): dreGroup buildChecks বাদ — পুরো "B. DRE" সেকশন UI-তে নেই।
         // 🔴 TK-নির্দেশ (05.08.2026): E. Investigations-এর চারটে চেকবক্সে
@@ -994,15 +1003,8 @@ class DoctorCheckupActivity : AppCompatActivity() {
      *  লাইনটা **হুবহু আগের মতোই** থাকে। */
     /** 🔵 V539: পেশা বাছার তালিকা — বাছাই বসে পুরোনো `spOccupation`-এই। */
     private fun askOccupation() {
-        val labels = occupationOptions.toTypedArray()
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Occupation · পেশা")
-            .setItems(labels) { _, which ->
-                spOccupation.setSelection(which)
-                refreshSexAgeOccupation()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
+        // 🔵 V540: এখানেও প্রজেক্টের সেই একই প্রিমিয়াম পিকার।
+        SpinnerPicker.open(spOccupation, "CHOOSE OCCUPATION", hidePlaceholder = true)
     }
 
     private fun refreshSexAgeOccupation() {
@@ -1026,17 +1028,11 @@ class DoctorCheckupActivity : AppCompatActivity() {
     }
 
     private fun askInternalGrade() {
-        val box = internalPilesBox() ?: return
-        val labels = gradeOptions.map { it.ifBlank { "— No Grade —" } }.toTypedArray()
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Internal Piles — Grade")
-            .setItems(labels) { _, which ->
-                spGrade.setSelection(which)
-                box.isChecked = true
-                refreshInternalGradeLabel()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
+        if (internalPilesBox() == null) return
+        /* 🔵🔒 V540 (TK: *"gradation — প্রফেশনাল লুক তৈরি করুন"*): প্রজেক্টের
+           নিজের প্রমাণিত পিকার — প্রিমিয়াম হেডার, গোল-বোতামের তালিকা,
+           বাছাইটা টিক দেওয়া অবস্থায় দেখা যায়। ⛔ নতুন নকশা বানানো হয়নি। */
+        SpinnerPicker.open(spGrade, "INTERNAL PILES — GRADE")
     }
 
     /**

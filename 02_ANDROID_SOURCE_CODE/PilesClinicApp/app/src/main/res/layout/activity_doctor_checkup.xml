@@ -344,7 +344,16 @@
                          ⛔ ClinicalModels-এর acuteChronic ঘর অটুট (ডিফল্ট ""), শুধু UI সরানো। -->
 
                     <!-- Occupation -->
-                    <LinearLayout style="@style/DocNoteFieldBox">
+                    <!-- 🔵🔒 V540 (২২.০৮.২০২৬, TK-রিপোর্ট: *"occupation এখন তো কিছু
+                         সিলেক্ট করার জায়গায় নেই, তাহলে ওটা রেখেছেন কেন?"*)
+                         V539-এ আমি শুধু ভিতরের Spinner-টা লুকিয়েছিলাম, **লেবেলের
+                         লাইনটা নয়** — তাই পর্দায় খালি "Occupation · পেশা" লেখাটা
+                         ঝুলে ছিল। এখন **পুরো বাক্সটাই** লুকানো।
+                         ⛔ মোছা হয়নি — ভিতরের `spOccupation` এখনো সেভ/পড়ার আসল
+                            ঘর (লুকানো থাকলেও `setSelection`/পড়া কাজ করে), তাই
+                            পুরোনো কিছুই ভাঙে না। উপরের হেডারে চাপ দিলেই বদলায়। -->
+                    <LinearLayout android:id="@+id/boxOccupation" style="@style/DocNoteFieldBox"
+                        android:visibility="gone">
                         <View style="@style/DocNoteAccentBar" />
                         <LinearLayout style="@style/DocNoteFieldBoxInner">
                             <LinearLayout style="@style/DocNoteFieldBoxTopRow">
