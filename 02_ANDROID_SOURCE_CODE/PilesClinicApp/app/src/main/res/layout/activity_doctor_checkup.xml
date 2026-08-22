@@ -750,37 +750,57 @@
                          TK: *"ডাক্তার চাইলে যে কোন ফটোর উপর যেন সেই কাজটা করতে
                          পারে"* আর *"মাংসের উপরে আঙুল দিয়ে টান দিলে যেন মাংস
                          বেড়ে যায়"*।
-                         • উপরে ছবি বাছার সারি (২৫টা ছবি)
-                         • মাঝে আঁকার পর্দা (AnatomyView — কোড থেকে বসে)
-                         • নিচে কাজের বোতাম ও ডাক্তারের নিজের কথা
-                         ⛔ নতুন কলাম বা SQL লাগেনি — লেখাটা চেকআপের সাথেই জমা হয়। -->
-                    <LinearLayout style="@style/DocNoteFieldBox" android:layout_marginBottom="4dp">
-                        <View style="@style/DocNoteAccentBarPurple" />
-                        <LinearLayout style="@style/DocNoteFieldBoxInner">
-                            <TextView style="@style/DocNoteLabel" android:text="রোগের ছবি · রোগীকে দেখিয়ে বোঝানোর জন্য" />
 
-                            <HorizontalScrollView
-                                android:layout_width="match_parent" android:layout_height="wrap_content"
-                                android:scrollbars="none" android:layout_marginTop="6dp">
-                                <LinearLayout android:id="@+id/anatomyStrip"
-                                    android:layout_width="wrap_content" android:layout_height="wrap_content"
-                                    android:orientation="horizontal" />
-                            </HorizontalScrollView>
+                         ⚠️ এই ঘরটা ইচ্ছে করেই **কোনো @style বা @drawable-এর
+                         উপরে নির্ভর করে না** — শুধু অ্যান্ড্রয়েডের নিজের
+                         অ্যাট্রিবিউট ব্যবহার করা হয়েছে। কারণ: এখানে
+                         অ্যান্ড্রয়েড কম্পাইল করা যায় না, তাই ভুল নাম ধরা
+                         পড়ে না অথচ নাম না মিললেই বিল্ড ভাঙে (V559-এ একবার
+                         ভেঙেছিল)। চেহারার বাকি কাজ কোড থেকে বসে। -->
+                    <LinearLayout
+                        android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:layout_marginTop="10dp" android:layout_marginBottom="4dp"
+                        android:padding="10dp"
+                        android:background="#FFFFFF">
 
-                            <FrameLayout android:id="@+id/anatomyHolder"
-                                android:layout_width="match_parent" android:layout_height="300dp"
-                                android:layout_marginTop="8dp"
-                                android:background="@drawable/bg_input_field" />
+                        <TextView
+                            android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:text="রোগের ছবি · রোগীকে দেখিয়ে বোঝানোর জন্য"
+                            android:textColor="#0B2B59" android:textSize="14sp"
+                            android:textStyle="bold" />
 
-                            <LinearLayout android:id="@+id/anatomyTools"
-                                android:layout_width="match_parent" android:layout_height="wrap_content"
-                                android:orientation="horizontal" android:layout_marginTop="8dp" />
+                        <HorizontalScrollView
+                            android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp">
+                            <LinearLayout android:id="@+id/anatomyStrip"
+                                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                android:orientation="horizontal" />
+                        </HorizontalScrollView>
 
-                            <EditText android:id="@+id/etAnatomyNote" style="@style/DocNoteInputMultiline"
-                                android:minLines="2" android:layout_marginTop="6dp"
-                                android:hint="ছবি দেখিয়ে রোগীকে যা বোঝালেন, দরকার হলে এখানে লিখুন" />
-                        </LinearLayout>
+                        <FrameLayout android:id="@+id/anatomyHolder"
+                            android:layout_width="match_parent" android:layout_height="300dp"
+                            android:layout_marginTop="8dp"
+                            android:background="#F7F9FC" />
+
+                        <LinearLayout android:id="@+id/anatomyTools"
+                            android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:orientation="horizontal" android:layout_marginTop="8dp" />
+
+                        <EditText android:id="@+id/etAnatomyNote"
+                            android:layout_width="match_parent" android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:background="#FFFFFF"
+                            android:padding="8dp"
+                            android:gravity="top|start"
+                            android:inputType="textMultiLine|textCapSentences"
+                            android:minLines="2"
+                            android:textSize="13sp"
+                            android:textColor="#10223A"
+                            android:textColorHint="#93A1B2"
+                            android:hint="ছবি দেখিয়ে রোগীকে যা বোঝালেন, দরকার হলে এখানে লিখুন" />
                     </LinearLayout>
+
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
