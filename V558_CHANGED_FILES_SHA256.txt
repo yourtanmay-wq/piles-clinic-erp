@@ -1,12 +1,12 @@
-# V558 — বদলানো ফাইলের SHA256 · ২২.০৮.২০২৬
+# V558 — বদলানো ফাইলের SHA256 · ২২.০৮.২০২৬ (যাচাইয়ের পরে হালনাগাদ)
 
 067ad9f0ac77f376cfcb42274076a1620f6a7ec39c83f889c07de280def56497  02_ANDROID_SOURCE_CODE/PilesClinicApp/app/build.gradle.kts
 55fa8b73bc8fd4134d808ac455da9dec0f89fbccf9c3c36ec7aa339a80595383  02_ANDROID_SOURCE_CODE/PilesClinicApp/app/src/main/java/com/tkbiswas/pilesclinic/clinical/AnatomyModel.kt
-1893fc026bac39133bd7bbeee20e80905af5a98a4be0eaf83f294babe12a6971  02_ANDROID_SOURCE_CODE/PilesClinicApp/app/src/main/java/com/tkbiswas/pilesclinic/clinical/AnatomyView.kt
+1477f7ef791a13bb30e324391f1925cddd3555123d2a72ef7f6d4fa592a820a0  02_ANDROID_SOURCE_CODE/PilesClinicApp/app/src/main/java/com/tkbiswas/pilesclinic/clinical/AnatomyView.kt
 fc01350471db55b83b0f04db20c6f52d35476809e44ec1555dc467fd24ccfe9a  02_ANDROID_SOURCE_CODE/PilesClinicApp/app/src/main/java/com/tkbiswas/pilesclinic/clinical/ClinicalModels.kt
-3665298632beb4bbf1c13bf280c8213917252e5718b5bc2c596dfb9a9212f08b  02_ANDROID_SOURCE_CODE/PilesClinicApp/app/src/main/java/com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt
+0236f1543b422df20c3c3a56f859578b5bbe06f04a2be0ce3ec00e2bbd63e2d9  02_ANDROID_SOURCE_CODE/PilesClinicApp/app/src/main/java/com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt
 521a7665ca26cc98b8e2f14f2e7df0acc6704e5f00325ad536831220c48e01c7  02_ANDROID_SOURCE_CODE/PilesClinicApp/app/src/main/res/layout/activity_doctor_checkup.xml
-ba1608e6ba436b2ee0911ec29491e8b38875c4ec6e45ca42930274312c34bcd0  03_NETLIFY_READY/app.js
+007a04d207fe04ed90591b41f666b32b018ad8c2e7980aeaf60ba1ecda1a6bde  03_NETLIFY_READY/app.js
 2405dfd214c25d8d1ccb05c5cbc42b755776732c992b99acb7820c5562fe4d6a  03_NETLIFY_READY/style.css
 608c02a40b8c4034d4bca138fd9e7531317e422304be4697fbdb1e7a5fadb5cb  03_NETLIFY_READY/index.html
 
