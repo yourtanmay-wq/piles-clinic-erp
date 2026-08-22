@@ -1394,7 +1394,14 @@ class FollowUpRepository(private val context: Context? = null) {
             // check, so it is deliberately left exactly as before.
             val blankBranchPendingLookup = rb.isBlank() && needsPatientJoin
             if (!visible && !blankBranchPendingLookup) continue
-            val item = FollowUpModel.parse(row)
+            val parsed = FollowUpModel.parse(row)
+            /* 🔵🔒 V525: ঘরটা ফাঁকা হলে এনকোয়ারির সারি থেকে ভরা হয় (উপরের
+               বড় নোট দ্রষ্টব্য)। ⛔ ভরা থাকলে বা Enquiry ট্যাব না হলে
+               `parsed`-ই যায় — এক অক্ষরও বদলায় না। */
+            val item = if (stage == "Inquiry" && parsed.timeType.isBlank()) {
+                val tt = timeTypeFromEnquiries(preEnquiries, parsed.mobile)
+                if (tt.isBlank()) parsed else parsed.copy(timeType = tt)
+            } else parsed
             if (seenIds.add(item.id)) items.add(item)
         }
 
@@ -2468,6 +2475,44 @@ class FollowUpRepository(private val context: Context? = null) {
      *  followups row -- it never overrides a branch that is already set, so it
      *  cannot move a record to the wrong branch. Returns "" when nothing is
      *  found, which leaves today's behaviour exactly as it was. */
+    /**
+     * 🔴🔵🔒 V525 (২২.০৮.২০২৬, TK-রিপোর্ট — *"Unexpected time ট্যাগটা কিভাবে
+     * সরে গেল?"*) — **পুরোনো কার্ডেও ট্যাগটা ফিরিয়ে আনা।**
+     *
+     * **আসল কারণ (কোডে প্রমাণিত):** Enquiry কার্ডের 🌙 Unexpected / 🕘 Official
+     * ট্যাগ আসে `followups` সারির `timeType` ঘর থেকে (`FollowUpAdapter`)।
+     * ফোনের অ্যাপ ওই ঘরটা লেখে (`EnquiryModel.buildFollowUpRow`), কিন্তু
+     * **কম্পিউটারের (ওয়েব) `ensureFollow()` কখনোই লিখত না** — তাই কম্পিউটার
+     * থেকে করা এনকোয়ারির কার্ডে ট্যাগটা **কোনোদিনই আসেনি** (V512 থেকেই)।
+     * ওয়েবের দিকটা এই একই সংস্করণে ঠিক করা হয়েছে, কিন্তু **আগে জমা হয়ে
+     * যাওয়া** সারিগুলোতে ঘরটা ফাঁকাই থেকে যাবে।
+     *
+     * **সমাধান:** ফাঁকা হলে **এনকোয়ারির নিজের সারি** থেকে পড়ে নেওয়া —
+     * যেটা এই ট্যাব **আগে থেকেই** এনে রেখেছে (`preEnquiries`)।
+     *
+     * ⛔ **বাড়তি একটাও cloud-read নেই** — ঠিক যেভাবে পাশের
+     *    `branchFromEnquiries()` ফাঁকা branch ভরে (একই তালিকা, একই নিয়ম)।
+     * ⛔ ঘরটা ভরা থাকলে **কিছুই ছোঁয়া হয় না** — আচরণ অবিকল আগের।
+     * ⛔ কোনো সারি লেখা/বদলানো হয় না — শুধু **দেখানোর** সময় ভরা হয়।
+     * ⛔ টাকার হিসাব সম্পূর্ণ অস্পৃশ্য: Extra Income `patients.timeType`
+     *    দেখে (V418-এর SQL), `followups`-এরটা নয়।
+     */
+    private fun timeTypeFromEnquiries(enquiries: JSONArray, mobile: String): String {
+        return try {
+            val want = digits(mobile)
+            if (want.isEmpty()) return ""
+            for (i in 0 until enquiries.length()) {
+                val e = enquiries.optJSONObject(i) ?: continue
+                if (digits(e.s("mobile")) != want) continue
+                val t = e.s("timeType")
+                if (t.isNotBlank()) return t
+            }
+            ""
+        } catch (_: Throwable) {
+            ""
+        }
+    }
+
     private fun branchFromEnquiries(enquiries: JSONArray, mobile: String): String {
         return try {
             val want = digits(mobile)

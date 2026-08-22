@@ -4385,7 +4385,17 @@ function ensureFollow(r,stage,next,rem){let f=load('followups'),i=f.findIndex(x=
     গণনা নয়), তাই সেখানে আগের মতোই ০ থাকছে -- শুধু Enquiry-র জন্যই বদলাল। */
  let srcStatus=String(r&&r.status||'').trim();
  let srcTerminal=['cancelled','incomplete','rejected','closed'].includes(srcStatus.toLowerCase());
- let row={refId:r.id,mobile:normMob(r.mobile),name:r.name,branch:r.branch,disease:r.disease||'',address:r.address||'',stage,date:r.date||today(),registrationDate:r.date||r.registrationDate||today(),visitDate:r.visitDate||r.date||today(),lastRemark:rem||r.remarks||'',nextFollow:next||'',callCount:r.callCount||(stage==='Inquiry'?1:0),status:(srcTerminal?srcStatus:'Active'),history:[{date:today(),remark:rem||r.remarks||'',staff:user?.name||'Public'}]};let saved;if(i>-1){
+ let row={refId:r.id,mobile:normMob(r.mobile),name:r.name,branch:r.branch,disease:r.disease||'',address:r.address||'',/* 🔴🔵🔒 V525 (২২.০৮.২০২৬, TK-রিপোর্ট — "Unexpected time ট্যাগটা কিভাবে সরে গেল?"):
+    **আসল কারণ (কোডে প্রমাণিত):** ফোনের Enquiry কার্ডে 🌙 Unexpected / 🕘 Official
+    ট্যাগটা আসে `followups` সারির `timeType` ঘর থেকে (`FollowUpAdapter`)।
+    ফোনের অ্যাপ ওই ঘরটা **লেখে** (`EnquiryModel.buildFollowUpRow`, লাইন ৯২),
+    কিন্তু এই ওয়েব-ফাংশনটা **কখনোই লিখত না** — তাই কম্পিউটার থেকে করা
+    এনকোয়ারির কার্ডে ট্যাগটা কোনোদিনই আসেনি। ⛔ এটা V512 থেকেই ছিল।
+    ⇒ এখন উৎস-সারি থেকে ঘরটা কপি হয় — ঠিক যেভাবে ফোন করে।
+    ⛔ উৎসে না থাকলে ফাঁকা যায় ⇒ আচরণ **হুবহু আগের মতোই**, কিছুই ভাঙে না।
+    ⛔ টাকার হিসাব ছোঁয়া হয়নি — Extra Income `patients.timeType` দেখে,
+       `followups`-এরটা নয় (V418-এর SQL)। এটা শুধু **দেখানোর** ঘর। */
+  timeType:r.timeType||'',stage,date:r.date||today(),registrationDate:r.date||r.registrationDate||today(),visitDate:r.visitDate||r.date||today(),lastRemark:rem||r.remarks||'',nextFollow:next||'',callCount:r.callCount||(stage==='Inquiry'?1:0),status:(srcTerminal?srcStatus:'Active'),history:[{date:today(),remark:rem||r.remarks||'',staff:user?.name||'Public'}]};let saved;if(i>-1){
  // V448: ensureFollow is a generic create/heal helper, NOT an explicit Restore.
  // Therefore it must never turn an existing Reject/Incomplete/Closed row Active.
  // Explicit Restore/Continue paths append their own Active history marker below.
