@@ -40,13 +40,21 @@ class BriefingRepository {
         //    একবার আনা হয়। ⛔ ফাঁকা/ব্যর্থ ফল **কখনো cache হয় না** (নিচে null
         //    ফেরানো হয়), তাই তালিকা কখনো ভুল করে অসম্পূর্ণ দেখাবে না — তখন সরাসরি
         //    আরেকবার আনা হয়। কোনো নতুন write নেই, শুধু read কম।
+        /* 🔵🔒 V515 (২২.০৮.২০২৬, TK-নির্দেশ — Egress অডিট): `fetchList` →
+           `fetchListGuarded`। **অনুরোধ হুবহু আগেরটাই** (একই টেবিল, ছাঁকনি নেই,
+           limit 5000, সব ঘর) — শুধু এখন V513/V514-এর পাহারার ভিতর দিয়ে যায়,
+           তাই টেবিলে কিছু না বদলালে সারিগুলো আর নামে না।
+           ⛔ ফেরত আসা তালিকা এক অক্ষরও বদলায়নি — নোটিশের পুরো লেখা ও সব উত্তর
+              আগের মতোই আসে, তাই পর্দা কখনো ফাঁকা দেখাবে না।
+           ⛔ ব্যর্থ হলে আগের মতোই খালি তালিকা, আর নিচের ২০ সেকেন্ডের
+              `CloudReadCache`-এর নিয়ম ("খালি ফল কখনো জমা হয় না") অটুট। */
         val cached = try {
             CloudReadCache.get("briefings:all") {
-                val r = SupabaseClient.fetchList("briefings", null, 5000)
+                val r = SupabaseClient.fetchListGuarded("briefings", null, 5000)
                 if (r.length() == 0) null else r
             }
         } catch (_: Throwable) { null }
-        return cached ?: SupabaseClient.fetchList("briefings", null, 5000)
+        return cached ?: SupabaseClient.fetchListGuarded("briefings", null, 5000)
     }
 
     /**

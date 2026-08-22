@@ -6605,6 +6605,7 @@ window["visitQueueRows"]=visitQueueRows;
       কাজ চাপা পড়ে না ও নতুন কোনো আপলোডও হয় না।
    ⛔ নেট না থাকলে/ব্যর্থ হলে নিঃশব্দে বাদ; ৪৫ সেকেন্ডে একবারের বেশি নয়। */
 let __dqPullAt = 0;
+let __dqNoPhoto = new Set();   /* 🔵 V515: ক্লাউডেও ছবি নেই — এই পাতার মেয়াদে আর চাওয়া হবে না */
 let __dqPulling = false;
 async function wlv1QueueCloudPull(){
   try{
@@ -6614,8 +6615,19 @@ async function wlv1QueueCloudPull(){
     let ok=false; try{ ok = await initCloudClientOnly(); }catch(e){ ok=false; }
     if(!ok || !sb){ __dqPulling=false; return false; }
     __dqPullAt = Date.now();
+    /* 🔵🔒 V515 (২২.০৮.২০২৬, TK-অনুমোদিত — Egress): আগে `select('*')` ছিল —
+       অর্থাৎ Doctor Queue পর্দা খোলা থাকলে **প্রতি ৪৫ সেকেন্ডে ১০০০ পর্যন্ত
+       রোগীর সারি, প্রত্যেকের base64 ছবিসহ** নামত। ওয়েবের সবচেয়ে ভারী
+       বারবার-পড়া ছিল এটাই।
+       ⛔ কিন্তু Chamber/Payment-এর মতো এখানে ছবি **বাদ দিয়ে দিলেই হবে না** —
+          এই পর্দার কার্ড (`wlv1DqCard`) সত্যিই ছবি দেখায়। তাই দুই ধাপ:
+          ১. তালিকা আসে **ছবি ছাড়া** (হালকা), আর
+          ২. ছবি আলাদা করে আনা হয় **শুধু তাদেরই**, এই ব্রাউজারে যাদের ছবি
+             এখনো জমা নেই। যাদের ছবি আগে থেকেই আছে, তাদের জন্য একটাও বাইট নয়।
+       ⇒ প্রথমবার খরচ আগের মতোই; তারপর থেকে প্রায় শূন্য। */
     const grab = async (build)=>{
-      try{ const r = await build(sb.from('patients').select('*'));
+      try{ const __c=(typeof RT_NO_PHOTO_COLS!=='undefined'&&RT_NO_PHOTO_COLS['patients'])||'*';
+           const r = await build(sb.from('patients').select(__c));
            return (r && !r.error && Array.isArray(r.data)) ? r.data : null; }
       catch(e){ return null; }
     };
@@ -6631,6 +6643,45 @@ async function wlv1QueueCloudPull(){
       if(one && one.length){
         save('patients', mergeById([].concat(protectedRows('patients'), one), load('patients')), {skipCloud:true});
         changed=true;
+      }
+    }catch(e){}
+    /* ধাপ ২ — শুধু যাদের ছবি এই ব্রাউজারে নেই, তাদের ছবি।
+       ⛔ যাদের ছবি আছে তাদের ছোঁয়াই হয় না ⇒ কোনো বাইট খরচ নেই।
+       ⛔ এই যন্ত্রে সদ্য তোলা (এখনো না-পাঠানো) ছবি কখনো চাপা পড়ে না —
+          `x.photo` থাকলে সে তালিকাতেই ওঠে না।
+       ⛔ শুধু `photo` ঘরটাই বসানো হয়, আর শুধু **আগে থেকে থাকা** সারিতে —
+          একটাও সারি যোগ/বাদ/বদল হয় না, কোনো আপলোডও হয় না (skipCloud)।
+       ⛔ ব্যর্থ হলে নিঃশব্দে বাদ — কার্ড আগের মতোই 👤 দেখায়, আর পরের
+          ৪৫ সেকেন্ডের চক্রে আবার চেষ্টা হয়। কিছুই ভাঙে না।
+       ⛔ ক্লাউডেও যাদের ছবি নেই, তাদের বারবার না চাওয়ার জন্য এই পাতার
+          মেয়াদে একটা ছোট তালিকা রাখা হয়। */
+    try{
+      const stored=new Map((load('patients')||[]).map(x=>[x&&x.id,x]));
+      const need=[...new Set(rows.map(r=>r&&r.id).filter(id=>{
+        if(!id||__dqNoPhoto.has(id))return false;
+        const cur=stored.get(id);
+        return !(cur&&cur.photo);
+      }))];
+      if(need.length){
+        let acc=[],okAll=true;
+        for(let i=0;i<need.length;i+=200){
+          const chunk=need.slice(i,i+200);
+          const pr=await sb.from('patients').select('id,photo').in('id',chunk);
+          if(pr&&!pr.error&&Array.isArray(pr.data)){
+            pr.data.forEach(x=>{ if(x&&x.id){ if(x.photo)acc.push(x); else __dqNoPhoto.add(x.id); } });
+          }else{ okAll=false; break; }
+        }
+        if(okAll&&acc.length){
+          const byId=new Map(acc.map(x=>[x.id,x.photo]));
+          const list=load('patients')||[];
+          let touched=false;
+          const next=list.map(x=>{
+            const ph=x&&x.id?byId.get(x.id):null;
+            if(ph&&x.photo!==ph){touched=true;return {...x,photo:ph}}
+            return x;
+          });
+          if(touched){ save('patients',next,{skipCloud:true}); changed=true; }
+        }
       }
     }catch(e){}
     __dqPulling=false;

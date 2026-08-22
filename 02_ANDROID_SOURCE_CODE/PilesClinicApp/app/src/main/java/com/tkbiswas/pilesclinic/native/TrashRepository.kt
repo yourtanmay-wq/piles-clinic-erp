@@ -24,10 +24,72 @@ data class TrashItem(
     // TK-REQUESTED (2026-07-22): follow-up rows hidden as part of this
     // delete (see TrashHelper.moveToTrashWithFollowupCascade), so Restore
     // can put them back. Null/empty for ordinary trash rows -- unaffected.
-    val cascadedFollowups: org.json.JSONArray? = null
+    val cascadedFollowups: org.json.JSONArray? = null,
+    /**
+     * 🔴🔒 V515 (২২.০৮.২০২৬, TK-অনুমোদিত — Egress): `true` মানে এই `record`-এ
+     * শুধু **পর্দায় দেখানোর ঘরগুলো** আছে, পুরো মুছে ফেলা রেকর্ড নয়।
+     * ⛔ এই অবস্থায় `restore()` **কখনো** এই আংশিক record দিয়ে লিখবে না —
+     *    আগে ক্লাউড থেকে আসল পুরো record এনে নেবে (নিচে দেখুন)।
+     * ⛔ পুরনো জমানো কপি (SharedPreferences) বা fallback পথে পুরো `record`
+     *    থাকে ⇒ তখন `false`, আচরণ হুবহু আগের মতোই।
+     */
+    val recordIsPartial: Boolean = false
 )
 
 class TrashRepository {
+
+    companion object {
+        /**
+         * 🔴🔒 V515 (২২.০৮.২০২৬, TK-অনুমোদিত — Egress) — **Trash Bin আর ছবি নামায় না।**
+         *
+         * সমস্যা যেটা ছিল: `trash` টেবিলের প্রতিটা সারির `record` ঘরে **মুছে ফেলা
+         * পুরো রেকর্ডটাই** থাকে — রোগীর base64 ছবিসহ। Trash Bin খুললেই ৫০০০ পর্যন্ত
+         * এমন সারি নামত। অ্যাপের সবচেয়ে ভারী পড়া ছিল এটাই।
+         *
+         * কিন্তু পর্দা `record`-এর ভিতর থেকে সত্যিই কী কী পড়ে? কোড ধরে **চারটে
+         * ফাইলের প্রতিটা লাইন মিলিয়ে** দেখা হয়েছে — TrashCardText · TrashAdapter ·
+         * TrashBinActivity · TrashRepository — মোট **১৯টা ঘর**, নিচের তালিকাটাই।
+         * ছবি ওদের একটাও নয়।
+         *
+         * তাই তালিকায় এখন `record`-এর ওই ১৯টা ঘরই আলাদা করে চাওয়া হয়
+         * (`record->>name` — PostgREST-এর jsonb পথ; `record` ঘরটা `jsonb`,
+         * DB_SETUP লাইন ২০৫-এ প্রমাণ)। ছবি আর নামেই না।
+         *
+         * ⛔ পর্দায় দেখানো কিছুই বদলায়নি — একই লেবেল, একই কার্ডের লেখা, একই
+         *    ব্রাঞ্চ-ছাঁকনি, একই খোঁজা।
+         * ⛔ **Restore আগের মতোই পুরো আসল রেকর্ড দিয়েই হয়** — শুধু সেটা এখন
+         *    Restore চাপার মুহূর্তে ওই এক সারির জন্য আনা হয় (নিচে `restore()`)।
+         * ⛔ সরু পড়া ব্যর্থ হলে **হুবহু আগের পুরো পড়াটাই** চলে (V512-এর পথ),
+         *    তাই পর্দা কখনো ফাঁকা বা অসম্পূর্ণ দেখাবে না।
+         */
+        val RECORD_LIST_FIELDS = listOf(
+            "altMobile", "amount", "bill", "branch", "date", "disease", "id", "mobile",
+            "mode", "name", "nextFollow", "patientCode", "patientId", "payType",
+            "receivedBy", "refBy", "registrationDate", "stage", "status"
+        )
+
+        /** তালিকার সরু কলাম — `record` পুরোটা নয়, শুধু উপরের ঘরগুলো। */
+        val TRASH_LIST_COLS: String =
+            (listOf("id", "table", "deletedAt", "deletedBy", "cascadedFollowups") +
+                RECORD_LIST_FIELDS.map { "rk_$it:record->>$it" }).joinToString(",")
+
+        /**
+         * সারি থেকে `record` বানায়।
+         *  · পুরো `record` থাকলে (fallback পথ · পুরনো জমানো কপি) সেটাই ফেরে —
+         *    আচরণ হুবহু আগের মতোই।
+         *  · না থাকলে উপরের ঘরগুলো জুড়ে **আংশিক** record বানানো হয় (শুধু দেখানোর
+         *    জন্য); তখন `recordIsPartial = true`।
+         */
+        fun recordFrom(row: JSONObject): Pair<JSONObject, Boolean> {
+            row.optJSONObject("record")?.let { return Pair(it, false) }
+            val o = JSONObject()
+            for (k in RECORD_LIST_FIELDS) {
+                val v = row.opt("rk_$k")
+                if (v != null && v != JSONObject.NULL) o.put(k, v)
+            }
+            return Pair(o, true)
+        }
+    }
 
     fun fetchTrash(): List<TrashItem> = parseTrash(fetchTrashRaw())
 
@@ -97,6 +159,17 @@ class TrashRepository {
     //    সফল অবস্থায় পুরোনো `fetchList()`-এর **হুবহু** সমান — শুধু ব্যর্থতায়
     //    `null` ফেরায়। (SupabaseClient.kt-এ কারণটা পুরো লেখা আছে।)
     fun fetchTrashRawOrNull(): org.json.JSONArray? {
+        /* 🔴🔒 V515 — আগে ছবিসহ পুরো `record` নামত; এখন শুধু পর্দার ঘরগুলো।
+           ⛔ `fetchListOrNullDirect` **ইচ্ছে করেই** রাখা হলো (V512-এর কারণ অটুট):
+              এই পড়া `CloudReadDedupe` ছোঁয় না, তাই অন্য পর্দার জমানো উত্তর
+              ছিটকে যাওয়ার আগের সমস্যাটা ফিরতে পারে না।
+           ⛔ সরু পড়া ব্যর্থ হলে (ঘরের নাম/সিনট্যাক্স যা-ই হোক) নিচে **হুবহু
+              আগের পুরো পড়াটাই** চলে — অর্থাৎ সবচেয়ে খারাপ অবস্থাতেও আচরণ
+              V512-এর সমান, পর্দা কখনো ফাঁকা দেখাবে না। */
+        val narrow = SupabaseClient.fetchListOrNullDirect(
+            "trash", null, 5000, order = "deletedAt.desc.nullslast", select = TRASH_LIST_COLS
+        )
+        if (narrow != null) return narrow
         return SupabaseClient.fetchListOrNullDirect("trash", null, 5000, order = "deletedAt.desc.nullslast")
     }
 
@@ -104,7 +177,10 @@ class TrashRepository {
         val list = mutableListOf<TrashItem>()
         for (i in 0 until rows.length()) {
             val row = rows.getJSONObject(i)
-            val record = row.optJSONObject("record") ?: JSONObject()
+            /* 🔴🔒 V515: পুরো `record` থাকলে সেটাই (পুরনো জমানো কপি ও fallback পথ),
+               নইলে সরু ঘরগুলো জুড়ে আংশিক record — লেবেল/কার্ড/ছাঁকনি সবই একই ঘর
+               থেকে আসে, তাই পর্দায় কোনো পার্থক্য নেই। */
+            val (record, partial) = recordFrom(row)
             val label = record.s("name").ifBlank {
                 record.s("mobile").ifBlank { record.s("id").ifBlank { row.s("id") } }
             }
@@ -116,7 +192,8 @@ class TrashRepository {
                     record = record,
                     deletedAt = row.s("deletedAt"),
                     deletedBy = row.s("deletedBy"),
-                    cascadedFollowups = row.optJSONArray("cascadedFollowups")
+                    cascadedFollowups = row.optJSONArray("cascadedFollowups"),
+                    recordIsPartial = partial
                 )
             )
         }
@@ -126,10 +203,40 @@ class TrashRepository {
     /** Re-inserts the original record into its table, then deletes the trash row. */
     fun restore(item: TrashItem, context: android.content.Context? = null): Boolean {
         if (item.table.isBlank()) return false
+
+        /* 🔴🔴🔒 V515 (২২.০৮.২০২৬, TK-অনুমোদিত — Egress) — **Restore সবসময় আসল
+           পুরো রেকর্ড দিয়েই হয়।**
+
+           তালিকাটা এখন হালকা করে আনা হয় (ছবি বাদ, শুধু দেখানোর ঘর) — তাই ওই
+           আংশিক record দিয়ে ভুল করেও লেখা যাবে না; লিখলে **মুছে ফেলা রেকর্ডের
+           বাকি সব তথ্য (ছবিসহ) চিরতরে হারিয়ে যেত**। তাই Restore চাপার ঠিক
+           মুহূর্তে ওই **একটি** সারির পুরো `record` ক্লাউড থেকে আনা হয়।
+
+           ⛔ আনতে না পারলে (নেট নেই / সারি নেই / ফাঁকা record) — **কিছুই লেখা
+              হয় না**, `false` ফেরে, trash সারিটা অক্ষত থাকে, পরে আবার চেষ্টা
+              করা যায়। ঠিক V223 §C1-এর নিয়ম, এক চুলও আলাদা নয়।
+           ⛔ পুরনো জমানো কপি বা fallback পথে record আগে থেকেই পুরো
+              (`recordIsPartial == false`) — তখন **একটাও বাড়তি অনুরোধ হয় না**,
+              আচরণ হুবহু আগের মতোই।
+           ⛔ একটামাত্র সারির জন্য একটামাত্র অনুরোধ, আর সেটা শুধু Restore
+              চাপলেই — তালিকা খোলায় নয়। */
+        val fullRecord: JSONObject = if (!item.recordIsPartial) item.record else {
+            val one = try {
+                SupabaseClient.fetchListOrNullDirect(
+                    "trash",
+                    "id=eq." + java.net.URLEncoder.encode(item.id, "UTF-8"),
+                    1, order = "deletedAt.desc.nullslast", select = "record"
+                )
+            } catch (_: Throwable) { null } ?: return false
+            val rec = one.optJSONObject(0)?.optJSONObject("record") ?: return false
+            if (rec.length() == 0) return false
+            rec
+        }
+
         // TK-REQUESTED (2026-07-26): this row was tombstoned when it was
         // deleted . clear that first, otherwise its normal cloud sync would
         // keep being skipped after the restore.
-        try { DeletedGuard.unmark(item.table, item.record.optString("id", "")) } catch (_: Throwable) { }
+        try { DeletedGuard.unmark(item.table, fullRecord.optString("id", "")) } catch (_: Throwable) { }
         // 🔒 V223 (§C1, 01.08.2026): পুরোনো snapshot বসানোর আগে cloud-এর updatedAt
         // **নিশ্চিতভাবে** পড়ে মেলানো হয়:
         //   · cloud নবীন হলে (KEPT_NEWER) পুরোনো snapshot চাপা দেওয়া হয় না — record
@@ -137,7 +244,7 @@ class TrashRepository {
         //   · cloud পড়া ব্যর্থ / তুলনা অসম্ভব / লেখা ব্যর্থ (BLOCKED) হলে **কিছুই লেখা
         //     হয় না** ও false ফেরে — trash সারি অক্ষত থাকে (পরে আবার চেষ্টা করা যায়),
         //     পুরোনো data কখনো আন্দাজে লেখা হয় না। DB trigger দ্বিতীয় পাহারা।
-        val outcome = SupabaseClient.upsertRestoreSafe(item.table, item.record)
+        val outcome = SupabaseClient.upsertRestoreSafe(item.table, fullRecord)
         if (outcome == SupabaseClient.RestoreOutcome.BLOCKED) return false
         // TK-REQUESTED (2026-07-22): put back any Follow-up rows that were
         // hidden as part of this delete (see moveToTrashWithFollowupCascade),

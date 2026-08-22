@@ -32,7 +32,11 @@ class DoctorVisitRepository {
         // feet. Now explicitly ordered by name (stable, alphabetical) so
         // the list stays in the same place regardless of who was edited
         // most recently.
-        val rows = SupabaseClient.fetchList("doctor_visits", filters.joinToString("&"), 5000, order = "name.asc")
+        /* 🔵🔒 V515 (২২.০৮.২০২৬, TK-নির্দেশ — Egress অডিট): `fetchList` →
+           `fetchListGuarded`। **অনুরোধ ও সাজানোর ক্রম হুবহু আগেরটাই**
+           (`name.asc` — ২০২৬-০৭-২৫-এর "তালিকা লাফায়" বাগের সমাধান অটুট),
+           শুধু V513/V514-এর পাহারার ভিতর দিয়ে যায়। */
+        val rows = SupabaseClient.fetchListGuarded("doctor_visits", filters.joinToString("&"), 5000, order = "name.asc")
         val items = mutableListOf<DoctorVisitItem>()
         for (i in 0 until rows.length()) items.add(DoctorVisitModel.parse(rows.getJSONObject(i)))
         return items
@@ -54,7 +58,10 @@ class DoctorVisitRepository {
         // TK-REPORTED BUG FIX (2026-07-25): same stable-order fix as
         // fetchList() above -- MUST stay identical to it (same comment as
         // above: cached view == fresh view, byte-for-byte).
-        return SupabaseClient.fetchList("doctor_visits", filters.joinToString("&"), 5000, order = "name.asc")
+        /* 🔵🔒 V515: উপরের `fetchList()`-এর সঙ্গে **হুবহু এক** থাকতেই হবে
+           (cached view == fresh view, byte-for-byte) — তাই এটাও পাহারার
+           ভিতর দিয়ে, একই অনুরোধ, একই ক্রম। */
+        return SupabaseClient.fetchListGuarded("doctor_visits", filters.joinToString("&"), 5000, order = "name.asc")
     }
 
     // TK-REPORTED CRITICAL BUG FIX (2026-07-24): fetchListRaw() above uses

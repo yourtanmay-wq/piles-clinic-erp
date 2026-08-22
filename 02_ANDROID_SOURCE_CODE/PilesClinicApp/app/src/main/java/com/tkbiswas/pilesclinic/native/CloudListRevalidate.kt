@@ -96,6 +96,21 @@ object CloudListRevalidate {
     /** সব মিলিয়ে এর বেশি মেমরি নেয় না। */
     private const val MAX_BYTES = 12L * 1024L * 1024L
 
+    /**
+     * 🔵🔒 V515 (২২.০৮.২০২৬ — Egress অডিট): **একটা তালিকা একাই জায়গাটা
+     * দখল করতে পারবে না।**
+     *
+     * কেন: খাতার সারি V512-তে ঠিক এই ভুলটাই ধরা পড়েছিল — `trash`-এর একটা
+     * সারিতেই মুছে ফেলা পুরো রেকর্ড (ছবিসহ) থাকে, আর সেরকম কয়েকটা সারি
+     * জমা রাখলেই বাকি সব পর্দার জমানো উত্তর ছিটকে যেত; ফলে সেগুলো আবার
+     * নতুন করে নামত — অর্থাৎ Egress **বাড়ত**।
+     *
+     * তাই এর চেয়ে বড় কোনো উত্তর জমা হয় না। জমা না হলে ক্ষতি নেই — ওই
+     * পড়াটা আগের মতোই প্রতিবার নেট থেকে আসে (হুবহু পুরনো আচরণ), শুধু
+     * অন্যদের জায়গা কেড়ে নেয় না।
+     */
+    private const val MAX_ONE_BYTES = 2L * 1024L * 1024L
+
     /** একই টেবিলের সই পরপর কয়েকটা পড়ার জন্য একবারই আনা হয় (ঝাঁক ধরার জন্য)। */
     private const val PROBE_TTL_MS = 15_000L
 
@@ -200,7 +215,7 @@ object CloudListRevalidate {
         if (before == null) return
         if (body.length < MIN_BODY_BYTES) return
         val size = body.length.toLong()
-        if (size > MAX_BYTES) return
+        if (size > MAX_ONE_BYTES) return
         synchronized(lock) {
             entries.remove(url)?.let { bytes -= it.body.length.toLong() }
             entries[url] = Entry(System.currentTimeMillis(), body, before.count, before.maxStamp)

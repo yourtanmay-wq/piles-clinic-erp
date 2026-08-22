@@ -773,6 +773,33 @@ object SupabaseClient {
     //    ব্যর্থতায় ফাঁকা তালিকার বদলে `null` ফেরায়।
     // ⛔ `fetchListOrNull` ও `fetchList` — দুটোর একটাও বদলানো হয়নি।
     // ══════════════════════════════════════════════════════════════════════
+    /**
+     * 🔵🔒 V515 (২২.০৮.২০২৬, TK-নির্দেশ — Egress অডিট) — `fetchList()`-এর হুবহু
+     * যমজ, **শুধু V513/V514-এর পাহারার ভিতর দিয়ে**।
+     *
+     * কেন দরকার হলো: `fetchList()` নিজের অনুরোধ নিজেই পাঠায় — তাই সেটা
+     * `CloudReadDedupe` (৬০ সে.) বা `CloudListRevalidate` (সই মিলিয়ে দেখা)
+     * কোনোটার ভিতর দিয়েই যায় না। অ্যাপের বেশিরভাগ `fetchList()` ডাকই ছোট
+     * (`id=eq.…`, limit 1) — ওদের এতে কিছু যায়-আসে না। কিন্তু হাতে গোনা
+     * কয়েকটা জায়গায় ওটা দিয়ে **পুরো টেবিল** (limit 5000) নামে, আর পর্দা
+     * খুললেই বারবার নামে।
+     *
+     * ⛔ অনুরোধের URL `fetchList()`-এর সঙ্গে **হুবহু এক** — একই `select`,
+     *    একই `order`, একই `limit`, একই ছাঁকনি। সার্ভারের দিকে কিছুই আলাদা নয়,
+     *    ফিরে আসা সারিগুলোও হুবহু একই।
+     * ⛔ ব্যর্থতার আচরণও `fetchList()`-এর মতোই — **খালি তালিকা**, `null` নয়।
+     *    (`fetchListOrNull` ব্যর্থে `null` দেয়; এখানে সেটাকে খালি তালিকা করা
+     *    হয়, ঠিক যেমন `fetchList()` করত।) ⇒ ডাকার জায়গার কোড বদলাতে হয় না।
+     * ⛔ পুরোনো `fetchList()` **এক অক্ষরও বদলায়নি** — তার ৬০+ ডাকের একটাও
+     *    ছোঁয়া হয়নি। শুধু যে কয়েকটা জায়গা সত্যিই বড় ও বারবার, সেগুলোকে
+     *    এই যমজটায় সরানো হয়েছে।
+     * ⛔ ভারী সারির টেবিল (যেমন `trash` — সারিতে মুছে ফেলা পুরো রেকর্ড ও ছবি)
+     *    ইচ্ছে করে এখানে আনা হয়নি; V512-এর কারণটা অটুট।
+     */
+    fun fetchListGuarded(table: String, filter: String? = null, limit: Int = 500, order: String = "updatedAt.desc.nullslast", select: String = "*"): JSONArray {
+        return fetchListOrNull(table, filter, limit, order = order, select = select) ?: JSONArray()
+    }
+
     fun fetchListOrNullDirect(table: String, filter: String? = null, limit: Int = 500, order: String = "updatedAt.desc.nullslast", select: String = "*"): JSONArray? {
         return try {
             val filterPart = if (filter != null) "&$filter" else ""
