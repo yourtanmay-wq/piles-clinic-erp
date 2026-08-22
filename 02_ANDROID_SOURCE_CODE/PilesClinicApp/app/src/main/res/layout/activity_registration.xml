@@ -305,6 +305,21 @@
                     <ImageView android:id="@+id/imgPatientPhoto" android:layout_width="96dp" android:layout_height="96dp"
                         android:layout_marginTop="8dp" android:scaleType="centerCrop" android:background="@drawable/bg_input_field"
                         android:visibility="gone" android:contentDescription="Patient photo preview" />
+                    <!-- 🔄🔒 V532 (২২.০৮.২০২৬, TK-নির্দেশ): *"ভুল করে ফটো অন্যভাবে
+                         তোলা হলে পরবর্তীতে যেন রোটেট করা যায়।"* — এতদিন এটা শুধু
+                         Patient Photo পর্দায় ছিল, রেজিস্ট্রেশনের সময় ছিল না।
+                         ছবি তোলা হলে তবেই দেখা যায় (কোডে VISIBLE/GONE), তাই ছবি না
+                         থাকলে পর্দা **অবিকল আগের মতোই**। Patient Photo পর্দার হুবহু
+                         একই পিল-ডিজাইন ও একই রং। -->
+                    <Button android:id="@+id/btnRotatePatientPhoto"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:layout_gravity="center_horizontal" android:layout_marginTop="8dp"
+                        android:background="@drawable/bg_btn_photo_pill" app:backgroundTint="@null"
+                        android:paddingStart="26dp" android:paddingEnd="26dp" android:paddingVertical="8dp"
+                        android:maxLines="1" android:singleLine="true" android:textAllCaps="false"
+                        android:text="🔄 Rotate" android:textColor="#1D4ED8" android:textStyle="bold"
+                        android:textSize="13.5sp" android:visibility="gone" />
+
                     <!-- TK-LOCKED (2026-07-24): 50% width, centered, green chip. Was full-width blue. -->
                     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                         android:orientation="horizontal" android:weightSum="2" android:layout_marginTop="12dp">

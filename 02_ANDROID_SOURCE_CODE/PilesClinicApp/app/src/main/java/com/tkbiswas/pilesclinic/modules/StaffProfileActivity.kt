@@ -2538,7 +2538,32 @@ class StaffProfileActivity : AppCompatActivity() {
             sb.append("Rule: only an UNEXPECTED TIME enquiry earns extra.\n")
             sb.append("₹100 when that number registers and pays the fee,\n")
             sb.append("₹400 more when the same patient pays an advance.\n")
-            sb.append("Shared 50-50 with the staff who took the enquiry.")
+            /* 🔵🔒 V532 (২২.০৮.২০২৬, TK-নির্দেশ) — **ভাগের হিসাবটা এখন সত্যি।**
+               এতদিন এখানে সবসময় লেখা থাকত *"Shared 50-50"* — কিন্তু ডেটাবেসের
+               আসল নিয়ম (`hr.incentive_wanted()`, V418 SQL) তা নয়:
+                 • এনকোয়ারি ও রেজিস্ট্রেশন **দুজন আলাদা** স্টাফ ⇒ টাকা **দু'ভাগ**
+                 • **একই লোক**, বা দু'জনের একজনকেই চেনা গেল ⇒ **পুরো টাকাটাই একজনের**
+               (SQL-এ: `round(st.amt / s.n, 2)`, যেখানে `n` = আলাদা স্টাফ-কোডের সংখ্যা।)
+               ⇒ n=1 হলে "50-50" লেখাটা **ভুল তথ্য** দিত।
+               ⛔ নতুন কোনো cloud-read নেই — অঙ্কটা (`amount`) আগে থেকেই হাতে আছে,
+                  আর ধাপ থেকে পুরো অঙ্ক (₹100 / ₹400) জানা। ভাগ = অঙ্ক ÷ পুরো অঙ্ক। */
+            val fullAmt = when {
+                stage.equals("Registration", true) -> 100.0
+                stage.equals("Treatment", true) -> 400.0
+                else -> 0.0
+            }
+            val got = p.optDouble("amount", 0.0)
+            if (fullAmt > 0.0 && got > 0.0) {
+                if (got >= fullAmt - 0.01) {
+                    sb.append("\nThis entry: the FULL ").append(money(fullAmt))
+                        .append(" — enquiry and registration by the same staff\n(or only one of the two could be identified).")
+                } else {
+                    sb.append("\nThis entry: ").append(money(got)).append(" of ").append(money(fullAmt))
+                        .append(" — the rest goes to the other staff\n(enquiry and registration were done by two different people).")
+                }
+            } else {
+                sb.append("\nShared between the enquiry staff and the registering staff\nwhen they are two different people.")
+            }
         } else if (timing.isNotBlank()) {
             // এটা কখনো হওয়ার কথা নয় — হলে TK-কে জানানোই ঠিক, চুপ করে থাকা নয়
             sb.append("\n\n⚠️ This patient is not marked UNEXPECTED TIME.")

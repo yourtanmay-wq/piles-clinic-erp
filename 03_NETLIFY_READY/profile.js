@@ -568,7 +568,7 @@
               + 'Rule: only an <b>UNEXPECTED TIME</b> enquiry earns extra.<br>'
               + '₹100 when that number registers and pays the fee,<br>'
               + '₹400 more when the same patient pays an advance.<br>'
-              + 'Shared 50-50 with the staff who took the enquiry.</div>'
+              + salExtraShareLine(stage, x.amount) + '</div>'
             : (tt ? '<div style="margin-top:10px;font-size:12px;color:#B0392B;line-height:1.6">'
                     + '⚠️ This patient is not marked UNEXPECTED TIME.<br>'
                     + 'Extra income is only for unexpected-time enquiries — please check this entry.</div>'
@@ -584,6 +584,28 @@
 
   function salIsExtra(p){ return salKind(p) === 'EXTRA'; }
   /* 2026-12-31 → 31/12/2026 (TK-নির্দেশ)। ডেটাবেসে তারিখ আগের মতোই থাকে। */
+
+  /* 🔵🔒 V532 (২২.০৮.২০২৬, TK-নির্দেশ) — **ভাগের হিসাবটা এখন সত্যি।**
+     এতদিন সবসময় লেখা থাকত "Shared 50-50", কিন্তু ডেটাবেসের আসল নিয়ম
+     (`hr.incentive_wanted()`, V418 SQL: `round(st.amt / s.n, 2)`) তা নয় —
+     এনকোয়ারি ও রেজিস্ট্রেশন দুজন আলাদা হলে দু'ভাগ, একই লোক হলে পুরোটাই।
+     ⛔ ফোনের `showExtraPatientPopup()`-এর হুবহু একই লেখা ও একই হিসাব।
+     ⛔ নতুন কোনো cloud-read নেই — অঙ্কটা আগে থেকেই হাতে। */
+  function salExtraShareLine(stage, amount){
+    /* ⛔ `m` এখানে নেই — ওটা প্রতিটা async ফাংশনের **ভিতরের** নিজস্ব ঘর
+       (`var m = window.MOD`)। তাই এখানে সরাসরি `window.MOD` ধরা হলো, আর
+       না পেলে সাদামাটা "₹" — কোনো অবস্থাতেই পর্দা ভাঙে না। */
+    var MM = (typeof window !== 'undefined' && window.MOD) ? window.MOD : null;
+    var mny = function(v){ try{ return MM && MM.money ? MM.money(v) : ('₹' + v); }catch(e){ return '₹' + v; } };
+    var full = /^registration$/i.test(String(stage||'')) ? 100
+             : /^treatment$/i.test(String(stage||''))    ? 400 : 0;
+    var got = Number(String(amount||'').replace(/[^0-9.]/g,'')) || 0;
+    if(!full || !got) return 'Shared between the enquiry staff and the registering staff<br>when they are two different people.';
+    if(got >= full - 0.01)
+      return 'This entry: the <b>FULL ' + mny(full) + '</b> — enquiry and registration<br>by the same staff (or only one of the two could be identified).';
+    return 'This entry: <b>' + mny(got) + '</b> of ' + mny(full) + ' — the rest goes to the<br>other staff (enquiry and registration by two different people).';
+  }
+
   function salDmy(v){
     var t = String(v || '').trim();
     var mm = /^(\d{4})-(\d{2})-(\d{2})/.exec(t);

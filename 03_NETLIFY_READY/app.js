@@ -3975,6 +3975,7 @@ function openPatientPhotoSheet(p){
   <div class="ppBtns">
     <button type="button" class="ghost" onclick="document.getElementById('editPatientCamera').click()">📷 Open Camera</button>
     <button type="button" class="ghost" onclick="document.getElementById('editPatientGallery').click()">🖼️ Gallery</button>
+    ${has?`<button type="button" class="ghost" onclick="wlv1RotatePatientPhoto('${esc(p.id)}')">🔄 Rotate</button>`:''}
     ${has?`<button type="button" class="ghost redText" onclick="removePatientPhotoById('${esc(p.id)}')">🗑️ Remove Photo</button>`:''}
     <button type="button" class="ghost" onclick="goBackOnePage()">❌ Cancel</button>
   </div>
@@ -3985,7 +3986,54 @@ function openPatientPhotoSheet(p){
 window["openPatientPhotoSheet"]=openPatientPhotoSheet;
 function editPatientPhoto(id){let p=load('patients').find(x=>x.id===id)||load('patients').find(x=>mob(x.mobile)===mob(id));openPatientPhotoSheet(p)}
 window["editPatientPhoto"]=editPatientPhoto;
-async function savePatientPhotoInput(id,inp){let data=await fileData(inp);if(!data)return;let p=upd('patients',id,{photo:data});if(!p)return toast('Patient not found');/* 🔴 TK-অনুমোদিত (02.08.2026, স্ক্রিনশটে দাগ দিয়ে আলোচনা করে): followups-এ ছবির কপি বসানো বন্ধ — কোথাও দেখানোই হতো না, শুধু জায়গা/Egress খরচ করত। patients.photo-ই এখন একমাত্র উৎস। */toast('Photo saved');closeModal();try{followup('Patient')}catch(e){try{summary(id)}catch(_){dashboard()}}}
+/* 🔄🔒 V532 (২২.০৮.২০২৬, TK-নির্দেশ): ছবি সেভ করার এই শরীরটা এতদিন শুধু ফাইল-বাছাইয়ের পথেই ছিল। Rotate-ও ঠিক **একই** পথে সেভ করে যাতে দুটোর আচরণে এক চুলও ফারাক না থাকে — এক অক্ষরও বদলানো হয়নি, শুধু নাম দেওয়া হলো। */
+function wlv1SavePatientPhotoData(id,data){if(!data)return;let p=upd('patients',id,{photo:data});if(!p)return toast('Patient not found');/* 🔴 TK-অনুমোদিত (02.08.2026, স্ক্রিনশটে দাগ দিয়ে আলোচনা করে): followups-এ ছবির কপি বসানো বন্ধ — কোথাও দেখানোই হতো না, শুধু জায়গা/Egress খরচ করত। patients.photo-ই এখন একমাত্র উৎস। */toast('Photo saved');closeModal();try{followup('Patient')}catch(e){try{summary(id)}catch(_){dashboard()}}}
+window["wlv1SavePatientPhotoData"]=wlv1SavePatientPhotoData;
+
+/* 🔄🔒 V532 (২২.০৮.২০২৬, TK-নির্দেশ: *"ভুল করে ফটো অন্যভাবে তোলা হলে পরবর্তীতে
+   যেন রোটেট করা যায়"*) — এতদিন এটা শুধু Android অ্যাপে ছিল (V524), কম্পিউটারে
+   ছিল না। ছবিটা ৯০° ঘুরিয়ে **সেই একই মাপ ও মানের নিয়মে** (fileData-র মতোই
+   ১৬০ KB সীমা) আবার বানানো হয়।
+   ⛔ নিজে থেকে কিছু সেভ হয় না — যতক্ষণ না ঘোরানো শেষ হয় আর সেভ ডাকা হয়।
+   ⛔ ছবি না থাকলে বোতামটাই দেখা যায় না, তাই পর্দা আগের মতোই। */
+function wlv1RotateDataUrl(dataUrl,deg){return new Promise(res=>{
+ try{
+  let img=new Image();
+  img.onerror=()=>res('');
+  img.onload=()=>{ try{
+   let d=((deg%360)+360)%360;
+   let sw=img.width||1, sh=img.height||1;
+   let w=(d===90||d===270)?sh:sw, h=(d===90||d===270)?sw:sh;
+   let out='';
+   for(let attempt=0;attempt<6;attempt++){
+    let c=document.createElement('canvas');
+    c.width=w;c.height=h;
+    let ctx=c.getContext('2d');
+    ctx.translate(w/2,h/2); ctx.rotate(d*Math.PI/180);
+    ctx.drawImage(img,-sw/2,-sh/2,sw,sh);
+    let quality=Math.max(0.34,0.68-(attempt*0.08));
+    out=c.toDataURL('image/jpeg',quality);
+    if(out.length<=160000)break;
+    w=Math.max(220,Math.round(w*0.82));h=Math.max(220,Math.round(h*0.82));
+    sw=Math.round(sw*0.82);sh=Math.round(sh*0.82);
+   }
+   res(out||'');
+  }catch(e){res('')} };
+  img.src=String(dataUrl||'');
+ }catch(e){res('')}
+})}
+window["wlv1RotateDataUrl"]=wlv1RotateDataUrl;
+/* 🔄 V532: পর্দার Rotate বোতাম — ঘোরানো ছবিটা **সঙ্গে সঙ্গে** সেভ হয়, ঠিক
+   যেভাবে নতুন ছবি বাছলে হয় (একই `wlv1SavePatientPhotoData`)। */
+async function wlv1RotatePatientPhoto(id){
+ let p=load('patients').find(x=>x.id===id);
+ if(!p||!p.photo)return toast('No photo to rotate');
+ let data=await wlv1RotateDataUrl(p.photo,90);
+ if(!data)return toast('Could not rotate');
+ wlv1SavePatientPhotoData(id,data);
+}
+window["wlv1RotatePatientPhoto"]=wlv1RotatePatientPhoto;
+async function savePatientPhotoInput(id,inp){let data=await fileData(inp);if(!data)return;wlv1SavePatientPhotoData(id,data)}
 window["savePatientPhotoInput"]=savePatientPhotoInput;
 function removePatientPhotoById(id){let p=upd('patients',id,{photo:''});if(!p)return toast('Patient not found');/* 🔴 TK-অনুমোদিত: followups-এ ছবি-কপি বন্ধ, নিচে ব্যাখ্যা savePatientPhotoInput-এ */toast('Photo removed');closeModal();try{followup('Patient')}catch(e){try{summary(id)}catch(_){dashboard()}}}
 window["removePatientPhotoById"]=removePatientPhotoById;

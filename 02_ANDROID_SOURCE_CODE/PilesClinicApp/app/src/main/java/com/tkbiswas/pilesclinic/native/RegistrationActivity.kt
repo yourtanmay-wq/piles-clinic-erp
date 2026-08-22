@@ -461,6 +461,32 @@ class RegistrationActivity : AppCompatActivity() {
             if (success && uri != null) applyPickedPhoto(uri)
         }
 
+    /**
+     * 🔄🔒 V532 (২২.০৮.২০২৬, TK-নির্দেশ) — রেজিস্ট্রেশনের সময়েও ছবি ঘোরানো।
+     *
+     * Patient Photo পর্দায় যে নিয়মটা V524 থেকে চলছে, **হুবহু সেটাই**: মূল
+     * ছবিটা (`photoBaseBitmap`) ধরে রাখা হয় আর মোট কত ডিগ্রি ঘোরানো হয়েছে
+     * সেটা গোনা হয়। প্রতিবার **মূল থেকেই একবার** ঘুরিয়ে বানানো হয় — দশবার
+     * ঘোরালেও ছবির মান একটুও নষ্ট হয় না (বারবার JPEG চাপলে ঝাপসা হয়)।
+     */
+    private var photoBaseBitmap: android.graphics.Bitmap? = null
+    private var photoRotateDegrees: Int = 0
+
+    private fun rotatePatientPhoto() {
+        val base = photoBaseBitmap ?: return
+        photoRotateDegrees = (photoRotateDegrees + 90) % 360
+        val shown = PhotoUtils.rotated(base, photoRotateDegrees)
+        val dataUrl = PhotoUtils.encodeBitmap(shown)
+        if (dataUrl == null) {
+            android.widget.Toast.makeText(this, "Could not rotate", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        // ⛔ সেভের পথ এক অক্ষরও বদলায়নি — `patientPhotoData` সেই একই ধরনের
+        //    data-URL, ঠিক আগের মতোই Save-এর সময় ব্যবহার হবে।
+        patientPhotoData = dataUrl
+        binding.imgPatientPhoto.setImageBitmap(shown)
+    }
+
     /** Shared for both camera and gallery: compress (400px / q70) then preview. */
     private fun applyPickedPhoto(uri: Uri) {
         lifecycleScope.launch {
@@ -475,6 +501,12 @@ class RegistrationActivity : AppCompatActivity() {
                 binding.imgPatientPhoto.setImageBitmap(bmp)
                 binding.imgPatientPhoto.visibility = View.VISIBLE
                 binding.btnPatientPhoto.text = "📷 Change Photo"
+                /* 🔄 V532: নতুন ছবি এলে এটাই "মূল", গোনা শূন্য থেকে শুরু।
+                   ছবি আছে ⇒ তবেই Rotate বোতাম দেখা যায়। */
+                photoBaseBitmap = bmp
+                photoRotateDegrees = 0
+                binding.btnRotatePatientPhoto.visibility = View.VISIBLE
+                binding.btnRotatePatientPhoto.setOnClickListener { rotatePatientPhoto() }
             }
         }
     }
