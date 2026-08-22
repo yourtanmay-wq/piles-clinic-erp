@@ -37,6 +37,9 @@ object AnatomyModel {
         val r: Double = 0.0,              // ring / bulge-এর ব্যাসার্ধ
         val s: Double = 0.0,              // bulge কতটা জোরে (−০.৮৫ … ০.৮৫)
         val label: String = "",           // ফোলার নাম (৩টা / ডান পাশ …)
+        /* 🔵 V571 — bulge-এর দিক জানা আছে কি না। পুরোনো রেকর্ডে দিক লেখা নেই,
+           তখন ছবির মাঝখান থেকে বাইরের দিকে ধরা হয়। */
+        val hasDir: Boolean = false,
         val pts: List<Pair<Double, Double>> = emptyList()
     )
 
@@ -59,30 +62,51 @@ object AnatomyModel {
     const val RADIUS_MAX = 42.0
     const val RADIUS_MIN = 3.0
 
-    /**
-     * 🔴 V564 (TK, ২২.০৮.২০২৬ লাইভ টেস্ট): *"মাংসটা টানলে ততটা বড় হচ্ছে না,
-     * জাস্ট শুধু ফুলে যাচ্ছে — আমি তো বলেছিলাম মাংসটা বড় করতে"*।
-     *
-     * আগের অঙ্কে ঠেলাটা ছিল `1 − s·k²` (k = 1 − t²) — কেন্দ্রে জোর বেশি হলেও
-     * সেটা খুব দ্রুত কমে যেত, তাই মাঝখানটা একটু ফুলে উঠত মাত্র, **মাংসটা
-     * সত্যিকারে বড় হত না**।
-     *
-     * এখন ভিতরের প্রায় পুরোটা জুড়ে **সমান** টান, শুধু কিনারার কাছে এসে
-     * মসৃণভাবে মিলিয়ে যায় — তাই গোটা ঢিবিটাই বড় হয়, চারপাশের চামড়ার সাথে
-     * জোড়াও কাটা-কাটা লাগে না।
-     *
-     * @param t কেন্দ্র থেকে দূরত্ব ÷ ব্যাসার্ধ (০ = ঠিক মাঝখানে, ১ = কিনারা)
-     * @return যত দিয়ে গুণ করে রং তুলতে হবে (১ = কিছুই বদলাবে না)
-     */
-    fun pushFactor(t: Double, strength: Double): Double {
-        if (t >= 1.0) return 1.0
-        val flat = 0.62                       // এতটা জায়গা জুড়ে টান একই থাকে
-        val w = if (t <= flat) 1.0 else {
-            val u = 1.0 - (t - flat) / (1.0 - flat)
-            u * u * (3.0 - 2.0 * u)           // কিনারায় মসৃণভাবে শেষ
-        }
-        return 1.0 - strength.coerceIn(-BULGE_MAX, BULGE_MAX) * w
+    /* 🔵🔒 V571 (২২.০৮.২০২৬, TK-নির্দেশ) — আগে এখানে `pushFactor()` ছিল, যেটা
+       ছবির পিক্সেল বাইরের দিকে ঠেলে "ফোলা" বানাত। TK ছবি পাঠিয়ে বললেন সেটা
+       *"যথাযথ মিল খাচ্ছে না"* — এখন মাংসপিণ্ডটা **আঁকা** হয় (`AnatomyView`-এ),
+       ছবি ঠেলা হয় না। তাই ওই অঙ্কটার আর দরকার নেই।
+
+       নিচের দুটো হিসাব ফোন ও ওয়েবে **হুবহু এক** — মাংসের দানাগুলো যাতে
+       এলোমেলো না হয়, একই মাংস বারবার আঁকলে হুবহু এক দেখায়। */
+
+    /** দানার বীজ — মাংসের নিজের জায়গা থেকেই, এলোমেলো নয়। */
+    fun lumpSeed(x: Double, y: Double, len: Double): Long {
+        val v = Math.floor(x * 131 + y * 977 + len * 17).toLong() % 2147483647L
+        val w = if (v < 0) v + 2147483647L else v
+        return if (w == 0L) 12345L else w
     }
+
+    /** ওয়েবের `lumpNext()`-এর হুবহু একই সংখ্যা-শৃঙ্খল। */
+    fun lumpNext(state: LongArray): Double {
+        /* Park–Miller — ইচ্ছে করে ছোট গুণ (১৬৮০৭), কারণ ওয়েবে (জাভাস্ক্রিপ্টে)
+           বড় গুণফল নির্ভুল থাকে না। এতে দুই জায়গার সংখ্যা হুবহু মেলে। */
+        var v = (state[0] * 16807L) % 2147483647L
+        if (v <= 0) v += 2147483646L
+        state[0] = v
+        return v.toDouble() / 2147483647.0
+    }
+
+    /** মাংসটা কোন দিকে, কত লম্বা, কত চওড়া — ওয়েবের `lumpGeom()`-এর যমজ। */
+    data class Lump(val len: Double, val ang: Double, val wide: Double)
+
+    fun lumpGeom(m: Mark): Lump {
+        val len: Double
+        val ang: Double
+        val dx = if (m.hasDir) m.x2 - m.x else 0.0
+        val dy = if (m.hasDir) m.y2 - m.y else 0.0
+        val pull = Math.sqrt(dx * dx + dy * dy)
+        if (m.hasDir && pull > 0.8) {
+            ang = Math.atan2(dy, dx); len = Math.max(4.0, pull * 1.15)
+        } else {
+            val ox = m.x - 50.0; val oy = m.y - 50.0
+            ang = if (Math.abs(ox) + Math.abs(oy) < 0.5) (Math.PI / 2) else Math.atan2(oy, ox)
+            len = Math.max(4.0, (if (m.r > 0) m.r else 8.0) * 0.95)
+        }
+        val st = clamp(if (m.s != 0.0) m.s else 0.45, 0.2, 0.95)
+        return Lump(len, ang, len * (0.46 + 0.30 * st))
+    }
+
 
 
     // ─────────── ছবির তালিকা ───────────
@@ -120,6 +144,9 @@ object AnatomyModel {
         Picture("anat01", "বই · পায়ুনালীর কাটা ছবি"),
         Picture("anat02", "বই · ফিস্টুলার চার ধরন"),
         Picture("anat03", "বই · ফিস্টুলার নকশা"),
+        /* 🔵 V571 (২২.০৮.২০২৬) — TK নিজে পাঠানো আরও দুটো বইয়ের ছবি। */
+        Picture("anat30", "বই · ফোঁড়া কোথায় হয়"),
+        Picture("anat31", "বই · পাইলসের চার ধাপ"),
         Picture("anat04", "ফোলা · কাছ থেকে"),
         Picture("anat05", "একটা ফোলা"),
         Picture("anat06", "একটা ঢিবি"),
@@ -162,8 +189,13 @@ object AnatomyModel {
                 KIND_RING  -> out.append("ring:").append(n1(m.x)).append(',').append(n1(m.y)).append(',').append(n1(m.r))
                 KIND_ARROW -> out.append("arrow:").append(n1(m.x)).append(',').append(n1(m.y))
                     .append(',').append(n1(m.x2)).append(',').append(n1(m.y2))
-                KIND_BULGE -> out.append("bulge:").append(n1(m.x)).append(',').append(n1(m.y))
-                    .append(',').append(n1(m.r)).append(',').append(n2(m.s))
+                KIND_BULGE -> {
+                    out.append("bulge:").append(n1(m.x)).append(',').append(n1(m.y))
+                        .append(',').append(n1(m.r)).append(',').append(n2(m.s))
+                    /* 🔵 V571 — দিক জানা থাকলে শেষ বিন্দুও। পুরোনো চার-সংখ্যার
+                       লেখা আগের মতোই পড়া যায়, তাই কোনো রেকর্ড নষ্ট হয় না। */
+                    if (m.hasDir) out.append(',').append(n1(m.x2)).append(',').append(n1(m.y2))
+                }
                 else -> out.append("pile:").append(n1(m.x)).append(',').append(n1(m.y)).append(',').append(m.label)
             }
         }
@@ -208,7 +240,9 @@ object AnatomyModel {
                 }
                 KIND_BULGE -> {
                     val a = body.split(",")
-                    if (a.size >= 4) marks.add(Mark(KIND_BULGE, x = d(a[0]), y = d(a[1]), r = d(a[2]), s = d(a[3])))
+                    if (a.size >= 6) marks.add(Mark(KIND_BULGE, x = d(a[0]), y = d(a[1]),
+                        r = d(a[2]), s = d(a[3]), x2 = d(a[4]), y2 = d(a[5]), hasDir = true))
+                    else if (a.size >= 4) marks.add(Mark(KIND_BULGE, x = d(a[0]), y = d(a[1]), r = d(a[2]), s = d(a[3])))
                 }
                 KIND_PILE -> {
                     val a = body.split(",")
@@ -233,6 +267,9 @@ object AnatomyModel {
         val pull = Math.sqrt(dx * dx + dy * dy)
         return Mark(
             kind = KIND_BULGE, x = startX, y = startY,
+            // 🔵 V571 — শেষ বিন্দুও রাখা হয়, তাই মাংসটা ডাক্তার যেদিকে টেনেছেন
+            // ঠিক সেদিকেই বেরোয় (আগে দিকটা হারিয়ে যেত)।
+            x2 = nowX, y2 = nowY, hasDir = true,
             // V564: একই টানে আগের চেয়ে অনেক বড় ফোলা — TK লাইভ টেস্টে বললেন
             // আগেরটায় "মাংস বড় হচ্ছে না"।
             r = clamp(5.0 + pull * 2.30, RADIUS_MIN, RADIUS_MAX),

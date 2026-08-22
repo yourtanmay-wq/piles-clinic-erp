@@ -19,13 +19,11 @@ import android.view.View
  *   ১. *"যে কোন ফটোর উপর যেন সেই কাজটা করতে পারে"* → ছবিটা বাইরে থেকে
  *      বসানো হয় (`setPicture`), তাই বইয়ের ছবি বা চেম্বারের আসল ছবি —
  *      যেটাই হোক, একই ভাবে কাজ করে।
- *   ২. *"মাংসের উপরে আঙুল দিয়ে টান দিলে যেন মাংস বেড়ে যায়"* → এটা দাগ
- *      আঁকা নয়; ছবির ওই জায়গার পিক্সেলগুলোকেই বাইরের দিকে ঠেলে দেওয়া হয়
- *      (`applyBulge`), তাই সত্যিকারের ফোলার মত দেখায়।
- *
- * ⚡ গতির জন্য: ফোলানো ছবিটা প্রতিবার আঁকার সময় নতুন করে বানানো হয় না —
- *   দাগ বদলালে তবেই (`dirty`) একবার বানানো হয়। আর যতটুকু জায়গায় ফোলা,
- *   ঠিক ততটুকু চৌকো অংশেরই হিসাব হয়, গোটা ছবির নয়।
+ *   ২. *"মাংসের উপরে আঙুল দিয়ে টান দিলে যেন মাংস বেড়ে যায়"* → V571 থেকে
+ *      ছবির পিক্সেল ঠেলা হয় না; TK-এর পাঠানো ছবির মতো একটা **ফোঁটা-আকৃতির
+ *      বেগুনি মাংসপিণ্ড আঁকা হয়** (`drawLump`) — গোড়া সরু, মাথা গোল, উপরে
+ *      আলো, গায়ে দানা-দানা। টান যত বড়, মাংস তত বড়, আর যেদিকে টেনেছেন
+ *      সেদিকেই বেরোয়।
  *
  * 📐 সব দাগ ছবির **শতকরা** মাপে জমা থাকে (`AnatomyModel`), পিক্সেলে নয় —
  *   তাই ছোট ফোন, বড় ফোন আর ওয়েবে দাগ একই জায়গায় বসে।
@@ -43,8 +41,6 @@ class AnatomyView(context: Context) : View(context) {
 
     private val density = context.resources.displayMetrics.density
     private var base: Bitmap? = null           // আসল ছবি — কখনো বদলায় না
-    private var shown: Bitmap? = null          // ফোলানোর পরের ছবি
-    private var dirty = true
 
     private val marks = mutableListOf<AnatomyModel.Mark>()
     private var picKey: String = ""
@@ -130,7 +126,7 @@ class AnatomyView(context: Context) : View(context) {
             val undoable = (tool == Tool.RING && last.kind == AnatomyModel.KIND_RING) ||
                            (tool == Tool.ARROW && last.kind == AnatomyModel.KIND_ARROW) ||
                            (tool == Tool.BULGE && last.kind == AnatomyModel.KIND_BULGE && sameStart)
-            if (undoable) { marks.removeAt(marks.size - 1); dirty = true }
+            if (undoable) { marks.removeAt(marks.size - 1) }
         }
         startPct = null
         livePts.clear()
@@ -138,6 +134,14 @@ class AnatomyView(context: Context) : View(context) {
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val path = Path()
+
+    init {
+        /* 🔵 V571 — মাংসের নিচের নরম ছায়াটা (`setShadowLayer`) হার্ডওয়্যার
+           আঁকায় পথের উপরে কাজ করে না, তাই এই পর্দাটা সফটওয়্যারে আঁকা হয়।
+           ⚡ ভারী কিছু নয় — আগের পিক্সেল-ঠেলার হিসাবটাই বাদ গেছে, তাই
+              সব মিলিয়ে এখন আগের চেয়ে হালকা। */
+        setLayerType(LAYER_TYPE_SOFTWARE, null)
+    }
 
     // ───────── বাইরে থেকে বসানো ও নেওয়া ─────────
 
@@ -151,7 +155,6 @@ class AnatomyView(context: Context) : View(context) {
             o.inPreferredConfig = Bitmap.Config.ARGB_8888
             BitmapFactory.decodeResource(resources, resId, o)
         } catch (_: Throwable) { null } catch (_: OutOfMemoryError) { null }
-        dirty = true
         invalidate()
         onChanged?.invoke()
     }
@@ -170,7 +173,6 @@ class AnatomyView(context: Context) : View(context) {
         }
         marks.clear()
         marks.addAll(b.marks)
-        dirty = true
         invalidate()
     }
 
@@ -181,13 +183,13 @@ class AnatomyView(context: Context) : View(context) {
     fun undo() {
         if (marks.isNotEmpty()) {
             marks.removeAt(marks.size - 1)
-            dirty = true; invalidate(); onChanged?.invoke()
+            invalidate(); onChanged?.invoke()
         }
     }
 
     fun clearMarks() {
         if (marks.isEmpty()) return
-        marks.clear(); dirty = true; invalidate(); onChanged?.invoke()
+        marks.clear(); invalidate(); onChanged?.invoke()
     }
 
     fun hasPicture(): Boolean = base != null
@@ -256,7 +258,6 @@ class AnatomyView(context: Context) : View(context) {
                         }
                         marks.add(AnatomyModel.bulgeFromDrag(
                             s[0].toDouble(), s[1].toDouble(), p[0].toDouble(), p[1].toDouble()))
-                        dirty = true
                     }
                     Tool.TRACT, Tool.PEN -> {
                         val last = livePts.lastOrNull()
@@ -300,8 +301,7 @@ class AnatomyView(context: Context) : View(context) {
                             if (marks.isEmpty() || marks.last().kind != AnatomyModel.KIND_BULGE) {
                                 marks.add(AnatomyModel.bulgeFromDrag(
                                     s[0].toDouble(), s[1].toDouble(), s[0].toDouble(), s[1].toDouble()))
-                                dirty = true
-                            }
+                                    }
                         }
                         else -> { }
                     }
@@ -335,7 +335,6 @@ class AnatomyView(context: Context) : View(context) {
         }
         if (best >= 0) {
             val gone = marks.removeAt(best)
-            if (gone.kind == AnatomyModel.KIND_BULGE) dirty = true
             invalidate(); onChanged?.invoke()
         }
     }
@@ -362,8 +361,7 @@ class AnatomyView(context: Context) : View(context) {
             paint.textAlign = Paint.Align.LEFT
             return
         }
-        if (dirty || shown == null) { rebuild(); dirty = false }
-        val img = shown ?: b
+        val img = b
 
         /* ছোট বোর্ডে ছবিটা পুরোটা ভিতরে ধরানো হয়। পুরো পর্দায় (V569) ছবিটা
            গোটা পর্দা **ভরে** বসে, তার উপরে ডাক্তারের জুম ও সরানো। */
@@ -378,94 +376,125 @@ class AnatomyView(context: Context) : View(context) {
         drawMarks(canvas)
     }
 
-    /** ফোলানোর হিসাব — আসল ছবি থেকে নতুন একটা ছবি বানানো হয়। */
-    private fun rebuild() {
-        val b = base ?: return
-        val bulges = marks.filter { it.kind == AnatomyModel.KIND_BULGE }
-        if (bulges.isEmpty()) { shown = b; return }
-        // আঙুল টানার সময় প্রতি ফ্রেমে নতুন ছবি বানালে ফোন আটকে যেত — তাই
-        // একবার বানিয়ে সেটাই বারবার ব্যবহার করা হয়, শুধু আসল ছবিটা আবার
-        // উপরে বসিয়ে নেওয়া হয়।
-        var work = shown
-        if (work == null || work === b || work.width != b.width || work.height != b.height || !work.isMutable) {
-            work = try { b.copy(Bitmap.Config.ARGB_8888, true) }
-                   catch (_: Throwable) { null } catch (_: OutOfMemoryError) { null }
-            if (work == null) { shown = b; return }
-        } else {
-            try { Canvas(work).drawBitmap(b, 0f, 0f, null) } catch (_: Throwable) { shown = b; return }
-        }
-        for (g in bulges) applyBulge(work, g)
-        shown = work
-    }
+    /* 🔵🔒 V571 — আগে এখানে `rebuild()` ও `applyBulge()` ছিল: আসল ছবির পিক্সেল
+       বাইরের দিকে ঠেলে "ফোলা" বানানো হত। TK ছবি পাঠিয়ে বললেন সেটা *"যথাযথ
+       মিল খাচ্ছে না"* — এখন মাংসপিণ্ডটা `drawLump()` দিয়ে **আঁকা** হয়।
+       ⚡ পাশাপাশি ফোনও হালকা হলো — আর কোনো বড় bitmap কপি বা পিক্সেল-লুপ নেই,
+          তাই টানার সময় আটকায় না আর মেমরি-শেষ হওয়ার ভয়ও থাকে না। */
 
     /**
-     * একটা ফোলা। ছবির ওই গোল অংশের ভিতরের পিক্সেলগুলো কেন্দ্র থেকে বাইরের
-     * দিকে ঠেলে দেওয়া হয় — মাঝখানে সবচেয়ে বেশি, কিনারায় শূন্য। তাই ফোলাটা
-     * চারপাশের চামড়ার সাথে মিশে থাকে, কাটা-কাটা লাগে না।
+     * 🔵🔒 V571 — **পাইলসের মাংসপিণ্ড আঁকা** (TK-এর পাঠানো ছবির মতো)।
+     * ⚠️ ওয়েবের `bulge()`/`lumpPath()`-এর হুবহু যমজ — একই আকার, একই রং, একই
+     *    দানার হিসাব। তাই ফোন আর কম্পিউটারে মাংসটা এক দেখায়।
      */
-    private fun applyBulge(bmp: Bitmap, g: AnatomyModel.Mark) {
-        val W = bmp.width; val H = bmp.height
-        val cx = (g.x / 100.0 * W); val cy = (g.y / 100.0 * H)
-        val R = (g.r / 100.0 * W)
-        val st = g.s.coerceIn(-AnatomyModel.BULGE_MAX, AnatomyModel.BULGE_MAX)
-        if (R < 2 || st == 0.0) return
-        val x0 = Math.max(0, Math.floor(cx - R).toInt())
-        val y0 = Math.max(0, Math.floor(cy - R).toInt())
-        val x1 = Math.min(W, Math.ceil(cx + R).toInt())
-        val y1 = Math.min(H, Math.ceil(cy + R).toInt())
-        val w = x1 - x0; val h = y1 - y0
-        if (w < 2 || h < 2) return
-        val src = IntArray(w * h)
-        try { bmp.getPixels(src, 0, w, x0, y0, w, h) } catch (_: Throwable) { return }
-        val out = IntArray(w * h)
-        for (iy in 0 until h) {
-            for (ix in 0 until w) {
-                val dx = (x0 + ix) - cx
-                val dy = (y0 + iy) - cy
-                val d = Math.sqrt(dx * dx + dy * dy)
-                val o = iy * w + ix
-                if (d >= R) { out[o] = src[o]; continue }
-                // V564: ঠেলার অঙ্কটা এখন `AnatomyModel.pushFactor()`-এ — ফোন ও
-                // ওয়েব দুই জায়গায় হুবহু একই, আর পরীক্ষাও ওখানেই হয়।
-                val f = AnatomyModel.pushFactor(d / R, st)
-                out[o] = sample(src, w, h, (cx - x0 + dx * f), (cy - y0 + dy * f))
-            }
-        }
-        try { bmp.setPixels(out, 0, w, x0, y0, w, h) } catch (_: Throwable) { return }
+    private val lumpPathObj = Path()
 
-        // রক্ত জমে গাঢ় ভাব ও উপরে ভেজা চকচকে — নইলে ফোলাটা প্লাস্টিকের মত লাগে
-        val c = Canvas(bmp)
-        paint.reset(); paint.isAntiAlias = true
-        paint.shader = android.graphics.RadialGradient(
-            cx.toFloat(), cy.toFloat(), R.toFloat(),
-            intArrayOf(Color.argb(70, 158, 18, 44), Color.argb(34, 124, 12, 38), Color.argb(0, 124, 12, 38)),
-            floatArrayOf(0f, 0.7f, 1f), android.graphics.Shader.TileMode.CLAMP)
-        c.drawCircle(cx.toFloat(), cy.toFloat(), R.toFloat(), paint)
-        val hx = (cx - R * 0.28).toFloat(); val hy = (cy - R * 0.30).toFloat()
-        val hr = (R * 0.55).toFloat()
-        paint.shader = android.graphics.RadialGradient(
-            hx, hy, hr,
-            intArrayOf(Color.argb(86, 255, 235, 235), Color.argb(0, 255, 235, 235)),
-            floatArrayOf(0f, 1f), android.graphics.Shader.TileMode.CLAMP)
-        c.drawCircle(hx, hy, hr, paint)
-        paint.shader = null
+    /** ফোঁটার আকার — গোড়ায় (০,০) সরু ডগা, মাথায় গোল বল। */
+    private fun buildLumpPath(len: Float, wide: Float) {
+        val hw = wide / 2f
+        val cx = len - hw
+        lumpPathObj.reset()
+        if (cx <= hw * 0.30f) {
+            lumpPathObj.addCircle(len - hw, 0f, hw, Path.Direction.CW)
+            return
+        }
+        val beta = Math.acos(Math.max(-1.0, Math.min(1.0, (hw / cx).toDouble())))
+        val a1 = -(Math.PI - beta)
+        val a2 = (Math.PI - beta)
+        val p1x = (cx + hw * Math.cos(a1)).toFloat(); val p1y = (hw * Math.sin(a1)).toFloat()
+        val p2x = (cx + hw * Math.cos(a2)).toFloat(); val p2y = (hw * Math.sin(a2)).toFloat()
+        val tip = Math.min(hw * 0.22f, cx * 0.10f)
+        lumpPathObj.moveTo(tip * 0.25f, -tip)
+        lumpPathObj.quadTo(cx * 0.40f, p1y * 0.70f, p1x, p1y)
+        // গোল মাথাটা — a1 থেকে a2 পর্যন্ত, দূরের দিক দিয়ে
+        val oval = RectF(cx - hw, -hw, cx + hw, hw)
+        val start = Math.toDegrees(a1).toFloat()
+        val sweep = Math.toDegrees(a2 - a1).toFloat()
+        lumpPathObj.arcTo(oval, start, sweep, false)
+        lumpPathObj.quadTo(cx * 0.40f, p2y * 0.70f, tip * 0.25f, tip)
+        lumpPathObj.quadTo(-tip * 0.45f, 0f, tip * 0.25f, -tip)
+        lumpPathObj.close()
     }
 
-    private fun sample(src: IntArray, w: Int, h: Int, fx: Double, fy: Double): Int {
-        val x = fx.coerceIn(0.0, w - 1.001)
-        val y = fy.coerceIn(0.0, h - 1.001)
-        val xi = x.toInt(); val yi = y.toInt()
-        val ax = x - xi; val ay = y - yi
-        val i00 = yi * w + xi; val i10 = i00 + 1
-        val i01 = i00 + w; val i11 = i01 + 1
-        var outCol = 0
-        for (sh in intArrayOf(16, 8, 0)) {                    // লাল · সবুজ · নীল
-            val top = ((src[i00] shr sh and 255) * (1 - ax) + (src[i10] shr sh and 255) * ax)
-            val bot = ((src[i01] shr sh and 255) * (1 - ax) + (src[i11] shr sh and 255) * ax)
-            val v = (top * (1 - ay) + bot * ay).toInt().coerceIn(0, 255)
-            outCol = outCol or (v shl sh)
+    private fun drawLump(canvas: Canvas, m: AnatomyModel.Mark) {
+        val g = AnatomyModel.lumpGeom(m)
+        val sc = Math.min(dst.width(), dst.height()) / 100f
+        val len = (g.len * sc).toFloat()
+        val wide = (g.wide * sc).toFloat()
+        if (len < 3f) return
+
+        val save = canvas.save()
+        canvas.translate(px(m.x), py(m.y))
+        canvas.rotate(Math.toDegrees(g.ang).toFloat())
+
+        buildLumpPath(len, wide)
+
+        // মাটিতে পড়া ছায়া — মাংসটা ছবির উপরে বসে আছে মনে হয়
+        paint.reset(); paint.isAntiAlias = true
+        paint.style = Paint.Style.FILL
+        paint.color = Color.parseColor("#8A6597")
+        paint.setShadowLayer(wide * 0.42f, 0f, wide * 0.10f, Color.parseColor("#73281234"))
+        canvas.drawPath(lumpPathObj, paint)
+        paint.clearShadowLayer()
+
+        val save2 = canvas.save()
+        canvas.clipPath(lumpPathObj)
+
+        // গায়ের রং — মাথার উপর-বাঁয়ে আলো, কিনারায় গাঢ়
+        val hx = len - wide * 0.5f; val hy = -wide * 0.26f
+        paint.shader = android.graphics.RadialGradient(
+            hx - wide * 0.22f, hy, Math.max(1f, wide * 1.25f),
+            intArrayOf(Color.parseColor("#D9BBE1"), Color.parseColor("#B48CC0"),
+                       Color.parseColor("#8E679C"), Color.parseColor("#6E4B7C"),
+                       Color.parseColor("#553463")),
+            floatArrayOf(0f, 0.30f, 0.62f, 0.86f, 1f),
+            android.graphics.Shader.TileMode.CLAMP)
+        canvas.drawRect(-len * 0.3f, -wide, len * 1.5f, wide, paint)
+        paint.shader = null
+
+        // দানা-দানা ভাব — জায়গা এলোমেলো নয়, মাংসের নিজের অবস্থান থেকে
+        val state = longArrayOf(AnatomyModel.lumpSeed(m.x, m.y, g.len))
+        val n = Math.max(10, Math.min(46, Math.round(g.len * 1.9).toInt()))
+        val cellW = Math.max(0.6f, wide * 0.030f)
+        for (i in 0 until n) {
+            val u = 0.10 + AnatomyModel.lumpNext(state) * 0.88
+            val spread = Math.sin(Math.PI * Math.min(1.0, u * 1.02)) * 0.92
+            val v = (AnatomyModel.lumpNext(state) * 2 - 1) * spread
+            val ccx = (len * u).toFloat()
+            val ccy = ((wide / 2f) * v).toFloat()
+            val rr = (wide * (0.085 + AnatomyModel.lumpNext(state) * 0.085)).toFloat()
+            paint.style = Paint.Style.FILL
+            paint.color = Color.parseColor("#33D4B2E0")
+            canvas.drawCircle(ccx, ccy, rr, paint)
+            paint.style = Paint.Style.STROKE; paint.strokeWidth = cellW
+            paint.color = Color.parseColor("#80482A56")
+            canvas.drawCircle(ccx, ccy, rr, paint)
         }
-        return outCol or (255 shl 24)
+
+        // কিনারার দিকে ভিতরে ছায়া — গোল ভাবটা বাড়ে
+        paint.style = Paint.Style.FILL
+        paint.shader = android.graphics.RadialGradient(
+            len - wide * 0.5f, 0f, Math.max(1f, wide * 1.05f),
+            intArrayOf(Color.parseColor("#003C2248"), Color.parseColor("#8C3C2248")),
+            floatArrayOf(0.286f, 1f), android.graphics.Shader.TileMode.CLAMP)
+        canvas.drawRect(-len * 0.3f, -wide, len * 1.5f, wide, paint)
+        paint.shader = null
+
+        // ভেজা-চকচকে আলো
+        paint.shader = android.graphics.RadialGradient(
+            hx - wide * 0.26f, hy, Math.max(1f, wide * 0.52f),
+            Color.parseColor("#8CFFF8FF"), Color.parseColor("#00FFF8FF"),
+            android.graphics.Shader.TileMode.CLAMP)
+        canvas.drawRect(-len * 0.3f, -wide, len * 1.5f, wide, paint)
+        paint.shader = null
+        canvas.restoreToCount(save2)
+
+        // চারদিকের গাঢ় কিনারা
+        paint.style = Paint.Style.STROKE
+        paint.color = Color.parseColor("#5E3E6B")
+        paint.strokeWidth = Math.max(0.8f, len * 0.030f)
+        canvas.drawPath(lumpPathObj, paint)
+        canvas.restoreToCount(save)
     }
 
     private fun drawMarks(canvas: Canvas) {
@@ -480,6 +509,10 @@ class AnatomyView(context: Context) : View(context) {
             // আঙুল টানার সময়েই মাপটা দেখা যায় — ছাড়ার অপেক্ষা করতে হয় না
             if (tool == Tool.TRACT) drawTractCm(canvas, livePts, s)
         }
+        // মাংস আগে, দাগ পরে — ওয়েবের `draw()`-এর মতোই ক্রম
+        for (m in marks) if (m.kind == AnatomyModel.KIND_BULGE) drawLump(canvas, m)
+        paint.reset(); paint.isAntiAlias = true
+        paint.strokeCap = Paint.Cap.ROUND; paint.strokeJoin = Paint.Join.ROUND
         for (m in marks) {
             when (m.kind) {
                 AnatomyModel.KIND_TRACT -> {

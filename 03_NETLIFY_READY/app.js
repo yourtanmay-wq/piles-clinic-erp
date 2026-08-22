@@ -7327,7 +7327,12 @@ function wlv1CounselBoxHtml(note,p){
       if (m.kind === 'tract' || m.kind === 'pen') {
         out.push(m.kind + ':' + m.pts.map(function (p) { return n1(p[0]) + ',' + n1(p[1]); }).join(';'));
       } else if (m.kind === 'bulge') {
-        out.push('bulge:' + n1(m.x) + ',' + n1(m.y) + ',' + n1(m.r) + ',' + n2(m.s));
+        /* 🔵 V571 — দিক জানা থাকলে শেষ বিন্দুও লেখা হয়। পুরোনো চার-সংখ্যার
+           লেখা আগের মতোই পড়া যায়, তাই কোনো রেকর্ড নষ্ট হয় না। */
+        var bb = 'bulge:' + n1(m.x) + ',' + n1(m.y) + ',' + n1(m.r) + ',' + n2(m.s);
+        if (typeof m.x2 === 'number' && typeof m.y2 === 'number')
+          bb += ',' + n1(m.x2) + ',' + n1(m.y2);
+        out.push(bb);
       } else if (m.kind === 'ring') {
         out.push('ring:' + n1(m.x) + ',' + n1(m.y) + ',' + n1(m.r));
       } else if (m.kind === 'arrow') {
@@ -7360,7 +7365,12 @@ function wlv1CounselBoxHtml(note,p){
         if (pts.length > 1) res.marks.push({ kind: kind, pts: pts });
       } else if (kind === 'bulge') {
         var g2 = body.split(',');
-        if (g2.length >= 4) res.marks.push({ kind: 'bulge', x: +g2[0], y: +g2[1], r: +g2[2], s: +g2[3] });
+        if (g2.length >= 4) {
+          var bm = { kind: 'bulge', x: +g2[0], y: +g2[1], r: +g2[2], s: +g2[3] };
+          // 🔵 V571 — ছয় সংখ্যা থাকলে শেষ বিন্দুও (মাংস কোন দিকে বেরোবে)
+          if (g2.length >= 6 && !isNaN(+g2[4]) && !isNaN(+g2[5])) { bm.x2 = +g2[4]; bm.y2 = +g2[5]; }
+          res.marks.push(bm);
+        }
       } else if (kind === 'ring') {
         // অর্ধেক লেখা দাগ (যেমন "ring:55,40") বাদ — নইলে NaN নিয়ে আঁকতে গিয়ে
         // ছবিটা ভেঙে যেত। ফোনের `AnatomyModel.parse()`-এ ঠিক একই নিয়ম।
@@ -7398,54 +7408,149 @@ function wlv1CounselBoxHtml(note,p){
     return 1 - s * w;
   }
 
-  function bulge(ctx, W, H, b) {
-    var cxp = b.x * W / 100, cyp = b.y * H / 100, R = b.r * W / 100;
-    var st = Math.max(-0.85, Math.min(0.85, b.s || 0.45));
-    if (R < 2 || st === 0) return;
-    var x0 = Math.max(0, Math.floor(cxp - R)), y0 = Math.max(0, Math.floor(cyp - R));
-    var x1 = Math.min(W, Math.ceil(cxp + R)), y1 = Math.min(H, Math.ceil(cyp + R));
-    var w = x1 - x0, h = y1 - y0;
-    if (w < 2 || h < 2) return;
-    var src, dst;
-    // ব্রাউজার শুধু তখনই ছবির রং পড়তে দেয় যখন পাতাটা সাইট থেকে খোলা হয়।
-    // কেউ যদি ফাইলটা সরাসরি কম্পিউটার থেকে খোলেন, ফোলানো কাজ করবে না —
-    // চুপচাপ কিছু না করে সেটা জানিয়ে দেওয়া হয়, নইলে মনে হত অ্যাপ নষ্ট।
-    try { src = ctx.getImageData(x0, y0, w, h); }
-    catch (e) { root.__wlv1BulgeBlocked = true; return; }
-    dst = ctx.createImageData(w, h);
-    var sd = src.data, dd = dst.data, ix, iy;
-    for (iy = 0; iy < h; iy++) {
-      for (ix = 0; ix < w; ix++) {
-        var dx = (x0 + ix) - cxp, dy = (y0 + iy) - cyp;
-        var d = Math.sqrt(dx * dx + dy * dy), o = (iy * w + ix) * 4;
-        if (d >= R) { copyPx(sd, o, dd, o); continue; }
-        var f = pushFactor(d / R, st);   // ফোনের AnatomyModel.pushFactor-এর হুবহু নকল
-        sample(sd, w, h, cxp - x0 + dx * f, cyp - y0 + dy * f, dd, o);
-      }
-    }
-    ctx.putImageData(dst, x0, y0);
+  /* 🔵🔒 V571 (২২.০৮.২০২৬, TK-নির্দেশ) — **মাংসপিণ্ড এখন আঁকা হয়, ছবি ঘোলা
+     করে ফোলানো হয় না।**
 
-    // ফোলা মাংস রক্ত জমে গাঢ় হয়, আর উপরটা ভেজা-চকচকে থাকে
-    var g = ctx.createRadialGradient(cxp, cyp, 0, cxp, cyp, R);
-    g.addColorStop(0, 'rgba(158,18,44,0.42)'); g.addColorStop(0.7, 'rgba(124,12,38,0.22)');
-    g.addColorStop(1, 'rgba(120,15,40,0)');
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cxp, cyp, R, 0, 6.3); ctx.fill();
-    var hg = ctx.createRadialGradient(cxp - R * 0.28, cyp - R * 0.30, 0, cxp - R * 0.28, cyp - R * 0.30, R * 0.55);
-    hg.addColorStop(0, 'rgba(255,235,235,0.34)'); hg.addColorStop(1, 'rgba(255,235,235,0)');
-    ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(cxp - R * 0.28, cyp - R * 0.30, R * 0.55, 0, 6.3); ctx.fill();
+     TK লাইভ টেস্টে ছবি পাঠিয়ে বললেন: *"যখন আপনি কোড লিখেছেন ফোলাও, আর আপনি
+     ফটোতে যেভাবে ফোলাচ্ছেন সেটা যথাযথ মিল খাচ্ছে না ... ফোলানোর সময় যেন ঠিক
+     সেরকম চেহারা হয় দেখতে ... যদি আমি চারটে ফোলাই চারটে চেহারা যেন হুবহু
+     একই রকম হয়"*।
+
+     আগে ছবির পিক্সেল বাইরের দিকে ঠেলে দেওয়া হত — তাতে জায়গাটা শুধু **ঘোলা
+     ফোলা** দেখাত, পাইলসের মাংসের মতো দেখাত না, আর প্রতিবার আলাদা রকম হত।
+     এখন TK-এর পাঠানো ছবির মতোই একটা **ফোঁটা-আকৃতির বেগুনি মাংসপিণ্ড আঁকা**
+     হয় — গোড়া সরু, মাথা গোল, উপরে আলো, গায়ে দানা-দানা, চারদিকে গাঢ় কিনারা।
+
+     ⛔ জমা হওয়ার লেখা ভাঙা হয়নি: আগের `bulge:x,y,r,s` আগের মতোই পড়া যায়
+        (দিক না থাকলে ছবির কেন্দ্র থেকে বাইরের দিকে ধরা হয়)। নতুন করে লেখার
+        সময় শেষ বিন্দুটাও যোগ হয় — `bulge:x,y,r,s,x2,y2` — যাতে ডাক্তার যেদিকে
+        টেনেছেন মাংসটা ঠিক সেদিকেই বেরোয়।
+     ⚠️ দানাগুলোর জায়গা **এলোমেলো নয়** — মাংসের নিজের জায়গা থেকে হিসাব করা,
+        তাই একই মাংস বারবার আঁকলে হুবহু এক দেখায়, আর ফোনেও একই দেখায়। */
+
+  /* একই বীজ থেকে একই সংখ্যা — ফোনের `AnatomyModel.lumpRnd()`-এর হুবহু নকল */
+  function lumpSeed(b, L) {
+    var v = Math.floor(b.x * 131 + b.y * 977 + L * 17) % 2147483647;
+    return (v < 0 ? v + 2147483647 : v) || 12345;
   }
-  function copyPx(sd, so, dd, dofs) {
-    dd[dofs] = sd[so]; dd[dofs + 1] = sd[so + 1]; dd[dofs + 2] = sd[so + 2]; dd[dofs + 3] = sd[so + 3];
+  /* Park–Miller — ইচ্ছে করে **ছোট গুণ** (১৬৮০৭), কারণ জাভাস্ক্রিপ্টে বড় গুণফল
+     নির্ভুল থাকে না। এতে ফোনের Long-হিসাবের সঙ্গে সংখ্যাগুলো **হুবহু** মেলে —
+     না মিললে একই মাংস দুই জায়গায় দু'রকম দানা নিয়ে আঁকা হত। */
+  function lumpNext(st) {
+    st.v = (st.v * 16807) % 2147483647;
+    if (st.v <= 0) st.v += 2147483646;
+    return st.v / 2147483647;
   }
-  function sample(sd, w, h, fx, fy, dd, o) {
-    var x = Math.max(0, Math.min(w - 1.001, fx)), y = Math.max(0, Math.min(h - 1.001, fy));
-    var xi = x | 0, yi = y | 0, ax = x - xi, ay = y - yi;
-    var i00 = (yi * w + xi) * 4, i10 = i00 + 4, i01 = i00 + w * 4, i11 = i01 + 4;
-    for (var c = 0; c < 4; c++) {
-      var top = sd[i00 + c] * (1 - ax) + sd[i10 + c] * ax;
-      var bot = sd[i01 + c] * (1 - ax) + sd[i11 + c] * ax;
-      dd[o + c] = top * (1 - ay) + bot * ay;
+
+  /* মাংসটা কোথা থেকে কোন দিকে, কত লম্বা, কত চওড়া */
+  function lumpGeom(b) {
+    var L, ang;
+    var hasEnd = (typeof b.x2 === 'number' && typeof b.y2 === 'number');
+    var dx = hasEnd ? (b.x2 - b.x) : 0, dy = hasEnd ? (b.y2 - b.y) : 0;
+    var pull = Math.sqrt(dx * dx + dy * dy);
+    if (hasEnd && pull > 0.8) { ang = Math.atan2(dy, dx); L = Math.max(4, pull * 1.15); }
+    else {
+      // পুরোনো রেকর্ডে দিক লেখা নেই — ছবির মাঝখান থেকে বাইরের দিকে
+      var ox = b.x - 50, oy = b.y - 50;
+      ang = (Math.abs(ox) + Math.abs(oy) < 0.5) ? (Math.PI / 2) : Math.atan2(oy, ox);
+      L = Math.max(4, (b.r || 8) * 0.95);
     }
+    var st = Math.max(0.2, Math.min(0.95, b.s || 0.45));
+    return { L: L, ang: ang, W: L * (0.46 + 0.30 * st) };
+  }
+
+  /* ফোঁটার আকার — গোড়ায় (০,০) সরু ডগা, মাথায় **গোল বল**।
+     TK-এর পাঠানো ছবির মতো: মাথাটা একটা পুরো গোলক, আর গোড়ার দিকে দুই পাশ
+     ওই গোলকের **স্পর্শক** ধরে সরু হয়ে ডগায় মেশে। */
+  function lumpPath(ctx, L, W) {
+    var hw = W / 2;
+    var cx = L - hw;                       // গোল মাথার কেন্দ্র
+    ctx.beginPath();
+    if (cx <= hw * 0.30) {                 // এত ছোট যে শুধু গোল
+      ctx.arc(L - hw, 0, hw, 0, 6.2832);
+      ctx.closePath(); return;
+    }
+    var beta = Math.acos(Math.max(-1, Math.min(1, hw / cx)));
+    var a1 = -(Math.PI - beta), a2 = (Math.PI - beta);
+    var p1x = cx + hw * Math.cos(a1), p1y = hw * Math.sin(a1);
+    var p2x = cx + hw * Math.cos(a2), p2y = hw * Math.sin(a2);
+    // গোড়ার ডগাটা একটুখানি গোল — ধারালো কোণ হলে কাটা-কাটা লাগত
+    var tip = Math.min(hw * 0.22, cx * 0.10);
+    ctx.moveTo(tip * 0.25, -tip);
+    // সোজা স্পর্শক নয় — সামান্য বাইরের দিকে বাঁকা, তাতে জ্যান্ত দেখায়
+    ctx.quadraticCurveTo(cx * 0.40, p1y * 0.70, p1x, p1y);
+    ctx.arc(cx, 0, hw, a1, a2, false);
+    ctx.quadraticCurveTo(cx * 0.40, p2y * 0.70, tip * 0.25, tip);
+    ctx.quadraticCurveTo(-tip * 0.45, 0, tip * 0.25, -tip);
+    ctx.closePath();
+  }
+
+  function bulge(ctx, W, H, b) {
+    var sc = Math.min(W, H) / 100;              // ছবির অনুপাতে সব মাপ
+    var g = lumpGeom(b);
+    var L = g.L * sc, LW = g.W * sc;
+    if (L < 3) return;
+    var px = b.x * W / 100, py = b.y * H / 100;
+
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(g.ang);
+
+    // মাটিতে পড়া ছায়া — মাংসটা যেন ছবির উপরে বসে আছে মনে হয়
+    ctx.save();
+    ctx.shadowColor = 'rgba(40,18,52,0.45)';
+    ctx.shadowBlur = LW * 0.42;
+    ctx.shadowOffsetY = LW * 0.10;
+    lumpPath(ctx, L, LW);
+    ctx.fillStyle = '#8A6597';
+    ctx.fill();
+    ctx.restore();
+
+    // গায়ের রং — মাথার দিকে আলো, কিনারায় গাঢ়
+    lumpPath(ctx, L, LW);
+    ctx.save(); ctx.clip();
+    var hx = L - LW * 0.5, hy = -LW * 0.26;      // আলো পড়ে মাথার উপর-বাঁয়ে
+    var gd = ctx.createRadialGradient(hx - LW * 0.22, hy, LW * 0.05, hx, 0, LW * 1.25);
+    gd.addColorStop(0.00, '#D9BBE1');
+    gd.addColorStop(0.30, '#B48CC0');
+    gd.addColorStop(0.62, '#8E679C');
+    gd.addColorStop(0.86, '#6E4B7C');
+    gd.addColorStop(1.00, '#553463');
+    ctx.fillStyle = gd;
+    ctx.fillRect(-L * 0.3, -LW, L * 1.5, LW * 2);
+
+    // দানা-দানা ভাব — TK-এর ছবির মতো
+    var st = { v: lumpSeed(b, g.L) };
+    var n = Math.max(10, Math.min(46, Math.round(g.L * 1.9)));
+    ctx.lineWidth = Math.max(0.6, LW * 0.030);
+    for (var i = 0; i < n; i++) {
+      var u = 0.10 + lumpNext(st) * 0.88;                    // গোড়া থেকে মাথার দিকে
+      var spread = Math.sin(Math.PI * Math.min(1, u * 1.02)) * 0.92;
+      var v = (lumpNext(st) * 2 - 1) * spread;
+      var ccx = L * u, ccy = (LW / 2) * v;
+      var rr = LW * (0.085 + lumpNext(st) * 0.085);
+      ctx.beginPath(); ctx.arc(ccx, ccy, rr, 0, 6.2832);
+      ctx.fillStyle = 'rgba(212,178,224,0.20)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(72,42,86,0.50)'; ctx.stroke();
+    }
+    // কিনারার দিকে ভিতরে ছায়া — গোল ভাবটা বাড়ে
+    var eg = ctx.createRadialGradient(L - LW * 0.5, 0, LW * 0.30, L - LW * 0.5, 0, LW * 1.05);
+    eg.addColorStop(0, 'rgba(60,34,72,0)');
+    eg.addColorStop(1, 'rgba(60,34,72,0.55)');
+    ctx.fillStyle = eg; ctx.fillRect(-L * 0.3, -LW, L * 1.5, LW * 2);
+    // ভেজা-চকচকে ভাব
+    var hg = ctx.createRadialGradient(hx - LW * 0.26, hy, 0, hx - LW * 0.26, hy, LW * 0.52);
+    hg.addColorStop(0, 'rgba(255,248,255,0.55)');
+    hg.addColorStop(1, 'rgba(255,248,255,0)');
+    ctx.fillStyle = hg; ctx.fillRect(-L * 0.3, -LW, L * 1.5, LW * 2);
+    ctx.restore();
+
+    // চারদিকের গাঢ় কিনারা
+    lumpPath(ctx, L, LW);
+    ctx.strokeStyle = '#5E3E6B';
+    ctx.lineWidth = Math.max(0.8, L * 0.030);
+    ctx.stroke();
+    ctx.restore();
   }
 
   // আঙুল কতটা টেনেছে → ফোলা কত বড়
@@ -7462,7 +7567,10 @@ function wlv1CounselBoxHtml(note,p){
          ৩. জমা করার সময় `format()`-এর শেষ ধাপে গিয়ে ওটা **`pile:` হিসেবে
             লেখা হত** — অর্থাৎ ভুল তথ্য সেভ হত।
        এখন ফোনের সঙ্গে হুবহু এক। */
+    /* 🔵 V571 — শেষ বিন্দুটাও রাখা হয়, তাই মাংসটা ডাক্তার যেদিকে টেনেছেন
+       ঠিক সেদিকেই বেরোয় (আগে দিক হারিয়ে যেত)। */
     return { kind: 'bulge', x: startPct[0], y: startPct[1],
+             x2: nowPct[0], y2: nowPct[1],
              r: Math.max(3, Math.min(42, 5 + pull * 2.30)),
              s: Math.max(0.22, Math.min(BULGE_MAX, 0.30 + pull * 0.075)) };
   }
@@ -7561,8 +7669,12 @@ function wlv1CounselBoxHtml(note,p){
   }
 
   root.AnatomyMark = { format: format, parse: parse, draw: draw, tractCm: tractCm, tractLabel: tractLabel,
-                       pushFactor: pushFactor, BULGE_MAX: BULGE_MAX,
-                       bulge: bulge, bulgeFromDrag: bulgeFromDrag, COLORS: COLORS };
+                       BULGE_MAX: BULGE_MAX,
+                       bulge: bulge, bulgeFromDrag: bulgeFromDrag, COLORS: COLORS,
+                       /* 🔵 V571 — শুধু যাচাইয়ের জন্য বাইরে রাখা: ফোনের
+                          `AnatomyModel`-এর সঙ্গে অঙ্কগুলো মিলিয়ে দেখা হয়। */
+                       __lumpSeed: function (x, y, L) { return lumpSeed({ x: x, y: y }, L) },
+                       __lumpNext: lumpNext, __lumpGeom: lumpGeom };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* 🖥️🔵🔒 V558 (২২.০৮.২০২৬, TK-অনুমোদিত) — রোগের ছবি (ওয়েব)
@@ -7578,6 +7690,9 @@ const WLV1_ANAT_PICS=[
   { key: "anat01", label: "বই · পায়ুনালীর কাটা ছবি" },
   { key: "anat02", label: "বই · ফিস্টুলার চার ধরন" },
   { key: "anat03", label: "বই · ফিস্টুলার নকশা" },
+  /* 🔵 V571 — TK নিজে পাঠানো আরও দুটো বইয়ের ছবি (ফোনের তালিকার সঙ্গে এক) */
+  { key: "anat30", label: "বই · ফোঁড়া কোথায় হয়" },
+  { key: "anat31", label: "বই · পাইলসের চার ধাপ" },
   { key: "anat04", label: "ফোলা · কাছ থেকে" },
   { key: "anat05", label: "একটা ফোলা" },
   { key: "anat06", label: "একটা ঢিবি" },
@@ -7825,12 +7940,9 @@ function wlv1AnatPaint(){
   ctx.clearRect(0,0,w,h);
   ctx.drawImage(im,0,0,w,h);
   AnatomyMark.draw(ctx,w,h,wlv1AnatState.marks,wlv1AnatScale());
-  if(window.__wlv1BulgeBlocked){
-    ctx.font='600 12px system-ui,sans-serif';ctx.textAlign='center';
-    ctx.fillStyle='rgba(0,0,0,0.55)';ctx.fillRect(0,h-24,w,24);
-    ctx.fillStyle='#fff';ctx.fillText('ফোলানো দেখতে ওয়েবসাইট থেকে খুলুন',w/2,h-8);
-    ctx.textAlign='left';
-  }
+  /* 🔵 V571 — আগে ফোলানোর জন্য ছবির রং পড়তে হত, তাই ফাইলটা সরাসরি খুললে
+     কাজ করত না ও সতর্কবার্তা দেখাতে হত। এখন মাংসটা আঁকা হয়, রং পড়ার দরকারই
+     নেই — তাই ওই সীমাটাও আর নেই। */
 }
 
 /* আঙুল/মাউস — ফোনের `AnatomyView.onTouchEvent`-এর মতোই। */
