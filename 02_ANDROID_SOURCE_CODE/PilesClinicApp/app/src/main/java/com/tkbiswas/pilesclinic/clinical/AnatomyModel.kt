@@ -123,7 +123,48 @@ object AnatomyModel {
      *   TK চাইলে যেকোনো ছবির আসল চওড়া বলে দিলে সেটাই বসানো হবে।
      */
     data class Picture(val key: String, val label: String,
-                       val cmWide: Double = 10.0, val exactScale: Boolean = false)
+                       val cmWide: Double = 10.0, val exactScale: Boolean = false,
+                       /* 🔵 V573 — ডাক্তারের নিজের যোগ করা ছবি হলে ছবিটা এখানেই
+                          (ছোট করা JPEG, data URL)। অ্যাপের সাথে আসা ছবিতে ফাঁকা। */
+                       val photo: String = "")
+
+    /** ক্লাউডের `anatomy_pictures` টেবিলের একটা সারি। */
+    data class PicRow(val id: String, val picKey: String = "", val label: String = "",
+                      val photo: String = "", val hidden: Boolean = false,
+                      val sortOrder: Long = 0L, val createdAt: String = "")
+
+    /** যোগ করা ছবির নাম — অ্যাপের ছবির নামের সঙ্গে যেন কখনো না মেলে। */
+    const val CLOUD_PREFIX = "cloud:"
+    fun isCloudKey(key: String): Boolean = key.startsWith(CLOUD_PREFIX)
+
+    /**
+     * 🔵🔒 V573 (২২.০৮.২০২৬, TK-অনুমোদিত) — অ্যাপের ছবি + ক্লাউডে যোগ করা ছবি
+     * মিলিয়ে **পর্দায় যে তালিকাটা দেখাবে** সেটা বানায়।
+     *
+     * নিয়ম:
+     *   ১. ডাক্তারের নিজের যোগ করা ছবি **আগে** (নতুনটা সবার আগে) — এইমাত্র
+     *      তোলা ছবিটাই তো তখন দরকার।
+     *   ২. তারপর অ্যাপের সাথে আসা ছবি, আগের সেই ক্রমেই।
+     *   ৩. যে ছবিগুলো তালিকা থেকে সরানো হয়েছে সেগুলো বাদ।
+     *
+     * ⛔ সরানো মানে **মোছা নয়** — পুরোনো চেক-আপে ওই ছবির উপরে আঁকা থাকলে
+     *    সেটা আগের মতোই ঠিক দেখাবে; শুধু নতুন করে আর বাছা যাবে না।
+     * ⚠️ ওয়েবের `wlv1AnatMergePics()`-এর হুবহু যমজ।
+     */
+    fun mergePictures(builtIn: List<Picture>, rows: List<PicRow>): List<Picture> {
+        val hiddenKeys = HashSet<String>()
+        for (r in rows) if (r.hidden && r.picKey.isNotBlank()) hiddenKeys.add(r.picKey)
+        val added = rows
+            .filter { it.photo.isNotBlank() && !it.hidden }
+            .sortedWith(compareByDescending<PicRow> { it.sortOrder }.thenByDescending { it.createdAt }
+                .thenByDescending { it.id })
+            .map { Picture(CLOUD_PREFIX + it.id,
+                           if (it.label.isNotBlank()) it.label else "নিজের তোলা ছবি",
+                           photo = it.photo) }
+        val keep = builtIn.filter { !hiddenKeys.contains(it.key) }
+        return added + keep
+    }
+
 
     /**
      * TK-এর পাঠানো ছবি + আমাদের নিজের আঁকা ছবি — মোট ২৯টা।

@@ -7718,10 +7718,83 @@ const WLV1_ANAT_PICS=[
 ];
 /* 🔴 V564: ছবির চওড়া কত সেমি — নালীর মাপ বার করার মাপকাঠি। আমাদের আঁকা
    ছবিতে জানা (exact), আসল ফটোয় আন্দাজি (তখন "≈" দেখানো হয়)। */
-function wlv1AnatPic(k){for(var i=0;i<WLV1_ANAT_PICS.length;i++){if(WLV1_ANAT_PICS[i].key===k)return WLV1_ANAT_PICS[i]}return null}
+function wlv1AnatPic(k){var L=wlv1AnatAllPics();for(var i=0;i<L.length;i++){if(L[i].key===k)return L[i]}return null}
 function wlv1AnatScale(){var p=wlv1AnatPic(wlv1AnatState.pic)||{};return {cmWide:p.cmWide||10,exactScale:!!p.exact}}
-function wlv1AnatLabelOf(k){for(var i=0;i<WLV1_ANAT_PICS.length;i++){if(WLV1_ANAT_PICS[i].key===k)return WLV1_ANAT_PICS[i].label}return k}
-function wlv1AnatSrc(k){return 'img/anatomy/'+k+'.jpg'}
+function wlv1AnatLabelOf(k){var p=wlv1AnatPic(k);return p?p.label:k}
+function wlv1AnatSrc(k){
+  /* 🔵 V573 — ডাক্তারের যোগ করা ছবি হলে ছবিটা সারিতেই আছে (data URL) */
+  if(wlv1AnatIsCloudKey(k)){ var p=wlv1AnatPic(k); return (p&&p.photo)||'' }
+  return 'img/anatomy/'+k+'.jpg';
+}
+
+/* 🔵🔒 V573 (২২.০৮.২০২৬, TK-অনুমোদিত) — অ্যাপের ছবি + ক্লাউডে যোগ করা ছবি
+   মিলিয়ে পর্দার তালিকা। ⚠️ ফোনের `AnatomyModel.mergePictures()`-এর হুবহু যমজ।
+   নিয়ম: ডাক্তারের নিজের যোগ করা ছবি আগে (নতুনটা সবার আগে) → তারপর অ্যাপের
+   ছবি আগের ক্রমেই → যেগুলো সরানো হয়েছে সেগুলো বাদ।
+   ⛔ সরানো মানে মোছা নয় — পুরোনো চেক-আপে ওই ছবির উপরে আঁকা থাকলে সেটা
+      আগের মতোই ঠিক দেখাবে, শুধু নতুন করে আর বাছা যাবে না। */
+var WLV1_ANAT_CLOUD_PREFIX='cloud:';
+function wlv1AnatIsCloudKey(k){ return String(k||'').indexOf(WLV1_ANAT_CLOUD_PREFIX)===0 }
+function wlv1AnatMergePics(builtIn,rows){
+  rows=rows||[];
+  var hidden={};
+  rows.forEach(function(r){ if(wlv1AnatRowHidden(r)&&r.picKey) hidden[r.picKey]=1 });
+  var added=rows.filter(function(r){ return r.photo && !wlv1AnatRowHidden(r) })
+    .slice().sort(function(a,b){
+      var sa=Number(a.sortOrder||0), sb=Number(b.sortOrder||0);
+      if(sa!==sb) return sb-sa;
+      var ca=String(a.createdAt||''), cb=String(b.createdAt||'');
+      if(ca!==cb) return ca<cb?1:-1;
+      var ia=String(a.id||''), ib=String(b.id||'');
+      return ia<ib?1:(ia>ib?-1:0);
+    })
+    .map(function(r){ return { key: WLV1_ANAT_CLOUD_PREFIX+r.id,
+                               label: (r.label||'নিজের তোলা ছবি'), photo: r.photo } });
+  var keep=builtIn.filter(function(p){ return !hidden[p.key] });
+  return added.concat(keep);
+}
+function wlv1AnatRowHidden(r){ return String((r&&r.hidden)||'')==='1' }
+
+/* ── ক্লাউড থেকে তালিকাটা আনা ও রাখা (V573) ────────────────────────────
+   ⛔ Supabase-এ চাপ বাড়ে না: তালিকাটা ফোনেই জমা থাকে, আর **১৫ মিনিটে
+      একবারের বেশি** টানা হয় না (ওষুধের ডিফল্টে ঠিক এই নিয়মই চলছে)।
+   ⛔ ইন্টারনেট না থাকলেও অ্যাপের নিজের ৩১টা ছবি আগের মতোই কাজ করে। */
+var WLV1_ANAT_ROWS_KEY='wlv1AnatRows', WLV1_ANAT_PULL_KEY='wlv1AnatRowsPull';
+function wlv1AnatRows(){
+  try{ var t=localStorage.getItem(WLV1_ANAT_ROWS_KEY); return t?(JSON.parse(t)||[]):[] }
+  catch(_e){ return [] }
+}
+function wlv1AnatRowsSave(rows){
+  try{ localStorage.setItem(WLV1_ANAT_ROWS_KEY, JSON.stringify(rows||[])) }catch(_e){}
+}
+/** পর্দায় যে তালিকাটা দেখাবে — অ্যাপের ছবি + যোগ করা ছবি, সরানোগুলো বাদ। */
+function wlv1AnatAllPics(){ return wlv1AnatMergePics(WLV1_ANAT_PICS, wlv1AnatRows()) }
+
+async function wlv1AnatCloudPull(force){
+  try{
+    var last=Number(localStorage.getItem(WLV1_ANAT_PULL_KEY)||0);
+    if(!force && Date.now()-last < 15*60*1000) return false;
+    var ok=await initCloudClientOnly(); if(!ok||!sb) return false;
+    var r=await sb.from('anatomy_pictures')
+      .select('id,picKey,label,photo,hidden,sortOrder,createdAt,updatedAt').limit(300);
+    if(r.error||!Array.isArray(r.data)) return false;
+    wlv1AnatRowsSave(r.data);
+    localStorage.setItem(WLV1_ANAT_PULL_KEY,String(Date.now()));
+    return true;
+  }catch(_e){ return false }
+}
+async function wlv1AnatCloudSave(row){
+  // আগে ফোনে বসানো হয় (সঙ্গে সঙ্গে দেখা যায়), তারপর ক্লাউডে
+  var rows=wlv1AnatRows().filter(function(x){ return String(x.id)!==String(row.id) });
+  rows.push(row); wlv1AnatRowsSave(rows);
+  try{
+    var ok=await initCloudClientOnly(); if(!ok||!sb) return false;
+    var r=await sb.from('anatomy_pictures').upsert([row],{onConflict:'id'});
+    return !r.error;
+  }catch(_e){ return false }
+}
+
+
 
 /* ছবিতে কী কী আঁকা হয়েছে — ছাপা ও হিস্ট্রির জন্য মানুষ-পড়া-যায় লেখা।
    ⚠️ ফোনের `AnatomyModel.readable()`-এর হুবহু একই কথা লেখে। */
@@ -7809,13 +7882,8 @@ function wlv1AnatBoxHtml(note,pid){
   var b=AnatomyMark.parse(saved);
   wlv1AnatState={pic:b.pic||'',marks:b.marks||[],tool:'bulge',label:'',down:null,live:[],
     id:String(pid||''),saved:saved,note:b.note||''};
-  var strip=WLV1_ANAT_PICS.map(function(p){
-    return '<img class="wlv1AnatTh'+(p.key===wlv1AnatState.pic?' on':'')+'" data-k="'+p.key+'" '
-      +'src="'+wlv1AnatSrc(p.key)+'" alt="'+esc(p.label)+'" title="'+esc(p.label)+'" '
-      +'onclick="wlv1AnatPick(\''+p.key+'\')">';
-  }).join('');
   return '<label>রোগের ছবি · রোগীকে দেখিয়ে বোঝানোর জন্য</label>'
-    +'<div class="wlv1AnatStrip">'+strip+'</div>'
+    +'<div class="wlv1AnatStrip" id="dnAnatStrip">'+wlv1AnatStripHtml()+'</div>'
     +'<div class="wlv1AnatWrap"><canvas id="dnAnatCanvas" class="wlv1AnatCanvas"></canvas>'
     +'<div id="dnAnatHint" class="wlv1AnatHint">উপর থেকে একটা ছবি বাছুন</div></div>'
     /* 🔵 V570 — বোতামগুলো এখন এক সারিতে আইকন হিসেবে (TK-এর বাছাই "প্রস্তাব ক")।
@@ -7825,6 +7893,90 @@ function wlv1AnatBoxHtml(note,pid){
            বক্স বা লেখার কোন ব্যবস্থা থাকবে না"* → লেখার ঘরটা তুলে দেওয়া হলো।
            ⛔ পুরোনো রেকর্ডে জমা থাকা লেখা মুছে যায়নি — `wlv1AnatState.note`-এ
               রাখা থাকে আর সেভেও ফিরে যায়, শুধু নতুন করে লেখার ঘর নেই। */
+}
+
+/* 🔵🔒 V573 (২২.০৮.২০২৬, TK-অনুমোদিত) — ছবি বাছার সারি: **যোগ ও বিয়োগ**।
+   TK: *"যেখানে সমস্ত ফটো আছে সেখানে যেন গ্যালারি থেকেও ফটো নেয়া যায় অথবা
+   ক্যামেরা থেকেও ফটো নিয়ে দেখানো যায় ... এর আগে যে সমস্ত ফটো আছে সেগুলো
+   আমরা চাইলে যোগ এবং বিয়োগ যেন করতে পারি"*।
+   সারির প্রথমে একটা **➕ ছবি যোগ** ঘর, আর প্রতিটা ছবির কোণে ছোট **✕**।
+   ⛔ ✕ চাপলে ছবি **মোছে না** — শুধু তালিকা থেকে সরে যায়। পুরোনো চেক-আপে
+      ওই ছবির উপরে আঁকা থাকলে সেটা আগের মতোই ঠিক দেখাবে। */
+function wlv1AnatStripHtml(){
+  var add='<label class="wlv1AnatAdd" title="ক্যামেরা বা গ্যালারি থেকে ছবি যোগ করুন">'
+    +'<input type="file" accept="image/*" onchange="wlv1AnatAddPhoto(this)">'
+    +'<span>＋</span><small>ছবি যোগ</small></label>';
+  return add + wlv1AnatAllPics().map(function(p){
+    return '<span class="wlv1AnatThBox">'
+      +'<img class="wlv1AnatTh'+(p.key===wlv1AnatState.pic?' on':'')+'" data-k="'+p.key+'" '
+      +'src="'+wlv1AnatSrc(p.key)+'" alt="'+esc(p.label)+'" title="'+esc(p.label)+'" '
+      +'onclick="wlv1AnatPick(\''+p.key+'\')">'
+      +'<button type="button" class="wlv1AnatThX" title="তালিকা থেকে সরান" '
+      +'onclick="wlv1AnatDropPic(\''+p.key+'\')">✕</button></span>';
+  }).join('');
+}
+function wlv1AnatStripPaint(){
+  var el=$('#dnAnatStrip'); if(el)el.innerHTML=wlv1AnatStripHtml();
+}
+
+/** ছবিটা ছোট করা — বড় ফাইল পাঠালে ক্লাউডে অকারণে জায়গা যেত। */
+function wlv1AnatShrink(file, cb){
+  try{
+    var fr=new FileReader();
+    fr.onload=function(){
+      var im=new Image();
+      im.onload=function(){
+        var max=900, w=im.width, h=im.height;
+        if(Math.max(w,h)>max){ var r=max/Math.max(w,h); w=Math.round(w*r); h=Math.round(h*r) }
+        var c=document.createElement('canvas'); c.width=w; c.height=h;
+        c.getContext('2d').drawImage(im,0,0,w,h);
+        try{ cb(c.toDataURL('image/jpeg',0.85)) }catch(_e){ cb('') }
+      };
+      im.onerror=function(){ cb('') };
+      im.src=fr.result;
+    };
+    fr.onerror=function(){ cb('') };
+    fr.readAsDataURL(file);
+  }catch(_e){ cb('') }
+}
+
+function wlv1AnatAddPhoto(input){
+  try{
+    var f=input&&input.files&&input.files[0];
+    input.value='';
+    if(!f) return;
+    wlv1AnatShrink(f, function(dataUrl){
+      if(!dataUrl){ try{toast('ছবিটা নেওয়া গেল না')}catch(_e){} return }
+      var name=prompt('ছবির নাম (রোগীকে বোঝাতে সুবিধা হয়)','নিজের তোলা ছবি');
+      if(name===null) return;
+      var now=new Date().toISOString();
+      var row={ id:'pic_'+Date.now(), picKey:'', label:String(name||'').trim()||'নিজের তোলা ছবি',
+                photo:dataUrl, hidden:'', sortOrder:String(Date.now()),
+                createdBy:(typeof user!=='undefined'&&user?user.mobile:''),
+                createdAt:now, updatedAt:now };
+      wlv1AnatCloudSave(row);
+      wlv1AnatPick(row.key||('cloud:'+row.id));
+      wlv1AnatStripPaint();
+      try{toast('ছবি যোগ হলো')}catch(_e){}
+    });
+  }catch(_e){}
+}
+
+function wlv1AnatDropPic(key){
+  var p=wlv1AnatPic(key); if(!p)return;
+  if(!confirm('"'+(p.label||key)+'" ছবিটা তালিকা থেকে সরাব?\n\nছবিটা মুছে যাবে না — পুরোনো চেক-আপে এর উপরে আঁকা থাকলে সেটা আগের মতোই দেখা যাবে।'))return;
+  var now=new Date().toISOString(), row;
+  if(wlv1AnatIsCloudKey(key)){
+    var id=key.slice(WLV1_ANAT_CLOUD_PREFIX.length);
+    var old=wlv1AnatRows().filter(function(x){return String(x.id)===id})[0]||{id:id};
+    row=Object.assign({},old,{hidden:'1',updatedAt:now});
+  }else{
+    row={ id:'hide_'+key, picKey:key, label:p.label||'', photo:'', hidden:'1',
+          sortOrder:'0', createdAt:now, updatedAt:now };
+  }
+  wlv1AnatCloudSave(row);
+  if(wlv1AnatState.pic===key){ wlv1AnatState.pic=''; wlv1AnatState.marks=[] }
+  wlv1AnatStripPaint(); wlv1AnatRedraw();
 }
 
 function wlv1AnatPick(k){
@@ -8176,6 +8328,7 @@ window["wlv1AnatUndo"]=wlv1AnatUndo;window["wlv1AnatClear"]=wlv1AnatClear;window
 window["wlv1AnatReadable"]=wlv1AnatReadable;window["wlv1AnatBoxHtml"]=wlv1AnatBoxHtml;
 window["dnWireV558"]=dnWireV558;window["wlv1AnatLabelOf"]=wlv1AnatLabelOf;window["wlv1AnatScale"]=wlv1AnatScale;
 /* 🔵 V567 — পুরো-পর্দার বোতামগুলো HTML থেকে ডাকা হয়, তাই এগুলোও বাইরে রাখতে হবে */
+window["wlv1AnatAddPhoto"]=wlv1AnatAddPhoto;window["wlv1AnatDropPic"]=wlv1AnatDropPic;
 window["wlv1AnatFull"]=wlv1AnatFull;window["wlv1AnatFullClose"]=wlv1AnatFullClose;window["wlv1AnatFullBar"]=wlv1AnatFullBar;
 window["wlv1AnatZoomBy"]=wlv1AnatZoomBy;
 

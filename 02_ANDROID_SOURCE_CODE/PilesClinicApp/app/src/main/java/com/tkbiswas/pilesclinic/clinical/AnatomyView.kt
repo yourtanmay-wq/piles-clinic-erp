@@ -150,6 +150,7 @@ class AnatomyView(context: Context) : View(context) {
         if (key == picKey && base != null) return
         picKey = key
         marks.clear()
+        resetZoom()
         base = try {
             val o = BitmapFactory.Options()
             o.inPreferredConfig = Bitmap.Config.ARGB_8888
@@ -157,6 +158,26 @@ class AnatomyView(context: Context) : View(context) {
         } catch (_: Throwable) { null } catch (_: OutOfMemoryError) { null }
         invalidate()
         onChanged?.invoke()
+    }
+
+    /**
+     * 🔵 V573 — ডাক্তারের নিজের যোগ করা ছবি (ক্যামেরা/গ্যালারি) বসানো।
+     * অ্যাপের ছবির মতোই কাজ করে; শুধু ছবিটা resource নয়, তৈরি করা bitmap।
+     */
+    fun setPictureBitmap(key: String, bmp: Bitmap?) {
+        if (key == picKey && base != null) return
+        picKey = key
+        marks.clear()
+        resetZoom()
+        base = bmp
+        invalidate()
+        onChanged?.invoke()
+    }
+
+    /** ছবি বদলানো ছাড়াই শুধু ছবিটা বসানো — দাগ অক্ষত থাকে (রেকর্ড ফেরানোর সময়)। */
+    fun setBaseBitmap(bmp: Bitmap?) {
+        base = bmp
+        invalidate()
     }
 
     fun load(saved: String?, resolve: (String) -> Int) {

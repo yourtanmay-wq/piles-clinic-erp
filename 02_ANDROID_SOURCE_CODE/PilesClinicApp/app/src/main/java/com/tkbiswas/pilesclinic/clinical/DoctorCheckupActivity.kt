@@ -22,6 +22,7 @@ import androidx.lifecycle.lifecycleScope
 import com.google.android.material.button.MaterialButton
 import com.tkbiswas.pilesclinic.R
 import com.tkbiswas.pilesclinic.native.NativeSession
+import com.tkbiswas.pilesclinic.native.BackgroundWork
 import com.tkbiswas.pilesclinic.native.PhotoUtils
 import com.tkbiswas.pilesclinic.native.SupabaseClient
 import com.tkbiswas.pilesclinic.native.SpinnerPicker
@@ -74,6 +75,10 @@ class DoctorCheckupActivity : AppCompatActivity() {
     private var afterPhotoData = ""
     private var cameraPhotoUri: Uri? = null
     private var currentPhotoTarget = 0  // 0=before, 1=during, 2=after
+    /* 🔵 V573 — ৩ মানে "রোগের ছবির তালিকায় যোগ করুন" (চেক-আপের নিজের ছবি নয়)।
+       ⛔ ছবি নেওয়ার পথটা আগের সেই একই (`showPhotoDialog` → ক্যামেরা/গ্যালারি →
+          `PhotoUtils.encodeResized`) — নতুন কিছু বানানো হয়নি। */
+    private val ANAT_PHOTO_TARGET = 3
 
     private val visualChecks = mutableListOf<CheckBox>()
     // 🔵 V556 (TK: "B রাখুন") — V455-এ সরানো DRE-র টিকগুলো ফিরে এল
@@ -218,6 +223,16 @@ class DoctorCheckupActivity : AppCompatActivity() {
         buildHistoryDetailRows()   // 🔵 V555
         buildLifestyleRows()       // 🔵 V556
         buildAnatomyBoard()        // 🔵 V558 — রোগের ছবি
+        /* 🔵 V573 — ছবির তালিকাটা (যোগ/বিয়োগ) পিছনে একবার এনে নেওয়া।
+           ⛔ ১৫ মিনিটে একবারের বেশি নয়, আর না এলেও কিছু আটকায় না —
+              ফোনে জমা থাকা শেষ তালিকাটাই চলতে থাকে। */
+        BackgroundWork.run {
+            if (AnatomyPictureRepository.pull(this)) runOnUiThread {
+                val strip = findViewById<android.widget.LinearLayout>(R.id.anatomyStrip)
+                val v = anatomyView
+                if (strip != null && v != null) buildAnatomyStrip(strip, v)
+            }
+        }
         // 🔵 V556: B. আঙুল দিয়ে দেখে (DRE) — পুরোনো সেই একই তালিকা ও একই রং
         buildChecks(findViewById(R.id.dreGroup), dreOptions, dreChecks, dreIcons, "#0B4F2A", dreBn)
         buildChecks(findViewById(R.id.visualGroup), visualOptions, visualChecks, visualIcons, "#D64545", visualBn)
@@ -882,10 +897,52 @@ class DoctorCheckupActivity : AppCompatActivity() {
             when (currentPhotoTarget) {
                 0 -> { beforePhotoData = dataUrl; showThumb(ivBeforePhoto, dataUrl) }
                 1 -> { duringPhotoData = dataUrl; showThumb(ivDuringPhoto, dataUrl) }
+                ANAT_PHOTO_TARGET -> addAnatomyPicture(dataUrl)   // 🔵 V573
                 else -> { afterPhotoData = dataUrl; showThumb(ivAfterPhoto, dataUrl) }
             }
         }
     }
+
+    /**
+     * 🔵🔒 V573 — ক্যামেরা/গ্যালারি থেকে নেওয়া ছবিটা **রোগের ছবির তালিকায়** বসায়।
+     * ডাক্তার নাম দিতে পারেন; না দিলে "নিজের তোলা ছবি"।
+     * ⛔ আগে ফোনে বসে (সঙ্গে সঙ্গে দেখা যায়), তারপর পিছনে ক্লাউডে যায় —
+     *    ইন্টারনেট না থাকলেও কাজ আটকায় না।
+     */
+    private fun addAnatomyPicture(dataUrl: String) {
+        val input = android.widget.EditText(this).apply {
+            setText("নিজের তোলা ছবি")
+            setSelection(text.length)
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+            setPadding(symDp(14), symDp(10), symDp(14), symDp(10))
+        }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("ছবির নাম")
+            .setView(input)
+            .setNegativeButton("বাতিল", null)
+            .setPositiveButton("যোগ করুন") { _, _ ->
+                val label = input.text?.toString()?.trim().orEmpty().ifBlank { "নিজের তোলা ছবি" }
+                val row = AnatomyPictureRepository.newPhotoRow(label, dataUrl, currentUserMobile())
+                AnatomyPictureRepository.saveLocal(this, row)
+                BackgroundWork.run { AnatomyPictureRepository.pushCloud(row) }
+                val strip = findViewById<android.widget.LinearLayout>(R.id.anatomyStrip)
+                val view = anatomyView
+                if (strip != null && view != null) {
+                    buildAnatomyStrip(strip, view)
+                    val key = AnatomyModel.CLOUD_PREFIX + row.optString("id", "")
+                    view.setPictureBitmap(key, PhotoUtils.decodeDataUrl(dataUrl))
+                    paintAnatomyThumbs(key)
+                }
+                Toast.makeText(this, "ছবি যোগ হলো", Toast.LENGTH_SHORT).show()
+            }
+            .show()
+    }
+
+    /** কে যোগ করলেন — শুধু হিসাব রাখার জন্য, কোনো নিয়মে লাগে না।
+        (এই পর্দাটা `createdBy`-র জন্য আগে থেকেই এটাই ব্যবহার করে।) */
+    private fun currentUserMobile(): String = try {
+        NativeSession.current(this)?.mobile ?: ""
+    } catch (_: Throwable) { "" }
 
     private fun showThumb(iv: ImageView, dataUrl: String) {
         val bmp = PhotoUtils.decodeDataUrl(dataUrl)
@@ -1450,28 +1507,8 @@ class DoctorCheckupActivity : AppCompatActivity() {
             android.widget.FrameLayout.LayoutParams.MATCH_PARENT))
 
         // ── ছবি বাছার সারি ──
-        strip.removeAllViews(); anatomyThumbs.clear()
-        for (pic in AnatomyModel.PICTURES) {
-            val resId = anatomyResId(pic.key)
-            if (resId == 0) continue                     // ছবিটা নেই — চুপচাপ বাদ
-            val img = android.widget.ImageView(this).apply {
-                setImageResource(resId)
-                scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
-                tag = pic.key
-                contentDescription = pic.label
-                val lp = android.widget.LinearLayout.LayoutParams(symDp(62), symDp(62))
-                lp.setMargins(0, 0, symDp(6), 0)
-                layoutParams = lp
-                setPadding(symDp(2), symDp(2), symDp(2), symDp(2))
-                setOnClickListener {
-                    view.setPicture(pic.key, resId)
-                    paintAnatomyThumbs(pic.key)
-                }
-            }
-            strip.addView(img)
-            anatomyThumbs.add(img)
-        }
-        paintAnatomyThumbs("")
+        buildAnatomyStrip(strip, view)
+
 
         // ── কাজের বোতাম ──
         // TK: *"ছবিটা আঁকার সময় কোন প্রকার ভুল যদি হয়ে থাকে, ব্যাকে যাওয়ার
@@ -1612,6 +1649,107 @@ class DoctorCheckupActivity : AppCompatActivity() {
         return tip
     }
 
+
+    /**
+     * 🔵🔒 V573 (২২.০৮.২০২৬, TK-অনুমোদিত) — ছবি বাছার সারি: **যোগ ও বিয়োগ**।
+     *
+     * TK: *"যেখানে সমস্ত ফটো আছে সেখানে যেন গ্যালারি থেকেও ফটো নেয়া যায় অথবা
+     * ক্যামেরা থেকেও ফটো নিয়ে দেখানো যায় ... এর আগে যে সমস্ত ফটো আছে সেগুলো
+     * আমরা চাইলে যোগ এবং বিয়োগ যেন করতে পারি"*।
+     *
+     * সারির প্রথমে **＋ ছবি যোগ** ঘর, আর প্রতিটা ছবির কোণে ছোট **✕**।
+     * ⛔ ✕ ছবি **মোছে না** — শুধু তালিকা থেকে সরায়। পুরোনো চেক-আপে ওই ছবির
+     *    উপরে আঁকা থাকলে সেটা আগের মতোই ঠিক দেখাবে।
+     * ⚠️ ওয়েবের `wlv1AnatStripHtml()`-এর যমজ; তালিকা মেলানোর নিয়ম দু'জায়গাতেই
+     *    `AnatomyModel.mergePictures()`।
+     */
+    private fun buildAnatomyStrip(strip: android.widget.LinearLayout, view: AnatomyView) {
+        strip.removeAllViews(); anatomyThumbs.clear()
+
+        // ＋ ছবি যোগ — ক্যামেরা বা গ্যালারি
+        strip.addView(TextView(this).apply {
+            text = "＋\nছবি যোগ"
+            textSize = 10.5f
+            gravity = android.view.Gravity.CENTER
+            setTextColor(android.graphics.Color.parseColor("#0B4F2A"))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = symDp(8).toFloat()
+                setColor(android.graphics.Color.parseColor("#F4F8FC"))
+                setStroke(symDp(1), android.graphics.Color.parseColor("#9DB4CC"))
+            }
+            val lp = android.widget.LinearLayout.LayoutParams(symDp(62), symDp(62))
+            lp.setMargins(0, 0, symDp(6), 0)
+            layoutParams = lp
+            setOnClickListener { showPhotoDialog(ANAT_PHOTO_TARGET) }
+        })
+
+        for (pic in AnatomyPictureRepository.pictures(this)) {
+            val cloud = AnatomyModel.isCloudKey(pic.key)
+            val bmp = if (cloud) PhotoUtils.decodeDataUrl(pic.photo) else null
+            val resId = if (cloud) 0 else anatomyResId(pic.key)
+            if (!cloud && resId == 0) continue           // ছবিটা নেই — চুপচাপ বাদ
+            if (cloud && bmp == null) continue           // ছবিটা পড়া গেল না — চুপচাপ বাদ
+
+            val box = android.widget.FrameLayout(this).apply {
+                val lp = android.widget.LinearLayout.LayoutParams(symDp(62), symDp(62))
+                lp.setMargins(0, 0, symDp(6), 0)
+                layoutParams = lp
+            }
+            val img = android.widget.ImageView(this).apply {
+                if (cloud) setImageBitmap(bmp) else setImageResource(resId)
+                scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
+                tag = pic.key
+                contentDescription = pic.label
+                layoutParams = android.widget.FrameLayout.LayoutParams(
+                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT)
+                setPadding(symDp(2), symDp(2), symDp(2), symDp(2))
+                setOnClickListener {
+                    if (cloud) view.setPictureBitmap(pic.key, bmp) else view.setPicture(pic.key, resId)
+                    paintAnatomyThumbs(pic.key)
+                }
+            }
+            box.addView(img)
+            box.addView(TextView(this).apply {
+                text = "✕"
+                textSize = 10f
+                gravity = android.view.Gravity.CENTER
+                setTextColor(android.graphics.Color.WHITE)
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    shape = android.graphics.drawable.GradientDrawable.OVAL
+                    setColor(android.graphics.Color.parseColor("#EBB3261E"))
+                    setStroke(symDp(1), android.graphics.Color.parseColor("#E6FFFFFF"))
+                }
+                contentDescription = "তালিকা থেকে সরান"
+                layoutParams = android.widget.FrameLayout.LayoutParams(
+                    symDp(18), symDp(18), android.view.Gravity.TOP or android.view.Gravity.END)
+                    .apply { setMargins(0, symDp(3), symDp(3), 0) }
+                setOnClickListener { askDropPicture(pic, strip, view) }
+            })
+            strip.addView(box)
+            anatomyThumbs.add(img)
+        }
+        paintAnatomyThumbs(anatomyView?.let { AnatomyModel.parse(it.save()).pic } ?: "")
+    }
+
+    /** ছবিটা তালিকা থেকে সরাব? — জিজ্ঞাসা করে তবেই। */
+    private fun askDropPicture(pic: AnatomyModel.Picture,
+                               strip: android.widget.LinearLayout, view: AnatomyView) {
+        android.app.AlertDialog.Builder(this)
+            .setMessage("\"" + pic.label + "\" ছবিটা তালিকা থেকে সরাব?\n\n" +
+                        "ছবিটা মুছে যাবে না — পুরোনো চেক-আপে এর উপরে আঁকা থাকলে সেটা আগের মতোই দেখা যাবে।")
+            .setNegativeButton("না", null)
+            .setPositiveButton("হ্যাঁ") { _, _ ->
+                val row = if (AnatomyModel.isCloudKey(pic.key))
+                    AnatomyPictureRepository.hideAddedRow(this, pic.key.removePrefix(AnatomyModel.CLOUD_PREFIX))
+                else AnatomyPictureRepository.hideBuiltInRow(pic.key, pic.label)
+                AnatomyPictureRepository.saveLocal(this, row)
+                BackgroundWork.run { AnatomyPictureRepository.pushCloud(row) }
+                buildAnatomyStrip(strip, view)
+                Toast.makeText(this, "তালিকা থেকে সরানো হলো", Toast.LENGTH_SHORT).show()
+            }
+            .show()
+    }
 
     /**
      * 🔵🔒 V567 (২২.০৮.২০২৬, TK-নির্দেশ) — রোগের ছবি **সম্পূর্ণ ডিসপ্লেতে**।
@@ -1833,7 +1971,18 @@ class DoctorCheckupActivity : AppCompatActivity() {
         lastAnatomySaved = saved
         val view = anatomyView ?: return
         view.load(saved) { key -> anatomyResId(key) }
-        paintAnatomyThumbs(AnatomyModel.parse(saved).pic)
+        val pic = AnatomyModel.parse(saved).pic
+        /* 🔵 V573 — ছবিটা ডাক্তারের নিজের যোগ করা হলে সেটা resource নয়, তাই
+           `load()` ছবিটা বসাতে পারে না — এখানে বসিয়ে দেওয়া হয়।
+           ⛔ দাগ মুছে যায় না (`setBaseBitmap` শুধু ছবিটাই বসায়)।
+           ⛔ ছবিটা তালিকা থেকে সরানো থাকলেও এখানে দেখা যায় — পুরোনো রেকর্ড
+              যেন কখনো ফাঁকা না দেখায়। */
+        if (AnatomyModel.isCloudKey(pic)) {
+            val id = pic.removePrefix(AnatomyModel.CLOUD_PREFIX)
+            val row = AnatomyPictureRepository.cachedRows(this).firstOrNull { it.id == id }
+            if (row != null && row.photo.isNotBlank()) view.setBaseBitmap(PhotoUtils.decodeDataUrl(row.photo))
+        }
+        paintAnatomyThumbs(pic)
     }
 
     private fun buildLifestyleRows() {

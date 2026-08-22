@@ -5926,3 +5926,23 @@ button.card.reportKpi span, .card.reportKpi span, button.card.reportKpi small, .
   margin-bottom:env(safe-area-inset-bottom,0px)}
 /* পুরো পর্দা খোলা থাকলে পিছনের পাতা যেন গড়িয়ে না যায় */
 body.wlv1AnatFullOpen{overflow:hidden}
+
+/* 🖥️🔵🔒 V573 (২২.০৮.২০২৬, TK-অনুমোদিত) — ছবির সারিতে যোগ ও বিয়োগ।
+   প্রথমে "➕ ছবি যোগ" ঘর (ক্যামেরা/গ্যালারি), আর প্রতিটা ছবির কোণে ছোট ✕।
+   ⛔ ✕ ছবি মোছে না — শুধু তালিকা থেকে সরায়। */
+.wlv1AnatStrip{align-items:flex-start}
+.wlv1AnatAdd{width:62px;height:62px;min-height:62px;flex:0 0 auto;border-radius:8px;cursor:pointer;
+  border:1px dashed #9DB4CC;background:#F4F8FC;color:#0B4F2A;box-sizing:border-box;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;margin:0;padding:0}
+.wlv1AnatAdd input{display:none}
+.wlv1AnatAdd span{font-size:20px;line-height:1;font-weight:700}
+.wlv1AnatAdd small{font-size:9.5px;font-weight:700;line-height:1.1}
+.wlv1AnatThBox{position:relative;flex:0 0 auto;display:inline-flex;align-self:flex-start}
+/* ⚠️ প্রজেক্টের সাধারণ `button` নিয়ম (বড় padding, min-height) এখানে টেনে
+   বিশ্রী করে দিচ্ছিল — তাই সবক'টা মাপ এখানে স্পষ্ট করে বেঁধে দেওয়া হলো। */
+.wlv1AnatThX{position:absolute;top:3px;right:3px;
+  width:18px;height:18px;min-width:18px;min-height:18px;max-height:18px;padding:0;margin:0;
+  border-radius:50%;border:1px solid rgba(255,255,255,.9);background:rgba(179,38,30,.92);
+  color:#fff;font-size:10px;font-weight:700;line-height:1;
+  box-shadow:0 1px 4px rgba(0,0,0,.35);cursor:pointer;display:grid;place-items:center}
+.wlv1AnatThX:hover{background:#B3261E}
