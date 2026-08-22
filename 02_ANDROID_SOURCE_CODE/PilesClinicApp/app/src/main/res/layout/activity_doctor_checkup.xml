@@ -794,18 +794,11 @@
                             android:layout_width="match_parent" android:layout_height="wrap_content"
                             android:orientation="vertical" android:layout_marginTop="8dp" />
 
-                        <EditText android:id="@+id/etAnatomyNote"
-                            android:layout_width="match_parent" android:layout_height="wrap_content"
-                            android:layout_marginTop="6dp"
-                            android:background="#FFFFFF"
-                            android:padding="8dp"
-                            android:gravity="top|start"
-                            android:inputType="textMultiLine|textCapSentences"
-                            android:minLines="2"
-                            android:textSize="13sp"
-                            android:textColor="#10223A"
-                            android:textColorHint="#93A1B2"
-                            android:hint="ছবি দেখিয়ে রোগীকে যা বোঝালেন, দরকার হলে এখানে লিখুন" />
+                        <!-- 🔵 V572 (২২.০৮.২০২৬, TK-নির্দেশ): *"ছবি দেখিয়ে রোগীকে যা
+                             বোঝালেন, দরকার হলে এখানে লিখুন — এই ধরনের কোন বক্স বা লেখার
+                             কোন ব্যবস্থা থাকবে না"* → লেখার ঘরটা তুলে দেওয়া হলো।
+                             ⛔ পুরোনো যাঁদের রেকর্ডে এই লেখা জমা আছে সেটা **মুছে যায়নি** —
+                                আগের মতোই জমা থাকে ও ছাপায় আসে, শুধু নতুন করে লেখার ঘর নেই। -->
                     </LinearLayout>
 
                 </LinearLayout>

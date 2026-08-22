@@ -7808,7 +7808,7 @@ function wlv1AnatBoxHtml(note,pid){
   var saved=String((note&&note.anatomy)||'');
   var b=AnatomyMark.parse(saved);
   wlv1AnatState={pic:b.pic||'',marks:b.marks||[],tool:'bulge',label:'',down:null,live:[],
-    id:String(pid||''),saved:saved};
+    id:String(pid||''),saved:saved,note:b.note||''};
   var strip=WLV1_ANAT_PICS.map(function(p){
     return '<img class="wlv1AnatTh'+(p.key===wlv1AnatState.pic?' on':'')+'" data-k="'+p.key+'" '
       +'src="'+wlv1AnatSrc(p.key)+'" alt="'+esc(p.label)+'" title="'+esc(p.label)+'" '
@@ -7821,7 +7821,10 @@ function wlv1AnatBoxHtml(note,pid){
     /* 🔵 V570 — বোতামগুলো এখন এক সারিতে আইকন হিসেবে (TK-এর বাছাই "প্রস্তাব ক")।
        "পুরো পর্দা" বোতামটাও এই সারিতেই আছে (V567, TK-নির্দেশ)। */
     +wlv1AnatBarHtml(false)
-    +'<textarea id="dnAnatNote" placeholder="ছবি দেখিয়ে রোগীকে যা বোঝালেন, দরকার হলে এখানে লিখুন">'+esc(b.note||'')+'</textarea>';
+    ;   /* 🔵 V572 (TK-নির্দেশ): *"ছবি দেখিয়ে রোগীকে যা বোঝালেন ... এই ধরনের কোন
+           বক্স বা লেখার কোন ব্যবস্থা থাকবে না"* → লেখার ঘরটা তুলে দেওয়া হলো।
+           ⛔ পুরোনো রেকর্ডে জমা থাকা লেখা মুছে যায়নি — `wlv1AnatState.note`-এ
+              রাখা থাকে আর সেভেও ফিরে যায়, শুধু নতুন করে লেখার ঘর নেই। */
 }
 
 function wlv1AnatPick(k){
@@ -8029,9 +8032,8 @@ function wlv1AnatCollect(pid){
      এই শ্রেণির বাগ একবার ধরা পড়েছিল)। */
   var want=String(pid||'');
   if(want&&String(wlv1AnatState.id||'')!==want)return String(wlv1AnatState.saved||'');
-  var note='';
-  try{note=($('#dnAnatNote')||{}).value||''}catch(_e){}
-  return AnatomyMark.format(wlv1AnatState.pic,wlv1AnatState.marks,note);
+  // 🔵 V572 — লেখার ঘর নেই; আগে যা জমা ছিল সেটাই অক্ষত ফেরত যায়
+  return AnatomyMark.format(wlv1AnatState.pic,wlv1AnatState.marks,wlv1AnatState.note||'');
 }
 
 /* আঙুল/মাউসের তার — ছোট পর্দা আর পুরো পর্দা, দুটোতেই এক নিয়ম। */

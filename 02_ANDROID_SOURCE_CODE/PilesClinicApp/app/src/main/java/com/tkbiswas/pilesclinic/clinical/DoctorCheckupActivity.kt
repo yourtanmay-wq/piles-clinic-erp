@@ -1823,7 +1823,9 @@ class DoctorCheckupActivity : AppCompatActivity() {
 
     private fun collectAnatomy(): String {
         val view = anatomyView ?: return lastAnatomySaved
-        view.setNote(findViewById<android.widget.EditText>(R.id.etAnatomyNote)?.text?.toString().orEmpty())
+        /* 🔵 V572 — লেখার ঘরটা তুলে দেওয়া হয়েছে (TK-নির্দেশ)। তাই এখানে আর
+           কিছু বসানো হয় না — বোর্ডে যা জমা ছিল সেটাই থাকে।
+           ⛔ ফাঁকা লেখা বসিয়ে দিলে পুরোনো রেকর্ডের লেখা মুছে যেত। */
         return view.save()
     }
 
@@ -1832,7 +1834,6 @@ class DoctorCheckupActivity : AppCompatActivity() {
         val view = anatomyView ?: return
         view.load(saved) { key -> anatomyResId(key) }
         paintAnatomyThumbs(AnatomyModel.parse(saved).pic)
-        findViewById<android.widget.EditText>(R.id.etAnatomyNote)?.setText(AnatomyModel.parse(saved).note)
     }
 
     private fun buildLifestyleRows() {
