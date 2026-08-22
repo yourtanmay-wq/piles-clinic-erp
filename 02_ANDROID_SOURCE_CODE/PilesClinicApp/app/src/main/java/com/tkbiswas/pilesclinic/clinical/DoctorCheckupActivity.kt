@@ -1247,6 +1247,11 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 text = line.label
                 textSize = 13f
                 setTextColor(android.graphics.Color.parseColor("#10223A"))
+                maxLines = 2
+                val lp = android.widget.LinearLayout.LayoutParams(
+                    0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                lp.marginEnd = symDp(6)
+                layoutParams = lp
             })
 
             if (line.severity) {
@@ -1276,21 +1281,26 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 setSeverity(line.key, "")
             }
 
-            row.addView(android.view.View(this), android.widget.LinearLayout.LayoutParams(0, 1, 1f))
-
+            // ২. TK-এর নির্দেশ: *"রেজিস্ট্রেশন ফর্মে যেমন ২, ৩, ৪ তার পাশে বক্স
+            //    থাকবে ... ঠিক এখানেও তেমনি রাখবেন"* — তাই সংখ্যার ঘরটা
+            //    রেজিস্ট্রেশনের মতোই বক্স, শুধু নিচে একটা দাগ নয়।
             val amount = android.widget.EditText(this).apply {
                 inputType = android.text.InputType.TYPE_CLASS_NUMBER
                 textSize = 13f
                 gravity = android.view.Gravity.CENTER
                 setSingleLine(true)
-                layoutParams = android.widget.LinearLayout.LayoutParams(symDp(52), android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
+                setBackgroundResource(R.drawable.bg_input_field)
+                setPadding(symDp(6), symDp(6), symDp(6), symDp(6))
+                layoutParams = android.widget.LinearLayout.LayoutParams(symDp(56), android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
             }
             row.addView(amount)
             symptomAmounts[line.key] = amount
 
             val unit = android.widget.Spinner(this).apply {
                 adapter = ArrayAdapter(this@DoctorCheckupActivity, R.layout.item_docnote_spinner, SymptomHistoryModel.UNITS)
-                val lp = android.widget.LinearLayout.LayoutParams(symDp(96), android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
+                setBackgroundResource(R.drawable.bg_input_field_picker)
+                setPadding(paddingStart, paddingTop, symDp(28), paddingBottom)
+                val lp = android.widget.LinearLayout.LayoutParams(symDp(104), android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
                 lp.marginStart = symDp(6)
                 layoutParams = lp
             }

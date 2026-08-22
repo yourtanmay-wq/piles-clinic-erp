@@ -411,7 +411,8 @@
                                 android:orientation="vertical" />
                             <!-- দৈনিক জল পানের পরিমাণ — কাগজে "———— লিটার"।
                                  ⛔ ঘরটা এখানেই (XML) রাখা হলো, তাই আলাদা কোনো id-ফাইল লাগে না। -->
-                            <TextView style="@style/DocNoteLabel" android:layout_marginTop="8dp"
+                            <TextView style="@style/DocNoteLabel"
+                                android:layout_width="match_parent" android:layout_marginTop="8dp"
                                 android:text="দৈনিক জল পানের পরিমাণ" />
                             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                                 android:orientation="horizontal" android:gravity="center_vertical">
@@ -723,7 +724,8 @@
                             <View style="@style/DocNoteDivider" />
                             <Spinner android:id="@+id/spProbableDisease" style="@style/DocNoteInputSingle"
                                 android:background="@drawable/bg_input_field_picker" android:paddingEnd="40dp" />
-                            <TextView style="@style/DocNoteLabel" android:layout_marginTop="10dp"
+                            <TextView style="@style/DocNoteLabel"
+                                android:layout_width="match_parent" android:layout_marginTop="10dp"
                                 android:text="কতদিন সময় চাওয়া হল?" />
                             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
                                 android:orientation="horizontal" android:gravity="center_vertical">
@@ -783,9 +785,13 @@
                             android:layout_marginTop="8dp"
                             android:background="#F7F9FC" />
 
-                        <LinearLayout android:id="@+id/anatomyTools"
+                        <HorizontalScrollView
                             android:layout_width="match_parent" android:layout_height="wrap_content"
-                            android:orientation="horizontal" android:layout_marginTop="8dp" />
+                            android:layout_marginTop="8dp">
+                            <LinearLayout android:id="@+id/anatomyTools"
+                                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                android:orientation="horizontal" />
+                        </HorizontalScrollView>
 
                         <EditText android:id="@+id/etAnatomyNote"
                             android:layout_width="match_parent" android:layout_height="wrap_content"
