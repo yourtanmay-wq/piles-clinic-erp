@@ -40,30 +40,58 @@ class RegistrationRepository(private val context: Context) {
      * যায় না — তখন `found = false` মানে **"নতুন"** নয়, মানে **"জানা যায়নি"**।
      * ওই অবস্থায় স্টাফকে ওয়ার্নিং দেখাতে হবে, চুপচাপ নতুন রোগী বানানো যাবে না।
      */
+    /**
+     * 🔵🔒 V516 (২২.০৮.২০২৬, TK-অনুমোদিত): একই মোবাইলে একাধিক রোগী থাকতে পারে,
+     * তাই এখন **সবগুলো** মিল ফেরে (`matches`), শুধু প্রথমটা নয়।
+     * ⛔ পুরোনো ঘরগুলো (`name`/`branch`/`patientId`/`rowId`) **হুবহু আগের মতোই**
+     *    প্রথম মিলটাই ধরে রাখে — তাই এই ক্লাস ব্যবহার করা পুরোনো কোনো কোড
+     *    এক অক্ষরও বদলাতে হয়নি।
+     */
+    data class Match(
+        val rowId: String, val name: String, val branch: String, val patientId: String
+    )
+
     data class DuplicatePatient(
         val found: Boolean, val name: String, val branch: String,
-        val patientId: String, val rowId: String = "", val verified: Boolean = true
+        val patientId: String, val rowId: String = "", val verified: Boolean = true,
+        val matches: List<Match> = emptyList()
     )
 
     fun checkDuplicatePatient(mobileDigitsOnly: String): DuplicatePatient {
         val normalized = PatientModel.normalizedMobile(mobileDigitsOnly)
         // খাতার সারি B30: ব্যর্থ হলে `null` — "নতুন" আর "দেখতেই পারলাম না" আর এক নয়।
-        val cloud = SupabaseClient.findByMobileOrNull("patients", normalized, "id,name,branch,patientId")
+        /* 🔵🔒 V516: আগে limit ছিল ১ (শুধু প্রথম মিল)। এখন ২০ — একই নম্বরে
+           যদি সত্যিই একাধিক রোগী থাকেন, স্টাফকে **সবাইকে** দেখাতে হবে।
+           ⛔ এক নম্বরের কয়েকটা সরু সারি — Egress-এ প্রভাব নগণ্য।
+           ⛔ ছাঁকনি · ঘর · ব্যর্থতার নিয়ম (`null` = জানা যায়নি) সব আগের মতোই। */
+        val cloud = SupabaseClient.findByMobileOrNull("patients", normalized, "id,name,branch,patientId", 20)
         val rows = cloud ?: org.json.JSONArray()
-        if (rows.length() > 0) {
-            val row = rows.getJSONObject(0)
-            return DuplicatePatient(true, row.s("name"), row.s("branch"), row.s("patientId"), row.s("id"))
+        val all = LinkedHashMap<String, Match>()
+        for (i in 0 until rows.length()) {
+            val row = rows.getJSONObject(i)
+            val rid = row.s("id")
+            if (rid.isNotBlank()) all[rid] = Match(rid, row.s("name"), row.s("branch"), row.s("patientId"))
         }
         // 🔒 V235 (TK verified 01.08.2026): Duplicate check এখন Alternate নম্বরেও।
         // Primary-তে না মিললে দেখা হয় কোনো রোগীর `altMobile` এই নম্বর কিনা।
         // ⛔ সম্পূর্ণ additive — আগের Primary-match একটুও বদলায়নি। altMobile column
         //    এখনো যোগ না হলে query খালি ফেরে (কিছু ভাঙে না)।
+        // 🔵 V516 (TK-অনুমোদিত): Alternate নম্বরেও একই নিয়ম — মিলগুলো একই
+        //    তালিকায় যোগ হয় (একই সারি দুবার এলে `id` ধরে একবারই থাকে)।
         val altRows = try {
-            SupabaseClient.fetchList("patients", "altMobile=eq.$normalized", 1)
+            SupabaseClient.fetchList("patients", "altMobile=eq.$normalized", 20, select = "id,name,branch,patientId")
         } catch (_: Throwable) { org.json.JSONArray() }
-        if (altRows.length() > 0) {
-            val row = altRows.getJSONObject(0)
-            return DuplicatePatient(true, row.s("name"), row.s("branch"), row.s("patientId"), row.s("id"))
+        for (i in 0 until altRows.length()) {
+            val row = altRows.getJSONObject(i)
+            val rid = row.s("id")
+            if (rid.isNotBlank()) all.putIfAbsent(rid, Match(rid, row.s("name"), row.s("branch"), row.s("patientId")))
+        }
+        if (all.isNotEmpty()) {
+            val first = all.values.first()
+            return DuplicatePatient(
+                true, first.name, first.branch, first.patientId, first.rowId,
+                matches = all.values.toList()
+            )
         }
         // TK'S STANDING RULE (restated 2026-07-27): ONE MOBILE = ONE REGISTRATION.
         // The cloud lookup above returns an EMPTY list on any network failure --
@@ -75,12 +103,9 @@ class RegistrationRepository(private val context: Context) {
         // it is not there either, the save goes ahead exactly as before.
         val local = LocalWorkflowStore(context).findPatientByMobile(normalized)
         if (local != null) {
+            val m = Match(local.s("id"), local.s("name"), local.s("branch"), local.s("patientId"))
             return DuplicatePatient(
-                true,
-                local.s("name"),
-                local.s("branch"),
-                local.s("patientId"),
-                local.s("id")
+                true, m.name, m.branch, m.patientId, m.rowId, matches = listOf(m)
             )
         }
         // ক্লাউডে দেখাই গেল না, ফোনেও নেই — তাই "নতুন" বলা যাচ্ছে না, শুধু
@@ -92,7 +117,14 @@ class RegistrationRepository(private val context: Context) {
      * all 3 rows saved), or null if it had to be queued for later -- the
      * caller should still treat null as a successful save from the staff's
      * point of view (see RegistrationActivity), just not yet synced. */
-    fun save(draft: RegistrationDraft, staffMobile: String, existingPatientId: String = "", existingRowId: String = ""): String? {
+    /**
+     * 🔵🔒 V516 (২২.০৮.২০২৬, TK-অনুমোদিত) — `forceNewPatientRowId`
+     *
+     * স্টাফ পপ-আপে **নিজে বেছে** *"Different Patient — Same Mobile"* চাপলে
+     * সেখানে তৈরি হওয়া নতুন অনন্য সারি-আইডি এখানে আসে। ফাঁকা হলে (রোজকার
+     * সব সেভ) **কিছুই বদলায় না — আচরণ হুবহু আগের মতোই**।
+     */
+    fun save(draft: RegistrationDraft, staffMobile: String, existingPatientId: String = "", existingRowId: String = "", forceNewPatientRowId: String = ""): String? {
         // 🔴🔴🔴 খাতার সারি B455 (TK-রিপোর্ট, ছবিসহ — একই রোগীর (GOURANGO
         // BARMAN) দুইবার Registration, দুইবার Visit Fee কাটা)। **আসল
         // কারণ যতটা কোড পড়ে বোঝা গেছে:** Visit Fee কাটার সিদ্ধান্ত
@@ -111,7 +143,15 @@ class RegistrationRepository(private val context: Context) {
         // ব্যর্থ হলে (নেট সমস্যা) আগের আচরণই চলে — নতুন কোনো ব্লক নেই।
         var effectiveRowId = existingRowId
         var effectivePatientId = existingPatientId
-        if (effectiveRowId.isBlank()) {
+        /* 🔴🔵🔒 V516 (TK-অনুমোদিত): নিচের B455-পাহারাটা মোবাইল থেকে তৈরি স্থায়ী
+           আইডি (`pat_<মোবাইল>`) ধরে খোঁজে — অর্থাৎ **ওই নম্বরের প্রথম রোগীকে**।
+           রোজকার সেভে ওটাই ঠিক (একই রোগী দুবার সেভ হলে Visit Fee দুবার কাটে না)।
+           কিন্তু স্টাফ যখন স্পষ্ট করে বলেছেন *"ইনি আলাদা একজন রোগী"*, তখন ওই
+           পাহারা চললে **দ্বিতীয় রোগী প্রথম রোগীর আপডেট হয়ে যেত** — ঠিক যে
+           সমস্যাটা সারাতে বসেছি সেটাই ফিরে আসত।
+           ⛔ তাই শুধু ওই স্পষ্ট বাছাইয়ের সময়ই পাহারাটা এড়ানো হয়।
+           ⛔ `forceNewPatientRowId` ফাঁকা = রোজকার সেভ ⇒ B455 হুবহু আগের মতোই চলে। */
+        if (effectiveRowId.isBlank() && forceNewPatientRowId.isBlank()) {
             try {
                 val stableId = PatientModel.stableRowId(draft.mobileDigitsOnly)
                 val existing = SupabaseClient.fetchListOrNull("patients", "id=eq.$stableId", 1, select = "id,patientId")
@@ -125,7 +165,15 @@ class RegistrationRepository(private val context: Context) {
         val existingRowIdSafe = effectiveRowId
         val existingPatientIdSafe = effectivePatientId
         val patientId = existingPatientIdSafe.ifBlank { PatientIdGenerator.generate(draft.branch, draft.date, context) }
-        val patientRow = PatientModel.buildPatientRow(draft, patientId, staffMobile, existingRowIdSafe)
+        /* 🔵🔒 V516: সারির আইডি —
+             · রোজকার সেভ ⇒ `existingRowIdSafe` (ফাঁকা হলে ভিতরে `stableRowId`) — আগের মতোই
+             · "Different Patient" ⇒ স্টাফের বাছাইয়ে তৈরি নতুন অনন্য আইডি
+           ⛔ `existingRowIdSafe` ফাঁকাই থাকে, তাই **Visit Fee আগের নিয়মেই কাটে**
+              (নিচের `paymentRow` দেখুন) — নতুন রোগীর নিজের ভিজিট ফি, ঠিক যেমন হওয়া উচিত।
+           ⛔ Follow-up (Visit) সারিও এই নতুন আইডি ধরেই তৈরি হয়, তাই প্রথম
+              রোগীর Follow-up-এ হাত পড়ে না। */
+        val rowIdForSave = existingRowIdSafe.ifBlank { forceNewPatientRowId }
+        val patientRow = PatientModel.buildPatientRow(draft, patientId, staffMobile, rowIdForSave)
         /* 🔴🔒 V399 (16.08.2026, TK-রিপোর্ট ছবিসহ — "২ বার ৩ বার হয়ে যাচ্ছে"):
            এই রোগীর Follow-up (Visit) সারি ক্লাউডে আগে থেকেই আছে কিনা দেখা হয় —
            থাকলে **সেটার আইডিই** ব্যবহার হয়, তাই নতুন সারি আর তৈরি হয় না।
@@ -172,7 +220,15 @@ class RegistrationRepository(private val context: Context) {
         // skip a local row once the cloud row with the same id is seen, so a
         // fee can never be counted twice.
         if (paymentRow != null) localStore.upsertPayment(paymentRow)
-        localStore.closeInquiry(draft.mobileDigitsOnly, patientId)
+        /* 🔴🔵🔒 V516 (TK-অনুমোদিত) — **"Different Patient" হলে Enquiry বন্ধ করা হয় না।**
+           `closeInquiry()` ওই **মোবাইলের সব** Inquiry-সারি বন্ধ করে দেয়। এক
+           নম্বরে দুজন রোগী থাকলে খোলা Enquiry-টা **কার** তা কোড থেকে জানার
+           কোনো উপায় নেই। ভুল করে বন্ধ করলে অন্যজনের চালু Enquiry তালিকা থেকে
+           হারিয়ে যেত — সেটা সত্যিকারের ক্ষতি। না-বন্ধ করলে বড়জোর একটা Enquiry
+           তালিকায় থেকে যায়, স্টাফ নিজে বন্ধ করতে পারেন — কিছুই হারায় না।
+           তাই আন্দাজ না করে **নিরাপদ দিকটাই** বেছে নেওয়া হলো।
+           ⛔ রোজকার রেজিস্ট্রেশনে (`forceNewPatientRowId` ফাঁকা) আচরণ হুবহু আগের মতোই। */
+        if (forceNewPatientRowId.isBlank()) localStore.closeInquiry(draft.mobileDigitsOnly, patientId)
         // TK-REPORTED (2026-07-27): these three rows go to the cloud one after
         // another, and the retry sends them in exactly the order they are
         // queued here. If the line dies half-way, whichever rows were sent
@@ -215,7 +271,8 @@ class RegistrationRepository(private val context: Context) {
         // Global Search, Draft, CSV Export). Queuing this the same way as
         // the rows above means BottomNav's retry (V77 fix) now finishes
         // this step too, not just the Patient/Visit/Payment rows.
-        queueCloseIntent(draft.mobileDigitsOnly, patientId)
+        // 🔵 V516 — উপরের একই কারণ (ক্লাউডের দিকটাও একইভাবে বাদ)।
+        if (forceNewPatientRowId.isBlank()) queueCloseIntent(draft.mobileDigitsOnly, patientId)
 
         Thread {
             try {

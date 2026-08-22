@@ -868,6 +868,32 @@ class RegistrationActivity : AppCompatActivity() {
         tvDupMobile.copyOnLongPress("Mobile", mobile)
         view.findViewById<android.widget.TextView>(com.tkbiswas.pilesclinic.R.id.tvDupBranch).text = duplicate.branch.ifBlank { "-" }
         view.findViewById<android.widget.TextView>(com.tkbiswas.pilesclinic.R.id.tvDupSection).text = "Patient"
+
+        /* 🔵🔒 V516 (২২.০৮.২০২৬, TK-অনুমোদিত) — **Patient ID দেখানো।**
+           TK-এর নির্দেশ: ডুপ্লিকেট ধরা পড়লে Name + **Patient ID** + Branch —
+           তিনটেই দেখাতে হবে, যাতে স্টাফ নিশ্চিত হতে পারেন ইনি কে।
+           ⛔ ঘরটা না থাকলে (পুরোনো রেকর্ড) সারিটা লুকানোই থাকে, বাক্স আগের মতোই। */
+        val tvDupPid = view.findViewById<android.widget.TextView>(com.tkbiswas.pilesclinic.R.id.tvDupPatientId)
+        if (duplicate.patientId.isNotBlank()) {
+            tvDupPid.text = duplicate.patientId
+            tvDupPid.copyOnLongPress("Patient ID", duplicate.patientId)
+            view.findViewById<android.widget.LinearLayout>(com.tkbiswas.pilesclinic.R.id.rowDupPatientId).visibility =
+                android.view.View.VISIBLE
+        }
+
+        /* 🔵🔒 V516 — এই নম্বরে **একাধিক** রোগী থাকলে কাউকে লুকানো হয় না।
+           উপরের ঘরগুলো প্রথমজনকে দেখায় (UPDATE EXISTING ঠিক তাঁকেই আপডেট করে),
+           বাকিরা এখানে তালিকা হয়ে থাকে। ⛔ একজনই থাকলে লাইনটা লুকানো, বাক্স আগের মতোই। */
+        if (duplicate.matches.size > 1) {
+            val others = duplicate.matches.drop(1).joinToString("\n") { m ->
+                "• " + m.name.ifBlank { "-" } +
+                    (if (m.patientId.isNotBlank()) "  ·  " + m.patientId else "") +
+                    (if (m.branch.isNotBlank()) "  ·  " + m.branch else "")
+            }
+            val tvOthers = view.findViewById<android.widget.TextView>(com.tkbiswas.pilesclinic.R.id.tvDupOthers)
+            tvOthers.text = "এই নম্বরে আরও " + (duplicate.matches.size - 1) + " জন রোগী আছেন:\n" + others
+            tvOthers.visibility = android.view.View.VISIBLE
+        }
         UppercaseInputUtil.applyToAll(view)  // TK-REQUESTED GLOBAL RULE (2026-07-24): English text auto-CAPITAL, Password fields excluded automatically
         val dialog = AlertDialog.Builder(this).setView(view).setCancelable(true).create()
         dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
@@ -884,10 +910,51 @@ class RegistrationActivity : AppCompatActivity() {
             startActivity(android.content.Intent(this, PatientTimelineActivity::class.java).putExtra("mobile", mobile))
         }
         view.findViewById<android.widget.TextView>(com.tkbiswas.pilesclinic.R.id.btnDupClose).setOnClickListener { dialog.dismiss() }
+
+        /* 🔵🔴🔒 V516 (২২.০৮.২০২৬, TK-অনুমোদিত) — **"Different Patient — Same Mobile"।**
+           TK-এর কথা: এক পরিবারে স্বামী ও স্ত্রী দুজনেই রোগী, কিন্তু যোগাযোগের
+           মোবাইল একটাই — দুজনকে সম্পূর্ণ আলাদা দুই রোগী হিসেবে রাখতে হবে।
+
+           এখানে **তখনই** একটা নতুন অনন্য সারি-আইডি তৈরি হয়, আর সেটা সেভে যায়।
+           ⛔ পুরোনো রোগীর সারিতে **এক অক্ষরও লেখা হয় না** — নতুন আইডি মানে
+              নতুন সারি; তাঁর নাম · Patient ID · বিল · ইতিহাস সব অটুট।
+           ⛔ নতুন রোগী **নিজের নতুন Official Patient ID** পান (`PatientIdGenerator`
+              ব্রাঞ্চ+তারিখ ধরে সিরিয়াল দেয়, মোবাইলের সঙ্গে সম্পর্ক নেই)।
+           ⛔ **Visit Fee আগের নিয়মেই কাটে** — নতুন রোগীর নিজের ফি (B455 অটুট,
+              কারণ `existingRowId` ফাঁকাই থাকে)।
+           ⛔ আইডিটা এখানে **একবারই** তৈরি হয়; নেট খারাপ হলে retry queue ওই
+              সারিটাই আবার পাঠায়, তাই দুটো সারি তৈরি হওয়ার ভয় নেই।
+           ⛔ স্টাফকে একবার নিশ্চিত করতে বলা হয় — ভুল করে চাপলে যেন
+              অকারণে দ্বিতীয় রোগী তৈরি না হয়। */
+        val btnDifferent = view.findViewById<android.widget.TextView>(com.tkbiswas.pilesclinic.R.id.btnDupDifferent)
+        btnDifferent.visibility = android.view.View.VISIBLE
+        btnDifferent.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setCustomTitle(PremiumAlert.header(this, "নতুন আলাদা রোগী?"))
+                .setMessage(
+                    "এই মোবাইল নম্বরটা ইতিমধ্যে " +
+                        duplicate.name.ifBlank { "একজন রোগীর" } +
+                        "-এর নামে আছে।\n\n" +
+                        "\"" + name + "\" কি সত্যিই অন্য একজন রোগী (যেমন স্বামী / স্ত্রী / পরিবারের অন্য কেউ)?\n\n" +
+                        "হ্যাঁ চাপলে সম্পূর্ণ নতুন একজন রোগী তৈরি হবে — পুরোনো রোগীর " +
+                        "কোনো তথ্য বদলাবে না, আর নতুন রোগীর নিজের Visit Fee কাটবে।"
+                )
+                .setPositiveButton("হ্যাঁ, আলাদা রোগী") { d, _ ->
+                    d.dismiss()
+                    dialog.dismiss()
+                    performSave(
+                        user, name, mobile, branch, fee,
+                        existingPatientId = "", existingRowId = "",
+                        forceNewPatientRowId = PatientModel.newRowIdForSameMobile(mobile)
+                    )
+                }
+                .setNegativeButton("না") { d, _ -> d.dismiss() }
+                .show()
+        }
         dialog.show()
     }
 
-    private fun performSave(user: NativeUser, name: String, mobile: String, branch: String, fee: Double, existingPatientId: String = "", existingRowId: String = "") {
+    private fun performSave(user: NativeUser, name: String, mobile: String, branch: String, fee: Double, existingPatientId: String = "", existingRowId: String = "", forceNewPatientRowId: String = "") {
         val draft = RegistrationDraft(
             date = selectedDate,
             name = name,
@@ -955,7 +1022,7 @@ class RegistrationActivity : AppCompatActivity() {
         setLoading(true)
         lifecycleScope.launch {
             try {
-                val patientId = withContext(Dispatchers.IO) { repository.save(draft, user.mobile, existingPatientId, existingRowId) }
+                val patientId = withContext(Dispatchers.IO) { repository.save(draft, user.mobile, existingPatientId, existingRowId, forceNewPatientRowId) }
                 setLoading(false)
                 if (patientId != null) {
                     // 🔒 TK-APPROVED (28.07.2026): সেভ হওয়ার পরে রোগীকে খবর

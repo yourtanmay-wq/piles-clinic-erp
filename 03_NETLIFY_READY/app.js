@@ -168,7 +168,19 @@ const today=()=>new Date().toISOString().slice(0,10);const uid=p=>p+'_'+Date.now
    (PatientModel.stableRowId)। নম্বর ১০ সংখ্যার না হলে আগের মতোই এলোমেলো আইডি,
    যাতে কোনো সেভ কখনো আটকে না যায়। */
 const patRowId=v=>{let d=String(v||'').replace(/\D/g,'').slice(-10);return d.length===10?('pat_'+d):uid('pat')};
-window["patRowId"]=patRowId;function fmtDate(v){let m=String(v||'').slice(0,10).match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}.${m[2]}.${m[1]}`:String(v||'')}
+window["patRowId"]=patRowId;
+/* 🔵🔒 V516 (২২.০৮.২০২৬, TK-অনুমোদিত) — **এক মোবাইলে একাধিক রোগী।**
+   এক পরিবারে স্বামী ও স্ত্রী দুজনেই রোগী, যোগাযোগের নম্বর একটাই — দুজনকে
+   সম্পূর্ণ আলাদা রাখতে হবে। উপরের `patRowId()` আইডি বানায় মোবাইল থেকেই,
+   তাই দ্বিতীয় রোগীর আইডি হুবহু এক হত ও **প্রথম রোগী চাপা পড়ে যেত**।
+   স্টাফ নিজে "Different Patient — Same Mobile" বাছলে তবেই এই ফাংশন ডাকা হয়।
+   ⛔ উপরের `patRowId()` এক অক্ষরও বদলায়নি — পুরোনো সব রোগী ও রোজকার
+      রেজিস্ট্রেশন হুবহু আগের মতোই (খাতার সারি B30 অটুট)।
+   ⛔ ফোনের অ্যাপে হুবহু একই নিয়ম (`PatientModel.newRowIdForSameMobile`)। */
+const patNewRowIdForSameMobile=v=>{let d=String(v||'').replace(/\D/g,'').slice(-10);
+ let sfx=(Math.random().toString(16).slice(2)+Math.random().toString(16).slice(2)).slice(0,8);
+ return d.length===10?('pat_'+d+'_'+sfx):uid('pat')};
+window["patNewRowIdForSameMobile"]=patNewRowIdForSameMobile;function fmtDate(v){let m=String(v||'').slice(0,10).match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}.${m[2]}.${m[1]}`:String(v||'')}
 window.fmtDate=fmtDate;function wlv1Ampm(hhmm){let p=String(hhmm||'').split(':');if(p.length<2)return String(hhmm||'');let h=parseInt(p[0],10);if(isNaN(h))return String(hhmm||'');let s=h<12?'AM':'PM';let h12=h%12;if(h12===0)h12=12;return h12+'.'+p[1]+' '+s}
 /* 🔒 TK-এর স্থায়ী নিয়ম (২৯.০৭.২০২৬): ছাপা কাগজে কখনো বাংলা যাবে না —
    একমাত্র Diet Chart ছাড়া। পর্দায় বাংলা থাকতে কোনো আপত্তি নেই।
@@ -6348,6 +6360,67 @@ function registration(pref={}){let wlv1OwnBr=(user&&(user.role==='staff'||user.r
      (res/layout/activity_registration.xml:60-73)। ওয়েবে দুটো উল্টো ছিল।
      ⛔ ঘরের নাম (id) ও সেভের নিয়ম একটুও বদলায়নি। --><label>First Visit Date</label><div class="wlv1DateBox input"><span id="pDateShow">${wlv1Dot(today())}</span><input id="pDate" type="date" value="${today()}" max="${today()}" oninput="wlv1ShowDate('pDate','pDateShow')"></div><label>Alternate / Enquiry Mobile</label><input id="pAltMob" class="input" value="" inputmode="tel" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other"><label>Patient Name <b class="wlv1Star">*</b></label><input id="pName" class="input" value="${esc(pref.name||'')}" placeholder="Patient name" oninput="wlv1Caps(this)"><div class="regTwo"><div><label>Occupation</label><select id="pOcc" class="input"><option value="" hidden>Choose Occupation</option><option>Farmer</option><option>Housewife</option><option>Business</option><option>Service</option><option>Student</option><option>Labour</option><option>Retired</option><option>Others</option></select></div><div><label>Age</label><input id="pAge" class="input" inputmode="numeric" maxlength="3" placeholder="Age"></div></div><div class="wlv1PickRow wlv1TopGap" data-wlv1group="sex"><button type="button" class="wlv1Pick on" data-val="Male" onclick="wlv1PickOne('sex','Male','pSex')">Male</button><button type="button" class="wlv1Pick" data-val="Female" onclick="wlv1PickOne('sex','Female','pSex')">Female</button><button type="button" class="wlv1Pick" data-val="Other" onclick="wlv1PickOne('sex','Other','pSex')">Other</button></div><input id="pSex" type="hidden" value="Male"></div><div class="regSection"><div class="regSecHead">Address</div><label>Village</label><input id="pVill" class="input" oninput="wlv1Caps(this)"><label>PO</label><input id="pPO" class="input" oninput="wlv1Caps(this)"><label>PS</label><input id="pPS" class="input" oninput="wlv1Caps(this)"><label>District</label><input id="pDist" class="input" oninput="wlv1Caps(this)"><label>PIN Code</label><input id="pPin" class="input" inputmode="numeric" maxlength="6"></div><div class="regSection"><div class="regSecHead">Disease</div><div class="wlv1ChipRow"><label class="wlv1Chip2"><input type="checkbox" name="diag" value="Piles" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Piles</span></label><label class="wlv1Chip2"><input type="checkbox" name="diag" value="Fissure" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Fissure</span></label><label class="wlv1Chip2"><input type="checkbox" name="diag" value="Fistula" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Fistula</span></label><label class="wlv1Chip2"><input type="checkbox" name="diag" value="Hydrocele" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Hydrocele</span></label><label class="wlv1Chip2"><input type="checkbox" name="diag" value="Gupt Rog" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Gupt Rog</span></label><label class="wlv1Chip2"><input type="checkbox" name="diag" value="Other" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Other</span></label></div></div><div class="regSection"><div class="regSecHead">Symptoms</div><div class="wlv1ChipRow"><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Pain" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Pain</span></label><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Itching" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Itching</span></label><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Burning" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Burning</span></label><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Bleeding" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Bleeding</span></label><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Pus Discharge" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Pus Discharge</span></label><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Fluid Discharge" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Fluid Discharge</span></label><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Prolapsed Lump" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Massa Bara Hua</span></label></div><textarea id="pComp" class="input wlv1TopGap" placeholder="পেশেন্ট এসে আরো কি কি সমস্যার কথা বললেন" oninput="wlv1Caps(this)"></textarea><label>Duration of Problem</label><div class="regTwo"><input id="pDuration" class="input" inputmode="numeric"><select id="pDurationUnit" class="input"><option>Days</option><option>Months</option><option>Years</option></select></div></div><div class="regSection"><div class="regSecHead">Previous Treatment History</div><div class="wlv1ChipRow"><label class="wlv1Chip2"><input type="checkbox" name="medHist" value="Previous Medication" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Previous Medication</span></label><label class="wlv1Chip2"><input type="checkbox" name="medHist" value="Previous Medical Treatment" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Previous Doctor Treatment</span></label><label class="wlv1Chip2"><input type="checkbox" name="medHist" value="Previous Surgical History" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Previous Operation History</span></label><label class="wlv1Chip2"><input type="checkbox" name="medHist" value="Previous Ayurvedic/Herbal Treatment" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Previous Ayurvedic/Herbal Treatment</span></label></div><label>Other Treatment History (Optional)</label><textarea id="pPrevTreatment" class="input" placeholder="Write any other previous treatment" oninput="wlv1Caps(this)"></textarea></div><div class="regSection"><label>Referred By</label><select id="pRef" class="input" onchange="wlv1RefByChanged()"><option>Self</option><option>Online</option><option>Offline</option><option>Dr. Visit</option><option>Old Patient</option><option>Others</option></select><div id="llRefDoctor" class="hidden"><label>Doctor / RMP Name</label><input id="pRefDocName" class="input" placeholder="Doctor / RMP name" oninput="wlv1Caps(this)"><label>Doctor Mobile</label><input id="pRefDocMobile" class="input" inputmode="tel" maxlength="10" placeholder="Doctor mobile"></div><div class="wlv1PickRow wlv1Pick2 wlv1TopGap" data-wlv1group="regtime"><button type="button" class="wlv1Pick on" data-val="Official Time" onclick="wlv1PickOne('regtime','Official Time','pRegTiming')">Official Time</button><button type="button" class="wlv1Pick" data-val="Unexpected Time" onclick="wlv1PickOne('regtime','Unexpected Time','pRegTiming')">Unexpected Time</button></div><input id="pRegTiming" type="hidden" value="Official Time"></div><div class="regSection"><label>Fee Amount <b class="wlv1Star">*</b></label><input id="regFee" class="input" inputmode="numeric" placeholder="Enter Registration Fee"><div class="wlv1PickRow wlv1Pick2 wlv1TopGap" data-wlv1group="paymode"><button type="button" class="wlv1Pick on" data-val="CASH" onclick="wlv1PickOne('paymode','CASH','regMode')">CASH</button><button type="button" class="wlv1Pick" data-val="ONLINE" onclick="wlv1PickOne('paymode','ONLINE','regMode')">ONLINE</button></div><input id="regMode" type="hidden" value="CASH">${pref.photo?`<img class="patientPhoto" src="${pref.photo}">`:''}${patientPhotoInputs('pPhoto')}</div><button class="fullSave" onclick="savePatient(event)">✓  Save Patient</button></div>`);setTimeout(function(){try{wlv1BranchLock('pBranch')}catch(e){}try{wlv1PhTint('pBranch');wlv1PhTint('pOcc')}catch(e){}},0)}
 window["registration"]=registration;
+/* 🔴🔵🔒 V516 (২২.০৮.২০২৬, TK-অনুমোদিত) — **এক মোবাইল, একাধিক রোগী।**
+   TK-এর কথা: এক পরিবারে স্বামী ও স্ত্রী দুজনেই রোগী, কিন্তু যোগাযোগের মোবাইল
+   একটাই। দুজনকে অবশ্যই দুইজন সম্পূর্ণ আলাদা রোগী হিসেবে রাখতে হবে।
+
+   এই বাক্সটা দেখায় ওই নম্বরে **আগে থেকে থাকা প্রত্যেক রোগীর** নাম · Patient ID ·
+   Branch, আর চারটে পছন্দ দেয় — ফোনের অ্যাপের হুবহু একই চারটে।
+   ⛔ রেজিস্ট্রেশন কখনো **আটকানো হয় না** — শুধু জিজ্ঞাসা করা হয়।
+   ⛔ "Update Existing" = হুবহু আগের আচরণ (আগে এটাই চুপচাপ হত)।
+   ⛔ "Different Patient" পুরোনো রোগীর সারিতে **এক অক্ষরও লেখে না** — নতুন
+      আইডি মানে নতুন সারি; তাঁর নাম · Patient ID · বিল · ইতিহাস সব অটুট। */
+function wlv1RegDuplicateChoice(mm, dup){
+  try{
+    var all=load('patients').filter(function(x){return mob(x.mobile)===mob(mm)});
+    if(!all.length&&dup) all=[dup];
+    var cards=all.map(function(r){
+      return '<div class="card tiny"><b>'+esc(r.name||'-')+'</b><br>'
+        +'Patient ID: <b>'+esc(r.patientId||'-')+'</b><br>'
+        +'Branch: '+esc(r.branch||'-')+' · '+esc(normMob(r.mobile||mm))+'</div>';
+    }).join('');
+    var first=all[0]||dup||{};
+    modal('<h2>⚠️ এই নম্বরটি আগে থেকেই আছে</h2>'
+      +'<div style="font-size:13px;margin:6px 0 10px">এই মোবাইল নম্বরে ইতিমধ্যে '
+      +all.length+' জন রোগী আছেন:</div>'
+      +cards
+      +'<div style="font-size:12.5px;margin:10px 0 4px;color:#8A5B00"><b>একই পরিবারের অন্য কেউ</b> (যেমন স্বামী/স্ত্রী) হলে "Different Patient" বাছুন — নতুন আলাদা রোগী তৈরি হবে, পুরোনো রোগীর কিছুই বদলাবে না।</div>'
+      +'<div class="actions">'
+      +'<button class="ghost" onclick="wlv1RegDupView(\''+esc(first.id||'')+'\')">View Existing</button>'
+      +'<button onclick="wlv1RegDupUpdate(\''+esc(mob(mm))+'\')">Update Existing</button>'
+      +'<button style="background:#0B7A3B;color:#fff" onclick="wlv1RegDupDifferent(\''+esc(mob(mm))+'\')">Different Patient — Same Mobile</button>'
+      +'<button class="ghost" onclick="closeModal()">Cancel</button>'
+      +'</div>');
+  }catch(e){ /* বাক্স দেখাতে না পারলে আগের আচরণ — কিছুই আটকায় না */
+    window.__regDupAsk=mob(mm); try{savePatient()}catch(_e){} }
+}
+window["wlv1RegDuplicateChoice"]=wlv1RegDuplicateChoice;
+
+function wlv1RegDupView(id){ try{closeModal()}catch(e){} try{summary(id)}catch(e){} }
+window["wlv1RegDupView"]=wlv1RegDupView;
+
+/** পুরোনো রোগীকেই আপডেট — হুবহু আগের (V515 পর্যন্তকার) আচরণ। */
+function wlv1RegDupUpdate(mm){
+  window.__regDiffPatient=null;
+  window.__regDupAsk=mob(mm);
+  try{closeModal()}catch(e){}
+  try{savePatient()}catch(e){}
+}
+window["wlv1RegDupUpdate"]=wlv1RegDupUpdate;
+
+/** সম্পূর্ণ নতুন একজন রোগী, একই নম্বরে। */
+function wlv1RegDupDifferent(mm){
+  var d=mob(mm);
+  if(!confirm('এই নম্বরে সম্পূর্ণ নতুন একজন রোগী তৈরি হবে।\n\nপুরোনো রোগীর কোনো তথ্য বদলাবে না, আর নতুন রোগীর নিজের Visit Fee কাটবে।\n\nঠিক আছে?')) return;
+  /* আইডিটা **একবারই** তৈরি হয় ও সারিতে বসে যায়; নেট খারাপ হয়ে আবার পাঠানো
+     হলেও ওই একই সারিটাই যায়, তাই দুটো সারি তৈরি হয় না। */
+  window.__regDiffPatient={mobile:d,rowId:patNewRowIdForSameMobile(d)};
+  window.__regDupAsk=d;
+  try{closeModal()}catch(e){}
+  try{savePatient()}catch(e){}
+}
+window["wlv1RegDupDifferent"]=wlv1RegDupDifferent;
+
 async function savePatient(evt){
  let btn=(evt&&evt.target)||(typeof event!=='undefined'&&event?event.target:null);
  if(btn){btn.disabled=true;btn.textContent='Saving...'}
@@ -6376,6 +6449,15 @@ async function savePatient(evt){
   let sourceRefId=$('#pSourceRefId')?.value||'';
   let sourceFollow=sourceFollowId?load('followups').find(x=>x.id===sourceFollowId):null;
   let patientDup=load('patients').find(x=>mob(x.mobile)===m);
+  /* 🔵🔒 V516: স্টাফ পপ-আপে নিজে বেছে বলেছেন "ইনি আলাদা একজন রোগী" —
+     তখন এই নম্বরটা আর ডুপ্লিকেট ধরা হয় না, নতুন রোগী তৈরি হয়।
+     ⛔ বাছাই না থাকলে (`__regDiff` null) সব হুবহু আগের মতোই। */
+  let __regDiff=(window.__regDiffPatient&&window.__regDiffPatient.mobile===m)?window.__regDiffPatient:null;
+  /* 🔴🔒 V516 — বাছাইটা **এক বারের জন্য**। পড়ার সঙ্গে সঙ্গেই মুছে ফেলা হয়,
+     নইলে পরের রেজিস্ট্রেশনে (একই নম্বরে) পুরোনো বাছাই রয়ে গিয়ে **একই আইডি
+     আবার** ব্যবহার হত — আর তাতে সদ্য তৈরি রোগীই চাপা পড়ে যেতেন। */
+  window.__regDiffPatient=null;
+  if(__regDiff) patientDup=null;
   let enquirySource=load('enquiries').find(x=>mob(x.mobile)===m);
   let enquiryFollow=sourceFollow||(load('followups').find(x=>mob(x.mobile)===m&&x.stage==='Inquiry')||null);
   // V195 Priority Fix: an existing Enquiry mobile is NOT a duplicate block for Registration.
@@ -6402,6 +6484,19 @@ async function savePatient(evt){
   // This prevents save-success records from disappearing from the assigned branch doctor/visit queue.
   let sourceBranch=(enquiryFollow&&enquiryFollow.branch)||(enquirySource&&enquirySource.branch)||'';
   if(sourceBranch)br=sourceBranch;
+  /* 🔴🔵🔒 V516 (TK-নির্দেশ): আগে এখানে **কোনো প্রশ্নই করা হত না** — একই
+     নম্বর পেলে চুপচাপ পুরোনো রোগীর রেজিস্ট্রেশন আপডেট হয়ে যেত। এক পরিবারে
+     দুজন রোগী হলে সেটাই ভুল। এখন স্টাফকে চারটে পছন্দ দেওয়া হয়:
+     View Existing · Update Existing · Different Patient — Same Mobile · Cancel.
+     ⛔ "Update Existing" চাপলে নিচের কোড **হুবহু আগের মতোই** চলে — পুরোনো
+        আচরণ এক অক্ষরও বদলায়নি, শুধু এখন সেটা স্টাফের বাছাই।
+     ⛔ ফোনের অ্যাপের পপ-আপের হুবহু একই চারটে পছন্দ। */
+  if(patientDup&&!__regDiff&&window.__regDupAsk!==m){
+    if(btn){btn.disabled=false;btn.textContent='✓  Save Patient'}
+    wlv1RegDuplicateChoice(m,patientDup);
+    return;
+  }
+  window.__regDupAsk='';
   let updatingExistingPatient=false;
   if(patientDup){
    updatingExistingPatient=true;
@@ -6422,7 +6517,8 @@ async function savePatient(evt){
   let compNote=$('#pComp')?.value||'';
   let complaint=[symptoms,compNote].filter(Boolean).join(' | ');
   let p={
-   id:patRowId($('#pMob')?.value||''),
+   /* 🔵 V516: স্টাফ "আলাদা রোগী" বাছলে নতুন অনন্য আইডি, নইলে আগের মতোই। */
+   id:__regDiff?__regDiff.rowId:patRowId($('#pMob')?.value||''),
    patientId:patientId(br,regDate),
    date:regDate,
    registrationDate:regDate,
