@@ -1111,6 +1111,66 @@ object ChamberAttendanceRepository {
             }
         }
 
+        /**
+         * 🔵🔒 V535 (২২.০৮.২০২৬, TK-রিপোর্ট: *"গতকাল সব কিছু ফিলাপ করেছিল
+         * কিন্তু এখন অনেকগুলি ফাঁকা কেন?"*)
+         *
+         * **আসল কারণ (কোড ধরে প্রমাণিত):** উপরের `lastRemark` হলো ওই রোগীর
+         * সারিতে **এই মুহূর্তে** যে লেখাটা আছে — সেদিন কী লেখা ছিল তা নয়।
+         * (followups তারিখ ধরে আনাই হয় না, শুধু ব্রাঞ্চ ধরে।) রোগী আবার
+         * এলে বা টাকা দিলে `lastRemark` বদলে যায়; নতুন লেখাটা অ্যাপের নিজের
+         * অটো-লেখা হলে বোর্ড সেটা লুকায় (`isAppAutoRemark`) ⇒ **"—"**।
+         *
+         * **তথ্য হারায়নি:** `FollowUpRepository.updateRemark()` প্রতিবার
+         * `history`-তে **তারিখ সমেত** লেখাটা জমা রাখে (ওই ফাইলের ২৬১০ নং লাইন)।
+         *
+         * **সমাধান:** পুরোনো দিনের বোর্ডে যে সারিগুলো ফাঁকা, **শুধু সেগুলোর**
+         * `history` এনে ওই তারিখের নিজের লেখাটা বসানো হয়।
+         *
+         * ⛔ **আজকের বোর্ডে একটাও বাড়তি অনুরোধ নয়** — শর্তেই আটকে যায়।
+         * ⛔ পুরোনো দিনেও ফাঁকা কিছু না থাকলে কোনো অনুরোধ হয় না।
+         * ⛔ থাকলে **একটাই ছোট অনুরোধ**, শুধু ওই কয়েকটা সারির `id,history`
+         *    (৫০০০ সারির বড় তালিকা নয়) — TK-এর Supabase কোটার কথা মাথায় রেখে।
+         * ⛔ ভরা সারিতে হাত পড়ে না; যা আছে তাই থাকে।
+         */
+        try {
+            if (date.isNotBlank() && date < FollowUpModel.today()) {
+                val needIds = byMobile.values
+                    .filter { ((it["remark"] as? String).orEmpty()).isBlank() }
+                    .mapNotNull { (it["followUpId"] as? String)?.trim()?.takeIf { s -> s.isNotEmpty() } }
+                    .distinct()
+                if (needIds.isNotEmpty()) {
+                    val filter = "id=in.(" + needIds.joinToString(",") { java.net.URLEncoder.encode(it, "UTF-8") } + ")"
+                    val hist = SupabaseClient.fetchListSlimOrNull(
+                        "followups", filter, needIds.size, "id,history"
+                    )
+                    if (hist != null) {
+                        val dayRemarkById = HashMap<String, String>()
+                        for (i in 0 until hist.length()) {
+                            val r = hist.optJSONObject(i) ?: continue
+                            val rid = r.s("id")
+                            if (rid.isBlank()) continue
+                            val h = r.optJSONArray("history") ?: continue
+                            // ওই দিনের **শেষ** সত্যিকারের লেখাটাই নেওয়া হয়।
+                            for (j in 0 until h.length()) {
+                                val item = h.optJSONObject(j) ?: continue
+                                if (item.s("date").take(10) != date) continue
+                                val rem = item.s("remark").trim()
+                                if (rem.isNotBlank() && !isAppAutoRemark(rem)) dayRemarkById[rid] = rem
+                            }
+                        }
+                        if (dayRemarkById.isNotEmpty()) {
+                            for (v in byMobile.values) {
+                                if (((v["remark"] as? String).orEmpty()).isNotBlank()) continue
+                                val fid = (v["followUpId"] as? String)?.trim().orEmpty()
+                                dayRemarkById[fid]?.let { v["remark"] = it }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (_: Throwable) { /* বাড়তি সুবিধা — ব্যর্থ হলে বোর্ড আগের মতোই চলে */ }
+
         val rows = byMobile.entries.map { (_, v) ->
             ChamberAttendanceRow(
                 /* 🔵🔒 V526: আগে **চাবিটাই** মোবাইল হিসেবে বসত। চাবি এখন
