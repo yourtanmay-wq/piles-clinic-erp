@@ -461,9 +461,28 @@ class PatientTimelineActivity : AppCompatActivity() {
                         // row still under the OLD number.
                         if (mainOk && newMobile != currentMobile) {
                             try {
+                                /* 🔵🔒 V534 (২২.০৮.২০২৬, TK-নির্দেশ) — **অন্য রোগীর সারি আর ছোঁয়া হয় না।**
+                                   আগে এখানে ওই নম্বরের **সব** followups/enquiries সারিতে নতুন নাম ও
+                                   নতুন নম্বর বসিয়ে দেওয়া হত — কে কার সারি তা না দেখেই। এক নম্বরে
+                                   স্বামী-স্ত্রী দু'জন আলাদা রোগী থাকলে একজনের নম্বর বদলালে
+                                   **অন্যজনের রেকর্ডও তুলে নিয়ে যেত আর তাঁর নামটাও মুছে দিত**।
+                                   ⇒ এখন প্রজেক্টের সেই প্রমাণিত পাহারা (`PatientIdentity`, যেটা
+                                     `MobileChangeSync` V134 থেকে ব্যবহার করছে): নম্বর ভাগ করা না
+                                     হলে **হুবহু আগের মতোই সব সারি**; ভাগ করা হলে **শুধু প্রমাণসহ
+                                     এই রোগীর সারিগুলো**।
+                                   ⛔ enquiries সারিতে রোগী চেনার কোনো ঘরই নেই — তাই নম্বর ভাগ
+                                      করা থাকলে সেগুলো **ছোঁয়াই হয় না** (ভুল করে অন্যের নাম বসিয়ে
+                                      দেওয়ার চেয়ে কিছু না করা নিরাপদ)। */
+                                val myCode = try {
+                                    val prow0 = SupabaseClient.fetchList("patients", "id=eq.$currentPatientRowId", 1)
+                                    if (prow0.length() > 0) prow0.getJSONObject(0).s("patientId") else ""
+                                } catch (_: Exception) { "" }
                                 val oldFollowups = SupabaseClient.fetchList("followups", "mobile=like.*$currentMobile", 20)
+                                val shared = PatientIdentity.isSharedNumber(oldFollowups, currentMobile)
                                 for (i in 0 until oldFollowups.length()) {
-                                    val fid = oldFollowups.getJSONObject(i).s("id")
+                                    val frow = oldFollowups.optJSONObject(i)
+                                    if (shared && !PatientIdentity.rowBelongsTo(frow, currentPatientRowId, myCode)) continue
+                                    val fid = frow?.s("id").orEmpty()
                                     if (fid.isNotBlank()) {
                                         // TK-REPORTED (2026-07-27): a failed write here used to
                                         // be lost silently; it now retries like every other save.
@@ -473,7 +492,9 @@ class PatientTimelineActivity : AppCompatActivity() {
                                         }
                                     }
                                 }
-                                val oldEnquiries = SupabaseClient.fetchList("enquiries", "mobile=like.*$currentMobile", 20)
+                                // ⛔ V534: নম্বর ভাগ করা থাকলে enquiries একটাও ছোঁয়া হয় না।
+                                val oldEnquiries = if (shared) org.json.JSONArray()
+                                    else SupabaseClient.fetchList("enquiries", "mobile=like.*$currentMobile", 20)
                                 for (i in 0 until oldEnquiries.length()) {
                                     val eid = oldEnquiries.getJSONObject(i).s("id")
                                     if (eid.isNotBlank()) {

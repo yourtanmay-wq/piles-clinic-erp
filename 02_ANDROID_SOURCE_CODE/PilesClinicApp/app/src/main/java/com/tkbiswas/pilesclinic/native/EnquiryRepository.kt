@@ -238,9 +238,26 @@ class EnquiryRepository(private val context: Context) {
      *
      * NOTE: build/test happens on the device — TK live-tests before locking.
      */
+    /**
+     * 🔵🔒 V534 (২২.০৮.২০২৬, TK-নির্দেশ) — **অন্য রোগীর রোগ/ব্রাঞ্চ আর বদলাবে না।**
+     *
+     * **আগে যা হত:** এই ফাংশন ওই নম্বরের **সব** followups · enquiries ·
+     * patients সারিতে নতুন **ব্রাঞ্চ · status · রোগ · lastRemark** বসিয়ে দিত।
+     * এক নম্বরে দু'জন আলাদা রোগী থাকলে **অন্যজনের রোগের নাম মুছে গিয়ে**
+     * এঁর রোগ বসে যেত, আর তাঁর ব্রাঞ্চও বদলে যেত।
+     *
+     * **এখন:** `preferPatientCode` / `preferRowId` দিলে — নম্বরটা ভাগ করা হলে
+     * **শুধু প্রমাণসহ সেই রোগীর সারিগুলোই** ছোঁয়া হয়।
+     *
+     * ⛔ দুটোই ফাঁকা, বা নম্বর ভাগ করা নয় (রোজকার ৯৯%) ⇒ **হুবহু আগের আচরণ**,
+     *    এক অক্ষরও বদলায়নি।
+     * ⛔ enquiries সারিতে রোগী চেনার কোনো ঘরই নেই — তাই নম্বর ভাগ করা থাকলে
+     *    সেগুলো **ছোঁয়াই হয় না**।
+     */
     fun restoreAndMove(
         mobileDigitsOnly: String, newBranch: String, newDisease: String,
-        newRemark: String, newNextFollow: String, staffName: String
+        newRemark: String, newNextFollow: String, staffName: String,
+        preferPatientCode: String = "", preferRowId: String = ""
     ): Boolean {
         val normalized = EnquiryModel.normalizedMobile(mobileDigitsOnly)
         val today = EnquiryModel.today()
@@ -258,10 +275,15 @@ class EnquiryRepository(private val context: Context) {
         // mistake was already found and fixed in MobileChangeSync (V134); it
         // was still here.
         val fus = SupabaseClient.findByMobile("followups", normalized, "*", 50)
+        /* 🔵 V534: এই নম্বরে সত্যিই একাধিক আলাদা রোগী আছেন কিনা — একবারই দেখা হয়,
+           আগে-আনা সারিগুলোর উপরেই (নতুন কোনো ক্লাউড-অনুরোধ নয়)। */
+        val sharedNumber = PatientIdentity.isSharedNumber(fus, mobileDigitsOnly) &&
+            (preferPatientCode.isNotBlank() || preferRowId.isNotBlank())
         for (i in 0 until fus.length()) {
             val row = fus.getJSONObject(i)
             val id = row.optString("id")
             if (id.isBlank()) continue
+            if (sharedNumber && !PatientIdentity.rowBelongsTo(row, preferRowId, preferPatientCode)) continue
             val history = row.optJSONArray("history") ?: JSONArray()
             history.put(
                 JSONObject()
@@ -297,7 +319,9 @@ class EnquiryRepository(private val context: Context) {
         }
 
         // (2) enquiries row — move branch + reactivate.
-        val enqs = SupabaseClient.findByMobile("enquiries", normalized, "id,stage", 50)
+        // ⛔ V534: enquiries-এ রোগী চেনার ঘর নেই — নম্বর ভাগ করা থাকলে ছোঁয়া হয় না।
+        val enqs = if (sharedNumber) JSONArray()
+            else SupabaseClient.findByMobile("enquiries", normalized, "id,stage", 50)
         for (i in 0 until enqs.length()) {
             val erow = enqs.getJSONObject(i)
             val eid = erow.optString("id")
@@ -322,10 +346,13 @@ class EnquiryRepository(private val context: Context) {
         }
 
         // (3) patients row — move branch for display only (payments untouched).
-        val pats = SupabaseClient.findByMobile("patients", normalized, "id", 50)
+        val pats = SupabaseClient.findByMobile("patients", normalized, "id,patientId", 50)
         for (i in 0 until pats.length()) {
-            val pid = pats.getJSONObject(i).optString("id")
+            val prow = pats.getJSONObject(i)
+            val pid = prow.optString("id")
             if (pid.isBlank()) continue
+            // 🔵 V534: নম্বর ভাগ করা হলে শুধু প্রমাণসহ এই রোগীর সারিটাই।
+            if (sharedNumber && !PatientIdentity.rowBelongsTo(prow, preferRowId, preferPatientCode)) continue
             if (SupabaseClient.updateById("patients", pid, JSONObject().put("branch", newBranch).put("updatedAt", now))) ok = true
         }
 

@@ -12,6 +12,7 @@ import com.tkbiswas.pilesclinic.databinding.ActivityEnquiryBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.resume   // 🔵 V534
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -34,6 +35,31 @@ import java.util.Locale
  * own native rebuild steps.
  */
 class EnquiryActivity : AppCompatActivity() {
+
+    /**
+     * 🔵🔒 V534: প্রজেক্টের সেই একই পর্দা (Payment · Print · Doctor Visit ·
+     * Chamber-এ যেটা চলছে) — একাধিক আলাদা রোগী থাকলে তবেই দেখা যায়।
+     */
+    private suspend fun askWhichRestorePatient(
+        mobile: String, people: List<org.json.JSONObject>
+    ): org.json.JSONObject? = kotlinx.coroutines.suspendCancellableCoroutine { cont ->
+        val labels = people.map { r ->
+            (r.s("name").ifBlank { "UNKNOWN" }) + "\n" + (r.s("patientId").ifBlank { "-" })
+        }.toTypedArray()
+        var done = false
+        fun finishWith(v: org.json.JSONObject?) {
+            if (done) return
+            done = true
+            if (cont.isActive) cont.resume(v)
+        }
+        if (isFinishing || isDestroyed) { finishWith(null); return@suspendCancellableCoroutine }
+        AlertDialog.Builder(this)
+            .setTitle("\uD83D\uDCDE $mobile \u2014 which patient?")
+            .setItems(labels) { _, which -> finishWith(people.getOrNull(which)) }
+            .setNegativeButton("Cancel") { _, _ -> finishWith(null) }
+            .setOnCancelListener { finishWith(null) }
+            .show()
+    }
 
     private lateinit var binding: ActivityEnquiryBinding
     private lateinit var repository: EnquiryRepository
@@ -556,8 +582,33 @@ val disease = selectedDisease
             dialog.dismiss()
             setLoading(true)
             lifecycleScope.launch {
+                /* 🔵🔒 V534 (২২.০৮.২০২৬, TK-নির্দেশ) — এক নম্বরে সত্যিই একাধিক
+                   আলাদা রোগী থাকলে **কার Restore** সেটা জিজ্ঞাসা করা হয়, নইলে
+                   অন্যজনের রোগ/ব্রাঞ্চও বদলে যেত।
+                   ⛔ একজন থাকলে (রোজকার ৯৯%) কিছুই জিজ্ঞাসা করা হয় না এবং
+                      নিচের ডাকটা **হুবহু আগের মতোই** (দুটো ঘর ফাঁকা)। */
+                var pickCode = ""
+                var pickRowId = ""
+                val people = withContext(Dispatchers.IO) {
+                    try {
+                        val rows = SupabaseClient.findByMobile(
+                            "patients", EnquiryModel.normalizedMobile(mobile),
+                            "id,name,mobile,branch,patientId,bill", 20
+                        )
+                        PatientIdentity.separateIdentities(rows, mobile)
+                    } catch (_: Throwable) { emptyList() }
+                }
+                if (people.size >= 2) {
+                    val chosen = askWhichRestorePatient(mobile, people)
+                    if (chosen == null) { setLoading(false); return@launch }
+                    pickRowId = chosen.s("id")
+                    pickCode = chosen.s("patientId")
+                }
                 val ok = withContext(Dispatchers.IO) {
-                    repository.restoreAndMove(mobile, branch, disease, remarks, selectedNextFollow, user.name)
+                    repository.restoreAndMove(
+                        mobile, branch, disease, remarks, selectedNextFollow, user.name,
+                        preferPatientCode = pickCode, preferRowId = pickRowId
+                    )
                 }
                 setLoading(false)
                 toastAndFinish(if (ok) "Restore হয়ে '$branch' ব্রাঞ্চে আনা হলো" else "Restore ব্যর্থ — নেট চেক করুন")

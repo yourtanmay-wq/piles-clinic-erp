@@ -160,4 +160,51 @@ object PatientIdentity {
         return pickPatientRow(rows, preferBranch)
     }
 
+    /**
+     * 🔵🔒 V534 (২২.০৮.২০২৬, TK-নির্দেশ) — **অন্য রোগীর সারিতে হাত পড়া বন্ধ।**
+     *
+     * **কী সমস্যা ছিল:** কিছু জায়গায় অ্যাপ এক নম্বরের **সব** সারিতে একসাথে
+     * লিখে দিত (নাম · রোগ · ব্রাঞ্চ · নম্বর)। এক নম্বরে সত্যিই দু'জন আলাদা
+     * রোগী থাকলে **একজনের কাজ অন্যজনের রেকর্ড নষ্ট করে দিত**।
+     *
+     * এই ফাংশনটা প্রজেক্টে **ইতিমধ্যে প্রমাণিত** পাহারাটাই এক জায়গায় এনে
+     * রাখল — হুবহু যেভাবে `MobileChangeSync.sync()` (V134) ও
+     * `FollowUpActivity`-র নম্বর-বদল আগে থেকেই করে:
+     *
+     *   ১) আগে দেখা হয় নম্বরটা **সত্যিই ভাগ করা** কিনা।
+     *   ২) ভাগ করা না হলে ⇒ **আগের মতোই সব সারি** (রোজকার ৯৯%, কিছুই বদলায় না)।
+     *   ৩) ভাগ করা হলে ⇒ **শুধু সেই সারিগুলোই** যেগুলো প্রমাণসহ এই রোগীর।
+     *
+     * ⛔ প্রমাণ = সারির নিজের `id` / `refId` / `patientId` মিলে যাওয়া। প্রমাণ
+     *    না থাকলে সারিটা **ছোঁয়াই হয় না** — ভুল করে অন্যের তথ্য নষ্ট করার
+     *    চেয়ে কিছু না করা অনেক নিরাপদ।
+     */
+    fun isSharedNumber(rows: JSONArray, mobileDigits: String): Boolean {
+        val d = mobileDigits.filter { it.isDigit() }.takeLast(10)
+        val codes = HashSet<String>()
+        var declaredSeparate = 0
+        for (i in 0 until rows.length()) {
+            val r = rows.optJSONObject(i) ?: continue
+            if (PatientModel.isDeclaredSeparateRowId(r.s("id"), d)) declaredSeparate++
+            if (PatientModel.isDeclaredSeparateRowId(r.s("refId"), d)) declaredSeparate++
+            r.s("patientId").trim().takeIf { it.isNotBlank() }?.let { codes.add(it.uppercase()) }
+        }
+        return declaredSeparate > 0 || codes.size > 1
+    }
+
+    /**
+     * 🔵🔒 V534: এই সারিটা কি **প্রমাণসহ** এই রোগীর?
+     * (`id` = patients-এর সারি · `refId` = follow-up যে রোগীকে দেখায় ·
+     *  `patientId` = মানুষ-পড়া-যায় কোড)
+     * ⛔ দুটো চাবিই ফাঁকা হলে `false` — অর্থাৎ "জানি না" মানে "ছোঁব না"।
+     */
+    fun rowBelongsTo(row: JSONObject?, myRowId: String, myPatientCode: String): Boolean {
+        if (row == null) return false
+        val rid = myRowId.trim()
+        val code = myPatientCode.trim().uppercase()
+        if (rid.isNotBlank() && (row.s("id") == rid || row.s("refId") == rid)) return true
+        if (code.isNotBlank() && row.s("patientId").trim().uppercase() == code) return true
+        return false
+    }
+
 }
