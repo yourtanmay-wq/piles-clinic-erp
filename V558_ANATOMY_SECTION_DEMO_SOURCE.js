@@ -20,13 +20,20 @@
       var p = piles[i];
       if (!p.inner) continue;
       if (pileSide(p) !== side) continue;
-      var t = (hcm - (p.hcm || (DENTATE_CM + 0.55))) / 0.55;
-      w -= p.size * 0.85 * Math.exp(-t * t);
+      // ফোলাটা গোলগাল — দেওয়ালের গায়ে বসানো অর্ধেক গোলার মত (পাতার মত ছুঁচোলো নয়)
+      var R = pileRange(p);
+      var t = (hcm - (p.hcm || (DENTATE_CM + 0.55))) / R;
+      if (t > -1 && t < 1) w -= p.size * 0.78 * Math.sqrt(1 - t * t);
     }
     return Math.max(0.10, w);
   }
   // ঘড়ির কাঁটা থেকে বোঝা যায় ফোলাটা বাঁ না ডান দেওয়ালে
   function pileSide(p) { return Math.cos(p.a) >= 0 ? 1 : -1; }
+  function pileRange(p) { return 0.46 + 0.30 * p.size; }
+
+  // পেশির পুরুত্ব: নিচে (মুখের কাছে) মোটা, উপরে আস্তে আস্তে মিলিয়ে যায়
+  function INT_T(h) { return 0.20 + 0.44 * Math.exp(-Math.pow((h - 1.0) / 1.9, 2)); }
+  function EXT_T(h) { return INT_T(h) + 0.90 * Math.exp(-Math.pow((h - 0.75) / 1.35, 2)); }
 
   var C_FAT   = '#EFDCB2', C_FAT2 = '#E3CB9C';
   var C_SKIN  = '#B0785C', C_MUSC = '#B0554F', C_MUSC2 = '#8E3C3A';
@@ -71,22 +78,32 @@
     [-1, 1].forEach(function (side) {
       ctx.beginPath();
       wallPath(ctx, cx, cy, piles, side, 0, false, 0, CANAL_CM);
-      wallPath(ctx, cx, cy, piles, side, 0.62, true, 0, CANAL_CM);
+      wallPath(ctx, cx, cy, piles, side, INT_T, true, 0, CANAL_CM);
       ctx.closePath();
       var lg = ctx.createLinearGradient(cx, 0, cx + side * 2.4 * CM, 0);
       lg.addColorStop(0, C_MUSC); lg.addColorStop(1, C_MUSC2);
       ctx.fillStyle = lg; ctx.fill();
     });
-    /* ---- বাইরের গোল পেশি (external sphincter) — গোল গোল কাটা মুখ ---- */
+    /* ---- বাইরের গোল পেশি (external sphincter) — মাংসের বলয়, আঁশের দাগ সহ ---- */
     [-1, 1].forEach(function (side) {
-      for (var k = 0; k < 4; k++) {
-        var hh = 0.30 + k * 0.52;
-        var w = halfWidth(hh, piles, side) + 0.80;
-        var p = px(ctx, cx, cy, side * w, hh);
-        ctx.beginPath(); ctx.ellipse(p[0], p[1], 0.30 * CM, 0.24 * CM, 0, 0, 6.3);
-        ctx.fillStyle = '#C4635A'; ctx.fill();
-        ctx.strokeStyle = '#8E3C3A'; ctx.lineWidth = 1.6; ctx.stroke();
+      ctx.save();
+      ctx.beginPath();
+      wallPath(ctx, cx, cy, piles, side, INT_T, false, 0, 2.9);
+      wallPath(ctx, cx, cy, piles, side, EXT_T, true, 0, 2.9);
+      ctx.closePath();
+      var lg2 = ctx.createLinearGradient(cx + side * 0.6 * CM, 0, cx + side * 2.2 * CM, 0);
+      lg2.addColorStop(0, '#C4635A'); lg2.addColorStop(1, '#9E4744');
+      ctx.fillStyle = lg2; ctx.fill();
+      ctx.clip();
+      ctx.strokeStyle = 'rgba(255,255,255,0.30)'; ctx.lineWidth = 1.4;   // মাংসের আঁশ
+      for (var k = 0; k < 16; k++) {
+        var yy = cy - k * 0.18 * CM;
+        ctx.beginPath();
+        ctx.moveTo(cx + side * 0.4 * CM, yy);
+        ctx.lineTo(cx + side * 2.4 * CM, yy - 0.10 * CM);
+        ctx.stroke();
       }
+      ctx.restore();
     });
 
     /* ---- নালীর ফাঁকা জায়গা ---- */
@@ -106,34 +123,46 @@
       ctx.restore();
     });
 
-    /* ---- ভিতরের পাইলস — লাল ফোলা, ঘড়ির নম্বর সহ ---- */
+    /* ---- ভিতরের পাইলস — দেওয়ালের গা থেকেই ফুলে ওঠে (আলাদা বল নয়) ---- */
     var stackL = 0, stackR = 0;
     piles.forEach(function (p) {
       if (!p.inner) return;
       var side = pileSide(p);
       var n = side > 0 ? stackR++ : stackL++;
-      var hh = p.hcm = DENTATE_CM + 0.50 + n * 0.62;
-      var w = halfWidth(hh, piles, side);
-      var c = px(ctx, cx, cy, side * (w + p.size * 0.14), hh);
+      p.hcm = DENTATE_CM + 0.50 + n * 0.62;
+      var others = piles.filter(function (q) { return q !== p; });
+      var R2 = pileRange(p);
+      var h0 = p.hcm - R2, h1 = p.hcm + R2, N = 30, i;
       ctx.beginPath();
-      ctx.ellipse(c[0], c[1], (0.14 + p.size * 0.34) * CM, (0.18 + p.size * 0.38) * CM, 0, 0, 6.3);
-      var rg = ctx.createRadialGradient(c[0] - side * 6, c[1] - 8, 3, c[0], c[1], (0.3 + p.size * 0.5) * CM);
+      for (i = 0; i <= N; i++) {                       // ফোলা দেওয়ালের কিনারা
+        var hh = h0 + (h1 - h0) * (i / N);
+        var pt = px(ctx, cx, cy, side * halfWidth(hh, piles, side), hh);
+        if (i === 0) ctx.moveTo(pt[0], pt[1]); else ctx.lineTo(pt[0], pt[1]);
+      }
+      for (i = N; i >= 0; i--) {                       // ফোলা না থাকলে দেওয়াল যেখানে থাকত
+        var hb = h0 + (h1 - h0) * (i / N);
+        var pb = px(ctx, cx, cy, side * halfWidth(hb, others, side), hb);
+        ctx.lineTo(pb[0], pb[1]);
+      }
+      ctx.closePath();
+      var cc = px(ctx, cx, cy, side * halfWidth(p.hcm, piles, side), p.hcm);
+      var rg = ctx.createRadialGradient(cc[0] + side * 4, cc[1] - 6, 2, cc[0], cc[1], (0.35 + p.size) * CM);
       rg.addColorStop(0, '#C4506B'); rg.addColorStop(1, C_PILE);
       ctx.fillStyle = rg; ctx.fill();
-      ctx.strokeStyle = '#7C1F38'; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.strokeStyle = '#7C1F38'; ctx.lineWidth = 1.4; ctx.stroke();
       var tx = cx + side * 3.05 * CM;
       ctx.strokeStyle = 'rgba(124,31,56,0.55)'; ctx.lineWidth = 1.2;
-      ctx.beginPath(); ctx.moveTo(c[0] + side * (0.2 + p.size * 0.4) * CM, c[1]); ctx.lineTo(tx, c[1]); ctx.stroke();
-      tag(ctx, tx, c[1], clockText(p.a) + 'টা');
+      ctx.beginPath(); ctx.moveTo(cc[0], cc[1]); ctx.lineTo(tx, cc[1]); ctx.stroke();
+      tag(ctx, tx, cc[1], clockText(p.a) + 'টা');
     });
     /* ---- বাইরের পাইলস — দাঁতের রেখার নিচে, মুখের কাছে ---- */
     piles.forEach(function (p) {
       if (p.inner) return;
-      var side = pileSide(p), hh = 0.10;
+      var side = pileSide(p), hh = 0.16;
       var w = halfWidth(hh, piles, side);
       var c = px(ctx, cx, cy, side * (w + 0.30 + p.size * 0.32), hh);
       ctx.beginPath();
-      ctx.ellipse(c[0], c[1], (0.18 + p.size * 0.36) * CM, (0.16 + p.size * 0.32) * CM, 0, 0, 6.3);
+      ctx.ellipse(c[0], c[1], (0.20 + p.size * 0.40) * CM, (0.12 + p.size * 0.20) * CM, side * 0.35, 0, 6.3);
       ctx.fillStyle = '#7E3350'; ctx.fill();
       ctx.strokeStyle = '#551F35'; ctx.lineWidth = 1.4; ctx.stroke();
       var tx2 = cx + side * 3.05 * CM;
@@ -194,7 +223,8 @@
     for (i = 0; i <= N; i++) {
       var t = reverse ? (N - i) / N : i / N;
       var hh = lo + (hi - lo) * t;
-      var w = halfWidth(hh, piles, side) + off;
+      var o = (typeof off === 'function') ? off(hh) : off;
+      var w = halfWidth(hh, piles, side) + o;
       var p = px(ctx, cx, cy, side * w, hh);
       if (first && !reverse) { ctx.lineTo(p[0], p[1]); first = false; }
       else ctx.lineTo(p[0], p[1]);
