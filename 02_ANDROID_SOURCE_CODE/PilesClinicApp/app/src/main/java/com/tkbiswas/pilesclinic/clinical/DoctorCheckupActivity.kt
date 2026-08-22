@@ -1415,7 +1415,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
 
     /** ছবির নাম → ফোনের ভিতরের ছবি। না পেলে ০, তখন ছবিটা বাদ যায়। */
     private fun anatomyResId(key: String): Int = try {
-        resources.getIdentifier("anat_$key", "drawable", packageName)
+        resources.getIdentifier(key, "drawable", packageName)
     } catch (_: Throwable) { 0 }
 
     private fun buildAnatomyBoard() {
