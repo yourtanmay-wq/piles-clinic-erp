@@ -7507,6 +7507,7 @@ function wlv1CounselBoxHtml(note,p){
   }
 
   root.AnatomyMark = { format: format, parse: parse, draw: draw, tractCm: tractCm, tractLabel: tractLabel,
+                       pushFactor: pushFactor, BULGE_MAX: BULGE_MAX,
                        bulge: bulge, bulgeFromDrag: bulgeFromDrag, COLORS: COLORS };
 })(typeof window !== 'undefined' ? window : globalThis);
 
