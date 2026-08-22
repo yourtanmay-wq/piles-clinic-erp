@@ -2599,6 +2599,32 @@ window["collectionPaymentLabel"]=collectionPaymentLabel;
    (প্রথম ৮টা সারি, বাকিগুলো লুকোনো)। কিছু লিখলে ⇒ দিনের **সব** সারির মধ্যে
    নাম/মোবাইল/Patient ID মিলিয়ে যেগুলো মেলে শুধু সেগুলোই দেখায়।
    ⛔ উপরের টাকার কার্ড ছোঁয়া হয় না — TK-এর সিদ্ধান্ত। */
+/* 🔴🔒 V565 — টাকা জমার সময় ধরে সাজানো। ফোনের `PaymentModel.sortKeyOf()`-এর
+   হুবহু একই নিয়ম: আসল সময় (createdAt) থাকলে সেটাই; না থাকলে দেখানোর লেখা
+   ("11:05 AM") থেকে ২৪-ঘণ্টার সময়; কিছুই না থাকলে ওই দিনের শেষে। */
+function wlv1PayHhmm(x){
+  var iso=String((x&&x.createdAt)||'');
+  if(iso.length>=16 && iso[10]==='T') return iso.slice(11,16);
+  var t=String(wlv1Time12(iso)||'').trim();
+  var m=/^(\d{1,2}):(\d{2})\s*([AaPp])/.exec(t);
+  if(m){ var h=parseInt(m[1],10); if(h===12)h=0; if(m[3].toLowerCase()==='p')h+=12;
+         return (h<10?'0':'')+h+':'+m[2]; }
+  return '99:99';
+}
+function wlv1PaySortKey(x){
+  var iso=String((x&&x.createdAt)||'');
+  var day=(iso.length>=10)?iso.slice(0,10):String((x&&x.date)||'');
+  return day+' '+wlv1PayHhmm(x);
+}
+function wlv1PaySortByTime(rows){
+  return (rows||[]).slice().sort(function(a,b){
+    var ka=wlv1PaySortKey(a), kb=wlv1PaySortKey(b);
+    if(ka!==kb) return ka<kb?-1:1;
+    return String(a.name||'').toUpperCase().localeCompare(String(b.name||'').toUpperCase());
+  });
+}
+window["wlv1PaySortByTime"]=wlv1PaySortByTime;window["wlv1PaySortKey"]=wlv1PaySortKey;
+
 function wlv1PayListFilter(v){
   try{
     var q=String(v||'').trim().toUpperCase();
@@ -8593,7 +8619,11 @@ function paymentHome(){
     ⛔ মেলানো `sameBranch()` দিয়ে — বানানের ছোট গরমিলে কেউ বাদ পড়বে না। */
  const __payBr = isMaster() ? String(wlv1BranchGet()||'All') : '';
  const __payInBr = r => !__payBr || __payBr==='All' || sameBranch(r&&r.branch, __payBr);
- let todayRows=collectionRows().filter(x=>x.date===chosenDate && __payInBr(x));
+ /* 🔴🔒 V565 (TK, ২২.০৮.২০২৬): *"সকাল ১১টায় যে পেশেন্ট প্রথম টাকা দিয়েছে তার
+    নাম যেন প্রথমে থাকে"* — আগে সারিগুলো যে ক্রমে আসত সেই ক্রমেই বসত (কার্যত
+    নামের অক্ষর ধরে)। এখন টাকা জমার সময় ধরে, আগে যিনি দিয়েছেন তিনি উপরে।
+    ⚠️ ফোনের `PaymentModel.sortByPaidTime()`-এর হুবহু একই নিয়ম। */
+ let todayRows=wlv1PaySortByTime(collectionRows().filter(x=>x.date===chosenDate && __payInBr(x)));
  let cashRows=todayRows.filter(x=>Number(x.cashAmount||0)>0),upiRows=todayRows.filter(x=>Number(x.onlineAmount||0)>0);
  let total=todayRows.reduce((s,x)=>s+Number(x.amount||0),0),cash=todayRows.reduce((s,x)=>s+Number(x.cashAmount!=null?x.cashAmount:(payMode(x.mode)==='CASH'?x.amount:0)||0),0),online=todayRows.reduce((s,x)=>s+Number(x.onlineAmount!=null?x.onlineAmount:(payMode(x.mode)==='UPI'?x.amount:0)||0),0);
  // 🔴 TK-অডিট-অনুরোধ (01.08.2026): collectionRows() Refund বাদ দেয় কিন্তু

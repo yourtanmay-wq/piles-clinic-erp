@@ -26,6 +26,14 @@ data class CollectionRow(
     // 🔵 B612 (10.08.2026, TK-অনুমোদিত): পেমেন্ট কখন হয়েছে — কার্ডে ছোট করে
     // সময় (createdAt থেকে, "3:42 PM" ধাঁচে)। ডিফল্ট ফাঁকা — না থাকলে দেখায় না।
     val time: String = "",
+    /* 🔴🔒 V565 (TK, ২২.০৮.২০২৬): *"কোন পেসেন্ট কোন টাইমে পয়সা দিলো সেটা আমার
+       আগে দরকার · সকাল ১১টায় যে পেশেন্ট প্রথম টাকা দিয়েছে তার নাম যেন প্রথমে
+       থাকে"* — উপরের `time` ঘরটা শুধু **দেখানোর লেখা** ("4:52 PM"), ওটা দিয়ে
+       সাজানো যায় না (১১টা আর ৪টা-র লেখার ক্রম উল্টো আসে)। তাই টাকা জমার
+       **আসল সময়টা** (createdAt) এখানে আলাদা করে রাখা হয়।
+       ⛔ ঐচ্ছিক — পুরোনো/স্থানীয় সারিতে না থাকলে `time` লেখা থেকেই সময় বার
+          করা হয় (`sortKeyOf`), তাই কোনো সারি হারায় না। */
+    val paidAt: String = "",
     // 🔒 V452 WORKING (19.08.2026, TK-approved): এক রোগী + এক calendar day =
     // এক Treatment Payment। Cash/Online একই দিনের এক row-তে যোগ হলেও দুটো
     // হিসাব আলাদা থাকে। পুরনো row-এ এই ঘর না থাকলে mode+amount থেকেই safely
@@ -288,6 +296,7 @@ object PaymentModel {
             patientId = row.s("patientCode"),
             // 🔵 B612: পেমেন্টের সময় (createdAt → "3:42 PM")।
             time = displayTime12(row.s("createdAt")),
+            paidAt = row.s("createdAt"),                     // 🔵 V565 — সাজানোর জন্য
             cashAmount = split.first,
             onlineAmount = split.second,
             paymentEventCount = eventCount
@@ -351,7 +360,11 @@ object PaymentModel {
                     onlineAmount = online,
                     paymentEventCount = old.paymentEventCount + r.paymentEventCount,
                     // Keep the latest visible time when old duplicate rows differ.
-                    time = if (r.time.isNotBlank()) r.time else old.time
+                    time = if (r.time.isNotBlank()) r.time else old.time,
+                    /* 🔵 V565: এক রোগীর দুটো জমা জোড়া লাগলে **প্রথমবার কখন
+                       দিয়েছেন** সেটাই ধরা হয় — TK-এর কথা "প্রথম টাকা দিয়েছে
+                       তার নাম প্রথমে"। */
+                    paidAt = earlierPaidAt(old.paidAt, r.paidAt)
                 )
             }
         }
@@ -407,6 +420,52 @@ object PaymentModel {
     /** 🔵 B612 (10.08.2026): ISO createdAt ("...T15:42:10.123Z") থেকে ১২-ঘণ্টার
      *  সময় ("3:42 PM")। isoNow() ডিভাইসের নিজের সময়েই লেখে (IST), 'Z' শুধু
      *  অক্ষর — তাই পড়াও একই ধাঁচে, timezone-বদল লাগে না। ফাঁকা/ভুল হলে "" ফেরে। */
+    /** দুটো সময়ের মধ্যে যেটা আগে। ফাঁকা হলে অন্যটা। */
+    fun earlierPaidAt(a: String, b: String): String {
+        if (a.isBlank()) return b
+        if (b.isBlank()) return a
+        return if (a <= b) a else b
+    }
+
+    /**
+     * 🔴🔒 V565 (TK): সাজানোর চাবি — "yyyy-MM-dd HH:mm"।
+     *
+     * ১. আসল সময় (`paidAt`, যেমন "2026-08-22T11:05:20.000Z") থাকলে সেটাই।
+     * ২. না থাকলে তারিখ + দেখানোর লেখা ("11:05 AM") থেকে ২৪-ঘণ্টার সময়।
+     * ৩. কিছুই না থাকলে শুধু তারিখ, আর সময়ের জায়গায় "99:99" — যাতে সেই
+     *    সারিগুলো ওই দিনের **শেষে** যায়, তালিকা থেকে হারিয়ে না যায়।
+     */
+    fun sortKeyOf(r: CollectionRow): String {
+        val hm = hhmmOf(r)
+        val day = if (r.paidAt.length >= 10) r.paidAt.substring(0, 10) else r.date
+        return day + " " + hm
+    }
+
+    private fun hhmmOf(r: CollectionRow): String {
+        if (r.paidAt.length >= 16 && r.paidAt[10] == 'T') return r.paidAt.substring(11, 16)
+        val t = r.time.trim()
+        if (t.isNotBlank()) {
+            val m = Regex("^(\\d{1,2}):(\\d{2})\\s*([AaPp])").find(t)
+            if (m != null) {
+                var h = m.groupValues[1].toIntOrNull() ?: return "99:99"
+                val mm = m.groupValues[2]
+                val pm = m.groupValues[3].lowercase() == "p"
+                if (h == 12) h = 0
+                if (pm) h += 12
+                return String.format(Locale.US, "%02d:%s", h, mm)
+            }
+        }
+        return "99:99"
+    }
+
+    /**
+     * 🔴 TK-এর নিয়ম: *"সকাল ১১টায় যে পেশেন্ট প্রথম টাকা দিয়েছে তার নাম যেন
+     * প্রথমে থাকে"* ⇒ **আগের সময় উপরে, পরের সময় নিচে**।
+     * একই সময়ে দুজন হলে নাম ধরে সাজানো হয়, যাতে ক্রম প্রতিবার এক থাকে।
+     */
+    fun sortByPaidTime(rows: List<CollectionRow>): List<CollectionRow> =
+        rows.sortedWith(compareBy({ sortKeyOf(it) }, { it.name.uppercase() }))
+
     fun displayTime12(iso: String): String {
         if (iso.isBlank()) return ""
         return try {

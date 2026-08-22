@@ -50,6 +50,7 @@ class PaymentRepository(private val context: Context? = null) {
                         amount = r.optDouble("amount", 0.0),
                         patientId = r.optString("patientId", ""),
                         time = r.optString("time", ""),
+                        paidAt = r.optString("createdAt", ""),          // 🔵 V565
                         cashAmount = r.optDouble("cashAmount", if (r.s("mode") == "CASH") r.optDouble("amount", 0.0) else 0.0),
                         onlineAmount = r.optDouble("onlineAmount", if (r.s("mode") != "CASH") r.optDouble("amount", 0.0) else 0.0),
                         paymentEventCount = r.optInt("paymentEventCount", 1).coerceAtLeast(1)
@@ -286,6 +287,7 @@ class PaymentRepository(private val context: Context? = null) {
                         mode = PaymentModel.normalizeMode(row.s("mode").ifBlank { "CASH" }),
                         amount = deposit,
                         time = PaymentModel.displayTime12(row.s("createdAt")),
+                        paidAt = row.s("createdAt"),                    // 🔵 V565
                         cashAmount = if (PaymentModel.normalizeMode(row.s("mode").ifBlank { "CASH" }) == "CASH") deposit else 0.0,
                         onlineAmount = if (PaymentModel.normalizeMode(row.s("mode").ifBlank { "CASH" }) == "ONLINE") deposit else 0.0
                     )
@@ -423,6 +425,7 @@ class PaymentRepository(private val context: Context? = null) {
                         mode = PaymentModel.normalizeMode(row.s("mode").ifBlank { "CASH" }),
                         amount = deposit,
                         time = PaymentModel.displayTime12(row.s("createdAt")),
+                        paidAt = row.s("createdAt"),                    // 🔵 V565
                         cashAmount = if (PaymentModel.normalizeMode(row.s("mode").ifBlank { "CASH" }) == "CASH") deposit else 0.0,
                         onlineAmount = if (PaymentModel.normalizeMode(row.s("mode").ifBlank { "CASH" }) == "ONLINE") deposit else 0.0
                     )

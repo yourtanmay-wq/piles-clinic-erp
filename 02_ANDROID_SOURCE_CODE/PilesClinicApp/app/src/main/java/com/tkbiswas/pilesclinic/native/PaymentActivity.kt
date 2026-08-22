@@ -438,7 +438,12 @@ class PaymentActivity : AppCompatActivity() {
             val lm = binding.recyclerView.layoutManager as? LinearLayoutManager
             val firstPos = lm?.findFirstVisibleItemPosition() ?: -1
             val firstOffset = if (firstPos >= 0) (lm?.findViewByPosition(firstPos)?.top ?: 0) else 0
-            val sorted = rows.sortedByDescending { it.date }
+            /* 🔴🔒 V565 (TK, ২২.০৮.২০২৬): *"সকাল ১১টায় যে পেশেন্ট প্রথম টাকা
+               দিয়েছে তার নাম যেন প্রথমে থাকে"* — আগে শুধু তারিখ ধরে সাজানো হত,
+               কিন্তু একদিনের সব সারির তারিখ একই, তাই সাজানোটা আসলে কিছুই করত না
+               আর নামের অক্ষরের ক্রমেই পড়ে থাকত (A · A · M)। এখন টাকা জমার
+               সময় ধরে — আগে যিনি দিয়েছেন তিনি উপরে। */
+            val sorted = PaymentModel.sortByPaidTime(rows)
             /* 🔵 V552: পুরো দিনের তালিকাটা এখানে রাখা থাকে; পর্দায় যায় ছাঁকনি-করা কপি।
                খোঁজার ঘর ফাঁকা থাকলে `applyCollectionFilter()` হুবহু এই `sorted`-ই দেয়,
                তাই স্ক্রোলের জায়গা ধরে রাখার পুরোনো নিয়মও আগের মতোই কাজ করে। */

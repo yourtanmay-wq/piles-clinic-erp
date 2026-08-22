@@ -94,7 +94,7 @@
                 <Button
                     android:id="@+id/btnAddPayment"
                     android:layout_width="0dp"
-                    android:layout_height="54dp"
+                    android:layout_height="44dp"
                     android:layout_weight="1"
                     android:layout_marginEnd="10dp"
                     android:insetTop="0dp"
@@ -113,7 +113,7 @@
                 <Button
                     android:id="@+id/btnMedicinePayment"
                     android:layout_width="0dp"
-                    android:layout_height="54dp"
+                    android:layout_height="44dp"
                     android:layout_weight="1"
                     android:insetTop="0dp"
                     android:insetBottom="0dp"
@@ -138,13 +138,13 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:layout_marginTop="12dp"
+                android:layout_marginTop="7dp"
                 android:visibility="gone">
 
                 <Button
                     android:id="@+id/btnMonthlyCollection"
                     android:layout_width="0dp"
-                    android:layout_height="40dp"
+                    android:layout_height="34dp"
                     android:insetTop="0dp"
                     android:insetBottom="0dp"
                     android:minHeight="0dp"
@@ -163,7 +163,7 @@
                 <Button
                     android:id="@+id/btnCollectionHistory"
                     android:layout_width="0dp"
-                    android:layout_height="40dp"
+                    android:layout_height="34dp"
                     android:insetTop="0dp"
                     android:insetBottom="0dp"
                     android:minHeight="0dp"
@@ -186,7 +186,7 @@
             <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
+                android:layout_marginTop="7dp"
                 app:cardCornerRadius="16dp"
                 app:cardElevation="4dp"
                 app:cardBackgroundColor="#0B2B59">
@@ -196,7 +196,7 @@
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
                     android:background="@drawable/bg_pay_summary"
-                    android:padding="13dp">
+                    android:padding="9dp">
 
                     <TextView
                         android:id="@+id/tvSummaryLabel"
@@ -342,7 +342,7 @@
                 android:id="@+id/etCollectionSearch"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
+                android:layout_marginTop="9dp"
                 android:layout_marginBottom="4dp"
                 android:padding="8dp"
                 android:background="@drawable/bg_input_field"
