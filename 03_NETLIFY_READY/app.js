@@ -7166,6 +7166,7 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
    <label class="wlv1TxRow"><input class="dnTxPlan" type="checkbox" value="LIS-এর মাধ্যমে চিকিৎসা করা হবে" ${chk(note.treatmentPlan,'LIS-এর মাধ্যমে চিকিৎসা করা হবে')}> LIS-এর মাধ্যমে চিকিৎসা করা হবে</label>
    <!-- 🔴 V542 (TK-নির্দেশ: "ইনজেকশন চিকিৎসা থাকবে না") — সারিটা সরানো। ⛔ পুরোনো রেকর্ডে মানটা থেকে যায়, ছাপায় আগের মতোই দেখা যায়। -->
   </div>
+  ${wlv1CounselBoxHtml(note,p)}
   <label>Other Treatment Note · অন্যান্য চিকিৎসার কথা (টাইপ করুন)</label><textarea id="dnCounselling" placeholder="রোগীকে কিভাবে চিকিৎসা করবেন বলেছেন সেই কথা এখানে লিখুন">${val('counselling')}</textarea>
  </details>
  <details class="card"><summary><b>4. Estimate &amp; Decision · আনুমানিক খরচ ও রোগীর সিদ্ধান্ত</b></summary><label>Estimated Cost · আনুমানিক খরচ</label><input id="dnEstimatedCost" class="input" value="${val('estimatedCost')}"><label>Estimated Recovery Time · আনুমানিক কতদিন বলা হল</label><input id="dnRecoveryTime" class="input" value="${val('recoveryTime')}"><label>Advance Payment to be Done · অগ্রিম কত টাকা জমা করতে চাইছে</label><input id="dnAdvanceDiscussed" class="input" value="${val('advanceDiscussed')}"></details>
@@ -7213,6 +7214,52 @@ const WLV1_SYM_LINES=[
 /* 🖥️🔵🔒 V556 (২২.০৮.২০২৬) — কাগজের **ভাগ ৪**-এর নতুন অংশ।
    ফোনের `LifestyleModel`-এর হুবহু যমজ — একই প্রশ্ন · একই উত্তর · জমা রাখার একই লেখা।
    ⛔ নতুন কলাম বা SQL লাগে না। */
+/* 🖥️🔵🔒 V557 (২২.০৮.২০২৬) — কাগজের **ভাগ ৫**। ফোনের `CounselModel`-এর হুবহু যমজ:
+   একই রোগের তালিকা · একই একক · "রোগ সত্যিই বদলেছে কি না" ও "নোটিশ যাবে কি না"
+   একই নিয়মে। ⛔ নতুন কলাম বা SQL লাগে না। */
+const WLV1_PICK_NONE='বাছুন';
+const WLV1_DISEASES=[WLV1_PICK_NONE,'Piles','Fissure','Fistula','Hydrocele','Gupt Rog','Other'];
+const WLV1_TA_UNITS=['Days','Months','Years'];
+function wlv1TaAmt(v){return String(v||'').replace(/\D/g,'')}
+function wlv1TaUnit(v){var t=String(v||'').trim();for(var i=0;i<WLV1_TA_UNITS.length;i++){if(WLV1_TA_UNITS[i].toLowerCase()===t.toLowerCase())return WLV1_TA_UNITS[i]}return 'Days'}
+function wlv1TimeAsked(a,u){var n=wlv1TaAmt(a);return n?(n+' '+wlv1TaUnit(u)):''}
+function wlv1SplitTimeAsked(s){var b=String(s||'').trim().split(' ').filter(Boolean);return [wlv1TaAmt(b[0]||''),wlv1TaUnit(b[1]||'')]}
+function wlv1DiseaseChanged(current,picked){
+  var p=String(picked||'').trim();
+  if(!p||p===WLV1_PICK_NONE) return false;
+  return p.toLowerCase()!==String(current||'').trim().toLowerCase();
+}
+function wlv1ShouldNotifyCost(prev,now){
+  var n=wlv1TaAmt(now);
+  if(!n || !(Number(n)>0)) return false;
+  return n!==wlv1TaAmt(prev);
+}
+const WLV1_COST_TITLE='Estimated Cost Told';
+function wlv1CostMessage(name,pid,branch,cost,disease,timeAsked,by){
+  var bits=[];
+  bits.push([String(name||'').trim(),String(pid||'').trim()].filter(Boolean).join(' · '));
+  if(String(branch||'').trim()) bits.push(String(branch).trim());
+  bits.push('আনুমানিক খরচ ₹'+wlv1TaAmt(cost));
+  var d=String(disease||'').trim(); if(d&&d!==WLV1_PICK_NONE) bits.push('রোগ: '+d);
+  var t=String(timeAsked||'').trim(); if(t) bits.push('সময়: '+t);
+  var b=String(by||'').trim(); if(b) bits.push('বলেছেন: '+b);
+  return bits.filter(Boolean).join(' · ');
+}
+function wlv1CounselBoxHtml(note,p){
+  var picked=String((note&&note.probableDisease)||'');
+  var ta=wlv1SplitTimeAsked(String((note&&note.timeAsked)||''));
+  return '<label>সম্ভাব্য কি রোগ?</label>'
+    +'<select id="dnProbableDisease" class="input">'+WLV1_DISEASES.map(function(d){
+        return '<option '+((picked||WLV1_PICK_NONE)===d?'selected':'')+'>'+esc(d)+'</option>'}).join('')+'</select>'
+    +'<div class="tiny" style="color:#8A5B00;margin:5px 0 0">⚠️ এখানে রোগ বদলালে রোগীর সারিতেও বদলে যাবে। হাত না দিলে কিছুই বদলায় না।</div>'
+    +'<label>কতদিন সময় চাওয়া হল?</label>'
+    +'<div class="wlv1SymWhen" style="margin-left:0">'
+    +'<input id="dnTimeAsked" class="input wlv1SymAmt" inputmode="numeric" value="'+esc(ta[0])+'">'
+    +'<select id="dnTimeAskedUnit" class="input wlv1SymUnit">'+WLV1_TA_UNITS.map(function(u){
+        return '<option '+(ta[1]===u?'selected':'')+'>'+u+'</option>'}).join('')+'</select></div>';
+}
+window["wlv1DiseaseChanged"]=wlv1DiseaseChanged;window["wlv1ShouldNotifyCost"]=wlv1ShouldNotifyCost;
+window["wlv1CostMessage"]=wlv1CostMessage;window["wlv1TimeAsked"]=wlv1TimeAsked;
 const WLV1_LIFE_Q=[
  ['chronic','দীর্ঘমেয়াদী কোনো রোগ আছে কি না?',['ডায়াবেটিস','উচ্চ রক্তচাপ','IBD']],
  ['fiber','খাবারে ফাইবারের পরিমাণ',['পর্যাপ্ত','কম']],
@@ -7542,6 +7589,8 @@ async function saveDoctor(id){
   symptomHistory:wlv1SymCollect(),   /* 🔵 V554 */
   historyDetail:wlv1HistCollect(),   /* 🔵 V555 */
   lifestyle:wlv1LifeCollect(),       /* 🔵 V556 */
+  probableDisease:$('#dnProbableDisease')?.value||'',   /* 🔵 V557 */
+  timeAsked:wlv1TimeAsked(($('#dnTimeAsked')||{}).value||'',($('#dnTimeAskedUnit')||{}).value||''),
   /* 🔵 V556: ওয়েবে `visual`-এর মতোই তালিকা হিসেবে জমা (chk() তালিকাই বোঝে) */
   dre:$$('.dnDre:checked').map(x=>x.value),dreOther:$('#dnDreOther')?.value||'',
   treatmentPlan,amtPerPiles:$('#dnAmtPerPiles')?.value||'8000',amtFistulaPerInch:$('#dnAmtFistulaInch')?.value||'11000',amtKsharSutra:$('#dnAmtKsharSutra')?.value||'6000',
@@ -7572,6 +7621,29 @@ async function saveDoctor(id){
  if(dec==='Treatment Started'&&(up||p))ensureFollow({...p,...(up||{})},'Treatment','', 'Treatment started by doctor note');
  // V460 (১৯.০৮.২০২৬) — Decision ঘর বাদ যাওয়ায় "Not Agree" নোটিশ পাঠানোর
  // আর কোনো উপায় নেই (Android-এও এখন একই — এই ব্লক আর ফায়ার হয় না)।
+ /* ═══ 🖥️🔵🔒 V557 (২২.০৮.২০২৬, TK-এর সরাসরি নির্দেশ) — ফোনের সঙ্গে একই ═══
+    ১. সম্ভাব্য রোগ বদলালে **রোগীর সারিতেও লেখা হয়** (হেডার/তালিকা/ছাপা সব বদলায়)।
+       ⛔ হাত না দিলে বা যা আছে তাই বাছলে এক অক্ষরও লেখা হয় না।
+    ২. আনুমানিক খরচ বলা হলে **সেই ব্রাঞ্চের সব স্টাফের কাছে 🔔 নোটিশ**।
+       ⛔ খরচ ফাঁকা/শূন্য বা আগের বারের সমান হলে নোটিশ যায় না।
+    ⛔ নোটিশের পথ নতুন নয় — ঠিক নিচের "Patient Decision"-এর হুবহু একই। */
+ try{
+   if(wlv1DiseaseChanged(p.disease||'', note.probableDisease||'')){
+     upd('patients', id, {disease: note.probableDisease});
+   }
+ }catch(_e){}
+ try{
+   var __prevCost=String((oldNote&&oldNote.estimatedCost)||'');
+   if(wlv1ShouldNotifyCost(__prevCost, note.estimatedCost||'')){
+     var __d=(note.probableDisease&&note.probableDisease!=='বাছুন')?note.probableDisease:(p.disease||'');
+     var __c={id:uid('brief'),date:today(),title:WLV1_COST_TITLE,
+       message:wlv1CostMessage(p.name||normMob(p.mobile||''),p.patientId||'',p.branch||'',
+         note.estimatedCost||'',__d,note.timeAsked||'',(user&&(user.name||user.mobile))||''),
+       targets:{branches:[p.branch||'']},branch:p.branch||'',seen:[],replies:[],
+       createdBy:(user&&user.mobile)||'',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
+     add('briefings',__c); await cloudUpsertBriefing(__c);
+   }
+ }catch(_e){}
  if(note.patientDecision&&note.patientDecision!=='Agree for Treatment'){
    try{
      var n={id:uid('brief'),date:today(),title:'Patient Decision',

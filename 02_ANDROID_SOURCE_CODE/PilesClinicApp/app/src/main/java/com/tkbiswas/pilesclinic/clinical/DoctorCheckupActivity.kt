@@ -263,6 +263,15 @@ class DoctorCheckupActivity : AppCompatActivity() {
         //    প্রায় দ্বিগুণ লম্বা দেখাত। এখন প্রকল্পের নিজের ছোট item
         //    (`item_docnote_spinner`, `item_branch_spinner`-এর প্রমাণিত ধাঁচ)।
         //    ⛔ বাছাইয়ের তালিকা · মান · সেভ — কিছুই বদলায়নি।
+        /* 🔵 V557: রোগের তালিকা রেজিস্ট্রেশনের হুবহু একই, আর সময়ের একক
+           সেই একই তিনটে — দুটোই প্রজেক্টের নিজের প্রিমিয়াম পিকারে খোলে। */
+        val spDisease = findViewById<android.widget.Spinner>(R.id.spProbableDisease)
+        spDisease.adapter = ArrayAdapter(this, R.layout.item_docnote_spinner, CounselModel.DISEASES)
+        SpinnerPicker.attach(spDisease, "সম্ভাব্য কি রোগ?", hidePlaceholder = true)
+        val spTimeUnit = findViewById<android.widget.Spinner>(R.id.spTimeAskedUnit)
+        spTimeUnit.adapter = ArrayAdapter(this, R.layout.item_docnote_spinner, CounselModel.UNITS)
+        SpinnerPicker.attach(spTimeUnit, "কতদিন সময় চাওয়া হল?")
+
         spOccupation.adapter = ArrayAdapter(this, R.layout.item_docnote_spinner, occupationOptions)
         SpinnerPicker.attach(spOccupation, "CHOOSE OCCUPATION", hidePlaceholder = true)
 
@@ -343,6 +352,10 @@ class DoctorCheckupActivity : AppCompatActivity() {
             val appCtx = applicationContext
             val branch = RoleSession.currentPatientBranch
             val displayId = RoleSession.currentPatientDisplayId.ifBlank { pid }
+            // 🔵 V557: পিছনের কাজে যাওয়ার আগেই দরকারি মানগুলো ধরে রাখা
+            val costBefore = lastSavedCost
+            val byName = NativeSession.current(this)?.name.orEmpty().ifBlank { createdBy }
+            lastSavedCost = record.estimatedCost
             com.tkbiswas.pilesclinic.native.BackgroundWork.run {
                 ClinicalCloudRepository.saveMedical(appCtx, pid, pname, "Doctor Checkup", "", details, createdBy, photosStr)
                 // 🔴 TK-নির্দেশ (04.08.2026): আগে শুধু "Agree for Treatment"
@@ -359,6 +372,39 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 // Treatment"-এ কোনো নোটিশ নেই (এটাই স্বাভাবিক পথ, খবর দেওয়ার
                 // দরকার নেই)। ⛔ নোটিশ ব্যর্থ হলেও checkup সেভ/doctorComplete
                 // কিছুই আটকায় না (আলাদা try-catch)।
+                /* ═══ 🔵🔒 V557 (২২.০৮.২০২৬, TK-এর সরাসরি নির্দেশ) ═══
+                   ১. **সম্ভাব্য রোগ বদলালে রোগীর সারিতেও লেখা হয়** — তাহলেই হেডার ·
+                      তালিকা · ছাপা সব জায়গায় নতুন নামটা দেখায়।
+                      ⛔ ডাক্তার হাত না দিলে (বা যা আছে তাই বাছলে) **এক অক্ষরও লেখা হয় না**
+                         (`CounselModel.diseaseChanged` — চালিয়ে যাচাই করা)।
+                      ⛔ শুধু `disease` ঘরটাই; রোগীর আর কিছু ছোঁয়া হয় না।
+                   ২. **আনুমানিক খরচ বলা হলে সেই ব্রাঞ্চের সব স্টাফের ঘণ্টায় নোটিশ**
+                      (TK: *"নোটিফিকেশন সেই ব্রাঞ্চের সবার কাছে যাবে"*)।
+                      ⛔ খরচ ফাঁকা/শূন্য হলে বা আগের বারের সমান হলে **নোটিশ যায় না** —
+                         নইলে প্রতিবার Save-এ অকারণে ঘণ্টা বাজত।
+                      ⛔ নোটিশের পথটা নতুন নয় — নিচের "Patient Decision"-এর হুবহু একই।
+                   ⛔ দুটোই আলাদা try-catch — ব্যর্থ হলেও চেক-আপ সেভ কখনো আটকায় না। */
+                try {
+                    if (CounselModel.diseaseChanged(patDisease, record.probableDisease)) {
+                        SupabaseClient.updateById(
+                            "patients", pid,
+                            org.json.JSONObject().put("disease", record.probableDisease)
+                        )
+                    }
+                } catch (_: Throwable) { }
+                try {
+                    if (CounselModel.shouldNotifyCost(costBefore, record.estimatedCost)) {
+                        val shownDisease = if (record.probableDisease.isNotBlank() &&
+                            record.probableDisease != CounselModel.PICK_NONE) record.probableDisease else patDisease
+                        com.tkbiswas.pilesclinic.native.BriefingRepository().post(
+                            appCtx, CounselModel.COST_TITLE,
+                            CounselModel.costMessage(pname, displayId, branch, record.estimatedCost,
+                                shownDisease, record.timeAsked, byName),
+                            "branch", branch, "", createdBy
+                        )
+                    }
+                } catch (_: Throwable) { }
+
                 if (record.patientDecision.isNotBlank() && record.patientDecision != "Agree for Treatment") {
                     try {
                         val msg = "$pname ($displayId) — Doctor checkup done. " +
@@ -962,6 +1008,11 @@ class DoctorCheckupActivity : AppCompatActivity() {
         symptomHistory = collectSymptomHistory(),   // 🔵 V554
         historyDetail = collectHistoryDetail(),     // 🔵 V555
         lifestyle = collectLifestyle(),             // 🔵 V556
+        probableDisease = CounselModel.DISEASES.getOrElse(   // 🔵 V557
+            findViewById<android.widget.Spinner>(R.id.spProbableDisease).selectedItemPosition) { CounselModel.PICK_NONE },
+        timeAsked = CounselModel.timeAsked(
+            findViewById<android.widget.EditText>(R.id.etTimeAsked).text?.toString().orEmpty(),
+            CounselModel.UNITS.getOrElse(findViewById<android.widget.Spinner>(R.id.spTimeAskedUnit).selectedItemPosition) { "Days" }),
         dre = checkedText(dreChecks),               // 🔵 V556 (ফেরানো)
         dreOther = findViewById<android.widget.EditText>(R.id.etDreOther).text?.toString().orEmpty(),
         // 🔵 B622 (11.08.2026): Result/Spent/Treatment Duration ঘর বাদ — মডেলের ডিফল্ট "" থাকে।
@@ -1005,6 +1056,14 @@ class DoctorCheckupActivity : AppCompatActivity() {
         applySymptomHistory(r.symptomHistory)   // 🔵 V554
         applyHistoryDetail(r.historyDetail)     // 🔵 V555
         applyLifestyle(r.lifestyle)             // 🔵 V556
+        // 🔵 V557
+        val di = CounselModel.DISEASES.indexOf(r.probableDisease)
+        findViewById<android.widget.Spinner>(R.id.spProbableDisease).setSelection(if (di >= 0) di else 0)
+        val (tAmt, tUnit) = CounselModel.splitTimeAsked(r.timeAsked)
+        findViewById<android.widget.EditText>(R.id.etTimeAsked).setText(tAmt)
+        val ui = CounselModel.UNITS.indexOf(tUnit)
+        if (ui >= 0) findViewById<android.widget.Spinner>(R.id.spTimeAskedUnit).setSelection(ui)
+        lastSavedCost = r.estimatedCost   // 🔔 V557: এই খরচেই আগে নোটিশ গেছে
         val dreSel = r.dre.split(", ").map { it.trim() }   // 🔵 V556
         dreChecks.forEach { it.isChecked = dreSel.contains((it.tag as? String) ?: it.text.toString()) }
         findViewById<android.widget.EditText>(R.id.etDreOther).setText(r.dreOther)
@@ -1282,6 +1341,10 @@ class DoctorCheckupActivity : AppCompatActivity() {
        ⛔ জল-এর ঘরটা সংখ্যার, পাশে "লিটার" — কাগজে যেমন "—— লিটার"। ═══ */
     private val lifestyleChips = LinkedHashMap<String, MutableList<TextView>>()
 
+    /* 🔔 V557: গতবার যে খরচে নোটিশ গিয়েছিল। এটা ধরেই ঠিক হয় নতুন নোটিশ যাবে
+       কি না — নইলে প্রতিবার Save-এ স্টাফের ঘণ্টা অকারণে বাজত। */
+    private var lastSavedCost: String = ""
+
     private fun buildLifestyleRows() {
         val box = findViewById<android.widget.LinearLayout>(R.id.lifestyleGroup) ?: return
         box.removeAllViews()
@@ -1487,6 +1550,10 @@ class DoctorCheckupActivity : AppCompatActivity() {
         if (r.historyDetail.isNotBlank()) append("History Detail: ${HistoryDetailModel.readable(r.historyDetail)}; ")
         // 🔵 V556: রোগ ও অভ্যাস
         if (r.lifestyle.isNotBlank()) append("Habits: ${LifestyleModel.readable(r.lifestyle)}; ")
+        // 🔵 V557
+        if (r.probableDisease.isNotBlank() && r.probableDisease != CounselModel.PICK_NONE)
+            append("Probable Disease: ${r.probableDisease}; ")
+        if (r.timeAsked.isNotBlank()) append("Time Asked: ${r.timeAsked}; ")
         if (r.prevResult.isNotBlank()) append("Prev Result: ${r.prevResult}; ")
         if (r.prevCost.isNotBlank()) append("Prev Cost: ${r.prevCost}; ")
         if (r.treatmentDuration.isNotBlank()) append("Treatment Duration: ${r.treatmentDuration}; ")

@@ -708,6 +708,35 @@
                         </LinearLayout>
                     </LinearLayout>
 
+                    <!-- 🔵🔒 V557 (২২.০৮.২০২৬, TK-অনুমোদিত ডেমো): কাগজের **ভাগ ৫** —
+                         "সম্ভাব্য কি রোগ?" ও "কতদিন সময় চাওয়া হল?"।
+                         🔴 রোগ বদলালে **রোগীর সারিতেও লেখা হয়** (TK-এর সরাসরি নির্দেশ);
+                            ডাক্তার হাত না দিলে কিছুই বদলায় না (`CounselModel.diseaseChanged`)।
+                         ⛔ রোগের তালিকা রেজিস্ট্রেশনের হুবহু একই · সময়ের ঘর দুটোও সেই একই জোড়া। -->
+                    <LinearLayout style="@style/DocNoteFieldBox">
+                        <View style="@style/DocNoteAccentBarPurple" />
+                        <LinearLayout style="@style/DocNoteFieldBoxInner">
+                            <LinearLayout style="@style/DocNoteFieldBoxTopRow">
+                                <TextView style="@style/DocNoteIcon" android:text="🩺" />
+                                <TextView style="@style/DocNoteLabel" android:text="সম্ভাব্য কি রোগ?" />
+                            </LinearLayout>
+                            <View style="@style/DocNoteDivider" />
+                            <Spinner android:id="@+id/spProbableDisease" style="@style/DocNoteInputSingle"
+                                android:background="@drawable/bg_input_field_picker" android:paddingEnd="40dp" />
+                            <TextView style="@style/DocNoteLabel" android:layout_marginTop="10dp"
+                                android:text="কতদিন সময় চাওয়া হল?" />
+                            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                                android:orientation="horizontal" android:gravity="center_vertical">
+                                <EditText android:id="@+id/etTimeAsked" style="@style/DocNoteInputSingle"
+                                    android:layout_width="72dp" android:inputType="number"
+                                    android:gravity="center" android:maxLines="1" />
+                                <Spinner android:id="@+id/spTimeAskedUnit" style="@style/DocNoteInputSingle"
+                                    android:layout_width="120dp" android:layout_marginStart="8dp"
+                                    android:background="@drawable/bg_input_field_picker" android:paddingEnd="40dp" />
+                            </LinearLayout>
+                        </LinearLayout>
+                    </LinearLayout>
+
                     <!-- প্লেইন বক্স, কোনো শিরোনাম/আইকন নেই -->
                     <LinearLayout style="@style/DocNoteFieldBox" android:layout_marginBottom="4dp">
                         <View style="@style/DocNoteAccentBarPurple" />
