@@ -47,6 +47,10 @@
             extA:'#E7B4AB', extB:'#D2988F', muco:'#DFA3AC', anod:'#EBCDC4', lumen:'#7C6068',
             pile:'#CE8298', pileHi:'#E2A5B4', pileLine:'#A96A7C', dent:'#C0983F',
             bg1:'#FDFAF5', bg2:'#F7F1E7', fiber:'rgba(255,255,255,0.42)', outline:0 },
+    scary:{ fat:'#6E2A24', fat2:'#8A3A30', skin:'#7A3A2C', musc:'#8E1F26', musc2:'#5E0F16',
+            extA:'#A82A2C', extB:'#6A1218', muco:'#C21F3A', anod:'#B4535A', lumen:'#0B0405',
+            pile:'#8E0B2A', pileHi:'#E0335C', pileLine:'#3E040F', dent:'#E8C05A',
+            bg1:'#170709', bg2:'#050203', fiber:'rgba(255,140,140,0.20)', outline:0 },
     line: { fat:'#FFFFFF', fat2:'#EFE7D8', skin:'#8A6B58', musc:'#FAEDEA', musc2:'#F2DFDA',
             extA:'#FBF1EE', extB:'#F3E2DD', muco:'#FCEFF1', anod:'#FDF6F3', lumen:'#EFE9E3',
             pile:'#F7E2E8', pileHi:'#FDF2F5', pileLine:'#A45C71', dent:'#B08C3A',
@@ -60,6 +64,7 @@
     C_EXTA = q.extA; C_EXTB = q.extB; C_MUCO = q.muco; C_ANOD = q.anod; C_LUMEN = q.lumen;
     C_PILE = q.pile; C_PILEHI = q.pileHi; C_PILELINE = q.pileLine; C_DENT = q.dent;
     C_FIBER = q.fiber; OUTLINE = q.outline; BG1 = q.bg1; BG2 = q.bg2;
+    LABEL_HALO = (st.style === 'scary') ? 'rgba(0,0,0,0.85)' : 'rgba(255,255,255,0.85)';
   }
   // নকশার ধরনে সব কিছুর চারপাশে সরু কালো দাগ পড়ে
   function edge(ctx, col, w) {
@@ -69,10 +74,17 @@
 
   function render(ctx, W, H, st) {
     applyStyle(st);
+    var SCARY = SCARY_G = (st.style === 'scary');
     var piles = st.piles || [], cx = W * 0.5, cy = H * 0.86;
     ctx.clearRect(0, 0, W, H);
-    var g = ctx.createLinearGradient(0, 0, 0, H);
-    g.addColorStop(0, BG1); g.addColorStop(1, BG2);
+    var g;
+    if (SCARY) {                       // মাঝখানে আলো, চারপাশে ঘুটঘুটে অন্ধকার
+      g = ctx.createRadialGradient(W * 0.5, H * 0.55, W * 0.06, W * 0.5, H * 0.55, W * 0.62);
+      g.addColorStop(0, '#3A1012'); g.addColorStop(0.55, BG1); g.addColorStop(1, BG2);
+    } else {
+      g = ctx.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0, BG1); g.addColorStop(1, BG2);
+    }
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
 
     /* ---- চর্বি ও শরীরের মাংস ---- */
@@ -121,6 +133,8 @@
       ctx.closePath();
       var lg2 = ctx.createLinearGradient(cx + side * 0.6 * CM, 0, cx + side * 2.2 * CM, 0);
       lg2.addColorStop(0, C_EXTA); lg2.addColorStop(1, C_EXTB);
+      if (SCARY) { ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 22;
+                   ctx.fillStyle = lg2; ctx.fill(); ctx.restore(); }
       ctx.fillStyle = lg2; ctx.fill(); edge(ctx);
       ctx.clip();
       ctx.strokeStyle = C_FIBER; ctx.lineWidth = 1.4;   // মাংসের আঁশ
@@ -141,6 +155,11 @@
     ctx.closePath();
     ctx.fillStyle = C_LUMEN; ctx.fill(); edge(ctx, 'rgba(120,80,70,0.7)', 1.6);
 
+    if (SCARY) {
+      var glow = ctx.createRadialGradient(cx, cy - 1.4 * CM, 0.2 * CM, cx, cy - 1.4 * CM, 2.6 * CM);
+      glow.addColorStop(0, 'rgba(214,40,58,0.30)'); glow.addColorStop(1, 'rgba(214,40,58,0)');
+      ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H);
+    }
     /* ---- নালীর গায়ের পর্দা: নিচে ফ্যাকাশে, উপরে লাল ---- */
     [-1, 1].forEach(function (side) {
       ctx.save(); ctx.lineWidth = 6; ctx.lineCap = 'round';
@@ -176,8 +195,11 @@
       var cc = px(ctx, cx, cy, side * halfWidth(p.hcm, piles, side), p.hcm);
       var rg = ctx.createRadialGradient(cc[0] + side * 4, cc[1] - 6, 2, cc[0], cc[1], (0.35 + p.size) * CM);
       rg.addColorStop(0, C_PILEHI); rg.addColorStop(1, C_PILE);
+      if (SCARY) { ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.85)'; ctx.shadowBlur = 26;
+                   ctx.shadowOffsetY = 7; ctx.fillStyle = rg; ctx.fill(); ctx.restore(); }
       ctx.fillStyle = rg; ctx.fill();
       ctx.strokeStyle = C_PILELINE; ctx.lineWidth = 1.4; ctx.stroke();
+      if (SCARY) gloss(ctx, cc[0] - side * 0.06 * CM, cc[1] - 0.14 * CM, (0.16 + p.size * 0.26) * CM);
       var tx = cx + side * 3.05 * CM;
       ctx.strokeStyle = C_PILELINE; ctx.lineWidth = 1.1;
       ctx.beginPath(); ctx.moveTo(cc[0], cc[1]); ctx.lineTo(tx, cc[1]); ctx.stroke();
@@ -238,9 +260,15 @@
     }
 
     /* ---- মাপকাঠি ও নাম ---- */
+    if (SCARY) {
+      var vg = ctx.createRadialGradient(W * 0.5, H * 0.55, W * 0.20, W * 0.5, H * 0.55, W * 0.60);
+      vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.72)');
+      ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+    }
     scaleBar(ctx, W - 58, cy, cy - CANAL_CM * CM);
-    label(ctx, cx, cy + 0.92 * CM, 'পায়ুদ্বার (বাইরের মুখ)', '#5A4030', 'center');
-    label(ctx, cx, cy - (TOP_CM + 0.42) * CM, 'মলাশয় (উপরের দিকে)', '#5A4030', 'center');
+    var TXT = SCARY ? '#E9D2C6' : '#5A4030';
+    label(ctx, cx, cy + 0.92 * CM, 'পায়ুদ্বার (বাইরের মুখ)', TXT, 'center');
+    label(ctx, cx, cy - (TOP_CM + 0.42) * CM, 'মলাশয় (উপরের দিকে)', TXT, 'center');
     label(ctx, cx - 3.62 * CM, cy - 0.95 * CM, 'গোল মাংসপেশি', C_PILELINE, 'left');
   }
 
@@ -264,15 +292,23 @@
     var t = Math.round(deg / 30); if (t === 0) t = 12;
     return t;
   }
+  function gloss(ctx, x, y, r) {
+    var gg = ctx.createRadialGradient(x, y, 0, x, y, r);
+    gg.addColorStop(0, 'rgba(255,225,225,0.42)'); gg.addColorStop(1, 'rgba(255,235,235,0)');
+    ctx.fillStyle = gg;
+    ctx.beginPath(); ctx.ellipse(x, y, r, r * 0.72, 0, 0, 6.3); ctx.fill();
+  }
+
   function dot(ctx, x, y, col, r) {
     ctx.beginPath(); ctx.arc(x, y, r, 0, 6.3);
     ctx.fillStyle = col; ctx.fill();
     ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,0.92)'; ctx.stroke();
   }
+  var LABEL_HALO = 'rgba(255,255,255,0.85)', SCARY_G = false;
   function label(ctx, x, y, txt, col, al) {
     ctx.font = '600 13px "Noto Sans Bengali", system-ui, sans-serif';
     ctx.textAlign = al || 'left'; ctx.textBaseline = 'middle';
-    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.lineWidth = 3; ctx.strokeStyle = LABEL_HALO;
     ctx.strokeText(txt, x, y); ctx.fillStyle = col; ctx.fillText(txt, x, y);
   }
   function tag(ctx, x, y, txt) {
@@ -283,12 +319,12 @@
     ctx.fillStyle = C_PILELINE; ctx.fillText(txt, x, y);
   }
   function scaleBar(ctx, x, y0, y1) {
-    ctx.strokeStyle = '#6A5A48'; ctx.lineWidth = 2;
+    ctx.strokeStyle = SCARY_G ? '#D9C3B4' : '#6A5A48'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke();
     for (var c = 0; c <= 3; c++) {
       var yy = y0 - c * CM;
       ctx.beginPath(); ctx.moveTo(x - 6, yy); ctx.lineTo(x + 6, yy); ctx.stroke();
-      label(ctx, x - 10, yy, c + ' সেমি', '#6A5A48', 'right');
+      label(ctx, x - 10, yy, c + ' সেমি', SCARY_G ? '#D9C3B4' : '#6A5A48', 'right');
     }
   }
 
