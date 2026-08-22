@@ -464,6 +464,31 @@ object PaymentModel {
         return out
     }
 
+    /**
+     * 🔵🔒 V523 (২২.০৮.২০২৬, TK-নির্দেশ) — **এটা কি সত্যিকারের টাকার সারি,
+     * নাকি শুধু একটা চিহ্ন?**
+     *
+     * TK-এর কথা: *"যখন কেউ কোন পেমেন্টই করেনি, তাহলে এগুলো দেখানোর মানেটা কি?"*
+     * (Reports → Today's Collection-এ `₹0 · Marked Expected` সারিগুলো)।
+     *
+     * `payments` টেবিলে কিছু সারি **টাকার সারি নয়** — শুধু একটা চিহ্ন:
+     *   • `chamber_expected` — "আজ আসবেন" বলে দাগ দেওয়া (`amount = 0.0`,
+     *     `PaymentModel.buildExpectedMarkRow`)
+     *   • `attendance_mark`  — "রোগী এসেছেন" বলে দাগ দেওয়া
+     *   • `bill_edit`        — শুধু বিলের অঙ্ক শুধরানোর নথি
+     *
+     * ⛔ এই তালিকাটা **নতুন কিছু নয়** — হুবহু একই তিনটে ধরন নিচের
+     *    `isOrdinalTreatmentPayment()` আগে থেকেই বাদ দেয় (৪৭১ নং লাইন), আর
+     *    `PatientTimelineRepository`-ও ঠিক এগুলোই বাদ দেয় (২৬.০৭.২০২৬-এর
+     *    অডিটে ধরা বাগের ফিক্স)। তাই এটা প্রজেক্টের **চলতি নিয়মেরই** নাম দেওয়া।
+     * ⛔ টাকার কোনো যোগফল এই ফাংশন বদলায় না — কোন সারি **দেখানো** হবে,
+     *    শুধু সেটাই ঠিক করে।
+     */
+    fun isMarkerOnlyRow(payType: String): Boolean {
+        val t = payType.trim().lowercase()
+        return t == "chamber_expected" || t == "attendance_mark" || t == "bill_edit"
+    }
+
     fun isOrdinalTreatmentPayment(payType: String, remarks: String = ""): Boolean {
         val t = payType.lowercase()
         val r = remarks.lowercase()

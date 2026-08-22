@@ -313,7 +313,12 @@ class FollowUpActivity : AppCompatActivity() {
             // কথা" থেকে এলে ওই ব্যক্তি যে সেকশনে আছেন সেটা দিয়েই শুরু হয় — ক্যাশ
             // থেকে জানা গেলে সঙ্গে সঙ্গে, না জানলে তাজা তালিকা এলে ঠিক সেকশনে সরে।
             val startStage = initialFocusStage()
-            if (pendingFocusCardMobile.isNotBlank() && startStage != "Inquiry") {
+            /* 🔵 V523: শর্তে `pendingFocusCardMobile` আর দরকার নেই — আগে
+               ওটা ফাঁকা থাকলে `initialFocusStage()` **সবসময়** "Inquiry"
+               ফেরাত, তাই ডান দিকের শর্তটাই কখনো সত্যি হত না। এখন Reports
+               থেকেও অন্য ট্যাব চাওয়া যায়, তাই শুধু ট্যাবটাই দেখা হয়।
+               ⛔ পুরোনো সব পথে ফল **অবিকল একই**। */
+            if (startStage != "Inquiry") {
                 switchTab(startStage)
                 if (!tabCountsAsked) { tabCountsAsked = true; refreshTabCounts() }
             } else {
@@ -1100,6 +1105,11 @@ class FollowUpActivity : AppCompatActivity() {
     /** খোলার সময় কোন ট্যাব দিয়ে শুরু হবে — ক্যাশে ওই নম্বর যে সেকশনে পাওয়া যায়
      *  সেটাই; না পেলে স্বাভাবিক "Inquiry"। */
     private fun initialFocusStage(): String {
+        /* 🔵🔒 V523 (২২.০৮.২০২৬, TK-নির্দেশ): Reports-এর উপরের বাক্সে চাপ দিলে
+           সোজা ঠিক ট্যাবেই আসা যায় (Enquiry / Visit / Patient)।
+           ⛔ ঘরটা না এলে (পুরোনো সব ডাক) নিচের আচরণ **অবিকল আগের মতোই**। */
+        val asked = intent.getStringExtra("startStage").orEmpty()
+        if (asked == "Inquiry" || asked == "Patient" || asked == "Treatment") return asked
         if (pendingFocusCardMobile.isBlank()) return "Inquiry"
         val target = mob10(pendingFocusCardMobile)
         if (target.length != 10) return "Inquiry"

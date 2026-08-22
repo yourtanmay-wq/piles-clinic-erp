@@ -143,8 +143,15 @@ class StaffProfileActivity : AppCompatActivity() {
         // 🟢 B629 (11.08.2026): "Salary Due" reminder থেকে সরাসরি এই স্টাফের Salary পর্দা
         //   খোলার জন্য (শুধু Master; Master ছাড়া কেউ অন্যের Salary খুলতে পারে না)।
         val salaryFor = intent.getStringExtra("salaryFor")
+        /* 🔵🔒 V523 (২২.০৮.২০২৬, TK-নির্দেশ): Reports-এর Staff-wise অংশ থেকে
+           সরাসরি **পুরো** Staff Performance পর্দায় আসার পথ — TK-কে আর খুঁজে
+           বেড়াতে হবে না, আর দুই জায়গার সংখ্যা নিয়ে বিভ্রান্তিও থাকবে না।
+           ⛔ `salaryFor`-এর হুবহু একই প্যাটার্ন। ⛔ শুধু Master (নিচের শর্তেই)।
+           ⛔ ঘরটা না এলে (পুরোনো সব ডাক) আচরণ অবিকল আগের মতোই। */
+        val openPerf = intent.getBooleanExtra("openPerformance", false)
         ModuleUi.ensureSignedIn(this, code) {
             if (!salaryFor.isNullOrBlank() && ModuleAuth.isMaster) salary(salaryFor)
+            else if (openPerf && ModuleAuth.isMaster) performanceList("")
             else if (ModuleAuth.isMaster) renderList() else renderSelf()
         }
     }

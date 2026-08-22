@@ -60,6 +60,7 @@
                 android:orientation="horizontal">
 
                 <LinearLayout
+                    android:id="@+id/tileEnq"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
@@ -67,6 +68,8 @@
                     android:orientation="vertical"
                     android:gravity="center"
                     android:padding="16dp"
+                    android:clickable="true"
+                    android:focusable="true"
                     android:background="@drawable/bg_chip_blue">
                     <FrameLayout android:layout_width="32dp" android:layout_height="32dp" android:background="@drawable/bg_badge_report_blue" android:layout_marginBottom="4dp">
                         <ImageView android:layout_width="17dp" android:layout_height="17dp" android:layout_gravity="center" android:src="@drawable/ic_report_doc" android:contentDescription="Enquiry" />
@@ -76,6 +79,7 @@
                 </LinearLayout>
 
                 <LinearLayout
+                    android:id="@+id/tilePat"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
@@ -83,6 +87,8 @@
                     android:orientation="vertical"
                     android:gravity="center"
                     android:padding="16dp"
+                    android:clickable="true"
+                    android:focusable="true"
                     android:background="@drawable/bg_chip_green">
                     <FrameLayout android:layout_width="32dp" android:layout_height="32dp" android:background="@drawable/bg_badge_emerald" android:layout_marginBottom="4dp">
                         <ImageView android:layout_width="17dp" android:layout_height="17dp" android:layout_gravity="center" android:src="@drawable/ic_report_person" android:contentDescription="Patients" />
@@ -92,12 +98,15 @@
                 </LinearLayout>
 
                 <LinearLayout
+                    android:id="@+id/tileColl"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:orientation="vertical"
                     android:gravity="center"
                     android:padding="16dp"
+                    android:clickable="true"
+                    android:focusable="true"
                     android:background="@drawable/bg_chip_blue">
                     <FrameLayout android:layout_width="32dp" android:layout_height="32dp" android:background="@drawable/bg_badge_amber" android:layout_marginBottom="4dp">
                         <ImageView android:layout_width="17dp" android:layout_height="17dp" android:layout_gravity="center" android:src="@drawable/ic_report_moneybag" android:contentDescription="Collection" />

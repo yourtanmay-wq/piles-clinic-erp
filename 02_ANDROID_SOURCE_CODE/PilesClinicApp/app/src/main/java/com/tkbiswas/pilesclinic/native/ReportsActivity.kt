@@ -37,6 +37,32 @@ class ReportsActivity : AppCompatActivity() {
         }
 
         binding.btnBack.setOnClickListener { finish() }
+
+        /* 🔴🔵🔒 V523 (২২.০৮.২০২৬, TK-নির্দেশ) — **উপরের তিনটে বাক্সে চাপ দিলে
+           এতদিন কিছুই হত না।**
+           TK-এর কথা: *"এখানে কোনোটাতেই চাপ দিলে কিছুই হয় না, তাহলে এগুলো
+           দেখানোর কি দরকার?"* — যাচাই করে দেখলাম কথাটা ঠিক: layout-এ ওগুলো
+           শুধু লেখা ছিল, বাক্সগুলোর কোনো id বা click ছিলই না।
+
+           **এখন প্রতিটা বাক্স ঐ সংখ্যার আসল তালিকাটাই খোলে —**
+             • Enquiry    → Follow-Up-এর **Enquiry** ট্যাব
+             • Patients   → Follow-Up-এর **Patient** ট্যাব
+             • Collection → **Payment Collection** পর্দা
+
+           ⛔ **নতুন কোনো পর্দা বানানো হয়নি** — অ্যাপের চলতি, পরীক্ষিত
+              পর্দাগুলোই খোলা হয়। তাই সংখ্যা দুই জায়গায় আলাদা হওয়ার ভয় নেই,
+              আর ঐ পর্দাগুলোর ব্রাঞ্চ/অনুমতির নিয়মও নিজে থেকেই বহাল থাকে।
+           ⛔ **Supabase-এ কোনো বাড়তি পড়া নেই** — TK যদি বাক্সে চাপই না দেন,
+              আগের মতোই কিছুই হয় না; চাপ দিলে ঐ পর্দা নিজের স্বাভাবিক পড়াটাই
+              করে (যা এমনিতেও করত)।
+           ⛔ Reports-এর কোনো হিসাব/সংখ্যা এক অক্ষরও বদলায়নি। */
+        binding.tileEnq.setOnClickListener { openFollowUpTab("Inquiry") }
+        binding.tilePat.setOnClickListener { openFollowUpTab("Patient") }
+        binding.tileColl.setOnClickListener {
+            try {
+                startActivity(android.content.Intent(this, CollectionListActivity::class.java))
+            } catch (_: Throwable) { }
+        }
         load()
     }
 
@@ -123,11 +149,18 @@ class ReportsActivity : AppCompatActivity() {
      *  পেমেন্ট-সারি: প্লেইন বুলেট-টেক্সটের বদলে এখন কার্ড-স্টাইলে দেখানো হয়। */
     private data class BranchPayRow(val name: String, val label: String, val amount: Double, val modeRaw: String)
 
+    /** 🔵 V523: এক দিনের হিসাব — টাকা, সারি, আর "আজ আসবেন" বলা কতজন।
+     *  (আগে `Triple` ছিল; চতুর্থ ঘরটার জন্য নাম-সহ ক্লাস পরিষ্কার।) */
+    private data class BranchDayResult(
+        val cash: Double, val online: Double,
+        val rows: List<BranchPayRow>, val expectedCount: Int
+    )
+
     /** Branch drill-down: today's cash / online / total + each payment. */
     private fun showBranchDetail(branch: String) {
         val today = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US).format(java.util.Date())
         lifecycleScope.launch {
-            val (cash, online, rows) = withContext(Dispatchers.IO) {
+            val res = withContext(Dispatchers.IO) {
                 // 🔒 SPEED FIX (28.07.2026, TK-approved · khata row B26): this
                 // used to download the WHOLE payments table (up to 5000 rows,
                 // every column) and then throw away everything that was not
@@ -151,6 +184,21 @@ class ReportsActivity : AppCompatActivity() {
                 )
                 var cashSum = 0.0; var onlineSum = 0.0
                 val rowList = ArrayList<BranchPayRow>()
+                /* 🔴🔵🔒 V523 (২২.০৮.২০২৬, TK-নির্দেশ) — *"যখন কেউ কোন পেমেন্টই
+                   করেনি, তাহলে এগুলো দেখানোর মানেটা কি?"*
+                   এই তালিকায় আজকের **সব** payments-সারি ঢুকত — অঙ্ক শূন্য হলেও।
+                   Chamber-এর "Mark Expected" বোতাম ঠিক ওই টেবিলেই ₹0-এর একটা
+                   সারি লেখে, তাই কেউ টাকা না দিলেও তাঁর নাম Collection-এর
+                   তালিকায় দেখা যেত (`₹0 · Marked Expected`)।
+                   ⇒ এখন চিহ্ন-মাত্র সারিগুলো তালিকা থেকে বাদ, আর কতজনকে
+                     "আজ আসবেন" বলা হয়েছে সেটা উপরে আলাদা করে লেখা হয়।
+                   ⛔ **টাকার যোগফলে এক পয়সাও হাত পড়েনি** — cashSum/onlineSum
+                      নিচে আলাদাভাবেই গোনা হয়, আর ₹0 যোগ হলে যোগফল বদলায়ও না।
+                      Refund-এর বিয়োগ আগের মতোই অক্ষত।
+                   ⛔ কোন সারি "চিহ্ন-মাত্র" তা ঠিক হয় প্রজেক্টের **চলতি
+                      নিয়মেই** (`PaymentModel.isMarkerOnlyRow`) — নতুন কোনো
+                      আন্দাজ নয়। */
+                var expectedCount = 0
                 // 🔴🔴 TK-অডিট-অনুরোধ (01.08.2026): Refund সারিও প্লেইন পজিটিভ
                 // Collection হিসেবে যোগ হচ্ছিল — Chamber Board-এ আগেই লক করা
                 // নিয়ম (B250/B251) এখানেও বসানো হলো (approved refund বিয়োগ,
@@ -179,11 +227,16 @@ class ReportsActivity : AppCompatActivity() {
                         val split = PaymentModel.paymentSplit(p)
                         PaymentModel.splitMode(split.first, split.second)
                     } else modeRaw
-                    rowList.add(BranchPayRow(p.s("name").ifBlank { p.s("mobile").ifBlank { "-" } }, label, amt, displayMode))
+                    if (PaymentModel.isMarkerOnlyRow(p.s("payType"))) {
+                        // 🔵 V523: টাকার সারি নয় — গোনা হয়, তালিকায় বসে না।
+                        if (p.s("payType").equals("chamber_expected", true)) expectedCount++
+                    } else {
+                        rowList.add(BranchPayRow(p.s("name").ifBlank { p.s("mobile").ifBlank { "-" } }, label, amt, displayMode))
+                    }
                 }
-                Triple(cashSum, onlineSum, rowList)
+                BranchDayResult(cashSum, onlineSum, rowList, expectedCount)
             }
-            showBranchCollectionDialog("$branch — Today's Collection", cash, online, rows)
+            showBranchCollectionDialog("$branch — Today's Collection", res.cash, res.online, res.rows, res.expectedCount)
         }
     }
 
@@ -192,7 +245,7 @@ class ReportsActivity : AppCompatActivity() {
      *  (সারাংশ Cash/Online/Total তিনটে চিপ পাশাপাশি, প্রতিটা পেমেন্ট নিজের
      *  আলাদা সাদা কার্ডে — নাম/লেবেল বাঁয়ে, টাকা+মোড ডানে) — প্লেইন বুলেট-লাইন
      *  আর না। ⛔ টাকার হিসাব/ডেটা এক অক্ষরও বদলায়নি, শুধু দেখানোর ধরন। */
-    private fun showBranchCollectionDialog(title: String, cash: Double, online: Double, rows: List<BranchPayRow>) {
+    private fun showBranchCollectionDialog(title: String, cash: Double, online: Double, rows: List<BranchPayRow>, expectedCount: Int = 0) {
         val d = resources.displayMetrics.density
         fun dp(v: Int) = (v * d).toInt()
         val root = android.widget.LinearLayout(this).apply {
@@ -254,6 +307,28 @@ class ReportsActivity : AppCompatActivity() {
             (layoutParams as android.widget.LinearLayout.LayoutParams).marginEnd = 0
         })
         body.addView(summaryRow)
+
+        /* 🔵🔒 V523 (TK-নির্দেশ): "আজ আসবেন" বলে দাগ দেওয়া লোকজন আর
+           Collection-এর তালিকায় ঢোকে না — কিন্তু তথ্যটা হারায়ও না, এখানে
+           এক লাইনে থাকে। ⛔ শূন্য হলে লাইনটাই দেখায় না। */
+        if (expectedCount > 0) {
+            body.addView(android.widget.TextView(this).apply {
+                text = "\u23F0 Expected today: $expectedCount  (no payment yet)"
+                textSize = 12f
+                setTextColor(android.graphics.Color.parseColor("#8A6D1F"))
+                setPadding(dp(10), dp(8), dp(10), dp(8))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(android.graphics.Color.parseColor("#FFF8E6"))
+                    cornerRadius = dp(10).toFloat()
+                }
+                val lp = android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+                lp.bottomMargin = dp(10)
+                layoutParams = lp
+            })
+        }
 
         // ── প্রতিটা পেমেন্ট নিজের সাদা কার্ডে ──
         if (rows.isEmpty()) {
@@ -354,6 +429,31 @@ class ReportsActivity : AppCompatActivity() {
     }
 
     /** Staff drill-down: their enquiries / patients / collection this list. */
+    /** 🔵🔒 V523 (TK-নির্দেশ): পুরো Staff Performance পর্দা — যেখানে কল ·
+     *  কালেকশন · RMP · রিপোর্ট · হাজিরা · Extra Income সবই সার্ভারের এক হিসাবে।
+     *  ⛔ নতুন কোনো পর্দা বানানো হয়নি — **আসল পর্দাটাই** খোলা হয়, তাই
+     *     সংখ্যা সবসময় এক জায়গা থেকেই আসে। */
+    /** 🔵🔒 V523: Follow-Up পর্দার নির্দিষ্ট ট্যাব খোলে।
+     *  ⛔ নতুন কিছু নয় — অ্যাপের চলতি পর্দাটাই, শুধু কোন ট্যাব দিয়ে শুরু
+     *     হবে সেটা বলে দেওয়া (`startStage`)। */
+    private fun openFollowUpTab(stage: String) {
+        try {
+            startActivity(
+                android.content.Intent(this, FollowUpActivity::class.java)
+                    .putExtra("startStage", stage)
+            )
+        } catch (_: Throwable) { }
+    }
+
+    private fun openStaffPerformance() {
+        try {
+            startActivity(
+                android.content.Intent(this, com.tkbiswas.pilesclinic.modules.StaffProfileActivity::class.java)
+                    .putExtra("openPerformance", true)
+            )
+        } catch (_: Throwable) { }
+    }
+
     private fun showStaffDetail(name: String) {
         lifecycleScope.launch {
             // 🔴 TK-রিপোর্ট (02.08.2026 দুপুর ~১২.৩১ pm): "এখানে চাপ দিলে সেই
@@ -657,6 +757,45 @@ class ReportsActivity : AppCompatActivity() {
 
                 if (r.staffRows.isNotEmpty()) {
                     binding.containerStaff.removeAllViews()
+                    /* 🔴🔵🔒 V523 (২২.০৮.২০২৬, TK-নির্দেশ) — **দুই জায়গার দুই
+                       হিসাব যেন বিভ্রান্ত না করে।**
+                       TK-এর প্রশ্ন: *"এখানে যদি স্টাফ পারফরম্যান্স হয়ে থাকে,
+                       তাহলে একই প্রজেক্টে দুই জায়গায় থাকার মানেটা কি?"*
+                       **যাচাই করে যা পেয়েছি:** দুটো এক নয় —
+                         • এখানকার হিসাব **ফোনেই গোনা** (`ReportsRepository`),
+                           চেনে `createdBy`/`receivedBy` **মোবাইল** ধরে, আর
+                           দেখায় শুধু **Enquiry ও Patient** সংখ্যা।
+                         • Staff Profiles → 🏆 Staff Performance আসে **সার্ভারের
+                           RPC** (`hr.staff_performance`) থেকে, চেনে
+                           `staff_profiles`-এর **কোড** ধরে, আর দেখায় কল ·
+                           কালেকশন · RMP · রিপোর্ট · হাজিরা · Extra Income।
+                       ⇒ দুই নিয়মে গোনা, তাই **সংখ্যা মিলবে না** — এটাই আসল
+                         বিপদ ছিল। TK-এর সিদ্ধান্ত: অংশটা **থাকবে** (ড্রিল-ডাউনটা
+                         কাজের), শুধু **স্পষ্ট করে লেখা থাকবে** এটা কী গোনে।
+                       ⛔ কোনো হিসাব · কোনো সারি · কোনো ড্রিল-ডাউন বদলায়নি —
+                          শুধু একটা ব্যাখ্যার লাইন ও একটা বোতাম যোগ। */
+                    // ⚠️ `dp()` এই ফাইলে শুধু পপ-আপ-ফাংশনগুলোর **ভিতরের** সহায়ক —
+                    //    এখানে নেই। তাই এখানেই স্থানীয়ভাবে বানানো হলো (একই নিয়ম)।
+                    val sd = resources.displayMetrics.density
+                    fun sdp(v: Int) = (v * sd).toInt()
+                    binding.containerStaff.addView(android.widget.TextView(this).apply {
+                        text = "Counts Enquiry & Patient only, from this phone.\n" +
+                            "Full performance (calls, collection, RMP, attendance) is in Staff Profiles \u2192 Staff Performance."
+                        textSize = 11.5f
+                        setTextColor(android.graphics.Color.parseColor("#8A6D1F"))
+                        setPadding(sdp(10), sdp(9), sdp(10), sdp(9))
+                        setLineSpacing(sdp(2).toFloat(), 1f)
+                        background = android.graphics.drawable.GradientDrawable().apply {
+                            setColor(android.graphics.Color.parseColor("#FFF8E6"))
+                            cornerRadius = sdp(10).toFloat()
+                        }
+                        val lp = android.widget.LinearLayout.LayoutParams(
+                            android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                        )
+                        lp.bottomMargin = sdp(10)
+                        layoutParams = lp
+                    })
                     r.staffRows.forEach { s ->
                         binding.containerStaff.addView(
                             makeReportRow(
@@ -666,6 +805,16 @@ class ReportsActivity : AppCompatActivity() {
                             ) { showStaffDetail(s.name) }
                         )
                     }
+                    /* 🔵 V523: পুরো হিসাব যেখানে, সেখানে যাওয়ার সোজা পথ —
+                       TK-কে আর খুঁজে বেড়াতে হবে না।
+                       ⛔ শুধু Master-এর জন্য (এই অংশটাই master-only)। */
+                    binding.containerStaff.addView(
+                        makeReportRow(
+                            "\uD83C\uDFC6 Staff Performance",
+                            "Calls \u00b7 Collection \u00b7 RMP \u00b7 Reports \u00b7 Attendance \u00b7 Extra Income",
+                            iconRes = com.tkbiswas.pilesclinic.R.drawable.ic_report_person, badgeHex = "#0EA25F"
+                        ) { openStaffPerformance() }
+                    )
                     binding.tvStaffTitle.visibility = View.VISIBLE
                     binding.cardStaff.visibility = View.VISIBLE
                 }
