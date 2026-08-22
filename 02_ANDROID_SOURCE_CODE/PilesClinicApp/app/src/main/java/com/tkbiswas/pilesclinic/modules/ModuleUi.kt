@@ -194,6 +194,25 @@ object ModuleUi {
         val d = (m ?: "").filter { it.isDigit() }
         return if (d.length >= 4) "••••••" + d.takeLast(4) else "••••"
     }
+    /**
+     * 🔵🔒 V521 (২২.০৮.২০২৬, TK-নির্দেশ) — **নম্বর আর লুকানো হয় না।**
+     *
+     * TK-এর কথা: *"নাম্বার এত হাই সিকিউরিটি ভাবে দেখানোর কিছু নেই। আমার কোন
+     * বড় বিলাসবহুল কোম্পানি নয়, ছোটখাটো একটা ক্লিনিক। সুতরাং নাম্বারটা
+     * সম্পূর্ণভাবে দেখাবে।"*
+     *
+     * ⛔ পুরোনো `maskMobile()` **মোছা হয়নি** — সরকারি আইডির মতো যেসব জায়গায়
+     *    সত্যিই লুকানো দরকার, সেগুলো যেন না ভাঙে। এটা শুধু **দেখানোর** জন্য
+     *    একটা নতুন, আলাদা ফাংশন।
+     * ⛔ কোনো তথ্য বদলায় না · database ছোঁয়া হয় না।
+     */
+    fun fullMobile(m: String?): String {
+        val raw = (m ?: "").trim()
+        val d = raw.filter { it.isDigit() }
+        if (d.isEmpty()) return raw
+        return if (raw.startsWith("+")) raw else if (d.length > 10) "+$d" else d
+    }
+
     fun maskIdLast4(last4: String?): String =
         if (!last4.isNullOrBlank()) "XXXX XXXX " + last4 else "—"
 

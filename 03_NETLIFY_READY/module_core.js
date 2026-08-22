@@ -158,6 +158,18 @@
     var d = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
     return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
   };
+  /* 🔵🔒 V521 (২২.০৮.২০২৬, TK-নির্দেশ) — *"নাম্বার এত হাই সিকিউরিটি ভাবে
+     দেখানোর কিছু নেই… নাম্বারটা সম্পূর্ণভাবে দেখাবে।"*
+     ⛔ নিচের `maskMobile` **মোছা হয়নি** — সরকারি আইডি ও কল-লগের সংরক্ষিত
+        মুখোশ (`target_mobile_mask`) ওটাই ব্যবহার করে, তাই ভাঙা চলবে না।
+        এটা শুধু **দেখানোর** জন্য আলাদা ফাংশন (ফোনের `ModuleUi.fullMobile`)। */
+  MOD.fullMobile = function (m) {
+    var raw = String(m == null ? '' : m).trim();
+    var d = raw.replace(/\D/g, '');
+    if (!d) return raw;
+    if (raw.charAt(0) === '+') return raw;
+    return d.length > 10 ? ('+' + d) : d;
+  };
   MOD.maskMobile = function (m) {
     m = String(m || '').replace(/\D/g, '');
     return m.length >= 4 ? ('••••••' + m.slice(-4)) : '••••';

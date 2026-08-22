@@ -80,19 +80,38 @@
          · বোতাম: View (ফাঁপা) · Salary (ভরাট সবুজ) · Performance · Suspend · Remove
        আগে ওয়েবে কোড আগে ছিল, নাম পরে; পদবির চিপ ছিলই না; ভরাট বোতাম ছিল
        "Edit"; আর বেতনের রং সবসময় এক ছিল। ⛔ কোনো বোতামের কাজ বদলায়নি। */
+    /* 🔵🔒 V521: কার্ডে চাপ = View। কিন্তু ভিতরের কোনো বোতামে (Salary /
+       Performance / Suspend / Remove) চাপ পড়লে কার্ডের চাপটা **চলবে না** —
+       নইলে Salary চাপলে ভুল করে View খুলে যেত। */
+    function pfCardTap(ev, code) {
+      try {
+        var t = ev && ev.target;
+        if (t && t.closest && t.closest('button')) return;
+        profEdit(code);
+      } catch (e) {}
+    }
+    window["pfCardTap"] = pfCardTap;
+
     var listHtml = rows.map(function (p) {
       var sc = cfgs[p.person_code] || {};
       var isDoc = String(p.role_kind || '').toLowerCase() === 'doctor';
       var desig = p.designation || p.role_kind || (isDoc ? 'Doctor' : 'Staff');
       var salOn = !!sc.salary_enabled;
       var salTxt = salOn ? ('Salary: ' + m.money(sc.salary_amount) + ' (day ' + m.esc(sc.salary_date || '-') + ')') : 'Salary: disabled';
-      return '<div class="card pfStaffCard"><div class="pfStaffInfo">' +
+      /* 🔵🔒 V521 (২২.০৮.২০২৬, TK-নির্দেশ) — *"এই কার্ডের মধ্যে ভিউ থাকবে না,
+         কিন্তু কার্ডে চাপ দিলে ভিউ হবে।"* ⇒ "View" বোতাম সরানো; কাজটা এখন
+         পুরো কার্ডে চাপ দিলেই হয় (ফোনের অ্যাপে হুবহু একই বদল)।
+         ⛔ ভিতরের বোতামে চাপ দিলে যেন কার্ডের চাপটা **না** চলে — তাই
+            `event.stopPropagation()` ছাড়াই কাজ হয়, কারণ কার্ডের হ্যান্ডলার
+            নিজেই দেখে নেয় চাপটা কোনো বোতামের উপরে পড়েছে কি না। */
+      return '<div class="card pfStaffCard" style="cursor:pointer"' +
+        ' onclick="pfCardTap(event,\'' + m.esc(p.person_code) + '\')">' +
+        '<div class="pfStaffInfo">' +
         '<div class="pfNameRow"><b class="pfName">' + m.esc(p.full_name || '(name not set)') + '</b>' +
         '<span class="pfPill' + (isDoc ? ' pfPillDoc' : '') + '">' + m.esc(desig) + '</span></div>' +
-        '<div class="pfMeta">' + m.esc(p.person_code) + ' · ' + m.esc(p.branch || '') + ' · ' + m.maskMobile(p.link_mobile) + '</div>' +
+        '<div class="pfMeta">' + m.esc(p.person_code) + ' · ' + m.esc(p.branch || '') + ' · ' + m.esc(m.fullMobile(p.link_mobile)) + '</div>' +
         '<div class="pfSal' + (salOn ? '' : ' pfSalOff') + '">' + m.esc(salTxt) + '</div></div>' +
         '<div class="pfStaffBtns">' +
-        '<button class="small ghost pfBtn" onclick="profEdit(\'' + m.esc(p.person_code) + '\')">View</button>' +
         '<button class="small pfBtn pfBtnFill" onclick="profSalary(\'' + m.esc(p.person_code) + '\')">Salary</button>' +
         '<button class="small ghost pfBtn" onclick="staffPerformanceOne(\'' + m.esc(p.person_code) + '\')">Performance</button>' +
         '<button class="small ghost pfBtn pfDanger" onclick="profSuspend(\'' + m.esc(p.person_code) + '\')">Suspend</button>' +
@@ -118,7 +137,7 @@
           return '<div class="pfStaffCard pfRemovedRow"><div class="pfStaffInfo">' +
             '<div class="pfNameRow"><b class="pfName">' + m.esc(p.full_name || '(name not set)') + '</b>' +
             '<span class="pfPill' + (__isDoc ? ' pfPillDoc' : '') + '">' + m.esc(p.designation || p.role_kind || 'Staff') + '</span></div>' +
-            '<div class="pfMeta">' + m.esc(p.person_code) + ' · ' + m.esc(p.branch || '') + ' · ' + m.maskMobile(p.link_mobile) + '</div>' +
+            '<div class="pfMeta">' + m.esc(p.person_code) + ' · ' + m.esc(p.branch || '') + ' · ' + m.esc(m.fullMobile(p.link_mobile)) + '</div>' +
             '<div class="pfSal pfSalOff">Salary: disabled</div></div>' +
             '<div class="pfStaffBtns"><button class="small ghost pfBtn" onclick="profRestore(\'' + m.esc(p.person_code) + '\')">Restore</button></div></div>';
         }).join('') + '</div>';
@@ -510,7 +529,9 @@
       var rows=null;
       try{ rows=(load('patients')||[]).filter(function(r){return ids.indexOf(String(r.id))>=0}); }catch(e){}
       if(rows && rows.length){
-        rows.forEach(function(r){ SAL_PAT_CACHE[String(r.id)]={name:String(r.name||''),mobile:String(r.mobile||'')}; });
+        /* 🔵🔒 V521: `timeType`-ও জমা রাখা হয় — এটাই বলে দেয় টাকাটা কেন পাওনা।
+           ⛔ নতুন কোনো cloud-read নয়; এটা ফোনের/ব্রাউজারের জমা তালিকা থেকেই। */
+        rows.forEach(function(r){ SAL_PAT_CACHE[String(r.id)]={name:String(r.name||''),mobile:String(r.mobile||''),timeType:String(r.timeType||'')}; });
       }
       if(typeof redraw==='function' && rows && rows.length) redraw();
     }catch(e){}
@@ -523,14 +544,35 @@
       var x=(SAL_LAST_PAYS||[]).find(function(a){return String(a.id)===String(payId)});
       if(!x)return;
       var pid=salExtraPatientId(x);
-      var c=SAL_PAT_CACHE[pid]||{name:'',mobile:''};
+      var c=SAL_PAT_CACHE[pid]||{name:'',mobile:'',timeType:''};
+      /* 🔵🔒 V521 (২২.০৮.২০২৬, TK-নির্দেশ) — *"কী কারণে দিচ্ছি সেটা তো বোঝা
+         যাচ্ছে না।"* Timing · কোন ধাপ · নিয়ম — তিনটেই এখানে।
+         ফোনের `StaffProfileActivity.showExtraPatientPopup()`-এর হুবহু একই লেখা। */
+      var tt = String(c.timeType||'').trim();
+      var isUnexp = /^unexpected time$/i.test(tt);
+      var stage = String(x.extra_reason||'').split('·')[0].trim();
+      var stepTxt = /^registration$/i.test(stage) ? 'Registration Fee received  →  ₹100'
+                  : /^treatment$/i.test(stage)    ? 'First Advance / Treatment payment received  →  ₹400'
+                  : '';
       var rows=''
         + (c.name?  '<div class="pfStmtWhyRow"><span>Patient</span><b>'+m.esc(c.name)+'</b></div>':'')
         + (c.mobile?'<div class="pfStmtWhyRow"><span>Mobile</span><b>'+m.esc(c.mobile)+'</b></div>':'')
+        + (tt? '<div class="pfStmtWhyRow"><span>Timing</span><b>'+(isUnexp?'⏰ UNEXPECTED TIME':'🕐 '+m.esc(tt.toUpperCase()))+'</b></div>':'')
         + '<div class="pfStmtWhyRow"><span>For</span><b>'+m.esc(String(x.extra_reason||'-'))+'</b></div>'
+        + (stepTxt? '<div class="pfStmtWhyRow"><span>Step</span><b>'+m.esc(stepTxt)+'</b></div>':'')
         + '<div class="pfStmtWhyRow"><span>Amount</span><b>'+m.money(x.amount)+'</b></div>'
         + '<div class="pfStmtWhyRow"><span>Date</span><b>'+m.esc(salDmy(x.paid_on))+'</b></div>'
-        + '<div class="pfStmtWhyRow"><span>Status</span><b>'+(salIsDue(x)?'DUE (not paid yet)':'PAID')+'</b></div>';
+        + '<div class="pfStmtWhyRow"><span>Status</span><b>'+(salIsDue(x)?'DUE (not paid yet)':'PAID')+'</b></div>'
+        + (isUnexp
+            ? '<div class="mut" style="margin-top:10px;font-size:12px;line-height:1.6">'
+              + 'Rule: only an <b>UNEXPECTED TIME</b> enquiry earns extra.<br>'
+              + '₹100 when that number registers and pays the fee,<br>'
+              + '₹400 more when the same patient pays an advance.<br>'
+              + 'Shared 50-50 with the staff who took the enquiry.</div>'
+            : (tt ? '<div style="margin-top:10px;font-size:12px;color:#B0392B;line-height:1.6">'
+                    + '⚠️ This patient is not marked UNEXPECTED TIME.<br>'
+                    + 'Extra income is only for unexpected-time enquiries — please check this entry.</div>'
+                  : ''));
       var go = c.mobile
         ? '<button onclick="closeModal();summaryByMobile(\''+m.esc(c.mobile)+'\')">Open History</button>'
         : '';
@@ -633,6 +675,13 @@
          ⛔ ফোনের `StaffProfileActivity`-র হুবহু একই নিয়ম। */
       var vPid = isExtra ? salExtraPatientId(x) : '';
       var vNm  = vPid ? (SAL_PAT_CACHE[vPid] && SAL_PAT_CACHE[vPid].name) : '';
+      /* 🔵🔒 V521: লাইনের **সামনে** Timing চিহ্ন — পপ-আপ না খুলেও TK বুঝবেন
+         টাকাটা অসময়ের এনকোয়ারির জন্য। ⛔ ঘরটা ফাঁকা হলে আগের মতোই কিছু নয়। */
+      var vTt  = vPid ? String((SAL_PAT_CACHE[vPid] && SAL_PAT_CACHE[vPid].timeType) || '') : '';
+      if (vTt) {
+        var mark = /^unexpected time$/i.test(vTt) ? '⏰ UNEXPECTED' : '🕐 ' + vTt.toUpperCase();
+        detail = detail ? (mark + '  ·  ' + detail) : mark;
+      }
       if (vNm) detail = detail ? (detail + '  ·  ' + vNm) : vNm;
       var vClick = vPid ? (' onclick="salExtraWhy(\''+m.esc(String(x.id||''))+'\')" style="cursor:pointer"') : '';
       return '<div class="pfStmtEntry'+(isDue?' isDue':'')+'"'+vClick+'>' +
@@ -876,7 +925,7 @@
       avatarHtml +
       '<div>' +
       '<div style="font-size:20px;font-weight:700;color:#101828">' + m.esc(p.full_name || '(name not set by Master yet)') + '</div>' +
-      '<div style="font-size:13.5px;color:#667085;margin-top:3px">' + m.esc(p.person_code) + ' · Mobile: ' + m.maskMobile(p.link_mobile) + '</div>' +
+      '<div style="font-size:13.5px;color:#667085;margin-top:3px">' + m.esc(p.person_code) + ' · Mobile: ' + m.esc(m.fullMobile(p.link_mobile)) + '</div>' +
       '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">' +
       '<span style="font-size:12px;font-weight:600;padding:4px 11px;border-radius:999px;background:#E6F4EA;color:#0B6B3A">' + m.esc(p.designation || p.role_kind || 'Staff') + '</span>' +
       '<span style="font-size:12px;font-weight:600;padding:4px 11px;border-radius:999px;background:#EAF1FB;color:#1D4E89">' + m.esc(p.branch || '-') + '</span>' +
@@ -885,7 +934,7 @@
       '<div style="font-size:12.5px;font-weight:700;color:#667085;text-transform:uppercase;letter-spacing:.5px;margin:22px 2px 10px">Profile Details</div>' +
       '<div class="wlv1SafeTwoCol">' +
       panel('Personal Details', row('Date of Birth', m.esc(p.dob || '—')) + row('Gender', m.esc(p.gender || '—')) + row('Blood Group', m.esc(p.blood_group || '—')) + row('Qualification', m.esc(p.qualification || '—'))) +
-      panel('Contact', row('Alternate Mobile', p.alt_mobile ? (/\d/.test(p.alt_mobile) ? m.maskMobile(p.alt_mobile) : m.esc(p.alt_mobile)) : '—') + row('ID Type', p.gov_id_type ? (m.esc(p.gov_id_type) + ': ' + m.maskId((p.gov_id_last4 ? '0000' + p.gov_id_last4 : ''))) : '—')) +
+      panel('Contact', row('Alternate Mobile', p.alt_mobile ? m.esc(m.fullMobile(p.alt_mobile)) : '—') + row('ID Type', p.gov_id_type ? (m.esc(p.gov_id_type) + ': ' + m.maskId((p.gov_id_last4 ? '0000' + p.gov_id_last4 : ''))) : '—')) +
       '</div>' +
 
       '<div style="font-size:12.5px;font-weight:700;color:#667085;text-transform:uppercase;letter-spacing:.5px;margin:22px 2px 10px">My Salary</div>' +

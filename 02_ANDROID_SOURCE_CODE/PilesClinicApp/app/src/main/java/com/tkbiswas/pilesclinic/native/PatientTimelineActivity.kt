@@ -3278,10 +3278,34 @@ class PatientTimelineActivity : AppCompatActivity() {
                 // referring-RMP line moved to tvRefDoctorVal above, inside
                 // the header block, per TK's 2026-07-24 instruction — no
                 // longer duplicated here).
+                /* 🔵🔒 V521 (২২.০৮.২০২৬, TK-নির্দেশ) — **অসময়ের এনকোয়ারি কিনা,
+                   সেটা এই পর্দাতেই দেখা যাবে।**
+                   TK-এর কথা: *"আমি তো ভিউ চেপে কিছু বুঝতেই পারছি না যে এটা
+                   আনএক্সপেক্টেড টাইমের না এক্সপেক্টেড টাইমের… তাহলে আমি বুঝবো
+                   কী করে যে স্টাফটা কী কারণে টাকা নিচ্ছে।"*
+                   Extra Income শুধু **Unexpected Time**-এর এনকোয়ারিতেই হয়
+                   (`V418_INCENTIVE_AUTO_2026-08-17.sql`), তাই ID-র পাশেই চিহ্নটা।
+                   ⛔ Follow-up কার্ডে এই চিহ্ন **আগে থেকেই আছে** (`FollowUpAdapter`),
+                      তাই দেখতে নতুন কিছু নয় — একই ভাষা, একই জায়গা।
+                   ⛔ ঘরটা ফাঁকা থাকলে (পুরোনো রেকর্ড) কিছুই দেখায় না — আগের মতোই।
+                   ⛔ বাড়তি কোনো ক্লাউড-কল নেই। */
+                fun timingChip(): String {
+                    val tt = data.timeType.trim()
+                    if (tt.isBlank()) return ""
+                    return if (tt.equals("Unexpected Time", ignoreCase = true)) "⏰ UNEXPECTED TIME"
+                    else "🕐 " + tt.uppercase()
+                }
                 if (isInquiryStage) {
-                    binding.tvChips.visibility = View.GONE
+                    // TK-DECISION (2026-07-24): Enquiry ধাপে ID-র লাইন থাকে না।
+                    // কিন্তু Timing-টা এখানেই সবচেয়ে দরকারি (এখান থেকেই তো সব শুরু),
+                    // তাই ID না থাকলেও শুধু Timing চিপটা দেখানো হয়।
+                    val onlyTiming = timingChip()
+                    binding.tvChips.text = onlyTiming
+                    binding.tvChips.visibility = if (onlyTiming.isBlank()) View.GONE else View.VISIBLE
                 } else {
-                    val chipsText = if (data.patientId.isNotBlank()) "🆔 ${data.patientId}".uppercase() else ""
+                    val idPart = if (data.patientId.isNotBlank()) "🆔 ${data.patientId}".uppercase() else ""
+                    val tPart = timingChip()
+                    val chipsText = listOf(idPart, tPart).filter { it.isNotBlank() }.joinToString("   ·   ")
                     binding.tvChips.text = chipsText
                     binding.tvChips.visibility = if (chipsText.isBlank()) View.GONE else View.VISIBLE
                 }

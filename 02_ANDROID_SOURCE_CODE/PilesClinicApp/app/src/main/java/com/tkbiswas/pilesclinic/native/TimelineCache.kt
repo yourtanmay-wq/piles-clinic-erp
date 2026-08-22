@@ -87,6 +87,11 @@ object TimelineCache {
                 .put("billTotal", data.billTotal)
                 .put("followupStage", data.followupStage)
                 .put("refDoctorDisplay", data.refDoctorDisplay)
+                /* 🔵🔒 V521 (২২.০৮.২০২৬): Timing চিপটা (⏰ UNEXPECTED TIME) যেন
+                   cache থেকে আঁকার সময়েও **সঙ্গে সঙ্গে** দেখা যায়, পরে হঠাৎ
+                   এসে না পড়ে। ⛔ পুরোনো cache-এ ঘরটা নেই → ফাঁকা → চিপ দেখায় না,
+                   ঠিক আগের মতোই; আসল পড়া শেষ হলে চিপ বসে যায়। */
+                .put("timeType", data.timeType)
                 .put("entries", arr)
             prefs(ctx).edit().putString(key(mobile), root.toString()).apply()
         } catch (_: Throwable) {
@@ -151,7 +156,8 @@ object TimelineCache {
                 sex = root.optString("sex", ""),
                 address = root.optString("address", ""),
                 followupStage = root.optString("followupStage", ""),
-                refDoctorDisplay = root.optString("refDoctorDisplay", "")
+                refDoctorDisplay = root.optString("refDoctorDisplay", ""),
+                timeType = root.optString("timeType", "")   // 🔵 V521
             )
         } catch (_: Throwable) {
             null

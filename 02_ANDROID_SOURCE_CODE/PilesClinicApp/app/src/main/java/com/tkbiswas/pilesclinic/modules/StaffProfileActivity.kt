@@ -363,7 +363,7 @@ class StaffProfileActivity : AppCompatActivity() {
         })
         info.addView(topRow)
         info.addView(TextView(this).apply {
-            text = pc + " · " + branch + " · " + ModuleUi.maskMobile(mobile)
+            text = pc + " · " + branch + " · " + ModuleUi.fullMobile(mobile)   // 🔵 V521 (TK): পুরো নম্বর
             textSize = 11.5f; setTextColor(android.graphics.Color.parseColor("#6B7A72"))
             setPadding(0, dp(2), 0, 0)
         })
@@ -416,7 +416,16 @@ class StaffProfileActivity : AppCompatActivity() {
             setOnClickListener { onClick() }
         }
         val row1Btns = mutableListOf<TextView>()
-        row1Btns.add(smallBtn("View", false, onView))
+        /* 🔵🔒 V521 (২২.০৮.২০২৬, TK-নির্দেশ) — *"এই কার্ডের মধ্যে ভিউ থাকবে না,
+           কিন্তু কার্ডে চাপ দিলে ভিউ হবে। তাহলে Salary · Performance ·
+           Fix Attendance — এই তিনটা পাশাপাশি থাকবে।"*
+           ⇒ "View" বোতামটা সরানো হলো; তার কাজটা এখন **পুরো কার্ডে চাপ** দিলেই হয়।
+           ⛔ `onView` ফাংশনটা এক অক্ষরও বদলায়নি — শুধু কোথা থেকে ডাকা হচ্ছে সেটা।
+           ⛔ ভিতরের বোতামগুলো নিজের কাজই করে (Android-এ ভিতরের ক্লিক আগে চলে ও
+              সেখানেই থেমে যায়), তাই Salary চাপলে ভুল করে View খুলবে না। */
+        card.isClickable = true
+        card.isFocusable = true
+        card.setOnClickListener { onView() }
         row1Btns.add(smallBtn("Salary", true, onSalary))
         // 🏆 V419: এই একজনের পুরো হিসাব (Master ছাড়া বোতামটাই আসে না)।
         if (ModuleAuth.isMaster) row1Btns.add(smallBtn("Performance", false) { performanceOne(pc, "") })
@@ -888,7 +897,25 @@ class StaffProfileActivity : AppCompatActivity() {
         val col = ModuleUi.screen(this, "Salary — $code")
         val box = ModuleUi.card(this)
         col.addView(box)
-        box.addView(ModuleUi.body(this, "Loading..."))
+        /* 🔵🔒 V521 — জমানো তথ্য থাকলে **সঙ্গে সঙ্গে** পর্দা; "Loading..." নয়।
+           ⛔ প্রথমবার (বা ১০ মিনিটের পুরনো হলে) আগের মতোই "Loading..."। */
+        val cached = salaryCacheLoad(code)
+        if (cached != null) {
+            try {
+                val cfg = cached.optJSONObject("cfg") ?: JSONObject()
+                renderSalary(code, box,
+                    cfg.optBoolean("salary_enabled", false),
+                    cfg.optDouble("salary_amount", 0.0),
+                    ns(cfg, "salary_date"),
+                    cached.optJSONArray("pays") ?: JSONArray(),
+                    cached.optString("joinDate", ""))
+            } catch (_: Throwable) {
+                box.removeAllViews()
+                box.addView(ModuleUi.body(this, "Loading..."))
+            }
+        } else {
+            box.addView(ModuleUi.body(this, "Loading..."))
+        }
         // 🔵 V416 (TK-নির্দেশ, ১৭.০৮.২০২৬): "Back বটম নিচে বসবে"।
         //    পর্দাটা ScrollView-এর ভিতরে, তাই শুধু ওজন দিলে হত না — `fillViewport`
         //    চালু করে দিলে ভিতরের কলাম অন্তত পর্দার সমান উঁচু হয়, তখন ওজনওয়ালা
@@ -899,7 +926,7 @@ class StaffProfileActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
         })
         col.addView(ModuleUi.button(this, "Back") { renderList() })
-        loadSalary(code, box)
+        loadSalary(code, box, cached != null)
     }
 
     /** 🔵 V416 (TK-নির্দেশ): তারিখ সবসময় 31/12/2026 ধাঁচে।
@@ -951,9 +978,85 @@ class StaffProfileActivity : AppCompatActivity() {
         } catch (_: Throwable) {}
     }
 
-    private fun loadSalary(code: String, box: LinearLayout) {
-        Thread {
+    // ══════════════════════════════════════════════════════════════════════
+    // 🔴🔴🔒 V521 (২২.০৮.২০২৬, TK-নির্দেশ) — **"একই স্টাফের বারবার কেন লোডিং
+    //    দেখাবে? যতবারই ওপেন করি ততবারই লোডিং কেন দেখাবে?"**
+    //
+    // **আসল কারণ (কোডে যাচাই করা, আন্দাজ নয়):** `loadSalary()` প্রতিবার
+    // পর্দা খোলার সময় **চারটে** নেট-কাজ করত —
+    //   ১. `incentive_sync` RPC (শুধু Master)
+    //   ২. `salary_config` পড়া
+    //   ৩. `salary_payments` পড়া
+    //   ৪. `staff_profiles` পড়া
+    // আর **কোথাও কিছু জমা রাখা হত না**। তাই একই স্টাফ দশবার খুললে দশবারই
+    // "Loading..." আর দশবারই চারটে করে নেট-কাজ।
+    //
+    // **সমাধান — cache-first**, ঠিক যে পদ্ধতি এই প্রজেক্টে আগেই পাশ হয়েছে
+    // (`TimelineCache`, V216 §10 — "Report খুললে আলাদা Loading Screen"):
+    //   • আগে দেখা তথ্য থাকলে **সঙ্গে সঙ্গে** পর্দা আঁকা হয় — "Loading..." নয়।
+    //   • পিছনে আসল পড়া চলে; নতুন তথ্য এলে পর্দা নিজে থেকেই হালনাগাদ হয়।
+    //   • জমানো তথ্য না থাকলে (প্রথমবার) আগের মতোই "Loading..."।
+    //
+    // ⛔ **টাকার হিসাব এক পয়সাও বদলায়নি** — জমানো তথ্য শুধু **দেখানোর** জন্য;
+    //    Add/Cancel/সেভ সব আগের মতোই আসল পড়ার উপরেই চলে।
+    // ⛔ **বাসি তথ্য দেখানোর ভয় নেই**: জমানো তথ্য সর্বোচ্চ ১০ মিনিট পুরনো
+    //    হতে পারে, আর আসল পড়া শেষ হলেই সেটা মুছে গিয়ে নতুনটা বসে।
+    // ⛔ পড়া **ব্যর্থ** হলে জমানো তথ্যই থাকে (আগে পুরো পর্দা ফাঁকা হয়ে
+    //    "weak internet" দেখাত) — TK-র কাজ থামে না।
+    // ⛔ Supabase-এ **বাড়তি একটাও query নেই** — বরং কম, কারণ `incentive_sync`
+    //    RPC এখন প্রতি ৫ মিনিটে একবারের বেশি চলে না।
+    // ══════════════════════════════════════════════════════════════════════
+    private fun salaryCachePrefs() =
+        getSharedPreferences("piles_clinic_salary_cache_v1", MODE_PRIVATE)
+
+    private fun salaryCacheSave(code: String, cfg: JSONObject, pays: JSONArray, joinDate: String) {
+        try {
+            val root = JSONObject()
+                .put("savedAt", System.currentTimeMillis())
+                .put("cfg", cfg)
+                .put("pays", pays)
+                .put("joinDate", joinDate)
+            salaryCachePrefs().edit().putString("sal_$code", root.toString()).apply()
+        } catch (_: Throwable) { /* জমানো শুধু সুবিধার জন্য — ব্যর্থ হলে কিছুই যায় আসে না */ }
+    }
+
+    /** জমানো তথ্য, নইলে null। ১০ মিনিটের পুরনো হলে ব্যবহার করা হয় না। */
+    private fun salaryCacheLoad(code: String): JSONObject? = try {
+        val raw = salaryCachePrefs().getString("sal_$code", null)
+        val root = if (raw.isNullOrBlank()) null else JSONObject(raw)
+        val savedAt = root?.optLong("savedAt", 0L) ?: 0L
+        if (root == null || savedAt <= 0L ||
+            System.currentTimeMillis() - savedAt > 10L * 60L * 1000L) null else root
+    } catch (_: Throwable) { null }
+
+    /** 🔵🔒 V521: এই স্টাফের কিছু লেখা হলো (বেতন যোগ / সেটিং বদল / Extra) —
+     *  জমানো তথ্য এখনই মুছে ফেলা হয়, নইলে পরেরবার পর্দা খুললে **পুরনো**
+     *  তথ্য দেখিয়ে দিত আর TK ভাবতেন কাজটা হয়নি।
+     *  ⛔ মুছে দিলে পরের বার শুধু একবার "Loading..." দেখায় — কিন্তু তথ্য
+     *     সবসময় ঠিক থাকে। সঠিকতা আগে, গতি তার পরে। */
+    private fun salaryCacheClear(code: String) {
+        try { salaryCachePrefs().edit().remove("sal_$code").apply() } catch (_: Throwable) {}
+    }
+
+    /** `incentive_sync` একটা **লেখার** RPC — প্রতিবার পর্দা খুললে চালানোর
+     *  দরকার নেই। ৫ মিনিটে একবারই যথেষ্ট (পাওনা টাকা এর মধ্যে বদলায় না)।
+     *  ⛔ টাকার নিয়ম বদলায়নি — শুধু কত ঘন ঘন হিসাব মেলানো হয়। */
+    private fun incentiveSyncThrottled() {
+        try {
+            if (!ModuleAuth.isMaster) return
+            val prefs = salaryCachePrefs()
+            val last = prefs.getLong("incSyncAt", 0L)
+            val now = System.currentTimeMillis()
+            if (now - last < 5L * 60L * 1000L) return
+            prefs.edit().putLong("incSyncAt", now).apply()
+            // ⛔ RPC-টা আগের ফাংশনই চালায় — টাকার হিসাব মেলানোর কোড একটাই জায়গায়।
             incentiveSync()
+        } catch (_: Throwable) {}
+    }
+
+    private fun loadSalary(code: String, box: LinearLayout, hadCache: Boolean = false) {
+        Thread {
+            incentiveSyncThrottled()
             val cfgR = ModuleAuth.getRowsChecked("hr", "salary_config", "select=*&person_code=eq.$code&limit=1")
             val payR = ModuleAuth.getRowsChecked("hr", "salary_payments", "select=*&person_code=eq.$code&order=paid_on.desc")
             // 🟢 B629: "মাস বেছে স্যালারি যোগ"-এর মাস-তালিকা জয়েনিং ডেট থেকে শুরু হবে।
@@ -979,12 +1082,21 @@ class StaffProfileActivity : AppCompatActivity() {
                     return@runOnUiThread
                 }
                 if (!cfgR.ok || !payR.ok) {
+                    /* 🔵🔒 V521: আগে পর্দায় কিছু দেখানো থাকলে সেটা **মোছা হবে না** —
+                       নইলে জমানো ঠিক তথ্যটা মুছে গিয়ে শুধু ভুলের বার্তা থাকত।
+                       ⛔ কিছুই দেখানো না থাকলে আগের মতোই বার্তাটাই দেখায়। */
+                    if (hadCache) {
+                        ModuleUi.toast(this, "Could not refresh now — showing last known.")
+                        return@runOnUiThread
+                    }
                     box.removeAllViews()
                     box.addView(ModuleUi.body(this, "⚠️ Could not load now — weak internet. Data is safe; open again when online."))
                     return@runOnUiThread
                 }
                 val cfg = if (cfgR.rows.length() > 0) cfgR.rows.getJSONObject(0) else JSONObject()
                 val joinDate = if (profR.ok && profR.rows.length() > 0) ns(profR.rows.getJSONObject(0), "join_date") else ""
+                // 🔵 V521: পরেরবার যেন সঙ্গে সঙ্গে দেখানো যায়
+                salaryCacheSave(code, cfg, payR.rows, joinDate)
                 renderSalary(code, box,
                     cfg.optBoolean("salary_enabled", false),
                     cfg.optDouble("salary_amount", 0.0),
@@ -1731,6 +1843,34 @@ class StaffProfileActivity : AppCompatActivity() {
         }.start()
     }
 
+    /**
+     * 🔵🔒 V521 (২২.০৮.২০২৬, TK-নির্দেশ) — **নম্বরে/সারিতে চাপ দিলে সেই
+     * নম্বরের রেকর্ডে চলে যাওয়া।**
+     *
+     * TK-এর কথা: *"এই নাম্বারের উপর চাপ দিলে যেন রিডাইরেক্ট হয় — এই
+     * নাম্বারের অবস্থান যেখানে সেখানে চলে যেতে হবে।"* এবং *"সেই ব্যক্তি
+     * রেজিস্ট্রেশন যেখানে হয়েছে সেখানে যেন রিডাইরেক্ট হয়ে যায়।"*
+     *
+     * ⛔ **বাড়তি কোনো cloud-read নেই** — নম্বরটা তালিকার সারিতেই আছে।
+     * ⛔ `PatientTimelineActivity` **শুধু মোবাইল নম্বর** নেয় (ঐ ফাইলের
+     *    ১৫৪ নম্বর লাইন), তাই সেটাই পাঠানো হয় — এই ফাইলের
+     *    `openPatientHistory()`-র হুবহু একই পথ।
+     * ⛔ নম্বরটা পুরো না হলে (নিচের নোট দেখুন) কিছুই খোলে না, স্পষ্ট বার্তা যায়।
+     */
+    private fun perfOpenNumber(rawMobile: String): Boolean {
+        val digits = rawMobile.filter { it.isDigit() }.takeLast(10)
+        if (digits.length != 10) {
+            ModuleUi.toast(this, "Full number not available for this row")
+            return false
+        }
+        return try {
+            startActivity(android.content.Intent(
+                this, com.tkbiswas.pilesclinic.native.PatientTimelineActivity::class.java)
+                .putExtra("mobile", digits))
+            true
+        } catch (_: Throwable) { false }
+    }
+
     private fun perfRowTitle(text: String): TextView = TextView(this).apply {
         this.text = text; textSize = 14f
         setTypeface(typeface, android.graphics.Typeface.BOLD)
@@ -1832,7 +1972,11 @@ class StaffProfileActivity : AppCompatActivity() {
                 val fn = if (treatmentOnly) "perf_treatment_list" else "perf_registration_list"
                 val r = ModuleAuth.rpc("hr", fn, JSONObject().put("p_month", month).put("p_code", code))
                 if (r.ok) JSONArray(r.body) else null
-            }, emptyMsg = "None this period.") { line, r ->
+            }, emptyMsg = "None this period.",
+            /* 🔵🔒 V521 (TK-নির্দেশ): সারিতে চাপ দিলে **ঐ রোগীর রেকর্ডেই**
+               চলে যাওয়া হয় — আগে চাপ দিলে কিছুই হত না।
+               ⛔ নম্বর পুরো না থাকলে কিছুই খোলে না, স্পষ্ট বার্তা যায়। */
+            onRowClick = { r, _ -> perfOpenNumber(ns(r, "mobile")) }) { line, r ->
             line.addView(perfRowTitle(ns(r, "name").ifBlank { "Unknown" }))
             line.addView(perfRowSub(dmy(ns(r, "reg_date")) + "  \u00b7  " + ns(r, "mobile") + "  \u00b7  " + ns(r, "branch")))
             if (ns(r, "patient_id").isNotBlank()) line.addView(perfRowSub(ns(r, "patient_id")))
@@ -1844,7 +1988,9 @@ class StaffProfileActivity : AppCompatActivity() {
             fetch = {
                 val r = ModuleAuth.rpc("hr", "perf_rmp_list", JSONObject().put("p_month", month).put("p_code", code))
                 if (r.ok) JSONArray(r.body) else null
-            }, emptyMsg = "None this period.") { line, r ->
+            }, emptyMsg = "None this period.",
+            // 🔵 V521 (TK-নির্দেশ): সারিতে চাপ = ঐ নম্বরের রেকর্ড।
+            onRowClick = { r, _ -> perfOpenNumber(ns(r, "mobile")) }) { line, r ->
             line.addView(perfRowTitle(ns(r, "name").ifBlank { "Unknown" }))
             line.addView(perfRowSub(dmy(ns(r, "added_date").take(10)) + "  \u00b7  " + ns(r, "mobile") + "  \u00b7  " + ns(r, "area")))
         }
@@ -1858,8 +2004,18 @@ class StaffProfileActivity : AppCompatActivity() {
             }, emptyMsg = "No calls this period.", cachedRows = cachedRows,
             onRowClick = { r, rows ->
                 val fullOk = try { r.optBoolean("full_number_available", false) } catch (_: Throwable) { false }
+                /* 🔵🔒 V521 (২২.০৮.২০২৬, TK-নির্দেশ — *"এই নাম্বারের উপর চাপ দিলে
+                   যেন রিডাইরেক্ট হয়"*): নম্বরটা **পুরো জানা থাকলে** সোজা ঐ
+                   নম্বরের রেকর্ডে চলে যায়।
+                   ⚠️ **সৎ কথা:** পুরনো কিছু কলের পুরো নম্বর **কখনো সেভই হয়নি**
+                      (সার্ভারে `target_mobile` ফাঁকা, তাই মুখোশটাই ফেরে —
+                      `V452_STAFF_PERFORMANCE_EXACT_DETAIL` SQL, লাইন ১০২)।
+                      অ্যাপ সেটা লুকোচ্ছে না — নেই বলেই দেখাতে পারে না।
+                      ঐ সারিগুলোয় চাপ দিলে আগের মতোই ডিটেল পর্দা খোলে, যেখানে
+                      কারণটা লেখা আছে। নতুন কলে পুরো নম্বরই সেভ হয় ও দেখায়। */
+                val opened = fullOk && perfOpenNumber(ns(r, "target"))
                 val note = if (!outside && !fullOk) "This is an older call. The full number was not stored at that time." else ""
-                perfDetailScreen(
+                if (!opened) perfDetailScreen(
                     if (outside) "Outside Call Detail" else "App Call Detail", perfLabel(month),
                     listOf(
                         "Number" to ns(r, "target").ifBlank { "—" },
@@ -2016,17 +2172,40 @@ class StaffProfileActivity : AppCompatActivity() {
         val pmode = spinner(listOf("Cash", "Online"))
         col.addView(ModuleUi.label(this, "Amount")); col.addView(pamt)
         col.addView(ModuleUi.label(this, "Mode")); col.addView(pmode)
-        col.addView(ModuleUi.button(this, "Add Payment") {
+        /* 🔵🔒 V521 (২২.০৮.২০২৬, TK-নির্দেশ) — *"Add Payment · Cancel এই দুইটা
+           পাশাপাশি থাকবে, একটা যেন আরেকটার গায়ে ঘেঁষে না যায়। 'Add Payment'
+           লেখা থাকবে না — 'Salary Payment' হবে।"*
+           আগে দুটো বোতাম একটার নিচে একটা, গায়ে-গায়ে লেগে ছিল (দুটোই সবুজ বলে
+           একটাই মোটা সবুজ চাকতির মতো দেখাত — ভুল বোতামে চাপ পড়ার ভয়)।
+           এখন এক সারিতে সমান দুই ভাগ, মাঝে ফাঁক — ঠিক যে সাজ `editSalaryConfig`-এ
+           TK আগেই পাশ করেছেন (Cancel · Save), হুবহু সেই একই নিয়ম।
+           ⛔ সেভের নিয়ম · টাকার হিসাব · database — এক অক্ষরও বদলায়নি। */
+        val payRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(8), 0, 0)
+        }
+        val payCancel = ModuleUi.button(this, "Cancel") { salary(code) }.apply {
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                marginEnd = dp(6)
+            }
+        }
+        val paySave = ModuleUi.button(this, "Salary Payment") {
             val row = JSONObject().put("person_code", code).put("paid_on", todayIso())
                 .put("amount", pamt.text.toString().toDoubleOrNull() ?: 0.0)
                 .put("mode", pmode.selectedItem.toString()).put("paid_by", ModuleAuth.personCode)
                 .put("remark", "").put("for_month", monthYm)
             Thread {
                 val ok = ModuleAuth.insert("hr", "salary_payments", row)
-                runOnUiThread { ModuleUi.toast(this, if (ok) "Payment added" else "Retry"); salary(code) }
+                runOnUiThread { salaryCacheClear(code); ModuleUi.toast(this, if (ok) "Payment added" else "Retry"); salary(code) }
             }.start()
-        })
-        col.addView(ModuleUi.button(this, "Cancel") { salary(code) })
+        }.apply {
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                marginStart = dp(6)
+            }
+        }
+        payRow.addView(payCancel)
+        payRow.addView(paySave)
+        col.addView(payRow)
     }
 
     /** 🟢 B629 (11.08.2026, TK-নির্দেশ): যেকোনো মাসের স্যালারি রেকর্ড — Master নিজে
@@ -2046,7 +2225,24 @@ class StaffProfileActivity : AppCompatActivity() {
         col.addView(ModuleUi.label(this, "Month")); col.addView(monthSpinner)
         col.addView(ModuleUi.label(this, "Amount")); col.addView(pamt)
         col.addView(ModuleUi.label(this, "Mode")); col.addView(pmode)
-        col.addView(ModuleUi.button(this, "Add Payment") {
+        /* 🔵🔒 V521 (২২.০৮.২০২৬, TK-নির্দেশ) — *"Add Payment · Cancel এই দুইটা
+           পাশাপাশি থাকবে, একটা যেন আরেকটার গায়ে ঘেঁষে না যায়। 'Add Payment'
+           লেখা থাকবে না — 'Salary Payment' হবে।"*
+           আগে দুটো বোতাম একটার নিচে একটা, গায়ে-গায়ে লেগে ছিল (দুটোই সবুজ বলে
+           একটাই মোটা সবুজ চাকতির মতো দেখাত — ভুল বোতামে চাপ পড়ার ভয়)।
+           এখন এক সারিতে সমান দুই ভাগ, মাঝে ফাঁক — ঠিক যে সাজ `editSalaryConfig`-এ
+           TK আগেই পাশ করেছেন (Cancel · Save), হুবহু সেই একই নিয়ম।
+           ⛔ সেভের নিয়ম · টাকার হিসাব · database — এক অক্ষরও বদলায়নি। */
+        val addRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(8), 0, 0)
+        }
+        val addCancel = ModuleUi.button(this, "Cancel") { salary(code) }.apply {
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                marginEnd = dp(6)
+            }
+        }
+        val addSave = ModuleUi.button(this, "Salary Payment") {
             val idx = monthSpinner.selectedItemPosition
             if (idx < 0 || idx >= months.size) { ModuleUi.toast(this, "Choose a month"); return@button }
             val amt = pamt.text.toString().toDoubleOrNull() ?: 0.0
@@ -2057,10 +2253,16 @@ class StaffProfileActivity : AppCompatActivity() {
                 .put("paid_by", ModuleAuth.personCode).put("remark", "").put("for_month", ym)
             Thread {
                 val ok = ModuleAuth.insert("hr", "salary_payments", row)
-                runOnUiThread { ModuleUi.toast(this, if (ok) "Payment added" else "Retry"); salary(code) }
+                runOnUiThread { salaryCacheClear(code); ModuleUi.toast(this, if (ok) "Payment added" else "Retry"); salary(code) }
             }.start()
-        })
-        col.addView(ModuleUi.button(this, "Cancel") { salary(code) })
+        }.apply {
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                marginStart = dp(6)
+            }
+        }
+        addRow.addView(addCancel)
+        addRow.addView(addSave)
+        col.addView(addRow)
     }
 
     /** জয়েনিং মাস থেকে চলতি মাস পর্যন্ত YYYY-MM তালিকা (নতুন-আগে)। join_date না
@@ -2114,7 +2316,7 @@ class StaffProfileActivity : AppCompatActivity() {
                 .put("updated_by", ModuleAuth.personCode).put("updated_at", nowIso())
             Thread {
                 val ok = ModuleAuth.upsert("hr", "salary_config", row)
-                runOnUiThread { ModuleUi.toast(this, if (ok) "Saved" else "Retry"); salary(code) }
+                runOnUiThread { salaryCacheClear(code); ModuleUi.toast(this, if (ok) "Saved" else "Retry"); salary(code) }
             }.start()
         }.apply {
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
@@ -2166,17 +2368,55 @@ class StaffProfileActivity : AppCompatActivity() {
      */
     private val extraPatientCache = HashMap<String, Pair<String, String>>()   // id → (name, mobile)
 
+    /**
+     * 🔵🔒 V521 (২২.০৮.২০২৬, TK-নির্দেশ) — **"কী কারণে টাকা দিচ্ছি, সেটা তো
+     * বোঝা যাচ্ছে না।"**
+     *
+     * **আসল নিয়মটা (কোডে প্রমাণিত — `V418_INCENTIVE_AUTO_2026-08-17.sql`):**
+     * Extra income তখনই তৈরি হয় যখন রোগীর সারিতে
+     * `timeType = 'Unexpected Time'` — অর্থাৎ **অসময়ে আসা এনকোয়ারি**।
+     * তারপর Registration Fee জমা পড়লে ₹১০০, আর প্রথম Advance/Treatment টাকা
+     * জমা পড়লে আরও ₹৪০০।
+     *
+     * **সমস্যা যেটা ছিল:** SQL শুধু `"Registration · <কোড>"` লিখত — *Unexpected
+     * Time* কথাটা **কোথাও লেখাই হত না**। তাই পপ-আপ খুলেও TK বুঝতে পারতেন না
+     * কেন টাকাটা পাওনা।
+     *
+     * **এখন:** রোগীর `timeType` ঘরটা এখানে জমা রাখা হয় ও পপ-আপে দেখানো হয়।
+     * ⛔ **একটাও বাড়তি cloud-read নয়** — উপরের একই ব্যাচ-পড়াতেই শুধু একটা
+     *    সরু কলাম যোগ হয়েছে (`timeType`)। Free Plan-এ egress প্রায় শূন্য বাড়ে।
+     * ⛔ কোনো SQL চালাতে হবে না · database-এ কিছু বদলায় না · টাকার অঙ্ক
+     *    এক পয়সাও বদলায় না — এটা শুধু **দেখানোর** কাজ।
+     */
+    private val extraPatientTiming = HashMap<String, String>()               // id → timeType
+
     private fun fillExtraPatientNames(rows: List<Triple<String, TextView?, JSONObject>>) {
         if (rows.isEmpty()) return
         val ids = rows.map { it.first }.filter { it.isNotBlank() }.distinct()
         val need = ids.filter { !extraPatientCache.containsKey(it) }
+        /* 🔵🔒 V521 (২২.০৮.২০২৬, TK-নির্দেশ): লাইনটা এখন **প্রতিবার নতুন করে
+           বানানো হয়** (আগে শেষে জুড়ে দেওয়া হত)। কারণ এখন সামনে ⏰ চিহ্নও বসে,
+           আর একই লাইন দুবার আঁকা হলে চিহ্ন/নাম দুবার বসে যেত।
+           ফল: `⏰ UNEXPECTED  ·  Registration · COB-…  ·  NUR ALAM MIYA`
+           ⛔ তথ্য সবই আগে থেকেই আনা — নতুন কোনো cloud-read নেই। */
         fun paint() {
-            for ((pid, view, _) in rows) {
-                val nm = extraPatientCache[pid]?.first ?: continue
-                if (nm.isBlank() || view == null) continue
-                val cur = view.text?.toString() ?: ""
-                if (cur.contains(nm)) continue
-                view.text = if (cur.isBlank()) nm else "$cur  ·  $nm"
+            for ((pid, view, row) in rows) {
+                if (view == null) continue
+                val nm = extraPatientCache[pid]?.first.orEmpty().trim()
+                val tt = extraPatientTiming[pid].orEmpty().trim()
+                val why = ns(row, "extra_reason").trim()
+                if (nm.isBlank() && tt.isBlank()) continue          // এখনো কিছুই আসেনি
+                val parts = mutableListOf<String>()
+                if (tt.isNotBlank()) parts.add(
+                    if (tt.equals("Unexpected Time", ignoreCase = true)) "⏰ UNEXPECTED"
+                    else "🕐 " + tt.uppercase()
+                )
+                if (why.isNotBlank()) parts.add(why)
+                // ⛔ হাতে-লেখা মন্তব্য থাকলে সেটাও যেন হারিয়ে না যায় (আগের লাইনে ছিল)
+                ns(row, "remark").trim().takeIf { it.isNotBlank() }?.let { parts.add(it) }
+                if (nm.isNotBlank()) parts.add(nm)
+                val line = parts.joinToString("  ·  ")
+                if (line.isNotBlank() && view.text?.toString() != line) view.text = line
             }
         }
         if (need.isEmpty()) { paint(); return }
@@ -2184,13 +2424,14 @@ class StaffProfileActivity : AppCompatActivity() {
             try {
                 val list = need.joinToString(",") { java.net.URLEncoder.encode(it, "UTF-8") }
                 val rows2 = com.tkbiswas.pilesclinic.native.SupabaseClient.fetchListSlimOrNull(
-                    "patients", "id=in.($list)", 500, "id,name,mobile", order = "id.asc"
+                    "patients", "id=in.($list)", 500, "id,name,mobile,timeType", order = "id.asc"
                 )
                 if (rows2 != null) {
                     for (i in 0 until rows2.length()) {
                         val o = rows2.optJSONObject(i) ?: continue
                         val id = o.optString("id", "")
                         if (id.isBlank()) continue
+                        extraPatientTiming[id] = o.optString("timeType", "").trim()
                         extraPatientCache[id] = Pair(
                             o.optString("name", "").trim(),
                             o.optString("mobile", "").trim()
@@ -2233,10 +2474,11 @@ class StaffProfileActivity : AppCompatActivity() {
             try {
                 val enc = java.net.URLEncoder.encode(pid, "UTF-8")
                 val rows = com.tkbiswas.pilesclinic.native.SupabaseClient.fetchListSlimOrNull(
-                    "patients", "id=eq.$enc", 1, "id,name,mobile", order = "id.asc")
+                    "patients", "id=eq.$enc", 1, "id,name,mobile,timeType", order = "id.asc")
                 val o = if (rows != null && rows.length() > 0) rows.optJSONObject(0) else null
                 if (o != null) {
                     m = o.optString("mobile", "").trim()
+                    extraPatientTiming[pid] = o.optString("timeType", "").trim()
                     extraPatientCache[pid] = Pair(o.optString("name", "").trim(), m)
                 }
             } catch (_: Throwable) { }
@@ -2253,13 +2495,49 @@ class StaffProfileActivity : AppCompatActivity() {
         val amt = money(p.optDouble("amount", 0.0))
         val on = dmy(ns(p, "paid_on"))
         val status = if (payStatus(p) == "DUE") "DUE (not paid yet)" else "PAID"
+
+        /* 🔵🔒 V521 (২২.০৮.২০২৬, TK-নির্দেশ) — *"কী কারণে দিচ্ছি সেটা তো বোঝা
+           যাচ্ছে না… আমি বুঝবো কী করে যে স্টাফটা কী কারণে টাকা নিচ্ছে।"*
+           নিচের তিনটে নতুন লাইন সেটাই বলে দেয় — Timing · কোন ধাপ · নিয়মটা।
+           ⛔ সবই ইতিমধ্যেই আনা তথ্য থেকে; নতুন কোনো cloud-read নেই। */
+        val timing = extraPatientTiming[pid].orEmpty().trim()
+        val isUnexpected = timing.equals("Unexpected Time", ignoreCase = true)
+        // `extra_reason` SQL-এ লেখা হয় `Registration · <কোড>` বা `Treatment · <কোড>`
+        val stage = why.substringBefore("·").trim()
+        val stageLine = when {
+            stage.equals("Registration", true) ->
+                "Registration Fee received  →  ₹100"
+            stage.equals("Treatment", true) ->
+                "First Advance / Treatment payment received  →  ₹400"
+            else -> ""
+        }
+
         val sb = StringBuilder()
         if (name.isNotBlank()) sb.append("Patient:  ").append(name).append("\n\n")
         if (mob.isNotBlank()) sb.append("Mobile:  ").append(mob).append("\n\n")
+        // ⏰ সবচেয়ে জরুরি লাইন — এটাই না থাকায় TK কিছু বুঝতে পারতেন না
+        if (timing.isNotBlank()) {
+            val shown = if (isUnexpected) "⏰ UNEXPECTED TIME" else "🕐 " + timing.uppercase()
+            sb.append("Timing:  ").append(shown).append("\n\n")
+        }
         if (why.isNotBlank()) sb.append("For:  ").append(why).append("\n\n")
+        if (stageLine.isNotBlank()) sb.append("Step:  ").append(stageLine).append("\n\n")
         sb.append("Amount:  ").append(amt).append("\n\n")
         sb.append("Date:  ").append(on).append("\n\n")
         sb.append("Status:  ").append(status)
+        // নিয়মটা এক নজরে — TK যেন প্রতিবার মনে করার চেষ্টা না করেন
+        if (isUnexpected) {
+            sb.append("\n\n────────────\n")
+            sb.append("Rule: only an UNEXPECTED TIME enquiry earns extra.\n")
+            sb.append("₹100 when that number registers and pays the fee,\n")
+            sb.append("₹400 more when the same patient pays an advance.\n")
+            sb.append("Shared 50-50 with the staff who took the enquiry.")
+        } else if (timing.isNotBlank()) {
+            // এটা কখনো হওয়ার কথা নয় — হলে TK-কে জানানোই ঠিক, চুপ করে থাকা নয়
+            sb.append("\n\n⚠️ This patient is not marked UNEXPECTED TIME.")
+            sb.append("\nExtra income is only for unexpected-time enquiries —")
+            sb.append("\nplease check this entry.")
+        }
         val d = androidx.appcompat.app.AlertDialog.Builder(this)
             .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(
                 this, "Extra income - why?"))
@@ -2642,7 +2920,7 @@ class StaffProfileActivity : AppCompatActivity() {
                 .put("status", if (payingNow) "PAID" else "DUE")
             Thread {
                 val ok = ModuleAuth.insert("hr", "salary_payments", row)
-                runOnUiThread { ModuleUi.toast(this, if (ok) "Extra income added" else "Retry"); salary(code) }
+                runOnUiThread { salaryCacheClear(code); ModuleUi.toast(this, if (ok) "Extra income added" else "Retry"); salary(code) }
             }.start()
         })
         (col.parent as? android.widget.ScrollView)?.isFillViewport = true
@@ -2709,10 +2987,10 @@ class StaffProfileActivity : AppCompatActivity() {
                 }
                 box.addView(ModuleUi.body(this, ns(p, "person_code") + " · " + desig + " · " + ns(p, "branch")))
                 box.addView(ModuleUi.body(this, ns(p, "full_name").ifBlank { "(name not set by Master yet)" }))
-                box.addView(ModuleUi.body(this, "Mobile: " + ModuleUi.maskMobile(ns(p, "link_mobile"))))
+                box.addView(ModuleUi.body(this, "Mobile: " + ModuleUi.fullMobile(ns(p, "link_mobile"))))   // 🔵 V521 (TK)
                 val altM = ns(p, "alt_mobile")
                 if (altM.isNotBlank())
-                    box.addView(ModuleUi.body(this, "Alternate Mobile: " + (if (altM.any { it.isDigit() }) ModuleUi.maskMobile(altM) else altM)))
+                    box.addView(ModuleUi.body(this, "Alternate Mobile: " + (if (altM.any { it.isDigit() }) ModuleUi.fullMobile(altM) else altM)))   // 🔵 V521 (TK)
                 if (ns(p, "gender").isNotBlank() || ns(p, "blood_group").isNotBlank())
                     box.addView(ModuleUi.body(this, listOf(ns(p, "gender"), ns(p, "blood_group")).filter { it.isNotBlank() }.joinToString(" · ")))
                 if (ns(p, "qualification").isNotBlank())

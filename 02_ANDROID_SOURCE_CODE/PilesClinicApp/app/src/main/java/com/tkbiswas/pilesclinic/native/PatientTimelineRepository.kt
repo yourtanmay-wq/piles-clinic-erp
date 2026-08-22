@@ -155,7 +155,23 @@ data class TimelineData(
     // bucket include this patient anyway, and stops Follow-up call
     // reminders for them (see DraftRepository.kt / FollowUpRepository.kt).
     val completeRequestedBy: String = "",
-    val completeApprovedBy: String = ""
+    val completeApprovedBy: String = "",
+    /**
+     * 🔵🔒 V521 (২২.০৮.২০২৬, TK-নির্দেশ) — এই রোগীর এনকোয়ারি **অসময়ে** এসেছিল
+     * কি না (`"Unexpected Time"` / `"Official Time"`)।
+     *
+     * **কেন দরকার:** স্টাফের Extra Income **শুধু অসময়ের এনকোয়ারিতেই** হয়
+     * (নিয়মটা `V418_INCENTIVE_AUTO_2026-08-17.sql`-এ)। কিন্তু রোগীর History
+     * খুলে সেটা দেখার কোনো উপায়ই ছিল না — TK বলেছেন *"আমি বুঝবো কী করে যে
+     * স্টাফটা কী কারণে টাকা নিচ্ছে।"*
+     *
+     * ⛔ **বাড়তি কোনো cloud-read নেই** — এই পর্দা `patients`/`enquiries` সারি
+     *    আনে `byMobile()` দিয়ে, আর সেটা `fetchList(...)`-এর ডিফল্ট `select=*`
+     *    ব্যবহার করে (এই ফাইলের ২৪৯–২৫৫ নম্বর লাইন)। তাই `timeType` ঘরটা
+     *    **আগে থেকেই আসত**, শুধু কেউ পড়ত না। এক বাইটও বাড়ছে না।
+     * ⛔ ডিফল্ট ফাঁকা — পুরোনো সারিতে ঘরটা না থাকলে কিছুই দেখায় না, আচরণ আগের মতোই।
+     */
+    val timeType: String = ""
 )
 
 /**
@@ -1257,7 +1273,12 @@ object PatientTimelineRepository {
                 }
             },
             completeRequestedBy = patient.s("completeRequestedBy"),
-            completeApprovedBy = patient.s("completeApprovedBy")
+            completeApprovedBy = patient.s("completeApprovedBy"),
+            // 🔵🔒 V521: রোগীর সারিতে না থাকলে (পুরোনো রেকর্ড) এনকোয়ারির সারি
+            // থেকে — Extra Income-এর নিয়ম রোগীর সারিই দেখে, তাই সেটাই আগে।
+            timeType = patient.s("timeType").ifBlank {
+                if (enquiries.length() > 0) enquiries.getJSONObject(0).s("timeType") else ""
+            }
         )
     }
 }

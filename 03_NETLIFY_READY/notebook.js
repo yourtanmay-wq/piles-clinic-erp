@@ -648,7 +648,7 @@
     try { rows = (await client.schema('wn').from('outside_calls').select('*').eq('staff_code', code).eq('call_date', date).order('call_time')).data || []; } catch (e) {}
     var host = document.getElementById('ocList'); if (!host) return;
     host.innerHTML = rows.map(function (x) {
-      return '<div>' + m.esc(x.call_time) + ' · ' + m.maskMobile(x.target_mobile) + ' · ' + m.esc(x.remark || '') + '</div>';
+      return '<div>' + m.esc(x.call_time) + ' · ' + m.esc(m.fullMobile(x.target_mobile)) + ' · ' + m.esc(x.remark || '') + '</div>';
     }).join('') || '<div class="mut">No outside calls today.</div>';
   }
   async function nbAddOutside() {
