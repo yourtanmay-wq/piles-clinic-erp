@@ -94,20 +94,32 @@
     }
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
 
-    /* ---- চর্বি ও শরীরের মাংস ---- */
-    ctx.fillStyle = C_FAT;
-    ctx.beginPath();
-    ctx.moveTo(cx - 3.7 * CM, cy - 5.3 * CM);
-    ctx.lineTo(cx + 3.6 * CM, cy - 5.3 * CM);
-    ctx.quadraticCurveTo(cx + 3.9 * CM, cy - 1.2 * CM, cx + 2.5 * CM, cy + 0.35 * CM);
-    ctx.quadraticCurveTo(cx, cy + 0.95 * CM, cx - 2.5 * CM, cy + 0.35 * CM);
-    ctx.quadraticCurveTo(cx - 3.9 * CM, cy - 1.2 * CM, cx - 3.7 * CM, cy - 5.3 * CM);
-    ctx.closePath(); ctx.fill(); edge(ctx);
-    ctx.strokeStyle = C_FAT2; ctx.lineWidth = 1;
-    for (var i = 0; i < 26; i++) {                       // চর্বির দানা
-      var ax = cx + (((i * 37) % 70) / 70 - 0.5) * 7 * CM;
-      var ay = cy - 0.3 * CM - ((i * 53) % 45) / 45 * 4.4 * CM;
-      ctx.beginPath(); ctx.arc(ax, ay, 5 + (i % 3) * 2, 0, 6.3); ctx.stroke();
+    /* ---- চর্বি ও শরীরের মাংস ----
+       ভয় ধরানো ধরনে চারকোনা বাক্স নয় — কিনারা অন্ধকারে মিলিয়ে যায়,
+       তাই ছবিটা আঁকা বাক্সের মত না লেগে সত্যিকারের মাংস মনে হয়।       */
+    if (SCARY) {
+      var bg = ctx.createRadialGradient(cx, cy - 2.3 * CM, 0.5 * CM, cx, cy - 2.3 * CM, 4.6 * CM);
+      bg.addColorStop(0, C_FAT); bg.addColorStop(0.62, C_FAT2);
+      bg.addColorStop(0.86, 'rgba(60,16,18,0.55)'); bg.addColorStop(1, 'rgba(10,3,4,0)');
+      ctx.save(); ctx.translate(cx, cy - 2.3 * CM); ctx.scale(1.18, 0.95); ctx.translate(-cx, -(cy - 2.3 * CM));
+      ctx.fillStyle = bg;
+      ctx.beginPath(); ctx.arc(cx, cy - 2.3 * CM, 4.6 * CM, 0, 6.3); ctx.fill();
+      ctx.restore();
+    } else {
+      ctx.fillStyle = C_FAT;
+      ctx.beginPath();
+      ctx.moveTo(cx - 3.7 * CM, cy - 5.3 * CM);
+      ctx.lineTo(cx + 3.6 * CM, cy - 5.3 * CM);
+      ctx.quadraticCurveTo(cx + 3.9 * CM, cy - 1.2 * CM, cx + 2.5 * CM, cy + 0.35 * CM);
+      ctx.quadraticCurveTo(cx, cy + 0.95 * CM, cx - 2.5 * CM, cy + 0.35 * CM);
+      ctx.quadraticCurveTo(cx - 3.9 * CM, cy - 1.2 * CM, cx - 3.6 * CM, cy - 5.3 * CM);
+      ctx.closePath(); ctx.fill(); edge(ctx);
+      ctx.strokeStyle = C_FAT2; ctx.lineWidth = 1;
+      for (var i = 0; i < 26; i++) {
+        var ax = cx + (((i * 37) % 70) / 70 - 0.5) * 7 * CM;
+        var ay = cy - 0.3 * CM - ((i * 53) % 45) / 45 * 4.4 * CM;
+        ctx.beginPath(); ctx.arc(ax, ay, 5 + (i % 3) * 2, 0, 6.3); ctx.stroke();
+      }
     }
 
     /* ---- চামড়ার কিনারা ---- */
@@ -267,6 +279,7 @@
     }
 
     /* ---- মাপকাঠি ও নাম ---- */
+    if (SCARY) { reseed(); mottle(ctx, cx, cy, W, H, 46); vessels(ctx, cx, cy, piles, 110); }
     if (st.bleed && T) {
       var bt = (T * 1.0) % 1;                              // ফোঁটা কতদূর নেমেছে
       var bh = (DENTATE_CM + 0.5) * (1 - bt) + 0.05 * bt;
@@ -286,6 +299,7 @@
       ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
     }
     scaleBar(ctx, W - 58, cy, cy - CANAL_CM * CM);
+    if (SCARY && st.grain !== false) grain(ctx, W, H, 26);
     var TXT = SCARY ? '#E9D2C6' : '#5A4030';
     label(ctx, cx, cy + 0.92 * CM, 'পায়ুদ্বার (বাইরের মুখ)', TXT, 'center');
     label(ctx, cx, cy - (TOP_CM + 0.42) * CM, 'মলাশয় (উপরের দিকে)', TXT, 'center');
@@ -312,6 +326,65 @@
     var t = Math.round(deg / 30); if (t === 0) t = 12;
     return t;
   }
+  /* ---------- কার্টুন ভাব কাটানোর কাজ ----------
+     সমান রঙের চ্যাপ্টা তল দেখলেই কার্টুন লাগে। তাই মাংসের গায়ে
+     ছোপ, সরু রক্তের শিরা, আর সব শেষে সূক্ষ্ম দানা বসানো হয় —
+     ঠিক যেমন আসল ছবিতে থাকে।                                        */
+  var SEED = 20260822;
+  function rnd() { SEED = (SEED * 1103515245 + 12345) & 0x7fffffff; return ((SEED >>> 8) & 0xffff) / 65536; }
+  function reseed() { SEED = 20260822; }
+
+  // মাংসের গায়ে অসমান ছোপ
+  function mottle(ctx, cx, cy, W, H, n) {
+    ctx.save(); ctx.globalCompositeOperation = 'overlay';
+    for (var i = 0; i < n; i++) {
+      var x = cx + (rnd() - 0.5) * 7.4 * CM, y = cy - rnd() * 5.6 * CM;
+      var r = (0.25 + rnd() * 1.1) * CM, dark = rnd() < 0.5;
+      var g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, dark ? 'rgba(60,10,14,0.30)' : 'rgba(255,180,170,0.22)');
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.3); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // সরু রক্তের শিরা
+  function vessels(ctx, cx, cy, piles, n) {
+    ctx.save(); ctx.lineCap = 'round';
+    for (var i = 0; i < n; i++) {
+      var side = rnd() < 0.5 ? -1 : 1;
+      var h = 0.15 + rnd() * 3.2;
+      var w = halfWidth(h, piles, side) + rnd() * 0.9;
+      var p0 = px(ctx, cx, cy, side * w, h);
+      ctx.beginPath(); ctx.moveTo(p0[0], p0[1]);
+      var x = p0[0], y = p0[1];
+      for (var k = 0; k < 3; k++) {
+        x += (rnd() - 0.5) * 0.5 * CM; y += (rnd() - 0.35) * 0.4 * CM;
+        ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = 'rgba(150,18,34,' + (0.10 + rnd() * 0.20).toFixed(2) + ')';
+      ctx.lineWidth = 0.6 + rnd() * 1.3;
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // সব শেষে সূক্ষ্ম দানা — এতেই ছবিটা আঁকা নয়, তোলা মনে হয়
+  function grain(ctx, W, H, amt) {
+    var img, d, i, n;
+    try { img = ctx.getImageData(0, 0, W, H); } catch (e) { return; }
+    d = img.data;
+    for (i = 0; i < d.length; i += 4) {
+      SEED = (SEED * 1103515245 + 12345) & 0x7fffffff;
+      n = (((SEED >>> 16) & 255) / 255 - 0.5) * amt;
+      d[i]     = clamp255(d[i]     + n * 1.25);
+      d[i + 1] = clamp255(d[i + 1] + n * 0.80);
+      d[i + 2] = clamp255(d[i + 2] + n * 0.80);
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+  function clamp255(v) { return v < 0 ? 0 : (v > 255 ? 255 : v); }
+
   function gloss(ctx, x, y, r) {
     var gg = ctx.createRadialGradient(x, y, 0, x, y, r);
     gg.addColorStop(0, 'rgba(255,225,225,0.42)'); gg.addColorStop(1, 'rgba(255,235,235,0)');
@@ -334,9 +407,9 @@
   function tag(ctx, x, y, txt) {
     ctx.font = '700 12px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.beginPath(); ctx.arc(x, y, 13, 0, 6.3);
-    ctx.fillStyle = 'rgba(255,255,255,0.94)'; ctx.fill();
-    ctx.strokeStyle = C_PILELINE; ctx.lineWidth = 1.4; ctx.stroke();
-    ctx.fillStyle = C_PILELINE; ctx.fillText(txt, x, y);
+    ctx.fillStyle = SCARY_G ? 'rgba(20,6,8,0.80)' : 'rgba(255,255,255,0.94)'; ctx.fill();
+    ctx.strokeStyle = SCARY_G ? 'rgba(220,150,140,0.65)' : C_PILELINE; ctx.lineWidth = 1.4; ctx.stroke();
+    ctx.fillStyle = SCARY_G ? '#F0C9C0' : C_PILELINE; ctx.fillText(txt, x, y);
   }
   function scaleBar(ctx, x, y0, y1) {
     ctx.strokeStyle = SCARY_G ? '#D9C3B4' : '#6A5A48'; ctx.lineWidth = 2;
