@@ -1539,7 +1539,9 @@ class WorkNotebookActivity : AppCompatActivity() {
     //    ১) তিনি Staff কিনা            → RoleRules (displayRole, প্রমাণিত পথ)
     //    ২) আজ অনুমোদিত ছুটি কিনা      → সার্ভার নিজেই দেখে (ধাপ ৫-এ)
     //    ৩) ক্লিনিকে আছেন কিনা         → ClinicPresence (GPS)
-    //    ৪) আঙুলের ছাপ                 → BiometricGate (শুধু BIOMETRIC_STRONG)
+    //    ৪) ~~আঙুলের ছাপ~~            → 🔵 V528-এ **তুলে দেওয়া হয়েছে**
+    //         (TK: *"আপাতত এটুকুই রাখবেন"* — শুধু Login ও Refund-এ আঙুল।
+    //          কারণ ছাপটা ফোনের, ব্যক্তির নয় — তাই "কে হাজিরা দিল" প্রমাণ হত না।)
     //    ৫) সার্ভারে atomic সেভ        → wn.mark_check_in()
     //
     //  ⛔ ফোনের ঘড়ির সময় আর ব্যবহারই হয় না — সার্ভার নিজে সময় বসায়।
@@ -1614,40 +1616,37 @@ class WorkNotebookActivity : AppCompatActivity() {
                     extra = if (offSwitch) ({ openLocationSettings() }) else null)
                 return@check
             }
-            // ধাপ ৪ — আঙুলের ছাপ
-            /* 🔴🔒 V500 (২১.০৮.২০২৬) — TK-এর স্পষ্ট সিদ্ধান্ত:
-               আমি জানিয়েছিলাম, হাজিরায় ফোনের PIN খুলে দিলে কেউ সহকর্মীকে
-               PIN বলে দিয়ে হাজিরা বসিয়ে নিতে পারে (আর সেই হাজিরাতেই বেতন
-               গোনা হয়)। TK সব জেনে **"হ্যাঁ"** বলেছেন।
-               ⇒ তাই হাজিরাতেও এখন `promptUnlock()` — **আঙুল অথবা ফোনের
-                 পাসওয়ার্ড**, অ্যাপ খোলার মতোই এক নিয়ম।
-               ⛔ ক্লিনিকে আছেন কিনা (GPS) যাচাই আগের মতোই আছে — সেটাই এখন
-                 সবচেয়ে শক্ত পাহারা। */
-            com.tkbiswas.pilesclinic.native.BiometricGate.promptUnlock(
-                this,
-                // 🔤 V509 (২১.০৮.২০২৬, TK-নির্দেশ "এই ধরনের বাংলা থাকবে না"):
-                // তালার পর্দার লেখা ইংরেজি — নিয়ম ও GPS পাহারা অপরিবর্তিত।
-                "Attendance",
-                "Use your fingerprint, or your phone password"
-            ) { bio ->
-                if (!bio.ok) {
-                    val r = bio.reason
-                    val canRetry = r == BiometricGate.Reason.FAILED ||
-                        r == BiometricGate.Reason.CANCELLED ||
-                        r == BiometricGate.Reason.HW_UNAVAILABLE ||
-                        r == BiometricGate.Reason.LOCKOUT
-                    val notEnrolled = r == BiometricGate.Reason.NONE_ENROLLED
-                    inTimeMessage("Fingerprint", bio.message, "#A8281C",
-                        retry = if (canRetry) ({ startInTimeFlow(onSaved) }) else null,
-                        extraLabel = if (notEnrolled) "Open Settings" else null,
-                        extra = if (notEnrolled) ({
-                            BiometricGate.openEnrollSettings(this)
-                        }) else null)
-                    return@promptUnlock
-                }
-                // ধাপ ৫ — সার্ভারে atomic সেভ
-                saveInTimeOnServer(onSaved)
-            }
+            /* ══════════════════════════════════════════════════════════════
+               🔴🔴🔒 V528 (২২.০৮.২০২৬, TK-এর স্পষ্ট নির্দেশ) — **হাজিরায়
+               আঙুলের ছাপ আর চাওয়া হয় না।**
+
+               TK-এর কথা: *"ফিঙ্গারপ্রিন্ট তখনই কাজে লাগবে — অ্যাপ খোলার সময়
+               যে পাসওয়ার্ড লাগে তখন… আর দেবেন তখন যদি কোনো পেশেন্টকে তার
+               টাকা রিফান্ড করতে হয়। আপাতত এটুকুই রাখবেন, এর বাইরে কিছু
+               রাখতে হবে না।"*
+
+               **কারণটাও TK নিজেই বলেছেন:** *"ফিঙ্গারপ্রিন্টের কাজ প্রত্যেকটা
+               ব্যক্তির ক্ষেত্রে সমান"* — অর্থাৎ ছাপটা **ফোনের**, ব্যক্তির নয়।
+               তাই এটা দিয়ে *"কে হাজিরা দিল"* সেটা আদৌ প্রমাণ হত না, শুধু
+               স্টাফের একটা বাড়তি ধাপ বাড়ত।
+
+               ⇒ ধাপ ৪ (আঙুল) তুলে দেওয়া হলো; ধাপ ৩-এর পরে সরাসরি ধাপ ৫।
+
+               ⛔ **ক্লিনিকে উপস্থিত কিনা (GPS) যাচাই উপরে হুবহু আগের মতোই
+                  আছে** — সেটাই এখন হাজিরার আসল ও একমাত্র পাহারা। এটা
+                  ছোঁয়া হয়নি।
+               ⛔ সার্ভারে সেভের নিয়ম (`AttendanceRepository.markCheckIn`,
+                  `wn.mark_check_in()`) এক অক্ষরও বদলায়নি — সময় ও ভূমিকা
+                  সার্ভারই ঠিক করে, অ্যাপ নয়।
+               ⛔ V500-এর কোডটা মোছা হয়নি এমন নয় — সরানো হয়েছে, কিন্তু
+                  `BiometricGate` অক্ষত। TK চাইলে আবার বসাতে এক মিনিট।
+
+               🔓 **সৎ কথা:** এখন ক্লিনিকে দাঁড়িয়ে থাকলে যে কেউ ওই ফোন থেকে
+                  হাজিরা বসিয়ে দিতে পারবে। আগেও আঙুলটা ফোনেরই ছিল, তাই
+                  সুরক্ষা প্রায় একই — TK এটা জেনেই সিদ্ধান্ত নিয়েছেন।
+               ══════════════════════════════════════════════════════════════ */
+            // ধাপ ৫ — সার্ভারে atomic সেভ
+            saveInTimeOnServer(onSaved)
         }
     }
 
