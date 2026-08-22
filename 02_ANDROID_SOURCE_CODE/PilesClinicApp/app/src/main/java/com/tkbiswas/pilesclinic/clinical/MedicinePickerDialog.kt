@@ -320,7 +320,7 @@ object MedicinePickerDialog {
             layoutParams = boxParams(false)
         } else null
         val searchBox = EditText(activity).apply {
-            hint = "🔍 মেডিসিন"   // 🔵 V488 (TK): "Search" নয় — "মেডিসিন", আইকন থাকবে
+            hint = "\uD83D\uDD0D Medicine"   /* 🔵 V545 (২২.০৮.২০২৬, TK-নির্দেশ: "মেডিসিন বাংলায় লেখা থাকবে না, ওটা ইংরেজিতে হবে")। ⛔ NoBengali-র পুরোনো ম্যাপিং অক্ষত। */
             textSize = 13f
             gravity = Gravity.CENTER          // ঠিক মাঝখানে, বাকি দুটোর মতোই
             background = rounded(activity, "#F5F7FA", "#D3DBE6", 12)
@@ -851,9 +851,50 @@ object MedicinePickerDialog {
             ).apply { topMargin = px(8) }
         }
         val name = field("Medicine name")
-        val dose = field("Dose / quantity")
-        val frequency = field("When / frequency")
-        val days = field("Days")
+        /* 🔵🔒 V545 (২২.০৮.২০২৬, TK-নির্দেশ) — *"dose when days — এগুলো তিনটে
+           কলমে থাকবে না, একটা কলমে থাকবে, প্রথম ফটোর মতন।"*
+           ⇒ তালিকার কার্ডে যে সারিটা আগে থেকেই চলছে (`Dose: … When: … [৫ days]`)
+             **হুবহু সেই চেহারাই** এখানে — একই রং, একই মাপ, একই ধরন।
+           ⛔ ঘর তিনটে **মোছা হয়নি** — শুধু এক সারিতে বসেছে। নিচের সেভের
+              কোড (`dose`/`frequency`/`days` পড়া) **এক অক্ষরও বদলায়নি**। */
+        val dose = EditText(activity).apply {
+            hint = "Dose"; textSize = 13f; background = null; setPadding(0, 0, 0, 0)
+            try { letterSpacing = 0.12f } catch (_: Throwable) { }
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        val frequency = EditText(activity).apply {
+            hint = "When"; textSize = 13f; background = null; setPadding(0, 0, 0, 0)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        val days = EditText(activity).apply {
+            hint = "Days"; textSize = 13f; gravity = Gravity.CENTER
+            background = rounded(activity, "#F1F6FB", accent.border, 7)
+            setPadding(px(10), px(4), px(10), px(4))
+            val p = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            p.marginStart = px(8); minWidth = px(64); layoutParams = p
+        }
+        fun tinyLabel(t: String, startPx: Int) = TextView(activity).apply {
+            text = t; textSize = 13f; setTextColor(Color.parseColor("#5B6B81"))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).also { it.marginStart = startPx; it.marginEnd = px(8) }
+        }
+        val doseRow = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            background = rounded(activity, "#FFFFFF", accent.border, 8)
+            setPadding(px(10), px(6), px(10), px(6))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = px(8) }
+            addView(tinyLabel("Dose:", 0))
+            addView(dose)
+            addView(tinyLabel("When:", px(10)))
+            addView(frequency)
+            addView(days)
+        }
         val note = field("Instruction (optional)")
 
         // TK APPROVED (2026-07-15): Type (Tab/Cap/Syp/...) chip — tap to cycle,
@@ -878,7 +919,56 @@ object MedicinePickerDialog {
             }
         }
         box.addView(typeChip)
-        listOf(name, dose, frequency, days, note).forEach(box::addView)
+        box.addView(name)
+        box.addView(doseRow)
+        box.addView(note)
+
+        /* 🔵🔒 V545 (TK-নির্দেশ) — *"কোন মেডিসিনের নাম যখন টাইপ করে লিখব,
+           ডোজের ঘর অটো ডিফল্ট থাকবে তো? আমি যদি চাই সেই ক্ষেত্রেই পরিবর্তন
+           হবে। তাছাড়া কত দিনের জন্য সেটাও ডিফল্ট ওখানে লেখা থাকবে।"*
+
+           নাম লেখা হলে **প্রজেক্টের নিজের মনে-রাখা ডিফল্টই** বসে —
+           `rxDoseFor` · `splitDoseAndFrequency` · `rxDaysFor` · `rxTypeFor`
+           (তালিকার কার্ডে ঠিক এগুলোই ব্যবহার হয়, নতুন কিছু বানানো হয়নি)।
+
+           ⛔ **স্টাফ নিজে একবার কিছু লিখলে সেই ঘরে আর কখনো হাত পড়ে না** —
+              নিচের `touched*` পাহারা। তাই টাইপ করা লেখা মুছে যাওয়ার ভয় নেই।
+           ⛔ ডিফল্ট না জানা থাকলে ঘর ফাঁকাই থাকে — আগের মতোই। */
+        var touchedDose = false; var touchedWhen = false; var touchedDays = false
+        var fillingDefaults = false
+        fun watch(e: EditText, mark: () -> Unit) {
+            e.addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+                override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+                override fun afterTextChanged(s: Editable?) { if (!fillingDefaults) mark() }
+            })
+        }
+        watch(dose) { touchedDose = true }
+        watch(frequency) { touchedWhen = true }
+        watch(days) { touchedDays = true }
+
+        name.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                val nm = s?.toString()?.trim().orEmpty()
+                if (nm.isEmpty()) return
+                fillingDefaults = true
+                try {
+                    val (dDose, dWhen) = ClinicalRepository.splitDoseAndFrequency(
+                        ClinicalRepository.rxDoseFor(nm)
+                    )
+                    if (!touchedDose) dose.setText(dDose)
+                    if (!touchedWhen) frequency.setText(dWhen)
+                    if (!touchedDays) days.setText(ClinicalRepository.rxDaysFor(nm))
+                    if (currentType.isBlank()) {
+                        val t = ClinicalRepository.rxTypeFor(nm)
+                        if (t.isNotBlank()) { currentType = t; typeChip.text = "Type: $t" }
+                    }
+                } catch (_: Throwable) { }
+                fillingDefaults = false
+            }
+        })
 
         UppercaseInputUtil.applyToAll(box)  // TK-REQUESTED GLOBAL RULE (2026-07-24): English text auto-CAPITAL, Password fields excluded automatically
         val dialog = AlertDialog.Builder(activity)
