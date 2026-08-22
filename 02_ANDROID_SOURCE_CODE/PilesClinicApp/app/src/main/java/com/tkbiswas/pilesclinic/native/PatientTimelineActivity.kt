@@ -36,6 +36,9 @@ class PatientTimelineActivity : AppCompatActivity() {
     // shows the complete A-to-Z history or the current-stage-only view.
     private var forceFullJourney: Boolean = false
     private var currentPatientRowId: String = ""
+
+    /** 🔵 V517: Search/অন্য পর্দা থেকে আসা "ঠিক কোন রোগী" — ফাঁকা হলে আগের আচরণ। */
+    private var preferPatientRowId: String = ""
     private var currentPatientName: String = ""
     private var currentRefDoctor: String = ""
     private var currentRefDoctorMobile: String = ""
@@ -152,6 +155,10 @@ class PatientTimelineActivity : AppCompatActivity() {
             UppercaseInputUtil.applyToAll(binding.root)  // TK-REQUESTED GLOBAL RULE (2026-07-24): English text auto-CAPITAL, Password fields excluded automatically
 
             val mobile = intent.getStringExtra("mobile")?.filter { it.isDigit() }?.takeLast(10) ?: ""
+            /* 🔵🔒 V517 (TK-অনুমোদিত): এক নম্বরে একাধিক রোগী থাকলে Search/অন্য
+               পর্দা **কোন রোগী** সেটাও পাঠায়। ⛔ না পাঠালে ফাঁকা — তখন এই পর্দা
+               হুবহু আগের মতোই চলে, তাই পুরোনো ২২টা ডাকার জায়গার একটাও ভাঙে না। */
+            preferPatientRowId = intent.getStringExtra("patientRowId").orEmpty()
             if (mobile.length != 10) {
                 // CLARITY FIX (TK-reported, 2026-07-16): this used to finish()
                 // silently with no message -- looked exactly like "View All does
@@ -3179,7 +3186,7 @@ class PatientTimelineActivity : AppCompatActivity() {
             try {
                 // 🔒 B607 (TK-অনুমোদিত): শুধু এই History পর্দায় প্রতি ঘটনা আলাদা সারি।
                 // Report Card/অন্য কলার এই প্যারাম পাঠায় না → আগের মতোই merged।
-                val data = withContext(Dispatchers.IO) { PatientTimelineRepository.build(mobile, section, this@PatientTimelineActivity, keepVisitFeeAsOwnRow = true, separateRowsPerEvent = true) }
+                val data = withContext(Dispatchers.IO) { PatientTimelineRepository.build(mobile, section, this@PatientTimelineActivity, keepVisitFeeAsOwnRow = true, separateRowsPerEvent = true, preferRowId = preferPatientRowId) }
                 binding.progressLoad.visibility = View.GONE
 
                 // 🔴🔴 TK-REPORTED (31.07.2026): নাম না থাকলে Mobile দুইবার দেখাত।

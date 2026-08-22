@@ -286,7 +286,7 @@ object PatientTimelineRepository {
     // ঘটনা আলাদা সারি হয় (History পর্দার জন্য)। ডিফল্ট false — ⛔ Report Card ও
     // অন্য সব কলার আগের মতোই (day-merge) পায়, এক অক্ষরও বদলায় না। টাকার হিসাব
     // দুই পথেই এক (প্রতি পেমেন্ট আলাদা paidEffect ধরে গোনা হয়, নিচে দেখুন)।
-    fun build(mobileDigits: String, section: String? = null, context: Context? = null, keepVisitFeeAsOwnRow: Boolean = false, separateRowsPerEvent: Boolean = false): TimelineData {
+    fun build(mobileDigits: String, section: String? = null, context: Context? = null, keepVisitFeeAsOwnRow: Boolean = false, separateRowsPerEvent: Boolean = false, preferRowId: String = ""): TimelineData {
         // Match by the trailing 10 digits (like the global search does) instead of
         // an exact "+91..." match, so a timeline is found regardless of how the
         // mobile was stored (bare 10-digit, +91, spaces, etc.). This is why the
@@ -331,7 +331,23 @@ object PatientTimelineRepository {
         // Passing the same branch makes the two identical in every case.
         // With a single row (the normal case) nothing changes at all.
         val viewerBranch = context?.let { NativeSession.current(it)?.branch }.orEmpty()
-        val patient = PatientIdentity.pickPatientRow(patients, viewerBranch) ?: JSONObject()
+        /* 🔵🔒 V517 (২২.০৮.২০২৬, TK-অনুমোদিত): এক মোবাইলে একাধিক রোগী থাকতে
+           পারেন (স্বামী/স্ত্রী)। ডাকার জায়গা যদি **কোন রোগী** তা জানিয়ে দেয়
+           (`preferRowId`), তখন ঠিক সেই সারিটাই নেওয়া হয়।
+           ⛔ `preferRowId` ফাঁকা, বা ওই আইডির সারি এই নম্বরে না থাকলে —
+              **হুবহু আগের পথ** (`pickPatientRow`)। তাই পুরোনো সব ডাক
+              (Report Card · Chamber · Timeline-এর নিজের পথ) এক অক্ষরও বদলায়নি।
+           ⛔ শেয়ার-করা `PatientIdentity.pickPatientRow` নিয়মটা ছোঁয়া হয়নি —
+              ওটা ৯টা পর্দা ব্যবহার করে, V143-এর সুরক্ষা অটুট। */
+        val forced = if (preferRowId.isBlank()) null else {
+            var f: JSONObject? = null
+            for (i in 0 until patients.length()) {
+                val r = patients.optJSONObject(i) ?: continue
+                if (r.s("id") == preferRowId) { f = r; break }
+            }
+            f
+        }
+        val patient = forced ?: PatientIdentity.pickPatientRow(patients, viewerBranch) ?: JSONObject()
         val patientId = patient.s("id")
         // Clinical records may be keyed by EITHER the patient's row id (the
         // WebView saves medical with patientId:p.id) OR the P-xxxx patientId (the

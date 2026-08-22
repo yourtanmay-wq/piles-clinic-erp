@@ -39,7 +39,13 @@ class GlobalSearchActivity : AppCompatActivity() {
     // 🆔 TK-এর নিয়ম (28.07.2026): নাম ও মোবাইলের সঙ্গে Patient ID-ও দেখাতে হবে।
     // এনকোয়ারিতে ID থাকে না, তাই ডিফল্ট ফাঁকা — তখন কিছুই বাড়তি দেখায় না।
     // ⛔ কোনো বাড়তি ক্লাউড-কল হয়নি: patients সারিটা আগে থেকেই নামানো হত।
-    data class SearchHit(val name: String, val mobile: String, val branch: String, val type: String, val patientId: String = "")
+    /**
+     * 🔵🔒 V517 (২২.০৮.২০২৬, TK-অনুমোদিত): `rowId` — এই ফলটা ঠিক **কোন** রোগীর
+     * সারি। এক মোবাইলে একাধিক রোগী থাকলে (স্বামী/স্ত্রী) এটা দিয়েই
+     * Full Journey সঠিক রোগীরটাই খোলে।
+     * ⛔ ডিফল্ট ফাঁকা — Enquiry-র ফলে সারি-আইডি লাগে না, আচরণ আগের মতোই।
+     */
+    data class SearchHit(val name: String, val mobile: String, val branch: String, val type: String, val patientId: String = "", val rowId: String = "")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -57,7 +63,7 @@ class GlobalSearchActivity : AppCompatActivity() {
         recycler.layoutManager = LinearLayoutManager(this)
         adapter = SearchAdapter(
             results,
-            onFullJourney = { hit -> openTimeline(hit.mobile) },
+            onFullJourney = { hit -> openTimeline(hit.mobile, hit.rowId) },
             onCall = { hit -> callHit(hit.mobile) },
             onWhatsApp = { hit -> whatsAppHit(hit.mobile) },
             onPayment = { hit -> openPaymentForHit(hit.mobile) },
@@ -230,11 +236,52 @@ class GlobalSearchActivity : AppCompatActivity() {
                     if (k.isBlank()) continue
                     patRowsByMobile.getOrPut(k) { org.json.JSONArray() }.put(r)
                 }
-                for ((k, rows) in patRowsByMobile) {
-                    val chosen = PatientIdentity.pickPatientRow(rows, user?.branch ?: "") ?: continue
-                    byMobile[k] = SearchHit(chosen.s("name"), chosen.s("mobile"), chosen.s("branch"), "Patient", chosen.s("patientId"))
+                /* 🔵🔴🔒 V517 (২২.০৮.২০২৬, TK-অনুমোদিত) — **এক নম্বরে একাধিক রোগী
+                   হলে প্রত্যেকে আলাদা ফল।**
+
+                   TK-এর দাবি ৮: *"Search-এ একই mobile লিখলে ওই নম্বরের সঙ্গে যুক্ত
+                   সব Patient আলাদা আলাদা card হিসেবে দেখাবে।"*
+
+                   ⛔ কিন্তু উপরের `pickPatientRow` নিয়মটা (V143, "ছ'টা পর্দা এক
+                      নিয়মে") একটা **ভালো সুরক্ষা**: ভুল করে একই রোগীর দুটো
+                      রেজিস্ট্রেশন হয়ে গেলে শুধু আসলটাই দেখায়, পরিত্যক্ত
+                      duplicate-টা লুকায়। সেটা এক অক্ষরও ভাঙা যাবে না।
+
+                   **দুটোকে আলাদা করার প্রমাণিত চিহ্ন:** V516-এ স্টাফ যখন নিজে
+                   বেছে *"Different Patient — Same Mobile"* চাপেন, একমাত্র তখনই
+                   আইডি হয় `pat_<১০ সংখ্যা>_<...>` ধাঁচের
+                   (`PatientModel.newRowIdForSameMobile`)। অন্য কোনো পথে এই ধাঁচ
+                   কখনো তৈরি হয় না। তাই —
+                     · এই ধাঁচের সারি = **স্টাফের ঘোষিত আলাদা রোগী** ⇒ নিজের card
+                     · বাকি সব সারি = আগের মতোই একত্র, `pickPatientRow` বেছে দেয়
+                   ⇒ পুরোনো ভুল-duplicate গুলো **আগের মতোই লুকানো** থাকে। */
+                fun isDeclaredSeparatePatient(rowId: String, mobileKey: String): Boolean {
+                    if (mobileKey.length != 10) return false
+                    val prefix = "pat_" + mobileKey + "_"
+                    return rowId.startsWith(prefix) && rowId.length > prefix.length
                 }
-                byMobile.values.toMutableList()
+                val extraHits = mutableListOf<SearchHit>()
+                for ((k, rows) in patRowsByMobile) {
+                    val ordinary = org.json.JSONArray()
+                    for (i in 0 until rows.length()) {
+                        val r = rows.getJSONObject(i)
+                        if (isDeclaredSeparatePatient(r.s("id"), k)) {
+                            extraHits.add(
+                                SearchHit(r.s("name"), r.s("mobile"), r.s("branch"), "Patient", r.s("patientId"), r.s("id"))
+                            )
+                        } else {
+                            ordinary.put(r)
+                        }
+                    }
+                    // পুরোনো পথ — হুবহু আগের মতোই (একটাই সারি থাকলে কিছুই বদলায় না)
+                    val chosen = PatientIdentity.pickPatientRow(ordinary, user?.branch ?: "") ?: continue
+                    byMobile[k] = SearchHit(chosen.s("name"), chosen.s("mobile"), chosen.s("branch"), "Patient", chosen.s("patientId"), chosen.s("id"))
+                }
+                /* ঘোষিত আলাদা রোগীরা মূল ফলের ঠিক পরে বসেন, তাই এক নম্বরের
+                   সবাই পাশাপাশি দেখা যায়। ⛔ কেউ কখনো বাদ পড়ে না। */
+                val out = byMobile.values.toMutableList()
+                out.addAll(extraHits)
+                out
             }
             progressLoad.visibility = View.GONE
             results.clear()
@@ -245,9 +292,16 @@ class GlobalSearchActivity : AppCompatActivity() {
         }
     }
 
-    private fun openTimeline(mobile: String) {
+    /**
+     * 🔵🔒 V517 (TK-অনুমোদিত): মোবাইলের সঙ্গে **কোন রোগী** সেটাও পাঠানো হয়।
+     * ⛔ `mobile` extra আগের মতোই যায়, তাই Timeline-এর পুরোনো সব পথ অটুট।
+     * ⛔ `patientRowId` ফাঁকা হলে Timeline হুবহু আগের মতোই আচরণ করে।
+     */
+    private fun openTimeline(mobile: String, patientRowId: String = "") {
         val digits = mobile.filter { it.isDigit() }.takeLast(10)
-        startActivity(Intent(this, PatientTimelineActivity::class.java).putExtra("mobile", digits))
+        val i = Intent(this, PatientTimelineActivity::class.java).putExtra("mobile", digits)
+        if (patientRowId.isNotBlank()) i.putExtra("patientRowId", patientRowId)
+        startActivity(i)
     }
 
     private fun markArrivedHit(hit: SearchHit) {

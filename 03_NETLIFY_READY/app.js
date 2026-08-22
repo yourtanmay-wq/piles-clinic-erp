@@ -4185,7 +4185,7 @@ function patientJourneyHtml(e,p){
  let appt=e?.appointmentDate?`<div><b>Appointment Date</b><span>${esc(fmtDate(e.appointmentDate))}</span></div>`:'';
  return `<div class="card journeyCard"><div class="row"><div><b>${esc(nm)}</b><br><span class="mut">${esc(mm)} · ${esc(br)}</span></div><span class="dupStatusBadge">${esc(status)}</span></div><div class="journeyGrid"><div><b>Source</b><span>${esc(src)}</span></div><div><b>Created By</b><span>${esc(createdBy)}</span></div><div><b>Assigned Branch</b><span>${esc(br)}</span></div><div><b>First Entry</b><span>${esc(fmtDateTime(first))}</span></div>${appt}<div><b>Last Remark</b><span>${esc(last)}</span></div></div></div>`;
 }
-window["patientJourneyHtml"]=patientJourneyHtml;function summaryByMobile(m){let mm=mob(m);/* TK (27.07.2026) ধাপ ৩খ ১ম পর্দা: ফোনের মতোই চলতি ব্রাঞ্চ ধরে বাছা হয়, নইলে দুই অ্যাপ আলাদা সারি দেখাতে পারত। */let p=wlv1PickPatientRow(load('patients').filter(x=>mob(x.mobile)===mm),(typeof user!=='undefined'&&user&&user.branch)||''),f=load('followups').find(x=>mob(x.mobile)===mm),e=load('enquiries').find(x=>mob(x.mobile)===mm);if(p)return summary(p.id);if(f)return viewFollow(f.id);if(e){let made=ensureFollow(e,'Inquiry',e.nextFollow||'',e.remarks||'');return viewFollow(made.id)}page('Patient Journey','<div class="card redP">Details not found</div>')}
+window["patientJourneyHtml"]=patientJourneyHtml;function summaryByMobile(m,preferRowId){let mm=mob(m);/* 🔵🔒 V517 (২২.০৮.২০২৬, TK-অনুমোদিত): এক নম্বরে একাধিক রোগী থাকতে পারেন। ডাকার জায়গা **কোন রোগী** জানিয়ে দিলে ঠিক সেই সারিটাই খোলা হয়। ⛔ না জানালে (বা ওই আইডি এই নম্বরে না থাকলে) হুবহু আগের পথ — `wlv1PickPatientRow`, V143-এর সুরক্ষা অটুট। ⛔ পুরোনো সব ডাক অপরিবর্তিত। */if(preferRowId){var __pw=load('patients').find(function(x){return x&&x.id===preferRowId&&mob(x.mobile)===mm});if(__pw)return summary(__pw.id)}/* TK (27.07.2026) ধাপ ৩খ ১ম পর্দা: ফোনের মতোই চলতি ব্রাঞ্চ ধরে বাছা হয়, নইলে দুই অ্যাপ আলাদা সারি দেখাতে পারত। */let p=wlv1PickPatientRow(load('patients').filter(x=>mob(x.mobile)===mm),(typeof user!=='undefined'&&user&&user.branch)||''),f=load('followups').find(x=>mob(x.mobile)===mm),e=load('enquiries').find(x=>mob(x.mobile)===mm);if(p)return summary(p.id);if(f)return viewFollow(f.id);if(e){let made=ensureFollow(e,'Inquiry',e.nextFollow||'',e.remarks||'');return viewFollow(made.id)}page('Patient Journey','<div class="card redP">Details not found</div>')}
 window.summaryByMobile=summaryByMobile;
 function saveEnq(){
  try{
@@ -8191,17 +8191,35 @@ window.allSearchRows=allSearchRows;function searchResults(q,showInitial=false,co
       // FIX: de-duplicate by mobile number — same person can exist as separate rows across
       // patients/enquiries/followups tables; show ONE card per number, preferring the most
       // advanced stage (Patient > Visit/Treatment > Enquiry) so staff don't see redundant cards.
+      /* 🔵🔴🔒 V517 (২২.০৮.২০২৬, TK-অনুমোদিত) — **এক নম্বরে একাধিক রোগী হলে
+         প্রত্যেকে আলাদা card।**  (ফোনের `GlobalSearchActivity`-র হুবহু একই নিয়ম।)
+
+         নিচের একত্র-করা নিয়মটা একটা **ভালো কাজ**: একই মানুষ enquiries /
+         followups / patients — তিন টেবিলেই থাকতে পারেন, তখন একটাই card দেখানো
+         হয় (উঁচু ধাপ জেতে)। সেটা এক অক্ষরও ভাঙা হয়নি।
+
+         শুধু একটা ছাড়: V516-এ স্টাফ যখন **নিজে বেছে** "Different Patient —
+         Same Mobile" চাপেন, তখনই কেবল রোগীর আইডি হয় `pat_<১০ সংখ্যা>_<...>`
+         ধাঁচের (`patNewRowIdForSameMobile`)। অন্য কোনো পথে এই ধাঁচ তৈরি হয় না।
+         ⇒ ওই সারিগুলো **ঘোষিত আলাদা রোগী**, তাই নিজের card পায়;
+           বাকি সব আগের মতোই একত্র হয় (পুরোনো ভুল-duplicate লুকানোই থাকে)। */
       (function(){
         let rank={Patient:3,Treatment:3,Visit:2,Enquiry:1};
-        let byMobile={};
+        let byMobile={},declared=[];
+        let isDeclaredSeparate=(r,mm)=>{
+          let id=String((r&&r.id)||'');
+          let pfx='pat_'+mm+'_';
+          return mm.length===10&&id.indexOf(pfx)===0&&id.length>pfx.length;
+        };
         rows.forEach(r=>{
           let mm=frMobile(r.mobile);
           if(!mm)return;
+          if(isDeclaredSeparate(r,mm)){declared.push(r);return}
           let existing=byMobile[mm];
           let rScore=rank[r.kind||frStageName(r)]||0;
           if(!existing||rScore>(rank[existing.kind||frStageName(existing)]||0))byMobile[mm]=r;
         });
-        rows=Object.values(byMobile);
+        rows=Object.values(byMobile).concat(declared);
       })();
       // 🔴 TK-ধরা বাগ (১৫.০৮.২০২৬, "MAYA ROY হুবহু টাইপ করলেও উপরে আসছে না"):
       // আগে শুধু ধাপ (Patient/Visit/Enquiry) দিয়ে সাজানো হতো, নামের মিল
@@ -8264,7 +8282,7 @@ window.allSearchRows=allSearchRows;function searchResults(q,showInitial=false,co
           if(x.lastRemark)extra.push(`Last Remark: <b>${esc(x.lastRemark)}</b>`);
           fullDetails=`<div class="tiny mut" style="margin-top:6px;line-height:1.7">${extra.join('<br>')}</div>`;
         }
-        return `<div class="card">${basic}${fullDetails}<div class="actions"><button class="small ghost" onclick="contact('${x.mobile}','call')">Call</button><button class="small ghost" onclick="contact('${x.mobile}','wa')">WhatsApp</button><button class="small" onclick="summaryByMobile('${frMobile(x.mobile)}')">All Details</button></div></div>`;
+        return `<div class="card">${basic}${fullDetails}<div class="actions"><button class="small ghost" onclick="contact('${x.mobile}','call')">Call</button><button class="small ghost" onclick="contact('${x.mobile}','wa')">WhatsApp</button><button class="small" onclick="summaryByMobile('${frMobile(x.mobile)}',${(function(){var id=String((x&&x.id)||'');var pfx='pat_'+frMobile(x.mobile)+'_';return (id.indexOf(pfx)===0&&id.length>pfx.length)?("'"+id+"'"):'undefined'})()})">All Details</button></div></div>`;
       }).join('')||'<div class="card mut">No records found</div>';
     }
 window.searchResults=searchResults;
