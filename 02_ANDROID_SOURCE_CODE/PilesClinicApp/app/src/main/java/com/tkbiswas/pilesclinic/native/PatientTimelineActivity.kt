@@ -305,7 +305,10 @@ class PatientTimelineActivity : AppCompatActivity() {
                 } else {
                     reloadOnReturn = true
                     startActivity(
-                        Intent(this, PatientPhotoActivity::class.java).putExtra("mobile", digits)
+                        // 🔵🔒 V530: এই Timeline যে রোগীর, ছবির পর্দাও ঠিক তাঁরই খুলবে।
+                        Intent(this, PatientPhotoActivity::class.java)
+                            .putExtra("mobile", digits)
+                            .putExtra("patientRowId", preferPatientRowId)
                     )
                 }
             }

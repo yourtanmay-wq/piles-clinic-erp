@@ -25,6 +25,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.resume   // 🔵 V530
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -56,6 +57,59 @@ import java.util.Locale
 class DoctorVisitActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityDoctorvisitBinding
+
+    /**
+     * 🔵🔒 V530 (২২.০৮.২০২৬, TK-নির্দেশ) — **ডাক্তারের পর্দাতেও ঠিক রোগীটিই।**
+     *
+     * **আগে যা হত:** এই পর্দার পাঁচ জায়গায় নম্বর দিয়ে রোগী খুঁজে **প্রথম
+     * সারিটাই** ধরে নেওয়া হত। এক নম্বরে স্বামী-স্ত্রী দু'জন আলাদা রোগী থাকলে
+     * ভুল জনের নাম বসে যেত — প্রেসক্রিপশন, রেফারেল-আয়, সবই ভুল নামে।
+     *
+     * **এখন:** ওই নম্বরে সত্যিই একাধিক আলাদা রোগী থাকলে **তখনই** এক লাইনে
+     * জিজ্ঞাসা করা হয়।
+     *
+     * ⛔ একজন থাকলে (রোজকার ৯৯%) **এই বাক্স কখনো দেখা যায় না** এবং ফল হুবহু
+     *    আগের মতোই — `findByMobile` সেই একই প্রথম সারিটাই ফেরায়।
+     * ⛔ রোগী না পেলে আগের মতোই `null` — ডাকার জায়গার বার্তা এক অক্ষরও বদলায়নি।
+     * ⛔ স্টাফ *Cancel* করলেও `null` — অর্থাৎ "রোগী মেলেনি"-র সেই একই পথ,
+     *    ভুল রোগীর নামে কিছু সেভ হওয়ার চেয়ে যা অনেক নিরাপদ।
+     */
+    private suspend fun findVisitPatient(digits: String): PatientPhotoRepository.PatientRef? {
+        val repo = PatientPhotoRepository()
+        val people = withContext(Dispatchers.IO) {
+            try { repo.identitiesByMobile(digits) } catch (_: Throwable) { emptyList() }
+        }
+        if (people.size >= 2) {
+            val chosen = askWhichVisitPatient(digits, people) ?: return null
+            return withContext(Dispatchers.IO) {
+                repo.findByMobile(digits, chosen.id, chosen.patientId)
+            }
+        }
+        // ⛔ ০ বা ১ জন ⇒ হুবহু আগের সেই এক ডাক।
+        return withContext(Dispatchers.IO) { repo.findByMobile(digits) }
+    }
+
+    private suspend fun askWhichVisitPatient(
+        mobile: String, people: List<PatientPhotoRepository.PatientRef>
+    ): PatientPhotoRepository.PatientRef? =
+        kotlinx.coroutines.suspendCancellableCoroutine { cont ->
+            val labels = people.map { p ->
+                (p.name.ifBlank { "UNKNOWN" }) + "\n" + (p.patientId.ifBlank { "-" })
+            }.toTypedArray()
+            var done = false
+            fun finishWith(v: PatientPhotoRepository.PatientRef?) {
+                if (done) return
+                done = true
+                if (cont.isActive) cont.resume(v)
+            }
+            if (isFinishing || isDestroyed) { finishWith(null); return@suspendCancellableCoroutine }
+            AlertDialog.Builder(this)
+                .setTitle("\uD83D\uDCDE $mobile \u2014 which patient?")
+                .setItems(labels) { _, which -> finishWith(people.getOrNull(which)) }
+                .setNegativeButton("Cancel") { _, _ -> finishWith(null) }
+                .setOnCancelListener { finishWith(null) }
+                .show()
+        }
     private lateinit var repository: DoctorVisitRepository
     private lateinit var adapter: DoctorVisitAdapter
     private lateinit var user: NativeUser
@@ -2549,7 +2603,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                             nameField.setText("Checking…")
                             nameField.setTextColor(android.graphics.Color.parseColor("#7A8699"))
                             lifecycleScope.launch {
-                                val ref = withContext(Dispatchers.IO) { PatientPhotoRepository().findByMobile(digits) }
+                                val ref = findVisitPatient(digits)   // 🔵 V530
                                 if (my != token) return@launch
                                 if (ref == null) {
                                     nameField.setText("✗ No patient found with this mobile")
@@ -2572,7 +2626,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                                 return@setOnClickListener
                             }
                             lifecycleScope.launch {
-                                val ref = withContext(Dispatchers.IO) { PatientPhotoRepository().findByMobile(digits) }
+                                val ref = findVisitPatient(digits)   // 🔵 V530
                                 if (ref == null) {
                                     Toast.makeText(this@DoctorVisitActivity, "No patient found with this mobile — check the number", Toast.LENGTH_LONG).show()
                                     return@launch
@@ -4569,7 +4623,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                 if (digits.length != 10) { patientStatus.text = "Enter the patient's mobile"; return }
                 val mine = ++token; patientStatus.text = "Checking patient…"
                 lifecycleScope.launch {
-                    val found = withContext(Dispatchers.IO) { PatientPhotoRepository().findByMobile(digits) }
+                    val found = findVisitPatient(digits)   // 🔵 V530
                     if (mine != token) return@launch
                     patientRef = found
                     patientStatus.text = if (found == null) "No patient found" else "✓ ${found.name}"
@@ -4936,7 +4990,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                 nameField.setText("Checking…")
                 nameField.setTextColor(android.graphics.Color.parseColor("#7A8699"))
                 lifecycleScope.launch {
-                    val ref = withContext(Dispatchers.IO) { PatientPhotoRepository().findByMobile(digits) }
+                    val ref = findVisitPatient(digits)   // 🔵 V530
                     if (myToken != matchToken) return@launch // mobile field changed again while this was loading
                     if (ref == null) {
                         nameField.setText("✗ No patient found with this mobile")
@@ -5001,7 +5055,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                 val payMode = modeSpinner.selectedItem.toString()
                 val refNo = refInput.text.toString().trim()
                 lifecycleScope.launch {
-                    val patientRef = withContext(Dispatchers.IO) { PatientPhotoRepository().findByMobile(mobileDigits) }
+                    val patientRef = findVisitPatient(mobileDigits)   // 🔵 V530
                     if (patientRef == null) {
                         Toast.makeText(this@DoctorVisitActivity, "No patient found with this mobile — check the number", Toast.LENGTH_LONG).show()
                         return@launch

@@ -2532,6 +2532,13 @@ class FollowUpActivity : AppCompatActivity() {
         val digits = item.mobile.filter { it.isDigit() }.takeLast(10)
         val intent = Intent(this, PatientPhotoActivity::class.java)
         intent.putExtra("mobile", digits)
+        /* 🔵🔒 V530 (২২.০৮.২০২৬, TK-নির্দেশ): এক নম্বরে দু'জন আলাদা রোগী থাকলে
+           **এই কার্ডটা কার**, সেটাই সাথে যায় — তাই অন্যজনের ছবি খুলবে না ও
+           ভুল করে অন্যজনের ছবি বদলে যাবে না।
+           ⛔ `refId`/`patientId` ফাঁকা হলে আচরণ হুবহু আগের মতোই।
+           (হুবহু সেই দুটো ঘর যেগুলো `openPaymentFor` V520 থেকে পাঠায়।) */
+        intent.putExtra("patientRowId", item.refId)
+        intent.putExtra("patientCode", item.patientId)
         startActivity(intent)
     }
 

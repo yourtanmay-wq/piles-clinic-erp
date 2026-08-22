@@ -14,6 +14,7 @@ import com.tkbiswas.pilesclinic.databinding.ActivityPatientPhotoBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.resume   // 🔵 V530
 
 /**
  * Native rebuild -- Patient Photo. Search a patient by mobile, pick a gallery
@@ -127,6 +128,11 @@ class PatientPhotoActivity : AppCompatActivity() {
         // Follow-up card photo triple-tap sends the selected patient's mobile.
         // Prefill and load that same patient automatically; manual search remains unchanged.
         val presetMobile = intent.getStringExtra("mobile").orEmpty().filter(Char::isDigit).takeLast(10)
+        /* 🔵🔒 V530 (২২.০৮.২০২৬, TK-নির্দেশ): কার্ড/Timeline থেকে এলে **কোন রোগী**
+           তা সাথেই আসে, তাই এক নম্বরে দু'জন থাকলেও ঠিক তাঁরই ছবি খোলে।
+           ⛔ ফাঁকা এলে (স্টাফ নিজে নম্বর টাইপ করেছেন) আচরণ আগের মতোই। */
+        preferRowId = intent.getStringExtra("patientRowId").orEmpty().trim()
+        preferPatientCode = intent.getStringExtra("patientCode").orEmpty().trim()
         if (presetMobile.length == 10) {
             // TK-REQUESTED (2026-07-20): opened by 3-tapping a patient's photo,
             // so the patient is already known -- the mobile box + FIND PATIENT
@@ -140,6 +146,37 @@ class PatientPhotoActivity : AppCompatActivity() {
         }
     }
 
+    /* 🔵🔒 V530: ডাকার জায়গা থেকে আসা "কোন রোগী" — ফাঁকা মানে অজানা। */
+    private var preferRowId: String = ""
+    private var preferPatientCode: String = ""
+
+    /**
+     * 🔵🔒 V530: এক নম্বরে **সত্যিই একাধিক আলাদা রোগী** থাকলে তবেই জিজ্ঞাসা।
+     * ⛔ একজন থাকলে (রোজকার ৯৯%) এই বাক্স কখনো দেখা যায় না — বাড়তি চাপ নয়।
+     * (হুবহু সেই পর্দা যেটা Payment-এ V520 থেকে চলছে।)
+     */
+    private suspend fun askWhichPatient(
+        mobile: String, people: List<PatientPhotoRepository.PatientRef>
+    ): PatientPhotoRepository.PatientRef? =
+        kotlinx.coroutines.suspendCancellableCoroutine { cont ->
+            val labels = people.map { p ->
+                (p.name.ifBlank { "UNKNOWN" }) + "\n" + (p.patientId.ifBlank { "-" })
+            }.toTypedArray()
+            var done = false
+            fun finishWith(v: PatientPhotoRepository.PatientRef?) {
+                if (done) return
+                done = true
+                if (cont.isActive) cont.resume(v)
+            }
+            if (isFinishing || isDestroyed) { finishWith(null); return@suspendCancellableCoroutine }
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("\uD83D\uDCDE $mobile \u2014 which patient?")
+                .setItems(labels) { _, which -> finishWith(people.getOrNull(which)) }
+                .setNegativeButton("Cancel") { _, _ -> finishWith(null) }
+                .setOnCancelListener { finishWith(null) }
+                .show()
+        }
+
     private fun findPatient() {
         val digits = binding.etMobile.text.toString().filter { it.isDigit() }.takeLast(10)
         if (digits.length != 10) {
@@ -148,7 +185,21 @@ class PatientPhotoActivity : AppCompatActivity() {
         }
         binding.progressLoad.visibility = View.GONE  // TK-REQUESTED (2026-07-20): spinner must NEVER spin anywhere; cache-first shows old data instantly, content appears when ready.
         lifecycleScope.launch {
-            val found = withContext(Dispatchers.IO) { repository.findByMobile(digits) }
+            /* 🔵🔒 V530: কে, তা আগে থেকে জানা না থাকলে **তখনই** দেখা হয় এই
+               নম্বরে ক'জন আলাদা রোগী আছেন। একজন ⇒ আগের পথ, কোনো প্রশ্ন নয়। */
+            if (preferRowId.isBlank() && preferPatientCode.isBlank()) {
+                val people = withContext(Dispatchers.IO) {
+                    try { repository.identitiesByMobile(digits) } catch (_: Throwable) { emptyList() }
+                }
+                if (people.size >= 2) {
+                    val chosen = askWhichPatient(digits, people) ?: return@launch
+                    preferRowId = chosen.id
+                    preferPatientCode = chosen.patientId
+                }
+            }
+            val found = withContext(Dispatchers.IO) {
+                repository.findByMobile(digits, preferRowId, preferPatientCode)
+            }
             binding.progressLoad.visibility = View.GONE
             if (found == null) {
                 Toast.makeText(this@PatientPhotoActivity, "No patient found for this mobile", Toast.LENGTH_LONG).show()

@@ -31,19 +31,57 @@ class PatientPhotoRepository {
     // ডিফল্ট ফাঁকা রাখা হয়েছে, তাই পুরনো কোনো ডাক ভাঙে না।
     data class PatientRef(val id: String, val name: String, val mobile: String, val photo: String, val patientId: String = "")
 
-    fun findByMobile(mobileDigits: String): PatientRef? {
+    private fun refOf(r: org.json.JSONObject) = PatientRef(
+        id = r.s("id"),
+        name = r.s("name"),
+        mobile = r.s("mobile"),
+        photo = r.s("photo"),
+        patientId = r.s("patientId")
+    )
+
+    /**
+     * 🔵🔒 V530 (২২.০৮.২০২৬, TK-নির্দেশ) — **ছবি এখন ঠিক রোগীটিরই।**
+     *
+     * **আগে যা হত:** এই ফাংশন নম্বর দিয়ে খুঁজে **প্রথম সারিটাই** নিত
+     * (`rows.getJSONObject(0)`)। এক নম্বরে স্বামী-স্ত্রী দু'জন আলাদা রোগী থাকলে
+     * দু'জনেরই কার্ডে **একই ছবি** উঠত, আর একজনের ছবি বদলালে অন্যজনেরটাও।
+     *
+     * **এখন:** ডাকার জায়গা যদি জানে কোন রোগী (`preferRowId` / `preferPatientCode`),
+     * ঠিক সেই সারিটাই ফেরে।
+     *
+     * ⛔ **দুটোই ফাঁকা রাখলে আচরণ অক্ষরে অক্ষরে আগের মতোই** (প্রথম সারি) —
+     *    তাই পুরোনো কোনো ডাকার জায়গা ভাঙে না, একটাও।
+     * ⛔ নতুন কোনো ক্লাউড-অনুরোধ নেই — সেই একই একটাই query, শুধু limit ১ থেকে
+     *    ২০ (query-র সংখ্যা বাড়েনি; একই নম্বরের সারি ক'টা, তা এমনিতেই হাতে
+     *    গোনা — B30-এর পরে সাধারণত ১টাই)।
+     */
+    fun findByMobile(
+        mobileDigits: String,
+        preferRowId: String = "",
+        preferPatientCode: String = ""
+    ): PatientRef? {
         val rows = SupabaseClient.findByMobile(
-            "patients", "+91$mobileDigits", "id,name,mobile,photo,patientId"
+            "patients", "+91$mobileDigits", "id,name,mobile,photo,patientId", 20
         )
         if (rows.length() == 0) return null
-        val r = rows.getJSONObject(0)
-        return PatientRef(
-            id = r.s("id"),
-            name = r.s("name"),
-            mobile = r.s("mobile"),
-            photo = r.s("photo"),
-            patientId = r.s("patientId")
+        if (preferRowId.isNotBlank() || preferPatientCode.isNotBlank()) {
+            PatientIdentity.chooseRow(rows, "", preferRowId, preferPatientCode)
+                ?.let { return refOf(it) }
+        }
+        // ⛔ পছন্দ না বলা থাকলে — হুবহু আগের সেই প্রথম সারিটাই।
+        return refOf(rows.getJSONObject(0))
+    }
+
+    /**
+     * 🔵🔒 V530: **এই নম্বরে ক'জন আলাদা রোগী** — পর্দা জিজ্ঞাসা করবে কি না তা
+     * ঠিক করতে। তালিকার আকার ১ হলে (রোজকার ৯৯%) পর্দা কিছুই জিজ্ঞাসা করে না।
+     * ⛔ প্রজেক্টের সেই একটাই শেয়ার-করা নিয়ম (`PatientIdentity.separateIdentities`)।
+     */
+    fun identitiesByMobile(mobileDigits: String): List<PatientRef> {
+        val rows = SupabaseClient.findByMobile(
+            "patients", "+91$mobileDigits", "id,name,mobile,photo,patientId,branch,bill", 20
         )
+        return PatientIdentity.separateIdentities(rows, mobileDigits).map { refOf(it) }
     }
 
     /** Saves (or clears, if photoData is blank) the patient photo on the

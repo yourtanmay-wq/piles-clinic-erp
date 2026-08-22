@@ -88,4 +88,76 @@ object PatientIdentity {
         return branchMatch ?: billed ?: first
     }
 
+    /**
+     * 🔵🔒 V530 (২২.০৮.২০২৬, TK-নির্দেশ: *"১-২-৩ একসাথে ধরুন, কিন্তু খুব সাবধানে"*)
+     *
+     * **এক নম্বরে সত্যিই ক'জন আলাদা রোগী আছেন** — এক জায়গায় লেখা সেই একটাই নিয়ম।
+     *
+     * ⛔ এটা **নতুন নিয়ম নয়** — `PaymentRepository.identitiesOnMobile()`-এ V520
+     *    থেকে যে নিয়মটা চলছে ও পরীক্ষায় পাশ করেছে, হুবহু সেটাই এখানে তোলা হলো,
+     *    যাতে ছবি · প্রিন্ট · ডাক্তারের পর্দাও **একই উত্তর** পায়।
+     *
+     * নিয়ম দুটো ভাগে:
+     *   ১) ভুল করে দু'বার রেজিস্ট্রেশন হয়ে যাওয়া সারিগুলো **একজন ধরেই** গোনা হয়
+     *      (`pickPatientRow` — V143, খাতার সারি B30)।
+     *   ২) স্টাফ নিজে *"Different Patient — Same Mobile"* চেপে যাঁদের ঘোষণা
+     *      করেছেন, তাঁরা **প্রত্যেকে আলাদা** (`isDeclaredSeparateRowId`)।
+     *
+     * ⛔ **রোজকার ৯৯% নম্বরে তালিকার আকার = ১** — তখন ডাকা জায়গাগুলো আগের মতোই
+     *    সোজা পথে চলে, একটাও বাড়তি প্রশ্ন বা বাড়তি ক্লাউড-অনুরোধ নয়।
+     * ⛔ ইতিমধ্যে **আনা সারিগুলোর উপরেই** কাজ করে — নতুন কোনো query করে না।
+     */
+    fun separateIdentities(
+        rows: JSONArray,
+        mobileDigits: String,
+        preferBranch: String = ""
+    ): List<JSONObject> {
+        val d = mobileDigits.filter { it.isDigit() }.takeLast(10)
+        val out = mutableListOf<JSONObject>()
+        if (rows.length() == 0) return out
+        val ordinary = JSONArray()
+        for (i in 0 until rows.length()) {
+            val row = rows.optJSONObject(i) ?: continue
+            if (!PatientModel.isDeclaredSeparateRowId(row.s("id"), d)) ordinary.put(row)
+        }
+        pickPatientRow(ordinary, preferBranch)?.let { out.add(it) }
+        for (i in 0 until rows.length()) {
+            val row = rows.optJSONObject(i) ?: continue
+            if (PatientModel.isDeclaredSeparateRowId(row.s("id"), d)) out.add(row)
+        }
+        return out
+    }
+
+    /**
+     * 🔵🔒 V530: ডাকার জায়গা যদি **কোন রোগী** তা জানে, ঠিক সেই সারিটাই।
+     *
+     * দুই ধাপে খোঁজা — **আগে row id, তারপর Patient ID কোড**। (এই ক্রমটা
+     * ইচ্ছাকৃত: V522-এ আমার নিজের পরীক্ষায় ধরা পড়েছিল যে এক লুপে দুটো একসাথে
+     * মেলালে দুটোয় অমিল হলে **যে সারিটা আগে আসে সেটাই জিতে যায়** — কোড
+     * row id-কে হারিয়ে দিত। তাই row id-ই সবসময় আগে।)
+     *
+     * ⛔ দুটোই ফাঁকা ⇒ `pickPatientRow` — অর্থাৎ **হুবহু আগের নিয়ম**।
+     */
+    fun chooseRow(
+        rows: JSONArray,
+        preferBranch: String = "",
+        preferRowId: String = "",
+        preferPatientCode: String = ""
+    ): JSONObject? {
+        if (rows.length() == 0) return null
+        if (preferRowId.isNotBlank()) {
+            for (i in 0 until rows.length()) {
+                val r = rows.optJSONObject(i) ?: continue
+                if (r.s("id") == preferRowId) return r
+            }
+        }
+        if (preferPatientCode.isNotBlank()) {
+            for (i in 0 until rows.length()) {
+                val r = rows.optJSONObject(i) ?: continue
+                if (r.s("patientId") == preferPatientCode) return r
+            }
+        }
+        return pickPatientRow(rows, preferBranch)
+    }
+
 }

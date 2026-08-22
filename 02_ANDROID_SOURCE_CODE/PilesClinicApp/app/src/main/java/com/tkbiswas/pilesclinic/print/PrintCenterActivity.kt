@@ -22,6 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.resume   // 🔵 V530
 import com.tkbiswas.pilesclinic.native.UppercaseInputUtil
 
 /**
@@ -484,7 +485,7 @@ class PrintCenterActivity : AppCompatActivity() {
                     val rows = myBranchOnly(SupabaseClient.findByMobile(
                         "patients", "+91$digits", "name,age,sex,disease,address,branch,patientId", 20
                     ))
-                    if (rows.length() == 0) null else rows.getJSONObject(0)
+                    pickPatientForPrint(rows, digits)   // 🔵 V530
                 }
                 if (patient == null) { matchBadge.visibility = android.view.View.GONE; fields.matchedPatientId = ""; return@launch }
                 // 🆕 (03.08.2026, TK-অনুমোদনে) — গভীর অডিটে ধরা পড়া ঝুঁকি: org.json-এর
@@ -1037,8 +1038,8 @@ class PrintCenterActivity : AppCompatActivity() {
                     "patients", "+91$mobileDigits",
                     "id,name,patientId,mobile,branch,visitDate,registrationDate,date", 20
                 ))
-                if (patients.length() == 0) return@withContext null
-                val patient = patients.getJSONObject(0)
+                val patient = pickPatientForPrint(patients, mobileDigits)   // 🔵 V530
+                    ?: return@withContext null
                 val pid = patient.optString("patientId", "")
                 val puuid = patient.optString("id", "")
                 if (pid.isBlank() && puuid.isBlank()) return@withContext Pair(patient, null as org.json.JSONObject?)
@@ -1158,7 +1159,7 @@ class PrintCenterActivity : AppCompatActivity() {
                     "patients", "+91$mobileDigits",
                     "id,patientId,name,mobile,branch,disease,diagnosis,address,age,sex,occupation,refBy,refDoctor,refDoctorMobile,complaint,sinceWhen,previousTreatment,registrationDate,date,visitDate", 20
                 ))
-                if (patients.length() == 0) null else patients.getJSONObject(0)
+                pickPatientForPrint(patients, mobileDigits)   // 🔵 V530
             }
             if (patient == null) {
                 Toast.makeText(
@@ -1265,8 +1266,8 @@ class PrintCenterActivity : AppCompatActivity() {
                 val patients = myBranchOnly(SupabaseClient.findByMobile(
                     "patients", "+91$mobileDigits", "id,name,patientId,branch", 20
                 ))
-                if (patients.length() == 0) return@withContext null
-                val patientRow = patients.getJSONObject(0)
+                val patientRow = pickPatientForPrint(patients, mobileDigits)   // 🔵 V530
+                    ?: return@withContext null
                 val patientId = patientRow.s("id")
                 val humanPatientId = patientRow.s("patientId")
                 if (patientId.isBlank()) return@withContext null
@@ -1317,7 +1318,7 @@ class PrintCenterActivity : AppCompatActivity() {
                             "patients", "+91$digits",
                             "id,name,patientId,mobile,branch,disease,visitDate,registrationDate,date,refBy", 20
                         ))
-                        if (rows.length() == 0) null else rows.getJSONObject(0)
+                        pickPatientForPrint(rows, digits)   // 🔵 V530
                     }
                     if (patient == null) {
                         Toast.makeText(
@@ -1353,7 +1354,7 @@ class PrintCenterActivity : AppCompatActivity() {
                             "patients", "+91$digits",
                             "id,name,patientId,mobile,branch,visitDate,registrationDate,date", 20
                         ))
-                        if (rows.length() == 0) null else rows.getJSONObject(0)
+                        pickPatientForPrint(rows, digits)   // 🔵 V530
                     }
                     if (patient == null) {
                         showDirectBloodTestForm(digits)
@@ -1705,6 +1706,54 @@ class PrintCenterActivity : AppCompatActivity() {
      *  so a patient looked up here must belong to the logged-in staff's own
      *  branch. Master is unrestricted (they print for every branch). Only
      *  filtering . no query, no layout, no print design is changed. */
+    /**
+     * 🔵🔒 V530 (২২.০৮.২০২৬, TK-নির্দেশ) — **ভুল রোগীর নামে আর ছাপা হবে না।**
+     *
+     * **আগে যা হত:** এই পর্দার ছ'টা জায়গায় নম্বর দিয়ে রোগী খুঁজে **প্রথম
+     * সারিটাই** নেওয়া হত (`rows.getJSONObject(0)`)। এক নম্বরে স্বামী-স্ত্রী
+     * দু'জন আলাদা রোগী থাকলে **অন্যজনের নামে প্রেসক্রিপশন / Patient Card /
+     * রসিদ ছাপা হয়ে যেতে পারত** — গোটা প্রজেক্টের সবচেয়ে বিপজ্জনক ফাঁক।
+     *
+     * **এখন:** ওই নম্বরে সত্যিই একাধিক আলাদা রোগী থাকলে **তখনই** জিজ্ঞাসা।
+     *
+     * ⛔ একজন থাকলে (রোজকার ৯৯%) **হুবহু আগের সেই লাইনটাই** চলে —
+     *    `rows.optJSONObject(0)`। কোনো বাড়তি প্রশ্ন নেই, ছাপার নকশা, ঘর,
+     *    ক্রম — কিচ্ছু বদলায়নি।
+     * ⛔ **নতুন কোনো ক্লাউড-অনুরোধ নেই** — আগে থেকেই আনা সারিগুলোর উপরেই কাজ।
+     * ⛔ স্টাফ *Cancel* করলে `null` — অর্থাৎ "রোগী মেলেনি"-র সেই একই পুরোনো
+     *    পথ, ভুল নামে ছাপা হওয়ার চেয়ে যা অনেক নিরাপদ।
+     */
+    private suspend fun pickPatientForPrint(
+        rows: org.json.JSONArray, mobileDigits: String
+    ): org.json.JSONObject? {
+        if (rows.length() == 0) return null
+        val people = com.tkbiswas.pilesclinic.native.PatientIdentity
+            .separateIdentities(rows, mobileDigits)
+        if (people.size < 2) return rows.optJSONObject(0)   // ⛔ হুবহু আগের আচরণ
+        return withContext(Dispatchers.Main) { askWhichPrintPatient(mobileDigits, people) }
+    }
+
+    private suspend fun askWhichPrintPatient(
+        mobile: String, people: List<org.json.JSONObject>
+    ): org.json.JSONObject? = kotlinx.coroutines.suspendCancellableCoroutine { cont ->
+        val labels = people.map { r ->
+            (r.s("name").ifBlank { "UNKNOWN" }) + "\n" + (r.s("patientId").ifBlank { "-" })
+        }.toTypedArray()
+        var done = false
+        fun finishWith(v: org.json.JSONObject?) {
+            if (done) return
+            done = true
+            if (cont.isActive) cont.resume(v)
+        }
+        if (isFinishing || isDestroyed) { finishWith(null); return@suspendCancellableCoroutine }
+        AlertDialog.Builder(this)
+            .setTitle("\uD83D\uDCDE $mobile \u2014 which patient?")
+            .setItems(labels) { _, which -> finishWith(people.getOrNull(which)) }
+            .setNegativeButton("Cancel") { _, _ -> finishWith(null) }
+            .setOnCancelListener { finishWith(null) }
+            .show()
+    }
+
     private fun myBranchOnly(rows: org.json.JSONArray): org.json.JSONArray {
         val me = com.tkbiswas.pilesclinic.native.NativeSession.current(this) ?: return rows
         if (me.role == "master") return rows
