@@ -57,7 +57,19 @@ data class CheckupRecord(
     var visualOther: String = "",
     var dre: String = "",            // comma-joined checkboxes
     var dreOther: String = "",
+    /* 🔵🔒 V539 (২২.০৮.২০২৬, TK-নির্দেশ) — TK-এর নিজের উত্তর: *"হ্যাঁ, একই —
+       পুরোনো ঘরটাই ব্যবহার করুন।"* ⇒ `grade` এখন **Internal Piles-এর Grade**
+       ধরে রাখে, আর মানগুলো হুবহু আগের ("Grade I"…"Grade IV")।
+       ⛔ তাই **পুরোনো প্রতিটা রেকর্ড আগের মতোই ঠিক দেখাবে** — কিছু হারায় না। */
     var grade: String = "",
+    /* 🔵🔒 V539: Proctoscopy-র ঘরটা এখন **টাইপ করার বক্স** (তালিকা নয়) —
+       তাই তার লেখা এই নতুন ঘরে। ⛔ নতুন কোনো ডেটাবেস-কলাম লাগে না: এই
+       পর্দার পুরো রেকর্ডটা `buildDetails()` দিয়ে **একটাই লেখা** হিসেবে
+       `medical` টেবিলে জমা হয় (কোড ধরে যাচাই করা)। */
+    var proctoscopy: String = "",
+    /* 🔵🔒 V539 (TK-নির্দেশ): *"Previous Treatment-এর নিচে আরেকটা বক্স থাকবে,
+       রোগী এসে তার সমস্যার কথা আর কী কী বললেন সেটা টাইপ করব।"* */
+    var patientSaid: String = "",
     // 🆕 TK-নির্দেশ (04.08.2026): নতুন সেকশন — C (Proctoscopy Grade) আর
     // পুরনো D (Investigations, এখন E) এর মাঝে। প্রোব ঢোকানোর পরে নালি
     // কোন দিকে গেল, কতটা গেল — ডাক্তার টাইপ করে লেখেন।

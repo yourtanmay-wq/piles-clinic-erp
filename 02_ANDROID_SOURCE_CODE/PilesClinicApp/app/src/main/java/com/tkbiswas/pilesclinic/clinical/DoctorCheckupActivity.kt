@@ -206,6 +206,10 @@ class DoctorCheckupActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.btnAfterPhoto).setOnClickListener { showPhotoDialog(2) }
 
         buildChecks(findViewById(R.id.visualGroup), visualOptions, visualChecks, visualIcons, "#D64545", visualBn)
+        /* 🔵 V539: Internal Piles-এ চাপ দিলেই Grade বাছার তালিকা। ⛔ বাকি
+           চেকবক্সগুলো এক অক্ষরও বদলায়নি। */
+        internalPilesBox()?.setOnClickListener { askInternalGrade() }
+        refreshInternalGradeLabel()
         // V455 (18.08.2026): dreGroup buildChecks বাদ — পুরো "B. DRE" সেকশন UI-তে নেই।
         // 🔴 TK-নির্দেশ (05.08.2026): E. Investigations-এর চারটে চেকবক্সে
         // (MRI/USG/Colonoscopy/Lab Reports) এখন শুধু ইংরেজি — বাংলা বাদ,
@@ -626,6 +630,21 @@ class DoctorCheckupActivity : AppCompatActivity() {
             } else {
                 tvAddress.visibility = android.view.View.GONE
             }
+            /* 🔵🔒 V539 (২২.০৮.২০২৬, TK-নির্দেশ): *"occupation ফর্ম থেকে সরিয়ে উপরে
+               বয়সের পাশে রাখুন।"* ⇒ "Male-55 · Business"। ওই লেখাটায় চাপ দিলেই
+               পেশা বাছার তালিকা খোলে, আর সেটা ফর্মের সেই **পুরোনো ঘরেই** বসে
+               (`spOccupation`, শুধু লুকানো) — তাই সেভ/পড়া কিছুই বদলায়নি। */
+            refreshSexAgeOccupation()
+            /* ⛔ লুকানো (GONE) Spinner-এ `performClick()` ভরসাযোগ্য নয় — তালিকা
+               নাও খুলতে পারে। তাই নিজেরই একটা তালিকা, আর বাছাইটা সেই
+               পুরোনো Spinner-এই বসে (সেভের পথ এক অক্ষরও বদলায়নি)। */
+            tvSexAge.setOnClickListener { askOccupation() }
+            spOccupation.setOnItemSelectedListener(object : android.widget.AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(p0: android.widget.AdapterView<*>?, p1: android.view.View?, p2: Int, p3: Long) {
+                    refreshSexAgeOccupation()
+                }
+                override fun onNothingSelected(p0: android.widget.AdapterView<*>?) {}
+            })
             if (photo.isNotBlank()) {
                 val bmp = PhotoUtils.decodeDataUrl(photo)
                 if (bmp != null) {
@@ -635,6 +654,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
                     findViewById<TextView>(R.id.ivPatientPhotoBlank).visibility = android.view.View.GONE
                 }
             }
+            wireCheckupPhotoRotate()   // 🔵 V539: ছবিতে তিনবার চাপ = ঘুরবে ও সেভ হবে
             autofillFromRegistration(p)
         }
     }
@@ -892,10 +912,12 @@ class DoctorCheckupActivity : AppCompatActivity() {
         occupation = occupationOptions.getOrElse(spOccupation.selectedItemPosition) { "" }
             .let { if (it == "Choose Occupation") "" else it },
         prevTreatment = etPrevTreatment.text?.toString().orEmpty(),
+        patientSaid = findViewById<android.widget.EditText>(R.id.etPatientSaid).text?.toString().orEmpty(),   // 🔵 V539
         // 🔵 B622 (11.08.2026): Result/Spent/Treatment Duration ঘর বাদ — মডেলের ডিফল্ট "" থাকে।
         visual = checkedText(visualChecks),
         // V455 (18.08.2026): visualOther · dre · dreOther · otherFindings ঘর বাদ — মডেলের ডিফল্ট থাকে।
-        grade = gradeOptions.getOrElse(spGrade.selectedItemPosition) { "" },
+        grade = gradeOptions.getOrElse(spGrade.selectedItemPosition) { "" },   // 🔵 V539: এখন Internal Piles-এর Grade
+        proctoscopy = findViewById<android.widget.EditText>(R.id.etProctoscopy).text?.toString().orEmpty(),   // 🔵 V539
         onProbing = etOnProbing.text?.toString().orEmpty(),
         investigation = checkedText(investigationChecks),
         treatmentPlan = checkedText(treatmentChecks()),
@@ -928,12 +950,15 @@ class DoctorCheckupActivity : AppCompatActivity() {
         val oi = occupationOptions.indexOf(r.occupation)
         if (oi >= 0) spOccupation.setSelection(oi)
         etPrevTreatment.setText(r.prevTreatment)
+        findViewById<android.widget.EditText>(R.id.etPatientSaid).setText(r.patientSaid)   // 🔵 V539
         // 🔵 B622: Result/Spent/Treatment Duration ঘর বাদ।
         val vis = r.visual.split(", ").map { it.trim() }
         visualChecks.forEach { it.isChecked = vis.contains((it.tag as? String) ?: it.text.toString()) }
         // V455 (18.08.2026): visualOther/dre*/otherFindings populate বাদ (ঘর নেই)।
         val gi = gradeOptions.indexOf(r.grade)
         if (gi >= 0) spGrade.setSelection(gi)
+        findViewById<android.widget.EditText>(R.id.etProctoscopy).setText(r.proctoscopy)   // 🔵 V539
+        refreshInternalGradeLabel()   // 🔵 V539: Internal Piles-এর পাশে Grade দেখানো
         etOnProbing.setText(r.onProbing)
         val inv = r.investigation.split(", ").map { it.trim() }
         investigationChecks.forEach { it.isChecked = inv.contains((it.tag as? String) ?: it.text.toString()) }
@@ -955,12 +980,115 @@ class DoctorCheckupActivity : AppCompatActivity() {
         if (r.afterPhoto.isNotBlank()) showThumb(ivAfterPhoto, r.afterPhoto)
     }
 
+    /**
+     * 🔵🔒 V539 (২২.০৮.২০২৬, TK-নির্দেশ): *"Internal Piles — এখানে চাপ দিলে
+     * Grade 1/2/3/4 আসবে, যেটা সিলেক্ট করব সেটাই থাকবে।"*
+     *
+     * ⛔ Grade জমা হয় **পুরোনো সেই `grade` ঘরেই** (TK-এর নিজের উত্তর: *"হ্যাঁ,
+     *    একই — পুরোনো ঘরটাই ব্যবহার করুন"*), মানও হুবহু আগের ("Grade I"…)।
+     *    ⇒ **পুরোনো প্রতিটা রেকর্ড আগের মতোই ঠিক দেখাবে।**
+     * ⛔ চেকবক্সের **সেভ-হওয়া লেখা বদলায়নি** — `visual`-এ আগের মতোই শুধু
+     *    "Internal Piles" যায়, Grade আলাদা ঘরে। তাই ছাপা/পুরোনো পড়া কিছুই ভাঙে না।
+     */
+    /** 🔵 V539: হেডারের "Male-55" লাইনে পেশাও যোগ করে। ⛔ পেশা ফাঁকা হলে
+     *  লাইনটা **হুবহু আগের মতোই** থাকে। */
+    /** 🔵 V539: পেশা বাছার তালিকা — বাছাই বসে পুরোনো `spOccupation`-এই। */
+    private fun askOccupation() {
+        val labels = occupationOptions.toTypedArray()
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Occupation · পেশা")
+            .setItems(labels) { _, which ->
+                spOccupation.setSelection(which)
+                refreshSexAgeOccupation()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun refreshSexAgeOccupation() {
+        val tv = findViewById<TextView>(R.id.tvPatientSexAge) ?: return
+        val sexAge = listOf(patSex, patAge).filter { it.isNotBlank() }.joinToString("-")
+        val occ = occupationOptions.getOrElse(spOccupation.selectedItemPosition) { "" }
+            .let { if (it == "Choose Occupation") "" else it }
+        val text = listOf(sexAge, occ).filter { it.isNotBlank() }.joinToString(" · ")
+        if (text.isNotBlank()) { tv.text = text; tv.visibility = android.view.View.VISIBLE }
+        else tv.visibility = android.view.View.GONE
+    }
+
+    private fun internalPilesBox(): android.widget.CheckBox? =
+        visualChecks.firstOrNull { ((it.tag as? String) ?: it.text.toString()).startsWith("Internal Piles") }
+
+    private fun refreshInternalGradeLabel() {
+        val box = internalPilesBox() ?: return
+        val g = gradeOptions.getOrElse(spGrade.selectedItemPosition) { "" }
+        val base = "Internal Piles · অভ্যন্তরীণ অর্শ"
+        box.text = if (box.isChecked && g.isNotBlank()) "$base — $g" else base
+    }
+
+    private fun askInternalGrade() {
+        val box = internalPilesBox() ?: return
+        val labels = gradeOptions.map { it.ifBlank { "— No Grade —" } }.toTypedArray()
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Internal Piles — Grade")
+            .setItems(labels) { _, which ->
+                spGrade.setSelection(which)
+                box.isChecked = true
+                refreshInternalGradeLabel()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    /**
+     * 🔵🔒 V539 (TK-নির্দেশ): *"পেশেন্টের ফটো রোটেট করা যাচ্ছে না"* — এই
+     * CHECK-UP পর্দায় Rotate কখনোই ছিল না (TK নিজে নিশ্চিত করেছেন)।
+     * এখন উপরের ছবিতে **তিনবার চাপ** দিলে ৯০° ঘুরে যায় ও **সঙ্গে সঙ্গে সেভ**
+     * হয় — তাই সব পর্দাতেই সোজা দেখাবে।
+     *
+     * ⛔ প্রজেক্টের প্রমাণিত জিনিসই ব্যবহার করা হলো — `TripleTapEdit` (ভুল
+     *    ছোঁয়ায় যেন না ঘোরে), `PhotoUtils.rotated/encodeBitmap` (V524-এর সেই
+     *    একই মাপ ও মান), আর `PatientPhotoRepository.savePhoto` (সেভের সেই
+     *    একই পথ, আইডি ধরে)। **নতুন কোনো নিয়ম বানানো হয়নি।**
+     * ⛔ ছবি না থাকলে কিছুই হয় না।
+     */
+    private fun wireCheckupPhotoRotate() {
+        val iv = findViewById<ImageView>(R.id.ivPatientPhoto) ?: return
+        com.tkbiswas.pilesclinic.native.TripleTapEdit.attach(iv) {
+            val digits = patMobile.filter { it.isDigit() }.takeLast(10)
+            if (digits.length != 10) {
+                Toast.makeText(this, "No valid 10-digit mobile", Toast.LENGTH_SHORT).show()
+                return@attach
+            }
+            val bmp = com.tkbiswas.pilesclinic.native.PhotoUtils.decodeDataUrl(patPhoto)
+            if (bmp == null) {
+                Toast.makeText(this, "No photo to rotate", Toast.LENGTH_SHORT).show()
+                return@attach
+            }
+            val turned = com.tkbiswas.pilesclinic.native.PhotoUtils.rotated(bmp, 90)
+            val dataUrl = com.tkbiswas.pilesclinic.native.PhotoUtils.encodeBitmap(turned)
+            if (dataUrl == null) {
+                Toast.makeText(this, "Could not rotate", Toast.LENGTH_SHORT).show()
+                return@attach
+            }
+            iv.setImageBitmap(turned)
+            patPhoto = dataUrl
+            Toast.makeText(this, "Rotated — saving…", Toast.LENGTH_SHORT).show()
+            val appCtx = applicationContext
+            com.tkbiswas.pilesclinic.native.BackgroundWork.run {
+                val repo = com.tkbiswas.pilesclinic.native.PatientPhotoRepository()
+                val ref = repo.findByMobile(digits, RoleSession.currentPatientId, RoleSession.currentPatientDisplayId)
+                if (ref != null) repo.savePhoto(ref, dataUrl, appCtx)
+            }
+        }
+    }
+
     private fun buildDetails(r: CheckupRecord): String = buildString {
         if (r.complaint.isNotBlank()) append("Complaint: ${r.complaint}; ")
         if (r.duration.isNotBlank()) append("Duration: ${r.duration}; ")
         if (r.acuteChronic.isNotBlank()) append("Onset: ${r.acuteChronic}; ")
         if (r.occupation.isNotBlank()) append("Occupation: ${r.occupation}; ")
         if (r.prevTreatment.isNotBlank()) append("Prev Treatment: ${r.prevTreatment}; ")
+        if (r.patientSaid.isNotBlank()) append("Patient Said: ${r.patientSaid}; ")   // 🔵 V539
         if (r.prevResult.isNotBlank()) append("Prev Result: ${r.prevResult}; ")
         if (r.prevCost.isNotBlank()) append("Prev Cost: ${r.prevCost}; ")
         if (r.treatmentDuration.isNotBlank()) append("Treatment Duration: ${r.treatmentDuration}; ")
@@ -968,7 +1096,8 @@ class DoctorCheckupActivity : AppCompatActivity() {
         if (visAll.isNotBlank()) append("Visual: $visAll; ")
         val dreAll = listOf(r.dre, r.dreOther).filter { it.isNotBlank() }.joinToString(", ")
         if (dreAll.isNotBlank()) append("DRE: $dreAll; ")
-        if (r.grade.isNotBlank()) append("Grade: ${r.grade}; ")
+        if (r.grade.isNotBlank()) append("Internal Piles Grade: ${r.grade}; ")   // 🔵 V539
+        if (r.proctoscopy.isNotBlank()) append("Proctoscopy: ${r.proctoscopy}; ")   // 🔵 V539
         if (r.onProbing.isNotBlank()) append("On Probing: ${r.onProbing}; ")
         if (r.investigation.isNotBlank()) append("Investigation: ${r.investigation}; ")
         if (r.otherFindings.isNotBlank()) append("Other Findings: ${r.otherFindings}; ")

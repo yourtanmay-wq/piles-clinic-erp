@@ -352,7 +352,13 @@
                                 <TextView style="@style/DocNoteLabel" android:text="Occupation · পেশা" />
                             </LinearLayout>
                             <View style="@style/DocNoteDivider" />
-                            <Spinner android:id="@+id/spOccupation" style="@style/DocNoteInputSingle" />
+                            <!-- 🔵🔒 V539 (২২.০৮.২০২৬, TK-নির্দেশ): *"occupation এটা ফর্ম থেকে
+                                 সরিয়ে উপরে যেখানে পেশেন্টের বয়স Male-55 তার পাশে রাখুন।"*
+                                 ⛔ ঘরটা **মোছা হয়নি**, শুধু লুকানো (`GONE`) — কোডে এটাই
+                                    এখনো সেভ/পড়ার আসল ঘর, তাই পুরোনো কিছুই ভাঙে না।
+                                    উপরের হেডারে চাপ দিলে এটাই খোলে ও এখানেই বসে। -->
+                            <Spinner android:id="@+id/spOccupation" style="@style/DocNoteInputSingle"
+                                android:visibility="gone" />
                         </LinearLayout>
                     </LinearLayout>
 
@@ -368,6 +374,19 @@
                             </LinearLayout>
                             <View style="@style/DocNoteDivider" />
                             <EditText android:id="@+id/etPrevTreatment" style="@style/DocNoteInputMultiline" android:minLines="1" android:hint="Previous treatment" />
+
+                            <!-- 🔵🔒 V539 (২২.০৮.২০২৬, TK-নির্দেশ): *"Previous Treatment-এর নিচে
+                                 আরেকটা বক্স থাকবে, সেখানে টাইপ করতে পারব — রোগী এসে তার
+                                 সমস্যার কথা আর কী কী বললেন।"* ⛔ উপরের ঘরটা ছোঁয়া হয়নি। -->
+                            <View style="@style/DocNoteDivider" />
+                            <LinearLayout style="@style/DocNoteFieldBoxTopRow">
+                                <TextView style="@style/DocNoteIcon" android:text="🗣️" />
+                                <TextView style="@style/DocNoteLabel" android:text="Patient Said · রোগী যা বললেন" />
+                            </LinearLayout>
+                            <EditText android:id="@+id/etPatientSaid" style="@style/DocNoteInputMultiline"
+                                android:minLines="2" android:maxLines="8"
+                                android:inputType="textCapSentences|textMultiLine"
+                                android:hint="রোগী নিজে যা যা বললেন — এখানে টাইপ করুন" />
                         </LinearLayout>
                     </LinearLayout>
 
@@ -412,7 +431,17 @@
                                 <TextView style="@style/DocNoteLabel" android:text="C. Proctoscopy Grade · প্রক্টোস্কোপি গ্রেড" />
                             </LinearLayout>
                             <View style="@style/DocNoteDivider" />
-                            <Spinner android:id="@+id/spGrade" style="@style/DocNoteInputSingle" />
+                            <!-- 🔵🔒 V539 (২২.০৮.২০২৬, TK-নির্দেশ): *"এখানে চাপ দিলে গ্রেড ওয়ান…
+                                 সেগুলো থাকবে না, ব্লাঙ্ক বক্স থাকবে, টাইপ করব।"*
+                                 ⛔ পুরোনো `spGrade` **মোছা হয়নি**, শুধু লুকানো — এখন সে
+                                    Internal Piles-এর Grade ধরে রাখে (TK: "একই জিনিস"),
+                                    তাই পুরোনো রেকর্ড আগের মতোই ঠিক থাকে। -->
+                            <Spinner android:id="@+id/spGrade" style="@style/DocNoteInputSingle"
+                                android:visibility="gone" />
+                            <EditText android:id="@+id/etProctoscopy" style="@style/DocNoteInputSingle"
+                                android:hint="এখানে টাইপ করুন"
+                                android:inputType="textCapSentences|textMultiLine"
+                                android:minLines="1" android:maxLines="4" />
                         </LinearLayout>
                     </LinearLayout>
 
