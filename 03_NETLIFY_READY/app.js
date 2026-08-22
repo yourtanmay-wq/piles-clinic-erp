@@ -7565,7 +7565,8 @@ function wlv1AnatBoxHtml(note,pid){
     +'<div class="wlv1AnatWrap"><canvas id="dnAnatCanvas" class="wlv1AnatCanvas"></canvas>'
     +'<div id="dnAnatHint" class="wlv1AnatHint">উপর থেকে একটা ছবি বাছুন</div></div>'
     +'<div class="wlv1AnatTools">'+tools
-    +'<button type="button" class="wlv1AnatTool" onclick="wlv1AnatUndo()">↺ একটা পিছনে</button></div>'
+    +'<button type="button" class="wlv1AnatTool" onclick="wlv1AnatUndo()">↺ একটা পিছনে</button>'
+    +'<button type="button" class="wlv1AnatTool" style="color:#B3261E" onclick="wlv1AnatClear()">🗑 সব মুছুন</button></div>'
     +'<textarea id="dnAnatNote" placeholder="ছবি দেখিয়ে রোগীকে যা বোঝালেন, দরকার হলে এখানে লিখুন">'+esc(b.note||'')+'</textarea>';
 }
 
@@ -7584,7 +7585,16 @@ function wlv1AnatTool(t){
     wlv1AnatState.label=(v===null?'':String(v).trim());
   }
 }
-function wlv1AnatUndo(){ if(wlv1AnatState.marks.length){wlv1AnatState.marks.pop();wlv1AnatRedraw()} }
+function wlv1AnatUndo(){
+  if(!wlv1AnatState.marks.length){ try{toast('মোছার মত কিছু নেই')}catch(_e){} return }
+  wlv1AnatState.marks.pop(); wlv1AnatRedraw();
+}
+/* ভুল হলে সব মুছে নতুন করে শুরু — জিজ্ঞাসা করে তবেই, নইলে ভুল চাপে সব যেত */
+function wlv1AnatClear(){
+  if(!wlv1AnatState.marks.length){ try{toast('মোছার মত কিছু নেই')}catch(_e){} return }
+  if(!confirm('ছবির সব দাগ মুছে যাবে। মুছব?'))return;
+  wlv1AnatState.marks=[]; wlv1AnatRedraw();
+}
 
 /* ছবিটা একবারই নামানো হয়, বারবার নয় — নইলে প্রতিবার আঁকায় ঝিমিয়ে যেত। */
 var wlv1AnatImg=null,wlv1AnatImgKey='';
@@ -7718,7 +7728,7 @@ function dnWireV558(){
   wlv1AnatRedraw();
 }
 window["wlv1AnatPick"]=wlv1AnatPick;window["wlv1AnatTool"]=wlv1AnatTool;
-window["wlv1AnatUndo"]=wlv1AnatUndo;window["wlv1AnatCollect"]=wlv1AnatCollect;
+window["wlv1AnatUndo"]=wlv1AnatUndo;window["wlv1AnatClear"]=wlv1AnatClear;window["wlv1AnatCollect"]=wlv1AnatCollect;
 window["wlv1AnatReadable"]=wlv1AnatReadable;window["wlv1AnatBoxHtml"]=wlv1AnatBoxHtml;
 window["dnWireV558"]=dnWireV558;window["wlv1AnatLabelOf"]=wlv1AnatLabelOf;
 

@@ -785,13 +785,14 @@
                             android:layout_marginTop="8dp"
                             android:background="#F7F9FC" />
 
-                        <HorizontalScrollView
+                        <!-- ⚠️ পাশে-টানা সারি নয়। TK: *"ভুল হলে ব্যাকে যাওয়ার
+                             বা মোছার অপশন নেই কেন?"* — বোতামগুলো ছিল, কিন্তু
+                             পর্দার ডান দিকে লুকিয়ে ছিল। ভুল শোধরানোর বোতাম
+                             লুকিয়ে থাকা চলে না, তাই এখন খাড়া কন্টেইনার — কোড
+                             মেপে মেপে সারিতে ভাগ করে দেয়, সব বোতামই দেখা যায়। -->
+                        <LinearLayout android:id="@+id/anatomyTools"
                             android:layout_width="match_parent" android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp">
-                            <LinearLayout android:id="@+id/anatomyTools"
-                                android:layout_width="wrap_content" android:layout_height="wrap_content"
-                                android:orientation="horizontal" />
-                        </HorizontalScrollView>
+                            android:orientation="vertical" android:layout_marginTop="8dp" />
 
                         <EditText android:id="@+id/etAnatomyNote"
                             android:layout_width="match_parent" android:layout_height="wrap_content"

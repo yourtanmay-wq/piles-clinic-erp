@@ -1465,25 +1465,28 @@ class DoctorCheckupActivity : AppCompatActivity() {
         paintAnatomyThumbs("")
 
         // ── কাজের বোতাম ──
+        // TK: *"ছবিটা আঁকার সময় কোন প্রকার ভুল যদি হয়ে থাকে, ব্যাকে যাওয়ার
+        // কোন অপশন নাই কেন, অথবা সেই ভুলটুকু মোছার মতন কোন অপশন নেই কেন?"*
+        //
+        // বোতামগুলো ছিলই, কিন্তু এক লাইনে বসানোয় ডান দিকেরগুলো পর্দার বাইরে
+        // চলে যেত — ভুল শোধরানোর বোতামই হাতে পাওয়া যেত না। এখন পর্দার চওড়া
+        // মেপে মেপে সারিতে ভাগ করা হয়, তাই ছোট ফোনেও **সব বোতাম দেখা যায়**।
+        // সাথে "সব মুছুন" যোগ হল — এতদিন কাজটা কোডে ছিল, বোতাম ছিল না।
         tools.removeAllViews(); anatomyToolChips.clear()
         val toolList = listOf(
-            Triple("✋ ফোলান", AnatomyView.Tool.BULGE, ""),
-            Triple("📍 চিহ্ন", AnatomyView.Tool.PILE, ""),
-            Triple("〰️ নালী", AnatomyView.Tool.TRACT, ""),
-            Triple("⭕ গোল", AnatomyView.Tool.RING, ""),
-            Triple("➡️ তীর", AnatomyView.Tool.ARROW, ""),
-            Triple("🩹 মুছুন", AnatomyView.Tool.ERASE, "")
+            "✋ ফোলান" to AnatomyView.Tool.BULGE,
+            "📍 চিহ্ন" to AnatomyView.Tool.PILE,
+            "〰️ নালী" to AnatomyView.Tool.TRACT,
+            "⭕ গোল" to AnatomyView.Tool.RING,
+            "➡️ তীর" to AnatomyView.Tool.ARROW,
+            "🩹 মুছুন" to AnatomyView.Tool.ERASE
         )
-        for ((label, tool, _) in toolList) {
+        val chips = ArrayList<TextView>()
+        for ((label, tool) in toolList) {
             val chip = TextView(this).apply {
                 text = label
                 textSize = 12.5f
                 setPadding(symDp(10), symDp(6), symDp(10), symDp(6))
-                val lp = android.widget.LinearLayout.LayoutParams(
-                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
-                lp.setMargins(0, 0, symDp(6), 0)
-                layoutParams = lp
                 tag = tool
                 setOnClickListener {
                     view.tool = tool
@@ -1491,20 +1494,73 @@ class DoctorCheckupActivity : AppCompatActivity() {
                     paintAnatomyTools(tool)
                 }
             }
-            tools.addView(chip)
-            anatomyToolChips.add(chip)
+            chips.add(chip); anatomyToolChips.add(chip)
         }
-        // ↺ একধাপ পিছনে
-        tools.addView(TextView(this).apply {
+        // ↺ একটা পিছনে — শেষ যেটা আঁকা হয়েছে সেটা তুলে নেয়
+        chips.add(TextView(this).apply {
             text = "↺ একটা পিছনে"
             textSize = 12.5f
             background = histChipBg(false)
             setTextColor(android.graphics.Color.parseColor("#7C8A9C"))
             setPadding(symDp(10), symDp(6), symDp(10), symDp(6))
-            setOnClickListener { view.undo() }
+            setOnClickListener {
+                if (view.markCount() == 0)
+                    Toast.makeText(this@DoctorCheckupActivity, "মোছার মত কিছু নেই", Toast.LENGTH_SHORT).show()
+                else view.undo()
+            }
         })
+        // 🗑 সব মুছুন — জিজ্ঞাসা করে তবেই, নইলে ভুল করে চাপ পড়লে সব চলে যেত
+        chips.add(TextView(this).apply {
+            text = "🗑 সব মুছুন"
+            textSize = 12.5f
+            background = histChipBg(false)
+            setTextColor(android.graphics.Color.parseColor("#B3261E"))
+            setPadding(symDp(10), symDp(6), symDp(10), symDp(6))
+            setOnClickListener {
+                if (view.markCount() == 0) {
+                    Toast.makeText(this@DoctorCheckupActivity, "মোছার মত কিছু নেই", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                android.app.AlertDialog.Builder(this@DoctorCheckupActivity)
+                    .setMessage("ছবির সব দাগ মুছে যাবে। মুছব?")
+                    .setNegativeButton("না", null)
+                    .setPositiveButton("হ্যাঁ") { _, _ -> view.clearMarks() }
+                    .show()
+            }
+        })
+        layoutToolChips(tools, chips)
         paintAnatomyTools(AnatomyView.Tool.BULGE)
     }
+
+    /**
+     * বোতামগুলো পর্দার চওড়ায় যতগুলো ধরে ততগুলো এক সারিতে, বাকিগুলো পরের
+     * সারিতে। এতে ছোট ফোনেও একটাও বোতাম আড়ালে থাকে না।
+     */
+    private fun layoutToolChips(box: android.widget.LinearLayout, chips: List<TextView>) {
+        box.removeAllViews()
+        val avail = (resources.displayMetrics.widthPixels - symDp(56)).coerceAtLeast(symDp(200))
+        var row = newToolRow(); var used = 0
+        for (chip in chips) {
+            chip.measure(android.view.View.MeasureSpec.UNSPECIFIED, android.view.View.MeasureSpec.UNSPECIFIED)
+            val w = chip.measuredWidth + symDp(6)
+            if (used > 0 && used + w > avail) { box.addView(row); row = newToolRow(); used = 0 }
+            val lp = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
+            lp.setMargins(0, 0, symDp(6), symDp(6))
+            chip.layoutParams = lp
+            row.addView(chip); used += w
+        }
+        if (row.childCount > 0) box.addView(row)
+    }
+
+    private fun newToolRow(): android.widget.LinearLayout =
+        android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
+        }
 
     private fun paintAnatomyThumbs(chosen: String) {
         for (img in anatomyThumbs) {
