@@ -2295,7 +2295,12 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                             }
                             // Same rows, sent together instead of one-by-one.
                             ParallelCloud.map(targets) { pid ->
-                                val fields = org.json.JSONObject().put("remarks", text)
+                                /* 🔵🔒 V533 (২২.০৮.২০২৬, TK-সিদ্ধান্ত) — **স্টাফের লেখা Remark আর মুছবে না।**
+                                   আগে এই লেখাটা payments-এর `remarks` ঘরে বসত। ফল: সেদিন কেউ পেমেন্ট ফর্মে
+                                   নিজের হাতে যে Remark লিখেছেন — এমনকি **Refund-এর কারণ** — সব মুছে গিয়ে
+                                   চিকিৎসার নোট বসে যেত (TK-এর ছবিতে ₹1,000 Advance-এ "DRESSING করা হল")।
+                                   ⇒ এখন নিজের আলাদা ঘর `progress`। ⛔ `remarks` আর ছোঁয়াই হয় না। */
+                                val fields = org.json.JSONObject().put("progress", text)
                                 val synced = try { SupabaseClient.updateById("payments", pid, fields) } catch (_: Throwable) { false }
                                 if (!synced) GenericUpdateQueue.queue(appCtx, "payments", pid, fields)
                                 synced

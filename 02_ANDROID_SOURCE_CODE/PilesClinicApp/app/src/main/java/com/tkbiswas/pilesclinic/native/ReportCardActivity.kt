@@ -552,7 +552,8 @@ class ReportCardActivity : AppCompatActivity() {
             .setView(android.widget.ScrollView(this).apply { addView(container) })
             .setPositiveButton("Save") { _, _ ->
                 val text = input.text.toString().trim()
-                savePayment(pid, JSONObject().put("remarks", text)) { load() }
+                // 🔵🔒 V533: Report Card-এর নিজের Progress লেখাও এখন `progress` ঘরে।
+                savePayment(pid, JSONObject().put("progress", text)) { load() }
             }
             .setNegativeButton("Cancel", null)
             .show().also { PremiumAlert.paint(it) }

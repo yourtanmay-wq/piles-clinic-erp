@@ -861,7 +861,12 @@ object PatientTimelineRepository {
             // staff-written Treatment remark (what actually happened with
             // the patient), not just "₹amount · MODE" -- that auto text is
             // now only the fallback when no remark was written.
-            val staffRemark = p.s("remarks")
+            /* 🔵🔒 V533 (২২.০৮.২০২৬, TK-সিদ্ধান্ত: **"নোট আলাদা ঘরে রাখব"**)
+               চিকিৎসার নোট এখন payments-এর **নিজস্ব `progress` ঘরে** — আর
+               `remarks`-এর উপর বসে না। ⛔ পুরোনো সব সারিতে `progress` ফাঁকা,
+               তাই সেখানে আগের মতোই `remarks`-ই পড়া হয় — **একটা পুরোনো নোটও
+               হারায় না, একটাও পর্দা বদলায় না**। */
+            val staffRemark = p.s("progress").ifBlank { p.s("remarks") }
             // TK-REPORTED BUG FIX (2026-07-25): remarks defaults to the
             // save-time label when the staff types nothing (see
             // PaymentModel.buildTreatmentPaymentRow). If that save-time

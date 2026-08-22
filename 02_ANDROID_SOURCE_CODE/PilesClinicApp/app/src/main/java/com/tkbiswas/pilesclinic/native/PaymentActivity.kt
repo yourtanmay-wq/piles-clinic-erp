@@ -423,7 +423,19 @@ class PaymentActivity : AppCompatActivity() {
             // 🔒 V452 (19.08.2026, TK-approved A): legacy same-day Treatment
             // rows are one daily payment in this detail view too. Raw Cloud rows
             // remain untouched; Refund/Visit Fee/other events stay separate.
-            val displayList = PaymentModel.mergeDailyTreatmentJsonForDisplay(list)
+            /* 🔵🔒 V533 (২২.০৮.২০২৬, TK-নির্দেশ: *"জিরো পেমেন্ট আবার কেন
+               দেখাবে এখানে?"*) — "Marked Arrived / Marked Expected / Bill
+               corrected" সারিগুলো **টাকা নয়**, শুধু ঘটনার দাগ।
+               ⛔ এগুলো এমনিতেই "X টি পেমেন্ট" গোনায় ধরা হত না
+                  (`realPaymentCount`, নিচে) — তাই তালিকা থেকে বাদ দিলে
+                  **টাকার একটাও হিসাব বদলায় না**; মোট, Paid, Due, Refund —
+                  সব অক্ষত (নিচের `total` ওই একই `displayList` থেকেই হয়)।
+               ⛔ ক্লাউডের সারি ছোঁয়া হয়নি — শুধু এই পর্দায় দেখানো হয় না।
+                  ঘটনাগুলো Timeline / Report Card-এ আগের মতোই আছে। */
+            val list2 = list.filter {
+                !PaymentModel.isMarkerOnlyRow(it.optString("payType", ""))
+            }.toMutableList()
+            val displayList = PaymentModel.mergeDailyTreatmentJsonForDisplay(list2)
             // 🔒 খাতার সারি B55 (TK, 28.07.2026 রাত): এই তালিকাটাও নম্বর (Advance /
             // 2nd Payment …) দেখায় — তাই এখানেও **দিন ধরে** হিসাব, বাকি সব
             // পর্দার সেই একই ফাংশনে। নইলে এক রোগীর নাম এক পর্দায় এক রকম,
