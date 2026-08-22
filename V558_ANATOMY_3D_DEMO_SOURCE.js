@@ -33,6 +33,7 @@
     // ৫. পাইলস — প্রতিটা ফোলা একটা করে আঙুরের মত ঢিবি
     for (var i = 0; i < piles.length; i++) {
       var p = piles[i];
+      if (p.inner) continue;                    // ভিতরের পাইলস নালীর ভিতরে ফোলে
       var dx = x - p.r * Math.cos(p.a), dy = y - p.r * Math.sin(p.a);
       var d2 = dx * dx + dy * dy, w = pileWidth(p.size);
       z += p.size * Math.exp(-d2 / (w * w));
@@ -64,6 +65,7 @@
     var lift = 0;
     for (var i = 0; i < piles.length; i++) {
       var p = piles[i];
+      if (p.inner) continue;
       var dx = r*Math.cos(a) - p.r*Math.cos(p.a), dy = r*Math.sin(a) - p.r*Math.sin(p.a);
       var d = Math.sqrt(dx*dx + dy*dy), w = pileWidth(p.size);
       lift += Math.exp(-(d*d)/(w*w));
@@ -76,7 +78,7 @@
   function wetAt(r, a, piles) {
     var w = r < VERGE_CM * 1.5 ? 1 - (r / (VERGE_CM * 1.5)) * 0.45 : 0.18;
     for (var i = 0; i < piles.length; i++) {
-      var p = piles[i];
+      var p = piles[i]; if (p.inner) continue;
       var dx = r*Math.cos(a) - p.r*Math.cos(p.a), dy = r*Math.sin(a) - p.r*Math.sin(p.a);
       var d2 = dx*dx + dy*dy, ww = pileWidth(p.size);
       w = Math.max(w, Math.exp(-d2 / (ww * ww)));
@@ -91,6 +93,7 @@
   function buildMesh(state) {
     var piles = state.piles || [];
     var cut = !!state.cut;                 // বইয়ের মত কাটা ছবি
+    var canal = !!state.canal || cut;      // ভিতরের নালী দেখা যাবে কি না
     var grid = [], i, j;
     for (i = 0; i <= RINGS; i++) {
       var row = [];
@@ -107,53 +110,188 @@
       for (j = 0; j < SPOKES; j++) {
         var p00 = grid[i][j], p10 = grid[i+1][j], p11 = grid[i+1][j+1], p01 = grid[i][j+1];
         var rm = (p00[3] + p10[3]) / 2, am = (p00[4] + p01[4]) / 2;
+        // নালী দেখাতে হলে মাঝখানে সত্যিকারের ফুটো রাখতে হয়
+        if (state.fieldMax && rm > state.fieldMax) continue;
+        if (canal && rm < canalRadius(0, am, piles) * 0.99) continue;
         // কাটা ছবিতে সামনের অর্ধেকটা সরিয়ে ভিতরটা দেখানো হয়
-        if (cut && Math.sin(am) > 0.02 && rm < VERGE_CM * 2.2) continue;
+        if (cut && Math.sin(am) > 0.02) continue;
         quads.push({ v: [p00, p10, p11, p01], c: surfaceColor(rm, am, piles), wet: wetAt(rm, am, piles) });
       }
     }
-    if (cut) quads = quads.concat(canalQuads(state));
+    if (canal) quads = quads.concat(canalQuads(state));
     return quads;
   }
 
-  /* ---------- কাটা ছবির ভিতরের নালী ---------- */
+  /* ---------- পায়ুনালীর ভিতরটা ----------
+     মাপ ডাক্তারি বই অনুযায়ী: পায়ুনালী প্রায় ৩.৬ সেমি লম্বা, মুখের দিকে সরু,
+     ভিতরে গিয়ে চওড়া (rectal ampulla)। মুখ থেকে প্রায় ২ সেমি ভিতরে
+     "দাঁতের রেখা" (dentate line) — এর উপরের ফোলাগুলোই ভিতরের পাইলস,
+     নিচের গুলো বাইরের পাইলস।                                             */
+  var DENTATE_D  = 0.55;                       // মুখ থেকে ২ সেমি ≈ ৫৫%
+  var CANAL_STEPS = 30;
+
+  function canalRadius(d, a, piles) {
+    var r = VERGE_CM * (0.60 + 0.88 * Math.pow(d, 1.30));
+    // দাঁতের রেখার উপরে লম্বা লম্বা ভাঁজ (columns of Morgagni)
+    if (d > 0.45) {
+      var g = Math.min(1, (d - 0.45) / 0.25);
+      r -= VERGE_CM * 0.055 * g * Math.cos(8 * a);
+    }
+    // ভিতরের পাইলস ভিতরের দিকে ফুলে ঢুকে আসে
+    for (var i = 0; i < piles.length; i++) {
+      var p = piles[i];
+      if (!p.inner) continue;
+      r -= p.size * innerPileAt(p, d, a);
+    }
+    return Math.max(VERGE_CM * 0.16, r);
+  }
+  function innerPileAt(p, d, a) {
+    var da = Math.abs(((a - p.a + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+    var dd = (d - 0.70) / 0.17;
+    return Math.exp(-(da * da) / 0.30) * Math.exp(-dd * dd);
+  }
+
+  function canalColor(d, a, piles) {
+    var col;
+    if (d < DENTATE_D - 0.03) col = mix([196, 148, 134], [176, 116, 110], d / DENTATE_D); // anoderm — ফ্যাকাশে
+    else if (d < DENTATE_D + 0.03) col = [228, 208, 172];                                  // দাঁতের রেখা
+    else col = mix([182, 92, 102], [150, 62, 78], Math.min(1, (d - DENTATE_D) / 0.5));      // ভিতরের মিউকোসা
+    var lift = 0;
+    for (var i = 0; i < piles.length; i++) {
+      var p = piles[i]; if (!p.inner) continue;
+      lift = Math.max(lift, innerPileAt(p, d, a));
+    }
+    if (lift > 0.03) col = mix(col, PILE, Math.min(0.95, lift * 1.2));
+    return col;
+  }
+
   function canalQuads(state) {
-    var piles = state.piles || [], out = [], i, j;
-    var DEPTH = 26;
-    for (i = 0; i < DEPTH; i++) {
+    var piles = state.piles || [], cut = !!state.cut, out = [], i, j;
+    var top = surfaceZ(0.001, 0, []);                 // মুখের উচ্চতা
+    for (i = 0; i < CANAL_STEPS; i++) {
+      var d0 = i / CANAL_STEPS, d1 = (i + 1) / CANAL_STEPS;
+      var z0 = top - d0 * CANAL_CM, z1 = top - d1 * CANAL_CM;
       for (j = 0; j < SPOKES; j++) {
         var a0 = (j / SPOKES) * Math.PI * 2, a1 = ((j + 1) / SPOKES) * Math.PI * 2;
-        var am = (a0 + a1) / 2;
-        if (Math.sin(am) > 0.02) continue;                    // সামনের অর্ধেক কাটা
-        var d0 = (i / DEPTH), d1 = ((i + 1) / DEPTH);
-        var z0 = surfaceZ(0.001, am, piles) - d0 * CANAL_CM;
-        var z1 = surfaceZ(0.001, am, piles) - d1 * CANAL_CM;
-        // নালী উপরে চওড়া, গভীরে সরু হয়ে আবার একটু চওড়া (ampulla)
-        var w0 = canalRadius(d0), w1 = canalRadius(d1);
-        var v = [
-          [w0*Math.cos(a0), w0*Math.sin(a0), z0, 0, a0],
-          [w1*Math.cos(a0), w1*Math.sin(a0), z1, 0, a0],
-          [w1*Math.cos(a1), w1*Math.sin(a1), z1, 0, a1],
-          [w0*Math.cos(a1), w0*Math.sin(a1), z0, 0, a1]
-        ];
-        var col = mix(DEEP, MUCOSA, 1 - d0 * 0.75);
-        // dentate line (আঁচিলরেখা) — ভিতরের ও বাইরের পাইলসের সীমানা
-        if (d0 > 0.30 && d0 < 0.36) col = mix(col, [232, 214, 170], 0.55);
-        // ভিতরের পাইলস কাটা ছবিতেও ফুলে থাকে
-        for (var k = 0; k < piles.length; k++) {
-          var p = piles[k];
-          if (!p.inner) continue;
-          var da = Math.abs(((am - p.a + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
-          var dd = Math.abs(d0 - 0.24);
-          var g = Math.exp(-(da*da)/0.30) * Math.exp(-(dd*dd)/0.020);
-          if (g > 0.03) col = mix(col, PILE, Math.min(1, g));
-        }
-        out.push({ v: v, c: col, inner: true, wet: 0.85 });
+        var am = (a0 + a1) / 2, dm = (d0 + d1) / 2;
+        if (cut && Math.sin(am) > 0.02) continue;      // বইয়ের মত সামনের অর্ধেক কাটা
+        var w00 = canalRadius(d0, a0, piles), w10 = canalRadius(d1, a0, piles);
+        var w11 = canalRadius(d1, a1, piles), w01 = canalRadius(d0, a1, piles);
+        out.push({
+          v: [[w00*Math.cos(a0), w00*Math.sin(a0), z0, 0, a0],
+              [w10*Math.cos(a0), w10*Math.sin(a0), z1, 0, a0],
+              [w11*Math.cos(a1), w11*Math.sin(a1), z1, 0, a1],
+              [w01*Math.cos(a1), w01*Math.sin(a1), z0, 0, a1]],
+          c: canalColor(dm, am, piles), inner: true, wet: 0.9
+        });
+      }
+    }
+    // নালীর শেষ মাথা বন্ধ — এর পরে মলাশয়, তাই ওখানটা অন্ধকার
+    var zEnd = top - CANAL_CM;
+    for (j = 0; j < SPOKES; j++) {
+      var b0 = (j / SPOKES) * Math.PI * 2, b1 = ((j + 1) / SPOKES) * Math.PI * 2;
+      if (cut && Math.sin((b0 + b1) / 2) > 0.02) continue;
+      var e0 = canalRadius(1, b0, piles), e1 = canalRadius(1, b1, piles);
+      out.push({ v: [[0, 0, zEnd, 0, b0],
+                     [e0*Math.cos(b0), e0*Math.sin(b0), zEnd, 0, b0],
+                     [e1*Math.cos(b1), e1*Math.sin(b1), zEnd, 0, b1],
+                     [0, 0, zEnd, 0, b1]],
+                 c: [46, 20, 24], inner: true, wet: 0.2, flat: true });
+    }
+    if (cut) out = out.concat(cutFaceQuads(state, top));
+    return out;
+  }
+
+  /* কাটা মুখ — বইয়ের ছবির মত মাংসের স্তর।
+     চামড়া · চর্বি · গোল মাংসপেশি (sphincter) · তার ভিতরে ফাঁকা নালী।
+     প্রতিটা খাড়া সারিতে নালীর কিনারাটা অঙ্ক কষে বার করা হয়, তাই কাটা
+     ধারটা মসৃণ হয় — সিঁড়ির মত খাঁজকাটা হয় না।                          */
+  function lumenEnter(x, a, piles) {
+    // এই দূরত্বে নালী কোন গভীরতা থেকে শুরু, সেটা খুঁজে বার করা
+    if (x < canalRadius(0, a, piles)) return 0;
+    var lo = 0, hi = 1, found = -1, i;
+    for (i = 0; i <= 40; i++) {
+      var d = i / 40;
+      if (canalRadius(d, a, piles) > x) { found = d; break; }
+    }
+    if (found < 0) return -1;
+    lo = Math.max(0, found - 1 / 40); hi = found;
+    for (i = 0; i < 18; i++) {                     // দ্বিখণ্ডন — নিখুঁত কিনারা
+      var m = (lo + hi) / 2;
+      if (canalRadius(m, a, piles) > x) hi = m; else lo = m;
+    }
+    return hi;
+  }
+
+  function cutFaceQuads(state, top) {
+    var piles = state.piles || [], out = [], si, xi, k;
+    var sides = [0, Math.PI], XN = 64, LAY = 22;
+    var maxX = state.fieldMax || (FIELD_CM * 0.62);
+    var zBot = top - CANAL_CM - 1.0, zEnd = top - CANAL_CM;
+    for (si = 0; si < 2; si++) {
+      var a = sides[si];
+      for (xi = 0; xi < XN; xi++) {
+        var x0 = maxX * xi / XN, x1 = maxX * (xi + 1) / XN, xm = (x0 + x1) / 2;
+        var zt0 = surfaceZ(x0, a, piles), zt1 = surfaceZ(x1, a, piles);
+        var de = lumenEnter(xm, a, piles);
+        // উপরের অংশ: চামড়া থেকে নালীর কিনারা পর্যন্ত
+        var upEnd0, upEnd1;
+        if (de < 0) { upEnd0 = zBot; upEnd1 = zBot; }
+        else { upEnd0 = top - de * CANAL_CM; upEnd1 = upEnd0; }
+        strip(out, a, x0, x1, zt0, zt1, upEnd0, upEnd1, top, piles, LAY);
+        // নিচের অংশ: নালীর তলা থেকে আরও নিচে
+        if (de >= 0) strip(out, a, x0, x1, zEnd, zEnd, zBot, zBot, top, piles, 6);
       }
     }
     return out;
   }
-  function canalRadius(d) { return VERGE_CM * (0.62 + 0.55 * Math.sin(Math.PI * Math.min(1, d * 0.9))); }
+
+  function strip(out, a, x0, x1, zA0, zA1, zB0, zB1, top, piles, LAY) {
+    if (zA0 - zB0 < 0.001) return;
+    for (var k = 0; k < LAY; k++) {
+      var t0 = k / LAY, t1 = (k + 1) / LAY;
+      var p00 = zA0 + (zB0 - zA0) * t0, p01 = zA0 + (zB0 - zA0) * t1;
+      var p10 = zA1 + (zB1 - zA1) * t0, p11 = zA1 + (zB1 - zA1) * t1;
+      var zm = (p00 + p11) / 2, dm = (top - zm) / CANAL_CM;
+      out.push({
+        v: [[x0*Math.cos(a), x0*Math.sin(a), p00, 0, a],
+            [x0*Math.cos(a), x0*Math.sin(a), p01, 0, a],
+            [x1*Math.cos(a), x1*Math.sin(a), p11, 0, a],
+            [x1*Math.cos(a), x1*Math.sin(a), p10, 0, a]],
+        c: fleshColor((x0 + x1) / 2, zm, dm, a, (zA0 + zA1) / 2, piles),
+        inner: true, wet: 0.10, flat: true
+      });
+    }
+  }
+
+  var C_SKIN   = [154, 106,  86];   // চামড়া
+  var C_FAT    = [236, 219, 176];   // চর্বি
+  var C_MUSCLE = [168,  82,  78];   // গোল মাংসপেশি (sphincter)
+  var C_MUCO   = [190,  96, 106];   // ভিতরের পর্দা
+
+  function fleshColor(x, z, d, a, zTop, piles) {
+    var ds = zTop - z;                                  // চামড়ার নিচে কত গভীরে
+    if (ds < 0.16) return C_SKIN;
+    var inRange = (d >= 0 && d <= 1);
+    var wall = inRange ? canalRadius(d, a, piles) : canalRadius(d < 0 ? 0 : 1, a, piles);
+    var gap = x - wall;
+    if (inRange && gap < 0.16) {                        // নালীর গা-ঘেঁষা পর্দা
+      var lift = 0;
+      for (var i = 0; i < piles.length; i++) {
+        var pp = piles[i]; if (!pp.inner) continue;
+        lift = Math.max(lift, innerPileAt(pp, d, a));
+      }
+      var mc = d > DENTATE_D ? C_MUCO : [200, 152, 138];
+      if (Math.abs(d - DENTATE_D) < 0.03) mc = [228, 208, 172];
+      return lift > 0.05 ? mix(mc, PILE, Math.min(0.95, lift * 1.25)) : mc;
+    }
+    if (inRange && gap < 0.95) {                        // মাংসপেশির বলয়
+      var stripe = 0.5 + 0.5 * Math.cos(d * 46);
+      return mix(C_MUSCLE, [190, 104, 96], stripe * 0.45);
+    }
+    var speck = 0.5 + 0.5 * Math.cos(x * 11 + z * 13);
+    return mix(C_FAT, [212, 190, 138], speck * 0.5);
+  }
 
   /* ---------- ক্যামেরা: এখানেই ঘোরানো ---------- */
   function makeCamera(yaw, pitch, zoom, cx, cy) {
@@ -201,7 +339,7 @@
       var n = faceNormal(v);
       var lam = n[0]*LIGHT[0] + n[1]*LIGHT[1] + n[2]*LIGHT[2];
       q.sh = 0.42 + 0.74 * Math.max(0, lam);
-      if (q.inner) q.sh *= 0.72;
+      if (q.inner) q.sh *= q.flat ? 0.92 : 0.72;
       var zm = (v[0][2] + v[1][2] + v[2][2] + v[3][2]) / 4;
       q.sh *= 0.72 + 0.28 * Math.min(1, Math.max(0, (zm + 0.4) / 2.6));   // খাঁজের ভিতর কম আলো ঢোকে                      // ভিতরটা স্বাভাবিকভাবেই কম আলো পায়
       var hv = n[0]*HALF[0] + n[1]*HALF[1] + n[2]*HALF[2];
