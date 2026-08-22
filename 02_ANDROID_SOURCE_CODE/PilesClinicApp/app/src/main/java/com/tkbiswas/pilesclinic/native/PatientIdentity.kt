@@ -207,4 +207,54 @@ object PatientIdentity {
         return false
     }
 
+    /**
+     * 🔵🔒 V536 (২২.০৮.২০২৬, TK-নির্দেশ) — **এই সারিটা কি প্রমাণসহ অন্য কারও?**
+     *
+     * কিছু কাজ (রেজিস্ট্রেশন · Treatment-এ রূপান্তর · Follow-up-এর status ·
+     * Draft Restore) এক নম্বরের **সব** follow-up সারিতে একসাথে লেখে। এক নম্বরে
+     * দু'জন আলাদা রোগী থাকলে **একজনের কাজ অন্যজনের কার্ড বন্ধ করে দিত**।
+     *
+     * ⛔ এই ফাংশন **শুধু তখনই `true`** ফেরায় যখন **প্রমাণ আছে** সারিটা অন্য
+     *    কারও। প্রমাণ না থাকলে `false` — অর্থাৎ **হুবহু আগের আচরণ**, কোনো
+     *    সারি বাদ পড়ে না। (আন্দাজে কিছু বাদ দেওয়া হয় না।)
+     *
+     * প্রমাণ তিনটেই কোডে-লেখা ঘর:
+     *   `refId` = follow-up যে রোগীর সারিকে দেখায় · `patientId` = মানুষ-পড়া
+     *   কোড · `name` = নাম।
+     *
+     * ⚠️ **সৎ সীমা:** Inquiry সারিতে (রেজিস্ট্রেশনের আগে) প্রায়ই `refId`
+     *    ফাঁকা থাকে — তখন কার সারি তা **জানার উপায় নেই**, তাই আগের মতোই
+     *    ধরা হয়। এটা লুকানো হচ্ছে না, স্পষ্ট লিখে রাখা হলো।
+     */
+    fun provablyOtherPatient(
+        row: JSONObject?,
+        mobileDigits: String,
+        myRowId: String,
+        myPatientCode: String,
+        myName: String = ""
+    ): Boolean {
+        if (row == null) return false
+        val d = mobileDigits.filter { it.isDigit() }.takeLast(10)
+        val rowRef = row.s("refId").trim()
+        val rowCode = row.s("patientId").trim()
+        val rowName = row.s("name").trim()
+        val mineRef = myRowId.trim()
+
+        // ১) সারিটা ঘোষিত-আলাদা কোনো রোগীর, আর সেই রোগী আমি নই ⇒ প্রমাণিত অন্যের
+        if (PatientModel.isDeclaredSeparateRowId(rowRef, d) && rowRef != mineRef) return true
+
+        // ২) আমি নিজেই ঘোষিত-আলাদা রোগী ⇒ প্রমাণ ছাড়া কোনো সারি আমার নয়
+        if (PatientModel.isDeclaredSeparateRowId(mineRef, d)) {
+            if (rowRef.isNotEmpty()) return rowRef != mineRef
+            if (rowCode.isNotEmpty() && myPatientCode.isNotBlank())
+                return !rowCode.equals(myPatientCode.trim(), ignoreCase = true)
+            if (rowName.isNotEmpty() && myName.isNotBlank())
+                return !rowName.equals(myName.trim(), ignoreCase = true)
+            return true          // কোনো প্রমাণই নেই ⇒ ছোঁব না
+        }
+
+        // ৩) সাধারণ রোগী, প্রমাণ নেই ⇒ **হুবহু আগের আচরণ**
+        return false
+    }
+
 }

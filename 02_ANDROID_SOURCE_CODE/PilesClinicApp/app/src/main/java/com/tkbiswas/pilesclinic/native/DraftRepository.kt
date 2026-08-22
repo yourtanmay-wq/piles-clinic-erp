@@ -930,11 +930,17 @@ class DraftRepository(private val context: Context? = null) {
                     // patient then said "Restored" while the card never came
                     // back. Now every row of this person is re-activated, the
                     // same as the other three Draft sections already do.
-                    val rows = SupabaseClient.findByMobile("followups", mob, "id,stage", 50)
+                    /* 🔵🔒 V536: Restore-এ এক নম্বরের **সব** সারি Active/Treatment হয়ে
+                       যেত — এক নম্বরে দু'জন থাকলে অন্যজনের কার্ডও। এখন প্রমাণসহ
+                       অন্যের সারি বাদ। ⛔ প্রমাণ না থাকলে হুবহু আগের আচরণ।
+                       ⛔ বাছাইয়ের তিনটে ঘরই শুধু যোগ হলো (ছোট, সারিও কম)। */
+                    val rows = SupabaseClient.findByMobile("followups", mob, "id,stage,refId,patientId,name", 50)
                     var ok = false
                     for (i in 0 until rows.length()) {
-                        val id = rows.getJSONObject(i).s("id")
+                        val fr = rows.getJSONObject(i)
+                        val id = fr.s("id")
                         if (id.isBlank()) continue
+                        if (PatientIdentity.provablyOtherPatient(fr, mob, e.id, e.patientId, e.name)) continue
                         val fields = JSONObject().put("status", "Active").put("stage", "Treatment").put("updatedAt", isoNow())
                         val rowOk = SupabaseClient.updateById("followups", id, fields)
                         if (!rowOk) context?.let { GenericUpdateQueue.queue(it, "followups", id, fields) }

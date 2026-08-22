@@ -347,13 +347,19 @@ class RegistrationRepository(private val context: Context) {
             // `id` ও `history`** পড়া হয় (:282, :284)। আগে `select=*` মানে
             // followups সারির **রোগীর base64 ছবিও** নামত — আর এটা চলে
             // **প্রতিটা রেজিস্ট্রেশনে**। ⛔ সারি · ছাঁকনি · limit অপরিবর্তিত।
+            /* 🔵🔒 V536 (২২.০৮.২০২৬, TK-নির্দেশ) — এক নম্বরে দু'জন আলাদা রোগী
+               থাকলে **অন্যজনের খোলা Inquiry আর বন্ধ হয়ে যাবে না**।
+               ⛔ প্রমাণ না থাকলে আগের মতোই বন্ধ হয় — একটাও সারি বাদ পড়ে না।
+               ⛔ বাছাই করতে যে তিনটে ঘর লাগে (`refId,patientId,name`) সেগুলোই
+                  শুধু যোগ করা হলো — ছোট ঘর, আর সারি এমনিতেই হাতে গোনা। */
             val followups = SupabaseClient.fetchListSlim(
-                "followups", "mobile=like.*$digits&stage=eq.Inquiry", 5000, "id,history"
+                "followups", "mobile=like.*$digits&stage=eq.Inquiry", 5000, "id,history,refId,patientId,name"
             )
             for (i in 0 until followups.length()) {
                 val row = followups.getJSONObject(i)
                 val id = row.s("id")
                 if (id.isBlank()) continue
+                if (PatientIdentity.provablyOtherPatient(row, digits, patientId, patientId)) continue
                 val history = row.optJSONArray("history") ?: JSONArray()
                 history.put(
                     JSONObject()

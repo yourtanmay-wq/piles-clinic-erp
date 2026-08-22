@@ -2285,10 +2285,34 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                             val today = FollowUpModel.today()
                             val todaysPayments = SupabaseClient.fetchList("payments", "mobile=like.*$digits&date=eq.$today", 20)
                             val targets = ArrayList<String>()
+                            /* 🔵🔒 V536 (২২.০৮.২০২৬, TK-নির্দেশ) — **নোটটা শুধু এই রোগীরই
+                               টাকার সারিতে বসবে।**
+
+                               আগে ওই নম্বরের **আজকের সব** পেমেন্ট সারিতে নোটটা বসত। এক
+                               নম্বরে স্বামী-স্ত্রী দু'জন আলাদা রোগী দু'জনেই আজ টাকা দিলে
+                               **একজনের চিকিৎসার নোট অন্যজনের Report Card-এ** উঠে যেত।
+
+                               ⛔ নিয়মটা কোড থেকে প্রমাণিত, আন্দাজে নয়:
+                                  `payments.patientId` = **রোগীর সারির আইডি**
+                                  (`ChamberAttendanceRepository.kt:897`-এ লেখা ও V520-এ প্রমাণিত)।
+                               ⛔ V534-এর `rowBelongsTo()` এখানে **খাটে না** — ওটা সারির নিজের
+                                  `id` ধরে মেলায়, আর পেমেন্ট সারির `id` হলো পেমেন্টের আইডি,
+                                  রোগীর নয়। তাই এখানে সঠিক মিলটাই আলাদা করে লেখা হলো।
+                               ⛔ **এই নম্বরে ঘোষিত আলাদা রোগী না থাকলে (রোজকার ৯৯%)
+                                  একটাও সারি বাদ পড়ে না — আচরণ হুবহু আগের মতোই।** */
+                            val mineRowId = row.patientRowId.trim()
                             for (i in 0 until todaysPayments.length()) {
                                 val p = todaysPayments.getJSONObject(i)
                                 val payType = p.optString("payType", "")
                                 if (payType == "bill_edit" || payType == "chamber_expected") continue
+                                val owner = p.optString("patientId", "").trim()
+                                val keep = if (mineRowId.isNotEmpty())
+                                    owner == mineRowId          // ঘোষিত আলাদা রোগী ⇒ ঠিক তাঁরটাই
+                                else
+                                    // সাধারণ রোগী ⇒ ঘোষিত-আলাদা কারও টাকা বাদ, বাকি সব আগের মতোই
+                                    !com.tkbiswas.pilesclinic.native.PatientModel
+                                        .isDeclaredSeparateRowId(owner, digits)
+                                if (!keep) continue
                                 val pid = p.optString("id")
                                 if (pid.isBlank()) continue
                                 targets.add(pid)

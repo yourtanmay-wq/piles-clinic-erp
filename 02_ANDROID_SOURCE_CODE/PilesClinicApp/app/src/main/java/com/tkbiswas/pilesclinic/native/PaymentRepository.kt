@@ -2219,6 +2219,10 @@ class PaymentRepository(private val context: Context? = null) {
                     val row = inquiries.getJSONObject(i)
                     val id = row.s("id")
                     if (id.isBlank()) continue
+                    /* 🔵🔒 V536: এক নম্বরে দু'জন থাকলে **অন্যজনের Inquiry বন্ধ হবে না**।
+                       ⛔ প্রমাণ না থাকলে আগের মতোই — কোনো সারি বাদ পড়ে না। */
+                    if (PatientIdentity.provablyOtherPatient(
+                            row, digits, patient.id, patient.patientId, patient.name)) continue
                     val fields = JSONObject()
                         .put("stage", "Registered")
                         .put("status", "Closed")

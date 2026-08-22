@@ -2879,8 +2879,16 @@ class FollowUpRepository(private val context: Context? = null) {
                     .optJSONObject(0)?.s("stage").orEmpty() } catch (_: Throwable) { "" }
             }
             val enquiryOk = if (mob.isNotBlank()) markEnquiryClosedByMobile(mob, status) else false
+            /* 🔵🔒 V536: যে কার্ডটার status বদলাচ্ছে, **সেই কার্ডের পরিচয়** সাথে
+               যায় — তাই এক নম্বরে দু'জন থাকলে অন্যজনের কার্ড ছোঁয়া হয় না।
+               ⛔ `knownRow` না থাকলে তিনটেই ফাঁকা ⇒ হুবহু আগের আচরণ। */
             val siblingsOk = if (mob.isNotBlank() && stg.isNotBlank())
-                closeSiblingFollowUps(mob, stg, "", status, remark, staffName) else false
+                closeSiblingFollowUps(
+                    mob, stg, "", status, remark, staffName,
+                    knownRow?.s("refId").orEmpty(),
+                    knownRow?.s("patientId").orEmpty(),
+                    knownRow?.s("name").orEmpty()
+                ) else false
             val patientOk = if (mob.isNotBlank() && (stg.equals("Patient", true) || stg.equals("Treatment", true)))
                 markPatientDoctorCompleteByMobile(mob) else true
             durableCloudOk = mainCloudOk && enquiryOk && siblingsOk && patientOk
@@ -2899,19 +2907,27 @@ class FollowUpRepository(private val context: Context? = null) {
     //    কার্ডে থাকা **আসল মোবাইল** দিয়ে (excludeId=""), যাতে followups সারি id-এর উপর
     //    নির্ভর না করে মোবাইল ধরেই Cancelled হয়। id ভুল/না-মিললেও নম্বর আর ফিরবে না।
     fun closeSiblingFollowUps(
-        mobile: String, stage: String, excludeId: String, status: String, remark: String, staffName: String
-    ): Boolean = closeSiblingFollowUpsInternal(mobile, stage, excludeId, status, remark, staffName, true)
+        mobile: String, stage: String, excludeId: String, status: String, remark: String, staffName: String,
+        myRowId: String = "", myCode: String = "", myName: String = ""   // 🔵 V536 (ফাঁকা = আগের আচরণ)
+    ): Boolean = closeSiblingFollowUpsInternal(mobile, stage, excludeId, status, remark, staffName, true,
+        myRowId, myCode, myName)
 
+    /**
+     * 🔵🔒 V536 (২২.০৮.২০২৬, TK-নির্দেশ): `myRowId` / `myCode` / `myName` দিলে
+     * এক নম্বরে দু'জন আলাদা রোগী থাকলে **অন্যজনের কার্ডে হাত পড়ে না**।
+     * ⛔ তিনটেই ফাঁকা, বা প্রমাণ না থাকলে ⇒ **হুবহু আগের আচরণ**।
+     */
     private fun closeSiblingFollowUpsInternal(
         mobile: String, stage: String, excludeId: String, status: String, remark: String,
-        staffName: String, queueOnFailure: Boolean
+        staffName: String, queueOnFailure: Boolean,
+        myRowId: String = "", myCode: String = "", myName: String = ""
     ): Boolean {
         val d = mobile.filter { it.isDigit() }.takeLast(10)
         if (d.length != 10 || stage.isBlank()) return false
         val siblings = SupabaseClient.fetchListSlimOrNull(
             "followups",
             "mobile=like.*$d&stage=eq.$stage&status=not.in.(Cancelled,Incomplete,Rejected,Closed)",
-            50, "id,mobile,stage,status,history"
+            50, "id,mobile,stage,status,history,refId,patientId,name"   // 🔵 V536: বাছাইয়ের ৩টে ঘর
         )
         if (siblings == null) {
             if (queueOnFailure) queueMobileTask("followup_stage", mobile, status, stage, remark, staffName)
@@ -2922,6 +2938,8 @@ class FollowUpRepository(private val context: Context? = null) {
             val row = siblings.getJSONObject(i)
             val sid = row.optString("id")
             if (sid.isBlank() || sid == excludeId) continue
+            // 🔵 V536: প্রমাণসহ অন্য রোগীর সারি ⇒ ছোঁয়া হয় না।
+            if (PatientIdentity.provablyOtherPatient(row, d, myRowId, myCode, myName)) continue
             val fields = JSONObject().put("status", status).put("updatedAt", isoNow())
             if (remark.isNotBlank()) fields.put("lastRemark", remark)
             if (staffName.isNotBlank()) {
