@@ -7053,24 +7053,41 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
     ⛔ এটা `summary()` ও Doctor Queue — দুই **পাতা** থেকেই খোলে, কোনো পপ-আপের
        ভিতর থেকে নয়; তাই পাতার উপরে পাতা বসার ঝুঁকি নেই (কোডে মিলিয়ে দেখা হয়েছে)। */
  page('Doctor Note', `
- <div class="queueRow card">${p.photo?`<img class="miniPatient" src="${p.photo}">`:`<div class="miniPatient blank">👤</div>`}<div><b>${esc(p.name)}</b><br>${esc(p.mobile)} · Age: ${esc(p.age||'-')} · ${esc(p.sex||'-')}<br>Reg ID: ${esc(p.patientId)} · Branch: ${esc(p.branch)}</div></div>
+ <div class="queueRow card">${p.photo?`<img class="miniPatient" src="${p.photo}">`:`<div class="miniPatient blank">👤</div>`}<div><b>${esc(p.name)}</b><br>${esc(p.mobile)} · Age: ${esc(p.age||'-')} · ${esc(p.sex||'-')}<span id="dnOccHeader" class="dnOccHeader" onclick="dnOccChoose()" title="Occupation · পেশা" style="cursor:pointer;font-weight:600"></span><br>Reg ID: ${esc(p.patientId)} · Branch: ${esc(p.branch)}</div></div>
  <div class="card softInfo">ℹ️ Auto filled from Registration. Doctor can edit/add clinical details if needed.</div>
  <div id="wlv1CkChips" class="wlv1CkChips"></div>
  <div id="wlv1CkBox">
  <details open class="card"><summary><b>1. History &amp; Previous Treatment · বর্তমান রোগের ইতিহাস ও পূর্ববর্তী চিকিৎসার বিবরণ</b></summary>
   <label>Chief Complaint · প্রধান সমস্যা</label><textarea id="dnComplaint">${esc(complaint)}</textarea>
   <label>Duration · কতদিন থেকে</label><input id="dnDuration" class="input" value="${esc(duration)}">
-  <label>Occupation · পেশা</label><select id="dnOccupation" class="input"><option value="" ${!occupation?'selected':''}>Choose Occupation</option>${['Farmer','Housewife','Business','Service','Student','Labour','Retired','Others'].map(x=>`<option ${occupation===x?'selected':''}>${x}</option>`).join('')}</select>
+  <!-- 🖥️🔵 V547 (ফোনের V540 ওয়েবেও): TK-নির্দেশ *"occupation এটা ফর্ম থেকে সরিয়ে
+       উপরে যেখানে পেশেন্টের বয়স Male - 55 তার পাশে রাখুন"*। ঘরটা **মোছা হয়নি** —
+       শুধু ফর্ম থেকে সরানো; উপরের লাইনে চাপ দিলেই এই তালিকাটাই খোলে, তাই
+       সেভ/পড়ার কোড (#dnOccupation) এক অক্ষরও বদলায়নি। -->
+  <div id="dnOccupationBox" style="display:none"><label>Occupation · পেশা</label><select id="dnOccupation" class="input" onchange="dnOccPicked()"><option value="" ${!occupation?'selected':''}>Choose Occupation</option>${['Farmer','Housewife','Business','Service','Student','Labour','Retired','Others'].map(x=>`<option ${occupation===x?'selected':''}>${x}</option>`).join('')}</select></div>
   <label>Previous Treatment Taken · আগের চিকিৎসার বিবরণ</label><textarea id="dnPrevTreatment">${esc(previousTreatment)}</textarea>
+  <!-- 🖥️🔵 V547 (ফোনের V539 ওয়েবেও): TK-নির্দেশ *"review Treatment taken তার নিচে
+       আরেকটা বক্স থাকবে, সেখানে আমরা টাইপ করতে পারব যে পেশেন্ট এসে তার সমস্যার
+       কথা আর কি কি বললেন"*। ⛔ পুরোনো কোনো ঘর ছোঁয়া হয়নি, এটা নতুন ঘর। -->
+  <label>Patient Said · রোগী নিজে যা যা বললেন</label><textarea id="dnPatientSaid" placeholder="রোগী এসে তার সমস্যার কথা আর কি কি বললেন">${esc(note.patientSaid||'')}</textarea>
   <label>Result of Previous Treatment · আগের চিকিৎসার ফলাফল</label><textarea id="dnPrevResult">${esc(previousResult)}</textarea>
   <label>Cost Spent for Previous Treatment · আগের চিকিৎসার খরচ</label><input id="dnPrevCost" class="input" value="${esc(previousCost)}">
   <label>Treatment Duration · চিকিৎসা কত দিন চলেছিল</label><input id="dnTreatmentDuration" class="input" value="${esc(treatmentDuration)}">
  </details>
  <details class="card" open><summary><b>2. Clinical Findings · ক্লিনিক্যাল ফলাফল</b></summary>
   <div class="grid"><div class="card"><b>A. Visual Examination · দৃশ্যমান পরীক্ষা</b><div class="checkGrid premiumChecks">
-   ${['External Piles','Internal Piles','Fissure','Fistula Opening','Bleeding','Swelling'].map(x=>`<label><input class="dnVisual" type="checkbox" value="${x}" ${chk(note.visual,x)}> ${x}${WLV1_VISUAL_BN[x]?(' · '+WLV1_VISUAL_BN[x]):''}</label>`).join('')}
-  </div></div></div>
-  <div class="grid"><div class="card"><b>C. Proctoscopy · প্রক্টোস্কোপি</b><label>Grade · গ্রেড</label><select id="dnGrade" class="input">${['','Grade I','Grade II','Grade III','Grade IV'].map(x=>`<option value="${x}" ${String(note.grade||'')===x?'selected':''}>${x}${WLV1_GRADE_BN[x]?(' · '+WLV1_GRADE_BN[x]):''}</option>`).join('')}</select></div>
+   ${['External Piles','Internal Piles','Fissure','Fistula Opening','Bleeding','Swelling'].map(x=>`<label><input class="dnVisual" type="checkbox" value="${x}" ${chk(note.visual,x)}> <span class="dnVisLbl" data-v="${x}">${x}${WLV1_VISUAL_BN[x]?(' · '+WLV1_VISUAL_BN[x]):''}</span></label>`).join('')}
+  </div>
+  <!-- 🖥️🔵 V547 (ফোনের V539/V540 ওয়েবেও): TK-নির্দেশ *"internal piles এখানে চাপ দিলে
+       Grade 1 / Grade 2 / Grade 3 / Grade 4 আসবে, যেটা সিলেক্ট করব সেটাই থাকবে"*।
+       ঘরটা আগের সেই Grade-এর ঘরই (id="dnGrade") — মোছা বা নতুন বানানো হয়নি, তাই
+       পুরোনো রেকর্ড ও সেভের কোড অটুট। শুধু জায়গাটা বদলেছে। -->
+  <div id="dnGradeBox" style="display:none"><label>Internal Piles — Grade · গ্রেড</label><select id="dnGrade" class="input" onchange="dnGradePicked()">${['','Grade I','Grade II','Grade III','Grade IV'].map(x=>`<option value="${x}" ${String(note.grade||'')===x?'selected':''}>${x}${WLV1_GRADE_BN[x]?(' · '+WLV1_GRADE_BN[x]):''}</option>`).join('')}</select></div>
+  </div></div>
+  <!-- 🖥️🔵 V547 (ফোনের V539 ওয়েবেও): TK-নির্দেশ *"proctoscopy grade এখানে চাপ দিলে
+       গ্রেড ওয়ান / টু / থ্রি / ফোর — সেগুলো থাকবে না, সেখানে ব্লাঙ্ক বক্স থাকবে, টাইপ করব আমরা"*।
+       ⛔ Grade-এর ঘরটা মোছা হয়নি — উপরে Internal Piles-এর সঙ্গে বসেছে। -->
+  <div class="grid"><div class="card"><b>C. Proctoscopy · প্রক্টোস্কোপি</b><label>Proctoscopy · যা দেখা গেল (টাইপ করুন)</label><textarea id="dnProctoscopy">${esc(note.proctoscopy||'')}</textarea></div>
   <div class="card"><b>D. On Probing · প্রোব পরীক্ষা</b><label>Direction and depth of tract after probing · প্রোব ঢোকানোর পরে নালি কোন দিকে কতটা গেল</label><textarea id="dnProbing">${val('onProbing')}</textarea></div></div>
   <div class="grid"><!-- 🔴 V542 (TK-নির্দেশ: "investigation তুলে দেন, থাকবে না") — কার্ডটা সরানো। ⛔ পুরোনো রেকর্ডের মান থেকে যায়, ছাপায় আগের মতোই দেখা যায়। --></div>
  </details>
@@ -7094,8 +7111,67 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
  <div class="wlv1CkBar"><button class="wlv1CkSide" onclick="wlv1CkStep(-1)">Back</button><button class="wlv1CkSave" onclick="saveDoctor('${id}')">💾 Save</button><button class="wlv1CkSide" onclick="wlv1CkStep(1)">Next ▶</button></div>
  <div class="actions"><button onclick="saveDoctor('${id}')">💾 Save</button><button class="ghost" onclick="prescription('${id}')">Prescription</button><button class="ghost" onclick="medicine('${id}')">Medicine Slip</button><button class="ghost" onclick="blood('${id}')">Blood Test</button><button class="ghost" onclick="diet('${id}')">Diet</button></div>`);
  setTimeout(()=>{try{wlv1CkShow(0)}catch(e){}},40);
+ setTimeout(()=>{try{dnWireV547()}catch(e){}},50);   /* 🔵 V547 */
 }
 window["doctorCheck"]=doctorCheck;
+/* 🖥️🔵 V547 (২২.০৮.২০২৬) — CHECK-UP পর্দার ফোন-ওয়েব মিল।
+   ফোনে V539/V540-এ যা হয়েছিল, ওয়েবেও ঠিক তাই:
+     • Occupation ফর্ম থেকে সরে উপরের বয়স/লিঙ্গের পাশে; ওখানে চাপ দিলেই তালিকা।
+     • Internal Piles-এ টিক দিলেই Grade-এর তালিকা; বাছা Grade পাশে দেখা যায়।
+     • Proctoscopy এখন খালি বক্স (টাইপ করার), তালিকা নয়।
+   ⛔ কোনো ঘর মোছা হয়নি, কোনো id বদলায়নি — তাই সেভ ও পুরোনো রেকর্ড অটুট।
+   ⛔ Android-এর মতোই: টিক তুললে সেভ করা Grade মুছে ফেলা হয় না, শুধু পাশে দেখানো বন্ধ। */
+function dnVisBox(v){try{return $$('.dnVisual').find(x=>String(x.value)===v)||null}catch(e){return null}}
+function dnGradeValue(){try{var g=$('#dnGrade');return g?String(g.value||''):''}catch(e){return ''}}
+function dnRefreshInternalGrade(){
+  try{
+    var box=dnVisBox('Internal Piles'); if(!box) return;
+    var lbl=document.querySelector('.dnVisLbl[data-v="Internal Piles"]'); if(!lbl) return;
+    var base='Internal Piles'+(WLV1_VISUAL_BN['Internal Piles']?(' · '+WLV1_VISUAL_BN['Internal Piles']):'');
+    var g=dnGradeValue();
+    lbl.textContent=(box.checked&&g)?(base+' — '+g):base;
+  }catch(e){}
+}
+function dnOpenHidden(boxId,selId){
+  try{
+    var b=document.getElementById(boxId); if(b) b.style.display='';
+    var sl=document.getElementById(selId);
+    if(sl){ try{ sl.focus() }catch(_f){} try{ if(sl.showPicker) sl.showPicker() }catch(_e){} }
+  }catch(e){}
+}
+function dnGradeChoose(){ dnOpenHidden('dnGradeBox','dnGrade') }
+function dnGradePicked(){
+  try{
+    var box=dnVisBox('Internal Piles');
+    if(box) box.checked=!!dnGradeValue();
+    var b=document.getElementById('dnGradeBox'); if(b) b.style.display='none';
+    dnRefreshInternalGrade();
+  }catch(e){}
+}
+function dnOccText(){try{var sl=$('#dnOccupation');var v=sl?String(sl.value||''):'';return (v==='Choose Occupation')?'':v}catch(e){return ''}}
+function dnRefreshOccHeader(){
+  try{
+    var h=document.getElementById('dnOccHeader'); if(!h) return;
+    var occ=dnOccText();
+    h.textContent=occ?(' · '+occ):' · ＋ Occupation';
+  }catch(e){}
+}
+function dnOccChoose(){ dnOpenHidden('dnOccupationBox','dnOccupation') }
+function dnOccPicked(){
+  try{ var b=document.getElementById('dnOccupationBox'); if(b) b.style.display='none'; dnRefreshOccHeader() }catch(e){}
+}
+function dnWireV547(){
+  try{
+    var box=dnVisBox('Internal Piles');
+    if(box && box.getAttribute('data-v547')!=='1'){
+      box.setAttribute('data-v547','1');
+      box.addEventListener('change',function(){ if(box.checked) dnGradeChoose(); dnRefreshInternalGrade() });
+    }
+    dnRefreshInternalGrade(); dnRefreshOccHeader();
+  }catch(e){}
+}
+window["dnWireV547"]=dnWireV547;window["dnGradeChoose"]=dnGradeChoose;window["dnGradePicked"]=dnGradePicked;
+window["dnOccChoose"]=dnOccChoose;window["dnOccPicked"]=dnOccPicked;window["dnRefreshInternalGrade"]=dnRefreshInternalGrade;window["dnRefreshOccHeader"]=dnRefreshOccHeader;
 async function saveDoctor(id){
  let p=load('patients').find(x=>x.id===id);if(!p)return toast('Patient not found');
  // V460 (১৯.০৮.২০২৬) — dre (.dnDre checkbox) আর নেই, তালিকা থেকে সরানো হলো।
@@ -7112,6 +7188,8 @@ async function saveDoctor(id){
   complaint:$('#dnComplaint')?.value||'',duration:$('#dnDuration')?.value||'',occupation:$('#dnOccupation')?.value||'',
   previousTreatment:$('#dnPrevTreatment')?.value||'',previousResult:$('#dnPrevResult')?.value||'',previousCost:$('#dnPrevCost')?.value||'',treatmentDuration:$('#dnTreatmentDuration')?.value||'',
   visual,grade:$('#dnGrade')?.value||'',onProbing:$('#dnProbing')?.value||'',investigations,
+  /* 🔵 V547: ফোনের CheckupRecord-এর মতোই দুটো নতুন ঘর */
+  proctoscopy:$('#dnProctoscopy')?.value||'',patientSaid:$('#dnPatientSaid')?.value||'',
   treatmentPlan,amtPerPiles:$('#dnAmtPerPiles')?.value||'8000',amtFistulaPerInch:$('#dnAmtFistulaInch')?.value||'11000',amtKsharSutra:$('#dnAmtKsharSutra')?.value||'6000',
   counselling:$('#dnCounselling')?.value||'',estimatedCost:$('#dnEstimatedCost')?.value||'',recoveryTime:$('#dnRecoveryTime')?.value||'',advanceDiscussed:$('#dnAdvanceDiscussed')?.value||'',
   // V460 (১৯.০৮.২০২৬, Android-এ V455 হিসেবে করা হয়েছিল — এখানে ওয়েবেও একই ফিক্স):
@@ -7121,7 +7199,7 @@ async function saveDoctor(id){
   // নতুন সেভে এই ঘরগুলো আর বসে না।
   beforePhoto:media.beforePhoto||oldNote.beforePhoto||'',duringPhoto:media.duringPhoto||oldNote.duringPhoto||'',afterPhoto:media.afterPhoto||oldNote.afterPhoto||'',updatedAt:new Date().toISOString()
  };
- let details=[`Complaint: ${note.complaint}`,`Duration: ${note.duration}`,`Occupation: ${note.occupation}`,`Visual: ${visual.join(', ')}`,`Grade: ${note.grade}`,`On Probing: ${note.onProbing}`,`Investigations: ${investigations.join(', ')}`,`Treatment Plan: ${treatmentPlan.join(', ')}`,`Other Treatment Note: ${note.counselling}`,`Financial: ${note.estimatedCost}`].filter(x=>!x.endsWith(': ')&&!x.endsWith(': ')).join(' | ');
+ let details=[`Complaint: ${note.complaint}`,`Duration: ${note.duration}`,`Occupation: ${note.occupation}`,`Patient Said: ${note.patientSaid}`,`Visual: ${visual.join(', ')}`,`Internal Piles Grade: ${note.grade}`,`Proctoscopy: ${note.proctoscopy}`,`On Probing: ${note.onProbing}`,`Investigations: ${investigations.join(', ')}`,`Treatment Plan: ${treatmentPlan.join(', ')}`,`Other Treatment Note: ${note.counselling}`,`Financial: ${note.estimatedCost}`].filter(x=>!x.endsWith(': ')&&!x.endsWith(': ')).join(' | ');
  /* 🔴 TK-নির্দেশ (04.08.2026): আগে শুধু "Agree for Treatment"-এই
     doctorComplete=true হত -- বাকি পাঁচটা সিদ্ধান্তে ডাক্তার সত্যিই
     checkup শেষ করেও রোগী CHECK-UP Queue-তে চিরকাল আটকে থাকতেন
@@ -10053,8 +10131,31 @@ window["onRxMedicineChange"]=onRxMedicineChange;
    সত্যিই দরকার, শুধু সেখানেই।
    ⛔ ঘরের নাম (id) একটুও বদলায়নি, তাই "Add Medicine"-এর পুরনো হিসাব হুবহু
       আগের মতোই চলে — কোনো পথ ভাঙেনি। */
-function customMedBox(){return `<label>Add Medicine / Custom Medicine</label><div class="rxCustomMedicineRow"><select id="rxType" class="input rxCustomType">${rxTypeOptions('')}</select><input id="rxMed" class="input" placeholder="Medicine name"></div><div class="rxCustomMedicineRow rxCustomDoseRow"><input id="rxDose" class="input" value="As advised"><input id="rxDays" class="input rxCustomDays" inputmode="numeric" value="5"></div>`}
+function customMedBox(){return `<label>Add Medicine / Custom Medicine</label><div class="rxCustomMedicineRow"><select id="rxType" class="input rxCustomType" onchange="rxMarkTouched(this)">${rxTypeOptions('')}</select><input id="rxMed" class="input" placeholder="Medicine name" oninput="rxFillDefaults()"></div><div class="rxCustomMedicineRow rxCustomDoseRow"><input id="rxDose" class="input" value="As advised" oninput="rxMarkTouched(this)"><input id="rxDays" class="input rxCustomDays" inputmode="numeric" value="5" oninput="rxMarkTouched(this)"></div>`}
 window["customMedBox"]=customMedBox;
+/* 🖥️🔵 V547 (২২.০৮.২০২৬) — ফোনের V545 ওয়েবেও (প্যাকেজিং-নিয়ম: এক দিনে দুটোই)।
+   TK-নির্দেশ: *"কোন মেডিসিনের নাম যখন আমি টাইপ করে লিখব, ডোজের ঘর অটো ডিফল্ট
+   থাকবে তো? আমি যদি চাই সেই ক্ষেত্রেই পরিবর্তন হবে। তাছাড়া কত দিনের জন্য সেটাও
+   ডিফল্ট ওখানে লেখা থাকবে।"*
+   ⛔ নতুন কোনো ডিফল্ট বানানো হয়নি — প্রজেক্টের নিজের মনে-রাখা মানই বসে
+      (`rxDoseFor` · `rxDaysFor` · `rxTypeFor`), তালিকার কার্ডে ঠিক যেগুলো চলে।
+   ⛔ 🔴 স্টাফ নিজে একবার কোনো ঘরে হাত দিলে সেই ঘরে আর কখনো বসে না
+      (`data-touched`)। Edit করতে গেলেও তিনটে ঘরই ছোঁয়া ধরা হয়, তাই
+      পুরোনো সারির লেখা নিজে থেকে বদলায় না।
+   ⛔ সেভের কোড (`addRxItem`) এক অক্ষরও বদলায়নি। */
+function rxMarkTouched(el){try{if(el&&el.setAttribute)el.setAttribute('data-touched','1')}catch(e){}}
+window["rxMarkTouched"]=rxMarkTouched;
+function rxFillDefaults(){
+  try{
+    var m=$('#rxMed'); if(!m) return;
+    var name=String(m.value||'').trim(); if(!name) return;
+    var d=$('#rxDose'), days=$('#rxDays'), t=$('#rxType');
+    if(d && d.getAttribute('data-touched')!=='1'){ var dv=rxDoseFor(name); if(dv) d.value=dv; }
+    if(days && days.getAttribute('data-touched')!=='1'){ var dd=rxDaysFor(name); if(dd) days.value=dd; }
+    if(t && t.getAttribute('data-touched')!=='1'){ var tp=rxTypeFor(name); if(tp) t.value=tp; }
+  }catch(e){}
+}
+window["rxFillDefaults"]=rxFillDefaults;
 function saveMedicalRecord(id,type,selected,details){let p=patientById(id);if(!p)return toast('Patient not found');add('medical',{id:uid('med'),patientId:id,mobile:p.mobile,branch:p.branch,name:p.name,type,date:today(),selected:selected||'',details:details||'',createdBy:user.mobile});toast(type+' saved')}
 window["saveMedicalRecord"]=saveMedicalRecord;
 /* WEB APP . Prescription / Medicine Slip extra buttons, same as the native
@@ -10140,7 +10241,7 @@ window["patientDetailsPanel"]=patientDetailsPanel;
 function medicine(id){let p=patientById(id);if(!p)return toast('Patient not found');rxDefaultsRefreshFromCloud(false,false);medDraft=[];page('Medicine Slip',rxModalBody(id,'Medicine Slip',SLIP_MEDICINES,'MEDICINE SLIP'))}
 
 window["medicine"]=medicine;
-function clearRxPick(){try{$$('.rxChk:checked').forEach(x=>x.checked=false);let m=$('#rxMed');if(m)m.value='';let t=$('#rxType');if(t)t.value='';let d=$('#rxDose');if(d)d.value='As advised';let days=$('#rxDays');if(days)days.value='5'}catch(e){}}
+function clearRxPick(){try{$$('.rxChk:checked').forEach(x=>x.checked=false);let m=$('#rxMed');if(m)m.value='';let t=$('#rxType');if(t)t.value='';let d=$('#rxDose');if(d)d.value='As advised';let days=$('#rxDays');if(days)days.value='5';/* 🔵 V547: নতুন ওষুধের জন্য ঘরগুলো আবার "ছোঁয়া হয়নি" */['#rxDose','#rxDays','#rxType'].forEach(function(q){var e=$(q);if(e&&e.removeAttribute)e.removeAttribute('data-touched')})}catch(e){}}
 window["clearRxPick"]=clearRxPick;
 function renderRxList(){let el=$('#rxList');if(!el)return;el.className='card rxSelectedList';el.innerHTML=medDraft.length?medDraft.map((x,i)=>`<div class="rxSelectedRow"><div><b>${i+1}. <span class="rxTypeBadge">${esc(x.medicineType||'')}</span> ${esc(x.name)}</b><br><small>${esc(x.dose)} · ${esc(rxDaysForPrint(x.days))}</small></div><div class="rxMiniActions"><button class="small ghost" onclick="editRxItem(${i})">Edit</button><button class="small ghost" onclick="deleteRxItem(${i})">Delete</button></div></div>`).join(''):'<div class="mut">No medicine selected</div>'}
 window["renderRxList"]=renderRxList;
@@ -10165,7 +10266,7 @@ function addRxItem(){let checked=$$('.rxChk:checked').map(x=>x.value),custom=($(
   rememberRxDose(name,dose);rememberRxDefault(name,type,dose,rowDays,whenText);
   let existing=medDraft.findIndex(x=>String(x.name).toLowerCase()===String(name).toLowerCase());let row={name,medicineType:type,dose,whenText,days:rowDays};if(existing>-1)medDraft[existing]=row;else medDraft.push(row)});clearRxPick();renderRxList()}
 window["addRxItem"]=addRxItem;
-function editRxItem(i){let x=medDraft[i];if(!x)return;let m=$('#rxMed'),t=$('#rxType'),d=$('#rxDose'),days=$('#rxDays');if(m)m.value=x.name;if(t)t.value=x.medicineType||'';if(d)d.value=x.dose;if(days)days.value=x.days;medDraft.splice(i,1);renderRxList()}
+function editRxItem(i){let x=medDraft[i];if(!x)return;let m=$('#rxMed'),t=$('#rxType'),d=$('#rxDose'),days=$('#rxDays');if(m)m.value=x.name;if(t)t.value=x.medicineType||'';if(d)d.value=x.dose;if(days)days.value=x.days;/* 🔵 V547: Edit-এ বসানো মান স্টাফের নিজের লেখা — ডিফল্ট যেন কখনো তার উপরে না বসে */[t,d,days].forEach(function(e){rxMarkTouched(e)});medDraft.splice(i,1);renderRxList()}
 window["editRxItem"]=editRxItem;
 function deleteRxItem(i){medDraft.splice(i,1);renderRxList()}
 window["deleteRxItem"]=deleteRxItem;
@@ -13280,6 +13381,8 @@ function wlv1CheckupA4Fields(n){
     complaint:n.complaint||'', duration:n.duration||'', occupation:n.occupation||'',
     prevTreatment:n.previousTreatment||'', prevResult:n.previousResult||'', prevCost:n.previousCost||'', treatmentDuration:n.treatmentDuration||'',
     visual:visual, grade:n.grade||'', onProbing:n.onProbing||'', investigation:A(n.investigations),
+    /* 🔵 V547: ফোনের ছাপা-সারাংশে যে দুটো সারি আছে (DoctorCheckupActivity.kt:1194-1196), ওয়েবেও সেই দুটো */
+    proctoscopy:n.proctoscopy||'', patientSaid:n.patientSaid||'',
     treatmentPlan:A(plan), rate:rateBits.join(' · '), counselling:n.counselling||'',
     estCost:n.estimatedCost||'', recovery:n.recoveryTime||'', advance:n.advanceDiscussed||'',
     beforePhoto:n.beforePhoto||'', duringPhoto:n.duringPhoto||'', afterPhoto:n.afterPhoto||''
@@ -13326,13 +13429,15 @@ function wlv1CheckupA4Html(p, dateText){
 '<div class="cell"><span class="k">Duration</span><span class="v">'+v(f.duration)+'</span></div>'+
 '<div class="cell"><span class="k">Occupation</span><span class="v">'+v(f.occupation)+'</span></div>'+
 '<div class="cell"><span class="k">Prev. Treatment</span><span class="v">'+v(f.prevTreatment)+'</span></div>'+
+'<div class="cell"><span class="k">Patient Said</span><span class="v">'+v(f.patientSaid)+'</span></div>'+   /* 🔵 V547 */
 '<div class="cell"><span class="k">Result</span><span class="v">'+v(f.prevResult)+'</span></div>'+
 '<div class="cell"><span class="k">Prev. Cost</span><span class="v">'+v(f.prevCost)+'</span></div>'+
 '<div class="cell"><span class="k">Treatment Duration</span><span class="v">'+v(f.treatmentDuration)+'</span></div>'+
 '</div></div>'+
 '<div class="sec"><div class="sh">CLINICAL FINDINGS</div><div class="g">'+
 '<div class="cell"><span class="k">Visual Exam</span><span class="v">'+v(f.visual)+'</span></div>'+
-'<div class="cell"><span class="k">Proctoscopy Grade</span><span class="v">'+v(f.grade)+'</span></div>'+
+'<div class="cell"><span class="k">Internal Piles Grade</span><span class="v">'+v(f.grade)+'</span></div>'+   /* 🔵 V547: ফোনের মতোই নাম (Grade এখন Internal Piles-এর সঙ্গে) */
+'<div class="cell"><span class="k">Proctoscopy</span><span class="v">'+v(f.proctoscopy)+'</span></div>'+   /* 🔵 V547 */
 '<div class="cell"><span class="k">On Probing</span><span class="v">'+v(f.onProbing)+'</span></div>'+
 '<div class="cell"><span class="k">Investigations</span><span class="v">'+v(f.investigation)+'</span></div>'+
 '</div></div>'+
