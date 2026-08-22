@@ -98,5 +98,13 @@
     "result": "Success. No rows returned",
     "proof": "screenshot",
     "what": "hr.perf_attendance_sheet(): guard changed from hr.is_master() to hr.is_master() or p_code = hr.my_code() — staff can now open ONLY their own monthly attendance sheet (DATE/IN/OUT/LEAVE). Master unchanged. No table/column/row created or deleted."
+  },
+  {
+    "sql_file": "V533_PAYMENTS_PROGRESS_COLUMN_2026-08-22.sql",
+    "run_by": "TK",
+    "when": "22.08.2026 01.53 pm",
+    "result": "Success. No rows returned",
+    "proof": "screenshot",
+    "what": "alter table public.payments add column if not exists progress text; + notify pgrst 'reload schema'. Only ONE new empty column. No table/row/column deleted or changed, no RLS touched. The chamber treatment note now goes to payments.progress instead of overwriting payments.remarks (which was destroying refund reasons, medicine remarks and the amount/mode edit audit trail). Old rows keep progress empty, so the app falls back to remarks and no old note is lost. Needs V533 or later build."
   }
 ]
