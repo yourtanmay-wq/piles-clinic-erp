@@ -1285,7 +1285,13 @@ class DoctorCheckupActivity : AppCompatActivity() {
             //    থাকবে ... ঠিক এখানেও তেমনি রাখবেন"* — তাই সংখ্যার ঘরটা
             //    রেজিস্ট্রেশনের মতোই বক্স, শুধু নিচে একটা দাগ নয়।
             val amount = android.widget.EditText(this).apply {
-                inputType = android.text.InputType.TYPE_CLASS_NUMBER
+                /* 🔴 V566 — নিজের যাচাইয়ে ধরা পড়ল: এখানে শুধু সংখ্যার ধরনটাই
+                   বসানো ছিল। B411-এ শেখা হয়েছিল, কিছু ফোনে ওতে কীবোর্ডই খোলে না।
+                   প্রজেক্টের বাকি সব জায়গার (ModuleUi · WorkNotebook ·
+                   PartnerShares) মতোই এখন `TYPE_CLASS_TEXT` + `DigitsKeyListener` —
+                   কীবোর্ড খুলবে, আর শুধু ০–৯ ছাড়া কিছু টাইপ হবে না। */
+                inputType = android.text.InputType.TYPE_CLASS_TEXT
+                keyListener = android.text.method.DigitsKeyListener.getInstance("0123456789")
                 textSize = 13f
                 gravity = android.view.Gravity.CENTER
                 setSingleLine(true)

@@ -114,11 +114,11 @@ object AnatomyModel {
      */
     val PICTURES: List<Picture> = listOf(
         Picture("anat26", "হাতে আঁকা · খালি ছক", cmWide = 9.0, exactScale = true),
-        Picture("anat27", "৩ডি মডেল · ঘড়ির কাঁটা", cmWide = 16.5, exactScale = true),
+        Picture("anat27", "3D মডেল · ঘড়ির কাঁটা", cmWide = 16.5, exactScale = true),
         Picture("anat28", "কাটা ছবি · নরম রং", cmWide = 11.3, exactScale = true),
         Picture("anat29", "কাটা ছবি · গাঢ় রং", cmWide = 11.3, exactScale = true),
         Picture("anat01", "বই · পায়ুনালীর কাটা ছবি"),
-        Picture("anat02", "বই · ফিস্টুলার ৪ ধরন"),
+        Picture("anat02", "বই · ফিস্টুলার চার ধরন"),
         Picture("anat03", "বই · ফিস্টুলার নকশা"),
         Picture("anat04", "ফোলা · কাছ থেকে"),
         Picture("anat05", "একটা ফোলা"),

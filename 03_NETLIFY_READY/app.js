@@ -7243,7 +7243,11 @@ const WLV1_SYM_UNITS=['Days','Months','Years'];
 const WLV1_SYM_SEV=['তীব্র','মৃদু'];
 const WLV1_SYM_LINES=[
   ['bleeding','পায়ুপথে রক্তপাত',false],
-  ['pain','মলদ্বারে ব্যথা',true],
+  /* 🔵 V555 (TK-এর সিদ্ধান্ত): *"ভাগ ২-এর তীব্র/মৃদু তুলে দিয়ে শুধু ভাগ ৩-এ মৃদু/মাঝারি/তীব্র
+   রাখব"* — একই জিনিস দুবার ছিল। ফোনে (SymptomHistoryModel) এটা আগেই তোলা হয়েছিল, ওয়েবে
+   বাদ পড়ে গিয়েছিল; V566-এ মিলিয়ে দেওয়া হলো। ⛔ পুরোনো রেকর্ডে "(তীব্র)" লেখা থাকলে সেটা
+      আগের মতোই পড়া ও দেখানো হয় — শুধু নতুন করে আর লেখা/দেখানো হয় না। */
+  ['pain','মলদ্বারে ব্যথা',false],
   ['prolapse','ফোলা / মাংসপিণ্ড বের হওয়া',false],
   ['discharge','পুঁজ / রক্ত / জল পড়া',false],
   ['itching','চুলকানি / জ্বালাপোড়া',false],
@@ -7558,11 +7562,11 @@ function wlv1CounselBoxHtml(note,p){
    ⛔ নতুন কলাম বা SQL লাগেনি — লেখাটা চেকআপের সাথেই জমা হয়। */
 const WLV1_ANAT_PICS=[
   { cmWide: 9, exact: true, key: "anat26", label: "হাতে আঁকা · খালি ছক" },
-  { cmWide: 16.5, exact: true, key: "anat27", label: "৩ডি মডেল · ঘড়ির কাঁটা" },
+  { cmWide: 16.5, exact: true, key: "anat27", label: "3D মডেল · ঘড়ির কাঁটা" },
   { cmWide: 11.3, exact: true, key: "anat28", label: "কাটা ছবি · নরম রং" },
   { cmWide: 11.3, exact: true, key: "anat29", label: "কাটা ছবি · গাঢ় রং" },
   { key: "anat01", label: "বই · পায়ুনালীর কাটা ছবি" },
-  { key: "anat02", label: "বই · ফিস্টুলার ৪ ধরন" },
+  { key: "anat02", label: "বই · ফিস্টুলার চার ধরন" },
   { key: "anat03", label: "বই · ফিস্টুলার নকশা" },
   { key: "anat04", label: "ফোলা · কাছ থেকে" },
   { key: "anat05", label: "একটা ফোলা" },
@@ -7653,7 +7657,7 @@ function wlv1AnatTool(t){
   wlv1AnatState.tool=t;
   try{$$('.wlv1AnatTool').forEach(function(el){el.classList.toggle('on',el.getAttribute('data-t')===t)})}catch(_e){}
   if(t==='pile'){
-    var v=prompt('চিহ্নের নাম (ঘড়ির কাঁটা যেমন "৩টা", বা "ডান পাশ")। নাম না চাইলে ফাঁকা রাখুন।','');
+    var v=prompt('চিহ্নের নাম (ঘড়ির কাঁটা যেমন "3টা", বা "ডান পাশ")। নাম না চাইলে ফাঁকা রাখুন।','');
     wlv1AnatState.label=(v===null?'':String(v).trim());
   }
 }

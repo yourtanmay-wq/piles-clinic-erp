@@ -359,7 +359,7 @@ object PatientTimelineRepository {
            কিছু পর্দা (Chamber Attendance) রোগীর **সারির আইডি** জানে না, কিন্তু
            **Official Patient ID** জানে — সেটাও রোগী-প্রতি অনন্য, তাই সেটা দিয়েও
            ঠিক রোগীটাই বেছে নেওয়া যায়। ঠিক যে নিয়ম V520-এ
-           `PaymentRepository.findPatientByMobile()`-এ পাশ হয়েছে।
+           `PaymentRepository`-এর `findPatientByMobile()`-এ পাশ হয়েছে।
            ⛔ একই লুপ, **বাড়তি একটাও cloud-read নেই**।
            ⛔ দুটোই ফাঁকা হলে বা না মিললে — হুবহু আগের পথ (`pickPatientRow`)। */
         val forced = if (preferRowId.isBlank() && preferPatientCode.isBlank()) null else {
