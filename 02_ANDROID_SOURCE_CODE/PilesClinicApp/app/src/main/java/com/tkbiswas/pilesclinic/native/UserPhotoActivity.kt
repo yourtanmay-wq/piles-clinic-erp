@@ -26,6 +26,12 @@ class UserPhotoActivity : AppCompatActivity() {
 
     private var cameraPhotoUri: Uri? = null
 
+    /** 🔄🔒 V524 (২২.০৮.২০২৬, TK-নির্দেশ) — ঘোরানোর জন্য **মূল ছবি** ও মোট কোণ।
+     *  বারবার ঘোরালেও ছবি ঝাপসা হয় না, কারণ প্রতিবার মূল থেকেই একবার বানানো হয়।
+     *  (Patient Photo পর্দার হুবহু একই নিয়ম।) */
+    private var baseBitmap: android.graphics.Bitmap? = null
+    private var rotateDegrees: Int = 0
+
     private val pickImage = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) processPickedImage(uri)
     }
@@ -99,6 +105,8 @@ class UserPhotoActivity : AppCompatActivity() {
         binding.btnPick.setOnClickListener { showPhotoSourceDialog() }
         binding.btnSave.setOnClickListener { savePhoto() }
         binding.btnRemove.setOnClickListener { removePhoto() }
+        // 🔄 V524 (TK-নির্দেশ): এক চাপে ৯০°।
+        binding.btnRotate.setOnClickListener { rotatePhoto() }
         // TK-REPORTED PATTERN (2026-07-18): same "still navy" oversight found
         // and fixed on the Draft screen — this screen's buttons were also
         // never explicitly colored. Text/click/enabled-logic unchanged.
@@ -128,10 +136,36 @@ class UserPhotoActivity : AppCompatActivity() {
 
     private fun showPhoto(dataUrl: String?) {
         val bmp = PhotoUtils.decodeDataUrl(dataUrl)
+        /* 🔄 V524: এই ছবিটাই ঘোরানোর "মূল"; নতুন ছবি এলে গোনা শূন্য থেকে শুরু। */
+        baseBitmap = bmp
+        rotateDegrees = 0
+        binding.btnRotate.visibility = if (bmp != null) View.VISIBLE else View.GONE
         if (bmp != null) {
             binding.imgPhoto.setImageBitmap(bmp)
             binding.imgPhoto.visibility = View.VISIBLE
         }
+    }
+
+    /**
+     * 🔄🔒 V524 (TK-নির্দেশ): পর্দার ছবিটা ৯০° ঘুরিয়ে দেয়।
+     * আগে সেভ করা ছবিও ঘোরানো যায় — তখন `Save Photo` দেখা যায়।
+     * ⛔ নিজে থেকে কিছু সেভ হয় না; TK না চাপলে জমাও হয় না।
+     * ⛔ ছবি না থাকলে বোতামটাই দেখা যায় না।
+     */
+    private fun rotatePhoto() {
+        val base = baseBitmap ?: return
+        rotateDegrees = (rotateDegrees + 90) % 360
+        val shown = PhotoUtils.rotated(base, rotateDegrees)
+        val dataUrl = PhotoUtils.encodeBitmap(shown)
+        if (dataUrl == null) {
+            Toast.makeText(this, "Could not rotate", Toast.LENGTH_SHORT).show()
+            return
+        }
+        pendingPhotoData = dataUrl
+        binding.imgPhoto.setImageBitmap(shown)
+        binding.imgPhoto.visibility = View.VISIBLE
+        binding.btnSave.isEnabled = true
+        binding.btnSave.visibility = View.VISIBLE
     }
 
     /**
@@ -159,6 +193,10 @@ class UserPhotoActivity : AppCompatActivity() {
         UserPhotoStore.clear(this, targetMobile)
         pendingPhotoData = ""
         binding.imgPhoto.setImageDrawable(null)
+        // 🔄 V524: ছবি নেই ⇒ ঘোরানোরও কিছু নেই।
+        baseBitmap = null
+        rotateDegrees = 0
+        binding.btnRotate.visibility = View.GONE
         binding.btnSave.isEnabled = false
         binding.btnSave.visibility = View.GONE
         hasSavedPhoto = false

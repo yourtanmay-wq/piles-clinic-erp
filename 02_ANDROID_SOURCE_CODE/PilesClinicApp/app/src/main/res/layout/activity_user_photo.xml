@@ -68,6 +68,26 @@
             android:textStyle="bold"
             android:textSize="15sp" />
 
+        <!-- 🔄🔒 V524 (২২.০৮.২০২৬, TK-নির্দেশ): ভুল করে কাত হয়ে তোলা ছবি
+             পরে ঘুরিয়ে সোজা করার বোতাম। ছবি পর্দায় থাকলে তবেই দেখা যায়
+             (কোডে VISIBLE/GONE) — Patient Photo পর্দার হুবহু একই নিয়ম। -->
+        <Button
+            android:id="@+id/btnRotate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/bg_btn_photo_pill"
+            app:backgroundTint="@null"
+            android:paddingVertical="10dp"
+            android:maxLines="1"
+            android:singleLine="true"
+            android:textAllCaps="false"
+            android:text="🔄 Rotate"
+            android:textColor="#1D4ED8"
+            android:textStyle="bold"
+            android:textSize="15sp"
+            android:visibility="gone" />
+
         <!-- নতুন ছবি বাছার আগে দেখানোই হয় না। -->
         <Button
             android:id="@+id/btnSave"

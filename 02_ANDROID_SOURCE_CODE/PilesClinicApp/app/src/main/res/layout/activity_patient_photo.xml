@@ -194,6 +194,31 @@
             android:textSize="13.5sp"
             android:enabled="false" />
 
+        <!-- 🔄🔒 V524 (২২.০৮.২০২৬, TK-নির্দেশ): *"ভুল করে ফটো অন্যভাবে তোলা
+             হলে পরবর্তীতে যেন রোটেট করা যায়।"*
+             ছবি পর্দায় থাকলে তবেই দেখা যায় (কোডে VISIBLE/GONE), তাই
+             ছবি না থাকলে পর্দা আগের মতোই। btnCamera-র হুবহু একই পিল-ডিজাইন,
+             শুধু রং আলাদা যাতে দুটো বোতাম গুলিয়ে না যায়। -->
+        <Button
+            android:id="@+id/btnRotate"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/bg_btn_photo_pill"
+            app:backgroundTint="@null"
+            android:paddingStart="26dp"
+            android:paddingEnd="26dp"
+            android:paddingVertical="8dp"
+            android:maxLines="1"
+            android:singleLine="true"
+            android:textAllCaps="false"
+            android:text="🔄 Rotate"
+            android:textColor="#1D4ED8"
+            android:textStyle="bold"
+            android:textSize="13.5sp"
+            android:visibility="gone" />
+
         <!-- ⛔ মোছা হয়নি — উপরের পপ-আপের "Gallery" ঘরটাই এখন এর কাজ করে,
              তাই পর্দায় আর দেখানো হয় না (PatientPhotoActivity-তে GONE)। -->
         <Button

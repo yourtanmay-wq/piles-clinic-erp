@@ -23,18 +23,76 @@ object PhotoUtils {
      *  screens, shapes and layout are all unchanged; the two numbers are the
      *  only difference. PatientPhotoActivity has its own private copy of this
      *  same logic and was updated to match, so both screens stay identical. */
+    /**
+     * 🔵🔒 V524 (২২.০৮.২০২৬, TK-নির্দেশ) — **ছবি কাত হয়ে যাওয়ার আসল কারণ।**
+     *
+     * ফোনের ক্যামেরা ছবিটা প্রায়ই **সোজা করে সাজায় না** — সেন্সর যেভাবে
+     * পেয়েছে সেভাবেই রেখে দেয়, আর পাশে একটা ছোট নোট (EXIF `Orientation`)
+     * লিখে দেয়: *"দেখানোর সময় ৯০°/১৮০°/২৭০° ঘুরিয়ে নিও।"*
+     *
+     * **সমস্যা যেটা ছিল:** নিচের `encodeResized()` ওই নোটটা **পড়তই না** —
+     * শুধু pixel নিয়ে ছোট করে JPEG বানাত। ফলে ছবিটা **কাত হয়ে** জমা হত
+     * (TK-এর ছবিতে BIKASH SAHA ও MUR MAHAMMAD ALI-র কার্ডে যেমন)।
+     * প্রজেক্টের কোথাও EXIF পড়া হত না — পুরো প্রজেক্ট খুঁজে যাচাই করা।
+     *
+     * ⛔ `android.media.ExifInterface` **Android-এরই নিজের** (API 24 থেকে
+     *    InputStream পড়তে পারে; এই অ্যাপের minSdk 24)। **কোনো নতুন
+     *    লাইব্রেরি যোগ করা হয়নি।**
+     * ⛔ নোট না থাকলে/পড়া না গেলে `0` ফেরে — তখন আচরণ **হুবহু আগের মতোই**।
+     */
+    private fun exifRotation(context: Context, uri: Uri): Int = try {
+        context.contentResolver.openInputStream(uri)?.use { ins ->
+            @Suppress("DEPRECATION")
+            when (android.media.ExifInterface(ins).getAttributeInt(
+                android.media.ExifInterface.TAG_ORIENTATION,
+                android.media.ExifInterface.ORIENTATION_NORMAL
+            )) {
+                android.media.ExifInterface.ORIENTATION_ROTATE_90 -> 90
+                android.media.ExifInterface.ORIENTATION_ROTATE_180 -> 180
+                android.media.ExifInterface.ORIENTATION_ROTATE_270 -> 270
+                else -> 0
+            }
+        } ?: 0
+    } catch (_: Throwable) { 0 }
+
+    /**
+     * 🔵🔒 V524: একটা bitmap-কে ঘুরিয়ে দেওয়া। `degrees` ০ হলে **একই bitmap-ই**
+     * ফেরে (নতুন কিছু তৈরি হয় না, স্মৃতিও নষ্ট হয় না)।
+     */
+    fun rotated(src: Bitmap, degrees: Int): Bitmap {
+        val d = ((degrees % 360) + 360) % 360
+        if (d == 0) return src
+        return try {
+            val m = android.graphics.Matrix().apply { postRotate(d.toFloat()) }
+            Bitmap.createBitmap(src, 0, 0, src.width, src.height, m, true)
+        } catch (_: Throwable) { src }   // স্মৃতি কম পড়লে আগের ছবিটাই থাক
+    }
+
+    /** 🔵🔒 V524: bitmap → data-URL, ঠিক যে মাপ ও মানে এই ফাইল বরাবর বানায়। */
+    fun encodeBitmap(bmp: Bitmap, maxSide: Int = 600, quality: Int = 85): String? = try {
+        val scale = maxSide.toFloat() / maxOf(bmp.width, bmp.height).toFloat()
+        val small = if (scale < 1f) Bitmap.createScaledBitmap(
+            bmp, (bmp.width * scale).toInt(), (bmp.height * scale).toInt(), true
+        ) else bmp
+        val out = ByteArrayOutputStream()
+        small.compress(Bitmap.CompressFormat.JPEG, quality, out)
+        "data:image/jpeg;base64," + Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
+    } catch (_: Throwable) { null }
+
     fun encodeResized(context: Context, uri: Uri, maxSide: Int = 600, quality: Int = 85): String? {
         return try {
             val input = context.contentResolver.openInputStream(uri) ?: return null
             val original = BitmapFactory.decodeStream(input)
             input.close()
             if (original == null) return null
-            val scale = maxSide.toFloat() / maxOf(original.width, original.height).toFloat()
+            // 🔵 V524: ক্যামেরার নোট মেনে আগে সোজা করা, তারপর আগের মতোই ছোট করা।
+            val upright = rotated(original, exifRotation(context, uri))
+            val scale = maxSide.toFloat() / maxOf(upright.width, upright.height).toFloat()
             val bmp = if (scale < 1f) {
                 Bitmap.createScaledBitmap(
-                    original, (original.width * scale).toInt(), (original.height * scale).toInt(), true
+                    upright, (upright.width * scale).toInt(), (upright.height * scale).toInt(), true
                 )
-            } else original
+            } else upright
             val out = ByteArrayOutputStream()
             bmp.compress(Bitmap.CompressFormat.JPEG, quality, out)
             "data:image/jpeg;base64," + Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)

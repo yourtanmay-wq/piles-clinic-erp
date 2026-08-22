@@ -14,7 +14,6 @@ import com.tkbiswas.pilesclinic.databinding.ActivityPatientPhotoBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.ByteArrayOutputStream
 
 /**
  * Native rebuild -- Patient Photo. Search a patient by mobile, pick a gallery
@@ -29,6 +28,23 @@ class PatientPhotoActivity : AppCompatActivity() {
     private var patient: PatientPhotoRepository.PatientRef? = null
     private var pendingPhotoData: String = ""
     private var cameraPhotoUri: Uri? = null
+
+    /**
+     * 🔄🔒 V524 (২২.০৮.২০২৬, TK-নির্দেশ) — *"ভুল করে ফটো অন্যভাবে তোলা হলে
+     * পরবর্তীতে যেন রোটেট করা যায়।"*
+     *
+     * **কেন এই দুটো ঘর:** বারবার ঘোরালে যদি প্রতিবার আগের JPEG-টাকেই আবার
+     * ঘুরিয়ে-চেপে বানানো হত, তাহলে প্রতিবার ছবির মান একটু একটু করে **নষ্ট**
+     * হত (JPEG বারবার চাপলে ঝাপসা হয়)। তাই **মূল ছবিটা** (`baseBitmap`)
+     * ধরে রাখা হয়, আর মোট কত ডিগ্রি ঘোরানো হয়েছে সেটা আলাদা গোনা হয়
+     * (`rotateDegrees`)। প্রতিবার ছবিটা **মূল থেকেই একবার** ঘুরিয়ে বানানো
+     * হয় — দশবার ঘোরালেও মান একই থাকে।
+     *
+     * ⛔ পুরোনো কিছু বদলায়নি — সেভের পথ, ঠিকানা, আকার সব আগের মতোই
+     *    (`repository.savePhoto` একই ধরনের data-URL পায়)।
+     */
+    private var baseBitmap: android.graphics.Bitmap? = null
+    private var rotateDegrees: Int = 0
 
     private val pickImage = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) processPickedImage(uri)
@@ -97,6 +113,8 @@ class PatientPhotoActivity : AppCompatActivity() {
         ZoomableImageHelper.attach(binding.imgPhoto)
         binding.btnPick.visibility = View.GONE
         binding.btnSave.setOnClickListener { savePhoto() }
+        // 🔄 V524 (TK-নির্দেশ): এক চাপে ৯০° — চারবার চাপলে আবার আগের জায়গায়।
+        binding.btnRotate.setOnClickListener { rotatePhoto() }
         // TK-REPORTED PATTERN (2026-07-18): same "still navy" oversight found
         // and fixed on the Draft/User-Photo screens — colored here too.
         // Text/click/enabled-logic unchanged.
@@ -159,8 +177,40 @@ class PatientPhotoActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * 🔄🔒 V524: পর্দায় যে ছবিটা দেখা যাচ্ছে সেটাই ৯০° ঘুরিয়ে দেয়।
+     *
+     * পুরোনো (আগে সেভ করা) ছবিও ঘোরানো যায় — তখন `Save Photo` বোতামটা
+     * দেখা যায়, আর চাপলে ঠিক আগের পথেই (`repository.savePhoto`) সোজা
+     * ছবিটা জমা হয়।
+     * ⛔ **নিজে থেকে কিছু সেভ হয় না** — TK না চাপলে ক্লাউডে কিছুই যায় না।
+     * ⛔ ছবি না থাকলে বোতামটাই দেখা যায় না, তাই কিছু ভাঙার সুযোগ নেই।
+     */
+    private fun rotatePhoto() {
+        val base = baseBitmap ?: return
+        rotateDegrees = (rotateDegrees + 90) % 360
+        val shown = PhotoUtils.rotated(base, rotateDegrees)
+        val dataUrl = PhotoUtils.encodeBitmap(shown)
+        if (dataUrl == null) {
+            Toast.makeText(this, "Could not rotate", Toast.LENGTH_SHORT).show()
+            return
+        }
+        pendingPhotoData = dataUrl
+        binding.imgPhoto.setImageBitmap(shown)
+        ZoomableImageHelper.reset(binding.imgPhoto)
+        // ঘোরানো হয়েছে ⇒ সেভ করার মতো কিছু আছে (খাতার সারি B47-এর একই নিয়ম)।
+        binding.btnSave.isEnabled = true
+        binding.btnSave.visibility = View.VISIBLE
+        updatePhotoButtonText()
+    }
+
     private fun showExistingPhoto(photo: String) {
         val bmp = decodeDataUrl(photo)
+        /* 🔄 V524: এই ছবিটাই এখন ঘোরানোর "মূল" — নতুন ছবি এলে বা পুরোনো ছবি
+           পর্দায় এলে গোনা শূন্য থেকে শুরু হয়। */
+        baseBitmap = bmp
+        rotateDegrees = 0
+        binding.btnRotate.visibility = if (bmp != null) View.VISIBLE else View.GONE
         if (bmp != null) {
             binding.imgPhoto.setImageBitmap(bmp)
             binding.imgPhoto.visibility = View.VISIBLE
@@ -199,27 +249,14 @@ class PatientPhotoActivity : AppCompatActivity() {
     // encoding logic PhotoUtils.encodeResized() has. Both were 400 / 70; both
     // are now 600 / 85 so the two screens can never produce different-sized
     // photos. Old photos are untouched -- only newly taken ones use this.
-    private fun encodeResized(uri: Uri): String? {
-        return try {
-            val input = contentResolver.openInputStream(uri) ?: return null
-            val original = BitmapFactory.decodeStream(input)
-            input.close()
-            if (original == null) return null
-            val maxSide = 600
-            val scale = maxSide.toFloat() / maxOf(original.width, original.height).toFloat()
-            val bmp = if (scale < 1f) {
-                Bitmap.createScaledBitmap(
-                    original, (original.width * scale).toInt(), (original.height * scale).toInt(), true
-                )
-            } else original
-            val out = ByteArrayOutputStream()
-            bmp.compress(Bitmap.CompressFormat.JPEG, 85, out)
-            val b64 = Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
-            "data:image/jpeg;base64,$b64"
-        } catch (e: Exception) {
-            null
-        }
-    }
+    /* 🔄🔒 V524 (২২.০৮.২০২৬, TK-নির্দেশ): এই পর্দার **নিজের নকল কপিটা**
+       ক্যামেরার orientation-নোট পড়ত না, তাই এখানে তোলা ছবি কাত হয়ে জমা হত।
+       দুটো কপি আলাদা রাখলে ভবিষ্যতে আবার একটা পিছিয়ে পড়ত — তাই এখন
+       **একটাই জায়গা** (`PhotoUtils.encodeResized`), যেটা EXIF মেনে সোজা করে।
+       ⛔ মাপ ও মান (600 / 85) হুবহু আগের মতোই — PhotoUtils-এও ঠিক এই দুটোই
+          ডিফল্ট, তাই ছবির আকার এক চুলও বদলায় না।
+       ⛔ ফাংশনের নাম ও ডাকার জায়গা অপরিবর্তিত। */
+    private fun encodeResized(uri: Uri): String? = PhotoUtils.encodeResized(this, uri)
 
     private fun decodeDataUrl(dataUrl: String): Bitmap? {
         return try {
