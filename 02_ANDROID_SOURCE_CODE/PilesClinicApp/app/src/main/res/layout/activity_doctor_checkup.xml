@@ -592,7 +592,16 @@
                         </LinearLayout>
                     </LinearLayout>
 
-                    <LinearLayout style="@style/DocNoteFieldBox">
+                    <!-- 🔴🔒 V542 (২২.০৮.২০২৬, TK-নির্দেশ: *"ইনজেকশন চিকিৎসা — এটা থাকবে না"*)
+                         পুরো সারিটা পর্দা থেকে সরানো।
+                         ⛔ **মোছা হয়নি, লুকানো** — প্রজেক্টের সেই একই প্রমাণিত পথ
+                            (V455-এ "B. DRE", এই ভার্সনে "E. Investigations")। কারণ
+                            `cbTxInjection` কোডে এখনো ব্যবহার হয় (`treatmentChecks()`),
+                            আর **পুরোনো চেকআপে এটা টিক দেওয়া থাকলে সেই তথ্য
+                            হারায় না** — ছাপা রিপোর্টে আগের মতোই দেখা যায়।
+                         ⛔ নতুন চেকআপে টিক দেওয়ার উপায় নেই, তাই আর কখনো
+                            সেভ হবে না — TK যা চেয়েছেন ঠিক তাই। -->
+                    <LinearLayout android:visibility="gone" style="@style/DocNoteFieldBox">
                         <View style="@style/DocNoteAccentBarPurple" />
                         <LinearLayout style="@style/DocNoteFieldBoxInnerHorizontal" android:minHeight="42dp" android:gravity="center_vertical">
                             <CheckBox android:id="@+id/cbTxInjection" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:minHeight="0dp" android:singleLine="true" android:ellipsize="end" android:text="Injection/ ইনজেকশন চিকিৎসা" android:textSize="13sp" />
@@ -717,8 +726,18 @@
                          ⚠️ শুধু-দেখার পুরোনো চেকআপে Quick Action-এর বোতাম
                             লুকিয়ে যায়; কিন্তু এই দুটো **লুকাবে না**, নইলে
                             কোন পরীক্ষা বলা হয়েছিল সেটাই দেখা যেত না। -->
-                    <TextView android:id="@+id/investigationLabel" style="@style/FieldLabel" android:text="E. Investigations · পরীক্ষা-নিরীক্ষা" android:textColor="@color/brand_navy" />
-                    <LinearLayout android:id="@+id/investigationGroup" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" />
+                    <!-- 🔴🔒 V542 (২২.০৮.২০২৬, TK-নির্দেশ: *"investigation — এটা তুলে
+                         দেন, অর্থাৎ থাকবে না"*) — পুরো "E. Investigations" সেকশন
+                         পর্দা থেকে সরানো (লেবেল + চারটে বোতাম)।
+                         ⛔ **মোছা হয়নি, লুকানো** — প্রজেক্টের সেই একই প্রমাণিত পথ
+                            (V455-এ "B. DRE" যেভাবে সরানো হয়েছিল)। কারণ:
+                            `ClinicalModels`-এর `investigation` ঘর ও কোড অটুট থাকে,
+                            তাই **পুরোনো চেকআপে কোন পরীক্ষা বলা হয়েছিল সেটা
+                            হারায় না** — ছাপা রিপোর্টে আগের মতোই দেখা যায়।
+                         ⛔ নতুন চেকআপে কিছু টিক দেওয়ার উপায় নেই, তাই ঘরটা
+                            ফাঁকাই থাকবে — TK যা চেয়েছেন ঠিক তাই। -->
+                    <TextView android:id="@+id/investigationLabel" android:visibility="gone" style="@style/FieldLabel" android:text="E. Investigations · পরীক্ষা-নিরীক্ষা" android:textColor="@color/brand_navy" />
+                    <LinearLayout android:id="@+id/investigationGroup" android:visibility="gone" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" />
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
         </LinearLayout>

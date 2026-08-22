@@ -1183,13 +1183,20 @@ class DoctorCheckupActivity : AppCompatActivity() {
 
         val visAll = listOf(r.visual, r.visualOther).filter { it.isNotBlank() }.joinToString(", ")
         val dreAll = listOf(r.dre, r.dreOther).filter { it.isNotBlank() }.joinToString(", ")
+        /* 🔴🔒 V542 (২২.০৮.২০২৬, TK-নির্দেশ): "E. Investigations" পর্দা থেকে
+           সরানো হয়েছে, তাই নতুন চেকআপে ঘরটা ফাঁকা — ফাঁকা সারি দেখানোর
+           মানে হয় না। ⛔ **পুরোনো চেকআপে লেখা থাকলে সারিটা আগের মতোই
+           দেখাবে** (তখন কোন পরীক্ষা বলা হয়েছিল সেটা হারায় না)।
+           ⛔ Grade-এর লেবেলটাও এখন "Internal Piles Grade" (V539), আর
+              Proctoscopy-র লেখাটা আলাদা সারিতে। */
         lockSection(R.id.secClinical, buildSectionSummary("Clinical পরীক্ষা", listOf(
             "Visual" to visAll,
             "DRE" to dreAll,
-            "Grade" to r.grade,
+            "Internal Piles Grade" to r.grade,
+            "Proctoscopy" to r.proctoscopy,
             "On Probing" to r.onProbing,
             "Investigations" to r.investigation
-        )) { unlockSection(R.id.secClinical) })
+        ).filter { it.second.isNotBlank() }) { unlockSection(R.id.secClinical) })
 
         lockSection(R.id.secCounsel, buildSectionSummary("Counsel · চিকিৎসা পরিকল্পনা", listOf(
             "চিকিৎসা" to r.treatmentPlan,

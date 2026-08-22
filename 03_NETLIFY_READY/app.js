@@ -7051,7 +7051,7 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
   </div></div></div>
   <div class="grid"><div class="card"><b>C. Proctoscopy · প্রক্টোস্কোপি</b><label>Grade · গ্রেড</label><select id="dnGrade" class="input">${['','Grade I','Grade II','Grade III','Grade IV'].map(x=>`<option value="${x}" ${String(note.grade||'')===x?'selected':''}>${x}${WLV1_GRADE_BN[x]?(' · '+WLV1_GRADE_BN[x]):''}</option>`).join('')}</select></div>
   <div class="card"><b>D. On Probing · প্রোব পরীক্ষা</b><label>Direction and depth of tract after probing · প্রোব ঢোকানোর পরে নালি কোন দিকে কতটা গেল</label><textarea id="dnProbing">${val('onProbing')}</textarea></div></div>
-  <div class="grid"><div class="card"><b>E. Investigations · পরীক্ষা-নিরীক্ষা</b><div class="checkGrid premiumChecks">${['MRI','USG','Colonoscopy','Lab Reports'].map(x=>`<label><input class="dnInvest" type="checkbox" value="${x}" ${chk(note.investigations,x)}> ${x}${WLV1_INVEST_BN[x]?(' · '+WLV1_INVEST_BN[x]):''}</label>`).join('')}</div></div></div>
+  <div class="grid"><!-- 🔴 V542 (TK-নির্দেশ: "investigation তুলে দেন, থাকবে না") — কার্ডটা সরানো। ⛔ পুরোনো রেকর্ডের মান থেকে যায়, ছাপায় আগের মতোই দেখা যায়। --></div>
  </details>
  <details class="card"><summary><b>3. Counselling &amp; Advice · পরামর্শ ও উপদেশ</b></summary>
   <label>Treatment Plan · কীভাবে চিকিৎসা করা হবে</label>
@@ -7061,7 +7061,7 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
    <label class="wlv1TxRow"><input class="dnTxPlan" type="checkbox" value="মেশিন দিয়ে কাজ হবে · Machine Treatment" ${chk(note.treatmentPlan,'মেশিন দিয়ে কাজ হবে · Machine Treatment')}> মেশিন দিয়ে কাজ হবে · Machine Treatment</label>
    <label class="wlv1TxRow"><input class="dnTxPlan" type="checkbox" value="Per ক্ষারসূত্র হিসাবে চিকিৎসা · Kshar Sutra" ${chk(note.treatmentPlan,'Per ক্ষারসূত্র হিসাবে চিকিৎসা · Kshar Sutra')}> Per ক্ষারসূত্র হিসাবে চিকিৎসা · Kshar Sutra <span class="wlv1TxAmt">₹ <input id="dnAmtKsharSutra" class="input wlv1TxAmtInput" inputmode="numeric" value="${val('amtKsharSutra','6000')}"></span></label>
    <label class="wlv1TxRow"><input class="dnTxPlan" type="checkbox" value="LIS-এর মাধ্যমে চিকিৎসা করা হবে" ${chk(note.treatmentPlan,'LIS-এর মাধ্যমে চিকিৎসা করা হবে')}> LIS-এর মাধ্যমে চিকিৎসা করা হবে</label>
-   <label class="wlv1TxRow"><input class="dnTxPlan" type="checkbox" value="Injection (Vaccination)-এর মাধ্যমে চিকিৎসা" ${chk(note.treatmentPlan,'Injection (Vaccination)-এর মাধ্যমে চিকিৎসা')}> Injection (Vaccination)-এর মাধ্যমে চিকিৎসা</label>
+   <!-- 🔴 V542 (TK-নির্দেশ: "ইনজেকশন চিকিৎসা থাকবে না") — সারিটা সরানো। ⛔ পুরোনো রেকর্ডে মানটা থেকে যায়, ছাপায় আগের মতোই দেখা যায়। -->
   </div>
   <label>Other Treatment Note · অন্যান্য চিকিৎসার কথা (টাইপ করুন)</label><textarea id="dnCounselling" placeholder="রোগীকে কিভাবে চিকিৎসা করবেন বলেছেন সেই কথা এখানে লিখুন">${val('counselling')}</textarea>
  </details>
