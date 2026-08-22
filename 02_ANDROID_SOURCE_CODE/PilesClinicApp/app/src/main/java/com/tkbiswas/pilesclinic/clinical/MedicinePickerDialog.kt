@@ -629,11 +629,60 @@ object MedicinePickerDialog {
             rebuildRows(activity, rowsContainer, baseList, listType, searchBox.text.toString(), selected, accent, ::buildRow)
         }
 
+        /* ════════════════════════════════════════════════════════════════════
+           🔵 V546 (২২.০৮.২০২৬, TK-নির্দেশ ফটো-প্রুফসহ):
+           *"যখন মেডিসিন সেখানে কিছু লিখব তখন উপরের এত কিছু বিস্তারিত থাকার তো কোনো
+             দরকার নেই / যাতে মেডিসিনের নাম ভালোভাবে টাইপ করা যায় তখন শুধুমাত্র
+             সেটুকুই থাকবে / সেখান থেকে ব্যাক করলে আবার এই স্ক্রিনে আসবে"*
+
+           নিয়ম (হুবহু TK-এর কথা মতো):
+             • খোঁজার ঘরে **কিছু লেখা থাকলে** উপরের কার্ডটা (Sitz Bath · Diet ·
+               Disease Name · Symptoms · Since When · Chief Complaint ·
+               "+ Choose More Information") লুকিয়ে যায় — খোঁজার তিনটে বাক্স ও
+               ওষুধের তালিকা থাকে।
+             • ঘর ফাঁকা হলেই কার্ডটা **হুবহু আগের অবস্থায়** ফিরে আসে।
+             • **ব্যাক** (ফোনের বোতাম বা উপরের ←) চাপলে আগে খোঁজাটুকু মুছে এই
+               পুরো পর্দাতেই ফেরে; পর্দা বন্ধ হয় তার পরের ব্যাক-এ।
+
+           ⛔ কেন লেখা-ভিত্তিক, focus-ভিত্তিক নয়: পর্দা খোলার সময় EditText নিজেই
+              focus নিলে কার্ডটা না-চাইতেই লুকিয়ে যেত। লেখা থাকলে-লুকাও
+              নিয়মে সেই ঝুঁকি নেই।
+           ⛔ কার্ডের কোনো টিক/লেখা হারায় না — টিক সঙ্গে সঙ্গেই PrescriptionOptionsStore-এ
+              জমা হয়, আর Diet-এর লেখা GONE হলেও EditText-এর ভিতরেই থাকে
+              (Save-এর সময় আগের মতোই dietInput পড়া হয়)।
+           ⛔ Medicine Slip ও অন্য সব ডাক: ওখানে topCard = null, তাই এক বিন্দুও
+              বদলায়নি — ব্যাক আগের মতোই সরাসরি বন্ধ করে।
+           ═════════════════════════════════════════════════════════════ */
+        fun applySearchOnlyMode() {
+            val card = topCard ?: return
+            val want = if (searchBox.text.toString().isNotEmpty()) View.GONE else View.VISIBLE
+            if (card.visibility != want) card.visibility = want
+        }
+        /** ব্যাক-এ আগে খোঁজাটুকু মোছা হয়; মোছার কিছু না থাকলে false — তখন আগের মতোই বন্ধ। */
+        fun leaveSearchOnlyMode(): Boolean {
+            if (topCard == null) return false
+            if (searchBox.text.toString().isEmpty()) return false
+            searchBox.setText("")            // watcher → applySearchOnlyMode() + rebuild()
+            searchBox.clearFocus()
+            try {
+                (activity.getSystemService(android.content.Context.INPUT_METHOD_SERVICE)
+                    as? android.view.inputmethod.InputMethodManager)
+                    ?.hideSoftInputFromWindow(searchBox.windowToken, 0)
+            } catch (_: Throwable) { }
+            return true
+        }
         searchBox.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
-            override fun afterTextChanged(s: Editable?) { rebuild() }
+            override fun afterTextChanged(s: Editable?) { applySearchOnlyMode(); rebuild() }
         })
+        if (topCard != null) {
+            dialog.setOnKeyListener { _, keyCode, event ->
+                if (keyCode == android.view.KeyEvent.KEYCODE_BACK &&
+                    event.action == android.view.KeyEvent.ACTION_UP) leaveSearchOnlyMode() else false
+            }
+            backArrow.setOnClickListener { if (!leaveSearchOnlyMode()) dialog.dismiss() }
+        }
 
         // TK-DECISION (2026-07-22): "⭐ Common" ticks the caller's saved common
         // set right here — each medicine with its own remembered dose/type/days,

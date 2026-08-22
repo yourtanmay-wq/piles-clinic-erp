@@ -9999,6 +9999,18 @@ function rxSearchFilter(v){
       const nm=String(row.getAttribute('data-med-row')||'').toLowerCase();
       row.style.display = (!q || nm.indexOf(q)>=0) ? '' : 'none';
     });
+    /* 🖥️🔵 V546 (২২.০৮.২০২৬, TK-নির্দেশ — ফোন ও ওয়েব একই দিনে, প্যাকেজিং-নিয়ম):
+       *"যখন মেডিসিন সেখানে কিছু লিখব তখন উপরের এত কিছু বিস্তারিত থাকার তো কোনো দরকার নেই ...
+         সেখান থেকে ব্যাক করলে আবার এই স্ক্রিনে আসবে"*
+       খোঁজার ঘরে লেখা থাকলেই উপরের কার্ডটা (Sitz Bath · Diet · Disease Name · Symptoms ·
+       Since When · Chief Complaint · "+ Choose More Information") লুকোয়; ঘর ফাঁকা হলেই
+       (× / Esc / মুছে দিলে) হুবহু আগের অবস্থায় ফিরে আসে।
+       ⛔ কোনো টিক বা লেখা হারায় না — কার্ডটা শুধু দেখানো বন্ধ থাকে, DOM-এ আগের মতোই
+          থাকে, তাই rxSaveOptions() আগের মতোই সব পড়ে।
+       ⛔ Medicine Slip / Direct-print পর্দায় এই কার্ডই নেই — সেখানে কিছুই বদলায় না। */
+    document.querySelectorAll('.rxCompactOptions').forEach(function(card){
+      card.style.display = q ? 'none' : '';
+    });
   }catch(e){}
 }
 window["rxSearchFilter"]=rxSearchFilter;
