@@ -333,6 +333,7 @@ object SupabaseClient {
                             try { CloudWriteQueue.forget("UPSERT", "payments", payId) } catch (_: Throwable) { }
                             try { CloudReadCache.clear() } catch (_: Throwable) { }
                             try { CloudReadDedupe.clear() } catch (_: Throwable) { }
+                    try { CloudListRevalidate.clear() } catch (_: Throwable) { }
                             return@use existing
                         }
                         // পড়া গেল না — আগের মতোই retry-র জন্য রেখে দেওয়া হয়।
@@ -355,6 +356,7 @@ object SupabaseClient {
                 } else {
                     try { CloudReadCache.clear() } catch (_: Throwable) { }
                     try { CloudReadDedupe.clear() } catch (_: Throwable) { }
+                    try { CloudListRevalidate.clear() } catch (_: Throwable) { }
                     obj
                 }
             }
@@ -469,6 +471,7 @@ object SupabaseClient {
                     try { DeletedGuard.unmark(table, row.optString("id", "")) } catch (_: Throwable) { }
                     try { CloudReadCache.clear() } catch (_: Throwable) { }
                     try { CloudReadDedupe.clear() } catch (_: Throwable) { }
+                    try { CloudListRevalidate.clear() } catch (_: Throwable) { }
                 }
                 else -> {
                     // 1 = LANDED — আমাদের data সত্যিই cloud-এ বসেছে।
@@ -481,6 +484,7 @@ object SupabaseClient {
                     // so clearing the short-lived read cache guarantees the next read is fresh.
                     try { CloudReadCache.clear() } catch (_: Throwable) { }
                     try { CloudReadDedupe.clear() } catch (_: Throwable) { }
+                    try { CloudListRevalidate.clear() } catch (_: Throwable) { }
                 }
             }
             // LANDED বা SUPERSEDED — দুটোতেই cloud-এ (আমাদের বা নবীন) data আছে, তাই
@@ -736,7 +740,18 @@ object SupabaseClient {
             // offset is used only by DeletedGuard to read deleted_records in safe pages.
             val offsetPart = if (offset > 0) "&offset=$offset" else ""
             val url = "$URL/rest/v1/$table?select=$select&order=$order&limit=$limit$offsetPart$filterPart"
-            val body = CloudReadDedupe.body(url) { fetchBodyOrNull(url) } ?: return null
+            /* 🔵🔒 V513 (২২.০৮.২০২৬, TK-নির্দেশ — Egress): দুটো স্তর, একটার পরে একটা।
+               ১. `CloudReadDedupe` (V493) — ৬০ সেকেন্ডে হুবহু একই URL দুবার নয়।
+               ২. `CloudListRevalidate` (নতুন) — ৬০ সেকেন্ড পেরোলে বড় তালিকা
+                  নামানোর **আগে** জিজ্ঞেস করা হয় "বদলেছে কি?"; কিছু না বদলালে
+                  গতবারের উত্তরটাই দেওয়া হয়, একটাও সারি নামে না।
+               ⛔ `offset > 0` (শুধু DeletedGuard-এর পাতা-ধরে পড়া) এই স্তরে ঢোকে
+                  না — ওখানে প্রতিটা পাতার URL আলাদা, সই মেলানোর মানে হয় না।
+               ⛔ URL এক অক্ষরও বদলায়নি; সার্ভারের দিকে তালিকার অনুরোধ হুবহু আগেরটাই। */
+            val body = CloudReadDedupe.body(url) {
+                if (offset > 0) fetchBodyOrNull(url)
+                else CloudListRevalidate.body(table, filter, url) { fetchBodyOrNull(url) }
+            } ?: return null
             JSONArray(body)
         } catch (e: Exception) {
             null
@@ -802,6 +817,34 @@ object SupabaseClient {
      *  পুরো তালিকা নামিয়ে নেয়।
      *  ⛔ যেসব জায়গায় সংখ্যাটা সোজা পর্দায় বসে (ঘন্টার badge) সেখানে -1 কে 0
      *     ধরা হয়েছে, নইলে পর্দায় উল্টোপাল্টা সংখ্যা দেখাত। */
+    /**
+     * 🔵🔒 V513 (২২.০৮.২০২৬, TK-নির্দেশ — Egress): টেবিলের **সবচেয়ে নতুন**
+     * `updatedAt` — মাত্র একটা সারি, একটাই ঘর।
+     *
+     * `CloudListRevalidate` এটা আর `fetchCount()` মিলিয়ে টেবিলের "সই" বানায়:
+     * সই না বদলালে বড় তালিকাটা আর নামানোর দরকার নেই।
+     *
+     * ⛔ ইচ্ছে করে `fetchListOrNull()` দিয়ে নয় — সেটা আবার ঘুরে
+     *    `CloudListRevalidate`-এ ঢুকে পড়ত। এটা সরাসরি নেটে যায়।
+     * ⛔ ব্যর্থ হলে / ঘরটা না থাকলে `null` — ডাকার জায়গা তখন আগের মতোই
+     *    পুরো তালিকা নামায়। কখনো ফাঁকা-স্ট্রিং "সব ঠিক আছে" বোঝায় না।
+     * ⛔ সারিতে `updatedAt` ফাঁকা থাকলেও উত্তর আসে (`nullslast` নয় — সবচেয়ে
+     *    নতুনটাই চাই), তাই ফাঁকা মান পেলে সেটাকে "জানি না" ধরা হয়।
+     */
+    fun fetchMaxUpdatedAtOrNull(table: String, filter: String? = null): String? {
+        return try {
+            val filterPart = if (filter != null) "&$filter" else ""
+            val url = "$URL/rest/v1/$table?select=updatedAt&order=updatedAt.desc.nullslast&limit=1$filterPart"
+            val body = fetchBodyOrNull(url) ?: return null
+            val arr = JSONArray(body)
+            if (arr.length() == 0) return ""      // সত্যিই একটাও সারি নেই — এটাও একটা বৈধ সই
+            val v = arr.optJSONObject(0)?.optString("updatedAt", "") ?: return null
+            if (v.isBlank()) null else v
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     fun fetchCount(table: String, filter: String? = null): Int {
         return try {
             val filterPart = if (filter != null) "&$filter" else ""
@@ -907,6 +950,7 @@ object SupabaseClient {
                     // clearConfirmed **নয়** (concern 2), remember **নয়** (obsolete)। cache fresh।
                     try { CloudReadCache.clear() } catch (_: Throwable) { }
                     try { CloudReadDedupe.clear() } catch (_: Throwable) { }
+                    try { CloudListRevalidate.clear() } catch (_: Throwable) { }
                 }
                 3 -> {
                     // 🔒🔒 B593: row_not_matched (terminal) — remember **নয়** (কোনোদিন
@@ -918,6 +962,7 @@ object SupabaseClient {
                     // 1 = LANDED — আমাদের update সত্যিই বসেছে।
                     try { CloudReadCache.clear() } catch (_: Throwable) { }
                     try { CloudReadDedupe.clear() } catch (_: Throwable) { }
+                    try { CloudListRevalidate.clear() } catch (_: Throwable) { }
                     try { CloudWriteQueue.clearConfirmed("UPDATE", table, id, fields, writeStart) } catch (_: Throwable) { }
                 }
             }
@@ -963,6 +1008,7 @@ object SupabaseClient {
                 // Same data-consistency rule as upsert() above.
                 try { CloudReadCache.clear() } catch (_: Throwable) { }
                     try { CloudReadDedupe.clear() } catch (_: Throwable) { }
+                    try { CloudListRevalidate.clear() } catch (_: Throwable) { }
             } else {
                 // 🚨🚨 খাতার সারি B166 (TK, 30.07.2026 — TK-এর ৩ নম্বর সন্দেহ):
                 // *"ব্যর্থ Delete-এর স্থায়ী Retry নেই। Save এবং Update ব্যর্থ হলে

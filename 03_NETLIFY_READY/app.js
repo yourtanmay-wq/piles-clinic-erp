@@ -12079,8 +12079,19 @@ async function wlv1ChamberCloudPull(date, branch, force){
     let ok=false; try{ ok = await initCloudClientOnly(); }catch(e){ ok=false; }
     if(!ok || !sb){ __cbPulling=false; return false; }
     __cbPullAt[key] = Date.now();
+    /* 🔵🔒 V513 (২২.০৮.২০২৬, TK-নির্দেশ — Egress): আগে `select('*')` ছিল, অর্থাৎ
+       Chamber Date খুললেই ওই দিনের **প্রতিটি রোগীর base64 ছবি** নামত — অথচ এই
+       pull শুধু বোর্ডের সংখ্যা/তালিকা তাজা রাখে, একটাও ছবি দেখায় না।
+       এখন ছবি-ছাড়া ঘর (`RT_NO_PHOTO_COLS`) — ঠিক যে তালিকাটা realtime ও
+       V493-এর pull আগে থেকেই ব্যবহার করে (TK-অনুমোদিত)।
+       ⛔ `mergeById` field-wise (`{...a,...r}`) — তাই আগে থেকে জমা ছবি **মুছবে
+          না**, শুধু নতুন করে নামবে না। (প্রমাণ: app.js-এর `mergeById`, আর
+          V493-এর একই ধরনের pull লাইন ~১০০৮।)
+       ⛔ যে টেবিলের ছবি-ছাড়া তালিকা নেই (payments, enquiries) সেখানে আগের
+          মতোই `*` — অর্থাৎ ওদের আচরণ এক অক্ষরও বদলায়নি। */
     const grab = async (table, build)=>{
-      try{ const r = await build(sb.from(table).select('*'));
+      try{ const __c=(typeof RT_NO_PHOTO_COLS!=='undefined'&&RT_NO_PHOTO_COLS[table])||'*';
+           const r = await build(sb.from(table).select(__c));
            return (r && !r.error && Array.isArray(r.data)) ? r.data : null; }
       catch(e){ return null; }
     };
@@ -12140,8 +12151,13 @@ async function wlv1PaymentCloudPull(date){
     let ok=false; try{ ok=await initCloudClientOnly(); }catch(e){ ok=false; }
     if(!ok||!sb){ __payPulling=false; return false; }
     __payPullAt[key]=Date.now();
+    /* 🔵🔒 V513 (২২.০৮.২০২৬, TK-নির্দেশ — Egress): উপরের Chamber pull-এর একই
+       যুক্তি ও একই সুরক্ষা — ছবি-ছাড়া ঘর, `mergeById` field-wise বলে জমা ছবি
+       অটুট। (`payments`/`products`-এর ছবি-ছাড়া তালিকা নেই, তাই ওখানে আগের
+       মতোই `*` — আচরণ অপরিবর্তিত।) */
     const grab=async(table)=>{
-      try{ const r=await sb.from(table).select('*').eq('date',key).limit(5000);
+      try{ const __c=(typeof RT_NO_PHOTO_COLS!=='undefined'&&RT_NO_PHOTO_COLS[table])||'*';
+           const r=await sb.from(table).select(__c).eq('date',key).limit(5000);
            return (r&&!r.error&&Array.isArray(r.data))?r.data:null; }
       catch(e){ return null; }
     };
