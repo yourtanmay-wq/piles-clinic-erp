@@ -67,6 +67,14 @@ data class ChamberAttendanceRow(
     // Blank if this mobile has no Follow-up record yet (pure new Enquiry
     // still being processed) -- the Remark quick-action is hidden then.
     val followUpId: String = "",
+    /**
+     * 🔵🔒 V526 (২২.০৮.২০২৬, TK-নির্দেশ) — এই সারিটা **কোন রোগীর** (patients
+     * টেবিলের সারির আইডি)। এক নম্বরে দুজন আলাদা রোগী থাকলে Payment · History ·
+     * Report Card ঠিক এই রোগীতেই যাবে, আন্দাজে নয়।
+     * ⛔ ডিফল্ট ফাঁকা — তাই এই ক্লাস তৈরি করা পুরোনো কোনো জায়গা বদলাতে হয়নি,
+     *    আর ফাঁকা থাকলে আচরণ **হুবহু আগের মতোই**।
+     */
+    val patientRowId: String = "",
     // TK-REQUESTED ADDITION (2026-07-19): needed for the A4 register print
     // (ChamberRegisterPdfBuilder) to show Patient ID alongside Name/Mobile.
     // Blank for a pure Enquiry/Expected entry that isn't Registered yet.
@@ -267,7 +275,8 @@ object ChamberAttendanceRepository {
                         remark = r.optString("remark", ""),
                         whatHappened = r.optJSONArray("whatHappened")?.let { arr -> (0 until arr.length()).map { arr.getString(it) } } ?: emptyList(),
                         followUpId = r.optString("followUpId", ""), patientId = r.optString("patientId", ""),
-                        arrivedAt = r.optString("arrivedAt", ""), refDoctor = r.optString("refDoctor", "")
+                        arrivedAt = r.optString("arrivedAt", ""), refDoctor = r.optString("refDoctor", ""),
+                        patientRowId = r.optString("patientRowId", "")   // 🔵 V526 (পুরোনো cache-এ নেই ⇒ ফাঁকা, আগের আচরণ)
                     )
                 )
             }
@@ -320,6 +329,7 @@ object ChamberAttendanceRepository {
                         .put("remark", row.remark).put("whatHappened", org.json.JSONArray(row.whatHappened))
                         .put("followUpId", row.followUpId).put("patientId", row.patientId).put("arrivedAt", row.arrivedAt)
                         .put("refDoctor", row.refDoctor)
+                        .put("patientRowId", row.patientRowId)   // 🔵 V526
                 )
             }
             val totalsObj = org.json.JSONObject()
@@ -710,14 +720,59 @@ object ChamberAttendanceRepository {
         // needs today's Follow-up rows regardless of the new Expected logic.
         val todaysFollowUps = allFollowUpsList.filter { it.s("nextFollow").take(10) == date }
 
-        // Build one row per unique mobile across all of the above.
+        /* ══════════════════════════════════════════════════════════════════
+           🔴🔴🔒 V526 (২২.০৮.২০২৬, TK-নির্দেশ) — **এক নম্বরে দুজন রোগী থাকলে
+           বোর্ডেও দুটো আলাদা সারি।**
+
+           **সমস্যা যেটা ছিল (কোডে প্রমাণিত):** এই বোর্ড সারি বানাত
+           **শুধু মোবাইল নম্বর ধরে** (`byMobile`)। V516-এর পরে এক নম্বরে
+           স্বামী ও স্ত্রী **দুজন আলাদা রোগী** থাকতে পারেন — তখন দুজনের
+           নাম · Patient ID · টাকা · রিমার্ক সব **একটাই সারিতে মিশে** যেত।
+
+           **সমাধান — "পরিচয়ের চাবি" (V518/V520-এর হুবহু একই প্রমাণিত নিয়ম):**
+           স্টাফ নিজে *"Different Patient — Same Mobile"* চাপলে তবেই রোগীর
+           সারির আইডি হয় `pat_<১০ সংখ্যা>_<লেজ>` ধাঁচের — অন্য কোনো পথে এই
+           ধাঁচ তৈরি হয় না (`PatientModel.newRowIdForSameMobile`)।
+             · এই ধাঁচের রোগী ⇒ চাবি হবে **তাঁর নিজের আইডি** (আলাদা সারি)
+             · বাকি সবাই ⇒ চাবি **আগের মতোই মোবাইল** (এক অক্ষরও বদলায়নি)
+
+           ⛔ **যে নম্বরে ঘোষিত আলাদা রোগী নেই, সেখানে প্রতিটা চাবি হুবহু
+              মোবাইলই থাকে — অর্থাৎ পুরো বোর্ড অবিকল আগের মতোই চলে।**
+              (পরীক্ষায় হাতে-কলমে প্রমাণিত।)
+           ⛔ **বাড়তি একটাও cloud-read নেই** — যে তালিকাগুলো এমনিতেই আনা হয়
+              (`patients`) সেগুলো থেকেই চিহ্নটা বের করা হয়।
+           ⛔ Enquiry-র সারিতে রোগীর আইডি থাকেই না, তাই সেগুলো আগের মতোই
+              মোবাইল ধরে বসে — ঠিকই আছে, এনকোয়ারি তো এখনো রোগীই হননি।
+           ══════════════════════════════════════════════════════════════════ */
+        val declaredSeparateIds = HashSet<String>()
+        for (i in 0 until patients.length()) {
+            val row = patients.optJSONObject(i) ?: continue
+            val rid = row.s("id")
+            if (rid.isNotBlank() && PatientModel.isDeclaredSeparateRowId(rid, digits(row.s("mobile")))) {
+                declaredSeparateIds.add(rid)
+            }
+        }
+
+        /** এই সারিটা কার — ঘোষিত আলাদা রোগী হলে তাঁর আইডি, নইলে মোবাইল। */
+        fun keyFor(mobile: String, patientRowId: String): String {
+            val m = digits(mobile)
+            return if (patientRowId.isNotBlank() && declaredSeparateIds.contains(patientRowId)) patientRowId else m
+        }
+
+        // Build one row per unique patient across all of the above.
         val byMobile = LinkedHashMap<String, MutableMap<String, Any?>>()
 
-        fun ensure(mobile: String, name: String, branch: String, disease: String) {
+        fun ensure(key: String, mobile: String, name: String, branch: String, disease: String) {
             val m = digits(mobile)
-            if (m.isBlank()) return
-            byMobile.getOrPut(m) {
+            if (m.isBlank() || key.isBlank()) return
+            byMobile.getOrPut(key) {
                 mutableMapOf(
+                    // 🔵 V526: চাবি আর মোবাইল এক নাও হতে পারে (ঘোষিত আলাদা রোগী),
+                    //    তাই আসল ১০-সংখ্যার নম্বরটা এখানেই আলাদা করে রাখা হয় —
+                    //    নিচে সারি বানানোর সময় **এটাই** ব্যবহার হয়, চাবি নয়।
+                    "mobile10" to m,
+                    // 🔵 V526: এই সারিটা কোন রোগীর (ঘোষিত আলাদা হলে তাঁর আইডি)।
+                    "patientRowId" to "",
                     "name" to name, "mobile" to mobile, "branch" to branch, "disease" to disease,
                     "expected" to false, "arrived" to false,
                     "feesCash" to 0.0, "feesOnline" to 0.0, "paymentCash" to 0.0, "paymentOnline" to 0.0,
@@ -735,7 +790,7 @@ object ChamberAttendanceRepository {
             // Fill in a better name/branch/disease if this call has one and
             // the stored row doesn't yet (first-writer keeps priority
             // otherwise, so nothing already-shown ever gets blanked).
-            val row = byMobile[m]!!
+            val row = byMobile[key]!!
             if ((row["name"] as String).isBlank() && name.isNotBlank()) row["name"] = name
             if ((row["branch"] as String).isBlank() && branch.isNotBlank()) row["branch"] = branch
             if ((row["disease"] as String).isBlank() && disease.isNotBlank()) row["disease"] = disease
@@ -757,8 +812,10 @@ object ChamberAttendanceRepository {
 
         for (i in 0 until enquiries.length()) {
             val row = enquiries.optJSONObject(i) ?: continue
-            ensure(row.s("mobile"), row.s("name"), row.s("branch"), row.s("disease"))
-            val m = digits(row.s("mobile"))
+            /* 🔵 V526: এনকোয়ারির সারিতে রোগীর আইডি থাকেই না, তাই চাবি
+               **আগের মতোই মোবাইল** — এই অংশ এক অক্ষরও বদলায়নি। */
+            val m = keyFor(row.s("mobile"), "")
+            ensure(m, row.s("mobile"), row.s("name"), row.s("branch"), row.s("disease"))
             (byMobile[m]?.get("happened") as? MutableList<String>)?.add("New Enquiry")
         }
 
@@ -776,6 +833,12 @@ object ChamberAttendanceRepository {
                 val row = patients.optJSONObject(i) ?: continue
                 val m = digits(row.s("mobile"))
                 if (m.isBlank()) continue
+                /* 🔵🔒 V526: এই দলটার কাজ — "ভুলে দুবার রেজিস্ট্রেশন হলে কোন
+                   সারিটা আসল" সেটা ঠিক করা (V143-এর নিয়ম)। ঘোষিত আলাদা রোগী
+                   ওই দলের কেউ নন — তিনি নিজেই আলাদা মানুষ। তাঁকে দলে ঢোকালে
+                   তাঁর Patient ID অন্যজনের সারিতে বসে যেতে পারত।
+                   ⛔ ঘোষিত আলাদা রোগী না থাকলে এই লাইন কিছুই করে না। */
+                if (declaredSeparateIds.contains(row.s("id"))) continue
                 grouped.getOrPut(m) { org.json.JSONArray() }.put(row)
             }
             for ((m, rows) in grouped) {
@@ -786,20 +849,33 @@ object ChamberAttendanceRepository {
 
         for (i in 0 until patients.length()) {
             val row = patients.optJSONObject(i) ?: continue
-            ensure(row.s("mobile"), row.s("name"), row.s("branch"), row.s("disease"))
-            val m = digits(row.s("mobile"))
+            /* 🔵🔒 V526: রোগীর সারিতে আইডি আছে — ঘোষিত আলাদা রোগী হলে
+               চাবি তাঁর নিজের আইডি, নইলে আগের মতোই মোবাইল। */
+            val rid = row.s("id")
+            val m = keyFor(row.s("mobile"), rid)
+            ensure(m, row.s("mobile"), row.s("name"), row.s("branch"), row.s("disease"))
             byMobile[m]?.set("arrived", true)
+            // 🔵 V526: এই সারিটা কার — Payment/History/Report Card ঠিক রোগীতে
+            //    যাওয়ার জন্য (first-writer-wins, বোর্ডের চিরকালের নিয়ম)।
+            if ((byMobile[m]?.get("patientRowId") as? String).isNullOrBlank() && rid.isNotBlank()) {
+                byMobile[m]?.set("patientRowId", rid)
+            }
             // TK-REQUESTED ADDITION (2026-07-19): Patient ID, needed for the
             // A4 register print (ChamberRegisterPdfBuilder) alongside
             // Name/Mobile.
-            val pid = (chamberChosenByMobile[m]?.s("patientId") ?: "").ifBlank { row.s("patientId") }
+            /* 🔵🔒 V526: ঘোষিত আলাদা রোগী হলে "দলে জেতা সারি" নয় — **তাঁর
+               নিজের সারিই**, নইলে তাঁর কার্ডে অন্যজনের Patient ID বসে যেত।
+               ⛔ সাধারণ রোগীর ক্ষেত্রে হুবহু আগের পথ। */
+            val chosenRow = if (declaredSeparateIds.contains(rid)) row
+                else chamberChosenByMobile[digits(row.s("mobile"))]
+            val pid = (chosenRow?.s("patientId") ?: "").ifBlank { row.s("patientId") }
             if (pid.isNotBlank() && (byMobile[m]?.get("patientId") as? String).isNullOrBlank()) {
                 byMobile[m]?.set("patientId", pid)
             }
             // 🔴🔒 V471 (20.08.2026, TK-অনুমোদিত) — রেফারিং RMP-র নাম, একই
             // "জিতে যাওয়া সারি" (chamberChosenByMobile) থেকে — যাতে Money
             // স্ক্রিন/Patient Details-এর সাথে সবসময় একই নাম দেখায়।
-            val refDoc = (chamberChosenByMobile[m]?.s("refDoctor") ?: "").ifBlank { row.s("refDoctor") }
+            val refDoc = (chosenRow?.s("refDoctor") ?: "").ifBlank { row.s("refDoctor") }
             if (refDoc.isNotBlank() && (byMobile[m]?.get("refDoctor") as? String).isNullOrBlank()) {
                 byMobile[m]?.set("refDoctor", refDoc)
             }
@@ -816,9 +892,15 @@ object ChamberAttendanceRepository {
 
         for (i in 0 until payments.length()) {
             val row = payments.optJSONObject(i) ?: continue
-            val m = digits(row.s("mobile"))
-            if (m.isBlank()) continue
-            ensure(row.s("mobile"), row.s("name"), row.s("branch"), "")
+            if (digits(row.s("mobile")).isBlank()) continue
+            /* 🔴🔵🔒 V526: টাকার সারিতে মালিকের আইডি **সবসময়** লেখা থাকে
+               (`payments.patientId` = রোগীর সারির আইডি — V520-এ কোডে প্রমাণিত)।
+               তাই টাকাটা ঠিক যাঁর, তাঁর সারিতেই বসে — স্বামীর টাকা আর
+               স্ত্রীর সারিতে যাবে না।
+               ⛔ ঘোষিত আলাদা রোগী না থাকলে চাবি হুবহু মোবাইলই — টাকার
+                  যোগফল ও প্রতিটা সারি অবিকল আগের মতোই। */
+            val m = keyFor(row.s("mobile"), row.s("patientId"))
+            ensure(m, row.s("mobile"), row.s("name"), row.s("branch"), "")
             val entry = byMobile[m] ?: continue
             // 🚨 TK-REPORTED, LIVE (29.07.2026 বিকেল ৪.২১, ছবিসহ · খাতার সারি B109
             //     — MANISH PASWAN · 7258092776): *"Fees 400/- দিয়েছে দেখাচ্ছে,
@@ -987,7 +1069,9 @@ object ChamberAttendanceRepository {
         // পুরনো আচরণ (কোন সারিতে future writes যাবে) এক অক্ষরও বদলায়নি।
         val bestRemarkPriority = HashMap<String, Int>()
         for (fu in todaysFollowUps) {
-            val m = digits(fu.s("mobile"))
+            /* 🔵🔒 V526: Follow-up সারিতে `refId` = রোগীর সারির আইডি
+               (V518-এ কোডে প্রমাণিত)। তাই রিমার্ক ঠিক রোগীর সারিতেই বসে। */
+            val m = keyFor(fu.s("mobile"), fu.s("refId"))
             val pr = stagePriority(fu.s("stage"))
             if (pr >= (bestStageByMobile[m] ?: -1)) {
                 bestStageByMobile[m] = pr
@@ -1010,7 +1094,7 @@ object ChamberAttendanceRepository {
         }.keys
         if (stillMissing.isNotEmpty()) {
             for (fu in allFollowUpsList) {
-                val m = digits(fu.s("mobile"))
+                val m = keyFor(fu.s("mobile"), fu.s("refId"))   // 🔵 V526: একই চাবি
                 if (m !in stillMissing) continue
                 val pr = stagePriority(fu.s("stage"))
                 if (pr >= (bestStageByMobile[m] ?: -1)) {
@@ -1027,9 +1111,13 @@ object ChamberAttendanceRepository {
             }
         }
 
-        val rows = byMobile.entries.map { (mobile, v) ->
+        val rows = byMobile.entries.map { (_, v) ->
             ChamberAttendanceRow(
-                mobile = mobile,
+                /* 🔵🔒 V526: আগে **চাবিটাই** মোবাইল হিসেবে বসত। চাবি এখন
+                   ঘোষিত আলাদা রোগীর ক্ষেত্রে তাঁর আইডি, তাই আসল নম্বরটা
+                   আলাদা ঘর থেকে নেওয়া হয়। ⛔ সাধারণ রোগীর ক্ষেত্রে দুটো
+                   হুবহু এক (দুটোই ১০ সংখ্যার নম্বর) — কিছুই বদলায় না। */
+                mobile = v["mobile10"] as? String ?: "",
                 name = v["name"] as String,
                 branch = v["branch"] as String,
                 disease = v["disease"] as String,
@@ -1045,7 +1133,8 @@ object ChamberAttendanceRepository {
                 patientId = v["patientId"] as? String ?: "",
                 paymentLines = (v["paymentLines"] as? MutableList<String>) ?: emptyList(),
                 arrivedAt = v["arrivedAt"] as? String ?: "",
-                refDoctor = v["refDoctor"] as? String ?: ""
+                refDoctor = v["refDoctor"] as? String ?: "",
+                patientRowId = v["patientRowId"] as? String ?: ""   // 🔵 V526
             )
         }.sortedWith(
             // Arrived-but-not-expected (walk-ins) and expected-and-arrived

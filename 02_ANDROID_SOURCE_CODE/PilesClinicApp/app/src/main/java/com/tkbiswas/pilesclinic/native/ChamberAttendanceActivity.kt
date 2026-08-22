@@ -969,7 +969,14 @@ class ChamberAttendanceActivity : AppCompatActivity() {
     private fun openTimeline(row: ChamberAttendanceRow) {
         val digits = row.mobile.filter { it.isDigit() }.takeLast(10)
         if (digits.length != 10) return
-        startActivity(android.content.Intent(this, PatientTimelineActivity::class.java).putExtra("mobile", digits))
+        /* 🔵🔒 V526: এক নম্বরে দুজন আলাদা রোগী থাকলে বোর্ডে এখন দুটো সারি —
+           তাই History-ও ঠিক **এই** সারির রোগীরই খুলবে।
+           ⛔ আইডি ফাঁকা হলে হুবহু আগের আচরণ। */
+        startActivity(
+            android.content.Intent(this, PatientTimelineActivity::class.java)
+                .putExtra("mobile", digits)
+                .putExtra("patientRowId", row.patientRowId)
+        )
     }
 
     // TK-APPROVED via photo-proof (2026-07-25): Patient box tap -> Report
@@ -998,7 +1005,8 @@ class ChamberAttendanceActivity : AppCompatActivity() {
            ⛔ আইডি ফাঁকা বা না মিললে হুবহু আগের আচরণ। */
         startActivity(android.content.Intent(this, ReportCardActivity::class.java)
             .putExtra("mobile", digits)
-            .putExtra("patientCode", row.patientId))
+            .putExtra("patientCode", row.patientId)
+            .putExtra("patientRowId", row.patientRowId))   // 🔵 V526
     }
 
     /** Opens the SAME PaymentActivity every other screen uses, pre-filled
@@ -1090,7 +1098,8 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                         targets.size -> openTimeline(row)
                         targets.size + 1 -> startActivity(android.content.Intent(this@ChamberAttendanceActivity, ReportCardActivity::class.java)
                             .putExtra("mobile", digits)
-                            .putExtra("patientCode", row.patientId))   // 🔵 V522
+                            .putExtra("patientCode", row.patientId)
+                            .putExtra("patientRowId", row.patientRowId))   // 🔵 V522/V526
                         else -> startActivity(android.content.Intent(this@ChamberAttendanceActivity, targets[which]))
                     }
                 }
@@ -1652,7 +1661,7 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                    `row.patientId` (রোগী-প্রতি **অনন্য** Official Patient ID) ধরে
                    ঠিক রোগীটাই বেছে নেওয়া হয় — টাকা কখনো অন্যজনের নামে যাবে না।
                    ⛔ আইডি ফাঁকা থাকলে বা ওই নম্বরে না মিললে হুবহু আগের পথ। */
-                repo.findPatientByMobile(digits, row.branch, preferPatientCode = row.patientId)
+                repo.findPatientByMobile(digits, row.branch, preferPatientCode = row.patientId, preferRowId = row.patientRowId)
                     ?: repo.findOrMakePatient(row.name, digits, row.branch, row.patientId)
             } catch (_: Throwable) { null }
         }
@@ -1878,7 +1887,7 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                     // রোগী না পেলে টাকা নেওয়া যাবে না, স্টাফকে জানাতে হবে।
                     val repo = PaymentRepository(this@ChamberAttendanceActivity)
                     /* 🔵🔒 V520: রোগী-প্রতি অনন্য Official Patient ID ধরে ঠিক রোগী। */
-                    val patient = repo.findPatientByMobile(digits, row.branch, preferPatientCode = row.patientId)
+                    val patient = repo.findPatientByMobile(digits, row.branch, preferPatientCode = row.patientId, preferRowId = row.patientRowId)
                         ?: repo.findOrMakePatient(row.name, digits, row.branch, row.patientId)
                         ?: run { patientNotVerified = true; return@withContext false }
                     // TK-REQUESTED (2026-07-25): backdated entry -- Master
@@ -1950,7 +1959,7 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                     try {
                         val repo = PaymentRepository(this@ChamberAttendanceActivity)
                         /* 🔵🔒 V520: রোগী-প্রতি অনন্য Official Patient ID ধরে ঠিক রোগী। */
-                        val p2 = repo.findPatientByMobile(digits, row.branch, preferPatientCode = row.patientId)
+                        val p2 = repo.findPatientByMobile(digits, row.branch, preferPatientCode = row.patientId, preferRowId = row.patientRowId)
                         if (p2 != null) p2.paid else 0.0
                     } catch (_: Throwable) { 0.0 }
                 }
