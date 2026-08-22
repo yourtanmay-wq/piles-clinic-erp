@@ -302,7 +302,7 @@ object PatientTimelineRepository {
     // ঘটনা আলাদা সারি হয় (History পর্দার জন্য)। ডিফল্ট false — ⛔ Report Card ও
     // অন্য সব কলার আগের মতোই (day-merge) পায়, এক অক্ষরও বদলায় না। টাকার হিসাব
     // দুই পথেই এক (প্রতি পেমেন্ট আলাদা paidEffect ধরে গোনা হয়, নিচে দেখুন)।
-    fun build(mobileDigits: String, section: String? = null, context: Context? = null, keepVisitFeeAsOwnRow: Boolean = false, separateRowsPerEvent: Boolean = false, preferRowId: String = ""): TimelineData {
+    fun build(mobileDigits: String, section: String? = null, context: Context? = null, keepVisitFeeAsOwnRow: Boolean = false, separateRowsPerEvent: Boolean = false, preferRowId: String = "", preferPatientCode: String = ""): TimelineData {
         // Match by the trailing 10 digits (like the global search does) instead of
         // an exact "+91..." match, so a timeline is found regardless of how the
         // mobile was stored (bare 10-digit, +91, spaces, etc.). This is why the
@@ -355,11 +355,33 @@ object PatientTimelineRepository {
               (Report Card · Chamber · Timeline-এর নিজের পথ) এক অক্ষরও বদলায়নি।
            ⛔ শেয়ার-করা `PatientIdentity.pickPatientRow` নিয়মটা ছোঁয়া হয়নি —
               ওটা ৯টা পর্দা ব্যবহার করে, V143-এর সুরক্ষা অটুট। */
-        val forced = if (preferRowId.isBlank()) null else {
+        /* 🔵🔒 V522 (২২.০৮.২০২৬, TK-নির্দেশ): `preferPatientCode`-ও চলবে।
+           কিছু পর্দা (Chamber Attendance) রোগীর **সারির আইডি** জানে না, কিন্তু
+           **Official Patient ID** জানে — সেটাও রোগী-প্রতি অনন্য, তাই সেটা দিয়েও
+           ঠিক রোগীটাই বেছে নেওয়া যায়। ঠিক যে নিয়ম V520-এ
+           `PaymentRepository.findPatientByMobile()`-এ পাশ হয়েছে।
+           ⛔ একই লুপ, **বাড়তি একটাও cloud-read নেই**।
+           ⛔ দুটোই ফাঁকা হলে বা না মিললে — হুবহু আগের পথ (`pickPatientRow`)। */
+        val forced = if (preferRowId.isBlank() && preferPatientCode.isBlank()) null else {
+            /* 🔴 নিজের যাচাইয়ে ধরা পড়েছে (২২.০৮.২০২৬): প্রথমে দুটো শর্ত **একই
+               লুপে** রাখা হয়েছিল। তাতে দুটো আইডি একসাথে এলে ও তারা আলাদা
+               রোগীকে দেখালে, তালিকায় যে সারিটা **আগে** আছে সেটাই জিতে যেত —
+               অর্থাৎ কোড দিয়ে সারির আইডি হেরে যেত। এখন **দুই ধাপে**:
+               ১. আগে সারির আইডি (সবচেয়ে নির্দিষ্ট) — পুরো তালিকা খুঁজে।
+               ২. না পেলে তবেই Official Patient ID।
+               ⛔ একটাই আইডি এলে (রোজকার সব ক্ষেত্রে) ফল অবিকল একই। */
             var f: JSONObject? = null
-            for (i in 0 until patients.length()) {
-                val r = patients.optJSONObject(i) ?: continue
-                if (r.s("id") == preferRowId) { f = r; break }
+            if (preferRowId.isNotBlank()) {
+                for (i in 0 until patients.length()) {
+                    val r = patients.optJSONObject(i) ?: continue
+                    if (r.s("id") == preferRowId) { f = r; break }
+                }
+            }
+            if (f == null && preferPatientCode.isNotBlank()) {
+                for (i in 0 until patients.length()) {
+                    val r = patients.optJSONObject(i) ?: continue
+                    if (r.s("patientId") == preferPatientCode) { f = r; break }
+                }
             }
             f
         }

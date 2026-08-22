@@ -37,9 +37,32 @@ object TimelineCache {
 
     private fun prefs(ctx: Context) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    private fun key(mobile: String) = "tl_" + mobile.filter { it.isDigit() }.takeLast(10)
+    /**
+     * 🔴🔴🔒 V522 (২২.০৮.২০২৬, TK-নির্দেশ "Report Card ধরুন") — **দুই রোগীর
+     * জমানো তথ্য আর মিশবে না।**
+     *
+     * **সমস্যা যেটা ছিল (কোডে প্রমাণিত):** চাবি ছিল **শুধু মোবাইল নম্বর**।
+     * V516-এর পরে এক নম্বরে স্বামী ও স্ত্রী দুজন আলাদা রোগী থাকতে পারেন —
+     * তখন স্বামীর Timeline দেখার পরে স্ত্রীরটা খুললে **প্রথম মুহূর্তে
+     * স্বামীর জমানো তথ্যই আঁকা হত** (cache-first, V216 §10)। আসল পড়া শেষ
+     * হলে ঠিক হয়ে যেত, কিন্তু ওই কয়েক সেকেন্ড ভুল রিপোর্ট দেখা যেত।
+     *
+     * **এখন:** ডাকার জায়গা যে রোগীটা চেয়েছে (`rowId`), সেটাও চাবির অংশ।
+     *
+     * ⛔ **পুরোনো জমানো তথ্য নষ্ট হয় না** — `rowId` ফাঁকা রাখলে চাবিটা
+     *    **অক্ষরে অক্ষরে আগের মতোই** (`tl_<১০ সংখ্যা>`), তাই আগের সব
+     *    ডাক ও ফোনে আগে থেকে জমা থাকা তথ্য অবিকল আগের মতোই চলে।
+     * ⛔ চাওয়া-আইডি দিয়েই চাবি হয় (পাওয়া-আইডি দিয়ে নয়) — তাই জমানো ও
+     *    খোঁজা সবসময় একই চাবিতে মেলে, কোনো সারি "হারায়" না।
+     * ⛔ কোনো cloud-read নেই · কোনো তথ্য বদলায় না — শুধু ফোনের জমানো কপির নাম।
+     */
+    private fun key(mobile: String, rowId: String = ""): String {
+        val base = "tl_" + mobile.filter { it.isDigit() }.takeLast(10)
+        val r = rowId.trim()
+        return if (r.isEmpty()) base else base + "_" + r
+    }
 
-    fun save(ctx: Context, mobile: String, data: TimelineData) {
+    fun save(ctx: Context, mobile: String, data: TimelineData, rowId: String = "") {
         try {
             val arr = JSONArray()
             for (e in data.entries) {
@@ -93,7 +116,7 @@ object TimelineCache {
                    ঠিক আগের মতোই; আসল পড়া শেষ হলে চিপ বসে যায়। */
                 .put("timeType", data.timeType)
                 .put("entries", arr)
-            prefs(ctx).edit().putString(key(mobile), root.toString()).apply()
+            prefs(ctx).edit().putString(key(mobile, rowId), root.toString()).apply()
         } catch (_: Throwable) {
             // Saving is a convenience only; failing to save must never matter.
         }
@@ -102,9 +125,9 @@ object TimelineCache {
     /** The saved copy, or null when there is none / it is too old / anything
      *  at all goes wrong. Callers treat null as "nothing to show yet" and
      *  behave exactly as they do today. */
-    fun load(ctx: Context, mobile: String): TimelineData? {
+    fun load(ctx: Context, mobile: String, rowId: String = ""): TimelineData? {
         return try {
-            val raw = prefs(ctx).getString(key(mobile), null) ?: return null
+            val raw = prefs(ctx).getString(key(mobile, rowId), null) ?: return null
             val root = JSONObject(raw)
             val savedAt = root.optLong("savedAt", 0L)
             if (savedAt <= 0L || System.currentTimeMillis() - savedAt > MAX_AGE_MS) return null

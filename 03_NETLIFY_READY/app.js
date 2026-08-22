@@ -12794,7 +12794,15 @@ window["wlv1TimelineTable"]=wlv1TimelineTable;
    ========================================================================== */
 function wlv1ReportCard(idOrMobile){
   const list = load('patients');
-  const p = list.find(x=>x.id===idOrMobile) || list.find(x=>mob(x.mobile)===mob(idOrMobile));
+  /* 🔵🔒 V522 (২২.০৮.২০২৬): আইডি দিয়ে পাওয়া গেলে সেটাই — সব ডাকার জায়গা
+     `p.id`-ই পাঠায়, তাই রোজকার পথে কিছুই বদলায় না। শুধু পুরোনো মোবাইল-ভিত্তিক
+     fallback-টা এখন **নয়টা পর্দার সেই একই নিয়ম** (`wlv1PickPatientRow`, V143)
+     মানে — আগে সে তালিকার **প্রথম** সারিটা তুলে নিত, তাই এক নম্বরে দুজন
+     রোগী থাকলে ফোন ও কম্পিউটার আলাদা রোগী দেখাতে পারত।
+     ⛔ এক রোগী হলে ফলাফল অবিকল আগের মতোই · কোনো নতুন পড়া নেই। */
+  const p = list.find(x=>x.id===idOrMobile)
+    || wlv1PickPatientRow(list.filter(x=>mob(x.mobile)===mob(idOrMobile)),
+                          (typeof user!=='undefined'&&user&&user.branch)||'');
   if(!p) return page('Report Card','<div class="card redP">Patient not found</div>');
   if(typeof searchCanSee==='function' && !searchCanSee(p))
     return page('Report Card','<div class="card redP">This patient is outside your branch access.</div>');
@@ -13123,7 +13131,15 @@ window["wlv1DietSave"]=wlv1DietSave;
    ========================================================================== */
 function wlv1ClinicalHistory(idOrMobile){
   const list = load('patients');
-  const p = list.find(x=>x.id===idOrMobile) || list.find(x=>mob(x.mobile)===mob(idOrMobile));
+  /* 🔵🔒 V522 (২২.০৮.২০২৬): আইডি দিয়ে পাওয়া গেলে সেটাই — সব ডাকার জায়গা
+     `p.id`-ই পাঠায়, তাই রোজকার পথে কিছুই বদলায় না। শুধু পুরোনো মোবাইল-ভিত্তিক
+     fallback-টা এখন **নয়টা পর্দার সেই একই নিয়ম** (`wlv1PickPatientRow`, V143)
+     মানে — আগে সে তালিকার **প্রথম** সারিটা তুলে নিত, তাই এক নম্বরে দুজন
+     রোগী থাকলে ফোন ও কম্পিউটার আলাদা রোগী দেখাতে পারত।
+     ⛔ এক রোগী হলে ফলাফল অবিকল আগের মতোই · কোনো নতুন পড়া নেই। */
+  const p = list.find(x=>x.id===idOrMobile)
+    || wlv1PickPatientRow(list.filter(x=>mob(x.mobile)===mob(idOrMobile)),
+                          (typeof user!=='undefined'&&user&&user.branch)||'');
   if(!p) return page('Clinical History','<div class="card redP">Patient not found</div>');
   const recs = load('medical')
     .filter(x=>x.patientId===p.id || mob(x.mobile)===mob(p.mobile))
@@ -14312,7 +14328,15 @@ window["wlv1ChamberRegisterText"]=wlv1ChamberRegisterText;
 
 function wlv1ReportCardText(idOrMobile){
   const list = load('patients');
-  const p = list.find(x=>x.id===idOrMobile) || list.find(x=>mob(x.mobile)===mob(idOrMobile));
+  /* 🔵🔒 V522 (২২.০৮.২০২৬): আইডি দিয়ে পাওয়া গেলে সেটাই — সব ডাকার জায়গা
+     `p.id`-ই পাঠায়, তাই রোজকার পথে কিছুই বদলায় না। শুধু পুরোনো মোবাইল-ভিত্তিক
+     fallback-টা এখন **নয়টা পর্দার সেই একই নিয়ম** (`wlv1PickPatientRow`, V143)
+     মানে — আগে সে তালিকার **প্রথম** সারিটা তুলে নিত, তাই এক নম্বরে দুজন
+     রোগী থাকলে ফোন ও কম্পিউটার আলাদা রোগী দেখাতে পারত।
+     ⛔ এক রোগী হলে ফলাফল অবিকল আগের মতোই · কোনো নতুন পড়া নেই। */
+  const p = list.find(x=>x.id===idOrMobile)
+    || wlv1PickPatientRow(list.filter(x=>mob(x.mobile)===mob(idOrMobile)),
+                          (typeof user!=='undefined'&&user&&user.branch)||'');
   if(!p) return '';
   const t = treatmentTotals(p);
   const rows = wlv1TimelineRows(p);

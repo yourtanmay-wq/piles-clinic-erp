@@ -119,8 +119,13 @@ class DoctorQueueActivity : AppCompatActivity() {
             // "mobile" it is opened with) that Chamber Date and Dr. Visit
             // already use, so nothing new had to be built for it.
             onReportCard = { p ->
+                /* 🔵🔒 V522 (২২.০৮.২০২৬, TK-নির্দেশ): এক নম্বরে দুজন আলাদা রোগী থাকলে
+                   Report Card যেন **এই** রোগীরই খোলে ও ছাপে।
+                   ⛔ আইডি ফাঁকা/না মিললে হুবহু আগের আচরণ। */
                 startActivity(Intent(this, ReportCardActivity::class.java)
-                    .putExtra("mobile", p.mobile))
+                    .putExtra("mobile", p.mobile)
+                    .putExtra("patientRowId", p.id)
+                    .putExtra("patientCode", p.patientId))
             },
             onHeaderTap = { overdueExpanded = !overdueExpanded; renderRows() }
         )

@@ -50,6 +50,33 @@ class ReportCardActivity : AppCompatActivity() {
     private lateinit var user: NativeUser
     private var mobile: String = ""
 
+    /**
+     * 🔴🔵🔒 V522 (২২.০৮.২০২৬, TK-নির্দেশ) — **এই Report কোন রোগীর।**
+     *
+     * **সমস্যা যেটা ছিল:** এই পর্দা **শুধু মোবাইল নম্বর** নিয়ে খুলত।
+     * V516-এর পরে এক নম্বরে স্বামী ও স্ত্রী দুজন আলাদা রোগী থাকতে পারেন —
+     * তখন কার Report দেখাবে, অ্যাপ নিজে বেছে নিত (`pickPatientRow`)। ফলে
+     * Patient Timeline-এ স্ত্রীকে দেখে "Report Card" চাপলে **স্বামীর
+     * রিপোর্ট** খুলে যেতে পারত, আর ছাপাও হত তাঁরই নামে।
+     *
+     * **এখন:** ডাকা পর্দা জানলে রোগীর সারির আইডি সঙ্গে পাঠায়, আর সেটাই
+     * পুরো পর্দা · জমানো কপি · ছাপা — তিন জায়গাতেই ব্যবহার হয়।
+     *
+     * ⛔ **ফাঁকা রাখলে আচরণ হুবহু আগের মতোই** (`pickPatientRow`) — তাই যেসব
+     *    পুরোনো ডাকার জায়গা এটা পাঠায় না, সেগুলো এক অক্ষরও বদলাতে হয়নি।
+     * ⛔ কোনো বাড়তি cloud-read নেই — শুধু আগের পড়াগুলোকেই ঠিক রোগীর দিকে
+     *    তাক করানো হয়।
+     */
+    private var preferRowId: String = ""
+
+    /** 🔵 V522: কিছু পর্দা সারির আইডি জানে না, শুধু Official Patient ID জানে
+     *  (Chamber Attendance) — সেটাও রোগী-প্রতি অনন্য, তাই সেটাও চলে। */
+    private var preferPatientCode: String = ""
+
+    /** 🔵 V522: জমানো কপির চাবিতে যেটা বসবে — যা জানা আছে সেটাই।
+     *  দুটোই ফাঁকা হলে ফাঁকা, অর্থাৎ চাবিটা **অবিকল আগের মতোই**। */
+    private val cacheToken: String get() = preferRowId.ifBlank { preferPatientCode }
+
     private fun today(): String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
     private fun isMaster(): Boolean = user.role == "master"
 
@@ -70,6 +97,8 @@ class ReportCardActivity : AppCompatActivity() {
             user = u
 
             mobile = intent.getStringExtra("mobile")?.filter { it.isDigit() }?.takeLast(10) ?: ""
+            preferRowId = intent.getStringExtra("patientRowId").orEmpty()          // 🔵 V522
+            preferPatientCode = intent.getStringExtra("patientCode").orEmpty()      // 🔵 V522
             if (mobile.length != 10) {
                 android.widget.Toast.makeText(this, "No valid mobile", android.widget.Toast.LENGTH_SHORT).show()
                 finish(); return
@@ -93,7 +122,7 @@ class ReportCardActivity : AppCompatActivity() {
         // পিছনে আসল fetch চলে ও নতুন তথ্য এলে আবার আঁকে (loadGuardToken শুধু নতুনটাকে
         // আঁকতে দেয়)। ⛔ cache না থাকলে আগের মতোই "Loading..." — কোনো regression নেই।
         // ⛔ age/address/sex cache-এ নেই বলে ওই তিনটে full load-এ ভরে; হিসাব বদলায় না।
-        val cached = try { TimelineCache.load(this, mobile) } catch (_: Throwable) { null }
+        val cached = try { TimelineCache.load(this, mobile, cacheToken) } catch (_: Throwable) { null }
         binding.reportContainer.removeAllViews()
         if (cached != null) {
             try { render(cached, "", "", "", BranchCatalog.byName(cached.branch)) } catch (_: Throwable) { }
@@ -113,7 +142,8 @@ class ReportCardActivity : AppCompatActivity() {
             val guardAtStart = myLoadToken
             try {
                 val data = withContext(Dispatchers.IO) {
-                    PatientTimelineRepository.build(mobile, null, this@ReportCardActivity)
+                    PatientTimelineRepository.build(mobile, null, this@ReportCardActivity,
+                        preferRowId = preferRowId, preferPatientCode = preferPatientCode)
                 }
                 if (guardAtStart != loadGuardToken) return@launch
                 val patientRow = withContext(Dispatchers.IO) {
@@ -156,7 +186,7 @@ class ReportCardActivity : AppCompatActivity() {
                 // 🔒 V216 (§10): পরের বার এই Report যেন সঙ্গে সঙ্গে খোলে, তাই এই
                 // ফোনে Timeline cache-এ সেভ করে রাখা হয় (PatientTimeline পর্দাও
                 // একই cache ব্যবহার করে, তাই দুই পর্দা এক তথ্যই দেখায়)।
-                try { TimelineCache.save(this@ReportCardActivity, mobile, data) } catch (_: Throwable) { }
+                try { TimelineCache.save(this@ReportCardActivity, mobile, data, cacheToken) } catch (_: Throwable) { }
             } catch (e: Exception) {
                 binding.reportContainer.removeAllViews()
                 binding.reportContainer.addView(TextView(this@ReportCardActivity).apply {
@@ -597,7 +627,12 @@ class ReportCardActivity : AppCompatActivity() {
                     val ok = withContext(Dispatchers.IO) {
                         try {
                             val repo = PaymentRepository(this@ReportCardActivity)
-                            val patient = repo.findPatientByMobile(mobile) ?: return@withContext false
+                            /* 🔵🔒 V522: টাকার সংশোধনের অনুরোধও **এই** রোগীর নামেই
+                               যেতে হবে — নইলে এক নম্বরে দুজন থাকলে অন্যজনের নামে
+                               অনুরোধ চলে যেত। ⛔ ফাঁকা হলে হুবহু আগের পথ। */
+                            val patient = repo.findPatientByMobile(
+                                mobile, preferPatientCode = preferPatientCode, preferRowId = preferRowId)
+                                ?: return@withContext false
                             repo.requestPaymentEdit(
                                 pid, patient, current, v, mode, payDate,
                                 reason.text.toString().trim(), user.mobile, user.name.ifBlank { user.mobile }
@@ -682,6 +717,6 @@ class ReportCardActivity : AppCompatActivity() {
 
     private fun printReport() {
         android.widget.Toast.makeText(this, NoBengali.s("প্রিন্ট তৈরি হচ্ছে…"), android.widget.Toast.LENGTH_SHORT).show()
-        ReportCardPrinter.print(this, mobile, user)
+        ReportCardPrinter.print(this, mobile, user, preferRowId, preferPatientCode)   // 🔵 V522: ছাপাও এই রোগীরই
     }
 }

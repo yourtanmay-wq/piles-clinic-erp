@@ -223,7 +223,12 @@ class PatientTimelineActivity : AppCompatActivity() {
             // if there's no bill yet.
             binding.btnWhatsApp.setOnClickListener {
                 if (currentBillTotal > 0.0) {
-                    startActivity(Intent(this, ReportCardActivity::class.java).putExtra("mobile", currentMobile))
+                    /* 🔵🔒 V522: এই Timeline যে রোগীরটা দেখাচ্ছে, Report Card-ও তাঁরই। */
+                    startActivity(
+                        Intent(this, ReportCardActivity::class.java)
+                            .putExtra("mobile", currentMobile)
+                            .putExtra("patientRowId", preferPatientRowId)
+                    )
                 } else {
                     android.widget.Toast.makeText(this, "No bill yet for this patient — Report Card needs an Advance Payment first", android.widget.Toast.LENGTH_SHORT).show()
                 }
@@ -3183,7 +3188,11 @@ class PatientTimelineActivity : AppCompatActivity() {
         // was opened before, everything that was on the screen is already on
         // the phone -- so it is drawn right now, and the fresh copy below
         // simply replaces it a moment later.
-        val cachedNow = try { TimelineCache.load(this, mobile) } catch (_: Throwable) { null }
+        /* 🔴🔵🔒 V522 (২২.০৮.২০২৬): জমানো কপিটাও **এই রোগীর**।
+           আগে চাবি ছিল শুধু মোবাইল, তাই এক নম্বরে দুজন থাকলে স্বামীর পরে
+           স্ত্রীরটা খুললে প্রথম মুহূর্তে **স্বামীর** তথ্য আঁকা হত।
+           ⛔ আইডি ফাঁকা হলে চাবিটা অবিকল আগের মতোই — কিছুই ভাঙে না। */
+        val cachedNow = try { TimelineCache.load(this, mobile, preferPatientRowId) } catch (_: Throwable) { null }
         if (cachedNow != null) showCachedTimeline(cachedNow)
         lifecycleScope.launch {
             // CRASH-SAFETY FIX (TK-reported, 2026-07-16): any unexpected error
@@ -3524,7 +3533,7 @@ class PatientTimelineActivity : AppCompatActivity() {
                 // পারে) আর cache-এ বসাব না — নইলে ব্যর্থ পড়ার খালি Timeline ভালো
                 // cache-এর ওপর বসে যেত ও পরের বারও ফাঁকা দেখাত। আসল রোগীর সবসময়
                 // অন্তত একটা এন্ট্রি থাকে, তাই সত্যিকারের তথ্য কখনো cache-হারা হয় না।
-                if (data.entries.isNotEmpty()) TimelineCache.save(this@PatientTimelineActivity, currentMobile, data)
+                if (data.entries.isNotEmpty()) TimelineCache.save(this@PatientTimelineActivity, currentMobile, data, preferPatientRowId)   // 🔵 V522
 
                 // TK-APPROVED (2026-07-20): opened via the Queue "Action" button --
                 // now that this patient's data is loaded, auto-open Take Action.

@@ -992,7 +992,13 @@ class ChamberAttendanceActivity : AppCompatActivity() {
     private fun openReportCard(row: ChamberAttendanceRow) {
         val digits = row.mobile.filter { it.isDigit() }.takeLast(10)
         if (digits.length != 10) return
-        startActivity(android.content.Intent(this, ReportCardActivity::class.java).putExtra("mobile", digits))
+        /* 🔵🔒 V522 (২২.০৮.২০২৬, TK-নির্দেশ): এক নম্বরে দুজন আলাদা রোগী থাকলে
+           Report Card যেন **এই** রোগীরই খোলে ও ছাপে। বোর্ডের সারিতে রোগীর
+           **Official Patient ID** থাকে (রোগী-প্রতি অনন্য), তাই সেটাই পাঠানো হয়।
+           ⛔ আইডি ফাঁকা বা না মিললে হুবহু আগের আচরণ। */
+        startActivity(android.content.Intent(this, ReportCardActivity::class.java)
+            .putExtra("mobile", digits)
+            .putExtra("patientCode", row.patientId))
     }
 
     /** Opens the SAME PaymentActivity every other screen uses, pre-filled
@@ -1082,7 +1088,9 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                 .setItems(options) { _, which ->
                     when (which) {
                         targets.size -> openTimeline(row)
-                        targets.size + 1 -> startActivity(android.content.Intent(this@ChamberAttendanceActivity, ReportCardActivity::class.java).putExtra("mobile", digits))
+                        targets.size + 1 -> startActivity(android.content.Intent(this@ChamberAttendanceActivity, ReportCardActivity::class.java)
+                            .putExtra("mobile", digits)
+                            .putExtra("patientCode", row.patientId))   // 🔵 V522
                         else -> startActivity(android.content.Intent(this@ChamberAttendanceActivity, targets[which]))
                     }
                 }

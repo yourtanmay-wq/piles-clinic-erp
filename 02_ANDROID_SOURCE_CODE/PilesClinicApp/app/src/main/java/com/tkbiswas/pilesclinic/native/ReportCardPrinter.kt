@@ -26,10 +26,17 @@ object ReportCardPrinter {
     // Keep a strong reference while the print job spins up (else the WebView is GC'd).
     private val liveWebViews = mutableListOf<WebView>()
 
-    fun print(activity: androidx.appcompat.app.AppCompatActivity, mobile: String, user: NativeUser) {
+    /**
+     * 🔵🔒 V522 (২২.০৮.২০২৬, TK-নির্দেশ) — `preferRowId`
+     * এক নম্বরে দুজন আলাদা রোগী থাকলে **কার রিপোর্ট ছাপা হবে** তা আর
+     * আন্দাজ করা হয় না — যে পর্দা ছাপতে বলেছে, সে-ই বলে দেয়।
+     * ⛔ ফাঁকা রাখলে হুবহু আগের আচরণ, তাই পুরোনো ডাক অপরিবর্তিত।
+     * ⛔ বাড়তি কোনো cloud-read নেই।
+     */
+    fun print(activity: androidx.appcompat.app.AppCompatActivity, mobile: String, user: NativeUser, preferRowId: String = "", preferPatientCode: String = "") {
         activity.lifecycleScope.launch {
             try {
-                val data = withContext(Dispatchers.IO) { PatientTimelineRepository.build(mobile, null, activity) }
+                val data = withContext(Dispatchers.IO) { PatientTimelineRepository.build(mobile, null, activity, preferRowId = preferRowId, preferPatientCode = preferPatientCode) }
                 val patientRow = withContext(Dispatchers.IO) {
                     try {
                         // TK-REQUESTED (2026-07-27), ধাপ ৩: this used to ask for
