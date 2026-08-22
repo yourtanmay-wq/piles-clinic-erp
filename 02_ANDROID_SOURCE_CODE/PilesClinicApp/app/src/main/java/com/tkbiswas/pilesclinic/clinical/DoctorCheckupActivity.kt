@@ -1578,6 +1578,10 @@ class DoctorCheckupActivity : AppCompatActivity() {
         }
 
         val big = AnatomyView(this)
+        /* 🔵 V569 (TK): ছবিটা **গোটা পর্দা ভরে** বসবে, আর দু'আঙুলে ছোট-বড় ও
+           সরানো যাবে। দু'বার ছুঁলে আগের মাপে ফিরে যায়। */
+        big.fillScreen = true
+        big.allowZoom = true
         big.load(small.save()) { key -> anatomyResId(key) }
         big.tool = small.tool
         big.pileLabel = small.pileLabel
@@ -1683,8 +1687,9 @@ class DoctorCheckupActivity : AppCompatActivity() {
             setTextColor(android.graphics.Color.WHITE)
             background = android.graphics.drawable.GradientDrawable().apply {
                 shape = android.graphics.drawable.GradientDrawable.OVAL
-                setColor(android.graphics.Color.parseColor("#33FFFFFF"))
-                setStroke(symDp(1), android.graphics.Color.parseColor("#59FFFFFF"))
+                // 🔵 V569 — হালকা ছবির উপরে বোতাম যেন ফ্যাকাশে হয়ে না যায়
+                setColor(android.graphics.Color.parseColor("#9E08111C"))
+                setStroke(symDp(1), android.graphics.Color.parseColor("#8CFFFFFF"))
             }
             /* প্রজেক্টের বাকি সব জায়গার মতোই `setMargins()` — `leftMargin` ঘরটা
                এই প্রজেক্টে আর কোথাও ব্যবহার হয়নি, তাই কম্পাইল-পাহারা ওটাকে
@@ -1693,10 +1698,15 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 setMargins(symDp(8), 0, 0, 0)
             }
         }
+        val btnOut = roundBtn("➖").apply { setOnClickListener { big.zoomBy(1f / 1.35f) } }
+        val btnIn  = roundBtn("➕").apply { setOnClickListener { big.zoomBy(1.35f) } }
+        topRow.addView(btnOut); topRow.addView(btnIn)
+
         val btnBar = roundBtn("🧰").apply {
             setOnClickListener {
                 bar.visibility = if (bar.visibility == android.view.View.VISIBLE)
                     android.view.View.GONE else android.view.View.VISIBLE
+                big.requestLayout()
             }
         }
         topRow.addView(btnBar)

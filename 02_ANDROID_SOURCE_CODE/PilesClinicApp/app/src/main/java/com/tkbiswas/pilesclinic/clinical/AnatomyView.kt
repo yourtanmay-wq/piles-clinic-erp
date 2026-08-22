@@ -53,6 +53,89 @@ class AnatomyView(context: Context) : View(context) {
     /** ছবির কোথায় আঁকা হচ্ছে — পর্দার ভিতরে ছবিটা যতটুকু জায়গা নেয়। */
     private val dst = RectF()
 
+    /**
+     * 🔵🔒 V569 (২২.০৮.২০২৬, TK-নির্দেশ) — *"যে ফটোটা আমি সিলেক্ট করব সেটা যেন
+     * সম্পূর্ণ স্ক্রিন জুড়ে আসে ... ফটো সাইজ আরো বড় হবে ... বড় করে জুম করে"*।
+     *
+     * `fillScreen` — পুরো পর্দায় ছবিটা **গোটা পর্দা ভরে** বসে (দুই পাশ একটু
+     *   কাটা যায়), ছোট বোর্ডে আগের মতোই পুরো ছবিটা ধরানো হয়।
+     * `allowZoom` — দু'আঙুলে ছোট-বড় করা ও সরানো (শুধু পুরো পর্দায়)।
+     *
+     * ⛔ দাগ জমা থাকে ছবির **শতকরা** হিসেবেই, আর ছোঁয়ার হিসাব হয় `dst` ধরে —
+     *    তাই জুম করলে বা সরালে দাগ ছবির ঠিক সেই জায়গাতেই বসে, আর জমা হওয়ার
+     *    লেখা এক অক্ষরও বদলায় না।
+     */
+    var fillScreen: Boolean = false
+    var allowZoom: Boolean = false
+
+    private var zoom = 1f
+    private var panX = 0f
+    private var panY = 0f
+    private var twoFinger = false
+    private var lastMidX = 0f
+    private var lastMidY = 0f
+
+    fun resetZoom() { zoom = 1f; panX = 0f; panY = 0f; invalidate() }
+
+    /** ➕ / ➖ বোতাম — যাঁরা দু'আঙুল ব্যবহার করতে চান না তাঁদের জন্য। */
+    fun zoomBy(k: Float) {
+        if (!allowZoom) return
+        zoom = (zoom * k).coerceIn(1f, 6f)
+        if (zoom <= 1.001f) { panX = 0f; panY = 0f }
+        clampPan(); invalidate()
+    }
+
+    private val scaleDetector = android.view.ScaleGestureDetector(context,
+        object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScale(d: android.view.ScaleGestureDetector): Boolean {
+                if (!allowZoom) return false
+                zoom = (zoom * d.scaleFactor).coerceIn(1f, 6f)
+                if (zoom <= 1.001f) { panX = 0f; panY = 0f }
+                clampPan(); invalidate(); return true
+            }
+        })
+
+    /** দু'বার ছুঁলে আগের মাপে ফিরে যায় — হারিয়ে যাওয়ার ভয় থাকে না। */
+    private val tapDetector = android.view.GestureDetector(context,
+        object : android.view.GestureDetector.SimpleOnGestureListener() {
+            override fun onDoubleTap(e: MotionEvent): Boolean {
+                if (!allowZoom) return false
+                resetZoom(); return true
+            }
+        })
+
+    /** ছবিটা যেন পর্দা ছেড়ে বেরিয়ে না যায়। */
+    private fun clampPan() {
+        val b = base ?: return
+        val vw = width.toFloat(); val vh = height.toFloat()
+        if (vw <= 0f || vh <= 0f) return
+        val sc = baseScale(b, vw, vh) * zoom
+        val w = b.width * sc; val h = b.height * sc
+        val ox = Math.max(0f, (w - vw) / 2f)
+        val oy = Math.max(0f, (h - vh) / 2f)
+        panX = panX.coerceIn(-ox, ox)
+        panY = panY.coerceIn(-oy, oy)
+    }
+
+    private fun baseScale(img: Bitmap, vw: Float, vh: Float): Float =
+        if (fillScreen) Math.max(vw / img.width, vh / img.height)
+        else Math.min(vw / img.width, vh / img.height)
+
+    /** দু'আঙুল শুরু হলে চলতি আঁকাটা বাতিল — নইলে জুম করতে গিয়ে দাগ পড়ে যেত। */
+    private fun cancelDraw() {
+        val s = startPct
+        if (s != null && marks.isNotEmpty()) {
+            val last = marks[marks.size - 1]
+            val sameStart = last.x == s[0].toDouble() && last.y == s[1].toDouble()
+            val undoable = (tool == Tool.RING && last.kind == AnatomyModel.KIND_RING) ||
+                           (tool == Tool.ARROW && last.kind == AnatomyModel.KIND_ARROW) ||
+                           (tool == Tool.BULGE && last.kind == AnatomyModel.KIND_BULGE && sameStart)
+            if (undoable) { marks.removeAt(marks.size - 1); dirty = true }
+        }
+        startPct = null
+        livePts.clear()
+    }
+
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val path = Path()
 
@@ -117,6 +200,41 @@ class AnatomyView(context: Context) : View(context) {
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (base == null) return false
+
+        /* 🔵 V569 — দু'আঙুল হলে ছোট-বড় ও সরানো; তখন কিছু আঁকা হয় না।
+           এক আঙুল হলে হুবহু আগের নিয়মে আঁকা হয়। */
+        if (allowZoom) {
+            scaleDetector.onTouchEvent(event)
+            tapDetector.onTouchEvent(event)
+            when (event.actionMasked) {
+                MotionEvent.ACTION_POINTER_DOWN -> {
+                    cancelDraw(); twoFinger = true
+                    lastMidX = midX(event); lastMidY = midY(event)
+                    invalidate(); return true
+                }
+                MotionEvent.ACTION_POINTER_UP -> {
+                    if (event.pointerCount <= 2) { twoFinger = false; startPct = null }
+                    return true
+                }
+            }
+            if (twoFinger) {
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_MOVE -> {
+                        if (!scaleDetector.isInProgress || event.pointerCount >= 2) {
+                            val mx = midX(event); val my = midY(event)
+                            panX += mx - lastMidX; panY += my - lastMidY
+                            lastMidX = mx; lastMidY = my
+                            clampPan(); invalidate()
+                        }
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        twoFinger = false; startPct = null
+                    }
+                }
+                return true
+            }
+        }
+
         val p = toPercent(event.x, event.y) ?: return false
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -198,6 +316,11 @@ class AnatomyView(context: Context) : View(context) {
         return super.onTouchEvent(event)
     }
 
+    private fun midX(e: MotionEvent): Float =
+        if (e.pointerCount >= 2) (e.getX(0) + e.getX(1)) / 2f else e.x
+    private fun midY(e: MotionEvent): Float =
+        if (e.pointerCount >= 2) (e.getY(0) + e.getY(1)) / 2f else e.y
+
     /** ছোঁয়ার জায়গার সবচেয়ে কাছের দাগটা মোছে। */
     private fun eraseNear(x: Double, y: Double) {
         var best = -1; var bestD = 6.0
@@ -242,11 +365,14 @@ class AnatomyView(context: Context) : View(context) {
         if (dirty || shown == null) { rebuild(); dirty = false }
         val img = shown ?: b
 
-        // ছবিটা পর্দার ভিতরে পুরোটা দেখা যায় এমনভাবে বসানো
+        /* ছোট বোর্ডে ছবিটা পুরোটা ভিতরে ধরানো হয়। পুরো পর্দায় (V569) ছবিটা
+           গোটা পর্দা **ভরে** বসে, তার উপরে ডাক্তারের জুম ও সরানো। */
         val vw = width.toFloat(); val vh = height.toFloat()
-        val sc = Math.min(vw / img.width, vh / img.height)
+        val sc = baseScale(img, vw, vh) * (if (allowZoom) zoom else 1f)
         val w = img.width * sc; val h = img.height * sc
-        dst.set((vw - w) / 2f, (vh - h) / 2f, (vw - w) / 2f + w, (vh - h) / 2f + h)
+        val left = (vw - w) / 2f + (if (allowZoom) panX else 0f)
+        val top = (vh - h) / 2f + (if (allowZoom) panY else 0f)
+        dst.set(left, top, left + w, top + h)
         canvas.drawBitmap(img, null, dst, null)
 
         drawMarks(canvas)

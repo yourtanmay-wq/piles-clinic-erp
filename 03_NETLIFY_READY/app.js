@@ -7662,6 +7662,7 @@ function wlv1AnatBoxHtml(note,pid){
 
 function wlv1AnatPick(k){
   if(wlv1AnatState.pic===k)return;
+  wlv1AnatZoomReset();
   wlv1AnatState.pic=k;
   wlv1AnatState.marks=[];              /* এক ছবির দাগ অন্য ছবিতে বসলে ভুল হত */
   try{$$('.wlv1AnatTh').forEach(function(el){el.classList.toggle('on',el.getAttribute('data-k')===k)})}catch(_e){}
@@ -7691,6 +7692,17 @@ function wlv1AnatClear(){
    তাই পুরো পর্দায় আঁকলে ছোট পর্দাতেও সেটা থাকে, আর সেভও একই ভাবে হয়। */
 function wlv1AnatCv(){ return $('#dnAnatFullCanvas')||$('#dnAnatCanvas') }
 
+/* 🔵🔒 V569 (২২.০৮.২০২৬, TK-নির্দেশ) — *"যে ফটোটা আমি সিলেক্ট করব সেটা যেন
+   সম্পূর্ণ স্ক্রিন জুড়ে আসে ... ফটো সাইজ আরো বড় হবে ... বড় করে জুম করে"*।
+   আগে ছবিটা পর্দার **ভিতরে পুরোটা** বসানো হত, তাই চওড়া ছবিতে উপরে-নিচে
+   বড় কালো ফাঁক থাকত। এখন পুরো পর্দায় ছবিটা **গোটা পর্দা ভরে** বসে, আর
+   দু'আঙুলে (বা মাউসের চাকায়) ছোট-বড় করা ও সরানো যায়।
+   ⛔ দাগ জমা থাকে ছবির **শতকরা** হিসেবেই — তাই জুম করলে দাগও ছবির সাথে
+      ঠিক জায়গাতেই থাকে, জমা হওয়ার লেখা এক অক্ষরও বদলায় না। */
+var wlv1AnatRect={x:0,y:0,w:0,h:0};          // ছবিটা এখন পর্দার কোথায়, কত বড়
+var wlv1AnatZoom={sc:1,tx:0,ty:0};           // ব্যবহারকারীর জুম ও সরানো
+function wlv1AnatZoomReset(){ wlv1AnatZoom={sc:1,tx:0,ty:0} }
+
 /* ছবিটা একবারই নামানো হয়, বারবার নয় — নইলে প্রতিবার আঁকায় ঝিমিয়ে যেত। */
 var wlv1AnatImg=null,wlv1AnatImgKey='';
 function wlv1AnatRedraw(){
@@ -7717,21 +7729,36 @@ function wlv1AnatPaint(){
      ছবি পুরোটা ধরানো হয়)। */
   var w,h;
   if(cv.id==='dnAnatFullCanvas'){
-    /* 🔵 V567 — পুরো পর্দা: ছবিটা যতটা বড় করা যায় ততটাই, তবে দুই দিকেই
-       জানলার ভিতরে থাকবে (কাটা যাবে না)। নিচে বোতামের জন্য একটু জায়গা ছাড়া। */
-    /* বোতামের সারিটা খোলা থাকলে ততটা জায়গা ছেড়ে দেওয়া হয়, নইলে ছবির
-       নিচের দিকটা বোতামের পিছনে ঢাকা পড়ত। সারিটা লুকোনো থাকলে (🧰) ছবিটা
-       গোটা পর্দা জুড়েই বসে — রোগীকে দেখানোর জন্য এটাই দরকার। */
+    /* পুরো পর্দা: পর্দাটাই ক্যানভাস, ছবিটা তার ভিতরে **ভরে** বসে (কভার),
+       তার উপরে ব্যবহারকারীর জুম ও সরানো। বোতামের সারি খোলা থাকলে ততটা
+       জায়গা ছেড়ে দেওয়া হয়, নইলে ছবির নিচটা ঢাকা পড়ত। */
     var bar=$('#dnAnatFullBar');
     var barH=(bar&&bar.style.display!=='none')?(bar.offsetHeight||0):0;
-    /* ছবিটা বোতামের সারির **উপরের** জায়গাটুকুর ঠিক মাঝখানে বসে — নইলে গোটা
-       পর্দার মাঝে বসত আর নিচের দিকটা সারির পিছনে ঢাকা পড়ত। */
-    try{ var back=$('#dnAnatFullBack'); if(back)back.style.paddingBottom=barH+'px' }catch(_e){}
-    var vw=Math.max(200,(window.innerWidth||600)-16);
-    var vh=Math.max(200,(window.innerHeight||600)-barH-16);
-    var sc=Math.min(vw/im.width,vh/im.height);
-    w=Math.round(im.width*sc); h=Math.round(im.height*sc);
-  }else{
+    try{ var back=$('#dnAnatFullBack'); if(back)back.style.paddingBottom='0px' }catch(_e){}
+    w=Math.max(200,window.innerWidth||600);
+    h=Math.max(200,(window.innerHeight||600)-barH);
+    /* 🔵 V569 — ফোনের আসল রেজোলিউশনে আঁকা হয় (আগে CSS-পিক্সেলে আঁকা হত,
+       তাই বড় পর্দায় ছবিটা **ঝাপসা** দেখাত)। TK: *"প্রফেশনাল ভাবে তৈরি করুন
+       যাতে দেখতে ভালো লাগে"*। ⛔ ছোঁয়ার হিসাব `wlv1AnatXY()` নিজেই
+       ক্যানভাস-ও-পর্দার অনুপাত ধরে করে, তাই দাগ ঠিক জায়গাতেই পড়ে। */
+    var dpr=Math.max(1,Math.min(3,window.devicePixelRatio||1));
+    var pw=Math.round(w*dpr), ph=Math.round(h*dpr);
+    if(cv.width!==pw||cv.height!==ph){cv.width=pw;cv.height=ph}
+    cv.style.width=w+'px'; cv.style.height=h+'px';
+    w=pw; h=ph;
+    var cover=Math.max(w/im.width,h/im.height)*(wlv1AnatZoom.sc||1);
+    var rw=im.width*cover, rh=im.height*cover;
+    var rx=(w-rw)/2+(wlv1AnatZoom.tx||0), ry=(h-rh)/2+(wlv1AnatZoom.ty||0);
+    wlv1AnatRect={x:rx,y:ry,w:rw,h:rh};
+    var ctxF=cv.getContext('2d');
+    ctxF.clearRect(0,0,w,h);
+    ctxF.drawImage(im,rx,ry,rw,rh);
+    ctxF.save(); ctxF.translate(rx,ry);
+    AnatomyMark.draw(ctxF,rw,rh,wlv1AnatState.marks,wlv1AnatScale());
+    ctxF.restore();
+    return;
+  }
+  {
     /* লম্বালম্বি ছবি পুরো চওড়ায় বসালে পর্দা জুড়ে বিশাল হয়ে যেত, নিচের
        বোতামগুলো দেখতে অনেক নিচে নামতে হত। তাই উচ্চতা ৪২০-এ বাঁধা,
        ছবিটা তখন মাঝখানে ছোট হয়ে বসে। ফোনেও ঠিক এই কাজটাই হয় (৩০০dp ঘরে
@@ -7742,7 +7769,8 @@ function wlv1AnatPaint(){
     if(h>maxH){ w=Math.round(w*maxH/h); h=maxH }
   }
   if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h}
-  cv.style.width=w+'px';
+  cv.style.width=w+'px'; cv.style.height='';
+  wlv1AnatRect={x:0,y:0,w:w,h:h};
   var ctx=cv.getContext('2d');
   ctx.clearRect(0,0,w,h);
   ctx.drawImage(im,0,0,w,h);
@@ -7760,7 +7788,14 @@ function wlv1AnatXY(ev){
   var cv=wlv1AnatCv(); if(!cv)return null;
   var r=cv.getBoundingClientRect();
   var t=(ev.touches&&ev.touches[0])||(ev.changedTouches&&ev.changedTouches[0])||ev;
-  var x=(t.clientX-r.left)/r.width*100, y=(t.clientY-r.top)/r.height*100;
+  /* 🔵 V569 — ছোঁয়ার জায়গাটা **ছবির** শতকরায় বদলানো হয় (ক্যানভাসের নয়)।
+     জুম করলে বা সরালে ছবিটা ক্যানভাসের ভিতরে অন্য জায়গায় থাকে, তাই এটা
+     না করলে দাগ ভুল জায়গায় পড়ত। */
+  var sx=cv.width/(r.width||1), sy=cv.height/(r.height||1);
+  var cxp=(t.clientX-r.left)*sx, cyp=(t.clientY-r.top)*sy;
+  var R=wlv1AnatRect;
+  if(!R||!R.w||!R.h)return null;
+  var x=(cxp-R.x)/R.w*100, y=(cyp-R.y)/R.h*100;
   if(x<0||x>100||y<0||y>100)return null;
   return [x,y];
 }
@@ -7793,8 +7828,12 @@ function wlv1AnatMove(ev){
   }else if(t==='erase'){ wlv1AnatErase(p) }
   wlv1AnatPaint();
   if(s.tool==='tract'&&s.live.length>1){
-    var cv=wlv1AnatCv();
-    if(cv)AnatomyMark.draw(cv.getContext('2d'),cv.width,cv.height,[{kind:'tract',pts:s.live}],wlv1AnatScale());
+    var cv=wlv1AnatCv(), R=wlv1AnatRect;
+    if(cv&&R&&R.w){
+      var c2=cv.getContext('2d'); c2.save(); c2.translate(R.x,R.y);
+      AnatomyMark.draw(c2,R.w,R.h,[{kind:'tract',pts:s.live}],wlv1AnatScale());
+      c2.restore();
+    }
   }
 }
 function wlv1AnatUp(ev){
@@ -7839,9 +7878,72 @@ function wlv1AnatWire(cv){
   cv.addEventListener('mousedown',wlv1AnatDown);
   cv.addEventListener('mousemove',wlv1AnatMove);
   window.addEventListener('mouseup',wlv1AnatUp);
-  cv.addEventListener('touchstart',wlv1AnatDown,{passive:false});
-  cv.addEventListener('touchmove',wlv1AnatMove,{passive:false});
-  cv.addEventListener('touchend',wlv1AnatUp);
+  cv.addEventListener('touchstart',wlv1AnatTouchStart,{passive:false});
+  cv.addEventListener('touchmove',wlv1AnatTouchMove,{passive:false});
+  cv.addEventListener('touchend',wlv1AnatTouchEnd);
+  cv.addEventListener('touchcancel',wlv1AnatTouchEnd);
+  cv.addEventListener('wheel',wlv1AnatWheel,{passive:false});
+  cv.addEventListener('dblclick',function(){ wlv1AnatZoomReset(); wlv1AnatPaint() });
+}
+
+/* 🔵🔒 V569 — **দু'আঙুলে ছোট-বড় ও সরানো** (শুধু পুরো পর্দায়)।
+   এক আঙুল = আগের মতোই আঁকা। দুই আঙুল = জুম ও সরানো, তখন কিছু আঁকা হয় না।
+   দু'বার ছুঁলে আগের মাপে ফিরে যায়। ⛔ দাগের হিসাব ছবির শতকরাতেই থাকে। */
+var wlv1AnatPinch=null;
+function wlv1AnatIsFull(){ return !!$('#dnAnatFullCanvas') }
+function wlv1AnatTouchDist(t){
+  var dx=t[0].clientX-t[1].clientX, dy=t[0].clientY-t[1].clientY;
+  return Math.sqrt(dx*dx+dy*dy);
+}
+function wlv1AnatTouchMid(t){
+  return [(t[0].clientX+t[1].clientX)/2,(t[0].clientY+t[1].clientY)/2];
+}
+function wlv1AnatTouchStart(ev){
+  if(wlv1AnatIsFull()&&ev.touches&&ev.touches.length>=2){
+    ev.preventDefault();
+    wlv1AnatState.down=null; wlv1AnatState.live=[];
+    wlv1AnatPinch={d:wlv1AnatTouchDist(ev.touches),m:wlv1AnatTouchMid(ev.touches),
+                   sc:wlv1AnatZoom.sc,tx:wlv1AnatZoom.tx,ty:wlv1AnatZoom.ty};
+    return;
+  }
+  wlv1AnatDown(ev);
+}
+function wlv1AnatTouchMove(ev){
+  if(wlv1AnatPinch&&ev.touches&&ev.touches.length>=2){
+    ev.preventDefault();
+    var d=wlv1AnatTouchDist(ev.touches), m=wlv1AnatTouchMid(ev.touches);
+    var k=(wlv1AnatPinch.d>0)?(d/wlv1AnatPinch.d):1;
+    wlv1AnatZoom.sc=Math.max(1,Math.min(6,wlv1AnatPinch.sc*k));
+    wlv1AnatZoom.tx=wlv1AnatPinch.tx+(m[0]-wlv1AnatPinch.m[0]);
+    wlv1AnatZoom.ty=wlv1AnatPinch.ty+(m[1]-wlv1AnatPinch.m[1]);
+    wlv1AnatClampZoom(); wlv1AnatPaint();
+    return;
+  }
+  wlv1AnatMove(ev);
+}
+function wlv1AnatTouchEnd(ev){
+  if(wlv1AnatPinch){
+    if(!ev.touches||ev.touches.length<2){ wlv1AnatPinch=null; wlv1AnatState.down=null; wlv1AnatState.live=[] }
+    return;
+  }
+  wlv1AnatUp(ev);
+}
+/* মাউসের চাকা — কম্পিউটারে ছোট-বড় করার জন্য */
+function wlv1AnatWheel(ev){
+  if(!wlv1AnatIsFull())return;
+  ev.preventDefault();
+  var k=(ev.deltaY<0)?1.12:(1/1.12);
+  wlv1AnatZoom.sc=Math.max(1,Math.min(6,(wlv1AnatZoom.sc||1)*k));
+  wlv1AnatClampZoom(); wlv1AnatPaint();
+}
+/* ছবিটা যেন পর্দা ছেড়ে বেরিয়ে না যায় — সরানোর সীমা বেঁধে দেওয়া */
+function wlv1AnatClampZoom(){
+  var cv=$('#dnAnatFullCanvas'); if(!cv)return;
+  var R=wlv1AnatRect; if(!R||!R.w)return;
+  var over=function(rw,cw){ return Math.max(0,(rw-cw)/2) };
+  var ow=over(R.w,cv.width), oh=over(R.h,cv.height);
+  wlv1AnatZoom.tx=Math.max(-ow,Math.min(ow,wlv1AnatZoom.tx||0));
+  wlv1AnatZoom.ty=Math.max(-oh,Math.min(oh,wlv1AnatZoom.ty||0));
 }
 
 /* 🔵🔒 V567 (২২.০৮.২০২৬, TK-নির্দেশ) — *"ফটোটা যখন আমি পেসেন্টকে দেখাবো
@@ -7855,6 +7957,7 @@ function wlv1AnatWire(cv){
 function wlv1AnatFull(){
   if(!wlv1AnatState.pic){ try{toast('আগে উপরের সারি থেকে একটা ছবি বাছুন')}catch(_e){} return }
   if($('#dnAnatFullBack'))return;
+  wlv1AnatZoomReset();
   var tools=[['bulge','✋ ফোলান'],['pile','📍 চিহ্ন'],['tract','〰️ নালী'],
              ['ring','⭕ গোল'],['arrow','➡️ তীর'],['erase','🩹 মুছুন']].map(function(t){
     return '<button type="button" class="wlv1AnatTool'+(wlv1AnatState.tool===t[0]?' on':'')+'" '
@@ -7864,6 +7967,8 @@ function wlv1AnatFull(){
   back.id='dnAnatFullBack'; back.className='wlv1AnatFullBack';
   back.innerHTML=
      '<div class="wlv1AnatFullTop">'
+    +'<button type="button" class="wlv1AnatFullBtn" title="ছোট করুন" onclick="wlv1AnatZoomBy(1/1.35)">➖</button>'
+    +'<button type="button" class="wlv1AnatFullBtn" title="বড় করুন" onclick="wlv1AnatZoomBy(1.35)">➕</button>'
     +'<button type="button" class="wlv1AnatFullBtn" title="বোতাম লুকান / দেখান" onclick="wlv1AnatFullBar()">🧰</button>'
     +'<button type="button" class="wlv1AnatFullBtn" title="বন্ধ করুন" onclick="wlv1AnatFullClose()">✕</button>'
     +'</div>'
@@ -7879,6 +7984,13 @@ function wlv1AnatFull(){
   wlv1AnatRedraw();
 }
 function wlv1AnatFullResize(){ if($('#dnAnatFullCanvas'))wlv1AnatPaint() }
+/* বোতাম দিয়ে ছোট-বড় — যাঁরা দু'আঙুল ব্যবহার করতে চান না তাঁদের জন্য */
+function wlv1AnatZoomBy(k){
+  if(!$('#dnAnatFullCanvas'))return;
+  wlv1AnatZoom.sc=Math.max(1,Math.min(6,(wlv1AnatZoom.sc||1)*k));
+  if(wlv1AnatZoom.sc<=1.001){ wlv1AnatZoom.tx=0; wlv1AnatZoom.ty=0 }
+  wlv1AnatPaint(); wlv1AnatClampZoom(); wlv1AnatPaint();
+}
 try{document.addEventListener('keydown',function(e){
   if((e.key==='Escape'||e.keyCode===27)&&document.getElementById('dnAnatFullBack'))wlv1AnatFullClose();
 })}catch(_e){}
@@ -7892,6 +8004,7 @@ function wlv1AnatFullClose(){
   var back=$('#dnAnatFullBack'); if(!back)return;
   try{back.parentNode.removeChild(back)}catch(_e){}
   document.body.classList.remove('wlv1AnatFullOpen');
+  wlv1AnatZoomReset();
   window.removeEventListener('resize',wlv1AnatFullResize);
   /* ছোট পর্দায় ফিরে গিয়ে সেই একই দাগগুলোই আবার আঁকা হয় */
   wlv1AnatRedraw();
@@ -7908,6 +8021,7 @@ window["wlv1AnatReadable"]=wlv1AnatReadable;window["wlv1AnatBoxHtml"]=wlv1AnatBo
 window["dnWireV558"]=dnWireV558;window["wlv1AnatLabelOf"]=wlv1AnatLabelOf;window["wlv1AnatScale"]=wlv1AnatScale;
 /* 🔵 V567 — পুরো-পর্দার বোতামগুলো HTML থেকে ডাকা হয়, তাই এগুলোও বাইরে রাখতে হবে */
 window["wlv1AnatFull"]=wlv1AnatFull;window["wlv1AnatFullClose"]=wlv1AnatFullClose;window["wlv1AnatFullBar"]=wlv1AnatFullBar;
+window["wlv1AnatZoomBy"]=wlv1AnatZoomBy;
 
 window["wlv1DiseaseChanged"]=wlv1DiseaseChanged;window["wlv1ShouldNotifyCost"]=wlv1ShouldNotifyCost;
 window["wlv1CostMessage"]=wlv1CostMessage;window["wlv1TimeAsked"]=wlv1TimeAsked;
