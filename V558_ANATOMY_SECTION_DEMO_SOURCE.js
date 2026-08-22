@@ -35,16 +35,44 @@
   function INT_T(h) { return 0.20 + 0.44 * Math.exp(-Math.pow((h - 1.0) / 1.9, 2)); }
   function EXT_T(h) { return INT_T(h) + 0.90 * Math.exp(-Math.pow((h - 0.75) / 1.35, 2)); }
 
-  var C_FAT   = '#EFDCB2', C_FAT2 = '#E3CB9C';
-  var C_SKIN  = '#B0785C', C_MUSC = '#B0554F', C_MUSC2 = '#8E3C3A';
-  var C_MUCO  = '#B75C6A', C_ANOD = '#D7A79A', C_LUMEN = '#3A1A20';
-  var C_PILE  = '#9B2F4A', C_DENT = '#E4C98E';
+  /* ---- রঙের ধরন ----
+     TK বললেন ছবিটা "ভয়ানক" দেখাচ্ছে — রক্ত-মাংসের মত। তাই তিন রকম রং:
+     real = বাস্তবের মত · soft = নরম, ভয় লাগে না · line = সাদামাটা নকশা   */
+  var PALETTES = {
+    real: { fat:'#EFDCB2', fat2:'#E3CB9C', skin:'#B0785C', musc:'#B0554F', musc2:'#8E3C3A',
+            extA:'#C4635A', extB:'#9E4744', muco:'#B75C6A', anod:'#D7A79A', lumen:'#3A1A20',
+            pile:'#9B2F4A', pileHi:'#C4506B', pileLine:'#7C1F38', dent:'#B07A22',
+            bg1:'#FBF6EE', bg2:'#F2E9DC', fiber:'rgba(255,255,255,0.30)', outline:0 },
+    soft: { fat:'#F6EDDC', fat2:'#EADFC6', skin:'#C89B80', musc:'#E0A9A2', musc2:'#CE9089',
+            extA:'#E7B4AB', extB:'#D2988F', muco:'#DFA3AC', anod:'#EBCDC4', lumen:'#7C6068',
+            pile:'#CE8298', pileHi:'#E2A5B4', pileLine:'#A96A7C', dent:'#C0983F',
+            bg1:'#FDFAF5', bg2:'#F7F1E7', fiber:'rgba(255,255,255,0.42)', outline:0 },
+    line: { fat:'#FFFFFF', fat2:'#EFE7D8', skin:'#8A6B58', musc:'#FAEDEA', musc2:'#F2DFDA',
+            extA:'#FBF1EE', extB:'#F3E2DD', muco:'#FCEFF1', anod:'#FDF6F3', lumen:'#EFE9E3',
+            pile:'#F7E2E8', pileHi:'#FDF2F5', pileLine:'#A45C71', dent:'#B08C3A',
+            bg1:'#FFFFFF', bg2:'#FBFAF7', fiber:'rgba(160,120,110,0.35)', outline:1 }
+  };
+  var C_FAT, C_FAT2, C_SKIN, C_MUSC, C_MUSC2, C_EXTA, C_EXTB,
+      C_MUCO, C_ANOD, C_LUMEN, C_PILE, C_PILEHI, C_PILELINE, C_DENT, C_FIBER, OUTLINE, BG1, BG2;
+  function applyStyle(st) {
+    var q = PALETTES[st.style] || PALETTES.soft;
+    C_FAT = q.fat; C_FAT2 = q.fat2; C_SKIN = q.skin; C_MUSC = q.musc; C_MUSC2 = q.musc2;
+    C_EXTA = q.extA; C_EXTB = q.extB; C_MUCO = q.muco; C_ANOD = q.anod; C_LUMEN = q.lumen;
+    C_PILE = q.pile; C_PILEHI = q.pileHi; C_PILELINE = q.pileLine; C_DENT = q.dent;
+    C_FIBER = q.fiber; OUTLINE = q.outline; BG1 = q.bg1; BG2 = q.bg2;
+  }
+  // নকশার ধরনে সব কিছুর চারপাশে সরু কালো দাগ পড়ে
+  function edge(ctx, col, w) {
+    if (!OUTLINE) return;
+    ctx.strokeStyle = col || 'rgba(90,64,48,0.65)'; ctx.lineWidth = w || 1.4; ctx.stroke();
+  }
 
   function render(ctx, W, H, st) {
+    applyStyle(st);
     var piles = st.piles || [], cx = W * 0.5, cy = H * 0.86;
     ctx.clearRect(0, 0, W, H);
     var g = ctx.createLinearGradient(0, 0, 0, H);
-    g.addColorStop(0, '#FBF6EE'); g.addColorStop(1, '#F2E9DC');
+    g.addColorStop(0, BG1); g.addColorStop(1, BG2);
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
 
     /* ---- চর্বি ও শরীরের মাংস ---- */
@@ -55,7 +83,7 @@
     ctx.quadraticCurveTo(cx + 3.9 * CM, cy - 1.2 * CM, cx + 2.5 * CM, cy + 0.35 * CM);
     ctx.quadraticCurveTo(cx, cy + 0.95 * CM, cx - 2.5 * CM, cy + 0.35 * CM);
     ctx.quadraticCurveTo(cx - 3.9 * CM, cy - 1.2 * CM, cx - 3.7 * CM, cy - 5.3 * CM);
-    ctx.closePath(); ctx.fill();
+    ctx.closePath(); ctx.fill(); edge(ctx);
     ctx.strokeStyle = C_FAT2; ctx.lineWidth = 1;
     for (var i = 0; i < 26; i++) {                       // চর্বির দানা
       var ax = cx + (((i * 37) % 70) / 70 - 0.5) * 7 * CM;
@@ -82,7 +110,7 @@
       ctx.closePath();
       var lg = ctx.createLinearGradient(cx, 0, cx + side * 2.4 * CM, 0);
       lg.addColorStop(0, C_MUSC); lg.addColorStop(1, C_MUSC2);
-      ctx.fillStyle = lg; ctx.fill();
+      ctx.fillStyle = lg; ctx.fill(); edge(ctx);
     });
     /* ---- বাইরের গোল পেশি (external sphincter) — মাংসের বলয়, আঁশের দাগ সহ ---- */
     [-1, 1].forEach(function (side) {
@@ -92,10 +120,10 @@
       wallPath(ctx, cx, cy, piles, side, EXT_T, true, 0, 2.9);
       ctx.closePath();
       var lg2 = ctx.createLinearGradient(cx + side * 0.6 * CM, 0, cx + side * 2.2 * CM, 0);
-      lg2.addColorStop(0, '#C4635A'); lg2.addColorStop(1, '#9E4744');
-      ctx.fillStyle = lg2; ctx.fill();
+      lg2.addColorStop(0, C_EXTA); lg2.addColorStop(1, C_EXTB);
+      ctx.fillStyle = lg2; ctx.fill(); edge(ctx);
       ctx.clip();
-      ctx.strokeStyle = 'rgba(255,255,255,0.30)'; ctx.lineWidth = 1.4;   // মাংসের আঁশ
+      ctx.strokeStyle = C_FIBER; ctx.lineWidth = 1.4;   // মাংসের আঁশ
       for (var k = 0; k < 16; k++) {
         var yy = cy - k * 0.18 * CM;
         ctx.beginPath();
@@ -111,7 +139,7 @@
     wallPath(ctx, cx, cy, piles, -1, 0);
     wallPath(ctx, cx, cy, piles, 1, 0, true);
     ctx.closePath();
-    ctx.fillStyle = C_LUMEN; ctx.fill();
+    ctx.fillStyle = C_LUMEN; ctx.fill(); edge(ctx, 'rgba(120,80,70,0.7)', 1.6);
 
     /* ---- নালীর গায়ের পর্দা: নিচে ফ্যাকাশে, উপরে লাল ---- */
     [-1, 1].forEach(function (side) {
@@ -147,11 +175,11 @@
       ctx.closePath();
       var cc = px(ctx, cx, cy, side * halfWidth(p.hcm, piles, side), p.hcm);
       var rg = ctx.createRadialGradient(cc[0] + side * 4, cc[1] - 6, 2, cc[0], cc[1], (0.35 + p.size) * CM);
-      rg.addColorStop(0, '#C4506B'); rg.addColorStop(1, C_PILE);
+      rg.addColorStop(0, C_PILEHI); rg.addColorStop(1, C_PILE);
       ctx.fillStyle = rg; ctx.fill();
-      ctx.strokeStyle = '#7C1F38'; ctx.lineWidth = 1.4; ctx.stroke();
+      ctx.strokeStyle = C_PILELINE; ctx.lineWidth = 1.4; ctx.stroke();
       var tx = cx + side * 3.05 * CM;
-      ctx.strokeStyle = 'rgba(124,31,56,0.55)'; ctx.lineWidth = 1.2;
+      ctx.strokeStyle = C_PILELINE; ctx.lineWidth = 1.1;
       ctx.beginPath(); ctx.moveTo(cc[0], cc[1]); ctx.lineTo(tx, cc[1]); ctx.stroke();
       tag(ctx, tx, cc[1], clockText(p.a) + 'টা');
     });
@@ -163,17 +191,17 @@
       var c = px(ctx, cx, cy, side * (w + 0.30 + p.size * 0.32), hh);
       ctx.beginPath();
       ctx.ellipse(c[0], c[1], (0.20 + p.size * 0.40) * CM, (0.12 + p.size * 0.20) * CM, side * 0.35, 0, 6.3);
-      ctx.fillStyle = '#7E3350'; ctx.fill();
-      ctx.strokeStyle = '#551F35'; ctx.lineWidth = 1.4; ctx.stroke();
+      ctx.fillStyle = C_PILE; ctx.fill();
+      ctx.strokeStyle = C_PILELINE; ctx.lineWidth = 1.4; ctx.stroke();
       var tx2 = cx + side * 3.05 * CM;
-      ctx.strokeStyle = 'rgba(85,31,53,0.55)'; ctx.lineWidth = 1.2;
+      ctx.strokeStyle = C_PILELINE; ctx.lineWidth = 1.1;
       ctx.beginPath(); ctx.moveTo(c[0] + side * 0.3 * CM, c[1]); ctx.lineTo(tx2, c[1]); ctx.stroke();
       tag(ctx, tx2, c[1], clockText(p.a) + 'টা');
     });
 
     /* ---- দাঁতের রেখা ---- */
     var dl = px(ctx, cx, cy, 0, DENTATE_CM);
-    ctx.save(); ctx.setLineDash([7, 5]); ctx.strokeStyle = '#B07A22'; ctx.lineWidth = 2;
+    ctx.save(); ctx.setLineDash([7, 5]); ctx.strokeStyle = C_DENT; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(cx - 3.0 * CM, dl[1]); ctx.lineTo(cx + 3.0 * CM, dl[1]); ctx.stroke();
     ctx.restore();
     label(ctx, cx - 3.62 * CM, dl[1] - 12, 'দাঁতের রেখা · ২ সেমি', '#8A5A12', 'left');
@@ -213,7 +241,7 @@
     scaleBar(ctx, W - 58, cy, cy - CANAL_CM * CM);
     label(ctx, cx, cy + 0.92 * CM, 'পায়ুদ্বার (বাইরের মুখ)', '#5A4030', 'center');
     label(ctx, cx, cy - (TOP_CM + 0.42) * CM, 'মলাশয় (উপরের দিকে)', '#5A4030', 'center');
-    label(ctx, cx - 3.62 * CM, cy - 0.95 * CM, 'গোল মাংসপেশি', '#8E3C3A', 'left');
+    label(ctx, cx - 3.62 * CM, cy - 0.95 * CM, 'গোল মাংসপেশি', C_PILELINE, 'left');
   }
 
   // নালীর এক পাশের দেওয়াল
@@ -251,8 +279,8 @@
     ctx.font = '700 12px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.beginPath(); ctx.arc(x, y, 13, 0, 6.3);
     ctx.fillStyle = 'rgba(255,255,255,0.94)'; ctx.fill();
-    ctx.strokeStyle = '#7C1F38'; ctx.lineWidth = 1.4; ctx.stroke();
-    ctx.fillStyle = '#7C1F38'; ctx.fillText(txt, x, y);
+    ctx.strokeStyle = C_PILELINE; ctx.lineWidth = 1.4; ctx.stroke();
+    ctx.fillStyle = C_PILELINE; ctx.fillText(txt, x, y);
   }
   function scaleBar(ctx, x, y0, y1) {
     ctx.strokeStyle = '#6A5A48'; ctx.lineWidth = 2;
