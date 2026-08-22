@@ -7116,6 +7116,7 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
  <details open class="card"><summary><b>1. History &amp; Previous Treatment · বর্তমান রোগের ইতিহাস ও পূর্ববর্তী চিকিৎসার বিবরণ</b></summary>
   <label>Chief Complaint · প্রধান সমস্যা</label><textarea id="dnComplaint">${esc(complaint)}</textarea>
   <label>Duration · কতদিন থেকে</label><input id="dnDuration" class="input" value="${esc(duration)}">
+  ${wlv1SymBoxHtml(note,p)}
   <!-- 🖥️🔵 V547 (ফোনের V540 ওয়েবেও): TK-নির্দেশ *"occupation এটা ফর্ম থেকে সরিয়ে
        উপরে যেখানে পেশেন্টের বয়স Male - 55 তার পাশে রাখুন"*। ঘরটা **মোছা হয়নি** —
        শুধু ফর্ম থেকে সরানো; উপরের লাইনে চাপ দিলেই এই তালিকাটাই খোলে, তাই
@@ -7182,6 +7183,115 @@ window["doctorCheck"]=doctorCheck;
    (`refBy` · `refDoctor`), তাই নতুন কোনো ঘর/কলাম বা SQL লাগেনি।
    ⛔ কিছু না থাকলে লাইনটাই বসে না — পুরোনো রোগীর কার্ড আগের মতোই।
    ⛔ উপরের কোনো লেখা সরানো হয়নি, এটা নতুন একটা লাইন। */
+/* 🖥️🔵🔒 V554 (২২.০৮.২০২৬) — কাগজের *"রোগী এসে প্রথমে কি কি সমস্যার কথা বললেন?"*
+   ফোনের `SymptomHistoryModel`-এর হুবহু যমজ: একই ছ'টা সারি · একই চাবি · একই একক ·
+   জমা রাখার একই লেখা ("bleeding=2 Years | pain=6 Months(তীব্র) | other=…")।
+   ⛔ নতুন কোনো কলাম বা SQL লাগে না — doctorFullNote-এর ভিতরেই জমা হয়।
+   ⛔ ফোনে যা লেখা হবে ওয়েবে হুবহু তাই পড়া যাবে, উল্টোটাও। */
+const WLV1_SYM_UNITS=['Days','Months','Years'];
+const WLV1_SYM_SEV=['তীব্র','মৃদু'];
+const WLV1_SYM_LINES=[
+  ['bleeding','পায়ুপথে রক্তপাত',false],
+  ['pain','মলদ্বারে ব্যথা',true],
+  ['prolapse','ফোলা / মাংসপিণ্ড বের হওয়া',false],
+  ['discharge','পুঁজ / রক্ত / জল পড়া',false],
+  ['itching','চুলকানি / জ্বালাপোড়া',false],
+  ['constipation','কোষ্ঠকাঠিন্য',false]
+];
+function wlv1SymUnit(u){var t=String(u||'').trim();for(var i=0;i<WLV1_SYM_UNITS.length;i++){if(WLV1_SYM_UNITS[i].toLowerCase()===t.toLowerCase())return WLV1_SYM_UNITS[i]}return 'Days'}
+function wlv1SymAmt(a){return String(a||'').replace(/\D/g,'')}
+function wlv1SymFormat(entries,other){
+  var parts=[];
+  WLV1_SYM_LINES.forEach(function(L){
+    var e=entries[L[0]]; if(!e||!e.ticked) return;
+    var amt=wlv1SymAmt(e.amount);
+    var sev=(L[2]&&e.severity)?('('+String(e.severity).trim()+')'):'';
+    parts.push(L[0]+'='+(amt?(amt+' '+wlv1SymUnit(e.unit)):'')+sev);
+  });
+  var o=String(other||'').trim();
+  if(o) parts.push('other='+o.split('|').join('/'));
+  return parts.join(' | ');
+}
+function wlv1SymParse(text){
+  var map={},other='';
+  WLV1_SYM_LINES.forEach(function(L){map[L[0]]={ticked:false,amount:'',unit:'Days',severity:''}});
+  String(text||'').split('|').forEach(function(raw){
+    var part=String(raw||'').trim(); if(!part) return;
+    var eq=part.indexOf('='); if(eq<=0) return;
+    var key=part.slice(0,eq).trim(), value=part.slice(eq+1).trim();
+    if(key.toLowerCase()==='other'){ other=value; return }
+    var e=map[key]; if(!e) return;
+    var sev='', open=value.indexOf('('), close=value.lastIndexOf(')');
+    if(open>=0&&close>open){ sev=value.slice(open+1,close).trim(); value=value.slice(0,open).trim() }
+    var bits=value.split(' ').filter(Boolean);
+    e.ticked=true; e.amount=wlv1SymAmt(bits[0]||''); e.unit=wlv1SymUnit(bits[1]||'');
+    e.severity=(WLV1_SYM_SEV.indexOf(sev)>=0)?sev:'';
+  });
+  return {map:map,other:other};
+}
+function wlv1SymTicks(complaint){
+  var t=String(complaint||'').toLowerCase(), out=[];
+  if(t.indexOf('bleed')>=0) out.push('bleeding');
+  if(t.indexOf('pain')>=0) out.push('pain');
+  if(t.indexOf('prolaps')>=0||t.indexOf('massa')>=0) out.push('prolapse');
+  if(t.indexOf('pus')>=0||t.indexOf('discharge')>=0||t.indexOf('fluid')>=0) out.push('discharge');
+  if(t.indexOf('itch')>=0||t.indexOf('burn')>=0) out.push('itching');
+  if(t.indexOf('constipat')>=0) out.push('constipation');
+  return out;
+}
+function wlv1SymReadable(text){
+  var r=wlv1SymParse(text), parts=[];
+  WLV1_SYM_LINES.forEach(function(L){
+    var e=r.map[L[0]]; if(!e||!e.ticked) return;
+    parts.push(L[1]+(e.severity?(' ('+e.severity+')'):'')+(e.amount?(' — '+e.amount+' '+e.unit):''));
+  });
+  if(r.other) parts.push(r.other);
+  return parts.join('; ');
+}
+function wlv1SymBoxHtml(note,p){
+  var saved=String((note&&note.symptomHistory)||'');
+  var r=wlv1SymParse(saved);
+  if(!saved){ wlv1SymTicks(String((p&&p.complaint)||'')).forEach(function(k){ if(r.map[k]) r.map[k].ticked=true }) }
+  var rows=WLV1_SYM_LINES.map(function(L){
+    var e=r.map[L[0]];
+    var sev=L[2]?('<span class="wlv1SymSev">'+WLV1_SYM_SEV.map(function(sv){
+        return '<button type="button" class="wlv1SymChip'+(e.severity===sv?' on':'')+'" data-sym-sev="'+L[0]+'" data-sev="'+esc(sv)+'" onclick="wlv1SymPickSev(this)">'+esc(sv)+'</button>'
+      }).join('')+'</span>'):'';
+    return '<div class="wlv1SymRow">'
+      +'<label class="wlv1SymName"><input type="checkbox" class="wlv1SymTick" data-sym="'+L[0]+'" '+(e.ticked?'checked':'')+'> '+esc(L[1])+'</label>'
+      +sev
+      +'<span class="wlv1SymWhen">'
+      +'<input class="input wlv1SymAmt" data-sym-amt="'+L[0]+'" inputmode="numeric" value="'+esc(e.amount)+'">'
+      +'<select class="input wlv1SymUnit" data-sym-unit="'+L[0]+'">'+WLV1_SYM_UNITS.map(function(u){return '<option '+(e.unit===u?'selected':'')+'>'+u+'</option>'}).join('')+'</select>'
+      +'</span></div>';
+  }).join('');
+  return '<label>রোগী এসে প্রথমে কি কি বললেন?</label><div class="wlv1SymBox">'+rows
+    +'<textarea id="dnSymptomOther" placeholder="এছাড়া অন্য কিছু থাকলে এখানে লিখুন">'+esc(r.other)+'</textarea></div>';
+}
+function wlv1SymPickSev(btn){
+  try{
+    var key=btn.getAttribute('data-sym-sev'), val=btn.getAttribute('data-sev'), was=btn.classList.contains('on');
+    document.querySelectorAll('.wlv1SymChip[data-sym-sev="'+key+'"]').forEach(function(b){b.classList.remove('on')});
+    if(!was) btn.classList.add('on');
+  }catch(e){}
+}
+function wlv1SymCollect(){
+  try{
+    var entries={};
+    WLV1_SYM_LINES.forEach(function(L){
+      var k=L[0];
+      var tick=document.querySelector('.wlv1SymTick[data-sym="'+k+'"]');
+      var amt=document.querySelector('.wlv1SymAmt[data-sym-amt="'+k+'"]');
+      var un=document.querySelector('.wlv1SymUnit[data-sym-unit="'+k+'"]');
+      var sev=document.querySelector('.wlv1SymChip.on[data-sym-sev="'+k+'"]');
+      entries[k]={ticked:!!(tick&&tick.checked),amount:amt?amt.value:'',unit:un?un.value:'Days',
+                  severity:sev?sev.getAttribute('data-sev'):''};
+    });
+    var other=($('#dnSymptomOther')||{}).value||'';
+    return wlv1SymFormat(entries,other);
+  }catch(e){ return '' }
+}
+window["wlv1SymCollect"]=wlv1SymCollect;window["wlv1SymPickSev"]=wlv1SymPickSev;window["wlv1SymReadable"]=wlv1SymReadable;
 function wlv1RefByLine(p){
   try{
     var t=[String((p&&p.refBy)||'').trim(),String((p&&p.refDoctor)||'').trim()].filter(Boolean).join(' · ');
@@ -7258,6 +7368,7 @@ async function saveDoctor(id){
   visual,grade:$('#dnGrade')?.value||'',onProbing:$('#dnProbing')?.value||'',investigations,
   /* 🔵 V547: ফোনের CheckupRecord-এর মতোই দুটো নতুন ঘর */
   proctoscopy:$('#dnProctoscopy')?.value||'',patientSaid:$('#dnPatientSaid')?.value||'',
+  symptomHistory:wlv1SymCollect(),   /* 🔵 V554 */
   treatmentPlan,amtPerPiles:$('#dnAmtPerPiles')?.value||'8000',amtFistulaPerInch:$('#dnAmtFistulaInch')?.value||'11000',amtKsharSutra:$('#dnAmtKsharSutra')?.value||'6000',
   counselling:$('#dnCounselling')?.value||'',estimatedCost:$('#dnEstimatedCost')?.value||'',recoveryTime:$('#dnRecoveryTime')?.value||'',advanceDiscussed:$('#dnAdvanceDiscussed')?.value||'',
   // V460 (১৯.০৮.২০২৬, Android-এ V455 হিসেবে করা হয়েছিল — এখানে ওয়েবেও একই ফিক্স):
@@ -13555,6 +13666,7 @@ function wlv1CheckupA4Fields(n){
     visual:visual, grade:n.grade||'', onProbing:n.onProbing||'', investigation:A(n.investigations),
     /* 🔵 V547: ফোনের ছাপা-সারাংশে যে দুটো সারি আছে (DoctorCheckupActivity.kt:1194-1196), ওয়েবেও সেই দুটো */
     proctoscopy:n.proctoscopy||'', patientSaid:n.patientSaid||'',
+    symptomHistory:wlv1SymReadable(n.symptomHistory||''),   /* 🔵 V554 */
     treatmentPlan:A(plan), rate:rateBits.join(' · '), counselling:n.counselling||'',
     estCost:n.estimatedCost||'', recovery:n.recoveryTime||'', advance:n.advanceDiscussed||'',
     beforePhoto:n.beforePhoto||'', duringPhoto:n.duringPhoto||'', afterPhoto:n.afterPhoto||''
@@ -13602,6 +13714,7 @@ function wlv1CheckupA4Html(p, dateText){
 '<div class="cell"><span class="k">Occupation</span><span class="v">'+v(f.occupation)+'</span></div>'+
 '<div class="cell"><span class="k">Prev. Treatment</span><span class="v">'+v(f.prevTreatment)+'</span></div>'+
 '<div class="cell"><span class="k">Patient Said</span><span class="v">'+v(f.patientSaid)+'</span></div>'+   /* 🔵 V547 */
+'<div class="cell"><span class="k">Patient Reported</span><span class="v">'+v(f.symptomHistory)+'</span></div>'+   /* 🔵 V554 */
 '<div class="cell"><span class="k">Result</span><span class="v">'+v(f.prevResult)+'</span></div>'+
 '<div class="cell"><span class="k">Prev. Cost</span><span class="v">'+v(f.prevCost)+'</span></div>'+
 '<div class="cell"><span class="k">Treatment Duration</span><span class="v">'+v(f.treatmentDuration)+'</span></div>'+

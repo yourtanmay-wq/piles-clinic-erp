@@ -212,6 +212,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.btnDuringPhoto).setOnClickListener { showPhotoDialog(1) }
         findViewById<MaterialButton>(R.id.btnAfterPhoto).setOnClickListener { showPhotoDialog(2) }
 
+        buildSymptomRows()   // 🔵 V554
         buildChecks(findViewById(R.id.visualGroup), visualOptions, visualChecks, visualIcons, "#D64545", visualBn)
         /* 🔵 V539: Internal Piles-এ চাপ দিলেই Grade বাছার তালিকা। ⛔ বাকি
            চেকবক্সগুলো এক অক্ষরও বদলায়নি। */
@@ -952,6 +953,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
             .let { if (it == "Choose Occupation") "" else it },
         prevTreatment = etPrevTreatment.text?.toString().orEmpty(),
         patientSaid = findViewById<android.widget.EditText>(R.id.etPatientSaid).text?.toString().orEmpty(),   // 🔵 V539
+        symptomHistory = collectSymptomHistory(),   // 🔵 V554
         // 🔵 B622 (11.08.2026): Result/Spent/Treatment Duration ঘর বাদ — মডেলের ডিফল্ট "" থাকে।
         visual = checkedText(visualChecks),
         // V455 (18.08.2026): visualOther · dre · dreOther · otherFindings ঘর বাদ — মডেলের ডিফল্ট থাকে।
@@ -990,6 +992,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         if (oi >= 0) spOccupation.setSelection(oi)
         etPrevTreatment.setText(r.prevTreatment)
         findViewById<android.widget.EditText>(R.id.etPatientSaid).setText(r.patientSaid)   // 🔵 V539
+        applySymptomHistory(r.symptomHistory)   // 🔵 V554
         // 🔵 B622: Result/Spent/Treatment Duration ঘর বাদ।
         val vis = r.visual.split(", ").map { it.trim() }
         visualChecks.forEach { it.isChecked = vis.contains((it.tag as? String) ?: it.text.toString()) }
@@ -1051,6 +1054,161 @@ class DoctorCheckupActivity : AppCompatActivity() {
         val text = listOf(sexAge, occ).filter { it.isNotBlank() }.joinToString(" · ")
         if (text.isNotBlank()) { tv.text = text; tv.visibility = android.view.View.VISIBLE }
         else tv.visibility = android.view.View.GONE
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       🔵🔒 V554 (২২.০৮.২০২৬) — কাগজের *"রোগী এসে প্রথমে কি কি সমস্যার কথা বললেন?"*
+       TK-অনুমোদিত ডেমো: **সাজ "গ"** (কাগজের মতো সারি) · **শুরুতে টিক** ·
+       ব্যথার **তীব্র/মৃদু এক লাইনেই** · শেষে **"এছাড়া অন্য কিছু"** বাক্স।
+
+       ⛔ সারির নাম/ক্রম/একক — সব `SymptomHistoryModel`-এ, **এক জায়গাতেই**।
+       ⛔ "কবে থেকে?"-র ঘর দুটো **রেজিস্ট্রেশনের হুবহু একই জোড়া** — সংখ্যার ঘর
+          (`inputType=number`) + Days/Months/Years, আর তালিকাটা প্রজেক্টের নিজের
+          প্রিমিয়াম পিকারেই খোলে (`SpinnerPicker.attach`)। নতুন নকশা বানানো হয়নি।
+       ⛔ উপরের Chief Complaint ও Duration ঘর দুটো **সরানো হয়নি**।
+       ═══════════════════════════════════════════════════════════════ */
+    private val symptomTicks = LinkedHashMap<String, android.widget.CheckBox>()
+    private val symptomAmounts = LinkedHashMap<String, android.widget.EditText>()
+    private val symptomUnits = LinkedHashMap<String, android.widget.Spinner>()
+    private val symptomSeverity = LinkedHashMap<String, MutableList<TextView>>()
+
+    private fun symDp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
+
+    private fun symChipBg(on: Boolean): android.graphics.drawable.GradientDrawable =
+        android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = symDp(20).toFloat()
+            setColor(android.graphics.Color.parseColor(if (on) "#EAFBF0" else "#FFFFFF"))
+            setStroke(symDp(1), android.graphics.Color.parseColor(if (on) "#BFE9CE" else "#DBE2EA"))
+        }
+
+    private fun paintSeverity(key: String) {
+        val chips = symptomSeverity[key] ?: return
+        chips.forEach { chip ->
+            val on = (chip.tag as? String) == (chip.getTag(R.id.symptomGroup) as? String)
+            chip.background = symChipBg(on)
+            chip.setTextColor(android.graphics.Color.parseColor(if (on) "#0B4F2A" else "#93A1B2"))
+        }
+    }
+
+    private fun currentSeverity(key: String): String {
+        val chips = symptomSeverity[key] ?: return ""
+        val chosen = chips.firstOrNull()?.getTag(R.id.symptomGroup) as? String
+        return chosen.orEmpty()
+    }
+
+    private fun setSeverity(key: String, value: String) {
+        symptomSeverity[key]?.forEach { it.setTag(R.id.symptomGroup, value) }
+        paintSeverity(key)
+    }
+
+    private fun buildSymptomRows() {
+        val box = findViewById<android.widget.LinearLayout>(R.id.symptomGroup) ?: return
+        box.removeAllViews()
+        symptomTicks.clear(); symptomAmounts.clear(); symptomUnits.clear(); symptomSeverity.clear()
+        for (line in SymptomHistoryModel.LINES) {
+            val row = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(0, symDp(3), 0, symDp(3))
+            }
+            val cb = android.widget.CheckBox(this)
+            row.addView(cb)
+            symptomTicks[line.key] = cb
+
+            row.addView(TextView(this).apply {
+                text = line.label
+                textSize = 13f
+                setTextColor(android.graphics.Color.parseColor("#10223A"))
+            })
+
+            if (line.severity) {
+                val chips = ArrayList<TextView>()
+                for (sev in SymptomHistoryModel.SEVERITY) {
+                    val chip = TextView(this).apply {
+                        text = sev
+                        textSize = 11.5f
+                        tag = sev
+                        setPadding(symDp(10), symDp(3), symDp(10), symDp(3))
+                        isClickable = true
+                        val lp = android.widget.LinearLayout.LayoutParams(
+                            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                        )
+                        lp.marginStart = symDp(6)
+                        layoutParams = lp
+                    }
+                    chip.setOnClickListener {
+                        // একই চিপে আবার চাপ দিলে বাছাইটা উঠে যায়
+                        setSeverity(line.key, if (currentSeverity(line.key) == sev) "" else sev)
+                    }
+                    chips.add(chip)
+                    row.addView(chip)
+                }
+                symptomSeverity[line.key] = chips
+                setSeverity(line.key, "")
+            }
+
+            row.addView(android.view.View(this), android.widget.LinearLayout.LayoutParams(0, 1, 1f))
+
+            val amount = android.widget.EditText(this).apply {
+                inputType = android.text.InputType.TYPE_CLASS_NUMBER
+                textSize = 13f
+                gravity = android.view.Gravity.CENTER
+                setSingleLine(true)
+                layoutParams = android.widget.LinearLayout.LayoutParams(symDp(52), android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
+            }
+            row.addView(amount)
+            symptomAmounts[line.key] = amount
+
+            val unit = android.widget.Spinner(this).apply {
+                adapter = ArrayAdapter(this@DoctorCheckupActivity, R.layout.item_docnote_spinner, SymptomHistoryModel.UNITS)
+                val lp = android.widget.LinearLayout.LayoutParams(symDp(96), android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
+                lp.marginStart = symDp(6)
+                layoutParams = lp
+            }
+            row.addView(unit)
+            symptomUnits[line.key] = unit
+            /* ⛔ এখানে `hidePlaceholder` **নয়** — "Days" একটা সত্যিকারের বাছাই,
+                  লুকিয়ে দিলে ওটা আর বাছাই করা যেত না। */
+            SpinnerPicker.attach(unit, "কবে থেকে?")
+
+            box.addView(row)
+        }
+    }
+
+    private fun collectSymptomHistory(): String {
+        val map = LinkedHashMap<String, SymptomHistoryModel.Entry>()
+        for (line in SymptomHistoryModel.LINES) {
+            val unitPos = symptomUnits[line.key]?.selectedItemPosition ?: 0
+            map[line.key] = SymptomHistoryModel.Entry(
+                ticked = symptomTicks[line.key]?.isChecked == true,
+                amount = symptomAmounts[line.key]?.text?.toString().orEmpty(),
+                unit = SymptomHistoryModel.UNITS.getOrElse(unitPos) { "Days" },
+                severity = if (line.severity) currentSeverity(line.key) else ""
+            )
+        }
+        val other = findViewById<android.widget.EditText>(R.id.etSymptomOther)?.text?.toString().orEmpty()
+        return SymptomHistoryModel.format(map, other)
+    }
+
+    private fun applySymptomHistory(saved: String) {
+        val (map, other) = SymptomHistoryModel.parse(saved)
+        /* ⛔ আগে কিছু জমা না থাকলে রেজিস্ট্রেশনে যে উপসর্গে টিক দেওয়া ছিল
+              সেগুলো **নিজে থেকেই** টিক হয়ে আসে — ডাক্তারকে দুবার একই কাজ
+              করতে হয় না। জমা থাকলে জমাটাই আগে (কিছু বদলানো হয় না)। */
+        if (saved.isBlank()) {
+            val pre = SymptomHistoryModel.ticksFromComplaint(etComplaint.text?.toString().orEmpty())
+            pre.forEach { key -> map[key]?.ticked = true }
+        }
+        for (line in SymptomHistoryModel.LINES) {
+            val e = map[line.key] ?: continue
+            symptomTicks[line.key]?.isChecked = e.ticked
+            symptomAmounts[line.key]?.setText(e.amount)
+            val pos = SymptomHistoryModel.UNITS.indexOf(e.unit)
+            if (pos >= 0) symptomUnits[line.key]?.setSelection(pos)
+            if (line.severity) setSeverity(line.key, e.severity)
+        }
+        findViewById<android.widget.EditText>(R.id.etSymptomOther)?.setText(other)
     }
 
     private fun internalPilesBox(): android.widget.CheckBox? =
@@ -1121,6 +1279,8 @@ class DoctorCheckupActivity : AppCompatActivity() {
         if (r.occupation.isNotBlank()) append("Occupation: ${r.occupation}; ")
         if (r.prevTreatment.isNotBlank()) append("Prev Treatment: ${r.prevTreatment}; ")
         if (r.patientSaid.isNotBlank()) append("Patient Said: ${r.patientSaid}; ")   // 🔵 V539
+        // 🔵 V554: টিক দেওয়া উপসর্গ ও তাদের "কবে থেকে?" — মানুষ-পড়া-যায় লেখায়
+        if (r.symptomHistory.isNotBlank()) append("Patient Reported: ${SymptomHistoryModel.readable(r.symptomHistory)}; ")
         if (r.prevResult.isNotBlank()) append("Prev Result: ${r.prevResult}; ")
         if (r.prevCost.isNotBlank()) append("Prev Cost: ${r.prevCost}; ")
         if (r.treatmentDuration.isNotBlank()) append("Treatment Duration: ${r.treatmentDuration}; ")

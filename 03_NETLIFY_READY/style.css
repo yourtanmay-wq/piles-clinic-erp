@@ -1,0 +1,14 @@
+
+/* 🖥️🔵 V554 — "রোগী এসে প্রথমে কি কি বললেন?" সারিগুলো (কাগজের সাজ "গ")।
+   ⛔ প্রজেক্টের নিজের `.input` ঘরই ব্যবহার হয়েছে, নতুন কোনো ঘর বানানো হয়নি। */
+.wlv1SymBox{border:1px solid #D8E4F2;border-radius:12px;padding:8px 10px;background:#FCFDFF}
+.wlv1SymRow{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px dotted #D8E0E9;flex-wrap:nowrap}
+.wlv1SymRow:last-of-type{border-bottom:none}
+.wlv1SymName{display:flex;align-items:center;gap:7px;font-size:14px;color:#10223A;white-space:nowrap}
+.wlv1SymSev{display:flex;gap:5px}
+.wlv1SymChip{font-size:12px;border-radius:20px;padding:3px 11px;border:1px solid #DBE2EA;background:#fff;color:#93A1B2;cursor:pointer}
+.wlv1SymChip.on{border-color:#BFE9CE;background:#EAFBF0;color:#0B4F2A;font-weight:700}
+.wlv1SymWhen{margin-left:auto;display:flex;gap:6px;flex:0 0 auto}
+.wlv1SymAmt{width:58px;text-align:center;padding:6px 4px}
+.wlv1SymUnit{width:104px;padding:6px 6px}
+.wlv1SymBox textarea{width:100%;margin-top:8px;min-height:62px}

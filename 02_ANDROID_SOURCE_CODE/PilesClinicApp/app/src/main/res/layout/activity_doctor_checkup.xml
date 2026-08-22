@@ -346,6 +346,30 @@
                         </LinearLayout>
                     </LinearLayout>
 
+                    <!-- 🔵🔒 V554 (২২.০৮.২০২৬, TK-অনুমোদিত ডেমো "সাজ গ" + শুরুতে টিক):
+                         কাগজের **"রোগী এসে প্রথমে কি কি সমস্যার কথা বললেন?"** অংশ।
+                         ছ'টা সারি কোড থেকেই বসে (`SymptomHistoryModel.LINES`) — তাই লেখা
+                         এক জায়গাতেই থাকে, দু'জায়গায় আলাদা হয়ে যাওয়ার ভয় নেই।
+                         ⛔ উপরের Chief Complaint ও Duration ঘর দুটো **সরানো হয়নি** (TK-এর নিয়ম)। -->
+                    <LinearLayout style="@style/DocNoteFieldBox">
+                        <View style="@style/DocNoteAccentBar" />
+                        <LinearLayout style="@style/DocNoteFieldBoxInner">
+                            <LinearLayout style="@style/DocNoteFieldBoxTopRow">
+                                <TextView style="@style/DocNoteIcon" android:text="❓" />
+                                <TextView style="@style/DocNoteLabel" android:text="রোগী এসে প্রথমে কি কি বললেন?" />
+                            </LinearLayout>
+                            <View style="@style/DocNoteDivider" />
+                            <LinearLayout
+                                android:id="@+id/symptomGroup"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical" />
+                            <EditText android:id="@+id/etSymptomOther" style="@style/DocNoteInputMultiline"
+                                android:minLines="2"
+                                android:hint="এছাড়া অন্য কিছু থাকলে এখানে লিখুন" />
+                        </LinearLayout>
+                    </LinearLayout>
+
                     <!-- V455 (TK-নির্দেশ ১৮.০৮.২০২৬) — Acute Onset/Chronic Onset ঘর বাদ।
                          ⛔ ClinicalModels-এর acuteChronic ঘর অটুট (ডিফল্ট ""), শুধু UI সরানো। -->
 
