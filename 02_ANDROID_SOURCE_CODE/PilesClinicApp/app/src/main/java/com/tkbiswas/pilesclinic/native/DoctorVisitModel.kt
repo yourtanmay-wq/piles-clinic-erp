@@ -112,10 +112,42 @@ object DoctorVisitModel {
         lastCallTime = row.optJSONArray("callHistory")?.optJSONObject(0)?.s("createdAt").orEmpty(),   // 🔵 V543
         deleteRequestedBy = row.s("deleteRequestedBy"),
         deleteRequestedAt = row.s("deleteRequestedAt"),
-        referralPaid = row.optDouble("referralPaid", 0.0),
+        referralPaid = referralPaidFrom(row),   // 🔵 V551
         expectedPatientDate = row.s("expectedPatientDate"),
         raw = row
     )
+
+    /* 🔵🔒 V551 (২২.০৮.২০২৬, FALAKATA staff-এর রিপোর্ট, ছবিসহ):
+       *"আমি তো ২০০০০-এর পরে ৯০০০ দিয়েছি, ওখানে কেন ২০০০০ দেখাচ্ছে?"*
+
+       **আসল কারণ (কোড ধরে, আন্দাজ নয়):** RMP কার্ডের "₹… INCOME" লেখাটা
+       `doctor_visits` সারিতে **জমানো** `referralPaid` ঘরটা সরাসরি দেখাত।
+       ওই জমানো সংখ্যাটা **পুরোনো হয়ে যেতে পারে** — এটা প্রজেক্টের নিজের কোডেই
+       আগে থেকে লেখা আছে: `DoctorVisitActivity.kt:2188-2190` —
+       *"The old scalar referralPaid/referralDue fields can be stale (for example,
+         history contains a Paid ₹1,500 row while the scalar still says ₹0)"*।
+       তাই ওই একই পর্দার **View All** (👁) তালিকা অনেক আগেই (V381) জমানো
+       সংখ্যাটা বাদ দিয়ে **এন্ট্রির তালিকা থেকে নিজে যোগ করে** দেখায় — কিন্তু
+       বাইরের কার্ডটা পুরোনো সংখ্যাই দেখাত। তাই দুই জায়গায় দুই রকম।
+
+       **এখন:** কার্ডও সেই **এন্ট্রির তালিকা** (`referralPayments`) থেকেই যোগ করে —
+       "Paid" চিহ্ন দেওয়া সবগুলোর যোগফল। ⇒ 👁-এ যা, কার্ডেও ঠিক তা।
+
+       ⛔ **Supabase-এ একটাও বাড়তি query নেই** — `referralPayments` ঘরটা এই
+          তালিকা এমনিতেই আনে (`SafeWideColumns.kt:67`)।
+       ⛔ তালিকাটা না এলে (শুধু শেষ-চেষ্টার সরু পড়ায় বাদ যায়) আগের মতোই জমানো
+          সংখ্যাটাই দেখায় — কোনো পথ ভাঙে না।
+       ⛔ কোনো টাকা/এন্ট্রি বদলানো বা মোছা হয় না — শুধু যোগফলটা এখন সত্যি। */
+    fun referralPaidFrom(row: org.json.JSONObject): Double {
+        val arr = row.optJSONArray("referralPayments") ?: return row.optDouble("referralPaid", 0.0)
+        if (arr.length() == 0) return row.optDouble("referralPaid", 0.0)
+        var paid = 0.0
+        for (i in 0 until arr.length()) {
+            val e = arr.optJSONObject(i) ?: continue
+            if (e.optString("status", "Unpaid").equals("Paid", true)) paid += e.optDouble("amount", 0.0)
+        }
+        return paid
+    }
 
     fun buildNewDoctorRow(name: String, mobileDigitsOnly: String, branch: String, area: String, remarks: String, nextCallDate: String, staffMobile: String, altMobiles: String = ""): JSONObject {
         val now = isoNow()
