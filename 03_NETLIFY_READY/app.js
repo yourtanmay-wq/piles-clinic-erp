@@ -15160,8 +15160,14 @@ function wlv1CloseReview(rows){
           byRmp[k].n++; byRmp[k].a+=Number(x.commission_today||0); });
         html += '<div class="cbRevHead cbRevRed">RMP COMMISSION</div>';
         Object.keys(byRmp).forEach(function(k){
-          html += '<div><span>'+esc(k)+' ('+byRmp[k].n+')</span><b class="r">− '+rs2(byRmp[k].a)+'</b></div>'; });
-        html += '<div class="tot"><span>NET TOTAL</span><b>'+rs2(__gT - window.__wlv1DayCommission)+'</b></div>';
+          html += '<div><span>'+esc(k)+' ('+byRmp[k].n+')</span><b class="r">'+rs2(byRmp[k].a)+'</b></div>'; });
+        /* 🔴🔒 V562 (TK, ২২.০৮.২০২৬): *"আপাতত কমিশনটা লাল কালারের আলাদা জায়গায়
+           রাখুন · যদি আমরা দিয়ে থাকি তবেই আমরা আমাদের মতন মাইনাস করে নেব"*
+           ⇒ আগে TOTAL থেকে কমিশন বাদ দিয়ে "NET TOTAL" দেখানো হত। ওটা **দিতে
+           হবে** এমন টাকা, দেওয়া টাকা নয় — তাই আয় থেকে বাদ যাওয়া ভুল ছিল।
+           এখন শুধু লাল রঙে "দিতে হবে (মোট)"; উপরের TOTAL অপরিবর্তিত।
+           ⛔ ফোনেও হুবহু একই (ChamberAttendanceActivity + ChamberRegisterPdfBuilder)। */
+        html += '<div class="tot cbRevRed"><span>দিতে হবে (মোট)</span><b class="r">'+rs2(window.__wlv1DayCommission)+'</b></div>';
       }
       if(paid.length){
         html += '<div class="cbRevHead">PAID TO RMP TODAY</div>';
@@ -15300,6 +15306,15 @@ function wlv1ChamberRegisterPrint(){
             থাকবে · সব গুলি একলাইনে থাকতে হবে") — কাগজের একদম নিচে একটাই লাইনে পুরো
             হিসাব। TOTAL = Fees + Cash + Online (TK-অনুমোদিত)। ⛔ উপরের TOTAL সারি ও
             কলামের অঙ্ক একটুও বদলায়নি; ফোনের ChamberRegisterPdfBuilder-এর একই লাইন। -->
+       ${(function(){
+          /* 🔴 V562: কমিশনের লাল লাইনটা নিচের সবুজ হিসাব-লাইনের **উপরে**,
+             আলাদা ঘরে — নইলে ছাপার সময় ওই লাইনটা পাতার নিচে চাপা পড়ত। */
+          var cm0 = Number(window.__wlv1DayCommission||0);
+          if(!(cm0>0)) return '';
+          var n0 = v => '₹'+Number(v||0).toLocaleString('en-IN');
+          return '<div class="cbRegRmpDue">RMP Commission (দিতে হবে) '+n0(cm0)
+               + ' &nbsp;—&nbsp; আজকের মোট থেকে বাদ যায়নি</div>';
+        })()}
        <div class="cbRegOneLine">${(function(){
           var g=Number(tFee||0)+Number(tCash||0)+Number(tOnline||0);
           var cm=Number(window.__wlv1DayCommission||0), pd=Number(window.__wlv1DayPaidRmp||0);
@@ -15308,8 +15323,9 @@ function wlv1ChamberRegisterPrint(){
              আলাদা করে আবার হিসাব করা হয় না, তাই পর্দা ও কাগজ কখনো আলাদা হবে না।
              ⛔ NET থেকে বাদ যায় শুধু আজকের প্রাপ্য কমিশন; "Paid to RMP today"
                 শুধু জানার জন্য, কোনো মোট থেকে বাদ যায় না। ০ হলে লেখাই হয় না। */
+          /* 🔴🔒 V562 (TK, ২২.০৮.২০২৬): কমিশন আর TOTAL থেকে বাদ যায় না —
+             ওটা দিতে হবে এমন টাকা, দেওয়া টাকা নয়। নিচে আলাদা লাল লাইনে। */
           var t = 'Fees '+n(tFee)+' &nbsp;·&nbsp; Cash '+n(tCash)+' &nbsp;·&nbsp; Online '+n(tOnline)+' &nbsp;·&nbsp; TOTAL '+n(g);
-          if(cm>0) t += ' &nbsp;·&nbsp; RMP Commission − '+n(cm)+' &nbsp;·&nbsp; NET '+n(g-cm);
           if(pd>0) t += ' &nbsp;·&nbsp; Paid to RMP today '+n(pd);
           return t+'/-';
         })()}</div>

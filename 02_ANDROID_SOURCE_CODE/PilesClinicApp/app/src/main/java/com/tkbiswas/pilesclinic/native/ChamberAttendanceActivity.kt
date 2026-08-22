@@ -2818,16 +2818,22 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                                 0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                         })
                         addView(android.widget.TextView(this@ChamberAttendanceActivity).apply {
-                            text = "− ₹" + "%,.2f".format(amt)
+                            text = "₹" + "%,.2f".format(amt)
                             textSize = 12.5f
                             setTextColor(android.graphics.Color.parseColor("#B42318"))
                         })
                         setPadding(0, dp(2), 0, dp(2))
                     })
                 }
+                /* 🔴🔒 V562 (TK, ২২.০৮.২০২৬): *"আপাতত কমিশনটা লাল কালারের আলাদা
+                   জায়গায় রাখুন · যদি আমরা দিয়ে থাকি তবেই আমরা আমাদের মতন
+                   মাইনাস করে নেব"* ⇒ আগে এখানে TOTAL থেকে কমিশন বাদ দিয়ে
+                   "NET TOTAL" দেখানো হত। কিন্তু এটা **দিতে হবে** এমন টাকা,
+                   **দেওয়া টাকা নয়** — না-দেওয়া টাকা আয় থেকে বাদ যাওয়া ভুল।
+                   এখন শুধু লাল রঙে "মোট দিতে হবে", উপরের TOTAL অপরিবর্তিত। */
                 val commTotal = withComm.sumOf { it.commissionToday }
                 cbSumBox.addView(cbThinLine())
-                cbSumBox.addView(cbMoneyLine("NET TOTAL", cbGrandTotal - commTotal, "#0B4F2A", true, decimals = true))
+                cbSumBox.addView(cbMoneyLine("দিতে হবে (মোট)", commTotal, "#B42318", true, decimals = true))
             }
             /* 🔴 V427 (TK-নির্দেশ: *"আলাদা লাইনে 'আজ কত দিলাম'ও রাখুন"*) —
                আজ RMP-দের হাতে সত্যিই কত টাকা গেছে (কমিশন + অ্যাডভান্স)।

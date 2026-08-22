@@ -5813,3 +5813,9 @@ button.card.reportKpi span, .card.reportKpi span, button.card.reportKpi small, .
 .pfStmtWhyRow:last-child{border-bottom:0}
 .pfStmtWhyRow span{width:88px;color:#6B7A90;flex:none}
 .pfStmtWhyRow b{flex:1;word-break:break-word}
+
+/* 🔴🔒 V562 (TK, ২২.০৮.২০২৬: *"আপাতত কমিশনটা লাল কালারের আলাদা জায়গায় রাখুন"*)
+   — RMP-কে দিতে হবে এমন টাকা কাগজের নিচে **আলাদা লাল লাইনে**, নিচের সবুজ
+   হিসাব-লাইনের ঠিক উপরে। ⛔ কোনো মোট থেকে বাদ যায় না। */
+.cbRegRmpDue{margin-top:3mm;font-size:10.5px;font-weight:800;color:#B42318;text-align:left;white-space:nowrap}
+@media print{.cbRegRmpDue{position:absolute;left:6mm;right:6mm;bottom:11mm;margin:0}}

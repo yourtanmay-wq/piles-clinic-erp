@@ -290,12 +290,12 @@ class ChamberRegisterPdfBuilder(private val context: Context) {
         // 🔴 V426: RMP কমিশন থাকলে সেটাও একই লাইনে, আর TOTAL থেকে বাদ দিয়ে NET।
         val headPart = "Fees " + rs(totalFees) + "   ·   Cash " + rs(totalCash) +
             "   ·   Online " + rs(totalOnline) + "   ·   TOTAL " + rs(grand)
-        val oneLine = if (rmpCommission > 0.0) {
-            headPart + "   ·   RMP Commission − " + rs(rmpCommission) +
-                "   ·   NET " + rs(grand - rmpCommission) + "/-"
-        } else {
-            headPart + "/-"
-        }
+        /* 🔴🔒 V562 (TK, ২২.০৮.২০২৬): *"আপাতত কমিশনটা লাল কালারের আলাদা জায়গায়
+           রাখুন · যদি আমরা দিয়ে থাকি তবেই আমরা আমাদের মতন মাইনাস করে নেব"*
+           ⇒ আগে TOTAL থেকে কমিশন বাদ দিয়ে NET ছাপা হত। কিন্তু ওটা **দিতে হবে**
+           এমন টাকা, দেওয়া টাকা নয় — তাই আজকের আয় থেকে বাদ যাওয়া ভুল ছিল।
+           এখন TOTAL হুবহু আয়, আর কমিশন নিচে **আলাদা লাল লাইনে**। */
+        val oneLine = headPart + "/-"
         val sum = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor(GREEN); textSize = 9f; isFakeBoldText = true
         }
@@ -307,6 +307,18 @@ class ChamberRegisterPdfBuilder(private val context: Context) {
             oneLine
         }
         canvas.drawText(fullLine, MARGIN + 20f, (PAGE_HEIGHT - 24).toFloat(), sum)
+        // 🔴 V562: RMP-কে দিতে হবে এমন টাকা — লাল রঙে, আলাদা লাইনে, কোনো
+        //    মোট থেকে বাদ যায় না। ০ হলে লাইনটাই ছাপা হয় না।
+        if (rmpCommission > 0.0) {
+            val red = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#B42318"); textSize = 9f; isFakeBoldText = true
+            }
+            canvas.drawText(
+                "RMP Commission (দিতে হবে) " + rs(rmpCommission) +
+                    "   —   আজকের মোট থেকে বাদ যায়নি",
+                MARGIN + 20f, (PAGE_HEIGHT - 12).toFloat(), red
+            )
+        }
     }
 
     private fun wrapText(text: String, paint: Paint, maxWidth: Float, maxLines: Int): List<String> {
