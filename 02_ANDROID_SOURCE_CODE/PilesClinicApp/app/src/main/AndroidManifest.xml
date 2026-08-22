@@ -1,0 +1,408 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Internet: needed for Supabase cloud sync (app works offline via localStorage
+         when unavailable, matching the existing web app's offline-first design) -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 🔴🆕🔒 খাতার সারি B440 (05.08.2026, TK-নির্দেশ) — Work Notebook-এ
+         "Outside Calls Today" ঘরের ডিফল্ট মান স্বয়ংক্রিয়ভাবে ফোনের
+         Incoming Call থেকে গণনা করতে। ⛔ স্টাফ Allow না করলে/এই অনুমতি না
+         থাকলে ঘরটা আগের মতোই সম্পূর্ণ হাতে-লেখা থেকে যায়, কিছুই আটকায় না। -->
+    <uses-permission android:name="android.permission.READ_CALL_LOG" />
+    <!-- 🔴🆕🔒 B441 (05.08.2026, TK-নির্দেশ) — দুই-SIM ফোনে কোন SIM
+         ব্রাঞ্চের নম্বর তা আলাদা করতে (নইলে দুটো SIM-এর কল মিলিয়ে ভুল
+         সংখ্যা দেখাত)। ⛔ না দিলে/না থাকলে সব SIM মিলিয়ে গোনে, আটকায় না। -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- 👆🔒 V496 (২১.০৮.২০২৬, TK §৩): Staff-এর হাজিরা ও Doctor-এর অ্যাপ খোলার
+         জন্য Android-এর নিরাপদ আঙুলের-ছাপ পর্দা। ⛔ কোনো আঙুলের ছাপ বা ছবি
+         অ্যাপে/ক্লাউডে যায় না — Android শুধু সফল/ব্যর্থ জানায়। -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-feature android:name="android.hardware.fingerprint" android:required="false" />
+
+    <!-- 📍🔒 V496 (TK §৫): Staff-এর IN TIME-এ "ক্লিনিকে আছেন কিনা" দেখার জন্য।
+         ⛔ GPS সারাক্ষণ চলে না — শুধু IN TIME চাপার মুহূর্তে, ফল পেলেই বন্ধ।
+         ⛔ background location চাওয়া হয়নি; অবস্থান কোথাও সেভ/পাঠানো হয় না। -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-feature android:name="android.hardware.location" android:required="false" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+    <!-- 🔴🔴🔴 TK-রিপোর্ট (05.08.2026) — IN/OUT TIME · Call Reminder ·
+         Chamber Close Reminder তিনটেই ব্যাকগ্রাউন্ডে (WorkManager) চলে;
+         অ্যাপ বন্ধ থাকলে কিছু ফোনের (Xiaomi/Vivo/Oppo-ঘরানার) নিজস্ব
+         ব্যাটারি-সেভিং এই কাজ আটকে দেয়। এই অনুমতি (শুধু নিজের অ্যাপের
+         জন্য, সিস্টেম পপ-আপে স্টাফ নিজে অনুমতি দেবেন) ছাড়া রিমাইন্ডার
+         নির্ভরযোগ্যভাবে আসতেই পারে না। ⛔ অন্য কোনো অ্যাপ/সিস্টেম আচরণ
+         এতে ছোঁয়া হয় না, শুধু এই একটা অ্যাপকে ব্যাটারি-সেভিং থেকে বাদ
+         রাখতে বলা হয়। -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <!-- TK-APPROVED (2026-07-28): Android 11 theke onno app "dekha jay na"
+         jodi na ekhane lekha thake. Eta na thakle WhatsApp install thakleo
+         chobi-soho pathano kaj korto na. Sudhu ei duto app o SMS app dekha
+         jay; onno kono app-er tothyo neoya hoy na. -->
+    <queries>
+        <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="smsto" />
+        </intent>
+        <!-- V235 (TK, Call Chooser project-wide): Android 11+ e dialer app-gulo
+             "dekha jay na" jodi ei tel: query na thake. Eta na thakle CallChooser-er
+             queryIntentActivities(ACTION_DIAL) khali list dey, tai custom chooser
+             kaj kore na o Vivo/Samsung-e phone sorasori default dialer khule jay.
+             ACTION_DIAL o ACTION_VIEW duto tel scheme dhora holo jate sob installed
+             dialer (Phone / Super Phone / etc.) chooser-e dekha jay. -->
+        <intent>
+            <action android:name="android.intent.action.DIAL" />
+            <data android:scheme="tel" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="tel" />
+        </intent>
+    </queries>
+
+    <!-- Camera: needed for patient photo capture (existing feature in the web app) -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
+    <!-- Storage: needed for selecting photos from gallery, and for backup/export -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
+
+    <!-- Phase 6: Professional Print System -->
+    <uses-feature android:name="android.software.print" android:required="false" />
+
+    <application
+        android:name=".PilesClinicApplication"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="false"
+        android:theme="@style/Theme.PilesClinic"
+        android:usesCleartextTraffic="false"
+        tools:targetApi="34">
+
+        <!-- Fully native app. The WebView host (MainActivity) has been removed;
+             every screen below is a native Activity. -->
+        <activity
+            android:name=".native.PublicSiteActivity"
+            android:exported="false"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.PilesClinic" />
+
+        <activity
+            android:name=".native.LoginActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.PilesClinic">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".native.DiseaseDetailActivity"
+            android:exported="false"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.PilesClinic" />
+
+        <activity
+            android:name=".native.DashboardActivity"
+            android:exported="false"
+            android:label="Dashboard"
+            android:theme="@style/Theme.PilesClinic" />
+
+        <!-- Native rebuild Step 2: Enquiry is now a real native screen. -->
+        <activity
+            android:name=".native.EnquiryActivity"
+            android:exported="false"
+            android:label="New Enquiry"
+            android:theme="@style/Theme.PilesClinic" />
+
+        <!-- Native rebuild Step 3: Registration is now a real native screen. -->
+        <activity
+            android:name=".native.RegistrationActivity"
+            android:exported="false"
+            android:label="Patient Registration"
+            android:theme="@style/Theme.PilesClinic" />
+
+        <!-- Native rebuild Step 4: Follow-up is now a real native screen. -->
+        <activity
+            android:name=".native.PatientTimelineActivity"
+            android:exported="false"
+            android:theme="@style/Theme.PilesClinic" />
+        <!-- TK-APPROVED (2026-07-20): Report Card (Patient Progress Report). -->
+        <activity
+            android:name=".native.ReportCardActivity"
+            android:exported="false"
+            android:theme="@style/Theme.PilesClinic" />
+        <activity
+            android:name=".native.FollowUpActivity"
+            android:exported="false"
+            android:hardwareAccelerated="false"
+            android:label="Follow-up"
+            android:theme="@style/Theme.PilesClinic" />
+
+        <!-- Native rebuild Step 5: Payment is now a real native screen. -->
+        <activity
+            android:name=".native.PaymentActivity"
+            android:exported="false"
+            android:label="Payment Collection"
+            android:theme="@style/Theme.PilesClinic" />
+
+        <!-- TK-APPROVED (2026-07-25): Master Admin only . Monthly Collection
+             and Collection History lists, with a branch selector. -->
+        <activity
+            android:name=".native.CollectionListActivity"
+            android:exported="false"
+            android:label="Collection"
+            android:theme="@style/Theme.PilesClinic" />
+
+        <activity
+            android:name=".native.MedicinePaymentActivity"
+            android:exported="false"
+            android:label="Medicine Payment"
+            android:theme="@style/Theme.PilesClinic" />
+
+        <activity
+            android:name=".native.GlobalSearchActivity"
+            android:exported="false"
+            android:label="Search"
+            android:theme="@style/Theme.PilesClinic" />
+
+        <!-- 🆕 B464 (05.08.2026, TK-নির্দেশ) — নতুন Dialer স্ক্রিন -->
+        <activity
+            android:name=".native.DialerActivity"
+            android:exported="false"
+            android:label="Dialer"
+            android:theme="@style/Theme.PilesClinic" />
+
+        <activity
+            android:name=".native.AppointmentActivity"
+            android:exported="false"
+            android:label="Appointments"
+            android:theme="@style/Theme.PilesClinic" />
+
+        <!-- Native rebuild (continued): Doctor Visit / RMP is now a real native screen. -->
+        <activity
+            android:name=".native.DoctorVisitActivity"
+            android:exported="false"
+            android:label="Doctor Visit / RMP"
+            android:theme="@style/Theme.PilesClinic" />
+
+        <!-- Native rebuild (continued): Visit / Doctor Queue is now a real native screen. -->
+        <activity
+            android:name=".native.DoctorQueueActivity"
+            android:exported="false"
+            android:label="Visit / Doctor Queue"
+            android:theme="@style/Theme.PilesClinic" />
+
+        <!-- Native rebuild (continued): Briefing / Notice Board is now a real native screen. -->
+        <activity
+            android:name=".native.BriefingActivity"
+            android:exported="false"
+            android:label="Briefing / Notice Board"
+            android:theme="@style/Theme.PilesClinic" />
+
+        <!-- 🆕 (06.08.2026, TK-অনুমোদনে): Dashboard-এর ঘন্টা এখন এই পাতা খোলে,
+             BellCounter-এর গোনা সবকটা জিনিস (নোটিশ, রিমার্ক বাকি, ডাক্তার কল,
+             মিসড কল-ব্যাক) এক তালিকায় দেখায়। -->
+        <activity
+            android:name=".native.NotificationsActivity"
+            android:exported="false"
+            android:label="Notifications"
+            android:theme="@style/Theme.PilesClinic" />
+
+        <!-- TK-REQUESTED NEW FEATURE (2026-07-16, "Chamber Attendance", Step 1
+             of a staged build; see 00_PROJECT_STATE_MASTER_NOTE.md section
+             for the full agreed plan/discussion history before changing
+             anything here without asking TK first). -->
+        <activity
+            android:name=".native.ChamberAttendanceActivity"
+            android:exported="false"
+            android:label="Chamber Attendance"
+            android:theme="@style/Theme.PilesClinic" />
+
+        <!-- 🔒 TK-APPROVED (28.07.2026, ফটো-প্রুফে পাশ · খাতার সারি B46):
+             "চেম্বার বন্ধ করুন" — ☰ মেনু থেকে খোলে, পুরনো দিনের চেম্বার এখান
+             থেকে বন্ধ করা যায়। -->
+        <activity
+            android:name=".native.ChamberCloseActivity"
+            android:exported="false"
+            android:label="Chamber Close"
+            android:theme="@style/Theme.PilesClinic" />
+
+        <!-- Native rebuild (continued): Follow-up Calendar is now a real native screen. -->
+        <activity
+            android:name=".native.FollowCalendarActivity"
+            android:exported="false"
+            android:label="Follow-up Calendar"
+            android:theme="@style/Theme.PilesClinic" />
+
+        <!-- NEW (2026-08-07, TK-approved): in-app "কাল আসার কথা" list, opened
+             from the day-before reminder notification. -->
+        <activity
+            android:name=".native.ExpectedTomorrowActivity"
+            android:exported="false"
+            android:label="কাল আসার কথা"
+            android:theme="@style/Theme.PilesClinic" />
+
+        <!-- Native rebuild (continued): Password Center (user management) is now native. -->
+        <activity
+            android:name=".native.PasswordCenterActivity"
+            android:exported="false"
+            android:label="Password Center"
+            android:theme="@style/Theme.PilesClinic" />
+
+        <!-- TK-REQUESTED ADDITION (2026-07-16): Export Data (CSV) feature. -->
+        <activity
+            android:name=".native.ExportDataActivity"
+            android:exported="false"
+            android:label="Export Data"
+            android:theme="@style/Theme.PilesClinic" />
+
+        <!-- Native rebuild (continued): Patient Photo management is now native. -->
+        <activity
+            android:name=".native.PatientPhotoActivity"
+            android:exported="false"
+            android:label="Patient Photo"
+            android:theme="@style/Theme.PilesClinic" />
+
+        <!-- Native rebuild (continued): staff/doctor avatar photo is now native. -->
+        <activity
+            android:name=".native.UserPhotoActivity"
+            android:exported="false"
+            android:label="My Photo"
+            android:theme="@style/Theme.PilesClinic" />
+
+        <!-- Native rebuild (final): Menu items now native — no WebView needed. -->
+        <activity
+            android:name=".native.MoreMenuActivity"
+            android:exported="false"
+            android:label="More"
+            android:theme="@style/Theme.PilesClinic" />
+        <activity
+            android:name=".native.DraftActivity"
+            android:exported="false"
+            android:label="Draft"
+            android:theme="@style/Theme.PilesClinic" />
+        <activity
+            android:name=".native.DraftListActivity"
+            android:exported="false"
+            android:label="Draft"
+            android:theme="@style/Theme.PilesClinic" />
+        <activity
+            android:name=".native.ReportsActivity"
+            android:exported="false"
+            android:label="Reports"
+            android:theme="@style/Theme.PilesClinic" />
+        <activity
+            android:name=".native.TrashBinActivity"
+            android:exported="false"
+            android:label="Trash Bin"
+            android:theme="@style/Theme.PilesClinic" />
+
+
+        <!-- Phase 4: Clinical Modules (native, standalone for now — see clinical/RoleSession.kt
+             for how a future native Dashboard should launch ClinicalModulesActivity with the
+             real logged-in role/patient). These are native screens. -->
+        <activity
+            android:name=".clinical.ClinicalModulesActivity"
+            android:exported="false"
+            android:label="Clinical Modules"
+            android:theme="@style/Theme.PilesClinic" />
+        <activity
+            android:name=".clinical.DoctorCheckupActivity"
+            android:exported="false"
+            android:label="Doctor Check-up"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.PilesClinic" />
+        <activity
+            android:name=".clinical.PrescriptionActivity"
+            android:exported="false"
+            android:label="Prescription"
+            android:theme="@style/Theme.PilesClinic" />
+        <activity
+            android:name=".clinical.MedicineSlipActivity"
+            android:exported="false"
+            android:label="Medicine Slip"
+            android:theme="@style/Theme.PilesClinic" />
+        <activity
+            android:name=".clinical.InvestigationAdviceActivity"
+            android:exported="false"
+            android:label="Investigation Advice"
+            android:theme="@style/Theme.PilesClinic" />
+        <activity
+            android:name=".clinical.InvestigationCategoryActivity"
+            android:exported="false"
+            android:label="Blood Test Category"
+            android:theme="@style/Theme.PilesClinic" />
+        <activity
+            android:name=".clinical.DietChartActivity"
+            android:exported="false"
+            android:label="Diet Chart"
+            android:theme="@style/Theme.PilesClinic" />
+        <activity
+            android:name=".clinical.PatientClinicalHistoryActivity"
+            android:exported="false"
+            android:label="Patient History"
+            android:theme="@style/Theme.PilesClinic" />
+
+        <!-- Phase 5: Supabase Integration + Offline-First (native, standalone for
+             now — same reasoning as the Phase 4 clinical activities: no native
+             Dashboard exists yet to launch this from). -->
+
+        <!-- Phase 6: Professional Print System (native, standalone for now —
+             same reasoning as Phase 4/5: no native Dashboard exists yet). -->
+        <activity
+            android:name=".print.PrintCenterActivity"
+            android:exported="false"
+            android:label="Print Center"
+            android:theme="@style/Theme.PilesClinic" />
+        <activity
+            android:name=".print.PrintPreviewActivity"
+            android:exported="false"
+            android:label="Print Preview"
+            android:theme="@style/Theme.PilesClinic" />
+
+        <!-- Phase 9: Security + Settings (native, standalone for now — same
+             reasoning as Phase 4/5/6). -->
+        <activity
+            android:name=".security.SettingsActivity"
+            android:exported="false"
+            android:label="App Settings"
+            android:theme="@style/Theme.PilesClinic" />
+
+        <!-- FileProvider: required for camera capture (photo file needs a content:// URI
+             to hand to the camera app on modern Android versions) -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+        <!-- V245 additive — three new module activities (isolated; nothing existing changed) -->
+        <activity android:name="com.tkbiswas.pilesclinic.modules.StaffProfileActivity" android:exported="false" />
+        <activity android:name="com.tkbiswas.pilesclinic.modules.WorkNotebookActivity" android:exported="false" />
+        <activity android:name="com.tkbiswas.pilesclinic.modules.IncomeExpenseActivity" android:exported="false" />
+        <!-- V306 additive — Partner Shares (অংশীদারি ভাগ), isolated; nothing existing changed -->
+        <activity android:name="com.tkbiswas.pilesclinic.modules.PartnerSharesActivity" android:exported="false" />
+
+    </application>
+
+</manifest>

@@ -1,0 +1,25 @@
+# ---- Android / Gradle ----
+build/
+.gradle/
+local.properties
+*.apk
+*.aab
+captures/
+.cxx/
+
+# ---- IDE ----
+.idea/
+*.iml
+.vscode/
+
+# ---- Node / web tooling ----
+node_modules/
+
+# ---- Signing secrets (NEVER commit) ----
+release-keystore.jks
+keystore.properties
+*.keystore
+
+# ---- OS junk ----
+.DS_Store
+Thumbs.db

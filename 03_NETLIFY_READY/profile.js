@@ -1,0 +1,1262 @@
+/* =====================================================================
+   V245 MODULE 1 — PROFESSIONAL PROFILE & SALARY  · additive, isolated
+   Master: view/edit every profile + salary + record payments.
+   Staff/Doctor/Field: view ONLY their own profile + salary history.
+   Data lives in schema `hr` (RLS enforced). Numbers displayed masked.
+   ===================================================================== */
+(function () {
+  function sb() { return window.MOD.client(); }
+  // 🔴 V404 (16.08.2026): বার্তা দেখানোর নিরাপদ মোড়ক। `toast` আসে app.js থেকে
+  //    (গ্লোবাল) — MOD-এ toast নেই, তাই `MOD.toast(...)` ডাকলে পর্দা ভেঙে যেত।
+  //    এখানে ধরা আছে; না পাওয়া গেলেও কিছু ভাঙবে না।
+  function pfToast(msg) { try { toast(msg); } catch (e) { try { console.log(msg); } catch (_e) {} } }
+
+  // ছবি (V252, TK-অনুরোধে): existing app.js-এর fileData() পুনর্ব্যবহার (resize+base64),
+  // নতুন কোনো Storage bucket/লাইব্রেরি লাগেনি। ৩-বার চাপে তবেই বদলানো যায় (MOD.tripleTap)।
+  var __currentPhoto = null;  // edit খোলার সময় আগে থেকে সেভ করা ছবি
+  var __pendingPhoto = null;  // এই সেশনে নতুন বাছা ছবি (এখনো সেভ হয়নি)
+
+  // Master dashboard card entry point
+  async function staffProfiles() { window.MOD.gate('Staff Profiles', renderMaster); }
+  // Staff More-Menu entry point
+  async function myProfile() { window.MOD.gate('My Profile', renderSelf); }
+
+  async function renderMaster() {
+    var m = window.MOD;
+    if (!m.isMasterModule()) { return renderSelf(); }
+    var host = document.getElementById('app');
+    host.innerHTML = '<div class="wrap anMod anModPf"><div class="topbar"><b>🧑‍💼 Staff Profiles</b>' +
+      '<button class="ghost" onclick="dashboard()">Home</button></div>' +
+      '<div class="page"><div id="spList" class="mut">Loading...</div></div></div>';
+    var client = await sb();
+    var rows = [];
+    // 🔴 বাগ-ফিক্স (02.08.2026, TK-রিপোর্ট Supabase খরচ বেশি দেখে ধরা পড়েছে):
+    // এই তালিকায় ছবি দেখানো হয় না, অথচ select('*') সবার photo_data (৫০-১০০ KB
+    // প্রতিটা) সহ পুরো রেকর্ড টানত। এখন শুধু দরকারি কলামই টানা হচ্ছে।
+    // 🔵 TK-ORDER (07.08.2026): পড়া ব্যর্থ হলে "No profiles." নয় (আগে দেখাত) — সৎ
+    // "লোড করা গেল না" বার্তা, যাতে সত্যিই তালিকা খালি নাকি নেট-সমস্যা বোঝা যায়।
+    var listFailed = false;
+    try { var __rp = await client.schema('hr').from('staff_profiles')
+      .select('person_code,designation,role_kind,branch,full_name,link_mobile,active')
+      .order('person_code'); if (__rp && __rp.error) listFailed = true; rows = __rp.data || []; } catch (e) { listFailed = true; }
+    // 🔴 V404 (16.08.2026, TK-নির্দেশ): বাদ-দেওয়া কর্মী (active = false) মূল
+    //    তালিকায় ও "Salary Due"-তে আর আসবে না। আগে আসত — SWAPNA ADHIKARI
+    //    কাজ ছেড়ে দেওয়ার পরেও তাঁর নাম উঠত।
+    //    ⛔ চুপচাপ লুকোনো হচ্ছে না — নিচে আলাদা "Removed Staff" বাক্সে গোনা
+    //       থাকবে, ভুল হলে Restore করা যাবে।
+    //    ⚠️ `active` ঘরটা না থাকলে (পুরনো সারি) coalesce-এর মতোই সচল ধরা হয়।
+    /* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬) — ফোনে এই তালিকায় **শুধু কর্মী**
+       দেখানো হয় (StaffProfileActivity.kt:188 — role_kind ≠ staff হলে বাদ)।
+       ওয়েবে ডাক্তার ও মাস্টারের সারিও উঠে আসত, তাই দুই জায়গায় তালিকা আলাদা
+       দেখাত। ⛔ কারও তথ্য মোছা হয় না — শুধু এই এক পর্দায় দেখানো হয় না। */
+    var __onlyStaff = function (p) { return String(p.role_kind || '').toLowerCase() === 'staff'; };
+    rows = rows.filter(__onlyStaff);
+    var removedRows = rows.filter(function (p) { return p.active === false; });
+    rows = rows.filter(function (p) { return p.active !== false; });
+    var cfgs = {};
+    try {
+      (await client.schema('hr').from('salary_config').select('*')).data.forEach(function (c) { cfgs[c.person_code] = c; });
+    } catch (e) {}
+    // 🟢 B629: স্যালারির তারিখ পেরিয়েছে অথচ এ মাসে দেওয়া হয়নি — এমন স্টাফ থাকলে উপরে "Salary Due"
+    var paysByCode = {};
+    try {
+      var __pa = (await client.schema('hr').from('salary_payments').select('person_code,amount,paid_on,for_month')).data || [];
+      __pa.forEach(function (p) { (paysByCode[p.person_code] = paysByCode[p.person_code] || []).push(p); });
+    } catch (e) {}
+    var dueRows = [];
+    rows.forEach(function (p) { var sc = cfgs[p.person_code] || {}; var d = salaryDueThisMonth(sc, paysByCode[p.person_code] || []); if (d > 0) dueRows.push({ code: p.person_code, name: p.full_name || p.person_code, branch: p.branch || '', sd: sc.salary_date, amt: d }); });
+    var dueHtml = dueRows.length ? ('<div class="card" style="border:1px solid #ffd58a;background:#fff7e6"><b>💰 Salary Due (' + dueRows.length + ')</b>' +
+      dueRows.map(function (d) { return '<div style="padding:8px 0;border-top:1px solid #f0e2c0"><b>' + m.esc(d.name) + '</b> · ' + m.esc(d.branch) +
+        /* 🔴 V430 — ফোনের লেখা: "Salary day 5 · due this month · ₹5,000"
+           (BriefingActivity.kt:945-976)। ওয়েবের পুরনো লেখাটা নির্দেশ-ধাঁচের ছিল। */
+        '<br><span class="tiny mut">Salary day ' + m.esc(d.sd || '-') + ' · due this month · ' + m.money(d.amt) + '</span> ' +
+        '<button class="small" onclick="profSalary(\'' + m.esc(d.code) + '\')">➕ Pay Salary</button></div>'; }).join('') + '</div>') : '';
+    /* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬: "সব কিছু Android এর মত হোক") — কর্মীর
+       কার্ডটা হুবহু ফোনের মতো করা হলো (StaffProfileActivity.kt:251-327):
+         · প্রথম লাইনে **নাম** (মোটা) আর পাশে **পদবির রঙিন চিপ**
+           (স্টাফ সবুজ #EAF6EE/#0B8A3E · ডাক্তার বেগুনি #EFEAFB/#6A3FCB)
+         · দ্বিতীয় লাইনে কোড · ব্রাঞ্চ · ঢাকা মোবাইল
+         · তৃতীয় লাইনে বেতন — চালু থাকলে সবুজ, বন্ধ থাকলে ধূসর
+         · বোতাম: View (ফাঁপা) · Salary (ভরাট সবুজ) · Performance · Suspend · Remove
+       আগে ওয়েবে কোড আগে ছিল, নাম পরে; পদবির চিপ ছিলই না; ভরাট বোতাম ছিল
+       "Edit"; আর বেতনের রং সবসময় এক ছিল। ⛔ কোনো বোতামের কাজ বদলায়নি। */
+    var listHtml = rows.map(function (p) {
+      var sc = cfgs[p.person_code] || {};
+      var isDoc = String(p.role_kind || '').toLowerCase() === 'doctor';
+      var desig = p.designation || p.role_kind || (isDoc ? 'Doctor' : 'Staff');
+      var salOn = !!sc.salary_enabled;
+      var salTxt = salOn ? ('Salary: ' + m.money(sc.salary_amount) + ' (day ' + m.esc(sc.salary_date || '-') + ')') : 'Salary: disabled';
+      return '<div class="card pfStaffCard"><div class="pfStaffInfo">' +
+        '<div class="pfNameRow"><b class="pfName">' + m.esc(p.full_name || '(name not set)') + '</b>' +
+        '<span class="pfPill' + (isDoc ? ' pfPillDoc' : '') + '">' + m.esc(desig) + '</span></div>' +
+        '<div class="pfMeta">' + m.esc(p.person_code) + ' · ' + m.esc(p.branch || '') + ' · ' + m.maskMobile(p.link_mobile) + '</div>' +
+        '<div class="pfSal' + (salOn ? '' : ' pfSalOff') + '">' + m.esc(salTxt) + '</div></div>' +
+        '<div class="pfStaffBtns">' +
+        '<button class="small ghost pfBtn" onclick="profEdit(\'' + m.esc(p.person_code) + '\')">View</button>' +
+        '<button class="small pfBtn pfBtnFill" onclick="profSalary(\'' + m.esc(p.person_code) + '\')">Salary</button>' +
+        '<button class="small ghost pfBtn" onclick="staffPerformanceOne(\'' + m.esc(p.person_code) + '\')">Performance</button>' +
+        '<button class="small ghost pfBtn pfDanger" onclick="profSuspend(\'' + m.esc(p.person_code) + '\')">Suspend</button>' +
+        '<button class="small ghost pfBtn pfDanger" onclick="profRemove(\'' + m.esc(p.person_code) + '\')">Remove</button>' +
+        '</div></div>';
+    }).join('');
+    // ⛔ V404: আগের `... || 'No profiles.'` লেখাটা এখানেই রাখা হলো, কিন্তু শুধু
+    //    সচল তালিকার উপরে — নইলে সবাই বাদ হয়ে গেলে "No profiles." আর
+    //    Removed-বাক্স একসাথে গুলিয়ে যেত।
+    if (!listHtml) listHtml = '<div class="card mut">' + (listFailed ? 'Could not load. Please try again.' : 'No profiles.') + '</div>';
+    /* 🏆 V419 (TK-নির্দেশ): সবার পারফরম্যান্স এক পর্দায় — উপরে একটাই বোতাম। */
+    var perfBtn = '<div class="card"><button style="width:100%;background:#fff;color:#0A5C33;border:2px solid #0A5C33;font-weight:800;font-size:15px;padding:13px;border-radius:12px" onclick="staffPerformance()">🏆 Staff Performance</button></div>';
+    document.getElementById('spList').innerHTML = perfBtn + dueHtml + listHtml + removedHtml();
+
+    // 🔴 V404: বাদ-দেওয়া কর্মীদের ছোট তালিকা — গোনা থাকে, ভুল হলে Restore।
+    function removedHtml() {
+      if (!removedRows.length) return '';
+      return '<div class="card" style="border:1px solid #e5e5e5;background:#fafafa"><b>Removed Staff (' + removedRows.length + ')</b>' +
+                removedRows.map(function (p) {
+          /* 🔴 V430 — ফোনে বাদ-দেওয়া কর্মীও **পুরো কার্ড** হিসেবেই দেখায়
+             (নাম + পদবির চিপ + কোড·ব্রাঞ্চ·মোবাইল + Restore)। */
+          var __isDoc = String(p.role_kind || '').toLowerCase() === 'doctor';
+          return '<div class="pfStaffCard pfRemovedRow"><div class="pfStaffInfo">' +
+            '<div class="pfNameRow"><b class="pfName">' + m.esc(p.full_name || '(name not set)') + '</b>' +
+            '<span class="pfPill' + (__isDoc ? ' pfPillDoc' : '') + '">' + m.esc(p.designation || p.role_kind || 'Staff') + '</span></div>' +
+            '<div class="pfMeta">' + m.esc(p.person_code) + ' · ' + m.esc(p.branch || '') + ' · ' + m.maskMobile(p.link_mobile) + '</div>' +
+            '<div class="pfSal pfSalOff">Salary: disabled</div></div>' +
+            '<div class="pfStaffBtns"><button class="small ghost pfBtn" onclick="profRestore(\'' + m.esc(p.person_code) + '\')">Restore</button></div></div>';
+        }).join('') + '</div>';
+    }
+  }
+
+  // 🔴 V404 (16.08.2026, TK-নির্দেশ: "কর্মী বাদ দিন বোতাম বসান")
+  //    বাদ দিলে যা যা হয় — একটাই বোতামে:
+  //      ১) hr.staff_profiles.active = false ⇒ লগইন বন্ধ (V404-এর
+  //         `suspended_until_for` 2999-12-31 ফেরায়, ওয়েব ও ফোন দুটোতেই)
+  //      ২) মাইনে বন্ধ ⇒ আর কখনো "Salary Due"-তে নাম উঠবে না
+  //      ৩) আয়-খরচের চাবি বন্ধ ⇒ V403-এর নিয়মও আপনা থেকে খাটে
+  //    ⛔ রোগী · ফলোআপ · মাইনের রসিদ · ছুটি — একটাও সারি ছোঁয়া হয় না।
+  async function profRemove(code) {
+    if (!window.MOD.isMasterModule()) return pfToast('Only Master');
+    if (!confirm(code + ' — remove this staff?\n\n• Login stops\n• Removed from the salary list\n• Income/Expense key turned off\n\nNo past record is deleted. Can be restored later.')) return;
+    var client = await sb();
+    var failed = [];
+    try {
+      var r1 = await client.schema('hr').from('staff_profiles')
+        .update({ active: false, updated_at: new Date().toISOString() }).eq('person_code', code);
+      if (r1 && r1.error) failed.push('profile');
+    } catch (e) { failed.push('profile'); }
+    try {
+      var r2 = await client.schema('hr').from('salary_config')
+        .update({ salary_enabled: false }).eq('person_code', code);
+      if (r2 && r2.error) failed.push('salary');
+    } catch (e) { failed.push('salary'); }
+    try {
+      var r3 = await client.schema('fin').from('entry_permits')
+        .update({ can_entry: false }).eq('person_code', code);
+      if (r3 && r3.error) failed.push('permit');
+    } catch (e) { failed.push('permit'); }
+    // ⛔ সৎ বার্তা — অর্ধেক হলে "হয়ে গেছে" বলা হয় না (খাতার ফাঁদ ১ দ্রষ্টব্য)।
+    if (failed.length) pfToast('Partly done. Left: ' + failed.join(', ') + '. Please try again.');
+    else pfToast(code + ' removed');
+    renderMaster();
+  }
+
+  // 🔴 V404: ভুল করে বাদ দিলে ফিরিয়ে আনা। ⛔ মাইনে নিজে থেকে চালু হয় না —
+  //    মাস্টারকে Salary পর্দায় গিয়ে নিজে চালু করতে হবে (টাকার ব্যাপার, আন্দাজে নয়)।
+  async function profRestore(code) {
+    if (!window.MOD.isMasterModule()) return pfToast('Only Master');
+    if (!confirm(code + ' — restore this staff?\n\nLogin will work again.\nSalary must be turned on separately from the Salary screen.')) return;
+    var client = await sb();
+    try {
+      var r = await client.schema('hr').from('staff_profiles')
+        .update({ active: true, updated_at: new Date().toISOString() }).eq('person_code', code);
+      if (r && r.error) return pfToast('Did not work. Please try again.');
+    } catch (e) { return pfToast('Did not work. Please try again.'); }
+    pfToast(code + ' restored');
+    renderMaster();
+  }
+
+  // 🔵🔒 B618 (11.08.2026, TK-নির্দেশ): master স্টাফকে X দিন Suspend — hr.staff_profiles-এ
+  // suspended_until বসে; ওই সময় স্টাফ লগইন করতে পারবে না (login-গেট)। 0/ফাঁকা = Remove।
+  async function profSuspend(code) {
+    var opt = prompt('Suspend how many days? (0 or blank = remove suspend)', '3');
+    if (opt === null) return;
+    var days = parseInt(opt, 10);
+    var until = null;
+    if (days > 0) {
+      var t = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+      t.setDate(t.getDate() + days);
+      until = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');
+    }
+    try {
+      var client = await sb();
+      await client.schema('hr').from('staff_profiles').update({ suspended_until: until }).eq('person_code', code);
+      try { toast(until ? ('Suspended till ' + until) : 'Suspend removed'); } catch (e) {}
+    } catch (e) { try { toast('Failed — check net'); } catch (_e) {} }
+  }
+  window.profSuspend = profSuspend;
+  window.profRemove = profRemove;     // 🔴 V404
+  window.profRestore = profRestore;   // 🔴 V404
+
+  async function profEdit(code) {
+    var m = window.MOD, client = await sb();
+    var p = ((await client.schema('hr').from('staff_profiles').select('*').eq('person_code', code).maybeSingle()).data) || { person_code: code };
+    var __oldProfilePhoto = null;
+    try { __oldProfilePhoto = (userPhotoMap() || {})[mob(p.link_mobile || '')] || null; } catch (e) {}
+    __currentPhoto = p.photo_data || __oldProfilePhoto || null; __pendingPhoto = null;
+    // 🎨 (03.08.2026, TK-অনুমোদিত ফটো-প্রুফ পাশ করার পরে) — বড় হাসপাতাল/
+    // নার্সিংহোমের HR সিস্টেমের ধাঁচে: উপরে প্রোফাইল-স্ট্রিপ + নিচে বিষয়-
+    // ভিত্তিক প্যানেলে (Personal/Employment/Contact/Emergency/Identification/
+    // Notes) ফিল্ড আলাদা করে সাজানো, ২-কলাম গ্রিডে, স্পষ্ট ফাঁক সহ।
+    // ⛔ সম্পূর্ণ ইনলাইন স্টাইল — কোনো নতুন global CSS ক্লাস তৈরি হয়নি,
+    // styles.css একটুও ছোঁয়া হয়নি, তাই বাকি কোনো স্ক্রিনে প্রভাব নেই।
+    // ⛔ প্রতিটা ফিল্ডের id (pName, pBranch, ... pNotes, pPhotoImg,
+    // pPhotoChange, pPhotoFile) আর profSave()/triple-tap লজিক অক্ষত —
+    // শুধু চারপাশের HTML/CSS বদলেছে, ডেটা সেভ হওয়ার পথ এক অক্ষরও বদলায়নি।
+    // ⛔ মকআপে দেখানো 🔒 আইকন এখানে ইচ্ছাকৃতভাবে বাদ — এই পাতায় Master
+    // সত্যিই ফিল্ড এডিট করেন (input বাক্স), তাই লক-আইকন থাকলে বিভ্রান্তিকর
+    // হতো (ফোনের সেই আইকনটা staff-এর নিজের-প্রোফাইল-triple-tap-lock এর
+    // জন্য প্রাসঙ্গিক, ওয়েবে Master-only এই স্ক্রিনে সেই আচরণ নেই)।
+    function f(id, label, val, type) {
+      return '<div style="padding:11px 20px;border-bottom:1px solid #F5F6F8">' +
+        '<label style="display:block;font-size:11px;color:#667085;margin-bottom:5px;font-weight:600;text-transform:uppercase;letter-spacing:.3px">' + label + '</label>' +
+        '<input id="' + id + '" class="input" type="' + (type || 'text') + '" value="' + m.esc(val || '') + '" style="margin:0;padding:8px 10px;font-size:13.5px;border-radius:8px">' +
+        '</div>';
+    }
+    function panel(title, fieldsHtml) {
+      return '<div style="background:#fff;border:1px solid #E4E8EE;border-radius:12px;box-shadow:0 1px 3px rgba(16,24,40,0.04);overflow:hidden">' +
+        '<div style="padding:13px 20px;border-bottom:1px solid #EEF1F4;font-size:13px;font-weight:700;color:#101828;display:flex;align-items:center;gap:8px">' +
+        '<span style="width:7px;height:7px;border-radius:50%;background:#0B6B3A;display:inline-block"></span>' + title + '</div>' +
+        fieldsHtml + '</div>';
+    }
+    var photoHtml = '<img id="pPhotoImg" src="' + m.esc(__currentPhoto || '') + '" style="width:64px;height:64px;object-fit:cover;border-radius:50%;border:2px solid #CFE9D8;background:#E6F4EA"' + (__currentPhoto ? '' : ' hidden') + '>' +
+      (__currentPhoto ? '' : '<div id="pPhotoBlank" style="width:64px;height:64px;border-radius:50%;background:#E6F4EA;color:#0B6B3A;display:flex;align-items:center;justify-content:center;font-size:26px;border:2px solid #CFE9D8">👤</div>');
+    document.getElementById('app').innerHTML =
+      '<div class="wrap anMod anModPf" style="max-width:1180px">' +
+      '<div class="topbar" style="padding:14px 24px"><b>🧑\u200d💼 Staff Profiles &nbsp;›&nbsp; <span style="color:#0B6B3A">View — ' + m.esc(code) + '</span></b>' +
+      '<span><button class="ghost" onclick="staffProfiles()" style="margin-right:8px">Back</button>' +
+      '<button onclick="profSave(\'' + m.esc(code) + '\')" style="background:#0B6B3A;box-shadow:none">Save</button></span></div>' +
+      '<div class="page" style="padding:20px 24px 40px">' +
+
+      '<div style="background:#fff;border:1px solid #E4E8EE;border-radius:12px;padding:20px 24px;display:flex;align-items:center;gap:18px;box-shadow:0 1px 3px rgba(16,24,40,0.04);flex-wrap:wrap">' +
+      photoHtml +
+      '<div style="flex:1;min-width:180px">' +
+      '<div style="font-size:19px;font-weight:700;color:#101828">' + m.esc(p.full_name || '(name not set)') + '</div>' +
+      '<div style="font-size:13px;color:#667085;margin-top:2px">' + m.esc(p.person_code) + ' · ' + m.esc(p.designation || p.role_kind || '-') + '</div>' +
+      '<div style="margin-top:9px;display:flex;gap:8px;flex-wrap:wrap">' +
+      '<span style="font-size:12px;font-weight:600;padding:4px 11px;border-radius:999px;background:#E6F4EA;color:#0B6B3A">' + m.esc(p.designation || p.role_kind || 'Staff') + '</span>' +
+      '<span style="font-size:12px;font-weight:600;padding:4px 11px;border-radius:999px;background:#EAF1FB;color:#1D4E89">' + m.esc(p.branch || '-') + '</span>' +
+      '</div></div>' +
+      '<div style="text-align:right;font-size:12.5px;color:#98A2B3">Profile photo' +
+      '<div id="pPhotoChange" style="cursor:pointer;color:#0B6B3A;font-weight:600;margin-top:2px">📷 Add / Change Photo</div>' +
+      '<input type="file" id="pPhotoFile" accept="image/*" style="display:none"></div>' +
+      '</div>' +
+
+      '<div style="font-size:12.5px;font-weight:700;color:#667085;text-transform:uppercase;letter-spacing:.5px;margin:22px 2px 10px">Profile Details</div>' +
+      '<div class="wlv1SafeTwoCol">' +
+
+      panel('Personal Details', f('pName', 'Full Name', p.full_name) + f('pDob', 'Date of Birth', p.dob, 'date') + f('pGender', 'Gender', p.gender) + f('pBlood', 'Blood Group', p.blood_group) + f('pQual', 'Qualification', p.qualification)) +
+      panel('Employment', f('pDesig', 'Designation (e.g. Staff/Receptionist)', p.designation) + f('pBranch', 'Branch', p.branch) + f('pJoin', 'Join Date', p.join_date, 'date')) +
+      panel('Contact', f('pAddr', 'Address', p.address) + f('pAltMobile', 'Alternate Mobile', p.alt_mobile)) +
+      panel('Emergency Contact', f('pEmg', 'Emergency Contact (Name + Mobile)', p.emergency_contact) + f('pEmgRel', 'Emergency Relationship', p.emergency_relationship)) +
+      panel('Identification', '<div style="padding:11px 20px;border-bottom:1px solid #F5F6F8"><label style="display:block;font-size:11px;color:#667085;margin-bottom:5px;font-weight:600;text-transform:uppercase;letter-spacing:.3px">ID Type</label><input id="pIdType" class="input" value="' + m.esc(p.gov_id_type || '') + '" placeholder="Aadhaar / PAN / Voter" style="margin:0;padding:8px 10px;font-size:13.5px;border-radius:8px"></div>' +
+        '<div style="padding:11px 20px"><label style="display:block;font-size:11px;color:#667085;margin-bottom:5px;font-weight:600;text-transform:uppercase;letter-spacing:.3px">ID Number (stored masked; last 4 kept)</label><input id="pIdNum" class="input" placeholder="enter full number" style="margin:0;padding:8px 10px;font-size:13.5px;border-radius:8px"></div>') +
+      panel('Notes', f('pNotes', 'Notes', p.notes)) +
+
+      '</div></div></div>';
+    document.getElementById('pPhotoChange').onclick = function () { document.getElementById('pPhotoFile').click(); };
+    document.getElementById('pPhotoFile').onchange = async function (e) {
+      var url = await fileData(e.target);
+      if (url) {
+        __pendingPhoto = url;
+        var img = document.getElementById('pPhotoImg');
+        img.src = url; img.hidden = false;
+        var blank = document.getElementById('pPhotoBlank'); if (blank) blank.hidden = true;
+      }
+    };
+  }
+
+  async function profSave(code) {
+    var m = window.MOD, client = await sb();
+    var idNum = document.getElementById('pIdNum').value.trim();
+    var row = {
+      person_code: code,
+      full_name: document.getElementById('pName').value,
+      branch: document.getElementById('pBranch').value,
+      designation: document.getElementById('pDesig').value,
+      join_date: document.getElementById('pJoin').value,
+      dob: document.getElementById('pDob').value,
+      gender: document.getElementById('pGender').value,
+      blood_group: document.getElementById('pBlood').value,
+      qualification: document.getElementById('pQual').value,
+      address: document.getElementById('pAddr').value,
+      alt_mobile: document.getElementById('pAltMobile').value,
+      emergency_contact: document.getElementById('pEmg').value,
+      emergency_relationship: document.getElementById('pEmgRel').value,
+      gov_id_type: document.getElementById('pIdType').value,
+      notes: document.getElementById('pNotes').value,
+      updated_at: new Date().toISOString()
+    };
+    var photoToSave = __pendingPhoto || __currentPhoto;
+    if (photoToSave) row.photo_data = photoToSave;
+    if (idNum) { row.gov_id_last4 = idNum.replace(/\s/g, '').slice(-4); }
+    // 🔵 TK-ORDER (07.08.2026): supabase upsert error-এ throw করে না ({error} ফেরায়)।
+    // আগে সেটা যাচাই না করে সবসময় staffProfiles()-এ ফিরে যেত — মনে হত সেভ হয়েছে,
+    // অথচ হয়নি → staff পরিবর্তন দেখত না। এখন {error}/throw হলে সৎ বার্তা + পাতায়
+    // থাকা (আবার Save করা যায়); সফল হলে আগের মতোই তালিকায় ফেরা।
+    // ⛔ upsert/onConflict/সফল-পথ এক অক্ষরও বদলায়নি — শুধু ব্যর্থতা এখন সৎ।
+    try {
+      // upsert by person_code (unique). Fetch id first to keep same row.
+      var ex = (await client.schema('hr').from('staff_profiles').select('id').eq('person_code', code).maybeSingle()).data;
+      if (ex) row.id = ex.id;
+      var __up = await client.schema('hr').from('staff_profiles').upsert(row, { onConflict: 'person_code' });
+      if (__up && __up.error) throw __up.error;
+      try { toast('Saved'); } catch (e) {}
+      staffProfiles();
+    } catch (e) {
+      try { toast('Not saved. Press Save again.'); } catch (e2) {}
+    }
+  }
+
+  /* 🔵🔒 V418 (TK-অনুমোদিত নিয়ম, ১৭.০৮.২০২৬) — Extra Income আপনা থেকে।
+     Master স্যালারি পর্দা খুললেই একবার হিসাবটা মিলিয়ে নেওয়া হয়:
+       • Unexpected Time-এ রেজিস্ট্রেশন + Fee জমা ⇒ ₹১০০ (৫০-৫০)
+       • ওই রোগীর প্রথম Advance জমা ⇒ আরও ₹৪০০ ⇒ মোট ₹৫০০
+     ⛔ পুরো হিসাবটা ডেটাবেসের ভিতরে (`hr.incentive_sync`) — অ্যাপ শুধু ডাক দেয়,
+        তাই ফোন আর ওয়েবে নিয়ম আলাদা হয়ে যাওয়ার সুযোগ নেই।
+     ⛔ রোগী/এনকোয়ারি/পেমেন্ট — একটাও টেবিলে লেখা হয় না, শুধু পড়া হয়।
+     ⛔ একবার "দেওয়া হয়েছে" হয়ে গেলে সেই সারি আর কখনো বদলায় না।
+     ⛔ ডাকটা ব্যর্থ হলেও পর্দা আগের মতোই খোলে — কিছুই ভাঙে না। */
+  async function profIncentiveSync(client) {
+    try {
+      if (!window.MOD.isMasterModule()) return;
+      await client.schema('hr').rpc('incentive_sync', {});
+    } catch (e) {}
+  }
+
+  async function profSalary(code) {
+    var m = window.MOD, client = await sb();
+    await profIncentiveSync(client);
+    var sc = ((await client.schema('hr').from('salary_config').select('*').eq('person_code', code).maybeSingle()).data) || { person_code: code };
+    var pays = ((await client.schema('hr').from('salary_payments').select('*').eq('person_code', code).order('paid_on', { ascending: false })).data) || [];
+    var prof = ((await client.schema('hr').from('staff_profiles').select('join_date').eq('person_code', code).maybeSingle()).data) || {};
+    // 🔴🆕🔒 TK-নির্দেশ (08.08.2026, ফটো-প্রুফে লক) — ফোনের মতোই সহজ: উপরে মাসিক
+    // বেতন + "কোন মাস পর্যন্ত দেওয়া / এই মাসে বাকি", নিচে এই-মাসের-বেতন দিন, পুরো
+    // History, একদম নিচে বেতন-সেটিংস। মাসের নাম ইংরেজিতে। ⛔ সেভ/পেমেন্টের কল
+    // আগেরটাই (profSalaryCfgSave/profSalaryPay), শুধু পেমেন্টে for_month যোগ।
+    // হিসাব: পেমেন্টের মাস = for_month থাকলে সেটা, নইলে paid_on-এর মাস (পুরনো পেমেন্টও
+    // ধরা পড়ে)। "Paid up to / due" শুধু পড়ার হিসাব — ভুল হলেও টাকা/রেকর্ড ভাঙে না।
+    var names = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    function monthLabel(ym){ try{ var pp=String(ym).split('-'); return names[Number(pp[1])-1]+' '+pp[0]; }catch(e){ return ym; } }
+    function payMonth(p){ if(p.for_month) return String(p.for_month); var d=String(p.paid_on||''); return d.length>=7?d.slice(0,7):''; }
+    var cur = m.todayIST().slice(0,7);
+    var amount = Number(sc.salary_amount||0);
+    var active = !!sc.salary_enabled && amount>0;
+    var latest='', paidThis=0;
+    var extraTotal=0, extraDue=0, salaryTotal=0;
+    pays.forEach(function(p){
+      if(salIsExtra(p)){
+        /* 🔵 V417: "বাকি" টাকা এখনো দেওয়া হয়নি ⇒ "দেওয়া হয়েছে"-তে ধরা যাবে না। */
+        if(salStatus(p)==='DUE') extraDue+=Number(p.amount||0); else extraTotal+=Number(p.amount||0);
+        return;
+      }
+      salaryTotal+=Number(p.amount||0);
+      var mm=payMonth(p); if(mm>latest)latest=mm; if(mm===cur)paidThis+=Number(p.amount||0); });
+    var due = active ? Math.max(0, amount-paidThis) : 0;
+    /* 🎨 V416 (TK-অনুমোদিত মডেল ২): জয়েনিং ডেট ছোট করে উপরে, তারপর তিনটে মোট-বাক্স।
+       ⛔ শুধু সাজ — কোনো হিসাব বদলায়নি। ⛔ নেভি ব্লু কোথাও নেই। */
+    /* 🔵 V417খ: পাশাপাশি বসা সমান-মাপের বোতাম (দুটোতেই flex:1 ⇒ সমান চওড়া)।
+       ⛔ রং/মোটা লেখা/গোল কোণ আগের মডেল ৩-এর মতোই — TK-অনুমোদিত। */
+    function salPairBtn(label, textHex, borderHex, call) {
+      return '<button style="flex:1;min-width:0;background:#fff;color:' + textHex +
+        ';border:2px solid ' + borderHex + ';font-weight:800;font-size:14px;line-height:1.25' +
+        ';padding:13px 8px;border-radius:12px" onclick="' + call + '">' + label + '</button>';
+    }
+    /* 🎨 V417গ (TK-অনুমোদিত "মডেল ৩", ১৭.০৮.২০২৬) — *"৩ নম্বর বসান · সব ইংরেজিতে
+       হবে বাংলা লেখা থাকবে না"*। পর্দাটা এখন দুই ভাগে:
+         বাক্স ১ = Salary   (মাসিক · এই মাস · মোট দেওয়া · দুটো বোতাম)
+         বাক্স ২ = Extra Income (দেওয়া · বাকি · দুটো বোতাম)
+       ⛔ একটাও হিসাব বদলায়নি — উপরের গণনা হুবহু আগেরটাই।
+       ⛔ পর্দায় কোনো বাংলা লেখা নেই, কোনো নির্দেশ/সাহায্য-লাইনও নেই। */
+    function salRow(label, value, valueHex, top) {
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0' +
+        (top ? ';border-top:1px solid #F0F4F1' : '') + '">' +
+        '<span style="color:#3B5A49;font-size:13.5px">' + label + '</span>' +
+        '<b style="color:' + (valueHex || '#123A26') + ';font-size:14.5px">' + value + '</b></div>';
+    }
+    var joinRow = salRow('Joining date', m.esc(prof.join_date ? salDmy(prof.join_date) : 'Not recorded'), '#5B6B81', true);
+
+    /* বাক্স ১ — Salary */
+    var salaryCard = '<div class="card">' +
+      '<div style="font-weight:800;color:#0A5C33;font-size:16px;padding-bottom:4px">Salary</div>' +
+      (active
+        ? (salRow('Monthly', m.money(amount) + (sc.salary_date ? (' · day ' + m.esc(sc.salary_date)) : ''), '#0A5C33', true) +
+           salRow(monthLabel(cur), (due <= 0 ? 'Paid' : 'Due ' + m.money(due)), (due <= 0 ? '#0A7C3F' : '#B42318'), true) +
+           salRow('Paid up to', (latest ? monthLabel(latest) : '—'), '#0A7C3F', true))
+        : salRow('Monthly', 'Not set', '#B42318', true)) +
+      salRow('Total paid', m.money(salaryTotal), '#123A26', true) + joinRow +
+      /* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬) — ফোনে "Add Salary" বোতামটা **শুধু
+         বেতন চালু থাকলেই** আসে (StaffProfileActivity.kt:913-919); বন্ধ থাকলে
+         "Payment History" পুরো সারিটা নেয়। ওয়েবে বেতন "Not set" হলেও বোতামটা
+         পড়ে থাকত — চাপলে কোনো মাসই বাছা যেত না। */
+      '<div style="display:flex;gap:9px;margin-top:11px">' +
+        (active ? salPairBtn('Add Salary', '#0A5C33', '#0A5C33', 'profSalaryAddMonth(\'' + m.esc(code) + '\')') : '') +
+        salPairBtn('Payment History (' + pays.length + ')', '#0A5C33', '#0A5C33', 'profTogglePayHistory()') +
+      '</div>' +
+      /* 🔵 V417: Statement নিজে থেকে খোলা থাকে না — বোতামে চাপলে খোলে, আবার
+         চাপলে গুটিয়ে যায়। ⛔ কোনো সারি হারায় না। */
+      '<div id="phBox" style="display:none;margin-top:12px">' + salaryTable(pays) + '</div>' +
+      '</div>';
+
+    /* এই মাসের বেতন দেওয়ার ছোট ফর্ম — আগের মতোই, শুধু বাক্স ১-এর নিচে */
+    var payHtml = (active && due>0) ?
+      /* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬) — ফোনে শিরোনামে **কত টাকা** তাও লেখা
+         থাকে ("Pay August 2026 Salary (₹5,000)"), আর নিচে একটা Cancel বোতামও
+         থাকে (StaffProfileActivity.kt:921-923, 1422-1437)। ওয়েবে অঙ্কটা
+         ছিল না, ফেরার বোতামও ছিল না। */
+      ('<div class="card"><h3>Pay '+monthLabel(cur)+' Salary ('+m.money(due)+')</h3>' +
+       '<label>Amount</label><input id="spAmt" class="input" type="number" value="'+due+'">' +
+       '<input id="spDate" type="hidden" value="'+m.todayIST()+'">' +
+       '<label>Mode</label><select id="spMode" class="input"><option>Cash</option><option>Online</option></select>' +
+       '<input id="spRem" type="hidden" value="">' +
+       '<div class="actions"><button class="ghost" onclick="profSalary(\''+m.esc(code)+'\')">Cancel</button>'+
+       '<button onclick="profSalaryPay(\''+m.esc(code)+'\')">Add Payment</button></div></div>')
+      : '';
+
+    /* বাক্স ২ — Extra Income। ⛔ "Pay" বোতাম কেবল বাকি থাকলেই আসে; না থাকলে
+       "Add Extra" নিজেই পুরো লাইন নেয় (ফাঁকা বাক্স বসে না)। */
+    var extraCard = '<div class="card">' +
+      '<div style="font-weight:800;color:#B45309;font-size:16px;padding-bottom:4px">Extra Income</div>' +
+      salRow('Paid', m.money(extraTotal), '#123A26', true) +
+      salRow('Due', m.money(extraDue), (extraDue>0 ? '#B42318' : '#5B6B81'), true) +
+      '<div style="display:flex;gap:9px;margin-top:11px">' +
+        salPairBtn('Add Extra', '#B45309', '#E0A800', 'profExtraIncome(\'' + m.esc(code) + '\')') +
+        (extraDue>0 ? salPairBtn('Pay ' + m.money(extraDue), '#0A5C33', '#0A5C33', 'profPayExtraDue(\'' + m.esc(code) + '\')') : '') +
+      '</div></div>';
+
+    /* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬) — ফোনে এটা **আলাদা পর্দা**
+       ("Edit Salary — CODE", StaffProfileActivity.kt:1501-1517): লেবেল
+       Salary (disabled/enabled বাছাই) · Amount · Salary Date, নিচে
+       Cancel ও Save। ওয়েবে একটা গুটোনো লাইনের ভিতরে চেকবক্স ছিল।
+       ⛔ কী সেভ হয় (salary_enabled · salary_amount · salary_date) — একই। */
+    var settingsCard = '<div class="card">' +
+      '<div onclick="profSalaryEdit(\'' + m.esc(code) + '\')" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer">' +
+        '<b style="color:#0A5C33;font-size:15px">Salary Settings</b><span style="color:#9AA8B5">›</span></div></div>';
+
+    document.getElementById('app').innerHTML = '<div class="wrap anMod anModPf"><div class="topbar"><b>Salary — ' + m.esc(code) + '</b>' +
+      '<button class="ghost" onclick="staffProfiles()">Back</button></div><div class="page">' +
+      salaryCard + payHtml + extraCard + settingsCard +
+      '</div></div>';
+  }
+  /* 🎨 V417গ: Salary Settings খোলা/গোটানো — ক্লাউড থেকে নতুন কিছু আনা হয় না। */
+  function profToggleSalCfg() {
+    try {
+      var box = document.getElementById('salCfgBox');
+      if (box) box.style.display = (box.style.display === 'none') ? 'block' : 'none';
+    } catch (e) {}
+  }
+  window.profToggleSalCfg = profToggleSalCfg;
+  /* 🔴 V430 — "Edit Salary — CODE" পর্দা, হুবহু ফোনের মতো। */
+  async function profSalaryEdit(code) {
+    var m = window.MOD, client = await sb();
+    var sc = ((await client.schema('hr').from('salary_config').select('*').eq('person_code', code).maybeSingle()).data) || {};
+    var on = !!sc.salary_enabled;
+    document.getElementById('app').innerHTML = '<div class="wrap anMod anModPf"><div class="topbar"><b>Edit Salary — ' + m.esc(code) + '</b>' +
+      '<button class="ghost" onclick="profSalary(\'' + m.esc(code) + '\')">Back</button></div><div class="page">' +
+      '<div class="card">' +
+      '<label>Salary</label><select id="sEn" class="input"><option value="disabled"' + (on ? '' : ' selected') + '>disabled</option>' +
+        '<option value="enabled"' + (on ? ' selected' : '') + '>enabled</option></select>' +
+      '<label>Amount</label><input id="sAmt" class="input" type="number" value="' + m.esc(sc.salary_amount || '') + '">' +
+      '<label>Salary Date</label><input id="sDate" class="input" value="' + m.esc(sc.salary_date || '') + '">' +
+      '<div class="actions"><button class="ghost" onclick="profSalary(\'' + m.esc(code) + '\')">Cancel</button>' +
+      '<button onclick="profSalaryCfgSave(\'' + m.esc(code) + '\')">Save</button></div></div>' +
+      '</div></div>';
+  }
+  window.profSalaryEdit = profSalaryEdit;
+  /* 🔵🔒 V416 (TK-নির্দেশ, ১৭.০৮.২০২৬) — বেতন আর "বাড়তি টাকা" আলাদা।
+     ⛔ পুরনো সারিতে `kind` ঘরটা নেই ⇒ সেগুলো বেতনই ধরা হয়, তাই পুরনো হিসাব
+        এক পয়সাও বদলায় না। ⛔ ফোনের `payKind()`/`dmy()`-র হুবহু একই নিয়ম। */
+  /* 🔵 V417: এখনো "বাকি" না "দেওয়া হয়েছে"। পুরনো সারিতে ঘরটা নেই ⇒ PAID। */
+  function salStatus(p){ return String((p && p.status) || 'PAID').trim().toUpperCase() || 'PAID'; }
+  function salIsDue(p){ return salKind(p) === 'EXTRA' && salStatus(p) === 'DUE'; }
+  function salKind(p){ return String((p && p.kind) || 'SALARY').trim().toUpperCase() || 'SALARY'; }
+  /* ══════════════════════════════════════════════════════════════════════
+     🔴🔴🔒 V511 (২১.০৮.২০২৬, TK-নির্দেশ) — Extra টাকা কোন রোগীর জন্য।
+     TK: *"যেখানে ডিউ লেখা রয়েছে সেখানে চাপ দিলে যেন আমি বুঝতে পারি, এটা কোন
+     পেশেন্টের জন্য... তার হিস্টরি যেন একবারেই ক্লিক করলে রিডাইরেক্ট হতে পারি।"*
+     ⛔ ফোনের `StaffProfileActivity`-র হুবহু একই নিয়ম।
+     ⛔ রোগীর আইডি `src_key`-তে আগে থেকেই আছে — আন্দাজ করা হয় না।
+     ══════════════════════════════════════════════════════════════════════ */
+  var SAL_PAT_CACHE = {};     /* patients.id → {name, mobile} */
+  var SAL_LAST_PAYS = [];     /* শেষবার যে সারিগুলো আঁকা হয়েছে */
+
+  function salExtraPatientId(x){
+    try{
+      var k=String((x&&x.src_key)||'').trim();
+      if(k.indexOf('INC:')!==0)return '';
+      var rest=k.slice(4);
+      var a=rest.indexOf(':'), b=rest.lastIndexOf(':');
+      if(a<0||b<=a)return '';
+      return rest.slice(a+1,b).trim();
+    }catch(e){ return ''; }
+  }
+
+  /* নামগুলো একবারেই এনে বসানো — ব্যর্থ হলে আগের মতোই শুধু কোড থাকে। */
+  async function salFillPatientNames(pays, redraw){
+    try{
+      var ids=[];
+      (pays||[]).forEach(function(x){
+        var id=salExtraPatientId(x);
+        if(id && !SAL_PAT_CACHE[id] && ids.indexOf(id)<0) ids.push(id);
+      });
+      if(!ids.length)return;
+      var rows=null;
+      try{ rows=(load('patients')||[]).filter(function(r){return ids.indexOf(String(r.id))>=0}); }catch(e){}
+      if(rows && rows.length){
+        rows.forEach(function(r){ SAL_PAT_CACHE[String(r.id)]={name:String(r.name||''),mobile:String(r.mobile||'')}; });
+      }
+      if(typeof redraw==='function' && rows && rows.length) redraw();
+    }catch(e){}
+  }
+
+  /* চাপ দিলে ছোট পপ-আপ — নাম · মোবাইল · কেন · কত · কবে · অবস্থা,
+     নিচে "Open History" (TK-এর বাছা পথ: আগে দেখে নেওয়া, তারপর যাওয়া)। */
+  function salExtraWhy(payId){
+    try{
+      var x=(SAL_LAST_PAYS||[]).find(function(a){return String(a.id)===String(payId)});
+      if(!x)return;
+      var pid=salExtraPatientId(x);
+      var c=SAL_PAT_CACHE[pid]||{name:'',mobile:''};
+      var rows=''
+        + (c.name?  '<div class="pfStmtWhyRow"><span>Patient</span><b>'+m.esc(c.name)+'</b></div>':'')
+        + (c.mobile?'<div class="pfStmtWhyRow"><span>Mobile</span><b>'+m.esc(c.mobile)+'</b></div>':'')
+        + '<div class="pfStmtWhyRow"><span>For</span><b>'+m.esc(String(x.extra_reason||'-'))+'</b></div>'
+        + '<div class="pfStmtWhyRow"><span>Amount</span><b>'+m.money(x.amount)+'</b></div>'
+        + '<div class="pfStmtWhyRow"><span>Date</span><b>'+m.esc(salDmy(x.paid_on))+'</b></div>'
+        + '<div class="pfStmtWhyRow"><span>Status</span><b>'+(salIsDue(x)?'DUE (not paid yet)':'PAID')+'</b></div>';
+      var go = c.mobile
+        ? '<button onclick="closeModal();summaryByMobile(\''+m.esc(c.mobile)+'\')">Open History</button>'
+        : '';
+      modal('<h2>Extra income - why?</h2><div class="card">'+rows+'</div>'
+           +'<div class="actions">'+go+'<button class="ghost" onclick="closeModal()">Close</button></div>');
+    }catch(e){}
+  }
+  window["salExtraWhy"]=salExtraWhy;
+
+  function salIsExtra(p){ return salKind(p) === 'EXTRA'; }
+  /* 2026-12-31 → 31/12/2026 (TK-নির্দেশ)। ডেটাবেসে তারিখ আগের মতোই থাকে। */
+  function salDmy(v){
+    var t = String(v || '').trim();
+    var mm = /^(\d{4})-(\d{2})-(\d{2})/.exec(t);
+    return mm ? (mm[3] + '/' + mm[2] + '/' + mm[1]) : t;
+  }
+  /* 🔵 V417: Payment History খোলা/গোটানো — ক্লাউড থেকে নতুন কিছু আনা হয় না। */
+  function profTogglePayHistory() {
+    try {
+      var box = document.getElementById('phBox');
+      if (!box) return;
+      box.style.display = (box.style.display === 'none') ? 'block' : 'none';
+    } catch (e) {}
+  }
+  window.profTogglePayHistory = profTogglePayHistory;
+
+  /* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬: "সব কিছু Android এর মত হোক") — Payment
+     History এখন হুবহু ফোনের মতো (StaffProfileActivity.kt:1548-1573):
+       · উপরে **চারটে মোট** — Salary paid (total) · Extra income paid ·
+         Extra income due (থাকলে তবেই, লাল) · Grand total paid
+       · তারপর শিরোনাম "All Entries (n)"
+       · প্রতিটা সারি **এক লাইনে**: মাস · টাকা · উপায় · তারিখ · মন্তব্য
+     আগে ওয়েবে কোনো মোটই ছিল না, শিরোনামও ছিল না, আর **মন্তব্যটা কোথাও
+     দেখাত না** — তার বদলে "Paid By" দেখাত, যেটা ফোনে নেই।
+     ⛔ কোনো অঙ্ক নতুন করে হিসাব করা হয়নি — একই সারিগুলো থেকেই যোগ হয়। */
+  /* 🎨🔒 V443 (TK-approved 19.08.2026) — Payment History / Salary Statement
+     professional presentation. Android V443-এর একই visual hierarchy:
+       Summary → All Entries → aligned Mode/HISTORICAL + Date → footer totals.
+     ⛔ হিসাব, sort order, database query, salary/extra/due rule একটুও বদলায়নি। */
+  function salaryTable(pays) {
+    var m = window.MOD;
+    var tS = 0, tE = 0, tD = 0, latest = '', newestYm = '', oldestYm = '';
+    pays.forEach(function (x) {
+      var po = String(x.paid_on || '').slice(0, 10);
+      if (po > latest) latest = po;
+      if (salIsExtra(x)) {
+        if (salIsDue(x)) tD += Number(x.amount || 0); else tE += Number(x.amount || 0);
+      } else {
+        tS += Number(x.amount || 0);
+        var ym = String(x.for_month || String(x.paid_on || '').slice(0, 7));
+        if (!newestYm || ym > newestYm) newestYm = ym;
+        if (!oldestYm || ym < oldestYm) oldestYm = ym;
+      }
+    });
+    var names = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    var shorts = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    function monthLabel(ym){
+      try { var q=String(ym||'').split('-'); return names[Number(q[1])-1]+' '+q[0]; } catch(e) { return String(ym||''); }
+    }
+    function shortMonth(ym){
+      try { var q=String(ym||'').split('-'); return shorts[Number(q[1])-1]+' '+q[0]; } catch(e) { return String(ym||''); }
+    }
+    function friendlyDate(iso){
+      var mm = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso||''));
+      if (!mm) return salDmy(iso);
+      var mon = shorts[Number(mm[2])-1] || mm[2];
+      return mm[3] + ' ' + mon + ' ' + mm[1];
+    }
+    function metric(label, value, cls){
+      return '<div class="pfStmtMetric"><span>'+label+'</span><b class="'+(cls||'')+'">'+value+'</b></div>';
+    }
+
+    var summary = '<div class="pfStmtSummary">' +
+      '<div class="pfStmtSummaryHead"><b>Summary</b><span>' + (latest ? ('Up to '+m.esc(friendlyDate(latest))) : 'Current statement') + '</span></div>' +
+      '<div class="pfStmtMetrics">' +
+        metric('Salary paid (total)', m.money(tS), 'pfStmtGreen') +
+        metric('Extra income paid', m.money(tE), 'pfStmtGreen') +
+        metric('Extra income due', m.money(tD), tD > 0 ? 'pfStmtRed' : 'pfStmtMuted') +
+      '</div>' +
+      '<div class="pfStmtGrand"><span>Grand total paid</span><b>'+m.money(tS+tE)+'</b></div>' +
+    '</div>';
+
+    SAL_LAST_PAYS = pays;
+    /* 🔴 V511 — Extra সারির রোগীর নাম জমানো তালিকা থেকেই নেওয়া হয় (কোনো নতুন
+       ক্লাউড-অনুরোধ নেই)। পাওয়া গেলে লাইনে নামটা বসে। */
+    try{ salFillPatientNames(pays); }catch(e){}
+    var head = '<div class="pfStmtListHead"><b>All Entries ('+pays.length+')</b><span>Most recent</span></div>';
+    var lines = pays.map(function (x) {
+      var isExtra = salIsExtra(x), isDue = salIsDue(x);
+      var ym = String(x.for_month || String(x.paid_on || '').slice(0, 7));
+      var title = isExtra ? 'Extra' : monthLabel(ym);
+      var why = isExtra ? String(x.extra_reason || '') : String(x.remark || '');
+      var mode = isDue ? 'DUE' : String(x.mode || '—');
+      var modeCls = isDue ? ' due' : (/^(cash|online)$/i.test(mode) ? ' paid' : ' hist');
+      var detail = why;
+      if (!detail && !isExtra && /^historical$/i.test(mode)) detail = 'Salary paid - confirmed by Master';
+      /* 🔴🔴🔒 V511 (২১.০৮.২০২৬, TK-নির্দেশ) — **কোন রোগীর জন্য এই Extra টাকা।**
+         রোগীর আসল আইডি `src_key`-তে আগে থেকেই আছে (V418: INC:REG:<patients.id>:<code>)।
+         নাম জানা থাকলে লাইনেই দেখানো হয়; চাপ দিলে ছোট পপ-আপ, তারপর Open History।
+         ⛔ ফোনের `StaffProfileActivity`-র হুবহু একই নিয়ম। */
+      var vPid = isExtra ? salExtraPatientId(x) : '';
+      var vNm  = vPid ? (SAL_PAT_CACHE[vPid] && SAL_PAT_CACHE[vPid].name) : '';
+      if (vNm) detail = detail ? (detail + '  ·  ' + vNm) : vNm;
+      var vClick = vPid ? (' onclick="salExtraWhy(\''+m.esc(String(x.id||''))+'\')" style="cursor:pointer"') : '';
+      return '<div class="pfStmtEntry'+(isDue?' isDue':'')+'"'+vClick+'>' +
+        '<span class="pfStmtAccent"></span>' +
+        '<div class="pfStmtMain"><b>'+m.esc(title)+'</b><span>'+m.money(x.amount)+'</span></div>' +
+        '<div class="pfStmtMode"><span class="pfStmtBadge'+modeCls+'">'+m.esc(mode)+'</span></div>' +
+        '<div class="pfStmtDate">'+m.esc(salDmy(x.paid_on))+'</div>' +
+        (detail ? ('<div class="pfStmtDetail">'+m.esc(detail)+'</div>') : '') +
+      '</div>';
+    }).join('');
+    if (!pays.length) lines = '<div class="pfStmtEmpty">No payments.</div>';
+
+    var period = (oldestYm && newestYm) ? (shortMonth(oldestYm)+' – '+shortMonth(newestYm)) : '—';
+    var footer = '<div class="pfStmtFooter">' +
+      '<div><span>Total Entries</span><b>'+pays.length+'</b></div>' +
+      '<div><span>Period</span><b>'+m.esc(period)+'</b></div>' +
+      '<div><span>Net Paid</span><b>'+m.money(tS+tE)+'</b></div>' +
+    '</div>';
+    return '<div class="pfStatement">'+summary+head+lines+footer+'</div>';
+  }
+
+  async function profSalaryCfgSave(code) {
+    var m = window.MOD, client = await sb();
+    var row = { person_code: code, salary_enabled: String((document.getElementById('sEn') || {}).value || '') === 'enabled', salary_amount: Number(document.getElementById('sAmt').value || 0), salary_date: document.getElementById('sDate').value, updated_by: (m.session() || {}).code, updated_at: new Date().toISOString() };
+    // 🔵 TK-ORDER (07.08.2026): উপরের profSave-এর মতোই — upsert {error}/throw যাচাই,
+    // সফল হলে তবেই ফেরা, ব্যর্থে সৎ বার্তা। ⛔ upsert/onConflict অপরিবর্তিত।
+    try {
+      var ex = (await client.schema('hr').from('salary_config').select('id').eq('person_code', code).maybeSingle()).data;
+      if (ex) row.id = ex.id;
+      var __up = await client.schema('hr').from('salary_config').upsert(row, { onConflict: 'person_code' });
+      if (__up && __up.error) throw __up.error;
+      try { toast('Saved'); } catch (e) {}
+      profSalary(code);
+    } catch (e) {
+      try { toast('Not saved. Press Save Settings again.'); } catch (e2) {}
+    }
+  }
+  async function profSalaryPay(code) {
+    var m = window.MOD, client = await sb();
+    // 🔴🆕🔒 TK-নির্দেশ (08.08.2026) — পেমেন্টে `for_month` যোগ (কোন মাসের বেতন) =
+    // পেমেন্ট-তারিখের মাস। ⛔ বাকি সব ঘর ও `m.save`-এর কল আগের মতোই।
+    var pd = document.getElementById('spDate').value;
+    var forMonth = (String(pd).length >= 7) ? String(pd).slice(0, 7) : m.todayIST().slice(0, 7);
+    var row = { id: m.uuid(), person_code: code, paid_on: pd, amount: Number(document.getElementById('spAmt').value || 0), mode: document.getElementById('spMode').value, paid_by: (m.session() || {}).code || 'master', remark: (document.getElementById('spRem') || {}).value || '', for_month: forMonth };
+    await m.save('hr', 'salary_payments', row);
+    profSalary(code);
+  }
+
+  /* 🔵🔒 V416 (TK-নির্দেশ): বেতনের বাইরে দেওয়া বাড়তি টাকা।
+     ⛔ `kind='EXTRA'` ও `for_month` ফাঁকা হয়ে জমা হয় ⇒ বেতনের "বাকি কত"
+        হিসাবে কখনো ঢোকে না। ⛔ ফোনের `addExtraIncome()`-এর হুবহু একই নিয়ম। */
+  /* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬: "সব কিছু Android এর মত হোক") — ফোনে এটা
+     একটা **পূর্ণ পর্দা** (StaffProfileActivity.kt:1584-1596): Amount · Reason ·
+     When (Paying now / Pay later (Due)) · Mode · "Save Extra Income" বোতাম।
+     ওয়েবে চারটে ব্রাউজার-prompt বাক্স আসত, আর তার একটাতে নির্দেশ-লেখাও ছিল
+     ("OK = Paying now / Cancel = Pay later") — TK-এর নিয়মে ওটা থাকার কথা নয়।
+     ⛔ কী সেভ হয় (kind='EXTRA', status, for_month ফাঁকা) — এক অক্ষরও বদলায়নি। */
+  function profExtraIncome(code) {
+    var m = window.MOD;
+    document.getElementById('app').innerHTML = '<div class="wrap anMod anModPf"><div class="topbar"><b>Extra Income — ' + m.esc(code) + '</b>' +
+      '<button class="ghost" onclick="profSalary(\'' + m.esc(code) + '\')">Back</button></div><div class="page">' +
+      '<div class="card">' +
+      '<label>Amount</label><input id="exAmt" class="input" type="number" inputmode="numeric">' +
+      '<label>Reason</label><input id="exWhy" class="input" type="text">' +
+      '<label>When</label><select id="exWhen" class="input"><option value="now">Paying now</option><option value="due">Pay later (Due)</option></select>' +
+      '<label>Mode</label><select id="exMode" class="input"><option>Cash</option><option>Online</option></select>' +
+      '<div class="actions"><button class="ghost" onclick="profSalary(\'' + m.esc(code) + '\')">Cancel</button>' +
+      '<button onclick="profExtraIncomeSave(\'' + m.esc(code) + '\')">Save Extra Income</button></div></div>' +
+      '</div></div>';
+  }
+  window.profExtraIncome = profExtraIncome;
+  async function profExtraIncomeSave(code) {
+    var m = window.MOD;
+    var v = Number((document.getElementById('exAmt') || {}).value || 0);
+    if (!(v > 0)) { try { toast('Enter an amount'); } catch (e) {} return; }
+    var why = String((document.getElementById('exWhy') || {}).value || '').trim();
+    if (!why) { try { toast('Enter a reason'); } catch (e) {} return; }
+    var payingNow = String((document.getElementById('exWhen') || {}).value || 'now') === 'now';
+    var mode = payingNow ? String((document.getElementById('exMode') || {}).value || 'Cash') : '';
+    var row = {
+      id: m.uuid(), person_code: code, paid_on: m.todayIST(), amount: v, mode: mode,
+      paid_by: (m.session() || {}).code || 'master', remark: '',
+      for_month: '', kind: 'EXTRA', extra_reason: why,
+      status: (payingNow ? 'PAID' : 'DUE')
+    };
+    await m.save('hr', 'salary_payments', row);
+    try { toast('Extra income added'); } catch (e) {}
+    profSalary(code);
+  }
+  window.profExtraIncomeSave = profExtraIncomeSave;
+
+  /* 🔵 V417: ঠিক করে রাখা বাড়তি টাকা এখন দেওয়া হলো।
+     ⛔ নতুন সারি বানানো হয় না — "বাকি" সারিটাই "দেওয়া হয়েছে" হয়, তাই একই টাকা
+        দুবার গোনার সুযোগ নেই। ⛔ শুধু status · mode · paid_on বদলায়। */
+  /* 🔴 V430 — ফোনে এটাও একটা **পর্দা** (StaffProfileActivity.kt:1295-1314):
+     উপরে "Total to pay now" (লাল), তারপর প্রতিটা বাকি টাকার ₹ ও কারণ ধরে
+     ধরে তালিকা, নিচে Mode ও "✅ Mark as Paid"। ওয়েবে শুধু একটা confirm বাক্স
+     ছিল — কোন কোন টাকা মেটানো হচ্ছে তা দেখাই যেত না।
+     ⛔ নতুন সারি বানানো হয় না; "বাকি" সারিটাই "দেওয়া হয়েছে" হয় — আগের নিয়মই। */
+  async function profPayExtraDue(code) {
+    var m = window.MOD, client = await sb();
+    var rows = ((await client.schema('hr').from('salary_payments').select('*').eq('person_code', code)).data) || [];
+    var due = rows.filter(salIsDue);
+    if (!due.length) { try { toast('Nothing due'); } catch (e) {} return; }
+    var sum = due.reduce(function (a, x) { return a + Number(x.amount || 0); }, 0);
+    document.getElementById('app').innerHTML = '<div class="wrap anMod anModPf"><div class="topbar"><b>Pay Extra Income — ' + m.esc(code) + '</b>' +
+      '<button class="ghost" onclick="profSalary(\'' + m.esc(code) + '\')">Back</button></div><div class="page">' +
+      '<div class="card"><div class="pfTotRow"><span>Total to pay now</span><b style="color:#B42318">' + m.money(sum) + '</b></div>' +
+      due.map(function (x) { return '<div class="pfPayLine">' + m.money(x.amount) + '  ·  ' + m.esc(x.extra_reason || '') + '</div>'; }).join('') +
+      '<label>Mode</label><select id="exdMode" class="input"><option>Cash</option><option>Online</option></select>' +
+      '<div class="actions"><button class="ghost" onclick="profSalary(\'' + m.esc(code) + '\')">Cancel</button>' +
+      '<button onclick="profPayExtraDueSave(\'' + m.esc(code) + '\')">✅ Mark as Paid</button></div></div>' +
+      '</div></div>';
+  }
+  window.profPayExtraDue = profPayExtraDue;
+  async function profPayExtraDueSave(code) {
+    var m = window.MOD, client = await sb();
+    var rows = ((await client.schema('hr').from('salary_payments').select('*').eq('person_code', code)).data) || [];
+    var due = rows.filter(salIsDue);
+    if (!due.length) { try { toast('Nothing due'); } catch (e) {} return; }
+    var mode = String((document.getElementById('exdMode') || {}).value || 'Cash');
+    for (var i = 0; i < due.length; i++) {
+      var r = due[i];
+      r.status = 'PAID'; r.mode = mode; r.paid_on = m.todayIST();
+      await m.save('hr', 'salary_payments', r);
+    }
+    try { toast('Paid'); } catch (e) {}
+    profSalary(code);
+  }
+  window.profPayExtraDueSave = profPayExtraDueSave;
+
+  /* ===================================================================
+     🟢 B629 (11.08.2026) — ওয়েব parity: (১) "Add Salary — choose month"
+     (জয়েনিং ডেট থেকে যেকোনো মাস বেছে History নিজে ভরা যায়), (২) স্যালারির
+     তারিখে Salary-Due reminder (Master: Staff Profiles তালিকার উপরে;
+     Doctor/Staff: My Profile-এ নিজের বাকি)। ⛔ salary_config/salary_payments
+     টেবিলেই বসে — নতুন কোনো টেবিল/SQL লাগে না; বিদ্যমান পর্দা অটুট।
+     =================================================================== */
+  var SAL_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  function salMonthLabel(ym){ try{ var pp=String(ym).split('-'); return SAL_NAMES[Number(pp[1])-1]+' '+pp[0]; }catch(e){ return ym; } }
+  function salPayMonth(p){ if(p&&p.for_month) return String(p.for_month); var d=String((p&&p.paid_on)||''); return d.length>=7?d.slice(0,7):''; }
+  /** জয়েনিং মাস → চলতি মাস পর্যন্ত YYYY-MM (নতুন-আগে)। join_date না থাকলে শেষ ২৪ মাস। */
+  function monthsFromJoin(joinIso){
+    var out=[];
+    try{
+      var now=new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Kolkata'}));
+      var curIdx=now.getFullYear()*12+now.getMonth();
+      var startIdx;
+      try{
+        var jy=parseInt(String(joinIso).slice(0,4),10), jm=parseInt(String(joinIso).slice(5,7),10);
+        var joinIdx=jy*12+(jm-1);
+        startIdx=Math.max(curIdx-240, Math.min(joinIdx, curIdx));
+      }catch(e){ startIdx=curIdx-23; }
+      if(!(startIdx>=0)||startIdx>curIdx) startIdx=curIdx-23;
+      for(var idx=curIdx; idx>=startIdx; idx--){ var y=Math.floor(idx/12), mo=(idx%12)+1; out.push((''+y).padStart(4,'0')+'-'+(''+mo).padStart(2,'0')); }
+    }catch(e){}
+    return out;
+  }
+  /** ফোনের SalaryReminder-এর হুবহু হিসাব: enabled + amount>0 + salary_date দেওয়া +
+   *  আজকের দিন >= salary_date + এই মাসে এখনো পুরো দেওয়া হয়নি → বাকি টাকা ফেরত (নইলে 0)। */
+  function salaryDueThisMonth(sc, pays){
+    try{
+      if(!sc || !sc.salary_enabled) return 0;
+      var amount=Number(sc.salary_amount||0); if(!(amount>0)) return 0;
+      var sd=parseInt(sc.salary_date||'0',10); if(!(sd>=1)) return 0;
+      var now=new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Kolkata'}));
+      if(now.getDate()<sd) return 0;
+      var cur=(''+now.getFullYear())+'-'+(''+(now.getMonth()+1)).toString().padStart(2,'0');
+      var paidThis=0;
+      (pays||[]).forEach(function(p){ if(salIsExtra(p)) return; if(salPayMonth(p)===cur) paidThis+=Number(p.amount||0); });
+      return Math.max(0, amount-paidThis);
+    }catch(e){ return 0; }
+  }
+  /** "Add Salary — choose month" পূর্ণ ফর্ম (join_date থেকে মাসের তালিকা; Paid/Due ট্যাগ)। */
+  async function profSalaryAddMonth(code){
+    var m=window.MOD, client=await sb();
+    var sc=((await client.schema('hr').from('salary_config').select('*').eq('person_code',code).maybeSingle()).data)||{};
+    var prof=((await client.schema('hr').from('staff_profiles').select('join_date').eq('person_code',code).maybeSingle()).data)||{};
+    var pays=((await client.schema('hr').from('salary_payments').select('*').eq('person_code',code)).data)||[];
+    var months=monthsFromJoin(prof.join_date||'');
+    var paidSet={}; pays.forEach(function(p){ paidSet[salPayMonth(p)]=1; });
+    var amount=Number(sc.salary_amount||0);
+    var opts=months.map(function(ym){ return '<option value="'+ym+'">'+salMonthLabel(ym)+(paidSet[ym]?'  (Paid)':'  (Due)')+'</option>'; }).join('');
+    document.getElementById('app').innerHTML='<div class="wrap anMod anModPf"><div class="topbar"><b>Add Salary — '+m.esc(code)+'</b>'+
+      '<button class="ghost" onclick="profSalary(\''+m.esc(code)+'\')">Back</button></div><div class="page">'+
+      /* 🔴 V430 — ফোনে ভিতরে দ্বিতীয় শিরোনাম নেই, উপরের নামটাই যথেষ্ট। */
+      '<div class="card">'+
+      '<label>Month</label><select id="amMonth" class="input">'+opts+'</select>'+
+      '<label>Amount</label><input id="amAmt" class="input" type="number" value="'+(amount>0?amount:'')+'">'+
+      '<label>Mode</label><select id="amMode" class="input"><option>Cash</option><option>Online</option></select>'+
+      '<div class="actions"><button onclick="profSalaryPayMonth(\''+m.esc(code)+'\')">Add Payment</button>'+
+      '<button class="ghost" onclick="profSalary(\''+m.esc(code)+'\')">Cancel</button></div></div>'+
+            '</div></div>';
+  }
+  async function profSalaryPayMonth(code){
+    var m=window.MOD;
+    var mn=document.getElementById('amMonth'); var ym=mn?mn.value:'';
+    var amt=Number((document.getElementById('amAmt')||{}).value||0);
+    if(!ym){ try{ toast('Choose a month'); }catch(e){} return; }
+    if(!(amt>0)){ try{ toast('Enter amount'); }catch(e){} return; }
+    var row={ id:m.uuid(), person_code:code, paid_on:m.todayIST(), amount:amt, mode:(document.getElementById('amMode')||{}).value||'Cash', paid_by:(m.session()||{}).code||'master', remark:'', for_month:ym };
+    try{ await m.save('hr','salary_payments',row); try{ toast('Payment added'); }catch(e){} }
+    catch(e){ try{ toast('Retry'); }catch(_e){} }
+    profSalary(code);
+  }
+
+  async function renderSelf() {
+    var m = window.MOD, client = await sb();
+    var code = (m.session() || {}).code;
+    var host = document.getElementById('app');
+    var p = null, sc = null, pays = [];
+    try {
+      p = (await client.schema('hr').from('staff_profiles').select('*').maybeSingle()).data;
+      sc = (await client.schema('hr').from('salary_config').select('*').maybeSingle()).data;
+      pays = (await client.schema('hr').from('salary_payments').select('*').order('paid_on', { ascending: false })).data || [];
+    } catch (e) {}
+    p = p || { person_code: code };
+    // 🎨 (03.08.2026, TK-অনুমোদিত ফটো-প্রুফ পাশ করার পরে) — B370-এর "View"
+    // পাতার প্যানেল-ডিজাইনের শুধু-দেখা সংস্করণ (এখানে এডিট করা যায় না,
+    // তাই কোনো input বাক্স নেই)। ⛔ সম্পূর্ণ ইনলাইন স্টাইল, styles.css
+    // ছোঁয়া হয়নি। ⛔ salaryTable(pays) ফাংশন এক অক্ষরও বদলায়নি —
+    // শুধু চারপাশের HTML রিস্টাইল হয়েছে।
+    function row(label, val) {
+      return '<div style="display:flex;justify-content:space-between;padding:11px 20px;border-bottom:1px solid #F5F6F8;font-size:13.5px">' +
+        '<span style="color:#667085">' + label + '</span><span style="color:#1D2939;font-weight:500">' + val + '</span></div>';
+    }
+    function panel(title, rowsHtml) {
+      return '<div style="background:#fff;border:1px solid #E4E8EE;border-radius:12px;box-shadow:0 1px 3px rgba(16,24,40,0.04);overflow:hidden">' +
+        '<div style="padding:13px 20px;border-bottom:1px solid #EEF1F4;font-size:13px;font-weight:700;color:#101828;display:flex;align-items:center;gap:8px">' +
+        '<span style="width:7px;height:7px;border-radius:50%;background:#0B6B3A;display:inline-block"></span>' + title + '</div>' + rowsHtml + '</div>';
+    }
+    var avatarHtml = p.photo_data ?
+      '<img src="' + m.esc(p.photo_data) + '" style="width:64px;height:64px;object-fit:cover;border-radius:50%;border:2px solid #CFE9D8">' :
+      '<div style="width:64px;height:64px;border-radius:50%;background:#E6F4EA;color:#0B6B3A;display:flex;align-items:center;justify-content:center;font-size:26px;border:2px solid #CFE9D8">👤</div>';
+    host.innerHTML = '<div class="wrap anMod anModPf" style="max-width:1180px">' +
+      '<div class="topbar" style="padding:14px 24px"><b>My Profile</b>' +
+      '<button class="ghost" onclick="dashboard()">Home</button></div>' +
+      '<div class="page" style="padding:20px 24px 40px">' +
+
+      '<div style="background:#fff;border:1px solid #E4E8EE;border-radius:12px;padding:20px 26px;display:flex;align-items:center;gap:18px;box-shadow:0 1px 3px rgba(16,24,40,0.04);flex-wrap:wrap">' +
+      avatarHtml +
+      '<div>' +
+      '<div style="font-size:20px;font-weight:700;color:#101828">' + m.esc(p.full_name || '(name not set by Master yet)') + '</div>' +
+      '<div style="font-size:13.5px;color:#667085;margin-top:3px">' + m.esc(p.person_code) + ' · Mobile: ' + m.maskMobile(p.link_mobile) + '</div>' +
+      '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">' +
+      '<span style="font-size:12px;font-weight:600;padding:4px 11px;border-radius:999px;background:#E6F4EA;color:#0B6B3A">' + m.esc(p.designation || p.role_kind || 'Staff') + '</span>' +
+      '<span style="font-size:12px;font-weight:600;padding:4px 11px;border-radius:999px;background:#EAF1FB;color:#1D4E89">' + m.esc(p.branch || '-') + '</span>' +
+      '</div></div></div>' +
+
+      '<div style="font-size:12.5px;font-weight:700;color:#667085;text-transform:uppercase;letter-spacing:.5px;margin:22px 2px 10px">Profile Details</div>' +
+      '<div class="wlv1SafeTwoCol">' +
+      panel('Personal Details', row('Date of Birth', m.esc(p.dob || '—')) + row('Gender', m.esc(p.gender || '—')) + row('Blood Group', m.esc(p.blood_group || '—')) + row('Qualification', m.esc(p.qualification || '—'))) +
+      panel('Contact', row('Alternate Mobile', p.alt_mobile ? (/\d/.test(p.alt_mobile) ? m.maskMobile(p.alt_mobile) : m.esc(p.alt_mobile)) : '—') + row('ID Type', p.gov_id_type ? (m.esc(p.gov_id_type) + ': ' + m.maskId((p.gov_id_last4 ? '0000' + p.gov_id_last4 : ''))) : '—')) +
+      '</div>' +
+
+      '<div style="font-size:12.5px;font-weight:700;color:#667085;text-transform:uppercase;letter-spacing:.5px;margin:22px 2px 10px">My Salary</div>' +
+      '<div style="background:linear-gradient(120deg,#0B4F2A,#0B8A3E 70%);color:#fff;border-radius:12px;padding:16px 22px;display:flex;align-items:center;justify-content:space-between">' +
+      (sc && sc.salary_enabled ? '<span>Monthly Salary</span><b style="font-size:22px">' + m.money(sc.salary_amount) + ' <span style="font-size:13px;font-weight:400;opacity:0.85">(day ' + m.esc(sc.salary_date || '-') + ')</span></b>' : '<span>Salary not enabled.</span>') +
+      '</div>' +
+      // 🟢 B629: নিজের এই মাসের বেতন বাকি থাকলে (salary date পেরিয়ে গেলে) মনে করিয়ে দেওয়া
+      (salaryDueThisMonth(sc, pays) > 0 ? '<div style="border:1px solid #ffd58a;background:#fff7e6;border-radius:10px;padding:11px 16px;margin-top:8px"><b style="color:#B42318">Salary due this month: ' + m.money(salaryDueThisMonth(sc, pays)) + /* 🔴 V430 — বন্ধনীর ভিতরের ছোট ব্যাখ্যা-লাইনটা তুলে দেওয়া হলো (TK-এর স্থায়ী
+   নিয়ম: পর্দায় নির্দেশ/ব্যাখ্যা-লাইন থাকবে না)। বেতনের দিনটা উপরের সবুজ
+   কার্ডেই লেখা আছে, তাই কোনো তথ্য হারায়নি। */
+'</b></div>' : '') +
+
+      /* 🗓️ V509 (TK-নির্দেশ): স্টাফের নিজের মাসিক হাজিরা-খাতা — DATE · IN · OUT · LEAVE */
+      '<div style="margin:18px 0 4px"><button class="ghost" style="width:100%;text-align:center" onclick="myAttendanceSheet()">🗓️ My Attendance Sheet</button></div>' +
+
+      '<div style="font-size:12.5px;font-weight:700;color:#667085;text-transform:uppercase;letter-spacing:.5px;margin:22px 2px 10px">Payment History</div>' +
+      '<div style="background:#fff;border:1px solid #E4E8EE;border-radius:12px;box-shadow:0 1px 3px rgba(16,24,40,0.04);overflow:hidden;padding:2px 0">' +
+      salaryTable(pays) +
+      '</div>' +
+
+      '</div></div>';
+  }
+
+  window.staffProfiles = staffProfiles;
+  window.myProfile = myProfile;
+  window.myAttendanceSheet = myAttendanceSheet;   // 🗓️ V509
+  window.profEdit = profEdit;
+  window.profSave = profSave;
+  window.profSalary = profSalary;
+  window.profSalaryCfgSave = profSalaryCfgSave;
+  window.profSalaryPay = profSalaryPay;
+  window.profSalaryAddMonth = profSalaryAddMonth;
+  window.profSalaryPayMonth = profSalaryPayMonth;
+  /* =====================================================================
+     🏆🔒 V419 — STAFF PERFORMANCE (TK-নির্দেশ, ১৭.০৮.২০২৬)
+     TK চারটেই দেখতে চেয়েছেন: রোগী আনার কাজ · ফলোআপ ও কল · টাকা আদায় ·
+     হাজিরা ও রিপোর্ট। আর পর্দা "দুটোই" — সবার তালিকা, নামে চাপলে একজনের পুরো হিসাব।
+     ⛔ পুরো গণনা ডেটাবেসের ভিতরে (`hr.staff_performance`) ⇒ ফোন ও ওয়েবে সংখ্যা
+        আলাদা হওয়ার সুযোগ নেই, আর এক ডাকে ছোট্ট উত্তর আসে (Egress-এ সস্তা)।
+     ⛔ একটাও সারি লেখা/বদলানো হয় না — কেবল পড়া।
+     ⛔ পর্দায় বাংলা লেখা নেই, নির্দেশ/সাহায্য-লাইনও নেই (TK-এর স্থায়ী নিয়ম)।
+     ===================================================================== */
+  var PERF_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  /* 🔵 V420 (TK-নির্দেশ: "daily performance দেখার ব্যবস্থা রাখতে হবে") —
+     একই পর্দায় দুটোই: `2026-08` = গোটা মাস · `2026-08-17` = শুধু ওই দিন। */
+  function perfIsDay(k){ return /^\d{4}-\d{2}-\d{2}$/.test(String(k || '')); }
+  function perfLabel(k){
+    try {
+      var p = String(k).split('-');
+      if (perfIsDay(k)) return p[2] + '/' + p[1] + '/' + p[0];
+      return PERF_NAMES[Number(p[1]) - 1] + ' ' + p[0];
+    } catch (e) { return k; }
+  }
+  function perfNum(v){ var n=Number(v||0); return isFinite(n)?n:0; }
+
+  /* 🔧 V421খ (TK-নির্দেশ, ১৭.০৮.২০২৬): *"Day month আবার ক্যালেন্ডার তিনটে রাখার
+     দরকার নেই · Month & calendar থাকবে · ক্যালেন্ডারে চাপ দিলে pop up ক্যালেন্ডার
+     খুলবে · তারিখ পছন্দ করলে অটোমেটিক সেই তারিখের পারফরম্যান্স · অন্যথায় ডিফল্ট
+     আজকের · আর এগুলো হেডারে থাকবে"*
+     ⇒ হেডারে **দুটোই** — [Month] আর তারিখের বাক্স। বাক্সে চাপলে ফোনের নিজের
+       পপ-আপ ক্যালেন্ডার খোলে (`input type=date`), তারিখ বাছলেই সঙ্গে সঙ্গে
+       ওই দিনের হিসাব। ⛔ ক্যালেন্ডার-ইমোজি কোথাও নেই (TK-এর স্থায়ী নিয়ম)।
+     ⛔ ডিফল্ট = আজকের দিন। */
+  function perfChips(curKey, mode, code, viaList) {
+    var m = window.MOD;
+    var isDay = perfIsDay(curKey);
+    var today = m.todayIST();
+    var vl = viaList ? 'true' : 'false';
+    var monthCall = (mode === 'one')
+      ? "staffPerformanceOne('" + m.esc(code) + "','" + today.slice(0, 7) + "'," + vl + ")"
+      : "staffPerformance('" + today.slice(0, 7) + "')";
+    var dayCall = (mode === 'one')
+      ? "staffPerformanceOne('" + m.esc(code) + "',this.value," + vl + ")"
+      : "staffPerformance(this.value)";
+    /* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬) — ফোনের চিপ দুটো হুবহু
+       (StaffProfileActivity.kt:1046-1063): বাছা না থাকলে **সাদা জমিন, সবুজ
+       লেখা ও সবুজ পাড়**; বাছা থাকলে **ভরাট সবুজ (#0A5C33), সাদা লেখা**।
+       ওয়েবে Month কখনো সবুজ ভরাট হত না, আর তারিখের বাক্সটা ছোট পর্দায়
+       CSS-এর জোরে সাদা-কালো হয়ে যেত — বাছা কোনটা বোঝাই যেত না। */
+    return '<span class="pfChipRow">' +
+      '<button class="pfChip' + (isDay ? '' : ' pfChipOn') + '" onclick="' + monthCall + '">Month</button>' +
+      '<span class="wlv1DateBox pfChip' + (isDay ? ' pfChipOn' : '') + '">' + m.esc(perfLabel(curKey)) +
+        '<input type="date" value="' + m.esc(isDay ? curKey : today) + '" onchange="' + dayCall + '"></span>' +
+    '</span>';
+  }
+
+  async function perfRows(month) {
+    var client = await sb();
+    try {
+      var r = await client.schema('hr').rpc('staff_performance', { p_month: month });
+      if (r && r.error) return null;
+      /* 🔴 TK-নির্দেশ (১৭.০৮.২০২৬): "ডাক্তারদের বাদ দিয়ে দিন" — এই তালিকা শুধু
+         কর্মীদের। ডেটাবেসেও একই ছাঁকনি বসানো আছে; এটা দ্বিতীয় স্তর, যাতে পুরনো
+         ডেটাবেসেও (নতুন SQL না চালালেও) ডাক্তার আর তালিকায় না ওঠেন। */
+      /* 🔴 V427 (TK-নির্দেশ ১৭.০৮.২০২৬): *"কোচবিহার এর সমস্ত staff & Branch এর
+         নম্বর একের পর এক থাকতে হবে"* ⇒ তালিকা এখন **ব্রাঞ্চ ধরে সাজানো**, এক
+         ব্রাঞ্চের সবাই পরপর; ভিতরে নাম অনুসারে। ⛔ শুধু সাজানোর ক্রম — একটাও
+         সংখ্যা বদলায় না। ফোনের তালিকাতেও হুবহু একই ক্রম। */
+      var __staff = (Array.isArray(r && r.data) ? r.data : []).filter(function (x) {
+        return !/^DR-/i.test(String((x && x.person_code) || ''));
+      });
+      /* 🔴🔒 V428 (TK-নির্দেশ ১৭.০৮.২০২৬: *"8514002200 — ওটা ব্রাঞ্চ হিসাবেই গন্য
+         হোক"*) — চেম্বারের সাধারণ নম্বরে করা কাজ কোনো staff-এর নামে ওঠে না, তাই
+         Collection কম দেখাত। এখন সেগুলো **ব্রাঞ্চের নিজের সারি** হয়ে তালিকায় আসে।
+         ⛔ পুরনো `staff_performance`-এ হাত দেওয়া হয়নি — আলাদা ফাংশন।
+         ⛔ ডাক ব্যর্থ হলে বা সব শূন্য হলে কিছুই যোগ হয় না; ফোনের হুবহু একই নিয়ম। */
+      try {
+        var rb = await client.schema('hr').rpc('branch_performance', { p_month: month });
+        if (rb && !rb.error && Array.isArray(rb.data)) {
+          rb.data.forEach(function (b) {
+            var busy = Number(b.enquiry_count || 0) + Number(b.registration_count || 0) +
+                       Number(b.treatment_count || 0) + Number(b.rmp_added || 0);
+            var money = Number(b.cash_collected || 0) + Number(b.online_collected || 0);
+            if (busy > 0 || money > 0) __staff.push(b);
+          });
+        }
+      } catch (e) {}
+      /* ক্রম: আগে ব্রাঞ্চ, ভিতরে staff-রা নাম অনুসারে, আর ওই ব্রাঞ্চের নিজের
+         সারিটা সবার **শেষে** — তাহলে যোগফল চোখে পড়ে সহজে। */
+      function __isBr(x) { return /^BRANCH-/i.test(String((x && x.person_code) || '')) ? 1 : 0; }
+      return __staff.sort(function (a, b) {
+        var ab = String((a && a.branch) || '').toUpperCase(), bb = String((b && b.branch) || '').toUpperCase();
+        if (ab !== bb) return ab < bb ? -1 : 1;
+        if (__isBr(a) !== __isBr(b)) return __isBr(a) - __isBr(b);
+        var an = String((a && a.full_name) || (a && a.person_code) || '').toUpperCase();
+        var bn = String((b && b.full_name) || (b && b.person_code) || '').toUpperCase();
+        return an < bn ? -1 : (an > bn ? 1 : 0);
+      });
+    } catch (e) { return null; }
+  }
+
+  /* ---- ১) সবার তালিকা এক পর্দায় ---- */
+  async function staffPerformance(month) {
+    var m = window.MOD;
+    if (!m.isMasterModule()) return pfToast('Only Master');
+    /* 🔧 V421খ: ডিফল্ট **আজকের দিন** (আগে মাস ছিল)। Month চাপলে চলতি মাস। */
+    var ym = month || m.todayIST();
+    /* 🔧 V422খ (TK-নির্দেশ: *"উপরে ডান সাইডে Back বটম রাখার দরকার কি?"*) —
+       হেডারে এখন শুধু শিরোনাম + Month + তারিখ। Back একদম **নিচে** (ফোনের মতোই,
+       আর TK-এর পুরনো নিয়ম *"Back বটম নিচে বসবে"* মেনে)।
+       ⛔ ওয়েবে ফোনের নিজের Back বোতাম নেই, তাই বোতামটা তুলে দেওয়া হয়নি —
+          শুধু জায়গা বদলেছে, নইলে ফেরার পথ বন্ধ হয়ে যেত। */
+    document.getElementById('app').innerHTML = '<div class="wrap anMod anModPf">' +
+      '<div class="topbar"><b>Performance</b>' + perfChips(ym, 'list', '', false) + '</div><div class="page">' +
+      '<div id="perfOut" class="card mut">Loading...</div>' +
+      '<div class="actions" style="margin-top:12px"><button class="ghost" onclick="staffProfiles()">Back</button></div>' +
+      '</div></div>';
+    var rows = await perfRows(ym);
+    var out = document.getElementById('perfOut'); if (!out) return;
+    if (rows === null) { out.className = 'card mut'; out.textContent = 'Could not load. Please try again.'; return; }
+    if (!rows.length) { out.className = 'card mut'; out.textContent = 'No staff yet.'; return; }
+    out.className = '';
+    out.innerHTML = rows.map(function (x) {
+      var reg = perfNum(x.registration_count), trt = perfNum(x.treatment_count);
+      var money = perfNum(x.cash_collected) + perfNum(x.online_collected);
+      return '<div class="card" style="cursor:pointer" onclick="staffPerformanceOne(\'' + m.esc(x.person_code) + '\',\'' + m.esc(ym) + '\',true)">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center">' +
+          /* 🔴 V430 — ফোনে নাম ফাঁকা থাকলে কোডটাই দেখায় (kt:1115), তাই সারি
+             কখনো নামহীন হয় না। ওয়েবে ফাঁকা বোল্ড লাইন পড়ে থাকত। */
+          '<b style="color:#0A5C33;font-size:15px">' + m.esc(x.full_name || x.person_code) + '</b>' +
+          '<span style="color:#9AA8B5">&rsaquo;</span></div>' +
+        '<div style="font-size:12px;color:#3B5A49;margin-top:2px">' + m.esc(x.person_code) + ' · ' + m.esc(x.branch) + '</div>' +
+        '<div style="display:flex;gap:8px;margin-top:9px">' +
+          /* 🔴 V429 (TK-নির্দেশ: ওয়েব হুবহু অ্যান্ড্রয়েডের মতো) — ফোনের কার্ডে
+             লেখা আছে "Enquiry · Regist. · Treat. · Collected"; ওয়েবে ভুল করে
+             "Registration"/"Treatment" পুরো লেখা ছিল। মিলিয়ে দেওয়া হলো। */
+          perfTile('Enquiry', perfNum(x.enquiry_count)) +
+          perfTile('Regist.', reg) +
+          perfTile('Treat.', trt) +
+          perfTile('Collected', m.money(money)) +
+        '</div></div>';
+    }).join('');
+  }
+
+  /* মডেল ৩-এর মতো এক লাইন: বাঁয়ে নাম, ডানে সংখ্যা। */
+  function perfRow(label, value, hex) {
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px solid #F0F4F1">' +
+      '<span style="color:#3B5A49;font-size:13.5px">' + label + '</span>' +
+      '<b style="color:' + (hex || '#123A26') + ';font-size:14.5px">' + value + '</b></div>';
+  }
+
+  function perfTile(cap, val) {
+    return '<div style="flex:1;min-width:0;background:#F2FBF5;border:1px solid #D8ECDF;border-radius:10px;padding:8px 4px;text-align:center">' +
+      '<span style="display:block;font-size:10.5px;color:#3B5A49">' + cap + '</span>' +
+      '<b style="display:block;font-size:14px;color:#0A5C33;margin-top:2px">' + val + '</b></div>';
+  }
+
+  /* 🔴 V452 (19.08.2026, TK-অনুমোদিত): Android-এর মতো Web Staff Performance-এও
+     count → list, আর Enquiry / Calls / Collection list-row → exact read-only
+     detail। Detail খুলতে নতুন Cloud read লাগে না; already-loaded row cache হয়। */
+  function perfRowLink(label, value, hex, call) {
+    return '<div onclick="' + call + '" style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px solid #F0F4F1;cursor:pointer">' +
+      '<span style="color:#3B5A49;font-size:13.5px">' + label + '</span>' +
+      '<span><b style="color:' + (hex || '#123A26') + ';font-size:14.5px">' + value + '</b><span style="color:#9AA8B5;margin-left:8px">&rsaquo;</span></span></div>';
+  }
+
+  var __perfDrillCtx = null;
+
+  function perfDrillBackCall(ctx) {
+    return 'staffPerformanceOne(\'' + window.MOD.esc(ctx.code) + '\',\'' + window.MOD.esc(ctx.month) + '\',' + (ctx.viaList ? 'true' : 'false') + ')';
+  }
+
+  function perfWebDrillRender(ctx) {
+    var m = window.MOD, rows = ctx.rows || [];
+    document.getElementById('app').innerHTML = '<div class="wrap anMod anModPf">' +
+      '<div class="topbar"><b>' + m.esc(ctx.title) + '</b></div><div class="page">' +
+      '<div style="font-size:12px;color:#5B6B81;margin:0 2px 10px">' + m.esc(perfLabel(ctx.month)) + '</div>' +
+      '<div id="perfDrillRows"></div>' +
+      '<div class="actions" style="margin-top:12px"><button class="ghost" onclick="' + perfDrillBackCall(ctx) + '">Back</button></div>' +
+      '</div></div>';
+    var host = document.getElementById('perfDrillRows'); if (!host) return;
+    if (!rows.length) { host.innerHTML = '<div class="card mut">' + m.esc(ctx.emptyMsg || 'No records this period.') + '</div>'; return; }
+    host.innerHTML = '<div class="card">' + rows.map(function (r, i) {
+      var main = '', sub = '', third = '', clickable = false;
+      if (ctx.kind === 'enquiry') {
+        main = r.name || 'Unknown'; sub = (r.enq_date || '') + ' · ' + (r.mobile || '') + ' · ' + (r.branch || ''); third = r.disease || ''; clickable = true;
+      } else if (ctx.kind === 'registration' || ctx.kind === 'treatment') {
+        main = r.name || 'Unknown'; sub = (r.reg_date || '') + ' · ' + (r.mobile || '') + ' · ' + (r.branch || ''); third = r.patient_id || '';
+      } else if (ctx.kind === 'rmp') {
+        main = r.name || 'Unknown'; sub = (String(r.added_date || '').slice(0,10)) + ' · ' + (r.mobile || '') + ' · ' + (r.area || '');
+      } else if (ctx.kind === 'calls_app' || ctx.kind === 'calls_outside') {
+        main = r.target || '—'; sub = (r.call_date || '') + ' · ' + (r.call_time || ''); third = r.remark || ''; clickable = true;
+      } else if (ctx.kind === 'cash' || ctx.kind === 'online') {
+        main = (r.name || 'Unknown') + ' — ' + m.money(Number(r.amount || 0)); sub = (r.pay_date || '') + ' · ' + (r.mobile || '') + ' · ' + (r.branch || ''); third = r.pay_label || r.remarks || ''; clickable = true;
+      } else if (ctx.kind === 'reports') {
+        main = r.report_date || ''; sub = (r.status || 'sent') + (r.accepted ? ' · seen' : '');
+      } else if (ctx.kind === 'attendance') {
+        main = r.work_date || ''; sub = 'IN ' + (r.check_in || '—') + ' · OUT ' + (r.check_out || '—') + (r.is_leave ? ' · Leave' : '');
+      }
+      return '<div ' + (clickable ? 'onclick="perfWebDrillDetail(' + i + ')" ' : '') + 'style="padding:11px 2px;' + (i ? 'border-top:1px solid #E3ECE7;' : '') + (clickable ? 'cursor:pointer;' : '') + '">' +
+        '<div style="display:flex;justify-content:space-between;gap:8px"><b style="color:#123A26;font-size:14px">' + m.esc(main) + '</b>' + (clickable ? '<span style="color:#9AA8B5">&rsaquo;</span>' : '') + '</div>' +
+        (sub ? '<div style="font-size:12.5px;color:#5B6B81;margin-top:3px">' + m.esc(sub) + '</div>' : '') +
+        (third ? '<div style="font-size:12.5px;color:#5B6B81;margin-top:3px">' + m.esc(third) + '</div>' : '') + '</div>';
+    }).join('') + '</div>';
+  }
+
+  async function perfWebDrillList(kind, code, month, viaList) {
+    var m = window.MOD, client = await sb(), fn = '', params = { p_month: month, p_code: code }, title = '', emptyMsg = 'No records this period.';
+    if (kind === 'enquiry') { fn = 'perf_enquiry_list_v2'; title = 'Enquiry Forms'; emptyMsg = 'No enquiry forms this period.'; }
+    else if (kind === 'registration') { fn = 'perf_registration_list'; title = 'Registrations'; }
+    else if (kind === 'treatment') { fn = 'perf_treatment_list'; title = 'Started Treatment'; }
+    else if (kind === 'rmp') { fn = 'perf_rmp_list'; title = 'RMP Added'; }
+    else if (kind === 'calls_app') { fn = 'perf_calls_list_v2'; params.p_kind = 'app'; title = 'Calls From App'; emptyMsg = 'No calls this period.'; }
+    else if (kind === 'calls_outside') { fn = 'perf_calls_list_v2'; params.p_kind = 'outside'; title = 'Outside Calls'; emptyMsg = 'No calls this period.'; }
+    else if (kind === 'cash') { fn = 'perf_payment_list_v2'; params.p_mode = 'cash'; title = 'Cash Collection'; emptyMsg = 'No payments this period.'; }
+    else if (kind === 'online') { fn = 'perf_payment_list_v2'; params.p_mode = 'online'; title = 'Online Collection'; emptyMsg = 'No payments this period.'; }
+    else if (kind === 'reports') { fn = 'perf_reports_list'; title = 'Daily Reports Sent'; emptyMsg = 'No reports sent this period.'; }
+    else if (kind === 'attendance') { fn = 'perf_attendance_sheet'; title = 'Attendance Sheet'; emptyMsg = 'No attendance this period.'; }
+    else return;
+
+    document.getElementById('app').innerHTML = '<div class="wrap anMod anModPf"><div class="topbar"><b>' + m.esc(title) + '</b></div><div class="page"><div class="card mut">Loading...</div></div></div>';
+    var rr;
+    try { rr = await client.schema('hr').rpc(fn, params); } catch (e) { rr = { error: e }; }
+    if (rr && rr.error) {
+      document.getElementById('app').innerHTML = '<div class="wrap anMod anModPf"><div class="topbar"><b>' + m.esc(title) + '</b></div><div class="page"><div class="card mut">Could not load. Please try again.</div><div class="actions"><button class="ghost" onclick="staffPerformanceOne(\'' + m.esc(code) + '\',\'' + m.esc(month) + '\',' + (viaList ? 'true' : 'false') + ')">Back</button></div></div></div>'; return;
+    }
+    __perfDrillCtx = { kind: kind, code: code, month: month, viaList: !!viaList, title: title, emptyMsg: emptyMsg, rows: (rr && Array.isArray(rr.data)) ? rr.data : [] };
+    perfWebDrillRender(__perfDrillCtx);
+  }
+
+  function perfWebDrillDetail(index) {
+    var m = window.MOD, ctx = __perfDrillCtx, r = ctx && ctx.rows ? ctx.rows[index] : null; if (!ctx || !r) return;
+    var title = 'Detail', fields = [];
+    function add(label, value) { if (value !== undefined && value !== null && String(value).trim() !== '') fields.push([label, String(value)]); }
+    if (ctx.kind === 'enquiry') {
+      title = 'Enquiry Detail'; add('Name', r.name || 'Unknown'); add('Mobile', r.mobile); add('Date', r.enq_date); add('Branch', r.branch); add('Disease', r.disease); add('Address', r.address); add('Remarks', r.remarks); add('Status', r.status); add('Stage', r.stage); add('Received By', r.received_by); add('Created By', r.created_by); add('Created At', r.created_at); add('Record ID', r.id);
+    } else if (ctx.kind === 'calls_app' || ctx.kind === 'calls_outside') {
+      title = ctx.kind === 'calls_app' ? 'App Call Detail' : 'Outside Call Detail'; add('Number', r.target || '—'); add('Date', r.call_date); add('Time', r.call_time); add('Call Type', ctx.kind === 'calls_app' ? 'Call from app' : 'Outside call'); add('Remark', r.remark); if (ctx.kind === 'calls_app' && !r.full_number_available) add('Note', 'This is an older call. The full number was not stored at that time.'); add('Record ID', r.id);
+    } else if (ctx.kind === 'cash' || ctx.kind === 'online') {
+      title = ctx.kind === 'cash' ? 'Cash Collection Detail' : 'Online Collection Detail'; add('Patient', r.name || 'Unknown'); add('Mobile', r.mobile); add('Amount', m.money(Number(r.amount || 0))); add('Date', r.pay_date); add('Mode', r.mode || (ctx.kind === 'cash' ? 'Cash' : 'Online')); add('Payment', r.pay_label); add('Payment Type', r.pay_type); add('Branch', r.branch); add('Remarks', r.remarks); add('Patient ID', r.patient_id); add('Patient Code', r.patient_code); add('Received By', r.received_by); add('Created By', r.created_by); add('Created At', r.created_at); add('Status', r.status); add('Record ID', r.id);
+    } else return;
+    document.getElementById('app').innerHTML = '<div class="wrap anMod anModPf"><div class="topbar"><b>' + m.esc(title) + '</b></div><div class="page">' +
+      '<div style="font-size:12px;color:#5B6B81;margin:0 2px 10px">' + m.esc(perfLabel(ctx.month)) + '</div>' +
+      '<div class="card">' + fields.map(function (f, i) { return '<div style="padding:10px 2px;' + (i ? 'border-top:1px solid #E3ECE7;' : '') + '"><div style="font-size:11.5px;font-weight:700;color:#5B6B81">' + m.esc(f[0]) + '</div><div style="font-size:14px;color:#123A26;margin-top:3px;overflow-wrap:anywhere">' + m.esc(f[1]) + '</div></div>'; }).join('') + '</div>' +
+      '<div class="actions" style="margin-top:12px"><button class="ghost" onclick="perfWebDrillCached()">Back</button></div></div></div>';
+  }
+
+  function perfWebDrillCached() { if (__perfDrillCtx) perfWebDrillRender(__perfDrillCtx); }
+
+  /* 🗓️🔴 V509 (২১.০৮.২০২৬, TK-নির্দেশ — কাগজের হাজিরা-খাতার ছবিসহ):
+   *   *"staff এর এখানে attendance sheet এরকম থাকবে, যাতে সে দেখতে পারে সারা
+   *    মাসে কোন সময় এসেছে এবং কোন সময় ক্লিনিক থেকে গেছে, কবে সে ছুটি নিয়েছিল।"*
+   *
+   * ⛔ নতুন কিছু বানানো হয়নি — হাজিরা-খাতার পর্দাটা (`perfWebDrillList`-এর
+   *    'attendance') আগে থেকেই তৈরি ছিল, শুধু **মাস্টারের** Staff Performance
+   *    পথ থেকে খুলত (`staffPerformanceOne`-এ "Only Master")। স্টাফের নিজের
+   *    পাতায় ঢোকার দরজাই ছিল না। এখানে শুধু সেই দরজাটা বসানো হলো —
+   *    ফোনের অ্যাপে হুবহু একই ("🗓️ My Attendance Sheet")।
+   * ⛔ স্টাফ **শুধু নিজের** খাতা দেখেন: নিজের কোড ছাড়া কিছু পাঠানোই হয় না, আর
+   *    সার্ভারের নিয়মও (V509_MY_ATTENDANCE_SHEET SQL) নিজের কোড ছাড়া অন্য কারও
+   *    সারি ফেরত দেয় না। মাস্টারের ক্ষমতা অপরিবর্তিত।
+   * ⚠️ ভিতরের সাধারণ "Back" মাস্টারের পাতায় ফেরে — স্টাফের জন্য সেটা "Only
+   *    Master" দেখাত। তাই এখানে নিজের `myProfile()`-এ ফেরার আলাদা Back বসানো হয়।
+   * ⚡ Egress: চাপ দিলে তবেই একটাই ছোট RPC (সর্বোচ্চ ৩১ সারি, ৪টে ঘর)।
+   */
+  async function myAttendanceSheet() {
+    var m = window.MOD;
+    var code = (m.session() || {}).code || '';
+    if (!code) return pfToast('Not signed in');
+    var d = new Date();
+    var ym = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    await perfWebDrillList('attendance', code, ym, false);
+    try {
+      var page = document.querySelector('.anModPf .page');
+      if (page) {
+        var bar = document.createElement('div');
+        bar.className = 'actions';
+        bar.style.marginTop = '12px';
+        bar.innerHTML = '<button class="ghost" onclick="myProfile()">Back to My Profile</button>';
+        page.appendChild(bar);
+      }
+    } catch (_e) {}
+  }
+
+  /* ---- ২) একজনের পুরো হিসাব ---- */
+  async function staffPerformanceOne(code, month, fromList) {
+    var m = window.MOD;
+    if (!m.isMasterModule()) return pfToast('Only Master');
+    /* 🔧 V421খ: ডিফল্ট **আজকের দিন**। */
+    var ym = month || m.todayIST();
+    /* 🔧 V421 (TK-রিপোর্ট: "staff এর Daily Performance কেন দেখা যাচ্ছে না") —
+       Day/Month বোতাম দুটো আগে **শুধু তালিকার** পর্দায় ছিল। Staff Profiles থেকে
+       সরাসরি কারও Performance-এ ঢুকলে দিনের হিসাব দেখার উপায়ই ছিল না।
+       এখন এই পর্দাতেও একই দুটো বোতাম। ⛔ গোনার নিয়ম কিছুই বদলায়নি।
+       ⛔ Back কোথায় ফিরবে সেটাও ঠিক রাখা হলো — তালিকা থেকে এলে তালিকায়,
+          Staff Profiles থেকে এলে Staff Profiles-এ। */
+    var viaList = (fromList === true) || (fromList === undefined && !!month);
+    var backCall = viaList ? ('staffPerformance(\'' + m.esc(ym) + '\')') : 'staffProfiles()';
+    /* 🔧 V422খ: Back একদম নিচে (উপরের নোট দেখুন)। */
+    document.getElementById('app').innerHTML = '<div class="wrap anMod anModPf">' +
+      '<div class="topbar"><b>' + m.esc(code) + '</b>' + perfChips(ym, 'one', code, viaList) + '</div>' +
+      '<div class="page"><div id="perf1" class="card mut">Loading...</div>' +
+      '<div class="actions" style="margin-top:12px"><button class="ghost" onclick="' + backCall + '">Back</button></div>' +
+      '</div></div>';
+    var rows = await perfRows(ym);
+    var box = document.getElementById('perf1'); if (!box) return;
+    if (rows === null) { box.textContent = 'Could not load. Please try again.'; return; }
+    var x = (rows || []).filter(function (r) { return String(r.person_code) === String(code); })[0];
+    if (!x) { box.textContent = 'No record for this month.'; return; }
+    box.className = '';
+    function sec(title, hex, lines) {
+      return '<div class="card"><div style="font-weight:800;color:' + hex + ';font-size:16px;padding-bottom:4px">' + title + '</div>' + lines + '</div>';
+    }
+    box.outerHTML =
+      /* 🔴 V437 #20 (নিজের অডিটে ধরা) — ফোনে (`StaffProfileActivity.kt:1218`)
+         `full_name` ফাঁকা হলে কোডটা দেখানো হয় (`ifBlank { code }`); ওয়েবে
+         এখানে কোনো বিকল্প ছিল না, তাই শিরোনামটা **ফাঁকা** পড়ে থাকত।
+         (তালিকার কার্ডে বিকল্পটা আগেই ছিল, শুধু এই পর্দাটা বাদ পড়েছিল।) */
+      '<div class="card"><b style="color:#0A5C33;font-size:17px">' + m.esc(x.full_name || x.person_code || '') + '</b>' +
+        '<div style="font-size:12px;color:#3B5A49;margin-top:2px">' + m.esc(x.person_code) + ' · ' + m.esc(x.branch) + ' · ' + m.esc(perfLabel(ym)) + '</div></div>' +
+      sec('Patient Work', '#0A5C33',
+        perfRowLink('Enquiry forms', perfNum(x.enquiry_count), '#123A26', "perfWebDrillList('enquiry','" + m.esc(code) + "','" + m.esc(ym) + "'," + (viaList ? 'true' : 'false') + ")") +
+        perfRowLink('Registrations', perfNum(x.registration_count), '#123A26', "perfWebDrillList('registration','" + m.esc(code) + "','" + m.esc(ym) + "'," + (viaList ? 'true' : 'false') + ")") +
+        perfRowLink('Started treatment', perfNum(x.treatment_count), '#0A7C3F', "perfWebDrillList('treatment','" + m.esc(code) + "','" + m.esc(ym) + "'," + (viaList ? 'true' : 'false') + ")")) +
+      sec('Calls', '#0A5C33',
+        perfRowLink('Calls from app', perfNum(x.app_calls), '#123A26', "perfWebDrillList('calls_app','" + m.esc(code) + "','" + m.esc(ym) + "'," + (viaList ? 'true' : 'false') + ")") +
+        perfRowLink('Outside calls', perfNum(x.outside_calls), '#123A26', "perfWebDrillList('calls_outside','" + m.esc(code) + "','" + m.esc(ym) + "'," + (viaList ? 'true' : 'false') + ")") +
+        perfRowLink('RMP added', perfNum(x.rmp_added), '#123A26', "perfWebDrillList('rmp','" + m.esc(code) + "','" + m.esc(ym) + "'," + (viaList ? 'true' : 'false') + ")")) +
+      sec('Money Collected', '#0A5C33',
+        perfRowLink('Cash', m.money(perfNum(x.cash_collected)), '#123A26', "perfWebDrillList('cash','" + m.esc(code) + "','" + m.esc(ym) + "'," + (viaList ? 'true' : 'false') + ")") +
+        perfRowLink('Online', m.money(perfNum(x.online_collected)), '#123A26', "perfWebDrillList('online','" + m.esc(code) + "','" + m.esc(ym) + "'," + (viaList ? 'true' : 'false') + ")") +
+        perfRow('Total', m.money(perfNum(x.cash_collected) + perfNum(x.online_collected)), '#0A7C3F')) +
+      sec('Attendance &amp; Reports', '#B45309',
+        perfRowLink('Days present', perfNum(x.present_days), '#123A26', "perfWebDrillList('attendance','" + m.esc(code) + "','" + m.esc(ym) + "'," + (viaList ? 'true' : 'false') + ")") +
+        perfRowLink('Daily reports sent', perfNum(x.reports_sent), '#123A26', "perfWebDrillList('reports','" + m.esc(code) + "','" + m.esc(ym) + "'," + (viaList ? 'true' : 'false') + ")") +
+        perfRowLink('Leave days', perfNum(x.leave_days), (perfNum(x.leave_days) > 0 ? '#B42318' : '#5B6B81'), "perfWebDrillList('attendance','" + m.esc(code) + "','" + m.esc(ym) + "'," + (viaList ? 'true' : 'false') + ")"));
+  }
+
+  window.staffPerformance = staffPerformance;
+  window.staffPerformanceOne = staffPerformanceOne;
+  window.perfWebDrillList = perfWebDrillList;
+  window.perfWebDrillDetail = perfWebDrillDetail;
+  window.perfWebDrillCached = perfWebDrillCached;
+})();

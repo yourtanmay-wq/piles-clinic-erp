@@ -1,0 +1,3014 @@
+package com.tkbiswas.pilesclinic.native
+
+import android.content.Context
+
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.runBlocking
+import org.json.JSONArray
+import org.json.JSONObject
+
+/**
+ * Native rebuild Step 4 -- Follow-up.
+ *
+ * Fetches the same three stages the WebView's Follow-up tabs show
+ * (Inquiry/Patient/Treatment -- labeled Enquiry/Visit/Patient in the UI,
+ * same slightly confusing internal-vs-display naming the WebView already
+ * has, kept identical rather than "fixed" without being asked), and
+ * supports the two most common follow-up actions: updating the Last Remark
+ * and setting the Next Follow-up Date.
+ */
+class FollowUpRepository(private val context: Context? = null) {
+
+    companion object {
+        // HISTORY (read this before touching the column lists below):
+        // On 2026-07-27 these reads were first narrowed using a list taken
+        // from this project's own 04_SUPABASE_DATABASE_SETUP files, and that
+        // had to be PULLED BACK the same day -- those files do not match the
+        // live table (columns were added over time), and a column that exists
+        // live but is missing from the list silently comes back BLANK. A blank
+        // "branch" or "patientId" can make a just-registered patient fail the
+        // branch check and vanish from the Visit tab.
+        //
+        // WHAT CHANGED: TK ran the live check on his own database the same
+        // day (information_schema.columns) and gave the real column list, so
+        // the lists below are LIVE-VERIFIED, not guessed. The live followups
+        // table had 5 columns the setup files did not know about (age,
+        // convertedPatientId, lastCallDate, patientId, sex) and patients had
+        // one (timeType) -- all of them are included below.
+        //
+        // THE RULE STAYS: never hand-write these lists from the setup files.
+        // If the live table gains a column that this code must read, run
+        //     select column_name from information_schema.columns
+        //     where table_name in ('followups','patients');
+        // on the LIVE Supabase and add it here.
+
+        // TK-APPROVED (2026-07-27) — TK ran the live check himself, so these
+        // lists are built from the LIVE database, not from the old setup files.
+        // That was the exact condition written into this file on 2026-07-27
+        // after the first attempt had to be pulled back.
+        //
+        // WHAT THESE ARE: every column that really exists live on this table,
+        // MINUS "photo" only. The patient photo is stored inside the row as
+        // text, so asking for "*" downloaded every patient's photo on every
+        // list load -- the single heaviest thing on TK's 0.16 KB/s line.
+        //
+        // WHY IT IS SAFE NOW:
+        //  - no column the code reads is left out (only "photo" is), so the
+        //    branch check can never see a blank branch/patientId and hide a
+        //    just-registered patient (the 2026-07-27 danger);
+        //  - NO card on this screen shows a photo any more (TK removed the
+        //    left column from the Visit and Patient cards on 27.07.2026, and
+        //    the Enquiry card shows the call signal there), and View All reads
+        //    the photo from its own separate query, which is untouched;
+        //  - if a narrowed read fails for ANY reason, the same read is done
+        //    again immediately with "*" (see slimFollowups/slimPatients), so
+        //    the worst case is exactly today's behaviour.
+        //
+        // If a column is ever ADDED to the live table, nothing breaks: the app
+        // simply does not read it here, the same as before it existed.
+        private const val FOLLOWUP_COLS = "address,age,branch,callCount,convertedPatientId,createdAt,createdBy,date,disease,history,id,lastCallDate,lastRemark,mobile,name,nextFollow,patientId,refId,registrationDate,sex,stage,status,timeType,updatedAt,visitDate"
+        // 🔴🆕🔒 TK-নির্দেশ (08.08.2026) — Supabase Egress কমানো (মাসে ১০ GB > ৫ GB
+        // ফ্রি সীমা = ২০৫%)। Follow-up তালিকা প্রতিবার খুললে সব রোগীর এই ৫টা বড়
+        // লেখা-ঘরও নামত, অথচ তালিকায় এগুলো দেখানোই হয় না; শুধু ডাক্তার-চেকআপ/
+        // টাইমলাইন পর্দায় লাগে, আর ওরা নিজে `fetchList("patients")` (select=*) দিয়ে
+        // পুরো row আলাদা করে টেনে আনে — তাই এখানে বাদ দিলে কিছু ভাঙে না, শুধু
+        // ডেটা কম নামে। যাচাই: এই ৫টা ঘর FollowUp-এর কোনো ফাইলে পড়া হয় না
+        // (আগের ছবি-বাদের মতোই নিরাপদ কৌশল)। বাদ: doctorFullNote · doctorAdvice ·
+        // medicalHistory · previousTreatment · previousResult।
+        private const val PATIENT_COLS = "address,age,bill,branch,complaint,completeApprovedBy,completeRequestedBy,createdAt,createdBy,date,decision,diagnosis,discount,disease,doctorComplete,id,mobile,name,occupation,patientId,previousCost,queue,refBy,refDoctor,refDoctorMobile,refundRestoredBy,registeredBy,registrationDate,sex,sinceWhen,stage,timeType,treatmentDuration,updatedAt,visitDate"
+
+        /**
+         * Narrowed read, with a one-time full-row safety net.
+         *
+         * If the narrowed read works even once, the column list is proven good
+         * for this device, and after that a failure can only be the network --
+         * so we do NOT spend a second request on a slow line. Only while the
+         * list is still unproven does a failure trigger one retry with "*",
+         * which is what protects against a wrong column name.
+         */
+        @Volatile private var narrowProven = false
+
+        private fun slim(table: String, filter: String?, cols: String): JSONArray? {
+            val narrow = SupabaseClient.fetchListOrNull(table, filter, 5000, select = cols)
+            if (narrow != null) { narrowProven = true; return narrow }
+            if (narrowProven) return null
+            return SupabaseClient.fetchListOrNull(table, filter, 5000)
+        }
+
+        private fun slimFollowups(filter: String?): JSONArray? = slim("followups", filter, FOLLOWUP_COLS)
+        private fun slimPatients(filter: String?): JSONArray? = slim("patients", filter, PATIENT_COLS)
+
+        /**
+         * V448 (19.08.2026) — durable Inquiry Reject/Restore decision from history.
+         *
+         * Some older rows were later rewritten to status=Active by a generic heal/view
+         * path even though their append-only history still ended with a real Reject.
+         * Status alone therefore cannot be the source of truth for those legacy rows.
+         *
+         * Evaluate explicit workflow decisions by their stored date/time rather than
+         * by JSON array position. Ordinary free-text remarks are deliberately ignored
+         * so text such as "not rejected" can never hide a card by accident.
+         * A real Restore/Continue marker wins only when it is genuinely newer.
+         */
+        /** Parse history decision time without trusting array order.
+         * V407 merged duplicate histories with jsonb_agg(distinct ...) and did not
+         * ORDER that aggregate, so the array position is NOT a reliable chronology. */
+        private fun inquiryDecisionMillis(h: JSONObject): Long? {
+            val rawTime = h.optString("time", "").trim()
+            val rawDate = h.optString("date", "").trim()
+            val candidates = listOf(rawTime, rawDate).filter { it.isNotBlank() }
+            val patterns = listOf(
+                "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", "yyyy-MM-dd'T'HH:mm:ss'Z'",
+                "yyyy-MM-dd'T'HH:mm:ss.SSSXXX", "yyyy-MM-dd'T'HH:mm:ssXXX",
+                "yyyy-MM-dd", "dd.MM.yyyy", "dd/MM/yyyy"
+            )
+            for (raw in candidates) {
+                for (pat in patterns) {
+                    try {
+                        val f = java.text.SimpleDateFormat(pat, java.util.Locale.US)
+                        f.isLenient = false
+                        f.timeZone = java.util.TimeZone.getTimeZone("UTC")
+                        val parsed = f.parse(raw)
+                        if (parsed != null) return parsed.time
+                    } catch (_: Throwable) { }
+                }
+            }
+            return null
+        }
+
+        internal fun inquiryHistoryEndsTerminal(row: JSONObject): Boolean {
+            var terminalSeen = false
+            var activeSeen = false
+            var newestTerminal: Long? = null
+            var newestActive: Long? = null
+            var v448ActiveSeen = false
+
+            for (i in 0 until (row.optJSONArray("history")?.length() ?: 0)) {
+                val h = row.optJSONArray("history")?.optJSONObject(i) ?: continue
+                val hs = h.optString("status", "").trim().lowercase()
+                val remark = h.optString("remark", "").trim().lowercase()
+
+                val activeDecision = hs in setOf("active", "restored", "continued", "continue") ||
+                    remark.startsWith("restored & moved to") ||
+                    remark == "restored from reject list" ||
+                    remark == "continue entry" || remark == "continued" ||
+                    remark == "continued (keep active)"
+                val terminalDecision = hs in setOf("cancelled", "incomplete", "rejected", "closed") ||
+                    remark == "rejected" || remark == "marked incomplete" ||
+                    remark == "entry cancelled" || remark == "5-call limit — closed" ||
+                    remark == "5-call limit - closed" || remark == "cancelled after 5 calls" ||
+                    remark == "cancelled (duplicate number, never visited)" ||
+                    remark == "cancelled by staff (signal 3-tap)" || remark == "deleted"
+
+                if (!activeDecision && !terminalDecision) continue
+                val whenMs = inquiryDecisionMillis(h)
+                if (activeDecision) {
+                    activeSeen = true
+                    if (h.optString("decisionVersion", "").equals("V448", true)) v448ActiveSeen = true
+                    if (whenMs != null && (newestActive == null || whenMs > newestActive!!)) newestActive = whenMs
+                }
+                if (terminalDecision) {
+                    terminalSeen = true
+                    if (whenMs != null && (newestTerminal == null || whenMs > newestTerminal!!)) newestTerminal = whenMs
+                }
+            }
+
+            if (!terminalSeen) return false
+            if (!activeSeen) return true
+            // Never trust V407's merged array position. When both decisions have
+            // usable dates, the later date/time wins. Equal/unknown chronology is
+            // deliberately terminal-safe: the record stays in Reject until an
+            // explicit V448 Restore writes a fresh timed Active marker.
+            if (newestTerminal != null && newestActive != null) {
+                return newestTerminal!! >= newestActive!!
+            }
+            if (newestTerminal != null && newestActive == null) return true
+            // A V448 Restore/Continue marker is written only by an explicit user
+            // action NOW, after all legacy history already exists. It can safely
+            // supersede an old terminal entry whose date was too malformed to parse.
+            if (newestTerminal == null && newestActive != null && v448ActiveSeen) return false
+            return true
+        }
+
+        // 🔴🆕🔒 TK-নির্দেশ (08.08.2026) — Supabase Egress কমানো। স্টাফ শুধু নিজের
+        // ব্রাঞ্চ দেখে, অথচ এতদিন সব ব্রাঞ্চের রোগী/পেমেন্ট নামত (সবচেয়ে ভারী ফেচ)।
+        // নির্দিষ্ট একটা ব্রাঞ্চ হলে (স্টাফ সবসময়; master যখন একটা ব্রাঞ্চ বাছেন)
+        // server থেকেই শুধু **সেই ব্রাঞ্চ + ফাঁকা-ব্রাঞ্চ** টানা হয় — ফাঁকা-ব্রাঞ্চ
+        // রাখা হলো নিরাপত্তার জন্য (সদ্য-তৈরি সারি যার branch এখনো বসেনি সেটা যেন
+        // না হারায়)। "All"/master-সব হলে `null` = আগের মতোই সব। ⛔ নিচের display-এর
+        // branch/creator ছাঁকনি (fetchTab) একটুও বদলায়নি — দ্বিতীয় সুরক্ষা-জাল।
+        // ⛔ staff branch-locked (নিজের ব্রাঞ্চ ছাড়া বাছতেই পারে না), তাই ভিন্ন-
+        //    ব্রাঞ্চে নিজের সারি বানানোর সুযোগই নেই — কিছু হারানোর ঝুঁকি নেই।
+        // `or=(...)` প্যাটার্ন এই প্রজেক্টেই বহু জায়গায় ব্যবহৃত (Dialer/Timeline/
+        //    WorkNotebook/ChamberAttendance), তাই নিরাপদ ও প্রমাণিত।
+        // 🔴🔒 V453 (20.08.2026, TK-অনুমোদিত): JPE-CRP-এর মতো একজন নির্দিষ্ট
+        // স্টাফের জন্য একাধিক ব্রাঞ্চ (নিজের + অতিরিক্ত অনুমোদিত) দেখানোর
+        // দরকার হতে পারে (CrossBranchStaffAccess.kt দেখুন)। তাই এখন কমা-
+        // আলাদা একাধিক ব্রাঞ্চ-নাম গ্রহণ করা হয় ("Jalpaiguri,Falakata,Birpara")।
+        // ⛔ একটাই ব্রাঞ্চ থাকলে (কমা নেই) আগের আচরণ **অক্ষত** — বাকি সবার
+        //    জন্য এক অক্ষরও বদলায়নি।
+        private fun branchScopeFilter(branchFilter: String?): String? {
+            val b = branchFilter?.trim() ?: return null
+            if (b.isEmpty() || b.equals("All", ignoreCase = true)) return null
+            val parts = b.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+            if (parts.size <= 1) {
+                val enc = try { java.net.URLEncoder.encode(b, "UTF-8") } catch (_: Throwable) { b }
+                return "or=(branch.eq.$enc,branch.is.null)"
+            }
+            val encParts = parts.joinToString(",") { p ->
+                val enc = try { java.net.URLEncoder.encode(p, "UTF-8") } catch (_: Throwable) { p }
+                "branch.eq.$enc"
+            }
+            return "or=($encParts,branch.is.null)"
+        }
+        private fun branchKeyPart(branchFilter: String?): String =
+            branchFilter?.trim()?.takeIf { it.isNotEmpty() && !it.equals("All", ignoreCase = true) } ?: "all"
+
+        private val LOCK = Any()
+        // V450: suppress duplicate repair writes when fetchTab() is requested several
+        // times for the same screen render. A failed write is already queued by the
+        // normal retry mechanism, so one attempt per process is enough.
+        private val legacyRejectRepairSeen = HashSet<String>()
+
+        // TK-REPORTED (2026-07-26): one shared background worker for all
+        // self-heal writes (see upsertWithHealRetry) so opening a tab never
+        // waits for them. Kept inside THIS companion object . a Kotlin class
+        // may only have one.
+        private val healExecutor: java.util.concurrent.ExecutorService =
+            java.util.concurrent.Executors.newSingleThreadExecutor()
+
+        // 🔴🔒 V456 (20.08.2026, TK-অনুমোদিত · ধাপ ১, শুধু Inquiry ট্যাব):
+        // "শুধু বদলানো অংশটুকু নামুক" — Follow-up-এর সবচেয়ে ভারী একক-read
+        // অংশ (`preCloud`, stage-এর সব followups সারি) delta করার ব্যবস্থা।
+        // ⛔ নিচের সব জটিল কোড (enquiries জোড়া, branch-visibility,
+        //    blank-branch repair) এই delta-র কথা জানেই না — তারা যা পায়
+        //    (merge-করা preCloud) তাই নিয়ে **হুবহু আগের মতোই** কাজ করে।
+        private const val FU_DELTA_PREFS = "followup_inquiry_delta_state"
+        private const val FU_FULL_REFRESH_INTERVAL_MS = 30L * 60L * 1000L   // ৩০ মিনিট (Doctor Queue-র চেয়ে কড়া)
+        private const val FU_SAFETY_BACK_MS = 5_000L
+    }
+
+    // TK-REPORTED BUG FIX (2026-07-16): every write function below
+    // (updateRemark, updateNextFollow, updateStatus, logEnquiryCall,
+    // resetCallCount) used to do "return SupabaseClient.updateById(...) ||
+    // context != null" -- meaning it ALWAYS reported success (as long as
+    // this was called from a normal screen) even when the actual cloud
+    // write silently failed. The local phone's own copy was correct, so
+    // the staff who made the change saw it fine -- but nobody else
+    // (another staff, Master, another device) ever received it, and
+    // nothing ever retried it. Follow-up is the single most-used screen in
+    // the app (every call, every remark, every status change goes through
+    // it), so this is very likely the single biggest cause of "I updated
+    // it but the other staff/Master doesn't see it" reports. Fixed the
+    // same way as Enquiry/Registration/Payment (V77/V78): a small
+    // pending-queue, retried from BottomNav.wire() on every screen open.
+    private val pendingPrefs = context?.getSharedPreferences("piles_clinic_followup_pending", Context.MODE_PRIVATE)
+
+    private fun queueFieldUpdate(id: String, fields: JSONObject) {
+        val prefs = pendingPrefs ?: return
+        if (id.isBlank()) return
+        synchronized(LOCK) {
+        val queue = loadFieldQueue()
+        val next = JSONArray()
+        for (i in 0 until queue.length()) {
+            val e = queue.optJSONObject(i) ?: continue
+            if (e.optString("id") != id) next.put(e)
+        }
+        next.put(JSONObject().put("id", id).put("fields", fields))
+        prefs.edit().putString("queue", next.toString()).commit()
+        }
+        // TK-REQUESTED (2026-07-25): sync immediately, even if the staff
+        // closes the app right after saving . WorkManager does the upload
+        // in the background; the same proven flushPending() work, sooner.
+        context?.let { c2 -> try { com.tkbiswas.pilesclinic.data.sync.SyncScheduler.syncNow(c2) } catch (_: Throwable) { } }
+    }
+
+    private fun loadFieldQueue(): JSONArray {
+        val raw = pendingPrefs?.getString("queue", "[]") ?: "[]"
+        return try { JSONArray(raw) } catch (e: Exception) { JSONArray() }
+    }
+
+    // TK-REPORTED BUG FIX (2026-07-24): the 3 self-heal writes below (Enquiry/
+    // Visit/Treatment "genuinely missing everywhere" fallback) fired via a
+    // bare Thread{} with no retry -- if that ONE attempt failed (weak
+    // signal, screen closed mid-upload), the row was NEVER retried, so the
+    // patient stayed stuck on "Registered (syncing...)" forever, exactly
+    // what TK found (stuck for hours, not the intended few-seconds
+    // transient state). Now uses the SAME proven pending-queue pattern as
+    // everything else, retried from flushPending() (BottomNav, every screen
+    // open) via upsert (not updateById -- this row may not exist yet).
+    private val healPendingPrefs = context?.getSharedPreferences("piles_clinic_followup_heal_pending", Context.MODE_PRIVATE)
+
+    /**
+     * TK-REPORTED (2026-07-26): the Visit tab sat on "Loading..." for hours
+     * while the Enquiry and Patient tabs opened normally.
+     *
+     * ROOT CAUSE: this self-heal write used to run INSIDE the tab's own load,
+     * once per patient that has no followups row yet. On the Visit tab that
+     * can be dozens of patients, so one tab open waited for dozens of
+     * SEQUENTIAL network writes . minutes on a good line, effectively forever
+     * on a weak one. The list itself was already complete before these writes;
+     * they only repair the cloud for next time.
+     *
+     * FIX: the repair now runs in the BACKGROUND on one shared worker thread.
+     * The tab shows its list immediately; the healing continues by itself and
+     * still falls back to the retry queue if it fails. Nothing about WHAT is
+     * written changed . same row, same table, same retry.
+     */
+    private fun upsertWithHealRetry(healRow: JSONObject) {
+        // 12.08.2026, PP/GST live proof: a deleted patient's stale local copy
+        // must never be allowed to manufacture a fresh Active follow-up later.
+        // This check is self-heal-only and fail-closed; normal saves are untouched.
+        if (!FollowUpHealGuard.liveSourceStillExists(healRow)) return
+        try {
+            healExecutor.execute {
+                val ok = try { SupabaseClient.upsert("followups", healRow) } catch (_: Throwable) { false }
+                if (!ok) queueHealRow(healRow)
+            }
+        } catch (_: Throwable) {
+            // if the executor itself refuses, keep the old behaviour
+            val ok = try { SupabaseClient.upsert("followups", healRow) } catch (_: Throwable) { false }
+            if (!ok) queueHealRow(healRow)
+        }
+    }
+
+    private fun queueHealRow(row: JSONObject) {
+        val prefs = healPendingPrefs ?: return
+        val id = row.optString("id")
+        if (id.isBlank()) return
+        synchronized(LOCK) {
+            val raw = prefs.getString("queue", "[]") ?: "[]"
+            val queue = try { JSONArray(raw) } catch (_: Exception) { JSONArray() }
+            val next = JSONArray()
+            for (i in 0 until queue.length()) {
+                val e = queue.optJSONObject(i) ?: continue
+                if (e.optString("id") != id) next.put(e)
+            }
+            next.put(row)
+            prefs.edit().putString("queue", next.toString()).commit()
+        }
+    }
+
+    private fun flushHealPending() {
+        val prefs = healPendingPrefs ?: return
+        synchronized(LOCK) {
+            val raw = prefs.getString("queue", "[]") ?: "[]"
+            val queue = try { JSONArray(raw) } catch (_: Exception) { JSONArray() }
+            if (queue.length() == 0) return
+            val stillPending = JSONArray()
+            for (i in 0 until queue.length()) {
+                val row = queue.optJSONObject(i) ?: continue
+                // TK-REQUESTED (2026-07-26): never re-create a deleted row.
+                if (DeletedGuard.isDeleted("followups", row.optString("id", ""), context)) continue
+                // An id tombstone is device-local.  Re-check the live source too,
+                // so a queued repair from another/older device cannot resurrect it.
+                if (!FollowUpHealGuard.liveSourceStillExists(row)) continue
+                val ok = try { SupabaseClient.upsert("followups", row) } catch (_: Throwable) { false }
+                if (!ok) stillPending.put(row)
+            }
+            prefs.edit().putString("queue", stillPending.toString()).commit()
+        }
+    }
+
+    /** Retries every "followups" field-update still stuck on this device.
+     * Called from BottomNav.wire() on every screen open, same as Enquiry/
+     * Registration/Payment. Safe to repeat -- re-writing the same fields
+     * to the same id changes nothing if it already succeeded. Does
+     * nothing (no network call) if nothing is pending. */
+    fun flushPending() {
+        flushHealPending()
+        flushMobileTaskPending()
+        val prefs = pendingPrefs ?: return
+        synchronized(LOCK) {
+        val queue = loadFieldQueue()
+        if (queue.length() == 0) return
+        val stillPending = JSONArray()
+        for (i in 0 until queue.length()) {
+            val e = queue.optJSONObject(i) ?: continue
+            try {
+                val id = e.optString("id")
+                val fields = e.optJSONObject("fields") ?: continue
+                // TK-REQUESTED (2026-07-26): if this follow-up row was deleted
+                // in the meantime, drop the queued edit instead of writing it
+                // back (a PATCH on a deleted row can also silently "succeed").
+                if (DeletedGuard.isDeleted("followups", id, context)) continue
+                if (SupabaseClient.updateById("followups", id, fields)) {
+                    // TK-REPORTED BUG FIX (2026-07-16): same fix as
+                    // Enquiry/Registration's flushPending() -- confirm the
+                    // local cache row as SYNCED right when this retry
+                    // succeeds, so LocalWorkflowStore's stale-cloud-refresh
+                    // guard doesn't keep treating this record as having an
+                    // un-synced local change forever.
+                    context?.let { ctx ->
+                        val syncRow = JSONObject(fields.toString()).put("id", id)
+                        LocalWorkflowStore(ctx).upsertFollowUp(syncRow, "SYNCED")
+                    }
+                } else {
+                    stillPending.put(e)
+                }
+            } catch (_: Throwable) {
+                stillPending.put(e)
+            }
+        }
+        prefs.edit().putString("queue", stillPending.toString()).commit()
+        }
+    }
+
+    // TK-REQUESTED ADDITION (2026-07-20): same "show what was already on the
+    // phone instantly" pattern already added to Doctor Queue -- a read-only
+    // display cache of the last successfully fetched tab, saved on-device.
+    // fetchTab() below (fetch/merge/branch-visibility/sort logic) is
+    // completely unchanged; this only adds a save at the very end. Uses its
+    // own field-name mapping (not FollowUpModel.parse(), which expects raw
+    // Supabase column names like "date" rather than "recordDate") so this
+    // stays fully independent of the live-fetch parsing path.
+    private val CACHE_PREFS = "followup_tab_cache"
+
+    fun loadCachedTab(stage: String, branchFilter: String?): List<FollowUpItem>? {
+        val ctx = context ?: return null
+        val prefs = ctx.getSharedPreferences(CACHE_PREFS, Context.MODE_PRIVATE)
+        // 🔴 V448: old cached FollowUpItem objects do not contain status/history, so
+        // a legacy Reject that V448 can now identify from history could flash back from
+        // V447's display cache before the fresh cloud result arrived. Clear ONLY this
+        // derived display cache once after the visibility-rule upgrade; no clinical row
+        // or offline pending data is deleted. LocalWorkflowStore is merged immediately.
+        if (prefs.getInt("_visibility_rule_version", 0) < 448) {
+            prefs.edit().clear().putInt("_visibility_rule_version", 448).apply()
+            return mergeOwnPhoneRows(stage, branchFilter, emptyList()).ifEmpty { null }
+        }
+        val key = "cache_${stage}_${branchFilter ?: "All"}"
+        val json = prefs.getString(key, null)
+            // ⚡ জমানো তালিকা না থাকলেও (প্রথমবার খোলা) ফোনের নিজের সেভ করা
+            // রেকর্ড সঙ্গে সঙ্গে দেখাতে হবে — নইলে ধীর লাইনে পর্দা ফাঁকা থাকত।
+            ?: return mergeOwnPhoneRows(stage, branchFilter, emptyList()).ifEmpty { null }
+        return try {
+            val arr = JSONArray(json)
+            val list = mutableListOf<FollowUpItem>()
+            for (i in 0 until arr.length()) {
+                val r = arr.getJSONObject(i)
+                list.add(
+                    FollowUpItem(
+                        id = r.optString("id", ""), name = r.optString("name", ""), mobile = r.optString("mobile", ""),
+                        branch = r.optString("branch", ""), disease = r.optString("disease", ""), stage = r.optString("stage", ""),
+                        lastRemark = r.optString("lastRemark", ""), nextFollow = r.optString("nextFollow", ""),
+                        recordDate = r.optString("recordDate", ""), callCount = r.optInt("callCount", 0),
+                        createdAt = r.optString("createdAt", ""),   // 🔒 খাতার সারি B65
+                        bill = r.optDouble("bill", 0.0), paid = r.optDouble("paid", 0.0),
+                        patientId = r.optString("patientId", ""), address = r.optString("address", ""),
+                        age = r.optString("age", ""), sex = r.optString("sex", ""),
+                        photo = r.optString("photo", ""), updatedAt = r.optString("updatedAt", ""),
+                        lastCallDate = r.optString("lastCallDate", ""), lastCallBy = FollowUpModel.prettyStaff(r.optString("lastCallBy", ""))
+                    )
+                )
+            }
+            // ⚡ TK (28.07.2026): নিজের ফোনে করা কাজ সঙ্গে সঙ্গে দেখাতে হবে।
+            mergeOwnPhoneRows(stage, branchFilter, list)
+        } catch (t: Throwable) { null }
+    }
+
+    /**
+     * ⚡ TK-এর নির্দেশ (28.07.2026 ২.৩০ pm, ফটো-প্রুফসহ — আজ রেজিস্টার করা রোগী
+     * Visit-এ ৭–১০ মিনিট পরে আসছিল):
+     *
+     * **"আমি আমার ফোনে যা যা কাজ করবো, সেটা যেন সাথে সাথেই দেখায়।"**
+     *
+     * **আসল কারণ:** পর্দা খুললে প্রথমে **জমানো তালিকাটা** দেখানো হত, আর ওই
+     * তালিকায় ফোনের নিজের নতুন রেকর্ড মেশানোই হত না। তাই ধীর লাইনে ক্লাউডের
+     * উত্তর না আসা পর্যন্ত নিজের করা রেজিস্ট্রেশন চোখেই পড়ত না।
+     *
+     * **এখন:** জমানো তালিকা দেখানোর ঠিক আগেই ফোনের নিজের সেভ করা সারিগুলো
+     * তাতে মিশিয়ে দেওয়া হয় — **তাই সেভ করার সঙ্গে সঙ্গেই তালিকায় দেখা যায়**,
+     * ক্লাউডের জন্য এক সেকেন্ডও অপেক্ষা করতে হয় না।
+     *
+     * 🔒 এটা পুরনো লক করা নিয়মেরই সম্প্রসারণ: **"যে ফোনে রেকর্ড সেভ হয়েছে, সেই
+     * ফোনের তালিকায় সেটা সব সময় থাকবে। ক্লাউড শুধু যোগ করতে পারবে, বাদ দিতে
+     * পারবে না।"** এখানে কেবল **যোগ** করা হয় — জমানো তালিকার একটা সারিও বাদ
+     * যায় না, কোনো সংখ্যা বদলায় না।
+     *
+     * ⛔ কোনো নতুন ক্লাউড-কল নেই — সবই ফোনের ভিতরের কাজ, তাই অ্যাপ ধীর হয় না।
+     * ব্রাঞ্চের নিয়মও আগের মতোই মানা হয় (স্টাফ শুধু নিজের ব্রাঞ্চ দেখেন)।
+     */
+    private fun mergeOwnPhoneRows(
+        stage: String, branchFilter: String?, cached: List<FollowUpItem>
+    ): List<FollowUpItem> {
+        val ctx = context ?: return cached
+        return try {
+            val local = LocalWorkflowStore(ctx).rowsForStage(stage)
+            if (local.length() == 0) return cached
+            // 🚨 TK-REPORTED (28.07.2026 ৪.৫০ pm): *"রিমার্ক লিখছি, দেখাচ্ছে হয়ে
+            // গেছে, কিন্তু পরে গিয়ে দেখছি পুরনো রিমার্কই রয়ে গেছে।"*
+            //
+            // **আসল কারণ:** নতুন রেকর্ড যোগ করা হত, কিন্তু **যে রেকর্ড আগে থেকেই
+            // জমানো তালিকায় আছে তার নতুন লেখা বসানো হত না** — তাই পুরনো রিমার্কই
+            // চোখে পড়ত, যতক্ষণ না ধীর লাইনে ক্লাউডের উত্তর আসে।
+            //
+            // **এখন:** এই ফোনে যা লেখা হয়েছে সেটাই জেতে — পুরনো সারিটা বদলে
+            // ফোনের নিজের লেখাটা বসে যায়। 🔒 এটা পুরনো লক করা নিয়মেরই অংশ:
+            // "যে ফোনে রেকর্ড সেভ হয়েছে, সেই ফোনের তালিকায় সেটা সব সময় থাকবে।"
+            //
+            // ⚠️ টাকার ঘর (Bill/Paid) ফোনে থাকে না — তাই ওগুলো জমানো তালিকার
+            // মানই রাখা হয়, কখনো ০ করে দেওয়া হয় না।
+            val byId = HashMap<String, Int>()
+            val out = ArrayList(cached)
+            for ((idx, c) in out.withIndex()) if (c.id.isNotBlank()) byId[c.id] = idx
+            val seenMobiles = HashSet<String>()
+            for (c in out) {
+                val d = c.mobile.filter { it.isDigit() }.takeLast(10)
+                if (d.length == 10) seenMobiles.add(d)
+            }
+            val allBranch = branchFilter == null || branchFilter.isBlank() ||
+                branchFilter.equals("All", ignoreCase = true)
+            val extra = mutableListOf<FollowUpItem>()
+            for (i in 0 until local.length()) {
+                val r = local.optJSONObject(i) ?: continue
+                val id = r.s("id")
+                if (id.isBlank()) continue
+                val rb = r.s("branch")
+                if (!allBranch && rb.isNotBlank() && !rb.trim().equals(branchFilter?.trim(), ignoreCase = true)) continue
+                val pos = byId[id]
+                if (pos != null) {
+                    // আগে থেকেই আছে — ফোনের নিজের নতুন লেখাটা বসিয়ে দাও
+                    val old = out[pos]
+                    out[pos] = old.copy(
+                        lastRemark = r.s("lastRemark").ifBlank { old.lastRemark },
+                        nextFollow = r.s("nextFollow").ifBlank { old.nextFollow },
+                        callCount = if (r.has("callCount")) r.optInt("callCount", old.callCount) else old.callCount,
+                        lastCallDate = r.s("lastCallDate").ifBlank { old.lastCallDate },
+                        lastCallBy = r.s("lastCallBy").ifBlank { old.lastCallBy },
+                        name = r.s("name").ifBlank { old.name },
+                        disease = r.s("disease").ifBlank { old.disease },
+                        patientId = r.s("patientId").ifBlank { old.patientId },
+                        updatedAt = r.s("updatedAt").ifBlank { old.updatedAt }
+                    )
+                    continue
+                }
+                val d = r.s("mobile").filter { it.isDigit() }.takeLast(10)
+                if (d.length == 10 && !seenMobiles.add(d)) continue
+                // 🚨 TK-REPORTED, LIVE (29.07.2026 দুপুর ৩.১০, খাতার সারি B82 —
+                // \"DEMO TEST\" +917777777777, ফটো-প্রুফসহ): *"অনেকদিন আগে নিজে
+                // ডিলিট করেছি, তবু নিজে নিজে ফিরে আসছে... কিছুক্ষণ পরে সরে
+                // যাচ্ছে, Refresh করলে আবার ফিরে আসছে।"*
+                //
+                // **প্রমাণ:** Follow-up-এর খোঁজা ও Global Search — **দুটোতেই
+                // \"No records found\"**। অর্থাৎ ডেটাবেসে ওই রেকর্ড **নেই**;
+                // কার্ডটা আসছিল **এই ফোনের নিজের জমানো খাতা** থেকে।
+                //
+                // **আসল কারণ:** এখানে ফোনের সারি যোগ করার সময় দেখা হত না সারিটা
+                // **আগে ক্লাউডে গিয়েছিল কি না**। তাই মুছে ফেলা (বা বাতিল হয়ে
+                // যাওয়া) পুরনো সারিও প্রতিবার ফিরে আসত। তাজা তালিকা এলে সেটা
+                // আবার বাদ পড়ত — এটাই *\"সরে যাচ্ছে, আবার ফিরে আসছে\"*।
+                //
+                // **এখন `fetchTab()`-এর সেই একই B34 নিয়ম এখানেও:**
+                //  • **\"PENDING\"** (এই ফোনে সেভ, এখনো ক্লাউডে যায়নি) → **সবসময়
+                //    দেখাবে** — TK-এর লক করা নিয়ম \"ফোনে সেভ হওয়া রেকর্ড হারানো
+                //    যাবে না\" অক্ষত।
+                //  • **আগে ক্লাউডে গিয়েছিল** অথচ জমানো তালিকায় নেই → ওটা মুছে বা
+                //    বাতিল হয়ে গেছে → **আর দেখানো হবে না**।
+                // ⛔ যে সারি আগে থেকেই তালিকায় আছে তার নতুন লেখা বসানো (উপরের
+                //    অংশ) এক অক্ষরও বদলায়নি।
+                if (r.optString("_syncStatus") != "PENDING") continue
+                extra.add(
+                    FollowUpItem(
+                        id = id,
+                        name = r.s("name"),
+                        mobile = r.s("mobile"),
+                        branch = rb,
+                        disease = r.s("disease"),
+                        stage = r.s("stage").ifBlank { stage },
+                        lastRemark = r.s("lastRemark"),
+                        nextFollow = r.s("nextFollow"),
+                        recordDate = r.s("date").ifBlank { r.s("visitDate").ifBlank { r.s("registrationDate") } },
+                        createdAt = r.s("createdAt"),   // 🔒 খাতার সারি B65
+                        callCount = r.optInt("callCount", 0),
+                        // টাকার ঘর ইচ্ছে করে ০ — সদ্য তৈরি রেকর্ডে এখনো কোনো
+                        // পেমেন্ট নেই। ক্লাউডের উত্তর এলে আসল সংখ্যা বসে যাবে।
+                        bill = r.optDouble("bill", 0.0),
+                        paid = r.optDouble("paid", 0.0),
+                        patientId = r.s("patientId"),
+                        address = r.s("address"),
+                        age = r.s("age"),
+                        sex = r.s("sex"),
+                        photo = r.s("photo"),
+                        updatedAt = r.s("updatedAt"),
+                        lastCallDate = r.s("lastCallDate"),
+                        lastCallBy = FollowUpModel.prettyStaff(r.s("lastCallBy"))
+                    )
+                )
+            }
+            if (extra.isEmpty()) out else extra + out
+        } catch (_: Throwable) { cached }
+    }
+
+    private fun saveCachedTab(stage: String, branchFilter: String?, items: List<FollowUpItem>) {
+        val ctx = context ?: return
+        try {
+            val arr = JSONArray()
+            for (it in items) {
+                arr.put(
+                    JSONObject()
+                        .put("id", it.id).put("name", it.name).put("mobile", it.mobile)
+                        .put("branch", it.branch).put("disease", it.disease).put("stage", it.stage)
+                        .put("lastRemark", it.lastRemark).put("nextFollow", it.nextFollow)
+                        .put("recordDate", it.recordDate).put("callCount", it.callCount)
+                        .put("createdAt", it.createdAt)   // 🔒 খাতার সারি B65
+                        .put("bill", it.bill).put("paid", it.paid).put("patientId", it.patientId)
+                        .put("address", it.address).put("age", it.age).put("sex", it.sex)
+                        .put("photo", it.photo).put("updatedAt", it.updatedAt)
+                        .put("lastCallDate", it.lastCallDate).put("lastCallBy", it.lastCallBy)
+                )
+            }
+            val key = "cache_${stage}_${branchFilter ?: "All"}"
+            ctx.getSharedPreferences(CACHE_PREFS, Context.MODE_PRIVATE).edit().putString(key, arr.toString()).apply()
+        } catch (_: Throwable) { }
+    }
+
+    /** stage: "Inquiry" (Enquiry tab), "Patient" (Visit tab), or
+     * "Treatment" (Patient tab) -- same internal stage values app.js uses. */
+    /** True if this locally-cached row was created BY THIS STAFF within the
+     *  last 3 days. Used so a staff's own fresh entry can never disappear
+     *  from their own phone just because one cloud query came back without
+     *  it (see the merge in fetchTab). Deliberately narrow: someone else's
+     *  record, or an old one, is never added back from local cache. */
+    private fun isOwnRecentRow(row: JSONObject, creatorMobile: String?, creatorName: String?): Boolean {
+        val by = row.optString("createdBy")
+        val mine = (!creatorMobile.isNullOrBlank() && digits(by) == digits(creatorMobile)) ||
+            (!creatorName.isNullOrBlank() && by.equals(creatorName, ignoreCase = true))
+        if (!mine) return false
+        val stampRaw = row.optString("updatedAt").ifBlank { row.optString("createdAt") }
+            .ifBlank { row.optString("date") }
+        val stamp = stampRaw.take(10)
+        if (stamp.length != 10) return false
+        val cal = java.util.Calendar.getInstance()
+        cal.add(java.util.Calendar.DAY_OF_YEAR, -3)
+        val cutoff = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(cal.time)
+        return stamp >= cutoff
+    }
+
+    // =========================================================================
+    // 🔴🔒 V456 (20.08.2026, TK-নির্দেশ · ধাপ ১, শুধু Inquiry ট্যাব)
+    //
+    // ⛔ নিচের `fetchTab()` **এক অক্ষরও বদলানো হয়নি**। এই নতুন পথ শুধু
+    //    Inquiry ট্যাবের preCloud (followups টেবিলের সারি) delta-fetch করে,
+    //    তারপর সেই merge-করা তালিকা নিয়ে `fetchTab()`-কেই ডাকে (নিচের
+    //    `fetchTabDelta()` দেখুন) — enquiries-জোড়া/visibility/dedup কিছুই
+    //    ছোঁয়া হয় না।
+    //
+    // নিরাপত্তা-জাল (Doctor Queue-র একই ৩ স্তর, কিন্তু কড়া — ৩০ মিনিট):
+    //  ১. since না থাকলে/৩০ মিনিট পার হলে → জোর করে পূর্ণ fetch
+    //  ২. delta-কল ব্যর্থ হলে → পূর্ণ fetch
+    //  ৩. প্রতিটা delta-সারি নিজের `status` দিয়ে যাচাই হয় — এখনও Active হলে
+    //     জমানো preCloud-এ বসে/আপডেট হয়, Cancelled/Incomplete/Rejected/
+    //     Closed হয়ে গেলে জমানো preCloud থেকে **সরিয়ে দেওয়া হয়**।
+    // ⛔ সত্যিকারের DELETE (updatedAt বদলায় না) ধরা পড়বে না — ৩০ মিনিটের
+    //    নিয়মিত পূর্ণ-fetch সেটা স্বয়ংক্রিয়ভাবে ঠিক করে দেবে।
+    // =========================================================================
+    private fun deltaPrefs() = context?.getSharedPreferences(FU_DELTA_PREFS, Context.MODE_PRIVATE)
+
+    private fun fuStampNow(): String = try {
+        java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
+            .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
+            .format(java.util.Date(System.currentTimeMillis() - FU_SAFETY_BACK_MS))
+    } catch (_: Throwable) { "" }
+
+    // =========================================================================
+    // 🔴🔒 V456 (20.08.2026, ধাপ ২, TK-অনুমোদিত — "সমস্ত কাজ করতে হবে, তবে
+    // অত্যন্ত সাবধানে"): Patient/Treatment ট্যাবের delta — preCloud (followups)
+    // + prePatients + prePayments — তিনটেই।
+    //
+    // ⛔ একটা একক নিয়ম, সব জায়গায় মানা হয়েছে: **তিনটে read একসাথে delta বা
+    //    একসাথে পূর্ণ** — কখনো "কিছুটা delta, কিছুটা পুরনো cache" মেশানো হয়
+    //    না। একটাও ব্যর্থ/অজানা হলে তিনটেই পূর্ণ fetchTab()-এ ফেরত যায়। এটাই
+    //    সবচেয়ে নিরাপদ, কারণ patients/payments একসাথে মিলিয়েই Due/Paid গণনা
+    //    হয় (নিচের downstream কোড, ~লাইন ১৫০৮-১৬৭০)।
+    //
+    // কেন Patients/Payments-এ "সরানো" (removal) লজিক লাগে না (কোড পড়ে
+    // নিশ্চিত করা হয়েছে, আন্দাজ নয়):
+    //  - Patients: `PatientIdentity.pickPatientRow()` mobile ধরে গ্রুপ করে
+    //    একটা row বাছে (branch → real-bill → first-row নিয়মে) — array-র
+    //    ক্রম/সংখ্যা-জোড়া কোনোটার উপর নির্ভর করে না, শুধু **সম্পূর্ণ সেট**
+    //    দরকার (25.07.2026-এর প্রমাণিত bug-fix comment অনুযায়ী)।
+    //  - Payments: `paidByPid[pid] = (আগেরটা ?: 0.0) + paidEffect` — যোগফল,
+    //    তাই ক্রম-নিরপেক্ষ। রিফান্ডও নতুন **আলাদা row**, পুরনো row মোছে না।
+    //  তাই দুটোই "upsert-only" merge নিরাপদ — কোনো row কখনো সরানো হয় না,
+    //  শুধু id ধরে নতুন/বদলানো row বসে।
+    //
+    // ⛔ সত্যিকারের hard-DELETE (কোনো row updatedAt না বদলে সরাসরি মুছে
+    //    যাওয়া) delta-তে ধরা পড়বে না — DoctorQueue/Inquiry-র একই সীমাবদ্ধতা,
+    //    ৩০ মিনিটের নিয়মিত পূর্ণ-fetch স্বয়ংক্রিয়ভাবে ঠিক করে দেয়।
+    // =========================================================================
+
+    private fun loadCachedArray(key: String): JSONArray {
+        val sp = deltaPrefs() ?: return JSONArray()
+        return try {
+            val raw = sp.getString(key, null) ?: return JSONArray()
+            JSONArray(raw)
+        } catch (_: Throwable) { JSONArray() }
+    }
+
+    private fun saveCachedArray(key: String, arr: JSONArray) {
+        val sp = deltaPrefs() ?: return
+        try { sp.edit().putString(key, arr.toString()).apply() } catch (_: Throwable) { }
+    }
+
+    /** followups (preCloud)-এর জন্য — Inquiry-তে যে নিয়ম, এখানেও হুবহু একই
+     *  (terminal status হলে সরানো)। stage অনুযায়ী আলাদা cache key। */
+    private fun deltaPreCloudOrNull(stage: String, since: String): JSONArray? {
+        val sinceEnc = try { java.net.URLEncoder.encode(since, "UTF-8") } catch (_: Throwable) { since }
+        val delta = try {
+            slimFollowups("stage=eq.$stage&updatedAt=gt.$sinceEnc")
+        } catch (_: Throwable) { null } ?: return null
+        val cacheKey = "precloud_${stage.lowercase()}"
+        val cached = loadCachedArray(cacheKey)
+        val byId = LinkedHashMap<String, JSONObject>()
+        for (i in 0 until cached.length()) {
+            val o = cached.optJSONObject(i) ?: continue
+            val id = o.optString("id"); if (id.isNotBlank()) byId[id] = o
+        }
+        val terminal = setOf("Cancelled", "Incomplete", "Rejected", "Closed")
+        for (i in 0 until delta.length()) {
+            val row = delta.getJSONObject(i)
+            val id = row.optString("id"); if (id.isBlank()) continue
+            if (row.optString("status").trim() in terminal) byId.remove(id) else byId[id] = row
+        }
+        val merged = JSONArray(); for (v in byId.values) merged.put(v)
+        saveCachedArray(cacheKey, merged)
+        return merged
+    }
+
+    /** patients/payments — upsert-only (কখনো row সরানো হয় না, উপরের কারণেই)। */
+    private fun deltaUpsertOnlyOrNull(table: String, cols: String, extraFilter: String, cacheKey: String, since: String): JSONArray? {
+        val sinceEnc = try { java.net.URLEncoder.encode(since, "UTF-8") } catch (_: Throwable) { since }
+        val filter = "updatedAt=gt.$sinceEnc" + (if (extraFilter.isNotBlank()) "&$extraFilter" else "")
+        val delta = try {
+            SupabaseClient.fetchListSlimOrNull(table, filter, 2000, cols)
+        } catch (_: Throwable) { null } ?: return null
+        val cached = loadCachedArray(cacheKey)
+        val byId = LinkedHashMap<String, JSONObject>()
+        for (i in 0 until cached.length()) {
+            val o = cached.optJSONObject(i) ?: continue
+            val id = o.optString("id"); if (id.isNotBlank()) byId[id] = o
+        }
+        for (i in 0 until delta.length()) {
+            val row = delta.getJSONObject(i)
+            val id = row.optString("id"); if (id.isBlank()) continue
+            byId[id] = row   // upsert-only — কখনো remove নয়
+        }
+        val merged = JSONArray(); for (v in byId.values) merged.put(v)
+        saveCachedArray(cacheKey, merged)
+        return merged
+    }
+
+    /** stage="Patient"/"Treatment"-এর জন্য preCloud+prePatients+prePayments —
+     *  তিনটে একসাথে delta, বা তিনটেই null (কলার তখন পূর্ণ fetchTab()-এ যাবে)। */
+    private fun deltaPatientTreatmentTriple(stage: String, branchFilter: String?): Triple<JSONArray, JSONArray, JSONArray>? {
+        val sp = deltaPrefs() ?: return null
+        val branchKey = branchKeyPart(branchFilter)
+        val stateKey = "${stage.lowercase()}_$branchKey"
+        val since = sp.getString("since_$stateKey", null)
+        val lastFullAt = sp.getLong("fullAt_$stateKey", 0L)
+        val now = System.currentTimeMillis()
+        if (since.isNullOrBlank() || (now - lastFullAt) > FU_FULL_REFRESH_INTERVAL_MS) return null
+
+        val preCloud = deltaPreCloudOrNull(stage, since) ?: return null
+        val branchExtra = branchScopeFilterPlain(branchFilter)
+        val patients = deltaUpsertOnlyOrNull(
+            "patients", PATIENT_COLS, branchExtra, "prepatients_$branchKey", since
+        ) ?: return null
+        val payments = deltaUpsertOnlyOrNull(
+            "payments", SupabaseClient.PAYMENT_COLS_LIST, branchExtra, "prepayments_$branchKey", since
+        ) ?: return null
+
+        try { sp.edit().putString("since_$stateKey", fuStampNow()).apply() } catch (_: Throwable) { }
+        return Triple(preCloud, patients, payments)
+    }
+
+    private fun markPatientTreatmentFullDone(stage: String, branchFilter: String?, preCloud: JSONArray, patients: JSONArray, payments: JSONArray) {
+        val sp = deltaPrefs() ?: return
+        val branchKey = branchKeyPart(branchFilter)
+        val stateKey = "${stage.lowercase()}_$branchKey"
+        try {
+            saveCachedArray("precloud_${stage.lowercase()}", preCloud)
+            saveCachedArray("prepatients_$branchKey", patients)
+            saveCachedArray("prepayments_$branchKey", payments)
+            sp.edit()
+                .putString("since_$stateKey", fuStampNow())
+                .putLong("fullAt_$stateKey", System.currentTimeMillis())
+                .apply()
+        } catch (_: Throwable) { }
+    }
+
+    /** branchScopeFilter() একই নিয়ম কিন্তু `or=(...)` শুরুর `filter=` ছাড়া
+     *  raw query-part আকারে — deltaUpsertOnlyOrNull-এর extraFilter-এ বসানোর জন্য। */
+    private fun branchScopeFilterPlain(branchFilter: String?): String {
+        val f = branchScopeFilter(branchFilter) ?: return ""
+        return f   // ইতিমধ্যেই "or=(...)" আকারে, সরাসরি &-এ জোড়া যায়
+    }
+
+    private fun loadCachedPreCloudInquiry(): JSONArray {
+        val sp = deltaPrefs() ?: return JSONArray()
+        return try {
+            val raw = sp.getString("precloud_inquiry", null) ?: return JSONArray()
+            JSONArray(raw)
+        } catch (_: Throwable) { JSONArray() }
+    }
+
+    private fun saveCachedPreCloudInquiry(arr: JSONArray) {
+        val sp = deltaPrefs() ?: return
+        try { sp.edit().putString("precloud_inquiry", arr.toString()).apply() } catch (_: Throwable) { }
+    }
+
+    /** Inquiry ট্যাবের preCloud — delta বা পূর্ণ, নিরাপত্তা-জাল সহ। ব্যর্থ/
+     *  প্রথমবার/দীর্ঘ-বিরতিতে `null` ফেরে — কলার তখন আগের পূর্ণ পথে (slimFollowups) যাবে। */
+    private fun deltaPreCloudInquiryOrNull(): JSONArray? {
+        val sp = deltaPrefs() ?: return null
+        val since = sp.getString("since_inquiry", null)
+        val lastFullAt = sp.getLong("fullAt_inquiry", 0L)
+        val now = System.currentTimeMillis()
+        if (since.isNullOrBlank() || (now - lastFullAt) > FU_FULL_REFRESH_INTERVAL_MS) return null // পূর্ণ-fetch পথে যাক
+
+        val sinceEnc = try { java.net.URLEncoder.encode(since, "UTF-8") } catch (_: Throwable) { since }
+        val delta = try {
+            slimFollowups("stage=eq.Inquiry&updatedAt=gt.$sinceEnc")
+        } catch (_: Throwable) { null } ?: return null   // ব্যর্থ → পূর্ণ-fetch পথে
+
+        val cached = loadCachedPreCloudInquiry()
+        val byId = LinkedHashMap<String, JSONObject>()
+        for (i in 0 until cached.length()) {
+            val o = cached.optJSONObject(i) ?: continue
+            val id = o.optString("id")
+            if (id.isNotBlank()) byId[id] = o
+        }
+        val terminal = setOf("Cancelled", "Incomplete", "Rejected", "Closed")
+        for (i in 0 until delta.length()) {
+            val row = delta.getJSONObject(i)
+            val id = row.optString("id")
+            if (id.isBlank()) continue
+            val status = row.optString("status").trim()
+            if (status in terminal) byId.remove(id) else byId[id] = row
+        }
+        val merged = JSONArray()
+        for (v in byId.values) merged.put(v)
+        saveCachedPreCloudInquiry(merged)
+        try { sp.edit().putString("since_inquiry", fuStampNow()).apply() } catch (_: Throwable) { }
+        return merged
+    }
+
+    private fun markFuFullDone(preCloud: JSONArray) {
+        val sp = deltaPrefs() ?: return
+        try {
+            saveCachedPreCloudInquiry(preCloud)
+            sp.edit()
+                .putString("since_inquiry", fuStampNow())
+                .putLong("fullAt_inquiry", System.currentTimeMillis())
+                .apply()
+        } catch (_: Throwable) { }
+    }
+
+    /** শুধু auto-refresh পথের জন্য — স্ক্রিন প্রথম খোলা/Resume/ব্রাঞ্চ-বদল
+     *  সবসময়ই সরাসরি `fetchTab()` (পূর্ণ, সবচেয়ে নিরাপদ) ব্যবহার করবে। */
+    fun fetchTabDelta(stage: String, branchFilter: String?, creatorName: String? = null, creatorMobile: String? = null): List<FollowUpItem> {
+        if (context == null) return fetchTab(stage, branchFilter, creatorName, creatorMobile)
+
+        if (stage == "Patient" || stage == "Treatment") {
+            val triple = deltaPatientTreatmentTriple(stage, branchFilter)
+            if (triple == null) {
+                // নিরাপত্তা-জাল: পূর্ণ fetchTab() চালিয়ে তিনটে cache-ই আবার জমানো।
+                val result = fetchTab(stage, branchFilter, creatorName, creatorMobile)
+                try {
+                    val freshCloud = slimFollowups("stage=eq.$stage&status=not.in.(Cancelled,Incomplete,Rejected,Closed)")
+                    val branchExtra = branchScopeFilterPlain(branchFilter)
+                    val freshPatients = SupabaseClient.fetchListSlimOrNull("patients", branchExtra.removePrefix("&"), 5000, PATIENT_COLS)
+                    val freshPayments = SupabaseClient.fetchListSlimOrNull("payments", branchExtra.removePrefix("&"), 5000, SupabaseClient.PAYMENT_COLS_LIST)
+                    if (freshCloud != null && freshPatients != null && freshPayments != null) {
+                        markPatientTreatmentFullDone(stage, branchFilter, freshCloud, freshPatients, freshPayments)
+                    }
+                } catch (_: Throwable) { }
+                return result
+            }
+            val (preCloud, patients, payments) = triple
+            return fetchTab(stage, branchFilter, creatorName, creatorMobile,
+                preCloudOverride = preCloud, prePatientsOverride = patients, prePaymentsOverride = payments)
+        }
+
+        if (stage != "Inquiry") return fetchTab(stage, branchFilter, creatorName, creatorMobile)
+        val delta = deltaPreCloudInquiryOrNull()
+        if (delta == null) {
+            // নিরাপত্তা-জাল: পূর্ণ fetchTab() চালিয়ে তার preCloud cache হিসেবে
+            // জমিয়ে রাখা হয়, যাতে পরের delta-কল এখান থেকে এগোতে পারে।
+            val result = fetchTab(stage, branchFilter, creatorName, creatorMobile)
+            try {
+                val fresh = slimFollowups("stage=eq.Inquiry&status=not.in.(Cancelled,Incomplete,Rejected,Closed)")
+                if (fresh != null) markFuFullDone(fresh)
+            } catch (_: Throwable) { }
+            return result
+        }
+        return fetchTab(stage, branchFilter, creatorName, creatorMobile, preCloudOverride = delta)
+    }
+
+    fun fetchTab(stage: String, branchFilter: String?, creatorName: String? = null, creatorMobile: String? = null, preCloudOverride: JSONArray? = null, prePatientsOverride: JSONArray? = null, prePaymentsOverride: JSONArray? = null): List<FollowUpItem> {
+        // Fetch by stage only, then apply visibility CLIENT-SIDE: a record is
+        // visible if the viewer is Master / All-branch, it is the same branch,
+        // or the viewer created it (matched by mobile OR name). A blank-branch
+        // record is NOT auto-visible to everyone anymore (SECURITY FIX,
+        // 2026-07-15) — see the "visible" check below for why.
+        // TK-REPORTED BUG FIX (2026-07-15): this used to read the LOCAL cache
+        // first and only ever touch the cloud once (the very first time this
+        // device ever opened this tab) -- after that, a device would show its
+        // own frozen snapshot forever, so a same-branch staff (or Master) on a
+        // different phone never saw entries another staff created. Now it
+        // always asks the cloud first; the local cache is only a fallback for
+        // when there is genuinely no internet, so the app still works offline.
+        // PERFORMANCE FIX (2026-07-25, TK-reported: "tab switching is far too
+        // slow"): this function used to make its network calls one after the
+        // other, so one tab load waited for the SUM of 3-4 round trips. None
+        // of them depend on each other, so they are all started together here
+        // and simply read further down exactly where they were read before.
+        // The queries themselves (table, filter, limit) are byte-for-byte the
+        // same, so the Supabase quota cost is unchanged; only the waiting is
+        // shorter. Every null-check / cache-fallback below is untouched.
+        val higherStagesPre: String? = when (stage) {
+            "Inquiry" -> "Patient,Treatment"
+            "Patient" -> "Treatment"
+            else -> null
+        }
+        val needsPatientJoin = stage == "Treatment" || stage == "Patient"
+        var preCloud = JSONArray()
+        var preHigher: JSONArray? = null
+        var preCancelledInquiry: JSONArray? = null
+        var preTerminalEnquiries: JSONArray? = null
+        var preEnquiries = JSONArray()
+        var prePatients = JSONArray()
+        var prePayments: JSONArray? = null
+        var preRejectedVisits: JSONArray? = null
+        var preTreatmentStage: JSONArray? = null
+        var preIncompleteTreatment: JSONArray? = null
+            // 🚨 TK-REPORTED (2026-07-27): "প্রতিটা সেকশনে লোডিং হতে এত সময়
+            // লাগছে, স্টাফ অ্যাপ ব্যবহার করতে চাইছে না।"
+            //
+            // WHY IT IS SLOW: opening Follow-up runs this whole function FOUR
+            // times within the same second -- three times to work out the
+            // Enquiry / Visit / Patient tab numbers, and once more for the
+            // list actually being shown. Every one of those repeats the SAME
+            // followups queries. So the same data was being downloaded up to
+            // four times over, on the same weak line, before a single card
+            // could appear.
+            //
+            // Each read below now goes through CloudReadCache: whoever asks
+            // first downloads it, the other three share that answer. Same
+            // queries, same rows, same number of DIFFERENT queries -- only the
+            // repeats are gone. A FAILED read is never remembered, and ANY
+            // save anywhere clears the whole cache instantly, so nothing on
+            // screen can ever be stale.
+        runBlocking {
+            val jobs = mutableListOf<Deferred<Unit>>()
+            jobs += async(Dispatchers.IO) {
+                preCloud = if (preCloudOverride != null) preCloudOverride else
+                    CloudReadCache.get("fu:stage:$stage") {
+                        slimFollowups("stage=eq.$stage&status=not.in.(Cancelled,Incomplete,Rejected,Closed)")
+                    } ?: JSONArray()
+            }
+            if (higherStagesPre != null) {
+                jobs += async(Dispatchers.IO) {
+                    preHigher = CloudReadCache.get("fu:higher:$higherStagesPre") {
+                        slimFollowups("stage=in.($higherStagesPre)&status=not.in.(Cancelled,Incomplete,Rejected,Closed)")
+                    }
+                }
+            }
+            if (stage == "Inquiry") {
+                jobs += async(Dispatchers.IO) {
+                    preCancelledInquiry = CloudReadCache.get("fu:inqCancelled") {
+                        // V445: include every terminal Inquiry status.  The active list is
+                        // fetched separately; this small companion read is only the
+                        // "do not resurrect" guard for duplicate rows of the same mobile.
+                        slimFollowups("stage=eq.Inquiry&status=in.(Cancelled,Incomplete,Rejected,Closed)")
+                    }
+                }
+                jobs += async(Dispatchers.IO) {
+                    preEnquiries = CloudReadCache.get("enq:inquiry") {
+                        SupabaseClient.fetchListOrNull("enquiries", "stage=eq.Inquiry", 5000)
+                    } ?: JSONArray()
+                }
+                jobs += async(Dispatchers.IO) {
+                    // 🔴🔒 V447 (19.08.2026, TK live screenshot — Neha/Shyam still
+                    // visible after old Reject): V445 only inspected enquiries whose
+                    // *stage was still Inquiry*. Older web/mobile reject paths could
+                    // legitimately leave the enquiry row with stage=Cancelled while
+                    // status=Cancelled. That terminal row was therefore absent from
+                    // preEnquiries, so an old Active duplicate follow-up survived.
+                    // Read only non-Active enquiry status rows, independent of stage;
+                    // later we accept only known terminal statuses. Tiny/slim read,
+                    // cached once per render, no row is changed or deleted.
+                    preTerminalEnquiries = CloudReadCache.get("enq:terminalStatus") {
+                        SupabaseClient.fetchListSlimOrNull(
+                            "enquiries", "status=neq.Active", 5000,
+                            "id,mobile,status,stage,updatedAt"
+                        )
+                    }
+                }
+            }
+            if (needsPatientJoin) {
+                // TK-REPORTED (2026-07-27, "ডাটা লোড হতে প্রচুর সময় লাগে"):
+                // these two are the heaviest reads in the whole app -- the
+                // ENTIRE patients table and the ENTIRE payments table. Opening
+                // the Follow-up screen runs this function four times within
+                // the same second (three for the tab numbers, one for the list
+                // being shown), so these two tables were being pulled up to
+                // three times over, simultaneously, on the same connection.
+                // They are now fetched ONCE and shared for a few seconds --
+                // same query, same rows, same code reading them.
+                // Failure is never cached, so a bad read is retried normally.
+                jobs += async(Dispatchers.IO) {
+                    // 🔴🆕🔒 TK-নির্দেশ (08.08.2026) — Egress কমাতে: নির্দিষ্ট ব্রাঞ্চ হলে
+                    // (স্টাফ সবসময়, বা master একটা ব্রাঞ্চ বাছলে) শুধু সেই ব্রাঞ্চ + ফাঁকা-
+                    // ব্রাঞ্চ টানা হয়; "All"/master-সব হলে আগের মতোই সব। cache-key-ও
+                    // ব্রাঞ্চ ধরে আলাদা, যাতে এক ব্রাঞ্চের ফল অন্যটায় মিশে না যায়।
+                    val scope = branchScopeFilter(branchFilter)
+                    prePatients = if (prePatientsOverride != null) prePatientsOverride else
+                        CloudReadCache.get("followup:patients:" + branchKeyPart(branchFilter)) {
+                            slimPatients(scope)
+                        } ?: JSONArray()
+                }
+                jobs += async(Dispatchers.IO) {
+                    val scope = branchScopeFilter(branchFilter)
+                    prePayments = if (prePaymentsOverride != null) prePaymentsOverride else
+                        CloudReadCache.get("followup:payments:" + branchKeyPart(branchFilter)) {
+                            SupabaseClient.fetchListOrNull("payments", scope, 5000, select = SupabaseClient.PAYMENT_COLS_LIST)
+                        }
+                }
+            }
+            if (stage == "Patient") {
+                jobs += async(Dispatchers.IO) {
+                    preRejectedVisits = CloudReadCache.get("fu:visitRejected") {
+                        slimFollowups("stage=eq.Patient&status=in.(Cancelled,Incomplete,Rejected,Closed)")
+                    }
+                }
+                jobs += async(Dispatchers.IO) {
+                    preTreatmentStage = CloudReadCache.get("fu:treatmentAll") {
+                        slimFollowups("stage=eq.Treatment")
+                    }
+                }
+            }
+            if (stage == "Treatment") {
+                jobs += async(Dispatchers.IO) {
+                    preIncompleteTreatment = CloudReadCache.get("fu:trIncomplete") {
+                        slimFollowups("stage=eq.Treatment&status=in.(Cancelled,Incomplete,Rejected,Closed)")
+                    }
+                }
+            }
+            jobs.awaitAll()
+        }
+
+        val cloud = preCloud
+        val rows: JSONArray = if (cloud.length() > 0) {
+            context?.let { ctx ->
+                // 🚨 TK-REPORTED, চালু ক্লিনিক (28.07.2026, খাতার সারি B27):
+                // এই এক লাইনটাই স্টাফদের ফোনে "isn't responding" আনছিল। আগে
+                // প্রতিটা সারি আলাদা করে জমা হত — ৪৭টা সারি মানে ৪৭ বার তালা,
+                // ৪৭ বার পুরো তালিকা পড়া-লেখা আর ৪৭ বার ডিস্কে লেখার অপেক্ষা;
+                // ওই পুরো সময়টা পর্দা একই তালার জন্য দাঁড়িয়ে থাকত।
+                // এখন একবারেই সব সারি জমা হয় (upsertFollowUps)।
+                // ⛔ প্রতিটা সারির নিয়ম হুবহু আগের — তালিকায় যা দেখাত তাই দেখাবে।
+                val store = LocalWorkflowStore(ctx)
+                val batch = ArrayList<org.json.JSONObject>(cloud.length())
+                for (i in 0 until cloud.length()) batch.add(cloud.getJSONObject(i))
+                store.upsertFollowUps(batch, "SYNCED")
+            }
+            cloud
+        } else {
+            // Cloud returned nothing -- either truly empty, or no internet.
+            // Fall back to whatever is cached locally so the screen never goes
+            // blank / offline use still works.
+            context?.let { LocalWorkflowStore(it).rowsForStage(stage) } ?: JSONArray()
+        }
+        // TK-REPORTED BUG FIX (2026-07-16): a staff's own just-saved entry
+        // (Registration -> Visit tab, etc.) could vanish from this list --
+        // even the whole tab could look empty -- if it hadn't finished
+        // syncing to the cloud yet AND the cloud already had unrelated data
+        // for a different branch (so the cloud branch above ran and
+        // completely replaced local data, dropping the not-yet-synced
+        // entry). Now any locally-pending row for this stage is always
+        // merged in too, regardless of which branch above ran, so a staff
+        // never loses sight of their own fresh entry while it's still
+        // syncing in the background.
+        val merged = JSONArray()
+        for (i in 0 until rows.length()) merged.put(rows.getJSONObject(i))
+        // ক্লাউড সত্যিই উত্তর দিয়েছে কি না (খাতার সারি B34) — উত্তর দিলে তবেই
+        // মুছে যাওয়া সারি বাদ দেওয়া নিরাপদ।
+        val cloudAnswered = cloud.length() > 0
+        context?.let { ctx ->
+            val pending = LocalWorkflowStore(ctx).rowsForStage(stage)
+            val idPosition = HashMap<String, Int>()
+            for (i in 0 until merged.length()) {
+                val existingId = merged.getJSONObject(i).optString("id")
+                if (existingId.isNotBlank()) idPosition[existingId] = i
+            }
+            for (i in 0 until pending.length()) {
+                val p = pending.getJSONObject(i)
+                val pid = p.optString("id")
+                if (pid.isBlank()) continue
+                val stillPending = p.optString("_syncStatus") == "PENDING"
+                val existingPos = idPosition[pid]
+                if (!stillPending) {
+                    // 🔒 PERMANENT RULE (TK's order, 27.07.2026, after the same
+                    // "a registered patient is missing from the list" complaint
+                    // came back a second time):
+                    //
+                    //   ANYTHING THIS PHONE HAS SAVED FOR THIS SECTION IS ALWAYS
+                    //   SHOWN. The cloud can only ADD to that list, never take
+                    //   away from it.
+                    //
+                    // This used to be a guess: a row already marked SYNCED was
+                    // only added back if THIS staff had created it AND it was
+                    // less than 3 days old. Both halves of that guess failed in
+                    // real use -- a record saved from the front desk phone but
+                    // created under another staff's login, or one a few days
+                    // old, was left entirely to the cloud query, and if that one
+                    // query came back without it (weak line, partial result,
+                    // a moment before the row landed), the patient vanished from
+                    // the screen of the very person who had just entered them.
+                    //
+                    // Now there is no guess left: every locally-stored row for
+                    // this section is merged in. It cannot show anything wrong --
+                    // rowsForStage() already drops Cancelled/Incomplete/Closed
+                    // rows, every cloud refresh overwrites these same local rows
+                    // with the cloud's version, and the branch check plus the
+                    // higher-stage/rejected exclusions further down still apply
+                    // to them exactly as to a cloud row. The only thing that
+                    // changes is that a record can no longer silently disappear
+                    // from the phone that saved it.
+                    // 🚨 TK-REPORTED (28.07.2026, ফটো-প্রুফসহ · খাতার সারি B34):
+                    // *"আমি নিজে ডিলিট করে দিয়েছিলাম, তারপরে এখন সে কীভাবে চলে
+                    // আসল?"* — উপরের নিয়মটার একটাই ফাঁক ছিল: **যে সারি একসময়
+                    // ক্লাউডে ছিল ("SYNCED") সেটাও চিরকাল ফিরিয়ে আনা হত।**
+                    // তাই মুছে ফেলা বা বাতিল করা রেকর্ড ফোনের জমানো তালিকা থেকে
+                    // বারবার ফিরে আসত, আর পুরনো/আধা তথ্য নিয়ে আসত বলে রোগের
+                    // নামের মতো ঘরগুলো ফাঁকা দেখাত।
+                    //
+                    // **এখন নিয়মটা এইরকম:**
+                    //  • এই ফোনে করা কিন্তু **এখনো ক্লাউডে যায়নি** ("PENDING")
+                    //    সারি — আগের মতোই **সব সময় দেখাবে**। TK-এর লক করা
+                    //    নিয়ম ("ফোনে সেভ হওয়া রেকর্ড হারানো যাবে না") অক্ষত।
+                    //  • **আগে ক্লাউডে ছিল** ("SYNCED") সারি — ক্লাউড যদি সত্যিই
+                    //    উত্তর দিয়ে থাকে অথচ ওটা না পাঠায়, তার মানে ওটা মুছে বা
+                    //    বাতিল হয়ে গেছে → **আর দেখানো হবে না**।
+                    //  • ক্লাউড কিছুই না পাঠালে (লাইন খারাপ) আগের মতোই ফোনের
+                    //    তালিকাই দেখায় — তখন কিছুই হারায় না।
+                    if (existingPos == null && cloudAnswered) continue
+                    if (existingPos == null) {
+                        idPosition[pid] = merged.length()
+                        merged.put(p)
+                    }
+                    continue
+                }
+                if (existingPos != null) {
+                    // This id is already in the cloud result but with a pending
+                    // (not-yet-synced) edit for the same record -- the pending
+                    // version is always the newer one, so it replaces the stale
+                    // cloud row instead of being ignored.
+                    merged.put(existingPos, p)
+                } else {
+                    idPosition[pid] = merged.length()
+                    merged.put(p)
+                }
+            }
+        }
+        // 🔴🔒 V445 (19.08.2026, TK live screenshot): a mobile that was already
+        // Reject/Closed could still reappear when an older duplicate followups row for
+        // the SAME mobile+Inquiry stage remained Active.  The list used to judge rows
+        // by id, so the Active duplicate survived even though a terminal sibling existed.
+        //
+        // Rule now: for Inquiry only, ANY terminal sibling (cloud OR this phone's local
+        // cache, or the enquiry row's own terminal status) suppresses all Active duplicate
+        // cards for that mobile.  A genuine Restore is safe because restoreAndMove()
+        // reactivates EVERY matching followups/enquiries row; after a completed Restore
+        // there is no terminal sibling left, so the card appears normally again.
+        // No row is deleted and no payment/patient data is touched.
+        val closedInquiryMobiles = HashSet<String>()
+        if (stage == "Inquiry") {
+            preCancelledInquiry?.let { terminalRows ->
+                for (i in 0 until terminalRows.length()) {
+                    val m = digits(terminalRows.optJSONObject(i)?.s("mobile").orEmpty())
+                    if (m.isNotEmpty()) closedInquiryMobiles.add(m)
+                }
+            }
+            // V447: terminal enquiry rows must be judged by STATUS, not by stage=Inquiry.
+            // Old rejects may have stage=Cancelled, so V445's preEnquiries scan could
+            // never see them. A genuine Restore sets status back to Active on every
+            // matching enquiry row, so this guard releases normally after Restore.
+            preTerminalEnquiries?.let { terminalEnquiries ->
+                for (i in 0 until terminalEnquiries.length()) {
+                    val e = terminalEnquiries.optJSONObject(i) ?: continue
+                    val st = e.s("status").trim().lowercase()
+                    if (st in setOf("cancelled", "incomplete", "rejected", "closed")) {
+                        val m = digits(e.s("mobile"))
+                        if (m.isNotEmpty()) closedInquiryMobiles.add(m)
+                    }
+                }
+            }
+            // Keep the existing stage=Inquiry scan too; it also covers fresh/local rows
+            // already present in the main enquiry read without needing the companion read.
+            for (i in 0 until preEnquiries.length()) {
+                val e = preEnquiries.optJSONObject(i) ?: continue
+                val st = e.s("status").trim().lowercase()
+                if (st in setOf("cancelled", "incomplete", "rejected", "closed")) {
+                    val m = digits(e.s("mobile"))
+                    if (m.isNotEmpty()) closedInquiryMobiles.add(m)
+                }
+            }
+            context?.let { ctx ->
+                try {
+                    val localTerminal = LocalWorkflowStore(ctx).rejectedRowsForStage("Inquiry")
+                    for (i in 0 until localTerminal.length()) {
+                        val m = digits(localTerminal.optJSONObject(i)?.s("mobile").orEmpty())
+                        if (m.isNotEmpty()) closedInquiryMobiles.add(m)
+                    }
+                } catch (_: Throwable) { }
+            }
+
+            // 🔴🔒 V448 (19.08.2026, TK live V447 proof — Neha/Shyam still
+            // visible): STATUS can no longer be trusted by itself for old rows. A
+            // generic Web ensureFollow() path used to rewrite an existing row to
+            // Active while preserving its append-only history. Scan the rows that
+            // are actually about to be rendered and let the latest explicit
+            // Reject/Restore history decision win. This is read-only; no cloud row
+            // is changed merely by opening Follow-up.
+            for (i in 0 until merged.length()) {
+                val r = merged.optJSONObject(i) ?: continue
+                if (!r.s("stage").equals("Inquiry", true)) continue
+                if (!inquiryHistoryEndsTerminal(r)) continue
+                val m = digits(r.s("mobile"))
+                if (m.isNotEmpty()) closedInquiryMobiles.add(m)
+            }
+
+            // V450: V448 could hide a legacy broken duplicate but left the bad Active
+            // row untouched in cloud. Repair only rows for which we ALREADY have durable
+            // reject evidence (terminal sibling/status/history). No new read is made:
+            // this uses the arrays fetched above. After one successful write the row is
+            // excluded by the normal cloud query forever; failures use the existing queue.
+            if (closedInquiryMobiles.isNotEmpty()) {
+                val now = isoNow()
+                for (i in 0 until merged.length()) {
+                    val r = merged.optJSONObject(i) ?: continue
+                    if (!r.s("stage").equals("Inquiry", true)) continue
+                    val m = digits(r.s("mobile"))
+                    if (m.isEmpty() || !closedInquiryMobiles.contains(m)) continue
+                    val st = r.s("status")
+                    if (st.equals("Cancelled", true) || st.equals("Incomplete", true) ||
+                        st.equals("Rejected", true) || st.equals("Closed", true)) continue
+                    val id = r.s("id")
+                    if (id.isBlank()) continue
+                    val key = "followups:$id"
+                    val shouldRepair = synchronized(LOCK) { legacyRejectRepairSeen.add(key) }
+                    if (!shouldRepair) continue
+                    val history = try { JSONArray((r.optJSONArray("history") ?: JSONArray()).toString()) } catch (_: Throwable) { JSONArray() }
+                    history.put(JSONObject().put("date", FollowUpModel.today()).put("time", now)
+                        .put("remark", "Recovered rejected duplicate").put("staff", "System repair")
+                        .put("status", "Cancelled").put("decisionVersion", "V450"))
+                    val fields = JSONObject().put("status", "Cancelled").put("nextFollow", "")
+                        .put("history", history).put("updatedAt", now)
+                    rememberEditOnThisPhone(id, fields, r)
+                    healExecutor.submit {
+                        val ok = try { SupabaseClient.updateById("followups", id, fields) } catch (_: Throwable) { false }
+                        if (!ok) queueFieldUpdate(id, fields)
+                    }
+                }
+                // If a legacy enquiry row itself remained Active while a terminal
+                // follow-up proves Reject, close that already-loaded source row too.
+                // This avoids the enquiries fallback recreating the card later.
+                for (i in 0 until preEnquiries.length()) {
+                    val e = preEnquiries.optJSONObject(i) ?: continue
+                    val m = digits(e.s("mobile"))
+                    if (m.isEmpty() || !closedInquiryMobiles.contains(m)) continue
+                    val st = e.s("status")
+                    if (st.equals("Cancelled", true) || st.equals("Incomplete", true) ||
+                        st.equals("Rejected", true) || st.equals("Closed", true)) continue
+                    val id = e.s("id")
+                    if (id.isBlank()) continue
+                    val key = "enquiries:$id"
+                    val shouldRepair = synchronized(LOCK) { legacyRejectRepairSeen.add(key) }
+                    if (!shouldRepair) continue
+                    val fields = JSONObject().put("status", "Cancelled").put("updatedAt", now)
+                    context?.let { ctx ->
+                        try { LocalWorkflowStore(ctx).upsertEnquiry(JSONObject(e.toString()).apply {
+                            put("status", "Cancelled"); put("updatedAt", now)
+                        }) } catch (_: Throwable) { }
+                    }
+                    healExecutor.submit {
+                        val ok = try { SupabaseClient.updateById("enquiries", id, fields) } catch (_: Throwable) { false }
+                        if (!ok) context?.let { ctx -> try { GenericUpdateQueue.queue(ctx, "enquiries", id, fields) } catch (_: Throwable) { } }
+                    }
+                }
+            }
+        }
+
+        // TK APPROVED (2026-07-15) — SECURITY FIX: a record with a blank branch
+        // must NOT be visible to every branch anymore. Only Master/All-branch
+        // viewers, the same branch, or the actual creator (by mobile or name)
+        // can see it. This closes a cross-branch data leak (a Kishanganj staff
+        // was seeing a Jalpaiguri patient because that one record's branch was
+        // empty). Nothing else in this visibility rule changed.
+        val allBranch = branchFilter == null || branchFilter == "All"
+        val items = mutableListOf<FollowUpItem>()
+        val seenIds = HashSet<String>()
+        for (i in 0 until merged.length()) {
+            val row = merged.getJSONObject(i)
+            if (stage == "Inquiry") {
+                val mm = digits(row.s("mobile"))
+                if (mm.isNotEmpty() && closedInquiryMobiles.contains(mm)) continue
+            }
+            val rb = row.s("branch")
+            // TK-ORDER (2026-07-25, Falakata staff was seeing Cooch Behar and
+            // Kishanganj enquiries): a staff must see ONLY their own branch.
+            // The old rule also let a person see any record they had created
+            // themselves, whatever branch it belonged to -- that is exactly how
+            // other branches' rows leaked into this list. Removed. Master (All
+            // Branch) is unaffected and still sees everything.
+            // 🚨 TK-REPORTED (2026-07-27): "কখনো এনকোয়ারি করলে অন্য স্টাফ দেখতে
+            // পায় না।" A followups row whose branch field is blank is invisible
+            // to EVERY branch staff (only Master, on All Branch, sees it) --
+            // and the note above says the Enquiry tab was deliberately left
+            // that way, because unlike Visit/Patient it had nothing to correct
+            // the blank branch from.
+            //
+            // It does have something: the enquiry's OWN row in the "enquiries"
+            // table, which this tab already fetches, carries the branch the
+            // staff picked when saving. So the blank is filled in from there
+            // and then judged by the SAME branch rule as everything else.
+            // Nothing is loosened -- a row that turns out to belong to another
+            // branch is still hidden. Only a record that had simply lost its
+            // branch label comes back to the staff it belongs to.
+            val rbFixed = if (rb.isBlank() && stage == "Inquiry") {
+                branchFromEnquiries(preEnquiries, row.s("mobile"))
+            } else rb
+            val visible = allBranch || branchAllows(rbFixed, row.s("patientId"), branchFilter)
+            // TK-REPORTED BUG FIX (2026-07-26, "Master-কে দেখাচ্ছে, Staff-কে
+            // দেখাচ্ছে না"): a followups row whose OWN branch field is blank
+            // was dropped right here for every staff -- while Master (All
+            // Branch) saw it fine, and Chamber Attendance saw it fine too
+            // (Chamber reads the "patients" table, where the branch IS
+            // filled in). The real branch for these rows is filled in a few
+            // steps below, from the "patients" table, and the Visit/Patient
+            // tabs ALREADY re-apply this exact same branch check afterwards
+            // with that corrected branch. So for those two tabs a blank
+            // branch is kept for now and judged on its real value a moment
+            // later -- a row whose branch turns out to belong to another
+            // branch is still removed by that second check, so this cannot
+            // leak another branch's data. The Enquiry tab has no such second
+            // check, so it is deliberately left exactly as before.
+            val blankBranchPendingLookup = rb.isBlank() && needsPatientJoin
+            if (!visible && !blankBranchPendingLookup) continue
+            val item = FollowUpModel.parse(row)
+            if (seenIds.add(item.id)) items.add(item)
+        }
+
+        // TK-REPORTED BUG FIX (2026-07-18): same dual-write sync gap as the
+        // Visit Card fix above -- Enquiry save() also writes to TWO tables
+        // ("enquiries" directly, and a "followups" stage=Inquiry row that
+        // THIS tab actually reads). If only the followups write fails to
+        // sync, the enquiry silently never appeared here even though it's
+        // genuinely saved. Safety net: fetch "enquiries" rows still
+        // stage=Inquiry (i.e. not yet converted/closed) and add any whose
+        // mobile isn't already represented above.
+        if (stage == "Inquiry") {
+            val presentMobiles = items.map { digits(it.mobile) }.toHashSet()
+            // TK-FOUND RISK (2026-07-18), fixed before this could ever ship:
+            // Reject/Incomplete (updateStatus above) only ever updates the
+            // "followups" row's status -- it NEVER touches the "enquiries"
+            // table's own "stage" field, which stays "Inquiry" forever.
+            // Without this check, the safety-net below would wrongly
+            // resurrect an already-REJECTED enquiry back into this tab
+            // (its followups row is Cancelled/excluded from `items` above,
+            // but its enquiries row still says stage=Inquiry). Excluding
+            // any mobile with a Cancelled/Incomplete Inquiry-stage
+            // followups row closes that gap.
+            // TK-REPORTED BUG FIX (2026-07-24): this exclusion check used
+            // plain fetchList(), which silently returns an EMPTY result on
+            // any network failure -- indistinguishable from "genuinely zero
+            // rejected enquiries right now". A failure here used to mean
+            // the fallback below ran with zero exclusions and could wrongly
+            // resurrect a rejected enquiry. Now uses fetchListOrNull(): on
+            // a real failure (null), the entire enquiries-fallback below is
+            // skipped instead of running unprotected -- undercounting (a
+            // genuinely new enquiry not showing up for one load) is far
+            // safer than wrongly resurrecting an already-rejected one, and
+            // the main cloud query above already covers the normal case.
+            val cancelledInquiryOrNull = preCancelledInquiry
+            // TK-REPORTED, LIVE (27.07.2026 — AMIT KUMAR): same defect as the
+            // Visit tab. This check only decides who the enquiries-table safety
+            // net below may ADD back; on a failure the freshly-fetched list was
+            // being thrown away and the last CACHED list returned instead, so a
+            // brand-new record (which cannot be in an older cache) could stay
+            // invisible load after load. The fresh list is already filtered to
+            // "stage=Inquiry & status not in (Cancelled,Incomplete)", so it can
+            // never contain a rejected enquiry -- skipping the optional safety
+            // net below is enough, and it is what the next `if` already does.
+            if (cancelledInquiryOrNull != null) {
+                val rejectedMobiles = HashSet<String>()
+                rejectedMobiles.addAll(closedInquiryMobiles)
+                for (i in 0 until cancelledInquiryOrNull.length()) {
+                    val m = digits(cancelledInquiryOrNull.getJSONObject(i).s("mobile"))
+                    if (m.isNotEmpty()) rejectedMobiles.add(m)
+                }
+                val enquiries = preEnquiries
+                for (i in 0 until enquiries.length()) {
+                    val row = enquiries.getJSONObject(i)
+                    // 🚨🚨 TK-REPORTED, LIVE (29.07.2026 বিকেল ৩.৩৪, ছবিসহ · খাতার সারি B108
+                    //     — ANIKUL HAQUE · +919126568192, কিশনগঞ্জের স্টাফ Reject করেছিলেন
+                    //     সকাল ১০.৩১-এ, তবু বিকেলে কার্ডটা তালিকায় ছিল)।
+                    //     TK: *"Reject করেছিল Kishanganj STAFF, কিন্তু এখন আবার কেন শো করছে?
+                    //     ডিলিট করলে আবার কেন চলে আসে?"*
+                    //
+                    // **আসল কারণ (কোড ধরে, আন্দাজ নয়):** এই নিচের অংশটা এনকোয়ারি
+                    // ট্যাবের **জাল** — `followups` সারিটা কোনো কারণে না পেলে সে
+                    // সোজা `enquiries` টেবিল থেকে কার্ডটা আবার বানিয়ে দেয়। কিন্তু
+                    // সে বাদ দিত **শুধু সেই নম্বরগুলো**, যাদের `followups`-এ
+                    // `stage=Inquiry` **আর** `status=Cancelled/Incomplete` সারি
+                    // পাওয়া যায়। ওই সারিটা যদি অন্য stage-এ থাকে, বা তৈরিই না
+                    // হয়ে থাকে, বা নেট-এর জন্য না আসে — **জাল কার্ডটা ফিরিয়ে
+                    // আনত**। আর `enquiries` সারির **নিজের `status` ঘরটা এখানে
+                    // কোনোদিন দেখাই হত না**, অথচ ঘরটা টেবিলে আছে ও
+                    // `restoreAndMove()` সেটাকে `Active` করে — অর্থাৎ ঘরটার মানে
+                    // অ্যাপ আগে থেকেই জানে।
+                    //
+                    // **ওষুধ (তিন স্তর, খাতার সারি B108):** (১) এখানে সারির নিজের
+                    // status দেখা হয় — বন্ধ করা এনকোয়ারি আর কখনো ফেরে না;
+                    // (২) Reject করলে `enquiries` সারিতেও দাগ পড়ে
+                    // (`FollowUpRepository.markEnquiryClosedByMobile`);
+                    // (৩) ডিলিট করলেও ওই সারিতে দাগ পড়ে ও Restore-এ ফিরে আসে
+                    // (`TrashHelper`)। তিনটের যে কোনো একটাই যথেষ্ট — একসঙ্গে
+                    // তিনটে থাকায় এই দোষ আর ফিরতে পারে না।
+                    //
+                    // ⛔ নতুন এনকোয়ারিতে কিছু বদলায় না: নতুন সারির status ফাঁকা
+                    //    বা `Active`, তাই সে আগের মতোই দেখাবে।
+                    // ⛔ কোনো নতুন ক্লাউড-কল নেই — `status` ঘরটা এই সারিতেই ছিল।
+                    val eStatus = row.s("status").trim()
+                    if (eStatus.equals("Cancelled", true) || eStatus.equals("Incomplete", true) ||
+                        eStatus.equals("Rejected", true) || eStatus.equals("Closed", true)) continue
+                    val m = digits(row.s("mobile"))
+                    if (m.isEmpty() || presentMobiles.contains(m) || rejectedMobiles.contains(m)) continue
+                    val rb = row.s("branch")
+                    // TK-ORDER (2026-07-25): branch only, no creator exception.
+                    // 🔴🔒 V453 (20.08.2026): branchAllows() ব্যবহার করা হলো (আগে
+                    // সরাসরি equals ছিল) — যাতে কমা-আলাদা একাধিক ব্রাঞ্চ (V453
+                    // cross-branch exception) এখানেও ঠিকভাবে কাজ করে। একটাই
+                    // ব্রাঞ্চ থাকলে ফলাফল আগের মতোই অভিন্ন।
+                    val visible = allBranch || branchAllows(rb, row.s("patientId"), branchFilter)
+                    if (!visible) continue
+                    // 🚨 TK-REPORTED (29.07.2026 সন্ধ্যা ৭.০০, ছবিসহ · খাতার সারি B95):
+                    // *"LAST CALL তারিখ অনেক জায়গায় মিসিং ছিল — এরকম যেন না থাকে।"*
+                    //
+                    // **আসল কারণ (কোড দেখে, আন্দাজ নয়):** এই কার্ডগুলো `enquiries`
+                    // টেবিল থেকে বানানো হয় (যখন `followups` সারিটা তৈরি হয়নি)।
+                    // কার্ডে LAST CALL আসে `lastCallDate` ঘর থেকে, না থাকলে
+                    // `history`-র শেষ সারি থেকে (খাতার সারি B50)। কিন্তু এই
+                    // বানানো সারিতে **দুটোর একটাও দেওয়া হত না**, তাই সব সময়
+                    // `LAST CALL —` দেখাত — যদিও এনকোয়ারির দিনেই কথা হয়েছিল।
+                    //
+                    // **সমাধান:** আসল `followups` সারিতে যা বসত (নিচের `healRow`
+                    // দেখুন — `EnquiryModel.buildFollowUpRow()`-এর হুবহু নকল),
+                    // ঠিক সেই একটাই ইতিহাস-সারি এখানেও বসানো হলো — এনকোয়ারির
+                    // তারিখ · সেই দিনের কথা · যিনি ধরেছিলেন তাঁর পরিচয়।
+                    // ⛔ **নতুন কোনো ক্লাউড-কল নেই** — এই তথ্যগুলো ওই এনকোয়ারির
+                    //    সারিতেই আগে থেকে আছে। ⛔ ডেটাবেসে কিছু লেখা হয় না।
+                    // ⛔ তথ্য না থাকলে আগের মতোই `LAST CALL —` থাকে।
+                    val fbHistory = org.json.JSONArray()
+                    if (row.s("date").isNotBlank()) {
+                        fbHistory.put(
+                            JSONObject()
+                                .put("date", row.s("date"))
+                                .put("remark", row.s("remarks"))
+                                .put("staff", row.s("receivedBy").ifBlank { row.s("createdBy") })
+                        )
+                    }
+                    val fallback = JSONObject()
+                        .put("id", row.s("id"))
+                        .put("name", row.s("name"))
+                        .put("mobile", row.s("mobile"))
+                        .put("branch", rb)
+                        .put("disease", row.s("disease"))
+                        .put("stage", "Inquiry")
+                        .put("lastRemark", row.s("remarks").ifBlank { "Enquiry (syncing…)" })
+                        .put("nextFollow", row.s("nextFollow"))
+                        .put("date", row.s("date"))
+                        .put("callCount", row.optInt("callCount", 0))
+                        .put("history", fbHistory)
+                    items.add(FollowUpModel.parse(fallback))
+                    presentMobiles.add(m)
+                    // TK-REPORTED BUG FIX (2026-07-24): same self-heal as
+                    // the Visit-tab fallback below -- this fallback means
+                    // the real "followups" row for this Enquiry was never
+                    // found (dual-write gap that never caught up), which
+                    // can get permanently stuck if it happened on a device
+                    // whose local retry-queue doesn't have it either (e.g.
+                    // a different staff/device than the one that saved it).
+                    // Writes the missing row directly, matching
+                    // EnquiryModel.buildFollowUpRow()'s own structure, so
+                    // this stops recurring for this enquiry from now on.
+                    // 🔴🔴 TK-REPORTED (04.08.2026, ছবিসহ — MD SHARIF UDDIN /
+                    // +918731910202, Enquiry Reject List-এ একই মানুষ দুইবার):
+                    // গভীরে যাচাই করে ধরা পড়েছে — উপরের দুটো তালিকা
+                    // (rejectedMobiles · presentMobiles) কোনো একটাতে এই নম্বর
+                    // ধরা না পড়লে (ক্যাশ/টাইমিং-এর সরু ফাঁকে) এই সেলফ-হিল
+                    // সরাসরি একটা **নতুন** followups সারি বানিয়ে ফেলত —
+                    // ঠিক যেন এটা তাজা এনকোয়ারি, যদিও আসল সারিটা আগেই
+                    // Reject করা ছিল। স্টাফ পরে ওই নতুন কার্ডটাও Reject
+                    // করলে "Rejected" দুইবার দেখা যেত — কারো ভুল ছাড়াই।
+                    //
+                    // ⛔ সমাধান: নতুন সারি বানানোর ঠিক আগে এই নম্বরে
+                    // `followups`-এ **সত্যিই কিছু আছে কিনা** সরাসরি একবার
+                    // জিজ্ঞেস করা হয় (stage/status নির্বিশেষে, শুধু id)।
+                    // থাকলে — নতুন সারি বানানো হয় না (আগেরটাই আসল, এখানে
+                    // দ্বিতীয়বার বানানোর দরকার নেই)। নেট-ব্যর্থতায় (null)ও
+                    // নিরাপদ পথে — বানানো হয় না, ভুল ঝুঁকি নেওয়ার চেয়ে এই
+                    // একটা কার্ড একবার না-দেখানো ভালো (পরের বার নেট ঠিক
+                    // হলে ঠিকই দেখা যাবে, ডেটা হারায় না)। ⛔ কোনো ডিজাইন/
+                    // টাকার হিসাব ছোঁয়া হয়নি — শুধু ভুতুড়ে সারি তৈরি বন্ধ।
+                    val alreadyExists = try {
+                        SupabaseClient.findByMobileOrNull("followups", m, "id", 1)
+                    } catch (_: Throwable) { null }
+                    if (alreadyExists == null || alreadyExists.length() > 0) continue
+                    val healRow = JSONObject()
+                        .put("id", "fu_" + java.util.UUID.randomUUID().toString().replace("-", ""))
+                        .put("refId", row.s("id"))
+                        .put("mobile", row.s("mobile"))
+                        .put("name", row.s("name"))
+                        .put("branch", rb)
+                        .put("disease", row.s("disease"))
+                        .put("address", row.s("address"))
+                        .put("stage", "Inquiry")
+                        .put("date", row.s("date"))
+                        .put("registrationDate", row.s("date"))
+                        .put("visitDate", row.s("date"))
+                        .put("lastRemark", row.s("remarks"))
+                        .put("nextFollow", row.s("nextFollow"))
+                        .put("timeType", row.s("timeType"))
+                        .put("callCount", row.optInt("callCount", 0))
+                        .put("status", "Active")
+                        .put("history", JSONArray())
+                        .put("createdBy", row.s("createdBy"))
+                        .put("createdAt", row.s("createdAt").ifBlank { row.s("date") })
+                        .put("updatedAt", row.s("createdAt").ifBlank { row.s("date") })
+                    upsertWithHealRetry(healRow)
+                }
+            }
+        }
+
+        // ONE-NUMBER-ONE-SECTION rule (web parity, TK): a mobile that has already
+        // advanced to a higher stage must NOT also appear in a lower tab. So the
+        // moment an Enquiry is registered (creates a Patient/Visit record) it auto-
+        // hides from the Enquiry tab; the moment a Visit takes Advance payment
+        // (creates a Treatment record) it auto-hides from the Visit tab.
+        val higherStages: String? = when (stage) {
+            "Inquiry" -> "Patient,Treatment"
+            "Patient" -> "Treatment"
+            else -> null
+        }
+        if (higherStages != null && items.isNotEmpty()) {
+            val higher = JSONArray()
+            context?.let { ctx ->
+                for (hs in higherStages.split(",")) {
+                    val localHigher = LocalWorkflowStore(ctx).rowsForStage(hs)
+                    for (i in 0 until localHigher.length()) higher.put(localHigher.getJSONObject(i))
+                }
+            }
+            // ROOT-CAUSE FIX (2026-07-17): this used to only check the cloud when
+            // the LOCAL cache had zero higher-stage rows at all -- but the local
+            // cache only ever holds whatever this one device has recently done
+            // offline, not every patient's real stage. So if the local cache had
+            // even one unrelated entry, a patient who had genuinely advanced to a
+            // higher stage on the cloud (e.g. Treatment/Incomplete) never got
+            // excluded here, and kept showing in BOTH the lower tab (Enquiry) and
+            // the higher one (Incomplete Patient) at the same time. Cloud is now
+            // always checked too and merged with local, so this can't happen
+            // regardless of what the local cache happens to contain.
+            // TK-REPORTED BUG FIX (2026-07-24): a patient registered on ONE
+            // device could keep showing as a duplicate in the Enquiry tab on
+            // ANY OTHER device -- root cause was this exact check silently
+            // treating "the network call to check higher stages just
+            // failed" the same as "genuinely nobody has advanced yet" (plain
+            // fetchList() returns an empty array either way). A registration
+            // done entirely on a different device has nothing in THIS
+            // device's local cache either, so a momentary connection hiccup
+            // during this one check was enough to wrongly keep showing an
+            // already-registered patient in the lower tab. Now uses
+            // fetchListOrNull(): on a genuine failure (null), this whole
+            // tab load falls back to whatever was last correctly cached
+            // (same safe pattern already used for the "patients" fetch
+            // above) instead of computing a fresh result with a silently
+            // broken exclusion check -- never shows a wrong duplicate, at
+            // worst shows slightly-stale (but previously correct) data.
+            val cloudHigherOrNull = preHigher
+            if (cloudHigherOrNull == null) {
+                // 🚨 TK-REPORTED, LIVE (27.07.2026 — AMIT KUMAR): second place
+                // with the same defect as the Visit-tab safety net below. This
+                // check only works out who has ALREADY advanced to a higher
+                // stage (so they don't show in two tabs at once). When it failed
+                // on a weak line, the whole freshly-fetched list was thrown away
+                // and the last CACHED list returned -- so a patient registered
+                // minutes ago on another phone could never appear here.
+                //
+                // Instead of falling back to stale data, work the exclusion out
+                // from the payments table that this tab has ALREADY downloaded:
+                // a Visit becomes a Treatment exactly when a real (non Visit-Fee,
+                // non attendance) payment is taken, so those mobiles are the
+                // higher-stage ones. Only if payments ALSO failed to load is
+                // there nothing left to reason with, and only then does the old
+                // cached-list behaviour still apply.
+                val paymentsForHigher = prePayments
+                if (paymentsForHigher == null) {
+                    val cached = cachedPlusOwn(stage, branchFilter)
+                    if (!cached.isNullOrEmpty()) return cached
+                } else {
+                    for (i in 0 until paymentsForHigher.length()) {
+                        val pay = paymentsForHigher.optJSONObject(i) ?: continue
+                        val payType = pay.optString("payType", "")
+                        if (payType == "visit_fee" || payType == "attendance_mark") continue
+                        if (pay.optDouble("amount", 0.0) <= 0.0) continue
+                        val pm = digits(pay.s("mobile"))
+                        if (pm.isNotEmpty()) higher.put(JSONObject().put("mobile", pm))
+                    }
+                }
+            } else {
+                for (i in 0 until cloudHigherOrNull.length()) higher.put(cloudHigherOrNull.getJSONObject(i))
+            }
+            val higherMobiles = HashSet<String>()
+            for (i in 0 until higher.length()) {
+                val m = digits(higher.getJSONObject(i).s("mobile"))
+                if (m.isNotEmpty()) higherMobiles.add(m)
+            }
+            if (higherMobiles.isNotEmpty()) {
+                val kept = items.filter { digits(it.mobile) !in higherMobiles }
+                items.clear(); items.addAll(kept)
+            }
+        }
+
+        // একই ট্যাবে একই নম্বর একবারই — সবচেয়ে নতুন রেকর্ডটা রাখো, বাকিগুলো বাদ।
+        run {
+            val seen = HashSet<String>()
+            val dedup = ArrayList<FollowUpItem>()
+            items.sortedByDescending { it.recordDate }.forEach { r ->
+                val m = digits(r.mobile)
+                if (m.isNotEmpty() && seen.contains(m)) return@forEach
+                if (m.isNotEmpty()) seen.add(m)
+                dedup.add(r)
+            }
+            items.clear(); items.addAll(dedup)
+        }
+
+        // Patient tab (Treatment stage) AND Visit tab (Patient stage): join the
+        // real patientId/address/age/sex/disease from the "patients" table by
+        // mobile, matching the WebView's mergeFollow. ROOT CAUSE FIX (TK found,
+        // 2026-07-15): this join used to run ONLY for the Treatment stage, so
+        // Visit-tab cards never got a real Patient ID and silently fell back to
+        // the internal "refId" (an internal linking key, e.g. "pat_f76c..."),
+        // which is not meant to ever be shown to a person. Now both tabs join.
+        if (stage == "Treatment" || stage == "Patient") {
+            val patients = prePatients
+            // TK-REPORTED BUG FIX (2026-07-23): if this specific fetch fails
+            // (bad connection), "patients" comes back as an empty JSONArray
+            // with NO error surfaced (SupabaseClient.fetchList() swallows
+            // exceptions into an empty result) -- previously this silently
+            // fell through and OVERWROTE every item's bill/paid/patientId
+            // with 0/blank via the maxOf(...) merge below, then CACHED that
+            // wrong zeroed result (fetchTab always ends with
+            // saveCachedTab(...)), so the wrong ₹0 kept showing on every
+            // later open too, not just this one -- exactly TK's report
+            // (Staff's device on a weak connection stayed stuck on ₹0 even
+            // after repeated re-opens). A real clinic with Treatment/Patient-
+            // stage entries always has SOME "patients" rows, so an empty
+            // result here almost always means the fetch failed, not that
+            // there are genuinely zero patients. When that happens, fall
+            // back to whatever was last successfully cached for this exact
+            // tab (same stage+branch) instead of computing/caching a
+            // degraded result -- "no new payment confirmed yet, so keep
+            // showing the last known real numbers" per TK's instruction.
+            // TK-REPORTED, LIVE (27.07.2026 — AMIT KUMAR): keeping the last
+            // known real ₹ numbers is right (TK's instruction above), but
+            // returning ONLY that cached list also hid anyone too new to be in
+            // it -- the patient registered minutes ago. plusMissing() keeps the
+            // cached rows exactly as they are and simply appends the
+            // freshly-fetched patients the cache does not know about yet. A
+            // just-registered patient genuinely has no bill and no payment, so
+            // showing ₹0 for them is correct, not degraded.
+            if (patients.length() == 0) {
+                val cached = cachedPlusOwn(stage, branchFilter)
+                if (!cached.isNullOrEmpty()) return plusMissing(cached, items)
+            }
+            // TK-REPORTED BUG FIX (2026-07-24): same protection as the
+            // "patients" fetch just above (section 87) -- a failed payments
+            // fetch used to silently look identical to "genuinely zero
+            // payments", making every Paid/Due number wrong for this whole
+            // tab load. Now falls back to cache on a real failure too.
+            val paymentsOrNull = prePayments
+            if (paymentsOrNull == null) {
+                val cached = cachedPlusOwn(stage, branchFilter)
+                if (!cached.isNullOrEmpty()) return plusMissing(cached, items)
+            }
+            val payments = paymentsOrNull ?: JSONArray()
+            val billByMobile = HashMap<String, Double>()
+            val idByMobile = HashMap<String, String>()
+            val patientCodeByMobile = HashMap<String, String>()
+            val addressByMobile = HashMap<String, String>()
+            val ageByMobile = HashMap<String, String>()
+            val sexByMobile = HashMap<String, String>()
+            val diseaseByMobile = HashMap<String, String>()
+            val nameByMobile = HashMap<String, String>()
+            val branchByMobile = HashMap<String, String>()
+            val createdByMobileMap = HashMap<String, String>()
+            // TK-REQUESTED ADDITION (2026-07-24): "Complete despite Due"
+            // workflow -- a patient Master has approved for this must also
+            // stop showing in the active Treatment call/reminder tab, same
+            // as a genuinely fully-paid patient already does below. Real
+            // Due is untouched; only this tab's visibility is affected.
+            val completeApprovedByMobile = HashMap<String, String>()
+            // 🔴 TK-নির্দেশ (02.08.2026, B302.1) — completeApprovedByMobile-এর
+            // হুবহু একই প্যাটার্ন, শুধু Refund-manually-restored-এর জন্য।
+            val refundRestoredByMobile = HashMap<String, String>()
+            // TK-REPORTED BUG FIX (2026-07-25): when TWO "patients" rows
+            // exist for the same mobile (a duplicate registration), this
+            // loop used to blindly overwrite every field with whichever row
+            // came LAST in the list -- Supabase doesn't guarantee order, so
+            // a genuine ₹20,000-bill patient could show Bill ₹0/Due ₹0 here
+            // if their duplicate (broken/incomplete) row happened to be
+            // fetched after the real one, exactly what TK's photo-proof
+            // showed. Now the row with the real (non-zero) bill always wins
+            // for THIS mobile, and every field (id/patientId/address/etc.)
+            // is taken from that SAME winning row together -- never mixed
+            // field-by-field from two different duplicate rows.
+            // TK-REQUESTED (2026-07-27), ধাপ ৩খ — শেষ পর্দা (Follow-up): the loop
+            // below already made sure every field comes from ONE row (never mixed
+            // from two duplicates), but the row it picked was "the one with a real
+            // bill" only. The rest of the app -- the money screen, Patient Details,
+            // the Report Card, Draft, Chamber and Search -- uses the full shared
+            // rule: CURRENT BRANCH first, then the row with a real bill, then the
+            // first row. So a patient with rows in two branches could still show a
+            // different Bill / Patient ID / address here than on the payment
+            // screen. Same single rule now, in the same one function. Grouping
+            // first also means the winning row is chosen from ALL of this person's
+            // rows at once instead of depending on the order Supabase returned.
+            // With a single row per person (the normal case) every value below is
+            // exactly what it was before.
+            val followUpRowsByMobile = HashMap<String, JSONArray>()
+            for (i in 0 until patients.length()) {
+                val p = patients.getJSONObject(i)
+                val m = digits(p.s("mobile"))
+                if (m.isEmpty()) continue
+                followUpRowsByMobile.getOrPut(m) { JSONArray() }.put(p)
+            }
+            for ((m, rows) in followUpRowsByMobile) {
+                val p = PatientIdentity.pickPatientRow(rows, branchFilter.orEmpty()) ?: continue
+                billByMobile[m] = p.optDouble("bill", 0.0)
+                idByMobile[m] = p.s("id")
+                patientCodeByMobile[m] = p.s("patientId")
+                addressByMobile[m] = p.s("address")
+                ageByMobile[m] = p.s("age")
+                sexByMobile[m] = p.s("sex")
+                diseaseByMobile[m] = p.s("disease").ifBlank { p.s("diagnosis") }
+                nameByMobile[m] = p.s("name")
+                branchByMobile[m] = p.s("branch")
+                createdByMobileMap[m] = p.s("createdBy")
+                if (p.s("completeApprovedBy").isNotBlank()) completeApprovedByMobile[m] = p.s("completeApprovedBy")
+                if (p.s("refundRestoredBy").isNotBlank()) refundRestoredByMobile[m] = p.s("refundRestoredBy")
+            }
+            val paidByPid = HashMap<String, Double>()
+            // TK-REPORTED BUG FIX (2026-07-26, "Chamber-এ দেখাচ্ছে, Patient
+            // তালিকায় কোথাও নেই"): the Treatment safety-net below only
+            // treated a patient as "has really paid" when a payment row's
+            // patientId matched that patients-row's internal id. When a
+            // second patients row exists for the same person (a duplicate
+            // registration, or findOrMakePatient() creating one because the
+            // mobile lookup momentarily failed), the payment is filed under
+            // the OTHER row's id -- so the safety net saw paid = 0, skipped
+            // this patient, and they showed nowhere in Follow-up even though
+            // Chamber Attendance (which reads "payments"/"patients"
+            // directly) showed them plainly. Draft's own lists already index
+            // payments by MOBILE for exactly this reason; indexing both ways
+            // here makes the two agree. This map is used ONLY to decide
+            // whether a MISSING patient gets ADDED back -- it can never hide
+            // anyone who is currently visible.
+            val paidByMobileFallback = HashMap<String, Double>()
+            // 🔴🔴 TK-REPORTED (01.08.2026, ছবিসহ — KHADIMUL ISLAM, Follow-up
+            // Due ₹17,000 vs Timeline-এর সঠিক ₹19,000): V238-এর `paidEffect`
+            // (উপরে) Refund ঠিকভাবে বিয়োগ করে, কিন্তু নিচের সেফটি-নেট
+            // `maxOf(cloudPaid, paidByMobile, items[idx].paid)`-এর তৃতীয় সংখ্যা
+            // (`items[idx].paid`) আসে এই ফোনে **স্থানীয়ভাবে জমা রাখা** followups
+            // row থেকে (LocalWorkflowStore.promoteToTreatment() — শুধু নতুন
+            // Payment-এ **যোগ** করে, Refund কখনো ছোঁয় না)। তাই Refund হওয়ার পরেও
+            // এই পুরনো (বড়, ভুল) সংখ্যাটাই `maxOf`-এ জিতে যাচ্ছিল। এই সেট দিয়ে
+            // চিহ্নিত করা হচ্ছে কার approved refund আছে, যাতে নিচে তাদের জন্য এই
+            // ভুল floor বাদ দেওয়া যায় — বাকি সবার জন্য (refund নেই) সেফটি-নেট
+            // আগের মতোই অক্ষত।
+            val hasApprovedRefundByPid = HashSet<String>()
+            val hasApprovedRefundByMobile = HashSet<String>()
+            for (i in 0 until payments.length()) {
+                val pay = payments.getJSONObject(i)
+                val pid = pay.s("patientId")
+                val payType = pay.optString("payType", "")
+                if (payType == "visit_fee" || payType == "attendance_mark") continue
+                // V238: Follow-up Paid/Due must use the same net-payment rule as
+                // Payment Details: approved refunds subtract; pending/rejected
+                // refunds have no effect. The refund row remains untouched.
+                val paidEffect = when {
+                    PaymentModel.isApprovedRefund(pay) -> -pay.optDouble("amount", 0.0)
+                    PaymentModel.isRefundRow(pay) -> 0.0
+                    else -> pay.optDouble("amount", 0.0)
+                }
+                if (PaymentModel.isApprovedRefund(pay)) {
+                    if (pid.isNotEmpty()) hasApprovedRefundByPid.add(pid)
+                    val rmob = digits(pay.s("mobile"))
+                    if (rmob.isNotEmpty()) hasApprovedRefundByMobile.add(rmob)
+                }
+                if (pid.isNotEmpty()) paidByPid[pid] = (paidByPid[pid] ?: 0.0) + paidEffect
+                val pmob = digits(pay.s("mobile"))
+                if (pmob.isNotEmpty()) paidByMobileFallback[pmob] = (paidByMobileFallback[pmob] ?: 0.0) + paidEffect
+            }
+            // TK-REPORTED BUG FIX (2026-07-18): Registration writes to TWO
+            // separate tables -- "patients" (read directly by Chamber
+            // Attendance) and "followups" stage=Patient (read by THIS Visit
+            // tab). If only the followups write fails to sync (e.g. a bad
+            // connection at save time) while the patients write succeeds,
+            // that patient showed up in Chamber Attendance but silently
+            // never appeared here -- with no error anywhere. Safety net:
+            // for the Visit tab specifically, any patient row with no
+            // matching entry already in `items` (and not already a
+            // Treatment-stage patient, per the higher-stage exclusion
+            // above) gets a fallback entry synthesized directly from the
+            // patients row, so a patient can never be invisible here.
+            if (stage == "Patient") {
+                val presentMobiles = items.map { digits(it.mobile) }.toHashSet()
+                // TK-FOUND RISK (2026-07-18), fixed before this could ever
+                // ship: this fallback only checked the "patients" table, so
+                // it could wrongly resurrect (a) an already-Rejected visit
+                // (Reject only updates the followups row, the patients row
+                // is untouched) or (b) a patient who has ALREADY correctly
+                // advanced to Treatment stage (their Patient-stage
+                // followups row is gone/excluded, but they still exist in
+                // "patients"). Both excluded below before adding anyone.
+                // TK-REPORTED BUG FIX (2026-07-24): both exclusion checks
+                // below used plain fetchList() (silently empty on a real
+                // network failure, indistinguishable from "genuinely none")
+                // -- same bug class just found and fixed for the Enquiry
+                // tab. If either fails now (fetchListOrNull returns null),
+                // skip this entire patients-table fallback block instead of
+                // running it with a silently incomplete exclusion set --
+                // undercounting one load is far safer than wrongly
+                // resurrecting an already-Rejected or already-advanced-to-
+                // Treatment patient back into this tab.
+                val rejectedVisitsOrNull = preRejectedVisits
+                val treatmentStageOrNull = preTreatmentStage
+                // TK-REPORTED BUG FIX (2026-07-25, Kishanganj staff): if either
+                // check above failed on a bad connection, this whole safety net
+                // was skipped -- so a just.registered patient whose followups
+                // row had not synced yet DISAPPEARED from the Visit tab for that
+                // load, then came back on the next one ("the patient I
+                // registered first is no longer showing"). Skipping is still the
+                // right call (never resurrect a rejected patient), but showing
+                // the last known good list is far better than showing one that
+                // is silently missing people. Same cache.fallback pattern this
+                // file already uses for the payments/patients fetches.
+                // 🚨 TK-REPORTED, LIVE (27.07.2026 — AMIT KUMAR / KNE-27072026-001,
+                // registered by KNE-LAXMI): "রেজিস্ট্রেশন করেছি, রোগীর পাতায় ও
+                // টাকায় দেখাচ্ছে, কিন্তু ভিজিট সেকশনে আসেনি।"
+                //
+                // ROOT CAUSE (here): the two checks above (rejected visits /
+                // Treatment-stage rows) exist ONLY to decide who the
+                // patients-table safety net below may ADD back. But when either
+                // of them failed on a weak line, this threw away the perfectly
+                // good list that had just been fetched and returned the LAST
+                // CACHED list instead -- and a patient registered minutes ago on
+                // ANOTHER phone is, by definition, not in this phone's cache. So
+                // the newest patient was the exact one who could never appear,
+                // load after load, while Chamber/Patient Details/Payment (which
+                // read the patients + payments tables) showed him plainly.
+                //
+                // The fresh list cannot contain a rejected patient -- the cloud
+                // query itself is "stage=Patient & status not in
+                // (Cancelled,Incomplete)", and the local merge only takes Active
+                // rows. So when a check fails we now simply SKIP the optional
+                // safety net below (the `if` that follows already does exactly
+                // that) and show the real, freshly-fetched list. Nothing is
+                // resurrected; nobody is hidden.
+                if (rejectedVisitsOrNull != null && treatmentStageOrNull != null) {
+                val excludeMobiles = HashSet<String>()
+                for (i in 0 until rejectedVisitsOrNull.length()) {
+                    val m = digits(rejectedVisitsOrNull.getJSONObject(i).s("mobile"))
+                    if (m.isNotEmpty()) excludeMobiles.add(m)
+                }
+                // TK-REPORTED BUG FIX (2026-07-22): the cloud check above misses a
+                // just-rejected Visit that hasn't finished syncing yet, so this
+                // fallback (built from the untouched "patients" table) could bring
+                // a just-rejected patient right back into the Visit list. Merge in
+                // the local pending Cancelled/Incomplete rows too, so the
+                // exclusion applies immediately, not just after the next sync.
+                context?.let { ctx ->
+                    val localRejected = LocalWorkflowStore(ctx).rejectedRowsForStage("Patient")
+                    for (i in 0 until localRejected.length()) {
+                        val m = digits(localRejected.getJSONObject(i).s("mobile"))
+                        if (m.isNotEmpty()) excludeMobiles.add(m)
+                    }
+                }
+                for (i in 0 until treatmentStageOrNull.length()) {
+                    val m = digits(treatmentStageOrNull.getJSONObject(i).s("mobile"))
+                    if (m.isNotEmpty()) excludeMobiles.add(m)
+                }
+                val localPatientRows = context?.let { LocalWorkflowStore(it).rowsForStage("Patient") } ?: JSONArray()
+                val localByMobile = HashMap<String, JSONObject>()
+                for (i in 0 until localPatientRows.length()) {
+                    val lr = localPatientRows.getJSONObject(i)
+                    val lm = digits(lr.s("mobile"))
+                    if (lm.isNotEmpty()) localByMobile[lm] = lr
+                }
+                for (i in 0 until patients.length()) {
+                    val p = patients.getJSONObject(i)
+                    val m = digits(p.s("mobile"))
+                    if (m.isEmpty() || presentMobiles.contains(m) || excludeMobiles.contains(m)) continue
+                    val pBranch = p.s("branch")
+                    // TK-ORDER (2026-07-25): branch only, no creator exception.
+                    val visible = allBranch || branchAllows(pBranch, p.s("patientId"), branchFilter)
+                    if (!visible) continue
+                    // TK-REPORTED BUG FIX (2026-07-19): use the REAL locally-
+                    // cached remark/date when this patient's followups row is
+                    // sitting un-synced on the device, instead of always
+                    // showing the generic placeholder.
+                    val local = localByMobile[m]
+                    val fallback = JSONObject()
+                        .put("id", local?.s("id") ?: p.s("id"))
+                        .put("name", p.s("name"))
+                        .put("mobile", p.s("mobile"))
+                        .put("branch", pBranch)
+                        .put("disease", p.s("disease").ifBlank { p.s("diagnosis") })
+                        .put("stage", "Patient")
+                        .put("lastRemark", local?.s("lastRemark")?.ifBlank { null } ?: "Registered (syncing…)")
+                        .put("nextFollow", local?.s("nextFollow") ?: "")
+                        .put("date", local?.s("date")?.ifBlank { null } ?: p.s("registrationDate").ifBlank { p.s("date") })
+                        .put("patientId", p.s("patientId"))
+                        .put("address", p.s("address"))
+                        .put("age", p.s("age"))
+                        .put("sex", p.s("sex"))
+                        .put("photo", p.s("photo"))
+                        // 🔒 খাতার সারি B95 (TK, 29.07.2026): এনকোয়ারির মতোই এখানেও
+                        // LAST CALL সব সময় `—` দেখাত, কারণ এই বানানো সারিতে
+                        // `lastCallDate` বা `history` কিছুই দেওয়া হত না।
+                        // এখন **এই ফোনে জমা থাকা আসল সারিটা থাকলে** তার কল-তারিখ ও
+                        // ইতিহাস এখানেও বসে — অর্থাৎ যা সত্যি তাই দেখায়।
+                        // ⛔ ফোনে সারিটা না থাকলে আগের মতোই `—` থাকে, বানানো কিছু
+                        //    দেখানো হয় না। ⛔ নতুন কোনো ক্লাউড-কল নেই — এই তথ্য
+                        //    ফোনের নিজের খাতাতেই আছে। ⛔ ডেটাবেসে কিছু লেখা হয় না।
+                        .put("lastCallDate", local?.s("lastCallDate") ?: "")
+                        .put("history", local?.optJSONArray("history") ?: org.json.JSONArray())
+                    items.add(FollowUpModel.parse(fallback))
+                    presentMobiles.add(m)
+                    // TK-REPORTED BUG FIX (2026-07-24): "Registered
+                    // (syncing…)" was meant to be a few-seconds-to-minutes
+                    // transient state (BottomNav's retry queue finishing the
+                    // job) -- TK found it stuck for HOURS on patients this
+                    // device never registered itself, so there is nothing
+                    // local to retry FROM (the pending-queue is per-device,
+                    // SharedPreferences-based, and simply doesn't exist on a
+                    // device that didn't do the original save). Self-heal:
+                    // whenever this fallback is used AND there is no local
+                    // trace either (local == null -- the exact "genuinely
+                    // missing everywhere" signal), write the real followups
+                    // row directly right here, best-effort, so the NEXT load
+                    // (this device or any other) finds it via the normal
+                    // path and this permanently stops recurring for this
+                    // patient. Never overwrites anything -- this row doesn't
+                    // exist yet by definition (that's why we're here).
+                    if (local == null) {
+                        // 🔴🔴 TK-REPORTED (04.08.2026 — একই ক্লাসের বাগ প্রজেক্টে
+                        // আর কোথায় আছে খুঁজে দেখা): "local == null" মানে শুধু
+                        // এই ফোনে কিছু নেই — ক্লাউডে আসল সারিটা থাকতেই পারে
+                        // (অন্য ফোনে/আগে তৈরি হয়েছে)। এখানেও নতুন সারি
+                        // বানানোর আগে ক্লাউডে সরাসরি একবার জিজ্ঞেস করা হলো —
+                        // থাকলে দ্বিতীয় সারি বানানো হয় না।
+                        val alreadyExistsV = try {
+                            SupabaseClient.findByMobileOrNull("followups", m, "id", 1)
+                        } catch (_: Throwable) { null }
+                        if (alreadyExistsV != null && alreadyExistsV.length() == 0) {
+                        val healRow = JSONObject()
+                            .put("id", "fu_" + java.util.UUID.randomUUID().toString().replace("-", ""))
+                            .put("refId", p.s("id"))
+                            .put("patientId", p.s("patientId"))
+                            .put("mobile", p.s("mobile"))
+                            .put("name", p.s("name"))
+                            .put("branch", pBranch)
+                            .put("disease", p.s("disease").ifBlank { p.s("diagnosis") })
+                            .put("address", p.s("address"))
+                            .put("age", p.s("age"))
+                            .put("sex", p.s("sex"))
+                            .put("stage", "Patient")
+                            .put("date", p.s("registrationDate").ifBlank { p.s("date") })
+                            .put("registrationDate", p.s("registrationDate").ifBlank { p.s("date") })
+                            .put("visitDate", p.s("visitDate").ifBlank { p.s("registrationDate").ifBlank { p.s("date") } })
+                            .put("lastRemark", "Registered patient / Visit created")
+                            .put("nextFollow", "")
+                            .put("callCount", 0)
+                            .put("status", "Active")
+                            .put("history", JSONArray())
+                            .put("createdBy", p.s("createdBy"))
+                            .put("createdAt", p.s("createdAt"))
+                            .put("updatedAt", p.s("createdAt"))
+                        upsertWithHealRetry(healRow)
+                        }
+                    }
+                }
+                }
+            }
+
+            // TK-REPORTED BUG FIX (2026-07-18): same dual-write gap, this
+            // time on the Advance/Treatment Payment step (PaymentRepository.
+            // kt) — the payment amount itself is always saved directly to
+            // "payments" (so the money is never lost), but the SEPARATE
+            // write that bumps this patient's followups row to
+            // stage=Treatment is its own network call and can fail
+            // independently. Safety net: any patient with a genuine
+            // Treatment/Advance payment recorded (paidByPid > 0) but not
+            // yet showing here gets a fallback Treatment entry too.
+            if (stage == "Treatment") {
+                val presentMobiles = items.map { digits(it.mobile) }.toHashSet()
+                // TK-FOUND RISK (2026-07-18): a patient marked "Incomplete"
+                // (moved to Draft's Incomplete Patient list) genuinely has
+                // paidByPid > 0 (they DID pay something before treatment
+                // was marked incomplete) -- without this exclusion, this
+                // fallback would wrongly bring them back into this tab.
+                // TK-REPORTED BUG FIX (2026-07-24): same silent-failure bug
+                // class as the Enquiry/Visit tab fixes above -- plain
+                // fetchList() here could silently return empty on a real
+                // network failure, wrongly resurrecting an Incomplete
+                // patient. Now skips this whole fallback block on a genuine
+                // failure (fetchListOrNull returns null) instead.
+                val incompleteTreatmentOrNull = preIncompleteTreatment
+                // TK-REPORTED, LIVE (27.07.2026 — AMIT KUMAR): same defect as
+                // the Visit/Enquiry tabs. This check only decides who the
+                // safety net below may ADD back; on a failure the fresh list
+                // was thrown away and the last CACHED list returned, hiding
+                // anything too new to be in that cache. The fresh list already
+                // excludes Cancelled/Incomplete rows at the query itself, so
+                // skipping the optional safety net is enough.
+                if (incompleteTreatmentOrNull != null) {
+                val incompleteMobiles = HashSet<String>()
+                for (i in 0 until incompleteTreatmentOrNull.length()) {
+                    val m = digits(incompleteTreatmentOrNull.getJSONObject(i).s("mobile"))
+                    if (m.isNotEmpty()) incompleteMobiles.add(m)
+                }
+                // TK-REPORTED BUG FIX (2026-07-22): same fix as the Visit-tab
+                // fallback above -- also exclude locally-pending Cancelled/
+                // Incomplete rows so a just-marked-Incomplete Treatment patient
+                // can't be resurrected here before the cloud catches up.
+                context?.let { ctx ->
+                    val localIncomplete = LocalWorkflowStore(ctx).rejectedRowsForStage("Treatment")
+                    for (i in 0 until localIncomplete.length()) {
+                        val m = digits(localIncomplete.getJSONObject(i).s("mobile"))
+                        if (m.isNotEmpty()) incompleteMobiles.add(m)
+                    }
+                }
+                for (i in 0 until patients.length()) {
+                    val p = patients.getJSONObject(i)
+                    val m = digits(p.s("mobile"))
+                    if (m.isEmpty() || presentMobiles.contains(m) || incompleteMobiles.contains(m)) continue
+                    val pid = p.s("id")
+                    // See the paidByMobileFallback comment above: id-match
+                    // first (exactly as before), mobile-match only as a
+                    // wider net so a genuinely-paid patient can never fall
+                    // through this gap and become invisible everywhere.
+                    val paid = maxOf(paidByPid[pid] ?: 0.0, paidByMobileFallback[m] ?: 0.0)
+                    if (paid <= 0.0) continue
+                    val pBranch = p.s("branch")
+                    // TK-ORDER (2026-07-25): branch only, no creator exception.
+                    val visible = allBranch || branchAllows(pBranch, p.s("patientId"), branchFilter)
+                    if (!visible) continue
+                    val fallback = JSONObject()
+                        .put("id", p.s("id"))
+                        .put("name", p.s("name"))
+                        .put("mobile", p.s("mobile"))
+                        .put("branch", pBranch)
+                        .put("disease", p.s("disease").ifBlank { p.s("diagnosis") })
+                        .put("stage", "Treatment")
+                        .put("lastRemark", "Treatment payment / Advance received (syncing…)")
+                        .put("nextFollow", "")
+                        .put("date", p.s("registrationDate").ifBlank { p.s("date") })
+                        .put("patientId", p.s("patientId"))
+                        .put("address", p.s("address"))
+                        .put("age", p.s("age"))
+                        .put("sex", p.s("sex"))
+                        .put("photo", p.s("photo"))
+                        .put("bill", p.optDouble("bill", 0.0))
+                        .put("paid", paid)
+                    items.add(FollowUpModel.parse(fallback))
+                    presentMobiles.add(m)
+                    // TK-REPORTED BUG FIX (2026-07-24): same self-heal as
+                    // the Enquiry/Visit tab fallbacks above -- a genuine
+                    // Advance/Treatment payment exists (paid > 0, checked
+                    // just above) but the matching Treatment-stage
+                    // "followups" row was never found; write it directly so
+                    // this stops recurring for this patient.
+                    //
+                    // 🔴🔴 TK-REPORTED (04.08.2026 — একই ক্লাসের বাগ প্রজেক্টে
+                    // আর কোথায় আছে খুঁজে দেখা, Enquiry Reject-এর ভুতুড়ে
+                    // ডুপ্লিকেট ধরার পরে): এখানেও একই ফাঁক ছিল — উপরের
+                    // `incompleteMobiles` কোনো কারণে এই নম্বর মিস করলে
+                    // (ক্যাশ/টাইমিং) সরাসরি নতুন সারি বানিয়ে ফেলত। এখানেও
+                    // একই সরাসরি-চেক পাহারা বসানো হলো।
+                    val alreadyExistsT = try {
+                        SupabaseClient.findByMobileOrNull("followups", m, "id", 1)
+                    } catch (_: Throwable) { null }
+                    if (alreadyExistsT == null || alreadyExistsT.length() > 0) continue
+                    val healRow = JSONObject()
+                        .put("id", "fu_" + java.util.UUID.randomUUID().toString().replace("-", ""))
+                        .put("refId", p.s("id"))
+                        .put("patientId", p.s("patientId"))
+                        .put("mobile", p.s("mobile"))
+                        .put("name", p.s("name"))
+                        .put("branch", pBranch)
+                        .put("disease", p.s("disease").ifBlank { p.s("diagnosis") })
+                        .put("address", p.s("address"))
+                        .put("age", p.s("age"))
+                        .put("sex", p.s("sex"))
+                        .put("stage", "Treatment")
+                        .put("date", p.s("registrationDate").ifBlank { p.s("date") })
+                        .put("registrationDate", p.s("registrationDate").ifBlank { p.s("date") })
+                        .put("visitDate", p.s("visitDate").ifBlank { p.s("registrationDate").ifBlank { p.s("date") } })
+                        .put("lastRemark", "Treatment payment / Advance received")
+                        .put("nextFollow", "")
+                        .put("callCount", 0)
+                        .put("status", "Active")
+                        .put("history", JSONArray())
+                        .put("createdBy", p.s("createdBy"))
+                        .put("createdAt", p.s("createdAt"))
+                        .put("updatedAt", p.s("createdAt"))
+                    upsertWithHealRetry(healRow)
+                }
+                }
+            }
+
+            for (idx in items.indices) {
+                val m = digits(items[idx].mobile)
+                val cloudBill = billByMobile[m]
+                val pid = idByMobile[m] ?: ""
+                // TK-REQUESTED (2026-07-27), ধাপ ২: a payment can be filed
+                // under EITHER the patients row id (this app) or the human
+                // Patient ID code (the web app's Chamber screen). Only the
+                // row id was counted here, so money taken on the computer
+                // could be missing from this card's Paid -- and the Due then
+                // showed too high. The two buckets are separate (one payment
+                // row carries one identity), so adding them can never count
+                // the same payment twice.
+                val pcode = patientCodeByMobile[m].orEmpty()
+                val paidByCode = if (pcode.isNotBlank() && pcode != pid) (paidByPid[pcode] ?: 0.0) else 0.0
+                val cloudPaid = (paidByPid[pid] ?: 0.0) + paidByCode
+                val bill = maxOf(cloudBill ?: 0.0, items[idx].bill)
+                // 🔎 TK-ORDERED CODE AUDIT (27.07.2026): the two buckets above
+                // cover a payment filed under this patient's row id and under
+                // their Patient ID code. They do NOT cover a payment filed under
+                // a SECOND patients row for the same person (a duplicate
+                // registration, or a row Chamber's findOrMakePatient created when
+                // a mobile lookup momentarily failed) -- that money simply was
+                // not counted, so this card showed Paid too LOW and Due too HIGH,
+                // while Patient Details (which also reads payments by mobile)
+                // showed the right total. That mismatch is exactly the class of
+                // problem TK keeps reporting.
+                // Safe to close now: by TK's locked rule ONE MOBILE = ONE
+                // REGISTRATION, so every non-fee payment on this mobile is this
+                // patient's own. paidByMobileFallback is built from the SAME
+                // already-fetched payments with the SAME exclusions (Visit Fee
+                // and attendance marks skipped), so this adds no request and can
+                // never count a payment twice -- it only refuses to show LESS
+                // than what was really taken.
+                val paidByMobile = paidByMobileFallback[m] ?: 0.0
+                // 🔴🔴 TK-REPORTED FIX (01.08.2026): `items[idx].paid` (এই ফোনের
+                // স্থানীয় floor) Refund-অন্ধ, তাই যার approved refund আছে তার
+                // জন্য এই floor বাদ — শুধু live payments থেকে সঠিকভাবে
+                // (refund-বিয়োগ সহ) হিসাব-করা দুটো সংখ্যাই ব্যবহার হয়। Refund
+                // নেই এমন সবার জন্য আগের সেফটি-নেট (কখনো কম না দেখানো) অক্ষত।
+                val refundExists = (pid.isNotEmpty() && hasApprovedRefundByPid.contains(pid)) ||
+                    hasApprovedRefundByMobile.contains(m)
+                val paid = if (refundExists) maxOf(cloudPaid, paidByMobile)
+                    else maxOf(cloudPaid, paidByMobile, items[idx].paid)
+                items[idx] = items[idx].copy(
+                    bill = bill,
+                    paid = paid,
+                    patientId = patientCodeByMobile[m].orEmpty().ifBlank { items[idx].patientId },
+                    address = addressByMobile[m].orEmpty().ifBlank { items[idx].address },
+                    age = ageByMobile[m].orEmpty().ifBlank { items[idx].age },
+                    sex = sexByMobile[m].orEmpty().ifBlank { items[idx].sex },
+                    disease = diseaseByMobile[m].orEmpty().ifBlank { items[idx].disease },
+                    name = nameByMobile[m].orEmpty().ifBlank { items[idx].name },
+                    branch = branchByMobile[m].orEmpty().ifBlank { items[idx].branch },
+                    hasApprovedRefund = refundExists,
+                    refundManuallyRestored = refundRestoredByMobile.containsKey(m)
+                )
+            }
+
+            // TK-REQUESTED (2026-07-18): "যে ব্রাঞ্চে আছে, সেই ব্রাঞ্চের সবাই
+            // দেখবে" -- branch can change (just enriched live above), so
+            // re-apply the same visibility rule using the CURRENT branch.
+            // A patient moved OUT of this viewer's branch drops out; one
+            // moved IN becomes visible, all without a second network call
+            // (uses the same allBranch/branchFilter/creatorMobile already
+            // used for the very first visibility check in this function).
+            if (!allBranch) {
+                val stillVisible = items.filter {
+                    val m = digits(it.mobile)
+                    branchAllows(it.branch, it.patientId, branchFilter) ||
+                        (!creatorMobile.isNullOrBlank() && createdByMobileMap[m] == creatorMobile)
+                }
+                items.clear(); items.addAll(stillVisible)
+            }
+
+            if (stage == "Treatment") {
+                // TK APPROVED (2026-07-15): once a patient's bill is fully paid
+                // (Due == 0), the record moves to Draft's "Complete" list only and
+                // must no longer appear in the Patient (Treatment) follow-up tab.
+                // Scoped to the Patient/Treatment tab only — Visit tab is unaffected.
+                // TK-REQUESTED ADDITION (2026-07-24): also exclude a patient
+                // Master has approved for "Complete despite Due" (real Due
+                // stays > 0, untouched by this — only this tab's visibility
+                // changes, matching the fully-paid case just above).
+                // 🔴 TK-নির্দেশ (02.08.2026): এখন এই একই জায়গায় একটা তৃতীয় শর্তও
+                // যোগ হলো — Approved Refund আছে আর নেট জমা ঠিক ₹0 (0.5-এর কম,
+                // paisa-স্তরের রাউন্ডিং সহনশীলতা) হলে সেই রোগীও এই ট্যাব থেকে
+                // সরে যায় (Draft-এর নতুন "Refunded" ঘরে দেখা যাবে, রেকর্ড অক্ষত)।
+                // ⛔ এখানে শুধু `items` (রেন্ডার-করা তালিকা) ফিল্টার হয় — আসল
+                // `followups.stage` কলাম একটুও বদলায় না, তাই Visit/Enquiry
+                // ট্যাবের বিদ্যমান exclusion-লজিক (যেগুলো আসল stage দেখেই বাদ
+                // দেয়) স্বয়ংক্রিয়ভাবেই এই রোগীকে ওখানেও আটকে দেয় — আলাদা কিছু
+                // লিখতে হয়নি।
+                // 🔴 B302.1 (02.08.2026): TK Draft-এর "Refunded" ঘর থেকে হাতে
+                // করে ফিরিয়ে আনলে (`patients.refundRestoredBy` — Complete-
+                // despite-Due-এর হুবহু একই প্যাটার্ন) — তখন `hasApprovedRefund`
+                // সত্যি থাকলেও আর বাদ পড়ে না, `refundManuallyRestored` উপরের
+                // শর্তকে ফিরিয়ে দেয়।
+                val stillDue = items.filterNot {
+                    (it.bill > 0 && it.paid >= it.bill) || completeApprovedByMobile.containsKey(digits(it.mobile)) ||
+                        (it.hasApprovedRefund && it.paid <= 0.5 && !it.refundManuallyRestored)
+                }
+                items.clear(); items.addAll(stillDue)
+            }
+        }
+        // Newest first — the most recent enquiry/record shows at the TOP,
+        // matching the web's sortFollowRowsByRecent().
+        val result = items.sortedByDescending { it.recordDate }
+        saveCachedTab(stage, branchFilter, result)
+        // 🔒 খাতার সারি B172 (TK, 30.07.2026): কার্ডের ঠিকানা-ট্যাগ বসানো —
+        // ⛔ **এই ধাপটা `saveCachedTab`-এর পরে**, তাই অফলাইন/জমানো তালিকার
+        // আচরণ এক অক্ষরও বদলায়নি (জমানো তালিকায় ঠিকানা-ট্যাগ বেঁধে রাখা হয় না;
+        // পরের বার লাইভ লোডেই আবার ঠিকভাবে বসবে — নিরাপদ, ছোট আপস)।
+        // ⛔ **একটাই ছোট ব্যাচ-অনুরোধ** (`address_tags` টেবিল থেকে, শুধু আইডি ও
+        // মান — ছবি/অন্য কিছু নেই); ব্যর্থ হলে প্রতিটা কার্ড নিজের ঠিকানা থেকে
+        // auto-বেছে নেওয়া ডিফল্টে ফিরে যায়, কিছুই ভাঙে না।
+        // 🔒 খাতার সারি B173 (TK, 30.07.2026): Patient (Treatment) কার্ডে এই
+        // ট্যাগ আর দেখানো হয় না ("View All-এ চাপলে সব দেখা যাবে") — তাই ওই
+        // ট্যাবে এই ব্যাচ-অনুরোধটাও আর করা হয় না, বাড়তি একটা ক্লাউড-কলও বাঁচল।
+        if (stage == "Treatment") return result
+        return try {
+            val saved = AddressTagRepository.fetchSavedTags(result.map { it.mobile })
+            result.map { it ->
+                val key = AddressTagRepository.keyFor(it.mobile)
+                val tag = saved[key] ?: AddressTagRepository.defaultTagFromAddress(it.address)
+                if (tag.isBlank()) it else it.copy(addressTag = tag)
+            }
+        } catch (_: Throwable) { result }
+    }
+
+    private fun digits(s: String): String = s.filter { it.isDigit() }.takeLast(10)
+
+    /**
+     * TK-REPORTED BUG FIX (2026-07-26, from TK's photo-proofs): a record can
+     * carry a Patient ID from one branch (COB-26072026-001 = Cooch Behar)
+     * while its own "branch" text field says something else (JALPAIGURI) --
+     * because the branch field is editable/re-written by later saves, while
+     * the Patient ID is fixed at registration and is what is actually
+     * printed on the patient's papers. When the two disagreed, the branch
+     * text alone decided visibility, so the branch that genuinely owns that
+     * patient could not see them at all (Master, who sees All Branch, could
+     * -- exactly what TK saw).
+     *
+     * A record is now visible to a branch if EITHER its branch text OR its
+     * Patient ID's branch code belongs to that branch. This can only ever
+     * ADD the rightful branch back; it never hides anyone, and it never
+     * exposes a record to a branch that matches neither.
+     */
+    /**
+     * 🚨 TK-REPORTED, LIVE (2026-07-27): "কোচবিহারে ৩ জনের Registration হয়েছে,
+     * স্টাফ বলছে ২ জন দেখাচ্ছে, একজন দেখাচ্ছে না।"
+     *
+     * ROOT CAUSE FOUND HERE. Building the Visit tab needs SIX separate cloud
+     * reads. If ANY ONE of them fails -- which on a weak line is not rare, it
+     * is likely -- this file gives up on building a fresh list and returns
+     * `loadCachedTab(...)`, the list saved the LAST time everything worked.
+     * That saved list was made BEFORE today's registrations, so a patient
+     * registered ten minutes ago is simply not in it. Nothing on screen says
+     * the list is old, so to the staff the patient has "disappeared".
+     *
+     * THE FIX: a patient this device itself registered must NEVER be missing,
+     * no matter what the network did. The saved list is still shown (that part
+     * was right -- an old list beats a blank screen), but every record for
+     * this stage that is sitting in this phone's own storage and is NOT in
+     * that saved list is added on top of it.
+     *
+     * This cannot lose or alter anything: it only ADDS rows that the phone
+     * itself already holds, and rowsForStage() already excludes anything
+     * Cancelled/Incomplete, so a rejected patient can never come back.
+     */
+    /**
+     * TK-REPORTED, LIVE (27.07.2026 — AMIT KUMAR / KNE-27072026-001):
+     * whenever this screen falls back to the last cached list, the cache is by
+     * definition older than the newest record -- so the patient registered
+     * minutes ago was exactly the one who could never appear. This keeps every
+     * cached row untouched (same order, same ₹ numbers) and only appends the
+     * freshly-fetched rows whose mobile the cache does not have at all.
+     * The fresh rows have already passed the same stage/status/branch checks,
+     * so nothing rejected or out-of-branch can slip in this way.
+     */
+    private fun plusMissing(cached: List<FollowUpItem>, fresh: List<FollowUpItem>): List<FollowUpItem> {
+        if (fresh.isEmpty()) return cached
+        return try {
+            val seen = HashSet<String>()
+            for (c in cached) {
+                val m = digits(c.mobile)
+                if (m.isNotEmpty()) seen.add(m)
+            }
+            val extra = ArrayList<FollowUpItem>()
+            for (f in fresh) {
+                val m = digits(f.mobile)
+                if (m.isEmpty() || seen.contains(m)) continue
+                seen.add(m)
+                extra.add(f)
+            }
+            if (extra.isEmpty()) cached else extra + cached
+        } catch (_: Throwable) {
+            cached
+        }
+    }
+
+    private fun cachedPlusOwn(stage: String, branchFilter: String?): List<FollowUpItem>? {
+        val cached = loadCachedTab(stage, branchFilter) ?: return null
+        val ctx = context ?: return cached
+        return try {
+            val seen = HashSet<String>()
+            for (c in cached) {
+                val m = digits(c.mobile)
+                if (m.isNotEmpty()) seen.add(m)
+            }
+            val extra = ArrayList<FollowUpItem>()
+            val local = LocalWorkflowStore(ctx).rowsForStage(stage)
+            for (i in 0 until local.length()) {
+                val row = local.optJSONObject(i) ?: continue
+                val item = FollowUpModel.parse(row)
+                val m = digits(item.mobile)
+                if (m.isEmpty() || seen.contains(m)) continue
+                if (!branchAllows(item.branch, item.patientId, branchFilter)) continue
+                seen.add(m)
+                extra.add(item)
+            }
+            if (extra.isEmpty()) cached else extra + cached
+        } catch (_: Throwable) {
+            cached
+        }
+    }
+
+    /** TK-REPORTED (2026-07-27): finds the branch this enquiry was actually
+     *  saved under, by looking the same mobile up in the "enquiries" rows this
+     *  tab has already fetched. Used only to fill in a BLANK branch on a
+     *  followups row -- it never overrides a branch that is already set, so it
+     *  cannot move a record to the wrong branch. Returns "" when nothing is
+     *  found, which leaves today's behaviour exactly as it was. */
+    private fun branchFromEnquiries(enquiries: JSONArray, mobile: String): String {
+        return try {
+            val want = digits(mobile)
+            if (want.isEmpty()) return ""
+            for (i in 0 until enquiries.length()) {
+                val e = enquiries.optJSONObject(i) ?: continue
+                if (digits(e.s("mobile")) != want) continue
+                val b = e.s("branch")
+                if (b.isNotBlank()) return b
+            }
+            ""
+        } catch (_: Throwable) {
+            ""
+        }
+    }
+
+    // 🔴🔒 V453 (20.08.2026): উপরের `branchScopeFilter()`-এর মতোই কমা-আলাদা
+    // একাধিক ব্রাঞ্চ গ্রহণ করে (CrossBranchStaffAccess.kt)। একটাই ব্রাঞ্চ
+    // থাকলে আগের আচরণ অক্ষত।
+    private fun branchAllows(rowBranch: String, patientId: String, branchFilter: String?): Boolean {
+        if (branchFilter.isNullOrBlank() || branchFilter == "All") return true
+        val parts = branchFilter.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+        for (part in parts) {
+            if (rowBranch.equals(part, ignoreCase = true)) return true
+            val code = patientId.substringBefore('-').trim()
+            if (code.isNotBlank() && code.length == 3 &&
+                code.equals(PatientIdGenerator.branchCode(part), ignoreCase = true)) return true
+        }
+        return false
+    }
+
+
+    /**
+     * 🚨 TK'S RULE (2026-07-28): "আমার ফোনে আমি লিখেছি, তাহলে আমাকেই বা কেন দেরিতে
+     * দেখাবে?" -- whatever is typed on THIS phone must be on screen at once,
+     * whether the cloud is quick, slow or asleep.
+     *
+     * The phone already kept its own copy of every record it had saved, and an
+     * edit updated that copy. But a record first entered on ANOTHER phone (a
+     * different branch's front desk) was simply not in this phone's copy at
+     * all, so the edit had nowhere local to go -- the screen kept showing the
+     * old text until the cloud caught up. Now, if the copy is missing, it is
+     * created here with the new text and marked as still-to-send, so the
+     * screen updates immediately and the retry queue still finishes the cloud
+     * side quietly in the background.
+     */
+    private fun rememberEditOnThisPhone(id: String, fields: JSONObject, known: JSONObject?) {
+        val ctx = context ?: return
+        try {
+            val store = LocalWorkflowStore(ctx)
+            if (store.updateLocalFollowUp(id, fields)) return
+            val base = if (known != null && known.length() > 0) JSONObject(known.toString()) else JSONObject()
+            base.put("id", id)
+            val keys = fields.keys()
+            while (keys.hasNext()) { val k = keys.next(); base.put(k, fields.opt(k)) }
+            if (base.optString("stage").isNotBlank() || base.optString("mobile").isNotBlank()) {
+                store.upsertFollowUp(base, "PENDING")
+            }
+        } catch (_: Exception) {}
+    }
+
+    fun updateRemark(id: String, remark: String, staffName: String, incrementCall: Boolean = false): Boolean {
+        // Match the WebView's updateFollowAction: append to the history log and,
+        // when this is an enquiry call, bump callCount (capped at 5) + stamp today.
+        val existing = SupabaseClient.fetchList("followups", "id=eq.$id", 1)
+        val row = if (existing.length() > 0) existing.getJSONObject(0)
+            else context?.let { LocalWorkflowStore(it).findFollowUp(id) } ?: JSONObject()
+        val history = row.optJSONArray("history") ?: JSONArray()
+        // TK-REQUESTED ADDITION (2026-07-20): capture time-of-day too (not
+        // just the date), needed for the Enquiry & Call History table's
+        // "Time" column and Unexpected-hour flag. Older history entries made
+        // before this change have no "time" field and will show "—" for
+        // Time on screen; every entry from now on carries it.
+        //
+        // 🔒 খাতার সারি B54 (TK, 28.07.2026 রাত): **ফাঁকা রিমার্ক দিয়ে আগের
+        // রিমার্ক কখনো মুছে যাবে না।** আগে ঘরটা ফাঁকা করে Save করলে
+        // `lastRemark` ফাঁকা হয়ে যেত — লেখা কথাটা চিরতরে চলে যেত। এখন ফাঁকা
+        // হলে **আগের রিমার্কটাই থাকে** আর ইতিহাসে ফাঁকা সারিও জমে না।
+        // এটা শেষ পাহারা — পর্দাতেও আলাদা করে আটকানো আছে, কিন্তু কোনো পথেই
+        // যেন কথাটা হারাতে না পারে।
+        //
+        // 🔒 খাতার সারি B58 (29.07.2026, যাচাই করতে গিয়ে ধরা পড়েছে — TK-কে
+        // জানিয়ে তাঁর অনুমতি নিয়ে ঠিক করা):
+        // নেট না থাকলে (বা সারিটা কোথাও না পাওয়া গেলে) `row` ফাঁকা থেকে যেত।
+        // তখন পুরনো নিয়মে —
+        //   • `history` হিসেবে শুধু আজকের এই একটা সারি লেখা হত, ফলে ক্লাউডে
+        //     জমা থাকা **রোগীর পুরো কল-ইতিহাস মুছে যেতে পারত**, আর
+        //   • `callCount` ০ ধরে ১ লেখা হত, ফলে **গোনা ৩ থেকে ১-এ নেমে যেত**।
+        // এখন সারিটা সত্যিই পড়া গেলে তবেই ইতিহাস ও গোনায় হাত পড়ে; না পাওয়া
+        // গেলে ওদুটো **ছোঁয়াই হয় না** (রিমার্কটা তবু সেভ/সারিবদ্ধ হয়)।
+        // ⛔ জানা না থাকলে হাত না দেওয়াই নিরাপদ — ভুল অঙ্ক লিখে দেওয়ার চেয়ে
+        //    আগেরটা অক্ষত রাখা ভালো।
+        val haveRow = row.length() > 0
+        if (remark.isNotBlank() && haveRow) {
+            history.put(JSONObject().put("date", FollowUpModel.today()).put("time", isoNow()).put("remark", remark).put("staff", staffName))
+        }
+
+        val fields = JSONObject().put("updatedAt", isoNow())
+        if (haveRow) fields.put("history", history)
+        if (remark.isNotBlank()) fields.put("lastRemark", remark)
+        // Final safety gate: regardless of which Follow-up screen calls this
+        // function, empty text can never change Last Call or Call Count.
+        if (incrementCall && remark.isNotBlank() && haveRow) {
+            // 🔒 খাতার সারি B53 (TK, 28.07.2026 রাত): **দিনে একবারই।**
+            // আগে একই দিনে দুটো রিমার্ক লিখলে দাগ (call signal) দু'ঘর বেড়ে
+            // যেত, অথচ কম্পিউটারের নিয়ম চিরকাল ছিল "দিনে একবার"
+            // (`updateFollowAction`: lastCallDate===today হলে গোনা বাড়ে না)।
+            // তাই ফোন ও কম্পিউটারে এক রোগীর দাগ আলাদা হয়ে যেত।
+            // এখন দুটোই এক নিয়মে — আজ আগে কল গোনা হয়ে থাকলে গোনা বাড়ে না,
+            // শুধু তারিখটা আজকের হয়ে যায়। ⛔ ৫ বারের সীমা অক্ষত।
+            val todayStr = FollowUpModel.today()
+            val lastCall = if (row.isNull("lastCallDate")) "" else row.optString("lastCallDate", "")
+            val current = row.optInt("callCount", 0)
+            val newCount = if (lastCall == todayStr) current else (current + 1).coerceAtMost(5)
+            fields.put("callCount", newCount)
+            fields.put("lastCallDate", todayStr)
+        }
+        rememberEditOnThisPhone(id, fields, row)
+        // TK-REPORTED BUG FIX (2026-07-16): if this cloud write fails, queue
+        // it for a silent retry (BottomNav.wire()) instead of losing it --
+        // the return value/messaging below is UNCHANGED on purpose (still
+        // "success" whenever there's a local context, exactly as before)
+        // so no existing screen's behavior changes; only the underlying
+        // reliability improves.
+        val cloudOk = SupabaseClient.updateById("followups", id, fields)
+        // 🚨 TK-REPORTED (2026-07-28): a remark said "saved" but the old one
+        // stayed. Supabase answers 200 OK to an update that matched NO row, so
+        // "cloudOk" alone was never proof. Read the row back and check the
+        // remark really is there; if it is not, keep it in the retry queue so
+        // it is written for real later instead of being lost silently.
+        val reallySaved = cloudOk && try {
+            // 🔒 খাতার সারি B54: রিমার্ক ফাঁকা থাকলে `lastRemark` ইচ্ছে করেই
+            // বদলানো হয় না (আগেরটা রাখা হয়) — তখন "নতুন লেখাটা বসেছে কিনা"
+            // মিলিয়ে দেখার কিছু নেই, নইলে সারিটা অপেক্ষমাণ তালিকায় চিরকাল
+            // আটকে থাকত।
+            if (remark.isBlank()) true
+            else {
+                val back = SupabaseClient.fetchList("followups", "id=eq.$id", 1)
+                back.length() > 0 && back.getJSONObject(0).optString("lastRemark") == remark
+            }
+        } catch (_: Exception) { false }
+        if (!reallySaved) queueFieldUpdate(id, fields)
+        return reallySaved || context != null
+    }
+
+    fun updateNextFollow(id: String, nextFollow: String): Boolean {
+        val fields = JSONObject()
+            .put("nextFollow", nextFollow)
+            .put("updatedAt", isoNow())
+        val knownRow = try {
+            val found = SupabaseClient.fetchList("followups", "id=eq.$id", 1)
+            if (found.length() > 0) found.getJSONObject(0) else null
+        } catch (_: Exception) { null }
+        rememberEditOnThisPhone(id, fields, knownRow)
+        val cloudOk = SupabaseClient.updateById("followups", id, fields)
+        // Same proof as the remark just above: an update that matched no row
+        // still answers 200, so read it back before believing it.
+        val reallySaved = cloudOk && try {
+            val back = SupabaseClient.fetchList("followups", "id=eq.$id", 1)
+            back.length() > 0 && back.getJSONObject(0).optString("nextFollow") == nextFollow
+        } catch (_: Exception) { false }
+        if (!reallySaved) queueFieldUpdate(id, fields)
+        return reallySaved || context != null
+    }
+
+    /**
+     * Continue / Cancel an entry (native port of visitedContinue()/visitedCancel()
+     * and signalContinueEntry()/signalCancelEntry()): "Continue" keeps the record
+     * Active in its stage; "Cancel" sets status=Cancelled, which fetchTab()
+     * already filters out (status=neq.Cancelled), removing it from the list.
+     */
+    // TK-REQUESTED (2026-07-21): Reject / Mark Incomplete never recorded WHO
+    // did it. Fixed WITHOUT any new Supabase column -- reuses the exact same
+    // "history" array field updateRemark() already writes to successfully
+    // (proven working), just appending one more {date,time,remark,staff}
+    // entry here too. staffName defaults to "" so every OTHER existing
+    // caller of updateStatus (that doesn't pass it) behaves exactly as
+    // before -- nothing else about this function changes.
+    /**
+     * 🚨 খাতার সারি B108 (TK, 29.07.2026 বিকেল ৩.৩৪, ছবিসহ — ANIKUL HAQUE):
+     * *"Reject করেছিল Kishanganj STAFF, কিন্তু এখন আবার কেন শো করছে?"*
+     *
+     * Reject/Close করলে এতদিন **শুধু `followups` টেবিলে** দাগ পড়ত, `enquiries`
+     * টেবিলে কিছুই না। অথচ এনকোয়ারি ট্যাবের জাল ওই `enquiries` টেবিল থেকেই
+     * কার্ড ফিরিয়ে আনতে পারে — তাই কার্ডটা বারবার ফিরে আসত।
+     *
+     * এই ফাংশন ওই নম্বরের এনকোয়ারি সারিতেও দাগ বসায়, তাই দুই টেবিলের কথা
+     * সবসময় এক থাকে।
+     *
+     * ⛔ **শুধু `status` ঘরটাই ছোঁয়া হয়** — নাম · নম্বর · রিমার্ক · তারিখ ·
+     *    কে করেছিলেন, কিছুই বদলায় না, কোনো সারি মোছা হয় না।
+     * ⛔ ব্যর্থ হলে কিছুই ভাঙে না — `followups`-এর দাগটা আগের মতোই থাকে,
+     *    আর নেট ফিরলে সারিতে আবার চেষ্টা করা যায়।
+     * ⛔ শুধু Reject/Incomplete-এর সময়েই চলে (রোজকার কাজে নয়), তাই ক্লাউডে
+     *    বাড়তি চাপ নেই।
+     * ⛔ Restore (`EnquiryRepository.restoreAndMove`) এই ঘরটাকেই `Active` করে
+     *    দেয়, তাই ফিরিয়ে আনার পথও আগে থেকেই আছে।
+     */
+    /* 🔴🔴🔒 V445 (TK-রিপোর্ট ১৮.০৮.২০২৬, ছবিসহ — "রিজেক্ট/ডিলিট করা নম্বর
+       অটোমেটিক ফিরে আসে")। **আসল কারণ (কোড ধরে যাচাই):** Reject করলে
+       followups **ও** enquiries দুই টেবিলেই "Cancelled" বসানোর কথা, কিন্তু
+       enquiries-এর অংশটা (`markEnquiryClosedByMobile`) নেট একটু বিলম্ব/
+       ব্যর্থ হলে **চুপচাপ কিছুই না করে ফিরে যেত — কোনো রিট্রাই ছাড়াই।**
+       ফলে followups-এ Cancelled বসলেও enquiries-এ পুরনো "Active" রয়ে যেত;
+       পরে কোনো ফোন সিঙ্ক করার সময় সেই "Active" enquiries সারি দেখেই আবার
+       নতুন কার্ড self-heal হয়ে যেত — এটাই "ভুতুড়ে ফিরে আসা"। (রিট্রাই-লাইন
+       V446-এ patients.doctorComplete-এর সাথে একটাই জায়গায় একত্র করা হলো,
+       নিচে দেখুন `mobileTaskPrefs`।) ⛔ close-করার আসল যুক্তি এক অক্ষরও
+       বদলায়নি — শুধু ব্যর্থতার নিরাপত্তা-জাল যোগ হলো। */
+
+    /* 🔴🔴🔒 V446 (TK-নির্দেশ ১৮.০৮.২০২৬ — "শুধু Enquiry বললেন, Visit ও Patient-এর
+       কথা বললেন না")। TK ঠিক ধরেছেন — খুঁজে দেখা গেল **হুবহু একই বাগ** এখানেও
+       ছিল: Patient/Treatment-stage Reject-এ `patients.doctorComplete=true`
+       বসানোর অংশটাও (CHECK-UP Queue থেকে সরানোর জন্য, ০৪.০৮.২০২৬-এর ফিক্স)
+       একই ambiguous `SupabaseClient.findByMobile` ব্যবহার করত — লুকআপ ব্যর্থ
+       হলে চুপচাপ কিছুই করত না, রিট্রাই ছাড়াই। Rejected রোগী তাই CHECK-UP
+       Queue-তে "ফিরে" থাকতে পারত। **সমাধান হুবহু একই প্যাটার্নে** — একটাই
+       ভাগের-করা রিট্রাই-লাইন (`kind` দিয়ে enquiry/patient আলাদা), দুটোই
+       এখন `findByMobileOrNull` + ব্যর্থ হলে রিট্রাই-লাইনে জমা। */
+    private val mobileTaskPrefs = context?.getSharedPreferences("piles_clinic_mobiletask_pending", Context.MODE_PRIVATE)
+    private fun queueMobileTask(
+        kind: String, mobile: String, status: String, stage: String = "",
+        remark: String = "", staffName: String = ""
+    ) {
+        val p = mobileTaskPrefs ?: return
+        synchronized(LOCK) {
+            val arr = try { JSONArray(p.getString("queue", "[]") ?: "[]") } catch (_: Exception) { JSONArray() }
+            val next = JSONArray()
+            var alreadyThere = false
+            for (i in 0 until arr.length()) {
+                val e = arr.optJSONObject(i) ?: continue
+                val same = e.optString("kind") == kind &&
+                    e.optString("mobile").filter { it.isDigit() }.takeLast(10) == mobile.filter { it.isDigit() }.takeLast(10) &&
+                    e.optString("stage") == stage
+                if (same) {
+                    if (!alreadyThere) {
+                        next.put(JSONObject()
+                            .put("kind", kind).put("mobile", mobile).put("status", status)
+                            .put("stage", stage).put("remark", remark).put("staffName", staffName))
+                        alreadyThere = true
+                    }
+                } else next.put(e)
+            }
+            if (!alreadyThere) next.put(JSONObject()
+                .put("kind", kind).put("mobile", mobile).put("status", status)
+                .put("stage", stage).put("remark", remark).put("staffName", staffName))
+            p.edit().putString("queue", next.toString()).apply()
+        }
+    }
+    private fun flushMobileTaskPending() {
+        val p = mobileTaskPrefs ?: return
+        synchronized(LOCK) {
+            val arr = try { JSONArray(p.getString("queue", "[]") ?: "[]") } catch (_: Exception) { JSONArray() }
+            if (arr.length() == 0) return
+            val stillPending = JSONArray()
+            for (i in 0 until arr.length()) {
+                val e = arr.optJSONObject(i) ?: continue
+                val kind = e.optString("kind")
+                val mob = e.optString("mobile")
+                val status = e.optString("status")
+                val stage = e.optString("stage")
+                if (mob.isBlank()) continue
+                val done = when (kind) {
+                    "patient" -> markPatientDoctorCompleteByMobile(mob)
+                    "followup_stage" -> closeSiblingFollowUpsInternal(
+                        mob, stage, "", status, e.optString("remark"), e.optString("staffName"), false
+                    )
+                    else -> markEnquiryClosedByMobile(mob, status)
+                }
+                if (!done) stillPending.put(e)
+            }
+            p.edit().putString("queue", stillPending.toString()).apply()
+        }
+    }
+
+    /** Patient/Treatment-stage Reject/Incomplete-এর সময় ওই মোবাইলের
+     *  `patients.doctorComplete=true` বসায়, যাতে CHECK-UP Queue থেকে সরে
+     *  (০৪.০৮.২০২৬-এর ফিক্সের ঠিক একই কাজ, শুধু এখন নিরাপদ + রিট্রাই-যোগ্য)। */
+    fun markPatientDoctorCompleteByMobile(mobile: String): Boolean {
+        return try {
+            val d = mobile.filter { it.isDigit() }.takeLast(10)
+            if (d.length != 10) return false
+            val rows = SupabaseClient.findByMobileOrNull("patients", d, "id,doctorComplete", 20)
+            if (rows == null) { queueMobileTask("patient", mobile, ""); return false }
+            if (rows.length() == 0) return true
+            var ok = true
+            for (i in 0 until rows.length()) {
+                val prow = rows.getJSONObject(i)
+                val pid = prow.optString("id")
+                if (pid.isBlank()) continue
+                if (prow.optBoolean("doctorComplete", false)) continue
+                val pfields = JSONObject().put("doctorComplete", true).put("updatedAt", isoNow())
+                if (!SupabaseClient.updateById("patients", pid, pfields)) {
+                    ok = false
+                    context?.let { try { GenericUpdateQueue.queue(it, "patients", pid, pfields) } catch (_: Throwable) { } }
+                }
+            }
+            ok
+        } catch (_: Throwable) { queueMobileTask("patient", mobile, ""); false }
+    }
+
+    fun markEnquiryClosedByMobile(mobile: String, status: String): Boolean {
+        return try {
+            val d = mobile.filter { it.isDigit() }.takeLast(10)
+            if (d.length != 10) return false
+            val rows = SupabaseClient.findByMobileOrNull("enquiries", d, "id,status", 50)
+            if (rows == null) { queueMobileTask("enquiry", mobile, status); return false }
+            if (rows.length() == 0) return true
+            var allOk = true
+            for (i in 0 until rows.length()) {
+                val eid = rows.getJSONObject(i).optString("id")
+                if (eid.isBlank()) continue
+                val fields = JSONObject().put("status", status).put("updatedAt", isoNow())
+                if (!SupabaseClient.updateById("enquiries", eid, fields)) {
+                    allOk = false
+                    context?.let { try { GenericUpdateQueue.queue(it, "enquiries", eid, fields) } catch (_: Throwable) { } }
+                }
+            }
+            if (!allOk) queueMobileTask("enquiry", mobile, status)
+            allOk
+        } catch (_: Throwable) { queueMobileTask("enquiry", mobile, status); false }
+    }
+
+    // V215 (§16/§6, 31.07.2026): `cloudConfirmedOut` — ঐচ্ছিক out-param।
+    // null থাকলে আগের সব caller হুবহু আগের মতোই কাজ করে (return unchanged)।
+    // যে caller সত্যিকারের cloud-confirm জানতে চায় (Incomplete/Reject) সে একটা
+    // BooleanArray(1) পাঠায়; ভিতরে cloudConfirmedOut[0] = আসল cloudOk বসে।
+    // updateById নিজেই "matched no row" ধরে (return=representation), তাই cloudOk
+    // মানে সত্যিই cloud-এ সারিটা বদলেছে — মিথ্যা "Saved" আর দেখানো লাগে না।
+    fun updateStatus(
+        id: String, status: String, remark: String = "", staffName: String = "",
+        cloudConfirmedOut: BooleanArray? = null, mobileHint: String = "", stageHint: String = ""
+    ): Boolean {
+        val fields = JSONObject().put("status", status).put("updatedAt", isoNow())
+        if (remark.isNotBlank()) fields.put("lastRemark", remark)
+        val terminal = status.equals("Cancelled", true) || status.equals("Incomplete", true) ||
+            status.equals("Rejected", true) || status.equals("Closed", true)
+        var knownRow: JSONObject? = null
+        if (staffName.isNotBlank() || (terminal && (mobileHint.isBlank() || stageHint.isBlank()))) {
+            val existing = SupabaseClient.fetchList("followups", "id=eq.$id", 1)
+            val row = if (existing.length() > 0) existing.getJSONObject(0)
+                else context?.let { LocalWorkflowStore(it).findFollowUp(id) } ?: JSONObject()
+            knownRow = row
+            if (staffName.isNotBlank()) {
+                val history = row.optJSONArray("history") ?: JSONArray()
+                history.put(JSONObject().put("date", FollowUpModel.today()).put("time", isoNow())
+                    .put("remark", remark.ifBlank { status }).put("staff", staffName)
+                    .put("status", status).put("decisionVersion", "V450"))
+                fields.put("history", history)
+            }
+        }
+        rememberEditOnThisPhone(id, fields, knownRow)
+        val mainCloudOk = if (id.isNotBlank()) SupabaseClient.updateById("followups", id, fields) else false
+        if (!mainCloudOk && id.isNotBlank()) queueFieldUpdate(id, fields)
+
+        var durableCloudOk = mainCloudOk
+        if (terminal) {
+            val mob = mobileHint.ifBlank { knownRow?.s("mobile").orEmpty() }.ifBlank {
+                try { SupabaseClient.fetchListSlim("followups", "id=eq.$id", 1, "id,mobile,stage")
+                    .optJSONObject(0)?.s("mobile").orEmpty() } catch (_: Throwable) { "" }
+            }
+            val stg = stageHint.ifBlank { knownRow?.s("stage").orEmpty() }.ifBlank {
+                try { SupabaseClient.fetchListSlim("followups", "id=eq.$id", 1, "id,mobile,stage")
+                    .optJSONObject(0)?.s("stage").orEmpty() } catch (_: Throwable) { "" }
+            }
+            val enquiryOk = if (mob.isNotBlank()) markEnquiryClosedByMobile(mob, status) else false
+            val siblingsOk = if (mob.isNotBlank() && stg.isNotBlank())
+                closeSiblingFollowUps(mob, stg, "", status, remark, staffName) else false
+            val patientOk = if (mob.isNotBlank() && (stg.equals("Patient", true) || stg.equals("Treatment", true)))
+                markPatientDoctorCompleteByMobile(mob) else true
+            durableCloudOk = mainCloudOk && enquiryOk && siblingsOk && patientOk
+        }
+        cloudConfirmedOut?.set(0, durableCloudOk)
+        return mainCloudOk || context != null
+    }
+
+    /** খাতার সারি (30.07.2026, ডুপ্লিকেট Reject বাগ): একই মোবাইল ও একই
+     *  stage-এর অন্য যেকোনো এখনো-Active `followups` সারি — সবগুলোকেই
+     *  একই status/history দিয়ে বন্ধ করে। updateStatus()-এর হুবহু একই
+     *  fields-বানানোর নিয়ম পুনর্ব্যবহার করা হলো, যাতে দুই জায়গায় দুই
+     *  রকম না হয়ে যায়। */
+    // 🔵 খাতার সারি (Claude, 09.09.2026 — TK: Reject করা নম্বর নতুন অ্যাপে আবার আসছিল,
+    //    আগের ফিক্স অসম্পূর্ণ ছিল): এটা এখন **public** — Reject-এর সময় সরাসরি ডাকা হয়
+    //    কার্ডে থাকা **আসল মোবাইল** দিয়ে (excludeId=""), যাতে followups সারি id-এর উপর
+    //    নির্ভর না করে মোবাইল ধরেই Cancelled হয়। id ভুল/না-মিললেও নম্বর আর ফিরবে না।
+    fun closeSiblingFollowUps(
+        mobile: String, stage: String, excludeId: String, status: String, remark: String, staffName: String
+    ): Boolean = closeSiblingFollowUpsInternal(mobile, stage, excludeId, status, remark, staffName, true)
+
+    private fun closeSiblingFollowUpsInternal(
+        mobile: String, stage: String, excludeId: String, status: String, remark: String,
+        staffName: String, queueOnFailure: Boolean
+    ): Boolean {
+        val d = mobile.filter { it.isDigit() }.takeLast(10)
+        if (d.length != 10 || stage.isBlank()) return false
+        val siblings = SupabaseClient.fetchListSlimOrNull(
+            "followups",
+            "mobile=like.*$d&stage=eq.$stage&status=not.in.(Cancelled,Incomplete,Rejected,Closed)",
+            50, "id,mobile,stage,status,history"
+        )
+        if (siblings == null) {
+            if (queueOnFailure) queueMobileTask("followup_stage", mobile, status, stage, remark, staffName)
+            return false
+        }
+        var allOk = true
+        for (i in 0 until siblings.length()) {
+            val row = siblings.getJSONObject(i)
+            val sid = row.optString("id")
+            if (sid.isBlank() || sid == excludeId) continue
+            val fields = JSONObject().put("status", status).put("updatedAt", isoNow())
+            if (remark.isNotBlank()) fields.put("lastRemark", remark)
+            if (staffName.isNotBlank()) {
+                val history = row.optJSONArray("history") ?: JSONArray()
+                history.put(JSONObject().put("date", FollowUpModel.today()).put("time", isoNow())
+                    .put("remark", remark.ifBlank { status }).put("staff", staffName)
+                    .put("status", status).put("decisionVersion", "V450"))
+                fields.put("history", history)
+            }
+            rememberEditOnThisPhone(sid, fields, row)
+            if (!SupabaseClient.updateById("followups", sid, fields)) {
+                allOk = false
+                queueFieldUpdate(sid, fields)
+            }
+        }
+        // One tiny, reject-only verification prevents a stale/duplicate Active row from
+        // being reported as closed. This does not add any recurring screen-load request.
+        val stillOpen = SupabaseClient.fetchListSlimOrNull(
+            "followups",
+            "mobile=like.*$d&stage=eq.$stage&status=not.in.(Cancelled,Incomplete,Rejected,Closed)",
+            1, "id"
+        )
+        if (stillOpen == null || stillOpen.length() > 0) allOk = false
+        if (!allOk && queueOnFailure) queueMobileTask("followup_stage", mobile, status, stage, remark, staffName)
+        return allOk
+    }
+
+    /**
+     * Log an enquiry call (web signalTripleTap): one call per day max; otherwise
+     * increment callCount and stamp lastCallDate=today. Returns:
+     *   -1 = already called today; else the new callCount (>=1).
+     */
+    fun logEnquiryCall(id: String): Int {
+        val today = FollowUpModel.today()
+        val rows = SupabaseClient.fetchList("followups", "id=eq.$id", 1)
+        val row = if (rows.length() > 0) rows.getJSONObject(0)
+            else context?.let { LocalWorkflowStore(it).findFollowUp(id) } ?: return -2
+        val lastCall = if (row.isNull("lastCallDate")) "" else row.optString("lastCallDate", "")
+        if (lastCall == today) return -1
+        val newCount = row.optInt("callCount", 0) + 1
+        val fields = JSONObject()
+            .put("callCount", newCount)
+            .put("lastCallDate", today)
+            .put("updatedAt", isoNow())
+        rememberEditOnThisPhone(id, fields, row)
+        val ok = SupabaseClient.updateById("followups", id, fields)
+        if (!ok) queueFieldUpdate(id, fields)
+        return if (ok || context != null) newCount else -2
+    }
+
+    /** Reset an enquiry's call count after "Continue" past the 5-call limit.
+     *
+     * 🔴 B377 (TK-নির্দেশ, 03.08.2026 — "Continue চাপার সাথে সাথেই কমপক্ষে ১
+     * বার দেখানো উচিত"): আগে এখানে সরাসরি ০ বসানো হতো, তাই Continue করার
+     * পরে 📶 সিগন্যাল পুরো Nill দেখাত — যেন এই এন্ট্রি একদম নতুন, কখনো কল
+     * করাই হয়নি। এখন ১ বসে (নতুন Enquiry-র B215 নিয়মের সাথে মিলিয়ে —
+     * "ফর্ম/এন্ট্রি সচল থাকলে সিগন্যাল কখনো একদম শূন্য দেখাবে না")।
+     * ⛔ ওয়েবেও (`app.js`-এর `followActionGuard`) আসল ফলাফল ইতিমধ্যে ১-ই
+     * ছিল — ওখানে ০ বসানোর ঠিক পরের লাইনেই (`updateFollowAction`-এর
+     * `inc` হিসাব) কল-লগের সাধারণ বৃদ্ধি (+1) একই মুহূর্তে চলে, তাই আসল
+     * সেভ হওয়া মান কখনোই ০ থাকেনি — শুধু Android-এর এই আলাদা ফাংশনে
+     * (কোনো পরের বৃদ্ধি ছাড়াই) সত্যিকারের ০-তেই আটকে থাকত। তাই এই বদল
+     * Android-কে ওয়েবের প্রকৃত আচরণের সাথে মেলাচ্ছে, নতুন কিছু বানাচ্ছে না।
+     * ⛔ **৫-বার-সীমা/Cancel Entry পথ এক অক্ষরও বদলায়নি** — শুধু Continue-এর
+     * পরের সংখ্যা। */
+    fun resetCallCount(id: String): Boolean {
+        val fields = JSONObject().put("callCount", 1).put("updatedAt", isoNow())
+        rememberEditOnThisPhone(id, fields, null)
+        val cloudOk = SupabaseClient.updateById("followups", id, fields)
+        if (!cloudOk) queueFieldUpdate(id, fields)
+        return cloudOk || context != null
+    }
+
+    /**
+     * 🚨 TK-REPORTED, LIVE (29.07.2026 সকাল ১০.৪২, খাতার সারি B78 — কিশনগঞ্জের
+     * স্টাফ লক্ষ্মী, ফটো-প্রুফসহ): *"বারবার Reject করছে, কিন্তু Reject হচ্ছে না।"*
+     * পর্দায় **"Moved to Reject list"** দেখাত, তবু কার্ডটা তালিকায় থেকে যেত।
+     *
+     * **আসল কারণ (কোড ধরে খুঁজে পাওয়া, আন্দাজ নয়):**
+     * এনকোয়ারি ট্যাবে কিছু কার্ড আসে **`enquiries` টেবিল থেকে** — যখন ওই
+     * নম্বরের `followups` সারিটা কোনো কারণে তৈরি হয়নি (সেভের সময় লাইন কেটে
+     * যাওয়া ইত্যাদি)। ওই কার্ডের `id` তখন **`enquiries` সারির আইডি**।
+     * Reject চাপলে `followups` টেবিলে ওই আইডি দিয়ে বদল পাঠানো হত — যেখানে
+     * ওই আইডির কোনো সারিই নেই। **Supabase তখনো "200 OK" বলে** (শূন্য সারি
+     * বদলালেও), তাই অ্যাপ ভাবত কাজ হয়ে গেছে ও "Moved to Reject list" দেখাত —
+     * অথচ ডেটাবেসে কিছুই বদলায়নি, তাই পরের বার তালিকায় নামটা আবার আসত।
+     *
+     * **এই ফাংশন সেটাই বন্ধ করে:** বদল পাঠানোর আগে নিশ্চিত করে যে
+     * `followups`-এ সত্যিই একটা সারি **আছে** — না থাকলে সারিটা **তৈরি করে
+     * দেয়**, তারপর তার আসল আইডি ফেরত দেয়। তাই Reject · রিমার্ক · পরের কলের
+     * তারিখ — কোনোটাই আর ফাঁকা জায়গায় গিয়ে হারাবে না।
+     *
+     * 🔒 **ডুপ্লিকেট তৈরি হওয়া ঠেকানো (সবচেয়ে জরুরি):** খোঁজার জন্য
+     * `fetchListOrNull` ব্যবহার হয় — **নেট খারাপ হলে সেটা `null` ফেরত দেয়**,
+     * আর তখন পুরনো আচরণেই ফিরে যাওয়া হয় (কার্ডের নিজের আইডি), **নতুন সারি
+     * তৈরি করা হয় না**। শুধু ক্লাউড স্পষ্ট করে "এই নম্বরের কোনো সারি নেই"
+     * বললে তবেই একটা সারি লেখা হয়। ⛔ তাই একই রোগীর দুটো সারি কখনো হবে না।
+     *
+     * ⛔ কোনো ডিজাইন · ছাঁকনি · টাকার হিসাব বদলায় না। বাড়তি ক্লাউড-কল নেই —
+     * আগের `resolveFollowUpId()`-ও ঠিক এই দুটো খোঁজাই করত।
+     */
+    fun ensureFollowUpRowId(item: FollowUpItem): String {
+        return try {
+            val m = item.mobile.filter { it.isDigit() }.takeLast(10)
+            if (m.length != 10) return item.id
+
+            val sameStage = SupabaseClient.fetchListOrNull(
+                "followups", "mobile=like.*$m&stage=eq.${item.stage}", 5
+            ) ?: return item.id                       // নেট খারাপ — পুরনো আচরণ
+            if (sameStage.length() > 0) {
+                val rid = sameStage.getJSONObject(0).optString("id")
+                if (rid.isNotBlank()) return rid
+            }
+
+            val anyStage = SupabaseClient.fetchListOrNull(
+                "followups", "mobile=like.*$m", 5
+            ) ?: return item.id                       // নেট খারাপ — পুরনো আচরণ
+            if (anyStage.length() > 0) {
+                val rid = anyStage.getJSONObject(0).optString("id")
+                if (rid.isNotBlank()) return rid
+            }
+
+            // ক্লাউডে এই নম্বরের কোনো সারি নেই। তার মানে দুটোর একটা —
+            //   (ক) সারিটা **এই ফোনে** সেভ হয়েছে কিন্তু ক্লাউডে ওঠেনি, অথবা
+            //   (খ) সারিটা সত্যিই কোথাও নেই (কম্পিউটার থেকে শুধু এনকোয়ারি
+            //       লেখা হয়েছিল, ফলো-আপের সারি তৈরি হয়নি)।
+            // (ক)-এর ক্ষেত্রে **নতুন সারি বানানো যাবে না** — তাহলে ফোনের
+            // পুরনো সারিটা Active থেকে যেত আর Reject করা কার্ড ফোনের তালিকায়
+            // আবার ফিরে আসত। তাই আগে ফোনের নিজের খাতা দেখা হয়।
+            val ctx = context
+            if (ctx != null) {
+                val mine = try { LocalWorkflowStore(ctx).findFollowUpByMobile(item.mobile) } catch (_: Throwable) { null }
+                val mineId = mine?.optString("id") ?: ""
+                if (mineId.isNotBlank()) return mineId
+            }
+
+            // (খ) — সত্যিই কোথাও নেই, এখন একটা সারি তৈরি করা নিরাপদ।
+            // গঠনটা এনকোয়ারি-ফলব্যাকের `healRow`-এর হুবহু একই, যাতে দুই পথে
+            // তৈরি সারি কখনো আলাদা না হয়।
+            // 🔒 খাতার সারি B80 (TK, 29.07.2026 — *"এন্ট্রিটা আমি করেছিলাম, অন্য
+            // জনের নাম কেন দেখাচ্ছে?"*): নতুন সারিতে **কে তৈরি করেছিলেন** সেটা
+            // অবশ্যই বসাতে হবে, নইলে ঘরটা ফাঁকা থেকে যেত আর পরে "কে করেছে"
+            // বলাই যেত না। আসল এনকোয়ারি সারি থেকে সেটা তুলে আনা হয় —
+            // ⛔ এই একটামাত্র পড়া শুধু এই বিরল ক্ষেত্রেই হয় (যখন সারিটা সত্যিই
+            // কোথাও নেই), তাই রোজকার ব্যবহারে বাড়তি কোনো ক্লাউড-কল নেই।
+            var origCreatedBy = ""
+            try {
+                val src = SupabaseClient.findByMobile("enquiries", item.mobile, "createdBy,receivedBy", 1)
+                if (src.length() > 0) {
+                    val r = src.getJSONObject(0)
+                    origCreatedBy = r.s("createdBy").ifBlank { r.s("receivedBy") }
+                }
+            } catch (_: Throwable) { }
+
+            val newId = "fu_" + java.util.UUID.randomUUID().toString().replace("-", "")
+            val now = isoNow()
+            val row = JSONObject()
+                .put("id", newId)
+                .put("refId", item.id)
+                .put("mobile", item.mobile)
+                .put("name", item.name)
+                .put("branch", item.branch)
+                .put("disease", item.disease)
+                .put("address", item.address)
+                .put("stage", item.stage.ifBlank { "Inquiry" })
+                .put("date", item.recordDate)
+                .put("registrationDate", item.recordDate)
+                .put("visitDate", item.recordDate)
+                .put("lastRemark", item.lastRemark)
+                .put("nextFollow", item.nextFollow)
+                .put("callCount", item.callCount)
+                .put("status", "Active")
+                .put("history", JSONArray())
+                .put("createdBy", origCreatedBy)
+                .put("createdAt", item.createdAt.ifBlank { item.recordDate.ifBlank { now } })
+                .put("updatedAt", now)
+            val written = try { SupabaseClient.upsert("followups", row) } catch (_: Throwable) { false }
+            if (written) newId else item.id
+        } catch (_: Exception) { item.id }
+    }
+
+    /**
+     * 🚨 TK-REPORTED, LIVE (29.07.2026 রাত ৮.১০, দুটো ছবিসহ · খাতার সারি B96):
+     * *"Reject করছি এবং ডিলিট করছি — কোনটাতেই কোনো কাজ হয় না।"*
+     * (JHINUK BISWAS · 7872272742 · "Enquiry only — not registered")
+     *
+     * **আসল কারণ (কোড ধরে, আন্দাজ নয়):** এটা **খাতার সারি B78-এর হুবহু একই
+     * রোগ**, কিন্তু ওই ওষুধটা তখন শুধু Follow-up ও Follow-up ক্যালেন্ডার পর্দায়
+     * বসানো হয়েছিল — **রোগীর Timeline পর্দায় বসানো হয়নি**।
+     * ওখানকার `resolveFollowUpIdHere()` সারিটা না পেলে **এনকোয়ারির আইডিটাই**
+     * ফেরত দিত; তারপর `followups?id=eq.<এনকোয়ারির আইডি>`-তে বদল পাঠানো হত —
+     * **কোনো সারির সঙ্গে মেলে না, অথচ Supabase "200 OK" বলে**, তাই অ্যাপ
+     * ভাবত কাজ হয়ে গেছে আর আসলে কিছুই হত না।
+     *
+     * এই ফাংশনটা উপরের `ensureFollowUpRowId(item)`-এর **হুবহু একই কাজ** করে,
+     * শুধু `FollowUpItem`-এর বদলে আলাদা ঘরগুলো নেয় — কারণ Timeline পর্দায়
+     * `FollowUpItem` থাকে না। ⛔ নিয়ম · ধাপ · পাহারা সব এক, তাই দুই পথে ফল
+     * কখনো আলাদা হবে না।
+     */
+    fun ensureFollowUpRowIdFor(
+        mobile: String, stage: String, name: String, branch: String,
+        disease: String = "", lastRemark: String = "", nextFollow: String = "",
+        recordDate: String = "", fallbackId: String = ""
+    ): String {
+        // ⚠️ `bill` ও `paid` ঘর দুটোর কোনো ডিফল্ট নেই (`FollowUpModel.kt` দেখে
+        // মিলিয়ে নেওয়া), তাই দুটোই স্পষ্ট করে দিতে হয় — নইলে বিল্ড ভাঙত।
+        // ⛔ এখানে টাকার কোনো হিসাব লাগে না, তাই ০ — সারি খোঁজা/তৈরির কাজে
+        //    এই দুটো ঘর ব্যবহারই হয় না।
+        val item = FollowUpItem(
+            id = fallbackId,
+            name = name,
+            mobile = mobile,
+            branch = branch,
+            disease = disease,
+            stage = stage.ifBlank { "Inquiry" },
+            lastRemark = lastRemark,
+            nextFollow = nextFollow,
+            recordDate = recordDate,
+            bill = 0.0,
+            paid = 0.0
+        )
+        return ensureFollowUpRowId(item)
+    }
+
+    private fun isoNow(): String =
+        java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US).format(java.util.Date())
+}

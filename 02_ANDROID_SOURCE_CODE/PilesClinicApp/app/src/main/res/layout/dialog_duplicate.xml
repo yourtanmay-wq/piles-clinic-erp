@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_dialog_round">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@drawable/bg_dup_header"
+        android:padding="14dp">
+        <TextView
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:gravity="center"
+            android:background="@drawable/bg_dup_icon"
+            android:text="⚠️"
+            android:textSize="17sp"
+            android:layout_marginEnd="10dp" />
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="This number already exists in the system"
+            android:textColor="#FFFFFF"
+            android:textSize="14.5sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="4dp">
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:paddingVertical="8dp">
+            <TextView android:layout_width="70dp" android:layout_height="wrap_content" android:text="Name" android:textSize="11sp" android:textStyle="bold" android:textColor="#8A97A8" />
+            <TextView android:id="@+id/tvDupName" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:textSize="14sp" android:textStyle="bold" android:textColor="#10223A" />
+        </LinearLayout>
+        <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F3F8" />
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:paddingVertical="8dp">
+            <TextView android:layout_width="70dp" android:layout_height="wrap_content" android:text="Mobile" android:textSize="11sp" android:textStyle="bold" android:textColor="#8A97A8" />
+            <TextView android:id="@+id/tvDupMobile" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:textSize="14sp" android:textStyle="bold" android:textColor="#10223A" />
+        </LinearLayout>
+        <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F3F8" />
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:paddingVertical="8dp">
+            <TextView android:layout_width="70dp" android:layout_height="wrap_content" android:text="Branch" android:textSize="11sp" android:textStyle="bold" android:textColor="#8A97A8" />
+            <TextView android:id="@+id/tvDupBranch" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:textSize="14sp" android:textStyle="bold" android:textColor="#10223A" />
+        </LinearLayout>
+        <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#F0F3F8" />
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:paddingVertical="8dp">
+            <TextView android:layout_width="70dp" android:layout_height="wrap_content" android:text="Section" android:textSize="11sp" android:textStyle="bold" android:textColor="#8A97A8" />
+            <TextView android:id="@+id/tvDupSection" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:textSize="14sp" android:textStyle="bold" android:textColor="#10223A" />
+        </LinearLayout>
+
+        <!-- TK APPROVED (photo proof, 29.07.2026 8.50 pm) : khata row B133.
+             Shown ONLY when this record was already Rejected / Registration
+             Cancelled / Incomplete, so staff never bring it back unknowingly.
+             Hidden by default, so every other screen using this dialog looks
+             exactly as before. -->
+        <LinearLayout
+            android:id="@+id/boxDupClosed"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_dup_closed_warn"
+            android:padding="12dp"
+            android:layout_marginTop="10dp"
+            android:visibility="gone">
+            <TextView
+                android:id="@+id/tvDupClosedTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:textColor="#B3261E" />
+            <TextView
+                android:id="@+id/tvDupClosedWhen"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:textColor="#7A1F1F" />
+            <TextView
+                android:id="@+id/tvDupClosedWhere"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textSize="12sp"
+                android:textColor="#7A1F1F" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="16dp">
+        <TextView
+            android:id="@+id/btnDupClose"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="8dp"
+            android:gravity="center"
+            android:background="@drawable/bg_dup_ghost"
+            android:paddingVertical="12dp"
+            android:text="CANCEL"
+            android:textColor="#5B6B81"
+            android:textSize="12.5sp"
+            android:textStyle="bold"
+            android:clickable="true"
+            android:focusable="true" />
+        <TextView
+            android:id="@+id/btnDupView"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="8dp"
+            android:gravity="center"
+            android:background="@drawable/bg_dup_ghost"
+            android:paddingVertical="12dp"
+            android:text="VIEW"
+            android:textColor="#1067D8"
+            android:textSize="12.5sp"
+            android:textStyle="bold"
+            android:clickable="true"
+            android:focusable="true" />
+        <TextView
+            android:id="@+id/btnDupUpdate"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1.2"
+            android:gravity="center"
+            android:background="@drawable/bg_dup_primary"
+            android:paddingVertical="12dp"
+            android:text="UPDATE EXISTING"
+            android:textColor="#FFFFFF"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:visibility="gone"
+            android:clickable="true"
+            android:focusable="true" />
+    </LinearLayout>
+</LinearLayout>

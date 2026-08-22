@@ -1,0 +1,193 @@
+package com.tkbiswas.pilesclinic.native
+
+
+
+/**
+ * 🔴🔴🔒 V511 (২১.০৮.২০২৬, TK-নির্দেশ) — **Trash Bin-এর কার্ড ও 👁 View-এর লেখা।**
+ *
+ * TK-এর কথা: *"এই কার্ডেই পেশেন্ট এর সম্পূর্ণ ডিটেলস ছোট আকারে দেখানো থাকবে...
+ * ভিউ একটা অপশন থাকার দরকার ছিল, যাতে সেখানে চাপ দিলে অন্তত আমি একবার দেখে
+ * নিতে পারি যে এনাকে আমি রিস্টোর করবো না ডিলিট ফরএভার করব।"*
+ *
+ * ─── কেন আলাদা ফাইল ─────────────────────────────────────────────────────
+ * একই লেখা দু-জায়গায় লাগে — ছোট কার্ডে আর 👁 View পপ-আপে। দুই জায়গায় আলাদা
+ * করে লিখলে ভবিষ্যতে একটা বদলালে অন্যটা পিছিয়ে থাকত (এই প্রকল্পে এই ভুল আগে
+ * অনেকবার হয়েছে)। তাই নিয়মটা **এক জায়গায়**।
+ *
+ * ⛔ এই ফাইল কোনো তথ্য পড়ে না, লেখে না, ক্লাউডে যায় না — Trash সারির ভিতরে
+ *    **যে JSON আগে থেকেই আছে**, শুধু সেটাকে পড়ার মতো করে সাজায়।
+ * ⛔ সব লেখা **ইংরেজি** (TK: *"বাংলা থাকবে না"*)।
+ */
+object TrashCardText {
+
+    /** কোন টেবিল থেকে মোছা — চিপে দেখানোর নাম। */
+    fun sourceLabel(table: String): String = when (table.trim().lowercase()) {
+        "followups" -> "FOLLOW-UP"
+        "payments" -> "PAYMENT"
+        "enquiries" -> "ENQUIRY"
+        "patients" -> "PATIENT"
+        "doctor_visits" -> "DR. VISIT"
+        "medical" -> "MEDICINE"
+        else -> table.uppercase().ifBlank { "RECORD" }
+    }
+
+    /** কবে মোছা হয়েছে — কার্ডের ডানদিকের ছোট লেখা।
+     *  ⛔ `deletedAt` ফোনের নিজের ঘড়িতে লেখা হয় (শেষে শুধু 'Z' বসানো), তাই
+     *     UTC ধরে পড়লে সময় ৫:৩০ ঘণ্টা এগিয়ে যেত — ২৫.০৭.২০২৬-এ ধরা পড়া
+     *     সেই ফিক্সটাই এখানেও হুবহু রাখা হলো। */
+    fun whenText(item: TrashItem): String {
+        if (item.deletedAt.isBlank()) return ""
+        return try {
+            val d = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
+                .parse(item.deletedAt) ?: return ""
+            java.text.SimpleDateFormat("dd.MM.yyyy\nh:mm a", java.util.Locale.US).format(d)
+        } catch (_: Throwable) { "" }
+    }
+
+    /** কে মুছেছেন — মোবাইল নম্বরের বদলে স্টাফের নাম (২২.০৭.২০২৬-এর নিয়ম)। */
+    fun deletedByName(item: TrashItem): String {
+        if (item.deletedBy.isBlank()) return ""
+        return try {
+            StaffDirectory.findAccount(item.deletedBy)?.name ?: item.deletedBy
+        } catch (_: Throwable) { item.deletedBy }
+    }
+
+    /** তৃতীয় চিপ — টাকার অঙ্ক (payments) বা রোগের নাম (বাকিদের)। */
+    fun extraChip(item: TrashItem): String {
+        val r = item.record
+        val amt = r.s("amount").trim()
+        if (amt.isNotBlank() && amt != "0") {
+            val n = amt.replace(Regex("[^0-9.]"), "")
+            if (n.isNotBlank()) return "₹" + n.trimEnd('.').ifBlank { n }
+        }
+        val disease = r.s("disease").trim()
+        if (disease.isNotBlank()) return disease.uppercase()
+        return ""
+    }
+
+    /** কার্ডের ১ম লাইন — মোবাইল ও পেশেন্ট আইডি। */
+    fun line1(item: TrashItem): String {
+        val r = item.record
+        val parts = mutableListOf<String>()
+        val mob = r.s("mobile").trim()
+        if (mob.isNotBlank()) parts.add("📞 $mob")
+        val pid = r.s("patientId").trim().ifBlank { r.s("patientCode").trim() }
+        if (pid.isNotBlank()) parts.add(pid)
+        return parts.joinToString("  ·  ")
+    }
+
+    /** কার্ডের ২য় লাইন — টেবিল অনুযায়ী সবচেয়ে দরকারি ঘরগুলো। */
+    fun line2(item: TrashItem): String {
+        val r = item.record
+        val parts = mutableListOf<String>()
+        when (item.table.trim().lowercase()) {
+            "payments" -> {
+                addIf(parts, r.s("payType").trim())
+                addIf(parts, r.s("date").trim())
+                addIf(parts, r.s("mode").trim())
+                val by = r.s("receivedBy").trim()
+                if (by.isNotBlank()) parts.add("by $by")
+            }
+            "followups" -> {
+                addIf(parts, r.s("stage").trim())
+                val st = r.s("status").trim()
+                if (st.isNotBlank()) parts.add(st)
+                val nf = r.s("nextFollow").trim()
+                if (nf.isNotBlank()) parts.add("Next call $nf")
+            }
+            "patients" -> {
+                addIf(parts, r.s("registrationDate").trim())
+                val bill = r.s("bill").trim()
+                if (bill.isNotBlank() && bill != "0") parts.add("Bill ₹$bill")
+                addIf(parts, r.s("stage").trim())
+            }
+            "enquiries" -> {
+                addIf(parts, r.s("date").trim())
+                addIf(parts, r.s("refBy").trim())
+            }
+            else -> {
+                addIf(parts, r.s("date").trim())
+                addIf(parts, r.s("stage").trim())
+            }
+        }
+        return parts.joinToString("  ·  ")
+    }
+
+    private fun addIf(list: MutableList<String>, v: String) {
+        if (v.isNotBlank()) list.add(v)
+    }
+
+    /**
+     * 👁 View পপ-আপের সব ঘর — যে টেবিল থেকে মোছা হয়েছে, সেই অনুযায়ী।
+     * ⛔ `photo`-র মতো বিশাল ঘর ইচ্ছে করেই বাদ (পপ-আপ ভরে যেত)।
+     * ⛔ যে ঘর ফাঁকা, সেটা দেখানোই হয় না — পপ-আপ ছোট থাকে।
+     */
+    fun viewFields(item: TrashItem): List<Pair<String, String>> {
+        val r = item.record
+        val out = mutableListOf<Pair<String, String>>()
+        fun add(label: String, key: String) {
+            val v = r.s(key).trim()
+            if (v.isNotBlank()) out.add(label to v)
+        }
+        out.add("From" to sourceLabel(item.table))
+        add("Name", "name")
+        add("Mobile", "mobile")
+        add("Alt. mobile", "altMobile")
+        add("Patient ID", "patientId")
+        add("Patient code", "patientCode")
+        add("Branch", "branch")
+        when (item.table.trim().lowercase()) {
+            "payments" -> {
+                add("Pay type", "payType")
+                add("Amount", "amount")
+                add("Mode", "mode")
+                add("Date", "date")
+                add("Received by", "receivedBy")
+                add("Remarks", "remarks")
+            }
+            "followups" -> {
+                add("Stage", "stage")
+                add("Status", "status")
+                add("Disease", "disease")
+                add("Address", "address")
+                add("Last remark", "lastRemark")
+                add("Next call", "nextFollow")
+                add("Call count", "callCount")
+                add("Record date", "date")
+            }
+            "patients" -> {
+                add("Age", "age")
+                add("Sex", "sex")
+                add("Address", "address")
+                add("Disease", "disease")
+                add("Diagnosis", "diagnosis")
+                add("Stage", "stage")
+                add("Bill", "bill")
+                add("Discount", "discount")
+                add("Referred by", "refBy")
+                add("Registration date", "registrationDate")
+            }
+            "enquiries" -> {
+                add("Disease", "disease")
+                add("Address", "address")
+                add("Referred by", "refBy")
+                add("Date", "date")
+                add("Remarks", "remarks")
+            }
+            else -> {
+                add("Stage", "stage")
+                add("Status", "status")
+                add("Date", "date")
+                add("Remarks", "remarks")
+            }
+        }
+        add("Created by", "createdBy")
+        val by = deletedByName(item)
+        if (by.isNotBlank()) out.add("Deleted by" to by)
+        val w = whenText(item).replace("\n", "  ")
+        if (w.isNotBlank()) out.add("Deleted at" to w)
+        val rid = r.s("id").trim()
+        if (rid.isNotBlank()) out.add("Record ID" to rid)
+        return out
+    }
+}

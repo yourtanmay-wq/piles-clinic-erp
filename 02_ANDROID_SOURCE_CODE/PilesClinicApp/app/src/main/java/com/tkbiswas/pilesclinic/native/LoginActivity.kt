@@ -1,0 +1,215 @@
+package com.tkbiswas.pilesclinic.native
+
+import android.content.Intent
+import android.os.Bundle
+import android.text.InputType
+import android.view.View
+import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import com.tkbiswas.pilesclinic.databinding.ActivityLoginBinding
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+/**
+ * Native rebuild Step 1 -- Login.
+ *
+ * Authenticates against the same accounts the existing WebView login()
+ * function uses (see StaffDirectory.kt), checking a live Supabase password
+ * override first and falling back to the bundled role default password,
+ * exactly mirroring the JS login() priority order. On success, hands off to
+ * the native Dashboard. All screens are now native; the WebView has been
+ * removed. The bundled assets/www now holds only the branch logo/icon
+ * images used for printing -- the unused old app.js/config.js/styles.css/
+ * index.html/manifest.json web-copy was deleted (B271, 02.08.2026, TK
+ * approved); the live website (03_NETLIFY_READY) is the reference now.
+ */
+class LoginActivity : AppCompatActivity() {
+
+    private lateinit var binding: ActivityLoginBinding
+    private var passwordVisible = false
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityLoginBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        // V367 live-photo proof: some phones re-applied the theme's navy tint
+        // over the green XML drawable. Pin this one button to the approved
+        // green at runtime; no other button or screen is affected.
+        binding.btnLogin.backgroundTintList = android.content.res.ColorStateList.valueOf(
+            android.graphics.Color.parseColor("#07883F")
+        )
+        UppercaseInputUtil.applyToAll(binding.root)  // TK-REQUESTED GLOBAL RULE (2026-07-24): English text auto-CAPITAL, Password fields excluded automatically
+
+        // Already logged in from a previous app open -- skip straight to Dashboard.
+        val existing = NativeSession.current(this)
+        if (existing != null) {
+            openDashboard()
+            return
+        }
+
+        binding.btnTogglePassword.setOnClickListener {
+            passwordVisible = !passwordVisible
+            binding.etPassword.inputType = if (passwordVisible) {
+                InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+            } else {
+                InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            }
+            binding.etPassword.setSelection(binding.etPassword.text.length)
+        }
+
+        binding.btnLogin.setOnClickListener { attemptLogin() }
+        binding.tvForgot.setOnClickListener { showForgotPassword() }
+    }
+
+    private fun attemptLogin() {
+        val mobileRaw = binding.etMobile.text.toString()
+        val password = binding.etPassword.text.toString().trim()
+        hideError()
+
+        val mobile = StaffDirectory.normalizeMobile(mobileRaw)
+        if (mobile.length != 10) {
+            showError("Enter a valid 10-digit mobile number")
+            return
+        }
+        if (password.isEmpty()) {
+            showError("Password required")
+            return
+        }
+
+        val account = StaffDirectory.findAccount(mobile)
+        if (account == null) {
+            showError("Mobile number not found")
+            return
+        }
+
+        setLoading(true)
+        lifecycleScope.launch {
+            // TK-REQUESTED SECURITY FIX (2026-07-23): three clearly-separated
+            // cases now (was: any null -> accept default, which let a network
+            // glitch OR a set custom password both be bypassed by the old
+            // default):
+            //   HasCustom -> ONLY that custom password works (default rejected).
+            //   NoCustom  -> the role default works (server confirmed no custom).
+            //   Failed    -> could not reach the server: do NOT silently accept
+            //                the default; show an error and let the user retry.
+            val state = withContext(Dispatchers.IO) {
+                CloudPasswordCheck.fetchOverridePasswordState(mobile)
+            }
+            setLoading(false)
+
+            val ok = when (state) {
+                is CloudPasswordCheck.PasswordState.HasCustom -> {
+                    // 🔒 V216 (§4, 31.07.2026): custom password যাচাই।
+                    //  • hash থাকলে → PBKDF2 hash দিয়ে মেলানো (DB-তে plaintext লাগে না)।
+                    //  • hash না থাকলে → আগের মতোই plaintext মেলানো, আর সফল হলে
+                    //    তখনই hash বসিয়ে দেওয়া হয় (lazy migration) — পরের বার থেকে
+                    //    hash দিয়েই যাচাই হবে, কিছু না ভেঙে ধীরে ধীরে সব hash হয়ে যায়।
+                    if (PasswordHasher.isHash(state.passwordHash)) {
+                        PasswordHasher.verify(password, state.passwordHash)
+                    } else {
+                        val plainOk = state.password.isNotBlank() && password == state.password
+                        if (plainOk) {
+                            // background-এ hash বসানো — login-কে থামায় না, ব্যর্থ হলেও ক্ষতি নেই।
+                            val toStore = password
+                            lifecycleScope.launch(Dispatchers.IO) {
+                                try { CloudPasswordCheck.storePasswordHash(mobile, PasswordHasher.hash(toStore)) } catch (_: Throwable) { }
+                            }
+                        }
+                        plainOk
+                    }
+                }
+                is CloudPasswordCheck.PasswordState.NoCustom ->
+                    password == StaffDirectory.defaultPasswordFor(account.role)
+                is CloudPasswordCheck.PasswordState.Failed -> {
+                    showError("Network problem — could not verify password. Please check your internet and try again.")
+                    return@launch
+                }
+            }
+
+            if (ok) {
+                // 🔵🔒 B618 (11.08.2026, TK-নির্দেশ): সাসপেন্ড-চেক (শুধু master ছাড়া)।
+                // ⛔ fail-open — নেট/ত্রুটিতে fetchSuspendedUntil null ফেরে, তখন কখনো
+                // আটকাবে না (কেউ যেন ভুলে লক না হয়); শুধু স্পষ্ট suspended_until >= আজ
+                // হলে আটকাবে। master কখনো সাসপেন্ড নয়।
+                if (account.role != "master") {
+                    val suspUntil = withContext(Dispatchers.IO) { CloudPasswordCheck.fetchSuspendedUntil(mobile) }
+                    val todayIst = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+                        .apply { timeZone = java.util.TimeZone.getTimeZone("Asia/Kolkata") }.format(java.util.Date())
+                    // 🔴 V404 (16.08.2026): বাদ-দেওয়া কর্মীর জন্য SQL এখন
+                    //    2999-12-31 ফেরায় (`suspended_until_for`)। তখন
+                    //    "suspended until 2999-12-31" লেখা বিভ্রান্তিকর — তাই
+                    //    আলাদা, পরিষ্কার বার্তা। ⛔ সাধারণ সাসপেন্ডের বার্তা ও
+                    //    আচরণ হুবহু আগের মতোই, fail-open-ও অটুট।
+                    if (suspUntil != null && suspUntil >= todayIst) {
+                        if (suspUntil >= "2900-01-01") {
+                            showError("This account has been removed. Please contact the master.")
+                        } else {
+                            showError("You are suspended until $suspUntil. Please contact the master.")
+                        }
+                        return@launch
+                    }
+                }
+                val user = NativeUser(account.mobile, account.name, account.branch, NativeUser.permissionRole(account.role), account.role)
+                NativeSession.save(this@LoginActivity, user)
+                openDashboard()
+            } else {
+                showError("Wrong password")
+            }
+        }
+    }
+
+    private fun openDashboard() {
+        startActivity(Intent(this, DashboardActivity::class.java))
+        finish()
+    }
+
+    private fun setLoading(loading: Boolean) {
+        binding.progressLogin.visibility = if (loading) View.VISIBLE else View.GONE
+        binding.btnLogin.isEnabled = !loading
+        binding.btnLogin.alpha = if (loading) 0.6f else 1f
+    }
+
+    private fun showError(message: String) {
+        binding.tvError.text = message
+        binding.tvError.visibility = View.VISIBLE
+    }
+
+    private fun hideError() {
+        binding.tvError.visibility = View.GONE
+    }
+
+    /**
+     * Native port of forgotPasswordFlow(): looks up the entered mobile and gives
+     * the correct recovery path — Master resets via their own account, everyone
+     * else is reset by the Master from the Password Center.
+     */
+    private fun showForgotPassword() {
+        val digits = binding.etMobile.text.toString().filter { it.isDigit() }.takeLast(10)
+        if (digits.length != 10) {
+            android.app.AlertDialog.Builder(this)
+                .setCustomTitle(PremiumAlert.header(this, "Forgot Password"))
+                .setMessage("Enter your registered mobile number first, then tap 'Forgot Password?'.")
+                .setPositiveButton("OK", null).show().also { PremiumAlert.paint(it) }
+            return
+        }
+        val acc = StaffDirectory.findAccount(digits)
+        // 🔴 B413 (04.08.2026) — লগইন হওয়ার আগে কোনো সেশন থাকে না, তাই
+        // NoBengali.active() এখানে কখনো কাজ করত না। এখন সরাসরি মোবাইল নম্বর
+        // দিয়ে যাচাই করা হয় — KNE-KISHAN5 এখন এখানেও শুধু ইংরেজি দেখবেন।
+        val noBengali = NoBengali.isNoBengaliMobile(digits)
+        val msg = when {
+            acc == null -> if (noBengali) "This mobile number is not registered. Enter the correct number."
+                else "এই মোবাইল নম্বরটি রেজিস্টার্ড নয়। সঠিক নম্বর দিন।"
+            acc.role == "master" -> if (noBengali) "To reset the Master admin password, log in with the default master password and set a new one from Password Center."
+                else "Master অ্যাডমিন পাসওয়ার্ড রিসেটের জন্য ডিফল্ট master পাসওয়ার্ড দিয়ে লগইন করে Password Center থেকে নতুন পাসওয়ার্ড সেট করুন।"
+            else -> if (noBengali) "To reset your password, ask the Master admin — they can change your (${acc.name}) password from Password Center."
+                else "আপনার পাসওয়ার্ড রিসেট করতে Master অ্যাডমিনকে বলুন — তিনি Password Center থেকে আপনার (${acc.name}) পাসওয়ার্ড পাল্টে দিতে পারবেন।"
+        }
+        android.app.AlertDialog.Builder(this)
+            .setCustomTitle(PremiumAlert.header(this, "Forgot Password"))
+            .setMessage(msg)
+            .setPositiveButton("OK", null)
+            .show().also { PremiumAlert.paint(it) }
+    }
+}

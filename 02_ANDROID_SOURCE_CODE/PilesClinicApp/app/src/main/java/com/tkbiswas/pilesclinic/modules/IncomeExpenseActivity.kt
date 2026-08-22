@@ -1,0 +1,2712 @@
+/* =====================================================================
+   V245 — MODULE 3 : INCOME & EXPENSE. Manual entries only.
+   Master: all branches. B617 (11.08.2026): অংশীদার-ডাক্তারও নিজের ব্রাঞ্চে
+   আয়-ব্যয় লিখতে/দেখতে পারেন (Amit Goldar · P.K Roy বাদ) — ব্রাঞ্চ লক।
+   Never reads/writes existing Patient Payment/Refund/Collection. Data in
+   schema `fin` (RLS: master সব; partner নিজের ব্রাঞ্চ, V307/V310)।
+   ===================================================================== */
+package com.tkbiswas.pilesclinic.modules
+
+import android.app.Activity
+import android.os.Bundle
+import android.text.InputType
+import android.widget.ArrayAdapter
+import android.widget.LinearLayout
+import android.widget.Spinner
+import androidx.appcompat.app.AppCompatActivity
+import com.tkbiswas.pilesclinic.native.NativeSession
+import com.tkbiswas.pilesclinic.native.TableRowEqualizer
+import com.tkbiswas.pilesclinic.native.s
+import org.json.JSONArray
+import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.TimeZone
+
+class IncomeExpenseActivity : AppCompatActivity() {
+
+    // 🔴 বাগ-ফিক্স (02.08.2026, TK-রিপোর্ট): এই পর্দাগুলো একই Activity-র ভিতরে
+    // setContentView বদলে বদলে দেখানো হয় (আলাদা Activity/Fragment নয়), তাই ফোনের
+    // সিস্টেম Back বোতাম আগে সরাসরি পুরো Activity বন্ধ করে দিত (হোমে চলে যেত),
+    // ভিতরের কোন পর্দায় আছি সেটা বিবেচনাই করত না। এখন প্রতিটা পর্দা খোলার সময়
+    // backAction-এ "কোথায় ফিরব" লেখা থাকে; সিস্টেম Back সেটাই মেনে চলে।
+    private var backAction: () -> Unit = { finish() }
+    override fun onBackPressed() { backAction() }
+
+    /* 🔴🔒 V418 (TK-রিপোর্ট: "এত ডুপ্লিকেট কেন হবে") — একটা টাকার এন্ট্রি সেভ
+       হওয়ার মাঝপথে দ্বিতীয় সেভ শুরু হতে দেওয়া হয় না। ⛔ পর্দা নতুন করে খুললেই
+       তালা খুলে যায় (নিচে Add Collection / Add Expense-এ), তাই কোনো অবস্থাতেই
+       বোতাম চিরতরে আটকে থাকতে পারে না। */
+    private var ieSaveBusy: Boolean = false
+
+    // 🟢🆕 TK-অনুমোদিত (10.08.2026): হোমের "আজকের হিসাব" কার্ড কোন ব্রাঞ্চের দেখাবে (ডিফল্ট সব)।
+    private var homeBranch: String = "All Branches"
+
+    /* 🟢🔒 V398 (16.08.2026, TK-অনুমোদিত): টাকার হিসাবও এখন **একই মনে-রাখা ব্রাঞ্চ**
+       মানে (native/BranchFilterStore)। এখানে নামটা "All Branches", ওখানে "All" —
+       তাই এই দুটো ছোট অনুবাদক। ⛔ অংশীদার-ডাক্তারের ব্রাঞ্চ-লক (B617) অটুট।
+       ⛔ কিছু বাছা না-থাকলে আগের মতোই "All Branches" — টাকার পর্দা কখনো ফাঁকা হয় না। */
+    private fun v398Branch(): String {
+        val v = com.tkbiswas.pilesclinic.native.BranchFilterStore.get(this)
+        return when {
+            v == com.tkbiswas.pilesclinic.native.BranchFilterStore.ALL -> "All Branches"
+            v.isNotBlank() -> v
+            else -> "All Branches"
+        }
+    }
+    private fun v398Remember(v: String) {
+        com.tkbiswas.pilesclinic.native.BranchFilterStore.set(
+            this, if (v == "All Branches") com.tkbiswas.pilesclinic.native.BranchFilterStore.ALL else v)
+    }
+
+    // 🔵🔒 B617 (11.08.2026, TK-নির্দেশ, প্রুফ-অনুমোদিত): অংশীদার-ডাক্তার নিজের
+    // ব্রাঞ্চের আয়-ব্যয় লিখতে/দেখতে পারবেন (master সবখানে, ডাক্তার নিজ ব্রাঞ্চে-লক)।
+    // Amit Goldar · P.K Roy অংশীদার নন (শুধু রোগী দেখেন) — তাঁরা ঢুকতে পারবেন না।
+    // ⛔ আসল নিরাপত্তা DB-র RLS-এ (fin.can_entry_branch / is_my_partner_branch);
+    //    এই UI-গেট শুধু পর্দা খোলা/ব্রাঞ্চ-লক করে, টাকার সুরক্ষা DB-ই দেয়।
+    private val PATIENT_ONLY_DOCTORS = setOf("9046366596", "6297625447")  // Amit Goldar, P.K Roy
+    private fun mob10(s: String?): String = (s ?: "").filter { it.isDigit() }.takeLast(10)
+    private val isPartnerDoctor: Boolean
+        get() {
+            val u = NativeSession.current(this) ?: return false
+            return !ModuleAuth.isMaster && u.displayRole == "doctor" && mob10(u.mobile) !in PATIENT_ONLY_DOCTORS
+        }
+    // ডাক্তার হলে তাঁর নিজের লগইন-ব্রাঞ্চ (লক); master হলে null (সব ব্রাঞ্চ বাছা যায়)।
+    // 🟢 V401: চাবি-পাওয়া staff/doctor-ও নিজের ব্রাঞ্চে লক — চাবির টেবিলে যে ব্রাঞ্চ
+    //          লেখা আছে সেটাই। একাধিক ব্রাঞ্চে চাবি থাকলে লক নয়, শুধু ওই ক'টার মধ্যে বাছাই।
+    private val lockedBranch: String?
+        get() = when {
+            isPartnerDoctor -> NativeSession.current(this)?.branch?.takeIf { it.isNotBlank() }
+            ModuleAuth.isMaster -> null
+            else -> IePermit.cached(this).singleOrNull()
+        }
+
+    /** এই ব্যবহারকারী কোন কোন ব্রাঞ্চ বাছতে পারবেন (মাস্টার হলে সব + All Branches)। */
+    private fun ieBranchChoices(): List<String> = when {
+        ModuleAuth.isMaster -> listOf("All Branches") + BRANCHES
+        isPartnerDoctor -> listOfNotNull(lockedBranch)
+        else -> IePermit.cached(this)
+    }
+    // এন্ট্রির created_by: ডাক্তার-অংশীদারের ক্ষেত্রে DB-র RLS created_by-র শেষ ১০ অঙ্ক
+    // = নিজের মোবাইল মেলায়, তাই মোবাইল বসাই (নইলে লেখা RLS আটকাবে)। master-এ আগের কোড।
+    private fun entryCreatedBy(): String =
+        if (isPartnerDoctor) mob10(NativeSession.current(this)?.mobile) else (ModuleAuth.personCode ?: "master")
+
+    private val BRANCHES = listOf("Kishanganj", "Jalpaiguri", "Cooch Behar", "Falakata", "Birpara")
+    // 🔵🔒 Category তালিকা (09.08.2026, TK-অনুমোদিত): লেখা TK-র, চেহারা প্রফেশনাল — যেগুলোতে
+    // " — " আছে সেগুলো ডায়ালগে মূল-লেখা (বোল্ড) + নিচে ছোট সাব-লেখা দেখায় (catDisplay দেখুন)।
+    private val CATS = listOf(
+        "RMP Commission", "Staff unexpected time Commission", "Staff Salary", "Chamber Rent",
+        "Bills — Electricity / Water / Internet", "Medicine / Surgical", "Advertisement",
+        "Office — Printing / Cleaning / Repair / Equipment", "Transport / Parcel", "Food",
+        "License / Govt Fee", "Other Expense"
+    )
+    // মূল-লেখা (বোল্ড) + সাব-লেখা (ধূসর) — " — " দিয়ে ভাগ; না থাকলে যেমন আছে তেমন।
+    private fun catDisplay(v: String): CharSequence {
+        val i = v.indexOf(" — ")
+        if (i <= 0) return v
+        val main = v.substring(0, i); val sub = v.substring(i + 3)
+        return android.text.Html.fromHtml("<b>" + main + "</b><br><small><font color=\"#8A95A5\">" + sub + "</font></small>")
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val code = NativeSession.current(this)?.name ?: ""
+        ModuleUi.ensureSignedIn(this, code) {
+            /* 🟢🔒 V401 (TK-নির্দেশ): মাস্টার ও অংশীদার-ডাক্তারের পথ **হুবহু আগের মতোই**।
+               বাকিদের (staff / অন্য doctor) জন্য নতুন পথ — মাস্টার চাবি চালু করলে তবেই।
+               চাবিটা ক্লাউড থেকে একবার মিলিয়ে নেওয়া হয়, তাই পুরনো তথ্যে ভুল বার্তা আসে না। */
+            if (ModuleAuth.isMaster || isPartnerDoctor) {
+                // 🔵 B617: ডাক্তার হলে নিজের ব্রাঞ্চেই শুরু ও লক (master হলে আগের মতোই)।
+                lockedBranch?.let { homeBranch = it }
+                renderMenu()
+            } else {
+                val col = ModuleUi.screen(this, "Income & Expense")
+                col.addView(ModuleUi.body(this, "Checking…"))
+                Thread {
+                    val branches = IePermit.refresh(this)
+                    runOnUiThread {
+                        if (branches.isNotEmpty()) {
+                            lockedBranch?.let { homeBranch = it }
+                            renderMenu()
+                        } else {
+                            val c2 = ModuleUi.screen(this, "Income & Expense")
+                            c2.addView(ModuleUi.body(this,
+                                "You do not have permission to enter Income & Expense.\n\nPlease ask the Master to switch it on."))
+                            c2.addView(ModuleUi.button(this, "Back") { finish() })
+                        }
+                    }
+                }.start()
+            }
+        }
+    }
+
+    /* 🟢🔒 V401 — নিচের ছোট প্রশ্নগুলো থেকেই বাকি সব পর্দা ঠিক হয়।
+       ⛔ মাস্টারের ক্ষেত্রে সবকটাই আগের মতোই "সব পারবে"। */
+    /** মাস্টার নন — অর্থাৎ যার উপরে তারিখ ও ব্রাঞ্চের নিয়ম খাটবে। */
+    private val ieRestricted: Boolean get() = !ModuleAuth.isMaster
+    /** ডাক্তার (অংশীদার হোন বা না হোন) — পুরনো হিসাব **দেখতে** পাবেন। */
+    private val ieIsDoctor: Boolean
+        get() = NativeSession.current(this)?.displayRole == "doctor"
+    /** তারিখটা কি আজকের? (ভারতীয় সময় — ডেটাবেসের fin.ie_today()-এর সাথে এক) */
+    private fun ieIsToday(iso: String): Boolean = iso == todayIso()
+
+    private fun todayIso(): String {
+        val f = SimpleDateFormat("yyyy-MM-dd", Locale.US); f.timeZone = TimeZone.getTimeZone("Asia/Kolkata")
+        return f.format(java.util.Date())
+    }
+    /* 🔴 V430 (TK-সিদ্ধান্ত ১৮.০৮.২০২৬: "₹2,10,850 — ভারতীয় ভাগ") — এই একটা
+       জায়গায় `Locale.US` বসানো ছিল, তাই ২,১০,৮৫০-এর বদলে ২১০,৮৫০ দেখাত —
+       অ্যাপের বাকি সব পর্দার (ও কম্পিউটারের) সঙ্গে মিলত না। এখন ভারতীয়
+       ভাগেই দেখাবে। ⛔ অঙ্ক একটুও বদলায়নি, শুধু কমা বসার জায়গা। */
+    private fun money(n: Double): String = "₹" + com.tkbiswas.pilesclinic.native.MoneyFormat.inr(n)
+
+    // 🔵 খাতার সারি (TK-নির্দেশ, 09.09.2026 — Add Collection/Expense তারিখ):
+    // তারিখ **দেখায় dd.MM.yyyy** কিন্তু ভেতরে (tag-এ) **yyyy-MM-dd জমা** রাখে —
+    // entry_date query/report/sort সব ISO ধরেই চলে, তাই কিছু ভাঙে না।
+    // 🔵 তারিখ দেখানোর ফরম্যাট — খাতার মতোই dd/mm/yyyy (TK-অনুমোদিত)। ⛔ ভেতরে/ক্লাউডে
+    // তারিখ সবসময় yyyy-mm-dd (ISO)-ই থাকে (ঘরের .tag-এ), শুধু চোখে দেখা slash-এ।
+    private fun slashIso(iso: String): String = try {
+        val p = iso.split("-"); if (p.size == 3) "${p[2]}/${p[1]}/${p[0]}" else iso
+    } catch (e: Exception) { iso }
+    // read-only তারিখ-ঘর: চাপলেই ক্যালেন্ডার খোলে (পুরনো দিনও বাছা যায়, কোনো ইমোজি নেই)।
+    private fun dateField(seedIso: String = todayIso()): android.widget.EditText {
+        val f = ModuleUi.input(this, "Date")
+        f.setText(slashIso(seedIso)); f.tag = seedIso
+        f.isFocusable = false; f.isFocusableInTouchMode = false; f.isClickable = true; f.keyListener = null
+        f.setOnClickListener {
+            val cur = (f.tag as? String) ?: seedIso
+            val cal = java.util.Calendar.getInstance(TimeZone.getTimeZone("Asia/Kolkata"))
+            try { val p = cur.split("-"); cal.set(p[0].toInt(), p[1].toInt() - 1, p[2].toInt()) } catch (_: Exception) { }
+            android.app.DatePickerDialog(this, { _, y, m, d ->
+                val iso = String.format(Locale.US, "%04d-%02d-%02d", y, m + 1, d)
+                f.tag = iso; f.setText(slashIso(iso))
+            }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH), cal.get(java.util.Calendar.DAY_OF_MONTH)).show()
+        }
+        return f
+    }
+
+    // =====================================================================
+    // 🆕 Ledger Sheet (02.08.2026, TK-নির্দেশে, ধাপে ধাপে মকআপ দেখিয়ে অনুমোদন) —
+    // Google Sheet-এর মতো গ্রিড: Date | Cash | Online | Expense। Expense ঘরে
+    // TK নিজের ভাষায় একাধিক আইটেম লিখবেন (এক লাইনে একাধিকও চলবে); বাক্সের
+    // ভেতরের **সব সংখ্যা** (যেখানেই থাকুক) যোগ হয়ে অটো-টোটাল দেখায়। পুরনো Add
+    // Collection/Add Expense/Daily Ledger/Monthly Summary — কোনোটাই বদলায়নি,
+    // এটা শুধু একটা নতুন, আলাদা, সহজ পথ (fin.collections-এর নতুন কলামে সেভ হয়,
+    // পুরনো fin.expenses টেবিল এই পথে ছোঁয়া হয় না)।
+    // =====================================================================
+
+    /** বাক্সের ভেতরের সব সংখ্যা (কমা-সহ হলেও) খুঁজে যোগ করে — নাম/শব্দ এমনিতেই বাদ পড়ে। */
+    private fun sumNumbersInText(text: String): Double {
+        val re = Regex("[0-9][0-9,]*")
+        var total = 0.0
+        for (m in re.findAll(text)) {
+            val n = m.value.replace(",", "").toDoubleOrNull()
+            if (n != null) total += n
+        }
+        return total
+    }
+
+    private fun monthLabel(ym: String): String = try {
+        val yy = ym.substring(0, 4).toInt(); val mo = ym.substring(5, 7).toInt()
+        val names = arrayOf("January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December")
+        names[mo - 1] + " " + yy
+    } catch (e: Exception) { ym }
+
+    // 🔵🔒 টাকার খাতা — TK-অনুমোদিত প্রুফ (09.08.2026): এটা শুধু পুরনো এন্ট্রি দেখার খাতা
+    // (এখানে নতুন এন্ট্রি হয় না — টাকা জমা Add Collection-এ হয়)। উপরে সবুজ হেডারে **একটাই**
+    // ব্রাঞ্চ-চিপ + রিফ্রেশ (ফর্মে আর আলাদা Branch ঘর নেই — TK: "দু জায়গায় কেন"), একটাই
+    // Month বাছাই, **Back/Show একদম নিচে** (fillViewport + spacer)। কোনো দিন এডিট করতে সেই
+    // সারিতে **তিনবার চাপ**; খরচে **একবার** চাপ দিলে ভাঙা-হিসাব। ⛔ টাকার হিসাব/সেভ অটুট।
+    private fun sheet(initialYm: String? = null) {
+        backAction = { renderMenu() }
+        val scroll = android.widget.ScrollView(this).apply {
+            setBackgroundColor(android.graphics.Color.parseColor("#F4FBF6"))
+            isFillViewport = true
+        }
+        val col = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(16))
+        }
+        scroll.addView(col); setContentView(scroll)
+
+        var branchSel = lockedBranch ?: v398Branch()   // 🔵 B617 · 🟢🔒 V398: মনে-রাখা ব্রাঞ্চ
+        val out = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        var reload: () -> Unit = {}
+
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dp(14), dp(13), dp(12), dp(13))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(14).toFloat()
+                orientation = android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT
+                colors = intArrayOf(
+                    android.graphics.Color.parseColor("#0B4F2A"),
+                    android.graphics.Color.parseColor("#16A34A")
+                )
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(12) }
+        }
+        header.addView(android.widget.TextView(this).apply {
+            text = "←  📒 টাকার খাতা"; textSize = 18f
+            setTextColor(android.graphics.Color.WHITE)
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            isClickable = true
+            setOnClickListener { renderMenu() }
+        })
+        val branchItems = (listOf("All Branches") + BRANCHES).toTypedArray()
+        val branchLocked = lockedBranch != null   // 🔵 B617
+        val branchChip = android.widget.TextView(this).apply {
+            text = if (branchLocked) "🏥 $branchSel 🔒" else "🏥 $branchSel ▾"; textSize = 13f
+            setTextColor(android.graphics.Color.WHITE)
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setPadding(dp(10), dp(6), dp(10), dp(6))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(10).toFloat()
+                setColor(android.graphics.Color.parseColor("#33FFFFFF"))
+                setStroke(dp(1), android.graphics.Color.parseColor("#88FFFFFF"))
+            }
+            isClickable = !branchLocked
+        }
+        if (!branchLocked) branchChip.setOnClickListener {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "ব্রাঞ্চ বাছুন"))
+                .setItems(branchItems) { _, which ->
+                    branchSel = branchItems[which]
+                    v398Remember(branchSel)   // 🟢🔒 V398: সব পর্দার জন্য মনে রাখা
+                    branchChip.text = "🏥 " + branchItems[which] + " ▾"
+                    reload()
+                }
+                .show().also { try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) { } }
+        }
+        header.addView(branchChip)
+        header.addView(android.widget.TextView(this).apply {
+            text = "↻"; textSize = 20f
+            setTextColor(android.graphics.Color.WHITE)
+            setPadding(dp(10), 0, dp(2), 0)
+            isClickable = true
+            setOnClickListener { reload() }
+        })
+        col.addView(header)
+
+        val month = android.widget.EditText(this).apply {
+            isFocusable = false; isClickable = true
+            inputType = InputType.TYPE_NULL
+            val ym = initialYm ?: todayIso().substring(0, 7)
+            setText(monthLabel(ym)); tag = ym
+        }
+        month.setOnClickListener {
+            val yms = ArrayList<String>()
+            val cal = java.util.Calendar.getInstance()
+            for (k in 0 until 15) {
+                yms.add(String.format(Locale.US, "%04d-%02d",
+                    cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH) + 1))
+                cal.add(java.util.Calendar.MONTH, -1)
+            }
+            val labels = yms.map { monthLabel(it) }.toTypedArray()
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "মাস বাছুন"))
+                .setItems(labels) { _, which ->
+                    month.tag = yms[which]; month.setText(labels[which]); reload()
+                }
+                .show().also { try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) { } }
+        }
+        col.addView(entryCard(listOf("Month" to month)))
+
+        col.addView(out)
+        col.addView(android.view.View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
+        })
+        col.addView(compactFooter("← Back", "Show", { renderMenu() }) {
+            loadSheet(month.tag as String, branchSel, out)
+        })
+
+        reload = { loadSheet(month.tag as String, branchSel, out) }
+        reload()
+    }
+
+    private fun loadSheet(ym: String, branchSel: String, out: LinearLayout) {
+        // 🔒🔒 B602 (10.08.2026, TK-নির্দেশ "cache-first, খুব সাবধানে"): এই ফোনে জমানো
+        // শেষ সফল খাতা থাকলে সাথে সাথে দেখানো হয় (Loading... এর বদলে), তারপর ক্লাউড
+        // থেকে হালনাগাদ এলে ঠিক একই buildSheetTable দিয়ে বদলে যায়। ⛔ হিসাব-লজিক
+        // (buildSheetTable) একটুও বদলায়নি — শুধু আগে ক্যাশ, পরে আসল; ব্যর্থ রিফ্রেশে ক্যাশ অক্ষত।
+        val cacheKey = "sheet_${ym}_${branchSel}"
+        val cachedSheet = loadSheetCache(cacheKey)
+        out.removeAllViews()
+        if (cachedSheet != null) buildSheetTable(cachedSheet.first, cachedSheet.second, cachedSheet.third, branchSel, out)
+        else out.addView(ModuleUi.body(this, "Loading..."))
+        val start = "$ym-01"
+        val y = ym.substring(0, 4).toInt(); val m = ym.substring(5, 7).toInt()
+        val nextY = if (m == 12) y + 1 else y; val nextM = if (m == 12) 1 else m + 1
+        val end = String.format(Locale.US, "%04d-%02d-01", nextY, nextM)
+        // 🔵 TK-সিদ্ধান্ত (09.08.2026): ব্রাঞ্চ ধরে আলাদা। "All Branches" হলে ফিল্টার নেই
+        // (আগের মতোই সব ব্রাঞ্চ)। ⛔ Monthly Summary-র হুবহু একই ফিল্টার-প্যাটার্ন।
+        val branchQ = if (branchSel != "All Branches") "&branch=eq.$branchSel" else ""
+        Thread {
+            // AUDIT FIX (2026-08-06): getRowsChecked tells a real empty month
+            // apart from a network failure, so a weak signal no longer shows an
+            // empty sheet (which used to look like all the money was gone).
+            val r = ModuleAuth.getRowsChecked(
+                "fin", "collections",
+                "select=*&entry_date=gte.$start&entry_date=lt.$end&ignored=eq.false$branchQ&order=entry_date.asc"
+            )
+            // 🔵 আগের বাকি (Previous Balance) = এই মাসের আগের সব দিনের (একই ব্রাঞ্চের)
+            // নগদ+অনলাইন − খরচ। শুধু দরকারি ৪টা কলাম টানা হয় (egress কম রাখতে)।
+            // খাতার নিজের ঘর দিয়েই হিসাব — TK-অনুমোদিত প্রুফ অনুযায়ী।
+            val prevR = ModuleAuth.getRowsChecked(
+                "fin", "collections",
+                "select=cash,online,expense_total,expense_notes&entry_date=lt.$start&ignored=eq.false$branchQ"
+            )
+            /* 🔴🔒 V399 (16.08.2026, TK-রিপোর্ট ছবিসহ — Birpara: খরচের ঘরে সব "-",
+               Total খরচ ০, অথচ অংশীদার পর্দায় Total Expense ₹4,54,339)।
+
+               **কারণ (কোড-প্রমাণ):** টাকার খাতা এতদিন খরচ পড়ত **শুধু** `collections`
+               সারির `expense_total` (বা নোটের সংখ্যা) থেকে — `fin.expenses` টেবিল
+               কখনো পড়ত না। কিন্তু "Add Expense" দিয়ে লেখা খরচ ওই টেবিলেই জমা হয়
+               (লাইন ~১৫৭৩ `insert`)। ফলে ওই খরচগুলো খাতায় দেখাত না, আর
+               **"অবশিষ্ট টাকা"ও আসলের চেয়ে বেশি দেখাত**।
+
+               ⛔ নতুন কোনো নিয়ম বানানো হয়নি — Monthly Summary (লাইন ~১৬৭৮-১৭৩৩) ও
+                  আজকের হিসাব (লাইন ~৯০৯) **আগে থেকেই দুটো উৎসই** পড়ে; এখানে সেই
+                  প্রমাণিত নিয়মটাই বসানো হলো, তাই সব পর্দার হিসাব এক হবে।
+               ⛔ ব্রাঞ্চ-ছাঁকনি ও `ignored=eq.false` হুবহু একই।
+               ⛔ পড়া ব্যর্থ হলে আগের আচরণ — বাড়তি খরচ ০ ধরা হয়, কিছু ভাঙে না। */
+            /* 🟢🔒 V400: আগে শুধু `entry_date,amount` টানা হতো (মোট যোগ করার জন্য)।
+               এখন প্রতিটা খরচ আলাদা লাইনে দেখাতে ও এডিট করতে হবে, তাই ওই একই
+               সারিগুলোরই আরো কয়েকটা ঘর টানা হয়। ⛔ সারির **সংখ্যা** এক — একই
+               ফিল্টার, একই টেবিল; শুধু প্রতি সারিতে কয়েকটা ছোট ঘর বেশি আসে। */
+            val expMonth = ModuleAuth.getRowsChecked(
+                "fin", "expenses",
+                "select=id,entry_date,branch,category,paid_to,amount,mode&entry_date=gte.$start&entry_date=lt.$end&ignored=eq.false$branchQ"
+            )
+            val expByDate = HashMap<String, Double>()
+            val expItemsByDate = HashMap<String, org.json.JSONArray>()
+            if (expMonth.ok) {
+                val er = expMonth.rows
+                for (i in 0 until er.length()) {
+                    val e = er.getJSONObject(i)
+                    val d = e.optString("entry_date", "")
+                    if (d.isNotBlank()) {
+                        expByDate[d] = (expByDate[d] ?: 0.0) + e.optDouble("amount", 0.0)
+                        val arr = expItemsByDate[d] ?: org.json.JSONArray().also { expItemsByDate[d] = it }
+                        arr.put(e)
+                    }
+                }
+            }
+            val prevExpR = ModuleAuth.getRowsChecked(
+                "fin", "expenses",
+                "select=amount&entry_date=lt.$start&ignored=eq.false$branchQ"
+            )
+            var prevBal = 0.0
+            val prevOk = prevR.ok && expMonth.ok && prevExpR.ok
+            if (prevR.ok) {
+                val pr = prevR.rows
+                for (i in 0 until pr.length()) {
+                    val c = pr.getJSONObject(i)
+                    val note = c.optString("expense_notes", "").let { if (it == "null") "" else it }
+                    val exp = c.optDouble("expense_total", -1.0).let { if (it >= 0.0) it else sumNumbersInText(note) }
+                    prevBal += c.optDouble("cash", 0.0) + c.optDouble("online", 0.0) - exp
+                }
+            }
+            if (prevExpR.ok) {
+                val pe = prevExpR.rows
+                for (i in 0 until pe.length()) prevBal -= pe.getJSONObject(i).optDouble("amount", 0.0)
+            }
+            /* 🔒 V399: বাড়তি খরচ সারির **ভিতরেই** বসানো হয় (`_v399ExtraExpense`), তাই
+               ক্যাশ থেকে দেখানো হলেও সংখ্যা একই থাকে — buildSheetTable-এ আলাদা
+               প্যারামিটার লাগে না, পুরনো কল-পথ এক অক্ষরও বদলায় না।
+               যে দিনে শুধু খরচ আছে অথচ কোনো collection সারি নেই, সেই দিনের জন্য
+               একটা সারি যোগ করা হয় (cash/online = ০) — নইলে ওই খরচ মোটেই দেখাত না।
+               ⛔ ওই সারিগুলোতে ৩-চাপে এডিট খোলে না (`_v399ExpenseOnly`), কারণ
+                  ক্লাউডে ওগুলোর কোনো collection সারি নেই। */
+            val mergedRows = org.json.JSONArray()
+            val seenDates = HashSet<String>()
+            if (r.ok) {
+                for (i in 0 until r.rows.length()) {
+                    val c = r.rows.getJSONObject(i)
+                    val d = c.optString("entry_date", "")
+                    if (d.isNotBlank()) seenDates.add(d)
+                    val extra = expByDate[d] ?: 0.0
+                    if (extra > 0.0) try { c.put("_v399ExtraExpense", extra) } catch (_: Throwable) { }
+                    // 🟢 V400: ওই দিনের আলাদা-আলাদা খরচগুলো সারির ভিতরেই (এডিটের জন্য)
+                    expItemsByDate[d]?.let { try { c.put("_v400ExpItems", it) } catch (_: Throwable) { } }
+                    mergedRows.put(c)
+                }
+                for ((d, amt) in expByDate) {
+                    if (d.isNotBlank() && !seenDates.contains(d) && amt > 0.0) {
+                        val only = org.json.JSONObject()
+                            .put("entry_date", d).put("cash", 0.0).put("online", 0.0)
+                            .put("_v399ExtraExpense", amt).put("_v399ExpenseOnly", true)
+                        expItemsByDate[d]?.let { try { only.put("_v400ExpItems", it) } catch (_: Throwable) { } }
+                        mergedRows.put(only)
+                    }
+                }
+            }
+            /* তারিখ অনুসারে সাজানো (ক্লাউড থেকে collections আগেই সাজানো আসে; নতুন
+               যোগ হওয়া খরচ-দিনগুলোও যেন সঠিক জায়গায় বসে)। */
+            val sortedRows = org.json.JSONArray()
+            run {
+                val list = ArrayList<org.json.JSONObject>()
+                for (i in 0 until mergedRows.length()) list.add(mergedRows.getJSONObject(i))
+                list.sortBy { it.optString("entry_date", "") }
+                for (x in list) sortedRows.put(x)
+            }
+            runOnUiThread {
+                if (r.ok) {
+                    saveSheetCache(cacheKey, sortedRows, prevBal, prevOk)
+                    out.removeAllViews()
+                    buildSheetTable(sortedRows, prevBal, prevOk, branchSel, out)
+                } else if (cachedSheet == null) {
+                    // ব্যর্থ ও ক্যাশ নেই — আগের বার্তা। ⛔ ক্যাশ থাকলে সেটাই অক্ষত থাকে (মুছি না)।
+                    out.removeAllViews()
+                    out.addView(ModuleUi.body(this, "⚠️ Could not load right now — weak internet. Your data is safe; open this again when online."))
+                }
+            }
+        }.start()
+    }
+
+    // 🔴 B309 (03.08.2026, TK-রিপোর্ট — "একটা আরেকটার গায়ে ঘেঁষে গেছে"): আগে প্রতিটা
+    // ঘর `weight` দিয়ে টেবিলের একটা FIXED ৩৬০dp প্রস্থের ভিতরেই ভাগ হতো — তাই
+    // "Date" ঘরের জন্য মাত্র ~৫৮dp বরাদ্দ হতো, "02.08.2026" (১০ অক্ষর) সেখানে
+    // ধরত না, প্রতিটা অক্ষর আলাদা লাইনে নেমে ঘেঁষে যেত। এখন প্রতিটা ঘরের নিজস্ব
+    // নির্দিষ্ট (fixed) dp-প্রস্থ — কনটেন্ট আগে থেকেই জানা টেক্সটের সাথে মিলিয়ে,
+    // টেবিল স্বাভাবিকভাবেই চওড়া হয়, HorizontalScrollView-এ পাশে টেনে দেখা যায়
+    // (এই স্ক্রিনের নিজের সাহায্য-লেখাতেই এটা আগে থেকে বলা ছিল)।
+    // 🔴 B310 (03.08.2026, TK-রেফারেন্স ছবি — Patient Timeline "Full Journey"
+    // টেবিল) — হুবহু একই বক্স-বর্ডার স্টাইল এখানেও।
+    private fun cellBorderDrawable(): android.graphics.drawable.GradientDrawable =
+        android.graphics.drawable.GradientDrawable().apply {
+            setColor(android.graphics.Color.WHITE)
+            setStroke(1, android.graphics.Color.parseColor("#D9E2EC"))
+        }
+
+    private fun sheetCell(text: String, widthDp: Int, bg: String, fg: String, bold: Boolean): android.widget.TextView =
+        android.widget.TextView(this).apply {
+            this.text = text; textSize = 11f
+            setTextColor(android.graphics.Color.parseColor(fg))
+            if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setPadding(ModuleUi.dp(this@IncomeExpenseActivity, 6), ModuleUi.dp(this@IncomeExpenseActivity, 6),
+                ModuleUi.dp(this@IncomeExpenseActivity, 6), ModuleUi.dp(this@IncomeExpenseActivity, 6))
+            setBackgroundColor(android.graphics.Color.parseColor(bg))
+            layoutParams = LinearLayout.LayoutParams(ModuleUi.dp(this@IncomeExpenseActivity, widthDp), LinearLayout.LayoutParams.WRAP_CONTENT)
+            // ⛔ কোনো maxLines/ellipsize বসানো হয়নি — লেখা এখনো wrap করবে (কখনো কাটবে না),
+            // শুধু এখন প্রতিটা ঘরের যথেষ্ট চওড়া জায়গা আছে বলে স্বাভাবিক লেখাতেই এক/দুই লাইনে ধরবে।
+        }
+
+    private fun gridDivider(vertical: Boolean): android.view.View =
+        android.view.View(this).apply {
+            layoutParams = if (vertical)
+                LinearLayout.LayoutParams(ModuleUi.dp(this@IncomeExpenseActivity, 1), LinearLayout.LayoutParams.MATCH_PARENT)
+            else
+                LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, ModuleUi.dp(this@IncomeExpenseActivity, 1))
+            setBackgroundColor(android.graphics.Color.parseColor("#D6DEE6"))
+        }
+
+    // 🆕 (02.08.2026, TK-নির্দেশে) — Daily Ledger/Monthly Summary-ও এখন Google
+    // Sheet-এর মতো বক্স-টেবিলে দেখায়, ঠিক Patient Timeline-এর "Full Journey"
+    // টেবিলের একই লক করা প্যাটার্ন পুনর্ব্যবহার করে (TableRowEqualizer) — কোনো
+    // লেখা দু-লাইনে গেলে সেই সারির (আর পুরো টেবিলের) সব বক্স একসাথে সমান
+    // উচ্চতায় বেড়ে যায়, কখনো একটা বক্স ছোট আরেকটা বড় দেখায় না।
+    private fun gridRow(label: String, value: String, bold: Boolean, header: Boolean = false): LinearLayout {
+        val bg = if (header) "#0A7C3F" else if (bold) "#EAF6EE" else "#FFFFFF"
+        val fg = if (header) "#FFFFFF" else if (bold) "#0A5C33" else "#222222"
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        row.addView(sheetCell(label, 220, bg, fg, bold || header))
+        row.addView(sheetCell(value, 130, bg, fg, bold || header))
+        return row
+    }
+
+    /** লেবেল-মান জোড়ার তালিকা দিয়ে একটা সম্পূর্ণ Google-Sheet-স্টাইল টেবিল বানায়,
+     *  সব সারির উচ্চতা এক করে দেয় (Full Journey-র মতোই)। */
+    private fun renderGridTable(
+        out: LinearLayout, headTitle: String, headValue: String,
+        rows: List<Triple<String, String, Boolean>>, emptyText: String? = null
+    ) {
+        out.removeAllViews()
+        if (rows.isEmpty() && emptyText != null) { out.addView(ModuleUi.body(this, emptyText)); return }
+        val scrollX = android.widget.HorizontalScrollView(this)
+        val table = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        }
+        val built = ArrayList<LinearLayout>()
+        val head = gridRow(headTitle, headValue, true, header = true)
+        table.addView(head); table.addView(gridDivider(false)); built.add(head)
+        for ((l, v, b) in rows) {
+            val r = gridRow(l, v, b)
+            table.addView(r); table.addView(gridDivider(false)); built.add(r)
+        }
+        scrollX.addView(table)
+        out.addView(scrollX)
+        // 🔒 TK-LOCKED RULE পুনর্ব্যবহার — "সব সারির উচ্চতা এক" (V142)
+        TableRowEqualizer.equalize(table, built)
+    }
+
+    private fun buildSheetTable(rows: JSONArray, prevBalance: Double, prevOk: Boolean, branchSel: String, out: LinearLayout) {
+        // 🔴 B310 (03.08.2026, TK-রেফারেন্স ছবি দেখিয়ে "এই ধরনের বক্সে রাখবেন")
+        // — আগের ধরে-নেওয়া (guessed) dp-প্রস্থের বদলে এখন Patient Timeline-এর
+        // "Full Journey" টেবিলের হুবহু একই প্রমাণিত পদ্ধতি — Paint দিয়ে আসল
+        // টেক্সট মেপে (header-সহ) সবচেয়ে চওড়া কনটেন্টের সমান কলাম-প্রস্থ বার
+        // করা হয়, + slack (ওই টেবিলে TK-রিপোর্ট করা "ফন্ট মাপে সামান্য গরমিলে
+        // অক্ষর কাটা" বাগের পরে যোগ করা নিরাপত্তা)। Expense কলাম Note-কলামের
+        // মতোই বাকি সব জায়গা নেয় (weight=1), তাই আর কোনো HorizontalScroll লাগে
+        // না — ভবিষ্যতে কলাম-প্রস্থ ভুল হয়ে টেক্সট ভাঙার ঝুঁকি অনেক কমে গেল।
+        val table = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        }
+        val dpx = { v: Int -> ModuleUi.dp(this, v) }
+        val boldTf = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+        val measure = android.graphics.Paint().apply { typeface = boldTf; textSize = 11f * resources.displayMetrics.scaledDensity }
+        val cellPadPx = dpx(8) * 2
+        val cellSlackPx = dpx(10)
+        var dateColPx = measure.measureText("Date")
+        var amtColPx = maxOf(measure.measureText("Cash"), measure.measureText("Online"))
+        for (i in 0 until rows.length()) {
+            val r = rows.getJSONObject(i)
+            val dotted = try {
+                val p = r.optString("entry_date").split("-"); p[2] + "/" + p[1] + "/" + p[0]
+            } catch (e: Exception) { r.optString("entry_date") }
+            dateColPx = maxOf(dateColPx, measure.measureText(dotted))
+            amtColPx = maxOf(amtColPx, measure.measureText(money(r.optDouble("cash", 0.0)).removePrefix("₹")),
+                measure.measureText(money(r.optDouble("online", 0.0)).removePrefix("₹")))
+        }
+        dateColPx = maxOf(dateColPx, measure.measureText("Total"))
+        val dateColWidth = dateColPx.toInt() + cellPadPx + cellSlackPx
+        val amtColWidth = amtColPx.toInt() + cellPadPx + cellSlackPx
+
+        // 🔵 খাতার সারি (TK-অনুমোদিত প্রুফ, 09.09.2026): gravity যোগ — হেডার মাঝখানে,
+        // টাকার ঘর ডানে। ⛔ শুধু দেখানোর সাজ · কোনো টাকার হিসাব ছোঁয়া হয়নি।
+        fun boxCell(text: String, w: Int, bg: String, fg: String, bold: Boolean, weight: Float? = null, gravityV: Int? = null): android.widget.TextView =
+            android.widget.TextView(this).apply {
+                this.text = text; textSize = 11f
+                setTextColor(android.graphics.Color.parseColor(fg))
+                if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
+                if (gravityV != null) gravity = gravityV
+                setPadding(dpx(8), dpx(8), dpx(8), dpx(8))
+                layoutParams = if (weight != null) LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, weight)
+                    else LinearLayout.LayoutParams(w, LinearLayout.LayoutParams.WRAP_CONTENT)
+                background = if (bg == "#0A7C3F") android.graphics.drawable.GradientDrawable().apply { setColor(android.graphics.Color.parseColor(bg)) }
+                    else cellBorderDrawable().apply { setColor(android.graphics.Color.parseColor(bg)) }
+                if (weight != null) { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END }
+            }
+
+        // হেডার সারি
+        val head = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        head.addView(boxCell("Date", dateColWidth, "#0A7C3F", "#FFFFFF", true, gravityV = android.view.Gravity.CENTER))
+        head.addView(boxCell("Cash", amtColWidth, "#0A7C3F", "#FFFFFF", true, gravityV = android.view.Gravity.CENTER))
+        head.addView(boxCell("Online", amtColWidth, "#0A7C3F", "#FFFFFF", true, gravityV = android.view.Gravity.CENTER))
+        head.addView(boxCell("খরচ", 0, "#0A7C3F", "#FFFFFF", true, weight = 1f, gravityV = android.view.Gravity.CENTER))
+        table.addView(head)
+        val builtRows = ArrayList<LinearLayout>(); builtRows.add(head)
+
+        var cashTot = 0.0; var onlineTot = 0.0; var expTot = 0.0
+        for (i in 0 until rows.length()) {
+            val r = rows.getJSONObject(i)
+            val d = r.optString("entry_date")
+            val dotted = try {
+                val p = d.split("-"); p[2] + "/" + p[1] + "/" + p[0]
+            } catch (e: Exception) { d }
+            val cash = r.optDouble("cash", 0.0); val online = r.optDouble("online", 0.0)
+            val note = r.optString("expense_notes", "").let { if (it == "null") "" else it }
+            /* 🔴🔒 V399: `collections`-এর নিজের খরচ + "Add Expense"-এর খরচ — দুটোই।
+               (`_v399ExtraExpense` উপরে সারির ভিতরেই বসানো হয়েছে।) */
+            val expSum = r.optDouble("expense_total", -1.0).let { if (it >= 0.0) it else sumNumbersInText(note) } +
+                r.optDouble("_v399ExtraExpense", 0.0)
+            cashTot += cash; onlineTot += online; expTot += expSum
+            val bg = if (i % 2 == 0) "#FFFFFF" else "#F7FBF8"
+            // 🔵 TK-নির্দেশ (09.08.2026): এক-চাপে ভুল করে এডিটে ঢুকে যাওয়া ঠেকাতে — কোনো
+            // দিন এডিট করতে সেই সারিতে **তিনবার** চাপতে হবে (১.২ সেকেন্ডের মধ্যে)। খরচের ঘর
+            // আলাদা করে এক-চাপে ভাঙা-হিসাব দেখায় (সেটা নিচে আলাদা listener)।
+            val tapCount = intArrayOf(0)
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                isClickable = true; isFocusable = true
+            }
+            val resetTaps = Runnable { tapCount[0] = 0 }
+            row.setOnClickListener {
+                tapCount[0]++
+                row.removeCallbacks(resetTaps)
+                if (tapCount[0] >= 3) {
+                    tapCount[0] = 0
+                    // 🔒 V399: শুধু-খরচের দিনে ক্লাউডে কোনো collection সারি নেই — এডিটর খুলবে না।
+                    if (r.optBoolean("_v399ExpenseOnly", false)) {
+                        android.widget.Toast.makeText(this@IncomeExpenseActivity,
+                            com.tkbiswas.pilesclinic.native.NoBengali.s("এই দিনে শুধু খরচ আছে — Add Expense পর্দা থেকে দেখুন"), android.widget.Toast.LENGTH_SHORT).show()
+                    } else openSheetRowEditor(d, r) { sheet(d.substring(0, 7)) }
+                }
+                else row.postDelayed(resetTaps, 1200)
+            }
+            row.addView(boxCell(dotted, dateColWidth, bg, "#41506A", true))
+            row.addView(boxCell(money(cash).removePrefix("₹"), amtColWidth, bg, "#0A7C3F", false, gravityV = android.view.Gravity.END))
+            row.addView(boxCell(money(online).removePrefix("₹"), amtColWidth, bg, "#0A7C3F", false, gravityV = android.view.Gravity.END))
+            // 🔵 খাতার সারি (TK-প্রুফ): খরচের ঘরে শুধু মোট টাকা (লাল)। সংখ্যায় চাপ দিলে
+            // "কিসে খরচ" ভাঙা-হিসাব পপ-আপ (নাম-টাকা)। বাকি ঘরে চাপ → ওই দিন এডিট (আগের মতোই)।
+            val expText = if (expSum > 0.0) money(expSum).removePrefix("₹") else "-"
+            val expCell = boxCell(expText, 0, bg, "#B42318", false, weight = 1f, gravityV = android.view.Gravity.END)
+            if (expSum > 0.0 || note.isNotBlank()) {
+                expCell.isClickable = true
+                // 🟢 V400: সারির নিজের খরচ (note/expense_total) আর "Add Expense"-এর
+                // আলাদা খরচগুলো — দুটোই পপ-আপে পাঠানো হয়, যাতে ভুলটায় চেপে বদলানো যায়।
+                val ownExp = r.optDouble("expense_total", -1.0).let { if (it >= 0.0) it else sumNumbersInText(note) }
+                val items = r.optJSONArray("_v400ExpItems")
+                expCell.setOnClickListener { showExpenseBreakdown(dotted, note, expSum, ownExp, items) }
+            }
+            row.addView(expCell)
+            table.addView(row)
+            builtRows.add(row)
+        }
+        // গ্র্যান্ড টোটাল সারি
+        val tot = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        tot.addView(boxCell("Total", dateColWidth, "#EAF6EE", "#0A5C33", true))
+        tot.addView(boxCell(money(cashTot).removePrefix("₹"), amtColWidth, "#EAF6EE", "#0A5C33", true, gravityV = android.view.Gravity.END))
+        tot.addView(boxCell(money(onlineTot).removePrefix("₹"), amtColWidth, "#EAF6EE", "#0A5C33", true, gravityV = android.view.Gravity.END))
+        tot.addView(boxCell(money(expTot).removePrefix("₹"), 0, "#EAF6EE", "#B42318", true, weight = 1f, gravityV = android.view.Gravity.END))
+        table.addView(tot)
+        builtRows.add(tot)
+        // 🔴 B602 (TK-নির্দেশ, ১০.০৮): টেবিলের উপরের নির্দেশ-লাইন ("তিনবার চাপুন…") বাদ —
+        // প্রফেশনাল ভিউতে ডেমি-লেখা থাকবে না। ⛔ তিনবার-চাপে এডিট আচরণ আগের মতোই অটুট,
+        // শুধু দেখানো লেখাটা সরানো হলো।
+        out.addView(table)
+        if (rows.length() == 0) out.addView(ModuleUi.body(this, "No entries yet this month."))
+        // 🔒 TK-LOCKED RULE পুনর্ব্যবহার — "সব সারির উচ্চতা এক" (V142)
+        TableRowEqualizer.equalize(table, builtRows)
+        // 🔴 V453 (TK-নির্দেশ ১৮.০৮.২০২৬) — Previous Balance ও অবশিষ্ট টাকা এখন
+        // টেবিলের নিচে একটাই পাশাপাশি সারিতে (আগে দুটো আলাদা বড়-খোলা বার,
+        // একটা টেবিলের ওপরে একটা নিচে — ব্রাঞ্চের নামও দুবার লেখা থাকত)।
+        // হিসাব এক অক্ষরও বদলায়নি — আগের বাকি + এই মাসের (নগদ+অনলাইন) − খরচ।
+        val remaining = prevBalance + cashTot + onlineTot - expTot
+        out.addView(balanceBarPair(if (prevOk) money(prevBalance) else "—", if (prevOk) money(remaining) else "—"))
+    }
+
+    // 🔴🔒 V453 (TK-নির্দেশ ১৮.০৮.২০২৬: "একই পাতায় ব্রাঞ্চের নাম বারবার কেন,
+    // Previous Balance/অবশিষ্ট টাকা এত খোলামেলা কেন — পাশাপাশি রাখুন") —
+    // হেডারেই ব্রাঞ্চ-চিপ (Jalpaiguri ▾) আছে, তাই এই বারে আর আলাদা করে
+    // ব্রাঞ্চের নাম বসে না। দুটো সংখ্যা এখন এক সারিতে পাশাপাশি (ছোট, কম
+    // জায়গা জুড়ে), আগের মতো দুটো আলাদা বড়-খোলা বার নয়।
+    private fun balanceBarPair(prevValue: String, remValue: String): LinearLayout {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(8); bottomMargin = dp(4) }
+        }
+        fun half(label: String, value: String, bg: String, fg: String, last: Boolean): LinearLayout {
+            val box = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = android.view.Gravity.CENTER
+                setPadding(dp(10), dp(10), dp(10), dp(10))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(10).toFloat()
+                    setColor(android.graphics.Color.parseColor(bg))
+                    if (bg == "#EEFAF0") setStroke(dp(1), android.graphics.Color.parseColor("#CDE9D5"))
+                }
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    .apply { if (!last) marginEnd = dp(8) }
+            }
+            box.addView(android.widget.TextView(this).apply {
+                text = label; textSize = 11.5f
+                setTextColor(android.graphics.Color.parseColor(fg))
+                gravity = android.view.Gravity.CENTER
+            })
+            box.addView(android.widget.TextView(this).apply {
+                text = value; textSize = 15f
+                setTextColor(android.graphics.Color.parseColor(fg))
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                gravity = android.view.Gravity.CENTER
+                setPadding(0, dp(2), 0, 0)
+            })
+            return box
+        }
+        row.addView(half("Previous Balance", prevValue, "#EEFAF0", "#0A5C33", false))
+        row.addView(half("অবশিষ্ট টাকা", remValue, "#0B4F2A", "#FFFFFF", true))
+        return row
+    }
+
+    // 🔵🔒 খাতা-স্টাইল বার (TK-প্রুফ অনুমোদিত): উপরে হালকা-সবুজ "Previous Balance",
+    // নিচে গাঢ়-সবুজ "অবশিষ্ট টাকা"। শুধু দেখানোর সাজ — কোনো টাকা যোগ/বিয়োগ/সংরক্ষণ নয়।
+    // ⛔ V453-এর পর এই ফাংশন আর নতুন করে ডাকা হয় না (উপরের balanceBarPair
+    // ব্যবহার হয়), শুধু পুরনো রেফারেন্স/ব্যাকআপ হিসেবে রাখা হলো — মুছে ফেলা হয়নি।
+    private fun balanceBar(label: String, value: String, strong: Boolean, branchSel: String): LinearLayout {
+        val bg = if (strong) "#0B4F2A" else "#EEFAF0"
+        val fg = if (strong) "#FFFFFF" else "#0A5C33"
+        val bar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(10).toFloat()
+                setColor(android.graphics.Color.parseColor(bg))
+                if (!strong) setStroke(dp(1), android.graphics.Color.parseColor("#CDE9D5"))
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(8); bottomMargin = dp(4) }
+        }
+        val lblTv = android.widget.TextView(this).apply {
+            text = if (branchSel == "All Branches") label else "$label · $branchSel"
+            textSize = if (strong) 15f else 13f
+            setTextColor(android.graphics.Color.parseColor(fg))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        val valTv = android.widget.TextView(this).apply {
+            text = value
+            textSize = if (strong) 16f else 14f
+            setTextColor(android.graphics.Color.parseColor(fg))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+        }
+        bar.addView(lblTv); bar.addView(valTv)
+        return bar
+    }
+
+    // 🔵🔒 খাতা-স্টাইল (TK-প্রুফ অনুমোদিত, 08.08.2026): Ledger Sheet-এর খরচের ঘরে
+    // চাপ দিলে "ওই দিনের খরচ কিসে হয়েছিল" ভাঙা-হিসাব পপ-আপ। খরচ TK লেখেন নাম-টাকা
+    // কমা দিয়ে (যেমন "Rupam-1348, CRP-2759, Medicine-10000")। এখানে শুধু সেই লেখাটাই
+    // সুন্দর করে সাজিয়ে দেখানো হয় — কোনো টাকা যোগ/বিয়োগ/সংরক্ষণ হয় না, হিসাবের
+    // নিয়ম এক অক্ষরও বদলায় না। মোট = সারিতে যা দেখাচ্ছে সেই একই সংখ্যা।
+    private fun showExpenseBreakdown(dotted: String, note: String, total: Double) =
+        showExpenseBreakdown(dotted, note, total, -1.0, null)
+
+    /* 🟢🔒 V400 (16.08.2026, TK-অনুমোদিত মকআপ): এই পপ-আপেই এখন ওই দিনের প্রতিটা
+       "Add Expense" খরচ আলাদা লাইনে — চাপলে বদলানো/মোছার পর্দা খোলে। খাতার সারিতে
+       নিজের হাতে লেখা খরচ আলাদা করে দেখানো হয় (ওটা ৩-চাপে Ledger Entry-তে বদলায়)।
+       ⛔ কোনো টাকা যোগ/বিয়োগের নিয়ম বদলায়নি — মোট = সারিতে যা দেখাচ্ছে সেই সংখ্যাই।
+       ⛔ TK-নির্দেশ: খরচের **সব** সংখ্যা লাল (#B42318)। */
+    private fun showExpenseBreakdown(
+        dotted: String, note: String, total: Double, ownExpense: Double, items: JSONArray?
+    ) {
+        val clean = note.let { if (it == "null") "" else it }.trim()
+        val amtRe = Regex("[0-9][0-9,]*(?:\\.[0-9]+)?")
+        val lines = ArrayList<Pair<String, Double>>()
+        // কমা বা নতুন-লাইন দিয়ে আলাদা আইটেম
+        for (raw in clean.split(",", "\n", ";")) {
+            val seg = raw.trim()
+            if (seg.isEmpty()) continue
+            val m = amtRe.findAll(seg).lastOrNull()
+            if (m == null) continue
+            val amt = m.value.replace(",", "").toDoubleOrNull() ?: continue
+            // সংখ্যা ও সংখ্যার আগের যোগচিহ্ন (- : = ·) বাদ দিয়ে বাকিটাই নাম
+            var name = (seg.substring(0, m.range.first) + seg.substring(m.range.last + 1))
+                .trim().trim('-', ':', '=', '·', '.', '/', '(', ')').trim()
+            if (name.isEmpty()) name = "খরচ"
+            lines.add(name to amt)
+        }
+        val RED = android.graphics.Color.parseColor("#B42318")
+        val body = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(14), dp(18), dp(6))
+        }
+        val nItems = items?.length() ?: 0
+        // লাইনের View আর তার খরচ-সারি একসাথে রাখা হয় — পরে ঠিক ওই সারিতেই চাপ বসে।
+        val itemViews = ArrayList<Pair<android.view.View, JSONObject>>()
+
+        // 🔴 V413 (TK-নির্দেশ, ১৭.০৮.২০২৬): *"কোন ডেমি লেখা থাকবে না"* — এখানে
+        //    "Tap the wrong line to edit it" ধরনের নির্দেশ-লাইনটা ছিল, তুলে দেওয়া হলো।
+        //    ⛔ চাপলে এডিট খোলার কাজটা আগের মতোই আছে, শুধু লেখাটা নেই।
+        // ১) "Add Expense" পর্দা থেকে লেখা খরচ — প্রতিটা আলাদা, চাপলে এডিট
+        for (i in 0 until nItems) {
+            val e = items!!.optJSONObject(i) ?: continue
+            val amt = e.optDouble("amount", 0.0)
+            val label = listOf(e.s("category"), e.s("paid_to"), e.s("mode"))
+                .filter { it.isNotBlank() }.joinToString(" · ")
+            val line = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(dp(12), dp(11), dp(12), dp(11))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(10).toFloat()
+                    setColor(android.graphics.Color.parseColor("#F2FAF5"))
+                    setStroke(dp(1), android.graphics.Color.parseColor("#9FD3B4"))
+                }
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { bottomMargin = dp(8) }
+                isClickable = true
+            }
+            line.addView(android.widget.TextView(this).apply {
+                text = (if (label.isBlank()) "খরচ" else label) + "   ✏️"
+                textSize = 14.5f; setTextColor(android.graphics.Color.parseColor("#22312A"))
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            })
+            line.addView(android.widget.TextView(this).apply {
+                text = money(amt); textSize = 15.5f
+                setTextColor(RED); setTypeface(typeface, android.graphics.Typeface.BOLD)
+            })
+            body.addView(line)
+            itemViews.add(line to e)
+        }
+        // ২) খাতার সারিতে নিজের হাতে লেখা খরচ (ওটা ৩-চাপে Ledger Entry-তে বদলায়)
+        val own = if (ownExpense >= 0.0) ownExpense else lines.fold(0.0) { a, b -> a + b.second }
+        if (own > 0.0 || clean.isNotEmpty()) {
+            if (nItems > 0) {
+                body.addView(android.widget.TextView(this).apply {
+                    text = "নিচের ${money(own)} খাতার সারিতেই লেখা — বদলাতে হলে ওই সারির তারিখ / Cash / Online ঘরে 3 বার চাপুন"
+                    textSize = 12.5f; setTextColor(android.graphics.Color.parseColor("#6A5320"))
+                    setPadding(dp(12), dp(10), dp(12), dp(10))
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        cornerRadius = dp(10).toFloat()
+                        setColor(android.graphics.Color.parseColor("#FFF7E6"))
+                        setStroke(dp(1), android.graphics.Color.parseColor("#F0D9A0"))
+                    }
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply { bottomMargin = dp(8) }
+                })
+            }
+            if (lines.isEmpty()) {
+                body.addView(breakdownLine(
+                    if (clean.isEmpty()) "খাতার সারিতে লেখা খরচ" else clean, own, RED))
+            } else {
+                for ((name, amt) in lines) body.addView(breakdownLine(name, amt, RED))
+            }
+        } else if (nItems == 0) {
+            body.addView(android.widget.TextView(this).apply {
+                text = "এই দিনের খরচের কোনো বিবরণ লেখা নেই।"
+                textSize = 15f; setTextColor(android.graphics.Color.parseColor("#22312A"))
+            })
+        }
+        // ৩) মোট (TK-নির্দেশ: এটাও লাল)
+        body.addView(android.view.View(this).apply {
+            setBackgroundColor(android.graphics.Color.parseColor("#E2B3AD"))
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(1))
+                .apply { topMargin = dp(6); bottomMargin = dp(10) }
+        })
+        body.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            addView(android.widget.TextView(this@IncomeExpenseActivity).apply {
+                text = "মোট খরচ"; textSize = 16.5f
+                setTextColor(RED); setTypeface(typeface, android.graphics.Typeface.BOLD)
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            })
+            addView(android.widget.TextView(this@IncomeExpenseActivity).apply {
+                text = money(total); textSize = 16.5f
+                setTextColor(RED); setTypeface(typeface, android.graphics.Typeface.BOLD)
+            })
+        })
+
+        val scroll = android.widget.ScrollView(this).apply { addView(body) }
+        val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, dotted + " — খরচের বিবরণ"))
+            .setView(scroll)
+            .setPositiveButton("OK", null)
+            .setCancelable(true)
+            .show().also { try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) { } }
+
+        // লাইনে চাপ → এডিট পর্দা (পপ-আপ বন্ধ করে)
+        for ((v, e) in itemViews) {
+            v.setOnClickListener {
+                try { dlg.dismiss() } catch (_: Throwable) { }
+                openExpenseEditor(e)
+            }
+        }
+    }
+
+    /** পপ-আপের একটা সাধারণ লাইন — নাম বাঁয়ে, টাকা ডানে (লাল)। */
+    private fun breakdownLine(name: String, amt: Double, red: Int): LinearLayout =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dp(12), dp(11), dp(12), dp(11))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(10).toFloat()
+                setColor(android.graphics.Color.parseColor("#FCFEFD"))
+                setStroke(dp(1), android.graphics.Color.parseColor("#D9E2EC"))
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(8) }
+            addView(android.widget.TextView(this@IncomeExpenseActivity).apply {
+                text = name; textSize = 14.5f
+                setTextColor(android.graphics.Color.parseColor("#22312A"))
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            })
+            addView(android.widget.TextView(this@IncomeExpenseActivity).apply {
+                text = money(amt); textSize = 15.5f
+                setTextColor(red); setTypeface(typeface, android.graphics.Typeface.BOLD)
+            })
+        }
+
+    /* 🟢🔒🆕 V400 (16.08.2026, TK-নির্দেশ ও অনুমোদিত মকআপ — "আমি যেন Edit করতে পারি
+       / কখনো কমও হতে পারে কখনো বেশিও হতে পারে")।
+
+       এতদিন `fin.expenses`-এ লেখা খরচ **শুধু যোগ করা** যেত (`insert`, লাইন ~১৭৫০) —
+       অ্যাপের কোথাও বদলানো বা মোছার কোনো পথ ছিল না। এখন খাতার খরচ-পপ-আপ থেকে
+       ওই খরচেই চাপ দিলে এই পর্দা খোলে।
+
+       ⛔ যা হুবহু আগের মতোই রাখা হয়েছে:
+         · Save = `ModuleAuth.update("fin","expenses","id=eq.…")` — Staff Profile ও
+           Leave-এ বহু দিন ধরে চলা একই ফাংশন; নতুন কিছু বানানো হয়নি।
+         · Delete = `ignored=true` — খাতার সারির "Delete Entry"-র (লাইন ~৮৭০)
+           হুবহু একই প্রমাণিত নিয়ম: হিসাব থেকে বাদ যায়, সারি চিরতরে মোছে না।
+         · Category তালিকা, ব্রাঞ্চ তালিকা, তারিখ-ঘর — Add Expense পর্দার একই ঘর।
+         · `fin.expenses`-এ আগে থেকেই আপডেট-অডিট ট্রিগার আছে (fin.audit), তাই
+           কে কী বদলাল তার পুরনো মান নিজে থেকেই জমা থাকে।
+       ⛔ কোনো হিসাবের সূত্র ছোঁয়া হয়নি — আজকের হিসাব / মাসের হিসাব / অংশীদার
+          সবাই আগে থেকেই এই টেবিলই পড়ে, তাই বদল সব জায়গায় নিজে থেকেই মিলে যাবে। */
+    private fun openExpenseEditor(exp: JSONObject) {
+        val expId = exp.s("id")
+        val startIso = exp.s("entry_date").ifBlank { todayIso() }
+        if (expId.isBlank()) { ModuleUi.toast(this, "এই খরচটি এখন বদলানো যাচ্ছে না — একবার ↻ চেপে আবার দেখুন"); return }
+        backAction = { sheet(startIso.substring(0, 7)) }
+
+        val scroll = android.widget.ScrollView(this).apply {
+            setBackgroundColor(android.graphics.Color.parseColor("#F4FBF6"))
+            isFillViewport = true
+        }
+        val col = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(16))
+        }
+        scroll.addView(col); setContentView(scroll)
+        col.addView(hero("✏️ খরচ বদলান"))
+
+        val dateInp = dateField(startIso)
+        val branch = spinner(BRANCHES)
+        BRANCHES.indexOf(exp.s("branch")).let { if (it >= 0) branch.setSelection(it) }
+        val cat = ModuleUi.input(this, "Category").apply {
+            isFocusable = false; isFocusableInTouchMode = false; isClickable = true; keyListener = null
+            val cur = exp.s("category")
+            tag = cur; setText(if (cur.isBlank()) "" else catDisplay(cur)); hint = "Select…"
+        }
+        cat.setOnClickListener {
+            val items = CATS.map { catDisplay(it) }.toTypedArray()
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "Select Category"))
+                .setItems(items) { _, which -> cat.tag = CATS[which]; cat.setText(catDisplay(CATS[which])) }
+                .show().also { try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) { } }
+        }
+        val paidTo = ModuleUi.input(this, "Paid To").apply { setText(exp.s("paid_to")) }
+        // 🔴 TK-নির্দেশ: খরচের সব সংখ্যা লাল — তাই Amount ঘরের লেখাও লাল।
+        val amount = ModuleUi.numberInput(this, "Amount", allowDecimal = true).apply {
+            setText(exp.optDouble("amount", 0.0).let { if (it == 0.0) "" else String.format(Locale.US, "%.0f", it) })
+            setTextColor(android.graphics.Color.parseColor("#B42318"))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+        }
+        val modes = listOf("Cash", "Online")
+        val mode = spinner(modes)
+        modes.indexOf(exp.s("mode")).let { if (it >= 0) mode.setSelection(it) }
+
+        col.addView(entryCard(listOf(
+            "Date" to dateInp, "Branch" to branch, "Category" to cat,
+            "Paid To" to paidTo, "Amount" to amount, "Mode" to mode
+        )))
+        col.addView(android.view.View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
+        })
+
+        // সেভ/মোছার পরে খাতাটাই আবার খোলা হয় — নতুন তারিখের মাস ধরে, ক্যাশ মোছার পরে,
+        // তাই ঠিক নতুন সংখ্যাটাই দেখা যায়।
+        val goBack = { sheet(((dateInp.tag as? String) ?: startIso).substring(0, 7)) }
+
+        col.addView(compactFooter("← Back", "Save", { sheet(startIso.substring(0, 7)) }) {
+            val c = (cat.tag as? String) ?: ""
+            if (c.isBlank()) { ModuleUi.toast(this, "Category বাছুন"); return@compactFooter }
+            if (ieBadPaidTo(paidTo.text.toString())) {
+                ModuleUi.toast(this, "Paid To — নাম লিখুন (শুধু সংখ্যা চলবে না)"); return@compactFooter
+            }
+            val amt = amount.text.toString().toDoubleOrNull() ?: 0.0
+            if (amt <= 0.0) { ModuleUi.toast(this, "Amount লিখুন"); return@compactFooter }
+            /* 🟢🔒 V401: পুরনো তারিখের খরচ — মাস্টারের অনুমতি লাগবে। */
+            val dNow = (dateInp.tag as? String) ?: startIso
+            if (ieRestricted && !ieIsToday(dNow)) {
+                ieAskApproval(IePermit.EDIT_EXPENSE, branch.selectedItem.toString(), dNow, expId,
+                    JSONObject().put("category", c).put("paid_to", paidTo.text.toString())
+                        .put("amount", amt).put("mode", mode.selectedItem.toString())) { goBack() }
+                return@compactFooter
+            }
+            val patch = JSONObject()
+                .put("entry_date", (dateInp.tag as? String) ?: startIso)
+                .put("branch", branch.selectedItem.toString())
+                .put("category", c)
+                .put("paid_to", paidTo.text.toString())
+                .put("amount", amt)
+                .put("mode", mode.selectedItem.toString())
+            // কখন বদলানো হলো — টেবিলে `updated_at` নিজে থেকে বসে না, তাই এখানে বসানো হয়।
+            try {
+                val f = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
+                f.timeZone = TimeZone.getTimeZone("UTC")
+                patch.put("updated_at", f.format(java.util.Date()))
+            } catch (_: Throwable) { }
+            ModuleUi.toast(this, "Saving...")
+            Thread {
+                val ok = ModuleAuth.update("fin", "expenses", "id=eq.$expId", patch)
+                runOnUiThread {
+                    if (ok) { clearSheetCaches(); ModuleUi.toast(this, "খরচ বদলানো হয়েছে।"); goBack() }
+                    else ModuleUi.toast(this, "বদলানো গেল না (নেট?) — আবার চেষ্টা করুন")
+                }
+            }.start()
+        })
+
+        // 🟢🔒 V401 (TK-নির্দেশ "মোছা শুধু মাস্টার"): মাস্টার ছাড়া এই বোতাম দেখানোই হয় না।
+        if (ModuleAuth.isMaster) col.addView(android.widget.Button(this).apply {
+            text = "🗑️ Delete Entry"; isAllCaps = false; textSize = 15f
+            setTextColor(android.graphics.Color.WHITE)
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(12).toFloat(); setColor(android.graphics.Color.parseColor("#B42318"))
+            }
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(50)).apply { topMargin = dp(12) }
+            setOnClickListener {
+                val amtNow = amount.text.toString().toDoubleOrNull() ?: exp.optDouble("amount", 0.0)
+                androidx.appcompat.app.AlertDialog.Builder(this@IncomeExpenseActivity)
+                    .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this@IncomeExpenseActivity, "🗑️ এই খরচটি মুছবেন?"))
+                    .setMessage(
+                        slashIso((dateInp.tag as? String) ?: startIso) + " · " + branch.selectedItem.toString() + "\n" +
+                        ((cat.tag as? String) ?: "") + " · " + paidTo.text.toString() + "\n" +
+                        "টাকা: " + money(amtNow) + "\n\n" +
+                        "এটি হিসাব থেকে বাদ যাবে। চিরতরে মুছবে না — দরকারে ফেরানো যাবে।"
+                    )
+                    .setNegativeButton("Cancel", null)
+                    .setPositiveButton("Delete") { _, _ ->
+                        ModuleUi.toast(this@IncomeExpenseActivity, "Deleting...")
+                        Thread {
+                            val ok = ModuleAuth.update("fin", "expenses", "id=eq.$expId", JSONObject().put("ignored", true))
+                            runOnUiThread {
+                                if (ok) { clearSheetCaches(); ModuleUi.toast(this@IncomeExpenseActivity, "খরচটি মুছে ফেলা হয়েছে।"); goBack() }
+                                else ModuleUi.toast(this@IncomeExpenseActivity, "মোছা গেল না (নেট?) — আবার চেষ্টা করুন")
+                            }
+                        }.start()
+                    }
+                    .show().also { try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) { } }
+            }
+        })
+        // 🔴 V413 (TK-নির্দেশ): নিচের নির্দেশ-লাইনটা তুলে দেওয়া হলো।
+    }
+
+    /* 🟢 V400: খরচ বদলানো/মোছার পরে ফোনে জমানো পুরনো খাতা যেন পুরনো সংখ্যা না দেখায় —
+       তাই খাতার সব ক্যাশ মুছে দেওয়া হয় (পরের বার ক্লাউড থেকেই আসল সংখ্যা আসবে)।
+       ⛔ শুধু দেখানোর ক্যাশ; ক্লাউডের কোনো তথ্য মোছে না। */
+    private fun clearSheetCaches() {
+        // খাতার ক্যাশ (`sheet_…`) আর দিনের হিসাবের ক্যাশ (`coll_/exp_/net_…`) —
+        // দুটোই এই একই ফাইলে থাকে (income_expense_cache), তাই একবারেই মুছে দেওয়া হয়।
+        try {
+            val p = daySummaryCachePrefs()
+            val ed = p.edit()
+            for (k in p.all.keys.toList()) ed.remove(k)
+            ed.apply()
+        } catch (_: Throwable) { }
+    }
+
+    private fun openSheetRowEditor(date: String, existing: JSONObject?, onSaved: () -> Unit) {
+        backAction = { sheet(date.substring(0, 7)) }
+        val col = ModuleUi.screen(this, "Ledger Entry")
+        val dateInp = dateField(date)
+        val branch = spinner(BRANCHES)
+        val cash = ModuleUi.numberInput(this, "Cash", allowDecimal = true)
+        val online = ModuleUi.numberInput(this, "Online", allowDecimal = true)
+        val expenseBox = android.widget.EditText(this).apply {
+            hint = ""
+            minLines = 4; gravity = android.view.Gravity.TOP or android.view.Gravity.START
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+        }
+        val totalTv = ModuleUi.body(this, "Total Expense: ₹0")
+        col.addView(ModuleUi.label(this, "Date")); col.addView(dateInp)
+        col.addView(ModuleUi.label(this, "Branch")); col.addView(branch)
+        col.addView(ModuleUi.label(this, "Cash")); col.addView(cash)
+        col.addView(ModuleUi.label(this, "Online")); col.addView(online)
+        col.addView(ModuleUi.label(this, "Expense / ব্যায়"))
+        col.addView(expenseBox)
+        col.addView(totalTv)
+
+        fun refreshTotal() { totalTv.text = "Total Expense: " + money(sumNumbersInText(expenseBox.text.toString())) }
+        expenseBox.addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(s: android.text.Editable?) { refreshTotal() }
+            override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
+            override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {}
+        })
+
+        if (existing != null) {
+            cash.setText(existing.optDouble("cash", 0.0).let { if (it == 0.0) "" else it.toInt().toString() })
+            online.setText(existing.optDouble("online", 0.0).let { if (it == 0.0) "" else it.toInt().toString() })
+            expenseBox.setText(existing.optString("expense_notes", "").let { if (it == "null") "" else it })
+            val bIdx = BRANCHES.indexOf(existing.s("branch")); if (bIdx >= 0) branch.setSelection(bIdx)
+        }
+        refreshTotal()
+
+        // 🔵 খাতার সারি (TK-নির্দেশ, 09.09.2026): Save/Cancel আগে উপর-নিচে ভেসে
+        // একটা আরেকটার গায়ে পড়ছিল। এখন compactFooter দিয়ে **পাশাপাশি** (মাঝে ফাঁক),
+        // Cancel বাঁয়ে সাদা-আউটলাইন · Save ডানে সবুজ। ⛔ সেভের কাজ/হিসাব হুবহু অটুট।
+        col.addView(compactFooter("Cancel", "Save", { onSaved() }) {
+            val note = expenseBox.text.toString()
+            /* 🟢🔒 V401: মাস্টার নন এমন কেউ পুরনো তারিখের সারি বদলাতে পারবেন না —
+               বদলে মাস্টারের কাছে অনুরোধ যাবে। (ডেটাবেসেও আটকানো; এখানে আগেভাগে
+               ধরা হয় যাতে "Saved" দেখিয়ে আসলে কিছু না-হওয়ার ভুল না ঘটে।) */
+            val dNow = (dateInp.tag as? String) ?: date
+            val exId = existing?.optString("id")
+            if (ieRestricted && !ieIsToday(dNow)) {
+                ieAskApproval(IePermit.EDIT_COLLECTION, branch.selectedItem.toString(), dNow, exId,
+                    JSONObject()
+                        .put("cash", cash.text.toString().toDoubleOrNull() ?: 0.0)
+                        .put("online", online.text.toString().toDoubleOrNull() ?: 0.0)
+                        .put("expense_notes", note)
+                        .put("expense_total", sumNumbersInText(note))) { onSaved() }
+                return@compactFooter
+            }
+            val row = JSONObject()
+                .put("entry_date", (dateInp.tag as? String) ?: date)
+                .put("branch", branch.selectedItem.toString())
+                .put("cash", cash.text.toString().toDoubleOrNull() ?: 0.0)
+                .put("online", online.text.toString().toDoubleOrNull() ?: 0.0)
+                .put("expense_notes", note)
+                .put("expense_total", sumNumbersInText(note))
+                .put("created_by", entryCreatedBy())
+            // 🔴 বাগ-প্রতিরোধ: existing row এডিট করার সময় তার আসল id-ই পাঠাতে হবে,
+            // নইলে upsert (merge-duplicates) primary-key না মিলে নতুন সারি বানিয়ে
+            // ফেলত — একই দিনের টাকা দুইবার গোনা হয়ে যেত। id থাকলে ঠিক সেই সারিতেই আপডেট হয়।
+            val existingId = existing?.optString("id")
+            if (!existingId.isNullOrBlank()) row.put("id", existingId)
+            ModuleUi.toast(this, "Saving...")
+            Thread {
+                val ok = ModuleAuth.upsert("fin", "collections", row)
+                runOnUiThread { ModuleUi.toast(this, if (ok) "Saved" else "Saved offline / retry"); onSaved() }
+            }.start()
+        })
+
+        // 🔴🆕 TK-অনুমোদিত প্রুফ (10.08.2026): পুরনো সারি এডিটের সময় নিচে লাল "Delete Entry"।
+        // চাপলে লাল নিশ্চিতকরণ → সারিটা fin.collections-এ ignored=true (আড়াল — আজকের SQL-এর মতোই,
+        // মোছে না, দরকারে ফেরানো যায়)। ⛔ শুধু existing (আগে-সেভ-করা) সারিতেই দেখায়, নতুন এন্ট্রিতে নয়।
+        // 🟢🔒 V401 (TK-নির্দেশ "মোছা শুধু মাস্টার"): মাস্টার ছাড়া এই বোতাম **দেখানোই হয় না**।
+        //    ডেটাবেসেও আটকানো আছে, তাই দেখালে শুধু ব্যর্থ চেষ্টা হতো।
+        val delId = if (ModuleAuth.isMaster) existing?.optString("id") else null
+        if (!delId.isNullOrBlank()) {
+            col.addView(android.widget.Button(this).apply {
+                text = "🗑️ Delete Entry"; isAllCaps = false; textSize = 15f
+                setTextColor(android.graphics.Color.WHITE)
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(12).toFloat(); setColor(android.graphics.Color.parseColor("#B42318"))
+                }
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(50)).apply { topMargin = dp(12) }
+                setOnClickListener {
+                    val dShow = slashIso((dateInp.tag as? String) ?: date)
+                    val bShow = branch.selectedItem?.toString() ?: ""
+                    val cShow = money(cash.text.toString().toDoubleOrNull() ?: 0.0)
+                    val oShow = money(online.text.toString().toDoubleOrNull() ?: 0.0)
+                    androidx.appcompat.app.AlertDialog.Builder(this@IncomeExpenseActivity)
+                        .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this@IncomeExpenseActivity, "🗑️ Delete this entry?"))
+                        .setMessage("$dShow · $bShow\nCash $cShow · Online $oShow\n\nThis row will be removed from the ledger. It is hidden safely — not permanently erased.")
+                        .setNegativeButton("Cancel", null)
+                        .setPositiveButton("Delete") { _, _ ->
+                            ModuleUi.toast(this@IncomeExpenseActivity, "Deleting...")
+                            Thread {
+                                val ok = ModuleAuth.update("fin", "collections", "id=eq.$delId",
+                                    JSONObject().put("ignored", true))
+                                runOnUiThread {
+                                    ModuleUi.toast(this@IncomeExpenseActivity, if (ok) "Entry deleted." else "Could not delete (network?) — try again.")
+                                    if (ok) onSaved()
+                                }
+                            }.start()
+                        }
+                        .show().also { try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) { } }
+                }
+            })
+        }
+    }
+
+    // 🔴🆕🔒 TK-নির্দেশ (08.08.2026, ধাপে ধাপে ফটো-প্রুফে TK লক করেছেন) — Income &
+    // Expense পর্দা সহজ করা হলো। TK: "সর্বমোট জিনিসটা একটু কঠিন লাগছে, সহজ করে
+    // দিন।" নতুন সাজ: (১) উপরে "আজকের হিসাব" কার্ড নিজে থেকেই দেখায় (আলাদা Daily
+    // Ledger-এ ঢোকা লাগে না), (২) নিচে ঠিক ৪টা সমান বক্স (২×২) — টাকা জমা · খরচ /
+    // এই মাসের হিসাব · পুরো খাতা। ⛔ হিসাবের নিয়ম/ডেটা/অন্য পর্দা (addCollection/
+    // addExpense/monthly/sheet/dailyLedger) একটুও বদলায়নি — শুধু এই মেনু-পর্দার সাজ;
+    // ওই ফাংশনগুলোই ডাকা হচ্ছে। ⛔ ক্যালেন্ডার-ইমোজি (স্থির "17 July") বাদ — আসল
+    // লাইভ তারিখ দেখানো হয় (কার্ডের শিরোনামে ও "এই মাসের হিসাব" বক্সের আইকনে)।
+    private fun renderMenu() {
+        backAction = { finish() }
+        // 🔵🔒 TK-প্রুফ (09.08.2026): "Back একদম নিচে, বক্স ছোট" — তাই এই পর্দায় নিজস্ব
+        // fillViewport ScrollView + নিচে-ঠেলা spacer, যাতে বক্স ছোট হলেও Back পর্দার
+        // একদম নিচে বসে। ⛔ শুধু এই মেনু-পর্দার সাজ; হিসাব/ডেটা/অন্য পর্দা কিছু বদলায়নি।
+        val scroll = android.widget.ScrollView(this).apply {
+            setBackgroundColor(android.graphics.Color.parseColor("#F4FBF6"))
+            isFillViewport = true
+        }
+        val col = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(16))
+        }
+        scroll.addView(col)
+        setContentView(scroll)
+
+        val headerRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(10) }
+        }
+        val titleTv = android.widget.TextView(this).apply {
+            text = "💵 টাকার হিসাব"; textSize = 19f
+            setTextColor(android.graphics.Color.parseColor("#0A5C33"))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        headerRow.addView(titleTv)
+        // 🟢🆕 TK-অনুমোদিত প্রুফ (10.08.2026): হোমে ব্রাঞ্চ-চিপ। চাপলে ব্রাঞ্চ বাছা যায় →
+        // "আজকের হিসাব" কার্ড ওই ব্রাঞ্চেরই দেখায়। ⛔ অন্য পর্দা/হিসাব কিছু বদলায় না।
+        val homeBranchItems = (listOf("All Branches") + BRANCHES).toTypedArray()
+        val branchLocked = lockedBranch != null   // 🔵 B617: ডাক্তার হলে ব্রাঞ্চ বদলানো যাবে না।
+        if (!branchLocked) homeBranch = v398Branch()   // 🟢🔒 V398: মনে-রাখা ব্রাঞ্চ
+        headerRow.addView(android.widget.TextView(this).apply {
+            text = if (branchLocked) "🏥 " + homeBranch + " 🔒" else "🏥 " + homeBranch + " ▾"; textSize = 12f
+            setTextColor(android.graphics.Color.parseColor("#0A5C33"))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setPadding(dp(10), dp(6), dp(10), dp(6))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(10).toFloat()
+                setColor(android.graphics.Color.parseColor("#E7F6EC"))
+                setStroke(dp(1), android.graphics.Color.parseColor("#B7E3C5"))
+            }
+            isClickable = !branchLocked
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { rightMargin = dp(8) }
+            if (!branchLocked) setOnClickListener {
+                androidx.appcompat.app.AlertDialog.Builder(this@IncomeExpenseActivity)
+                    .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this@IncomeExpenseActivity, "ব্রাঞ্চ বাছুন"))
+                    .setItems(homeBranchItems) { _, which ->
+                        homeBranch = homeBranchItems[which]
+                        v398Remember(homeBranch)   // 🟢🔒 V398: সব পর্দার জন্য মনে রাখা
+                        renderMenu()
+                    }
+                    .show().also { try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) { } }
+            }
+        })
+        headerRow.addView(ModuleUi.liveDateIconButton(this) { pickDateForSummary() })
+        col.addView(headerRow)
+
+        col.addView(buildTodaySummaryCard())
+        col.addView(buildActionGrid())
+        // 🔵 spacer — Back-কে একদম নিচে ঠেলে দেয়
+        col.addView(android.view.View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
+        })
+        col.addView(ModuleUi.button(this, "Back") { finish() })
+    }
+
+    /** "আজকের হিসাব" কার্ড — আজকের নগদ/অনলাইন জমা, মোট জমা ও মোট খরচ। পর্দা খুললেই
+     *  একবার ক্লাউড থেকে আজকের তথ্য টেনে বসায় (আগে Daily Ledger-এ চাপ দিলে ঠিক এই
+     *  একটাই কল হতো — Supabase free-plan-এ বাড়তি কিছু নয়)। ব্যর্থ হলে "—" দেখায়। */
+    // 🔵🔒 B617 (11.08.2026, TK-অনুমোদিত প্রুফ "সাজ ক"): আজকের হিসাব এখন একটা
+    // প্রফেশনাল টেবিল-কার্ড — সবুজ হেডার, কলাম (Cash · Online · মোট), সারি আয় (সবুজ) ·
+    // ব্যয় (লাল) · অবশিষ্ট (নীল ব্যান্ড = আয়−ব্যয়, Cash ও Online আলাদা)। খরচের
+    // Cash/Online আসে fin.expenses-এর `mode` ঘর থেকে (আগেই ছিল)। ⛔ মোট ব্যয় আগের
+    // মতোই (inline collection-খরচ mode-হীন বলে Cash-এ ধরা হয়, তাই যোগফল অটুট)।
+    private fun buildTodaySummaryCard(): LinearLayout {
+        val iso = todayIso()
+        fun dpf(v: Int) = dp(v).toFloat()
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dpf(16)
+                setColor(android.graphics.Color.WHITE)
+                setStroke(dp(1), android.graphics.Color.parseColor("#E2ECE6"))
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(14) }
+        }
+        // ---- সবুজ হেডার (উপরের কোণ গোল) ----
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dp(15), dp(12), dp(15), dp(12))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                orientation = android.graphics.drawable.GradientDrawable.Orientation.TL_BR
+                colors = intArrayOf(android.graphics.Color.parseColor("#0B4F2A"), android.graphics.Color.parseColor("#16A34A"))
+                cornerRadii = floatArrayOf(dpf(16), dpf(16), dpf(16), dpf(16), 0f, 0f, 0f, 0f)
+            }
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        }
+        val title = android.widget.TextView(this).apply {
+            text = "💵 আজকের হিসাব"; textSize = 14f
+            setTextColor(android.graphics.Color.WHITE); setTypeface(typeface, android.graphics.Typeface.BOLD)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        header.addView(title)
+        // 🔴 V414 (TK-রিপোর্ট, ছবিসহ, ১৭.০৮.২০২৬): *"staff এর ফোনে Jalpaiguri ২ বার
+        //    কেন দেখাচ্ছে"* — উপরের হেডারে ব্রাঞ্চের নাম (`🏥 Jalpaiguri 🔒`), আর ঠিক
+        //    তার নিচে এই কার্ডের মাথাতেও একই নাম। স্টাফ/ডাক্তারের ব্রাঞ্চ তো বাঁধা,
+        //    বদলানোই যায় না — তাই দ্বিতীয়বার লেখাটা শুধু জায়গা নষ্ট করছিল।
+        //    ⇒ ব্রাঞ্চ বাঁধা থাকলে এই চিপটা আর বসে না।
+        //    ⛔ Master-এর পর্দা অপরিবর্তিত — তিনি ব্রাঞ্চ বদলাতে পারেন, তাই কার্ডে
+        //       কোন ব্রাঞ্চের হিসাব দেখাচ্ছে সেটা লেখা থাকা দরকার।
+        //    ⛔ কোনো হিসাব · সংখ্যা · রং কিছুই ছোঁয়া হয়নি।
+        // 🔴 V415 (TK-নির্দেশ, ১৭.০৮.২০২৬): *"Branch এর নাম ২ জায়গায় কেন?"* —
+        //    উপরের হেডারে নামটা আছে, তাই কার্ডের মাথায় আর বসানো হয় না।
+        //    Master ও Staff — সবার ক্ষেত্রেই এক নিয়ম।
+        card.addView(header)
+
+        fun cellTv(weight: Float, color: String, bold: Boolean): android.widget.TextView =
+            android.widget.TextView(this).apply {
+                text = "…"; textSize = 13.5f; gravity = android.view.Gravity.END
+                setTextColor(android.graphics.Color.parseColor(color))
+                if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, weight)
+            }
+        fun headCell(txt: String, weight: Float, gravityEnd: Boolean): android.widget.TextView =
+            android.widget.TextView(this).apply {
+                text = txt; textSize = 11f
+                gravity = if (gravityEnd) android.view.Gravity.END else android.view.Gravity.START
+                setTextColor(android.graphics.Color.parseColor("#6A7D72")); setTypeface(typeface, android.graphics.Typeface.BOLD)
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, weight)
+            }
+        fun labelCell(txt: String, color: String): android.widget.TextView =
+            android.widget.TextView(this).apply {
+                text = txt; textSize = 13.5f; setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor(color))
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.1f)
+            }
+        fun rowBox(): LinearLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dp(15), dp(10), dp(15), dp(10))
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        }
+
+        // কলাম-হেডার
+        val colH = rowBox().apply {
+            setPadding(dp(15), dp(8), dp(15), dp(8))
+            background = android.graphics.drawable.GradientDrawable().apply { setColor(android.graphics.Color.parseColor("#F3F7F4")) }
+        }
+        colH.addView(headCell("", 1.1f, false)); colH.addView(headCell("Cash", 1f, true))
+        colH.addView(headCell("Online", 1f, true)); colH.addView(headCell("মোট", 1.05f, true))
+        card.addView(colH)
+
+        // আয় সারি
+        val incRow = rowBox()
+        val incCashTv = cellTv(1f, "#12704A", false); val incOnlineTv = cellTv(1f, "#12704A", false); val incTotTv = cellTv(1.05f, "#0A7C3F", true)
+        incRow.addView(labelCell("আয়", "#0A7C3F")); incRow.addView(incCashTv); incRow.addView(incOnlineTv); incRow.addView(incTotTv)
+        card.addView(incRow)
+        card.addView(android.view.View(this).apply { layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(1)); setBackgroundColor(android.graphics.Color.parseColor("#F1F5F2")) })
+
+        // ব্যয় সারি
+        val expRow = rowBox()
+        val expCashTv = cellTv(1f, "#B0392B", false); val expOnlineTv = cellTv(1f, "#B0392B", false); val expTotTv = cellTv(1.05f, "#B42318", true)
+        expRow.addView(labelCell("ব্যয়", "#B42318")); expRow.addView(expCashTv); expRow.addView(expOnlineTv); expRow.addView(expTotTv)
+        card.addView(expRow)
+
+        // অবশিষ্ট ব্যান্ড (নীল, নিচের কোণ গোল)
+        val remRow = rowBox().apply {
+            background = android.graphics.drawable.GradientDrawable().apply {
+                orientation = android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT
+                colors = intArrayOf(android.graphics.Color.parseColor("#0B2B59"), android.graphics.Color.parseColor("#155EAE"))
+                cornerRadii = floatArrayOf(0f, 0f, 0f, 0f, dpf(16), dpf(16), dpf(16), dpf(16))
+            }
+        }
+        val remCashTv = cellTv(1f, "#DBE9FF", false); val remOnlineTv = cellTv(1f, "#DBE9FF", false); val remTotTv = cellTv(1.05f, "#FFFFFF", true).apply { textSize = 14.5f }
+        remRow.addView(labelCell("অবশিষ্ট", "#FFFFFF")); remRow.addView(remCashTv); remRow.addView(remOnlineTv); remRow.addView(remTotTv)
+        card.addView(remRow)
+
+        Thread {
+            val branchQ = if (homeBranch != "All Branches")
+                "&branch=eq." + java.net.URLEncoder.encode(homeBranch, "UTF-8").replace("+", "%20") else ""
+            val collR = ModuleAuth.getRowsChecked("fin", "collections", "select=*&entry_date=eq.$iso&ignored=eq.false$branchQ")
+            val expR = ModuleAuth.getRowsChecked("fin", "expenses", "select=*&entry_date=eq.$iso&ignored=eq.false$branchQ")
+            if (!collR.ok || !expR.ok) {
+                runOnUiThread {
+                    if (isFinishing || isDestroyed) return@runOnUiThread
+                    for (t in listOf(incCashTv, incOnlineTv, incTotTv, expCashTv, expOnlineTv, expTotTv, remCashTv, remOnlineTv, remTotTv)) t.text = "—"
+                    title.text = "💵 আজকের হিসাব  (লোড হয়নি)"
+                }
+                return@Thread
+            }
+            val coll = collR.rows; val exp = expR.rows
+            var incCash = 0.0; var incOnline = 0.0
+            for (i in 0 until coll.length()) {
+                incCash += coll.getJSONObject(i).optDouble("cash", 0.0)
+                incOnline += coll.getJSONObject(i).optDouble("online", 0.0)
+            }
+            var expCash = 0.0; var expOnline = 0.0
+            for (i in 0 until exp.length()) {
+                val e = exp.getJSONObject(i); val amt = e.optDouble("amount", 0.0)
+                if (e.optString("mode", "Cash").equals("Online", true)) expOnline += amt else expCash += amt
+            }
+            for (i in 0 until coll.length()) {
+                val c = coll.getJSONObject(i)
+                val et = c.optDouble("expense_total", -1.0)
+                expCash += if (et >= 0.0) et else sumNumbersInText(c.optString("expense_notes", "").let { if (it == "null") "" else it })
+            }
+            val incTot = incCash + incOnline; val expTot = expCash + expOnline
+            val remCash = incCash - expCash; val remOnline = incOnline - expOnline
+            saveDaySummaryCache(iso, homeBranch, DaySummary(incCash, incOnline, expCash, expOnline))
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                fun bare(n: Double) = money(n).removePrefix("₹")
+                incCashTv.text = bare(incCash); incOnlineTv.text = bare(incOnline); incTotTv.text = money(incTot)
+                expCashTv.text = bare(expCash); expOnlineTv.text = bare(expOnline); expTotTv.text = money(expTot)
+                remCashTv.text = bare(remCash); remOnlineTv.text = bare(remOnline); remTotTv.text = money(remCash + remOnline)
+            }
+        }.start()
+        return card
+    }
+
+    private fun todaySummaryRow(parent: LinearLayout, label: String, valueColor: String, bold: Boolean): android.widget.TextView {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(6), 0, dp(6))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+        val l = android.widget.TextView(this).apply {
+            text = label; textSize = 13.5f
+            setTextColor(android.graphics.Color.parseColor(if (bold) valueColor else "#2B4B3A"))
+            if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        val v = android.widget.TextView(this).apply {
+            text = "…"; textSize = 13.5f; gravity = android.view.Gravity.END
+            setTextColor(android.graphics.Color.parseColor(valueColor))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+        }
+        row.addView(l); row.addView(v)
+        parent.addView(row)
+        return v
+    }
+
+    /** নিচের ৪টা সমান বক্স (২×২): টাকা জমা · খরচ / এই মাসের হিসাব · পুরো খাতা। */
+    private fun buildActionGrid(): LinearLayout {
+        val wrap = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+        val row1 = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+        row1.addView(actionBox(null, "আয়", "#0A7C3F", "#1F9D57", "#FFFFFF", true) { addCollection() })
+        row1.addView(actionBox(null, "ব্যয়", "#C0271B", "#E0574C", "#FFFFFF", true) { addExpense() })
+
+        /* 🟢🔒 V401 (TK-নির্দেশ): কে কী দেখবে।
+             মাস্টার        → আগের মতোই সব + Entry Permission
+             ডাক্তার        → পুরো খাতা ও মাসের হিসাব দেখতে পাবেন (বদলাতে পারবেন না)
+             স্টাফ          → শুধু আজকের — খাতা ও মাসের হিসাব **দেখানোই হবে না**
+                              (TK: "এগুলি দেখানোর কোন দরকার আছে কি?") — বদলে "Today's Entries"
+           ⛔ আসল আটকানো ডেটাবেসেই (V401 RLS); এটা শুধু পর্দার সাজ। */
+        val ieStaffOnlyToday = ieRestricted && !ieIsDoctor && !isPartnerDoctor
+        val row2 = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(10) }
+        }
+        if (ieStaffOnlyToday) {
+            row2.addView(actionBox(null, "Today's Entries", "#EEF7F1", "#EEF7F1", "#0A5C33", false) { dailyLedger() })
+        } else {
+            row2.addView(actionBox(null, "এই মাসের হিসাব", "#EEF7F1", "#EEF7F1", "#0A5C33", false) { monthly() })
+            row2.addView(actionBox(null, "পুরো খাতা", "#EEF7F1", "#EEF7F1", "#0A5C33", false) { sheet() })
+        }
+        // 🔵 V306 (TK-নির্দেশ, ১০.০৮): টাকার হিসাবের ভেতরেই "অংশীদারি ভাগ" — আলাদা
+        // PartnerSharesActivity খোলে (isolated)। ⛔ পুরনো কোনো হিসাব/স্ক্রিন ছোঁয়া হয়নি।
+        val row3 = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(10) }
+        }
+        // অংশীদারি ভাগ — মাস্টার ও অংশীদার-ডাক্তার (আগের মতোই)। চাবি-পাওয়া সাধারণ
+        // staff/doctor-এর কাছে দেখানো হয় না; ওই পর্দার নিজের নিরাপত্তা আগের মতোই অটুট।
+        if (ModuleAuth.isMaster || isPartnerDoctor) {
+            row3.addView(actionBox(null, "🤝 অংশীদারি ভাগ", "#EEF7F1", "#EEF7F1", "#0A5C33", false) {
+                startActivity(android.content.Intent(this, PartnerSharesActivity::class.java))
+            })
+        }
+        // 🟢🆕 V401: শুধু মাস্টার — কে আয়-খরচ তুলতে পারবে তার চাবি।
+        if (ModuleAuth.isMaster) {
+            row3.addView(actionBox(null, "Entry Permission", "#FFF7E6", "#FFF7E6", "#6A5320", false) { entryPermission() })
+        }
+        wrap.addView(row1); wrap.addView(row2)
+        if (row3.childCount > 0) wrap.addView(row3)
+        return wrap
+    }
+
+    /* =====================================================================
+       🟢🆕🔒 V401 — Entry Permission (শুধু মাস্টার)
+       TK-অনুমোদিত মকআপ: ব্রাঞ্চ বেছে নিলে সেই ব্রাঞ্চের staff ও doctor-দের নাম,
+       পাশে চালু/বন্ধ। লেখা ইংরেজিতে, কোনো icon নেই (TK-নির্দেশ)।
+       ⛔ চাবি লেখা যায় শুধু মাস্টারের হাতে (ডেটাবেসের ie_permits_master নীতি)।
+       ===================================================================== */
+    private fun entryPermission() {
+        if (!ModuleAuth.isMaster) { finish(); return }
+        backAction = { renderMenu() }
+        var branchSel = BRANCHES.firstOrNull() ?: "Birpara"
+
+        val scroll = android.widget.ScrollView(this).apply {
+            setBackgroundColor(android.graphics.Color.parseColor("#F4FBF6")); isFillViewport = true
+        }
+        val col = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; setPadding(dp(14), dp(12), dp(14), dp(16))
+        }
+        scroll.addView(col); setContentView(scroll)
+
+        val listBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        var reload: () -> Unit = {}
+
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dp(14), dp(13), dp(12), dp(13))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(14).toFloat()
+                orientation = android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT
+                colors = intArrayOf(android.graphics.Color.parseColor("#0B4F2A"),
+                                    android.graphics.Color.parseColor("#16A34A"))
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(12) }
+        }
+        header.addView(android.widget.TextView(this).apply {
+            text = "←  Entry Permission"; textSize = 17f
+            setTextColor(android.graphics.Color.WHITE)
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            isClickable = true; setOnClickListener { renderMenu() }
+        })
+        val chip = android.widget.TextView(this).apply {
+            text = "$branchSel ▾"; textSize = 13f
+            setTextColor(android.graphics.Color.WHITE)
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setPadding(dp(10), dp(6), dp(10), dp(6))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(10).toFloat()
+                setColor(android.graphics.Color.parseColor("#33FFFFFF"))
+                setStroke(dp(1), android.graphics.Color.parseColor("#88FFFFFF"))
+            }
+            isClickable = true
+        }
+        chip.setOnClickListener {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "Select Branch"))
+                .setItems(BRANCHES.toTypedArray()) { _, which ->
+                    branchSel = BRANCHES[which]; chip.text = "$branchSel ▾"; reload()
+                }
+                .show().also { try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) { } }
+        }
+        header.addView(chip)
+        col.addView(header)
+        col.addView(listBox)
+        col.addView(android.widget.TextView(this).apply {
+            text = "ON = may add today's Income & Expense for this branch, and may edit their own entry on the same day. " +
+                   "Older dates need Master approval. Delete stays with Master only."
+            textSize = 12.5f
+            setTextColor(android.graphics.Color.parseColor("#5C6B62"))
+            setPadding(dp(12), dp(11), dp(12), dp(11))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(12).toFloat()
+                setColor(android.graphics.Color.parseColor("#F7FAF8"))
+                setStroke(dp(1), android.graphics.Color.parseColor("#DDE7E0"))
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(10) }
+        })
+        col.addView(android.view.View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
+        })
+        col.addView(ModuleUi.button(this, "Back") { renderMenu() })
+
+        reload = {
+            listBox.removeAllViews()
+            listBox.addView(ModuleUi.body(this, "Loading…"))
+            val b = branchSel
+            Thread {
+                val r = ModuleAuth.rpc("fin", "ie_permit_candidates", JSONObject().put("p_branch", b))
+                val rows = try { JSONArray(r.body) } catch (_: Throwable) { JSONArray() }
+                runOnUiThread {
+                    listBox.removeAllViews()
+                    if (!r.ok) { listBox.addView(ModuleUi.body(this, "Could not load — try again.")); return@runOnUiThread }
+                    if (rows.length() == 0) { listBox.addView(ModuleUi.body(this, "No staff or doctor found for this branch.")); return@runOnUiThread }
+                    val card = ModuleUi.card(this)
+                    for (i in 0 until rows.length()) {
+                        val p = rows.getJSONObject(i)
+                        card.addView(ieCandidateRow(p, b) { reload() })
+                        if (i < rows.length() - 1) card.addView(cardDivider())
+                    }
+                    listBox.addView(card)
+                }
+            }.start()
+        }
+        reload()
+    }
+
+    /** Entry Permission-এর একটা সারি — নাম, নিচে ছোট করে role · branch · Partner, ডানে সুইচ। */
+    private fun ieCandidateRow(p: JSONObject, branch: String, onDone: () -> Unit): LinearLayout {
+        val code = p.s("person_code")
+        val on = p.optBoolean("can_entry", false)
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dp(4), dp(10), dp(4), dp(10))
+        }
+        val names = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        names.addView(android.widget.TextView(this).apply {
+            text = p.s("full_name").ifBlank { code }; textSize = 15f
+            setTextColor(android.graphics.Color.parseColor("#16241D"))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+        })
+        val sub = StringBuilder()
+        sub.append(p.s("role_kind").replaceFirstChar { it.uppercase() }).append(" · ").append(branch)
+        if (p.optBoolean("is_partner", false)) sub.append(" · Partner")
+        names.addView(android.widget.TextView(this).apply {
+            text = sub.toString(); textSize = 12.5f
+            setTextColor(android.graphics.Color.parseColor("#7A8A80"))
+        })
+        row.addView(names)
+
+        val sw = android.widget.Switch(this).apply {
+            isChecked = on
+            setOnCheckedChangeListener { view, checked ->
+                if (!view.isPressed) return@setOnCheckedChangeListener
+                view.isEnabled = false
+                val patch = JSONObject()
+                    .put("person_code", code).put("branch", branch)
+                    .put("can_entry", checked).put("updated_by", ModuleAuth.personCode ?: "master")
+                try {
+                    val f = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
+                    f.timeZone = TimeZone.getTimeZone("UTC")
+                    patch.put("updated_at", f.format(java.util.Date()))
+                } catch (_: Throwable) { }
+                Thread {
+                    // 🔒 PK এখানে (person_code, branch) — id নয়, তাই on_conflict স্পষ্ট করে
+                    //    বলা হয়; নইলে একই মানুষের দুই ব্রাঞ্চের চাবি ধাক্কা খেতে পারত।
+                    val ok = ModuleAuth.upsertOnConflict("fin", "entry_permits", patch, "person_code,branch")
+                    runOnUiThread {
+                        view.isEnabled = true
+                        if (ok) ModuleUi.toast(this@IncomeExpenseActivity,
+                            if (checked) "Turned ON" else "Turned OFF")
+                        else { view.isChecked = !checked
+                               ModuleUi.toast(this@IncomeExpenseActivity, "Could not save — try again") }
+                    }
+                }.start()
+            }
+        }
+        row.addView(sw)
+        return row
+    }
+
+    /* =====================================================================
+       🟢🆕🔒 V401 — "Master approval required" — পুরনো তারিখে কিছু করতে গেলে।
+       TK-অনুমোদিত মকআপ: কারণ লিখে "Send Request"; মাস্টারের ঘণ্টায় গিয়ে বসে।
+       ===================================================================== */
+    private fun ieAskApproval(
+        kind: String, branch: String, entryDateIso: String,
+        targetId: String?, payload: JSONObject, onSent: () -> Unit
+    ) {
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(14), dp(18), dp(4))
+        }
+        box.addView(android.widget.TextView(this).apply {
+            text = slashIso(entryDateIso) + " is not today, so it cannot be changed directly.\n\n" +
+                   "Send a request to Master. Write what you want to change and why."
+            textSize = 14.5f
+            setTextColor(android.graphics.Color.parseColor("#22312A"))
+        })
+        val reason = android.widget.EditText(this).apply {
+            hint = "Reason"
+            minLines = 2
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            gravity = android.view.Gravity.TOP or android.view.Gravity.START
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(10) }
+        }
+        box.addView(reason)
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "Master approval required"))
+            .setView(box)
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Send Request") { _, _ ->
+                ModuleUi.toast(this, "Sending…")
+                val why = reason.text.toString()
+                Thread {
+                    val res = IePermit.sendRequest(kind, branch, entryDateIso, targetId, payload, why)
+                    runOnUiThread {
+                        if (res.ok) { ModuleUi.toast(this, "Request sent to Master."); onSent() }
+                        else ModuleUi.toast(this, res.message.ifBlank { "Could not send — try again" })
+                    }
+                }.start()
+            }
+            .show().also { try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) { } }
+    }
+
+    private fun actionBox(icon: android.view.View?, label: String, topColor: String, bottomColor: String, fg: String, gradient: Boolean, onClick: () -> Unit): LinearLayout {
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = android.view.Gravity.CENTER
+            setPadding(dp(8), dp(12), dp(8), dp(12))
+            minimumHeight = dp(44)
+            isClickable = true; isFocusable = true
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(14).toFloat()
+                if (gradient) {
+                    orientation = android.graphics.drawable.GradientDrawable.Orientation.TL_BR
+                    colors = intArrayOf(
+                        android.graphics.Color.parseColor(topColor),
+                        android.graphics.Color.parseColor(bottomColor)
+                    )
+                } else {
+                    setColor(android.graphics.Color.parseColor(topColor))
+                    setStroke(dp(1), android.graphics.Color.parseColor("#CFE4D6"))
+                }
+            }
+            setOnClickListener { onClick() }
+        }
+        if (icon != null) box.addView(icon)   // 🔵 TK-প্রুফ: বক্সে কোনো আইকন/ইমোজি নেই — শুধু লেখা
+        box.addView(android.widget.TextView(this).apply {
+            text = label; textSize = 14f; gravity = android.view.Gravity.CENTER
+            setTextColor(android.graphics.Color.parseColor(fg))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+        })
+        box.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+            setMargins(dp(5), 0, dp(5), 0)
+        }
+        return box
+    }
+
+    private fun emojiIcon(s: String, color: String): android.widget.TextView =
+        android.widget.TextView(this).apply {
+            text = s; textSize = 19f; gravity = android.view.Gravity.CENTER
+            setTextColor(android.graphics.Color.parseColor(color))
+        }
+
+    private fun liveCalIcon(): LinearLayout {
+        val cal = java.util.Calendar.getInstance()
+        val mon = java.text.SimpleDateFormat("MMM", java.util.Locale.ENGLISH).format(cal.time)
+        val day = cal.get(java.util.Calendar.DAY_OF_MONTH).toString()
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = android.view.Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(dp(30), dp(30))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(7).toFloat()
+                setColor(android.graphics.Color.WHITE)
+                setStroke(dp(1), android.graphics.Color.parseColor("#BFDCC9"))
+            }
+        }
+        box.addView(android.widget.TextView(this).apply {
+            text = mon; textSize = 7.5f; gravity = android.view.Gravity.CENTER
+            setTextColor(android.graphics.Color.parseColor("#B42318"))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+        })
+        box.addView(android.widget.TextView(this).apply {
+            text = day; textSize = 11f; gravity = android.view.Gravity.CENTER
+            setTextColor(android.graphics.Color.parseColor("#0A5C33"))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+        })
+        return box
+    }
+
+    // 🔴🔒 V452 (TK-নির্দেশ ১৮.০৮.২০২৬: "All branch কেন দেখাবে, cash/online
+    // আলাদা কেন দেখাবে না") — এখন হোমের ব্রাঞ্চ-চিপ (`homeBranch`) মেনেই
+    // ফিল্টার হয় ("All Branches" বাছা থাকলে আগের মতোই সব ব্রাঞ্চ), আর
+    // Cash/Online আলাদা করে দেখানো হয় (Collection ও Expense দুটোতেই)।
+    private fun pickDateForSummary() {
+        val cal = java.util.Calendar.getInstance(TimeZone.getTimeZone("Asia/Kolkata"))
+        android.app.DatePickerDialog(this, { _, y, m, d ->
+            val iso = String.format(Locale.US, "%04d-%02d-%02d", y, m + 1, d)
+            val dotted = String.format(Locale.US, "%02d.%02d.%04d", d, m + 1, y)
+            showDaySummary(iso, dotted)
+        }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH), cal.get(java.util.Calendar.DAY_OF_MONTH)).show()
+    }
+
+    // 🔴🔒 B504 (06.08.2026, TK-নির্দেশ, সাবধানে করার শর্তে) — দিনের
+    // টাকার সারাংশ (Collection/Expense/Net) আগে সবসময় ক্লাউডের উত্তরের
+    // অপেক্ষা করে "Loading..." দেখাত। এখন আগের সফল হিসাব এই ফোনে জমা
+    // থাকে — থাকলে **সাথে সাথেই** (স্পষ্ট "শেষ জানা তথ্য, হালনাগাদ
+    // হচ্ছে..." লেখা-সহ) দেখানো হয়, তারপর ক্লাউড থেকে আসল/হালনাগাদ
+    // সংখ্যা এলে সেই একই ডায়ালগ বন্ধ করে আসল সংখ্যা দিয়ে আবার দেখানো
+    // হয় — টাকার সংখ্যা কখনো "শেষ জানা" আর "আসল" গুলিয়ে একসাথে
+    // দেখানো হয় না, দুটো ধাপ স্পষ্ট আলাদা। ⛔ হিসাবের নিয়ম (Ledger
+    // Sheet-এর expense_total যোগ করা-সহ) এক অক্ষরও বদলায়নি।
+    private fun daySummaryCachePrefs() = getSharedPreferences("income_expense_cache", MODE_PRIVATE)
+    // 🔒 B602 (10.08.2026): Daily Ledger খাতার cache-first (raw collections rows + prevBal)।
+    // ⛔ শুধু দেখানো দ্রুত করা — buildSheetTable-এর হিসাব-লজিক অপরিবর্তিত।
+    private fun loadSheetCache(key: String): Triple<JSONArray, Double, Boolean>? {
+        return try {
+            val s = daySummaryCachePrefs().getString(key, null) ?: return null
+            val o = JSONObject(s)
+            Triple(o.getJSONArray("rows"), o.optDouble("prevBal", 0.0), o.optBoolean("prevOk", true))
+        } catch (_: Throwable) { null }
+    }
+    private fun saveSheetCache(key: String, rows: JSONArray, prevBal: Double, prevOk: Boolean) {
+        try {
+            daySummaryCachePrefs().edit()
+                .putString(key, JSONObject().put("rows", rows).put("prevBal", prevBal).put("prevOk", prevOk).toString())
+                .apply()
+        } catch (_: Throwable) { }
+    }
+    private fun cachedDaySummary(iso: String, branchKey: String): DaySummary? {
+        return try {
+            val p = daySummaryCachePrefs()
+            val k = branchKey + "|" + iso
+            if (!p.contains("cashC_$k")) return null
+            DaySummary(
+                p.getFloat("cashC_$k", 0f).toDouble(), p.getFloat("onlC_$k", 0f).toDouble(),
+                p.getFloat("cashE_$k", 0f).toDouble(), p.getFloat("onlE_$k", 0f).toDouble()
+            )
+        } catch (_: Throwable) { null }
+    }
+    private fun saveDaySummaryCache(iso: String, branchKey: String, s: DaySummary) {
+        try {
+            val k = branchKey + "|" + iso
+            daySummaryCachePrefs().edit()
+                .putFloat("cashC_$k", s.cashColl.toFloat()).putFloat("onlC_$k", s.onlineColl.toFloat())
+                .putFloat("cashE_$k", s.cashExp.toFloat()).putFloat("onlE_$k", s.onlineExp.toFloat())
+                .apply()
+        } catch (_: Throwable) { }
+    }
+    /** V452 — Collection/Expense-এর Cash ও Online আলাদা রাখা হয়, যাতে পপ-আপে
+     *  দুটোই আলাদা করে দেখানো যায় (আগে শুধু যোগফল থাকত)। */
+    private data class DaySummary(val cashColl: Double, val onlineColl: Double, val cashExp: Double, val onlineExp: Double) {
+        val totalColl get() = cashColl + onlineColl
+        val totalExp get() = cashExp + onlineExp
+        val net get() = totalColl - totalExp
+    }
+
+    private fun showDaySummary(iso: String, dotted: String) {
+        fun enc(x: String) = try { java.net.URLEncoder.encode(x, "UTF-8") } catch (_: Throwable) { x }
+        // V452 — homeBranch-এর হুবহু সেই ব্রাঞ্চ-চিপ; "All Branches" হলে ফিল্টার নেই।
+        val branchSel = homeBranch
+        val branchQ = if (branchSel != "All Branches") "&branch=eq." + enc(branchSel) else ""
+        val branchKey = branchSel
+        val title = dotted + " · " + branchSel
+        var instantDialog: androidx.appcompat.app.AlertDialog? = null
+        val cached = cachedDaySummary(iso, branchKey)
+        fun msgFor(s: DaySummary, stale: Boolean) =
+            "Collection — Cash: " + money(s.cashColl) + "  ·  Online: " + money(s.onlineColl) + "\n" +
+            "Total Collection: " + money(s.totalColl) + "\n\n" +
+            "Expense — Cash: " + money(s.cashExp) + "  ·  Online: " + money(s.onlineExp) + "\n" +
+            "Total Expense: " + money(s.totalExp) + "\n\n" +
+            "Net (Collection − Expense): " + money(s.net) +
+            (if (stale) "\n\n(শেষ জানা তথ্য — হালনাগাদ হচ্ছে…)" else "")
+        if (cached != null) {
+            instantDialog = androidx.appcompat.app.AlertDialog.Builder(this)
+                .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, title))
+                .setMessage(msgFor(cached, true))
+                .setPositiveButton("OK", null)
+                .setCancelable(true)
+                .show().also { try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) { } }
+        } else {
+            ModuleUi.toast(this, "Loading...")
+        }
+        Thread {
+            val collR = ModuleAuth.getRowsChecked("fin", "collections", "select=*&entry_date=eq.$iso&ignored=eq.false$branchQ")
+            val expR = ModuleAuth.getRowsChecked("fin", "expenses", "select=*&entry_date=eq.$iso&ignored=eq.false$branchQ")
+            if (!collR.ok || !expR.ok) {
+                runOnUiThread {
+                    if (cached == null) {
+                        try { instantDialog?.dismiss() } catch (_: Throwable) { }
+                        ModuleUi.toast(this, "লোড করা গেল না — একটু পরে আবার দেখুন")
+                    }
+                    // শেষ-জানা তথ্য থাকলে সেই ডায়ালগই থাক — ₹0 দিয়ে ঢাকা হবে না।
+                }
+                return@Thread
+            }
+            val coll = collR.rows
+            val exp = expR.rows
+            var cashColl = 0.0; var onlineColl = 0.0
+            for (i in 0 until coll.length()) {
+                val c = coll.getJSONObject(i)
+                cashColl += c.optDouble("cash", 0.0)
+                onlineColl += c.optDouble("online", 0.0)
+            }
+            var cashExp = 0.0; var onlineExp = 0.0
+            for (i in 0 until exp.length()) {
+                val e = exp.getJSONObject(i)
+                val amt = e.optDouble("amount", 0.0)
+                if (e.optString("mode", "CASH").uppercase(Locale.US) == "ONLINE") onlineExp += amt else cashExp += amt
+            }
+            // 🔴 একই টাকা যেন সব জায়গায় এক দেখায়: Ledger Sheet-এর expense_total-ও
+            // যোগ (এই সারিগুলোর মোড জানা নেই, তাই Cash-এ ধরা হয় — আগের কোডেও
+            // এগুলো mode-নির্বিশেষে মোট expense-এই যুক্ত হতো)।
+            for (i in 0 until coll.length()) {
+                val c = coll.getJSONObject(i)
+                val et = c.optDouble("expense_total", -1.0)
+                if (et >= 0.0) cashExp += et
+                else cashExp += sumNumbersInText(c.optString("expense_notes", "").let { if (it == "null") "" else it })
+            }
+            val summary = DaySummary(cashColl, onlineColl, cashExp, onlineExp)
+            saveDaySummaryCache(iso, branchKey, summary)
+            runOnUiThread {
+                try { instantDialog?.dismiss() } catch (_: Throwable) { }
+                androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, title))
+                    .setMessage(msgFor(summary, false))
+                    .setPositiveButton("OK", null)
+                    .show().also { try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) { } }
+            }
+        }.start()
+    }
+
+    /* 🔴🔒 V415 (TK-নির্দেশ, ১৭.০৮.২০২৬) — **"Paid To"-তে সংখ্যা বসানো আটকানো।**
+       TK ছবি দিয়ে ধরালেন: PAID TO ঘরে `2000` লেখা, অথচ ওখানে **নাম** থাকার কথা।
+       আগে কোনো পাহারা ছিল না, তাই ভুল করে অঙ্ক বসিয়ে সেভ করা যেত — পরে খাতায়
+       "RMP Commission · 2000" দেখে কাকে টাকা দেওয়া হয়েছিল বোঝাই যেত না।
+       ⇒ নাম ফাঁকা হলে, বা নামে একটাও অক্ষর না থাকলে (শুধু সংখ্যা/চিহ্ন) সেভ আটকায়।
+       ⛔ টাকার অঙ্ক · ক্যাটেগরি · তারিখ · মোড — কোনো নিয়ম বদলায়নি। */
+    private fun ieBadPaidTo(name: String): Boolean {
+        val t = name.trim()
+        if (t.isEmpty()) return true
+        return t.none { it.isLetter() }
+    }
+
+    private fun spinner(items: List<String>): Spinner {
+        val sp = Spinner(this)
+        sp.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, items)
+        return sp
+    }
+
+    // 🔴 B312 (03.08.2026, TK-অনুমোদিত মকআপ — "বাস্তবে যেন এটাই হয়") — সবুজ
+    // গ্রেডিয়েন্ট হিরো হেডার + বর্ডার-করা কার্ডে ফিল্ড + ছোট পাশাপাশি
+    // Save/Cancel বা Show/Back বোতাম। Staff Profile-এর View স্ক্রিনে (B308)
+    // যে একই টেকনিক প্রমাণিত হয়েছে সেটাই এখানে পুনর্ব্যবহার — নতুন প্যাটার্ন
+    // আবিষ্কার করা হয়নি।
+    private fun hero(title: String): LinearLayout {
+        val h = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(16), dp(16), dp(16))
+            background = android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
+                intArrayOf(android.graphics.Color.parseColor("#0B4F2A"), android.graphics.Color.parseColor("#0B8A3E"))
+            ).apply { cornerRadius = dp(16).toFloat() }
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                .apply { bottomMargin = dp(12) }
+        }
+        h.addView(android.widget.TextView(this).apply {
+            text = title; textSize = 19f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.WHITE)
+        })
+        return h
+    }
+
+    private fun dp(v: Int) = ModuleUi.dp(this, v)
+
+    /** কার্ডের ভিতরে এক সারি — লেবেল (ছোট, ধূসর) + ফিল্ড (স্বাভাবিক, আন্ডারলাইন-বিহীন)। */
+    private fun fieldInCard(label: String, field: android.view.View): LinearLayout {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(9), dp(14), dp(9))
+        }
+        row.addView(android.widget.TextView(this).apply {
+            text = label; textSize = 10.5f
+            setTextColor(android.graphics.Color.parseColor("#8A9A90"))
+            isAllCaps = true; letterSpacing = 0.02f
+        })
+        if (field is android.widget.EditText) {
+            field.background = null
+            field.textSize = 14.5f
+            field.setTextColor(android.graphics.Color.parseColor("#1C2B22"))
+            field.setPadding(0, dp(2), 0, 0)
+        } else if (field is Spinner) {
+            field.setPadding(0, dp(2), 0, 0)
+        }
+        row.addView(field)
+        return row
+    }
+
+    private fun cardDivider(): android.view.View = android.view.View(this).apply {
+        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(1))
+        setBackgroundColor(android.graphics.Color.parseColor("#F0F5F1"))
+    }
+
+    private fun entryCard(fields: List<Pair<String, android.view.View>>): LinearLayout {
+        val card = ModuleUi.card(this)
+        for ((i, pair) in fields.withIndex()) {
+            card.addView(fieldInCard(pair.first, pair.second))
+            if (i < fields.size - 1) card.addView(cardDivider())
+        }
+        return card
+    }
+
+    /** ছোট পাশাপাশি বোতাম-জোড়া — বাঁয়ে সাদা/বর্ডার (secondary), ডানে ভরাট সবুজ (primary)। */
+    private fun compactFooter(secondaryText: String, primaryText: String, onSecondary: () -> Unit, onPrimary: () -> Unit): LinearLayout {
+        val footer = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                .apply { topMargin = dp(12) }
+        }
+        val secBtn = ModuleUi.button(this, secondaryText, onSecondary)
+        secBtn.setTextColor(android.graphics.Color.parseColor("#0B4F2A"))
+        secBtn.background = android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = dp(10).toFloat(); setColor(android.graphics.Color.WHITE)
+            setStroke(dp(1), android.graphics.Color.parseColor("#CFE9D8"))
+        }
+        secBtn.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(6) }
+        val priBtn = ModuleUi.button(this, primaryText, onPrimary)
+        priBtn.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = dp(6) }
+        footer.addView(secBtn); footer.addView(priBtn)
+        return footer
+    }
+
+    // 🔵🔒 Add Collection নতুন সাজ (09.08.2026, TK-প্রুফ অনুমোদিত): (১) তারিখ read-only,
+    // চাপলে ক্যালেন্ডার (পুরনো দিনও বাছা যায়), দেখায় dd/mm/yyyy, কোনো ইমোজি নেই —
+    // ভেতরে yyyy-mm-dd (.tag) অটুট। (২) Branch একবার বাছলে ওখানেই থাকে (spinner)।
+    // (৩) "Save & Add More" — টাকা জমা হয় কিন্তু পর্দাতেই থাকে; নগদ/অনলাইন/নোট ফাঁকা
+    // হয়ে যায় (তারিখ+ব্রাঞ্চ থাকে) যাতে আরেকটা যোগ করা যায়। (৪) "← Back" চাপলে তবেই
+    // আগের পর্দায়। ⛔ সেভ/হিসাবের নিয়ম বদলায়নি — একই fin.collections-এ insert,
+    // একই কলাম। শুধু খালি টাকায় ভুল-সারি ঠেকাতে ছোট সুরক্ষা (নগদ+অনলাইন দুটোই ০ হলে
+    // সেভ হয় না — নতুন Add-More পথে ভুল করে ফাঁকা সারি না জমে)।
+    // 🔵🔒 Add Collection নতুন সাজ (09.08.2026, TK-প্রুফ অনুমোদিত): CHECK-UP-এর মতো হেডার —
+    // বাঁয়ে ←+"Add Collection", ডানে ব্রাঞ্চ-চিপ ("🏥 Select ▾") + ↻। ফর্মে আলাদা Branch/Note
+    // ঘর নেই। ব্রাঞ্চ প্রতিবার নিজে বাছতে হবে (না বাছলে Save নয়); একবার বাছলে Save&Add More-এ
+    // থেকে যায়। ↻ = পর্দা নতুন করে (ফর্ম ফাঁকা)। ⛔ সেভ/হিসাব অটুট — শুধু সাজ ও ব্রাঞ্চ-বাছাই স্থান।
+    private fun addCollection() {
+        backAction = { renderMenu() }
+        ieSaveBusy = false   // 🔒 V418: পর্দা খুললেই তালা খোলা — কখনো আটকে থাকে না
+        // 🔵 TK-নির্দেশ (09.08.2026): Back/Save একদম নিচে — তাই fillViewport স্ক্রল + spacer।
+        val scroll = android.widget.ScrollView(this).apply {
+            setBackgroundColor(android.graphics.Color.parseColor("#F4FBF6"))
+            isFillViewport = true
+        }
+        val col = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(16))
+        }
+        scroll.addView(col)
+        setContentView(scroll)
+        var selectedBranch: String? = lockedBranch   // 🔵 B617: ডাক্তার হলে নিজের ব্রাঞ্চ প্রি-সেট + লক
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dp(14), dp(13), dp(12), dp(13))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(14).toFloat()
+                orientation = android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT
+                colors = intArrayOf(
+                    android.graphics.Color.parseColor("#123F86"),
+                    android.graphics.Color.parseColor("#16A34A")
+                )
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(12) }
+        }
+        header.addView(android.widget.TextView(this).apply {
+            text = "←  Add Collection"; textSize = 18f
+            setTextColor(android.graphics.Color.WHITE)
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            isClickable = true
+            setOnClickListener { renderMenu() }
+        })
+        val branchChip = android.widget.TextView(this).apply {
+            text = if (selectedBranch != null) "🏥 $selectedBranch 🔒" else "🏥 Select ▾"; textSize = 13f
+            setTextColor(android.graphics.Color.WHITE)
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setPadding(dp(10), dp(6), dp(10), dp(6))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(10).toFloat()
+                setColor(android.graphics.Color.parseColor("#33FFFFFF"))
+                setStroke(dp(1), android.graphics.Color.parseColor("#88FFFFFF"))
+            }
+            isClickable = (selectedBranch == null)
+        }
+        if (selectedBranch == null) branchChip.setOnClickListener {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "Select Branch"))
+                /* 🟢🔒 V401: মাস্টার নন এমন কারো সামনে **শুধু নিজের ব্রাঞ্চই** আসে —
+                   অন্য ব্রাঞ্চ বেছে ফেলে সেভ করতে গিয়ে ব্যর্থ হওয়ার ঝামেলা থাকে না।
+                   (ডেটাবেসেও আটকানো; এটা শুধু সামনের তালিকা।) */
+                .setItems(ieBranchChoices().filter { it != "All Branches" }.toTypedArray()) { _, which ->
+                    val opts = ieBranchChoices().filter { it != "All Branches" }
+                    selectedBranch = opts[which]
+                    branchChip.text = "🏥 " + opts[which] + " ▾"
+                }
+                .show().also { try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) { } }
+        }
+        header.addView(branchChip)
+        header.addView(android.widget.TextView(this).apply {
+            text = "↻"; textSize = 20f
+            setTextColor(android.graphics.Color.WHITE)
+            setPadding(dp(10), 0, dp(2), 0)
+            isClickable = true
+            setOnClickListener { addCollection() }
+        })
+        col.addView(header)
+
+        val date = dateField()
+        val cash = ModuleUi.numberInput(this, "Cash", allowDecimal = true)
+        val online = ModuleUi.numberInput(this, "Online", allowDecimal = true)
+        col.addView(entryCard(listOf(
+            "Date" to date, "Cash Collection" to cash, "Online Collection" to online
+        )))
+        // 🔵 spacer — Back/Save একদম নিচে ঠেলে দেয়
+        col.addView(android.view.View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
+        })
+        col.addView(compactFooter("← Back", "Save & Add More", { renderMenu() }) {
+            /* 🔴🔒 V418 (TK-রিপোর্ট, ১৭.০৮.২০২৬ — *"এত ডুপ্লিকেট কেন হবে"*):
+               ১৩/০৩/২০২৬-এর একই এন্ট্রি তিনবার বসে গিয়েছিল, তিনটেই এক সেকেন্ডের
+               মধ্যে (০৮:২২:৫১→৫২)। ডুপ্লিকেট-সতর্কতা আগেও ছিল, কিন্তু সেটা ক্লাউডে
+               জিজ্ঞাসা করে — তিনটে চাপই উত্তর আসার **আগেই** বেরিয়ে গিয়েছিল।
+               এখন একটা সেভ পুরো শেষ না হওয়া পর্যন্ত দ্বিতীয় সেভ শুরুই হয় না।
+               ⛔ প্রতিটা বেরোনোর পথে তালা খোলা হয় ⇒ বোতাম চিরতরে আটকানোর
+                  কোনো সুযোগ নেই। ⛔ হিসাব/সেভের নিয়ম এক অক্ষরও বদলায়নি। */
+            if (ieSaveBusy) return@compactFooter
+            ieSaveBusy = true
+            val br = selectedBranch
+            if (br == null) {
+                ieSaveBusy = false
+                ModuleUi.toast(this, "উপরে ডানে ব্রাঞ্চ বাছুন")
+                return@compactFooter
+            }
+            val cashV = cash.text.toString().toDoubleOrNull() ?: 0.0
+            val onlineV = online.text.toString().toDoubleOrNull() ?: 0.0
+            if (cashV <= 0.0 && onlineV <= 0.0) {
+                ieSaveBusy = false
+                ModuleUi.toast(this, "নগদ বা অনলাইন — অন্তত একটা লিখুন")
+                return@compactFooter
+            }
+            val entryDate = (date.tag as? String) ?: todayIso()
+            /* 🟢🔒 V401 (TK-নির্দেশ): "দিনের দিন হতে হবে / পুরাতন হিসাব তুলতে গেলে
+               Master এর অনুমতি লাগবে"। মাস্টার হলে আগের মতোই সরাসরি বসে। */
+            if (ieRestricted && !ieIsToday(entryDate)) {
+                ieSaveBusy = false
+                ieAskApproval(IePermit.ADD_COLLECTION, br, entryDate, null,
+                    JSONObject().put("cash", cashV).put("online", onlineV)) {
+                    cash.setText(""); online.setText("")
+                }
+                return@compactFooter
+            }
+            val row = JSONObject()
+                .put("entry_date", entryDate)
+                .put("branch", br)
+                .put("cash", cashV)
+                .put("online", onlineV)
+                .put("created_by", entryCreatedBy())
+            fun encV(x: String) = try { java.net.URLEncoder.encode(x, "UTF-8").replace("+", "%20") } catch (_: Throwable) { x }
+            val doInsert = {
+                ModuleUi.toast(this, "Saving...")
+                Thread {
+                    val res = ModuleAuth.insertChecked("fin", "collections", row)
+                    runOnUiThread {
+                        ieSaveBusy = false
+                        /* 🔴🔒 V418 (TK-নির্দেশ): ডেটাবেস নিজেই এখন একই দিনের · একই
+                           ব্রাঞ্চের · হুবহু একই Cash+Online দ্বিতীয়বার বসতে দেয় না।
+                           সেটা আটকালে **সৎ কথা** বলা হয় — "Saved" বলা হয় না।
+                           ⛔ নেট-সমস্যা আর ডুপ্লিকেট — দুটো আলাদা বার্তা। */
+                        val msg = when {
+                            res.ok -> "Saved — আরেকটা যোগ করতে পারেন"
+                            res.duplicate -> "এই দিনে এই অঙ্ক আগেই জমা আছে — আর যোগ হয়নি"
+                            else -> "Saved offline / retry"
+                        }
+                        ModuleUi.toast(this, msg)
+                        // 🔵 সফল হলে পর্দাতেই থাকে; টাকার ঘর ফাঁকা (তারিখ+ব্রাঞ্চ থাকে)।
+                        if (res.ok) { cash.setText(""); online.setText("") }
+                    }
+                }.start()
+            }
+            // 🔵🆕 TK-অনুমোদিত (10.08.2026): একই দিনে · একই ব্রাঞ্চে · ঠিক একই Cash+Online আগে
+            // থেকে থাকলে সেভের আগে সবুজ সতর্কতা (দুবার-ওঠা ঠেকাতে)। কখনো জোর করে আটকায় না।
+            ModuleUi.toast(this, "Checking...")
+            Thread {
+                val dup = ModuleAuth.getRows("fin", "collections",
+                    "select=id&entry_date=eq.$entryDate&branch=eq.${encV(br)}&cash=eq.$cashV&online=eq.$onlineV&ignored=eq.false&limit=1")
+                runOnUiThread {
+                    if (dup.length() > 0) {
+                        androidx.appcompat.app.AlertDialog.Builder(this)
+                            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "Duplicate entry?"))
+                            .setMessage("This looks identical to an entry already saved for this date and branch — add anyway?")
+                            .setPositiveButton("Add anyway") { _, _ -> doInsert() }
+                            .setNegativeButton("Cancel") { _, _ -> ieSaveBusy = false }
+                            .setOnCancelListener { ieSaveBusy = false }
+                            .show().also { try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) { } }
+                    } else doInsert()
+                }
+            }.start()
+        })
+    }
+
+    // 🔵🔒 Add Expense নতুন সাজ (09.08.2026, TK-অনুমোদিত — Add Collection-এর মতোই): তারিখ
+    // read-only, চাপলে ক্যালেন্ডার (dd/mm/yyyy, ইমোজি নেই, ভেতরে yyyy-mm-dd)। "Save & Add More"
+    // চাপলে জমা হয় কিন্তু পর্দাতেই থাকে — Amount/Paid To/Note ফাঁকা হয় (তারিখ+ব্রাঞ্চ+ক্যাটেগরি+মোড
+    // থাকে) যাতে আরেকটা যোগ করা যায়; "← Back" চাপলে তবেই ফেরে। ⛔ ডুপ্লিকেট-গার্ড/সেভ/হিসাব
+    // কিছু বদলায়নি — শুধু তারিখ-ঘর ও ফুটার। খালি (০) Amount-এ সেভ নয় (ভুল-সারি ঠেকাতে)।
+    private fun addExpense() {
+        backAction = { renderMenu() }
+        ieSaveBusy = false   // 🔒 V418: পর্দা খুললেই তালা খোলা — কখনো আটকে থাকে না
+        // 🔵🔒 TK-প্রুফ (09.08.2026): Add Collection-এর মতোই তবে উপরে লাল হেডার। ফর্মে Branch/Note
+        // ঘর নেই; ব্রাঞ্চ ও Category প্রতিবার নিজে বাছতে হবে; Back/Save একদম নিচে (fillViewport+spacer)।
+        val scroll = android.widget.ScrollView(this).apply {
+            setBackgroundColor(android.graphics.Color.parseColor("#F4FBF6"))
+            isFillViewport = true
+        }
+        val col = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(16))
+        }
+        scroll.addView(col)
+        setContentView(scroll)
+        var selectedBranch: String? = lockedBranch   // 🔵 B617: ডাক্তার হলে নিজের ব্রাঞ্চ প্রি-সেট + লক
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dp(14), dp(13), dp(12), dp(13))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(14).toFloat()
+                orientation = android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT
+                colors = intArrayOf(
+                    android.graphics.Color.parseColor("#7A1212"),
+                    android.graphics.Color.parseColor("#C0271B")
+                )
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(12) }
+        }
+        header.addView(android.widget.TextView(this).apply {
+            text = "←  Add Expense"; textSize = 18f
+            setTextColor(android.graphics.Color.WHITE)
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            isClickable = true
+            setOnClickListener { renderMenu() }
+        })
+        val branchChip = android.widget.TextView(this).apply {
+            text = if (selectedBranch != null) "🏥 $selectedBranch 🔒" else "🏥 Select ▾"; textSize = 13f
+            setTextColor(android.graphics.Color.WHITE)
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setPadding(dp(10), dp(6), dp(10), dp(6))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(10).toFloat()
+                setColor(android.graphics.Color.parseColor("#33FFFFFF"))
+                setStroke(dp(1), android.graphics.Color.parseColor("#88FFFFFF"))
+            }
+            isClickable = (selectedBranch == null)
+        }
+        if (selectedBranch == null) branchChip.setOnClickListener {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "Select Branch"))
+                /* 🟢🔒 V401: মাস্টার নন এমন কারো সামনে **শুধু নিজের ব্রাঞ্চই** আসে —
+                   অন্য ব্রাঞ্চ বেছে ফেলে সেভ করতে গিয়ে ব্যর্থ হওয়ার ঝামেলা থাকে না।
+                   (ডেটাবেসেও আটকানো; এটা শুধু সামনের তালিকা।) */
+                .setItems(ieBranchChoices().filter { it != "All Branches" }.toTypedArray()) { _, which ->
+                    val opts = ieBranchChoices().filter { it != "All Branches" }
+                    selectedBranch = opts[which]
+                    branchChip.text = "🏥 " + opts[which] + " ▾"
+                }
+                .show().also { try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) { } }
+        }
+        header.addView(branchChip)
+        header.addView(android.widget.TextView(this).apply {
+            text = "↻"; textSize = 20f
+            setTextColor(android.graphics.Color.WHITE)
+            setPadding(dp(10), 0, dp(2), 0)
+            isClickable = true
+            setOnClickListener { addExpense() }
+        })
+        col.addView(header)
+
+        val date = dateField()
+        // Category — read-only ঘর, চাপলে প্রফেশনাল তালিকা (Select…); বাছা মান .tag-এ।
+        val cat = ModuleUi.input(this, "Category").apply {
+            hint = "Select…"; setText("")
+            isFocusable = false; isFocusableInTouchMode = false; isClickable = true; keyListener = null
+        }
+        cat.setOnClickListener {
+            val items = CATS.map { catDisplay(it) }.toTypedArray()
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "Select Category"))
+                .setItems(items) { _, which ->
+                    cat.tag = CATS[which]
+                    cat.setText(catDisplay(CATS[which]))
+                }
+                .show().also { try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) { } }
+        }
+        val paidTo = ModuleUi.input(this, "Paid To")
+        val amount = ModuleUi.numberInput(this, "Amount", allowDecimal = true)
+        val mode = spinner(listOf("Cash", "Online"))
+        col.addView(entryCard(listOf(
+            "Date" to date, "Category" to cat, "Paid To" to paidTo,
+            "Amount" to amount, "Mode" to mode
+        )))
+        // 🔵 spacer — Back/Save একদম নিচে
+        col.addView(android.view.View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
+        })
+        col.addView(compactFooter("← Back", "Save & Add More", { renderMenu() }) {
+            /* 🔴🔒 V418: Add Collection-এর মতোই — একটা সেভ শেষ না হওয়া পর্যন্ত
+               দ্বিতীয় সেভ শুরু হয় না (ডুপ্লিকেট এন্ট্রি ঠেকাতে)। */
+            if (ieSaveBusy) return@compactFooter
+            ieSaveBusy = true
+            val b = selectedBranch
+            if (b == null) { ieSaveBusy = false; ModuleUi.toast(this, "উপরে ডানে ব্রাঞ্চ বাছুন"); return@compactFooter }
+            val c = (cat.tag as? String)
+            if (c == null) { ieSaveBusy = false; ModuleUi.toast(this, "Category বাছুন"); return@compactFooter }
+            if (ieBadPaidTo(paidTo.text.toString())) {
+                ieSaveBusy = false
+                ModuleUi.toast(this, "Paid To — নাম লিখুন (শুধু সংখ্যা চলবে না)"); return@compactFooter
+            }
+            val amt = amount.text.toString().toDoubleOrNull() ?: 0.0
+            if (amt <= 0.0) { ieSaveBusy = false; ModuleUi.toast(this, "Amount লিখুন"); return@compactFooter }
+            val d = (date.tag as? String) ?: todayIso()
+            val p = paidTo.text.toString(); val md = mode.selectedItem.toString()
+            fun enc(x: String) = try { java.net.URLEncoder.encode(x, "UTF-8") } catch (_: Throwable) { x }
+            // 🔵 সফল সেভের পর: পর্দাতেই থাকে, শুধু Amount/Paid To ফাঁকা (তারিখ+ব্রাঞ্চ+ক্যাটেগরি+মোড থাকে)।
+            val clearForNext = { ieSaveBusy = false; amount.setText(""); paidTo.setText("") }
+            /* 🟢🔒 V401: পুরনো তারিখ হলে সরাসরি নয় — মাস্টারের অনুমতি চাইতে হবে। */
+            if (ieRestricted && !ieIsToday(d)) {
+                ieSaveBusy = false
+                ieAskApproval(IePermit.ADD_EXPENSE, b, d, null,
+                    JSONObject().put("category", c).put("paid_to", p).put("amount", amt).put("mode", md),
+                    clearForNext)
+                return@compactFooter
+            }
+            Thread {
+                // soft duplicate guard: warn on identical recent entry, never block
+                val dup = ModuleAuth.getRows("fin", "expenses",
+                    "select=id&entry_date=eq.$d&branch=eq.${enc(b)}&category=eq.${enc(c)}&paid_to=eq.${enc(p)}&amount=eq.$amt&mode=eq.$md&limit=1")
+                runOnUiThread {
+                    if (dup.length() > 0) {
+                        androidx.appcompat.app.AlertDialog.Builder(this)
+                            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "Duplicate entry?"))
+                            .setMessage("This looks identical to an entry already saved — add anyway?")
+                            .setPositiveButton("Add") { _, _ -> saveExpense(d, b, c, p, amt, md, "", clearForNext) }
+                            .setNegativeButton("Cancel") { _, _ -> ieSaveBusy = false }
+                            .setOnCancelListener { ieSaveBusy = false }
+                            .show().also { try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) { } }
+                    } else saveExpense(d, b, c, p, amt, md, "", clearForNext)
+                }
+            }.start()
+        })
+    }
+
+    private fun saveExpense(d: String, b: String, c: String, p: String, amt: Double, md: String, note: String, onSaved: (() -> Unit)? = null) {
+        val row = JSONObject().put("entry_date", d).put("branch", b).put("category", c)
+            .put("paid_to", p).put("amount", amt).put("mode", md).put("note", note)
+            .put("created_by", entryCreatedBy())
+        ModuleUi.toast(this, "Saving...")
+        Thread {
+            val ok = ModuleAuth.insert("fin", "expenses", row)
+            runOnUiThread {
+                /* 🔒 V418: সফল হোক বা না হোক — তালা এখানেই খোলে। নইলে সেভ ব্যর্থ
+                   হলে (নেট নেই) বোতামটা মরে পড়ে থাকত। */
+                ieSaveBusy = false
+                ModuleUi.toast(this, if (ok) "Saved" else "Saved offline / retry")
+                // onSaved থাকলে (Add More): সফল হলে ফাঁকা করে পর্দাতেই থাকে; না থাকলে আগের মতো ফেরে।
+                if (onSaved != null) { if (ok) onSaved() } else renderMenu()
+            }
+        }.start()
+    }
+
+    private fun dailyLedger() {
+        backAction = { renderMenu() }
+        val col = ModuleUi.screen(this, "")
+        col.addView(hero("⏰ Daily Ledger"))
+        val d = todayIso()
+        col.addView(ModuleUi.body(this, "Date: $d"))
+        val out = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        out.addView(ModuleUi.body(this, "Loading..."))
+        col.addView(out)
+        val backBtn = ModuleUi.button(this, "Back") { renderMenu() }
+        backBtn.setTextColor(android.graphics.Color.parseColor("#0B4F2A"))
+        backBtn.background = android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = dp(10).toFloat(); setColor(android.graphics.Color.WHITE)
+            setStroke(dp(1), android.graphics.Color.parseColor("#CFE9D8"))
+        }
+        backBtn.layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            .apply { topMargin = dp(12) }
+        col.addView(backBtn)
+        Thread {
+            // AUDIT FIX (2026-08-06): checked fetch — on network failure show a
+            // clear message instead of ₹0 totals (loadOk gates the render below).
+            val collR = ModuleAuth.getRowsChecked("fin", "collections", "select=*&entry_date=eq.$d&ignored=eq.false")
+            val expR = ModuleAuth.getRowsChecked("fin", "expenses", "select=*&entry_date=eq.$d&ignored=eq.false")
+            val loadOk = collR.ok && expR.ok
+            val coll = collR.rows
+            val exp = expR.rows
+            var cash = 0.0; var online = 0.0
+            for (i in 0 until coll.length()) { cash += coll.getJSONObject(i).optDouble("cash", 0.0); online += coll.getJSONObject(i).optDouble("online", 0.0) }
+            val rows = ArrayList<Triple<String, String, Boolean>>()
+            rows.add(Triple("Cash Collection", money(cash), false))
+            rows.add(Triple("Online Collection", money(online), false))
+            rows.add(Triple("Total Collection", money(cash + online), true))
+            var expTotal = 0.0
+            for (i in 0 until exp.length()) {
+                val e = exp.getJSONObject(i)
+                val amt = e.optDouble("amount", 0.0); expTotal += amt
+                rows.add(Triple(e.s("category") + " · " + e.s("paid_to") + " · " + e.s("mode"), money(amt), false))
+            }
+            // 🔴 একই টাকা সব জায়গায় এক দেখাতে: Ledger Sheet-এ লেখা খরচও এখানে যোগ
+            for (i in 0 until coll.length()) {
+                val c = coll.getJSONObject(i)
+                val note = c.optString("expense_notes", "").let { if (it == "null") "" else it }
+                if (note.isNotBlank()) {
+                    val et = c.optDouble("expense_total", -1.0).let { if (it >= 0.0) it else sumNumbersInText(note) }
+                    expTotal += et
+                    rows.add(Triple("[Sheet] " + note, money(et), false))
+                }
+            }
+            rows.add(Triple("Total Expense", money(expTotal), true))
+            runOnUiThread {
+                if (loadOk) renderGridTable(out, "Item", "Amount", rows)
+                else { out.removeAllViews(); out.addView(ModuleUi.body(this, "⚠️ Could not load right now — weak internet. Your data is safe; open this again when online.")) }
+            }
+        }.start()
+    }
+
+    private fun monthly() {
+        backAction = { renderMenu() }
+        val col = ModuleUi.screen(this, "")
+        col.addView(hero("📈 Monthly Summary"))
+        val month = ModuleUi.input(this, "YYYY-MM").apply { setText(todayIso().substring(0, 7)) }
+        val branch = spinner(listOf("All Branches") + BRANCHES)
+        // 🟢🔒 V398: মনে-রাখা ব্রাঞ্চ আগে থেকেই বসানো থাকে।
+        try {
+            val __i = (listOf("All Branches") + BRANCHES).indexOf(v398Branch())
+            if (__i >= 0) branch.setSelection(__i)
+        } catch (_: Throwable) { }
+        col.addView(entryCard(listOf("Month" to month, "Branch" to branch)))
+        val out = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+
+        /* 🔴🔒 V412 (TK-রিপোর্ট, ৪টে ছবিসহ, ১৭.০৮.২০২৬) — **টাকার অঙ্ক ভুল পড়ার ফাঁদ।**
+           TK ড্রপডাউনে Jalpaiguri · Falakata · Kishanganj · Birpara একে একে বেছে
+           দেখলেন **চারটেতেই একই সংখ্যা** (Previous Balance ₹1,19,652 · খরচ ₹2,700)।
+           কারণ: "Show" না চাপলে নতুন হিসাব আনা হয় না, আর **আগের ব্রাঞ্চের ফলটা
+           পর্দাতেই থেকে যেত**। উপরে ড্রপডাউনে নতুন ব্রাঞ্চের নাম, নিচে পুরনো
+           ব্রাঞ্চের টাকা — যে কেউ ওটাকে নতুন ব্রাঞ্চের হিসাব ভেবে নেবেন।
+           (লেবেলে "· Cooch Behar" লেখা ছিল বলেই ধরা গেল আসলে কোনটা দেখানো হচ্ছে।)
+           ⇒ এখন ব্রাঞ্চ বা মাস বদলালেই আগের টেবিল **সঙ্গে সঙ্গে মুছে যায়**।
+           ⛔ কোনো হিসাব · ফিল্টার · টাকার অঙ্ক ছোঁয়া হয়নি — শুধু পুরনো ফল আর
+              পর্দায় বসে থাকে না। */
+        val clearStale = {
+            if (out.childCount > 0) {
+                out.removeAllViews()
+                out.addView(ModuleUi.body(this, "Press Show to see this branch and month."))
+            }
+        }
+        branch.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                clearStale()
+            }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+        }
+        month.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) { clearStale() }
+        })
+
+        col.addView(compactFooter("Back", "Show", { renderMenu() }) {
+            v398Remember(branch.selectedItem.toString())   // 🟢🔒 V398
+            runMonthly(month.text.toString(), branch.selectedItem.toString(), out)
+        })
+        col.addView(out)
+    }
+
+    // 🔵🔒 Monthly Summary — TK-অনুমোদিত প্রুফ (09.08.2026): টাকার খাতার হুবহু একই
+    // খাতা-ডিজাইন। উপরে "Previous Balance (গত মাসের ব্যালেন্স)", মাঝে দিন-ধরে
+    // Date/Cash/Online/খরচ বক্স-টেবিল, খরচে চাপ দিলে ওই দিনের ভাঙা-হিসাব পপ-আপ,
+    // একদম নিচে "অবশিষ্ট টাকা"। ⛔ টাকার হিসাবের নিয়ম আগের summarizeRows-এর সাথে
+    // হুবহু এক — মোট আয় = নগদ+অনলাইন; মোট খরচ = Add-Expense এন্ট্রি + খাতায় লেখা
+    // খরচ (expense_notes); ব্যালেন্স = আয় − খরচ। শুধু দেখানোর ধরন বদলেছে (দিন-ধরে
+    // টেবিল), কোনো সংখ্যা যোগ/বিয়োগ/হিসাব বদলায়নি।
+    private fun runMonthly(ym: String, branchSel: String, out: LinearLayout) {
+        out.removeAllViews(); out.addView(ModuleUi.body(this, "Loading..."))
+        val start = "$ym-01"
+        // first day of next month
+        val y = ym.substring(0, 4).toInt(); val m = ym.substring(5, 7).toInt()
+        val nextY = if (m == 12) y + 1 else y; val nextM = if (m == 12) 1 else m + 1
+        val end = String.format(Locale.US, "%04d-%02d-01", nextY, nextM)
+        val branchQ = if (branchSel != "All Branches") "&branch=eq.$branchSel" else ""
+        Thread {
+            // AUDIT FIX (2026-08-06): checked fetch — on network failure show a
+            // clear message instead of a ₹0 monthly summary.
+            val collR = ModuleAuth.getRowsChecked("fin", "collections",
+                "select=*&entry_date=gte.$start&entry_date=lt.$end&ignored=eq.false$branchQ&order=entry_date.asc")
+            val expR = ModuleAuth.getRowsChecked("fin", "expenses",
+                "select=*&entry_date=gte.$start&entry_date=lt.$end&ignored=eq.false$branchQ&order=entry_date.asc")
+            // 🔵 আগের বাকি (Previous Balance) = এই মাসের আগের সব দিনের (একই ব্রাঞ্চের)
+            // আয় − খরচ। দুই উৎস থেকেই খরচ বাদ যায়: খাতার নিজের খরচ (collections) +
+            // Add-Expense এন্ট্রি (expenses)। মাসের ভিতরের হিসাবের সাথে হুবহু মেলে।
+            val prevCollR = ModuleAuth.getRowsChecked("fin", "collections",
+                "select=cash,online,expense_total,expense_notes&entry_date=lt.$start&ignored=eq.false$branchQ")
+            val prevExpR = ModuleAuth.getRowsChecked("fin", "expenses",
+                "select=amount&entry_date=lt.$start&ignored=eq.false$branchQ")
+            val loadOk = collR.ok && expR.ok
+            val prevOk = prevCollR.ok && prevExpR.ok
+            var prevBal = 0.0
+            if (prevOk) {
+                val pc = prevCollR.rows
+                for (i in 0 until pc.length()) {
+                    val c = pc.getJSONObject(i)
+                    val note = c.optString("expense_notes", "").let { if (it == "null") "" else it }
+                    val exp = c.optDouble("expense_total", -1.0).let { if (it >= 0.0) it else sumNumbersInText(note) }
+                    prevBal += c.optDouble("cash", 0.0) + c.optDouble("online", 0.0) - exp
+                }
+                val pe = prevExpR.rows
+                for (i in 0 until pe.length()) prevBal -= pe.getJSONObject(i).optDouble("amount", 0.0)
+            }
+            val coll = collR.rows
+            val exp = expR.rows
+            runOnUiThread {
+                out.removeAllViews()
+                if (loadOk) buildMonthlyKhata(coll, exp, prevBal, prevOk, branchSel, out)
+                else out.addView(ModuleUi.body(this, "⚠️ Could not load right now — weak internet. Your data is safe; open this again when online."))
+            }
+        }.start()
+    }
+
+    // দিন-ধরে খাতা-টেবিল বানায় (buildSheetTable-এর হুবহু একই বক্স-স্টাইল ও কলাম-মাপ)।
+    // প্রতিটি দিনের খরচ = ওই দিনের খাতার খরচ (expense_notes) + ওই দিনের Add-Expense
+    // এন্ট্রিগুলোর যোগফল। খরচের ঘরে চাপ দিলে দুই উৎস মিলিয়ে ভাঙা-হিসাব দেখায়।
+    private fun buildMonthlyKhata(coll: JSONArray, exp: JSONArray, prevBalance: Double, prevOk: Boolean, branchSel: String, out: LinearLayout) {
+        val dayCash = LinkedHashMap<String, Double>()
+        val dayOnline = LinkedHashMap<String, Double>()
+        val dayExp = LinkedHashMap<String, Double>()
+        val daySeg = LinkedHashMap<String, StringBuilder>()
+        val dates = java.util.TreeSet<String>()
+        fun addSeg(d: String, text: String) {
+            val sb = daySeg.getOrPut(d) { StringBuilder() }
+            if (sb.isNotEmpty()) sb.append(", ")
+            sb.append(text)
+        }
+        fun segAmt(a: Double): String = if (a == Math.floor(a)) a.toLong().toString() else a.toString()
+        for (i in 0 until coll.length()) {
+            val c = coll.getJSONObject(i)
+            val d = c.optString("entry_date"); if (d.isBlank()) continue
+            dates.add(d)
+            dayCash[d] = (dayCash[d] ?: 0.0) + c.optDouble("cash", 0.0)
+            dayOnline[d] = (dayOnline[d] ?: 0.0) + c.optDouble("online", 0.0)
+            val note = c.optString("expense_notes", "").let { if (it == "null") "" else it }
+            val se = c.optDouble("expense_total", -1.0).let { if (it >= 0.0) it else sumNumbersInText(note) }
+            if (se != 0.0 || note.isNotBlank()) {
+                dayExp[d] = (dayExp[d] ?: 0.0) + se
+                if (note.isNotBlank()) addSeg(d, note)
+            }
+        }
+        for (i in 0 until exp.length()) {
+            val e = exp.getJSONObject(i)
+            val d = e.optString("entry_date"); if (d.isBlank()) continue
+            dates.add(d)
+            val a = e.optDouble("amount", 0.0)
+            dayExp[d] = (dayExp[d] ?: 0.0) + a
+            val cat = e.s("category"); val pt = e.s("paid_to")
+            val label = if (pt.isNotBlank()) "$cat — $pt" else cat
+            addSeg(d, "$label-${segAmt(a)}")
+        }
+
+        val table = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        }
+        val dpx = { v: Int -> ModuleUi.dp(this, v) }
+        val boldTf = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+        val measure = android.graphics.Paint().apply { typeface = boldTf; textSize = 11f * resources.displayMetrics.scaledDensity }
+        val cellPadPx = dpx(8) * 2
+        val cellSlackPx = dpx(10)
+        // 🔵 Date ঘর কনটেন্টের সমান সরু (TK: "Date fixed, ডান পাশে এত জায়গা দরকার নেই"),
+        // Cash/Online মাপা হয় সবচেয়ে বড় সংখ্যার সাথে (TK: "সংখ্যা কমবেশি হতে পারে"),
+        // খরচ ঘর বাকি সব জায়গা নেয় (weight=1)।
+        var dateColPx = maxOf(measure.measureText("Date"), measure.measureText("Total"))
+        var amtColPx = maxOf(measure.measureText("Cash"), measure.measureText("Online"))
+        for (d in dates) {
+            val dotted = try { val p = d.split("-"); p[2] + "/" + p[1] + "/" + p[0] } catch (e: Exception) { d }
+            dateColPx = maxOf(dateColPx, measure.measureText(dotted))
+            amtColPx = maxOf(amtColPx, measure.measureText(money(dayCash[d] ?: 0.0).removePrefix("₹")),
+                measure.measureText(money(dayOnline[d] ?: 0.0).removePrefix("₹")))
+        }
+        val dateColWidth = dateColPx.toInt() + cellPadPx + cellSlackPx
+        val amtColWidth = amtColPx.toInt() + cellPadPx + cellSlackPx
+
+        fun boxCell(text: String, w: Int, bg: String, fg: String, bold: Boolean, weight: Float? = null, gravityV: Int? = null): android.widget.TextView =
+            android.widget.TextView(this).apply {
+                this.text = text; textSize = 11f
+                setTextColor(android.graphics.Color.parseColor(fg))
+                if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
+                if (gravityV != null) gravity = gravityV
+                setPadding(dpx(8), dpx(8), dpx(8), dpx(8))
+                layoutParams = if (weight != null) LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, weight)
+                    else LinearLayout.LayoutParams(w, LinearLayout.LayoutParams.WRAP_CONTENT)
+                background = if (bg == "#0A7C3F") android.graphics.drawable.GradientDrawable().apply { setColor(android.graphics.Color.parseColor(bg)) }
+                    else cellBorderDrawable().apply { setColor(android.graphics.Color.parseColor(bg)) }
+                if (weight != null) { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END }
+            }
+
+        val head = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        head.addView(boxCell("Date", dateColWidth, "#0A7C3F", "#FFFFFF", true, gravityV = android.view.Gravity.CENTER))
+        head.addView(boxCell("Cash", amtColWidth, "#0A7C3F", "#FFFFFF", true, gravityV = android.view.Gravity.CENTER))
+        head.addView(boxCell("Online", amtColWidth, "#0A7C3F", "#FFFFFF", true, gravityV = android.view.Gravity.CENTER))
+        head.addView(boxCell("খরচ", 0, "#0A7C3F", "#FFFFFF", true, weight = 1f, gravityV = android.view.Gravity.CENTER))
+        table.addView(head)
+        val builtRows = ArrayList<LinearLayout>(); builtRows.add(head)
+
+        var cashTot = 0.0; var onlineTot = 0.0; var expTot = 0.0
+        var idx = 0
+        for (d in dates) {
+            val dotted = try { val p = d.split("-"); p[2] + "/" + p[1] + "/" + p[0] } catch (e: Exception) { d }
+            val cash = dayCash[d] ?: 0.0; val online = dayOnline[d] ?: 0.0
+            val expSum = dayExp[d] ?: 0.0; val seg = daySeg[d]?.toString() ?: ""
+            cashTot += cash; onlineTot += online; expTot += expSum
+            val bg = if (idx % 2 == 0) "#FFFFFF" else "#F7FBF8"; idx++
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            row.addView(boxCell(dotted, dateColWidth, bg, "#41506A", true))
+            row.addView(boxCell(money(cash).removePrefix("₹"), amtColWidth, bg, "#0A7C3F", false, gravityV = android.view.Gravity.END))
+            row.addView(boxCell(money(online).removePrefix("₹"), amtColWidth, bg, "#0A7C3F", false, gravityV = android.view.Gravity.END))
+            val expText = if (expSum > 0.0) money(expSum).removePrefix("₹") else "-"
+            val expCell = boxCell(expText, 0, bg, "#B42318", false, weight = 1f, gravityV = android.view.Gravity.END)
+            if (expSum > 0.0 || seg.isNotBlank()) {
+                expCell.isClickable = true
+                expCell.setOnClickListener { showExpenseBreakdown(dotted, seg, expSum) }
+            }
+            row.addView(expCell)
+            table.addView(row); builtRows.add(row)
+        }
+        val tot = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        tot.addView(boxCell("Total", dateColWidth, "#EAF6EE", "#0A5C33", true))
+        tot.addView(boxCell(money(cashTot).removePrefix("₹"), amtColWidth, "#EAF6EE", "#0A5C33", true, gravityV = android.view.Gravity.END))
+        tot.addView(boxCell(money(onlineTot).removePrefix("₹"), amtColWidth, "#EAF6EE", "#0A5C33", true, gravityV = android.view.Gravity.END))
+        tot.addView(boxCell(money(expTot).removePrefix("₹"), 0, "#EAF6EE", "#B42318", true, weight = 1f, gravityV = android.view.Gravity.END))
+        table.addView(tot); builtRows.add(tot)
+
+        // 🔴 V453 — Previous Balance ও অবশিষ্ট টাকা একটাই পাশাপাশি সারিতে, টেবিলের নিচে।
+        // 🔴 V413 (TK-নির্দেশ): উপরের নির্দেশ-লাইনটা তুলে দেওয়া হলো।
+        out.addView(table)
+        if (dates.isEmpty()) out.addView(ModuleUi.body(this, "এই মাসে এখনো কোনো এন্ট্রি নেই।"))
+        TableRowEqualizer.equalize(table, builtRows)
+        val remaining = prevBalance + cashTot + onlineTot - expTot
+        out.addView(balanceBarPair(if (prevOk) money(prevBalance) else "—", if (prevOk) money(remaining) else "—"))
+        // 🔵🔒 R6 (TK-অনুমোদিত, 09.08.2026): Monthly হিসাব WhatsApp-এ শেয়ার — ওয়েবের finMonthlyShare-এর
+        // সমতুল্য। শুধু লেখা শেয়ার (native.WhatsAppMessageChooser.sendGeneric — WorkNotebook-এর প্রমাণিত পথ)।
+        // ⛔ কোনো টাকা/হিসাব/অন্য পর্দা ছোঁয়া হয়নি — শুধু একটা শেয়ার বোতাম যোগ।
+        if (dates.isNotEmpty()) {
+            val monthLbl = dates.firstOrNull()?.let { try { monthLabel(it.substring(0, 7)) } catch (e: Exception) { "" } } ?: ""
+            val sbx = StringBuilder()
+            sbx.append("📒 টাকার হিসাব — ").append(if (monthLbl.isNotBlank()) monthLbl else "Monthly").append("\n")
+            sbx.append(if (branchSel == "All Branches") "সব ব্রাঞ্চ" else branchSel).append("\n")
+            sbx.append("————————————\n")
+            sbx.append("গত মাসের ব্যালেন্স: ").append(if (prevOk) money(prevBalance) else "—").append("\n")
+            for (d in dates) {
+                val dotted = try { val p = d.split("-"); p[2] + "/" + p[1] + "/" + p[0] } catch (e: Exception) { d }
+                sbx.append(dotted).append(" — Cash ").append(money(dayCash[d] ?: 0.0))
+                    .append(" · Online ").append(money(dayOnline[d] ?: 0.0))
+                    .append(" · খরচ ").append(money(dayExp[d] ?: 0.0)).append("\n")
+            }
+            sbx.append("————————————\n")
+            sbx.append("মোট: Cash ").append(money(cashTot)).append(" · Online ").append(money(onlineTot)).append(" · খরচ ").append(money(expTot)).append("\n")
+            sbx.append("অবশিষ্ট টাকা: ").append(if (prevOk) money(remaining) else "—")
+            val shareBtn = ModuleUi.button(this, "📤 WhatsApp-এ শেয়ার") {
+                try { com.tkbiswas.pilesclinic.native.WhatsAppMessageChooser.sendGeneric(this, sbx.toString()) }
+                catch (e: Throwable) { ModuleUi.toast(this, "শেয়ার করা গেল না") }
+            }
+            shareBtn.layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(10) }
+            out.addView(shareBtn)
+        }
+    }
+}

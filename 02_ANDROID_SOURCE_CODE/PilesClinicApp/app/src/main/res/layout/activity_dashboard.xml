@@ -1,0 +1,387 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/bg_app_gradient">
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- Top bar: logo + branch-based clinic name + Logout -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="8dp"
+            android:background="@color/white">
+
+            <!-- 🔒 B586 (TK-অনুমোদিত প্রুফ, 08.08.2026): 🌿 পাতার বদলে ক্লিনিকের আসল
+                 লোগো (ব্রাঞ্চ অনুযায়ী, বৃত্তাকার — DashboardActivity-তে কোডে সেট)।
+                 XML-এ ডিফল্ট MAA AYURVED; কিষানগঞ্জে কোড থেকে ওদের লোগো বসে। -->
+            <ImageView
+                android:id="@+id/ivClinicLogo"
+                android:layout_width="38dp"
+                android:layout_height="38dp"
+                android:scaleType="centerCrop"
+                android:src="@drawable/ic_maa_ayurved_logo"
+                android:contentDescription="Clinic Logo" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="10dp"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvClinicName"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="MAA AYURVED PILES CLINIC"
+                    android:textColor="@color/clinic_text_primary"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvBranchSub"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text=""
+                    android:textColor="@color/clinic_text_secondary"
+                    android:textSize="11sp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvBell"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="10dp"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="6dp"
+                android:text="🔔"
+                android:textSize="16sp"
+                android:clickable="true"
+                android:focusable="true" />
+
+            <TextView
+                android:id="@+id/btnTopMenu"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_logout_pill"
+                android:paddingHorizontal="14dp"
+                android:paddingVertical="8dp"
+                android:text="☰"
+                android:textColor="@color/brand_blue"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/dashboardHero"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginHorizontal="14dp"
+            android:layout_marginTop="8dp"
+            android:padding="12dp"
+            android:background="@drawable/bg_login_hero">
+
+            <FrameLayout
+                android:id="@+id/photoFrame"
+                android:layout_width="58dp"
+                android:layout_height="58dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <TextView
+                    android:id="@+id/tvPhotoInitial"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:gravity="center"
+                    android:text="U"
+                    android:textColor="@color/white"
+                    android:textSize="24sp"
+                    android:textStyle="bold"
+                    android:background="@drawable/bg_circle_gradient" />
+
+                <ImageView
+                    android:id="@+id/ivUserPhoto"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="centerCrop"
+                    android:visibility="gone"
+                    android:contentDescription="User photo" />
+            </FrameLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="14dp"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvWelcome"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Welcome"
+                    android:textColor="@color/white"
+                    android:textSize="19sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvRoleBranch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text=""
+                    android:textColor="#E8F2FF"
+                    android:textSize="12.5sp" />
+
+                <TextView
+                    android:id="@+id/tvSyncStatus"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="☁️ Synced"
+                    android:textColor="#D6FFE8"
+                    android:textSize="11.5sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- TK-APPROVED (2026-07-26, photo proof): "সতর্কবাতি". Sits in the
+             same place and same shape as the call banner just below, and is
+             GONE by default . DashboardActivity only makes it visible when
+             something is still stuck in an offline queue. -->
+        <LinearLayout
+            android:id="@+id/syncWarnBanner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginHorizontal="14dp"
+            android:layout_marginTop="8dp"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="10dp"
+            android:background="@drawable/bg_sync_warn"
+            android:clickable="true"
+            android:focusable="true"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🔴"
+                android:textSize="17sp" />
+
+            <TextView
+                android:id="@+id/tvSyncWarnText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="9dp"
+                android:text=""
+                android:textColor="#B3251C"
+                android:textSize="12.5sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/btnSyncRetry"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/bg_sync_warn_pill"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="6dp"
+                android:text="পাঠান"
+                android:textColor="@color/white"
+                android:textSize="11.5sp"
+                android:textStyle="bold"
+                android:clickable="true"
+                android:focusable="true" />
+        </LinearLayout>
+
+        <!-- 🔴🆕🔒 V436 (TK-রিপোর্ট ১৮.০৮.২০২৬ — Dr. K.H MANDAL-এর ফোনে নতুন APK
+             বসানোর পরেও পুরনো "V259"-ই চলছিল, কেউ টেরই পাননি)। এই পটিটা
+             **ডিফল্টে সম্পূর্ণ লুকানো** (visibility="gone"); অ্যাপ নিজের
+             ভার্সন পুরনো বলে নিশ্চিত হলে **তবেই** দেখা যায়।
+             ⛔ উপরের sync-সতর্কবার্তার পটিটা আলাদাই থাকল — এটা সম্পূর্ণ নতুন
+                একটা ভিউ, তাই পুরনো কোনো সতর্কবার্তা কখনো ঢাকা পড়বে না। -->
+        <LinearLayout
+            android:id="@+id/oldAppBanner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginHorizontal="14dp"
+            android:layout_marginTop="8dp"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="10dp"
+            android:background="@drawable/bg_sync_warn"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🔴"
+                android:textSize="17sp" />
+
+            <TextView
+                android:id="@+id/tvOldAppText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="9dp"
+                android:text=""
+                android:textColor="#B3251C"
+                android:textSize="12.5sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- 🔒 TK-APPROVED (28.07.2026, ফটো-প্রুফে লক · খাতার সারি B36):
+             "চেম্বার বন্ধ হয়নি" — শুধু মাস্টারের পর্দায়, আর শুধু যেদিন সত্যিই
+             কাজ হয়েছে অথচ বন্ধ করা হয়নি। কিছু না থাকলে পুরোটাই লুকানো, তাই
+             ড্যাশবোর্ডের আগের চেহারা অক্ষত। -->
+        <LinearLayout
+            android:id="@+id/unclosedCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginHorizontal="14dp"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_unclosed_card"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/tvUnclosedHead"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="9dp"
+                android:background="@drawable/bg_unclosed_head"
+                android:textColor="#FFFFFF"
+                android:textStyle="bold"
+                android:textSize="12.5sp" />
+
+            <LinearLayout
+                android:id="@+id/unclosedRows"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+        </LinearLayout>
+
+        <!-- Hero: user photo + welcome/role -->
+        <TextView
+            android:id="@+id/tvCallBanner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="14dp"
+            android:layout_marginTop="8dp"
+            android:padding="9dp"
+            android:background="@drawable/bg_action_next"
+            android:text="📞 আজ কল বাকি দেখুন"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold"
+            android:textSize="14sp"
+            android:gravity="center"
+            android:clickable="true"
+            android:focusable="true"
+            android:visibility="gone" />
+
+
+        <!-- Google-style capsule search (top). Opens A-Z global search. -->
+        <LinearLayout
+            android:id="@+id/searchCapsule"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginHorizontal="14dp"
+            android:layout_marginTop="8dp"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="10dp"
+            android:background="@drawable/bg_search_capsule"
+            android:clickable="true"
+            android:focusable="true">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🔍"
+                android:textSize="16sp" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="10dp"
+                android:text="Search patient / mobile (all branches)"
+                android:textColor="@color/field_hint"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <!-- TK-REQUESTED (2026-07-25): the "Modules" label is removed . the
+             tiles speak for themselves and this frees a whole row of space. -->
+
+        <!-- Module grid: 2 columns -->
+        <GridLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="9dp"
+            android:layout_marginTop="10dp"
+            android:layout_marginBottom="14dp"
+            android:columnCount="3"
+            android:useDefaultMargins="false">
+
+            <include android:id="@+id/tileEnquiry" layout="@layout/item_dashboard_tile" android:layout_width="0dp" android:layout_height="100dp" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="5dp" />
+            <include android:id="@+id/tileFollowUp" layout="@layout/item_dashboard_tile" android:layout_width="0dp" android:layout_height="100dp" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="5dp" />
+            <include android:id="@+id/tileRegistration" layout="@layout/item_dashboard_tile" android:layout_width="0dp" android:layout_height="100dp" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="5dp" />
+            <!-- 🆕🔒 TK-নির্দেশ (05.08.2026): Dialer More মেনু থেকে সরিয়ে
+                 সরাসরি Dashboard-এ — বাকি সব টাইলের হুবহু একই প্যাটার্ন। -->
+            <include android:id="@+id/tileDialer" layout="@layout/item_dashboard_tile" android:layout_width="0dp" android:layout_height="100dp" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="5dp" />
+            <include android:id="@+id/tileDoctorQueue" layout="@layout/item_dashboard_tile" android:layout_width="0dp" android:layout_height="100dp" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="5dp" />
+            <include android:id="@+id/tilePayment" layout="@layout/item_dashboard_tile" android:layout_width="0dp" android:layout_height="100dp" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="5dp" />
+            <include android:id="@+id/tilePrint" layout="@layout/item_dashboard_tile" android:layout_width="0dp" android:layout_height="100dp" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="5dp" />
+            <include android:id="@+id/tileChamberAttendance" layout="@layout/item_dashboard_tile" android:layout_width="0dp" android:layout_height="100dp" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="5dp" />
+            <include android:id="@+id/tileDoctorVisit" layout="@layout/item_dashboard_tile" android:layout_width="0dp" android:layout_height="100dp" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="5dp" />
+            <include android:id="@+id/tileDraft" layout="@layout/item_dashboard_tile" android:layout_width="0dp" android:layout_height="100dp" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="5dp" />
+            <!-- 🔴 B339 (03.08.2026, TK-নির্দেশ): Work Notebook আবার Dashboard-এ, Draft-এর ঠিক পাশে (Staff-only) -->
+            <include android:id="@+id/tileWorkNotebook" layout="@layout/item_dashboard_tile" android:layout_width="0dp" android:layout_height="100dp" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="5dp" />
+            <include android:id="@+id/tileBriefing" layout="@layout/item_dashboard_tile" android:layout_width="0dp" android:layout_height="100dp" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="5dp" />
+            <include android:id="@+id/tileReports" layout="@layout/item_dashboard_tile" android:layout_width="0dp" android:layout_height="100dp" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="5dp" />
+            <include android:id="@+id/tileBackup" layout="@layout/item_dashboard_tile" android:layout_width="0dp" android:layout_height="100dp" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="5dp" />
+            <include android:id="@+id/tilePassword" layout="@layout/item_dashboard_tile" android:layout_width="0dp" android:layout_height="100dp" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="5dp" />
+            <include android:id="@+id/tileTrash" layout="@layout/item_dashboard_tile" android:layout_width="0dp" android:layout_height="100dp" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="5dp" />
+            <include android:id="@+id/tileTodayCall" layout="@layout/item_dashboard_tile" android:layout_width="0dp" android:layout_height="100dp" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="5dp" />
+            <include android:id="@+id/tileSearch" layout="@layout/item_dashboard_tile" android:layout_width="0dp" android:layout_height="100dp" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="5dp" />
+            <include android:id="@+id/tileAppointment" layout="@layout/item_dashboard_tile" android:layout_width="0dp" android:layout_height="100dp" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="5dp" />
+            <!-- TK-REQUESTED ADDITION (2026-07-16): Export Data tile, Master-only. -->
+            <include android:id="@+id/tileExportData" layout="@layout/item_dashboard_tile" android:layout_width="0dp" android:layout_height="100dp" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="5dp" />
+        </GridLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="24dp"
+            android:gravity="center"
+            android:visibility="gone"
+            android:text=""
+            android:textColor="@color/clinic_text_secondary"
+            android:textSize="11sp" />
+    </LinearLayout>
+    </ScrollView>
+
+
+</LinearLayout>

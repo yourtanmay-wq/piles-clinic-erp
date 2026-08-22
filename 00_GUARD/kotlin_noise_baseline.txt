@@ -1,0 +1,293 @@
+# 🛡️ Kotlin কম্পাইলারের **জানা গোলমাল** (Android SDK নেই বলে)।
+# ⛔ হাতে লিখবেন না — `verify_kotlin_compile.py --update-baseline`
+# প্রতিটা সারি:  ফাইল <TAB> ভুলের বার্তা (সংখ্যা N দিয়ে ঢাকা)
+# মোট: 288
+com/tkbiswas/pilesclinic/clinical/ClinicalModulesActivity.kt	unresolved reference: intent
+com/tkbiswas/pilesclinic/clinical/ClinicalModulesActivity.kt	unresolved reference: setSupportActionBar
+com/tkbiswas/pilesclinic/clinical/ClinicalRepository.kt	'return' is not allowed here
+com/tkbiswas/pilesclinic/clinical/DietChartActivity.kt	unresolved reference: setSupportActionBar
+com/tkbiswas/pilesclinic/clinical/DietChartActivity.kt	unresolved reference: supportActionBar
+com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: buttonDrawable
+com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: registerForActivityResult
+com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: setStroke
+com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: shape
+com/tkbiswas/pilesclinic/clinical/InvestigationAdapter.kt	unresolved reference: notifyItemChanged
+com/tkbiswas/pilesclinic/clinical/InvestigationAdviceActivity.kt	unresolved reference: colors
+com/tkbiswas/pilesclinic/clinical/InvestigationAdviceActivity.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/clinical/InvestigationAdviceActivity.kt	unresolved reference: setStroke
+com/tkbiswas/pilesclinic/clinical/InvestigationAdviceActivity.kt	unresolved reference: setSupportActionBar
+com/tkbiswas/pilesclinic/clinical/InvestigationAdviceActivity.kt	unresolved reference: supportActionBar
+com/tkbiswas/pilesclinic/clinical/InvestigationCategoryActivity.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/clinical/InvestigationCategoryActivity.kt	unresolved reference: intent
+com/tkbiswas/pilesclinic/clinical/InvestigationCategoryActivity.kt	unresolved reference: setStroke
+com/tkbiswas/pilesclinic/clinical/MedicinePickerDialog.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/clinical/MedicinePickerDialog.kt	unresolved reference: includeFontPadding
+com/tkbiswas/pilesclinic/clinical/MedicinePickerDialog.kt	unresolved reference: letterSpacing
+com/tkbiswas/pilesclinic/clinical/MedicinePickerDialog.kt	unresolved reference: minHeight
+com/tkbiswas/pilesclinic/clinical/MedicinePickerDialog.kt	unresolved reference: minWidth
+com/tkbiswas/pilesclinic/clinical/MedicinePickerDialog.kt	unresolved reference: setStroke
+com/tkbiswas/pilesclinic/clinical/MedicineSlipActivity.kt	unresolved reference: setSupportActionBar
+com/tkbiswas/pilesclinic/clinical/PatientClinicalHistoryActivity.kt	unresolved reference: setSupportActionBar
+com/tkbiswas/pilesclinic/clinical/PrescriptionActivity.kt	unresolved reference: setSupportActionBar
+com/tkbiswas/pilesclinic/data/remote/RetrofitProvider.kt	unresolved reference: level
+com/tkbiswas/pilesclinic/data/remote/RetrofitProvider.kt	unresolved reference: retrofitN
+com/tkbiswas/pilesclinic/data/remote/SupabaseAuthApi.kt	unresolved reference: retrofitN
+com/tkbiswas/pilesclinic/data/remote/SyncApis.kt	unresolved reference: retrofitN
+com/tkbiswas/pilesclinic/data/repository/AuthRepository.kt	suspension functions can be called only within coroutine body
+com/tkbiswas/pilesclinic/data/repository/SyncManager.kt	property delegate must have a 'getValue(SyncManager, KProperty<*>)' method. None of the following functions is suitable:
+com/tkbiswas/pilesclinic/data/repository/SyncManager.kt	suspension functions can be called only within coroutine body
+com/tkbiswas/pilesclinic/data/session/SessionManager.kt	property delegate must have a 'getValue(SessionManager, KProperty<*>)' method. None of the following functions is suitable:
+com/tkbiswas/pilesclinic/data/sync/SyncWorker.kt	one type argument expected for class Result<out T>
+com/tkbiswas/pilesclinic/modules/IncomeExpenseActivity.kt	the feature "unit conversions on arbitrary expressions" is experimental and should be enabled explicitly. You can also change the original type of this expression to (...) -> Unit
+com/tkbiswas/pilesclinic/modules/IncomeExpenseActivity.kt	unresolved reference: colors
+com/tkbiswas/pilesclinic/modules/IncomeExpenseActivity.kt	unresolved reference: cornerRadii
+com/tkbiswas/pilesclinic/modules/IncomeExpenseActivity.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/modules/IncomeExpenseActivity.kt	unresolved reference: isAllCaps
+com/tkbiswas/pilesclinic/modules/IncomeExpenseActivity.kt	unresolved reference: letterSpacing
+com/tkbiswas/pilesclinic/modules/IncomeExpenseActivity.kt	unresolved reference: minLines
+com/tkbiswas/pilesclinic/modules/IncomeExpenseActivity.kt	unresolved reference: setStroke
+com/tkbiswas/pilesclinic/modules/ModuleAuth.kt	'return' is not allowed here
+com/tkbiswas/pilesclinic/modules/ModuleUi.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/modules/ModuleUi.kt	unresolved reference: isAllCaps
+com/tkbiswas/pilesclinic/modules/ModuleUi.kt	unresolved reference: setStroke
+com/tkbiswas/pilesclinic/modules/PartnerSharesActivity.kt	none of the following functions can be called with the arguments supplied:
+com/tkbiswas/pilesclinic/modules/PartnerSharesActivity.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/modules/PartnerSharesActivity.kt	unresolved reference: isAllCaps
+com/tkbiswas/pilesclinic/modules/PartnerSharesActivity.kt	unresolved reference: leftMargin
+com/tkbiswas/pilesclinic/modules/PartnerSharesActivity.kt	unresolved reference: setStroke
+com/tkbiswas/pilesclinic/modules/StaffProfileActivity.kt	none of the following functions can be called with the arguments supplied:
+com/tkbiswas/pilesclinic/modules/StaffProfileActivity.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/modules/StaffProfileActivity.kt	unresolved reference: includeFontPadding
+com/tkbiswas/pilesclinic/modules/StaffProfileActivity.kt	unresolved reference: intent
+com/tkbiswas/pilesclinic/modules/StaffProfileActivity.kt	unresolved reference: isAllCaps
+com/tkbiswas/pilesclinic/modules/StaffProfileActivity.kt	unresolved reference: leftMargin
+com/tkbiswas/pilesclinic/modules/StaffProfileActivity.kt	unresolved reference: minHeight
+com/tkbiswas/pilesclinic/modules/StaffProfileActivity.kt	unresolved reference: minWidth
+com/tkbiswas/pilesclinic/modules/StaffProfileActivity.kt	unresolved reference: minimumWidth
+com/tkbiswas/pilesclinic/modules/StaffProfileActivity.kt	unresolved reference: registerForActivityResult
+com/tkbiswas/pilesclinic/modules/StaffProfileActivity.kt	unresolved reference: setStroke
+com/tkbiswas/pilesclinic/modules/StaffProfileActivity.kt	unresolved reference: theme
+com/tkbiswas/pilesclinic/modules/WorkNotebookActivity.kt	none of the following functions can be called with the arguments supplied:
+com/tkbiswas/pilesclinic/modules/WorkNotebookActivity.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/modules/WorkNotebookActivity.kt	unresolved reference: intent
+com/tkbiswas/pilesclinic/modules/WorkNotebookActivity.kt	unresolved reference: minLines
+com/tkbiswas/pilesclinic/modules/WorkNotebookActivity.kt	unresolved reference: registerForActivityResult
+com/tkbiswas/pilesclinic/modules/WorkNotebookActivity.kt	unresolved reference: setStroke
+com/tkbiswas/pilesclinic/native/AppVersionCheck.kt	property delegate must have a 'getValue(AppVersionCheck, KProperty<*>)' method. None of the following functions is suitable:
+com/tkbiswas/pilesclinic/native/AppointmentActivity.kt	suspend function 'checkDuplicate' should be called only from a coroutine or another suspend function
+com/tkbiswas/pilesclinic/native/AppointmentActivity.kt	unresolved reference: setSupportActionBar
+com/tkbiswas/pilesclinic/native/AttendanceReminderWorker.kt	one type argument expected for class Result<out T>
+com/tkbiswas/pilesclinic/native/AttendanceReminderWorker.kt	unresolved reference: inputData
+com/tkbiswas/pilesclinic/native/BackgroundRefreshWorker.kt	one type argument expected for class Result<out T>
+com/tkbiswas/pilesclinic/native/BriefingActivity.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/native/BriefingActivity.kt	unresolved reference: foreground
+com/tkbiswas/pilesclinic/native/BriefingActivity.kt	unresolved reference: intent
+com/tkbiswas/pilesclinic/native/BriefingActivity.kt	unresolved reference: layoutInflater
+com/tkbiswas/pilesclinic/native/BriefingActivity.kt	unresolved reference: letterSpacing
+com/tkbiswas/pilesclinic/native/BriefingActivity.kt	unresolved reference: minHeight
+com/tkbiswas/pilesclinic/native/BriefingActivity.kt	unresolved reference: setHintTextColor
+com/tkbiswas/pilesclinic/native/BriefingActivity.kt	unresolved reference: shape
+com/tkbiswas/pilesclinic/native/BriefingActivity.kt	unresolved reference: theme
+com/tkbiswas/pilesclinic/native/BriefingModel.kt	'return' is not allowed here
+com/tkbiswas/pilesclinic/native/BriefingReminderWorker.kt	one type argument expected for class Result<out T>
+com/tkbiswas/pilesclinic/native/CallReminderWorker.kt	one type argument expected for class Result<out T>
+com/tkbiswas/pilesclinic/native/ChamberAttendanceActivity.kt	suspend function 'resolveBestFollowUpId' should be called only from a coroutine or another suspend function
+com/tkbiswas/pilesclinic/native/ChamberAttendanceActivity.kt	suspend function 'resolveOrHealFollowUpId' should be called only from a coroutine or another suspend function
+com/tkbiswas/pilesclinic/native/ChamberAttendanceActivity.kt	suspend function 'saveExpectedFromChamber' should be called only from a coroutine or another suspend function
+com/tkbiswas/pilesclinic/native/ChamberAttendanceActivity.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/native/ChamberAttendanceActivity.kt	unresolved reference: gradientType
+com/tkbiswas/pilesclinic/native/ChamberAttendanceActivity.kt	unresolved reference: intent
+com/tkbiswas/pilesclinic/native/ChamberAttendanceActivity.kt	unresolved reference: isAllCaps
+com/tkbiswas/pilesclinic/native/ChamberAttendanceActivity.kt	unresolved reference: layoutInflater
+com/tkbiswas/pilesclinic/native/ChamberAttendanceActivity.kt	unresolved reference: mainLooper
+com/tkbiswas/pilesclinic/native/ChamberAttendanceActivity.kt	unresolved reference: minLines
+com/tkbiswas/pilesclinic/native/ChamberAttendanceActivity.kt	unresolved reference: setHintTextColor
+com/tkbiswas/pilesclinic/native/ChamberAttendanceActivity.kt	unresolved reference: setStroke
+com/tkbiswas/pilesclinic/native/ChamberCalendarDialog.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/native/ChamberCalendarDialog.kt	unresolved reference: setStroke
+com/tkbiswas/pilesclinic/native/ChamberCloseActivity.kt	unresolved reference: layoutInflater
+com/tkbiswas/pilesclinic/native/ChamberCloseReminderWorker.kt	one type argument expected for class Result<out T>
+com/tkbiswas/pilesclinic/native/ClinicPresence.kt	unresolved reference: latitude
+com/tkbiswas/pilesclinic/native/ClinicPresence.kt	unresolved reference: longitude
+com/tkbiswas/pilesclinic/native/CloudBackup.kt	suspension functions can be called only within coroutine body
+com/tkbiswas/pilesclinic/native/CloudPasswordCheck.kt	'return' is not allowed here
+com/tkbiswas/pilesclinic/native/CloudReadCache.kt	'return' is not allowed here
+com/tkbiswas/pilesclinic/native/CollectionAdapter.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/native/CollectionAdapter.kt	unresolved reference: setStroke
+com/tkbiswas/pilesclinic/native/CollectionListActivity.kt	unresolved reference: intent
+com/tkbiswas/pilesclinic/native/CollectionListActivity.kt	unresolved reference: layoutInflater
+com/tkbiswas/pilesclinic/native/DashboardActivity.kt	suspend function 'exportIfStale' should be called only from a coroutine or another suspend function
+com/tkbiswas/pilesclinic/native/DashboardActivity.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/native/DashboardActivity.kt	unresolved reference: gradientType
+com/tkbiswas/pilesclinic/native/DashboardActivity.kt	unresolved reference: layoutInflater
+com/tkbiswas/pilesclinic/native/DashboardActivity.kt	unresolved reference: mainLooper
+com/tkbiswas/pilesclinic/native/DashboardActivity.kt	unresolved reference: setStroke
+com/tkbiswas/pilesclinic/native/DashboardActivity.kt	unresolved reference: shape
+com/tkbiswas/pilesclinic/native/DialerActivity.kt	unresolved reference: currentFocus
+com/tkbiswas/pilesclinic/native/DialerActivity.kt	unresolved reference: imageTintList
+com/tkbiswas/pilesclinic/native/DialerActivity.kt	unresolved reference: intent
+com/tkbiswas/pilesclinic/native/DialerActivity.kt	unresolved reference: registerForActivityResult
+com/tkbiswas/pilesclinic/native/DiseaseDetailActivity.kt	unresolved reference: intent
+com/tkbiswas/pilesclinic/native/DoctorQueueActivity.kt	none of the following functions can be called with the arguments supplied:
+com/tkbiswas/pilesclinic/native/DoctorQueueActivity.kt	unresolved reference: layoutInflater
+com/tkbiswas/pilesclinic/native/DoctorQueueAdapter.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/native/DoctorVisitActivity.kt	'operator' modifier is required on 'compareTo' in 'kotlin'
+com/tkbiswas/pilesclinic/native/DoctorVisitActivity.kt	unresolved reference: clipToOutline
+com/tkbiswas/pilesclinic/native/DoctorVisitActivity.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/native/DoctorVisitActivity.kt	unresolved reference: includeFontPadding
+com/tkbiswas/pilesclinic/native/DoctorVisitActivity.kt	unresolved reference: intent
+com/tkbiswas/pilesclinic/native/DoctorVisitActivity.kt	unresolved reference: isAllCaps
+com/tkbiswas/pilesclinic/native/DoctorVisitActivity.kt	unresolved reference: layoutInflater
+com/tkbiswas/pilesclinic/native/DoctorVisitActivity.kt	unresolved reference: minLines
+com/tkbiswas/pilesclinic/native/DoctorVisitActivity.kt	unresolved reference: setStroke
+com/tkbiswas/pilesclinic/native/DraftActivity.kt	unresolved reference: layoutInflater
+com/tkbiswas/pilesclinic/native/DraftListActivity.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/native/DraftListActivity.kt	unresolved reference: intent
+com/tkbiswas/pilesclinic/native/DraftListActivity.kt	unresolved reference: layoutInflater
+com/tkbiswas/pilesclinic/native/EnquiryActivity.kt	suspend function 'checkDuplicate' should be called only from a coroutine or another suspend function
+com/tkbiswas/pilesclinic/native/EnquiryActivity.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/native/EnquiryActivity.kt	unresolved reference: intent
+com/tkbiswas/pilesclinic/native/EnquiryActivity.kt	unresolved reference: layoutInflater
+com/tkbiswas/pilesclinic/native/EnquiryActivity.kt	unresolved reference: setStroke
+com/tkbiswas/pilesclinic/native/ExpectedTomorrowActivity.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/native/ExpectedTomorrowActivity.kt	unresolved reference: isLongClickable
+com/tkbiswas/pilesclinic/native/ExpectedTomorrowReminderWorker.kt	one type argument expected for class Result<out T>
+com/tkbiswas/pilesclinic/native/ExportDataActivity.kt	unresolved reference: layoutInflater
+com/tkbiswas/pilesclinic/native/ExportDataActivity.kt	unresolved reference: putParcelableArrayListExtra
+com/tkbiswas/pilesclinic/native/FieldError.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/native/FieldError.kt	unresolved reference: setStroke
+com/tkbiswas/pilesclinic/native/FollowCalendarActivity.kt	unresolved reference: colors
+com/tkbiswas/pilesclinic/native/FollowCalendarActivity.kt	unresolved reference: cornerRadii
+com/tkbiswas/pilesclinic/native/FollowCalendarActivity.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/native/FollowCalendarActivity.kt	unresolved reference: layoutInflater
+com/tkbiswas/pilesclinic/native/FollowCalendarActivity.kt	unresolved reference: leftMargin
+com/tkbiswas/pilesclinic/native/FollowCalendarActivity.kt	unresolved reference: setStroke
+com/tkbiswas/pilesclinic/native/FollowUpActivity.kt	property delegate must have a 'getValue(FollowUpActivity, KProperty<*>)' method. None of the following functions is suitable:
+com/tkbiswas/pilesclinic/native/FollowUpActivity.kt	unresolved reference: clipToOutline
+com/tkbiswas/pilesclinic/native/FollowUpActivity.kt	unresolved reference: colors
+com/tkbiswas/pilesclinic/native/FollowUpActivity.kt	unresolved reference: cornerRadii
+com/tkbiswas/pilesclinic/native/FollowUpActivity.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/native/FollowUpActivity.kt	unresolved reference: intent
+com/tkbiswas/pilesclinic/native/FollowUpActivity.kt	unresolved reference: layoutInflater
+com/tkbiswas/pilesclinic/native/FollowUpActivity.kt	unresolved reference: minWidth
+com/tkbiswas/pilesclinic/native/FollowUpActivity.kt	unresolved reference: setStroke
+com/tkbiswas/pilesclinic/native/FollowUpActivity.kt	unresolved reference: shape
+com/tkbiswas/pilesclinic/native/FollowUpActivity.kt	unresolved reference: theme
+com/tkbiswas/pilesclinic/native/FollowUpAdapter.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/native/FollowUpRepository.kt	function '<Error function>' should return Unit to be used by corresponding operator '+='
+com/tkbiswas/pilesclinic/native/FollowUpRepository.kt	none of the following functions can be called with the arguments supplied:
+com/tkbiswas/pilesclinic/native/GlobalSearchActivity.kt	unresolved reference: clipToOutline
+com/tkbiswas/pilesclinic/native/GlobalSearchActivity.kt	unresolved reference: colors
+com/tkbiswas/pilesclinic/native/GlobalSearchActivity.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/native/GlobalSearchActivity.kt	unresolved reference: setSupportActionBar
+com/tkbiswas/pilesclinic/native/GlobalSearchActivity.kt	unresolved reference: shape
+com/tkbiswas/pilesclinic/native/LoginActivity.kt	'when' expression must be exhaustive, add necessary 'else' branch
+com/tkbiswas/pilesclinic/native/LoginActivity.kt	unresolved reference: layoutInflater
+com/tkbiswas/pilesclinic/native/MedicinePaymentActivity.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/native/MedicinePaymentActivity.kt	unresolved reference: layoutInflater
+com/tkbiswas/pilesclinic/native/MedicinePaymentActivity.kt	unresolved reference: setStroke
+com/tkbiswas/pilesclinic/native/MedicinePaymentActivity.kt	unresolved reference: setSupportActionBar
+com/tkbiswas/pilesclinic/native/MissingFeeSeenGuard.kt	none of the following functions can be called with the arguments supplied:
+com/tkbiswas/pilesclinic/native/MoreMenuActivity.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/native/MoreMenuActivity.kt	unresolved reference: layoutInflater
+com/tkbiswas/pilesclinic/native/NoticeChannels.kt	unresolved reference: enableLights
+com/tkbiswas/pilesclinic/native/NoticeChannels.kt	unresolved reference: enableVibration
+com/tkbiswas/pilesclinic/native/NoticeChannels.kt	unresolved reference: lockscreenVisibility
+com/tkbiswas/pilesclinic/native/NoticeChannels.kt	unresolved reference: setShowBadge
+com/tkbiswas/pilesclinic/native/NoticeChannels.kt	unresolved reference: setSound
+com/tkbiswas/pilesclinic/native/NotificationsActivity.kt	unresolved reference: foreground
+com/tkbiswas/pilesclinic/native/NotificationsActivity.kt	unresolved reference: theme
+com/tkbiswas/pilesclinic/native/PasswordCenterActivity.kt	unresolved reference: layoutInflater
+com/tkbiswas/pilesclinic/native/PatientMessage.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/native/PatientMessage.kt	unresolved reference: setStroke
+com/tkbiswas/pilesclinic/native/PatientPhotoActivity.kt	unresolved reference: intent
+com/tkbiswas/pilesclinic/native/PatientPhotoActivity.kt	unresolved reference: layoutInflater
+com/tkbiswas/pilesclinic/native/PatientPhotoActivity.kt	unresolved reference: registerForActivityResult
+com/tkbiswas/pilesclinic/native/PatientTimelineActivity.kt	unresolved reference: cornerRadii
+com/tkbiswas/pilesclinic/native/PatientTimelineActivity.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/native/PatientTimelineActivity.kt	unresolved reference: intent
+com/tkbiswas/pilesclinic/native/PatientTimelineActivity.kt	unresolved reference: layoutInflater
+com/tkbiswas/pilesclinic/native/PatientTimelineActivity.kt	unresolved reference: minLines
+com/tkbiswas/pilesclinic/native/PatientTimelineActivity.kt	unresolved reference: setStroke
+com/tkbiswas/pilesclinic/native/PatientTimelineActivity.kt	unresolved reference: setTextIsSelectable
+com/tkbiswas/pilesclinic/native/PatientTimelineActivity.kt	unresolved reference: shape
+com/tkbiswas/pilesclinic/native/PatientTimelineActivity.kt	unresolved reference: theme
+com/tkbiswas/pilesclinic/native/PatientTimelineActivity.kt	unresolved reference: threshold
+com/tkbiswas/pilesclinic/native/PaymentActivity.kt	none of the following functions can be called with the arguments supplied:
+com/tkbiswas/pilesclinic/native/PaymentActivity.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/native/PaymentActivity.kt	unresolved reference: insetBottom
+com/tkbiswas/pilesclinic/native/PaymentActivity.kt	unresolved reference: insetTop
+com/tkbiswas/pilesclinic/native/PaymentActivity.kt	unresolved reference: intent
+com/tkbiswas/pilesclinic/native/PaymentActivity.kt	unresolved reference: layoutInflater
+com/tkbiswas/pilesclinic/native/PaymentActivity.kt	unresolved reference: letterSpacing
+com/tkbiswas/pilesclinic/native/PaymentActivity.kt	unresolved reference: minWidth
+com/tkbiswas/pilesclinic/native/PaymentActivity.kt	unresolved reference: minimumWidth
+com/tkbiswas/pilesclinic/native/PaymentActivity.kt	unresolved reference: paintFlags
+com/tkbiswas/pilesclinic/native/PaymentActivity.kt	unresolved reference: setStroke
+com/tkbiswas/pilesclinic/native/PaymentActivity.kt	unresolved reference: strokeColor
+com/tkbiswas/pilesclinic/native/PaymentRepository.kt	'return' is not allowed here
+com/tkbiswas/pilesclinic/native/PaymentRingView.kt	unresolved reference: isFakeBoldText
+com/tkbiswas/pilesclinic/native/PaymentRingView.kt	unresolved reference: strokeCap
+com/tkbiswas/pilesclinic/native/PaymentRingView.kt	val cannot be reassigned
+com/tkbiswas/pilesclinic/native/PremiumAlert.kt	unresolved reference: cornerRadii
+com/tkbiswas/pilesclinic/native/PremiumAlert.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/native/PublicSiteActivity.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/native/PublicSiteActivity.kt	unresolved reference: isAllCaps
+com/tkbiswas/pilesclinic/native/RegistrationActivity.kt	unresolved reference: checkedIconTint
+com/tkbiswas/pilesclinic/native/RegistrationActivity.kt	unresolved reference: clipToPadding
+com/tkbiswas/pilesclinic/native/RegistrationActivity.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/native/RegistrationActivity.kt	unresolved reference: intent
+com/tkbiswas/pilesclinic/native/RegistrationActivity.kt	unresolved reference: isCheckable
+com/tkbiswas/pilesclinic/native/RegistrationActivity.kt	unresolved reference: isCloseIconVisible
+com/tkbiswas/pilesclinic/native/RegistrationActivity.kt	unresolved reference: isFastScrollEnabled
+com/tkbiswas/pilesclinic/native/RegistrationActivity.kt	unresolved reference: layoutInflater
+com/tkbiswas/pilesclinic/native/RegistrationActivity.kt	unresolved reference: registerForActivityResult
+com/tkbiswas/pilesclinic/native/RegistrationActivity.kt	unresolved reference: setStroke
+com/tkbiswas/pilesclinic/native/RegistrationActivity.kt	unresolved reference: shape
+com/tkbiswas/pilesclinic/native/RegistrationActivity.kt	unresolved reference: textEndPadding
+com/tkbiswas/pilesclinic/native/RegistrationActivity.kt	unresolved reference: textStartPadding
+com/tkbiswas/pilesclinic/native/ReportCardActivity.kt	unresolved reference. None of the following candidates is applicable because of receiver type mismatch:
+com/tkbiswas/pilesclinic/native/ReportCardActivity.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/native/ReportCardActivity.kt	unresolved reference: intent
+com/tkbiswas/pilesclinic/native/ReportCardActivity.kt	unresolved reference: layoutInflater
+com/tkbiswas/pilesclinic/native/ReportCardActivity.kt	unresolved reference: minLines
+com/tkbiswas/pilesclinic/native/ReportCardActivity.kt	unresolved reference: setStroke
+com/tkbiswas/pilesclinic/native/ReportsActivity.kt	unresolved reference: colors
+com/tkbiswas/pilesclinic/native/ReportsActivity.kt	unresolved reference: cornerRadii
+com/tkbiswas/pilesclinic/native/ReportsActivity.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/native/ReportsActivity.kt	unresolved reference: layoutInflater
+com/tkbiswas/pilesclinic/native/ReportsActivity.kt	unresolved reference: setStroke
+com/tkbiswas/pilesclinic/native/ReportsActivity.kt	unresolved reference: shape
+com/tkbiswas/pilesclinic/native/RmpPicker.kt	unresolved reference: clipToPadding
+com/tkbiswas/pilesclinic/native/RmpPicker.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/native/RmpPicker.kt	unresolved reference: isFastScrollEnabled
+com/tkbiswas/pilesclinic/native/RmpPicker.kt	unresolved reference: setStroke
+com/tkbiswas/pilesclinic/native/RmpPicker.kt	unresolved reference: shape
+com/tkbiswas/pilesclinic/native/SpinnerPicker.kt	function invocation 'count(...)' expected
+com/tkbiswas/pilesclinic/native/SupabaseAuth.kt	'return' is not allowed here
+com/tkbiswas/pilesclinic/native/SupabaseClient.kt	'return' is not allowed here
+com/tkbiswas/pilesclinic/native/SupabaseClient.kt	unresolved reference: maxRequests
+com/tkbiswas/pilesclinic/native/SupabaseClient.kt	unresolved reference: maxRequestsPerHost
+com/tkbiswas/pilesclinic/native/TrashBinActivity.kt	unresolved reference: layoutInflater
+com/tkbiswas/pilesclinic/native/UserPhotoActivity.kt	unresolved reference: intent
+com/tkbiswas/pilesclinic/native/UserPhotoActivity.kt	unresolved reference: layoutInflater
+com/tkbiswas/pilesclinic/native/UserPhotoActivity.kt	unresolved reference: registerForActivityResult
+com/tkbiswas/pilesclinic/print/ChamberRegisterPdfBuilder.kt	unresolved reference: isFakeBoldText
+com/tkbiswas/pilesclinic/print/ClinicPdfBuilder.kt	unresolved reference: isFakeBoldText
+com/tkbiswas/pilesclinic/print/ClinicPdfBuilder.kt	unresolved reference: pathEffect
+com/tkbiswas/pilesclinic/print/PdfPrintDocumentAdapter.kt	unresolved reference: WriteResultCallback
+com/tkbiswas/pilesclinic/print/PrintCenterActivity.kt	unresolved reference: colors
+com/tkbiswas/pilesclinic/print/PrintCenterActivity.kt	unresolved reference: cornerRadius
+com/tkbiswas/pilesclinic/print/PrintCenterActivity.kt	unresolved reference: iconTint
+com/tkbiswas/pilesclinic/print/PrintCenterActivity.kt	unresolved reference: setStroke
+com/tkbiswas/pilesclinic/print/PrintCenterActivity.kt	unresolved reference: setSupportActionBar
+com/tkbiswas/pilesclinic/print/PrintCenterActivity.kt	unresolved reference: shape
+com/tkbiswas/pilesclinic/print/PrintCenterActivity.kt	unresolved reference: strokeColor
+com/tkbiswas/pilesclinic/print/PrintPreviewActivity.kt	unresolved reference: setSupportActionBar
+com/tkbiswas/pilesclinic/print/PrintPreviewActivity.kt	unresolved reference: supportActionBar
+com/tkbiswas/pilesclinic/security/BackupManager.kt	none of the following functions can be called with the arguments supplied:
+com/tkbiswas/pilesclinic/security/CrashHandler.kt	none of the following functions can be called with the arguments supplied:
+com/tkbiswas/pilesclinic/security/SettingsActivity.kt	suspend function 'export' should be called only from a coroutine or another suspend function
+com/tkbiswas/pilesclinic/security/SettingsActivity.kt	unresolved reference: setSupportActionBar
+com/tkbiswas/pilesclinic/native/MasterOutTimeWorker.kt	one type argument expected for class Result<out T>

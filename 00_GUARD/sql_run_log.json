@@ -1,0 +1,102 @@
+[
+  {
+    "sql_file": "V384_RMP_REFERRED_PATIENT_DISEASE_2026-08-14.sql",
+    "run_by": "TK",
+    "when": "15.08.2026 (confirmed via has_function_privilege check)",
+    "result": "Success — authenticated_can_call=true, anon_can_call=false",
+    "proof": "screenshot"
+  },
+  {
+    "sql_file": "V316_referral_edit_requests_2026-08-11.sql",
+    "run_by": "TK",
+    "when": "15.08.2026 (confirmed via information_schema check)",
+    "result": "already done — table exists",
+    "proof": "screenshot+csv"
+  },
+  {
+    "sql_file": "V318_doctor_altMobiles_2026-08-11.sql",
+    "run_by": "TK",
+    "when": "15.08.2026 (confirmed via information_schema check)",
+    "result": "already done — column exists",
+    "proof": "screenshot+csv"
+  },
+  {
+    "sql_file": "V329_FIVE_CONFIRMED_DEMO_NUMBERS_SAFE_CLEANUP_2026-08-12.sql",
+    "run_by": "TK",
+    "when": "15.08.2026 (confirmed — demo numbers no longer present)",
+    "result": "already done",
+    "proof": "screenshot+csv"
+  },
+  {
+    "sql_file": "V369_STAFF_SALARY_FULL_HISTORY_2026-08-13.sql",
+    "run_by": "TK",
+    "when": "15.08.2026 (confirmed via information_schema check)",
+    "result": "already done — for_month column exists",
+    "proof": "screenshot+csv"
+  },
+  {
+    "sql_file": "V380_RMP_PAYMENT_EDIT_DELETE_RULE_2026-08-14.sql",
+    "run_by": "TK",
+    "when": "15.08.2026 (confirmed via information_schema check)",
+    "result": "already done — function exists",
+    "proof": "screenshot+csv"
+  },
+  {
+    "sql_file": "V382_RMP_PAID_TOTAL_DEDUP_2026-08-14.sql",
+    "run_by": "TK",
+    "when": "15.08.2026 (confirmed via information_schema check)",
+    "result": "already done — table exists",
+    "proof": "screenshot+csv"
+  },
+  {
+    "sql_file": "V383_RMP_DIRECT_PAYMENT_DUE_CORRECTION_2026-08-14.sql",
+    "run_by": "TK",
+    "when": "15.08.2026 (confirmed via information_schema check)",
+    "result": "already done — function exists",
+    "proof": "screenshot+csv"
+  },
+  {
+    "sql_file": "V311_LEAVE_APPROVAL_AND_SUSPEND_2026-08-11.sql",
+    "run_by": "TK",
+    "when": "11.08.2026 12.27 pm",
+    "result": "Success. No rows returned",
+    "proof": "screenshot",
+    "note": "B618 — wn.leave_requests + hr.staff_profiles.suspended_until + public.suspended_until_for + hr.my_role(). Idempotent."
+  },
+  {
+    "sql_file": "V253_LEDGER_SHEET_COLUMNS_2026-08-02.sql",
+    "run_by": "TK",
+    "when": "02.08.2026 07.28 pm",
+    "result": "Success. No rows returned",
+    "proof": "screenshot"
+  },
+  {
+    "sql_file": "V252_STAFF_PHOTO_COLUMN_2026-08-02.sql",
+    "run_by": "TK",
+    "when": "02.08.2026 06.31 pm",
+    "result": "Success. No rows returned",
+    "proof": "screenshot"
+  },
+  {
+    "sql_file": "V251_STAFF_PROFILE_DATA_9_STAFF_2026-08-02.sql",
+    "run_by": "TK",
+    "when": "02.08.2026 06.30 pm",
+    "result": "Success. No rows returned",
+    "proof": "screenshot"
+  },
+  {
+    "sql_file": "V251_STAFF_PROFILE_EXTRA_FIELDS_2026-08-02.sql",
+    "run_by": "TK",
+    "when": "02.08.2026 06.30 pm",
+    "result": "Success. No rows returned",
+    "proof": "screenshot"
+  },
+  {
+    "sql_file": "V509_MY_ATTENDANCE_SHEET_2026-08-21.sql",
+    "run_by": "TK",
+    "when": "21.08.2026 05.58 pm",
+    "result": "Success. No rows returned",
+    "proof": "screenshot",
+    "what": "hr.perf_attendance_sheet(): guard changed from hr.is_master() to hr.is_master() or p_code = hr.my_code() — staff can now open ONLY their own monthly attendance sheet (DATE/IN/OUT/LEAVE). Master unchanged. No table/column/row created or deleted."
+  }
+]

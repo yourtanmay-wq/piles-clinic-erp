@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/bg_app_gradient">
+
+    <ScrollView
+        android:id="@+id/scrollForm"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- Header bar -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:padding="5dp"
+            android:background="@drawable/bg_login_hero">
+
+            <TextView
+                android:id="@+id/btnBack"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="←"
+                android:textColor="@color/white"
+                android:textSize="18sp"
+                android:padding="4dp" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="10dp"
+                android:text="New Enquiry"
+                android:textColor="@color/white"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="16dp"
+            app:cardCornerRadius="18dp"
+            app:cardElevation="4dp"
+            app:cardBackgroundColor="@color/clinic_card">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="18dp">
+
+                <TextView style="@style/FieldLabel" android:text="📞 Mobile *" />
+                <EditText
+                    android:id="@+id/etMobile"
+                    style="@style/FieldInput"
+                    android:inputType="phone"
+                    android:maxLines="1"
+                    android:importantForAutofill="no"
+                    android:autofillHints="@null"
+                    android:hint="Enter mobile number" />
+
+                <TextView
+                    android:id="@+id/tvDupWarning"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:padding="8dp"
+                    android:background="#FFF4E5"
+                    android:textColor="#B26A00"
+                    android:textSize="12sp"
+                    android:visibility="gone" />
+
+                <TextView style="@style/FieldLabel" android:text="⏰ Date" />
+                <TextView
+                    android:id="@+id/tvDate"
+                    style="@style/FieldInput"
+                    android:text="" />
+
+                <TextView style="@style/FieldLabel" android:text="🏥 Branch *" />
+                <Spinner
+                    android:id="@+id/spBranch"
+                    style="@style/FieldInput"
+                    android:background="@drawable/bg_input_field_picker"
+                    android:paddingEnd="40dp" />
+
+                <TextView style="@style/FieldLabel" android:text="👤 Name" />
+                <EditText
+                    android:id="@+id/etName"
+                    style="@style/FieldInput"
+                    android:inputType="textPersonName|textCapWords"
+                    android:hint="Patient name" />
+
+                <TextView style="@style/FieldLabel" android:text="🩺 Disease *" />
+                <GridLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:columnCount="3"
+                    android:layout_marginTop="6dp">
+                    <Button android:id="@+id/btnDisPiles" android:layout_width="0dp" android:layout_height="48dp" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="3dp" android:padding="2dp" android:textAllCaps="false" android:maxLines="1" app:autoSizeTextType="uniform" app:autoSizeMinTextSize="9sp" app:autoSizeMaxTextSize="14sp" android:text="🩸 Piles" />
+                    <Button android:id="@+id/btnDisFissure" android:layout_width="0dp" android:layout_height="48dp" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="3dp" android:padding="2dp" android:textAllCaps="false" android:maxLines="1" app:autoSizeTextType="uniform" app:autoSizeMinTextSize="9sp" app:autoSizeMaxTextSize="14sp" android:text="✂️ Fissure" />
+                    <Button android:id="@+id/btnDisFistula" android:layout_width="0dp" android:layout_height="48dp" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="3dp" android:padding="2dp" android:textAllCaps="false" android:maxLines="1" app:autoSizeTextType="uniform" app:autoSizeMinTextSize="9sp" app:autoSizeMaxTextSize="14sp" android:text="🔄 Fistula" />
+                    <Button android:id="@+id/btnDisHydrocele" android:layout_width="0dp" android:layout_height="48dp" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="3dp" android:padding="2dp" android:textAllCaps="false" android:maxLines="1" app:autoSizeTextType="uniform" app:autoSizeMinTextSize="9sp" app:autoSizeMaxTextSize="14sp" android:text="💧 Hydrocele" />
+                    <Button android:id="@+id/btnDisGupt" android:layout_width="0dp" android:layout_height="48dp" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="3dp" android:padding="2dp" android:textAllCaps="false" android:maxLines="1" app:autoSizeTextType="uniform" app:autoSizeMinTextSize="9sp" app:autoSizeMaxTextSize="14sp" android:text="🛡️ Gupt Rog" />
+                    <Button android:id="@+id/btnDisOther" android:layout_width="0dp" android:layout_height="48dp" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="3dp" android:padding="2dp" android:textAllCaps="false" android:maxLines="1" app:autoSizeTextType="uniform" app:autoSizeMinTextSize="9sp" app:autoSizeMaxTextSize="14sp" android:text="📋 Other" />
+                </GridLayout>
+
+                <TextView style="@style/FieldLabel" android:text="📍 Address" />
+                <EditText
+                    android:id="@+id/etAddress"
+                    style="@style/FieldInputMultiline"
+                    android:inputType="textMultiLine|textCapSentences"
+                    android:minLines="2" />
+
+                <TextView style="@style/FieldLabel" android:text="📝 Remarks *" />
+                <EditText
+                    android:id="@+id/etRemarks"
+                    style="@style/FieldInputMultiline"
+                    android:inputType="textMultiLine|textCapSentences"
+                    android:minLines="2"
+                    android:hint="Required" />
+
+                <TextView style="@style/FieldLabel" android:text="🎧 Call Received By" />
+                <Spinner
+                    android:id="@+id/spReceivedBy"
+                    style="@style/FieldInput"
+                    android:popupBackground="@color/white" />
+
+                <TextView style="@style/FieldLabel" android:text="⏱️ Call Timing" />
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="6dp">
+                    <Button
+                        android:id="@+id/btnTimingOfficial"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="6dp"
+                        android:textAllCaps="false"
+                        android:text="Official Time" />
+                    <Button
+                        android:id="@+id/btnTimingUnexpected"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:textAllCaps="false"
+                        android:text="Unexpected Time" />
+                </LinearLayout>
+
+                <TextView style="@style/FieldLabel" android:text="⏰ Next Follow-up Date *" />
+                <TextView
+                    android:id="@+id/tvNextFollow"
+                    style="@style/FieldInput"
+                    android:text="Tap to select (optional)" />
+
+                <TextView
+                    android:id="@+id/tvError"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text=""
+                    android:textColor="@color/clinic_accent_red"
+                    android:textSize="13sp"
+                    android:visibility="gone" />
+
+                <Button
+                    android:id="@+id/btnSave"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="16dp"
+                    android:background="@drawable/bg_gradient_button"
+                    android:text="Save Enquiry"
+                    android:textColor="@color/white"
+                    android:textStyle="bold" />
+
+                <ProgressBar
+                    android:id="@+id/progressSave"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_marginTop="10dp"
+                    android:layout_gravity="center"
+                    android:visibility="gone" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+    </LinearLayout>
+    </ScrollView>
+
+    <include layout="@layout/bottom_nav_bar" />
+</LinearLayout>

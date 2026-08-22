@@ -1,0 +1,233 @@
+package com.tkbiswas.pilesclinic.native
+
+import org.json.JSONObject
+
+/**
+ * Native rebuild -- Trash Bin (Master only).
+ *
+ * Reads the live Supabase "trash" table. Each trash row wraps a deleted record:
+ *   { id, table, record (the original row), deletedAt, deletedBy }.
+ * Restore re-inserts the original record into its own table and removes the
+ * trash entry, matching restoreTrash() in app.js.
+ */
+data class TrashItem(
+    val id: String,
+    val table: String,
+    val label: String,
+    val record: JSONObject,
+    // TK-REQUESTED (2026-07-21): every trash row already records who deleted
+    // it and when (moveToTrash writes deletedBy/deletedAt) -- these were being
+    // fetched then silently dropped, never shown to Master. Added here with
+    // safe defaults so nothing else that constructs/uses TrashItem breaks.
+    val deletedAt: String = "",
+    val deletedBy: String = "",
+    // TK-REQUESTED (2026-07-22): follow-up rows hidden as part of this
+    // delete (see TrashHelper.moveToTrashWithFollowupCascade), so Restore
+    // can put them back. Null/empty for ordinary trash rows -- unaffected.
+    val cascadedFollowups: org.json.JSONArray? = null
+)
+
+class TrashRepository {
+
+    fun fetchTrash(): List<TrashItem> = parseTrash(fetchTrashRaw())
+
+    // TK-REQUESTED (2026-07-24): split out so TrashBinActivity can cache the
+    // raw rows (SharedPreferences, same pattern as Payment/Doctor Visit/
+    // Follow-up) and show them instantly next time, without touching this
+    // parsing logic at all -- fetchTrash() above still behaves exactly as
+    // before for any other caller.
+    fun fetchTrashRaw(): org.json.JSONArray {
+        // TK-REQUESTED SAFETY FIX (2026-07-16): same fix as Doctor Queue/Visit
+        // -- explicit high limit so older trashed rows never silently fall
+        // outside the default 500-row window (Master would think a delete
+        // never happened / can't restore it).
+        // 🔴🔴🔴 V509 (২১.০৮.২০২৬, TK-রিপোর্ট, ছবিসহ — *"trash bin তো সারাজীবন
+        // ফাঁকাই দেখলাম, মাস্টার হিসাবে"*)। **কারণ প্রমাণ করে দেখা হয়েছে:**
+        //
+        // `SupabaseClient.fetchList()`-এর ডিফল্ট সাজানোর নিয়ম
+        // `order=updatedAt.desc.nullslast`। কিন্তু **`trash` টেবিলে `updatedAt`
+        // ঘরটাই নেই** — তার ঘর মাত্র ছয়টা: id · table · record · deletedAt ·
+        // deletedBy · cascadedFollowups (DB_SETUP লাইন ২০২–২০৮ ও V257 প্যাচ)।
+        // নেই-ঘর ধরে সাজাতে বললে ডেটাবেস সরাসরি ভুল ধরিয়ে দেয় —
+        //     ERROR: column "updatedAt" does not exist
+        // অনুরোধটাই বাতিল হয়, `fetchList` ফাঁকা তালিকা ফেরায়, পর্দায় বসে
+        // **"Trash empty"**। তাই এটা ছাঁকনির সমস্যা নয় — **Trash Bin কোনোদিনই
+        // একটাও সারি দেখাতে পারেনি**, ব্রাঞ্চ যাই বাছা হোক, কে দেখুক না কেন।
+        //
+        // ⇒ এখন `deletedAt` ধরে সাজানো হয় — এই টেবিলে ঘরটা সত্যিই আছে, আর
+        //   অর্থও ঠিক: **সবচেয়ে সাম্প্রতিক ডিলিট সবার উপরে**।
+        //
+        // ⛔ আর কিছুই বদলায়নি — একই টেবিল, একই ৫০০০ সীমা, কোনো ছাঁকনি যোগ
+        //    হয়নি, Restore/Delete-এর নিয়মও অক্ষত। শুধু সাজানোর ঘরটা বদলাল,
+        //    তাই অনুরোধ আর বাতিল হয় না।
+        // ⚠️ মুছে যাওয়া কোনো রেকর্ড হারায়নি — সেগুলো `trash` টেবিলে এতদিন ঠিকই
+        //    জমা ছিল, শুধু পর্দায় দেখা যাচ্ছিল না।
+        return SupabaseClient.fetchList("trash", null, 5000, order = "deletedAt.desc.nullslast")
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // 🔴🔴🔒 V512 (২১.০৮.২০২৬) — **"নেট খারাপ হলে Trash Bin ফাঁকা দেখাত"**
+    //
+    // ─── কারণ (কোড ধরে প্রমাণিত, আন্দাজ নয়) ───────────────────────────────
+    //   উপরের `fetchTrashRaw()` ব্যবহার করে `SupabaseClient.fetchList()`,
+    //   আর সেটা **ব্যর্থ হলেও ফাঁকা তালিকা `[]` ফেরায়**
+    //   (SupabaseClient.kt — `if (!response.isSuccessful) return JSONArray()`
+    //    এবং `catch (e: Exception) { JSONArray() }`)।
+    //   ফলে TrashBinActivity-র `if (rawRows == null)` পাহারাটা **কখনোই**
+    //   চালু হতো না; বদলে —
+    //     (১) ফোনের জমানো কপির উপরে `"[]"` লিখে ফেলত (পরের বারও ফাঁকা), আর
+    //     (২) পর্দায় **"Trash empty"** বসিয়ে দিত।
+    //   অর্থাৎ কিছুই মোছা হয়নি, অথচ দেখে মনে হতো সব চলে গেছে।
+    //
+    // ⇒ এই নতুন ফাংশনটা `fetchListOrNull()` ব্যবহার করে — সেটা **সত্যিকারের
+    //   ব্যর্থতায় `null`** ফেরায়, আর সার্ভারে সত্যিই শূন্য সারি থাকলে ফাঁকা
+    //   তালিকা। দুটো অবস্থা আলাদা করা যায় বলেই আর ভুল বার্তা ওঠে না।
+    //   (এটা নতুন কোনো কৌশল নয় — Chamber Attendance · Draft · Payment ও
+    //    Doctor Visit পর্দায় ঠিক এই একই সমাধান আগে থেকেই চলছে।)
+    //
+    // ⛔ URL · টেবিল · সাজানোর নিয়ম · ৫০০০ সীমা — এক অক্ষরও বদলায়নি।
+    // ⛔ উপরের `fetchTrashRaw()` **হুবহু আগের মতোই** রাখা হলো, তাই
+    //    `fetchTrash()` বা অন্য কোনো ডাকার জায়গার আচরণ বদলায়নি।
+    // ⛔ Restore / Delete Forever-এর নিয়মে হাত পড়েনি।
+    // ══════════════════════════════════════════════════════════════════════
+    // ⛔ V512 (সংশোধিত) — `fetchListOrNull` নয়, `fetchListOrNullDirect`।
+    //    কারণ: `trash`-এর সারিতে মুছে ফেলা রেকর্ডের পুরোটা (রোগীর ছবিসহ) থাকে;
+    //    সেটা `CloudReadDedupe`-এ ৬০ সেকেন্ড ধরে রাখলে অন্য পর্দার জমানো
+    //    উত্তর ছিটকে যেত ⇒ Egress বাড়ত। এই যমজ ফাংশনটা dedupe ছোঁয় না, তাই
+    //    সফল অবস্থায় পুরোনো `fetchList()`-এর **হুবহু** সমান — শুধু ব্যর্থতায়
+    //    `null` ফেরায়। (SupabaseClient.kt-এ কারণটা পুরো লেখা আছে।)
+    fun fetchTrashRawOrNull(): org.json.JSONArray? {
+        return SupabaseClient.fetchListOrNullDirect("trash", null, 5000, order = "deletedAt.desc.nullslast")
+    }
+
+    fun parseTrash(rows: org.json.JSONArray): List<TrashItem> {
+        val list = mutableListOf<TrashItem>()
+        for (i in 0 until rows.length()) {
+            val row = rows.getJSONObject(i)
+            val record = row.optJSONObject("record") ?: JSONObject()
+            val label = record.s("name").ifBlank {
+                record.s("mobile").ifBlank { record.s("id").ifBlank { row.s("id") } }
+            }
+            list.add(
+                TrashItem(
+                    id = row.s("id"),
+                    table = row.s("table"),
+                    label = label,
+                    record = record,
+                    deletedAt = row.s("deletedAt"),
+                    deletedBy = row.s("deletedBy"),
+                    cascadedFollowups = row.optJSONArray("cascadedFollowups")
+                )
+            )
+        }
+        return list
+    }
+
+    /** Re-inserts the original record into its table, then deletes the trash row. */
+    fun restore(item: TrashItem, context: android.content.Context? = null): Boolean {
+        if (item.table.isBlank()) return false
+        // TK-REQUESTED (2026-07-26): this row was tombstoned when it was
+        // deleted . clear that first, otherwise its normal cloud sync would
+        // keep being skipped after the restore.
+        try { DeletedGuard.unmark(item.table, item.record.optString("id", "")) } catch (_: Throwable) { }
+        // 🔒 V223 (§C1, 01.08.2026): পুরোনো snapshot বসানোর আগে cloud-এর updatedAt
+        // **নিশ্চিতভাবে** পড়ে মেলানো হয়:
+        //   · cloud নবীন হলে (KEPT_NEWER) পুরোনো snapshot চাপা দেওয়া হয় না — record
+        //     cloud-এ নবীন রূপে আছে, তাই restore সফল ধরা হয়।
+        //   · cloud পড়া ব্যর্থ / তুলনা অসম্ভব / লেখা ব্যর্থ (BLOCKED) হলে **কিছুই লেখা
+        //     হয় না** ও false ফেরে — trash সারি অক্ষত থাকে (পরে আবার চেষ্টা করা যায়),
+        //     পুরোনো data কখনো আন্দাজে লেখা হয় না। DB trigger দ্বিতীয় পাহারা।
+        val outcome = SupabaseClient.upsertRestoreSafe(item.table, item.record)
+        if (outcome == SupabaseClient.RestoreOutcome.BLOCKED) return false
+        // TK-REQUESTED (2026-07-22): put back any Follow-up rows that were
+        // hidden as part of this delete (see moveToTrashWithFollowupCascade),
+        // so the card reappears in the Enquiry/Visit/Patient lists exactly
+        // as it was before delete. Done before removing the trash row so a
+        // failure here leaves the trash entry in place for a retry.
+        item.cascadedFollowups?.let { arr ->
+            for (i in 0 until arr.length()) {
+                val entry = arr.getJSONObject(i)
+                val fid = entry.optString("id")
+                val status = entry.s("status")
+                // 🚨 খাতার সারি B108: স্ন্যাপশটে এখন এনকোয়ারি সারিও থাকতে পারে —
+                // চিহ্ন দেখে ঠিক টেবিলেই ফেরানো হয়। পুরনো স্ন্যাপশটে চিহ্ন নেই,
+                // তখন আগের মতোই `followups` — **পুরনো Trash এন্ট্রি অক্ষত**।
+                val ctable = entry.optString("table", "followups").ifBlank { "followups" }
+                if (fid.isNotBlank() && status.isNotBlank()) {
+                    // 🔒 V215 (§18/§14.7): delete-এর সময় এই সারিটা tombstone করা
+                    // হয়েছিল (TrashHelper) — Restore করলে আগে tombstone সরাতে হয়,
+                    // নইলে status ফিরলেও DeletedGuard-মান্য তালিকা এটা লুকিয়েই রাখত।
+                    // tombstone না থাকলে unmark নিরাপদ no-op।
+                    try { DeletedGuard.unmark(ctable, fid) } catch (_: Throwable) { }
+                    // TK-REQUESTED (2026-07-27): a failure here used to be
+                    // silent -- the record came back but its Follow-up card
+                    // stayed hidden for ever. Now it is retried later.
+                    val fields = JSONObject().put("status", status)
+                    // 🔴🔴🔒 V510 (২১.০৮.২০২৬, TK-রিপোর্ট — KAMAL ROY-এর ফলো-আপ
+                    // দুটো Restore-এর পরেও `Cancelled`-ই থেকে যাচ্ছিল)।
+                    //
+                    // **কারণ (লাইভ ডেটাবেস থেকে হুবহু বার করা, আন্দাজ নয়):**
+                    // `followups` টেবিলে `tk_terminal_no_return` নামে একটা ট্রিগার
+                    // আছে (`public.tk_followup_terminal_guard`)। তার নিয়ম —
+                    // Cancelled/Incomplete/Rejected/Closed সারিকে Active করা যাবে
+                    // **শুধু তখনই**, যখন `history`-র **শেষ** এন্ট্রিতে থাকে
+                    //     status = "Active"  আর  remark শুরু "Restored"/"Continue" দিয়ে।
+                    // নইলে ট্রিগার চুপচাপ `return old` করে — অর্থাৎ **কোনো ভুল না
+                    // দেখিয়ে** পুরোনো অবস্থাই রেখে দেয়।
+                    // আমরা এতদিন শুধু `status` পাঠাতাম, `history` নয় — তাই Restore
+                    // বোতাম রোগীকে ফেরাত ঠিকই, কিন্তু তাঁর ফলো-আপ কার্ড চিরকাল
+                    // লুকানো থেকে যেত (TK ২১.০৮.২০২৬-এ লাইভে ধরেছেন)।
+                    //
+                    // ⛔ পুরোনো `history` মোছা হয় না — সার্ভার থেকে পড়ে নিয়ে তার
+                    //    **শেষে একটা লাইন যোগ** করা হয় (কে · কবে · কেন)।
+                    // ⛔ পড়া না গেলে অন্তত একটা লাইন পাঠানো হয়, যাতে ট্রিগারের শর্ত
+                    //    মেটে — সবচেয়ে খারাপ ক্ষেত্রেও শুধু history-র পুরোনো লেখা
+                    //    কমে, কোনো রেকর্ড/টাকা/রোগীর তথ্য নষ্ট হয় না।
+                    // ⛔ `enquiries`-এ এই ট্রিগার নেই, তাই সেখানে আগের মতোই শুধু status।
+                    if (ctable == "followups" && status.equals("Active", ignoreCase = true)) {
+                        val line = JSONObject()
+                            .put("status", "Active")
+                            .put("remark", "Restored from Trash")
+                            .put("at", trashIsoNow())
+                            .put("by", try {
+                                if (context != null) NativeSession.current(context)?.mobile ?: "" else ""
+                            } catch (_: Throwable) { "" })
+                        val hist = try {
+                            val enc = java.net.URLEncoder.encode(fid, "UTF-8")
+                            val rows = SupabaseClient.fetchListSlimOrNull(
+                                "followups", "id=eq.$enc", 1, "id,history"
+                            )
+                            rows?.optJSONObject(0)?.optJSONArray("history") ?: org.json.JSONArray()
+                        } catch (_: Throwable) { org.json.JSONArray() }
+                        hist.put(line)
+                        fields.put("history", hist)
+                    }
+                    val okRow = SupabaseClient.updateById(ctable, fid, fields)
+                    if (!okRow && context != null) {
+                        try { GenericUpdateQueue.queue(context, ctable, fid, fields) } catch (_: Throwable) { }
+                    }
+                }
+            }
+        }
+        return SupabaseClient.deleteById("trash", item.id)
+    }
+
+    /** TK APPROVED (2026-07-20): permanently removes a trash entry from the
+     *  cloud. This is the ONLY place in the whole app where a record is
+     *  destroyed for good -- after this there is NO way to get it back.
+     *  Master-only: the caller (TrashBinActivity) only ever shows the Delete
+     *  Forever button to a Master, and confirms with a "Sure?" popup first. */
+    fun permanentDelete(item: TrashItem): Boolean {
+        if (item.id.isBlank()) return false
+        return SupabaseClient.deleteById("trash", item.id)
+    }
+
+    /** 🔴 V510 — `history` লাইনের সময়, প্রকল্পের সব জায়গার একই ছাঁচে
+     *  (UTC · `yyyy-MM-dd'T'HH:mm:ss.SSS'Z'`)। ⛔ Locale.US — নইলে কোনো ফোনে
+     *  বাংলা সংখ্যা বসে যেত (V509-এ ঠিক এই ভুলটা একবার ধরা পড়েছিল)। */
+    private fun trashIsoNow(): String = try {
+        java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
+            .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
+            .format(java.util.Date())
+    } catch (_: Throwable) { "" }
+}

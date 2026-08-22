@@ -1,0 +1,912 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    🔒 TK-LOCKED DESIGN (04.08.2026, ধাপে ধাপে ফটো-প্রুফে "লক করুন") —
+    More মেনু সম্পূর্ণ নতুন ডিজাইনে (আগে ৩-কলাম GridLayout + প্লেইন
+    বোতাম ছিল)। TK নিজে একটা রেফারেন্স ছবি পাঠিয়েছিলেন (হাসপাতাল/নার্সিং
+    হোম-ধাঁচের প্রিমিয়াম মেনু), তার কাছাকাছি বানানো হয়েছে:
+      · সবুজ গ্রেডিয়েন্ট হেডার (গোল নিচের কোণ) — TK প্রথমে নেভি ব্লু বাদ
+        দিতে বলেছিলেন (প্রজেক্টের স্থায়ী নিয়ম), তারপর সবুজ চেয়েছেন।
+      · দুটো সেকশন — "Management" ও "Security & Data" — প্রতিটার নিজস্ব
+        আইকন+লেবেল+লাইন+বিন্দু হেডলাইন।
+      · প্রতিটা মেনু-আইটেম এখন সাদা কার্ড: বাঁ-পাশে গোল রঙিন আইকন-ব্যাজ
+        (আউটলাইন ভেক্টর আইকন, ইমোজি নয়), মাঝে শিরোনাম (সেরিফ ফন্ট) +
+        উপ-লেখা, ডানপাশে চেভরন (›)।
+      · ২-কলাম গ্রিড, কিন্তু GridLayout নয় — প্রতিটা সারি নিজে একটা
+        LinearLayout, যাতে Master/Staff role অনুযায়ী কোনো বোতাম লুকালে
+        (আগের B374/B345 বাগের মতো) ফাঁকা গর্ত বা বিশাল একলা বার তৈরি না
+        হয় (MoreMenuActivity.kt-এর নতুন hideItem() হেল্পার এই সারিগুলো
+        সামলায়)।
+    ⛔ প্রতিটা বোতামের id অপরিবর্তিত রাখা হয়েছে (btnReports, btnBackup,
+       ইত্যাদি) — MoreMenuActivity.kt-এর ক্লিক/role-লজিক যতটা সম্ভব
+       অক্ষত রাখতে। btnDraft ও btnPublicSite (যেগুলো সব role-এই সবসময়
+       লুকানো থাকত, B339-এর পর থেকে) এই নতুন ডিজাইনে একেবারেই বাদ —
+       আগে থেকেই ব্যবহারই হতো না, তাই সরালে কিছু ভাঙে না (যাচাই করা হয়েছে,
+       এই দুটো id প্রজেক্টের আর কোথাও ব্যবহার হয় না)।
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/bg_app_gradient">
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- Header: green gradient, rounded bottom, back + title + emblem -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@drawable/bg_more_header_green"
+            android:paddingHorizontal="18dp"
+            android:paddingTop="16dp"
+            android:paddingBottom="22dp">
+
+            <TextView
+                android:id="@+id/btnBack"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="←"
+                android:textColor="@color/white"
+                android:textSize="20sp"
+                android:padding="4dp" />
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="12dp"
+                android:text="More"
+                android:fontFamily="serif"
+                android:textColor="@color/white"
+                android:textSize="21sp"
+                android:textStyle="bold" />
+
+            <!-- 🔴🆕 TK-নির্দেশ (07.08.2026, স্ক্রিনশটসহ) — "মেনুবারের লিস্ট থেকে
+                 লগআউটটা সরাবেন; লগআউট থাকবে একদম উপরে হেডারের ডান সাইডে।"
+                 🔴🔴 UPDATE (08.08.2026, TK পছন্দ করা লাল-বোতাম ডিজাইন, ফটো-প্রুফে) — আগের গোল
+                 emblem-এর ভিতরের ⏻ গ্লিফ TK-এর ফোনে বাক্স হয়ে যেত (বোঝা যেত না)।
+                 এখন স্পষ্ট **লাল ভরাট pill + সাদা পাওয়ার-আইকন (ভেক্টর) + "Log Out"
+                 লেখা**। ⛔ `btnLogout` id অপরিবর্তিত — তাই `MoreMenuActivity`-র
+                 ক্লিক-কোড (নিশ্চিতকরণ পপ-আপ + সেশন শেষ) এক অক্ষরও বদলায়নি; শুধু
+                 চেহারা বদলেছে। ⛔ পুরনো bg_more_emblem/ic_more_emblem মোছা হয়নি। -->
+            <LinearLayout
+                android:id="@+id/btnLogout"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="@drawable/bg_logout_pill_red"
+                android:paddingStart="13dp"
+                android:paddingEnd="15dp"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp"
+                android:elevation="2dp">
+                <ImageView
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:layout_marginEnd="6dp"
+                    android:src="@drawable/ic_power_logout"
+                    android:contentDescription="Log Out" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Log Out"
+                    android:textColor="@color/white"
+                    android:textStyle="bold"
+                    android:textSize="13.5sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Section: Management -->
+        <!-- 🔵 B616 (11.08.2026, TK-অনুমোদিত প্রুফ): "Management" হেডার-স্ট্রিপ
+             (আইকন+লেখা+লাইন+ডট) সব রোলে বাদ — TK: "এই লেখা থাকার মানে নেই"।
+             visibility=gone দিয়ে লুকানো (কার্ড/সারি অপরিবর্তিত)। -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:visibility="gone"
+            android:paddingStart="18dp"
+            android:paddingEnd="18dp"
+            android:paddingTop="16dp"
+            android:paddingBottom="8dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="💼"
+                android:textSize="14sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="7dp"
+                android:text="Management"
+                android:fontFamily="serif"
+                android:textStyle="bold"
+                android:textSize="15.5sp"
+                android:textColor="@color/brand_navy" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1"
+                android:layout_marginHorizontal="8dp"
+                android:background="#DDD3BE" />
+
+            <View
+                android:layout_width="6dp"
+                android:layout_height="6dp"
+                android:background="@drawable/bg_more_dot"
+                android:backgroundTint="#C9A24B" />
+        </LinearLayout>
+
+        <!-- Management row 1: Reports | Backup -->
+        <LinearLayout
+            android:id="@+id/rowManagement1"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingHorizontal="12dp">
+
+            <LinearLayout
+                android:id="@+id/btnReports"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_margin="5dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/bg_more_card"
+                android:elevation="2dp"
+                android:padding="13dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <FrameLayout
+                    android:layout_width="42dp"
+                    android:layout_height="42dp"
+                    android:background="@drawable/bg_more_icon_badge"
+                    android:backgroundTint="#EAF0FB">
+                    <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_gravity="center" android:src="@drawable/ic_more_reports" />
+                </FrameLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="10dp"
+                    android:orientation="vertical">
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Reports" android:fontFamily="serif" android:textStyle="bold" android:textSize="13sp" android:textColor="@color/brand_navy" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Analytics &amp; summary" android:textSize="9.5sp" android:textColor="@color/clinic_text_secondary" />
+                </LinearLayout>
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textSize="18sp" android:textColor="#B7C0CC" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btnBackup"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_margin="5dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/bg_more_card"
+                android:elevation="2dp"
+                android:padding="13dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <FrameLayout
+                    android:layout_width="42dp"
+                    android:layout_height="42dp"
+                    android:background="@drawable/bg_more_icon_badge"
+                    android:backgroundTint="#E7F2EA">
+                    <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_gravity="center" android:src="@drawable/ic_more_backup" />
+                </FrameLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="10dp"
+                    android:orientation="vertical">
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Backup" android:fontFamily="serif" android:textStyle="bold" android:textSize="13sp" android:textColor="@color/brand_navy" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Cloud sync" android:textSize="9.5sp" android:textColor="@color/clinic_text_secondary" />
+                </LinearLayout>
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textSize="18sp" android:textColor="#B7C0CC" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Management row 2: Chamber Close | Trash Bin -->
+        <LinearLayout
+            android:id="@+id/rowManagement2"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingHorizontal="12dp">
+
+            <LinearLayout
+                android:id="@+id/btnChamberClose"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_margin="5dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/bg_more_card"
+                android:elevation="2dp"
+                android:padding="13dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <FrameLayout
+                    android:layout_width="42dp"
+                    android:layout_height="42dp"
+                    android:background="@drawable/bg_more_icon_badge"
+                    android:backgroundTint="#FBEAEA">
+                    <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_gravity="center" android:src="@drawable/ic_more_lock_red" />
+                </FrameLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="10dp"
+                    android:orientation="vertical">
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Chamber Close" android:fontFamily="serif" android:textStyle="bold" android:textSize="13sp" android:textColor="@color/brand_navy" android:maxLines="1" android:ellipsize="end" />
+                    <TextView
+                        android:id="@+id/tvChamberCloseSub"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="All closed"
+                        android:textSize="9.5sp"
+                        android:textColor="@color/clinic_text_secondary" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/badgeChamberClose"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_more_dot"
+                    android:backgroundTint="#D94B4B"
+                    android:paddingHorizontal="7dp"
+                    android:paddingVertical="2dp"
+                    android:text="0"
+                    android:textColor="@color/white"
+                    android:textSize="9.5sp"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btnTrash"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_margin="5dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/bg_more_card"
+                android:elevation="2dp"
+                android:padding="13dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <FrameLayout
+                    android:layout_width="42dp"
+                    android:layout_height="42dp"
+                    android:background="@drawable/bg_more_icon_badge"
+                    android:backgroundTint="#FBEAEA">
+                    <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_gravity="center" android:src="@drawable/ic_more_trash" />
+                </FrameLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="10dp"
+                    android:orientation="vertical">
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Trash Bin" android:fontFamily="serif" android:textStyle="bold" android:textSize="13sp" android:textColor="@color/brand_navy" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Deleted records" android:textSize="9.5sp" android:textColor="@color/clinic_text_secondary" />
+                </LinearLayout>
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textSize="18sp" android:textColor="#B7C0CC" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Section: Security & Data -->
+        <!-- 🔵 (07.08.2026, নিজের অডিটে ধরা) — Logout কার্ডটা হেডারে সরানোর পরে
+             non-master-এর পর্দায় এই সেকশনের **দুটো সারিই** সম্পূর্ণ লুকিয়ে যায়,
+             অথচ "🛡️ Security & Data" শিরোনামটা একা দাঁড়িয়ে থাকত (নিচে কিছুই নেই)।
+             তাই শিরোনামে id বসানো হলো — MoreMenuActivity non-master হলে এটাও লুকায়। -->
+        <LinearLayout
+            android:id="@+id/securityHeader"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="18dp"
+            android:paddingEnd="18dp"
+            android:paddingTop="16dp"
+            android:paddingBottom="8dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🛡️"
+                android:textSize="14sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="7dp"
+                android:text="Security &amp; Data"
+                android:fontFamily="serif"
+                android:textStyle="bold"
+                android:textSize="15.5sp"
+                android:textColor="@color/brand_navy" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1"
+                android:layout_marginHorizontal="8dp"
+                android:background="#DDD3BE" />
+
+            <View
+                android:layout_width="6dp"
+                android:layout_height="6dp"
+                android:background="@drawable/bg_more_dot"
+                android:backgroundTint="#3E7A6E" />
+        </LinearLayout>
+
+        <!-- Security row 1: Password | Export -->
+        <LinearLayout
+            android:id="@+id/rowSecurity1"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingHorizontal="12dp">
+
+            <LinearLayout
+                android:id="@+id/btnPasswordCenter"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_margin="5dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/bg_more_card"
+                android:elevation="2dp"
+                android:padding="13dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <FrameLayout
+                    android:layout_width="42dp"
+                    android:layout_height="42dp"
+                    android:background="@drawable/bg_more_icon_badge"
+                    android:backgroundTint="#E7F2EA">
+                    <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_gravity="center" android:src="@drawable/ic_more_password" />
+                </FrameLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="10dp"
+                    android:orientation="vertical">
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Password" android:fontFamily="serif" android:textStyle="bold" android:textSize="13sp" android:textColor="@color/brand_navy" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Security centre" android:textSize="9.5sp" android:textColor="@color/clinic_text_secondary" />
+                </LinearLayout>
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textSize="18sp" android:textColor="#B7C0CC" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btnExportData"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_margin="5dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/bg_more_card"
+                android:elevation="2dp"
+                android:padding="13dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <FrameLayout
+                    android:layout_width="42dp"
+                    android:layout_height="42dp"
+                    android:background="@drawable/bg_more_icon_badge"
+                    android:backgroundTint="#E7F2EA">
+                    <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_gravity="center" android:src="@drawable/ic_more_export" />
+                </FrameLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="10dp"
+                    android:orientation="vertical">
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Export" android:fontFamily="serif" android:textStyle="bold" android:textSize="13sp" android:textColor="@color/brand_navy" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Download data" android:textSize="9.5sp" android:textColor="@color/clinic_text_secondary" />
+                </LinearLayout>
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textSize="18sp" android:textColor="#B7C0CC" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- 🆕🔒 TK-নির্দেশ (05.08.2026): Dialer এখান থেকে সরিয়ে সরাসরি
+             Dashboard-এ (হোম মেনুতে) বসানো হয়েছে — দেখুন
+             activity_dashboard.xml / DashboardActivity.kt-এর "tileDialer"। -->
+
+        <!-- 🔴🆕🔒 TK-নির্দেশ (07.08.2026) — ডাক্তারের Dashboard-এ এখন শুধু ৫টা
+             বাক্স (Check Up · Print · Chamber Date · Payment · Dr. Visit);
+             *"বাকি সব কিছু মেনুবারে থাকবে"*। তাই ডাক্তারের জন্য এই নতুন
+             "Modules" সেকশন — Dashboard থেকে যেগুলো সরানো হয়েছে ঠিক সেগুলোই,
+             একই কাজ ও একই পর্দায় নিয়ে যায়।
+             ⛔ পুরো সেকশনটা XML-এ ডিফল্ট `visibility="gone"` — শুধু
+                `MoreMenuActivity` ডাক্তার হলে দেখায়। তাই Master/Staff/Field-এর
+                Menu পর্দা **এক চুলও বদলায়নি**।
+             ⛔ প্রতিটা কার্ড আগের মেনু-কার্ডের হুবহু একই নকশা/মাপ। -->
+        <LinearLayout
+            android:id="@+id/docModulesSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <!-- 🔵 B616 (11.08.2026, TK-অনুমোদিত প্রুফ): "Modules" হেডার-স্ট্রিপ বাদ। -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:visibility="gone"
+                android:paddingStart="18dp"
+                android:paddingEnd="18dp"
+                android:paddingTop="16dp"
+                android:paddingBottom="8dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="🩺" android:textSize="14sp" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="7dp" android:text="Modules" android:fontFamily="serif" android:textStyle="bold" android:textSize="15.5sp" android:textColor="@color/brand_navy" />
+                <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" android:layout_marginHorizontal="8dp" android:background="#DDD3BE" />
+                <View android:layout_width="6dp" android:layout_height="6dp" android:background="@drawable/bg_more_dot" android:backgroundTint="#0F7A43" />
+            </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/rowDocModules1"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingHorizontal="12dp">
+
+            <LinearLayout
+                android:id="@+id/btnDocEnquiry"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_margin="5dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/bg_more_card"
+                android:elevation="2dp"
+                android:padding="13dp"
+                android:clickable="true"
+                android:focusable="true">
+                <FrameLayout
+                    android:layout_width="42dp"
+                    android:layout_height="42dp"
+                    android:background="@drawable/bg_more_icon_badge"
+                    android:backgroundTint="#FFF3E0">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center" android:text="📝" android:textSize="17sp" />
+                </FrameLayout>
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="10dp"
+                    android:orientation="vertical">
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Enquiry" android:fontFamily="serif" android:textStyle="bold" android:textSize="13sp" android:textColor="@color/brand_navy" android:maxLines="1" android:ellipsize="end" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="New enquiry" android:textSize="9.5sp" android:textColor="@color/clinic_text_secondary" android:maxLines="1" android:ellipsize="end" />
+                </LinearLayout>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textSize="18sp" android:textColor="#B7C0CC" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btnDocFollowUp"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_margin="5dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/bg_more_card"
+                android:elevation="2dp"
+                android:padding="13dp"
+                android:clickable="true"
+                android:focusable="true">
+                <FrameLayout
+                    android:layout_width="42dp"
+                    android:layout_height="42dp"
+                    android:background="@drawable/bg_more_icon_badge"
+                    android:backgroundTint="#E8F5EE">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center" android:text="🔁" android:textSize="17sp" />
+                </FrameLayout>
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="10dp"
+                    android:orientation="vertical">
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Follow-up" android:fontFamily="serif" android:textStyle="bold" android:textSize="13sp" android:textColor="@color/brand_navy" android:maxLines="1" android:ellipsize="end" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Call list" android:textSize="9.5sp" android:textColor="@color/clinic_text_secondary" android:maxLines="1" android:ellipsize="end" />
+                </LinearLayout>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textSize="18sp" android:textColor="#B7C0CC" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/rowDocModules2"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingHorizontal="12dp">
+
+            <LinearLayout
+                android:id="@+id/btnDocRegistration"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_margin="5dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/bg_more_card"
+                android:elevation="2dp"
+                android:padding="13dp"
+                android:clickable="true"
+                android:focusable="true">
+                <FrameLayout
+                    android:layout_width="42dp"
+                    android:layout_height="42dp"
+                    android:background="@drawable/bg_more_icon_badge"
+                    android:backgroundTint="#E7EEFB">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center" android:text="🧾" android:textSize="17sp" />
+                </FrameLayout>
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="10dp"
+                    android:orientation="vertical">
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Registration" android:fontFamily="serif" android:textStyle="bold" android:textSize="13sp" android:textColor="@color/brand_navy" android:maxLines="1" android:ellipsize="end" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="New patient" android:textSize="9.5sp" android:textColor="@color/clinic_text_secondary" android:maxLines="1" android:ellipsize="end" />
+                </LinearLayout>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textSize="18sp" android:textColor="#B7C0CC" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btnDocDialer"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_margin="5dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/bg_more_card"
+                android:elevation="2dp"
+                android:padding="13dp"
+                android:clickable="true"
+                android:focusable="true">
+                <FrameLayout
+                    android:layout_width="42dp"
+                    android:layout_height="42dp"
+                    android:background="@drawable/bg_more_icon_badge"
+                    android:backgroundTint="#E8F5EE">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center" android:text="📞" android:textSize="17sp" />
+                </FrameLayout>
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="10dp"
+                    android:orientation="vertical">
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Dialer" android:fontFamily="serif" android:textStyle="bold" android:textSize="13sp" android:textColor="@color/brand_navy" android:maxLines="1" android:ellipsize="end" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Call centre" android:textSize="9.5sp" android:textColor="@color/clinic_text_secondary" android:maxLines="1" android:ellipsize="end" />
+                </LinearLayout>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textSize="18sp" android:textColor="#B7C0CC" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/rowDocModules3"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingHorizontal="12dp">
+
+            <LinearLayout
+                android:id="@+id/btnDocDraft"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_margin="5dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/bg_more_card"
+                android:elevation="2dp"
+                android:padding="13dp"
+                android:clickable="true"
+                android:focusable="true">
+                <FrameLayout
+                    android:layout_width="42dp"
+                    android:layout_height="42dp"
+                    android:background="@drawable/bg_more_icon_badge"
+                    android:backgroundTint="#FBF3E7">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center" android:text="📂" android:textSize="17sp" />
+                </FrameLayout>
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="10dp"
+                    android:orientation="vertical">
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Draft" android:fontFamily="serif" android:textStyle="bold" android:textSize="13sp" android:textColor="@color/brand_navy" android:maxLines="1" android:ellipsize="end" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Reject / Incomplete" android:textSize="9.5sp" android:textColor="@color/clinic_text_secondary" android:maxLines="1" android:ellipsize="end" />
+                </LinearLayout>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textSize="18sp" android:textColor="#B7C0CC" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/btnDocBriefing"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_margin="5dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/bg_more_card"
+                android:elevation="2dp"
+                android:padding="13dp"
+                android:clickable="true"
+                android:focusable="true">
+                <FrameLayout
+                    android:layout_width="42dp"
+                    android:layout_height="42dp"
+                    android:background="@drawable/bg_more_icon_badge"
+                    android:backgroundTint="#F0F8FC">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center" android:text="💬" android:textSize="17sp" />
+                </FrameLayout>
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="10dp"
+                    android:orientation="vertical">
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Briefing" android:fontFamily="serif" android:textStyle="bold" android:textSize="13sp" android:textColor="@color/brand_navy" android:maxLines="1" android:ellipsize="end" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Notice board" android:textSize="9.5sp" android:textColor="@color/clinic_text_secondary" android:maxLines="1" android:ellipsize="end" />
+                </LinearLayout>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textSize="18sp" android:textColor="#B7C0CC" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/rowDocModules4"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingHorizontal="12dp">
+
+            <LinearLayout
+                android:id="@+id/btnDocSearch"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_margin="5dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/bg_more_card"
+                android:elevation="2dp"
+                android:padding="13dp"
+                android:clickable="true"
+                android:focusable="true">
+                <FrameLayout
+                    android:layout_width="42dp"
+                    android:layout_height="42dp"
+                    android:background="@drawable/bg_more_icon_badge"
+                    android:backgroundTint="#F3F5F7">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center" android:text="🔍" android:textSize="17sp" />
+                </FrameLayout>
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="10dp"
+                    android:orientation="vertical">
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Search" android:fontFamily="serif" android:textStyle="bold" android:textSize="13sp" android:textColor="@color/brand_navy" android:maxLines="1" android:ellipsize="end" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Find anything" android:textSize="9.5sp" android:textColor="@color/clinic_text_secondary" android:maxLines="1" android:ellipsize="end" />
+                </LinearLayout>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textSize="18sp" android:textColor="#B7C0CC" />
+            </LinearLayout>
+
+            <!-- 🔴🆕🔒 TK-নির্দেশ (08.08.2026) — Dr. Visit এখন Dashboard-এ নেই,
+                 ডাক্তারের Modules-এ যোগ করা হলো। wiring: MoreMenuActivity.btnDocDoctorVisit -->
+            <LinearLayout
+                android:id="@+id/btnDocDoctorVisit"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_margin="5dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/bg_more_card"
+                android:elevation="2dp"
+                android:padding="13dp"
+                android:clickable="true"
+                android:focusable="true">
+                <FrameLayout
+                    android:layout_width="42dp"
+                    android:layout_height="42dp"
+                    android:background="@drawable/bg_more_icon_badge"
+                    android:backgroundTint="#E7F3FB">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center" android:text="👨‍⚕️" android:textSize="17sp" />
+                </FrameLayout>
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="10dp"
+                    android:orientation="vertical">
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Dr. Visit" android:fontFamily="serif" android:textStyle="bold" android:textSize="13sp" android:textColor="@color/brand_navy" android:maxLines="1" android:ellipsize="end" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="RMP / referral" android:textSize="9.5sp" android:textColor="@color/clinic_text_secondary" android:maxLines="1" android:ellipsize="end" />
+                </LinearLayout>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textSize="18sp" android:textColor="#B7C0CC" />
+            </LinearLayout>
+        </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- Wide cards: My Profile (non-master) / Staff Profiles + Income & Expense (master) -->
+        <LinearLayout
+            android:id="@+id/btnMyProfile"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="5dp"
+            android:layout_marginHorizontal="12dp"
+            android:layout_marginTop="6dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@drawable/bg_more_card"
+            android:elevation="2dp"
+            android:padding="14dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:visibility="gone">
+
+            <FrameLayout
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:background="@drawable/bg_more_icon_badge"
+                android:backgroundTint="#EAF0FB">
+                <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_gravity="center" android:src="@drawable/ic_more_myprofile" />
+            </FrameLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="12dp"
+                android:orientation="vertical">
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="My Profile" android:fontFamily="serif" android:textStyle="bold" android:textSize="14sp" android:textColor="@color/brand_navy" />
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="View my account" android:textSize="10sp" android:textColor="@color/clinic_text_secondary" />
+            </LinearLayout>
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textSize="18sp" android:textColor="#B7C0CC" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/btnStaffProfiles"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="5dp"
+            android:layout_marginHorizontal="12dp"
+            android:layout_marginTop="6dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@drawable/bg_more_card"
+            android:elevation="2dp"
+            android:padding="14dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:visibility="gone">
+
+            <FrameLayout
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:background="@drawable/bg_more_icon_badge"
+                android:backgroundTint="#EAF0FB">
+                <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_gravity="center" android:src="@drawable/ic_more_staff_profiles" />
+            </FrameLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="12dp"
+                android:orientation="vertical">
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Staff Profiles" android:fontFamily="serif" android:textStyle="bold" android:textSize="14sp" android:textColor="@color/brand_navy" />
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="All staff across branches" android:textSize="10sp" android:textColor="@color/clinic_text_secondary" />
+            </LinearLayout>
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textSize="18sp" android:textColor="#B7C0CC" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/btnIncomeExpense"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="5dp"
+            android:layout_marginHorizontal="12dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@drawable/bg_more_card"
+            android:elevation="2dp"
+            android:padding="14dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:visibility="gone">
+
+            <FrameLayout
+                android:layout_width="42dp"
+                android:layout_height="42dp"
+                android:background="@drawable/bg_more_icon_badge"
+                android:backgroundTint="#E7F2EA">
+                <ImageView android:layout_width="20dp" android:layout_height="20dp" android:layout_gravity="center" android:src="@drawable/ic_more_income_expense" />
+            </FrameLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="12dp"
+                android:orientation="vertical">
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Income &amp; Expense" android:fontFamily="serif" android:textStyle="bold" android:textSize="14sp" android:textColor="@color/brand_navy" />
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Daily ledger" android:textSize="10sp" android:textColor="@color/clinic_text_secondary" />
+            </LinearLayout>
+
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textSize="18sp" android:textColor="#B7C0CC" />
+        </LinearLayout>
+
+        <!-- App version -->
+        <TextView
+            android:id="@+id/tvAppVersion"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:gravity="center"
+            android:text="App Version: —"
+            android:textSize="11sp"
+            android:textColor="@color/clinic_text_secondary" />
+    </LinearLayout>
+    </ScrollView>
+
+    <include layout="@layout/bottom_nav_bar" />
+</LinearLayout>

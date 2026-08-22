@@ -1,0 +1,1742 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+🛡️ TK-এর পাহারাদার  (tk_guard.py)
+====================================
+মালিক: TK Biswas · Maa Ayurved Piles Clinic
+তৈরি: ২৮.০৭.২০২৬ · অবস্থা: 🔒 লক করা
+
+কেন এটা আছে
+------------
+মালিকের নিয়ম ১১৫টার বেশি, ছয়টা ফাইলে ছড়ানো ছিল। নিয়ম লেখা থাকলেও
+কেউ যাচাই করত না — তাই ভুল হত, আর মালিককে একই কথা বারবার বলতে হত।
+
+এই পাহারাদার নিয়মগুলো **মনে রাখার** বদলে **যাচাই করে**।
+একটাও যাচাই ব্যর্থ হলে ফাইল বানানো যাবে না।
+
+কীভাবে চালাতে হয়
+------------------
+    python3 00_GUARD/tk_guard.py            → শুধু যাচাই
+    python3 00_GUARD/tk_guard.py --release  → যাচাই + নতুন নাম ঠিক করা
+
+⛔ মালিকের অনুমতি ছাড়া এই ফাইল বদলানো, দুর্বল করা বা কোনো যাচাই বাদ
+   দেওয়া যাবে না। যাচাই বাদ দেওয়া মানে মালিকের কাছে ভাঙা ফাইল যাওয়া।
+"""
+
+import os, re, io, sys, json, glob, datetime
+import xml.dom.minidom as md
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+APP  = os.path.join(ROOT, "02_ANDROID_SOURCE_CODE", "PilesClinicApp")
+JAVA = os.path.join(APP, "app", "src", "main", "java")
+RES  = os.path.join(APP, "app", "src", "main", "res")
+WEB  = os.path.join(ROOT, "03_NETLIFY_READY")
+SQLD = os.path.join(ROOT, "04_SUPABASE_DATABASE_SETUP")
+SENT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pathano_filer_talika.json")
+
+problems = []   # ❌ এগুলো থাকলে ফাইল বানানো যাবে না
+notices  = []   # ⚠️ মানুষকে নিজে দেখতে হবে
+
+
+def fail(rule, what):
+    problems.append((rule, what))
+
+
+def note(rule, what):
+    notices.append((rule, what))
+
+
+# ────────────────────────────────────────────────────────────────
+#  Kotlin-সচেতন ব্র্যাকেট গণনা
+#  সাধারণ গণনা মিথ্যা ফল দেয়, কারণ Kotlin-এ "${...}" লেখার ভিতরে
+#  আবার উদ্ধৃতি ও বন্ধনী থাকতে পারে। এটা সেগুলো আলাদা করে সামলায়।
+# ────────────────────────────────────────────────────────────────
+def kotlin_balance(src):
+    i, n = 0, len(src)
+    brace = paren = 0
+    mode = 'code'
+    tmpl = []
+    while i < n:
+        c = src[i]
+        if mode == 'code':
+            if src.startswith('"""', i):
+                mode = 'raw'; i += 3; continue
+            if c == '"':
+                mode = 'str'; i += 1; continue
+            if c == "'":                      # char literal, যেমন '{'
+                i += 1
+                while i < n and src[i] != "'":
+                    if src[i] == '\\':
+                        i += 1
+                    i += 1
+                i += 1; continue
+            if src.startswith('//', i):
+                j = src.find('\n', i); i = j if j != -1 else n; continue
+            if src.startswith('/*', i):
+                d = 1; i += 2
+                while i < n and d:
+                    if src.startswith('/*', i): d += 1; i += 2; continue
+                    if src.startswith('*/', i): d -= 1; i += 2; continue
+                    i += 1
+                continue
+            if c == '{':
+                brace += 1
+                if tmpl: tmpl[-1][0] += 1
+            elif c == '}':
+                brace -= 1
+                if tmpl:
+                    tmpl[-1][0] -= 1
+                    if tmpl[-1][0] == 0:
+                        mode = tmpl.pop()[1]; i += 1; continue
+            elif c == '(':
+                paren += 1
+            elif c == ')':
+                paren -= 1
+            i += 1; continue
+        if mode == 'str':
+            if c == '\\': i += 2; continue
+            if c == '"': mode = 'code'; i += 1; continue
+            if src.startswith('${', i):
+                brace += 1; tmpl.append([1, 'str']); mode = 'code'; i += 2; continue
+            if c == '\n': mode = 'code'; i += 1; continue
+            i += 1; continue
+        if mode == 'raw':
+            if src.startswith('"""', i): mode = 'code'; i += 3; continue
+            if src.startswith('${', i):
+                brace += 1; tmpl.append([1, 'raw']); mode = 'code'; i += 2; continue
+            i += 1; continue
+    return brace, paren
+
+
+def comment_start(line):
+    """লাইনে // কমেন্ট কোথায় শুরু (স্ট্রিং-এর ভিতরেরটা বাদ)। না থাকলে -1"""
+    j, n, instr = 0, len(line), False
+    while j < n:
+        c = line[j]
+        if instr:
+            if c == '\\': j += 2; continue
+            if c == '"': instr = False
+            j += 1; continue
+        if c == '"': instr = True; j += 1; continue
+        if line.startswith('//', j): return j
+        j += 1
+    return -1
+
+
+def kt_files():
+    out = []
+    for dp, _, fs in os.walk(JAVA):
+        for f in fs:
+            if f.endswith(".kt"):
+                out.append(os.path.join(dp, f))
+    return out
+
+
+def read(p):
+    return io.open(p, encoding="utf-8").read()
+
+
+# ═══════════════════════════════════════════════════════════════
+#  যাচাই ১ — ব্র্যাকেট (সার্কুলার ৯.১)
+# ═══════════════════════════════════════════════════════════════
+def check_brackets():
+    KNOWN_OK = {"ReportCardPrinter.kt", "TrashAdapter.kt"}   # raw string-এ CSS, মূল ফাইল থেকেই এমন
+    bad = []
+    for f in kt_files():
+        b, p = kotlin_balance(read(f))
+        if (b, p) != (0, 0) and os.path.basename(f) not in KNOWN_OK:
+            bad.append(f"{os.path.basename(f)} (brace {b:+d}, paren {p:+d})")
+    if bad:
+        fail("৯.১", "ব্র্যাকেট মিলছে না → " + " · ".join(bad))
+    return len(kt_files())
+
+
+# ═══════════════════════════════════════════════════════════════
+#  যাচাই ২ — কমেন্ট কোড গিলে ফেলেছে কিনা (সার্কুলার ৯.২)
+#  ২৮.০৭.২০২৬-এ ঠিক এই ভুলে বিল্ড ভেঙেছিল।
+# ═══════════════════════════════════════════════════════════════
+def check_comment_swallow():
+    BENG = re.compile(r'[\u0980-\u09FF]')
+    bad = []
+    for f in kt_files():
+        for i, l in enumerate(read(f).split("\n"), 1):
+            p = comment_start(l)
+            if p < 0 or not l[:p].strip():
+                continue                       # পুরো লাইনই কমেন্ট → নিরাপদ
+            cm = l[p + 2:]
+            if not BENG.search(cm):
+                continue
+            tail = cm[max(m.end() for m in BENG.finditer(cm)):].strip()
+            if re.search(r'[{}]|else\s+null|;\s*\w', tail):
+                bad.append(f"{os.path.basename(f)}:{i}")
+    if bad:
+        fail("৯.২", "কমেন্টের পরে কোড পড়ে আছে → " + " · ".join(bad))
+
+
+# ═══════════════════════════════════════════════════════════════
+#  যাচাই ৩ — if expression-এ else (সার্কুলার ৯.৪)
+# ═══════════════════════════════════════════════════════════════
+def check_if_else():
+    bad = []
+    for f in kt_files():
+        for i, l in enumerate(read(f).split("\n"), 1):
+            p = comment_start(l)
+            code = l[:p] if p >= 0 else l
+            if re.search(r'\bval\s+\w+\s*:\s*[\w.<>?()\s\-]+\?\s*=\s*if\s*\(', code):
+                if " else " not in code and not code.rstrip().endswith(("{", "->")):
+                    bad.append(f"{os.path.basename(f)}:{i}")
+    if bad:
+        fail("৯.৪", "`if` expression-এ `else` নেই → " + " · ".join(bad))
+
+
+# ═══════════════════════════════════════════════════════════════
+#  যাচাই ৪ — binding.<view> লেআউটে আছে কিনা (সার্কুলার ৯.৫)
+# ═══════════════════════════════════════════════════════════════
+def check_bindings():
+    ids = set()
+    for f in glob.glob(os.path.join(RES, "layout", "*.xml")):
+        ids |= set(re.findall(r'@\+id/(\w+)', read(f)))
+    miss = set()
+    for f in kt_files():
+        for m in re.finditer(r'binding\.(\w+)', read(f)):
+            v = m.group(1)
+            if v == "root" or v[0].isupper() or v in ids:
+                continue
+            miss.add(f"{os.path.basename(f)} → {v}")
+    if miss:
+        fail("৯.৫", "লেআউটে এই view নেই → " + " · ".join(sorted(miss)))
+
+
+# ═══════════════════════════════════════════════════════════════
+#  যাচাই ৫ — drawable রেফারেন্স (সার্কুলার ৯.৫)
+# ═══════════════════════════════════════════════════════════════
+def check_drawables():
+    have = set()
+    for d in ("drawable", "drawable-v24", "drawable-night"):
+        p = os.path.join(RES, d)
+        if os.path.isdir(p):
+            have |= {os.path.splitext(x)[0] for x in os.listdir(p)}
+    used = set()
+    for f in glob.glob(os.path.join(RES, "layout", "*.xml")):
+        used |= set(re.findall(r'@drawable/(\w+)', read(f)))
+    for f in kt_files():
+        used |= set(re.findall(r'R\.drawable\.(\w+)', read(f)))
+    miss = sorted(used - have)
+    if miss:
+        fail("৯.৫", "এই drawable নেই → " + " · ".join(miss))
+
+
+# ═══════════════════════════════════════════════════════════════
+#  যাচাই ৬ — XML (সার্কুলার ৯.৬)
+# ═══════════════════════════════════════════════════════════════
+def check_xml():
+    files = []
+    for dp, _, fs in os.walk(os.path.join(APP, "app", "src", "main")):
+        for f in fs:
+            if f.endswith(".xml"):
+                files.append(os.path.join(dp, f))
+    broken, dashes = [], []
+    for f in files:
+        try:
+            md.parse(f)
+        except Exception:
+            broken.append(os.path.basename(f))
+        if re.search(r'<!--(?:(?!-->).)*--(?:(?!>).)', read(f), re.S):
+            dashes.append(os.path.basename(f))
+    if broken:
+        fail("৯.৬", "XML ভাঙা → " + " · ".join(broken))
+    if dashes:
+        fail("৯.৬", "XML কমেন্টে '--' আছে → " + " · ".join(dashes))
+    return len(files)
+
+
+# ═══════════════════════════════════════════════════════════════
+#  যাচাই ৭ — প্রতি ক্লাসে একটাই companion object (সার্কুলার ৯.৬)
+# ═══════════════════════════════════════════════════════════════
+def check_companion():
+    bad = []
+    for f in kt_files():
+        src = read(f)
+        if len(re.findall(r'^\s*(?:private\s+)?companion\s+object', src, re.M)) > 1:
+            # একাধিক ক্লাস থাকলে সত্যি হতে পারে — তাই শুধু জানানো
+            if len(re.findall(r'^\s*(?:internal\s+|private\s+|open\s+|abstract\s+)*class\s+\w', src, re.M)) < 2:
+                bad.append(os.path.basename(f))
+    if bad:
+        fail("৯.৬", "এক ক্লাসে একাধিক companion object → " + " · ".join(bad))
+
+
+# ═══════════════════════════════════════════════════════════════
+#  যাচাই ৮ — Supabase কলাম (সার্কুলার ৯.৭)
+# ═══════════════════════════════════════════════════════════════
+def check_columns():
+    cols = {}
+    setup = os.path.join(SQLD, "PILES_CLINIC_DB_SETUP.sql")
+    if os.path.exists(setup):
+        s = read(setup)
+        for m in re.finditer(r'create table if not exists public\.(\w+)\s*\((.*?)\n\);', s, re.S):
+            cols[m.group(1)] = set(re.findall(r'"(\w+)"\s+\w', m.group(2)))
+    # 🔴🔴 TK-অডিট-অনুরোধ (01.08.2026, Refund-হিসাব অডিটের সময় ধরা পড়ল): এই
+    # scanner শুধু "*PATCH*.sql" নামের ফাইল খুঁজত, তাই "V215_SAFE_MIGRATION...",
+    # "V216_AUTH_PREP...", "V219_SECURITY..." ইত্যাদি নামের বাস্তব, TK নিজে
+    # Run-করা migration ফাইলগুলো এতদিন এই পাহারাদারের চোখেই পড়েনি — যে কলাম
+    # ওই ফাইলগুলোয় যোগ হয়েছে (যেমন refundApprovalStatus, password_hash,
+    # auth_user_id) সেগুলো ভুলভাবে "নেই" বলে ধরা পড়ত। এখন PILES_CLINIC_DB_SETUP.sql
+    # বাদে ফোল্ডারের **সব** .sql ফাইল স্ক্যান হয়।
+    # সঙ্গে regex-ও নরম করা হলো — বাস্তব ফাইলে "alter table if exists <name>"
+    # (কোনো "public." প্রিফিক্স ছাড়া) প্যাটার্নও আছে, আগের regex শুধু
+    # "alter table public.<name>" ধরত।
+    for f in glob.glob(os.path.join(SQLD, "*.sql")):
+        if os.path.basename(f) == "PILES_CLINIC_DB_SETUP.sql":
+            continue
+        s = read(f)
+        for m in re.finditer(
+            r'alter table\s+(?:if exists\s+)?(?:public\.)?"?(\w+)"?\s+add column\s+(?:if not exists\s+)?"?(\w+)"?',
+            s, re.I
+        ):
+            cols.setdefault(m.group(1), set()).add(m.group(2))
+        for m in re.finditer(r'create table if not exists (?:public\.)?"?(\w+)"?\s*\((.*?)\n\);', s, re.S | re.I):
+            cols.setdefault(m.group(1), set()).update(re.findall(r'"(\w+)"\s+\w', m.group(2)))
+    # setup.sql আসল ডেটাবেসের চেয়ে পুরনো — এই ঘরটা সত্যিই আছে (সার্কুলার ১০)
+    cols.setdefault('patients', set()).add('timeType')
+    bad = []
+    # 🔒 নতুন (29.07.2026, খাতার সারি B107): কলামের তালিকা যখন সরাসরি লেখা না
+    # হয়ে **নামে** পাঠানো হয় (যেমন `SupabaseClient.FOLLOWUP_COLS_NO_PHOTO`),
+    # পাহারাদার আগে সেটা দেখতেই পেত না — ঠিক ওখানেই ছ'টা আসল ঘর বাদ পড়ে
+    # ছিল (সারি B105)। এখন const-গুলোর লেখা আগে জোগাড় করে নেওয়া হয়।
+    consts = {}
+    for f in kt_files():
+        for m in re.finditer(r'(?:const\s+)?val\s+([A-Z][A-Z0-9_]*)\s*=\s*"([a-zA-Z,]+)"', read(f)):
+            consts[m.group(1)] = m.group(2)
+    for f in kt_files():
+        s = read(f)
+        for m in re.finditer(r'fetchListSlim(?:OrNull)?\(\s*"(\w+)",[^)]*?"([a-zA-Z,]+)"', s, re.S):
+            miss = [c for c in m.group(2).split(',') if c and c not in cols.get(m.group(1), set())]
+            if miss:
+                bad.append(f"{os.path.basename(f)} → {m.group(1)}: {','.join(miss)}")
+        for m in re.finditer(r'fetchListSlim(?:OrNull)?\(\s*"(\w+)",[^)]*?([A-Z][A-Z0-9_]{4,})\s*[,)]', s, re.S):
+            lst = consts.get(m.group(2))
+            if not lst:
+                continue
+            miss = [c for c in lst.split(',') if c and c not in cols.get(m.group(1), set())]
+            if miss:
+                bad.append(f"{os.path.basename(f)} → {m.group(1)} ({m.group(2)}): {','.join(miss)}")
+    if bad:
+        fail("৯.৭", "ডেটাবেসে এই কলাম নেই → " + " · ".join(bad))
+
+
+# ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯ — ভার্সন তিন জায়গায় এক (সার্কুলার ৯.৮)
+# ═══════════════════════════════════════════════════════════════
+def check_version():
+    g = os.path.join(APP, "app", "build.gradle.kts")
+    if not os.path.exists(g):
+        fail("৯.৮", "build.gradle.kts পাওয়া যায়নি")
+        return None
+    s = read(g)
+    m = re.search(r'versionCode\s*=\s*(\d+)', s)
+    if not m:
+        # 🔴🆕 V438 (১৮.০৮.২০২৬) — পাহারাদারের নিজের অন্ধ-জায়গা ঠিক করা হলো।
+        #    build.gradle.kts-এ এখন লেখা থাকে  versionCode = appVersionCode
+        #    আর উপরে  val appVersionCode = 438 । আগের নিয়মটা শুধু সরাসরি
+        #    সংখ্যা খুঁজত, তাই **ভার্সন মেলানোর পুরো পাহারাটাই চুপচাপ বন্ধ ছিল**
+        #    (VNone দেখাত)। এখন ওই ভেরিয়েবলটাও পড়া হয়।
+        mv = re.search(r'versionCode\s*=\s*([A-Za-z_][A-Za-z0-9_]*)', s)
+        if mv:
+            m = re.search(r'val\s+' + re.escape(mv.group(1)) + r'\s*=\s*(\d+)', s)
+    if not m:
+        fail("৯.৮", "versionCode পাওয়া যায়নি")
+        return None
+    code = int(m.group(1))
+    dash = os.path.join(JAVA, "com", "tkbiswas", "pilesclinic", "native", "DashboardActivity.kt")
+    if os.path.exists(dash):
+        d = read(dash)
+        # 🔴 TK-ORDER (31.07.2026, Section E — "Guard যদি পুরনো Button Design
+        # খুঁজে Fail করে, Guard-কেই বর্তমান approved Design অনুযায়ী আপডেট
+        # করবেন")। খাতার সারি B225: এখানে আগে "V210" হার্ডকোড ছিল (তাই
+        # প্রতিটা নতুন ভার্সনে হাতে বদলাতে ভুলে যাওয়ার ঝুঁকি ছিল) — এখন
+        # সরাসরি BuildConfig.VERSION_CODE থেকে ডায়নামিকভাবে বসে, তাই এই
+        # ফাইলে আর কখনো literal "V<সংখ্যা>" থাকবে না, versionCode বদলালেও
+        # আপনা থেকেই ঠিক দেখাবে। এই ডায়নামিক প্যাটার্নটাও এখন বৈধ ধরা হয় —
+        # শুধু hardcoded ভুল সংখ্যা থাকলেই আসল সমস্যা ধরা পড়বে।
+        uses_dynamic = "BuildConfig.VERSION_CODE" in d and 'val vLabel' in d
+        if f"· V{code}" not in d and not uses_dynamic:
+            fail("৯.৮", f"Dashboard-এ V{code} লেখা নেই")
+        old = re.findall(r'· V(\d+)', d)
+        if any(int(x) != code for x in old):
+            fail("৯.৮", f"Dashboard-এ পুরনো ভার্সন রয়ে গেছে → V{[x for x in old if int(x)!=code]}")
+
+    # 🔴🔒 TK-নির্দেশ (20.08.2026) — "ফাইলের নাম, ভার্সনের নাম, ভেতরের সমস্ত
+    # জায়গার নাম যেন সঠিকভাবে থাকে, তবেই পাহারাদার অনুমতি দেবে।" আগে
+    # `03_NETLIFY_READY/version.json` (Web-এর নিজের ভার্সন-ঘোষণা) শুধু একটা
+    # **আলাদা** স্ক্রিপ্টে (`verify_version_json.py`) চেক হত, মূল পাহারাদারের
+    # ভেতরে না — তাই ভুলে সেটা না চালালেও মূল ছাড়পত্র মিলে যেত। এখন সেটাও
+    # এখানেই, একই বাধ্যতামূলক গেটে।
+    vj = os.path.join(WEB, "version.json")
+    if os.path.exists(vj):
+        try:
+            data = json.loads(read(vj))
+            vc = data.get("versionCode")
+            if vc != code:
+                fail("৯.৮", f"03_NETLIFY_READY/version.json-এ versionCode {vc} — build.gradle.kts-এর V{code}-এর সাথে মেলেনি")
+            vn = data.get("versionName", "")
+            m2 = re.search(r'val\s+appVersionName\s*=\s*"([\d.]+)"', s)
+            if m2 and vn and m2.group(1) != vn:
+                fail("৯.৮", f"03_NETLIFY_READY/version.json-এর versionName \"{vn}\" — build.gradle.kts-এর \"{m2.group(1)}\"-এর সাথে মেলেনি")
+        except Exception:
+            fail("৯.৮", "03_NETLIFY_READY/version.json পড়া যায়নি (ভাঙা JSON?)")
+    else:
+        fail("৯.৮", "03_NETLIFY_READY/version.json পাওয়া যায়নি")
+
+    return code
+
+
+
+# ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯.১০ — ক্লাসের নাম দিয়ে সরাসরি ফাংশন ডাকা হয়নি তো?
+#  🚨 TK-REPORTED, LIVE (29.07.2026 দুপুর ১.০০ · খাতার সারি B85):
+#  Android Studio-তে `Unresolved reference: post` — কারণ
+#  `BriefingRepository` একটা **class**, `object` নয়; তবু
+#  `BriefingRepository.post(...)` লেখা ছিল। Kotlin-এ ক্লাসের নাম দিয়ে
+#  instance-ফাংশন ডাকা যায় না, আগে `BriefingRepository()` বানাতে হয়।
+#  পাহারাদার এতদিন এটা ধরতে পারত না — এখন পারবে।
+# ═══════════════════════════════════════════════════════════════
+def check_static_calls():
+    files = {}
+    for root, _, fs in os.walk(JAVA):
+        for f in fs:
+            if f.endswith(".kt"):
+                q = os.path.join(root, f)
+                files[q] = read(q)
+
+    objects = set()
+    classes = {}
+    for q, s in files.items():
+        for m in re.finditer(r'^\s*(?:internal\s+|private\s+|public\s+)?object\s+([A-Z]\w*)', s, re.M):
+            objects.add(m.group(1))
+        for m in re.finditer(r'^\s*(?:internal\s+|private\s+|public\s+|open\s+|abstract\s+|data\s+|sealed\s+)*class\s+([A-Z]\w*)', s, re.M):
+            classes.setdefault(m.group(1), q)
+
+    # companion object-এর ভিতরের নামগুলো (ওগুলো ক্লাসের নামেই ডাকা যায়)
+    comp = {}
+    for cname, q in classes.items():
+        s = files[q]
+        i = s.find("class " + cname)
+        if i < 0:
+            continue
+        j = s.find("companion object", i)
+        if j < 0:
+            continue
+        blk = s[j:j + 8000]
+        comp[cname] = set(re.findall(r'\bfun\s+(\w+)', blk)) | set(re.findall(r'\b(?:val|var|const val)\s+(\w+)', blk))
+
+    bad = []
+    for q, s in files.items():
+        own = os.path.basename(q)[:-3]
+        for ln, line in enumerate(s.split("\n"), 1):
+            t = line.strip()
+            if t.startswith("//") or t.startswith("*") or t.startswith("/*"):
+                continue
+            code = line.split("//")[0]
+            for m in re.finditer(r'(?<![\w.])([A-Z]\w*)\.([a-z]\w*)\s*\(', code):
+                cn, mn = m.group(1), m.group(2)
+                if cn in objects or cn not in classes:
+                    continue
+                if mn in comp.get(cn, set()):
+                    continue
+                if cn == own:                       # নিজের ফাইলের ভিতরে (nested/companion)
+                    continue
+                if re.search(r'\bfun\s+' + cn + r'\.', code):   # extension function ঘোষণা
+                    continue
+                bad.append((q, ln, cn, mn))
+    if bad:
+        for q, ln, cn, mn in bad[:8]:
+            fail("৯.১০", f"{os.path.relpath(q, ROOT)}:{ln} — `{cn}` একটা class, তবু `{cn}.{mn}()` ডাকা হয়েছে (আগে `{cn}()` বানাতে হবে)")
+    return len(files)
+
+
+# ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯.১৮ — bare ক্লাস-নাম ব্যবহার হয়েছে অথচ import নেই (Unresolved
+#  reference)।
+#  🔴🔴🔴🔴 TK-REPORTED, LIVE (20.08.2026, Android Studio Build Output
+#  ছবিসহ — "Unresolved reference: JSONArray/JSONObject/optString",
+#  APK তৈরিই হয়নি): `ChamberAttendanceRepository.kt`-এ নতুন কোড
+#  `JSONArray(`/`JSONObject(` (সংক্ষিপ্ত নাম) ব্যবহার করেছিল, কিন্তু
+#  ফাইলের উপরে `import org.json.JSONArray`/`JSONObject` ছিল না — পুরনো
+#  কোড সবসময় `org.json.JSONArray` পুরো-নাম লিখত। brace/paren গোনার
+#  পুরনো চেক (৯.১) এটা ধরতে পারেনি (bracket ঠিকই মিলছিল), ঠিক
+#  check_qualified_extension_fn()-এর (৯.১৫) মতোই একটা নাম-ভিত্তিক
+#  ফাঁক।
+#
+#  🚨 TK-এর স্পষ্ট নির্দেশ: এই ধরনের ভুল থাকলে পাহারাদার যেন **কখনোই**
+#  ফাইল পাঠানোর অনুমতি না দেয় — অক্ষরে অক্ষরে পালন করা হচ্ছে।
+#
+#  পদ্ধতি: এই তালিকার ("সংক্ষিপ্ত নামে ডাকা যায়, কিন্তু import ছাড়া
+#  Kotlin/Android নিজে থেকে চেনে না" এমন) প্রতিটা ক্লাসের জন্য —
+#  ফাইলে bare ব্যবহার (constructor call/type annotation/generic-এর
+#  ভিতরে) থাকলে, কিন্তু ওই একই ফাইলে সংশ্লিষ্ট `import` না থাকলে,
+#  ব্যর্থ ধরা হয়। ভবিষ্যতে একই ধরনের নতুন bug পেলে এই তালিকায় নতুন
+#  ক্লাস যোগ করলেই যথেষ্ট।
+#  ⛔ যেসব ফাইলে সব ব্যবহারই পুরো-নাম (`org.json.JSONArray`) দিয়ে করা,
+#     সেখানে bare ব্যবহারই নেই, তাই ধরাও পড়ে না (মিথ্যা-এলার্ম নেই)।
+# ═══════════════════════════════════════════════════════════════
+NEEDS_IMPORT = {
+    "JSONArray": "org.json.JSONArray",
+    "JSONObject": "org.json.JSONObject",
+}
+
+def check_unresolved_imports():
+    for root, _, fs in os.walk(JAVA):
+        for f in fs:
+            if not f.endswith(".kt"):
+                continue
+            q = os.path.join(root, f)
+            s = read(q)
+            imported = set(re.findall(r'^\s*import\s+([\w.]+)\s*$', s, re.M))
+            for short_name, full_name in NEEDS_IMPORT.items():
+                if full_name in imported:
+                    continue   # import আছে, নিরাপদ
+                # bare ব্যবহার খোঁজা — আগে কোনো '.' না থাকলেই bare
+                # (org.json.JSONArray(...) এই প্যাটার্নে ম্যাচ করবে না,
+                #  কারণ তার আগে '.' আছে)
+                pattern = re.compile(r'(?<![\w.])' + short_name + r'(?:\s*\(|\s*\?|\s*>|\s*,)')
+                lines = s.split("\n")
+                bad_lines = []
+                for ln, line in enumerate(lines, 1):
+                    t = line.strip()
+                    if t.startswith("//") or t.startswith("*") or t.startswith("/*"):
+                        continue
+                    code = line.split("//")[0]
+                    # পুরো-নামে ব্যবহার (org.json.JSONArray) হলে বাদ
+                    code_no_qualified = re.sub(r'org\.json\.' + short_name, '', code)
+                    if pattern.search(code_no_qualified):
+                        bad_lines.append(ln)
+                if bad_lines:
+                    fail("৯.১৮", f"{os.path.relpath(q, ROOT)}:{bad_lines[0]} — `{short_name}` ব্যবহার হয়েছে কিন্তু `import {full_name}` নেই (Unresolved reference — build ব্যর্থ হবে)")
+
+
+# ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯.১৫ — kotlinx.coroutines-এর extension function প্যাকেজ-নাম
+#  দিয়ে সরাসরি ডাকা হয়নি তো?
+#  🔴🔴🔴 TK-REPORTED, LIVE (30.07.2026 রাত, ছবিসহ — Android Studio-তে সত্যিকারের
+#  বিল্ড ব্যর্থ, "app:compileDebugKotlin 2 errors" · খাতার সারি B203):
+#  `async` ও `launch` — এই দুটো Kotlin-এ `CoroutineScope`-এর **extension
+#  function**, সাধারণ টপ-লেভেল ফাংশন নয়। `kotlinx.coroutines.async(...)`-এর
+#  মতো সরাসরি প্যাকেজ-নাম জুড়ে ডাকলে Kotlin কম্পাইলার "Unresolved reference"
+#  বলে আটকে যায় — এটাই এই সেশনে সত্যিকারের বিল্ড ভেঙেছিল, আর ব্র্যাকেট/প্যারেন
+#  গোনার পুরনো চেক (৯.১) এটা ধরতে পারেনি কারণ ব্র্যাকেট ঠিকই মিলছিল।
+#  ⛔ `coroutineScope`/`withContext`/`runBlocking` টপ-লেভেল ফাংশন — প্যাকেজ-নাম
+#     জুড়ে ডাকলেও ঠিকই আছে, তাই এগুলো এই চেকে ধরা হয় না।
+# ═══════════════════════════════════════════════════════════════
+def check_qualified_extension_fn():
+    bad = []
+    for f in kt_files():
+        s = read(f)
+        for i, line in enumerate(s.split("\n")):
+            # ⛔ // লাইন-কমেন্টের ভিতরে উদাহরণ হিসেবে এই প্যাটার্ন লেখা থাকতে
+            # পারে (যেমন এই বাগ ব্যাখ্যা করা কমেন্টেই) — তাই কোড-অংশটুকুই
+            # (// এর আগে পর্যন্ত) দেখা হয়, পুরো লাইন নয়।
+            code_part = line.split("//", 1)[0]
+            m = re.search(r'kotlinx\.coroutines\.(async|launch)\s*\(', code_part)
+            if m:
+                bad.append((f, i + 1, m.group(1)))
+    if bad:
+        for f, ln, name in bad[:8]:
+            fail("৯.১৫", f"{os.path.relpath(f, ROOT)}:{ln} — `kotlinx.coroutines.{name}(...)` সরাসরি প্যাকেজ-নাম দিয়ে ডাকা হয়েছে ({name} একটা extension function, import করে unqualified ডাকতে হবে — নইলে বিল্ড ভাঙবে)")
+
+
+# ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯.১৬ — এমন View ক্লাসের নিজের `.LayoutParams(` ডাকা হয়নি তো,
+#  যার আসলে নিজস্ব LayoutParams ক্লাসই নেই?
+#  🔴🔴🔴 TK-REPORTED, LIVE (02.08.2026 সকাল, Android Studio build error
+#  ছবিসহ — "Unresolved reference: LayoutParams" · খাতার সারি B266-সংশোধন):
+#  `ScrollView`/`HorizontalScrollView` নিজেদের কোনো `LayoutParams` ক্লাস
+#  ঘোষণা করে না (এরা `FrameLayout`-এর সাব-ক্লাস) — তাই
+#  `android.widget.ScrollView.LayoutParams(...)` লিখলে Kotlin কম্পাইলার
+#  "Unresolved reference" বলে আটকে যায়। সঠিক লেখা:
+#  `FrameLayout.LayoutParams(...)`। ব্র্যাকেট/প্যারেন গোনার পুরনো চেক (৯.১)
+#  এটা ধরতে পারেনি কারণ ব্র্যাকেট ঠিকই মিলছিল।
+# ═══════════════════════════════════════════════════════════════
+_NO_OWN_LAYOUTPARAMS = ("ScrollView", "HorizontalScrollView")
+
+
+def check_fake_layoutparams_class():
+    bad = []
+    for f in kt_files():
+        s = read(f)
+        for i, line in enumerate(s.split("\n")):
+            code_part = line.split("//", 1)[0]
+            for cls in _NO_OWN_LAYOUTPARAMS:
+                if re.search(rf'\b{cls}\.LayoutParams\s*[.(]', code_part):
+                    bad.append((f, i + 1, cls))
+    if bad:
+        for f, ln, cls in bad[:8]:
+            fail("৯.১৬", f"{os.path.relpath(f, ROOT)}:{ln} — `{cls}.LayoutParams` লেখা হয়েছে, কিন্তু `{cls}`-এর নিজস্ব কোনো LayoutParams ক্লাস নেই (এটা `FrameLayout`-এর সাব-ক্লাস) — `FrameLayout.LayoutParams` ব্যবহার করুন, নইলে বিল্ড ভাঙবে")
+
+
+# ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯.১৭ — একা `InputType.TYPE_CLASS_NUMBER` (কোনো DigitsKeyListener
+#  ছাড়া) কোনো প্রোগ্রাম্যাটিক EditText-এ বসানো হয়নি তো?
+#  🔴🔴🔴 TK-REPORTED (04.08.2026, Laxmi/Kishanganj-এর "সংখ্যা-ঘরে চাপ দিলে
+#  কীবোর্ড আসে না" — খাতার সারি B408→B409→B411): কিছু ফোনের (Xiaomi/Vivo/
+#  Oppo-ঘরানার) কাস্টম কীবোর্ড একা-`TYPE_CLASS_NUMBER`-এ tap করলে numeric
+#  keypad খুলতেই ব্যর্থ হয় — ১৭ জায়গায় (টাকার ঘরসহ) এই বাগ পাওয়া গিয়েছিল।
+#  সমাধান: `TYPE_CLASS_TEXT` + `DigitsKeyListener` (একই লাইনে বা তার
+#  খুব কাছাকাছি)। এই চেক একা `TYPE_CLASS_NUMBER` (ORর সাথেও, যেমন পুরনো
+#  `TYPE_NUMBER_FLAG_DECIMAL`-সহ কম্বিনেশনেও) থাকা প্রতিটা লাইন ধরে —
+#  `DigitsKeyListener` ব্যবহার হলে সেটাকে নিরাপদ ধরা হয়, `TYPE_CLASS_TEXT`
+#  দিয়ে কল হলেও নিরাপদ (already-fixed pattern)।
+# ═══════════════════════════════════════════════════════════════
+def check_bare_number_input():
+    bad = []
+    for f in kt_files():
+        s = read(f)
+        for i, line in enumerate(s.split("\n")):
+            code_part = line.split("//", 1)[0]
+            if "TYPE_CLASS_NUMBER" in code_part and "DigitsKeyListener" not in code_part:
+                bad.append((f, i + 1))
+    if bad:
+        for f, ln in bad[:8]:
+            fail("৯.১৭", f"{os.path.relpath(f, ROOT)}:{ln} — একা `TYPE_CLASS_NUMBER` (কোনো `DigitsKeyListener` ছাড়া) — কিছু ফোনে কীবোর্ড খুলবে না, `TYPE_CLASS_TEXT` + `DigitsKeyListener` ব্যবহার করুন (B411)")
+
+
+# ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯.১১ — সংখ্যা সবসময় ইংরেজিতে
+#  🔒 TK-এর গ্লোবাল রুল (29.07.2026 সন্ধ্যা ৬.১০, খাতার সারি B93):
+#  *"সংখ্যা সব সময় ইংলিশেই হতে হবে। বাংলা অথবা হিন্দিতে হবে না।"*
+#  ব্যবহারকারী যে লেখা দেখেন (স্ট্রিং) তাতে ০-৯ (বাংলা) বা ०-९ (হিন্দি)
+#  থাকলে ফাইল বানানো আটকে যাবে। কমেন্টে থাকলে সমস্যা নেই।
+# ═══════════════════════════════════════════════════════════════
+def check_digits():
+    DIG = set(chr(0x09E6 + i) for i in range(10)) | set(chr(0x0966 + i) for i in range(10))
+    STR = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"|\'([^\'\\]*(?:\\.[^\'\\]*)*)\'')
+    bad = []
+    for base in (JAVA, RES, WEB):
+        for dp, _, fs in os.walk(base):
+            if os.sep + "build" + os.sep in dp:
+                continue
+            for f in fs:
+                if not f.endswith((".kt", ".js", ".xml")):
+                    continue
+                q = os.path.join(dp, f)
+                inblk = False
+                for ln, line in enumerate(read(q).split("\n"), 1):
+                    t = line.strip()
+                    if inblk:
+                        if "*/" in t: inblk = False
+                        continue
+                    if t.startswith("/*"):
+                        if "*/" not in t: inblk = True
+                        continue
+                    if t.startswith("//") or t.startswith("*") or t.startswith("<!--"):
+                        continue
+                    for m in STR.finditer(line):
+                        if any(ch in DIG for ch in m.group(0)):
+                            bad.append((q, ln, m.group(0)[:40]))
+    for q, ln, txt in bad[:8]:
+        fail("৯.১১", f"{os.path.relpath(q, ROOT)}:{ln} — লেখায় বাংলা/হিন্দি সংখ্যা: {txt}")
+
+
+# ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯.১২ — 🚔 লক করা নিয়মের পাহারা ("দারোগা")
+#
+#  🚨 TK-এর নির্দেশ (29.07.2026 সন্ধ্যা ৬.৩৫ · খাতার সারি B125):
+#  *"আগের সেশনে যখন এই কথা বলা হয়েছে, এখন আবার কেন আপনাকে বলতে হচ্ছে...
+#    পাহারাদারকে আরো স্ট্রং করুন বা পুলিশ বসান, দারোগা বসান, এসপি বসান...
+#    আমি চাই না দ্বিতীয়বার আপনার সাথে এই নিয়ে আমার কোনো কথা হোক।"*
+#
+#  **কেন এটা দরকার হলো:** আগের যাচাইগুলো ধরত **বিল্ড ভাঙবে কিনা**। কিন্তু
+#  29.07.2026-এ যে ভুলটা হলো (খাতার সারি B124) তাতে বিল্ড ভাঙেনি — কোড
+#  চলছিল, শুধু **নিয়মটা ভুল শর্তে বাঁধা ছিল**, তাই লাইভ ক্লিনিকে TK-এর
+#  আগে বলে দেওয়া নিয়মটা আবার ভেঙে গেল আর তাঁকে দ্বিতীয়বার বলতে হলো।
+#
+#  **এই পাহারাদার সেটাই ধরে:** নিচের তালিকায় TK-এর লক করা নিয়মগুলো
+#  কোডের **নির্দিষ্ট লাইনের সঙ্গে বাঁধা**। কেউ (ভবিষ্যতের যে কোনো সেশন,
+#  AI বা ডেভেলপার) ওই লাইন সরালে বা নিয়মটা অন্য শর্তে বাঁধলে **ফাইল
+#  বানানোই আটকে যাবে**।
+#
+#  ⛔ এই তালিকা থেকে কোনো সারি TK-এর অনুমতি ছাড়া মোছা বা দুর্বল করা
+#     যাবে না। নতুন নিয়ম লক হলে **নতুন সারি যোগ** করতে হবে, তারিখ সহ।
+#
+# ═══════════════════════════════════════════════════════════════
+#  📋 TK-এর স্থায়ী নির্দেশ (02.08.2026 রাত ~১.১০ am · খাতার সারি B268) —
+#  মেশিনে চেক করা যায় না, কিন্তু TK-এর স্পষ্ট নির্দেশে এখানে লিখে রাখা হলো:
+#
+#  *"এটাতো একটা সমস্যা, ঠিক করার জন্য এরকম পারমিশন নেয়ার তো কোন দরকার
+#    নেই। আমি টেকনিক্যাল ভাষা বুঝি না, আমি কোনো ডেভেলপার নই, আমি একজন
+#    সাধারণ ব্যবহারকারী। ভবিষ্যতে এই ধরনের কথা বলার আগে এটা বোঝার চেষ্টা
+#    করবেন। যদি কখনো কাজ করতে সন্দেহ থাকে ডাইরেক্ট এইভাবেই বোঝাবেন।"*
+#
+#  ⛔ সত্যিকারের bug (design change নয়) ধরা পড়লে "ঠিক করব?" জিজ্ঞাসা না
+#     করে সরাসরি ঠিক করে ফেলতে হবে। শুধু ডিজাইন বদলের ক্ষেত্রেই আগে
+#     ফটো-প্রুফ/অনুমতি লাগে (আগের স্থায়ী নিয়ম অক্ষত)। সন্দেহ/জিজ্ঞাসা
+#     থাকলে **সহজ/শর্টকাট ভাষায়** — টেকনিক্যাল ভাষায় নয়।
+#
+#  ⚠️ এই নিয়মের প্রসঙ্গেই একটা স্বীকারোক্তি: item 89 ("ব্রাঞ্চের আজকের
+#     হিসাব বনাম পেমেন্ট মেলা")-কে ভুল করে "বাগ আছে" বলা হয়েছিল — শুধু
+#     `RefundedRecords` নামটা খুঁজে, `ReportsRepository.kt`-এর আসল কোড
+#     (একই নিয়ম `PaymentModel.isApprovedRefund/isRefundRow` দিয়ে, আগেই
+#     B254-এ ঠিক করা) না দেখেই। **শিক্ষা:** নাম/ক্লাস খুঁজে "বাগ আছে/নেই"
+#     সিদ্ধান্ত নেওয়া যাবে না — আসল লজিক পড়ে নিশ্চিত হতে হবে।
+# ═══════════════════════════════════════════════════════════════
+NATIVE = os.path.join(JAVA, "com", "tkbiswas", "pilesclinic", "native")
+# 🔒 খাতার সারি B258 (01.08.2026): Blood Test/Investigation Advice পর্দা
+# `native` প্যাকেজে নয়, `clinical`-এ — তাই লক করা নিয়ম যাচাইয়ে এই পথটাও লাগবে।
+CLINICAL = os.path.join(JAVA, "com", "tkbiswas", "pilesclinic", "clinical")
+# 🔒 খাতার সারি B269 (02.08.2026): PrintCenterActivity.kt `print` প্যাকেজে —
+# লক করা নিয়ম যাচাইয়ে এই পথটাও লাগবে।
+PRINT = os.path.join(JAVA, "com", "tkbiswas", "pilesclinic", "print")
+MODULES = os.path.join(JAVA, "com", "tkbiswas", "pilesclinic", "modules")
+
+LOCKED_RULES = [
+    {
+        "row": "B283",
+        "when": "02.08.2026 05.47.55 pm IST (TK-এর স্থায়ী Password/Login Lock + SQL success screenshot)",
+        "rule": "Password শুধু মূল App Login-এ একবার; পরে কোথাও Module Sign-in নয়; পুরোনো চারটি role password-ই থাকবে",
+        "files": {
+            "ModuleUi.kt": {
+                "must": ["fun ensureSignedIn(", "ModuleAuth.signInCurrentSession(activity.applicationContext)"],
+                "must_not": ["Module Sign-in", "Module password", "Secure module sign-in"],
+            },
+            "ModuleAuth.kt": {
+                "must": ['"master" -> "admin123"', '"doctor" -> "doctor123"', '"field" -> "field123"', 'else -> "staff123"'],
+                "must_not": ["mobile@$branchCode"],
+            },
+            "StaffDirectory.kt": {
+                "must": ['"master" to "admin123"', '"staff" to "staff123"', '"doctor" to "doctor123"', '"field" to "field123"'],
+                "must_not": [],
+            },
+        },
+    },
+    {
+        "row": "B124",
+        "when": "29.07.2026 6.25 pm",
+        "rule": "চালু কার্ডে ডিলিট কখনো দেখাবে না — ডিলিট শুধু Draft-এর বাতিল তালিকা থেকে",
+        "files": {
+            "PatientTimelineActivity.kt": {
+                "must": [
+                    'val fromDraftClosed = intent.getBooleanExtra("fromDraftClosed"',
+                    'if (!fromDraftClosed) {',
+                    'if (currentFollowupId.isNotBlank() && !fromDraftClosed) {',
+                ],
+                "must_not": [
+                    'val alreadyClosed = currentFollowupStatus',
+                ],
+            },
+            "DraftListActivity.kt": {
+                "must": ['putExtra("fromDraftClosed"'],
+                "must_not": [],
+            },
+        },
+    },
+    {
+        "row": "B277",
+        "when": "02.08.2026 সকাল ১১.০৫ am (TK-এর ছবি+নির্দেশ — Cancel/Apply বদলে Share/Cancel/Print)",
+        "rule": "\"Common Blood Test\" পপ-আপে Cancel/Apply নয় — Share/Cancel/Print তিনটে বোতাম, প্রতিটা সত্যিকারের কাজ করবে",
+        "files": {
+            "InvestigationAdviceActivity.kt": {
+                "must": ['.setPositiveButton("Print")', '.setNeutralButton("Share")', "fun shareInvestigations()"],
+                "must_not": ['.setPositiveButton("Apply")'],
+            },
+        },
+    },
+    {
+        "row": "B275",
+        "when": "02.08.2026 সকাল ~১০.৩৮ am (TK — 'তারা চিহ্ন আমরাও যেন না দেখি, যাকে পাঠানো হবে তারাও যেন না দেখে')",
+        "rule": "Enquiry বার্তায় (প্রিভিউ/WhatsApp/SMS তিন জায়গাতেই) কোনো তারা-চিহ্ন (*) থাকবে না",
+        "files": {
+            "PatientMessage.kt": {
+                "must": ['buildEnquiryLockedTemplate(lang, branch, disease).replace("*", "")'],
+                "must_not": [],
+            },
+        },
+    },
+    {
+        "row": "B279",
+        "when": "02.08.2026 দুপুর ১১.৪৫ am (TK নিজে Enquiry ভরে→Reject করে→Draft Reject List-এ Delete খুঁজে পাননি)",
+        "rule": "Draft-এর Reject/Incomplete তালিকা থেকে খোলা অ-রেজিস্টার্ড রেকর্ডে Delete বোতাম সবসময় দেখাবে — currentEnquiryId ফাঁকা থাকলেও (আসল ডিলিট-কাজ নিজে থেকেই মোবাইল ধরে খুঁজে নেয়)",
+        "files": {
+            "PatientTimelineActivity.kt": {
+                "must": ["} else if (!isRegistered) {"],
+                "must_not": ["} else if (!isRegistered && currentEnquiryId.isNotBlank()) {"],
+            },
+        },
+    },
+    {
+        "row": "B138",
+        "when": "29.07.2026 10.30 pm",
+        "rule": "ডিলিটের চিহ্ন ক্লাউডেও থাকবে — মুছে ফেলা রেকর্ড কোনো ফোন থেকেই আর ফিরতে পারবে না",
+        "files": {
+            "DeletedGuard.kt": {"must": ['fun pushDeletedToCloud(', 'fun syncFromCloud(', 'deleted_records'], "must_not": []},
+            "BottomNav.kt": {"must": ['DeletedGuard.syncFromCloud('], "must_not": []},
+        },
+    },
+    {
+        "row": "B134",
+        "when": "29.07.2026 9.20 pm",
+        "rule": "কম্পিউটারেও বাতিল (Cancelled) রোগীর টাকা দিনের হিসাবে ধরা যাবে না — ফোনের সঙ্গে এক হিসাব",
+        "files": {
+            "app.js": {"must": ['function wlv1RefundedMobiles(', 'function collectionRowsAll(', 'wlv1NotRefunded'], "must_not": []},
+        },
+    },
+    {
+        "row": "B133",
+        "when": "29.07.2026 8.50 pm",
+        "rule": "Registration-এর ডুপ্লিকেট বাক্সেও সতর্কবার্তা — রেকর্ডটা আগে বাতিল/Incomplete করা ছিল কিনা",
+        "files": {
+            "RegistrationActivity.kt": {"must": ['closed: EnquiryRepository.ClosedInfo', 'if (closed.closed) {', 'R.id.boxDupClosed'], "must_not": []},
+        },
+    },
+    {
+        "row": "B132",
+        "when": "29.07.2026 8.20 pm",
+        "rule": "ডুপ্লিকেট নম্বরের বাক্সে সতর্কবার্তা — নম্বরটা আগে Reject/Incomplete করা ছিল কিনা স্টাফকে জানাতেই হবে",
+        "files": {
+            "EnquiryActivity.kt": {"must": ['closed: EnquiryRepository.ClosedInfo', 'if (closed.closed) {', 'THIS NUMBER WAS '], "must_not": []},
+            "EnquiryRepository.kt": {"must": ['fun closedInfo(', 'data class ClosedInfo'], "must_not": []},
+        },
+    },
+    {
+        "row": "B113",
+        "when": "29.07.2026 6.40 pm",
+        "rule": "চালু কার্ডের মেনুতে এক শব্দ — Reject List / Incomplete Patient (দুই পর্দায় দুই নাম নয়)",
+        "files": {
+            "PatientTimelineActivity.kt": {"must": ['"Reject List"', '"Incomplete Patient"'], "must_not": []},
+            "FollowUpActivity.kt":        {"must": ['"Reject List"', '"Incomplete Patient"'], "must_not": []},
+        },
+    },
+    {
+        "row": "B108",
+        "when": "29.07.2026 3.34 pm",
+        "rule": "Reject/Delete করা এনকোয়ারি আর কখনো তালিকায় ফিরবে না — সারির নিজের status দেখতেই হবে",
+        "files": {
+            "FollowUpRepository.kt": {
+                "must": ['val eStatus = row.s("status").trim()', 'fun markEnquiryClosedByMobile'],
+                "must_not": [],
+            },
+        },
+    },
+    {
+        "row": "B98 · B111 · B112",
+        "when": "29.07.2026 10.10 pm",
+        "rule": "ডিলিট শুধু Master — স্টাফ চাপলে কিছুই মোছে না, অনুরোধ মাস্টারের ঘন্টায় যায়",
+        "files": {
+            "PatientTimelineActivity.kt": {"must": ['DeletePermission.canDeleteNow'], "must_not": []},
+            "DraftListActivity.kt":       {"must": ['DeletePermission.canDeleteNow'], "must_not": []},
+        },
+    },
+    {
+        "row": "B240 (Master Fix Order §14)",
+        "when": "31.07.2026 রাত, V217",
+        "rule": "🔓 B98-এর উপরের নিয়ম এখন TK-এর স্পষ্ট অনুমতিতে (\"এই নিয়ম B98-এর সাধারণ Delete "
+                "Rule-এর পরিবর্তে শুধু Same-Day বিশেষ নিয়ম হিসেবে কাজ করবে\") আংশিক বদলেছে — "
+                "Master সবসময় পারবেন (অপরিবর্তিত); Staff এখন আজ/গতকালের নিজের ব্রাঞ্চের এন্ট্রি "
+                "নিজেই Reject/Delete করতে পারবেন (চেম্বার বন্ধ না থাকলে) — Trash-এ যায়, Permanent "
+                "নয়, Master Restore করতে পারবেন। পুরনো এন্ট্রিতে আগের B98 নিয়মই (Master-only "
+                "request) বহাল। ⚠️ এই সারিটা মোছা যাবে না — B98 আর এটা একসাথে পড়তে হবে।",
+        "files": {
+            "PatientTimelineActivity.kt": {"must": ['DeletePermission.canDeleteEntryNow'], "must_not": []},
+        },
+    },
+    {
+        "row": "B258",
+        "when": "01.08.2026 10.33 pm",
+        "rule": "Blood Test পাতায় 'Previous Patient Blood Test' (dynamic) ও 'Common Blood Test' (fixed 7 tests) — দুটো আলাদা বক্স, একই শেয়ার্ড ডায়ালগ",
+        "files": {
+            "ClinicalRepository.kt": {"must": ["val commonBloodTestFixed: List<String>"], "must_not": []},
+            "InvestigationAdviceActivity.kt": {
+                "must": [
+                    "fun showBloodTestChecklistDialog(",
+                    "fun applyFixedCommonBloodTest()",
+                    '"⏰  Previous Patient Blood Test"',
+                    '"⭐  Common Blood Test"',
+                ],
+                "must_not": [],
+            },
+        },
+    },
+    {
+        "row": "B258.1",
+        "when": "01.08.2026 10.33 pm এর পরে (আনুমানিক)",
+        "rule": "Blood Test পাতার নিচের বোতাম — SAVE · SHARE · PRINT এই ক্রমে, 'Save & Print' নামে কোনো বোতাম নয়",
+        "files": {
+            "activity_investigation_advice.xml": {
+                "must": ['android:text="Print"'],
+                "must_not": ["Save &amp; Print"],
+            },
+        },
+    },
+    {
+        "row": "B270",
+        "when": "02.08.2026 রাত ১.৩৫ am (TK — 'সম্পূর্ণ প্রজেক্টে এই চেহারা এক থাকতে হবে', আগের ছবিগুলোর কথা বলে)",
+        "rule": "InvestigationAdviceActivity-এর নিজের 'Previous Patient'/'Common Blood Test' চেকলিস্টও গোল টিক-বৃত্ত কার্ড ডিজাইনে হবে, প্লেইন CheckBox নয়",
+        "files": {
+            "InvestigationAdviceActivity.kt": {
+                "must": ["fun roundedBg(fill: String, stroke: String, radius: Int)"],
+                "must_not": ["val cb = android.widget.CheckBox(this).apply {\n                text = name\n                isChecked = true"],
+            },
+        },
+    },
+    {
+        "row": "B269",
+        "when": "02.08.2026 রাত ১.১৫ am (TK-এর স্ক্রিনশট — Print Center-এর Blood Test ক্যাটাগরি পপ-আপ Investigation Advice-এর থেকে আলাদা দেখাচ্ছিল)",
+        "rule": "Print Center-এর Blood Test ক্যাটাগরি-চেকলিস্ট (Hematology/Immunology/...) InvestigationCategoryActivity-এর হুবহু একই গোল-টিক কার্ড ডিজাইনে হবে, সাধারণ CheckBox তালিকা নয়",
+        "files": {
+            "PrintCenterActivity.kt": {
+                "must": ["fun roundedBg(fill: String, stroke: String, radius: Int)", "com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, categoryName)"],
+                "must_not": ["android.widget.CheckBox(this).apply {\n                text = name\n                isChecked = selectedTests.contains(name)"],
+            },
+        },
+    },
+    {
+        "row": "B267",
+        "when": "02.08.2026 রাত ১২.৫৫ am (TK নিজে পাঁচটা ব্রাঞ্চের বাংলা ক্লিনিক-তথ্য হুবহু লিখে নিশ্চিত করেছেন — 'এগুলোই হবে')",
+        "rule": "পাঁচটা ব্রাঞ্চের বাংলা ক্লিনিক-নাম/ঠিকানা TK-এর নিজের চূড়ান্ত লেখার সাথে হুবহু মিলবে",
+        "files": {
+            "PatientMessage.kt": {
+                "must": [
+                    '"kishanganj" to BnBranchText("বিশ্বাস পাইলস ক্লিনিক", "কিষানগঞ্জ, ক্যালটেক্স চক, মোদি গোলা")',
+                    '"falakata" to BnBranchText("মা আয়ুর্বেদ পাইলস ক্লিনিক", "ফালাকাটা, বিডিও অফিস রোড,\\n হোটেল নন্দনিকের কাছে।")',
+                    '"birpara" to BnBranchText("মা আয়ুর্বেদ পাইলস ক্লিনিক", "বীরপাড়া, এমজি রোড, \\nঅ্যাক্সিস ব্যাংকের কাছে।")',
+                ],
+                "must_not": [],
+            },
+        },
+    },
+    {
+        "row": "B266",
+        "when": "02.08.2026 রাত ১২.৪৫ am-এর কাছাকাছি (TK-এর স্ক্রিনশট — বার্তার প্রিভিউ ডানে কেটে যাচ্ছিল); সংশোধন 02.08.2026 সকাল ~৯.১৫ am (TK-এর Android Studio build error screenshot — 'Unresolved reference: LayoutParams', B268-এর আওতায় সরাসরি ঠিক করা হলো)",
+        "rule": "বার্তা পাঠানোর পপ-আপে প্রিভিউ TextView-এর MATCH_PARENT চওড়া থাকবে — লম্বা লাইন ডানে কাটবে না, পরের লাইনে নামবে। (ScrollView-এর নিজের কোনো LayoutParams ক্লাস নেই, তাই FrameLayout.LayoutParams ব্যবহার হবে -- আচরণ/চেহারা এক অক্ষরও বদলায়নি, শুধু কম্পাইল-ভাঙা টাইপের নাম ঠিক হয়েছে)",
+        "files": {
+            "PatientMessage.kt": {"must": ["android.widget.FrameLayout.LayoutParams(\n                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT"], "must_not": ["android.widget.ScrollView.LayoutParams"]},
+            "DoctorVisitActivity.kt": {"must": ["LinearLayout.LayoutParams(\n                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT\n            )"], "must_not": []},
+        },
+    },
+    {
+        "row": "B265",
+        "when": "02.08.2026 রাত ~১২.২৫ am (TK নিজে হুবহু পুরো বাংলা বার্তা লিখে পাঠিয়েছেন, বলেছেন 'এটাই ফাইনাল হবে') · হালনাগাদ B587 (08.08.2026) ও TK-এর সরাসরি নির্দেশ (15.08.2026, 'এটাই ফাইনাল Founder & Consultant') অনুযায়ী — সব ভাষায় এক সই",
+        "rule": "Bill বার্তার বাংলা সংস্করণে 'ধন্যবাদান্তে' + TK BISWAS/Founder & Consultant সই + বাংলা ক্লিনিক-তথ্য",
+        "files": {
+            "PatientMessage.kt": {
+                "must": [
+                    'sb.append("প্রিয়\\n").append(who).append(",\\n")',
+                    'sb.append("সম্পূর্ণ হয়েছে\\n")',
+                    '"ধন্যবাদান্তে\\nTK BISWAS\\nFounder & Consultant\\n\\n"',
+                ],
+                "must_not": [],
+            },
+        },
+    },
+    {
+        "row": "B263",
+        "when": "02.08.2026 রাত ১২.০০–১২.১৫ am (TK দুই দফায় নমুনা দিয়ে চূড়ান্ত করেছেন) · হালনাগাদ B587 (08.08.2026) ও TK-এর সরাসরি নির্দেশ (15.08.2026, 'এটাই ফাইনাল Founder & Consultant')",
+        "rule": "সব রোগী-বার্তার নিচে TK BISWAS/Founder & Consultant + ক্লিনিকের নাম/ঠিকানা/Helpline থাকবে, উপরে নয়",
+        "files": {
+            "PatientMessage.kt": {
+                "must": ['"TK BISWAS\\nFounder & Consultant\\n\\n"', 'sb.append("*TK BISWAS*\\nFounder & Consultant\\n\\n")'],
+                "must_not": [],
+            },
+        },
+    },
+    {
+        "row": "item — Bill বার্তায় Paid Today (সংশোধিত)",
+        "when": "01.08.2026 রাত ~১১.৩০–১১.৪৫ pm (TK প্রথমে 'আজকের পেমেন্ট দেখান' বলেন, পরে স্পষ্ট করেন তারিখ+বার+সময় লাগবে, আর সর্বমোট বিল শুধু প্রথমবার দেখাবে)",
+        "rule": "Bill বার্তায় আজকের পেমেন্ট থাকলে তারিখ+বার+সময়সহ আলাদা ব্লকে বসবে (paidTodayAtIso দিয়ে), আর সর্বমোট বিল (Total Treatment Cost) শুধু showBillTotal=true হলে (রোগীর প্রথম পেমেন্ট-দিনে) দেখাবে",
+        "files": {
+            "PatientMessage.kt": {"must": ["fun dayName(d: java.util.Date, lang: String)", "if (showBillTotal) {"], "must_not": []},
+            "PatientTimelineActivity.kt": {"must": ["val isFirstPaymentDay = treatmentDays.firstOrNull() == todayIso", "showBillTotal = isFirstPaymentDay"], "must_not": []},
+        },
+    },
+    {
+        "row": "item 12 (92-item তালিকা)",
+        "when": "01.08.2026 রাত ১১.২৩ pm (TK-এর স্ক্রিনশট — Full Journey/Report Card/Payment বোতামের লেখা কাটা যাচ্ছিল); সংশোধন 02.08.2026 সকাল ~১১.১৯ am (TK আবার একই কাটা ধরেছেন — B260-এর `setAutoSizeTextTypeUniformWithConfiguration` আসলে `MaterialButton`-এ কাজ করে না বলে ধরা পড়ল, হাতে-মাপা শ্রিংক-টু-ফিট দিয়ে বদলানো হলো)",
+        "rule": "PatientTimelineActivity-এর হেডারের চার বোতামে (Full Journey · Report Card · Payment · Action) লেখা কেটে যাওয়া (...) চলবে না — প্রয়োজনে টেক্সট-সাইজ নিজে থেকে ছোট হয়ে পুরো লেখা এক লাইনে দেখাবে",
+        "files": {
+            "PatientTimelineActivity.kt": {"must": ["btn.doOnLayout {"], "must_not": ["TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration"]},
+        },
+    },
+    {
+        "row": "item 11 (92-item তালিকা)",
+        "when": "01.08.2026 রাত ১১.০৭ pm (TK-এর স্ক্রিনশট — \"Update Remark\" পপ-আপ পছন্দ হয়নি)",
+        "rule": "যে কোনো নতুন/পুরনো পপ-আপে .setTitle() নয় — PremiumAlert.header() ব্যবহার করতেই হবে (আগে থেকে অনুমোদিত premium চেহারা, TK 25.07.2026)",
+        "files": {
+            "FollowUpActivity.kt": {"must": ['PremiumAlert.header(this, "📝 Update Remark'], "must_not": []},
+            "PatientTimelineActivity.kt": {"must": ['PremiumAlert.header(this, "✏️ Edit Patient"'], "must_not": []},
+            "InvestigationAdviceActivity.kt": {"must": ['com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, title)'], "must_not": []},
+        },
+    },
+]
+
+
+def check_hidden_spinner():
+    """🚔 খাতার সারি B126 (TK, 29.07.2026 সন্ধ্যা ৬.২৩ — *"Branch Open কেন হচ্ছে না?"*)
+
+    লেআউটে `visibility="gone"` করা Spinner **কখনো layout হয় না**, আর Spinner-এর
+    `onItemSelected` **layout-এর সময়েই** ডাকা হয় — তাই `setSelection(...)` লিখে
+    তার ভরসায় বসে থাকলে বাছাইটা নিঃশব্দে হারিয়ে যায়। বিল্ড ভাঙে না, কোড চলে,
+    শুধু কাজটা হয় না।
+
+    নিয়ম: `setSelection(which)`-এর পরে **ওই একই জায়গাতেই** কাজটা করতে হবে
+    (পিলের লেখা বসানো + তালিকা নতুন করে আনা)। পাহারাদার সেটাই মিলিয়ে দেখে।
+    """
+    for dp, _, fs in os.walk(NATIVE):
+        for f in sorted(fs):
+            if not f.endswith(".kt"):
+                continue
+            lines = read(os.path.join(dp, f)).split("\n")
+            for i, line in enumerate(lines):
+                if "setSelection(which)" not in line:
+                    continue
+                window = "\n".join(lines[i:i + 26])
+                if "branchPicker.text" not in window:
+                    fail("৯.১২",
+                         f"[B126] {f}:{i+1} — লুকানো Spinner-এ setSelection(which) করে ছেড়ে দেওয়া হয়েছে। "
+                         f"GONE Spinner কখনো layout হয় না, তাই onItemSelected চলবে না ও ব্রাঞ্চ বাছাই হারিয়ে যাবে। "
+                         f"পপ-আপের ভিতরেই পিলের লেখা বসিয়ে তালিকা নতুন করে আনতে হবে "
+                         f"(TK লক করেছেন 29.07.2026 6.45 pm)")
+
+
+def check_locked_rules():
+    for r in LOCKED_RULES:
+        for fname, want in r["files"].items():
+            p = os.path.join(NATIVE, fname)
+            if not os.path.exists(p):
+                # 🔒 খাতার সারি B134: কিছু লক করা নিয়ম কম্পিউটারের অ্যাপে
+                # (`03_NETLIFY_READY/app.js`) — সেগুলোও এখানেই যাচাই হয়।
+                alt = os.path.join(WEB, fname)
+                if os.path.exists(alt):
+                    p = alt
+            if not os.path.exists(p):
+                # 🔒 খাতার সারি B258: কিছু লক করা নিয়ম `clinical` প্যাকেজে
+                # (যেমন Blood Test/Investigation Advice পর্দা) — সেগুলোও এখানেই।
+                alt2 = os.path.join(CLINICAL, fname)
+                if os.path.exists(alt2):
+                    p = alt2
+            if not os.path.exists(p):
+                # 🔒 খাতার সারি B258.1: কিছু লক করা নিয়ম XML লেআউটে (যেমন
+                # বোতামের ক্রম/লেখা) — res/layout-এও খুঁজতে হবে।
+                alt3 = os.path.join(RES, "layout", fname)
+                if os.path.exists(alt3):
+                    p = alt3
+            if not os.path.exists(p):
+                # 🔒 খাতার সারি B269: কিছু লক করা নিয়ম `print` প্যাকেজে
+                # (যেমন PrintCenterActivity.kt) — সেগুলোও এখানেই।
+                alt4 = os.path.join(PRINT, fname)
+                if os.path.exists(alt4):
+                    p = alt4
+            if not os.path.exists(p):
+                # 🔒 খাতার সারি B283: স্থায়ী Password/Login Lock-এর নতুন
+                # private module files `modules` প্যাকেজে থাকে।
+                alt5 = os.path.join(MODULES, fname)
+                if os.path.exists(alt5):
+                    p = alt5
+            if not os.path.exists(p):
+                fail("৯.১২", f'[{r["row"]}] {fname} ফাইলটাই নেই — লক করা নিয়ম যাচাই করা গেল না')
+                continue
+            s = read(p)
+            for m in want.get("must", []):
+                if m not in s:
+                    fail("৯.১২",
+                         f'[{r["row"]}] নিয়ম ভাঙা → "{r["rule"]}" · {fname}-এ এই লাইনটা আর নেই: {m}'
+                         f'  (TK লক করেছেন {r["when"]} — তাঁর অনুমতি ছাড়া বদলানো যাবে না)')
+            for m in want.get("must_not", []):
+                if m in s:
+                    fail("৯.১২",
+                         f'[{r["row"]}] নিয়ম ভাঙা → "{r["rule"]}" · {fname}-এ নিষিদ্ধ লেখাটা ফিরে এসেছে: {m}'
+                         f'  (TK লক করেছেন {r["when"]})')
+
+
+# ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯.১৩ — 🧾 কাজের নিয়মের পাহারা  (খাতার সারি B147)
+#
+#  TK-এর কথা (30.07.2026): *"tk_guard.py সব গুরুত্বপূর্ণ Working rule
+#  পরীক্ষা করে না — অনেক নিয়ম শুধু Note-এ লেখা।"*
+#
+#  উপরের ৯.১২ পাহারা দেয় **ডিজাইন ও কোড ভাঙা**। এটা পাহারা দেয়
+#  **কাজের নিয়ম (business rule)** — যেগুলো ভাঙলে বিল্ড ঠিকই হয়,
+#  অ্যাপ চলে, শুধু **ক্লিনিকের হিসাব ভুল হয়ে যায়**। এই ভুল সবচেয়ে
+#  বিপজ্জনক, কারণ চোখে পড়ে না।
+#
+#  ⛔ TK-এর অনুমতি ছাড়া এই তালিকার কোনো সারি মোছা বা দুর্বল করা যাবে না।
+#  ⚠️ নতুন নিয়ম **এক এক করে** যোগ করতে হবে (TK-কে আগেই জানানো হয়েছে) —
+#     ভুল যাচাই লিখলে ভালো ফাইলও আটকে যাবে।
+# ═══════════════════════════════════════════════════════════════
+WORK_RULES = [
+    {
+        "row": "B147-১",
+        "when": "27.07.2026 5.02 pm",
+        "rule": "টাকা শুধু রোগীর নিজের ব্রাঞ্চের স্টাফ · সেই ব্রাঞ্চের ডাক্তার · মাস্টার নিতে পারবে",
+        "why": "অন্য ব্রাঞ্চের স্টাফ টাকা নিলে ওই ব্রাঞ্চের Today's Collection আর ড্রয়ারের ক্যাশ কোনোদিন মিলবে না",
+        "files": {
+            "MoneyBranchGuard.kt":  {"must": ["fun canTakeMoney(", "fun blockMessage("]},
+            "PaymentActivity.kt":   {"must": ["MoneyBranchGuard.canTakeMoney(", "MoneyBranchGuard.blockMessage("]},
+            "PaymentRepository.kt": {"must": ["MoneyBranchGuard.canTakeMoney("]},
+            "FollowUpActivity.kt":  {"must": ["MoneyBranchGuard.canTakeMoney("]},
+        },
+    },
+    {
+        "row": "B147-২",
+        "when": "26.07.2026",
+        "rule": "একই রোগীর একই দিনে দ্বিতীয়বার টাকা বসানোর আগে সতর্কবার্তা দিতেই হবে",
+        "why": "একই টাকা দুবার বসে গেলে দিনের হিসাব বাড়ে আর রোগীর Due ভুল দেখায়",
+        "files": {
+            "PaymentDayGuard.kt":            {"must": ["fun confirmIfAlreadyPaidToday("]},
+            "PaymentActivity.kt":            {"must": ["PaymentDayGuard.confirmIfAlreadyPaidToday("]},
+            "FollowUpActivity.kt":           {"must": ["PaymentDayGuard.confirmIfAlreadyPaidToday("]},
+            "ChamberAttendanceActivity.kt":  {"must": ["PaymentDayGuard.confirmIfAlreadyPaidToday("]},
+        },
+    },
+    {
+        "row": "B147-৩",
+        "when": "29.07.2026 10.30 pm",
+        "rule": "মুছে ফেলা রেকর্ড কোনো ফোনের তালিকায় আর কখনো ফিরে আসবে না",
+        "why": "ক্লাউড থেকে পুরনো সারি আবার নামলে ডিলিট করা রোগী/টাকা তালিকায় ফিরে আসত",
+        "files": {
+            "DeletedGuard.kt":             {"must": ["fun markDeleted(", "fun isDeleted("]},
+            "FollowUpRepository.kt":       {"must": ["DeletedGuard.isDeleted("]},
+            "EnquiryRepository.kt":        {"must": ["DeletedGuard.isDeleted("]},
+            "RegistrationRepository.kt":   {"must": ["DeletedGuard.isDeleted("]},
+            "PaymentRepository.kt":        {"must": ["DeletedGuard.isDeleted(", "DeletedGuard.markDeleted("]},
+            "SupabaseClient.kt":           {"must": ["DeletedGuard.markDeleted("]},
+        },
+    },
+    {
+        "row": "B147-৪",
+        "when": "26.07.2026",
+        "rule": "টাকার পরিচয় — রোগীর আসল সারিটা এক জায়গার নিয়মেই বাছা হবে, আর কে নিয়েছে তার নাম বসবে",
+        "why": "একই মোবাইলে একাধিক সারি থাকলে ভুল সারিতে টাকা বসে যেত (ব্রাঞ্চ বদলে যাওয়ার আসল কারণ)",
+        "files": {
+            "PatientIdentity.kt":   {"must": ["fun identityFilter(", "fun pickPatientRow("]},
+            "PaymentRepository.kt": {"must": ["PatientIdentity.pickPatientRow(",
+                                             "PatientIdentity.identityFilter(",
+                                             "StaffDirectory.findAccount("]},
+        },
+    },
+    {
+        "row": "B147-৫",
+        "when": "লক করা নিয়ম — পেমেন্টের ধরন",
+        "rule": "পেমেন্টের ধরন শুধু দুটো — CASH আর ONLINE",
+        "why": "তৃতীয় কোনো ধরন ঢুকলে চেম্বার রেজিস্টারের CASH/ONLINE ঘর আর দিনের হিসাবে মিলবে না",
+        "files": {
+            "PaymentActivity.kt": {"must": ['listOf("CASH", "ONLINE")'],
+                                   "must_not": ['"CHEQUE"', '"DEBIT"', '"CREDIT"']},
+        },
+    },
+    {
+        "row": "B147-৬",
+        "when": "27.07.2026 6.02 pm",
+        "rule": "পেমেন্ট নেওয়ার ফরমে Remarks ঘর কখনো ফেরানো যাবে না",
+        "why": "টাকা আগে নেওয়া হয়, চিকিৎসা পরে — তাই তখন Treatment Progress জানাই যায় না",
+        "files": {
+            "activity_payment.xml":   {"must_not": ["Remark"]},
+            "dialog_nth_payment.xml": {"must_not": ["Remark"]},
+        },
+    },
+    {
+        "row": "B154 · B156",
+        "when": "30.07.2026 সকাল ৮.৪৫",
+        "rule": "Doctor Detail-এর তিনটে বাক্স হুবহু সমান · হেডারে ডিলিট নেই · View All পুরো পর্দা · Referred Patient-এ আসল তালিকা · Action-এ ধন্যবাদ ও ডিটেইলস",
+        "why": "TK-কে একই কথা তৃতীয়বার বলতে হয়েছে — MaterialButton নিজের inset যোগ করে বলে মাপ মিলত না, আর AlertDialog-এর কনটেনার WRAP_CONTENT বলে পর্দা অর্ধেক আসত",
+        "files": {
+            "DoctorVisitActivity.kt": {
+                "must": [
+                    "fun actionButton(label: String, colorHex: String, onClick: () -> Unit) = TextView(this@DoctorVisitActivity)",
+                    "android.widget.LinearLayout.LayoutParams(0, dgpx(52), 1f)",
+                    # 🔴 TK-ORDER (31.07.2026, Section E — "Guard যদি পুরনো
+                    # Button Design খুঁজে Fail করে, Guard-কেই বর্তমান
+                    # approved Design অনুযায়ী আপডেট করবেন"): TK-এর B208
+                    # ফটো-প্রুফ ("ওকে পছন্দ হয়েছে") অনুযায়ী এই দুই বাটনের
+                    # আইকন ও লাইন-ব্রেক বাদ দেওয়া হয়েছিল, এক লাইনে ফিক্সড
+                    # 10sp। Guard-এর পুরনো প্রত্যাশা এখানে আপডেট হলো, Design
+                    # নিজে পুরনো নিয়মে ফেরানো হয়নি (নিয়ম অনুযায়ী সঠিক দিক)।
+                    '"Referred Patient"',
+                    '"Referral Income"',
+                    "fun forceDialogFullScreen(",
+                    "forceDialogFullScreen(fsDialog, root)",
+                    "fun openReferredList()",
+                    "fun openAttachPatient(r: RefIncomeLine)",
+                    "PATIENTS SENT BY THIS DOCTOR",
+                    "REFERRAL INCOME WITH NO PATIENT ATTACHED",
+                    '"\U0001F4E9 Msg 1 \u00b7 Intro & Request"',
+                    '"\U0001F4E9 Msg 2 \u00b7 Patient Arrived"',
+                    '"\U0001F4E9 Msg 3 \u00b7 Patient Details"',
+                    '"\U0001F4E9 Msg 4 \u00b7 Referral Income Sent"',
+                    "fun withLanguage(",
+                    '"Select Language"',
+                    "fun pickReferredPatient(",
+                    "fun openDetailsMessageForm(",
+                    "sendDoctorMessage(item.mobile, item.name, DoctorMessage.intro(",
+                    "fun sendDoctorMessage(mobile: String, doctorName: String, text: String, logKind: String = \"\")",
+                    'premiumDialogShell("\U0001F4E9", "Send Message")',
+                ],
+                "must_not": [
+                    "MaterialButton(this@DoctorVisitActivity)",
+                    'text = "\U0001F5D1\uFE0F"; textSize = 13f',
+                ],
+            },
+            "DoctorVisitRepository.kt": {
+                "must": ["fun attachPatientToReferralEntry(", "fun linkReferringDoctorIfBlank("],
+            },
+            "PatientMessage.kt": {
+                "must": [
+                    '"\U0001F4E9   Send Message"',
+                    '"\U0001F4AC  WhatsApp"',
+                    '"Later"',
+                    "NoBengali.installDialog(dlg)",
+                ],
+                "must_not": ['.setTitle("Send to patient")'],
+            },
+            "DoctorMessage.kt": {
+                "must": [
+                    "fun intro(", "fun arrived(", "fun details(", "fun referralPaid(",
+                    "fun isKishanganj(",
+                    "private fun introHi(", "private fun arrivedHi(",
+                    "private fun detailsHi(", "private fun referralPaidHi(",
+                    "private fun introBn(", "private fun arrivedBn(",
+                    "private fun detailsBn(", "private fun referralPaidBn(",
+                    "\u0986\u09ae\u09be\u09a6\u09c7\u09b0 \u09ac\u09bf\u09b6\u09c7\u09b7\u09a4\u09cd\u09ac",
+                    "Piles \u00b7 Fissure \u00b7 Fistula \u00b7 Hydrocele \u00b7 Gupt Rog",
+                    "TK BISWAS",
+                    "Founder & Consultant",
+                ],
+                "must_not": [
+                    "\u09aa\u09cd\u09b0\u09a4\u09bf\u09a6\u09bf\u09a8 \u099a\u09c7\u09ae\u09cd\u09ac\u09be\u09b0\u09c7",
+                ],
+            },
+        },
+    },
+    {
+        "row": "B159 \u00b7 B160",
+        "when": "30.07.2026 \u09a6\u09c1\u09aa\u09c1\u09b0 \u09e7\u09e8.\u09e9\u09eb",
+        "rule": "\u0995\u09bf\u09b6\u09be\u09a8\u0997\u099e\u09cd\u099c\u09c7 \u09b9\u09bf\u09a8\u09cd\u09a6\u09bf/\u09ac\u09be\u0982\u09b2\u09be \u09ac\u09be\u099b\u09be\u0987 \u00b7 \u0993\u09df\u09c7\u09ac\u09c7\u0993 \u09ac\u09be\u0982\u09b2\u09be-\u09ac\u09a8\u09cd\u09a7 \u00b7 \u0993\u09df\u09c7\u09ac\u09c7 \u099c\u09be\u0995\u09cd\u09a4\u09be\u09b0\u09c7\u09b0 \u099b\u09be\u09b0\u099f\u09c7 \u09ac\u09be\u09b0\u09cd\u09a4\u09be \u00b7 Referred Patient \u0995\u09be\u09b0\u09cd\u09a1\u09c7 \u099a\u09be\u09aa\u09b2\u09c7 \u09aa\u09cd\u09b0\u09cb\u09ab\u09be\u0987\u09b2",
+        "why": "TK: \u0995\u09bf\u09b6\u09be\u09a8\u0997\u099e\u09cd\u099c\u09c7 \u09a6\u09c1\u0987 \u09ad\u09be\u09b7\u09be\u09a4\u09c7\u0987 \u09a5\u09be\u0995\u09ac\u09c7, \u0986\u09b0 \u0995\u09ae\u09cd\u09aa\u09bf\u0989\u099f\u09be\u09b0\u09c7\u0993 \u0986\u099c\u0995\u09c7\u09b0 \u0995\u09be\u099c\u0997\u09c1\u09b2\u09cb \u099a\u09be\u0987",
+        "files": {
+            "app.js": {
+                "must": [
+                    "wlv1NoBnFix", "wlv1NoBnSweep", "wlv1NoBnStart",
+                    "WLV1_NOBN_MOBILES", "6207841890",
+                    "wlv1DocMsgBar(x.id)", "function wlv1DocMsg(",
+                    "wlv1DocMsgPick", "Select Language",
+                    "wlv1FullJourney('${esc(normMob(p.mobile))}')",
+                ],
+                "must_not": ["nodeName==='INPUT'"],
+            },
+        },
+    },
+    {
+        "row": "B147-৭",
+        "when": "লক করা নিয়ম — তারিখ",
+        "rule": "তারিখ সবসময় ডট দিয়ে — 31.12.2026 · 31.12.2026 5.40 pm",
+        "why": "রোগীর কাগজে ও পর্দায় দুই রকম তারিখ দেখালে কোনটা আসল বোঝা যায় না",
+        "files": {
+            "DateUtil.kt": {"must": ['"dd.MM.yyyy"', '"dd.MM.yyyy h.mm a"']},
+        },
+    },
+]
+
+
+def work_rule_path(fname):
+    """ফাইলটা কোথায় আছে খুঁজে দেয় — Kotlin · লেআউট · কম্পিউটারের অ্যাপ।"""
+    for p in (os.path.join(NATIVE, fname),
+              os.path.join(RES, "layout", fname),
+              os.path.join(WEB, fname)):
+        if os.path.exists(p):
+            return p
+    return None
+
+
+def check_work_rules():
+    for r in WORK_RULES:
+        for fname, want in r["files"].items():
+            p = work_rule_path(fname)
+            if p is None:
+                fail("৯.১৩", f'[{r["row"]}] {fname} ফাইলটাই নেই — কাজের নিয়ম যাচাই করা গেল না')
+                continue
+            s = read(p)
+            for m in want.get("must", []):
+                if m not in s:
+                    fail("৯.১৩",
+                         f'[{r["row"]}] কাজের নিয়ম ভাঙা → "{r["rule"]}" · {fname}-এ এই লেখাটা আর নেই: {m}'
+                         f'  · কেন দরকার: {r["why"]}  (TK, {r["when"]})')
+            for m in want.get("must_not", []):
+                if m in s:
+                    fail("৯.১৩",
+                         f'[{r["row"]}] কাজের নিয়ম ভাঙা → "{r["rule"]}" · {fname}-এ নিষিদ্ধ লেখাটা ফিরে এসেছে: {m}'
+                         f'  · কেন নিষেধ: {r["why"]}  (TK, {r["when"]})')
+
+
+# ── B147-৮ ──────────────────────────────────────────────────────
+#  followups টেবিলে বদল পাঠানোর আগে অবশ্যই resolveFollowUpId()
+#
+#  কেন: Supabase-এ `followups?id=eq.<ভুল আইডি>`-তে PATCH পাঠালেও
+#  HTTP 200 আসে — একটাও সারি না বদলালেও। তাই ভুলটা নীরবে ঘটে,
+#  স্টাফ ভাবেন লেখা হয়ে গেছে, আসলে কিছুই হয়নি।
+# ────────────────────────────────────────────────────────────────
+FOLLOWUP_WRITES = (".updateRemark(", ".updateNextFollow(", ".updateStatus(", ".resetCallCount(")
+FOLLOWUP_SCREENS = ("FollowUpActivity.kt", "FollowCalendarActivity.kt", "PatientTimelineActivity.kt")
+
+
+def check_followup_id():
+    for fname in FOLLOWUP_SCREENS:
+        p = os.path.join(NATIVE, fname)
+        if not os.path.exists(p):
+            fail("৯.১৩", f"[B147-৮] {fname} নেই — followups-এর নিয়ম যাচাই করা গেল না")
+            continue
+        lines = read(p).split("\n")
+        for i, line in enumerate(lines):
+            t = line.strip()
+            if t.startswith("//") or t.startswith("*") or t.startswith("/*"):
+                continue
+            if not any(w in line for w in FOLLOWUP_WRITES):
+                continue
+            window = "\n".join(lines[i:i + 3])
+            if "resolveFollowUpId" not in window:
+                fail("৯.১৩",
+                     f"[B147-৮] {fname}:{i+1} — followups-এ বদল পাঠানো হচ্ছে কিন্তু resolveFollowUpId() "
+                     f"দিয়ে আসল সারিটা খোঁজা হয়নি। ভুল আইডিতে PATCH পাঠালেও Supabase 200 বলে, "
+                     f"তাই স্টাফের লেখা নীরবে হারিয়ে যাবে (TK-এর লক করা নিয়ম)")
+
+
+# ── B147-৯ ──────────────────────────────────────────────────────
+#  ব্রাঞ্চের ছাঁকনিতে নাম সবসময় encode করা
+#
+#  কেন: "Cooch Behar"-এ ফাঁকা জায়গা আছে। encode না করলে
+#  `branch=eq.Cooch Behar` অনুরোধটাই ভেঙে যায় — তালিকা ফাঁকা আসে
+#  অথবা অন্য ব্রাঞ্চের রোগী দেখা যায়। দুটোই চালু ক্লিনিকে মারাত্মক।
+# ────────────────────────────────────────────────────────────────
+def check_branch_encoded():
+    for dp, _, fs in os.walk(NATIVE):
+        for f in sorted(fs):
+            if not f.endswith(".kt"):
+                continue
+            lines = read(os.path.join(dp, f)).split("\n")
+            for i, line in enumerate(lines):
+                if "branch=eq." not in line:
+                    continue
+                t = line.strip()
+                if t.startswith("//") or t.startswith("*") or t.startswith("/*"):
+                    continue
+                window = "\n".join(lines[i:i + 2])
+                if ("URLEncoder.encode" not in window) and ("enc(" not in window):
+                    fail("৯.১৩",
+                         f"[B147-৯] {f}:{i+1} — branch=eq. ছাঁকনিতে ব্রাঞ্চের নাম encode করা হয়নি। "
+                         f'"Cooch Behar"-এর মতো ফাঁকা জায়গাওয়ালা নামে অনুরোধ ভেঙে যাবে — '
+                         f"তালিকা ফাঁকা আসবে বা অন্য ব্রাঞ্চের রোগী দেখাবে")
+
+
+
+# ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯.১৪ — 🚫 বাংলা-বন্ধ স্টাফের পর্দায় একটাও বাংলা অক্ষর নেই
+#
+#  খাতার সারি B158 · V451 (19.08.2026) TK-এর চূড়ান্ত branch-rule:
+#  Kishanganj-এর সব Staff account এবং KNE-BRANCH (branch-number login)-এ
+#  বাংলা থাকবে না। পুরনো KNE-KISHAN5 fallback-ও অটুট থাকবে।
+#  TK বলেছেন: *"পরবর্তী সেশনে যেন আবার বলতে না হয়।"*
+#
+#  এই যাচাই তাই **প্রমাণ করে দেখায়** —
+#   ১. `NoBengali.kt` আছে, তালিকায় ওই স্টাফ আছে।
+#   ২. পুরো অ্যাপে পাহারা বসানো আছে (Application) ও পপ-আপে (PremiumAlert,
+#      দুই overload) ও Toast-এ (বাংলা লেখা প্রতিটা Toast ঢাকা)।
+#   ৩. **প্রজেক্টের প্রতিটা আসল বাংলা লেখা** (কোড ও XML) ওই নিয়মে চালিয়ে
+#      দেখা হয় — একটাও বাংলা অক্ষর টিকে থাকলে ফাইল বানানো আটকে যায়।
+#      ⛔ অর্থাৎ ভবিষ্যতে কেউ নতুন বাংলা লেখা যোগ করলে **সঙ্গে সঙ্গে ধরা পড়বে**।
+#
+#  ⛔ রোগীর কাছে যাওয়া লেখা (PatientMessage · DoctorMessage · ClinicalRepository
+#     · ছাপার লেখা) ইচ্ছে করে বাদ — ওগুলো রোগীর নিজের ভাষা, TK-এর লক করা
+#     তিন-ভাষার নিয়ম (খাতার সারি B17)।
+# ═══════════════════════════════════════════════════════════════
+BN_RE = re.compile(r"[\u0980-\u09FF]")
+BN_SKIP_FILES = {"PatientMessage.kt", "DoctorMessage.kt", "ClinicalRepository.kt",
+                 "PrintTextEnglish.kt", "NoBengali.kt"}
+
+
+def _bn_strip_comments(src):
+    out = []
+    i, n = 0, len(src)
+    while i < n:
+        c = src[i]
+        if src.startswith('"""', i):
+            j = src.find('"""', i + 3); j = n if j == -1 else j + 3
+            out.append(src[i:j]); i = j; continue
+        if c == '"':
+            j = i + 1
+            while j < n:
+                if src[j] == '\\': j += 2; continue
+                if src[j] == '"': j += 1; break
+                if src[j] == '\n': break
+                j += 1
+            out.append(src[i:j]); i = j; continue
+        if c == "'":
+            j = i + 1
+            while j < n and src[j] != "'":
+                if src[j] == '\\': j += 1
+                j += 1
+            out.append(src[i:j + 1]); i = j + 1; continue
+        if src.startswith('//', i):
+            j = src.find('\n', i); i = n if j == -1 else j
+            out.append('\n'); continue
+        if src.startswith('/*', i):
+            d, j = 1, i + 2
+            while j < n and d:
+                if src.startswith('/*', j): d += 1; j += 2; continue
+                if src.startswith('*/', j): d -= 1; j += 2; continue
+                j += 1
+            i = j; out.append(' '); continue
+        out.append(c); i += 1
+    return "".join(out)
+
+
+def _bn_read_maps(src):
+    def one(name):
+        try:
+            body = src.split("private val %s: Map<String, String> = mapOf(" % name)[1].split("\n    )")[0]
+        except IndexError:
+            return None
+        pairs = re.findall(r'"((?:[^"\\]|\\.)*)"\s+to\s+"((?:[^"\\]|\\.)*)"', body)
+        un = lambda t: t.replace('\\$', '$').replace('\\"', '"').replace('\\u0964', '\u0964').replace('\\\\', '\\')
+        return {un(a): un(b) for a, b in pairs}
+    return one("WHOLE"), one("MAP")
+
+
+def check_no_bengali():
+    nb = os.path.join(NATIVE, "NoBengali.kt")
+    if not os.path.exists(nb):
+        fail("৯.১৪", "[B158] NoBengali.kt ফাইলটাই নেই — বাংলা-বন্ধ ব্যবস্থাটা মুছে গেছে")
+        return
+    src = read(nb)
+    # 🔴 সবচেয়ে জরুরি: লেখার ঘরে (EditText) হাত দেওয়া চলবে না — নইলে পুরনো
+    #    রেকর্ডের বাংলা Remark/নাম সেভ করার সময় নষ্ট হয়ে যাবে (30.07.2026-এ
+    #    নিজের কাজ আবার যাচাই করতে গিয়ে এই বিপদটা ধরা পড়েছিল)।
+    if "v is android.widget.EditText" not in src:
+        fail("৯.১৪", "[B158] NoBengali.kt-এ EditText-এর সুরক্ষা নেই — ইনপুট ঘরের লেখা বদলে গেলে "
+                     "পুরনো রেকর্ডের বাংলা তথ্য সেভ করার সময় চিরতরে নষ্ট হয়ে যাবে")
+    for must in ('"6207841890"', '"KNE-KISHAN5"', "fun hookApp(", "fun installDialog(",
+                 "fun install(", "fun fix(", "fun s("):
+        if must not in src:
+            fail("৯.১৪", f"[B158] NoBengali.kt-এ এই অংশটা আর নেই: {must}")
+    # 🔒 V451: ব্যক্তি-নির্ভর rule-এ আবার ফিরে যাওয়া যাবে না।
+    for must in ('role.equals("staff", ignoreCase = true)',
+                 'branch.equals("Kishanganj", ignoreCase = true)',
+                 'val isKishanganjStaff'):
+        if must not in src:
+            fail("৯.১৪", f"[V451] Kishanganj Staff branch-wide No-Bengali guard নেই: {must}")
+    web_app = os.path.join(WEB, "app.js")
+    if os.path.exists(web_app):
+        web_src = read(web_app)
+        for must in ("role==='staff'&&br==='kishanganj'", "WLV1_NOBN_MOBILES", "WLV1_NOBN_CODES"):
+            if must not in web_src:
+                fail("৯.১৪", f"[V451] Web Kishanganj Staff branch-wide No-Bengali guard নেই: {must}")
+    else:
+        fail("৯.১৪", "[V451] 03_NETLIFY_READY/app.js নেই")
+    app = os.path.join(JAVA, "com", "tkbiswas", "pilesclinic", "PilesClinicApplication.kt")
+    if os.path.exists(app):
+        if "NoBengali.hookApp(this)" not in read(app):
+            fail("৯.১৪", "[B158] PilesClinicApplication-এ NoBengali.hookApp(this) নেই — তাহলে কোনো পর্দাতেই পাহারা বসবে না")
+    else:
+        fail("৯.১৪", "[B158] PilesClinicApplication.kt নেই")
+    pa = os.path.join(NATIVE, "PremiumAlert.kt")
+    if os.path.exists(pa):
+        if read(pa).count("NoBengali.installDialog(dialog)") < 2:
+            fail("৯.১৪", "[B158] PremiumAlert.paint-এর দুটো overload-এ NoBengali.installDialog(dialog) থাকতে হবে — পপ-আপের লেখা তখনই ঢাকা পড়ে")
+    else:
+        fail("৯.১৪", "[B158] PremiumAlert.kt নেই")
+
+    WHOLE, MAP = _bn_read_maps(src)
+    if not MAP:
+        fail("৯.১৪", "[B158] NoBengali.kt-এর অনুবাদের তালিকা (MAP) পড়া গেল না")
+        return
+    WHOLE = WHOLE or {}
+    ordered = sorted(MAP.items(), key=lambda kv: -len(kv[0]))
+
+    def fix(t):
+        if not BN_RE.search(t):
+            return t
+        if t.strip() in WHOLE:
+            return WHOLE[t.strip()]
+        s2 = t
+        for bn, en in ordered:
+            if bn in s2:
+                s2 = s2.replace(bn, en)
+        # ⛔ এখানে ইচ্ছে করেই "শেষ জাল" (বাংলা অক্ষর মুছে ফেলা) চালানো হয় না —
+        #    নইলে অনুবাদ ছাড়া নতুন বাংলা লেখাও "ঠিক আছে" বলে পাশ হয়ে যেত,
+        #    অথচ ফোনে ওই লেখাটা **উবে যেত** (স্টাফ কিছুই বুঝতেন না)।
+        #    তাই অনুবাদ না থাকলে এখানেই ধরা পড়বে।
+        return s2.replace('\u0964', '.')
+
+    lit = re.compile(r'"((?:[^"\\\n]|\\.)*)"')
+    bad = 0
+    # 🔴 B347 (03.08.2026, TK-নির্দেশ — "এখনই ঠিক করতে হবে, ঝুঁকিহীনভাবে"):
+    # আগে শুধু NATIVE ফোল্ডার স্ক্যান হতো — MODULES (Staff Profile/Work
+    # Notebook/Income-Expense) স্ক্যানের বাইরে থেকে যেত। IncomeExpenseActivity.kt-এর
+    # ১০টা পুরনো বাংলা লাইন ইংরেজি করে দেওয়ার পরেই (একই দিনে) এই স্ক্যান
+    # স্থায়ীভাবে দুটো ফোল্ডার কভার করছে — এখন থেকে ভবিষ্যতেও এই ফাঁক ফিরে
+    # আসবে না।
+    for scan_dir in (NATIVE, MODULES):
+      for dp, _, fs in os.walk(scan_dir):
+        for f in sorted(fs):
+            if not f.endswith(".kt") or f in BN_SKIP_FILES:
+                continue
+            clean = _bn_strip_comments(read(os.path.join(dp, f)))
+            for m in lit.finditer(clean):
+                t = m.group(1).replace('\\"', '"')
+                if not BN_RE.search(t):
+                    continue
+                if BN_RE.search(fix(t)) and bad < 12:
+                    bad += 1
+                    fail("৯.১৪", f"[B158] {f} — এই বাংলা লেখাটার অনুবাদ NoBengali.kt-এ নেই, তাই "
+                                 f"বাংলা-বন্ধ স্টাফের পর্দায় বাংলা থেকে যাবে: {t[:70]}")
+            # 🔴 বাংলা লেখাওয়ালা Toast অবশ্যই NoBengali দিয়ে ঢাকা থাকতে হবে
+            for m in re.finditer(r"Toast\.makeText\(", clean):
+                seg = clean[m.end():m.end() + 400]
+                cut = seg.find(").show()")
+                seg = seg if cut == -1 else seg[:cut]
+                if BN_RE.search(seg) and "NoBengali." not in seg:
+                    fail("৯.১৪", f"[B158] {f} — বাংলা লেখাওয়ালা একটা Toast NoBengali দিয়ে ঢাকা নেই "
+                                 f"(Toast-এর নিজের উইন্ডো, তাই পর্দার পাহারা ওখানে পৌঁছায় না)")
+                    break
+    for dp, _, fs in os.walk(os.path.join(RES, "layout")):
+        for f in sorted(fs):
+            if not f.endswith(".xml"):
+                continue
+            src2 = re.sub(r"<!--.*?-->", " ", read(os.path.join(dp, f)), flags=re.S)
+            for m in re.finditer(r'android:(?:text|hint)="([^"]*)"', src2):
+                t = m.group(1)
+                if BN_RE.search(t) and BN_RE.search(fix(t)):
+                    fail("৯.১৪", f"[B158] XML {f} — এই বাংলা লেখাটার অনুবাদ NoBengali.kt-এ নেই: {t[:60]}")
+
+
+# ═══════════════════════════════════════════════════════════════
+#  যাচাই ১০ — কম্পিউটারের অ্যাপ (সার্কুলার ৯.৯)
+# ═══════════════════════════════════════════════════════════════
+def check_web():
+    import subprocess
+    for f in ("app.js", "config.js"):
+        p = os.path.join(WEB, f)
+        if not os.path.exists(p):
+            fail("৯.৯", f"{f} নেই"); continue
+        try:
+            r = subprocess.run(["node", "--check", p], capture_output=True, text=True)
+            if r.returncode != 0:
+                fail("৯.৯", f"{f} ভাঙা → {r.stderr.strip()[:120]}")
+        except FileNotFoundError:
+            note("৯.৯", "node নেই — কম্পিউটারের অ্যাপ যাচাই করা যায়নি, হাতে দেখতে হবে")
+    # ⛔ সার্কুলার ১০: select('*') কখনো ছোট করা যাবে না
+    p = os.path.join(WEB, "app.js")
+    if os.path.exists(p) and "select('*')" not in read(p):
+        fail("১০", "app.js-এ select('*') নেই — কম ঘর নামালে ক্লাউডে তথ্য মুছে যাবে")
+
+
+# ═══════════════════════════════════════════════════════════════
+#  যাচাই ১১ — বাধ্যতামূলক নোট ফাইল (সার্কুলার ৪.৬)
+# ═══════════════════════════════════════════════════════════════
+def check_notes():
+    must = [
+        "00_TK_SARKULAR_LOCK.md",
+        "00_TK_KAJER_KHATA_SOBAR_AGE_PORUN.md",
+        "00_TK_KAJER_TARIKH_SOMOY_LOG.md",
+        "00_PROJECT_STATE_MASTER_NOTE.md",
+        "00_TK_PORER_SESSION_SOBAR_AGE_PORUN.md",
+    ]
+    miss = [f for f in must if not os.path.exists(os.path.join(ROOT, f))]
+    if miss:
+        fail("৪.৬", "এই নোট ফাইল নেই → " + " · ".join(miss))
+    if not glob.glob(os.path.join(ROOT, "00_LOCK_NOTE_SESSION_*.md")):
+        fail("৪.৬", "সেশনের LOCK NOTE নেই")
+    # খাতায় 🔴 বাকি আছে কিনা
+    k = os.path.join(ROOT, "00_TK_KAJER_KHATA_SOBAR_AGE_PORUN.md")
+    if os.path.exists(k):
+        left = []
+        for name, body in re.findall(r'\| (B\d+) \|(.*)', read(k)):
+            seg = body.split("|")[-1]
+            if "🔴" in seg and "🟢" not in seg:
+                left.append(name)
+        if left:
+            note("৬.১", "খাতায় এখনো বাকি → " + " · ".join(left))
+
+
+# ═══════════════════════════════════════════════════════════════
+#  যাচাই ১২ — সম্পূর্ণ প্রজেক্ট (সার্কুলার ৪.৫)
+# ═══════════════════════════════════════════════════════════════
+# 🔴 নিয়ম বদল (03.08.2026, TK-এর স্পষ্ট অনুমতি): ".git ফোল্ডার বাদ দেওয়া
+# যাবে না" — এই পুরনো নিয়মটা (27.07.2026) TK নিজে শিথিল করেছেন, কারণ ফাইলের
+# সাইজ কমানোর জন্য .git (গিট-এর নিজস্ব ইতিহাস-ফোল্ডার, শুধু programmer-দের
+# টুলের জন্য, Android Studio build-এ কোনো ভূমিকা নেই) সরানো নিরাপদ কিনা
+# জিজ্ঞাসা করেছিলেন। Claude প্রস্তাব দিয়েছিল ".git সরালে কাজ/ডিজাইনের কোনো
+# ক্ষতি হয় না, আসল ভার্সন-ইতিহাস তো নাম্বার দেওয়া ZIP-গুলোতেই (V221...
+# FINAL_60...) থাকে, যেগুলো TK নিজে সেভ করে রাখেন" — TK নিজের কথায় সম্মত
+# হয়ে বলেছেন: *"আপনি যেটা ভালো বোঝেন সেটা করে দেন, তবে ভবিষ্যতে কোনো
+# অসুবিধা থাকলে দায়বদ্ধতা আপনার — আপনি সেভাবে কোডে লিখে রাখুন।"*
+# ⛔ **দায়বদ্ধতার নোট (Claude-এর নিজের সিদ্ধান্তের রেকর্ড):** .git ফোল্ডার
+# সরানোর সিদ্ধান্ত ও সুপারিশ সম্পূর্ণ Claude-এর — TK শুধু অনুমতি দিয়েছেন।
+# এতে অ্যাপের কোনো ফাংশনালিটি/ডিজাইন/ডেটা ছোঁয়া হয় না (git শুধু
+# programmer-এর কমিট-ইতিহাস রাখে, অ্যাপ চালাতে/build করতে ব্যবহৃতই হয় না)।
+# যদি ভবিষ্যতে কোনো কারণে .git-এর পুরনো কমিট-ইতিহাসের প্রয়োজন পড়ে
+# (যেমন কোনো নির্দিষ্ট পুরনো মুহূর্তের সাথে ফাইল-বাই-ফাইল তুলনা), সেটা আর
+# সম্ভব হবে না — সেই সীমাবদ্ধতার দায় Claude-এর, TK-কে আগেই স্পষ্ট করে
+# জানানো হয়েছিল।
+def check_complete():
+    for d in ("02_ANDROID_SOURCE_CODE", "03_NETLIFY_READY", "04_SUPABASE_DATABASE_SETUP"):
+        if not os.path.isdir(os.path.join(ROOT, d)):
+            fail("৪.৫", f"{d} ফোল্ডার নেই")
+
+
+# ═══════════════════════════════════════════════════════════════
+#  যাচাই ১৩ — রোগীর সময় ১১-৪ (সার্কুলার ১১)
+# ═══════════════════════════════════════════════════════════════
+def check_clinic_time():
+    bad = []
+    pm = os.path.join(JAVA, "com", "tkbiswas", "pilesclinic", "native", "PatientMessage.kt")
+    for p in (pm, os.path.join(WEB, "app.js")):
+        if not os.path.exists(p):
+            continue
+        s = read(p)
+        if "৯টা" in s or "9 am to 6 pm" in s or "९ बजे" in s:
+            bad.append(os.path.basename(p))
+    if bad:
+        fail("১১", "রোগীর বার্তায় ৯টা–৬টা রয়ে গেছে (হওয়ার কথা ১১টা–৪টা) → " + " · ".join(bad))
+
+
+# ═══════════════════════════════════════════════════════════════
+#  যাচাই ১৪ — ফাইলের নাম আগে ব্যবহার হয়নি (সার্কুলার ৪.১)
+# ═══════════════════════════════════════════════════════════════
+def sent_list():
+    if os.path.exists(SENT):
+        try:
+            return json.load(io.open(SENT, encoding="utf-8"))
+        except Exception:
+            return []
+    return []
+
+
+def next_name(code):
+    used = {r["file"] for r in sent_list()}
+    base = f"PILES_CLINIC_APP_V{code}_FINAL"
+    if f"{base}.zip" not in used:
+        return f"{base}.zip"
+    n = 2
+    while f"{base}_{n}.zip" in used:
+        n += 1
+    return f"{base}_{n}.zip"
+
+
+def record(name, code):
+    rows = sent_list()
+    rows.insert(0, {
+        "file": name,
+        "versionCode": code,
+        "when": datetime.datetime.now().strftime("%d.%m.%Y %I.%M %p").lower(),
+    })
+    io.open(SENT, "w", encoding="utf-8").write(json.dumps(rows, ensure_ascii=False, indent=2))
+
+
+# ═══════════════════════════════════════════════════════════════
+#  মানুষকে যা নিজে দেখতে হবে (মেশিন পারে না)
+# ═══════════════════════════════════════════════════════════════
+HUMAN = [
+    ("৭.২", "ডিজাইনে হাত পড়েছে? তাহলে মালিককে ফুল-স্ক্রিন প্রুফ দেখানো হয়েছে ও তিনি পাশ করেছেন?"),
+    ("৭.১", "মালিকের অনুমতি ছাড়া কিছু বদলানো/মোছা/যোগ করা হয়নি তো?"),
+    ("৮.১", "কোনো ঝুঁকি ছিল? থাকলে কাজ শুরুর আগেই মালিককে জানানো হয়েছে?"),
+    ("৬.১", "মালিক এই সেশনে যা যা বলেছেন — সবকটা শেষ হয়েছে?"),
+    ("৬.২", "একটা দোষ পেলে পুরো প্রজেক্টে একই ধরনের সব জায়গা খুঁজে ঠিক করা হয়েছে?"),
+    ("৭.৫", "আগে লক করা সব ডিজাইন এই ফাইলেও হুবহু আছে?"),
+    ("৬.৬", "ফোন ও কম্পিউটার — দুটোতেই কাজটা করা হয়েছে?"),
+    ("৪.৪", "সব নোটে তারিখ-সময় সহ লেখা শেষ?"),
+    ("২", "পাঁচটা প্রতিশ্রুতি ঠিক আছে? (তথ্য হারাবে না · থমকাবে না · সঙ্গে সঙ্গে দেখাবে · ফ্রি প্ল্যানে চলবে · বোতাম কাজ করবে)"),
+]
+
+
+def main():
+    release = "--release" in sys.argv
+    print("=" * 66)
+    print("🛡️  TK-এর পাহারাদার — নিয়ম মিলিয়ে দেখা হচ্ছে")
+    print("=" * 66)
+
+    nkt = check_brackets()
+    check_comment_swallow()
+    check_if_else()
+    check_bindings()
+    check_drawables()
+    nxml = check_xml()
+    check_companion()
+    check_columns()
+    check_static_calls()
+    check_unresolved_imports()   # 🔴🔴🔴🔴 TK-নির্দেশ (20.08.2026) — Unresolved reference কখনো ফাইল পাঠাতে দেবে না
+    check_qualified_extension_fn()   # 🔴🔴🔴 খাতার সারি B203 — async/launch fully-qualified কল
+    check_fake_layoutparams_class()   # 🔴🔴🔴 খাতার সারি B266-সংশোধন — ScrollView-এর নিজের LayoutParams নেই
+    check_bare_number_input()         # 🔴🔴🔴 খাতার সারি B411 — একা TYPE_CLASS_NUMBER-এ কীবোর্ড না খোলার বাগ
+    check_digits()
+    check_locked_rules()
+    check_hidden_spinner()
+    check_work_rules()          # 🧾 খাতার সারি B147 — কাজের নিয়ম
+    check_followup_id()         # 🧾 খাতার সারি B147
+    check_branch_encoded()      # 🧾 খাতার সারি B147
+    check_no_bengali()          # 🚫 খাতার সারি B158
+    code = check_version()
+    check_web()
+    check_notes()
+    check_complete()
+    check_clinic_time()
+
+    rows = [
+        ("৯.১", f"ব্র্যাকেট (Kotlin-সচেতন) — {nkt} ফাইল"),
+        ("৯.২", "কমেন্ট কোড গিলে ফেলেনি"),
+        ("৯.৪", "`if` expression-এ `else` আছে"),
+        ("৯.৫", "binding.<view> ও drawable সব আছে"),
+        ("৯.৬", f"XML ঠিক আছে — {nxml} ফাইল"),
+        ("৯.৭", "Supabase কলাম মেলে"),
+        ("৯.১০", "ক্লাসের নামে instance-ফাংশন ডাকা হয়নি"),
+        ("৯.১৮", "সব ক্লাস-ব্যবহারের import ঠিক আছে (Unresolved reference নেই)"),
+        ("৯.১৫", "kotlinx.coroutines async/launch প্যাকেজ-নাম দিয়ে ডাকা হয়নি"),
+        ("৯.১৬", "ScrollView/HorizontalScrollView-এর ভুয়া .LayoutParams ডাকা হয়নি"),
+        ("৯.১৭", "সংখ্যা-ঘরে একা TYPE_CLASS_NUMBER (কীবোর্ড না-খোলার ঝুঁকি) নেই"),
+        ("৯.১১", "সংখ্যা সবসময় ইংরেজিতে"),
+        ("৯.১২", f"🚔 লক করা নিয়ম অক্ষত — {len(LOCKED_RULES)}টি + লুকানো Spinner-এর ফাঁদ"),
+        ("৯.১৩", f"🧾 কাজের নিয়ম অক্ষত — {len(WORK_RULES)}টি + followups-এর আইডি + ব্রাঞ্চের encode"),
+        ("৯.১৪", "🚫 বাংলা-বন্ধ স্টাফের পর্দায় একটাও বাংলা নেই (কোড · XML · Toast · পপ-আপ)"),
+        ("৯.৮", f"ভার্সন এক — V{code}"),
+        ("৯.৯", "কম্পিউটারের অ্যাপ ঠিক আছে"),
+        ("৪.৫", "সম্পূর্ণ প্রজেক্ট (মূল ফোল্ডার সব আছে)"),
+        ("৪.৬", "সব বাধ্যতামূলক নোট আছে"),
+        ("১১",  "রোগীর সময় ১১টা–৪টা"),
+        ("১০",  "মাইন-পোঁতা জায়গা অক্ষত"),
+    ]
+    broken_rules = {r for r, _ in problems}
+    for rule, label in rows:
+        print(f"  {'❌' if rule in broken_rules else '✅'} [{rule}] {label}")
+
+    if problems:
+        print("\n" + "─" * 66)
+        print("❌ যা ঠিক করতে হবে:")
+        for rule, what in problems:
+            print(f"   [{rule}] {what}")
+    if notices:
+        print("\n" + "─" * 66)
+        print("⚠️  খেয়াল রাখুন:")
+        for rule, what in notices:
+            print(f"   [{rule}] {what}")
+
+    print("\n" + "─" * 66)
+    print("👁️  মেশিন যা যাচাই করতে পারে না — নিজে দেখে নিন:")
+    for rule, q in HUMAN:
+        print(f"   [ ] [{rule}] {q}")
+
+    print("=" * 66)
+    if problems:
+        print("⛔ ফাইল বানানো যাবে না — উপরের সমস্যাগুলো আগে ঠিক করুন।")
+        sys.exit(1)
+
+    print("✅ মেশিনের সব যাচাই পাশ।")
+    if release and code:
+        name = next_name(code)
+        print(f"\n📦 এই নামে ফাইল বানান:  {name}")
+        prev = sent_list()
+        if prev:
+            print(f"   (আগে পাঠানো হয়েছে: {prev[0]['file']} — {prev[0]['when']})")
+        record(name, code)
+        print("   ✅ নামটা তালিকায় লিখে রাখা হলো — এই নাম আর কখনো ব্যবহার হবে না।")
+    else:
+        print("   ফাইল বানাতে চাইলে চালান:  python3 00_GUARD/tk_guard.py --release")
+    print("=" * 66)
+
+
+if __name__ == "__main__":
+    main()
