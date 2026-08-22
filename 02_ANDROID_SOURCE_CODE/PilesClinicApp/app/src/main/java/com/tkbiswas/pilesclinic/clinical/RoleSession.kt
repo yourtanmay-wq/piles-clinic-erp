@@ -92,6 +92,38 @@ object RoleSession {
         if (incomingPatient.isNotEmpty() && incomingPatient != currentPatientId) {
             ClinicalRepository.resetForNewPatient()
             ClinicalRepository.ownerPatientId = incomingPatient
+
+            /* 🔴🔵🔒 V538 (২২.০৮.২০২৬, TK-নির্দেশ) — **আগের রোগীর ঠিকানা/বয়স/
+               লিঙ্গ/রোগ আর নতুন রোগীর কাগজে যাবে না।**
+
+               নিচের প্রতিটা ঘর বসে `if (!…isNullOrBlank())` শর্তে — অর্থাৎ
+               **নতুন রোগীর কোনো ঘর ফাঁকা এলে আগের রোগীরটাই থেকে যেত**।
+               এই ঝুঁকিটা কোডেই লেখা ছিল (খাতার সারি B174, ৩০.০৭.২০২৬):
+               *"`applyFrom()` `null` পেলে পুরনো (হয়তো **অন্য রোগীর**, বা
+               ফাঁকা) মান ধরেই রাখে"* — তখন শুধু Timeline-এর পথটা সারানো
+               হয়েছিল, বাকি পথগুলো নয়।
+
+               যাচাই করে পাওয়া বাকি পথগুলো:
+                 • Chamber — রোগীর সারি না পেলে ঠিকানা/বয়স/লিঙ্গ `""` যায়
+                 • Global Search — ওগুলো লোড না হলে `""`, আর **রোগের নাম
+                   সবসময়** `""`
+                 • Doctor Queue → Clinical — intent-এ ঘর না থাকলে `null`
+
+               ⇒ **রোগী বদলালে** এই ঘরগুলো আগে খালি করে দেওয়া হয়, তাই ফাঁকা
+                 মান আর আগের রোগীর তথ্য টেনে আনতে পারে না।
+
+               ⛔ **একই রোগী হলে এই ব্লক চলেই না** — B174-এর ভাল কাজটা
+                  (ফাঁকা এলে আগের মান ধরে রাখা) সেখানে **অটুট**।
+               ⛔ `currentRole` **ছোঁয়া হয় না** — ওটা স্টাফের ভূমিকা, রোগীর নয়।
+               ⛔ নিচের বসানোর লাইনগুলো এক অক্ষরও বদলায়নি। */
+            currentPatientName = ""
+            currentPatientDisplayId = ""
+            currentPatientBranch = ""
+            currentPatientMobile = ""
+            currentPatientAddress = ""
+            currentPatientAge = ""
+            currentPatientSex = ""
+            currentPatientDisease = ""
         }
         if (!patientName.isNullOrBlank()) currentPatientName = patientName
         if (!patientId.isNullOrBlank()) currentPatientId = patientId

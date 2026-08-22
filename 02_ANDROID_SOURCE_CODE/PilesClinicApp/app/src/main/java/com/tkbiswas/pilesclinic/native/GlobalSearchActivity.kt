@@ -45,7 +45,12 @@ class GlobalSearchActivity : AppCompatActivity() {
      * Full Journey সঠিক রোগীরটাই খোলে।
      * ⛔ ডিফল্ট ফাঁকা — Enquiry-র ফলে সারি-আইডি লাগে না, আচরণ আগের মতোই।
      */
-    data class SearchHit(val name: String, val mobile: String, val branch: String, val type: String, val patientId: String = "", val rowId: String = "")
+    /* 🔵🔒 V538 (২২.০৮.২০২৬, TK-নির্দেশ): এই খোঁজা এমনিতেই `disease` ঘরটা
+       আনে (উপরের `patCloud`/`enqCloud`-এর কলাম তালিকা দেখুন), অথচ কার্ডে
+       ধরে রাখা হত না — তাই ক্লিনিক্যাল পর্দায় রোগের নাম ফাঁকা যেত।
+       ⛔ **নতুন কোনো ক্লাউড-অনুরোধ নয়** — যে তথ্য আগেই আসছে, সেটাই রাখা হলো।
+       ⛔ ডিফল্ট ফাঁকা, তাই পুরোনো কোনো ডাক ভাঙে না। */
+    data class SearchHit(val name: String, val mobile: String, val branch: String, val type: String, val patientId: String = "", val rowId: String = "", val disease: String = "")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -209,7 +214,7 @@ class GlobalSearchActivity : AppCompatActivity() {
                     if (!match(r.s("name"), r.s("mobile"), r.s("disease"), r.s("address"), r.s("patientId"), r.s("date"))) continue
                     val k = key(r.s("mobile"))
                     if (k.isNotBlank() && !byMobile.containsKey(k))
-                        byMobile[k] = SearchHit(r.s("name"), r.s("mobile"), br, "Enquiry")
+                        byMobile[k] = SearchHit(r.s("name"), r.s("mobile"), br, "Enquiry", disease = r.s("disease"))
                 }
                 // … then Patients override the same number (higher stage wins).
                 // TK-REQUESTED (2026-07-27), "ছ'টা পর্দা এক নিয়মে" step 1 of 6:
@@ -267,7 +272,7 @@ class GlobalSearchActivity : AppCompatActivity() {
                         val r = rows.getJSONObject(i)
                         if (isDeclaredSeparatePatient(r.s("id"), k)) {
                             extraHits.add(
-                                SearchHit(r.s("name"), r.s("mobile"), r.s("branch"), "Patient", r.s("patientId"), r.s("id"))
+                                SearchHit(r.s("name"), r.s("mobile"), r.s("branch"), "Patient", r.s("patientId"), r.s("id"), r.s("disease"))
                             )
                         } else {
                             ordinary.put(r)
@@ -275,7 +280,7 @@ class GlobalSearchActivity : AppCompatActivity() {
                     }
                     // পুরোনো পথ — হুবহু আগের মতোই (একটাই সারি থাকলে কিছুই বদলায় না)
                     val chosen = PatientIdentity.pickPatientRow(ordinary, user?.branch ?: "") ?: continue
-                    byMobile[k] = SearchHit(chosen.s("name"), chosen.s("mobile"), chosen.s("branch"), "Patient", chosen.s("patientId"), chosen.s("id"))
+                    byMobile[k] = SearchHit(chosen.s("name"), chosen.s("mobile"), chosen.s("branch"), "Patient", chosen.s("patientId"), chosen.s("id"), chosen.s("disease"))
                 }
                 /* ঘোষিত আলাদা রোগীরা মূল ফলের ঠিক পরে বসেন, তাই এক নম্বরের
                    সবাই পাশাপাশি দেখা যায়। ⛔ কেউ কখনো বাদ পড়ে না। */
@@ -380,7 +385,7 @@ class GlobalSearchActivity : AppCompatActivity() {
                 catch (_: Throwable) { Triple("", "", "") }
             }
             com.tkbiswas.pilesclinic.clinical.RoleSession.applyFrom(
-                roleStr, hit.name, digits, hit.branch, digits, address, age, sex, "",
+                roleStr, hit.name, digits, hit.branch, digits, address, age, sex, hit.disease,   // 🔵 V538
                 // 🔒 খাতার সারি B175: `hit.patientId` (মানুষ-পড়া-যায় কোড) এমনিতেই
                 // এই খোঁজার ফলাফলে আছে (SearchHit-এর নিজের ঘর), শুধু পাঠানো হত না।
                 patientDisplayId = hit.patientId
