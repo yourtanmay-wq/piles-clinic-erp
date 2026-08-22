@@ -245,7 +245,7 @@
       var tx = cx + side * 3.05 * CM;
       ctx.strokeStyle = C_PILELINE; ctx.lineWidth = 1.1;
       ctx.beginPath(); ctx.moveTo(cc[0], cc[1]); ctx.lineTo(tx, cc[1]); ctx.stroke();
-      if (p.marked !== false) tag(ctx, tx, cc[1], clockText(p.a) + 'টা');
+      if (p.marked !== false) tag(ctx, tx, cc[1], markText(p.a, st.labelMode));
     });
     /* ---- বাইরের পাইলস — দাঁতের রেখার নিচে, মুখের কাছে ---- */
     piles.forEach(function (p) {
@@ -260,7 +260,7 @@
       var tx2 = cx + side * 3.05 * CM;
       ctx.strokeStyle = C_PILELINE; ctx.lineWidth = 1.1;
       ctx.beginPath(); ctx.moveTo(c[0] + side * 0.3 * CM, c[1]); ctx.lineTo(tx2, c[1]); ctx.stroke();
-      tag(ctx, tx2, c[1], clockText(p.a) + 'টা');
+      if (p.marked !== false) tag(ctx, tx2, c[1], markText(p.a, st.labelMode));
     });
 
     /* ---- দাঁতের রেখা ---- */
@@ -342,6 +342,15 @@
       if (first && !reverse) { ctx.lineTo(p[0], p[1]); first = false; }
       else ctx.lineTo(p[0], p[1]);
     }
+  }
+
+  // ডাক্তার চাইলে ঘড়ির নম্বরের বদলে সোজা বাংলায় দিক লেখা যায়
+  var BANGLA_DIR = { 12:'সামনে', 1:'সামনে-ডান', 2:'সামনে-ডান', 3:'ডান পাশ', 4:'পিছন-ডান',
+                     5:'পিছন-ডান', 6:'পিছনে', 7:'পিছন-বাঁ', 8:'পিছন-বাঁ', 9:'বাঁ পাশ',
+                     10:'সামনে-বাঁ', 11:'সামনে-বাঁ' };
+  function markText(a, mode) {
+    var t = clockText(a);
+    return (mode === 'bangla') ? BANGLA_DIR[t] : (t + 'টা');
   }
 
   function clockText(a) {
@@ -428,8 +437,16 @@
     ctx.strokeText(txt, x, y); ctx.fillStyle = col; ctx.fillText(txt, x, y);
   }
   function tag(ctx, x, y, txt) {
-    ctx.font = '700 12px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.beginPath(); ctx.arc(x, y, 13, 0, 6.3);
+    ctx.font = '700 12px "Noto Sans Bengali", system-ui, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    var w = Math.max(26, ctx.measureText(txt).width + 16), h = 24, r = 12;
+    ctx.beginPath();
+    ctx.moveTo(x - w / 2 + r, y - h / 2);
+    ctx.lineTo(x + w / 2 - r, y - h / 2); ctx.quadraticCurveTo(x + w / 2, y - h / 2, x + w / 2, y - h / 2 + r);
+    ctx.lineTo(x + w / 2, y + h / 2 - r); ctx.quadraticCurveTo(x + w / 2, y + h / 2, x + w / 2 - r, y + h / 2);
+    ctx.lineTo(x - w / 2 + r, y + h / 2); ctx.quadraticCurveTo(x - w / 2, y + h / 2, x - w / 2, y + h / 2 - r);
+    ctx.lineTo(x - w / 2, y - h / 2 + r); ctx.quadraticCurveTo(x - w / 2, y - h / 2, x - w / 2 + r, y - h / 2);
+    ctx.closePath();
     ctx.fillStyle = SCARY_G ? 'rgba(20,6,8,0.80)' : 'rgba(255,255,255,0.94)'; ctx.fill();
     ctx.strokeStyle = SCARY_G ? 'rgba(220,150,140,0.65)' : C_PILELINE; ctx.lineWidth = 1.4; ctx.stroke();
     ctx.fillStyle = SCARY_G ? '#F0C9C0' : C_PILELINE; ctx.fillText(txt, x, y);
