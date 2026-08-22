@@ -7641,6 +7641,10 @@ function wlv1AnatBoxHtml(note,pid){
     +'<div class="wlv1AnatWrap"><canvas id="dnAnatCanvas" class="wlv1AnatCanvas"></canvas>'
     +'<div id="dnAnatHint" class="wlv1AnatHint">উপর থেকে একটা ছবি বাছুন</div></div>'
     +'<div class="wlv1AnatTools">'+tools
+    /* 🔵 V567 (TK): *"ফটোটা যখন আমি পেসেন্টকে দেখাবো সম্পূর্ণ ডিসপ্লে তে যেন
+       আমি দেখাতে পারি"* — এই বোতামে ছবিটা গোটা পর্দা জুড়ে খুলে যায়, আর
+       ওখানেও একই ভাবে আঁকা যায়। ফোনেও হুবহু একই বোতাম আছে। */
+    +'<button type="button" class="wlv1AnatTool wlv1AnatBig" onclick="wlv1AnatFull()">🔍 পুরো পর্দা</button>'
     +'<button type="button" class="wlv1AnatTool" onclick="wlv1AnatUndo()">↺ একটা পিছনে</button>'
     +'<button type="button" class="wlv1AnatTool" style="color:#B3261E" onclick="wlv1AnatClear()">🗑 সব মুছুন</button></div>'
     +'<textarea id="dnAnatNote" placeholder="ছবি দেখিয়ে রোগীকে যা বোঝালেন, দরকার হলে এখানে লিখুন">'+esc(b.note||'')+'</textarea>';
@@ -7672,10 +7676,15 @@ function wlv1AnatClear(){
   wlv1AnatState.marks=[]; wlv1AnatRedraw();
 }
 
+/* 🔵 V567 — এখন কোন পর্দায় আঁকা হচ্ছে? পুরো-পর্দা খোলা থাকলে সেটাই, নইলে
+   পাতার ভিতরের ছোট পর্দাটা। ⛔ দাগের তালিকা (`wlv1AnatState.marks`) একটাই —
+   তাই পুরো পর্দায় আঁকলে ছোট পর্দাতেও সেটা থাকে, আর সেভও একই ভাবে হয়। */
+function wlv1AnatCv(){ return $('#dnAnatFullCanvas')||$('#dnAnatCanvas') }
+
 /* ছবিটা একবারই নামানো হয়, বারবার নয় — নইলে প্রতিবার আঁকায় ঝিমিয়ে যেত। */
 var wlv1AnatImg=null,wlv1AnatImgKey='';
 function wlv1AnatRedraw(){
-  var cv=$('#dnAnatCanvas'),hint=$('#dnAnatHint');
+  var cv=wlv1AnatCv(),hint=$('#dnAnatHint');
   if(!cv)return;
   var k=wlv1AnatState.pic;
   if(!k){ if(hint)hint.style.display=''; var c0=cv.getContext('2d'); c0.clearRect(0,0,cv.width,cv.height); return }
@@ -7690,16 +7699,38 @@ function wlv1AnatRedraw(){
   wlv1AnatPaint();
 }
 function wlv1AnatPaint(){
-  var cv=$('#dnAnatCanvas'),im=wlv1AnatImg;
+  var cv=wlv1AnatCv(),im=wlv1AnatImg;
   if(!cv||!im)return;
   /* লম্বালম্বি ছবি পুরো চওড়ায় বসালে পর্দা জুড়ে বিশাল হয়ে যেত, নিচের
      বোতামগুলো দেখতে অনেক নিচে নামতে হত। তাই উচ্চতা ৪২০-এ বাঁধা,
      ছবিটা তখন মাঝখানে ছোট হয়ে বসে। ফোনেও ঠিক এই কাজটাই হয় (৩০০dp ঘরে
      ছবি পুরোটা ধরানো হয়)। */
-  var box=(cv.parentNode&&cv.parentNode.clientWidth)||600;
-  var w=box,h=Math.round(w*im.height/im.width);
-  var maxH=420;
-  if(h>maxH){ w=Math.round(w*maxH/h); h=maxH }
+  var w,h;
+  if(cv.id==='dnAnatFullCanvas'){
+    /* 🔵 V567 — পুরো পর্দা: ছবিটা যতটা বড় করা যায় ততটাই, তবে দুই দিকেই
+       জানলার ভিতরে থাকবে (কাটা যাবে না)। নিচে বোতামের জন্য একটু জায়গা ছাড়া। */
+    /* বোতামের সারিটা খোলা থাকলে ততটা জায়গা ছেড়ে দেওয়া হয়, নইলে ছবির
+       নিচের দিকটা বোতামের পিছনে ঢাকা পড়ত। সারিটা লুকোনো থাকলে (🧰) ছবিটা
+       গোটা পর্দা জুড়েই বসে — রোগীকে দেখানোর জন্য এটাই দরকার। */
+    var bar=$('#dnAnatFullBar');
+    var barH=(bar&&bar.style.display!=='none')?(bar.offsetHeight||0):0;
+    /* ছবিটা বোতামের সারির **উপরের** জায়গাটুকুর ঠিক মাঝখানে বসে — নইলে গোটা
+       পর্দার মাঝে বসত আর নিচের দিকটা সারির পিছনে ঢাকা পড়ত। */
+    try{ var back=$('#dnAnatFullBack'); if(back)back.style.paddingBottom=barH+'px' }catch(_e){}
+    var vw=Math.max(200,(window.innerWidth||600)-16);
+    var vh=Math.max(200,(window.innerHeight||600)-barH-16);
+    var sc=Math.min(vw/im.width,vh/im.height);
+    w=Math.round(im.width*sc); h=Math.round(im.height*sc);
+  }else{
+    /* লম্বালম্বি ছবি পুরো চওড়ায় বসালে পর্দা জুড়ে বিশাল হয়ে যেত, নিচের
+       বোতামগুলো দেখতে অনেক নিচে নামতে হত। তাই উচ্চতা ৪২০-এ বাঁধা,
+       ছবিটা তখন মাঝখানে ছোট হয়ে বসে। ফোনেও ঠিক এই কাজটাই হয় (৩০০dp ঘরে
+       ছবি পুরোটা ধরানো হয়)। */
+    var box=(cv.parentNode&&cv.parentNode.clientWidth)||600;
+    w=box; h=Math.round(w*im.height/im.width);
+    var maxH=420;
+    if(h>maxH){ w=Math.round(w*maxH/h); h=maxH }
+  }
   if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h}
   cv.style.width=w+'px';
   var ctx=cv.getContext('2d');
@@ -7716,7 +7747,7 @@ function wlv1AnatPaint(){
 
 /* আঙুল/মাউস — ফোনের `AnatomyView.onTouchEvent`-এর মতোই। */
 function wlv1AnatXY(ev){
-  var cv=$('#dnAnatCanvas'); if(!cv)return null;
+  var cv=wlv1AnatCv(); if(!cv)return null;
   var r=cv.getBoundingClientRect();
   var t=(ev.touches&&ev.touches[0])||(ev.changedTouches&&ev.changedTouches[0])||ev;
   var x=(t.clientX-r.left)/r.width*100, y=(t.clientY-r.top)/r.height*100;
@@ -7752,8 +7783,8 @@ function wlv1AnatMove(ev){
   }else if(t==='erase'){ wlv1AnatErase(p) }
   wlv1AnatPaint();
   if(s.tool==='tract'&&s.live.length>1){
-    var ctx=$('#dnAnatCanvas').getContext('2d'),cv=$('#dnAnatCanvas');
-    AnatomyMark.draw(ctx,cv.width,cv.height,[{kind:'tract',pts:s.live}],wlv1AnatScale());
+    var cv=wlv1AnatCv();
+    if(cv)AnatomyMark.draw(cv.getContext('2d'),cv.width,cv.height,[{kind:'tract',pts:s.live}],wlv1AnatScale());
   }
 }
 function wlv1AnatUp(ev){
@@ -7792,21 +7823,81 @@ function wlv1AnatCollect(pid){
   return AnatomyMark.format(wlv1AnatState.pic,wlv1AnatState.marks,note);
 }
 
-function dnWireV558(){
-  var cv=$('#dnAnatCanvas'); if(!cv)return;
-  if(cv.__wlv1Wired)return; cv.__wlv1Wired=true;
+/* আঙুল/মাউসের তার — ছোট পর্দা আর পুরো পর্দা, দুটোতেই এক নিয়ম। */
+function wlv1AnatWire(cv){
+  if(!cv||cv.__wlv1Wired)return; cv.__wlv1Wired=true;
   cv.addEventListener('mousedown',wlv1AnatDown);
   cv.addEventListener('mousemove',wlv1AnatMove);
   window.addEventListener('mouseup',wlv1AnatUp);
   cv.addEventListener('touchstart',wlv1AnatDown,{passive:false});
   cv.addEventListener('touchmove',wlv1AnatMove,{passive:false});
   cv.addEventListener('touchend',wlv1AnatUp);
+}
+
+/* 🔵🔒 V567 (২২.০৮.২০২৬, TK-নির্দেশ) — *"ফটোটা যখন আমি পেসেন্টকে দেখাবো
+   সম্পূর্ণ ডিসপ্লে তে যেন আমি দেখাতে পারি তার ব্যবস্থা রাখবেন"*।
+   ছবিটা গোটা পর্দা জুড়ে খোলে, রোগীকে দেখানোর জন্য। ওখানেও একই সাত রকম
+   কাজ করা যায় — ফোলানো · চিহ্ন · নালী · গোল · তীর · মুছুন · একটা পিছনে।
+   🧰 বোতামে বোতামগুলো লুকিয়ে ফেলা যায়, তখন **শুধু ছবিটাই** থাকে।
+   ⛔ দাগ জমা থাকে সেই একটাই জায়গায় (`wlv1AnatState.marks`), তাই পুরো
+      পর্দায় আঁকা দাগ বন্ধ করার পরেও ছোট পর্দায় ও সেভে হুবহু থাকে।
+   ⛔ নতুন কোনো কলাম/SQL লাগে না — জমা হওয়ার লেখা এক অক্ষরও বদলায়নি। */
+function wlv1AnatFull(){
+  if(!wlv1AnatState.pic){ try{toast('আগে উপরের সারি থেকে একটা ছবি বাছুন')}catch(_e){} return }
+  if($('#dnAnatFullBack'))return;
+  var tools=[['bulge','✋ ফোলান'],['pile','📍 চিহ্ন'],['tract','〰️ নালী'],
+             ['ring','⭕ গোল'],['arrow','➡️ তীর'],['erase','🩹 মুছুন']].map(function(t){
+    return '<button type="button" class="wlv1AnatTool'+(wlv1AnatState.tool===t[0]?' on':'')+'" '
+      +'data-t="'+t[0]+'" onclick="wlv1AnatTool(\''+t[0]+'\')">'+t[1]+'</button>';
+  }).join('');
+  var back=document.createElement('div');
+  back.id='dnAnatFullBack'; back.className='wlv1AnatFullBack';
+  back.innerHTML=
+     '<div class="wlv1AnatFullTop">'
+    +'<button type="button" class="wlv1AnatFullBtn" title="বোতাম লুকান / দেখান" onclick="wlv1AnatFullBar()">🧰</button>'
+    +'<button type="button" class="wlv1AnatFullBtn" title="বন্ধ করুন" onclick="wlv1AnatFullClose()">✕</button>'
+    +'</div>'
+    +'<canvas id="dnAnatFullCanvas" class="wlv1AnatFullCanvas"></canvas>'
+    +'<div id="dnAnatFullBar" class="wlv1AnatFullBar">'+tools
+    +'<button type="button" class="wlv1AnatTool" onclick="wlv1AnatUndo()">↺ একটা পিছনে</button>'
+    +'<button type="button" class="wlv1AnatTool" style="color:#B3261E" onclick="wlv1AnatClear()">🗑 সব মুছুন</button>'
+    +'</div>';
+  document.body.appendChild(back);
+  document.body.classList.add('wlv1AnatFullOpen');
+  wlv1AnatWire($('#dnAnatFullCanvas'));
+  window.addEventListener('resize',wlv1AnatFullResize);
+  wlv1AnatRedraw();
+}
+function wlv1AnatFullResize(){ if($('#dnAnatFullCanvas'))wlv1AnatPaint() }
+try{document.addEventListener('keydown',function(e){
+  if((e.key==='Escape'||e.keyCode===27)&&document.getElementById('dnAnatFullBack'))wlv1AnatFullClose();
+})}catch(_e){}
+/* 🧰 — রোগীকে দেখানোর সময় বোতামগুলো সরিয়ে শুধু ছবিটা রাখা যায়। */
+function wlv1AnatFullBar(){
+  var bar=$('#dnAnatFullBar'); if(!bar)return;
+  bar.style.display=(bar.style.display==='none')?'':'none';
+  wlv1AnatPaint();     /* সারি লুকোলে ছবিটা সঙ্গে সঙ্গে বড় হয়ে পুরো পর্দা নেয় */
+}
+function wlv1AnatFullClose(){
+  var back=$('#dnAnatFullBack'); if(!back)return;
+  try{back.parentNode.removeChild(back)}catch(_e){}
+  document.body.classList.remove('wlv1AnatFullOpen');
+  window.removeEventListener('resize',wlv1AnatFullResize);
+  /* ছোট পর্দায় ফিরে গিয়ে সেই একই দাগগুলোই আবার আঁকা হয় */
+  wlv1AnatRedraw();
+}
+
+function dnWireV558(){
+  var cv=$('#dnAnatCanvas'); if(!cv)return;
+  wlv1AnatWire(cv);
   wlv1AnatRedraw();
 }
 window["wlv1AnatPick"]=wlv1AnatPick;window["wlv1AnatTool"]=wlv1AnatTool;
 window["wlv1AnatUndo"]=wlv1AnatUndo;window["wlv1AnatClear"]=wlv1AnatClear;window["wlv1AnatCollect"]=wlv1AnatCollect;
 window["wlv1AnatReadable"]=wlv1AnatReadable;window["wlv1AnatBoxHtml"]=wlv1AnatBoxHtml;
 window["dnWireV558"]=dnWireV558;window["wlv1AnatLabelOf"]=wlv1AnatLabelOf;window["wlv1AnatScale"]=wlv1AnatScale;
+/* 🔵 V567 — পুরো-পর্দার বোতামগুলো HTML থেকে ডাকা হয়, তাই এগুলোও বাইরে রাখতে হবে */
+window["wlv1AnatFull"]=wlv1AnatFull;window["wlv1AnatFullClose"]=wlv1AnatFullClose;window["wlv1AnatFullBar"]=wlv1AnatFullBar;
 
 window["wlv1DiseaseChanged"]=wlv1DiseaseChanged;window["wlv1ShouldNotifyCost"]=wlv1ShouldNotifyCost;
 window["wlv1CostMessage"]=wlv1CostMessage;window["wlv1TimeAsked"]=wlv1TimeAsked;

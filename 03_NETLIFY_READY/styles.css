@@ -5884,3 +5884,23 @@ button.card.reportKpi span, .card.reportKpi span, button.card.reportKpi small, .
 .wlv1AnatTool{font-size:12.5px;padding:6px 10px;border-radius:20px;border:1px solid #DBE2EA;
   background:#fff;color:#7C8A9C;cursor:pointer}
 .wlv1AnatTool.on{border-color:#0B4F2A;background:#EAFBF0;color:#0B4F2A;font-weight:700}
+
+/* 🖥️🔵🔒 V567 (২২.০৮.২০২৬, TK-নির্দেশ) — রোগের ছবি **সম্পূর্ণ ডিসপ্লেতে**।
+   TK: *"ফটোটা যখন আমি পেসেন্টকে দেখাবো সম্পূর্ণ ডিসপ্লে তে যেন আমি দেখাতে
+   পারি তার ব্যবস্থা রাখবেন"*। কালো পটভূমি, ছবিটা মাঝখানে যতটা বড় হয় ততটা,
+   উপরে দুটো ছোট বোতাম (🧰 বোতাম লুকান · ✕ বন্ধ), নিচে আঁকার বোতামের সারি। */
+.wlv1AnatFullBack{position:fixed;inset:0;z-index:500;background:#08111C;
+  display:flex;align-items:center;justify-content:center;overflow:hidden}
+.wlv1AnatFullCanvas{display:block;max-width:100%;max-height:100%;touch-action:none;
+  border-radius:6px;box-shadow:0 18px 50px rgba(0,0,0,.55)}
+.wlv1AnatFullTop{position:absolute;top:10px;right:10px;z-index:2;display:flex;gap:8px}
+.wlv1AnatFullBtn{width:42px;height:42px;padding:0;border-radius:50%;font-size:18px;
+  border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.14);color:#fff;
+  box-shadow:none;cursor:pointer}
+.wlv1AnatFullBar{position:absolute;left:0;right:0;bottom:0;z-index:2;
+  display:flex;gap:6px;flex-wrap:wrap;justify-content:center;
+  padding:9px 10px calc(9px + env(safe-area-inset-bottom,0px));
+  background:linear-gradient(180deg,rgba(8,17,28,0),rgba(8,17,28,.88) 38%)}
+.wlv1AnatFullBar .wlv1AnatTool{background:rgba(255,255,255,.92)}
+/* পুরো পর্দা খোলা থাকলে পিছনের পাতা যেন গড়িয়ে না যায় */
+body.wlv1AnatFullOpen{overflow:hidden}

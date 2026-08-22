@@ -1305,7 +1305,11 @@ class DoctorCheckupActivity : AppCompatActivity() {
             val unit = android.widget.Spinner(this).apply {
                 adapter = ArrayAdapter(this@DoctorCheckupActivity, R.layout.item_docnote_spinner, SymptomHistoryModel.UNITS)
                 setBackgroundResource(R.drawable.bg_input_field_picker)
-                setPadding(paddingStart, paddingTop, symDp(28), paddingBottom)
+                /* 🔴 V567 — আগে এখানে `paddingStart` ছিল। কাজ একই, কিন্তু `setPadding()`
+                   বাঁ/ডান হিসেবেই কাজ করে, তাই `paddingLeft`-ই মানানসই — আর প্রজেক্টের
+                   বাকি জায়গাতেও (`FieldError.kt`) ওটাই ব্যবহার হয়। কম্পাইল-পাহারা
+                   `paddingStart`-কে চিনতে না পেরে ভুল বলে ধরছিল। */
+                setPadding(paddingLeft, paddingTop, symDp(28), paddingBottom)
                 val lp = android.widget.LinearLayout.LayoutParams(symDp(104), android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
                 lp.marginStart = symDp(6)
                 layoutParams = lp
@@ -1502,6 +1506,18 @@ class DoctorCheckupActivity : AppCompatActivity() {
             }
             chips.add(chip); anatomyToolChips.add(chip)
         }
+        /* 🔵 V567 (২২.০৮.২০২৬, TK-নির্দেশ): *"ফটোটা যখন আমি পেসেন্টকে দেখাবো
+           সম্পূর্ণ ডিসপ্লে তে যেন আমি দেখাতে পারি তার ব্যবস্থা রাখবেন"* —
+           এই বোতামে ছবিটা গোটা পর্দা জুড়ে খোলে, আর ওখানেও একই ভাবে আঁকা যায়।
+           ওয়েবেও হুবহু একই বোতাম আছে (`wlv1AnatFull`)। */
+        chips.add(TextView(this).apply {
+            text = "🔍 পুরো পর্দা"
+            textSize = 12.5f
+            background = histChipBg(false)
+            setTextColor(android.graphics.Color.parseColor("#0B4F2A"))
+            setPadding(symDp(10), symDp(6), symDp(10), symDp(6))
+            setOnClickListener { openAnatomyFullScreen() }
+        })
         // ↺ একটা পিছনে — শেষ যেটা আঁকা হয়েছে সেটা তুলে নেয়
         chips.add(TextView(this).apply {
             text = "↺ একটা পিছনে"
@@ -1536,6 +1552,174 @@ class DoctorCheckupActivity : AppCompatActivity() {
         })
         layoutToolChips(tools, chips)
         paintAnatomyTools(AnatomyView.Tool.BULGE)
+    }
+
+    /**
+     * 🔵🔒 V567 (২২.০৮.২০২৬, TK-নির্দেশ) — রোগের ছবি **সম্পূর্ণ ডিসপ্লেতে**।
+     *
+     * TK: *"ফটোটা যখন আমি পেসেন্টকে দেখাবো সম্পূর্ণ ডিসপ্লে তে যেন আমি
+     * দেখাতে পারি তার ব্যবস্থা রাখবেন"*।
+     *
+     * ছবিটা গোটা পর্দা জুড়ে খোলে (কালো পটভূমি, কোনো হেডার/ফুটার নেই), যাতে
+     * রোগীকে দেখিয়ে বোঝানো যায়। ওখানেও একই সাত রকম কাজ করা যায় — ফোলান ·
+     * চিহ্ন · নালী · গোল · তীর · মুছুন · একটা পিছনে · সব মুছুন।
+     * 🧰 বোতামে বোতামের সারিটা লুকিয়ে ফেলা যায়, তখন **শুধু ছবিটাই** থাকে।
+     *
+     * ⛔ নতুন কোনো তথ্য/কলাম/SQL লাগে না। ছোট বোর্ডের অবস্থাটা `save()` দিয়ে
+     *    লেখা হয়ে বড় বোর্ডে `load()` হয়, আর বন্ধ করার সময় ঠিক উল্টোটা —
+     *    অর্থাৎ **যা আঁকা হল সব ফিরে আসে**, জমা হওয়ার লেখা এক অক্ষরও বদলায় না।
+     * ⛔ ছবি না বাছা থাকলে খোলেই না (ফাঁকা কালো পর্দা রোগীকে দেখানোর মানে নেই)।
+     */
+    private fun openAnatomyFullScreen() {
+        val small = anatomyView ?: return
+        if (!small.hasPicture()) {
+            Toast.makeText(this, "আগে উপরের সারি থেকে একটা ছবি বাছুন", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val big = AnatomyView(this)
+        big.load(small.save()) { key -> anatomyResId(key) }
+        big.tool = small.tool
+        big.pileLabel = small.pileLabel
+
+        val root = android.widget.FrameLayout(this).apply {
+            setBackgroundColor(android.graphics.Color.parseColor("#08111C"))
+        }
+        root.addView(big, android.widget.FrameLayout.LayoutParams(
+            android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+            android.widget.FrameLayout.LayoutParams.MATCH_PARENT))
+
+        // ── নিচের বোতামের সারি ──
+        val bar = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(symDp(10), symDp(8), symDp(10), symDp(8))
+            setBackgroundColor(android.graphics.Color.parseColor("#CC08111C"))
+            layoutParams = android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                android.view.Gravity.BOTTOM)
+        }
+
+        val fullChips = ArrayList<TextView>()
+        fun paintFull(chosen: AnatomyView.Tool) {
+            for (c in fullChips) {
+                val on = (c.tag as? AnatomyView.Tool) == chosen
+                c.background = histChipBg(on)
+                c.setTextColor(android.graphics.Color.parseColor(if (on) "#0B4F2A" else "#5B6B81"))
+                c.setTypeface(c.typeface, if (on) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
+            }
+        }
+        val toolList = listOf(
+            "✋ ফোলান" to AnatomyView.Tool.BULGE,
+            "📍 চিহ্ন" to AnatomyView.Tool.PILE,
+            "〰️ নালী" to AnatomyView.Tool.TRACT,
+            "⭕ গোল" to AnatomyView.Tool.RING,
+            "➡️ তীর" to AnatomyView.Tool.ARROW,
+            "🩹 মুছুন" to AnatomyView.Tool.ERASE
+        )
+        val chips = ArrayList<TextView>()
+        for ((label, tool) in toolList) {
+            val chip = TextView(this).apply {
+                text = label
+                textSize = 12.5f
+                tag = tool
+                setPadding(symDp(10), symDp(6), symDp(10), symDp(6))
+                setOnClickListener {
+                    big.tool = tool
+                    if (tool == AnatomyView.Tool.PILE) askPileLabel(big)
+                    paintFull(tool)
+                }
+            }
+            chips.add(chip); fullChips.add(chip)
+        }
+        chips.add(TextView(this).apply {
+            text = "↺ একটা পিছনে"
+            textSize = 12.5f
+            background = histChipBg(false)
+            setTextColor(android.graphics.Color.parseColor("#5B6B81"))
+            setPadding(symDp(10), symDp(6), symDp(10), symDp(6))
+            setOnClickListener {
+                if (big.markCount() == 0)
+                    Toast.makeText(this@DoctorCheckupActivity, "মোছার মত কিছু নেই", Toast.LENGTH_SHORT).show()
+                else big.undo()
+            }
+        })
+        chips.add(TextView(this).apply {
+            text = "🗑 সব মুছুন"
+            textSize = 12.5f
+            background = histChipBg(false)
+            setTextColor(android.graphics.Color.parseColor("#B3261E"))
+            setPadding(symDp(10), symDp(6), symDp(10), symDp(6))
+            setOnClickListener {
+                if (big.markCount() == 0) {
+                    Toast.makeText(this@DoctorCheckupActivity, "মোছার মত কিছু নেই", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                android.app.AlertDialog.Builder(this@DoctorCheckupActivity)
+                    .setMessage("ছবির সব দাগ মুছে যাবে। মুছব?")
+                    .setNegativeButton("না", null)
+                    .setPositiveButton("হ্যাঁ") { _, _ -> big.clearMarks() }
+                    .show()
+            }
+        })
+        layoutToolChips(bar, chips)
+        paintFull(big.tool)
+        root.addView(bar)
+
+        // ── উপরের দুটো ছোট গোল বোতাম: 🧰 বোতাম লুকান · ✕ বন্ধ ──
+        val topRow = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            layoutParams = android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                android.view.Gravity.TOP or android.view.Gravity.END).apply {
+                setMargins(0, symDp(10), symDp(10), 0)
+            }
+        }
+        fun roundBtn(label: String): TextView = TextView(this).apply {
+            text = label
+            textSize = 16f
+            gravity = android.view.Gravity.CENTER
+            setTextColor(android.graphics.Color.WHITE)
+            background = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.OVAL
+                setColor(android.graphics.Color.parseColor("#33FFFFFF"))
+                setStroke(symDp(1), android.graphics.Color.parseColor("#59FFFFFF"))
+            }
+            /* প্রজেক্টের বাকি সব জায়গার মতোই `setMargins()` — `leftMargin` ঘরটা
+               এই প্রজেক্টে আর কোথাও ব্যবহার হয়নি, তাই কম্পাইল-পাহারা ওটাকে
+               চিনতে না পেরে নতুন ভুল বলে ধরছিল। */
+            layoutParams = android.widget.LinearLayout.LayoutParams(symDp(42), symDp(42)).apply {
+                setMargins(symDp(8), 0, 0, 0)
+            }
+        }
+        val btnBar = roundBtn("🧰").apply {
+            setOnClickListener {
+                bar.visibility = if (bar.visibility == android.view.View.VISIBLE)
+                    android.view.View.GONE else android.view.View.VISIBLE
+            }
+        }
+        topRow.addView(btnBar)
+
+        val dialog = android.app.Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+        val btnClose = roundBtn("✕").apply { setOnClickListener { dialog.dismiss() } }
+        topRow.addView(btnClose)
+        root.addView(topRow)
+
+        /* বন্ধ করার সময় বড় বোর্ডে যা আঁকা হয়েছে সেটাই ছোট বোর্ডে ফেরত যায়।
+           ⛔ লেখাটা (`note`) ছোট বোর্ডেরটাই থাকে — বড় পর্দায় লেখার ঘর নেই,
+              তাই ওখান থেকে ফাঁকা লেখা এসে আগেরটা মুছে দেওয়ার পথ রাখা হয়নি। */
+        dialog.setOnDismissListener {
+            val keepNote = AnatomyModel.parse(small.save()).note
+            small.load(big.save()) { key -> anatomyResId(key) }
+            small.setNote(keepNote)
+            small.tool = big.tool
+            small.pileLabel = big.pileLabel
+            paintAnatomyThumbs(AnatomyModel.parse(small.save()).pic)
+            paintAnatomyTools(small.tool)
+        }
+        dialog.setContentView(root)
+        dialog.show()
     }
 
     /**
@@ -1594,8 +1778,8 @@ class DoctorCheckupActivity : AppCompatActivity() {
      * সেটা ডাক্তার এখানেই বেছে নেন। TK-কে জিজ্ঞাসা করা হয়েছিল কোনটা রাখব;
      * উত্তর না আসা পর্যন্ত **দুটোই** রাখা হল, কোনোটাই নিজে থেকে ঠিক করা হয়নি।
      */
-    private fun askPileLabel() {
-        val view = anatomyView ?: return
+    private fun askPileLabel(target: AnatomyView? = null) {
+        val view = target ?: anatomyView ?: return
         val clock = (1..12).map { "${it}টা" }
         val bangla = listOf("সামনে", "সামনে-ডান", "ডান পাশ", "পিছন-ডান",
                             "পিছনে", "পিছন-বাঁ", "বাঁ পাশ", "সামনে-বাঁ")
