@@ -98,9 +98,13 @@
        ভয় ধরানো ধরনে চারকোনা বাক্স নয় — কিনারা অন্ধকারে মিলিয়ে যায়,
        তাই ছবিটা আঁকা বাক্সের মত না লেগে সত্যিকারের মাংস মনে হয়।       */
     if (SCARY) {
-      var bg = ctx.createRadialGradient(cx, cy - 2.3 * CM, 0.5 * CM, cx, cy - 2.3 * CM, 4.6 * CM);
-      bg.addColorStop(0, C_FAT); bg.addColorStop(0.62, C_FAT2);
-      bg.addColorStop(0.86, 'rgba(60,16,18,0.55)'); bg.addColorStop(1, 'rgba(10,3,4,0)');
+      // ভিতরে লাল মাংস → বাইরে হলদে চর্বি → সবচেয়ে বাইরে বাদামি চামড়া
+      var bg = ctx.createRadialGradient(cx, cy - 2.0 * CM, 0.4 * CM, cx, cy - 2.0 * CM, 4.6 * CM);
+      bg.addColorStop(0.00, '#8C2A26');
+      bg.addColorStop(0.34, '#C08A52');
+      bg.addColorStop(0.62, '#A9724B');
+      bg.addColorStop(0.84, '#7A4E33');
+      bg.addColorStop(1.00, 'rgba(18,8,5,0)');
       ctx.save(); ctx.translate(cx, cy - 2.3 * CM); ctx.scale(1.18, 0.95); ctx.translate(-cx, -(cy - 2.3 * CM));
       ctx.fillStyle = bg;
       ctx.beginPath(); ctx.arc(cx, cy - 2.3 * CM, 4.6 * CM, 0, 6.3); ctx.fill();
@@ -120,6 +124,25 @@
         var ay = cy - 0.3 * CM - ((i * 53) % 45) / 45 * 4.4 * CM;
         ctx.beginPath(); ctx.arc(ax, ay, 5 + (i % 3) * 2, 0, 6.3); ctx.stroke();
       }
+    }
+
+    /* ---- দুই পাছা: এটা দেখলেই বোঝা যায় ছবিটা কিসের ---- */
+    if (SCARY) {
+      [-1, 1].forEach(function (sd) {
+        var bxc = cx + sd * 2.95 * CM, byc = cy - 0.15 * CM;
+        var cg = ctx.createRadialGradient(bxc - sd * 0.5 * CM, byc - 0.7 * CM, 0.2 * CM, bxc, byc, 2.75 * CM);
+        cg.addColorStop(0, '#C79062'); cg.addColorStop(0.55, '#9E6844');
+        cg.addColorStop(0.85, '#6B4229'); cg.addColorStop(1, 'rgba(16,7,4,0)');
+        ctx.save(); ctx.translate(bxc, byc); ctx.scale(1, 1.05); ctx.translate(-bxc, -byc);
+        ctx.fillStyle = cg;
+        ctx.beginPath(); ctx.arc(bxc, byc, 2.75 * CM, 0, 6.3); ctx.fill();
+        ctx.restore();
+      });
+      // দুই পাছার মাঝের খাঁজের ছায়া
+      var cl = ctx.createLinearGradient(cx - 0.9 * CM, 0, cx + 0.9 * CM, 0);
+      cl.addColorStop(0, 'rgba(20,8,6,0)'); cl.addColorStop(0.5, 'rgba(20,8,6,0.55)');
+      cl.addColorStop(1, 'rgba(20,8,6,0)');
+      ctx.fillStyle = cl; ctx.fillRect(cx - 0.9 * CM, cy - 5.0 * CM, 1.8 * CM, 6.0 * CM);
     }
 
     /* ---- চামড়ার কিনারা ---- */
@@ -222,7 +245,7 @@
       var tx = cx + side * 3.05 * CM;
       ctx.strokeStyle = C_PILELINE; ctx.lineWidth = 1.1;
       ctx.beginPath(); ctx.moveTo(cc[0], cc[1]); ctx.lineTo(tx, cc[1]); ctx.stroke();
-      tag(ctx, tx, cc[1], clockText(p.a) + 'টা');
+      if (p.marked !== false) tag(ctx, tx, cc[1], clockText(p.a) + 'টা');
     });
     /* ---- বাইরের পাইলস — দাঁতের রেখার নিচে, মুখের কাছে ---- */
     piles.forEach(function (p) {
