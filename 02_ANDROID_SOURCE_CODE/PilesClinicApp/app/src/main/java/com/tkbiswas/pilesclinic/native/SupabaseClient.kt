@@ -818,28 +818,48 @@ object SupabaseClient {
      *  ⛔ যেসব জায়গায় সংখ্যাটা সোজা পর্দায় বসে (ঘন্টার badge) সেখানে -1 কে 0
      *     ধরা হয়েছে, নইলে পর্দায় উল্টোপাল্টা সংখ্যা দেখাত। */
     /**
-     * 🔵🔒 V513 (২২.০৮.২০২৬, TK-নির্দেশ — Egress): টেবিলের **সবচেয়ে নতুন**
-     * `updatedAt` — মাত্র একটা সারি, একটাই ঘর।
+     * 🔵🔒 V513 (২২.০৮.২০২৬, TK-নির্দেশ — Egress): টেবিলের **"সই"** —
+     * (সারির সংখ্যা, সবচেয়ে নতুন `updatedAt`) — **একটাই ছোট অনুরোধে**।
      *
-     * `CloudListRevalidate` এটা আর `fetchCount()` মিলিয়ে টেবিলের "সই" বানায়:
-     * সই না বদলালে বড় তালিকাটা আর নামানোর দরকার নেই।
+     * `CloudListRevalidate` এই সই দিয়ে ঠিক করে, বড় তালিকাটা আদৌ আবার নামানোর
+     * দরকার আছে কি না। সই না বদলালে একটাও সারি নামে না।
+     *
+     * কেন একটাই অনুরোধ: PostgREST-কে `Prefer: count=exact` বললে সে
+     * `Content-Range` হেডারে **মোট সংখ্যা** পাঠায়, আর body-তে চাওয়া সারিগুলো।
+     * তাই `limit=1` + `order=updatedAt.desc` দিলে **একই উত্তরে** দুটোই পাওয়া
+     * যায় — সংখ্যা (হেডারে) আর সবচেয়ে নতুন সময় (এক সারি, এক ঘর)।
+     * ⇒ প্রতি টেবিলে দুটো নয়, **একটাই** ছোট অনুরোধ।
      *
      * ⛔ ইচ্ছে করে `fetchListOrNull()` দিয়ে নয় — সেটা আবার ঘুরে
      *    `CloudListRevalidate`-এ ঢুকে পড়ত। এটা সরাসরি নেটে যায়।
-     * ⛔ ব্যর্থ হলে / ঘরটা না থাকলে `null` — ডাকার জায়গা তখন আগের মতোই
-     *    পুরো তালিকা নামায়। কখনো ফাঁকা-স্ট্রিং "সব ঠিক আছে" বোঝায় না।
-     * ⛔ সারিতে `updatedAt` ফাঁকা থাকলেও উত্তর আসে (`nullslast` নয় — সবচেয়ে
-     *    নতুনটাই চাই), তাই ফাঁকা মান পেলে সেটাকে "জানি না" ধরা হয়।
+     * ⛔ ব্যর্থ হলে / `Content-Range` না এলে / `updatedAt` ঘর না থাকলে `null` —
+     *    ডাকার জায়গা তখন আগের মতোই পুরো তালিকা নামায়। কখনো আন্দাজে
+     *    "সব ঠিক আছে" বলা হয় না।
+     * ⛔ টেবিল সত্যিই ফাঁকা হলে সংখ্যা 0 ও সময় `""` — এটাও একটা বৈধ সই।
+     * ⛔ `fetchCount()` ও অন্য কোনো ফাংশন ছোঁয়া হয়নি।
      */
-    fun fetchMaxUpdatedAtOrNull(table: String, filter: String? = null): String? {
+    fun fetchListFingerprintOrNull(table: String, filter: String? = null): Pair<Int, String>? {
         return try {
             val filterPart = if (filter != null) "&$filter" else ""
             val url = "$URL/rest/v1/$table?select=updatedAt&order=updatedAt.desc.nullslast&limit=1$filterPart"
-            val body = fetchBodyOrNull(url) ?: return null
-            val arr = JSONArray(body)
-            if (arr.length() == 0) return ""      // সত্যিই একটাও সারি নেই — এটাও একটা বৈধ সই
-            val v = arr.optJSONObject(0)?.optString("updatedAt", "") ?: return null
-            if (v.isBlank()) null else v
+            val request = Request.Builder()
+                .url(url)
+                .addHeader("apikey", KEY)
+                .addHeader("Authorization", "Bearer $KEY")
+                .addHeader("Prefer", "count=exact")
+                .get()
+                .build()
+            http.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return null
+                val range = response.header("Content-Range") ?: return null
+                val count = range.substringAfter("/").toIntOrNull() ?: return null
+                if (count < 0) return null
+                val body = response.body?.string() ?: return null
+                val arr = JSONArray(body)
+                if (arr.length() == 0) return if (count == 0) Pair(0, "") else null
+                val v = arr.optJSONObject(0)?.optString("updatedAt", "") ?: return null
+                if (v.isBlank()) null else Pair(count, v)
+            }
         } catch (e: Exception) {
             null
         }

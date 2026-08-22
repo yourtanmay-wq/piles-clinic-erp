@@ -22,14 +22,15 @@ package com.tkbiswas.pilesclinic.native
  * অথচ বেশিরভাগ বারেই টেবিলে **একটা সারিও বদলায়নি** — একই তথ্য বারবার নামে।
  *
  * ─── এখন কী হয় ─────────────────────────────────────────────────────────────
- * বড় তালিকা নামানোর আগে **দুটো ছোট প্রশ্ন** করা হয় (দুটোর উত্তরই কয়েকশো
- * বাইট, একটাও সারি নামে না):
+ * বড় তালিকা নামানোর আগে **একটা ছোট প্রশ্ন** করা হয় (উত্তর কয়েকশো বাইট,
+ * তালিকার একটাও সারি নামে না) — দুটো তথ্য একসঙ্গে:
  *
- *   ১. **কতগুলো সারি আছে?** — `HEAD` + `Prefer: count=exact`. উত্তর আসে শুধু
- *      `Content-Range` হেডারে, **body একদম ফাঁকা**। (এই পথটা অ্যাপে আগে
- *      থেকেই আছে — `SupabaseClient.fetchCount`, TK-অনুমোদিত ২০২৬-০৭-২৩।)
- *   ২. **সবচেয়ে নতুন `updatedAt` কোনটা?** — `limit=1`, একটাই ঘর। **এক সারি।**
+ *   • **কতগুলো সারি আছে?** — `Prefer: count=exact` বললে PostgREST মোট সংখ্যাটা
+ *     `Content-Range` হেডারে পাঠায়।
+ *   • **সবচেয়ে নতুন `updatedAt` কোনটা?** — `limit=1`, একটাই ঘর। **এক সারি।**
  *
+ * দুটোই **একই অনুরোধে** পাওয়া যায় (`SupabaseClient.fetchListFingerprintOrNull`)
+ * — তাই টেবিলপ্রতি খরচ **একটাই ছোট অনুরোধ**।
  * এই দুটো মিলিয়ে টেবিলের একটা "সই" (fingerprint)। গতবার যে সই ছিল সেটার
  * সঙ্গে হুবহু মিলে গেলে ⇒ **একটা সারিও বদলায়নি** ⇒ গতবারের জমানো উত্তরটাই
  * ফেরত দেওয়া হয়। এক ফোঁটাও নতুন ডেটা নামে না।
@@ -179,16 +180,16 @@ object CloudListRevalidate {
             val cached = probes[key]
             if (cached != null && now - cached.at <= PROBE_TTL_MS) return cached
         }
-        val count = try { SupabaseClient.fetchCount(table, filter) } catch (_: Throwable) { -1 }
-        if (count < 0) return null                               // "জানি না" ⇒ পুরোটা নামুক
-        val stamp = try { SupabaseClient.fetchMaxUpdatedAtOrNull(table, filter) } catch (_: Throwable) { null }
+        val fp = try { SupabaseClient.fetchListFingerprintOrNull(table, filter) } catch (_: Throwable) { null }
+        val count = fp?.first ?: -1
+        val stamp = fp?.second
         /* 🔴🔒 খাতার সারি B446-এর শিক্ষা এখানেও মানা হয়েছে: **"একবার ব্যর্থ হলে
            আর কোনোদিন চেষ্টা কোরো না"** — এই ধরনের শর্টকাট এই প্রজেক্টে আগে
            একবার আসল বাগ তৈরি করেছিল। তাই এখানে টেবিলটাকে স্থায়ীভাবে বাদ দেওয়া
            হয় **না**। এবারের মতো সই পাওয়া গেল না ⇒ এবার পুরো তালিকাই নামবে
            (আগের আচরণ), আর পরের বার আবার চেষ্টা হবে।
            খরচ: `updatedAt` ঘর নেই এমন টেবিলে প্রতিবার একটা ছোট অনুরোধ — নগণ্য। */
-        if (stamp == null) return null
+        if (stamp == null || count < 0) return null
         val p = Probe(now, count, stamp)
         synchronized(lock) { probes[key] = p }
         return p
