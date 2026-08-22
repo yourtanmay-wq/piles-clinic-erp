@@ -40,6 +40,12 @@ class PrescriptionActivity : AppCompatActivity() {
         val rv = findViewById<RecyclerView>(R.id.rvMedicines)
         rv.layoutManager = LinearLayoutManager(this)
 
+        /* 🔴🔵🔒 V537 (২২.০৮.২০২৬, TK-রিপোর্ট) — **দ্বিতীয় পাহারা।**
+           কেন্দ্রীয় পাহারাটা `RoleSession.applyFrom()`-এ আছে; কোনো কারণে
+           সেটা না চললেও (যেমন পর্দাটা সরাসরি খোলা হলে) এখানে আরেকবার
+           দেখা হয় — তালিকাটা কি সত্যিই **এই** রোগীর?
+           ⛔ একই রোগী হলে কিচ্ছু হয় না, চলতি কাজ কখনো মুছবে না। */
+        ClinicalRepository.ensureListsBelongTo(RoleSession.currentPatientId)
         adapter = PrescriptionAdapter(ClinicalRepository.currentPrescription, editable) { position ->
             ClinicalRepository.currentPrescription.removeAt(position)
             adapter.notifyItemRemoved(position)

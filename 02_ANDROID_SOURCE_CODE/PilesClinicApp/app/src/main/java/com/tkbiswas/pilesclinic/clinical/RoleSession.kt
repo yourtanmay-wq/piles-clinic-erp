@@ -82,6 +82,17 @@ object RoleSession {
                 currentRole
             }
         }
+        /* 🔴🔵🔒 V537 (২২.০৮.২০২৬, TK-রিপোর্ট) — **আগের রোগীর ওষুধ আর সঙ্গে
+           যাবে না।** রোগী খোলার প্রতিটা পথ (Doctor Queue · Chamber · Global
+           Search · Timeline · Follow-up) এই ফাংশনটা দিয়েই যায় — তাই পাহারাটা
+           এখানেই, এক জায়গায়।
+           ⛔ **একই রোগী হলে কিচ্ছু হয় না** — চলতি প্রেসক্রিপশন কখনো মুছবে না।
+           ⛔ `patientId` ফাঁকা এলেও কিছু হয় না (আগের মতোই)। */
+        val incomingPatient = patientId?.trim().orEmpty()
+        if (incomingPatient.isNotEmpty() && incomingPatient != currentPatientId) {
+            ClinicalRepository.resetForNewPatient()
+            ClinicalRepository.ownerPatientId = incomingPatient
+        }
         if (!patientName.isNullOrBlank()) currentPatientName = patientName
         if (!patientId.isNullOrBlank()) currentPatientId = patientId
         // 🔒 খাতার সারি B175 — মানুষ-পড়া-যায় আইডি আলাদা করে রাখা হচ্ছে।
