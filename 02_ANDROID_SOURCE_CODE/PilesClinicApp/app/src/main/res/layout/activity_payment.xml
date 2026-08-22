@@ -332,16 +332,25 @@
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
-            <TextView
-                android:id="@+id/tvCollectionLabel"
-                android:layout_width="wrap_content"
+            <!-- 🔵 V552 (২২.০৮.২০২৬, TK-নির্দেশ ছবিসহ): *"today's collection এটা একটা
+                 সার্চ বক্সের মধ্যে লিখিত থাকবে, কিন্তু সার্চ বক্সে চাপ দিলে যেন পেশেন্টের
+                 জিনিসটা সার্চ করা যায় — কোন পেশেন্ট আজকে কত জমা করল আমি যেন খুঁজে পাই।"*
+                 লেখাটা এখন ঘরের ভিতরের hint; চাপ দিলেই নাম/মোবাইল/ID দিয়ে খোঁজা যায়।
+                 ⛔ নকশা নতুন বানানো হয়নি — প্রজেক্টের নিজের সার্চ ঘরের হুবহু একই সাজ
+                    (bg_input_field · প্যাডিং ৮ · এক লাইন · ১৪sp), যেমন Follow-up পর্দায়। -->
+            <EditText
+                android:id="@+id/etCollectionSearch"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="20dp"
                 android:layout_marginBottom="4dp"
-                android:text="Today's Collection"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:textColor="@color/brand_navy" />
+                android:padding="8dp"
+                android:background="@drawable/bg_input_field"
+                android:hint="🔍 Today's Collection"
+                android:inputType="text"
+                android:maxLines="1"
+                android:imeOptions="actionSearch"
+                android:textSize="14sp" />
 
             <ProgressBar
                 android:id="@+id/progressLoad"

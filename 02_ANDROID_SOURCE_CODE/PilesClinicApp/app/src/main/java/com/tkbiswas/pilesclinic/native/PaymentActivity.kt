@@ -152,6 +152,13 @@ class PaymentActivity : AppCompatActivity() {
         binding.recyclerView.layoutManager = LinearLayoutManager(this)
         binding.recyclerView.adapter = adapter
 
+        // 🔵 V552: খোঁজার ঘরে লিখলেই নিচের তালিকা ছাঁকনি হয় (উপরের কার্ড অটুট)
+        binding.etCollectionSearch.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) { applyCollectionFilter() }
+        })
+
         binding.btnBack.setOnClickListener { finish() }
         binding.btnAddPayment.setOnClickListener { showSearchPatientDialog() }
         binding.btnMedicinePayment.setOnClickListener { startActivity(Intent(this, MedicinePaymentActivity::class.java)) }
@@ -282,7 +289,8 @@ class PaymentActivity : AppCompatActivity() {
             // তারিখ নয়: আজ হলে "Today's Collection", অন্য দিন হলে শুধু "Collection"।
             // ⛔ শুধু লেবেল — টাকার হিসাব/তারিখ-বাছাই কিছুই বদলায়নি।
             binding.tvSummaryLabel.visibility = View.GONE
-            binding.tvCollectionLabel.text = if (isToday) "Today's Collection" else "Collection"
+            // 🔵 V552: লেখাটা এখন সার্চ ঘরের ভিতরের hint — নিয়ম আগেরটাই
+            binding.etCollectionSearch.hint = if (isToday) "🔍 Today's Collection" else "🔍 Collection"
         }
         refreshDateText()
         binding.tvDatePick.setOnClickListener {
@@ -354,6 +362,42 @@ class PaymentActivity : AppCompatActivity() {
         }
     }
 
+    /* ═══════════════════════════════════════════════════════════
+       🔵 V552 (২২.০৮.২০২৬, TK-নির্দেশ ছবিসহ): *"today's collection এটা একটা সার্চ
+       বক্সের মধ্যে লিখিত থাকবে ... কোন পেশেন্ট আজকে কত জমা করল আমি যেন সার্চ করে
+       খুঁজে পাই।"*
+       খোঁজা হয় সারিতে যা **চোখে দেখা যায়** ঠিক তাই ধরে — নাম · মোবাইল · Patient ID।
+       ⛔ TK-এর সিদ্ধান্ত: **উপরের বড় টাকার কার্ডটা কখনো বদলায় না** — ওটা সবসময়
+          ওই দিনের পুরো হিসাব (মোট · Cash · Online · Transactions · Patients)।
+          তাই কেউ লেখা মুছতে ভুলে গেলেও দিনের হিসাব ভুল দেখার ভয় নেই।
+       ⛔ টাকার কোনো হিসাব · সাজানোর ক্রম · সারিতে চাপ দেওয়ার কাজ — কিছুই বদলায়নি,
+          শুধু নিচের তালিকায় কোনগুলো দেখানো হবে সেটুকু। */
+    private var collectionAll: List<CollectionRow> = emptyList()
+
+    private fun collectionMatches(row: CollectionRow, query: String): Boolean {
+        val q = query.trim().lowercase()
+        if (q.isEmpty()) return true
+        // 🔵 V552: +91 বা ফাঁক দিয়ে লিখলেও যেন মেলে — প্রজেক্টের নিজের নিয়মেই
+        //          নম্বরের শেষ ১০ সংখ্যা ধরা হয়।
+        val qDigits = q.filter { it.isDigit() }.let { if (it.length > 10) it.takeLast(10) else it }
+        if (row.name.lowercase().contains(q)) return true
+        if (row.patientId.lowercase().contains(q)) return true
+        if (qDigits.isNotEmpty() && row.mobile.filter { it.isDigit() }.contains(qDigits)) return true
+        return false
+    }
+
+    private fun applyCollectionFilter() {
+        val q = binding.etCollectionSearch.text?.toString().orEmpty()
+        val shown = if (q.isBlank()) collectionAll else collectionAll.filter { collectionMatches(it, q) }
+        adapter.updateItems(shown)
+        if (collectionAll.isNotEmpty() && shown.isEmpty()) {
+            binding.tvEmpty.text = "No patient found for \"" + q.trim() + "\""
+            binding.tvEmpty.visibility = View.VISIBLE
+        } else if (collectionAll.isNotEmpty()) {
+            binding.tvEmpty.visibility = View.GONE
+        }
+    }
+
     private fun renderCollectionSummary(rows: List<CollectionRow>) {
         val total = rows.sumOf { it.amount }
         // 🔒 V452 (19.08.2026, TK-approved A): a same-day Treatment Payment may
@@ -383,6 +427,7 @@ class PaymentActivity : AppCompatActivity() {
             // তারিখ/ব্রাঞ্চের পুরনো এন্ট্রি "No collection" লেখার ঠিক
             // নিচেই দেখা যেত — বিভ্রান্তিকর, মনে হতো টাকা আছে অথচ Summary
             // ₹0। এখন তালিকাও একইসাথে ফাঁকা করা হয়।
+            collectionAll = emptyList()          // 🔵 V552
             adapter.updateItems(emptyList())
         } else {
             binding.tvEmpty.visibility = View.GONE
@@ -394,8 +439,13 @@ class PaymentActivity : AppCompatActivity() {
             val firstPos = lm?.findFirstVisibleItemPosition() ?: -1
             val firstOffset = if (firstPos >= 0) (lm?.findViewByPosition(firstPos)?.top ?: 0) else 0
             val sorted = rows.sortedByDescending { it.date }
-            adapter.updateItems(sorted)
-            if (firstPos in 0 until sorted.size) lm?.scrollToPositionWithOffset(firstPos, firstOffset)
+            /* 🔵 V552: পুরো দিনের তালিকাটা এখানে রাখা থাকে; পর্দায় যায় ছাঁকনি-করা কপি।
+               খোঁজার ঘর ফাঁকা থাকলে `applyCollectionFilter()` হুবহু এই `sorted`-ই দেয়,
+               তাই স্ক্রোলের জায়গা ধরে রাখার পুরোনো নিয়মও আগের মতোই কাজ করে। */
+            collectionAll = sorted
+            applyCollectionFilter()
+            if (binding.etCollectionSearch.text.isNullOrBlank() && firstPos in 0 until sorted.size)
+                lm?.scrollToPositionWithOffset(firstPos, firstOffset)
         }
     }
 
