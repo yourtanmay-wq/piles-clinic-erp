@@ -34,6 +34,14 @@ data class CollectionRow(
        ⛔ ঐচ্ছিক — পুরোনো/স্থানীয় সারিতে না থাকলে `time` লেখা থেকেই সময় বার
           করা হয় (`sortKeyOf`), তাই কোনো সারি হারায় না। */
     val paidAt: String = "",
+    /* 🔴🔒 V566 (TK, ২২.০৮.২০২৬): *"এখানেও যদি কোন আরএমপির পেশেন্ট হয়ে থাকে
+       অথবা আনএক্সপেক্টেড টাইমের পেশেন্ট হয়ে থাকে সেটাও যেন শো করে"* —
+       রোগীর সারিতে তথ্যগুলো আগে থেকেই আছে (`refBy` · `refDoctor` · `timeType`),
+       তাই নতুন কোনো কলাম লাগেনি; শুধু কার্ড পর্যন্ত আনা হল।
+       ⛔ ফাঁকা হলে কার্ডে কিছুই বসে না। */
+    val refBy: String = "",
+    val refDoctor: String = "",
+    val timeType: String = "",
     // 🔒 V452 WORKING (19.08.2026, TK-approved): এক রোগী + এক calendar day =
     // এক Treatment Payment। Cash/Online একই দিনের এক row-তে যোগ হলেও দুটো
     // হিসাব আলাদা থাকে। পুরনো row-এ এই ঘর না থাকলে mode+amount থেকেই safely
@@ -420,6 +428,25 @@ object PaymentModel {
     /** 🔵 B612 (10.08.2026): ISO createdAt ("...T15:42:10.123Z") থেকে ১২-ঘণ্টার
      *  সময় ("3:42 PM")। isoNow() ডিভাইসের নিজের সময়েই লেখে (IST), 'Z' শুধু
      *  অক্ষর — তাই পড়াও একই ধাঁচে, timezone-বদল লাগে না। ফাঁকা/ভুল হলে "" ফেরে। */
+    /**
+     * 🔴 V566: কার্ডে RMP-র চিপে কী লেখা হবে।
+     * রেজিস্ট্রেশনে "Referred By" ডাক্তার/RMP হলে তবেই — Self/Online/Offline
+     * ইত্যাদি হলে কিছুই নয়। ডাক্তারের নাম জানা থাকলে নামটাই দেখানো হয়,
+     * নইলে শুধু "RMP"।
+     */
+    fun rmpTagOf(refBy: String, refDoctor: String): String {
+        val by = refBy.trim()
+        val isDoctor = by.equals("Dr. Visit", true) || by.equals("Dr Visit", true) ||
+            by.equals("RMP", true) || by.contains("Doctor", true)
+        if (!isDoctor && refDoctor.isBlank()) return ""
+        val nm = refDoctor.trim()
+        return if (nm.isNotBlank()) "RMP · " + nm.uppercase(Locale.US) else "RMP"
+    }
+
+    /** 🔴 V566: অফিসের সময়ের বাইরে আসা রোগী হলে চিপ। */
+    fun unexpectedTagOf(timeType: String): String =
+        if (timeType.trim().equals("Unexpected Time", true)) "অসময়" else ""
+
     /** দুটো সময়ের মধ্যে যেটা আগে। ফাঁকা হলে অন্যটা। */
     fun earlierPaidAt(a: String, b: String): String {
         if (a.isBlank()) return b

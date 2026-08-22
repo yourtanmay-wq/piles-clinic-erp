@@ -359,7 +359,11 @@ class PaymentRepository(private val context: Context? = null) {
                 r.copy(
                     patientId = if (r.patientId.isNotBlank()) r.patientId else p.s("patientId"),
                     disease = if (r.disease.isNotBlank()) r.disease else p.s("disease"),
-                    address = if (r.address.isNotBlank()) r.address else buildAddr(p)
+                    address = if (r.address.isNotBlank()) r.address else buildAddr(p),
+                    // 🔵 V566: RMP ও অসময়ের রোগী — রোগীর সারিতেই আছে
+                    refBy = if (r.refBy.isNotBlank()) r.refBy else p.s("refBy"),
+                    refDoctor = if (r.refDoctor.isNotBlank()) r.refDoctor else p.s("refDoctor"),
+                    timeType = if (r.timeType.isNotBlank()) r.timeType else p.s("timeType")
                 )
             }
         } catch (_: Throwable) {

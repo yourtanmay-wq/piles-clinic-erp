@@ -27,7 +27,7 @@
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:padding="12dp">
+            android:padding="8dp">
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -63,6 +63,37 @@
                         android:textStyle="bold"
                         android:visibility="gone"
                         android:textColor="#B0392B" />
+
+                    <!-- 🔴🔒 V566 (TK, ২২.০৮.২০২৬): *"এখানেও যদি কোন আরএমপির
+                         পেশেন্ট হয়ে থাকে অথবা আনএক্সপেক্টেড টাইমের পেশেন্ট
+                         হয়ে থাকে সেটাও যেন শো করে"* — রোগের চিপের ঠিক পাশে
+                         দুটো ছোট চিপ। ⛔ না থাকলে বসে না (খালি চিপ কখনো নয়)। -->
+                    <TextView
+                        android:id="@+id/tvRmpTag"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="5dp"
+                        android:paddingHorizontal="7dp"
+                        android:paddingVertical="2dp"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:maxLines="1"
+                        android:ellipsize="end"
+                        android:visibility="gone"
+                        android:textColor="#0B4F2A" />
+
+                    <TextView
+                        android:id="@+id/tvTimeTag"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="5dp"
+                        android:paddingHorizontal="7dp"
+                        android:paddingVertical="2dp"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:maxLines="1"
+                        android:visibility="gone"
+                        android:textColor="#8A5B00" />
                 </LinearLayout>
 
                 <TextView
@@ -71,7 +102,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="3dp"
                     android:text="9000000000"
-                    android:textSize="12.5sp"
+                    android:textSize="11.5sp"
                     android:textColor="@color/clinic_text_secondary" />
 
                 <!-- 🔵 B611 (10.08.2026, TK-অনুমোদিত প্রুফ): Patient ID এখন নিজের
@@ -150,7 +181,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="₹0"
-                    android:textSize="15sp"
+                    android:textSize="14sp"
                     android:textStyle="bold"
                     android:textColor="@color/clinic_accent_green" />
 
@@ -170,7 +201,7 @@
                     android:id="@+id/tvTime"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
+                    android:layout_marginTop="2dp"
                     android:text="3:42 PM"
                     android:textSize="10.5sp"
                     android:textStyle="bold"

@@ -5819,3 +5819,10 @@ button.card.reportKpi span, .card.reportKpi span, button.card.reportKpi small, .
    হিসাব-লাইনের ঠিক উপরে। ⛔ কোনো মোট থেকে বাদ যায় না। */
 .cbRegRmpDue{margin-top:3mm;font-size:10.5px;font-weight:800;color:#B42318;text-align:left;white-space:nowrap}
 @media print{.cbRegRmpDue{position:absolute;left:6mm;right:6mm;bottom:11mm;margin:0}}
+
+/* 🔴🔒 V566 (TK, ২২.০৮.২০২৬) — Payment সারিতে নামের পাশে RMP ও "অসময়" চিপ।
+   রঙ ফোনের CollectionAdapter-এর হুবহু একই। */
+.payRmpChip{display:inline-block;margin-left:5px;padding:1px 7px;border-radius:20px;
+  background:#E8F6EC;border:1px solid #BFE9CE;color:#0B4F2A;font-size:10px;font-weight:700;vertical-align:middle}
+.payTimeChip{display:inline-block;margin-left:5px;padding:1px 7px;border-radius:20px;
+  background:#FFF6E5;border:1px solid #F0D9A8;color:#8A5B00;font-size:10px;font-weight:700;vertical-align:middle}

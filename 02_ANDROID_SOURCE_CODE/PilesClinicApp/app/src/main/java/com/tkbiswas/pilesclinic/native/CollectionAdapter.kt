@@ -93,6 +93,31 @@ class CollectionAdapter(
             }
             holder.binding.tvDisease.visibility = android.view.View.VISIBLE
         } else holder.binding.tvDisease.visibility = android.view.View.GONE
+
+        /* 🔴🔒 V566 (TK, ২২.০৮.২০২৬): *"এখানেও যদি কোন আরএমপির পেশেন্ট হয়ে
+           থাকে অথবা আনএক্সপেক্টেড টাইমের পেশেন্ট হয়ে থাকে সেটাও যেন শো করে"*
+           ⛔ যেটা নেই সেটার চিপ বসে না — খালি চিপ কখনো দেখানো হয় না। */
+        val rmpTag = PaymentModel.rmpTagOf(item.refBy, item.refDoctor)
+        if (rmpTag.isNotBlank()) {
+            holder.binding.tvRmpTag.text = rmpTag
+            holder.binding.tvRmpTag.background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = 20f
+                setColor(android.graphics.Color.parseColor("#E8F6EC"))
+                setStroke(1, android.graphics.Color.parseColor("#BFE9CE"))
+            }
+            holder.binding.tvRmpTag.visibility = android.view.View.VISIBLE
+        } else holder.binding.tvRmpTag.visibility = android.view.View.GONE
+
+        val timeTag = PaymentModel.unexpectedTagOf(item.timeType)
+        if (timeTag.isNotBlank()) {
+            holder.binding.tvTimeTag.text = timeTag
+            holder.binding.tvTimeTag.background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = 20f
+                setColor(android.graphics.Color.parseColor("#FFF6E5"))
+                setStroke(1, android.graphics.Color.parseColor("#F0D9A8"))
+            }
+            holder.binding.tvTimeTag.visibility = android.view.View.VISIBLE
+        } else holder.binding.tvTimeTag.visibility = android.view.View.GONE
         if (item.address.isNotBlank()) {
             holder.binding.tvAddress.text = "📍 " + addrTwoLines(item.address)
             holder.binding.tvAddress.visibility = android.view.View.VISIBLE
