@@ -176,6 +176,75 @@ class WorkNotebookActivity : AppCompatActivity() {
     // স্টাফকে একবার বেছে দিতে হয় (ফোন নিজে থেকে "কোন SIM কার নম্বর" এটা
     // নির্ভরযোগ্যভাবে বলতে পারে না — Android-এর সীমাবদ্ধতা, সব ফোনে/
     // অপারেটরে এক না)। বাছাই এই ফোনে একবারই মনে থাকে (SharedPreferences)।
+    /**
+     * 🔴🔴🔒 V519 (২২.০৮.২০২৬, TK-রিপোর্ট ছবিসহ — *"ক্লিনিকে চলে এসেছে, তারপরও
+     * হাজিরা দিতে পারছে না"*)।
+     *
+     * **আসল কারণ (কোড ধরে প্রমাণিত, আন্দাজ নয়):** `ClinicPresence.check()`
+     * অনুমতি না থাকলে শুধু **"অনুমতি নেই" বলে** — কিন্তু অ্যাপ কোথাও
+     * Location-এর অনুমতি **চাইতই না** (পুরো প্রজেক্ট খুঁজে দেখা হয়েছে:
+     * `ACCESS_FINE_LOCATION` শুধু Manifest-এ ঘোষণা করা ছিল, একটাও
+     * `requestPermissions`/launcher ছিল না)। ফলে পর্দায় লেখা উঠত
+     * *"অনুমতি দিয়ে আবার চেষ্টা করুন"*, অথচ **অনুমতি দেওয়ার কোনো পথই
+     * স্টাফের সামনে খুলত না** — "আবার চেষ্টা" চাপলে হুবহু একই বার্তা।
+     * ⇒ ক্লিনিকে দাঁড়িয়ে থেকেও হাজিরা দেওয়া অসম্ভব ছিল।
+     *
+     * **এখন:** অনুমতি না থাকলে ফোনের নিজের অনুমতি-বাক্স খোলে; স্টাফ
+     * "Allow" চাপলে **সঙ্গে সঙ্গে হাজিরার কাজটা আবার নিজে থেকেই চলে**।
+     * আগে "Don't ask again" চাপা থাকলে ফোন আর বাক্স দেখায় না — তখন
+     * **Open Settings** বোতাম দিয়ে সরাসরি অ্যাপের Settings পাতায় নেওয়া হয়।
+     *
+     * ⛔ GPS-এর পাহারা এক চুলও দুর্বল হয়নি — দূরত্ব · নকল-অবস্থান · নির্ভুলতা
+     *    সব যাচাই আগের মতোই। শুধু **অনুমতি চাওয়ার পথটা** যোগ হলো।
+     */
+    private var afterLocationPermission: (() -> Unit)? = null
+
+    private val requestLocationPermission =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+            val granted = result[android.Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                result[android.Manifest.permission.ACCESS_COARSE_LOCATION] == true
+            val next = afterLocationPermission
+            afterLocationPermission = null
+            if (granted) {
+                // অনুমতি পাওয়া গেছে — স্টাফকে আর কিছু চাপতে হবে না।
+                next?.invoke()
+            } else {
+                inTimeMessage(
+                    "Location permission",
+                    "Attendance cannot be marked without Location permission.\n\n" +
+                        "If the permission box did not appear, please open Settings and allow " +
+                        "Location for this app, then try again.",
+                    "#A8281C",
+                    retry = if (next != null) ({ next() }) else null,
+                    extraLabel = "Open Settings",
+                    extra = { openAppSettings() }
+                )
+            }
+        }
+
+    /** অ্যাপের নিজের Settings পাতা — সেখান থেকে হাতে অনুমতি দেওয়া যায়। */
+    private fun openAppSettings() {
+        try {
+            startActivity(
+                android.content.Intent(
+                    android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    android.net.Uri.fromParts("package", packageName, null)
+                )
+            )
+        } catch (_: Throwable) {
+            android.widget.Toast.makeText(this, "Could not open Settings", android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
+
+    /** ফোনের Location চালু/বন্ধ করার পাতা। */
+    private fun openLocationSettings() {
+        try {
+            startActivity(android.content.Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+        } catch (_: Throwable) {
+            android.widget.Toast.makeText(this, "Could not open Location settings", android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
+
     private val requestCallLogPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (granted) requestPhoneStatePermission.launch(android.Manifest.permission.READ_PHONE_STATE)
@@ -1486,9 +1555,10 @@ class WorkNotebookActivity : AppCompatActivity() {
             val b = androidx.appcompat.app.AlertDialog.Builder(this)
                 .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, title))
                 .setMessage(NoBengali.s(message))
-            if (retry != null) b.setPositiveButton(NoBengali.s("আবার চেষ্টা")) { _, _ -> retry() }
-            if (extra != null && extraLabel != null) b.setNeutralButton(NoBengali.s(extraLabel)) { _, _ -> extra() }
-            b.setNegativeButton(NoBengali.s("বন্ধ"), null)
+            // 🔤 V519 (TK-নির্দেশ): হাজিরার এই বাক্সের বোতাম সব ব্রাঞ্চেই ইংরেজি।
+            if (retry != null) b.setPositiveButton("Try again") { _, _ -> retry() }
+            if (extra != null && extraLabel != null) b.setNeutralButton(extraLabel) { _, _ -> extra() }
+            b.setNegativeButton("Close", null)
             com.tkbiswas.pilesclinic.native.PremiumAlert.paint(b.show())
         } catch (_: Throwable) {
             android.widget.Toast.makeText(this, NoBengali.s(message), android.widget.Toast.LENGTH_LONG).show()
@@ -1507,13 +1577,41 @@ class WorkNotebookActivity : AppCompatActivity() {
         }
 
         // ধাপ ৩ — ক্লিনিকে আছেন কিনা (GPS)
-        android.widget.Toast.makeText(this, NoBengali.s("ক্লিনিকে আছেন কিনা দেখা হচ্ছে…"), android.widget.Toast.LENGTH_SHORT).show()
+        // 🔤 V519 (TK-নির্দেশ): এই পর্দার লেখা সব ব্রাঞ্চেই ইংরেজি।
+        android.widget.Toast.makeText(this, "Checking whether you are at the clinic...", android.widget.Toast.LENGTH_SHORT).show()
         com.tkbiswas.pilesclinic.native.ClinicPresence.check(this, user?.branch) { presence ->
             if (!presence.ok) {
+                /* 🔴🔴🔒 V519 (TK-রিপোর্ট): অনুমতি না থাকলে আগে শুধু বার্তা দেখাত,
+                   আর "আবার চেষ্টা" চাপলেও হুবহু একই বার্তা — কারণ অ্যাপ অনুমতি
+                   **চাইতই না**। এখন ফোনের নিজের অনুমতি-বাক্স খোলে, আর "Allow"
+                   চাপলে হাজিরার কাজটা **নিজে থেকেই আবার চলে**।
+                   ⛔ GPS-এর যাচাই এক চুলও বদলায়নি। */
+                if (presence.reason == com.tkbiswas.pilesclinic.native.ClinicPresence.Reason.NO_PERMISSION) {
+                    afterLocationPermission = { startInTimeFlow(onSaved) }
+                    try {
+                        requestLocationPermission.launch(
+                            arrayOf(
+                                android.Manifest.permission.ACCESS_FINE_LOCATION,
+                                android.Manifest.permission.ACCESS_COARSE_LOCATION
+                            )
+                        )
+                    } catch (_: Throwable) {
+                        afterLocationPermission = null
+                        inTimeMessage("Location permission", presence.message, "#A8281C",
+                            retry = { startInTimeFlow(onSaved) },
+                            extraLabel = "Open Settings", extra = { openAppSettings() })
+                    }
+                    return@check
+                }
                 val canRetry = presence.reason != com.tkbiswas.pilesclinic.native.ClinicPresence.Reason.NOT_CONFIGURED &&
                     presence.reason != com.tkbiswas.pilesclinic.native.ClinicPresence.Reason.UNKNOWN_BRANCH
-                inTimeMessage("ক্লিনিকে আছেন কিনা", presence.message, "#A8281C",
-                    retry = if (canRetry) ({ startInTimeFlow(onSaved) }) else null)
+                /* ফোনের Location বন্ধ থাকলেও স্টাফ আটকে যেতেন — এখন সরাসরি
+                   Location-এর পাতায় যাওয়ার বোতাম আছে। */
+                val offSwitch = presence.reason == com.tkbiswas.pilesclinic.native.ClinicPresence.Reason.LOCATION_OFF
+                inTimeMessage("At the clinic?", presence.message, "#A8281C",
+                    retry = if (canRetry) ({ startInTimeFlow(onSaved) }) else null,
+                    extraLabel = if (offSwitch) "Open Settings" else null,
+                    extra = if (offSwitch) ({ openLocationSettings() }) else null)
                 return@check
             }
             // ধাপ ৪ — আঙুলের ছাপ
@@ -1555,7 +1653,7 @@ class WorkNotebookActivity : AppCompatActivity() {
 
     /** ধাপ ৫ — সার্ভারই সব ঠিক করে; অ্যাপ কিছু পাঠায় না, কিছু ঠিকও করে না। */
     private fun saveInTimeOnServer(onSaved: () -> Unit) {
-        android.widget.Toast.makeText(this, NoBengali.s("হাজিরা সেভ হচ্ছে…"), android.widget.Toast.LENGTH_SHORT).show()
+        android.widget.Toast.makeText(this, "Saving attendance..."   /* 🔤 V519 */, android.widget.Toast.LENGTH_SHORT).show()
         Thread {
             val res = AttendanceRepository.markCheckIn(this)
             runOnUiThread {
@@ -1565,23 +1663,23 @@ class WorkNotebookActivity : AppCompatActivity() {
                         if (res.checkIn.isNotBlank()) day.put("check_in", res.checkIn)
                         markReminderFlag("in", true)
                         android.widget.Toast.makeText(this,
-                            NoBengali.s(res.message.ifBlank { "হাজিরা হয়ে গেছে।" }),
+                            res.message.ifBlank { "Attendance done." },   // 🔤 V519
                             android.widget.Toast.LENGTH_LONG).show()
                         onSaved()
                     }
                     AttendanceRepository.Status.ON_LEAVE -> {
                         markReminderFlag("in", true)
-                        inTimeMessage("আজ ছুটি", res.message, "#0A5C33")
+                        inTimeMessage("On leave today", res.message, "#0A5C33")   // 🔤 V519
                         render()
                     }
                     AttendanceRepository.Status.NOT_STAFF ->
                         inTimeMessage("IN TIME", res.message, "#0B2B59")
                     AttendanceRepository.Status.INACTIVE, AttendanceRepository.Status.SUSPENDED -> {
                         // মাস্টার বন্ধ করে দিয়েছেন — সার্ভারই জানাল (TK §১১)
-                        inTimeMessage("অ্যাকাউন্ট বন্ধ", res.message, "#A8281C")
+                        inTimeMessage("Account closed", res.message, "#A8281C")   // 🔤 V519
                     }
                     AttendanceRepository.Status.NETWORK, AttendanceRepository.Status.ERROR, AttendanceRepository.Status.NO_PROFILE ->
-                        inTimeMessage("হাজিরা", res.message.ifBlank { "এখন সেভ করা গেল না।" },
+                        inTimeMessage("Attendance", res.message.ifBlank { "Could not save right now." },   // 🔤 V519
                             "#A8620B", retry = { saveInTimeOnServer(onSaved) })
                 }
             }

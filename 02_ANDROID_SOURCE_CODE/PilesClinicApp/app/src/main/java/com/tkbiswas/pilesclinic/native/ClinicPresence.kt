@@ -61,29 +61,43 @@ object ClinicPresence {
     /** এর চেয়ে বেশি অনিশ্চিত অবস্থান দিয়ে সিদ্ধান্ত নেওয়া হয় না (মিটার)। */
     private const val MAX_ACCURACY_M = 100f
 
+    /**
+     * 🔤🔒 V519 (২২.০৮.২০২৬, TK-নির্দেশ, ছবিসহ): *"এখানে বাংলায় কিছু লেখা
+     * থাকবে না, এগুলো ইংলিশে থাকবে।"*
+     *
+     * আগে লেখাগুলো বাংলায় ছিল এবং ইংরেজি হত **শুধু `NoBengali` চালু থাকলে**,
+     * অর্থাৎ কেবল কিশানগঞ্জ ব্রাঞ্চের স্টাফের ফোনে (খাতার সারি B158)।
+     * TK-এর পাঠানো ছবিটা **JPE-JALPAI-13**-এর, তাই সেখানে বাংলাই দেখাচ্ছিল।
+     * ⇒ হাজিরার এই লেখাগুলো এখন **সরাসরি ইংরেজিতেই** লেখা — সব ব্রাঞ্চে,
+     *   সব স্টাফের ফোনে এক রকম। (V509-এ আঙুলের ছাপের পর্দায় TK একই
+     *   নির্দেশ দিয়েছিলেন — এটা তারই ধারাবাহিকতা।)
+     * ⛔ কোনো নিয়ম · দূরত্বের হিসাব · GPS পাহারা · ডেটা কিছুই বদলায়নি —
+     *    শুধু পর্দার লেখা।
+     */
     fun messageFor(reason: Reason, point: ClinicLocations.ClinicPoint?, distance: Int?): String =
         when (reason) {
             Reason.INSIDE -> ""
             Reason.OUTSIDE ->
-                "আপনি ক্লিনিকে নেই" +
-                    (if (distance != null) " (প্রায় $distance মিটার দূরে)" else "") +
-                    "। হাজিরা শুধু চেম্বারে এসে দেওয়া যায়।"
+                "You are not at the clinic" +
+                    (if (distance != null) " (about $distance m away)" else "") +
+                    ". Attendance can only be marked at the chamber."
             Reason.NOT_CONFIGURED ->
-                "${point?.displayName ?: "এই ব্রাঞ্চ"}-এর অবস্থান এখনো অ্যাপে বসানো হয়নি। মাস্টারকে জানান — তিনি Fix Attendance দিয়ে হাজিরা বসিয়ে দিতে পারবেন।"
+                "The location of ${point?.displayName ?: "this branch"} has not been set in the app yet. " +
+                    "Please inform the Master - he can mark your attendance using Fix Attendance."
             Reason.NO_PERMISSION ->
-                "হাজিরার জন্য Location-এর অনুমতি দরকার। অনুমতি দিয়ে আবার চেষ্টা করুন।"
+                "Attendance needs Location permission for this app. Please allow it and try again."
             Reason.LOCATION_OFF ->
-                "ফোনের Location বন্ধ আছে। চালু করে আবার চেষ্টা করুন।"
+                "Your phone's Location is turned off. Please turn it on and try again."
             Reason.TIMEOUT ->
-                "অবস্থান পাওয়া গেল না। খোলা জায়গায় গিয়ে বা জানালার কাছে দাঁড়িয়ে আবার চেষ্টা করুন।"
+                "Could not get your location. Please move to an open area or stand near a window and try again."
             Reason.LOW_ACCURACY ->
-                "অবস্থানটা যথেষ্ট নিশ্চিত নয়। একটু অপেক্ষা করে বা জানালার কাছে গিয়ে আবার চেষ্টা করুন।"
+                "Your location is not accurate enough yet. Please wait a moment or move near a window and try again."
             Reason.MOCK_DETECTED ->
-                "নকল অবস্থান ধরা পড়েছে, তাই হাজিরা নেওয়া হয়নি। মাস্টারকে জানানো হবে।"
+                "A fake location was detected, so attendance was not taken. The Master will be informed."
             Reason.UNKNOWN_BRANCH ->
-                "আপনার ব্রাঞ্চ চেনা গেল না। মাস্টারকে জানান।"
+                "Your branch could not be identified. Please inform the Master."
             Reason.ERROR ->
-                "অবস্থান যাচাই করা গেল না। একটু পরে আবার চেষ্টা করুন।"
+                "Could not check your location. Please try again in a moment."
         }
 
     fun hasPermission(context: Context): Boolean =
