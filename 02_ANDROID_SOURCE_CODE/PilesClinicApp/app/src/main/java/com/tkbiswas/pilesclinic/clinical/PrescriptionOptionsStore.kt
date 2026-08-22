@@ -51,6 +51,64 @@ object PrescriptionOptionsStore {
     /** Refresh only this patient's last saved Doctor Check-up. A failed read
      * keeps the patient-bound phone copy unchanged; no guessed value is used. */
     fun refreshFromLatestCheckup(context: Context) {
+        refreshFromCheckupRecord(context)
+        fillBlanksFromRegistration(context)   // 🔵 V548
+    }
+
+    /* ════════════════════════════════════════════
+       🔵 V548 (২২.০৮.২০২৬, TK-নির্দেশ ছাপা কাগজসহ — BACHU SARKAR):
+       *"সমস্ত তথ্য থাকা সত্ত্বেও প্রেসক্রিপশন প্রিন্ট আউট হলে symptom · duration ·
+         chief complaint ফাঁকা আসছে কেন?"*
+
+       **আসল কারণ (কোড ধরে, আন্দাজ নয়):** উপরের ঘরগুলো **শুধু Doctor Check-up
+       রেকর্ড** থেকে ভরা হত (`medical` টেবিল, `type=Doctor Checkup`)। এই রোগীর
+       এখনো Check-up হয়নি (History-তে শুধু Registration · Advance · Prescription),
+       তাই তিনটেই ফাঁকা যেত — অথচ **তথ্য তিনটেই রেজিস্ট্রেশনেই লেখা আছে**।
+
+       **প্রমাণ:** `PatientModel.buildPatientRow` (native/PatientModel.kt:138-139,
+       186) রোগীর সারিতে লেখে —
+           complaint  = "<যে যে উপসর্গে টিক পড়েছে> | <স্টাফের টাইপ করা কথা>"
+           sinceWhen  = "কতদিন ধরে"
+       ওয়েবেও ঠিক এই তথ্যই ছাপায় (app.js: `since: p.sinceWhen…`,
+       `complaint: n.complaint||p.complaint`) — অর্থাৎ ফোনটাই পিছিয়ে ছিল।
+
+       ⛔ Check-up থাকলে তার মানই আগে — রেজিস্ট্রেশনের তথ্য **শুধু ফাঁকা ঘরেই** বসে।
+       ⛔ কোনো ডেটা বদলানো/মোছা হয় না, একটাও নতুন কলাম লাগে না, SQL লাগে না।
+       ⛔ একটাই ছোট পড়া (`patients` থেকে দুটো কলাম), আর সেটাও **শুধু তখনই** যখন
+          অন্তত একটা ঘর ফাঁকা — তাই Supabase-এ বাড়তি চাপ প্রায় নেই।
+       ════════════════════════════════════════ */
+    private fun fillBlanksFromRegistration(context: Context) {
+        val patientId = RoleSession.currentPatientId.trim()
+        if (patientId.isBlank()) return
+        val prefs = p(context)
+        fun blank(field: String) = prefs.getString(key(field), "").orEmpty().isBlank()
+        val needSymptoms = blank("symptoms")
+        val needSince = blank("since")
+        val needComplaint = blank("complaint")
+        if (!needSymptoms && !needSince && !needComplaint) return
+        val encodedId = URLEncoder.encode(patientId, "UTF-8")
+        val rows = SupabaseClient.fetchListOrNull(
+            table = "patients",
+            filter = "id=eq.$encodedId",
+            limit = 1,
+            select = "complaint,sinceWhen"
+        ) ?: return
+        if (rows.length() == 0) return
+        val row = rows.optJSONObject(0) ?: return
+        val complaintRaw = row.optString("complaint").orEmpty().trim()
+        val sinceRaw = row.optString("sinceWhen").orEmpty().trim()
+        // রেজিস্ট্রেশন লেখে "<উপসর্গের তালিকা> | <টাইপ করা কথা>" — সেই একই ভাগ।
+        val cut = complaintRaw.indexOf(" | ")
+        val symptomsPart = if (cut >= 0) complaintRaw.substring(0, cut).trim() else complaintRaw
+        val notePart = if (cut >= 0) complaintRaw.substring(cut + 3).trim() else ""
+        val editor = prefs.edit()
+        if (needSymptoms && symptomsPart.isNotBlank()) editor.putString(key("symptoms"), symptomsPart)
+        if (needSince && sinceRaw.isNotBlank()) editor.putString(key("since"), sinceRaw)
+        if (needComplaint && notePart.isNotBlank()) editor.putString(key("complaint"), notePart)
+        editor.apply()
+    }
+
+    private fun refreshFromCheckupRecord(context: Context) {
         val patientId = RoleSession.currentPatientId.trim()
         if (patientId.isBlank()) return
         val encodedId = URLEncoder.encode(patientId, "UTF-8")

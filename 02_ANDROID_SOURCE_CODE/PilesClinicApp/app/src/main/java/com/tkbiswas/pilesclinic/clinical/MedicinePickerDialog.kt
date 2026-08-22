@@ -546,7 +546,9 @@ object MedicinePickerDialog {
             //   ⛔ সেভ করার নিয়ম আগেরটাই — `selectedFreq` আগে থেকেই ছিল, কেবল
             //      ভরার উপায় ছিল না; তাই পুরনো কোনো হিসাব/ডিফল্ট বদলায়নি।
             val prefilled = selected[name] ?: ClinicalRepository.rxDoseFor(name)
-            val (preDose, preWhen) = ClinicalRepository.splitDoseAndFrequency(prefilled)
+            val (preDose, preWhenSaved) = ClinicalRepository.splitDoseAndFrequency(prefilled)
+            // 🔵 V548: মনে-রাখা লেখায় When হারিয়ে গেলে প্রজেক্টের আদত When
+            val preWhen = preWhenSaved.ifBlank { ClinicalRepository.rxWhenFor(name) }
             val doseInput = EditText(activity).apply {
                 setText(preDose)
                 textSize = 13f; background = null; setPadding(0, 0, 0, 0)
@@ -748,8 +750,10 @@ object MedicinePickerDialog {
                 // row. Now, if the name is already on the list, update that
                 // existing entry instead of adding a duplicate.
                 val typedFreq = if (showExtraFields) selectedFreq[name].orEmpty() else ""
-                val (dosePart, autoFreq) = if (typedFreq.isBlank())
+                val (dosePart, autoFreqSaved) = if (typedFreq.isBlank())
                     ClinicalRepository.splitDoseAndFrequency(finalDose) else Pair(finalDose, "")
+                // 🔵 V548: সেভের সময়ও একই নিয়ম — When যেন ফাঁকা না ছাপে
+                val autoFreq = autoFreqSaved.ifBlank { ClinicalRepository.rxWhenFor(name) }
                 ClinicalRepository.rememberPermanentDefault(
                     activity.applicationContext,
                     name,
@@ -1008,7 +1012,8 @@ object MedicinePickerDialog {
                         ClinicalRepository.rxDoseFor(nm)
                     )
                     if (!touchedDose) dose.setText(dDose)
-                    if (!touchedWhen) frequency.setText(dWhen)
+                    // 🔵 V548: মনে-রাখা লেখায় When হারিয়ে গেলে প্রজেক্টের আদত When
+                    if (!touchedWhen) frequency.setText(dWhen.ifBlank { ClinicalRepository.rxWhenFor(nm) })
                     if (!touchedDays) days.setText(ClinicalRepository.rxDaysFor(nm))
                     if (currentType.isBlank()) {
                         val t = ClinicalRepository.rxTypeFor(nm)
@@ -1043,8 +1048,9 @@ object MedicinePickerDialog {
                 // TK-REPORTED BUG FIX (2026-07-16): if the When/frequency field
                 // was left blank, split the auto-filled dose so WHEN isn't empty.
                 val typedFreq = frequency.text.toString().trim()
-                val (dosePart, autoFreq) = if (typedFreq.isBlank())
+                val (dosePart, autoFreqSaved) = if (typedFreq.isBlank())
                     ClinicalRepository.splitDoseAndFrequency(medDose) else Pair(medDose, "")
+                val autoFreq = autoFreqSaved.ifBlank { ClinicalRepository.rxWhenFor(medName) }   // 🔵 V548
                 ClinicalRepository.rememberPermanentDefault(
                     activity.applicationContext,
                     medName,

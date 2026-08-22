@@ -74,7 +74,12 @@ object PrintMappers {
         // print -- real separate fields exist here (live session), so pass them
         // through instead of only the combined `lines` string.
         val rxDosage = if (medicines.isEmpty()) null else medicines.map { it.dosage.ifBlank { "-" } }
-        val rxFrequency = if (medicines.isEmpty()) null else medicines.map { it.frequency.ifBlank { "-" } }
+        /* 🔵 V548 (২২.০৮.২০২৬, TK: *"মেডিসিন When-এর ঘর ফাঁকা কেন থাকবে"*):
+           সেভ করা লেখায় When না থাকলে ছাপার সময় প্রজেক্টের নিজের আদত When বসে।
+           ⛔ তালিকায় নেই এমন ওষুধে আগের মতোই "-" — কিছুই বানানো হয় না। */
+        val rxFrequency = if (medicines.isEmpty()) null else medicines.map {
+            it.frequency.ifBlank { com.tkbiswas.pilesclinic.clinical.ClinicalRepository.rxWhenFor(it.name) }.ifBlank { "-" }
+        }
         val rxDuration = if (medicines.isEmpty()) null else medicines.map { it.duration.ifBlank { "-" } }
         return PrintDocumentModel(
             documentTitle = "Prescription",
@@ -117,7 +122,12 @@ object PrintMappers {
         val rxTypes = if (medicines.isEmpty()) null else medicines.map { it.medicineType }
         val rxNames = if (medicines.isEmpty()) null else medicines.map { it.name.ifBlank { "(unnamed medicine)" } }
         val rxDosage = if (medicines.isEmpty()) null else medicines.map { it.dosage.ifBlank { "-" } }
-        val rxFrequency = if (medicines.isEmpty()) null else medicines.map { it.frequency.ifBlank { "-" } }
+        /* 🔵 V548 (২২.০৮.২০২৬, TK: *"মেডিসিন When-এর ঘর ফাঁকা কেন থাকবে"*):
+           সেভ করা লেখায় When না থাকলে ছাপার সময় প্রজেক্টের নিজের আদত When বসে।
+           ⛔ তালিকায় নেই এমন ওষুধে আগের মতোই "-" — কিছুই বানানো হয় না। */
+        val rxFrequency = if (medicines.isEmpty()) null else medicines.map {
+            it.frequency.ifBlank { com.tkbiswas.pilesclinic.clinical.ClinicalRepository.rxWhenFor(it.name) }.ifBlank { "-" }
+        }
         val rxDuration = if (medicines.isEmpty()) null else medicines.map { it.duration.ifBlank { "-" } }
         return PrintDocumentModel(
             documentTitle = "Medicine Slip",

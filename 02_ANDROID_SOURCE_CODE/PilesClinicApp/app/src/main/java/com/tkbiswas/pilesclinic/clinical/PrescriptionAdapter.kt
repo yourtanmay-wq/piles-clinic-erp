@@ -35,7 +35,23 @@ class PrescriptionAdapter(
     override fun onBindViewHolder(holder: VH, position: Int) {
         val entry = items[position]
 
-        // Clear any previous watchers by re-setting text without triggering loops:
+        /* 🔵🔒 V548 (২২.০৮.২০২৬) — **আসল বাগ, কোড ধরে ধরা**:
+           নিচের লাইনগুলোর মন্তব্যে লেখা ছিল *"re-setting text clears the previous
+           watchers"* — কিন্তু লেখা বসালে পুরোনো watcher **মোছে না, উল্টে চলে**।
+           তাই RecyclerView যখন একটা সারি আবার ব্যবহার করত, **আগের ওষুধের**
+           watcher নতুন ওষুধের লেখা পেয়ে —
+             • আগের ওষুধের `entry.dosage` বদলে দিত, আর
+             • `rememberRxDose(আগের নাম, নতুন ডোজ)` — অর্থাৎ **এক ওষুধের ডোজ
+               আরেক ওষুধের চিরস্থায়ী ডিফল্ট** হয়ে বসত (এভাবেই "After Food"
+               হারিয়ে গিয়ে When ফাঁকা ছাপা হত)।
+           এখন লেখা বসানোর **আগেই** পুরোনো watcher খুলে ফেলা হয়।
+           ⛔ নিচের বাকি সব — মাপ · ঘর · সেভের নিয়ম — এক অক্ষরও বদলায়নি। */
+        holder.etName.clearSimpleWatcher()
+        holder.etDosage.clearSimpleWatcher()
+        holder.etFrequency.clearSimpleWatcher()
+        holder.etDuration.clearSimpleWatcher()
+        holder.etInstructions.clearSimpleWatcher()
+
         holder.etName.setTextKeepState(entry.name)
         holder.etDosage.setTextKeepState(entry.dosage)
         holder.etFrequency.setTextKeepState(entry.frequency)
@@ -61,6 +77,12 @@ class PrescriptionAdapter(
             val pos = holder.bindingAdapterPosition
             if (pos != RecyclerView.NO_POSITION) onRemove(pos)
         }
+    }
+
+    /** 🔵 V548: সারিটা আবার ব্যবহার হওয়ার আগে পুরোনো watcher খুলে ফেলা। */
+    private fun EditText.clearSimpleWatcher() {
+        (tag as? TextWatcher)?.let { removeTextChangedListener(it) }
+        tag = null
     }
 
     private fun EditText.addSimpleWatcher(onChanged: (String) -> Unit) {

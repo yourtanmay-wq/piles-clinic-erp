@@ -103,6 +103,18 @@ object ClinicalRepository {
         }
     }
 
+    /* 🔵 V548 (২২.০৮.২০২৬, TK-নির্দেশ ছাপা কাগজসহ: *"মেডিসিন When-এর ঘর ফাঁকা কেন থাকবে"*)।
+       **আসল কারণ (কোড ধরে):** ওষুধের মনে-রাখা ডোজ একটাই লেখায় জমা থাকে
+       ("2-0-2 After Food")। কিন্তু রিভিউ-তালিকার Dose ঘরে হাত পড়লে
+       `rememberRxDose` **শুধু ডোজটুকুই** ("2-0-2") জমা করে — "After Food" অংশটা
+       মুছে যায়। তার পর থেকে ওই ওষুধের When চিরকাল ফাঁকা ছাপা হত।
+       **এই ঘরটা** প্রজেক্টের নিজের প্রমাণিত তালিকা (`rxDoseMap`) থেকে ওষুধটার
+       **আদত When** ফিরিয়ে দেয় — শুধু যখন মনে-রাখা লেখায় When নেই।
+       ⛔ তালিকায় নেই এমন ওষুধে ফাঁকাই থাকে — **কিছুই বানানো হয় না**।
+       ⛔ জমা রাখার নিয়ম/ঘর একটুও বদলায়নি, তাই পুরোনো কিছু নষ্ট হওয়ার পথ নেই। */
+    fun rxWhenFor(name: String): String =
+        splitDoseAndFrequency(rxDoseMap[name.trim()].orEmpty()).second
+
     fun rxDoseFor(name: String): String {
         val key = name.trim()
         dosePrefs?.getString(key, null)?.let { if (it.isNotBlank()) return it }

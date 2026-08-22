@@ -9873,7 +9873,7 @@ function printDirectRx(type){
   let title=type==='prescription'?'PRESCRIPTION':'MEDICINE SLIP';
   medDraft.forEach(x=>rememberRxDefault(x.name,x.medicineType,x.dose,x.days,x.whenText));
   let list=medDraft.length?medDraft.map((m,i)=>{
-    let dw=(m&&m.whenText&&String(m.whenText).trim())?{dose:String(m.dose||'').trim(),whenText:String(m.whenText).trim()}:splitRxDoseWhen(combinedRxDose(m)||m.dose);
+    let dw=(m&&m.whenText&&String(m.whenText).trim())?{dose:String(m.dose||'').trim(),whenText:String(m.whenText).trim()}:splitRxDoseWhen(combinedRxDose(m)||m.dose);if(!dw.whenText)dw={dose:dw.dose,whenText:rxWhenFor(m&&m.name)};/* 🔵 V548: When যেন ফাঁকা না ছাপে */
     return `<tr><td>${i+1}</td><td><span class="rxPrintType">${esc(m.medicineType||'')}</span>${esc(m.name)}</td><td>${esc(dw.dose)}</td><td>${esc(dw.whenText)}</td><td>${esc(rxDaysForPrint(m.days))}</td></tr>`;
   }).join(''):'<tr><td colspan="5">No item selected</td></tr>';
   closeModal();
@@ -10040,11 +10040,39 @@ function rxDaysForPrint(v){return rxCleanDays(v)+' days'}
    দ্বিতীয়টা না থাকায় Metrogyl · Betadine ধরনের ওষুধে ছাপা কাগজের WHEN ঘরটা
    ফাঁকা পড়ে থাকত আর গোটা বাক্যটা সরু DOSE ঘরে ঢুকে যেত।
    ⛔ সেভ করা কোনো লেখা বদলায় না — শুধু দেখানো ও ছাপার সময় ভাগ হয়। */
+/* 🖥️🔵 V548 (২২.০৮.২০২৬, TK-নির্দেশ ছাপা কাগজসহ):
+   *"সমস্ত তথ্য থাকা সত্ত্বেও প্রেসক্রিপশনে symptom · duration · chief complaint
+     ফাঁকা কেন আসছে"* — Check-up না হওয়া রোগীর ক্ষেত্রে।
+   রেজিস্ট্রেশন একটাই ঘরে লেখে: complaint = "<উপসর্গের তালিকা> | <টাইপ করা কথা>"
+   (app.js-এর নিজের রেজিস্ট্রেশন কোড: `[symptoms,compNote].filter(Boolean).join(' | ')`)।
+   তাই ছাপার সময় ওই একটাই লেখা দুই ভাগে ভাগ করে বসানো হয় — ফোনেও (V548) হুবহু এই নিয়ম।
+   ⛔ Doctor Check-up থাকলে তার মানই আগে; এটা শুধু ফাঁকা ঘরের জন্য।
+   ⛔ কোনো তথ্য বদলানো/মোছা হয় না — শুধু যা আছে তাই দেখানো হয়। */
+function rxRegSplit(p){
+  try{
+    if(Array.isArray(p&&p.symptoms)&&p.symptoms.length) return {sym:p.symptoms.join(', '),note:String((p&&p.complaint)||'').trim()};
+    var raw=String((p&&p.complaint)||'').trim();
+    var i=raw.indexOf(' | ');
+    return (i>=0)?{sym:raw.slice(0,i).trim(),note:raw.slice(i+3).trim()}:{sym:raw,note:''};
+  }catch(e){ return {sym:'',note:''} }
+}
+function rxRegSymptoms(p){return rxRegSplit(p).sym}
+function rxRegComplaint(p){return rxRegSplit(p).note}
+window["rxRegSymptoms"]=rxRegSymptoms;window["rxRegComplaint"]=rxRegComplaint;
+/* 🖥️🔵 V548: মনে-রাখা ডোজ থেকে When হারিয়ে গেলে প্রজেক্টের আদত When
+   (`RX_DOSE_MAP`) ফিরিয়ে দেওয়া হয় — ফোনের `rxWhenFor`-এর হুবহু জোড়া।
+   ⛔ তালিকায় নেই এমন ওষুধে ফাঁকাই থাকে, কিছুই বানানো হয় না। */
+function rxWhenFor(name){try{return splitRxDoseWhen(RX_DOSE_MAP[String(name||'').trim()]||'').whenText}catch(e){return ''}}
+window["rxWhenFor"]=rxWhenFor;
 function splitRxDoseWhen(v){
   let s=String(v||'').trim();
   let m=s.match(/^([\d\-]+)\s+(After Food|Before Food)$/i);
   if(m) return {dose:m[1],whenText:m[2]};
-  let la=s.match(/^Local application\s+(.+)$/i);
+  /* 🔵 V548: প্রজেক্টের নিজের তালিকায় লেখা আছে "Local App. Morning & Evening"
+     (RX_DOSE_MAP), কিন্তু এখানে শুধু "Local application" চেনা হত — তাই ওই ওষুধের
+     When ফাঁকা পড়ে থাকত। এখন দুটো লেখাই চেনে (ফোনে ClinicalRepository-তে
+     "Local application" আগে থেকেই চেনা)। ⛔ আর কিছুই বদলায়নি। */
+  let la=s.match(/^Local App(?:lication|\.)?\s+(.+)$/i);
   if(la){ let rest=la[1].trim(); return {dose:'L/A', whenText:rest.charAt(0).toUpperCase()+rest.slice(1)}; }
   return {dose:s,whenText:''};
 }
@@ -10593,10 +10621,10 @@ function printSimple(id,type){
  let p=patientById(id);
  if(!p)return toast('Patient not found');
  medDraft.forEach(x=>rememberRxDefault(x.name,x.medicineType,combinedRxDose(x)||x.dose,x.days));
- let list=medDraft.length?medDraft.map((m,i)=>{let dw=(m&&m.whenText&&String(m.whenText).trim())?{dose:String(m.dose||'').trim(),whenText:String(m.whenText).trim()}:splitRxDoseWhen(combinedRxDose(m)||m.dose);/* 🔴 V425: When আলাদা লেখা থাকলে হুবহু সেটাই When কলামে */return `<tr><td>${i+1}</td><td><span class="rxPrintType">${esc(m.medicineType||'')}</span>${esc(m.name)}</td><td>${esc(dw.dose)}</td><td>${esc(dw.whenText)}</td><td>${esc(rxDaysForPrint(m.days))}</td></tr>`}).join(''):'<tr><td colspan="5">No item selected</td></tr>';
+ let list=medDraft.length?medDraft.map((m,i)=>{let dw=(m&&m.whenText&&String(m.whenText).trim())?{dose:String(m.dose||'').trim(),whenText:String(m.whenText).trim()}:splitRxDoseWhen(combinedRxDose(m)||m.dose);if(!dw.whenText)dw={dose:dw.dose,whenText:rxWhenFor(m&&m.name)};/* 🔵 V548: When যেন ফাঁকা না ছাপে *//* 🔴 V425: When আলাদা লেখা থাকলে হুবহু সেটাই When কলামে */return `<tr><td>${i+1}</td><td><span class="rxPrintType">${esc(m.medicineType||'')}</span>${esc(m.name)}</td><td>${esc(dw.dose)}</td><td>${esc(dw.whenText)}</td><td>${esc(rxDaysForPrint(m.days))}</td></tr>`}).join(''):'<tr><td colspan="5">No item selected</td></tr>';
  closeModal();
  if(type==='PRESCRIPTION'||type==='Prescription'){
-  let o=rxOptions(id),n=p.doctorFullNote||{},values={disease:p.disease||'',symptoms:Array.isArray(p.symptoms)?p.symptoms.join(', '):(p.symptoms||''),since:p.sinceWhen||p.duration||n.duration||'',complaint:n.complaint||p.complaint||'',previousTreatment:n.previousTreatment||p.previousTreatment||'',previousResult:n.previousResult||p.previousResult||'',onset:n.acuteChronic||'',treatmentDuration:n.treatmentDuration||p.treatmentDuration||''};
+  let o=rxOptions(id),n=p.doctorFullNote||{},values={disease:p.disease||'',symptoms:rxRegSymptoms(p),since:p.sinceWhen||p.duration||n.duration||'',complaint:n.complaint||rxRegComplaint(p),previousTreatment:n.previousTreatment||p.previousTreatment||'',previousResult:n.previousResult||p.previousResult||'',onset:n.acuteChronic||'',treatmentDuration:n.treatmentDuration||p.treatmentDuration||''};
   let labels=Object.fromEntries(RX_HISTORY_FIELDS.concat(RX_MORE_FIELDS)),history=o.fields.map(k=>`<div><b>${esc(labels[k])}</b><span>${esc(values[k]||'')}</span></div>`).join('');/* 🔴 V425 (TK-নির্দেশ ১৭.০৮.২০২৬: "Not Recorded লেখা থাকবে না · প্রয়োজনে ফাকা প্রিন্ট হবে · যাতে প্রিন্ট আউট এর পরে লেখাও যায়") — ফোনের PrescriptionOptionsStore.kt-এর হুবহু একই বদল। ফাঁকা ঘরে হাতে লেখার জায়গা styles.css-এ (span:empty) */
   /* 🔵 V406 (TK-অনুমোদিত V397 লেআউট) — ADVICE · Diet · Next Follow-up Date
      এখন **বাঁ ঘরের একদম তলায়** (`.anRxBot`), আগে টেবিলের নিচে ডান দিকে ছিল।
