@@ -56,6 +56,14 @@ data class FollowUpItem(
     // earlier for "photo" and "updatedAt".
     val lastCallDate: String = "",
     val lastCallBy: String = "",
+    /* 🔵🔒 V543 (২২.০৮.২০২৬, TK-নির্দেশ: *"তারিখের সাথে সময় থাকবে"*)
+       শেষ কলের **সময়**। `history`-র সবচেয়ে নতুন সারির `time` ঘর থেকে আসে —
+       ওই ঘরটা ২০.০৭.২০২৬ থেকে প্রতিটা কলে জমা হচ্ছে (কোডে যাচাই করা)।
+       ⛔ **নতুন কোনো ক্লাউড-অনুরোধ বা কলাম লাগেনি** — `history` এমনিতেই
+          স্বাভাবিক তালিকার সাথে নামে।
+       ⛔ পুরোনো (২০.০৭-এর আগের) সারিতে সময় নেই ⇒ ফাঁকা থাকে, তখন কার্ডে
+          **আগের মতোই শুধু তারিখ** দেখায় — কিছু ভাঙে না। */
+    val lastCallTime: String = "",
     // 🔒 TK-ORDER (30.07.2026): Branch/Disease-এর পাশের তৃতীয় ট্যাগে "RMP"
     // দেখাতে হবে যদি কোনো RMP/ডাক্তার এই রোগীকে রেফার করে থাকেন। এই ঘরটা
     // patients টেবিলে (PATIENT_COLS-এ) আগে থেকেই আনা হত, শুধু এই মডেলে
@@ -134,10 +142,29 @@ object FollowUpModel {
         // ⛔ ডেটাবেসে কিছুই লেখা হয় না — শুধু দেখানোর সময় হিসাব।
         lastCallDate = s(row, "lastCallDate").ifBlank { lastCallDateFromHistory(row) },
         lastCallBy = lastStaffFromHistory(row),
+        lastCallTime = lastCallTimeFromHistory(row),   // 🔵 V543
         refDoctor = s(row, "refDoctor")
     )
 
     /** `history`-র শেষ এন্ট্রির তারিখ (না পেলে ফাঁকা)। */
+    /** 🔵 V543: শেষ কলের সময় — `history`-র সবচেয়ে নতুন সারির `time` থেকে।
+     *  ⛔ না পেলে ফাঁকা ⇒ কার্ডে আগের মতোই শুধু তারিখ। */
+    private fun lastCallTimeFromHistory(row: JSONObject): String = try {
+        val arr = row.optJSONArray("history")
+        if (arr == null || arr.length() == 0) "" else {
+            var found = ""
+            for (i in arr.length() - 1 downTo 0) {
+                val entry = arr.optJSONObject(i) ?: continue
+                val d = if (entry.isNull("date")) "" else entry.optString("date", "")
+                if (d.isNotBlank()) {
+                    found = if (entry.isNull("time")) "" else entry.optString("time", "")
+                    break
+                }
+            }
+            found
+        }
+    } catch (e: Exception) { "" }
+
     private fun lastCallDateFromHistory(row: JSONObject): String = try {
         val arr = row.optJSONArray("history")
         if (arr == null || arr.length() == 0) "" else {

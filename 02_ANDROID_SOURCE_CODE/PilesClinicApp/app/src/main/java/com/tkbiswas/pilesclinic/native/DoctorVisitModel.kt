@@ -28,6 +28,12 @@ data class DoctorVisitItem(
     // ঘরটা `callHistory`-র সবচেয়ে নতুন সারির `by` থেকে আসে — ⛔ ডেটাবেসে
     // নতুন কোনো ঘর লাগেনি, যা আগে থেকেই লেখা হচ্ছিল সেটাই পড়া হলো।
     val lastCallBy: String = "",
+    /* 🔵🔒 V543 (২২.০৮.২০২৬, TK-নির্দেশ: *"তারিখের সাথে সময় থাকবে"*)
+       শেষ কলের সময় — `callHistory`-র সবচেয়ে নতুন সারির `createdAt` থেকে।
+       ⛔ ওই ঘরটা প্রতিটা কলে আগে থেকেই জমা হয় (`buildCallUpdateFields`),
+          তাই **নতুন কোনো কলাম বা ক্লাউড-অনুরোধ লাগেনি**।
+       ⛔ না থাকলে ফাঁকা ⇒ কার্ডে আগের মতোই শুধু তারিখ। */
+    val lastCallTime: String = "",
     // TK-REQUESTED ADDITION (2026-07-23): Delete-Approval for Doctor/RMP —
     // Master deletes immediately, anyone else only requests (these two
     // fields get set); blank means no request pending. `raw` keeps the
@@ -103,6 +109,7 @@ object DoctorVisitModel {
         // সবচেয়ে নতুন কল-সারিটা তালিকার **প্রথমে** থাকে (buildCallUpdateFields
         // unshift করে), তাই ০ নম্বর সারির `by`-ই শেষ কলের স্টাফ।
         lastCallBy = row.optJSONArray("callHistory")?.optJSONObject(0)?.s("by").orEmpty(),
+        lastCallTime = row.optJSONArray("callHistory")?.optJSONObject(0)?.s("createdAt").orEmpty(),   // 🔵 V543
         deleteRequestedBy = row.s("deleteRequestedBy"),
         deleteRequestedAt = row.s("deleteRequestedAt"),
         referralPaid = row.optDouble("referralPaid", 0.0),

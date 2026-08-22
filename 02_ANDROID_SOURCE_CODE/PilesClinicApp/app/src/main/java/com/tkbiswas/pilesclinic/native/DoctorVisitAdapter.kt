@@ -153,8 +153,18 @@ class DoctorVisitAdapter(
         // ⛔ কোনো তথ্য বাদ যায়নি; না থাকলে আগের মতোই `—`।
         run {
             val whoRaw = StaffDirectory.findAccount(item.lastCallBy)?.name ?: item.lastCallBy.trim()
+            /* 🔵🔒 V543 (২২.০৮.২০২৬, TK-নির্দেশ) — *"তারিখের সাথে সময় থাকবে…
+               LAST CALL 31/12/2026 : 12.30 PM তারপর staff Name, তারপর
+               NEXT CALL 30/01/2026 — কিন্তু নেক্সট কলে সময় যেন না থাকে,
+               যেহেতু ভবিষ্যতে কোন সময় কল করবে সেটা তো কেউ জানে না।"*
+               ⛔ তারিখের ধাঁচ (ডট) TK-এর নিজের পছন্দে **অপরিবর্তিত** —
+                  অ্যাপের বাকি সব জায়গার সাথে এক থাকে।
+               ⛔ সময় না থাকলে (পুরোনো কল) লাইনটা **হুবহু আগের মতোই**। */
+            val lastWhen = if (item.lastCallTime.isNotBlank())
+                "$lastCallText : " + PaymentModel.displayTime12(item.lastCallTime)
+            else lastCallText
             val lastText = if (item.lastCallDate.isNotBlank()) {
-                if (whoRaw.isNotBlank()) "LAST CALL $lastCallText ($whoRaw)" else "LAST CALL $lastCallText"
+                if (whoRaw.isNotBlank()) "LAST CALL $lastWhen ($whoRaw)" else "LAST CALL $lastWhen"
             } else "LAST CALL \u2014"
             val nextText = if (item.nextCallDate.isNotBlank()) "NEXT CALL $nextCallText" else "NEXT CALL \u2014"
             // 🔴🔒 B685 (15.08.2026, TK-অনুমোদিত · TK-ধরা): TK স্ক্রিনশটে দেখান
@@ -172,9 +182,9 @@ class DoctorVisitAdapter(
             val lateDays = if (overdueCall) daysBeforeToday(item.nextCallDate) else 0
             val warnLine = when {
                 !overdueCall -> ""
-                lateDays > 0 -> "\n⚠️ Call was due " + lateDays +
-                    (if (lateDays == 1) " day" else " days") + " ago — call again"
-                else -> "\n⚠️ This call is overdue — call again"
+                // 🔵 V543 (TK-এর পছন্দ): ছোট ও পরিষ্কার — "⚠️ 3 DAYS LATE"।
+                lateDays > 0 -> "\n⚠️ " + lateDays + (if (lateDays == 1) " DAY LATE" else " DAYS LATE")
+                else -> "\n⚠️ LATE"
             }
             val full = "$lastText  ·  $nextText$warnLine"
             val open = lastText.lastIndexOf("(")

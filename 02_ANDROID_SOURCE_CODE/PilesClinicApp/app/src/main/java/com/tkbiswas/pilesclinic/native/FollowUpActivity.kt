@@ -1952,8 +1952,13 @@ class FollowUpActivity : AppCompatActivity() {
             // স্টাফের নামেও লাল দিলে দুটো গুলিয়ে যেত।
             val whoRaw = item.lastCallBy.trim()
             val lastText = if (item.lastCallDate.isNotBlank()) {
-                if (whoRaw.isNotBlank()) "LAST CALL ${FollowUpModel.displayDate(item.lastCallDate)} ($whoRaw)"
-                else "LAST CALL ${FollowUpModel.displayDate(item.lastCallDate)}"
+                /* 🔵🔒 V543 (২২.০৮.২০২৬, TK-নির্দেশ): *"শুধুমাত্র RMP সেকশনে নয়,
+                   Follow-up সেকশনেও একই নিয়ম থাকবে"* — LAST CALL-এ তারিখের
+                   সাথে সময়, তারপর স্টাফের নাম। NEXT CALL-এ সময় নয়।
+                   ⛔ সময় না থাকলে (২০.০৭.২০২৬-এর আগের কল) লাইনটা **হুবহু
+                      আগের মতোই** শুধু তারিখ দেখায়। */
+                if (whoRaw.isNotBlank()) "LAST CALL ${fuLastWhen(item)} ($whoRaw)"
+                else "LAST CALL ${fuLastWhen(item)}"
             } else "LAST CALL \u2014"
 
             // 🔒 TK-FINAL (28.07.2026, খাতার সারি B39): লেখা ছোট — "NEXT CALL"।
@@ -2526,6 +2531,13 @@ class FollowUpActivity : AppCompatActivity() {
         }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH), cal.get(java.util.Calendar.DAY_OF_MONTH)).show()
         ---- end old pickNextFollow body ---- */
     }
+    /** 🔵 V543: `31.12.2026 : 12.30 PM` — সময় না থাকলে শুধু তারিখ। */
+    private fun fuLastWhen(item: FollowUpItem): String {
+        val d = FollowUpModel.displayDate(item.lastCallDate)
+        val t = PaymentModel.displayTime12(item.lastCallTime)
+        return if (t.isNotBlank()) "$d : $t" else d
+    }
+
 
 
     private fun openPatientPhotoEditor(item: FollowUpItem) {

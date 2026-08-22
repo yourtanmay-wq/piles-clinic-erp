@@ -194,7 +194,20 @@ function wlv1IsDeclaredSeparateRowId(rowId,mobileDigits){
   return id.indexOf(pfx)===0 && id.length>pfx.length;
 }
 window["wlv1IsDeclaredSeparateRowId"]=wlv1IsDeclaredSeparateRowId;function fmtDate(v){let m=String(v||'').slice(0,10).match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}.${m[2]}.${m[1]}`:String(v||'')}
-window.fmtDate=fmtDate;function wlv1Ampm(hhmm){let p=String(hhmm||'').split(':');if(p.length<2)return String(hhmm||'');let h=parseInt(p[0],10);if(isNaN(h))return String(hhmm||'');let s=h<12?'AM':'PM';let h12=h%12;if(h12===0)h12=12;return h12+'.'+p[1]+' '+s}
+window.fmtDate=fmtDate;
+/* 🔵🔒 V543: ISO সময় ("...T15:42:10.123Z") → "3:42 PM"। ফোনের
+   `PaymentModel.displayTime12()`-এর হুবহু একই কাজ, যাতে দুই জায়গায় এক দেখায়।
+   ⛔ ফাঁকা/অচেনা লেখা হলে ফাঁকাই ফেরে — তখন শুধু তারিখ দেখায়। */
+function wlv1Tm12(iso){
+  var t=String(iso||'').trim(); if(!t) return '';
+  var hm=t.indexOf('T')>=0 ? t.split('T')[1].slice(0,5) : (/^\d{2}:\d{2}/.test(t)? t.slice(0,5) : '');
+  if(!/^\d{2}:\d{2}$/.test(hm)) return '';
+  var H=parseInt(hm.slice(0,2),10), M=hm.slice(3,5);
+  if(isNaN(H)) return '';
+  var ap=H>=12?'PM':'AM', h12=H%12; if(h12===0)h12=12;
+  return h12+':'+M+' '+ap;
+}
+window["wlv1Tm12"]=wlv1Tm12;function wlv1Ampm(hhmm){let p=String(hhmm||'').split(':');if(p.length<2)return String(hhmm||'');let h=parseInt(p[0],10);if(isNaN(h))return String(hhmm||'');let s=h<12?'AM':'PM';let h12=h%12;if(h12===0)h12=12;return h12+'.'+p[1]+' '+s}
 /* 🔒 TK-এর স্থায়ী নিয়ম (২৯.০৭.২০২৬): ছাপা কাগজে কখনো বাংলা যাবে না —
    একমাত্র Diet Chart ছাড়া। পর্দায় বাংলা থাকতে কোনো আপত্তি নেই।
    Chamber Attendance-এর "Treatment Progress" ঘরে ফোনের দ্রুত-চিপ থেকে বাংলা
@@ -6101,7 +6114,15 @@ function fuCard(x){
  /* ---------- LAST CALL / NEXT CALL (FollowUpActivity.kt:1745-1800) ---------- */
  let wlv1LastBy=(function(){try{var h=x.history;if(typeof h==='string')h=JSON.parse(h);if(!Array.isArray(h))return '';for(var i=h.length-1;i>=0;i--){var st=(h[i]&&h[i].staff)||'';if(String(st).trim())return String(st).trim()}return ''}catch(e){return ''}})();
  let wlv1LastDt=x.lastCallDate||(function(){try{var h=x.history;if(typeof h==='string')h=JSON.parse(h);if(!Array.isArray(h))return '';for(var i=h.length-1;i>=0;i--){var d=(h[i]&&h[i].date)||'';if(String(d).trim())return String(d).trim().slice(0,10)}return ''}catch(e){return ''}})();
- let wlv1LastTxt=wlv1LastDt?('LAST CALL '+fmtDate(wlv1LastDt)+(wlv1LastBy?(' <span class="anFuBy">('+esc(wlv1LastBy)+')</span>'):'')):'LAST CALL —';
+ /* 🔵🔒 V543 (২২.০৮.২০২৬, TK-নির্দেশ: "তারিখের সাথে সময় থাকবে … আর শুধুমাত্র
+    RMP সেকশনে নয়, Follow-up সেকশনেও একই নিয়ম") — LAST CALL-এ তারিখের সাথে
+    সময়, তারপর স্টাফের নাম। ⛔ NEXT CALL-এ সময় নয় (ভবিষ্যতের সময় কেউ জানে না)।
+    ⛔ সময়টা `history`-র সেই সারির `time` ঘর থেকেই আসে, যা আগে থেকেই জমা হয় —
+       **নতুন কোনো অনুরোধ বা কলাম লাগেনি**। না থাকলে (পুরোনো কল) লাইনটা
+       **হুবহু আগের মতোই** শুধু তারিখ দেখায়। */
+ let wlv1LastTm=(function(){try{var h=x.history;if(typeof h==='string')h=JSON.parse(h);if(!Array.isArray(h))return '';for(var i=h.length-1;i>=0;i--){var d=(h[i]&&h[i].date)||'';if(String(d).trim())return String((h[i]&&h[i].time)||'').trim()}return ''}catch(e){return ''}})();
+ let wlv1LastWhen=fmtDate(wlv1LastDt)+(wlv1Tm12(wlv1LastTm)?(' : '+wlv1Tm12(wlv1LastTm)):'');
+ let wlv1LastTxt=wlv1LastDt?('LAST CALL '+wlv1LastWhen+(wlv1LastBy?(' <span class="anFuBy">('+esc(wlv1LastBy)+')</span>'):'')):'LAST CALL —';
  let wlv1NextTxt=x.nextFollow?(nextLabel+' '+fmtDate(x.nextFollow)):(nextLabel+' —');
 
  /* ---------- রিমার্ক বাক্স: ভিতরে কল-লাইন + দাগ + লেখা (FollowUpActivity.kt:1936-1949) ---------- */
