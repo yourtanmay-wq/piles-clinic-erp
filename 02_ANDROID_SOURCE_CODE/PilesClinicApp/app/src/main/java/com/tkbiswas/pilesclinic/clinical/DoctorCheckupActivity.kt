@@ -213,6 +213,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.btnAfterPhoto).setOnClickListener { showPhotoDialog(2) }
 
         buildSymptomRows()   // 🔵 V554
+        buildHistoryDetailRows()   // 🔵 V555
         buildChecks(findViewById(R.id.visualGroup), visualOptions, visualChecks, visualIcons, "#D64545", visualBn)
         /* 🔵 V539: Internal Piles-এ চাপ দিলেই Grade বাছার তালিকা। ⛔ বাকি
            চেকবক্সগুলো এক অক্ষরও বদলায়নি। */
@@ -954,6 +955,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         prevTreatment = etPrevTreatment.text?.toString().orEmpty(),
         patientSaid = findViewById<android.widget.EditText>(R.id.etPatientSaid).text?.toString().orEmpty(),   // 🔵 V539
         symptomHistory = collectSymptomHistory(),   // 🔵 V554
+        historyDetail = collectHistoryDetail(),     // 🔵 V555
         // 🔵 B622 (11.08.2026): Result/Spent/Treatment Duration ঘর বাদ — মডেলের ডিফল্ট "" থাকে।
         visual = checkedText(visualChecks),
         // V455 (18.08.2026): visualOther · dre · dreOther · otherFindings ঘর বাদ — মডেলের ডিফল্ট থাকে।
@@ -993,6 +995,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         etPrevTreatment.setText(r.prevTreatment)
         findViewById<android.widget.EditText>(R.id.etPatientSaid).setText(r.patientSaid)   // 🔵 V539
         applySymptomHistory(r.symptomHistory)   // 🔵 V554
+        applyHistoryDetail(r.historyDetail)     // 🔵 V555
         // 🔵 B622: Result/Spent/Treatment Duration ঘর বাদ।
         val vis = r.visual.split(", ").map { it.trim() }
         visualChecks.forEach { it.isChecked = vis.contains((it.tag as? String) ?: it.text.toString()) }
@@ -1176,6 +1179,114 @@ class DoctorCheckupActivity : AppCompatActivity() {
         }
     }
 
+    /* ═══════════════════════════════════════════════════════════════════
+       🔵🔒 V555 (২২.০৮.২০২৬, TK-অনুমোদিত ডেমো) — কাগজের **ভাগ ৩**: চারটে "ইতিহাস"।
+       TK-এর নির্দেশ হুবহু: **টিকের জিনিস পাশাপাশি চিপ**, **লেখার জিনিস বক্স**,
+       আর **প্রতিটা প্রশ্নে একাধিক উত্তর** বাছা যাবে।
+       ⛔ চিপ পাশাপাশি বসানোর নিয়ম প্রজেক্টের নিজের `buildChecks`-এর ধরনেই
+          (দুটো করে এক সারিতে); শুধু লম্বা লেখা একাই পুরো সারি পায় — নইলে ফোনের
+          পর্দায় কেটে যেত। নিয়মটা `HistoryDetailModel.rowsFor()`-এ, তাই চালিয়ে যাচাই করা।
+       ⛔ কাগজের একটাও শব্দ বদলানো হয়নি।
+       ═══════════════════════════════════════════════════════════════ */
+    private val historyChips = LinkedHashMap<String, MutableList<TextView>>()
+
+    private fun histChipBg(on: Boolean): android.graphics.drawable.GradientDrawable =
+        android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = symDp(20).toFloat()
+            setColor(android.graphics.Color.parseColor(if (on) "#EAFBF0" else "#FFFFFF"))
+            setStroke(symDp(1), android.graphics.Color.parseColor(if (on) "#0B4F2A" else "#DBE2EA"))
+        }
+
+    private fun paintHistoryChip(chip: TextView) {
+        val on = chip.getTag(R.id.historyDetailGroup) == true
+        chip.background = histChipBg(on)
+        chip.setTextColor(android.graphics.Color.parseColor(if (on) "#0B4F2A" else "#7C8A9C"))
+        chip.setTypeface(chip.typeface, if (on) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
+    }
+
+    private fun buildHistoryDetailRows() {
+        val box = findViewById<android.widget.LinearLayout>(R.id.historyDetailGroup) ?: return
+        box.removeAllViews()
+        historyChips.clear()
+        for (group in HistoryDetailModel.GROUPS) {
+            box.addView(TextView(this).apply {
+                text = group.title
+                textSize = 13.5f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#0B2B59"))
+                setPadding(0, symDp(10), 0, symDp(4))
+            })
+            for (q in group.questions) {
+                if (q.label.isNotBlank()) box.addView(TextView(this).apply {
+                    text = q.label
+                    textSize = 11.5f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.parseColor("#5B6B81"))
+                    setPadding(0, symDp(5), 0, symDp(3))
+                })
+                val field = HistoryDetailModel.fieldKey(group, q)
+                val chips = ArrayList<TextView>()
+                for (rowOptions in HistoryDetailModel.rowsFor(q.options)) {
+                    val row = android.widget.LinearLayout(this).apply {
+                        orientation = android.widget.LinearLayout.HORIZONTAL
+                        val lp = android.widget.LinearLayout.LayoutParams(
+                            android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                        )
+                        lp.topMargin = symDp(4)
+                        layoutParams = lp
+                    }
+                    for ((i, opt) in rowOptions.withIndex()) {
+                        val chip = TextView(this).apply {
+                            text = opt
+                            textSize = 12f
+                            gravity = android.view.Gravity.CENTER
+                            setPadding(symDp(10), symDp(6), symDp(10), symDp(6))
+                            isClickable = true
+                            setTag(R.id.historyDetailGroup, false)
+                            tag = opt
+                            val lp = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                            if (i > 0) lp.marginStart = symDp(6)
+                            layoutParams = lp
+                        }
+                        // TK: প্রতিটা প্রশ্নে একাধিক উত্তর — তাই চাপে শুধু নিজেরটাই বদলায়
+                        chip.setOnClickListener {
+                            chip.setTag(R.id.historyDetailGroup, chip.getTag(R.id.historyDetailGroup) != true)
+                            paintHistoryChip(chip)
+                        }
+                        paintHistoryChip(chip)
+                        chips.add(chip)
+                        row.addView(chip)
+                    }
+                    box.addView(row)
+                }
+                historyChips[field] = chips
+            }
+        }
+    }
+
+    private fun collectHistoryDetail(): String {
+        val picked = LinkedHashMap<String, List<String>>()
+        for ((field, chips) in historyChips) {
+            picked[field] = chips.filter { it.getTag(R.id.historyDetailGroup) == true }
+                .map { (it.tag as? String).orEmpty() }
+        }
+        val note = findViewById<android.widget.EditText>(R.id.etHistoryNote)?.text?.toString().orEmpty()
+        return HistoryDetailModel.format(picked, note)
+    }
+
+    private fun applyHistoryDetail(saved: String) {
+        val (map, note) = HistoryDetailModel.parse(saved)
+        for ((field, chips) in historyChips) {
+            val chosen = map[field] ?: emptyList<String>()
+            chips.forEach { chip ->
+                chip.setTag(R.id.historyDetailGroup, chosen.contains((chip.tag as? String).orEmpty()))
+                paintHistoryChip(chip)
+            }
+        }
+        findViewById<android.widget.EditText>(R.id.etHistoryNote)?.setText(note)
+    }
+
     private fun collectSymptomHistory(): String {
         val map = LinkedHashMap<String, SymptomHistoryModel.Entry>()
         for (line in SymptomHistoryModel.LINES) {
@@ -1281,6 +1392,8 @@ class DoctorCheckupActivity : AppCompatActivity() {
         if (r.patientSaid.isNotBlank()) append("Patient Said: ${r.patientSaid}; ")   // 🔵 V539
         // 🔵 V554: টিক দেওয়া উপসর্গ ও তাদের "কবে থেকে?" — মানুষ-পড়া-যায় লেখায়
         if (r.symptomHistory.isNotBlank()) append("Patient Reported: ${SymptomHistoryModel.readable(r.symptomHistory)}; ")
+        // 🔵 V555: কাগজের ভাগ ৩ — চারটে ইতিহাসের বাছাই
+        if (r.historyDetail.isNotBlank()) append("History Detail: ${HistoryDetailModel.readable(r.historyDetail)}; ")
         if (r.prevResult.isNotBlank()) append("Prev Result: ${r.prevResult}; ")
         if (r.prevCost.isNotBlank()) append("Prev Cost: ${r.prevCost}; ")
         if (r.treatmentDuration.isNotBlank()) append("Treatment Duration: ${r.treatmentDuration}; ")

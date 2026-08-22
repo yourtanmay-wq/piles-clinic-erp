@@ -76,6 +76,10 @@ data class CheckupRecord(
        সবটা **একটাই লেখায়** জমা থাকে (`SymptomHistoryModel.format`), তাই
        V539-এর মতোই **নতুন কোনো কলাম বা SQL লাগেনি**। */
     var symptomHistory: String = "",
+    /* 🔵🔒 V555 (TK-অনুমোদিত): কাগজের ভাগ ৩ — চারটে "ইতিহাস"-এর বাছাই ও
+       ডাক্তারের নিজের লেখা, সবটা একটাই লেখায় (`HistoryDetailModel.format`)।
+       ⛔ নতুন কলাম বা SQL লাগেনি। */
+    var historyDetail: String = "",
     // 🆕 TK-নির্দেশ (04.08.2026): নতুন সেকশন — C (Proctoscopy Grade) আর
     // পুরনো D (Investigations, এখন E) এর মাঝে। প্রোব ঢোকানোর পরে নালি
     // কোন দিকে গেল, কতটা গেল — ডাক্তার টাইপ করে লেখেন।

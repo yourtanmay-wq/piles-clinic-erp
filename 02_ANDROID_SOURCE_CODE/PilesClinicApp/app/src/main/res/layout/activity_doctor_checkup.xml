@@ -370,6 +370,29 @@
                         </LinearLayout>
                     </LinearLayout>
 
+                    <!-- 🔵🔒 V555 (২২.০৮.২০২৬, TK-অনুমোদিত ডেমো): কাগজের **ভাগ ৩** —
+                         ডান দিকের চারটে "ইতিহাস"। টিকের জিনিস পাশাপাশি চিপ, লেখার
+                         জিনিস বক্স — সবটাই কোড থেকে বসে (`HistoryDetailModel.GROUPS`),
+                         তাই কাগজের শব্দগুলো **এক জায়গাতেই** থাকে। -->
+                    <LinearLayout style="@style/DocNoteFieldBox">
+                        <View style="@style/DocNoteAccentBar" />
+                        <LinearLayout style="@style/DocNoteFieldBoxInner">
+                            <LinearLayout style="@style/DocNoteFieldBoxTopRow">
+                                <TextView style="@style/DocNoteIcon" android:text="🗒️" />
+                                <TextView style="@style/DocNoteLabel" android:text="রোগীর বলা ইতিহাস" />
+                            </LinearLayout>
+                            <View style="@style/DocNoteDivider" />
+                            <LinearLayout
+                                android:id="@+id/historyDetailGroup"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical" />
+                            <EditText android:id="@+id/etHistoryNote" style="@style/DocNoteInputMultiline"
+                                android:minLines="2"
+                                android:hint="এই ইতিহাস নিয়ে আর কিছু লেখার থাকলে এখানে লিখুন" />
+                        </LinearLayout>
+                    </LinearLayout>
+
                     <!-- V455 (TK-নির্দেশ ১৮.০৮.২০২৬) — Acute Onset/Chronic Onset ঘর বাদ।
                          ⛔ ClinicalModels-এর acuteChronic ঘর অটুট (ডিফল্ট ""), শুধু UI সরানো। -->
 

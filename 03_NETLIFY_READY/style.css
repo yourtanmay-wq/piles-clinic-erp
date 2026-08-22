@@ -12,3 +12,14 @@
 .wlv1SymAmt{width:58px;text-align:center;padding:6px 4px}
 .wlv1SymUnit{width:104px;padding:6px 6px}
 .wlv1SymBox textarea{width:100%;margin-top:8px;min-height:62px}
+
+/* 🖥️🔵 V555 — কাগজের ভাগ ৩: টিকের জিনিস পাশাপাশি চিপ, লেখার জিনিস বক্স। */
+.wlv1HistBox{border:1px solid #D8E4F2;border-radius:12px;padding:10px 12px;background:#FCFDFF}
+.wlv1HistGrp{padding:8px 0;border-bottom:1px dotted #D8E0E9}
+.wlv1HistGrp:last-of-type{border-bottom:none}
+.wlv1HistTtl{font-size:14.5px;color:#0B2B59;font-weight:700;margin-bottom:6px}
+.wlv1HistQ{font-size:12.5px;color:#5B6B81;font-weight:700;margin:7px 0 4px}
+.wlv1HistChips{display:flex;flex-wrap:wrap;gap:6px}
+.wlv1HistChip{font-size:13px;border-radius:20px;padding:6px 13px;border:1px solid #DBE2EA;background:#fff;color:#7C8A9C;cursor:pointer}
+.wlv1HistChip.on{border-color:#0B4F2A;background:#EAFBF0;color:#0B4F2A;font-weight:700}
+.wlv1HistBox textarea{width:100%;margin-top:10px;min-height:62px}

@@ -7117,6 +7117,7 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
   <label>Chief Complaint · প্রধান সমস্যা</label><textarea id="dnComplaint">${esc(complaint)}</textarea>
   <label>Duration · কতদিন থেকে</label><input id="dnDuration" class="input" value="${esc(duration)}">
   ${wlv1SymBoxHtml(note,p)}
+  ${wlv1HistBoxHtml(note)}
   <!-- 🖥️🔵 V547 (ফোনের V540 ওয়েবেও): TK-নির্দেশ *"occupation এটা ফর্ম থেকে সরিয়ে
        উপরে যেখানে পেশেন্টের বয়স Male - 55 তার পাশে রাখুন"*। ঘরটা **মোছা হয়নি** —
        শুধু ফর্ম থেকে সরানো; উপরের লাইনে চাপ দিলেই এই তালিকাটাই খোলে, তাই
@@ -7198,6 +7199,96 @@ const WLV1_SYM_LINES=[
   ['itching','চুলকানি / জ্বালাপোড়া',false],
   ['constipation','কোষ্ঠকাঠিন্য',false]
 ];
+/* 🖥️🔵🔒 V555 (২২.০৮.২০২৬) — কাগজের **ভাগ ৩**: চারটে "ইতিহাস"।
+   ফোনের `HistoryDetailModel`-এর হুবহু যমজ — একই দল · একই প্রশ্ন · একই উত্তর ·
+   জমা রাখার একই লেখা। TK-এর নির্দেশ: টিকের জিনিস পাশাপাশি চিপ, লেখার জিনিস বক্স,
+   আর **প্রতিটা প্রশ্নে একাধিক উত্তর**। ⛔ নতুন কলাম বা SQL লাগে না। */
+const WLV1_HIST_GROUPS=[
+ ['bleed','🩸 রক্তপাতের ইতিহাস',[
+   ['color','রঙ',['টকটকে লাল','কালচে']],
+   ['time','সময়',['মলের আগে','মলের সাথে মিশে','মলের পরে','যখন তখন']],
+   ['amount','পরিমাণ',['অল্প','অনেক']]]],
+ ['pain','😣 ব্যথার ইতিহাস',[
+   ['type','ব্যথার ধরন',['তীক্ষ্ণ কাটাকাটা','দপদপ করা']],
+   ['time','সময়',['মলত্যাগের সময় তীব্র হয় ও পরে কয়েক ঘন্টা থাকে','সারাক্ষণ একটানা থাকে']],
+   ['severity','তীব্রতা',['মৃদু','মাঝারি','তীব্র']]]],
+ ['lump','🫃 ফোলা / মাংসপিণ্ডের ইতিহাস',[
+   ['state','',['নিজে থেকে ভেতরে চলে যায় (Spontaneous)','ঠেলে ঢুকিয়ে দিতে হয় (Manual)','সারাক্ষণ বাইরেই বের হয়ে থাকে (Irreducible)','হঠাৎ তীব্র ব্যথাসহ শক্ত হয়ে ফুলে গেছে']]]],
+ ['fluid','💧 পুঁজ / জল পড়ার ইতিহাস',[
+   ['type','তরলের ধরন',['শুধু পুঁজ','রক্তযুক্ত পুঁজ','পাতলা জল']],
+   ['smell','গন্ধ',['দুর্গন্ধযুক্ত','স্বাভাবিক']],
+   ['opening','পায়ুপথের কাছে ছোট ছিদ্র',['দেখা যায়','দেখা যায় না']]]]
+];
+function wlv1HistKeys(){var out=[];WLV1_HIST_GROUPS.forEach(function(g){g[2].forEach(function(q){out.push(g[0]+'.'+q[0])})});return out}
+function wlv1HistOptions(field){var r=[];WLV1_HIST_GROUPS.forEach(function(g){g[2].forEach(function(q){if(g[0]+'.'+q[0]===field)r=q[2]})});return r}
+function wlv1HistFormat(picked,note){
+  var parts=[];
+  wlv1HistKeys().forEach(function(f){
+    var known=wlv1HistOptions(f);
+    var chosen=(picked[f]||[]).filter(function(v){return known.indexOf(v)>=0});
+    if(chosen.length) parts.push(f+'='+chosen.join(', '));
+  });
+  var n=String(note||'').trim();
+  if(n) parts.push('note='+n.split('|').join('/'));
+  return parts.join(' | ');
+}
+function wlv1HistParse(text){
+  var map={},note='';
+  wlv1HistKeys().forEach(function(f){map[f]=[]});
+  String(text||'').split('|').forEach(function(raw){
+    var part=String(raw||'').trim(); if(!part) return;
+    var eq=part.indexOf('='); if(eq<=0) return;
+    var f=part.slice(0,eq).trim(), value=part.slice(eq+1).trim();
+    if(f.toLowerCase()==='note'){ note=value; return }
+    if(!map[f]) return;
+    var known=wlv1HistOptions(f);
+    value.split(',').forEach(function(v){
+      var one=v.trim();
+      if(one&&known.indexOf(one)>=0&&map[f].indexOf(one)<0) map[f].push(one);
+    });
+  });
+  return {map:map,note:note};
+}
+function wlv1HistReadable(text){
+  var r=wlv1HistParse(text),out=[];
+  WLV1_HIST_GROUPS.forEach(function(g){
+    var bits=[];
+    g[2].forEach(function(q){
+      var c=r.map[g[0]+'.'+q[0]]||[];
+      if(c.length) bits.push((q[1]?(q[1]+': '):'')+c.join(', '));
+    });
+    if(bits.length) out.push(g[1]+' — '+bits.join('; '));
+  });
+  if(r.note) out.push(r.note);
+  return out.join(' | ');
+}
+function wlv1HistBoxHtml(note){
+  var r=wlv1HistParse(String((note&&note.historyDetail)||''));
+  var html=WLV1_HIST_GROUPS.map(function(g){
+    var inner=g[2].map(function(q){
+      var f=g[0]+'.'+q[0], chosen=r.map[f]||[];
+      var chips=q[2].map(function(o){
+        return '<button type="button" class="wlv1HistChip'+(chosen.indexOf(o)>=0?' on':'')+'" data-hist="'+f+'" data-val="'+esc(o)+'" onclick="wlv1HistToggle(this)">'+esc(o)+'</button>';
+      }).join('');
+      return (q[1]?('<div class="wlv1HistQ">'+esc(q[1])+'</div>'):'')+'<div class="wlv1HistChips">'+chips+'</div>';
+    }).join('');
+    return '<div class="wlv1HistGrp"><div class="wlv1HistTtl">'+esc(g[1])+'</div>'+inner+'</div>';
+  }).join('');
+  return '<label>রোগীর বলা ইতিহাস</label><div class="wlv1HistBox">'+html
+    +'<textarea id="dnHistoryNote" placeholder="এই ইতিহাস নিয়ে আর কিছু লেখার থাকলে এখানে লিখুন">'+esc(r.note)+'</textarea></div>';
+}
+function wlv1HistToggle(btn){ try{ btn.classList.toggle('on') }catch(e){} }
+function wlv1HistCollect(){
+  try{
+    var picked={};
+    wlv1HistKeys().forEach(function(f){
+      picked[f]=Array.prototype.map.call(document.querySelectorAll('.wlv1HistChip.on[data-hist="'+f+'"]'),
+        function(b){return b.getAttribute('data-val')});
+    });
+    return wlv1HistFormat(picked, ($('#dnHistoryNote')||{}).value||'');
+  }catch(e){ return '' }
+}
+window["wlv1HistToggle"]=wlv1HistToggle;window["wlv1HistCollect"]=wlv1HistCollect;window["wlv1HistReadable"]=wlv1HistReadable;
 function wlv1SymUnit(u){var t=String(u||'').trim();for(var i=0;i<WLV1_SYM_UNITS.length;i++){if(WLV1_SYM_UNITS[i].toLowerCase()===t.toLowerCase())return WLV1_SYM_UNITS[i]}return 'Days'}
 function wlv1SymAmt(a){return String(a||'').replace(/\D/g,'')}
 function wlv1SymFormat(entries,other){
@@ -7369,6 +7460,7 @@ async function saveDoctor(id){
   /* 🔵 V547: ফোনের CheckupRecord-এর মতোই দুটো নতুন ঘর */
   proctoscopy:$('#dnProctoscopy')?.value||'',patientSaid:$('#dnPatientSaid')?.value||'',
   symptomHistory:wlv1SymCollect(),   /* 🔵 V554 */
+  historyDetail:wlv1HistCollect(),   /* 🔵 V555 */
   treatmentPlan,amtPerPiles:$('#dnAmtPerPiles')?.value||'8000',amtFistulaPerInch:$('#dnAmtFistulaInch')?.value||'11000',amtKsharSutra:$('#dnAmtKsharSutra')?.value||'6000',
   counselling:$('#dnCounselling')?.value||'',estimatedCost:$('#dnEstimatedCost')?.value||'',recoveryTime:$('#dnRecoveryTime')?.value||'',advanceDiscussed:$('#dnAdvanceDiscussed')?.value||'',
   // V460 (১৯.০৮.২০২৬, Android-এ V455 হিসেবে করা হয়েছিল — এখানে ওয়েবেও একই ফিক্স):
@@ -13667,6 +13759,7 @@ function wlv1CheckupA4Fields(n){
     /* 🔵 V547: ফোনের ছাপা-সারাংশে যে দুটো সারি আছে (DoctorCheckupActivity.kt:1194-1196), ওয়েবেও সেই দুটো */
     proctoscopy:n.proctoscopy||'', patientSaid:n.patientSaid||'',
     symptomHistory:wlv1SymReadable(n.symptomHistory||''),   /* 🔵 V554 */
+    historyDetail:wlv1HistReadable(n.historyDetail||''),   /* 🔵 V555 */
     treatmentPlan:A(plan), rate:rateBits.join(' · '), counselling:n.counselling||'',
     estCost:n.estimatedCost||'', recovery:n.recoveryTime||'', advance:n.advanceDiscussed||'',
     beforePhoto:n.beforePhoto||'', duringPhoto:n.duringPhoto||'', afterPhoto:n.afterPhoto||''
@@ -13715,6 +13808,7 @@ function wlv1CheckupA4Html(p, dateText){
 '<div class="cell"><span class="k">Prev. Treatment</span><span class="v">'+v(f.prevTreatment)+'</span></div>'+
 '<div class="cell"><span class="k">Patient Said</span><span class="v">'+v(f.patientSaid)+'</span></div>'+   /* 🔵 V547 */
 '<div class="cell"><span class="k">Patient Reported</span><span class="v">'+v(f.symptomHistory)+'</span></div>'+   /* 🔵 V554 */
+'<div class="cell"><span class="k">History Detail</span><span class="v">'+v(f.historyDetail)+'</span></div>'+   /* 🔵 V555 */
 '<div class="cell"><span class="k">Result</span><span class="v">'+v(f.prevResult)+'</span></div>'+
 '<div class="cell"><span class="k">Prev. Cost</span><span class="v">'+v(f.prevCost)+'</span></div>'+
 '<div class="cell"><span class="k">Treatment Duration</span><span class="v">'+v(f.treatmentDuration)+'</span></div>'+
