@@ -1404,7 +1404,19 @@ class PaymentActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             val reason = reasonInput.text.toString().trim()
+            /* 🔴🔒 V527 (২২.০৮.২০২৬, TK-এর স্পষ্ট নির্দেশ) — *"এক টাকাও যদি
+               ফেরত দিতে, তাও ফিঙ্গারপ্রিন্ট চাইবে। ফিঙ্গারপ্রিন্ট না, পাসওয়ার্ড
+               দিলেও যেন কার্যকরী হয়।"*
+               ⇒ টাকা ফেরত দেওয়ার আগে **সবসময়** আঙুল/ফোনের পাসওয়ার্ড।
+               ⛔ Android-এর নিজের পর্দাটাই খোলে — আঙুল না মিললে নিচে
+                  "Use PIN/Password" থাকে, তাই দুটোতেই কাজ হয়।
+               ⛔ **অঙ্কের কোনো সীমা নেই** — ₹১ হলেও চাইবে।
+               ⛔ না মিললে কিছুই সেভ হয় না, আর ফর্মটা খোলাই থাকে (আবার চেষ্টা করা যায়)।
+               ⛔ উপরের সব যাচাই (জমার চেয়ে বেশি নয়, duplicate-tap পাহারা) আগেই
+                  হয়ে গেছে — টাকার নিয়ম এক অক্ষরও বদলায়নি। */
             refundSaving = true
+            askMoneyUnlock("Refund \u20b9${"%,.0f".format(amt)}") { unlocked ->
+            if (!unlocked) { refundSaving = false; return@askMoneyUnlock }
             lifecycleScope.launch {
                 try {
                     val result = withContext(Dispatchers.IO) {
@@ -1423,6 +1435,31 @@ class PaymentActivity : AppCompatActivity() {
                     Toast.makeText(this@PaymentActivity, "Could not save refund — try again", Toast.LENGTH_SHORT).show()
                 } finally { refundSaving = false }
             }
+            }
+        }
+    }
+
+    /**
+     * 🔴🔒 V527 (২২.০৮.২০২৬, TK-নির্দেশ) — **টাকার কাজে আঙুল/পাসওয়ার্ড।**
+     *
+     * TK-এর কথা: *"পেমেন্ট নেওয়ার সময় চাইবে… ফিঙ্গারপ্রিন্ট না, পাসওয়ার্ড
+     * দিলেও যেন কার্যকরী হয়।"*
+     *
+     * Android-এর নিজের পর্দাটাই খোলে — আঙুল না মিললে নিচে "Use PIN/Password"
+     * থাকে, তাই **দুটোতেই** কাজ হয়। অ্যাপ আলাদা কোনো পাসওয়ার্ড রাখে না।
+     *
+     * ⛔ **ফোনে আঙুল/স্ক্রিন-লক না থাকলে কাজ আটকায় না** — তখন সোজা এগোয়,
+     *    নইলে ওই ফোনে টাকা নেওয়াই বন্ধ হয়ে যেত (সেটা তালা নয়, ফাঁদ হত)।
+     * ⛔ ব্যবহারকারী বাতিল করলে কিছুই সেভ হয় না, ফর্ম খোলা থাকে।
+     */
+    private fun askMoneyUnlock(what: String, onDone: (Boolean) -> Unit) {
+        val ready = BiometricGate.unlockAvailability(this)
+        if (ready != BiometricGate.Reason.SUCCESS) { onDone(true); return }
+        BiometricGate.promptUnlock(
+            this, what, "Use your fingerprint, or your phone password"
+        ) { res ->
+            if (!res.ok) Toast.makeText(this, "Not verified — nothing was saved", Toast.LENGTH_SHORT).show()
+            onDone(res.ok)
         }
     }
 

@@ -161,6 +161,25 @@
                     android:textStyle="bold"
                     android:textSize="16sp" />
 
+                <!-- 🔒🔒 V527 (২২.০৮.২০২৬, TK-নির্দেশ): *"পাসওয়ার্ড অথবা
+                     Fingerprint, তবে Fingerprint-এর আগে থাকবে।"*
+                     এই ফোনে আগে কেউ লগইন করে থাকলে **তবেই** দেখা যায় (কোডে
+                     VISIBLE/GONE) — নইলে পর্দা অবিকল আগের মতোই। -->
+                <Button
+                    android:id="@+id/btnFingerprint"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="10dp"
+                    android:background="@drawable/bg_login_button_green"
+                    android:backgroundTint="#0B4F8A"
+                    app:backgroundTint="#0B4F8A"
+                    android:text="🔒 Use Fingerprint"
+                    android:textColor="@color/white"
+                    android:textStyle="bold"
+                    android:textAllCaps="false"
+                    android:textSize="16sp"
+                    android:visibility="gone" />
+
                 <ProgressBar
                     android:id="@+id/progressLogin"
                     android:layout_width="24dp"

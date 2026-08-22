@@ -60,6 +60,57 @@ class LoginActivity : AppCompatActivity() {
 
         binding.btnLogin.setOnClickListener { attemptLogin() }
         binding.tvForgot.setOnClickListener { showForgotPassword() }
+        setupFingerprintLogin()
+    }
+
+    /* ══════════════════════════════════════════════════════════════════════
+       🔒🔒 V527 (২২.০৮.২০২৬, TK-নির্দেশ) — **"পাসওয়ার্ড অথবা Fingerprint,
+       তবে Fingerprint-এর আগে থাকবে।"**
+
+       ⚠️ **একটা জরুরি সত্য:** আঙুল দিয়ে শুধু বোঝা যায় *"এটা এই ফোনের
+       মালিক"* — **কে লগইন করছেন সেটা আঙুল বলতে পারে না**। তাই আঙুল কাজ
+       করে কেবল তখনই, যখন **এই ফোনে আগে কেউ পাসওয়ার্ড দিয়ে লগইন করেছেন** —
+       তখন সেই নম্বরটাই মনে রাখা থাকে, আর আঙুল দিলে তাঁকেই আবার ঢোকানো হয়।
+       (ব্যাংকের অ্যাপ ঠিক এভাবেই কাজ করে।)
+
+       ⛔ **কোনো পাসওয়ার্ড কখনো ফোনে জমা হয় না** — শুধু ১০ সংখ্যার নম্বর।
+       ⛔ আঙুল দিয়ে ঢুকলেও **suspend/removed যাচাই হুবহু আগের মতোই** হয়
+          (`finishLogin`) — তাই বাদ-দেওয়া কেউ আঙুল দিয়েও ঢুকতে পারবেন না।
+       ⛔ ফোনে আঙুল/স্ক্রিন-লক না থাকলে বা আগে কেউ লগইন না করলে বোতামটাই
+          দেখা যায় না — পর্দা **অবিকল আগের মতোই**, পাসওয়ার্ড দিয়েই চলবে।
+       ══════════════════════════════════════════════════════════════════════ */
+    private fun lastMobilePrefs() =
+        getSharedPreferences("piles_clinic_login_v1", MODE_PRIVATE)
+
+    private fun rememberLastMobile(mobile: String) {
+        try { lastMobilePrefs().edit().putString("lastMobile", mobile).apply() } catch (_: Throwable) { }
+    }
+
+    private fun setupFingerprintLogin() {
+        val last = try { lastMobilePrefs().getString("lastMobile", "") ?: "" } catch (_: Throwable) { "" }
+        if (last.length != 10) return
+        if (BiometricGate.unlockAvailability(this) != BiometricGate.Reason.SUCCESS) return
+        // নম্বরটা আগে থেকে বসিয়ে রাখা — পাসওয়ার্ড দিতে চাইলেও সুবিধা হয়।
+        if (binding.etMobile.text.isNullOrBlank()) binding.etMobile.setText(last)
+        binding.btnFingerprint.visibility = View.VISIBLE
+        binding.btnFingerprint.setOnClickListener { fingerprintLogin(last) }
+        // TK: *"Fingerprint-এর আগে থাকবে"* — পর্দা খুলেই একবার নিজে থেকে চায়।
+        // ⛔ বাতিল করলে কিছুই হয় না, পাসওয়ার্ডের ঘর আগের মতোই খোলা থাকে।
+        binding.btnFingerprint.post { fingerprintLogin(last) }
+    }
+
+    private fun fingerprintLogin(mobile: String) {
+        val account = StaffDirectory.findAccount(mobile)
+        if (account == null) {
+            showError("Mobile number not found")
+            return
+        }
+        BiometricGate.promptUnlock(
+            this, "Login", "Use your fingerprint, or your phone password"
+        ) { res ->
+            if (res.ok) { hideError(); finishLogin(account, mobile) }
+            // ⛔ না মিললে কিছুই আটকায় না — পাসওয়ার্ড দিয়ে ঢোকা যাবে।
+        }
     }
 
     private fun attemptLogin() {
@@ -128,6 +179,25 @@ class LoginActivity : AppCompatActivity() {
             }
 
             if (ok) {
+                finishLogin(account, mobile)
+            } else {
+                showError("Wrong password")
+            }
+        }
+    }
+
+    /**
+     * 🔒🔒 V527 (২২.০৮.২০২৬, TK-নির্দেশ) — **পাসওয়ার্ড ও আঙুল, দুটোই এই একই
+     * দরজা দিয়ে ঢোকে।**
+     *
+     * পাসওয়ার্ড মেলার **পরে** যে যাচাইগুলো হত (suspend/removed, session সেভ),
+     * সেগুলো এখানে সরিয়ে আনা হলো — এক অক্ষরও বদলায়নি। আঙুল দিয়ে ঢুকলেও
+     * **হুবহু একই যাচাই** হয়, তাই সাসপেন্ড/বাদ-দেওয়া কেউ আঙুল দিয়েও ঢুকতে
+     * পারবেন না।
+     * ⛔ এটাই সবচেয়ে জরুরি — নইলে আঙুলের পথে একটা ফাঁক তৈরি হত।
+     */
+    private fun finishLogin(account: StaffAccount, mobile: String) {
+        lifecycleScope.launch {
                 // 🔵🔒 B618 (11.08.2026, TK-নির্দেশ): সাসপেন্ড-চেক (শুধু master ছাড়া)।
                 // ⛔ fail-open — নেট/ত্রুটিতে fetchSuspendedUntil null ফেরে, তখন কখনো
                 // আটকাবে না (কেউ যেন ভুলে লক না হয়); শুধু স্পষ্ট suspended_until >= আজ
@@ -152,10 +222,10 @@ class LoginActivity : AppCompatActivity() {
                 }
                 val user = NativeUser(account.mobile, account.name, account.branch, NativeUser.permissionRole(account.role), account.role)
                 NativeSession.save(this@LoginActivity, user)
+                // 🔒 V527: পরের বার আঙুল দিয়ে ঢোকার জন্য কোন নম্বরটা মনে রাখতে হবে।
+                //    ⛔ শুধু নম্বর — কোনো পাসওয়ার্ড কখনো ফোনে জমা হয় না।
+                rememberLastMobile(mobile)
                 openDashboard()
-            } else {
-                showError("Wrong password")
-            }
         }
     }
 
