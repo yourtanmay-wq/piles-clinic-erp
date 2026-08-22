@@ -7167,7 +7167,7 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
    <!-- 🔴 V542 (TK-নির্দেশ: "ইনজেকশন চিকিৎসা থাকবে না") — সারিটা সরানো। ⛔ পুরোনো রেকর্ডে মানটা থেকে যায়, ছাপায় আগের মতোই দেখা যায়। -->
   </div>
   ${wlv1CounselBoxHtml(note,p)}
-  ${wlv1AnatBoxHtml(note)}
+  ${wlv1AnatBoxHtml(note,id)}
   <label>Other Treatment Note · অন্যান্য চিকিৎসার কথা (টাইপ করুন)</label><textarea id="dnCounselling" placeholder="রোগীকে কিভাবে চিকিৎসা করবেন বলেছেন সেই কথা এখানে লিখুন">${val('counselling')}</textarea>
  </details>
  <details class="card"><summary><b>4. Estimate &amp; Decision · আনুমানিক খরচ ও রোগীর সিদ্ধান্ত</b></summary><label>Estimated Cost · আনুমানিক খরচ</label><input id="dnEstimatedCost" class="input" value="${val('estimatedCost')}"><label>Estimated Recovery Time · আনুমানিক কতদিন বলা হল</label><input id="dnRecoveryTime" class="input" value="${val('recoveryTime')}"><label>Advance Payment to be Done · অগ্রিম কত টাকা জমা করতে চাইছে</label><input id="dnAdvanceDiscussed" class="input" value="${val('advanceDiscussed')}"></details>
@@ -7545,10 +7545,11 @@ function wlv1AnatReadable(saved){
 /* এই পর্দার এখনকার অবস্থা — কোন ছবি, কী কী দাগ, কোন কাজ চলছে। */
 var wlv1AnatState={pic:'',marks:[],tool:'bulge',label:'',down:null,live:[]};
 
-function wlv1AnatBoxHtml(note){
+function wlv1AnatBoxHtml(note,pid){
   var saved=String((note&&note.anatomy)||'');
   var b=AnatomyMark.parse(saved);
-  wlv1AnatState={pic:b.pic||'',marks:b.marks||[],tool:'bulge',label:'',down:null,live:[]};
+  wlv1AnatState={pic:b.pic||'',marks:b.marks||[],tool:'bulge',label:'',down:null,live:[],
+    id:String(pid||''),saved:saved};
   var strip=WLV1_ANAT_PICS.map(function(p){
     return '<img class="wlv1AnatTh'+(p.key===wlv1AnatState.pic?' on':'')+'" data-k="'+p.key+'" '
       +'src="'+wlv1AnatSrc(p.key)+'" alt="'+esc(p.label)+'" title="'+esc(p.label)+'" '
@@ -7693,7 +7694,13 @@ function wlv1AnatErase(p){
   if(best>=0){m.splice(best,1);wlv1AnatPaint()}
 }
 
-function wlv1AnatCollect(){
+function wlv1AnatCollect(pid){
+  /* 🔒 বোর্ডটা যে রোগীর জন্য আঁকা হয়েছিল, সেভও শুধু তারই হবে। অন্য কারো
+     পর্দা থেকে ডাকা হলে আগে যা জমা ছিল সেটাই ফেরত যায় — এক রোগীর ছবি
+     আরেক রোগীর ঘরে বসার কোনো পথ রাখা হয়নি (এই প্রজেক্টেই B437-এ ঠিক
+     এই শ্রেণির বাগ একবার ধরা পড়েছিল)। */
+  var want=String(pid||'');
+  if(want&&String(wlv1AnatState.id||'')!==want)return String(wlv1AnatState.saved||'');
   var note='';
   try{note=($('#dnAnatNote')||{}).value||''}catch(_e){}
   return AnatomyMark.format(wlv1AnatState.pic,wlv1AnatState.marks,note);
@@ -8048,7 +8055,7 @@ async function saveDoctor(id){
   lifestyle:wlv1LifeCollect(),       /* 🔵 V556 */
   probableDisease:$('#dnProbableDisease')?.value||'',   /* 🔵 V557 */
   timeAsked:wlv1TimeAsked(($('#dnTimeAsked')||{}).value||'',($('#dnTimeAskedUnit')||{}).value||''),
-  anatomy:wlv1AnatCollect(),   /* 🔵 V558 */
+  anatomy:wlv1AnatCollect(id),   /* 🔵 V558 — শুধু এই রোগীরই ছবি */
   /* 🔵 V556: ওয়েবে `visual`-এর মতোই তালিকা হিসেবে জমা (chk() তালিকাই বোঝে) */
   dre:$$('.dnDre:checked').map(x=>x.value),dreOther:$('#dnDreOther')?.value||'',
   treatmentPlan,amtPerPiles:$('#dnAmtPerPiles')?.value||'8000',amtFistulaPerInch:$('#dnAmtFistulaInch')?.value||'11000',amtKsharSutra:$('#dnAmtKsharSutra')?.value||'6000',

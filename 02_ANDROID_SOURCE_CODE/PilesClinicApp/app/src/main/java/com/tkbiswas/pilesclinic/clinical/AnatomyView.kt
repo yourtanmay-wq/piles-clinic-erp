@@ -77,9 +77,11 @@ class AnatomyView(context: Context) : View(context) {
         val b = AnatomyModel.parse(saved)
         note = b.note
         if (b.pic.isNotBlank()) {
+            // ছবিটা ফোনে না থাকলেও নামটা ধরে রাখা হয় — নইলে পরের বার সেভ
+            // করলে "কোন ছবির উপরে আঁকা হয়েছিল" সেই তথ্যটাই হারিয়ে যেত।
+            picKey = b.pic
             val id = resolve(b.pic)
             if (id != 0) {
-                picKey = b.pic
                 base = try { BitmapFactory.decodeResource(resources, id) } catch (_: Throwable) { null }
             }
         }

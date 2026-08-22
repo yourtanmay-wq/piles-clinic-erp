@@ -1486,13 +1486,18 @@ class DoctorCheckupActivity : AppCompatActivity() {
             .show()
     }
 
+    /** শেষবার যা জমা ছিল — পর্দা তৈরি না থাকলে এটাই ফেরত যায়, নইলে
+        সেভ করতে গিয়ে আগের আঁকা ছবিটা মুছে যেত। */
+    private var lastAnatomySaved: String = ""
+
     private fun collectAnatomy(): String {
-        val view = anatomyView ?: return ""
+        val view = anatomyView ?: return lastAnatomySaved
         view.setNote(findViewById<android.widget.EditText>(R.id.etAnatomyNote)?.text?.toString().orEmpty())
         return view.save()
     }
 
     private fun applyAnatomy(saved: String) {
+        lastAnatomySaved = saved
         val view = anatomyView ?: return
         view.load(saved) { key -> anatomyResId(key) }
         paintAnatomyThumbs(AnatomyModel.parse(saved).pic)
