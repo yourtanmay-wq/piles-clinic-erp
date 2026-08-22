@@ -13,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.resume   // 🔵 V531
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -66,6 +67,33 @@ import java.util.Locale
  * inventing a new one.
  */
 class ChamberAttendanceActivity : AppCompatActivity() {
+
+    /**
+     * 🔵🔒 V531 (২২.০৮.২০২৬, TK-নির্দেশ) — *"Mark Expected"* বাক্সে এক নম্বরে
+     * **সত্যিই একাধিক আলাদা রোগী** থাকলে তবেই এক লাইনে জিজ্ঞাসা।
+     * ⛔ একজন থাকলে (রোজকার ৯৯%) এই বাক্স কখনো দেখা যায় না।
+     * (হুবহু সেই পর্দা যেটা Payment · Print · Doctor Visit-এ চলছে।)
+     */
+    private suspend fun askWhichChamberPatient(
+        mobile: String, people: List<org.json.JSONObject>
+    ): org.json.JSONObject? = kotlinx.coroutines.suspendCancellableCoroutine { cont ->
+        val labels = people.map { r ->
+            (r.s("name").ifBlank { "UNKNOWN" }) + "\n" + (r.s("patientId").ifBlank { "-" })
+        }.toTypedArray()
+        var done = false
+        fun finishWith(v: org.json.JSONObject?) {
+            if (done) return
+            done = true
+            if (cont.isActive) cont.resume(v)
+        }
+        if (isFinishing || isDestroyed) { finishWith(null); return@suspendCancellableCoroutine }
+        AlertDialog.Builder(this)
+            .setTitle("\uD83D\uDCDE $mobile \u2014 which patient?")
+            .setItems(labels) { _, which -> finishWith(people.getOrNull(which)) }
+            .setNegativeButton("Cancel") { _, _ -> finishWith(null) }
+            .setOnCancelListener { finishWith(null) }
+            .show()
+    }
 
     // V450: a live mobile lookup can prove that follow-up rows exist but every
     // one is terminal. Keep that state separate from "no row exists" so the
@@ -1058,7 +1086,20 @@ class ChamberAttendanceActivity : AppCompatActivity() {
             // অনুরোধে সবকটা ঘর একসাথে (select কলাম বাড়ানো হয়েছে মাত্র)।
             val patientRow = withContext(Dispatchers.IO) {
                 try {
-                    val rows = SupabaseClient.findByMobile("patients", "+91$digits", "id,address,age,sex")
+                    /* 🔵🔒 V531 (২২.০৮.২০২৬, TK-নির্দেশ) — **ঠিক এই কার্ডের রোগীটিই।**
+                       বোর্ডের সারিটা V526 থেকেই জানে সে কোন রোগীর
+                       (`ChamberAttendanceRow.patientRowId`)। আগে সেটা এখানে
+                       ব্যবহার হত না — শুধু মোবাইল ধরে **প্রথম সারি** নেওয়া হত,
+                       তাই এক নম্বরে দু'জন থাকলে অন্যজনের ঠিকানা/বয়স/লিঙ্গ
+                       ক্লিনিক্যাল পর্দায় বসে যেতে পারত।
+                       ⛔ `patientRowId` ফাঁকা (পুরোনো জমানো সারি) বা সার্ভারে
+                          না মিললে — **হুবহু আগের সেই মোবাইল-পথ**। */
+                    val wanted = row.patientRowId.trim()
+                    var rows = if (wanted.isNotBlank())
+                        SupabaseClient.fetchList("patients", "id=eq.$wanted", 1, select = "id,address,age,sex")
+                    else SupabaseClient.findByMobile("patients", "+91$digits", "id,address,age,sex")
+                    if (wanted.isNotBlank() && rows.length() == 0)
+                        rows = SupabaseClient.findByMobile("patients", "+91$digits", "id,address,age,sex")
                     if (rows.length() > 0) rows.getJSONObject(0) else null
                 } catch (_: Throwable) { null }
             }
@@ -1268,14 +1309,30 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                 if (digits.length != 10) return
                 val myToken = ++matchToken
                 lifecycleScope.launch {
-                    val found = withContext(Dispatchers.IO) {
+                    /* 🔵🔒 V531: আগে এখানেও **প্রথম সারিটাই** নেওয়া হত, তাই এক
+                       নম্বরে দু'জন আলাদা রোগী থাকলে অন্যজনের নাম বসে যেতে
+                       পারত। এখন একাধিক হলে তবেই জিজ্ঞাসা।
+                       ⛔ একজন হলে আচরণ হুবহু আগের মতোই। ⛔ ক্লাউড-অনুরোধ
+                          বাড়েনি — সেই একটাই ডাক, শুধু `id`/`patientId` ঘর
+                          দুটোও আনা হচ্ছে (বাছাই করতে ওগুলো লাগে)। */
+                    val pats = withContext(Dispatchers.IO) {
+                        try { SupabaseClient.findByMobile("patients", "+91$digits", "id,name,branch,patientId,bill", 20) }
+                        catch (_: Throwable) { org.json.JSONArray() }
+                    }
+                    if (myToken != matchToken) return@launch
+                    val people = PatientIdentity.separateIdentities(pats, digits)
+                    val chosen: org.json.JSONObject? = if (people.size >= 2) {
+                        // স্টাফ Cancel করলে কিছুই বসানো হয় না — ভুল নাম বসার চেয়ে নিরাপদ।
+                        askWhichChamberPatient(digits, people) ?: return@launch
+                    } else if (pats.length() > 0) {
+                        pats.getJSONObject(0)   // ⛔ হুবহু আগের লাইন
+                    } else null
+                    if (myToken != matchToken) return@launch
+                    val found = chosen ?: withContext(Dispatchers.IO) {
                         try {
-                            val pat = SupabaseClient.findByMobile("patients", "+91$digits", "name,branch")
-                            if (pat.length() > 0) return@withContext pat.getJSONObject(0)
                             val enq = SupabaseClient.findByMobile("enquiries", "+91$digits", "name,branch")
-                            if (enq.length() > 0) return@withContext enq.getJSONObject(0)
-                        } catch (_: Throwable) { }
-                        null
+                            if (enq.length() > 0) enq.getJSONObject(0) else null
+                        } catch (_: Throwable) { null }
                     }
                     if (myToken != matchToken) return@launch
                     if (found != null) {

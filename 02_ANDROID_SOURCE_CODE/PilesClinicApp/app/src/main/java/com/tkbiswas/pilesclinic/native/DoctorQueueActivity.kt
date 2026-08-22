@@ -441,7 +441,7 @@ class DoctorQueueActivity : AppCompatActivity() {
         // হলেও পর্দা খুলবে, শুধু ওই তিনটে ঘর ফাঁকা থাকবে — কিছু ভাঙে না।
         lifecycleScope.launch {
             val (address, age, sex) = withContext(Dispatchers.IO) {
-                try { com.tkbiswas.pilesclinic.native.AddressTagRepository.fetchDemographicsCached("+91${patient.mobile.filter { it.isDigit() }.takeLast(10)}") }
+                try { com.tkbiswas.pilesclinic.native.AddressTagRepository.fetchDemographicsCached("+91${patient.mobile.filter { it.isDigit() }.takeLast(10)}", patient.id)   /* 🔵 V531: এক নম্বরে দু'জন হলে ঠিক এই রোগীরই */ }
                 catch (_: Throwable) { Triple("", "", "") }
             }
             val intent = Intent(this@DoctorQueueActivity, ClinicalModulesActivity::class.java)

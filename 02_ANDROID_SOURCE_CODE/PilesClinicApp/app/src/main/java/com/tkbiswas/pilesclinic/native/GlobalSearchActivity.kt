@@ -376,7 +376,7 @@ class GlobalSearchActivity : AppCompatActivity() {
         // আগের মতোই, কিছু ভাঙে না।
         lifecycleScope.launch {
             val (address, age, sex) = withContext(Dispatchers.IO) {
-                try { com.tkbiswas.pilesclinic.native.AddressTagRepository.fetchDemographics("+91$digits") }
+                try { com.tkbiswas.pilesclinic.native.AddressTagRepository.fetchDemographics("+91$digits", hit.rowId)   /* 🔵 V531 */ }
                 catch (_: Throwable) { Triple("", "", "") }
             }
             com.tkbiswas.pilesclinic.clinical.RoleSession.applyFrom(

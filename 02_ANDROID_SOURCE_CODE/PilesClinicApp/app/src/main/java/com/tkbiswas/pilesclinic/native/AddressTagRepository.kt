@@ -148,30 +148,80 @@ object AddressTagRepository {
     // 🔵 TK-ORDER (07.08.2026): fetchDemographics-এর মতোই, তবে পড়া **ব্যর্থ হলে null**
     // (findByMobileOrNull) — "রেকর্ড নেই" আর "পড়া হলোই না" আলাদা বোঝা যায়।
     // ⛔ একই একটাই cloud-read; পুরনো fetchDemographics (GlobalSearch ব্যবহার করে) অক্ষত।
-    private fun fetchDemographicsOrNull(mobile: String): Triple<String, String, String>? {
+    private fun fetchDemographicsOrNull(
+        mobile: String,
+        preferRowId: String = ""
+    ): Triple<String, String, String>? {
         return try {
-            val rows = SupabaseClient.findByMobileOrNull("patients", mobile, "address,age,sex", 1) ?: return null
+            /* 🔵 V531: রোগীর নিজের সারির আইডি জানা থাকলে ঠিক সেটাই — একটাই,
+               আরও ছোট অনুরোধ। ⛔ ফাঁকা হলে নিচের লাইনটাই আগের মতো চলে। */
+            var rows: JSONArray? = null
+            if (preferRowId.isNotBlank()) {
+                rows = SupabaseClient.fetchListOrNull(
+                    "patients", "id=eq.$preferRowId", 1, select = "address,age,sex"
+                )
+                /* ⛔ **কখনোই আগের চেয়ে খারাপ নয়:** আইডিটা সার্ভারে না থাকলে
+                   (যেমন ফোনে-বানানো সারি যা এখনো ওঠেনি) পুরোনো মোবাইল-পথেই
+                   ফিরে যাওয়া হয় — আগে যা হত, হুবহু তাই। */
+                if (rows != null && rows.length() == 0) rows = null
+                if (rows == null) rows = SupabaseClient.findByMobileOrNull("patients", mobile, "address,age,sex", 1)
+            } else {
+                rows = SupabaseClient.findByMobileOrNull("patients", mobile, "address,age,sex", 1)
+            }
+            if (rows == null) return null
             if (rows.length() == 0) return Triple("", "", "")   // সত্যিই কোনো সারি নেই
             val row = rows.getJSONObject(0)
             Triple(row.s("address"), row.s("age"), row.s("sex"))
         } catch (_: Throwable) { null }
     }
 
-    fun fetchDemographicsCached(mobile: String): Triple<String, String, String> {
+    /**
+     * 🔵🔒 V531 (২২.০৮.২০২৬, TK-নির্দেশ) — **এক নম্বরে দু'জন হলে ঠিক জনেরই
+     * ঠিকানা/বয়স/লিঙ্গ।**
+     *
+     * **আগে যা হত:** শুধু মোবাইল ধরে খুঁজে **প্রথম সারিটাই** নেওয়া হত। এক
+     * নম্বরে স্বামী-স্ত্রী দু'জন আলাদা রোগী থাকলে Doctor Queue ও Global Search
+     * থেকে ক্লিনিক্যাল পর্দায় **অন্যজনের বয়স-লিঙ্গ** বসে যেতে পারত।
+     *
+     * **এখন:** ডাকার জায়গা রোগীর নিজের সারির আইডি (`preferRowId`) জানলে
+     * সরাসরি **সেই আইডি ধরেই** আনা হয় — মোবাইল ধরে খোঁজাই হয় না।
+     *
+     * ⛔ `preferRowId` ফাঁকা ⇒ **হুবহু আগের সেই এক ডাক**, এক অক্ষরও বদলায়নি।
+     * ⛔ **ক্লাউড-অনুরোধ বাড়েনি** — একটাই অনুরোধ, আগের মতোই। বরং আইডি ধরে
+     *    খোঁজা মোবাইল ধরে খোঁজার চেয়ে **ছোট ও সঠিক**।
+     * ⛔ জমানো ফলের (cache) চাবিতে আইডিটাও যোগ হয়েছে — নইলে দু'জনের
+     *    ঠিকানা একে অপরের ঘরে ঢুকে যেত। পুরোনো চাবি (শুধু মোবাইল) অক্ষত
+     *    থাকে যখন আইডি ফাঁকা, তাই আগের জমানো ফল নষ্ট হয় না।
+     */
+    fun fetchDemographicsCached(
+        mobile: String,
+        preferRowId: String = ""
+    ): Triple<String, String, String> {
+        val cacheKey = if (preferRowId.isBlank()) mobile else mobile + "|" + preferRowId
         val now = System.currentTimeMillis()
-        demoCache[mobile]?.let { (ts, value) -> if (now - ts < CACHE_TTL_MS) return value }
+        demoCache[cacheKey]?.let { (ts, value) -> if (now - ts < CACHE_TTL_MS) return value }
         // 🔵 TK-ORDER (07.08.2026): আগে ব্যর্থ পড়ার খালি (`"","",""`)-ও ৫ মিনিট cache
         // হয়ে যেত → checkup/print-এ ঠিকানা/বয়স/লিঙ্গ ৫ মিনিট ফাঁকা থাকত। এখন **শুধু
         // সফল পড়াই** cache হয়; ব্যর্থ হলে এবারের মতো খালি ফেরে কিন্তু cache হয় না
         // (পরের বার আবার আসল ক্লাউড থেকে আনা হয়)।
-        val fresh = fetchDemographicsOrNull(mobile)
-        if (fresh != null) { demoCache[mobile] = now to fresh; return fresh }
+        val fresh = fetchDemographicsOrNull(mobile, preferRowId)
+        if (fresh != null) { demoCache[cacheKey] = now to fresh; return fresh }
         return Triple("", "", "")
     }
 
-    fun fetchDemographics(mobile: String): Triple<String, String, String> {
+    /** 🔵🔒 V531: উপরের `fetchDemographicsCached`-এর মতোই — `preferRowId` দিলে
+     *  ঠিক সেই সারিটাই, ফাঁকা দিলে **হুবহু আগের আচরণ**। */
+    fun fetchDemographics(
+        mobile: String,
+        preferRowId: String = ""
+    ): Triple<String, String, String> {
         return try {
-            val rows = SupabaseClient.findByMobile("patients", mobile, "address,age,sex", 1)
+            var rows = if (preferRowId.isNotBlank())
+                SupabaseClient.fetchList("patients", "id=eq.$preferRowId", 1, select = "address,age,sex")
+            else SupabaseClient.findByMobile("patients", mobile, "address,age,sex", 1)
+            // ⛔ V531: আইডিতে না পেলে পুরোনো মোবাইল-পথ — আগের চেয়ে খারাপ কখনো নয়।
+            if (preferRowId.isNotBlank() && rows.length() == 0)
+                rows = SupabaseClient.findByMobile("patients", mobile, "address,age,sex", 1)
             if (rows.length() == 0) return Triple("", "", "")
             val row = rows.getJSONObject(0)
             Triple(row.s("address"), row.s("age"), row.s("sex"))
