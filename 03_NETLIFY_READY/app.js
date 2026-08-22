@@ -4470,16 +4470,52 @@ function ensureFollow(r,stage,next,rem){let f=load('followups'),i=f.findIndex(x=
 window["ensureFollow"]=ensureFollow;
 function isConvertedOrClosed(x){let st=String(x?.status||'').toLowerCase(),sg=String(x?.stage||'').toLowerCase();return ['closed','registered','converted','cancelled','rejected','incomplete'].includes(st)||['registered','converted','closed'].includes(sg)||(sg==='inquiry'&&!!x?.convertedPatientId)}
 window["isConvertedOrClosed"]=isConvertedOrClosed;
+/* 🖥️🔴🔒 V549 (২২.০৮.২০২৬) — **এক নম্বরে দুজন রোগী: একজনের রেজিস্ট্রেশন
+   যেন অন্যজনের সারি বন্ধ করে না দেয়** (ফোনে V536-এ যা করা হয়েছিল, ওয়েবেও তাই)।
+
+   রেজিস্ট্রেশন শেষ হলে ওই মোবাইলের **সব** enquiry ও Inquiry-followup সারিকে
+   "Registered/Closed" করে দেওয়া হত — শুধু মোবাইল মিলিয়ে। একই নম্বরে স্বামী-স্ত্রী
+   দুজন রোগী থাকলে একজনকে রেজিস্টার করলেই **অন্যজনের এনকোয়ারিও বন্ধ** হয়ে যেত।
+
+   নিয়মটা ফোনের `PatientIdentity.provablyOtherPatient`-এর হুবহু নকল —
+   **প্রমাণ ছাড়া কাউকে বাদ দেওয়া হয় না**:
+     • নম্বরটাতে স্টাফ নিজে "Different Patient — Same Mobile" বলেননি → আগের
+       আচরণ **হুবহু অপরিবর্তিত** (তাই রোজকার ৯৯% ক্ষেত্রে কিচ্ছু বদলায় না);
+     • বলে থাকলে তবেই — যে সারির `refId`/`convertedPatientId` **অন্য একজন
+       রোগীর দিকে দেখাচ্ছে**, বা নাম **স্পষ্টতই অন্য কারো**, শুধু সেটাই বাদ যায়।
+   ⛔ কোনো সারি মোছা/বদলানো হয় না — শুধু ছোঁয়া হয় না। */
+function wlv1MobileHasSeparateIdentity(mm){
+  try{
+    var d=mob(mm); if(!d) return false;
+    return (load('patients')||[]).some(function(x){
+      return mob(x&&x.mobile)===d && wlv1IsDeclaredSeparateRowId(x&&x.id, d);
+    });
+  }catch(e){ return false }
+}
+function wlv1ProvablyOtherPatient(row,mm,p){
+  try{
+    if(!row||!p) return false;
+    if(!wlv1MobileHasSeparateIdentity(mm)) return false;   // নম্বরটা ভাগ করা নয় → আগের নিয়ম
+    var mine=String(p.id||'');
+    var link=String(row.refId||row.convertedPatientId||'');
+    if(link && mine && link!==mine) return true;
+    var rn=String(row.name||'').trim().toUpperCase();
+    var pn=String(p.name||'').trim().toUpperCase();
+    return !!(rn && pn && rn!==pn);
+  }catch(e){ return false }
+}
+window["wlv1MobileHasSeparateIdentity"]=wlv1MobileHasSeparateIdentity;
+window["wlv1ProvablyOtherPatient"]=wlv1ProvablyOtherPatient;
 function closeEnquiryAfterRegistration(m,p){
  try{
   let mm=mob(m),now=new Date().toISOString(),hist={date:today(),remark:'Converted to Patient Registration',staff:user?.name||user?.mobile||'Staff',status:'Registered'};
   let changedE=[];
-  let es=load('enquiries').map(e=>{if(mob(e.mobile)===mm){let row={...e,status:'Registered',stage:'Registered',nextFollow:'',convertedPatientId:p?.id||e.convertedPatientId||'',convertedAt:e.convertedAt||now,updatedAt:now};changedE.push(row);return row}return e});
+  let es=load('enquiries').map(e=>{if(mob(e.mobile)===mm&&!wlv1ProvablyOtherPatient(e,mm,p)){let row={...e,status:'Registered',stage:'Registered',nextFollow:'',convertedPatientId:p?.id||e.convertedPatientId||'',convertedAt:e.convertedAt||now,updatedAt:now};changedE.push(row);return row}return e});
   changedE.forEach(r=>protectNewRow('enquiries',r));
   save('enquiries',es);
   let changedF=[];
   let fs=load('followups').map(f=>{
-   if(mob(f.mobile)===mm&&String(f.stage||'')==='Inquiry'){
+   if(mob(f.mobile)===mm&&String(f.stage||'')==='Inquiry'&&!wlv1ProvablyOtherPatient(f,mm,p)){
     // V256 final workflow fix: converted enquiry must not remain under Inquiry tab.
     // Keep history/data, but move it out of Inquiry with Closed status. Visit/Patient row is separate.
     let row={...f,previousStage:f.previousStage||'Inquiry',stage:'Registered',status:'Closed',nextFollow:'',lastRemark:'Converted to Patient Registration',convertedPatientId:p?.id||f.convertedPatientId||'',convertedAt:f.convertedAt||now,updatedAt:now,history:[...(f.history||[]),hist]};
@@ -4723,8 +4759,8 @@ function finalizeEnquiryRegistrationVisit(mm,p){
   mm=mob(mm||p?.mobile);p=p||patientForMobile(mm);if(!mm||!p)return;
   let now=new Date().toISOString(),changedE=[],changedF=[];
   ensureVisitFollowForPatient(p);
-  let es=load('enquiries').map(e=>{if(mob(e.mobile)===mm){let r={...e,stage:'Registered',status:'Registered',nextFollow:'',convertedPatientId:p.id,convertedAt:e.convertedAt||now,updatedAt:now};changedE.push(r);return r}return e});
-  let fs=load('followups').map(f=>{if(mob(f.mobile)===mm&&String(f.stage||'')==='Inquiry'){let r={...f,previousStage:f.previousStage||'Inquiry',stage:'Registered',status:'Closed',nextFollow:'',lastRemark:'Converted to Patient Registration',convertedPatientId:p.id,convertedAt:f.convertedAt||now,updatedAt:now};changedF.push(r);return r}return f});
+  let es=load('enquiries').map(e=>{if(mob(e.mobile)===mm&&!wlv1ProvablyOtherPatient(e,mm,p)){let r={...e,stage:'Registered',status:'Registered',nextFollow:'',convertedPatientId:p.id,convertedAt:e.convertedAt||now,updatedAt:now};changedE.push(r);return r}return e});   /* 🔴 V549 */
+  let fs=load('followups').map(f=>{if(mob(f.mobile)===mm&&String(f.stage||'')==='Inquiry'&&!wlv1ProvablyOtherPatient(f,mm,p)){let r={...f,previousStage:f.previousStage||'Inquiry',stage:'Registered',status:'Closed',nextFollow:'',lastRemark:'Converted to Patient Registration',convertedPatientId:p.id,convertedAt:f.convertedAt||now,updatedAt:now};changedF.push(r);return r}return f});
   save('enquiries',es);save('followups',fs);
   try{forceCloudVisibleRows([...changedE.map(row=>({table:'enquiries',row})),...changedF.map(row=>({table:'followups',row})),{table:'patients',row:p},...load('followups').filter(f=>mob(f.mobile)===mm&&String(f.stage||'')==='Patient').map(row=>({table:'followups',row}))])}catch(_e){}
  }catch(e){console.warn('finalize workflow skipped',e)}
@@ -8302,7 +8338,13 @@ function paymentHistory(id,type='all'){
  // অ্যাপের একই paidEffect নিয়ম)।
  let totalPaid=rows.reduce((s,x)=>s+wlv1PayEffect(x),0);
  let runningPaid=0;
- let tableRows=rows.map((x,i)=>{
+ /* 🖥️🔵 V549: ফোনের V533-এর হুবহু — চেম্বারের "আসবে বলেছে" /
+    হাজিরার দাগ / বিল-সংশোধনের সারি (টাকা ০) এই তালিকায় দেখানো হয় না।
+    TK: *"জিরো পেমেন্ট আবার কেন দেখাবে এখানে"*।
+    ⛔ টাকার হিসাব উপরের `totalPaid` আগের সারিগুলো ধরেই হয় — এক পয়সাও বদলায় না
+       (এগুলোর টাকা এমনিতেই ০)। শুধু দেখানো বন্ধ। */
+ let shownRows=rows.filter(x=>!['chamber_expected','attendance_mark','bill_edit'].includes(String(x.payType||'').trim().toLowerCase()));
+ let tableRows=shownRows.map((x,i)=>{
   runningPaid+=wlv1PayEffect(x);
   let due=Math.max(0,bill-runningPaid);
   /* 🔒 খাতার সারি B121 (TK পাশ): টাকার সারির শেষে 🗑️ — ফোনের মতোই।
