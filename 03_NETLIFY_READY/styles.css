@@ -5880,10 +5880,29 @@ button.card.reportKpi span, .card.reportKpi span, button.card.reportKpi small, .
 .wlv1AnatCanvas{display:block;max-width:100%;height:auto;margin:0 auto;touch-action:none}
 .wlv1AnatHint{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);
   text-align:center;color:#8A93A0;font-size:13px}
-.wlv1AnatTools{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
-.wlv1AnatTool{font-size:12.5px;padding:6px 10px;border-radius:20px;border:1px solid #DBE2EA;
-  background:#fff;color:#7C8A9C;cursor:pointer}
-.wlv1AnatTool.on{border-color:#0B4F2A;background:#EAFBF0;color:#0B4F2A;font-weight:700}
+/* 🖥️🔵🔒 V570 (২২.০৮.২০২৬, TK-অনুমোদিত "প্রস্তাব ক") — বোতামের সারি এখন
+   এক সারিতে আইকন। কোনো বোতাম বাদ যায়নি; শুধু ইমোজি+লেখার বদলে পরিষ্কার
+   আঁকা আইকন, তাই আটটাই এক সারিতে ধরে আর ছবির অনেকটা ঢেকে যায় না।
+   কোন হাতিয়ার চলছে ও কী করতে হবে — নিচে একটাই লাইনে লেখা থাকে। */
+.wlv1AnatBar{margin-top:8px;background:#F4F8FC;border:1px solid #DDE7F1;border-radius:18px;
+  padding:6px 8px 4px}
+.wlv1AnatIcons{display:flex;align-items:center;justify-content:space-between;gap:2px}
+.wlv1AnatSep{width:1px;height:22px;background:#D7E1EC;flex:0 0 auto}
+.wlv1AnatTool{width:36px;height:36px;min-width:36px;padding:0;border-radius:50%;border:0;
+  background:transparent;color:#5B6B81;display:grid;place-items:center;cursor:pointer;
+  box-shadow:none;flex:0 0 auto}
+.wlv1AnatTool.on{background:#12A05A;color:#fff;box-shadow:0 3px 10px rgba(18,160,90,.35)}
+.wlv1AnatTool.danger{color:#C1382B}
+.wlv1AnatTool.danger.on{background:#C1382B;color:#fff}
+.wlv1AnatTip{text-align:center;font-size:12px;color:#5B6B81;font-weight:700;margin-top:3px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* পুরো পর্দায় একই সারি, শুধু গাঢ় রঙে */
+.wlv1AnatBar.full{margin:0;background:transparent;border:0;padding:0}
+.wlv1AnatBar.full .wlv1AnatTool{color:#CBD7E6}
+.wlv1AnatBar.full .wlv1AnatTool.on{background:#12A05A;color:#fff}
+.wlv1AnatBar.full .wlv1AnatTool.danger{color:#FF8A80}
+.wlv1AnatBar.full .wlv1AnatSep{background:rgba(255,255,255,.22)}
+.wlv1AnatBar.full .wlv1AnatTip{color:#fff;opacity:.92}
 
 /* 🖥️🔵🔒 V567 (২২.০৮.২০২৬, TK-নির্দেশ) — রোগের ছবি **সম্পূর্ণ ডিসপ্লেতে**।
    TK: *"ফটোটা যখন আমি পেসেন্টকে দেখাবো সম্পূর্ণ ডিসপ্লে তে যেন আমি দেখাতে
@@ -5900,10 +5919,10 @@ button.card.reportKpi span, .card.reportKpi span, button.card.reportKpi small, .
 .wlv1AnatFullBtn{width:42px;height:42px;padding:0;border-radius:50%;font-size:18px;
   border:1px solid rgba(255,255,255,.55);background:rgba(8,17,28,.62);color:#fff;
   box-shadow:0 2px 10px rgba(0,0,0,.35);cursor:pointer}
-.wlv1AnatFullBar{position:absolute;left:0;right:0;bottom:0;z-index:2;
-  display:flex;gap:6px;flex-wrap:wrap;justify-content:center;
-  padding:9px 10px calc(9px + env(safe-area-inset-bottom,0px));
-  background:linear-gradient(180deg,rgba(8,17,28,0),rgba(8,17,28,.88) 38%)}
-.wlv1AnatFullBar .wlv1AnatTool{background:rgba(255,255,255,.92)}
+.wlv1AnatFullBar{position:absolute;left:10px;right:10px;bottom:10px;z-index:2;
+  padding:8px 8px 5px;border-radius:22px;
+  background:rgba(8,17,28,.72);border:1px solid rgba(255,255,255,.16);
+  box-shadow:0 10px 30px rgba(0,0,0,.45);
+  margin-bottom:env(safe-area-inset-bottom,0px)}
 /* পুরো পর্দা খোলা থাকলে পিছনের পাতা যেন গড়িয়ে না যায় */
 body.wlv1AnatFullOpen{overflow:hidden}

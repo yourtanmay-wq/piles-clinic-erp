@@ -7631,6 +7631,64 @@ function wlv1AnatReadable(saved){
 /* এই পর্দার এখনকার অবস্থা — কোন ছবি, কী কী দাগ, কোন কাজ চলছে। */
 var wlv1AnatState={pic:'',marks:[],tool:'bulge',label:'',down:null,live:[]};
 
+/* 🔵🔒 V570 (২২.০৮.২০২৬, TK-অনুমোদিত) — বোতামের সারির নতুন চেহারা।
+   TK: *"এগুলো থাকা আপনার কাছে কি মনে হয় যে এটা দেখতে ভালো লাগছে? আমার কাছে
+   তো প্রফেশনালহীন মনে"*। বোতাম একটাও বাদ যায়নি — সংখ্যা সমস্যা ছিল না,
+   চেহারা ছিল। ইমোজি + বাংলা লেখা মিলিয়ে ৮টা চওড়া বোতাম এক সারিতে ধরত না,
+   তাই ২–৩ সারিতে ভেঙে ছবির অনেকটা ঢেকে দিত। এখন পরিষ্কার আঁকা আইকন —
+   আটটাই **এক সারিতে**, আর কোন হাতিয়ারটা চলছে সেটা নিচে একটাই লাইনে লেখা।
+   TK বেছেছেন: **প্রস্তাব ক**। ফোনেও হুবহু এই চেহারা। */
+var WLV1_ANAT_ICONS={
+  bulge:'<circle cx="12" cy="12" r="4.2"/><path d="M12 3.2v2.4M12 18.4v2.4M3.2 12h2.4M18.4 12h2.4M5.8 5.8l1.7 1.7M16.5 16.5l1.7 1.7M18.2 5.8l-1.7 1.7M7.5 16.5l-1.7 1.7"/>',
+  pile:'<path d="M12 21s6.2-6.1 6.2-10.4A6.2 6.2 0 0 0 5.8 10.6C5.8 14.9 12 21 12 21z"/><circle cx="12" cy="10.5" r="2.1"/>',
+  tract:'<path d="M3 15c2.6 0 2.6-6 5.2-6s2.6 6 5.2 6 2.6-6 5.2-6"/>',
+  ring:'<ellipse cx="12" cy="12" rx="7.6" ry="6.3"/>',
+  arrow:'<path d="M4 12h14M13 7l5 5-5 5"/>',
+  erase:'<path d="M8.5 19.5 4 15a2 2 0 0 1 0-2.8l7.2-7.2a2 2 0 0 1 2.8 0l4.6 4.6a2 2 0 0 1 0 2.8l-7 7z"/><path d="M9 20h10"/>',
+  undo:'<path d="M4 10h9a5 5 0 1 1 0 10H8"/><path d="M8 6 4 10l4 4"/>',
+  trash:'<path d="M4.5 7h15M9.5 7V5.2A1.2 1.2 0 0 1 10.7 4h2.6a1.2 1.2 0 0 1 1.2 1.2V7"/><path d="M6.4 7l.9 12.1A1.6 1.6 0 0 0 8.9 20.6h6.2a1.6 1.6 0 0 0 1.6-1.5L17.6 7"/>',
+  full:'<path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"/>'
+};
+var WLV1_ANAT_TOOLS=[['bulge','ফোলান'],['pile','চিহ্ন'],['tract','নালী'],
+                     ['ring','গোল'],['arrow','তীর'],['erase','মুছুন']];
+function wlv1AnatIcon(k){
+  return '<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" '
+    +'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+(WLV1_ANAT_ICONS[k]||'')+'</svg>';
+}
+function wlv1AnatToolName(t){
+  for(var i=0;i<WLV1_ANAT_TOOLS.length;i++){ if(WLV1_ANAT_TOOLS[i][0]===t)return WLV1_ANAT_TOOLS[i][1] }
+  return '';
+}
+/* কোন হাতিয়ার চলছে তার এক লাইনের লেখা — কী করতে হবে সেটাও বলে দেয় */
+var WLV1_ANAT_TIPS={bulge:'মাংসের উপরে আঙুল টানুন',pile:'যেখানে চিহ্ন দেবেন সেখানে ছুঁয়ে দিন',
+  tract:'নালীর পথ ধরে আঙুল টানুন',ring:'যেটা ঘিরে দেখাবেন তার উপরে টানুন',
+  arrow:'যেদিকে দেখাবেন সেদিকে টানুন',erase:'যে দাগটা তুলবেন তার উপরে ছুঁয়ে দিন'};
+function wlv1AnatBarHtml(full){
+  var ic=WLV1_ANAT_TOOLS.map(function(t){
+    return '<button type="button" class="wlv1AnatTool'+(wlv1AnatState.tool===t[0]?' on':'')+'" '
+      +'data-t="'+t[0]+'" title="'+esc(t[1])+'" aria-label="'+esc(t[1])+'" '
+      +'onclick="wlv1AnatTool(\''+t[0]+'\')">'+wlv1AnatIcon(t[0])+'</button>';
+  }).join('');
+  var extra='<span class="wlv1AnatSep"></span>'
+    +'<button type="button" class="wlv1AnatTool" title="একটা পিছনে" aria-label="একটা পিছনে" onclick="wlv1AnatUndo()">'+wlv1AnatIcon('undo')+'</button>'
+    +'<button type="button" class="wlv1AnatTool danger" title="সব মুছুন" aria-label="সব মুছুন" onclick="wlv1AnatClear()">'+wlv1AnatIcon('trash')+'</button>';
+  if(!full) extra+='<span class="wlv1AnatSep"></span>'
+    +'<button type="button" class="wlv1AnatTool wlv1AnatBig" title="পুরো পর্দা" aria-label="পুরো পর্দা" onclick="wlv1AnatFull()">'+wlv1AnatIcon('full')+'</button>';
+  return '<div class="wlv1AnatBar'+(full?' full':'')+'">'
+    +'<div class="wlv1AnatIcons">'+ic+extra+'</div>'
+    +'<div class="wlv1AnatTip" id="'+(full?'dnAnatTipFull':'dnAnatTip')+'">'+esc(wlv1AnatTipText())+'</div></div>';
+}
+function wlv1AnatTipText(){
+  var t=wlv1AnatState.tool;
+  var n=wlv1AnatToolName(t);
+  return n?(n+' — '+(WLV1_ANAT_TIPS[t]||'')):'';
+}
+function wlv1AnatTipPaint(){
+  ['dnAnatTip','dnAnatTipFull'].forEach(function(id){
+    var el=$('#'+id); if(el)el.textContent=wlv1AnatTipText();
+  });
+}
+
 function wlv1AnatBoxHtml(note,pid){
   var saved=String((note&&note.anatomy)||'');
   var b=AnatomyMark.parse(saved);
@@ -7641,22 +7699,13 @@ function wlv1AnatBoxHtml(note,pid){
       +'src="'+wlv1AnatSrc(p.key)+'" alt="'+esc(p.label)+'" title="'+esc(p.label)+'" '
       +'onclick="wlv1AnatPick(\''+p.key+'\')">';
   }).join('');
-  var tools=[['bulge','✋ ফোলান'],['pile','📍 চিহ্ন'],['tract','〰️ নালী'],
-             ['ring','⭕ গোল'],['arrow','➡️ তীর'],['erase','🩹 মুছুন']].map(function(t){
-    return '<button type="button" class="wlv1AnatTool'+(t[0]==='bulge'?' on':'')+'" data-t="'+t[0]+'" '
-      +'onclick="wlv1AnatTool(\''+t[0]+'\')">'+t[1]+'</button>';
-  }).join('');
   return '<label>রোগের ছবি · রোগীকে দেখিয়ে বোঝানোর জন্য</label>'
     +'<div class="wlv1AnatStrip">'+strip+'</div>'
     +'<div class="wlv1AnatWrap"><canvas id="dnAnatCanvas" class="wlv1AnatCanvas"></canvas>'
     +'<div id="dnAnatHint" class="wlv1AnatHint">উপর থেকে একটা ছবি বাছুন</div></div>'
-    +'<div class="wlv1AnatTools">'+tools
-    /* 🔵 V567 (TK): *"ফটোটা যখন আমি পেসেন্টকে দেখাবো সম্পূর্ণ ডিসপ্লে তে যেন
-       আমি দেখাতে পারি"* — এই বোতামে ছবিটা গোটা পর্দা জুড়ে খুলে যায়, আর
-       ওখানেও একই ভাবে আঁকা যায়। ফোনেও হুবহু একই বোতাম আছে। */
-    +'<button type="button" class="wlv1AnatTool wlv1AnatBig" onclick="wlv1AnatFull()">🔍 পুরো পর্দা</button>'
-    +'<button type="button" class="wlv1AnatTool" onclick="wlv1AnatUndo()">↺ একটা পিছনে</button>'
-    +'<button type="button" class="wlv1AnatTool" style="color:#B3261E" onclick="wlv1AnatClear()">🗑 সব মুছুন</button></div>'
+    /* 🔵 V570 — বোতামগুলো এখন এক সারিতে আইকন হিসেবে (TK-এর বাছাই "প্রস্তাব ক")।
+       "পুরো পর্দা" বোতামটাও এই সারিতেই আছে (V567, TK-নির্দেশ)। */
+    +wlv1AnatBarHtml(false)
     +'<textarea id="dnAnatNote" placeholder="ছবি দেখিয়ে রোগীকে যা বোঝালেন, দরকার হলে এখানে লিখুন">'+esc(b.note||'')+'</textarea>';
 }
 
@@ -7671,6 +7720,7 @@ function wlv1AnatPick(k){
 function wlv1AnatTool(t){
   wlv1AnatState.tool=t;
   try{$$('.wlv1AnatTool').forEach(function(el){el.classList.toggle('on',el.getAttribute('data-t')===t)})}catch(_e){}
+  try{wlv1AnatTipPaint()}catch(_e){}
   if(t==='pile'){
     var v=prompt('চিহ্নের নাম (ঘড়ির কাঁটা যেমন "3টা", বা "ডান পাশ")। নাম না চাইলে ফাঁকা রাখুন।','');
     wlv1AnatState.label=(v===null?'':String(v).trim());
@@ -7958,11 +8008,6 @@ function wlv1AnatFull(){
   if(!wlv1AnatState.pic){ try{toast('আগে উপরের সারি থেকে একটা ছবি বাছুন')}catch(_e){} return }
   if($('#dnAnatFullBack'))return;
   wlv1AnatZoomReset();
-  var tools=[['bulge','✋ ফোলান'],['pile','📍 চিহ্ন'],['tract','〰️ নালী'],
-             ['ring','⭕ গোল'],['arrow','➡️ তীর'],['erase','🩹 মুছুন']].map(function(t){
-    return '<button type="button" class="wlv1AnatTool'+(wlv1AnatState.tool===t[0]?' on':'')+'" '
-      +'data-t="'+t[0]+'" onclick="wlv1AnatTool(\''+t[0]+'\')">'+t[1]+'</button>';
-  }).join('');
   var back=document.createElement('div');
   back.id='dnAnatFullBack'; back.className='wlv1AnatFullBack';
   back.innerHTML=
@@ -7973,10 +8018,7 @@ function wlv1AnatFull(){
     +'<button type="button" class="wlv1AnatFullBtn" title="বন্ধ করুন" onclick="wlv1AnatFullClose()">✕</button>'
     +'</div>'
     +'<canvas id="dnAnatFullCanvas" class="wlv1AnatFullCanvas"></canvas>'
-    +'<div id="dnAnatFullBar" class="wlv1AnatFullBar">'+tools
-    +'<button type="button" class="wlv1AnatTool" onclick="wlv1AnatUndo()">↺ একটা পিছনে</button>'
-    +'<button type="button" class="wlv1AnatTool" style="color:#B3261E" onclick="wlv1AnatClear()">🗑 সব মুছুন</button>'
-    +'</div>';
+    +'<div id="dnAnatFullBar" class="wlv1AnatFullBar">'+wlv1AnatBarHtml(true)+'</div>';
   document.body.appendChild(back);
   document.body.classList.add('wlv1AnatFullOpen');
   wlv1AnatWire($('#dnAnatFullCanvas'));
