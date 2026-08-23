@@ -223,6 +223,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         wireSymptomFold()    // 🔵 V574 — চাপ দিলে ভাগ ২ খোলে
         buildHistoryDetailRows()   // 🔵 V555
         buildLifestyleRows()       // 🔵 V556
+        wireLifeFold()             // 🔵 V578 — চাপ দিলে ভাগ ৪ খোলে
         buildAnatomyBoard()        // 🔵 V558 — রোগের ছবি
         /* 🔵 V573 — ছবির তালিকাটা (যোগ/বিয়োগ) পিছনে একবার এনে নেওয়া।
            ⛔ ১৫ মিনিটে একবারের বেশি নয়, আর না এলেও কিছু আটকায় না —
@@ -1426,25 +1427,38 @@ class DoctorCheckupActivity : AppCompatActivity() {
                    কীবোর্ড খুলবে, আর শুধু ০–৯ ছাড়া কিছু টাইপ হবে না। */
                 inputType = android.text.InputType.TYPE_CLASS_TEXT
                 keyListener = android.text.method.DigitsKeyListener.getInstance("0123456789")
-                textSize = 13f
+                /* 🔵🔒 V578 (TK-নির্দেশ ২৩.০৮.২০২৬): *"দুইটা বক্সের সাইজ একই রকম
+                   থাকবে"* ⇒ সংখ্যার ঘর ও Days-এর ঘর — দুটোই এখন **৮২×৪০**।
+                   কম্পিউটারের অ্যাপেও ঠিক এই মাপ (`.wlv1SymAmt,.wlv1SymUnit`)। */
+                textSize = 12.5f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
                 gravity = android.view.Gravity.CENTER
                 setSingleLine(true)
                 setBackgroundResource(R.drawable.bg_input_field)
-                setPadding(symDp(6), symDp(6), symDp(6), symDp(6))
-                layoutParams = android.widget.LinearLayout.LayoutParams(symDp(56), android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
+                setPadding(symDp(4), 0, symDp(4), 0)
+                layoutParams = android.widget.LinearLayout.LayoutParams(symDp(82), symDp(40))
             }
             row.addView(amount)
             symptomAmounts[line.key] = amount
 
             val unit = android.widget.Spinner(this).apply {
-                adapter = ArrayAdapter(this@DoctorCheckupActivity, R.layout.item_docnote_spinner, SymptomHistoryModel.UNITS)
-                setBackgroundResource(R.drawable.bg_input_field_picker)
+                /* 🔵🔒 V578 (TK-নির্দেশ): *"Days এটা বক্সের মধ্যে থাকবে — বর্তমানে
+                   দেখে মনে হচ্ছে বক্সের থেকে বেরিয়ে গেছে"*।
+                   কারণ কী ছিল: লেখাটা ১৪.৫sp, বাঁ দিকে কোনো ফাঁক নেই (item-এর
+                   `paddingHorizontal=0dp`), আর তিরটা ১৮dp চওড়া হয়ে ডান দিক থেকে
+                   ১৪dp ভিতরে — তাই ছোট ঘরে "Months" তিরের নিচে ঢুকে যেত।
+                   ⇒ এখন ছোট লেখার নিজস্ব item (`item_docnote_spinner_unit`) ও
+                     ছোট তিরের নিজস্ব বাক্স (`bg_unit_picker_small`), আর দু'পাশে
+                     ফাঁক — লেখাটা পুরোপুরি বাক্সের ভিতরেই থাকে।
+                   ⛔ বাছাইয়ের তালিকা · মান · সেভ কিছুই বদলায়নি। */
+                adapter = ArrayAdapter(this@DoctorCheckupActivity, R.layout.item_docnote_spinner_unit, SymptomHistoryModel.UNITS)
+                setBackgroundResource(R.drawable.bg_unit_picker_small)
                 /* 🔴 V567 — আগে এখানে `paddingStart` ছিল। কাজ একই, কিন্তু `setPadding()`
                    বাঁ/ডান হিসেবেই কাজ করে, তাই `paddingLeft`-ই মানানসই — আর প্রজেক্টের
                    বাকি জায়গাতেও (`FieldError.kt`) ওটাই ব্যবহার হয়। কম্পাইল-পাহারা
                    `paddingStart`-কে চিনতে না পেরে ভুল বলে ধরছিল। */
-                setPadding(paddingLeft, paddingTop, symDp(28), paddingBottom)
-                val lp = android.widget.LinearLayout.LayoutParams(symDp(104), android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
+                setPadding(symDp(6), 0, symDp(18), 0)
+                val lp = android.widget.LinearLayout.LayoutParams(symDp(82), symDp(40))
                 lp.marginStart = symDp(6)
                 layoutParams = lp
             }
@@ -2180,6 +2194,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
                     chip.setOnClickListener {
                         chip.setTag(R.id.historyDetailGroup, chip.getTag(R.id.historyDetailGroup) != true)
                         paintHistoryChip(chip)
+                        refreshLifeFold()   // 🔵 V578 — মাথার সংখ্যা সঙ্গে সঙ্গে
                     }
                     paintHistoryChip(chip)
                     chips.add(chip)
@@ -2189,6 +2204,26 @@ class DoctorCheckupActivity : AppCompatActivity() {
             }
             lifestyleChips[q.key] = chips
         }
+        refreshLifeFold()
+    }
+
+    /** 🔵 V578 — XML-এর মাথাটার সঙ্গে ভাঁজের কাজ জুড়ে দেওয়া (ভাগ ৩-এর মতোই)। */
+    private fun wireLifeFold() {
+        attachFold(
+            "life",
+            findViewById<android.widget.LinearLayout>(R.id.lifeFoldHead),
+            findViewById<TextView>(R.id.lifeFoldNum),
+            findViewById<TextView>(R.id.lifeFoldChev),
+            findViewById<android.widget.LinearLayout>(R.id.lifeFoldBody)
+        )
+        refreshLifeFold()
+    }
+
+    /** 🔵 V578 — "রোগ ও অভ্যাস"-এ কতগুলো বাছা হয়েছে। */
+    private fun refreshLifeFold() {
+        var n = 0
+        for ((_, chips) in lifestyleChips) n += chips.count { it.getTag(R.id.historyDetailGroup) == true }
+        setFoldCount("life", n)
     }
 
     private fun collectLifestyle(): String {
@@ -2213,6 +2248,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         }
         findViewById<android.widget.EditText>(R.id.etWaterLitre)?.setText(water)
         findViewById<android.widget.EditText>(R.id.etLifestyleOther)?.setText(other)
+        refreshLifeFold()   // 🔵 V578 — পুরোনো রেকর্ড খুললেও সংখ্যা ঠিক থাকে
     }
 
     private fun collectHistoryDetail(): String {

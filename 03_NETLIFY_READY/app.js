@@ -8417,10 +8417,22 @@ function wlv1LifeBoxHtml(note){
       return '<button type="button" class="wlv1HistChip'+(chosen.indexOf(o)>=0?' on':'')+'" data-life="'+q[0]+'" data-val="'+esc(o)+'" onclick="wlv1HistToggle(this)">'+esc(o)+'</button>';
     }).join('')+'</div>';
   }).join('');
-  return '<label>রোগ ও অভ্যাস</label><div class="wlv1HistBox">'+html
+  /* 🔵🔒 V578 (২৩.০৮.২০২৬, TK-নির্দেশ): *"রোগ ও অভ্যাস এর মধ্যে সমস্ত লেখাগুলো
+     লুকিয়ে থাকবে; রোগ ও অভ্যাসে ক্লিক করলে তবেই উজ্জ্বলতা পাবে ... যেটা কিনা
+     ব্যথার ইতিহাস / রক্তপাতের ইতিহাস — সেখানে যেমন রেখেছেন"* ⇒ **হুবহু ওই
+     চারটে ইতিহাসের দলের মতোই** ভাঁজ, বন্ধ অবস্থায় শুরু, পাশে কতগুলো বাছা।
+     ⛔ ভিতরের একটা চিপ/ঘরও মুছে ফেলা হয় না — শুধু লুকোনো, তাই সেভ আগের মতোই
+        সব ঘর থেকে পড়ে (`wlv1LifeCollect`)। */
+  var lifePicked=0;
+  WLV1_LIFE_Q.forEach(function(q){ lifePicked += ((r.map[q[0]]||[]).length) });
+  var inner=html
     +'<div class="wlv1HistQ">দৈনিক জল পানের পরিমাণ</div>'
     +'<div class="wlv1SymWhen" style="margin-left:0"><input id="dnWaterLitre" class="input wlv1SymAmt" inputmode="decimal" value="'+esc(r.water)+'"><span style="align-self:center">লিটার</span></div>'
-    +'<textarea id="dnLifestyleOther" placeholder="অন্যান্য থাকলে এখানে লিখুন">'+esc(r.other)+'</textarea></div>';
+    +'<textarea id="dnLifestyleOther" placeholder="অন্যান্য থাকলে এখানে লিখুন">'+esc(r.other)+'</textarea>';
+  return '<div class="wlv1HistBox plain">'
+    + wlv1FoldHead('dnLifeFold','রোগ ও অভ্যাস',lifePicked)
+    + '<div class="wlv1Fold" id="dnLifeFold"><div class="wlv1HistGrp">'+inner+'</div></div>'
+    + '</div>';
 }
 function wlv1LifeCollect(){
   try{
@@ -8528,6 +8540,12 @@ function wlv1HistToggle(btn){
       var fid='dnHist_'+grp.replace(/[^a-zA-Z0-9]/g,'_');
       var box=document.getElementById(fid);
       if(box) wlv1FoldCount(fid, box.querySelectorAll('.wlv1HistChip.on').length);
+    }
+    /* 🔵 V578 — "রোগ ও অভ্যাস"-এর চিপগুলোও এই একই ফাংশনেই চলে
+       (`data-life`), তাই ওই ভাঁজের সংখ্যাটাও সঙ্গে সঙ্গে বসানো হয়। */
+    if(btn.getAttribute('data-life')){
+      var lbox=document.getElementById('dnLifeFold');
+      if(lbox) wlv1FoldCount('dnLifeFold', lbox.querySelectorAll('.wlv1HistChip.on').length);
     }
   }catch(e){}
 }

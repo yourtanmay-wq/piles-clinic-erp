@@ -437,10 +437,48 @@
                     <LinearLayout style="@style/DocNoteFieldBox">
                         <View style="@style/DocNoteAccentBar" />
                         <LinearLayout style="@style/DocNoteFieldBoxInner">
-                            <LinearLayout style="@style/DocNoteFieldBoxTopRow">
+                            <!-- 🔵🔒 V578 (TK-নির্দেশ, ২৩.০৮.২০২৬): *"রোগ ও অভ্যাস এর
+                                 মধ্যে সমস্ত লেখাগুলো লুকিয়ে থাকবে; রোগ ও অভ্যাসে ক্লিক
+                                 করলে তবেই ... যেটা কিনা ব্যথার ইতিহাস / রক্তপাতের
+                                 ইতিহাস সেখানে যেমন রেখেছেন"* ⇒ হুবহু ওই একই ভাঁজ। -->
+                            <LinearLayout
+                                android:id="@+id/lifeFoldHead"
+                                style="@style/DocNoteFieldBoxTopRow"
+                                android:clickable="true"
+                                android:focusable="true">
                                 <TextView style="@style/DocNoteIcon" android:text="🥗" />
-                                <TextView style="@style/DocNoteLabel" android:text="রোগ ও অভ্যাস" />
+                                <TextView style="@style/DocNoteLabel"
+                                    android:layout_width="0dp"
+                                    android:layout_weight="1"
+                                    android:text="রোগ ও অভ্যাস" />
+                                <TextView
+                                    android:id="@+id/lifeFoldNum"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:background="@drawable/bg_fold_count_chip"
+                                    android:paddingLeft="9dp"
+                                    android:paddingTop="2dp"
+                                    android:paddingRight="9dp"
+                                    android:paddingBottom="2dp"
+                                    android:textColor="#0B4F2A"
+                                    android:textSize="11.5sp"
+                                    android:textStyle="bold"
+                                    android:visibility="gone" />
+                                <TextView
+                                    android:id="@+id/lifeFoldChev"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginLeft="8dp"
+                                    android:text="⌄"
+                                    android:textColor="#5B6B81"
+                                    android:textSize="15sp" />
                             </LinearLayout>
+                            <LinearLayout
+                                android:id="@+id/lifeFoldBody"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical"
+                                android:visibility="gone">
                             <View style="@style/DocNoteDivider" />
                             <LinearLayout
                                 android:id="@+id/lifestyleGroup"
@@ -464,6 +502,7 @@
                             <EditText android:id="@+id/etLifestyleOther" style="@style/DocNoteInputMultiline"
                                 android:minLines="1"
                                 android:hint="অন্যান্য থাকলে এখানে লিখুন" />
+                            </LinearLayout><!-- lifeFoldBody -->
                         </LinearLayout>
                     </LinearLayout>
 
