@@ -7509,11 +7509,11 @@ function wlv1CounselBoxHtml(note,p){
 
     // মাটিতে পড়া ছায়া — মাংসটা যেন ছবির উপরে বসে আছে মনে হয়
     ctx.save();
-    ctx.shadowColor = 'rgba(40,18,52,0.45)';
+    ctx.shadowColor = 'rgba(54,14,22,0.45)';
     ctx.shadowBlur = LW * 0.42;
     ctx.shadowOffsetY = LW * 0.10;
     lumpPath(ctx, L, LW);
-    ctx.fillStyle = '#8A6597';
+    ctx.fillStyle = '#9A4B57';
     ctx.fill();
     ctx.restore();
 
@@ -7522,11 +7522,11 @@ function wlv1CounselBoxHtml(note,p){
     ctx.save(); ctx.clip();
     var hx = L - LW * 0.5, hy = -LW * 0.26;      // আলো পড়ে মাথার উপর-বাঁয়ে
     var gd = ctx.createRadialGradient(hx - LW * 0.22, hy, LW * 0.05, hx, 0, LW * 1.25);
-    gd.addColorStop(0.00, '#D9BBE1');
-    gd.addColorStop(0.30, '#B48CC0');
-    gd.addColorStop(0.62, '#8E679C');
-    gd.addColorStop(0.86, '#6E4B7C');
-    gd.addColorStop(1.00, '#553463');
+    gd.addColorStop(0.00, '#EFB0AB');
+    gd.addColorStop(0.30, '#D9767A');
+    gd.addColorStop(0.62, '#B8414C');
+    gd.addColorStop(0.86, '#8D2C3A');
+    gd.addColorStop(1.00, '#671A25');
     ctx.fillStyle = gd;
     ctx.fillRect(-L * 0.3, -LW, L * 1.5, LW * 2);
 
@@ -7541,24 +7541,24 @@ function wlv1CounselBoxHtml(note,p){
       var ccx = L * u, ccy = (LW / 2) * v;
       var rr = LW * (0.085 + lumpNext(st) * 0.085);
       ctx.beginPath(); ctx.arc(ccx, ccy, rr, 0, 6.2832);
-      ctx.fillStyle = 'rgba(212,178,224,0.20)'; ctx.fill();
-      ctx.strokeStyle = 'rgba(72,42,86,0.50)'; ctx.stroke();
+      ctx.fillStyle = 'rgba(246,196,192,0.22)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(104,32,42,0.50)'; ctx.stroke();
     }
     // কিনারার দিকে ভিতরে ছায়া — গোল ভাবটা বাড়ে
     var eg = ctx.createRadialGradient(L - LW * 0.5, 0, LW * 0.30, L - LW * 0.5, 0, LW * 1.05);
-    eg.addColorStop(0, 'rgba(60,34,72,0)');
-    eg.addColorStop(1, 'rgba(60,34,72,0.55)');
+    eg.addColorStop(0, 'rgba(86,22,32,0)');
+    eg.addColorStop(1, 'rgba(86,22,32,0.55)');
     ctx.fillStyle = eg; ctx.fillRect(-L * 0.3, -LW, L * 1.5, LW * 2);
     // ভেজা-চকচকে ভাব
     var hg = ctx.createRadialGradient(hx - LW * 0.26, hy, 0, hx - LW * 0.26, hy, LW * 0.52);
-    hg.addColorStop(0, 'rgba(255,248,255,0.55)');
-    hg.addColorStop(1, 'rgba(255,248,255,0)');
+    hg.addColorStop(0, 'rgba(255,244,240,0.42)');
+    hg.addColorStop(1, 'rgba(255,244,240,0)');
     ctx.fillStyle = hg; ctx.fillRect(-L * 0.3, -LW, L * 1.5, LW * 2);
     ctx.restore();
 
     // চারদিকের গাঢ় কিনারা
     lumpPath(ctx, L, LW);
-    ctx.strokeStyle = '#5E3E6B';
+    ctx.strokeStyle = '#6E1F2A';
     ctx.lineWidth = Math.max(0.8, L * 0.030);
     ctx.stroke();
     ctx.restore();

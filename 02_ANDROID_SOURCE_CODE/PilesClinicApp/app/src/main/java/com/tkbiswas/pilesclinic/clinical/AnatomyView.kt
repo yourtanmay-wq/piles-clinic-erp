@@ -453,8 +453,8 @@ class AnatomyView(context: Context) : View(context) {
         // মাটিতে পড়া ছায়া — মাংসটা ছবির উপরে বসে আছে মনে হয়
         paint.reset(); paint.isAntiAlias = true
         paint.style = Paint.Style.FILL
-        paint.color = Color.parseColor("#8A6597")
-        paint.setShadowLayer(wide * 0.42f, 0f, wide * 0.10f, Color.parseColor("#73281234"))
+        paint.color = Color.parseColor("#9A4B57")
+        paint.setShadowLayer(wide * 0.42f, 0f, wide * 0.10f, Color.parseColor("#73360E16"))
         canvas.drawPath(lumpPathObj, paint)
         paint.clearShadowLayer()
 
@@ -465,9 +465,9 @@ class AnatomyView(context: Context) : View(context) {
         val hx = len - wide * 0.5f; val hy = -wide * 0.26f
         paint.shader = android.graphics.RadialGradient(
             hx - wide * 0.22f, hy, Math.max(1f, wide * 1.25f),
-            intArrayOf(Color.parseColor("#D9BBE1"), Color.parseColor("#B48CC0"),
-                       Color.parseColor("#8E679C"), Color.parseColor("#6E4B7C"),
-                       Color.parseColor("#553463")),
+            intArrayOf(Color.parseColor("#EFB0AB"), Color.parseColor("#D9767A"),
+                       Color.parseColor("#B8414C"), Color.parseColor("#8D2C3A"),
+                       Color.parseColor("#671A25")),
             floatArrayOf(0f, 0.30f, 0.62f, 0.86f, 1f),
             android.graphics.Shader.TileMode.CLAMP)
         canvas.drawRect(-len * 0.3f, -wide, len * 1.5f, wide, paint)
@@ -485,10 +485,10 @@ class AnatomyView(context: Context) : View(context) {
             val ccy = ((wide / 2f) * v).toFloat()
             val rr = (wide * (0.085 + AnatomyModel.lumpNext(state) * 0.085)).toFloat()
             paint.style = Paint.Style.FILL
-            paint.color = Color.parseColor("#33D4B2E0")
+            paint.color = Color.parseColor("#38F6C4C0")
             canvas.drawCircle(ccx, ccy, rr, paint)
             paint.style = Paint.Style.STROKE; paint.strokeWidth = cellW
-            paint.color = Color.parseColor("#80482A56")
+            paint.color = Color.parseColor("#8068202A")
             canvas.drawCircle(ccx, ccy, rr, paint)
         }
 
@@ -496,7 +496,7 @@ class AnatomyView(context: Context) : View(context) {
         paint.style = Paint.Style.FILL
         paint.shader = android.graphics.RadialGradient(
             len - wide * 0.5f, 0f, Math.max(1f, wide * 1.05f),
-            intArrayOf(Color.parseColor("#003C2248"), Color.parseColor("#8C3C2248")),
+            intArrayOf(Color.parseColor("#00561620"), Color.parseColor("#8C561620")),
             floatArrayOf(0.286f, 1f), android.graphics.Shader.TileMode.CLAMP)
         canvas.drawRect(-len * 0.3f, -wide, len * 1.5f, wide, paint)
         paint.shader = null
@@ -504,7 +504,7 @@ class AnatomyView(context: Context) : View(context) {
         // ভেজা-চকচকে আলো
         paint.shader = android.graphics.RadialGradient(
             hx - wide * 0.26f, hy, Math.max(1f, wide * 0.52f),
-            Color.parseColor("#8CFFF8FF"), Color.parseColor("#00FFF8FF"),
+            Color.parseColor("#6BFFF4F0"), Color.parseColor("#00FFF4F0"),
             android.graphics.Shader.TileMode.CLAMP)
         canvas.drawRect(-len * 0.3f, -wide, len * 1.5f, wide, paint)
         paint.shader = null
@@ -512,7 +512,7 @@ class AnatomyView(context: Context) : View(context) {
 
         // চারদিকের গাঢ় কিনারা
         paint.style = Paint.Style.STROKE
-        paint.color = Color.parseColor("#5E3E6B")
+        paint.color = Color.parseColor("#6E1F2A")
         paint.strokeWidth = Math.max(0.8f, len * 0.030f)
         canvas.drawPath(lumpPathObj, paint)
         canvas.restoreToCount(save)
