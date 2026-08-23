@@ -956,7 +956,16 @@ class FollowUpActivity : AppCompatActivity() {
             //    ব্যানারের সংখ্যা আর ভিতরের তালিকা তখন হুবহু এক (উপরের
             //    `bannerCallsOnly`-র বড় নোট দ্রষ্টব্য)। অন্য যেকোনো ভাবে
             //    খুললে নিচের ০৫.০৮.২০২৬-এর নিয়মই আগের মতো চলে।
-            "Today" -> if (bannerCallsOnly) items.filter { it.nextFollow == today }
+            /* 🟢🔒 V590 (২৩.০৮.২০২৬, TK-রিপোর্ট: *"এতগুলো ওভারডিউ রয়েছে · স্টাফদের
+               কাছে কি নোটিফিকেশন যায় না?"*)
+               **যাচাই করে পাওয়া আসল কারণ:** মনে-করানো ও ড্যাশবোর্ডের ব্যানার —
+               দুটোই শুধু **ঠিক আজকের তারিখের** কল গুনত। একদিন কল বাদ পড়লে
+               সেটা পরদিন থেকেই দুই জায়গা থেকেই **অদৃশ্য** হয়ে যেত, তাই স্টাফ
+               আর কোনোদিন মনে করানো পেতেন না।
+               ⇒ ব্যানার/নোটিফিকেশন থেকে এলে এখন **আজকের + বকেয়া** দুটোই আসে।
+               ⛔ উপরের "Today" বোতামটা স্টাফ নিজে চাপলে আগের মতোই শুধু আজকের
+                  (নিচের `else` শাখা) — সেটা এক অক্ষরও বদলায়নি। */
+            "Today" -> if (bannerCallsOnly) items.filter { it.nextFollow.isNotBlank() && it.nextFollow <= today }
                        else items.filter { it.nextFollow == today || it.recordDate == today }
             "Overdue" -> items.filter { it.nextFollow.isNotBlank() && it.nextFollow < today }
             "This Week" -> {

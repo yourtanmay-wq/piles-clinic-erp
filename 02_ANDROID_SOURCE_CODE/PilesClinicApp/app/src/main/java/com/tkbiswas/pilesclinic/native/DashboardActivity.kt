@@ -520,11 +520,26 @@ class DashboardActivity : AppCompatActivity() {
                 if (session.role == "master") BranchFilterStore.get(this@DashboardActivity)
                 else CrossBranchStaffAccess.effectiveViewBranch(session)
             } catch (_: Throwable) { session.branch }
-            fun countFrom(items: List<FollowUpItem>?): Int = items?.count { it.nextFollow == today } ?: 0
+            /* 🟢🔒 V590 (TK-রিপোর্ট) — আগে শুধু **ঠিক আজকের** কল গোনা হত, তাই
+               একদিন বাদ পড়া কল ব্যানার থেকে চিরতরে হারিয়ে যেত। এখন **আজকের ও
+               বকেয়া** — দুটোই। ⛔ তারিখ ফাঁকা হলে (কল ঠিক করা নেই) গোনা হয় না। */
+            fun isDue(f: FollowUpItem): Boolean = f.nextFollow.isNotBlank() && f.nextFollow <= today
+            fun countFrom(items: List<FollowUpItem>?): Int = items?.count { isDue(it) } ?: 0
+            fun overdueFrom(items: List<FollowUpItem>?): Int =
+                items?.count { it.nextFollow.isNotBlank() && it.nextFollow < today } ?: 0
             val instant = withContext(kotlinx.coroutines.Dispatchers.IO) {
                 try {
                     listOf("Inquiry", "Patient", "Treatment").sumOf { stage ->
                         countFrom(repo.loadCachedTab(stage, bannerBranch))
+                    }
+                } catch (_: Exception) { 0 }
+            }
+            /* 🟢 V590 — কতগুলো **বকেয়া** (আজকের নয়, আগের) সেটাও আলাদা করে
+               দেখানো হয়, নইলে স্টাফ বুঝতেন না পুরনো কল জমে আছে। */
+            var overdue = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    listOf("Inquiry", "Patient", "Treatment").sumOf { stage ->
+                        overdueFrom(repo.loadCachedTab(stage, bannerBranch))
                     }
                 } catch (_: Exception) { 0 }
             }
@@ -533,7 +548,11 @@ class DashboardActivity : AppCompatActivity() {
                 // তাই তাঁর ড্যাশবোর্ডে "calls pending" ব্যানার দেখানো হয় না।
                 if (count > 0 && session.displayRole != "doctor") {
                     binding.tvCallBanner.visibility = android.view.View.VISIBLE
-                    binding.tvCallBanner.text = "📞 $count calls pending today — tap to call"
+                    /* 🟢 V590 — বকেয়া থাকলে সংখ্যাটা আলাদা করে বলা হয়, তাই
+                       "কতগুলো জমে গেছে" এক নজরেই বোঝা যায়। */
+                    binding.tvCallBanner.text = if (overdue > 0)
+                        "📞 $count calls pending — $overdue overdue — tap to call"
+                    else "📞 $count calls pending today — tap to call"
                     binding.tvCallBanner.setOnClickListener {
                         startActivity(Intent(this@DashboardActivity, FollowUpActivity::class.java).putExtra("todayOnly", true))
                     }
@@ -649,7 +668,7 @@ class DashboardActivity : AppCompatActivity() {
                             async {
                                 try {
                                     repo.fetchTab(stage, bannerBranch, session.name, session.mobile)
-                                        .count { it.nextFollow == today }
+                                        .count { isDue(it) }   // 🟢 V590: আজ + বকেয়া
                                 } catch (_: Exception) { 0 }
                             }
                         }
@@ -658,6 +677,15 @@ class DashboardActivity : AppCompatActivity() {
                         total
                     }
                 } catch (_: Exception) { instant } // ব্যর্থ হলে তাৎক্ষণিক সংখ্যাই থাকুক, শূন্য না
+            }
+            /* 🟢 V590 — ক্লাউডের আসল তালিকা এলে বকেয়ার সংখ্যাটাও তখনই মিলিয়ে
+               নেওয়া হয়, নইলে ব্যানারে পুরনো (জমানো) সংখ্যা থেকে যেত। */
+            overdue = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    listOf("Inquiry", "Patient", "Treatment").sumOf { stage ->
+                        overdueFrom(repo.loadCachedTab(stage, bannerBranch))
+                    }
+                } catch (_: Exception) { overdue }
             }
             render(count)
           } finally { if (held) bannerBusy = false }

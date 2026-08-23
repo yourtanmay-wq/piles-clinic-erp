@@ -2217,87 +2217,99 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                     val ok = withContext(Dispatchers.IO) {
                         FollowUpRepository(this@ChamberAttendanceActivity).updateRemark(savedId, text, user.name.ifBlank { user.mobile })
                     }
-                    // TK-REQUESTED (2026-07-24): Report Card's own Progress
-                    // column reads from that day's PAYMENT row's "remarks"
-                    // field (a separate table from followups above) --
-                    // writing here now also updates every one of today's
-                    // payment rows for this patient (Attendance Mark and/or
-                    // a real Advance/Treatment payment, whichever exist)
-                    // with the same text, so both screens always agree.
-                    // Never blocks/fails the Treatment save above on its own.
-                    //
-                    // TK-REPORTED (2026-07-27, "slow internet" list item S3):
-                    // this block used to be WAITED FOR before the toast and
-                    // the board refresh below. It is an extra that only keeps
-                    // Report Card's own Progress column in step -- the staff
-                    // has nothing to wait for here. On a slow line its one
-                    // read plus one write per payment row could hold "Treatment
-                    // saved ✅" back for a long time, so the screen looked
-                    // dead after Save. It now runs on its own background
-                    // thread: exactly the same work, the same rows, the same
-                    // retry-queue on failure -- just no longer in front of the
-                    // staff. The Treatment save itself (updateRemark above) is
-                    // still fully waited for, so "saved / failed" is still the
-                    // truth about the actual save.
-                    val appCtx = applicationContext
-                    Thread {
-                        try {
-                            val digits = row.mobile.filter { it.isDigit() }.takeLast(10)
-                            val today = FollowUpModel.today()
-                            val todaysPayments = SupabaseClient.fetchList("payments", "mobile=like.*$digits&date=eq.$today", 20)
-                            val targets = ArrayList<String>()
-                            /* 🔵🔒 V536 (২২.০৮.২০২৬, TK-নির্দেশ) — **নোটটা শুধু এই রোগীরই
-                               টাকার সারিতে বসবে।**
-
-                               আগে ওই নম্বরের **আজকের সব** পেমেন্ট সারিতে নোটটা বসত। এক
-                               নম্বরে স্বামী-স্ত্রী দু'জন আলাদা রোগী দু'জনেই আজ টাকা দিলে
-                               **একজনের চিকিৎসার নোট অন্যজনের Report Card-এ** উঠে যেত।
-
-                               ⛔ নিয়মটা কোড থেকে প্রমাণিত, আন্দাজে নয়:
-                                  `payments.patientId` = **রোগীর সারির আইডি**
-                                  (`ChamberAttendanceRepository.kt:897`-এ লেখা ও V520-এ প্রমাণিত)।
-                               ⛔ V534-এর `rowBelongsTo()` এখানে **খাটে না** — ওটা সারির নিজের
-                                  `id` ধরে মেলায়, আর পেমেন্ট সারির `id` হলো পেমেন্টের আইডি,
-                                  রোগীর নয়। তাই এখানে সঠিক মিলটাই আলাদা করে লেখা হলো।
-                               ⛔ **এই নম্বরে ঘোষিত আলাদা রোগী না থাকলে (রোজকার ৯৯%)
-                                  একটাও সারি বাদ পড়ে না — আচরণ হুবহু আগের মতোই।** */
-                            val mineRowId = row.patientRowId.trim()
-                            for (i in 0 until todaysPayments.length()) {
-                                val p = todaysPayments.getJSONObject(i)
-                                val payType = p.optString("payType", "")
-                                if (payType == "bill_edit" || payType == "chamber_expected") continue
-                                val owner = p.optString("patientId", "").trim()
-                                val keep = if (mineRowId.isNotEmpty())
-                                    owner == mineRowId          // ঘোষিত আলাদা রোগী ⇒ ঠিক তাঁরটাই
-                                else
-                                    // সাধারণ রোগী ⇒ ঘোষিত-আলাদা কারও টাকা বাদ, বাকি সব আগের মতোই
-                                    !com.tkbiswas.pilesclinic.native.PatientModel
-                                        .isDeclaredSeparateRowId(owner, digits)
-                                if (!keep) continue
-                                val pid = p.optString("id")
-                                if (pid.isBlank()) continue
-                                targets.add(pid)
-                            }
-                            // Same rows, sent together instead of one-by-one.
-                            ParallelCloud.map(targets) { pid ->
-                                /* 🔵🔒 V533 (২২.০৮.২০২৬, TK-সিদ্ধান্ত) — **স্টাফের লেখা Remark আর মুছবে না।**
-                                   আগে এই লেখাটা payments-এর `remarks` ঘরে বসত। ফল: সেদিন কেউ পেমেন্ট ফর্মে
-                                   নিজের হাতে যে Remark লিখেছেন — এমনকি **Refund-এর কারণ** — সব মুছে গিয়ে
-                                   চিকিৎসার নোট বসে যেত (TK-এর ছবিতে ₹1,000 Advance-এ "DRESSING করা হল")।
-                                   ⇒ এখন নিজের আলাদা ঘর `progress`। ⛔ `remarks` আর ছোঁয়াই হয় না। */
-                                val fields = org.json.JSONObject().put("progress", text)
-                                val synced = try { SupabaseClient.updateById("payments", pid, fields) } catch (_: Throwable) { false }
-                                if (!synced) GenericUpdateQueue.queue(appCtx, "payments", pid, fields)
-                                synced
-                            }
-                        } catch (_: Throwable) { /* Report Card sync is a best-effort extra -- never blocks Treatment save above */ }
-                    }.start()
+                    /* 🟢🔒 V590 (২৩.০৮.২০২৬, TK-নির্দেশ) — Report Card-এ লেখাটা
+                       পাঠানোর কাজটা এখন একটাই জায়গায় (`syncProgressToReportCard`),
+                       কারণ **চারটে বাক্সের মধ্যে তিনটে এটা করতই না**। বিস্তারিত
+                       ওই ফাংশনের মাথায়। */
+                    syncProgressToReportCard(row, text, selectedDate)
                     android.widget.Toast.makeText(this@ChamberAttendanceActivity, if (ok) "Treatment saved ✅" else "Failed — retry", android.widget.Toast.LENGTH_SHORT).show()
                     if (ok) loadBoard()
                 }
             }
             .setNegativeButton("Cancel", null)
             .show().also { PremiumAlert.paint(it) }
+    }
+
+
+    /**
+     * 🟢🔒 V590 (২৩.০৮.২০২৬, TK-রিপোর্ট: *"ট্রিটমেন্ট প্রোগ্রেসে যা লেখা হয়
+     * রিপোর্ট কার্ডে অটোমেটিক উঠে না কেন"*)।
+     *
+     * **আসল কারণ (কোড থেকে প্রমাণিত, আন্দাজে নয়):** চিকিৎসার কথা লেখার বাক্স
+     * অ্যাপে চারটে জায়গায় খোলে, কিন্তু Report Card-এ লেখাটা পাঠানোর কাজটা
+     * **শুধু একটাতেই** ছিল —
+     *   1. চেম্বার বোর্ডের ঘরে চাপ (`writeTreatment`)             → পাঠাত
+     *   2. চেম্বার বন্ধের "ফাঁকা আছে" পপ-আপ (`showRemarkDialog`)   → পাঠাত না
+     *   3. Review পর্দার তিন-চাপ (`editRemarkInReview`)            → পাঠাত না
+     *   4. কম্পিউটারের বাক্স (`wlv1ChamberSaveTreatment`)           → পাঠাত না
+     * Report Card পড়ে `payments.progress` ঘর থেকে; বাকি তিনটে শুধু ফলো-আপ
+     * খাতায় লিখত। তাই বোর্ডে লেখা দেখা যেত, অথচ Report Card-এ "—"।
+     *
+     * এখন কাজটা **একটাই জায়গায়**, আর চারটে বাক্সই এটা ডাকে।
+     *
+     * ⛔ ভিতরের নিয়ম এক অক্ষরও বদলায়নি (V533-এর `progress` ঘর · V536-এর
+     *    "শুধু এই রোগীরই সারি" মিল · ব্যর্থ হলে retry-queue) — শুধু তারিখটা
+     *    এখন বোর্ডের খোলা দিন, আর ডাকার জায়গা চারটে।
+     * ⛔ পিছনে চলে — Treatment সেভ এটার জন্য এক মুহূর্তও থামে না।
+     */
+    private fun syncProgressToReportCard(row: ChamberAttendanceRow, text: String, dateKey: String) {
+        val appCtx = applicationContext
+Thread {
+            try {
+                val digits = row.mobile.filter { it.isDigit() }.takeLast(10)
+                /* 🟢🔒 V590 — আগে সবসময় **আজকের** তারিখ ধরা হত। কিন্তু পুরোনো কোনো
+                   দিনের চেম্বার খুলে লেখা হলে নোটটা ভুল দিনের টাকার সারিতে বসত (বা
+                   কোথাও বসত না)। এখন **যে দিনের বোর্ড খোলা আছে সেই দিনটাই** ধরা হয়।
+                   ⛔ আজকের দিন হলে (রোজকার ক্ষেত্রে) হুবহু আগের আচরণ। */
+                val dayKey = dateKey.ifBlank { FollowUpModel.today() }
+                val todaysPayments = SupabaseClient.fetchList("payments", "mobile=like.*$digits&date=eq.$dayKey", 20)
+                val targets = ArrayList<String>()
+                /* 🔵🔒 V536 (২২.০৮.২০২৬, TK-নির্দেশ) — **নোটটা শুধু এই রোগীরই
+                   টাকার সারিতে বসবে।**
+
+                   আগে ওই নম্বরের **আজকের সব** পেমেন্ট সারিতে নোটটা বসত। এক
+                   নম্বরে স্বামী-স্ত্রী দু'জন আলাদা রোগী দু'জনেই আজ টাকা দিলে
+                   **একজনের চিকিৎসার নোট অন্যজনের Report Card-এ** উঠে যেত।
+
+                   ⛔ নিয়মটা কোড থেকে প্রমাণিত, আন্দাজে নয়:
+                      `payments.patientId` = **রোগীর সারির আইডি**
+                      (`ChamberAttendanceRepository.kt:897`-এ লেখা ও V520-এ প্রমাণিত)।
+                   ⛔ V534-এর `rowBelongsTo()` এখানে **খাটে না** — ওটা সারির নিজের
+                      `id` ধরে মেলায়, আর পেমেন্ট সারির `id` হলো পেমেন্টের আইডি,
+                      রোগীর নয়। তাই এখানে সঠিক মিলটাই আলাদা করে লেখা হলো।
+                   ⛔ **এই নম্বরে ঘোষিত আলাদা রোগী না থাকলে (রোজকার ৯৯%)
+                      একটাও সারি বাদ পড়ে না — আচরণ হুবহু আগের মতোই।** */
+                val mineRowId = row.patientRowId.trim()
+                for (i in 0 until todaysPayments.length()) {
+                    val p = todaysPayments.getJSONObject(i)
+                    val payType = p.optString("payType", "")
+                    if (payType == "bill_edit" || payType == "chamber_expected") continue
+                    val owner = p.optString("patientId", "").trim()
+                    val keep = if (mineRowId.isNotEmpty())
+                        owner == mineRowId          // ঘোষিত আলাদা রোগী ⇒ ঠিক তাঁরটাই
+                    else
+                        // সাধারণ রোগী ⇒ ঘোষিত-আলাদা কারও টাকা বাদ, বাকি সব আগের মতোই
+                        !com.tkbiswas.pilesclinic.native.PatientModel
+                            .isDeclaredSeparateRowId(owner, digits)
+                    if (!keep) continue
+                    val pid = p.optString("id")
+                    if (pid.isBlank()) continue
+                    targets.add(pid)
+                }
+                // Same rows, sent together instead of one-by-one.
+                ParallelCloud.map(targets) { pid ->
+                    /* 🔵🔒 V533 (২২.০৮.২০২৬, TK-সিদ্ধান্ত) — **স্টাফের লেখা Remark আর মুছবে না।**
+                       আগে এই লেখাটা payments-এর `remarks` ঘরে বসত। ফল: সেদিন কেউ পেমেন্ট ফর্মে
+                       নিজের হাতে যে Remark লিখেছেন — এমনকি **Refund-এর কারণ** — সব মুছে গিয়ে
+                       চিকিৎসার নোট বসে যেত (TK-এর ছবিতে ₹1,000 Advance-এ "DRESSING করা হল")।
+                       ⇒ এখন নিজের আলাদা ঘর `progress`। ⛔ `remarks` আর ছোঁয়াই হয় না। */
+                    val fields = org.json.JSONObject().put("progress", text)
+                    val synced = try { SupabaseClient.updateById("payments", pid, fields) } catch (_: Throwable) { false }
+                    if (!synced) GenericUpdateQueue.queue(appCtx, "payments", pid, fields)
+                    synced
+                }
+            } catch (_: Throwable) { /* Report Card sync is a best-effort extra -- never blocks Treatment save above */ }
+        }.start()
     }
 
     private fun showRemarkDialog(row: ChamberAttendanceRow) {
@@ -2428,6 +2440,8 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                 BackgroundWork.run {
                     try { FollowUpRepository(appCtx).updateRemark(row.followUpId, remark, staffName) } catch (_: Throwable) { }
                 }
+                // 🟢 V590 — এই বাক্সটা এতদিন Report Card-এ কিছু পাঠাত না।
+                syncProgressToReportCard(row, remark, selectedDate)
             }
             .setNegativeButton("Cancel", null)
             .show().also { PremiumAlert.paint(it) }
@@ -3149,6 +3163,8 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                 BackgroundWork.run {
                     try { FollowUpRepository(appCtx).updateRemark(r.followUpId, remark, staffName) } catch (_: Throwable) { }
                 }
+                // 🟢 V590 — Review-এর এই বাক্সটাও এতদিন Report Card-এ কিছু পাঠাত না।
+                syncProgressToReportCard(r, remark, selectedDate)
             }
             .setNegativeButton("Cancel", null)
             .show().also { PremiumAlert.paint(it) }

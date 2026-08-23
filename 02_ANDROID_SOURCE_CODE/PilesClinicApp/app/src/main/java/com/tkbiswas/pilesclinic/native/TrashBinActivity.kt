@@ -2,6 +2,7 @@ package com.tkbiswas.pilesclinic.native
 
 import android.os.Bundle
 import android.view.View
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -327,15 +328,61 @@ class TrashBinActivity : AppCompatActivity() {
      * ⛔ ক্লাউডে কিছু যায় না — Trash সারির ভিতরে যা আছে, শুধু সেটাই দেখানো হয়।
      */
     private fun showRecord(item: TrashItem) {
-        val fields = TrashCardText.viewFields(item)
-        val sb = StringBuilder()
-        for ((k, v) in fields) sb.append(k).append(":  ").append(v).append("\n\n")
         val d = AlertDialog.Builder(this)
             .setCustomTitle(PremiumAlert.header(this, "👁 " + item.label.ifBlank { "Deleted record" }))
-            .setMessage(sb.toString().trimEnd())
             .setPositiveButton("♻ Restore") { _, _ -> confirmRestore(item) }
             .setNegativeButton("Close", null)
         if (user.role == "master") d.setNeutralButton("🗑 Delete") { _, _ -> confirmDeleteForever(item) }
+
+        /* 🟢🔒 V590 (২৩.০৮.২০২৬, TK-নির্দেশ, ছবিসহ) — *"View-তে চাপার পর আগে
+           যেখানে ছিল সেখানকার মতনই চেহারা দেখতে হতে হবে।"*
+           ⇒ যে পর্দায় সারিটা ছিল, সেই পর্দার **আসল কার্ডটাই** উপরে বসে
+             (`TrashSourceCard` — ওখানেই পুরো ব্যাখ্যা)। তার নিচে ছোট লাল
+             লাইনে কে মুছেছেন ও কখন।
+           ⛔ কার্ড বানানো না গেলে (patients · doctor_visits · অন্য টেবিল)
+              **হুবহু আগের সেই লেখার তালিকাই** দেখায় — পুরোনো আচরণ অক্ষত। */
+        val card = TrashSourceCard.build(this, item)
+        if (card == null) {
+            val fields = TrashCardText.viewFields(item)
+            val sb = StringBuilder()
+            for ((k, v) in fields) sb.append(k).append(":  ").append(v).append("\n\n")
+            d.setMessage(sb.toString().trimEnd())
+        } else {
+            val dp = { v: Int -> (v * resources.displayMetrics.density).toInt() }
+            val box = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+                setPadding(dp(14), dp(12), dp(14), dp(4))
+            }
+            box.addView(TextView(this).apply {
+                text = "As it was in " + TrashCardText.sourceLabel(item.table)
+                textSize = 11f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#5B6B81"))
+                setPadding(0, 0, 0, dp(6))
+            })
+            box.addView(card)
+            // 🗑 কে মুছেছেন, কখন — Trash-এর নিজের তথ্য, কার্ডে থাকে না
+            val who = TrashCardText.deletedByName(item)
+            val whenT = TrashCardText.whenText(item).replace("\n", "  ")
+            val line = listOf(who, whenT).filter { it.isNotBlank() }.joinToString("  ·  ")
+            if (line.isNotBlank()) {
+                box.addView(TextView(this).apply {
+                    text = "🗑  Deleted by $line"
+                    textSize = 12f
+                    setTextColor(android.graphics.Color.parseColor("#8A2C26"))
+                    /* ⛔ বাক্সের সাজটা প্রজেক্টের আগে থেকেই থাকা drawable থেকে
+                       (নতুন করে বানানো হয়নি) — তাই বাকি সতর্ক-বাক্সগুলোর সাথে
+                       এক দেখায়। */
+                    setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_dup_note)
+                    setPadding(dp(10), dp(8), dp(10), dp(8))
+                    val lp = android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
+                    lp.topMargin = dp(10); layoutParams = lp
+                })
+            }
+            d.setView(android.widget.ScrollView(this).apply { addView(box) })
+        }
         d.show().also { PremiumAlert.paint(it) }
     }
 

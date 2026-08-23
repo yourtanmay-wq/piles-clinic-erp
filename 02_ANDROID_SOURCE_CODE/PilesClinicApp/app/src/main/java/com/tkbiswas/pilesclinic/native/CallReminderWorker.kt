@@ -90,7 +90,17 @@ class CallReminderWorker(
             // যায়, তাই মনে-করানোর সংখ্যা কখনো কম দেখাবে না।
             try { all.addAll(repo.fetchTabDelta(stage, user.branch, user.name, user.mobile)) } catch (_: Throwable) { }
         }
-        return all.filter { it.nextFollow == today }
+        /* 🟢🔒 V590 (২৩.০৮.২০২৬, TK-রিপোর্ট: *"এতগুলো ওভারডিউ রয়েছে · স্টাফদের
+           কাছে কি নোটিফিকেশন যায় না, নাকি তারা কিছু বুঝতে পারে না?"*)
+           **যাচাই করে পাওয়া আসল কারণ:** এখানে শুধু `nextFollow == today` ধরা হত।
+           অর্থাৎ একদিন কল বাদ পড়লে পরদিন থেকেই সে **আর কোনোদিন** মনে-করানোয়
+           আসত না — দোষটা স্টাফের বোঝা-না-বোঝার নয়, অ্যাপের।
+           ⇒ এখন **আজকের ও বকেয়া** দুটোই। বকেয়াগুলো আগে (সবচেয়ে পুরনো আগে),
+             কারণ ওগুলোই সবচেয়ে বেশি দেরি হয়ে গেছে।
+           ⛔ তারিখ ফাঁকা হলে (কল ঠিক করাই নেই) আগের মতোই গোনা হয় না।
+           ⛔ ব্রাঞ্চ/রোলের নিয়ম আগের মতোই — মাস্টারের ফোনে এই মনে-করানো যায় না। */
+        return all.filter { it.nextFollow.isNotBlank() && it.nextFollow <= today }
+            .sortedBy { it.nextFollow }
     }
 
     private fun notify(ctx: Context, due: List<FollowUpItem>) {
@@ -109,11 +119,19 @@ class CallReminderWorker(
         val pi = android.app.PendingIntent.getActivity(ctx, 0, open, flags)
 
         val count = due.size
+        // 🟢 V590 — কতগুলো বকেয়া (আজকের নয়), সেটা আলাদা করে বলা হয়।
+        val overdue = due.count { it.nextFollow.isNotBlank() && it.nextFollow < FollowUpModel.today() }
 
         // TK-REQUESTED CHANGE (2026-07-16): names now shown in the full
         // notification -- capped at 5 lines so it stays readable, with a
         // "+N more" line if there are extra ones.
-        val shown = due.take(5).joinToString("\n") { "• ${it.name.ifBlank { it.mobile }}" }
+        /* 🟢 V590 — বকেয়া হলে পাশে তারিখটাও, তাই কতদিনের পুরনো সেটা বোঝা যায়। */
+        val td = FollowUpModel.today()
+        val shown = due.take(5).joinToString("\n") { f ->
+            val late = if (f.nextFollow.isNotBlank() && f.nextFollow < td)
+                "  (" + FollowUpModel.displayDate(f.nextFollow) + ")" else ""
+            "• " + f.name.ifBlank { f.mobile } + late
+        }
         val extra = (count - 5).let { if (it > 0) "\n+$it more" else "" }
         val bigText = shown + extra
 
@@ -124,15 +142,17 @@ class CallReminderWorker(
         val publicVersion = NotificationCompat.Builder(ctx, channel)
             .setSmallIcon(R.drawable.ic_notif_bell)
             .setColor(android.graphics.Color.parseColor("#0B3B73"))
-            .setContentTitle("📞 Today's Pending Calls")
-            .setContentText("$count calls pending today — tap to view.")
+            .setContentTitle(if (overdue > 0) "📞 Pending Calls" else "📞 Today's Pending Calls")
+            .setContentText(if (overdue > 0) "$count calls pending — $overdue overdue. Tap to view."
+                            else "$count calls pending today — tap to view.")
             .build()
 
         val n = NotificationCompat.Builder(ctx, channel)
             // 🎨 TK-APPROVED (2026-08-06): clean bell icon + brand accent (BigText already present).
             .setSmallIcon(R.drawable.ic_notif_bell)
             .setColor(android.graphics.Color.parseColor("#0B3B73"))
-            .setContentTitle("📞 Today's Pending Calls ($count)")
+            .setContentTitle(if (overdue > 0) "📞 Pending Calls ($count · $overdue overdue)"
+                             else "📞 Today's Pending Calls ($count)")
             .setContentText("Tap to view — " + due.take(2).joinToString(", ") { it.name.ifBlank { it.mobile } } + if (count > 2) "…" else "")
             .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
             .setPriority(NotificationCompat.PRIORITY_HIGH)

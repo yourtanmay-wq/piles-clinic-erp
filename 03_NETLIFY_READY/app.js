@@ -5019,7 +5019,9 @@ function applySharedFollowDateFilter(rows,stage){
       ⇒ **ব্যানার থেকে খুললে** (`callsOnly`) শুধু আজ কল করার লোক;
         **অন্য যেকোনো ভাবে** খুললে আগের নিয়মই হুবহু বহাল।
       ⛔ Android-এ ঠিক একই নিয়ম (FollowUpActivity.bannerCallsOnly)। */
-   if(f.callsOnly) return rows.filter(x=>String(x.nextFollow||'').slice(0,10)===t);
+   /* 🟢 V590 — ব্যানারের সংখ্যা আর এই তালিকা যেন কখনো আলাদা না হয়, তাই
+      এখানেও আজকের + বকেয়া (উপরের `wlv1TodayCallRows`-এর হুবহু একই নিয়ম)। */
+   if(f.callsOnly) return rows.filter(x=>{const d=String(x.nextFollow||'').slice(0,10); return d!=='' && d<=t;});
    return rows.filter(x=>String(x.nextFollow||'').slice(0,10)===t || followRecordDate(x,stage)===t);
  }
  return rows.filter(x=>{
@@ -5487,8 +5489,13 @@ function wlv1TodayCallRows(){
          পুরো গোনা ০ হয়ে যেত ⇒ **ব্যানারই উঠত না**, আর আজকের সব কল
          ড্যাশবোর্ড থেকে অদৃশ্য হয়ে যেত। এখন এক ভাগ ভাঙলে বাকি দুটো ঠিকই আসে। */
       try{
+        /* 🟢🔒 V590 (২৩.০৮.২০২৬, TK-রিপোর্ট) — আগে শুধু **ঠিক আজকের** তারিখ
+           ধরা হত, তাই একদিন কল বাদ পড়লে সে ব্যানার থেকে চিরতরে হারিয়ে যেত
+           (ফোনেও ঠিক একই দোষ ছিল)। এখন **আজকের ও বকেয়া** দুটোই।
+           ⛔ তারিখ ফাঁকা হলে (কল ঠিক করাই নেই) গোনা হয় না — আগের মতোই। */
         var rows=followStats(stage).rows.filter(function(x){
-          return String(x.nextFollow||'').slice(0,10)===t;
+          var d=String(x.nextFollow||'').slice(0,10);
+          return d!=='' && d<=t;
         });
         var g=wlv1BranchGate(rows);
         /* গেট `null` = মাস্টার এখনো ব্রাঞ্চ বাছেননি ⇒ আগের মতোই সব ব্রাঞ্চ। */
@@ -14668,10 +14675,45 @@ function wlv1ChamberSaveTreatment(mobile, rowId){
   rows[i] = {...rows[i], lastRemark: txt, updatedAt: new Date().toISOString(),
     history: [...(rows[i].history||[]), {date: today(), time: isoNow(), remark: txt, staff: (user&&(user.name||user.mobile))||''}]};
   save('followups', rows);
+  /* 🟢🔒 V590 (২৩.০৮.২০২৬, TK-রিপোর্ট: *"ট্রিটমেন্ট প্রোগ্রেসে যা লেখা হয় রিপোর্ট
+     কার্ডে অটোমেটিক উঠে না কেন"*) — এই বাক্সটা এতদিন শুধু ফলো-আপ খাতায় লিখত,
+     Report Card-এ কিছুই পাঠাত না (Report Card পড়ে `payments.progress` ঘর থেকে)।
+     এখন ফোনের `syncProgressToReportCard()`-এর হুবহু একই কাজ এখানেও। */
+  wlv1SyncProgressToReportCard(m, rowId, txt);
   closeModal();
   try{ chamberAttendance(); }catch(e){}
 }
 window["wlv1ChamberSaveTreatment"]=wlv1ChamberSaveTreatment;
+
+/* 🟢🔒 V590 — চিকিৎসার লেখাটা ওই দিনের **এই রোগীরই** টাকার সারিতে বসানো।
+   ⛔ নিয়মগুলো ফোনের হুবহু:
+      · দিন = বোর্ডে যে দিনটা খোলা (`wlv1ChamberDate`), "আজ" নয় — পুরোনো দিনের
+        চেম্বার খুললেও ঠিক দিনেই বসে;
+      · ঘর = `progress` (V533) — স্টাফের নিজের হাতে লেখা `remarks` ছোঁয়া হয় না;
+      · `bill_edit` ও `chamber_expected` সারি বাদ;
+      · এক নম্বরে ঘোষিত আলাদা রোগী থাকলে **শুধু তাঁরই** সারি।
+   ⛔ ফোনে/লোকালে আগে বসে, তারপর ক্লাউডে — ক্লাউড ব্যর্থ হলেও পর্দা আটকায় না। */
+function wlv1SyncProgressToReportCard(m, rowId, txt){
+  try{
+    const day = String(wlv1ChamberDate||today()).slice(0,10);
+    const own = String(rowId||'');
+    const all = load('payments')||[];
+    const targets = all.filter(function(x){
+      if(mob(x.mobile)!==m) return false;
+      if(String(x.date||'').slice(0,10)!==day) return false;
+      const t=String(x.payType||'').toLowerCase();
+      if(t==='bill_edit'||t==='chamber_expected') return false;
+      const owner=String(x.patientId||'').trim();
+      return own ? (owner===own) : !wlv1IsDeclaredSeparateRowId(owner, m);
+    });
+    if(!targets.length) return;
+    /* ⛔ ক্লাউডে পাঠানোর জন্য আলাদা কোনো ডাক লেখা হয়নি — `upd()` নিজেই
+       ফোনে বসায় **আর** ক্লাউডে পাঠায় (প্রজেক্টের প্রমাণিত পথ, app.js:768)।
+       আলাদা করে আবার পাঠালে একই সারি দুবার লেখা হত। */
+    targets.forEach(function(x){ try{ upd('payments', x.id, {progress: txt}) }catch(_e){} });
+  }catch(e){ /* Report Card-এ মেলানোটা বাড়তি — কখনো লেখা সেভ আটকায় না */ }
+}
+window["wlv1SyncProgressToReportCard"]=wlv1SyncProgressToReportCard;
 
 /* 🔴 V430 — CASH / ONLINE ঘরে চাপ দিলে ওই দিনের টাকার সারিগুলো দেখায়, ভুল
    থাকলে সেখান থেকেই সংশোধন (ফোনের fixPaymentInReview-এর সমান)।
@@ -15590,7 +15632,14 @@ function wlv1TodayCallBanner(){
   if(typeof user!=='undefined' && user && user.role==='doctor') return '';
   const n = wlv1TodayCallCount();
   if(!n) return '';
-  return `<button class="wlv1CallBanner" onclick="wlv1OpenTodayCalls()">\u{1F4DE} ${n} calls pending today \u2014 tap to call</button>`;
+  /* 🟢 V590 — কতগুলো **বকেয়া** (আজকের নয়) সেটাও বলা হয়, ফোনের ব্যানারের
+     হুবহু একই লেখা। */
+  let over = 0;
+  try{ const t=today(); over = wlv1TodayCallRows()
+        .filter(x=>{const d=String(x.nextFollow||'').slice(0,10); return d!=='' && d<t;}).length; }catch(e){}
+  const txt = over>0 ? `${n} calls pending \u2014 ${over} overdue \u2014 tap to call`
+                     : `${n} calls pending today \u2014 tap to call`;
+  return `<button class="wlv1CallBanner" onclick="wlv1OpenTodayCalls()">\u{1F4DE} ${txt}</button>`;
 }
 window["wlv1TodayCallBanner"]=wlv1TodayCallBanner;
 function wlv1OpenTodayCalls(){
