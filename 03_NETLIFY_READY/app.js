@@ -8486,7 +8486,10 @@ function wlv1HistBoxHtml(note){
     return wlv1FoldHead(fid, g[1], picked)
       +'<div class="wlv1Fold" id="'+fid+'"><div class="wlv1HistGrp">'+inner+'</div></div>';
   }).join('');
-  return '<label>রোগীর বলা ইতিহাস</label><div class="wlv1HistBox plain">'+html
+  /* 🔵 V574 (TK-নির্দেশ): *"রোগী এসে প্রথমে কি কি বললেন / রোগীর বলা ইতিহাস —
+     এই লেখাগুলো দুইবার তিনবার ... সেরকম যেন না হয়"* ⇒ উপরের "রোগীর বলা ইতিহাস"
+     লেখাটা তুলে দেওয়া হলো; চারটে দলের নিজের নামই যথেষ্ট। */
+  return '<div class="wlv1HistBox plain">'+html
     +'<textarea id="dnHistoryNote" placeholder="এই ইতিহাস নিয়ে আর কিছু লেখার থাকলে এখানে লিখুন">'+esc(r.note)+'</textarea></div>';
 }
 function wlv1HistToggle(btn){
