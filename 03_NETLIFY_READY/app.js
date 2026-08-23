@@ -8949,7 +8949,14 @@ async function saveDoctor(id){
   // নতুন সেভে এই ঘরগুলো আর বসে না।
   beforePhoto:media.beforePhoto||oldNote.beforePhoto||'',duringPhoto:media.duringPhoto||oldNote.duringPhoto||'',afterPhoto:media.afterPhoto||oldNote.afterPhoto||'',updatedAt:new Date().toISOString()
  };
- let details=[`Complaint: ${note.complaint}`,`Duration: ${note.duration}`,`Occupation: ${note.occupation}`,`Patient Said: ${note.patientSaid}`,`Visual: ${visual.join(', ')}`,`Internal Piles Grade: ${note.grade}`,`Proctoscopy: ${note.proctoscopy}`,`On Probing: ${note.onProbing}`,`Investigations: ${investigations.join(', ')}`,`Treatment Plan: ${treatmentPlan.join(', ')}`,`Other Treatment Note: ${note.counselling}`,`Financial: ${note.estimatedCost}`,`Disease Picture: ${wlv1AnatReadable(note.anatomy)}`].filter(x=>!x.endsWith(': ')&&!x.endsWith(': ')).join(' | ');
+ /* 🔵🔒 V586 (২৩.০৮.২০২৬, TK-অনুমোদিত) — কাগজের **ভাগ ২ · ভাগ ৩ · ভাগ ৪**
+    এই লেখায় যেত না, অথচ ফোনে যেত (`buildDetails()`)। তাই ওয়েবে সেভ করা
+    চেক-আপ ফোনের 📜 History-তে খুললে ওই তিনটে ভাগ ফাঁকা দেখাত।
+    এখন ফোনের **হুবহু একই লেবেলে** (`Patient Reported` · `History Detail` ·
+    `Habits`) যোগ হলো, তাই ফোনের পড়ার কোড সরাসরি চিনে নেয়।
+    ⛔ শুধু **নতুন** সেভে যোগ হয় — পুরনো কোনো রেকর্ড ছোঁয়া হয়নি।
+    ⛔ ঘর ফাঁকা থাকলে নিচের `.filter()` আগের মতোই সেটা বাদ দেয়। */
+ let details=[`Complaint: ${note.complaint}`,`Duration: ${note.duration}`,`Occupation: ${note.occupation}`,`Patient Said: ${note.patientSaid}`,`Patient Reported: ${wlv1SymReadable(note.symptomHistory||'')}`,`History Detail: ${wlv1HistReadable(note.historyDetail||'')}`,`Habits: ${wlv1LifeReadable(note.lifestyle||'')}`,`Visual: ${visual.join(', ')}`,`Internal Piles Grade: ${note.grade}`,`Proctoscopy: ${note.proctoscopy}`,`On Probing: ${note.onProbing}`,`Investigations: ${investigations.join(', ')}`,`Treatment Plan: ${treatmentPlan.join(', ')}`,`Other Treatment Note: ${note.counselling}`,`Financial: ${note.estimatedCost}`,`Disease Picture: ${wlv1AnatReadable(note.anatomy)}`].filter(x=>!x.endsWith(': ')&&!x.endsWith(': ')).join(' | ');
  /* 🔴 TK-নির্দেশ (04.08.2026): আগে শুধু "Agree for Treatment"-এই
     doctorComplete=true হত -- বাকি পাঁচটা সিদ্ধান্তে ডাক্তার সত্যিই
     checkup শেষ করেও রোগী CHECK-UP Queue-তে চিরকাল আটকে থাকতেন

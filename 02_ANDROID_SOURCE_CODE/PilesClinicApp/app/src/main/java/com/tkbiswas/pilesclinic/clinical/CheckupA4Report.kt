@@ -98,24 +98,86 @@ object CheckupA4Report {
      * ⚠️ সৎ সীমাবদ্ধতা: History-র সারিতে ছবি (before/during/after) থাকে না
      * (ওগুলো আলাদা কলামে সেভ হয়), তাই পুরনো রেকর্ডের রিপোর্টে ছবির ঘর ফাঁকা।
      */
+    /* 🔵🔒 V586 (২৩.০৮.২০২৬, TK-অনুমোদিত: *"পড়ার কোড দু'রকম বুঝুক"*) —
+       ফোন ও কম্পিউটার **আলাদা চিহ্ন দিয়ে** ঘর জোড়ে:
+         · ফোন  (`DoctorCheckupActivity.buildDetails`) → `"; "`
+         · ওয়েব (`app.js`, saveDoctor)                → `" | "`
+       আগে এখানে শুধু `"; "` খোঁজা হত, তাই **ওয়েবে সেভ করা চেক-আপ ফোনের
+       📜 History-তে খুললে প্রথম ঘরটাই আসত**, বাকিগুলো ফাঁকা দেখাত।
+       এখন দুটো চিহ্নই চেনা হয়। ⛔ সেভের নিয়মে এক অক্ষরও হাত পড়েনি, তাই
+       পুরনো কোনো রেকর্ড নষ্ট হওয়ার পথ নেই — শুধু পড়া ভালো হলো। */
+    private val SEPS = listOf("; ", " | ")
+
+    /* 🔵🔒 V586 — **ঘর কোথায় শেষ, সেটা চেনার আসল নিয়ম।**
+       শুধু `"; "` বা `" | "` দেখে থেমে গেলে ভুল হত, কারণ **ঘরের ভিতরের
+       লেখাতেও ওই চিহ্নগুলো থাকে**:
+         · `SymptomHistoryModel.readable()` উপসর্গগুলো `"; "` দিয়ে জোড়ে
+         · `HistoryDetailModel.readable()` দলগুলো `" | "` দিয়ে জোড়ে
+         · `LifestyleModel.readable()`-ও `"; "` দিয়ে জোড়ে
+       ফলে ভাগ ২ · ৩ · ৪-এর লেখা **প্রথম চিহ্নেই কেটে** যেত — ফোনের নিজের
+       সেভ করা রেকর্ডেও (চালিয়ে দেখা হয়েছে)।
+       ⇒ এখন নিয়ম: বিভাজকের **ঠিক পরে যদি চেনা কোনো লেবেল + ": "** থাকে,
+         তবেই সেটা সত্যিকারের ঘরের শেষ; নইলে ওটা লেখারই অংশ।
+       ⛔ সেভের নিয়মে হাত পড়েনি — পুরনো সব রেকর্ড এখন **আরও ভালো** পড়বে। */
+    private val KNOWN_LABELS = listOf(
+        "Complaint", "Duration", "Onset", "Occupation", "Prev Treatment",
+        "Patient Said", "Patient Reported", "History Detail", "Habits",
+        "Probable Disease", "Time Asked", "Disease Picture",
+        "Prev Result", "Prev Cost", "Treatment Duration",
+        "Visual", "DRE", "Internal Piles Grade", "Grade", "Proctoscopy",
+        "On Probing", "Investigation", "Investigations", "Other Findings",
+        "Treatment Plan", "Other Treatment Note",
+        "Est Cost", "Financial", "Recovery", "Advance",
+        "Decision", "Remarks", "Documents"
+    )
+
     fun parseDetails(note: String): Fields {
-        fun field(label: String): String {
+        /** এই জায়গা থেকে **সত্যিকারের** ঘরের শেষ কোথায়; না পেলে লেখার শেষ। */
+        fun nextSep(from: Int): Int {
+            var at = from
+            while (at < note.length) {
+                var best = -1; var bestLen = 0
+                for (sep in SEPS) {
+                    val i = note.indexOf(sep, at)
+                    if (i >= 0 && (best == -1 || i < best)) { best = i; bestLen = sep.length }
+                }
+                if (best < 0) return note.length
+                val after = best + bestLen
+                if (KNOWN_LABELS.any { note.startsWith("$it: ", after) }) return best
+                at = after            // চিহ্নটা লেখারই অংশ — এগিয়ে যাও
+            }
+            return note.length
+        }
+        fun one(label: String): String {
             val marker = "$label: "
             var searchFrom = 0
             var idx = -1
             while (true) {
                 val found = note.indexOf(marker, searchFrom)
                 if (found < 0) break
-                // শুরুতে, নয়তো ঠিক আগে "; " থাকলে তবেই আসল লেবেল ধরা হয় —
+                // শুরুতে, নয়তো ঠিক আগে কোনো বিভাজক থাকলে তবেই আসল লেবেল ধরা হয় —
                 // নইলে "Treatment Duration"-এর ভিতরের "Duration"-ও মিলে যেত
                 // (PatientTimelineActivity-তে ধরা পড়া পুরনো বাগ, একই সুরক্ষা)।
-                if (found == 0 || (found >= 2 && note.startsWith("; ", found - 2))) { idx = found; break }
+                val ok = found == 0 || SEPS.any { found >= it.length && note.startsWith(it, found - it.length) }
+                if (ok) { idx = found; break }
                 searchFrom = found + 1
             }
             if (idx < 0) return ""
             val from = idx + marker.length
-            val end = note.indexOf("; ", from).let { if (it < 0) note.length else it }
-            return note.substring(from, end).trim()
+            return note.substring(from, nextSep(from)).trim()
+        }
+        /* 🔵 V586 — একই ঘর দু'জায়গায় দু'নামে লেখা হয়। যেটা আগে মেলে সেটাই
+           নেওয়া হয়, তাই ফোনের ও ওয়েবের দুই ধরনের লেখাই পড়া যায়।
+           ⚠️ এর মধ্যে একটা **পুরনো দোষও** সারল: ফোন লেখে "Internal Piles
+              Grade", অথচ এখানে খোঁজা হত শুধু "Grade" — আর "Grade"-এর ঠিক
+              আগে বিভাজক না থাকায় কখনোই মিলত না, ফলে 📜 History-র A4-এ
+              **গ্রেড কোনোদিনই দেখাত না**। */
+        fun field(vararg labels: String): String {
+            for (l in labels) {
+                val v = one(l)
+                if (v.isNotBlank()) return v
+            }
+            return ""
         }
         val plan = field("Treatment Plan")
         // "Per Piles (Per Piles ₹8000)" — বন্ধনীর ভিতরের টাকাটাই "হার"।
@@ -126,11 +188,14 @@ object CheckupA4Report {
             occupation = field("Occupation"), prevTreatment = field("Prev Treatment"),
             prevResult = field("Prev Result"), prevCost = field("Prev Cost"),
             treatmentDuration = field("Treatment Duration"),
-            visual = field("Visual"), dre = field("DRE"), grade = field("Grade"),
-            onProbing = field("On Probing"), investigation = field("Investigation"),
+            visual = field("Visual"), dre = field("DRE"),
+            grade = field("Internal Piles Grade", "Grade"),
+            onProbing = field("On Probing"),
+            investigation = field("Investigation", "Investigations"),
             otherFindings = field("Other Findings"),
             treatmentPlan = planOnly, rate = rate, counselling = field("Other Treatment Note"),
-            estCost = field("Est Cost"), recovery = field("Recovery"), advance = field("Advance"),
+            estCost = field("Est Cost", "Financial"),
+            recovery = field("Recovery"), advance = field("Advance"),
             decision = field("Decision"), remarks = field("Remarks"),
             // 🔵 V584 — পুরোনো লেখা থেকে যতটুকু পাওয়া যায় ততটুকুই (মানুষ-পড়া-যায় রূপ)
             patientSaid = field("Patient Said"),
