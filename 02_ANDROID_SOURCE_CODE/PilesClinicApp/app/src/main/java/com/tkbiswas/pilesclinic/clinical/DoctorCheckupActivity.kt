@@ -1595,7 +1595,12 @@ class DoctorCheckupActivity : AppCompatActivity() {
             return ic
         }
         fun addSep() {
-            row.addView(View(this).apply {
+            // 🔴 V575 বিল্ড-ফিক্স (TK-এর Android Studio-র স্ক্রিনশট, ২৩.০৮.২০২৬):
+            //    এখানে খালি `View(this)` লেখা ছিল, কিন্তু এই ফাইলে
+            //    `android.view.View` import করা নেই — তাই "Unresolved reference:
+            //    View / setBackgroundColor / layoutParams" এসে বিল্ড ভাঙত।
+            //    ফাইলের বাকি জায়গার মতোই পুরো নাম লিখে দেওয়া হলো।
+            row.addView(android.view.View(this).apply {
                 setBackgroundColor(android.graphics.Color.parseColor(if (dark) "#3AFFFFFF" else "#D7E1EC"))
                 layoutParams = android.widget.LinearLayout.LayoutParams(symDp(1), symDp(22))
                     .apply { setMargins(symDp(3), 0, symDp(3), 0) }

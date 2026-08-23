@@ -134,29 +134,66 @@ CASCADE = (
 
 
 def project_vocabulary():
-    """প্রকল্পের সব ফাইল পড়ে দুটো তালিকা বানায় —
-       ১) বাইরের import-এর নাম, ২) `.নাম` হিসেবে ব্যবহৃত সব সদস্যের নাম।"""
+    """প্রকল্পের সব ফাইল পড়ে তালিকা বানায় —
+       ১) বাইরের import-এর নাম, ২) `.নাম` হিসেবে ব্যবহৃত সব সদস্যের নাম,
+       ৩) 🔴 V575: **প্রতিটা ফাইলের নিজের** import ও `.নাম` আলাদা করে।
+
+    🔴🔴 V575-এ ধরা পড়া ফাঁক (TK-এর Android Studio-র স্ক্রিনশট, ২৩.০৮.২০২৬):
+    `DoctorCheckupActivity.kt`-এ খালি `View(this)` লেখা ছিল, অথচ ওই ফাইলে
+    `android.view.View` import করা **ছিল না** — Android Studio-তে
+    "Unresolved reference: View" এসে বিল্ড ভেঙেছিল। কিন্তু এই পাহারাদার
+    সেটা ধরতে পারেনি, কারণ `View` **অন্য ফাইলে** import করা আছে বলে নামটা
+    গোটা-প্রকল্পের তালিকায় ছিল, তাই "বাইরের লাইব্রেরির গোলমাল" ধরে নিত।
+    ⇒ এখন যাচাইটা **ফাইল-ধরে-ফাইল** হয়: যে ফাইলে ভুলটা, সেই ফাইলে নামটা
+      import করা আছে কি না বা `.নাম` হিসেবে ব্যবহার হয়েছে কি না — তবেই ছাড়।"""
     ext = {"android", "androidx", "org", "kotlinx", "okhttp3", "okio",
            "java", "javax", "com", "it", "this", "field", "R", "BuildConfig"}
     members = set()
+    per_file = {}
     for folder, _d, files in os.walk(SRC):
         for f in files:
             if not f.endswith(".kt"):
                 continue
-            t = open(os.path.join(folder, f), encoding="utf-8",
-                     errors="replace").read()
+            full = os.path.join(folder, f)
+            t = open(full, encoding="utf-8", errors="replace").read()
+            imports = set()
             for ln in t.splitlines():
                 m = re.match(r"\s*import\s+([\w.]+)(?:\s+as\s+(\w+))?", ln)
-                if m and m.group(1).startswith(EXT_PKG):
-                    ext.add(m.group(2) or m.group(1).split(".")[-1])
+                if m:
+                    name = m.group(2) or m.group(1).split(".")[-1]
+                    imports.add(name)
+                    if m.group(1).startswith(EXT_PKG):
+                        ext.add(name)
             members.update(re.findall(r"\.(\w+)", t))
-    return ext, members
+            key = full.replace("\\", "/")
+            key = key[key.find("com/"):] if "com/" in key else key
+            # শুধু **import**-এর নাম রাখা হয় — `.View`-এর মতো ব্যবহার নয়।
+            # কারণ পুরো নাম লিখে (`android.view.View(...)`) ব্যবহার করলে
+            # কম্পাইলার গোড়ার `android` নিয়ে অভিযোগ করে, `View` নিয়ে নয়।
+            per_file[key] = imports
+    return ext, members, per_file
 
 
-def is_noise(msg, ext, members):
+# গোটা-প্রকল্পে ছাড় পাওয়া নাম — এগুলো প্যাকেজের গোড়া বা কম্পাইলারের নিজের
+# শব্দ, কোনো ফাইলেই import লাগে না।
+ROOT_NAMES = {"android", "androidx", "org", "kotlinx", "okhttp3", "okio",
+              "java", "javax", "com", "it", "this", "field", "R", "BuildConfig"}
+
+
+def is_noise(msg, ext, members, mine=None):
     u = re.match(r"unresolved reference: (\w+)$", msg)
     if u:
-        return u.group(1) in ext or u.group(1) in members
+        name = u.group(1)
+        if name in ROOT_NAMES:
+            return True
+        # 🔵 V575 টীকা: "ওই ফাইলে import আছে কি না" ধরে বাছাই করে দেখা হয়েছিল,
+        #    কিন্তু তাতে উত্তরাধিকারে পাওয়া ধ্রুবক (MODE_PRIVATE,
+        #    LAYER_TYPE_SOFTWARE) ও ভিতরের ক্লাস (ActivityLifecycleCallbacks,
+        #    LayoutResultCallback) মিথ্যে ভুল হিসেবে ধরা পড়ছিল — অথচ
+        #    Android Studio-তে ওগুলো ঠিকঠাক বিল্ড হয়। তাই এই বাছাইটা আগের
+        #    মতোই রইল, আর "import ছাড়া ক্লাস ব্যবহার"-এর আসল ভুল ধরার জন্য
+        #    নিচে আলাদা, নিখুঁত পাহারা `missing_import_errors()` বসানো হলো।
+        return name in ext or name in members
     low = msg.lower()
     if low.startswith("unresolved reference. "):
         return False          # ⚠️ আসল ধরা হয় — `$until`-এর ভুল এভাবেই আসে
@@ -168,7 +205,7 @@ def normalise(msg):
     return re.sub(r"\d+", "N", msg).strip()
 
 
-def collect_errors(log_text, ext, members):
+def collect_errors(log_text, ext, members, per_file=None):
     """(ফাইল, বার্তা) জোড়ার সেট — শুধু **আসল সন্দেহভাজন** ভুল।
        লাইন/কলাম বাদ, তাই কোড উপরে-নিচে সরালেও বেসলাইন ভাঙে না।"""
     pairs, total = set(), 0
@@ -178,12 +215,86 @@ def collect_errors(log_text, ext, members):
             continue
         total += 1
         msg = m.group(4)
-        if is_noise(msg, ext, members):
-            continue
         path = m.group(1).replace("\\", "/")
         path = path[path.find("com/"):] if "com/" in path else path
+        mine = (per_file or {}).get(path)
+        if is_noise(msg, ext, members, mine):
+            continue
         pairs.add((path, normalise(msg)))
     return pairs, total
+
+
+# ══════════════════════════════════════════════════════════════════════
+# 🔴🔴 V575 — **"import না করে Android-এর ক্লাস ব্যবহার" ধরার পাহারা**
+# ----------------------------------------------------------------------
+# কেন (TK-এর Android Studio-র স্ক্রিনশট, ২৩.০৮.২০২৬ সকাল ৮:০৩):
+#     DoctorCheckupActivity.kt  →  Unresolved reference: View :1598
+#                                  Unresolved reference: setBackgroundColor :1599
+#                                  Unresolved reference: layoutParams :1600
+# `buildToolBar()`-এ খালি `View(this)` লেখা ছিল, অথচ ওই ফাইলে
+# `android.view.View` import করা ছিল না। উপরের কম্পাইলার-পাহারা এটা ধরতে
+# পারেনি, কারণ এই পরিবেশে Android SDK নেই বলে `View`-এর ভুলটাও "বাইরের
+# লাইব্রেরির গোলমাল" হিসেবে বাদ পড়ে যেত।
+#
+# এই পাহারাটা কম্পাইলার ছাড়াই, **শুধু লেখা পড়ে** কাজ করে:
+#   ১) প্রকল্পের সব ফাইল থেকে `import android…/androidx…`-এর ক্লাসের নাম জমা হয়
+#   ২) প্রতিটা ফাইলে দেখা হয় — ওই নামগুলোর কোনোটা `Name(` বা `Name.` ভাবে
+#      ব্যবহার হয়েছে কি না, অথচ **ওই ফাইলে** import নেই
+#   ৩) শুধু **বড় হাতের অক্ষরে শুরু** নাম দেখা হয় (ক্লাস), ছোট হাতের নয় —
+#      নইলে `EditText.addTextChangedListener()`-এর মতো নিজের সদস্য-ফাংশনও
+#      মিথ্যে ভুল হয়ে ধরা পড়ত (পরীক্ষা করে দেখা হয়েছে)
+#   ৪) কমেন্ট ও উদ্ধৃতির ভিতরের লেখা বাদ, পুরো নাম লিখে ব্যবহার
+#      (`android.view.View(...)`) বাদ, ওই ফাইলেই ঘোষিত ক্লাস বাদ
+#
+# ✅ প্রমাণ: ভুলটা ইচ্ছে করে ফেরত বসিয়ে চালানো হয়েছে — ধরা পড়ে ঠিক একটাই
+#    সারি (DoctorCheckupActivity.kt → View); সারানোর পরে **শূন্য**।
+# ══════════════════════════════════════════════════════════════════════
+IMP_SKIP = {"R", "BuildConfig"}
+
+
+def _strip_code(t):
+    """কমেন্ট ও উদ্ধৃতির ভিতরের লেখা সরিয়ে দেয় — নইলে বাংলা টীকা বা
+       বার্তার ভিতরের শব্দও কোড বলে ভুল করত।"""
+    t = re.sub(r"/\*.*?\*/", " ", t, flags=re.S)
+    t = re.sub(r"//[^\n]*", " ", t)
+    t = re.sub(r'"""(?:.|\n)*?"""', '""', t)
+    t = re.sub(r'"(?:\\.|[^"\\\n])*"', '""', t)
+    return t
+
+
+def missing_import_errors():
+    """(ফাইল, ক্লাসের নাম, কোন প্যাকেজের) — import ছাড়া ব্যবহারের তালিকা।"""
+    files = {}
+    for folder, _d, fs in os.walk(SRC):
+        for f in fs:
+            if f.endswith(".kt"):
+                p = os.path.join(folder, f)
+                files[p] = open(p, encoding="utf-8", errors="replace").read()
+    known = {}
+    for t in files.values():
+        for m in re.finditer(
+                r"^\s*import\s+((?:android|androidx)[\w.]*)(?:\s+as\s+(\w+))?",
+                t, re.M):
+            name = m.group(2) or m.group(1).split(".")[-1]
+            if name[:1].isupper():
+                known.setdefault(name, m.group(1))
+    hits = []
+    for p in sorted(files):
+        code = _strip_code(files[p])
+        mine = {(m.group(2) or m.group(1).split(".")[-1]) for m in
+                re.finditer(r"^\s*import\s+([\w.]+)(?:\s+as\s+(\w+))?",
+                            code, re.M)}
+        declared = set(re.findall(
+            r"\b(?:class|object|interface|enum class|annotation class)\s+(\w+)",
+            code))
+        for name, pkg in known.items():
+            if name in mine or name in IMP_SKIP or name in declared:
+                continue
+            if re.search(r"(?<![\w.])" + re.escape(name) + r"\s*[.(]", code):
+                short = p.replace("\\", "/")
+                short = short[short.find("com/"):] if "com/" in short else short
+                hits.append((short, name, pkg))
+    return hits
 
 
 def run_compiler(kotlinc):
@@ -256,8 +367,23 @@ def main():
         print("ফল: SKIPPED — যাচাই করা যায়নি। ⛔ PASS নয়।")
         return 1
 
-    ext, members = project_vocabulary()
-    found, total = collect_errors(log, ext, members)
+    # 🔴 V575 — কম্পাইলারের আগেই "import ছাড়া ক্লাস ব্যবহার" দেখে নেওয়া হয়
+    imp = missing_import_errors()
+    if imp:
+        print()
+        print("❌ FAIL — import না করেই Android-এর ক্লাস ব্যবহার করা হয়েছে")
+        print("   (Android Studio-তে ঠিক এখানেই 'Unresolved reference' এসে")
+        print("    বিল্ড ভেঙে যাবে):")
+        for f, name, pkg in imp:
+            print("  ❌ %s" % f)
+            print("       %s — `import %s` লেখা নেই" % (name, pkg))
+        print()
+        print("ফল: FAIL — TK-কে এই ফাইল পাঠানো যাবে না. ⛔ PASS নয়।")
+        return 1
+    print("   ✅ import ছাড়া কোনো Android ক্লাস ব্যবহার হয়নি")
+
+    ext, members, per_file = project_vocabulary()
+    found, total = collect_errors(log, ext, members, per_file)
     print("   কম্পাইলারের মোট ভুল      : %d" % total)
     print("   বাইরের লাইব্রেরির গোলমাল : %d (বাদ)" % (total - len(found)))
     print("   আসল সন্দেহভাজন           : %d" % len(found))
