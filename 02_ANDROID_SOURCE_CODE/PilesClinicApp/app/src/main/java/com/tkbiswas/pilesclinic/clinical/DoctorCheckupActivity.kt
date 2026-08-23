@@ -1662,6 +1662,15 @@ class DoctorCheckupActivity : AppCompatActivity() {
 
         val view = AnatomyView(this)
         anatomyView = view
+        /* 🔵 V585 (২৩.০৮.২০২৬, TK-অনুমোদিত) — ডাক্তার "কেন্দ্র" ছুঁয়ে দিলে ওই
+           **ছবির জন্য** ফোনেই জমা হয় (SharedPreferences), তাই ওই ছবিতে আর
+           কখনো জিজ্ঞাসা করতে হয় না। ⛔ একটাও ক্লাউড-কল নেই — TK: *"আমি ফ্রি
+           প্লানে চালাতে চাই"*। */
+        view.onCentreSet = { x, y ->
+            AnatomyClock.setCentre(this, view.picKeyNow(), x, y)
+            Toast.makeText(this, "কেন্দ্র বসানো হলো — এবার চিহ্ন দিলেই ঘড়ির সময় নিজে বসবে",
+                Toast.LENGTH_SHORT).show()
+        }
         holder.removeAllViews()
         holder.addView(view, android.widget.FrameLayout.LayoutParams(
             android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
@@ -1704,6 +1713,8 @@ class DoctorCheckupActivity : AppCompatActivity() {
         AnatomyView.Tool.ARROW -> "তীর — যেদিকে দেখাবেন সেদিকে টানুন"
         AnatomyView.Tool.ERASE -> "মুছুন — যে দাগটা তুলবেন তার উপরে ছুঁয়ে দিন"
         AnatomyView.Tool.PEN   -> "কলম — আঙুল দিয়ে লিখুন"
+        /* 🔵 V585 (TK-নির্দেশ) — নতুন হাতিয়ার */
+        AnatomyView.Tool.CENTRE -> "কেন্দ্র — পায়ুপথের ঠিক মাঝখানে একবার ছুঁয়ে দিন"
     }
 
     /**
@@ -1774,12 +1785,27 @@ class DoctorCheckupActivity : AppCompatActivity() {
             Triple("tract", "নালী",   AnatomyView.Tool.TRACT),
             Triple("ring",  "গোল",    AnatomyView.Tool.RING),
             Triple("arrow", "তীর",    AnatomyView.Tool.ARROW),
-            Triple("erase", "মুছুন",  AnatomyView.Tool.ERASE)
+            Triple("erase", "মুছুন",  AnatomyView.Tool.ERASE),
+            /* 🔵 V585 (২৩.০৮.২০২৬, TK-অনুমোদিত ডেমো-প্রুফের পরে) — "কেন্দ্র"।
+               ছবির পায়ুপথের মাঝখানে একবার ছুঁয়ে দিলে ওই ছবির জন্য মনে থাকে,
+               তারপর প্রতিটা চিহ্নের o'clock নিজে হিসাব হয়। */
+            Triple("centre", "কেন্দ্র", AnatomyView.Tool.CENTRE)
         )
         for ((kind, desc, tool) in toolList) {
             addIcon(kind, desc, tool) {
                 view.tool = tool
-                if (tool == AnatomyView.Tool.PILE) askPileLabel(view)
+                /* 🔵 V585 — আগে "চিহ্ন" বাছলেই ঘড়ির তালিকা খুলত আর সেই একটা
+                   লেখাই এরপর সব চিহ্নে বসে যেত (TK: *"যেখানেই থাকবে চারটা কেন
+                   বাঁচবে"*)। এখন তালিকাটা আর খোলে না — এক ছোঁয়াতেই চিহ্ন বসে,
+                   o'clock নিজে হিসাব হয়। কেন্দ্র জানা না থাকলে অ্যাপ একবার
+                   মনে করিয়ে দেয়।
+                   ⛔ `askPileLabel()` ফাংশনটা মোছা হয়নি (TK-এর নিয়ম: নিজে থেকে
+                      কিছু সরাই না) — শুধু আর ডাকা হয় না। */
+                if (tool == AnatomyView.Tool.PILE && view.clockCentre == null) {
+                    Toast.makeText(this@DoctorCheckupActivity,
+                        "আগে ⊕ কেন্দ্র দিয়ে পায়ুপথের মাঝখানে একবার ছুঁয়ে দিন — তবেই ঘড়ির সময় নিজে বসবে",
+                        Toast.LENGTH_LONG).show()
+                }
                 paintOn(tool)
             }
         }

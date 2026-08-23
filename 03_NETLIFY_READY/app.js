@@ -7925,10 +7925,15 @@ var WLV1_ANAT_ICONS={
   erase:'<path d="M8.5 19.5 4 15a2 2 0 0 1 0-2.8l7.2-7.2a2 2 0 0 1 2.8 0l4.6 4.6a2 2 0 0 1 0 2.8l-7 7z"/><path d="M9 20h10"/>',
   undo:'<path d="M4 10h9a5 5 0 1 1 0 10H8"/><path d="M8 6 4 10l4 4"/>',
   trash:'<path d="M4.5 7h15M9.5 7V5.2A1.2 1.2 0 0 1 10.7 4h2.6a1.2 1.2 0 0 1 1.2 1.2V7"/><path d="M6.4 7l.9 12.1A1.6 1.6 0 0 0 8.9 20.6h6.2a1.6 1.6 0 0 0 1.6-1.5L17.6 7"/>',
-  full:'<path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"/>'
+  full:'<path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5"/>',
+  /* 🔵 V585 — "কেন্দ্র" হাতিয়ার। ⚠️ ফোনের `AnatToolIcon.pathData("centre")`-এর হুবহু একই পথ। */
+  centre:'<circle cx="12" cy="12" r="8"/><path d="M12 2.6v3.2M12 18.2v3.2M2.6 12h3.2M18.2 12h3.2"/><circle cx="12" cy="12" r="1.4"/>'
 };
 var WLV1_ANAT_TOOLS=[['bulge','ফোলান'],['pile','চিহ্ন'],['tract','নালী'],
-                     ['ring','গোল'],['arrow','তীর'],['erase','মুছুন']];
+                     ['ring','গোল'],['arrow','তীর'],['erase','মুছুন'],
+                     /* 🔵 V585 (TK-অনুমোদিত) — পায়ুপথের মাঝখানে একবার ছুঁয়ে দিলে
+                        ওই ছবির ঘড়ির কেন্দ্র জমা হয়, তারপর o'clock নিজে হিসাব হয়। */
+                     ['centre','কেন্দ্র']];
 function wlv1AnatIcon(k){
   return '<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" '
     +'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+(WLV1_ANAT_ICONS[k]||'')+'</svg>';
@@ -7940,7 +7945,8 @@ function wlv1AnatToolName(t){
 /* কোন হাতিয়ার চলছে তার এক লাইনের লেখা — কী করতে হবে সেটাও বলে দেয় */
 var WLV1_ANAT_TIPS={bulge:'মাংসের উপরে আঙুল টানুন',pile:'যেখানে চিহ্ন দেবেন সেখানে ছুঁয়ে দিন',
   tract:'নালীর পথ ধরে আঙুল টানুন',ring:'যেটা ঘিরে দেখাবেন তার উপরে টানুন',
-  arrow:'যেদিকে দেখাবেন সেদিকে টানুন',erase:'যে দাগটা তুলবেন তার উপরে ছুঁয়ে দিন'};
+  arrow:'যেদিকে দেখাবেন সেদিকে টানুন',erase:'যে দাগটা তুলবেন তার উপরে ছুঁয়ে দিন',
+  centre:'পায়ুপথের ঠিক মাঝখানে একবার ছুঁয়ে দিন'};
 function wlv1AnatBarHtml(full){
   var ic=WLV1_ANAT_TOOLS.map(function(t){
     return '<button type="button" class="wlv1AnatTool'+(wlv1AnatState.tool===t[0]?' on':'')+'" '
@@ -8077,15 +8083,83 @@ function wlv1AnatPick(k){
   try{$$('.wlv1AnatTh').forEach(function(el){el.classList.toggle('on',el.getAttribute('data-k')===k)})}catch(_e){}
   wlv1AnatRedraw();
 }
+/* ============================================================================
+   🔵🔒 V585 (২৩.০৮.২০২৬, TK-অনুমোদিত ডেমো-প্রুফের পরে) — **ঘড়ির কাঁটা নিজে
+   থেকে হিসাব**। TK: *"যেখানেই থাকবে চারটা কেন বাঁচবে — এটাতো অটোমেটিক্যালি
+   হওয়ার কথা"*।
+   আগে "চিহ্ন" বাছার সময় একবার লেখা চাওয়া হত, আর সেই একটা লেখাই প্রতিটা
+   চিহ্নে বসে যেত। এখন চিহ্নটা যেখানে বসল সেখান থেকেই কোণ মেপে o'clock বার হয়।
+   TK-এর বাছাই: **12 = ছবির একদম উপর**, ঘড়ির কাঁটার দিকে।
+   ⚠️ ফোনের `clinical/AnatomyClock.kt`-এর হুবহু যমজ (একই মান, একই হিসাব)।
+   ⛔ কেন্দ্র ব্রাউজারেই জমা থাকে — একটাও ক্লাউড-কল নেই।
+   ========================================================================== */
+/* ছবির ভিতরের বৃত্ত/পুচ্ছ **পিক্সেল মেপে** পাওয়া কেন্দ্র (চোখে আন্দাজ নয়) */
+var WLV1_ANAT_CENTRE_BUILTIN={ anat26:[49.8,28.7], anat27:[50.0,52.0] };
+var WLV1_ANAT_CENTRE_KEY='wlv1AnatCentre';
+function wlv1AnatCentreAll(){
+  try{ var t=localStorage.getItem(WLV1_ANAT_CENTRE_KEY); return t?(JSON.parse(t)||{}):{} }
+  catch(_e){ return {} }
+}
+function wlv1AnatCentreOf(key){
+  if(!key) return null;
+  var m=wlv1AnatCentreAll();
+  if(m[key]&&m[key].length===2) return m[key];
+  return WLV1_ANAT_CENTRE_BUILTIN[key]||null;
+}
+function wlv1AnatCentreSet(key,x,y){
+  if(!key) return;
+  try{ var m=wlv1AnatCentreAll(); m[key]=[x,y];
+       localStorage.setItem(WLV1_ANAT_CENTRE_KEY,JSON.stringify(m)) }catch(_e){}
+}
+/* কেন্দ্র থেকে (x,y) কোন o'clock-এ। 12 = সোজা উপর, ঘড়ির কাঁটার দিকে।
+   কেন্দ্রের একদম উপরে ছুঁলে দিক বলা যায় না ⇒ 0 ফেরে, লেখা বসে না। */
+function wlv1AnatHourOf(x,y,cx,cy){
+  var dx=x-cx, dy=y-cy;
+  if(Math.sqrt(dx*dx+dy*dy)<1.5) return 0;
+  var a=Math.atan2(dx,-dy)*180/Math.PI; if(a<0)a+=360;
+  var h=Math.round(a/30)%12;
+  return h===0?12:h;
+}
+function wlv1AnatClockLabel(x,y){
+  var c=wlv1AnatCentreOf(wlv1AnatState.pic); if(!c) return '';
+  var h=wlv1AnatHourOf(x,y,c[0],c[1]);
+  return h===0?'':(h+'টা');
+}
+window["wlv1AnatCentreOf"]=wlv1AnatCentreOf; window["wlv1AnatHourOf"]=wlv1AnatHourOf;
+window["wlv1AnatCentreSet"]=wlv1AnatCentreSet;
+
+/* 🔵 V585 — কেন্দ্র জানা থাকলে হালকা সবুজ ঘড়িটা পর্দায় দেখানো হয়, যাতে
+   ডাক্তার চোখেই মিলিয়ে নিতে পারেন কোন দিক কত o'clock।
+   ⛔ এটা শুধু দেখার জিনিস — কোনো দাগ হিসেবে সেভ হয় না, প্রিন্টেও যায় না।
+   ⚠️ ফোনের `AnatomyView.drawMarks()`-এর ঘড়ি আঁকার অংশটার যমজ। */
+function wlv1AnatDrawClock(ctx,w,h){
+  var c=wlv1AnatCentreOf(wlv1AnatState.pic); if(!c) return;
+  var cx=w*c[0]/100, cy=h*c[1]/100, rr=Math.min(w,h)*0.34;
+  ctx.save();
+  ctx.strokeStyle='rgba(15,81,50,.40)'; ctx.lineWidth=Math.max(1,Math.min(w,h)/200);
+  ctx.beginPath(); ctx.arc(cx,cy,rr,0,6.2832); ctx.stroke();
+  for(var i=1;i<=12;i++){
+    var a=i*Math.PI/6, sn=Math.sin(a), cs=Math.cos(a);
+    ctx.beginPath();
+    ctx.moveTo(cx+sn*rr*0.90, cy-cs*rr*0.90);
+    ctx.lineTo(cx+sn*rr,      cy-cs*rr);
+    ctx.stroke();
+  }
+  ctx.fillStyle='#0F5132';
+  ctx.beginPath(); ctx.arc(cx,cy,Math.max(2,Math.min(w,h)/140),0,6.2832); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx,cy,Math.max(4,Math.min(w,h)/64),0,6.2832); ctx.stroke();
+  ctx.restore();
+}
 function wlv1AnatTool(t){
   wlv1AnatState.tool=t;
   try{$$('.wlv1AnatTool').forEach(function(el){el.classList.toggle('on',el.getAttribute('data-t')===t)})}catch(_e){}
   try{wlv1AnatTipPaint()}catch(_e){}
-  if(t==='pile'){
-    /* 🔵 V583 (TK-এর উত্তর): জায়গাটা **ঘড়ির কাঁটা অনুযায়ীই** লেখা হবে —
-       কত o'clock-এ পাইলস/ফিস্টুলা। ⛔ ফোনের তালিকার সঙ্গে এক। */
-    var v=prompt('ঘড়ির কাঁটা অনুযায়ী জায়গা — 1 থেকে 12 (যেমন "3টা")। নাম না চাইলে ফাঁকা রেখে OK চাপুন।','');
-    wlv1AnatState.label=(v===null?'':String(v).trim());
+  /* 🔵 V585 — আগে এখানে prompt() দিয়ে একবার লেখা চাওয়া হত আর সেই একটা লেখাই
+     এরপর প্রতিটা চিহ্নে বসে যেত (TK: *"যেখানেই থাকবে চারটা কেন বাঁচবে"*)।
+     এখন আর কিছু চাওয়া হয় না — এক ছোঁয়াতেই চিহ্ন বসে, o'clock নিজে হিসাব হয়।
+     কেন্দ্র জানা না থাকলে অ্যাপ একবার মনে করিয়ে দেয়। */
+  if(t==='pile' && !wlv1AnatCentreOf(wlv1AnatState.pic)){
+    try{toast('আগে ⊕ কেন্দ্র দিয়ে পায়ুপথের মাঝখানে একবার ছুঁয়ে দিন — তবেই ঘড়ির সময় নিজে বসবে')}catch(_e){}
   }
 }
 function wlv1AnatUndo(){
@@ -8186,6 +8260,7 @@ function wlv1AnatPaint(){
   var ctx=cv.getContext('2d');
   ctx.clearRect(0,0,w,h);
   ctx.drawImage(im,0,0,w,h);
+  wlv1AnatDrawClock(ctx,w,h);   // 🔵 V585
   AnatomyMark.draw(ctx,w,h,wlv1AnatState.marks,wlv1AnatScale());
   /* 🔵 V571 — আগে ফোলানোর জন্য ছবির রং পড়তে হত, তাই ফাইলটা সরাসরি খুললে
      কাজ করত না ও সতর্কবার্তা দেখাতে হত। এখন মাংসটা আঁকা হয়, রং পড়ার দরকারই
@@ -8248,7 +8323,15 @@ function wlv1AnatMove(ev){
 function wlv1AnatUp(ev){
   var s=wlv1AnatState; if(!s.down)return;
   var t=s.tool;
-  if(t==='pile')s.marks.push({kind:'pile',x:s.down[0],y:s.down[1],label:s.label||''});
+  /* 🔵 V585 — লেখাটা এখানেই হিসাব হয়ে `label`-এ বসে, অর্থাৎ ঠিক সেই ঘরেই
+     যেখানে আগে prompt-এর লেখা বসত। তাই A4 রিপোর্ট · প্রিন্ট · সেভ — নিচের
+     কিছুই বদলাতে হয়নি। */
+  if(t==='pile')s.marks.push({kind:'pile',x:s.down[0],y:s.down[1],label:wlv1AnatClockLabel(s.down[0],s.down[1])});
+  /* কেন্দ্র বসানো — কোনো দাগ যোগ হয় না, শুধু ওই ছবির জন্য মনে রাখা হয়। */
+  if(t==='centre'){
+    wlv1AnatCentreSet(s.pic,s.down[0],s.down[1]);
+    try{toast('কেন্দ্র বসানো হলো — এবার চিহ্ন দিলেই ঘড়ির সময় নিজে বসবে')}catch(_e){}
+  }
   else if(t==='tract'||t==='pen'){ if(s.live.length>1)s.marks.push({kind:t,pts:s.live.slice()}) }
   else if(t==='bulge'){
     var m=s.marks;

@@ -33,10 +33,21 @@ import android.view.View
 class AnatomyView(context: Context) : View(context) {
 
     /** কোন কাজটা এখন চলছে — উপরের বোতাম থেকে বদলায়। */
-    enum class Tool { BULGE, PILE, TRACT, RING, ARROW, PEN, ERASE }
+    /* 🔵 V585 (২৩.০৮.২০২৬, TK-নির্দেশ *"এটাতো অটোমেটিক্যালি হওয়ার কথা"*) —
+       নতুন হাতিয়ার **CENTRE**: ছবির পায়ুপথের মাঝখানে একবার ছুঁয়ে দিলে ওই
+       ছবির ঘড়ির কেন্দ্র জমা হয়। তারপর প্রতিটা চিহ্নের o'clock নিজে হিসাব হয়।
+       ⛔ আগের সাতটা হাতিয়ারের একটাও বদলায়নি, শুধু একটা যোগ হলো। */
+    enum class Tool { BULGE, PILE, TRACT, RING, ARROW, PEN, ERASE, CENTRE }
 
     var tool: Tool = Tool.BULGE
-    var pileLabel: String = ""                 // ফোলার নাম (৩টা / ডান পাশ …)
+    /* 🔵 V585 — আগে এখানে পপ-আপে বাছা লেখাটা জমা থাকত আর **প্রতিটা** চিহ্নে
+       সেটাই বসত (TK: *"যেখানেই থাকবে চারটা কেন বাঁচবে"*)। ঘরটা **মোছা হয়নি** —
+       পুরোনো কোনো ডাক থাকলে ভাঙবে না — কিন্তু এখন আর ব্যবহার হয় না। */
+    var pileLabel: String = ""                 // ⛔ V585-এর পর ব্যবহার হয় না
+    /** এই ছবির ঘড়ির কেন্দ্র (শতাংশে), জানা না থাকলে null — তখন o'clock লেখা পড়ে না। */
+    var clockCentre: Pair<Double, Double>? = null
+    /** ডাক্তার কেন্দ্র ছুঁয়ে দিলে ডাকা হয় (Activity সেটা জমা করে)। */
+    var onCentreSet: ((Double, Double) -> Unit)? = null
     var onChanged: (() -> Unit)? = null        // কিছু আঁকা হলেই ডাকা হয়
 
     private val density = context.resources.displayMetrics.density
@@ -149,6 +160,7 @@ class AnatomyView(context: Context) : View(context) {
     fun setPicture(key: String, resId: Int) {
         if (key == picKey && base != null) return
         picKey = key
+        clockCentre = AnatomyClock.centreOf(context, key)   // 🔵 V585
         marks.clear()
         resetZoom()
         base = try {
@@ -167,6 +179,7 @@ class AnatomyView(context: Context) : View(context) {
     fun setPictureBitmap(key: String, bmp: Bitmap?) {
         if (key == picKey && base != null) return
         picKey = key
+        clockCentre = AnatomyClock.centreOf(context, key)   // 🔵 V585
         marks.clear()
         resetZoom()
         base = bmp
@@ -187,6 +200,7 @@ class AnatomyView(context: Context) : View(context) {
             // ছবিটা ফোনে না থাকলেও নামটা ধরে রাখা হয় — নইলে পরের বার সেভ
             // করলে "কোন ছবির উপরে আঁকা হয়েছিল" সেই তথ্যটাই হারিয়ে যেত।
             picKey = b.pic
+            clockCentre = AnatomyClock.centreOf(context, b.pic)   // 🔵 V585
             val id = resolve(b.pic)
             if (id != 0) {
                 base = try { BitmapFactory.decodeResource(resources, id) } catch (_: Throwable) { null }
@@ -196,6 +210,9 @@ class AnatomyView(context: Context) : View(context) {
         marks.addAll(b.marks)
         invalidate()
     }
+
+    /** 🔵 V585 — এখন কোন ছবির উপরে আঁকা হচ্ছে (কেন্দ্র জমা/পড়ার চাবি)। */
+    fun picKeyNow(): String = picKey
 
     fun save(): String = AnatomyModel.format(AnatomyModel.Board(picKey, marks.toList(), note))
 
@@ -298,7 +315,7 @@ class AnatomyView(context: Context) : View(context) {
                             x = s[0].toDouble(), y = s[1].toDouble(), x2 = p[0].toDouble(), y2 = p[1].toDouble()))
                     }
                     Tool.ERASE -> eraseNear(p[0].toDouble(), p[1].toDouble())
-                    Tool.PILE -> { }
+                    Tool.PILE, Tool.CENTRE -> { }   // 🔵 V585 — দুটোই শুধু ছোঁয়ায় কাজ করে
                 }
                 invalidate()
                 return true
@@ -308,8 +325,24 @@ class AnatomyView(context: Context) : View(context) {
                 val s = startPct
                 if (s != null) {
                     when (tool) {
-                        Tool.PILE -> marks.add(AnatomyModel.Mark(AnatomyModel.KIND_PILE,
-                            x = s[0].toDouble(), y = s[1].toDouble(), label = pileLabel))
+                        /* 🔵 V585 — লেখাটা এখানেই হিসাব হয়ে `label`-এ বসে, অর্থাৎ
+                           ঠিক সেই ঘরেই যেখানে আগে পপ-আপের বাছাই বসত। তাই A4
+                           রিপোর্ট · 📜 History · প্রিন্ট · সেভ — নিচের কিছুই
+                           বদলাতে হয়নি। */
+                        Tool.PILE -> {
+                            val c = clockCentre
+                            val lab = if (c == null) "" else {
+                                val h = AnatomyClock.hourAt(s[0].toDouble(), s[1].toDouble(), c.first, c.second)
+                                if (h == 0) "" else "${h}টা"
+                            }
+                            marks.add(AnatomyModel.Mark(AnatomyModel.KIND_PILE,
+                                x = s[0].toDouble(), y = s[1].toDouble(), label = lab))
+                        }
+                        /* কেন্দ্র বসানো — কোনো দাগ যোগ হয় না, শুধু মনে রাখা হয়। */
+                        Tool.CENTRE -> {
+                            clockCentre = Pair(s[0].toDouble(), s[1].toDouble())
+                            onCentreSet?.invoke(s[0].toDouble(), s[1].toDouble())
+                        }
                         Tool.TRACT, Tool.PEN -> {
                             if (livePts.size > 1) {
                                 marks.add(AnatomyModel.Mark(
@@ -565,6 +598,31 @@ class AnatomyView(context: Context) : View(context) {
 
     private fun drawMarks(canvas: Canvas) {
         val s = Math.min(dst.width(), dst.height()) / 100f
+        paint.reset(); paint.isAntiAlias = true
+        paint.strokeCap = Paint.Cap.ROUND; paint.strokeJoin = Paint.Join.ROUND
+
+        /* 🔵 V585 — কেন্দ্র জানা থাকলে হালকা সবুজ ঘড়িটা দেখানো হয়, যাতে ডাক্তার
+           চোখেই মিলিয়ে নিতে পারেন কোন দিক কত o'clock। ⛔ এটা শুধু দেখার জিনিস —
+           কোনো দাগ হিসেবে সেভ হয় না, প্রিন্টেও যায় না। */
+        clockCentre?.let { c ->
+            val cx = px(c.first); val cy = py(c.second)
+            val rr = Math.min(dst.width(), dst.height()) * 0.34f
+            paint.style = Paint.Style.STROKE
+            paint.color = Color.parseColor("#660F5132")
+            paint.strokeWidth = Math.max(1f, s * 0.5f)
+            canvas.drawCircle(cx, cy, rr, paint)
+            for (h in 1..12) {
+                val a = Math.toRadians(h * 30.0)
+                val sn = Math.sin(a).toFloat(); val cs = Math.cos(a).toFloat()
+                canvas.drawLine(cx + sn * rr * 0.90f, cy - cs * rr * 0.90f,
+                                cx + sn * rr, cy - cs * rr, paint)
+            }
+            paint.style = Paint.Style.FILL
+            paint.color = Color.parseColor("#0F5132")
+            canvas.drawCircle(cx, cy, Math.max(2f, s * 1.4f), paint)
+            paint.style = Paint.Style.STROKE
+            canvas.drawCircle(cx, cy, Math.max(4f, s * 3.0f), paint)
+        }
         paint.reset(); paint.isAntiAlias = true
         paint.strokeCap = Paint.Cap.ROUND; paint.strokeJoin = Paint.Join.ROUND
 
