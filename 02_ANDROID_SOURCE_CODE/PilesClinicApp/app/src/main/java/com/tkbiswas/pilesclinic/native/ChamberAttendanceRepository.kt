@@ -215,7 +215,16 @@ object ChamberAttendanceRepository {
                 val p = SupabaseClient.fetchListSlimOrNull("payments", "date=eq.$date$branchPart", 5000, SupabaseClient.PAYMENT_COLS_LIST)
                 val e = SupabaseClient.fetchListOrNull("enquiries", "date=eq.$date$branchPart", 5000)
                 val pt = SupabaseClient.fetchListSlimOrNull("patients", "registrationDate=eq.$date$branchPart", 5000, SupabaseClient.PATIENT_COLS_NO_PHOTO)
-                val f = SupabaseClient.fetchListOrNull("followups", branchPart.removePrefix("&").ifBlank { null }, 5000)
+                /* 🔴🔒 V577 (২৩.০৮.২০২৬ — TK-নির্দেশে পুরো প্রজেক্টের Egress অডিট):
+                   এখানে `followups`-এর **সব ঘর** নামত — অর্থাৎ **রোগীর `photo`
+                   ঘরটাও** (base64 ছবি), ব্রাঞ্চের ৫০০০ সারি পর্যন্ত, প্রতি ৩০
+                   মিনিটে প্রতিটা ফোনে। অথচ এই তালিকাটা যায় `loadBoard()`-এ, আর
+                   সেখানে (এই ফাইলেরই ৪৮৫ নম্বর লাইনে, খাতার সারি B661) প্রমাণ
+                   করা আছে যে বোর্ড এই টেবিল থেকে মাত্র **৭টা ঘর** পড়ে।
+                   ⇒ তাই ঠিক ওই একই তালিকাটাই (`FOLLOWUP_COLS_CHAMBER_BOARD`)
+                     এখানে বসানো হলো। ⛔ সারি · ছাঁকনি · limit · সাজানো — কিছুই
+                     বদলায়নি, বোর্ডের হিসাবও হুবহু এক; শুধু কম ঘর নামে। */
+                val f = SupabaseClient.fetchListSlimOrNull("followups", branchPart.removePrefix("&").ifBlank { null }, 5000, SupabaseClient.FOLLOWUP_COLS_CHAMBER_BOARD)
                 if (p != null) chamberSaveCachedArray(context, "payments_$stateKey", p)
                 if (e != null) chamberSaveCachedArray(context, "enquiries_$stateKey", e)
                 if (pt != null) chamberSaveCachedArray(context, "patients_$stateKey", pt)
@@ -235,7 +244,10 @@ object ChamberAttendanceRepository {
         val fuBranchFilter = branchPart.removePrefix("&").ifBlank { null }
         val fuFilterCombined = if (fuBranchFilter != null) "$fuBranchFilter&updatedAt=gt.${java.net.URLEncoder.encode(since, "UTF-8")}"
             else "updatedAt=gt.${java.net.URLEncoder.encode(since, "UTF-8")}"
-        val followUps = try { SupabaseClient.fetchListOrNull("followups", fuFilterCombined, 2000) } catch (_: Throwable) { null }
+        // 🔴🔒 V577 — উপরের একই কারণ: delta-তেও `photo` সহ সব ঘর নামত। বোর্ড
+        //    ওই ৭টা ঘরই পড়ে, আর নিচে এই সারিগুলো ঠিক ওই জমানো তালিকাটার
+        //    সঙ্গেই মেশানো হয় — তাই দুই দিকের ঘর এক রাখা **জরুরিও** ছিল।
+        val followUps = try { SupabaseClient.fetchListSlimOrNull("followups", fuFilterCombined, 2000, SupabaseClient.FOLLOWUP_COLS_CHAMBER_BOARD) } catch (_: Throwable) { null }
             ?: return loadBoard(date, branchFilter, context)
         run {
             val cached = chamberLoadCachedArray(context, "followups_$stateKey")
