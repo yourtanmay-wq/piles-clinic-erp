@@ -561,10 +561,18 @@ class RegistrationActivity : AppCompatActivity() {
     /** Shows a spinner's items in CAPITALS (TK, 2026-07-27) while
      *  getItem()/selectedItem keep returning the original text, so every
      *  comparison and every saved value stays exactly as it was. */
+    /**
+     * 🔵🔒 V594 (২৩.০৮.২০২৬, TK-অনুমোদিত): `boxTextSp` **শুধু হেডারের ছোট
+     * ব্রাঞ্চ-ঘরটার** জন্য। না দিলে (`null`) সব আগের মতোই — অর্থাৎ
+     * Occupation · Duration · Ref By-এর ঘরগুলোর একটুও বদলায় না।
+     * ⛔ খোলা তালিকাটার (`getDropDownView`) লেখা ছোট করা হয় **না** — বেছে
+     *    নেওয়ার সময় বড় লেখাই থাকবে, নইলে পড়তে কষ্ট হত।
+     */
     private fun capsAdapter(
         items: List<String>,
         hideFirstInList: Boolean = false,
-        hintFirstInBox: Boolean = false
+        hintFirstInBox: Boolean = false,
+        boxTextSp: Float? = null
     ): ArrayAdapter<String> =
         object : ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, items) {
             // TK-REPORTED (2026-07-28): "Choose Occupation" / "Select Branch"
@@ -577,6 +585,13 @@ class RegistrationActivity : AppCompatActivity() {
                 val v = super.getView(position, convertView, parent)
                 val tv = v as? android.widget.TextView
                 tv?.setAllCaps(true)
+                // 🔵 V594 — শুধু যেখানে চাওয়া হয়েছে সেখানেই ছোট লেখা।
+                //    ভিতরের ডিফল্ট ফাঁকটাও শূন্য, নইলে ২৮dp ঘরে জায়গা খেয়ে
+                //    নিয়ে লেখা আবার কেটে যেত।
+                if (boxTextSp != null) {
+                    tv?.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, boxTextSp)
+                    tv?.setPadding(0, 0, 0, 0)
+                }
                 tv?.setTextColor(
                     androidx.core.content.ContextCompat.getColor(
                         this@RegistrationActivity,
@@ -617,7 +632,10 @@ class RegistrationActivity : AppCompatActivity() {
         binding.spBranch.adapter = capsAdapter(
             branchItems,
             hideFirstInList = !ownBranchUser,
-            hintFirstInBox = !ownBranchUser
+            hintFirstInBox = !ownBranchUser,
+            // 🔵 V594 (TK-অনুমোদিত) — হেডারের ঘরটা ছোট, তাই লেখাও ১০sp।
+            //    এই একটাই জায়গায়; বাকি তিনটে বাছাই-ঘর আগের মতোই।
+            boxTextSp = 10f
         )
         // TK RULE (2026-07-28, Registration only): Master and Field Officer must
         // pick the Branch themselves EVERY time -- nothing is pre-filled for

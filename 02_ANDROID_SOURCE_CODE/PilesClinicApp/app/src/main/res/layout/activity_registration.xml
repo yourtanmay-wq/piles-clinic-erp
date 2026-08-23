@@ -28,13 +28,27 @@
             android:textColor="@color/white" android:textSize="15sp" android:textStyle="bold" />
         <!-- Branch remains the same mandatory/auto-locked Spinner; only its
              approved screen position moved from the form to the header. -->
+        <!--
+          🔵🔒 V594 (২৩.০৮.২০২৬, TK-নির্দেশ, ডেমো-ফটো দেখে অনুমোদিত):
+          *"উপরে ডান দিকে যে সিলেক্ট ব্রাঞ্চ, এত বড় রাখা যাবে না · শুধুমাত্র
+          মাস্টারের ফোনে বলে কথা না, এ টু জেড সবার কাছে যেন ওটা সাইজে ছোট
+          থাকে"*।
+          আগে: 142 × 40 dp, লেখা ১৬sp — লেখাটা **কেটে** যেত ("SELECT BRANC▾")।
+          এখন: 120 × 28 dp, লেখা ১০sp — সবচেয়ে বড় লেখাটাও পুরো ধরে।
+          মাপটা আন্দাজে নয়, মেপে নেওয়া (Roboto):
+              "SELECT BRANCH" ১৬sp = 135dp · ১০sp = **84dp**
+              "COOCH BEHAR"   ১৬sp = 120dp · ১০sp = **75dp**
+          ভিতরের জায়গা = 120 − 8 − 20 = **92dp** ⇒ কিছুই কাটে না।
+          ⛔ শুধু মাপ ও লেখার আকার। ব্রাঞ্চের তালিকা · বাধ্যতামূলক নিয়ম ·
+             স্টাফের ৩-চাপের লক — কিচ্ছু বদলায়নি।
+        -->
         <Spinner
             android:id="@+id/spBranch"
-            android:layout_width="142dp"
-            android:layout_height="40dp"
-            android:background="@drawable/bg_input_field_picker"
+            android:layout_width="120dp"
+            android:layout_height="28dp"
+            android:background="@drawable/bg_input_field_picker_small"
             android:paddingStart="8dp"
-            android:paddingEnd="34dp" />
+            android:paddingEnd="20dp" />
     </LinearLayout>
 
     <ScrollView
