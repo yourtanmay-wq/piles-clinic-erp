@@ -193,9 +193,15 @@ for t in ['সরানো ছবি ফেরান', 'ফেরানো হ�
 # ── ৯ · ভার্সন ────────────────────────────────────────────────────────────
 gr = io.open(ROOT + '/02_ANDROID_SOURCE_CODE/PilesClinicApp/app/build.gradle.kts', encoding='utf-8').read()
 vj = io.open(ROOT + '/03_NETLIFY_READY/version.json', encoding='utf-8').read()
-check('[৯] ভার্সন V591 / 5.91',
-      'val appVersionCode = 591' in gr and 'val appVersionName = "5.91"' in gr
-      and '"versionCode": 591' in vj and '"versionName": "5.91"' in vj)
+# 🔧 V592-এ ধরা পড়ল: এখানে হুবহু "591" বাঁধা ছিল, তাই পরের ভার্সনে গিয়ে
+#    এই পাহারাদার মিথ্যে করে ❌ দিত। এখন **V591 বা তার পরে** হলেই চলে —
+#    দুই ফাইলের মিল আছে কিনা সেটা `verify_version_json.py` আলাদা করে দেখে।
+import re as _re
+_gc = _re.search(r'val appVersionCode = (\d+)', gr)
+_vc = _re.search(r'"versionCode": (\d+)', vj)
+check('[৯] ভার্সন V591 বা তার পরে',
+      bool(_gc) and bool(_vc) and int(_gc.group(1)) >= 591 and int(_vc.group(1)) >= 591,
+      'gradle=%s · version.json=%s' % (_gc and _gc.group(1), _vc and _vc.group(1)))
 
 # ───────────────────────────── ফলাফল ─────────────────────────────────────
 print('🛡️ V591 পাহারাদার — ভাঙা বাংলা ও সরানো ছবি ফেরানো')

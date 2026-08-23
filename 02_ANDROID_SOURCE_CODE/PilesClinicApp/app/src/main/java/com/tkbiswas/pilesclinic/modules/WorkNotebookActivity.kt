@@ -90,6 +90,27 @@ class WorkNotebookActivity : AppCompatActivity() {
         if (raw.isNullOrBlank()) null else JSONObject(raw)
     } catch (_: Throwable) { null }
 
+    /* 🔴🔒 V592 (২৩.০৮.২০২৬ — TK: *"App এর কল গুলি সঠিক ভাবে কাউন্টিং কেন
+       হচ্ছে না · এর আগে অনেকবার বলা হয়েছিল"*)
+
+       **প্রমাণিত মূল কারণ — লেখার নাম আর পড়ার নাম এক ছিল না।**
+         · কল-বোতাম চাপলে লেখা হয় `ModuleAuth.expectedCode()` দিয়ে —
+           মাস্টারের জন্য "MASTER-TK", ডাক্তারের জন্য "DR-KH-MANDAL" …
+         · অথচ এখানে পড়া হত `staffCode` দিয়ে, যেটা `user.name` —
+           "TK BISWAS" · "Dr. K.H MANDAL" …
+       ⇒ দুটো কখনো মেলে না, তাই সংখ্যা **সবসময় 0**।
+
+       StaffDirectory-র ২২টা অ্যাকাউন্ট মিলিয়ে দেখা হয়েছে: ব্রাঞ্চ-স্টাফের
+       ১৩টায় নাম আর কোড একই বলে ওগুলো মিলত, কিন্তু **মাস্টার · ৭ জন ডাক্তার ·
+       ফিল্ড অফিসার — ৯টা অ্যাকাউন্টে কোনোদিনই মিলত না**।
+       ⛔ একই ভুল **ফোনে-জমা গোনাতেও** ছিল (`localCallTapCount`), তাই নেট
+          থাকলেও-না-থাকলেও দুই দিকেই 0 আসত।
+       ⛔ শুধু কল-গোনার দুটো জায়গাতেই এটা ব্যবহার হয়। বাকি ৩৩ জায়গায়
+          `staffCode` **এক অক্ষরও বদলানো হয়নি** (notebook_days · work_reports ·
+          পর্দার লেখা) — ওগুলো আগের মতোই চলবে। */
+    private fun callTapCode(): String =
+        try { ModuleAuth.expectedCode(this) ?: staffCode } catch (_: Throwable) { staffCode }
+
     private fun todayIso(): String {
         val f = SimpleDateFormat("yyyy-MM-dd", Locale.US); f.timeZone = TimeZone.getTimeZone("Asia/Kolkata")
         return f.format(java.util.Date())
@@ -2158,7 +2179,7 @@ class WorkNotebookActivity : AppCompatActivity() {
                                ⛔ দুটোই মিলিয়ে: গোনা **কখনো কমে যায় না**। */
                             val cloudCalls = s.optInt("appCalls")
                             val phoneCalls = try {
-                                ModuleAuth.localCallTapCount(this@WorkNotebookActivity, staffCode, todayIso())
+                                ModuleAuth.localCallTapCount(this@WorkNotebookActivity, callTapCode(), todayIso())
                             } catch (_: Throwable) { 0 }
                             appCallsNow = if (s.optBoolean("appOk", true))
                                 maxOf(cloudCalls, phoneCalls) else maxOf(phoneCalls, appCallsNow)
@@ -2354,8 +2375,8 @@ class WorkNotebookActivity : AppCompatActivity() {
                  জন্যও এখন সেই একই পাহারা: `appOk`।
                ⛔ পড়া সফল হলে সংখ্যা হুবহু আগের মতোই। */
             val appR = if (mode == "day")
-                ModuleAuth.getRowsChecked("wn", "call_taps", "select=id&staff_code=eq.$staffCode&call_date=eq.$key")
-            else ModuleAuth.getRowsChecked("wn", "call_taps", "select=id&staff_code=eq.$staffCode&call_date=gte.$key-01&call_date=lt.$monthEnd")
+                ModuleAuth.getRowsChecked("wn", "call_taps", "select=id&staff_code=eq.${callTapCode()}&call_date=eq.$key")
+            else ModuleAuth.getRowsChecked("wn", "call_taps", "select=id&staff_code=eq.${callTapCode()}&call_date=gte.$key-01&call_date=lt.$monthEnd")
             val appCalls = appR.rows.length()
             // 🔴 B330 (03.08.2026, TK-নির্দেশ — Outside Calls এখন শুধু একটা
             // সংখ্যা, প্রতিটা কল আলাদা লগ না): দিন-হিসাবে সরাসরি `day`
