@@ -1157,7 +1157,18 @@ class DoctorVisitActivity : AppCompatActivity() {
                 // (the cache shown above, if any) completely untouched --
                 // the cache is only ever updated on an ACTUAL successful
                 // fetch.
-                val raw = withContext(Dispatchers.IO) { repository.fetchListRawOrNull(activeDoctorBranch()) }
+                /* 🔴🔒 V580 — পুরো টেবিলের বদলে **শুধু যেটুকু বদলেছে**।
+                   ফোনে আগে থেকে জমা থাকা তালিকাটা সঙ্গে দেওয়া হয়; কিছু না
+                   বদলালে সেটাই ফেরত আসে, একটাও সারি নামে না।
+                   ⛔ সন্দেহ হলেই আগের মতো পুরোটা নামে (রিপোজিটরির টীকা দেখুন),
+                      আর ব্যর্থতায় আগের মতোই `null` — নিচের জমা-তালিকার
+                      সুরক্ষাটা এক অক্ষরও বদলায়নি। */
+                val cachedRaw = try {
+                    dvCachePrefs().getString(dvCacheKey(), null)?.let { org.json.JSONArray(it) }
+                } catch (_: Throwable) { null }
+                val raw = withContext(Dispatchers.IO) {
+                    repository.fetchListRawSmartOrNull(activeDoctorBranch(), cachedRaw)
+                }
                 binding.progressLoad.visibility = View.GONE
                 if (raw == null) {
                     if (!hasCache) {

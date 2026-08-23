@@ -76,11 +76,78 @@ class DoctorVisitRepository {
     // returns null on a genuine failure so the caller can tell the two
     // situations apart and NEVER overwrite the cache with a failure.
     fun fetchListRawOrNull(branchFilter: String?): JSONArray? {
+        return SupabaseClient.fetchListOrNull("doctor_visits", listFilter(branchFilter), 5000)
+    }
+
+    private fun listFilter(branchFilter: String?): String {
         val filters = mutableListOf("or=(status.eq.Active,status.is.null)")
         if (branchFilter != null && branchFilter != "All") {
             filters.add("branch=eq.${java.net.URLEncoder.encode(branchFilter, "UTF-8")}")
         }
-        return SupabaseClient.fetchListOrNull("doctor_visits", filters.joinToString("&"), 5000)
+        return filters.joinToString("&")
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       🔴🔒 V580 (২৩.০৮.২০২৬) — **Doctor/RMP বোর্ড: শুধু যেটুকু বদলেছে**
+
+       TK-এর নির্দেশে ডেটাবেস মেপে দেখা গেছে (২৩.০৮ সকাল ৯:৫১) —
+       `doctor_visits` টেবিলটা **৫ MB, ২০৬৪ সারি**, আর এই বোর্ড প্রতিবার
+       **পুরো টেবিলটাই** নামাত। RMP-তে একটা কল লেখা হলেই পরের বার খোলায়
+       আবার ৫ MB। দিনে কয়েকবার হলেই ৫০ MB+ — এটাই ছিল সবচেয়ে বড় বাকি ফুটো।
+
+       এখন তিন ধাপ (চেম্বার বোর্ডে এই নিয়মটা আগে থেকেই চলছে — প্রমাণিত):
+         ১. একটা **ছোট প্রশ্ন** — কতগুলো সারি আছে ও সবচেয়ে নতুন `updatedAt`
+            কোনটা (এক সারি, কয়েকশো বাইট)।
+         ২. সংখ্যা একই **আর** সময়ও একই ⇒ **একটাও সারি নামে না**, ফোনের
+            জমা তালিকাটাই ফেরত যায়।
+         ৩. শুধু সময় এগিয়েছে ⇒ **কেবল তার পরে বদলানো সারিগুলো** নামে, আর
+            id ধরে জমা তালিকায় বসে।
+
+       🔒 সন্দেহ হলেই **পুরোটা নামে** — জমা তালিকা নেই · প্রশ্নের উত্তর
+          পাওয়া যায়নি · **সারির সংখ্যা বদলেছে** (কেউ যোগ/মোছা করেছে) ·
+          সময় ফাঁকা · delta আনতে ব্যর্থ — সব ক্ষেত্রেই আগের হুবহু পুরো পড়া।
+          তাই এই কোড কখনো "কম ডাক্তার" দেখাতে পারে না।
+       ⛔ ফেরত আসা সারিতে **সব ঘরই** থাকে (`select=*` আগের মতোই) — তাই
+          ডিলিটের সময় Trash-এ পুরো রেকর্ড যাওয়ার নিয়মও অটুট।
+       ⛔ সাজানোর ক্রমও আগের মতোই (`updatedAt` অনুযায়ী নতুন আগে)।
+       ═══════════════════════════════════════════════════════════════════ */
+    fun fetchListRawSmartOrNull(branchFilter: String?, cached: JSONArray?): JSONArray? {
+        val filter = listFilter(branchFilter)
+        val full = { SupabaseClient.fetchListOrNull("doctor_visits", filter, 5000) }
+        if (cached == null || cached.length() == 0) return full()
+
+        val fp = SupabaseClient.fetchListFingerprintOrNull("doctor_visits", filter) ?: return full()
+        val serverCount = fp.first
+        val serverStamp = fp.second
+        if (serverCount != cached.length()) return full()      // যোগ/মোছা হয়েছে
+        if (serverStamp.isBlank()) return full()
+
+        var localStamp = ""
+        for (i in 0 until cached.length()) {
+            val u = cached.optJSONObject(i)?.optString("updatedAt").orEmpty()
+            if (u > localStamp) localStamp = u
+        }
+        if (localStamp.isBlank()) return full()
+        if (serverStamp == localStamp) return cached           // ✅ কিছুই বদলায়নি
+
+        val enc = java.net.URLEncoder.encode(localStamp, "UTF-8")
+        val delta = SupabaseClient.fetchListOrNull(
+            "doctor_visits", "$filter&updatedAt=gt.$enc", 5000) ?: return full()
+
+        val byId = LinkedHashMap<String, org.json.JSONObject>()
+        for (i in 0 until cached.length()) {
+            val o = cached.optJSONObject(i) ?: continue
+            val id = o.optString("id"); if (id.isNotBlank()) byId[id] = o
+        }
+        for (i in 0 until delta.length()) {
+            val o = delta.optJSONObject(i) ?: continue
+            val id = o.optString("id"); if (id.isNotBlank()) byId[id] = o
+        }
+        // সার্ভারের ক্রম হুবহু রাখা — নতুন `updatedAt` আগে
+        val sorted = byId.values.sortedByDescending { it.optString("updatedAt").orEmpty() }
+        val out = JSONArray()
+        for (v in sorted) out.put(v)
+        return out
     }
 
     data class DuplicateDoctor(val found: Boolean, val name: String)
