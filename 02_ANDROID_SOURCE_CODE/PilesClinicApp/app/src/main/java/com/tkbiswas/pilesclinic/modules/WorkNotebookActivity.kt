@@ -108,6 +108,28 @@ class WorkNotebookActivity : AppCompatActivity() {
        ⛔ শুধু কল-গোনার দুটো জায়গাতেই এটা ব্যবহার হয়। বাকি ৩৩ জায়গায়
           `staffCode` **এক অক্ষরও বদলানো হয়নি** (notebook_days · work_reports ·
           পর্দার লেখা) — ওগুলো আগের মতোই চলবে। */
+    /* 🔴🔒 V593 (২৩.০৮.২০২৬ — TK: *"এই একই ধরনের সমস্যা বেশ কয়েকবার বলা
+       হয়েছে · প্রতিবার আপনি বলেছেন ঠিক হয়ে গেছে · স্টাফদের কাছে আমার কথা
+       শুনতে হয় শুধুমাত্র আপনার কারণে"*)
+
+       **আরও খুঁটিয়ে দেখে যেটা পাওয়া গেল — V590 কাজটা অর্ধেক করেছিল।**
+       New Enquiry · Registration · Collection — এই তিনটে পড়া ব্যর্থ হলে
+       "…" দেখায় (B496 থেকেই), আর নিচে লেখা থাকে *"weak internet"*।
+       কিন্তু **App Calls · Outside Calls · Total call** ব্যর্থ হলেও
+       নির্লজ্জভাবে **`0`** ছাপত — পর্দাতেও, আর **স্টাফের পাঠানো WhatsApp
+       রিপোর্টেও** (৭ জায়গায়)। অর্থাৎ TK-এর কাছে যে রিপোর্টটা যেত, সেটাই
+       মিথ্যা 0 বয়ে নিয়ে যেত।
+
+       ⇒ এখন কল-সংখ্যাও অন্য তিনটের মতোই আচরণ করে: পড়া না গেলে "…"।
+       ⛔ পড়া সফল হলে সংখ্যা হুবহু আগের মতোই — একটুও বদলায়নি।
+       ⛔ ফোনে-জমা গোনা থাকলে সেটাই দেখানো হয় (সেটা তো সত্যিই এই ফোনে
+          চাপা কল), "…" তখন লাগে না। */
+    private fun callsOk(s: JSONObject): Boolean = s.optBoolean("appOk", true)
+
+    /** কল-সংখ্যা লেখার একমাত্র জায়গা — সফল হলে সংখ্যা, নইলে "…"। */
+    private fun callTxt(s: JSONObject, key: String): String =
+        if (callsOk(s)) s.optInt(key).toString() else "…"
+
     private fun callTapCode(): String =
         try { ModuleAuth.expectedCode(this) ?: staffCode } catch (_: Throwable) { staffCode }
 
@@ -694,9 +716,9 @@ class WorkNotebookActivity : AppCompatActivity() {
                                             // পুরো ফর্ম খুলে OUT TIME করলে (স্বাভাবিক
                                             // পথ) সঠিক সংখ্যাই যায়।
                                                 .append("\nToday Patient: ").append("0")
-                                                .append("\nApp Calls: ").append(s.optInt("appCalls"))
-                                                .append("\nOutside Calls: ").append(s.optInt("outsideCalls"))
-                                                .append("\nTotal call : ").append(s.optInt("totalCalls"))
+                                                .append("\nApp Calls: ").append(callTxt(s, "appCalls"))
+                                                .append("\nOutside Calls: ").append(callTxt(s, "outsideCalls"))
+                                                .append("\nTotal call : ").append(callTxt(s, "totalCalls"))
                                             val notesTxt = ns(day, "day_note").trim()
                                             if (notesTxt.isNotBlank()) text.append("\n\nNotes: \n").append(notesTxt)
                                             submit("daily", todayIso(), s, text.toString())
@@ -1072,9 +1094,9 @@ class WorkNotebookActivity : AppCompatActivity() {
                 text.append("\nNew Enquiry: ").append(s.optInt("enquiries"))
                     .append("\nRegistration: ").append(s.optInt("registrations"))
                     .append("\nToday Patient: ").append(s.optInt("patients"))
-                    .append("\nApp Calls: ").append(s.optInt("appCalls"))
-                    .append("\nOutside Calls: ").append(s.optInt("outsideCalls"))
-                    .append("\nTotal call : ").append(s.optInt("totalCalls"))
+                    .append("\nApp Calls: ").append(callTxt(s, "appCalls"))
+                    .append("\nOutside Calls: ").append(callTxt(s, "outsideCalls"))
+                    .append("\nTotal call : ").append(callTxt(s, "totalCalls"))
                 val notesTxt = ns(day, "day_note").trim()
                 if (notesTxt.isNotBlank()) text.append("\n\nNotes: \n").append(notesTxt)
                 waAskKind = "out"   // 🔴 V433 — ফিরে এলে একবার জিজ্ঞাসা: পাঠানো হয়েছে?
@@ -1307,9 +1329,9 @@ class WorkNotebookActivity : AppCompatActivity() {
                             text.append("\nNew Enquiry: ").append(s.optInt("enquiries"))
                                 .append("\nRegistration: ").append(s.optInt("registrations"))
                                 .append("\nToday Patient: ").append(patientsField.text.toString().trim().ifBlank { "0" })
-                                .append("\nApp Calls: ").append(s.optInt("appCalls"))
-                                .append("\nOutside Calls: ").append(s.optInt("outsideCalls"))
-                                .append("\nTotal call : ").append(s.optInt("totalCalls"))
+                                .append("\nApp Calls: ").append(callTxt(s, "appCalls"))
+                                .append("\nOutside Calls: ").append(callTxt(s, "outsideCalls"))
+                                .append("\nTotal call : ").append(callTxt(s, "totalCalls"))
                             val notesTxt = notesField.text.toString().trim()
                             if (notesTxt.isNotBlank()) text.append("\n\nNotes: \n").append(notesTxt)
                             submit("daily", todayIso(), s, text.toString())
@@ -2112,7 +2134,7 @@ class WorkNotebookActivity : AppCompatActivity() {
                     // হয়েছে) সাথে সাথেই দেখানো হয়, তারপর ক্লাউড থেকে
                     // মিলিয়ে/সংশোধন করে নেওয়া হয় (নিচের fetchStats-এ)।
                     try {
-                        val localCalls = ModuleAuth.localCallTapCount(this, staffCode, todayIso())
+                        val localCalls = ModuleAuth.localCallTapCount(this, callTapCode(), todayIso())
                         if (localCalls > 0) appVal.text = localCalls.toString()
                     } catch (_: Throwable) { }
 
@@ -2181,10 +2203,17 @@ class WorkNotebookActivity : AppCompatActivity() {
                             val phoneCalls = try {
                                 ModuleAuth.localCallTapCount(this@WorkNotebookActivity, callTapCode(), todayIso())
                             } catch (_: Throwable) { 0 }
-                            appCallsNow = if (s.optBoolean("appOk", true))
+                            appCallsNow = if (callsOk(s))
                                 maxOf(cloudCalls, phoneCalls) else maxOf(phoneCalls, appCallsNow)
-                            appVal.text = appCallsNow.toString()
-                            refreshTotal()
+                            /* 🔴 V593 — আগে এই লাইনটা **শর্ত ছাড়াই** বসত, তাই
+                               পড়া ব্যর্থ হলে "…"-এর জায়গায় সাফ **0** লেখা হয়ে
+                               যেত (অথচ পাশের New Enquiry তখন "…" দেখাত)।
+                               এখন: পড়া সফল হলে, বা এই ফোনেই কল চাপা থাকলে
+                               তবেই সংখ্যা — নইলে "…" আগের মতোই থাকে। */
+                            if (callsOk(s) || appCallsNow > 0) {
+                                appVal.text = appCallsNow.toString()
+                                refreshTotal()
+                            }
                         }
                     }
                 }
@@ -2264,9 +2293,9 @@ class WorkNotebookActivity : AppCompatActivity() {
                     text.append("\nNew Enquiry: ").append(s.optInt("enquiries"))
                         .append("\nRegistration: ").append(s.optInt("registrations"))
                         .append("\nToday Patient: ").append(patientsField.text.toString().trim().ifBlank { "0" })
-                        .append("\nApp Calls: ").append(s.optInt("appCalls"))
-                        .append("\nOutside Calls: ").append(s.optInt("outsideCalls"))
-                        .append("\nTotal call : ").append(s.optInt("totalCalls"))
+                        .append("\nApp Calls: ").append(callTxt(s, "appCalls"))
+                        .append("\nOutside Calls: ").append(callTxt(s, "outsideCalls"))
+                        .append("\nTotal call : ").append(callTxt(s, "totalCalls"))
                     val notesTxt = notesField.text.toString().trim()
                     if (notesTxt.isNotBlank()) text.append("\n\nNotes: \n").append(notesTxt)
                     val finalText = text.toString()
@@ -2418,10 +2447,16 @@ class WorkNotebookActivity : AppCompatActivity() {
                 val enqTxt = if (stats.optBoolean("enqOk", true)) stats.optInt("enquiries").toString() else "…"
                 val regTxt = if (stats.optBoolean("regOk", true)) stats.optInt("registrations").toString() else "…"
                 val collTxt = if (stats.optBoolean("collOk", true)) money(stats.optDouble("collection", 0.0)) else "…"
-                val anyFailed = !stats.optBoolean("enqOk", true) || !stats.optBoolean("regOk", true) || !stats.optBoolean("collOk", true)
+                // 🔴 V593 — কলের তিনটে সংখ্যাও এখন এই তালিকায়; আগে ব্যর্থ
+                //    পড়াতেও এরা "0" ছাপত, আর `anyFailed`-এও গোনা হত না, তাই
+                //    নিচের "weak internet" সতর্কবার্তাটাও উঠত না।
+                val appTxt = callTxt(stats, "appCalls")
+                val outTxt = callTxt(stats, "outsideCalls")
+                val totTxt = callTxt(stats, "totalCalls")
+                val anyFailed = !stats.optBoolean("enqOk", true) || !stats.optBoolean("regOk", true) || !stats.optBoolean("collOk", true) || !callsOk(stats)
                 host.addView(ModuleUi.body(this,
                     "New Enquiry: $enqTxt\nRegistration: $regTxt\nCollection recorded: $collTxt" +
-                    "\nApp Calls: ${stats.optInt("appCalls")} | Outside Calls: ${stats.optInt("outsideCalls")} | Total Calls: ${stats.optInt("totalCalls")}" +
+                    "\nApp Calls: $appTxt | Outside Calls: $outTxt | Total Calls: $totTxt" +
                     (if (mode == "month") "\nLeave Days: ${stats.optInt("leaveDays")}" else "")))
                 if (anyFailed) host.addView(ModuleUi.body(this, "…  = could not load right now (weak internet). Your data is safe — open again when online."))
                 host.addView(ModuleUi.body(this, "App Calls = in-app Call buttons you pressed. Never means connected; no duration."))
@@ -2489,16 +2524,16 @@ class WorkNotebookActivity : AppCompatActivity() {
                         text.append("\nNew Enquiry: ").append(enqTxt)
                             .append("\nRegistration: ").append(regTxt)
                             .append("\nToday Patient: ").append(patientsField?.text?.toString()?.trim()?.ifBlank { "0" } ?: "0")
-                            .append("\nApp Calls: ").append(s.optInt("appCalls"))
-                            .append("\nOutside Calls: ").append(s.optInt("outsideCalls"))
-                            .append("\nTotal call : ").append(s.optInt("totalCalls"))
+                            .append("\nApp Calls: ").append(callTxt(s, "appCalls"))
+                            .append("\nOutside Calls: ").append(callTxt(s, "outsideCalls"))
+                            .append("\nTotal call : ").append(callTxt(s, "totalCalls"))
                         val notesTxt = workEntriesSummary()
                         if (notesTxt.isNotBlank()) text.append("\n\nNotes: \n").append(notesTxt)
                     } else {
                         text.append("Monthly Report $key").append("\nStaff: $staffCode\n\n")
                             .append("New Enquiry: ").append(enqTxt).append("\nRegistration: ").append(regTxt)
-                            .append("\nApp Calls: ").append(s.optInt("appCalls")).append(" | Outside Calls: ").append(s.optInt("outsideCalls"))
-                            .append(" | Total: ").append(s.optInt("totalCalls"))
+                            .append("\nApp Calls: ").append(callTxt(s, "appCalls")).append(" | Outside Calls: ").append(callTxt(s, "outsideCalls"))
+                            .append(" | Total: ").append(callTxt(s, "totalCalls"))
                             .append("\nLeave Days: ").append(s.optInt("leaveDays"))
                     }
                     return text.toString()
@@ -2512,16 +2547,18 @@ class WorkNotebookActivity : AppCompatActivity() {
                 val reportPairs = if (type == "daily") listOf(
                     "New Enquiry" to enqTxt,
                     "Registration" to regTxt,
-                    "App Calls" to s.optInt("appCalls").toString(),
-                    "Outside Calls" to s.optInt("outsideCalls").toString(),
-                    "Total Calls" to s.optInt("totalCalls").toString(),
+                    // 🔴 V593 — এখানেও ব্যর্থ পড়ায় "0" নয়, সৎ "…"
+                    "App Calls" to callTxt(s, "appCalls"),
+                    "Outside Calls" to callTxt(s, "outsideCalls"),
+                    "Total Calls" to callTxt(s, "totalCalls"),
                     "IN / OUT" to (displayTime12(ns(day, "check_in")).ifBlank { "-" } + " / " + displayTime12(ns(day, "check_out")).ifBlank { "-" })
                 ) else listOf(
                     "New Enquiry" to enqTxt,
                     "Registration" to regTxt,
-                    "App Calls" to s.optInt("appCalls").toString(),
-                    "Outside Calls" to s.optInt("outsideCalls").toString(),
-                    "Total Calls" to s.optInt("totalCalls").toString(),
+                    // 🔴 V593 — এখানেও ব্যর্থ পড়ায় "0" নয়, সৎ "…"
+                    "App Calls" to callTxt(s, "appCalls"),
+                    "Outside Calls" to callTxt(s, "outsideCalls"),
+                    "Total Calls" to callTxt(s, "totalCalls"),
                     "Leave Days" to s.optInt("leaveDays").toString()
                 )
                 val reportCard = LinearLayout(this).apply {

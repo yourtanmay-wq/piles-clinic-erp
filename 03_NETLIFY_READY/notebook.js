@@ -99,9 +99,23 @@
       var q = client.schema('wn').from('call_taps').select('id', { count: 'exact', head: true }).eq('staff_code', code);
       if (range.mode === 'day') q = q.eq('call_date', range.key);
       else q = q.gte('call_date', range.key + '-01').lt('call_date', monthEndExclusive(range.key));
-      var r = await q; return r.count || 0;
-    } catch (e) { return 0; }
+      var r = await q;
+      /* 🔴🔒 V593 (২৩.০৮.২০২৬) — ব্যর্থ পড়াকে আর "0" বলা হয় না।
+         আগে নেট দুর্বল হলে বা পড়া না গেলে এখানে 0 ফিরত, আর সেই মিথ্যা 0
+         পর্দাতেও বসত, **স্টাফের পাঠানো WhatsApp রিপোর্টেও** চলে যেত।
+         ⇒ এখন `null` ফেরে, আর নিচে সবখানে `null` মানে "…" — ফোনের V593-এর
+           হুবহু একই নিয়ম (`WorkNotebookActivity.callTxt()`)।
+         ⛔ পড়া সফল হলে সংখ্যা হুবহু আগের মতোই।
+         ⛔ নিচের `outsideCallCount()` ছোঁয়া হয়নি — ওটা আর ডাকাই হয় না
+            (বাইরের কল এখন `day.outside_calls_manual` থেকে আসে)। */
+      if (r && r.error) return null;
+      return (r && typeof r.count === 'number') ? r.count : null;
+    } catch (e) { return null; }
   }
+  /** কল-সংখ্যা লেখার একমাত্র জায়গা — না পড়তে পারলে "…" (ফোনের callTxt-এর যমজ) */
+  function callTxt(v) { return (v === null || v === undefined) ? '…' : String(v); }
+  function callSum(a, b) { return (a === null || a === undefined) ? null : (Number(a) + Number(b || 0)); }
+
   // ⛔ পুরনো, আর ডাকা হয় না (B330-এর সাথে মিলিয়ে Outside Calls এখন
   // day.outside_calls_manual থেকে আসে) — মুছে ফেলা হয়নি, ভবিষ্যতে দরকার
   // হলে ফিরিয়ে আনা যাবে।
@@ -364,7 +378,7 @@
             নির্দেশ-ধাঁচের শিরোনামগুলো তুলে দেওয়া হলো (TK-এর স্থায়ী নিয়ম)।
          ⛔ কোনো সংখ্যা নতুন করে হিসাব হয় না — একই ঘর থেকে যোগ হয়। */
       '<div class="wlv1SafeTwoCol">' +
-      panel('', autoRow('New Enquiry (auto)', st.enquiries) + autoRow('Registration (auto)', st.registrations) + autoRow('App Calls (auto)', apc) + autoRow('Total call (auto)', apc + Number(day.outside_calls_manual || 0), 'nbTotalCalls') ) +
+      panel('', autoRow('New Enquiry (auto)', st.enquiries) + autoRow('Registration (auto)', st.registrations) + autoRow('App Calls (auto)', callTxt(apc)) + autoRow('Total call (auto)', callTxt(callSum(apc, day.outside_calls_manual)), 'nbTotalCalls') ) +
       panel('', editRow('nbPatients', 'Today Patient', suggestedPatients, '0') + editRow('nbOC', 'Superfone/Clinic Number Call', day.outside_calls_manual || 0, '0')) +
       '</div>' +
 
@@ -685,10 +699,12 @@
       text += 'OUT TIME ' + (displayTime12(d.check_out) || '-') + '\n';
     }
     text += '\nNew Enquiry: ' + st.enquiries + '\nRegistration: ' + st.registrations +
-      '\nToday Patient: ' + patientsVal + '\nApp Calls: ' + apc + '\nOutside Calls: ' + occ + '\nTotal call : ' + (apc + occ);
+      '\nToday Patient: ' + patientsVal + '\nApp Calls: ' + callTxt(apc) + '\nOutside Calls: ' + occ + '\nTotal call : ' + callTxt(callSum(apc, occ));
     var notesTxt = (d.day_note || '').trim();
     if (notesTxt) text += '\n\nNotes: \n' + notesTxt;
-    var stats = { enquiries: st.enquiries, registrations: st.registrations, appCalls: apc, outsideCalls: occ, totalCalls: apc + occ };
+    /* 🔴 V593 — না পড়তে পারলে `null`ই জমা হোক; `apc + occ` করলে JS-এ null যোগ
+       হয়ে মিথ্যা সংখ্যা তৈরি হত (null + 5 = 5)। */
+    var stats = { enquiries: st.enquiries, registrations: st.registrations, appCalls: apc, outsideCalls: occ, totalCalls: callSum(apc, occ) };
     window._nbReport = { period_type: 'daily', period_key: date, auto_stats: stats, manual_summary: notesTxt, text: text };
     /* 🔴 V432 — শেষ বানানো রিপোর্টের লেখাটা তুলে রাখা হয়, যাতে WhatsApp বন্ধ
        করে ফিরে এলে "📤 রিপোর্ট আবার পাঠান" বোতামে **হুবহু একই লেখা** যায়। */
@@ -708,10 +724,10 @@
     var apc = await appCallCount({ mode: 'month', key: ym });
     var occ = await monthlyOutsideCalls(ym);
     var leaveDays = await monthlyLeaveDays(ym);
-    var stats = { enquiries: st.enquiries, registrations: st.registrations, appCalls: apc, outsideCalls: occ, totalCalls: apc + occ, leaveDays: leaveDays };
+    var stats = { enquiries: st.enquiries, registrations: st.registrations, appCalls: apc, outsideCalls: occ, totalCalls: callSum(apc, occ), leaveDays: leaveDays };
     var text = 'Monthly Report ' + ym + '\nStaff: ' + code + '\n\n' +
       'New Enquiry: ' + st.enquiries + '\nRegistration: ' + st.registrations +
-      '\nApp Calls: ' + apc + ' | Outside Calls: ' + occ + ' | Total: ' + (apc + occ) +
+      '\nApp Calls: ' + callTxt(apc) + ' | Outside Calls: ' + occ + ' | Total: ' + callTxt(callSum(apc, occ)) +
       '\nLeave Days: ' + leaveDays;
     window._nbReport = { period_type: 'monthly', period_key: ym, auto_stats: stats, manual_summary: '', text: text };
     document.getElementById('app').innerHTML = '<div class="wrap anMod anModNb" style="max-width:1180px"><div class="topbar" style="padding:14px 24px"><b>📊 Monthly Report</b><button class="ghost" onclick="workNotebook()">Back</button></div>' +

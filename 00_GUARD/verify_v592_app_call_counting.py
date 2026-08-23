@@ -99,8 +99,13 @@ check('[৬] এখন একটাও অমিল নেই', len(new_bad) == 
 gr = io.open(ROOT + '/02_ANDROID_SOURCE_CODE/PilesClinicApp/app/build.gradle.kts', encoding='utf-8').read() \
      if os.path.exists(ROOT + '/02_ANDROID_SOURCE_CODE/PilesClinicApp/app/build.gradle.kts') else ''
 vj = io.open(ROOT + '/03_NETLIFY_READY/version.json', encoding='utf-8').read()
-check('[৭] ভার্সন V592 / 5.92',
-      'val appVersionCode = 592' in gr and '"versionCode": 592' in vj)
+# 🔧 V593 — এখানেও হুবহু "592" বাঁধা ছিল, তাই পরের ভার্সনে মিথ্যে ❌ দিত
+#    (ঠিক যে ভুলটা verify_v591-এ ধরা পড়েছিল)। এখন "592 বা তার পরে"।
+_g = re.search(r'val appVersionCode = (\d+)', gr)
+_v = re.search(r'"versionCode": (\d+)', vj)
+check('[৭] ভার্সন V592 বা তার পরে',
+      bool(_g) and bool(_v) and int(_g.group(1)) >= 592 and int(_v.group(1)) >= 592,
+      'gradle=%s · version.json=%s' % (_g and _g.group(1), _v and _v.group(1)))
 
 print('🛡️ V592 পাহারাদার — App Calls গোনা')
 print('=' * 66)

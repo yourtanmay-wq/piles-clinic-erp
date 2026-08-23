@@ -122,8 +122,12 @@ check("৪.১ call_taps এখন যাচাই-সহ পড়া হয়
       'ModuleAuth.getRowsChecked("wn", "call_taps"' in wn
       and 'val appCalls = appR.rows.length()' in wn)
 check("৪.২ পড়া সফল হলো কিনা, সেটা সাথে যায়", '.put("appOk", appR.ok)' in wn)
+# 🔧 V593 — শর্তটা `callsOk(s)` নামের ছোট ফাংশনে সরানো হয়েছে (মানে হুবহু
+#    এক: `s.optBoolean("appOk", true)`)। তাই দুটো লেখার যেকোনোটাই চলবে —
+#    পাহারাদার এখন **আচরণ** দেখে, লেখার ধরন নয়।
 check("৪.৩ ব্যর্থ হলে ফোনের গোনা মুছে যায় না",
-      'appCallsNow = if (s.optBoolean("appOk", true))' in wn
+      ('appCallsNow = if (s.optBoolean("appOk", true))' in wn
+       or 'appCallsNow = if (callsOk(s))' in wn)
       and "maxOf(cloudCalls, phoneCalls) else maxOf(phoneCalls, appCallsNow)" in wn)
 check("৪.৪ ক্লাউড পিছিয়ে থাকলেও গোনা কমে না",
       "val phoneCalls = try {" in wn and "ModuleAuth.localCallTapCount(" in wn)
