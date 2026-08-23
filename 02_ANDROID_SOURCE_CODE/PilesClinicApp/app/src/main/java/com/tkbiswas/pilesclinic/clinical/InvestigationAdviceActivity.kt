@@ -156,9 +156,14 @@ class InvestigationAdviceActivity : AppCompatActivity() {
                 if (invRem.isNotBlank()) invRem else summary, createdBy)
         }
         if (openPrintAfter) {
-            com.tkbiswas.pilesclinic.print.PrintDataHolder.pendingModel =
-                com.tkbiswas.pilesclinic.print.PrintMappers.investigationAdvice(invRemarks())
-            startActivity(Intent(this@InvestigationAdviceActivity, com.tkbiswas.pilesclinic.print.PrintPreviewActivity::class.java))
+            /* 🩸🔒 V596 (২৩.০৮.২০২৬, TK-অনুমোদিত ডেমো-ফটো দেখে): Blood Test এখন
+               **অনুমোদিত A4 ডিজাইনে** ছাপে — ওয়েবের (`wlv1InvestigationA4`)
+               হুবহু একই চেহারা, WebView + PrintManager দিয়ে। তাই ফোন ও
+               কম্পিউটারের কাগজ এক। হুবহু যে পথে V390-তে Diet Chart গিয়েছিল।
+               ⛔ `ClinicPdfBuilder` (OWNER LOCKED) ছোঁয়া হয়নি — বাকি সব প্রিন্ট
+                  আগের পথেই। ⛔ বাছাই/সেভ/ক্লাউড — উপরের কোডে কিচ্ছু বদলায়নি। */
+            com.tkbiswas.pilesclinic.print.InvestigationHtmlPrint.print(
+                this@InvestigationAdviceActivity, invRemarks())
         }
     }
 

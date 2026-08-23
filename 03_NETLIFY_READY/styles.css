@@ -6071,3 +6071,68 @@ body.wlv1AnatFullOpen{overflow:hidden}
 .wlv1TrashSrc *{pointer-events:none !important;cursor:default !important}
 .wlv1TrashDelStrip{margin-top:10px;background:#FDEEEE;border:1px solid #F5C2C0;border-radius:9px;
   padding:8px 10px;font-size:12px;color:#8A2C26}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   🩸🔵🔒 V596 (২৩.০৮.২০২৬, TK-অনুমোদিত ডেমো-ফটো দেখে) —
+   **Blood Test / Investigation Advice-এর A4 কাগজ**
+
+   TK: *"এটাকে প্রফেশনাল লুক বানাতে হবে · বড় হসপিটালে কেমন দেখতে হয় ঠিক
+   সেরকম"* · *"হেডার ও একদম নিচের পাঠ প্রেসক্রিপশনের মতো"* · *"জল ছবি টা
+   পুরো আসতে হবে"* · *"দাগ গুলি এত ক্লিয়ার থাকবে না, হাল্কা দাগ"* ·
+   *"এক্সেল এর দাগগুলো খুব উজ্জ্বল লাগছে, একটু হালকা করুন"*
+
+   ⛔ নিচের সব নিয়মই **নতুন ক্লাসে** (`invPage · invBox · invTbl · invWm ·
+      invDates`)। প্রেসক্রিপশন · মেডিসিন স্লিপ · ডায়েট চার্ট — কারো একটাও
+      নিয়ম ছোঁয়া হয়নি, তাই ওদের কাগজ হুবহু আগের মতোই ছাপবে।
+   ═══════════════════════════════════════════════════════════════════════ */
+/* 🔵🔒 V596 — শুধু Blood Test / Investigation-এর টেবিল। নতুন ক্লাস, তাই
+   অন্য কোনো কাগজের টেবিল ছোঁয়া হয় না। */
+/* জলছাপ যেন পুরো দেখা যায় — ঘরগুলো স্বচ্ছ (TK-নির্দেশ) */
+.rxBox.invBox{background:transparent!important}
+/* 🔵 TK: *"এক্সেল এর দাগগুলো খুব উজ্জ্বল লাগছে · একটু হালকা করুন"*
+   আসল কারণ (খুঁজে পাওয়া): শেয়ার-করা নিয়ম `.printTable th,.printTable td`
+   প্রতিটা ঘরের চারপাশে **#222 (প্রায় কালো)** দাগ আঁকে — সেটাই এক্সেলের মতো
+   দেখাচ্ছিল। আগে আমি শুধু নিচের দাগটা বদলেছিলাম, তাই বাকি তিন দিকের কালো
+   দাগ থেকেই গিয়েছিল।
+   ⇒ এখন চার দিকের দাগ বন্ধ, শুধু **খুব হালকা** আনুভূমিক রেখা, আর SL ঘরের
+     ডানে একটা মৃদু দাগ। ⛔ শেয়ার-করা নিয়মটা ছোঁয়া হয়নি। */
+.invTbl{width:100%;border-collapse:collapse;border:1px solid #DDE5DF!important;background:transparent}
+.invTbl th{background:#0A5428!important;color:#fff!important;letter-spacing:.9px;
+  font-size:10.5px;text-align:left;padding:2.4mm 3mm;border:0!important;
+  -webkit-print-color-adjust:exact;print-color-adjust:exact}
+.invTbl th.sl,.invTbl td.sl{width:13mm;text-align:center}
+.invTbl th.sl{border-right:1px solid rgba(255,255,255,.28)!important}
+.invTbl td{padding:2.5mm 3mm;font-size:12px;font-weight:600;color:#15231C;background:transparent;
+  border:0!important;border-bottom:1px solid #E8EEEA!important}
+.invTbl td.sl{color:#0A5428;font-weight:800;border-right:1px solid #E8EEEA!important}
+.invTbl tr.alt td{background:rgba(10,84,40,.030);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.invTbl tr.blank td{height:8mm;padding:0}
+.invTbl tr.tot td{background:rgba(10,84,40,.07);font-weight:800;letter-spacing:.6px;
+  font-size:10px;color:#22352C;border:0!important;border-top:1px solid #DDE5DF!important;
+  padding:2.2mm 3mm;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.invDates{display:grid;grid-template-columns:1fr 1fr;gap:6mm;margin:5mm 0 0;
+  padding:2.5mm 3mm;border:1px solid #C7D3CB;border-radius:2mm;font-size:11.5px;background:transparent}
+.invDates b{color:#0A5428}
+/* 🔵🔒 V596 — জলছাপ যেন **পুরো গোলটাই** দেখা যায় (TK-নির্দেশ)।
+   মেপে পাওয়া গিয়েছিল: চওড়া 634px কিন্তু উচ্চতা 599px — নিচটা কেটে যাচ্ছিল।
+   শেয়ার-করা `.wm` ঘরটা `prescriptionLock`-এর নিয়মে পাতার নিচ থেকে 20-24mm
+   ছেড়ে বসে ও কেটে দেয়। ওই নিয়ম বদলালে **প্রেসক্রিপশনের জলছাপও** বদলে যেত —
+   তাই ওটা এক অক্ষরও ছোঁয়া হয়নি।
+   ⇒ এই কাগজের জলছাপটা মূল ঘরের (`.invBox`) ভিতরেই, ঘরের ঠিক মাঝে। ঘরটা
+     214mm উঁচু, গোলটা 150mm — তাই কোনোদিন কাটবে না।
+   ⛔ শুধু এই কাগজে; অন্য কোনো কাগজে কিচ্ছু বদলায় না। */
+.printArea.invPage>.wm{display:none!important}
+.rxBox.invBox{position:relative!important;overflow:visible!important}
+.invBox .invWm{position:absolute!important;left:50%!important;top:50%!important;
+  transform:translate(-50%,-50%)!important;width:150mm!important;height:150mm!important;
+  opacity:.030!important;z-index:0!important;pointer-events:none!important;margin:0!important}
+/* 🔵 TK: *"দাগ গুলি এত ক্লিয়ার থাকবে না · হাল্কা দাগ থাকতে হবে"* —
+   তাই ঘোলাটে-সাদা (grayscale) আর অস্বচ্ছতা .030 (আগে .075 ছিল, রঙিনও ছিল)। */
+/* ⚠️ নির্বাচকটা লম্বা রাখতেই হলো — `.printArea.prescriptionLock .printLogoImg`
+   নিয়মটা লোগোকে 20mm-এ বেঁধে রাখে (!important), তাই ছোট নির্বাচক হারত।
+   মেপে ধরা পড়েছে: ঘর 150mm হলেও ছবি 20mm-ই থেকে যাচ্ছিল। */
+.printArea.invPage .invBox .invWm img{filter:grayscale(1)!important;width:150mm!important;height:150mm!important;
+  max-width:none!important;max-height:none!important;object-fit:contain;border-radius:50%}
+.invBox>*:not(.invWm){position:relative;z-index:1}
+

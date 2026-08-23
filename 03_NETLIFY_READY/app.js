@@ -12746,6 +12746,55 @@ function selectedBloodTests(){return $$('.bt:checked').map(x=>x.value).join(', '
 window["selectedBloodTests"]=selectedBloodTests;
 function saveBlood(id){let selected=selectedBloodTests();if(!selected)return toast('Select test');saveMedicalRecord(id,'Blood Test',selected,$('#btRem')?.value||'');closeModal();summary(id)}
 window["saveBlood"]=saveBlood;
+/* 🩸🔵🔒 V596 (২৩.০৮.২০২৬, TK-অনুমোদিত ডেমো-ফটো দেখে) —
+   Blood Test-এর A4 কাগজ। TK: *"হেডার ও একদম নিচের পাঠ প্রেসক্রিপশনের
+   মতোই থাকবে"* — তাই লেটারহেড · ট্যাগলাইন · রোগীর দুই-কলামের ঘর ·
+   TK BISWAS + বারকোড + Dr. K.H MANDAL — সবই প্রেসক্রিপশনের **সেই একই
+   ফাংশন থেকেই** আসে (`printHead` · `rxPrintPatientTwoCol` ·
+   `printVerifyCenter`), হাতে নতুন করে কিচ্ছু লেখা হয়নি।
+   ⛔ ওই ফাংশনগুলোর ভিতরে এক অক্ষরও বদলানো হয়নি, তাই প্রেসক্রিপশন ·
+      মেডিসিন স্লিপ · ডায়েট চার্টের কাগজ হুবহু আগের মতোই ছাপবে। */
+function wlv1InvRowsHtml(tests){
+  var MIN_ROWS=13;                       // ফাঁকা লাইনগুলো ছাপা থাকে, হাতে লেখা যায়
+  var r='<tr><th class="sl">SL.</th><th>INVESTIGATION ADVISED</th></tr>';
+  tests.forEach(function(t,i){
+    r+='<tr'+(i%2?' class="alt"':'')+'><td class="sl">'+('0'+(i+1)).slice(-2)+'</td>'
+      +'<td>'+esc(t)+'</td></tr>';
+  });
+  for(var i=tests.length;i<MIN_ROWS;i++)
+    r+='<tr class="blank'+(i%2?' alt':'')+'"><td class="sl"></td><td></td></tr>';
+  r+='<tr class="tot"><td colspan="2">TOTAL '+tests.length+' INVESTIGATION(S) ADVISED</td></tr>';
+  return '<table class="printTable finalPrintTable invTbl">'+r+'</table>';
+}
+window["wlv1InvRowsHtml"]=wlv1InvRowsHtml;
+
+function wlv1InvestigationA4(id, tests, remarks){
+  var p=patientById(id);
+  if(!p)return toast('Patient not found');
+  var title='BLOOD TEST / INVESTIGATION ADVICE';
+  /* প্রেসক্রিপশনের হেডারটাই — শুধু কাগজের নামটা এই কাগজের */
+  var head=printHead(p,'PRESCRIPTION').replace('>PRESCRIPTION<','>'+esc(title)+'<')
+                                      .replace('class="printArea ','class="printArea invPage ');
+  var wm='<div class="invWm">'+branchPrintLogoHtml(p)+'</div>';
+  var body='<div class="rxPatientInfo anRxPt">'+rxPrintPatientTwoCol(p)+'</div>'
+    +'<div class="rxBox clinicPadRx finalMedicalPrint invBox">'+wm
+    +'<div class="rxMark"></div><h3 class="medicalPrintTitle">'+esc(title)+'</h3>'
+    +wlv1InvRowsHtml(tests)
+    +(remarks?'<p class="printRemark"><b>Advice / Remarks:</b> '+esc(remarks)+'</p>':'')
+    +'<div class="invDates"><span><b>Report Collection Date</b> : ______________</span>'
+    +'<span><b>Next Follow-up Date</b> : ______________</span></div></div>';
+  /* নিচের পাঠ — প্রেসক্রিপশনের দুই সই ও বারকোড */
+  var foot='<div class="doctorLine">'
+    +'<div class="docLeft"><b>TK BISWAS</b><small>Founder &amp; Consultant</small></div>'
+    +printVerifyCenter(p)
+    +'<div class="docRight"><b>Dr. K.H MANDAL</b><small>(B.A.M.S) Regd 12386</small></div></div>'
+    +'<div class="thanksStrip">All treatments are Ayurvedic &amp; Natural &nbsp;|&nbsp; '
+    +'Bring this prescription for next visit</div></div>';
+  app().innerHTML=printReturnBar(id)+head+body+foot;
+  safePrintNoHome(id);
+}
+window["wlv1InvestigationA4"]=wlv1InvestigationA4;
+
 function printBlood(id){
  let selected=selectedBloodTests();
  if(!selected)return toast('Select test');
@@ -12753,10 +12802,11 @@ function printBlood(id){
     (PrintMappers.kt:146,150): নাম "Blood Test / Investigation Advice",
     ঘরের মাথায় "Tests", আর প্রতিটা পরীক্ষার আগে "•" — ওয়েবে "☑" বসত।
     ⛔ কোন পরীক্ষা বাছা হলো, কী সেভ হলো — কিছুই বদলায়নি, শুধু কাগজের লেখা। */
- let rows=selected.split(', ').map(x=>`<tr><td>&bull; ${esc(x)}</td></tr>`).join('');
  let remarks=$('#btRem')?.value||'';
  closeModal();
- professionalMedicalPrint(id,'BLOOD TEST / INVESTIGATION ADVICE',`<table class="printTable finalPrintTable"><tr><th>Tests</th></tr>${rows}</table>`,remarks);
+ /* 🩸 V596 — এখন অনুমোদিত A4 কাগজ (উপরে `wlv1InvestigationA4` দেখুন)।
+    ⛔ কোন পরীক্ষা বাছা হলো, কী সেভ হলো — কিচ্ছু বদলায়নি, শুধু কাগজ। */
+ wlv1InvestigationA4(id, selected.split(', ').filter(function(x){return String(x).trim()}), remarks);
 }
 window["printBlood"]=printBlood;
 
