@@ -562,7 +562,7 @@ class PaymentActivity : AppCompatActivity() {
                 // ব্যবহার হচ্ছিল না)। ⛔ বাংলা-না-বন্ধ থাকা সব স্টাফের জন্য
                 // NoBengali.s() নিজের মতোই লেখা অপরিবর্তিত রাখে — কারো
                 // ক্ষতি হয় না।
-                text = NoBengali.s("মোট ₹${"%,.0f".format(total)}  ·  $realPaymentCount টি পেমেন্ট")
+                text = NoBengali.s("Total ₹${"%,.0f".format(total)}  ·  $realPaymentCount payments")
                 textSize = 12.5f; setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setTextColor(android.graphics.Color.WHITE)
                 val p = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
@@ -582,7 +582,7 @@ class PaymentActivity : AppCompatActivity() {
                 })
             } else {
                 col.addView(TextView(this@PaymentActivity).apply {
-                    text = if (dateChosenFromHeader && user.role != "master") "READ ONLY" else NoBengali.s("একটি পেমেন্টে 3 বার ট্যাপ করুন — সম্পাদনা করতে")
+                    text = if (dateChosenFromHeader && user.role != "master") "READ ONLY" else NoBengali.s("Tap a payment 3 times to edit")
                     textSize = 11.5f
                     setTextColor(android.graphics.Color.parseColor("#8A93A6"))
                     setPadding(0, 0, 0, dp(10))
@@ -1029,10 +1029,10 @@ class PaymentActivity : AppCompatActivity() {
                 }
                 if (u != null && !allowedNow) {
                     AlertDialog.Builder(this@PaymentActivity)
-                        .setCustomTitle(PremiumAlert.header(this@PaymentActivity, "Master-এর অনুমতি লাগবে"))
+                        .setCustomTitle(PremiumAlert.header(this@PaymentActivity, "Master's approval needed"))
                         .setMessage(
-                            "$amtText ($labelText)\n\n⛔ এখনই কিছুই মুছবে না। " +
-                            "Master-এর ঘন্টায় অনুরোধ যাবে; তিনি অনুমোদন দিলে তবেই ডিলিট হবে।"
+                            "$amtText ($labelText)\n\n⛔ Nothing will be deleted right now. " +
+                            "The request goes to Master's bell; it will be deleted only after Master approves."
                         )
                         .setPositiveButton("Send Request") { _, _ ->
                             lifecycleScope.launch {
@@ -1046,7 +1046,7 @@ class PaymentActivity : AppCompatActivity() {
                                     } catch (_: Throwable) { false }
                                 }
                                 Toast.makeText(
-                                    this@PaymentActivity, NoBengali.s(if (sent) "Master-কে অনুরোধ পাঠানো হয়েছে" else "ব্যর্থ — নেট চেক করুন"),
+                                    this@PaymentActivity, NoBengali.s(if (sent) "Request sent to Master" else "Failed — check the network"),
                                     Toast.LENGTH_LONG
                                 ).show()
                             }
@@ -1197,7 +1197,7 @@ class PaymentActivity : AppCompatActivity() {
             // 🔴 TK-REPORTED (30.07.2026 রাত, Kishanganj স্টাফের হিন্দি বার্তা):
             // এই পপ-আপও আলাদা Dialog, তাই Activity-স্তরের NoBengali কভার করত
             // না। NoBengali.s() দিয়ে মোড়ানো হলো।
-            text = NoBengali.s("নাম অথবা মোবাইল নম্বর — যেকোনো একটা লিখুন")
+            text = NoBengali.s("Enter a name or a mobile number — either one")
             textSize = 11f
             setTextColor(android.graphics.Color.parseColor("#888888"))
             setPadding(0, dp(4), 0, 0)
@@ -1968,7 +1968,7 @@ $dueRow
         val payDateDark = android.graphics.Color.parseColor("#10223A")
         var pickedActualDate = PaymentModel.today()
         val dateValue = TextView(this).apply {
-            text = NoBengali.s("প্রকৃত জমার তারিখ")
+            text = NoBengali.s("Actual deposit date")
             setTextColor(payDateGrey)
             setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
             val d = resources.displayMetrics.density
@@ -1980,7 +1980,7 @@ $dueRow
                     val iso = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(cal2.time)
                     pickedActualDate = iso
                     if (iso == PaymentModel.today()) {
-                        text = NoBengali.s("প্রকৃত জমার তারিখ"); setTextColor(payDateGrey)
+                        text = NoBengali.s("Actual deposit date"); setTextColor(payDateGrey)
                     } else {
                         text = NoBengali.s("প্রকৃত জমা: ${java.text.SimpleDateFormat("dd.MM.yyyy", java.util.Locale.US).format(cal2.time)}"); setTextColor(payDateDark)
                     }

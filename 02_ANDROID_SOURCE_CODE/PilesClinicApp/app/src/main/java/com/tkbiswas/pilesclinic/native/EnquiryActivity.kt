@@ -566,7 +566,7 @@ val disease = selectedDisease
                 lp.marginEnd = marginEnd
                 layoutParams = lp
             }
-        val btnHistory = sideButton("পুরনো History", dp(8))
+        val btnHistory = sideButton("Old History", dp(8))
         val btnCancel = sideButton("Cancel", 0)
         pair.addView(btnHistory)
         pair.addView(btnCancel)
@@ -611,7 +611,7 @@ val disease = selectedDisease
                     )
                 }
                 setLoading(false)
-                toastAndFinish(if (ok) "Restore হয়ে '$branch' ব্রাঞ্চে আনা হলো" else "Restore ব্যর্থ — নেট চেক করুন")
+                toastAndFinish(if (ok) "Restored into the '$branch' branch" else "Restore failed — check the network")
             }
         }
         // TK-REQUESTED ADDITION (2026-07-23), unchanged: staff can look at the

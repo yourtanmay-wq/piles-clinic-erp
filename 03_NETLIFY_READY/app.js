@@ -10290,7 +10290,7 @@ function addTreatmentPayment(id){
   <label>Payment Mode</label>
   <input id="mode" type="hidden" value="CASH">
   <div class="ptModeRow"><div class="ptModeBox on" data-m="CASH" onclick="treatSetMode('CASH')">💵 CASH</div><div class="ptModeBox" data-m="ONLINE" onclick="treatSetMode('ONLINE')">🏦 ONLINE</div></div>
-  <input id="payDateShow" class="input ptDateBox" readonly placeholder="প্রকৃত জমার তারিখ" onclick="treatPickDate()">
+  <input id="payDateShow" class="input ptDateBox" readonly placeholder="Actual deposit date" onclick="treatPickDate()">
   <input id="payDate" type="hidden" value="">
   <input id="payDateInp" type="date" max="${today()}" style="position:absolute;left:-9999px" onchange="treatOnDate(this.value)">
   <div class="payTreatBtns"><button class="ptBtn ptCancel" onclick="closeModal()">CANCEL</button><button class="ptBtn ptShare" onclick="treatPaySubmit('${esc(id)}','share')">🟢 SHARE</button><button class="ptBtn ptPrint" onclick="treatPaySubmit('${esc(id)}','print')">🖨 PRINT</button><button class="ptBtn ptSave" onclick="treatPaySubmit('${esc(id)}','save')">💾 SAVE</button></div>
@@ -17954,7 +17954,7 @@ async function wlv1DeleteDraftEntryImpl(table, recId, mobile, branch, entryDate,
       // 🔵 R7 — একসাথে-বাছাইয়ে এই সারিগুলো আগেই বাদ দেওয়া হয়েছে; তবু দ্বিতীয়
       // স্তরের সুরক্ষা হিসেবে এখানে চুপচাপ থেমে যায় (কিছুই মোছে না)।
       if(noConfirm) return false;
-      if(!confirm(label+'\n\n⛔ এখনই কিছুই মুছবে না।\nMaster-এর ঘন্টায় অনুরোধ যাবে; তিনি অনুমোদন দিলে তবেই ডিলিট হবে।\n\nঅনুরোধ পাঠাব?')) return;
+      if(!confirm(label+'\n\n⛔ Nothing will be deleted right now.\nThe request goes to Master\'s bell; it will be deleted only after Master approves.\n\nঅনুরোধ পাঠাব?')) return;
       var req={id:uid('brief'),date:today(),title:'🗑️ Delete request — '+label,
         message:'Delete permission request\nType : '+(table==='enquiries'?'Enquiry':'Patient')+
                  '\nName : '+(row.name||'')+'\nMobile : '+normMob(mm)+
@@ -18370,7 +18370,7 @@ async function wlv1DeletePaymentImpl(payId){
     await wlv1PullBackdateGrantsFromCloud();
 
     if(!wlv1CanDeletePaymentNow(row, true) && !wlv1IsBackdateGranted(String(row.date||'').slice(0,10))){
-      if(!confirm(amtT+' ('+label+')\n\n⛔ এখনই কিছুই মুছবে না।\nMaster-এর ঘন্টায় অনুরোধ যাবে; তিনি অনুমোদন দিলে তবেই ডিলিট হবে।\n\nঅনুরোধ পাঠাব?')) return;
+      if(!confirm(amtT+' ('+label+')\n\n⛔ Nothing will be deleted right now.\nThe request goes to Master\'s bell; it will be deleted only after Master approves.\n\nঅনুরোধ পাঠাব?')) return;
       var req={id:uid('brief'),date:today(),title:'🗑️ Delete request — '+(row.name||normMob(row.mobile||'')),
         message:'Delete permission request\nType : Payment\nName : '+(row.name||'')+'\nMobile : '+normMob(row.mobile||'')+
                 '\nPatient ID : '+(row.patientCode||'')+'\nBranch : '+(row.branch||'')+'\nRow ID : '+row.id+
@@ -18379,7 +18379,7 @@ async function wlv1DeletePaymentImpl(payId){
         createdBy:(user&&user.mobile)||'',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
       add('briefings',req);
       try{ await cloudUpsertBriefing(req) }catch(_e){}
-      return toast('Master-কে অনুরোধ পাঠানো হয়েছে');
+      return toast('Request sent to Master');
     }
 
     if(!confirm(amtT+' ('+label+')\n\nএই টাকার সারিটা Trash-এ যাবে (পরে ফেরানো যাবে)।\nরোগীর জমা/বকেয়ার হিসাব বদলাবে।\n\nমুছবেন?')) return;
