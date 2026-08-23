@@ -1049,7 +1049,12 @@ async function wlv1FollowUpCloudPull(){
          গত ৩ ঘণ্টায় বদলানো সব সারি **রোগীর base64 ছবি-সহ** নামত, অথচ এই pull
          শুধু তালিকা তাজা রাখে, ছবি দেখায় না। এখন ছবি-ছাড়া ঘর।
          ⛔ mergeById field-wise ({...a,...r}) — তাই আগে থেকে জমা ছবি মুছবে না। */
-      try{ const __c=(typeof RT_NO_PHOTO_COLS!=='undefined'&&RT_NO_PHOTO_COLS[table])||'*';
+      /* 🔴 V579 — টেবিলটার (গোটা) সই না বদলালে এই তিন-ঘণ্টার তালিকাটাও
+         নামানোর দরকার নেই। ⛔ সই দেখা হয় **ছাঁকনি ছাড়া** — কারণ তিন ঘণ্টার
+         জানলাটা প্রতিবার একটু করে সরে, তাই ছাঁকনি-সহ সই মিথ্যে "বদলেছে"
+         দেখাত। ছাঁকনি ছাড়া সই স্থির: সত্যিই কেউ কিছু বদলালে তবেই এগোয়। */
+      try{ if(await wlv1CloudUnchanged('fu|'+table, table, null)) return null;
+           const __c=(typeof RT_NO_PHOTO_COLS!=='undefined'&&RT_NO_PHOTO_COLS[table])||'*';
            const r=await sb.from(table).select(__c).gte('updatedAt',since).limit(500);
            return (r&&!r.error&&Array.isArray(r.data))?r.data:null; }
       catch(e){ return null; }
@@ -6940,9 +6945,13 @@ async function wlv1QueueCloudPull(){
            return (r && !r.error && Array.isArray(r.data)) ? r.data : null; }
       catch(e){ return null; }
     };
+    /* 🔴 V579 — দুটো তালিকার কোনোটাই না বদলালে একটাও সারি নামে না।
+       ⛔ যেকোনো একটা বদলালে সেটা আগের মতোই পুরোটা নামে (সন্দেহ ⇒ নামাও)। */
     const [a,b2] = await Promise.all([
-      grab(q=>q.eq('queue',true).limit(500)),
-      grab(q=>q.in('stage',['Doctor Queue','Visit']).limit(500))
+      (async()=> (await wlv1CloudUnchanged('dq|queue','patients',q=>q.eq('queue',true))) ? null
+                 : grab(q=>q.eq('queue',true).limit(500)))(),
+      (async()=> (await wlv1CloudUnchanged('dq|stage','patients',q=>q.in('stage',['Doctor Queue','Visit']))) ? null
+                 : grab(q=>q.in('stage',['Doctor Queue','Visit']).limit(500)))()
     ]);
     const rows = [].concat(Array.isArray(a)?a:[], Array.isArray(b2)?b2:[]);
     if(!rows.length){ __dqPulling=false; return false; }
@@ -14308,6 +14317,60 @@ window["wlv1ChamberCloudPull"]=wlv1ChamberCloudPull;
    ⛔ একই দিনে ৪৫ সেকেন্ডে একবারের বেশি টানা হয় না। */
 let __payPullAt = {};
 let __payPulling = false;
+/* ══════════════════════════════════════════════════════════════════════
+   🔴🔒 V579 (২৩.০৮.২০২৬, TK-নির্দেশ — "সম্পূর্ণ প্রজেক্ট খুঁটিয়ে দেখুন,
+   Egress কমান, ফ্রি প্ল্যানে চালাতে চাই")
+
+   ─── সমস্যা (কোডে মিলিয়ে দেখা, আন্দাজ নয়) ────────────────────────────
+   কম্পিউটারের অ্যাপে Payment · CHECK-UP Queue · Follow-up — এই তিনটে পর্দা
+   খোলা থাকলে প্রতি ৩০ সেকেন্ডে (অন্তত ৪৫ সেকেন্ড ফাঁক দিয়ে) **পুরো তালিকা
+   আবার নামত — একটা সারিও না বদলালেও**। রিসেপশনে পর্দাটা সারাদিন খোলা
+   থাকে, তাই দিনে ~৮০০ বার পর্যন্ত অকারণে তালিকা নামত।
+
+   ফোনে এই সমস্যা **নেই** — V513-এ `CloudListRevalidate` বসানো আছে, যেটা
+   বড় তালিকা নামানোর আগে একটা ছোট প্রশ্ন করে "বদলেছে কি?"।
+   ⇒ ওয়েবে **হুবহু সেই প্রমাণিত নিয়মটাই** বসানো হলো।
+
+   ─── কীভাবে ────────────────────────────────────────────────────────────
+   সই (fingerprint) = (সারির সংখ্যা, সবচেয়ে নতুন `updatedAt`)। দুটোই একটাই
+   ছোট অনুরোধে আসে — `count:'exact'` + `limit(1)`, অর্থাৎ **এক সারি**।
+     • নতুন সারি ⇒ সংখ্যা বাড়ে ⇒ ধরা পড়ে
+     • মোছা ⇒ সংখ্যা কমে ⇒ ধরা পড়ে
+     • বদল ⇒ `updatedAt` এগোয় ⇒ ধরা পড়ে (অ্যাপ প্রতিটা লেখায় নিজে বসায়)
+
+   🔒 সুরক্ষা: **সন্দেহ হলেই পুরোটা নামে** — সই আনতে ব্যর্থ · সংখ্যা জানা
+      যায়নি · আগে কখনো দেখা হয়নি — সব ক্ষেত্রেই আগের মতোই পুরো তালিকা।
+      এই কোড কখনো "কম তথ্য" দেখাতে পারে না।
+   ⛔ তালিকার অনুরোধ · ঘর · ছাঁকনি · limit — কিছুই বদলায়নি; শুধু
+      **না-বদলালে সেটা আর পাঠানোই হয় না**।
+   ══════════════════════════════════════════════════════════════════════ */
+var WLV1_SIG={};
+async function wlv1CloudSig(table, apply){
+  try{
+    if(!sb) return null;
+    var q=sb.from(table).select('updatedAt',{count:'exact'})
+             .order('updatedAt',{ascending:false,nullsFirst:false}).limit(1);
+    if(apply) q=apply(q);
+    var r=await q;
+    if(!r || r.error) return null;
+    if(typeof r.count!=='number' || r.count<0) return null;
+    var st=(Array.isArray(r.data)&&r.data[0]&&r.data[0].updatedAt)||'';
+    return {count:r.count, stamp:String(st)};
+  }catch(e){ return null }
+}
+/** `true` = একটাও সারি বদলায়নি ⇒ তালিকাটা নামানোর দরকার নেই। */
+async function wlv1CloudUnchanged(key, table, apply){
+  try{
+    var now=await wlv1CloudSig(table, apply);
+    if(!now) return false;                 // সন্দেহ ⇒ পুরোটা নামুক
+    var old=WLV1_SIG[key];
+    WLV1_SIG[key]=now;
+    if(!old) return false;                 // আগে কখনো দেখা হয়নি
+    return old.count===now.count && old.stamp===now.stamp;
+  }catch(e){ return false }
+}
+window["wlv1CloudSig"]=wlv1CloudSig;window["wlv1CloudUnchanged"]=wlv1CloudUnchanged;
+
 async function wlv1PaymentCloudPull(date){
   try{
     if(__payPulling) return false;
@@ -14324,7 +14387,9 @@ async function wlv1PaymentCloudPull(date){
        অটুট। (`payments`/`products`-এর ছবি-ছাড়া তালিকা নেই, তাই ওখানে আগের
        মতোই `*` — আচরণ অপরিবর্তিত।) */
     const grab=async(table)=>{
-      try{ const __c=(typeof RT_NO_PHOTO_COLS!=='undefined'&&RT_NO_PHOTO_COLS[table])||'*';
+      try{ /* 🔴 V579 — কিছু না বদলালে তালিকাটা আর নামেই না (উপরের টীকা দেখুন) */
+           if(await wlv1CloudUnchanged('pay|'+table+'|'+key, table, q=>q.eq('date',key))) return null;
+           const __c=(typeof RT_NO_PHOTO_COLS!=='undefined'&&RT_NO_PHOTO_COLS[table])||'*';
            const r=await sb.from(table).select(__c).eq('date',key).limit(5000);
            return (r&&!r.error&&Array.isArray(r.data))?r.data:null; }
       catch(e){ return null; }
