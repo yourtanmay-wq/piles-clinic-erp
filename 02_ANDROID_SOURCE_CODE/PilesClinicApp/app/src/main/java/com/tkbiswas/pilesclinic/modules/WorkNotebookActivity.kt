@@ -2138,8 +2138,24 @@ class WorkNotebookActivity : AppCompatActivity() {
                             // বলে ভুল না বোঝা যায় — শুধু আবার চেষ্টা করা বাকি।
                             if (s.optBoolean("enqOk", true)) enqVal.text = s.optInt("enquiries").toString()
                             if (s.optBoolean("regOk", true)) regVal.text = s.optInt("registrations").toString()
-                            appVal.text = s.optInt("appCalls").toString()
-                            appCallsNow = s.optInt("appCalls")
+                            /* 🟢🔒 V590 (TK-রিপোর্ট) — আগে এই দুটো লাইন **শর্ত ছাড়াই**
+                               বসত, তাই ক্লাউড-পড়া ব্যর্থ হলে ০ এসে ফোনে জমা থাকা
+                               আসল গোনাটা মুছে দিত (TK-এর ছবিতে App Calls ০, অথচ
+                               কল হয়েছিল)।
+                               এখন দুটো জাল:
+                                 ১) পড়া ব্যর্থ হলে (`appOk` false) সংখ্যাটা **ছোঁয়াই
+                                    হয় না** — ফোনের গোনাটাই থেকে যায়;
+                                 ২) পড়া সফল হলেও **ফোনের গোনার চেয়ে বড়টাই** নেওয়া
+                                    হয় — কারণ এইমাত্র করা কলটা ক্লাউডে পৌঁছাতে
+                                    কয়েক সেকেন্ড লাগতে পারে, তখন ক্লাউড কম বলত।
+                               ⛔ দুটোই মিলিয়ে: গোনা **কখনো কমে যায় না**। */
+                            val cloudCalls = s.optInt("appCalls")
+                            val phoneCalls = try {
+                                ModuleAuth.localCallTapCount(this@WorkNotebookActivity, staffCode, todayIso())
+                            } catch (_: Throwable) { 0 }
+                            appCallsNow = if (s.optBoolean("appOk", true))
+                                maxOf(cloudCalls, phoneCalls) else maxOf(phoneCalls, appCallsNow)
+                            appVal.text = appCallsNow.toString()
                             refreshTotal()
                         }
                     }
@@ -2317,9 +2333,23 @@ class WorkNotebookActivity : AppCompatActivity() {
             // shows "…" instead of a misleading ₹0 (see loadStats/report below).
             val collR = ModuleAuth.sumPublicChecked("payments", minePay, "amount")
             val coll = collR.sum
-            val appCalls = if (mode == "day")
-                ModuleAuth.getRows("wn", "call_taps", "select=id&staff_code=eq.$staffCode&call_date=eq.$key").length()
-            else ModuleAuth.getRows("wn", "call_taps", "select=id&staff_code=eq.$staffCode&call_date=gte.$key-01&call_date=lt.$monthEnd").length()
+            /* 🟢🔒 V590 (২৩.০৮.২০২৬, TK-রিপোর্ট, ছবিসহ: *"App থেকে অনেকগুলো কল
+               আমার সামনেই করলো, কিন্তু এখন সব 0 কেন দেখাচ্ছে?"*)
+
+               **আসল কারণ (কোড থেকে প্রমাণিত):** এখানে `getRows()` ব্যবহার হত।
+               ওই ফাংশনটা **ব্যর্থ হলেও খালি তালিকাই** ফেরত দেয় (নেট নেই · সাইন-ইন
+               হয়নি · HTTP এরর — সবেতেই `JSONArray()`)। অর্থাৎ "সত্যিই ০টা কল" আর
+               "পড়াই যায়নি" — দুটো আলাদা করা যেত না, আর নিচে ওই ০ সংখ্যাটা
+               **ফোনে জমা থাকা আসল গোনাটা মুছে দিত**।
+               ⇒ এখন `getRowsChecked()` — ঠিক যেটা B316-এ Staff Profile-এর জন্য
+                 বানানো হয়েছিল, আর যেটা Enquiry/Registration/Collection আগে
+                 থেকেই ব্যবহার করে (`enqOk`/`regOk`/`collOk`)। App Calls-এর
+                 জন্যও এখন সেই একই পাহারা: `appOk`।
+               ⛔ পড়া সফল হলে সংখ্যা হুবহু আগের মতোই। */
+            val appR = if (mode == "day")
+                ModuleAuth.getRowsChecked("wn", "call_taps", "select=id&staff_code=eq.$staffCode&call_date=eq.$key")
+            else ModuleAuth.getRowsChecked("wn", "call_taps", "select=id&staff_code=eq.$staffCode&call_date=gte.$key-01&call_date=lt.$monthEnd")
+            val appCalls = appR.rows.length()
             // 🔴 B330 (03.08.2026, TK-নির্দেশ — Outside Calls এখন শুধু একটা
             // সংখ্যা, প্রতিটা কল আলাদা লগ না): দিন-হিসাবে সরাসরি `day`
             // অবজেক্ট থেকে পড়া হয় (নতুন নেটওয়ার্ক-কল লাগে না)। মাস-হিসাবে
@@ -2341,6 +2371,7 @@ class WorkNotebookActivity : AppCompatActivity() {
             else 0
             val stats = JSONObject().put("enquiries", enq).put("registrations", reg).put("collection", coll)
                 .put("enqOk", enqR.ok).put("regOk", regR.ok).put("collOk", collR.ok)
+                .put("appOk", appR.ok)   // 🟢 V590
                 .put("appCalls", appCalls).put("outsideCalls", outCalls).put("totalCalls", appCalls + outCalls)
                 .put("leaveDays", leaveDays)
             callback(stats)

@@ -936,7 +936,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
                     view.setPictureBitmap(key, PhotoUtils.decodeDataUrl(dataUrl))
                     paintAnatomyThumbs(key)
                 }
-                Toast.makeText(this, "ছবি যোগ হলো", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, NoBengali.s("ছবি যোগ হলো"), Toast.LENGTH_SHORT).show()
             }
             .show()
     }
@@ -1673,7 +1673,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
            প্লানে চালাতে চাই"*। */
         view.onCentreSet = { x, y ->
             AnatomyClock.setCentre(this, view.picKeyNow(), x, y)
-            Toast.makeText(this, "কেন্দ্র বসানো হলো — এবার চিহ্ন দিলেই ঘড়ির সময় নিজে বসবে",
+            Toast.makeText(this, NoBengali.s("কেন্দ্র বসানো হলো — এবার চিহ্ন দিলেই ঘড়ির সময় নিজে বসবে"),
                 Toast.LENGTH_SHORT).show()
         }
         holder.removeAllViews()
@@ -1817,7 +1817,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
                       কিছু সরাই না) — শুধু আর ডাকা হয় না। */
                 if (tool == AnatomyView.Tool.PILE && view.clockCentre == null) {
                     Toast.makeText(this@DoctorCheckupActivity,
-                        "আগে ⊕ কেন্দ্র দিয়ে পায়ুপথের মাঝখানে একবার ছুঁয়ে দিন — তবেই ঘড়ির সময় নিজে বসবে",
+                        NoBengali.s("আগে ⊕ কেন্দ্র দিয়ে পায়ুপথের মাঝখানে একবার ছুঁয়ে দিন — তবেই ঘড়ির সময় নিজে বসবে"),
                         Toast.LENGTH_LONG).show()
                 }
                 paintOn(tool)
@@ -1827,13 +1827,13 @@ class DoctorCheckupActivity : AppCompatActivity() {
         // ↺ একটা পিছনে — শেষ যেটা আঁকা হয়েছে সেটা তুলে নেয়
         addIcon("undo", "একটা পিছনে", null) {
             if (view.markCount() == 0)
-                Toast.makeText(this@DoctorCheckupActivity, "মোছার মত কিছু নেই", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@DoctorCheckupActivity, NoBengali.s("মোছার মত কিছু নেই"), Toast.LENGTH_SHORT).show()
             else view.undo()
         }
         // 🗑 সব মুছুন — জিজ্ঞাসা করে তবেই, নইলে ভুল করে চাপ পড়লে সব চলে যেত
         addIcon("trash", "সব মুছুন", null, danger = true) {
             if (view.markCount() == 0) {
-                Toast.makeText(this@DoctorCheckupActivity, "মোছার মত কিছু নেই", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@DoctorCheckupActivity, NoBengali.s("মোছার মত কিছু নেই"), Toast.LENGTH_SHORT).show()
             } else {
                 android.app.AlertDialog.Builder(this@DoctorCheckupActivity)
                     .setMessage("ছবির সব দাগ মুছে যাবে। মুছব?")
@@ -1958,7 +1958,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 AnatomyPictureRepository.saveLocal(this, row)
                 BackgroundWork.run { AnatomyPictureRepository.pushCloud(row) }
                 buildAnatomyStrip(strip, view)
-                Toast.makeText(this, "তালিকা থেকে সরানো হলো", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, NoBengali.s("তালিকা থেকে সরানো হলো"), Toast.LENGTH_SHORT).show()
             }
             .show()
     }
@@ -1982,7 +1982,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
     private fun openAnatomyFullScreen() {
         val small = anatomyView ?: return
         if (!small.hasPicture()) {
-            Toast.makeText(this, "আগে উপরের সারি থেকে একটা ছবি বাছুন", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, NoBengali.s("আগে উপরের সারি থেকে একটা ছবি বাছুন"), Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -2169,7 +2169,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
             ksSteps = KsharSutraAnim.stepsFor(m.kind, ksWithInjection)
             if (ksSteps.isEmpty()) {
                 Toast.makeText(this@DoctorCheckupActivity,
-                    "এখানে ক্ষারসূত্র দেখানো যায় না — ফোলা বা নালী ছুঁয়ে দিন",
+                    NoBengali.s("এখানে ক্ষারসূত্র দেখানো যায় না — ফোলা বা নালী ছুঁয়ে দিন"),
                     Toast.LENGTH_SHORT).show()
                 return
             }
@@ -2192,7 +2192,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         ksInj.setOnClickListener {
             ksWithInjection = !ksWithInjection
             Toast.makeText(this@DoctorCheckupActivity,
-                if (ksWithInjection) "ইনজেকশনের ধাপ থাকবে" else "ইনজেকশনের ধাপ বাদ",
+                if (ksWithInjection) NoBengali.s("ইনজেকশনের ধাপ থাকবে") else NoBengali.s("ইনজেকশনের ধাপ বাদ"),
                 Toast.LENGTH_SHORT).show()
             if (big.ksIndex >= 0) ksSelect(big.ksIndex) else ksPaint()
         }
@@ -2213,7 +2213,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 if (AnatomyModel.parse(big.save()).marks.none {
                         it.kind == AnatomyModel.KIND_BULGE || it.kind == AnatomyModel.KIND_TRACT }) {
                     Toast.makeText(this@DoctorCheckupActivity,
-                        "আগে ছবিতে ফোলা বা নালী আঁকুন — তারপর ক্ষারসূত্র দেখানো যাবে",
+                        NoBengali.s("আগে ছবিতে ফোলা বা নালী আঁকুন — তারপর ক্ষারসূত্র দেখানো যাবে"),
                         Toast.LENGTH_LONG).show()
                     return@setOnClickListener
                 }

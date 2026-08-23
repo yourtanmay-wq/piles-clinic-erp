@@ -9974,6 +9974,29 @@ function wlv1CollPickers(mode){
     + (monthPick?`<div class="wlv1CollPick">${monthPick}</div>`:'');
 }
 window["wlv1CollPickers"]=wlv1CollPickers;
+/* 🟢🔒 V590 (২৩.০৮.২০২৬, TK-নির্দেশ) — Collection পর্দার পেমেন্ট-কার্ডের HTML।
+   আগে এটা `collectionList()`-এর ভিতরে **ইনলাইন** লেখা ছিল; Trash Bin-এর 👁 View-তে
+   *"আগে যেখানে ছিল সেখানকার মতনই চেহারা"* দেখাতে হলে ওই একই কার্ড দরকার।
+   ⛔ লেখাটা **নতুন করে বানানো হয়নি** — হুবহু ওই কোডটাই এখানে সরিয়ে আনা হয়েছে
+      (একটাও অক্ষর বদলায়নি), আর Collection পর্দা এখন এটাকেই ডাকে। দুই জায়গার
+      কার্ড তাই কখনো আলাদা হতে পারে না।
+   ⚠️ ফোনে এই কাজটা `TrashSourceCard` করে — সেখানেও আসল `CollectionAdapter`-কেই
+      ডাকা হয়, নতুন কার্ড আঁকা হয় না। */
+function wlv1PayCardHtml(x){
+   let nm=String(x.name||'Walk-in').trim();
+   let mode=payMode(x.mode);
+   let pt=load('patients').find(pp=>mob(pp.mobile)===mob(x.mobile))||{};
+   let dis=String(pt.disease||'').trim();
+   let disChip=dis?`<span class="payDisChip">${esc(dis.toUpperCase())}</span>`:'';
+   let al1=[pt.village,pt.po].filter(Boolean).join(', '),al2=[pt.ps,pt.district,pt.pin].filter(Boolean).join(', ');
+   let addrHtml=(al1||al2)?(esc(al1.toUpperCase())+(al2?'<br>'+esc(al2.toUpperCase()):'')):(pt.address?wlv1AddrTwo(String(pt.address).toUpperCase()):'');
+   let addrRow=addrHtml?`<div class="payAddr">📍 ${addrHtml}</div>`:'';
+   let idc=x.pidCode||pt.patientId||'';
+   let tm=wlv1Time12(x.createdAt);
+   return `<div class="card payHistoryList" onclick="showCollectionRowDetails('${esc(x.mobile)}')" style="cursor:pointer !important;"><div class="row"><div><div class="payNameRow"><b class="wlv1NameLink" onclick="event.stopPropagation();summaryByMobile('${esc(mob(x.mobile))}')" title="Tap for History">${esc(nm.toUpperCase())}</b>${disChip}</div><div class="payMob2"><span class="wlv1CallLink" onclick="event.stopPropagation();contact('${esc(x.mobile)}','call')" title="Tap to call">${esc(normMob(x.mobile||''))}</span></div>${idc?`<div class="payIdRow2"><span class="payIdTag2">ID</span> ${esc(idc)}</div>`:''}${addrRow}<div class="mut tiny">${esc(fmtDate(x.date||''))}${x.branch?' · '+esc(x.branch):''}</div></div><div class="payAmount"><b>${money(x.amount)}</b><em class="${mode==='UPI'?'online':'cash'}">${esc(mode)}</em>${tm?`<span class="payTime2">${esc(tm)}</span>`:''}</div></div></div>`;
+}
+window["wlv1PayCardHtml"]=wlv1PayCardHtml;
+
 function collectionList(mode='All'){
  let rows=collectionRows();
  // TK-REQUESTED (2026-07-25): Master can narrow any of these lists to one branch.
@@ -10020,19 +10043,7 @@ function collectionList(mode='All'){
     ⛔ Payment পর্দার সারিতে (`wlv1ChamberRowHtml`-এর পাশের `payListRow2`) এই
        সবই আগে থেকেই আছে — এখানে সেই একই তথ্যই বসানো হলো, নতুন কিছু নয়।
     ⛔ চাপলে কী হয় (রোগীর ইতিহাস / কল / ডিটেইলস) — এক অক্ষরও বদলায়নি। */
- (rows.map(x=>{
-   let nm=String(x.name||'Walk-in').trim();
-   let mode=payMode(x.mode);
-   let pt=load('patients').find(pp=>mob(pp.mobile)===mob(x.mobile))||{};
-   let dis=String(pt.disease||'').trim();
-   let disChip=dis?`<span class="payDisChip">${esc(dis.toUpperCase())}</span>`:'';
-   let al1=[pt.village,pt.po].filter(Boolean).join(', '),al2=[pt.ps,pt.district,pt.pin].filter(Boolean).join(', ');
-   let addrHtml=(al1||al2)?(esc(al1.toUpperCase())+(al2?'<br>'+esc(al2.toUpperCase()):'')):(pt.address?wlv1AddrTwo(String(pt.address).toUpperCase()):'');
-   let addrRow=addrHtml?`<div class="payAddr">📍 ${addrHtml}</div>`:'';
-   let idc=x.pidCode||pt.patientId||'';
-   let tm=wlv1Time12(x.createdAt);
-   return `<div class="card payHistoryList" onclick="showCollectionRowDetails('${esc(x.mobile)}')" style="cursor:pointer !important;"><div class="row"><div><div class="payNameRow"><b class="wlv1NameLink" onclick="event.stopPropagation();summaryByMobile('${esc(mob(x.mobile))}')" title="Tap for History">${esc(nm.toUpperCase())}</b>${disChip}</div><div class="payMob2"><span class="wlv1CallLink" onclick="event.stopPropagation();contact('${esc(x.mobile)}','call')" title="Tap to call">${esc(normMob(x.mobile||''))}</span></div>${idc?`<div class="payIdRow2"><span class="payIdTag2">ID</span> ${esc(idc)}</div>`:''}${addrRow}<div class="mut tiny">${esc(fmtDate(x.date||''))}${x.branch?' · '+esc(x.branch):''}</div></div><div class="payAmount"><b>${money(x.amount)}</b><em class="${mode==='UPI'?'online':'cash'}">${esc(mode)}</em>${tm?`<span class="payTime2">${esc(tm)}</span>`:''}</div></div></div>`;
- }).join('')||(__collAsk?wlv1BranchAskCard():'<div class="card mut">No collection found</div>')   /* 🔴 V437 #7 — ফোনের হুবহু লেখা (CollectionListActivity.kt:260) */);
+ (rows.map(wlv1PayCardHtml).join('')||(__collAsk?wlv1BranchAskCard():'<div class="card mut">No collection found</div>')   /* 🔴 V437 #7 — ফোনের হুবহু লেখা (CollectionListActivity.kt:260) */);
  page(title,html,true);
 }
 window["collectionList"]=collectionList;
@@ -11230,16 +11241,49 @@ function wlv1TrashViewFields(x){
   if(String(r.id||'').trim())out.push(['Record ID',String(r.id).trim()]);
   return out;
 }
+/* 🟢🔒 V590 (২৩.০৮.২০২৬, TK-নির্দেশ, ছবিসহ: *"View-তে চাপার পর আগে যেখানে ছিল
+   সেখানকার মতনই চেহারা দেখতে হতে হবে"*) — মুছে ফেলা সারিটা যে পর্দায় ছিল,
+   সেখানকার **আসল কার্ডটাই** বানানো হয়।
+   ⛔ কার্ড নতুন করে আঁকা হয়নি — ওই পর্দার নিজের ফাংশনকেই ডাকা হয়
+      (`wlv1PayCardHtml` · `fuCard`), তাই চেহারা "মতন" নয়, **হুবহু এক**।
+   ⛔ Trash সারির ভিতরে **আসল সারির হুবহু JSON** জমা থাকে, তাই ওই ফাংশনগুলো
+      সেটাকে ঠিক সেভাবেই পড়তে পারে (কোড দেখে মিলিয়ে নেওয়া, আন্দাজ নয়)।
+   ⛔ কার্ডের ভিতরের সব চাপ **নিষ্ক্রিয়** করা হয় (`pointer-events:none`) — Trash
+      থেকে ভুল করে কল · WhatsApp · টাকা — কিছুই হতে পারে না।
+   ⛔ চেনা না গেলে (patients ইত্যাদি) আগের সেই লেখার তালিকাই দেখায়। */
+function wlv1TrashSourceCardHtml(x){
+  try{
+    var t=String(x.table||'').trim().toLowerCase();
+    var r=x.record||{};
+    var inner='';
+    if(t==='payments' && typeof wlv1PayCardHtml==='function'){
+      inner=wlv1PayCardHtml({...r, pidCode:(r.patientCode||r.pidCode||'')});
+    }else if((t==='followups'||t==='enquiries') && typeof fuCard==='function'){
+      inner=fuCard({...r, stage:String(r.stage||(t==='enquiries'?'Inquiry':'')), id:String(r.id||'')});
+    }
+    if(!inner) return '';
+    return '<div class="wlv1TrashSrcLbl">As it was in '+esc(wlv1TrashSrcLabel(x.table))+'</div>'
+         + '<div class="wlv1TrashSrc">'+inner+'</div>';
+  }catch(e){ return '' }
+}
+window["wlv1TrashSourceCardHtml"]=wlv1TrashSourceCardHtml;
+
 function wlv1TrashView(id){
   var x=(__wlv1TrashRows||[]).find(function(a){return String(a.id)===String(id)});
   if(!x)return;
-  var rows=wlv1TrashViewFields(x).map(function(kv){
+  var card=wlv1TrashSourceCardHtml(x);
+  var rows = card ? '' : wlv1TrashViewFields(x).map(function(kv){
     return `<div class="wlv1TrashVRow"><span class="k">${esc(kv[0])}</span><span class="v">${esc(kv[1])}</span></div>`;
   }).join('');
+  /* 🗑 কে মুছেছেন ও কখন — Trash-এর নিজের তথ্য, কার্ডে থাকে না */
+  var who=(typeof wlv1TrashDeletedBy==='function')?wlv1TrashDeletedBy(x):String(x.deletedBy||'');
+  var whenT=(typeof wlv1TrashWhen==='function')?String(wlv1TrashWhen(x)||'').replace(/\n/g,'  '):'';
+  var strip=[who,whenT].filter(Boolean).join('  ·  ');
   var del = isMaster()
     ? `<button class="red" onclick="closeModal();wlv1TrashDeleteForever('${esc(String(id))}')">🗑 Delete Forever</button>` : '';
   modal(`<h2>👁 ${esc(String((x.record&&x.record.name)||x.id))}</h2>
-    <div class="card">${rows}</div>
+    ${card || `<div class="card">${rows}</div>`}
+    ${strip?`<div class="wlv1TrashDelStrip">🗑 Deleted by ${esc(strip)}</div>`:''}
     <div class="actions">
       <button onclick="closeModal();restoreTrash('${esc(String(id))}')">♻ Restore</button>
       ${del}<button class="ghost" onclick="closeModal()">Close</button>

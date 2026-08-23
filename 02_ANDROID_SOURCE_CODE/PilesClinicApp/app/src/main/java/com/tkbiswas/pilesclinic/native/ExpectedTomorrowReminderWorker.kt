@@ -35,6 +35,10 @@ class ExpectedTomorrowReminderWorker(
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
+        /* 🟢 V590 — ওয়ার্কার আলাদা করে চলে, তাই কে লগইন করা আছে সেটা এখানে
+           একবার দেখে নেওয়া হয়; নইলে বাংলা-বন্ধ নিয়মটা এই নোটিফিকেশনে খাটত না।
+           ⛔ শুধু ফোনে জমা সেশন পড়া — কোনো নেটওয়ার্ক-কল নেই। */
+        try { NoBengali.refresh(applicationContext) } catch (_: Throwable) { }
         try {
             val ctx = applicationContext
             val user = NativeSession.current(ctx)
@@ -107,14 +111,17 @@ class ExpectedTomorrowReminderWorker(
         val publicVersion = NotificationCompat.Builder(ctx, channel)
             .setSmallIcon(R.drawable.ic_notif_bell)
             .setColor(android.graphics.Color.parseColor("#0F766E"))
-            .setContentTitle("📞 কাল আসার কথা")
+            /* 🟢🔒 V590 (TK-নির্দেশ) — নোটিফিকেশন কোনো পর্দার ভিতরে থাকে না,
+               তাই বাংলা-বন্ধ স্টাফের স্বয়ংক্রিয় সুইপ এখানে পৌঁছায় না — শিরোনামে
+               কাঁচা বাংলাই যেত। এখন `NoBengali.s()` দিয়ে (হিন্দি/ইংরেজি)। */
+            .setContentTitle(NoBengali.s("📞 কাল আসার কথা"))
             .setContentText("$count patient(s) expected tomorrow — call to remind them.")
             .build()
 
         val n = NotificationCompat.Builder(ctx, channel)
             .setSmallIcon(R.drawable.ic_notif_bell)
             .setColor(android.graphics.Color.parseColor("#0F766E"))
-            .setContentTitle("📞 কাল আসার কথা ($count)")
+            .setContentTitle(NoBengali.s("📞 কাল আসার কথা") + " ($count)")   // 🟢 V590
             .setContentText("Tap to view — " + due.take(2).joinToString(", ") { it.name.ifBlank { it.mobile } } + if (count > 2) "…" else "")
             .setStyle(NotificationCompat.BigTextStyle().bigText(shown + extra))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
