@@ -12764,7 +12764,11 @@ function diet(id){
  let p=patientById(id); if(!p) return toast('Patient not found');
  const item=(t)=>{
    const parts=String(t).split('\n');
-   return `<label class="wlv1DietItem"><input type="checkbox" class="dt" value="${esc(t)}">
+   /* 🟢🔒 V595 (২৩.০৮.২০২৬, TK-নির্দেশ): সবগুলোয় আগে থেকেই টিক থাকবে,
+      যেটা লাগবে না ডাক্তার তুলে দেবেন। ⛔ সেভ/ছাপা আগের মতোই `.dt:checked`
+      পড়ে, তাই তুলে দেওয়া ঘর কাগজে যায় না। ⚠️ ফোনের যমজ —
+      `DietChartActivity.kt`-এ `isSelected = true`. */
+   return `<label class="wlv1DietItem"><input type="checkbox" class="dt" checked value="${esc(t)}">
      <span><b>${esc(parts[0]||'')}</b>${parts.slice(1).map(x=>`<i>${esc(x)}</i>`).join('')}</span></label>`;
  };
 /* 🖥️🔵 B667: Diet Chart — পপ-আপ থেকে পূর্ণ পাতা। Android-এ পূর্ণ পর্দা

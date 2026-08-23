@@ -45,12 +45,30 @@ class DietChartActivity : AppCompatActivity() {
         }
 
         // Seed reference guidelines the first time, so the list is never blank.
+        /* 🟢🔒 V595 (২৩.০৮.২০২৬, TK-নির্দেশ, ছবিসহ): *"সবগুলো ঠিক মারা থাকবে ·
+           আমি চাইলে untick করতে পারি · তারপর ফাইনাল প্রিন্ট আউট হবে"*
+
+           আগে প্রতিটা ঘর **ফাঁকা** এসে বসত (`DietEntry.isSelected`-এর ডিফল্ট
+           `false`), তাই ডাক্তারকে প্রতিবার একটা একটা করে সবগুলোয় টিক দিতে হত —
+           অথচ প্রায় সবসময়ই সবগুলোই লাগে।
+           ⇒ এখন **সবগুলোয় আগে থেকেই টিক** থাকে; যেটা লাগবে না সেটায় চাপ দিয়ে
+             তুলে দিলেই হলো।
+
+           ⛔ ছাপা/সেভ/শেয়ার — তিনটেই আগের মতোই **শুধু টিক-দেওয়া** ঘরগুলোই নেয়
+              (`filter { it.isSelected }`), তাই তুলে দেওয়া ঘর কাগজে যাবে না।
+           ⛔ রোগী বদলালে তালিকাটা মুছে আবার নতুন করে বসে
+              (`ClinicalRepository.resetForNewPatient()`), তাই আগের রোগীর বাছাই
+              পরের রোগীর কাগজে কখনো যাবে না।
+           ⛔ `DietEntry`-র ডিফল্ট (`isSelected = false`) ছোঁয়া হয়নি — অন্য কোথাও
+              এই ক্লাসটা ব্যবহার হলে তার আচরণ এক অক্ষরও বদলায়নি। */
         if (ClinicalRepository.currentDiet.isEmpty()) {
             ClinicalRepository.dietAllowed.forEach {
-                ClinicalRepository.currentDiet.add(DietEntry(name = it, category = "Allowed"))
+                ClinicalRepository.currentDiet.add(
+                    DietEntry(name = it, category = "Allowed", isSelected = true))
             }
             ClinicalRepository.dietAvoid.forEach {
-                ClinicalRepository.currentDiet.add(DietEntry(name = it, category = "Avoid"))
+                ClinicalRepository.currentDiet.add(
+                    DietEntry(name = it, category = "Avoid", isSelected = true))
             }
         }
 
