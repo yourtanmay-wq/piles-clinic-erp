@@ -5839,6 +5839,11 @@ button.card.reportKpi span, .card.reportKpi span, button.card.reportKpi small, .
    ⛔ প্রজেক্টের নিজের `.input` ঘরই ব্যবহার হয়েছে, নতুন কোনো ঘর বানানো হয়নি। */
 .wlv1SymBox{border:1px solid #D8E4F2;border-radius:12px;padding:8px 10px;background:#FCFDFF}
 .wlv1SymRow{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px dotted #D8E0E9;flex-wrap:nowrap}
+/* 🖥️🔵 V574 (TK-এর বাছাই "খ") — ঘর দুটো পাশাপাশিই, কিন্তু টিক দিলে তবেই।
+   ⛔ ঘরগুলো মুছে ফেলা হয় না, শুধু লুকোনো — তাই সেভ আগের মতোই সব ঘর পড়ে। */
+.wlv1SymRow .wlv1SymWhen{display:none}
+.wlv1SymRow.on .wlv1SymWhen{display:flex}
+.wlv1SymRow.on .wlv1SymName{font-weight:700;color:#0B3E22}
 .wlv1SymRow:last-of-type{border-bottom:none}
 .wlv1SymName{display:flex;align-items:center;gap:7px;font-size:14px;color:#10223A;flex:1 1 auto;min-width:0}
 /* 🖥️🔵 V566 — লম্বা নাম ("ফোলা / মাংসপিণ্ড বের হওয়া") আগে সারি ঠেলে দিত, ফলে
@@ -5852,8 +5857,10 @@ button.card.reportKpi span, .card.reportKpi span, button.card.reportKpi small, .
 .wlv1SymChip{font-size:12px;border-radius:20px;padding:3px 11px;border:1px solid #DBE2EA;background:#fff;color:#93A1B2;cursor:pointer}
 .wlv1SymChip.on{border-color:#BFE9CE;background:#EAFBF0;color:#0B4F2A;font-weight:700}
 .wlv1SymWhen{margin-left:auto;display:flex;gap:6px;flex:0 0 auto}
-.wlv1SymAmt{width:58px;flex:0 0 auto;text-align:center;padding:6px 4px}
-.wlv1SymUnit{width:104px;padding:6px 6px;flex:0 0 auto}
+.wlv1SymAmt{width:52px;height:34px;min-height:34px;flex:0 0 auto;text-align:center;padding:0;
+  border-radius:10px;font-weight:700;margin:0}
+.wlv1SymUnit{width:94px;height:34px;min-height:34px;padding:0 8px;flex:0 0 auto;border-radius:10px;
+  font-weight:700;margin:0}
 .wlv1SymBox textarea{width:100%;margin-top:8px;min-height:62px}
 
 /* 🖥️🔵 V555 — কাগজের ভাগ ৩: টিকের জিনিস পাশাপাশি চিপ, লেখার জিনিস বক্স। */
@@ -5946,3 +5953,34 @@ body.wlv1AnatFullOpen{overflow:hidden}
   color:#fff;font-size:10px;font-weight:700;line-height:1;
   box-shadow:0 1px 4px rgba(0,0,0,.35);cursor:pointer;display:grid;place-items:center}
 .wlv1AnatThX:hover{background:#B3261E}
+
+/* 🖥️🔵 V574 (২২.০৮.২০২৬, TK-নির্দেশ) — *"patient id মোবাইল স্ক্রিনের প্রথম
+   থেকে থাকবে তারপরে Ref by"* ⇒ ID-র সারিটা ছবির পাশের ঘর থেকে বেরিয়ে এসে
+   গোটা কার্ডের নিচে, একদম বাঁ দিক থেকে — আগে ID, তারপর Ref By। */
+.dnIdRow{display:flex;align-items:center;gap:7px;flex-wrap:nowrap;white-space:nowrap;
+  margin:-4px 0 10px;padding:0 2px;overflow:hidden}
+.dnIdBadge{background:#7C4DFF;color:#fff;border-radius:6px;font-size:10.5px;font-weight:800;
+  padding:2px 7px;flex:0 0 auto}
+.dnIdNo{font-size:13.5px;font-weight:800;color:#0B4F2A;flex:0 0 auto}
+.dnRefChip{font-size:12px;font-weight:700;color:#0B4F2A;background:#E8F6EC;border:1px solid #BFE9CE;
+  border-radius:20px;padding:3px 10px;flex:0 1 auto;overflow:hidden;text-overflow:ellipsis}
+
+
+/* 🖥️🔵🔒 V574 (২২.০৮.২০২৬, TK-নির্দেশ) — ভাঁজ করা সেকশন।
+   TK: *"রোগী এসে কি কি বললেন — সেখানে চাপ দিলে ওই ৬টা অপশন ওপেন হতে হবে"*
+   এবং *"রক্তপাতের ইতিহাস ... এগুলো এখানে চাপ দিলে তখনই ফর্মগুলো ওপেন হবে"*।
+   ⛔ ভিতরের ঘর মুছে ফেলা হয় না — শুধু লুকোনো, তাই সেভ আগের মতোই সব পড়ে। */
+.wlv1FoldHead{display:flex;align-items:center;gap:9px;cursor:pointer;user-select:none;
+  background:#F4F8FC;border:1px solid #DDE7F1;border-radius:14px;padding:10px 12px;margin:10px 0 0}
+.wlv1FoldHead:active{background:#EAF2FA}
+.wlv1FoldT{flex:1;font-size:14.5px;font-weight:700;color:#0B2B59;line-height:1.3}
+.wlv1FoldN{font-size:11.5px;font-weight:700;color:#0B4F2A;background:#E8F6EC;border:1px solid #BFE9CE;
+  border-radius:20px;padding:2px 9px;flex:0 0 auto}
+.wlv1FoldN.off{display:none}
+.wlv1FoldCh{color:#5B6B81;font-size:15px;flex:0 0 auto;transition:transform .18s}
+.wlv1FoldHead.open .wlv1FoldCh{transform:rotate(180deg)}
+.wlv1Fold{display:none}
+.wlv1Fold.open{display:block;margin-top:8px}
+/* 🔵 V574 — চারটে ইতিহাস আলাদা ভাঁজ হওয়ায় বাইরের বাক্সটার আর বর্ডার লাগে না */
+.wlv1HistBox.plain{border:0;background:transparent;padding:0}
+.wlv1HistBox.plain .wlv1HistGrp{border-bottom:0;padding:2px 2px 6px}

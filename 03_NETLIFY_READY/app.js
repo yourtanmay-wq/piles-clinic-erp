@@ -7149,7 +7149,9 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
     ⛔ এটা `summary()` ও Doctor Queue — দুই **পাতা** থেকেই খোলে, কোনো পপ-আপের
        ভিতর থেকে নয়; তাই পাতার উপরে পাতা বসার ঝুঁকি নেই (কোডে মিলিয়ে দেখা হয়েছে)। */
  page('Doctor Note', `
- <div class="queueRow card">${p.photo?`<img class="miniPatient" src="${p.photo}">`:`<div class="miniPatient blank">👤</div>`}<div><b>${esc(p.name)}</b><br>${esc(p.mobile)} · Age: ${esc(p.age||'-')} · ${esc(p.sex||'-')}<span id="dnOccHeader" class="dnOccHeader" onclick="dnOccChoose()" title="Occupation · পেশা" style="cursor:pointer;font-weight:600"></span>${wlv1RefByLine(p)}<br>Reg ID: ${esc(p.patientId)} · Branch: ${esc(p.branch)}</div></div>
+ <div class="queueRow card dnPatCard">${p.photo?`<img class="miniPatient" src="${p.photo}">`:`<div class="miniPatient blank">👤</div>`}<div><b>${esc(p.name)}</b><br>${esc(p.mobile)} · Age: ${esc(p.age||'-')} · ${esc(p.sex||'-')}<span id="dnOccHeader" class="dnOccHeader" onclick="dnOccChoose()" title="Occupation · পেশা" style="cursor:pointer;font-weight:600"></span><br>Branch: ${esc(p.branch)}</div></div>
+ <!-- 🔵 V574 (TK): *"patient id মোবাইল স্ক্রিনের প্রথম থেকে থাকবে তারপরে Ref by"* -->
+ <div class="dnIdRow"><span class="dnIdBadge">ID</span><span class="dnIdNo">${esc(p.patientId)}</span>${wlv1RefByChip(p)}</div>
  <div class="card softInfo">ℹ️ Auto filled from Registration. Doctor can edit/add clinical details if needed.</div>
  <div id="wlv1CkChips" class="wlv1CkChips"></div>
  <div id="wlv1CkBox">
@@ -8473,12 +8475,32 @@ function wlv1HistBoxHtml(note){
       }).join('');
       return (q[1]?('<div class="wlv1HistQ">'+esc(q[1])+'</div>'):'')+'<div class="wlv1HistChips">'+chips+'</div>';
     }).join('');
-    return '<div class="wlv1HistGrp"><div class="wlv1HistTtl">'+esc(g[1])+'</div>'+inner+'</div>';
+    /* 🔵🔒 V574 (২২.০৮.২০২৬, TK-নির্দেশ): *"রক্তপাতের ইতিহাস · ব্যথার ইতিহাস ·
+       ফোলা মাংসপিণ্ডের ইতিহাস · পুঁজ ও জল পড়ার ইতিহাস — এগুলো এখানে চাপ দিলে
+       তখনই ফর্মগুলো ওপেন হবে"* ⇒ চারটে দলই এখন **আলাদা আলাদা ভাঁজ করা**,
+       বন্ধ অবস্থায় শুরু হয়। শিরোনামের পাশে কতগুলো বাছা হয়েছে সেটা দেখায়।
+       ⛔ ভিতরের চিপ মুছে ফেলা হয় না — শুধু লুকোনো, তাই সেভ আগের মতোই সব পড়ে। */
+    var picked=0;
+    g[2].forEach(function(q){ picked += ((r.map[g[0]+'.'+q[0]]||[]).length) });
+    var fid='dnHist_'+g[0].replace(/[^a-zA-Z0-9]/g,'_');
+    return wlv1FoldHead(fid, g[1], picked)
+      +'<div class="wlv1Fold" id="'+fid+'"><div class="wlv1HistGrp">'+inner+'</div></div>';
   }).join('');
-  return '<label>রোগীর বলা ইতিহাস</label><div class="wlv1HistBox">'+html
+  return '<label>রোগীর বলা ইতিহাস</label><div class="wlv1HistBox plain">'+html
     +'<textarea id="dnHistoryNote" placeholder="এই ইতিহাস নিয়ে আর কিছু লেখার থাকলে এখানে লিখুন">'+esc(r.note)+'</textarea></div>';
 }
-function wlv1HistToggle(btn){ try{ btn.classList.toggle('on') }catch(e){} }
+function wlv1HistToggle(btn){
+  try{
+    btn.classList.toggle('on');
+    /* 🔵 V574 — বাছার সংখ্যাটা উপরের ভাঁজ-শিরোনামে সঙ্গে সঙ্গে বসে */
+    var f=String(btn.getAttribute('data-hist')||''); var grp=f.split('.')[0];
+    if(grp){
+      var fid='dnHist_'+grp.replace(/[^a-zA-Z0-9]/g,'_');
+      var box=document.getElementById(fid);
+      if(box) wlv1FoldCount(fid, box.querySelectorAll('.wlv1HistChip.on').length);
+    }
+  }catch(e){}
+}
 function wlv1HistCollect(){
   try{
     var picked={};
@@ -8549,16 +8571,55 @@ function wlv1SymBoxHtml(note,p){
     var sev=L[2]?('<span class="wlv1SymSev">'+WLV1_SYM_SEV.map(function(sv){
         return '<button type="button" class="wlv1SymChip'+(e.severity===sv?' on':'')+'" data-sym-sev="'+L[0]+'" data-sev="'+esc(sv)+'" onclick="wlv1SymPickSev(this)">'+esc(sv)+'</button>'
       }).join('')+'</span>'):'';
-    return '<div class="wlv1SymRow">'
-      +'<label class="wlv1SymName"><input type="checkbox" class="wlv1SymTick" data-sym="'+L[0]+'" '+(e.ticked?'checked':'')+'> '+esc(L[1])+'</label>'
+    /* 🔵 V574 (TK-এর বাছাই "খ"): ঘর দুটো **পাশাপাশিই** থাকে, কিন্তু টিক দিলে
+       তবেই দেখায় — না দিলে শুধু নামটা, কোনো খালি বক্স নয়। */
+    return '<div class="wlv1SymRow'+(e.ticked?' on':'')+'" data-symrow="'+L[0]+'">'
+      +'<label class="wlv1SymName"><input type="checkbox" class="wlv1SymTick" data-sym="'+L[0]+'" '+(e.ticked?'checked':'')+' onchange="wlv1SymTickChanged(this)"> '+esc(L[1])+'</label>'
       +sev
       +'<span class="wlv1SymWhen">'
       +'<input class="input wlv1SymAmt" data-sym-amt="'+L[0]+'" inputmode="numeric" value="'+esc(e.amount)+'">'
       +'<select class="input wlv1SymUnit" data-sym-unit="'+L[0]+'">'+WLV1_SYM_UNITS.map(function(u){return '<option '+(e.unit===u?'selected':'')+'>'+u+'</option>'}).join('')+'</select>'
       +'</span></div>';
   }).join('');
-  return '<label>রোগী এসে প্রথমে কি কি বললেন?</label><div class="wlv1SymBox">'+rows
-    +'<textarea id="dnSymptomOther" placeholder="এছাড়া অন্য কিছু থাকলে এখানে লিখুন">'+esc(r.other)+'</textarea></div>';
+  /* 🔵🔒 V574 (২২.০৮.২০২৬, TK-নির্দেশ): *"রোগী এসে কি কি বললেন — সেখানে চাপ
+     দিলে ওই ৬টা অপশন ওপেন হতে হবে"* ⇒ সেকশনটা এখন **ভাঁজ করা**, বন্ধ অবস্থায়
+     শুরু হয়। শিরোনামের পাশে **কতগুলো বাছা** দেখায়, তাই না খুলেও বোঝা যায়।
+     ⛔ ভিতরের ঘরগুলো মুছে ফেলা হয় না — শুধু লুকোনো থাকে, তাই সেভ আগের মতোই
+        সব ঘর থেকেই পড়ে (`wlv1SymCollect`)। */
+  var n=0; WLV1_SYM_LINES.forEach(function(L){ if(r.map[L[0]]&&r.map[L[0]].ticked)n++ });
+  return wlv1FoldHead('dnSymFold','রোগী এসে প্রথমে কি কি বললেন?', n)
+    +'<div class="wlv1Fold" id="dnSymFold"><div class="wlv1SymBox">'+rows
+    +'<textarea id="dnSymptomOther" placeholder="এছাড়া অন্য কিছু থাকলে এখানে লিখুন">'+esc(r.other)+'</textarea></div></div>';
+}
+
+/* 🔵🔒 V574 — ভাঁজ করা শিরোনাম। চাপলে খোলে/বন্ধ হয়। `n` দিলে পাশে "৩টি" বসে।
+   ⚠️ ফোনের `foldHead()`-এর যমজ। */
+function wlv1FoldHead(id,title,n){
+  return '<div class="wlv1FoldHead" data-fold="'+id+'" onclick="wlv1FoldToggle(\''+id+'\')">'
+    +'<span class="wlv1FoldT">'+esc(title)+'</span>'
+    +(n?('<span class="wlv1FoldN" id="'+id+'N">'+wlv1Bn(n)+'টি</span>'):('<span class="wlv1FoldN off" id="'+id+'N"></span>'))
+    +'<span class="wlv1FoldCh">⌄</span></div>';
+}
+function wlv1FoldToggle(id){
+  try{
+    var box=$('#'+id), head=document.querySelector('.wlv1FoldHead[data-fold="'+id+'"]');
+    if(!box)return;
+    var open=box.classList.toggle('open');
+    if(head)head.classList.toggle('open',open);
+  }catch(_e){}
+}
+/* বাছার সংখ্যাটা বাংলায় — ইংরেজি সংখ্যা এখানে বেমানান লাগত */
+function wlv1Bn(n){
+  var d='০১২৩৪৫৬৭৮৯';
+  return String(n).replace(/[0-9]/g,function(c){return d[+c]});
+}
+/* কোনো সেকশনের বাছার সংখ্যাটা নতুন করে বসানো */
+function wlv1FoldCount(id,n){
+  try{
+    var el=$('#'+id+'N'); if(!el)return;
+    if(n>0){ el.textContent=wlv1Bn(n)+'টি'; el.classList.remove('off') }
+    else { el.textContent=''; el.classList.add('off') }
+  }catch(_e){}
 }
 function wlv1SymPickSev(btn){
   try{
@@ -8583,14 +8644,33 @@ function wlv1SymCollect(){
     return wlv1SymFormat(entries,other);
   }catch(e){ return '' }
 }
+/* টিক বদলালে ঘর দুটো দেখানো/লুকানো, আর উপরের সংখ্যাটাও নতুন করে বসানো */
+function wlv1SymTickChanged(el){
+  try{
+    var k=el.getAttribute('data-sym');
+    var row=document.querySelector('.wlv1SymRow[data-symrow="'+k+'"]');
+    if(row)row.classList.toggle('on',!!el.checked);
+    var n=document.querySelectorAll('.wlv1SymTick:checked').length;
+    wlv1FoldCount('dnSymFold',n);
+  }catch(_e){}
+}
 window["wlv1SymCollect"]=wlv1SymCollect;window["wlv1SymPickSev"]=wlv1SymPickSev;window["wlv1SymReadable"]=wlv1SymReadable;
+window["wlv1SymTickChanged"]=wlv1SymTickChanged;window["wlv1FoldToggle"]=wlv1FoldToggle;
 function wlv1RefByLine(p){
   try{
     var t=[String((p&&p.refBy)||'').trim(),String((p&&p.refDoctor)||'').trim()].filter(Boolean).join(' · ');
     return t?('<br>Ref By: '+esc(t)):'';
   }catch(e){ return '' }
 }
-window["wlv1RefByLine"]=wlv1RefByLine;
+/* 🔵 V574 (TK-নির্দেশ) — ID-র পাশে "Ref By" ছোট চিপে। কিছু না থাকলে বসেই না,
+   তাই পুরোনো রোগীর কার্ড আগের মতোই থাকে। ⚠️ ফোনের `tvPatientRefBy`-র যমজ। */
+function wlv1RefByChip(p){
+  try{
+    var t=[String((p&&p.refBy)||'').trim(),String((p&&p.refDoctor)||'').trim()].filter(Boolean).join(' · ');
+    return t?('<span class="dnRefChip">Ref By: '+esc(t)+'</span>'):'';
+  }catch(e){ return '' }
+}
+window["wlv1RefByLine"]=wlv1RefByLine;window["wlv1RefByChip"]=wlv1RefByChip;
 function dnVisBox(v){try{return $$('.dnVisual').find(x=>String(x.value)===v)||null}catch(e){return null}}
 function dnGradeValue(){try{var g=$('#dnGrade');return g?String(g.value||''):''}catch(e){return ''}}
 function dnRefreshInternalGrade(){
