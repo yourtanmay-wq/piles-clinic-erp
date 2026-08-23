@@ -5972,6 +5972,12 @@ body.wlv1AnatFullOpen{overflow:hidden}
 .wlv1AnatAdd input{display:none}
 .wlv1AnatAdd span{font-size:20px;line-height:1;font-weight:700}
 .wlv1AnatAdd small{font-size:9.5px;font-weight:700;line-height:1.1}
+/* 🟢🔒 V591 (২৩.০৮.২০২৬) — "♻ ফেরান" ঘর। TK: *"এখান থেকে যে ফটো গুলি বাদ
+   দেওয়া হয়েছে — সে গুলি পরে আবার কিভাবে এবং কোথায় পাবো?"* সরানো ছবি একটাও
+   না থাকলে এই ঘরটা তৈরিই হয় না, তাই সারিতে বাড়তি কিছু বসে না।
+   ⛔ মাপ ও গড়ন হুবহু `.wlv1AnatAdd`-এর — শুধু রঙটা আলাদা, যাতে "যোগ"-এর
+      সঙ্গে গুলিয়ে না যায়। */
+.wlv1AnatAdd.wlv1AnatBack{border-style:solid;border-color:#E0BE80;background:#FFF6E6;color:#7A4A00}
 .wlv1AnatThBox{position:relative;flex:0 0 auto;display:inline-flex;align-self:flex-start}
 /* ⚠️ প্রজেক্টের সাধারণ `button` নিয়ম (বড় padding, min-height) এখানে টেনে
    বিশ্রী করে দিচ্ছিল — তাই সবক'টা মাপ এখানে স্পষ্ট করে বেঁধে দেওয়া হলো। */

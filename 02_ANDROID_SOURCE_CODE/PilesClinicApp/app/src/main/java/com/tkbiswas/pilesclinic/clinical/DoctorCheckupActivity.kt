@@ -1895,6 +1895,30 @@ class DoctorCheckupActivity : AppCompatActivity() {
             setOnClickListener { showPhotoDialog(ANAT_PHOTO_TARGET) }
         })
 
+        /* ♻ ফেরান — 🟢🔒 V591 (২৩.০৮.২০২৬), TK-এর প্রশ্ন: *"এখান থেকে যে ফটো
+           গুলি বাদ দেওয়া হয়েছে — সে গুলি পরে আবার কিভাবে এবং কোথায় পাবো?"*
+           সরানো ছবি একটাও না থাকলে এই ঘরটা **দেখাই যায় না**, তাই সারিতে
+           বাড়তি কিছু যোগ হয় না। */
+        val dropped = AnatomyPictureRepository.hiddenRows(this)
+        if (dropped.isNotEmpty()) {
+            strip.addView(TextView(this).apply {
+                text = "♻\nফেরান " + dropped.size
+                textSize = 10.5f
+                gravity = android.view.Gravity.CENTER
+                setTextColor(android.graphics.Color.parseColor("#7A4A00"))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = symDp(8).toFloat()
+                    setColor(android.graphics.Color.parseColor("#FFF6E6"))
+                    setStroke(symDp(1), android.graphics.Color.parseColor("#E0BE80"))
+                }
+                val lp = android.widget.LinearLayout.LayoutParams(symDp(62), symDp(62))
+                lp.setMargins(0, 0, symDp(6), 0)
+                layoutParams = lp
+                contentDescription = "সরানো ছবি ফেরান"
+                setOnClickListener { askRestorePicture(dropped, strip, view) }
+            })
+        }
+
         for (pic in AnatomyPictureRepository.pictures(this)) {
             val cloud = AnatomyModel.isCloudKey(pic.key)
             val bmp = if (cloud) PhotoUtils.decodeDataUrl(pic.photo) else null
@@ -1961,6 +1985,61 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 Toast.makeText(this, NoBengali.s("তালিকা থেকে সরানো হলো"), Toast.LENGTH_SHORT).show()
             }
             .show()
+    }
+
+    /**
+     * 🟢🔒 V591 (২৩.০৮.২০২৬) — **সরানো ছবি ফেরানো**।
+     *
+     * TK: *"এখান থেকে যে ফটো গুলি বাদ দেওয়া হয়েছে — সে গুলি পরে আবার কিভাবে
+     * এবং কোথায় পাবো?"*
+     *
+     * যাচাই করে পাওয়া সত্যি: ছবিগুলো কখনো মোছা হয়নি (`hidden = "1"` বসত
+     * মাত্র), কিন্তু ফেরানোর কোনো পথ অ্যাপে ছিল না। এখন এই তালিকা থেকে যেটা
+     * চাই সেটাই এক চাপে ফিরে আসে — আগের ক্রমেই, আগের নামেই।
+     *
+     * ⛔ নেটওয়ার্কের কাজটা (ডাক্তারের যোগ-করা ছবির ছবিটুকু নামানো) আলাদা
+     *    থ্রেডে, তাই পর্দা কখনো আটকায় না। না পারলে কিছুই জমা হয় না, আর
+     *    পরিষ্কার করে বলে দেওয়া হয় — চুপচাপ ফাঁকা ছবি বসে না।
+     * ⚠️ একটাই ক্লাউড-তালিকা, তাই ফেরানোটাও **সব ব্রাঞ্চেই** দেখা যাবে
+     *    (সরানোটাও আগে থেকে তাই — V573-এর নকশা, বদলানো হয়নি)।
+     */
+    private fun askRestorePicture(dropped: List<AnatomyModel.PicRow>,
+                                  strip: android.widget.LinearLayout, view: AnatomyView) {
+        val names = dropped.map { r ->
+            val nm = r.label.ifBlank { r.picKey.ifBlank { "ছবি" } }
+            if (r.picKey.isBlank()) "📷 " + nm else "🖼 " + nm
+        }
+        android.app.AlertDialog.Builder(this)
+            .setTitle(NoBengali.s("সরানো ছবি ফেরান"))
+            .setItems(names.map { NoBengali.s(it) }.toTypedArray()) { d, which ->
+                d.dismiss()
+                doRestorePicture(dropped[which], strip, view)
+            }
+            .setNegativeButton("← Back", null)
+            .show()
+    }
+
+    private fun doRestorePicture(row: AnatomyModel.PicRow,
+                                 strip: android.widget.LinearLayout, view: AnatomyView) {
+        Toast.makeText(this, NoBengali.s("ফেরানো হচ্ছে…"), Toast.LENGTH_SHORT).show()
+        BackgroundWork.run {
+            val fixed = try { AnatomyPictureRepository.restoreRow(this, row.id) } catch (_: Throwable) { null }
+            if (fixed == null) {
+                runOnUiThread {
+                    Toast.makeText(this, NoBengali.s(
+                        "ফেরানো গেল না — ইন্টারনেট দেখে আবার চেষ্টা করুন"), Toast.LENGTH_LONG).show()
+                }
+            } else {
+                AnatomyPictureRepository.saveLocal(this, fixed)
+                val ok = AnatomyPictureRepository.pushCloud(fixed)
+                runOnUiThread {
+                    buildAnatomyStrip(strip, view)
+                    Toast.makeText(this, NoBengali.s(
+                        if (ok) "ফিরে এসেছে" else "এই ফোনে ফিরল — ক্লাউডে পরে যাবে"),
+                        Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
     }
 
     /**

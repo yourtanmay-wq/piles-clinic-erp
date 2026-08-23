@@ -190,6 +190,58 @@ object AnatomyPictureRepository {
         }
     }
 
+    /* ───────────────── V591 · সরানো ছবি ফেরানো ─────────────────
+       🟢🔒 V591 (২৩.০৮.২০২৬) — TK-এর প্রশ্ন: *"এখান থেকে যে ফটো গুলি বাদ
+       দেওয়া হয়েছে — সে গুলি পরে আবার কিভাবে এবং কোথায় পাবো?"*
+
+       **যাচাই করে পাওয়া সত্যি:** ছবিগুলো কখনোই মোছা হয়নি — ক্লাউডে
+       `anatomy_pictures` সারিতে `hidden = "1"` বসে শুধু **দেখানো বন্ধ** ছিল।
+       কিন্তু অ্যাপে ফেরানোর কোনো পথ ছিল না, তাই ব্যবহারিকভাবে হারিয়েই যেত।
+       ⇒ এখন `hidden` আবার ফাঁকা করে দিলেই ছবিটা আগের জায়গায় ফিরে আসে।
+
+       ⛔ সরানোর সারিটার আর কিচ্ছু বদলায় না (id · picKey · label · sortOrder ·
+          createdAt হুবহু আগেরটাই), তাই ক্রমও আগের জায়গাতেই ফেরে।
+       ⚠️ মনে রাখতে হবে — সরানো ও ফেরানো **সব ব্রাঞ্চে একসাথে** কাজ করে,
+          কারণ তালিকাটা একটাই ক্লাউড-তালিকা (TK-অনুমোদিত নকশা, V573)। */
+
+    /** যে ছবিগুলো তালিকা থেকে সরানো আছে (মোছা নয় — ফেরানো যায়)। */
+    fun hiddenRows(ctx: Context): List<AnatomyModel.PicRow> =
+        cachedRows(ctx).filter { it.hidden }
+
+    /**
+     * একটা সরানো ছবি ফেরানোর সারি — শুধু `hidden` ফাঁকা হয়।
+     * `null` ফেরত মানে **ফেরানো গেল না** (নিচে কারণ), তখন কিছুই জমা হয় না।
+     *
+     * ⛔ ডাক্তারের যোগ-করা ছবির ক্ষেত্রে ছবিটা ফোনে না-ও থাকতে পারে — V576-এ
+     *    egress বাঁচাতে লুকানো সারির ছবি নামানো বন্ধ করা হয়েছিল। তাই তখন
+     *    ক্লাউড থেকে **শুধু ওই একটা ছবিই** নামানো হয়। নেট না থাকলে `null`,
+     *    অর্থাৎ ফাঁকা ছবির সারি জমা হয়ে ছবিটা চিরতরে ফাঁকা হয়ে যায় না।
+     * ⛔ নেটওয়ার্কের কাজ — কখনোই মূল থ্রেডে ডাকবেন না।
+     */
+    fun restoreRow(ctx: Context, id: String): JSONObject? {
+        val old = cachedRows(ctx).firstOrNull { it.id == id } ?: return null
+        val now = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US)
+            .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }.format(java.util.Date())
+        // অ্যাপের নিজের ছবি হলে `picKey` থাকে, ছবিটা অ্যাপের ভিতরেই — কিছু নামাতে হয় না।
+        val isBuiltIn = old.picKey.isNotBlank()
+        var photo = old.photo
+        if (!isBuiltIn && photo.isBlank()) photo = fetchPhoto(id)
+        if (!isBuiltIn && photo.isBlank()) return null      // ছবিটা আনা গেল না
+        return JSONObject().apply {
+            put("id", old.id); put("picKey", old.picKey); put("label", old.label)
+            put("photo", photo); put("hidden", "")
+            put("sortOrder", old.sortOrder.toString())
+            put("createdAt", old.createdAt.ifBlank { now }); put("updatedAt", now)
+        }
+    }
+
+    /** শুধু একটা সারির ছবিটুকু — ফেরানোর সময় দরকার হলে। */
+    private fun fetchPhoto(id: String): String = try {
+        val got = SupabaseClient.fetchListOrNull(
+            TABLE, "id=eq." + id, 1, "updatedAt.desc.nullslast", "id,photo")
+        if (got == null || got.length() == 0) "" else got.optJSONObject(0)?.optString("photo", "") ?: ""
+    } catch (_: Throwable) { "" }
+
     /** যোগ করা একটা ছবি তালিকা থেকে সরানো — সেই সারিটাই লুকানো হয়। */
     fun hideAddedRow(ctx: Context, id: String): JSONObject {
         val now = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US)
