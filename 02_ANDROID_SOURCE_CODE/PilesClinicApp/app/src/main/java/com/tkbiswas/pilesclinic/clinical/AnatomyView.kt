@@ -498,7 +498,27 @@ class AnatomyView(context: Context) : View(context) {
             canvas.drawCircle(mx, my, mr, paint)
             paint.shader = null
         }
-        // ২. রক্তের ছিটে
+        /* ২. সরু শিরা — TK: *"আরো রিয়েল মনে হয়"*। খুব হালকা তিনটে বাঁকা দাগ,
+           গায়ের সমান-সমান ভাবটা ভেঙে দেয়। ⛔ এলোমেলো সংখ্যার ক্রম
+           কম্পিউটারের অ্যাপের হুবহু এক (৪টে করে, তিনবার)। */
+        paint.style = Paint.Style.STROKE
+        paint.strokeCap = Paint.Cap.ROUND
+        for (q in 0 until 3) {
+            val au = 0.24 + AnatomyModel.lumpNext(state) * 0.48
+            val av = (AnatomyModel.lumpNext(state) * 2 - 1) * 0.48
+            val bu = Math.min(0.95, au + 0.10 + AnatomyModel.lumpNext(state) * 0.22)
+            val bv = Math.max(-0.9, Math.min(0.9, av + (AnatomyModel.lumpNext(state) * 2 - 1) * 0.45))
+            path.reset()
+            path.moveTo((len * au).toFloat(), ((wide / 2f) * av).toFloat())
+            path.quadTo((len * (au + bu) / 2).toFloat(),
+                        ((wide / 2f) * (av + bv) / 2 - wide * 0.10f).toFloat(),
+                        (len * bu).toFloat(), ((wide / 2f) * bv).toFloat())
+            paint.color = Color.parseColor("#579E2226")
+            paint.strokeWidth = Math.max(0.5f, wide * 0.032f)
+            canvas.drawPath(path, paint)
+        }
+        paint.style = Paint.Style.FILL
+        // ৩. রক্তের ছিটে
         val n = Math.max(10, Math.min(46, Math.round(g.len * 1.9).toInt()))
         for (i in 0 until n) {
             val u = 0.10 + AnatomyModel.lumpNext(state) * 0.88
@@ -506,7 +526,7 @@ class AnatomyView(context: Context) : View(context) {
             val v = (AnatomyModel.lumpNext(state) * 2 - 1) * spread
             val ccx = (len * u).toFloat()
             val ccy = ((wide / 2f) * v).toFloat()
-            val rr = (wide * (0.022 + AnatomyModel.lumpNext(state) * 0.048)).toFloat()
+            val rr = (wide * (0.014 + AnatomyModel.lumpNext(state) * 0.050)).toFloat()
             if (rr <= 0f) continue
             paint.shader = android.graphics.RadialGradient(
                 ccx, ccy, rr,
@@ -551,7 +571,7 @@ class AnatomyView(context: Context) : View(context) {
         // এখন আঙুল যেটা টানছে সেটাও দেখা যাবে, ছাড়ার অপেক্ষা করতে হবে না
         if (livePts.size > 1 && (tool == Tool.TRACT || tool == Tool.PEN)) {
             strokePts(canvas, livePts, s, if (tool == Tool.TRACT) "#F0A400" else "#111111",
-                      if (tool == Tool.TRACT) 2.2f else 1.4f, tool == Tool.TRACT)
+                      if (tool == Tool.TRACT) 1.35f else 1.4f, tool == Tool.TRACT)
             // আঙুল টানার সময়েই মাপটা দেখা যায় — ছাড়ার অপেক্ষা করতে হয় না
             if (tool == Tool.TRACT) drawTractCm(canvas, livePts, s)
         }
@@ -562,7 +582,7 @@ class AnatomyView(context: Context) : View(context) {
         for (m in marks) {
             when (m.kind) {
                 AnatomyModel.KIND_TRACT -> {
-                    strokePts(canvas, m.pts, s, "#F0A400", 2.2f, true)
+                    strokePts(canvas, m.pts, s, "#F0A400", 1.35f, true)
                     // 🔴 V564 (TK): নালী কত সেন্টিমিটার — শেষ মাথার পাশে
                     drawTractCm(canvas, m.pts, s)
                 }
@@ -614,10 +634,14 @@ class AnatomyView(context: Context) : View(context) {
             if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
         }
         paint.style = Paint.Style.STROKE; paint.pathEffect = null
-        paint.color = Color.argb(115, 0, 0, 0); paint.strokeWidth = (w + 1.6f) * s
+        /* 🔵 V583 (TK-নির্দেশ): ফিস্টুলার দাগ সামান্য পাতলা — কালো ছায়াটাও
+           সেই অনুপাতে, নইলে সরু দাগের চারপাশে মোটা ছায়া বেমানান লাগত।
+           ⛔ রং · কাটা-কাটা ধরন কিছুই বদলায়নি। */
+        paint.color = Color.argb(if (dashed) 87 else 115, 0, 0, 0)
+        paint.strokeWidth = (w + (if (dashed) 0.7f else 1.6f)) * s
         canvas.drawPath(path, paint)
         paint.color = Color.parseColor(color); paint.strokeWidth = w * s
-        if (dashed) paint.pathEffect = android.graphics.DashPathEffect(floatArrayOf(3.4f * s, 2.4f * s), 0f)
+        if (dashed) paint.pathEffect = android.graphics.DashPathEffect(floatArrayOf(2.8f * s, 2.0f * s), 0f)
         canvas.drawPath(path, paint)
         paint.pathEffect = null
     }

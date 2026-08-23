@@ -7554,14 +7554,31 @@ function wlv1CounselBoxHtml(note,p){
       ctx.fillStyle = mg;
       ctx.beginPath(); ctx.arc(mx, my, mr, 0, 6.2832); ctx.fill();
     }
-    // ২. রক্তের ছিটে
+    /* ২. সরু শিরা — সত্যিকারের মাংসে যেমন দেখা যায় (V583, TK: *"আরো রিয়েল
+       মনে হয়"*)। তিনটে ছোট বাঁকা দাগ, খুব হালকা — চোখে আলাদা করে ধরা পড়ে না,
+       কিন্তু গায়ের সমান-সমান ভাবটা ভেঙে দেয়। */
+    ctx.lineCap = 'round';
+    for (var q = 0; q < 3; q++) {
+      var au = 0.24 + lumpNext(st) * 0.48;
+      var av = (lumpNext(st) * 2 - 1) * 0.48;
+      var bu = Math.min(0.95, au + 0.10 + lumpNext(st) * 0.22);
+      var bv = Math.max(-0.9, Math.min(0.9, av + (lumpNext(st) * 2 - 1) * 0.45));
+      ctx.beginPath();
+      ctx.moveTo(L * au, (LW / 2) * av);
+      ctx.quadraticCurveTo(L * (au + bu) / 2, (LW / 2) * (av + bv) / 2 - LW * 0.10,
+                           L * bu, (LW / 2) * bv);
+      ctx.strokeStyle = 'rgba(158,34,38,0.34)';
+      ctx.lineWidth = Math.max(0.5, LW * 0.032);
+      ctx.stroke();
+    }
+    // ৩. রক্তের ছিটে
     var n = Math.max(10, Math.min(46, Math.round(g.L * 1.9)));
     for (var i = 0; i < n; i++) {
       var u = 0.10 + lumpNext(st) * 0.88;                    // গোড়া থেকে মাথার দিকে
       var spread = Math.sin(Math.PI * Math.min(1, u * 1.02)) * 0.92;
       var v = (lumpNext(st) * 2 - 1) * spread;
       var ccx = L * u, ccy = (LW / 2) * v;
-      var rr = LW * (0.022 + lumpNext(st) * 0.048);
+      var rr = LW * (0.014 + lumpNext(st) * 0.050);
       var sg = ctx.createRadialGradient(ccx, ccy, 0, ccx, ccy, rr);
       sg.addColorStop(0.00, 'rgba(168,12,22,0.92)');
       sg.addColorStop(0.55, 'rgba(196,30,38,0.66)');
@@ -7622,10 +7639,13 @@ function wlv1CounselBoxHtml(note,p){
     for (var i = 0; i < marks.length; i++) {
       var m = marks[i];
       if (m.kind === 'tract' || m.kind === 'pen') {
-        var w = (m.kind === 'tract' ? 2.2 : 1.4) * s;
-        stroke(ctx, m.pts, W, H, 'rgba(0,0,0,0.45)', w + 1.6 * s);
+        /* 🔵 V583 (TK-নির্দেশ): *"ফিস্টুলার জন্য যে দাগটা টানতে হয়, বর্তমান
+           কোড অনুযায়ী অনেকটা চওড়া হয়ে গেছে — সামান্য একটু পাতলা করুন"*।
+           ⛔ রং · কাটা-কাটা ধরন · কালো ছায়া — সবই আগের মতোই, শুধু সরু। */
+        var w = (m.kind === 'tract' ? 1.35 : 1.4) * s;
+        stroke(ctx, m.pts, W, H, m.kind === 'tract' ? 'rgba(0,0,0,0.34)' : 'rgba(0,0,0,0.45)', w + (m.kind === 'tract' ? 0.7 : 1.6) * s);
         stroke(ctx, m.pts, W, H, m.kind === 'tract' ? COLORS.tract : COLORS.pen, w,
-               m.kind === 'tract' ? [3.4 * s, 2.4 * s] : null);
+               m.kind === 'tract' ? [2.8 * s, 2.0 * s] : null);
         if (m.kind === 'tract' && opts.cmWide) {
           var last = m.pts[m.pts.length - 1];
           var cm = tractCm(m.pts, opts.cmWide, H / W);
@@ -8055,7 +8075,9 @@ function wlv1AnatTool(t){
   try{$$('.wlv1AnatTool').forEach(function(el){el.classList.toggle('on',el.getAttribute('data-t')===t)})}catch(_e){}
   try{wlv1AnatTipPaint()}catch(_e){}
   if(t==='pile'){
-    var v=prompt('চিহ্নের নাম (ঘড়ির কাঁটা যেমন "3টা", বা "ডান পাশ")। নাম না চাইলে ফাঁকা রাখুন।','');
+    /* 🔵 V583 (TK-এর উত্তর): জায়গাটা **ঘড়ির কাঁটা অনুযায়ীই** লেখা হবে —
+       কত o'clock-এ পাইলস/ফিস্টুলা। ⛔ ফোনের তালিকার সঙ্গে এক। */
+    var v=prompt('ঘড়ির কাঁটা অনুযায়ী জায়গা — ১ থেকে ১২ (যেমন "3টা")। নাম না চাইলে ফাঁকা রেখে OK চাপুন।','');
     wlv1AnatState.label=(v===null?'':String(v).trim());
   }
 }
