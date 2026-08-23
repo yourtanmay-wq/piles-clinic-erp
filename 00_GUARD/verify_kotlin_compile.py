@@ -119,6 +119,83 @@ def find_kotlinc(allow_download=True):
     return None
 
 
+# ══════════════════════════════════════════════════════════════════════
+# 🔴🔴 V597 — **আসল android.jar দিয়ে টাইপ-যাচাই** (TK-এর বিল্ড ভাঙা, ২৩.০৮.২০২৬)
+# ----------------------------------------------------------------------
+# কী হয়েছিল: TK V596-এর ফাইল Android Studio-তে বিল্ড দিলে ১২টা ভুল এসে
+# বিল্ড ভেঙে যায় —
+#     AnatomyView.kt: Type mismatch: inferred type is Double but Float was expected
+# কারণ `ksHealLump()`-এ `val r` Double হয়ে যাচ্ছিল, অথচ Canvas-এর ঘরগুলো
+# Float চায়।
+#
+# 🔴 এই পাহারাদার সেটা ধরেনি কেন — সৎ উত্তর:
+#   (ক) ক্লাসপাথে **android.jar ছিল না**, তাই `Canvas`/`RectF` কম্পাইলার
+#       চিনতই না — টাইপ মিলছে কি না দেখার প্রশ্নই ওঠেনি।
+#   (খ) উপরের `CASCADE` তালিকায় **"type mismatch"** লেখা ছিল, অর্থাৎ ওই
+#       বার্তাকে ধরেই নেওয়া হত "লাইব্রেরি নেই বলে গোলমাল"। ঠিক এই
+#       বার্তাটাই TK-র বিল্ড ভেঙেছে।
+#
+# ⇒ সমাধান (দুটোই):
+#   ১) compileSdk 34-এর সমান একটা আসল `android.jar` ক্লাসপাথে দেওয়া হয়
+#      (Maven Central-এর robolectric `android-all` — Google-এর সাইট এই
+#      পরিবেশ থেকে বন্ধ, Maven Central খোলা)।
+#   ২) নতুন নিয়ম `real_type_errors()`: **যে ফাইলে একটাও
+#      "unresolved reference" নেই, অথচ অন্য ভুল আছে** — সেটা ধাক্কার ফল
+#      হতেই পারে না, ওটা আসল ভুল ⇒ সরাসরি FAIL।
+#      (AnatomyView `android.view.View` থেকে আসে, androidx থেকে নয় — তাই
+#       ওই ফাইলে unresolved শূন্য, আর নিয়মটা ঠিক ওখানেই ধরে ফেলে।)
+#
+# ⛔ সীমা, লুকানো হয়নি: androidx / retrofit / okhttp / org.json এই পরিবেশে
+#    নামানো যায় না (maven.google.com বন্ধ)। তাই যেসব ফাইল androidx-এর
+#    ক্লাস থেকে আসে, তাদের ভিতরের টাইপ এখনো পুরোপুরি মেলানো যায় না।
+# ══════════════════════════════════════════════════════════════════════
+ANDROID_JAR = os.path.join(ROOT, "00_GUARD", ".kotlinc", "android34.jar")
+ANDROID_JAR_URL = ("https://repo1.maven.org/maven2/org/robolectric/android-all/"
+                   "14-robolectric-10818077/android-all-14-robolectric-10818077.jar")
+
+
+def find_android_jar(allow_download=True):
+    """compileSdk 34-এর android.jar — না থাকলে একবার নামায় (~132 MB)।"""
+    env = os.environ.get("ANDROID_JAR", "")
+    if env and os.path.exists(env):
+        return env
+    if os.path.exists(ANDROID_JAR) and os.path.getsize(ANDROID_JAR) > 50_000_000:
+        return ANDROID_JAR
+    if not allow_download:
+        return None
+    try:
+        os.makedirs(os.path.dirname(ANDROID_JAR), exist_ok=True)
+        print("   android.jar নামাচ্ছি (~১৩২ MB, একবারই)…")
+        urllib.request.urlretrieve(ANDROID_JAR_URL, ANDROID_JAR + ".part")
+        os.replace(ANDROID_JAR + ".part", ANDROID_JAR)
+        return ANDROID_JAR
+    except Exception as e:
+        print("   android.jar নামানো গেল না: %s" % e)
+        try:
+            os.remove(ANDROID_JAR + ".part")
+        except Exception:
+            pass
+    return None
+
+
+def real_type_errors(log_text):
+    """যে ফাইলে **একটাও** "unresolved reference" নেই অথচ ভুল আছে —
+       সেগুলো ফেরত দেয়। ধাক্কার ফল হওয়া অসম্ভব, তাই আসল ভুল।"""
+    unres, other = {}, {}
+    for ln in log_text.splitlines():
+        m = re.match(r"^(.*\.kt):(\d+):(\d+): error: (.*)$", ln.rstrip())
+        if not m:
+            continue
+        path = m.group(1).replace("\\", "/")
+        path = path[path.find("com/"):] if "com/" in path else path
+        if "unresolved reference" in m.group(4).lower():
+            unres[path] = unres.get(path, 0) + 1
+        else:
+            other.setdefault(path, []).append(
+                "%s:%s — %s" % (path.split("/")[-1], m.group(2), m.group(4)))
+    return [(f, v) for f, v in sorted(other.items()) if unres.get(f, 0) == 0]
+
+
 # ── বাছাই: কোনটা "বাইরের লাইব্রেরি নেই বলে", কোনটা আসল ──────────────────────
 EXT_PKG = ("android", "androidx", "org.json", "kotlinx", "okhttp3", "okio",
            "java", "javax", "kotlin", "com.google")
@@ -127,7 +204,10 @@ EXT_PKG = ("android", "androidx", "org.json", "kotlinx", "okhttp3", "okio",
 CASCADE = (
     "overrides nothing", "cannot infer a type", "overload resolution ambiguity",
     "variable expected", "[error type", "no value passed for parameter",
-    "cannot access", "not enough information", "type mismatch",
+    "cannot access", "not enough information",
+    # 🔴 V597: "type mismatch" এখান থেকে **তুলে দেওয়া হলো** — ঠিক এই
+    #    বার্তাটাই TK-র Android Studio-র বিল্ড ভেঙেছিল, অথচ এখানে চাপা
+    #    পড়ে যাচ্ছিল। এখন এটা আসল সন্দেহভাজন হিসেবেই গোনা হয়।
     "none of the following candidates", "cannot be applied",
     "is not a function", "smart cast",
 )
@@ -297,14 +377,18 @@ def missing_import_errors():
     return hits
 
 
-def run_compiler(kotlinc):
+def run_compiler(kotlinc, android_jar=None):
     out_dir = os.path.join("/tmp", "kt_guard_out")
     shutil.rmtree(out_dir, ignore_errors=True)
     env = dict(os.environ)
     env["JAVA_TOOL_OPTIONS"] = ""          # লগ পরিষ্কার রাখতে
+    cmd = [kotlinc, "-J-Xmx8g", "-nowarn"]
+    if android_jar:                        # 🔴 V597
+        cmd += ["-cp", android_jar]
+    cmd += ["com", "-d", out_dir]
     try:
         p = subprocess.run(
-            [kotlinc, "-J-Xmx5g", "-nowarn", "com", "-d", out_dir],
+            cmd,
             cwd=SRC, env=env, capture_output=True, text=True, timeout=2400)
         return (p.stderr or "") + (p.stdout or "")
     except subprocess.TimeoutExpired:
@@ -341,7 +425,7 @@ def save_baseline(pairs):
 
 def main():
     update = "--update-baseline" in sys.argv
-    print("🛡️ Kotlin কম্পাইল-পাহারা (V497)")
+    print("🛡️ Kotlin কম্পাইল-পাহারা (V497 · V597-এ android.jar যোগ)")
     print("=" * 64)
 
     if not os.path.isdir(SRC):
@@ -359,8 +443,19 @@ def main():
         return 1
 
     print("   কম্পাইলার: %s" % kotlinc)
+    android_jar = find_android_jar()       # 🔴 V597
+    if android_jar:
+        print("   android.jar: %s" % android_jar)
+    else:
+        print()
+        print("⚠️ SKIPPED — android.jar পাওয়া গেল না, তাই **টাইপ যাচাই হয়নি**।")
+        print("   ⛔ এটাকে PASS ধরা যাবে না। নামিয়ে আবার চালান:")
+        print("   %s" % ANDROID_JAR_URL)
+        print()
+        print("ফল: SKIPPED — যাচাই করা যায়নি। ⛔ PASS নয়।")
+        return 1
     print("   কম্পাইল হচ্ছে… (কয়েক মিনিট লাগে)")
-    log = run_compiler(kotlinc)
+    log = run_compiler(kotlinc, android_jar)
     if log is None:
         print()
         print("⚠️ SKIPPED — কম্পাইলার শেষ করতে পারল না (সময়/মেমরি)।")
@@ -381,6 +476,23 @@ def main():
         print("ফল: FAIL — TK-কে এই ফাইল পাঠানো যাবে না. ⛔ PASS নয়।")
         return 1
     print("   ✅ import ছাড়া কোনো Android ক্লাস ব্যবহার হয়নি")
+
+    # 🔴🔴 V597 — বেসলাইনের **আগেই**, যাতে কোনোভাবেই চাপা না পড়ে
+    hard = real_type_errors(log)
+    if hard:
+        print()
+        print("❌ FAIL — এই ফাইলগুলোতে **আসল ভুল** আছে (একটাও unresolved নেই,")
+        print("   তাই লাইব্রেরি না-থাকার গোলমাল হতেই পারে না):")
+        for f, msgs in hard:
+            print("  ❌ %s  — %d টা ভুল" % (f.split("/")[-1], len(msgs)))
+            for m in msgs[:6]:
+                print("       %s" % m[:150])
+            if len(msgs) > 6:
+                print("       … আরো %d টা" % (len(msgs) - 6))
+        print()
+        print("ফল: FAIL — Android Studio-তে এই ফাইল বিল্ড হবে না। ⛔ PASS নয়।")
+        return 1
+    print("   ✅ android.jar দিয়ে টাইপ যাচাই — আসল ভুল ০")
 
     ext, members, per_file = project_vocabulary()
     found, total = collect_errors(log, ext, members, per_file)

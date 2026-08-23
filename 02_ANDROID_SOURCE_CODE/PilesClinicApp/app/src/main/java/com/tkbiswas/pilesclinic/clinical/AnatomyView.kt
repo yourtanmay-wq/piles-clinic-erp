@@ -396,7 +396,11 @@ class AnatomyView(context: Context) : View(context) {
         val cxP = m.x + Math.cos(g.ang) * g.len * 0.50
         val cyP = m.y + Math.sin(g.ang) * g.len * 0.50
         val sc = Math.min(dst.width(), dst.height()) / 100f
-        val r = Math.max(g.len * sc * 0.62f, g.wide * sc * 0.72f)
+        // 🔴 V597 — ক্যানভাসের সব ঘর Float চায়। g.len / g.wide হলো Double, তাই
+        // গুণফলটাও Double হয়ে যাচ্ছিল — সেই কারণেই Android Studio-তে
+        // ১২টা "Type mismatch: Double but Float" ভুল আসছিল। হিসাব একই রইল,
+        // শেষে শুধু Float-এ নামানো হলো।
+        val r = Math.max(g.len * sc * 0.62f, g.wide * sc * 0.72f).toFloat()
         if (r <= 0.5f) return
         val halfPct = (r / sc).toDouble()
         val b = base
