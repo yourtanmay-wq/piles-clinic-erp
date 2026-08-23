@@ -185,6 +185,16 @@ hindi_part = nobn.split("private val HINDI: Map<String, String> = mapOf(")[1]
 check("৫.৪ প্রতিটার হিন্দি অনুবাদ যোগ হয়েছে",
       all(('"%s" to ' % t) in hindi_part for t in need))
 
+# ───────── ৬ · "আবার পাঠান" বোতামের উজ্জ্বলতা ─────────
+mui = read(os.path.join(MOD, "ModuleUi.kt"))
+check("৬.১ দ্বিতীয় সারির (ফিকে) বোতাম আছে",
+      "fun buttonSoft(ctx: Context, text: String, onClick: () -> Unit): Button" in mui)
+check("৬.২ IN TIME আবার পাঠানোর বোতামটা ফিকে",
+      'ModuleUi.buttonSoft(this, NoBengali.s("📤 IN TIME আবার WhatsApp-এ পাঠান"))' in wn)
+check("৬.৩ OUT TIME বোতাম আগের মতোই উজ্জ্বল",
+      'ModuleUi.button(this, "OUT TIME")' in wn or 'ModuleUi.button(this, NoBengali.s("OUT TIME"))' in wn
+      or 'ModuleUi.button(this, "OUT TIME"' in wn)
+
 print("🛡️ V590 পাহারাদার — Report Card · ওভারডিউ · Trash View · App Calls · বাংলা")
 print("=" * 70)
 for o in oks:

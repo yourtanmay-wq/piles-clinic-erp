@@ -2041,7 +2041,14 @@ class WorkNotebookActivity : AppCompatActivity() {
                     //    ⛔ IN TIME-এর সময় · রিমাইন্ডার · Master-নোটিফিকেশন কিছুই
                     //       আবার বসে না — তাই বারবার চাপলেও কোনো ক্ষতি নেই।
                     // 🔴 V433 (TK): পাঠানো নিশ্চিত হলে সেই দিনের জন্য আর দেখাবে না।
-                    if (!isWaSent("in")) form.addView(ModuleUi.button(this, NoBengali.s("📤 IN TIME আবার WhatsApp-এ পাঠান")) {
+                    /* 🟢🔒 V590 (২৩.০৮.২০২৬, TK-নির্দেশ) — *"ইন টাইম যদি একবার
+                       পাঠিয়ে দিয়ে থাকে, তাহলে ওটা একটু উজ্জ্বলতা কম থাকবে।"*
+                       IN TIME চিহ্ন দেওয়ার সময়েই বার্তাটা একবার পাঠানো হয়ে যায়,
+                       তাই এটা "আবার" পাঠানোর বোতাম — দিনের আসল কাজ (OUT TIME)
+                       নয়। এখন হালকা রঙে (`buttonSoft`), তাই দুটো আর সমান
+                       উজ্জ্বল দেখায় না।
+                       ⛔ কখন দেখা যায় · চাপলে কী হয় — কিছুই বদলায়নি, শুধু রং। */
+                    if (!isWaSent("in")) form.addView(ModuleUi.buttonSoft(this, NoBengali.s("📤 IN TIME আবার WhatsApp-এ পাঠান")) {
                         resendInTimeWhatsApp()
                     }.apply {
                         layoutParams = LinearLayout.LayoutParams(

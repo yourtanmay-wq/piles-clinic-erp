@@ -144,6 +144,27 @@ object ModuleUi {
             }
         }
 
+    /**
+     * 🟢🔒 V590 (২৩.০৮.২০২৬, TK-নির্দেশ) — *"ইন টাইম যদি একবার পাঠিয়ে দিয়ে
+     * থাকে, তাহলে ওটা একটু উজ্জ্বলতা কম থাকবে।"*
+     *
+     * "আবার পাঠান" ধরনের **দ্বিতীয় সারির** বোতাম — কাজ হুবহু উপরের
+     * `button()`-এর মতোই (একই পরপর-চাপ পাহারা, একই মাপ), শুধু রংটা হালকা।
+     * তাই দিনের **আসল কাজ** (OUT TIME) চোখে আগে পড়ে, আর এই বোতামটা পাশে
+     * চুপচাপ থাকে।
+     *
+     * ⛔ কী কাজ করে, কখন দেখা যায় — কিছুই বদলায় না, শুধু রং।
+     */
+    fun buttonSoft(ctx: Context, text: String, onClick: () -> Unit): Button =
+        button(ctx, text, onClick).apply {
+            setTextColor(android.graphics.Color.parseColor("#2F6B45"))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(ctx, 10).toFloat()
+                setColor(android.graphics.Color.parseColor("#E7F4EC"))
+                setStroke(dp(ctx, 1), android.graphics.Color.parseColor("#BFE0CC"))
+            }
+        }
+
     fun card(ctx: Context): LinearLayout {
         val l = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
