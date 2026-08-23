@@ -1,7 +1,7 @@
 # 🛡️ Kotlin কম্পাইলারের **জানা গোলমাল** (Android SDK নেই বলে)।
 # ⛔ হাতে লিখবেন না — `verify_kotlin_compile.py --update-baseline`
 # প্রতিটা সারি:  ফাইল <TAB> ভুলের বার্তা (সংখ্যা N দিয়ে ঢাকা)
-# মোট: 288
+# মোট: 297
 com/tkbiswas/pilesclinic/clinical/ClinicalModulesActivity.kt	unresolved reference: intent
 com/tkbiswas/pilesclinic/clinical/ClinicalModulesActivity.kt	unresolved reference: setSupportActionBar
 com/tkbiswas/pilesclinic/clinical/ClinicalRepository.kt	'return' is not allowed here
@@ -92,6 +92,7 @@ com/tkbiswas/pilesclinic/native/BriefingActivity.kt	unresolved reference: theme
 com/tkbiswas/pilesclinic/native/BriefingModel.kt	'return' is not allowed here
 com/tkbiswas/pilesclinic/native/BriefingReminderWorker.kt	one type argument expected for class Result<out T>
 com/tkbiswas/pilesclinic/native/CallReminderWorker.kt	one type argument expected for class Result<out T>
+com/tkbiswas/pilesclinic/native/ChamberAttendanceActivity.kt	suspend function 'askWhichChamberPatient' should be called only from a coroutine or another suspend function
 com/tkbiswas/pilesclinic/native/ChamberAttendanceActivity.kt	suspend function 'resolveBestFollowUpId' should be called only from a coroutine or another suspend function
 com/tkbiswas/pilesclinic/native/ChamberAttendanceActivity.kt	suspend function 'resolveOrHealFollowUpId' should be called only from a coroutine or another suspend function
 com/tkbiswas/pilesclinic/native/ChamberAttendanceActivity.kt	suspend function 'saveExpectedFromChamber' should be called only from a coroutine or another suspend function
@@ -133,6 +134,7 @@ com/tkbiswas/pilesclinic/native/DoctorQueueActivity.kt	none of the following fun
 com/tkbiswas/pilesclinic/native/DoctorQueueActivity.kt	unresolved reference: layoutInflater
 com/tkbiswas/pilesclinic/native/DoctorQueueAdapter.kt	unresolved reference: cornerRadius
 com/tkbiswas/pilesclinic/native/DoctorVisitActivity.kt	'operator' modifier is required on 'compareTo' in 'kotlin'
+com/tkbiswas/pilesclinic/native/DoctorVisitActivity.kt	suspend function 'findVisitPatient' should be called only from a coroutine or another suspend function
 com/tkbiswas/pilesclinic/native/DoctorVisitActivity.kt	unresolved reference: clipToOutline
 com/tkbiswas/pilesclinic/native/DoctorVisitActivity.kt	unresolved reference: cornerRadius
 com/tkbiswas/pilesclinic/native/DoctorVisitActivity.kt	unresolved reference: includeFontPadding
@@ -145,6 +147,7 @@ com/tkbiswas/pilesclinic/native/DraftActivity.kt	unresolved reference: layoutInf
 com/tkbiswas/pilesclinic/native/DraftListActivity.kt	unresolved reference: cornerRadius
 com/tkbiswas/pilesclinic/native/DraftListActivity.kt	unresolved reference: intent
 com/tkbiswas/pilesclinic/native/DraftListActivity.kt	unresolved reference: layoutInflater
+com/tkbiswas/pilesclinic/native/EnquiryActivity.kt	suspend function 'askWhichRestorePatient' should be called only from a coroutine or another suspend function
 com/tkbiswas/pilesclinic/native/EnquiryActivity.kt	suspend function 'checkDuplicate' should be called only from a coroutine or another suspend function
 com/tkbiswas/pilesclinic/native/EnquiryActivity.kt	unresolved reference: cornerRadius
 com/tkbiswas/pilesclinic/native/EnquiryActivity.kt	unresolved reference: intent
@@ -184,6 +187,7 @@ com/tkbiswas/pilesclinic/native/GlobalSearchActivity.kt	unresolved reference: se
 com/tkbiswas/pilesclinic/native/GlobalSearchActivity.kt	unresolved reference: shape
 com/tkbiswas/pilesclinic/native/LoginActivity.kt	'when' expression must be exhaustive, add necessary 'else' branch
 com/tkbiswas/pilesclinic/native/LoginActivity.kt	unresolved reference: layoutInflater
+com/tkbiswas/pilesclinic/native/MasterOutTimeWorker.kt	one type argument expected for class Result<out T>
 com/tkbiswas/pilesclinic/native/MedicinePaymentActivity.kt	unresolved reference: cornerRadius
 com/tkbiswas/pilesclinic/native/MedicinePaymentActivity.kt	unresolved reference: layoutInflater
 com/tkbiswas/pilesclinic/native/MedicinePaymentActivity.kt	unresolved reference: setStroke
@@ -201,9 +205,11 @@ com/tkbiswas/pilesclinic/native/NotificationsActivity.kt	unresolved reference: t
 com/tkbiswas/pilesclinic/native/PasswordCenterActivity.kt	unresolved reference: layoutInflater
 com/tkbiswas/pilesclinic/native/PatientMessage.kt	unresolved reference: cornerRadius
 com/tkbiswas/pilesclinic/native/PatientMessage.kt	unresolved reference: setStroke
+com/tkbiswas/pilesclinic/native/PatientPhotoActivity.kt	suspend function 'askWhichPatient' should be called only from a coroutine or another suspend function
 com/tkbiswas/pilesclinic/native/PatientPhotoActivity.kt	unresolved reference: intent
 com/tkbiswas/pilesclinic/native/PatientPhotoActivity.kt	unresolved reference: layoutInflater
 com/tkbiswas/pilesclinic/native/PatientPhotoActivity.kt	unresolved reference: registerForActivityResult
+com/tkbiswas/pilesclinic/native/PatientPhotoRepository.kt	'return' is not allowed here
 com/tkbiswas/pilesclinic/native/PatientTimelineActivity.kt	unresolved reference: cornerRadii
 com/tkbiswas/pilesclinic/native/PatientTimelineActivity.kt	unresolved reference: cornerRadius
 com/tkbiswas/pilesclinic/native/PatientTimelineActivity.kt	unresolved reference: intent
@@ -215,6 +221,7 @@ com/tkbiswas/pilesclinic/native/PatientTimelineActivity.kt	unresolved reference:
 com/tkbiswas/pilesclinic/native/PatientTimelineActivity.kt	unresolved reference: theme
 com/tkbiswas/pilesclinic/native/PatientTimelineActivity.kt	unresolved reference: threshold
 com/tkbiswas/pilesclinic/native/PaymentActivity.kt	none of the following functions can be called with the arguments supplied:
+com/tkbiswas/pilesclinic/native/PaymentActivity.kt	suspend function 'askWhichPatient' should be called only from a coroutine or another suspend function
 com/tkbiswas/pilesclinic/native/PaymentActivity.kt	unresolved reference: cornerRadius
 com/tkbiswas/pilesclinic/native/PaymentActivity.kt	unresolved reference: insetBottom
 com/tkbiswas/pilesclinic/native/PaymentActivity.kt	unresolved reference: insetTop
@@ -228,8 +235,8 @@ com/tkbiswas/pilesclinic/native/PaymentActivity.kt	unresolved reference: setStro
 com/tkbiswas/pilesclinic/native/PaymentActivity.kt	unresolved reference: strokeColor
 com/tkbiswas/pilesclinic/native/PaymentRepository.kt	'return' is not allowed here
 com/tkbiswas/pilesclinic/native/PaymentRingView.kt	unresolved reference: isFakeBoldText
-com/tkbiswas/pilesclinic/native/PaymentRingView.kt	unresolved reference: strokeCap
 com/tkbiswas/pilesclinic/native/PaymentRingView.kt	val cannot be reassigned
+com/tkbiswas/pilesclinic/native/PhotoUtils.kt	unresolved reference: postRotate
 com/tkbiswas/pilesclinic/native/PremiumAlert.kt	unresolved reference: cornerRadii
 com/tkbiswas/pilesclinic/native/PremiumAlert.kt	unresolved reference: cornerRadius
 com/tkbiswas/pilesclinic/native/PublicSiteActivity.kt	unresolved reference: cornerRadius
@@ -270,13 +277,15 @@ com/tkbiswas/pilesclinic/native/SupabaseClient.kt	'return' is not allowed here
 com/tkbiswas/pilesclinic/native/SupabaseClient.kt	unresolved reference: maxRequests
 com/tkbiswas/pilesclinic/native/SupabaseClient.kt	unresolved reference: maxRequestsPerHost
 com/tkbiswas/pilesclinic/native/TrashBinActivity.kt	unresolved reference: layoutInflater
+com/tkbiswas/pilesclinic/native/TrashRepository.kt	'return' is not allowed here
 com/tkbiswas/pilesclinic/native/UserPhotoActivity.kt	unresolved reference: intent
 com/tkbiswas/pilesclinic/native/UserPhotoActivity.kt	unresolved reference: layoutInflater
 com/tkbiswas/pilesclinic/native/UserPhotoActivity.kt	unresolved reference: registerForActivityResult
 com/tkbiswas/pilesclinic/print/ChamberRegisterPdfBuilder.kt	unresolved reference: isFakeBoldText
 com/tkbiswas/pilesclinic/print/ClinicPdfBuilder.kt	unresolved reference: isFakeBoldText
-com/tkbiswas/pilesclinic/print/ClinicPdfBuilder.kt	unresolved reference: pathEffect
 com/tkbiswas/pilesclinic/print/PdfPrintDocumentAdapter.kt	unresolved reference: WriteResultCallback
+com/tkbiswas/pilesclinic/print/PrintCenterActivity.kt	suspend function 'pickPatientForPrint' should be called only from a coroutine or another suspend function
+com/tkbiswas/pilesclinic/print/PrintCenterActivity.kt	suspension functions can be called only within coroutine body
 com/tkbiswas/pilesclinic/print/PrintCenterActivity.kt	unresolved reference: colors
 com/tkbiswas/pilesclinic/print/PrintCenterActivity.kt	unresolved reference: cornerRadius
 com/tkbiswas/pilesclinic/print/PrintCenterActivity.kt	unresolved reference: iconTint
@@ -290,4 +299,3 @@ com/tkbiswas/pilesclinic/security/BackupManager.kt	none of the following functio
 com/tkbiswas/pilesclinic/security/CrashHandler.kt	none of the following functions can be called with the arguments supplied:
 com/tkbiswas/pilesclinic/security/SettingsActivity.kt	suspend function 'export' should be called only from a coroutine or another suspend function
 com/tkbiswas/pilesclinic/security/SettingsActivity.kt	unresolved reference: setSupportActionBar
-com/tkbiswas/pilesclinic/native/MasterOutTimeWorker.kt	one type argument expected for class Result<out T>

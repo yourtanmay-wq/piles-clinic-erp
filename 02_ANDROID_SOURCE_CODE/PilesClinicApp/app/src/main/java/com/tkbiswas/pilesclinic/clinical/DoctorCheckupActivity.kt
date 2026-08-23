@@ -220,6 +220,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.btnAfterPhoto).setOnClickListener { showPhotoDialog(2) }
 
         buildSymptomRows()   // 🔵 V554
+        wireSymptomFold()    // 🔵 V574 — চাপ দিলে ভাগ ২ খোলে
         buildHistoryDetailRows()   // 🔵 V555
         buildLifestyleRows()       // 🔵 V556
         buildAnatomyBoard()        // 🔵 V558 — রোগের ছবি
@@ -1259,6 +1260,77 @@ class DoctorCheckupActivity : AppCompatActivity() {
 
     private fun symDp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
+    /* ═══════════════════════════════════════════════════════════════════
+       🔵🔒 V574 (২৩.০৮.২০২৬ — TK ডেমো দেখে অনুমোদন করেছেন) — **চাপ দিলে খোলে**।
+       TK-এর নির্দেশ: *"রোগী এসে কি কি বললেন সেখানে চাপ দিলে ওই 6 টা অপশন
+       ওপেন হতে হবে"* এবং *"রক্তপাতের ইতিহাস / ব্যথার ইতিহাস / ফোলা
+       মাংসপিন্ডের ইতিহাস / পুজ ও জল পড়ার ইতিহাস — এগুলো এখানে চাপ দিলে
+       তখনই ফর্মগুলো ওপেন হবে"*।
+
+       বন্ধ থাকলেও যেন বোঝা যায় ভিতরে কিছু ভরা আছে — তাই ডান দিকে ছোট
+       সবুজ ব্যাজে সংখ্যা বসে (কম্পিউটারের `.wlv1FoldN`-এর যমজ)।
+       ⛔ ভিতরের একটা ঘরও বদলায়নি · সেভ/পড়ার কোড ছোঁয়া হয়নি — শুধু
+          দেখা-না-দেখা (`visibility`)।
+       ⚠️ এখানে `android.view.View` পুরো নাম লিখে ব্যবহার করা হয়েছে, কারণ
+          এই ফাইলে ওটা import করা নেই (V575-এ এই ভুলেই বিল্ড ভেঙেছিল)।
+       ═══════════════════════════════════════════════════════════════════ */
+    private class DocFold(
+        val num: TextView,
+        val chev: TextView,
+        val body: android.view.View
+    )
+
+    private val docFolds = LinkedHashMap<String, DocFold>()
+
+    /** মাথায় চাপ দিলে শরীরটা খোলে/বন্ধ হয়। শুরুতে বন্ধ। */
+    private fun attachFold(key: String, head: android.view.View?,
+                           num: TextView?, chev: TextView?,
+                           body: android.view.View?) {
+        if (head == null || num == null || chev == null || body == null) return
+        body.visibility = android.view.View.GONE
+        chev.text = "\u2304"
+        docFolds[key] = DocFold(num, chev, body)
+        head.setOnClickListener {
+            val open = body.visibility != android.view.View.VISIBLE
+            body.visibility = if (open) android.view.View.VISIBLE else android.view.View.GONE
+            chev.text = if (open) "\u2303" else "\u2304"
+        }
+    }
+
+    /** বন্ধ অবস্থাতেও ভিতরে কতগুলো ভরা আছে সেটা দেখানো। ০ হলে ব্যাজ বসেই না। */
+    private fun setFoldCount(key: String, n: Int) {
+        val f = docFolds[key] ?: return
+        if (n > 0) {
+            f.num.text = n.toString() + "\u099F\u09BF"     // "টি"
+            f.num.visibility = android.view.View.VISIBLE
+        } else {
+            f.num.visibility = android.view.View.GONE
+        }
+    }
+
+    /** ভাগ ২-এ কতগুলো টিক পড়েছে — মাথার সংখ্যাটা নতুন করে বসানো হয়। */
+    private fun refreshSymptomFold() {
+        var n = 0
+        for (line in SymptomHistoryModel.LINES) {
+            if (symptomTicks[line.key]?.isChecked == true) n++
+        }
+        setFoldCount("sym", n)
+    }
+
+    /* 🔵 V574 (TK-নির্দেশ, ছবি দেখে): *"দিন সময় / যে বক্সগুলো / সম্পূর্ণ ডিজাইন
+       কেন বদলে দিলেন / দুটো পাশাপাশি থাকবো"* — তাই বাক্স দুটো **পাশাপাশিই**
+       আছে, ডিজাইন এক অক্ষরও বদলায়নি। TK-এর বাছাই ছিল **প্রস্তাব খ**: টিক
+       দিলে তবেই বাক্স দুটো দেখা যাবে, নইলে লাইনটা পরিষ্কার থাকবে। */
+    private fun syncSymptomBoxes(key: String) {
+        val on = symptomTicks[key]?.isChecked == true
+        // ⚠️ `GONE` — `INVISIBLE` নয়। কম্পিউটারের অ্যাপে (`display:none`) বাক্স
+        //    দুটো একেবারে সরে যায়; ফোনেও হুবহু তাই হওয়া দরকার, নইলে TK-এর
+        //    অনুমোদিত ডেমোর সঙ্গে দেখতে মিলত না (ফাঁকা জায়গা পড়ে থাকত)।
+        val vis = if (on) android.view.View.VISIBLE else android.view.View.GONE
+        symptomAmounts[key]?.visibility = vis
+        symptomUnits[key]?.visibility = vis
+    }
+
     private fun symChipBg(on: Boolean): android.graphics.drawable.GradientDrawable =
         android.graphics.drawable.GradientDrawable().apply {
             cornerRadius = symDp(20).toFloat()
@@ -1299,6 +1371,11 @@ class DoctorCheckupActivity : AppCompatActivity() {
             val cb = android.widget.CheckBox(this)
             row.addView(cb)
             symptomTicks[line.key] = cb
+            // 🔵 V574: টিক বদলালেই বাক্স দুটো দেখা/লুকানো + মাথার সংখ্যা বদলায়
+            cb.setOnCheckedChangeListener { _, _ ->
+                syncSymptomBoxes(line.key)
+                refreshSymptomFold()
+            }
 
             row.addView(TextView(this).apply {
                 text = line.label
@@ -1378,7 +1455,21 @@ class DoctorCheckupActivity : AppCompatActivity() {
             SpinnerPicker.attach(unit, "কবে থেকে?")
 
             box.addView(row)
+            syncSymptomBoxes(line.key)      // 🔵 V574 — শুরুতেই ঠিক অবস্থায়
         }
+        refreshSymptomFold()
+    }
+
+    /** 🔵 V574 — XML-এ বসানো মাথাটার সঙ্গে ভাঁজের কাজ জুড়ে দেওয়া। */
+    private fun wireSymptomFold() {
+        attachFold(
+            "sym",
+            findViewById<android.widget.LinearLayout>(R.id.symptomFoldHead),
+            findViewById<TextView>(R.id.symptomFoldNum),
+            findViewById<TextView>(R.id.symptomFoldChev),
+            findViewById<android.widget.LinearLayout>(R.id.symptomFoldBody)
+        )
+        refreshSymptomFold()
     }
 
     /* ═══════════════════════════════════════════════════════════════════
@@ -1391,6 +1482,9 @@ class DoctorCheckupActivity : AppCompatActivity() {
        ⛔ কাগজের একটাও শব্দ বদলানো হয়নি।
        ═══════════════════════════════════════════════════════════════ */
     private val historyChips = LinkedHashMap<String, MutableList<TextView>>()
+
+    /** 🔵 V574 — কোন দলে কোন চিপগুলো, যাতে মাথার সংখ্যাটা গোনা যায়। */
+    private val historyFoldChips = LinkedHashMap<String, MutableList<TextView>>()
 
     private fun histChipBg(on: Boolean): android.graphics.drawable.GradientDrawable =
         android.graphics.drawable.GradientDrawable().apply {
@@ -1410,16 +1504,63 @@ class DoctorCheckupActivity : AppCompatActivity() {
         val box = findViewById<android.widget.LinearLayout>(R.id.historyDetailGroup) ?: return
         box.removeAllViews()
         historyChips.clear()
-        for (group in HistoryDetailModel.GROUPS) {
-            box.addView(TextView(this).apply {
+        historyFoldChips.clear()
+        for ((gi, group) in HistoryDetailModel.GROUPS.withIndex()) {
+            /* 🔵 V574 (TK-নির্দেশ): *"রক্তপাতের ইতিহাস / ব্যথার ইতিহাস / ফোলা
+               মাংসপিন্ডের ইতিহাস / পুজ ও জল পড়ার ইতিহাস — এগুলো এখানে চাপ
+               দিলে তখনই ফর্মগুলো ওপেন হবে"*। দলের নামটাই এখন মাথা, ডান দিকে
+               কতগুলো বাছা হয়েছে তার সবুজ ব্যাজ আর `⌄` চিহ্ন। */
+            val foldKey = "hist" + gi
+            val head = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                isClickable = true
+                isFocusable = true
+                setPadding(0, symDp(10), 0, symDp(8))
+            }
+            head.addView(TextView(this).apply {
                 text = group.title
                 textSize = 13.5f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setTextColor(android.graphics.Color.parseColor("#0B2B59"))
-                setPadding(0, symDp(10), 0, symDp(4))
+                layoutParams = android.widget.LinearLayout.LayoutParams(
+                    0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             })
+            val num = TextView(this).apply {
+                textSize = 11.5f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#0B4F2A"))
+                setBackgroundResource(R.drawable.bg_fold_count_chip)
+                setPadding(symDp(9), symDp(2), symDp(9), symDp(2))
+                visibility = android.view.View.GONE
+            }
+            head.addView(num)
+            val chev = TextView(this).apply {
+                text = "\u2304"
+                textSize = 15f
+                setTextColor(android.graphics.Color.parseColor("#5B6B81"))
+                val lp = android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
+                lp.marginStart = symDp(8)
+                layoutParams = lp
+            }
+            head.addView(chev)
+            box.addView(head)
+
+            val body = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+                layoutParams = android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
+            }
+            box.addView(body)
+            attachFold(foldKey, head, num, chev, body)
+            val groupChips = ArrayList<TextView>()
+            historyFoldChips[foldKey] = groupChips
+
             for (q in group.questions) {
-                if (q.label.isNotBlank()) box.addView(TextView(this).apply {
+                if (q.label.isNotBlank()) body.addView(TextView(this).apply {
                     text = q.label
                     textSize = 11.5f
                     setTypeface(typeface, android.graphics.Typeface.BOLD)
@@ -1455,15 +1596,25 @@ class DoctorCheckupActivity : AppCompatActivity() {
                         chip.setOnClickListener {
                             chip.setTag(R.id.historyDetailGroup, chip.getTag(R.id.historyDetailGroup) != true)
                             paintHistoryChip(chip)
+                            refreshHistoryFolds()   // 🔵 V574 — মাথার সংখ্যা সঙ্গে সঙ্গে
                         }
                         paintHistoryChip(chip)
                         chips.add(chip)
                         row.addView(chip)
                     }
-                    box.addView(row)
+                    body.addView(row)
                 }
                 historyChips[field] = chips
+                groupChips.addAll(chips)
             }
+        }
+        refreshHistoryFolds()
+    }
+
+    /** 🔵 V574 — চারটে দলের মাথায় কতগুলো বাছা হয়েছে সেটা নতুন করে বসানো। */
+    private fun refreshHistoryFolds() {
+        for ((key, chips) in historyFoldChips) {
+            setFoldCount(key, chips.count { it.getTag(R.id.historyDetailGroup) == true })
         }
     }
 
@@ -2084,6 +2235,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
             }
         }
         findViewById<android.widget.EditText>(R.id.etHistoryNote)?.setText(note)
+        refreshHistoryFolds()   // 🔵 V574 — পুরোনো রেকর্ড খুললেও সংখ্যা ঠিক থাকে
     }
 
     private fun collectSymptomHistory(): String {
@@ -2119,6 +2271,10 @@ class DoctorCheckupActivity : AppCompatActivity() {
             if (line.severity) setSeverity(line.key, e.severity)
         }
         findViewById<android.widget.EditText>(R.id.etSymptomOther)?.setText(other)
+        // 🔵 V574 — পুরোনো রেকর্ড খোলার পরেও বাক্স ও সংখ্যা ঠিক অবস্থায় আসে
+        for (line in SymptomHistoryModel.LINES) syncSymptomBoxes(line.key)
+        refreshSymptomFold()
+        refreshHistoryFolds()
     }
 
     private fun internalPilesBox(): android.widget.CheckBox? =

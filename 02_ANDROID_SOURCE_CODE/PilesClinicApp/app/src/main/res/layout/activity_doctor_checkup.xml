@@ -354,19 +354,58 @@
                     <LinearLayout style="@style/DocNoteFieldBox">
                         <View style="@style/DocNoteAccentBar" />
                         <LinearLayout style="@style/DocNoteFieldBoxInner">
-                            <LinearLayout style="@style/DocNoteFieldBoxTopRow">
-                                <TextView style="@style/DocNoteIcon" android:text="❓" />
-                                <TextView style="@style/DocNoteLabel" android:text="রোগী এসে প্রথমে কি কি বললেন?" />
-                            </LinearLayout>
-                            <View style="@style/DocNoteDivider" />
+                            <!-- 🔵 V574 (TK-নির্দেশ): *"রোগী এসে কি কি বললেন সেখানে চাপ
+                                 দিলে ওই 6 টা অপশন ওপেন হতে হবে"* — তাই এই সারিটা এখন
+                                 চাপা যায়, আর ডান দিকে কতগুলো ভরা আছে তার সংখ্যা বসে।
+                                 ⛔ ভিতরের ৬টা লাইন এক অক্ষরও বদলায়নি, শুধু লুকিয়ে থাকে। -->
                             <LinearLayout
-                                android:id="@+id/symptomGroup"
+                                android:id="@+id/symptomFoldHead"
+                                style="@style/DocNoteFieldBoxTopRow"
+                                android:clickable="true"
+                                android:focusable="true">
+                                <TextView style="@style/DocNoteIcon" android:text="❓" />
+                                <TextView style="@style/DocNoteLabel"
+                                    android:layout_width="0dp"
+                                    android:layout_weight="1"
+                                    android:text="রোগী এসে প্রথমে কি কি বললেন?" />
+                                <TextView
+                                    android:id="@+id/symptomFoldNum"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:background="@drawable/bg_fold_count_chip"
+                                    android:paddingLeft="9dp"
+                                    android:paddingTop="2dp"
+                                    android:paddingRight="9dp"
+                                    android:paddingBottom="2dp"
+                                    android:textColor="#0B4F2A"
+                                    android:textSize="11.5sp"
+                                    android:textStyle="bold"
+                                    android:visibility="gone" />
+                                <TextView
+                                    android:id="@+id/symptomFoldChev"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginLeft="8dp"
+                                    android:text="⌄"
+                                    android:textColor="#5B6B81"
+                                    android:textSize="15sp" />
+                            </LinearLayout>
+                            <LinearLayout
+                                android:id="@+id/symptomFoldBody"
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
-                                android:orientation="vertical" />
-                            <EditText android:id="@+id/etSymptomOther" style="@style/DocNoteInputMultiline"
-                                android:minLines="2"
-                                android:hint="এছাড়া অন্য কিছু থাকলে এখানে লিখুন" />
+                                android:orientation="vertical"
+                                android:visibility="gone">
+                                <View style="@style/DocNoteDivider" />
+                                <LinearLayout
+                                    android:id="@+id/symptomGroup"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:orientation="vertical" />
+                                <EditText android:id="@+id/etSymptomOther" style="@style/DocNoteInputMultiline"
+                                    android:minLines="2"
+                                    android:hint="এছাড়া অন্য কিছু থাকলে এখানে লিখুন" />
+                            </LinearLayout>
                         </LinearLayout>
                     </LinearLayout>
 
@@ -377,11 +416,10 @@
                     <LinearLayout style="@style/DocNoteFieldBox">
                         <View style="@style/DocNoteAccentBar" />
                         <LinearLayout style="@style/DocNoteFieldBoxInner">
-                            <LinearLayout style="@style/DocNoteFieldBoxTopRow">
-                                <TextView style="@style/DocNoteIcon" android:text="🗒️" />
-                                <TextView style="@style/DocNoteLabel" android:text="রোগীর বলা ইতিহাস" />
-                            </LinearLayout>
-                            <View style="@style/DocNoteDivider" />
+                            <!-- 🔵 V574 (TK-নির্দেশ): *"রোগী এসে প্রথমে কি কি বললেন /
+                                 রোগীর বলা ইতিহাস — এই লেখাগুলো দুইবার তিনবার … সেরকম
+                                 যেন না হয়"* ⇒ উপরের "রোগীর বলা ইতিহাস" শিরোনামটা তুলে
+                                 দেওয়া হলো; ভিতরের চারটে দলের নিজের নামই যথেষ্ট। -->
                             <LinearLayout
                                 android:id="@+id/historyDetailGroup"
                                 android:layout_width="match_parent"
