@@ -775,9 +775,9 @@ class RegistrationActivity : AppCompatActivity() {
                         "এখনই সেভ করলে একই রোগীর দ্বিতীয় রেকর্ড তৈরি হয়ে যেতে পারে।\n\n" +
                         "লাইন ঠিক হলে \"আবার দেখুন\" চাপুন।"
                     )
-                    .setPositiveButton("আবার দেখুন") { _, _ -> validateAndSave(user) }
-                    .setNegativeButton("তবুও সেভ করুন") { _, _ -> performSave(user, name, mobile, branch, fee) }
-                    .setNeutralButton("বন্ধ করুন", null)
+                    .setPositiveButton("Check Again") { _, _ -> validateAndSave(user) }
+                    .setNegativeButton("Save Anyway") { _, _ -> performSave(user, name, mobile, branch, fee) }
+                    .setNeutralButton("Close", null)
                     .show().also { PremiumAlert.paint(it) }
             } else {
                 // 🔒🔒 B601 (10.08.2026, TK-অনুমোদিত প্রুফ · "ফাইনাল/লক"): active
@@ -971,7 +971,7 @@ class RegistrationActivity : AppCompatActivity() {
                         "হ্যাঁ চাপলে সম্পূর্ণ নতুন একজন রোগী তৈরি হবে — পুরোনো রোগীর " +
                         "কোনো তথ্য বদলাবে না, আর নতুন রোগীর নিজের Visit Fee কাটবে।"
                 )
-                .setPositiveButton("হ্যাঁ, আলাদা রোগী") { d, _ ->
+                .setPositiveButton("Yes, Different Patient") { d, _ ->
                     d.dismiss()
                     dialog.dismiss()
                     performSave(
@@ -980,7 +980,7 @@ class RegistrationActivity : AppCompatActivity() {
                         forceNewPatientRowId = PatientModel.newRowIdForSameMobile(mobile)
                     )
                 }
-                .setNegativeButton("না") { d, _ -> d.dismiss() }
+                .setNegativeButton("No") { d, _ -> d.dismiss() }
                 .show()
         }
         dialog.show()

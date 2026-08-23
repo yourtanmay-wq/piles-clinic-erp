@@ -1653,7 +1653,7 @@ class ChamberAttendanceActivity : AppCompatActivity() {
         val dialog = AlertDialog.Builder(this)
             .setCustomTitle(PremiumAlert.header(this, "অন্য কারণ"))
             .setView(wrap)
-            .setPositiveButton("সেভ করুন", null)
+            .setPositiveButton("Save", null)
             .setNegativeButton("Close", null)
             .create()
         dialog.setOnShowListener {
@@ -3328,7 +3328,7 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                     AlertDialog.Builder(this@ChamberAttendanceActivity)
                         .setCustomTitle(PremiumAlert.header(this@ChamberAttendanceActivity, NoBengali.s("Master-এর অনুমতি লাগবে")))
                         .setMessage(NoBengali.s("$amtT\n\n⛔ এখনই কিছুই মুছবে না। Master-এর ঘন্টায় অনুরোধ যাবে; তিনি অনুমোদন দিলে তবেই ডিলিট হবে।"))
-                        .setPositiveButton("অনুরোধ পাঠান") { _, _ ->
+                        .setPositiveButton("Send Request") { _, _ ->
                             lifecycleScope.launch {
                                 val sent = withContext(Dispatchers.IO) {
                                     try {
@@ -3345,7 +3345,7 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                                 ).show()
                             }
                         }
-                        .setNegativeButton("বন্ধ করুন", null)
+                        .setNegativeButton("Close", null)
                         .show().also { PremiumAlert.paint(it) }
                     return@launch
                 }
@@ -3712,7 +3712,7 @@ class ChamberAttendanceActivity : AppCompatActivity() {
             try {
                 startActivity(android.content.Intent(this, actions[which].second))
             } catch (_: Throwable) { }
-        }.setNegativeButton("বন্ধ", null).show().also { PremiumAlert.paint(it) }
+        }.setNegativeButton("Close", null).show().also { PremiumAlert.paint(it) }
     }
 
 }

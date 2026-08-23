@@ -137,8 +137,8 @@ class PrescriptionActivity : AppCompatActivity() {
                     AlertDialog.Builder(this@PrescriptionActivity)
                         .setTitle("Prescription already saved today")
                         .setMessage("এই রোগীর আজ একটি Prescription সেভ হয়েছে। আপনি কি আবার Prescription করতে চান?")
-                        .setNegativeButton("না") { _, _ -> saveInProgress = false }
-                        .setPositiveButton("হ্যাঁ") { _, _ -> commitPrescription(openPrintAfter, finishAfter) }
+                        .setNegativeButton("No") { _, _ -> saveInProgress = false }
+                        .setPositiveButton("Yes") { _, _ -> commitPrescription(openPrintAfter, finishAfter) }
                         .setOnCancelListener { saveInProgress = false }
                         // 🔴🔒 V512: বাংলা-বন্ধ স্টাফের (Kishanganj) পর্দায় এই পপ-আপটাও
                         //   ইংরেজিতে দেখাবে। এই পপ-আপ PremiumAlert দিয়ে আঁকা হয় না,
@@ -154,7 +154,7 @@ class PrescriptionActivity : AppCompatActivity() {
                     AlertDialog.Builder(this@PrescriptionActivity)
                         .setTitle("Prescription যাচাই করা যায়নি")
                         .setMessage("ইন্টারনেট সংযোগ পরীক্ষা করে আবার Save করুন। কোনো Prescription সেভ হয়নি।")
-                        .setPositiveButton("ঠিক আছে", null)
+                        .setPositiveButton("OK", null)
                         // 🔴🔒 V512: উপরেরটার হুবহু একই কারণ ও একই নিরাপত্তা।
                         .show().also { com.tkbiswas.pilesclinic.native.NoBengali.installDialog(it) }
                 }

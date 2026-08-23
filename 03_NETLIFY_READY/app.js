@@ -3985,7 +3985,7 @@ async function wlv1AskSendLang(branch,name,mobile,pid,kind,o,lang,waOnly){
       '<pre style="white-space:pre-wrap;font-family:inherit;font-size:12.5px;background:#f7fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px;margin:0 0 10px">'+esc(text)+'</pre>'+
       '<div style="display:flex;gap:8px">'+
       '<button style="flex:1;background:#0C9E33;color:#fff;border:none" onclick="wlv1DoSend(\''+d+'\',\'wa\')">WhatsApp</button>'+
-      '<button style="flex:1;background:#E4E8EE;color:#3C4859;border:none" onclick="closeModal()">পরে পাঠাব</button>'+
+      '<button style="flex:1;background:#E4E8EE;color:#3C4859;border:none" onclick="closeModal()">Send Later</button>'+
       '<button style="flex:1;background:#1E5AB4;color:#fff;border:none" onclick="wlv1DoSend(\''+d+'\',\'sms\')">SMS</button>'+
       '</div>'+
       __a4Btn+'</div>');
@@ -17454,10 +17454,10 @@ function wlv1TablePick(i){
       + (hist.length?hist.map(function(h){ return '<div class="wlv1Tl"><b>'+esc(h.remark||'')+'</b><small>'+esc(fmtDate(h.date||''))+' · '+esc(codeName(h.staff||''))+'</small></div>' }).join(''):'<small class="mut">কিছু নেই</small>')
       + '</div>'
       + '<div class="wlv1PanelAct">'
-      + '<button class="small" onclick="contact(\''+esc(x.mobile)+'\',\'call\')">📞 কল</button>'
+      + '<button class="small" onclick="contact(\''+esc(x.mobile)+'\',\'call\')">📞 Call</button>'
       + '<button class="small ghost" onclick="contact(\''+esc(x.mobile)+'\',\'wa\')">💬 WhatsApp</button>'
       + '<button class="small ghost" onclick="viewFollow(\''+esc(x.id)+'\')">👁 View All</button>'
-      + '<button class="small ghost" onclick="nextFollowDate(\''+esc(x.id)+'\')">⏰ পরের তারিখ</button>'
+      + '<button class="small ghost" onclick="nextFollowDate(\''+esc(x.id)+'\')">⏰ Next Date</button>'
       + '</div>';
   }catch(_e){}
 }

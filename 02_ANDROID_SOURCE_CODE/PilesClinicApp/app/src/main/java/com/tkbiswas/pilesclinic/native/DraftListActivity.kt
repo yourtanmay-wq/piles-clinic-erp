@@ -405,7 +405,7 @@ class DraftListActivity : AppCompatActivity() {
                     "অনুরোধ পাঠালে সেটা Master-এর ঘন্টায় যাবে — তিনি অনুমতি দিলে তবেই মুছবে।\n\n" +
                     "⛔ এখনই কিছুই মুছবে না।"
                 )
-                .setPositiveButton("অনুরোধ পাঠান") { _, _ ->
+                .setPositiveButton("Send Request") { _, _ ->
                     lifecycleScope.launch {
                         val ok = withContext(Dispatchers.IO) {
                             DeletePermission.sendRequest(
@@ -515,7 +515,7 @@ class DraftListActivity : AppCompatActivity() {
                                     "অনুরোধ পাঠালে সেটা Master-এর ঘন্টায় যাবে — তিনি অনুমতি দিলে তবেই মুছবে।\n\n" +
                                     "⛔ এখনই কিছুই মুছবে না।"
                                 )
-                                .setPositiveButton("অনুরোধ পাঠান") { _, _ ->
+                                .setPositiveButton("Send Request") { _, _ ->
                                     lifecycleScope.launch {
                                         val ok = withContext(Dispatchers.IO) {
                                             DeletePermission.sendRequest(

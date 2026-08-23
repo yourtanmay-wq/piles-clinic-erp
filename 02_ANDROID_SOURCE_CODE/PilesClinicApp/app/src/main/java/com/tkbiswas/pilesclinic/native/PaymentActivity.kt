@@ -1034,7 +1034,7 @@ class PaymentActivity : AppCompatActivity() {
                             "$amtText ($labelText)\n\n⛔ এখনই কিছুই মুছবে না। " +
                             "Master-এর ঘন্টায় অনুরোধ যাবে; তিনি অনুমোদন দিলে তবেই ডিলিট হবে।"
                         )
-                        .setPositiveButton("অনুরোধ পাঠান") { _, _ ->
+                        .setPositiveButton("Send Request") { _, _ ->
                             lifecycleScope.launch {
                                 val sent = withContext(Dispatchers.IO) {
                                     try {
@@ -1051,7 +1051,7 @@ class PaymentActivity : AppCompatActivity() {
                                 ).show()
                             }
                         }
-                        .setNegativeButton("বন্ধ করুন", null)
+                        .setNegativeButton("Close", null)
                         .show().also { PremiumAlert.paint(it) }
                     return@launch
                 }

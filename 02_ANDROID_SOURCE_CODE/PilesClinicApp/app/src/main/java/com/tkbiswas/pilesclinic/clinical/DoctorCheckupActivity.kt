@@ -921,8 +921,8 @@ class DoctorCheckupActivity : AppCompatActivity() {
         android.app.AlertDialog.Builder(this)
             .setTitle("ছবির নাম")
             .setView(input)
-            .setNegativeButton("বাতিল", null)
-            .setPositiveButton("যোগ করুন") { _, _ ->
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Add") { _, _ ->
                 val label = input.text?.toString()?.trim().orEmpty().ifBlank { "নিজের তোলা ছবি" }
                 val row = AnatomyPictureRepository.newPhotoRow(label, dataUrl, currentUserMobile())
                 AnatomyPictureRepository.saveLocal(this, row)
@@ -1801,8 +1801,8 @@ class DoctorCheckupActivity : AppCompatActivity() {
             } else {
                 android.app.AlertDialog.Builder(this@DoctorCheckupActivity)
                     .setMessage("ছবির সব দাগ মুছে যাবে। মুছব?")
-                    .setNegativeButton("না", null)
-                    .setPositiveButton("হ্যাঁ") { _, _ -> view.clearMarks() }
+                    .setNegativeButton("No", null)
+                    .setPositiveButton("Yes") { _, _ -> view.clearMarks() }
                     .show()
             }
         }
@@ -1908,8 +1908,8 @@ class DoctorCheckupActivity : AppCompatActivity() {
         android.app.AlertDialog.Builder(this)
             .setMessage("\"" + pic.label + "\" ছবিটা তালিকা থেকে সরাব?\n\n" +
                         "ছবিটা মুছে যাবে না — পুরোনো চেক-আপে এর উপরে আঁকা থাকলে সেটা আগের মতোই দেখা যাবে।")
-            .setNegativeButton("না", null)
-            .setPositiveButton("হ্যাঁ") { _, _ ->
+            .setNegativeButton("No", null)
+            .setPositiveButton("Yes") { _, _ ->
                 val row = if (AnatomyModel.isCloudKey(pic.key))
                     AnatomyPictureRepository.hideAddedRow(this, pic.key.removePrefix(AnatomyModel.CLOUD_PREFIX))
                 else AnatomyPictureRepository.hideBuiltInRow(pic.key, pic.label)
@@ -2079,7 +2079,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 view.pileLabel = if (which == 0) "" else all[which]
                 d.dismiss()
             }
-            .setNegativeButton("← ফিরে যান") { d, _ -> d.dismiss() }
+            .setNegativeButton("← Back") { d, _ -> d.dismiss() }
             .setCancelable(true)
             .show()
     }

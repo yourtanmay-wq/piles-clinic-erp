@@ -1361,7 +1361,7 @@ class PatientTimelineActivity : AppCompatActivity() {
         val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
             .setCustomTitle(PremiumAlert.header(this, "অন্য কারণ"))
             .setView(wrap)
-            .setPositiveButton("সেভ করুন", null)   // set below so a blank entry does not close it
+            .setPositiveButton("Save", null)   // set below so a blank entry does not close it
             .setNegativeButton("Close", null)
             .create()
         dialog.setOnShowListener {
@@ -2168,7 +2168,7 @@ class PatientTimelineActivity : AppCompatActivity() {
                 "অনুরোধ পাঠালে সেটা Master-এর ঘন্টায় যাবে — তিনি অনুমতি দিলে তবেই মুছবে।\n\n" +
                 "⛔ এখনই কিছুই মুছবে না।"
             )
-            .setPositiveButton("অনুরোধ পাঠান") { _, _ ->
+            .setPositiveButton("Send Request") { _, _ ->
                 lifecycleScope.launch {
                     val ok = withContext(Dispatchers.IO) {
                         DeletePermission.sendRequest(
