@@ -577,26 +577,25 @@ object ModuleAuth {
                     if (isSignedIn && personCode != expected) signOut()
                     if (!isSignedIn) { try { signInCurrentSession(context) } catch (_: Throwable) {} }
                     if (isSignedIn) {
-                        /* 🔴🔒 V592 (২৩.০৮.২০২৬) — **তারিখটা এখানেই বসানো হয়**।
-                           আগে ফোন থেকে `call_date` পাঠানোই হত না, অথচ ওয়েবের
-                           যমজ কোড (`module_core.js:291`) সবসময় `MOD.todayIST()`
-                           পাঠায়, আর গোনার সময় ফিল্টার হয় ঠিক ওই `call_date`
-                           দিয়েই। অর্থাৎ ফোনের সারিটা কোন দিনের, সেটা পুরোপুরি
-                           ডেটাবেসের ডিফল্টের উপর ছেড়ে দেওয়া ছিল —
-                             · ডিফল্ট না থাকলে তারিখ ফাঁকা ⇒ দিনের গোনায় **কখনোই**
-                               ধরা পড়ত না;
-                             · ডিফল্ট UTC হলে রাত ১২টা–ভোর ৫টা ৩০-এর কল **আগের
-                               দিনে** বসত।
-                           এখন ওয়েবের মতোই ভারতীয় সময়ের তারিখ পাঠানো হয়, তাই
-                           আর কোনো ডিফল্টের উপর নির্ভর করতে হয় না।
-                           ⛔ আর কোনো ঘর বদলায়নি; পুরনো সারিও ছোঁয়া হয়নি। */
-                        val callDate = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
-                            .apply { timeZone = java.util.TimeZone.getTimeZone("Asia/Kolkata") }
-                            .format(java.util.Date())
+                        /* 🔵🔒 V592 (২৩.০৮.২০২৬) — **`call_date` এখান থেকে পাঠানো
+                           হয় না, ইচ্ছে করেই।**
+
+                           প্রথমে ভেবেছিলাম না-পাঠানোটাই গোনা-০-এর একটা কারণ, কিন্তু
+                           TK ডেটাবেসে চালিয়ে দেখালেন — সত্যি নয়। ঘরটার ডিফল্ট
+                           আগে থেকেই ঠিক আছে, আর ভারতীয় সময়েই:
+                               call_date  date  DEFAULT ((now() AT TIME ZONE
+                                                'Asia/Kolkata'::text))::date  NOT NULL
+                           ৭২৩টা সারির একটারও তারিখ ফাঁকা নয় (যাচাই করা)।
+
+                           ⇒ তাই তারিখটা **সার্ভারই** বসাবে, ফোন নয়। কারণ সার্ভারের
+                             ঘড়ি সবসময় ঠিক, কিন্তু কোনো স্টাফের ফোনের ঘড়ি/টাইমজোন
+                             ভুল থাকলে ফোন থেকে পাঠানো তারিখ ভুল দিনে বসিয়ে দিত —
+                             অর্থাৎ যা ঠিক আছে তাকে খারাপ করা হত।
+                           ⚠️ ওয়েব (`module_core.js`) নিজে থেকে তারিখ পাঠায়, কিন্তু
+                              সেটা একই ডিফল্টের সঙ্গেই মেলে, তাই কোনো অমিল হয় না। */
                         val row = JSONObject()
                             .put("staff_code", personCode)
                             .put("target_mobile_mask", masked)
-                            .put("call_date", callDate)
                         if (fullMobile.isNotBlank()) row.put("target_mobile", fullMobile)
                         insert("wn", "call_taps", row)
                     }

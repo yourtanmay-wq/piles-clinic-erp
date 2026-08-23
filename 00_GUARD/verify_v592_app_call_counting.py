@@ -60,14 +60,15 @@ def _before(hay, needle, span):
     at = hay.find(needle)
     return None if at < 0 else hay[max(0, at - span):at]
 
-_cd = _before(ma, '.put("call_date", callDate)', 700)
-check('[৪] ফোন থেকে call_date পাঠানো হয়', _cd is not None)
-check('[৪] সেই তারিখ ভারতীয় সময়ের', _cd is not None and 'Asia/Kolkata' in _cd)
+# 🔵 TK ডেটাবেসে চালিয়ে দেখালেন — `call_date`-এর ডিফল্ট আগে থেকেই ঠিক আছে
+#    আর ভারতীয় সময়েই (`now() AT TIME ZONE 'Asia/Kolkata'`), ৭২৩টা সারির
+#    একটারও তারিখ ফাঁকা নয়। তাই তারিখটা **সার্ভারই বসাবে** — ফোন পাঠাবে না,
+#    কারণ কোনো স্টাফের ফোনের ঘড়ি ভুল থাকলে ভুল দিনে বসে যেত।
+check('[৪] ফোন থেকে call_date পাঠানো হয় না (সার্ভারের ডিফল্টই থাকুক)',
+      '.put("call_date"' not in ma)
 _lc = _before(ma, 'bumpLocalCallTapCount(context, staffCodeNow, today)', 500)
-check('[৪] ফোনে-জমা গোনার তারিখও ভারতীয় সময়ের',
+check('[৪] ফোনে-জমা গোনার তারিখ ভারতীয় সময়ের (পড়ার দিকের মতোই)',
       _lc is not None and 'Asia/Kolkata' in _lc)
-check('[৪] ওয়েবও আগের মতোই call_date পাঠায় (এটাই যমজ)',
-      'call_date: MOD.todayIST()' in mc)
 
 # ── ৫ · ওয়েবে এই ভুলটা নেই — লেখা ও পড়া একই কোড ──────────────────────
 check('[৫] ওয়েবে লেখা — MOD._session.code', 'staff_code: MOD._session.code' in mc)
