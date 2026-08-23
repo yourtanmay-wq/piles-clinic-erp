@@ -41,9 +41,9 @@ object KsharSutraAnim {
     /** এই ধাপে ডাক্তারকে কী লেখা দেখানো হবে। */
     fun caption(step: Int): String = when (step) {
         LUMP_DRAWN  -> "1) যেভাবে আঁকা হয়েছে"
-        LUMP_INJECT -> "2) ইনজেকশন দেওয়া হচ্ছে"
+        LUMP_INJECT -> "2) ইনজেকশন দেওয়া হচ্ছে — ছুঁয়ে দেখান কোথায়"
         LUMP_SWELL  -> "3) মাংস আরো ফুলে উঠল"
-        LUMP_TIE    -> "4) গোড়ায় ক্ষারসূত্র বাঁধা হলো"
+        LUMP_TIE    -> "4) গোড়ায় ক্ষারসূত্র বাঁধা হলো — ছুঁয়ে সরানো যায়"
         LUMP_FALL   -> "5) কেটে পড়ল — জায়গা পরিষ্কার"
         TRACT_DRAWN -> "1) ফিস্টুলার নালী"
         TRACT_LACE  -> "2) নালী বরাবর ক্ষারসূত্র পরানো হচ্ছে"
@@ -103,9 +103,29 @@ object KsharSutraAnim {
         return Math.max(best, hw * 0.18f)
     }
 
-    /** গোড়ায় বাঁধা ক্ষারসূত্র। ক্যানভাস ইতিমধ্যে মাংসের গোড়ায় ও কোণে ঘোরানো। */
-    fun drawThread(canvas: Canvas, p: Paint, len: Float, wide: Float, tight: Float) {
-        val d = len * 0.20f
+    /** গোড়া থেকে সুতোটা কতটা দূরে বাঁধা হবে — ডিফল্ট গোড়াতেই (TK-এর নিয়ম)। */
+    const val TIE_AT_BASE = 0.20f
+    /** ডাক্তার ছুঁয়ে সরাতে পারেন, কিন্তু এই সীমার বাইরে নয় (নইলে সুতো
+     *  ডগার বাইরে বা মাংসের বাইরে চলে যেত)। */
+    fun clampTie(v: Float): Float = Math.max(0.06f, Math.min(0.78f, v))
+    /** ইনজেকশনের জায়গাটাও ডাক্তার ছুঁয়ে বেছে দেন — মাংসের ভিতরেই থাকে। */
+    fun clampInjAlong(v: Float): Float = Math.max(0.10f, Math.min(0.92f, v))
+    fun clampInjAcross(v: Float): Float = Math.max(-0.42f, Math.min(0.42f, v))
+
+    /**
+     * বাঁধা ক্ষারসূত্র। ক্যানভাস ইতিমধ্যে মাংসের গোড়ায় ও কোণে ঘোরানো।
+     *
+     * 🟢🔒 V589 (২৩.০৮.২০২৬, TK-নির্দেশ) — *"ক্ষার সূত্র যেখানে থাকবে সেখানে
+     * বেঁধে রাখবে, যদিও পাইলসের মাংসের গোড়ায় বাঁধতে হয়"*
+     * ⇒ `at` = গোড়া থেকে কতটা দূরে (len-এর ভগ্নাংশ)। ডিফল্ট `TIE_AT_BASE`
+     *   (গোড়াতেই — চিকিৎসার নিয়ম), ডাক্তার ছুঁয়ে সরালে সেই জায়গায় বসে।
+     * ⛔ চওড়াটা আগের মতোই আসল বাঁকের উপরে মেপে নেওয়া হয় (`halfWidthAt`),
+     *   তাই সুতো যেখানেই বসুক মাংসের গায়েই বসে, বাতাসে নয়।
+     */
+    @JvmOverloads
+    fun drawThread(canvas: Canvas, p: Paint, len: Float, wide: Float, tight: Float,
+                   at: Float = TIE_AT_BASE) {
+        val d = len * clampTie(at)
         val hw = halfWidthAt(len, wide, d) * (1.10f - 0.22f * tight)
         val rx = wide * 0.075f
         // মাংসের গায়ে বসা চাপের খাঁজ
@@ -135,10 +155,20 @@ object KsharSutraAnim {
         canvas.drawPath(path, p)
     }
 
-    /** ইনজেকশনের সুচ ও সিরিঞ্জ (p = ০…১, দূর থেকে এগিয়ে আসে)। */
-    fun drawNeedle(canvas: Canvas, p: Paint, len: Float, wide: Float, prog: Float) {
+    /**
+     * ইনজেকশনের সুচ ও সিরিঞ্জ (prog = ০…১, দূর থেকে এগিয়ে আসে)।
+     *
+     * 🟢🔒 V589 (২৩.০৮.২০২৬, TK-নির্দেশ) — *"ইনজেকশন — ডাক্তার যেখানে চাইবে
+     * সেখানে অ্যানিমেশনটা দেখাবে"*
+     * ⇒ `along` = গোড়া থেকে কতটা দূরে, `across` = মাঝ-রেখা থেকে কতটা পাশে।
+     *   দুটোই মাংসের নিজের মাপে (ভগ্নাংশে), তাই ছবি ছোট-বড় হলেও সুচের ডগা
+     *   ঠিক সেই জায়গাতেই থাকে। ডিফল্ট আগের সেই জায়গাটাই।
+     */
+    @JvmOverloads
+    fun drawNeedle(canvas: Canvas, p: Paint, len: Float, wide: Float, prog: Float,
+                   along: Float = 0.55f, across: Float = 0.10f) {
         val u = Math.max(wide * 0.16f, len * 0.05f)
-        val tipX = len * 0.55f; val tipY = wide * 0.10f
+        val tipX = len * clampInjAlong(along); val tipY = wide * clampInjAcross(across)
         val back = u * 4.2f * (1f - prog)
         val ang = -0.70
         val tx = tipX + (Math.cos(ang) * back).toFloat()

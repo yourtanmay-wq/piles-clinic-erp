@@ -1755,7 +1755,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         val icons = ArrayList<AnatToolIcon>()
         fun paintOn(chosen: AnatomyView.Tool) {
             for (ic in icons) ic.on = (ic.tag as? AnatomyView.Tool) == chosen
-            tip.text = toolTip(chosen)
+            // 🟢 V589 (TK-নির্দেশ) — নিচের নির্দেশ-লেখাটা আর লেখা হয় না।
         }
         fun addIcon(kind: String, desc: String, tool: AnatomyView.Tool?,
                     danger: Boolean = false, click: () -> Unit): AnatToolIcon {
@@ -1784,12 +1784,21 @@ class DoctorCheckupActivity : AppCompatActivity() {
             })
         }
 
+        /* 🟢🔒 V589 (২৩.০৮.২০২৬, TK-নির্দেশ, ছবিসহ) —
+           *"লোকেশনের মতন যেটা দেখতে সেটা প্রথমে রাখবেন, আর সেটাই পাইলসের মাংস ·
+             তারপরে দাগ থাকবে যেটা ফিস্টুলার দাগ দেখানো যাবে"*
+           ⇒ ক্রম বদলাল: **📍 (লোকেশনের মতো) সবার আগে**, তারপর **〰️ দাগ (নালী ·
+             ফিস্টুলা)**, তারপর বাকিগুলো আগের সেই ক্রমেই।
+           *"দ্বিতীয় ফটোতে যে তীর চিহ্ন আছে, ওটা আমার লাগবে না"*
+           ⇒ **তীর বোতামটা সারি থেকে বাদ**।
+           ⛔ `Tool.ARROW` ও তীর আঁকার কোড **মোছা হয়নি** — পুরোনো কোনো ছবিতে
+              তীর আঁকা থাকলে সেটা আগের মতোই দেখা যায়, হারায় না। শুধু নতুন করে
+              তীর আঁকার বোতামটা আর নেই। */
         val toolList = listOf(
-            Triple("bulge", "ফোলান", AnatomyView.Tool.BULGE),
             Triple("pile",  "চিহ্ন",  AnatomyView.Tool.PILE),
             Triple("tract", "নালী",   AnatomyView.Tool.TRACT),
+            Triple("bulge", "ফোলান", AnatomyView.Tool.BULGE),
             Triple("ring",  "গোল",    AnatomyView.Tool.RING),
-            Triple("arrow", "তীর",    AnatomyView.Tool.ARROW),
             Triple("erase", "মুছুন",  AnatomyView.Tool.ERASE),
             /* 🔵 V585 (২৩.০৮.২০২৬, TK-অনুমোদিত ডেমো-প্রুফের পরে) — "কেন্দ্র"।
                ছবির পায়ুপথের মাঝখানে একবার ছুঁয়ে দিলে ওই ছবির জন্য মনে থাকে,
@@ -1840,7 +1849,13 @@ class DoctorCheckupActivity : AppCompatActivity() {
         }
 
         box.addView(row)
-        box.addView(tip)
+        /* 🟢🔒 V589 (২৩.০৮.২০২৬, TK-নির্দেশ, ছবিসহ) — *"ফোলান — মাংসের উপরে
+           আঙুল টানুন — এই ধরনের ডেমি লেখা রাখা যাবে না"*
+           ⇒ আইকনের নিচের এক-লাইনের নির্দেশ-লেখাটা আর বসানো হয় না।
+           ⛔ ঘরটা (`tip`) মোছা হয়নি — এই ফাংশন সেটাই ফেরত দেয় আর ডাকার
+              জায়গাগুলো আগের মতোই চলে; শুধু পর্দায় বসে না ও লেখা হয় না।
+              দরকার হলে এক লাইনেই ফেরানো যাবে। */
+        tip.visibility = android.view.View.GONE
         if (!full) anatomyRepaint = { t -> paintOn(t) }
         paintOn(view.tool)
         return tip
@@ -2159,9 +2174,19 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 return
             }
             big.ksIndex = index
+            /* 🟢🔒 V589 (২৩.০৮.২০২৬, TK-নির্দেশ) — নতুন একটা মাংস বাছলে
+               ইনজেকশন ও সুতোর জায়গা **ডিফল্টে** ফেরে — সুতো গোড়ায়
+               (TK: *"পাইলসের মাংসের গোড়ায় বাঁধতে হয়"*)। তারপর ডাক্তার
+               ছুঁয়ে যেখানে খুশি সরাতে পারেন। */
+            big.ksInjAlong = 0.55f
+            big.ksInjAcross = 0.10f
+            big.ksTieAt = KsharSutraAnim.TIE_AT_BASE
             ksGo(0)
         }
         big.onKsPick = { i -> ksSelect(i) }
+        /* 🟢 V589 — ডাক্তার ছুঁয়ে জায়গা দেখালে ওই ধাপটা তখনই আবার চলে,
+           তাই সুচ/সুতো নতুন জায়গায় যেতে দেখা যায়। */
+        big.onKsSpot = { if (ksSteps.isNotEmpty()) ksRun(ksSteps[ksAt]) }
         ksNext.setOnClickListener { ksGo(ksAt + 1) }
         ksPrev.setOnClickListener { ksGo(ksAt - 1) }
         ksInj.setOnClickListener {

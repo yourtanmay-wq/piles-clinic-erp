@@ -60,6 +60,16 @@ class AnatomyView(context: Context) : View(context) {
     var ksT = 0f                  // ওই ধাপের অগ্রগতি ০…১
     /** KS মোডে কোনো চিহ্ন ছুঁলে — Activity বেছে নেয়। */
     var onKsPick: ((Int) -> Unit)? = null
+    /* 🟢🔒 V589 (২৩.০৮.২০২৬, TK-নির্দেশ) — *"ইনজেকশন — ডাক্তার যেখানে চাইবে
+       সেখানে অ্যানিমেশনটা দেখাবে"* ও *"ক্ষার সূত্র যেখানে থাকবে সেখানে বেঁধে
+       রাখবে"*। ইনজেকশনের ধাপে বা সুতোর ধাপে ছবিতে ছুঁলে জায়গাটা এখানে বসে।
+       ⛔ মাপগুলো **মাংসের নিজের ভগ্নাংশে**, তাই জুম/ছোট-বড়তে সরে যায় না।
+       ⛔ কিছুই সেভ হয় না — পর্দা বন্ধ করলে ডিফল্টেই ফেরে (গোড়ায় বাঁধা)। */
+    var ksInjAlong = 0.55f
+    var ksInjAcross = 0.10f
+    var ksTieAt = KsharSutraAnim.TIE_AT_BASE
+    /** ছুঁয়ে জায়গা বসানো হলে Activity-কে জানানো হয় (লেখাটা বদলায়)। */
+    var onKsSpot: (() -> Unit)? = null
     var onChanged: (() -> Unit)? = null        // কিছু আঁকা হলেই ডাকা হয়
 
     private val density = context.resources.displayMetrics.density
@@ -274,6 +284,186 @@ class AnatomyView(context: Context) : View(context) {
         return if (bd <= 18.0) best else -1
     }
 
+    /**
+     * 🟢🔒 V589 — ছোঁয়ার জায়গাটা **মাংসের নিজের মাপে** বদলে নেওয়া।
+     * ইনজেকশনের ধাপ হলে সুচের ডগা, সুতোর ধাপ হলে বাঁধার জায়গা।
+     * @return true হলে ছোঁয়াটা এখানেই কাজে লেগেছে (চিহ্ন বদলানো হবে না)।
+     */
+    private fun ksSetSpot(xPct: Double, yPct: Double): Boolean {
+        val m = marks.getOrNull(ksIndex) ?: return false
+        if (m.kind == AnatomyModel.KIND_TRACT) return false
+        val inject = ksStep == KsharSutraAnim.LUMP_INJECT || ksStep == KsharSutraAnim.LUMP_SWELL
+        val tie = ksStep == KsharSutraAnim.LUMP_TIE
+        if (!inject && !tie) return false
+        val g = AnatomyModel.lumpGeom(m)
+        if (g.len <= 0.0 || g.wide <= 0.0) return false
+        // ছবির শতাংশ → মাংসের নিজের অক্ষ (গোড়া শূন্য, ডগার দিকে ধনাত্মক)
+        val dx = xPct - m.x
+        val dy = yPct - m.y
+        val along = dx * Math.cos(g.ang) + dy * Math.sin(g.ang)
+        val across = -dx * Math.sin(g.ang) + dy * Math.cos(g.ang)
+        if (inject) {
+            ksInjAlong = KsharSutraAnim.clampInjAlong((along / g.len).toFloat())
+            ksInjAcross = KsharSutraAnim.clampInjAcross((across / g.wide).toFloat())
+        } else {
+            ksTieAt = KsharSutraAnim.clampTie((along / g.len).toFloat())
+        }
+        invalidate()
+        onKsSpot?.invoke()
+        return true
+    }
+
+    /**
+     * 🟢🔒 V589 (২৩.০৮.২০২৬, TK-নির্দেশ) — *"মাংসটা যখন কেটে পড়ে যাবে তখন
+     * রিয়েল ফটোতেও যেন পরিষ্কার করে দেয়, যাতে পেশেন্ট সম্পূর্ণভাবে বুঝতে পারে
+     * যে তার পাইলসের মাংসটা বেরিয়ে গেছে"*
+     *
+     * **কীভাবে:** আঁকা মাংসটার ঠিক বাইরের চারপাশ থেকে **আসল ছবির চামড়ার রং**
+     * তুলে নেওয়া হয় (২৪টা জায়গা থেকে গড়), তারপর ওই রঙেরই একটা নরম ছোপ
+     * মাংসের জায়গাটার উপরে বসানো হয় — কিনারায় মিলিয়ে যায়, তাই জোড়া বোঝা যায় না।
+     *
+     * ⛔ **আসল ছবিটা এক পিক্সেলও বদলায় না** — এটা শুধু পর্দায় আঁকা, উপরের
+     *    স্তরে। মোড বন্ধ করলেই ছবিটা হুবহু আগের মতো, সেভও হয় না।
+     * ⚠️ **সৎ কথা:** এটা বোঝানোর ছবি, অপারেশনের পরের আসল ফল নয়। যেখানে
+     *    ডাক্তার মাংসটা এঁকেছেন ঠিক সেই জায়গাটাই পরিষ্কার দেখায় — তাই
+     *    মাংসটা ছবির আসল মাংসের উপরেই আঁকতে হবে।
+     * ⛔ ছবির রং তোলা না গেলে (কিছু ফোনে hardware bitmap) একটা হালকা চামড়ার
+     *    রং ব্যবহার হয় — কখনো ভেঙে পড়ে না।
+     */
+    private fun ksSkinColour(cx: Double, cy: Double, rad: Double): Int {
+        val b = base
+        var r = 0L; var g = 0L; var bl = 0L; var n = 0
+        if (b != null && b.width > 0 && b.height > 0) {
+            for (i in 0 until 24) {
+                val a = i * Math.PI * 2.0 / 24.0
+                val sx = ((cx + Math.cos(a) * rad) / 100.0 * b.width).toInt()
+                val sy = ((cy + Math.sin(a) * rad) / 100.0 * b.height).toInt()
+                if (sx < 0 || sy < 0 || sx >= b.width || sy >= b.height) continue
+                val c = try { b.getPixel(sx, sy) } catch (_: Throwable) { continue }
+                r += Color.red(c); g += Color.green(c); bl += Color.blue(c); n++
+            }
+        }
+        return if (n == 0) Color.parseColor("#B08A78")
+               else Color.rgb((r / n).toInt(), (g / n).toInt(), (bl / n).toInt())
+    }
+
+    /** ছবির এক জায়গার রং (শতাংশে), না পেলে null। */
+    private fun ksPixel(xPct: Double, yPct: Double): Int? {
+        val b = base ?: return null
+        if (b.width <= 0 || b.height <= 0) return null
+        val sx = (xPct / 100.0 * b.width).toInt()
+        val sy = (yPct / 100.0 * b.height).toInt()
+        if (sx < 0 || sy < 0 || sx >= b.width || sy >= b.height) return null
+        return try { b.getPixel(sx, sy) } catch (_: Throwable) { null }
+    }
+
+    /**
+     * মাংসের চারপাশের ৮টা দিক দেখে **সবচেয়ে মসৃণ চামড়ার** টুকরোটা কোথায়।
+     * ছবির ভিতরে থাকতে হবে, আর রঙের হেরফের সবচেয়ে কম হতে হবে — নইলে খাঁজ ·
+     * চুল · ছায়া তুলে এনে বসাত।
+     */
+    private fun ksDonor(cx: Double, cy: Double, g: AnatomyModel.Lump, halfPct: Double): Pair<Double, Double>? {
+        val off = Math.max(g.wide, g.len) * 1.15
+        var best: Pair<Double, Double>? = null
+        var bestVar = Double.MAX_VALUE
+        for (k in 0 until 8) {
+            val a = g.ang + Math.PI / 2 + k * Math.PI / 4
+            val dx = cx + Math.cos(a) * off
+            val dy = cy + Math.sin(a) * off
+            if (dx - halfPct < 0 || dx + halfPct > 100 || dy - halfPct < 0 || dy + halfPct > 100) continue
+            val vals = ArrayList<Double>()
+            for (i in -1..1) for (j in -1..1) {
+                val c = ksPixel(dx + i * halfPct * 0.55, dy + j * halfPct * 0.55) ?: continue
+                vals.add((Color.red(c) + Color.green(c) + Color.blue(c)) / 3.0)
+            }
+            if (vals.size < 5) continue
+            val mean = vals.sum() / vals.size
+            val v = vals.sumOf { (it - mean) * (it - mean) } / vals.size
+            if (v < bestVar) { bestVar = v; best = Pair(dx, dy) }
+        }
+        return best
+    }
+
+    /**
+     * আঁকা মাংসটার জায়গায় **পাশের ভালো চামড়ার এক টুকরো আসল ছবি** বসানো —
+     * কিনারা মিলিয়ে যায়, তাই দেখতে ঘষা দাগ নয়, সত্যিকারের চামড়ার মতো লাগে
+     * (t = ০…১ ফুটে ওঠে)। ছবির রং পড়া না গেলে চারপাশের গড়-রঙের নরম ছোপ।
+     */
+    private fun ksHealLump(canvas: Canvas, m: AnatomyModel.Mark, t: Float) {
+        if (t <= 0.01f) return
+        val g = AnatomyModel.lumpGeom(m)
+        if (g.len <= 0.0 || g.wide <= 0.0) return
+        val cxP = m.x + Math.cos(g.ang) * g.len * 0.50
+        val cyP = m.y + Math.sin(g.ang) * g.len * 0.50
+        val sc = Math.min(dst.width(), dst.height()) / 100f
+        val r = Math.max(g.len * sc * 0.62f, g.wide * sc * 0.72f)
+        if (r <= 0.5f) return
+        val halfPct = (r / sc).toDouble()
+        val b = base
+        val donor = if (b != null) ksDonor(cxP, cyP, g, halfPct) else null
+
+        val alpha = (255f * t).toInt().coerceIn(0, 255)
+        val save = canvas.save()
+        canvas.translate(px(cxP), py(cyP))
+        val outer = canvas.saveLayerAlpha(-r, -r, r, r, alpha)
+        if (b != null && donor != null) {
+            val sw = halfPct * 2.0 / 100.0 * b.width
+            val sh = halfPct * 2.0 / 100.0 * b.height
+            val sx = donor.first / 100.0 * b.width - sw / 2.0
+            val sy = donor.second / 100.0 * b.height - sh / 2.0
+            val src = Rect(sx.toInt(), sy.toInt(), (sx + sw).toInt(), (sy + sh).toInt())
+            if (src.left >= 0 && src.top >= 0 && src.right <= b.width && src.bottom <= b.height &&
+                src.width() > 1 && src.height() > 1) {
+                canvas.drawBitmap(b, src, RectF(-r, -r, r, r), null)
+                // নরম কিনারা — মাঝখানে গাঢ়, ধারে মিলিয়ে যায়
+                paint.reset(); paint.isAntiAlias = true; paint.style = Paint.Style.FILL
+                paint.shader = android.graphics.RadialGradient(
+                    0f, 0f, r,
+                    intArrayOf(Color.BLACK, Color.BLACK, Color.TRANSPARENT),
+                    floatArrayOf(0f, 0.60f, 1f),
+                    android.graphics.Shader.TileMode.CLAMP
+                )
+                paint.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_IN)
+                canvas.drawCircle(0f, 0f, r, paint)
+                paint.xfermode = null; paint.shader = null
+            }
+        } else {
+            val colour = ksSkinColour(cxP, cyP, Math.max(g.len, g.wide) * 0.85)
+            paint.reset(); paint.isAntiAlias = true; paint.style = Paint.Style.FILL
+            paint.shader = android.graphics.RadialGradient(
+                0f, 0f, r,
+                intArrayOf(colour, colour, Color.argb(0, Color.red(colour), Color.green(colour), Color.blue(colour))),
+                floatArrayOf(0f, 0.58f, 1f),
+                android.graphics.Shader.TileMode.CLAMP
+            )
+            canvas.drawCircle(0f, 0f, r, paint)
+            paint.shader = null
+        }
+        canvas.restoreToCount(outer)
+        canvas.restoreToCount(save)
+        paint.reset(); paint.isAntiAlias = true
+    }
+
+    /** নালী কেটে যাওয়ার পরে নালী বরাবর আসল ছবির চামড়ার ছোপ। */
+    private fun ksHealTract(canvas: Canvas, pts: List<Pair<Double, Double>>, s: Float, t: Float) {
+        if (t <= 0.01f || pts.size < 2) return
+        var cx = 0.0; var cy = 0.0
+        for (q in pts) { cx += q.first; cy += q.second }
+        cx /= pts.size; cy /= pts.size
+        val colour = ksSkinColour(cx, cy, 6.0)
+        paint.reset(); paint.isAntiAlias = true
+        paint.style = Paint.Style.STROKE
+        paint.strokeCap = Paint.Cap.ROUND; paint.strokeJoin = Paint.Join.ROUND
+        paint.color = Color.argb((255f * t).toInt().coerceIn(0, 255),
+            Color.red(colour), Color.green(colour), Color.blue(colour))
+        paint.strokeWidth = Math.max(3f, 3.2f * s)
+        val path = Path()
+        path.moveTo(px(pts[0].first), py(pts[0].second))
+        for (i in 1 until pts.size) path.lineTo(px(pts[i].first), py(pts[i].second))
+        canvas.drawPath(path, paint)
+        paint.reset(); paint.isAntiAlias = true
+    }
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
         /* 🔵 V587 — ক্ষারসূত্র দেখানোর মোডে আঙুল দিয়ে কিছু আঁকা যায় না,
            শুধু একটা চিহ্ন **বেছে নেওয়া** যায়। ⛔ তাই এই মোডে ভুল করেও
@@ -282,8 +472,12 @@ class AnatomyView(context: Context) : View(context) {
             if (event.actionMasked == MotionEvent.ACTION_UP) {
                 val p = toPercent(event.x, event.y)
                 if (p != null) {
-                    val i = ksNearestAt(p[0].toDouble(), p[1].toDouble())
-                    if (i >= 0) onKsPick?.invoke(i)
+                    /* 🟢 V589 — ইনজেকশনের ধাপে বা সুতোর ধাপে ছোঁয়া মানে
+                       "এইখানে করুন"; বাকি ধাপে আগের মতোই চিহ্ন বেছে নেওয়া। */
+                    if (!ksSetSpot(p[0].toDouble(), p[1].toDouble())) {
+                        val i = ksNearestAt(p[0].toDouble(), p[1].toDouble())
+                        if (i >= 0) onKsPick?.invoke(i)
+                    }
                 }
             }
             return true
@@ -729,6 +923,8 @@ class AnatomyView(context: Context) : View(context) {
                     ksTractThread(canvas, s, pts, 1f, true)
                 }
                 KsharSutraAnim.TRACT_CUT -> {
+                    // 🟢 V589 — নালী বরাবর আসল ছবির জায়গাটাও পরিষ্কার দেখায়
+                    ksHealTract(canvas, pts, s, ksT)
                     // নালী ও সুতো মিলিয়ে যায়, সেরে ওঠার হালকা দাগ থাকে
                     val a = ((1f - ksT) * 255f).toInt().coerceIn(0, 255)
                     if (a > 4) {
@@ -755,6 +951,11 @@ class AnatomyView(context: Context) : View(context) {
 
         // কেটে পড়ার পরে গোড়ার পরিষ্কার দাগ (আসল জায়গাতেই, নামে না)
         if (ksStep == KsharSutraAnim.LUMP_FALL) {
+            /* 🟢🔒 V589 (TK-নির্দেশ) — *"রিয়েল ফটোতেও যেন পরিষ্কার করে দেয়"*।
+               আঁকা মাংসের নিচে আসল ছবিতে যে মাংসটা দেখা যাচ্ছিল, সেটা এখন
+               চারপাশের চামড়ার রঙে ঢাকা পড়ে — রোগী পরিষ্কার দেখতে পান।
+               ⛔ আসল ছবি বদলায় না, শুধু পর্দায় উপরে আঁকা। */
+            ksHealLump(canvas, m, ksT)
             val g0 = AnatomyModel.lumpGeom(m)
             val save0 = canvas.save()
             canvas.translate(px(m.x), py(m.y))
@@ -773,9 +974,13 @@ class AnatomyView(context: Context) : View(context) {
         canvas.translate(px(shown.x), py(shown.y))
         canvas.rotate(Math.toDegrees(g.ang).toFloat())
         when (ksStep) {
-            KsharSutraAnim.LUMP_INJECT -> KsharSutraAnim.drawNeedle(canvas, paint, len, wide, ksT)
-            KsharSutraAnim.LUMP_TIE    -> KsharSutraAnim.drawThread(canvas, paint, len, wide, ksT)
-            KsharSutraAnim.LUMP_FALL   -> if (ksT < 0.80f) KsharSutraAnim.drawThread(canvas, paint, len, wide, 1f)
+            // 🟢 V589 — ডাক্তার যেখানে ছুঁয়ে দেখিয়েছেন ঠিক সেখানেই
+            KsharSutraAnim.LUMP_INJECT ->
+                KsharSutraAnim.drawNeedle(canvas, paint, len, wide, ksT, ksInjAlong, ksInjAcross)
+            KsharSutraAnim.LUMP_TIE    ->
+                KsharSutraAnim.drawThread(canvas, paint, len, wide, ksT, ksTieAt)
+            KsharSutraAnim.LUMP_FALL   ->
+                if (ksT < 0.80f) KsharSutraAnim.drawThread(canvas, paint, len, wide, 1f, ksTieAt)
             else -> { }
         }
         canvas.restoreToCount(save)

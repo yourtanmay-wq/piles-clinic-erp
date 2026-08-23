@@ -7938,8 +7938,16 @@ var WLV1_ANAT_ICONS={
   /* 🔵 V585 — "কেন্দ্র" হাতিয়ার। ⚠️ ফোনের `AnatToolIcon.pathData("centre")`-এর হুবহু একই পথ। */
   centre:'<circle cx="12" cy="12" r="8"/><path d="M12 2.6v3.2M12 18.2v3.2M2.6 12h3.2M18.2 12h3.2"/><circle cx="12" cy="12" r="1.4"/>'
 };
-var WLV1_ANAT_TOOLS=[['bulge','ফোলান'],['pile','চিহ্ন'],['tract','নালী'],
-                     ['ring','গোল'],['arrow','তীর'],['erase','মুছুন'],
+/* 🟢🔒 V589 (২৩.০৮.২০২৬, TK-নির্দেশ, ছবিসহ) —
+   *"লোকেশনের মতন যেটা দেখতে সেটা প্রথমে রাখবেন, আর সেটাই পাইলসের মাংস ·
+     তারপরে দাগ থাকবে যেটা ফিস্টুলার দাগ দেখানো যাবে"*
+   ⇒ 📍 সবার আগে, তারপর 〰️ দাগ (নালী · ফিস্টুলা), তারপর বাকিগুলো আগের ক্রমেই।
+   *"যে তীর চিহ্ন আছে, ওটা আমার লাগবে না"* ⇒ তীর বোতামটা সারি থেকে বাদ।
+   ⛔ তীর আঁকার কোড **মোছা হয়নি** — পুরোনো ছবিতে তীর আঁকা থাকলে আগের মতোই
+      দেখা যায়। শুধু নতুন করে তীর আঁকার বোতামটা নেই।
+   ⚠️ ফোনের `DoctorCheckupActivity.toolList`-এর হুবহু একই ক্রম। */
+var WLV1_ANAT_TOOLS=[['pile','চিহ্ন'],['tract','নালী'],['bulge','ফোলান'],
+                     ['ring','গোল'],['erase','মুছুন'],
                      /* 🔵 V585 (TK-অনুমোদিত) — পায়ুপথের মাঝখানে একবার ছুঁয়ে দিলে
                         ওই ছবির ঘড়ির কেন্দ্র জমা হয়, তারপর o'clock নিজে হিসাব হয়। */
                      ['centre','কেন্দ্র']];
@@ -7969,7 +7977,10 @@ function wlv1AnatBarHtml(full){
     +'<button type="button" class="wlv1AnatTool wlv1AnatBig" title="পুরো পর্দা" aria-label="পুরো পর্দা" onclick="wlv1AnatFull()">'+wlv1AnatIcon('full')+'</button>';
   return '<div class="wlv1AnatBar'+(full?' full':'')+'">'
     +'<div class="wlv1AnatIcons">'+ic+extra+'</div>'
-    +'<div class="wlv1AnatTip" id="'+(full?'dnAnatTipFull':'dnAnatTip')+'">'+esc(wlv1AnatTipText())+'</div></div>';
+    /* 🟢 V589 (TK-নির্দেশ) — *"ফোলান — মাংসের উপরে আঙুল টানুন — এই ধরনের ডেমি
+       লেখা রাখা যাবে না"* ⇒ আইকনের নিচের নির্দেশ-লাইনটা আর বসে না।
+       ⛔ ঘরটা ও লেখার ফাংশনগুলো মোছা হয়নি — শুধু লুকানো, দরকারে ফেরানো যায়। */
+    +'<div class="wlv1AnatTip" id="'+(full?'dnAnatTipFull':'dnAnatTip')+'" style="display:none"></div></div>';
 }
 function wlv1AnatTipText(){
   var t=wlv1AnatState.tool;
@@ -8235,7 +8246,20 @@ function wlv1AnatPaint(){
     ctxF.clearRect(0,0,w,h);
     ctxF.drawImage(im,rx,ry,rw,rh);
     ctxF.save(); ctxF.translate(rx,ry);
-    AnatomyMark.draw(ctxF,rw,rh,wlv1AnatState.marks,wlv1AnatScale());
+    /* 🐞🟢 V589 (২৩.০৮.২০২৬) — **আসল ফাঁক ধরা পড়ল।** ক্ষারসূত্রের ধাপগুলো
+       আঁকার কাজটা (`wlv1KsPaintMark`) শুধু ছোট বোর্ডের পথে ডাকা হত; অথচ
+       🧵 বোতামটা আছে **পুরো পর্দায়** — মানে ওয়েবে ধাপের অ্যানিমেশনটা আসলে
+       কখনো দেখাতই না, শুধু সাধারণ দাগ দেখাত।
+       ⚠️ সৎ কথা: V587-এ আমি ফাংশনটা আলাদা করে চালিয়ে যাচাই করেছিলাম, কিন্তু
+          **পুরো পর্দার এই পথটা দিয়ে চালাইনি** — তাই ফাঁকটা ধরা পড়েনি।
+       ⛔ ছোট বোর্ডের ঠিক সেই একই দুটো লাইন এখানেও, তাই দুই পর্দা এক আচরণ। */
+    if(WLV1_KS.on && WLV1_KS.idx>=0){
+      var restF=wlv1AnatState.marks.filter(function(_m,i){return i!==WLV1_KS.idx});
+      AnatomyMark.draw(ctxF,rw,rh,restF,wlv1AnatScale());
+      wlv1KsPaintMark(ctxF,rw,rh,wlv1AnatState.marks[WLV1_KS.idx]);
+    } else {
+      AnatomyMark.draw(ctxF,rw,rh,wlv1AnatState.marks,wlv1AnatScale());
+    }
     ctxF.restore();
     return;
   }
@@ -8293,8 +8317,12 @@ function wlv1AnatDown(ev){
      বেছে নেওয়া যায়। ⛔ তাই ভুল করেও নতুন দাগ পড়ার পথ নেই। */
   if(WLV1_KS.on){
     ev.preventDefault();
-    var pick=wlv1KsNearest(p[0],p[1]);
-    if(pick>=0) wlv1KsSelect(pick);
+    /* 🟢 V589 — ইনজেকশনের ধাপে বা সুতোর ধাপে ছোঁয়া মানে "এইখানে করুন";
+       বাকি ধাপে আগের মতোই চিহ্ন বেছে নেওয়া (ফোনের `ksSetSpot`-এর যমজ)। */
+    if(!wlv1KsSetSpot(p[0],p[1])){
+      var pick=wlv1KsNearest(p[0],p[1]);
+      if(pick>=0) wlv1KsSelect(pick);
+    }
     return;
   }
   ev.preventDefault();
@@ -8464,15 +8492,24 @@ function wlv1AnatClampZoom(){
    ⚠️ ফোনের `clinical/KsharSutraAnim.kt`-এর হুবহু যমজ (একই মাপ, একই ক্রম)।
    ⛔ শুধু দেখার জিনিস — কোনো দাগ যোগ হয় না, কিছু সেভ হয় না, প্রিন্টেও যায় না।
    ========================================================================== */
-var WLV1_KS={on:false,idx:-1,step:0,t:0,steps:[],at:0,inj:true,timer:null};
+/* 🟢🔒 V589 (২৩.০৮.২০২৬, TK-নির্দেশ) — `injAlong`/`injAcross` = ইনজেকশন
+   কোথায়, `tieAt` = সুতো কোথায় বাঁধা (সবই মাংসের নিজের ভগ্নাংশে, তাই জুমে
+   সরে যায় না)। ডিফল্টে সুতো গোড়াতেই — TK: *"পাইলসের মাংসের গোড়ায় বাঁধতে হয়"*।
+   ⛔ কিছুই সেভ হয় না — পর্দা বন্ধ করলেই ডিফল্টে ফেরে। */
+var WLV1_KS={on:false,idx:-1,step:0,t:0,steps:[],at:0,inj:true,timer:null,
+             injAlong:0.55,injAcross:0.10,tieAt:0.20};
+function wlv1KsClampTie(v){return Math.max(0.06,Math.min(0.78,v))}
+function wlv1KsClampAlong(v){return Math.max(0.10,Math.min(0.92,v))}
+function wlv1KsClampAcross(v){return Math.max(-0.42,Math.min(0.42,v))}
+window["wlv1KsClampTie"]=wlv1KsClampTie;
 var WLV1_KS_STEP={LUMP_DRAWN:1,LUMP_INJECT:2,LUMP_SWELL:3,LUMP_TIE:4,LUMP_FALL:5,
                   TRACT_DRAWN:11,TRACT_LACE:12,TRACT_TIE:13,TRACT_CUT:14};
 function wlv1KsCaption(st){
   var K=WLV1_KS_STEP;
   if(st===K.LUMP_DRAWN) return '1) যেভাবে আঁকা হয়েছে';
-  if(st===K.LUMP_INJECT)return '2) ইনজেকশন দেওয়া হচ্ছে';
+  if(st===K.LUMP_INJECT)return '2) ইনজেকশন দেওয়া হচ্ছে — ছুঁয়ে দেখান কোথায়';
   if(st===K.LUMP_SWELL) return '3) মাংস আরো ফুলে উঠল';
-  if(st===K.LUMP_TIE)   return '4) গোড়ায় ক্ষারসূত্র বাঁধা হলো';
+  if(st===K.LUMP_TIE)   return '4) গোড়ায় ক্ষারসূত্র বাঁধা হলো — ছুঁয়ে সরানো যায়';
   if(st===K.LUMP_FALL)  return '5) কেটে পড়ল — জায়গা পরিষ্কার';
   if(st===K.TRACT_DRAWN)return '1) ফিস্টুলার নালী';
   if(st===K.TRACT_LACE) return '2) নালী বরাবর ক্ষারসূত্র পরানো হচ্ছে';
@@ -8503,8 +8540,11 @@ function wlv1KsHalfWidth(L,LW,d){
   }
   return Math.max(best,hw*0.18);
 }
-function wlv1KsThread(ctx,L,LW,tight){
-  var d=L*0.20, hw=wlv1KsHalfWidth(L,LW,d)*(1.10-0.22*tight), rx=LW*0.075;
+/* 🟢 V589 — `at` = গোড়া থেকে কতটা দূরে বাঁধা (len-এর ভগ্নাংশ)। ফোনের
+   `KsharSutraAnim.drawThread`-এর হুবহু একই নিয়ম ও একই সীমা। */
+function wlv1KsThread(ctx,L,LW,tight,at){
+  var d=L*wlv1KsClampTie(typeof at==='number'?at:0.20);
+  var hw=wlv1KsHalfWidth(L,LW,d)*(1.10-0.22*tight), rx=LW*0.075;
   ctx.save();
   ctx.strokeStyle='rgba(90,40,36,0.35)'; ctx.lineWidth=Math.max(1.6,LW*0.13);
   ctx.beginPath(); ctx.ellipse(d,0,LW*0.10,hw,0,0,6.2832); ctx.stroke();
@@ -8522,8 +8562,11 @@ function wlv1KsThread(ctx,L,LW,tight){
   ctx.stroke();
   ctx.restore();
 }
-function wlv1KsNeedle(ctx,L,LW,p){
-  var u=Math.max(LW*0.16,L*0.05), tipX=L*0.55, tipY=LW*0.10;
+/* 🟢 V589 — সুচের ডগা ডাক্তারের বেছে দেওয়া জায়গায় (ফোনের যমজ)। */
+function wlv1KsNeedle(ctx,L,LW,p,along,across){
+  var u=Math.max(LW*0.16,L*0.05);
+  var tipX=L*wlv1KsClampAlong(typeof along==='number'?along:0.55);
+  var tipY=LW*wlv1KsClampAcross(typeof across==='number'?across:0.10);
   var back=u*4.2*(1-p), ang=-0.70;
   var tx=tipX+Math.cos(ang)*back, ty=tipY+Math.sin(ang)*back;
   ctx.save(); ctx.translate(tx,ty); ctx.rotate(ang);
@@ -8543,6 +8586,142 @@ function wlv1KsNeedle(ctx,L,LW,p){
 }
 window["wlv1KsCaption"]=wlv1KsCaption; window["wlv1KsStepsFor"]=wlv1KsStepsFor;
 
+/* ==========================================================================
+   🟢🔒 V589 (২৩.০৮.২০২৬, TK-নির্দেশ) — *"মাংসটা যখন কেটে পড়ে যাবে তখন রিয়েল
+   ফটোতেও যেন পরিষ্কার করে দেয়, যাতে পেশেন্ট সম্পূর্ণভাবে বুঝতে পারে যে তার
+   পাইলসের মাংসটা বেরিয়ে গেছে"*
+
+   আঁকা মাংসটার ঠিক বাইরের চারপাশ থেকে **আসল ছবির চামড়ার রং** তুলে (২৪ জায়গার
+   গড়) সেই রঙেরই নরম ছোপ মাংসের জায়গায় বসানো হয় — কিনারায় মিলিয়ে যায়।
+   ⛔ **আসল ছবিটা এক পিক্সেলও বদলায় না** — শুধু ক্যানভাসে উপরে আঁকা, সেভ হয় না।
+   ⚠️ সৎ কথা: এটা বোঝানোর ছবি, অপারেশনের আসল ফল নয়। ডাক্তার যেখানে মাংসটা
+      এঁকেছেন ঠিক সেই জায়গাটাই পরিষ্কার দেখায়।
+   ⛔ রং তোলা না গেলে (অন্য সার্ভারের ছবি হলে ব্রাউজার আটকায়) একটা হালকা
+      চামড়ার রং ব্যবহার হয় — কখনো ভেঙে পড়ে না।
+   ⚠️ ফোনের `AnatomyView.ksHealLump/ksHealTract`-এর হুবহু যমজ।
+   ========================================================================== */
+var WLV1_KS_PIX=null;
+function wlv1KsSkinAt(xPct,yPct){
+  try{
+    var im=wlv1AnatImg; if(!im||!im.width||!im.height) return null;
+    if(!WLV1_KS_PIX || WLV1_KS_PIX.src!==im.src){
+      var W=Math.min(400,im.width), H=Math.max(1,Math.round(im.height*W/im.width));
+      var c=document.createElement('canvas'); c.width=W; c.height=H;
+      var cx=c.getContext('2d'); cx.drawImage(im,0,0,W,H);
+      WLV1_KS_PIX={ctx:cx,w:W,h:H,src:im.src};
+    }
+    var P=WLV1_KS_PIX;
+    var sx=Math.round(xPct/100*P.w), sy=Math.round(yPct/100*P.h);
+    if(sx<0||sy<0||sx>=P.w||sy>=P.h) return null;
+    var d=P.ctx.getImageData(sx,sy,1,1).data;
+    return [d[0],d[1],d[2]];
+  }catch(e){ return null }
+}
+function wlv1KsSkinColour(cx,cy,rad){
+  var r=0,g=0,b=0,n=0;
+  for(var i=0;i<24;i++){
+    var a=i*Math.PI*2/24;
+    var c=wlv1KsSkinAt(cx+Math.cos(a)*rad, cy+Math.sin(a)*rad);
+    if(!c) continue;
+    r+=c[0]; g+=c[1]; b+=c[2]; n++;
+  }
+  if(!n) return [176,138,120];
+  return [Math.round(r/n),Math.round(g/n),Math.round(b/n)];
+}
+/* ছবির কোন জায়গাটা "ভালো চামড়া" — মাংসের গায়ের ঠিক পাশ থেকে, যেটা ছবির
+   ভিতরে থাকে। কোনো দিকই না মিললে null (তখন গড়-রঙের ছোপ বসে)। */
+function wlv1KsDonor(cx,cy,g,halfPct){
+  /* মাংসের চারপাশের ৮টা দিক দেখা হয়। যেটা **ছবির ভিতরে থাকে** আর যার
+     চামড়া **সবচেয়ে মসৃণ** (রঙের হেরফের সবচেয়ে কম — মানে খাঁজ · চুল · ছায়া
+     নেই), সেই টুকরোটাই তোলা হয়। নইলে কখনো খাঁজের দাগ তুলে এনে বসাত। */
+  var off=Math.max(g.W,g.L)*1.15;
+  var best=null, bestVar=1e18;
+  for(var k=0;k<8;k++){
+    var a=g.ang+Math.PI/2+k*Math.PI/4;
+    var dx=cx+Math.cos(a)*off, dy=cy+Math.sin(a)*off;
+    if(dx-halfPct<0||dx+halfPct>100||dy-halfPct<0||dy+halfPct>100) continue;
+    var vals=[],i,j;
+    for(i=-1;i<=1;i++) for(j=-1;j<=1;j++){
+      var c=wlv1KsSkinAt(dx+i*halfPct*0.55, dy+j*halfPct*0.55);
+      if(c) vals.push((c[0]+c[1]+c[2])/3);
+    }
+    if(vals.length<5) continue;
+    var mean=0; for(i=0;i<vals.length;i++) mean+=vals[i]; mean/=vals.length;
+    var v=0; for(i=0;i<vals.length;i++) v+=(vals[i]-mean)*(vals[i]-mean); v/=vals.length;
+    if(v<bestVar){ bestVar=v; best=[dx,dy] }
+  }
+  return best;
+}
+/* পাশের ভালো চামড়ার এক টুকরো **আসল ছবি** কেটে এনে, কিনারা মিলিয়ে, মাংসের
+   জায়গায় বসানো — তাই দেখতে ঘষা দাগ নয়, সত্যিকারের চামড়ার মতো লাগে।
+   ⛔ টুকরোটা একবার বানিয়ে মনে রাখা হয় (প্রতি ফ্রেমে নয়), তাই পুরোনো ফোনেও
+      অ্যানিমেশন আটকায় না। */
+var WLV1_KS_PATCH=null;
+function wlv1KsPatch(im,cx,cy,g,R,w,h,key){
+  if(WLV1_KS_PATCH && WLV1_KS_PATCH.key===key) return WLV1_KS_PATCH.cv;
+  try{
+    var halfPct=R/ (Math.min(w,h)/100);
+    var d=wlv1KsDonor(cx,cy,g,halfPct); if(!d) return null;
+    var side=Math.max(8,Math.ceil(2*R));
+    var off=document.createElement('canvas'); off.width=side; off.height=side;
+    var oc=off.getContext('2d');
+    var sw=2*halfPct/100*im.width, sh=2*halfPct/100*im.height;
+    var sx=d[0]/100*im.width-sw/2, sy=d[1]/100*im.height-sh/2;
+    if(sx<0||sy<0||sx+sw>im.width||sy+sh>im.height) return null;
+    oc.drawImage(im,sx,sy,sw,sh,0,0,side,side);
+    oc.globalCompositeOperation='destination-in';
+    var gr=oc.createRadialGradient(side/2,side/2,0,side/2,side/2,side/2);
+    gr.addColorStop(0,'rgba(0,0,0,1)');
+    gr.addColorStop(0.60,'rgba(0,0,0,1)');
+    gr.addColorStop(1,'rgba(0,0,0,0)');
+    oc.fillStyle=gr; oc.fillRect(0,0,side,side);
+    WLV1_KS_PATCH={key:key,cv:off};
+    return off;
+  }catch(e){ return null }
+}
+function wlv1KsHealLump(ctx,w,h,m,t){
+  if(t<=0.01) return;
+  var g=AnatomyMark.__lumpGeom(m); if(!g||!(g.L>0)||!(g.W>0)) return;
+  var u=Math.min(w,h)/100;
+  var cxP=m.x+Math.cos(g.ang)*g.L*0.50, cyP=m.y+Math.sin(g.ang)*g.L*0.50;
+  var R=Math.max(g.L*u*0.62, g.W*u*0.72);
+  if(R<=0.5) return;
+  var im=wlv1AnatImg;
+  var key=[m.x,m.y,m.x2,m.y2,m.s,Math.round(R),Math.round(w)].join('|');
+  var patch=im?wlv1KsPatch(im,cxP,cyP,g,R,w,h,key):null;
+  ctx.save();
+  ctx.globalAlpha=t;
+  ctx.translate(cxP*w/100,cyP*h/100);
+  if(patch){
+    ctx.drawImage(patch,-R,-R,2*R,2*R);
+  }else{
+    /* ছবির রং পড়া গেল না (অন্য সার্ভারের ছবি) — তখন চারপাশের গড় রঙের ছোপ */
+    var col=wlv1KsSkinColour(cxP,cyP,Math.max(g.L,g.W)*0.85);
+    var gr2=ctx.createRadialGradient(0,0,0,0,0,R);
+    var c0='rgba('+col[0]+','+col[1]+','+col[2]+',';
+    gr2.addColorStop(0,c0+'1)'); gr2.addColorStop(0.58,c0+'1)'); gr2.addColorStop(1,c0+'0)');
+    ctx.fillStyle=gr2; ctx.beginPath(); ctx.arc(0,0,R,0,6.2832); ctx.fill();
+  }
+  ctx.restore();
+}
+function wlv1KsHealTract(ctx,w,h,pts,t){
+  if(t<=0.01||!pts||pts.length<2) return;
+  var cx=0,cy=0,i;
+  for(i=0;i<pts.length;i++){ cx+=pts[i][0]; cy+=pts[i][1] }
+  cx/=pts.length; cy/=pts.length;
+  var col=wlv1KsSkinColour(cx,cy,6);
+  ctx.save();
+  ctx.lineCap='round'; ctx.lineJoin='round';
+  ctx.strokeStyle='rgba('+col[0]+','+col[1]+','+col[2]+','+t+')';
+  ctx.lineWidth=Math.max(3,Math.min(w,h)*0.032);
+  ctx.beginPath();
+  for(i=0;i<pts.length;i++){ var X=pts[i][0]*w/100,Y=pts[i][1]*h/100;
+    if(i===0)ctx.moveTo(X,Y); else ctx.lineTo(X,Y) }
+  ctx.stroke(); ctx.restore();
+}
+window["wlv1KsHealLump"]=wlv1KsHealLump; window["wlv1KsHealTract"]=wlv1KsHealTract;
+window["wlv1KsSkinColour"]=wlv1KsSkinColour;
+
 /* বাছা চিহ্নটা ধাপ অনুযায়ী আঁকা (ফোনের `AnatomyView.drawKs()`-এর যমজ) */
 function wlv1KsPaintMark(ctx,w,h,m){
   if(!m) return;
@@ -8551,6 +8730,7 @@ function wlv1KsPaintMark(ctx,w,h,m){
     var pts=m.pts||[]; if(pts.length<2) return;
     var n=Math.max(2,Math.round(pts.length*(st===K.TRACT_LACE?t:1)));
     if(st===K.TRACT_CUT){
+      wlv1KsHealTract(ctx,w,h,pts,t);   /* 🟢 V589 — আসল ছবির জায়গাটাও পরিষ্কার */
       ctx.save(); ctx.globalAlpha=1-t;
       AnatomyMark.draw(ctx,w,h,[m],sc); wlv1KsTract(ctx,w,h,pts,pts.length,true);
       ctx.restore();
@@ -8574,6 +8754,9 @@ function wlv1KsPaintMark(ctx,w,h,m){
   var shown={kind:'bulge',x:m.x,y:m.y+drop,x2:m.x2,y2:(typeof m.y2==='number'?m.y2+drop:m.y2),r:m.r,s:str,label:m.label};
   var g=AnatomyMark.__lumpGeom(shown), u=Math.min(w,h)/100, L=g.L*u, LW=g.W*u;
   if(st===K.LUMP_FALL){          // গোড়ার পরিষ্কার দাগ, আসল জায়গাতেই
+    /* 🟢 V589 (TK-নির্দেশ) — আঁকা মাংসের নিচে আসল ছবিতে যে মাংসটা দেখা
+       যাচ্ছিল, সেটা চারপাশের চামড়ার রঙে ঢাকা পড়ে — রোগী পরিষ্কার দেখেন। */
+    wlv1KsHealLump(ctx,w,h,m,t);
     var g0=AnatomyMark.__lumpGeom(m), L0=g0.L*u, W0=g0.W*u;
     ctx.save(); ctx.translate(m.x*w/100,m.y*h/100); ctx.rotate(g0.ang);
     ctx.fillStyle='rgba(196,150,142,'+(0.55*t)+')';
@@ -8587,9 +8770,9 @@ function wlv1KsPaintMark(ctx,w,h,m){
   ctx.save();
   if(st===K.LUMP_FALL) ctx.globalAlpha=1-t;
   ctx.translate(shown.x*w/100,shown.y*h/100); ctx.rotate(g.ang);
-  if(st===K.LUMP_INJECT) wlv1KsNeedle(ctx,L,LW,t);
-  else if(st===K.LUMP_TIE) wlv1KsThread(ctx,L,LW,t);
-  else if(st===K.LUMP_FALL && t<0.80) wlv1KsThread(ctx,L,LW,1);
+  if(st===K.LUMP_INJECT) wlv1KsNeedle(ctx,L,LW,t,WLV1_KS.injAlong,WLV1_KS.injAcross);
+  else if(st===K.LUMP_TIE) wlv1KsThread(ctx,L,LW,t,WLV1_KS.tieAt);
+  else if(st===K.LUMP_FALL && t<0.80) wlv1KsThread(ctx,L,LW,1,WLV1_KS.tieAt);
   ctx.restore();
 }
 function wlv1KsTract(ctx,w,h,pts,n,knot){
@@ -8605,6 +8788,32 @@ function wlv1KsTract(ctx,w,h,pts,n,knot){
   ctx.restore();
 }
 /* ছোঁয়ার জায়গার সবচেয়ে কাছের ফোলা/নালী (ফোনের `ksNearestAt()`-এর যমজ) */
+/* 🟢🔒 V589 — ছোঁয়ার জায়গাটা **মাংসের নিজের মাপে** বদলে নেওয়া।
+   ইনজেকশনের ধাপ হলে সুচের ডগা, সুতোর ধাপ হলে বাঁধার জায়গা।
+   ফেরত true হলে ছোঁয়াটা এখানেই কাজে লেগেছে (চিহ্ন বদলানো হবে না)।
+   ⚠️ ফোনের `AnatomyView.ksSetSpot()`-এর হুবহু যমজ (একই সীমা, একই হিসাব)। */
+function wlv1KsSetSpot(x,y){
+  var K=WLV1_KS_STEP;
+  var m=wlv1AnatState.marks[WLV1_KS.idx]; if(!m) return false;
+  if(m.kind==='tract') return false;
+  var inject=(WLV1_KS.step===K.LUMP_INJECT||WLV1_KS.step===K.LUMP_SWELL);
+  var tie=(WLV1_KS.step===K.LUMP_TIE);
+  if(!inject&&!tie) return false;
+  var g=AnatomyMark.__lumpGeom(m); if(!g||!(g.L>0)||!(g.W>0)) return false;
+  var dx=x-m.x, dy=y-m.y;
+  var along=dx*Math.cos(g.ang)+dy*Math.sin(g.ang);
+  var across=-dx*Math.sin(g.ang)+dy*Math.cos(g.ang);
+  if(inject){
+    WLV1_KS.injAlong=wlv1KsClampAlong(along/g.L);
+    WLV1_KS.injAcross=wlv1KsClampAcross(across/g.W);
+  }else{
+    WLV1_KS.tieAt=wlv1KsClampTie(along/g.L);
+  }
+  /* ওই ধাপটা তখনই আবার চলে, তাই সুচ/সুতো নতুন জায়গায় যেতে দেখা যায়। */
+  if(WLV1_KS.steps.length) wlv1KsRun(WLV1_KS.steps[WLV1_KS.at]);
+  return true;
+}
+window["wlv1KsSetSpot"]=wlv1KsSetSpot;
 function wlv1KsNearest(x,y){
   var best=-1,bd=1e9;
   (wlv1AnatState.marks||[]).forEach(function(m,i){
@@ -8656,6 +8865,9 @@ function wlv1KsSelect(i){
     try{toast('এখানে ক্ষারসূত্র দেখানো যায় না — ফোলা বা নালী ছুঁয়ে দিন')}catch(_e){}
     return;
   }
+  /* 🟢 V589 — নতুন মাংস বাছলে ইনজেকশন ও সুতোর জায়গা ডিফল্টে ফেরে
+     (সুতো গোড়ায় — TK-এর চিকিৎসার নিয়ম)। */
+  WLV1_KS.injAlong=0.55; WLV1_KS.injAcross=0.10; WLV1_KS.tieAt=0.20;
   WLV1_KS.idx=i; wlv1KsGo(0);
 }
 function wlv1KsInjToggle(){

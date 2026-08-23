@@ -115,8 +115,35 @@ for path in kt_files():
                 % (short, m.group(1), cls, cls, sorted(enums[cls])[0]))
 
     # ভুল ২ — নেই এমন ধ্রুবক:  Reason.FAILEDD
+    #
+    # 🟢🔒 V589 (২৩.০৮.২০২৬) — **পাহারাদারের নিজের একটা ফাঁক সারানো হলো।**
+    # `android.graphics.PorterDuff.Mode.DST_IN` লেখা থাকলে এই খোঁজাটা শুধু
+    # `Mode.DST_IN` টুকু দেখত, আর প্রজেক্টের নিজের `Mode` নামের enum-এর সাথে
+    # মিলিয়ে মিথ্যে "এই নামের কিছু নেই" বলত (kotlinc কিন্তু দিব্যি কম্পাইল করে)।
+    # ⛔ নিয়ম **এক চুলও আলগা হয়নি**: শুধু তখনই ছেড়ে দেওয়া হয় যখন নামটার আগে
+    #    **ছোট হাতের অক্ষরে শুরু হওয়া প্যাকেজ** আছে (`android.` · `java.` …) —
+    #    অর্থাৎ ওটা বাইরের লাইব্রেরির নাম, প্রজেক্টের enum নয়।
+    #    `BiometricGate.Reason.FAILEDD`-এর মতো প্রজেক্টের ভিতরের ভুল আগের
+    #    মতোই ধরা পড়ে (সব অংশই বড় হাতের অক্ষরে শুরু)।
+    def _is_library_qualified(text, at):
+        """`at` অবস্থানের ঠিক আগে ছোট-হাতের প্যাকেজ-নাম আছে কি না।"""
+        j = at
+        while j > 0 and text[j - 1] == '.':
+            k = j - 1
+            while k > 0 and (text[k - 1].isalnum() or text[k - 1] == '_'):
+                k -= 1
+            seg = text[k:j - 1]
+            if not seg:
+                return False
+            if seg[0].islower():
+                return True
+            j = k
+        return False
+
     for m in re.finditer(r"\b([A-Z]\w*)\.([A-Z][A-Z0-9_]{1,40})\b", code):
         cls, const = m.group(1), m.group(2)
+        if _is_library_qualified(code, m.start()):
+            continue
         if (cls in enums and const not in enums[cls]
                 and len(declared_in.get(cls, ())) == 1):
             problems.append("%s — `%s.%s` : `%s`-এ এই নামের কিছু নেই।"
