@@ -1,0 +1,140 @@
+# -*- coding: utf-8 -*-
+"""
+🛡️ Android রিসোর্স-পাহারা (V584, ২৩.০৮.২০২৬)
+
+TK-নির্দেশ (বারবার): *"অ্যান্ড্রয়েড স্টুডিওতে বিল্ড করার সময় কোন প্রকার যেন
+এরার না আসে"*।
+
+`verify_kotlin_compile.py` শুধু **Kotlin**-এর ভুল ধরে — resource ধরে না।
+অথচ layout থেকে একটা `@+id` সরালে বা drawable-এর নাম ভুল লিখলে Android
+Studio-তে বিল্ড **তখনই ভাঙে** ("Unresolved reference: btnX")। এই পাহারা ঠিক
+সেই শ্রেণির ভুলটাই আগেই ধরে ফেলে।
+
+কী মেলানো হয়:
+  ১) কোডের প্রতিটা `R.id.X` — কোনো layout/menu-তে `@+id/X` আছে কি না
+  ২) কোডের প্রতিটা `R.layout.X` · `R.drawable.X` · `R.menu.X` · `R.raw.X` — ফাইল আছে কি না
+  ৩) কোডের প্রতিটা `R.string.X` · `R.color.X` · `R.style.X` · `R.array.X` — values-এ আছে কি না
+  ৪) XML-এর প্রতিটা `@drawable/X` · `@layout/X` · `@color/X` · `@style/X` · `@string/X`
+     · `@menu/X` · `@anim/X` — আছে কি না  (`@android:...` বাদ)
+
+চালানো:  python3 00_GUARD/verify_android_resources.py
+"""
+import io, os, re, sys, collections
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+APP  = os.path.join(ROOT, '02_ANDROID_SOURCE_CODE/PilesClinicApp/app/src/main')
+RES  = os.path.join(APP, 'res')
+SRC  = os.path.join(APP, 'java')
+
+def read(p):
+    try: return io.open(p, encoding='utf-8', errors='ignore').read()
+    except Exception: return ''
+
+def lib_style(name, local_styles):
+    """লাইব্রেরির style (Material/AppCompat) — res-এ থাকে না, থাকার কথাও নয়।
+    নিয়ম: নামে ডট থাকলে তার **প্রথম টুকরোটা** প্রকল্পে সংজ্ঞায়িত কি না দেখা হয়।
+    `AppTheme.NoBar` → 'AppTheme' প্রকল্পের ⇒ যাচাই হয়।
+    `Widget.MaterialComponents.Button` → 'Widget' প্রকল্পের নয় ⇒ লাইব্রেরির, বাদ।
+    ⚠️ সৎ সীমা: লাইব্রেরির কোনো style-এর নাম ভুল লিখলে এই পাহারা ধরবে না
+       (res-এ ওটা নেই বলে বোঝার উপায়ও নেই) — kotlinc/aapt2-ই ধরবে।"""
+    if '.' not in name:
+        return False
+    root = name.split('.')[0]
+    return not any(st == root or st.startswith(root + '.') for st in local_styles)
+
+
+def walk(base, exts):
+    for d, _, fs in os.walk(base):
+        for f in fs:
+            if f.lower().endswith(exts):
+                yield os.path.join(d, f)
+
+# ── যা যা আছে ──────────────────────────────────────────────────────────
+have = collections.defaultdict(set)
+
+for p in walk(RES, ('.xml',)):
+    rel = os.path.relpath(p, RES).replace('\\', '/')
+    folder, fname = rel.split('/', 1)
+    kind = folder.split('-')[0]           # layout-land → layout
+    stem = fname[:-4]
+    if kind in ('layout', 'menu', 'anim', 'animator', 'xml', 'navigation', 'transition'):
+        have[kind].add(stem)
+    if kind == 'drawable':
+        have['drawable'].add(stem)
+    if kind == 'mipmap':
+        have['mipmap'].add(stem)
+    txt = read(p)
+    # layout/menu-র ভিতরের সব `@+id/...`
+    for m in re.finditer(r'@\+id/([A-Za-z_][A-Za-z0-9_]*)', txt):
+        have['id'].add(m.group(1))
+    # values/*.xml-এর সব সংজ্ঞা
+    if kind == 'values':
+        for m in re.finditer(r'<(string|color|style|dimen|integer|bool|string-array|integer-array|array|declare-styleable)\s[^>]*name="([^"]+)"', txt):
+            tag, nm = m.group(1), m.group(2)
+            key = {'string-array': 'array', 'integer-array': 'array'}.get(tag, tag)
+            have[key].add(nm)
+        for m in re.finditer(r'<item\s[^>]*type="id"[^>]*name="([^"]+)"', txt):
+            have['id'].add(m.group(1))
+
+# ছবি/অডিও ইত্যাদি — যেগুলো xml নয়
+for p in walk(RES, ('.png', '.jpg', '.jpeg', '.webp', '.gif', '.9.png', '.mp3', '.ogg', '.wav', '.ttf', '.otf', '.json')):
+    rel = os.path.relpath(p, RES).replace('\\', '/')
+    folder, fname = rel.split('/', 1)
+    kind = folder.split('-')[0]
+    stem = re.sub(r'\.(9\.png|png|jpg|jpeg|webp|gif|mp3|ogg|wav|ttf|otf|json)$', '', fname, flags=re.I)
+    have[kind].add(stem)
+
+# ── কোড যা চায় ─────────────────────────────────────────────────────────
+BAD = []
+KINDS = ('id', 'layout', 'drawable', 'mipmap', 'menu', 'string', 'color',
+         'style', 'dimen', 'array', 'raw', 'anim', 'font', 'integer', 'bool')
+
+for p in walk(SRC, ('.kt', '.java')):
+    txt = read(p)
+    # `android.R.id.x` বাদ — ওটা সিস্টেমের
+    for m in re.finditer(r'(?<![\w.])(android\.)?R\.(\w+)\.([A-Za-z_][A-Za-z0-9_]*)', txt):
+        if m.group(1):        # android.R.* — সিস্টেমের, বাদ
+            continue
+        kind, name = m.group(2), m.group(3)
+        if kind not in KINDS:
+            continue
+        pool = have[kind] | (have['mipmap'] if kind == 'drawable' else set())
+        if name not in pool:
+            if kind == 'style' and lib_style(name, have['style']):
+                continue
+            line = txt[:m.start()].count('\n') + 1
+            BAD.append('%s:%d — R.%s.%s নেই res-এ' % (os.path.relpath(p, ROOT), line, kind, name))
+
+XMLKINDS = ('drawable', 'layout', 'color', 'style', 'string', 'menu', 'anim',
+            'dimen', 'array', 'integer', 'bool', 'mipmap', 'font')
+for p in walk(RES, ('.xml',)):
+    txt = read(p)
+    for m in re.finditer(r'"@(?!\+|android:)(\w+)/([A-Za-z_][A-Za-z0-9_.]*)"', txt):
+        kind, name = m.group(1), m.group(2)
+        if kind not in XMLKINDS:
+            continue
+        pool = have[kind] | (have['mipmap'] if kind == 'drawable' else set())
+        if name not in pool:
+            if kind == 'style' and lib_style(name, have['style']):
+                continue
+            line = txt[:m.start()].count('\n') + 1
+            BAD.append('%s:%d — @%s/%s নেই res-এ' % (os.path.relpath(p, ROOT), line, kind, name))
+
+# ── ছাপা ───────────────────────────────────────────────────────────────
+print('=' * 66)
+print('🛡️  Android রিসোর্স-পাহারা — বিল্ড ভাঙার আগেই ধরা')
+print('=' * 66)
+print('   res-এ পাওয়া গেল: id=%d · layout=%d · drawable=%d · string=%d · color=%d'
+      % (len(have['id']), len(have['layout']), len(have['drawable']),
+         len(have['string']), len(have['color'])))
+if BAD:
+    print('-' * 66)
+    for b in BAD[:60]:
+        print('  ❌ ' + b)
+    if len(BAD) > 60:
+        print('  … আরও %d টা' % (len(BAD) - 60))
+    print('-' * 66)
+    print('⛔ FAIL — এই %d টা রিসোর্স নেই, Android Studio-তে বিল্ড ভাঙবে।' % len(BAD))
+    sys.exit(1)
+print('-' * 66)
+print('✅ PASS — কোড ও XML যত রিসোর্স চায়, সবগুলোই res-এ আছে।')

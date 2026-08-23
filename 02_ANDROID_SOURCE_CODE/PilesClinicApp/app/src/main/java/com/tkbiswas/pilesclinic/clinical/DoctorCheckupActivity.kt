@@ -26,8 +26,6 @@ import com.tkbiswas.pilesclinic.native.BackgroundWork
 import com.tkbiswas.pilesclinic.native.PhotoUtils
 import com.tkbiswas.pilesclinic.native.SupabaseClient
 import com.tkbiswas.pilesclinic.native.SpinnerPicker
-import com.tkbiswas.pilesclinic.native.CallChooser
-import com.tkbiswas.pilesclinic.native.PatientTimelineActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext

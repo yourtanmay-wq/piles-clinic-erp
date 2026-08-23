@@ -236,8 +236,15 @@ if dv:
     elif "if (keyAtStart != dvCountsKey()) return" not in dv:
         fails.append("[৪] মাঝপথে ব্রাঞ্চ বদলে গেলে আগের ব্রাঞ্চের সংখ্যা নতুন ব্রাঞ্চের ঘরে "
                      "বসে যাবে — `keyAtStart` মেলানো হচ্ছে না")
-    elif "fetchListRawOrNull(" not in dv:
-        fails.append("[৪] Doctor Visit-এর ব্যর্থ-পড়া পাহারা (`fetchListRawOrNull`) মুছে গেছে")
+    # 🔵 V584 (২৩.০৮.২০২৬) — নামটা হালনাগাদ। V576-এর egress-কাজে এই স্ক্রিনের
+    # ডাক `fetchListRawOrNull()` → `fetchListRawSmartOrNull()` হয়েছিল (probe →
+    # unchanged / delta / full)। নিয়মটা **এক অক্ষরও শিথিল হয়নি**: নতুন
+    # ফাংশনের প্রতিটা ব্যর্থ-পথও `full()` = `SupabaseClient.fetchListOrNull()`
+    # ডাকে, অর্থাৎ নেট খারাপ হলে আগের মতোই `null` ফেরে — কখনো চুপচাপ ফাঁকা নয়
+    # (DoctorVisitRepository.kt-এ মিলিয়ে দেখা হয়েছে)। পাহারাটা শুধু পুরোনো
+    # নামটাই খুঁজছিল বলে V576-এর পর থেকে অকারণে লাল হয়ে ছিল।
+    elif not any(f in dv for f in ("fetchListRawOrNull(", "fetchListRawSmartOrNull(")):
+        fails.append("[৪] Doctor Visit-এর ব্যর্থ-পড়া পাহারা (`fetchListRaw…OrNull`) মুছে গেছে")
     else:
         oks.append("[৪] Doctor Visit-এর তালিকা দুইবারেই একরকম দেখাবে ✅")
 

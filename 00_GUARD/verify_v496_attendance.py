@@ -173,8 +173,17 @@ if not bridge:
     _p = _os.path.join(KT, "SessionGuardBridge.kt")
     bridge = open(_p, encoding="utf-8").read() if _os.path.exists(_p) else ""
 bcode = strip_kt(bridge)
+# 🔵 V584 (২৩.০৮.২০২৬) — এই নিয়মটা TK-এর **নিজের পরের নির্দেশে** বাতিল হয়ে
+# গেছে, তাই পাহারা থেকেও তুলে নেওয়া হলো।
+# V527 (২২.০৮.২০২৬) TK: *"বারবার Fingerprint আসবে না। যখন Login-এর ব্যাপার
+# থাকবে তখন চাইবে। আর In Time-এর সময় চাইবে, পেমেন্ট নেওয়ার সময় চাইবে। বাকি
+# কখনো যেন ফিঙ্গারপ্রিন্ট চায় না।"* ⇒ `SessionGuardBridge`-এর `AppLock.guard`
+# ডাকটা ইচ্ছে করে তুলে দেওয়া হয়েছিল (কোডে কারণ সহ লেখা আছে)। অথচ পাহারাটা
+# পুরোনো নিয়মই খুঁজছিল, তাই V527-এর পর থেকে অকারণে লাল হয়ে ছিল।
+# ⛔ যে তিন জায়গায় আঙুল **থাকতেই হবে** (Login · IN TIME · টাকা) সেগুলোর
+#    যাচাই এই ফাইলে আগের মতোই আছে — নিয়ম শিথিল হয়নি।
 if "AppLock.guard" not in bcode:
-    problems.append("অ্যাপ খোলার সময় তালা ডাকা হচ্ছে না")
+    notes.append("  অ্যাপ খোলার তালা নেই — V527-এ TK-এর নির্দেশেই তোলা হয়েছে ✅")
 elif bcode.index("AppLock.guard") > bcode.index("isMaster(user)) return"):
     problems.append("তালা মাস্টারের `return`-এর পরে ডাকা হচ্ছে — মাস্টারের ফোনে তালা লাগবে না")
 else:
@@ -432,7 +441,13 @@ for _f in _kt_all:
     except Exception:
         continue
     for _t in _no_upd:
-        for _m in re.finditer(r'fetchList\w*\(\s*"%s"\s*,([^)]*)\)' % re.escape(_t), _txt):
+        # 🔵 V584 — আগে `[^)]*` ছিল, তাই যুক্তির ভিতরে আরেকটা বন্ধনী থাকলেই
+        # (যেমন `URLEncoder.encode(item.id, "UTF-8")`) খোঁজা ওখানেই থেমে যেত
+        # আর পরের `order = ...` চোখে পড়ত না — TrashRepository-তে ঠিক সেটাই
+        # হচ্ছিল, ফলে সঠিক কোডকেও ভুল বলে ধরা হত। এখন এক ধাপ ভিতরের বন্ধনীও
+        # ধরা পড়ে। ⛔ নিয়ম শিথিল হয়নি — সত্যিই `order` না দিলে আগের মতোই ধরা
+        #    পড়ে (নমুনা দিয়ে যাচাই করা হয়েছে)।
+        for _m in re.finditer(r'fetchList\w*\(\s*"%s"\s*,((?:[^()]|\([^()]*\))*)\)' % re.escape(_t), _txt):
             if "order" not in _m.group(1):
                 _bad_order.append("%s → \"%s\"" % (os.path.basename(_f), _t))
 if _bad_order:
