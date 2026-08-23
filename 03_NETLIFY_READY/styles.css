@@ -5977,8 +5977,17 @@ body.wlv1AnatFullOpen{overflow:hidden}
 /* 🖥️🔵 V574 (২২.০৮.২০২৬, TK-নির্দেশ) — *"patient id মোবাইল স্ক্রিনের প্রথম
    থেকে থাকবে তারপরে Ref by"* ⇒ ID-র সারিটা ছবির পাশের ঘর থেকে বেরিয়ে এসে
    গোটা কার্ডের নিচে, একদম বাঁ দিক থেকে — আগে ID, তারপর Ref By। */
+/* 🖥️🔵 V584 (২৩.০৮.২০২৬, TK-নির্দেশ *"Id & Ref by ... হেডার থেকে বেরিয়ে গেল
+   কেন"*) — সারিটা এখন কার্ডের **ভিতরে**, তাই বাইরের margin আর লাগে না।
+   🔁 পুরনো মান (ফেরানোর জন্য): margin:-4px 0 10px। */
 .dnIdRow{display:flex;align-items:center;gap:7px;flex-wrap:nowrap;white-space:nowrap;
-  margin:-4px 0 10px;padding:0 2px;overflow:hidden}
+  margin:6px 0 0;padding:0 2px;overflow:hidden}
+/* কার্ডের ভিতরের উপরের সারি — ছবি · নাম-মোবাইল · ডানে 📜 বোতাম */
+.dnPatCard .dnPatTop{display:flex;align-items:flex-start;gap:10px}
+.dnPatCard .dnPatWho{flex:1;min-width:0}
+.dnHistBtn{flex:0 0 auto;width:34px;height:34px;border-radius:50%;border:1px solid #BFE9CE;
+  background:#E8F6EC;color:#0B4F2A;font-size:15px;line-height:1;padding:0;cursor:pointer}
+.dnHistBtn:hover{background:#D6EFE0}
 .dnIdBadge{background:#7C4DFF;color:#fff;border-radius:6px;font-size:10.5px;font-weight:800;
   padding:2px 7px;flex:0 0 auto}
 .dnIdNo{font-size:13.5px;font-weight:800;color:#0B4F2A;flex:0 0 auto}
@@ -6004,3 +6013,13 @@ body.wlv1AnatFullOpen{overflow:hidden}
 /* 🔵 V574 — চারটে ইতিহাস আলাদা ভাঁজ হওয়ায় বাইরের বাক্সটার আর বর্ডার লাগে না */
 .wlv1HistBox.plain{border:0;background:transparent;padding:0}
 .wlv1HistBox.plain .wlv1HistGrp{border-bottom:0;padding:2px 2px 6px}
+
+/* 🔵🔒 V584 (২৩.০৮.২০২৬, TK-অনুমোদিত ডেমো-প্রুফের পরে) — Check-up Record
+   পাতার উপরে ভাষা বাছাইয়ের সারি (বাংলা | English)।
+   TK-নির্দেশ: *"এই ফর্মটা বাংলা এবং ইংরেজি দুটো যেন থাকে, আমরা যখন যেটা
+   দেখতে চাইছি তখন সেটা যেন দেখতে পারি"*।
+   ⚠️ ফোনের Check-up History পপ-আপের সেগমেন্ট-বোতামের যমজ (একই রং/মাপ)।
+   ⛔ নতুন class, তাই প্রকল্পের আর কোনো পর্দায় এর প্রভাব নেই। */
+.wlv1A4LangBar{display:flex;border:2px solid #0F5132;border-radius:8px;overflow:hidden;margin:0 0 10px;max-width:280px}
+.wlv1A4LangBar .wlv1A4Seg{flex:1;border:0;background:transparent;color:#0F5132;font-weight:700;font-size:14px;padding:8px 0;cursor:pointer;border-radius:0}
+.wlv1A4LangBar .wlv1A4Seg.on{background:#0F5132;color:#fff}

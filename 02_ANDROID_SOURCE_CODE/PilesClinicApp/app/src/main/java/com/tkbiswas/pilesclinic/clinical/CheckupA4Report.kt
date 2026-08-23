@@ -42,7 +42,24 @@ object CheckupA4Report {
         val treatmentPlan: String = "", val rate: String = "", val counselling: String = "",
         val estCost: String = "", val recovery: String = "", val advance: String = "",
         val decision: String = "", val remarks: String = "",
-        val beforePhoto: String = "", val duringPhoto: String = "", val afterPhoto: String = ""
+        val beforePhoto: String = "", val duringPhoto: String = "", val afterPhoto: String = "",
+        /* 🔵 V584 (২৩.০৮.২০২৬, TK-নির্দেশ *"যে সমস্ত জিনিস মিসিং আছে সেগুলো
+           যুক্ত করবেন"*) — কাগজের ভাগ ২ · ভাগ ৩ · ভাগ ৪ ও রোগের ছবি (ভাগ ৬)
+           এতদিন প্রিন্টে যেত না, অথচ ফর্মে ভরা হত। ঘরগুলোর ডিফল্ট ফাঁকা,
+           তাই পুরোনো কোনো ডাক (V584-এর আগের) এক অক্ষরও ভাঙে না। */
+        val patientSaid: String = "",
+        val symptomHistory: String = "",   // ভাগ ২ — SymptomHistoryModel-এর সেভ করা লেখা
+        val historyDetail: String = "",    // ভাগ ৩ — HistoryDetailModel
+        val lifestyle: String = "",        // ভাগ ৪ — LifestyleModel
+        val anatomy: String = "",          // ভাগ ৬ — AnatomyModel (দাগগুলো)
+        val anatomyImage: String = "",     // ভাগ ৬ — আঁকা ছবিটার data URL (CheckupAnatomyImage)
+        val probableDisease: String = "",
+        /* ⚠️ সৎ সীমাবদ্ধতা: `medical` টেবিলের পুরোনো এক-লাইনের লেখায় (📜 History)
+           ভাগ ২/৩/৪-এর **মূল কাঁচা লেখাটা** থাকে না, থাকে মানুষ-পড়া-যায় রূপটা।
+           সেই রেকর্ডে উপরের ঘরগুলো ফাঁকা থাকে আর নিচেরগুলো ভরে — তখন সেকশনটা
+           সারি-সারি না হয়ে **এক লাইনে** বসে। কিছু হারায় না, শুধু সাজ আলাদা। */
+        val symptomText: String = "", val historyText: String = "",
+        val habitText: String = "", val pictureText: String = ""
     )
 
     fun today(): String {
@@ -114,13 +131,45 @@ object CheckupA4Report {
             otherFindings = field("Other Findings"),
             treatmentPlan = planOnly, rate = rate, counselling = field("Other Treatment Note"),
             estCost = field("Est Cost"), recovery = field("Recovery"), advance = field("Advance"),
-            decision = field("Decision"), remarks = field("Remarks")
+            decision = field("Decision"), remarks = field("Remarks"),
+            // 🔵 V584 — পুরোনো লেখা থেকে যতটুকু পাওয়া যায় ততটুকুই (মানুষ-পড়া-যায় রূপ)
+            patientSaid = field("Patient Said"),
+            probableDisease = field("Probable Disease"),
+            symptomText = field("Patient Reported"),
+            historyText = field("History Detail"),
+            habitText = field("Habits"),
+            pictureText = field("Disease Picture")
         )
     }
 
-    /** সম্পূর্ণ A4 রিপোর্টের HTML। ছবি দেখাতে WebView-এ baseURL
-     *  `file:///android_asset/` দিতে হয় (ক্লিনিক-লোগো assets-এ থাকে)। */
-    fun html(info: Info, f: Fields): String {
+
+    /**
+     * 🔵🔒 V584 (২৩.০৮.২০২৬, TK-অনুমোদিত ডেমো-প্রুফের পরে) — সম্পূর্ণ A4
+     * রিপোর্টের HTML, **এক পাতায়** ও **দুই ভাষায়**।
+     *
+     * TK-এর নির্দেশ, ধাপে ধাপে:
+     *   • *"যেগুলো পাশাপাশি রাখা যাবে সেগুলি পাশাপাশি রেখে যাতে একটা পেজেই
+     *     প্রিন্ট আউট করা যায়"* ⇒ ভাগ ২ ও ভাগ ৪ পাশাপাশি, আর নিচে রোগের ছবির
+     *     পাশে ডাক্তারি পরীক্ষা + পরিকল্পনা + হিসাব।
+     *   • *"ক্লিনিক্যাল ফটোগ্রাফ এটা যদি এই ফর্মে না রাখা হয় ... তাহলে এফোর
+     *     সাইজে এক পেজে প্রিন্ট আউট করা যেতে পারে"* ⇒ Before/During/After-এর
+     *     ঘরটা এখান থেকে বাদ (TK-অনুমোদিত)।
+     *   • *"যে সমস্ত জিনিস মিসিং আছে সেগুলো যুক্ত করবেন"* ⇒ ভাগ ২ · ভাগ ৩ ·
+     *     ভাগ ৪ ও রোগের ছবি (ভাগ ৬) যোগ হলো।
+     *   • *"হেডারে সম্পূর্ণ ডিটেইলস ইংরেজিতে থাকবে"* ⇒ লোগো-লাইন, সবুজ পট্টি
+     *     ও রোগীর তথ্যের ঘর দুই ভাষাতেই ইংরেজি।
+     *
+     * ⛔ **পুরোনো ডাক ভাঙে না:** `lang`-এর ডিফল্ট **English** — অর্থাৎ যে দুটো
+     *    জায়গা আগে থেকে `html(info, f)` ডাকে (সেভের পরের পর্দা ও 📜 History),
+     *    তারা হুবহু আগের ইংরেজি রিপোর্টই পায়। ভাষা বাছার সুযোগটা নতুন
+     *    Check-up History পপ-আপে।
+     * ⛔ কোনো ফর্ম-ফিল্ড/সেভ-লজিক/ডেটাবেস-কলাম ছোঁয়া হয়নি; নেটওয়ার্ক কলও নেই।
+     *
+     * ছবি দেখাতে WebView-এ baseURL `file:///android_asset/` দিতে হয়
+     * (ক্লিনিক-লোগো assets-এ থাকে)।
+     */
+    @JvmOverloads
+    fun html(info: Info, f: Fields, lang: String = CheckupA4Lang.EN): String {
         val b = BranchCatalog.byName(info.branch)
         val date = info.date.ifBlank { today() }
         val name = esc(info.name.ifBlank { "-" })
@@ -129,16 +178,86 @@ object CheckupA4Report {
         val disease = esc(info.disease.ifBlank { "-" })
         val addr2 = addrTwoLines(info.address.ifBlank { "-" })
         val mobile = esc(info.mobile.ifBlank { "-" })
+
+        fun t(k: String) = CheckupA4Lang.s(k, lang)
         fun v(x: String) = esc(x.ifBlank { "—" })
-        fun photoBox(label: String, data: String): String =
-            if (data.isBlank())
-                """<div class="pcell"><div class="pimg empty">—</div><div class="pl">$label</div></div>"""
-            else
-                """<div class="pcell"><div class="pimg" style="background-image:url('$data')"></div><div class="pl">$label</div></div>"""
-        val photos = photoBox("BEFORE", f.beforePhoto) +
-            photoBox("DURING", f.duringPhoto) + photoBox("AFTER", f.afterPhoto)
-        // 🔒 B551 (08.08.2026, TK-অনুমোদিত) — রোগীর ছবি থাকলে পেশেন্ট ডিটেলসের
-        // বাঁ পাশে বসে; ছবি না থাকলে কিছুই বসে না (ডিটেলস পুরো জায়গা নেয়)।
+        fun cell(k: String, value: String, full: Boolean = false) =
+            """<div class="cell${if (full) " full" else ""}"><span class="k">$k</span><span class="v">${v(value)}</span></div>"""
+        /** সব ঘর ফাঁকা হলে সেকশনটাই বসে না — নইলে পাতায় শুধু "—" ভরা ঘর পড়ে থাকত। */
+        fun sec(title: String, cells: List<String>, one: Boolean = false): String {
+            if (cells.isEmpty()) return ""
+            return """<div class="sec"><div class="sh">$title</div><div class="g${if (one) " one" else ""}">${cells.joinToString("")}</div></div>"""
+        }
+        fun rowCells(rows: List<Pair<String, String>>, full: Boolean = false): List<String> =
+            rows.map { cell(esc(it.first), it.second, full) }
+
+        // ── কাগজের ভাগ ২ / ৩ / ৪ — কাঁচা লেখা থাকলে সারি-সারি, নইলে এক লাইনে ──
+        val symCells =
+            if (f.symptomHistory.isNotBlank()) rowCells(CheckupA4Lang.symptomRows(f.symptomHistory, lang))
+            else if (f.symptomText.isNotBlank()) listOf(cell("", f.symptomText, true)) else emptyList()
+        val hisCells =
+            if (f.historyDetail.isNotBlank()) rowCells(CheckupA4Lang.historyRows(f.historyDetail, lang), true)
+            else if (f.historyText.isNotBlank()) listOf(cell("", f.historyText, true)) else emptyList()
+        val habCells =
+            if (f.lifestyle.isNotBlank()) rowCells(CheckupA4Lang.habitRows(f.lifestyle, lang))
+            else if (f.habitText.isNotBlank()) listOf(cell("", f.habitText, true)) else emptyList()
+
+        // ── ভাগ ৬ · রোগের ছবি ──
+        val picLines =
+            if (f.anatomy.isNotBlank()) CheckupA4Lang.anatomyLines(f.anatomy, lang)
+            else if (f.pictureText.isNotBlank()) listOf(f.pictureText) else emptyList()
+        val picMarks =
+            if (picLines.isEmpty()) ""
+            else """<div class="mk">${picLines.joinToString("<br>") { "&middot; " + esc(it) }}</div>"""
+        val picBox =
+            if (f.anatomyImage.isNotBlank())
+                """<div class="pic"><div class="pbox"><img src="${f.anatomyImage}"></div></div>"""
+            else ""
+        val picSection =
+            if (picBox.isBlank() && picMarks.isBlank()) ""
+            else """<div class="sec tall"><div class="sh">${t("sec6")}</div>$picBox$picMarks</div>"""
+
+        // ── ডান কলাম — ডাক্তারি পরীক্ষা · পরিকল্পনা · হিসাব ──
+        val findCells = ArrayList<String>()
+        if (f.visual.isNotBlank()) findCells.add(cell(t("visual"), f.visual, true))
+        if (f.probableDisease.isNotBlank()) findCells.add(cell(t("probable"), f.probableDisease, true))
+        if (f.grade.isNotBlank()) findCells.add(cell(t("grade"), f.grade, true))
+        if (f.onProbing.isNotBlank()) findCells.add(cell(t("onProbing"), f.onProbing, true))
+        if (f.investigation.isNotBlank()) findCells.add(cell(t("investigation"), f.investigation, true))
+
+        val planCells = ArrayList<String>()
+        if (f.treatmentPlan.isNotBlank()) planCells.add(cell(t("plan"), f.treatmentPlan, true))
+        if (f.rate.isNotBlank()) planCells.add(cell(t("rate"), f.rate, true))
+        if (f.counselling.isNotBlank()) planCells.add(cell(t("counselling"), f.counselling, true))
+
+        val estCells = ArrayList<String>()
+        if (f.estCost.isNotBlank()) estCells.add(cell(t("estCost"), f.estCost))
+        if (f.recovery.isNotBlank()) estCells.add(cell(t("recovery"), f.recovery))
+        if (f.advance.isNotBlank()) estCells.add(cell(t("advance"), f.advance))
+
+        val rightCol = sec(t("sec5"), findCells, true) + sec(t("sec7"), planCells, true) + sec(t("sec8"), estCells)
+
+        // ── ধাপ ১ ──
+        val step1 = ArrayList<String>()
+        if (f.complaint.isNotBlank()) step1.add(cell(t("complaint"), f.complaint))
+        if (f.duration.isNotBlank()) step1.add(cell(t("duration"), f.duration))
+        if (f.occupation.isNotBlank()) step1.add(cell(t("occupation"), f.occupation))
+        if (f.patientSaid.isNotBlank()) step1.add(cell(t("patientSaid"), f.patientSaid))
+        if (f.prevTreatment.isNotBlank()) step1.add(cell(t("prevTreatment"), f.prevTreatment, true))
+
+        // ── পাশাপাশি সাজ — একদিক ফাঁকা হলে অন্যদিক পুরো চওড়া নেয় ──
+        fun two(left: String, right: String): String = when {
+            left.isBlank() && right.isBlank() -> ""
+            left.isBlank() -> right
+            right.isBlank() -> left
+            else -> """<div class="two"><div>$left</div><div>$right</div></div>"""
+        }
+        val midRow = two(sec(t("sec2"), symCells), sec(t("sec4"), habCells))
+        val btmRow = when {
+            picSection.isBlank() -> rightCol
+            rightCol.isBlank() -> picSection
+            else -> """<div class="two btm"><div>$picSection</div><div>$rightCol</div></div>"""
+        }
         val photoCell = if (info.photo.isNotBlank())
             """<div class="pphoto" style="background-image:url('${info.photo}')"></div>""" else ""
 
@@ -146,43 +265,46 @@ object CheckupA4Report {
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:Georgia,'Noto Serif',serif;}
 body{background:#fff;color:#111;}
-.gold{height:6px;background:linear-gradient(90deg,#b8912f,#e6c65c,#b8912f);}
+.gold{height:5px;background:linear-gradient(90deg,#b8912f,#e6c65c,#b8912f);}
 .gbar{height:3px;background:#0f5132;}
-.lh{display:flex;align-items:center;gap:14px;padding:14px 22px 10px;}
-.lh img{width:74px;height:74px;}
+.lh{display:flex;align-items:center;gap:16px;padding:8px 20px 6px;}
+.lh img{width:78px;height:78px;object-fit:contain;flex:0 0 auto;}
 .cn{font-size:23px;font-weight:800;color:#0f5132;line-height:1;}
-.tag{font-size:11px;font-weight:700;color:#b8912f;letter-spacing:2px;margin-top:3px;text-transform:uppercase;font-family:Arial;}
-.addr{font-size:11.5px;color:#3b4650;margin-top:4px;font-family:Arial;}
+.tag{font-size:11px;font-weight:700;color:#b8912f;letter-spacing:2px;margin-top:2px;text-transform:uppercase;font-family:Arial;}
+.addr{font-size:11.5px;color:#3b4650;margin-top:3px;font-family:Arial;}
 .addr b{color:#0f5132;}
-.rx{margin-left:auto;color:#0f5132;font-size:26px;font-weight:800;}
-.tb{background:#0f5132;color:#fff;display:flex;justify-content:space-between;align-items:center;padding:6px 22px;font-family:Arial;}
+.tb{background:#0f5132;color:#fff;display:flex;justify-content:space-between;align-items:center;padding:7px 20px;font-family:Arial;}
 .tb .t{font-size:13px;font-weight:800;letter-spacing:2px;}
 .tb .r{font-size:10.5px;color:#cfe6d8;}
-.pi{display:flex;align-items:center;gap:16px;padding:10px 22px;font-size:12px;font-family:Arial;background:#f7faf8;border-bottom:1.5px solid #e4ebe6;}
-.pphoto{width:84px;height:100px;border:2px solid #b8912f;border-radius:5px;background-size:cover;background-position:center;background-color:#eaf0f6;flex:0 0 auto;}
+.pi{display:flex;gap:18px;padding:9px 20px;font-size:12px;font-family:Arial;background:#f7faf8;border-bottom:1.5px solid #e4ebe6;}
+.pphoto{width:78px;height:94px;border:2px solid #b8912f;border-radius:4px;background-size:cover;background-position:center;background-color:#eaf0f6;flex:0 0 auto;}
 .pi .c{flex:1;}
-.pi .r{padding:2px 0;}
+.pi .r{padding:2.5px 0;}
 .pi .r b{color:#0f5132;display:inline-block;min-width:74px;}
-.wrap{padding:4px 22px 14px;font-family:Arial;}
-.sec{margin-top:10px;border:1px solid #d5ddd7;border-radius:5px;overflow:hidden;}
-.sh{background:#eef5f0;color:#0f5132;font-size:11px;font-weight:800;letter-spacing:1px;padding:6px 12px;border-left:4px solid #b8912f;}
+.wrap{padding:6px 20px 10px;font-family:Arial;}
+.two{display:flex;gap:10px;}
+.two>*{flex:1;min-width:0;}
+.two.btm{align-items:stretch;}
+.sec{margin-top:5px;border:1px solid #d5ddd7;border-radius:4px;overflow:hidden;}
+.sec.tall{display:flex;flex-direction:column;height:100%;}
+.sh{background:#eef5f0;color:#0f5132;font-size:11px;font-weight:800;letter-spacing:1px;padding:5.5px 12px;border-left:4px solid #b8912f;}
 .g{display:flex;flex-wrap:wrap;}
-.cell{width:50%;padding:6px 12px;font-size:12px;border-bottom:1px solid #f0f3f1;display:flex;gap:8px;}
+.cell{width:50%;padding:4.5px 12px;font-size:11.5px;border-bottom:1px solid #f0f3f1;display:flex;gap:6px;line-height:1.35;}
 .cell.full{width:100%;}
-.cell .k{color:#6b7680;min-width:110px;}
+.cell .k{color:#6b7680;min-width:94px;flex:0 0 auto;}
 .cell .v{color:#111;font-weight:700;}
 .cell:nth-child(odd){border-right:1px solid #f0f3f1;}
-.photos{display:flex;gap:10px;padding:10px 12px;}
-.pcell{flex:1;text-align:center;}
-.pimg{height:120px;border:1.2px solid #d5ddd7;border-radius:5px;background-size:cover;background-position:center;background-color:#f4f6f5;}
-.pimg.empty{display:flex;align-items:center;justify-content:center;color:#b7c1ba;font-size:26px;}
-.pl{margin-top:5px;font-size:10px;font-weight:800;color:#0f5132;letter-spacing:1px;}
-.foot{display:flex;justify-content:space-between;align-items:flex-end;padding:26px 22px 10px;font-family:Arial;}
-.stamp{width:104px;height:104px;border:1.4px dashed #c3ccd6;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#aeb8c2;font-size:10px;}
+.one .cell{width:100%;border-right:0;}
+.pic{display:flex;gap:14px;padding:7px 10px 3px;flex:1;}
+.pbox{flex:1;min-height:170px;border:1px solid #d5ddd7;border-radius:4px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+.pbox img{max-width:100%;max-height:225px;}
+.mk{padding:4px 12px 8px;font-size:11.5px;line-height:1.7;color:#111;}
+.foot{display:flex;justify-content:space-between;align-items:flex-end;padding:9px 20px 4px;font-family:Arial;}
+.stamp{width:92px;height:92px;border:1.3px dashed #c3ccd6;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#aeb8c2;font-size:9.5px;}
 .sign{text-align:center;font-size:11px;}
-.sign .ln{width:190px;border-top:1.4px solid #333;margin-bottom:4px;}
+.sign .ln{width:185px;border-top:1.2px solid #333;margin-bottom:3px;}
 .sign .dn{font-weight:800;color:#0f5132;}
-.fn{border-top:1px solid #e4ebe6;text-align:center;font-size:9.5px;color:#8a949e;padding:7px 0 10px;font-family:Arial;}
+.fn{border-top:1px solid #e4ebe6;text-align:center;font-size:9.5px;color:#8a949e;padding:5px 0 6px;font-family:Arial;}
 </style></head><body>
 <div class="gold"></div>
 <div class="lh"><img src="${b.logoAssetPath}">
@@ -195,39 +317,13 @@ $photoCell<div class="c"><div class="r"><b>Name</b> : $name</div><div class="r">
 <div class="c"><div class="r"><b>Disease</b> : $disease</div><div class="r"><b>Branch</b> : ${esc(b.displayName)}</div><div class="r"><b>Visit Date</b> : $date</div><div class="r"><b>Address</b> : <span style="display:inline-block;vertical-align:top">$addr2</span></div></div>
 </div>
 <div class="wrap">
-<div class="sec"><div class="sh">HISTORY &amp; PREVIOUS TREATMENT</div><div class="g">
-<div class="cell"><span class="k">Chief Complaint</span><span class="v">${v(f.complaint)}</span></div>
-<div class="cell"><span class="k">Duration</span><span class="v">${v(f.duration)}</span></div>
-<div class="cell"><span class="k">Onset</span><span class="v">${v(f.onset)}</span></div>
-<div class="cell"><span class="k">Occupation</span><span class="v">${v(f.occupation)}</span></div>
-<div class="cell"><span class="k">Prev. Treatment</span><span class="v">${v(f.prevTreatment)}</span></div>
-${""/* 🔵 B622 (11.08.2026, TK-নির্দেশ): Result · Prev. Cost · Treatment Duration ঘর ফর্ম থেকে বাদ, তাই প্রিন্টেও বাদ (প্রিন্ট ও ফর্ম মেলে)। */}
-${""/* V455 (18.08.2026, TK-নির্দেশ): Onset ঘর ফর্ম থেকে বাদ, তাই প্রিন্টেও বাদ। */}
-</div></div>
-<div class="sec"><div class="sh">CLINICAL FINDINGS</div><div class="g">
-<div class="cell"><span class="k">Visual Exam</span><span class="v">${v(f.visual)}</span></div>
-${""/* V455 (18.08.2026, TK-নির্দেশ): DRE ঘর (পুরো B সেকশন) ফর্ম থেকে বাদ, তাই প্রিন্টেও বাদ। */}
-<div class="cell"><span class="k">Proctoscopy Grade</span><span class="v">${v(f.grade)}</span></div>
-<div class="cell"><span class="k">On Probing</span><span class="v">${v(f.onProbing)}</span></div>
-<div class="cell"><span class="k">Investigations</span><span class="v">${v(f.investigation)}</span></div>
-${""/* V455 (18.08.2026, TK-নির্দেশ): Other Findings ঘর ফর্ম থেকে বাদ, তাই প্রিন্টেও বাদ। */}
-</div></div>
-<div class="sec"><div class="sh">TREATMENT PLAN &amp; COUNSELLING</div><div class="g">
-<div class="cell full"><span class="k">Treatment Plan</span><span class="v">${v(f.treatmentPlan)}</span></div>
-<div class="cell full"><span class="k">Rate</span><span class="v">${v(f.rate)}</span></div>
-<div class="cell full"><span class="k">Counselling</span><span class="v">${v(f.counselling)}</span></div>
-</div></div>
-<div class="sec"><div class="sh">ESTIMATE &amp; DECISION</div><div class="g">
-<div class="cell"><span class="k">Estimated Cost</span><span class="v">${v(f.estCost)}</span></div>
-<div class="cell"><span class="k">Recovery Time</span><span class="v">${v(f.recovery)}</span></div>
-<div class="cell"><span class="k">Advance Paid</span><span class="v">${v(f.advance)}</span></div>
-${""/* V455 (18.08.2026, TK-নির্দেশ): Decision ও Remarks ঘর ফর্ম থেকে বাদ, তাই প্রিন্টেও বাদ। */}
-</div></div>
-<div class="sec"><div class="sh">CLINICAL PHOTOGRAPHS &nbsp;&middot;&nbsp; BEFORE / DURING / AFTER</div>
-<div class="photos">$photos</div></div>
+${sec(t("sec1"), step1)}
+$midRow
+${sec(t("sec3"), hisCells, true)}
+$btmRow
 </div>
-<div class="foot"><div class="stamp">Clinic Stamp</div>
-<div class="sign"><div class="ln"></div><div class="dn">Doctor's Signature</div><div style="font-size:9.5px;color:#5a6570;">${esc(b.clinicName)}</div></div></div>
+<div class="foot"><div class="stamp">${t("stamp")}</div>
+<div class="sign"><div class="ln"></div><div class="dn">${t("sign")}</div><div style="font-size:8.5px;color:#5a6570;">${esc(b.clinicName)}</div></div></div>
 <div class="fn">Computer-generated check-up record &middot; ${esc(b.clinicName)} &middot; Ayurveda &amp; Anorectal Diseases</div>
 </body></html>"""
     }

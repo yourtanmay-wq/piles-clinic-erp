@@ -687,21 +687,19 @@ class DoctorCheckupActivity : AppCompatActivity() {
             val tvMobile = findViewById<TextView>(R.id.tvPatientMobile)
             tvMobile.text = mobile.ifBlank { "—" }
             findViewById<TextView>(R.id.tvPatientMobileMini).text = mobile.ifBlank { "—" }
-            findViewById<TextView>(R.id.btnPatientCall).setOnClickListener {
-                if (mobile.filter { it.isDigit() }.takeLast(10).length == 10) {
-                    CallChooser.open(this@DoctorCheckupActivity, mobile)
-                }
-            }
-            // 🔴🆕🔒 B437 — Doctor Queue-র "📜 History"-র হুবহু একই পথ
-            // পুনর্ব্যবহার (fullJourney=true) — নতুন কোনো লজিক না।
+            /* 🔵 V584 (২৩.০৮.২০২৬, TK-নির্দেশ): *"হেডারে কল এবং হিস্টোরির যে
+               আইকন এটা যেন না থাকে ... এখানে যে হিস্টরি থাকবে এটা হবে চেকআপ
+               হিস্টরি"* ⇒ কল বোতামটা layout থেকেই সরানো হয়েছে, তাই এখানে
+               তার কোনো listener-ও নেই। ⛔ `CallChooser` ক্লাসটা মোছা হয়নি —
+               প্রকল্পের অন্য পর্দাগুলো (Doctor Queue, Follow-up ইত্যাদি)
+               আগের মতোই সেটা ব্যবহার করে। */
+            /* 🔵 V584 — এই সারিটা **এইমাত্র উপরে আনা হয়েছে** (patients),
+               তাই Check-up History-র জন্য **একটাও বাড়তি Supabase কল লাগে না**
+               (TK: *"আমি ফ্রি প্লানে চালাতে চাই"*)। */
+            hdrDoctorComplete = p.optBoolean("doctorComplete", false)
+            hdrDoctorNote = noteObjOf(p)
             findViewById<TextView>(R.id.btnPatientHistory).setOnClickListener {
-                if (mobile.filter { it.isDigit() }.takeLast(10).length == 10) {
-                    startActivity(
-                        Intent(this@DoctorCheckupActivity, PatientTimelineActivity::class.java)
-                            .putExtra("mobile", mobile)
-                            .putExtra("fullJourney", true)
-                    )
-                }
+                openCheckupHistory()
             }
             /* 🔵🔒 V559 (২২.০৮.২০২৬, TK-অনুমোদিত: *"হ্যাঁ"*) — আগে সেভ করা
                চেকআপ ফর্মে ফিরিয়ে আনা।
@@ -2607,7 +2605,11 @@ class DoctorCheckupActivity : AppCompatActivity() {
         showStep(currentStep)
     }
 
-    private fun buildA4Html(r: CheckupRecord): String {
+    /* 🔵 V584 (২৩.০৮.২০২৬, TK-অনুমোদিত): `lang` যোগ হলো — ডিফল্ট English,
+       তাই আগের সব ডাক (সেভের পরের পর্দা · 🖨 Print · 📤 Share) হুবহু আগের
+       মতোই ইংরেজি রিপোর্ট পায়। ভাষা বাছার সুযোগটা নতুন Check-up History
+       পপ-আপে (`openCheckupHistory()`)। */
+    private fun buildA4Html(r: CheckupRecord, lang: String = CheckupA4Lang.EN): String {
         // 🆕 (07.08.2026) — A4 রিপোর্টের চেহারা এখন একটাই জায়গায়:
         // `CheckupA4Report` (History-তেও ঠিক এই টেমপ্লেটই ব্যবহার হয়, তাই
         // দুই জায়গার রিপোর্ট কখনো আলাদা দেখাবে না)।
@@ -2637,8 +2639,18 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 estCost = r.estimatedCost, recovery = r.recoveryTime,
                 advance = r.advanceDiscussed, decision = r.patientDecision,
                 remarks = r.decisionRemark,
-                beforePhoto = r.beforePhoto, duringPhoto = r.duringPhoto, afterPhoto = r.afterPhoto
-            )
+                beforePhoto = r.beforePhoto, duringPhoto = r.duringPhoto, afterPhoto = r.afterPhoto,
+                // 🔵 V584 — কাগজের ভাগ ২ · ৩ · ৪ ও রোগের ছবি (ভাগ ৬)। এগুলো
+                // আগে থেকেই রেকর্ডে সেভ হচ্ছিল, শুধু প্রিন্টে যেত না।
+                patientSaid = r.patientSaid,
+                symptomHistory = r.symptomHistory,
+                historyDetail = r.historyDetail,
+                lifestyle = r.lifestyle,
+                anatomy = r.anatomy,
+                anatomyImage = CheckupAnatomyImage.dataUrl(this, r.anatomy),
+                probableDisease = if (r.probableDisease == CounselModel.PICK_NONE) "" else r.probableDisease
+            ),
+            lang
         )
     }
 
@@ -2781,6 +2793,223 @@ class DoctorCheckupActivity : AppCompatActivity() {
         // সেভের কাজ শেষ হতে একটু সময় দিয়ে তবেই শেয়ার (সেভ ব্যর্থ হলেও
         // পর্দার নিজের বার্তা দেখা যাবে; শেয়ারে তখন বর্তমান ফর্মই যাবে)।
         findViewById<MaterialButton>(R.id.btnShareNow).postDelayed({ shareCheckup() }, 700L)
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // 🔵🔒 V584 (২৩.০৮.২০২৬, TK-অনুমোদিত ডেমো-প্রুফের পরে) — হেডারের 📜
+    // বোতামের নতুন কাজ: **Check-up History**।
+    //
+    // TK-এর নির্দেশ (হুবহু):
+    //   *"যতক্ষণ চেকআপ ... হিস্টরি তৈরি না হবে ততক্ষণ ওই হিস্টরি তে ক্লিক
+    //     করলে শুধুমাত্র ওয়ার্নিং দেখাবে যেই রোগীর এখনো চেকআপ সম্পূর্ণ হয়নি।
+    //     আর যদি কোন রোগের চেকআপ কমপ্লিট হয়ে থাকে তবে ওখানে চাপ দিলে a4
+    //     সাইজে প্রিন্ট আউট করার ব্যবস্থা থাকবে, ভিউ করার ব্যবস্থা থাকবে,
+    //     এবং হোয়াটসঅ্যাপে শেয়ার করার ব্যবস্থা থাকবে"*
+    //   *"এই ফর্মটা বাংলা এবং ইংরেজি দুটো যেন থাকে, আমরা যখন যেটা দেখতে
+    //     চাইছি তখন সেটা যেন দেখতে পারি"* ⇒ পপ-আপের উপরেই ভাষা বাছাই।
+    //
+    // ⛔ **ফ্রি-প্লান নিরাপদ:** একটাও নতুন Supabase কল নেই। রোগীর সারিটা
+    //    (`doctorComplete` + `doctorFullNote`) হেডার আঁকার সময় **আগে থেকেই**
+    //    আনা হয়ে গেছে; এই সেশনে সেভ করলে সেটাও মনে রাখা হয়।
+    // ⛔ কোনো ফর্ম-ফিল্ড/সেভ-লজিক বদলায়নি — এটা শুধু "দেখা/ছাপা/পাঠানো"র স্তর।
+    // ─────────────────────────────────────────────────────────────────────
+
+    /** হেডার আঁকার সময় পাওয়া রোগীর সারি থেকে — চেকআপ শেষ হয়েছে কি না। */
+    private var hdrDoctorComplete = false
+    /** সেই সারিতে সেভ করা চেকআপের পুরো লেখা (JSON), না থাকলে null। */
+    private var hdrDoctorNote: org.json.JSONObject? = null
+
+    /** সারির `doctorFullNote` — কোনো পুরোনো সারিতে লেখা (string) হয়ে থাকলেও পড়ে। */
+    private fun noteObjOf(row: org.json.JSONObject): org.json.JSONObject? =
+        row.optJSONObject("doctorFullNote") ?: try {
+            val raw = row.optString("doctorFullNote", "")
+            if (raw.trimStart().startsWith("{")) org.json.JSONObject(raw) else null
+        } catch (_: Throwable) { null }
+
+    /** কোন ভাষায় শেষবার দেখা হয়েছিল — পরের বার সেটাই আগে থেকে বাছা থাকে। */
+    private fun a4Lang(): String =
+        getSharedPreferences("v584_a4", MODE_PRIVATE).getString("lang", CheckupA4Lang.BN)
+            ?: CheckupA4Lang.BN
+
+    private fun setA4Lang(v: String) {
+        try { getSharedPreferences("v584_a4", MODE_PRIVATE).edit().putString("lang", v).apply() }
+        catch (_: Throwable) { }
+    }
+
+    /**
+     * চেকআপ শেষ হয়েছে এমন রেকর্ড — এই সেশনে সেভ করা থাকলে সেটাই (সবচেয়ে
+     * নতুন), নইলে ক্লাউড-সারিতে জমা থাকা লেখা থেকে। কিছুই না থাকলে null।
+     */
+    private fun completedCheckup(): CheckupRecord? {
+        lastSavedRecord?.let { return it }
+        if (!hdrDoctorComplete) return null
+        val obj = hdrDoctorNote ?: return null
+        if (obj.length() == 0) return null
+        return try { CheckupNoteJson.fromMap(jsonToMap(obj)) } catch (_: Throwable) { null }
+    }
+
+    private fun openCheckupHistory() {
+        val rec = completedCheckup()
+        if (rec == null) {
+            // ── TK: "শুধুমাত্র ওয়ার্নিং দেখাবে" ──
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Check-up History")
+                .setMessage(
+                    "এই রোগীর ডাক্তার চেক-আপ এখনো সম্পূর্ণ হয়নি।\n\n" +
+                    "চেক-আপ শেষ করে Save করলে এখান থেকে রিপোর্ট দেখা, A4 প্রিন্ট ও " +
+                    "WhatsApp-এ পাঠানো যাবে।"
+                )
+                .setPositiveButton("OK", null)
+                .show()
+            return
+        }
+        showCheckupHistoryDialog(rec)
+    }
+
+    private fun showCheckupHistoryDialog(rec: CheckupRecord) {
+        var lang = a4Lang()
+        fun dp(v: Int) = symDp(v)
+
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(10), 0, 0)
+        }
+
+        // ── ভাষা বাছাইয়ের সারি (বাংলা | English) ──
+        val seg = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(8).toFloat()
+                setColor(android.graphics.Color.WHITE)
+                setStroke(dp(2), android.graphics.Color.parseColor("#0F5132"))
+            }
+            val lp = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            lp.setMargins(dp(16), 0, dp(16), dp(4))
+            layoutParams = lp
+        }
+        val segViews = HashMap<String, TextView>()
+        fun paintSeg() {
+            for ((k, tv) in segViews) {
+                val on = (k == lang)
+                tv.setBackgroundColor(
+                    if (on) android.graphics.Color.parseColor("#0F5132") else android.graphics.Color.TRANSPARENT)
+                tv.setTextColor(
+                    if (on) android.graphics.Color.WHITE else android.graphics.Color.parseColor("#0F5132"))
+            }
+        }
+        for ((key, label) in listOf(CheckupA4Lang.BN to "বাংলা", CheckupA4Lang.EN to "English")) {
+            val tv = TextView(this).apply {
+                text = label
+                textSize = 14f
+                gravity = android.view.Gravity.CENTER
+                setPadding(0, dp(9), 0, dp(9))
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                setOnClickListener { lang = key; setA4Lang(key); paintSeg() }
+            }
+            segViews[key] = tv
+            seg.addView(tv)
+        }
+        paintSeg()
+        root.addView(seg)
+        root.addView(TextView(this).apply {
+            text = "রিপোর্ট কোন ভাষায় বেরোবে — চাপ দিয়ে বদলান"
+            textSize = 10.5f
+            gravity = android.view.Gravity.CENTER
+            setTextColor(android.graphics.Color.parseColor("#8A949E"))
+            setPadding(dp(16), 0, dp(16), dp(6))
+        })
+
+        val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Check-up History")
+            .setView(root)
+            .setNegativeButton("Back", null)
+            .create()
+
+        // ── তিনটে কাজ — TK-এর নির্দেশে লেখাগুলো ইংরেজিতে ──
+        fun action(icon: String, label: String, run: (String) -> Unit) {
+            root.addView(TextView(this).apply {
+                text = "$icon   $label"
+                textSize = 14.5f
+                setTextColor(android.graphics.Color.parseColor("#12331F"))
+                setPadding(dp(20), dp(12), dp(20), dp(12))
+                setOnClickListener {
+                    try { dlg.dismiss() } catch (_: Throwable) { }
+                    run(lang)
+                }
+            })
+        }
+        action("👁", "View") { l -> showCheckupReportView(buildA4Html(rec, l)) }
+        action("🖨", "A4 Print") { l -> printHtmlA4(buildA4Html(rec, l)) }
+        action("📱", "Send on WhatsApp") { l ->
+            try {
+                com.tkbiswas.pilesclinic.print.PrescriptionWhatsAppShare.shareHtml(
+                    activity = this,
+                    html = buildA4Html(rec, l),
+                    documentTitle = "Check-up",
+                    patientName = RoleSession.currentPatientName,
+                    allowPrint = true
+                )
+            } catch (e: Throwable) {
+                Toast.makeText(this, "Share not available: ${e.message}", Toast.LENGTH_LONG).show()
+            }
+        }
+        dlg.show()
+    }
+
+    /** View — পুরো পর্দা জুড়ে A4 রিপোর্ট, উপরে Back। */
+    private fun showCheckupReportView(html: String) {
+        try {
+            val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            val bar = TextView(this).apply {
+                text = "◀  Back"
+                textSize = 15f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.WHITE)
+                setBackgroundColor(android.graphics.Color.parseColor("#0F5132"))
+                setPadding(symDp(16), symDp(12), symDp(16), symDp(12))
+            }
+            val wv = android.webkit.WebView(this).apply {
+                settings.javaScriptEnabled = false
+                settings.loadWithOverviewMode = true
+                settings.useWideViewPort = true
+                settings.builtInZoomControls = true
+                settings.displayZoomControls = false
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
+                loadDataWithBaseURL("file:///android_asset/", html, "text/html", "UTF-8", null)
+            }
+            box.addView(bar); box.addView(wv)
+            val dlg = android.app.Dialog(this, android.R.style.Theme_Light_NoTitleBar)
+            dlg.setContentView(box)
+            bar.setOnClickListener { try { dlg.dismiss() } catch (_: Throwable) { } }
+            dlg.show()
+        } catch (e: Throwable) {
+            Toast.makeText(this, "View not available: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    /** A4 Print — `printCheckup()`-এর হুবহু একই প্রমাণিত পথ, শুধু HTML বাইরে থেকে। */
+    private fun printHtmlA4(html: String) {
+        try {
+            val wv = android.webkit.WebView(this)
+            wv.webViewClient = object : android.webkit.WebViewClient() {
+                override fun onPageFinished(view: android.webkit.WebView, url: String?) {
+                    try {
+                        val pm = getSystemService(android.content.Context.PRINT_SERVICE) as android.print.PrintManager
+                        val adapter = view.createPrintDocumentAdapter("DoctorCheckup")
+                        pm.print("Doctor Checkup", adapter, android.print.PrintAttributes.Builder().build())
+                    } catch (_: Throwable) {
+                        Toast.makeText(this@DoctorCheckupActivity, "Print not available", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            printWebView = wv
+            wv.loadDataWithBaseURL("file:///android_asset/", html, "text/html", "UTF-8", null)
+        } catch (_: Throwable) {
+            Toast.makeText(this, "Print not available", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private var printWebView: android.webkit.WebView? = null

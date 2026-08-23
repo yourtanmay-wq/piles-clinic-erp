@@ -7158,9 +7158,16 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
     ⛔ এটা `summary()` ও Doctor Queue — দুই **পাতা** থেকেই খোলে, কোনো পপ-আপের
        ভিতর থেকে নয়; তাই পাতার উপরে পাতা বসার ঝুঁকি নেই (কোডে মিলিয়ে দেখা হয়েছে)। */
  page('Doctor Note', `
- <div class="queueRow card dnPatCard">${p.photo?`<img class="miniPatient" src="${p.photo}">`:`<div class="miniPatient blank">👤</div>`}<div><b>${esc(p.name)}</b><br>${esc(p.mobile)} · Age: ${esc(p.age||'-')} · ${esc(p.sex||'-')}<span id="dnOccHeader" class="dnOccHeader" onclick="dnOccChoose()" title="Occupation · পেশা" style="cursor:pointer;font-weight:600"></span><br>Branch: ${esc(p.branch)}</div></div>
- <!-- 🔵 V574 (TK): *"patient id মোবাইল স্ক্রিনের প্রথম থেকে থাকবে তারপরে Ref by"* -->
- <div class="dnIdRow"><span class="dnIdBadge">ID</span><span class="dnIdNo">${esc(p.patientId)}</span>${wlv1RefByChip(p)}</div>
+ <!-- 🖥️🔵 V584 (২৩.০৮.২০২৬, TK-নির্দেশ): *"Id & Ref by কেটে গেল কেন হেডার
+      থেকে বেরিয়ে গেল কেন"* ⇒ ID/Ref By-এর সারিটা এখন কার্ডের **ভিতরে**
+      (আগে কার্ডের ঠিক নিচে আলাদা পড়ে থাকত, তাই হেডারের বাইরে দেখাত)।
+      সঙ্গে 📜 Check-up History বোতাম — ফোনের হেডারের সেই একই বোতামের যমজ।
+      ⛔ ভিতরের কোনো লেখা/id বদলায়নি, শুধু মোড়ক বদলেছে। -->
+ <div class="card dnPatCard">
+  <div class="queueRow dnPatTop">${p.photo?`<img class="miniPatient" src="${p.photo}">`:`<div class="miniPatient blank">👤</div>`}<div class="dnPatWho"><b>${esc(p.name)}</b><br>${esc(p.mobile)} · Age: ${esc(p.age||'-')} · ${esc(p.sex||'-')}<span id="dnOccHeader" class="dnOccHeader" onclick="dnOccChoose()" title="Occupation · পেশা" style="cursor:pointer;font-weight:600"></span><br>Branch: ${esc(p.branch)}</div><button class="dnHistBtn" onclick="wlv1CheckupHistory('${esc(p.id)}')" title="Check-up History">📜</button></div>
+  <!-- 🔵 V574 (TK): *"patient id মোবাইল স্ক্রিনের প্রথম থেকে থাকবে তারপরে Ref by"* -->
+  <div class="dnIdRow"><span class="dnIdBadge">ID</span><span class="dnIdNo">${esc(p.patientId)}</span>${wlv1RefByChip(p)}</div>
+ </div>
  <div class="card softInfo">ℹ️ Auto filled from Registration. Doctor can edit/add clinical details if needed.</div>
  <div id="wlv1CkChips" class="wlv1CkChips"></div>
  <div id="wlv1CkBox">
@@ -15213,6 +15220,181 @@ window["wlv1ClinicalHistory"]=wlv1ClinicalHistory;
    A4 রিপোর্ট (অ্যান্ড্রয়েড CheckupA4Report.kt-এর হুবহু টেমপ্লেট/CSS, তাই দুই অ্যাপ এক)।
    রোগীর সেভ-করা চেকআপ (rec.doctorFullNote) থেকেই বানানো — নতুন কোনো ক্লাউড-কল/সেভ নেই,
    শুধু দেখানো। বাঁ পাশে রোগীর ফটো (থাকলে)। নিচে Print। */
+/* ============================================================================
+   🔵🔒 V584 (২৩.০৮.২০২৬, TK-অনুমোদিত ডেমো-প্রুফের পরে) — A4 চেক-আপ রিপোর্ট
+   **দুই ভাষায়** (বাংলা / English)।
+   ⚠️ ফোনের `clinical/CheckupA4Lang.kt`-এর হুবহু যমজ — একই অভিধান, একই ক্রম,
+      একই নিয়ম। একটায় বদলালে অন্যটাতেও বদলাতে হবে।
+   TK-নির্দেশ: *"হেডারে সম্পূর্ণ ডিটেইলস ইংরেজিতে থাকবে"* ⇒ লোগো-লাইন, সবুজ
+   পট্টি ও রোগীর তথ্যের ঘর দুই ভাষাতেই ইংরেজি; শুধু নিচের সেকশন বদলায়।
+   TK-অনুমোদিত সীমা: লেবেল ও **তালিকা থেকে বাছা** উত্তর অনুবাদ হয়; স্টাফের
+   নিজের টাইপ করা লেখা হুবহু থাকে।
+   ========================================================================== */
+var WLV1_A4_BN='bn', WLV1_A4_EN='en';
+var WLV1_A4_EN_MAP={
+  /* ভাগ ২ */
+  'পায়ুপথে রক্তপাত':'Bleeding per anus','মলদ্বারে ব্যথা':'Pain in anus',
+  'ফোলা / মাংসপিণ্ড বের হওয়া':'Mass / lump coming out',
+  'পুঁজ / রক্ত / জল পড়া':'Pus / blood / watery discharge',
+  'চুলকানি / জ্বালাপোড়া':'Itching / burning','কোষ্ঠকাঠিন্য':'Constipation',
+  /* ভাগ ৩ */
+  '🩸 রক্তপাতের ইতিহাস':'🩸 History of bleeding','😣 ব্যথার ইতিহাস':'😣 History of pain',
+  '🫃 ফোলা / মাংসপিণ্ডের ইতিহাস':'🫃 History of mass / lump',
+  '💧 পুঁজ / জল পড়ার ইতিহাস':'💧 History of discharge',
+  'রঙ':'Colour','সময়':'Time','পরিমাণ':'Amount','ব্যথার ধরন':'Type of pain',
+  'তীব্রতা':'Severity','তরলের ধরন':'Type of fluid','গন্ধ':'Smell',
+  'পায়ুপথের কাছে ছোট ছিদ্র':'Small opening near anus',
+  'টকটকে লাল':'Bright red','কালচে':'Dark','মলের আগে':'Before stool',
+  'মলের সাথে মিশে':'Mixed with stool','মলের পরে':'After stool','যখন তখন':'Any time',
+  'অল্প':'Little','অনেক':'Much','তীক্ষ্ণ কাটাকাটা':'Sharp cutting','দপদপ করা':'Throbbing',
+  'মলত্যাগের সময় তীব্র হয় ও পরে কয়েক ঘন্টা থাকে':'Severe during stool, lasts a few hours after',
+  'সারাক্ষণ একটানা থাকে':'Continuous all the time',
+  'মৃদু':'Mild','মাঝারি':'Moderate','তীব্র':'Severe',
+  'নিজে থেকে ভেতরে চলে যায় (Spontaneous)':'Goes back on its own (Spontaneous)',
+  'ঠেলে ঢুকিয়ে দিতে হয় (Manual)':'Has to be pushed back (Manual)',
+  'সারাক্ষণ বাইরেই বের হয়ে থাকে (Irreducible)':'Stays out all the time (Irreducible)',
+  'হঠাৎ তীব্র ব্যথাসহ শক্ত হয়ে ফুলে গেছে':'Suddenly hard and swollen with severe pain',
+  'শুধু পুঁজ':'Pus only','রক্তযুক্ত পুঁজ':'Blood-stained pus','পাতলা জল':'Watery',
+  'দুর্গন্ধযুক্ত':'Foul smelling','স্বাভাবিক':'Normal',
+  'দেখা যায়':'Visible','দেখা যায় না':'Not visible',
+  /* ভাগ ৪ */
+  'দীর্ঘমেয়াদী কোনো রোগ আছে কি না?':'Any chronic disease?',
+  'খাবারে ফাইবারের পরিমাণ':'Fibre in food',
+  'টয়লেটে দীর্ঘক্ষণ বসে থাকার অভ্যাস আছে?':'Sits long in toilet?',
+  'অতিরিক্ত কোঁথ (Straining) দিতে হয়?':'Has to strain?',
+  'দৈনিক জল পানের পরিমাণ':'Water per day','লিটার':'litre',
+  'ডায়াবেটিস':'Diabetes','উচ্চ রক্তচাপ':'High blood pressure',
+  'পর্যাপ্ত':'Adequate','কম':'Low','হ্যাঁ':'Yes','না':'No'
+};
+var WLV1_A4_BN_MAP={'Days':'দিন','Months':'মাস','Years':'বছর','Yes':'হ্যাঁ','No':'না'};
+/* এক টুকরো লেখা চাওয়া ভাষায় — না-চেনা লেখা হুবহু ফেরত যায় (কখনো ফাঁকা নয়)। */
+function wlv1A4T(x,lang){
+  var t=String(x||'').trim(); if(!t) return t;
+  return (lang===WLV1_A4_EN) ? (WLV1_A4_EN_MAP[t]||t) : (WLV1_A4_BN_MAP[t]||t);
+}
+/* ভাগ ২ — টিক দেওয়া উপসর্গ ও "কবে থেকে?" (ফোনের CheckupA4Lang.symptomRows) */
+function wlv1A4SymRows(saved,lang){
+  if(!String(saved||'').trim()) return [];
+  var r=wlv1SymParse(saved), out=[];
+  WLV1_SYM_LINES.forEach(function(L){
+    var e=r.map[L[0]]; if(!e||!e.ticked) return;
+    var bits=[wlv1A4T('হ্যাঁ',lang)];
+    if(e.severity) bits.push(wlv1A4T(e.severity,lang));
+    if(e.amount) bits.push(e.amount+' '+wlv1A4T(e.unit,lang));
+    out.push([wlv1A4T(L[1],lang), bits.join(' · ')]);
+  });
+  if(r.other) out.push([lang===WLV1_A4_EN?'Other':'অন্যান্য', r.other]);
+  return out;
+}
+/* ভাগ ৩ — চারটে দলের বাছাই (ফোনের CheckupA4Lang.historyRows) */
+function wlv1A4HistRows(saved,lang){
+  if(!String(saved||'').trim()) return [];
+  var r=wlv1HistParse(saved), out=[];
+  WLV1_HIST_GROUPS.forEach(function(g){
+    var bits=[];
+    g[2].forEach(function(q){
+      var c=r.map[g[0]+'.'+q[0]]||[]; if(!c.length) return;
+      var vals=c.map(function(x){return wlv1A4T(x,lang)}).join(', ');
+      bits.push(q[1]?(wlv1A4T(q[1],lang)+': '+vals):vals);
+    });
+    if(bits.length) out.push([wlv1A4T(g[1],lang), bits.join(' · ')]);
+  });
+  if(r.note) out.push([lang===WLV1_A4_EN?'Note':'নোট', r.note]);
+  return out;
+}
+/* ভাগ ৪ — রোগ ও অভ্যাস (ফোনের CheckupA4Lang.habitRows) */
+function wlv1A4LifeRows(saved,lang){
+  if(!String(saved||'').trim()) return [];
+  var r=wlv1LifeParse(saved), out=[];
+  WLV1_LIFE_Q.forEach(function(q){
+    var c=r.map[q[0]]||[]; if(!c.length) return;
+    out.push([wlv1A4T(q[1],lang), c.map(function(x){return wlv1A4T(x,lang)}).join(', ')]);
+  });
+  if(r.water) out.push([wlv1A4T('দৈনিক জল পানের পরিমাণ',lang), r.water+' '+wlv1A4T('লিটার',lang)]);
+  if(r.other) out.push([lang===WLV1_A4_EN?'Other':'অন্যান্য', r.other]);
+  return out;
+}
+/* ভাগ ৬ — ছবিতে যা চিহ্ন দেওয়া হয়েছে (ফোনের CheckupA4Lang.anatomyLines) */
+function wlv1A4AnatLines(saved,lang){
+  var b=AnatomyMark.parse(saved||'');
+  if(!b.marks.length&&!b.note) return [];
+  var out=[],nb=0,nt=0;
+  b.marks.forEach(function(m){
+    if(m.kind==='pile'){
+      var w=String(m.label||'').trim();
+      out.push(!w ? (lang===WLV1_A4_EN?'Piles mark':'ফোলার চিহ্ন')
+                  : (lang===WLV1_A4_EN?('Piles at '+w):(w+' — ফোলা')));
+    } else if(m.kind==='bulge') nb++; else if(m.kind==='tract') nt++;
+  });
+  if(nb) out.push(lang===WLV1_A4_EN?('Lump raised — '+nb+' no.'):('মাংস ফোলানো — '+nb+' টা'));
+  if(nt) out.push(lang===WLV1_A4_EN?('Fistula tract — '+nt+' no.'):('নালীর দাগ — '+nt+' টা'));
+  if(b.note) out.push(b.note);
+  return out;
+}
+/* সেকশনের শিরোনাম ও লেবেল — ফোনের CheckupA4Lang.TITLES_* -এর যমজ */
+var WLV1_A4_TITLES={
+  en:{sec1:'HISTORY &amp; PREVIOUS TREATMENT',sec2:"PATIENT'S OWN COMPLAINTS &middot; PART 2",
+      sec3:'HISTORY AS TOLD BY THE PATIENT &middot; PART 3',sec4:'CONDITIONS &amp; HABITS &middot; PART 4',
+      sec5:'CLINICAL FINDINGS',sec6:'DISEASE PICTURE &middot; PART 6',
+      sec7:'TREATMENT PLAN &amp; COUNSELLING',sec8:'ESTIMATE &amp; DECISION',
+      complaint:'Chief Complaint',duration:'Duration',occupation:'Occupation',
+      prevTreatment:'Prev. Treatment',patientSaid:'Patient Said',
+      visual:'Visual Exam',grade:'Proctoscopy Grade',probable:'Probable Disease',
+      onProbing:'On Probing',investigation:'Investigations',
+      plan:'Treatment Plan',rate:'Rate',counselling:'Counselling',
+      estCost:'Estimated Cost',recovery:'Recovery Time',advance:'Advance Paid',
+      stamp:'Clinic Stamp',sign:"Doctor's Signature"},
+  bn:{sec1:'ইতিহাস ও পূর্বের চিকিৎসা',sec2:'রোগী এসে প্রথমে কী কী বললেন &middot; ভাগ 2',
+      sec3:'রোগীর বলা ইতিহাস &middot; ভাগ 3',sec4:'রোগ ও অভ্যাস &middot; ভাগ 4',
+      sec5:'ডাক্তারি পরীক্ষা',sec6:'রোগের ছবি &middot; ভাগ 6',
+      sec7:'চিকিৎসা পরিকল্পনা ও পরামর্শ',sec8:'খরচের হিসাব ও সিদ্ধান্ত',
+      complaint:'প্রধান সমস্যা',duration:'কতদিন ধরে',occupation:'পেশা',
+      prevTreatment:'পূর্বের চিকিৎসা',patientSaid:'রোগী যা বললেন',
+      visual:'চোখে দেখে',grade:'গ্রেড',probable:'সম্ভাব্য রোগ',
+      onProbing:'প্রোব করে',investigation:'পরীক্ষা-নিরীক্ষা',
+      plan:'পরিকল্পনা',rate:'রেট',counselling:'পরামর্শ',
+      estCost:'আনুমানিক খরচ',recovery:'সুস্থ হতে',advance:'অগ্রিম',
+      stamp:'ক্লিনিক সিল',sign:'ডাক্তারের স্বাক্ষর'}
+};
+function wlv1A4S(key,lang){ var m=WLV1_A4_TITLES[lang===WLV1_A4_EN?'en':'bn']; return (m&&m[key])||key }
+/* কোন ভাষায় শেষবার দেখা হয়েছিল — পরের বার সেটাই আগে থেকে বাছা (ফোনের a4Lang())। */
+function wlv1A4Lang(){ try{ return localStorage.getItem('wlv1A4Lang')||WLV1_A4_BN }catch(_e){ return WLV1_A4_BN } }
+function wlv1A4SetLang(v){ try{ localStorage.setItem('wlv1A4Lang',v) }catch(_e){} }
+/* ভাগ ৬-এর ছবিটা A4-এ বসানোর জন্য PNG data-URL। ছবি লোড হওয়া পর্যন্ত অপেক্ষা
+   করতে হয় বলে callback — ছবি না পেলে ফাঁকা লেখা ফেরে, তখন ঘরটাই বসে না।
+   ⚠️ ফোনে এই কাজটা `clinical/CheckupAnatomyImage.kt` করে (offscreen View)। */
+function wlv1A4AnatImage(saved,cb){
+  try{
+    var b=AnatomyMark.parse(saved||'');
+    if(!b.pic&&!b.marks.length) return cb('');
+    var W=640,H=560;
+    var cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+    var ctx=cv.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,W,H);
+    var done=function(){
+      /* JPEG — ছবিটা মূলত ফটো, PNG-তে ৫০০KB+ হয়ে রিপোর্ট ভারী করে দিত।
+         মান ০.৮৫-এ চোখে তফাত বোঝা যায় না, মাপ ~৭ ভাগের ১ হয়। */
+      try{ AnatomyMark.draw(ctx,W,H,b.marks,2.2); cb(cv.toDataURL('image/jpeg',0.85)) }catch(_e){ cb('') }
+    };
+    var src=b.pic?wlv1AnatSrc(b.pic):'';
+    if(!src) return done();
+    var im=new Image();
+    im.onload=function(){
+      try{
+        var s=Math.min(W/im.width,H/im.height);
+        var w=im.width*s,h=im.height*s;
+        ctx.drawImage(im,(W-w)/2,(H-h)/2,w,h);
+      }catch(_e){}
+      done();
+    };
+    im.onerror=function(){ done() };
+    im.src=src;
+  }catch(_e){ cb('') }
+}
+window["wlv1A4T"]=wlv1A4T; window["wlv1A4S"]=wlv1A4S;
+window["wlv1A4SymRows"]=wlv1A4SymRows; window["wlv1A4HistRows"]=wlv1A4HistRows;
+window["wlv1A4LifeRows"]=wlv1A4LifeRows; window["wlv1A4AnatLines"]=wlv1A4AnatLines;
+window["wlv1A4AnatImage"]=wlv1A4AnatImage; window["wlv1A4Lang"]=wlv1A4Lang;
+
 function wlv1CheckupA4Fields(n){
   n=n||{};
   var A=function(x){return Array.isArray(x)?x.filter(Boolean).join(', '):String(x||'');};
@@ -15230,43 +15412,115 @@ function wlv1CheckupA4Fields(n){
     visual:visual, grade:n.grade||'', onProbing:n.onProbing||'', investigation:A(n.investigations),
     /* 🔵 V547: ফোনের ছাপা-সারাংশে যে দুটো সারি আছে (DoctorCheckupActivity.kt:1194-1196), ওয়েবেও সেই দুটো */
     proctoscopy:n.proctoscopy||'', patientSaid:n.patientSaid||'',
-    symptomHistory:wlv1SymReadable(n.symptomHistory||''),   /* 🔵 V554 */
-    historyDetail:wlv1HistReadable(n.historyDetail||''),   /* 🔵 V555 */
-    lifestyle:wlv1LifeReadable(n.lifestyle||''),   /* 🔵 V556 */
+    /* 🔵 V584 — আগে এখানে `wlv1SymReadable(...)` দিয়ে **এক লাইনের** লেখা বসত,
+       তাই A4-এ ভাগ ২/৩/৪ এক গাদা লেখায় ঢুকত ও অনুবাদও করা যেত না। এখন
+       **কাঁচা লেখাটাই** রাখা হয়, আর A4 বানানোর সময় `wlv1A4SymRows()` ইত্যাদি
+       দিয়ে সারি-সারি ও চাওয়া ভাষায় বসে। ⛔ সেভ-হওয়া মান একটুও বদলায়নি। */
+    symptomHistory:n.symptomHistory||'',   /* 🔵 V554 · V584 */
+    historyDetail:n.historyDetail||'',   /* 🔵 V555 · V584 */
+    lifestyle:n.lifestyle||'',   /* 🔵 V556 · V584 */
+    anatomy:n.anatomy||'',   /* 🔵 V584 — ভাগ ৬ */
+    probableDisease:(n.probableDisease&&n.probableDisease!=='কিছু বাছা হয়নি')?n.probableDisease:'',
     treatmentPlan:A(plan), rate:rateBits.join(' · '), counselling:n.counselling||'',
     estCost:n.estimatedCost||'', recovery:n.recoveryTime||'', advance:n.advanceDiscussed||'',
     beforePhoto:n.beforePhoto||'', duringPhoto:n.duringPhoto||'', afterPhoto:n.afterPhoto||''
   };
 }
-function wlv1CheckupA4Html(p, dateText){
+/* 🔵🔒 V584 (২৩.০৮.২০২৬, TK-অনুমোদিত ডেমো-প্রুফ) — এক পাতার, দুই ভাষার A4।
+   ⚠️ ফোনের `clinical/CheckupA4Report.kt` html()-এর হুবহু যমজ (একই CSS, একই ক্রম)।
+   ⛔ `lang`-এর ডিফল্ট English, তাই V584-এর আগের ডাকগুলো হুবহু আগের রিপোর্টই পায়।
+   `anatImg` = ভাগ ৬-এর আঁকা ছবির data-URL (`wlv1A4AnatImage` দিয়ে আগে বানাতে হয়)। */
+function wlv1CheckupA4Html(p, dateText, lang, anatImg){
+  lang=(lang===WLV1_A4_BN||lang===WLV1_A4_EN)?lang:WLV1_A4_EN;
   var f=wlv1CheckupA4Fields((p&&p.doctorFullNote)||{});
   var v=function(x){return esc(x&&String(x).trim()?x:'—');};
   var clinic=(typeof medClinicName==='function')?medClinicName(p.branch):'MAA AYURVED PILES CLINIC';
   var br=(typeof branch==='function')?branch(p.branch):{};
   var logo=(typeof isKishanganjBranchName==='function'&&isKishanganjBranchName(p.branch))?'assets/kishanganj-final-logo.jpg':'assets/maa-ayurved-final-logo.jpg';
   var pid=esc(p.patientId||'-'), date=esc(dateText||today());
-  var ageSex=esc([p.sex,p.age].filter(Boolean).join(' / ')||'-');
+  /* 🔵 V584 — ঘরের নাম "Age / Sex", অথচ এখানে আগে [sex, age] ক্রমে বসত
+     (ফোনে ঠিক ক্রমেই বসে — CheckupA4Report.kt → listOf(info.age, info.sex))।
+     দুই অ্যাপ মেলাতে **শুধু এই চেক-আপ রিপোর্টে** ক্রমটা ঠিক করা হলো।
+     ⛔ কোনো তথ্য বাদ যায়নি। ⛔ অন্য দুটো কাগজের (Doctor Visit / Registration)
+        একই লাইন ছোঁয়া হয়নি — TK-কে জানিয়ে তবেই বদলাবে। */
+  var ageSex=esc([p.age,p.sex].filter(Boolean).join(' / ')||'-');
   // ঠিকানা ২ লাইনে (গ্রাম+পোস্ট / থানা+জেলা+পিন, নইলে address ফিল্ড)
   var l1=[p.village,p.po].filter(Boolean).join(', '), l2=[p.ps,p.district,p.pin].filter(Boolean).join(', ');
   var addr2=(l1||l2)?(esc(l1)+(l2?'<br>'+esc(l2):'')):(p.address?wlv1AddrTwo(String(p.address)):'-');
   var photoCell=p.photo?('<div class="pphoto" style="background-image:url(\''+esc(p.photo)+'\')"></div>'):'';
-  function pbox(label,data){return data?('<div class="pcell"><div class="pimg" style="background-image:url(\''+esc(data)+'\')"></div><div class="pl">'+label+'</div></div>'):('<div class="pcell"><div class="pimg empty">—</div><div class="pl">'+label+'</div></div>');}
-  var photos=pbox('BEFORE',f.beforePhoto)+pbox('DURING',f.duringPhoto)+pbox('AFTER',f.afterPhoto);
+  var T=function(k){return wlv1A4S(k,lang)};
+  var cell=function(k,val,full){return '<div class="cell'+(full?' full':'')+'"><span class="k">'+k+'</span><span class="v">'+v(val)+'</span></div>'};
+  /* সব ঘর ফাঁকা হলে সেকশনটাই বসে না — নইলে পাতায় শুধু "—" ভরা ঘর পড়ে থাকত। */
+  var sec=function(title,cells,one){return cells.length?('<div class="sec"><div class="sh">'+title+'</div><div class="g'+(one?' one':'')+'">'+cells.join('')+'</div></div>'):''};
+  var rowCells=function(rows,full){return rows.map(function(r){return cell(esc(r[0]),r[1],full)})};
+
+  /* ── কাগজের ভাগ ২ / ৩ / ৪ ── */
+  var symCells=rowCells(wlv1A4SymRows(f.symptomHistory,lang));
+  var hisCells=rowCells(wlv1A4HistRows(f.historyDetail,lang),true);
+  var habCells=rowCells(wlv1A4LifeRows(f.lifestyle,lang));
+
+  /* ── ভাগ ৬ · রোগের ছবি ── */
+  var picLines=wlv1A4AnatLines(f.anatomy,lang);
+  var picMarks=picLines.length?('<div class="mk">'+picLines.map(function(x){return '&middot; '+esc(x)}).join('<br>')+'</div>'):'';
+  var picBox=anatImg?('<div class="pic"><div class="pbox"><img src="'+anatImg+'"></div></div>'):'';
+  var picSection=(!picBox&&!picMarks)?'':('<div class="sec tall"><div class="sh">'+T('sec6')+'</div>'+picBox+picMarks+'</div>');
+
+  /* ── ডান কলাম — ডাক্তারি পরীক্ষা · পরিকল্পনা · হিসাব ── */
+  var findCells=[];
+  if(f.visual)findCells.push(cell(T('visual'),f.visual,true));
+  if(f.probableDisease)findCells.push(cell(T('probable'),f.probableDisease,true));
+  if(f.grade)findCells.push(cell(T('grade'),f.grade,true));
+  if(f.onProbing)findCells.push(cell(T('onProbing'),f.onProbing,true));
+  if(f.investigation)findCells.push(cell(T('investigation'),f.investigation,true));
+  var planCells=[];
+  if(f.treatmentPlan)planCells.push(cell(T('plan'),f.treatmentPlan,true));
+  if(f.rate)planCells.push(cell(T('rate'),f.rate,true));
+  if(f.counselling)planCells.push(cell(T('counselling'),f.counselling,true));
+  var estCells=[];
+  if(f.estCost)estCells.push(cell(T('estCost'),f.estCost));
+  if(f.recovery)estCells.push(cell(T('recovery'),f.recovery));
+  if(f.advance)estCells.push(cell(T('advance'),f.advance));
+  var rightCol=sec(T('sec5'),findCells,true)+sec(T('sec7'),planCells,true)+sec(T('sec8'),estCells);
+
+  /* ── ধাপ ১ ── */
+  var step1=[];
+  if(f.complaint)step1.push(cell(T('complaint'),f.complaint));
+  if(f.duration)step1.push(cell(T('duration'),f.duration));
+  if(f.occupation)step1.push(cell(T('occupation'),f.occupation));
+  if(f.patientSaid)step1.push(cell(T('patientSaid'),f.patientSaid));
+  if(f.prevTreatment)step1.push(cell(T('prevTreatment'),f.prevTreatment,true));
+
+  /* ── পাশাপাশি সাজ — একদিক ফাঁকা হলে অন্যদিক পুরো চওড়া নেয় ── */
+  var two=function(l,r){ if(!l&&!r)return ''; if(!l)return r; if(!r)return l;
+    return '<div class="two"><div>'+l+'</div><div>'+r+'</div></div>' };
+  var midRow=two(sec(T('sec2'),symCells),sec(T('sec4'),habCells));
+  var btmRow=(!picSection)?rightCol:((!rightCol)?picSection:
+    ('<div class="two btm"><div>'+picSection+'</div><div>'+rightCol+'</div></div>'));
+
   return '<!DOCTYPE html><html><head><meta charset="utf-8"><style>'+
 '*{margin:0;padding:0;box-sizing:border-box;font-family:Georgia,"Noto Serif",serif}'+
-'body{background:#fff;color:#111}.gold{height:6px;background:linear-gradient(90deg,#b8912f,#e6c65c,#b8912f)}.gbar{height:3px;background:#0f5132}'+
-'.lh{display:flex;align-items:center;gap:14px;padding:14px 22px 10px}.lh img{width:74px;height:74px}'+
-'.cn{font-size:23px;font-weight:800;color:#0f5132;line-height:1}.tag{font-size:11px;font-weight:700;color:#b8912f;letter-spacing:2px;margin-top:3px;text-transform:uppercase;font-family:Arial}'+
-'.addr{font-size:11.5px;color:#3b4650;margin-top:4px;font-family:Arial}.addr b{color:#0f5132}'+
-'.tb{background:#0f5132;color:#fff;display:flex;justify-content:space-between;align-items:center;padding:6px 22px;font-family:Arial}.tb .t{font-size:13px;font-weight:800;letter-spacing:2px}.tb .r{font-size:10.5px;color:#cfe6d8}'+
-'.pi{display:flex;align-items:center;gap:16px;padding:10px 22px;font-size:12px;font-family:Arial;background:#f7faf8;border-bottom:1.5px solid #e4ebe6}'+
-'.pphoto{width:84px;height:100px;border:2px solid #b8912f;border-radius:5px;background-size:cover;background-position:center;background-color:#eaf0f6;flex:0 0 auto}'+
-'.pi .c{flex:1}.pi .r{padding:2px 0}.pi .r b{color:#0f5132;display:inline-block;min-width:74px}'+
-'.wrap{padding:4px 22px 14px;font-family:Arial}.sec{margin-top:10px;border:1px solid #d5ddd7;border-radius:5px;overflow:hidden}'+
-'.sh{background:#eef5f0;color:#0f5132;font-size:11px;font-weight:800;letter-spacing:1px;padding:6px 12px;border-left:4px solid #b8912f}'+
-'.g{display:flex;flex-wrap:wrap}.cell{width:50%;padding:6px 12px;font-size:12px;border-bottom:1px solid #f0f3f1;display:flex;gap:8px}.cell.full{width:100%}.cell .k{color:#6b7680;min-width:110px}.cell .v{color:#111;font-weight:700}.cell:nth-child(odd){border-right:1px solid #f0f3f1}'+
-'.photos{display:flex;gap:10px;padding:10px 12px}.pcell{flex:1;text-align:center}.pimg{height:120px;border:1.2px solid #d5ddd7;border-radius:5px;background-size:cover;background-position:center;background-color:#f4f6f5}.pimg.empty{display:flex;align-items:center;justify-content:center;color:#b7c1ba;font-size:26px}.pl{margin-top:5px;font-size:10px;font-weight:800;color:#0f5132;letter-spacing:1px}'+
-'.foot{display:flex;justify-content:space-between;align-items:flex-end;padding:26px 22px 10px;font-family:Arial}.stamp{width:104px;height:104px;border:1.4px dashed #c3ccd6;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#aeb8c2;font-size:10px}.sign{text-align:center;font-size:11px}.sign .ln{width:190px;border-top:1.4px solid #333;margin-bottom:4px}.sign .dn{font-weight:800;color:#0f5132}.fn{border-top:1px solid #e4ebe6;text-align:center;font-size:9.5px;color:#8a949e;padding:7px 0 10px;font-family:Arial}'+
+'body{background:#fff;color:#111}.gold{height:5px;background:linear-gradient(90deg,#b8912f,#e6c65c,#b8912f)}.gbar{height:3px;background:#0f5132}'+
+'.lh{display:flex;align-items:center;gap:16px;padding:8px 20px 6px}.lh img{width:78px;height:78px;object-fit:contain;flex:0 0 auto}'+
+'.cn{font-size:23px;font-weight:800;color:#0f5132;line-height:1}.tag{font-size:11px;font-weight:700;color:#b8912f;letter-spacing:2px;margin-top:2px;text-transform:uppercase;font-family:Arial}'+
+'.addr{font-size:11.5px;color:#3b4650;margin-top:3px;font-family:Arial}.addr b{color:#0f5132}'+
+'.tb{background:#0f5132;color:#fff;display:flex;justify-content:space-between;align-items:center;padding:7px 20px;font-family:Arial}.tb .t{font-size:13px;font-weight:800;letter-spacing:2px}.tb .r{font-size:10.5px;color:#cfe6d8}'+
+'.pi{display:flex;gap:18px;padding:9px 20px;font-size:12px;font-family:Arial;background:#f7faf8;border-bottom:1.5px solid #e4ebe6}'+
+'.pphoto{width:78px;height:94px;border:2px solid #b8912f;border-radius:4px;background-size:cover;background-position:center;background-color:#eaf0f6;flex:0 0 auto}'+
+'.pi .c{flex:1}.pi .r{padding:2.5px 0}.pi .r b{color:#0f5132;display:inline-block;min-width:74px}'+
+'.wrap{padding:6px 20px 10px;font-family:Arial}'+
+'.two{display:flex;gap:10px}.two>*{flex:1;min-width:0}.two.btm{align-items:stretch}'+
+'.sec{margin-top:5px;border:1px solid #d5ddd7;border-radius:4px;overflow:hidden}.sec.tall{display:flex;flex-direction:column;height:100%}'+
+'.sh{background:#eef5f0;color:#0f5132;font-size:11px;font-weight:800;letter-spacing:1px;padding:5.5px 12px;border-left:4px solid #b8912f}'+
+'.g{display:flex;flex-wrap:wrap}.cell{width:50%;padding:4.5px 12px;font-size:11.5px;border-bottom:1px solid #f0f3f1;display:flex;gap:6px;line-height:1.35}.cell.full{width:100%}'+
+'.cell .k{color:#6b7680;min-width:94px;flex:0 0 auto}.cell .v{color:#111;font-weight:700}.cell:nth-child(odd){border-right:1px solid #f0f3f1}.one .cell{width:100%;border-right:0}'+
+'.pic{display:flex;gap:14px;padding:7px 10px 3px;flex:1}'+
+'.pbox{flex:1;min-height:170px;border:1px solid #d5ddd7;border-radius:4px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden}'+
+'.pbox img{max-width:100%;max-height:225px}'+
+'.mk{padding:4px 12px 8px;font-size:11.5px;line-height:1.7;color:#111}'+
+'.foot{display:flex;justify-content:space-between;align-items:flex-end;padding:9px 20px 4px;font-family:Arial}'+
+'.stamp{width:92px;height:92px;border:1.3px dashed #c3ccd6;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#aeb8c2;font-size:9.5px}'+
+'.sign{text-align:center;font-size:11px}.sign .ln{width:185px;border-top:1.2px solid #333;margin-bottom:3px}.sign .dn{font-weight:800;color:#0f5132}'+
+'.fn{border-top:1px solid #e4ebe6;text-align:center;font-size:9.5px;color:#8a949e;padding:5px 0 6px;font-family:Arial}'+
 '</style></head><body>'+
 '<div class="gold"></div><div class="lh"><img src="'+logo+'"><div><div class="cn">'+esc(clinic)+'</div><div class="tag">Ayurveda &amp; Anorectal Diseases</div>'+
 '<div class="addr"><b>'+esc(p.branch||'')+':</b> '+esc(br.address||'')+' &nbsp;|&nbsp; <b>&#9742;</b> '+esc(br.mobile||'')+'</div></div></div><div class="gbar"></div>'+
@@ -15274,62 +15528,67 @@ function wlv1CheckupA4Html(p, dateText){
 '<div class="pi">'+photoCell+'<div class="c"><div class="r"><b>Name</b> : '+esc(p.name||'-')+'</div><div class="r"><b>Patient ID</b> : '+pid+'</div><div class="r"><b>Age / Sex</b> : '+ageSex+'</div><div class="r"><b>Mobile</b> : '+esc(normMob(p.mobile||'')||'-')+'</div></div>'+
 '<div class="c"><div class="r"><b>Disease</b> : '+esc(p.disease||'-')+'</div><div class="r"><b>Branch</b> : '+esc(p.branch||'')+'</div><div class="r"><b>Visit Date</b> : '+date+'</div><div class="r"><b>Address</b> : <span style="display:inline-block;vertical-align:top">'+addr2+'</span></div></div></div>'+
 '<div class="wrap">'+
-'<div class="sec"><div class="sh">HISTORY &amp; PREVIOUS TREATMENT</div><div class="g">'+
-'<div class="cell"><span class="k">Chief Complaint</span><span class="v">'+v(f.complaint)+'</span></div>'+
-'<div class="cell"><span class="k">Duration</span><span class="v">'+v(f.duration)+'</span></div>'+
-'<div class="cell"><span class="k">Occupation</span><span class="v">'+v(f.occupation)+'</span></div>'+
-'<div class="cell"><span class="k">Prev. Treatment</span><span class="v">'+v(f.prevTreatment)+'</span></div>'+
-'<div class="cell"><span class="k">Patient Said</span><span class="v">'+v(f.patientSaid)+'</span></div>'+   /* 🔵 V547 */
-'<div class="cell"><span class="k">Patient Reported</span><span class="v">'+v(f.symptomHistory)+'</span></div>'+   /* 🔵 V554 */
-'<div class="cell"><span class="k">History Detail</span><span class="v">'+v(f.historyDetail)+'</span></div>'+   /* 🔵 V555 */
-'<div class="cell"><span class="k">Habits</span><span class="v">'+v(f.lifestyle)+'</span></div>'+   /* 🔵 V556 */
-'<div class="cell"><span class="k">Result</span><span class="v">'+v(f.prevResult)+'</span></div>'+
-'<div class="cell"><span class="k">Prev. Cost</span><span class="v">'+v(f.prevCost)+'</span></div>'+
-'<div class="cell"><span class="k">Treatment Duration</span><span class="v">'+v(f.treatmentDuration)+'</span></div>'+
-'</div></div>'+
-'<div class="sec"><div class="sh">CLINICAL FINDINGS</div><div class="g">'+
-'<div class="cell"><span class="k">Visual Exam</span><span class="v">'+v(f.visual)+'</span></div>'+
-'<div class="cell"><span class="k">Internal Piles Grade</span><span class="v">'+v(f.grade)+'</span></div>'+   /* 🔵 V547: ফোনের মতোই নাম (Grade এখন Internal Piles-এর সঙ্গে) */
-'<div class="cell"><span class="k">Proctoscopy</span><span class="v">'+v(f.proctoscopy)+'</span></div>'+   /* 🔵 V547 */
-'<div class="cell"><span class="k">On Probing</span><span class="v">'+v(f.onProbing)+'</span></div>'+
-'<div class="cell"><span class="k">Investigations</span><span class="v">'+v(f.investigation)+'</span></div>'+
-'</div></div>'+
-'<div class="sec"><div class="sh">TREATMENT PLAN &amp; COUNSELLING</div><div class="g">'+
-'<div class="cell full"><span class="k">Treatment Plan</span><span class="v">'+v(f.treatmentPlan)+'</span></div>'+
-'<div class="cell full"><span class="k">Rate</span><span class="v">'+v(f.rate)+'</span></div>'+
-'<div class="cell full"><span class="k">Counselling</span><span class="v">'+v(f.counselling)+'</span></div>'+
-'</div></div>'+
-'<div class="sec"><div class="sh">ESTIMATE &amp; DECISION</div><div class="g">'+
-'<div class="cell"><span class="k">Estimated Cost</span><span class="v">'+v(f.estCost)+'</span></div>'+
-'<div class="cell"><span class="k">Recovery Time</span><span class="v">'+v(f.recovery)+'</span></div>'+
-'<div class="cell"><span class="k">Advance Paid</span><span class="v">'+v(f.advance)+'</span></div>'+
-'</div></div>'+
-'<div class="sec"><div class="sh">CLINICAL PHOTOGRAPHS &nbsp;&middot;&nbsp; BEFORE / DURING / AFTER</div><div class="photos">'+photos+'</div></div>'+
+sec(T('sec1'),step1)+
+midRow+
+sec(T('sec3'),hisCells,true)+
+btmRow+
 '</div>'+
-'<div class="foot"><div class="stamp">Clinic Stamp</div><div class="sign"><div class="ln"></div><div class="dn">Doctor\'s Signature</div><div style="font-size:9.5px;color:#5a6570">'+esc(clinic)+'</div></div></div>'+
+'<div class="foot"><div class="stamp">'+T('stamp')+'</div><div class="sign"><div class="ln"></div><div class="dn">'+T('sign')+'</div><div style="font-size:8.5px;color:#5a6570">'+esc(clinic)+'</div></div></div>'+
 '<div class="fn">Computer-generated check-up record &middot; '+esc(clinic)+' &middot; Ayurveda &amp; Anorectal Diseases</div>'+
 '</body></html>';
 }
 window["wlv1CheckupA4Html"]=wlv1CheckupA4Html;
-function wlv1ShowCheckupA4(id){
+function wlv1ShowCheckupA4(id, langWanted){
   var p=(typeof patientById==='function')?patientById(id):load('patients').find(function(x){return x.id===id;});
   if(!p)return toast('Patient not found');
   var rec=load('medical').filter(function(x){return (x.patientId===id||mob(x.mobile)===mob(p.mobile))&&String(x.type||'').toLowerCase().indexOf('checkup')>=0;}).sort(function(a,b){return String(b.date||'').localeCompare(String(a.date||''));})[0];
   var note=(rec&&rec.doctorFullNote)||p.doctorFullNote||null;
   if(!note)return toast('No doctor checkup saved for this patient yet');
   var dateText=(rec&&fmtDate(rec.date))||fmtDate(today());
-  var html=wlv1CheckupA4Html({...p,doctorFullNote:note}, dateText);
+  /* 🔵 V584 — ভাষা (বাংলা/English) ও ভাগ ৬-এর ছবি। ছবিটা আঁকতে হয় বলে
+     callback-এ বাকি কাজ। ⛔ কোনো নতুন সেভ/ক্লাউড-কল নেই। */
+  var lang=(langWanted===WLV1_A4_BN||langWanted===WLV1_A4_EN)?langWanted:wlv1A4Lang();
+  wlv1A4SetLang(lang);
+  wlv1A4AnatImage(String((note&&note.anatomy)||''), function(anatImg){
+  var html=wlv1CheckupA4Html({...p,doctorFullNote:note}, dateText, lang, anatImg);
   var b64=(function(){try{return btoa(encodeURIComponent(html))}catch(e){return ''}})();
   /* 🖥️🔵 B667: Check-up A4 — পপ-আপ থেকে পূর্ণ পাতা, ঠিক যেমন Registration/Payment-এর
      A4 (`wlv1ShowDocA4`) আগেই পাতা করা হয়েছিল — একই জিনিস দু'রকম দেখাচ্ছিল।
      Android-এ এটা পূর্ণ পর্দা (`print/PrintPreviewActivity.kt`)।
      ⛔ ভিতরের A4 কাগজ (iframe) · Print বোতাম কিচ্ছু বদলায়নি; ভিতরের সবুজ শিরোনাম-বার
         বাদ, কারণ পাতার নিজের শিরোনামেই ওই একই লেখা বসে (নইলে দুবার উঠত)। */
+  /* 🔵 V584 (TK-নির্দেশ *"আমরা যখন যেটা দেখতে চাইছি তখন সেটা যেন দেখতে পারি"*)
+     — উপরে বাংলা | English বোতাম, চাপ দিলে একই পাতা অন্য ভাষায় আবার বসে। */
+  var segBtn=function(k,label){
+    var on=(lang===k);
+    return '<button class="wlv1A4Seg'+(on?' on':'')+'" onclick="wlv1ShowCheckupA4(\''+esc(id)+'\',\''+k+'\')">'+label+'</button>';
+  };
   page('📜 Check-up Record — '+esc(dateText),'<div class="nkWrap">'+
+    '<div class="wlv1A4LangBar">'+segBtn(WLV1_A4_BN,'বাংলা')+segBtn(WLV1_A4_EN,'English')+'</div>'+
     '<div style="max-height:70vh;overflow:auto;border:1px solid #e3e9f1;border-radius:10px;margin:0 0 10px"><iframe id="wlv1A4Frame" style="width:100%;height:70vh;border:0" srcdoc="'+esc(html)+'"></iframe></div>'+
     '<div class="actions"><button onclick="wlv1PrintCheckupA4(\''+b64+'\')">🖨️ Print</button></div></div>');
+  });
 }
 window["wlv1ShowCheckupA4"]=wlv1ShowCheckupA4;
+/* 🔵🔒 V584 (২৩.০৮.২০২৬, TK-নির্দেশ) — হেডারের 📜 বোতাম: **Check-up History**।
+   TK: *"যতক্ষণ চেকআপ ... হিস্টরি তৈরি না হবে ততক্ষণ ... শুধুমাত্র ওয়ার্নিং
+   দেখাবে ... আর যদি ... কমপ্লিট হয়ে থাকে তবে ... a4 প্রিন্ট / ভিউ /
+   হোয়াটসঅ্যাপ শেয়ার"*।
+   ⚠️ ফোনের `DoctorCheckupActivity.openCheckupHistory()`-এর হুবহু যমজ।
+   ⛔ নতুন কোনো ক্লাউড-কল নেই — ফোনে জমা থাকা তালিকা থেকেই পড়া হয়। */
+function wlv1CheckupHistory(id){
+  var p=(typeof patientById==='function')?patientById(id):load('patients').find(function(x){return x.id===id;});
+  if(!p)return toast('Patient not found');
+  var rec=load('medical').filter(function(x){return (x.patientId===id||mob(x.mobile)===mob(p.mobile))&&String(x.type||'').toLowerCase().indexOf('checkup')>=0;})[0];
+  var note=(rec&&rec.doctorFullNote)||p.doctorFullNote||null;
+  var done=!!(note&&Object.keys(note).length);
+  if(!done){
+    return toast('এই রোগীর ডাক্তার চেক-আপ এখনো সম্পূর্ণ হয়নি। চেক-আপ শেষ করে Save করলে এখান থেকে রিপোর্ট দেখা, A4 প্রিন্ট ও WhatsApp-এ পাঠানো যাবে।');
+  }
+  wlv1ShowCheckupA4(id);
+}
+window["wlv1CheckupHistory"]=wlv1CheckupHistory;
+
 function wlv1PrintCheckupA4(b64){
   var html='';try{html=decodeURIComponent(atob(b64))}catch(e){html=''}
   if(!html)return toast('Print not available');

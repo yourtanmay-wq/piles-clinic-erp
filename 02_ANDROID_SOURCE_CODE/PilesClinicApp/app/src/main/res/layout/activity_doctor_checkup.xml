@@ -182,16 +182,31 @@
              ⛔ কোনো তথ্য/লাইন/লজিক বাদ যায়নি — শুধু উচ্চতা কমেছে।
              🔁 পুরনো মান (ফেরানোর জন্য): padding=6 · photo=48 · metaMargin=2 ·
                 metaFont=12 · mobile=13.5 · reg=12.5 · idMargin=4। -->
+        <!-- 🔵 V584 (২৩.০৮.২০২৬, TK-নির্দেশ): *"Id & Ref by কেটে গেল কেন
+             হেডার থেকে বেরিয়ে গেল কেন"* ⇒ আগে ক্রিম ব্যাকগ্রাউন্ড
+             (bg_ptl_header_visit) শুধু নিচের আড়াআড়ি সারিটার উপরে ছিল, তাই
+             ID/Ref By-এর সারিটা সাদা জায়গায় পড়ে হেডারের বাইরে দেখাত। এখন
+             একটা উল্লম্ব মোড়ক তৈরি হলো — ক্রিম ব্যাকগ্রাউন্ড ও প্যাডিং এই
+             মোড়কে, আর দুটো সারিই এর ভিতরে। ⛔ কোনো তথ্য/id/লজিক বদলায়নি,
+             শুধু ব্যাকগ্রাউন্ড এক ধাপ উপরে উঠেছে।
+             🔁 পুরনো অবস্থা (ফেরানোর জন্য): এই মোড়ক তুলে দিয়ে
+                background/padding আবার নিচের আড়াআড়ি সারিতে বসালেই হবে। -->
+        <LinearLayout
+            android:id="@+id/ptlHeaderCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_ptl_header_visit"
+            android:paddingStart="10dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="6dp">
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:background="@drawable/bg_ptl_header_visit"
-            android:paddingStart="10dp"
-            android:paddingEnd="16dp"
-            android:paddingTop="4dp"
-            android:paddingBottom="4dp">
+            android:gravity="center_vertical">
 
             <TextView
                 android:id="@+id/ivPatientPhotoBlank"
@@ -219,34 +234,20 @@
                 android:layout_marginStart="12dp"
                 android:orientation="vertical">
 
+                <!-- 🔵 V584 (২৩.০৮.২০২৬, TK-নির্দেশ): *"মোবাইল নাম্বার এবং
+                     নামের মধ্যে এতটা গ্যাপ থাকা দরকার নেই"* — আগে এই সারিতে
+                     ৩০dp উঁচু গোল আইকন থাকায় সারিটাই ৩০dp হয়ে যেত, মোবাইলের
+                     লেখা মাঝখানে বসত আর নিচে ~৭dp ফাঁকা পড়ত। এখন আইকনটা সারির
+                     বাইরে (টেক্সট-ব্লকের ডান পাশে, উপরে) সরানো হয়েছে, তাই
+                     সারিটা শুধু লেখার উচ্চতা নেয়। ⛔ লেখা/id/ডেটা অপরিবর্তিত। -->
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
                     <TextView android:id="@+id/tvPatientMobile" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="—" android:textColor="#10223A" android:textStyle="bold" android:textSize="13sp" android:maxLines="1" android:ellipsize="end" />
-                    <!-- 🔴🆕🔒 খাতার সারি B437 (TK-নির্দেশ, 05.08.2026 —
-                         "একটা বাটন থাকতে হবে যাতে পুরনো লক হয়ে থাকা
-                         হিস্ট্রি দেখা যায়, কে/কবে চেকআপ করেছিল")। কল
-                         বোতামের ঠিক পাশে — এই রোগীর পুরো, তারিখ-ক্রমের,
-                         "কে করেছিল" সহ Full Journey খোলে (Doctor Queue-র
-                         "📜 History" বোতাম যেভাবে খোলে, ঠিক সেই একই
-                         প্রমাণিত পথ পুনর্ব্যবহার — নতুন কোনো ডেটা/টেবিল
-                         লাগেনি)। -->
-                    <TextView
-                        android:id="@+id/btnPatientHistory"
-                        android:layout_width="30dp"
-                        android:layout_height="30dp"
-                        android:layout_marginStart="6dp"
-                        android:background="@drawable/bg_circle_gradient"
-                        android:gravity="center"
-                        android:text="📜"
-                        android:textSize="13sp" />
-                    <TextView
-                        android:id="@+id/btnPatientCall"
-                        android:layout_width="30dp"
-                        android:layout_height="30dp"
-                        android:layout_marginStart="6dp"
-                        android:background="@drawable/bg_circle_gradient"
-                        android:gravity="center"
-                        android:text="📞"
-                        android:textSize="13sp" />
+                    <!-- 🔵 V584 (২৩.০৮.২০২৬, TK-নির্দেশ): *"হেডারে কল এবং
+                         হিস্টোরির যে আইকন এটা যেন না থাকে"* — কল বোতামটা
+                         (btnPatientCall) সম্পূর্ণ সরানো হলো। হিস্ট্রি বোতামটা
+                         TK-এর পরের নির্দেশ অনুযায়ী *"আগে যেখানে ছিল হেডারে
+                         উপরে সেখানেই"* রইল, শুধু কাজ বদলে Check-up History
+                         হলো (নিচে DoctorCheckupActivity-তে)। -->
                 </LinearLayout>
 
                 <!-- 🔴🎨🔒 B431 (TK-নির্দেশ, 05.08.2026): "কোন নাম যেন দু লাইনে
@@ -263,17 +264,47 @@
                 <TextView android:id="@+id/tvPatientAddress" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="1dp" android:text="—" android:textColor="#4A5A6B" android:textStyle="bold" android:textSize="11.5sp" android:maxLines="2" android:ellipsize="end" android:visibility="gone" />
 
             </LinearLayout>
+
+                <!-- 🔴🆕🔒 খাতার সারি B437 (TK-নির্দেশ, 05.08.2026 —
+                     "একটা বাটন থাকতে হবে যাতে পুরনো লক হয়ে থাকা
+                     হিস্ট্রি দেখা যায়, কে/কবে চেকআপ করেছিল")। কল
+                     বোতামের ঠিক পাশে — এই রোগীর পুরো, তারিখ-ক্রমের,
+                     "কে করেছিল" সহ Full Journey খোলে (Doctor Queue-র
+                     "📜 History" বোতাম যেভাবে খোলে, ঠিক সেই একই
+                     প্রমাণিত পথ পুনর্ব্যবহার — নতুন কোনো ডেটা/টেবিল
+                     লাগেনি)। -->
+                <!-- 🔵 V584 (২৩.০৮.২০২৬, TK-নির্দেশ): *"এখানে যে হিস্টরি
+                     থাকবে এটা হবে চেকআপ হিস্টরি ... যতক্ষণ চেকআপ হিস্টরি তৈরি
+                     না হবে ততক্ষণ ক্লিক করলে শুধু ওয়ার্নিং ... কমপ্লিট হলে
+                     A4 প্রিন্ট / ভিউ / হোয়াটসঅ্যাপ শেয়ার"* ⇒ এই বোতামের কাজ
+                     এখন Check-up History (কোডে `openCheckupHistory()`)। জায়গা
+                     TK-এর নির্দেশে আগের মতোই হেডারের উপরে-ডানে।
+                     🔁 পুরনো Full Journey পথটা মোছা হয়নি — Doctor Queue-র
+                        "📜 History" বোতাম আগের মতোই সেটা খোলে। -->
+                <TextView
+                    android:id="@+id/btnPatientHistory"
+                    android:layout_width="30dp"
+                    android:layout_height="30dp"
+                    android:layout_gravity="top"
+                    android:layout_marginStart="6dp"
+                    android:layout_marginTop="1dp"
+                    android:background="@drawable/bg_circle_gradient"
+                    android:gravity="center"
+                    android:text="📜"
+                    android:textSize="13sp" />
         </LinearLayout>
 
         <!-- 🔵 V574 (২২.০৮.২০২৬, TK-নির্দেশ): *"patient id মোবাইল স্ক্রিনের প্রথম
              থেকে থাকবে তারপরে Ref by"* ⇒ সারিটা ছবির পাশের ঘর থেকে বেরিয়ে এসে
              গোটা কার্ডের চওড়ায়, একদম বাঁ দিক থেকে — **আগে ID, তারপর Ref By**।
              ⛔ কোনো তথ্য বদলায়নি, দুটোই আগের সেই একই ঘর থেকে আসে। -->
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="7dp" android:orientation="horizontal" android:gravity="center_vertical">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:orientation="horizontal" android:gravity="center_vertical">
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:background="@drawable/bg_id_badge_purple" android:paddingHorizontal="6dp" android:paddingVertical="3dp" android:text="ID" android:textColor="@color/white" android:textSize="9.5sp" android:textStyle="bold" />
             <TextView android:id="@+id/tvPatientReg" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="6dp" android:text="Reg ID · Branch" android:textColor="#0E8A6C" android:textSize="12.5sp" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
             <TextView android:id="@+id/tvPatientRefBy" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="9dp" android:text="—" android:textColor="#0B4F2A" android:textStyle="bold" android:textSize="11.5sp" android:maxLines="1" android:ellipsize="end" android:visibility="gone" />
         </LinearLayout>
+
+        </LinearLayout><!-- 🔵 V584: ptlHeaderCard শেষ — ID/Ref By এখন ক্রিম হেডারের ভিতরে -->
     </LinearLayout>
 
 
