@@ -1212,7 +1212,20 @@ object ChamberAttendanceRepository {
             // Arrived-but-not-expected (walk-ins) and expected-and-arrived
             // first, then expected-but-not-arrived (no-shows) at the bottom
             // -- matches how TK's paper register reads top to bottom.
-            compareByDescending<ChamberAttendanceRow> { it.arrived }.thenBy { it.name }
+            /* 🟢🔒 V588 (23.08.2026, TK-নির্দেশ) — *"একই দিনে যখন প্রচুর পেশেন্ট
+               হবে তখন সর্বপ্রথম কে এসেছিল টাইমিং অনুসারে সাজাবে"*।
+               **সত্যিটা যাচাই করে:** ছাপা কাগজ (`finalizeAndShare`) আর Review
+               পর্দা (`showCloseReview`) ১৯.০৭.২০২৬ থেকেই `arrivedAt` ধরে আসার
+               ক্রমে সাজে — ওই দুটো ঠিকই ছিল। **কিন্তু পর্দার এই বোর্ডটা নামের
+               অক্ষর-ক্রমে ছিল**, TK ঠিকই ধরেছেন। এখন তিনটে জায়গাতেই এক নিয়ম:
+                 ১) আগে "এসেছেন", তারপর "আসার কথা" (আগের মতোই),
+                 ২) তার মধ্যে **যিনি আগে এসেছেন তিনি আগে**,
+                 ৩) সময় জানা না থাকলে (পুরনো সারি) সবার শেষে, তখন নাম ধরে —
+                    ছাপা কাগজেও ঠিক এই "9999" নিয়মই চলে।
+               ⛔ কোনো সারি বাদ যায় না · কোনো অঙ্ক বদলায় না — শুধু ক্রম। */
+            compareByDescending<ChamberAttendanceRow> { it.arrived }
+                .thenBy { it.arrivedAt.ifBlank { "9999" } }
+                .thenBy { it.name }
         ).let { dropGhostRows(it) }
             // TK-DECISION (2026-07-22, option "ক"): a pure Enquiry (only
             // enquired today, has NOT arrived and was NOT deliberately Marked

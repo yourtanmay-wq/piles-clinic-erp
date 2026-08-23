@@ -14197,11 +14197,24 @@ function wlv1ChamberRows(date, branch){
         ⛔ তথ্য মোছা হয় না — শুধু এই এক পর্দায় দেখানো হয় না।
      ২) ক্রম: **আগে যাঁরা এসেছেন**, তারপর যাঁদের আসার কথা — দুই দলেই নাম ধরে।
         আগে ওয়েবে সবাই মিলিয়ে শুধু নামের ক্রমে ছিল। */
+  /* 🟢🔒 V588 (২৩.০৮.২০২৬, TK-নির্দেশ) — *"একই দিনে যখন প্রচুর পেশেন্ট হবে তখন
+     সর্বপ্রথম কে এসেছিল টাইমিং অনুসারে সাজাবে"*।
+     **যাচাই করে যা পেলাম:** ছাপা কাগজ ও Review পর্দা আগে থেকেই আসার ক্রমে
+     সাজত (`wlv1ByArrivalOrder`) — ওই দুটো ঠিকই ছিল। কিন্তু **পর্দার এই
+     বোর্ডটা নামের অক্ষর-ক্রমে ছিল**, ঠিক ফোনের মতোই। এখন তিন জায়গাতেই এক নিয়ম:
+       ১) আগে "এসেছেন", তারপর "আসার কথা" (আগের মতোই),
+       ২) তার মধ্যে যিনি আগে এসেছেন তিনি আগে (`arrivedAt`),
+       ৩) সময় জানা না থাকলে সবার শেষে ("9999"), তখন নাম ধরে।
+     ⛔ ফোনের ChamberAttendanceRepository-র হুবহু একই তিনটে ধাপ। */
   return Object.values(rows)
     .filter(r=>r.arrived || r.expected)
-    .sort((a,b)=> (a.arrived===b.arrived)
-      ? String(a.name||a.mobile).localeCompare(String(b.name||b.mobile))
-      : (a.arrived ? -1 : 1));
+    .sort((a,b)=>{
+      if(a.arrived!==b.arrived) return a.arrived ? -1 : 1;
+      const ka = String(a.arrivedAt||'').trim() || '9999';
+      const kb = String(b.arrivedAt||'').trim() || '9999';
+      if(ka!==kb) return ka<kb ? -1 : 1;
+      return String(a.name||a.mobile).localeCompare(String(b.name||b.mobile));
+    });
 }
 window["wlv1ChamberRows"]=wlv1ChamberRows;
 
@@ -14292,7 +14305,18 @@ function wlv1ChamberRowHtml(r){
                           : `<span style="color:#C47B00">${isAutoStubRemark ? 'Nothing written — tap to add' : '\u2014'}</span>`;
   const feeHtml = Number(r.fee||0)>0 ? `<span style="color:#334155">${money(r.fee)}</span>`
                                      : `<span style="color:#8A97AB">OLD</span>`;
-  const idLine = r.patientId ? `<div class="wlv1CbId" onclick="event.stopPropagation();wlv1ChamberPatientChoices('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')" oncontextmenu="event.preventDefault();event.stopPropagation();copyToClipboard('${esc(r.patientId)}');return false;">${esc(r.patientId)}</div>` : '';
+  /* 🟢🔒 V588 (২৩.০৮.২০২৬, TK-নির্দেশ, ছবিসহ) — *"নাম · তার নিচে মোবাইল · তার
+     নিচে আইডি — আমি এখানে টাইমটাও রাখতে চাইছি · তারিখ এবং সময় · পেশেন্ট আইডি
+     না থাকলেও চলবে এখানে"* ⇒ তৃতীয় লাইনে Patient ID-র জায়গায় এখন **কখন
+     এসেছেন** (তারিখ ও সময়)।
+     ⛔ সময়টা নতুন করে বানানো হয়নি — `arrivedAt` ঘরটা আগে থেকেই সারিতে আছে
+        (কাগজ ও Review ওটা ধরেই সাজে), আর `fmtDateTime` ফোনের
+        `DateUtil.displayWithTime`-এর হুবহু একই চেহারা দেয় (23.08.2026 2.23 PM)।
+     ⛔ Patient ID মোছা হয়নি — কার্ড ও ছাপা রেজিস্টারে আগের মতোই; শুধু এই সারিতে
+        দেখানো হয় না। লম্বা চাপে কপি করলে আগের মতোই পুরো বিবরণ যায়।
+     ⛔ সময় জানা না থাকলে (যাঁর "আসার কথা", এখনো আসেননি) লাইনটা বসেই না। */
+  const whenTxt = String(r.arrivedAt||'').trim() ? fmtDateTime(r.arrivedAt) : '';
+  const idLine = whenTxt ? `<div class="wlv1CbId" onclick="event.stopPropagation();wlv1ChamberPatientChoices('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')">${esc(whenTxt)}</div>` : '';
   const patientBox = `<div class="wlv1CbPat" onclick="wlv1ChamberPatientChoices('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')" oncontextmenu="event.preventDefault();copyToClipboard('${esc([r.name,r.mobile,r.patientId].filter(Boolean).join(' | '))}');return false;" style="cursor:pointer"><div class="wlv1CbName" onclick="event.stopPropagation();wlv1ChamberPatientChoices('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')" oncontextmenu="event.preventDefault();event.stopPropagation();copyToClipboard('${esc(r.name||'')}');return false;">${esc(String(r.name||r.mobile).toUpperCase())}</div><div class="wlv1CbMob" onclick="event.stopPropagation();contact('${esc(r.mobile)}','call')" oncontextmenu="event.preventDefault();event.stopPropagation();copyToClipboard('${esc(shownMob(r.mobile))}');return false;">${esc(shownMob(r.mobile))}</div>${idLine}</div>`;
   /* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬: "সব কিছু Android এর মত হোক") — ফোনে
      এই তিনটে ঘরে **চাপ দিলেই** কাজ হয় (ChamberAttendanceAdapter.kt:176-180):
@@ -14330,6 +14354,65 @@ function wlv1ChamberOwnFollow(m, rowId){
       || fus.find(x=>mob(x.mobile)===m) || null;
 }
 window["wlv1ChamberOwnFollow"]=wlv1ChamberOwnFollow;
+/* 🟢🔒 V588 (২৩.০৮.২০২৬, TK-নির্দেশ, ছবিসহ) — *"এখানে চাপ দিলে আজকে পেশেন্ট
+   কে কি করা হল সাজেশন বক্স এবং হাতে লেখা থাকবে · যদিও প্রজেক্টে অন্য সেকশনে
+   আছে সেখান থেকে তুলে আনবেন এখানের জন্য"*
+   ফোনের `TreatmentQuickNotes.kt`-এর **হুবহু একই নয়টি লেখা** — একটাও অক্ষর
+   আলাদা নয়, নইলে ফোনে লেখা কথা কম্পিউটারের ছাপায় ইংরেজি হত না
+   (`WLV1_PRINT_EN` ওই বাংলা লেখাগুলোই চেনে)।
+   ⛔ হাতে লেখার ঘরটা আগের মতোই — চিপ শুধু **যোগ** করে, কখনো মোছে না। */
+const WLV1_TREAT_QUICK_BN = [
+  'CHECK-UP \u0995\u09B0\u09BE \u09B9\u09B2\u09CB',
+  'KTA \u0995\u09B0\u09BE \u09B9\u09B2',
+  'DRESSING \u0995\u09B0\u09BE \u09B9\u09B2',
+  'KSHAR SUTRA \u0995\u09B0\u09BE \u09B9\u09B2',
+  'KSHAR SUTRA \u0995\u09CD\u09B2\u09BF\u09AF\u09BC\u09BE\u09B0 \u0995\u09B0\u09BE \u09B9\u09B2',
+  'MEDICINE \u09A6\u09C7\u0993\u09AF\u09BC\u09BE \u09B9\u09B2',
+  'TEST \u0995\u09B0\u09A4\u09C7 \u09AA\u09BE\u09A0\u09BE\u09A8\u09CB \u09B9\u09B2',
+  'MACHINE \u098F\u09B0 \u0995\u09BE\u099C \u0995\u09B0\u09BE \u09B9\u09B2',
+  'LIS \u0995\u09B0\u09BE \u09B9\u09B2'
+];
+const WLV1_TREAT_QUICK_ENHI = [
+  'CHECK-UP done / \u091C\u093E\u0901\u091A-\u0905\u092A \u0939\u094B \u0917\u092F\u093E',
+  'KTA done / KTA \u0939\u094B \u0917\u092F\u093E',
+  'DRESSING done / \u0921\u094D\u0930\u0947\u0938\u093F\u0902\u0917 \u0939\u094B \u0917\u0908',
+  'KSHAR SUTRA done / \u0915\u094D\u0937\u093E\u0930 \u0938\u0942\u0924\u094D\u0930 \u0939\u094B \u0917\u092F\u093E',
+  'KSHAR SUTRA CLEAR done / \u0915\u094D\u0937\u093E\u0930 \u0938\u0942\u0924\u094D\u0930 \u0915\u094D\u0932\u093F\u092F\u0930 \u0939\u094B \u0917\u092F\u093E',
+  'MEDICINE given / \u0926\u0935\u093E \u0926\u0947 \u0926\u0940 \u0917\u0908',
+  'TEST sent / \u091F\u0947\u0938\u094D\u091F \u0915\u0947 \u0932\u093F\u090F \u092D\u0947\u091C\u093E \u0917\u092F\u093E',
+  'MACHINE work done / \u092E\u0936\u0940\u0928 \u0915\u093E \u0915\u093E\u092E \u0939\u094B \u0917\u092F\u093E',
+  'LIS done / LIS \u0939\u094B \u0917\u092F\u093E'
+];
+function wlv1TreatQuickList(){
+  try{ if(typeof wlv1NoBnActive==='function' && wlv1NoBnActive()) return WLV1_TREAT_QUICK_ENHI; }catch(e){}
+  return WLV1_TREAT_QUICK_BN;
+}
+window["wlv1TreatQuickList"]=wlv1TreatQuickList;
+/** চিপে চাপলে লেখাটা ঘরে যোগ হয় — আগে কিছু থাকলে " \u00B7 " দিয়ে জোড়া
+ *  (ফোনের `TreatmentQuickNotes.attach`-এর হুবহু একই নিয়ম)। */
+function wlv1TreatChipPick(boxId, label){
+  const el = document.getElementById(boxId); if(!el) return;
+  const cur = String(el.value||'').trim();
+  el.value = cur ? (cur + ' \u00B7 ' + label) : label;
+  try{ el.focus(); el.setSelectionRange(el.value.length, el.value.length); }catch(e){}
+}
+window["wlv1TreatChipPick"]=wlv1TreatChipPick;
+/** হাতে লেখার ঘরের নিচে বসার সাজেশন-চিপগুলোর HTML। */
+function wlv1TreatChipsHtml(boxId){
+  return '<div class="wlv1TrQuickHd">' + esc(wlv1NoBnFixSafe('\u09A6\u09CD\u09B0\u09C1\u09A4 (\u099A\u09BE\u09AA\u09B2\u09C7 \u09B2\u09C7\u0996\u09BE\u09AF\u09BC \u09AC\u09B8\u09AC\u09C7):')) + '</div>'
+    + '<div class="wlv1TrQuick">'
+    + wlv1TreatQuickList().map(function(t){
+        return '<button type="button" class="wlv1TrChip" onclick="wlv1TreatChipPick(\'' + esc(boxId) + '\',\'' + esc(t).replace(/'/g,"&#39;") + '\')">\uFF0B ' + esc(t) + '</button>';
+      }).join('')
+    + '</div>';
+}
+window["wlv1TreatChipsHtml"]=wlv1TreatChipsHtml;
+/** বাংলা-বন্ধ স্টাফ হলে নির্দেশ-লাইনটাও ইংরেজি (ফোনের `NoBengali.s`-এর সমান)। */
+function wlv1NoBnFixSafe(t){
+  try{ if(typeof wlv1NoBnActive==='function' && wlv1NoBnActive() && typeof wlv1NoBnFix==='function') return wlv1NoBnFix(t); }catch(e){}
+  return t;
+}
+window["wlv1NoBnFixSafe"]=wlv1NoBnFixSafe;
 function wlv1ChamberWriteTreatment(mobile, rowId){
   // 🔴🔒 V484 (20.08.2026, Android V482-এর সাথে ওয়েব মেলাতে — TK-নির্দেশ
   // "Android ও ওয়েব দুটোতেই মিলিয়ে দেখুন") — আসল ফাঁক (Android-এর মতোই):
@@ -14347,6 +14430,7 @@ function wlv1ChamberWriteTreatment(mobile, rowId){
   modal(`<h2>${esc(String(f.name||m).toUpperCase())}</h2>
     <label>Treatment Progress</label>
     <textarea id="cbTrIn" class="input" rows="4">${esc(cur)}</textarea>
+    ${wlv1TreatChipsHtml('cbTrIn')}
     <div class="actions"><button class="ghost" onclick="closeModal()">Cancel</button>
     <button onclick="wlv1ChamberSaveTreatment('${esc(m)}','${esc(String(rowId||''))}')">Save</button></div>`);   /* 🔴 V550 */
 }
@@ -16526,7 +16610,14 @@ function wlv1CloseReview(rows){
        (ChamberAttendanceActivity.kt:2694-2735): নাম চাপলে রোগীর বিবরণ,
        চিকিৎসার ঘর চাপলে লেখা ঠিক করা, টাকার ঘর চাপলে টাকা ঠিক করা।
        ওয়েবে পাঁচটা ঘরই নিষ্ক্রিয় ছিল — Review ধাপটার মানেই থাকত না। */
-    rows.map(r=>`<div class="cbRevNm" style="cursor:pointer" onclick="closeModal();wlv1ChamberPatientChoices('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}'"><b>${esc(String(r.name||r.mobile).toUpperCase())}</b><span>&#128222; ${esc(shownMob(r.mobile))}</span>${r.patientId?`<span>&#127380; ${esc(r.patientId)}</span>`:''}</div>`
+    /* 🟢🔒 V588 (২৩.০৮.২০২৬, TK-নির্দেশ, ছবিসহ) — *"মোবাইল নাম্বারের উপরে
+       মোবাইলের আইকন রাখার কোনো দরকার নেই · পেশেন্ট আইডি থাকার কোনো দরকার নেই ·
+       ওখানে তারিখ এবং সময় থাকবে"* ⇒ &#128222; ও &#127380; চিহ্ন দুটো উঠে গেল,
+       তৃতীয় লাইনে **কখন এসেছেন**। ফোনের Review পর্দার হুবহু একই তিনটে লাইন।
+       🐞 এখানে একটা আসল ভুলও ধরা পড়ল: onclick-এর ভিতরে ফাংশনের **শেষ বন্ধনী
+          `)` লেখাই হয়নি** (তিনটে ঘরেই), তাই ওয়েবের Review পর্দায় নাম/চিকিৎসা/
+          টাকার ঘরে চাপ দিলে কিছুই খুলত না — চুপচাপ কিছু হত না। ঠিক করা হলো। */
+    rows.map(r=>`<div class="cbRevNm" style="cursor:pointer" onclick="closeModal();wlv1ChamberPatientChoices('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')"><b>${esc(String(r.name||r.mobile).toUpperCase())}</b><span>${esc(shownMob(r.mobile))}</span>${String(r.arrivedAt||'').trim()?`<span>${esc(fmtDateTime(r.arrivedAt))}</span>`:''}</div>`
       /* 🔴 V429 — চিকিৎসার ঘরটা এখন হুবহু ফোনের মতো: কিছু লেখা না থাকলে "—",
          আর সিস্টেমের নিজের বসানো লেখা হলে "Nothing written — tap to add",
          দুটোই হালকা কমলা (#C47B00)। আগে ওয়েবে লাল "Progress not written"
@@ -16534,10 +16625,10 @@ function wlv1CloseReview(rows){
       /* 🔴 V430 — পর্দায় স্টাফের লেখা **হুবহু** দেখানো হয় (ফোনে
          ChamberAttendanceActivity.kt:2719)। ইংরেজি করার নিয়মটা ফোনে শুধু
          **ছাপা কাগজে** চলে, পর্দায় নয় — ওয়েবে ভুল করে পর্দাতেও চলছিল। */
-      + `<div class="cbRevTr${wlv1EffectivelyBlankRemark(r.treatment)?' cbRevTrEmpty':''}" style="cursor:pointer" onclick="closeModal();wlv1ChamberWriteTreatment('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}'">${
+      + `<div class="cbRevTr${wlv1EffectivelyBlankRemark(r.treatment)?' cbRevTrEmpty':''}" style="cursor:pointer" onclick="closeModal();wlv1ChamberWriteTreatment('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')">${
           !wlv1EffectivelyBlankRemark(r.treatment) ? esc(String(r.treatment||'').trim())
           : (String(r.treatment||'').trim() ? 'Nothing written &#8212; tap to add' : '&#8212;')}</div>`
-      + `<div class="cbRevF" style="cursor:pointer" onclick="closeModal();wlv1ChamberFixPayment('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}'">${rupee(r.fee)}</div><div class="cbRevC" style="cursor:pointer" onclick="closeModal();wlv1ChamberFixPayment('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}'">${rupee(r.cash)}</div><div class="cbRevO" style="cursor:pointer" onclick="closeModal();wlv1ChamberFixPayment('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}'">${rupee(r.online)}</div>`
+      + `<div class="cbRevF" style="cursor:pointer" onclick="closeModal();wlv1ChamberFixPayment('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')">${rupee(r.fee)}</div><div class="cbRevC" style="cursor:pointer" onclick="closeModal();wlv1ChamberFixPayment('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')">${rupee(r.cash)}</div><div class="cbRevO" style="cursor:pointer" onclick="closeModal();wlv1ChamberFixPayment('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')">${rupee(r.online)}</div>`
     ).join('') + '</div>';
   /* 🔴🔒 V426 (TK-নির্দেশ ১৭.০৮.২০২৬: "review পর্দাতে উপরে যে ডেমি লেখা আছে সেগুলি
      থাকবে না · সেখানে কত পরিমান টাকা জমা হয়েছে সেগুলো থাকবে") — নির্দেশ-লাইনটা
@@ -16709,8 +16800,14 @@ function wlv1ChamberRegisterPrint(){
        · ফি জমা পড়লে সেই ঘরে **কোন উপায়ে** জমা পড়েছে তাই লেখা হয় —
          নগদে হলে CASH, অনলাইনে হলে UPI (আগে ওয়েবে সবসময় CASH লেখা হত)।
        · ফি না থাকলে **কত নম্বর ভিজিট** সেটা লেখা হয় (আগে সবসময় OLD)। */
+    /* 🟢🔒 V588 (২৩.০৮.২০২৬, TK-নির্দেশ) — *"Cash এর পাশে থাকবে amount ·
+       Online এর পাশে থাকবে এমাউন্ট · তবেই তো দেখতে প্রফেশনাল মনে হবে"*
+       আগে এই ঘরে উপরে "CASH", নিচের লাইনে "₹400" — এখন **একটাই লাইনে**।
+       আর অনলাইনের শব্দটা "UPI"-র বদলে "ONLINE" (কলামের নাম ও Review পর্দার
+       সঙ্গে মিলিয়ে; ফোনের `feesMode`-এও একই বদল)।
+       ⛔ অঙ্কটা হুবহু সেই `r.fee` — কোনো হিসাব বদলায়নি, শুধু লেখার সাজ। */
     const visitCell = Number(r.fee||0)>0
-      ? `${Number(r.feeOnline||0)>0 && !(Number(r.feeCash||0)>0) ? 'UPI' : 'CASH'}<br>${rupee(r.fee)}`
+      ? `${Number(r.feeOnline||0)>0 && !(Number(r.feeCash||0)>0) ? 'ONLINE' : 'CASH'} ${rupee(r.fee)}`
       : esc(wlv1ChamberVisitLabel(r, wlv1ChamberDate));
     /* 🔴 V430 — নতুন রোগীর সারি হালকা সবুজ, পুরনো হালকা ধূসর (ফোনের কাগজের
        মতোই), আর মোবাইল-লাইন নীল ও আইডি-লাইন ধূসর — দুটো আলাদা রং। */

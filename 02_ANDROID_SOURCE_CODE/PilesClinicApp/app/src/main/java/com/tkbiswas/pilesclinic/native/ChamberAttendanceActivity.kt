@@ -2180,54 +2180,15 @@ class ChamberAttendanceActivity : AppCompatActivity() {
             // লেখা আগের মতোই গাঢ়; শুধু নির্দেশ-লেখার রং।
             setHintTextColor(androidx.core.content.ContextCompat.getColor(this@ChamberAttendanceActivity, com.tkbiswas.pilesclinic.R.color.field_hint))
         }
-        // 🔓 TK-এর নতুন অনুমতি (31.07.2026 — B137-এর আগের লক এখন এই একটা
-        // ক্ষেত্রে আপডেট হলো): "ইংরেজি এবং হিন্দি করে দিন" — শুধু বাংলা-বন্ধ
-        // স্টাফের (KNE-KISHAN5) জন্য এই ৯টা চিপের লেখা ইংরেজি/হিন্দি দুটোই
-        // (একসাথে, "English / हिंदी" ধাঁচে) — অন্য সবার চিপ অপরিবর্তিত বাংলাই
-        // থাকছে (B137 অক্ষত)। ⛔ চিপে যা লেখা দেখা যায় আর চাপলে বাক্সে যা
-        // বসে — দুটোই এই একই তালিকা থেকে আসে (নিচের `chip.text`/`label`
-        // ব্যবহার দেখুন), তাই "বোতামে একরকম, সেভ হয় আরেকরকম" — এই সমস্যা
-        // হতেই পারে না।
-        val quickBn = listOf(
-            "CHECK-UP করা হলো", "KTA করা হল", "DRESSING করা হল",
-            "KSHAR SUTRA করা হল", "KSHAR SUTRA ক্লিয়ার করা হল", "MEDICINE দেওয়া হল",
-            "TEST করতে পাঠানো হল", "MACHINE এর কাজ করা হল", "LIS করা হল"
-        )
-        val quickEnHi = listOf(
-            "CHECK-UP done / जाँच-अप हो गया",
-            "KTA done / KTA हो गया",
-            "DRESSING done / ड्रेसिंग हो गई",
-            "KSHAR SUTRA done / क्षार सूत्र हो गया",
-            "KSHAR SUTRA CLEAR done / क्षार सूत्र क्लियर हो गया",
-            "MEDICINE given / दवा दे दी गई",
-            "TEST sent / टेस्ट के लिए भेजा गया",
-            "MACHINE work done / मशीन का काम हो गया",
-            "LIS done / LIS हो गया"
-        )
-        val quick = if (NoBengali.active()) quickEnHi else quickBn
+        /* 🟢🔒 V588 (23.08.2026, TK-নির্দেশ) — ৯টা সাজেশন-চিপের তালিকা ও চিপ
+           বানানোর কাজটা এখন একটাই জায়গায় (`TreatmentQuickNotes`), যাতে
+           চেম্বার-বোর্ড · চেম্বার বন্ধ · Review · Report Card — চারটে বাক্সেই
+           হুবহু একই সাজেশন আসে। ⛔ লেখা ও আচরণ এক অক্ষরও বদলায়নি। */
         val container = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.VERTICAL; setPadding(dp(18), dp(12), dp(18), 0)
             addView(input)
-            addView(android.widget.TextView(this@ChamberAttendanceActivity).apply {
-                text = NoBengali.s("দ্রুত (চাপলে লেখায় বসবে):"); textSize = 11.5f; setTypeface(typeface, android.graphics.Typeface.BOLD)
-                setTextColor(android.graphics.Color.parseColor("#7A1F3D")); setPadding(0, dp(10), 0, dp(4))
-            })
         }
-        quick.forEach { label ->
-            val chip = android.widget.TextView(this).apply {
-                text = "＋ $label"; textSize = 13f; setTextColor(android.graphics.Color.parseColor("#7A1F3D"))
-                setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
-                val p = dp(10); setPadding(p, dp(9), p, dp(9))
-                val lp = android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.MATCH_PARENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
-                lp.topMargin = dp(6); layoutParams = lp; isClickable = true
-            }
-            chip.setOnClickListener {
-                val cur = input.text.toString().trim()
-                input.setText(if (cur.isBlank()) label else "$cur · $label")
-                input.setSelection(input.text.length)
-            }
-            container.addView(chip)
-        }
+        TreatmentQuickNotes.attach(this, container, input)
         UppercaseInputUtil.applyToAll(container)  // TK-REQUESTED GLOBAL RULE (2026-07-24): English text auto-CAPITAL, Password fields excluded automatically
         AlertDialog.Builder(this)
             .setCustomTitle(PremiumAlert.header(this, "🩺 Treatment Progress — ${row.name.ifBlank { row.mobile }}"))
@@ -2412,15 +2373,21 @@ class ChamberAttendanceActivity : AppCompatActivity() {
         fun dp(v: Int) = (v * d).toInt()
         val input = android.widget.EditText(this).apply {
             setText(row.remark)
-            hint = "What happened today"
+            // 🟢🔒 V588: চারটে বাক্সেই এক নির্দেশ-লাইন (একটাই উৎস)।
+            hint = TreatmentQuickNotes.hint()
             setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
-            val p = dp(12); setPadding(p, p, p, p)
+            val p = dp(12); setPadding(p, p, p, p); minLines = 2; gravity = android.view.Gravity.TOP
+            setHintTextColor(androidx.core.content.ContextCompat.getColor(this@ChamberAttendanceActivity, com.tkbiswas.pilesclinic.R.color.field_hint))
         }
         val container = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.VERTICAL
             setPadding(dp(20), dp(12), dp(20), dp(0))
             addView(input)
         }
+        /* 🟢🔒 V588 (23.08.2026, TK-নির্দেশ, ছবিসহ) — চেম্বার বন্ধ করার সময়
+           "Treatment box ফাঁকা" বলে যে বাক্সটা খোলে সেটাতে **সাজেশন ছিল না**,
+           শুধু ফাঁকা ঘর। এখন চেম্বার-বোর্ডের সেই একই ৯টা চিপ এখানেও। */
+        TreatmentQuickNotes.attach(this, container, input)
         UppercaseInputUtil.applyToAll(container)  // TK-REQUESTED GLOBAL RULE (2026-07-24): English text auto-CAPITAL, Password fields excluded automatically
         AlertDialog.Builder(this)
             .setCustomTitle(PremiumAlert.header(this, row.name.ifBlank { row.mobile }))
@@ -2920,8 +2887,18 @@ class ChamberAttendanceActivity : AppCompatActivity() {
             // singleLine set on it), so this is a pure content change, no
             // new view needed.
             // 🔴🔴 TK-REPORTED (31.07.2026): নাম না থাকলে মোবাইল দুইবার দেখাত।
-            val nameLines = mutableListOf(r.name.ifBlank { "UNKNOWN" }, "📞 " + r.mobile)
-            if (r.patientId.isNotBlank()) nameLines.add("🆔 " + r.patientId)
+            /* 🟢🔒 V588 (23.08.2026, TK-নির্দেশ, ছবিসহ) — *"মোবাইল নাম্বারের
+               উপরে মোবাইলের আইকন রাখার কোনো দরকার নেই · পেশেন্ট আইডি থাকার
+               কোনো দরকার নেই · ওখানে তারিখ এবং সময় থাকবে"*
+               ⇒ 📞 ও 🆔 চিহ্ন দুটো উঠে গেল, তৃতীয় লাইনে **কখন এসেছেন** (তারিখ
+               ও সময়) — চেম্বার বোর্ডের সারির হুবহু একই লেখা, একই উৎস
+               (`arrivedAt`), তাই পর্দা দুটো কখনো আলাদা দেখাবে না।
+               ⛔ Patient ID মোছা হয়নি — ছাপা রেজিস্টারে ও রোগীর কার্ডে আগের
+                  মতোই আছে, শুধু এই পর্দায় দেখানো হয় না।
+               ⛔ সময় জানা না থাকলে লাইনটা বসেই না (পুরনো সারি)। */
+            val nameLines = mutableListOf(r.name.ifBlank { "UNKNOWN" }, r.mobile)
+            val whenR = DateUtil.displayWithTime(r.arrivedAt.ifBlank { null })
+            if (whenR.isNotBlank()) nameLines.add(whenR)
             // 🔴 V426: RMP-চিহ্ন বসানোর জন্য এই ঘরটা মনে রাখা হয় (মোবাইল ধরে)।
             val nameCell = rvCell(nameLines.joinToString("\n"), 82, 0f, "#10223A", true).apply {
                 gravity = android.view.Gravity.START; setPadding(dp(8), dp(10), dp(4), dp(10)); textSize = 11f
@@ -3119,14 +3096,17 @@ class ChamberAttendanceActivity : AppCompatActivity() {
         }
         val d = resources.displayMetrics.density; fun dp(v: Int) = (v * d).toInt()
         val input = android.widget.EditText(this).apply {
-            setText(r.remark); hint = "What happened today"
+            setText(r.remark); hint = TreatmentQuickNotes.hint()   // 🟢 V588
             setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
-            val p = dp(12); setPadding(p, p, p, p)
+            val p = dp(12); setPadding(p, p, p, p); minLines = 2; gravity = android.view.Gravity.TOP
+            setHintTextColor(androidx.core.content.ContextCompat.getColor(this@ChamberAttendanceActivity, com.tkbiswas.pilesclinic.R.color.field_hint))
         }
         val box = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.VERTICAL
             setPadding(dp(20), dp(12), dp(20), 0); addView(input)
         }
+        /* 🟢🔒 V588 — Review পর্দার এই বাক্সেও চেম্বার-বোর্ডের একই ৯টা চিপ। */
+        TreatmentQuickNotes.attach(this, box, input)
         UppercaseInputUtil.applyToAll(box)  // TK-REQUESTED GLOBAL RULE (2026-07-24): English text auto-CAPITAL, Password fields excluded automatically
         AlertDialog.Builder(this)
             .setCustomTitle(PremiumAlert.header(this, "🩺 Treatment / Remark — ${r.name.ifBlank { r.mobile }}"))
@@ -3584,7 +3564,14 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                     // TK-REQUESTED (2026-07-22): mode the registration/doctor-visit
                     // fee itself was paid in, so the print can show CASH/UPI
                     // instead of a misleading "1st Visit" label on that row.
-                    feesMode = if (r.feesCash > 0.0) "CASH" else if (r.feesOnline > 0.0) "UPI" else ""
+                    /* 🟢🔒 V588 (23.08.2026, TK-নির্দেশ) — TK নিজে দুটো শব্দ বললেন:
+                       *"Cash এর পাশে থাকবে amount · Online এর পাশে থাকবে এমাউন্ট"*।
+                       কাগজে এতদিন অনলাইনের ঘরে "UPI" ছাপা হত, অথচ কলামের নামই
+                       "ONLINE" আর Review পর্দাতেও "Online" — তিন জায়গায় তিন কথা।
+                       এখন সবখানে এক: CASH / ONLINE।
+                       ⛔ কোন উপায়ে টাকা এসেছে সেই হিসাব একটুও বদলায়নি (আগের মতোই
+                          feesCash / feesOnline ধরেই ঠিক হয়) — শুধু ছাপার শব্দটা। */
+                    feesMode = if (r.feesCash > 0.0) "CASH" else if (r.feesOnline > 0.0) "ONLINE" else ""
                 )
             }
             // TK-REPORTED FIX (2026-07-26): "Share failed: Failed to find

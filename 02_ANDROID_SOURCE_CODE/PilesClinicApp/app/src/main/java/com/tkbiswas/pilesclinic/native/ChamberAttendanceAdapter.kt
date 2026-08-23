@@ -102,8 +102,21 @@ class ChamberAttendanceAdapter(
             // 🔴🔒 V471 (20.08.2026, TK-অনুমোদিত) — রেফারিং RMP-র নাম (থাকলেই)
             // Patient ID-এর নিচে, একই ঘরে নতুন লাইনে — নতুন কোনো XML view
             // যোগ করা হয়নি (ঝুঁকি কমাতে), শুধু এই একটা টেক্সট-ঘরে জুড়ে দেওয়া।
+            /* 🟢🔒 V588 (23.08.2026, TK-নির্দেশ, ছবিসহ) — *"পেশেন্টের নাম · তার
+               নিচে মোবাইল নাম্বার · তার নিচে আইডি — আমি এখানে টাইমটাও রাখতে
+               চাইছি · তারিখ এবং সময় · পেশেন্ট আইডি না থাকলেও চলবে এখানে"*
+               ⇒ তৃতীয় লাইনে Patient ID-র জায়গায় এখন **এই রোগী আজ কখন এসেছেন**
+               (তারিখ ও সময়)। ⛔ সময়টা নতুন করে বানানো হয়নি — `arrivedAt` ঘরটা
+               ১৯.০৭.২০২৬ থেকেই সারিতে আছে (ছাপা কাগজ ও Review ওটা ধরেই সাজে)।
+               ⛔ Patient ID মোছা হয়নি — Report Card · Full Journey · ছাপা
+                  রেজিস্টার সব জায়গায় আগের মতোই আছে, শুধু এই সারিতে দেখানো হয় না
+                  (TK-এর নিজের কথা: "না থাকলেও চলবে")। লম্বা চাপে কপি করার
+                  ব্যবস্থাটাও তাই ID-ই কপি করে, আগের মতোই।
+               ⛔ RMP-র নাম (V471) আগের মতোই একই ঘরে নিচের লাইনে।
+               ⛔ সময় জানা না থাকলে (পুরনো সারি) লাইনটা আগের মতোই লুকিয়ে যায়। */
+            val whenV = DateUtil.displayWithTime(row.arrivedAt.ifBlank { null })
             val pidTextV = listOfNotNull(
-                row.patientId.ifBlank { null },
+                whenV.ifBlank { null },
                 row.refDoctor.ifBlank { null }?.let { "👨‍⚕️ $it" }
             ).joinToString("\n")
             b.tvPatientId.text = pidTextV
@@ -176,8 +189,9 @@ class ChamberAttendanceAdapter(
             b.tvMobileW.text = row.mobile
             // 🔴🔒 V471 (20.08.2026, TK-অনুমোদিত) — Wide-লেআউটেও একই যোগ
             // (উপরের tvPatientId-এর হুবহু একই যুক্তি)।
+            // 🟢🔒 V588 — Wide-লেআউটেও একই (উপরের ঘরটার হুবহু একই যুক্তি)।
             val pidTextVW = listOfNotNull(
-                row.patientId.ifBlank { null },
+                whenV.ifBlank { null },
                 row.refDoctor.ifBlank { null }?.let { "👨‍⚕️ $it" }
             ).joinToString("\n")
             b.tvPatientIdW.text = pidTextVW

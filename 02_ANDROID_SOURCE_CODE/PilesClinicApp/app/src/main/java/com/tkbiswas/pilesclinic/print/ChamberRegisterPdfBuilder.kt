@@ -181,15 +181,22 @@ class ChamberRegisterPdfBuilder(private val context: Context) {
         val colOnline = colCash + colCashW; val colOnlineW = 68f
         val tableRight = colOnline + colOnlineW
 
-        val headerBg = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#0F8A6E") }
-        val headerText = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; textSize = 6.8f; isFakeBoldText = true }
-        canvas.drawRect(RectF(colSl, TABLE_TOP, tableRight, TABLE_TOP + HEADER_ROW_HEIGHT), headerBg)
+        /* 🟢🔒 V588 (23.08.2026, TK-নির্দেশ) — *"প্রিন্ট আউটের পরে ব্যাকগ্রাউন্ড
+           কালার থাকার দরকার নেই তো? তাতে তো প্রিন্টারের কালি নষ্ট যাবে"*
+           ⇒ শিরোনামের গাঢ় সবুজ ব্যান্ডটা (পুরো চওড়া জুড়ে কালি) তুলে দেওয়া হলো।
+           লেখাটা এখন **সবুজ কালিতে সাদা কাগজে**, নিচে একটা পাতলা সবুজ দাগ —
+           পড়তে আগের মতোই স্পষ্ট, কিন্তু কালি প্রায় লাগে না।
+           ⛔ ঘরের মাপ · লেখা · অঙ্ক কিছুই বদলায়নি, শুধু রং। */
+        val headerText = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor(GREEN); textSize = 6.8f; isFakeBoldText = true }
         canvas.drawText("SL", colSl + 5f, TABLE_TOP + 11f, headerText)
         canvas.drawText("PATIENT", colPat + 4f, TABLE_TOP + 11f, headerText)
         canvas.drawText("TREATMENT PROGRESS", colTreat + 4f, TABLE_TOP + 11f, headerText)
         canvas.drawText("VISIT", colVisit + 5f, TABLE_TOP + 11f, headerText)
         canvas.drawText("CASH", colCash + colCashW - 5f - headerText.measureText("CASH"), TABLE_TOP + 11f, headerText)
         canvas.drawText("ONLINE", colOnline + colOnlineW - 5f - headerText.measureText("ONLINE"), TABLE_TOP + 11f, headerText)
+        // 🟢 V588: ব্যান্ডের বদলে শিরোনামের নিচে একটাই পাতলা সবুজ দাগ।
+        canvas.drawLine(colSl, TABLE_TOP + HEADER_ROW_HEIGHT, tableRight, TABLE_TOP + HEADER_ROW_HEIGHT,
+            Paint().apply { color = Color.parseColor(GREEN); strokeWidth = 1.1f })
 
         val gridPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#B9C2CC"); style = Paint.Style.STROKE; strokeWidth = 0.5f }
         val namePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#10223A"); textSize = 8f; isFakeBoldText = true }
@@ -200,9 +207,6 @@ class ChamberRegisterPdfBuilder(private val context: Context) {
         val moneyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#33404F"); textSize = 7.5f }
         val treatPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#8A3D00"); textSize = 6.6f }
 
-        val newFill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#EAF7EE") }
-        val oldFill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#EDEFF2") }
-
         var y = TABLE_TOP + HEADER_ROW_HEIGHT
         // TK-REQUESTED (2026-07-21): only actual patients; Name / Mobile / ID
         // STACKED vertically in one wide PATIENT column for a clean A4 print.
@@ -211,8 +215,13 @@ class ChamberRegisterPdfBuilder(private val context: Context) {
             val rowBottom = y + rowHeight
             val midY = rowTop + rowHeight / 2f + 2.5f
             val r = rows[idx]
-            val fill = if (r.newOrOld == "NEW") newFill else oldFill
-            canvas.drawRect(RectF(colSl, rowTop, tableRight, rowBottom), fill)
+            /* 🟢🔒 V588 (TK-নির্দেশ 23.08.2026) — প্রতিটা সারির পিছনের হালকা
+               সবুজ/ধূসর ছোপ (NEW = #EAF7EE, OLD = #EDEFF2) তুলে দেওয়া হলো।
+               ওটাই পাতার সবচেয়ে বেশি কালি খেত — ২১টা সারি মানে প্রায় পুরো পাতা
+               রঙিন হয়ে ছাপা হত। এখন সাদা কাগজে শুধু দাগের খোপ।
+               ⚠️ সৎ কথা: NEW আর OLD রোগীর তফাতটা আগে ওই রঙেই বোঝা যেত। এখন
+                  তফাতটা VISIT ঘরেই থাকে (নতুন হলে ফি ও তার উপায়, পুরনো হলে
+                  "9th Visit")। রং ফেরত চাইলে বলবেন — এক লাইনেই ফেরানো যাবে। */
             canvas.drawRect(RectF(colSl, rowTop, tableRight, rowBottom), gridPaint)
             canvas.drawLine(colPat, rowTop, colPat, rowBottom, gridPaint)
             canvas.drawLine(colTreat, rowTop, colTreat, rowBottom, gridPaint)
@@ -245,9 +254,18 @@ class ChamberRegisterPdfBuilder(private val context: Context) {
             // fee (2nd Visit, 3rd Visit... untouched, exactly as before).
             val visLabel = fitText(r.visitLabel.ifBlank { r.newOrOld }, newOldPaint, colVisitW - 6f)
             if (r.fees > 0.0) {
-                val modeLabel = fitText(r.feesMode.ifBlank { "—" }, newOldPaint, colVisitW - 6f)
-                canvas.drawText(modeLabel, colVisit + colVisitW / 2f - newOldPaint.measureText(modeLabel) / 2f, rowTop + rowHeight / 2f - 1f, newOldPaint)
-                drawMoney(canvas, r.fees, colVisit, colVisitW, rowTop + rowHeight / 2f + 9f, moneyPaint)
+                /* 🟢🔒 V588 (23.08.2026, TK-নির্দেশ) — *"Cash এর পাশে থাকবে
+                   amount · Online এর পাশে থাকবে এমাউন্ট · তবেই তো দেখতে
+                   প্রফেশনাল মনে হবে"*
+                   আগে এই ঘরে **উপরে "CASH", নিচে "₹400"** — দুই লাইনে, আর
+                   টাকাটা ডানে সরানো ছিল, তাই এলোমেলো দেখাত। এখন **একটাই লাইনে
+                   "CASH ₹400"**, ঘরের মাঝখানে।
+                   ⛔ অঙ্কটা হুবহু সেই একই `r.fees` — কোনো হিসাব বদলায়নি, শুধু
+                      লেখাটা কোথায় বসবে। */
+                val modeText = r.feesMode.ifBlank { "—" }
+                val feeText = "₹" + "%,.0f".format(r.fees)
+                val oneLine = fitText("$modeText $feeText", newOldPaint, colVisitW - 6f)
+                canvas.drawText(oneLine, colVisit + colVisitW / 2f - newOldPaint.measureText(oneLine) / 2f, midY, newOldPaint)
             } else {
                 canvas.drawText(visLabel, colVisit + colVisitW / 2f - newOldPaint.measureText(visLabel) / 2f, midY, newOldPaint)
             }

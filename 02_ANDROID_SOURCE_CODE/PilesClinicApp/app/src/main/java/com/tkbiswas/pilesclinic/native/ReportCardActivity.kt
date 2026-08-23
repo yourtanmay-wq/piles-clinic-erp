@@ -505,47 +505,13 @@ class ReportCardActivity : AppCompatActivity() {
             setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
             val p = dp(12); setPadding(p, p, p, p); minLines = 2; gravity = Gravity.TOP
         }
-        // 🔓 TK-এর নতুন অনুমতি (31.07.2026 — B137-এর আগের লক এখন এই একটা
-        // ক্ষেত্রে আপডেট হলো): শুধু বাংলা-বন্ধ স্টাফের (KNE-KISHAN5) জন্য এই
-        // ৯টা চিপের লেখা ইংরেজি/হিন্দি দুটোই একসাথে — অন্য সবার চিপ
-        // অপরিবর্তিত বাংলাই থাকছে (B137 অক্ষত)। ChamberAttendanceActivity.kt
-        // -এর হুবহু একই তালিকা, একই নিয়ম।
-        val quickBn = listOf(
-            "CHECK-UP করা হলো", "KTA করা হল", "DRESSING করা হল",
-            "KSHAR SUTRA করা হল", "KSHAR SUTRA ক্লিয়ার করা হল", "MEDICINE দেওয়া হল",
-            "TEST করতে পাঠানো হল", "MACHINE এর কাজ করা হল", "LIS করা হল"
-        )
-        val quickEnHi = listOf(
-            "CHECK-UP done / जाँच-अप हो गया",
-            "KTA done / KTA हो गया",
-            "DRESSING done / ड्रेसिंग हो गई",
-            "KSHAR SUTRA done / क्षार सूत्र हो गया",
-            "KSHAR SUTRA CLEAR done / क्षार सूत्र क्लियर हो गया",
-            "MEDICINE given / दवा दे दी गई",
-            "TEST sent / टेस्ट के लिए भेजा गया",
-            "MACHINE work done / मशीन का काम हो गया",
-            "LIS done / LIS हो गया"
-        )
-        val quick = if (NoBengali.active()) quickEnHi else quickBn
+        /* 🟢🔒 V588 (23.08.2026) — ৯টা সাজেশন-চিপ এখন একটাই জায়গা থেকে
+           (`TreatmentQuickNotes`), যাতে চারটে বাক্সেই হুবহু এক তালিকা।
+           ⛔ লেখা ও আচরণ এক অক্ষরও বদলায়নি। */
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; setPadding(dp(18), dp(12), dp(18), 0); addView(input)
-            addView(TextView(this@ReportCardActivity).apply {
-                text = NoBengali.s("দ্রুত (চাপলে লেখায় বসবে):"); textSize = 11.5f; setTypeface(typeface, android.graphics.Typeface.BOLD)
-                setTextColor(android.graphics.Color.parseColor("#7A1F3D")); setPadding(0, dp(10), 0, dp(4))
-            })
         }
-        quick.forEach { label ->
-            container.addView(TextView(this).apply {
-                text = "＋ $label"; textSize = 13f; setTextColor(android.graphics.Color.parseColor("#7A1F3D"))
-                setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
-                val p = dp(10); setPadding(p, dp(9), p, dp(9)); isClickable = true
-                val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT); lp.topMargin = dp(6); layoutParams = lp
-                setOnClickListener {
-                    val cur = input.text.toString().trim()
-                    input.setText(if (cur.isBlank()) label else "$cur · $label"); input.setSelection(input.text.length)
-                }
-            })
-        }
+        TreatmentQuickNotes.attach(this, container, input)
         UppercaseInputUtil.applyToAll(container)  // TK-REQUESTED GLOBAL RULE (2026-07-24): English text auto-CAPITAL, Password fields excluded automatically
         AlertDialog.Builder(this)
             .setCustomTitle(PremiumAlert.header(this, "🩺 Progress"))

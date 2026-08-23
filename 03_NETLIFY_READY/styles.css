@@ -2380,15 +2380,23 @@ button.doctorKpi{cursor:pointer}
    ক্রম-সংখ্যা #5B6B81 · চিকিৎসা #8A3D00 · VISIT ও টাকা #33404F ·
    TOTAL সারি সবুজ #0A5428 · নতুন রোগীর সারি #EAF7EE, পুরনো #EDEFF2। */
 .wlv1CbRegTable{width:100%;border-collapse:collapse;margin-top:8px;font-size:12px}
-.wlv1CbRegTable th{background:#0F8A6E;color:#fff;padding:6px 5px;font-size:11px;text-align:center}
-.wlv1CbRegTable td{border:1px solid #B9C2CC;padding:6px 5px;vertical-align:middle}
-.wlv1CbRegTable tbody tr.cbRowNew td{background:#EAF7EE}
-.wlv1CbRegTable tbody tr.cbRowOld td{background:#EDEFF2}
+/* 🟢🔒 V588 (২৩.০৮.২০২৬, TK-নির্দেশ) — *"প্রিন্ট আউটের পরে ব্যাকগ্রাউন্ড কালার
+   থাকার দরকার নেই তো? তাতে তো প্রিন্টারের কালি নষ্ট যাবে"*
+   ⇒ শিরোনামের গাঢ় সবুজ ব্যান্ড ও প্রতিটা সারির হালকা সবুজ/ধূসর ছোপ তুলে দেওয়া
+   হলো — এখন সাদা কাগজে সবুজ লেখা আর দাগের খোপ। ফোনের
+   `ChamberRegisterPdfBuilder.kt`-এও হুবহু একই বদল, তাই দুই কাগজ এক দেখাবে।
+   ⚠️ সৎ কথা: NEW আর OLD রোগীর তফাত আগে ওই রঙেই বোঝা যেত; এখন তফাতটা VISIT
+      ঘরেই থাকে (নতুন হলে "CASH ₹400", পুরনো হলে "9th Visit")। */
+.wlv1CbRegTable th{background:#fff;color:#0A5428;padding:6px 5px;font-size:11px;text-align:center;border-bottom:1.2px solid #0A5428}
+.wlv1CbRegTable td{border:1px solid #B9C2CC;padding:6px 5px;vertical-align:middle;background:#fff}
+.wlv1CbRegTable tbody tr.cbRowNew td{background:#fff}
+.wlv1CbRegTable tbody tr.cbRowOld td{background:#fff}
 .wlv1CbRegTable .cbSl{width:5%;text-align:center;color:#5B6B81}
 .wlv1CbRegTable .cbPat{width:26%;color:#10223A}
 .wlv1CbRegTable .cbPat b{color:#10223A}
-.wlv1CbRegTable .cbTreat{width:33%;color:#8A3D00}
-.wlv1CbRegTable .cbVisit{width:12%;text-align:center;font-weight:700;color:#33404F}
+.wlv1CbRegTable .cbTreat{width:31%;color:#8A3D00}
+/* 🟢 V588: "CASH ₹400" এখন এক লাইনে — ঘরটা একটু চওড়া, আর লাইন ভাঙে না। */
+.wlv1CbRegTable .cbVisit{width:14%;text-align:center;font-weight:700;color:#33404F;white-space:nowrap}
 .wlv1CbRegTable .cbMoney{width:12%;text-align:right;font-weight:700;color:#33404F}
 .wlv1CbRegTable .cbSub{font-size:10px;color:#1067D8}
 .wlv1CbRegTable .cbSubId{font-size:10px;color:#5B6B81}
@@ -6038,3 +6046,12 @@ body.wlv1AnatFullOpen{overflow:hidden}
   font-size:14.5px;padding:9px 14px;cursor:pointer}
 .wlv1KsRow .wlv1KsBtn.wide{flex:1}
 .wlv1KsRow .wlv1KsBtn:hover{background:#27855A}
+
+
+/* 🟢🔒 V588 (২৩.০৮.২০২৬, TK-নির্দেশ) — চিকিৎসার কথা লেখার ঘরের নিচে নয়টি
+   সাজেশন-চিপ (ফোনের `TreatmentQuickNotes`-এর যমজ)। চাপলে লেখাটা ঘরে যোগ হয়। */
+.wlv1TrQuickHd{margin:10px 0 4px;font-size:11.5px;font-weight:800;color:#7A1F3D}
+.wlv1TrQuick{display:flex;flex-direction:column;gap:6px}
+.wlv1TrChip{width:100%;text-align:left;background:#FFF6FA;border:1px solid #E7CBD8;
+  color:#7A1F3D;font-size:13px;font-weight:600;padding:9px 10px;border-radius:10px;cursor:pointer}
+.wlv1TrChip:hover{background:#FBE9F1}
