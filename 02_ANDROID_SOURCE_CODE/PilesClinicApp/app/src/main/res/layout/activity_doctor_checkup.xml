@@ -944,17 +944,18 @@
                         </LinearLayout>
                     </LinearLayout>
 
-                    <LinearLayout style="@style/DocNoteFieldBox">
-                        <View style="@style/DocNoteAccentBar" />
-                        <LinearLayout style="@style/DocNoteFieldBoxInner">
-                            <LinearLayout style="@style/DocNoteFieldBoxTopRow">
-                                <TextView style="@style/DocNoteIcon" android:text="⏳" />
-                                <TextView style="@style/DocNoteLabel" android:text="Estimated Recovery Time · আনুমানিক কতদিন বলা হল" />
-                            </LinearLayout>
-                            <View style="@style/DocNoteDivider" />
-                            <EditText android:id="@+id/etRecoveryTime" style="@style/DocNoteInputSingle" android:hint="Recovery time" />
-                        </LinearLayout>
-                    </LinearLayout>
+                    <!-- 🟢🔒 V589 (২৩.০৮.২০২৬, TK-নির্দেশ, ছবিসহ) — *"একই Form-এ দুই
+                         জায়গাতে রয়েছে কতদিন সময় চাওয়া হইলো · দ্বিতীয় ফটোর সময়ের
+                         ওখানটা থাকবে না · সময় চাওয়া তো এক জায়গায় থাকবে · যেটা
+                         অটোমেটিক ফর্মে রয়েছে পাশাপাশি দুটো বক্স, ওটাই থাকবে"*
+                         ⇒ "Estimated Recovery Time · আনুমানিক কতদিন বলা হল" ঘরটা বাদ।
+                         একই কথা এখন **একটাই জায়গায়** — ভাগ ৩-এর "কতদিন সময় চাওয়া হল?"
+                         (সংখ্যা + Days/Months/Years, পাশাপাশি দুটো বক্স)।
+                         ⛔ ClinicalModels-এর `recoveryTime` ঘরটা **অটুট** (V455/B622-এর
+                            হুবহু একই নিয়ম) — পুরনো রোগীর সেভ করা লেখা মুছে যায় না,
+                            আবার Save করলেও হুবহু ফিরে বসে। শুধু নতুন করে লেখার ঘরটা নেই।
+                         ⛔ A4 কাগজের ঘরটা এখন ভাগ ৩-এর সময়টাই ছাপে (TK: *"অ্যাপের মধ্যে
+                            এক জায়গায় আমি বেছে নিচ্ছি, সেটাই ছেপে যাবে"*)। -->
 
                     <!-- 🔵 B622 (11.08.2026, TK-নির্দেশ): "Advance Payment to be Done" ঘরটা বাদ। -->
                     <!-- V455 (TK-নির্দেশ ১৮.০৮.২০২৬) — "Decision of Patient..." ও

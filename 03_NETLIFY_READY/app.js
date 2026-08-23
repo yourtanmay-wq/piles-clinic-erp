@@ -7126,11 +7126,20 @@ function wlv1CkShow(i){
 window["wlv1CkShow"]=wlv1CkShow;
 function wlv1CkStep(d){ wlv1CkShow(wlv1CkCur + d); }
 window["wlv1CkStep"]=wlv1CkStep;
+/* 🟢 V589: ভাগ ৪-এর তুলে দেওয়া ঘরের পুরনো মান — শুধু ধরে রাখার জন্য। */
+var wlv1KeptRecoveryTime = '';
+window["wlv1KeptRecoveryTime"]=wlv1KeptRecoveryTime;
 function doctorCheck(id){
  let p=load('patients').find(x=>x.id===id);
  if(!p)return toast('Patient not found');
  let last=(load('medical').filter(x=>x.patientId===id&&x.type==='checkup').sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')))[0]||{});
  let note=p.doctorFullNote||last.doctorFullNote||{};
+ /* 🟢🔒 V589 (২৩.০৮.২০২৬, TK-নির্দেশ, ছবিসহ) — *"একই Form-এ দুই জায়গাতে রয়েছে
+    কতদিন সময় চাওয়া হইলো · দ্বিতীয় ফটোর সময়ের ওখানটা থাকবে না"*
+    ⇒ ভাগ ৪-এর "Estimated Recovery Time" ঘরটা তুলে দেওয়া হলো। কিন্তু **পুরনো
+    রোগীর সেভ করা লেখা যেন মুছে না যায়** — তাই খোলার সময় ওখানে যা ছিল তা এখানে
+    রাখা হয়, আর Save করলে হুবহু সেটাই ফিরে বসে (ফোনের `keptRecoveryTime`-এর যমজ)। */
+ wlv1KeptRecoveryTime = String(note.recoveryTime||'');
  let chk=(arr,val)=>Array.isArray(arr)&&arr.includes(val)?'checked':''
 /* 🔵🔒 V541 (২২.০৮.২০২৬, TK-নির্দেশ: "Fistula Per CM (centimetre) করুন")
    ⛔ পুরোনো রেকর্ডে সেভ আছে "Fistula Per ইঞ্চি" (ওয়েব) বা "Fistula Per Inch"
@@ -7228,7 +7237,7 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
   ${wlv1AnatBoxHtml(note,id)}
   <label>Other Treatment Note · অন্যান্য চিকিৎসার কথা (টাইপ করুন)</label><textarea id="dnCounselling" placeholder="রোগীকে কিভাবে চিকিৎসা করবেন বলেছেন সেই কথা এখানে লিখুন">${val('counselling')}</textarea>
  </details>
- <details class="card"><summary><b>4. Estimate &amp; Decision · আনুমানিক খরচ ও রোগীর সিদ্ধান্ত</b></summary><label>Estimated Cost · আনুমানিক খরচ</label><input id="dnEstimatedCost" class="input" value="${val('estimatedCost')}"><label>Estimated Recovery Time · আনুমানিক কতদিন বলা হল</label><input id="dnRecoveryTime" class="input" value="${val('recoveryTime')}"><label>Advance Payment to be Done · অগ্রিম কত টাকা জমা করতে চাইছে</label><input id="dnAdvanceDiscussed" class="input" value="${val('advanceDiscussed')}"></details>
+ <details class="card"><summary><b>4. Estimate &amp; Decision · আনুমানিক খরচ ও রোগীর সিদ্ধান্ত</b></summary><label>Estimated Cost · আনুমানিক খরচ</label><input id="dnEstimatedCost" class="input" value="${val('estimatedCost')}"><label>Advance Payment to be Done · অগ্রিম কত টাকা জমা করতে চাইছে</label><input id="dnAdvanceDiscussed" class="input" value="${val('advanceDiscussed')}"></details>
  <details class="card"><summary><b>5. Photo &amp; Video · ছবি ও ভিডিও</b></summary>
   <div class="grid"><div><label>Before Treatment Photo · আগের ছবি</label><input id="dnBeforePhoto" class="input" type="file" accept="image/*"><small>${note.beforePhoto?'Before photo saved':''}</small></div><div><label>During Treatment Photo · চলাকালীন ছবি</label><input id="dnDuringPhoto" class="input" type="file" accept="image/*"><small>${note.duringPhoto?'During photo saved':''}</small></div><div><label>After Treatment Photo · পরের ছবি</label><input id="dnAfterPhoto" class="input" type="file" accept="image/*"><small>${note.afterPhoto?'After photo saved':''}</small></div></div>
  </details>
@@ -9183,7 +9192,7 @@ async function saveDoctor(id){
   /* 🔵 V556: ওয়েবে `visual`-এর মতোই তালিকা হিসেবে জমা (chk() তালিকাই বোঝে) */
   dre:$$('.dnDre:checked').map(x=>x.value),dreOther:$('#dnDreOther')?.value||'',
   treatmentPlan,amtPerPiles:$('#dnAmtPerPiles')?.value||'8000',amtFistulaPerInch:$('#dnAmtFistulaInch')?.value||'11000',amtKsharSutra:$('#dnAmtKsharSutra')?.value||'6000',
-  counselling:$('#dnCounselling')?.value||'',estimatedCost:$('#dnEstimatedCost')?.value||'',recoveryTime:$('#dnRecoveryTime')?.value||'',advanceDiscussed:$('#dnAdvanceDiscussed')?.value||'',
+  counselling:$('#dnCounselling')?.value||'',estimatedCost:$('#dnEstimatedCost')?.value||'',recoveryTime:wlv1KeptRecoveryTime,   /* 🟢 V589: পুরনো লেখা হুবহু ফিরে বসে, মুছে যায় না */advanceDiscussed:$('#dnAdvanceDiscussed')?.value||'',
   // V460 (১৯.০৮.২০২৬, Android-এ V455 হিসেবে করা হয়েছিল — এখানে ওয়েবেও একই ফিক্স):
   // acuteChronic · visualOther · dre/dreOther · otherFindings · patientDecision ·
   // decisionRemark · documents — এই ঘরগুলো UI থেকে বাদ, তাই আর পড়া হয় না।
@@ -15758,7 +15767,7 @@ var WLV1_A4_TITLES={
       visual:'Visual Exam',grade:'Proctoscopy Grade',probable:'Probable Disease',
       onProbing:'On Probing',investigation:'Investigations',
       plan:'Treatment Plan',rate:'Rate',counselling:'Counselling',
-      estCost:'Estimated Cost',recovery:'Recovery Time',advance:'Advance Paid',
+      estCost:'Estimated Cost',recovery:'Time Asked',advance:'Advance Paid',   /* 🟢 V589 */
       stamp:'Clinic Stamp',sign:"Doctor's Signature"},
   bn:{sec1:'ইতিহাস ও পূর্বের চিকিৎসা',sec2:'রোগী এসে প্রথমে কী কী বললেন &middot; ভাগ 2',
       sec3:'রোগীর বলা ইতিহাস &middot; ভাগ 3',sec4:'রোগ ও অভ্যাস &middot; ভাগ 4',
@@ -15769,7 +15778,7 @@ var WLV1_A4_TITLES={
       visual:'চোখে দেখে',grade:'গ্রেড',probable:'সম্ভাব্য রোগ',
       onProbing:'প্রোব করে',investigation:'পরীক্ষা-নিরীক্ষা',
       plan:'পরিকল্পনা',rate:'রেট',counselling:'পরামর্শ',
-      estCost:'আনুমানিক খরচ',recovery:'সুস্থ হতে',advance:'অগ্রিম',
+      estCost:'আনুমানিক খরচ',recovery:'কতদিন সময় চাওয়া হল',advance:'অগ্রিম',   /* 🟢 V589 */
       stamp:'ক্লিনিক সিল',sign:'ডাক্তারের স্বাক্ষর'}
 };
 function wlv1A4S(key,lang){ var m=WLV1_A4_TITLES[lang===WLV1_A4_EN?'en':'bn']; return (m&&m[key])||key }
@@ -15838,7 +15847,11 @@ function wlv1CheckupA4Fields(n){
     anatomy:n.anatomy||'',   /* 🔵 V584 — ভাগ ৬ */
     probableDisease:(n.probableDisease&&n.probableDisease!=='কিছু বাছা হয়নি')?n.probableDisease:'',
     treatmentPlan:A(plan), rate:rateBits.join(' · '), counselling:n.counselling||'',
-    estCost:n.estimatedCost||'', recovery:n.recoveryTime||'', advance:n.advanceDiscussed||'',
+    /* 🟢🔒 V589 (২৩.০৮.২০২৬, TK-নির্দেশ) — *"অ্যাপের মধ্যে এক জায়গায় তো আমি
+       বেছে নিচ্ছি সেটাই ছেপে যাবে"* ⇒ কাগজে এখন ভাগ ৩-এর "কতদিন সময় চাওয়া হল?"
+       (যেমন `15 Days`)। পুরনো রেকর্ডে ওটা ফাঁকা হলে আগের লেখাটাই ছাপে, তাই
+       পুরনো কোনো কাগজ ফাঁকা হয়ে যায় না। ফোনের সঙ্গে হুবহু এক নিয়ম। */
+    estCost:n.estimatedCost||'', recovery:(n.timeAsked||'')||(n.recoveryTime||''), advance:n.advanceDiscussed||'',
     beforePhoto:n.beforePhoto||'', duringPhoto:n.duringPhoto||'', afterPhoto:n.afterPhoto||''
   };
 }

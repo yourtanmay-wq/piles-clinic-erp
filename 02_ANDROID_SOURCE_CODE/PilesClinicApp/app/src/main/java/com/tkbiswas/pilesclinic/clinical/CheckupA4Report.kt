@@ -195,7 +195,11 @@ object CheckupA4Report {
             otherFindings = field("Other Findings"),
             treatmentPlan = planOnly, rate = rate, counselling = field("Other Treatment Note"),
             estCost = field("Est Cost", "Financial"),
-            recovery = field("Recovery"), advance = field("Advance"),
+            /* 🟢🔒 V589 (২৩.০৮.২০২৬) — এই ঘরটা এখন ভাগ ৩-এর "কতদিন সময় চাওয়া
+               হল?" থেকে আসে, যেটা নোটে "Time Asked: 15 Days" নামে লেখা হয়।
+               ⛔ পুরনো রেকর্ডে ওটা না থাকলে আগের "Recovery"-ই পড়া হয়, তাই
+                  পুরনো কোনো কাগজ ফাঁকা হয়ে যায় না। */
+            recovery = field("Time Asked", "Recovery"), advance = field("Advance"),
             decision = field("Decision"), remarks = field("Remarks"),
             // 🔵 V584 — পুরোনো লেখা থেকে যতটুকু পাওয়া যায় ততটুকুই (মানুষ-পড়া-যায় রূপ)
             patientSaid = field("Patient Said"),

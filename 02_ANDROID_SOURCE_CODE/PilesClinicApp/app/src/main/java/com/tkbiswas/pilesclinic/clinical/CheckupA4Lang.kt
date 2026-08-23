@@ -219,7 +219,7 @@ object CheckupA4Lang {
         "probable" to "Probable Disease",
         "onProbing" to "On Probing", "investigation" to "Investigations",
         "plan" to "Treatment Plan", "rate" to "Rate", "counselling" to "Counselling",
-        "estCost" to "Estimated Cost", "recovery" to "Recovery Time", "advance" to "Advance Paid",
+        "estCost" to "Estimated Cost", "recovery" to "Time Asked", "advance" to "Advance Paid",   // 🟢 V589
         "stamp" to "Clinic Stamp", "sign" to "Doctor's Signature"
     )
 
@@ -239,7 +239,7 @@ object CheckupA4Lang {
         "probable" to "সম্ভাব্য রোগ",
         "onProbing" to "প্রোব করে", "investigation" to "পরীক্ষা-নিরীক্ষা",
         "plan" to "পরিকল্পনা", "rate" to "রেট", "counselling" to "পরামর্শ",
-        "estCost" to "আনুমানিক খরচ", "recovery" to "সুস্থ হতে", "advance" to "অগ্রিম",
+        "estCost" to "আনুমানিক খরচ", "recovery" to "কতদিন সময় চাওয়া হল", "advance" to "অগ্রিম",   // 🟢 V589
         "stamp" to "ক্লিনিক সিল", "sign" to "ডাক্তারের স্বাক্ষর"
     )
 }

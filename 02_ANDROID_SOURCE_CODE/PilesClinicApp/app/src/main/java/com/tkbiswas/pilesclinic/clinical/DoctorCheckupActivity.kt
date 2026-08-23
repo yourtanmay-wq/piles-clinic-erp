@@ -61,7 +61,12 @@ class DoctorCheckupActivity : AppCompatActivity() {
     private lateinit var cbTxInjection: CheckBox
     private lateinit var etCounselling: EditText
     private lateinit var etEstimatedCost: EditText
-    private lateinit var etRecoveryTime: EditText
+    /* 🟢🔒 V589 (২৩.০৮.২০২৬, TK-নির্দেশ) — "Estimated Recovery Time" ঘরটা পর্দা
+       থেকে উঠে গেছে (একই কথা ভাগ ৩-এ আছে)। কিন্তু **পুরনো রোগীর সেভ করা লেখা
+       যেন কোনোভাবেই মুছে না যায়** — তাই রেকর্ড খোলার সময় ওখানে যা ছিল তা এই
+       ঘরে রাখা হয়, আর আবার Save করলে হুবহু সেটাই ফিরে বসে।
+       ⛔ নতুন রোগীর ক্ষেত্রে এটা ফাঁকাই থাকে — কোনো আন্দাজে কিছু বসে না। */
+    private var keptRecoveryTime: String = ""
     // 🔵 B622 (11.08.2026, TK-নির্দেশ): "Advance Payment to be Done" (etAdvanceDiscussed) ঘর বাদ।
     // V455 (TK-নির্দেশ ১৮.০৮.২০২৬): spPatientDecision · etDecisionRemark · etDocuments ঘর বাদ।
 
@@ -205,7 +210,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         cbTxInjection.tag = "Injection (Vaccination) Treatment"
         etCounselling = findViewById(R.id.etCounselling)
         etEstimatedCost = findViewById(R.id.etEstimatedCost)
-        etRecoveryTime = findViewById(R.id.etRecoveryTime)
+        // 🟢 V589: etRecoveryTime findViewById বাদ (ঘরটাই আর নেই)।
         // V455 (18.08.2026): spPatientDecision · etDecisionRemark · etDocuments findViewById বাদ।
 
         bindPatientHeader()
@@ -1136,7 +1141,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         amtKsharSutra = etAmtKsharSutra.text?.toString().orEmpty(),
         counselling = etCounselling.text?.toString().orEmpty(),
         estimatedCost = etEstimatedCost.text?.toString().orEmpty(),
-        recoveryTime = etRecoveryTime.text?.toString().orEmpty(),
+        recoveryTime = keptRecoveryTime,   // 🟢 V589: পুরনো লেখা হুবহু ফিরে বসে, মুছে যায় না
         // 🔵 B622 (11.08.2026): "Advance Payment to be Done" ঘর বাদ — মডেলের ডিফল্ট "" থাকে।
         // V455 (18.08.2026): patientDecision · decisionRemark ঘর বাদ — মডেলের ডিফল্ট "" থাকে।
         beforePhoto = beforePhotoData,
@@ -1200,7 +1205,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         if (r.amtKsharSutra.isNotBlank()) etAmtKsharSutra.setText(r.amtKsharSutra)
         etCounselling.setText(r.counselling)
         etEstimatedCost.setText(r.estimatedCost)
-        etRecoveryTime.setText(r.recoveryTime)
+        keptRecoveryTime = r.recoveryTime   // 🟢 V589: দেখানো হয় না, কিন্তু হারায়ও না
         // 🔵 B622: "Advance Payment to be Done" ঘর বাদ।
         // V455 (18.08.2026): patientDecision/decisionRemark/documents populate বাদ (ঘর নেই)।
         beforePhotoData = r.beforePhoto
@@ -2611,7 +2616,8 @@ class DoctorCheckupActivity : AppCompatActivity() {
             etComplaint, etDuration, etPrevTreatment,
             etOnProbing,
             etAmtPerPiles, etAmtFistulaInch, etAmtKsharSutra,
-            etCounselling, etEstimatedCost, etRecoveryTime
+            // 🟢 V589: etRecoveryTime ঘর বাদ।
+            etCounselling, etEstimatedCost
         ).forEach { it.isEnabled = enabled }
         (visualChecks + investigationChecks + treatmentChecks()).forEach { it.isEnabled = enabled }
         spGrade.isEnabled = enabled
@@ -2809,7 +2815,15 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 otherFindings = r.otherFindings,
                 treatmentPlan = r.treatmentPlan, rate = buildRateSummary(r),
                 counselling = r.counselling,
-                estCost = r.estimatedCost, recovery = r.recoveryTime,
+                estCost = r.estimatedCost,
+                /* 🟢🔒 V589 (২৩.০৮.২০২৬, TK-নির্দেশ) — *"অ্যাপের মধ্যে এক জায়গায়
+                   তো আমি বেছে নিচ্ছি সেটাই ছেপে যাবে"*।
+                   কাগজের এই ঘরটা আগে ভাগ ৪-এর হাতে-লেখা বক্স থেকে আসত; ওই বক্সটা
+                   এখন নেই, তাই **ভাগ ৩-এর "কতদিন সময় চাওয়া হল?"** (যেমন `15 Days`)
+                   ছাপা হয় — যেটা ডাক্তার সত্যিই বেছেছেন।
+                   ⛔ পুরনো রোগীর রেকর্ডে ভাগ ৩ ফাঁকা কিন্তু ভাগ ৪-এ লেখা ছিল —
+                      তখন আগের সেই লেখাটাই ছাপে, কাগজ ফাঁকা যায় না। */
+                recovery = r.timeAsked.ifBlank { r.recoveryTime },
                 advance = r.advanceDiscussed, decision = r.patientDecision,
                 remarks = r.decisionRemark,
                 beforePhoto = r.beforePhoto, duringPhoto = r.duringPhoto, afterPhoto = r.afterPhoto,
