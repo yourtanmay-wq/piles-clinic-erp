@@ -7509,11 +7509,11 @@ function wlv1CounselBoxHtml(note,p){
 
     // মাটিতে পড়া ছায়া — মাংসটা যেন ছবির উপরে বসে আছে মনে হয়
     ctx.save();
-    ctx.shadowColor = 'rgba(54,14,22,0.45)';
+    ctx.shadowColor = 'rgba(70,30,26,0.40)';
     ctx.shadowBlur = LW * 0.42;
     ctx.shadowOffsetY = LW * 0.10;
     lumpPath(ctx, L, LW);
-    ctx.fillStyle = '#9A4B57';
+    ctx.fillStyle = '#B3766C';
     ctx.fill();
     ctx.restore();
 
@@ -7522,32 +7522,57 @@ function wlv1CounselBoxHtml(note,p){
     ctx.save(); ctx.clip();
     var hx = L - LW * 0.5, hy = -LW * 0.26;      // আলো পড়ে মাথার উপর-বাঁয়ে
     var gd = ctx.createRadialGradient(hx - LW * 0.22, hy, LW * 0.05, hx, 0, LW * 1.25);
-    gd.addColorStop(0.00, '#EFB0AB');
-    gd.addColorStop(0.30, '#D9767A');
-    gd.addColorStop(0.62, '#B8414C');
-    gd.addColorStop(0.86, '#8D2C3A');
-    gd.addColorStop(1.00, '#671A25');
+    gd.addColorStop(0.00, '#F7DCD4');
+    gd.addColorStop(0.30, '#EEC1B6');
+    gd.addColorStop(0.62, '#DFA294');
+    gd.addColorStop(0.86, '#C8837A');
+    gd.addColorStop(1.00, '#A75F58');
     ctx.fillStyle = gd;
     ctx.fillRect(-L * 0.3, -LW, L * 1.5, LW * 2);
 
-    // দানা-দানা ভাব — TK-এর ছবির মতো
+    /* 🔵🔒 V582 (TK-নির্দেশ ২৩.০৮.২০২৬ — আসল অপারেশনের ছবি দেখিয়ে):
+       *"পাইলসের মাংসটার কালার খানিকটা এরকম বানানো যাবে কি ... real লাগতে হবে
+       অথবা AI animation-এর মতো হতে হবে"*।
+       আগে ছিল সমান মাপের শক্ত-কিনারা গোল দাগ — কার্টুনের মতো লাগত।
+       এখন তিন স্তর, তাই সত্যিকারের মাংসের মতো দেখায়:
+         ১. **গায়ের ছোপ** — কয়েকটা বড় নরম গোলাপি ছোপ (রক্ত জমা ভাব)
+         ২. **রক্তের ছিটে** — ছোট, কিনারা মিলিয়ে-যাওয়া উজ্জ্বল লাল ফোঁটা
+         ৩. আগের মতোই ভেজা-চকচকে আলো ও কিনারার ছায়া
+       ⛔ এলোমেলো সংখ্যাগুলো আগের সেই একই নিয়মেই (`lumpSeed`/`lumpNext`) আসে,
+          আর ফোনেও **হুবহু একই ক্রমে** — তাই একই ফোলা দুই যন্ত্রে একই রকম। */
     var st = { v: lumpSeed(b, g.L) };
+    // ১. গায়ের ছোপ
+    for (var k = 0; k < 4; k++) {
+      var mu = 0.18 + lumpNext(st) * 0.70;
+      var mv = (lumpNext(st) * 2 - 1) * 0.62;
+      var mr = LW * (0.26 + lumpNext(st) * 0.24);
+      var mx = L * mu, my = (LW / 2) * mv;
+      var mg = ctx.createRadialGradient(mx, my, 0, mx, my, mr);
+      mg.addColorStop(0.00, 'rgba(206,124,116,0.38)');
+      mg.addColorStop(0.60, 'rgba(214,146,138,0.20)');
+      mg.addColorStop(1.00, 'rgba(220,160,152,0)');
+      ctx.fillStyle = mg;
+      ctx.beginPath(); ctx.arc(mx, my, mr, 0, 6.2832); ctx.fill();
+    }
+    // ২. রক্তের ছিটে
     var n = Math.max(10, Math.min(46, Math.round(g.L * 1.9)));
-    ctx.lineWidth = Math.max(0.6, LW * 0.030);
     for (var i = 0; i < n; i++) {
       var u = 0.10 + lumpNext(st) * 0.88;                    // গোড়া থেকে মাথার দিকে
       var spread = Math.sin(Math.PI * Math.min(1, u * 1.02)) * 0.92;
       var v = (lumpNext(st) * 2 - 1) * spread;
       var ccx = L * u, ccy = (LW / 2) * v;
-      var rr = LW * (0.085 + lumpNext(st) * 0.085);
-      ctx.beginPath(); ctx.arc(ccx, ccy, rr, 0, 6.2832);
-      ctx.fillStyle = 'rgba(246,196,192,0.22)'; ctx.fill();
-      ctx.strokeStyle = 'rgba(104,32,42,0.50)'; ctx.stroke();
+      var rr = LW * (0.022 + lumpNext(st) * 0.048);
+      var sg = ctx.createRadialGradient(ccx, ccy, 0, ccx, ccy, rr);
+      sg.addColorStop(0.00, 'rgba(168,12,22,0.92)');
+      sg.addColorStop(0.55, 'rgba(196,30,38,0.66)');
+      sg.addColorStop(1.00, 'rgba(214,64,68,0)');
+      ctx.fillStyle = sg;
+      ctx.beginPath(); ctx.arc(ccx, ccy, rr, 0, 6.2832); ctx.fill();
     }
     // কিনারার দিকে ভিতরে ছায়া — গোল ভাবটা বাড়ে
     var eg = ctx.createRadialGradient(L - LW * 0.5, 0, LW * 0.30, L - LW * 0.5, 0, LW * 1.05);
-    eg.addColorStop(0, 'rgba(86,22,32,0)');
-    eg.addColorStop(1, 'rgba(86,22,32,0.55)');
+    eg.addColorStop(0, 'rgba(120,52,46,0)');
+    eg.addColorStop(1, 'rgba(120,52,46,0.50)');
     ctx.fillStyle = eg; ctx.fillRect(-L * 0.3, -LW, L * 1.5, LW * 2);
     // ভেজা-চকচকে ভাব
     var hg = ctx.createRadialGradient(hx - LW * 0.26, hy, 0, hx - LW * 0.26, hy, LW * 0.52);
@@ -7558,8 +7583,8 @@ function wlv1CounselBoxHtml(note,p){
 
     // চারদিকের গাঢ় কিনারা
     lumpPath(ctx, L, LW);
-    ctx.strokeStyle = '#6E1F2A';
-    ctx.lineWidth = Math.max(0.8, L * 0.030);
+    ctx.strokeStyle = 'rgba(142,74,68,0.78)';
+    ctx.lineWidth = Math.max(0.7, L * 0.024);
     ctx.stroke();
     ctx.restore();
   }

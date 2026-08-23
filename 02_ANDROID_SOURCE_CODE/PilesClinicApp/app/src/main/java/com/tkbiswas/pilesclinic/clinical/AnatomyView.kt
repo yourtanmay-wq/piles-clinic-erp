@@ -453,8 +453,8 @@ class AnatomyView(context: Context) : View(context) {
         // মাটিতে পড়া ছায়া — মাংসটা ছবির উপরে বসে আছে মনে হয়
         paint.reset(); paint.isAntiAlias = true
         paint.style = Paint.Style.FILL
-        paint.color = Color.parseColor("#9A4B57")
-        paint.setShadowLayer(wide * 0.42f, 0f, wide * 0.10f, Color.parseColor("#73360E16"))
+        paint.color = Color.parseColor("#B3766C")
+        paint.setShadowLayer(wide * 0.42f, 0f, wide * 0.10f, Color.parseColor("#66461E1A"))
         canvas.drawPath(lumpPathObj, paint)
         paint.clearShadowLayer()
 
@@ -465,38 +465,63 @@ class AnatomyView(context: Context) : View(context) {
         val hx = len - wide * 0.5f; val hy = -wide * 0.26f
         paint.shader = android.graphics.RadialGradient(
             hx - wide * 0.22f, hy, Math.max(1f, wide * 1.25f),
-            intArrayOf(Color.parseColor("#EFB0AB"), Color.parseColor("#D9767A"),
-                       Color.parseColor("#B8414C"), Color.parseColor("#8D2C3A"),
-                       Color.parseColor("#671A25")),
+            intArrayOf(Color.parseColor("#F7DCD4"), Color.parseColor("#EEC1B6"),
+                       Color.parseColor("#DFA294"), Color.parseColor("#C8837A"),
+                       Color.parseColor("#A75F58")),
             floatArrayOf(0f, 0.30f, 0.62f, 0.86f, 1f),
             android.graphics.Shader.TileMode.CLAMP)
         canvas.drawRect(-len * 0.3f, -wide, len * 1.5f, wide, paint)
         paint.shader = null
 
-        // দানা-দানা ভাব — জায়গা এলোমেলো নয়, মাংসের নিজের অবস্থান থেকে
+        /* 🔵🔒 V582 (TK-নির্দেশ ২৩.০৮.২০২৬, আসল অপারেশনের ছবি দেখিয়ে):
+           *"real লাগতে হবে অথবা AI animation-এর মতো হতে হবে"*।
+           আগে সমান মাপের শক্ত-কিনারা গোল দাগ ছিল — কার্টুনের মতো লাগত।
+           এখন দুই স্তর: বড় নরম **ছোপ**, তার উপরে ছোট **রক্তের ছিটে** —
+           দুটোরই কিনারা মিলিয়ে যায়, তাই মাংসের মতো দেখায়।
+           ⛔ এলোমেলো সংখ্যাগুলোর ক্রম **কম্পিউটারের অ্যাপের হুবহু এক**
+              (`wlv1` bulge()-এ একই ক্রমে), তাই একই ফোলা দুই যন্ত্রে একই। */
         val state = longArrayOf(AnatomyModel.lumpSeed(m.x, m.y, g.len))
+        paint.style = Paint.Style.FILL
+        // ১. গায়ের ছোপ
+        for (k in 0 until 4) {
+            val mu = 0.18 + AnatomyModel.lumpNext(state) * 0.70
+            val mv = (AnatomyModel.lumpNext(state) * 2 - 1) * 0.62
+            val mr = (wide * (0.26 + AnatomyModel.lumpNext(state) * 0.24)).toFloat()
+            val mx = (len * mu).toFloat()
+            val my = ((wide / 2f) * mv).toFloat()
+            if (mr <= 0f) continue
+            paint.shader = android.graphics.RadialGradient(
+                mx, my, mr,
+                intArrayOf(Color.parseColor("#61CE7C74"), Color.parseColor("#33D6928A"),
+                           Color.parseColor("#00DCA098")),
+                floatArrayOf(0f, 0.60f, 1f), android.graphics.Shader.TileMode.CLAMP)
+            canvas.drawCircle(mx, my, mr, paint)
+            paint.shader = null
+        }
+        // ২. রক্তের ছিটে
         val n = Math.max(10, Math.min(46, Math.round(g.len * 1.9).toInt()))
-        val cellW = Math.max(0.6f, wide * 0.030f)
         for (i in 0 until n) {
             val u = 0.10 + AnatomyModel.lumpNext(state) * 0.88
             val spread = Math.sin(Math.PI * Math.min(1.0, u * 1.02)) * 0.92
             val v = (AnatomyModel.lumpNext(state) * 2 - 1) * spread
             val ccx = (len * u).toFloat()
             val ccy = ((wide / 2f) * v).toFloat()
-            val rr = (wide * (0.085 + AnatomyModel.lumpNext(state) * 0.085)).toFloat()
-            paint.style = Paint.Style.FILL
-            paint.color = Color.parseColor("#38F6C4C0")
+            val rr = (wide * (0.022 + AnatomyModel.lumpNext(state) * 0.048)).toFloat()
+            if (rr <= 0f) continue
+            paint.shader = android.graphics.RadialGradient(
+                ccx, ccy, rr,
+                intArrayOf(Color.parseColor("#EBA80C16"), Color.parseColor("#A8C41E26"),
+                           Color.parseColor("#00D64044")),
+                floatArrayOf(0f, 0.55f, 1f), android.graphics.Shader.TileMode.CLAMP)
             canvas.drawCircle(ccx, ccy, rr, paint)
-            paint.style = Paint.Style.STROKE; paint.strokeWidth = cellW
-            paint.color = Color.parseColor("#8068202A")
-            canvas.drawCircle(ccx, ccy, rr, paint)
+            paint.shader = null
         }
 
         // কিনারার দিকে ভিতরে ছায়া — গোল ভাবটা বাড়ে
         paint.style = Paint.Style.FILL
         paint.shader = android.graphics.RadialGradient(
             len - wide * 0.5f, 0f, Math.max(1f, wide * 1.05f),
-            intArrayOf(Color.parseColor("#00561620"), Color.parseColor("#8C561620")),
+            intArrayOf(Color.parseColor("#0078342E"), Color.parseColor("#8078342E")),
             floatArrayOf(0.286f, 1f), android.graphics.Shader.TileMode.CLAMP)
         canvas.drawRect(-len * 0.3f, -wide, len * 1.5f, wide, paint)
         paint.shader = null
@@ -512,7 +537,7 @@ class AnatomyView(context: Context) : View(context) {
 
         // চারদিকের গাঢ় কিনারা
         paint.style = Paint.Style.STROKE
-        paint.color = Color.parseColor("#6E1F2A")
+        paint.color = Color.parseColor("#C78E4A44")
         paint.strokeWidth = Math.max(0.8f, len * 0.030f)
         canvas.drawPath(lumpPathObj, paint)
         canvas.restoreToCount(save)
