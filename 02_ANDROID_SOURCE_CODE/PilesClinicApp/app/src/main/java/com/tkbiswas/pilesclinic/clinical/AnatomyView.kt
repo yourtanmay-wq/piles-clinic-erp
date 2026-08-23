@@ -48,6 +48,18 @@ class AnatomyView(context: Context) : View(context) {
     var clockCentre: Pair<Double, Double>? = null
     /** ডাক্তার কেন্দ্র ছুঁয়ে দিলে ডাকা হয় (Activity সেটা জমা করে)। */
     var onCentreSet: ((Double, Double) -> Unit)? = null
+
+    /* 🔵🔒 V587 (২৩.০৮.২০২৬, TK-অনুমোদিত ডেমো-প্রুফের পরে) — **ক্ষারসূত্রের ধাপ
+       রোগীকে দেখানোর মোড।** চালু থাকলে বাছা চিহ্নটা ধাপ অনুযায়ী আঁকা হয়
+       (ইনজেকশন · ফোলা · সুতো · কেটে পড়া)।
+       ⛔ এটা **শুধু দেখার** — `marks` তালিকায় কিছু যোগ/বাদ হয় না, কিছু সেভও
+          হয় না। মোড বন্ধ করলেই ছবিটা হুবহু আগের মতো। */
+    var ksOn = false
+    var ksIndex = -1              // কোন চিহ্নের উপরে চলছে (marks-এর ক্রম)
+    var ksStep = 0                // KsharSutraAnim-এর ধাপ
+    var ksT = 0f                  // ওই ধাপের অগ্রগতি ০…১
+    /** KS মোডে কোনো চিহ্ন ছুঁলে — Activity বেছে নেয়। */
+    var onKsPick: ((Int) -> Unit)? = null
     var onChanged: (() -> Unit)? = null        // কিছু আঁকা হলেই ডাকা হয়
 
     private val density = context.resources.displayMetrics.density
@@ -238,7 +250,44 @@ class AnatomyView(context: Context) : View(context) {
     private var startPct: FloatArray? = null
     private var livePts = mutableListOf<Pair<Double, Double>>()
 
+    /**
+     * 🔵 V587 — KS মোডে ছোঁয়ার জায়গার সবচেয়ে কাছের চিহ্ন কোনটা।
+     * শুধু **ফোলা ও নালী** ধরা হয় (এই দুটোতেই ক্ষারসূত্র হয়)। কিছু না পেলে −১।
+     */
+    fun ksNearestAt(xPct: Double, yPct: Double): Int {
+        var best = -1; var bd = Double.MAX_VALUE
+        for ((i, m) in marks.withIndex()) {
+            val d: Double = when (m.kind) {
+                AnatomyModel.KIND_BULGE -> {
+                    val g = AnatomyModel.lumpGeom(m)
+                    // গোড়া থেকে ডগা — মাঝ বরাবর সবচেয়ে কাছের দূরত্ব
+                    val hx = m.x + Math.cos(g.ang) * g.len * 0.55
+                    val hy = m.y + Math.sin(g.ang) * g.len * 0.55
+                    Math.min(Math.hypot(xPct - m.x, yPct - m.y), Math.hypot(xPct - hx, yPct - hy))
+                }
+                AnatomyModel.KIND_TRACT ->
+                    m.pts.minOfOrNull { Math.hypot(xPct - it.first, yPct - it.second) } ?: Double.MAX_VALUE
+                else -> Double.MAX_VALUE
+            }
+            if (d < bd) { bd = d; best = i }
+        }
+        return if (bd <= 18.0) best else -1
+    }
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        /* 🔵 V587 — ক্ষারসূত্র দেখানোর মোডে আঙুল দিয়ে কিছু আঁকা যায় না,
+           শুধু একটা চিহ্ন **বেছে নেওয়া** যায়। ⛔ তাই এই মোডে ভুল করেও
+           ছবিতে নতুন দাগ পড়ার পথ নেই। */
+        if (ksOn) {
+            if (event.actionMasked == MotionEvent.ACTION_UP) {
+                val p = toPercent(event.x, event.y)
+                if (p != null) {
+                    val i = ksNearestAt(p[0].toDouble(), p[1].toDouble())
+                    if (i >= 0) onKsPick?.invoke(i)
+                }
+            }
+            return true
+        }
         if (base == null) return false
 
         /* 🔵 V569 — দু'আঙুল হলে ছোট-বড় ও সরানো; তখন কিছু আঁকা হয় না।
@@ -601,28 +650,12 @@ class AnatomyView(context: Context) : View(context) {
         paint.reset(); paint.isAntiAlias = true
         paint.strokeCap = Paint.Cap.ROUND; paint.strokeJoin = Paint.Join.ROUND
 
-        /* 🔵 V585 — কেন্দ্র জানা থাকলে হালকা সবুজ ঘড়িটা দেখানো হয়, যাতে ডাক্তার
-           চোখেই মিলিয়ে নিতে পারেন কোন দিক কত o'clock। ⛔ এটা শুধু দেখার জিনিস —
-           কোনো দাগ হিসেবে সেভ হয় না, প্রিন্টেও যায় না। */
-        clockCentre?.let { c ->
-            val cx = px(c.first); val cy = py(c.second)
-            val rr = Math.min(dst.width(), dst.height()) * 0.34f
-            paint.style = Paint.Style.STROKE
-            paint.color = Color.parseColor("#660F5132")
-            paint.strokeWidth = Math.max(1f, s * 0.5f)
-            canvas.drawCircle(cx, cy, rr, paint)
-            for (h in 1..12) {
-                val a = Math.toRadians(h * 30.0)
-                val sn = Math.sin(a).toFloat(); val cs = Math.cos(a).toFloat()
-                canvas.drawLine(cx + sn * rr * 0.90f, cy - cs * rr * 0.90f,
-                                cx + sn * rr, cy - cs * rr, paint)
-            }
-            paint.style = Paint.Style.FILL
-            paint.color = Color.parseColor("#0F5132")
-            canvas.drawCircle(cx, cy, Math.max(2f, s * 1.4f), paint)
-            paint.style = Paint.Style.STROKE
-            canvas.drawCircle(cx, cy, Math.max(4f, s * 3.0f), paint)
-        }
+        /* 🔵 V587 (২৩.০৮.২০২৬, TK-নির্দেশ: *"ঘড়ি আঁকানো থাকবে না"*) —
+           V585-এ কেন্দ্র জানা থাকলে হালকা সবুজ ঘড়ি ও মাঝের ফোঁটা আঁকা হত।
+           TK চান ছবিতে ঘড়ির **কোনো চিহ্নই** না থাকুক, তাই আঁকাটা তুলে দেওয়া হলো।
+           ⛔ **হিসাব অটুট** — কেন্দ্র আগের মতোই জমা থাকে (`AnatomyClock`), আর
+              চিহ্ন বসালে o'clock আগের মতোই নিজে হিসাব হয়ে লেখা বসে।
+              শুধু চোখে ঘড়িটা আর দেখা যায় না। */
         paint.reset(); paint.isAntiAlias = true
         paint.strokeCap = Paint.Cap.ROUND; paint.strokeJoin = Paint.Join.ROUND
 
@@ -634,10 +667,16 @@ class AnatomyView(context: Context) : View(context) {
             if (tool == Tool.TRACT) drawTractCm(canvas, livePts, s)
         }
         // মাংস আগে, দাগ পরে — ওয়েবের `draw()`-এর মতোই ক্রম
-        for (m in marks) if (m.kind == AnatomyModel.KIND_BULGE) drawLump(canvas, m)
+        /* 🔵 V587 — KS মোডে **বাছা চিহ্নটা** এখানে আঁকা হয় না; নিচে
+           `drawKs()` তাকে ধাপ অনুযায়ী আঁকে (ফোলা · সুতো · কেটে পড়া)। */
+        for ((i, m) in marks.withIndex()) {
+            if (ksOn && i == ksIndex) continue
+            if (m.kind == AnatomyModel.KIND_BULGE) drawLump(canvas, m)
+        }
         paint.reset(); paint.isAntiAlias = true
         paint.strokeCap = Paint.Cap.ROUND; paint.strokeJoin = Paint.Join.ROUND
-        for (m in marks) {
+        for ((mi, m) in marks.withIndex()) {
+            if (ksOn && mi == ksIndex && m.kind != AnatomyModel.KIND_BULGE) continue
             when (m.kind) {
                 AnatomyModel.KIND_TRACT -> {
                     strokePts(canvas, m.pts, s, "#F0A400", 1.35f, true)
@@ -663,6 +702,100 @@ class AnatomyView(context: Context) : View(context) {
                     if (m.label.isNotBlank()) chip(canvas, cx + 3.4f * s, cy, m.label, s)
                 }
             }
+        }
+
+        // 🔵 V587 — ক্ষারসূত্রের ধাপ (বাছা চিহ্নের উপরে)
+        if (ksOn) drawKs(canvas, s)
+    }
+
+    /**
+     * 🔵🔒 V587 — বাছা চিহ্নটা ধাপ অনুযায়ী আঁকা।
+     * ⛔ শুধু আঁকা — `marks` তালিকা ছোঁয়া হয় না, কিছু সেভ হয় না।
+     */
+    private fun drawKs(canvas: Canvas, s: Float) {
+        val m = marks.getOrNull(ksIndex) ?: return
+        if (m.kind == AnatomyModel.KIND_TRACT) {
+            val pts = m.pts
+            if (pts.size < 2) return
+            when (ksStep) {
+                KsharSutraAnim.TRACT_DRAWN ->
+                    strokePts(canvas, pts, s, "#F0A400", 1.35f, true)
+                KsharSutraAnim.TRACT_LACE -> {
+                    strokePts(canvas, pts, s, "#F0A400", 1.35f, true)
+                    ksTractThread(canvas, s, pts, ksT, false)
+                }
+                KsharSutraAnim.TRACT_TIE -> {
+                    strokePts(canvas, pts, s, "#F0A400", 1.35f, true)
+                    ksTractThread(canvas, s, pts, 1f, true)
+                }
+                KsharSutraAnim.TRACT_CUT -> {
+                    // নালী ও সুতো মিলিয়ে যায়, সেরে ওঠার হালকা দাগ থাকে
+                    val a = ((1f - ksT) * 255f).toInt().coerceIn(0, 255)
+                    if (a > 4) {
+                        val lay = canvas.saveLayerAlpha(0f, 0f, width.toFloat(), height.toFloat(), a)
+                        strokePts(canvas, pts, s, "#F0A400", 1.35f, true)
+                        ksTractThread(canvas, s, pts, 1f, true)
+                        canvas.restoreToCount(lay)
+                    }
+                    strokePts(canvas, pts, s, "#9A7C77", 0.9f, true)
+                }
+                else -> strokePts(canvas, pts, s, "#F0A400", 1.35f, true)
+            }
+            return
+        }
+        // ── মাংস ──
+        val strength = KsharSutraAnim.lumpStrength(
+            if (m.s != 0.0) m.s else 0.45, ksStep, ksT)
+        val drop = KsharSutraAnim.lumpDrop(ksStep, ksT)
+        val shown = m.copy(y = m.y + drop, y2 = m.y2 + drop, s = strength)
+        val g = AnatomyModel.lumpGeom(shown)
+        val sc = Math.min(dst.width(), dst.height()) / 100f
+        val len = (g.len * sc).toFloat()
+        val wide = (g.wide * sc).toFloat()
+
+        // কেটে পড়ার পরে গোড়ার পরিষ্কার দাগ (আসল জায়গাতেই, নামে না)
+        if (ksStep == KsharSutraAnim.LUMP_FALL) {
+            val g0 = AnatomyModel.lumpGeom(m)
+            val save0 = canvas.save()
+            canvas.translate(px(m.x), py(m.y))
+            canvas.rotate(Math.toDegrees(g0.ang).toFloat())
+            KsharSutraAnim.drawCleanSpot(canvas, paint,
+                (g0.len * sc).toFloat(), (g0.wide * sc).toFloat(), ksT)
+            canvas.restoreToCount(save0)
+        }
+
+        val alpha = KsharSutraAnim.lumpAlpha(ksStep, ksT)
+        val lay = if (alpha < 0.999f)
+            canvas.saveLayerAlpha(0f, 0f, width.toFloat(), height.toFloat(),
+                (alpha * 255f).toInt().coerceIn(0, 255)) else -1
+        drawLump(canvas, shown)
+        val save = canvas.save()
+        canvas.translate(px(shown.x), py(shown.y))
+        canvas.rotate(Math.toDegrees(g.ang).toFloat())
+        when (ksStep) {
+            KsharSutraAnim.LUMP_INJECT -> KsharSutraAnim.drawNeedle(canvas, paint, len, wide, ksT)
+            KsharSutraAnim.LUMP_TIE    -> KsharSutraAnim.drawThread(canvas, paint, len, wide, ksT)
+            KsharSutraAnim.LUMP_FALL   -> if (ksT < 0.80f) KsharSutraAnim.drawThread(canvas, paint, len, wide, 1f)
+            else -> { }
+        }
+        canvas.restoreToCount(save)
+        if (lay >= 0) canvas.restoreToCount(lay)
+        paint.reset(); paint.isAntiAlias = true
+    }
+
+    /** নালী বরাবর সুতো (grow = কতটা পরানো হলো)। */
+    private fun ksTractThread(canvas: Canvas, s: Float,
+                              pts: List<Pair<Double, Double>>, grow: Float, knot: Boolean) {
+        val n = Math.max(2, Math.round(pts.size * grow))
+        val part = pts.take(n)
+        strokePts(canvas, part, s, "#2F3A45", 1.9f, false)
+        strokePts(canvas, part, s, "#6B7A87", 0.8f, false)
+        if (knot) {
+            paint.reset(); paint.isAntiAlias = true
+            paint.style = Paint.Style.FILL
+            paint.color = Color.parseColor("#2F3A45")
+            for (q in listOf(part.first(), part.last()))
+                canvas.drawCircle(px(q.first), py(q.second), Math.max(2.2f, 1.1f * s), paint)
         }
     }
 

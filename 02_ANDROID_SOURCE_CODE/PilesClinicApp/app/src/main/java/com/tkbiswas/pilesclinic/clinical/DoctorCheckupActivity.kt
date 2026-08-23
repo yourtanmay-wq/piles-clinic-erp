@@ -2048,6 +2048,155 @@ class DoctorCheckupActivity : AppCompatActivity() {
         topRow.addView(btnClose)
         root.addView(topRow)
 
+        /* ═══════════════════════════════════════════════════════════════════
+           🔵🔒 V587 (২৩.০৮.২০২৬, TK-অনুমোদিত ডেমো-প্রুফের পরে) —
+           **ক্ষারসূত্রের ধাপ রোগীকে দেখানো।**
+           TK-এর বাছাই: পুরো পর্দায় · একটা ফোলা/নালী ছুঁয়ে বেছে · চাপ দিলে
+           পরের ধাপ · ইনজেকশনের ধাপ বাদ দেওয়া যায়।
+           ⛔ **কিছু সেভ হয় না, প্রিন্টেও যায় না** — শুধু দেখানোর জিনিস।
+              মোড চালু থাকলে ছবিতে নতুন দাগও পড়তে পারে না (AnatomyView)।
+           ═══════════════════════════════════════════════════════════════════ */
+        val ksBox = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            visibility = android.view.View.GONE
+            setPadding(symDp(14), symDp(10), symDp(14), symDp(12))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = symDp(22).toFloat()
+                setColor(android.graphics.Color.parseColor("#D908111C"))
+                setStroke(symDp(1), android.graphics.Color.parseColor("#40FFFFFF"))
+            }
+            layoutParams = android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                android.view.Gravity.BOTTOM).apply { setMargins(symDp(10), 0, symDp(10), symDp(10)) }
+        }
+        val ksCap = TextView(this).apply {
+            text = "যে ফোলা বা নালীতে ক্ষারসূত্র দেখাবেন, সেটা ছুঁয়ে দিন"
+            textSize = 15f
+            setTextColor(android.graphics.Color.WHITE)
+            gravity = android.view.Gravity.CENTER
+            setPadding(0, 0, 0, symDp(9))
+        }
+        ksBox.addView(ksCap)
+        val ksRow = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER
+        }
+        fun ksBtn(label: String, wide: Boolean = false): TextView = TextView(this).apply {
+            text = label
+            textSize = 14.5f
+            gravity = android.view.Gravity.CENTER
+            setTextColor(android.graphics.Color.WHITE)
+            setPadding(symDp(14), symDp(9), symDp(14), symDp(9))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = symDp(10).toFloat()
+                setColor(android.graphics.Color.parseColor("#1F6D4A"))
+            }
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                if (wide) 0 else android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                if (wide) 1f else 0f
+            ).apply { setMargins(symDp(4), 0, symDp(4), 0) }
+        }
+        val ksPrev = ksBtn("◀ আগের")
+        val ksNext = ksBtn("পরের ধাপ ▶", wide = true)
+        val ksInj  = ksBtn("💉")
+        val ksEnd  = ksBtn("✕")
+        ksRow.addView(ksPrev); ksRow.addView(ksNext); ksRow.addView(ksInj); ksRow.addView(ksEnd)
+        ksBox.addView(ksRow)
+        root.addView(ksBox)
+
+        var ksWithInjection = true
+        var ksSteps: List<Int> = emptyList()
+        var ksAt = 0
+        var ksAnim: android.animation.ValueAnimator? = null
+
+        fun ksPaint() {
+            if (ksSteps.isEmpty()) {
+                ksCap.text = "যে ফোলা বা নালীতে ক্ষারসূত্র দেখাবেন, সেটা ছুঁয়ে দিন"
+                ksPrev.visibility = android.view.View.GONE
+                ksNext.visibility = android.view.View.GONE
+                ksInj.visibility = android.view.View.GONE
+                return
+            }
+            ksCap.text = KsharSutraAnim.caption(ksSteps[ksAt])
+            ksPrev.visibility = if (ksAt > 0) android.view.View.VISIBLE else android.view.View.GONE
+            ksNext.visibility = if (ksAt < ksSteps.size - 1) android.view.View.VISIBLE else android.view.View.GONE
+            ksInj.visibility = android.view.View.VISIBLE
+            ksInj.alpha = if (ksWithInjection) 1f else 0.45f
+        }
+        /** ধাপটা নরম করে চালানো — ০ থেকে ১। */
+        fun ksRun(step: Int) {
+            ksAnim?.cancel()
+            big.ksStep = step
+            big.ksT = 0f
+            big.invalidate()
+            val a = android.animation.ValueAnimator.ofFloat(0f, 1f)
+            a.duration = if (step == KsharSutraAnim.LUMP_DRAWN ||
+                             step == KsharSutraAnim.TRACT_DRAWN) 1L else 1100L
+            a.addUpdateListener { v -> big.ksT = v.animatedValue as Float; big.invalidate() }
+            ksAnim = a
+            a.start()
+        }
+        fun ksGo(i: Int) {
+            if (ksSteps.isEmpty()) return
+            ksAt = i.coerceIn(0, ksSteps.size - 1)
+            ksPaint()
+            ksRun(ksSteps[ksAt])
+        }
+        fun ksSelect(index: Int) {
+            val m = AnatomyModel.parse(big.save()).marks.getOrNull(index) ?: return
+            ksSteps = KsharSutraAnim.stepsFor(m.kind, ksWithInjection)
+            if (ksSteps.isEmpty()) {
+                Toast.makeText(this@DoctorCheckupActivity,
+                    "এখানে ক্ষারসূত্র দেখানো যায় না — ফোলা বা নালী ছুঁয়ে দিন",
+                    Toast.LENGTH_SHORT).show()
+                return
+            }
+            big.ksIndex = index
+            ksGo(0)
+        }
+        big.onKsPick = { i -> ksSelect(i) }
+        ksNext.setOnClickListener { ksGo(ksAt + 1) }
+        ksPrev.setOnClickListener { ksGo(ksAt - 1) }
+        ksInj.setOnClickListener {
+            ksWithInjection = !ksWithInjection
+            Toast.makeText(this@DoctorCheckupActivity,
+                if (ksWithInjection) "ইনজেকশনের ধাপ থাকবে" else "ইনজেকশনের ধাপ বাদ",
+                Toast.LENGTH_SHORT).show()
+            if (big.ksIndex >= 0) ksSelect(big.ksIndex) else ksPaint()
+        }
+
+        fun ksStop() {
+            ksAnim?.cancel(); ksAnim = null
+            big.ksOn = false; big.ksIndex = -1; big.ksStep = 0; big.ksT = 0f
+            ksSteps = emptyList(); ksAt = 0
+            ksBox.visibility = android.view.View.GONE
+            bar.visibility = android.view.View.VISIBLE
+            big.invalidate()
+        }
+        ksEnd.setOnClickListener { ksStop() }
+
+        val btnKs = roundBtn("🧵").apply {
+            setOnClickListener {
+                if (big.ksOn) { ksStop(); return@setOnClickListener }
+                if (AnatomyModel.parse(big.save()).marks.none {
+                        it.kind == AnatomyModel.KIND_BULGE || it.kind == AnatomyModel.KIND_TRACT }) {
+                    Toast.makeText(this@DoctorCheckupActivity,
+                        "আগে ছবিতে ফোলা বা নালী আঁকুন — তারপর ক্ষারসূত্র দেখানো যাবে",
+                        Toast.LENGTH_LONG).show()
+                    return@setOnClickListener
+                }
+                big.ksOn = true; big.ksIndex = -1; big.ksStep = 0; big.ksT = 0f
+                ksSteps = emptyList(); ksAt = 0
+                bar.visibility = android.view.View.GONE
+                ksBox.visibility = android.view.View.VISIBLE
+                ksPaint()
+                big.invalidate()
+            }
+        }
+        topRow.addView(btnKs, 2)
+
         /* বন্ধ করার সময় বড় বোর্ডে যা আঁকা হয়েছে সেটাই ছোট বোর্ডে ফেরত যায়।
            ⛔ লেখাটা (`note`) ছোট বোর্ডেরটাই থাকে — বড় পর্দায় লেখার ঘর নেই,
               তাই ওখান থেকে ফাঁকা লেখা এসে আগেরটা মুছে দেওয়ার পথ রাখা হয়নি। */

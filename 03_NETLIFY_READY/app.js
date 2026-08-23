@@ -8128,28 +8128,14 @@ function wlv1AnatClockLabel(x,y){
 window["wlv1AnatCentreOf"]=wlv1AnatCentreOf; window["wlv1AnatHourOf"]=wlv1AnatHourOf;
 window["wlv1AnatCentreSet"]=wlv1AnatCentreSet;
 
-/* 🔵 V585 — কেন্দ্র জানা থাকলে হালকা সবুজ ঘড়িটা পর্দায় দেখানো হয়, যাতে
-   ডাক্তার চোখেই মিলিয়ে নিতে পারেন কোন দিক কত o'clock।
-   ⛔ এটা শুধু দেখার জিনিস — কোনো দাগ হিসেবে সেভ হয় না, প্রিন্টেও যায় না।
-   ⚠️ ফোনের `AnatomyView.drawMarks()`-এর ঘড়ি আঁকার অংশটার যমজ। */
-function wlv1AnatDrawClock(ctx,w,h){
-  var c=wlv1AnatCentreOf(wlv1AnatState.pic); if(!c) return;
-  var cx=w*c[0]/100, cy=h*c[1]/100, rr=Math.min(w,h)*0.34;
-  ctx.save();
-  ctx.strokeStyle='rgba(15,81,50,.40)'; ctx.lineWidth=Math.max(1,Math.min(w,h)/200);
-  ctx.beginPath(); ctx.arc(cx,cy,rr,0,6.2832); ctx.stroke();
-  for(var i=1;i<=12;i++){
-    var a=i*Math.PI/6, sn=Math.sin(a), cs=Math.cos(a);
-    ctx.beginPath();
-    ctx.moveTo(cx+sn*rr*0.90, cy-cs*rr*0.90);
-    ctx.lineTo(cx+sn*rr,      cy-cs*rr);
-    ctx.stroke();
-  }
-  ctx.fillStyle='#0F5132';
-  ctx.beginPath(); ctx.arc(cx,cy,Math.max(2,Math.min(w,h)/140),0,6.2832); ctx.fill();
-  ctx.beginPath(); ctx.arc(cx,cy,Math.max(4,Math.min(w,h)/64),0,6.2832); ctx.stroke();
-  ctx.restore();
-}
+/* 🔵 V587 (২৩.০৮.২০২৬, TK-নির্দেশ: *"ঘড়ি আঁকানো থাকবে না"*) —
+   V585-এ কেন্দ্র জানা থাকলে হালকা সবুজ ঘড়ি ও মাঝের ফোঁটা আঁকা হত। TK চান
+   ছবিতে ঘড়ির **কোনো চিহ্নই** না থাকুক, তাই আঁকাটা তুলে দেওয়া হলো।
+   ⛔ **হিসাব অটুট** — কেন্দ্র আগের মতোই জমা থাকে, চিহ্ন বসালে o'clock নিজে
+      হিসাব হয়ে লেখা বসে। শুধু চোখে ঘড়িটা আর দেখা যায় না।
+   ⚠️ ফোনের `AnatomyView.drawMarks()`-এর সাথে এক (সেখানেও আঁকাটা তোলা হয়েছে)। */
+function wlv1AnatDrawClock(){ /* V587 — আর কিছু আঁকা হয় না */ }
+
 function wlv1AnatTool(t){
   wlv1AnatState.tool=t;
   try{$$('.wlv1AnatTool').forEach(function(el){el.classList.toggle('on',el.getAttribute('data-t')===t)})}catch(_e){}
@@ -8260,8 +8246,16 @@ function wlv1AnatPaint(){
   var ctx=cv.getContext('2d');
   ctx.clearRect(0,0,w,h);
   ctx.drawImage(im,0,0,w,h);
-  wlv1AnatDrawClock(ctx,w,h);   // 🔵 V585
-  AnatomyMark.draw(ctx,w,h,wlv1AnatState.marks,wlv1AnatScale());
+  wlv1AnatDrawClock(ctx,w,h);   // 🔵 V585 (V587-এ আর কিছু আঁকে না)
+  /* 🔵 V587 — ক্ষারসূত্রের মোডে বাছা চিহ্নটা আলাদা করে ধাপ অনুযায়ী আঁকা হয়,
+     বাকিগুলো আগের মতোই। ⛔ `marks` তালিকা ছোঁয়া হয় না। */
+  if(WLV1_KS.on && WLV1_KS.idx>=0){
+    var rest=wlv1AnatState.marks.filter(function(_m,i){return i!==WLV1_KS.idx});
+    AnatomyMark.draw(ctx,w,h,rest,wlv1AnatScale());
+    wlv1KsPaintMark(ctx,w,h,wlv1AnatState.marks[WLV1_KS.idx]);
+  } else {
+    AnatomyMark.draw(ctx,w,h,wlv1AnatState.marks,wlv1AnatScale());
+  }
   /* 🔵 V571 — আগে ফোলানোর জন্য ছবির রং পড়তে হত, তাই ফাইলটা সরাসরি খুললে
      কাজ করত না ও সতর্কবার্তা দেখাতে হত। এখন মাংসটা আঁকা হয়, রং পড়ার দরকারই
      নেই — তাই ওই সীমাটাও আর নেই। */
@@ -8286,6 +8280,14 @@ function wlv1AnatXY(ev){
 function wlv1AnatDown(ev){
   if(!wlv1AnatState.pic)return;
   var p=wlv1AnatXY(ev); if(!p)return;
+  /* 🔵 V587 — ক্ষারসূত্র দেখানোর মোডে কিছু আঁকা যায় না, শুধু একটা চিহ্ন
+     বেছে নেওয়া যায়। ⛔ তাই ভুল করেও নতুন দাগ পড়ার পথ নেই। */
+  if(WLV1_KS.on){
+    ev.preventDefault();
+    var pick=wlv1KsNearest(p[0],p[1]);
+    if(pick>=0) wlv1KsSelect(pick);
+    return;
+  }
   ev.preventDefault();
   wlv1AnatState.down=p; wlv1AnatState.live=[p.slice()];
   if(wlv1AnatState.tool==='erase')wlv1AnatErase(p);
@@ -8445,6 +8447,233 @@ function wlv1AnatClampZoom(){
    ⛔ দাগ জমা থাকে সেই একটাই জায়গায় (`wlv1AnatState.marks`), তাই পুরো
       পর্দায় আঁকা দাগ বন্ধ করার পরেও ছোট পর্দায় ও সেভে হুবহু থাকে।
    ⛔ নতুন কোনো কলাম/SQL লাগে না — জমা হওয়ার লেখা এক অক্ষরও বদলায়নি। */
+/* ============================================================================
+   🔵🔒 V587 (২৩.০৮.২০২৬, TK-অনুমোদিত ডেমো-প্রুফের পরে) — **ক্ষারসূত্রের ধাপ
+   রোগীকে দেখানো।** TK: *"ক্ষার সূত্র দিয়ে বেঁধে দিব, সেটাও যেন অ্যানিমেশন করে
+   দেখানো যায়"* · ইনজেকশন → মাংস ফোলা → সুতো বাঁধা → কেটে পড়া · নালীর ক্ষেত্রে
+   নালী বরাবর সুতো।
+   ⚠️ ফোনের `clinical/KsharSutraAnim.kt`-এর হুবহু যমজ (একই মাপ, একই ক্রম)।
+   ⛔ শুধু দেখার জিনিস — কোনো দাগ যোগ হয় না, কিছু সেভ হয় না, প্রিন্টেও যায় না।
+   ========================================================================== */
+var WLV1_KS={on:false,idx:-1,step:0,t:0,steps:[],at:0,inj:true,timer:null};
+var WLV1_KS_STEP={LUMP_DRAWN:1,LUMP_INJECT:2,LUMP_SWELL:3,LUMP_TIE:4,LUMP_FALL:5,
+                  TRACT_DRAWN:11,TRACT_LACE:12,TRACT_TIE:13,TRACT_CUT:14};
+function wlv1KsCaption(st){
+  var K=WLV1_KS_STEP;
+  if(st===K.LUMP_DRAWN) return '1) যেভাবে আঁকা হয়েছে';
+  if(st===K.LUMP_INJECT)return '2) ইনজেকশন দেওয়া হচ্ছে';
+  if(st===K.LUMP_SWELL) return '3) মাংস আরো ফুলে উঠল';
+  if(st===K.LUMP_TIE)   return '4) গোড়ায় ক্ষারসূত্র বাঁধা হলো';
+  if(st===K.LUMP_FALL)  return '5) কেটে পড়ল — জায়গা পরিষ্কার';
+  if(st===K.TRACT_DRAWN)return '1) ফিস্টুলার নালী';
+  if(st===K.TRACT_LACE) return '2) নালী বরাবর ক্ষারসূত্র পরানো হচ্ছে';
+  if(st===K.TRACT_TIE)  return '3) দুই মাথায় গিঁট — বেঁধে রাখা হলো';
+  if(st===K.TRACT_CUT)  return '4) নালী কেটে গেল — জায়গা পরিষ্কার';
+  return '';
+}
+function wlv1KsStepsFor(kind,inj){
+  var K=WLV1_KS_STEP;
+  if(kind==='bulge'||kind==='pile')
+    return inj?[K.LUMP_DRAWN,K.LUMP_INJECT,K.LUMP_SWELL,K.LUMP_TIE,K.LUMP_FALL]
+              :[K.LUMP_DRAWN,K.LUMP_TIE,K.LUMP_FALL];
+  if(kind==='tract') return [K.TRACT_DRAWN,K.TRACT_LACE,K.TRACT_TIE,K.TRACT_CUT];
+  return [];
+}
+/* গোড়া থেকে d দূরত্বে মাংসের অর্ধেক-চওড়া — আসল পথের বাঁক মেপে (আন্দাজে নয়) */
+function wlv1KsHalfWidth(L,LW,d){
+  var hw=LW/2, cx=L-hw;
+  if(cx<=hw*0.30) return hw;
+  var beta=Math.acos(Math.max(-1,Math.min(1,hw/cx))), a1=-(Math.PI-beta);
+  var p1x=cx+hw*Math.cos(a1), p1y=hw*Math.sin(a1);
+  var tip=Math.min(hw*0.22,cx*0.10);
+  var P0x=tip*0.25,P0y=-tip,Cx=cx*0.40,Cy=p1y*0.70,best=0,bd=1e9;
+  for(var i=0;i<=60;i++){
+    var t=i/60,mt=1-t;
+    var x=mt*mt*P0x+2*mt*t*Cx+t*t*p1x, y=mt*mt*P0y+2*mt*t*Cy+t*t*p1y;
+    var dd=Math.abs(x-d); if(dd<bd){bd=dd;best=Math.abs(y)}
+  }
+  return Math.max(best,hw*0.18);
+}
+function wlv1KsThread(ctx,L,LW,tight){
+  var d=L*0.20, hw=wlv1KsHalfWidth(L,LW,d)*(1.10-0.22*tight), rx=LW*0.075;
+  ctx.save();
+  ctx.strokeStyle='rgba(90,40,36,0.35)'; ctx.lineWidth=Math.max(1.6,LW*0.13);
+  ctx.beginPath(); ctx.ellipse(d,0,LW*0.10,hw,0,0,6.2832); ctx.stroke();
+  ctx.strokeStyle='#2F3A45'; ctx.lineWidth=Math.max(1.4,LW*0.085);
+  ctx.beginPath(); ctx.ellipse(d,0,rx,hw,0,0,6.2832); ctx.stroke();
+  ctx.strokeStyle='#5A6874'; ctx.lineWidth=Math.max(0.7,LW*0.035);
+  ctx.beginPath(); ctx.ellipse(d,0,rx,hw*0.94,0,0,6.2832); ctx.stroke();
+  var kx=d,ky=hw*0.92;
+  ctx.fillStyle='#2F3A45';
+  ctx.beginPath(); ctx.arc(kx,ky,Math.max(1.6,LW*0.075),0,6.2832); ctx.fill();
+  ctx.strokeStyle='#2F3A45'; ctx.lineWidth=Math.max(1.1,LW*0.055);
+  ctx.beginPath();
+  ctx.moveTo(kx,ky); ctx.quadraticCurveTo(kx-LW*0.30,ky+LW*0.34,kx-LW*0.55,ky+LW*0.30);
+  ctx.moveTo(kx,ky); ctx.quadraticCurveTo(kx+LW*0.10,ky+LW*0.40,kx+LW*0.34,ky+LW*0.46);
+  ctx.stroke();
+  ctx.restore();
+}
+function wlv1KsNeedle(ctx,L,LW,p){
+  var u=Math.max(LW*0.16,L*0.05), tipX=L*0.55, tipY=LW*0.10;
+  var back=u*4.2*(1-p), ang=-0.70;
+  var tx=tipX+Math.cos(ang)*back, ty=tipY+Math.sin(ang)*back;
+  ctx.save(); ctx.translate(tx,ty); ctx.rotate(ang);
+  ctx.strokeStyle='#8E9AA6'; ctx.lineWidth=Math.max(1.0,u*0.16); ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(u*3.0,0); ctx.stroke();
+  ctx.fillStyle='#3E4A57'; ctx.fillRect(u*3.0,-u*0.32,u*0.7,u*0.64);
+  ctx.fillStyle='rgba(226,240,250,0.96)'; ctx.strokeStyle='#6E7C8A'; ctx.lineWidth=Math.max(0.7,u*0.09);
+  ctx.beginPath(); ctx.rect(u*3.7,-u*0.62,u*4.6,u*1.24); ctx.fill(); ctx.stroke();
+  ctx.fillStyle='rgba(150,205,235,0.85)'; ctx.fillRect(u*3.75,-u*0.50,u*2.6,u*1.00);
+  ctx.fillStyle='#54626F'; ctx.fillRect(u*6.4,-u*0.52,u*0.5,u*1.04);
+  ctx.strokeStyle='#54626F'; ctx.lineWidth=Math.max(0.8,u*0.13);
+  ctx.beginPath(); ctx.moveTo(u*6.9,0); ctx.lineTo(u*8.6,0);
+  ctx.moveTo(u*8.6,-u*0.62); ctx.lineTo(u*8.6,u*0.62); ctx.stroke();
+  ctx.restore();
+  if(p>0.92){ ctx.save(); ctx.fillStyle='rgba(120,190,225,0.55)';
+    ctx.beginPath(); ctx.arc(tipX,tipY,u*0.55,0,6.2832); ctx.fill(); ctx.restore(); }
+}
+window["wlv1KsCaption"]=wlv1KsCaption; window["wlv1KsStepsFor"]=wlv1KsStepsFor;
+
+/* বাছা চিহ্নটা ধাপ অনুযায়ী আঁকা (ফোনের `AnatomyView.drawKs()`-এর যমজ) */
+function wlv1KsPaintMark(ctx,w,h,m){
+  if(!m) return;
+  var K=WLV1_KS_STEP, st=WLV1_KS.step, t=WLV1_KS.t, sc=wlv1AnatScale();
+  if(m.kind==='tract'){
+    var pts=m.pts||[]; if(pts.length<2) return;
+    var n=Math.max(2,Math.round(pts.length*(st===K.TRACT_LACE?t:1)));
+    if(st===K.TRACT_CUT){
+      ctx.save(); ctx.globalAlpha=1-t;
+      AnatomyMark.draw(ctx,w,h,[m],sc); wlv1KsTract(ctx,w,h,pts,pts.length,true);
+      ctx.restore();
+      ctx.save(); ctx.globalAlpha=t; ctx.strokeStyle='rgba(154,124,119,0.9)';
+      ctx.lineWidth=Math.max(1.6,Math.min(w,h)*0.006); ctx.setLineDash([5,4]);
+      ctx.beginPath();
+      for(var i=0;i<pts.length;i++){ var X=pts[i][0]*w/100,Y=pts[i][1]*h/100;
+        if(i===0)ctx.moveTo(X,Y); else ctx.lineTo(X,Y); }
+      ctx.stroke(); ctx.restore();
+      return;
+    }
+    AnatomyMark.draw(ctx,w,h,[m],sc);
+    if(st===K.TRACT_LACE||st===K.TRACT_TIE) wlv1KsTract(ctx,w,h,pts,n,st===K.TRACT_TIE);
+    return;
+  }
+  // ── মাংস ──
+  var base=(m.s||0.45);
+  var str = (st===K.LUMP_SWELL) ? base+(0.85-base)*t
+          : (st===K.LUMP_TIE||st===K.LUMP_FALL) ? 0.85 : base;
+  var drop=(st===K.LUMP_FALL)?30*t*t:0;
+  var shown={kind:'bulge',x:m.x,y:m.y+drop,x2:m.x2,y2:(typeof m.y2==='number'?m.y2+drop:m.y2),r:m.r,s:str,label:m.label};
+  var g=AnatomyMark.__lumpGeom(shown), u=Math.min(w,h)/100, L=g.L*u, LW=g.W*u;
+  if(st===K.LUMP_FALL){          // গোড়ার পরিষ্কার দাগ, আসল জায়গাতেই
+    var g0=AnatomyMark.__lumpGeom(m), L0=g0.L*u, W0=g0.W*u;
+    ctx.save(); ctx.translate(m.x*w/100,m.y*h/100); ctx.rotate(g0.ang);
+    ctx.fillStyle='rgba(196,150,142,'+(0.55*t)+')';
+    ctx.beginPath(); ctx.ellipse(L0*0.16,0,W0*0.10,W0*0.20,0,0,6.2832); ctx.fill();
+    ctx.restore();
+  }
+  ctx.save();
+  if(st===K.LUMP_FALL) ctx.globalAlpha=1-t;
+  AnatomyMark.draw(ctx,w,h,[shown],sc);
+  ctx.restore();
+  ctx.save();
+  if(st===K.LUMP_FALL) ctx.globalAlpha=1-t;
+  ctx.translate(shown.x*w/100,shown.y*h/100); ctx.rotate(g.ang);
+  if(st===K.LUMP_INJECT) wlv1KsNeedle(ctx,L,LW,t);
+  else if(st===K.LUMP_TIE) wlv1KsThread(ctx,L,LW,t);
+  else if(st===K.LUMP_FALL && t<0.80) wlv1KsThread(ctx,L,LW,1);
+  ctx.restore();
+}
+function wlv1KsTract(ctx,w,h,pts,n,knot){
+  ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round';
+  ctx.strokeStyle='#2F3A45'; ctx.lineWidth=Math.max(2.0,Math.min(w,h)*0.010);
+  ctx.beginPath();
+  for(var i=0;i<n;i++){ var X=pts[i][0]*w/100,Y=pts[i][1]*h/100; if(i===0)ctx.moveTo(X,Y); else ctx.lineTo(X,Y); }
+  ctx.stroke();
+  ctx.strokeStyle='#6B7A87'; ctx.lineWidth=Math.max(0.8,Math.min(w,h)*0.004); ctx.stroke();
+  if(knot){ ctx.fillStyle='#2F3A45';
+    [pts[0],pts[n-1]].forEach(function(q){ ctx.beginPath();
+      ctx.arc(q[0]*w/100,q[1]*h/100,Math.max(2.2,Math.min(w,h)*0.011),0,6.2832); ctx.fill(); }); }
+  ctx.restore();
+}
+/* ছোঁয়ার জায়গার সবচেয়ে কাছের ফোলা/নালী (ফোনের `ksNearestAt()`-এর যমজ) */
+function wlv1KsNearest(x,y){
+  var best=-1,bd=1e9;
+  (wlv1AnatState.marks||[]).forEach(function(m,i){
+    var d=1e9;
+    if(m.kind==='bulge'){
+      var g=AnatomyMark.__lumpGeom(m);
+      var hx=m.x+Math.cos(g.ang)*g.L*0.55, hy=m.y+Math.sin(g.ang)*g.L*0.55;
+      d=Math.min(Math.hypot(x-m.x,y-m.y),Math.hypot(x-hx,y-hy));
+    } else if(m.kind==='tract'){
+      (m.pts||[]).forEach(function(q){ d=Math.min(d,Math.hypot(x-q[0],y-q[1])) });
+    }
+    if(d<bd){bd=d;best=i}
+  });
+  return bd<=18?best:-1;
+}
+function wlv1KsRun(step){
+  if(WLV1_KS.timer){ clearInterval(WLV1_KS.timer); WLV1_KS.timer=null }
+  WLV1_KS.step=step; WLV1_KS.t=0; wlv1AnatPaint();
+  var K=WLV1_KS_STEP;
+  if(step===K.LUMP_DRAWN||step===K.TRACT_DRAWN){ WLV1_KS.t=1; wlv1AnatPaint(); return }
+  var n=0;
+  WLV1_KS.timer=setInterval(function(){
+    n++; WLV1_KS.t=Math.min(1,n/22); wlv1AnatPaint();
+    if(WLV1_KS.t>=1){ clearInterval(WLV1_KS.timer); WLV1_KS.timer=null }
+  },50);
+}
+function wlv1KsPaintBar(){
+  var cap=$('#dnKsCap'), prev=$('#dnKsPrev'), next=$('#dnKsNext'), inj=$('#dnKsInj');
+  if(!cap)return;
+  if(!WLV1_KS.steps.length){
+    cap.textContent='যে ফোলা বা নালীতে ক্ষারসূত্র দেখাবেন, সেটা ছুঁয়ে দিন';
+    if(prev)prev.style.display='none'; if(next)next.style.display='none'; if(inj)inj.style.display='none';
+    return;
+  }
+  cap.textContent=wlv1KsCaption(WLV1_KS.steps[WLV1_KS.at]);
+  if(prev)prev.style.display=(WLV1_KS.at>0)?'':'none';
+  if(next)next.style.display=(WLV1_KS.at<WLV1_KS.steps.length-1)?'':'none';
+  if(inj){ inj.style.display=''; inj.style.opacity=WLV1_KS.inj?'1':'0.45' }
+}
+function wlv1KsGo(i){
+  if(!WLV1_KS.steps.length)return;
+  WLV1_KS.at=Math.max(0,Math.min(WLV1_KS.steps.length-1,i));
+  wlv1KsPaintBar(); wlv1KsRun(WLV1_KS.steps[WLV1_KS.at]);
+}
+function wlv1KsSelect(i){
+  var m=(wlv1AnatState.marks||[])[i]; if(!m)return;
+  WLV1_KS.steps=wlv1KsStepsFor(m.kind,WLV1_KS.inj);
+  if(!WLV1_KS.steps.length){
+    try{toast('এখানে ক্ষারসূত্র দেখানো যায় না — ফোলা বা নালী ছুঁয়ে দিন')}catch(_e){}
+    return;
+  }
+  WLV1_KS.idx=i; wlv1KsGo(0);
+}
+function wlv1KsInjToggle(){
+  WLV1_KS.inj=!WLV1_KS.inj;
+  try{toast(WLV1_KS.inj?'ইনজেকশনের ধাপ থাকবে':'ইনজেকশনের ধাপ বাদ')}catch(_e){}
+  if(WLV1_KS.idx>=0) wlv1KsSelect(WLV1_KS.idx); else wlv1KsPaintBar();
+}
+function wlv1KsStop(){
+  if(WLV1_KS.timer){ clearInterval(WLV1_KS.timer); WLV1_KS.timer=null }
+  WLV1_KS.on=false; WLV1_KS.idx=-1; WLV1_KS.step=0; WLV1_KS.t=0;
+  WLV1_KS.steps=[]; WLV1_KS.at=0;
+  var box=$('#dnKsBox'); if(box)box.style.display='none';
+  var bar=$('#dnAnatFullBar'); if(bar)bar.style.display='';
+  wlv1AnatPaint();
+}
+function wlv1KsStart(){
+  if(WLV1_KS.on){ wlv1KsStop(); return }
+  var ok=(wlv1AnatState.marks||[]).some(function(m){return m.kind==='bulge'||m.kind==='tract'});
+  if(!ok){ try{toast('আগে ছবিতে ফোলা বা নালী আঁকুন — তারপর ক্ষারসূত্র দেখানো যাবে')}catch(_e){} return }
+  WLV1_KS.on=true; WLV1_KS.idx=-1; WLV1_KS.step=0; WLV1_KS.t=0; WLV1_KS.steps=[]; WLV1_KS.at=0;
+  var bar=$('#dnAnatFullBar'); if(bar)bar.style.display='none';
+  var box=$('#dnKsBox'); if(box)box.style.display='';
+  wlv1KsPaintBar(); wlv1AnatPaint();
+}
+window["wlv1KsStart"]=wlv1KsStart; window["wlv1KsStop"]=wlv1KsStop;
+window["wlv1KsGo"]=wlv1KsGo; window["wlv1KsInjToggle"]=wlv1KsInjToggle;
+
 function wlv1AnatFull(){
   if(!wlv1AnatState.pic){ try{toast('আগে উপরের সারি থেকে একটা ছবি বাছুন')}catch(_e){} return }
   if($('#dnAnatFullBack'))return;
@@ -8455,11 +8684,21 @@ function wlv1AnatFull(){
      '<div class="wlv1AnatFullTop">'
     +'<button type="button" class="wlv1AnatFullBtn" title="ছোট করুন" onclick="wlv1AnatZoomBy(1/1.35)">➖</button>'
     +'<button type="button" class="wlv1AnatFullBtn" title="বড় করুন" onclick="wlv1AnatZoomBy(1.35)">➕</button>'
+    /* 🔵 V587 — ক্ষারসূত্রের ধাপ রোগীকে দেখানো (ফোনের 🧵 বোতামের যমজ) */
+    +'<button type="button" class="wlv1AnatFullBtn" title="ক্ষারসূত্র দেখান" onclick="wlv1KsStart()">🧵</button>'
     +'<button type="button" class="wlv1AnatFullBtn" title="বোতাম লুকান / দেখান" onclick="wlv1AnatFullBar()">🧰</button>'
     +'<button type="button" class="wlv1AnatFullBtn" title="বন্ধ করুন" onclick="wlv1AnatFullClose()">✕</button>'
     +'</div>'
     +'<canvas id="dnAnatFullCanvas" class="wlv1AnatFullCanvas"></canvas>'
-    +'<div id="dnAnatFullBar" class="wlv1AnatFullBar">'+wlv1AnatBarHtml(true)+'</div>';
+    +'<div id="dnAnatFullBar" class="wlv1AnatFullBar">'+wlv1AnatBarHtml(true)+'</div>'
+    +'<div id="dnKsBox" class="wlv1KsBox" style="display:none">'
+    +'<div id="dnKsCap" class="wlv1KsCap">যে ফোলা বা নালীতে ক্ষারসূত্র দেখাবেন, সেটা ছুঁয়ে দিন</div>'
+    +'<div class="wlv1KsRow">'
+    +'<button type="button" id="dnKsPrev" class="wlv1KsBtn" onclick="wlv1KsGo(WLV1_KS.at-1)">◀ আগের</button>'
+    +'<button type="button" id="dnKsNext" class="wlv1KsBtn wide" onclick="wlv1KsGo(WLV1_KS.at+1)">পরের ধাপ ▶</button>'
+    +'<button type="button" id="dnKsInj" class="wlv1KsBtn" title="ইনজেকশনের ধাপ থাকবে কি না" onclick="wlv1KsInjToggle()">💉</button>'
+    +'<button type="button" class="wlv1KsBtn" title="বন্ধ" onclick="wlv1KsStop()">✕</button>'
+    +'</div></div>';
   document.body.appendChild(back);
   document.body.classList.add('wlv1AnatFullOpen');
   wlv1AnatWire($('#dnAnatFullCanvas'));
@@ -8485,6 +8724,9 @@ function wlv1AnatFullBar(){
 }
 function wlv1AnatFullClose(){
   var back=$('#dnAnatFullBack'); if(!back)return;
+  /* 🔵 V587 — পুরো পর্দা বন্ধ হলে ক্ষারসূত্রের মোডও বন্ধ, নইলে ছোট বোর্ডে
+     ফিরে গিয়ে আঁকা যেত না। */
+  try{ if(WLV1_KS.on) wlv1KsStop() }catch(_e){}
   try{back.parentNode.removeChild(back)}catch(_e){}
   document.body.classList.remove('wlv1AnatFullOpen');
   wlv1AnatZoomReset();

@@ -6023,3 +6023,18 @@ body.wlv1AnatFullOpen{overflow:hidden}
 .wlv1A4LangBar{display:flex;border:2px solid #0F5132;border-radius:8px;overflow:hidden;margin:0 0 10px;max-width:280px}
 .wlv1A4LangBar .wlv1A4Seg{flex:1;border:0;background:transparent;color:#0F5132;font-weight:700;font-size:14px;padding:8px 0;cursor:pointer;border-radius:0}
 .wlv1A4LangBar .wlv1A4Seg.on{background:#0F5132;color:#fff}
+
+/* 🔵🔒 V587 (২৩.০৮.২০২৬, TK-অনুমোদিত ডেমো-প্রুফের পরে) — পুরো পর্দায়
+   ক্ষারসূত্রের ধাপ দেখানোর সারি।
+   TK: *"ক্ষার সূত্র দিয়ে বেঁধে দিব, সেটাও যেন অ্যানিমেশন করে দেখানো যায়"*।
+   ⚠️ ফোনের `ksBox`/`ksBtn`-এর যমজ (একই রং, একই মাপ)।
+   ⛔ নতুন class, তাই প্রকল্পের আর কোনো পর্দায় এর প্রভাব নেই। */
+.wlv1KsBox{position:absolute;left:10px;right:10px;bottom:10px;z-index:5;
+  background:rgba(8,17,28,.85);border:1px solid rgba(255,255,255,.25);
+  border-radius:22px;padding:10px 14px 12px}
+.wlv1KsCap{color:#fff;font-size:15px;text-align:center;padding-bottom:9px}
+.wlv1KsRow{display:flex;justify-content:center;gap:8px}
+.wlv1KsRow .wlv1KsBtn{background:#1F6D4A;color:#fff;border:0;border-radius:10px;
+  font-size:14.5px;padding:9px 14px;cursor:pointer}
+.wlv1KsRow .wlv1KsBtn.wide{flex:1}
+.wlv1KsRow .wlv1KsBtn:hover{background:#27855A}
