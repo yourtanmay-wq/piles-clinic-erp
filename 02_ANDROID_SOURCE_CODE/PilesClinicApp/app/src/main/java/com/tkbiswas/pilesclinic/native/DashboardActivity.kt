@@ -740,7 +740,7 @@ class DashboardActivity : AppCompatActivity() {
                         if (!isFinishing && !isDestroyed) {
                             if (newer > com.tkbiswas.pilesclinic.BuildConfig.VERSION_CODE) {
                                 binding.tvOldAppText.text =
-                                    NoBengali.s("আপনার অ্যাপ পুরনো — নতুন ভার্সনটা বসান") +
+                                    NoBengali.s("Your app is old — please install the new version") +
                                         "  (V" + com.tkbiswas.pilesclinic.BuildConfig.VERSION_CODE +
                                         " → V" + newer + ")"
                                 binding.oldAppBanner.visibility = android.view.View.VISIBLE
@@ -787,14 +787,14 @@ class DashboardActivity : AppCompatActivity() {
             binding.tvSyncStatus.text = if (s.total > 0) "⏳ ${s.total} to sync · $vLabel" else "☁️ Synced · $vLabel"
             if (s.total > 0) {
                 binding.tvSyncWarnText.text =
-                    "${s.total}টি তথ্য এখনো ক্লাউডে যায়নি" + if (s.detail.isNotBlank()) "\n(${s.detail})" else ""
+                    "${s.total} item(s) not yet sent to the cloud" + if (s.detail.isNotBlank()) "\n(${s.detail})" else ""
                 binding.syncWarnBanner.visibility = android.view.View.VISIBLE
             } else {
                 binding.syncWarnBanner.visibility = android.view.View.GONE
             }
         }
         val retry = android.view.View.OnClickListener {
-            binding.tvSyncWarnText.text = "পাঠানোর চেষ্টা চলছে..."
+            binding.tvSyncWarnText.text = "Trying to send..."
             lifecycleScope.launch {
                 val after = withContext(kotlinx.coroutines.Dispatchers.IO) {
                     PendingSyncStatus.retryAll(this@DashboardActivity)
@@ -821,14 +821,14 @@ class DashboardActivity : AppCompatActivity() {
             val n = CloudWriteQueue.failedCount(this@DashboardActivity)
             if (n <= 0) return@setOnLongClickListener true
             AlertDialog.Builder(this@DashboardActivity)
-                .setCustomTitle(PremiumAlert.header(this@DashboardActivity, NoBengali.s("স্থায়ীভাবে ছেড়ে দেবেন?")))
-                .setMessage(NoBengali.s("$n টা তথ্য সার্ভারে খুঁজে পাওয়া যাচ্ছে না বলে কখনোই পাঠানো সম্ভব না। এগুলো আর দেখানো/চেষ্টা হবে না। রেকর্ড/টাকার হিসাব বদলাবে না।"))
-                .setPositiveButton(NoBengali.s("হ্যাঁ, ছেড়ে দিন")) { _, _ ->
+                .setCustomTitle(PremiumAlert.header(this@DashboardActivity, NoBengali.s("Give up permanently?")))
+                .setMessage(NoBengali.s("$n item(s) cannot be found on the server, so they can never be sent. They will not be shown or retried again. Records and money totals will not change."))
+                .setPositiveButton(NoBengali.s("Yes, give up")) { _, _ ->
                     CloudWriteQueue.clearFailed(this@DashboardActivity)
                     refreshSyncStatus()
-                    android.widget.Toast.makeText(this@DashboardActivity, NoBengali.s("$n টা ছেড়ে দেওয়া হলো"), android.widget.Toast.LENGTH_LONG).show()
+                    android.widget.Toast.makeText(this@DashboardActivity, NoBengali.s("$n item(s) given up"), android.widget.Toast.LENGTH_LONG).show()
                 }
-                .setNegativeButton(NoBengali.s("বাতিল"), null)
+                .setNegativeButton(NoBengali.s("Cancel"), null)
                 .show().also { PremiumAlert.paint(it); try { NoBengali.installDialog(it) } catch (_: Throwable) { } }
             true
         }

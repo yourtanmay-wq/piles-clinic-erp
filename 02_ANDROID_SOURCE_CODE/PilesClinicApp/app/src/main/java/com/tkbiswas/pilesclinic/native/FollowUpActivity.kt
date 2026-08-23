@@ -2833,7 +2833,7 @@ class FollowUpActivity : AppCompatActivity() {
                     runOnUiThread {
                         if (isFinishing || isDestroyed) return@runOnUiThread
                         Toast.makeText(
-                            this@FollowUpActivity, NoBengali.s("নেট যাচাই করা যায়নি — এই নম্বর আগে থেকে রেজিস্টার আছে কিনা দেখা যাচ্ছে না। ডুপ্লিকেট রোগী এড়াতে একটু পরে আবার চেষ্টা করুন।"),
+                            this@FollowUpActivity, NoBengali.s("Could not check the network — cannot tell whether this number is already registered. To avoid a duplicate patient, please try again in a little while."),
                             Toast.LENGTH_LONG
                         ).show()
                     }
@@ -3111,7 +3111,7 @@ class FollowUpActivity : AppCompatActivity() {
                     runOnUiThread {
                         if (isFinishing || isDestroyed) return@runOnUiThread
                         Toast.makeText(
-                            this@FollowUpActivity, NoBengali.s("নেট যাচাই করা যায়নি — এই নম্বর আগে থেকে রেজিস্টার আছে কিনা দেখা যাচ্ছে না। ডুপ্লিকেট রোগী এড়াতে একটু পরে আবার চেষ্টা করুন।"),
+                            this@FollowUpActivity, NoBengali.s("Could not check the network — cannot tell whether this number is already registered. To avoid a duplicate patient, please try again in a little while."),
                             Toast.LENGTH_LONG
                         ).show()
                     }
