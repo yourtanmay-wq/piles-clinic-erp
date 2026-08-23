@@ -69,9 +69,75 @@ object AnatomyPictureRepository {
         return try {
             val last = prefs(ctx).getLong(KEY_PULL, 0L)
             if (!force && System.currentTimeMillis() - last < PULL_GAP_MS) return false
+            /* 🔴🔒 V576 (২৩.০৮.২০২৬ — TK-এর Supabase Egress ১১৭% দেখে নিজের কাজ
+               আবার যাচাই করে ধরা পড়ল): আগে এখানে **ছবিসহ** পুরো তালিকা প্রতিবার
+               নামত। ছবি কম বলে এখনো ক্ষতি হয়নি, কিন্তু ছবি বাড়লে এটাই নতুন
+               ফুটো হত (২০টা ছবি ≈ ১.২ MB, দিনে বহুবার, প্রতিটা ফোনে)।
+               এখন **দু'ধাপ** — যে নিয়মটা V515-এ ওয়েবের Doctor Queue-তে
+               TK-অনুমোদিত হয়েছিল, হুবহু সেটাই:
+                 ধাপ ১ — তালিকা আসে **ছবি ছাড়া** (কয়েক KB)
+                 ধাপ ২ — ছবি নামে **শুধু তাদেরই**, যেগুলো এই ফোনে নেই বা বদলেছে
+               ⛔ পর্দায় যা দেখায় তার একটুও বদলায়নি; ফেরত আসা তালিকাও এক। */
             val arr = SupabaseClient.fetchListOrNull(
                 TABLE, null, 300, "updatedAt.desc.nullslast",
-                "id,picKey,label,photo,hidden,sortOrder,createdAt,updatedAt") ?: return false
+                "id,picKey,label,hidden,sortOrder,createdAt,updatedAt") ?: return false
+
+            // ফোনে আগে থেকে যে ছবিগুলো আছে (নতুন করে নামানোর দরকার নেই)
+            val oldArr = try {
+                JSONArray(prefs(ctx).getString(KEY_ROWS, "[]") ?: "[]")
+            } catch (_: Throwable) { JSONArray() }
+            val havePhoto = HashMap<String, String>()
+            val haveStamp = HashMap<String, String>()
+            for (i in 0 until oldArr.length()) {
+                val o = oldArr.optJSONObject(i) ?: continue
+                val id = o.optString("id", "")
+                val ph = o.optString("photo", "")
+                if (id.isNotBlank() && ph.isNotBlank()) {
+                    havePhoto[id] = ph
+                    haveStamp[id] = o.optString("updatedAt", "")
+                }
+            }
+
+            // কোন ছবিগুলো সত্যিই নামাতে হবে
+            val need = ArrayList<String>()
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                val id = o.optString("id", "")
+                if (id.isBlank()) continue
+                if (o.optString("hidden", "") == "1") continue   // লুকানো ছবি পর্দায় আসেই না
+                val cached = havePhoto[id]
+                if (cached != null && haveStamp[id] == o.optString("updatedAt", "")) {
+                    o.put("photo", cached)                        // ফোনেরটাই চলবে
+                } else {
+                    need.add(id)
+                }
+            }
+            if (need.isNotEmpty()) {
+                val got = SupabaseClient.fetchListOrNull(
+                    TABLE, "id=in.(" + need.joinToString(",") + ")", 300,
+                    "updatedAt.desc.nullslast", "id,photo")
+                val fresh = HashMap<String, String>()
+                if (got != null) for (i in 0 until got.length()) {
+                    val o = got.optJSONObject(i) ?: continue
+                    val id = o.optString("id", "")
+                    if (id.isNotBlank()) fresh[id] = o.optString("photo", "")
+                }
+                // 🔒 ছবি আনতে না পারলে তালিকাটাই জমা করা হয় না — নইলে ফোনে
+                //    জমা থাকা ভালো ছবিগুলো ফাঁকা হয়ে যেত (তথ্য হারাবে না)।
+                if (got == null) return false
+                for (i in 0 until arr.length()) {
+                    val o = arr.optJSONObject(i) ?: continue
+                    if (o.has("photo")) continue
+                    val id = o.optString("id", "")
+                    o.put("photo", fresh[id] ?: havePhoto[id] ?: "")
+                }
+            } else {
+                for (i in 0 until arr.length()) {
+                    val o = arr.optJSONObject(i) ?: continue
+                    if (o.has("photo")) continue
+                    o.put("photo", havePhoto[o.optString("id", "")] ?: "")
+                }
+            }
             prefs(ctx).edit().putString(KEY_ROWS, arr.toString())
                 .putLong(KEY_PULL, System.currentTimeMillis()).apply()
             true

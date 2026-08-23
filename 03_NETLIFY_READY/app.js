@@ -7777,10 +7777,37 @@ async function wlv1AnatCloudPull(force){
     var last=Number(localStorage.getItem(WLV1_ANAT_PULL_KEY)||0);
     if(!force && Date.now()-last < 15*60*1000) return false;
     var ok=await initCloudClientOnly(); if(!ok||!sb) return false;
+    /* 🔴🔒 V576 (২৩.০৮.২০২৬ — Supabase Egress ১১৭% দেখে নিজের কাজ আবার যাচাই
+       করে ধরা পড়ল): আগে **ছবিসহ** পুরো তালিকা প্রতিবার নামত। এখন দু'ধাপ —
+       তালিকা ছবি ছাড়া, আর ছবি শুধু তাদেরই যেগুলো এই ব্রাউজারে নেই বা বদলেছে।
+       ⚠️ ফোনের `AnatomyPictureRepository.pull()`-এর হুবহু যমজ।
+       ⛔ পর্দায় যা দেখায় তার একটুও বদলায়নি। */
     var r=await sb.from('anatomy_pictures')
-      .select('id,picKey,label,photo,hidden,sortOrder,createdAt,updatedAt').limit(300);
+      .select('id,picKey,label,hidden,sortOrder,createdAt,updatedAt').limit(300);
     if(r.error||!Array.isArray(r.data)) return false;
-    wlv1AnatRowsSave(r.data);
+    var rows=r.data;
+    var havePhoto={}, haveStamp={};
+    (wlv1AnatRows()||[]).forEach(function(o){
+      if(o&&o.id&&o.photo){ havePhoto[o.id]=o.photo; haveStamp[o.id]=String(o.updatedAt||'') }
+    });
+    var need=[];
+    rows.forEach(function(o){
+      if(!o||!o.id) return;
+      if(String(o.hidden||'')==='1') return;          /* লুকানো ছবি পর্দায় আসেই না */
+      if(havePhoto[o.id]!==undefined && haveStamp[o.id]===String(o.updatedAt||'')) o.photo=havePhoto[o.id];
+      else need.push(o.id);
+    });
+    if(need.length){
+      var g=await sb.from('anatomy_pictures').select('id,photo').in('id',need).limit(300);
+      /* 🔒 ছবি আনতে না পারলে তালিকাটাই জমা করা হয় না — নইলে এই ব্রাউজারে
+         জমা থাকা ভালো ছবিগুলো ফাঁকা হয়ে যেত (তথ্য হারাবে না)। */
+      if(g.error||!Array.isArray(g.data)) return false;
+      var fresh={}; g.data.forEach(function(o){ if(o&&o.id) fresh[o.id]=o.photo||'' });
+      rows.forEach(function(o){ if(o&&o.photo===undefined) o.photo=(fresh[o.id]||havePhoto[o.id]||'') });
+    } else {
+      rows.forEach(function(o){ if(o&&o.photo===undefined) o.photo=(havePhoto[o.id]||'') });
+    }
+    wlv1AnatRowsSave(rows);
     localStorage.setItem(WLV1_ANAT_PULL_KEY,String(Date.now()));
     return true;
   }catch(_e){ return false }
