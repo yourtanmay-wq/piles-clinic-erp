@@ -15153,6 +15153,12 @@ function wlv1ChamberRows(date, branch){
       if(!wlv1IsApprovedRefund(p)) return;
       const eff = -amt;
       if(payMode(p.mode)==='UPI') r.online += eff; else r.cash += eff;
+      /* 🖥️🔴🔒 V709 (২৬.০৮.২০২৬, TK-রিপোর্ট, ডেমো-প্রুফে অনুমোদিত) — উপরের
+         বিয়োগটা **এক অক্ষরও বদলায়নি**; শুধু কত বিয়োগ হলো সেটা আলাদা করে
+         মনে রাখা হচ্ছে, যাতে Review পর্দায় "Refund" নামে নিজের লাইন
+         দেখানো যায়। ফোনের refundCash/refundOnline-এর হুবহু যমজ। */
+      if(payMode(p.mode)==='UPI') r.refundOnline = Number(r.refundOnline||0)+amt;
+      else r.refundCash = Number(r.refundCash||0)+amt;
       return;
     }
     __mark();
@@ -17710,7 +17716,12 @@ var wlv1CloseTapCount = 0, wlv1CloseTapAt = 0, wlv1ClosePrintBranch = '';
 
 function wlv1ChamberArrivedRows(){
   const br = wlv1ChamberBranch || (user && user.branch==='All' ? 'All' : (user?user.branch:''));
-  return wlv1ChamberRows(wlv1ChamberDate, br).filter(r=>r.arrived);
+  /* 🖥️🔴🔒 V709 — আগে শুধু `arrived` সারিগুলোই আসত, কিন্তু রিফান্ড কখনো
+     "arrived" গণনা করে না — তাই আজ যাঁর টাকা ফেরত হলো, তিনি আজ আর কিছু না
+     দিয়ে থাকলে সারিটাই বাদ পড়ত, TOTAL থেকেও বিয়োগ হত না।
+     ⇒ এখন আজকের অনুমোদিত রিফান্ডের সারিও আসে (ফোনের একই বদল)। */
+  return wlv1ChamberRows(wlv1ChamberDate, br)
+    .filter(r=>r.arrived || (Number(r.refundCash||0)+Number(r.refundOnline||0))>0);
 }
 window["wlv1ChamberArrivedRows"]=wlv1ChamberArrivedRows;
 
@@ -17765,7 +17776,11 @@ function wlv1CloseReview(rows){
      এসেছেন** সেই ক্রমে (ChamberAttendanceActivity.kt:2505)। তাই পর্দায় যে
      ক্রমে দেখছেন, ছাপা কাগজেও ঠিক সেই ক্রমেই যাবে। */
   rows = wlv1ByArrivalOrder(rows);
-  const rupee = v => Number(v||0)>0 ? '₹'+Number(v).toLocaleString('en-IN') : '—';
+  /* 🖥️🔴🔒 V709 — ঋণাত্মক অঙ্ক আগে "—" দেখাত, তাই রিফান্ডের সারিতে টাকাটা
+     উধাও হয়ে যেত। এখন ঋণাত্মক হলে "− ₹x" লাল রঙে। ⛔ ধনাত্মক ও শূন্য
+     দুটোই হুবহু আগের মতোই। ফোনের `cellText()`-এর যমজ। */
+  const rupee = v => Number(v||0)>0 ? '₹'+Number(v).toLocaleString('en-IN')
+    : (Number(v||0)<0 ? '<span style="color:#C0392B">− ₹'+Number(-v).toLocaleString('en-IN')+'</span>' : '—');
   /* 🔴 V429 (TK-নির্দেশ: ওয়েব হুবহু অ্যান্ড্রয়েডের মতো) — ফোনের Review পর্দায়
      সারিগুলো **৫ কলামের গ্রিড**: PATIENT · TREATMENT PROGRESS · FEES · CASH ·
      ONLINE (ChamberAttendanceActivity-র rvCell ধরে ধরে মেলানো: নাম-ঘর ৮২dp,
@@ -17809,11 +17824,21 @@ function wlv1CloseReview(rows){
      (TK-অনুমোদিত)। ⛔ সংখ্যাগুলো নিচের সারির **ঠিক সেই একই ঘর** (r.fee/r.cash/
      r.online) থেকেই যোগ হয়, তাই সারি আর মোট কখনো আলাদা হবে না। ফোনের
      ChamberAttendanceActivity.showCloseReview-এর হুবহু একই হিসাব। */
-  const __fT=rows.reduce((a,r)=>a+Number(r.fee||0),0), __cT=rows.reduce((a,r)=>a+Number(r.cash||0),0),
-        __oT=rows.reduce((a,r)=>a+Number(r.online||0),0), __gT=__fT+__cT+__oT;
+  /* 🖥️🔴🔒 V709 — Cash/Online এখন **রিফান্ড বাদ দেওয়ার আগের** অঙ্ক দেখায়
+     (r.cash থেকে রিফান্ড আগেই বিয়োগ হয়ে আছে, তাই আবার যোগ করে নেওয়া হলো),
+     আর রিফান্ডটা নিজের লাইনে লাল রঙে বিয়োগ হয়:
+        TOTAL = Fees + Cash + Online − Refund
+     ⛔ রিফান্ড না থাকলে প্রতিটা সংখ্যা হুবহু আগের মতোই, লাইনটাও বসে না।
+     ⛔ "N arrived" সংখ্যাটা এখন শুধু সত্যিই আসা রোগীদের (r.arrived) — টাকা
+        ফেরত মানে রোগী আসেননি, তাই সংখ্যাটা বাড়বে না। */
+  const __rT=rows.reduce((a,r)=>a+Number(r.refundCash||0)+Number(r.refundOnline||0),0);
+  const __fT=rows.reduce((a,r)=>a+Number(r.fee||0),0),
+        __cT=rows.reduce((a,r)=>a+Number(r.cash||0)+Number(r.refundCash||0),0),
+        __oT=rows.reduce((a,r)=>a+Number(r.online||0)+Number(r.refundOnline||0),0), __gT=__fT+__cT+__oT-__rT;
+  const __arrivedN=rows.filter(r=>r.arrived).length;
   const rs = v => '₹'+Number(v||0).toLocaleString('en-IN');
-  modal(`<h2>REVIEW — ${rows.length} arrived</h2>
-    <div class="wlv1CbRevSum"><div><span>Fees</span><b>${rs(__fT)}</b></div><div><span>Cash</span><b class="c">${rs(__cT)}</b></div><div><span>Online</span><b class="o">${rs(__oT)}</b></div><div class="tot"><span>TOTAL</span><b>${rs(__gT)}</b></div></div>
+  modal(`<h2>REVIEW — ${__arrivedN} arrived</h2>
+    <div class="wlv1CbRevSum"><div><span>Fees</span><b>${rs(__fT)}</b></div><div><span>Cash</span><b class="c">${rs(__cT)}</b></div><div><span>Online</span><b class="o">${rs(__oT)}</b></div>${__rT>0?`<div><span>Refund</span><b style="color:#C0392B">− ${rs(__rT)}</b></div>`:''}<div class="tot"><span>TOTAL</span><b>${rs(__gT)}</b></div></div>
     <div class="wlv1CbRevWrap">${list}</div>
     <div class="actions"><button class="ghost" onclick="closeModal()">Back</button>
     <button onclick="wlv1ConfirmChamberClose()">&#9989; Confirm Close</button></div>`);

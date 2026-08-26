@@ -2750,7 +2750,20 @@ Thread {
         cbDayCommissionTotal = 0.0
         cbDayPaidTotal = 0.0
         cbDayCommissionByRmp = emptyList()
-        val arrived = board.rows.filter { it.arrived }.sortedBy { it.arrivedAt.ifBlank { "9999" } }
+        val arrivedOnly = board.rows.filter { it.arrived }
+        /* 🔴🔒 V709 (২৬.০৮.২০২৬, TK-রিপোর্ট, ডেমো-প্রুফে অনুমোদিত) — TK: *"আজকে
+           কিষানগঞ্জের চেম্বার থেকে একজন পেশেন্টের টাকা রিফান্ড করা হলো, কিন্তু
+           চেম্বারের তারিখে কেন দেখাচ্ছে না"*।
+           **আসল কারণ (কোড ধরে যাচাই):** রিফান্ডের সারি কখনো `arrived` গণনা করে
+           না (ইচ্ছাকৃত — টাকা ফেরত মানে রোগী আসেননি), কিন্তু এই পর্দা **শুধু
+           arrived সারিগুলোই** দেখাত ও যোগ করত। তাই রোগী আজ আর কোনো টাকা না
+           দিয়ে থাকলে তাঁর সারিটাই বাদ পড়ত — লাইনও দেখাত না, TOTAL থেকেও
+           বিয়োগ হত না।
+           ⇒ এখন আজকের **অনুমোদিত** রিফান্ডের সারিগুলোও তালিকায় আসে।
+           ⛔ উপরের **"N arrived" সংখ্যাটা `arrivedOnly` থেকেই** গোনা হয় — টাকা
+              ফেরত মানে রোগী আসেননি, তাই সংখ্যাটা এক অক্ষরও বাড়বে না। */
+        val refundOnly = board.rows.filter { !it.arrived && (it.refundCash + it.refundOnline) > 0.0 }
+        val arrived = (arrivedOnly + refundOnly).sortedBy { it.arrivedAt.ifBlank { "9999" } }
         val d = resources.displayMetrics.density
         fun dp(v: Int) = (v * d).toInt()
         fun money(v: Double) = if (v > 0.0) "₹" + "%,.0f".format(v) else "—"
@@ -2767,11 +2780,19 @@ Thread {
         //       (FEES = feesCash+feesOnline · CASH = paymentCash · ONLINE =
         //       paymentOnline), তাই পর্দার সারি আর উপরের মোট কখনো আলাদা হবে না।
         val cbFeesTotal = arrived.sumOf { it.feesCash + it.feesOnline }
-        val cbCashTotal = arrived.sumOf { it.paymentCash }
-        val cbOnlineTotal = arrived.sumOf { it.paymentOnline }
-        val cbGrandTotal = cbFeesTotal + cbCashTotal + cbOnlineTotal
+        /* 🔴🔒 V709 — Cash/Online এখন **রিফান্ড বাদ দেওয়ার আগের** অঙ্ক দেখায়
+           (`paymentCash` থেকে রিফান্ড আগেই বিয়োগ হয়ে আছে, তাই আবার যোগ করে
+           নেওয়া হলো), আর রিফান্ডটা নিজের আলাদা লাইনে লাল রঙে বিয়োগ হয় —
+           TK-এর অনুমোদিত ডেমো ঠিক এটাই। যোগফল আগের মতোই মেলে:
+             TOTAL = Fees + Cash + Online − Refund
+           ⛔ রিফান্ড না থাকলে (`cbRefundTotal == 0`) প্রতিটা সংখ্যা **হুবহু
+              আগের মতোই** — লাইনটাও বসে না। */
+        val cbRefundTotal = arrived.sumOf { it.refundCash + it.refundOnline }
+        val cbCashTotal = arrived.sumOf { it.paymentCash + it.refundCash }
+        val cbOnlineTotal = arrived.sumOf { it.paymentOnline + it.refundOnline }
+        val cbGrandTotal = cbFeesTotal + cbCashTotal + cbOnlineTotal - cbRefundTotal
         list.addView(android.widget.TextView(this).apply {
-            text = "REVIEW — ${arrived.size} arrived"
+            text = "REVIEW — ${arrivedOnly.size} arrived"   // 🔴🔒 V709 — রিফান্ড এখানে গোনা হয় না
             textSize = 13f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(android.graphics.Color.parseColor("#10223A"))
@@ -2828,6 +2849,10 @@ Thread {
             cbSumBox.addView(cbMoneyLine("Fees", cbFeesTotal, "#33404F", false))
             cbSumBox.addView(cbMoneyLine("Cash", cbCashTotal, "#0C9E33", false))
             cbSumBox.addView(cbMoneyLine("Online", cbOnlineTotal, "#123A8C", false))
+            // 🔴🔒 V709 — রিফান্ড থাকলে তবেই লাইনটা বসে (নইলে পর্দা হুবহু আগের মতো)।
+            if (cbRefundTotal > 0.0) {
+                cbSumBox.addView(cbMoneyLine("Refund", -cbRefundTotal, "#C0392B", true))
+            }
             cbSumBox.addView(cbThinLine())
             cbSumBox.addView(cbMoneyLine("TOTAL", cbGrandTotal, "#0B4F2A", true))
             val withComm = comm.filter { it.commissionToday > 0.0 }
@@ -3020,9 +3045,14 @@ Thread {
             }
             val treatBold = hasRealRemark && isFromToday
             val treatCell = rvCell(treatText, 0, 1f, treatColor, treatBold).apply { textSize = 11f; gravity = android.view.Gravity.CENTER }
-            val feesCell = rvCell(money(r.feesCash + r.feesOnline), 40, 0f, "#33404F", true)
-            val cashCell = rvCell(money(r.paymentCash), 40, 0f, "#0C9E33", true)
-            val onlineCell = rvCell(money(r.paymentOnline), 40, 0f, "#123A8C", true)
+            /* 🔴🔒 V709 — `money()` ঋণাত্মক অঙ্ককে "—" দেখাত, তাই রিফান্ডের
+               সারিতে টাকাটা উধাও হয়ে যেত। এখন ঋণাত্মক হলে "− ₹x" লাল রঙে।
+               ⛔ ধনাত্মক ও শূন্য — দুটোই আগের মতোই (একই `money()`, একই রং)। */
+            fun cellText(v: Double) = if (v < 0.0) "− ₹" + "%,.0f".format(-v) else money(v)
+            fun cellColor(v: Double, normal: String) = if (v < 0.0) "#C0392B" else normal
+            val feesCell = rvCell(cellText(r.feesCash + r.feesOnline), 40, 0f, cellColor(r.feesCash + r.feesOnline, "#33404F"), true)
+            val cashCell = rvCell(cellText(r.paymentCash), 40, 0f, cellColor(r.paymentCash, "#0C9E33"), true)
+            val onlineCell = rvCell(cellText(r.paymentOnline), 40, 0f, cellColor(r.paymentOnline, "#123A8C"), true)
             gridRow.addView(nameCell)
             gridRow.addView(rvDivider()); gridRow.addView(treatCell)
             gridRow.addView(rvDivider()); gridRow.addView(feesCell)

@@ -59,6 +59,18 @@ data class ChamberAttendanceRow(
     val feesOnline: Double,
     val paymentCash: Double,
     val paymentOnline: Double,
+    /* 🔴🔒 V709 (২৬.০৮.২০২৬, TK-রিপোর্ট, ডেমো-প্রুফে অনুমোদিত) — TK: *"আজকে
+       কিষানগঞ্জের চেম্বার থেকে একজন পেশেন্টের টাকা রিফান্ড করা হলো, কিন্তু
+       চেম্বারের তারিখে কেন দেখাচ্ছে না"*।
+       আজ **অনুমোদিত (approved)** রিফান্ডে কত টাকা ফেরত গেছে — Cash ও Online
+       আলাদা করে। `paymentCash`/`paymentOnline` থেকে ওটা আগেই **বিয়োগ** হয়ে
+       আছে (নিচে, V709-এর অনেক আগের নিয়ম); এই দুটো ঘর সেই বিয়োগ হওয়া
+       অঙ্কটাই **আলাদা করে মনে রাখে**, যাতে Review পর্দায় "Refund" নামে
+       নিজের লাইন দেখানো যায়।
+       ⛔ ডিফল্ট 0.0 ⇒ যেখানে বসানো হয়নি (পুরোনো cache) সেখানে আচরণ
+          **হুবহু আগের মতোই**। ⛔ কোনো হিসাব এখানে বদলায়নি — শুধু মনে রাখা। */
+    val refundCash: Double = 0.0,
+    val refundOnline: Double = 0.0,
     val remark: String,
     val whatHappened: List<String>,
     // TK's explicit requirement: writing a remark from this board must
@@ -300,6 +312,7 @@ object ChamberAttendanceRepository {
                         feesCash = r.optDouble("feesCash", 0.0), feesOnline = r.optDouble("feesOnline", 0.0),
                         paymentCash = r.optDouble("paymentCash", 0.0), paymentOnline = r.optDouble("paymentOnline", 0.0),
                         medicineCash = r.optDouble("medicineCash", 0.0), medicineOnline = r.optDouble("medicineOnline", 0.0),   // 🟢🔒 V612 (পুরোনো cache-এ নেই ⇒ 0.0)
+                        refundCash = r.optDouble("refundCash", 0.0), refundOnline = r.optDouble("refundOnline", 0.0),   // 🔴🔒 V709 (পুরোনো cache-এ নেই ⇒ 0.0)
                         remark = r.s("remark"),   // 🔴🔒 V696 — জমানো cache-এ "null" ঢুকে থাকলেও পরের বার নিজেই সেরে যায়
                         whatHappened = r.optJSONArray("whatHappened")?.let { arr -> (0 until arr.length()).map { arr.getString(it) } } ?: emptyList(),
                         followUpId = r.optString("followUpId", ""), patientId = r.optString("patientId", ""),
@@ -356,6 +369,7 @@ object ChamberAttendanceRepository {
                         .put("feesCash", row.feesCash).put("feesOnline", row.feesOnline)
                         .put("paymentCash", row.paymentCash).put("paymentOnline", row.paymentOnline)
                         .put("medicineCash", row.medicineCash).put("medicineOnline", row.medicineOnline)   // 🟢🔒 V612
+                        .put("refundCash", row.refundCash).put("refundOnline", row.refundOnline)   // 🔴🔒 V709
                         .put("remark", row.remark).put("whatHappened", org.json.JSONArray(row.whatHappened))
                         .put("followUpId", row.followUpId).put("patientId", row.patientId).put("arrivedAt", row.arrivedAt)
                         .put("refDoctor", row.refDoctor)
@@ -811,6 +825,7 @@ object ChamberAttendanceRepository {
                     "expected" to false, "arrived" to false,
                     "feesCash" to 0.0, "feesOnline" to 0.0, "paymentCash" to 0.0, "paymentOnline" to 0.0,
                     "medicineCash" to 0.0, "medicineOnline" to 0.0,   // 🟢🔒 V612
+                    "refundCash" to 0.0, "refundOnline" to 0.0,   // 🔴🔒 V709
                     "remark" to "", "happened" to mutableListOf<String>(), "followUpId" to "", "patientId" to "",
                     "arrivedAt" to "", "refDoctor" to "",
                     // TK-REQUESTED (2026-07-24): itemized payment lines for
@@ -1042,6 +1057,11 @@ object ChamberAttendanceRepository {
                     val refundCash = isCash(row.s("mode").ifBlank { "CASH" })
                     if (refundCash) entry["paymentCash"] = (entry["paymentCash"] as Double) - refundAmt
                     else entry["paymentOnline"] = (entry["paymentOnline"] as Double) - refundAmt
+                    // 🔴🔒 V709 — উপরের বিয়োগটা **এক অক্ষরও বদলায়নি**; শুধু কত
+                    //    বিয়োগ হলো সেটা আলাদা করে মনে রাখা হচ্ছে (Review-র
+                    //    "Refund" লাইনের জন্য)।
+                    if (refundCash) entry["refundCash"] = (entry["refundCash"] as? Double ?: 0.0) + refundAmt
+                    else entry["refundOnline"] = (entry["refundOnline"] as? Double ?: 0.0) + refundAmt
                     (entry["happened"] as? MutableList<String>)?.add("Refunded ₹${"%,.0f".format(refundAmt)}")
                     (entry["paymentLines"] as? MutableList<String>)?.add("Refund -${"%,.0f".format(refundAmt)}/- ${if (refundCash) "Cash" else "Online"}")
                 }
@@ -1310,6 +1330,8 @@ object ChamberAttendanceRepository {
                 paymentOnline = v["paymentOnline"] as Double,
                 medicineCash = v["medicineCash"] as? Double ?: 0.0,     // 🟢🔒 V612
                 medicineOnline = v["medicineOnline"] as? Double ?: 0.0, // 🟢🔒 V612
+                refundCash = v["refundCash"] as? Double ?: 0.0,         // 🔴🔒 V709
+                refundOnline = v["refundOnline"] as? Double ?: 0.0,     // 🔴🔒 V709
                 remark = v["remark"] as String,
                 whatHappened = (v["happened"] as? MutableList<String>) ?: emptyList(),
                 followUpId = v["followUpId"] as? String ?: "",
