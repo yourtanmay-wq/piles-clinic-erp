@@ -237,21 +237,57 @@ object PrescriptionWhatsAppShare {
                চুপচাপ কেটে যেত। এখন যা মাপা যায় তাই বসে, আর নিচে সেই মাপ ধরেই
                A4-তে ছোট করা হয় — তাই **কোনো ফোনেই আর কাটা পড়বে না**।
                ⛔ মাপা না গেলে আগের মতোই ৭৯৪ ধরা হয় (আচরণ বদলায় না)। */
+            /* 🔴🔒🔒 V702 (২৬.০৮.২০২৬, TK: *"আপনি সঠিকভাবে কাজটা করুন, আমি এত
+               বারবার বিল্ড করতে পারবো না"*) — **আর ধরে নেওয়া নয়, মেপে নেওয়া।**
+
+               আগের দুটো চেষ্টা (V698 · V701) ব্যর্থ হয়েছে কারণ দুবারই আমি
+               **ধরে নিয়েছিলাম** WebView পাতাটা কত বড় করে আঁকবে। কখনো সেটা
+               ৩ গুণ বড় করেছে (ডান দিক কেটে গেছে), কখনো ছোট (সরু কলাম)।
+
+               এখন কিছুই ধরে নেওয়া হয় না — **WebView নিজে কত বড় করে আঁকছে,
+               সেটাই মেপে নেওয়া হয়:**
+
+                   বড় করার মাপ (scale) = ঘরের চওড়া (device px) ÷ window.innerWidth (CSS px)
+
+               `window.innerWidth` = WebView পাতাটাকে যত CSS-পিক্সেল চওড়া
+               ধরে সাজিয়েছে। ঘরের চওড়া আমরা নিজেরাই বসিয়েছি। দুটো ভাগ করলেই
+               আসল scale — WebView যা-ই করুক, সংখ্যাটা সত্যি।
+
+               তারপর কাগজের আসল মাপ = পাতার CSS মাপ × সেই scale — আর ওই
+               মাপেই ছবি তোলা ও A4-এ বসানো হয়।
+               ⇒ **কোনো ফোনে, কোনো ঘনত্বে আর কাটা পড়তে পারে না।**
+               ⛔ মাপা না গেলে (বিরল) আগের A4-এর হিসাবই চলে, কিছু ভাঙে না। */
             view.evaluateJavascript(
                 "(function(){var d=document.documentElement,b=document.body;" +
-                "return Math.max(b.scrollWidth,d.scrollWidth,b.offsetWidth,d.offsetWidth)+'x'+" +
-                "Math.max(b.scrollHeight,d.scrollHeight,b.offsetHeight,d.offsetHeight)})()"
+                "var w=Math.max(b.scrollWidth,d.scrollWidth,b.offsetWidth,d.offsetWidth);" +
+                "var h=Math.max(b.scrollHeight,d.scrollHeight,b.offsetHeight,d.offsetHeight);" +
+                "return w+'x'+h+'x'+(window.innerWidth||0)})()"
             ) { value ->
                 val raw = value?.trim()?.trim('"').orEmpty()
                 val parts = raw.split("x")
-                val wCss = parts.getOrNull(0)?.toFloatOrNull()?.toInt() ?: A4_WIDTH_PX
-                val measured = parts.getOrNull(1)?.toFloatOrNull()?.toInt() ?: A4_HEIGHT_PX
-                // অস্বাভাবিক মাপ এলে ভরসা করা হয় না — তখন আগের A4-ই।
-                renderWidthPx = if (wCss in A4_WIDTH_PX..(A4_WIDTH_PX * 4)) wCss else A4_WIDTH_PX
-                val total = max(measured, A4_HEIGHT_PX)
-                layoutAt(view, total)
+                val wCss = parts.getOrNull(0)?.toFloatOrNull() ?: A4_WIDTH_PX.toFloat()
+                val hCss = parts.getOrNull(1)?.toFloatOrNull() ?: A4_HEIGHT_PX.toFloat()
+                val innerW = parts.getOrNull(2)?.toFloatOrNull() ?: 0f
+
+                // ── WebView সত্যিই কত বড় করে আঁকছে ──
+                /* ⚠️ ঘরটা পর্দার সাথে যুক্ত (V639), তাই মাঝেমধ্যে বাইরের
+                   লেআউট ওটাকে ছোট করে দিতে পারে। তখন মাপা scale মিথ্যে হত।
+                   ⇒ ঘরটা অস্বাভাবিক ছোট হলে মাপায় ভরসা করা হয় না, আগের
+                     A4-এর সোজা হিসাবেই ফেরত যাওয়া হয়। */
+                val viewW = view.width
+                val trustView = viewW >= A4_WIDTH_PX / 2
+                val scale = if (trustView && innerW > 1f) viewW / innerW else 1f
+                // অসম্ভব মান এলে ভরসা করা হয় না (০.১× – ৮× এর বাইরে)।
+                val safeScale = if (scale in 0.1f..8f) scale else 1f
+
+                val contentW = max((wCss * safeScale).toInt(), A4_WIDTH_PX)
+                val contentH = max((hCss * safeScale).toInt(), A4_HEIGHT_PX)
+                renderWidthPx =
+                    if (trustView && contentW <= A4_WIDTH_PX * 6) contentW else A4_WIDTH_PX
+
+                layoutAt(view, contentH)
                 // আঁকার আগে একটু সময় — ছবি ও ফন্ট বসে যেতে দিন।
-                view.postDelayed({ buildPdfThenShare(activity, view, total) }, 250L)
+                view.postDelayed({ buildPdfThenShare(activity, view, contentH) }, 250L)
             }
         } catch (_: Throwable) {
             layoutAt(view, A4_HEIGHT_PX)
