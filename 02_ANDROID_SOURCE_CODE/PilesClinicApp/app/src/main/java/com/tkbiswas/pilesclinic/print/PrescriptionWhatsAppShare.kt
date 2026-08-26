@@ -144,6 +144,38 @@ object PrescriptionWhatsAppShare {
         // ⚠️ JavaScript শুধু পাতার **উচ্চতা মাপার** জন্য। টেমপ্লেটে নিজের কোনো
         //    স্ক্রিপ্ট নেই ও বাইরের কিছু লোড হয় না, তাই এতে ঝুঁকি নেই।
         wv.settings.javaScriptEnabled = true
+        /* 🔴🔒🔒 V698 (২৬.০৮.২০২৬, TK-রিপোর্ট, ৩টে ছবিসহ — "কাজ হচ্ছে না";
+           Check-up History → Send on WhatsApp-এর PDF-এ লেখা সরু কলামে, লোগো
+           বিশাল হয়ে কাটা, পাতাগুলো প্রায় ফাঁকা)।
+
+           **আসল কারণ (কোড ধরে, আন্দাজ নয়):** এই WebView-টা হাতে করে ৭৯৪
+           **ডিভাইস-পিক্সেল** চওড়ায় বসানো হয় (`layoutAt`)। কিন্তু
+           `useWideViewPort` চালু না থাকায় WebView পাতার `<meta name=
+           "viewport" content="width=794">` লাইনটা **পড়েই না** — তখন CSS-এর
+           চওড়া হয় ৭৯৪ ÷ ফোনের ঘনত্ব, অর্থাৎ ৩x ফোনে মাত্র ~২৬৫ CSS px।
+           ফলে A4-এর জন্য লেখা কাগজটা ২৬৫px-এর সরু কলামে সাজে, আর ৭৮px-এর
+           লোগো ওই চওড়ার প্রায় এক-তৃতীয়াংশ জুড়ে বসে — TK-এর ছবিতে ঠিক
+           এটাই। উচ্চতার মাপও (`scrollHeight`) তখন ভুল হয়, তাই বাড়তি
+           ফাঁকা পাতা তৈরি হয়।
+
+           **সমাধান:** পাতা নিজে যদি একটা নির্দিষ্ট চওড়া চায় (viewport-এ
+           `width=<সংখ্যা>`), তবেই wide-viewport চালু — তখন CSS চওড়া হয়
+           ঠিক ৭৯৪, আর ১ CSS px = ১ ডিভাইস px, অর্থাৎ হুবহু A4।
+
+           ⛔ **Prescription ও Medicine Slip-এ এক অক্ষরও বদলায়নি** — ওদের
+              টেমপ্লেটে (`www/rx_print.html`) লেখা আছে `width=device-width`,
+              কোনো নির্দিষ্ট সংখ্যা নয়, তাই নিচের শর্তটা ওদের ক্ষেত্রে মেলে
+              না ও আগের আচরণই বহাল থাকে। */
+        try {
+            val wantWidth = Regex(
+                "name=[\"']viewport[\"'][^>]*content=[\"'][^\"']*width\\s*=\\s*(\\d{3,4})",
+                RegexOption.IGNORE_CASE
+            ).find(html)?.groupValues?.getOrNull(1)?.toIntOrNull()
+            if (wantWidth != null && wantWidth >= 300) {
+                wv.settings.useWideViewPort = true
+                wv.settings.loadWithOverviewMode = false
+            }
+        } catch (_: Throwable) { /* ব্যর্থ হলে আগের আচরণই — কিছু ভাঙে না */ }
         wv.setBackgroundColor(Color.WHITE)
         wv.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) {
