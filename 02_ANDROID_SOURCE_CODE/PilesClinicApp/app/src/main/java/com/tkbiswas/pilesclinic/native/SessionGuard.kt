@@ -204,6 +204,9 @@ object SessionGuard {
         try { NativeSession.clear(app) } catch (_: Throwable) { }
         try { com.tkbiswas.pilesclinic.modules.ModuleAuth.signOut(app) } catch (_: Throwable) { }
         try { CloudReadDedupe.clear() } catch (_: Throwable) { }
+        // 🟢🔒 V601 (২৪.০৮.২০২৬) — পরের যিনিই লগইন করুন, ২৪-ঘণ্টার টাইমার
+        // যেন নতুন করে শুরু হয় (আগের ব্যবহারকারীর জমা সময় যেন না থেকে যায়)।
+        try { com.tkbiswas.pilesclinic.native.AppLock.resetDaily(app) } catch (_: Throwable) { }
         try { CloudReadCache.clear() } catch (_: Throwable) { }
         try { p(app).edit().clear().apply() } catch (_: Throwable) { }
         try { androidx.work.WorkManager.getInstance(app).cancelAllWork() } catch (_: Throwable) { }

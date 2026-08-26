@@ -299,6 +299,36 @@
             android:focusable="true"
             android:visibility="gone" />
 
+        <!-- 🟢🔒 V607 (২৪.০৮.২০২৬, TK-নির্দেশ, ছবি-প্রুফ পাশ) — Master-only,
+             ব্রাঞ্চ-ভিত্তিক পেন্ডিং/ওভারডিউ ভাঙা। ডিফল্ট gone, staff-এর
+             পর্দায় কখনো দেখা যাবে না (Kotlin-এই role-চেক করে ভিজিবিলিটি
+             বসানো হয়)। -->
+        <TextView
+            android:id="@+id/tvCallBreakdownLink"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="14dp"
+            android:layout_marginTop="4dp"
+            android:padding="4dp"
+            android:text="👁 Breakdown by branch"
+            android:textColor="#6D28D9"
+            android:textStyle="bold"
+            android:textSize="12sp"
+            android:gravity="center"
+            android:clickable="true"
+            android:focusable="true"
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:id="@+id/callBreakdownRows"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="14dp"
+            android:layout_marginTop="4dp"
+            android:orientation="vertical"
+            android:visibility="gone" />
+
+
 
         <!-- Google-style capsule search (top). Opens A-Z global search. -->
         <LinearLayout

@@ -1,5 +1,7 @@
 package com.tkbiswas.pilesclinic.native
 
+import com.tkbiswas.pilesclinic.ui.PaymentRingView
+
 import android.app.DatePickerDialog
 import android.content.ActivityNotFoundException
 import android.content.Intent
@@ -348,6 +350,13 @@ class FollowUpActivity : AppCompatActivity() {
         // সমস্ত পেশেন্টের ডিটেলস দেখা যাবে।"* — তারিখের কোনো ছাঁকনি ছাড়াই
         // ওই ভাগের সবাই, ১ নম্বর থেকে পরপর।
         binding.fSerial.setOnClickListener { dateFilter = "Serial"; paintDateFilterButtons(); paintTabCounts(); applySearch() }
+        // 🟢🔒 V646 (২৫.০৮.২০২৬, TK-নির্দেশ) — বাকি চিপগুলোর হুবহু একই ধাঁচ।
+        binding.fUnexpected.setOnClickListener { dateFilter = "Unexpected"; paintDateFilterButtons(); paintTabCounts(); applySearch() }
+        // 🟢🔒 V646 (২৫.০৮.২০২৬, TK-নির্দেশ — "২ যায়গায়ই থাকবে, Unexpected
+        // Time-এর মতন") — বাকি চিপগুলোর হুবহু একই ধাঁচ।
+        binding.fRunning.setOnClickListener { dateFilter = "Running"; paintDateFilterButtons(); paintTabCounts(); applySearch() }
+        binding.fIncompletePatient.setOnClickListener { dateFilter = "Incomplete"; paintDateFilterButtons(); paintTabCounts(); applySearch() }
+        binding.fCompletePatient.setOnClickListener { dateFilter = "Complete"; paintDateFilterButtons(); paintTabCounts(); applySearch() }
         // 🔒 TK-APPROVED (29.07.2026, ফটো-প্রুফে পাশ · খাতার সারি B69)
         binding.fSheet.setOnClickListener { downloadSheet() }
         // 🔒 খাতার সারি B69: এটা ছাঁকনি নয়, একটা কাজ — তাই বাকি চিপের নীল রঙে না
@@ -377,7 +386,8 @@ class FollowUpActivity : AppCompatActivity() {
     private fun paintDateFilterButtons() {
         val blue = android.graphics.Color.parseColor("#1167D8")
         val light = android.graphics.Color.parseColor("#E8F2FF")
-        (btns + (binding.fCustom to "Custom") + (binding.fSerial to "Serial")).forEach { (b, v) ->
+        (btns + (binding.fCustom to "Custom") + (binding.fSerial to "Serial") + (binding.fUnexpected to "Unexpected") +
+            (binding.fRunning to "Running") + (binding.fIncompletePatient to "Incomplete") + (binding.fCompletePatient to "Complete")).forEach { (b, v) ->
             val on = v == dateFilter
             b.backgroundTintList = android.content.res.ColorStateList.valueOf(if (on) blue else light)
             b.setTextColor(if (on) android.graphics.Color.WHITE else blue)
@@ -988,6 +998,33 @@ class FollowUpActivity : AppCompatActivity() {
             // 🔒 খাতার সারি B68: সিরিয়ালে তারিখের কোনো বাছাই নেই — ওই ভাগের
             // **সবাই** থাকবে, শুধু সাজানোর ক্রমটা নিচে বদলায়।
             "Serial" -> items
+            // 🟢🔒 V646 (২৫.০৮.২০২৬, TK-নির্দেশ) — Draft-এর "Unexpected Time
+            // Calls"-এর সাথে মেলানো একই ছাঁকনি: শুধু timeType="Unexpected
+            // Time" রেকর্ড। Enquiry ট্যাবেই কার্যকর (item.timeType Enquiry-
+            // stage-এর জন্যই বসে); অন্য ট্যাবে ফাঁকা থাকায় এমনিতেই কিছু
+            // দেখাবে না। ⛔ নতুন কোনো Supabase কল নেই — client-side ফিল্টার।
+            "Unexpected" -> items.filter { it.timeType.equals("Unexpected Time", ignoreCase = true) }
+            // 🟢🔒 V646 (২৫.০৮.২০২৬, TK-নির্দেশ — "২ যায়গায়ই থাকবে") — Patient
+            // ট্যাব (stage="Treatment") ইতিমধ্যেই শুধু Treatment-stage রো
+            // দেখায়, তাই এখানে stage আলাদা করে ছাঁকতে হয় না। নিয়ম Draft-এর
+            // V644/V645-এর সাথে হুবহু মেলানো (ফ্রি-প্ল্যান-নিরাপদ, client-side)।
+            "Complete" -> items.filter { it.bill > 0.0 && (it.bill - it.paid) <= 0.0 }
+            "Incomplete" -> items.filter {
+                val ageDays = try {
+                    val d = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(it.recordDate.take(10))
+                    if (d == null) 0 else ((java.util.Date().time - d.time) / (24 * 60 * 60 * 1000L)).toInt().coerceAtLeast(0)
+                } catch (_: Throwable) { 0 }
+                it.paid <= 0.0 && ageDays >= 60
+            }
+            "Running" -> items.filter {
+                val complete = it.bill > 0.0 && (it.bill - it.paid) <= 0.0
+                val ageDays = try {
+                    val d = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(it.recordDate.take(10))
+                    if (d == null) 0 else ((java.util.Date().time - d.time) / (24 * 60 * 60 * 1000L)).toInt().coerceAtLeast(0)
+                } catch (_: Throwable) { 0 }
+                val incomplete = it.paid <= 0.0 && ageDays >= 60
+                !complete && !incomplete
+            }
             else -> items
         }
     }

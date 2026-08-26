@@ -378,6 +378,13 @@ class RegistrationActivity : AppCompatActivity() {
     }
 
     private fun autofillFromEnquiry(digits: String) {
+        // 🟢🔒 V620 (২৪.০৮.২০২৬) — নম্বর বদলালে আগের নম্বরের "Unexpected
+        // Time" অবস্থা যেন কখনো নতুন নম্বরে রয়ে না যায় (নতুন Enquiry
+        // খোঁজার ফলাফল আসার আগেই এখানে রিসেট) — নইলে mobile-A (Unexpected)
+        // থেকে mobile-B (Enquiry নেই/Official)-এ গেলে বোতাম ভুলভাবে
+        // visible/selected থেকে যেত।
+        binding.btnRegTimingUnexpected.visibility = android.view.View.GONE
+        if (selectedTiming == "Unexpected Time") selectRegTiming("Official Time")
         lifecycleScope.launch {
             val enq = withContext(Dispatchers.IO) {
                 val rows = SupabaseClient.findByMobile(
@@ -401,12 +408,17 @@ class RegistrationActivity : AppCompatActivity() {
             }
             // TK-REQUESTED ADDITION (2026-07-24): Registration Timing
             // auto-fills from the source Enquiry's own Official/Unexpected
-            // choice, same as Name/Branch/Disease just above -- staff can
-            // still change it manually afterward (selectRegTiming just
-            // updates the toggle, doesn't lock it).
+            // choice, same as Name/Branch/Disease just above.
+            // 🟢🔒 V620 (২৪.০৮.২০২৬, TK-নির্দেশ) — আগে স্টাফ এরপরও হাতে
+            // বদলে নিতে পারতেন ("doesn't lock it")। এখন নিয়ম কড়া:
+            // Registration "Unexpected Time" শুধু তখনই বাছা/দেখানো যাবে
+            // যখন এই Enquiry নিজেই "Unexpected Time" ছিল। Enquiry
+            // Official হলে বা না থাকলে বোতামটাই লুকানো থাকে (উপরে
+            // `setupTimingButtons()`-এ ডিফল্ট GONE)।
             val timeType = enq.s("timeType")
-            if (timeType.isNotBlank()) {
-                selectRegTiming(timeType)
+            if (timeType.equals("Unexpected Time", ignoreCase = true)) {
+                binding.btnRegTimingUnexpected.visibility = android.view.View.VISIBLE
+                selectRegTiming("Unexpected Time")
             }
             android.widget.Toast.makeText(this@RegistrationActivity, "Details filled from Enquiry", android.widget.Toast.LENGTH_SHORT).show()
         }
@@ -550,6 +562,14 @@ class RegistrationActivity : AppCompatActivity() {
         selectRegTiming(selectedTiming)
         binding.btnRegTimingOfficial.setOnClickListener { selectRegTiming("Official Time") }
         binding.btnRegTimingUnexpected.setOnClickListener { selectRegTiming("Unexpected Time") }
+        // 🟢🔒 V620 (২৪.০৮.২০২৬, TK-নির্দেশ, স্পষ্ট প্রশ্নে নিশ্চিত হয়ে) —
+        // "Enquiry-তে Unexpected থাকলে তবেই Registration-এ Unexpected
+        // হতে হবে, অন্যথায় না।" আগে স্টাফ যেকোনো সময় নিজে ইচ্ছেমতো
+        // "Unexpected Time" বেছে নিতে পারতেন (কোনো Enquiry না থাকলেও)।
+        // এখন ডিফল্টভাবে এই বোতামটা **লুকানো** — শুধু নিচের
+        // `autofillFromEnquiry()`-এ শর্ত মিললে (আসল Enquiry-ই Unexpected
+        // হলে) তবেই দেখা যাবে। ⛔ Official Time বোতাম/আচরণ অপরিবর্তিত।
+        binding.btnRegTimingUnexpected.visibility = android.view.View.GONE
     }
 
     private fun selectRegTiming(value: String) {
@@ -941,7 +961,7 @@ class RegistrationActivity : AppCompatActivity() {
                     (if (m.branch.isNotBlank()) "  ·  " + m.branch else "")
             }
             val tvOthers = view.findViewById<android.widget.TextView>(com.tkbiswas.pilesclinic.R.id.tvDupOthers)
-            tvOthers.text = "এই নম্বরে আরও " + (duplicate.matches.size - 1) + " জন রোগী আছেন:\n" + others
+            tvOthers.text = NoBengali.s("এই নম্বরে আরও ") + (duplicate.matches.size - 1) + NoBengali.s(" জন রোগী আছেন:\n") + others
             tvOthers.visibility = android.view.View.VISIBLE
         }
         UppercaseInputUtil.applyToAll(view)  // TK-REQUESTED GLOBAL RULE (2026-07-24): English text auto-CAPITAL, Password fields excluded automatically

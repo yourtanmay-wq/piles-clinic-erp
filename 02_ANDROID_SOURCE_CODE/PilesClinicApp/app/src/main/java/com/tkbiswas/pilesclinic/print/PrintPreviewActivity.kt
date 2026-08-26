@@ -86,18 +86,38 @@ class PrintPreviewActivity : AppCompatActivity() {
         if (PrescriptionHtmlPrint.handles(model.documentTitle)) {
             findViewById<android.view.View>(R.id.pageNavRow).visibility = android.view.View.GONE
             findViewById<ImageView>(R.id.ivPreview).visibility = android.view.View.GONE
+            // 🟢🔒🔒 V670 (২৫.০৮.২০২৬, TK-নির্দেশ, তিনটে অনুরোধ) —
+            // ১) "প্রিন্ট হলো কিনা বোঝার উপায় নেই" — Android-এর PrintJob
+            //    state-listener দিয়ে সত্যিকারের ফলাফল দেখানো হয় (নিচে)।
+            // ২) "যেটা প্রিন্ট আউট হলো এটা যেন দেখা যায়" — একই HTML এখন
+            //    সরাসরি WebView-তে (wvRxPreview) দেখানো হয়।
+            // ৩) "এখান থেকে WhatsApp-এ শেয়ার করা যাবে" — আগে থেকেই থাকা
+            //    বোতাম (btnSharePdf, অন্য কাগজে ব্যবহৃত) এখানে দেখানো হলো,
+            //    PrescriptionWhatsAppShare-এর প্রমাণিত পথে জোড়া হলো।
+            val wvPreview = findViewById<android.webkit.WebView>(R.id.wvRxPreview)
+            try {
+                wvPreview.settings.javaScriptEnabled = false
+                val previewHtml = com.tkbiswas.pilesclinic.print.PrescriptionHtml.build(this, model)
+                wvPreview.loadDataWithBaseURL("file:///android_asset/", previewHtml, "text/html", "UTF-8", null)
+                wvPreview.visibility = android.view.View.VISIBLE
+            } catch (_: Throwable) { }
             findViewById<MaterialButton>(R.id.btnSavePdf).visibility = android.view.View.GONE
-            findViewById<MaterialButton>(R.id.btnSharePdf).visibility = android.view.View.GONE
-            findViewById<TextView>(R.id.tvError).apply {
+            findViewById<MaterialButton>(R.id.btnSharePdf).visibility = android.view.View.VISIBLE
+            findViewById<MaterialButton>(R.id.btnSharePdf).setOnClickListener {
+                com.tkbiswas.pilesclinic.print.PrescriptionWhatsAppShare.share(this, model)
+            }
+            val tvStatus = findViewById<TextView>(R.id.tvError)
+            tvStatus.apply {
                 visibility = android.view.View.VISIBLE
                 text = "Opening the print sheet for this ${model.documentTitle}.\n\n" +
                     "Your phone's print sheet can print it or save it as a PDF."
             }
             findViewById<MaterialButton>(R.id.btnPrint).setOnClickListener {
-                PrescriptionHtmlPrint.print(this, model)
+                tvStatus.text = "Opening the print sheet for this ${model.documentTitle}…"
+                PrescriptionHtmlPrint.print(this, model) { statusMsg -> runOnUiThread { tvStatus.text = statusMsg } }
             }
             findViewById<MaterialButton>(R.id.btnClosePreview)?.setOnClickListener { finish() }
-            PrescriptionHtmlPrint.print(this, model)
+            PrescriptionHtmlPrint.print(this, model) { statusMsg -> runOnUiThread { tvStatus.text = statusMsg } }
             return
         }
 

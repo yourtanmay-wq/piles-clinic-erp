@@ -20,6 +20,20 @@ package com.tkbiswas.pilesclinic.native
  */
 object TrashCardText {
 
+    /** ISO তারিখ (yyyy-MM-dd, বা তার সাথে সময়/অক্ষর জোড়া থাকলেও প্রথম ১০ অক্ষর
+     *  ধরে) → DOT ফরম্যাট (dd.MM.yyyy) — প্রজেক্টের সর্বত্র ব্যবহৃত একই নিয়ম।
+     *  ⛔ পার্স ব্যর্থ হলে (ফাঁকা/অচেনা ফরম্যাট) আসল লেখাটাই অক্ষত ফেরত যায় —
+     *     কখনো কিছু হারায় না, শুধু বদলায় না।
+     */
+    private fun dotDate(raw: String): String {
+        val v = raw.trim()
+        if (v.isBlank()) return v
+        return try {
+            val d = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(v.take(10))
+            java.text.SimpleDateFormat("dd.MM.yyyy", java.util.Locale.US).format(d!!)
+        } catch (_: Throwable) { v }
+    }
+
     /** কোন টেবিল থেকে মোছা — চিপে দেখানোর নাম। */
     fun sourceLabel(table: String): String = when (table.trim().lowercase()) {
         "followups" -> "FOLLOW-UP"
@@ -52,6 +66,23 @@ object TrashCardText {
         } catch (_: Throwable) { item.deletedBy }
     }
 
+    /**
+     * 🟢🔒🔒 V660 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবি-প্রুফ পাশ) — "কবে মুছেছে" আর
+     * "কে মুছেছে" এখন **একই লাইনে পাশাপাশি** (আগে দুটো আলাদা জায়গায় ছিল —
+     * একটা কার্ডের ডান-উপরে, আরেকটা নিচে আলাদা সারিতে, যা বাড়তি জায়গা নিত)।
+     * ⛔ দুটো তথ্যই অক্ষত, কোনো ঘর/হিসাব বদলায়নি — শুধু দেখানোর জায়গা।
+     */
+    fun whenAndBy(item: TrashItem): String {
+        val w = whenText(item).replace("\n", ", ")
+        val by = deletedByName(item)
+        return when {
+            w.isNotBlank() && by.isNotBlank() -> "🗑 $w · Deleted by $by"
+            w.isNotBlank() -> "🗑 $w"
+            by.isNotBlank() -> "🗑 Deleted by $by"
+            else -> ""
+        }
+    }
+
     /** তৃতীয় চিপ — টাকার অঙ্ক (payments) বা রোগের নাম (বাকিদের)। */
     fun extraChip(item: TrashItem): String {
         val r = item.record
@@ -65,25 +96,42 @@ object TrashCardText {
         return ""
     }
 
-    /** কার্ডের ১ম লাইন — মোবাইল ও পেশেন্ট আইডি। */
+    /**
+     * কার্ডের ১ম লাইন — মোবাইল ও পেশেন্ট আইডি।
+     * 🟢🔒 V660 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবি-প্রুফ পাশ) — আইডি না থাকলে
+     * (যেমন Enquiry-তে, যার কোনো Patient ID হয় না) এখন এই একই লাইনেই
+     * রেকর্ডের নিজের তারিখ বসে (dot-ফরম্যাটে) — আগে সেটা আলাদা লাইনে
+     * (line2) একাই থাকত, বাড়তি জায়গা নিত।
+     */
     fun line1(item: TrashItem): String {
         val r = item.record
         val parts = mutableListOf<String>()
         val mob = r.s("mobile").trim()
         if (mob.isNotBlank()) parts.add("📞 $mob")
         val pid = r.s("patientId").trim().ifBlank { r.s("patientCode").trim() }
-        if (pid.isNotBlank()) parts.add(pid)
+        if (pid.isNotBlank()) {
+            parts.add(pid)
+        } else {
+            // 🟢🔒 V660 — আইডি নেই (Enquiry) — তাই তারিখটাই এখানে পাশাপাশি বসে।
+            val d = r.s("date").trim()
+            if (d.isNotBlank()) parts.add(dotDate(d))
+        }
         return parts.joinToString("  ·  ")
     }
 
-    /** কার্ডের ২য় লাইন — টেবিল অনুযায়ী সবচেয়ে দরকারি ঘরগুলো। */
+    /**
+     * কার্ডের ২য় লাইন — টেবিল অনুযায়ী সবচেয়ে দরকারি ঘরগুলো।
+     * 🟢🔒 V660 — সব তারিখ এখন dot-ফরম্যাটে (আগে raw ISO "2026-08-20" দেখাত)।
+     * ⛔ Enquiry-র ক্ষেত্রে তারিখ এখন line1-এই বসে (উপরে) — তাই এখানে আর
+     *    আলাদা করে বসে না, খালি হলে লাইনটাই দেখা যায় না (কার্ড আরও ছোট)।
+     */
     fun line2(item: TrashItem): String {
         val r = item.record
         val parts = mutableListOf<String>()
         when (item.table.trim().lowercase()) {
             "payments" -> {
                 addIf(parts, r.s("payType").trim())
-                addIf(parts, r.s("date").trim())
+                addDateIf(parts, r.s("date").trim())
                 addIf(parts, r.s("mode").trim())
                 val by = r.s("receivedBy").trim()
                 if (by.isNotBlank()) parts.add("by $by")
@@ -93,20 +141,21 @@ object TrashCardText {
                 val st = r.s("status").trim()
                 if (st.isNotBlank()) parts.add(st)
                 val nf = r.s("nextFollow").trim()
-                if (nf.isNotBlank()) parts.add("Next call $nf")
+                if (nf.isNotBlank()) parts.add("Next call " + dotDate(nf))
             }
             "patients" -> {
-                addIf(parts, r.s("registrationDate").trim())
+                addDateIf(parts, r.s("registrationDate").trim())
                 val bill = r.s("bill").trim()
                 if (bill.isNotBlank() && bill != "0") parts.add("Bill ₹$bill")
                 addIf(parts, r.s("stage").trim())
             }
             "enquiries" -> {
-                addIf(parts, r.s("date").trim())
+                // 🟢🔒 V660 — তারিখ এখন line1-এই (আইডি না থাকলে সেখানে বসে),
+                // তাই এখানে শুধু refBy — ডুপ্লিকেট তারিখ নেই।
                 addIf(parts, r.s("refBy").trim())
             }
             else -> {
-                addIf(parts, r.s("date").trim())
+                addDateIf(parts, r.s("date").trim())
                 addIf(parts, r.s("stage").trim())
             }
         }
@@ -115,6 +164,11 @@ object TrashCardText {
 
     private fun addIf(list: MutableList<String>, v: String) {
         if (v.isNotBlank()) list.add(v)
+    }
+
+    /** 🟢🔒 V660 — addIf-এর তারিখ-সংস্করণ, dot-ফরম্যাটে বসায়। */
+    private fun addDateIf(list: MutableList<String>, v: String) {
+        if (v.isNotBlank()) list.add(dotDate(v))
     }
 
     /**
@@ -129,6 +183,11 @@ object TrashCardText {
             val v = r.s(key).trim()
             if (v.isNotBlank()) out.add(label to v)
         }
+        // 🟢🔒 V660 (২৫.০৮.২০২৬) — তারিখ-ঘরের জন্য, dot-ফরম্যাটে বসায়।
+        fun addDate(label: String, key: String) {
+            val v = r.s(key).trim()
+            if (v.isNotBlank()) out.add(label to dotDate(v))
+        }
         out.add("From" to sourceLabel(item.table))
         add("Name", "name")
         add("Mobile", "mobile")
@@ -141,7 +200,7 @@ object TrashCardText {
                 add("Pay type", "payType")
                 add("Amount", "amount")
                 add("Mode", "mode")
-                add("Date", "date")
+                addDate("Date", "date")
                 add("Received by", "receivedBy")
                 add("Remarks", "remarks")
             }
@@ -151,9 +210,9 @@ object TrashCardText {
                 add("Disease", "disease")
                 add("Address", "address")
                 add("Last remark", "lastRemark")
-                add("Next call", "nextFollow")
+                addDate("Next call", "nextFollow")
                 add("Call count", "callCount")
-                add("Record date", "date")
+                addDate("Record date", "date")
             }
             "patients" -> {
                 add("Age", "age")
@@ -165,19 +224,19 @@ object TrashCardText {
                 add("Bill", "bill")
                 add("Discount", "discount")
                 add("Referred by", "refBy")
-                add("Registration date", "registrationDate")
+                addDate("Registration date", "registrationDate")
             }
             "enquiries" -> {
                 add("Disease", "disease")
                 add("Address", "address")
                 add("Referred by", "refBy")
-                add("Date", "date")
+                addDate("Date", "date")
                 add("Remarks", "remarks")
             }
             else -> {
                 add("Stage", "stage")
                 add("Status", "status")
-                add("Date", "date")
+                addDate("Date", "date")
                 add("Remarks", "remarks")
             }
         }

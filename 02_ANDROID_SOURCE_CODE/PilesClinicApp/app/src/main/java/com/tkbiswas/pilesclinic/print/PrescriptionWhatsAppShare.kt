@@ -73,6 +73,29 @@ object PrescriptionWhatsAppShare {
     @Suppress("StaticFieldLeak")
     private var keepAlive: WebView? = null
 
+    /**
+     * 🟢🔒🔒 V639 (২৪.০৮.২০২৬, TK-রিপোর্ট, ছবিসহ — "Preparing PDF... এটা কি
+     * হচ্ছে? Share তো হচ্ছেই না") — **আসল কারণ:** এই WebView-টা তৈরি করেই
+     * সরাসরি measure()/layout() (হাতে-করা) ডাকা হত, কিন্তু কখনো পর্দার
+     * আসল View-কাঠামোয় (window) যুক্তই করা হত না। কিছু ফোনের (বিশেষত
+     * Xiaomi/MIUI-এর মতো কাস্টম WebView, এই ফাইলেরই উপরের মন্তব্যে আগে থেকে
+     * স্বীকৃত সীমাবদ্ধতা) নিজস্ব WebView রেন্ডারার এমন "window-এ কখনো যুক্ত
+     * হয়নি" WebView-এর onPageFinished/জাভাস্ক্রিপ্ট/আঁকা নির্ভরযোগ্যভাবে
+     * চালায় না — তাই "Preparing PDF…" টোস্ট দেখানোর পরে কিছুই এগোত না, কোনো
+     * error-ও আসত না (পুরো কাজটাই নিঃশব্দে থেমে যেত)।
+     * **সমাধান:** WebView-টা এখন সত্যিই পর্দার (activity-র android.R.id.content)
+     * সাথে যুক্ত থাকে — আকারে ১×১ পিক্সেল ও অদৃশ্য (INVISIBLE), তাই চোখে
+     * কখনো দেখা যায় না, কিন্তু ফোনের আসল রেন্ডারিং-পথ দিয়েই চলে। কাজ শেষ
+     * হলে (সফল/ব্যর্থ দুটোতেই) সাথে সাথে সরিয়ে ফেলা হয়।
+     */
+    private fun detachKeepAlive() {
+        try {
+            val wv = keepAlive
+            (wv?.parent as? android.view.ViewGroup)?.removeView(wv)
+        } catch (_: Throwable) { }
+        keepAlive = null
+    }
+
     // 🔴 V501: আগে এই তিনটে তথ্য `PrintDocumentModel`-এর ভিতর থেকে নেওয়া হতো।
     //    এখন যেকোনো HTML চলে বলে আলাদা করে রাখা হয় (একবারে একটাই শেয়ার চলে,
     //    তাই এতে গোলমালের সুযোগ নেই — WebView-ও একটাই `keepAlive`)।
@@ -128,6 +151,15 @@ object PrescriptionWhatsAppShare {
             }
         }
         keepAlive = wv
+        // 🟢🔒 V639 — WebView-টা সত্যিই পর্দার সাথে যুক্ত থাকে (১×১ পিক্সেল,
+        // অদৃশ্য) — নইলে কিছু ফোনে (MIUI-এর মতো) onPageFinished/আঁকা
+        // নির্ভরযোগ্যভাবে চলে না। ব্যর্থ হলেও (যেমন content root না পাওয়া
+        // গেলে) আগের মতোই detached ভাবে চলার চেষ্টা করে — কিছু ভাঙে না।
+        try {
+            val root = activity.findViewById<android.view.ViewGroup>(android.R.id.content)
+            wv.visibility = View.INVISIBLE
+            root.addView(wv, android.view.ViewGroup.LayoutParams(1, 1))
+        } catch (_: Throwable) { }
         layoutAt(wv, A4_HEIGHT_PX)
         // baseURL = file:///android_asset/  → লোগোর ছবি রিজলভ হয় (ছাপার পথের মতোই)।
         wv.loadDataWithBaseURL("file:///android_asset/", html, "text/html", "UTF-8", null)
@@ -169,7 +201,7 @@ object PrescriptionWhatsAppShare {
             // নাম আলাদা রাখা হয়, যাতে পুরনো ফাইল ভুল করে WhatsApp-এ না যায়।
             outFile = File(dir, "${safeTitle}_${safeName}_${System.currentTimeMillis()}.pdf")
         } catch (e: Throwable) {
-            keepAlive = null; fail(activity, "Could not create the file: ${e.message}"); return
+            detachKeepAlive(); fail(activity, "Could not create the file: ${e.message}"); return
         }
 
         val document = PdfDocument()
@@ -198,7 +230,7 @@ object PrescriptionWhatsAppShare {
             fail(activity, "Could not build the PDF: ${e.message}")
         } finally {
             try { document.close() } catch (_: Throwable) { }
-            keepAlive = null
+            detachKeepAlive()
         }
         if (!built) return
 
@@ -275,7 +307,7 @@ object PrescriptionWhatsAppShare {
     }
 
     private fun fail(activity: Activity, message: String) {
-        keepAlive = null
+        detachKeepAlive()
         try { Toast.makeText(activity, message, Toast.LENGTH_LONG).show() } catch (_: Throwable) { }
     }
 }

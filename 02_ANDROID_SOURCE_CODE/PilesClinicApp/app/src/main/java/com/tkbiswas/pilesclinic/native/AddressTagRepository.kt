@@ -73,10 +73,24 @@ object AddressTagRepository {
     }
 
     /** পর্দায় দেখানোর ডিফল্ট — TK-এর সিদ্ধান্ত: **থানা**। না থাকলে যা আছে
-     *  তার প্রথমটা (গ্রাম/পোস্ট/জেলা), সবই ফাঁকা হলে খালি স্ট্রিং। */
+     *  তার প্রথমটা (গ্রাম/পোস্ট/জেলা), সবই ফাঁকা হলে খালি স্ট্রিং।
+     *
+     * 🔴🔒 V680 (২৫.০৮.২০২৬, TK-লাইভ-টেস্ট রিপোর্ট — "Follow-up কার্ডে
+     * JALPAIGURI | PILES-এর পাশে ঠিকানা কেন নেই") — আসল কারণ: Enquiry-র
+     * ঠিকানা প্রায়ই সাধারণ এক-লাইনের লেখা (যেমন "RANI HAAT"), কোনো
+     * "Vill: X, PO: Y" গঠন থাকে না — তাই `parseAddress()` কিছুই খুঁজে
+     * পেত না, ট্যাগ ফাঁকা থেকে যেত (অথচ Timeline-এর ঠিকানা ঠিকই দেখাত,
+     * কারণ ওখানে raw address সরাসরি দেখানো হয়, parse করা হয় না)।
+     * সমাধান: গঠন-করা ঠিকানা না পাওয়া গেলে, raw ঠিকানাটাই (ছোট করে,
+     * প্রথম অংশ) ট্যাগ হিসেবে ব্যবহার হয় — তাই কখনো নীরবে হারায় না। */
     fun defaultTagFromAddress(address: String): String {
         val parts = parseAddress(address)
-        return parts["THANA"] ?: parts["VILLAGE"] ?: parts["POST"] ?: parts["DISTRICT"] ?: ""
+        val structured = parts["THANA"] ?: parts["VILLAGE"] ?: parts["POST"] ?: parts["DISTRICT"]
+        if (structured != null) return structured
+        val raw = address.trim()
+        if (raw.isBlank()) return ""
+        // কমা দিয়ে ভাগ করা থাকলে প্রথম অংশটাই যথেষ্ট (ছোট, পরিষ্কার ট্যাগ)।
+        return raw.split(",").first().trim()
     }
 
     /**

@@ -29,7 +29,8 @@ object TreatmentQuickNotes {
     private val QUICK_BN = listOf(
         "CHECK-UP করা হলো", "KTA করা হল", "DRESSING করা হল",
         "KSHAR SUTRA করা হল", "KSHAR SUTRA ক্লিয়ার করা হল", "MEDICINE দেওয়া হল",
-        "TEST করতে পাঠানো হল", "MACHINE এর কাজ করা হল", "LIS করা হল"
+        "TEST করতে পাঠানো হল", "MACHINE এর কাজ করা হল", "LIS করা হল",
+        "Visit Return করা হল"   // 🟢🔒 V615 (২৪.০৮.২০২৬, TK-নির্দেশ)
     )
 
     /** 🔓 TK-এর অনুমতি (31.07.2026): শুধু বাংলা-বন্ধ স্টাফের (KNE-KISHAN5) জন্য। */
@@ -42,7 +43,8 @@ object TreatmentQuickNotes {
         "MEDICINE given / दवा दे दी गई",
         "TEST sent / टेस्ट के लिए भेजा गया",
         "MACHINE work done / मशीन का काम हो गया",
-        "LIS done / LIS हो गया"
+        "LIS done / LIS हो गया",
+        "Visit Return done / विज़िट रिटर्न हो गया"   // 🟢🔒 V615
     )
 
     /** যে তালিকাটা এই স্টাফ দেখবেন। */

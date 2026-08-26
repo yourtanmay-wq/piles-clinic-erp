@@ -92,7 +92,19 @@ data class ChamberAttendanceRow(
     // 🔴🔒 V471 (20.08.2026, TK-অনুমোদিত) — রোগীর নামের নিচে রেফারিং RMP-র
     // নাম (থাকলে) দেখানোর জন্য। ⛔ Display-only, বাকি কোনো হিসাব/সংখ্যা
     // এই ঘরের উপর নির্ভর করে না।
-    val refDoctor: String = ""
+    val refDoctor: String = "",
+    // 🟢🔒 V612 (২৪.০৮.২০২৬, TK-নির্দেশ, "খুব নিরাপদে") — ওষুধ-বিক্রির
+    // Cash/Online আলাদা করে ধরার জন্য। ⛔ ডিফল্ট 0.0 — paymentCash/
+    // paymentOnline-এর হিসাব এক অক্ষরও বদলায়নি (ওষুধের টাকা এখনো তাতেও
+    // যোগ হয়, এটা শুধু বাড়তি, আলাদা করে গোনা)।
+    val medicineCash: Double = 0.0,
+    val medicineOnline: Double = 0.0,
+    // 🟢🔒🔒 V654 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবিসহ — "গত দিনের ট্রিটমেন্ট
+    // প্রগ্রেস যেন হাইড থাকে, আজকেরটা উজ্জ্বল থাকে") — `remark` ঘরের
+    // লেখাটা **কবে** লেখা হয়েছিল (YYYY-MM-DD), যাতে UI নিজে বুঝতে পারে
+    // এটা আজকের নাকি আগের দিনের লেখা। ⛔ ডিফল্ট ফাঁকা — পুরোনো কোনো
+    // ব্যবহার ভাঙে না।
+    val remarkUpdatedAt: String = ""
 )
 
 data class ChamberAttendanceTotals(
@@ -102,7 +114,10 @@ data class ChamberAttendanceTotals(
     val paymentOnline: Double,
     val expectedCount: Int,
     val arrivedCount: Int,
-    val noShowCount: Int
+    val noShowCount: Int,
+    // 🟢🔒 V612 — উপরের ChamberAttendanceRow-এর মতোই কারণ। ⛔ ডিফল্ট 0.0।
+    val medicineCash: Double = 0.0,
+    val medicineOnline: Double = 0.0
 )
 
 data class ChamberAttendanceBoard(
@@ -284,11 +299,13 @@ object ChamberAttendanceRepository {
                         expected = r.optBoolean("expected", false), arrived = r.optBoolean("arrived", false),
                         feesCash = r.optDouble("feesCash", 0.0), feesOnline = r.optDouble("feesOnline", 0.0),
                         paymentCash = r.optDouble("paymentCash", 0.0), paymentOnline = r.optDouble("paymentOnline", 0.0),
+                        medicineCash = r.optDouble("medicineCash", 0.0), medicineOnline = r.optDouble("medicineOnline", 0.0),   // 🟢🔒 V612 (পুরোনো cache-এ নেই ⇒ 0.0)
                         remark = r.optString("remark", ""),
                         whatHappened = r.optJSONArray("whatHappened")?.let { arr -> (0 until arr.length()).map { arr.getString(it) } } ?: emptyList(),
                         followUpId = r.optString("followUpId", ""), patientId = r.optString("patientId", ""),
                         arrivedAt = r.optString("arrivedAt", ""), refDoctor = r.optString("refDoctor", ""),
-                        patientRowId = r.optString("patientRowId", "")   // 🔵 V526 (পুরোনো cache-এ নেই ⇒ ফাঁকা, আগের আচরণ)
+                        patientRowId = r.optString("patientRowId", ""),
+                        remarkUpdatedAt = r.optString("remarkUpdatedAt", "")   // 🟢🔒 V654 (পুরোনো cache-এ নেই ⇒ ফাঁকা)   // 🔵 V526 (পুরোনো cache-এ নেই ⇒ ফাঁকা, আগের আচরণ)
                     )
                 )
             }
@@ -338,15 +355,18 @@ object ChamberAttendanceRepository {
                         .put("disease", row.disease).put("expected", row.expected).put("arrived", row.arrived)
                         .put("feesCash", row.feesCash).put("feesOnline", row.feesOnline)
                         .put("paymentCash", row.paymentCash).put("paymentOnline", row.paymentOnline)
+                        .put("medicineCash", row.medicineCash).put("medicineOnline", row.medicineOnline)   // 🟢🔒 V612
                         .put("remark", row.remark).put("whatHappened", org.json.JSONArray(row.whatHappened))
                         .put("followUpId", row.followUpId).put("patientId", row.patientId).put("arrivedAt", row.arrivedAt)
                         .put("refDoctor", row.refDoctor)
                         .put("patientRowId", row.patientRowId)   // 🔵 V526
+                        .put("remarkUpdatedAt", row.remarkUpdatedAt)   // 🟢🔒 V654
                 )
             }
             val totalsObj = org.json.JSONObject()
                 .put("feesCash", board.totals.feesCash).put("feesOnline", board.totals.feesOnline)
                 .put("paymentCash", board.totals.paymentCash).put("paymentOnline", board.totals.paymentOnline)
+                .put("medicineCash", board.totals.medicineCash).put("medicineOnline", board.totals.medicineOnline)   // 🟢🔒 V612
                 .put("expectedCount", board.totals.expectedCount).put("arrivedCount", board.totals.arrivedCount)
                 .put("noShowCount", board.totals.noShowCount)
             val out = org.json.JSONObject().put("rows", rowsArr).put("totals", totalsObj)
@@ -415,6 +435,8 @@ object ChamberAttendanceRepository {
             feesOnline = rows.sumOf { it.feesOnline },
             paymentCash = rows.sumOf { it.paymentCash },
             paymentOnline = rows.sumOf { it.paymentOnline },
+            medicineCash = rows.sumOf { it.medicineCash },     // 🟢🔒 V612
+            medicineOnline = rows.sumOf { it.medicineOnline }, // 🟢🔒 V612
             expectedCount = rows.count { it.expected && !it.arrived },
             arrivedCount = rows.count { it.arrived },
             noShowCount = rows.count { it.expected && !it.arrived }
@@ -788,6 +810,7 @@ object ChamberAttendanceRepository {
                     "name" to name, "mobile" to mobile, "branch" to branch, "disease" to disease,
                     "expected" to false, "arrived" to false,
                     "feesCash" to 0.0, "feesOnline" to 0.0, "paymentCash" to 0.0, "paymentOnline" to 0.0,
+                    "medicineCash" to 0.0, "medicineOnline" to 0.0,   // 🟢🔒 V612
                     "remark" to "", "happened" to mutableListOf<String>(), "followUpId" to "", "patientId" to "",
                     "arrivedAt" to "", "refDoctor" to "",
                     // TK-REQUESTED (2026-07-24): itemized payment lines for
@@ -895,12 +918,46 @@ object ChamberAttendanceRepository {
             // for this row, used to print in actual chronological order
             // (not alphabetical) -- first-writer-wins so the true earliest
             // event of the day always sticks.
+            // 🔴🔴🔒 V654 (২৫.০৮.২০২৬, TK-রিপোর্ট, ছবিসহ — "নামের নিচের
+            // তারিখ/সময় আজকেরটা না, প্রথম-ভিজিটের পুরনো তারিখ দেখাচ্ছে")
+            // — **আসল কারণ (কোড ধরে যাচাই, Sukanta Roy-র Timeline দিয়ে
+            // প্রমাণিত):** এই লুপ `patients` টেবিলের **প্রতিটা** সারিতে
+            // চলে — শুধু আজ নতুন-রেজিস্ট্রেশন নয়, আজ চেম্বারে থাকা **সব**
+            // (পুরনো) রোগীও এতে থাকেন। আগে এখানে `row.s("createdAt")`
+            // (রোগীর সারি **কবে তৈরি হয়েছিল**, অর্থাৎ তাঁর **প্রথম**
+            // রেজিস্ট্রেশনের সময়) নিঃশর্তে `arrivedAt`-এ বসত — পুরনো
+            // রোগীর জন্য এটা সপ্তাহ/মাস আগের তারিখ! আর যেহেতু এই লুপ
+            // Payment-লুপের **আগে** চলে (first-writer-wins), এই ভুল পুরনো
+            // তারিখটাই "জিতে" যেত, আজকের আসল পেমেন্ট-সময়কে কখনো বসতে
+            // দিত না — ঠিক TK-এর স্ক্রিনশটে যা দেখা গেছে।
+            // **সমাধান:** `createdAt` তখনই fallback হিসেবে ব্যবহার হবে
+            // যখন এই সারিটা **সত্যিই আজই তৈরি হয়েছে** (`createdAt`-এর
+            // তারিখ অংশ আজকের `date`-এর সাথে মেলে) — পুরনো রোগীর জন্য
+            // এই fallback আর কখনো ভুল পুরনো তারিখ বসাবে না, Payment-লুপের
+            // সত্যিকারের আজকের timestamp-ই এখন ঠিকভাবে বসবে।
+            // ⛔ নতুন রেজিস্ট্রেশনের (আজই তৈরি) ক্ষেত্রে আচরণ অপরিবর্তিত।
             val createdAt = row.s("createdAt")
-            if (createdAt.isNotBlank() && (byMobile[m]?.get("arrivedAt") as? String).isNullOrBlank()) {
+            if (createdAt.isNotBlank() && createdAt.take(10) == date &&
+                (byMobile[m]?.get("arrivedAt") as? String).isNullOrBlank()) {
                 byMobile[m]?.set("arrivedAt", createdAt)
             }
             (byMobile[m]?.get("happened") as? MutableList<String>)?.add("New Registration")
         }
+
+        // 🔴🔒 V687 (২৫.০৮.২০২৬, TK-নির্দেশ, গভীরে যাচাই করে — "Treatment
+        // Progress ঘরে আজকের লেখা নয়, আগের কল/ভিজিটের রিমার্ক দেখাচ্ছে")।
+        // **আসল কারণ:** এই বোর্ডের "remark" এতদিন `followups.lastRemark`
+        // থেকে আসত — যে কলামে ফোন-কল লগও (Follow-up screen থেকে "CALL NOT
+        // RECEIVED" ইত্যাদি) সেভ হয়, একই কলামে। যেটা সবচেয়ে শেষে সেভ
+        // হয়েছে সেটাই দেখাত — চেম্বারের ট্রিটমেন্ট নোট হোক বা ফোন-কলের
+        // নোট, তারিখ মিললেই আলাদা করা যেত না।
+        // **প্রমাণিত সঠিক উৎস:** `payments.progress` — V590-এ ইতিমধ্যে
+        // বানানো, শুধু চেম্বার-ট্রিটমেন্ট Save হলেই বসে (`syncProgressToReportCard`),
+        // ফোন-কল কখনো এই ঘর ছোঁয় না। এই একই ঘর Report Card পড়ে, তাই এখন
+        // বোর্ড ও Report Card **একই সোর্স** থেকে আসছে — কখনো আলাদা হবে না।
+        // ⛔ কোনো নতুন cloud-কল লাগেনি — নিচের payments-লুপেই (আগে থেকে
+        //    আনা) `progress` ঘরটা পড়া হচ্ছে।
+        val hasProgressToday = HashSet<String>()
 
         for (i in 0 until payments.length()) {
             val row = payments.optJSONObject(i) ?: continue
@@ -914,6 +971,18 @@ object ChamberAttendanceRepository {
             val m = keyFor(row.s("mobile"), row.s("patientId"))
             ensure(m, row.s("mobile"), row.s("name"), row.s("branch"), "")
             val entry = byMobile[m] ?: continue
+            // 🔴🔒 V687 — এই সারি (আজকের/এই বোর্ডের দিনের payments) যদি
+            // `progress` নিয়ে আসে (writeTreatment-এর syncProgressToReportCard
+            // এটা বসায়), সেটাই এই বোর্ডের "remark" — ফোন-কল কখনো এই ঘর
+            // লেখে না, তাই এখানে এলে সত্যিই আজকের চেম্বার-নোট।
+            val progressToday = row.optString("progress", "")
+            if (progressToday.isNotBlank()) {
+                entry["remark"] = progressToday
+                // 🔴🔒 V687 — এই payments সারিই এই বোর্ডের নিজের `date`-এর
+                // (তাই "আজকের", V654-এর সবুজ রং ঠিকভাবে দেখানোর জন্য)।
+                entry["remarkUpdatedAt"] = date + "T00:00:00.000Z"
+                hasProgressToday.add(m)
+            }
             // 🚨 TK-REPORTED, LIVE (29.07.2026 বিকেল ৪.২১, ছবিসহ · খাতার সারি B109
             //     — MANISH PASWAN · 7258092776): *"Fees 400/- দিয়েছে দেখাচ্ছে,
             //     তাহলে Patient ID নেই কেন?"*
@@ -1028,6 +1097,14 @@ object ChamberAttendanceRepository {
             } else {
                 entry["paymentCash"] = (entry["paymentCash"] as Double) + split.first
                 entry["paymentOnline"] = (entry["paymentOnline"] as Double) + split.second
+                // 🟢🔒 V612 (২৪.০৮.২০২৬, TK-নির্দেশ) — একই টাকা paymentCash/
+                // paymentOnline-এও যোগ হলো (উপরের লাইন দুটো অক্ষত) — শুধু
+                // ওষুধ হলে **বাড়তি** আলাদা করে ধরে রাখা হচ্ছে, প্রিন্টে
+                // Medicine-এর নিজস্ব Cash/Online লাইন দেখানোর জন্য।
+                if (srcLabel == "Medicine Payment") {
+                    entry["medicineCash"] = (entry["medicineCash"] as Double) + split.first
+                    entry["medicineOnline"] = (entry["medicineOnline"] as Double) + split.second
+                }
             }
             val label = row.s("payLabel").ifBlank { row.s("paymentLabel").ifBlank { "Payment" } }
             (entry["happened"] as? MutableList<String>)?.add("$label ₹${"%,.0f".format(amount)}")
@@ -1080,21 +1157,41 @@ object ChamberAttendanceRepository {
         // দেখাবে, প্রসেস-করার ক্রম যাই হোক না কেন। ⛔ followUpId/bestStage-এর
         // পুরনো আচরণ (কোন সারিতে future writes যাবে) এক অক্ষরও বদলায়নি।
         val bestRemarkPriority = HashMap<String, Int>()
+        /* 🟢🔒🔒 V638 (২৪.০৮.২০২৬, TK-রিপোর্ট — "KAPIL DAS ৩য় ভিজিট, তাও
+           Treatment Progress আবার ফাঁকা দেখাচ্ছে") — একাধিকবার আসা রোগীর
+           নামে একই stage-এর একাধিক `followups` সারি থাকতে পারে (প্রতি
+           ভিজিটে একটা করে)। আগে সমান stage-এ **যেটা পরে processed হতো
+           সেটাই** (`>=`) জিততো — ক্রম-নির্ভর, তাই কখনো আজকের ভিজিটের
+           সারিটা জিততো, কখনো পুরনো ভিজিটেরটা। এখন সমান stage-এ
+           **সবচেয়ে সাম্প্রতিক** (updatedAt/createdAt) সারিটাই জেতে —
+           ঠিক ChamberAttendanceActivity ফাইলের resolveBestFollowUpId
+           ফাংশনের একই তারিখ-ভিত্তিক টাই-ব্রেকার, দুই জায়গাতেই এখন এক
+           নিয়ম, তাই save আর board — দুটোই সবসময় একই সারি বেছে নেয়। */
+        val bestStageUpdatedAt = HashMap<String, String>()
+        val bestRemarkUpdatedAt = HashMap<String, String>()
         for (fu in todaysFollowUps) {
             /* 🔵🔒 V526: Follow-up সারিতে `refId` = রোগীর সারির আইডি
                (V518-এ কোডে প্রমাণিত)। তাই রিমার্ক ঠিক রোগীর সারিতেই বসে। */
             val m = keyFor(fu.s("mobile"), fu.s("refId"))
             val pr = stagePriority(fu.s("stage"))
-            if (pr >= (bestStageByMobile[m] ?: -1)) {
+            val ua = fu.s("updatedAt").ifBlank { fu.s("createdAt") }
+            if (pr > (bestStageByMobile[m] ?: -1) || (pr == bestStageByMobile[m] && ua > (bestStageUpdatedAt[m] ?: ""))) {
                 bestStageByMobile[m] = pr
+                bestStageUpdatedAt[m] = ua
                 val fid = fu.s("id")
                 if (fid.isNotBlank()) byMobile[m]?.set("followUpId", fid)
             }
             val remark = fu.s("lastRemark")
             // 🔒 V236 (TK — সমস্যা-৩): অ্যাপের নিজের auto-label progress সেজে দেখাবে না।
-            if (remark.isNotBlank() && !isAppAutoRemark(remark) && pr >= (bestRemarkPriority[m] ?: -1)) {
+            // 🔴🔒 V687 — `m !in hasProgressToday`: আজকের আসল চেম্বার-নোট
+            // (payments.progress) ইতিমধ্যে বসে থাকলে ফোন-কল/পুরনো
+            // followups.lastRemark সেটা ওভাররাইট করবে না।
+            if (m !in hasProgressToday && remark.isNotBlank() && !isAppAutoRemark(remark) &&
+                (pr > (bestRemarkPriority[m] ?: -1) || (pr == bestRemarkPriority[m] && ua > (bestRemarkUpdatedAt[m] ?: "")))) {
                 bestRemarkPriority[m] = pr
+                bestRemarkUpdatedAt[m] = ua
                 byMobile[m]?.set("remark", remark)
+                byMobile[m]?.set("remarkUpdatedAt", ua)   // 🟢🔒 V654
             }
         }
         // Also pick up remarks/followUpId for mobiles that arrived/expected
@@ -1109,16 +1206,21 @@ object ChamberAttendanceRepository {
                 val m = keyFor(fu.s("mobile"), fu.s("refId"))   // 🔵 V526: একই চাবি
                 if (m !in stillMissing) continue
                 val pr = stagePriority(fu.s("stage"))
-                if (pr >= (bestStageByMobile[m] ?: -1)) {
+                val ua = fu.s("updatedAt").ifBlank { fu.s("createdAt") }   // 🟢🔒 V638
+                if (pr > (bestStageByMobile[m] ?: -1) || (pr == bestStageByMobile[m] && ua > (bestStageUpdatedAt[m] ?: ""))) {
                     bestStageByMobile[m] = pr
+                    bestStageUpdatedAt[m] = ua
                     val fid = fu.s("id")
                     if (fid.isNotBlank()) byMobile[m]?.set("followUpId", fid)
                 }
                 val remark = fu.s("lastRemark")
                 // 🔒 V236 (TK — সমস্যা-৩): অ্যাপের নিজের auto-label progress সেজে দেখাবে না।
-                if (remark.isNotBlank() && !isAppAutoRemark(remark) && pr >= (bestRemarkPriority[m] ?: -1)) {
+                if (remark.isNotBlank() && !isAppAutoRemark(remark) &&
+                    (pr > (bestRemarkPriority[m] ?: -1) || (pr == bestRemarkPriority[m] && ua > (bestRemarkUpdatedAt[m] ?: "")))) {
                     bestRemarkPriority[m] = pr
+                    bestRemarkUpdatedAt[m] = ua
                     byMobile[m]?.set("remark", remark)
+                    byMobile[m]?.set("remarkUpdatedAt", ua)   // 🟢🔒 V654
                 }
             }
         }
@@ -1199,6 +1301,8 @@ object ChamberAttendanceRepository {
                 feesOnline = v["feesOnline"] as Double,
                 paymentCash = v["paymentCash"] as Double,
                 paymentOnline = v["paymentOnline"] as Double,
+                medicineCash = v["medicineCash"] as? Double ?: 0.0,     // 🟢🔒 V612
+                medicineOnline = v["medicineOnline"] as? Double ?: 0.0, // 🟢🔒 V612
                 remark = v["remark"] as String,
                 whatHappened = (v["happened"] as? MutableList<String>) ?: emptyList(),
                 followUpId = v["followUpId"] as? String ?: "",
@@ -1206,7 +1310,8 @@ object ChamberAttendanceRepository {
                 paymentLines = (v["paymentLines"] as? MutableList<String>) ?: emptyList(),
                 arrivedAt = v["arrivedAt"] as? String ?: "",
                 refDoctor = v["refDoctor"] as? String ?: "",
-                patientRowId = v["patientRowId"] as? String ?: ""   // 🔵 V526
+                patientRowId = v["patientRowId"] as? String ?: "",   // 🔵 V526
+                remarkUpdatedAt = v["remarkUpdatedAt"] as? String ?: ""   // 🟢🔒 V654
             )
         }.sortedWith(
             // Arrived-but-not-expected (walk-ins) and expected-and-arrived
@@ -1226,7 +1331,14 @@ object ChamberAttendanceRepository {
             compareByDescending<ChamberAttendanceRow> { it.arrived }
                 .thenBy { it.arrivedAt.ifBlank { "9999" } }
                 .thenBy { it.name }
-        ).let { dropGhostRows(it) }
+        ).let { dropGhostRows(it) }.let { list ->
+            // 🟢🔒 V621 (২৪.০৮.২০২৬, TK-নির্দেশ) — "Fees Return" করা রোগী
+            // Chamber Date থেকে **সম্পূর্ণ বাদ** (সারিসহ, শুধু টাকা লুকানো
+            // না — Cancelled-এর পুরনো নিয়ম থেকে ইচ্ছাকৃতভাবে আলাদা)।
+            // ⛔ ব্যর্থ হলে (নেট/এরর) খালি সেট ফেরে — কারো সারি ভুলবশত বাদ যায় না।
+            val returned = try { RefundedRecords.fetchReturnedVisits(branchFilter) } catch (_: Throwable) { HashSet() }
+            if (returned.isEmpty()) list else list.filter { it.mobile.filter { c -> c.isDigit() }.takeLast(10) !in returned }
+        }
             // TK-DECISION (2026-07-22, option "ক"): a pure Enquiry (only
             // enquired today, has NOT arrived and was NOT deliberately Marked
             // Expected) must NOT appear on the Chamber board at all -- so a

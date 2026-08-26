@@ -200,33 +200,23 @@ class MedicineSlipActivity : AppCompatActivity() {
             }
         ) {
             refreshMedicineList()
-            // TK APPROVED (2026-07-15): printing matters more than just having it
-            // saved on screen — the fast-add path now opens print preview too.
-            if (ClinicalRepository.currentSlip.isNotEmpty()) {
-                ClinicalRepository.saveCommonMedicineSlip(ClinicalRepository.currentSlip.map { it.name }.toSet())
-                persistSlipToHistory()  // AUDIT FIX 2026-08-06: keep a record in patient history
-                com.tkbiswas.pilesclinic.print.PrintDataHolder.pendingModel =
-                    com.tkbiswas.pilesclinic.print.PrintMappers.medicineSlip()
-                startActivity(Intent(this, com.tkbiswas.pilesclinic.print.PrintPreviewActivity::class.java))
-                finish()
-            }
+            // 🔴🔴🔒 V669 (২৫.০৮.২০২৬, TK-কড়া-রিপোর্ট, দ্বিতীয়বার) — একই বাগের
+            // চতুর্থ (শেষ) জায়গা — Medicine Slip-এর নিজস্ব "Reference List"
+            // পিকারের Save-এও এই একই সরাসরি-প্রিন্ট বাগ ছিল, V662-এ মিস
+            // হয়ে গিয়েছিল। এখন এখানেও ঠিক করা হলো — শুধু তালিকা রিফ্রেশ হয়,
+            // ডাক্তার নিজে থেকে Save/Print বেছে নেবেন।
         }
     }
 
     private fun showCustomSlipMedicineDialog() {
+        // 🔴🔴🔒 V662 (২৫.০৮.২০২৬, TK-কড়া-রিপোর্ট) — Prescription-এর একই বাগ
+        // এখানেও ছিল (একই কারণ, একই TK-এর পুরনো ১৯.০৭.২০২৬-এর নির্দেশ) —
+        // একটা ওষুধ Add করলেই সরাসরি সেভ+প্রিন্ট+বন্ধ হয়ে যেত। এখন শুধু
+        // তালিকা রিফ্রেশ হয়, ডাক্তার এই পাতাতেই থেকে আরও ওষুধ যোগ করতে
+        // পারবেন, শেষে নিজে থেকে Save/Print বেছে নেবেন (নিচের বোতাম
+        // এক অক্ষরও বদলায়নি)।
         MedicinePickerDialog.showOutsideDialog(this, "allopathic", MedicinePickerDialog.BLUE_ALLOPATHIC) {
             refreshMedicineList()
-            // TK-REQUESTED CHANGE (2026-07-19): match the reference-list
-            // picker's flow -- adding via Outside List also directly saves,
-            // prints, and closes the screen instead of leaving it behind.
-            if (ClinicalRepository.currentSlip.isNotEmpty()) {
-                ClinicalRepository.saveCommonMedicineSlip(ClinicalRepository.currentSlip.map { it.name }.toSet())
-                persistSlipToHistory()  // AUDIT FIX 2026-08-06: keep a record in patient history
-                com.tkbiswas.pilesclinic.print.PrintDataHolder.pendingModel =
-                    com.tkbiswas.pilesclinic.print.PrintMappers.medicineSlip()
-                startActivity(Intent(this, com.tkbiswas.pilesclinic.print.PrintPreviewActivity::class.java))
-                finish()
-            }
         }
     }
 

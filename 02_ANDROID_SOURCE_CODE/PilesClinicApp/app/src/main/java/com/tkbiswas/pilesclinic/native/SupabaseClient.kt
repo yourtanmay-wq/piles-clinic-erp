@@ -97,7 +97,7 @@ object SupabaseClient {
      *  bucket বানাতে কোডে যাচাই করে শুধু এই ঘরগুলোই পড়া হয়। সব নাম active
      *  enquiries schema-তে আছে; filter/order/limit একদম আগের মতো। Narrow read
      *  ব্যর্থ হলে fetchListSlimOrNull-এর পুরনো full-row fallback অটুট। */
-    const val ENQUIRY_COLS_DRAFT = "id,date,branch,name,mobile,disease,remarks,timeType,receivedBy,stage,nextFollow,createdBy,updatedAt"
+    const val ENQUIRY_COLS_DRAFT = "id,date,branch,name,mobile,disease,remarks,timeType,receivedBy,stage,nextFollow,createdBy,updatedAt,convertedPatientId"
 
     /**
      * 🟢🔒 B661 (15.08.2026, TK-অনুমোদিত · Egress-৩) — **শুধু চেম্বার হাজিরা বোর্ডের জন্য**।
@@ -124,8 +124,16 @@ object SupabaseClient {
      *  অথচ `PaymentModel.parsePaymentRow()` ওই ঘরটাই পড়ে Patient ID দেখানোর জন্য।
      *  কেউ এই তালিকা দিয়ে টাকার তালিকা নামালে **Patient ID ফাঁকা হয়ে যেত** —
      *  ঠিক খাতার সারি B109-এর সেই দোষটাই আবার হত। তাই ঘরটা যোগ করা হলো।
-     *  ⛔ ঘর যোগ করায় কোনো তথ্য হারায় না, শুধু ফাঁকা হওয়ার ফাঁদটা বন্ধ হয়। */
-    const val PAYMENT_COLS_LIST = "id,patientId,patientCode,mobile,branch,name,amount,mode,cashAmount,onlineAmount,dailyEvents,payType,payLabel,paymentLabel,date,remarks,receivedBy,createdBy,createdAt,updatedAt,refundApprovalStatus"
+     *  ⛔ ঘর যোগ করায় কোনো তথ্য হারায় না, শুধু ফাঁকা হওয়ার ফাঁদটা বন্ধ হয়।
+     *  🔴🔴🔒 V688 (২৫.০৮.২০২৬, নিজের যাচাইয়ে ধরা পড়া গুরুতর বাগ — V687-এর
+     *  Chamber বোর্ড ফিক্স আসলে কখনোই কাজ করত না) — V687-এ Chamber বোর্ডের
+     *  Treatment Progress-এর উৎস `payments.progress`-এ বদলানো হয়েছিল, কিন্তু
+     *  Chamber বোর্ড ঠিক **এই তালিকা** (`PAYMENT_COLS_LIST`) দিয়েই payments
+     *  আনে — আর তাতে `progress` ঘরটাই ছিল না! তাই `row.optString("progress")`
+     *  সবসময় ফাঁকা ফিরত, ফিক্সটা নীরবে কিছুই করত না। এখন `progress` ঘরও
+     *  এই তালিকায় যোগ করা হলো — খুবই ছোট লেখা (remarks-এর মতোই), Egress-এ
+     *  চাপ পড়ে না। */
+    const val PAYMENT_COLS_LIST = "id,patientId,patientCode,mobile,branch,name,amount,mode,cashAmount,onlineAmount,dailyEvents,payType,payLabel,paymentLabel,date,remarks,progress,receivedBy,createdBy,createdAt,updatedAt,refundApprovalStatus"
 
     private val jsonMedia = "application/json".toMediaType()
 
@@ -605,21 +613,26 @@ object SupabaseClient {
      * যাতে ডাকা জায়গাটা দুটোর পার্থক্য বুঝে ওয়ার্নিং দিতে পারে।
      * ⛔ `findByMobile` এক অক্ষরও বদলানো হয়নি — পুরনো সব ডাক আগের মতোই চলবে।
      */
+    /* 🟢🔒 V600 (২৩.০৮.২০২৬, TK-নির্দেশ, ছবি-প্রুফ পাশ) — "Add Payment"
+       খুললেই প্রতিবার নতুন করে patients/payments টানত, যদিও রোগী আগে থেকেই
+       চেনা (Follow-up কার্ড থেকে খোলা)। খুঁজে পাওয়া গেছে: `fetchListOrNull()`
+       আগে থেকেই `CloudReadDedupe` (V493, ৬০ সেকেন্ড TTL, প্রতিটা সেভের পরে
+       নিজে থেকে খালি হয়ে যায়) দিয়ে সুরক্ষিত — কিন্তু `findByMobile()` ও
+       `findByMobileOrNull()` (৪০+ জায়গায় ব্যবহৃত — Payment, Doctor Visit,
+       Chamber Attendance, Registration, Print Center, Enquiry, Follow-up...)
+       এই সুরক্ষার **বাইরে** ছিল, প্রতিবারই কাঁচা নেট-কল করত।
+       ⛔ এখন এই দুটোও ঠিক সেই একই প্রমাণিত পথে (URL/filter/limit এক অক্ষরও
+       বদলায়নি, শুধু কাঁচা fetch-টা `CloudReadDedupe.body()`-এর ভিতর দিয়ে
+       যায়) — তাই নিজে কিছু সেভ করলে সঙ্গে সঙ্গে পুরনো তথ্য মুছে যায় (আগে
+       থেকেই প্রতিটা upsert/update/delete-এর পরে `CloudReadDedupe.clear()`
+       ডাকা হয়), কখনো বাসি টাকা/তথ্য দেখানোর ঝুঁকি নেই। */
     fun findByMobileOrNull(table: String, normalizedMobile: String, selectCols: String = "*", limit: Int = 1): JSONArray? {
         return try {
             val digits = normalizedMobile.filter { it.isDigit() }.takeLast(10)
             val filter = if (digits.length == 10) "mobile=like.*$digits" else "mobile=eq.$normalizedMobile"
-            val request = Request.Builder()
-                .url("$URL/rest/v1/$table?$filter&select=$selectCols&limit=$limit")
-                .addHeader("apikey", KEY)
-                .addHeader("Authorization", "Bearer $KEY")
-                .get()
-                .build()
-            http.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return null
-                val body = response.body?.string() ?: return null
-                JSONArray(body)
-            }
+            val url = "$URL/rest/v1/$table?$filter&select=$selectCols&limit=$limit"
+            val body = CloudReadDedupe.body(url) { fetchBodyOrNull(url) } ?: return null
+            JSONArray(body)
         } catch (e: Exception) {
             null
         }
@@ -633,17 +646,9 @@ object SupabaseClient {
             // created by the other front-end. `like.*<digits>` matches both.
             val digits = normalizedMobile.filter { it.isDigit() }.takeLast(10)
             val filter = if (digits.length == 10) "mobile=like.*$digits" else "mobile=eq.$normalizedMobile"
-            val request = Request.Builder()
-                .url("$URL/rest/v1/$table?$filter&select=$selectCols&limit=$limit")
-                .addHeader("apikey", KEY)
-                .addHeader("Authorization", "Bearer $KEY")
-                .get()
-                .build()
-            http.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return JSONArray()
-                val body = response.body?.string() ?: return JSONArray()
-                JSONArray(body)
-            }
+            val url = "$URL/rest/v1/$table?$filter&select=$selectCols&limit=$limit"
+            val body = CloudReadDedupe.body(url) { fetchBodyOrNull(url) } ?: return JSONArray()
+            JSONArray(body)
         } catch (e: Exception) {
             JSONArray()
         }
@@ -671,34 +676,24 @@ object SupabaseClient {
         }
     }
 
-    /** Fetches rows from a table with an optional raw filter (already
-     * URL-encoded query string fragment, e.g. "stage=eq.Inquiry"), sorted by
-     * updatedAt descending. Empty array on failure. */
-    /** TK-REPORTED (2026-07-27, "ডাটা লোড হতে প্রচুর সময় লাগে"): `select` was
-     *  hard-coded to "*", i.e. EVERY column of every row -- including the
-     *  patient PHOTO, which is a full image stored inside the row. A list of
-     *  a few hundred patients therefore dragged megabytes of photos down the
-     *  line before a single card could be drawn. Callers may now ask for just
-     *  the columns they actually use. The default is still "*", so every
-     *  existing caller behaves EXACTLY as before; only the callers that opt
-     *  in are affected. */
+    /* 🟢🔒 V600 (২৩.০৮.২০২৬, TK-নির্দেশ — Egress অডিট #২) — আজকের Supabase
+       কোটা শেষ হওয়ার পর (Egress 6.264/5 GB, 125%) পুরো প্রজেক্ট খুঁটিয়ে
+       যাচাই করে পাওয়া গেছে: `fetchList()` (এই ফাংশন) ২১টা ফাইলে ~৫৫ জায়গায়
+       ব্যবহৃত, কিন্তু `fetchListOrNull()`-এর মতো কখনোই `CloudReadDedupe`
+       (V493) বা `CloudListRevalidate` (V513) দিয়ে যায়নি — V515-এর নিজের
+       কমেন্টেই এটা লেখা ছিল, কিন্তু তখন শুধু হাতে-গোনা কয়েকটা জায়গা
+       (`fetchListGuarded`) সরানো হয়েছিল, বাকি ৫৫টা জায়গা আগের মতোই ছিল।
+       ⇒ এখন **এই একটা জায়গায়** বদলে সবকটা একসাথে সুরক্ষিত হলো —
+       ২১টা ফাইলের একটা লাইনও ছোঁয়া হয়নি।
+       ⛔ আচরণ (contract) হুবহু আগের মতোই: ব্যর্থ হলে **খালি তালিকা** (`[]`),
+          `fetchListOrNull`-এর মতো `null` নয় — তাই কোনো ডাকার জায়গার
+          `if (rows == null)` বা `.length()` কোনো কোডে ক্র্যাশ/আচরণ-বদল নেই।
+       ⛔ URL/filter/limit/order/select — এক অক্ষরও বদলায়নি।
+       ⛔ `trash`-এর মতো বড়-রেকর্ড টেবিলে ঝুঁকি নেই: `CloudListRevalidate`-এর
+          নিজস্ব ২MB/৮MB/১২MB সীমা (V515) বড় উত্তর কখনো জমা রাখে না — জমা
+          না হলেও ক্ষতি নেই, শুধু আগের মতোই প্রতিবার সরাসরি নেটে যায়। */
     fun fetchList(table: String, filter: String? = null, limit: Int = 500, order: String = "updatedAt.desc.nullslast", select: String = "*"): JSONArray {
-        return try {
-            val filterPart = if (filter != null) "&$filter" else ""
-            val request = Request.Builder()
-                .url("$URL/rest/v1/$table?select=$select&order=$order&limit=$limit$filterPart")
-                .addHeader("apikey", KEY)
-                .addHeader("Authorization", "Bearer $KEY")
-                .get()
-                .build()
-            http.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return JSONArray()
-                val body = response.body?.string() ?: return JSONArray()
-                JSONArray(body)
-            }
-        } catch (e: Exception) {
-            JSONArray()
-        }
+        return fetchListOrNull(table, filter, limit, order = order, select = select) ?: JSONArray()
     }
 
     // TK-REQUESTED ADDITION (2026-07-23): same request as fetchList() above,

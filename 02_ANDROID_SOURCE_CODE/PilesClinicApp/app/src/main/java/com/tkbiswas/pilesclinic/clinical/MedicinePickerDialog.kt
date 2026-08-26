@@ -975,6 +975,19 @@ object MedicinePickerDialog {
         box.addView(name)
         box.addView(doseRow)
         box.addView(note)
+        // 🟢🔒🔒 V662 (২৫.০৮.২০২৬, TK-নির্দেশ, রেগে গিয়ে রিপোর্ট — "একটা মেডিসিন
+        // Add করার পরে আরেকটা লেখার অপশন নেই কেন... তিনি চাইলে দশটা মেডিসিনের
+        // জন্য লিখতে পারে") — কতগুলো যোগ হলো, সেটা দেখানোর ছোট লেখা।
+        val addedLabel = TextView(activity).apply {
+            text = ""; textSize = 12.5f
+            setTextColor(Color.parseColor("#0A7C3F"))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            visibility = android.view.View.GONE
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = px(8) }
+        }
+        box.addView(addedLabel)
 
         /* 🔵🔒 V545 (TK-নির্দেশ) — *"কোন মেডিসিনের নাম যখন টাইপ করে লিখব,
            ডোজের ঘর অটো ডিফল্ট থাকবে তো? আমি যদি চাই সেই ক্ষেত্রেই পরিবর্তন
@@ -1029,7 +1042,11 @@ object MedicinePickerDialog {
             .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(activity, "💊 Add Medicine (Outside List)"))
             .setView(box)
             .setPositiveButton("Add", null)
-            .setNegativeButton("Cancel", null)
+            // 🟢🔒 V662 (২৫.০৮.২০২৬) — "Cancel" থেকে "Done"-এ বদলানো হলো,
+            // কারণ এখন প্রতিটা "Add"-এই সাথে সাথে তালিকায় বসে যায় (আগের
+            // মতো পুরো পপ-আপ বাতিল করার কিছু নেই) — এই বোতাম এখন শুধু
+            // বন্ধ করে। ⛔ id/আচরণ (বন্ধ করা) এক অক্ষরও বদলায়নি, শুধু লেখা।
+            .setNegativeButton("Done", null)
             .create()
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
@@ -1071,9 +1088,24 @@ object MedicinePickerDialog {
                     medicineType = currentType
                 )
                 val outDup = targetList.indexOfFirst { it.name.trim().equals(medName.trim(), ignoreCase = true) }
+                val wasUpdate = outDup >= 0
                 if (outDup >= 0) targetList[outDup] = outEntry else targetList.add(outEntry)
                 onAdded()
-                dialog.dismiss()
+                // 🟢🔒🔒 V662 (২৫.০৮.২০২৬, TK-নির্দেশ) — আগে এখানে `dialog.dismiss()`
+                // ছিল — একটা ওষুধ Add করলেই পপ-আপ বন্ধ হয়ে যেত, পরের ওষুধ
+                // লিখতে হলে আবার নতুন করে "Add Medicine (Outside List)"
+                // খুলতে হতো। TK: *"তিনি চাইলে দশটা মেডিসিনের জন্য লিখতে
+                // পারে"* — এখন পপ-আপ **খোলাই থাকে**, ঘরগুলো ফাঁকা হয়ে পরের
+                // ওষুধ লেখার জন্য প্রস্তুত হয়, ডাক্তার যতগুলো লাগবে
+                // একটার-পর-একটা লিখতে পারবেন। "Cancel"-এ চাপলে বন্ধ হয় —
+                // ততক্ষণে যা যোগ হয়েছে তা সবই থেকে যায় (প্রতিটা Add-এই
+                // তালিকায় বসে যাচ্ছে, তাই কিছু হারানোর ঝুঁকি নেই)।
+                name.setText(""); dose.setText(""); frequency.setText(""); days.setText(""); note.setText("")
+                touchedDose = false; touchedWhen = false; touchedDays = false
+                currentType = ""; typeChip.text = "Type: Tap to set"
+                addedLabel.visibility = android.view.View.VISIBLE
+                addedLabel.text = "✓ Added: $medName" + (if (wasUpdate) " (updated)" else "") + "  ·  ${targetList.size} medicine(s) so far"
+                name.requestFocus()
             }
         }
         dialog.show()

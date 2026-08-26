@@ -9,7 +9,14 @@
      Name · Mobile · Disease side-by-side (so many patients fit one screen),
      with a "→" arrow on the right that marks them Arrived (moves them to the
      Arrived section). Mobile stays its own tappable view (tap=call,
-     long-press=copy) in BOTH layouts. -->
+     long-press=copy) in BOTH layouts.
+     🟢🔒🔒 V668 (২৫.০৮.২০২৬, TK-কড়া-রিপোর্ট, দুইবার ছবি পাঠিয়ে — "ব্যাকগ্রাউন্ড
+     পরিষ্কার সাদা থাকবে") — আসল কারণ (এতক্ষণে ধরা পড়ল): V654-এ ভুল করে
+     showCloseReview()-এর (একটা আলাদা পপ-আপ) ব্যাকগ্রাউন্ড সাদা করা হয়েছিল,
+     কিন্তু TK আসলে এই মূল Chamber Date পাতার (এই XML, RecyclerView-এর
+     আসল আইটেম) কথা বলছিলেন — এখানে হার্ডকোড করা হালকা সবুজ (#EAF9F1)
+     কখনো ছোঁয়াই হয়নি। এখন সত্যিকারের জায়গায় ঠিক করা হলো — সাদা
+     (নিচের android:background)। -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/rowContent"
     android:layout_width="match_parent"
@@ -19,7 +26,7 @@
     android:paddingHorizontal="10dp"
     android:paddingVertical="0dp"
     android:minHeight="62dp"
-    android:background="#EAF9F1"
+    android:background="#FFFFFF"
     android:foreground="@drawable/bg_chamber_row_underline">
 
     <!-- ===== ARRIVED layout: vertical Name/Mobile + money grid ===== -->

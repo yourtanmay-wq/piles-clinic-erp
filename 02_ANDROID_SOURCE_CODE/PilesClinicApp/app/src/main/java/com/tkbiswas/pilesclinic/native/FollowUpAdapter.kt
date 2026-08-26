@@ -56,6 +56,10 @@ class FollowUpAdapter(
         val b = holder.binding
         try {
 
+        // 🟢🔒 V648 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবিসহ) — Follow-up-এর আসল
+        // কার্ডের সাথে মেলানো সিরিয়াল নম্বর ব্যাজ।
+        b.tvFuSerial.text = (position + 1).toString()
+
         // 🔴🔴 TK-REPORTED (31.07.2026): নাম না থাকলে মোবাইল দুইবার দেখাত।
         b.tvName.text = "👤 " + item.name.ifBlank { "UNKNOWN" }
         b.tvMobile.text = "📞 ${formatMobileForDisplay(item.mobile)}"
@@ -163,14 +167,17 @@ class FollowUpAdapter(
                 TripleTapEdit.attach(b.tvRegDate) { onEdit(item) }
 
                 val pct = if (item.bill > 0) Math.min(100.0, Math.round(item.paid / item.bill * 100.0).toDouble()).toInt() else 0
-                b.tvPayPct.text = "$pct%"
+                // 🔴🔒 V683 (২৫.০৮.২০২৬) — সলিড চাকতির বদলে আসল কার্ডের
+                // PaymentRingView + আলাদা রঙিন Bill/Due পিল (FollowUpActivity.
+                // buildFollowCard()-এর হুবহু একই মান/রং)।
+                b.paymentRing.percent = pct
                 val due = Math.max(0.0, item.bill - item.paid)
-                b.tvBillDue.text = if (item.bill > 0)
-                    "₹${"%,.0f".format(item.bill)}\n/ ₹${"%,.0f".format(due)}"
-                else "0 / 0"
-                b.tvPayPct.setOnClickListener { onPayment(item) }
+                b.tvBillPill.text = "Bill\n₹${"%,.0f".format(item.bill)}"
+                b.tvDuePill.text = "Due\n₹${"%,.0f".format(due)}"
+                b.paymentRing.setOnClickListener { onPayment(item) }
                 b.tvPrescription.setOnClickListener { onPrescription(item) }
-                TripleTapEdit.attach(b.tvBillDue) { onPayment(item) }
+                TripleTapEdit.attach(b.tvBillPill) { onPayment(item) }
+                TripleTapEdit.attach(b.tvDuePill) { onPayment(item) }
             }
         }
 
@@ -193,9 +200,27 @@ class FollowUpAdapter(
             }
         }
 
-        val nextLabel = if (item.stage == "Inquiry") "Next Follow up Call" else "Next Follow-up"
+        // 🟢🔒🔒 V649 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবিসহ — "আরো ভালোভাবে যাচাই
+        // করুন") — আসল কারণ: এই আলাদা FollowUpAdapter "LAST CALL" লাইনটাই
+        // কখনো দেখাত না, আর "NEXT CALL"-এর বদলে ভুল লেখা ("Next Follow up
+        // Call:"/"Next Follow-up:") দেখাত — আসল অ্যাপে (TK-এর ছবিতে) দুটোই
+        // ছোট, নির্দিষ্ট লেখা "LAST CALL ..." / "NEXT CALL ...", পাশাপাশি,
+        // রিমার্ক-বাক্সের ভেতরে উপরে। FollowUpItem-এ lastCallDate/lastCallBy/
+        // lastCallTime আগে থেকেই আছে (আগের V543/B39-এ প্রমাণিত ঘর, নতুন কিছু
+        // যোগ করা হয়নি) — শুধু এখানে পড়া হচ্ছিল না।
+        val lastDt = item.lastCallDate
+        val lastBy = item.lastCallBy
+        val lastTm = item.lastCallTime
+        val lastWhen = if (lastDt.isNotBlank()) {
+            val dateTxt = FollowUpModel.displayDate(lastDt)
+            val tm = formatTime12(lastTm)
+            dateTxt + (if (tm.isNotBlank()) " : $tm" else "")
+        } else ""
+        b.tvLastCall.text = if (lastDt.isNotBlank())
+            "LAST CALL $lastWhen" + (if (lastBy.isNotBlank()) " (${lastBy})" else "")
+        else "LAST CALL —"
         b.tvNextFollow.text = if (item.nextFollow.isNotBlank())
-            "$nextLabel: ${FollowUpModel.displayDate(item.nextFollow)}" else ""
+            "NEXT CALL ${FollowUpModel.displayDate(item.nextFollow)}" else "NEXT CALL —"
 
         b.btnCall.setOnClickListener { onCall(item) }
         b.btnWhatsApp.setOnClickListener { onWhatsApp(item) }
@@ -215,6 +240,23 @@ class FollowUpAdapter(
         // সারির বাংলা কখনো ঢাকাই পড়ত না। এখন প্রতিটা বাইন্ডের শেষেই সরাসরি সুইপ —
         // বাংলা-বন্ধ না থাকলে কিছুই করে না (activeCache false ⇒ সাথে সাথে ফেরত)।
         try { NoBengali.sweep(holder.itemView) } catch (_: Throwable) { }
+    }
+
+    /** 🟢🔒 V649 (২৫.০৮.২০২৬) — "HH:mm" (24-ঘণ্টা, ডেটাবেসে যেমন সেভ থাকে)
+     *  কে "h:mm a" (১২-ঘণ্টা, AM/PM) দেখানোর জন্য। ⛔ সেভ করা আসল সময় এক
+     *  অক্ষরও বদলায় না — শুধু দেখানোর সময় রূপ বদলায়। ফাঁকা/ভুল ফরম্যাট
+     *  হলে চুপচাপ ফাঁকা ফেরত যায় (কার্ড ভাঙে না)। */
+    private fun formatTime12(raw: String): String {
+        if (raw.isBlank()) return ""
+        return try {
+            val parts = raw.trim().split(":")
+            if (parts.size < 2) return ""
+            var h = parts[0].toInt()
+            val m = parts[1].toInt()
+            val ampm = if (h < 12) "AM" else "PM"
+            if (h == 0) h = 12 else if (h > 12) h -= 12
+            "%d:%02d %s".format(h, m, ampm)
+        } catch (_: Throwable) { "" }
     }
 
     /** Display-only formatting. Stored number and Call/WhatsApp logic remain unchanged. */

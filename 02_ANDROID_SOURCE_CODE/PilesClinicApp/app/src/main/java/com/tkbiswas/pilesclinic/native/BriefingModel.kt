@@ -26,6 +26,10 @@ data class Briefing(
     val branch: String,
     val targetsSummary: String,
     val seenCount: Int,
+    // 🟢🔒 V682 (২৫.০৮.২০২৬, TK-লাইভ-টেস্ট রিপোর্ট — "Seen by 1-এ চাপ দিলে কে
+    // দেখেছে বোঝা যায় না") — আসল মোবাইল-তালিকা (raw "seen" ঘর থেকে), যাতে
+    // চাপ দিলে নাম দেখানো যায়। ⛔ seenCount আগের মতোই অক্ষত।
+    val seenBy: List<String>,
     val replies: List<BriefingReply>,
     val raw: JSONObject
 )
@@ -41,8 +45,19 @@ object BriefingModel {
      *  পর্যন্ত পুরনো হলেও থেকে যায় (নইলে pending অনুমোদন হারিয়ে যেত)। বাকি সব
      *  "সাধারণ নোটিস" — শুধু আজকেরটা দেখায়। ⛔ এক জায়গায় নিয়ম, যাতে তালিকা-
      *  ফিল্টার (visibleForUser) ও অটো-ক্লিয়ার দুটো কখনো আলাদা না হয়। */
+    /**
+     * 🔴🔒 V682 (২৫.০৮.২০২৬, TK-লাইভ-টেস্ট রিপোর্ট — "Approve করার পরেও এখানে
+     * কেন থাকবে?") — আসল কারণ: Approve করলে যে "💬 Reply on: 🗑️ Delete
+     * request — ..." নোটিশটা মূল অনুরোধকারীকে পাঠানো হয় (addReply(), নিচে),
+     * তার টাইটেলেও "delete request" কথাটা আছে (মূল টাইটেলের ভিতরেই বসানো
+     * হয়) — তাই এই সাধারণ, শুধু-জানানোর রিপ্লাই-নোটিশটাও ভুল করে
+     * "Approve লাগবে" ধরে নিত, Approve/Reply/Delete বোতাম দেখাত। এখন
+     * "reply on:" দিয়ে শুরু হওয়া টাইটেল প্রথমেই বাদ — আসল Refund/Delete/
+     * Reopen/Leave-এর অনুরোধ কখনোই এই লেখায় শুরু হয় না, তাই ঝুঁকিহীন।
+     */
     fun needsMasterApproval(title: String): Boolean {
         val t = title.lowercase()
+        if (t.contains("reply on:")) return false
         return t.contains("refund request") ||
             t.contains("delete request") ||
             t.contains("reopen request") ||
@@ -100,6 +115,7 @@ object BriefingModel {
             replies.add(BriefingReply(r.s("by"), r.s("text"), r.s("at")))
         }
         val seen = row.optJSONArray("seen") ?: JSONArray()
+        val seenList = (0 until seen.length()).map { seen.optString(it, "") }.filter { it.isNotBlank() }
         return Briefing(
             id = row.s("id"),
             date = row.s("date"),
@@ -109,6 +125,7 @@ object BriefingModel {
             branch = row.s("branch"),
             targetsSummary = summarizeTargets(row.optJSONObject("targets") ?: JSONObject()),
             seenCount = seen.length(),
+            seenBy = seenList,
             replies = replies,
             raw = row
         )

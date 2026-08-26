@@ -38,6 +38,10 @@ class CollectionAdapter(
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val item = items[position]
+        // 🟢🔒 V640 (২৪.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ) — নামের আগে
+        // সিরিয়াল নম্বর (এই তালিকায় কততম, position+1)। ⛔ ডেটা/সাজানোর
+        // নিয়ম কিছু বদলায়নি — শুধু দেখানোর একটা বাড়তি ঘর।
+        holder.binding.tvSerial.text = (position + 1).toString()
         holder.binding.tvName.text = item.name.ifBlank { "Walk-in" }
         val digits = item.mobile.filter { it.isDigit() }.takeLast(10)
         // 🆔 TK-এর নিয়ম (28.07.2026): নাম ও মোবাইলের সঙ্গে Patient ID-ও।

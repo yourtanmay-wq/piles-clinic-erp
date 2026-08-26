@@ -87,6 +87,26 @@ object BranchSimHelper {
         prefs(context).edit().putBoolean("has_chamber_number", value).apply()
     }
 
+    /** 🟢🔒 V619 (২৪.০৮.২০২৬, TK-রিপোর্ট — নিজের/Master-এর ফোনে, যেখানে
+     *  চেম্বারের নম্বর আছে বলে কখনো জানানোই হয়নি, তাও কল-নোটিফিকেশন
+     *  দেখাচ্ছিল) — `hasGenuinelyChosenSim()`/`hasChamberNumber()`
+     *  Dialer-এর কল-লগ **দেখানোর** জন্য ইচ্ছাকৃতভাবে নরম (পুরনো এক-সিম
+     *  ফোনে নিঃশব্দে grandfather করে, `hasChamberAnswer()` থাকলেই যথেষ্ট
+     *  ধরে — আসল উত্তর হ্যাঁ না না তা না দেখেই)। এটা Dialer-এর জন্য ঠিক
+     *  ছিল, কিন্তু কল-শনাক্তকরণ/নোটিফিকেশনের জন্য **অনেক বেশি নরম** —
+     *  TK স্পষ্ট বলেছিলেন "শুধু যারা আগেই হ্যাঁ বলেছে"। এই ফাংশনটা তাই
+     *  সরাসরি **আসল সংরক্ষিত হ্যাঁ/না** পড়ে, grandfather-ছাড় ছাড়াই —
+     *  শুধু (ক) সত্যিই একাধিক SIM থেকে হাতে-বাছা (`savedSlot >= 0`,
+     *  এটা নিজেই দ্ব্যর্থহীন "হ্যাঁ"), অথবা (খ) প্রশ্নের উত্তরে সত্যিই
+     *  "হ্যাঁ" বলা হয়েছে (raw বুলিয়ান, কোনো ছাড় ছাড়া) — এই দুটোতেই
+     *  শুধু true। ⛔ Dialer-এর কল-লগ দেখানোর নিয়ম এক অক্ষরও বদলায়নি —
+     *  এই নতুন ফাংশনটা শুধু নতুনভাবে যোগ হলো, কেউ ডাকছে না মানে কিছু
+     *  বদলায় না। */
+    fun hasExplicitlyConfirmedChamberSim(context: Context): Boolean {
+        if (savedSlot(context) >= 0) return true
+        return hasChamberAnswer(context) && prefs(context).getBoolean("has_chamber_number", false)
+    }
+
     fun clearChamberAnswer(context: Context) {
         prefs(context).edit().remove("has_chamber_number").apply()
     }

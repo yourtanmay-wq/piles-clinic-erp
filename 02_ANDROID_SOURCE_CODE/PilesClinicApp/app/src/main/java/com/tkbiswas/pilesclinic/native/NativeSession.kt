@@ -47,6 +47,10 @@ object NativeSession {
         // সঙ্গে সঙ্গে মুছে যায় ও নতুন পরিচয় বসে, তাই আগের জনের তালিকা
         // কখনো নতুন জনের পর্দায় আসতে পারে না।
         try { CloudReadDedupe.setSession(user.mobile) } catch (_: Throwable) { }
+        // 🟢🔒 V601 (২৪.০৮.২০২৬) — সদ্য পাসওয়ার্ড দিয়ে ঢুকলেন মানেই পরিচয়
+        // প্রমাণিত হলো, তাই ২৪-ঘণ্টার ঘড়ি এখান থেকেই শুরু — লগইনের পরপরই
+        // আবার আঙুল চাইবে না।
+        try { AppLock.recordLoginUnlock(context) } catch (_: Throwable) { }
     }
 
     fun current(context: Context): NativeUser? {

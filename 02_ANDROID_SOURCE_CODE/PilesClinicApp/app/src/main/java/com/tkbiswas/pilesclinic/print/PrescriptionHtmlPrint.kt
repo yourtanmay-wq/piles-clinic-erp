@@ -46,7 +46,7 @@ object PrescriptionHtmlPrint {
     @Suppress("StaticFieldLeak")
     private var keepAlive: WebView? = null
 
-    fun print(activity: Activity, model: PrintDocumentModel) {
+    fun print(activity: Activity, model: PrintDocumentModel, onStateChanged: ((String) -> Unit)? = null) {
         val html = PrescriptionHtml.build(activity, model)
         val wv = WebView(activity)
         wv.settings.javaScriptEnabled = false
@@ -56,13 +56,43 @@ object PrescriptionHtmlPrint {
                     val pm = activity.getSystemService(Context.PRINT_SERVICE) as PrintManager
                     val jobName = model.documentTitle
                     val adapter = view.createPrintDocumentAdapter(jobName)
-                    pm.print(
+                    val job = pm.print(
                         jobName, adapter,
                         PrintAttributes.Builder()
                             .setMediaSize(PrintAttributes.MediaSize.ISO_A4)
                             .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
                             .build()
                     )
+                    // 🟢🔒🔒 V675 (২৫.০৮.২০২৬, বিল্ড-এরর ফিক্স) — Android SDK-তে
+                    // `PrintJob`-এর কোনো state-change listener নেই (পাবলিক API
+                    // নেই), তাই Handler দিয়ে প্রতি ৫০০ms জব-স্টেট পোল করা হচ্ছে
+                    // যতক্ষণ না completed/failed/cancelled হয়।
+                    if (onStateChanged != null) {
+                        try {
+                            val handler = android.os.Handler(android.os.Looper.getMainLooper())
+                            var lastMsg = ""
+                            val poller = object : Runnable {
+                                override fun run() {
+                                    val msg = when {
+                                        job.isCompleted -> "✅ Print sheet closed — completed (printed or saved as PDF)."
+                                        job.isFailed -> "❌ Print failed — please try again."
+                                        job.isCancelled -> "⚠️ Print was cancelled — nothing was printed."
+                                        job.isBlocked -> "⏸️ Print is paused — check the printer."
+                                        job.isQueued || job.isStarted -> "⏳ Sending to printer…"
+                                        else -> ""
+                                    }
+                                    if (msg.isNotBlank() && msg != lastMsg) {
+                                        lastMsg = msg
+                                        onStateChanged(msg)
+                                    }
+                                    if (!job.isCompleted && !job.isFailed && !job.isCancelled) {
+                                        handler.postDelayed(this, 500)
+                                    }
+                                }
+                            }
+                            handler.postDelayed(poller, 500)
+                        } catch (_: Throwable) { }
+                    }
                 } catch (e: Throwable) {
                     android.widget.Toast.makeText(
                         activity, "Could not open print — please try again",

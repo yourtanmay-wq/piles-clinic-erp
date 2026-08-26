@@ -1,4 +1,4 @@
-package com.tkbiswas.pilesclinic.native
+package com.tkbiswas.pilesclinic.ui
 
 import android.content.Context
 import android.graphics.Canvas
@@ -14,8 +14,21 @@ import android.view.View
  * progress ring: a light background track plus a green arc that fills only
  * as much of the circle as the percentage paid, with the number centered —
  * same tap target, same size, only how it's drawn changed.
+ *
+ * 🔴🔒 V688 (২৫.০৮.২০২৬, নিজের যাচাইয়ে ধরা পড়া বাগ — V683-এ এই ক্লাসটাই
+ * প্রথমবার XML-এ ব্যবহার হয়েছে, `item_followup_card.xml`-এ) — আগে শুধু
+ * `(context: Context)` কনস্ট্রাক্টর ছিল, যা শুধু কোড-দিয়ে-বানানোর জন্য
+ * চলে (FollowUpActivity.buildFollowCard()-এর মতো)। XML থেকে inflate করতে
+ * Android-এর `(Context, AttributeSet?)` কনস্ট্রাক্টর **লাগেই** — না থাকলে
+ * এই কার্ড বাঁধার সময় সঙ্গে সঙ্গে ক্র্যাশ (InflateException) করত। এখন
+ * standard তিনটে View-কনস্ট্রাক্টরই আছে — পুরনো এক-আর্গুমেন্ট কল
+ * (কোড-দিয়ে-বানানো, buildFollowCard()) অক্ষত, এক অক্ষরও বদলায়নি।
  */
-class PaymentRingView(context: Context) : View(context) {
+class PaymentRingView @JvmOverloads constructor(
+    context: Context,
+    attrs: android.util.AttributeSet? = null,
+    defStyleAttr: Int = 0
+) : View(context, attrs, defStyleAttr) {
 
     var percent: Int = 0
         set(value) { field = value.coerceIn(0, 100); invalidate() }

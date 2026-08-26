@@ -21,7 +21,13 @@
         android:background="@drawable/bg_login_hero"
         app:navigationIcon="?attr/homeAsUpIndicator"
         app:titleTextColor="@color/white"
-        app:title="Blood Test / Investigation Advice" />
+        app:titleTextAppearance="@style/InvestigationToolbarTitle"
+        app:title="Test / Investigation" />
+
+    <!-- 🟢 V600 (২৩.০৮.২০২৬, TK-অনুমোদিত, ছবি-প্রুফ পাশ): "Blood Test /
+         Investigation Advice" লম্বা বলে ২ লাইনে ভেঙে বড় দেখাত। TK-এর
+         নির্দেশে লেখা ছোট করে "Test / Investigation" আর সাইজ 16sp —
+         শুধু এই স্ক্রিনেই (নতুন style, বাকি সব হেডার আগের ডিফল্টেই)। -->
 
     <TextView
         android:id="@+id/tvRoleNotice"

@@ -85,6 +85,95 @@ object DialerRepository {
         } catch (_: Throwable) { emptyList() }
     }
 
+    /* 🟢🔒 V605 (২৪.০৮.২০২৬, TK-নির্দেশ) — Incoming/Outgoing দুই ধরনের
+       কলেই রিমার্কস। নতুন, স্বাধীন `call_remarks` টেবিল (V605 SQL, TK
+       নিজে চালাবেন) — কোনো পুরনো টেবিল/ফাংশন ছোঁয়া হয়নি। একই নম্বরে
+       একাধিকবার রিমার্কস লিখলে প্রতিটাই আলাদা সারি হয়ে জমা থাকে (ইতিহাস
+       হারায় না), স্ক্রিনে সবচেয়ে নতুনটা দেখানো হয়।
+     *
+     * 🟢🔒🔒 V634 (২৪.০৮.২০২৬, TK-রিপোর্ট, ছবিসহ — "২ বার কল করা হয়েছে
+     * তাও Wifi signal কেন ১ টা দেখাচ্ছে") — **আসল কারণ (কোড ধরে যাচাই):**
+     * এই ফাংশনটা শুধু নতুন `call_remarks` টেবিলে লেখে — এনকোয়ারি
+     * তালিকার Wifi-সিগন্যাল আইকন যে `followups.callCount` ঘর পড়ে
+     * (`FollowUpAdapter.kt`), সেটা এখানে কখনো বাড়ানোই হত না। ফলে
+     * ইতিহাসের টেবিলে (দুই উৎস মিলিয়ে) ২টা কল দেখালেও, সিগন্যাল আইকন
+     * পুরনো, একবারই-বাড়া সংখ্যা দেখাত।
+     * **সমাধান:** এই একই ব্যাকগ্রাউন্ড থ্রেডেই, `followupId` জানা থাকলে
+     * (RMP-মিলে না), প্রজেক্টের আগে থেকে প্রমাণিত
+     * `FollowUpRepository.logEnquiryCall()` (দিনে-একবার নিয়ম, ওয়েবের
+     * `signalTripleTap()`-এর সাথে হুবহু মেলানো) ডাকা হয় — নতুন কোনো
+     * হিসাব-নিয়ম বানানো হয়নি, প্রমাণিত পথই পুনর্ব্যবহার।
+     * ⛔ `call_remarks` সেভের নিয়ম এক অক্ষরও বদলায়নি — শুধু বাড়তি এই
+     *    একটা ধাপ যোগ হলো। */
+    fun saveCallRemark(
+        ctx: Context?, mobile: String, direction: String, remark: String, patientId: String,
+        staffMobile: String, staffName: String, branch: String, calledAtIso: String,
+        followupId: String = ""
+    ) {
+        Thread {
+            try {
+                val digits = mobile.filter { it.isDigit() }.takeLast(10)
+                if (digits.length != 10 || remark.isBlank()) return@Thread
+                val now = isoNow()
+                val row = JSONObject()
+                    .put("id", "cr_" + System.currentTimeMillis() + "_" + (0..999).random())
+                    .put("mobile", digits)
+                    .put("direction", direction)
+                    .put("remark", remark.trim())
+                    .put("patientId", patientId)
+                    .put("staffMobile", staffMobile.filter { it.isDigit() }.takeLast(10))
+                    .put("staffName", staffName)
+                    .put("branch", branch)
+                    .put("calledAt", calledAtIso.ifBlank { now })
+                    .put("createdAt", now)
+                    .put("updatedAt", now)
+                SupabaseClient.upsert("call_remarks", row)
+                // 🟢🔒 V634 — একই থ্রেডেই, ব্যর্থ হলেও রিমার্কস-সেভে প্রভাব
+                // পড়বে না (try/catch এই বাইরের ব্লকেই আছে)। আসল Context
+                // পাঠানো হয় — নেট না থাকলে অফলাইন-সারিতে যেন জমা থাকে
+                // (offline queue-এর জন্য context লাগে)।
+                if (followupId.isNotBlank()) {
+                    try { FollowUpRepository(ctx).logEnquiryCall(followupId) } catch (_: Throwable) { }
+                }
+            } catch (_: Throwable) { /* রিমার্কস সেভ ব্যর্থ হলেও অ্যাপ আটকাবে না */ }
+        }.start()
+    }
+
+    /** এই নম্বরের সবচেয়ে সাম্প্রতিক রিমার্ক — কল-লগ তালিকার নিচে ছোট
+     *  করে দেখানোর জন্য। না থাকলে ফাঁকা স্ট্রিং (নীরবে)। */
+    fun fetchLatestRemark(mobile: String): String {
+        return try {
+            val digits = mobile.filter { it.isDigit() }.takeLast(10)
+            if (digits.length != 10) return ""
+            val rows = SupabaseClient.fetchListSlimOrNull(
+                "call_remarks", "mobile=eq.$digits", 1, "remark", order = "calledAt.desc"
+            ) ?: return ""
+            if (rows.length() == 0) "" else rows.getJSONObject(0).optString("remark", "")
+        } catch (_: Throwable) { "" }
+    }
+
+    /** একাধিক নম্বরের সাম্প্রতিক রিমার্কস একসাথে (কল-লগ তালিকা খোলার
+     *  সময়) — `matchNumbersBatch`-এর হুবহু একই "একবারে সবগুলো" নিয়ম,
+     *  যাতে ২০-৩০টা কল-লগ সারির জন্য ২০-৩০টা আলাদা অনুরোধ না যায়। */
+    fun fetchLatestRemarksBatch(numbers: List<String>): Map<String, String> {
+        val digits = numbers.map { it.filter { d -> d.isDigit() }.takeLast(10) }
+            .filter { it.length == 10 }.distinct().take(60)
+        if (digits.isEmpty()) return emptyMap()
+        return try {
+            val filter = "or=(" + digits.joinToString(",") { "mobile.like.*$it" } + ")"
+            val rows = SupabaseClient.fetchListSlimOrNull(
+                "call_remarks", filter, digits.size * 5, "mobile,remark,calledAt", order = "calledAt.desc"
+            ) ?: return emptyMap()
+            val out = LinkedHashMap<String, String>()   // প্রথমবার পাওয়াটাই সবচেয়ে নতুন (calledAt.desc)
+            for (i in 0 until rows.length()) {
+                val r = rows.optJSONObject(i) ?: continue
+                val m = r.optString("mobile")
+                if (m.isNotBlank() && !out.containsKey(m)) out[m] = r.optString("remark", "")
+            }
+            out
+        } catch (_: Throwable) { emptyMap() }
+    }
+
     /**
      * 🆕🔒 খাতার সারি — Dialer পুনর্গঠন (TK-নির্দেশ, 05.08.2026 — "Android
      * ফোনের নিজস্ব Dialer-এর মতন হবে, Call Log + Contacts")।
@@ -101,7 +190,9 @@ object DialerRepository {
      */
     data class MatchedContact(
         val id: String, val name: String, val mobile: String,
-        val branch: String, val disease: String, val stage: String, val patientId: String
+        val branch: String, val disease: String, val stage: String, val patientId: String,
+        val address: String = "",   // 🟢🔒 V605 (২৪.০৮.২০২৬, TK-নির্দেশ, ছবি-প্রুফ পাশ)
+        val isRmp: Boolean = false  // 🟢🔒 V632 (২৪.০৮.২০২৬) — RMP (রেফারিং ডাক্তার) মিলেছে কি না
     )
 
     /** সর্বোচ্চ এই কয়টা নম্বর একবারে মেলানো হয় (URL খুব লম্বা হওয়া এড়াতে,
@@ -117,7 +208,7 @@ object DialerRepository {
             val cacheKey = "dialer:match:" + digits.sorted().joinToString(",")
             val rows = CloudReadCache.get(cacheKey) {
                 SupabaseClient.fetchListSlimOrNull(
-                    "followups", filter, digits.size * 3, "id,name,mobile,branch,disease,stage,patientId"
+                    "followups", filter, digits.size * 3, "id,name,mobile,branch,disease,stage,patientId,address"
                 )
             } ?: return emptyMap()
             // একই নম্বরে একাধিক সারি মিললে (Enquiry+Visit+Patient) — সবচেয়ে
@@ -134,10 +225,52 @@ object DialerRepository {
                 val candidate = MatchedContact(
                     id = r.optString("id"), name = r.optString("name"), mobile = mobile,
                     branch = r.optString("branch"), disease = r.optString("disease"),
-                    stage = r.optString("stage"), patientId = r.optString("patientId")
+                    stage = r.optString("stage"), patientId = r.optString("patientId"),
+                    address = r.optString("address")
                 )
                 val existing = byNumber[key]
                 if (existing == null || rank(candidate.stage) > rank(existing.stage)) byNumber[key] = candidate
+            }
+            /* 🟢🔒 V632 (২৪.০৮.২০২৬, TK-রিপোর্ট, ছবিসহ — "এই নম্বর তো App-এ
+               আছে, ইনি Cooch Behar-এর RMP, তাহলে 'Not saved anywhere' কেন
+               দেখাচ্ছে?") — **আসল কারণ (কোড ধরে যাচাই):** এই ফাংশন এতদিন
+               শুধু `followups` (রোগী/এনকোয়ারি) টেবিল দেখত — RMP (রেফারিং
+               ডাক্তার)-দের নিজস্ব টেবিল `doctor_visits` কখনো দেখাই হত না।
+               তাই কোনো RMP-র নম্বরে কল এলে, সেই RMP সত্যিই App-এ সেভ করা
+               থাকলেও, এই মিলানোর কোড তা খুঁজেই পেত না।
+               সমাধান: রোগী-মিল না পেলে (রোগীই অগ্রাধিকার পান, নম্বর একই
+               হলেও) একই batch-নিয়মে `doctor_visits`-এও খোঁজা হয় — নাম শুধু
+               `mobile` না, `altMobiles`-এও (RMP-দের বিকল্প নম্বর থাকতে
+               পারে)। ⛔ রোগীর মিলানোর নিয়ম/উপরের কোড এক অক্ষরও বদলায়নি —
+               শুধু "না পেলে" এই দ্বিতীয় ধাপ যোগ হলো। */
+            val stillMissing = digits.filter { !byNumber.containsKey(it) }
+            if (stillMissing.isNotEmpty()) {
+                try {
+                    val rmpFilter = "or=(" + stillMissing.joinToString(",") { "mobile.like.*$it,altMobiles.like.*$it" } + ")"
+                    val rmpCacheKey = "dialer:rmpmatch:" + stillMissing.sorted().joinToString(",")
+                    val rmpRows = CloudReadCache.get(rmpCacheKey) {
+                        SupabaseClient.fetchListSlimOrNull(
+                            "doctor_visits", rmpFilter, stillMissing.size * 3, "id,name,mobile,altMobiles,branch,area"
+                        )
+                    }
+                    if (rmpRows != null) {
+                        for (i in 0 until rmpRows.length()) {
+                            val r = rmpRows.optJSONObject(i) ?: continue
+                            val mainMobile = r.optString("mobile").filter { it.isDigit() }.takeLast(10)
+                            val altMobiles = r.optString("altMobiles").split(",", ";", " ")
+                                .map { it.filter { c -> c.isDigit() }.takeLast(10) }.filter { it.length == 10 }
+                            val ownKeys = (listOf(mainMobile) + altMobiles).filter { it.isNotBlank() }
+                            for (key in ownKeys) {
+                                if (key !in stillMissing || byNumber.containsKey(key)) continue
+                                byNumber[key] = MatchedContact(
+                                    id = r.optString("id"), name = r.optString("name"), mobile = r.optString("mobile"),
+                                    branch = r.optString("branch"), disease = "", stage = "", patientId = "RMP",
+                                    address = r.optString("area"), isRmp = true
+                                )
+                            }
+                        }
+                    }
+                } catch (_: Throwable) { }
             }
             byNumber
         } catch (_: Throwable) { emptyMap() }

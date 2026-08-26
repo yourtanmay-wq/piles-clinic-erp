@@ -267,62 +267,148 @@ class StaffProfileActivity : AppCompatActivity() {
     private fun renderStaffList(listBox: LinearLayout, rows: JSONArray, cfg: JSONArray) {
         val cfgMap = HashMap<String, JSONObject>()
         for (i in 0 until cfg.length()) cfgMap[cfg.getJSONObject(i).optString("person_code")] = cfg.getJSONObject(i)
-        var shown = 0
+        // V308-এ এই চার Doctor-এর login identity তৈরি হয়েছিল, কিন্তু
+        // staff_profiles সারি তৈরি হয়নি। তাই তালিকা থেকে অদৃশ্য ছিলেন। live
+        // directory-এর একই code/mobile/name/branch দিয়ে শুধু অনুপস্থিত চারজনকে
+        // তালিকায় পূরণ করা হয়; DB-তে থাকা কাউকে কখনো overwrite করা হয় না।
+        val allRows = ArrayList<JSONObject>()
+        val presentCodes = HashSet<String>()
+        for (i in 0 until rows.length()) {
+            val p = rows.getJSONObject(i); allRows.add(p)
+            presentCodes.add(ns(p, "person_code").uppercase(Locale.US))
+        }
+        configuredMissingDoctors().forEach { p ->
+            if (!presentCodes.contains(ns(p, "person_code").uppercase(Locale.US))) allRows.add(p)
+        }
+
+        val activeStaff = ArrayList<JSONObject>()
+        val activeDoctors = ArrayList<JSONObject>()
+        val activeField = ArrayList<JSONObject>()
         // 🔴 V404 (16.08.2026, TK-নির্দেশ): বাদ-দেওয়া কর্মী (active=false) মূল
         //    তালিকায় আসবে না — নিচে আলাদা "Removed Staff" ভাগে গোনা থাকবে,
         //    ভুল হলে Restore করা যাবে। ⛔ চুপচাপ লুকোনো নয়।
         val removedList = ArrayList<JSONObject>()
-        for (i in 0 until rows.length()) {
-            val p = rows.getJSONObject(i)
-            val pc = p.optString("person_code")
+        for (p in allRows) {
             val roleKind = ns(p, "role_kind")
             // ⛔ পুরনো cache-এ `active` ঘরটা নেই ⇒ ডিফল্ট true ⇒ কেউ উধাও হবে না।
-            if (roleKind.equals("staff", ignoreCase = true) && !p.optBoolean("active", true)) {
+            if (!p.optBoolean("active", true) && (
+                    roleKind.equals("staff", true) || roleKind.equals("doctor", true) || roleKind.equals("field", true))) {
                 removedList.add(p); continue
             }
-            // 🔴 B306 (03.08.2026, TK-নির্দেশ): এই তালিকায় শুধু স্টাফ থাকবে —
-            // ডাক্তার/মাস্টার/ফিল্ড অফিসার এখানে দেখানো হবে না। ডেটা এখনো
-            // hr.staff_profiles-এই আছে (কিছু মোছা হয়নি), শুধু এই পর্দায়
-            // রেন্ডার-লেভেলে বাদ দেওয়া হচ্ছে।
-            if (!roleKind.equals("staff", ignoreCase = true)) continue
-            shown++
+            // 🟢🔒 V603 (২৪.০৮.২০২৬, TK-স্পষ্ট নির্দেশ, ছবি-প্রুফ পাশ) —
+            // B306 (03.08.2026)-এ ইচ্ছে করে এই তালিকা শুধু staff-এ সীমিত
+            // করা হয়েছিল। TK এখন বলেছেন: *"সবাইকে তো সেখানে দেখায় না...
+            // যে কোনো ব্যক্তির ফোনে অ্যাপ চলবে না সেরকম ব্যবস্থা"* — অর্থাৎ
+            // Doctor/Field-কেও Suspend করার সুযোগ দরকার। ⇒ B306-এর সিদ্ধান্ত
+            // আংশিক উল্টে staff-এর সাথে doctor ও field-ও এখন এই তালিকায়
+            // আসবে (backend-এর suspend-যাচাই আগে থেকেই সবার জন্য কাজ করে —
+            // SessionGuard.kt-এ শুধু Master ছাড়া বাকি সবাইকে ধরে, তাই এটা
+            // নতুন কোনো ঝুঁকি নয়, শুধু আগে থেকে-কাজ-করা জিনিসটা এখানে
+            // দেখানো হলো)।
+            // ⛔ Master কখনো এখানে আসবে না/suspend হবে না — RoleRules ও
+            //    SessionGuard দুটোতেই আগে থেকেই আটকানো, এখানেও বাদ রাখা হলো।
+            val visibleRole = roleKind.equals("staff", true) ||
+                roleKind.equals("doctor", true) || roleKind.equals("field", true)
+            if (!visibleRole) continue
+            when {
+                roleKind.equals("staff", true) -> activeStaff.add(p)
+                roleKind.equals("doctor", true) -> activeDoctors.add(p)
+                else -> activeField.add(p)
+            }
+        }
+
+        fun heading(label: String, top: Int = 14) = TextView(this).apply {
+            text = label; textSize = 14f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#0A5C33"))
+            setPadding(dp(4), dp(top), dp(4), dp(6))
+        }
+        fun addCard(p: JSONObject, removed: Boolean = false) {
+            val pc = ns(p, "person_code")
             val sc = cfgMap[pc]
+            val directory = com.tkbiswas.pilesclinic.native.StaffDirectory.findAccount(ns(p, "link_mobile"))
+            val roleKind = ns(p, "role_kind")
             val desig = ns(p, "designation").ifBlank { roleKind }
-            val fullName = ns(p, "full_name").ifBlank { "(name not set)" }
+            val knownDoctorName = mapOf(
+                "DR-KH-MANDAL" to "Dr. K.H MANDAL",
+                "DR-JAY-BANIK" to "Dr. JAY BANIK",
+                "DR-AMIT-GOLDAR" to "AMIT GOLDAR",
+                "DR-PK-ROY" to "P.K ROY",
+                "DR-JH-MANDAL" to "J.H MANDAL",
+                "DR-GOKUL" to "GOKUL",
+                "DR-SAIKAT-ROY" to "Dr. SAIKAT ROY",
+                "DR-PRANAB-BISWAS" to "Dr. PRANAB BISWAS"
+            )[pc.uppercase(Locale.US)]
+            val fullName = ns(p, "full_name").ifBlank { directory?.name ?: knownDoctorName ?: "(name not set)" }
+            val branch = ns(p, "branch").ifBlank { directory?.branch ?: "" }
             val salTxt = if (sc != null && sc.optBoolean("salary_enabled", false))
                 "Salary: " + money(sc.optDouble("salary_amount", 0.0)) + " (day " + ns(sc, "salary_date") + ")" else "Salary: disabled"
-            listBox.addView(staffCard(pc, desig, roleKind, ns(p, "branch"), fullName, ns(p, "link_mobile"), salTxt,
-                onView = { editProfile(pc) }, onSalary = { salary(pc) }))
+            listBox.addView(staffCard(pc, desig, roleKind, branch, fullName, ns(p, "link_mobile"), salTxt,
+                onView = { editProfile(pc) }, onSalary = { salary(pc) }, isRemoved = removed))
+        }
+
+        var shown = 0
+        if (activeStaff.isNotEmpty()) {
+            listBox.addView(heading("STAFF"))
+            val branchOrder = com.tkbiswas.pilesclinic.native.BranchFilterStore.BRANCHES
+            val branches = activeStaff.map { ns(it, "branch") }.distinct()
+                .sortedWith(compareBy<String> { val n = branchOrder.indexOf(it); if (n < 0) Int.MAX_VALUE else n }.thenBy { it })
+            for (branch in branches) {
+                listBox.addView(heading(branch.ifBlank { "Branch not set" }, 7))
+                activeStaff.filter { ns(it, "branch") == branch }
+                    .sortedBy { ns(it, "full_name").ifBlank { ns(it, "person_code") } }
+                    .forEach { addCard(it); shown++ }
+            }
+        }
+        if (activeDoctors.isNotEmpty()) {
+            listBox.addView(heading("DOCTORS"))
+            activeDoctors.sortedWith(compareBy<JSONObject>({ ns(it, "branch") }, { ns(it, "full_name").ifBlank { ns(it, "person_code") } }))
+                .forEach { addCard(it); shown++ }
+        }
+        if (activeField.isNotEmpty()) {
+            listBox.addView(heading("FIELD OFFICER"))
+            activeField.sortedBy { ns(it, "full_name").ifBlank { ns(it, "person_code") } }
+                .forEach { addCard(it); shown++ }
         }
         if (shown == 0) listBox.addView(ModuleUi.body(this, "No profiles."))
-        // 🔴 V404: বাদ-দেওয়া কর্মীদের আলাদা ভাগ — শেষে, ছোট করে।
+        // Removed profile-গুলো ডিফল্টে লুকানো। প্রয়োজন হলে Master শিরোনামে
+        // চাপ দিয়ে খুলে Restore করতে পারবেন—Restore-এর পথ হারায় না।
         if (removedList.isNotEmpty()) {
-            listBox.addView(TextView(this).apply {
-                text = "Removed Staff (" + removedList.size + ")"
+            val removedBox = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                visibility = android.view.View.GONE
+            }
+            val removedHead = TextView(this).apply {
+                text = "REMOVED (" + removedList.size + ")  ▾"
                 textSize = 12.5f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setTextColor(android.graphics.Color.parseColor("#6B7A72"))
-                setPadding(dp(4), dp(18), dp(4), dp(2))
-            })
-            for (p in removedList) {
-                val pc = p.optString("person_code")
-                listBox.addView(
-                    staffCard(
-                        pc,
-                        ns(p, "designation").ifBlank { ns(p, "role_kind") },
-                        ns(p, "role_kind"),
-                        ns(p, "branch"),
-                        ns(p, "full_name").ifBlank { "(name not set)" },
-                        ns(p, "link_mobile"),
-                        "Salary: disabled",
-                        onView = { editProfile(pc) },
-                        onSalary = { salary(pc) },
-                        isRemoved = true
-                    )
-                )
+                setPadding(dp(4), dp(18), dp(4), dp(10))
+                isClickable = true; isFocusable = true
             }
+            removedHead.setOnClickListener {
+                val opening = removedBox.visibility != android.view.View.VISIBLE
+                removedBox.visibility = if (opening) android.view.View.VISIBLE else android.view.View.GONE
+                removedHead.text = "REMOVED (" + removedList.size + ")  " + if (opening) "▴" else "▾"
+            }
+            listBox.addView(removedHead)
+            for (p in removedList) {
+                val before = listBox.childCount
+                addCard(p, true)
+                val card = listBox.getChildAt(before)
+                listBox.removeView(card)
+                removedBox.addView(card)
+            }
+            listBox.addView(removedBox)
         }
     }
+
+    private fun configuredMissingDoctors(): List<JSONObject> = listOf(
+        JSONObject().put("person_code", "DR-JH-MANDAL").put("link_mobile", "7479173399").put("full_name", "J.H MANDAL").put("role_kind", "doctor").put("branch", "Cooch Behar").put("active", true),
+        JSONObject().put("person_code", "DR-GOKUL").put("link_mobile", "9002610352").put("full_name", "GOKUL").put("role_kind", "doctor").put("branch", "Cooch Behar").put("active", true),
+        JSONObject().put("person_code", "DR-SAIKAT-ROY").put("link_mobile", "7810907954").put("full_name", "Dr. SAIKAT ROY").put("role_kind", "doctor").put("branch", "Falakata").put("active", true),
+        JSONObject().put("person_code", "DR-PRANAB-BISWAS").put("link_mobile", "9242009205").put("full_name", "Dr. PRANAB BISWAS").put("role_kind", "doctor").put("branch", "Birpara").put("active", true)
+    )
 
     // 🔴 লক করা ডিজাইন (03.08.2026, B304 মকআপ অনুমোদন, B307-এ সংশোধিত) —
     // কম্প্যাক্ট কার্ড: নাম+ব্যাজ + View/Salary ছোট বোতাম ডানপাশে। TK পরে
@@ -516,7 +602,20 @@ class StaffProfileActivity : AppCompatActivity() {
         Thread {
             val enc = java.net.URLEncoder.encode(pc, "UTF-8")
             val patch = JSONObject().put("active", active)
-            val ok = try { ModuleAuth.update("hr", "staff_profiles", "person_code=eq.$enc", patch) } catch (_: Throwable) { false }
+            var ok = try { ModuleAuth.updateAtLeastOne("hr", "staff_profiles", "person_code=eq.$enc", patch) } catch (_: Throwable) { false }
+            // চার V308 Doctor-এর profile আগে DB-তে ছিল না। তাঁদের Remove করলে
+            // একটি inactive profile তৈরি করাই login বন্ধ করার নিরাপদ চিহ্ন।
+            if (!ok && !active) {
+                val seed = configuredMissingDoctors().firstOrNull { ns(it, "person_code") == pc }
+                if (seed != null) {
+                    val inactiveSeed = JSONObject(seed.toString()).put("active", false)
+                    ok = try { ModuleAuth.upsertOnConflict("hr", "staff_profiles", inactiveSeed, "person_code") } catch (_: Throwable) { false }
+                    if (ok) {
+                        val verify = try { ModuleAuth.getRowsChecked("hr", "staff_profiles", "select=active&person_code=eq.$enc&active=eq.false&limit=1") } catch (_: Throwable) { null }
+                        ok = verify?.ok == true && verify.rows.length() == 1
+                    }
+                }
+            }
             // বাদ দিলে মাইনে ও চাবিও বন্ধ। ⛔ ফেরানোর সময় মাইনে নিজে থেকে চালু
             //    হয় না — টাকার ব্যাপার, মাস্টার নিজে Salary পর্দায় গিয়ে করবেন।
             var salOk = true; var permitOk = true
@@ -539,7 +638,12 @@ class StaffProfileActivity : AppCompatActivity() {
                     else -> "$pc removed"
                 }
                 ModuleUi.toast(this, msg)
-                if (ok) renderList()
+                if (ok) {
+                    // পুরনো cached card এক মুহূর্তও আবার দেখাব না। নতুন সত্য
+                    // সরাসরি cloud থেকে এনে তারপর তালিকা আঁকা হবে।
+                    try { staffListCachePrefs().edit().clear().apply() } catch (_: Throwable) { }
+                    renderList()
+                }
             }
         }.start()
     }
@@ -1461,16 +1565,41 @@ class StaffProfileActivity : AppCompatActivity() {
         })
         box.addView(TextView(this).apply { text = "IN TIME (e.g. 09:15 AM)"; textSize = 11.5f; setTextColor(android.graphics.Color.parseColor("#5B6B81")) })
         val inInput = android.widget.EditText(this).apply {
-            hint = "hh:mm AM/PM — leave blank if not changing"
+            hint = "Tap to select time — leave blank if not changing"
             val pad = dp2(11); setPadding(pad, pad, pad, pad)
+            isFocusable = false
+            isCursorVisible = false
+            isClickable = true
         }
         box.addView(inInput)
         box.addView(TextView(this).apply { text = "OUT TIME (e.g. 06:30 PM)"; textSize = 11.5f; setTextColor(android.graphics.Color.parseColor("#5B6B81")); setPadding(0, dp2(10), 0, 0) })
         val outInput = android.widget.EditText(this).apply {
-            hint = "hh:mm AM/PM — leave blank if not changing"
+            hint = "Tap to select time — leave blank if not changing"
             val pad = dp2(11); setPadding(pad, pad, pad, pad)
+            isFocusable = false
+            isCursorVisible = false
+            isClickable = true
         }
         box.addView(outInput)
+        // Fix Attendance-এ সময় টাইপ করতে হবে না — ঘড়ি থেকে বেছে নেওয়া হবে।
+        fun openTimePicker(target: android.widget.EditText) {
+            val now = java.util.Calendar.getInstance(TimeZone.getTimeZone("Asia/Kolkata"))
+            android.app.TimePickerDialog(
+                this,
+                { _, hour, minute ->
+                    val picked = java.util.Calendar.getInstance(TimeZone.getTimeZone("Asia/Kolkata")).apply {
+                        set(java.util.Calendar.HOUR_OF_DAY, hour)
+                        set(java.util.Calendar.MINUTE, minute)
+                    }
+                    target.setText(SimpleDateFormat("hh:mm a", Locale.US).format(picked.time))
+                },
+                now.get(java.util.Calendar.HOUR_OF_DAY),
+                now.get(java.util.Calendar.MINUTE),
+                false
+            ).show()
+        }
+        inInput.setOnClickListener { openTimePicker(inInput) }
+        outInput.setOnClickListener { openTimePicker(outInput) }
         // hh:mm AM/PM → "HH:mm:ss" (24-ঘণ্টা, notebook_days-এ যেভাবে জমা থাকে)।
         fun to24(raw: String): String? {
             val t = raw.trim().uppercase(Locale.US)

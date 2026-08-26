@@ -10,6 +10,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import com.tkbiswas.pilesclinic.native.NativeSession
+import com.tkbiswas.pilesclinic.native.NoBengali
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -329,7 +330,7 @@ class PartnerSharesActivity : Activity() {
         val cachedD = loadBranchCache(branch)
         if (cachedD != null) {
             try { renderPartnerCards(content, cachedD) } catch (_: Throwable) {}
-            content.addView(TextView(this).apply { text = "হালনাগাদ হচ্ছে…"; textSize = 11.5f; setTextColor(android.graphics.Color.parseColor("#7c8a83")); setPadding(0, dp(8), 0, dp(8)) })
+            content.addView(TextView(this).apply { text = NoBengali.s("হালনাগাদ হচ্ছে…"); textSize = 11.5f; setTextColor(android.graphics.Color.parseColor("#7c8a83")); setPadding(0, dp(8), 0, dp(8)) })
         } else {
             content.addView(TextView(this).apply { text = "Loading…"; setTextColor(android.graphics.Color.parseColor("#7c8a83")) })
         }

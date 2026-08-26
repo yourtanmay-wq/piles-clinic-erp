@@ -1619,6 +1619,26 @@ class WorkNotebookActivity : AppCompatActivity() {
             return
         }
 
+        // 🟢🔒🔒 V650 (২৫.০৮.২০২৬, TK-নির্দেশ, দুই দফা প্রশ্ন করে নিশ্চিত হওয়া
+        // — "জলপাইগুড়ির স্টাফ, RMP-দের কাছে ফিল্ড-ভিজিটে যান, চেম্বারে সপ্তাহে
+        // ২ দিন — ফিল্ডে থাকলে IN TIME নিতে পারেন না") — **আসল কারণ:** IN
+        // TIME-এ GPS-পাহারা আছে (ক্লিনিকের কাছাকাছি না থাকলে সম্পূর্ণ আটকে
+        // যায়) — এটাই তাঁকে আটকাচ্ছিল। TK-এর স্পষ্ট, নির্দিষ্ট নির্দেশ:
+        // "GPS সম্পূর্ণভাবে বন্ধ, শুধু আঙুলের ছাপ/পাসওয়ার্ড", আর "শুধু এই
+        // নির্দিষ্ট স্টাফের নম্বর ধরে" — কোনো সাধারণ টগল না, শুধু এই একজনের
+        // জন্যই। তাই এখানে একটা ছোট, নাম-করা allowlist (CallNotifyManager-এর
+        // ALLOWED_CALLER_ID_LOGINS-এর একই প্যাটার্ন — একটা মাত্র জায়গায়,
+        // স্পষ্ট মন্তব্যসহ) — TK নিজে না বললে কখনো বাড়ানো যাবে না।
+        // ⛔ বাকি সব স্টাফের জন্য GPS-পাহারা আগের মতোই অক্ষত (নিচের `else`
+        //    শাখা, ধাপ ৩)। ⛔ আঙুলের ছাপ/পাসওয়ার্ড এই স্টাফের জন্যও অক্ষত —
+        //    শুধু GPS-ধাপটাই বাদ, নিরাপত্তার বাকি সবকটা স্তর একই থাকে।
+        val gpsExemptMobiles = setOf("8167096595")   // জলপাইগুড়ি স্টাফ, RMP field-visit — TK-নির্দেশ ২৫.০৮.২০২৬
+        val myDigits = (user?.mobile ?: "").filter { it.isDigit() }.takeLast(10)
+        if (gpsExemptMobiles.contains(myDigits)) {
+            startBiometricThenSaveInTime(onSaved)
+            return
+        }
+
         // ধাপ ৩ — ক্লিনিকে আছেন কিনা (GPS)
         // 🔤 V519 (TK-নির্দেশ): এই পর্দার লেখা সব ব্রাঞ্চেই ইংরেজি।
         android.widget.Toast.makeText(this, "Checking whether you are at the clinic...", android.widget.Toast.LENGTH_SHORT).show()
@@ -1662,7 +1682,19 @@ class WorkNotebookActivity : AppCompatActivity() {
                সেটা git থেকে **অক্ষরে অক্ষরে** ফিরিয়ে আনা হয়েছে।
                ⇒ আঙুলের ছাপ এখন **ঠিক তিন জায়গায়** — Login · IN TIME · Refund।
                ⛔ ভবিষ্যতে এই ব্লক সরানো যাবে না, TK নিজে না বললে। */
-            // ধাপ ৪ — আঙুলের ছাপ
+            // ধাপ ৪ — আঙুলের ছাপ (+ ধাপ ৫ সেভ) — এখন `startBiometricThenSaveInTime()`-এ,
+            // যাতে V650-এর GPS-exempt পথও এই একই, প্রমাণিত ধাপটাই ব্যবহার করে।
+            startBiometricThenSaveInTime(onSaved)
+        }
+    }
+
+    /**
+     * ধাপ ৪ (আঙুলের ছাপ) + ধাপ ৫ (সার্ভারে সেভ) — GPS-পাহারা পেরিয়ে আসা সাধারণ
+     * পথ, আর V650-এর নাম-করা GPS-exempt পথ — দুটোই এই একই ফাংশন ব্যবহার করে,
+     * তাই নিরাপত্তার এই শেষ স্তরটা (আঙুল/পাসওয়ার্ড) কখনো আলাদা হয়ে যেতে
+     * পারে না।
+     */
+    private fun startBiometricThenSaveInTime(onSaved: () -> Unit) {
             /* 🔴🔒 V500 (২১.০৮.২০২৬) — TK-এর স্পষ্ট সিদ্ধান্ত:
                আমি জানিয়েছিলাম, হাজিরায় ফোনের PIN খুলে দিলে কেউ সহকর্মীকে
                PIN বলে দিয়ে হাজিরা বসিয়ে নিতে পারে (আর সেই হাজিরাতেই বেতন
@@ -1670,7 +1702,7 @@ class WorkNotebookActivity : AppCompatActivity() {
                ⇒ তাই হাজিরাতেও এখন `promptUnlock()` — **আঙুল অথবা ফোনের
                  পাসওয়ার্ড**, অ্যাপ খোলার মতোই এক নিয়ম।
                ⛔ ক্লিনিকে আছেন কিনা (GPS) যাচাই আগের মতোই আছে — সেটাই এখন
-                 সবচেয়ে শক্ত পাহারা। */
+                 সবচেয়ে শক্ত পাহারা (V650-এর নাম-করা exempt-স্টাফ বাদে)। */
             com.tkbiswas.pilesclinic.native.BiometricGate.promptUnlock(
                 this,
                 // 🔤 V509 (২১.০৮.২০২৬, TK-নির্দেশ "এই ধরনের বাংলা থাকবে না"):
@@ -1686,6 +1718,10 @@ class WorkNotebookActivity : AppCompatActivity() {
                         r == BiometricGate.Reason.LOCKOUT
                     val notEnrolled = r == BiometricGate.Reason.NONE_ENROLLED
                     inTimeMessage("Fingerprint", bio.message, "#A8281C",
+                        // 🔒 V650 — পুরনো আচরণ অক্ষত রাখতে আবার পুরো
+                        // `startInTimeFlow()` থেকেই শুরু হয় (GPS-ধাপসহ,
+                        // সাধারণ স্টাফের জন্য) — exempt স্টাফের জন্যও ঠিকই
+                        // কাজ করে (তালিকায় থাকলে আবার সরাসরি এখানেই ফেরত আসবেন)।
                         retry = if (canRetry) ({ startInTimeFlow(onSaved) }) else null,
                         extraLabel = if (notEnrolled) "Open Settings" else null,
                         extra = if (notEnrolled) ({
@@ -1696,7 +1732,6 @@ class WorkNotebookActivity : AppCompatActivity() {
                 // ধাপ ৫ — সার্ভারে atomic সেভ
                 saveInTimeOnServer(onSaved)
             }
-        }
     }
 
     /** ধাপ ৫ — সার্ভারই সব ঠিক করে; অ্যাপ কিছু পাঠায় না, কিছু ঠিকও করে না। */

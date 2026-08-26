@@ -1,6 +1,11 @@
 package com.tkbiswas.pilesclinic.native
 
 import android.content.Context
+import android.graphics.Color
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.method.LinkMovementMethod
+import android.text.style.ClickableSpan
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -91,6 +96,49 @@ class BriefingAdapter(
 
     override fun getItemCount(): Int = items.size
 
+    /**
+     * V689: "Seen by N"-কে TextView-এর সাধারণ click-এর উপর নির্ভর না রেখে
+     * লেখাটির ওই অংশকেই আসল clickable span করা হয়েছে। কিছু কার্ডে message-এর
+     * LinkMovementMethod/RecyclerView touch handling-এর কারণে আগের listener
+     * বাস্তবে tap পেত না, যদিও সংখ্যা ঠিক দেখা যেত।
+     */
+    private fun bindSeenBy(view: android.widget.TextView, prefix: String, item: Briefing) {
+        val label = "Seen by ${item.seenCount}"
+        val fullText = prefix + label
+        val text = SpannableString(fullText)
+        val openSeenList = {
+            // বর্তমান model-list ছাড়াও raw row থেকে আবার পড়া—পুরনো/মিশ্র
+            // notice card হলেও নামের তালিকা ফাঁকা হয়ে tap নষ্ট হবে না।
+            val rawSeen = item.raw.optJSONArray("seen")
+            val mobiles = if (item.seenBy.isNotEmpty()) item.seenBy else
+                (0 until (rawSeen?.length() ?: 0))
+                    .map { rawSeen?.optString(it, "").orEmpty() }
+                    .filter { it.isNotBlank() }
+            val names = mobiles.map { mobile ->
+                StaffDirectory.findAccount(mobile)?.name ?: mobile
+            }.distinct()
+            androidx.appcompat.app.AlertDialog.Builder(context)
+                .setCustomTitle(PremiumAlert.header(context, "Seen by (${names.size})"))
+                .setItems(names.toTypedArray(), null)
+                .setPositiveButton("Close", null)
+                .show().also { dialog -> PremiumAlert.paint(dialog) }
+        }
+        val start = fullText.indexOf(label)
+        text.setSpan(object : ClickableSpan() {
+            override fun onClick(widget: View) { openSeenList() }
+            override fun updateDrawState(ds: android.text.TextPaint) {
+                ds.color = Color.parseColor("#1976B9")
+                ds.isUnderlineText = true
+            }
+        }, start, start + label.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        view.text = text
+        view.movementMethod = LinkMovementMethod.getInstance()
+        view.highlightColor = Color.TRANSPARENT
+        view.isClickable = true
+        // পুরো লাইন চাপলেও একই ফল—সাধারণ ব্যবহারকারীর জন্য tap target বড় থাকে।
+        view.setOnClickListener { openSeenList() }
+    }
+
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val item = items[position]
         val b = holder.binding
@@ -133,7 +181,11 @@ class BriefingAdapter(
         b.tvMessage.text = buildClickableMessage(item.message)
         b.tvMessage.movementMethod = android.text.method.LinkMovementMethod.getInstance()
         b.tvMessage.highlightColor = android.graphics.Color.TRANSPARENT
-        b.tvTargets.text = "${item.targetsSummary} · Seen by ${item.seenCount}"
+        bindSeenBy(b.tvTargets, "${item.targetsSummary} · ", item)
+        // 🔴🔒 V682 (২৫.০৮.২০২৬, TK-লাইভ-টেস্ট রিপোর্ট — "Seen by 1-এ চাপ
+        // দিলে কে দেখেছে বোঝা যায় না") — এখন চাপলে নামের তালিকা দেখায়
+        // (স্টাফ কোড → নাম, প্রমাণিত StaffDirectory.findAccount())। ⛔
+        // ফাঁকা থাকলে চাপে কিছুই হয় না, বাকি সব আগের মতোই।
         // 🔴 V433 (TK): "Role: master · Seen by 0 — এর মানে কি?" — সাধারণ
         // তথ্য-কার্ডে লাইনটার কোনো কাজ নেই, তাই লুকানো। বাকি নোটিশে আগের মতোই।
         b.tvTargets.visibility = if (isPlainInfo) View.GONE else View.VISIBLE
@@ -162,6 +214,54 @@ class BriefingAdapter(
             val t = extractField(item.message, "Time")
             if (t != null) b.tvMessage.text = "🕐 $t"
         }
+
+        // 🟢🔒 V641 (২৪.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ — "ব্রাঞ্চ দুই
+        // জায়গায় কেন? এক লাইনে রাখলেই জায়গা কমে") — Delete/Refund/Reopen-
+        // ধরনের গঠিত অনুরোধ-নোটিশে ব্রাঞ্চ + অনুরোধকারীর কোড এক লাইনে
+        // (হেডারেই), তাই বার্তায় আর আলাদা "Name :"/"Branch :"/"Requested
+        // by :" সারি লাগে না (Name শিরোনামেই আছে) — ডুপ্লিকেট বাদ দিয়ে
+        // বার্তাটা ছোট হয়।
+        // ⛔ শুধু **দেখানো** টেক্সট বদলায় — item.message (ডেটাবেসে সেভ করা
+        //    আসল লেখা, Reply/cloud sync-এ যা ব্যবহার হয়) এক অক্ষরও বদলায় না।
+        // ⛔ এই গঠন (Requested by :) নেই এমন বার্তায় (সাধারণ Briefing/
+        //    auto-notice/Staff IN-OUT) একচুলও প্রভাব পড়ে না।
+        val requestedBy = extractField(item.message, "Requested by")
+        if (requestedBy != null) {
+            val brOnly = item.branch.ifBlank { extractField(item.message, "Branch").orEmpty() }
+            b.tvWho.text = if (brOnly.isNotBlank()) "$brOnly · $requestedBy" else requestedBy
+            b.tvAvatar.text = (brOnly.trim().ifEmpty { requestedBy }
+                .firstOrNull { it.isLetterOrDigit() }?.uppercaseChar() ?: 'N').toString()
+            val trimmed = item.message.lines().filterNot { line ->
+                val l = line.trim()
+                l.startsWith("Name :", true) || l.startsWith("Branch :", true) ||
+                    l.startsWith("Requested by :", true) ||
+                    (l.endsWith("permission request", true) && !l.contains(":")) ||
+                    // 🟢🔒 V641 (২৪.০৮.২০২৬, TK-রিপোর্ট, ছবিসহ — "এটা দেখে কি
+                    // প্রফেশনাল লুক মনে হচ্ছে?" → "না") — আসল কারণ: "Master:
+                    // রেকর্ডটা খুলে Take Action → Delete চাপুন" এই নির্দেশটা
+                    // পুরনো, ম্যানুয়াল একটা ফ্লো বোঝাত। "✔ Approve" বোতাম
+                    // এখন **এক-চাপেই** সরাসরি ডিলিট করে দেয় (নিচেই
+                    // `onApproveDelete(item)` ডাকা হয়) — তাই এই লাইনটা
+                    // এখন সত্যিই অপ্রয়োজনীয়/বিভ্রান্তিকর, শুধু "Take
+                    // Action"-ধরনের ম্যানুয়াল-নির্দেশের লাইনগুলোই বাদ
+                    // (Reopen-এর মতো তথ্য-জানানো Master-নোট অক্ষত থাকে)।
+                    (l.contains("Take Action", true) && l.contains("Master", true))
+            }.joinToString("\n").trim()
+            b.tvMessage.text = buildClickableMessage(trimmed)
+            val dens = holder.itemView.resources.displayMetrics.density
+            val pad = (8 * dens).toInt()
+            b.tvMessage.setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_brief_infobox)
+            b.tvMessage.setPadding(pad, pad, pad, pad)
+            // 🟢🔒 V641 (২৪.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ) — এই
+            // ধরনের গঠিত অনুরোধ-নোটিশে "Role: master" অংশটা বাদ (কে
+            // পাঠিয়েছেন সেটা হেডারেই আছে) — শুধু "Seen by X" থাকে।
+            bindSeenBy(b.tvTargets, "", item)
+        } else {
+            // 🔒 RecyclerView রিসাইকেল-নিরাপদ: আগের কার্ডে বসানো বক্স-
+            // ব্যাকগ্রাউন্ড/প্যাডিং যেন সাধারণ নোটিশে ভুল করে থেকে না যায়।
+            b.tvMessage.background = null
+            b.tvMessage.setPadding(0, 0, 0, 0)
+        }
         val titleLc = item.title.lowercase()
         val urgent = listOf("request", "refund", "reopen", "urgent").any { titleLc.contains(it) }
         // 🔴🎨 TK-নির্দেশ (07.08.2026): "নেভি ব্লু/কালো রঙ ব্যবহার করা যাবে না।
@@ -178,6 +278,10 @@ class BriefingAdapter(
             b.tvChip.setTextColor(android.graphics.Color.parseColor("#B91C1C"))
             b.tvAvatar.backgroundTintList = android.content.res.ColorStateList.valueOf(redLine)
             b.tvTitle.setTextColor(android.graphics.Color.parseColor("#8E2A20"))
+            // 🟢🔒 V641 (২৪.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ — কমপ্যাক্ট
+            // ডিজাইন) — শিরোনাম এখন ছোট রঙিন পিল (chip), আগের মতো পুরো-
+            // চওড়া প্লেইন টেক্সট নয়। ⛔ শুধু দেখানোর সাজ — id/লজিক অক্ষত।
+            b.tvTitle.setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_brief_title_urgent)
         } else {
             b.priorityBar.setBackgroundColor(greenLine)
             b.tvChip.text = "NOTICE"
@@ -185,6 +289,7 @@ class BriefingAdapter(
             b.tvChip.setTextColor(android.graphics.Color.parseColor("#166534"))
             b.tvAvatar.backgroundTintList = android.content.res.ColorStateList.valueOf(greenLine)
             b.tvTitle.setTextColor(android.graphics.Color.parseColor("#14361F"))
+            b.tvTitle.setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_brief_title_normal)
         }
         // 🔴 V433 (TK): "এটা একটা সাধারণ জিনিস, তাহলে এটা নোটিশ কেন হবে" —
         // তথ্য-কার্ডে NOTICE চিপটা তুলে দেওয়া হলো। রং/বার আগের মতোই সবুজ।

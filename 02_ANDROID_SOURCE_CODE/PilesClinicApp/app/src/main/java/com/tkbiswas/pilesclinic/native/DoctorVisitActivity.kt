@@ -1017,10 +1017,22 @@ class DoctorVisitActivity : AppCompatActivity() {
      *  doctor this phone added for another branch could otherwise appear in
      *  this branch's list. This applies exactly the same branch rule the
      *  cloud query itself uses, so nothing can cross branches. Master /
-     *  "All" sees everything, as always. */
+     *  "All" sees everything, as always.
+     *
+     *  🟢🔒🔒 V635 (২৪.০৮.২০২৬, TK-নির্দেশ — "এই ধরনের সমস্যা আর কোথায়
+     *  আছে, গভীরে গিয়ে যাচাই করুন") — Chamber Attendance-এর "কাল আসার
+     *  কথা"-র ঠিক একই বাগের ধরন এখানেও ছিল: উপরের `raw` তোলা হয় সঠিক
+     *  ব্রাঞ্চ দিয়ে (`activeDoctorBranch()` — এই স্ক্রিনের নিজের
+     *  ব্রাঞ্চ-পিকার/`branchFilter` মেনে চলে), কিন্তু তারপর এই ফাংশন
+     *  সেই একই তালিকা আবার **`user.branch`** (লগইনের নিজের ব্রাঞ্চ) দিয়ে
+     *  দ্বিতীয়বার ছেঁকে ফেলত। Master-এর নিজের `branch` সাধারণত "All"
+     *  থাকে বলে এটা এতদিন প্রকাশ পায়নি — কিন্তু নির্দিষ্ট-ব্রাঞ্চের কোনো
+     *  Master/অংশীদার-ধরনের অ্যাকাউন্ট অন্য ব্রাঞ্চে সুইচ করলে RMP-তালিকা
+     *  ভুলভাবে ফাঁকা/কম দেখাতে পারত। এখন `activeDoctorBranch()`-ই
+     *  ব্যবহার হয় — ঠিক যে ব্রাঞ্চ দিয়ে `raw` আনা হয়েছিল, তার সাথেই মেলে। */
     private fun myDoctorRows(rows: org.json.JSONArray): org.json.JSONArray {
         val merged = MyPhoneWrites.overlay(this, "doctor_visits", rows)
-        val branch = user.branch
+        val branch = activeDoctorBranch().orEmpty()
         if (branch.isBlank() || branch == "All") return merged
         val out = org.json.JSONArray()
         for (i in 0 until merged.length()) {
@@ -4177,21 +4189,100 @@ class DoctorVisitActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * 🟢🔒🔒 V661 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবি-প্রুফ পাশ — "Google sheets এর
+     * মত থাকতে হবে... তারিখ এবং সময় লাগবে") — আগে সাদামাটা bullet-list
+     * (`AlertDialog.setItems`) ছিল, এখন IncomeExpenseActivity-র প্রমাণিত
+     * "Google Sheet" বক্স-টেবিল ছাঁচেই (হেডার সবুজ, বর্ডার-করা কোষ) —
+     * Date · Time · Amount · Mode চারটে কলাম।
+     * ⛔ সারিতে চাপলে (available থাকলে) আগের মতোই `showRmpAdvancePatientPicker`
+     *    খোলে — adjust করার ক্ষমতা/অনুমতি এক অক্ষরও বদলায়নি, শুধু দেখানোর ধরন।
+     */
     private fun showRmpAdvancePayments(item: DoctorVisitItem) {
         lifecycleScope.launch {
             val got = withContext(Dispatchers.IO) { RmpCommissionRepository.advancePayments(item.id) }
             if (!got.ok) { Toast.makeText(this@DoctorVisitActivity, got.message, Toast.LENGTH_LONG).show(); return@launch }
             val rows = got.value ?: emptyList()
-            val availableRows = rows.filter { it.available > 0.001 }
             val total = rows.sumOf { it.amount }; val allocated = rows.sumOf { it.allocated }; val available = total - allocated
-            val labels = mutableListOf("Paid: ₹${"%,.2f".format(total)}  ·  Adjusted: ₹${"%,.2f".format(allocated)}  ·  Available: ₹${"%,.2f".format(available)}")
-            labels.addAll(availableRows.map { "${FollowUpModel.displayDate(it.paidOn)} · ₹${"%,.2f".format(it.available)} available · ${it.mode}" })
+
+            val dpx = { v: Int -> (v * resources.displayMetrics.density).toInt() }
+            fun boxCell(text: String, weight: Float, bg: String, fg: String, bold: Boolean): TextView =
+                TextView(this@DoctorVisitActivity).apply {
+                    this.text = text; textSize = 11.5f
+                    setTextColor(android.graphics.Color.parseColor(fg))
+                    if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    gravity = android.view.Gravity.CENTER
+                    setPadding(dpx(6), dpx(8), dpx(6), dpx(8))
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, weight)
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        setColor(android.graphics.Color.parseColor(bg))
+                        setStroke(dpx(1), android.graphics.Color.parseColor("#D9E2EC"))
+                    }
+                }
+
+            val table = LinearLayout(this@DoctorVisitActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            }
+            // হেডার
+            table.addView(LinearLayout(this@DoctorVisitActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                addView(boxCell("Date", 1.1f, "#0A7C3F", "#FFFFFF", true))
+                addView(boxCell("Time", 0.9f, "#0A7C3F", "#FFFFFF", true))
+                addView(boxCell("Amount", 1f, "#0A7C3F", "#FFFFFF", true))
+                addView(boxCell("Mode", 0.8f, "#0A7C3F", "#FFFFFF", true))
+            })
+            // ডেটা সারি
+            for ((idx, r) in rows.withIndex()) {
+                val bg = if (idx % 2 == 0) "#FFFFFF" else "#F7FBF8"
+                // 🟢🔒 V661 — recorded_at থেকে সময়টুকু বার করা (আগে থেকেই
+                // ছিল, শুধু sort-এর জন্য ব্যবহার হতো, এখন দেখানোও হয়)।
+                val timeTxt = try {
+                    val d = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
+                        .parse(r.recordedAt.take(19))
+                    java.text.SimpleDateFormat("h:mm a", java.util.Locale.US).format(d!!)
+                } catch (_: Throwable) { "—" }
+                val row = LinearLayout(this@DoctorVisitActivity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    if (r.available > 0.001) {
+                        isClickable = true; isFocusable = true
+                        setOnClickListener { showRmpAdvancePatientPicker(item, r) }
+                    }
+                }
+                row.addView(boxCell(FollowUpModel.displayDate(r.paidOn), 1.1f, bg, "#41506A", false))
+                row.addView(boxCell(timeTxt, 0.9f, bg, "#41506A", false))
+                row.addView(boxCell("₹${"%,.0f".format(r.available)}", 1f, bg, "#0A5C33", true))
+                row.addView(boxCell(r.mode, 0.8f, bg, "#41506A", false))
+                table.addView(row)
+            }
+            if (rows.isEmpty()) table.addView(TextView(this@DoctorVisitActivity).apply {
+                text = "No advance payment yet."; textSize = 12f; setPadding(dpx(8), dpx(10), dpx(8), dpx(10))
+                setTextColor(android.graphics.Color.parseColor("#667085"))
+            })
+
+            val summary = TextView(this@DoctorVisitActivity).apply {
+                text = "Paid ₹${"%,.0f".format(total)}   ·   Adjusted ₹${"%,.0f".format(allocated)}   ·   Available ₹${"%,.0f".format(available)}"
+                textSize = 12.5f; setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#0A5C33"))
+                setPadding(dpx(10), dpx(9), dpx(10), dpx(9))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(android.graphics.Color.parseColor("#EAF6EE")); cornerRadius = dpx(10).toFloat()
+                }
+            }
+            val outer = LinearLayout(this@DoctorVisitActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dpx(14), dpx(10), dpx(14), dpx(4))
+                addView(summary)
+                addView(android.view.View(this@DoctorVisitActivity).apply {
+                    layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpx(10))
+                })
+                addView(table)
+            }
+            val scroll = android.widget.ScrollView(this@DoctorVisitActivity).apply { addView(outer) }
+
             AlertDialog.Builder(this@DoctorVisitActivity)
                 .setCustomTitle(PremiumAlert.header(this@DoctorVisitActivity, "Advance Payment — ${item.name}"))
-                .setItems(labels.toTypedArray()) { _, which ->
-                    if (which > 0) showRmpAdvancePatientPicker(item, availableRows[which - 1])
-                    else if (availableRows.isEmpty()) Toast.makeText(this@DoctorVisitActivity, "No unallocated payment", Toast.LENGTH_SHORT).show()
-                }
+                .setView(scroll)
                 .setNegativeButton("Close", null).show().also { PremiumAlert.paint(it) }
         }
     }

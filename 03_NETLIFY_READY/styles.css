@@ -3078,6 +3078,9 @@ table.dhxHistTable{width:100%;border-collapse:collapse;font-size:12px;margin-top
 .payPerson2{flex:1;min-width:0}
 .payNameRow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .payNameRow .wlv1NameLink{font-size:15px;font-weight:900}
+/* 🟢🔒 V640 (২৪.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ) — নামের আগে ছোট
+   গোল সিরিয়াল নম্বর ব্যাজ, Android-এর bg_serial_badge-এর হুবহু একই রং। */
+.paySerialTag{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:#0B4F2A;color:#fff;font-size:11px;font-weight:900;flex-shrink:0}
 .payDisChip{background:#FDE7EA;color:#b0392b;font-size:10.5px;font-weight:900;padding:2px 8px;border-radius:9px}
 .payMob2{color:#667085;font-size:12px;margin-top:4px}
 .payId2{display:inline-block;white-space:nowrap;color:#667085;font-size:11.5px;font-weight:700;margin-left:8px}
@@ -5046,14 +5049,16 @@ button.small{min-height:36px!important;font-size:13px!important;border-radius:12
 .wlv1InvCommon:nth-of-type(2){background:linear-gradient(135deg,#1E88C7,#0D3E5C)!important;margin:0 0 14px!important}
 .wlv1InvCommon:nth-of-type(2) small{color:#D7ECFB!important}
 .wlv1InvCommon small{font-size:10px!important;font-weight:400!important;margin-top:2px!important;opacity:1!important}
-/* ক্যাটাগরির ঘর — kt:229-275: ২ কলাম, ফাঁক ৮dp, radius 14dp, padding 8/10,
-   ইমোজি 17sp · নাম 11sp bold · গোনা 9sp; ৮টি ক্যাটাগরির নিজস্ব ৮টি রং */
+/* ক্যাটাগরির ঘর — kt:229-275: ২ কলাম, ফাঁক ৮dp, radius 14dp, padding 6/6,
+   ইমোজি বাদ · নাম 13sp bold · গোনা 9sp; ৮টি ক্যাটাগরির নিজস্ব ৮টি রং
+   🟢 V600 (২৩.০৮.২০২৬, TK-অনুমোদিত, ছবি-প্রুফ পাশ): padding 10/8 → 6/6,
+   আইকন বাদ, নামের সাইজ 11px → 13px — Android-এর হুবহু যমজ। */
 .wlv1InvGrid{grid-template-columns:1fr 1fr!important;gap:10px 8px!important}
 .wlv1InvCard{border:0!important;border-radius:14px!important;box-shadow:none!important;
-  padding:10px 8px!important;display:flex!important;flex-direction:column!important;
+  padding:6px 6px!important;display:flex!important;flex-direction:column!important;
   align-items:center!important;justify-content:center!important;gap:0!important}
-.wlv1InvCard .wlv1InvIco{font-size:17px!important}
-.wlv1InvCard b{font-size:11px!important;font-weight:700!important;margin-top:4px!important}
+.wlv1InvCard .wlv1InvIco{display:none!important}
+.wlv1InvCard b{font-size:13px!important;font-weight:700!important;margin-top:0!important}
 .wlv1InvCard small{font-size:9px!important;font-weight:400!important;margin-top:0!important}
 .wlv1InvGrid .wlv1InvCard:nth-child(1){background:linear-gradient(135deg,#FFE3E3,#FFC9C9)!important;color:#7A1F1F!important}
 .wlv1InvGrid .wlv1InvCard:nth-child(2){background:linear-gradient(135deg,#DCEBFF,#B8D8FF)!important;color:#0F3A66!important}
@@ -5334,17 +5339,23 @@ button.small{min-height:36px!important;font-size:13px!important;border-radius:12
 .cbRevHd{background:#0E7C7B;color:#fff;font-weight:800;font-size:10.5px;letter-spacing:.3px}
 .cbRevHd:nth-child(1){text-align:left}
 .cbRevHd:nth-child(2){font-size:12.5px}
-.cbRevNm{background:#EAF9F1;text-align:left!important;color:#10223A;font-weight:700;font-size:11px;line-height:1.35;padding:10px 4px 10px 8px}
+/* 🟢🔒 V654 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবিসহ — "ব্যাকগ্রাউন্ড পরিষ্কার সাদা
+   থাকবে") — হালকা সবুজ (#EAF9F1) থেকে সাদা, ৫টা ঘরেই (Android-এর একই
+   বদল)। */
+.cbRevNm{background:#FFFFFF;text-align:left!important;color:#10223A;font-weight:700;font-size:11px;line-height:1.35;padding:10px 4px 10px 8px}
 .cbRevNm span{display:block;font-weight:400;color:#33404F}
 /* 🏷️ RMP চিহ্নটা ফোনের মতোই নামের **আগে একই লাইনে** ছোট্ট করে বসে
    (ফোনে এটা লেখারই অংশ — লাল জমিন, সাদা লেখা, ০.৮৫ গুণ ছোট)।
    উপরের নিয়মে সব span আলাদা লাইনে যেত, তাই এই একটাকে ছাড় দেওয়া হলো। */
 .cbRevNm .cbRmpTag{display:inline-block;width:auto;font-weight:800;color:#fff}
-.cbRevTr{background:#EAF9F1;color:#334155;font-size:11px}
+.cbRevTr{background:#FFFFFF;color:#334155;font-size:11px}
 .cbRevTr.cbRevTrEmpty{color:#C47B00}
-.cbRevF{background:#EAF9F1;color:#33404F;font-weight:700}
-.cbRevC{background:#EAF9F1;color:#0C9E33;font-weight:700}
-.cbRevO{background:#EAF9F1;color:#123A8C;font-weight:700}
+/* 🟢🔒 V654 — আজকের লেখা vs আগের দিনের লেখা আলাদা রঙে (নিচে JS-এ ক্লাস বসে)। */
+.cbRevTr.cbRevTrToday{color:#0B4F2A;font-weight:700}
+.cbRevTr.cbRevTrOld{color:#9AA4B2}
+.cbRevF{background:#FFFFFF;color:#33404F;font-weight:700}
+.cbRevC{background:#FFFFFF;color:#0C9E33;font-weight:700}
+.cbRevO{background:#FFFFFF;color:#123A8C;font-weight:700}
 /* 🖥️ V429 — কম্পিউটারে যখন বাক্সটা সত্যিই চওড়া (৫০০px-এর বেশি), তখনই ঘরগুলো
    একটু চওড়া হয়, যাতে "₹12,000" বা ফোন নম্বর মাঝখান থেকে ভেঙে না যায়।
    ⛔ পর্দার মাপ ধরে নয় — **বাক্সের ভিতরের আসল জায়গা** ধরে (container query),
@@ -5794,16 +5805,23 @@ button.card.reportKpi span, .card.reportKpi span, button.card.reportKpi small, .
 .wlv1TrashTop{display:flex;align-items:center;gap:8px}
 .wlv1TrashCb{width:18px;height:18px;flex:none;accent-color:#1167D8}
 .wlv1TrashName{flex:1;font-size:15px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.wlv1TrashWhen{font-size:10.5px;color:#6B7A90;white-space:nowrap;flex:none}
+/* 🟢🔒🔒 V660 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবি-প্রুফ পাশ) — "কবে/কে মুছেছে"
+   আগে নামের পাশে ছোট ইনলাইন লেখা ছিল (top row-এ); এখন whenAndBy() একটা
+   লম্বা লাইন হওয়ায় নিজের সারিতে, হালকা হলুদ বাক্সে (Android-এর
+   bg_chip_amber-এর হুবহু একই যমজ)। */
+.wlv1TrashWhen{font-size:10.5px;color:#8A5A00;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;display:block;margin-top:4px;background:#FFF7E8;
+  border:1px solid #F5DFA8;border-radius:8px;padding:3px 6px}
 .wlv1TrashChips{display:flex;flex-wrap:wrap;gap:5px;margin:5px 0 4px}
 .wlv1TrashChip{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:999px;
   background:#EAF2FF;color:#1167D8}
 .wlv1TrashChip.g{background:#E7F7ED;color:#12813F}
 .wlv1TrashChip.rd{background:#FDECEC;color:#B42222}
 .wlv1TrashDet{font-size:12px;color:#33465C;line-height:1.55}
-.wlv1TrashBy{font-size:11px;color:#6B7A90;margin-top:3px}
 .wlv1TrashBtns{display:flex;gap:6px;margin-top:8px}
-.wlv1TrashB{flex:1;border:0;border-radius:9px;padding:8px 4px;font-size:12.5px;
+/* 🟢🔒 V660 — বোতাম আরও ছোট (padding কমানো), Android-এর ৩৪dp→২৬dp-র
+   একই অনুপাতে। */
+.wlv1TrashB{flex:1;border:0;border-radius:9px;padding:5px 4px;font-size:12.5px;
   font-weight:700;color:#fff;cursor:pointer}
 .wlv1TrashB.v{background:#1167D8}
 .wlv1TrashB.r{background:#16A34A}
@@ -5896,7 +5914,7 @@ button.card.reportKpi span, .card.reportKpi span, button.card.reportKpi small, .
 .wlv1HistGrp{padding:8px 0;border-bottom:1px dotted #D8E0E9}
 .wlv1HistGrp:last-of-type{border-bottom:none}
 .wlv1HistTtl{font-size:14.5px;color:#0B2B59;font-weight:700;margin-bottom:6px}
-.wlv1HistQ{font-size:12.5px;color:#5B6B81;font-weight:700;margin:7px 0 4px}
+.wlv1HistQ{font-size:13px;color:#5B6B81;font-weight:700;margin:7px 0 4px}
 .wlv1HistChips{display:flex;flex-wrap:wrap;gap:6px}
 .wlv1HistChip{font-size:13px;border-radius:20px;padding:6px 13px;border:1px solid #DBE2EA;background:#fff;color:#7C8A9C;cursor:pointer}
 .wlv1HistChip.on{border-color:#0B4F2A;background:#EAFBF0;color:#0B4F2A;font-weight:700}
@@ -6016,12 +6034,20 @@ body.wlv1AnatFullOpen{overflow:hidden}
 .wlv1FoldHead{display:flex;align-items:center;gap:9px;cursor:pointer;user-select:none;
   background:#F4F8FC;border:1px solid #DDE7F1;border-radius:14px;padding:10px 12px;margin:10px 0 0}
 .wlv1FoldHead:active{background:#EAF2FA}
-.wlv1FoldT{flex:1;font-size:14.5px;font-weight:700;color:#0B2B59;line-height:1.3}
+/* 🟢🔒🔒 V653 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবিসহ — "চাপ দিলে ফর্মটা খোলে এটা
+   বোঝাই যাচ্ছে না, লেখার ডান পাশে থাকবে, আরো উজ্জ্বল") — আসল কারণ:
+   .wlv1FoldT-এর flex:1 ছিল, তাই ⌄ সবসময় সারির ডান কিনারায় গিয়ে বসত,
+   লেখা থেকে অনেক দূরে (Android-এর একই bug, একই কারণ)। এখন flex:1
+   সরিয়ে নতুন .wlv1FoldSpacer-এ বসানো হলো (চিহ্নের পরে) — তাই ⌄ এখন
+   লেখার ঠিক পরেই। রংও ধূসর টেক্সট থেকে গাঢ় সবুজ বৃত্ত-ব্যাকগ্রাউন্ড। */
+.wlv1FoldT{font-size:14.5px;font-weight:700;color:#0B2B59;line-height:1.3}
 .wlv1FoldN{font-size:11.5px;font-weight:700;color:#0B4F2A;background:#E8F6EC;border:1px solid #BFE9CE;
   border-radius:20px;padding:2px 9px;flex:0 0 auto}
 .wlv1FoldN.off{display:none}
-.wlv1FoldCh{color:#5B6B81;font-size:15px;flex:0 0 auto;transition:transform .18s}
+.wlv1FoldCh{color:#FFFFFF;font-size:14px;font-weight:700;flex:0 0 auto;transition:transform .18s;
+  width:24px;height:24px;border-radius:50%;background:#0F5132;display:flex;align-items:center;justify-content:center}
 .wlv1FoldHead.open .wlv1FoldCh{transform:rotate(180deg)}
+.wlv1FoldSpacer{flex:1 1 auto}
 .wlv1Fold{display:none}
 .wlv1Fold.open{display:block;margin-top:8px}
 /* 🔵 V574 — চারটে ইতিহাস আলাদা ভাঁজ হওয়ায় বাইরের বাক্সটার আর বর্ডার লাগে না */
@@ -6136,3 +6162,19 @@ body.wlv1AnatFullOpen{overflow:hidden}
   max-width:none!important;max-height:none!important;object-fit:contain;border-radius:50%}
 .invBox>*:not(.invWm){position:relative;z-index:1}
 
+
+/* 🟢🔒 V624 (২৪.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ অনুমোদিত) — "Add Optional
+   Test" (Blood Test-এর প্রতিটা ক্যাটাগরি পর্দায়)। append-only — উপরের একটা
+   লাইনও বদলানো হয়নি। রং/গোলাকৃতি Hematology ডেমো-প্রুফের সাথে মিলিয়ে:
+   চিপ = সবুজ (নির্বাচিত টেস্টের রং, .wlv1InvItem.on-এর হুবহু জোড়া),
+   Add বক্স = হালকা নীল ড্যাশড বর্ডার। */
+.wlv1InvChips{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 2px}
+.wlv1InvChip{display:inline-flex;align-items:center;gap:6px;background:#EAFBF0;border:1.5px solid #0B4F2A;
+  color:#0B4F2A;font-size:12.5px;font-weight:600;padding:6px 10px;border-radius:20px}
+.wlv1InvChip b{color:#B42318;font-weight:900;cursor:pointer;font-size:13px}
+.wlv1InvAddBox{margin-top:12px;border:2px dashed #93C5FD;border-radius:14px;padding:12px;background:#F4FAFF}
+.wlv1InvAddTitle{font-size:13.5px;font-weight:700;color:#0B2B59;margin-bottom:8px}
+.wlv1InvAddRow{display:flex;gap:8px}
+.wlv1InvAddRow input{flex:1}
+.wlv1InvAddRow button{background:linear-gradient(135deg,#0B4F2A,#0e8f6b)!important;color:#fff!important;
+  border:none!important;border-radius:10px!important;padding:0 18px!important;font-weight:700!important}

@@ -35,7 +35,15 @@ object RmpCommissionRepository {
     )
     data class AdvancePayment(
         val id: String, val paidOn: String, val amount: Double, val allocated: Double,
-        val legacyCovered: Double, val mode: String, val referenceNo: String
+        val legacyCovered: Double, val mode: String, val referenceNo: String,
+        /**
+         * 🟢🔒🔒 V661 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবি-প্রুফ পাশ — "তারিখ এবং সময়
+         * লাগবে") — `recorded_at` ঘরটা টেবিলে **আগে থেকেই** ছিল (নিচের
+         * `order=paid_on.desc,recorded_at.desc`-এই প্রমাণিত — শুধু sort-এর
+         * জন্য পড়া হচ্ছিল, দেখানো হচ্ছিল না)। তাই কোনো নতুন SQL/কলাম লাগেনি —
+         * শুধু এই একই ঘরটা এখন `select`-এও যোগ করে display-এ আনা হলো।
+         */
+        val recordedAt: String = ""
     ) { val available: Double get() = amount - allocated }
     data class LegacyViewAllPatient(
         val id: String, val patientCode: String, val name: String, val mobile: String,
@@ -231,13 +239,14 @@ object RmpCommissionRepository {
 
     fun advancePayments(rmpId: String): RepoResult<List<AdvancePayment>> {
         val got = ModuleAuth.getRowsChecked("fin", "rmp_advance_payments",
-            "select=id,paid_on,amount,allocated_amount,legacy_covered_amount,mode,reference_no&rmp_id=eq.${enc(rmpId)}&order=paid_on.desc,recorded_at.desc&limit=200")
+            "select=id,paid_on,amount,allocated_amount,legacy_covered_amount,mode,reference_no,recorded_at&rmp_id=eq.${enc(rmpId)}&order=paid_on.desc,recorded_at.desc&limit=200")
         if (!got.ok) return RepoResult(false, message = "Could not load RMP advance payments")
         val out = mutableListOf<AdvancePayment>()
         for (i in 0 until got.rows.length()) {
             val x = got.rows.getJSONObject(i)
             out.add(AdvancePayment(x.optString("id"), x.optString("paid_on"), x.optDouble("amount"),
-                x.optDouble("allocated_amount"), x.optDouble("legacy_covered_amount"), x.optString("mode"), x.optString("reference_no")))
+                x.optDouble("allocated_amount"), x.optDouble("legacy_covered_amount"), x.optString("mode"), x.optString("reference_no"),
+                x.optString("recorded_at")))
         }
         return RepoResult(true, out)
     }

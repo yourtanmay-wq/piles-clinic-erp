@@ -39,8 +39,55 @@ data class DraftEntry(
     // TK-REQUESTED ADDITION (2026-07-18): who received/created this record —
     // needed for the same-day self-delete permission check (TrashHelper).
     // Blank for any entry type that doesn't need it; nothing else affected.
-    val createdByMobile: String = ""
+    val createdByMobile: String = "",
+    // 🟢🔒 V646 (২৫.০৮.২০২৬, TK-নির্দেশ — "একই কার্ড সব জায়গায়, ঝুঁকি ছাড়া")
+    // — My Enquiry/Unexpected Time/Incomplete/Complete/Running Patient
+    // এখন Follow-up-এর কার্ডের মতোই দেখাবে (FollowUpAdapter পুনর্ব্যবহার,
+    // FollowUpActivity-এর নিজস্ব কোড ছোঁয়া হয়নি)। এই ঘরগুলো সেই কার্ডের
+    // জন্যই লাগে — ডিফল্ট ফাঁকা/০, তাই পুরনো buckets (Enquiry Reject ইত্যাদি,
+    // যেগুলো বদলায়নি) এক অক্ষরও প্রভাবিত হয় না।
+    val status: String = "",
+    val bill: Double = 0.0,
+    val paid: Double = 0.0,
+    val callCount: Int = 0,
+    val timeType: String = "",
+    val address: String = "",
+    val age: String = "",
+    val sex: String = "",
+    val refId: String = ""
 ) : java.io.Serializable
+
+/**
+ * 🟢🔒 V646 (২৫.০৮.২০২৬, TK-নির্দেশ — "একই কার্ড সব জায়গায়, ঝুঁকি ছাড়া") —
+ * Draft-এর My Enquiry/Unexpected Time/Incomplete/Complete/Running Patient
+ * এখন Follow-up-এর কার্ডের মতোই দেখায় ও কাজ করে — কিন্তু FollowUpActivity-এর
+ * নিজের কোড (`buildFollowCard`) একদম ছোঁয়া হয়নি (ঝুঁকি নেওয়া হয়নি, TK-এর
+ * স্পষ্ট নির্দেশে)। বদলে, প্রজেক্টে আগে থেকেই থাকা, স্বাধীন `FollowUpAdapter`
+ * (item_followup_card.xml, এখন শুধু Trash-প্রিভিউতে ব্যবহৃত) পুনর্ব্যবহার
+ * করা হচ্ছে — এই ফাংশনটা তারই জন্য DraftEntry-কে FollowUpItem-এ রূপান্তর করে।
+ * ⛔ ছবি (photo) ইচ্ছাকৃতভাবে বাদ — ফ্রি-প্ল্যানে বাড়তি খরচ এড়াতে (TK-অনুমোদিত)।
+ */
+fun DraftEntry.toFollowUpItem(): FollowUpItem = FollowUpItem(
+    id = id,
+    name = name,
+    mobile = mobile,
+    branch = branch,
+    disease = disease,
+    stage = stage,
+    lastRemark = lastRemark,
+    nextFollow = nextFollow,
+    recordDate = recordDate,
+    callCount = callCount,
+    bill = bill,
+    paid = paid,
+    patientId = patientId,
+    address = address,
+    age = age,
+    sex = sex,
+    photo = "",
+    timeType = timeType,
+    refId = refId
+)
 
 data class DraftBuckets(
     val received: List<DraftEntry>,
@@ -61,7 +108,20 @@ data class DraftBuckets(
     // সরে)। পরে আবার টাকা জমা দিলে (নেট জমা আর ০ থাকবে না) স্বয়ংক্রিয়ভাবেই
     // এই ঘর থেকে সরে আবার Patient কার্ডে ফিরে যাবে (স্থির-সংরক্ষিত কোনো
     // status নয়, প্রতিবার লাইভ হিসাব করে বার করা হয়)।
-    val refunded: List<DraftEntry> = emptyList()
+    val refunded: List<DraftEntry> = emptyList(),
+    // 🟢🔒 V621 (২৪.০৮.২০২৬, TK-নির্দেশ) — Fees Return করা Visit-এর জন্য
+    // সম্পূর্ণ নতুন, আলাদা তালিকা। ⛔ ডিফল্ট খালি লিস্ট — যেখানেই
+    // `DraftBuckets(...)` আগে থেকে বানানো হতো (এই ঘর ছাড়াই), সেগুলো
+    // এখনো ঠিকভাবে কম্পাইল/চলে, শুধু এই ঘর খালি থাকবে।
+    val returnVisit: List<DraftEntry> = emptyList(),
+    // 🟢🔒 V644 (২৫.০৮.২০২৬, TK-নির্দেশ, দুই দফা প্রশ্ন করে নিশ্চিত হওয়া) —
+    // "Running Patient" — যাদের চিকিৎসা এখন চলমান (stage == "Treatment",
+    // স্বাভাবিক active অবস্থা — Incomplete/Cancelled/Returned নয়, ওগুলো
+    // আগে থেকেই আলাদা bucket-এ ধরা পড়ে)। PATIENT সেকশনে সবচেয়ে উপরে,
+    // Incomplete Patient-এর ঠিক আগে বসে (TK-নির্দিষ্ট ক্রম)। ⛔ ডিফল্ট
+    // খালি লিস্ট — পুরনো কোনো `DraftBuckets(...)` কল এই ঘর ছাড়াই ঠিকভাবে
+    // চলে, শুধু এই ঘর খালি থাকবে।
+    val runningTreatment: List<DraftEntry> = emptyList()
 )
 
 class DraftRepository(private val context: Context? = null) {
@@ -133,7 +193,11 @@ class DraftRepository(private val context: Context? = null) {
                 unexpectedTime = deserializeEntries(obj.getJSONArray("unexpectedTime")),
                 // পুরনো cache-এ এই চাবি নাও থাকতে পারে (নতুন ফিচার) — optJSONArray
                 // দিয়ে নিরাপদে ফাঁকা তালিকা ধরা হয়, পুরনো cache ভেঙে যায় না।
-                refunded = deserializeEntries(obj.optJSONArray("refunded") ?: org.json.JSONArray())
+                refunded = deserializeEntries(obj.optJSONArray("refunded") ?: org.json.JSONArray()),
+                // 🟢🔒 V621 — একই নিরাপদ ধরন, পুরনো cache-এ এই চাবি নেই তো খালি।
+                returnVisit = deserializeEntries(obj.optJSONArray("returnVisit") ?: org.json.JSONArray()),
+                // 🟢🔒 V644 — একই নিরাপদ ধরন, পুরনো cache-এ এই চাবি নেই তো খালি।
+                runningTreatment = dropDeleted(deserializeEntries(obj.optJSONArray("runningTreatment") ?: org.json.JSONArray()))
             ).let { if (myMobile.isBlank()) it else mergeOwnPhoneEnquiries(it, myMobile) }
         } catch (t: Throwable) { null }
     }
@@ -189,6 +253,8 @@ class DraftRepository(private val context: Context? = null) {
                 .put("complete", serializeEntries(buckets.complete))
                 .put("unexpectedTime", serializeEntries(buckets.unexpectedTime))
                 .put("refunded", serializeEntries(buckets.refunded))
+                .put("returnVisit", serializeEntries(buckets.returnVisit))
+                .put("runningTreatment", serializeEntries(buckets.runningTreatment))
             ctx.getSharedPreferences(CACHE_PREFS, Context.MODE_PRIVATE).edit().putString(cacheKey(branchFilter, from, to), obj.toString()).apply()
         } catch (_: Throwable) { }
     }
@@ -228,7 +294,7 @@ class DraftRepository(private val context: Context? = null) {
             val keys = prefs.all.keys.toList()   // সব (branch/date) cache-ঘর
             val editor = prefs.edit()
             var changedAny = false
-            val bucketNames = listOf("received", "enqReject", "visitReject", "notComplete", "complete", "unexpectedTime", "refunded")
+            val bucketNames = listOf("received", "enqReject", "visitReject", "notComplete", "complete", "unexpectedTime", "refunded", "returnVisit")
             fun isGhost(e: DraftEntry): Boolean {
                 if (wantId.isNotBlank() && e.id == wantId) return true
                 if (wantMob.length == 10 && e.mobile.filter { it.isDigit() }.takeLast(10) == wantMob) return true
@@ -280,7 +346,7 @@ class DraftRepository(private val context: Context? = null) {
 
     private fun today(): String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
 
-    private fun entry(row: JSONObject, tab: String, extra: String = ""): DraftEntry =
+    private fun entry(row: JSONObject, tab: String, extra: String = "", bill: Double = 0.0, paid: Double = 0.0): DraftEntry =
         DraftEntry(
             // 🔴🔴🔴 TK-REPORTED (31.07.2026): "Patient Name-এর জায়গায় Mobile
             // দুবার দেখানো"। আসল কারণ এইখানে পাওয়া গেল — এই সারিতেই আগে থেকে
@@ -294,13 +360,31 @@ class DraftRepository(private val context: Context? = null) {
             branch = row.s("branch"),
             disease = row.s("disease"),
             stage = row.s("stage"),
-            patientId = row.s("patientId"),
+            // 🟢🔒 V646 (২৫.০৮.২০২৬, TK-রিপোর্ট — "আইডি কখনো দেখাই যায় না") —
+            // followups সারিতে patientId নামেই ঘর আছে (আগের মতোই)। কিন্তু
+            // enquiries সারিতে সেটা নেই — রেজিস্ট্রেশনের সময় patientId
+            // লেখা হয় "convertedPatientId" নামের ঘরে (`RegistrationRepository.
+            // kt`)। এতদিন এখানে শুধু "patientId" খোঁজা হত, তাই এনকোয়ারি-
+            // সারি থেকে বানানো কার্ডে আইডি কখনোই দেখাত না। এখন দুটোই
+            // চেষ্টা করা হয় — কোথাও কিছু হারায়নি, শুধু সঠিক ঘরটা এখন পড়া হয়।
+            patientId = row.s("patientId").ifBlank { row.s("convertedPatientId") },
             id = row.s("id"),
             tab = tab,
             recordDate = row.s("date").ifBlank { row.s("visitDate").ifBlank { row.s("registrationDate") } }.take(10),
             nextFollow = row.s("nextFollow"),
             lastRemark = row.s("lastRemark").ifBlank { row.s("remarks").ifBlank { extra } },
-            createdByMobile = row.s("receivedBy").ifBlank { row.s("createdBy") }
+            createdByMobile = row.s("receivedBy").ifBlank { row.s("createdBy") },
+            // 🟢🔒 V646 — Follow-up-কার্ডের জন্য বাড়তি ঘর, সরাসরি এই একই
+            // সারি থেকে (কোনো নতুন কল লাগেনি — followups row-এই এসব আছে)।
+            status = row.s("status"),
+            bill = bill,
+            paid = paid,
+            callCount = row.optInt("callCount", 0),
+            timeType = row.s("timeType"),
+            address = row.s("address"),
+            age = row.s("age"),
+            sex = row.s("sex"),
+            refId = row.s("refId")
         )
 
     /** Merges any locally-pending rows (not yet synced) matching this branch
@@ -361,11 +445,44 @@ class DraftRepository(private val context: Context? = null) {
             else me.mobile.filter { it.isDigit() }.takeLast(10)
         }
         val preDraft = runBlocking {
+            // 🟢🔒🔒 V647 (২৫.০৮.২০২৬, TK-নির্দেশ, "Supabase Egress কমানোর কোনো
+            // উপায় আছে কিনা যাচাই করুন") — **আসল কারণ, খুঁজে বার করা:**
+            // Follow-up স্ক্রিন প্রতিটা বড় পড়ায় (`followups`/`patients`/
+            // `payments`) `CloudReadCache` (২০-সেকেন্ডের হালকা ক্যাশ, প্রমাণিত,
+            // ইতিমধ্যে FollowUpRepository.kt-এ ১১ বার ব্যবহৃত) দিয়ে মোড়া —
+            // কিন্তু Draft স্ক্রিন **কখনোই** এই ক্যাশ ব্যবহার করত না। ফলে
+            // Follow-up আর Draft কাছাকাছি সময়ে খোলা হলে, বা Draft নিজেই
+            // বারবার (Back-Forward) খোলা হলে, প্রতিবারই সম্পূর্ণ নতুন করে
+            // চারটে বড় টেবিল (৫০০০ সারি পর্যন্ত) টানত।
+            // **সমাধান:** এই একই, প্রমাণিত ক্যাশ এখানেও — নিজস্ব, আলাদা
+            // cache-key ("draft:...") ব্যবহার করা হয়েছে (Follow-up-এর
+            // cache-key-র সাথে গুলিয়ে না যায়, তাই দুই স্ক্রিনের ভিন্ন
+            // column-সেট কখনো একে অপরের জায়গায় ভুল করে বসবে না — নিরাপদ,
+            // স্বাধীন ক্যাশ)। ⛔ ছাঁকনি/কলাম/লিমিট/লজিক কিচ্ছু বদলায়নি —
+            // শুধু ২০ সেকেন্ডের মধ্যে একই অনুরোধ দ্বিতীয়বার এলে ক্লাউডে না
+            // গিয়ে এই হালকা মেমোরি থেকেই উত্তর দেয়। ব্যর্থ (null) ফলাফল
+            // কখনো মনে রাখা হয় না (CloudReadCache-এর নিজস্ব, প্রমাণিত নিয়ম),
+            // তাই আসল ব্যর্থতা লুকোয় না।
+            // 🔴🔴🔒 V650 (২৫.০৮.২০২৬, TK-রিপোর্ট — Android Studio বিল্ড-এরর
+            // "Only safe (?.) or non-null asserted (!!.) calls are allowed
+            // on a nullable receiver") — **আসল কারণ (কোড ধরে যাচাই):**
+            // `branchPart` (উপরে, ৪১৬ নং লাইন) `String?` (nullable) —
+            // "All"/মাস্টার-সব-ব্রাঞ্চ হলে এটা `null` হয়। V647-এ এখানে
+            // সরাসরি `.ifBlank` কল করা হয়েছিল, যেটা শুধু non-null String-এই
+            // চলে — তাই কম্পাইলই হয়নি। এখন নিরাপদ `?:` (null হলে "all")
+            // দিয়ে ঠিক করা হলো — একই ফলাফল (branchPart কখনো ফাঁকা স্ট্রিং
+            // হয় না, শুধু null অথবা "branch=eq...." — তাই `.ifBlank`-এর
+            // দরকারই ছিল না)।
+            val draftCacheKey = branchPart ?: "all"
             // 🔵🔒 V441 (19.08.2026, TK-অনুমোদিত — Free Plan): Draft এই enquiry
             // তালিকা থেকে শুধু card/bucket বানাতে লাগা ঘরগুলোই পড়ে। Same rows, same
             // branch filter, same 5000 limit; narrow read ব্যর্থ হলে shared safety-net
             // আগের মতো full row দিয়ে retry করে — তালিকা ফাঁকা হয়ে যাবে না।
-            val a = async(Dispatchers.IO) { SupabaseClient.fetchListSlimOrNull("enquiries", branchPart, 5000, SupabaseClient.ENQUIRY_COLS_DRAFT) }
+            val a = async(Dispatchers.IO) {
+                CloudReadCache.get("draft:enq:$draftCacheKey") {
+                    SupabaseClient.fetchListSlimOrNull("enquiries", branchPart, 5000, SupabaseClient.ENQUIRY_COLS_DRAFT)
+                }
+            }
             // 🔒 কোটা/গতি (29.07.2026, খাতার সারি B105): এই পর্দার `patients`
             // পড়াটা আগেই ছবি বাদ দিয়ে করা হয়েছিল, কিন্তু `followups`-এও
             // **ঠিক একই `photo` ঘর** আছে — সেটা তখন বাদ পড়েনি, তাই রোগীর ছবি
@@ -375,7 +492,11 @@ class DraftRepository(private val context: Context? = null) {
             //    limit · সাজানো কিছুই বদলায়নি, আর সরু পড়া ব্যর্থ হলে
             //    `fetchListSlimOrNull` নিজেই সব ঘর চেয়ে নেয়, তাই আসল ব্যর্থতা
             //    আগের মতোই `null` হয়ে ফেরে (নিচের ক্যাশ-ফলব্যাক ওটাই আশা করে)।
-            val b = async(Dispatchers.IO) { SupabaseClient.fetchListSlimOrNull("followups", branchPart, 5000, SupabaseClient.FOLLOWUP_COLS_NO_PHOTO) }
+            val b = async(Dispatchers.IO) {
+                CloudReadCache.get("draft:followups:$draftCacheKey") {
+                    SupabaseClient.fetchListSlimOrNull("followups", branchPart, 5000, SupabaseClient.FOLLOWUP_COLS_NO_PHOTO)
+                }
+            }
             // 🔒 SPEED FIX (28.07.2026, TK-approved · khata row B26): this one
             // read used to bring down EVERY patient's PHOTO -- a full image
             // stored inside each row -- on a screen that shows no photo at all.
@@ -386,14 +507,22 @@ class DraftRepository(private val context: Context? = null) {
             // are untouched, and fetchListSlimOrNull falls back to every column
             // by itself if the narrowed read ever fails -- so a genuine failure
             // is still reported as null exactly as before.
-            val c2 = async(Dispatchers.IO) { SupabaseClient.fetchListSlimOrNull("patients", branchPart, 5000, SupabaseClient.PATIENT_COLS_NO_PHOTO) }
+            val c2 = async(Dispatchers.IO) {
+                CloudReadCache.get("draft:patients:$draftCacheKey") {
+                    SupabaseClient.fetchListSlimOrNull("patients", branchPart, 5000, SupabaseClient.PATIENT_COLS_NO_PHOTO)
+                }
+            }
             // ⚡ খাতার সারি B135 (TK "হ্যাঁ", 29.07.2026 রাত ৯.৩০): এই পড়াটাও
             // `payments`-এর সব ঘর চাইত। Draft যে ঘরগুলো পড়ে (amount · date ·
             // branch · mobile · payType · receivedBy · createdBy …) সবই নিচের
             // তালিকায় আছে — প্রজেক্টে আগে থেকেই ব্যবহার হওয়া `PAYMENT_COLS_LIST`।
             // ⛔ কোনো হিসাব · ছাঁকনি · নিয়ম বদলায়নি; সরু পড়া ব্যর্থ হলে অ্যাপ
             //    নিজেই সব ঘর চেয়ে নেয়, আসল ব্যর্থতা আগের মতোই `null`।
-            val d = async(Dispatchers.IO) { SupabaseClient.fetchListSlimOrNull("payments", branchPart, 5000, SupabaseClient.PAYMENT_COLS_LIST) }
+            val d = async(Dispatchers.IO) {
+                CloudReadCache.get("draft:payments:$draftCacheKey") {
+                    SupabaseClient.fetchListSlimOrNull("payments", branchPart, 5000, SupabaseClient.PAYMENT_COLS_LIST)
+                }
+            }
             val e2 = async(Dispatchers.IO) {
                 if (myOwnDigits.length == 10)
                     SupabaseClient.fetchListSlimOrNull(
@@ -549,7 +678,10 @@ class DraftRepository(private val context: Context? = null) {
                 }
             }
         }
-        for (i in 0 until receivedRows.length()) received.add(entry(receivedRows.getJSONObject(i), "received"))
+        // 🟢🔒 V646 — এই তালিকা এখন মূল লুপ শেষ হওয়ার পরে বানানো হয় (নিচে),
+        // যাতে প্রতিটা মানুষের **সবচেয়ে সাম্প্রতিক অবস্থার** (followByMobile)
+        // সাথে জোড়া যায় — My Enquiry-র কার্ড তাই পুরনো স্ন্যাপশটে আটকে থাকে
+        // না, বর্তমান Enquiry/Visit/Patient অবস্থা অনুযায়ী বদলায়।
 
         // TK-REQUESTED ADDITION (2026-07-18): Unexpected Time calls, with a
         // one-glance conversion status per number so TK can tell at month-
@@ -574,33 +706,6 @@ class DraftRepository(private val context: Context? = null) {
         for ((m, rows) in patientRowsByMobile) {
             val chosen = PatientIdentity.pickPatientRow(rows, branchFilter.orEmpty())
             if (chosen != null) patientByMobile[m] = chosen
-        }
-        val unexpectedTime = mutableListOf<DraftEntry>()
-        for (i in 0 until enq.length()) {
-            val row = enq.getJSONObject(i)
-            if (!row.s("timeType").equals("Unexpected Time", ignoreCase = true)) continue
-            val m = row.s("mobile").filter { it.isDigit() }.takeLast(10)
-            val pat = patientByMobile[m]
-            val status = if (pat == null) {
-                "Enquiry only — not registered"
-            } else {
-                val bill = pat.optDouble("bill", 0.0)
-                val paid = paidByMobile[m] ?: 0.0
-                val due = (bill - paid).coerceAtLeast(0.0)
-                when {
-                    bill <= 0.0 -> "Registered — no bill yet"
-                    due <= 0.0 -> "✅ Treatment complete"
-                    else -> "Registered — treatment ongoing"
-                }
-            }
-            val by = row.s("receivedBy").ifBlank { row.s("createdBy") }
-            // 🔒 TK-এর লক করা নিয়ম (খাতার সারি B96-এ আবার ধরা পড়ল, ছবিসহ):
-            // *"By: ঘরে সবসময় স্টাফের নাম দেখাবে, কখনো কাঁচা মোবাইল নম্বর নয়।"*
-            // এখানে নম্বরটাই সরাসরি দেখানো হত — যেমন `by 9883605917`।
-            // এখন অ্যাপের বাকি সব জায়গার সেই একই নিয়মে নাম বসে (`KNE-LAXMI`)।
-            // ⛔ নাম না পাওয়া গেলে আগের মতোই যা আছে তাই দেখায় — কিছু ভাঙে না।
-            val byName = FollowUpModel.prettyStaff(by)
-            unexpectedTime.add(entry(row, "unexpected", "$status${if (byName.isNotBlank()) " · by $byName" else ""}"))
         }
 
         // 🔴 TK-REPORTED (04.08.2026, ছবিসহ — Enquiry Reject List-এ একই মানুষ
@@ -638,6 +743,65 @@ class DraftRepository(private val context: Context? = null) {
         val enqRejectRows = mutableListOf<JSONObject>()
         val visitRejectRows = mutableListOf<JSONObject>()
         val notCompleteRows = mutableListOf<JSONObject>()
+        // 🟢🔒🔒 V645 (২৫.০৮.২০২৬, TK-নির্দেশ — "৬০ দিন বা তার ঊর্ধ্বে যদি কোন
+        // পেসেন্ট টাকা জমা না করে সে অটোমেটিক ইনকমপ্লিট পেশেন্টে যাবে, এটা
+        // দুই জায়গাতেই একই নিয়ম থাকা উচিত") — **আসল কারণ, খুঁজে বার করা:**
+        // Android-এ "Incomplete Patient" এতদিন শুধু স্টাফের **হাতে-চাপা**
+        // বোতাম থেকে আসত (stage=="Treatment" && status=="incomplete") —
+        // কোনো তারিখ-ভিত্তিক স্বয়ংক্রিয় নিয়ম ছিলই না। ওয়েবে উল্টো — শুধু
+        // স্বয়ংক্রিয় (stage=="Patient" && টাকা জমা নেই && ৬০+ দিন পুরনো),
+        // হাতে-চাপার কোনো উপায় নেই। **সমাধান:** এখন Android-এও ওয়েবের
+        // ঠিক একই স্বয়ংক্রিয় নিয়ম যোগ হলো (একই ৬০-দিন, একই "কোনো টাকা
+        // জমা নেই" শর্ত) — দুই প্ল্যাটফর্মে এখন একই নিয়ম।
+        // ⛔ স্টাফের হাতে-চাপা পুরনো বোতামটা (PatientTimelineActivity-র
+        //    "⏳ Incomplete Patient" অ্যাকশন) সরানো হয়নি — কেউ যদি এখনো
+        //    সেটা ব্যবহার করে থাকেন, তাঁর কাজ নষ্ট হবে না। তাই কোনো রোগী
+        //    **হয় হাতে-চাপা, নয়তো ৬০-দিন-নিয়মে** — যেকোনো একটাতে মিললেই
+        //    এই তালিকায় আসেন (দুটো নিয়মের মিলন, কোনোটাই বাদ যায় না)।
+        val today = java.util.Calendar.getInstance()
+        fun daysSince(dateStr: String): Int {
+            if (dateStr.isBlank()) return 0
+            return try {
+                val d = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(dateStr.take(10)) ?: return 0
+                val diffMs = today.timeInMillis - d.time
+                (diffMs / (24 * 60 * 60 * 1000L)).toInt().coerceAtLeast(0)
+            } catch (_: Throwable) { 0 }
+        }
+        // 🟢🔒 V621 (২৪.০৮.২০২৬, TK-নির্দেশ) — Fees Return করা Visit-এর জন্য
+        // সম্পূর্ণ নতুন, আলাদা তালিকা (Visit Reject থেকে ইচ্ছাকৃতভাবে আলাদা)।
+        val returnVisitRows = mutableListOf<JSONObject>()
+        // 🟢🔒 V644 (২৫.০৮.২০২৬, TK-নির্দেশ) — "Running Patient": stage ==
+        // "Treatment" ও স্বাভাবিক active অবস্থা (Incomplete/Cancelled/
+        // Rejected/Closed/Returned নয় — ওগুলো আগে থেকেই আলাদা bucket-এ)।
+        val runningTreatmentRows = mutableListOf<JSONObject>()
+        // 🟢🔒🔒 V646 (২৫.০৮.২০২৬, TK-নির্দেশ — "এনকোয়ারি ভিজিট/পেশেন্ট হলে
+        // My Enquiry কার্ডেই সেই বর্তমান অবস্থা দেখাতে হবে") — **আসল কারণ:**
+        // My Enquiry এতদিন `enquiries` টেবিলের **স্থির স্ন্যাপশট** থেকে
+        // বানানো হত — ওই সারি রেজিস্ট্রেশনের পরে (Visit) আর কখনো আপডেট হয়
+        // না, ট্রিটমেন্ট শুরু হলে তো নয়ই। তাই My Enquiry-র কার্ড সবসময়
+        // প্রথম দিনের অবস্থাতেই আটকে থাকত। **সমাধান:** প্রতিটা মোবাইলের
+        // **সবচেয়ে সাম্প্রতিক অবস্থার** `followups` সারিটা এখানে ধরে রাখা
+        // হচ্ছে (একই লুপে, বাড়তি কোনো Supabase কল নেই) — V638-এর একই
+        // প্রমাণিত টাই-ব্রেকার (সমান stage হলে সবচেয়ে নতুনটা জেতে)। My
+        // Enquiry বানানোর সময় (নিচে) এই লাইভ ডেটা দিয়ে কার্ড বসে, তাই
+        // Visit/Treatment হয়ে গেলে কার্ডও সাথে সাথে বদলে যায়।
+        val followByMobile = HashMap<String, JSONObject>()
+        val followByMobilePriority = HashMap<String, Int>()
+        val followByMobileUpdatedAt = HashMap<String, String>()
+        fun followStagePriority(s: String): Int = when {
+            s.equals("Treatment", true) -> 3
+            s.equals("Patient", true) -> 2
+            s.equals("Inquiry", true) -> 1
+            else -> 0
+        }
+        // 🟢🔒 V646 (২৫.০৮.২০২৬, TK-নির্দেশ — "এখান থেকে কল করুক আর Follow Up
+        // থেকে কল করুক, জিনিস একই থাকতে হবে") — "Unexpected Time Calls" আগে
+        // `enquiries` টেবিল থেকে আসত (আলাদা, স্থির স্ন্যাপশট)। এখন সরাসরি
+        // `followups` টেবিল থেকে (stage=="Inquiry", timeType=="Unexpected
+        // Time") — Follow-up-এর Enquiry ট্যাব ঠিক এই একই সারি থেকেই বানায়,
+        // তাই Draft থেকে কল করা আর Follow-up থেকে কল করা এখন **একই জীবন্ত
+        // রেকর্ড**।
+        val unexpectedTimeRows = mutableListOf<JSONObject>()
         for (i in 0 until follow.length()) {
             val row = follow.getJSONObject(i)
             // 🔒 V215 (§18, 31.07.2026): এই তালিকাগুলো cancelled/incomplete follow-up
@@ -652,16 +816,99 @@ class DraftRepository(private val context: Context? = null) {
             } catch (_: Throwable) { }
             val stage = row.s("stage")
             val status = row.s("status").lowercase()
+            // 🟢🔒 V646 — Unexpected Time collector, একই লুপে (বাড়তি কোনো
+            // Supabase কল/পাস লাগেনি)। ⛔ Enquiry Reject-এ ধরা পড়া (terminal
+            // status) সারি বাদ, যাতে দুই বাকেটে একই নম্বর দ্বিতীয়বার না আসে।
+            if (stage == "Inquiry" && row.s("timeType").equals("Unexpected Time", ignoreCase = true) &&
+                status !in setOf("cancelled", "incomplete", "rejected", "closed")) {
+                unexpectedTimeRows.add(row)
+            }
+            // 🟢🔒 V646 — My Enquiry-র জন্য প্রতি মোবাইলে সবচেয়ে সাম্প্রতিক
+            // অবস্থার followups সারি ধরে রাখা (উপরের মন্তব্যে ব্যাখ্যা করা)।
+            run {
+                val fm = row.s("mobile").filter { c -> c.isDigit() }.takeLast(10)
+                if (fm.isNotBlank()) {
+                    val pr = followStagePriority(stage)
+                    val ua = row.s("updatedAt").ifBlank { row.s("createdAt") }
+                    val curPr = followByMobilePriority[fm] ?: -1
+                    if (pr > curPr || (pr == curPr && ua > (followByMobileUpdatedAt[fm] ?: ""))) {
+                        followByMobilePriority[fm] = pr
+                        followByMobileUpdatedAt[fm] = ua
+                        followByMobile[fm] = row
+                    }
+                }
+            }
+            // 🟢🔒 V645 — ৬০-দিন-নিয়মের জন্য: কোনো টাকা জমা আছে কিনা,
+            // paidByMobile থেকে (এই একই ফাংশনে উপরেই বানানো, নতুন কোনো
+            // Supabase কল লাগেনি)।
+            val mobKeyForAge = row.s("mobile").filter { it.isDigit() }.takeLast(10)
+            val paidSoFar = paidByMobile[mobKeyForAge] ?: 0.0
+            val ageDays = daysSince(row.s("date").ifBlank { row.s("visitDate").ifBlank { row.s("registrationDate") } })
+            val autoIncomplete60Day = stage == "Patient" && paidSoFar <= 0.0 && ageDays >= 60
             when {
                 stage == "Inquiry" && (status in setOf("cancelled", "incomplete", "rejected", "closed") ||
                     FollowUpRepository.inquiryHistoryEndsTerminal(row)) -> enqRejectRows.add(row)
+                stage == "Patient" && status == "returned" -> returnVisitRows.add(row)
                 stage == "Patient" && status == "cancelled" -> visitRejectRows.add(row)
                 stage == "Treatment" && status == "incomplete" -> notCompleteRows.add(row)
+                // 🔴🔒 V681 (২৫.০৮.২০২৬, TK-নির্দেশ, স্পষ্ট যুক্তি — "Advance দিলেই
+                // অটোমেটিক Patient(Treatment) হয়ে যায়, তাহলে যে কখনো Advance-ই
+                // দেয়নি সে আবার 'Incomplete Patient'-এ যাবে কেন") — আগে (V645)
+                // এই ৬০-দিন-নিয়মের সারি "Incomplete Patient"-এ যেত, যদিও এরা
+                // stage="Patient" (Visit) — কখনো Treatment-এ প্রমোটই হয়নি (Advance
+                // ছাড়া promoteFollowUpToTreatment() কখনো ডাকা হয় না)। এখন এরা
+                // Visit Reject-এ যায় (TK-এর স্পষ্ট পছন্দ) — সত্যিকারের বাতিল করা
+                // Visit-এর মতোই ধরা হয়। ⛔ Treatment-Incomplete-এর আসল নিয়ম
+                // (উপরের লাইন) অপরিবর্তিত।
+                autoIncomplete60Day -> visitRejectRows.add(row)
+                // 🟢🔒 V644 — বাকি সব "Treatment" সারি (স্বাভাবিক active) —
+                // এই একই `when`-এ, তাই ওপরের কোনো শর্তে ইতিমধ্যে ধরা পড়া সারি
+                // (Incomplete) এখানে দ্বিতীয়বার আসে না।
+                stage == "Treatment" && status !in setOf("cancelled", "incomplete", "rejected", "closed") ->
+                    runningTreatmentRows.add(row)
             }
         }
         val enqReject = dedupByMobile(enqRejectRows).map { entry(it, "enqreject", "Rejected") }.toMutableList()
         val visitReject = dedupByMobile(visitRejectRows).map { entry(it, "visitreject", "Visit Reject") }.toMutableList()
-        val notComplete = dedupByMobile(notCompleteRows).map { entry(it, "notcomplete", "Incomplete") }.toMutableList()
+        val notComplete = dedupByMobile(notCompleteRows).map {
+            val m = it.s("mobile").filter { c -> c.isDigit() }.takeLast(10)
+            val b = patientByMobile[m]?.optDouble("bill", 0.0) ?: 0.0
+            entry(it, "notcomplete", "Incomplete", bill = b, paid = paidByMobile[m] ?: 0.0)
+        }.toMutableList()
+        // 🟢🔒 V621 — "cancelled" bucket-এর ঠিক পাশে, সম্পূর্ণ আলাদা tab id
+        // ("returnvisit") ও লেবেল ("Return Visit")।
+        val returnVisit = dedupByMobile(returnVisitRows).map { entry(it, "returnvisit", "Return Visit") }.toMutableList()
+        // 🟢🔒 V644 — নতুন, স্বাধীন tab id ("runningtreatment")।
+        val runningTreatment = dedupByMobile(runningTreatmentRows).map {
+            val m = it.s("mobile").filter { c -> c.isDigit() }.takeLast(10)
+            val b = patientByMobile[m]?.optDouble("bill", 0.0) ?: 0.0
+            entry(it, "runningtreatment", "Running Treatment", bill = b, paid = paidByMobile[m] ?: 0.0)
+        }.toMutableList()
+
+        // 🟢🔒 V646 — Unexpected Time Calls এখন `unexpectedTimeRows`
+        // (followups টেবিল থেকে, মূল লুপে জমা করা) থেকে বানানো হয় —
+        // dedupByMobile-এর একই প্রমাণিত নিয়মে ডুপ্লিকেট এড়ানো হয়।
+        val unexpectedTime = dedupByMobile(unexpectedTimeRows).map { row ->
+            val m = row.s("mobile").filter { it.isDigit() }.takeLast(10)
+            val pat = patientByMobile[m]
+            val bill = pat?.optDouble("bill", 0.0) ?: 0.0
+            val paid = paidByMobile[m] ?: 0.0
+            val status = if (pat == null) {
+                "Enquiry only — not registered"
+            } else {
+                val due = (bill - paid).coerceAtLeast(0.0)
+                when {
+                    bill <= 0.0 -> "Registered — no bill yet"
+                    due <= 0.0 -> "✅ Treatment complete"
+                    else -> "Registered — treatment ongoing"
+                }
+            }
+            val by = row.s("receivedBy").ifBlank { row.s("createdBy") }
+            // 🔒 TK-এর লক করা নিয়ম (খাতার সারি B96-এ আবার ধরা পড়ল, ছবিসহ):
+            // *"By: ঘরে সবসময় স্টাফের নাম দেখাবে, কখনো কাঁচা মোবাইল নম্বর নয়।"*
+            val byName = FollowUpModel.prettyStaff(by)
+            entry(row, "unexpected", "$status${if (byName.isNotBlank()) " · by $byName" else ""}", bill = bill, paid = paid)
+        }.toMutableList()
 
         val complete = mutableListOf<DraftEntry>()
         // TK-REQUESTED (2026-07-27), ধাপ ৩খ — Draft পর্দা: this walked EVERY
@@ -684,9 +931,9 @@ class DraftRepository(private val context: Context? = null) {
             // affects which Draft bucket the patient is grouped into.
             val approvedDespiteDue = row.s("completeApprovedBy").isNotBlank()
             if (due == 0.0) {
-                complete.add(entry(row, "complete", "Paid ${paid.toLong()}"))
+                complete.add(entry(row, "complete", "Paid ${paid.toLong()}", bill = bill, paid = paid))
             } else if (approvedDespiteDue) {
-                complete.add(entry(row, "complete", "Paid ${paid.toLong()} · Due ${due.toLong()} (Master-approved)"))
+                complete.add(entry(row, "complete", "Paid ${paid.toLong()} · Due ${due.toLong()} (Master-approved)", bill = bill, paid = paid))
             }
         }
 
@@ -710,6 +957,35 @@ class DraftRepository(private val context: Context? = null) {
             refunded.add(entry(row, "refunded", "Refunded"))
         }
 
+        // 🟢🔒🔒 V646 (২৫.০৮.২০২৬, TK-নির্দেশ) — My Enquiry এখন সব বাকেট
+        // তৈরি হওয়ার পরে বানানো হয়, দুইটা কারণে:
+        //  ১) `followByMobile`-এর সাথে জোড়া হয়ে **বর্তমান অবস্থা** দেখায়
+        //     (Enquiry/Visit/Patient কার্ড — যা-ই এখন সত্যি, তাই দেখায়)।
+        //  ২) TK-এর নির্দেশ: "মৃত-ঘোষিত" (Enquiry Reject/Visit Reject/
+        //     Return Visit/Incomplete Patient/Complete Patient) তালিকায়
+        //     ইতিমধ্যে থাকা মানুষ My Enquiry থেকে বাদ যাবেন। ⛔ Refunded/
+        //     Running Treatment TK এই তালিকায় রাখেননি (নির্দেশে ছিল না),
+        //     তাই সেগুলোয় থাকলেও My Enquiry-তেও দেখাবেন — এটা ইচ্ছাকৃত।
+        val deadMobiles = HashSet<String>()
+        for (e in enqReject) if (e.mobile.isNotBlank()) deadMobiles.add(e.mobile.filter { it.isDigit() }.takeLast(10))
+        for (e in visitReject) if (e.mobile.isNotBlank()) deadMobiles.add(e.mobile.filter { it.isDigit() }.takeLast(10))
+        for (e in returnVisit) if (e.mobile.isNotBlank()) deadMobiles.add(e.mobile.filter { it.isDigit() }.takeLast(10))
+        for (e in notComplete) if (e.mobile.isNotBlank()) deadMobiles.add(e.mobile.filter { it.isDigit() }.takeLast(10))
+        for (e in complete) if (e.mobile.isNotBlank()) deadMobiles.add(e.mobile.filter { it.isDigit() }.takeLast(10))
+        for (i in 0 until receivedRows.length()) {
+            val enqRow = receivedRows.getJSONObject(i)
+            val m = enqRow.s("mobile").filter { it.isDigit() }.takeLast(10)
+            if (m.isNotBlank() && deadMobiles.contains(m)) continue
+            val live = followByMobile[m]
+            if (live != null) {
+                val bill = patientByMobile[m]?.optDouble("bill", 0.0) ?: 0.0
+                val paid = paidByMobile[m] ?: 0.0
+                received.add(entry(live, "received", bill = bill, paid = paid))
+            } else {
+                received.add(entry(enqRow, "received"))
+            }
+        }
+
         fun filt(list: List<DraftEntry>): List<DraftEntry> {
             if (from == null && to == null) return list
             return list.filter {
@@ -718,7 +994,7 @@ class DraftRepository(private val context: Context? = null) {
                 (from == null || d >= from) && (to == null || d <= to)
             }
         }
-        val result = DraftBuckets(filt(received), filt(enqReject), filt(visitReject), filt(notComplete), filt(complete), filt(unexpectedTime), filt(refunded))
+        val result = DraftBuckets(filt(received), filt(enqReject), filt(visitReject), filt(notComplete), filt(complete), filt(unexpectedTime), filt(refunded), filt(returnVisit), filt(runningTreatment))
         saveCachedBuckets(branchFilter, from, to, result)
         return result
     }
@@ -896,7 +1172,7 @@ class DraftRepository(private val context: Context? = null) {
                     }
                     touched && allOk
                 }
-                "visitreject", "notcomplete" -> {
+                "visitreject", "notcomplete", "returnvisit" -> {
                     if (e.id.isBlank()) return false
                     // V452: a real Restore must carry a durable Active decision in
                     // history.  The cloud terminal guard uses this marker to tell an
@@ -912,7 +1188,11 @@ class DraftRepository(private val context: Context? = null) {
                     history.put(JSONObject()
                         .put("date", SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()))
                         .put("time", now)
-                        .put("remark", if (e.tab == "visitreject") "Restored from Visit Reject List" else "Restored from Incomplete List")
+                        .put("remark", when (e.tab) {
+                            "visitreject" -> "Restored from Visit Reject List"
+                            "returnvisit" -> "Restored from Return Visit List"
+                            else -> "Restored from Incomplete List"
+                        })
                         .put("staff", who)
                         .put("status", "Active")
                         .put("decisionVersion", "V452"))

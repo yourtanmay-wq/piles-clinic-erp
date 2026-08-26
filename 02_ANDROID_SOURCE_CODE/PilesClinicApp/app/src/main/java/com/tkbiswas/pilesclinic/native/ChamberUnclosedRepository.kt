@@ -144,6 +144,16 @@ object ChamberUnclosedRepository {
         return out
     }
 
+    /** 🟢🔒 V604 (২৪.০৮.২০২৬, TK-রিপোর্ট) — "পুরনো ডেটা থাকলেও প্রতিবার
+     *  Loading দেখায় কেন?" এই ফাংশনটা নেট না ছুঁয়ে **শুধু মেমরির উপরের
+     *  ক্যাশটাই** দেখে — এখনো তাজা (২ মিনিটের কম) থাকলে তালিকাটা তৎক্ষণাৎ
+     *  ফেরায়, নইলে null। ⛔ `findUnclosedCached` এক অক্ষরও বদলায়নি। */
+    fun peekCached(branchFilter: String?, days: Int = 30): List<UnclosedDay>? {
+        val key = (branchFilter ?: "") + "|" + days
+        val now = System.currentTimeMillis()
+        return if (cacheKey == key && now - cacheAt < 120_000L) cacheVal else null
+    }
+
     /** একটা দিন বন্ধ করার পরে স্মৃতিটা ফেলে দিতে হয়, নইলে পুরনো তালিকা দেখাবে। */
     fun clearCache() {
         cacheKey = null

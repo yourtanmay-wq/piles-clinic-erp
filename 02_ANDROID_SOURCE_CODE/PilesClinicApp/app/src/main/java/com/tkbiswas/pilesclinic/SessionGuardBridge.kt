@@ -41,6 +41,11 @@ object SessionGuardBridge {
         if (isExempt(activity)) return
         val user = try { NativeSession.current(context) } catch (_: Throwable) { null } ?: return
 
+        // 🟢🔒 V601 (২৪.০৮.২০২৬, TK-নির্দেশ) — ২৪ ঘণ্টায় একবার আঙুল/পাসওয়ার্ড,
+        // Master-সহ সবার জন্য (V499-এর মূল নিয়ম) — তাই নিচের Master-ছাড়ের
+        // আগেই। V527-এর "বারবার না" নিয়ম অক্ষত: ২৪ ঘণ্টার কমে কিছুই দেখাবে না।
+        try { com.tkbiswas.pilesclinic.native.AppLock.guardDaily(activity, user) } catch (_: Throwable) { }
+
         /* ══════════════════════════════════════════════════════════════════
            🔴🔴🔒 V527 (২২.০৮.২০২৬, TK-এর স্পষ্ট নির্দেশ) — **অ্যাপ খোলার তালা
            তুলে দেওয়া হলো।**

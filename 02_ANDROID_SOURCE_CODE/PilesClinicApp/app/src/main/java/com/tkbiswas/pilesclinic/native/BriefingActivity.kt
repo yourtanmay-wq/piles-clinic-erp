@@ -1647,7 +1647,7 @@ class BriefingActivity : AppCompatActivity() {
                     withContext(Dispatchers.IO) {
                         try {
                             val who = StaffDirectory.findAccount(user.mobile)?.name ?: user.mobile
-                            BriefingRepository().addReply(item.id, "✅ Reopened by $who", user.mobile)
+                            BriefingRepository().addReply(this@BriefingActivity, item.id, "✅ Reopened by $who", user.mobile)
                             BriefingRepository().deleteOrHide(item.id, user)
                         } catch (_: Throwable) { }
                     }
@@ -1662,7 +1662,7 @@ class BriefingActivity : AppCompatActivity() {
                 withContext(Dispatchers.IO) {
                     try {
                         val who = StaffDirectory.findAccount(user.mobile)?.name ?: user.mobile
-                        BriefingRepository().addReply(item.id, "❌ Rejected by $who", user.mobile)
+                        BriefingRepository().addReply(this@BriefingActivity, item.id, "❌ Rejected by $who", user.mobile)
                         BriefingRepository().deleteOrHide(item.id, user)
                     } catch (_: Throwable) { }
                 }
@@ -1731,8 +1731,9 @@ class BriefingActivity : AppCompatActivity() {
                             try {
                                 val note = if (result == "OK") "✅ Approved & deleted by $who"
                                            else "ℹ️ Record was already deleted — closed by $who"
-                                BriefingRepository().addReply(item.id, note, user.mobile)
-                                BriefingRepository().deleteOrHide(item.id, user)
+                                BriefingRepository().addReply(this@BriefingActivity, item.id, note, user.mobile)
+                                // 🔴🔒 V666 — এখন context দেওয়া হচ্ছে, ব্যর্থ হলে রিট্রাই-জমা হয়।
+                                BriefingRepository().deleteOrHide(item.id, user, this@BriefingActivity)
                             } catch (_: Throwable) { }
                         }
                     } else failed++
@@ -1795,8 +1796,9 @@ class BriefingActivity : AppCompatActivity() {
                             val who = StaffDirectory.findAccount(user.mobile)?.name ?: user.mobile
                             val note = if (result == "OK") "✅ Approved & deleted by $who"
                                        else "ℹ️ Record was already deleted — closed by $who"
-                            BriefingRepository().addReply(item.id, note, user.mobile)
-                            BriefingRepository().deleteOrHide(item.id, user)
+                            BriefingRepository().addReply(this@BriefingActivity, item.id, note, user.mobile)
+                            // 🔴🔒 V666 — এখন context দেওয়া হচ্ছে, ব্যর্থ হলে রিট্রাই-জমা হয়।
+                            BriefingRepository().deleteOrHide(item.id, user, this@BriefingActivity)
                         } catch (_: Throwable) { }
                     }
                     loadList()
@@ -1900,7 +1902,7 @@ class BriefingActivity : AppCompatActivity() {
                 withContext(Dispatchers.IO) {
                     try {
                         val who = StaffDirectory.findAccount(user.mobile)?.name ?: user.mobile
-                        BriefingRepository().addReply(item.id, "${if (approve) "\u2705 Approved" else "\u274c Rejected"} by $who", user.mobile)
+                        BriefingRepository().addReply(this@BriefingActivity, item.id, "${if (approve) "\u2705 Approved" else "\u274c Rejected"} by $who", user.mobile)
                         BriefingRepository().deleteOrHide(item.id, user)
                     } catch (_: Throwable) { }
                 }
@@ -2077,7 +2079,7 @@ class BriefingActivity : AppCompatActivity() {
                     return@setPositiveButton
                 }
                 lifecycleScope.launch {
-                    val ok = withContext(Dispatchers.IO) { repository.addReply(item.id, text, user.mobile) }
+                    val ok = withContext(Dispatchers.IO) { repository.addReply(this@BriefingActivity, item.id, text, user.mobile) }
                     Toast.makeText(this@BriefingActivity, if (ok) "Reply sent" else "Failed — check connection", Toast.LENGTH_SHORT).show()
                     if (ok) loadList()
                 }
@@ -2291,7 +2293,7 @@ class BriefingActivity : AppCompatActivity() {
             if (text.isBlank()) { replyInput.requestFocus(); return@setOnClickListener }
             sendBtn.isEnabled = false
             lifecycleScope.launch {
-                val ok = withContext(Dispatchers.IO) { repository.addReply(item.id, text, user.mobile) }
+                val ok = withContext(Dispatchers.IO) { repository.addReply(this@BriefingActivity, item.id, text, user.mobile) }
                 sendBtn.isEnabled = true
                 if (ok) {
                     replyInput.setText("")

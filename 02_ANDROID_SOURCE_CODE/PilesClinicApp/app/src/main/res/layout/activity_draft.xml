@@ -394,6 +394,68 @@
             <View android:layout_width="6dp" android:layout_height="6dp" android:layout_marginStart="8dp" android:background="@drawable/bg_more_dot" android:backgroundTint="#0C9E33" />
         </LinearLayout>
 
+        <!-- 🟢🔒 V644 (২৫.০৮.২০২৬, TK-নির্দেশ, দুই দফা প্রশ্ন করে নিশ্চিত হওয়া) —
+             "Running Patient" — চিকিৎসা এখন চলমান এমন রোগী (stage=Treatment,
+             স্বাভাবিক active)। PATIENT সেকশনের সবচেয়ে উপরে, Incomplete
+             Patient-এর ঠিক আগে (TK-নির্দিষ্ট ক্রম)। btnNotComplete-এর হুবহু
+             একই সাজ, শুধু আইকন/রং/লেখা আলাদা। -->
+        <LinearLayout
+            android:id="@+id/btnRunningTreatment"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="10dp"
+            android:layout_marginBottom="7dp"
+            android:orientation="horizontal"
+            android:background="@drawable/bg_more_card"
+            android:clipToOutline="true"
+            android:elevation="2dp"
+            android:clickable="true"
+            android:focusable="true">
+
+            <View
+                android:layout_width="4dp"
+                android:layout_height="match_parent"
+                android:background="#1D7A46" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:padding="9dp">
+
+                <FrameLayout
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="@drawable/bg_more_icon_badge"
+                    android:backgroundTint="#E1F3E8">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center" android:text="🏃" android:textSize="15sp" />
+                </FrameLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="10dp"
+                    android:orientation="vertical">
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Running Patient" android:textStyle="bold" android:textSize="12.5sp" android:textColor="#101828" android:maxLines="1" android:ellipsize="end" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Treatment running" android:textSize="9.5sp" android:textColor="#7A8794" android:maxLines="1" android:ellipsize="end" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tvCountRunningTreatment"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="0"
+                    android:textStyle="bold"
+                    android:textSize="15sp"
+                    android:textColor="#1D7A46" />
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="4dp" android:text="›" android:textSize="15sp" android:textColor="#C3CCD5" />
+            </LinearLayout>
+        </LinearLayout>
+
         <LinearLayout
             android:id="@+id/btnNotComplete"
             android:layout_width="match_parent"
@@ -560,6 +622,66 @@
                     android:textStyle="bold"
                     android:textSize="15sp"
                     android:textColor="#8A5A2E" />
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="4dp" android:text="›" android:textSize="15sp" android:textColor="#C3CCD5" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- 🟢🔒 V621 (২৪.০৮.২০২৬, TK-নির্দেশ) — "Return Visit": Fees Return
+             করা Visit-এর জন্য সম্পূর্ণ নতুন কার্ড, "Refunded" কার্ডের হুবহু
+             একই কাঠামো/স্টাইল অনুসরণ করে (নতুন কোনো ডিজাইন-প্যাটার্ন না)। -->
+        <LinearLayout
+            android:id="@+id/btnReturnVisit"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="10dp"
+            android:layout_marginBottom="7dp"
+            android:orientation="horizontal"
+            android:background="@drawable/bg_more_card"
+            android:clipToOutline="true"
+            android:elevation="2dp"
+            android:clickable="true"
+            android:focusable="true">
+
+            <View
+                android:layout_width="4dp"
+                android:layout_height="match_parent"
+                android:background="#B45309" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:padding="9dp">
+
+                <FrameLayout
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="@drawable/bg_more_icon_badge"
+                    android:backgroundTint="#FDECD2">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center" android:text="↩️" android:textSize="15sp" />
+                </FrameLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="10dp"
+                    android:orientation="vertical">
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Return Visit" android:textStyle="bold" android:textSize="12.5sp" android:textColor="#101828" android:maxLines="1" android:ellipsize="end" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Fees returned" android:textSize="9.5sp" android:textColor="#7A8794" android:maxLines="1" android:ellipsize="end" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tvCountReturnVisit"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="0"
+                    android:textStyle="bold"
+                    android:textSize="15sp"
+                    android:textColor="#B45309" />
 
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="4dp" android:text="›" android:textSize="15sp" android:textColor="#C3CCD5" />
             </LinearLayout>

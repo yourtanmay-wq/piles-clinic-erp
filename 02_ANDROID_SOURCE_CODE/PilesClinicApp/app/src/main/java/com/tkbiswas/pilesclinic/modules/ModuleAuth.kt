@@ -416,6 +416,29 @@ object ModuleAuth {
         } catch (e: Exception) { false }
     }
 
+    /** PATCH করে সত্যিই অন্তত একটি সারি বদলেছে কি না যাচাই করে।
+     *  PostgREST `return=minimal`-এ ০ সারিও HTTP-success হওয়ায় Remove-এর মতো
+     *  গুরুত্বপূর্ণ কাজে সেই পুরনো Boolean যথেষ্ট নয়। */
+    fun updateAtLeastOne(schema: String, table: String, filter: String, patch: JSONObject): Boolean {
+        fun once(): Pair<Boolean, Int> = try {
+            val req = Request.Builder().url(baseUrl() + "/rest/v1/" + table + "?" + filter)
+                .addHeader("apikey", anonKey())
+                .addHeader("Authorization", "Bearer " + (accessToken ?: ""))
+                .addHeader("Content-Profile", schema)
+                .addHeader("Accept-Profile", schema)
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Prefer", "return=representation")
+                .patch(patch.toString().toRequestBody(JSON)).build()
+            http.newCall(req).execute().use { resp ->
+                val body = resp.body?.string() ?: "[]"
+                Pair(resp.isSuccessful && try { JSONArray(body).length() > 0 } catch (_: Throwable) { false }, resp.code)
+            }
+        } catch (_: Exception) { Pair(false, -1) }
+        var result = once()
+        if (!result.first && result.second == 401 && reAuth()) result = once()
+        return result.first
+    }
+
     /** Count rows in the EXISTING public tables (read-only; those tables have
      *  no RLS). Used for the Notebook's automatic statistics. Never writes. */
     fun countPublic(table: String, query: String): Int {

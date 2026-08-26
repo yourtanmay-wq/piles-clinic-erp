@@ -96,11 +96,16 @@ object ClinicalCloudRepository {
         selected: String,
         details: String,
         createdByMobile: String,
-        photos: String = ""
+        photos: String = "",
+        // 🟢🔒 V676 (২৫.০৮.২০২৬, TK-নির্দেশ) — আজকের নিজের Doctor Checkup
+        // এডিট করলে এই একই id-তে upsert হবে (নতুন সারি নয়, পুরনোটাই বদলে
+        // যাবে)। ⛔ ফাঁকা রাখলে (ডিফল্ট) আগের মতোই সবসময় নতুন id — কোনো
+        // পুরনো caller (Prescription/Investigation/Diet) এতে ছোঁয়া হয়নি।
+        existingId: String = ""
     ): Boolean {
         val now = isoNow()
         val row = JSONObject()
-            .put("id", "med_" + UUID.randomUUID().toString().replace("-", ""))
+            .put("id", existingId.ifBlank { "med_" + UUID.randomUUID().toString().replace("-", "") })
             .put("patientId", patientId)
             .put("name", patientName)
             .put("type", type)

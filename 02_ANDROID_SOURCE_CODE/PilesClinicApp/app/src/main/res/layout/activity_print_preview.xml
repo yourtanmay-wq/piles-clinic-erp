@@ -43,8 +43,17 @@
     <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:paddingHorizontal="10dp" android:clipToPadding="false">
         <androidx.cardview.widget.CardView android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginBottom="14dp" app:cardCornerRadius="8dp" app:cardElevation="8dp" app:cardBackgroundColor="@color/white">
-            <ImageView android:id="@+id/ivPreview" android:layout_width="match_parent" android:layout_height="wrap_content"
-                android:adjustViewBounds="true" android:background="@color/white" android:contentDescription="PDF preview page" />
+            <FrameLayout android:layout_width="match_parent" android:layout_height="wrap_content">
+                <ImageView android:id="@+id/ivPreview" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:adjustViewBounds="true" android:background="@color/white" android:contentDescription="PDF preview page" />
+                <!-- 🟢🔒🔒 V670 (২৫.০৮.২০২৬, TK-নির্দেশ — "যেটা প্রিন্ট আউট হলো
+                     এটা যেন দেখা যায়") — Prescription/Medicine Slip HTML-প্রিন্ট
+                     পথে ivPreview (bitmap) কাজ করে না; একই HTML এখানে সরাসরি
+                     WebView-তে দেখানো হয়। ⛔ ivPreview-এর নিজের ব্যবহার
+                     (বাকি সব কাগজে) এক অক্ষরও বদলায়নি। -->
+                <WebView android:id="@+id/wvRxPreview" android:layout_width="match_parent" android:layout_height="600dp"
+                    android:visibility="gone" />
+            </FrameLayout>
         </androidx.cardview.widget.CardView>
     </ScrollView>
 

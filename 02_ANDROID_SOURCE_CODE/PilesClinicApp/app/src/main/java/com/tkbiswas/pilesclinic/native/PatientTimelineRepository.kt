@@ -80,7 +80,14 @@ data class TimelineEntry(
     // This field carries the answer directly instead: the remark a PERSON really
     // typed, and nothing else (blank when the app filled it in by itself).
     // Default blank, so every other reader of TimelineEntry is unaffected.
-    val typedRemark: String = ""
+    val typedRemark: String = "",
+    // 🟢🔒 V676 (২৫.০৮.২০২৬, TK-নির্দেশ — "আজকের Doctor Checkup এডিট করতে
+    // পারব") — "medical" সারির id + "selected" ঘর (Doctor Checkup-এ এতদিন
+    // ব্যবহারই হতো না, তাই এখানে structured JSON রাখা নিরাপদ — Prescription/
+    // Diet Chart-এর "selected" ব্যবহার অক্ষত, ওগুলোর id আলাদা row-এ থাকে)।
+    // ⛔ ডিফল্ট ফাঁকা — বাকি সব TimelineEntry পাঠক সম্পূর্ণ অপ্রভাবিত।
+    val medicalRecordId: String = "",
+    val medicalSelected: String = ""
 )
 
 /** Header + all updates for one patient/mobile, built by joining every table. */
@@ -212,8 +219,25 @@ object PatientTimelineRepository {
      * ⛔ কোনো সারি বাদ যায় না · টাকার অঙ্ক বদলায় না · মোট Paid/Due এক থাকে।
      * ⛔ একই চাবি দিন-ভাগ (byDay) ও Report Card-এও — তাই দুই পর্দা কখনো আলাদা হবে না।
      */
+    /**
+     * 🔴🔴🔒 V655 (২৫.০৮.২০২৬, TK-রিপোর্ট, ছবিসহ — "উল্টা পাল্টা তারিখ হিসাবে
+     * কেন দেখাচ্ছে") — **আসল কারণ (কোড ধরে যাচাই, Sukanta Roy-র টাইমলাইনে
+     * প্রমাণিত):** "আসবে বলেছে" (chamber_expected) সারির `date` ঘরে
+     * ইচ্ছাকৃতভাবে **ভবিষ্যতের প্রত্যাশিত তারিখ** বসানো থাকে (স্টাফ যেদিন
+     * আসবে বলেছেন — যেমন ২৯.০৮.২০২৬), যদিও এন্ট্রিটা **সত্যিই তৈরি** হয়েছিল
+     * অন্য দিনে (২৪.০৮.২০২৬)। আগে `orderKey()` **প্রথমে `date`** দেখত —
+     * তাই এই সারিটা ভবিষ্যতের তারিখ ধরে "সবচেয়ে নতুন" সেজে তালিকার একদম
+     * উপরে উঠে যেত, যদিও ওই একই সারির দেখানো সময় (Date/Time কলাম, `sortKey`/
+     * `callTime` থেকে) ছিল ২৪.০৮.২০২৬ — তাই আজকের (২৫.০৮.২০২৬) আসল পেমেন্টও
+     * এর নিচে চলে যেত।
+     * **সমাধান:** এখন **প্রথমে `sortKey`** দেখা হয় (যেটা সবসময় সত্যিকারের
+     * "কবে ঘটেছে/তৈরি হয়েছে" ধরে, `date`-এর মতো ভবিষ্যতের-লক্ষ্য-তারিখ কখনো
+     * বহন করে না) — `date` শুধু fallback, `sortKey` ফাঁকা থাকলেই ব্যবহার হয়।
+     * ⛔ যেসব এন্ট্রিতে আলাদা `sortKey` কখনো বসানোই হয়নি (ডিফল্ট ফাঁকা),
+     *    তাদের ক্রম **অক্ষরে অক্ষরে আগের মতোই** (date-ই ব্যবহার হয়)।
+     */
     private fun orderKey(e: TimelineEntry): String {
-        val day = e.date.take(10).ifBlank { e.sortKey.take(10) }.ifBlank { e.callTime.take(10) }
+        val day = e.sortKey.take(10).ifBlank { e.date.take(10) }.ifBlank { e.callTime.take(10) }
         val stamp = listOf(e.sortKey, e.callTime).firstOrNull { it.length > 10 } ?: ""
         val timePart = if (stamp.length > 10) stamp.substring(10) else ""
         return if (day.isBlank()) "" else day + timePart
@@ -512,7 +536,16 @@ object PatientTimelineRepository {
                 !status.equals("Closed", true)
         }
         val bestFollowup = (activeFollowups.ifEmpty { selectionPool })
-            .maxByOrNull { stagePriority(it.s("stage")) }
+            .maxWithOrNull(
+                // 🟢🔒🔒 V638 (২৪.০৮.২০২৬, TK-রিপোর্ট — একাধিকবার আসা রোগীর
+                // Treatment Progress আবার ফাঁকা দেখানো একই কারণ এখানেও) —
+                // সমান stage-এর একাধিক সারি থাকলে (একাধিক ভিজিট) আগে
+                // অনির্দিষ্ট ক্রমে প্রথমটাই বাছত। এখন সমান stage-এ সবচেয়ে
+                // সাম্প্রতিক (updatedAt/createdAt) সারিটাই জেতে —
+                // ChamberAttendanceRepository-র একই টাই-ব্রেকার এখানেও।
+                compareBy<org.json.JSONObject> { stagePriority(it.s("stage")) }
+                    .thenBy { it.s("updatedAt").ifBlank { it.s("createdAt") } }
+            )
         var effectiveFollowupStage = bestFollowup?.s("stage") ?: ""
         if (followups.length() == 0 && patientId.isNotBlank()) {
             // Infer the correct stage from real payment data: a genuine
@@ -978,7 +1011,11 @@ object PatientTimelineRepository {
                 val note = m.s("details").ifBlank { m.s("selected").ifBlank { m.s("decision") } }
                 entries.add(entry(type, m.s("date").ifBlank { m.s("createdAt") }, m.s("createdBy"), note).copy(
                     sortKey = m.s("createdAt").ifBlank { m.s("date") },
-                    callTime = m.s("createdAt")
+                    callTime = m.s("createdAt"),
+                    // 🟢🔒 V676 — এই সারিটার আসল id + JSON (থাকলে) ধরে রাখা,
+                    // যাতে আজকের নিজের Doctor Checkup এডিট করা যায়।
+                    medicalRecordId = m.s("id"),
+                    medicalSelected = m.s("selected")
                 ))
             }
         }
@@ -1218,8 +1255,24 @@ object PatientTimelineRepository {
             // "UNKNOWN" ফিক্স বসালেও কখনো কাজ করত না (name কখনো
             // ফাঁকা পেত না)। Enquiry-তে নাম খোঁজার নিয়ম অক্ষত রাখা হলো (ওটা
             // সঠিক ফলব্যাক) — শুধু একদম শেষের mobile-ফলব্যাক বাদ দেওয়া হলো।
+            //
+            // 🟢🔒🔒 V636 (২৪.০৮.২০২৬, TK-রিপোর্ট, ছবিসহ — "Follow-up কার্ডে
+            // OSMAN ORAW নাম দেখাচ্ছে, View করলে UNKNOWN কেন?") — আসল কারণ:
+            // এই নাম-খোঁজার নিয়ম শুধু `patient` (patients টেবিল) ও
+            // `enquiries[0]` দেখত — `followups[0]`-এ কখনো দেখতই না। ঠিক এই
+            // একই সমস্যা branch/disease/address-এ আগে (V235) ধরা পড়েছিল ও
+            // followups[0]-এ fallback যোগ করে ঠিক হয়েছিল (নিচের/উপরের লাইন
+            // দেখুন) — কিন্তু নাম-এর জন্য তখন করা হয়নি। যে রোগীর শুধু
+            // `followups` সারিই টিকে আছে (patients/enquiries সারি নেই — যেমন
+            // OSMAN ORAW), তার নাম followups টেবিলে থাকা সত্ত্বেও এখানে
+            // ফাঁকা থেকে যেত, তাই শেষে "UNKNOWN"। এখন branch/disease-এর
+            // প্রমাণিত একই প্যাটার্নে followups[0].name-ও যোগ হলো।
+            // ⛔ কোনো অনুমান/ভুয়া নাম নয় — সব ফাঁকা হলে আগের মতোই ""
+            //    (তখনই "UNKNOWN")।
             name = patient.s("name").ifBlank {
-                if (enquiries.length() > 0) enquiries.getJSONObject(0).s("name") else ""
+                (if (enquiries.length() > 0) enquiries.getJSONObject(0).s("name") else "").ifBlank {
+                    if (followups.length() > 0) followups.getJSONObject(0).s("name") else ""
+                }
             },
             patientId = patient.s("patientId"),
             mobile = mobileDigits,

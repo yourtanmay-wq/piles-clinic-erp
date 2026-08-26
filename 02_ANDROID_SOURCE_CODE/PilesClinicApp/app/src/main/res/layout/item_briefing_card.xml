@@ -16,7 +16,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginHorizontal="10dp"
-    android:layout_marginVertical="4dp"
+    android:layout_marginVertical="3dp"
     app:cardCornerRadius="13dp"
     app:cardElevation="1.5dp"
     app:cardBackgroundColor="@color/clinic_card">
@@ -37,8 +37,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingHorizontal="12dp"
-            android:paddingVertical="10dp">
+            android:paddingHorizontal="11dp"
+            android:paddingVertical="8dp">
 
             <!-- Top row: avatar · sender+time · priority chip -->
             <LinearLayout
@@ -111,11 +111,13 @@
 
             <TextView
                 android:id="@+id/tvTitle"
-                android:layout_width="match_parent"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="7dp"
+                android:paddingHorizontal="9dp"
+                android:paddingVertical="3dp"
                 android:text="Title"
-                android:textSize="11.5sp"
+                android:textSize="11sp"
                 android:textStyle="bold"
                 android:textColor="#111827" />
 

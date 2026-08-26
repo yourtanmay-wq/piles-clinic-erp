@@ -333,7 +333,7 @@ class ReportsActivity : AppCompatActivity() {
         // ── প্রতিটা পেমেন্ট নিজের সাদা কার্ডে ──
         if (rows.isEmpty()) {
             body.addView(android.widget.TextView(this).apply {
-                text = "আজ কোনো লেনদেন নেই।"; textSize = 13f
+                text = NoBengali.s("আজ কোনো লেনদেন নেই।"); textSize = 13f
                 setTextColor(android.graphics.Color.parseColor("#667085"))
                 setPadding(dp(4), dp(10), dp(4), dp(10))
             })

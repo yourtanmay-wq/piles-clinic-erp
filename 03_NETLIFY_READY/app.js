@@ -226,7 +226,8 @@ const WLV1_PRINT_EN = [
   ['DRESSING \u0995\u09B0\u09BE \u09B9\u09B2', 'DRESSING DONE'],
   ['MEDICINE \u09A6\u09C7\u0993\u09AF\u09BC\u09BE \u09B9\u09B2', 'MEDICINE GIVEN'],
   ['KTA \u0995\u09B0\u09BE \u09B9\u09B2', 'KTA DONE'],
-  ['LIS \u0995\u09B0\u09BE \u09B9\u09B2', 'LIS DONE']
+  ['LIS \u0995\u09B0\u09BE \u09B9\u09B2', 'LIS DONE'],
+  ['Visit Return \u0995\u09B0\u09BE \u09B9\u09B2', 'VISIT RETURN DONE']
 ];
 function wlv1PrintEn(t){let o=String(t==null?'':t);if(!o)return o;for(const pr of WLV1_PRINT_EN){if(o.indexOf(pr[0])>=0)o=o.split(pr[0]).join(pr[1])}return o}
 window["wlv1PrintEn"]=wlv1PrintEn;
@@ -359,9 +360,16 @@ function wlv1AddrParse(address){
 }
 window["wlv1AddrParse"]=wlv1AddrParse;
 // ফোনের ডিফল্ট-অগ্রাধিকার: থানা > গ্রাম > পোস্ট > জেলা (TK-এর সিদ্ধান্ত, B172)।
+// 🔴🔒 V680 (২৫.০৮.২০২৬, TK-লাইভ-টেস্ট) — গঠন-করা ঠিকানা না পাওয়া গেলে
+// (Enquiry-র মুক্ত-লেখা ঠিকানায় প্রায়ই হয়) raw ঠিকানাই (প্রথম অংশ) ব্যবহার হয়,
+// Android AddressTagRepository.defaultTagFromAddress()-এর হুবহু একই।
 function wlv1AddrDefaultTag(address){
   const p=wlv1AddrParse(address);
-  return p.THANA||p.VILLAGE||p.POST||p.DISTRICT||'';
+  const structured=p.THANA||p.VILLAGE||p.POST||p.DISTRICT;
+  if(structured)return structured;
+  const raw=String(address||'').trim();
+  if(!raw)return '';
+  return raw.split(',')[0].trim();
 }
 window["wlv1AddrDefaultTag"]=wlv1AddrDefaultTag;
 // স্টাফের নিজের হাতে সেভ-করা ট্যাগ (থাকলে) — auto-ডিফল্টের চেয়ে অগ্রাধিকার পায়।
@@ -373,13 +381,14 @@ function wlv1AddrSavedTag(mobile){
 }
 window["wlv1AddrSavedTag"]=wlv1AddrSavedTag;
 // ⛔ ফোনের B173-এর লক করা সিদ্ধান্ত: Patient/Treatment কার্ডে ট্যাগ দেখানো হয় না
-// (View All-এ সব দেখা যায় বলে TK নিজেই বাদ দিতে বলেছিলেন)। Enquiry-স্তরে ঠিকানা
-// মুক্ত-লেখা বলে auto-ডিফল্ট প্রযোজ্য নয় — শুধু সেভ-করা ট্যাগ (থাকলে) দেখায়।
+// (View All-এ সব দেখা যায় বলে TK নিজেই বাদ দিতে বলেছিলেন)।
+// 🔴🔒 V680 (২৫.০৮.২০২৬, TK-লাইভ-টেস্ট রিপোর্ট) — আগে Enquiry-স্তরে auto-ডিফল্ট
+// সম্পূর্ণ বাদ দেওয়া হতো ("মুক্ত-লেখা বলে প্রযোজ্য নয়") — এখন raw ঠিকানা fallback
+// থাকায় (উপরের wlv1AddrDefaultTag) Android-এর মতোই Enquiry কার্ডেও ঠিকানা দেখাবে।
 function wlv1AddrTagForCard(mobile,address,stage){
   if(String(stage||'')==='Treatment')return '';
   const saved=wlv1AddrSavedTag(mobile);
   if(saved)return saved;
-  if(String(stage||'')==='Inquiry')return '';
   return wlv1AddrDefaultTag(address||'');
 }
 window["wlv1AddrTagForCard"]=wlv1AddrTagForCard;
@@ -766,6 +775,25 @@ const add=(t,r)=>{let a=load(t),row=withMeta(t,r,true);protectNewRow(t,row);a.un
    লেখা হবে না। patch নিজে `photo`/`patientPhoto` বদলালে তবেই ছবি যাবে। Local row-এ
    ছবি আগের মতোই থাকে; শুধু এই এক direct cloud payload থেকে অপ্রয়োজনীয় ছবি বাদ যায়। */
 const upd=(t,id,patch)=>{let a=load(t);let i=a.findIndex(x=>x.id===id);if(i>-1){a[i]=withMeta(t,{...a[i],...patch,updatedAt:new Date().toISOString()},false);protectNewRow(t,a[i]);save(t,a);try{let photoTouched=!!(patch&&typeof patch==='object'&&(Object.prototype.hasOwnProperty.call(patch,'photo')||Object.prototype.hasOwnProperty.call(patch,'patientPhoto')));let cloudRow=photoTouched?a[i]:(stripPhotoCols([a[i]])[0]||a[i]);setTimeout(()=>directCloudUpsertRow(t,cloudRow),20)}catch(e){}return a[i]}};
+/* 🟢🔒 V623 (২৪.০৮.২০২৬) — `upd()`-এর হুবহু একই কাজ, শুধু cloud upsert
+   `setTimeout`-এ ছেড়ে না দিয়ে **await করে সত্যিকারের সফল/ব্যর্থ** ফেরত দেয়।
+   Change Branch (V617-ওয়েব) ও Return Fees (V621-ওয়েব)-এর মতো জায়গায় দরকার,
+   যেখানে TK-কে সৎভাবে "কতগুলো সত্যিই সরল" দেখাতে হয় — শুধু লোকাল সেভ হলো
+   কিনা তা দিয়ে না। ⛔ `upd()` নিজে এক অক্ষরও বদলায়নি, পুরনো সব ব্যবহার
+   আগের মতোই fire-and-forget থাকবে। */
+async function wlv1UpdConfirmed(t,id,patch){
+  try{
+    let a=load(t); let i=a.findIndex(x=>x.id===id);
+    if(i<0) return false;
+    a[i]=withMeta(t,{...a[i],...patch,updatedAt:new Date().toISOString()},false);
+    protectNewRow(t,a[i]);
+    save(t,a);
+    let photoTouched=!!(patch&&typeof patch==='object'&&(Object.prototype.hasOwnProperty.call(patch,'photo')||Object.prototype.hasOwnProperty.call(patch,'patientPhoto')));
+    let cloudRow=photoTouched?a[i]:(stripPhotoCols([a[i]])[0]||a[i]);
+    return await directCloudUpsertRow(t,cloudRow);
+  }catch(_e){ return false; }
+}
+window["wlv1UpdConfirmed"]=wlv1UpdConfirmed;
 // V271 Supabase alignment fix:
 // Local key stays doctor_visits for UI compatibility.
 // Read from both old/new doctor visit tables, but write to one canonical table only.
@@ -3206,7 +3234,15 @@ window["activeBriefings"]=activeBriefings;
    নোটিস (Refund/Delete/Reopen request) — পুরনো হলেও Master দেখেন (নইলে pending
    অনুমোদন হারিয়ে যেত)। বাকি সব "সাধারণ নোটিস" — শুধু আজকেরটা। Android-এর
    BriefingModel.needsMasterApproval-এর হুবহু একই সংজ্ঞা। */
-function briefingNeedsApproval(b){let t=String(b?.title||'').toLowerCase();return t.includes('refund request')||t.includes('delete request')||t.includes('reopen request')||t.includes('leave request')/* 🔵 B618 */}
+/* 🔵 খাতার সারি (TK-নির্দেশ, 09.08.2026 — ওয়েব↔Android মিল): "অনুমতি লাগে এমন"
+   নোটিস (Refund/Delete/Reopen request) — পুরনো হলেও Master দেখেন (নইলে pending
+   অনুমোদন হারিয়ে যেত)। বাকি সব "সাধারণ নোটিস" — শুধু আজকেরটা। Android-এর
+   BriefingModel.needsMasterApproval-এর হুবহু একই সংজ্ঞা।
+   🔴🔒 V682 (২৫.০৮.২০২৬, TK-লাইভ-টেস্ট রিপোর্ট — "Approve করার পরেও এখানে কেন
+   থাকবে?") — Approve করলে যে "💬 Reply on: 🗑️ Delete request — ..." নোটিশ
+   অনুরোধকারীকে পাঠানো হয় তার টাইটেলেও "delete request" থাকে বলে ভুল করে
+   আবার "Approve লাগবে" ধরে নিত। "reply on:" দিয়ে শুরু হওয়া টাইটেল এখন বাদ। */
+function briefingNeedsApproval(b){let t=String(b?.title||'').toLowerCase();if(t.includes('reply on:'))return false;return t.includes('refund request')||t.includes('delete request')||t.includes('reopen request')||t.includes('leave request')/* 🔵 B618 */}
 window["briefingNeedsApproval"]=briefingNeedsApproval;
 function briefingVisibleForMaster(b){return briefingNeedsApproval(b)||briefingDateOk(b)}
 window["briefingVisibleForMaster"]=briefingVisibleForMaster;
@@ -3320,9 +3356,24 @@ function anBrBriefWhen(b){
 window["anBrBriefWhen"]=anBrBriefWhen;
 function anBrBriefMeta(b){
   if(anBrPlainInfo(b&&b.title))return '';
-  return '<div class="tiny mut">Seen: '+((b.seen||[]).length)+' · Replies: '+(briefingReplies(b).filter(function(r){return !r.deletedAt}).length)+'</div>';
+  var seenCount=((b.seen||[]).length);
+  // 🔴🔒 V682 (২৫.০৮.২০২৬, TK-লাইভ-টেস্ট রিপোর্ট, Android-এর সাথে মেলানো) —
+  // "Seen: N" চাপলে কে দেখেছে (নাম) দেখায়।
+  var seenSpan=seenCount>0
+    ? '<span style="cursor:pointer;text-decoration:underline" onclick="wlv1ShowSeenBy(\''+esc(b.id)+'\')">Seen: '+seenCount+'</span>'
+    : 'Seen: '+seenCount;
+  return '<div class="tiny mut">'+seenSpan+' · Replies: '+(briefingReplies(b).filter(function(r){return !r.deletedAt}).length)+'</div>';
 }
 window["anBrBriefMeta"]=anBrBriefMeta;
+function wlv1ShowSeenBy(id){
+  var b=briefings().find(function(x){return x.id===id});
+  if(!b)return;
+  var mobiles=b.seen||[];
+  if(!mobiles.length)return;
+  var names=mobiles.map(function(m){return esc(codeName(m)||m);});
+  modal('<h2>Seen by ('+names.length+')</h2><div class="card">'+names.map(function(n){return '<div style="padding:6px 0">'+n+'</div>';}).join('')+'</div><div class="actions"><button class="ghost" onclick="closeModal()">Close</button></div>');
+}
+window["wlv1ShowSeenBy"]=wlv1ShowSeenBy;
 function anBrBriefThreadBtn(b,label){
   if(anBrPlainInfo(b&&b.title))return '';
   return '<button onclick="openBriefThread(\''+b.id+'\')">'+(label||'Open Thread')+'</button>';
@@ -3343,7 +3394,24 @@ function openBriefThread(id){let b=briefings().find(x=>x.id===id);if(!b)return t
 window["openBriefThread"]=openBriefThread;
 function replyBrief(id){openBriefThread(id)}
 window["replyBrief"]=replyBrief;
-function saveBriefReply(id){let txt=($('#briefReplyText')?.value||'').trim();if(!txt)return toast('Reply required');let all=briefings();let i=all.findIndex(b=>b.id===id);if(i>-1){all[i].replies=[...(all[i].replies||[]),{id:uid('breply'),by:user.mobile,text:txt,at:new Date().toISOString(),deletedAt:'',deletedBy:''}];all[i].seen=[...(all[i].seen||[]),mob(user.mobile)].filter((v,k,a)=>v&&a.indexOf(v)===k);all[i].updatedAt=new Date().toISOString();saveBriefings(all);cloudUpsertBriefing(all[i]);toast('Reply sent');openBriefThread(id)}}
+function saveBriefReply(id){let txt=($('#briefReplyText')?.value||'').trim();if(!txt)return toast('Reply required');let all=briefings();let i=all.findIndex(b=>b.id===id);if(i>-1){all[i].replies=[...(all[i].replies||[]),{id:uid('breply'),by:user.mobile,text:txt,at:new Date().toISOString(),deletedAt:'',deletedBy:''}];all[i].seen=[...(all[i].seen||[]),mob(user.mobile)].filter((v,k,a)=>v&&a.indexOf(v)===k);all[i].updatedAt=new Date().toISOString();saveBriefings(all);cloudUpsertBriefing(all[i]);
+  /* 🟢🔒 V642 (২৪.০৮.২০২৬, TK-নির্দেশ — "Reply করলে সে যেন Notification পায়")
+     — আসল কারণ: রিপ্লাই এতদিন শুধু নিজের replies ঘরেই জমা হতো, আসল
+     অনুরোধকারীর কাছে নতুন কোনো ঘন্টা-নোটিশ যেত না। এখন রিপ্লাইকারী আসল
+     অনুরোধকারী নিজে না হলে (createdBy ভিন্ন) তাঁকে individual-target
+     একটা নতুন ছোট নোটিশ যায় — Android-এর একই নিয়ম (BriefingRepository.
+     addReply)। ⛔ ব্যর্থ হলেও (নেট/অন্য কারণ) রিপ্লাই সেভ অক্ষত থাকে। */
+  try{
+    let creator=mob(all[i].createdBy||'');
+    if(creator && creator!==mob(user.mobile)){
+      let note={id:uid('brief'),date:today(),title:'\u{1F4AC} Reply on: '+(all[i].title||'Notice'),message:txt,
+        targets:{mobiles:[creator]},branch:all[i].branch||'',seen:[],replies:[],
+        createdBy:user.mobile,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
+      add('briefings',note);
+      cloudUpsertBriefing(note);
+    }
+  }catch(_e){}
+  toast('Reply sent');openBriefThread(id)}}
 window["saveBriefReply"]=saveBriefReply;
 function deleteBriefReply(id,rid,idx){let all=briefings();let i=all.findIndex(b=>b.id===id);if(i<0)return toast('Briefing not found');let rs=all[i].replies||[];let pos=rs.findIndex((r,k)=>(r.id||('reply_'+k))===rid);if(pos<0&&Number.isFinite(idx))pos=idx;if(pos<0||!rs[pos])return toast('Reply not found');if(!isMaster()&&mob(rs[pos].by)!==mob(user?.mobile))return toast('Permission denied');rs[pos]={...rs[pos],deletedAt:new Date().toISOString(),deletedBy:user.mobile,text:''};all[i].replies=rs;all[i].updatedAt=new Date().toISOString();saveBriefings(all);cloudUpsertBriefing(all[i]);toast('Deleted');openBriefThread(id)}
 window["deleteBriefReply"]=deleteBriefReply;
@@ -4997,6 +5065,25 @@ function applySharedFollowDateFilter(rows,stage){
    if(!me)return rows;
    return rows.filter(x=>wlv1LastCallBy(x).trim().toLowerCase()===me);
  }
+ // 🟢🔒 V646 (২৫.০৮.২০২৬, TK-নির্দেশ — "২ যায়গায়ই থাকবে, Unexpected Time-এর
+ // মতন") — Android FollowUpActivity.applyDateFilter()-এর একই নতুন
+ // ফিল্টারগুলো, "My Call"-এর হুবহু একই ধাঁচে (তারিখ-রেঞ্জ নয়, স্বতন্ত্র শাখা)।
+ if(f.mode==='Unexpected'){
+   return rows.filter(x=>String(x.timeType||'').toLowerCase()==='unexpected time');
+ }
+ if(f.mode==='Complete'){
+   return rows.filter(x=>Number(x.bill||0)>0 && (Number(x.bill||0)-Number(x.paid||0))<=0);
+ }
+ if(f.mode==='Incomplete'){
+   return rows.filter(x=>Number(x.paid||0)<=0 && draftAgeDays(x)>=60);
+ }
+ if(f.mode==='Running'){
+   return rows.filter(x=>{
+     const complete=Number(x.bill||0)>0 && (Number(x.bill||0)-Number(x.paid||0))<=0;
+     const incomplete=Number(x.paid||0)<=0 && draftAgeDays(x)>=60;
+     return !complete && !incomplete;
+   });
+ }
  let from=f.from||'',to=f.to||'';
  // MATCHED TO THE NATIVE APP (FollowUpActivity.applyDateFilter, 2026-07-25):
  // every Follow-up date filter works on the NEXT CALL DATE (nextFollow), not
@@ -5552,8 +5639,13 @@ function _followupCore(tab='Inquiry'){
  let tabs=['Inquiry','Patient','Treatment'].map(t=>`<button class="followTab ${t===tab?'active':''}" onclick="wlv1FuTab('${t}')"><span>${t==='Inquiry'?'👥':t==='Patient'?'👣':'👤'}</span>${stageLabel(t)}</button>`).join('');
  // 🆕 TK-নির্দেশ (04.08.2026): "My Call" — ফোনের মতোই "All"-এর ঠিক পরে (B213)।
  let fmodes=['All','My Call','Today','Overdue','This Week','This Month','⏰ Custom Date'];
+ // 🟢🔒 V646 (২৫.০৮.২০২৬, TK-নির্দেশ — "২ যায়গায়ই থাকবে") — Enquiry ট্যাবে
+ // "Unexpected", Patient(Treatment) ট্যাবে "Running/Incomplete/Complete" —
+ // Android-এর একই বাড়তি চিপ, শুধু প্রাসঙ্গিক ট্যাবেই দেখা যায়।
+ if(tab==='Inquiry') fmodes=fmodes.concat(['🌙 Unexpected']);
+ if(tab==='Treatment') fmodes=fmodes.concat(['🏃 Running','⏳ Incomplete','✅ Complete']);
  let cur=__followDateFilter.mode||'All';
- let fbtns=fmodes.map(m=>{let val=(m==='All'?'':(m==='⏰ Custom Date'?'Custom Date':m));
+ let fbtns=fmodes.map(m=>{let val=(m==='All'?'':(m==='⏰ Custom Date'?'Custom Date':(m==='🌙 Unexpected'?'Unexpected':(m==='🏃 Running'?'Running':(m==='⏳ Incomplete'?'Incomplete':(m==='✅ Complete'?'Complete':m))))));
    let on=(cur===val)||(m==='All'&&!__followDateFilter.mode);
    return `<button class="wlv1FuFilter ${on?'on':''}" onclick="wlv1FollowFilter('${tab}','${val}')">${m}</button>`}).join('')
    /* 🔒 খাতার সারি B116 (TK পাশ, 29.07.2026): ছাঁকনির সারির শেষে "⬇ Sheet" —
@@ -5780,7 +5872,26 @@ function draffHome(tab='home'){
    else wlv1PatByMob.set(m,wlv1PickPatientRow([prev,x],(typeof user!=='undefined'&&user&&user.branch)||'')||prev);});
  let wlv1OnePerPerson=Array.from(wlv1PatByMob.values());
  let complete=wlv1OnePerPerson.filter(x=>x.completeApprovedBy||(Number(x.bill||0)>0&&Math.max(0,Number(x.bill||0)-Number(paidByPid[x.id]||0))===0&&(String(x.stage||'').toLowerCase().includes('complete')||x.doctorComplete)));
- let notComplete=f.filter(x=>x.stage==='Patient'&&!x.hasPayment&&draftAgeDays(x)>=60);
+ /* 🟢🔒 V645 (২৫.০৮.২০২৬, TK-নির্দেশ, সততার সাথে সম্পূর্ণ করা) — আসল কারণ:
+    এই নিয়ম stage==='Patient' হলেই ধরত, কিন্তু status==='returned' (Return
+    Visit বাকেট, ঠিক নিচেই stage==='Patient'&&status==='returned' দিয়ে
+    বানানো) বা status==='cancelled' (Cancelled at visit, নিরাপত্তার জন্য)
+    হলেও বাদ পড়ত না — একই রোগী দুই বাকেটে চলে যেতে পারত। Android-এর সাথে
+    একই নিয়ম মেলাতে গিয়ে এই ফাঁকটা এখন ধরা হলো। ⛔ ৬০-দিন/টাকা-জমা-নেই
+    মূল শর্ত এক অক্ষরও বদলায়নি — শুধু ইতিমধ্যে অন্য বাকেটে থাকা status
+    বাদ দেওয়া হলো, তাই ডাবল-গোনা বন্ধ হয়। */
+ /* 🔴🔒 V681 (২৫.০৮.২০২৬, TK-নির্দেশ, স্পষ্ট যুক্তি — "Advance দিলেই
+    অটোমেটিক Patient(Treatment) হয়ে যায়, তাহলে যে কখনো Advance-ই দেয়নি
+    সে আবার 'Incomplete Patient'-এ যাবে কেন") — Android DraftRepository.kt-এর
+    হুবহু একই সংশোধন: এই ৬০-দিন-নিয়মের সারি (কখনো Advance দেননি, তাই কখনো
+    Treatment-এ প্রমোটই হয়নি) এখন "Incomplete Patient" নয়, "Visit Reject"-এ
+    যায় (নিচে যোগ করা হলো) — সত্যিকারের বাতিল করা Visit-এর মতোই ধরা হয়। */
+ let wlv1StaleVisit=f.filter(x=>x.stage==='Patient'&&!x.hasPayment&&draftAgeDays(x)>=60&&['returned','cancelled'].indexOf(String(x.status||'').toLowerCase())<0);
+ let notComplete=[];
+ /* 🟢🔒 V646 (২৫.০৮.২০২৬, TK-নির্দেশ, "যেমন Android-এ করেছেন") — "Running
+    Patient": stage==='Treatment' ও স্বাভাবিক active অবস্থা — Android
+    DraftRepository.kt-এর runningTreatmentRows-এর হুবহু একই নিয়ম। */
+ let runningTreatment=f.filter(x=>x.stage==='Treatment'&&['cancelled','incomplete','rejected','closed'].indexOf(String(x.status||'').toLowerCase())<0);
  // V448: a legacy Reject can have current status=Active after an old generic
  // heal/view overwrite. Keep that person available in Enquiry Reject by using
  // the same durable history decision as the live Follow-up guard. We map back
@@ -5794,7 +5905,17 @@ function draffHome(tab='home'){
      __legacyRejectedMobiles.add(mm);
  });
  let enqReject=enq.filter(x=>{let st=String(x.status||'').toLowerCase(),rm=String(x.remarks||'').toLowerCase();return st.includes('reject')||st.includes('cancel')||st.includes('not interested')||rm.includes('cancelled after 5 calls')||__legacyRejectedMobiles.has(mob(x.mobile))});
- let visitReject=f.filter(x=>x.stage==='Visit'&&String(x.status||'').toLowerCase()==='cancelled');
+ /* 🔴🔒 V681 — আসল কারণ ধরা পড়ল (সততার সাথে যাচাই করে): এই শর্ত
+    `x.stage==='Visit'` লিখেছিল, অথচ followups টেবিলের সারিতে Visit-stage
+    সবসময় `stage:'Patient'` (কখনো `'Visit'` লেখা হয় না — নিজে কোড ধরে
+    যাচাই করা) — তাই এই তালিকা এতদিন কার্যত সবসময় খালি থাকত। এখন সঠিক
+    `'Patient'` দিয়ে ঠিক করা হলো, আর V645-এর ৬০-দিন-স্টেল-ভিজিট (উপরে
+    `wlv1StaleVisit`) এখানেই যোগ হলো। */
+ let visitReject=f.filter(x=>x.stage==='Patient'&&String(x.status||'').toLowerCase()==='cancelled').concat(wlv1StaleVisit);
+ /* 🟢🔒 V623 (২৪.০৮.২০২৬, TK-নির্দেশ) — নতুন "Return Visit" বাকেট। Android
+    DraftRepository.kt:669-এর হুবহু একই শর্ত (`stage=="Patient" && status==
+    "returned"`) — Visit Reject থেকে সম্পূর্ণ আলাদা, একটা অক্ষরও ভাগাভাগি নয়। */
+ let returnVisit=f.filter(x=>x.stage==='Patient'&&String(x.status||'').toLowerCase()==='returned');
  // 🚨 TK'S LOCKED RULE (restated 27.07.2026): an enquiry a Jalpaiguri staff takes
  // FOR Kishanganj belongs to Kishanganj (all its staff + Master see it in the normal
  // list) -- and the person who ENTERED it sees it here, in "My Enquiry (All Branch)".
@@ -5824,14 +5945,37 @@ function draffHome(tab='home'){
    });
   }
  }
+ /* 🟢🔒🔒 V646 (২৫.০৮.২০২৬, TK-নির্দেশ — "এনকোয়ারি ভিজিট/পেশেন্ট হলে My
+    Enquiry কার্ডেই সেই বর্তমান অবস্থা দেখাতে হবে") — আসল কারণ: My Enquiry
+    এতদিন `enquiries`-এর স্থির স্ন্যাপশট থেকে বানানো হত — রেজিস্ট্রেশনের
+    পরে (Visit/Treatment) আর কখনো আপডেট হত না। Android-এর একই ফিক্স:
+    প্রতিটা মোবাইলের সবচেয়ে সাম্প্রতিক-অবস্থার followups সারি এখানে
+    বসিয়ে দেওয়া হয় (স্টেজ-প্রায়োরিটি + সাম্প্রতিকতম আপডেট — V638-এর একই
+    টাই-ব্রেকার)। "মৃত-ঘোষিত" (Reject/Visit Reject/Return Visit/
+    Incomplete/Complete) তালিকায় থাকলে My Enquiry থেকে বাদ। */
+ (function(){
+  const stagePr=s=>s==='Treatment'?3:(s==='Patient'?2:(s==='Inquiry'?1:0));
+  const bestByMob=new Map(), bestPr=new Map(), bestUa=new Map();
+  f.forEach(x=>{
+    const m=mob(x.mobile); if(!m) return;
+    const pr=stagePr(x.stage), ua=x.updatedAt||x.createdAt||'';
+    if(pr>(bestPr.get(m)??-1) || (pr===bestPr.get(m) && ua>(bestUa.get(m)||''))){
+      bestPr.set(m,pr); bestUa.set(m,ua); bestByMob.set(m,x);
+    }
+  });
+  const deadMobiles=new Set();
+  [enqReject,visitReject,returnVisit,notComplete,complete].forEach(list=>{
+    list.forEach(x=>{ const m=mob(x.mobile); if(m) deadMobiles.add(m); });
+  });
+  received = received.filter(x=>!deadMobiles.has(mob(x.mobile)))
+    .map(x=>{ const live=bestByMob.get(mob(x.mobile)); return live||x; });
+ })();
  let patByMob={};wlv1PatByMob.forEach((v,k)=>{patByMob[k]=v});
- let unexpected=enq.filter(x=>String(x.timeType||'').toLowerCase()==='unexpected time')
-   .map(x=>{const pt=patByMob[mob(x.mobile)];let st;
-     if(!pt) st='Enquiry only — not registered';
-     else{const bill=Number(pt.bill||0),paid=Number(paidByPid[pt.id]||0),due=Math.max(0,bill-paid);
-       st = bill<=0 ? 'Registered — no bill yet' : (due<=0 ? '✅ Treatment complete' : 'Registered — treatment ongoing');}
-     const by=x.receivedBy||x.createdBy||'';
-     return {...x, __draftNote: st + (by?(' · by '+codeName(by)):'')};});
+ /* 🟢🔒 V646 (২৫.০৮.২০২৬, TK-নির্দেশ) — Unexpected Time Calls এখন
+    `enquiries` না, সরাসরি `f` (followups, stage="Inquiry") থেকে —
+    Android-এর একই ফিক্স। Draft ও Follow-up-এর Enquiry ট্যাব এখন
+    ঠিক একই জীবন্ত সারি দেখায় — কল করাও একই রেকর্ডে গিয়ে পড়ে। */
+ let unexpected=f.filter(x=>x.stage==='Inquiry'&&String(x.timeType||'').toLowerCase()==='unexpected time'&&['cancelled','incomplete','rejected','closed'].indexOf(String(x.status||'').toLowerCase())<0);
  /* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬: "সব কিছু Android এর মত হোক") — ফোনের Draft
    পর্দায় (res/layout/activity_draft.xml) সারিগুলো **দুটো ভাগে** সাজানো —
    📩 ENQUIRY আর 🧑‍⚕️ PATIENT — আর প্রতিটার নিচে ছোট করে লেখা থাকে ওটা কী
@@ -5843,8 +5987,12 @@ let map={received:['My Enquiry',received,'📥','All branch','enq'],
  unexpected:['Unexpected Time Calls',unexpected,'🌙','Off-hour enquiries','enq'],
  enqreject:['Enquiry Reject',enqReject,'🚫','Cancelled at enquiry','enq'],
  visitreject:['Visit Reject',visitReject,'🦶','Cancelled at visit','enq'],
+ // 🟢🔒 V646 (২৫.০৮.২০২৬, TK-নির্দেশ) — PATIENT সেকশনের সবচেয়ে উপরে,
+ // Incomplete Patient-এর ঠিক আগে (Android-এর একই ক্রম)।
+ runningtreatment:['Running Patient',runningTreatment,'🏃','Treatment running','pat'],
  notcomplete:['Incomplete Patient',notComplete,'⏳','Treatment ongoing','pat'],
  complete:['Complete Patient',complete,'✅','Bill fully paid','pat'],
+ returnvisit:['Return Visit',returnVisit,'↩️','Fees returned','pat'],
  refunded:['Refunded',(function(){
    /* 🔴🔴🔴 V435 (TK-রিপোর্ট ১৮.০৮.২০২৬ — "কোন অপশন থেকে অন্য কোন অপশনে যেতে অনেক
       সময় লাগছে, মনে হচ্ছে কোন কাজই করছে না")। **মেপে পাওয়া আসল কারণ:**
@@ -5896,12 +6044,20 @@ let map={received:['My Enquiry',received,'📥','All branch','enq'],
  // (Enquiry-style for enquiry-origin rows, Visit-style for visit-origin, Patient-style
  // for patient-origin), and offer Call/WhatsApp/View/Restore — reusing the exact same
  // proven card renderer (fuCard) so styling always matches the live section exactly.
- let cardStage = (tab==='received'||tab==='enqreject') ? 'Inquiry' : (tab==='visitreject' ? 'Patient' : 'Treatment');
- let isRestoreList = (tab==='enqreject'||tab==='visitreject'||tab==='notcomplete'||tab==='complete'||tab==='refunded');
+ // 🟢🔒 V646 (২৫.০৮.২০২৬, TK-নির্দেশ, "যেমন Android-এ করেছেন") — "জীবন্ত"
+ // পাঁচটা তালিকা (received/unexpected/notcomplete/complete/runningtreatment)
+ // এখন আসল fuCard() দিয়েই আঁকা হয় — নিচে দেখুন। তাই এই পাঁচটার জন্য
+ // cardStage-এর আর দরকার নেই (প্রতিটা সারির নিজের `x.stage`-ই সত্যি,
+ // বিশেষ করে My Enquiry-তে যেখানে এখন বর্তমান অবস্থা লাইভ)।
+ const ALIVE_TABS = new Set(['received','unexpected','notcomplete','complete','runningtreatment']);
+ let cardStage = (tab==='received'||tab==='enqreject') ? 'Inquiry' : ((tab==='visitreject'||tab==='returnvisit') ? 'Patient' : 'Treatment');
+ // ⛔ Incomplete/Complete এখন "জীবন্ত" (Payment/Prescription-সহ) — আর
+ // Restore/Delete না, তাই এখান থেকে বাদ (Android-এর একই সিদ্ধান্ত)।
+ let isRestoreList = (tab==='enqreject'||tab==='visitreject'||tab==='refunded'||tab==='returnvisit');
  // 🆕 B420 (05.08.2026) — Android-এর DraftRepository.entry()-র সাথে মিলিয়ে,
  // প্রতিটা ট্যাবের নিজস্ব "কোন সেকশন থেকে" লেবেল। "unexpected"-এর নিজস্ব
  // ব্যাখ্যা (__draftNote) আগে থেকেই আছে, সেটাই ব্যবহার হয়।
- let tabExtraLabel = {received:'', enqreject:'Rejected', visitreject:'Visit Reject', notcomplete:'Incomplete', unexpected:''}[tab] || '';
+ let tabExtraLabel = {received:'', enqreject:'Rejected', visitreject:'Visit Reject', notcomplete:'Incomplete', unexpected:'', returnvisit:'Fees Returned'}[tab] || '';
  /* 🔵 R7 (TK-অনুমোদিত প্রুফ, ১৫.০৮.২০২৬) — "একসাথে বাছাই"।
     ⛔ শুধু **Rejected ও Visit Reject** ট্যাবে — কারণ ঠিক এই দুটোতেই ওয়েবে আগে থেকেই
     একটা-একটা Restore ও Delete দুটোই আছে, আর ফোনেও (DraftCardAdapter.pickableTabs +
@@ -5939,9 +6095,30 @@ let map={received:['My Enquiry',received,'📥','All branch','enq'],
    // complete/refunded/unexpected-এর লেবেল ডাইনামিক (টাকা/কারণ-সহ), বাকিগুলো স্থির।
    let extraLabel = tab==='complete' ? ('Paid '+Math.round(Math.max(0,Number(normalized.paid||0))))
      : tab==='refunded' ? 'Refunded'
-     : tab==='unexpected' ? (x.__draftNote||'')
      : tabExtraLabel;
-   let cardHtml=draftCardWeb(normalized, idx+1, extraLabel, pickable?String(x.id||''):'');
+   // 🟢🔒🔒 V646 (২৫.০৮.২০২৬, TK-নির্দেশ, "যেমন Android-এ করেছেন, ঝুঁকি
+   // যাচাই করে") — "জীবন্ত" পাঁচটা তালিকা এখন আসল, প্রমাণিত `fuCard()`
+   // দিয়েই আঁকা হয় (Payment/Prescription/Status-menu/Remark-edit — সবই
+   // Follow-up-এর ঠিক একই, গ্লোবাল ফাংশন ডাকে, তাই এখানেও পুরোপুরি কাজ
+   // করে — কোনো ফিচার বাদ দিতে হয়নি, ওয়েবের কার্ড-স্থাপত্য অ্যান্ড্রয়েডের
+   // চেয়ে সহজ বলে)। received/unexpected/notcomplete/runningtreatment —
+   // এই চারটার `x` ইতিমধ্যেই `f` (mergeFollow করা followups) থেকে, তাই
+   // bill/paid/payPct/nextFollow/history আগে থেকেই সঠিক। শুধু "complete"
+   // ট্যাবের `x` আসে patients টেবিল থেকে (payPct নেই সেখানে) — তাই সেটার
+   // জন্য আলাদা করে বসানো হয়।
+   let cardHtml;
+   if (ALIVE_TABS.has(tab)) {
+     let fuRow = x;
+     if (tab === 'complete') {
+       const bill = Number(x.bill || 0), paid = Number(paidByPid[x.id] || 0);
+       fuRow = { ...x, stage: 'Treatment', bill, paid,
+         payPct: bill > 0 ? Math.min(100, Math.round(paid / bill * 100)) : 0,
+         nextFollow: x.nextFollow || '', history: x.history || [] };
+     }
+     cardHtml = fuCard(fuRow);
+   } else {
+     cardHtml = draftCardWeb(normalized, idx+1, extraLabel, pickable?String(x.id||''):'');
+   }
    if(isRestoreList){
      // ADD Restore as an extra action (user rule: keep Call/WhatsApp/View All/Next intact,
      // Restore is an addition, not a replacement). fuCard's returned HTML always ends with
@@ -5966,7 +6143,7 @@ let map={received:['My Enquiry',received,'📥','All branch','enq'],
      // (x.id) Trash+tombstone করা হয় — ঘোস্ট সারে, patient-record অক্ষত থাকে
      // (over-delete নয়)। enquiry-reject আগের মতোই enquiries টেবিলেই (ঐ তালিকা
      // enquiries থেকেই আসে, তাই আগে থেকেই ঠিক ছিল)।
-     let followupDerived=(tab==='visitreject'||tab==='notcomplete');
+     let followupDerived=(tab==='visitreject'||tab==='notcomplete'||tab==='returnvisit');
      let delTable=followupDerived?'followups':((cardStage==='Inquiry')?'enquiries':'patients');
      let delId=followupDerived?(x.id||normalized.id||''):((delTable==='enquiries')?(normalized.id||''):((p&&p.id)||''));
      let delDate=normalized.registrationDate||normalized.visitDate||normalized.recordDate||'';
@@ -5991,7 +6168,29 @@ let map={received:['My Enquiry',received,'📥','All branch','enq'],
    }
    return cardHtml;
  }).join('')||'<div class="card mut">No records found</div>';
- page(title,`${__drBrWrap}${back}${pickable?wlv1DraftPickBarHtml():''}${__drAsk?wlv1BranchAskCard():''}${html}`,true);__drToHeader();
+ // 🟢🔒🔒 V649 (২৫.০৮.২০২৬, TK-নির্দেশ — "গভীরে গিয়ে যাচাই করুন") — আসল
+ // কারণ: fuCard()-এর সিরিয়াল নম্বর ব্যাজ (লাল বর্গ) CSS counter দিয়ে বসে
+ // (`#followRows{counter-reset:wlv1sl}` — styles.css), যেটা শুধু
+ // `id="followRows"` প্যারেন্টের ভেতরেই কাজ করে। Draft-এর এই বিস্তারিত
+ // পাতা আগে কোনো `id="followRows"`-এ মোড়া ছিলই না — তাই fuCard()
+ // ব্যবহার করলেও (V646) সিরিয়াল নম্বর কখনো দেখাতই না (ফাঁকা/০ থাকত)।
+ // এখন Follow-up-এর নিজের পাতার একই id-তে মুড়ে দেওয়া হলো — একই প্রমাণিত
+ // CSS নিয়ম এখানেও সঠিকভাবে কাজ করবে। ⛔ "মৃত" তালিকাগুলোর (draftCardWeb,
+ // .anFu ক্লাস নেই) কোনো প্রভাব পড়ে না — এই CSS নিয়ম শুধু `.anFu` ক্লাসের
+ // কার্ডেই প্রযোজ্য।
+ // 🟢🔒🔒 V649 (২৫.০৮.২০২৬, TK-নির্দেশ — "গভীরে গিয়ে যাচাই করুন") — আসল
+ // কারণ: fuCard()-এর সিরিয়াল নম্বর ব্যাজ (লাল বর্গ) CSS counter দিয়ে বসে
+ // (`#followRows{counter-reset:wlv1sl}` — styles.css), যেটা শুধু
+ // `id="followRows"` প্যারেন্টের ভেতরেই কাজ করে। Draft-এর এই বিস্তারিত
+ // পাতা আগে কোনো `id="followRows"`-এ মোড়া ছিলই না — তাই fuCard()
+ // ব্যবহার করলেও (V646) সিরিয়াল নম্বর কখনো দেখাতই না (ফাঁকা থাকত)।
+ // শুধু "জীবন্ত" ট্যাবেই মোড়া হয়েছে — কারণ #followRows>.card::before-এর
+ // একটা সাধারণ (non-.anFu) নিয়মও আছে যা "মৃত" তালিকার draftCardWeb
+ // কার্ডে (নিজস্ব সিরিয়াল-নম্বর টেক্সট ইতিমধ্যেই আছে) দ্বিতীয় একটা
+ // সিরিয়াল-ব্যাজ যোগ করে দিত — তাই "মৃত" তালিকা ইচ্ছাকৃতভাবে বাদ, ডাবল-
+ // নম্বর এড়াতে।
+ const followRowsHtml = ALIVE_TABS.has(tab) ? `<div id="followRows">${html}</div>` : html;
+ page(title,`${__drBrWrap}${back}${pickable?wlv1DraftPickBarHtml():''}${__drAsk?wlv1BranchAskCard():''}${followRowsHtml}`,true);__drToHeader();
 }
 window["draffHome"]=draffHome;
 /* =====================================================================
@@ -6124,8 +6323,12 @@ function restoreDraftEntry(followId,stage,tab,silent){
    let patch={status:'Active',updatedAt:now};
    // V452: explicit Restore marker. Cloud uses this append-only decision to
    // distinguish a real Master/Staff Restore from stale Active data on an old device.
-   if(tab==='visitreject'||tab==='notcomplete'){
-     let hist={date:today(),time:now,remark:(tab==='visitreject'?'Restored from Visit Reject List':'Restored from Incomplete List'),staff:user?.name||user?.mobile||'',status:'Active',decisionVersion:'V452'};
+   // 🟢🔒 V623 (২৪.০৮.২০২৬) — "returnvisit" যোগ, Android DraftRepository.kt-এর
+   // "Restored from Return Visit List" বার্তার হুবহু জোড়া। শুধু status="Active"
+   // বসে — Refund-এর টাকা/রেকর্ড আগের মতোই অক্ষত থাকে (visitreject-এর মতোই আচরণ)।
+   if(tab==='visitreject'||tab==='notcomplete'||tab==='returnvisit'){
+     let remark=(tab==='visitreject'?'Restored from Visit Reject List':(tab==='returnvisit'?'Restored from Return Visit List':'Restored from Incomplete List'));
+     let hist={date:today(),time:now,remark:remark,staff:user?.name||user?.mobile||'',status:'Active',decisionVersion:'V452'};
      patch.history=[...(rows[i].history||[]),hist];
    }
    // FIX: "Incomplete Patient" is included in Draft based on visitDate age (60+ days,
@@ -6583,7 +6786,7 @@ window["wlv1BranchLock"]=wlv1BranchLock;
 function registration(pref={}){let wlv1OwnBr=(user&&(user.role==='staff'||user.role==='doctor'));let br=pref.branch||(wlv1OwnBr?user.branch:'');let addr=pref.address||'';page('Patient Registration',`<div class="regForm premiumReg wlv1Form"><div class="regTopBranch"><select id="pBranch" class="input">${(br==='All'||!br)?('<option value="" hidden>Select Branch</option>'+branchOptions('')):branchOptions(br)}</select></div><input id="pSourceFollowId" type="hidden" value="${esc(pref.id||'')}"><input id="pSourceRefId" type="hidden" value="${esc(pref.refId||'')}"><input id="pAddr" type="hidden" value="${esc(addr)}"><div class="regSection"><label>Mobile <b class="wlv1Star">*</b></label><input id="pMob" class="input" value="${esc(pref.mobile||'')}" inputmode="tel" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" placeholder="Enter mobile number" onblur="regMobileDupCheck(this.value)"><span id="pMobPrefix" class="mobPrefixBadge hidden">+91</span><div id="pMobDupBox"></div><input id="pEnqOrigin" type="hidden" value="${esc(pref.mobile||'')}"><!-- 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬) — ফোনের ফর্মে ক্রম: মোবাইল → First
      Visit Date → Alternate/Enquiry Mobile → রোগীর নাম
      (res/layout/activity_registration.xml:60-73)। ওয়েবে দুটো উল্টো ছিল।
-     ⛔ ঘরের নাম (id) ও সেভের নিয়ম একটুও বদলায়নি। --><label>First Visit Date</label><div class="wlv1DateBox input"><span id="pDateShow">${wlv1Dot(today())}</span><input id="pDate" type="date" value="${today()}" max="${today()}" oninput="wlv1ShowDate('pDate','pDateShow')"></div><label>Alternate / Enquiry Mobile</label><input id="pAltMob" class="input" value="" inputmode="tel" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other"><label>Patient Name <b class="wlv1Star">*</b></label><input id="pName" class="input" value="${esc(pref.name||'')}" placeholder="Patient name" oninput="wlv1Caps(this)"><div class="regTwo"><div><label>Occupation</label><select id="pOcc" class="input"><option value="" hidden>Choose Occupation</option><option>Farmer</option><option>Housewife</option><option>Business</option><option>Service</option><option>Student</option><option>Labour</option><option>Retired</option><option>Others</option></select></div><div><label>Age</label><input id="pAge" class="input" inputmode="numeric" maxlength="3" placeholder="Age"></div></div><div class="wlv1PickRow wlv1TopGap" data-wlv1group="sex"><button type="button" class="wlv1Pick on" data-val="Male" onclick="wlv1PickOne('sex','Male','pSex')">Male</button><button type="button" class="wlv1Pick" data-val="Female" onclick="wlv1PickOne('sex','Female','pSex')">Female</button><button type="button" class="wlv1Pick" data-val="Other" onclick="wlv1PickOne('sex','Other','pSex')">Other</button></div><input id="pSex" type="hidden" value="Male"></div><div class="regSection"><div class="regSecHead">Address</div><label>Village</label><input id="pVill" class="input" oninput="wlv1Caps(this)"><label>PO</label><input id="pPO" class="input" oninput="wlv1Caps(this)"><label>PS</label><input id="pPS" class="input" oninput="wlv1Caps(this)"><label>District</label><input id="pDist" class="input" oninput="wlv1Caps(this)"><label>PIN Code</label><input id="pPin" class="input" inputmode="numeric" maxlength="6"></div><div class="regSection"><div class="regSecHead">Disease</div><div class="wlv1ChipRow"><label class="wlv1Chip2"><input type="checkbox" name="diag" value="Piles" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Piles</span></label><label class="wlv1Chip2"><input type="checkbox" name="diag" value="Fissure" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Fissure</span></label><label class="wlv1Chip2"><input type="checkbox" name="diag" value="Fistula" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Fistula</span></label><label class="wlv1Chip2"><input type="checkbox" name="diag" value="Hydrocele" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Hydrocele</span></label><label class="wlv1Chip2"><input type="checkbox" name="diag" value="Gupt Rog" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Gupt Rog</span></label><label class="wlv1Chip2"><input type="checkbox" name="diag" value="Other" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Other</span></label></div></div><div class="regSection"><div class="regSecHead">Symptoms</div><div class="wlv1ChipRow"><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Pain" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Pain</span></label><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Itching" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Itching</span></label><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Burning" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Burning</span></label><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Bleeding" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Bleeding</span></label><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Pus Discharge" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Pus Discharge</span></label><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Fluid Discharge" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Fluid Discharge</span></label><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Prolapsed Lump" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Massa Bara Hua</span></label></div><textarea id="pComp" class="input wlv1TopGap" placeholder="পেশেন্ট এসে আরো কি কি সমস্যার কথা বললেন" oninput="wlv1Caps(this)"></textarea><label>Duration of Problem</label><div class="regTwo"><input id="pDuration" class="input" inputmode="numeric"><select id="pDurationUnit" class="input"><option>Days</option><option>Months</option><option>Years</option></select></div></div><div class="regSection"><div class="regSecHead">Previous Treatment History</div><div class="wlv1ChipRow"><label class="wlv1Chip2"><input type="checkbox" name="medHist" value="Previous Medication" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Previous Medication</span></label><label class="wlv1Chip2"><input type="checkbox" name="medHist" value="Previous Medical Treatment" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Previous Doctor Treatment</span></label><label class="wlv1Chip2"><input type="checkbox" name="medHist" value="Previous Surgical History" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Previous Operation History</span></label><label class="wlv1Chip2"><input type="checkbox" name="medHist" value="Previous Ayurvedic/Herbal Treatment" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Previous Ayurvedic/Herbal Treatment</span></label></div><label>Other Treatment History (Optional)</label><textarea id="pPrevTreatment" class="input" placeholder="Write any other previous treatment" oninput="wlv1Caps(this)"></textarea></div><div class="regSection"><label>Referred By</label><select id="pRef" class="input" onchange="wlv1RefByChanged()"><option>Self</option><option>Online</option><option>Offline</option><option>Dr. Visit</option><option>Old Patient</option><option>Others</option></select><div id="llRefDoctor" class="hidden"><label>Doctor / RMP Name</label><input id="pRefDocName" class="input" placeholder="Doctor / RMP name" oninput="wlv1Caps(this)"><label>Doctor Mobile</label><input id="pRefDocMobile" class="input" inputmode="tel" maxlength="10" placeholder="Doctor mobile"></div><div class="wlv1PickRow wlv1Pick2 wlv1TopGap" data-wlv1group="regtime"><button type="button" class="wlv1Pick on" data-val="Official Time" onclick="wlv1PickOne('regtime','Official Time','pRegTiming')">Official Time</button><button type="button" class="wlv1Pick" data-val="Unexpected Time" onclick="wlv1PickOne('regtime','Unexpected Time','pRegTiming')">Unexpected Time</button></div><input id="pRegTiming" type="hidden" value="Official Time"></div><div class="regSection"><label>Fee Amount <b class="wlv1Star">*</b></label><input id="regFee" class="input" inputmode="numeric" placeholder="Enter Registration Fee"><div class="wlv1PickRow wlv1Pick2 wlv1TopGap" data-wlv1group="paymode"><button type="button" class="wlv1Pick on" data-val="CASH" onclick="wlv1PickOne('paymode','CASH','regMode')">CASH</button><button type="button" class="wlv1Pick" data-val="ONLINE" onclick="wlv1PickOne('paymode','ONLINE','regMode')">ONLINE</button></div><input id="regMode" type="hidden" value="CASH">${pref.photo?`<img class="patientPhoto" src="${pref.photo}">`:''}${patientPhotoInputs('pPhoto')}</div><button class="fullSave" onclick="savePatient(event)">✓  Save Patient</button></div>`);setTimeout(function(){try{wlv1BranchLock('pBranch')}catch(e){}try{wlv1PhTint('pBranch');wlv1PhTint('pOcc')}catch(e){}},0)}
+     ⛔ ঘরের নাম (id) ও সেভের নিয়ম একটুও বদলায়নি। --><label>First Visit Date</label><div class="wlv1DateBox input"><span id="pDateShow">${wlv1Dot(today())}</span><input id="pDate" type="date" value="${today()}" max="${today()}" oninput="wlv1ShowDate('pDate','pDateShow')"></div><label>Alternate / Enquiry Mobile</label><input id="pAltMob" class="input" value="" inputmode="tel" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other"><label>Patient Name <b class="wlv1Star">*</b></label><input id="pName" class="input" value="${esc(pref.name||'')}" placeholder="Patient name" oninput="wlv1Caps(this)"><div class="regTwo"><div><label>Occupation</label><select id="pOcc" class="input"><option value="" hidden>Choose Occupation</option><option>Farmer</option><option>Housewife</option><option>Business</option><option>Service</option><option>Student</option><option>Labour</option><option>Retired</option><option>Others</option></select></div><div><label>Age</label><input id="pAge" class="input" inputmode="numeric" maxlength="3" placeholder="Age"></div></div><div class="wlv1PickRow wlv1TopGap" data-wlv1group="sex"><button type="button" class="wlv1Pick on" data-val="Male" onclick="wlv1PickOne('sex','Male','pSex')">Male</button><button type="button" class="wlv1Pick" data-val="Female" onclick="wlv1PickOne('sex','Female','pSex')">Female</button><button type="button" class="wlv1Pick" data-val="Other" onclick="wlv1PickOne('sex','Other','pSex')">Other</button></div><input id="pSex" type="hidden" value="Male"></div><div class="regSection"><div class="regSecHead">Address</div><label>Village</label><input id="pVill" class="input" oninput="wlv1Caps(this)"><label>PO</label><input id="pPO" class="input" oninput="wlv1Caps(this)"><label>PS</label><input id="pPS" class="input" oninput="wlv1Caps(this)"><label>District</label><input id="pDist" class="input" oninput="wlv1Caps(this)"><label>PIN Code</label><input id="pPin" class="input" inputmode="numeric" maxlength="6"></div><div class="regSection"><div class="regSecHead">Disease</div><div class="wlv1ChipRow"><label class="wlv1Chip2"><input type="checkbox" name="diag" value="Piles" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Piles</span></label><label class="wlv1Chip2"><input type="checkbox" name="diag" value="Fissure" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Fissure</span></label><label class="wlv1Chip2"><input type="checkbox" name="diag" value="Fistula" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Fistula</span></label><label class="wlv1Chip2"><input type="checkbox" name="diag" value="Hydrocele" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Hydrocele</span></label><label class="wlv1Chip2"><input type="checkbox" name="diag" value="Gupt Rog" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Gupt Rog</span></label><label class="wlv1Chip2"><input type="checkbox" name="diag" value="Other" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Other</span></label></div></div><div class="regSection"><div class="regSecHead">Symptoms</div><div class="wlv1ChipRow"><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Pain" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Pain</span></label><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Itching" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Itching</span></label><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Burning" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Burning</span></label><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Bleeding" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Bleeding</span></label><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Pus Discharge" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Pus Discharge</span></label><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Fluid Discharge" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Fluid Discharge</span></label><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Prolapsed Lump" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Massa Bara Hua</span></label></div><textarea id="pComp" class="input wlv1TopGap" placeholder="পেশেন্ট এসে আরো কি কি সমস্যার কথা বললেন" oninput="wlv1Caps(this)"></textarea><label>Duration of Problem</label><div class="regTwo"><input id="pDuration" class="input" inputmode="numeric"><select id="pDurationUnit" class="input"><option>Days</option><option>Months</option><option>Years</option></select></div></div><div class="regSection"><div class="regSecHead">Previous Treatment History</div><div class="wlv1ChipRow"><label class="wlv1Chip2"><input type="checkbox" name="medHist" value="Previous Medication" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Previous Medication</span></label><label class="wlv1Chip2"><input type="checkbox" name="medHist" value="Previous Medical Treatment" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Previous Doctor Treatment</span></label><label class="wlv1Chip2"><input type="checkbox" name="medHist" value="Previous Surgical History" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Previous Operation History</span></label><label class="wlv1Chip2"><input type="checkbox" name="medHist" value="Previous Ayurvedic/Herbal Treatment" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Previous Ayurvedic/Herbal Treatment</span></label></div><label>Other Treatment History (Optional)</label><textarea id="pPrevTreatment" class="input" placeholder="Write any other previous treatment" oninput="wlv1Caps(this)"></textarea></div><div class="regSection"><label>Referred By</label><select id="pRef" class="input" onchange="wlv1RefByChanged()"><option>Self</option><option>Online</option><option>Offline</option><option>Dr. Visit</option><option>Old Patient</option><option>Others</option></select><div id="llRefDoctor" class="hidden"><label>Doctor / RMP Name</label><input id="pRefDocName" class="input" placeholder="Doctor / RMP name" oninput="wlv1Caps(this)"><label>Doctor Mobile</label><input id="pRefDocMobile" class="input" inputmode="tel" maxlength="10" placeholder="Doctor mobile"></div><div class="wlv1PickRow wlv1Pick2 wlv1TopGap" data-wlv1group="regtime"><button type="button" class="wlv1Pick${pref.timeType==='Unexpected Time'?'':' on'}" data-val="Official Time" onclick="wlv1PickOne('regtime','Official Time','pRegTiming')">Official Time</button><button type="button" class="wlv1Pick${pref.timeType==='Unexpected Time'?' on':' hidden'}" data-val="Unexpected Time" onclick="wlv1PickOne('regtime','Unexpected Time','pRegTiming')">Unexpected Time</button></div><input id="pRegTiming" type="hidden" value="${pref.timeType==='Unexpected Time'?'Unexpected Time':'Official Time'}"></div><div class="regSection"><label>Fee Amount <b class="wlv1Star">*</b></label><input id="regFee" class="input" inputmode="numeric" placeholder="Enter Registration Fee"><div class="wlv1PickRow wlv1Pick2 wlv1TopGap" data-wlv1group="paymode"><button type="button" class="wlv1Pick on" data-val="CASH" onclick="wlv1PickOne('paymode','CASH','regMode')">CASH</button><button type="button" class="wlv1Pick" data-val="ONLINE" onclick="wlv1PickOne('paymode','ONLINE','regMode')">ONLINE</button></div><input id="regMode" type="hidden" value="CASH">${pref.photo?`<img class="patientPhoto" src="${pref.photo}">`:''}${patientPhotoInputs('pPhoto')}</div><button class="fullSave" onclick="savePatient(event)">✓  Save Patient</button></div>`);setTimeout(function(){try{wlv1BranchLock('pBranch')}catch(e){}try{wlv1PhTint('pBranch');wlv1PhTint('pOcc')}catch(e){}},0)}
 window["registration"]=registration;
 /* 🔴🔵🔒 V516 (২২.০৮.২০২৬, TK-অনুমোদিত) — **এক মোবাইল, একাধিক রোগী।**
    TK-এর কথা: এক পরিবারে স্বামী ও স্ত্রী দুজনেই রোগী, কিন্তু যোগাযোগের মোবাইল
@@ -6794,6 +6997,26 @@ async function savePatient(evt){
   p.doctorComplete=false;
   p.visitDate=regDate;
   p.registrationDate=regDate;
+  // 🔴🔴🔴🔴 V672 (২৫.০৮.২০২৬, TK-কড়া-রিপোর্ট, ছবিসহ — "ভিজিট ফেরত দেওয়া
+  // যাচ্ছে না... এই সমস্যার কথা আগে বলা হয়েছিল") — **আসল কারণ (কোড ধরে
+  // চূড়ান্তভাবে ধরা পড়ল, ব্যাপক-প্রভাবিত):** B455-এ যোগ করা এই
+  // cloud-duplicate যাচাই আগে **`save('patients', rows)`-এর পরে** বসানো
+  // ছিল — কিন্তু ততক্ষণে **এই একই নতুন রোগীর রেজিস্ট্রেশনই** ক্লাউডে
+  // লিখে ফেলা হয়ে গেছে! তাই প্রতিটা **নতুন** রোগীর জন্যও `cloudDupExists`
+  // ভুলভাবে true হয়ে যেত — Visit Fee-র টাকা নেওয়া হলেও পেমেন্ট-সারিটাই
+  // কখনো তৈরি হতো না, তাই "Return Fees" করতে গেলে "ফেরতযোগ্য Fees নেই"
+  // দেখাত, আর দিনের/ব্রাঞ্চের টাকার হিসাবেও এই ফি বাদ পড়ে যেত।
+  // **সমাধান:** যাচাইটা এখন `save()`-এর **আগে** — তাই এটা সত্যিই "অন্য
+  // ডিভাইসে আগে থেকে করা" রেজিস্ট্রেশন ধরে, নিজের-এইমাত্র-করা সেভকে নয়।
+  // ⛔ B455-এর মূল উদ্দেশ্য (দুই ডিভাইসে ডুপ্লিকেট Visit Fee ঠেকানো)
+  // অক্ষত — শুধু ক্রমটা ঠিক করা হলো।
+  let cloudDupExists=false;
+  if(!updatingExistingPatient && typeof sb!=='undefined' && sb){
+    try{
+      let cres=await sb.from('patients').select('id').eq('id',p.id).limit(1);
+      if(!cres.error && Array.isArray(cres.data) && cres.data.length>0) cloudDupExists=true;
+    }catch(_e){}
+  }
   let rows=load('patients').filter(x=>x.id!==p.id);
   rows.unshift(p);
   protectNewRow('patients',p);
@@ -6802,22 +7025,6 @@ async function savePatient(evt){
 
   // Visit fee/payment is separate from treatment payment and must not block registration.
   try{
-   // 🔴🔴🔴 খাতার সারি B455 (TK-রিপোর্ট, ছবিসহ — একই রোগীর দুইবার
-   // Registration, দুইবার Visit Fee) — উপরের `updatingExistingPatient`
-   // শুধু **এই কম্পিউটারের local cache** দেখে ঠিক হয় (`load('patients')`)
-   // — অন্য ডিভাইসে করা পুরনো রেজিস্ট্রেশন এই কম্পিউটারের cache-এ না
-   // থাকলে ধরা পড়ত না, ফলে দ্বিতীয় Visit Fee কাটত। **অতিরিক্ত সুরক্ষা:**
-   // লেখার ঠিক আগে, যে id-তে সেভ হতে চলেছে (মোবাইল থেকে তৈরি স্থায়ী id)
-   // সেই id সরাসরি ক্লাউডে আছে কিনা আরেকবার যাচাই করা হয় — local cache-
-   // এর উপর নির্ভর না করে। থাকলে Visit Fee কাটে না। ⛔ এই যাচাই ব্যর্থ
-   // হলে (নেট সমস্যা/sb না থাকলে) আগের আচরণই চলে, নতুন কোনো ব্লক নেই।
-   let cloudDupExists=false;
-   if(!updatingExistingPatient && typeof sb!=='undefined' && sb){
-     try{
-       let cres=await sb.from('patients').select('id').eq('id',p.id).limit(1);
-       if(!cres.error && Array.isArray(cres.data) && cres.data.length>0) cloudDupExists=true;
-     }catch(_e){}
-   }
    if(regFee>0 && !updatingExistingPatient && !cloudDupExists){
     add('payments',{
      id:uid('pay'),payType:'visit_fee',payLabel:'Visit Fee',paymentLabel:'Visit Fee',patientId:p.id,patientCode:String(p.patientId||''),mobile:p.mobile,branch:p.branch,name:p.name,
@@ -7184,6 +7391,19 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
   <!-- 🔵 V574 (TK): *"patient id মোবাইল স্ক্রিনের প্রথম থেকে থাকবে তারপরে Ref by"* -->
   <div class="dnIdRow"><span class="dnIdBadge">ID</span><span class="dnIdNo">${esc(p.patientId)}</span>${wlv1RefByChip(p)}</div>
  </div>
+ <!-- 🟢🔒🔒 V656 (২৫.০৮.২০২৬, TK-নির্দেশ, তিনটে প্রশ্ন করে নিশ্চিত হয়ে) —
+      "Doctor Note & Reminder" — Android-এর একই জায়গায় (পেশেন্ট কার্ডের
+      ঠিক নিচে)। ডাক্তার এখানে একটা নোট + তারিখ বসান — সেই তারিখের আগের
+      দিন সন্ধ্যা ৫টায় শুধু ডাক্তারকেই মনে করিয়ে দেওয়া হবে
+      (DoctorReminderWorker.kt-এর একই wlv1 যমজ নিচে)। ⛔ id/সেভ-লজিক —
+      নতুন, আলাদা patients.doctorReminderNote/doctorReminderDate ঘরে বসে,
+      বাকি কোনো তথ্য ছোঁয়া হয়নি। -->
+ <div class="card" style="background:#FFFDF5">
+  <div style="display:flex;align-items:center;gap:7px;margin-bottom:6px"><span>🔔</span><b>Doctor Note &amp; Reminder</b></div>
+  <textarea id="dnReminderNote" placeholder="পরের বার রোগীকে কী ওষুধ/কী কাজ করা হবে — এখানে লিখুন">${esc(p.doctorReminderNote||'')}</textarea>
+  <label>কোন দিনের আগের দিন মনে করাবে?</label>
+  <input id="dnReminderDate" class="input" type="date" value="${esc(p.doctorReminderDate||'')}">
+ </div>
  <div class="card softInfo">ℹ️ Auto filled from Registration. Doctor can edit/add clinical details if needed.</div>
  <div id="wlv1CkChips" class="wlv1CkChips"></div>
  <div id="wlv1CkBox">
@@ -7240,11 +7460,37 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
    <label class="wlv1TxRow"><input class="dnTxPlan" type="checkbox" value="LIS-এর মাধ্যমে চিকিৎসা করা হবে" ${chk(note.treatmentPlan,'LIS-এর মাধ্যমে চিকিৎসা করা হবে')}> LIS-এর মাধ্যমে চিকিৎসা করা হবে</label>
    <!-- 🔴 V542 (TK-নির্দেশ: "ইনজেকশন চিকিৎসা থাকবে না") — সারিটা সরানো। ⛔ পুরোনো রেকর্ডে মানটা থেকে যায়, ছাপায় আগের মতোই দেখা যায়। -->
   </div>
-  ${wlv1CounselBoxHtml(note,p)}
-  ${wlv1AnatBoxHtml(note,id)}
+  <!-- 🟢🔒🔒 V652 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবিসহ — "সম্ভাব্য রোগের মধ্যে
+       থাকবে এটা") — "Patient Picture" (রোগের ছবি/অ্যানাটমি আঁকার হাতিয়ার,
+       wlv1AnatBoxHtml) এখান (Step 3) থেকে সরিয়ে Step 4 (Probable Disease
+       and Time Asked)-এর নিচে আনা হলো — Android-এর একই বদল। ⛔ id/
+       সেভ-লজিক/A4-রিপোর্ট কিছুই বদলায়নি — শুধু জায়গা বদল। -->
+  <!-- 🟢🔒 V651 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবিসহ — "এখানে নিচের দিকে থাকবে
+       আনুমানিক খরচ কত বলা হল") — Estimated Cost এখন Step 3-এর একদম
+       নিচে (Treatment Plan-এর পরে, নোটের আগে) — Android-এর একই বদল।
+       ⛔ id/সেভ-লজিক/নোটিফিকেশন/A4-রিপোর্ট কিছুই বদলায়নি — একই
+       "dnEstimatedCost" input, শুধু জায়গা বদল (Step 4 থেকে Step 3-এ)। -->
+  <label>Estimated Cost · আনুমানিক খরচ কত বলা হল</label><input id="dnEstimatedCost" class="input" value="${val('estimatedCost')}">
   <label>Other Treatment Note · অন্যান্য চিকিৎসার কথা (টাইপ করুন)</label><textarea id="dnCounselling" placeholder="রোগীকে কিভাবে চিকিৎসা করবেন বলেছেন সেই কথা এখানে লিখুন">${val('counselling')}</textarea>
  </details>
- <details class="card"><summary><b>4. Estimate &amp; Decision · আনুমানিক খরচ ও রোগীর সিদ্ধান্ত</b></summary><label>Estimated Cost · আনুমানিক খরচ</label><input id="dnEstimatedCost" class="input" value="${val('estimatedCost')}"><label>Advance Payment to be Done · অগ্রিম কত টাকা জমা করতে চাইছে</label><input id="dnAdvanceDiscussed" class="input" value="${val('advanceDiscussed')}"></details>
+ <!-- 🟢 V600 (২৩.০৮.২০২৬, TK-নির্দেশ, ছবিসহ): "যেখানে আছে সেখান থেকে সরিয়ে
+      দেবেন ... estimate and decision ওই জায়গাতে রাখবেন ... যেহেতু ডিসিশন
+      পেশেন্ট নিবে, নাম পরিবর্তন হয়ে হবে শুধুমাত্র Estimated Cost আনুমানিক
+      খরচ" ⇒ wlv1CounselBoxHtml() Section 3 থেকে সরিয়ে এখানে (Section 4-এর
+      মাথায়) বসানো হলো। শিরোনাম থেকে "Decision" অংশ বাদ। ⛔ id/সেভ-লজিক
+      কিছুই বদলায়নি। -->
+ <!-- 🟢🔒 V651 (২৫.০৮.২০২৬, TK-নির্দেশ — "নামকরণটাও থাকবে না") — Estimated
+      Cost ঘর সরানোর পরে এই শিরোনামও আর ঠিক না — তাই বদলানো হলো
+      (Android-এর একই বদল)। -->
+ <details class="card"><summary><b>4. Probable Disease and Time Asked · সম্ভাব্য রোগ ও সময়</b></summary>
+  ${wlv1CounselBoxHtml(note,p)}
+  <!-- 🟢🔒 V651 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবিসহ) — Estimated Cost এখন Step
+       3-এর নিচে (উপরে দেখুন) — এখান থেকে সরিয়ে নেওয়া হলো, ডুপ্লিকেট id
+       এড়াতে (একই "dnEstimatedCost" দুই জায়গায় থাকলে ব্রাউজার শুধু
+       প্রথমটাই পড়ত, দ্বিতীয়টা অকেজো হয়ে যেত)। -->
+  <label>Advance Payment to be Done · অগ্রিম কত টাকা জমা করতে চাইছে</label><input id="dnAdvanceDiscussed" class="input" value="${val('advanceDiscussed')}">
+  ${wlv1AnatBoxHtml(note,id)}
+ </details>
  <details class="card"><summary><b>5. Photo &amp; Video · ছবি ও ভিডিও</b></summary>
   <div class="grid"><div><label>Before Treatment Photo · আগের ছবি</label><input id="dnBeforePhoto" class="input" type="file" accept="image/*"><small>${note.beforePhoto?'Before photo saved':''}</small></div><div><label>During Treatment Photo · চলাকালীন ছবি</label><input id="dnDuringPhoto" class="input" type="file" accept="image/*"><small>${note.duringPhoto?'During photo saved':''}</small></div><div><label>After Treatment Photo · পরের ছবি</label><input id="dnAfterPhoto" class="input" type="file" accept="image/*"><small>${note.afterPhoto?'After photo saved':''}</small></div></div>
  </details>
@@ -7933,7 +8179,12 @@ var wlv1AnatState={pic:'',marks:[],tool:'bulge',label:'',down:null,live:[]};
    আটটাই **এক সারিতে**, আর কোন হাতিয়ারটা চলছে সেটা নিচে একটাই লাইনে লেখা।
    TK বেছেছেন: **প্রস্তাব ক**। ফোনেও হুবহু এই চেহারা। */
 var WLV1_ANAT_ICONS={
-  bulge:'<circle cx="12" cy="12" r="4.2"/><path d="M12 3.2v2.4M12 18.4v2.4M3.2 12h2.4M18.4 12h2.4M5.8 5.8l1.7 1.7M16.5 16.5l1.7 1.7M18.2 5.8l-1.7 1.7M7.5 16.5l-1.7 1.7"/>',
+  /* 🟢🔒🔒 V673 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবি-প্রুফ পাশ) — আগে এখানেও
+     জেনেরিক "সূর্য/সেটিংস" আইকন ছিল (ফোনের একই বাগ, AnatToolIcon.kt-এ
+     ধরা পড়েছিল) — এখন গোলাকার, ছোপ-ছোপ দাগ-দেওয়া "মাংসপিণ্ড"-এর মতো
+     আইকন, ফোনের নতুন `pathData("bulge")`-এর হুবহু একই পথ। */
+  bulge:'<path d="M8.5 20.5c-3-2-4.5-5-3.7-8.3C5.7 8.6 9 6 12.5 6.3c3 .3 5 2.8 4.7 5.8-.3 3-3 5.8-6.2 7.4-.8.4-1.7.5-2.5 1z"/>'
+    +'<circle cx="9.5" cy="12" r="0.9"/><circle cx="12.8" cy="15" r="0.9"/><circle cx="13.5" cy="10.5" r="0.7"/>',
   pile:'<path d="M12 21s6.2-6.1 6.2-10.4A6.2 6.2 0 0 0 5.8 10.6C5.8 14.9 12 21 12 21z"/><circle cx="12" cy="10.5" r="2.1"/>',
   tract:'<path d="M3 15c2.6 0 2.6-6 5.2-6s2.6 6 5.2 6 2.6-6 5.2-6"/>',
   ring:'<ellipse cx="12" cy="12" rx="7.6" ry="6.3"/>',
@@ -7945,15 +8196,12 @@ var WLV1_ANAT_ICONS={
   /* 🔵 V585 — "কেন্দ্র" হাতিয়ার। ⚠️ ফোনের `AnatToolIcon.pathData("centre")`-এর হুবহু একই পথ। */
   centre:'<circle cx="12" cy="12" r="8"/><path d="M12 2.6v3.2M12 18.2v3.2M2.6 12h3.2M18.2 12h3.2"/><circle cx="12" cy="12" r="1.4"/>'
 };
-/* 🟢🔒 V589 (২৩.০৮.২০২৬, TK-নির্দেশ, ছবিসহ) —
-   *"লোকেশনের মতন যেটা দেখতে সেটা প্রথমে রাখবেন, আর সেটাই পাইলসের মাংস ·
-     তারপরে দাগ থাকবে যেটা ফিস্টুলার দাগ দেখানো যাবে"*
-   ⇒ 📍 সবার আগে, তারপর 〰️ দাগ (নালী · ফিস্টুলা), তারপর বাকিগুলো আগের ক্রমেই।
-   *"যে তীর চিহ্ন আছে, ওটা আমার লাগবে না"* ⇒ তীর বোতামটা সারি থেকে বাদ।
-   ⛔ তীর আঁকার কোড **মোছা হয়নি** — পুরোনো ছবিতে তীর আঁকা থাকলে আগের মতোই
-      দেখা যায়। শুধু নতুন করে তীর আঁকার বোতামটা নেই।
+/* 🟢🔒🔒 V673 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবি-প্রুফ পাশ) — "প্রথমটা থাকবে
+   পাইলসের মাংস ফোলানোর জন্য, দ্বিতীয়টা ফিস্টুলার নালি দেখানোর জন্য,
+   তারপরে যেগুলো ছিল পরপর থাকবে" ⇒ ফোলান সবার আগে, তারপর নালী, তারপর
+   বাকিগুলো (চিহ্ন/গোল/মুছুন) আগের ক্রমেই।
    ⚠️ ফোনের `DoctorCheckupActivity.toolList`-এর হুবহু একই ক্রম। */
-var WLV1_ANAT_TOOLS=[['pile','চিহ্ন'],['tract','নালী'],['bulge','ফোলান'],
+var WLV1_ANAT_TOOLS=[['bulge','ফোলান'],['tract','নালী'],['pile','চিহ্ন'],
                      ['ring','গোল'],['erase','মুছুন'],
                      /* 🔵 V585 (TK-অনুমোদিত) — পায়ুপথের মাঝখানে একবার ছুঁয়ে দিলে
                         ওই ছবির ঘড়ির কেন্দ্র জমা হয়, তারপর o'clock নিজে হিসাব হয়। */
@@ -8005,10 +8253,10 @@ function wlv1AnatBoxHtml(note,pid){
   var b=AnatomyMark.parse(saved);
   wlv1AnatState={pic:b.pic||'',marks:b.marks||[],tool:'bulge',label:'',down:null,live:[],
     id:String(pid||''),saved:saved,note:b.note||''};
-  return '<label>রোগের ছবি · রোগীকে দেখিয়ে বোঝানোর জন্য</label>'
+  return '<label>Patient Picture · to show and explain</label>'
     +'<div class="wlv1AnatStrip" id="dnAnatStrip">'+wlv1AnatStripHtml()+'</div>'
     +'<div class="wlv1AnatWrap"><canvas id="dnAnatCanvas" class="wlv1AnatCanvas"></canvas>'
-    +'<div id="dnAnatHint" class="wlv1AnatHint">উপর থেকে একটা ছবি বাছুন</div></div>'
+    +'<div id="dnAnatHint" class="wlv1AnatHint">Select a picture from above</div></div>'
     /* 🔵 V570 — বোতামগুলো এখন এক সারিতে আইকন হিসেবে (TK-এর বাছাই "প্রস্তাব ক")।
        "পুরো পর্দা" বোতামটাও এই সারিতেই আছে (V567, TK-নির্দেশ)। */
     +wlv1AnatBarHtml(false)
@@ -8026,15 +8274,15 @@ function wlv1AnatBoxHtml(note,pid){
    ⛔ ✕ চাপলে ছবি **মোছে না** — শুধু তালিকা থেকে সরে যায়। পুরোনো চেক-আপে
       ওই ছবির উপরে আঁকা থাকলে সেটা আগের মতোই ঠিক দেখাবে। */
 function wlv1AnatStripHtml(){
-  var add='<label class="wlv1AnatAdd" title="ক্যামেরা বা গ্যালারি থেকে ছবি যোগ করুন">'
+  var add='<label class="wlv1AnatAdd" title="Add photo from camera or gallery">'
     +'<input type="file" accept="image/*" onchange="wlv1AnatAddPhoto(this)">'
-    +'<span>＋</span><small>ছবি যোগ</small></label>';
+    +'<span>+</span><small>Add Photo</small></label>';
   /* 🟢 V591 — সরানো ছবি থাকলে তবেই "♻ ফেরান" ঘরটা। ⚠️ ফোনের
      `DoctorCheckupActivity.buildAnatomyStrip()`-এর হুবহু যমজ। */
   var gone=wlv1AnatHiddenRows();
   if(gone.length){
-    add+='<button type="button" class="wlv1AnatAdd wlv1AnatBack" title="'+esc(wlv1NoBnFixSafe('সরানো ছবি ফেরান'))+'" '
-      +'onclick="wlv1AnatRestoreOpen()"><span>♻</span><small>'+esc(wlv1NoBnFixSafe('ফেরান'))+' '+gone.length+'</small></button>';
+    add+='<button type="button" class="wlv1AnatAdd wlv1AnatBack" title="'+esc('Restore removed photo')+'" '
+      +'onclick="wlv1AnatRestoreOpen()"><span>♻</span><small>'+esc('Restore')+' '+gone.length+'</small></button>';
   }
   return add + wlv1AnatAllPics().map(function(p){
     return '<span class="wlv1AnatThBox">'
@@ -8087,7 +8335,7 @@ function wlv1AnatAddPhoto(input){
       wlv1AnatCloudSave(row);
       wlv1AnatPick(row.key||('cloud:'+row.id));
       wlv1AnatStripPaint();
-      try{toast('ছবি যোগ হলো')}catch(_e){}
+      try{toast('Photo added')}catch(_e){}
     });
   }catch(_e){}
 }
@@ -8142,7 +8390,7 @@ function wlv1AnatRestoreOpen(){
 async function wlv1AnatRestorePic(id){
   var old=(wlv1AnatRows()||[]).filter(function(x){ return String(x.id)===String(id) })[0];
   if(!old){ try{toast(wlv1NoBnFixSafe('ছবিটা পাওয়া গেল না'))}catch(_e){} return }
-  try{toast(wlv1NoBnFixSafe('ফেরানো হচ্ছে…'))}catch(_e){}
+  try{toast('Restoring…')}catch(_e){}
   var isBuiltIn=!!old.picKey;          /* অ্যাপের নিজের ছবি — কিছু নামাতে হয় না */
   var photo=old.photo||'';
   if(!isBuiltIn && !photo){
@@ -8155,7 +8403,7 @@ async function wlv1AnatRestorePic(id){
     }catch(_e){}
   }
   if(!isBuiltIn && !photo){
-    try{toast(wlv1NoBnFixSafe('ফেরানো গেল না — ইন্টারনেট দেখে আবার চেষ্টা করুন'))}catch(_e){}
+    try{toast('Could not restore — check internet and try again')}catch(_e){}
     return;
   }
   var row=Object.assign({},old,{hidden:'',photo:photo,updatedAt:new Date().toISOString()});
@@ -8218,6 +8466,33 @@ function wlv1AnatClockLabel(x,y){
 }
 window["wlv1AnatCentreOf"]=wlv1AnatCentreOf; window["wlv1AnatHourOf"]=wlv1AnatHourOf;
 window["wlv1AnatCentreSet"]=wlv1AnatCentreSet;
+
+/* 🟢🔒 V626 (২৪.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ অনুমোদিত) — "পাইলস তো আর
+   সব জায়গায় হয় না... মলদ্বারে মাংসটা খুলতে হবে, ছবির অন্যান্য জায়গায়
+   চাপলে যেন না ফোলে"।
+   ⛔ মাংসের আকৃতি/মাপ (bulge()/bulgeFromDrag()) এক অক্ষরও বদলানো হয়নি —
+      TK স্পষ্ট বলেছেন "বর্তমান কোডে যেমন হয় ঠিক তেমনি থাকতে হবে"। এখানে
+      শুধু কোথায় কাজ করবে সেটা আটকানো হলো।
+   ⚠️ ফোনের AnatomyModel.BULGE_ZONE_RADIUS/withinBulgeZone()-এর হুবহু
+      একই সংখ্যা ও হিসাব। */
+var WLV1_ANAT_BULGE_ZONE=25.0;
+/* 🟢🔒 V631 (২৪.০৮.২০২৬, TK-রিপোর্ট "পাইলসের মাংস তো এবার ফোলানি যাচ্ছে
+   না") — আসল কারণ: ছবি বর্গাকার নয় (যেমন anat26 — লম্বায় বেশি), অথচ
+   দূরত্ব x/y সমান ধরে মাপা হচ্ছিল, তাই "২৫% ব্যাসার্ধ" আসলে উপবৃত্ত হয়ে
+   গিয়েছিল। এখন `tractCm()`-এর (V564) প্রমাণিত কৌশল — y-দূরত্বকে ছবির
+   অনুপাতে (height÷width) গুণ করে x-এর মাপে আনা হয়। `wlv1AnatRect` থেকেই
+   এই মুহূর্তের আসল অনুপাত জানা যায় — নতুন কোনো প্যারামিটার-চেইন লাগেনি।
+   ⚠️ ফোনের AnatomyView.imgAspect()/withinBulgeZone()-এর হুবহু একই সংশোধন। */
+function wlv1AnatAspect(){
+  var R=wlv1AnatRect;
+  return (R&&R.w>0) ? (R.h/R.w) : 1.0;
+}
+window["wlv1AnatAspect"]=wlv1AnatAspect;
+function wlv1AnatWithinBulgeZone(x,y,cx,cy){
+  var dx=x-cx, dy=(y-cy)*wlv1AnatAspect();
+  return Math.hypot(dx,dy)<=WLV1_ANAT_BULGE_ZONE;
+}
+window["wlv1AnatWithinBulgeZone"]=wlv1AnatWithinBulgeZone;
 
 /* 🔵 V587 (২৩.০৮.২০২৬, TK-নির্দেশ: *"ঘড়ি আঁকানো থাকবে না"*) —
    V585-এ কেন্দ্র জানা থাকলে হালকা সবুজ ঘড়ি ও মাঝের ফোঁটা আঁকা হত। TK চান
@@ -8378,7 +8653,16 @@ function wlv1AnatXY(ev){
   var R=wlv1AnatRect;
   if(!R||!R.w||!R.h)return null;
   var x=(cxp-R.x)/R.w*100, y=(cyp-R.y)/R.h*100;
-  if(x<0||x>100||y<0||y>100)return null;
+  /* 🟢🔒🔒 V651 (২৫.০৮.২০২৬, TK-রিপোর্ট — "পূর্ণ-পর্দায় মাংস ফুলছে না")
+     — আসল কারণ: ছবির নির্দিষ্ট আয়তক্ষেত্রের এক পিক্সেলও বাইরে টান পড়লে
+     আগে `null` ফেরত যেত, আর তাতে টানটাই চুপচাপ বাতিল হয়ে যেত — কোনো
+     বার্তা ছাড়াই। পূর্ণ-পর্দায় ছবি পর্দার চেয়ে বড় করে বসে (পুরো পর্দা
+     ভরাতে), তাই কিনারার কাছে এই গরমিল বেশি ঘটত — Android-এর
+     `AnatomyView.toPercent()`-এর হুবহু একই ফিক্স, একই কারণে। এখন বাইরে
+     পড়লে বাতিল না করে ছবির সবচেয়ে কাছের কিনারায় টেনে আনা হয় (clamp)।
+     ⛔ ছবির লে-আউটই তৈরি না হলে (R শূন্য) আগের মতোই `null` অক্ষত। */
+  x = Math.max(0, Math.min(100, x));
+  y = Math.max(0, Math.min(100, y));
   return [x,y];
 }
 function wlv1AnatDown(ev){
@@ -8399,6 +8683,17 @@ function wlv1AnatDown(ev){
   ev.preventDefault();
   wlv1AnatState.down=p; wlv1AnatState.live=[p.slice()];
   if(wlv1AnatState.tool==='erase')wlv1AnatErase(p);
+  /* 🟢🔒 V626 — "ফোলান" শুরু হওয়ার মুহূর্তেই ঠিক হয়ে যায় এই টানটা
+     অনুমোদিত এলাকায় (কেন্দ্রের কাছে) কি না। ফোনের ACTION_DOWN-এর হুবহু
+     একই মুহূর্তে, একই নিয়মে হিসাব হয়। কেন্দ্র জানা না থাকলেও নিরাপদ
+     দিকেই আটকানো হয়। */
+  /* 🔴🔒 V678 (২৫.০৮.২০২৬, TK-নির্দেশ, স্পষ্ট — "ওরকম কাজ বাদ দিন, আমার
+     যেখানে খুশি আমি সেখানে ফুলিয়ে নেব") — V626-এর এলাকা-বাঁধন সম্পূর্ণ
+     তুলে নেওয়া হলো, Android-এর হুবহু একই। ⛔ কেন্দ্র (⊕)/o'clock-এর
+     বাকি সব কাজ অক্ষত। */
+  if(wlv1AnatState.tool==='bulge'){
+    wlv1AnatState.bulgeAllowed = true;
+  }
 }
 function wlv1AnatMove(ev){
   var s=wlv1AnatState; if(!s.down)return;
@@ -8406,8 +8701,11 @@ function wlv1AnatMove(ev){
   ev.preventDefault();
   var t=s.tool,m=s.marks;
   if(t==='bulge'){
-    if(m.length&&m[m.length-1].kind==='bulge'&&m[m.length-1].x===s.down[0]&&m[m.length-1].y===s.down[1])m.pop();
-    m.push(AnatomyMark.bulgeFromDrag(s.down,p));
+    /* 🟢🔒 V626 — অনুমোদিত এলাকার বাইরে শুরু হওয়া টানে কিছুই আঁকা হয় না। */
+    if(s.bulgeAllowed){
+      if(m.length&&m[m.length-1].kind==='bulge'&&m[m.length-1].x===s.down[0]&&m[m.length-1].y===s.down[1])m.pop();
+      m.push(AnatomyMark.bulgeFromDrag(s.down,p));
+    }
   }else if(t==='tract'||t==='pen'){
     var last=s.live[s.live.length-1];
     if(!last||Math.abs(last[0]-p[0])+Math.abs(last[1]-p[1])>0.6)s.live.push(p.slice());
@@ -8444,19 +8742,24 @@ function wlv1AnatUp(ev){
   }
   else if(t==='tract'||t==='pen'){ if(s.live.length>1)s.marks.push({kind:t,pts:s.live.slice()}) }
   else if(t==='bulge'){
+    /* 🟢🔒 V626 — এখানেও একই অনুমোদিত-এলাকা পাহারা। */
     var m=s.marks;
-    if(!m.length||m[m.length-1].kind!=='bulge')m.push(AnatomyMark.bulgeFromDrag(s.down,s.down));
+    if(s.bulgeAllowed && (!m.length||m[m.length-1].kind!=='bulge'))m.push(AnatomyMark.bulgeFromDrag(s.down,s.down));
   }
   s.down=null; s.live=[];
   wlv1AnatPaint();
 }
+/* 🟢🔒 V631 (২৪.০৮.২০২৬, TK-নির্দেশ "ইরেজার মানে মোছার জন্য যেটুকু মুছতে
+   চাইবো সেটুকুই যেন মোছে") — একই aspect-ratio বাগ এখানেও ছিল, wlv1AnatAspect()
+   দিয়ে সংশোধন। ⛔ মোছার সীমা (bestD=6) এক অক্ষরও বদলায়নি — শুধু দূরত্ব
+   মাপাটা এখন সঠিক। ⚠️ ফোনের eraseNear()-এর হুবহু একই সংশোধন। */
 function wlv1AnatErase(p){
-  var m=wlv1AnatState.marks,best=-1,bestD=6;
+  var m=wlv1AnatState.marks,best=-1,bestD=6,asp=wlv1AnatAspect();
   for(var i=0;i<m.length;i++){
     var d;
     if(m[i].kind==='tract'||m[i].kind==='pen'){
-      d=999; (m[i].pts||[]).forEach(function(q){ var e=Math.hypot(q[0]-p[0],q[1]-p[1]); if(e<d)d=e });
-    }else d=Math.hypot(m[i].x-p[0],m[i].y-p[1]);
+      d=999; (m[i].pts||[]).forEach(function(q){ var e=Math.hypot(q[0]-p[0],(q[1]-p[1])*asp); if(e<d)d=e });
+    }else d=Math.hypot(m[i].x-p[0],(m[i].y-p[1])*asp);
     if(d<bestD){bestD=d;best=i}
   }
   if(best>=0){m.splice(best,1);wlv1AnatPaint()}
@@ -8886,15 +9189,15 @@ function wlv1KsSetSpot(x,y){
 }
 window["wlv1KsSetSpot"]=wlv1KsSetSpot;
 function wlv1KsNearest(x,y){
-  var best=-1,bd=1e9;
+  var best=-1,bd=1e9,asp=wlv1AnatAspect();   // 🟢🔒 V631 — একই aspect-সংশোধন এখানেও
   (wlv1AnatState.marks||[]).forEach(function(m,i){
     var d=1e9;
     if(m.kind==='bulge'){
       var g=AnatomyMark.__lumpGeom(m);
       var hx=m.x+Math.cos(g.ang)*g.L*0.55, hy=m.y+Math.sin(g.ang)*g.L*0.55;
-      d=Math.min(Math.hypot(x-m.x,y-m.y),Math.hypot(x-hx,y-hy));
+      d=Math.min(Math.hypot(x-m.x,(y-m.y)*asp),Math.hypot(x-hx,(y-hy)*asp));
     } else if(m.kind==='tract'){
-      (m.pts||[]).forEach(function(q){ d=Math.min(d,Math.hypot(x-q[0],y-q[1])) });
+      (m.pts||[]).forEach(function(q){ d=Math.min(d,Math.hypot(x-q[0],(y-q[1])*asp)) });
     }
     if(d<bd){bd=d;best=i}
   });
@@ -9046,9 +9349,14 @@ window["wlv1CostMessage"]=wlv1CostMessage;window["wlv1TimeAsked"]=wlv1TimeAsked;
 const WLV1_LIFE_Q=[
  ['chronic','দীর্ঘমেয়াদী কোনো রোগ আছে কি না?',['ডায়াবেটিস','উচ্চ রক্তচাপ','IBD']],
  ['fiber','খাবারে ফাইবারের পরিমাণ',['পর্যাপ্ত','কম']],
- ['toilet','টয়লেটে দীর্ঘক্ষণ বসে থাকার অভ্যাস আছে?',['হ্যাঁ','না']],
- ['strain','অতিরিক্ত কোঁথ (Straining) দিতে হয়?',['হ্যাঁ','না']]
+ ['toilet','টয়লেটে দীর্ঘক্ষণ বসে থাকার অভ্যাস আছে?',['হ্যাঁ','না'],1],
+ ['strain','অতিরিক্ত কোঁথ (Straining) দিতে হয়?',['হ্যাঁ','না'],1]
 ];
+/* 🔴 V600 (২৩.০৮.২০২৬, TK-ধরা বাগ, ছবি-প্রুফ): "হ্যাঁ/না" প্রশ্নে আগে
+   একসাথে দুটোই বাছা যেত। যে key-এর ৪র্থ ঘরে 1 আছে সেটাই single-select
+   (radio) — একটাই বাছা যাবে। Android-এর `singleSelect`-এর হুবহু যমজ। */
+var WLV1_LIFE_SINGLE={};
+WLV1_LIFE_Q.forEach(function(q){ if(q[3]) WLV1_LIFE_SINGLE[q[0]]=1 });
 function wlv1LifeOpts(k){var r=[];WLV1_LIFE_Q.forEach(function(q){if(q[0]===k)r=q[2]});return r}
 function wlv1LifeWater(v){
   var kept=String(v||'').replace(/[^0-9.]/g,''); var i=kept.indexOf('.');
@@ -9208,12 +9516,26 @@ function wlv1HistBoxHtml(note){
   /* 🔵 V574 (TK-নির্দেশ): *"রোগী এসে প্রথমে কি কি বললেন / রোগীর বলা ইতিহাস —
      এই লেখাগুলো দুইবার তিনবার ... সেরকম যেন না হয়"* ⇒ উপরের "রোগীর বলা ইতিহাস"
      লেখাটা তুলে দেওয়া হলো; চারটে দলের নিজের নামই যথেষ্ট। */
-  return '<div class="wlv1HistBox plain">'+html
-    +'<textarea id="dnHistoryNote" placeholder="এই ইতিহাস নিয়ে আর কিছু লেখার থাকলে এখানে লিখুন">'+esc(r.note)+'</textarea></div>';
+  return '<div class="wlv1HistBox plain">'+html+'</div>';
+  /* 🔵🔒 V600 (২৩.০৮.২০২৬, TK-নির্দেশ): "এই অপশনটা থাকবেই না" — dnHistoryNote
+     বাক্সটা সরানো হলো (Android-এর হুবহু যমজ)। ⛔ পুরনো রেকর্ডের note পড়া/সেভ
+     করার নিয়ম (wlv1HistFormat/collectHistoryDetail) ছোঁয়া হয়নি — শুধু নতুন
+     করে টাইপ করার বাক্স নেই। */
 }
 function wlv1HistToggle(btn){
   try{
-    btn.classList.toggle('on');
+    var lifeKey=btn.getAttribute('data-life');
+    if(lifeKey && WLV1_LIFE_SINGLE[lifeKey]){
+      // 🔴 V600 — single-select: অন্য সব চিপ বন্ধ, শুধু এইটাই খোলে;
+      // আগে থেকে খোলা থাকলে আবার চাপে বন্ধ হয়ে যায় (radio behavior)।
+      var wasOn=btn.classList.contains('on');
+      document.querySelectorAll('.wlv1HistChip[data-life="'+lifeKey+'"]').forEach(function(b){
+        b.classList.remove('on');
+      });
+      if(!wasOn) btn.classList.add('on');
+    } else {
+      btn.classList.toggle('on');
+    }
     /* 🔵 V574 — বাছার সংখ্যাটা উপরের ভাঁজ-শিরোনামে সঙ্গে সঙ্গে বসে */
     var f=String(btn.getAttribute('data-hist')||''); var grp=f.split('.')[0];
     if(grp){
@@ -9326,7 +9648,8 @@ function wlv1FoldHead(id,title,n){
   return '<div class="wlv1FoldHead" data-fold="'+id+'" onclick="wlv1FoldToggle(\''+id+'\')">'
     +'<span class="wlv1FoldT">'+esc(title)+'</span>'
     +(n?('<span class="wlv1FoldN" id="'+id+'N">'+wlv1Bn(n)+'টি</span>'):('<span class="wlv1FoldN off" id="'+id+'N"></span>'))
-    +'<span class="wlv1FoldCh">⌄</span></div>';
+    +'<span class="wlv1FoldCh">⌄</span>'
+    +'<span class="wlv1FoldSpacer"></span></div>';
 }
 function wlv1FoldToggle(id){
   try{
@@ -9504,7 +9827,11 @@ async function saveDoctor(id){
  // ছুঁলে এটাই ডিফল্ট ছিল, তাই সবচেয়ে বেশি ব্যবহৃত সাধারণ পথটাই স্থায়ী হলো)।
  // ⛔ doctorComplete সবসময় true থাকায় Queue থেকে সরাটা এমনিতেই অক্ষত।
  var dec='Treatment Started';
- let up=upd('patients',id,{doctorFullNote:note,complaint:note.complaint,sinceWhen:note.duration,occupation:note.occupation,previousTreatment:note.previousTreatment,previousResult:note.previousResult,previousCost:note.previousCost,treatmentDuration:note.treatmentDuration,doctorAdvice:note.counselling,decision:dec,stage:dec==='Treatment Started'?'Treatment Running':'Doctor Queue',queue:dec!=='Treatment Started',doctorComplete:true});
+ let up=upd('patients',id,{doctorFullNote:note,complaint:note.complaint,sinceWhen:note.duration,occupation:note.occupation,previousTreatment:note.previousTreatment,previousResult:note.previousResult,previousCost:note.previousCost,treatmentDuration:note.treatmentDuration,doctorAdvice:note.counselling,decision:dec,stage:dec==='Treatment Started'?'Treatment Running':'Doctor Queue',queue:dec!=='Treatment Started',doctorComplete:true,
+  // 🟢🔒 V656 (২৫.০৮.২০২৬, TK-নির্দেশ) — Doctor Note & Reminder — Android-এর
+  // একই আলাদা ঘরে বসে (doctorFullNote ব্লবের বাইরে), যাতে রিমাইন্ডার-চেক
+  // প্রতিদিন সরাসরি তারিখ-ফিল্টার করে খুঁজতে পারে (পুরো JSON স্ক্যান না করে)।
+  doctorReminderNote:$('#dnReminderNote')?.value||'',doctorReminderDate:$('#dnReminderDate')?.value||''});
  add('medical',{id:uid('med'),patientId:id,mobile:p.mobile,branch:p.branch,name:p.name,type:'checkup',date:today(),doctorFullNote:note,diagnosis:details,decision:dec,createdBy:user?.mobile||''});
  if(dec==='Treatment Started'&&(up||p))ensureFollow({...p,...(up||{})},'Treatment','', 'Treatment started by doctor note');
  // V460 (১৯.০৮.২০২৬) — Decision ঘর বাদ যাওয়ায় "Not Agree" নোটিশ পাঠানোর
@@ -9590,7 +9917,7 @@ function summary(id){
  let checked=latest('Doctor')||latest('Check');
  let hasRx=!!latest('Prescription'),hasMed=!!latest('Medicine'),hasBlood=!!latest('Blood'),hasDiet=!!latest('Diet');
  let payBlock=financeAllowed?`<div class="summaryPayGrid"><div><small>Total Cost</small><b>${money(t.bill)}</b></div><div><small>Deposit</small><b>${money(t.paid)}</b></div><div><small>Due</small><b>${t.bill>0?money(t.due):'-'}</b></div><div><small>Paid</small><b>${t.bill>0?t.pct+'%':'-'}</b></div></div><div class="summaryProgress"><span style="width:${t.bill>0?t.pct:0}%"></span></div>`:`<div class="summaryNotice">Payment / bill details hidden for other branch.</div>`;
- let topActions=`<div class="summaryContactRow">${writeAllowed?`<button class="small ghost" onclick="editPatientPhoto('${p.id}')">Edit Photo</button>`:''}<button class="small ghost" onclick="contact('${p.mobile}','call')">Call</button><button class="small ghost" onclick="contact('${p.mobile}','wa')">WhatsApp</button><button class="small ghost" onclick="wlv1ShowCheckupA4('${p.id}')">📄 Check-up A4</button></div>`;
+ let topActions=`<div class="summaryContactRow">${writeAllowed?`<button class="small ghost" onclick="editPatientPhoto('${p.id}')">Edit Photo</button>`:''}${writeAllowed?`<button class="small ghost" onclick="wlv1ShowEditPatient('${p.id}')">✏️ Edit Patient</button>`:''}<button class="small ghost" onclick="contact('${p.mobile}','call')">Call</button><button class="small ghost" onclick="contact('${p.mobile}','wa')">WhatsApp</button><button class="small ghost" onclick="wlv1ShowCheckupA4('${p.id}')">📜 Checkup History</button>${isMaster()?`<button class="small ghost" style="color:#b42318" onclick="wlv1ShowChangeBranchDialog('${p.id}')">🔀 Change Branch</button>`:''}${writeAllowed&&wlv1VisitFeePaidNow(p)>0?`<button class="small ghost" style="color:#b45309" onclick="wlv1ShowReturnFeesDialog('${p.id}')">💸 Return Fees</button>`:''}</div>`;
  let clinicalActions=writeAllowed?`<div class="summaryActionGrid">
    <button onclick="doctorCheck('${p.id}')"><span>🩺</span><b>Doctor Check-up</b><small>${checked?'Completed / Update':'Start Check-up'}</small></button>
    <button class="ghost" onclick="prescription('${p.id}')"><span>📋</span><b>Prescription</b><small>${hasRx?'View / Update':'Create'}</small></button>
@@ -10000,7 +10327,7 @@ function paymentHome(){
     খোঁজা হয় সারিতে যা চোখে দেখা যায় ঠিক তাই ধরে — নাম · মোবাইল · Patient ID।
     ⛔ TK-এর সিদ্ধান্ত: উপরের বড় টাকার কার্ডটা কখনো বদলায় না — ওটা সবসময় ওই দিনের পুরো হিসাব।
     ⛔ "View All ›" বোতাম · সারিতে চাপ দেওয়ার কাজ · টাকার হিসাব — কিছুই বদলায়নি। */
- let list=todayRows.map((x,__i)=>{let nm=String(x.name||'Walk-in').trim(),sp=wlv1PaymentSplit(x),mode=(sp.cash>0&&sp.online>0?'CASH + ONLINE':(sp.online>0?'UPI':'CASH'));let pt=load('patients').find(p=>mob(p.mobile)===mob(x.mobile))||{};let dis=String(pt.disease||'').trim();let disChip=dis?`<span class="payDisChip">${esc(dis.toUpperCase())}</span>`:'';/* 🔴🔒 V566 (TK): RMP ও অসময়ের রোগী হলে নামের পাশে চিপ। ⛔ না থাকলে বসে না। ⚠️ ফোনের PaymentModel.rmpTagOf/unexpectedTagOf-এর হুবহু একই নিয়ম। */let rmpTag=wlv1PayRmpTag(pt.refBy,pt.refDoctor);let rmpChip=rmpTag?`<span class="payRmpChip">${esc(rmpTag)}</span>`:'';let unexTag=wlv1PayUnexpectedTag(pt.timeType);let unexChip=unexTag?`<span class="payTimeChip">${esc(unexTag)}</span>`:'';let al1=[pt.village,pt.po].filter(Boolean).join(', '),al2=[pt.ps,pt.district,pt.pin].filter(Boolean).join(', ');let addrHtml=(al1||al2)?(esc(al1.toUpperCase())+(al2?'<br>'+esc(al2.toUpperCase()):'')):(pt.address?wlv1AddrTwo(String(pt.address).toUpperCase()):'');let addrRow=addrHtml?`<div class="payAddr">📍 ${addrHtml}</div>`:'';let idc=x.pidCode||pt.patientId||'';return `<div class="payListRow2 ${mode==='UPI'?'onl':'cash'}" data-paysearch="${esc((nm+' '+String(x.mobile||'')+' '+String(idc||'')).toUpperCase())}" data-payextra="${__i>=8?'1':'0'}" onclick="showCollectionRowDetails('${esc(x.mobile)}')" style="cursor:pointer !important;${__i>=8?'display:none;':''}"><div class="payPerson2"><div class="payNameRow"><b class="wlv1NameLink" onclick="event.stopPropagation();summaryByMobile('${esc(mob(x.mobile))}')" title="Tap for History">${esc(nm.toUpperCase())}</b>${disChip}${rmpChip}${unexChip}</div><div class="payMob2"><span class="wlv1CallLink" onclick="event.stopPropagation();contact('${esc(x.mobile)}','call')" oncontextmenu="event.preventDefault();event.stopPropagation();copyToClipboard('+91 ${esc(mob(x.mobile||''))}');return false;" title="Long-press to copy">+91 ${esc(mob(x.mobile||''))}</span></div>${idc?`<div class="payIdRow2"><span class="payIdTag2">ID</span> ${esc(idc)}</div>`:''}${addrRow}</div><div class="payAmount2"><b>${money(x.amount)}</b><em>${esc(mode||'CASH')}</em>${wlv1Time12(x.createdAt)?`<span class="payTime2">${esc(wlv1Time12(x.createdAt))}</span>`:''}</div></div>`}).join('')||`<div class="card mut">${chosenDate===today()?'No collection today':'No collection on selected date'}</div>`   /* 🔴 V437 #4 — ফোনে আজকের জন্য আলাদা লেখা (PaymentActivity.kt:275,297) */;
+ let list=todayRows.map((x,__i)=>{let nm=String(x.name||'Walk-in').trim(),sp=wlv1PaymentSplit(x),mode=(sp.cash>0&&sp.online>0?'CASH + ONLINE':(sp.online>0?'UPI':'CASH'));let pt=load('patients').find(p=>mob(p.mobile)===mob(x.mobile))||{};let dis=String(pt.disease||'').trim();let disChip=dis?`<span class="payDisChip">${esc(dis.toUpperCase())}</span>`:'';/* 🔴🔒 V566 (TK): RMP ও অসময়ের রোগী হলে নামের পাশে চিপ। ⛔ না থাকলে বসে না। ⚠️ ফোনের PaymentModel.rmpTagOf/unexpectedTagOf-এর হুবহু একই নিয়ম। */let rmpTag=wlv1PayRmpTag(pt.refBy,pt.refDoctor);let rmpChip=rmpTag?`<span class="payRmpChip">${esc(rmpTag)}</span>`:'';let unexTag=wlv1PayUnexpectedTag(pt.timeType);let unexChip=unexTag?`<span class="payTimeChip">${esc(unexTag)}</span>`:'';let al1=[pt.village,pt.po].filter(Boolean).join(', '),al2=[pt.ps,pt.district,pt.pin].filter(Boolean).join(', ');let addrHtml=(al1||al2)?(esc(al1.toUpperCase())+(al2?'<br>'+esc(al2.toUpperCase()):'')):(pt.address?wlv1AddrTwo(String(pt.address).toUpperCase()):'');let addrRow=addrHtml?`<div class="payAddr">📍 ${addrHtml}</div>`:'';let idc=x.pidCode||pt.patientId||'';return `<div class="payListRow2 ${mode==='UPI'?'onl':'cash'}" data-paysearch="${esc((nm+' '+String(x.mobile||'')+' '+String(idc||'')).toUpperCase())}" data-payextra="${__i>=8?'1':'0'}" onclick="showCollectionRowDetails('${esc(x.mobile)}')" style="cursor:pointer !important;${__i>=8?'display:none;':''}"><div class="payPerson2"><div class="payNameRow"><span class="paySerialTag">${__i+1}</span><b class="wlv1NameLink" onclick="event.stopPropagation();summaryByMobile('${esc(mob(x.mobile))}')" title="Tap for History">${esc(nm.toUpperCase())}</b>${disChip}${rmpChip}${unexChip}</div><div class="payMob2"><span class="wlv1CallLink" onclick="event.stopPropagation();contact('${esc(x.mobile)}','call')" oncontextmenu="event.preventDefault();event.stopPropagation();copyToClipboard('+91 ${esc(mob(x.mobile||''))}');return false;" title="Long-press to copy">+91 ${esc(mob(x.mobile||''))}</span></div>${idc?`<div class="payIdRow2"><span class="payIdTag2">ID</span> ${esc(idc)}</div>`:''}${addrRow}</div><div class="payAmount2"><b>${money(x.amount)}</b><em>${esc(mode||'CASH')}</em>${wlv1Time12(x.createdAt)?`<span class="payTime2">${esc(wlv1Time12(x.createdAt))}</span>`:''}</div></div>`}).join('')||`<div class="card mut">${chosenDate===today()?'No collection today':'No collection on selected date'}</div>`   /* 🔴 V437 #4 — ফোনে আজকের জন্য আলাদা লেখা (PaymentActivity.kt:275,297) */;
  page('PAYMENT',`<div class="paymentPro wlv1Pay"><div class="wlv1CollPick"><input type="date" class="input" max="${today()}" value="${esc(chosenDate)}" onchange="wlv1PayDate=this.value;paymentHome()"></div><div class="wlv1PayBtns"><button class="wlv1PayBtn wlv1PayNavy" onclick="patientPaymentHome()">💳 PATIENT PAYMENT</button><button class="wlv1PayBtn wlv1PayGreen" onclick="medicinePaymentHome()">💊 MEDICINE PAYMENT</button></div>${isMaster()?`<div class="wlv1PayExtra"><button class="wlv1PayWide" onclick="collectionList('Monthly')">MONTHLY COLLECTION</button><button class="wlv1PayWide" onclick="collectionList('History')">&#8634; COLLECTION HISTORY</button><button class="small ghost" onclick="collectionList('Cash')">Cash</button><button class="small ghost" onclick="collectionList('Online')">Online</button></div>`:''}<div class="wlv1PaySum"><!-- 🔴 V437 #6: ফোনে এই শিরোনামটা ইচ্ছে করে লুকানো (PaymentActivity.kt:211 — তারিখ হেডারেই আছে), তাই ওয়েব থেকেও তোলা হলো --><div class="wlv1PayTotal">${money(total)}</div><div class="wlv1PayTrans">${todayRows.length} Transactions</div><div class="wlv1PayBoxes"><div class="wlv1PayBox"><span>💵 Cash</span><b>${money(cash)}</b></div><div class="wlv1PayBox"><span>📱 Online</span><b>${money(online)}</b></div><div class="wlv1PayBox"><span>👥 Patients</span><b>${patientCount}</b></div></div></div><div class="payListBox"><div class="payListHead"><input id="payListSearch" class="input" type="search" style="flex:1;min-width:0" placeholder="\u{1F50D} ${chosenDate===today()?"Today's Collection":"Collection"}" oninput="wlv1PayListFilter(this.value)"><button class="small ghost" onclick="collectionList('All')">View All ›</button></div>${list}</div></div>`,true);
  /* 🔴 V436 — পর্দা আঁকার পরে ফোনের মতোই ওই দিনের সারি ক্লাউড থেকে আনা হয়;
     নতুন কিছু এলে পর্দা নিজে থেকে আবার আঁকে। লুপের ভয় নেই (৪৫ সেকেন্ডের
@@ -10690,8 +11017,123 @@ function paymentHistory(id,type='all'){
 window["paymentHistory"]=paymentHistory;
 function viewPaymentEntry(id){let x=load('payments').find(p=>p.id===id);if(!x)return toast('Payment not found');modal(`<h2>Payment Details</h2><div class="card"><b>${esc(x.name||'')}</b><br>${esc(x.mobile||'')} · ${esc(x.branch||'')}<br>Date: ${esc(fmtDate(x.date||''))}<br>Amount: <b>${money(x.amount)}</b><br>Mode: ${esc(x.mode||'')}<br><small>${esc(x.remarks||'')}</small>${Array.isArray(x.editHistory)&&x.editHistory.length?`<div class="sectionTitle">Edit Log</div>${x.editHistory.map(h=>`<div class="tiny">${esc(h)}</div>`).join('')}`:''}</div>`)}
 window["viewPaymentEntry"]=viewPaymentEntry;
-async function editPaymentEntry(id){let x=load('payments').find(p=>p.id===id);if(!x)return toast('Payment not found');if(isTreatmentPaymentRow(x)&&wlv1EventCount(x)>1)return toast('This day contains more than one payment event. Use a split-safe correction; the Cash/Online history will not be guessed.');if(!canEditPaymentEntry(x)){/* 🆕 (03.08.2026, TK-অনুমোদনে): তাজা Grant টেনে আবার একবার যাচাই — ঠিক Delete-এর একই নীতি */await wlv1PullBackdateGrantsFromCloud();if(!canEditPaymentEntry(x)){if(paymentEditNeedsMaster(x))return wlv1AskMasterPaymentEdit(id);return toast('Payment edit not allowed');}}modal(`<h2>Edit Payment</h2><b>${esc(x.name||'')}</b><br><span class="mut">${esc(x.mobile||'')} · ${esc(x.branch||'')}</span><label>Amount</label><input id="editPayAmt" class="input" inputmode="numeric" value="${Number(x.amount||0)}"><label>Mode</label><select id="editPayMode" class="input">${paymentOptions(x.mode)}</select><textarea id="editPayRem" style="display:none">${esc(x.remarks||'')}</textarea><button onclick="saveEditedPayment('${id}')">Save Correction</button>`)}
+async function editPaymentEntry(id){let x=load('payments').find(p=>p.id===id);if(!x)return toast('Payment not found');
+  /* 🟢🔒 V622 (২৪.০৮.২০২৬, TK-নির্দেশ, সততার সাথে যাচাই করে) — ফোনের
+     V618-এর হুবহু একই কারণ ও একই সমাধান: আগে এখানে মিশ্র (একাধিক
+     dailyEvents) পেমেন্ট পড়লেই **সবার জন্য** (Master-সহ) দরজা বন্ধ হয়ে
+     যেত, কোনো breakdown-পথ ছাড়াই। এখন সেই ভয়টা ("Cash/Online split
+     আন্দাজ করতে হবে") আসলে প্রযোজ্যই না — নিচের `wlv1ShowDailyBreakdown`
+     `dailyEvents`-এর **প্রতিটা আসল, আলাদা, আগে থেকে জানা** এন্ট্রি
+     দেখায়, কোনো অনুমান নেই — তাই এখন বাকি সব পেমেন্টের মতোই একই
+     দিন-ভিত্তিক নিয়মে (আজ/গতকাল স্টাফ, তার বেশি Master) খোলে। */
+  if(isTreatmentPaymentRow(x)&&wlv1EventCount(x)>1){
+    const canOpen = isMaster() || wlv1TodayOrYesterday(x.date);
+    if(!canOpen) return toast('এই দিনের মিশ্র পেমেন্ট বদলাতে এখন Master-এর অনুমতি লাগবে (আজ/গতকাল পার হয়ে গেছে)।');
+    return wlv1ShowDailyBreakdown(id);
+  }if(!canEditPaymentEntry(x)){/* 🆕 (03.08.2026, TK-অনুমোদনে): তাজা Grant টেনে আবার একবার যাচাই — ঠিক Delete-এর একই নীতি */await wlv1PullBackdateGrantsFromCloud();if(!canEditPaymentEntry(x)){if(paymentEditNeedsMaster(x))return wlv1AskMasterPaymentEdit(id);return toast('Payment edit not allowed');}}modal(`<h2>Edit Payment</h2><b>${esc(x.name||'')}</b><br><span class="mut">${esc(x.mobile||'')} · ${esc(x.branch||'')}</span><label>Amount</label><input id="editPayAmt" class="input" inputmode="numeric" value="${Number(x.amount||0)}"><label>Mode</label><select id="editPayMode" class="input">${paymentOptions(x.mode)}</select><textarea id="editPayRem" style="display:none">${esc(x.remarks||'')}</textarea><button onclick="saveEditedPayment('${id}')">Save Correction</button>`)}
 window["editPaymentEntry"]=editPaymentEntry;
+
+/* 🟢🔒 V622 (২৪.০৮.২০২৬, TK-নির্দেশ, সততার সাথে যাচাই করে) — ফোনের
+   PaymentActivity.showDailyEventsBreakdown()-এর হুবহু একই কাজ, ওয়েবে
+   প্রথমবার বানানো হলো (আগে ওয়েবে এই UI-ই ছিল না)। প্রতিটা আসল, আলাদা
+   dailyEvent দেখায় (আন্দাজ নেই) — প্রতিটার নিজস্ব Edit/Delete।
+   ⛔ সাধারণ (মিশ্র নয়) পেমেন্টের editPaymentEntry/wlv1DeletePayment
+   এক অক্ষরও বদলায়নি। */
+function wlv1ShowDailyBreakdown(paymentId){
+  const x = load('payments').find(p=>p.id===paymentId);
+  if(!x) return toast('Payment not found');
+  // 🔒 কেন্দ্রীয়ভাবে এখানেই — যে পথ দিয়েই ডাকা হোক (editPaymentEntry বা
+  // Today's Collection-এর "Fix Payment"), একই দিন-ভিত্তিক নিয়ম বাধ্যতামূলক।
+  if(!(isMaster() || wlv1TodayOrYesterday(x.date))){
+    return toast('এই দিনের মিশ্র পেমেন্ট বদলাতে এখন Master-এর অনুমতি লাগবে (আজ/গতকাল পার হয়ে গেছে)।');
+  }
+  const events = Array.isArray(x.dailyEvents) ? x.dailyEvents : [];
+  const label = x.payLabel || x.paymentLabel || 'Payment';
+  const rows = events.map((e,idx)=>{
+    const amt = Number(e.amount||0);
+    const mode = payMode(e.mode)==='UPI' ? 'UPI' : 'CASH';
+    let timeTxt = '';
+    try { if(e.createdAt) timeTxt = new Date(e.createdAt).toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit'}); } catch(_e){}
+    return `<div class="card" style="display:flex;align-items:center;gap:8px;padding:9px 12px">
+      <div style="flex:1">
+        <b style="color:#16A36D">₹${Number(amt).toLocaleString('en-IN')}</b><br>
+        <span class="mut tiny">${esc([timeTxt,mode].filter(Boolean).join(' · '))}</span>
+      </div>
+      <button class="small" onclick="wlv1EditOneDailyEvent('${esc(paymentId)}','${esc(e.eventId||'')}')">✏️</button>
+      <button class="small ghost" onclick="wlv1RemoveOneDailyEvent('${esc(paymentId)}','${esc(e.eventId||'')}')">🗑</button>
+    </div>`;
+  }).join('');
+  modal(`<h2>${esc(x.name||x.mobile||'')} — ${esc(label)}</h2>
+    <div class="mut tiny" style="margin-bottom:8px">${esc(fmtDate(x.date||''))} · ${events.length} entries combined</div>
+    ${rows || '<div class="card mut">No entries</div>'}
+    <button class="ghost" onclick="closeModal()">Close</button>`);
+}
+window["wlv1ShowDailyBreakdown"]=wlv1ShowDailyBreakdown;
+
+function wlv1EditOneDailyEvent(paymentId, eventId){
+  const x = load('payments').find(p=>p.id===paymentId);
+  if(!x) return toast('Payment not found');
+  const events = Array.isArray(x.dailyEvents) ? x.dailyEvents : [];
+  const ev = events.find(e=>String(e.eventId||'')===String(eventId));
+  if(!ev) return toast('Entry not found');
+  closeModal();
+  modal(`<h2>✏️ Edit this entry</h2>
+    <label>Amount</label><input id="dbeAmt" class="input" inputmode="numeric" value="${Number(ev.amount||0)}">
+    <label>Mode</label><select id="dbeMode" class="input">${paymentOptions(ev.mode||'CASH')}</select>
+    <button onclick="wlv1SaveOneDailyEvent('${esc(paymentId)}','${esc(eventId)}')">Save this entry</button>`);
+}
+window["wlv1EditOneDailyEvent"]=wlv1EditOneDailyEvent;
+
+function wlv1SaveOneDailyEvent(paymentId, eventId){
+  const newAmt = Number($('#dbeAmt')?.value||0);
+  if(!(newAmt>0)) return toast('Enter a valid amount');
+  const newMode = $('#dbeMode')?.value || 'CASH';
+  const pays = load('payments'); const i = pays.findIndex(p=>p.id===paymentId);
+  if(i<0) return toast('Payment not found');
+  const row = pays[i];
+  const storedMode = payMode(newMode)==='UPI' ? 'ONLINE' : 'CASH';
+  const events = (Array.isArray(row.dailyEvents)?row.dailyEvents:[]).map(e=>{
+    if(String(e.eventId||'')===String(eventId)) return {...e, amount:newAmt, mode:storedMode};
+    return e;
+  });
+  let total=0, cash=0, online=0;
+  events.forEach(e=>{ const a=Number(e.amount||0); total+=a; if(payMode(e.mode)==='UPI') online+=a; else cash+=a; });
+  const updated = withMeta('payments', {...row, amount:total, cashAmount:cash, onlineAmount:online, mode:(cash>0&&online>0?'CASH':(online>0?'ONLINE':'CASH')), dailyEvents:events, updatedAt:new Date().toISOString()}, false);
+  pays[i]=updated; save('payments',pays);
+  (async()=>{ try{ await directCloudUpsertRow('payments',updated); }catch(_e){} })();
+  toast('Entry updated');
+  closeModal();
+  try{ paymentHistory(row.patientId, row.payType||'treatment'); }catch(_e){}
+}
+window["wlv1SaveOneDailyEvent"]=wlv1SaveOneDailyEvent;
+
+function wlv1RemoveOneDailyEvent(paymentId, eventId){
+  const x = load('payments').find(p=>p.id===paymentId);
+  if(!x) return toast('Payment not found');
+  const events = Array.isArray(x.dailyEvents) ? x.dailyEvents : [];
+  const ev = events.find(e=>String(e.eventId||'')===String(eventId));
+  if(!ev) return toast('Entry not found');
+  const amtT = '₹'+numFmt(ev.amount||0);
+  if(!confirm(amtT+' entry will be removed. The other '+(events.length-1)+' entries stay unchanged.\n\nমুছবেন?')) return;
+  const remaining = events.filter(e=>String(e.eventId||'')!==String(eventId));
+  if(remaining.length===0){
+    // শেষ এন্ট্রি হলে পুরো সারিটাই — একই প্রমাণিত পথে (Trash, Master-অনুমতি নিয়ম-সহ)।
+    closeModal();
+    return wlv1DeletePayment(paymentId);
+  }
+  const pays = load('payments'); const i = pays.findIndex(p=>p.id===paymentId);
+  if(i<0) return toast('Payment not found');
+  const row = pays[i];
+  let total=0, cash=0, online=0;
+  remaining.forEach(e=>{ const a=Number(e.amount||0); total+=a; if(payMode(e.mode)==='UPI') online+=a; else cash+=a; });
+  const updated = withMeta('payments', {...row, amount:total, cashAmount:cash, onlineAmount:online, mode:(cash>0&&online>0?'CASH':(online>0?'UPI':'CASH')), dailyEvents:remaining, updatedAt:new Date().toISOString()}, false);
+  pays[i]=updated; save('payments',pays);
+  (async()=>{ try{ await directCloudUpsertRow('payments',updated); }catch(_e){} })();
+  toast('Entry deleted');
+  wlv1ShowDailyBreakdown(paymentId);
+  try{ paymentHistory(row.patientId, row.payType||'treatment'); }catch(_e){}
+}
+window["wlv1RemoveOneDailyEvent"]=wlv1RemoveOneDailyEvent;
 /* 🔒 TK'S DECISION (27.07.2026): the Remarks box is removed from the payment
    correction popup as well (phone: PaymentActivity, same change). This popup is
    only for correcting the AMOUNT and the MODE; Treatment Progress belongs to
@@ -11191,6 +11633,15 @@ function wlv1TrashDeletedBy(x){
   var v=String((x&&x.deletedBy)||''); if(!v)return '';
   try{ return codeName(v)||v; }catch(e){ return v; }
 }
+/* 🟢🔒🔒 V660 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবি-প্রুফ পাশ) — "কবে মুছেছে" আর
+   "কে মুছেছে" এখন একই লাইনে (Android-এর whenAndBy()-এর হুবহু একই যমজ)। */
+function wlv1TrashWhenAndBy(x){
+  var w=wlv1TrashWhen(x), by=wlv1TrashDeletedBy(x);
+  if(w && by) return '🗑 '+w+' · Deleted by '+by;
+  if(w) return '🗑 '+w;
+  if(by) return '🗑 Deleted by '+by;
+  return '';
+}
 function wlv1TrashExtraChip(x){
   var r=(x&&x.record)||{};
   var amt=String(r.amount||'').trim();
@@ -11198,25 +11649,32 @@ function wlv1TrashExtraChip(x){
   var dis=String(r.disease||'').trim();
   return dis?dis.toUpperCase():'';
 }
+/* 🟢🔒 V660 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবি-প্রুফ পাশ) — আইডি না থাকলে
+   (Enquiry) এখন এই একই লাইনেই রেকর্ডের নিজের তারিখ বসে (dot-ফরম্যাটে) —
+   Android-এর line1()-এর হুবহু একই বদল। */
 function wlv1TrashLine1(x){
   var r=(x&&x.record)||{}, p=[];
   if(String(r.mobile||'').trim()) p.push('📞 '+String(r.mobile).trim());
   var pid=String(r.patientId||'').trim()||String(r.patientCode||'').trim();
   if(pid) p.push(pid);
+  else { var d0=String(r.date||'').trim(); if(d0) p.push(fmtDate(d0)); }
   return p.join('  ·  ');
 }
+/* 🟢🔒 V660 — সব তারিখ এখন dot-ফরম্যাটে (আগে raw ISO দেখাত, Android-এর
+   line2()-এর হুবহু একই বদল)। Enquiry-র তারিখ এখন line1-এই বসে (উপরে)। */
 function wlv1TrashLine2(x){
   var r=(x&&x.record)||{}, t=String((x&&x.table)||'').toLowerCase(), p=[];
   function ad(v){ v=String(v||'').trim(); if(v)p.push(v); }
-  if(t==='payments'){ ad(r.payType); ad(r.date); ad(r.mode);
+  function adD(v){ v=String(v||'').trim(); if(v)p.push(fmtDate(v)); }
+  if(t==='payments'){ ad(r.payType); adD(r.date); ad(r.mode);
     if(String(r.receivedBy||'').trim()) p.push('by '+String(r.receivedBy).trim()); }
   else if(t==='followups'){ ad(r.stage); ad(r.status);
-    if(String(r.nextFollow||'').trim()) p.push('Next call '+String(r.nextFollow).trim()); }
-  else if(t==='patients'){ ad(r.registrationDate);
+    if(String(r.nextFollow||'').trim()) p.push('Next call '+fmtDate(r.nextFollow)); }
+  else if(t==='patients'){ adD(r.registrationDate);
     if(String(r.bill||'').trim() && String(r.bill).trim()!=='0') p.push('Bill ₹'+String(r.bill).trim());
     ad(r.stage); }
-  else if(t==='enquiries'){ ad(r.date); ad(r.refBy); }
-  else { ad(r.date); ad(r.stage); }
+  else if(t==='enquiries'){ ad(r.refBy); }
+  else { adD(r.date); ad(r.stage); }
   return p.join('  ·  ');
 }
 function wlv1TrashHay(x){
@@ -11229,7 +11687,9 @@ function wlv1TrashCardHtml(x){
   var nm=esc(String(r.name||r.mobile||id));
   var br=String(r.branch||'').trim();
   var ex=wlv1TrashExtraChip(x), l1=wlv1TrashLine1(x), l2=wlv1TrashLine2(x);
-  var by=wlv1TrashDeletedBy(x), wh=wlv1TrashWhen(x);
+  // 🟢🔒 V660 — when+by এখন একই লাইনে (উপরের wlv1TrashWhenAndBy), তাই
+  // "wh"/"by" আলাদা করে পড়ার/দেখানোর দরকার নেই।
+  var whenBy = wlv1TrashWhenAndBy(x);
   var tick = __wlv1TrashSelMode
     ? `<input type="checkbox" class="wlv1TrashCb" ${__wlv1TrashSel[id]?'checked':''}
          onclick="wlv1TrashTogglePick('${esc(id)}')">` : '';
@@ -11240,7 +11700,7 @@ function wlv1TrashCardHtml(x){
       <button class="wlv1TrashB d" onclick="wlv1TrashDeleteForever('${esc(id)}')">🗑 Delete</button>
     </div>`;
   return `<div class="card wlv1TrashCard${__wlv1TrashSel[id]?' pick':''}">
-    <div class="wlv1TrashTop">${tick}<b class="wlv1TrashName">${nm}</b><span class="wlv1TrashWhen">${esc(wh)}</span></div>
+    <div class="wlv1TrashTop">${tick}<b class="wlv1TrashName">${nm}</b></div>
     <div class="wlv1TrashChips">
       <span class="wlv1TrashChip">${esc(wlv1TrashSrcLabel(x&&x.table))}</span>
       ${br?`<span class="wlv1TrashChip g">${esc(br.toUpperCase())}</span>`:''}
@@ -11248,7 +11708,7 @@ function wlv1TrashCardHtml(x){
     </div>
     ${l1?`<div class="wlv1TrashDet">${esc(l1)}</div>`:''}
     ${l2?`<div class="wlv1TrashDet">${esc(l2)}</div>`:''}
-    ${by?`<div class="wlv1TrashBy">🗑 Deleted by ${esc(by)}</div>`:''}
+    ${whenBy?`<div class="wlv1TrashWhen">${esc(whenBy)}</div>`:''}
     ${acts}
   </div>`;
 }
@@ -11285,20 +11745,23 @@ window["wlv1TrashTogglePick"]=wlv1TrashTogglePick;
 function wlv1TrashViewFields(x){
   var r=(x&&x.record)||{}, t=String((x&&x.table)||'').toLowerCase(), out=[];
   function ad(label,key){ var v=String(r[key]||'').trim(); if(v)out.push([label,v]); }
+  // 🟢🔒 V660 (২৫.০৮.২০২৬) — তারিখ-ঘরের জন্য, dot-ফরম্যাটে বসায় (Android-এর
+  // addDate()-এর হুবহু একই যমজ)।
+  function adD(label,key){ var v=String(r[key]||'').trim(); if(v)out.push([label,fmtDate(v)]); }
   out.push(['From', wlv1TrashSrcLabel(x&&x.table)]);
   ad('Name','name'); ad('Mobile','mobile'); ad('Alt. mobile','altMobile');
   ad('Patient ID','patientId'); ad('Patient code','patientCode'); ad('Branch','branch');
   if(t==='payments'){ ad('Pay type','payType'); ad('Amount','amount'); ad('Mode','mode');
-    ad('Date','date'); ad('Received by','receivedBy'); ad('Remarks','remarks'); }
+    adD('Date','date'); ad('Received by','receivedBy'); ad('Remarks','remarks'); }
   else if(t==='followups'){ ad('Stage','stage'); ad('Status','status'); ad('Disease','disease');
-    ad('Address','address'); ad('Last remark','lastRemark'); ad('Next call','nextFollow');
-    ad('Call count','callCount'); ad('Record date','date'); }
+    ad('Address','address'); ad('Last remark','lastRemark'); adD('Next call','nextFollow');
+    ad('Call count','callCount'); adD('Record date','date'); }
   else if(t==='patients'){ ad('Age','age'); ad('Sex','sex'); ad('Address','address');
     ad('Disease','disease'); ad('Diagnosis','diagnosis'); ad('Stage','stage'); ad('Bill','bill');
-    ad('Discount','discount'); ad('Referred by','refBy'); ad('Registration date','registrationDate'); }
+    ad('Discount','discount'); ad('Referred by','refBy'); adD('Registration date','registrationDate'); }
   else if(t==='enquiries'){ ad('Disease','disease'); ad('Address','address'); ad('Referred by','refBy');
-    ad('Date','date'); ad('Remarks','remarks'); }
-  else { ad('Stage','stage'); ad('Status','status'); ad('Date','date'); ad('Remarks','remarks'); }
+    adD('Date','date'); ad('Remarks','remarks'); }
+  else { ad('Stage','stage'); ad('Status','status'); adD('Date','date'); ad('Remarks','remarks'); }
   ad('Created by','createdBy');
   var by=wlv1TrashDeletedBy(x); if(by)out.push(['Deleted by',by]);
   var wh=wlv1TrashWhen(x); if(wh)out.push(['Deleted at',wh]);
@@ -12694,7 +13157,7 @@ function wlv1BloodOpen(id,keepRemarks){
      ⛔ ভিতরের কিচ্ছু বদলায়নি — শুধু `<h2>` বাদ ও "Close"-এর বদলে পাতার `←`।
      ⛔ ⏰ Previous / ⭐ Common-এর টিক-তালিকা আগের মতোই **পপ-আপই** থাকল — ফোনেও
         ওটা AlertDialog (`InvestigationAdviceActivity.kt:468`), তাই এটাই মিল। */
-  page('Blood Test / Investigation Advice', `${patientDetailsPanel(p)}<button class="wlv1InvCommon" onclick="wlv1InvOpenPrevious('${id}')">⏰ Previous Patient Blood Test<small>Re-checks whatever was saved last time</small></button><button class="wlv1InvCommon" onclick="wlv1InvOpenFixed('${id}')">⭐ Common Blood Test<small>${esc(WLV1_INVEST_FIXED.join(' · '))}</small></button><div id="wlv1InvBox"></div><div id="wlv1InvHidden" style="display:none"></div><label>Advice / Remarks</label><textarea id="btRem" rows="2" placeholder="Advice / Remarks">${esc(keepRemarks||'')}</textarea><div class="actions bloodActions"><button class="ghost" onclick="wlv1InvSave('${id}',false)">Save</button><button class="ghost" onclick="wlv1InvShare('${id}')">Share</button><button onclick="wlv1InvSave('${id}',true)">Print</button></div>`);
+  page('Test / Investigation', `${patientDetailsPanel(p)}<button class="wlv1InvCommon" onclick="wlv1InvOpenPrevious('${id}')">⏰ Previous Patient Blood Test<small>Re-checks whatever was saved last time</small></button><button class="wlv1InvCommon" onclick="wlv1InvOpenFixed('${id}')">⭐ Common Blood Test<small>${esc(WLV1_INVEST_FIXED.join(' · '))}</small></button><div id="wlv1InvBox"></div><div id="wlv1InvHidden" style="display:none"></div><label>Advice / Remarks</label><textarea id="btRem" rows="2" placeholder="Advice / Remarks">${esc(keepRemarks||'')}</textarea><div class="actions bloodActions"><button class="ghost" onclick="wlv1InvSave('${id}',false)">Save</button><button class="ghost" onclick="wlv1InvShare('${id}')">Share</button><button onclick="wlv1InvSave('${id}',true)">Print</button></div>`);
   setTimeout(()=>{try{wlv1InvRender()}catch(e){}},40);
 }
 window["wlv1BloodOpen"]=wlv1BloodOpen;
@@ -14498,7 +14961,7 @@ function wlv1ChamberRows(date, branch){
        পড়েছে (`feeCash`/`feeOnline`) — কাগজে CASH না UPI ছাপা হবে, ফোনে এটা
        দিয়েই ঠিক হয়। ⛔ পুরনো `fee` ঘরটা একটুও বদলায়নি। */
     if(!rows[key]) rows[key] = {mobile:m,patientRowId:own,name:'',patientId:'',branch:br||'',expected:false,arrived:false,
-                            fee:0,feeCash:0,feeOnline:0,cash:0,online:0,treatment:'',arrivedAt:'',isNewToday:false};
+                            fee:0,feeCash:0,feeOnline:0,cash:0,online:0,medicineCash:0,medicineOnline:0,treatment:'',treatmentUpdatedAt:'',arrivedAt:'',isNewToday:false};
     const r = rows[key];
     if(name && !r.name) r.name = String(name);
     if(pid && !r.patientId) r.patientId = String(pid);
@@ -14522,6 +14985,13 @@ function wlv1ChamberRows(date, branch){
        ওই রোগীর সারি থেকেই নেওয়া হয়, মোবাইল ধরে নয় — নইলে অন্যজনের ID বসত। */
     const r = ensure(p.mobile,p.name,p.patientCode||wlv1ChamberCodeFor(p.patientId,p.mobile),p.branch,p.patientId); if(!r) return;
     const t = String(p.payType||'').toLowerCase();
+    /* 🔴🔒 V687 (২৫.০৮.২০২৬, TK-নির্দেশ, গভীরে যাচাই করে — "Treatment Progress
+       ঘরে আজকের লেখা নয়, আগের কল/ভিজিটের রিমার্ক দেখাচ্ছে") — Android-এর
+       হুবহু একই সংশোধন: এই দিনের payments সারির `progress` ঘর (writeTreatment
+       সেভ হলেই `wlv1SyncProgressToReportCard` বসায়, ফোন-কল কখনো এটা ছোঁয়
+       না) — এটাই এই বোর্ডের আসল "আজকের ট্রিটমেন্ট" উৎস, followups.lastRemark
+       নয় (যেটা কল-লগেও লেখা হয়, নিচে দেখুন)। */
+    if(String(p.progress||'').trim()){ r.treatment = String(p.progress).trim(); r.treatmentUpdatedAt = String(p.date||date)+'T00:00:00.000Z'; r.__hasProgressToday = true; }
     if(t==='chamber_expected'){ r.expected = true; return; }
     if(t==='bill_edit') return;
     /* 🔴 V430 — ফোনের মতোই: যে সারিটা এই মানুষটাকে "এসেছেন" বানাল, তার
@@ -14547,7 +15017,13 @@ function wlv1ChamberRows(date, branch){
        feesCash/feesOnline-এর হুবহু একই), যাতে কাগজে CASH না UPI ছাপা হবে
        সেটা ঠিক ভাবে বলা যায়। মোট `fee` আগের মতোই দুটোর যোগফল। */
     if(wlv1IsFeeRow(t)){ r.fee += amt; if(payMode(p.mode)==='UPI') r.feeOnline += amt; else r.feeCash += amt; }
-    else { const sp=wlv1PaymentSplit(p); r.cash += sp.cash; r.online += sp.online; }
+    else {
+      const sp=wlv1PaymentSplit(p); r.cash += sp.cash; r.online += sp.online;
+      /* 🟢🔒 V622 (২৪.০৮.২০২৬, ফোনের V612-এর হুবহু একই কারণ ও নিয়ম) — ওষুধের
+         টাকা **বাড়তি** আলাদা করে গোনা হচ্ছে, উপরের r.cash/r.online-এর হিসাব
+         এক অক্ষরও বদলায়নি (ওষুধের টাকা এখনো তাতেও যোগ হয়)। */
+      if(t==='medicine'){ r.medicineCash += sp.cash; r.medicineOnline += sp.online; }
+    }
   });
   load('enquiries').filter(e=>d10(e.date)===date && inBr(e)).forEach(e=>ensure(e.mobile,e.name,'',e.branch));
   /* TK (27.07.2026) ধাপ ৩খ — চেম্বার: একই মানুষের দুটো সারি থাকলে রেজিস্টারে যে Patient ID ছাপা হত সেটা "প্রথমে যেটা পাওয়া গেল" সেটাই ছিল, অথচ বাকি সব পর্দা আসল সারিটা ধরে। রেজিস্টার রোগীর হাতে যাওয়া কাগজ, তাই ওখানে অন্য আইডি ছাপা চলবে না। এখন ফোনের মতোই এক নিয়মে বাছা হয়। একটাই সারি থাকলে কিছুই বদলায় না। */
@@ -14577,7 +15053,12 @@ function wlv1ChamberRows(date, branch){
       ? fus.find(x=>String(x.refId||'')===own)
       : (fus.find(x=>mob(x.mobile)===r.mobile && !wlv1IsDeclaredSeparateRowId(x.refId, r.mobile))
          || fus.find(x=>mob(x.mobile)===r.mobile));
-    if(f){ if(!r.name) r.name = f.name||''; r.treatment = String(f.lastRemark||''); }
+    if(f){
+      if(!r.name) r.name = f.name||'';
+      // 🔴🔒 V687 — আজকের আসল চেম্বার-নোট (payments.progress) ইতিমধ্যে বসে
+      // থাকলে followups.lastRemark (কল-লগ-সহ) সেটা ওভাররাইট করবে না।
+      if(!r.__hasProgressToday){ r.treatment = String(f.lastRemark||''); r.treatmentUpdatedAt = String(f.updatedAt||f.createdAt||''); }
+    }
   });
   /* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬) — এখন হুবহু ফোনের নিয়ম
      (ChamberAttendanceRepository.kt:847-858):
@@ -14596,8 +15077,40 @@ function wlv1ChamberRows(date, branch){
        ২) তার মধ্যে যিনি আগে এসেছেন তিনি আগে (`arrivedAt`),
        ৩) সময় জানা না থাকলে সবার শেষে ("9999"), তখন নাম ধরে।
      ⛔ ফোনের ChamberAttendanceRepository-র হুবহু একই তিনটে ধাপ। */
+  /* 🟢🔒 V623 (২৪.০৮.২০২৬, Android V621-এর হুবহু জোড়া, `RefundedRecords.
+     fetchReturnedVisits()`) — "Fees Return" করা রোগী Chamber Date থেকে
+     সম্পূর্ণ বাদ (সারিসহ, শুধু টাকা লুকানো না — উপরের Cancelled-নিয়ম থেকে
+     ইচ্ছাকৃতভাবে আলাদা, সেটা এক অক্ষরও ছোঁয়া হয়নি)। ইতিমধ্যে এই ফাংশনেই
+     নামানো `fus` থেকে হিসাব — বাড়তি কোনো cloud-কল নেই। ব্যর্থ/না-পাওয়া গেলে
+     খালি সেট — কারো সারি ভুলবশত বাদ যায় না। */
+  const returnedMobiles = new Set(
+    fus.filter(f=>String(f.status||'').toLowerCase()==='returned' && String(f.stage||'')==='Patient')
+       .map(f=>mob(f.mobile)).filter(Boolean)
+  );
+  /* 🔴🔒 V684 (২৫.০৮.২০২৬, TK-নির্দেশ, স্পষ্ট — "Name/Mobile/Date-Time-এর
+     সাথে Ref By (RMP name)-ও থাকবে, বোর্ড খোলার সাথে সাথেই") — Android-এর
+     হুবহু একই: patients-এর `refDoctor` ঘর (রেজিস্ট্রেশনেই সেভ হয়) সরাসরি
+     বোর্ডে বসানো হলো, কোনো আলাদা RMP-কমিশন কল লাগে না। শুধু আজ রেজিস্টার
+     হওয়া নয় — এই মোবাইলের সব রোগীর মধ্যে সবচেয়ে upToDate সারি থেকে
+     (প্রমাণিত `wlv1PickPatientRow` দিয়ে) — পুরনো রোগী আজ চেম্বারে এলেও
+     Ref By ঠিক দেখাবে। */
+  {
+    const refByMob = new Map();
+    load('patients').forEach(p=>{
+      const m = mob(p.mobile);
+      if(!m) return;
+      const prev = refByMob.get(m);
+      if(!prev) refByMob.set(m, p);
+      else refByMob.set(m, wlv1PickPatientRow([prev,p], '')||prev);
+    });
+    Object.values(rows).forEach(r=>{
+      const p = refByMob.get(r.mobile);
+      if(p && p.refDoctor) r.refDoctor = String(p.refDoctor);
+    });
+  }
   return Object.values(rows)
     .filter(r=>r.arrived || r.expected)
+    .filter(r=>!returnedMobiles.has(r.mobile))
     .sort((a,b)=>{
       if(a.arrived!==b.arrived) return a.arrived ? -1 : 1;
       const ka = String(a.arrivedAt||'').trim() || '9999';
@@ -14707,7 +15220,11 @@ function wlv1ChamberRowHtml(r){
      ⛔ সময় জানা না থাকলে (যাঁর "আসার কথা", এখনো আসেননি) লাইনটা বসেই না। */
   const whenTxt = String(r.arrivedAt||'').trim() ? fmtDateTime(r.arrivedAt) : '';
   const idLine = whenTxt ? `<div class="wlv1CbId" onclick="event.stopPropagation();wlv1ChamberPatientChoices('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')">${esc(whenTxt)}</div>` : '';
-  const patientBox = `<div class="wlv1CbPat" onclick="wlv1ChamberPatientChoices('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')" oncontextmenu="event.preventDefault();copyToClipboard('${esc([r.name,r.mobile,r.patientId].filter(Boolean).join(' | '))}');return false;" style="cursor:pointer"><div class="wlv1CbName" onclick="event.stopPropagation();wlv1ChamberPatientChoices('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')" oncontextmenu="event.preventDefault();event.stopPropagation();copyToClipboard('${esc(r.name||'')}');return false;">${esc(String(r.name||r.mobile).toUpperCase())}</div><div class="wlv1CbMob" onclick="event.stopPropagation();contact('${esc(r.mobile)}','call')" oncontextmenu="event.preventDefault();event.stopPropagation();copyToClipboard('${esc(shownMob(r.mobile))}');return false;">${esc(shownMob(r.mobile))}</div>${idLine}</div>`;
+  // 🔴🔒 V684 (২৫.০৮.২০২৬, TK-নির্দেশ) — Android-এর হুবহু একই, "Ref By: [নাম]"
+  // চতুর্থ লাইনে, বোর্ড খোলার সাথে সাথেই (Close Chamber-এর অপেক্ষা ছাড়াই)।
+  const refByLine = String(r.refDoctor||'').trim()
+    ? `<div class="wlv1CbId" style="color:#B42318;font-weight:bold">Ref By: ${esc(r.refDoctor)}</div>` : '';
+  const patientBox = `<div class="wlv1CbPat" onclick="wlv1ChamberPatientChoices('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')" oncontextmenu="event.preventDefault();copyToClipboard('${esc([r.name,r.mobile,r.patientId].filter(Boolean).join(' | '))}');return false;" style="cursor:pointer"><div class="wlv1CbName" onclick="event.stopPropagation();wlv1ChamberPatientChoices('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')" oncontextmenu="event.preventDefault();event.stopPropagation();copyToClipboard('${esc(r.name||'')}');return false;">${esc(String(r.name||r.mobile).toUpperCase())}</div><div class="wlv1CbMob" onclick="event.stopPropagation();contact('${esc(r.mobile)}','call')" oncontextmenu="event.preventDefault();event.stopPropagation();copyToClipboard('${esc(shownMob(r.mobile))}');return false;">${esc(shownMob(r.mobile))}</div>${idLine}${refByLine}</div>`;
   /* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬: "সব কিছু Android এর মত হোক") — ফোনে
      এই তিনটে ঘরে **চাপ দিলেই** কাজ হয় (ChamberAttendanceAdapter.kt:176-180):
      · TREATMENT PROGRESS → আজকের চিকিৎসার কথা লেখা/বদলানোর বাক্স
@@ -14760,7 +15277,8 @@ const WLV1_TREAT_QUICK_BN = [
   'MEDICINE \u09A6\u09C7\u0993\u09AF\u09BC\u09BE \u09B9\u09B2',
   'TEST \u0995\u09B0\u09A4\u09C7 \u09AA\u09BE\u09A0\u09BE\u09A8\u09CB \u09B9\u09B2',
   'MACHINE \u098F\u09B0 \u0995\u09BE\u099C \u0995\u09B0\u09BE \u09B9\u09B2',
-  'LIS \u0995\u09B0\u09BE \u09B9\u09B2'
+  'LIS \u0995\u09B0\u09BE \u09B9\u09B2',
+  'Visit Return \u0995\u09B0\u09BE \u09B9\u09B2'
 ];
 const WLV1_TREAT_QUICK_ENHI = [
   'CHECK-UP done / \u091C\u093E\u0901\u091A-\u0905\u092A \u0939\u094B \u0917\u092F\u093E',
@@ -14771,7 +15289,8 @@ const WLV1_TREAT_QUICK_ENHI = [
   'MEDICINE given / \u0926\u0935\u093E \u0926\u0947 \u0926\u0940 \u0917\u0908',
   'TEST sent / \u091F\u0947\u0938\u094D\u091F \u0915\u0947 \u0932\u093F\u090F \u092D\u0947\u091C\u093E \u0917\u092F\u093E',
   'MACHINE work done / \u092E\u0936\u0940\u0928 \u0915\u093E \u0915\u093E\u092E \u0939\u094B \u0917\u092F\u093E',
-  'LIS done / LIS \u0939\u094B \u0917\u092F\u093E'
+  'LIS done / LIS \u0939\u094B \u0917\u092F\u093E',
+  'Visit Return done / \u0935\u093F\u091C\u093C\u093F\u091F \u0930\u093F\u091F\u0930\u094D\u0928 \u0939\u094B \u0917\u092F\u093E'
 ];
 function wlv1TreatQuickList(){
   try{ if(typeof wlv1NoBnActive==='function' && wlv1NoBnActive()) return WLV1_TREAT_QUICK_ENHI; }catch(e){}
@@ -14816,7 +15335,20 @@ function wlv1ChamberWriteTreatment(mobile, rowId){
   const cbr = f.branch || (user&&user.branch) || '';
   const cbd = wlv1ChamberDate || today();
   if(wlv1ChamberClosedFor(cbr, cbd)) return toast('এই দিনের চেম্বার বন্ধ (Close) করা হয়ে গেছে — আর কোনো পরিবর্তন করা যাবে না।');
-  const cur = wlv1EffectivelyBlankRemark(f.lastRemark) ? '' : String(f.lastRemark||'');
+  // 🔴🔒 V687 (২৫.০৮.২০২৬, TK-নির্দেশ) — বাক্স খোলার সময় পুরনো/কল-লগ
+  // (`f.lastRemark`) দিয়ে prefill না করে, এই দিনের আসল payments.progress
+  // (থাকলে) দিয়ে prefill হয় — Android-এর সংশোধিত `row.remark`-এর সাথে মেলানো।
+  const __todaysProg = (load('payments')||[]).find(function(x){
+    if(mob(x.mobile)!==m) return false;
+    if(String(x.date||'').slice(0,10)!==cbd) return false;
+    const t=String(x.payType||'').toLowerCase();
+    if(t==='bill_edit'||t==='chamber_expected') return false;
+    const owner=String(x.patientId||'').trim();
+    const own2=String(rowId||'');
+    if(!(own2 ? owner===own2 : !wlv1IsDeclaredSeparateRowId(owner, m))) return false;
+    return String(x.progress||'').trim();
+  });
+  const cur = __todaysProg ? String(__todaysProg.progress).trim() : '';
   modal(`<h2>${esc(String(f.name||m).toUpperCase())}</h2>
     <label>Treatment Progress</label>
     <textarea id="cbTrIn" class="input" rows="4">${esc(cur)}</textarea>
@@ -14898,7 +15430,7 @@ function wlv1ChamberFixPayment(mobile, rowId){
   if(!list.length) return toast('No payment on this date');
   const rupee = v => '₹'+Number(v||0).toLocaleString('en-IN');
   modal(`<h2>${esc(String(list[0].name||m).toUpperCase())}</h2>`
-    + list.map(x=>{let sp=wlv1PaymentSplit(x),md=sp.cash>0&&sp.online>0?'Cash + Online':(sp.online>0?'Online':'Cash'),combined=isTreatmentPaymentRow(x)&&wlv1EventCount(x)>1;return `<div class="card"><b>${esc(collectionPaymentLabel?collectionPaymentLabel(x):(x.payType||'Payment'))}</b> · ${esc(fmtDate(x.date||''))}<br><b>${rupee(x.amount)}</b> · ${esc(md)}<div class="actions">${combined?'<span class="mut tiny">Combined daily payment — edit from individual audit only</span>':`<button onclick="closeModal();editPaymentEntry('${esc(x.id)}')">Fix Payment</button>`}</div></div>`}).join('')
+    + list.map(x=>{let sp=wlv1PaymentSplit(x),md=sp.cash>0&&sp.online>0?'Cash + Online':(sp.online>0?'Online':'Cash'),combined=isTreatmentPaymentRow(x)&&wlv1EventCount(x)>1;return `<div class="card"><b>${esc(collectionPaymentLabel?collectionPaymentLabel(x):(x.payType||'Payment'))}</b> · ${esc(fmtDate(x.date||''))}<br><b>${rupee(x.amount)}</b> · ${esc(md)}<div class="actions">${combined?`<button onclick="closeModal();wlv1ShowDailyBreakdown('${esc(x.id)}')">Fix Payment</button>`:`<button onclick="closeModal();editPaymentEntry('${esc(x.id)}')">Fix Payment</button>`}</div></div>`}).join('')
     + `<div class="actions"><button class="ghost" onclick="closeModal()">Close</button></div>`);
 }
 window["wlv1ChamberFixPayment"]=wlv1ChamberFixPayment;
@@ -15070,7 +15602,7 @@ function chamberAttendance(){
     <!-- 🔴 V430 — ফোনে বোতামটা সবসময় থাকে; বন্ধ হয়ে গেলে ফিকে ও নিষ্ক্রিয়,
          আর নিচের ছোট লাইনটা দিনের অবস্থা জানায়। ওয়েবে কেউ না এলে বোতামটাই
          উধাও হয়ে যেত — তাই ফাঁকা দিন বন্ধই করা যেত না। -->
-    <button class="wlv1CbClose${__closed?' wlv1CbCloseOff':''}" ${__closed?'disabled ':''}onclick="wlv1CloseChamber()">&#9989; Close Chamber (Save &amp; Print Arrived)<small>${__closed?'The chamber is closed':(__past?'Close a past day&rsquo;s chamber — '+esc(wlv1Dot(wlv1ChamberDate)):'Save before closing the chamber')}</small></button>
+    <button class="wlv1CbClose${__closed?' wlv1CbCloseOff':''}" ${__closed?'disabled ':''}onclick="wlv1CloseChamber()">&#9989; Close Chamber<small>${__closed?'The chamber is closed':(__past?'Review and close — '+esc(wlv1Dot(wlv1ChamberDate)):'Review is required before closing')}</small></button>
     <!-- 🔴 V430 — ফোনে বন্ধ দিনে সবাই বোতামটা দেখেন: Master সরাসরি খোলেন,
          স্টাফ/ডাক্তার Master-কে অনুরোধ পাঠান। ওয়েবে শুধু Master দেখতেন। -->
     ${(br && br!=='All' && __closed)?(isMaster()
@@ -15881,6 +16413,13 @@ const WLV1_INVEST=[{"name": "Hematology", "emoji": "🩸", "tests": ["CBC", "Hem
 window["WLV1_INVEST"]=WLV1_INVEST;
 let wlv1InvPick = {};      // test name -> true
 let wlv1InvCat  = '';      // open category, '' = grid
+/* 🟢🔒 V624 (২৪.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ অনুমোদিত) — "Add Optional
+   Test": category name -> [typed test names]। শুধু screen-এর memory-তে
+   (Android-এর ClinicalRepository.currentInvestigations-এর মতোই, এই রোগীর
+   জন্য এই মুহূর্তে) — নতুন কোনো localStorage/cloud নয়। ⛔ wlv1InvPick-এর
+   পুরনো নিয়ম এক অক্ষরও বদলায়নি, Save/Share/Print আগের মতোই সব picked
+   (predefined + custom) একসাথে পড়ে। */
+let wlv1InvCustom = {};    // category name -> [test names]
 function wlv1InvCommonGet(){
   try{ return JSON.parse(localStorage.getItem('wlv1CommonBloodTest')||'[]'); }catch(e){ return []; }
 }
@@ -15920,13 +16459,45 @@ function wlv1InvRender(){
   }
   const c = WLV1_INVEST.find(x=>x.name===wlv1InvCat);
   if(!c){ wlv1InvCat=''; return wlv1InvRender(); }
+  const customList = wlv1InvCustom[c.name]||[];
+  const chips = customList.length ? `<div class="wlv1InvChips">${customList.map(t=>
+      `<span class="wlv1InvChip">${esc(t)} <b onclick="wlv1InvRemoveCustom('${c.name.replace(/'/g,"\\'")}','${t.replace(/'/g,"\\'")}')">✕</b></span>`
+    ).join('')}</div>` : '';
   box.innerHTML = `<button class="small ghost" onclick="wlv1InvOpen('')">All Categories</button>
     <div class="sectionTitle miniTitle">${c.emoji} ${c.name}</div>` +
     c.tests.map(t=>`<label class="wlv1InvItem ${wlv1InvPick[t]?'on':''}">
       <input type="checkbox" ${wlv1InvPick[t]?'checked':''} onchange="wlv1InvToggle('${t.replace(/'/g,"\\'")}')">
-      <span>${t}</span></label>`).join('');
+      <span>${t}</span></label>`).join('') +
+    chips +
+    `<div class="wlv1InvAddBox">
+      <div class="wlv1InvAddTitle">➕ Add Optional Test</div>
+      <div class="wlv1InvAddRow">
+        <input id="wlv1InvAddInput" class="input" placeholder="Type a test name…" onkeydown="if(event.key==='Enter'){wlv1InvAddCustom('${c.name.replace(/'/g,"\\'")}');event.preventDefault();}">
+        <button class="small" onclick="wlv1InvAddCustom('${c.name.replace(/'/g,"\\'")}')">ADD</button>
+      </div>
+    </div>`;
 }
 window["wlv1InvRender"]=wlv1InvRender;
+function wlv1InvAddCustom(catName){
+  const c = WLV1_INVEST.find(x=>x.name===catName);
+  const input = document.getElementById('wlv1InvAddInput');
+  const name = String((input&&input.value)||'').trim();
+  if(!name) return;
+  const already = (c&&c.tests.some(t=>t.toLowerCase()===name.toLowerCase())) ||
+    Object.keys(wlv1InvPick).some(t=>t.toLowerCase()===name.toLowerCase());
+  if(already) return toast('Already in the list.');
+  if(!wlv1InvCustom[catName]) wlv1InvCustom[catName]=[];
+  wlv1InvCustom[catName].push(name);
+  wlv1InvPick[name]=true;
+  wlv1InvRender();
+}
+window["wlv1InvAddCustom"]=wlv1InvAddCustom;
+function wlv1InvRemoveCustom(catName,name){
+  if(wlv1InvCustom[catName]) wlv1InvCustom[catName]=wlv1InvCustom[catName].filter(t=>t!==name);
+  delete wlv1InvPick[name];
+  wlv1InvRender();
+}
+window["wlv1InvRemoveCustom"]=wlv1InvRemoveCustom;
 function wlv1InvSave(id, alsoPrint){
   const picked = Object.keys(wlv1InvPick);
   if(!picked.length) return toast('Select at least one test');
@@ -16205,8 +16776,12 @@ var WLV1_A4_TITLES={
       stamp:'ক্লিনিক সিল',sign:'ডাক্তারের স্বাক্ষর'}
 };
 function wlv1A4S(key,lang){ var m=WLV1_A4_TITLES[lang===WLV1_A4_EN?'en':'bn']; return (m&&m[key])||key }
-/* কোন ভাষায় শেষবার দেখা হয়েছিল — পরের বার সেটাই আগে থেকে বাছা (ফোনের a4Lang())। */
-function wlv1A4Lang(){ try{ return localStorage.getItem('wlv1A4Lang')||WLV1_A4_BN }catch(_e){ return WLV1_A4_BN } }
+/* কোন ভাষায় শেষবার দেখা হয়েছিল — পরের বার সেটাই আগে থেকে বাছা (ফোনের a4Lang())।
+   🟢🔒🔒 V643 (২৪.০৮.২০২৬, TK-রিপোর্ট — "কিশানগঞ্জের স্টাফের মোবাইলে এখনো বাংলা
+   কেন দেখাচ্ছে") — আসল কারণ: ডিফল্টই ছিল বাংলা, Kishanganj-এর বাংলা-বন্ধ নিয়মের
+   সাথে কখনো জোড়া হয়নি। এখন বাংলা-বন্ধ স্টাফের জন্য সবসময় English জোর করা হয়
+   (ফোনের DoctorCheckupActivity.a4Lang()-এর একই ফিক্স)। */
+function wlv1A4Lang(){ try{ if(typeof wlv1NoBnActive==='function' && wlv1NoBnActive()) return WLV1_A4_EN; return localStorage.getItem('wlv1A4Lang')||WLV1_A4_BN }catch(_e){ return WLV1_A4_BN } }
 function wlv1A4SetLang(v){ try{ localStorage.setItem('wlv1A4Lang',v) }catch(_e){} }
 /* ভাগ ৬-এর ছবিটা A4-এ বসানোর জন্য PNG data-URL। ছবি লোড হওয়া পর্যন্ত অপেক্ষা
    করতে হয় বলে callback — ছবি না পেলে ফাঁকা লেখা ফেরে, তখন ঘরটাই বসে না।
@@ -16395,11 +16970,20 @@ function wlv1ShowCheckupA4(id, langWanted){
   if(!p)return toast('Patient not found');
   var rec=load('medical').filter(function(x){return (x.patientId===id||mob(x.mobile)===mob(p.mobile))&&String(x.type||'').toLowerCase().indexOf('checkup')>=0;}).sort(function(a,b){return String(b.date||'').localeCompare(String(a.date||''));})[0];
   var note=(rec&&rec.doctorFullNote)||p.doctorFullNote||null;
-  if(!note)return toast('No doctor checkup saved for this patient yet');
+  /* 🟢🔒 V627 (২৪.০৮.২০২৬, TK-নির্দেশ, ফোনের সাথে হুবহু মিলিয়ে) — চেকআপ
+     এখনো না থাকলে টোস্ট দেখিয়ে থেমে না গিয়ে সরাসরি Doctor Checkup ফর্ম
+     খোলা হয় (যাতে ওখান থেকেই চেকআপ শুরু করা যায়)। চেকআপ আগে থেকেই থাকলে
+     আচরণ অপরিবর্তিত — A4 রিপোর্ট দেখায়। ⚠️ ফোনের
+     `PatientTimelineActivity.openCheckupHistory()`-এর হুবহু যমজ। */
+  if(!note) return doctorCheck(id);
   var dateText=(rec&&fmtDate(rec.date))||fmtDate(today());
   /* 🔵 V584 — ভাষা (বাংলা/English) ও ভাগ ৬-এর ছবি। ছবিটা আঁকতে হয় বলে
      callback-এ বাকি কাজ। ⛔ কোনো নতুন সেভ/ক্লাউড-কল নেই। */
   var lang=(langWanted===WLV1_A4_BN||langWanted===WLV1_A4_EN)?langWanted:wlv1A4Lang();
+  /* 🟢🔒 V643 — বাংলা-বন্ধ স্টাফ যদি পুরোনো লিংক/বোতাম থেকে সরাসরি
+     langWanted='bn' দিয়েও ডাকেন, তবু জোর করে English — শুধু ডিফল্টে
+     নির্ভর করলে যথেষ্ট না। */
+  try{ if(typeof wlv1NoBnActive==='function' && wlv1NoBnActive()) lang=WLV1_A4_EN; }catch(_e){}
   wlv1A4SetLang(lang);
   wlv1A4AnatImage(String((note&&note.anatomy)||''), function(anatImg){
   var html=wlv1CheckupA4Html({...p,doctorFullNote:note}, dateText, lang, anatImg);
@@ -16415,8 +16999,11 @@ function wlv1ShowCheckupA4(id, langWanted){
     var on=(lang===k);
     return '<button class="wlv1A4Seg'+(on?' on':'')+'" onclick="wlv1ShowCheckupA4(\''+esc(id)+'\',\''+k+'\')">'+label+'</button>';
   };
+  /* 🟢🔒 V643 — বাংলা-বন্ধ স্টাফের সামনে "বাংলা" বোতামটাই দেখানো হয় না। */
+  var wlv1A4IsNoBn=false; try{ wlv1A4IsNoBn=(typeof wlv1NoBnActive==='function' && wlv1NoBnActive()); }catch(_e){}
+  var wlv1A4LangBar=wlv1A4IsNoBn ? '' : ('<div class="wlv1A4LangBar">'+segBtn(WLV1_A4_BN,'বাংলা')+segBtn(WLV1_A4_EN,'English')+'</div>');
   page('📜 Check-up Record — '+esc(dateText),'<div class="nkWrap">'+
-    '<div class="wlv1A4LangBar">'+segBtn(WLV1_A4_BN,'বাংলা')+segBtn(WLV1_A4_EN,'English')+'</div>'+
+    wlv1A4LangBar+
     '<div style="max-height:70vh;overflow:auto;border:1px solid #e3e9f1;border-radius:10px;margin:0 0 10px"><iframe id="wlv1A4Frame" style="width:100%;height:70vh;border:0" srcdoc="'+esc(html)+'"></iframe></div>'+
     '<div class="actions"><button onclick="wlv1PrintCheckupA4(\''+b64+'\')">🖨️ Print</button></div></div>');
   });
@@ -16434,8 +17021,11 @@ function wlv1CheckupHistory(id){
   var rec=load('medical').filter(function(x){return (x.patientId===id||mob(x.mobile)===mob(p.mobile))&&String(x.type||'').toLowerCase().indexOf('checkup')>=0;})[0];
   var note=(rec&&rec.doctorFullNote)||p.doctorFullNote||null;
   var done=!!(note&&Object.keys(note).length);
+  /* 🟢🔒 V627 (২৪.০৮.২০২৬, TK-নির্দেশ) — এখানেও একই বদল: চেকআপ না থাকলে
+     সতর্কবার্তা না দেখিয়ে সরাসরি চেকআপ ফর্মে (এই পাতাতেই থাকা) নিয়ে যাওয়া
+     হয় — আলাদা কিছু করার দরকার নেই, ডাক্তার এমনিতেই এই ফর্মেই আছেন। */
   if(!done){
-    return toast('এই রোগীর ডাক্তার চেক-আপ এখনো সম্পূর্ণ হয়নি। চেক-আপ শেষ করে Save করলে এখান থেকে রিপোর্ট দেখা, A4 প্রিন্ট ও WhatsApp-এ পাঠানো যাবে।');
+    return toast('এই রোগীর ডাক্তার চেক-আপ এখনো সম্পূর্ণ হয়নি — নিচে ফর্ম পূরণ করে Save করলে এখান থেকে রিপোর্ট দেখা যাবে।');
   }
   wlv1ShowCheckupA4(id);
 }
@@ -16998,14 +17588,14 @@ function wlv1CloseChamber(){
     return;
   }
   const now = Date.now();
-  if(now - wlv1CloseTapAt > 60000) wlv1CloseTapCount = 0;
+  // 🔴🔒 V687 (২৫.০৮.২০২৬, TK-নির্দেশ, স্পষ্ট — "আজকের লেখা যতক্ষণ না লেখা
+  // হবে, ততক্ষণ চেম্বার বন্ধ করা যাবে না") — Android-এর হুবহু একই সংশোধন:
+  // আগে ৩ বার চাপলে ফাঁকা/পুরনো Treatment Progress থাকা সত্ত্বেও বন্ধ করার
+  // একটা ছাড় (bypass) ছিল। TK-এর স্পষ্ট নির্দেশে সেই ছাড় পুরোপুরি তুলে
+  // নেওয়া হলো — কোনো bypass নেই, ফাঁকা থাকলেই বক্স খুলে যায়, close হয় না।
   const missing = arrived.find(r=>wlv1EffectivelyBlankRemark(r.treatment));
-  if(missing && wlv1CloseTapCount < 2){
-    wlv1CloseTapCount++; wlv1CloseTapAt = now;
-    /* 🔴 V430 — ফোনের হুবহু লেখা, আর ফোনের মতোই সঙ্গে সঙ্গে লেখার বাক্সটাও
-       খুলে যায় (ChamberAttendanceActivity.kt:2333-2340) — যাতে ওখানেই ঠিক
-       করে নেওয়া যায়, খুঁজতে না হয়। */
-    toast('⚠️ '+String(missing.name||missing.mobile)+"'s Treatment box is empty — tap Close "+(3-wlv1CloseTapCount)+' more time(s) to save anyway');
+  if(missing){
+    toast('⚠️ '+String(missing.name||missing.mobile)+"'s আজকের Treatment Progress লেখা হয়নি — না লিখলে চেম্বার বন্ধ করা যাবে না");
     try{ wlv1ChamberWriteTreatment(missing.mobile); }catch(e){}
     return;
   }
@@ -17061,7 +17651,11 @@ function wlv1CloseReview(rows){
       /* 🔴 V430 — পর্দায় স্টাফের লেখা **হুবহু** দেখানো হয় (ফোনে
          ChamberAttendanceActivity.kt:2719)। ইংরেজি করার নিয়মটা ফোনে শুধু
          **ছাপা কাগজে** চলে, পর্দায় নয় — ওয়েবে ভুল করে পর্দাতেও চলছিল। */
-      + `<div class="cbRevTr${wlv1EffectivelyBlankRemark(r.treatment)?' cbRevTrEmpty':''}" style="cursor:pointer" onclick="closeModal();wlv1ChamberWriteTreatment('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')">${
+      /* 🟢🔒🔒 V654 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবিসহ — "গত দিনের ট্রিটমেন্ট
+         প্রগ্রেস যেন হাইড থাকে... আজকেরটা উজ্জ্বল থাকে") — Android-এর
+         একই ফিক্স: r.treatmentUpdatedAt-এর তারিখ আজকের সাথে মিলিয়ে
+         cbRevTrToday (গাঢ় সবুজ, বোল্ড) / cbRevTrOld (হালকা ধূসর) ক্লাস। */
+      + `<div class="cbRevTr${wlv1EffectivelyBlankRemark(r.treatment)?' cbRevTrEmpty':(String(r.treatmentUpdatedAt||'').slice(0,10)===today()?' cbRevTrToday':' cbRevTrOld')}" style="cursor:pointer" onclick="closeModal();wlv1ChamberWriteTreatment('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')">${
           !wlv1EffectivelyBlankRemark(r.treatment) ? esc(String(r.treatment||'').trim())
           : (String(r.treatment||'').trim() ? 'Nothing written &#8212; tap to add' : '&#8212;')}</div>`
       + `<div class="cbRevF" style="cursor:pointer" onclick="closeModal();wlv1ChamberFixPayment('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')">${rupee(r.fee)}</div><div class="cbRevC" style="cursor:pointer" onclick="closeModal();wlv1ChamberFixPayment('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')">${rupee(r.cash)}</div><div class="cbRevO" style="cursor:pointer" onclick="closeModal();wlv1ChamberFixPayment('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')">${rupee(r.online)}</div>`
@@ -17079,7 +17673,7 @@ function wlv1CloseReview(rows){
     <div class="wlv1CbRevSum"><div><span>Fees</span><b>${rs(__fT)}</b></div><div><span>Cash</span><b class="c">${rs(__cT)}</b></div><div><span>Online</span><b class="o">${rs(__oT)}</b></div><div class="tot"><span>TOTAL</span><b>${rs(__gT)}</b></div></div>
     <div class="wlv1CbRevWrap">${list}</div>
     <div class="actions"><button class="ghost" onclick="closeModal()">Back</button>
-    <button onclick="closeModal();wlv1ChamberRegisterPrint()">&#9989; Confirm &amp; Print</button></div>`);
+    <button onclick="wlv1ConfirmChamberClose()">&#9989; Confirm Close</button></div>`);
 
   /* 🔴🔒 V426/V427 (TK-নির্দেশ ১৭.০৮.২০২৬) — RMP কমিশন ও "আজ কত দিলাম"।
      ⛔ হিসাব পুরোটাই সার্ভারে (`fin.rmp_day_commission` · `fin.rmp_day_paid`) —
@@ -17105,6 +17699,15 @@ function wlv1CloseReview(rows){
       paid = (paid||[]).filter(function(x){ return Number(x.total_paid||0) > 0; });
       window.__wlv1DayCommission = comm.reduce(function(a,x){ return a+Number(x.commission_today||0); },0);
       window.__wlv1DayPaidRmp   = paid.reduce(function(a,x){ return a+Number(x.total_paid||0); },0);
+      // 🔴🔒 V685 (২৫.০৮.২০২৬, TK-নির্দেশ — "প্রিন্টে RMP কমিশন লাল রঙে, কোন
+      // RMP-র কত কমিশন সহ") — প্রতিটা RMP-র নাম + যোগফল প্রিন্ট-ফাংশনও যেন
+      // পড়তে পারে, তাই এখানেই একটা global-এ রেখে দেওয়া হলো (নতুন কোনো
+      // cloud-কল লাগেনি — এই একই `comm` থেকে)।
+      window.__wlv1DayCommissionByRmp = (function(){
+        var m={}; comm.forEach(function(x){
+          var k=String(x.rmp_name||x.rmp_id||'RMP'); m[k]=(m[k]||0)+Number(x.commission_today||0); });
+        return Object.keys(m).map(function(k){return {name:k, amount:m[k]};}).filter(function(x){return x.amount>0;});
+      })();
       var box = document.querySelector('.wlv1CbRevSum'); if(!box) return;
       var html='';
       if(comm.length){
@@ -17184,35 +17787,46 @@ async function wlv1MasterReopenChamber(){
 window["wlv1MasterReopenChamber"]=wlv1MasterReopenChamber;
 async function wlv1MarkChamberClosed(branch, date){
   try{
-    if(!branch || !date) return;
+    if(!branch || !date) return false;
     const closeId = String(branch).trim().toUpperCase()+'|'+date;
     // 🔴 B303 (02.08.2026): শুধু ক্লাউডে লিখলে **এই কম্পিউটারও** সেটা সাথে
     // সাথে জানতে পারে না (Delete-বোতামের চেক লোকাল ক্যাশ পড়ে) — তাই এখানেও
     // লোকালে সেভ করা হলো, ঠিক প্রজেক্টের বাকি সব লেখার মতোই। অন্য
     // কম্পিউটার/ফোন থেকে বন্ধ করলে সেটা এখনো এই ডিভাইসে সাথে সাথে জানা
     // যাবে না (নেট-কল ছাড়া) — সেটা এই ছোট ফিক্সের বাইরে, আলাদা কাজ লাগবে।
-    try{
-      const local = load('chamber_close')||[];
-      if(!local.some(r=>r && String(r.id)===closeId)){
-        local.push({id:closeId, branch:String(branch).trim().toUpperCase(), date:date,
-          closedBy:(user&&user.mobile)||'', closedByName:(user&&user.name)||'',
-          closedAt:new Date().toISOString(), createdAt:new Date().toISOString(), updatedAt:new Date().toISOString()});
-        save('chamber_close', local, {skipCloud:true, skipBackup:true});
-      }
-    }catch(_e){}
-    if(typeof sb==='undefined' || !sb) return;
+    if(typeof sb==='undefined' || !sb) return false;
     const now = new Date().toISOString().slice(0,19).replace('T',' ');
-    await sb.from('chamber_close').upsert({
+    const wr = await sb.from('chamber_close').upsert({
       id: closeId,
       branch: String(branch).trim().toUpperCase(),
       date: date,
       closedBy: (user&&user.mobile)||'',
       closedByName: (user&&user.name)||'',
       closedAt: now, createdAt: now, updatedAt: now
-    });
-  }catch(e){ /* never block the print */ }
+    }).select('id');
+    if(!wr || wr.error || !(wr.data||[]).length) return false;
+    try{
+      const local = load('chamber_close')||[];
+      if(!local.some(r=>r && String(r.id)===closeId)) local.push({id:closeId,branch:String(branch).trim().toUpperCase(),date:date,closedBy:(user&&user.mobile)||'',closedByName:(user&&user.name)||'',closedAt:now,createdAt:now,updatedAt:now});
+      save('chamber_close',local,{skipCloud:true,skipBackup:true});
+    }catch(_e){}
+    return true;
+  }catch(e){ return false; }
 }
 window["wlv1MarkChamberClosed"]=wlv1MarkChamberClosed;
+
+async function wlv1ConfirmChamberClose(){
+  const rows=wlv1ChamberArrivedRows(), pick=wlv1ClosePrintBranch;
+  const chosen=pick?rows.filter(r=>String(r.branch||'').trim()===pick):rows;
+  if(!chosen.length)return toast('Nobody has been marked Arrived yet');
+  if(chosen.some(r=>wlv1EffectivelyBlankRemark(r.treatment)))return toast('Review incomplete — Treatment Progress লিখুন');
+  const br=pick||String(chosen[0].branch||(user&&user.branch)||'');
+  const ok=await wlv1MarkChamberClosed(br,wlv1ChamberDate);
+  if(!ok)return toast('Cloud-এ বন্ধ করা যায়নি — আবার চেষ্টা করুন');
+  closeModal();toast('The chamber is closed');
+  if(confirm('Print chamber register now?'))wlv1ChamberRegisterPrint();else chamberAttendance();
+}
+window["wlv1ConfirmChamberClose"]=wlv1ConfirmChamberClose;
 
 function wlv1ChamberRegisterPrint(){
   let rows = wlv1ChamberArrivedRows();
@@ -17229,9 +17843,11 @@ function wlv1ChamberRegisterPrint(){
   const dateLabel = wlv1Dot(wlv1ChamberDate);
   let dayLabel = '';
   try{ dayLabel = new Date(wlv1ChamberDate+'T00:00:00').toLocaleDateString('en-US',{weekday:'long'}); }catch(e){ dayLabel=''; }
-  let tFee=0,tCash=0,tOnline=0;
+  let tFee=0,tCash=0,tOnline=0,tFeeCash=0,tFeeOnline=0,tMedCash=0,tMedOnline=0;
   const body = rows.map((r,i)=>{
     tFee+=Number(r.fee||0); tCash+=Number(r.cash||0); tOnline+=Number(r.online||0);
+    tFeeCash+=Number(r.feeCash||0); tFeeOnline+=Number(r.feeOnline||0);
+    tMedCash+=Number(r.medicineCash||0); tMedOnline+=Number(r.medicineOnline||0);
     /* 🔴 V430 (TK-নির্দেশ) — ফোনের হুবহু নিয়ম:
        · ফি জমা পড়লে সেই ঘরে **কোন উপায়ে** জমা পড়েছে তাই লেখা হয় —
          নগদে হলে CASH, অনলাইনে হলে UPI (আগে ওয়েবে সবসময় CASH লেখা হত)।
@@ -17274,26 +17890,46 @@ function wlv1ChamberRegisterPrint(){
             কলামের অঙ্ক একটুও বদলায়নি; ফোনের ChamberRegisterPdfBuilder-এর একই লাইন। -->
        ${(function(){
           /* 🔴 V562: কমিশনের লাল লাইনটা নিচের সবুজ হিসাব-লাইনের **উপরে**,
-             আলাদা ঘরে — নইলে ছাপার সময় ওই লাইনটা পাতার নিচে চাপা পড়ত। */
+             আলাদা ঘরে — নইলে ছাপার সময় ওই লাইনটা পাতার নিচে চাপা পড়ত।
+             🔴🔒 V685 (২৫.০৮.২০২৬, TK-নির্দেশ) — এখন প্রতিটা RMP-র নাম +
+             তার নিজের কমিশন আলাদা লাইনে (Android ChamberRegisterPdfBuilder-এর
+             হুবহু একই), তারপর মোট। */
           var cm0 = Number(window.__wlv1DayCommission||0);
           if(!(cm0>0)) return '';
           var n0 = v => '₹'+Number(v||0).toLocaleString('en-IN');
-          return '<div class="cbRegRmpDue">RMP Commission (দিতে হবে) '+n0(cm0)
+          var byRmp = window.__wlv1DayCommissionByRmp || [];
+          var lines = byRmp.map(function(x){
+            return '<div class="cbRegRmpDue">RMP Commission — '+esc(x.name)+' : '+n0(x.amount)+'</div>';
+          }).join('');
+          return lines + '<div class="cbRegRmpDue">TOTAL RMP Commission (দিতে হবে) '+n0(cm0)
                + ' &nbsp;—&nbsp; আজকের মোট থেকে বাদ যায়নি</div>';
         })()}
        <div class="cbRegOneLine">${(function(){
+          /* 🟢🔒 V622 (২৪.০৮.২০২৬, TK-নির্দেশ — "সততার সাথে সঠিকভাবে করুন")
+             — ফোনের V612/V613/V614-এর হুবহু একই ডিজাইন এখন ওয়েবেও:
+             Fees/Treatment/Medicine প্রতিটার নিজস্ব স্পষ্ট লেবেল-সহ সারি,
+             Cash/Online সবসময় একই কলামে। আগে এখানে একটাই ঘন লাইনে
+             "Fees · Cash · Online · TOTAL" ছিল, কোনটা কীসের বোঝা কঠিন ছিল।
+             ⛔ GRAND TOTAL অঙ্ক একটুও বদলায়নি (tFee+tCash+tOnline, আগের মতোই)। */
+          var tTreatCash = Number(tCash||0) - Number(tMedCash||0);
+          var tTreatOnline = Number(tOnline||0) - Number(tMedOnline||0);
           var g=Number(tFee||0)+Number(tCash||0)+Number(tOnline||0);
           var cm=Number(window.__wlv1DayCommission||0), pd=Number(window.__wlv1DayPaidRmp||0);
           var n=v=>'₹'+Number(v||0).toLocaleString('en-IN');
-          /* 🔴 V426/V427: Review পর্দায় দেখানো ঠিক সেই সংখ্যাগুলোই কাগজে যায় —
-             আলাদা করে আবার হিসাব করা হয় না, তাই পর্দা ও কাগজ কখনো আলাদা হবে না।
-             ⛔ NET থেকে বাদ যায় শুধু আজকের প্রাপ্য কমিশন; "Paid to RMP today"
-                শুধু জানার জন্য, কোনো মোট থেকে বাদ যায় না। ০ হলে লেখাই হয় না। */
-          /* 🔴🔒 V562 (TK, ২২.০৮.২০২৬): কমিশন আর TOTAL থেকে বাদ যায় না —
-             ওটা দিতে হবে এমন টাকা, দেওয়া টাকা নয়। নিচে আলাদা লাল লাইনে। */
-          var t = 'Fees '+n(tFee)+' &nbsp;·&nbsp; Cash '+n(tCash)+' &nbsp;·&nbsp; Online '+n(tOnline)+' &nbsp;·&nbsp; TOTAL '+n(g);
-          if(pd>0) t += ' &nbsp;·&nbsp; Paid to RMP today '+n(pd);
-          return t+'/-';
+          function row(label,cashV,onlineV,extra){
+            return '<div style="display:flex;gap:14px;align-items:baseline">'
+              + '<span style="min-width:118px">'+label+'</span>'
+              + '<span style="min-width:110px">Cash '+n(cashV)+'</span>'
+              + '<span>Online '+n(onlineV)+'</span>'
+              + (extra?'<span style="margin-left:10px">'+extra+'</span>':'')
+              + '</div>';
+          }
+          var rmpNote = pd>0 ? ('&nbsp;·&nbsp;Paid to RMP today '+n(pd)) : '';
+          var out = row('FEES COLLECTED', tFeeCash, tFeeOnline, '')
+            + row('TREATMENT COST', tTreatCash, tTreatOnline, '');
+          if(tMedCash>0 || tMedOnline>0) out += row('MEDICINE SALES', tMedCash, tMedOnline, '');
+          out += row('<b>GRAND TOTAL</b>', tCash+tFeeCash, tOnline+tFeeOnline, '<b>= '+n(g)+'/-</b>'+rmpNote);
+          return out;
         })()}</div>
        </div>`;
   /* 🔴 V430 — ফোনে কাগজ তৈরি হলে কোনো কালো বার্তা দেখায় না, সোজা প্রিভিউ খোলে।
@@ -17503,20 +18139,31 @@ function wlv1ChamberRegisterText(){
   const brName = wlv1ClosePrintBranch || String(rows[0].branch||'');
   const b = branch(brName);
   const rupee = v => Number(v||0)>0 ? '₹'+Number(v).toLocaleString('en-IN') : '-';
-  let tFee=0,tCash=0,tOnline=0;
+  let tFee=0,tCash=0,tOnline=0,tFeeCash=0,tFeeOnline=0,tMedCash=0,tMedOnline=0;
   const lines = rows.map((r,i)=>{
     tFee+=Number(r.fee||0); tCash+=Number(r.cash||0); tOnline+=Number(r.online||0);
+    tFeeCash+=Number(r.feeCash||0); tFeeOnline+=Number(r.feeOnline||0);
+    tMedCash+=Number(r.medicineCash||0); tMedOnline+=Number(r.medicineOnline||0);
     return (i+1)+'. '+String(r.name||r.mobile).toUpperCase()+' ('+normMob(r.mobile)+')'
       + (r.patientId?' ID '+r.patientId:'')
       + '\n   ' + (wlv1EffectivelyBlankRemark(r.treatment) ? '⚠️ PROGRESS PENDING'
                    : (wlv1PrintEn(r.treatment).trim() || '⚠️ PROGRESS PENDING'))
       + '\n   FEES '+rupee(r.fee)+' | CASH '+rupee(r.cash)+' | ONLINE '+rupee(r.online);
   }).join('\n');
+  /* 🟢🔒 V622 (২৪.০৮.২০২৬) — কাগজের প্রিন্টের হুবহু একই স্পষ্ট সারাংশ,
+     WhatsApp টেক্সট-শেয়ারেও (plain text, তাই সাধারণ লাইন-ভিত্তিক)। */
+  const tTreatCash = Number(tCash||0) - Number(tMedCash||0);
+  const tTreatOnline = Number(tOnline||0) - Number(tMedOnline||0);
+  const gTotal = Number(tFee||0)+Number(tCash||0)+Number(tOnline||0);
+  let summary = '\n\nFEES COLLECTED  CASH '+rupee(tFeeCash)+' | ONLINE '+rupee(tFeeOnline)
+    + '\nTREATMENT COST  CASH '+rupee(tTreatCash)+' | ONLINE '+rupee(tTreatOnline);
+  if(tMedCash>0 || tMedOnline>0) summary += '\nMEDICINE SALES  CASH '+rupee(tMedCash)+' | ONLINE '+rupee(tMedOnline);
+  summary += '\nGRAND TOTAL  CASH '+rupee(tCash+tFeeCash)+' | ONLINE '+rupee(tOnline+tFeeOnline)+' | = ₹'+gTotal.toLocaleString('en-IN')+'/-';
   return (isKishanganjBranchName(brName)?'TK BISWAS PILES CLINIC':'MAA AYURVED PILES CLINIC')
     + '\n' + String(brName||'').toUpperCase() + ' — ' + (b.address||'')
     + '\nCHAMBER REGISTER — ' + wlv1Dot(wlv1ChamberDate)
     + '\n\n' + lines
-    + '\n\nTOTAL  FEES '+rupee(tFee)+' | CASH '+rupee(tCash)+' | ONLINE '+rupee(tOnline)
+    + summary
     + '\nPATIENTS: ' + rows.length;
 }
 window["wlv1ChamberRegisterText"]=wlv1ChamberRegisterText;
@@ -18389,12 +19036,307 @@ async function saveRefundWeb(patientId){
         add('briefings',req); await cloudUpsertBriefing(req);
       }catch(_e){}
     }
+    // 🟢🔒 V676 (২৫.০৮.২০২৬, TK-নির্দেশ — "যেকোনো জায়গা থেকে Visit Fee
+    // Return করলে যেন হয়ে যায়, Return Visit ড্রাফট-এ ট্যাগ বসে")। Android-এর
+    // PaymentRepository.saveRefund()-এর ঠিক একই নতুন নিয়ম, এখানেও একই
+    // জায়গায় (সব web-Refund এখান দিয়েই যায়) বসানো হলো। ⛔ নতুন টাকা-হিসাব
+    // নেই — শুধু প্রমাণিত V509 নিয়মে (treatment paid আগে, তারপর Visit Fee)
+    // বোঝা হয় এই Refund Visit Fee ছুঁয়েছে কিনা।
+    if(autoApprove && amt > wlv1PatientPaidNow(p) + 0.5){
+      try{
+        var fid = wlv1BestFollowUpIdForReturn(p.mobile);
+        if(fid) directCloudUpsertRow('followups', {id:fid, status:'Returned', updatedAt:new Date().toISOString()});
+        try{ var fs2=load('followups').map(function(f){return String(f.id)===String(fid)?Object.assign({},f,{status:'Returned',updatedAt:new Date().toISOString()}):f;}); save('followups',fs2); }catch(_e){}
+      }catch(_e){}
+    }
     toast(autoApprove?('Refund saved ✓ — ₹'+numFmt(amt)+' reduced from collection'):'Refund request sent — will reduce the total once Master approves');
     closeModal();
     try{ paymentHistory(patientId) }catch(_e){}
   }catch(e){ toast('Could not save refund — try again'); }
 }
 window["saveRefundWeb"]=saveRefundWeb;
+
+/** V676 — Android-এর resolveBestFollowUpId()-এর হুবহু একই stage-priority
+ *  নিয়ম (Treatment > Patient > Inquiry, terminal status বাদ)। */
+function wlv1BestFollowUpIdForReturn(mobile){
+  try{
+    var d=String(mobile||'').replace(/\D/g,'').slice(-10);
+    if(d.length!==10) return null;
+    function stagePriority(s){ s=String(s||''); if(s==='Treatment'||s==='Treatment Running') return 3; if(s==='Patient') return 2; if(s==='Inquiry') return 1; return 0; }
+    var rows=load('followups').filter(function(f){
+      var st=String(f.status||'Active');
+      return mob(f.mobile)===d && st!=='Cancelled' && st!=='Incomplete' && st!=='Rejected' && st!=='Closed';
+    });
+    if(!rows.length) return null;
+    rows.sort(function(a,b){
+      var pa=stagePriority(a.stage), pb=stagePriority(b.stage);
+      if(pa!==pb) return pb-pa;
+      return String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||''));
+    });
+    return rows[0].id||null;
+  }catch(_e){ return null; }
+}
+window["wlv1BestFollowUpIdForReturn"]=wlv1BestFollowUpIdForReturn;
+
+/* ══════════════════════════════════════════════════════════════════════════
+   🟢🔒 V623 (২৪.০৮.২০২৬, TK-নির্দেশ "Change Branch ওয়েবে করুন") —
+   Master-only "🔀 Change Branch"। Android-এর `BranchTransferRepository.kt` +
+   `PatientTimelineActivity.showChangeBranchDialog()/confirmChangeBranch()`-এর
+   হুবহু একই নিয়ম, ওয়েবে প্রথমবার বসানো হলো:
+     ✅ `patients`/`followups`/`payments` — এই তিনটে টেবিলের ওই মোবাইলের
+        সব সারির `branch` নতুন ব্রাঞ্চে বদলায়।
+     ⛔ `patientId`/`refId` অক্ষত থাকে (নতুন করে বানানো হয় না) — পুরনো ছাপা
+        কাগজ/প্রেসক্রিপশন/রসিদের সাথে অমিল এড়াতে (Android-এর ঠিক একই কারণ)।
+     ✅ প্রতিটা সারি একটা একটা করে, `wlv1UpdConfirmed()` দিয়ে (নতুন কোনো
+        bulk-write পথ নয়) — তাই সত্যিকারের সফল/ব্যর্থ সংখ্যা দেখানো যায়।
+     ✅ Preview ইতিমধ্যে ডাউনলোড করা লোকাল ক্যাশ (`load()`) থেকেই — নতুন
+        কোনো cloud read লাগে না (ফ্রি-প্ল্যানের একই সাশ্রয়ী নীতি)।
+     ✅ Master ছাড়া কেউ ডাকতে পারবেন না (বোতাম + ফাংশন দুই জায়গাতেই role-চেক)।
+   ══════════════════════════════════════════════════════════════════════════ */
+function wlv1ChangeBranchPreview(mobile){
+  var d=String(mobile||'').replace(/\D/g,'').slice(-10);
+  if(d.length!==10) return null;
+  var patientRows=load('patients').filter(function(x){return mob(x.mobile)===d});
+  var followupRows=load('followups').filter(function(x){return mob(x.mobile)===d});
+  var paymentRows=load('payments').filter(function(x){return mob(x.mobile)===d});
+  var total=patientRows.length+followupRows.length+paymentRows.length;
+  if(total===0) return null;
+  var branchesSeen={};
+  patientRows.concat(followupRows,paymentRows).forEach(function(r){
+    var b=String((r&&r.branch)||'').trim(); if(b) branchesSeen[b]=true;
+  });
+  return {patientRows:patientRows,followupRows:followupRows,paymentRows:paymentRows,
+          total:total,branches:Object.keys(branchesSeen)};
+}
+window["wlv1ChangeBranchPreview"]=wlv1ChangeBranchPreview;
+
+function wlv1ShowChangeBranchDialog(patientId){
+  if(!isMaster()) return toast('Master Admin only');
+  var p=load('patients').find(function(x){return x.id===patientId});
+  if(!p) return toast('Patient not found');
+  var prev=wlv1ChangeBranchPreview(p.mobile);
+  if(!prev) return toast('কোনো রেকর্ড পাওয়া যায়নি — নেট চেক করুন');
+  var fromBranches=prev.branches.join(', ')||'—';
+  var opts=(C.branches||[]).map(function(b){return '<option value="'+esc(b.name)+'">'+esc(b.name)+'</option>'}).join('');
+  modal('<h2>🔀 Change Branch</h2>'+
+    '<div class="card"><b>'+esc(String(p.name||'').toUpperCase())+'</b> ('+esc(normMob(p.mobile||''))+')<br>'+
+    '<small>এখনকার ব্রাঞ্চ: '+esc(fromBranches)+'</small><br>'+
+    '<small>মোট সারি সরবে: '+prev.total+' (Patient '+prev.patientRows.length+' · Follow-up '+prev.followupRows.length+' · Payment '+prev.paymentRows.length+')</small></div>'+
+    '<label>নতুন ব্রাঞ্চ বেছে নিন</label>'+
+    '<select id="wlv1CbNewBranch" class="input">'+opts+'</select>'+
+    '<div class="actions"><button class="ghost" onclick="closeModal()">Cancel</button>'+
+    '<button style="background:linear-gradient(135deg,#b42318,#d92d20)" onclick="wlv1ConfirmChangeBranch(\''+esc(patientId)+'\')">Next</button></div>');
+}
+window["wlv1ShowChangeBranchDialog"]=wlv1ShowChangeBranchDialog;
+
+/* 🟢🔒🔒 V664 (ওয়েব সংস্করণ, ২৫.০৮.২০২৬, TK-নির্দেশ) — Android-এর
+   "Edit Patient" (Take Action মেনু)-এর হুবহু একই যমজ। TK: "Web-এ নেই কেন?
+   ... হ্যাঁ [বানান]।"
+   ⛔ সততার সাথে জানানো — এই ওয়েব-সংস্করণে মোবাইল বদলের ক্ষেত্রে Android-এর
+   PatientIdentity-র "শেয়ার-করা নম্বর" সুরক্ষা (V534, এক নম্বরে দুই আলাদা
+   রোগী থাকলে একজনের সারি অন্যজনের দিকে টেনে না নেওয়া) নেই — এটা সরল
+   best-effort sync (পুরনো নম্বরের followups/enquiries নতুন নম্বরে সরায়)।
+   একই নম্বরে দুই আলাদা রোগী থাকলে (বিরল) এটা এড়িয়ে চলা ভালো। */
+function wlv1ShowEditPatient(patientId){
+  var p=load('patients').find(function(x){return x.id===patientId});
+  if(!p) return toast('Patient not found');
+  var branches=['Kishanganj','Jalpaiguri','Cooch Behar','Falakata','Birpara'];
+  var diseases=['Piles','Fissure','Fistula','Hydrocele','Gupt Rog','Other'];
+  var sexes=['Male','Female','Other'];
+  function opts(list,cur){return list.map(function(v){return '<option value="'+esc(v)+'"'+(String(cur||'').toLowerCase()===v.toLowerCase()?' selected':'')+'>'+esc(v)+'</option>'}).join('')}
+  modal('<h2>✏️ Edit Patient</h2>'+
+    '<label>Name</label><input id="wlv1EpName" class="input" value="'+esc(p.name||'')+'">'+
+    '<label>Mobile</label><input id="wlv1EpMobile" class="input" inputmode="numeric" value="'+esc(mob(p.mobile||''))+'">'+
+    '<label>Branch</label><select id="wlv1EpBranch" class="input">'+opts(branches,p.branch)+'</select>'+
+    '<label>Disease</label><select id="wlv1EpDisease" class="input">'+opts(diseases,p.disease)+'</select>'+
+    '<label>Age</label><input id="wlv1EpAge" class="input" inputmode="numeric" value="'+esc(p.age||'')+'">'+
+    '<label>Sex</label><select id="wlv1EpSex" class="input">'+opts(sexes,p.sex)+'</select>'+
+    '<label>Address</label><input id="wlv1EpAddress" class="input" value="'+esc(p.address||'')+'">'+
+    '<label>Referred by Doctor (optional — fill in later if it becomes known)</label>'+
+    '<input id="wlv1EpRefDoctor" class="input" placeholder="Doctor Name" value="'+esc(p.refDoctor||'')+'">'+
+    '<input id="wlv1EpRefDoctorMobile" class="input" placeholder="Doctor Mobile" style="margin-top:8px" value="'+esc(p.refDoctorMobile||'')+'">'+
+    '<div class="actions"><button class="ghost" onclick="closeModal()">Cancel</button>'+
+    '<button onclick="wlv1SaveEditPatient(\''+esc(patientId)+'\')">Save</button></div>');
+}
+window["wlv1ShowEditPatient"]=wlv1ShowEditPatient;
+
+async function wlv1SaveEditPatient(patientId){
+  var p=load('patients').find(function(x){return x.id===patientId});
+  if(!p) return toast('Patient not found');
+  var newName=($('#wlv1EpName')?.value||'').trim();
+  var newMobile=($('#wlv1EpMobile')?.value||'').replace(/\D/g,'').slice(-10);
+  if(!newName) return toast('Patient নাম দিন');
+  if(newMobile.length!==10) return toast('সঠিক 10 ডিজিট মোবাইল দিন');
+  var oldMobile=mob(p.mobile||'');
+  var fields={
+    name:newName, mobile:newMobile,
+    branch:($('#wlv1EpBranch')?.value||p.branch||''),
+    disease:($('#wlv1EpDisease')?.value||p.disease||''),
+    age:($('#wlv1EpAge')?.value||'').trim(),
+    sex:($('#wlv1EpSex')?.value||p.sex||''),
+    address:($('#wlv1EpAddress')?.value||'').trim(),
+    refDoctor:($('#wlv1EpRefDoctor')?.value||'').trim(),
+    refDoctorMobile:($('#wlv1EpRefDoctorMobile')?.value||'').replace(/\D/g,'').slice(-10)
+  };
+  // TK-REQUESTED (Android-এর একই নিয়ম): রেফারিং ডাক্তার পরে ভরা হলে refBy
+  // "Dr. Visit" বসে, যাতে ওই ডাক্তারের "Referred Patients" তালিকায় দেখায়।
+  if(fields.refDoctor) fields.refBy='Dr. Visit';
+  var ok=await wlv1UpdConfirmed('patients', patientId, fields);
+  if(!ok) return toast('Failed — check connection');
+  // 🟡 best-effort sync — মোবাইল বদলালে পুরনো নম্বরের followups/enquiries
+  // সারি নতুন নম্বরে সরানো হয় (Android-এর মতো শেয়ার-করা-নম্বর সুরক্ষা নেই)।
+  if(newMobile!==oldMobile){
+    try{
+      var fus=load('followups').filter(function(x){return mob(x.mobile||'')===oldMobile});
+      for(var i=0;i<fus.length;i++){ await wlv1UpdConfirmed('followups', fus[i].id, {mobile:newMobile,name:newName}); }
+      var enqs=load('enquiries').filter(function(x){return mob(x.mobile||'')===oldMobile});
+      for(var j=0;j<enqs.length;j++){ await wlv1UpdConfirmed('enquiries', enqs[j].id, {mobile:newMobile,name:newName}); }
+    }catch(_e){}
+  }
+  closeModal();
+  toast('Patient updated');
+  try{ summary(patientId); }catch(_e){}
+}
+window["wlv1SaveEditPatient"]=wlv1SaveEditPatient;
+
+function wlv1ConfirmChangeBranch(patientId){
+  if(!isMaster()) return toast('Master Admin only');
+  var p=load('patients').find(function(x){return x.id===patientId});
+  if(!p) return toast('Patient not found');
+  var newBranch=($('#wlv1CbNewBranch')&&$('#wlv1CbNewBranch').value)||'';
+  if(!newBranch) return toast('একটা ব্রাঞ্চ বেছে নিন');
+  var prev=wlv1ChangeBranchPreview(p.mobile);
+  if(!prev) return toast('কোনো রেকর্ড পাওয়া যায়নি — নেট চেক করুন');
+  var fromBranches=prev.branches.join(', ')||'—';
+  // 🔴 দ্বিতীয় নিশ্চিতকরণ — Android-এর মতোই লাল/গুরুতর হেডার, কারণ একবার
+  // হয়ে গেলে হাতে-ধরে আবার উল্টাতে হবে (কোনো "Undo" নেই)।
+  modal('<h2 style="color:#b42318">⚠️ এই ব্রাঞ্চ-বদল স্থায়ী</h2>'+
+    '<div class="card">'+esc(fromBranches)+' → <b>'+esc(newBranch)+'</b><br>'+
+    prev.total+' টা সারি সরবে (Patient/Follow-up/Payment)।<br><br>'+
+    '⛔ Patient ID অক্ষত থাকবে (আগের ছাপা কাগজের সাথে মিলে থাকার জন্য) — শুধু ID-র '+
+    'শুরুর অক্ষর নতুন ব্রাঞ্চের সাথে নাও মিলতে পারে, এটা শুধু দেখতে, হিসাবে ভুল করে না।<br><br>'+
+    'সত্যিই এগোতে চান?</div>'+
+    '<div class="actions"><button class="ghost" onclick="closeModal()">Cancel</button>'+
+    '<button style="background:linear-gradient(135deg,#b42318,#d92d20)" onclick="wlv1DoChangeBranch(\''+esc(patientId)+'\',\''+esc(newBranch)+'\')">হ্যাঁ, সরান</button></div>');
+}
+window["wlv1ConfirmChangeBranch"]=wlv1ConfirmChangeBranch;
+
+async function wlv1DoChangeBranch(patientId,newBranch){
+  if(!isMaster()) return toast('Master Admin only');
+  var p=load('patients').find(function(x){return x.id===patientId});
+  if(!p) return toast('Patient not found');
+  var prev=wlv1ChangeBranchPreview(p.mobile);
+  if(!prev) return toast('কোনো রেকর্ড পাওয়া যায়নি — নেট চেক করুন');
+  var jobs=prev.patientRows.map(function(r){return {t:'patients',id:r.id}})
+    .concat(prev.followupRows.map(function(r){return {t:'followups',id:r.id}}))
+    .concat(prev.paymentRows.map(function(r){return {t:'payments',id:r.id}}));
+  var moved=0, failed=0;
+  for(var i=0;i<jobs.length;i++){
+    var ok=false;
+    try{ ok=await wlv1UpdConfirmed(jobs[i].t, jobs[i].id, {branch:newBranch}); }catch(_e){ ok=false; }
+    if(ok) moved++; else failed++;
+  }
+  closeModal();
+  toast(failed===0
+    ? ('✅ '+moved+'টা সারি '+newBranch+'-এ সরানো হলো')
+    : ('⚠️ '+moved+'টা সরেছে, '+failed+'টা ব্যর্থ — আবার চেষ্টা করুন'));
+  if(moved>0){ try{ summary(patientId); }catch(_e){} }
+}
+window["wlv1DoChangeBranch"]=wlv1DoChangeBranch;
+
+/* ══════════════════════════════════════════════════════════════════════════
+   🟢🔒 V623 (২৪.০৮.২০২৬, TK-নির্দেশ "Return Fees ওয়েবে করুন") — Visit Card
+   (Patient Summary পাতা) থেকে Fees Return। Android V621-এর হুবহু একই তিন ভাগ:
+     ১) এই ফাংশন — বিদ্যমান, প্রমাণিত রিফান্ড-পথ পুনর্ব্যবহার (নতুন কোনো
+        টাকা-হিসাবের পথ নয়) + সফল হলে followups.status="Returned"।
+     ২) Chamber Date থেকে বাদ — `wlv1ChamberRows()`-এ নিচে যোগ করা হয়েছে।
+     ৩) Draft-এ নতুন "Return Visit" ক্যাটাগরি — `draffHome()`-এ যোগ করা হয়েছে।
+   ⛔ বিদ্যমান "Cancelled"/Refund/Visit Reject সিস্টেম এক অক্ষরও ছোঁয়া হয়নি।
+   ══════════════════════════════════════════════════════════════════════════ */
+function wlv1ReturnFeesFollowup(p){
+  try{
+    return load('followups').find(function(f){
+      return (f.refId===p.id || mob(f.mobile)===mob(p.mobile)) &&
+             (String(f.stage||'')==='Patient' || String(f.stage||'')==='Treatment');
+    }) || null;
+  }catch(_e){ return null; }
+}
+window["wlv1ReturnFeesFollowup"]=wlv1ReturnFeesFollowup;
+
+async function wlv1ShowReturnFeesDialog(patientId){
+  var p=load('patients').find(function(x){return x.id===patientId});
+  if(!p) return toast('Patient not found');
+  var vf=wlv1VisitFeePaidNow(p);
+  if(!(vf>0)) return toast('ফেরতযোগ্য Fees নেই এই রোগীর');
+  // 🔒 একই দিন-ভিত্তিক নিয়ম যা Refund-এও চলে — চেম্বার আজ খোলা থাকলে (বা
+  // Master হলে) সরাসরি, নইলে Master-এর অনুমতি লাগবে (wlv1RefundAutoApprove-এর
+  // পথেই সিদ্ধান্ত হয়, নতুন কোনো নিয়ম নয়)।
+  var allowed = isMaster() || await wlv1ChamberOpenTodayFailSafe(p.branch);
+  if(!allowed) return toast('আজকের চেম্বার বন্ধ হয়ে গেছে — এখন Master-এর অনুমতি লাগবে');
+  modal('<h2 style="color:#b45309">⚠️ Return Fees — স্থায়ী</h2>'+
+    '<div class="card"><b>'+esc(String(p.name||'').toUpperCase())+'</b> · '+esc(p.patientId||'')+'<br>'+
+    '₹'+esc(numFmt(vf))+' ফেরত দেওয়া হবে।</div>'+
+    '<div class="card mut">এই Visit "Return Visit" তালিকায় (Draft) সরে যাবে — Chamber Date-সহ সক্রিয় তালিকা থেকে বাদ পড়বে।</div>'+
+    '<div class="actions"><button class="ghost" onclick="closeModal()">Cancel</button>'+
+    '<button style="background:linear-gradient(135deg,#b45309,#d97706)" onclick="wlv1DoReturnFees(\''+esc(patientId)+'\')">হ্যাঁ, Return করুন</button></div>');
+}
+window["wlv1ShowReturnFeesDialog"]=wlv1ShowReturnFeesDialog;
+
+async function wlv1DoReturnFees(patientId){
+  var p=load('patients').find(function(x){return x.id===patientId});
+  if(!p) return toast('Patient not found');
+  var vf=wlv1VisitFeePaidNow(p);
+  if(!(vf>0)) return toast('ফেরতযোগ্য Fees নেই এই রোগীর');
+  // ⛔ নিচের পুরো ব্লকটা `saveRefundWeb()`-এর হুবহু প্রমাণিত পথ (idempotent
+  // id/nonce, autoApprove যাচাই, cloud upsert) — নতুন কোনো টাকা-হিসাবের পথ নয়।
+  var reason='Fees Return (Visit Card)';
+  var _rfKey=wlv1RefundDraftKey(p,vf,reason);
+  var _rfNonce=wlv1GetRefundNonce(_rfKey);
+  var rid=wlv1RefundIdFor(p,vf,reason,(user&&user.mobile)||'',_rfNonce);
+  var autoApprove = await wlv1RefundAutoApprove(p, vf, rid);
+  var paidNow=wlv1RefundableNow(p);
+  var pending=wlv1PendingRefundSum(p,rid);
+  var maxRefundable=Math.max(0,paidNow-pending);
+  if(vf>maxRefundable+0.5) return toast('Refund ₹'+numFmt(vf)+' is more than the refundable amount ₹'+numFmt(maxRefundable));
+  var row={id:rid,payType:'refund',payLabel:'Refund',paymentLabel:'Refund',
+    patientId:p.id,patientCode:p.patientId||'',mobile:p.mobile,branch:p.branch,name:p.name,
+    date:today(),amount:vf,mode:'CASH',remarks:reason,
+    refundReason:reason,refundApprovalStatus:autoApprove?'approved':'pending',
+    refundRequestedBy:(user&&user.mobile)||'',refundApprovedBy:autoApprove?((user&&user.mobile)||''):'',
+    receivedBy:(user&&user.mobile)||'',createdBy:(user&&user.mobile)||'',
+    createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
+  try{ save('payments', load('payments').filter(function(x){ return String(x.id)!==String(rid); })); }catch(_e){}
+  add('payments',row);
+  var okC=true; try{ okC=await directCloudUpsertRow('payments',row); }catch(_e){ okC=false; }
+  if(!okC) return toast('Could not save to cloud — check internet and try again');
+  try{ wlv1ClearRefundNonce(_rfKey); }catch(_e){}
+  if(!autoApprove){
+    try{
+      var req={id:'brief_'+rid,date:today(),title:'Refund request — '+(p.name||normMob(p.mobile||'')),
+        message:'₹'+numFmt(vf)+' Fees Return requested for '+(p.name||p.mobile||'')+
+                 '\nPatient ID : '+(p.patientId||'')+'\nBranch : '+(p.branch||'')+
+                 '\nReason : '+reason+'\nRequested by : '+(codeName(user&&user.mobile)||'')+
+                 '\nApprove/Reject from the bell.',
+        targets:{roles:['master']},branch:p.branch||'',seen:[],replies:[],
+        createdBy:(user&&user.mobile)||'',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
+      try{ save('briefings', load('briefings').filter(function(x){ return String(x.id)!==('brief_'+rid); })); }catch(_e){}
+      add('briefings',req); await cloudUpsertBriefing(req);
+    }catch(_e){}
+  }
+  // ⛔ শুধু সফল রিফান্ডের পরেই — এই Visit-কে "Returned" ট্যাগ করা হয় (Draft-এর
+  // "Return Visit" তালিকা ও Chamber Date-বাদ দুটোই এই একটা status-এর উপর নির্ভর করে)।
+  var marked=false;
+  var fu=wlv1ReturnFeesFollowup(p);
+  if(fu){
+    try{ marked = await wlv1UpdConfirmed('followups', fu.id, {status:'Returned'}); }catch(_e){ marked=false; }
+  }
+  closeModal();
+  toast(autoApprove
+    ? (marked?'✅ Fees ফেরত হলো — Return Visit-এ সরানো হলো':'Fees ফেরত হয়েছে, কিন্তু Return Visit-ট্যাগ ব্যর্থ — Draft-এ হাতে ঠিক করুন')
+    : 'Refund request sent — will reduce the total once Master approves');
+  try{ summary(patientId); }catch(_e){}
+}
+window["wlv1DoReturnFees"]=wlv1DoReturnFees;
 async function wlv1DeletePayment(payId){
   // 🔒 B334-এর মতোই আসল-দুর্ঘটনার পুনরাবৃত্তি ঠিক করে রাখা: confirm() পপ-আপ
   // ওঠার আগের await-গুলোর সময় দ্রুত দুইবার চাপলে দুটো আলাদা কল শুরু হতে

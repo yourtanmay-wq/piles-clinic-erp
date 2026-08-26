@@ -117,7 +117,10 @@ class ChamberAttendanceAdapter(
             val whenV = DateUtil.displayWithTime(row.arrivedAt.ifBlank { null })
             val pidTextV = listOfNotNull(
                 whenV.ifBlank { null },
-                row.refDoctor.ifBlank { null }?.let { "👨‍⚕️ $it" }
+                // 🟢🔒 V668 (২৫.০৮.২০২৬, TK-নির্দেশ, স্পষ্ট — "Ref By RMP-এর নাম
+                // থাকে") — লেখাটা এখন "👨‍⚕️" emoji-এর বদলে স্পষ্ট "Ref By:"
+                // — TK-এর নিজের শব্দের সাথে হুবহু মিলিয়ে।
+                row.refDoctor.ifBlank { null }?.let { "Ref By: $it" }
             ).joinToString("\n")
             b.tvPatientId.text = pidTextV
             b.tvPatientId.visibility = if (pidTextV.isNotBlank()) View.VISIBLE else View.GONE
@@ -147,14 +150,36 @@ class ChamberAttendanceAdapter(
                 treatment.isNotBlank() -> treatment
                 else -> "—"
             }
+            // 🟢🔒🔒 V668 (২৫.০৮.২০২৬, TK-কড়া-রিপোর্ট, দুইবার ছবি-প্রুফ পাঠিয়ে
+            // ধরিয়ে দেওয়ার পরে — "ব্যাকগ্রাউন্ড পরিষ্কার সাদা... গত দিনের
+            // Treatment Progress হাইড থাকবে, আজকেরটা উজ্জ্বল থাকবে") — আসল
+            // কারণ (এতক্ষণে ধরা পড়ল): এই **আসল** স্ক্রিন (মূল Chamber Date
+            // পাতার RecyclerView) — V654-এ ভুল করে একটা সম্পূর্ণ আলাদা
+            // পপ-আপ (showCloseReview) ঠিক করা হয়েছিল, এই আসল জায়গাটা কখনো
+            // ছোঁয়াই হয়নি। এখন সত্যিকারের জায়গায় ঠিক করা হলো:
+            // • Treatment Progress-এ showCloseReview-এর প্রমাণিত একই
+            //   today-vs-old রঙের নিয়ম (remarkUpdatedAt ধরে)।
+            val todayV668 = FollowUpModel.today()
+            val isFromTodayV668 = row.remarkUpdatedAt.take(10) == todayV668
+            val hasRealRemarkV668 = treatment.isNotBlank() && !isAutoStub
             b.tvTreatment.setTextColor(android.graphics.Color.parseColor(
-                if (treatment.isNotBlank() && !isAutoStub) "#334155" else "#C47B00"))
+                when {
+                    treatment.isBlank() || isAutoStub -> "#C47B00"
+                    hasRealRemarkV668 && isFromTodayV668 -> "#0B4F2A"   // আজকের — গাঢ়, উজ্জ্বল সবুজ
+                    else -> "#9AA4B2"                                   // আগের দিনের — হালকা ধূসর
+                }
+            ))
+            if (hasRealRemarkV668 && isFromTodayV668) b.tvTreatment.setTypeface(b.tvTreatment.typeface, android.graphics.Typeface.BOLD)
+            else b.tvTreatment.setTypeface(android.graphics.Typeface.DEFAULT)
 
             // TK-APPROVED (2026-07-20): status shown by ROW FILL COLOUR (no
             // tick, no "এসেছেন" text): green = arrived, yellow = expected
             // (আসার কথা), red = not arrived / enquiry.
             val bg = when {
-                row.arrived -> "#E9F8F0"
+                // 🟢🔒 V668 — "arrived" রঙ #E9F8F0 (হালকা সবুজ) থেকে সাদা,
+                // TK-এর স্পষ্ট নির্দেশ ("পরিষ্কার সাদা থাকবে")। expected/
+                // not-arrived-এর রঙ অক্ষত (আলাদা অভিযোগ ছিল না)।
+                row.arrived -> "#FFFFFF"
                 row.expected -> "#FFF9E6"
                 else -> "#FDEEEE"
             }
@@ -192,13 +217,26 @@ class ChamberAttendanceAdapter(
             // 🟢🔒 V588 — Wide-লেআউটেও একই (উপরের ঘরটার হুবহু একই যুক্তি)।
             val pidTextVW = listOfNotNull(
                 whenV.ifBlank { null },
-                row.refDoctor.ifBlank { null }?.let { "👨‍⚕️ $it" }
+                // 🟢🔒 V668 — Wide-লেআউটেও একই ("Ref By:")।
+                row.refDoctor.ifBlank { null }?.let { "Ref By: $it" }
             ).joinToString("\n")
             b.tvPatientIdW.text = pidTextVW
             b.tvPatientIdW.visibility = if (pidTextVW.isNotBlank()) View.VISIBLE else View.GONE
             val note = row.remark.trim()
             b.tvTreatmentW.text = if (note.isNotBlank()) note else "—"
-            b.tvTreatmentW.setTextColor(android.graphics.Color.parseColor(if (note.isNotBlank()) "#334155" else "#C47B00"))
+            // 🟢🔒 V668 — compact/wide লেআউটেও একই today-vs-old রঙের নিয়ম।
+            val isAutoStubW = note.equals("Registered patient / Visit created", ignoreCase = true)
+            val hasRealRemarkW = note.isNotBlank() && !isAutoStubW
+            val isFromTodayW = row.remarkUpdatedAt.take(10) == todayV668
+            b.tvTreatmentW.setTextColor(android.graphics.Color.parseColor(
+                when {
+                    note.isBlank() || isAutoStubW -> "#C47B00"
+                    hasRealRemarkW && isFromTodayW -> "#0B4F2A"
+                    else -> "#9AA4B2"
+                }
+            ))
+            if (hasRealRemarkW && isFromTodayW) b.tvTreatmentW.setTypeface(b.tvTreatmentW.typeface, android.graphics.Typeface.BOLD)
+            else b.tvTreatmentW.setTypeface(android.graphics.Typeface.DEFAULT)
             b.tvDiseaseW.visibility = View.GONE
 
             // TK-APPROVED (2026-07-20): Cash / Online cell -> take/edit that

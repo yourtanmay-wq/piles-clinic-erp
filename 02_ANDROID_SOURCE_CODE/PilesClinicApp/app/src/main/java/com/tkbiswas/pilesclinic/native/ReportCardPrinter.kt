@@ -216,13 +216,18 @@ body{padding:10px;position:relative}
 .rtitle{text-align:center;font-weight:800;margin:2px 0 4px}
 table{width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed}
 th,td{border:1px solid #0B2B59;height:24px;text-align:center;padding:1px 4px;overflow:hidden}
-/* 🔒 V235: table এখন ৪ column — DUE column বাদ; TREATMENT PROGRESS আরও চওড়া।
-   navy/teal রঙ ও border অপরিবর্তিত। */
-th:nth-child(1),td:nth-child(1){width:8%}
-th:nth-child(2),td:nth-child(2){width:15%}
-th:nth-child(3),td:nth-child(3){width:62%}
+/* 🔴🔒 V686 (২৫.০৮.২০২৬, TK-নির্দেশ — কাগজটা আরও প্রফেশনাল দেখাতে হবে) — আসল কারণ
+   (ছবি+PDF মিলিয়ে ধরা): VISIT ("VISI" কাটা যাচ্ছিল) ও DATE (শেষ অঙ্ক
+   কাটা, "28.07.202") কলাম দুটো বড়-হাতের-অক্ষর+bold লেখার তুলনায় অনেক
+   সরু ছিল, table-layout:fixed + overflow:hidden থাকায় লেখা নীরবে কেটে
+   যেত। এখন চওড়া করা হলো, PROGRESS কলাম একই অনুপাতে কমানো হয়েছে (মোট
+   ঠিক ১০০%)। ⛔ রং/বর্ডার/ফন্ট-সাইজ কিছু বদলায়নি, শুধু প্রস্থ+wrap। */
+th:nth-child(1),td:nth-child(1){width:10%}
+th:nth-child(2),td:nth-child(2){width:18%}
+th:nth-child(3),td:nth-child(3){width:57%}
 th:nth-child(4),td:nth-child(4){width:15%}
-th{background:#0e7c7b;color:#fff}
+th{background:#0e7c7b;color:#fff;white-space:nowrap;font-size:10.5px}
+td.v,td:nth-child(2){white-space:nowrap}
 /* 🔒 V235 (TK, Report Card—Single A4): Treatment Progress লেখা আর কখনো কাটা/লুকানো
    হবে না — আগের ২-লাইন clamp (line-clamp:2 · overflow:hidden) সরানো হলো। এখন
    লম্বা note প্রয়োজনীয় সংখ্যক লাইনে পুরো দেখায় (word-break সহ), cell/row নিজে

@@ -9,6 +9,7 @@ import androidx.core.view.doOnLayout
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.tkbiswas.pilesclinic.databinding.ActivityPatientTimelineBinding
+import com.tkbiswas.pilesclinic.clinical.checkupRecordFromJsonStringOrNull
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -213,9 +214,12 @@ class PatientTimelineActivity : AppCompatActivity() {
 
             // 🔒 B569 (08.08.2026, TK-অনুমোদিত প্রুফ): আগের "Full Journey" বোতামটা
             // আসলে এই একই পর্দাই আবার খুলত (View All = Full Journey — TK-এর যাচাই),
-            // তাই ডুপ্লিকেট ছিল। এখন এটা "📜 History" — চাপলে এই রোগীর A4 চেকআপ
+            // তাই ডুপ্লিকেট ছিল। এখন এটা "History" — চাপলে এই রোগীর A4 চেকআপ
             // রিপোর্ট (ফটোসহ) খোলে। ⛔ বাকি ৩ বোতাম (Report Card/Payment/Action)
             // অপরিবর্তিত। XML-এ btnCall-এর লেখাও "📜 History" করা হয়েছে।
+            // 🟢🔒 V627 (২৪.০৮.২০২৬, TK-নির্দেশ) — নাম বদলে "Checkup History"
+            // (XML দেখুন)। চেকআপ না থাকলে এখন Toast না দেখিয়ে সরাসরি Doctor
+            // Checkup ফর্ম খোলে (openCheckupHistory()-এর ভিতরেই)।
             binding.btnCall.setOnClickListener { openCheckupHistory() }
             // TK-REQUESTED (2026-07-22): was WhatsApp -- now Report Card.
             // Report Card needs a bill to exist (same condition Take Action
@@ -402,6 +406,40 @@ class PatientTimelineActivity : AppCompatActivity() {
         val mobileInput = android.widget.EditText(this).apply {
             setText(currentMobile); hint = "Mobile"; inputType = android.text.InputType.TYPE_CLASS_PHONE
         }
+        // 🟢🔒🔒 V664 (২৫.০৮.২০২৬, TK-নির্দেশ, স্পষ্ট) — "ফলোআপ কার্ডে তিনবার
+        // চাপ দিলে যে এডিট হয়... আমি চাইছি ওইটাই এখানে থাকুক।" — Follow-up
+        // কার্ডের নিজের "Edit Record" (`FollowUpActivity.showEditDialog`)-এ
+        // Branch/Disease/Age/Sex/Address আছে, এখানে ছিল না — এখন সেই একই
+        // ঘরগুলো এখানেও যোগ করা হলো। ⛔ সেভের নিরাপত্তা (মোবাইল বদলালে
+        // Follow-up/Enquiry/Payment সিঙ্ক) নিচে **অক্ষত** রাখা হয়েছে —
+        // নতুন ঘরগুলো শুধু `patients` টেবিলে সরাসরি বসে, কোনো নতুন ঝুঁকি
+        // নেই।
+        val branchOptions = listOf("Kishanganj", "Jalpaiguri", "Cooch Behar", "Falakata", "Birpara")
+        val branchLabel = android.widget.TextView(this).apply { text = "Branch"; textSize = 11.5f; setPadding(0, dp(14), 0, dp(2)) }
+        val branchSpinner = android.widget.Spinner(this).apply {
+            adapter = android.widget.ArrayAdapter(this@PatientTimelineActivity, android.R.layout.simple_spinner_dropdown_item, branchOptions)
+            val bi = branchOptions.indexOfFirst { it.equals(currentBranch, ignoreCase = true) }; if (bi >= 0) setSelection(bi)
+        }
+        val diseaseOptions = listOf("Piles", "Fissure", "Fistula", "Hydrocele", "Gupt Rog", "Other")
+        val diseaseLabel = android.widget.TextView(this).apply { text = "Disease"; textSize = 11.5f; setPadding(0, dp(14), 0, dp(2)) }
+        val diseaseSpinner = android.widget.Spinner(this).apply {
+            adapter = android.widget.ArrayAdapter(this@PatientTimelineActivity, android.R.layout.simple_spinner_dropdown_item, diseaseOptions)
+            val di = diseaseOptions.indexOfFirst { it.equals(currentDisease, ignoreCase = true) }; if (di >= 0) setSelection(di)
+        }
+        val ageLabel = android.widget.TextView(this).apply { text = "Age"; textSize = 11.5f; setPadding(0, dp(14), 0, dp(2)) }
+        val ageInput = android.widget.EditText(this).apply {
+            setText(currentPatientAge); hint = "Age"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+            keyListener = android.text.method.DigitsKeyListener.getInstance("0123456789")
+        }
+        val sexOptions = listOf("Male", "Female", "Other")
+        val sexLabel = android.widget.TextView(this).apply { text = "Sex"; textSize = 11.5f; setPadding(0, dp(14), 0, dp(2)) }
+        val sexSpinner = android.widget.Spinner(this).apply {
+            adapter = android.widget.ArrayAdapter(this@PatientTimelineActivity, android.R.layout.simple_spinner_dropdown_item, sexOptions)
+            val si = sexOptions.indexOfFirst { it.equals(currentPatientSex, ignoreCase = true) }; if (si >= 0) setSelection(si)
+        }
+        val addressLabel = android.widget.TextView(this).apply { text = "Address"; textSize = 11.5f; setPadding(0, dp(14), 0, dp(2)) }
+        val addressInput = android.widget.EditText(this).apply { setText(currentPatientAddress); hint = "Address" }
         val refLabel = android.widget.TextView(this).apply {
             text = "Referred by Doctor (optional — fill in later if it becomes known)"
             textSize = 11.5f
@@ -413,9 +451,18 @@ class PatientTimelineActivity : AppCompatActivity() {
         }
         container.addView(nameInput)
         container.addView(mobileInput)
+        // 🟢🔒 V664 — নতুন ঘরগুলো, নাম/মোবাইলের ঠিক পরে (রেফারিং ডাক্তারের আগে)
+        container.addView(branchLabel); container.addView(branchSpinner)
+        container.addView(diseaseLabel); container.addView(diseaseSpinner)
+        container.addView(ageLabel); container.addView(ageInput)
+        container.addView(sexLabel); container.addView(sexSpinner)
+        container.addView(addressLabel); container.addView(addressInput)
         container.addView(refLabel)
         container.addView(refDoctorInput)
         container.addView(refDoctorMobileInput)
+        // 🟢🔒 V664 — ScrollView-এর ভিতরে বসানো (আগে থেকে ScrollView-এই
+        // container বসে, নিচেই দেখুন — নতুন ঘর যোগ হওয়ায় ফর্ম লম্বা হলো,
+        // তাই এখন স্ক্রল করে দেখা যাবে, কিছু হারানোর ঝুঁকি নেই)।
         UppercaseInputUtil.applyToAll(container)  // TK-REQUESTED GLOBAL RULE (2026-07-24): English text auto-CAPITAL, Password fields excluded automatically
         val editDlg = androidx.appcompat.app.AlertDialog.Builder(this)
             .setCustomTitle(PremiumAlert.header(this, "✏️ Edit Patient"))
@@ -439,11 +486,27 @@ class PatientTimelineActivity : AppCompatActivity() {
                 }
                 val newRefDoctor = refDoctorInput.text.toString().trim()
                 val newRefDoctorMobile = refDoctorMobileInput.text.toString().filter { it.isDigit() }.takeLast(10)
+                // 🟢🔒 V664 (২৫.০৮.২০২৬, TK-নির্দেশ) — নতুন ঘরগুলোর মান।
+                val newBranch = branchSpinner.selectedItem?.toString().orEmpty()
+                val newDisease = diseaseSpinner.selectedItem?.toString().orEmpty()
+                val newAge = ageInput.text.toString().trim()
+                val newSex = sexSpinner.selectedItem?.toString().orEmpty()
+                val newAddress = addressInput.text.toString().trim()
                 val fields = org.json.JSONObject()
                     .put("name", newName)
                     .put("mobile", newMobile)
                     .put("refDoctor", newRefDoctor)
                     .put("refDoctorMobile", newRefDoctorMobile)
+                    // 🟢🔒 V664 — Follow-up কার্ডের "Edit Record"-এর সাথে মিলিয়ে,
+                    // এই চারটে নতুন ঘরও একইভাবে সরাসরি লেখা হয় (ফাঁকা হলেও
+                    // Branch/Sex/Disease-এর জন্য সমস্যা নেই — স্পিনারে সবসময়
+                    // একটা মান বাছাই থাকে; Age/Address ফাঁকা থাকলে ফাঁকাই বসে,
+                    // ঠিক আগে থেকে থাকা নিয়মের মতোই)।
+                    .put("branch", newBranch)
+                    .put("disease", newDisease)
+                    .put("age", newAge)
+                    .put("sex", newSex)
+                    .put("address", newAddress)
                     // TK-REQUESTED (2026-07-18): if the referring doctor is
                     // filled in after the fact, also mark refBy = "Dr. Visit"
                     // so this patient correctly shows up on that doctor's
@@ -673,6 +736,18 @@ class PatientTimelineActivity : AppCompatActivity() {
         // label now reflects what's actually being edited at this stage.
         // showPatientHeaderEdit() itself is unchanged either way.
         actionRow("✏️", if (isRegistered) "Edit Patient" else "Edit Enquiry", "#0E7C7B") { dialog.dismiss(); showPatientHeaderEdit() }
+        // 🟢🔒 V616 (২৪.০৮.২০২৬, TK-নির্দেশ — "ভুল ব্রাঞ্চে রেজিস্টার হওয়া
+        // রোগী পরে ঠিক ব্রাঞ্চে সরানোর ব্যবস্থা") — শুধু Master দেখবেন।
+        // ⛔ এই ফাংশনের নিজস্ব `user` ভেরিয়েবল এখনো ঘোষণা হয়নি (নিচে হয়),
+        // তাই এখানে আলাদাভাবে সেশন পড়া হলো — বাকি কিছু ছোঁয়া হয়নি।
+        if (NativeSession.current(this)?.role == "master") {
+            actionRow("🔀", "Change Branch (Master)", "#B42318") { dialog.dismiss(); showChangeBranchDialog() }
+        }
+        // 🟢🔒 V621 (২৪.০৮.২০২৬, TK-নির্দেশ) — Visit Card থেকে Fees Return।
+        // ⛔ শুধু রেজিস্টার্ড রোগীর জন্য (Enquiry-only-তে Fees-ই নেই)।
+        if (isRegistered) {
+            actionRow("💸", "Return Fees", "#B45309") { dialog.dismiss(); showReturnFeesDialog() }
+        }
         actionRow("⏰", "Next Follow-up তারিখ", "#B8860B") { dialog.dismiss(); showQuickNextFollowDialog() }
         // TK-REQUESTED ADDITION (2026-07-20): "Mark Arrived (এসেছেন)" from the
         // Patient Card too -- marks this patient into TODAY's Chamber
@@ -1128,12 +1203,14 @@ class PatientTimelineActivity : AppCompatActivity() {
         PremiumAlert.paint(dialog)
     }
 
-    /** TK-REQUESTED ADDITION (2026-07-19): opens the same Prescription /
-     *  Medicine Slip / Blood Test / Diet Chart choice already used from the
-     *  Follow-up card's "Prescription" tag (FollowUpActivity.openClinicalMenu)
-     *  -- same targets, same RoleSession hand-off, just reachable from Take
-     *  Action here too so nothing requires leaving this screen. */
-    private fun showClinicalDocumentMenu() {
+    /** 🟢🔒 V627 (২৪.০৮.২০২৬, TK-নির্দেশ) — `showClinicalDocumentMenu()`-এর
+     *  `RoleSession.applyFrom(...)` অংশটা আলাদা ফাংশনে বার করা হলো, যাতে
+     *  "Checkup History" বোতাম চেকআপ না-থাকা রোগীর ক্ষেত্রে সরাসরি
+     *  `DoctorCheckupActivity` খুলতে একই প্রমাণিত সেটআপ পুনর্ব্যবহার করতে
+     *  পারে — দ্বিতীয়বার একই কোড লেখা লাগেনি, তাই দুই জায়গায় কখনো আলাদা
+     *  হয়ে যাওয়ার ঝুঁকি নেই।
+     */
+    private fun prepareClinicalRoleSession() {
         val user = NativeSession.current(this)
         val roleStr = if (user?.role?.equals("doctor", true) == true) "DOCTOR" else "STAFF"
         com.tkbiswas.pilesclinic.clinical.RoleSession.applyFrom(
@@ -1142,24 +1219,19 @@ class PatientTimelineActivity : AppCompatActivity() {
             currentPatientRowId.ifBlank { currentFollowupId },
             currentBranch,
             currentMobile,
-            // 🔒🔒 খাতার সারি B174 (TK, 30.07.2026 — "প্রেসক্রিপশনে বয়স/লিঙ্গ/
-            // ঠিকানা auto-fill হচ্ছে না")। **আসল কারণ (কোড ধরে, আন্দাজ নয়):**
-            // এখানে আগে তিনটে ঘরই `null` পাঠানো হত, অথচ এই তথ্য এই পর্দাতেই
-            // (হেডারে "MALE-40" ও ঠিকানা) আগে থেকেই আছে। `RoleSession.
-            // applyFrom()` `null` পেলে পুরনো (হয়তো অন্য রোগীর, বা ফাঁকা) মান
-            // ধরেই রাখে — তাই Prescription/Diet Chart-এ এই তিনটে ঘরই ফাঁকা
-            // ("-") দেখাত। এখন এই পর্দার নিজের ধরে-রাখা মান পাঠানো হচ্ছে।
             currentPatientAddress, currentPatientAge, currentPatientSex,
             currentDisease,
-            // 🔒 খাতার সারি B175 (TK, 30.07.2026 — "Patient ID তো প্রজেক্টের
-            // শুরু থেকেই ফাইনাল ছিল, তাহলে প্রেসক্রিপশনে নেই কেন?")। আসল কারণ:
-            // উপরের তৃতীয় ঘরে (`currentPatientRowId`) raw আইডি যেত (যেমন
-            // "pat_9711468691") — সেটা `medical` টেবিলের চাবি হিসেবে ঠিকই
-            // আছে, শুধু ছাপায় সেটাই "Patient ID" হিসেবে দেখাত। মানুষ-পড়া-যায়
-            // কোডটা (`currentPatientCode = data.patientId`, যেমন
-            // "KNE-30072026-001") এখন আলাদা ঘরে পাঠানো হচ্ছে।
             patientDisplayId = currentPatientCode
         )
+    }
+
+    /** TK-REQUESTED ADDITION (2026-07-19): opens the same Prescription /
+     *  Medicine Slip / Blood Test / Diet Chart choice already used from the
+     *  Follow-up card's "Prescription" tag (FollowUpActivity.openClinicalMenu)
+     *  -- same targets, same RoleSession hand-off, just reachable from Take
+     *  Action here too so nothing requires leaving this screen. */
+    private fun showClinicalDocumentMenu() {
+        prepareClinicalRoleSession()
         val options = arrayOf("🩺 Doctor Checkup", "📝 Prescription", "💊 Medicine Slip", "🩸 Blood Test", "🥗 Diet Chart")
         val targets = arrayOf(
             com.tkbiswas.pilesclinic.clinical.DoctorCheckupActivity::class.java,
@@ -1839,6 +1911,185 @@ class PatientTimelineActivity : AppCompatActivity() {
 
     /** Quick Next Follow-up date picker — same underlying save
      *  (FollowUpRepository.updateNextFollow) used by the Follow-up screen. */
+    /**
+     * 🟢🔒 V616 (২৪.০৮.২০২৬, TK-নির্দেশ) — ভুল ব্রাঞ্চে রেজিস্টার হওয়া
+     * রোগীর সব তথ্য (patients/followups/payments) সঠিক ব্রাঞ্চে সরানো।
+     * Master-only (menu-তেই role-চেক করা)। ঝুঁকিপূর্ণ/অপরিবর্তনীয় বলে
+     * PremiumAlert-এর লাল (severe) হেডার + স্পষ্ট সংখ্যা দেখিয়ে দুবার
+     * নিশ্চিত করা হয় — TK-এর নিজের "৩ বার চাপ" চাওয়ার চেয়ে নিরাপদ ধরন,
+     * কারণ এখানে ভুল হলে ফেরানো কঠিন (তাই "৩ চাপ" না, দুটো পূর্ণ
+     * নিশ্চিতকরণ-পর্দা)।
+     */
+    private fun showChangeBranchDialog() {
+        val mobile = currentMobile
+        android.widget.Toast.makeText(this, NoBengali.s("খোঁজা হচ্ছে…"), android.widget.Toast.LENGTH_SHORT).show()
+        lifecycleScope.launch {
+            val preview = withContext(Dispatchers.IO) { BranchTransferRepository.preview(mobile) }
+            if (preview == null || preview.totalCount == 0) {
+                android.widget.Toast.makeText(this@PatientTimelineActivity, NoBengali.s("কোনো রেকর্ড পাওয়া যায়নি — নেট চেক করুন"), android.widget.Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            val fromBranches = preview.currentBranches.joinToString(", ").ifBlank { "—" }
+            val branches = BranchFilterStore.BRANCHES
+            // 🔴🔒 V616 — প্রতিটা স্থির (static) বাংলা অংশ আলাদাভাবে NoBengali.s()-এ
+            // মোড়া, মাঝে সংখ্যা/নাম জোড়া — যাতে অভিধান-মেলানো নিশ্চিত হয়
+            // (একই কারণ V607/CallReminderWorker-এ ব্যবহার হয়েছিল)।
+            val msg = "$currentPatientName ($mobile)\n\n" +
+                NoBengali.s("এখনকার ব্রাঞ্চ: ") + fromBranches + "\n" +
+                NoBengali.s("মোট সারি সরবে: ") + preview.totalCount + " " +
+                "(Patient " + preview.patientRows.size + " · Follow-up " + preview.followupRows.size + " · Payment " + preview.paymentRows.size + ")\n\n" +
+                NoBengali.s("নতুন ব্রাঞ্চ বেছে নিন:")
+            // 🔴🔒 V679 (২৫.০৮.২০২৬, TK-লাইভ-টেস্ট রিপোর্ট — "কোথাও চাপ দিলে
+            // কোনো কাজই হয় না") — আসল কারণ: AlertDialog-এ `setMessage()`
+            // ও `setSingleChoiceItems()` একসাথে দিলে Android নিজস্ব
+            // তালিকাটাই আর দেখায় না (`setView()`-এর সাথে মিলিয়ে দিলেও
+            // একই সমস্যা — দুটো কখনোই একসাথে কাজ করে না)। প্রজেক্টের
+            // বাকি প্রতিটা ব্রাঞ্চ-পিকার এই দুটো একসাথে ব্যবহারই করে না,
+            // তাই ওখানে এই বাগ কখনো ছিল না।
+            //
+            // সমাধান: লেখা + তালিকা দুটোই এখন একটাই কাস্টম View-তে হাতে
+            // বসানো (TextView হেডার + প্রতিটা ব্রাঞ্চের নিজের ক্লিকযোগ্য
+            // সারি) — `setSingleChoiceItems()` আর ব্যবহার হচ্ছে না।
+            val d = resources.displayMetrics.density
+            val container = android.widget.LinearLayout(this@PatientTimelineActivity).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+                setPadding((20 * d).toInt(), (16 * d).toInt(), (20 * d).toInt(), (8 * d).toInt())
+            }
+            container.addView(android.widget.TextView(this@PatientTimelineActivity).apply {
+                text = msg
+                textSize = 14f
+                setTextColor(android.graphics.Color.parseColor("#344054"))
+                setLineSpacing(0f, 1.2f)
+                setPadding(0, 0, 0, (10 * d).toInt())
+            })
+            var chosenDialog: androidx.appcompat.app.AlertDialog? = null
+            for (b in branches) {
+                container.addView(android.widget.TextView(this@PatientTimelineActivity).apply {
+                    text = b
+                    textSize = 15.5f
+                    setTextColor(android.graphics.Color.parseColor("#1B2A4A"))
+                    setPadding((4 * d).toInt(), (12 * d).toInt(), (4 * d).toInt(), (12 * d).toInt())
+                    isClickable = true; isFocusable = true
+                    background = android.graphics.drawable.RippleDrawable(
+                        android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#E9EEF5")),
+                        null, null
+                    )
+                    setOnClickListener {
+                        chosenDialog?.dismiss()
+                        confirmChangeBranch(preview, b, fromBranches)
+                    }
+                })
+                if (b != branches.last()) container.addView(android.view.View(this@PatientTimelineActivity).apply {
+                    setBackgroundColor(android.graphics.Color.parseColor("#EEF2F7"))
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.MATCH_PARENT, (1 * d).toInt()
+                    )
+                })
+            }
+            chosenDialog = androidx.appcompat.app.AlertDialog.Builder(this@PatientTimelineActivity)
+                .setCustomTitle(PremiumAlert.header(this@PatientTimelineActivity, "🔀 Change Branch"))
+                .setView(container)
+                .setNegativeButton("Cancel", null)
+                .show().also { PremiumAlert.paint(it) }
+        }
+    }
+
+    private fun confirmChangeBranch(preview: BranchTransferRepository.TransferPreview, newBranch: String, fromBranches: String) {
+        // 🔴 দ্বিতীয় নিশ্চিতকরণ — লাল/গুরুতর, কারণ এটা একবার হয়ে গেলে
+        // হাতে-ধরে আবার উল্টাতে হবে (কোনো "Undo" নেই)।
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(PremiumAlert.header(this, NoBengali.s("⚠️ এই ব্রাঞ্চ-বদল স্থায়ী")))
+            .setMessage(
+                "$fromBranches → $newBranch\n" +
+                preview.totalCount + NoBengali.s("টা সারি সরবে (Patient/Follow-up/Payment)।\n\n") +
+                NoBengali.s("⛔ Patient ID অক্ষত থাকবে (আগের ছাপা কাগজের সাথে মিলে থাকার জন্য) — ") +
+                NoBengali.s("শুধু ID-র শুরুর অক্ষর নতুন ব্রাঞ্চের সাথে নাও মিলতে পারে, এটা শুধু দেখতে, হিসাবে ভুল করে না।\n\n") +
+                NoBengali.s("সত্যিই এগোতে চান?")
+            )
+            .setPositiveButton(NoBengali.s("হ্যাঁ, সরান")) { _, _ ->
+                lifecycleScope.launch {
+                    val result = withContext(Dispatchers.IO) { BranchTransferRepository.transfer(preview, newBranch) }
+                    val resultMsg = if (result.failed == 0)
+                        "✅ " + result.moved + NoBengali.s("টা সারি ") + newBranch + NoBengali.s("-এ সরানো হলো")
+                    else
+                        "⚠️ " + result.moved + NoBengali.s("টা সরেছে, ") + result.failed + NoBengali.s("টা ব্যর্থ — আবার চেষ্টা করুন")
+                    android.widget.Toast.makeText(this@PatientTimelineActivity, resultMsg, android.widget.Toast.LENGTH_LONG).show()
+                    if (result.moved > 0) load(currentMobile, currentSection)
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show().also { PremiumAlert.paint(it) }
+    }
+
+    /**
+     * 🟢🔒 V621 (২৪.০৮.২০২৬, TK-নির্দেশ) — Visit Card থেকে Fees (Visit
+     * Fee/Registration Fee) ফেরত। ⛔ কোনো নতুন টাকা-হিসাবের পথ বানানো
+     * হয়নি — একই প্রমাণিত `PaymentRepository.identitiesOnMobile()` +
+     * `saveRefund()` (V509-এ Visit Fee-সহ refundable) ব্যবহার হচ্ছে,
+     * যা Refund স্ক্রিনও ব্যবহার করে। শুধু এখানে সফল হওয়ার পরে অতিরিক্ত
+     * একটা কাজ: এই Visit-কে "Returned" ট্যাগ করা, যাতে —
+     *   ১) Draft-এ নতুন "Return Visit" তালিকায় দেখা যায়
+     *   ২) Chamber Date থেকে সম্পূর্ণ বাদ যায় (RefundedRecords-এর নতুন
+     *      `fetchReturnedVisits()`, বিদ্যমান Cancelled-নিয়ম অক্ষত রেখে)
+     */
+    private fun showReturnFeesDialog() {
+        val mobile = currentMobile
+        android.widget.Toast.makeText(this, NoBengali.s("লোড হচ্ছে…"), android.widget.Toast.LENGTH_SHORT).show()
+        lifecycleScope.launch {
+            val user = NativeSession.current(this@PatientTimelineActivity) ?: return@launch
+            val patients = withContext(Dispatchers.IO) {
+                try { PaymentRepository(this@PatientTimelineActivity).identitiesOnMobile(mobile) } catch (_: Throwable) { emptyList() }
+            }
+            val patient = patients.firstOrNull()
+            if (patient == null || patient.visitFeePaid <= 0.0) {
+                android.widget.Toast.makeText(this@PatientTimelineActivity, NoBengali.s("ফেরতযোগ্য Fees নেই এই রোগীর"), android.widget.Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            // 🔒 একই দিন-ভিত্তিক নিয়ম যা বাকি সব পেমেন্ট-সংশোধনে চলে —
+            // চেম্বার আজ খোলা থাকলে (বা Master হলে) সরাসরি, নইলে অনুমতি লাগবে।
+            val allowed = user.role == "master" || withContext(Dispatchers.IO) {
+                try { PaymentRepository(this@PatientTimelineActivity).chamberOpenToday(patient.branch) } catch (_: Throwable) { false }
+            }
+            if (!allowed) {
+                android.widget.Toast.makeText(this@PatientTimelineActivity, NoBengali.s("আজকের চেম্বার বন্ধ হয়ে গেছে — এখন Master-এর অনুমতি লাগবে"), android.widget.Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            val amt = patient.visitFeePaid
+            androidx.appcompat.app.AlertDialog.Builder(this@PatientTimelineActivity)
+                .setCustomTitle(PremiumAlert.header(this@PatientTimelineActivity, NoBengali.s("⚠️ Return Fees — স্থায়ী")))
+                .setMessage(
+                    "₹${"%,.0f".format(amt)} " + NoBengali.s("ফেরত দেওয়া হবে।\n") +
+                    NoBengali.s("এই Visit \"Return Visit\" তালিকায় (Draft) সরে যাবে — Chamber Date-সহ সক্রিয় তালিকা থেকে বাদ পড়বে।\n\n") +
+                    NoBengali.s("সত্যিই এগোতে চান?")
+                )
+                .setPositiveButton(NoBengali.s("হ্যাঁ, Return করুন")) { _, _ ->
+                    lifecycleScope.launch {
+                        val result = withContext(Dispatchers.IO) {
+                            PaymentRepository(this@PatientTimelineActivity).saveRefund(patient, amt, "CASH", "Fees Return (Visit Card)", user)
+                        }
+                        if (!result.success) {
+                            android.widget.Toast.makeText(this@PatientTimelineActivity, result.message.ifBlank { NoBengali.s("ব্যর্থ — আবার চেষ্টা করুন") }, android.widget.Toast.LENGTH_LONG).show()
+                            return@launch
+                        }
+                        val marked = withContext(Dispatchers.IO) {
+                            try {
+                                if (currentFollowupId.isBlank()) false
+                                else SupabaseClient.updateById("followups", currentFollowupId, org.json.JSONObject().put("status", "Returned"))
+                            } catch (_: Throwable) { false }
+                        }
+                        android.widget.Toast.makeText(
+                            this@PatientTimelineActivity,
+                            NoBengali.s(if (marked) "✅ Fees ফেরত হলো — Return Visit-এ সরানো হলো" else "Fees ফেরত হয়েছে, কিন্তু Return Visit-ট্যাগ ব্যর্থ — Draft-এ হাতে ঠিক করুন"),
+                            android.widget.Toast.LENGTH_LONG
+                        ).show()
+                        load(currentMobile, currentSection)
+                    }
+                }
+                .setNegativeButton("Cancel", null)
+                .show().also { PremiumAlert.paint(it) }
+        }
+    }
+
     private fun showQuickNextFollowDialog() {
         if (currentFollowupId.isBlank()) {
             android.widget.Toast.makeText(this, "No Follow-up record yet for this patient", android.widget.Toast.LENGTH_SHORT).show()
@@ -2010,7 +2261,8 @@ class PatientTimelineActivity : AppCompatActivity() {
                             val sent = withContext(Dispatchers.IO) {
                                 DeletePermission.sendRequest(
                                     this@PatientTimelineActivity, user, what,
-                                    currentPatientName, currentMobile, currentPatientCode, currentBranch
+                                    currentPatientName, currentMobile, currentPatientCode, currentBranch,
+                                    disease = currentDisease
                                 )
                             }
                             android.widget.Toast.makeText(
@@ -2173,7 +2425,8 @@ class PatientTimelineActivity : AppCompatActivity() {
                     val ok = withContext(Dispatchers.IO) {
                         DeletePermission.sendRequest(
                             this@PatientTimelineActivity, user, what,
-                            currentPatientName, currentMobile, currentPatientCode, currentBranch
+                            currentPatientName, currentMobile, currentPatientCode, currentBranch,
+                            disease = currentDisease
                         )
                     }
                     android.widget.Toast.makeText(
@@ -3518,7 +3771,7 @@ class PatientTimelineActivity : AppCompatActivity() {
                     // the patient actually promised to come; it writes one
                     // chamber_expected entry (deterministic id, so re-picking
                     // just moves the date). Other stages keep WhatsApp as-is.
-                    binding.btnWhatsApp.text = "⏰ আসার কথা"
+                    binding.btnWhatsApp.text = NoBengali.s("⏰ আসার কথা")
                     binding.btnWhatsApp.setBackgroundColor(android.graphics.Color.parseColor("#0E7C7B"))
                     binding.btnWhatsApp.backgroundTintList = null
                     binding.btnWhatsApp.setOnClickListener { pickExpectedDateForEnquiry() }
@@ -3535,7 +3788,7 @@ class PatientTimelineActivity : AppCompatActivity() {
                     // pickExpectedDateForEnquiry() is not actually
                     // Enquiry-specific -- it only keys off currentMobile).
                     binding.btnCall.visibility = View.GONE
-                    binding.btnWhatsApp.text = "⏰ আসার কথা"
+                    binding.btnWhatsApp.text = NoBengali.s("⏰ আসার কথা")
                     binding.btnWhatsApp.setBackgroundColor(android.graphics.Color.parseColor("#0E7C7B"))
                     binding.btnWhatsApp.backgroundTintList = null
                     binding.btnWhatsApp.setOnClickListener { pickExpectedDateForEnquiry() }
@@ -3601,6 +3854,12 @@ class PatientTimelineActivity : AppCompatActivity() {
     // "📜 History" বানানো হলো (View All আর Full Journey একই পর্দা — TK-এর যাচাই)।
     // চাপলে এই রোগীর সর্বশেষ Doctor Checkup সারির A4 রিপোর্ট (ফটোসহ) খোলে।
     // ⛔ চেকআপ না থাকলে শুধু জানানো হয়, কিছু ভাঙে না।
+    /**
+     * 🟢🔒 V627 (২৪.০৮.২০২৬, TK-নির্দেশ) — নাম বদলে "Checkup History", আর
+     * চেকআপ **এখনো করা না হলে** টোস্ট দেখিয়ে থেমে না গিয়ে সরাসরি Doctor
+     * Checkup ফর্ম খোলে (যাতে ওখান থেকেই চেকআপ শুরু করা যায়)। চেকআপ আগে
+     * থেকেই থাকলে আচরণ অপরিবর্তিত — A4 রিপোর্ট দেখায়।
+     */
     private fun openCheckupHistory() {
         // তালিকা নতুন-আগে সাজানো — তাই firstOrNull = সবচেয়ে সাম্প্রতিক চেকআপ।
         val checkup = currentEntries.firstOrNull {
@@ -3608,7 +3867,38 @@ class PatientTimelineActivity : AppCompatActivity() {
             it.title.equals("Doctor Check-up", ignoreCase = true)
         }
         if (checkup == null || checkup.note.isBlank()) {
-            android.widget.Toast.makeText(this, "No check-up record yet for this patient", android.widget.Toast.LENGTH_SHORT).show()
+            prepareClinicalRoleSession()
+            startActivity(Intent(this, com.tkbiswas.pilesclinic.clinical.DoctorCheckupActivity::class.java))
+            return
+        }
+        // 🟢🔒 V676 (২৫.০৮.২০২৬, TK-নির্দেশ) — এটা যদি **আজকের নিজের** চেকআপ
+        // হয় এবং structured JSON থাকে (নতুন চেকআপ থেকেই সেভ হয়, V676-এর
+        // আগের পুরনো রেকর্ডে নেই) — তাহলে View/Edit জিজ্ঞাসা করা হয়। নইলে
+        // (পুরনো রেকর্ড/অন্য দিনের) আগের মতোই সরাসরি A4 দেখা যায়, কোনো
+        // পরিবর্তন নেই।
+        val isToday = checkup.date.take(10) == PaymentModel.today()
+        if (isToday && checkup.medicalRecordId.isNotBlank() &&
+            checkupRecordFromJsonStringOrNull(checkup.medicalSelected) != null
+        ) {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setCustomTitle(PremiumAlert.header(this, NoBengali.s("আজকের Check-up")))
+                .setMessage(NoBengali.s("আজকের চেকআপ আগেই সেভ করা আছে — দেখবেন নাকি এডিট করবেন?"))
+                .setPositiveButton("Edit") { _, _ ->
+                    prepareClinicalRoleSession()
+                    startActivity(
+                        Intent(this, com.tkbiswas.pilesclinic.clinical.DoctorCheckupActivity::class.java)
+                            .putExtra(com.tkbiswas.pilesclinic.clinical.DoctorCheckupActivity.EXTRA_EDIT_MEDICAL_ID, checkup.medicalRecordId)
+                            .putExtra(com.tkbiswas.pilesclinic.clinical.DoctorCheckupActivity.EXTRA_EDIT_MEDICAL_JSON, checkup.medicalSelected)
+                    )
+                }
+                .setNegativeButton("View") { _, _ ->
+                    try {
+                        showCheckupA4Dialog(checkup.note, checkup.date)
+                    } catch (_: Throwable) {
+                        android.widget.Toast.makeText(this, "Could not open the check-up record", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+                .show().also { PremiumAlert.paint(it) }
             return
         }
         try {

@@ -527,10 +527,16 @@ class DashboardActivity : AppCompatActivity() {
             fun countFrom(items: List<FollowUpItem>?): Int = items?.count { isDue(it) } ?: 0
             fun overdueFrom(items: List<FollowUpItem>?): Int =
                 items?.count { it.nextFollow.isNotBlank() && it.nextFollow < today } ?: 0
+            // 🟢🔒 V607 (২৪.০৮.২০২৬, TK-নির্দেশ) — একই তিনটে cache-পড়া থেকেই
+            // (নতুন কোনো fetch নেই — V509-এর egress-সুরক্ষা অক্ষত) সব আইটেম
+            // জমিয়ে রাখা হচ্ছে, যাতে নিচে ব্রাঞ্চ ধরে ভাঙা যায়।
+            val allDueItems = mutableListOf<FollowUpItem>()
             val instant = withContext(kotlinx.coroutines.Dispatchers.IO) {
                 try {
                     listOf("Inquiry", "Patient", "Treatment").sumOf { stage ->
-                        countFrom(repo.loadCachedTab(stage, bannerBranch))
+                        val items = repo.loadCachedTab(stage, bannerBranch)
+                        items?.filter { isDue(it) }?.let { allDueItems.addAll(it) }
+                        countFrom(items)
                     }
                 } catch (_: Exception) { 0 }
             }
@@ -561,6 +567,88 @@ class DashboardActivity : AppCompatActivity() {
                 }
             }
             render(instant)
+
+            // 🟢🔒 V607 (২৪.০৮.২০২৬, TK-নির্দেশ, ছবি-প্রুফ পাশ) — Master-only
+            // ব্রাঞ্চ-ভিত্তিক ভাঙা। ⛔ নতুন fetch নেই — উপরের `allDueItems`
+            // (একই cache-পড়া) থেকেই ব্রাঞ্চ ধরে গোনা হচ্ছে।
+            // ⛔ সৎ সীমা: স্টাফ-ভিত্তিক ভাঙা সম্ভব না — FollowUpItem-এ কোন
+            // ফলো-আপ কার দায়িত্বে তা রাখা হয় না, শুধু ব্রাঞ্চ আছে।
+            if (session.role == "master" && instant > 0) {
+                val byBranch = allDueItems.groupBy { it.branch.ifBlank { "—" } }
+                    .mapValues { (_, items) ->
+                        Pair(items.size, items.count { it.nextFollow.isNotBlank() && it.nextFollow < today })
+                    }
+                    .toList().sortedByDescending { it.second.first }
+                if (byBranch.size > 1) {   // একটাই ব্রাঞ্চ হলে দেখানোর মানে নেই, ব্যানারই যথেষ্ট
+                    binding.tvCallBreakdownLink.visibility = android.view.View.VISIBLE
+                    var expanded = false
+                    fun buildRows() {
+                        binding.callBreakdownRows.removeAllViews()
+                        val d = resources.displayMetrics.density
+                        for ((branch, nums) in byBranch) {
+                            val (pending, ov) = nums
+                            val row = android.widget.TextView(this@DashboardActivity).apply {
+                                text = "$branch — $pending pending" + (if (ov > 0) " · $ov overdue" else "")
+                                textSize = 12.5f
+                                setTextColor(android.graphics.Color.parseColor(if (ov > 0) "#D92D20" else "#374151"))
+                                setPadding((10 * d).toInt(), (8 * d).toInt(), (10 * d).toInt(), (8 * d).toInt())
+                                setBackgroundColor(android.graphics.Color.WHITE)
+                                isClickable = true; isFocusable = true
+                                setOnClickListener {
+                                    // 🔴🔒 ঠিক যা `showBranchPickerMenu()` (FollowUpActivity.kt) করে —
+                                    // Master-এর ব্রাঞ্চ-বাছাই এই একটাই জায়গায় জমা থাকে
+                                    // (BranchFilterStore), আলাদা কোনো intent-extra পড়া হয় না।
+                                    BranchFilterStore.set(this@DashboardActivity, branch)
+                                    startActivity(
+                                        Intent(this@DashboardActivity, FollowUpActivity::class.java)
+                                            .putExtra("todayOnly", true)
+                                    )
+                                }
+                            }
+                            binding.callBreakdownRows.addView(row)
+                        }
+                    }
+                    binding.tvCallBreakdownLink.setOnClickListener {
+                        expanded = !expanded
+                        if (expanded) { buildRows(); binding.callBreakdownRows.visibility = android.view.View.VISIBLE }
+                        else binding.callBreakdownRows.visibility = android.view.View.GONE
+                        binding.tvCallBreakdownLink.text = if (expanded) "▲ Hide breakdown" else "👁 Breakdown by branch"
+                    }
+                } else {
+                    binding.tvCallBreakdownLink.visibility = android.view.View.GONE
+                    binding.callBreakdownRows.visibility = android.view.View.GONE
+                }
+
+                // 🟢🔒 V607 (২৪.০৮.২০২৬, TK-নির্দেশ — "৩+ দিন ওভারডিউ হলে
+                // সরাসরি Master-কেও জানাতে হবে") — একই cache-পড়া ডেটা
+                // পুনর্ব্যবহার (নতুন fetch নেই)। দিনে **একবারই** পাঠানো হয়
+                // (SharedPreferences-এ আজকের তারিখ জমা রেখে) — নইলে Master
+                // Dashboard-এ ফেরার সাথে সাথেই বারবার নোটিশ জমত।
+                try {
+                    val threeDaysAgo = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+                        .format(java.util.Date(System.currentTimeMillis() - 3L * 24 * 60 * 60 * 1000))
+                    val badlyOverdue = allDueItems.filter { it.nextFollow.isNotBlank() && it.nextFollow <= threeDaysAgo }
+                    if (badlyOverdue.isNotEmpty()) {
+                        val alertPrefs = getSharedPreferences("piles_clinic_overdue_alert", android.content.Context.MODE_PRIVATE)
+                        val lastSent = alertPrefs.getString("last_sent_date", "")
+                        if (lastSent != today) {
+                            val byBranch2 = badlyOverdue.groupBy { it.branch.ifBlank { "—" } }
+                            val lines = byBranch2.entries.sortedByDescending { it.value.size }
+                                .joinToString("\n") { (br, items) -> "$br — " + items.size + " calls overdue 3+ days" }
+                            BriefingRepository().post(
+                                this@DashboardActivity,
+                                "⚠️ Overdue Follow-up Alert",
+                                lines,
+                                "individual", session.branch, "", session.mobile, session.mobile
+                            )
+                            alertPrefs.edit().putString("last_sent_date", today).apply()
+                        }
+                    }
+                } catch (_: Throwable) { /* এই সতর্কতা কখনো ড্যাশবোর্ড আটকাতে পারবে না */ }
+            } else {
+                binding.tvCallBreakdownLink.visibility = android.view.View.GONE
+                binding.callBreakdownRows.visibility = android.view.View.GONE
+            }
             // ══════════════════════════════════════════════════════════════
             // 🔴🔴💸 V509 (২১.০৮.২০২৬, TK-নির্দেশ — Supabase Egress ১০০% ছুঁয়ে
             //   ফেলার পরে) — **এখানেই ছিল সবচেয়ে বড় ফুটো।**

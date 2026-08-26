@@ -102,7 +102,7 @@ object InvestigationHtml {
 @page{size:A4;margin:0}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:Arial,"Noto Sans",sans-serif;color:#15231C;background:#fff}
-.sheet{width:210mm;height:296mm;padding:6mm 7mm 5mm;position:relative;display:flex;flex-direction:column}
+.sheet{width:210mm;height:297mm;padding:6mm 7mm 5mm;position:relative;overflow:hidden;display:flex;flex-direction:column}
 .head{display:grid;grid-template-columns:21mm 1fr 21mm;gap:4mm;align-items:center;padding-bottom:1.6mm}
 .head img{width:21mm;height:21mm;object-fit:contain;border-radius:50%}
 .hc{text-align:center}

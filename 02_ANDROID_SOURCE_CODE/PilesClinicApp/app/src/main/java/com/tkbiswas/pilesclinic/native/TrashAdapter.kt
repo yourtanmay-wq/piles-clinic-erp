@@ -60,8 +60,13 @@ class TrashAdapter(
 
         b.tvLabel.text = item.label.ifBlank { "(record)" }
 
-        // ── কবে মোছা হয়েছে (ডানদিকে) ─────────────────────────────────────
-        b.tvWhen.text = TrashCardText.whenText(item)
+        // ── কবে মোছা হয়েছে + কে মুছেছে (একই লাইনে, TK-নির্দেশ V660) ────────
+        // 🟢🔒🔒 V660 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবি-প্রুফ পাশ) — আগে tvWhen
+        // (ডান-উপরে) আর tvBy (নিচে আলাদা সারিতে) দুটো আলাদা জায়গায় ছিল,
+        // বাড়তি জায়গা নিত। এখন একই একটা লাইনে — tvWhen-এই বসে
+        // (whenAndBy(), "🗑 তারিখ, সময় · Deleted by নাম")। tvBy আর ব্যবহার
+        // হয় না (নিচে GONE)।
+        b.tvWhen.text = TrashCardText.whenAndBy(item)
 
         // ── চিপ ১ · কোথা থেকে মোছা হয়েছে ─────────────────────────────────
         b.tvChipSrc.text = TrashCardText.sourceLabel(item.table)
@@ -94,10 +99,10 @@ class TrashAdapter(
         b.tvLine2.visibility = if (l2.isBlank()) View.GONE else View.VISIBLE
         b.tvLine2.text = l2
 
-        // ── লাইন ৩ · কে মুছেছেন ───────────────────────────────────────────
-        val by = TrashCardText.deletedByName(item)
-        b.tvBy.visibility = if (by.isBlank()) View.GONE else View.VISIBLE
-        b.tvBy.text = if (by.isBlank()) "" else "🗑 Deleted by $by"
+        // 🟢🔒 V660 — "কে মুছেছেন" এখন উপরে tvWhen-এর সাথে একই লাইনে
+        // (whenAndBy()) — এই আলাদা তৃতীয় সারিটা আর দরকার নেই, তাই সবসময়
+        // লুকানো (id/view মোছা হয়নি — TK-নিয়ম — শুধু GONE)।
+        b.tvBy.visibility = View.GONE
 
         // ── Select মোড ────────────────────────────────────────────────────
         if (selectMode) {

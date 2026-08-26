@@ -17,13 +17,18 @@ package com.tkbiswas.pilesclinic.clinical
  */
 object LifestyleModel {
 
-    data class Question(val key: String, val label: String, val options: List<String>)
+    /* 🔴 V600 (২৩.০৮.২০২৬, TK-ধরা বাগ, ছবি-প্রুফ): "হ্যাঁ/না" প্রশ্নে আগে
+       একসাথে দুটোই বাছা যেত (V556-এর "একাধিক উত্তর" নিয়মটা ভুল করে সব
+       প্রশ্নেই বসানো হয়েছিল)। এখন যে প্রশ্নের উত্তর সত্যিই একটাই হতে পারে
+       (হ্যাঁ *অথবা* না — দুটো একসাথে নয়), সেখানে `singleSelect=true`। */
+    data class Question(val key: String, val label: String, val options: List<String>,
+                         val singleSelect: Boolean = false)
 
     val QUESTIONS = listOf(
         Question("chronic", "দীর্ঘমেয়াদী কোনো রোগ আছে কি না?", listOf("ডায়াবেটিস", "উচ্চ রক্তচাপ", "IBD")),
         Question("fiber", "খাবারে ফাইবারের পরিমাণ", listOf("পর্যাপ্ত", "কম")),
-        Question("toilet", "টয়লেটে দীর্ঘক্ষণ বসে থাকার অভ্যাস আছে?", listOf("হ্যাঁ", "না")),
-        Question("strain", "অতিরিক্ত কোঁথ (Straining) দিতে হয়?", listOf("হ্যাঁ", "না"))
+        Question("toilet", "টয়লেটে দীর্ঘক্ষণ বসে থাকার অভ্যাস আছে?", listOf("হ্যাঁ", "না"), singleSelect = true),
+        Question("strain", "অতিরিক্ত কোঁথ (Straining) দিতে হয়?", listOf("হ্যাঁ", "না"), singleSelect = true)
     )
 
     /** কাগজে: "দৈনিক জল পানের পরিমাণ: ———— লিটার।" */

@@ -317,20 +317,31 @@ class PrescriptionActivity : AppCompatActivity() {
         ) {
             adapter.notifyDataSetChanged()
             refreshEmptyState()
-            // TK APPROVED (2026-07-15): printing matters more than just saving —
-            // the fast-add path now opens print preview too, not just Save.
-            savePrescription(openPrintAfter = true, finishAfter = true)
+            // 🔴🔴🔒 V669 (২৫.০৮.২০২৬, TK-কড়া-রিপোর্ট, দ্বিতীয়বার — "এই সমস্যার
+            // কথাও তো আগে বলেছিলাম কেন ঠিক করেন নাই") — **স্বীকারোক্তি:**
+            // V662-এ শুধু "Outside List" (custom ওষুধ লেখার) পথ ঠিক করেছিলাম,
+            // কিন্তু এই "Reference List" (তালিকা থেকে টিক দিয়ে বাছার) পথের
+            // নিজের "Save"-এও একই বাগ ছিল — মিস হয়ে গিয়েছিল, TK-এর ছবিতেই
+            // ধরা পড়ল (KANKAYAN VATI ARSHA বেছে "Save (1)" চাপতেই সরাসরি
+            // Print Preview খুলেছিল)। এখন এখানেও ঠিক করা হলো — আর সরাসরি
+            // প্রিন্টে যাবে না, ডাক্তার প্রেসক্রিপশন পাতাতেই ফিরে থাকবেন।
         }
     }
 
     private fun showCustomMedicineDialog() {
+        // 🔴🔴🔒 V662 (২৫.০৮.২০২৬, TK-কড়া-রিপোর্ট) — আগে এখানে একটা ওষুধ
+        // Add করলেই সরাসরি `savePrescription(openPrintAfter = true,
+        // finishAfter = true)` ডাকা হতো — অর্থাৎ সাথে সাথে সেভ+প্রিন্ট+
+        // পর্দা বন্ধ, ডাক্তারকে কোনো সুযোগ না দিয়ে (এটাই TK-এর দুটো
+        // অভিযোগেরই আসল কারণ — একটার বেশি ওষুধ লেখা যেত না, আর সরাসরি
+        // প্রিন্টে চলে যেত)। এটা ছিল TK-এরই ১৯.০৭.২০২৬-এর আগের নির্দেশ,
+        // যেটা এখন TK স্পষ্টভাবে বদলাতে বলেছেন।
+        // ⛔ এখন শুধু তালিকা রিফ্রেশ হয় — ডাক্তার Prescription পাতাতেই
+        //   ফিরে থাকেন, নিজে থেকে Save/Save & Print বেছে নেবেন (নিচের
+        //   btnSave/btnSaveAndPrint — এক অক্ষরও বদলায়নি)।
         MedicinePickerDialog.showOutsideDialog(this, "ayurvedic", MedicinePickerDialog.GREEN_AYURVEDIC) {
             adapter.notifyDataSetChanged()
             refreshEmptyState()
-            // TK-REQUESTED CHANGE (2026-07-19): match the reference-list
-            // picker's flow -- adding via Outside List also directly saves,
-            // prints, and closes the screen instead of leaving it behind.
-            savePrescription(openPrintAfter = true, finishAfter = true)
         }
     }
 

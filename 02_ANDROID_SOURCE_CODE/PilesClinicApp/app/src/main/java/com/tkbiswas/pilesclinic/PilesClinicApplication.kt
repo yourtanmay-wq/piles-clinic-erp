@@ -126,6 +126,13 @@ class PilesClinicApplication : Application() {
             // আগে সন্ধ্যা ৫টায় ব্রাঞ্চ-স্টাফকে একবার মনে করিয়ে দেয় (মাস্টারকে নয়)।
             // একই প্রমাণিত WorkManager-chain প্যাটার্ন; দিনে একবারই বাজে।
             com.tkbiswas.pilesclinic.native.ExpectedTomorrowReminderScheduler.scheduleNext(this)
+            // 🟢🔒🔒 V656 (২৫.০৮.২০২৬, TK-নির্দেশ) — Doctor Note & Reminder:
+            // ডাক্তার Doctor Checkup-এর History পাতায় ভবিষ্যতের একটা নোট +
+            // তারিখ বসালে, সেই তারিখের আগের দিন সন্ধ্যা ৫টায় শুধু ডাক্তারকেই
+            // একবার মনে করিয়ে দেওয়া হয়। একই প্রমাণিত WorkManager-chain
+            // প্যাটার্ন; দিনে একবারই বাজে। ⛔ ভিতরে নিজেই দেখে নেয় role
+            // "doctor" কিনা — স্টাফ/মাস্টারের ফোনে কিছুই হয় না।
+            com.tkbiswas.pilesclinic.native.DoctorReminderScheduler.scheduleNext(this)
             // 🚨 TK'S ORDER (2026-07-27): "অ্যাপ্লিকেশন বন্ধ থাকলেও... ইন্টারনেট অন
             // থাকলেই ব্যাকগ্রাউন্ডে লোডিং ও আপডেটের কাজ চলতে থাকবে।"
             // The old background job only PUSHED unsent records up; nothing ever

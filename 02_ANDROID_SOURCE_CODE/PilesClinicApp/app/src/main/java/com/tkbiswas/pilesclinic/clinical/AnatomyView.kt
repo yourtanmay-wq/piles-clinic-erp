@@ -48,6 +48,9 @@ class AnatomyView(context: Context) : View(context) {
     var clockCentre: Pair<Double, Double>? = null
     /** ডাক্তার কেন্দ্র ছুঁয়ে দিলে ডাকা হয় (Activity সেটা জমা করে)। */
     var onCentreSet: ((Double, Double) -> Unit)? = null
+    /** 🟢🔒 V626 — "ফোলান" ছবির ভুল জায়গায় (কেন্দ্রের অনেক দূরে) চাপা হলে
+     *  একবার ডাকা হয়, যাতে Activity একটা মনে করিয়ে দেওয়ার Toast দেখাতে পারে। */
+    var onBulgeBlocked: (() -> Unit)? = null
 
     /* 🔵🔒 V587 (২৩.০৮.২০২৬, TK-অনুমোদিত ডেমো-প্রুফের পরে) — **ক্ষারসূত্রের ধাপ
        রোগীকে দেখানোর মোড।** চালু থাকলে বাছা চিহ্নটা ধাপ অনুযায়ী আঁকা হয়
@@ -71,6 +74,11 @@ class AnatomyView(context: Context) : View(context) {
     /** ছুঁয়ে জায়গা বসানো হলে Activity-কে জানানো হয় (লেখাটা বদলায়)। */
     var onKsSpot: (() -> Unit)? = null
     var onChanged: (() -> Unit)? = null        // কিছু আঁকা হলেই ডাকা হয়
+    /* 🔵 V600 (২৩.০৮.২০২৬, TK-অনুমোদিত "Option 1") — ছবি বসলেই/বদলালেই ডাকা
+       হয়, নতুন ছবির আসল প্রস্থ/উচ্চতা দিয়ে। Activity এটা দিয়ে বাক্সের উচ্চতা
+       ছবির নিজের অনুপাতে ঠিক করে — তাই কোনো ছবিতেই দুই পাশ ফাঁকা থাকে না,
+       ছবিও বেঁকে যায় না, আর প্রতিটা ছবির আলাদা আকৃতিতেও ঠিক কাজ করে। */
+    var onBaseImageSet: ((Bitmap?) -> Unit)? = null
 
     private val density = context.resources.displayMetrics.density
     private var base: Bitmap? = null           // আসল ছবি — কখনো বদলায় না
@@ -81,6 +89,12 @@ class AnatomyView(context: Context) : View(context) {
 
     /** ছবির কোথায় আঁকা হচ্ছে — পর্দার ভিতরে ছবিটা যতটুকু জায়গা নেয়। */
     private val dst = RectF()
+
+    /** 🟢🔒 V631 — ছবির উচ্চতা÷চওড়া (`tractCm()`-এর অনুপাতের হুবহু একই
+     *  সংজ্ঞা) — দূরত্ব মাপার সময় x/y-কে সমান মাপে আনতে। ছবি এখনো
+     *  বসানো/মাপা না হলে নিরাপদ ডিফল্ট ১.০ (বর্গাকার ধরে)। */
+    private fun imgAspect(): Double =
+        if (dst.width() > 0f) (dst.height() / dst.width()).toDouble() else 1.0
 
     /**
      * 🔵🔒 V569 (২২.০৮.২০২৬, TK-নির্দেশ) — *"যে ফটোটা আমি সিলেক্ট করব সেটা যেন
@@ -192,6 +206,7 @@ class AnatomyView(context: Context) : View(context) {
         } catch (_: Throwable) { null } catch (_: OutOfMemoryError) { null }
         invalidate()
         onChanged?.invoke()
+        onBaseImageSet?.invoke(base)
     }
 
     /**
@@ -207,12 +222,14 @@ class AnatomyView(context: Context) : View(context) {
         base = bmp
         invalidate()
         onChanged?.invoke()
+        onBaseImageSet?.invoke(base)
     }
 
     /** ছবি বদলানো ছাড়াই শুধু ছবিটা বসানো — দাগ অক্ষত থাকে (রেকর্ড ফেরানোর সময়)। */
     fun setBaseBitmap(bmp: Bitmap?) {
         base = bmp
         invalidate()
+        onBaseImageSet?.invoke(base)
     }
 
     fun load(saved: String?, resolve: (String) -> Int) {
@@ -231,6 +248,7 @@ class AnatomyView(context: Context) : View(context) {
         marks.clear()
         marks.addAll(b.marks)
         invalidate()
+        onBaseImageSet?.invoke(base)
     }
 
     /** 🔵 V585 — এখন কোন ছবির উপরে আঁকা হচ্ছে (কেন্দ্র জমা/পড়ার চাবি)। */
@@ -258,6 +276,10 @@ class AnatomyView(context: Context) : View(context) {
     // ───────── আঙুল ─────────
 
     private var startPct: FloatArray? = null
+    /** 🟢🔒 V626 — এই টানটা "ফোলান"-এর জন্য অনুমোদিত এলাকায় শুরু হয়েছে কি
+     *  না, ACTION_DOWN-এই ঠিক হয়ে যায় (কেন্দ্র/শুরুর বিন্দু টানের মাঝপথে
+     *  বদলায় না, তাই বারবার হিসাব করার দরকার নেই)। */
+    private var bulgeAllowed: Boolean = true
     private var livePts = mutableListOf<Pair<Double, Double>>()
 
     /**
@@ -265,6 +287,7 @@ class AnatomyView(context: Context) : View(context) {
      * শুধু **ফোলা ও নালী** ধরা হয় (এই দুটোতেই ক্ষারসূত্র হয়)। কিছু না পেলে −১।
      */
     fun ksNearestAt(xPct: Double, yPct: Double): Int {
+        val aspect = imgAspect()   // 🟢🔒 V631 — একই aspect-সংশোধন এখানেও
         var best = -1; var bd = Double.MAX_VALUE
         for ((i, m) in marks.withIndex()) {
             val d: Double = when (m.kind) {
@@ -273,10 +296,10 @@ class AnatomyView(context: Context) : View(context) {
                     // গোড়া থেকে ডগা — মাঝ বরাবর সবচেয়ে কাছের দূরত্ব
                     val hx = m.x + Math.cos(g.ang) * g.len * 0.55
                     val hy = m.y + Math.sin(g.ang) * g.len * 0.55
-                    Math.min(Math.hypot(xPct - m.x, yPct - m.y), Math.hypot(xPct - hx, yPct - hy))
+                    Math.min(Math.hypot(xPct - m.x, (yPct - m.y) * aspect), Math.hypot(xPct - hx, (yPct - hy) * aspect))
                 }
                 AnatomyModel.KIND_TRACT ->
-                    m.pts.minOfOrNull { Math.hypot(xPct - it.first, yPct - it.second) } ?: Double.MAX_VALUE
+                    m.pts.minOfOrNull { Math.hypot(xPct - it.first, (yPct - it.second) * aspect) } ?: Double.MAX_VALUE
                 else -> Double.MAX_VALUE
             }
             if (d < bd) { bd = d; best = i }
@@ -530,6 +553,16 @@ class AnatomyView(context: Context) : View(context) {
                 livePts.clear()
                 livePts.add(Pair(p[0].toDouble(), p[1].toDouble()))
                 if (tool == Tool.ERASE) eraseNear(p[0].toDouble(), p[1].toDouble())
+                /* 🟢🔒 V626 — "ফোলান" শুরু হওয়ার মুহূর্তেই ঠিক হয়ে যায় এই
+                   টানটা অনুমোদিত এলাকায় (কেন্দ্রের কাছে) কি না। কেন্দ্র
+                   জানা না থাকলেও (ছবিতে ⊕ এখনো ছোঁয়া হয়নি) নিরাপদ দিকেই
+                   আটকানো হয় — ভুল জায়গায় ফোলা বসে যাওয়ার চেয়ে ভালো। */
+                /* 🔴🔒 V678 (২৫.০৮.২০২৬, TK-নির্দেশ, স্পষ্ট — "ওরকম কাজ বাদ
+                   দিন, আমার যেখানে খুশি আমি সেখানে ফুলিয়ে নেব") — V626-এর
+                   এলাকা-বাঁধন সম্পূর্ণ তুলে নেওয়া হলো। ⛔ কেন্দ্র (⊕) সেট
+                   করার/o'clock হিসাবের বাকি সব কাজ অক্ষত — শুধু "ফোলান"
+                   কোথায় শুরু করা যাবে তার বাঁধন নেই। */
+                bulgeAllowed = true
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
@@ -537,12 +570,17 @@ class AnatomyView(context: Context) : View(context) {
                 when (tool) {
                     Tool.BULGE -> {
                         // টান যত বড়, ফোলা তত বড় — আঙুল নড়লেই আগেরটা সরিয়ে নতুনটা
-                        if (marks.isNotEmpty() && marks.last().kind == AnatomyModel.KIND_BULGE &&
-                            marks.last().x == s[0].toDouble() && marks.last().y == s[1].toDouble()) {
-                            marks.removeAt(marks.size - 1)
+                        // 🟢🔒 V626 — অনুমোদিত এলাকার বাইরে শুরু হওয়া টানে
+                        // কিছুই আঁকা হয় না (bulgeAllowed ACTION_DOWN-এই ঠিক
+                        // হয়ে গেছে)। আকৃতি/মাপের হিসাব এক অক্ষরও বদলায়নি।
+                        if (bulgeAllowed) {
+                            if (marks.isNotEmpty() && marks.last().kind == AnatomyModel.KIND_BULGE &&
+                                marks.last().x == s[0].toDouble() && marks.last().y == s[1].toDouble()) {
+                                marks.removeAt(marks.size - 1)
+                            }
+                            marks.add(AnatomyModel.bulgeFromDrag(
+                                s[0].toDouble(), s[1].toDouble(), p[0].toDouble(), p[1].toDouble()))
                         }
-                        marks.add(AnatomyModel.bulgeFromDrag(
-                            s[0].toDouble(), s[1].toDouble(), p[0].toDouble(), p[1].toDouble()))
                     }
                     Tool.TRACT, Tool.PEN -> {
                         val last = livePts.lastOrNull()
@@ -599,7 +637,8 @@ class AnatomyView(context: Context) : View(context) {
                         }
                         Tool.BULGE -> {
                             // শুধু ছুঁয়ে ছেড়ে দিলে ছোট একটা ফোলা — টানার দরকার নেই
-                            if (marks.isEmpty() || marks.last().kind != AnatomyModel.KIND_BULGE) {
+                            // 🟢🔒 V626 — এখানেও একই অনুমোদিত-এলাকা পাহারা।
+                            if (bulgeAllowed && (marks.isEmpty() || marks.last().kind != AnatomyModel.KIND_BULGE)) {
                                 marks.add(AnatomyModel.bulgeFromDrag(
                                     s[0].toDouble(), s[1].toDouble(), s[0].toDouble(), s[1].toDouble()))
                                     }
@@ -623,14 +662,23 @@ class AnatomyView(context: Context) : View(context) {
         if (e.pointerCount >= 2) (e.getY(0) + e.getY(1)) / 2f else e.y
 
     /** ছোঁয়ার জায়গার সবচেয়ে কাছের দাগটা মোছে। */
+    /**
+     * 🟢🔒 V631 (২৪.০৮.২০২৬, TK-নির্দেশ "ইরেজার মানে মোছার জন্য যেটুকু
+     * মুছতে চাইবো সেটুকুই যেন মোছে") — একই aspect-ratio বাগ এখানেও ছিল
+     * (ছবি বর্গাকার নয় বলে x/y-দূরত্ব সমান ধরে মাপাটা ভুল ছিল, তাই
+     * কখনো কাছের দাগ বাদ যেত, কখনো দূরের দাগ মুছে যেত)। এখন `withinBulgeZone`-
+     * এর সাথে হুবহু একই aspect-সংশোধন। ⛔ মোছার নিয়ম/সীমা (bestD=6.0)
+     * এক অক্ষরও বদলায়নি — শুধু দূরত্ব মাপাটা এখন সঠিক।
+     */
     private fun eraseNear(x: Double, y: Double) {
+        val aspect = imgAspect()
         var best = -1; var bestD = 6.0
         for (i in marks.indices) {
             val m = marks[i]
             val d = when (m.kind) {
                 AnatomyModel.KIND_TRACT, AnatomyModel.KIND_PEN ->
-                    m.pts.minOfOrNull { Math.hypot(it.first - x, it.second - y) } ?: 999.0
-                else -> Math.hypot(m.x - x, m.y - y)
+                    m.pts.minOfOrNull { Math.hypot(it.first - x, (it.second - y) * aspect) } ?: 999.0
+                else -> Math.hypot(m.x - x, (m.y - y) * aspect)
             }
             if (d < bestD) { bestD = d; best = i }
         }
@@ -641,12 +689,30 @@ class AnatomyView(context: Context) : View(context) {
     }
 
     /** পর্দার ছোঁয়া → ছবির শতকরা জায়গা। ছবির বাইরে ছুঁলে null। */
+    /**
+     * 🟢🔒🔒 V651 (২৫.০৮.২০২৬, TK-রিপোর্ট, ছবি-প্রুফসহ যাচাই করে — "উপরের
+     * ফটোতেই হচ্ছে, নিচের [পূর্ণ-পর্দার] ফটোতে হচ্ছে না") — **আসল কারণ
+     * (কোড ধরে যাচাই):** টানটা ছবির নির্দিষ্ট আয়তক্ষেত্রের (`dst`) **এক
+     * পিক্সেলও বাইরে** পড়লে এই ফাংশন `null` ফেরত দিত, আর `onTouchEvent`-এ
+     * `?: return false`-এর কারণে **পুরো টানটাই চুপচাপ বাতিল** হয়ে যেত —
+     * কোনো বার্তা (Toast) ছাড়াই, কারণ ওই বার্তা-দেখানোর কোডেই পৌঁছাত না।
+     * পূর্ণ-পর্দায় (`fillScreen`) ছবি ইচ্ছাকৃতভাবে পর্দার চেয়ে বড় করে বসানো
+     * হয় (পুরো পর্দা ভরাতে), তাই সেখানে কিনারার কাছে টানলে এই এক-পিক্সেল
+     * গরমিল অনেক বেশি ঘটত — ছোট বোর্ডে (ছবি কখনো পর্দার বাইরে যায় না) এই
+     * সমস্যাই ছিল না, ঠিক TK যা লক্ষ্য করেছেন।
+     * **সমাধান:** ছবির বাইরে পড়লে বাতিল না করে, **ছবির সবচেয়ে কাছের
+     * কিনারায়** টেনে আনা হয় (clamp) — তাই টান আর কখনো নিঃশব্দে হারায় না।
+     * ⛔ ছবির লে-আউটই এখনো তৈরি না হলে (dst শূন্য) আগের মতোই `null` —
+     *    সেই নিরাপত্তা অক্ষত। ⛔ এই ফাংশন সব হাতিয়ারই (Pile/Tract/Bulge/
+     *    Ring/Pen/Erase) ব্যবহার করে, তাই সবকটাতেই একসাথে এই সুবিধা মিলল।
+     */
     private fun toPercent(px: Float, py: Float): FloatArray? {
         if (dst.width() <= 0f || dst.height() <= 0f) return null
-        if (px < dst.left || px > dst.right || py < dst.top || py > dst.bottom) return null
+        val cx = px.coerceIn(dst.left, dst.right)
+        val cy = py.coerceIn(dst.top, dst.bottom)
         return floatArrayOf(
-            (px - dst.left) / dst.width() * 100f,
-            (py - dst.top) / dst.height() * 100f
+            (cx - dst.left) / dst.width() * 100f,
+            (cy - dst.top) / dst.height() * 100f
         )
     }
 
@@ -658,7 +724,7 @@ class AnatomyView(context: Context) : View(context) {
             paint.color = Color.parseColor("#8A93A0")
             paint.textSize = 14f * density
             paint.textAlign = Paint.Align.CENTER
-            canvas.drawText("উপর থেকে একটা ছবি বাছুন", width / 2f, height / 2f, paint)
+            canvas.drawText("Select a picture from above", width / 2f, height / 2f, paint)
             paint.textAlign = Paint.Align.LEFT
             return
         }

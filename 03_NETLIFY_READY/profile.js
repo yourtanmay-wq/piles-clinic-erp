@@ -49,8 +49,16 @@
        দেখানো হয় (StaffProfileActivity.kt:188 — role_kind ≠ staff হলে বাদ)।
        ওয়েবে ডাক্তার ও মাস্টারের সারিও উঠে আসত, তাই দুই জায়গায় তালিকা আলাদা
        দেখাত। ⛔ কারও তথ্য মোছা হয় না — শুধু এই এক পর্দায় দেখানো হয় না। */
-    var __onlyStaff = function (p) { return String(p.role_kind || '').toLowerCase() === 'staff'; };
-    rows = rows.filter(__onlyStaff);
+    var __nameFallback = {'DR-JH-MANDAL':'J.H. MANDAL','DR-GOKUL':'GOKUL','DR-PRANAB-BISWAS':'PRANAB BISWAS','DR-SAIKAT-ROY':'SAIKAT ROY','DR-JAY-BANIK':'JAY BANIK','DR-KH-MANDAL':'J.H. MANDAL','DR-PK-ROY':'SAIKAT ROY'};
+    rows.forEach(function(p){ if (!String(p.full_name||'').trim()) p.full_name=__nameFallback[String(p.person_code||'').toUpperCase()]||p.person_code; });
+    var __branchOrder = ['Jalpaiguri','Cooch Behar','Falakata','Kishanganj'];
+    rows.sort(function(a,b){
+      var ar=String(a.role_kind||'').toLowerCase(), br=String(b.role_kind||'').toLowerCase();
+      var ag=ar==='staff'?0:(ar==='doctor'?1:2), bg=br==='staff'?0:(br==='doctor'?1:2);
+      if(ag!==bg)return ag-bg;
+      if(ag===0){var ai=__branchOrder.indexOf(a.branch),bi=__branchOrder.indexOf(b.branch);ai=ai<0?99:ai;bi=bi<0?99:bi;if(ai!==bi)return ai-bi;}
+      return String(a.full_name||a.person_code).localeCompare(String(b.full_name||b.person_code));
+    });
     var removedRows = rows.filter(function (p) { return p.active === false; });
     rows = rows.filter(function (p) { return p.active !== false; });
     var cfgs = {};
@@ -129,7 +137,7 @@
     // 🔴 V404: বাদ-দেওয়া কর্মীদের ছোট তালিকা — গোনা থাকে, ভুল হলে Restore।
     function removedHtml() {
       if (!removedRows.length) return '';
-      return '<div class="card" style="border:1px solid #e5e5e5;background:#fafafa"><b>Removed Staff (' + removedRows.length + ')</b>' +
+      return '<details class="card" style="border:1px solid #e5e5e5;background:#fafafa"><summary style="cursor:pointer;font-weight:700">Removed Staff (' + removedRows.length + ')</summary>' +
                 removedRows.map(function (p) {
           /* 🔴 V430 — ফোনে বাদ-দেওয়া কর্মীও **পুরো কার্ড** হিসেবেই দেখায়
              (নাম + পদবির চিপ + কোড·ব্রাঞ্চ·মোবাইল + Restore)। */
@@ -140,7 +148,7 @@
             '<div class="pfMeta">' + m.esc(p.person_code) + ' · ' + m.esc(p.branch || '') + ' · ' + m.esc(m.fullMobile(p.link_mobile)) + '</div>' +
             '<div class="pfSal pfSalOff">Salary: disabled</div></div>' +
             '<div class="pfStaffBtns"><button class="small ghost pfBtn" onclick="profRestore(\'' + m.esc(p.person_code) + '\')">Restore</button></div></div>';
-        }).join('') + '</div>';
+        }).join('') + '</details>';
     }
   }
 
@@ -158,8 +166,8 @@
     var failed = [];
     try {
       var r1 = await client.schema('hr').from('staff_profiles')
-        .update({ active: false, updated_at: new Date().toISOString() }).eq('person_code', code);
-      if (r1 && r1.error) failed.push('profile');
+        .update({ active: false, updated_at: new Date().toISOString() }).eq('person_code', code).select('person_code');
+      if ((r1 && r1.error) || !r1 || !(r1.data||[]).length) failed.push('profile');
     } catch (e) { failed.push('profile'); }
     try {
       var r2 = await client.schema('hr').from('salary_config')

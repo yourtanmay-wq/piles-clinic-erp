@@ -265,10 +265,13 @@ class InvestigationAdviceActivity : AppCompatActivity() {
             // 🔒 TK-এর নির্দেশ (01.08.2026): "৮টা বক্সের সাইজ ছোট করুন, লেখা
             // বক্সের সাথে সামঞ্জস্যপূর্ণ" — padding ও লেখার মাপ কমানো হলো;
             // চাপ দিলে যা হতো (category screen খোলা) তা এক অক্ষরও বদলায়নি।
+            // 🟢 V600 (২৩.০৮.২০২৬, TK-অনুমোদিত, ছবি-প্রুফ পাশ): "সাইজ আরো
+            // ছোট করুন, আইকন থাকবে না, নামের লেখা একটু বড় করুন" — padding
+            // 8/10dp → 6/6dp, ইমোজি আইকন সম্পূর্ণ বাদ, নামের সাইজ 11sp → 13sp।
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = android.view.Gravity.CENTER
-                setPadding(dp(8), dp(10), dp(8), dp(10))
+                setPadding(dp(6), dp(6), dp(6), dp(6))
                 background = android.graphics.drawable.GradientDrawable().apply {
                     cornerRadius = dp(14).toFloat()
                     colors = intArrayOf(android.graphics.Color.parseColor(c1), android.graphics.Color.parseColor(c2))
@@ -279,13 +282,8 @@ class InvestigationAdviceActivity : AppCompatActivity() {
                 isClickable = true; isFocusable = true
             }
             card.addView(TextView(this).apply {
-                text = cat.emoji; textSize = 17f; gravity = android.view.Gravity.CENTER
-            })
-            card.addView(TextView(this).apply {
-                text = cat.name; textSize = 11f; setTypeface(typeface, android.graphics.Typeface.BOLD)
+                text = cat.name; textSize = 13f; setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setTextColor(android.graphics.Color.parseColor(textColor)); gravity = android.view.Gravity.CENTER
-                val p = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-                p.topMargin = dp(4); layoutParams = p
             })
             card.addView(TextView(this).apply {
                 text = if (selectedCount > 0) "$selectedCount / ${cat.tests.size} selected" else "${cat.tests.size} tests"

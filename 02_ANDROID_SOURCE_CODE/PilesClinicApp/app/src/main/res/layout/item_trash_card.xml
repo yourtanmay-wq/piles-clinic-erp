@@ -36,7 +36,13 @@
         android:orientation="vertical"
         android:padding="9dp">
 
-        <!-- সারি ১ · টিক-ঘর (শুধু Select মোডে) + নাম + কবে মোছা -->
+        <!-- সারি ১ · টিক-ঘর (শুধু Select মোডে) + নাম -->
+        <!-- 🟢🔒🔒 V660 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবি-প্রুফ পাশ) — tvWhen
+             (কবে মোছা হয়েছে) আগে এই সারিতে নামের পাশে (ডানে) ছিল, ছোট
+             ২-লাইনের লেখা। এখন সেটা tvBy-র সাথে জুড়ে (whenAndBy()) অনেক
+             লম্বা একটা লাইন হয়ে গেছে ("🗑 তারিখ, সময় · Deleted by নাম") —
+             তাই এখান থেকে সরিয়ে নিচে নিজের সারিতে বসানো হলো (আগে tvBy
+             যেখানে ছিল)। ⛔ tvWhen view/id মোছা হয়নি, শুধু XML-এ জায়গা বদল। -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -64,16 +70,6 @@
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:textColor="@color/clinic_text_primary" />
-
-            <TextView
-                android:id="@+id/tvWhen"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:gravity="end"
-                android:text=""
-                android:textSize="10.5sp"
-                android:textColor="@color/clinic_text_secondary" />
         </LinearLayout>
 
         <!-- সারি ২ · ছোট চিপ — কোথা থেকে · ব্রাঞ্চ · রোগ/টাকা -->
@@ -152,7 +148,25 @@
             android:ellipsize="end"
             android:textColor="#33465C" />
 
-        <!-- সারি ৫ · কে মুছেছেন -->
+        <!-- সারি ৫ · কবে মোছা + কে মুছেছেন, একই লাইনে (V660, TK-নির্দেশ) -->
+        <TextView
+            android:id="@+id/tvWhen"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:background="@drawable/bg_chip_amber"
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp"
+            android:paddingTop="3dp"
+            android:paddingBottom="3dp"
+            android:text=""
+            android:textSize="10.5sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="#8A5A00" />
+
+        <!-- 🟢🔒 V660 — পুরনো tvBy view/id মোছা হয়নি (TK-নিয়ম), শুধু সবসময়
+             লুকানো (উপরের tvWhen-এই এখন এই তথ্য আছে)। -->
         <TextView
             android:id="@+id/tvBy"
             android:layout_width="match_parent"
@@ -162,9 +176,10 @@
             android:textSize="10.5sp"
             android:maxLines="1"
             android:ellipsize="end"
-            android:textColor="@color/clinic_text_secondary" />
+            android:textColor="@color/clinic_text_secondary"
+            android:visibility="gone" />
 
-        <!-- সারি ৬ · তিনটে বোতাম পাশাপাশি (TK-নির্দেশ) -->
+        <!-- সারি ৬ · তিনটে বোতাম পাশাপাশি (TK-নির্দেশ, ২৫.০৮.২০২৬-এ আরও ছোট) -->
         <LinearLayout
             android:id="@+id/rowButtons"
             android:layout_width="match_parent"
@@ -176,11 +191,11 @@
                 android:id="@+id/btnView"
                 android:layout_width="0dp"
                 android:layout_weight="1"
-                android:layout_height="34dp"
+                android:layout_height="26dp"
                 android:background="@drawable/bg_action_view"
                 android:textColor="@color/white"
                 android:text="👁 View"
-                android:textSize="11.5sp"
+                android:textSize="11sp"
                 android:padding="0dp"
                 android:insetTop="0dp"
                 android:insetBottom="0dp" />
@@ -189,12 +204,12 @@
                 android:id="@+id/btnRestore"
                 android:layout_width="0dp"
                 android:layout_weight="1"
-                android:layout_height="34dp"
+                android:layout_height="26dp"
                 android:layout_marginStart="5dp"
                 android:background="@drawable/bg_trash_restore_green"
                 android:textColor="@color/white"
                 android:text="♻ Restore"
-                android:textSize="11.5sp"
+                android:textSize="11sp"
                 android:padding="0dp"
                 android:insetTop="0dp"
                 android:insetBottom="0dp" />
@@ -205,12 +220,12 @@
                 android:id="@+id/btnDeleteForever"
                 android:layout_width="0dp"
                 android:layout_weight="1"
-                android:layout_height="34dp"
+                android:layout_height="26dp"
                 android:layout_marginStart="5dp"
                 android:background="@drawable/bg_btn_delete_red"
                 android:textColor="@color/white"
                 android:text="🗑 Delete"
-                android:textSize="11.5sp"
+                android:textSize="11sp"
                 android:padding="0dp"
                 android:insetTop="0dp"
                 android:insetBottom="0dp"

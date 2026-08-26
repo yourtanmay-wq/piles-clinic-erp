@@ -475,6 +475,16 @@ object NoBengali {
      *     এখানে তার ইংরেজিও যোগ করতে হবে (পাহারাদারের যাচাই ৯.১৪ ধরবে)। */
     private val MAP: Map<String, String> = mapOf(
 
+        // 🟢🔒 V629 (২৪.০৮.২০২৬) — Statement (স্টেটমেন্ট) পর্দার নতুন লেখা।
+        "স্টেটমেন্ট" to "Statement",
+        "\"From\" তারিখ \"To\"-এর পরে হতে পারে না।" to "\"From\" date cannot be after \"To\" date.",
+        "চলতি ব্যালেন্স" to "Running Balance",
+        "এই সময়ের মধ্যে এখনো কোনো এন্ট্রি নেই।" to "No entries yet in this period.",
+        "আগে টাকার হিসাব পর্দায় একটি ব্রাঞ্চ বাছুন" to "Select a branch on the Income & Expense screen first.",
+        "উপরে একটি ব্রাঞ্চ বাছুন" to "Select a branch above.",
+        "ব্যয়" to "Expense",
+        "Category বাছুন অথবা Paid To-তে নাম লিখুন" to "Select a Category or enter a name in Paid To.",
+
         // 🆕🔒 V496 (২১.০৮.২০২৬) — হাজিরা · আঙুলের ছাপ · অবস্থান · সেশনের নতুন লেখা।
         // খাতার সারি B158: বাংলা-বন্ধ স্টাফের পর্দায় যেন একটাও বাংলা না থাকে,
         // তাই প্রতিটা নতুন লেখার ইংরেজি এখানে যোগ করা হলো।
@@ -906,6 +916,8 @@ object NoBengali {
         "নতুন রেকর্ড হবে না — পুরনো রেকর্ডটাই" to "No new record will be created — the old record",
         "এই দিনে কেউ আসেননি — ছাপার কিছু নেই" to "Nobody came on this day — nothing to print",
         "কোন ব্রাঞ্চের রেজিস্টার প্রিন্ট হবে" to "Which branch's register will be printed",
+        "কোন ব্রাঞ্চের চেম্বার বন্ধ করবেন?" to "Which branch's chamber will you close?",
+        "আপনি এখন All Branch-এ আছেন। যে ব্রাঞ্চটি বন্ধ করবেন সেটি বেছে নিন — Review-তে শুধু ওই ব্রাঞ্চের রোগীরা থাকবেন।" to "You are viewing All Branches. Select the branch to close — the Review will show only that branch's patients.",
         "এর অনুমতি লাগবে। এখানে অনুরোধ পাঠান" to "permission is needed. Send the request here",
         "এই দিনগুলোর চেম্বার এখনো বন্ধ হয়নি" to "The chamber of these days is not closed yet",
         "এ ঠিকই দেখাবে) — শুধু এই পেশেন্ট আর" to "will still show correctly) — only this patient and",
@@ -1145,7 +1157,57 @@ object NoBengali {
         // — V562: RMP কমিশন আলাদা লাল লাইনে · V566: অসময়ের রোগীর চিহ্ন —
         "দিতে হবে (মোট)" to "To be paid (total)",
         "অসময়" to "Off-hours",
-        // — V554–V558: চেক-আপ পর্দা, কাগজের ভাগ ২–৬ —
+        // — V605: কল-রিমার্কস (Incoming/Outgoing) —
+        "কল নিয়ে যা বললেন লিখুন…" to "Write what was discussed on the call...",
+        // — V621: Return Fees (Visit Card) —
+        "লোড হচ্ছে…" to "Loading…",
+        "ফেরতযোগ্য Fees নেই এই রোগীর" to "No refundable Fees for this patient",
+        "আজকের চেম্বার বন্ধ হয়ে গেছে — এখন Master-এর অনুমতি লাগবে" to "Today's chamber is already closed — Master's permission is now needed",
+        "⚠️ Return Fees — স্থায়ী" to "⚠️ Return Fees — permanent",
+        "ফেরত দেওয়া হবে।\n" to " will be refunded.\n",
+        "এই Visit \"Return Visit\" তালিকায় (Draft) সরে যাবে — Chamber Date-সহ সক্রিয় তালিকা থেকে বাদ পড়বে।\n\n" to "This Visit will move to the \"Return Visit\" list (Draft) — it will drop out of active lists including Chamber Date.\n\n",
+        "সত্যিই এগোতে চান?" to "Are you sure you want to proceed?",
+        "হ্যাঁ, Return করুন" to "Yes, Return it",
+        "ব্যর্থ — আবার চেষ্টা করুন" to "Failed — please try again",
+        "✅ Fees ফেরত হলো — Return Visit-এ সরানো হলো" to "✅ Fees refunded — moved to Return Visit",
+        "Fees ফেরত হয়েছে, কিন্তু Return Visit-ট্যাগ ব্যর্থ — Draft-এ হাতে ঠিক করুন" to "Fees refunded, but tagging Return Visit failed — please fix manually in Draft",
+        // 🟢🔒 V676 (২৫.০৮.২০২৬) — Doctor Checkup আজকের-এডিট পপ-আপ।
+        "আজকের Check-up" to "Today's Check-up",
+        // 🟢🔒 V687 (২৫.০৮.২০২৬) — Chamber বন্ধ করার আগে আজকের Treatment Progress বাধ্যতামূলক।
+        "আজকের Treatment Progress লেখা হয়নি — না লিখলে চেম্বার বন্ধ করা যাবে না" to "Today's Treatment Progress hasn't been written — chamber can't be closed until it is",
+        "আজকের চেকআপ আগেই সেভ করা আছে — দেখবেন নাকি এডিট করবেন?" to "Today's check-up is already saved — view it or edit it?",
+        // — V618: মিশ্র পেমেন্ট এডিটর (Chamber Date + Payment) —
+        "মিশ্র পেমেন্ট — বিস্তারিত এডিটরে নিয়ে যাওয়া হচ্ছে…" to "Mixed payment — opening the detailed editor…",
+        "এই দিনের মিশ্র পেমেন্ট বদলাতে এখন Master-এর অনুমতি লাগবে (আজ/গতকাল পার হয়ে গেছে)।" to "Changing this day's mixed payment now needs Master's permission (past today/yesterday).",
+        // — V616: Change Branch (Master-only) —
+        "খোঁজা হচ্ছে…" to "Searching…",
+        "কোনো রেকর্ড পাওয়া যায়নি — নেট চেক করুন" to "No records found — check connection",
+        "এখনকার ব্রাঞ্চ: " to "Current branch: ",
+        "মোট সারি সরবে: " to "Total rows to move: ",
+        "নতুন ব্রাঞ্চ বেছে নিন:" to "Select new branch:",
+        "⚠️ এই ব্রাঞ্চ-বদল স্থায়ী" to "⚠️ This branch change is permanent",
+        "টা সারি সরবে (Patient/Follow-up/Payment)।\n\n" to " row(s) will move (Patient/Follow-up/Payment).\n\n",
+        "⛔ Patient ID অক্ষত থাকবে (আগের ছাপা কাগজের সাথে মিলে থাকার জন্য) — " to "⛔ Patient ID stays unchanged (to keep matching earlier printed papers) — ",
+        "শুধু ID-র শুরুর অক্ষর নতুন ব্রাঞ্চের সাথে নাও মিলতে পারে, এটা শুধু দেখতে, হিসাবে ভুল করে না।\n\n" to "only the ID's starting letters may no longer match the new branch — this is cosmetic only, it does not cause any calculation error.\n\n",
+        "সত্যিই এগোতে চান?" to "Are you sure you want to proceed?",
+        "হ্যাঁ, সরান" to "Yes, move it",
+        "টা সারি " to " row(s) ",
+        "-এ সরানো হলো" to " — moved",
+        "টা সরেছে, " to " moved, ",
+        "টা ব্যর্থ — আবার চেষ্টা করুন" to " failed — please try again",
+        // — V606: কল-রিমাইন্ডার নোটিফিকেশন (বাংলায়, স্পষ্টতার জন্য) —
+        " টা আরও আছে" to " more",
+        "📞 বকেয়া কল আছে" to "📞 Pending Calls",
+        "📞 আজকের কল বাকি" to "📞 Today's Pending Calls",
+        " টা কল বাকি — " to " calls pending — ",
+        " টা পুরনো। দেখতে চাপুন।" to " overdue. Tap to view.",
+        " টা কল আজ বাকি — দেখতে চাপুন।" to " calls pending today — tap to view.",
+        "📞 বকেয়া কল (" to "📞 Pending Calls (",
+        " টা · " to " · ",
+        " টা পুরনো)" to " overdue)",
+        "📞 আজকের বাকি কল (" to "📞 Today's Pending Calls (",
+        " টা)" to ")",
+        "দেখতে চাপুন — " to "Tap to view — ",
         "ছবি দেখিয়ে রোগীকে যা বোঝালেন, দরকার হলে এখানে লিখুন" to "What you explained to the patient with the picture - write it here if needed",
         "এই ইতিহাস নিয়ে আর কিছু লেখার থাকলে এখানে লিখুন" to "If there is more to note about this history, write it here",
         "রোগের ছবি · রোগীকে দেখিয়ে বোঝানোর জন্য" to "Disease picture - to show and explain to the patient",
@@ -1160,6 +1222,18 @@ object NoBengali {
         "কতদিন সময় চাওয়া হল?" to "How much time was asked for?",
         "রোগীর বলা ইতিহাস" to "History as told by the patient",
         "সম্ভাব্য কি রোগ?" to "Probable disease?",
+        // 🟢🔒 V651 (২৫.০৮.২০২৬, TK-নির্দেশ) — Estimated Cost ঘর সরানোর পরে
+        // Step 4-এর নতুন শিরোনাম, বাংলা-বন্ধ স্টাফের জন্য ইংরেজি অনুবাদ।
+        // 🟢🔒 V656 (২৫.০৮.২০২৬) — Doctor Note & Reminder-এর ইংরেজি অনুবাদ।
+        "পরের বার রোগীকে কী ওষুধ/কী কাজ করা হবে — এখানে লিখুন" to "Note what to do / which medicine next time",
+        "কোন দিনের আগের দিন মনে করাবে?" to "Remind one day before which date?",
+        "Probable Disease and Time Asked · সম্ভাব্য রোগ ও সময়" to "Probable Disease and Time Asked",
+        // 🟢🔒 V651 — Estimated Cost এখন Step 3-এ, নতুন লেবেল-টেক্সট।
+        "Estimated Cost · আনুমানিক খরচ কত বলা হল" to "Estimated Cost",
+        // 🟢🔒 V656 (২৫.০৮.২০২৬) — Doctor Reminder নোটিফিকেশনের অনুবাদ।
+        "🔔 আগামীকালের রোগী-নোট" to "🔔 Tomorrow's Patient Note",
+        // 🟢🔒 V671 (২৫.০৮.২০২৬) — সময়-বাছাইয়ের placeholder।
+        "সময় বাছুন" to "Pick time",
         "এখানে টাইপ করুন" to "Type here",
         "রোগ ও অভ্যাস" to "Conditions and habits",
         "লিটার" to "litre",
@@ -1555,6 +1629,7 @@ object NoBengali {
         " · ভেবে দেখব" to " · सोचकर बताएँगे",
         " · পরিবারের সাথে আলোচনা" to " · परिवार से बात करेंगे",
         " · আর্থিক সমস্যা" to " · पैसों की दिक़्क़त",
+        "কল নিয়ে যা বললেন লিখুন…" to "कॉल में जो बात हुई वो लिखें...",
         "চোখে দেখা পরীক্ষা" to "आँखों से जाँच",
         "চিকিৎসা পরিকল্পনা" to "इलाज की योजना",
         "রোগের ছবি · রোগীকে দেখিয়ে বোঝানোর জন্য" to "रोग की तस्वीर · मरीज़ को दिखाकर समझाने के लिए",

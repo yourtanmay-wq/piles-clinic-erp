@@ -167,13 +167,15 @@
     <!-- 🔵 B622 (11.08.2026, TK-অনুমোদিত প্রুফ): সব Check-up field-লেবেল এক সমান সাইজে
          (আগে প্রতিটায় inline 7–10.5sp আলাদা ছিল, তাই ছোট ও অসমান দেখাত)। এখন এক জায়গায়
          12.5sp, আর লম্বা লেবেল এক লাইনে না ধরলে দু-লাইনে নামে (maxLines 2 — কাটে না)। -->
+    <!-- 🟢 V600 (২৩.০৮.২০২৬, TK-নির্দেশ "আরো প্রফেশনাল দেখাতে হবে, সামান্য
+         একটু বড়") — 12.5sp → 13.5sp। রং/হাইলাইট/গঠন কিছুই বদলায়নি, শুধু মাপ। -->
     <style name="DocNoteLabel">
         <item name="android:layout_width">0dp</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_weight">1</item>
         <item name="android:textStyle">bold</item>
         <item name="android:textColor">#374151</item>
-        <item name="android:textSize">12.5sp</item>
+        <item name="android:textSize">13.5sp</item>
         <item name="android:maxLines">2</item>
         <item name="android:ellipsize">end</item>
     </style>
@@ -211,6 +213,12 @@
         <item name="android:gravity">top|start</item>
         <item name="android:textSize">14.5sp</item>
         <item name="android:textColor">@color/clinic_text_primary</item>
+    </style>
+
+    <!-- 🟢 V600 (২৩.০৮.২০২৬, TK-অনুমোদিত, ছবি-প্রুফ পাশ) — শুধু
+         Investigation Advice-এর হেডার টাইটেলের জন্য, ডিফল্টের চেয়ে ছোট। -->
+    <style name="InvestigationToolbarTitle" parent="TextAppearance.Widget.AppCompat.Toolbar.Title">
+        <item name="android:textSize">16sp</item>
     </style>
 
 </resources>

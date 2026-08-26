@@ -274,20 +274,67 @@ class BriefingRepository {
         return SupabaseClient.updateById("briefings", id, fields)
     }
 
-    fun addReply(id: String, text: String, userMobile: String): Boolean {
+    /**
+     * 🟢🔒 V642 (২৪.০৮.২০২৬, TK-নির্দেশ — "Reply করলে সে যেন Notification
+     * পায়") — **আসল কারণ:** রিপ্লাই এতদিন শুধু এই নোটিশের নিজের `replies`
+     * ঘরে জমা হতো — যিনি আসল অনুরোধ পাঠিয়েছিলেন (যেমন Uttama), তাঁর কাছে
+     * নতুন কোনো ঘন্টা-নোটিশ যেত না; নিজে থেকে আবার এই নোটিশটা না খুললে
+     * রিপ্লাই দেখতেই পেতেন না।
+     * **সমাধান:** রিপ্লাই সফল হলে, যদি রিপ্লাইকারী **আসল অনুরোধকারী নিজে
+     * না হন** (`createdBy` ভিন্ন), তাহলে তাঁকে (createdBy মোবাইলে) একটা
+     * নতুন, ছোট, ব্যক্তিগত (individual-target) ঘন্টা-নোটিশ যায় — "💬 Reply
+     * on: <শিরোনাম>" — তাতে আসল রিপ্লাই টেক্সটটাও থাকে। এই একই ফাংশন
+     * প্রজেক্টের **সাতটা জায়গা থেকেই** ডাকা হয় (Approve/Reject/Reopen
+     * বোতাম-সহ), তাই সব জায়গাতেই এই সুবিধা একসাথে চালু হলো — আলাদা করে
+     * প্রতিটা কল-সাইট বদলাতে হয়নি।
+     * ⛔ রিপ্লাই সেভের পুরনো নিয়ম এক অক্ষরও বদলায়নি — নোটিফিকেশন-পাঠানো
+     *    ব্যর্থ হলেও (যেমন `context` না থাকলে) রিপ্লাই সেভ হওয়া আটকায় না।
+     * ⛔ রিপ্লাইকারী নিজেই আসল অনুরোধকারী হলে (নিজের লেখায় নিজে রিপ্লাই)
+     *    কোনো বাড়তি নোটিশ যায় না — নিজেকে নিজে জানানোর দরকার নেই।
+     */
+    fun addReply(context: android.content.Context?, id: String, text: String, userMobile: String): Boolean {
         val existing = SupabaseClient.fetchList("briefings", "id=eq.$id", 1)
         if (existing.length() == 0) return false
-        val current = existing.getJSONObject(0).optJSONArray("replies") ?: JSONArray()
+        val row = existing.getJSONObject(0)
+        val current = row.optJSONArray("replies") ?: JSONArray()
         val fields = BriefingModel.buildReplyUpdate(current, text, userMobile)
-        return SupabaseClient.updateById("briefings", id, fields)
+        val ok = SupabaseClient.updateById("briefings", id, fields)
+        if (ok && context != null) {
+            try {
+                val creator = row.optString("createdBy", "")
+                if (BriefingModel.mob(creator).isNotBlank() && BriefingModel.mob(creator) != BriefingModel.mob(userMobile)) {
+                    val title = row.optString("title", "Notice")
+                    val branch = row.optString("branch", "")
+                    post(context, "\uD83D\uDCAC Reply on: $title", text, "individual", branch, "", userMobile, creator)
+                }
+            } catch (_: Throwable) { /* নোটিফিকেশন ব্যর্থ হলেও রিপ্লাই সেভ অক্ষত */ }
+        }
+        return ok
     }
 
     /** Master deletes for everyone; a non-master only hides it for themselves,
      * matching deleteBriefing(). */
-    fun deleteOrHide(id: String, user: NativeUser): Boolean {
+    /**
+     * 🔴🔴🔒 V666 (২৫.০৮.২০২৬, TK-রিপোর্ট, ছবিসহ — "অনুমতি দেওয়ার পরেও কেন
+     * থেকে যাচ্ছে?") — **আসল কারণ (কোড ধরে যাচাই):** এই ফাংশনের ফলাফল
+     * (সফল/ব্যর্থ) কোথাও যাচাই হতো না — নেটওয়ার্ক সমস্যায় ক্লাউডে ডিলিট-চিহ্ন
+     * বসাতে ব্যর্থ হলেও কোড ধরে নিত সব ঠিক আছে (`try { ... } catch { }`
+     * দিয়ে ফলাফল উপেক্ষা করা হতো)। "✅ Approved" রিপ্লাই ঠিকই যোগ হতো
+     * (আলাদা, সফল কল), কিন্তু আসল ডিলিট-চিহ্নটা কখনো বসত না — তাই পরের
+     * লোডে নোটিশ আবার ফিরে আসত।
+     * **সমাধান:** ব্যর্থ হলে এখন প্রমাণিত `GenericUpdateQueue`-তে জমা
+     * থাকে (context দেওয়া থাকলে), যতক্ষণ না সত্যিই ক্লাউডে বসে —
+     * অ্যাপের অন্য সব জায়গার (Payment/Trash ইত্যাদি) একই প্রমাণিত
+     * রিট্রাই-প্যাটার্ন। ⛔ `context` না দিলে (পুরনো caller) আগের মতোই
+     * আচরণ — নতুন কোনো ঝুঁকি নেই।
+     */
+    fun deleteOrHide(id: String, user: NativeUser, context: android.content.Context? = null): Boolean {
         // Master: আগের মতোই global delete (কোনো read নেই — অপরিবর্তিত)।
         if (user.role == "master") {
-            return SupabaseClient.updateById("briefings", id, BriefingModel.buildMasterDelete(user.mobile))
+            val fields = BriefingModel.buildMasterDelete(user.mobile)
+            val ok = SupabaseClient.updateById("briefings", id, fields)
+            if (!ok) context?.let { GenericUpdateQueue.queue(it, "briefings", id, fields) }
+            return ok
         }
         // 🔵 TK-ORDER (07.08.2026): non-master hide — existing row পড়া **ব্যর্থ** হলে
         // আন্দাজে খালি hiddenFor দিয়ে PATCH করব না (আগে করত → অন্যদের hide মুছে
@@ -295,7 +342,10 @@ class BriefingRepository {
         val existing = SupabaseClient.fetchListOrNull("briefings", "id=eq.$id", 1) ?: return false
         if (existing.length() == 0) return false
         val hidden = existing.getJSONObject(0).optJSONArray("hiddenFor") ?: JSONArray()
-        return SupabaseClient.updateById("briefings", id, BriefingModel.buildHideForUser(hidden, user.mobile))
+        val fields = BriefingModel.buildHideForUser(hidden, user.mobile)
+        val ok = SupabaseClient.updateById("briefings", id, fields)
+        if (!ok) context?.let { GenericUpdateQueue.queue(it, "briefings", id, fields) }
+        return ok
     }
 
     /**

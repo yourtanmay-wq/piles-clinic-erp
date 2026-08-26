@@ -1001,7 +1001,13 @@ class PaymentRepository(private val context: Context? = null) {
      *  deletePaymentEntry()-এর প্রমাণিত পথেই মুছে যায়। */
     fun removeOneDailyEvent(row: JSONObject, eventId: String, byMobile: String, byName: String): Boolean {
         val ctx = context ?: return false
-        if (NativeSession.current(ctx)?.role != "master") return false
+        // 🟢🔒 V618 (২৪.০৮.২০২৬, TK-নির্দেশ, সততার সাথে যাচাই করে) — আগে এখানে
+        // সরাসরি "শুধু Master" লেখা ছিল (UI-এর গেট বদলালেও এই ভিতরের লকটা
+        // অক্ষতই থেকে যেত — Save চাপলে নীরবে ব্যর্থ হতো)। এখন বাকি সব
+        // পেমেন্ট-এডিটের মতোই একই নিয়ম: আজ/গতকাল স্টাফ নিজে পারবেন,
+        // তার বেশি পুরনো হলে শুধু Master।
+        val user = NativeSession.current(ctx)
+        if (user?.role != "master" && !PaymentModel.withinFreeEditWindow(row.s("date"))) return false
         val id = row.optString("id")
         if (id.isBlank() || eventId.isBlank()) return false
         val events = row.optJSONArray("dailyEvents") ?: return false
@@ -1054,7 +1060,9 @@ class PaymentRepository(private val context: Context? = null) {
      *  (বাকিগুলো অক্ষত, মোট নতুন করে গণনা)। */
     fun editOneDailyEvent(row: JSONObject, eventId: String, newAmt: Double, newMode: String, byMobile: String, byName: String): Boolean {
         val ctx = context ?: return false
-        if (NativeSession.current(ctx)?.role != "master") return false
+        // 🟢🔒 V618 — removeOneDailyEvent-এর হুবহু একই কারণ ও একই নিয়ম।
+        val user = NativeSession.current(ctx)
+        if (user?.role != "master" && !PaymentModel.withinFreeEditWindow(row.s("date"))) return false
         val id = row.optString("id")
         if (id.isBlank() || eventId.isBlank() || newAmt <= 0.0) return false
         val events = row.optJSONArray("dailyEvents") ?: return false
@@ -1157,7 +1165,23 @@ class PaymentRepository(private val context: Context? = null) {
         // previously mandatory here (silently rejecting a real payment
         // with no clear reason why). effectiveBill can genuinely be 0 now;
         // only a real amount is still required.
-        val effectiveBill = if (patient.billLocked) patient.bill else enteredBill
+        // 🔴🔴🔒 V663 (২৫.০৮.২০২৬, TK-কড়া-রিপোর্ট — কোচবিহার, "Bulan Roy"
+        // রোগীর বিল সংশোধনের পরেও পুরনো বিলই দেখাচ্ছিল) — **আসল কারণ (কোড
+        // ধরে চূড়ান্তভাবে ধরা পড়ল):** এই লাইন আগে ছিল
+        // `if (patient.billLocked) patient.bill else enteredBill` — বিল
+        // আগে থেকে "লক" থাকলে (billLocked = আগের বিল > 0), নতুন লেখা
+        // বিলটাই **সম্পূর্ণ উপেক্ষা** হয়ে যেত, পুরনো `patient.bill`-ই
+        // আবার বসত — **কিন্তু শুধু তখনই যখন বিল-সংশোধনের সাথে একটা
+        // পেমেন্ট-এমাউন্টও একসাথে দেওয়া হতো** (শুধু-বিল-সংশোধন, কোনো
+        // টাকা ছাড়া, PaymentActivity.kt-এর আলাদা billOnlyCorrection/
+        // billChanged পথে ঠিকভাবে চলে যেত — তাই ওই ক্ষেত্রে কাজ করত)।
+        // billLocked-এর আসল উদ্দেশ্য ছিল: ফাঁকা/শূন্য বিল যেন কখনো
+        // দুর্ঘটনাক্রমে আগের আসল বিল মুছে না দেয় — ইচ্ছাকৃত সংশোধন আটকানো
+        // নয়। **সমাধান:** নতুন লেখা বিল ফাঁকা/শূন্য (≤0) হলে তবেই পুরনো
+        // লক করা বিল ব্যবহার হবে; সংখ্যা লেখা থাকলে (এমনকি আগেরটার থেকে
+        // আলাদা হলেও) সেটাই এখন সবসময় গ্রহণ হয় — এটাই একটা ইচ্ছাকৃত
+        // সংশোধন হিসেবে ধরা হয়।
+        val effectiveBill = if (patient.billLocked && enteredBill <= 0.0) patient.bill else enteredBill
         if (amount <= 0) return false
         // 🔒 TK'S LOCKED RULE (27.07.2026): "Bill · advance · any payment — যে
         // ব্রাঞ্চের স্টাফ তারাই করতে পারবে... সংশ্লিষ্ট ব্রাঞ্চের ডাক্তার করতে
@@ -1214,7 +1238,13 @@ class PaymentRepository(private val context: Context? = null) {
             // showing stale/₹0 even though the remark already said "Advance
             // Payment received". Now the local patients cache is updated
             // too, right away.
-            if (!patient.billLocked) {
+            // 🔴🔴🔒 V663 (২৫.০৮.২০২৬) — একই বাগের তৃতীয় অংশ (ফোনের নিজের
+            // ক্যাশ): আগে `if (!patient.billLocked)` — locked থাকলে ফোনের
+            // ক্যাশেও নতুন বিল বসত না, তাই ক্লাউড ফিক্সের পরেও ওই একই
+            // ফোনে সাথে সাথে পুরনো বিল দেখাত (পরের রিফ্রেশ পর্যন্ত)। এখন
+            // "বিল সত্যিই বদলেছে কিনা" শর্তে — বদলে থাকলে ক্যাশও সাথে
+            // সাথে আপডেট হয়।
+            if (effectiveBill != patient.bill) {
                 localStore.upsertPatient(
                     JSONObject()
                         .put("id", patient.id)
@@ -1637,8 +1667,53 @@ class PaymentRepository(private val context: Context? = null) {
                 } catch (_: Throwable) { }
             }
         }
+        // 🟢🔒 V676 (২৫.০৮.২০২৬, TK-নির্দেশ — "যেকোনো জায়গা থেকে Visit Fee
+        // Return করলে যেন হয়ে যায়, আর Return-এর ট্যাগ (Draft-এর "Return
+        // Visit" তালিকা) বসে")। আগে এই ট্যাগ শুধু Patient Timeline-এর
+        // আলাদা "Return Fees" ডায়ালগেই বসত — Payment/DUE-এর সাধারণ Refund
+        // দিয়ে করলে বসত না। এখন এই একই জায়গায় (সব Refund এখান দিয়েই যায়)
+        // বসানো হলো, তাই আর কোনো স্ক্রিন আলাদা রাখতে হবে না।
+        // ⛔ কোনো নতুন টাকা-হিসাব নেই — শুধু ইতিমধ্যে প্রমাণিত V509 নিয়ম
+        //    (Refund আগে treatment paid থেকে, ছাড়ালে Visit Fee থেকে) ধরেই
+        //    বোঝা হয় এই Refund Visit Fee ছুঁয়েছে কিনা (`amount > patient.paid`)।
+        if (ok && autoApprove && amount > patient.paid + 0.5) {
+            try {
+                val digits = patient.mobile.filter { it.isDigit() }.takeLast(10)
+                if (digits.length == 10) {
+                    val fid = resolveBestFollowUpIdForReturn(digits)
+                    if (!fid.isNullOrBlank()) {
+                        SupabaseClient.updateById("followups", fid, JSONObject().put("status", "Returned"))
+                    }
+                }
+            } catch (_: Throwable) { /* ⛔ ট্যাগ ব্যর্থ হলেও Refund সফল-ই থাকে */ }
+        }
         return RefundResult(ok, if (ok) "" else "Could not save to cloud — check internet and try again")
     }
+
+    /** V676 — Chamber Attendance-এর `resolveBestFollowUpId()`-এর হুবহু একই,
+     *  প্রমাণিত stage-priority নিয়ম (Treatment > Patient > Inquiry, terminal
+     *  স্ট্যাটাস বাদ) — শুধু এখানে blocking (এই ফাংশন এমনিতেই IO থ্রেডে চলে)। */
+    private fun resolveBestFollowUpIdForReturn(digits: String): String? = try {
+        fun stagePriority(s: String): Int = when {
+            s.equals("Treatment", true) || s.equals("Treatment Running", true) -> 3
+            s.equals("Patient", true) -> 2
+            s.equals("Inquiry", true) -> 1
+            else -> 0
+        }
+        val rows = SupabaseClient.findByMobileOrNull("followups", "+91$digits", "id,status,stage,updatedAt,createdAt", 50)
+        rows?.let { r ->
+            (0 until r.length()).map { r.getJSONObject(it) }
+                .filter {
+                    val st = it.optString("status", "Active")
+                    !st.equals("Cancelled", true) && !st.equals("Incomplete", true) &&
+                        !st.equals("Rejected", true) && !st.equals("Closed", true)
+                }
+                .maxWithOrNull(
+                    compareBy<org.json.JSONObject> { stagePriority(it.optString("stage", "")) }
+                        .thenBy { it.optString("updatedAt").ifBlank { it.optString("createdAt") } }
+                )?.optString("id", "")
+        }
+    } catch (_: Throwable) { null }
 
     /** Master-এর ঘন্টার জন্য pending refund request-এর সস্তা count। */
     fun fetchPendingRefundCount(): Int =
@@ -1952,7 +2027,13 @@ class PaymentRepository(private val context: Context? = null) {
         patient: PatientBillInfo, effectiveBill: Double, paymentRow: JSONObject,
         staffMobile: String, sameDayRepeat: Boolean = false
     ): Boolean {
-        val billUpdateOk = if (!patient.billLocked) {
+        // 🔴🔴🔒 V663 (২৫.০৮.২০২৬) — একই বাগের দ্বিতীয়, সমান গুরুত্বপূর্ণ অংশ:
+        // আগে এখানে `if (!patient.billLocked)` — billLocked থাকলে ক্লাউডে
+        // বিল **লেখাই হতো না**, `effectiveBill`-এ (উপরের ফিক্সের পরে) সঠিক
+        // নতুন মান থাকলেও। এখন শর্তটা "বিল সত্যিই বদলেছে কিনা" — বদলে
+        // থাকলে (locked হোক বা না হোক) ক্লাউডে লেখা হয়; না বদলালে আগের
+        // মতোই বাড়তি write এড়ানো হয় (কোনো ঝুঁকি নেই, একই মান আবার লেখাই)।
+        val billUpdateOk = if (effectiveBill != patient.bill) {
             SupabaseClient.updateById(
                 "patients", patient.id,
                 JSONObject().put("bill", effectiveBill).put("stage", "Treatment Running").put("updatedAt", isoNow())

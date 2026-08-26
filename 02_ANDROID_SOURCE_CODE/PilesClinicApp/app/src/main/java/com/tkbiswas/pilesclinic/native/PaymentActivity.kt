@@ -631,12 +631,21 @@ class PaymentActivity : AppCompatActivity() {
                     if (!dateChosenFromHeader || user.role == "master") {
                         val eventCount = p.optInt("_displayEventCount", p.optJSONArray("dailyEvents")?.length() ?: 1).coerceAtLeast(1)
                         if (p.s("payType").equals("treatment", true) && eventCount > 1) {
-                            // 🔴🔒 V471 (20.08.2026, TK-অনুমোদিত ফটো-প্রুফ): শুধু
-                            // Master-এর জন্য এখন ভেঙে দেখানো (breakdown) খোলে —
-                            // স্টাফের জন্য নিচের সতর্কবার্তাই আগের মতো অপরিবর্তিত।
+                            // 🟢🔒 V618 (২৪.০৮.২০২৬, TK-নির্দেশ, সততার সাথে যাচাই
+                            // করে) — V471-এ এই ভাঙা-দেখা (breakdown) শুধু
+                            // Master-এর জন্য রাখা হয়েছিল, কারণ তখন ভয় ছিল
+                            // "Cash/Online split আন্দাজ করতে হবে"। যাচাই করে
+                            // দেখা গেছে **সেই ভয়টা এখানে প্রযোজ্যই না** —
+                            // এই পর্দা `dailyEvents`-এর প্রতিটা **আসল, আলাদা,
+                            // আগে থেকে জানা** এন্ট্রি দেখায় (কোনো অনুমান নেই)।
+                            // তাই এখন বাকি সব পেমেন্টের মতোই একই "আজ/গতকাল-
+                            // মুক্ত, তার বেশি হলে Master লাগবে" নিয়ম —
+                            // `PaymentModel.withinFreeEditWindow()`, প্রজেক্টে
+                            // আগে থেকেই ব্যবহৃত একই একটাই উৎস।
+                            val canOpenBreakdown = user.role == "master" || PaymentModel.withinFreeEditWindow(p.s("date"))
                             TripleTapEdit.attach(row2) {
-                                if (user.role == "master") showDailyEventsBreakdown(p)
-                                else Toast.makeText(this@PaymentActivity, "This day's payment combines $eventCount entries. Split-safe correction is required.", Toast.LENGTH_LONG).show()
+                                if (canOpenBreakdown) showDailyEventsBreakdown(p)
+                                else Toast.makeText(this@PaymentActivity, NoBengali.s("এই দিনের মিশ্র পেমেন্ট বদলাতে এখন Master-এর অনুমতি লাগবে (আজ/গতকাল পার হয়ে গেছে)।"), Toast.LENGTH_LONG).show()
                             }
                         } else TripleTapEdit.attach(row2) { tryEditPayment(p) }
                     }
@@ -1442,7 +1451,7 @@ class PaymentActivity : AppCompatActivity() {
             )
         }
         box.addView(modeSpinner)
-        box.addView(TextView(this).apply { text = "Reason (কারণ)"; textSize = 12f; setPadding(0, (12 * d).toInt(), 0, 4) })
+        box.addView(TextView(this).apply { text = NoBengali.s("Reason (কারণ)"); textSize = 12f; setPadding(0, (12 * d).toInt(), 0, 4) })
         val reasonInput = EditText(this).apply { hint = "Refund reason" }
         box.addView(reasonInput)
         UppercaseInputUtil.applyToAll(box)

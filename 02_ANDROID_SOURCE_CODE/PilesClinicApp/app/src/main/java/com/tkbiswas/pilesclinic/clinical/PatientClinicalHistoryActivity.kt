@@ -8,6 +8,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.tkbiswas.pilesclinic.R
+import com.tkbiswas.pilesclinic.native.NoBengali
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -66,7 +67,7 @@ class PatientClinicalHistoryActivity : AppCompatActivity() {
             } catch (_: Throwable) { null }
             if (rawRows == null) {
                 if (!hasCache) {
-                    tvEmpty.text = "লোড করা গেল না — একটু পরে আবার দেখুন"
+                    tvEmpty.text = NoBengali.s("লোড করা গেল না — একটু পরে আবার দেখুন")
                     tvEmpty.visibility = android.view.View.VISIBLE
                     rv.visibility = android.view.View.GONE
                 }

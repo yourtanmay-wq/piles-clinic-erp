@@ -403,6 +403,18 @@
         <!-- V306 additive — Partner Shares (অংশীদারি ভাগ), isolated; nothing existing changed -->
         <activity android:name="com.tkbiswas.pilesclinic.modules.PartnerSharesActivity" android:exported="false" />
 
+        <!-- 🟢🔒 V605 (২৪.০৮.২০২৬, TK-নির্দেশ) — Incoming/Outgoing কলে রোগীর
+             পরিচয় + Remarks/New Enquiry (Truecaller-এর মতো, নোটিফিকেশন
+             দিয়ে)। additive — পুরনো কোনো activity/receiver ছোঁয়া হয়নি। -->
+        <activity android:name="com.tkbiswas.pilesclinic.native.CallRemarkActivity" android:exported="false" />
+        <receiver android:name="com.tkbiswas.pilesclinic.native.CallStateReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PHONE_STATE" />
+            </intent-filter>
+        </receiver>
+        <!-- 🟢🔒 V619 — নোটিফিকেশনের "✕ Dismiss" বোতামের জন্য, শুধু ভিতর থেকেই ডাকা হয়। -->
+        <receiver android:name="com.tkbiswas.pilesclinic.native.CallDismissReceiver" android:exported="false" />
+
     </application>
 
 </manifest>
