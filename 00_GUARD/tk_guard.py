@@ -1541,6 +1541,19 @@ def check_notes():
         fail("৪.৬", "এই নোট ফাইল নেই → " + " · ".join(miss))
     if not glob.glob(os.path.join(ROOT, "00_LOCK_NOTE_SESSION_*.md")):
         fail("৪.৬", "সেশনের LOCK NOTE নেই")
+    # 🔒 V691 (TK, ২৬.০৮.২০২৬) — TK-এর নতুন স্থায়ী নিয়ম (অগ্রগতি % + বাকি
+    # সময়, ২-৩ লাইন, আন্দাজ নিষেধ, Web+Android দুটোতেই, নিজে ডিসিশন নয়,
+    # Supabase free-র ঝুঁকি আগে জানানো, Fast mode) যেন কোনো সেশনে চুপচাপ
+    # মুছে না যায়। TK বলেছেন "স্থায়ী নিয়ম অনুযায়ী লক করে রাখুন" — কাগজে
+    # লেখা যথেষ্ট নয়, পাহারাদারেই ধরা থাকল।
+    for _f, _mark in (
+        ("00_TK_KAJER_KHATA_SOBAR_AGE_PORUN.md", "(TK, ২৬.০৮.২০২৬ — স্থায়ী, লক করা)"),
+        ("00_TK_SOB_NIYOM_EK_JAYGAY_LOCKED.md", "TK-এর নতুন স্থায়ী নিয়ম — ২৬.০৮.২০২৬"),
+        ("00_TK_SESSION_NIYOM_STHAYI_PORUN.md", "TK-এর নতুন স্থায়ী নিয়ম — ২৬.০৮.২০২৬"),
+    ):
+        _p = os.path.join(ROOT, _f)
+        if not os.path.exists(_p) or _mark not in read(_p):
+            fail("৪.৬", "TK-এর ২৬.০৮.২০২৬-এর লক করা নিয়ম %s-এ নেই" % _f)
     # খাতায় 🔴 বাকি আছে কিনা
     k = os.path.join(ROOT, "00_TK_KAJER_KHATA_SOBAR_AGE_PORUN.md")
     if os.path.exists(k):
