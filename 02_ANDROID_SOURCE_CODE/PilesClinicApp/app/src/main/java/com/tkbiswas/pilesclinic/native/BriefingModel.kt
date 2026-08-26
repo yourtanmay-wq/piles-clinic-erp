@@ -89,6 +89,21 @@ object BriefingModel {
             t.equals("Advance Received", true)
     }
 
+    /**
+     * 🟢🔒 V692 (২৬.০৮.২০২৬, TK-নির্দেশ ছবিসহ) — Dashboard-এর পাঠানো
+     * "⚠️ Overdue Follow-up Alert" নোটিশ চেনা।
+     *
+     * TK-এর কথা: *"Overdue Call Alert এ Reply কেন আসবে, সেখানে View
+     * থাকতে হবে, আর View তে চাপলে যেন দেখা যায়।"*
+     *
+     * ⛔ ইচ্ছে করেই `isAutoNotice()`-এ ঢোকানো হয়নি — ওটা শুধু বোতাম নয়,
+     *    নোটিশটা **কতদিন পর্দায় থাকবে** সেটাও ঠিক করে (৭ দিন)। এই সতর্কতা
+     *    রোজ একবার আসে, তাই ৭ দিন রাখলে সাতটা জমে যেত। শুধু বোতামের জন্য
+     *    আলাদা এই পাহারাটাই নিরাপদ।
+     */
+    fun isOverdueAlert(title: String): Boolean =
+        title.contains("Overdue Follow-up Alert", ignoreCase = true)
+
     /** নোটিশের তারিখ আজ থেকে সর্বোচ্চ [days] দিনের পুরনো কি না। */
     fun withinDays(date: String, days: Int): Boolean {
         return try {

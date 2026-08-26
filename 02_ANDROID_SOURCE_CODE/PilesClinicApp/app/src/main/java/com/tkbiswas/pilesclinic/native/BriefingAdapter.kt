@@ -34,6 +34,9 @@ class BriefingAdapter(
      *  "View" বোতাম: ওই নম্বরের রোগীর পাতা খোলে। ডিফল্ট ফাঁকা, তাই পুরনো
      *  কোনো caller ভাঙে না। */
     private val onViewRecord: (Briefing, String) -> Unit = { _, _ -> },
+    /* 🟢🔒 V692 (TK, ২৬.০৮.২০২৬) — ⚠️ Overdue Follow-up Alert-এর "View"।
+       ডিফল্ট ফাঁকা, তাই এই অ্যাডাপ্টারের পুরনো ব্যবহারকারীরা অক্ষত। */
+    private val onViewOverdue: (Briefing) -> Unit = { },
     private val isMaster: Boolean = false,
     /** 🆕 TK-নির্দেশ (07.08.2026) — একসাথে অনেক অনুমোদন: কোনো কার্ড বাছাই/
      *  বাছাই-বাতিল হলে Activity-কে জানায় (নিচের "একসাথে অনুমোদন" বার দেখাতে)।
@@ -376,8 +379,11 @@ class BriefingAdapter(
         //   ⇒ স্বয়ংক্রিয় তিন নোটিশে (New Enquiry · New Registration ·
         //     Advance Received) **Reply নেই** — View · Seen · Delete থাকে।
         //   ⛔ হাতে লেখা Briefing ও অনুমোদনের নোটিশে Reply আগের মতোই আছে।
+        // 🟢🔒 V692 (২৬.০৮.২০২৬, TK): *"Overdue Call Alert এ Reply কেন আসবে,
+        //   সেখানে View থাকতে হবে"* — ⚠️ Overdue Follow-up Alert-এও Reply নেই।
         b.btnReply.visibility =
-            if (isPlainInfo || isAutoNotice(item)) View.GONE else View.VISIBLE
+            if (isPlainInfo || isAutoNotice(item) || BriefingModel.isOverdueAlert(item.title))
+                View.GONE else View.VISIBLE
         b.btnDelete.setOnClickListener { onDelete(item) }
 
         /* 🔴🔒 V501 (TK-নির্দেশ) — "View" বোতাম।
@@ -386,7 +392,14 @@ class BriefingAdapter(
            ⛔ নম্বর খোঁজা হয় ঠিক সেই একই নিয়মে যেটা দিয়ে নম্বরটা এতদিন
               ক্লিকযোগ্য করা হচ্ছে (`buildClickableMessage`) — নতুন কিছু নয়। */
         val mobileInNotice = firstMobileIn(item.message)
-        if (mobileInNotice != null) {
+        // 🟢🔒 V692 — Overdue সতর্কতায় কোনো একটা নম্বর থাকে না (ব্রাঞ্চ ধরে
+        //   গোনা), তাই নম্বর না থাকলেও View দেখাতে হবে। চাপলে ওই ব্রাঞ্চের
+        //   **৩+ দিন দেরি হওয়া** কলগুলোই খোলে — নোটিশে যত জন লেখা, ঠিক তত জন।
+        val overdueAlert = BriefingModel.isOverdueAlert(item.title)
+        if (overdueAlert) {
+            b.btnViewRecord.visibility = View.VISIBLE
+            b.btnViewRecord.setOnClickListener { onViewOverdue(item) }
+        } else if (mobileInNotice != null) {
             b.btnViewRecord.visibility = View.VISIBLE
             // 🔴 V511: নোটিশটাও পাঠানো হয় — কারণ গন্তব্য নোটিশের **ধরন**
             //    অনুযায়ী বদলায় (Enquiry/Registration → Follow-up-এর ঠিক

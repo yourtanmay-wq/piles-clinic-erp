@@ -90,6 +90,12 @@ class FollowUpActivity : AppCompatActivity() {
      *    তাই ট্যাবের যোগফল আর ব্যানারের সংখ্যা কখনো আলাদা হতে পারে না।
      */
     private var bannerCallsOnly = false
+    /* 🟢🔒 V692 (২৬.০৮.২০২৬, TK-নির্দেশ) — Briefing-এর ⚠️ Overdue Follow-up
+       Alert-এর "View" থেকে এলে তালিকায় **শুধু ৩+ দিন দেরি হওয়া** কলগুলোই।
+       TK-এর বাছা: নোটিশে যত জন লেখা, ঠিক তত জন — ব্রাঞ্চের সব Overdue নয়।
+       ⛔ `bannerCallsOnly`-র হুবহু একই ধাঁচ: উপরের কোনো চিপে নিজে চাপ দিলেই
+          এই মোড বন্ধ, স্বাভাবিক Overdue ফিরে আসে। */
+    private var overdue3PlusOnly = false
     // TK-REPORTED BUG FIX (2026-07-25, same root cause found and fixed in
     // ChamberAttendanceActivity today -- editing something briefly showed
     // correctly then silently reverted): the existing "stage != currentStage"
@@ -239,7 +245,13 @@ class FollowUpActivity : AppCompatActivity() {
             user = session
 
             // Safe here: the Activity is attached, so intent is available.
-            dateFilter = if (intent.getBooleanExtra("todayOnly", false)) "Today" else "All"
+            // 🟢🔒 V692 — Overdue সতর্কতার View থেকে এলে সোজা Overdue ছাঁকনিতে।
+            overdue3PlusOnly = intent.getBooleanExtra("overdue3Plus", false)
+            dateFilter = when {
+                intent.getBooleanExtra("todayOnly", false) -> "Today"
+                overdue3PlusOnly -> "Overdue"
+                else -> "All"
+            }
             // 🔒 খাতার সারি B90 (TK, 29.07.2026 বিকেল ৩.১০): ড্যাশবোর্ডের
             // "N calls pending today" বোতামে চাপ দিলে **তিন সেকশনের আজকের সবাই
             // এক তালিকায়** দেখাবে — Enquiry · Visit · Patient একসাথে।
@@ -247,7 +259,10 @@ class FollowUpActivity : AppCompatActivity() {
             // এনকোয়ারি হোক ভিজিট হোক বা পেশেন্ট হোক।"*
             // ⛔ উপরের কোনো ট্যাবে চাপ দিলেই এই মোড বন্ধ হয়ে আগের স্বাভাবিক
             //    আচরণ ফিরে আসে — রোজকার ব্যবহারে কিছুই বদলায়নি।
-            todayAllSections = intent.getBooleanExtra("todayOnly", false)
+            // 🟢🔒 V692 — Overdue সতর্কতাতেও তিন সেকশন একসাথে। কারণ
+            //   DashboardActivity ওই "৯ জন" গোনে Enquiry · Visit · Patient
+            //   তিনটে মিলিয়ে; এক ট্যাবে দেখালে TK কম দেখতেন, সংখ্যা মিলত না।
+            todayAllSections = intent.getBooleanExtra("todayOnly", false) || overdue3PlusOnly
             // 🔴 V511 (উপরের বড় নোট দ্রষ্টব্য) — ব্যানার থেকে এলে তালিকায় শুধু
             //    "আজ কল করার কথা" যাঁদের, তাঁরাই।
             bannerCallsOnly = intent.getBooleanExtra("todayOnly", false)
@@ -343,7 +358,9 @@ class FollowUpActivity : AppCompatActivity() {
     }
 
     private fun setupDateFilterButtons() {
-        btns.forEach { (b, v) -> b.setOnClickListener { dateFilter = v; paintDateFilterButtons(); paintTabCounts(); applySearch() } }
+        // 🟢🔒 V692 — উপরের চিপে স্টাফ নিজে চাপ দিলেই "৩+ দিন" মোড বন্ধ,
+        //   স্বাভাবিক ছাঁকনি ফিরে আসে (`todayAllSections`-এর মতোই আচরণ)।
+        btns.forEach { (b, v) -> b.setOnClickListener { overdue3PlusOnly = false; dateFilter = v; paintDateFilterButtons(); paintTabCounts(); applySearch() } }
         binding.fCustom.setOnClickListener { pickCustomDateRange { paintDateFilterButtons() } }
         // 🔒 TK-APPROVED (29.07.2026, ফটো-প্রুফে পাশ · খাতার সারি B68):
         // TK: *"ফিল্টার by সিরিয়াল নাম্বার... সেখানে চাপ দিলে এক নম্বর থেকে
@@ -977,7 +994,16 @@ class FollowUpActivity : AppCompatActivity() {
                   (নিচের `else` শাখা) — সেটা এক অক্ষরও বদলায়নি। */
             "Today" -> if (bannerCallsOnly) items.filter { it.nextFollow.isNotBlank() && it.nextFollow <= today }
                        else items.filter { it.nextFollow == today || it.recordDate == today }
-            "Overdue" -> items.filter { it.nextFollow.isNotBlank() && it.nextFollow < today }
+            /* 🟢🔒 V692 — সাধারণ Overdue আগের মতোই। শুধু Briefing-এর ⚠️ Overdue
+               Follow-up Alert-এর View থেকে এলে **৩+ দিন** পেরোনোগুলোই —
+               DashboardActivity যে হিসাবে নোটিশের সংখ্যাটা বানায়
+               (`nextFollow <= threeDaysAgo`), হুবহু সেই একই হিসাব, যাতে
+               নোটিশের সংখ্যা আর এই তালিকা কখনো আলাদা না হয়। */
+            "Overdue" -> if (overdue3PlusOnly) {
+                val threeDaysAgo = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+                    .format(java.util.Date(System.currentTimeMillis() - 3L * 24 * 60 * 60 * 1000))
+                items.filter { it.nextFollow.isNotBlank() && it.nextFollow <= threeDaysAgo }
+            } else items.filter { it.nextFollow.isNotBlank() && it.nextFollow < today }
             "This Week" -> {
                 val cal = java.util.Calendar.getInstance()
                 cal.set(java.util.Calendar.DAY_OF_WEEK, cal.firstDayOfWeek)

@@ -77,6 +77,10 @@ class BriefingActivity : AppCompatActivity() {
             //    রোগীর পাতা সরাসরি খোলে। ⛔ নতুন পথ বানানো হয়নি: ফোন করার
             //    পরে যে পথে রেকর্ড খোলা হয় (`checkNumberAfterCall`), হুবহু সেটাই।
             onViewRecord = { item, digits -> openRecordForNumber(item, digits) },
+            // 🟢🔒 V692 (২৬.০৮.২০২৬, TK-নির্দেশ ছবিসহ) — ⚠️ Overdue Follow-up
+            //    Alert-এ Reply-র বদলে View, আর View চাপলে ওই ব্রাঞ্চের
+            //    ৩+ দিন দেরি হওয়া কলগুলোই খোলে।
+            onViewOverdue = { item -> openOverdueAlert(item) },
             isMaster = session.role == "master",
             // 🆕 (07.08.2026) — কার্ডে টিক পড়লে/উঠলে নিচের "একসাথে অনুমোদন" বার হালনাগাদ।
             onSelectChanged = { refreshBulkBar() }
@@ -201,6 +205,55 @@ class BriefingActivity : AppCompatActivity() {
     private fun handleBriefingNumberTap(digits: String) {
         pendingCallCheckNumber = digits
         CallChooser.open(this, digits)
+    }
+
+    /**
+     * 🟢🔒 V692 (২৬.০৮.২০২৬, TK-নির্দেশ, ছবিসহ) — ⚠️ **Overdue Follow-up
+     * Alert-এর "View"।**
+     *
+     * TK-এর কথা (হুবহু): *"Overdue Call Alert এ Reply কেন আসবে, সেখানে
+     * View থাকতে হবে, আর View তে চাপলে যেন দেখা যায়।"*
+     * TK-এর বাছা: **শুধু ওই ৩+ দিন দেরি হওয়া লোকগুলোই** (নোটিশে যত জন
+     * লেখা, ঠিক তত জন) — ব্রাঞ্চের সব Overdue নয়।
+     *
+     * নোটিশের লেখা ঠিক এই ধাঁচের (DashboardActivity যেভাবে বানায়):
+     *   Jalpaiguri \u2014 9 calls overdue 3+ days
+     *   Cooch Behar \u2014 4 calls overdue 3+ days
+     * তাই প্রতি লাইনের "\u2014"-এর আগের অংশটাই ব্রাঞ্চের নাম।
+     * একটা ব্রাঞ্চ থাকলে সোজা খোলে; একাধিক থাকলে কোনটা দেখবেন জিজ্ঞাসা করা
+     * হয় (নিজে থেকে একটা বেছে নেওয়া হয় না)।
+     */
+    private fun openOverdueAlert(item: Briefing) {
+        val dash = "\u2014"
+        val branches = item.message.lines()
+            .mapNotNull { line ->
+                if (!line.contains(dash)) null
+                else line.substringBefore(dash).trim().takeIf { it.isNotBlank() && it != dash }
+            }
+            .distinct()
+        when {
+            branches.isEmpty() -> openOverdue3Plus("")
+            branches.size == 1 -> openOverdue3Plus(branches[0])
+            else -> androidx.appcompat.app.AlertDialog.Builder(this)
+                .setCustomTitle(PremiumAlert.header(this, "\u23F0 Overdue 3+ Days"))
+                .setItems(branches.toTypedArray()) { _, i -> openOverdue3Plus(branches[i]) }
+                .setNegativeButton("Cancel", null)
+                .show().also { PremiumAlert.paint(it) }
+        }
+    }
+
+    /** 🟢🔒 V692 — ব্রাঞ্চের ছাঁকনি বসিয়ে Follow-up পর্দা খোলা, ৩+ দিন
+     *  দেরি হওয়া মোডে। ⛔ নতুন কোনো পর্দা বানানো হয়নি — ড্যাশবোর্ডের
+     *  "N calls pending today" যে পথে যায়, হুবহু সেই পথ ও সেই পর্দা;
+     *  শুধু ছাঁকনিটা "আজ"-এর বদলে "৩+ দিন দেরি"। */
+    private fun openOverdue3Plus(branch: String) {
+        if (branch.isNotBlank()) {
+            try { BranchFilterStore.set(this, branch) } catch (_: Throwable) { }
+        }
+        startActivity(
+            android.content.Intent(this, FollowUpActivity::class.java)
+                .putExtra("overdue3Plus", true)
+        )
     }
 
     /**

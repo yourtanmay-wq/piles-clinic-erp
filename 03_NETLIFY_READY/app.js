@@ -3174,6 +3174,67 @@ function wlv1NoticeMobile(b){
 }
 window["wlv1NoticeMobile"]=wlv1NoticeMobile;
 
+/* ══════════════════════════════════════════════════════════════════════════
+   🟢🔒 V692 (২৬.০৮.২০২৬, TK-নির্দেশ ছবিসহ) — ⚠️ **Overdue Follow-up Alert-এ
+   Reply নয়, View।**
+
+   TK-এর কথা (হুবহু): *"Overdue Call Alert এ Reply কেন আসবে, সেখানে View
+   থাকতে হবে, আর View তে চাপলে যেন দেখা যায়।"*
+   TK-এর বাছা (জিজ্ঞাসা করে): **শুধু ওই ৩+ দিন দেরি হওয়া লোকগুলোই** —
+   নোটিশে যত জন লেখা, ঠিক তত জন; ব্রাঞ্চের সব Overdue নয়।
+
+   ⛔ ফোনের `BriefingModel.isOverdueAlert()` / `BriefingAdapter` /
+      `BriefingActivity.openOverdueAlert()`-এর হুবহু একই নিয়ম (§৬.৬)।
+   ⛔ `isAutoNotice()`-এ ঢোকানো হয়নি ইচ্ছে করেই — ওটা নোটিশ ৭ দিন টিকিয়ে
+      রাখে, আর এই সতর্কতা রোজ আসে বলে সাতটা জমে যেত।
+   ══════════════════════════════════════════════════════════════════════════ */
+function wlv1IsOverdueAlert(b){return String((b&&b.title)||'').toLowerCase().indexOf('overdue follow-up alert')>=0}
+window["wlv1IsOverdueAlert"]=wlv1IsOverdueAlert;
+function wlv1OverdueViewBtn(b){
+  if(!wlv1IsOverdueAlert(b))return '';
+  return `<button onclick="wlv1OverdueView('${esc(String(b.id))}')">\u{1F441} View</button>`;
+}
+window["wlv1OverdueViewBtn"]=wlv1OverdueViewBtn;
+/* নোটিশের লেখা: "Jalpaiguri \u2014 9 calls overdue 3+ days" (প্রতি ব্রাঞ্চে
+   এক লাইন) — তাই "\u2014"-এর আগের অংশটাই ব্রাঞ্চের নাম। */
+function wlv1OverdueBranches(b){
+  try{
+    return String((b&&b.message)||'').split('\n')
+      .map(function(l){return l.indexOf('\u2014')<0?'':l.split('\u2014')[0].trim()})
+      .filter(function(v,k,a){return v&&a.indexOf(v)===k});
+  }catch(e){ return []; }
+}
+function wlv13DaysAgo(){const d=new Date(today());d.setDate(d.getDate()-3);return d.toISOString().slice(0,10)}
+window["wlv13DaysAgo"]=wlv13DaysAgo;
+function wlv1OverdueView(id){
+  try{
+    var b=briefings().find(function(x){return String(x.id)===String(id)});
+    if(!b)return toast('Notice not found');
+    var brs=wlv1OverdueBranches(b);
+    if(brs.length>1){
+      /* একাধিক ব্রাঞ্চ থাকলে নিজে থেকে একটা বেছে নেওয়া হয় না — জিজ্ঞাসা করা হয়। */
+      modal('<h2>\u23F0 Overdue 3+ Days</h2><div class="card mut">Which branch?</div><div class="actions">'+
+        brs.map(function(br){return '<button onclick="wlv1OverdueGo(\''+esc(br).replace(/'/g,"\\'")+'\')">'+esc(br)+'</button>'}).join('')+
+        '<button class="ghost" onclick="closeModal()">Cancel</button></div>');
+      return;
+    }
+    wlv1OverdueGo(brs[0]||'');
+  }catch(e){ toast('Could not open'); }
+}
+window["wlv1OverdueView"]=wlv1OverdueView;
+/* ⛔ নতুন কোনো পাতা বানানো হয়নি — Follow-up-এর চালু ছাঁকনি-ব্যবস্থাই
+   (`__followDateFilter`, তারিখ-রেঞ্জ nextFollow-এর উপরে) ব্যবহার করা হলো,
+   শুধু রেঞ্জটা "শুরু থেকে ৩ দিন আগে পর্যন্ত"। */
+function wlv1OverdueGo(branch){
+  try{
+    closeModal();
+    if(branch && isMaster()){ try{ wlv1BranchSet(branch); }catch(e){} }
+    __followDateFilter={mode:'Overdue 3+ Days', from:'1900-01-01', to:wlv13DaysAgo()};
+    followup('Inquiry');
+  }catch(e){ toast('Could not open'); }
+}
+window["wlv1OverdueGo"]=wlv1OverdueGo;
+
 function wlv1NoticeViewBtn(b){
   if(!isAutoNotice(b))return '';
   var mm=wlv1NoticeMobile(b);
@@ -3379,12 +3440,12 @@ function anBrBriefThreadBtn(b,label){
   return '<button onclick="openBriefThread(\''+b.id+'\')">'+(label||'Open Thread')+'</button>';
 }
 window["anBrBriefThreadBtn"]=anBrBriefThreadBtn;
-function briefingHome(){currentView='briefing';if(!isMaster()&&!window.__RK_BRIEF_REFRESHING){window.__RK_BRIEF_REFRESHING=true;refreshBriefingsFromCloud().then(()=>{window.__RK_BRIEF_REFRESHING=false;if(currentView==='briefing')briefingHome()}).catch(()=>{window.__RK_BRIEF_REFRESHING=false})}let all=briefings().filter(b=>!isBriefingDeletedForMe(b));if(isMaster()){let list=all.filter(briefingVisibleForMaster).slice().reverse().slice(0,30).map(b=>`<div class="card briefingAdminCard ${anBrUrgentCls(b.title)}"><b>${esc(b.title||'Briefing')}</b><br><small>${anBrBriefWhen(b)}</small><p>${esc(b.message||'')}</p>${anBrBriefMeta(b)}${briefingReplies(b).map(r=>briefingReplyLine(b,r)).join('')}<div class="actions">${wlv1ApprovalButtons(b)}${anBrBriefThreadBtn(b,'Open Thread')}${briefingDeleteButton(b)}</div></div>`).join('')||/* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬) — ফোনে পর্দার নাম সবার জন্যই
+function briefingHome(){currentView='briefing';if(!isMaster()&&!window.__RK_BRIEF_REFRESHING){window.__RK_BRIEF_REFRESHING=true;refreshBriefingsFromCloud().then(()=>{window.__RK_BRIEF_REFRESHING=false;if(currentView==='briefing')briefingHome()}).catch(()=>{window.__RK_BRIEF_REFRESHING=false})}let all=briefings().filter(b=>!isBriefingDeletedForMe(b));if(isMaster()){let list=all.filter(briefingVisibleForMaster).slice().reverse().slice(0,30).map(b=>`<div class="card briefingAdminCard ${anBrUrgentCls(b.title)}"><b>${esc(b.title||'Briefing')}</b><br><small>${anBrBriefWhen(b)}</small><p>${esc(b.message||'')}</p>${anBrBriefMeta(b)}${briefingReplies(b).map(r=>briefingReplyLine(b,r)).join('')}<div class="actions">${wlv1ApprovalButtons(b)}${wlv1OverdueViewBtn(b)}${anBrBriefThreadBtn(b,'Open Thread')}${briefingDeleteButton(b)}</div></div>`).join('')||/* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬) — ফোনে পর্দার নাম সবার জন্যই
    "Briefing / Notice Board" আর খালি-লেখা "No briefing / notice yet"
    (res/layout/activity_briefing.xml:30,148)। ওয়েবে মাস্টারের জন্য আলাদা
    নাম ও ছোট খালি-লেখা ছিল। */
 '<div class="card mut">No briefing / notice yet</div>';page('Briefing / Notice Board',`<div class="card"><label>Message</label><textarea id="brMsg" placeholder="Today target / notice"></textarea><label>Send To</label><select id="brTarget" class="input" onchange="briefingTargetExtra()"><option value="allStaff">All Staff</option><option value="branch">My Branch Staff</option><option value="role_staff">All Staff Role</option><option value="role_doctor">All Doctors</option><option value="role_field">All Field Officers</option><option value="individual">Individual / Multiple Staff</option></select><div id="brExtra"></div><button onclick="createBriefing()">Send Briefing</button></div><div id="wlv1Approvals"></div><div id="finIeApprovals"></div>${list}`);briefingTargetExtra();setTimeout(()=>{try{wlv1LoadApprovals()}catch(e){}/* 🔵 V406: মাস্টারের ঘণ্টার পাতায় আয়-খরচের অনুরোধও (Approve/Reject) — আগে শুধু ফোনে ছিল। ⛔ finance.js না থাকলে/ব্যর্থ হলে কিছুই ভাঙে না। */try{if(typeof window.finRenderApprovals==='function')window.finRenderApprovals()}catch(e){}},60);}else{/* 🔵 B618: ব্রাঞ্চ-ডাক্তার পুরনো দিনেরও pending ছুটির অনুরোধ দেখেন (Approve/Reject); দিন পেরোলেও হারায় না। */
-let pendLeave=all.filter(b=>briefingNeedsApproval(b)&&String(b.title||'').toLowerCase().indexOf('leave request')>=0&&wlv1CanApproveLeave(b));let pendIds={};pendLeave.forEach(b=>{pendIds[b.id]=1;});let leaveCards=pendLeave.slice().reverse().map(b=>`<div class="card briefCard ${anBrUrgentCls(b.title)}"><b>${esc(b.title||'')}</b><p>${esc(b.message||'')}</p>${briefingReplies(b).map(r=>briefingReplyLine(b,r)).join('')}<div class="actions">${wlv1ApprovalButtons(b)}${anBrBriefThreadBtn(b,'Reply')}</div></div>`).join('');let list=activeBriefings().filter(b=>!pendIds[b.id]).map(b=>`<div class="card briefCard ${anBrUrgentCls(b.title)}"><b>${esc(b.title||'Today Briefing')}</b><p>${esc(b.message||'')}</p>${briefingReplies(b).map(r=>briefingReplyLine(b,r)).join('')}<div class="actions">${isAutoNotice(b)?wlv1NoticeViewBtn(b):anBrBriefThreadBtn(b,'Reply')}<button class="ghost" onclick="markBriefSeen('${b.id}')">Seen & Hide</button>${briefingDeleteButton(b)}</div></div>`).join('')||(leaveCards?'':'<div class="card mut">No briefing / notice yet</div>');page('Briefing / Notice Board','<div id="wlv1Approvals"></div><div id="finIeApprovals"></div>'+leaveCards+list);setTimeout(()=>{try{wlv1LoadApprovals()}catch(e){}/* 🔵 V406: মাস্টারের ঘণ্টার পাতায় আয়-খরচের অনুরোধও (Approve/Reject) — আগে শুধু ফোনে ছিল। ⛔ finance.js না থাকলে/ব্যর্থ হলে কিছুই ভাঙে না। */try{if(typeof window.finRenderApprovals==='function')window.finRenderApprovals()}catch(e){}},60);}}
+let pendLeave=all.filter(b=>briefingNeedsApproval(b)&&String(b.title||'').toLowerCase().indexOf('leave request')>=0&&wlv1CanApproveLeave(b));let pendIds={};pendLeave.forEach(b=>{pendIds[b.id]=1;});let leaveCards=pendLeave.slice().reverse().map(b=>`<div class="card briefCard ${anBrUrgentCls(b.title)}"><b>${esc(b.title||'')}</b><p>${esc(b.message||'')}</p>${briefingReplies(b).map(r=>briefingReplyLine(b,r)).join('')}<div class="actions">${wlv1ApprovalButtons(b)}${anBrBriefThreadBtn(b,'Reply')}</div></div>`).join('');let list=activeBriefings().filter(b=>!pendIds[b.id]).map(b=>`<div class="card briefCard ${anBrUrgentCls(b.title)}"><b>${esc(b.title||'Today Briefing')}</b><p>${esc(b.message||'')}</p>${briefingReplies(b).map(r=>briefingReplyLine(b,r)).join('')}<div class="actions">${isAutoNotice(b)?wlv1NoticeViewBtn(b):(wlv1IsOverdueAlert(b)?wlv1OverdueViewBtn(b):anBrBriefThreadBtn(b,'Reply'))}<button class="ghost" onclick="markBriefSeen('${b.id}')">Seen & Hide</button>${briefingDeleteButton(b)}</div></div>`).join('')||(leaveCards?'':'<div class="card mut">No briefing / notice yet</div>');page('Briefing / Notice Board','<div id="wlv1Approvals"></div><div id="finIeApprovals"></div>'+leaveCards+list);setTimeout(()=>{try{wlv1LoadApprovals()}catch(e){}/* 🔵 V406: মাস্টারের ঘণ্টার পাতায় আয়-খরচের অনুরোধও (Approve/Reject) — আগে শুধু ফোনে ছিল। ⛔ finance.js না থাকলে/ব্যর্থ হলে কিছুই ভাঙে না। */try{if(typeof window.finRenderApprovals==='function')window.finRenderApprovals()}catch(e){}},60);}}
 window["briefingHome"]=briefingHome;
 async function createBriefing(){let msg=($('#brMsg')?.value||'').trim();if(!msg)return toast('Message required');let sel=$('#brTarget')?.value||'allStaff';let targets={};if(sel==='allStaff')targets.allStaff=true;else if(sel==='branch')targets.branches=[user.branch];else if(sel==='role_staff')targets.roles=['staff'];else if(sel==='role_doctor')targets.roles=['doctor'];else if(sel==='role_field')targets.roles=['field'];else if(sel==='individual'){let mobiles=$$('.brUserChk:checked').map(x=>mob(x.value)).filter(Boolean);if(!mobiles.length)return toast('Select at least one person');targets.mobiles=mobiles}let row={id:uid('brief'),date:today(),title:'Today Briefing',message:msg,targets,branch:user.branch,seen:[],replies:[],createdBy:user.mobile,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};add('briefings',row);let cloudOk=await cloudUpsertBriefing(row);toast(cloudOk?'Briefing sent to staff':'Internet/Supabase not connected. Briefing saved on this device only.');briefingHome()}
 window["createBriefing"]=createBriefing;
