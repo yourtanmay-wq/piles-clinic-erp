@@ -9790,3 +9790,20 @@ TK নিজে Supabase SQL Editor-এ `V656_DOCTOR_NOTE_REMINDER_2026-08-25.sq
 `patients.doctorReminderNote` ও `patients.doctorReminderDate` — দুটো
 ঘরই এখন সত্যিকারের ডেটাবেসে আছে। "Doctor Note & Reminder" ফিচার
 (V656) এখন সম্পূর্ণ কার্যকর।
+
+## ২৬.০৮.২০২৬ · সন্ধ্যা ৬.৩০ – রাত ৮.০০ IST — V714 · Supabase Egress তদন্ত
+
+মালিকের নির্দেশে ("২ নম্বর কাজের প্লান, সাবধানে যাচাই করে গভীরে গিয়ে")
+Supabase egress-এর আসল কারণ খুঁজে বের করা হলো — **আন্দাজে নয়, সার্ভারের
+লগ থেকে মেপে**।
+
+· ৭.২২ PM — ৯৯.৯% PostgREST, Storage/Realtime শূন্য (Usage পাতা)
+· ৭.২৫ PM — দৈনিক: ২৪ অগাস্ট ৩৬০ MB · ২৫ অগাস্ট ৫৬০ MB · ২৬ অগাস্ট ২৭৫ MB
+· ৭.৪৫ PM — GET followups **২০,৩১২ বার/২৪ ঘণ্টা** (Log Explorer)
+· ৭.৪৮ PM — `select=*&limit=100&mobile=like.*9547006061` — **৩,৯০৩ বার**
+· ৭.৫৫ PM — কোডে মিলিয়ে কারণ প্রমাণিত: `PaymentRepository.flushPending()` →
+  `promoteFollowUpToTreatment()` (লাইন ২২৪৫ · ২৩৩০ · ২৩৫৩), একটা আটকে-থাকা
+  পেমেন্টের জন্য দিনে ~৪,০০০ বার, প্রতিবার রোগীর ছবিসহ ১০০ সারি।
+
+**হ্যান্ডওভার ফাইল:** `V714_EGRESS_HANDOVER_SOMPURNO_PLAN_2026-08-26.md`
+**অবস্থা:** কোড এক অক্ষরও বদলানো হয়নি · ভার্সন V712 অক্ষত · অনুমতির অপেক্ষায়।
