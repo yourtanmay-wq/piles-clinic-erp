@@ -600,6 +600,62 @@ def check_bare_number_input():
 
 
 # ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯.১৯ — Follow-up কার্ডের ট্যাগ জমানো তালিকাতেও থাকতে হবে
+#  🔴🔴🔴 TK-REPORTED (২৬.০৮.২০২৬, ছবিসহ — *"Tag এ Unexpected লেখা নেই,
+#  কিন্তু View All-এ ক্লিক করলে আছে"*)। TK-এর কথা: *"একই ধরনের সমস্যা
+#  আপনাকে প্রত্যেকবার কেন বলতে হয়, একবারে কেন ঠিক করতে পারেন না"*।
+#
+#  **আসল কারণ ছিল:** `FollowUpRepository.saveCachedTab()`-এ `timeType` ·
+#  `refDoctor` · `addressTag` — এই তিনটে ঘর লেখাই হত না। তাই লাইভ তালিকা
+#  আসার আগে (বা লাইন খারাপ থাকলে চিরকাল) কার্ডে ঠিকানার ট্যাগ · UNEXPECTED ·
+#  RMP উধাও থাকত, অথচ View All-এ ঠিকই দেখা যেত।
+#
+#  এই পাহারা দুটো জিনিস দেখে, যাতে দোষটা আর কখনো ফিরতে না পারে:
+#   ১) কার্ডে দেখানো প্রতিটা দরকারি ঘর জমানো তালিকায় **লেখা হয়** কি না
+#   ২) জমানো তালিকা **পড়ার** সময় যে ঘরগুলো চাওয়া হয়, লেখার সময়ও সেগুলো
+#      বসে কি না (লেখা-পড়া কখনো আলাদা হয়ে যেতে পারবে না)
+# ═══════════════════════════════════════════════════════════════
+MUST_CACHE_FIELDS = [
+    "timeType", "refDoctor", "addressTag", "lastCallDate", "lastCallBy",
+    "nextFollow", "callCount", "patientId", "bill", "paid", "address",
+]
+
+
+def check_followup_cache_fields():
+    f = os.path.join(ROOT, "02_ANDROID_SOURCE_CODE", "PilesClinicApp", "app", "src", "main",
+                     "java", "com", "tkbiswas", "pilesclinic", "native", "FollowUpRepository.kt")
+    s = read(f)
+    if not s:
+        return
+    i = s.find("fun saveCachedTab")
+    j = s.find("fun loadCachedTab")
+    if i < 0 or j < 0:
+        fail("৯.১৯", "FollowUpRepository.kt-এ saveCachedTab/loadCachedTab খুঁজে পাওয়া গেল না")
+        return
+    save_body = s[i:s.find("\n    fun ", i + 10)]
+    # ⛔ শুধু **জমানো তালিকা পড়ার** অংশটুকু — নিচের `mergeOwnPhoneRows()` অন্য
+    #    উৎস (ফোনের নিজের সেভ করা সারি), তার ঘরের নাম আলাদা হতেই পারে।
+    load_all = s[j:s.find("\n    fun ", j + 10)]
+    a = load_all.find("val arr = JSONArray(json)")
+    load_body = load_all[a:load_all.find("catch", a)] if a >= 0 else ""
+    # ⛔ মন্তব্য করে দেওয়া লাইন গোনা চলবে না — নইলে কেউ `//` দিয়ে ঢেকে দিলেই
+    #    পাহারাদার ঠকে যেত (নিজের নেগেটিভ-টেস্টেই এটা ধরা পড়েছে)।
+    def no_comments(txt):
+        return "\n".join(ln.split("//", 1)[0] for ln in txt.split("\n"))
+    save_body = no_comments(save_body)
+    load_body = no_comments(load_body)
+    written = set(re.findall(r'\.put\("([A-Za-z]+)"', save_body))
+    for name in MUST_CACHE_FIELDS:
+        if name not in written:
+            fail("৯.১৯", f"FollowUpRepository.saveCachedTab()-এ `{name}` লেখা হচ্ছে না — "
+                         f"জমানো তালিকা দেখানোর সময় কার্ডে ওটা উধাও থাকবে (TK, ২৬.০৮.২০২৬)")
+    read_names = set(re.findall(r'r\.optString\("([A-Za-z]+)"', load_body)) | \
+                 set(re.findall(r'r\.s\("([A-Za-z]+)"\)', load_body))
+    for name in sorted(read_names - written):
+        fail("৯.১৯", f"FollowUpRepository — জমানো তালিকা পড়ার সময় `{name}` চাওয়া হয়, "
+                     f"কিন্তু লেখার সময় বসানো হয় না (লেখা-পড়া আলাদা হয়ে গেছে)")
+
+# ═══════════════════════════════════════════════════════════════
 #  যাচাই ৯.১১ — সংখ্যা সবসময় ইংরেজিতে
 #  🔒 TK-এর গ্লোবাল রুল (29.07.2026 সন্ধ্যা ৬.১০, খাতার সারি B93):
 #  *"সংখ্যা সব সময় ইংলিশেই হতে হবে। বাংলা অথবা হিন্দিতে হবে না।"*
@@ -1676,6 +1732,7 @@ def main():
     check_qualified_extension_fn()   # 🔴🔴🔴 খাতার সারি B203 — async/launch fully-qualified কল
     check_fake_layoutparams_class()   # 🔴🔴🔴 খাতার সারি B266-সংশোধন — ScrollView-এর নিজের LayoutParams নেই
     check_bare_number_input()         # 🔴🔴🔴 খাতার সারি B411 — একা TYPE_CLASS_NUMBER-এ কীবোর্ড না খোলার বাগ
+    check_followup_cache_fields()     # 🏷️ V712 — জমানো তালিকায় কার্ডের ট্যাগের ঘর বাদ পড়েনি তো
     check_digits()
     check_locked_rules()
     check_hidden_spinner()
@@ -1701,6 +1758,7 @@ def main():
         ("৯.১৫", "kotlinx.coroutines async/launch প্যাকেজ-নাম দিয়ে ডাকা হয়নি"),
         ("৯.১৬", "ScrollView/HorizontalScrollView-এর ভুয়া .LayoutParams ডাকা হয়নি"),
         ("৯.১৭", "সংখ্যা-ঘরে একা TYPE_CLASS_NUMBER (কীবোর্ড না-খোলার ঝুঁকি) নেই"),
+        ("৯.১৯", "Follow-up কার্ডের ট্যাগ জমানো তালিকাতেও লেখা হয় (Unexpected · RMP · ঠিকানা)"),
         ("৯.১১", "সংখ্যা সবসময় ইংরেজিতে"),
         ("৯.১২", f"🚔 লক করা নিয়ম অক্ষত — {len(LOCKED_RULES)}টি + লুকানো Spinner-এর ফাঁদ"),
         ("৯.১৩", f"🧾 কাজের নিয়ম অক্ষত — {len(WORK_RULES)}টি + followups-এর আইডি + ব্রাঞ্চের encode"),

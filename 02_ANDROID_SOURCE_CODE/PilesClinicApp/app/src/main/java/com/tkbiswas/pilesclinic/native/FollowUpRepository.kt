@@ -460,6 +460,11 @@ class FollowUpRepository(private val context: Context? = null) {
                         patientId = r.optString("patientId", ""), address = r.optString("address", ""),
                         age = r.optString("age", ""), sex = r.optString("sex", ""),
                         photo = r.optString("photo", ""), updatedAt = r.optString("updatedAt", ""),
+                        // 🏷️🔒 V712 — উপরের তিনটে ঘর ফেরত পড়া (পুরোনো জমানো তালিকায়
+                        //    না থাকলে ফাঁকা — অর্থাৎ ঠিক আগের আচরণ, কিছুই ভাঙে না)।
+                        timeType = r.optString("timeType", ""),
+                        refDoctor = r.optString("refDoctor", ""),
+                        addressTag = r.optString("addressTag", ""),
                         lastCallDate = r.optString("lastCallDate", ""), lastCallBy = FollowUpModel.prettyStaff(r.optString("lastCallBy", ""))
                     )
                 )
@@ -594,7 +599,13 @@ class FollowUpRepository(private val context: Context? = null) {
                         photo = r.s("photo"),
                         updatedAt = r.s("updatedAt"),
                         lastCallDate = r.s("lastCallDate"),
-                        lastCallBy = FollowUpModel.prettyStaff(r.s("lastCallBy"))
+                        lastCallBy = FollowUpModel.prettyStaff(r.s("lastCallBy")),
+                        /* 🏷️🔒 V712 — এই ফোনে সেভ হওয়া (এখনো ক্লাউডে না যাওয়া)
+                           সারিতেও ট্যাগের ঘরগুলো বসে। আগে বসত না, তাই সদ্য তোলা
+                           এনকোয়ারিতে UNEXPECTED/RMP ট্যাগ দেখাত না।
+                           ⛔ না থাকলে ফাঁকা — অর্থাৎ ঠিক আগের আচরণ। */
+                        timeType = r.s("timeType"),
+                        refDoctor = r.s("refDoctor")
                     )
                 )
             }
@@ -618,6 +629,18 @@ class FollowUpRepository(private val context: Context? = null) {
                         .put("address", it.address).put("age", it.age).put("sex", it.sex)
                         .put("photo", it.photo).put("updatedAt", it.updatedAt)
                         .put("lastCallDate", it.lastCallDate).put("lastCallBy", it.lastCallBy)
+                        /* 🏷️🔒 V712 (২৬.০৮.২০২৬, TK-রিপোর্ট ছবিসহ — *"Tag এ Unexpected
+                           লেখা নেই, কিন্তু View All-এ ক্লিক করলে আছে"*)।
+                           **আসল কারণ:** এই তিনটে ঘর জমানো তালিকায় **লেখাই হত না**
+                           (আগে ইচ্ছাকৃত আপস ছিল)। তাই লাইভ তালিকা আসার আগে —
+                           বা লাইন খারাপ থাকলে চিরকাল — কার্ডে ঠিকানার ট্যাগ ·
+                           UNEXPECTED · RMP তিনটেই উধাও থাকত, অথচ View All-এ
+                           (যেটা আলাদা করে পড়ে) ঠিকই দেখা যেত।
+                           ⛔ এগুলো ছোট লেখা, ছবি নয় — জমানো ফাইল বড় হয় না।
+                           ⛔ ক্লাউডে একটাও বাড়তি অনুরোধ যায় না। */
+                        .put("timeType", it.timeType)
+                        .put("refDoctor", it.refDoctor)
+                        .put("addressTag", it.addressTag)
                 )
             }
             val key = "cache_${stage}_${branchFilter ?: "All"}"
@@ -2350,7 +2373,6 @@ class FollowUpRepository(private val context: Context? = null) {
         // Newest first — the most recent enquiry/record shows at the TOP,
         // matching the web's sortFollowRowsByRecent().
         val result = items.sortedByDescending { it.recordDate }
-        saveCachedTab(stage, branchFilter, result)
         // 🔒 খাতার সারি B172 (TK, 30.07.2026): কার্ডের ঠিকানা-ট্যাগ বসানো —
         // ⛔ **এই ধাপটা `saveCachedTab`-এর পরে**, তাই অফলাইন/জমানো তালিকার
         // আচরণ এক অক্ষরও বদলায়নি (জমানো তালিকায় ঠিকানা-ট্যাগ বেঁধে রাখা হয় না;
@@ -2361,8 +2383,12 @@ class FollowUpRepository(private val context: Context? = null) {
         // 🔒 খাতার সারি B173 (TK, 30.07.2026): Patient (Treatment) কার্ডে এই
         // ট্যাগ আর দেখানো হয় না ("View All-এ চাপলে সব দেখা যাবে") — তাই ওই
         // ট্যাবে এই ব্যাচ-অনুরোধটাও আর করা হয় না, বাড়তি একটা ক্লাউড-কলও বাঁচল।
-        if (stage == "Treatment") return result
-        return try {
+        /* 🏷️🔒 V712 — **জমানো তালিকা এখন ঠিকানার ট্যাগ বসানোর পরে লেখা হয়**
+           (আগে তার আগে লেখা হত, তাই ট্যাগটা কখনোই জমত না — উপরের বড় নোট দেখুন)।
+           ⛔ Treatment ট্যাবে ঠিকানার ট্যাগ দেখানোই হয় না (খাতার সারি B173),
+              তাই সেখানে আগের মতোই বাড়তি কোনো অনুরোধ যায় না — শুধু জমা করে ফেরত। */
+        if (stage == "Treatment") { saveCachedTab(stage, branchFilter, result); return result }
+        val tagged = try {
             val saved = AddressTagRepository.fetchSavedTags(result.map { it.mobile })
             result.map { it ->
                 val key = AddressTagRepository.keyFor(it.mobile)
@@ -2370,6 +2396,8 @@ class FollowUpRepository(private val context: Context? = null) {
                 if (tag.isBlank()) it else it.copy(addressTag = tag)
             }
         } catch (_: Throwable) { result }
+        saveCachedTab(stage, branchFilter, tagged)
+        return tagged
     }
 
     private fun digits(s: String): String = s.filter { it.isDigit() }.takeLast(10)
