@@ -764,21 +764,91 @@ class DoctorCheckupActivity : AppCompatActivity() {
         }
         refreshDot()
 
+        /* 🟢🔒 V699 (২৬.০৮.২০২৬, TK-নির্দেশ — "এই pop up কে প্রফেশনাল বানিয়ে
+           দিন"; ডেমো ছবি দেখিয়ে TK **"1 করুন"** বলেছেন) —
+
+           ① পপ-আপে এখন অ্যাপের নিজের **সবুজ হেডার** (`PremiumAlert.header`,
+              প্রজেক্টের ৬০+ পপ-আপে ব্যবহৃত লক করা চেহারা)। হেডারেই নাম
+              লেখা থাকে বলে কার্ডের ভিতরের 🩺-শিরোনামের সারিটা পপ-আপে
+              লুকানো হয়, বন্ধ করলে **আবার দেখানো হয়** (কার্ডটা তো নিজের
+              জায়গায় ফিরে যায়, সেখানে ওই শিরোনাম দরকার)।
+
+           ② নিজের **💾 Save** বোতাম। TK-এর প্রশ্ন ছিল *"save না করলে কাজ
+              হবে কি করে"* — ঠিক কথা: এতদিন লেখাটা শুধু নিচের মূল SAVE
+              চাপলেই জমত, কেউ লিখে Close করে বেরিয়ে গেলে **হারিয়ে যেত**।
+              ⛔ নতুন কোনো সেভ-নিয়ম বানানো হয়নি — মূল Save যে তিনটে ঘরে
+                 (`doctorReminderNote/Date/Time`) যে ভাবে লেখে, হুবহু সেই
+                 একই `SupabaseClient.updateById("patients", …)`। তাই দুই
+                 পথে একই মানই বসে, গোলমালের সুযোগ নেই।
+           ⛔ V671-এর নিয়ম অক্ষত: কার্ডটা সরিয়ে এনে দেখানো হয় ও বন্ধ করলে
+              **ঠিক আগের জায়গায়** ফিরিয়ে দেওয়া হয়; কোনো view তৈরি/মোছা নয়। */
         btn.setOnClickListener {
             originalParent.removeView(card)
             card.visibility = android.view.View.VISIBLE
+            val headRow1 = findViewById<TextView?>(R.id.tvDoctorReminderHeading)
+            val headRow2 = findViewById<TextView?>(R.id.tvDoctorReminderHeadingText)
+            headRow1?.visibility = android.view.View.GONE
+            headRow2?.visibility = android.view.View.GONE
             val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+                .setCustomTitle(
+                    com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "🩺 Doctor Note & Reminder")
+                )
                 .setView(card)
-                .setPositiveButton("Close", null)
+                .setPositiveButton("\uD83D\uDCBE Save") { _, _ -> saveDoctorReminderNow() }
+                .setNegativeButton("Close", null)
                 .create()
             dlg.setOnDismissListener {
                 card.visibility = android.view.View.GONE
+                headRow1?.visibility = android.view.View.VISIBLE
+                headRow2?.visibility = android.view.View.VISIBLE
                 (card.parent as? android.view.ViewGroup)?.removeView(card)
                 originalParent.addView(card, originalIndex.coerceIn(0, originalParent.childCount))
                 refreshDot()
             }
             dlg.show()
+            try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(dlg) } catch (_: Throwable) { }
         }
+    }
+
+    /**
+     * 🟢🔒 V699 — পপ-আপের 💾 Save। মূল SAVE-এর হুবহু একই তিনটে ঘর, একই
+     * লেখার পথ (`SupabaseClient.updateById("patients", …)`), তাই দুই পথে
+     * কখনো আলাদা মান বসতে পারে না।
+     * ⛔ চেক-আপের বাকি কিছুই এখানে সেভ হয় না — শুধু এই তিনটে ঘর।
+     * ⛔ রোগীর id না জানা গেলে কিছুই লেখা হয় না (ভুল সারিতে লেখার ঝুঁকি নেই)।
+     */
+    private fun saveDoctorReminderNow() {
+        val note = findViewById<android.widget.EditText>(R.id.etDoctorReminderNote)
+            .text?.toString().orEmpty().trim()
+        val dateIso = doctorReminderDateIso
+        val timeStr = doctorReminderTimeStr
+        if (note.isBlank() && dateIso.isBlank() && timeStr.isBlank()) {
+            Toast.makeText(this, NoBengali.s("কিছু লেখা বা বাছা হয়নি"), Toast.LENGTH_SHORT).show()
+            return
+        }
+        val pid = RoleSession.currentPatientId
+        if (pid.isBlank()) {
+            Toast.makeText(this, NoBengali.s("রোগী পাওয়া যায়নি — নিচের SAVE চাপুন"), Toast.LENGTH_LONG).show()
+            return
+        }
+        Thread {
+            val ok = try {
+                SupabaseClient.updateById(
+                    "patients", pid,
+                    org.json.JSONObject()
+                        .put("doctorReminderNote", note)
+                        .put("doctorReminderDate", dateIso)
+                        .put("doctorReminderTime", timeStr)
+                )
+            } catch (_: Throwable) { false }
+            runOnUiThread {
+                Toast.makeText(
+                    this,
+                    if (ok) NoBengali.s("মনে করানোর নোট সেভ হয়েছে") else NoBengali.s("সেভ হয়নি — নিচের SAVE চাপুন"),
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }.start()
     }
 
     private fun displayDateForReminder(iso: String): String = try {

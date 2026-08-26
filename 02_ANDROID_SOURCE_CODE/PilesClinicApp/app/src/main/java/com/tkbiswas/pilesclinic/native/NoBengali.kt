@@ -661,6 +661,15 @@ object NoBengali {
         "গত মাসের ব্যালেন্স" to "Previous Month's Balance",
         "WhatsApp-এ শেয়ার" to "Share on WhatsApp",
         "শেয়ার করা গেল না" to "Could not share",
+        // 🟢🔒 V699 (২৬.০৮.২০২৬) — Doctor Note & Reminder পপ-আপের নতুন লেখা।
+        "নোট" to "Note",
+        "ইচ্ছেমতো" to "Optional",
+        "তারিখ বাছলে তার আগের দিন মনে করানো হবে — শুধু আপনাকেই। সময় না বাছলে সন্ধ্যা 6টা।"
+            to "If you pick a date, you will be reminded the day before — only you. Without a time, 6 PM.",
+        "কিছু লেখা বা বাছা হয়নি" to "Nothing written or picked",
+        "রোগী পাওয়া যায়নি — নিচের SAVE চাপুন" to "Patient not found — use the SAVE below",
+        "মনে করানোর নোট সেভ হয়েছে" to "Reminder note saved",
+        "সেভ হয়নি — নিচের SAVE চাপুন" to "Not saved — use the SAVE below",
         // 🟢🔒 V693 (২৬.০৮.২০২৬) — মাসের হিসাবের "••• Options" মেনু।
         "আগে Show চাপুন।" to "Tap Show first.",
         "হালনাগাদ হচ্ছে…" to "Updating…",

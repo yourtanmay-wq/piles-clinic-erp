@@ -348,30 +348,54 @@
          দেখা যায় না — উপরের 🩺 আইকন চাপলে পপ-আপে খোলে (DoctorCheckupActivity.kt-এর
          showDoctorReminderDialog())। ⛔ view id/hint/সেভ-লজিক অক্ষত (নিচে,
          কার্ডটা GONE — TK-নিয়ম: কিছু মোছা হয় না, শুধু লুকানো)। -->
-    <androidx.cardview.widget.CardView android:id="@+id/secDoctorReminder" style="@style/RegCard" app:cardBackgroundColor="#FFFDF5" android:visibility="gone">
+    <!-- 🟢🔒 V699 (২৬.০৮.২০২৬, TK-নির্দেশ — "এই pop up কে প্রফেশনাল বানিয়ে দিন";
+         ডেমো ছবি দেখিয়ে TK "1 করুন" বলেছেন) — পপ-আপের ভিতরের কার্ড।
+         · হলদে ব্যাকগ্রাউন্ড ও ভিতরের দ্বিতীয় বাক্স বাদ (পপ-আপের ভিতরে
+           আরেকটা বাক্স দেখাত), এখন সাদা — সবুজ হেডারটা কোড থেকে বসে।
+         · নিজের 🩺 শিরোনামের সারিটা বাদ — সবুজ হেডারেই ওটা লেখা থাকে।
+         · তারিখ/সময়ের ঘরে অ্যাপের নিজের আইকন। TK: *"17 July emoji থাকবে
+           না"* — তাই 📅/🕐 ইমোজি নয়, `ic_pd_calendar_green`/`ic_pd_clock`
+           (কোনো তারিখ/সময় আঁকা নেই)।
+         ⛔ **কোনো ঘর মোছা/যোগ করা হয়নি** — `etDoctorReminderNote`,
+            `tvDoctorReminderDate`, `tvDoctorReminderTime` তিনটে id, তাদের
+            hint ও লেখা হুবহু আগের। সেভের কোড এক অক্ষরও বদলায়নি। -->
+    <androidx.cardview.widget.CardView android:id="@+id/secDoctorReminder" style="@style/RegCard" app:cardBackgroundColor="#FFFFFF" android:visibility="gone">
         <LinearLayout style="@style/RegCardInner">
-            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="6dp">
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="🩺" android:textSize="16sp" />
-                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="7dp" android:text="Doctor Note &amp; Reminder" android:textStyle="bold" android:textSize="14sp" android:textColor="#101828" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="4dp">
+                <TextView android:id="@+id/tvDoctorReminderHeading" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="🩺" android:textSize="16sp" />
+                <TextView android:id="@+id/tvDoctorReminderHeadingText" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="7dp" android:text="Doctor Note &amp; Reminder" android:textStyle="bold" android:textSize="14sp" android:textColor="#101828" />
             </LinearLayout>
-            <LinearLayout style="@style/DocNoteFieldBox" android:layout_marginTop="0dp">
-                <View style="@style/DocNoteAccentBar" />
-                <LinearLayout style="@style/DocNoteFieldBoxInner">
-                    <EditText android:id="@+id/etDoctorReminderNote" style="@style/DocNoteInputMultiline" android:minLines="2"
-                        android:hint="পরের বার রোগীকে কী ওষুধ/কী কাজ করা হবে — এখানে লিখুন" />
-                    <TextView style="@style/DocNoteLabel" android:layout_width="match_parent" android:layout_marginTop="10dp"
-                        android:text="কোন দিনের আগের দিন মনে করাবে?" />
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="4dp">
-                        <TextView android:id="@+id/tvDoctorReminderDate" style="@style/DocNoteInputSingle"
-                            android:layout_width="0dp" android:layout_weight="1"
-                            android:background="@drawable/bg_input_field_picker" android:paddingEnd="40dp"
-                            android:text="তারিখ বাছুন" android:textColor="#8A93A0" android:clickable="true" android:focusable="true" />
-                        <TextView android:id="@+id/tvDoctorReminderTime" style="@style/DocNoteInputSingle"
-                            android:layout_width="0dp" android:layout_weight="1" android:layout_marginStart="8dp"
-                            android:background="@drawable/bg_input_field_picker" android:paddingEnd="40dp"
-                            android:text="সময় বাছুন" android:textColor="#8A93A0" android:clickable="true" android:focusable="true" />
-                    </LinearLayout>
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                        android:text="নোট" android:textStyle="bold" android:textSize="11.5sp" android:textColor="#0A5C33" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="ইচ্ছেমতো" android:textStyle="bold" android:textSize="10.5sp" android:textColor="#8A93A0" />
                 </LinearLayout>
+                <EditText android:id="@+id/etDoctorReminderNote" style="@style/DocNoteInputMultiline" android:minLines="2"
+                    android:layout_marginTop="4dp"
+                    android:hint="পরের বার রোগীকে কী ওষুধ/কী কাজ করা হবে — এখানে লিখুন" />
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginTop="12dp">
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                        android:text="কোন দিনের আগের দিন মনে করাবে?" android:textStyle="bold" android:textSize="11.5sp" android:textColor="#0A5C33" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="ইচ্ছেমতো" android:textStyle="bold" android:textSize="10.5sp" android:textColor="#8A93A0" />
+                </LinearLayout>
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="4dp">
+                    <TextView android:id="@+id/tvDoctorReminderDate" style="@style/DocNoteInputSingle"
+                        android:layout_width="0dp" android:layout_weight="1"
+                        android:background="@drawable/bg_input_field_date" android:paddingStart="36dp" android:paddingEnd="36dp"
+                        android:text="তারিখ বাছুন" android:textColor="#8A93A0" android:clickable="true" android:focusable="true" />
+                    <TextView android:id="@+id/tvDoctorReminderTime" style="@style/DocNoteInputSingle"
+                        android:layout_width="0dp" android:layout_weight="1" android:layout_marginStart="8dp"
+                        android:background="@drawable/bg_input_field_time" android:paddingStart="36dp" android:paddingEnd="36dp"
+                        android:text="সময় বাছুন" android:textColor="#8A93A0" android:clickable="true" android:focusable="true" />
+                </LinearLayout>
+                <TextView android:id="@+id/tvDoctorReminderHelp" android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp" android:background="@drawable/bg_brief_infobox"
+                    android:paddingStart="11dp" android:paddingEnd="11dp" android:paddingTop="9dp" android:paddingBottom="9dp"
+                    android:textSize="11.5sp" android:textColor="#0A5C33" android:lineSpacingExtra="2dp"
+                    android:text="তারিখ বাছলে তার আগের দিন মনে করানো হবে — শুধু আপনাকেই। সময় না বাছলে সন্ধ্যা 6টা।" />
             </LinearLayout>
         </LinearLayout>
     </androidx.cardview.widget.CardView>

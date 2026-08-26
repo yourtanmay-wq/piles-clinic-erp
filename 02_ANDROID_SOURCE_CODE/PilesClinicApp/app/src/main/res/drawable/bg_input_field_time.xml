@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 🟢🔒 V699 — Doctor Note & Reminder-এর ঘর: বাঁয়ে সবুজ আইকন (তাতে কোনো
+     তারিখ/সময় লেখা নেই), ডানে আগের সেই চেভরন। ⛔ ঘরের সাদা বাক্স · কোনা ·
+     পাড় — সব আগের `bg_input_field_picker`-এর হুবহু একই মাপ ও রং। -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/white" />
+            <corners android:radius="14dp" />
+            <stroke android:width="1dp" android:color="@color/input_border" />
+        </shape>
+    </item>
+    <item android:drawable="@drawable/ic_pd_clock" android:gravity="center_vertical|left"
+        android:left="12dp" android:width="17dp" android:height="17dp" />
+    <item android:drawable="@drawable/ic_picker_chevron" android:gravity="center_vertical|right"
+        android:right="14dp" android:width="18dp" android:height="18dp" />
+</layer-list>
