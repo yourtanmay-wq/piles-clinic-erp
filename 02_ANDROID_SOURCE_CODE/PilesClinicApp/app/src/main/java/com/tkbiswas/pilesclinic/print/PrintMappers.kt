@@ -81,6 +81,9 @@ object PrintMappers {
             it.frequency.ifBlank { com.tkbiswas.pilesclinic.clinical.ClinicalRepository.rxWhenFor(it.name) }.ifBlank { "-" }
         }
         val rxDuration = if (medicines.isEmpty()) null else medicines.map { it.duration.ifBlank { "-" } }
+        /* 💊🔒 V723 — ডাক্তারের লেখা Instruction (যেমন "WITH LUKEWARM WATER")
+           এখন ছাপাতেও যায়; নামের নিচে ছোট হরফে বসে। ⛔ ফাঁকা হলে কিছুই বসে না। */
+        val rxInstructions = if (medicines.isEmpty()) null else medicines.map { it.instructions.trim() }
         return PrintDocumentModel(
             documentTitle = "Prescription",
             branchName = RoleSession.currentPatientBranch,
@@ -92,7 +95,7 @@ object PrintMappers {
             // TK FIX (2026-07-15): section heading was "Rx" while the PDF already
             // draws a large "℞" rx-symbol at the same spot -> looked like "Rx" printed
             // twice. Heading removed; the ℞ symbol alone marks the medicine list.
-            sections = listOf(PrintSection(null, lines, rxTypes, rxNames, rxDosage, rxFrequency, rxDuration)),
+            sections = listOf(PrintSection(null, lines, rxTypes, rxNames, rxDosage, rxFrequency, rxDuration, rxInstructions)),   // 💊 V723
             qrPayload = "PILESCLINIC|RX|${RoleSession.currentPatientId}|${System.currentTimeMillis()}",
             patientAddress = RoleSession.currentPatientAddress,
             patientAgeSex = patientAgeSex(),
@@ -129,6 +132,9 @@ object PrintMappers {
             it.frequency.ifBlank { com.tkbiswas.pilesclinic.clinical.ClinicalRepository.rxWhenFor(it.name) }.ifBlank { "-" }
         }
         val rxDuration = if (medicines.isEmpty()) null else medicines.map { it.duration.ifBlank { "-" } }
+        /* 💊🔒 V723 — ডাক্তারের লেখা Instruction (যেমন "WITH LUKEWARM WATER")
+           এখন ছাপাতেও যায়; নামের নিচে ছোট হরফে বসে। ⛔ ফাঁকা হলে কিছুই বসে না। */
+        val rxInstructions = if (medicines.isEmpty()) null else medicines.map { it.instructions.trim() }
         return PrintDocumentModel(
             documentTitle = "Medicine Slip",
             branchName = RoleSession.currentPatientBranch,
@@ -137,7 +143,7 @@ object PrintMappers {
             // কোডটাই (থাকলে) — QR-এ raw আইডিই থাকছে (কিছু ভাঙে না)।
             patientId = RoleSession.displayId(),
             dateLabel = now(),
-            sections = listOf(PrintSection(null, lines, rxTypes, rxNames, rxDosage, rxFrequency, rxDuration)),
+            sections = listOf(PrintSection(null, lines, rxTypes, rxNames, rxDosage, rxFrequency, rxDuration, rxInstructions)),   // 💊 V723
             qrPayload = "PILESCLINIC|SLIP|${RoleSession.currentPatientId}|${System.currentTimeMillis()}",
             footerNote = "Please follow dosage exactly as advised by the doctor.",
             patientAddress = RoleSession.currentPatientAddress,

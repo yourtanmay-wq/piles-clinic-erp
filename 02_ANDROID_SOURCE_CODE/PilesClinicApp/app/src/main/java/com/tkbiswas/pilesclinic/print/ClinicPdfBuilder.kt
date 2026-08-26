@@ -276,6 +276,12 @@ class ClinicPdfBuilder(private val context: Context) {
         val doses = section.rxDosage.orEmpty()
         val freqs = section.rxFrequency.orEmpty()
         val durations = section.rxDuration.orEmpty()
+        /* 💊🔒 V723 (২৭.০৮.২০২৬, ডা. কে. এইচ. মণ্ডলের রিপোর্ট · TK ডেমো-প্রুফে
+           **প্রস্তাব ১** অনুমোদিত) — ডাক্তারের লেখা Instruction (যেমন
+           "WITH LUKEWARM WATER") **ওষুধের নামের ঠিক নিচে ছোট হরফে**।
+           ⛔ কোনো কলামের চওড়া বদলায়নি — তাই লম্বা নাম ভেঙে যাওয়ার ঝুঁকি নেই।
+           ⛔ Instruction ফাঁকা হলে সারিটা **হুবহু আগের মতোই** ছাপে। */
+        val instructions = section.rxInstructions.orEmpty()
         val rowCount = names.size
 
         val navy = Color.parseColor("#123C8C")
@@ -295,6 +301,10 @@ class ClinicPdfBuilder(private val context: Context) {
             textSize = 7f; isFakeBoldText = true; color = Color.WHITE; textAlign = Paint.Align.CENTER
         }
         val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#D8DEE6"); strokeWidth = 0.8f }
+        // 💊 V723 — Instruction-এর ছোট হরফ (নামের নিচে)।
+        val instrPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+            textSize = 8f; isFakeBoldText = true; color = Color.parseColor("#8A5A00")
+        }
 
         // Column layout: SL | MEDICINE NAME | DOSE | WHEN | DURATION
         // TK-REQUESTED (2026-07-22): DOSE widened (its text can run long, e.g.
@@ -315,7 +325,8 @@ class ClinicPdfBuilder(private val context: Context) {
         val cellPad = 12f
         val headerRowH = 24f
 
-        data class TableRow(val sl: Int, val badge: String, val badgeColor: Int, val nameLayout: StaticLayout, val doseLayout: StaticLayout, val whenLayout: StaticLayout, val durLayout: StaticLayout, val height: Float)
+        data class TableRow(val sl: Int, val badge: String, val badgeColor: Int, val nameLayout: StaticLayout, val doseLayout: StaticLayout, val whenLayout: StaticLayout, val durLayout: StaticLayout, val height: Float,
+                            val instrLayout: StaticLayout? = null, val nameBlockH: Float = 0f)   // 💊 V723
 
         val rows = (0 until rowCount).map { i ->
             val nameLayout = makeLayout(names.getOrElse(i) { "-" }, namePaint, (colName - 2 * cellPad - 32f).toInt())
@@ -323,8 +334,15 @@ class ClinicPdfBuilder(private val context: Context) {
             val whenLayout = makeLayout(freqs.getOrElse(i) { "-" }, cellPaint, (colWhen - 2 * cellPad).toInt())
             val durLayout = makeLayout(durations.getOrElse(i) { "-" }, cellPaint, (colDuration - 2 * cellPad).toInt())
             val badge = types.getOrNull(i).orEmpty()
-            val h = maxOf(nameLayout.height.toFloat(), doseLayout.height.toFloat(), whenLayout.height.toFloat(), durLayout.height.toFloat()) + 16f
-            TableRow(i + 1, badge, Color.parseColor(typeColor(badge)), nameLayout, doseLayout, whenLayout, durLayout, h)
+            /* 💊 V723 — Instruction থাকলে নামের নিচে একটা ছোট লাইন। ⛔ ফাঁকা হলে
+               `null`, আর তখন নিচের হিসাব হুবহু আগের মতোই চলে। */
+            val instrText = instructions.getOrNull(i).orEmpty().trim()
+            val instrLayout = if (instrText.isBlank()) null
+                else makeLayout(instrText, instrPaint, (colName - 2 * cellPad).toInt())
+            val nameBlockH = nameLayout.height.toFloat() + (instrLayout?.let { it.height.toFloat() + 3f } ?: 0f)
+            val h = maxOf(nameBlockH, doseLayout.height.toFloat(), whenLayout.height.toFloat(), durLayout.height.toFloat()) + 16f
+            TableRow(i + 1, badge, Color.parseColor(typeColor(badge)), nameLayout, doseLayout, whenLayout, durLayout, h,
+                instrLayout, nameBlockH)
         }
 
         fun drawTableHeader(canvas: Canvas, top: Float) {
@@ -403,15 +421,27 @@ class ClinicPdfBuilder(private val context: Context) {
                 canvas.drawText(slText, slX, y + row.height / 2f + 4f, slPaint)
 
                 var nameX = xName + cellPad
+                /* 💊 V723 — নাম ও Instruction একসাথে একটা "ব্লক" ধরে মাঝখানে বসে।
+                   ⛔ Instruction না থাকলে `nameBlockH == nameLayout.height`, অর্থাৎ
+                      হিসাবটা **হুবহু আগের মতোই** — পুরোনো কাগজ এক চুলও নড়বে না। */
+                val blockTop = y + (row.height - row.nameBlockH) / 2f
                 if (row.badge.isNotBlank()) {
                     val bw = (badgePaint.measureText(row.badge) + 8f).coerceAtLeast(22f)
                     val bh = 11f
-                    val bTop = y + (row.height - bh) / 2f
+                    // ব্যাজটা নামের লাইনের সঙ্গে মেলে (আগে সারির মাঝে বসত — এক লাইনের
+                    // সারিতে দুটো এক জায়গাতেই পড়ে, তাই পুরোনো চেহারা অক্ষত)।
+                    val bTop = blockTop + (row.nameLayout.height - bh) / 2f
                     canvas.drawRoundRect(RectF(nameX, bTop, nameX + bw, bTop + bh), 3f, 3f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = row.badgeColor })
                     canvas.drawText(row.badge, nameX + bw / 2f, bTop + bh / 2f + 2.6f, badgePaint)
                     nameX += bw + 12f
                 }
-                canvas.save(); canvas.translate(nameX, y + (row.height - row.nameLayout.height) / 2f); row.nameLayout.draw(canvas); canvas.restore()
+                canvas.save(); canvas.translate(nameX, blockTop); row.nameLayout.draw(canvas); canvas.restore()
+                row.instrLayout?.let { il ->
+                    canvas.save()
+                    canvas.translate(xName + cellPad, blockTop + row.nameLayout.height + 3f)
+                    il.draw(canvas)
+                    canvas.restore()
+                }
                 canvas.save(); canvas.translate(xDose + cellPad, y + (row.height - row.doseLayout.height) / 2f); row.doseLayout.draw(canvas); canvas.restore()
                 canvas.save(); canvas.translate(xWhen + cellPad, y + (row.height - row.whenLayout.height) / 2f); row.whenLayout.draw(canvas); canvas.restore()
                 canvas.save(); canvas.translate(xDuration + cellPad, y + (row.height - row.durLayout.height) / 2f); row.durLayout.draw(canvas); canvas.restore()

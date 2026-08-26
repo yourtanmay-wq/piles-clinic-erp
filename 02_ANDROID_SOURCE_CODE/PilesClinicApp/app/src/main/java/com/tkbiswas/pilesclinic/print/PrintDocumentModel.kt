@@ -24,7 +24,25 @@ data class PrintSection(
     // else that reads this model breaks.
     val rxDosage: List<String>? = null,
     val rxFrequency: List<String>? = null,
-    val rxDuration: List<String>? = null
+    val rxDuration: List<String>? = null,
+    /* 💊🔒 V723 (২৭.০৮.২০২৬, ডা. কে. এইচ. মণ্ডলের রিপোর্ট, TK ডেমো-প্রুফে
+       **প্রস্তাব ১** অনুমোদন করেছেন):
+
+       **সমস্যা:** ওষুধ যোগ করার সময় Instruction ঘরে লেখা (যেমন LAXALL-এর
+       "WITH LWW") সেভ হত, কিন্তু **ছাপা কাগজে কোথাও আসত না** — তাই কোন ওষুধ
+       গরম জলের সঙ্গে, কোনটা মধু দিয়ে খেতে হবে রোগী জানতে পারতেন না।
+
+       **কারণ (কোড ধরে):** `PrintMappers.prescription()` লেখাটা শুধু পুরোনো
+       `lines`-এ জুড়ত (`[WITH LWW]`), অথচ A4 ছকটা ছাপে `rxNames · rxDosage ·
+       rxFrequency · rxDuration` — Instruction-এর কোনো ঘর ছকে ছিলই না।
+
+       **সমাধান:** এই নতুন ঘরটা। ছাপায় লেখাটা **ওষুধের নামের ঠিক নিচে ছোট
+       হরফে** বসে (TK-অনুমোদিত প্রস্তাব ১) — তাই **ছকের একটাও কলামের চওড়া
+       বদলায়নি**, লম্বা নাম ভেঙে যাওয়ার ঝুঁকিও তৈরি হয়নি।
+
+       ⛔ ঐচ্ছিক (`null` ডিফল্ট) — তাই আগের প্রতিটা ডাক এক অক্ষরও না বদলে চলে;
+          যেসব কাগজে Instruction নেই, সেগুলো হুবহু আগের মতোই ছাপে। */
+    val rxInstructions: List<String>? = null
 )
 
 /**

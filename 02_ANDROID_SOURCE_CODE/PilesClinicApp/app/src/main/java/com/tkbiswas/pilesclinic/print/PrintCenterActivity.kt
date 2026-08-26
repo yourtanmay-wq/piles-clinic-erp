@@ -1002,6 +1002,8 @@ class PrintCenterActivity : AppCompatActivity() {
             val rxDosage = walkInMeds.map { it.dosage.ifBlank { "-" } }
             val rxFrequency = walkInMeds.map { it.frequency.ifBlank { "-" } }
             val rxDuration = walkInMeds.map { it.duration.ifBlank { "-" } }
+            // 💊 V723 — Walk-in কাগজেও Instruction নামের নিচে ছাপবে।
+            val rxInstructions = walkInMeds.map { it.instructions.trim() }
             val today = java.text.SimpleDateFormat("dd.MM.yyyy", java.util.Locale.US).format(java.util.Date())
             val ageSex = listOf(wf.age.text.toString().trim(), wf.sex.text.toString().trim()).filter { it.isNotBlank() }.joinToString(" / ")
             PrintDataHolder.pendingModel = PrintDocumentModel(
@@ -1012,7 +1014,7 @@ class PrintCenterActivity : AppCompatActivity() {
                 dateLabel = today,
                 // TK FIX (2026-07-15): removed literal "Rx" heading (Prescription
                 // already shows the ℞ symbol -- was printing "Rx" twice).
-                sections = listOf(PrintSection(if (isPrescription) null else "Medicines", lines, rxTypes, rxNames, rxDosage, rxFrequency, rxDuration)),
+                sections = listOf(PrintSection(if (isPrescription) null else "Medicines", lines, rxTypes, rxNames, rxDosage, rxFrequency, rxDuration, rxInstructions)),   // 💊 V723
                 qrPayload = null,
                 footerNote = "Walk-in print — no registration on file." +
                     (if (mobileDigits.length == 10) " Mobile: $mobileDigits" else ""),
