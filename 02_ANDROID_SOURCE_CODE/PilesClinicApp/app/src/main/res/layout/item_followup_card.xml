@@ -16,23 +16,12 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content">
 
-    <!-- 🟢🔒 V648 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবিসহ — "Follow-up সেকশনের মতনই
-         চেহারা হতে হবে") — সিরিয়াল নম্বর ব্যাজ (লাল বর্গ), Follow-up-এর
-         আসল কার্ডের সাথে হুবহু মেলানো। FollowUpAdapter-এ position+1 বসে। -->
-    <TextView
-        android:id="@+id/tvFuSerial"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|start"
-        android:layout_marginStart="12dp"
-        android:layout_marginTop="9dp"
-        android:background="@drawable/bg_fu_serial_badge"
-        android:paddingHorizontal="9dp"
-        android:paddingVertical="3dp"
-        android:text="1"
-        android:textColor="#FFFFFF"
-        android:textStyle="bold"
-        android:textSize="12sp" />
+    <!-- 🟢🔒 V694 (২৬.০৮.২০২৬, TK-নির্দেশ ছবিসহ — "followup Card এ যেমন চেহারা
+         ঠিক তেমন করে দিন") — V648-এর লাল সিরিয়াল ব্যাজটা এখানে FrameLayout-এর
+         **প্রথম** সন্তান হিসেবে ভাসিয়ে রাখা ছিল, আর তার পরেই আসত কার্ডের
+         নিরেট সাদা ব্যাকগ্রাউন্ড — তাই ব্যাজটা **কার্ডের নিচে চাপা পড়ে যেত,
+         পর্দায় কোনোদিন দেখাই যায়নি**। এখন সেটা নামের ঠিক বাঁ পাশে বসানো
+         হলো (নিচে `llNameRow`), হুবহু আসল Follow-up কার্ডের মতো। -->
 
     <LinearLayout
     android:layout_width="match_parent"
@@ -181,27 +170,62 @@
                     android:layout_weight="1"
                     android:orientation="vertical">
 
-                    <TextView
-                        android:id="@+id/tvName"
+                    <!-- 🟢🔒 V694 — আসল কার্ডের `nameRow`-এর হুবহু নকল:
+                         লাল সিরিয়াল ব্যাজ, ৯dp ফাঁক, তারপর নাম+মোবাইলের
+                         নিজের কলাম (দুটোরই বাঁ প্রান্ত এক জায়গায়)।
+                         মাপও আসল কার্ডের মতো — নাম 16sp, মোবাইল 12.5sp। -->
+                    <LinearLayout
+                        android:id="@+id/llNameRow"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="👤 Patient Name"
-                        android:textSize="15sp"
-                        android:textStyle="bold"
-                        android:maxLines="1"
-                        android:ellipsize="end"
-                        android:textColor="#10223A" />
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
 
-                    <TextView
-                        android:id="@+id/tvMobile"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:text="📞 9999999999"
-                        android:maxLines="1"
-                        android:ellipsize="end"
-                        android:textSize="12sp"
-                        android:textColor="#5B6B81" />
+                        <TextView
+                            android:id="@+id/tvFuSerial"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="9dp"
+                            android:minWidth="24dp"
+                            android:gravity="center"
+                            android:background="@drawable/bg_serial_red"
+                            android:paddingHorizontal="6dp"
+                            android:paddingVertical="3dp"
+                            android:text="1"
+                            android:maxLines="1"
+                            android:textColor="#FFFFFF"
+                            android:textStyle="bold"
+                            android:textSize="11sp" />
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:id="@+id/tvName"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Patient Name"
+                                android:textSize="16sp"
+                                android:textStyle="bold"
+                                android:maxLines="1"
+                                android:ellipsize="end"
+                                android:textColor="#10223A" />
+
+                            <TextView
+                                android:id="@+id/tvMobile"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="3dp"
+                                android:text="📞 9999999999"
+                                android:maxLines="1"
+                                android:ellipsize="end"
+                                android:textSize="12.5sp"
+                                android:textColor="#5B6B81" />
+                        </LinearLayout>
+                    </LinearLayout>
 
                     <LinearLayout
                         android:layout_width="wrap_content"
@@ -247,6 +271,45 @@
                             android:textSize="10sp"
                             android:textStyle="bold"
                             android:textColor="@color/white" />
+                    </LinearLayout>
+
+                    <!-- 🟢🔒 V694 — Visit/Patient কার্ডে VISITED/PATIENT পিল ও
+                         রোগীর আইডি এখন এখানে, ট্যাগের ঠিক নিচে নিজের সারিতে —
+                         হুবহু আসল Follow-up কার্ডের `idRow`-এর মতো। আগে এগুলো
+                         বাঁদিকের ৬২dp কলামে বসত, তাই নাম-মোবাইল ডানে সরে গিয়ে
+                         পর্দাটা আসল কার্ডের চেয়ে আলাদা দেখাত। Enquiry-তে এই
+                         সারি থাকে না (আসল কার্ডেও নেই)। -->
+                    <LinearLayout
+                        android:id="@+id/llIdRow"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:visibility="gone">
+
+                        <TextView
+                            android:id="@+id/tvStatusPill"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:background="@drawable/bg_visited_pill"
+                            android:paddingHorizontal="9dp"
+                            android:paddingVertical="3dp"
+                            android:text="PATIENT"
+                            android:textSize="10sp"
+                            android:textStyle="bold"
+                            android:textColor="#FFFFFF" />
+
+                        <TextView
+                            android:id="@+id/tvIdOnRow"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:maxLines="1"
+                            android:text="FLK-00000000-000"
+                            android:textSize="10sp"
+                            android:textStyle="bold"
+                            android:textColor="#10223A" />
                     </LinearLayout>
                 </LinearLayout>
 

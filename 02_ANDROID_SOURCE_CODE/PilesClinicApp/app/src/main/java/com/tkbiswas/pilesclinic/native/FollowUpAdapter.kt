@@ -61,7 +61,10 @@ class FollowUpAdapter(
         b.tvFuSerial.text = (position + 1).toString()
 
         // 🔴🔴 TK-REPORTED (31.07.2026): নাম না থাকলে মোবাইল দুইবার দেখাত।
-        b.tvName.text = "👤 " + item.name.ifBlank { "UNKNOWN" }
+        // 🟢🔒 V694 (২৬.০৮.২০২৬, TK-নির্দেশ ছবিসহ) — নামের আগে আর 👤 নয়:
+        //   বাঁ পাশে এখন লাল সিরিয়াল ব্যাজটাই থাকে, ঠিক আসল Follow-up
+        //   কার্ডের মতো (`buildFollowCard`: সিরিয়াল থাকলে 👤 বসে না)।
+        b.tvName.text = item.name.ifBlank { "UNKNOWN" }
         b.tvMobile.text = "📞 ${formatMobileForDisplay(item.mobile)}"
         b.tvMobile.setOnLongClickListener {
             val cm = it.context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
@@ -96,6 +99,13 @@ class FollowUpAdapter(
         //   Patient (Treatment)-> LEFT avatar+PATIENT   | RIGHT Prescription + payment ring
         when (item.stage) {
             "Inquiry" -> {
+                // 🟢🔒 V694 — Enquiry-তে বাঁদিকের কলাম **থাকে** (কল-সিগন্যাল
+                //   ওখানেই বসে) — আসল কার্ডেও তাই। আর পিল/আইডির সারি এখানে
+                //   নেই। ⚠️ দুটোই এখানে **স্পষ্ট করে** বসানো হলো, নইলে
+                //   RecyclerView পুরনো সারি আবার ব্যবহার করলে Patient কার্ডের
+                //   লুকানো/দেখানো অবস্থাটা Enquiry-তে থেকে যেত।
+                b.llLeft.visibility = View.VISIBLE
+                b.llIdRow.visibility = View.GONE
                 b.llCallSignal.visibility = View.VISIBLE
                 b.llPhoto.visibility = View.GONE
                 b.tvVisitAdvance.visibility = View.GONE
@@ -136,35 +146,43 @@ class FollowUpAdapter(
             }
             "Patient" -> { // Visit tab
                 b.llCallSignal.visibility = View.GONE
-                b.llPhoto.visibility = View.VISIBLE
+                // 🟢🔒 V694 — আসল কার্ডে Visit/Patient-এ বাঁদিকের ৬২dp কলামটা
+                //   পুরোপুরি বাদ (TK-APPROVED 27.07.2026), তাই নাম-মোবাইল
+                //   একদম বাঁ প্রান্ত থেকে শুরু হয়। এখানেও তাই।
+                b.llPhoto.visibility = View.GONE
+                b.llLeft.visibility = View.GONE
                 b.tvVisitAdvance.visibility = View.VISIBLE
                 b.llPayment.visibility = View.GONE
                 // TK-REQUESTED (2026-07-23): time-type badge is Enquiry-only;
                 // hide it here so a recycled view can't carry it over.
                 b.tvTimeType.visibility = View.GONE
 
-                b.tvVisitedPill.visibility = View.VISIBLE
-                b.tvVisitedPill.text = "VISITED"
-                b.tvRegDate.text = item.patientId.ifBlank { regDate }
+                // 🟢🔒 V694 — পিল ও আইডি হারায়নি: ট্যাগের নিচে নিজের সারিতে।
+                b.llIdRow.visibility = View.VISIBLE
+                b.tvStatusPill.text = "VISITED"
+                b.tvIdOnRow.text = item.patientId.ifBlank { regDate }
+                b.tvIdOnRow.visibility = if (b.tvIdOnRow.text.isNullOrBlank()) View.GONE else View.VISIBLE
                 b.tvVisitAdvance.setOnClickListener { onPayment(item) }
-                TripleTapEdit.attach(b.tvAvatar) { onPhotoEdit(item) }
-                TripleTapEdit.attach(b.tvVisitedPill) { onStatusMenu(item) }
-                TripleTapEdit.attach(b.tvRegDate) { onEdit(item) }
+                TripleTapEdit.attach(b.tvStatusPill) { onStatusMenu(item) }
+                TripleTapEdit.attach(b.tvIdOnRow) { onEdit(item) }
             }
             else -> { // Treatment -> Patient tab
                 b.llCallSignal.visibility = View.GONE
-                b.llPhoto.visibility = View.VISIBLE
+                // 🟢🔒 V694 — উপরের Visit কার্ডের একই কথা।
+                b.llPhoto.visibility = View.GONE
+                b.llLeft.visibility = View.GONE
                 b.tvVisitAdvance.visibility = View.GONE
                 b.llPayment.visibility = View.VISIBLE
                 // TK-REQUESTED (2026-07-23): time-type badge is Enquiry-only.
                 b.tvTimeType.visibility = View.GONE
 
-                b.tvVisitedPill.visibility = View.VISIBLE
-                b.tvVisitedPill.text = "PATIENT"
-                b.tvRegDate.text = item.patientId.ifBlank { regDate }
-                TripleTapEdit.attach(b.tvAvatar) { onPhotoEdit(item) }
-                TripleTapEdit.attach(b.tvVisitedPill) { onStatusMenu(item) }
-                TripleTapEdit.attach(b.tvRegDate) { onEdit(item) }
+                // 🟢🔒 V694 — পিল ও আইডি ট্যাগের নিচে নিজের সারিতে।
+                b.llIdRow.visibility = View.VISIBLE
+                b.tvStatusPill.text = "PATIENT"
+                b.tvIdOnRow.text = item.patientId.ifBlank { regDate }
+                b.tvIdOnRow.visibility = if (b.tvIdOnRow.text.isNullOrBlank()) View.GONE else View.VISIBLE
+                TripleTapEdit.attach(b.tvStatusPill) { onStatusMenu(item) }
+                TripleTapEdit.attach(b.tvIdOnRow) { onEdit(item) }
 
                 val pct = if (item.bill > 0) Math.min(100.0, Math.round(item.paid / item.bill * 100.0).toDouble()).toInt() else 0
                 // 🔴🔒 V683 (২৫.০৮.২০২৬) — সলিড চাকতির বদলে আসল কার্ডের
