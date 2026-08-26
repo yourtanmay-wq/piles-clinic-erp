@@ -1,7 +1,7 @@
 # 🛡️ Kotlin কম্পাইলারের **জানা গোলমাল** (Android SDK নেই বলে)।
 # ⛔ হাতে লিখবেন না — `verify_kotlin_compile.py --update-baseline`
 # প্রতিটা সারি:  ফাইল <TAB> ভুলের বার্তা (সংখ্যা N দিয়ে ঢাকা)
-# মোট: 318
+# মোট: 327
 com/tkbiswas/pilesclinic/clinical/ClinicalModulesActivity.kt	none of the following functions can be called with the arguments supplied:
 com/tkbiswas/pilesclinic/clinical/ClinicalModulesActivity.kt	unresolved reference: intent
 com/tkbiswas/pilesclinic/clinical/ClinicalModulesActivity.kt	unresolved reference: setSupportActionBar
@@ -15,6 +15,7 @@ com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	none of the following
 com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	type mismatch: inferred type is DoctorCheckupActivity but Activity was expected
 com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	type mismatch: inferred type is DoctorCheckupActivity but Context was expected
 com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	type mismatch: inferred type is DoctorCheckupActivity but Context! was expected
+com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: intent
 com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: registerForActivityResult
 com/tkbiswas/pilesclinic/clinical/InvestigationAdapter.kt	unresolved reference: notifyItemChanged
 com/tkbiswas/pilesclinic/clinical/InvestigationAdviceActivity.kt	none of the following functions can be called with the arguments supplied:
@@ -23,6 +24,7 @@ com/tkbiswas/pilesclinic/clinical/InvestigationAdviceActivity.kt	type mismatch: 
 com/tkbiswas/pilesclinic/clinical/InvestigationAdviceActivity.kt	type mismatch: inferred type is InvestigationAdviceActivity but Context! was expected
 com/tkbiswas/pilesclinic/clinical/InvestigationAdviceActivity.kt	unresolved reference: setSupportActionBar
 com/tkbiswas/pilesclinic/clinical/InvestigationAdviceActivity.kt	unresolved reference: supportActionBar
+com/tkbiswas/pilesclinic/clinical/InvestigationCategoryActivity.kt	none of the following functions can be called with the arguments supplied:
 com/tkbiswas/pilesclinic/clinical/InvestigationCategoryActivity.kt	type mismatch: inferred type is InvestigationCategoryActivity but Context! was expected
 com/tkbiswas/pilesclinic/clinical/InvestigationCategoryActivity.kt	unresolved reference: intent
 com/tkbiswas/pilesclinic/clinical/MedicineSlipActivity.kt	none of the following functions can be called with the arguments supplied:
@@ -84,6 +86,10 @@ com/tkbiswas/pilesclinic/native/BriefingActivity.kt	unresolved reference: intent
 com/tkbiswas/pilesclinic/native/BriefingActivity.kt	unresolved reference: layoutInflater
 com/tkbiswas/pilesclinic/native/BriefingActivity.kt	unresolved reference: theme
 com/tkbiswas/pilesclinic/native/BriefingReminderWorker.kt	one type argument expected for class Result<out T>
+com/tkbiswas/pilesclinic/native/CallRemarkActivity.kt	none of the following functions can be called with the arguments supplied:
+com/tkbiswas/pilesclinic/native/CallRemarkActivity.kt	type mismatch: inferred type is CallRemarkActivity but Context was expected
+com/tkbiswas/pilesclinic/native/CallRemarkActivity.kt	type mismatch: inferred type is CallRemarkActivity but Context! was expected
+com/tkbiswas/pilesclinic/native/CallRemarkActivity.kt	unresolved reference: intent
 com/tkbiswas/pilesclinic/native/CallReminderWorker.kt	one type argument expected for class Result<out T>
 com/tkbiswas/pilesclinic/native/ChamberAttendanceActivity.kt	none of the following functions can be called with the arguments supplied:
 com/tkbiswas/pilesclinic/native/ChamberAttendanceActivity.kt	suspend function 'askWhichChamberPatient' should be called only from a coroutine or another suspend function
@@ -117,6 +123,7 @@ com/tkbiswas/pilesclinic/native/DashboardActivity.kt	none of the following funct
 com/tkbiswas/pilesclinic/native/DashboardActivity.kt	suspend function 'exportIfStale' should be called only from a coroutine or another suspend function
 com/tkbiswas/pilesclinic/native/DashboardActivity.kt	type mismatch: inferred type is DashboardActivity but Activity was expected
 com/tkbiswas/pilesclinic/native/DashboardActivity.kt	type mismatch: inferred type is DashboardActivity but Context was expected
+com/tkbiswas/pilesclinic/native/DashboardActivity.kt	type mismatch: inferred type is DashboardActivity but Context! was expected
 com/tkbiswas/pilesclinic/native/DashboardActivity.kt	type mismatch: inferred type is DashboardActivity but Context? was expected
 com/tkbiswas/pilesclinic/native/DashboardActivity.kt	unresolved reference: layoutInflater
 com/tkbiswas/pilesclinic/native/DashboardActivity.kt	unresolved reference: mainLooper
@@ -135,6 +142,7 @@ com/tkbiswas/pilesclinic/native/DoctorQueueActivity.kt	type mismatch: inferred t
 com/tkbiswas/pilesclinic/native/DoctorQueueActivity.kt	type mismatch: inferred type is DoctorQueueActivity but Context was expected
 com/tkbiswas/pilesclinic/native/DoctorQueueActivity.kt	type mismatch: inferred type is DoctorQueueActivity but Context? was expected
 com/tkbiswas/pilesclinic/native/DoctorQueueActivity.kt	unresolved reference: layoutInflater
+com/tkbiswas/pilesclinic/native/DoctorReminderWorker.kt	one type argument expected for class Result<out T>
 com/tkbiswas/pilesclinic/native/DoctorVisitActivity.kt	none of the following functions can be called with the arguments supplied:
 com/tkbiswas/pilesclinic/native/DoctorVisitActivity.kt	suspend function 'findVisitPatient' should be called only from a coroutine or another suspend function
 com/tkbiswas/pilesclinic/native/DoctorVisitActivity.kt	type mismatch: inferred type is DoctorVisitActivity but Activity was expected
@@ -168,6 +176,7 @@ com/tkbiswas/pilesclinic/native/ExpectedTomorrowActivity.kt	none of the followin
 com/tkbiswas/pilesclinic/native/ExpectedTomorrowActivity.kt	type mismatch: inferred type is ExpectedTomorrowActivity but Activity was expected
 com/tkbiswas/pilesclinic/native/ExpectedTomorrowActivity.kt	type mismatch: inferred type is ExpectedTomorrowActivity but Context was expected
 com/tkbiswas/pilesclinic/native/ExpectedTomorrowActivity.kt	type mismatch: inferred type is ExpectedTomorrowActivity but Context! was expected
+com/tkbiswas/pilesclinic/native/ExpectedTomorrowActivity.kt	unresolved reference: intent
 com/tkbiswas/pilesclinic/native/ExpectedTomorrowReminderWorker.kt	one type argument expected for class Result<out T>
 com/tkbiswas/pilesclinic/native/ExportDataActivity.kt	none of the following functions can be called with the arguments supplied:
 com/tkbiswas/pilesclinic/native/ExportDataActivity.kt	type mismatch: inferred type is ExportDataActivity but Activity was expected

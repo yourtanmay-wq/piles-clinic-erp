@@ -1883,30 +1883,155 @@ class PatientTimelineActivity : AppCompatActivity() {
                     input.requestFocus()
                     return@setPositiveButton
                 }
-                val user = NativeSession.current(this) ?: return@setPositiveButton
-                lifecycleScope.launch {
-                    val ok = withContext(Dispatchers.IO) {
-                        // V215 (§17, 31.07.2026): আগে শুধু Inquiry-তে call গোনা হত।
-                        // এখন যে কোনো stage-এ post-call remark সফল হলে সেটা একটা
-                        // Completed Call — Last Call Date/Time আজকের হয়, Signal এক
-                        // ধাপ বাড়ে (repository-তে দিনে-একবার de-dup আছে, double count
-                        // হয় না)। এটাই ছিল Visit/Patient card-এ Last Call Date না
-                        // বদলানোর আসল কারণ।
-                        val countAsCall = true
-                        FollowUpRepository(this@PatientTimelineActivity).updateRemark(
-                            resolveFollowUpIdHere(), text, user.name.ifBlank { user.mobile }, countAsCall
-                        )
-                    }
-                    android.widget.Toast.makeText(
-                        this@PatientTimelineActivity,
-                        if (ok) "Remark saved" else "Failed — check connection",
-                        android.widget.Toast.LENGTH_SHORT
-                    ).show()
-                    if (ok) load(currentMobile, currentSection)
-                }
+                // 🟡🔒 V691 (২৬.০৮.২০২৬, TK-নির্দেশ ছবিসহ) — একই দিনে দুবার
+                // Remark লেখা হলে আগে সাবধান করা হয়। সেখানেই ঠিক করা যায় —
+                // আগেরটা বদলাবেন, নাকি নতুন একটা সারি হবে।
+                val sameDay = todaysRemarkEntry()
+                if (sameDay == null) saveQuickRemark(text) else showSameDayRemarkWarning(sameDay, text)
             }
             .setNegativeButton("Cancel", null)
             .show().also { PremiumAlert.paint(it) }
+    }
+
+    /**
+     * 🟡🔒 V691 (২৬.০৮.২০২৬, TK-নির্দেশ, দুটো ছবিসহ) — **একই দিনে
+     * দুটো Remark চুপচাপ জমা হয়ে যাবে না।**
+     *
+     * TK-এর ছবিতে (+919707360144) একই দিনে ৮.৫৭ ও ৮.৫৮-তে দুটো প্রায়-এক
+     * Remark ("1 SAPTAHO PRE ASBENI" ও "1 SAPTAHO PRE ASBEN") বসে গেছে —
+     * লেখার সময় কোনো সাবধানবাণী আসেনি। এখন আসে।
+     *
+     * ⚠️ নেটের খরচ শূন্য — পর্দায় ইতিমধ্যে ধরা এই রোগীর তালিকা
+     * (`currentEntries`) থেকেই দেখা হয়, নতুন কোনো Supabase অনুরোধ যায় না।
+     *
+     * আজকের সবচেয়ে শেষ follow-up history রিমার্ক সারিটা ফেরায়; আজ
+     * কিছু লেখা না হয়ে থাকলে null।
+     */
+    private fun todaysRemarkEntry(): TimelineEntry? {
+        val today = FollowUpModel.today()
+        return currentEntries
+            .filter {
+                !it.followUpHistoryId.isNullOrBlank() && it.followUpHistoryIndex >= 0 &&
+                    it.date.take(10) == today && it.note.isNotBlank()
+            }
+            // একই দিনে একাধিক সারি থাকলে সবচেয়ে শেষটাই "আগের Remark"।
+            // time না থাকলে (পুরনো সারি) history-র ক্রমই শেষ কথা।
+            .maxWithOrNull(compareBy({ it.callTime }, { it.followUpHistoryIndex }))
+    }
+
+    /**
+     * 🟡🔒 V691 — TK-এর ২য় ছবির সাবধানবাণী। তিনটে পথই রাখা হলো —
+     * **Update Previous** (আজকের লেখাটাই বদলাবে, নতুন সারি জমবে না),
+     * **Save New Remark** (আগে যা হত ঠিক তাই — নতুন সারি), আর **Cancel**।
+     *
+     * ⛔ পপ-আপের রং নিজে থেকে বানানো হয়নি — প্রজেক্টের লক করা
+     *    `PremiumAlert`-ই ব্যবহার করা হলো। শিরোনাম "⚠️" দিয়ে শুরু বলে
+     *    সেটা নিজেই হলুদ (caution) হয় — ঠিক যেমন "এই নম্বর আগেই আছে"
+     *    পপ-আপটা হয়।
+     */
+    private fun showSameDayRemarkWarning(previous: TimelineEntry, newRemark: String) {
+        val d = resources.displayMetrics.density
+        val pad = (18 * d).toInt()
+        val body = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(pad, (14 * d).toInt(), pad, 0)
+        }
+        // ⛔ লেখাগুলো ইচ্ছে করেই ইংরেজি — TK-এর পাঠানো ছবির হুবহু সেই কথা।
+        //    তাই বাংলা-বন্ধ স্টাফের পর্দাতেও এটা এমনিই ঠিক থাকে।
+        body.addView(android.widget.TextView(this).apply {
+            text = "A remark has already been saved today."
+            textSize = 14.5f
+            setTextColor(android.graphics.Color.parseColor("#101828"))
+        })
+        body.addView(android.widget.TextView(this).apply {
+            text = "Previous Remark: " + previous.note
+            textSize = 14f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#41506A"))
+            setPadding(0, (10 * d).toInt(), 0, (10 * d).toInt())
+        })
+        body.addView(android.widget.TextView(this).apply {
+            text = "What would you like to do?"
+            textSize = 13.5f
+            setTextColor(android.graphics.Color.parseColor("#5B6B81"))
+        })
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(PremiumAlert.header(this, "⚠️ Same-day Remark"))
+            .setView(body)
+            .setPositiveButton("Save New Remark") { _, _ -> saveQuickRemark(newRemark) }
+            .setNeutralButton("Update Previous") { _, _ -> replaceRemarkText(previous, newRemark) }
+            .setNegativeButton("Cancel", null)
+            .show().also { PremiumAlert.paint(it) }
+    }
+
+    /** 🟡🔒 V691 — আগে যে সেভটা Save-এর ভিতরেই লেখা ছিল, সেটাই এখানে
+     *  সরানো হলো — এক অক্ষরও বদলায়নি। সাবধানবাণীর "Save New Remark"
+     *  ও সাবধানবাণী না-ওঠা — দুটো পথই এই একটা ফাংশনে এসে মেলে। */
+    private fun saveQuickRemark(text: String) {
+        val user = NativeSession.current(this) ?: return
+        lifecycleScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                // V215 (§17, 31.07.2026): আগে শুধু Inquiry-তে call গোনা হত।
+                // এখন যে কোনো stage-এ post-call remark সফল হলে সেটা একটা
+                // Completed Call — Last Call Date/Time আজকের হয়, Signal এক
+                // ধাপ বাড়ে (repository-তে দিনে-একবার de-dup আছে, double count
+                // হয় না)। এটাই ছিল Visit/Patient card-এ Last Call Date না
+                // বদলানোর আসল কারণ।
+                val countAsCall = true
+                FollowUpRepository(this@PatientTimelineActivity).updateRemark(
+                    resolveFollowUpIdHere(), text, user.name.ifBlank { user.mobile }, countAsCall
+                )
+            }
+            android.widget.Toast.makeText(
+                this@PatientTimelineActivity,
+                if (ok) "Remark saved" else "Failed — check connection",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+            if (ok) load(currentMobile, currentSection)
+        }
+    }
+
+    /** 🟡🔒 V691 — "Update Previous": আজকের যে সারিটা আগেই আছে, তার
+     *  লেখাটাই বদলে যায় — ইতিহাসে নতুন সারি জমে না। এটা হুবহু সেই
+     *  কাজ যা 3-tap "✏️ Edit Note" করে — তাই একই `writeFollowUpHistoryRemark()`
+     *  ডাকা হয়, দুরকম হিসাব তৈরি হয় না।
+     *  ⛔ কল গোনা (`callCount`) বা Last Call তারিখ ছোঁয়া হয় না — আজকের
+     *     কল আগেই গোনা হয়ে গেছে, লেখা শুধরানো নতুন কল নয়। */
+    private fun replaceRemarkText(previous: TimelineEntry, text: String) {
+        lifecycleScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                try { writeFollowUpHistoryRemark(previous, text) } catch (_: Throwable) { false }
+            }
+            android.widget.Toast.makeText(
+                this@PatientTimelineActivity,
+                if (ok) "Remark updated" else "Failed — retry",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+            if (ok) load(currentMobile, currentSection)
+        }
+    }
+
+    /** 🟡🔒 V691 — follow-up-এর `history` তালিকায় একটা নির্দিষ্ট সারির
+     *  লেখা বদলানোর একমাত্র জায়গা। আগে এই কোডটা `editEnquiryHistoryNote()`-এর
+     *  ভিতরে লেখা ছিল; V691-এ "Update Previous"-ও হুবহু একই কাজ চায় বলে
+     *  এখানে সরানো হলো — ভিতরের কাজে এক অক্ষরও বদলায়নি।
+     *  ⚠️ IO thread থেকেই ডাকতে হবে (নেট পড়ে ও লেখে)। */
+    private fun writeFollowUpHistoryRemark(e: TimelineEntry, text: String): Boolean {
+        val fuId = e.followUpHistoryId ?: return false
+        if (e.followUpHistoryIndex < 0) return false
+        val rows = SupabaseClient.findByMobile("followups", "+91$currentMobile", "*", 5000)
+        var target: org.json.JSONObject? = null
+        for (i in 0 until rows.length()) { if (rows.getJSONObject(i).optString("id") == fuId) { target = rows.getJSONObject(i); break } }
+        val row = target ?: return false
+        val hist = row.optJSONArray("history") ?: return false
+        if (e.followUpHistoryIndex >= hist.length()) return false
+        val item = hist.getJSONObject(e.followUpHistoryIndex)
+        item.put("remark", text)
+        val fields = org.json.JSONObject().put("history", hist)
+        if (e.followUpHistoryIndex == hist.length() - 1) fields.put("lastRemark", text)
+        val saved = SupabaseClient.updateById("followups", fuId, fields)
+        if (!saved) GenericUpdateQueue.queue(this@PatientTimelineActivity, "followups", fuId, fields)
+        return saved
     }
 
     /** Quick Next Follow-up date picker — same underlying save
@@ -3170,19 +3295,7 @@ class PatientTimelineActivity : AppCompatActivity() {
                                 if (!saved) GenericUpdateQueue.queue(this@PatientTimelineActivity, "enquiries", e.enquiryRowId, fields)
                                 saved
                             } else if (e.followUpHistoryId != null && e.followUpHistoryIndex >= 0) {
-                                val rows = SupabaseClient.findByMobile("followups", "+91$currentMobile", "*", 5000)
-                                var target: org.json.JSONObject? = null
-                                for (i in 0 until rows.length()) { if (rows.getJSONObject(i).optString("id") == e.followUpHistoryId) { target = rows.getJSONObject(i); break } }
-                                val row = target ?: return@withContext false
-                                val hist = row.optJSONArray("history") ?: return@withContext false
-                                if (e.followUpHistoryIndex >= hist.length()) return@withContext false
-                                val item = hist.getJSONObject(e.followUpHistoryIndex)
-                                item.put("remark", text)
-                                val fields = org.json.JSONObject().put("history", hist)
-                                if (e.followUpHistoryIndex == hist.length() - 1) fields.put("lastRemark", text)
-                                val saved = SupabaseClient.updateById("followups", e.followUpHistoryId, fields)
-                                if (!saved) GenericUpdateQueue.queue(this@PatientTimelineActivity, "followups", e.followUpHistoryId, fields)
-                                saved
+                                writeFollowUpHistoryRemark(e, text)
                             } else false
                         } catch (_: Throwable) { false }
                     }

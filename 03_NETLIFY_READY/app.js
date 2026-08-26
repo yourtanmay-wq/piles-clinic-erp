@@ -6688,7 +6688,48 @@ function wlv1ShowPrescriptionCards(b64,dateStr){
 window["wlv1ShowPrescriptionCards"]=wlv1ShowPrescriptionCards;
 function wlv1NoteIsStructured(t){t=String(t||'');return t.indexOf('|')>-1||(t.match(/;/g)||[]).length>=1;}
 function wlv1B64(t){try{return btoa(encodeURIComponent(String(t||'')))}catch(e){return ''}}
-function saveRemarkOnly(id){let r=$('#fr').value.trim();if(!r)return toast('Remark mandatory');let x=load('followups').find(a=>a.id===id),patch={lastRemark:r};
+/* 🟡🔒 V691 (২৬.০৮.২০২৬, TK-নির্দেশ, দুটো ছবিসহ) — **একই দিনে দুটো Remark
+   চুপচাপ জমা হয়ে যাবে না।** TK-এর ছবিতে (+919707360144) একই দিনে ৮.৫৭ ও
+   ৮.৫৮-তে দুটো প্রায়-এক Remark বসে গেছে, কোনো সাবধানবাণী আসেনি।
+   ⛔ ফোনের `PatientTimelineActivity.showSameDayRemarkWarning()`-এর হুবহু একই
+      নিয়ম ও একই তিনটে পথ — নিয়ম §৬.৬ (ফোন ও কম্পিউটার দুটোতেই)।
+   ⚠️ নেটের খরচ শূন্য — ফোনের মতোই, ইতিমধ্যে নামানো `followups` থেকেই দেখা হয়। */
+function wlv1TodayRemarkIdx(id){try{let x=load('followups').find(a=>a.id===id);if(!x)return{i:-1,remark:''};let h=x.history||[];for(let i=h.length-1;i>=0;i--){let e=h[i]||{};if(String(e.date||'').slice(0,10)===today()&&String(e.remark||'').trim())return{i:i,remark:String(e.remark)}}return{i:-1,remark:''}}catch(_e){return{i:-1,remark:''}}}
+window["wlv1TodayRemarkIdx"]=wlv1TodayRemarkIdx;
+/* সাবধানবাণীর পপ-আপ খোলার সময় `#fr` ঘরটা মুছে যায়, তাই নতুন লেখাটা এখানে
+   ধরে রাখা হয় — পরে ঘর থেকে আর পড়া হয় না। */
+let wlv1PendingRemark={id:'',text:''};
+function wlv1SameDayRemarkWarn(id,r,prev){wlv1PendingRemark={id:id,text:r};
+ modal(`<h2>⚠️ Same-day Remark</h2><div class="card"><div>A remark has already been saved today.</div><div style="margin:10px 0"><b>Previous Remark:</b> ${esc(prev.remark)}</div><div>What would you like to do?</div></div><div class="actions"><button class="ghost" onclick="wlv1UpdatePrevRemark(${prev.i})">Update Previous</button><button onclick="wlv1SaveRemarkNewFromWarn()">Save New Remark</button><button class="ghost" onclick="closeModal()">Cancel</button></div>`)}
+window["wlv1SameDayRemarkWarn"]=wlv1SameDayRemarkWarn;
+function wlv1SaveRemarkNewFromWarn(){let p=wlv1PendingRemark;if(!p.text)return closeModal();wlv1SaveRemarkNow(p.id,p.text)}
+window["wlv1SaveRemarkNewFromWarn"]=wlv1SaveRemarkNewFromWarn;
+/* "Update Previous" — আজকের সারিটার লেখাই বদলায়, ইতিহাসে নতুন সারি জমে না।
+   ⛔ কল গোনা / Last Call তারিখ ছোঁয়া হয় না (আজকের কল আগেই গোনা হয়েছে) —
+      ফোনের `replaceRemarkText()`-এর মতোই। সরাসরি লেখার ধরনটা বিল-সংশোধনের
+      অংশে আগে থেকেই ব্যবহার হওয়া load→বদল→save, নতুন কিছু নয়। */
+function wlv1UpdatePrevRemark(idx){let p=wlv1PendingRemark;if(!p.text)return closeModal();
+ try{let fus=load('followups'),fi=fus.findIndex(a=>a.id===p.id);
+  if(fi<0){closeModal();return toast('Follow-up not found')}
+  let h=[...(fus[fi].history||[])];
+  if(idx<0||idx>=h.length){closeModal();return toast('Previous remark not found')}
+  h[idx]={...h[idx],remark:p.text};
+  let patch={history:h,updatedAt:new Date().toISOString()};
+  if(idx===h.length-1)patch.lastRemark=p.text;
+  fus[fi]={...fus[fi],...patch};save('followups',fus);
+  try{if(fus[fi].mobile)wlv1RemarkPendingRemove(fus[fi].mobile)}catch(_e){}
+  wlv1PendingRemark={id:'',text:''};toast('Remark updated');closeModal();
+ }catch(_e){toast('Failed — retry')}}
+window["wlv1UpdatePrevRemark"]=wlv1UpdatePrevRemark;
+function saveRemarkOnly(id){let r=$('#fr').value.trim();if(!r)return toast('Remark mandatory');
+ let prev=wlv1TodayRemarkIdx(id);
+ if(prev.i>=0)return wlv1SameDayRemarkWarn(id,r,prev);
+ wlv1SaveRemarkNow(id,r)}
+window["saveRemarkOnly"]=saveRemarkOnly;
+/* আগে যে সেভটা `saveRemarkOnly()`-র ভিতরেই লেখা ছিল — এক অক্ষরও বদলায়নি,
+   শুধু নিজের ফাংশনে সরানো হলো, যাতে সাবধানবাণীর "Save New Remark"-ও ঠিক
+   এই একই পথেই যায়। */
+function wlv1SaveRemarkNow(id,r){wlv1PendingRemark={id:'',text:''};let x=load('followups').find(a=>a.id===id),patch={lastRemark:r};
  /* 🔒 খাতার সারি B119: রিমার্ক লেখা হয়ে গেল — "রিমার্ক বাকি" তালিকা থেকে
     নম্বরটা সরে যায়, তাই আর মনে করানো হবে না।
     ⛔ নিচের সেভের কাজে এক অক্ষরও হাত পড়েনি। */
@@ -6707,7 +6748,7 @@ function saveRemarkOnly(id){let r=$('#fr').value.trim();if(!r)return toast('Rema
     হয়নি, শুধু এখান থেকে ডাকা হচ্ছে। ⛔ updateFollowAction()-এর কাজ/হিসাব/
     ইতিহাস কিছুই বদলায়নি। */
  try{ if(x&&x.mobile) wlv1RemarkPendingRemove(x.mobile) }catch(_e){}if(x?.nextFollow===today())patch.nextFollow='';updateFollowAction(id,patch,{date:today(),time:isoNow(),remark:r,staff:user.name,nextFollow:patch.nextFollow??(x?.nextFollow||''),status:'Called'},x?.stage);nextFollowDate(id)}
-window["saveRemarkOnly"]=saveRemarkOnly;function nextFollowDate(id){
+window["wlv1SaveRemarkNow"]=wlv1SaveRemarkNow;function nextFollowDate(id){
       let x=load('followups').find(a=>a.id===id);
       modal(`<h2>Next Follow-up Date</h2><label>Select Date</label><input id="fd" type="date" class="input" value="${x?.nextFollow&&x.nextFollow>=today()?x.nextFollow:''}" min="${today()}" onclick="try{this.showPicker&&this.showPicker()}catch(e){}" onfocus="try{this.showPicker&&this.showPicker()}catch(e){}"><div class="actions"><button onclick="saveNextFollow('${id}')">Save Date</button><button class="ghost" onclick="saveNextFollow('${id}')">Skip</button></div>`)
       setTimeout(()=>{let el=document.getElementById('fd');if(el)try{el.showPicker&&el.showPicker()}catch(e){}},60)
