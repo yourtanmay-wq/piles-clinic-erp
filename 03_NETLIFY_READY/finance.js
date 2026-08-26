@@ -1356,12 +1356,20 @@ function finRowTap(id) {
     var month = m.todayIST().slice(0, 7);
     /* 🟢🔒 V628 (২৪.০৮.২০২৬, TK-নির্দেশ, স্পষ্ট) — "All Branches" অপশন বাদ,
        হিসাবের খাতায় ব্রাঞ্চ মিশবে না। সবসময় একটা নির্দিষ্ট ব্রাঞ্চ বাছতে হবে। */
+    /* 🟢🔒 V695 (২৬.০৮.২০২৬, TK ডেমো দেখে "২ করুন") — উপরের জায়গা কমানো:
+       Month ও Branch আর একটার নিচে একটা নয়, **পাশাপাশি এক সারিতে** —
+       ফোনের `heroWithFields()`-এর মতোই, তাই টেবিল অনেক উপরে উঠে আসে।
+       ⛔ ঘর দুটোর id · মান · ব্রাঞ্চের তালিকা · Show-এর কাজ — কিছুই বদলায়নি,
+          শুধু পাশাপাশি বসেছে। */
     var html = '<div class="card"><h2>Monthly Summary</h2>' +
-      '<label>Month</label><input id="mMonth" class="input" type="month" value="' + month + '">' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap">' +
+      '<div style="flex:1;min-width:150px"><label>Month</label>' +
+      '<input id="mMonth" class="input" type="month" value="' + month + '"></div>' +
       /* 🟢🔒 V398: মনে-রাখা ব্রাঞ্চ আগে থেকেই বসানো। */
-      '<label>Branch</label><select id="mBranch" class="input">' +
+      '<div style="flex:1;min-width:150px"><label>Branch</label><select id="mBranch" class="input">' +
       ((!finCurBranch() || finCurBranch() === 'All Branches') ? '<option value="" selected>Select Branch</option>' + branchOptions('')
-       : branchOptions(finCurBranch())) + '</select>' +
+       : branchOptions(finCurBranch())) + '</select></div>' +
+      '</div>' +
       '<div class="actions"><button onclick="finRunMonthly()">Show</button></div>' +
       '<div id="mOut" class="mut"></div></div>';
     document.getElementById('finBody').innerHTML = html;

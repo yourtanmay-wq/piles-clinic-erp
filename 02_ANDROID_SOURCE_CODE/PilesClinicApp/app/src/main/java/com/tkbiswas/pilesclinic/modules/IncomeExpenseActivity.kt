@@ -2209,6 +2209,75 @@ class IncomeExpenseActivity : AppCompatActivity() {
         return h
     }
 
+    /**
+     * 🟢🔒 V695 (২৬.০৮.২০২৬, TK-নির্দেশ — **ডেমো ছবি দেখিয়ে "২ করুন" অনুমোদন**) —
+     * Monthly Summary-র **উপরের জায়গা কমানো**।
+     *
+     * TK-এর কথা: *"উপরে অনেক জায়গা খেয়েছে, কমাতে হবে। আগে ডেমো ফটো প্রুফ
+     * দেখান"* → ডেমোর **প্রস্তাব ২** তিনি বেছেছেন: Month ও Branch আলাদা
+     * সাদা কার্ডে নয়, **সবুজ হেডারের ভিতরেই** পাশাপাশি দুটো ঘরে।
+     *
+     * আগে: হেডার (১৬dp প্যাডিং, ১৯sp) + নিচে আলাদা কার্ডে দুটো সারি
+     *      ⇒ টেবিল শুরুর আগেই ≈২২০dp চলে যেত।
+     * এখন: একটাই হেডার, ভিতরে দুটো ঘর ⇒ ≈১১৫dp — **৪ সারি বেশি দেখা যায়**।
+     *
+     * ⛔ শুধু এই পর্দাটার জন্য। বাকি পর্দার `hero()` ও `entryCard()` এক
+     *    অক্ষরও বদলায়নি — নতুন এই ফাংশনটা আলাদা।
+     * ⛔ টাকা · হিসাব · ছাঁকনি · ডেটা — কিছুই ছোঁয়া হয়নি, শুধু সাজ।
+     */
+    private fun heroWithFields(title: String, leftLabel: String, leftView: android.view.View,
+                               rightLabel: String, rightView: android.view.View): LinearLayout {
+        val h = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), dp(10), dp(12), dp(12))
+            background = android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
+                intArrayOf(android.graphics.Color.parseColor("#0B4F2A"), android.graphics.Color.parseColor("#0B8A3E"))
+            ).apply { cornerRadius = dp(16).toFloat() }
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                .apply { bottomMargin = dp(8) }
+        }
+        h.addView(android.widget.TextView(this).apply {
+            text = title; textSize = 16f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.WHITE)
+        })
+        // সবুজের উপরে হালকা-সাদা দুটো ঘর — লেখা সাদা, তাই পড়তে অসুবিধা নেই।
+        fun box(label: String, field: android.view.View): LinearLayout {
+            val b = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(9), dp(5), dp(9), dp(6))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(9).toFloat()
+                    setColor(android.graphics.Color.parseColor("#2EFFFFFF"))
+                    setStroke(dp(1), android.graphics.Color.parseColor("#73FFFFFF"))
+                }
+            }
+            b.addView(android.widget.TextView(this).apply {
+                text = label; textSize = 9.5f
+                setTextColor(android.graphics.Color.parseColor("#D9F2E2"))
+                isAllCaps = true; letterSpacing = 0.04f
+            })
+            b.addView(field)
+            return b
+        }
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                .apply { topMargin = dp(8) }
+        }
+        val lb = box(leftLabel, leftView).apply {
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                .apply { marginEnd = dp(8) }
+        }
+        val rb = box(rightLabel, rightView).apply {
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        row.addView(lb); row.addView(rb)
+        h.addView(row)
+        return h
+    }
+
     private fun dp(v: Int) = ModuleUi.dp(this, v)
 
     /** কার্ডের ভিতরে এক সারি — লেবেল (ছোট, ধূসর) + ফিল্ড (স্বাভাবিক, আন্ডারলাইন-বিহীন)। */
@@ -2705,20 +2774,38 @@ class IncomeExpenseActivity : AppCompatActivity() {
     private fun monthly() {
         backAction = { renderMenu() }
         val col = ModuleUi.screen(this, "")
-        col.addView(hero("📈 Monthly Summary"))
         val month = ModuleUi.input(this, "YYYY-MM").apply { setText(todayIso().substring(0, 7)) }
         /* 🟢🔒 V628 (২৪.০৮.২০২৬, TK-নির্দেশ, স্পষ্ট) — "ওটা তো হিসাবের খাতা...
            প্রতিটা ব্রাঞ্চের হিসাব থাকবে আলাদা, সমস্ত ব্রাঞ্চ একসাথে দেখানো
            যাবে না"। "All Branches" আর অপশনেই নেই — সবসময় একটা নির্দিষ্ট
            ব্রাঞ্চ বাছতে হবে। */
-        val branch = spinner(BRANCHES)
-        // 🟢🔒 V398: মনে-রাখা ব্রাঞ্চ আগে থেকেই বসানো থাকে (পুরনো "All
-        // Branches" মনে-রাখা মান আর তালিকায় নেই বলে এমনিতেই প্রথম ব্রাঞ্চে নামে)।
-        try {
-            val __i = BRANCHES.indexOf(v398Branch())
-            if (__i >= 0) branch.setSelection(__i)
-        } catch (_: Throwable) { }
-        col.addView(entryCard(listOf("Month" to month, "Branch" to branch)))
+        /* 🟢🔒 V695 (২৬.০৮.২০২৬, TK ডেমো দেখে "২ করুন" বলেছেন) — ব্রাঞ্চ এখন
+           Spinner নয়, চাপলে-তালিকা-খোলা একটা ঘর।
+           ⚠️ কেন Spinner রাখা গেল না (আন্দাজ নয়, দেখে নেওয়া): `spinner()`
+              হেল্পার বন্ধ-অবস্থা **ও** ড্রপডাউন — দুটোতেই একই
+              `simple_spinner_dropdown_item` ব্যবহার করে। সবুজ হেডারে বসাতে
+              লেখা সাদা করলে **ড্রপডাউনের সাদা তালিকাতেও সাদা লেখা** হয়ে
+              যেত, কিছুই পড়া যেত না।
+           ⛔ তাই এই ফাইলেই আগে থেকে প্রমাণিত ধরনটাই নেওয়া হলো — Statement
+              পর্দার ব্রাঞ্চ-চিপ (`.setItems(BRANCHES)` পপ-আপ)। নতুন কিছু নয়।
+           ⛔ `spinner()` হেল্পার ও বাকি পর্দার ব্রাঞ্চ-ঘর এক অক্ষরও বদলায়নি। */
+        var branchSel = v398Branch().let { if (it in BRANCHES) it else BRANCHES.first() }
+        val branchBox = android.widget.TextView(this).apply {
+            text = "$branchSel  ▾"
+            textSize = 13.5f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.WHITE)
+            setPadding(0, dp(2), 0, 0)
+            isClickable = true; isFocusable = true
+        }
+        // মাসের ঘরটাও সবুজের উপরে — সাদা লেখা, আন্ডারলাইন নেই।
+        month.background = null
+        month.textSize = 13.5f
+        month.setTextColor(android.graphics.Color.WHITE)
+        month.setHintTextColor(android.graphics.Color.parseColor("#BFE4CD"))
+        month.setTypeface(month.typeface, android.graphics.Typeface.BOLD)
+        month.setPadding(0, dp(2), 0, 0)
+        col.addView(heroWithFields("📈 Monthly Summary", "Month", month, "Branch", branchBox))
         val out = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
 
         /* 🔴🔒 V412 (TK-রিপোর্ট, ৪টে ছবিসহ, ১৭.০৮.২০২৬) — **টাকার অঙ্ক ভুল পড়ার ফাঁদ।**
@@ -2737,11 +2824,19 @@ class IncomeExpenseActivity : AppCompatActivity() {
                 out.addView(ModuleUi.body(this, "Press Show to see this branch and month."))
             }
         }
-        branch.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
-                clearStale()
-            }
-            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+        // 🟢🔒 V695 — ব্রাঞ্চ বাছাই। ⛔ V412-এর সুরক্ষা অক্ষত: ব্রাঞ্চ বদলালেই
+        //   আগের টেবিল সঙ্গে সঙ্গে মুছে যায়, যাতে এক ব্রাঞ্চের টাকা অন্য
+        //   ব্রাঞ্চের নামে পড়া না হয়।
+        branchBox.setOnClickListener {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "🏥 Branch"))
+                .setItems(BRANCHES.toTypedArray()) { _, which ->
+                    branchSel = BRANCHES[which]
+                    branchBox.text = "$branchSel  ▾"
+                    clearStale()
+                }
+                .setNegativeButton("Cancel", null)
+                .show().also { d -> try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(d) } catch (_: Throwable) { } }
         }
         month.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -2756,9 +2851,9 @@ class IncomeExpenseActivity : AppCompatActivity() {
             middleText = "••• Options",
             onMiddle = { v -> showMonthlyOptions(v) }
         ) {
-            v398Remember(branch.selectedItem.toString())   // 🟢🔒 V398
+            v398Remember(branchSel)   // 🟢🔒 V398
             monthlyShareText = null; monthlyPdfHtml = null  // নতুন মাস দেখানোর আগে পুরনো লেখা মুছে
-            runMonthly(month.text.toString(), branch.selectedItem.toString(), out)
+            runMonthly(month.text.toString(), branchSel, out)
         })
         col.addView(out)
     }
