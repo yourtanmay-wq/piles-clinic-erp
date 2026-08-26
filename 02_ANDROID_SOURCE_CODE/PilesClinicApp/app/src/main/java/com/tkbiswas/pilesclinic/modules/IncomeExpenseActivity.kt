@@ -2249,7 +2249,18 @@ class IncomeExpenseActivity : AppCompatActivity() {
     }
 
     /** ছোট পাশাপাশি বোতাম-জোড়া — বাঁয়ে সাদা/বর্ডার (secondary), ডানে ভরাট সবুজ (primary)। */
-    private fun compactFooter(secondaryText: String, primaryText: String, onSecondary: () -> Unit, onPrimary: () -> Unit): LinearLayout {
+    /* 🟢🔒 V693 (২৬.০৮.২০২৬, TK-নির্দেশ ছবিসহ) — মাঝখানে একটা ঐচ্ছিক বোতাম
+       (Monthly-র "\u2022\u2022\u2022 Options")। ⛔ `middleText` ডিফল্ট ফাঁকা, তাই এই
+       ফাংশনের পুরনো সব ডাক (Back/Show) এক অক্ষরও বদলায়নি — ফাঁকা হলে
+       মাঝের বোতামটা বসেই না, আগের মতো দুটোই থাকে। */
+    private fun compactFooter(
+        secondaryText: String,
+        primaryText: String,
+        onSecondary: () -> Unit,
+        middleText: String = "",
+        onMiddle: (android.view.View) -> Unit = { },
+        onPrimary: () -> Unit
+    ): LinearLayout {
         val footer = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
@@ -2264,7 +2275,21 @@ class IncomeExpenseActivity : AppCompatActivity() {
         secBtn.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(6) }
         val priBtn = ModuleUi.button(this, primaryText, onPrimary)
         priBtn.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = dp(6) }
-        footer.addView(secBtn); footer.addView(priBtn)
+        footer.addView(secBtn)
+        if (middleText.isNotBlank()) {
+            // মাঝের বোতাম — Back-এর মতোই সাদা/সবুজ-পাড়, TK-এর ছবির মতো।
+            val midBtn = ModuleUi.button(this, middleText) { }
+            midBtn.setTextColor(android.graphics.Color.parseColor("#0B4F2A"))
+            midBtn.background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(10).toFloat(); setColor(android.graphics.Color.WHITE)
+                setStroke(dp(1), android.graphics.Color.parseColor("#CFE9D8"))
+            }
+            midBtn.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                .apply { marginStart = dp(6); marginEnd = dp(6) }
+            midBtn.setOnClickListener { v -> onMiddle(v) }
+            footer.addView(midBtn)
+        }
+        footer.addView(priBtn)
         return footer
     }
 
@@ -2724,8 +2749,15 @@ class IncomeExpenseActivity : AppCompatActivity() {
             override fun afterTextChanged(s: android.text.Editable?) { clearStale() }
         })
 
-        col.addView(compactFooter("Back", "Show", { renderMenu() }) {
+        // 🟢🔒 V693 (২৬.০৮.২০২৬, TK-নির্দেশ ছবিসহ) — মাঝখানে "••• Options"
+        //   (WhatsApp-এ শেয়ার · PDF Download · Print)। ⛔ শুধু এই মাসের
+        //   পর্দাতেই; বাকি পর্দার Back/Show ফুটার এক অক্ষরও বদলায়নি।
+        col.addView(compactFooter("Back", "Show", { renderMenu() },
+            middleText = "••• Options",
+            onMiddle = { v -> showMonthlyOptions(v) }
+        ) {
             v398Remember(branch.selectedItem.toString())   // 🟢🔒 V398
+            monthlyShareText = null; monthlyPdfHtml = null  // নতুন মাস দেখানোর আগে পুরনো লেখা মুছে
             runMonthly(month.text.toString(), branch.selectedItem.toString(), out)
         })
         col.addView(out)
@@ -2907,18 +2939,31 @@ class IncomeExpenseActivity : AppCompatActivity() {
         out.addView(table)
         if (dates.isEmpty()) out.addView(ModuleUi.body(this, "এই মাসে এখনো কোনো এন্ট্রি নেই।"))
         TableRowEqualizer.equalize(table, builtRows)
-        val remaining = prevBalance + cashTot + onlineTot - expTot
-        out.addView(balanceBarPair(if (prevOk) money(prevBalance) else "—", if (prevOk) money(remaining) else "—"))
-        // 🔵🔒 R6 (TK-অনুমোদিত, 09.08.2026): Monthly হিসাব WhatsApp-এ শেয়ার — ওয়েবের finMonthlyShare-এর
-        // সমতুল্য। শুধু লেখা শেয়ার (native.WhatsAppMessageChooser.sendGeneric — WorkNotebook-এর প্রমাণিত পথ)।
-        // ⛔ কোনো টাকা/হিসাব/অন্য পর্দা ছোঁয়া হয়নি — শুধু একটা শেয়ার বোতাম যোগ।
+        /* 🟢🔒 V693 (২৬.০৮.২০২৬, TK-নির্দেশ ছবিসহ, তাঁর "হ্যাঁ" নিয়ে) —
+           নিচের বাক্সটা এখন TK-এর ছবির মতো: **মোট আয় · মোট ব্যয় · অবশিষ্ট**।
+           আগে ছিল "Previous Balance | অবশিষ্ট টাকা" (V453)।
+           ⚠️ **টাকার হিসাবেও একটা বদল** — TK-কে দেখিয়ে, জিজ্ঞাসা করে,
+              তাঁর অনুমতি নিয়ে: অবশিষ্ট = মোট আয় − মোট ব্যয়; **গত মাসের
+              বাকি (prevBalance) আর যোগ হয় না**। TK-এর ছবির সংখ্যাগুলোও
+              ঠিক এই হিসাবেই মেলে (৩,১২,৬৯০ − ১,৬৮,৫২০ = ১,৪৪,১৭০)।
+           ⛔ Daily Ledger (`buildSheetTable`)-এর নিচের বার এক অক্ষরও
+              বদলায়নি — সেখানে গত মাসের বাকি আগের মতোই ধরা হয়। */
+        val incomeTot = cashTot + onlineTot
+        val remaining = incomeTot - expTot
+        out.addView(monthTotalsBox(incomeTot, expTot, remaining))
+        // 🔵🔒 R6 (TK-অনুমোদিত, 09.08.2026): Monthly হিসাব WhatsApp-এ শেয়ার।
+        // 🟢🔒 V693 — লেখাটা আগের মতোই বানানো হয়, শুধু বোতামটা আর এখানে
+        //    বসে না; এখন নিচের "••• Options" মেনুর ভিতরে (TK-এর ছবি)।
         if (dates.isNotEmpty()) {
             val monthLbl = dates.firstOrNull()?.let { try { monthLabel(it.substring(0, 7)) } catch (e: Exception) { "" } } ?: ""
             val sbx = StringBuilder()
             sbx.append("📒 টাকার হিসাব — ").append(if (monthLbl.isNotBlank()) monthLbl else "Monthly").append("\n")
             sbx.append(if (branchSel == "All Branches") "সব ব্রাঞ্চ" else branchSel).append("\n")
             sbx.append("————————————\n")
-            sbx.append("গত মাসের ব্যালেন্স: ").append(if (prevOk) money(prevBalance) else "—").append("\n")
+            // 🟢🔒 V693 — পর্দায় যা দেখা যায়, শেয়ারের লেখাতেও ঠিক তাই।
+            //    আগে এখানে "গত মাসের ব্যালেন্স" লেখা হত; পর্দা থেকে সেটা
+            //    উঠে যাওয়ায় লেখাতেও রাখা হলো না — নইলে পর্দা আর লেখা
+            //    দুরকম বলত, সেটাই নতুন একটা ভুল হত।
             for (d in dates) {
                 val dotted = try { val p = d.split("-"); p[2] + "/" + p[1] + "/" + p[0] } catch (e: Exception) { d }
                 sbx.append(dotted).append(" — Cash ").append(money(dayCash[d] ?: 0.0))
@@ -2927,15 +2972,55 @@ class IncomeExpenseActivity : AppCompatActivity() {
             }
             sbx.append("————————————\n")
             sbx.append("মোট: Cash ").append(money(cashTot)).append(" · Online ").append(money(onlineTot)).append(" · খরচ ").append(money(expTot)).append("\n")
-            sbx.append("অবশিষ্ট টাকা: ").append(if (prevOk) money(remaining) else "—")
-            val shareBtn = ModuleUi.button(this, "📤 WhatsApp-এ শেয়ার") {
-                try { com.tkbiswas.pilesclinic.native.WhatsAppMessageChooser.sendGeneric(this, sbx.toString()) }
-                catch (e: Throwable) { ModuleUi.toast(this, "শেয়ার করা গেল না") }
+            sbx.append("মোট আয়: ").append(money(incomeTot)).append("\n")
+            sbx.append("মোট ব্যয়: ").append(money(expTot)).append("\n")
+            sbx.append("অবশিষ্ট: ").append(money(remaining))
+            monthlyShareText = sbx.toString()
+
+            /* 🟢🔒 V693 — PDF/Print-এর জন্য একই টেবিলের HTML প্রতিলিপি।
+               ⛔ Statement-এর `statementPdfHtml`-এর হুবহু একই ধাঁচ ও একই
+                  প্রমাণিত পথ (`printStatementPdf`)। কোনো টাকা নতুন করে
+                  গোনা হয়নি — উপরের একই dates/dayCash/dayOnline/dayExp। */
+            val sbh = StringBuilder()
+            sbh.append("<html><head><meta charset='utf-8'><style>")
+                .append("body{font-family:sans-serif;padding:14px;color:#222}")
+                .append("h2{color:#0A5C33;margin-bottom:2px}")
+                .append(".sub{color:#667085;font-size:13px;margin-bottom:14px}")
+                .append("table{border-collapse:collapse;width:100%;font-size:13px}")
+                .append("th,td{border:1px solid #D9E2EC;padding:6px 8px;text-align:right}")
+                .append("th{background:#0A7C3F;color:#fff}")
+                .append("td:first-child,th:first-child{text-align:left}")
+                .append(".tot{background:#EAF6EE;font-weight:bold;color:#0A5C33}")
+                .append(".exp{color:#B42318}")
+                .append(".sum{margin-top:14px;font-size:14px}")
+                .append(".sum div{padding:4px 0}")
+                .append("</style></head><body>")
+            sbh.append("<h2>").append(if (monthLbl.isNotBlank()) monthLbl else "Monthly").append("</h2>")
+            sbh.append("<div class='sub'>").append(if (branchSel == "All Branches") "All Branches" else branchSel).append("</div>")
+            sbh.append("<table><tr><th>Date</th><th>Cash</th><th>Online</th><th>Expense</th></tr>")
+            for (d in dates) {
+                val dotted = try { val p = d.split("-"); p[2] + "/" + p[1] + "/" + p[0] } catch (e: Exception) { d }
+                val c2 = dayCash[d] ?: 0.0; val o2 = dayOnline[d] ?: 0.0; val e2 = dayExp[d] ?: 0.0
+                sbh.append("<tr><td>").append(dotted).append("</td><td>")
+                    .append(if (c2 > 0) money(c2).removePrefix("₹") else "-").append("</td><td>")
+                    .append(if (o2 > 0) money(o2).removePrefix("₹") else "-").append("</td><td class='exp'>")
+                    .append(if (e2 > 0) money(e2).removePrefix("₹") else "-").append("</td></tr>")
             }
-            shareBtn.layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { topMargin = dp(10) }
-            out.addView(shareBtn)
+            sbh.append("<tr class='tot'><td>Total</td><td>").append(money(cashTot).removePrefix("₹"))
+                .append("</td><td>").append(money(onlineTot).removePrefix("₹"))
+                .append("</td><td>").append(money(expTot).removePrefix("₹")).append("</td></tr>")
+            sbh.append("</table>")
+            sbh.append("<div class='sum'>")
+                .append("<div>মোট আয় = ").append(money(incomeTot)).append("</div>")
+                .append("<div>মোট ব্যয় = ").append(money(expTot)).append("</div>")
+                .append("<div><b>অবশিষ্ট = ").append(money(remaining)).append("</b></div>")
+                .append("</div>")
+            sbh.append("</body></html>")
+            monthlyPdfHtml = sbh.toString()
+        } else {
+            // এই মাসে কিছু নেই — Options-এ পুরনো মাসের লেখা যেন থেকে না যায়।
+            monthlyShareText = null
+            monthlyPdfHtml = null
         }
     }
 
@@ -2957,6 +3042,104 @@ class IncomeExpenseActivity : AppCompatActivity() {
     // বসে (buildStatementTable-এর শেষে), তাই বোতামটা সবসময় সাম্প্রতিক ডেটা
     // দেখায়।
     private var statementPdfHtml: String? = null
+
+    /* 🟢🔒 V693 (২৬.০৮.২০২৬, TK-নির্দেশ ছবিসহ) — Monthly-র "\u2022\u2022\u2022 Options"-এর
+       তিনটে কাজের জন্য। "Show" চাপার সময় ভরা হয়; ভরা না থাকলে Options
+       চাপলে ভদ্রভাবে "আগে Show চাপুন" বলা হয় (Statement-এর PDF চিপ ঠিক
+       যেভাবে করে, হুবহু সেই ধরন)। */
+    private var monthlyShareText: String? = null
+    private var monthlyPdfHtml: String? = null
+
+    /**
+     * 🟢🔒 V693 (২৬.০৮.২০২৬, TK-নির্দেশ, ছবিসহ) — মাসের হিসাবের নিচের
+     * **তিন লাইনের বাক্স**: মোট আয় · মোট ব্যয় · অবশিষ্ট।
+     *
+     * TK-এর ছবিতে ঠিক এই তিনটেই আছে — "Previous Balance" নেই, আর
+     * **অবশিষ্ট = মোট আয় − মোট ব্যয়** (গত মাসের বাকি ধরা হয় না)।
+     * TK-কে দেখিয়ে, জিজ্ঞাসা করে, তাঁর "হ্যাঁ" নিয়ে তবেই বদলানো হলো।
+     *
+     * ⛔ এটা **শুধু Monthly-র জন্য** — Daily Ledger (`buildSheetTable`)-এর
+     *    নিচের `balanceBarPair()` (Previous Balance | অবশিষ্ট টাকা) এক
+     *    অক্ষরও বদলায়নি, ওখানে গত মাসের বাকি আগের মতোই ধরা হয়।
+     */
+    private fun monthTotalsBox(incomeTot: Double, expenseTot: Double, remaining: Double): LinearLayout {
+        val card = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(12).toFloat()
+                setColor(android.graphics.Color.WHITE)
+                setStroke(dp(1), android.graphics.Color.parseColor("#E3ECE6"))
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(10); bottomMargin = dp(4) }
+        }
+        fun line(label: String, value: String, colorHex: String, divider: Boolean) {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(0, dp(7), 0, dp(7))
+            }
+            row.addView(android.widget.TextView(this).apply {
+                text = label; textSize = 14f
+                setTextColor(android.graphics.Color.parseColor(colorHex))
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+            })
+            row.addView(android.widget.TextView(this).apply {
+                text = "="; textSize = 14f
+                setTextColor(android.graphics.Color.parseColor(colorHex))
+                setPadding(dp(8), 0, dp(8), 0)
+            })
+            row.addView(android.widget.TextView(this).apply {
+                text = value; textSize = 15f
+                setTextColor(android.graphics.Color.parseColor(colorHex))
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                gravity = android.view.Gravity.END
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            })
+            card.addView(row)
+            if (divider) card.addView(android.view.View(this).apply {
+                setBackgroundColor(android.graphics.Color.parseColor("#EEF3F0"))
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(1))
+            })
+        }
+        line("মোট আয়", money(incomeTot), "#0A7C3F", true)
+        line("মোট ব্যয়", money(expenseTot), "#B42318", true)
+        line("অবশিষ্ট", money(remaining), "#1B4E9B", false)
+        return card
+    }
+
+    /** 🟢🔒 V693 — TK-এর ছবির "\u2022\u2022\u2022 Options" মেনু: WhatsApp-এ শেয়ার ·
+     *  PDF Download · Print। ⛔ তিনটেই আগে থেকে প্রমাণিত পথ —
+     *  `WhatsAppMessageChooser.sendGeneric()` আর `printStatementPdf()`
+     *  (WebView + Android-এর নিজের Print, যেখানে "Save as PDF" বেছে নিলেই
+     *  পিডিএফ)। নতুন কোনো লাইব্রেরি বা অনুমতি লাগেনি। */
+    private fun showMonthlyOptions(anchor: android.view.View) {
+        val share = monthlyShareText
+        val html = monthlyPdfHtml
+        if (share.isNullOrBlank() || html.isNullOrBlank()) {
+            ModuleUi.toast(this, "আগে Show চাপুন।")
+            return
+        }
+        val menu = android.widget.PopupMenu(this, anchor)
+        menu.menu.add(0, 1, 0, "📤 WhatsApp-এ শেয়ার")
+        menu.menu.add(0, 2, 1, "📄 PDF Download")
+        menu.menu.add(0, 3, 2, "🖨️ Print")
+        menu.setOnMenuItemClickListener { mi ->
+            when (mi.itemId) {
+                1 -> try {
+                    com.tkbiswas.pilesclinic.native.WhatsAppMessageChooser.sendGeneric(this, share)
+                } catch (e: Throwable) { ModuleUi.toast(this, "শেয়ার করা গেল না") }
+                // ⛔ PDF ও Print — একই পর্দাই খোলে (Android-এর নিজের Print
+                //    পর্দা)। সেখানে গন্তব্যে "Save as PDF" বাছলে পিডিএফ,
+                //    প্রিন্টার বাছলে ছাপা। এটাই Android-এর স্বাভাবিক নিয়ম।
+                2, 3 -> printStatementPdf(html)
+            }
+            true
+        }
+        menu.show()
+    }
 
     // 🟢🔒🔒 V657 (২৫.০৮.২০২৬, TK-নির্দেশ — PDF ডাউনলোড) — `printCheckupA4()`
     // (PatientTimelineActivity.kt)-এর হুবহু একই, প্রমাণিত পথ: WebView-এ

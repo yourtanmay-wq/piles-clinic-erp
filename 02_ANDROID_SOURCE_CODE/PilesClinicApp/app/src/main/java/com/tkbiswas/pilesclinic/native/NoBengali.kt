@@ -661,6 +661,8 @@ object NoBengali {
         "গত মাসের ব্যালেন্স" to "Previous Month's Balance",
         "WhatsApp-এ শেয়ার" to "Share on WhatsApp",
         "শেয়ার করা গেল না" to "Could not share",
+        // 🟢🔒 V693 (২৬.০৮.২০২৬) — মাসের হিসাবের "••• Options" মেনু।
+        "আগে Show চাপুন।" to "Tap Show first.",
         "হালনাগাদ হচ্ছে…" to "Updating…",
         "খুলছি... একটু অপেক্ষা করুন" to "Opening... please wait",
         "আজকের তথ্য আনছি..." to "Loading today's information...",

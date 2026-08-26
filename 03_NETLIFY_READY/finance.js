@@ -1485,16 +1485,27 @@ function finRowTap(id) {
       '<td style="padding:6px;text-align:right;border:1px solid #CFE9D8;color:#0A5C33">' + m.money(cashTot).replace('₹', '') + '</td>' +
       '<td style="padding:6px;text-align:right;border:1px solid #CFE9D8;color:#0A5C33">' + m.money(onlineTot).replace('₹', '') + '</td>' +
       '<td style="padding:6px;text-align:right;border:1px solid #CFE9D8;color:#B42318">' + m.money(expTot).replace('₹', '') + '</td></tr>';
-    var remaining = prevBal + cashTot + onlineTot - expTot;
-    // 🔴🔒 V460 (Android-এ V453) — ব্রাঞ্চের নাম হেডারেই থাকে বলে brLabel বাদ;
-    // দুটো সংখ্যা এক পাশাপাশি সারিতে।
-    var balPair = '<div style="margin:8px 0 4px;display:flex;gap:8px">' +
-      '<div style="flex:1;background:#EEFAF0;border:1px solid #CDE9D5;border-radius:10px;padding:10px 8px;text-align:center">' +
-      '<div style="font-size:11.5px;font-weight:700;color:#0A5C33">Previous Balance</div>' +
-      '<div style="font-size:15px;font-weight:800;color:#0A5C33;padding-top:2px">' + (prevOk ? m.money(prevBal) : '—') + '</div></div>' +
-      '<div style="flex:1;background:#0B4F2A;border-radius:10px;padding:10px 8px;text-align:center">' +
-      '<div style="font-size:11.5px;font-weight:700;color:#fff">অবশিষ্ট টাকা</div>' +
-      '<div style="font-size:15px;font-weight:800;color:#fff;padding-top:2px">' + (prevOk ? m.money(remaining) : '—') + '</div></div>' +
+    /* 🟢🔒 V693 (২৬.০৮.২০২৬, TK-নির্দেশ ছবিসহ, তাঁর "হ্যাঁ" নিয়ে) — নিচের
+       বাক্সটা এখন TK-এর ছবির মতো: **মোট আয় · মোট ব্যয় · অবশিষ্ট**।
+       আগে ছিল "Previous Balance | অবশিষ্ট টাকা" (V460 / Android V453)।
+       ⚠️ টাকার হিসাবেও বদল — অবশিষ্ট = মোট আয় − মোট ব্যয়; **গত মাসের বাকি
+          আর যোগ হয় না**। TK-এর ছবির সংখ্যাও ঠিক এই হিসাবেই মেলে।
+       ⛔ ফোনের `IncomeExpenseActivity.monthTotalsBox()`-এর হুবহু একই (§৬.৬)।
+       ⛔ Daily Ledger-এর নিচের বার (এই ফাইলের ~৮৪১ লাইন) এক অক্ষরও বদলায়নি —
+          সেখানে গত মাসের বাকি আগের মতোই ধরা হয়। */
+    var incomeTot = cashTot + onlineTot;
+    var remaining = incomeTot - expTot;
+    function finSumLine(label, value, color, line){
+      return '<div style="display:flex;align-items:center;padding:7px 0' +
+        (line ? ';border-bottom:1px solid #EEF3F0' : '') + '">' +
+        '<span style="font-size:14px;font-weight:700;color:' + color + '">' + label + '</span>' +
+        '<span style="font-size:14px;color:' + color + ';padding:0 8px">=</span>' +
+        '<span style="flex:1;text-align:right;font-size:15px;font-weight:800;color:' + color + '">' + value + '</span></div>';
+    }
+    var balPair = '<div style="margin:10px 0 4px;background:#fff;border:1px solid #E3ECE6;border-radius:12px;padding:12px 14px">' +
+      finSumLine('মোট আয়', m.money(incomeTot), '#0A7C3F', true) +
+      finSumLine('মোট ব্যয়', m.money(expTot), '#B42318', true) +
+      finSumLine('অবশিষ্ট', m.money(remaining), '#1B4E9B', false) +
       '</div>';
     // 🔵 Date ঘর সরু (colgroup width), Cash/Online/খরচ বাকি জায়গা ভাগ করে নেয়।
     var tableHtml = '<div style="overflow-x:auto"><table style="width:100%;min-width:560px;border-collapse:collapse;font-size:12px">' +
@@ -1504,17 +1515,45 @@ function finRowTap(id) {
       /* 🔴 V430 — Monthly Summary-র খালি-লেখা ফোনের হুবহু (kt:2618) */
       (dates.length ? '' : '<div class="mut">এই মাসে এখনো কোনো এন্ট্রি নেই।</div>') +
       balPair +
-      '<div class="actions" style="margin-top:10px"><button onclick="finMonthlyPdf()">🖨️ PDF / Print</button>' +
-      '<button class="ghost" onclick="finMonthlyShare()">📤 WhatsApp</button></div>';
+      /* 🟢🔒 V693 (২৬.০৮.২০২৬, TK-নির্দেশ ছবিসহ) — দুটো আলাদা বোতামের বদলে
+         একটাই "••• Options", ভিতরে তিনটে কাজ — ফোনের PopupMenu-র মতোই।
+         ⛔ কাজ তিনটেই আগের প্রমাণিত ফাংশন (finMonthlyShare / finMonthlyPdf),
+            নতুন কিছু বানানো হয়নি। */
+      '<div class="actions" style="margin-top:10px;position:relative">' +
+      '<button class="ghost" onclick="finMonthlyOptions()">••• Options</button>' +
+      '<div id="finMonthlyMenu" style="display:none;position:absolute;bottom:46px;left:0;z-index:40;' +
+      'background:#fff;border:1px solid #E3ECE6;border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.14);min-width:210px;overflow:hidden">' +
+      '<div onclick="finMonthlyMenuPick(1)" style="padding:12px 14px;cursor:pointer;border-bottom:1px solid #EEF3F0">📤 WhatsApp-এ শেয়ার</div>' +
+      '<div onclick="finMonthlyMenuPick(2)" style="padding:12px 14px;cursor:pointer;border-bottom:1px solid #EEF3F0">📄 PDF Download</div>' +
+      '<div onclick="finMonthlyMenuPick(3)" style="padding:12px 14px;cursor:pointer">🖨️ Print</div>' +
+      '</div></div>';
     var shareText = 'Income & Expense — ' + month + (branch === '__all' ? ' (All Branches)' : ' (' + branch + ')');
     window._finMonthlyHtml = '<h1>' + m.esc(shareText) + '</h1>' + tableHtml + balPair;
     window._finMonthlyText = shareText + '\n' +
       'Collection: ' + m.money(cashTot + onlineTot) + ' (Cash ' + m.money(cashTot) + ' / Online ' + m.money(onlineTot) + ')\n' +
       'Expense: ' + m.money(expTot) + '\n' +
-      'Previous Balance: ' + (prevOk ? m.money(prevBal) : '—') + '\n' +
-      'অবশিষ্ট টাকা: ' + (prevOk ? m.money(remaining) : '—');
+      /* 🟢🔒 V693 — পর্দায় যা দেখা যায়, শেয়ারের লেখাতেও ঠিক তাই।
+         "Previous Balance" পর্দা থেকে উঠে যাওয়ায় লেখাতেও রাখা হলো না —
+         নইলে পর্দা আর লেখা দুরকম বলত, সেটাই নতুন একটা ভুল হত। */
+      'মোট আয়: ' + m.money(incomeTot) + '\n' +
+      'মোট ব্যয়: ' + m.money(expTot) + '\n' +
+      'অবশিষ্ট: ' + m.money(remaining);
   }
 
+  /* 🟢🔒 V693 — "••• Options" খোলা/বন্ধ, আর ভিতরের তিনটে কাজ। */
+  function finMonthlyOptions() {
+    var el = document.getElementById('finMonthlyMenu');
+    if (!el) return;
+    el.style.display = (el.style.display === 'block') ? 'none' : 'block';
+  }
+  function finMonthlyMenuPick(which) {
+    var el = document.getElementById('finMonthlyMenu');
+    if (el) el.style.display = 'none';
+    if (which === 1) finMonthlyShare();
+    /* PDF ও Print — একই ব্রাউজার-পর্দা; সেখানে গন্তব্যে "Save as PDF"
+       বাছলে পিডিএফ, প্রিন্টার বাছলে ছাপা (ফোনেও ঠিক একই নিয়ম)। */
+    else finMonthlyPdf();
+  }
   function finMonthlyPdf() { window.MOD.printHtml('Monthly Summary', window._finMonthlyHtml || ''); }
   function finMonthlyShare() { window.MOD.whatsapp(window._finMonthlyText || 'Monthly Summary'); }
 
@@ -1692,6 +1731,8 @@ function finRowTap(id) {
   window.finRunMonthly = finRunMonthly;
   window.finMonthlyPdf = finMonthlyPdf;
   window.finMonthlyShare = finMonthlyShare;
+  window.finMonthlyOptions = finMonthlyOptions;
+  window.finMonthlyMenuPick = finMonthlyMenuPick;
   window.finStatement = finStatement;
   window.finStatementLoad = finStatementLoad;
   window.finStatementShare = finStatementShare;
