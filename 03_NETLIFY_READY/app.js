@@ -7597,10 +7597,14 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
        এড়াতে (একই "dnEstimatedCost" দুই জায়গায় থাকলে ব্রাউজার শুধু
        প্রথমটাই পড়ত, দ্বিতীয়টা অকেজো হয়ে যেত)। -->
   <label>Advance Payment to be Done · অগ্রিম কত টাকা জমা করতে চাইছে</label><input id="dnAdvanceDiscussed" class="input" value="${val('advanceDiscussed')}">
-  ${wlv1AnatBoxHtml(note,id)}
+  <!-- 🖥️🟢🔒 V704 (২৬.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত — "এই ফটোটা অন্য
+       একটা যায়গায় থাকবে, সম্ভাব্য রোগ এবং সময়ের মধ্যে থাকবে না") — Patient Picture
+       (wlv1AnatBoxHtml) এখান (ধাপ ৪) থেকে সরিয়ে ধাপ ৫ (Photo and Video)-এ, তিনটে
+       ছবির ঠিক নিচে — ফোনের একই বদল। ⛔ id/সেভ-লজিক/A4-রিপোর্ট কিছুই বদলায়নি। -->
  </details>
  <details class="card"><summary><b>5. Photo &amp; Video · ছবি ও ভিডিও</b></summary>
   <div class="grid"><div><label>Before Treatment Photo · আগের ছবি</label><input id="dnBeforePhoto" class="input" type="file" accept="image/*"><small>${note.beforePhoto?'Before photo saved':''}</small></div><div><label>During Treatment Photo · চলাকালীন ছবি</label><input id="dnDuringPhoto" class="input" type="file" accept="image/*"><small>${note.duringPhoto?'During photo saved':''}</small></div><div><label>After Treatment Photo · পরের ছবি</label><input id="dnAfterPhoto" class="input" type="file" accept="image/*"><small>${note.afterPhoto?'After photo saved':''}</small></div></div>
+  ${wlv1AnatBoxHtml(note,id)}
  </details>
  </div>
  <div class="wlv1CkBar"><button class="wlv1CkSide" onclick="wlv1CkStep(-1)">Back</button><button class="wlv1CkSave" onclick="saveDoctor('${id}')">💾 Save</button><button class="wlv1CkSide" onclick="wlv1CkStep(1)">Next ▶</button></div>

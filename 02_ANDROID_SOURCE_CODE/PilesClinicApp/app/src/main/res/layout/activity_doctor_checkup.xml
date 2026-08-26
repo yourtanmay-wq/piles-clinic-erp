@@ -1078,6 +1078,74 @@
                          ⛔ A4 কাগজের ঘরটা এখন ভাগ ৩-এর সময়টাই ছাপে (TK: *"অ্যাপের মধ্যে
                             এক জায়গায় আমি বেছে নিচ্ছি, সেটাই ছেপে যাবে"*)। -->
 
+
+
+                    <!-- 🔵 B622 (11.08.2026, TK-নির্দেশ): "Advance Payment to be Done" ঘরটা বাদ। -->
+                    <!-- V455 (TK-নির্দেশ ১৮.০৮.২০২৬) — "Decision of Patient..." ও
+                         "Other / Remarks" দুটোই বাদ। ⛔ ClinicalModels-এর patientDecision/
+                         decisionRemark ঘর অটুট (ডিফল্ট ""), শুধু UI সরানো। -->
+
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
+            <!-- STEP 5: Photo & Video -->
+            <!-- 🔴🎨🔒 TK-নির্দেশ (05.08.2026, নম্বর দিয়ে ধাপে ধাপে চূড়ান্ত) —
+                 "5. 📸 Photo & Video" হেডার সম্পূর্ণ বাদ। "Documents /
+                 Reports Note" ও "Quick Actions" — এখন এক লাইনে " · " দিয়ে
+                 পাশাপাশি। বাকি লেবেল/বোতাম (Before/During/After Photo,
+                 Prescription/Medicine Slip/Blood Test/Diet) TK-এর নির্দেশে
+                 অপরিবর্তিত রাখা হয়েছে। -->
+            <!-- 🎨 (07.08.2026, প্রুফ-চেহারা) কার্ড সাদা — আগে #FDEEE3 -->
+            <androidx.cardview.widget.CardView android:id="@+id/secPhoto" style="@style/RegCard" app:cardBackgroundColor="#FFFFFF">
+                <LinearLayout style="@style/RegCardInner">
+                    <!-- 🎨 (07.08.2026, প্রুফ-চেহারা) সেকশন-শিরোনাম -->
+                    <!-- 🟢 V600 (২৩.০৮.২০২৬, TK-নির্দেশ, ছবিসহ): "এখানে ফটো তোলার
+                         চিহ্নগুলো হাইড থাকবে, Photo and Video-তে চাপ দিলে তবে এই
+                         অপশনগুলো আসবে — অন্যান্য যেগুলো আছে সেরকমই" ⇒ প্রজেক্টের
+                         আগে থেকে থাকা fold-প্যাটার্ন (symptomFold/lifeFold-এর
+                         হুবহু যমজ, `attachFold()`) হেডার + তিনটে ছবির সারিতে
+                         বসানো হলো — শুরুতে বন্ধ, হেডারে চাপ দিলে খোলে।
+                         ⛔ Quick Actions/Investigations (নিচের অংশ) ছোঁয়া হয়নি। -->
+                    <LinearLayout android:id="@+id/photoFoldHead" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="6dp">
+                        <TextView android:layout_width="23dp" android:layout_height="23dp" android:gravity="center" android:text="5" android:textStyle="bold" android:textSize="12sp" android:textColor="#12805C" android:background="@drawable/bg_checkup_step_num" />
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="9dp" android:text="Photo &amp; Video" android:textStyle="bold" android:textSize="14sp" android:textColor="#101828" />
+                        <TextView android:id="@+id/photoFoldNum" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:background="@drawable/bg_fold_count_chip" android:paddingLeft="9dp" android:paddingTop="2dp" android:paddingRight="9dp" android:paddingBottom="2dp" android:textColor="#0B4F2A" android:textSize="11.5sp" android:textStyle="bold" android:visibility="gone" />
+                        <!-- 🟢🔒 V653 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবিসহ — "আরো উজ্জ্বল
+                             এবং বোঝা যায়") — ধূসর টেক্সট থেকে গাঢ় সবুজ বৃত্ত-
+                             ব্যাকগ্রাউন্ড, বড়/সাদা/বোল্ড — স্পষ্ট বোঝা যায় এটা
+                             চাপার জিনিস। অবস্থান আগে থেকেই লেখার পাশে ছিল
+                             (এখানে weight=1-এর ফাঁদ ছিল না), শুধু রং/আকার বদল। -->
+                        <TextView android:id="@+id/photoFoldChev" android:layout_width="24dp" android:layout_height="24dp" android:layout_marginStart="8dp" android:gravity="center" android:background="@drawable/bg_fold_chevron" android:text="⌄" android:textColor="#FFFFFF" android:textStyle="bold" android:textSize="15sp" />
+                        <View android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
+                    </LinearLayout>
+                    <LinearLayout android:id="@+id/photoFoldBody" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+                    <LinearLayout style="@style/Row2" android:layout_marginTop="0dp">
+                        <LinearLayout style="@style/Col">
+                            <TextView style="@style/FieldLabel" android:layout_marginTop="0dp" android:text="Before Photo\nআগের ছবি" />
+                            <ImageView android:id="@+id/ivBeforePhoto" android:layout_width="match_parent" android:layout_height="90dp" android:scaleType="centerCrop" android:background="#EDF1F6" android:layout_marginTop="6dp" />
+                            <com.google.android.material.button.MaterialButton android:id="@+id/btnBeforePhoto" style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="11sp" android:insetTop="0dp" android:insetBottom="0dp" android:layout_marginTop="2dp" android:text="📷 Before" />
+                        </LinearLayout>
+                        <LinearLayout style="@style/Col">
+                            <TextView style="@style/FieldLabel" android:layout_marginTop="0dp" android:text="During Photo\nচলাকালীন ছবি" />
+                            <ImageView android:id="@+id/ivDuringPhoto" android:layout_width="match_parent" android:layout_height="90dp" android:scaleType="centerCrop" android:background="#EDF1F6" android:layout_marginTop="6dp" />
+                            <com.google.android.material.button.MaterialButton android:id="@+id/btnDuringPhoto" style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="11sp" android:insetTop="0dp" android:insetBottom="0dp" android:layout_marginTop="2dp" android:text="📷 During" />
+                        </LinearLayout>
+                        <LinearLayout style="@style/ColEnd">
+                            <TextView style="@style/FieldLabel" android:layout_marginTop="0dp" android:text="After Photo\nপরের ছবি" />
+                            <ImageView android:id="@+id/ivAfterPhoto" android:layout_width="match_parent" android:layout_height="90dp" android:scaleType="centerCrop" android:background="#EDF1F6" android:layout_marginTop="6dp" />
+                            <com.google.android.material.button.MaterialButton android:id="@+id/btnAfterPhoto" style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="11sp" android:insetTop="0dp" android:insetBottom="0dp" android:layout_marginTop="2dp" android:text="📷 After" />
+                        </LinearLayout>
+                    </LinearLayout>
+                    <!-- 🟢🔒🔒 V704 (২৬.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত —
+                         "এই ফটোটা অন্য একটা যায়গায় থাকবে, সম্ভাব্য রোগ এবং সময়ের
+                         মধ্যে থাকবে না") — "Patient Picture" ব্লকটা Step 4
+                         (secEstimate) থেকে সরিয়ে এখানে Step 5-এর ভাঁজের ভিতরে
+                         (photoFoldBody), তিনটে ছবির ঠিক নিচে আনা হলো।
+                         ⛔ ব্লকের **একটাও লাইন বদলানো হয়নি** — হুবহু কেটে এনে বসানো;
+                            id (anatomyStrip / anatomyHolder / anatomyTools) · আঁকার
+                            হাতিয়ার · Restore · সেভ-লজিক · A4-রিপোর্ট সব অক্ষত।
+                         ⛔ V652-তে TK এটাকে Step 3 → Step 4-এ এনেছিলেন; আজ Step 5-এ।
+                            নিচের V652/V558 মন্তব্য দুটো ইতিহাস হিসেবে রাখা হলো। -->
                     <!-- 🟢🔒🔒 V652 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবিসহ — "সম্ভাব্য রোগের
                          মধ্যে থাকবে এটা") — "Patient Picture" (রোগের ছবি/অ্যানাটমি
                          আঁকার হাতিয়ার) Step 3 (Counsel) থেকে সরিয়ে এই Step 4-এর
@@ -1138,64 +1206,6 @@
                              কোন ব্যবস্থা থাকবে না"* → লেখার ঘরটা তুলে দেওয়া হলো।
                              ⛔ পুরোনো যাঁদের রেকর্ডে এই লেখা জমা আছে সেটা **মুছে যায়নি** —
                                 আগের মতোই জমা থাকে ও ছাপায় আসে, শুধু নতুন করে লেখার ঘর নেই। -->
-                    </LinearLayout>
-
-
-                    <!-- 🔵 B622 (11.08.2026, TK-নির্দেশ): "Advance Payment to be Done" ঘরটা বাদ। -->
-                    <!-- V455 (TK-নির্দেশ ১৮.০৮.২০২৬) — "Decision of Patient..." ও
-                         "Other / Remarks" দুটোই বাদ। ⛔ ClinicalModels-এর patientDecision/
-                         decisionRemark ঘর অটুট (ডিফল্ট ""), শুধু UI সরানো। -->
-
-                </LinearLayout>
-            </androidx.cardview.widget.CardView>
-
-            <!-- STEP 5: Photo & Video -->
-            <!-- 🔴🎨🔒 TK-নির্দেশ (05.08.2026, নম্বর দিয়ে ধাপে ধাপে চূড়ান্ত) —
-                 "5. 📸 Photo & Video" হেডার সম্পূর্ণ বাদ। "Documents /
-                 Reports Note" ও "Quick Actions" — এখন এক লাইনে " · " দিয়ে
-                 পাশাপাশি। বাকি লেবেল/বোতাম (Before/During/After Photo,
-                 Prescription/Medicine Slip/Blood Test/Diet) TK-এর নির্দেশে
-                 অপরিবর্তিত রাখা হয়েছে। -->
-            <!-- 🎨 (07.08.2026, প্রুফ-চেহারা) কার্ড সাদা — আগে #FDEEE3 -->
-            <androidx.cardview.widget.CardView android:id="@+id/secPhoto" style="@style/RegCard" app:cardBackgroundColor="#FFFFFF">
-                <LinearLayout style="@style/RegCardInner">
-                    <!-- 🎨 (07.08.2026, প্রুফ-চেহারা) সেকশন-শিরোনাম -->
-                    <!-- 🟢 V600 (২৩.০৮.২০২৬, TK-নির্দেশ, ছবিসহ): "এখানে ফটো তোলার
-                         চিহ্নগুলো হাইড থাকবে, Photo and Video-তে চাপ দিলে তবে এই
-                         অপশনগুলো আসবে — অন্যান্য যেগুলো আছে সেরকমই" ⇒ প্রজেক্টের
-                         আগে থেকে থাকা fold-প্যাটার্ন (symptomFold/lifeFold-এর
-                         হুবহু যমজ, `attachFold()`) হেডার + তিনটে ছবির সারিতে
-                         বসানো হলো — শুরুতে বন্ধ, হেডারে চাপ দিলে খোলে।
-                         ⛔ Quick Actions/Investigations (নিচের অংশ) ছোঁয়া হয়নি। -->
-                    <LinearLayout android:id="@+id/photoFoldHead" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="6dp">
-                        <TextView android:layout_width="23dp" android:layout_height="23dp" android:gravity="center" android:text="5" android:textStyle="bold" android:textSize="12sp" android:textColor="#12805C" android:background="@drawable/bg_checkup_step_num" />
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="9dp" android:text="Photo &amp; Video" android:textStyle="bold" android:textSize="14sp" android:textColor="#101828" />
-                        <TextView android:id="@+id/photoFoldNum" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:background="@drawable/bg_fold_count_chip" android:paddingLeft="9dp" android:paddingTop="2dp" android:paddingRight="9dp" android:paddingBottom="2dp" android:textColor="#0B4F2A" android:textSize="11.5sp" android:textStyle="bold" android:visibility="gone" />
-                        <!-- 🟢🔒 V653 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবিসহ — "আরো উজ্জ্বল
-                             এবং বোঝা যায়") — ধূসর টেক্সট থেকে গাঢ় সবুজ বৃত্ত-
-                             ব্যাকগ্রাউন্ড, বড়/সাদা/বোল্ড — স্পষ্ট বোঝা যায় এটা
-                             চাপার জিনিস। অবস্থান আগে থেকেই লেখার পাশে ছিল
-                             (এখানে weight=1-এর ফাঁদ ছিল না), শুধু রং/আকার বদল। -->
-                        <TextView android:id="@+id/photoFoldChev" android:layout_width="24dp" android:layout_height="24dp" android:layout_marginStart="8dp" android:gravity="center" android:background="@drawable/bg_fold_chevron" android:text="⌄" android:textColor="#FFFFFF" android:textStyle="bold" android:textSize="15sp" />
-                        <View android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
-                    </LinearLayout>
-                    <LinearLayout android:id="@+id/photoFoldBody" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
-                    <LinearLayout style="@style/Row2" android:layout_marginTop="0dp">
-                        <LinearLayout style="@style/Col">
-                            <TextView style="@style/FieldLabel" android:layout_marginTop="0dp" android:text="Before Photo\nআগের ছবি" />
-                            <ImageView android:id="@+id/ivBeforePhoto" android:layout_width="match_parent" android:layout_height="90dp" android:scaleType="centerCrop" android:background="#EDF1F6" android:layout_marginTop="6dp" />
-                            <com.google.android.material.button.MaterialButton android:id="@+id/btnBeforePhoto" style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="11sp" android:insetTop="0dp" android:insetBottom="0dp" android:layout_marginTop="2dp" android:text="📷 Before" />
-                        </LinearLayout>
-                        <LinearLayout style="@style/Col">
-                            <TextView style="@style/FieldLabel" android:layout_marginTop="0dp" android:text="During Photo\nচলাকালীন ছবি" />
-                            <ImageView android:id="@+id/ivDuringPhoto" android:layout_width="match_parent" android:layout_height="90dp" android:scaleType="centerCrop" android:background="#EDF1F6" android:layout_marginTop="6dp" />
-                            <com.google.android.material.button.MaterialButton android:id="@+id/btnDuringPhoto" style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="11sp" android:insetTop="0dp" android:insetBottom="0dp" android:layout_marginTop="2dp" android:text="📷 During" />
-                        </LinearLayout>
-                        <LinearLayout style="@style/ColEnd">
-                            <TextView style="@style/FieldLabel" android:layout_marginTop="0dp" android:text="After Photo\nপরের ছবি" />
-                            <ImageView android:id="@+id/ivAfterPhoto" android:layout_width="match_parent" android:layout_height="90dp" android:scaleType="centerCrop" android:background="#EDF1F6" android:layout_marginTop="6dp" />
-                            <com.google.android.material.button.MaterialButton android:id="@+id/btnAfterPhoto" style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="11sp" android:insetTop="0dp" android:insetBottom="0dp" android:layout_marginTop="2dp" android:text="📷 After" />
-                        </LinearLayout>
                     </LinearLayout>
                     </LinearLayout>
                     <!-- V455 (TK-নির্দেশ ১৮.০৮.২০২৬) — "Documents / Reports Note" বাদ।

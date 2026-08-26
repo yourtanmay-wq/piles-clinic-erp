@@ -2040,8 +2040,15 @@ class DoctorCheckupActivity : AppCompatActivity() {
         if (holder.width > 0) {
             apply()
         } else {
+            /* 🟢🔒 V704 — আগে প্রথমবার layout হলেই শোনাটা খুলে নেওয়া হত। ধাপ ৫-এ
+               আসার পরে বাক্সটা শুরুতে **বন্ধ ভাঁজের ভিতরে** থাকে, তাই তখন চওড়া
+               ০-ই থাকে — একবার শুনেই খুলে নিলে পরে ভাঁজ খুললেও উচ্চতা আর বসত না
+               (ছবি বিকৃত দেখাত)। ⇒ এখন চওড়া সত্যিই মাপা না হওয়া পর্যন্ত শোনা
+               চালু থাকে, মাপা হলেই একবার বসিয়ে নিজে থেকে খুলে যায়।
+               ⛔ মাপার হিসাব (`apply`) এক অক্ষরও বদলায়নি। */
             holder.viewTreeObserver.addOnGlobalLayoutListener(object : android.view.ViewTreeObserver.OnGlobalLayoutListener {
                 override fun onGlobalLayout() {
+                    if (holder.width <= 0) return
                     holder.viewTreeObserver.removeOnGlobalLayoutListener(this)
                     apply()
                 }
