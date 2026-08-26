@@ -136,6 +136,7 @@ object PrescriptionWhatsAppShare {
         allowPrint: Boolean = false
     ) {
         Toast.makeText(activity, "Preparing PDF…", Toast.LENGTH_SHORT).show()
+        renderWidthPx = A4_WIDTH_PX   // 🔴🔒 V701 — আগের কাগজের মাপ যেন থেকে না যায়
         docTitle = documentTitle
         docPatient = patientName
         wantPrint = allowPrint
@@ -173,7 +174,22 @@ object PrescriptionWhatsAppShare {
             ).find(html)?.groupValues?.getOrNull(1)?.toIntOrNull()
             if (wantWidth != null && wantWidth >= 300) {
                 wv.settings.useWideViewPort = true
-                wv.settings.loadWithOverviewMode = false
+                /* 🔴🔒🔒 V701 (২৬.০৮.২০২৬, TK-এর ৪টে ছবিতে ধরা — PDF-এ লোগো
+                   বিশাল, "TK BISW…" ও "DOCTOR CHECK-UP RE…" ডানদিকে **কেটে
+                   গেছে**)। **আসল কারণ — V698-এ আমারই ভুল লাইন:** এখানে
+                   `loadWithOverviewMode = false` লেখা ছিল।
+
+                   `useWideViewPort` চালু করায় পাতা ঠিকই ৭৯৪ **CSS**-পিক্সেলে
+                   সাজে — কিন্তু overview বন্ধ থাকায় WebView সেটাকে পর্দার
+                   মাপে **ছোট করে না**, ফোনের ঘনত্ব ধরে আঁকে। ৩x ফোনে
+                   ৭৯৪ CSS px = **২৩৮২ ডিভাইস px** চওড়া, অথচ আমরা আঁকি মাত্র
+                   ৭৯৪ px-এ ⇒ **ডান দিকের দুই-তৃতীয়াংশ কেটে যায়**।
+                   V698-এর আগে ছিল উল্টো দোষ (সব ছোট, সরু কলাম); আমি এক
+                   দোষ সারিয়ে আরেকটা বানিয়েছি।
+
+                   ⇒ `true` করলে WebView ৭৯৪ CSS px-কে ঠিক ৭৯৪ ডিভাইস px-এ
+                     বসায় (১ CSS px = ১ px) — এটাই আসল A4। */
+                wv.settings.loadWithOverviewMode = true
             }
         } catch (_: Throwable) { /* ব্যর্থ হলে আগের আচরণই — কিছু ভাঙে না */ }
         wv.setBackgroundColor(Color.WHITE)
@@ -197,20 +213,41 @@ object PrescriptionWhatsAppShare {
         wv.loadDataWithBaseURL("file:///android_asset/", html, "text/html", "UTF-8", null)
     }
 
-    /** WebView-কে A4-এর চওড়ায় বসানো, যাতে CSS ঠিক ছাপার মতোই সাজে। */
+    /* 🔴🔒 V701 — কাগজের আসল চওড়া। সাধারণত A4 (৭৯৪), কিন্তু কোনো ফোনে
+       WebView যদি পাতাটা এর চেয়ে চওড়া করে সাজায়, তখন সেই চওড়াটাই ধরা হয় —
+       নইলে ডান দিকটা কেটে যেত (TK-এর ছবির দোষ)। */
+    private var renderWidthPx = A4_WIDTH_PX
+
+    /** WebView-কে কাগজের চওড়ায় বসানো, যাতে CSS ঠিক ছাপার মতোই সাজে। */
     private fun layoutAt(view: WebView, heightPx: Int) {
         val h = max(heightPx, A4_HEIGHT_PX)
+        val w = max(renderWidthPx, A4_WIDTH_PX)
         view.measure(
-            View.MeasureSpec.makeMeasureSpec(A4_WIDTH_PX, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY),
             View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY)
         )
-        view.layout(0, 0, A4_WIDTH_PX, h)
+        view.layout(0, 0, w, h)
     }
 
     private fun measureThenBuild(activity: Activity, view: WebView) {
         try {
-            view.evaluateJavascript("document.body.scrollHeight") { value ->
-                val measured = value?.trim()?.trim('"')?.toFloatOrNull()?.toInt() ?: A4_HEIGHT_PX
+            /* 🔴🔒 V701 (TK-এর ৪টে ছবিতে ধরা — PDF-এর ডান দিক কেটে যাচ্ছিল) —
+               এখন **চওড়া ও উচ্চতা দুটোই** মাপা হয়। আগে শুধু উচ্চতা মাপা হত আর
+               চওড়া ধরে নেওয়া হত ৭৯৪; পাতা তার চেয়ে চওড়া হয়ে গেলে বাকিটা
+               চুপচাপ কেটে যেত। এখন যা মাপা যায় তাই বসে, আর নিচে সেই মাপ ধরেই
+               A4-তে ছোট করা হয় — তাই **কোনো ফোনেই আর কাটা পড়বে না**।
+               ⛔ মাপা না গেলে আগের মতোই ৭৯৪ ধরা হয় (আচরণ বদলায় না)। */
+            view.evaluateJavascript(
+                "(function(){var d=document.documentElement,b=document.body;" +
+                "return Math.max(b.scrollWidth,d.scrollWidth,b.offsetWidth,d.offsetWidth)+'x'+" +
+                "Math.max(b.scrollHeight,d.scrollHeight,b.offsetHeight,d.offsetHeight)})()"
+            ) { value ->
+                val raw = value?.trim()?.trim('"').orEmpty()
+                val parts = raw.split("x")
+                val wCss = parts.getOrNull(0)?.toFloatOrNull()?.toInt() ?: A4_WIDTH_PX
+                val measured = parts.getOrNull(1)?.toFloatOrNull()?.toInt() ?: A4_HEIGHT_PX
+                // অস্বাভাবিক মাপ এলে ভরসা করা হয় না — তখন আগের A4-ই।
+                renderWidthPx = if (wCss in A4_WIDTH_PX..(A4_WIDTH_PX * 4)) wCss else A4_WIDTH_PX
                 val total = max(measured, A4_HEIGHT_PX)
                 layoutAt(view, total)
                 // আঁকার আগে একটু সময় — ছবি ও ফন্ট বসে যেতে দিন।
@@ -239,7 +276,11 @@ object PrescriptionWhatsAppShare {
         val document = PdfDocument()
         var built = false
         try {
-            val scale = A4_WIDTH_PT.toFloat() / A4_WIDTH_PX.toFloat()
+            /* 🔴🔒 V701 — উপরে যে চওড়ায় সত্যিই সাজানো হয়েছে, সেই চওড়াটাকেই
+               A4-এর ৫৯৫ পয়েন্টে বসানো হয়। আগে সবসময় ৭৯৪ ধরা হত, তাই পাতা
+               চওড়া হলে ডান দিক কেটে যেত। */
+            val drawWidthPx = max(renderWidthPx, A4_WIDTH_PX)
+            val scale = A4_WIDTH_PT.toFloat() / drawWidthPx.toFloat()
             val pageHeightPx = A4_HEIGHT_PT / scale           // এক পাতায় কত px ধরে
             val pageCount = max(1, ceil(totalHeightPx / pageHeightPx).toInt())
             for (i in 0 until pageCount) {
