@@ -228,6 +228,27 @@ object RoleSession {
         } catch (_: Throwable) { }
     }
 
+    /**
+     * 🔵🔒 V722 (২৭.০৮.২০২৬, ডা. কে. এইচ. মণ্ডলের রিপোর্ট, TK-অনুমোদিত) —
+     * **ডাক্তার রোগের নাম বদলালে সঙ্গে সঙ্গে এখানেও বসে।**
+     *
+     * আগে কী হত: ডাক্তার "Probable Disease" বদলে সেভ করলে ডেটাবেসে ঠিকই
+     * লেখা হত (`DoctorCheckupActivity`), কিন্তু **মেমরির এই ঘরটা পুরোনোই
+     * থাকত** — আর প্রেসক্রিপশন ছাপা হয় ঠিক এই ঘর থেকে
+     * (`PrescriptionOptionsStore.printLines()`)। তাই ওই একই সেশনে ছাপলে
+     * **পুরোনো রোগের নামই** ছাপত (ডাক্তারের ছবিতে "PILES", অথচ তিনি
+     * Fissure লিখেছিলেন)।
+     *
+     * ⛔ ফাঁকা নাম কখনো বসে না — তাহলে আগেরটাই থাকে।
+     * ⛔ শুধু রোগের ঘরটাই; রোগীর আর কিছু ছোঁয়া হয় না।
+     */
+    fun updateDisease(disease: String?) {
+        val d = disease?.trim().orEmpty()
+        if (d.isBlank()) return
+        currentPatientDisease = d
+        persist()
+    }
+
     /** লগ-আউটে জমা তথ্য মুছে ফেলা — অন্য কেউ লগইন করলে যেন কিছু না থাকে। */
     fun clearPersisted() {
         try { prefs()?.edit()?.clear()?.apply() } catch (_: Throwable) { }

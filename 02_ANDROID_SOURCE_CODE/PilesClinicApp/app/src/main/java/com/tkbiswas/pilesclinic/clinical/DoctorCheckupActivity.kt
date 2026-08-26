@@ -448,6 +448,18 @@ class DoctorCheckupActivity : AppCompatActivity() {
                             "patients", pid,
                             org.json.JSONObject().put("disease", record.probableDisease)
                         )
+                        /* 🔵🔒 V722 (২৭.০৮.২০২৬, ডা. কে. এইচ. মণ্ডলের রিপোর্ট) —
+                           ডেটাবেসে লেখা হলেও **এই ফোনের মেমরিতে পুরোনো নামটাই**
+                           থেকে যেত, আর প্রেসক্রিপশন ছাপা হয় ঠিক ওখান থেকেই
+                           (`PrescriptionOptionsStore.printLines()` → `RoleSession
+                           .currentPatientDisease`) ও এই পর্দার A4-ও `patDisease`
+                           থেকে। তাই সেভ করেই ছাপলে **পুরোনো রোগ** ছাপত।
+                           ⇒ এখন দুটোই সঙ্গে সঙ্গে হালনাগাদ হয়।
+                           ⛔ নেট খারাপ থাকলেও ডাক্তার যা ঠিক করেছেন কাগজে তাই
+                              যাবে (ক্লাউডে পরে গেলেও কাগজ ভুল হবে না)।
+                           ⛔ শুধু রোগের নাম; আর কিছু ছোঁয়া হয়নি। */
+                        patDisease = record.probableDisease
+                        RoleSession.updateDisease(record.probableDisease)
                     }
                 } catch (_: Throwable) { }
                 // 🟢🔒🔒 V656 (২৫.০৮.২০২৬, TK-নির্দেশ — Doctor Note & Reminder)
