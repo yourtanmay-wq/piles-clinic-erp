@@ -6178,3 +6178,13 @@ body.wlv1AnatFullOpen{overflow:hidden}
 .wlv1InvAddRow input{flex:1}
 .wlv1InvAddRow button{background:linear-gradient(135deg,#0B4F2A,#0e8f6b)!important;color:#fff!important;
   border:none!important;border-radius:10px!important;padding:0 18px!important;font-weight:700!important}
+
+/* 🖥️🟣🔒 V707 (২৬.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত) —
+   Follow-up কার্ডের ট্যাগ: ব্রাঞ্চ ও রোগ আগের নীলেই (.anFuTag), আর
+   ঠিকানা (ও ভবিষ্যতে Unexpected/RMP) বেগুনি এবং নিজের সারিতে।
+   বেগুনি বেছে নেওয়ার কারণ TK-কে জানানো ও অনুমোদিত: কমলা/হলুদ অ্যাপে
+   সতর্কতার মানে বহন করে, ঠিকানা/RMP সতর্কতা নয় — শুধু তথ্য।
+   ⛔ .anFuTag / .anFuSep / .anFuTags-এর আগের কোনো নিয়ম বদলানো হয়নি —
+      এটা শুধু দুটো নতুন ক্লাস, ফোনের bg_tag_extra_purple (#6B4FBB)-এর হুবহু এক রং। */
+.anFuBreak{flex-basis:100%!important;height:0!important;margin:0!important;padding:0!important}
+.anFuTag.anFuTagX{background:#6B4FBB!important}

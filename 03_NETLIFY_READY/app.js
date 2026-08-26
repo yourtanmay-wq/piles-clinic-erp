@@ -6476,7 +6476,13 @@ function fuCard(x){
   : '';
 
  let wlv1AddrTagVal=wlv1AddrTagForCard(x.mobile,x.address,x.stage);
- let wlv1AddrChip=String(x.stage||'')==='Treatment'?'':`<span class="anFuSep">|</span><span class="anFuTag" onclick="wlv1EditAddressTag('${esc(x.mobile)}','${esc(x.stage)}');event.stopPropagation();">${wlv1AddrTagVal?esc(wlv1AddrTagVal.toUpperCase()):'+ ADDRESS'}</span>`;
+ /* 🖥️🟣🔒 V707 (২৬.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত):
+    "ব্রাঞ্চ+রোগের নাম একই কালার হবে · ঠিকানা+Unexpected+RMP অন্য কালার হবে"
+    ⇒ ঠিকানার ট্যাগ এখন (ক) নিজের নতুন সারিতে (anFuBreak — flex-এর সারি-ভাঙা,
+      উচ্চতা ০) আর (খ) বেগুনি (anFuTagX)। ফোনের একই বদল।
+    ⛔ ব্রাঞ্চ ও রোগের ট্যাগ (anFuTag, নীল) এক অক্ষরও বদলায়নি।
+    ⛔ ঠিকানা বদলানোর ক্লিক-কাজটাও হুবহু আগের মতোই। */
+ let wlv1AddrChip=String(x.stage||'')==='Treatment'?'':`<span class="anFuBreak"></span><span class="anFuTag anFuTagX" onclick="wlv1EditAddressTag('${esc(x.mobile)}','${esc(x.stage)}');event.stopPropagation();">${wlv1AddrTagVal?esc(wlv1AddrTagVal.toUpperCase()):'+ ADDRESS'}</span>`;
 
  /* VISITED/PATIENT পিল + Patient ID — ট্যাগের নিচে নিজের সারিতে
     (FollowUpActivity.kt:1640-1669) */

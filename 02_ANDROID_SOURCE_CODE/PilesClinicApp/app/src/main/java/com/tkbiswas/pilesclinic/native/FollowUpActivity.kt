@@ -1765,8 +1765,12 @@ class FollowUpActivity : AppCompatActivity() {
 
         // 🔒 খাতার সারি B184: `ellipsize` তুলে দেওয়া হলো — ট্যাগ আর কখনো
         //    "…" দিয়ে কাটবে না; জায়গা না কুলোলে নিচের লাইনে নামবে।
-        fun pill(text: String): android.widget.TextView = tv(text, 10.5f, "#FFFFFF", true).apply {
-            setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_tag_branch)
+        /* 🟣🔒 V707 (২৬.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত):
+           *"ব্রাঞ্চ+রোগের নাম একই কালার হবে · ঠিকানা+Unexpected+RMP অন্য কালার হবে"*।
+           ⛔ ডিফল্ট আগের নীল (`bg_tag_branch`), তাই ব্রাঞ্চ ও রোগের ট্যাগ
+              এক অক্ষরও বদলায়নি — শুধু দ্বিতীয় সারিটা বেগুনি চায়। */
+        fun pill(text: String, bgRes: Int = com.tkbiswas.pilesclinic.R.drawable.bg_tag_branch): android.widget.TextView = tv(text, 10.5f, "#FFFFFF", true).apply {
+            setBackgroundResource(bgRes)
             setPadding(dpx(7), dpx(4), dpx(7), dpx(4))
             maxLines = 1
             ellipsize = null
@@ -1789,7 +1793,7 @@ class FollowUpActivity : AppCompatActivity() {
         var addressView: android.widget.TextView? = null
         if (addressLabel.isNotBlank()) {
             tags.addView(sep())
-            val av = pill(addressLabel)
+            val av = pill(addressLabel, com.tkbiswas.pilesclinic.R.drawable.bg_tag_extra_purple)
             tags.addView(av)
             // 🔒 খাতার সারি B172: এখানে শুধু **এক ট্যাপ** — পুরো ফর্ম খোলে না,
             // শুধু এই ট্যাগটাই আলাদাভাবে বদলানোর ছোট পপ-আপ খোলে (TK-এর
@@ -1802,11 +1806,22 @@ class FollowUpActivity : AppCompatActivity() {
         var extraView: android.widget.TextView? = null
         if (extraLabel.isNotBlank()) {
             tags.addView(sep())
-            extraView = pill(extraLabel)
+            extraView = pill(extraLabel, com.tkbiswas.pilesclinic.R.drawable.bg_tag_extra_purple)
             tags.addView(extraView)
         }
         tagsWrap.addView(tags)
-        info.addView(tagsWrap)
+        /* 🟣🔒 V707 — TK-রিপোর্ট (ছবিসহ): *"BAPPA এনার tag উপর নিচে কেন"*।
+           **আসল কারণ:** ট্যাগগুলো বসত `info`-র ভিতরে, আর `info` হলো ডান
+           দিকের ব্যাজ/রিং-এর **পাশের সরু কলাম** (top → info, weight=1)।
+           ব্যাজের **নিচের** ফাঁকা জায়গাটা তাই ট্যাগ ব্যবহার করতেই পারত না —
+           BAPPA-র দুটো ট্যাগ কয়েক পিক্সেলের জন্য না কুলিয়ে আলাদা লাইনে নামত।
+           ⇒ **Enquiry কার্ডে** ট্যাগের সারিটা এখন `main`-এ বসে (নিচে দেখুন),
+             অর্থাৎ কার্ডের পুরো চওড়া পায়।
+           ⛔ Visit/Patient কার্ডে **হাত দেওয়া হয়নি** — ওখানে ডান দিকে
+              ADVANCE HERE · TEST HERE · PRESCRIPTION · টাকার রিং লম্বা করে
+              বসে, ট্যাগ নিচে নামালে চেহারা বদলে যেত (TK অনুমোদন দেননি)।
+              ওখানে আগের জায়গাতেই, শুধু রং ও দল-ভাগ নতুন। */
+        if (!isInquiry) info.addView(tagsWrap)
 
         // 🔒 খাতার সারি B184: লেআউট হয়ে যাওয়ার ঠিক পরেই (আসল প্রস্থ তখনই জানা
         // যায়) ট্যাগগুলো এক বা একাধিক সারিতে সাজানো হয় — কেউ কাটে না, কেউ
@@ -1823,10 +1838,19 @@ class FollowUpActivity : AppCompatActivity() {
         // বেশি অপেক্ষা করে, ততক্ষণে width স্থির/চূড়ান্ত হয়ে যায়। ⛔ বাকি সব
         // যুক্তি (`layoutTagsInRows`, একবারই চলা, স্ক্রলে বাড়তি ভার না থাকা)
         // এক অক্ষরও বদলায়নি — শুধু এক ফ্রেম (~১৬ms, চোখে ধরা পড়ে না) দেরি।
-        val pillViews = listOfNotNull(branchView, diseaseView, addressView, extraView)
+        /* 🟣🔒 V707 (TK-নির্দেশ): ট্যাগ এখন **দুটো দল** —
+             দল ১ = ব্রাঞ্চ + রোগ (নীল)      → সবসময় নিজের সারিতে
+             দল ২ = ঠিকানা + Unexpected/RMP (বেগুনি) → সবসময় নিজের সারিতে
+           ⛔ কোনো দলের দুটো ট্যাগ যদি সত্যিই জায়গায় না কুলোয় (খুব লম্বা নাম),
+              তখন আগের নিয়মেই সে নিচের লাইনে নামে — কেউ কাটে না, কেউ কার্ডের
+              বাইরে বেরোয় না (খাতার সারি B184-এর প্রতিশ্রুতি অক্ষত)। */
+        val pillGroups = listOf(
+            listOfNotNull(branchView, diseaseView),
+            listOfNotNull(addressView, extraView)
+        ).filter { it.isNotEmpty() }
         tagsWrap.post {
             tagsWrap.post {
-                try { layoutTagsInRows(tagsWrap, pillViews) } catch (_: Throwable) { }
+                try { layoutTagsInRows(tagsWrap, pillGroups) } catch (_: Throwable) { }
             }
         }
 
@@ -1978,6 +2002,8 @@ class FollowUpActivity : AppCompatActivity() {
         }
         top.addView(right)
         main.addView(top)
+        // 🟣🔒 V707 — Enquiry কার্ডে ট্যাগ পুরো চওড়া পায় (উপরের কারণ দেখুন)।
+        if (isInquiry) main.addView(tagsWrap)
 
         // ---------- Status line (TK APPROVED 2026-07-28, proof 6) ----------
         // ONE line, running from the left edge of the card to the right edge:
@@ -2235,13 +2261,16 @@ class FollowUpActivity : AppCompatActivity() {
      *    (ট্রিপল-ট্যাপ এডিট · ঠিকানা-ট্যাগে এক-ট্যাপ) হুবহু অক্ষত — ভিউগুলোই
      *    সরানো হয়, নতুন করে বানানো হয় না, তাই তাদের লিসেনারও সঙ্গে যায়।
      */
+    /* 🟣🔒 V707 — এখন **দল ধরে** সাজায়: প্রতিটা দল নিজের সারিতে শুরু হয়।
+       ⛔ একই দলের ভিতরে জায়গা মাপার হিসাব এক অক্ষরও বদলায়নি — না কুলোলে
+          আগের মতোই নিচের লাইনে নামে। */
     private fun layoutTagsInRows(
         wrap: android.widget.LinearLayout,
-        pills: List<android.widget.TextView>
+        groups: List<List<android.widget.TextView>>
     ) {
         val WRAPC = android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
         val avail = wrap.width - wrap.paddingLeft - wrap.paddingRight
-        if (avail <= 0 || pills.isEmpty()) return
+        if (avail <= 0 || groups.isEmpty()) return
 
         fun newRow(): android.widget.LinearLayout {
             val r = android.widget.LinearLayout(this)
@@ -2282,7 +2311,10 @@ class FollowUpActivity : AppCompatActivity() {
 
         var row = newRow()
         var used = 0
-        for (p in pills) {
+        for ((gi, group) in groups.withIndex()) {
+        // 🟣 V707 — নতুন দল মানে নতুন সারি (আগের সারিতে জায়গা থাকলেও)।
+        if (gi > 0 && row.childCount > 0) { wrap.addView(row); row = newRow(); used = 0 }
+        for (p in group) {
             (p.parent as? android.view.ViewGroup)?.removeView(p)
             p.maxLines = 1
             p.ellipsize = null
@@ -2301,6 +2333,7 @@ class FollowUpActivity : AppCompatActivity() {
             }
             if (row.childCount > 0) { row.addView(newSep()); used += sepW }
             row.addView(p); used += w
+        }
         }
         wrap.addView(row)
         wrap.requestLayout()
