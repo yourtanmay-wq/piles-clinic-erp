@@ -3238,10 +3238,27 @@ class PatientTimelineActivity : AppCompatActivity() {
                     //    উপরেই আলাদা পর্দায় চলে যায়, তাই সেখানে কোনো বোতাম
                     //    যোগ হয়নি (V327-এ প্রেসক্রিপশন "শুধু দেখার" বলে লক করা)।
                     // ══════════════════════════════════════════════════════
-                    val canEditNote = e.paymentId == null &&
-                        (e.enquiryRowId != null || (e.followUpHistoryId != null && e.followUpHistoryIndex >= 0))
+                    /* ✏️🔒 V724 (২৭.০৮.২০২৬, ডা. কে. এইচ. মণ্ডলের রিপোর্ট ·
+                       TK-অনুমোদিত · TK: *"এত বাংলায় লেখা থাকবে না"* ⇒ সব লেখা ইংরেজি):
+
+                       **ডাক্তারের অভিযোগ:** স্টাফের ভুল লেখা ("KSHAR SUTRA করা হল")
+                       বদলানোর কোনো অপশনই দেখা যায় না — শুধু "Close"।
+
+                       **আসল কারণ (কোড ধরে):** ✏️ Edit বোতামটা আগে থেকেই আছে
+                       (V512), কিন্তু সেটা তখনই দেখায় যখন সারিটার **সংশোধনের চাবি**
+                       আছে। পর্দাটা প্রথমে **ফোনে জমানো কপি** দেখায়, আর
+                       `TimelineCache` **ইচ্ছে করে** ওই চাবিগুলো জমা রাখে না —
+                       যাতে পুরোনো সারিতে চাপ দিয়ে ভুল রেকর্ড বদলে না যায়।
+                       ক্লাউড থেকে তাজা কপি এলে চাবি ফিরে আসে। নেট ধীর/খারাপ হলে
+                       (বা তার আগেই খুললে) বোতামটা থাকত না।
+
+                       **সমাধান:** বোতামটা এখন **সবসময়** থাকে। চাবি না থাকলে
+                       চাপার পরে **আগে তাজা তথ্য আনা হয়**, তারপর এডিট খোলে।
+                       ⛔ জমানো কপির চাবিহীন সারি দিয়ে **কখনো** এডিট করা হয় না —
+                          `TimelineCache`-এর সুরক্ষা-নিয়মটা অটুট।
+                       ⛔ পেমেন্টের সারি আগের মতোই আলাদা পথে (এখানে বাদ)। */
                     val noteEditAction: (() -> Unit)? =
-                        if (canEditNote) ({ editEnquiryHistoryNote(e) }) else null
+                        if (e.paymentId == null) ({ editNoteEnsuringFresh(e) }) else null
                     try {
                         showNoteCardsDialog(fullNote, e.date, e.title, noteEditAction)
                         return@setOnClickListener
@@ -3334,6 +3351,44 @@ class PatientTimelineActivity : AppCompatActivity() {
         // জায়গায় (TableRowEqualizer) — এই টেবিল যত পর্দা থেকেই খুলুক, সবাই
         // ওটাই ডাকে, তাই আর কোথাও আলাদা হয়ে যেতে পারবে না।
         TableRowEqualizer.equalize(box, builtRows)
+    }
+
+    /**
+     * ✏️🔒 V724 — চাবি থাকলে সোজা এডিট; না থাকলে আগে ক্লাউড থেকে তাজা তথ্য এনে
+     * ঠিক ওই সারিটা খুঁজে তারপর এডিট। না পেলে ইংরেজিতে স্পষ্ট বার্তা।
+     * ⛔ সেভের পথ নতুন কিছু নয় — সেই পুরোনো `editEnquiryHistoryNote()`-ই।
+     */
+    private fun editNoteEnsuringFresh(e: TimelineEntry) {
+        val hasKey = e.enquiryRowId != null || (e.followUpHistoryId != null && e.followUpHistoryIndex >= 0)
+        if (hasKey) { editEnquiryHistoryNote(e); return }
+        android.widget.Toast.makeText(this, "Loading latest…", android.widget.Toast.LENGTH_SHORT).show()
+        lifecycleScope.launch {
+            val fresh = withContext(Dispatchers.IO) {
+                try {
+                    PatientTimelineRepository.build(
+                        currentMobile, null, this@PatientTimelineActivity,
+                        keepVisitFeeAsOwnRow = true, separateRowsPerEvent = true,
+                        preferRowId = preferPatientRowId
+                    )
+                } catch (_: Throwable) { null }
+            }
+            if (isFinishing || isDestroyed) return@launch
+            val match = fresh?.entries?.firstOrNull {
+                it.paymentId == null && it.date == e.date && it.title == e.title &&
+                    it.note.trim() == e.note.trim() &&
+                    (it.enquiryRowId != null || (it.followUpHistoryId != null && it.followUpHistoryIndex >= 0))
+            }
+            if (match == null) {
+                androidx.appcompat.app.AlertDialog.Builder(this@PatientTimelineActivity)
+                    .setCustomTitle(PremiumAlert.header(this@PatientTimelineActivity, "\u26A0 Not ready yet"))
+                    .setMessage("This note could not be loaded from the cloud just now. Please check the connection and try again in a moment.")
+                    .setPositiveButton("OK", null)
+                    .show().also { PremiumAlert.paint(it) }
+                return@launch
+            }
+            currentEntries = fresh.entries
+            editEnquiryHistoryNote(match)
+        }
     }
 
     private fun editEnquiryHistoryNote(e: TimelineEntry) {
