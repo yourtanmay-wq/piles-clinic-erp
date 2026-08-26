@@ -5986,7 +5986,17 @@ function draffHome(tab='home'){
     যাচাই করা) — তাই এই তালিকা এতদিন কার্যত সবসময় খালি থাকত। এখন সঠিক
     `'Patient'` দিয়ে ঠিক করা হলো, আর V645-এর ৬০-দিন-স্টেল-ভিজিট (উপরে
     `wlv1StaleVisit`) এখানেই যোগ হলো। */
- let visitReject=f.filter(x=>x.stage==='Patient'&&String(x.status||'').toLowerCase()==='cancelled').concat(wlv1StaleVisit);
+ /* 🔴🔴🔒 V716 (২৬.০৮.২০২৬, TK-নির্দেশ) — Android DraftRepository.kt-এর হুবহু
+    একই সংশোধন। **আসল সমস্যা:** stage='Treatment' + status='cancelled' কার্ড
+    কোনো তালিকাতেই দেখা যেত না (উপরের visitReject ছিল শুধু 'Patient', আর
+    notComplete শুধু 'incomplete') — তাই স্টাফ ফেরানোর বোতামই পেত না।
+    লাইভ প্রমাণ: SADDAM HUSSAIN (কিশনগঞ্জ) — টাকা নেওয়া হয়েছে, অথচ কার্ড
+    ১৬ জুলাই থেকে লুকানো। ডেটাবেসে এমন কার্ড ২৪টা।
+    ⛔ কিছুই তৈরি/মোছা/বদল হচ্ছে না — শুধু **কোন তালিকায় দেখাবে** তার নিয়ম।
+    ⛔ runningTreatment (উপরে) থেকে 'cancelled' আগে থেকেই বাদ, তাই একই সারি
+       দু'জায়গায় যাবে না। */
+ let wlv1CancelledTreatment=f.filter(x=>x.stage==='Treatment'&&String(x.status||'').toLowerCase()==='cancelled');
+ let visitReject=f.filter(x=>x.stage==='Patient'&&String(x.status||'').toLowerCase()==='cancelled').concat(wlv1StaleVisit).concat(wlv1CancelledTreatment);
  /* 🟢🔒 V623 (২৪.০৮.২০২৬, TK-নির্দেশ) — নতুন "Return Visit" বাকেট। Android
     DraftRepository.kt:669-এর হুবহু একই শর্ত (`stage=="Patient" && status==
     "returned"`) — Visit Reject থেকে সম্পূর্ণ আলাদা, একটা অক্ষরও ভাগাভাগি নয়। */

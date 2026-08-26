@@ -850,6 +850,40 @@ class DraftRepository(private val context: Context? = null) {
                     FollowUpRepository.inquiryHistoryEndsTerminal(row)) -> enqRejectRows.add(row)
                 stage == "Patient" && status == "returned" -> returnVisitRows.add(row)
                 stage == "Patient" && status == "cancelled" -> visitRejectRows.add(row)
+                /* 🔴🔴🔒 V716 (২৬.০৮.২০২৬, TK-নির্দেশ — লাইভে ধরা পড়া, ছবি ও
+                   ডেটাবেসের প্রমাণসহ; TK: *"হ্যাঁ তিনি ট্রিটমেন্ট করাচ্ছেন"*):
+
+                   **আসল সমস্যা (আন্দাজ নয়, প্রমাণিত):** `stage = "Treatment"` +
+                   `status = "cancelled"` — এই অবস্থার কার্ড **অ্যাপের কোনো
+                   তালিকাতেই দেখা যেত না**। উপরের নিয়ম দুটো ছিল শুধু
+                   `Patient + cancelled` (Visit Reject) আর
+                   `Treatment + incomplete` (Incomplete) — মাঝের এই ঘরটা ফাঁকা।
+                   ফলে কার্ডটা Follow-up-এও নেই (বাতিল বলে বাদ), Draft-এর কোনো
+                   তালিকাতেও নেই ⇒ স্টাফ চাইলেও **ফেরানোর কোনো বোতাম পেত না**।
+
+                   লাইভ প্রমাণ: SADDAM HUSSAIN (কিশনগঞ্জ, …9547006061) — টাকা
+                   নেওয়া হয়েছে ও ক্লাউডে পৌঁছেছে, কিন্তু কার্ড বাতিল অবস্থায়
+                   আটকে ১৬ জুলাই থেকে। সেই আটকে থাকা পেমেন্টই দিনে ~৪,০০০ বার
+                   অকারণে চেষ্টা করত (V715-এর তদন্ত দ্রষ্টব্য)। ডেটাবেসে এমন
+                   কার্ড মোট **২৪টা** (TK-এর সামনে গোনা)।
+
+                   **সমাধান:** এরা এখন সত্যিকারের বাতিল-করা Visit-এর মতোই
+                   **"Visit Reject"** তালিকায় দেখাবে, তাই স্টাফ চেনা
+                   **Restore** বোতামেই ফেরাতে পারবেন। Restore-এর কোড
+                   (`restore()` → "visitreject") আগে থেকেই `history`-তে
+                   `status="Active"` + `"Restored…"` লেখা বসায় — ডেটাবেসের
+                   `tk_terminal_no_return` পাহারাদার ঠিক এটাই চায়। অর্থাৎ
+                   **পাহারাদারকে পাশ কাটানো হচ্ছে না**, তার নিজের নিয়মেই ফেরানো।
+
+                   ⛔ কোড **নিজে থেকে কারো বাতিল করা কার্ড খোলে না** — শুধু
+                      লুকিয়ে থাকা কার্ডটা মানুষের চোখের সামনে আনে; ফেরানোর
+                      সিদ্ধান্ত আগের মতোই মানুষের।
+                   ⛔ কোনো সারি তৈরি/মোছা/বদল হচ্ছে না — এটা শুধু **কোন তালিকায়
+                      দেখাবে** তার নিয়ম।
+                   ⛔ নিচের `Treatment` (স্বাভাবিক active) নিয়মে হাত পড়েনি —
+                      সেখানে `cancelled` আগে থেকেই বাদ ছিল, তাই একই সারি
+                      দু'জায়গায় যেতে পারে না। */
+                stage == "Treatment" && status == "cancelled" -> visitRejectRows.add(row)
                 stage == "Treatment" && status == "incomplete" -> notCompleteRows.add(row)
                 // 🔴🔒 V681 (২৫.০৮.২০২৬, TK-নির্দেশ, স্পষ্ট যুক্তি — "Advance দিলেই
                 // অটোমেটিক Patient(Treatment) হয়ে যায়, তাহলে যে কখনো Advance-ই
