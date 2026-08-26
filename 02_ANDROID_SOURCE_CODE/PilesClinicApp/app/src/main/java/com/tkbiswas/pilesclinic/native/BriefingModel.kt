@@ -57,7 +57,8 @@ object BriefingModel {
      */
     fun needsMasterApproval(title: String): Boolean {
         val t = title.lowercase()
-        if (t.contains("reply on:")) return false
+        // 🔴🔒 V697 — একই নিয়ম, একটাই জায়গায় (উপরের `isReplyNotice`)।
+        if (isReplyNotice(title)) return false
         return t.contains("refund request") ||
             t.contains("delete request") ||
             t.contains("reopen request") ||
@@ -88,6 +89,30 @@ object BriefingModel {
             t.equals("New Registration", true) ||
             t.equals("Advance Received", true)
     }
+
+    /**
+     * 🔴🔒 V697 (২৬.০৮.২০২৬, TK-এর ছবিতে ধরা — *"approved করার পরেও কেন
+     * এখানে থেকে যাচ্ছে"*) — **রিপ্লাই-নোটিশ নতুন অনুরোধ নয়।**
+     *
+     * TK-এর ছবির কার্ডটার নাম **"Reply on: Refund request"** — ভিতরে লেখা
+     * "✅ Approved by TK BISWAS"। অর্থাৎ কাজটা হয়ে গেছে, এটা শুধু খবর।
+     * তবু কার্ডে **"✔ Refund" বোতামটা বসেই থাকত**, দেখে মনে হত অনুমোদন
+     * এখনো বাকি।
+     *
+     * ⚠️ আসল কারণ (যাচাই করে): নিয়মটা এই ফাইলেই **আগে থেকেই ঠিক ছিল** —
+     *    নিচের `needsMasterApproval()`-এ `if (t.contains("reply on:"))
+     *    return false` লেখা আছে, তাই নোটিশ **দেখানোর** নিয়মে ভুল হয়নি।
+     *    কিন্তু `BriefingAdapter`-এর **বোতামের** শাখাগুলো ওই ফাংশনটা
+     *    ব্যবহার না করে নিজে আলাদা করে শুধু `title.contains("Refund
+     *    request")` দেখত — সেখানেই ছাঁকনিটা বাদ পড়েছিল।
+     *
+     * ⇒ এখন নিয়মটা **একটাই জায়গায়** (এই ফাংশন), আর `needsMasterApproval()`
+     *   ও অ্যাডাপ্টারের তিনটে বোতাম — সবাই এটাই ডাকে, তাই আর দুরকম হতে
+     *   পারবে না। ⛔ কম্পিউটারেও হুবহু একই নিয়ম (`app.js`-এর
+     *   `briefingNeedsApproval()`), তাই দুই জায়গা মেলে (নিয়ম ২০)।
+     */
+    fun isReplyNotice(title: String): Boolean =
+        title.contains("Reply on:", ignoreCase = true)
 
     /**
      * 🟢🔒 V692 (২৬.০৮.২০২৬, TK-নির্দেশ ছবিসহ) — Dashboard-এর পাঠানো

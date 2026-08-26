@@ -315,7 +315,9 @@ class BriefingAdapter(
         // 🔒 খাতার সারি B100: শুধু **মাস্টার** ও শুধু **ডিলিটের অনুরোধ** নোটিশে
         // "Approve & Delete" দেখা যায়। বাকি সব নোটিশে বোতামটা লুকানো থাকে,
         // তাই পুরনো কার্ডের চেহারা এক চুলও বদলায়নি।
-        val isDeleteRequest = item.title.contains("Delete request", ignoreCase = true)
+        // 🔴🔒 V697 — "Reply on: …" নামের কার্ড রিপ্লাই, অনুরোধ নয় (নিচে দেখুন)।
+        val isReplyNotice = BriefingModel.isReplyNotice(item.title)
+        val isDeleteRequest = !isReplyNotice && item.title.contains("Delete request", ignoreCase = true)
         if (isMaster && isDeleteRequest) {
             b.btnApproveDelete.visibility = View.VISIBLE
             b.btnApproveDelete.text = "\u2714 Approve"      // 🔴 এক-লাইনে আঁটাতে ছোট লেখা (আগে "Approve & Delete"); কাজ একই
@@ -335,7 +337,7 @@ class BriefingAdapter(
         // ⛔ RecyclerView-এর View রিসাইকেল হয় বলে দুটো শাখাতেই (Delete/Refund)
         //    টেক্সট আলাদা করে বসাতে হয়েছে — নইলে স্ক্রল করার সময় ভুল লেখা
         //    রয়ে যেতে পারত (একটা কার্ডের বোতাম অন্য কার্ডে "ভুতুড়ে" দেখাত)।
-        val isRefundRequest = item.title.contains("Refund request", ignoreCase = true)
+        val isRefundRequest = !isReplyNotice && item.title.contains("Refund request", ignoreCase = true)
         if (isMaster && isRefundRequest) {
             b.btnApproveDelete.visibility = View.VISIBLE
             b.btnApproveDelete.text = "\u2714 Refund"       // আগে "Approve / Reject Refund" — চাপলে সেই একই Approve/Reject পপ-আপই খোলে
@@ -346,7 +348,7 @@ class BriefingAdapter(
         // Approve/Reject। ⛔ একই শেয়ার্ড বোতাম (Delete/Refund-এর প্যাটার্নেই),
         // তাই RecyclerView রিসাইকেল হলেও ভুতুড়ে লেখা থাকার ঝুঁকি নেই — প্রতিটা
         // শাখাই নিজের লেখা/ক্লিক আবার বসায়।
-        val isReopenRequest = item.title.contains("Chamber reopen request", ignoreCase = true)
+        val isReopenRequest = !isReplyNotice && item.title.contains("Chamber reopen request", ignoreCase = true)
         if (isMaster && isReopenRequest) {
             b.btnApproveDelete.visibility = View.VISIBLE
             b.btnApproveDelete.text = "\u2714 Reopen"       // আগে "Approve / Reject Reopen" — চাপলে সেই একই পপ-আপই খোলে

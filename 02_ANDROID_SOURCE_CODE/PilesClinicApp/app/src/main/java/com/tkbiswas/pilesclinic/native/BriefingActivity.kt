@@ -1748,7 +1748,8 @@ class BriefingActivity : AppCompatActivity() {
         if (ids.isEmpty()) return
         val chosen = adapter.itemsSnapshot().filter { ids.contains(it.id) }
         // শুধু "Delete request" — বাকি ধরনের অনুরোধ বাদ (উপরের নোট দেখুন)।
-        val deletable = chosen.filter { it.title.contains("Delete request", ignoreCase = true) }
+        // 🔴🔒 V697 — একসাথে-অনুমোদনেও রিপ্লাই-নোটিশ বাদ (উপরের একই নিয়ম)।
+        val deletable = chosen.filter { !BriefingModel.isReplyNotice(it.title) && it.title.contains("Delete request", ignoreCase = true) }
         val skipped = chosen.size - deletable.size
         if (deletable.isEmpty()) {
             Toast.makeText(this, "This request type cannot be approved in bulk — open and review one at a time.", Toast.LENGTH_LONG).show()
