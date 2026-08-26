@@ -764,10 +764,18 @@
             <androidx.cardview.widget.CardView android:id="@+id/secClinical" style="@style/RegCard">
                 <LinearLayout style="@style/RegCardInner">
                     <!-- 🎨 (07.08.2026, প্রুফ-চেহারা) সেকশন-শিরোনাম -->
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="6dp">
+                    <LinearLayout android:id="@+id/clinicalFoldHead" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="6dp" android:clickable="true" android:focusable="true">
                         <TextView android:layout_width="23dp" android:layout_height="23dp" android:gravity="center" android:text="2" android:textStyle="bold" android:textSize="12sp" android:textColor="#12805C" android:background="@drawable/bg_checkup_step_num" />
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="9dp" android:text="Clinical পরীক্ষা" android:textStyle="bold" android:textSize="14sp" android:textColor="#101828" />
+                        <!-- 🟢🔒 V703 (২৬.০৮.২০২৬, TK-নির্দেশ ডেমো-প্রুফে অনুমোদিত): *"এখানেও Form টা
+                             ওপেন থাকবে না"* — ভাগ ১-এ যে ভাঁজ আগে থেকেই চলছে (symptomFoldHead /
+                             lifeFoldHead) **হুবহু সেই ব্যাজ ও চিহ্ন**, নতুন কিছু বানানো হয়নি।
+                             ⛔ ভিতরের একটাও ঘর/id/টিক/সেভ বদলায়নি — শুধু একটা মোড়ক যোগ হলো। -->
+                        <TextView android:id="@+id/clinicalFoldNum" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:background="@drawable/bg_fold_count_chip" android:paddingLeft="9dp" android:paddingTop="2dp" android:paddingRight="9dp" android:paddingBottom="2dp" android:textColor="#0B4F2A" android:textSize="11.5sp" android:textStyle="bold" android:visibility="gone" />
+                        <TextView android:id="@+id/clinicalFoldChev" android:layout_width="24dp" android:layout_height="24dp" android:layout_marginStart="8dp" android:gravity="center" android:background="@drawable/bg_fold_chevron" android:text="⌄" android:textColor="#FFFFFF" android:textStyle="bold" android:textSize="15sp" />
+                        <View android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
                     </LinearLayout>
+                    <LinearLayout android:id="@+id/clinicalFoldBody" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
                     <!-- 🎨 (07.08.2026, প্রুফ-চেহারা) — Visual চেকবক্সের উপরে শিরোনাম
                          (প্রুফে ছিল; B. DRE / E. Investigations-এর মতোই)। শুধু লেবেল। -->
                     <TextView style="@style/FieldLabel" android:layout_marginTop="0dp" android:text="A. Visual Examination · চোখে দেখা পরীক্ষা" android:textColor="@color/brand_navy" />
@@ -837,6 +845,7 @@
                            `investigationLabel` / `investigationGroup`)।
                          ⛔ ঘরের নাম · টিকের মান · সেভ — কিছুই বদলায়নি,
                             পুরোনো রেকর্ডও অক্ষত। শুধু পর্দায় জায়গা বদল। -->
+                    </LinearLayout><!-- clinicalFoldBody -->
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 

@@ -7529,7 +7529,13 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
   <label>Cost Spent for Previous Treatment · আগের চিকিৎসার খরচ</label><input id="dnPrevCost" class="input" value="${esc(previousCost)}">
   <label>Treatment Duration · চিকিৎসা কত দিন চলেছিল</label><input id="dnTreatmentDuration" class="input" value="${esc(treatmentDuration)}">
  </details>
- <details class="card" open><summary><b>2. Clinical Findings · ক্লিনিক্যাল ফলাফল</b></summary>
+ <!-- 🖥️🟢🔒 V703 (২৬.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত): *"এখানেও Form টা
+      ওপেন থাকবে না ... শুধুমাত্র যেটুকু করতে বলা হলো সেটুকু করুন অর্থাৎ ক্লিনিক্যাল"*
+      ⇒ শুধু open শব্দটা সরানো হলো — ধাপ ২ এখন বন্ধ অবস্থায় শুরু হয়, শিরোনামে
+      চাপ দিলে খোলে (ধাপ ৩·৪·৫ আগে থেকেই বন্ধ, ছোঁয়া হয়নি)। ফোনের
+      clinicalFoldHead/clinicalFoldBody-র সঙ্গে হুবহু এক আচরণ।
+      ⛔ ভিতরের একটাও ঘর/id/টিক/সেভ বদলায়নি। -->
+ <details class="card"><summary><b>2. Clinical Findings · ক্লিনিক্যাল ফলাফল</b></summary>
   <div class="grid"><div class="card"><b>A. Visual Examination · দৃশ্যমান পরীক্ষা</b><div class="checkGrid premiumChecks">
    ${['External Piles','Internal Piles','Fissure','Fistula Opening','Bleeding','Swelling'].map(x=>`<label><input class="dnVisual" type="checkbox" value="${x}" ${chk(note.visual,x)}> <span class="dnVisLbl" data-v="${x}">${x}${WLV1_VISUAL_BN[x]?(' · '+WLV1_VISUAL_BN[x]):''}</span></label>`).join('')}
   </div>

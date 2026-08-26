@@ -261,6 +261,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         buildChecks(findViewById(R.id.visualGroup), visualOptions, visualChecks, visualIcons, "#D64545", visualBn)
         /* 🔵 V539: Internal Piles-এ চাপ দিলেই Grade বাছার তালিকা। ⛔ বাকি
            চেকবক্সগুলো এক অক্ষরও বদলায়নি। */
+        wireClinicalFold()   // 🟢 V703 — ধাপ ২ বন্ধ অবস্থায় শুরু হয়
         internalPilesBox()?.setOnClickListener { askInternalGrade() }
         /* 🔵 V540: Grade বাছা হলে চেকবক্স নিজে থেকেই টিক পড়ে ও পাশে Grade দেখায়।
            ⛔ শোনার কাজটা **একবারই** বসে (পপ-আপ খোলার সময় বারবার নয়)। */
@@ -1472,6 +1473,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         findViewById<android.widget.EditText>(R.id.etProctoscopy).setText(r.proctoscopy)   // 🔵 V539
         refreshInternalGradeLabel()   // 🔵 V539: Internal Piles-এর পাশে Grade দেখানো
         etOnProbing.setText(r.onProbing)
+        refreshClinicalFold()   // 🟢 V703 — পুরোনো রেকর্ড খুললেও ব্যাজের সংখ্যা ঠিক থাকে
         val inv = r.investigation.split(", ").map { it.trim() }
         investigationChecks.forEach { it.isChecked = inv.contains((it.tag as? String) ?: it.text.toString()) }
         val tx = r.treatmentPlan.split(", ").map { it.trim() }
@@ -1569,7 +1571,8 @@ class DoctorCheckupActivity : AppCompatActivity() {
     /** মাথায় চাপ দিলে শরীরটা খোলে/বন্ধ হয়। শুরুতে বন্ধ। */
     private fun attachFold(key: String, head: android.view.View?,
                            num: TextView?, chev: TextView?,
-                           body: android.view.View?) {
+                           body: android.view.View?,
+                           onToggle: (() -> Unit)? = null) {
         if (head == null || num == null || chev == null || body == null) return
         body.visibility = android.view.View.GONE
         chev.text = "\u2304"
@@ -1578,6 +1581,10 @@ class DoctorCheckupActivity : AppCompatActivity() {
             val open = body.visibility != android.view.View.VISIBLE
             body.visibility = if (open) android.view.View.VISIBLE else android.view.View.GONE
             chev.text = if (open) "\u2303" else "\u2304"
+            /* 🟢🔒 V703 — বন্ধ করার মুহূর্তে মাথার সংখ্যাটা নতুন করে বসানোর
+               সুযোগ। ⛔ ডিফল্ট null, তাই আগের তিনটে ভাঁজ (sym/life/photo) এক
+               অক্ষরও বদলায়নি — Kotlin-এর default argument। */
+            onToggle?.invoke()
         }
     }
 
@@ -1780,6 +1787,39 @@ class DoctorCheckupActivity : AppCompatActivity() {
             findViewById<TextView>(R.id.photoFoldChev),
             findViewById<android.widget.LinearLayout>(R.id.photoFoldBody)
         )
+    }
+
+    /* 🟢🔒 V703 (২৬.০৮.২০২৬, TK-নির্দেশ ডেমো-প্রুফে অনুমোদিত):
+       *"এখানেও Form টা ওপেন থাকবে না"* — ধাপ ২ (Clinical পরীক্ষা) এখন
+       ভাগ ১-এর মতোই **বন্ধ অবস্থায়** শুরু হয়, মাথায় চাপ দিলে খোলে।
+       ⛔ TK স্পষ্ট বলেছেন *"শুধুমাত্র যেটা বলা হলো সেটা করুন"* ⇒ ধাপ ৩·৪·৫
+          ছোঁয়া হয়নি, আর ধাপ ২-এর ভিতরের একটাও ঘর/টিক/সেভ বদলায়নি —
+          XML-এ শুধু একটা মোড়ক (`clinicalFoldBody`) যোগ হয়েছে।
+       ⛔ নতুন কোনো ভাঁজ-ব্যবস্থা বানানো হয়নি — চালু `attachFold`-ই ব্যবহার। */
+    private fun wireClinicalFold() {
+        attachFold(
+            "clin",
+            findViewById<android.widget.LinearLayout>(R.id.clinicalFoldHead),
+            findViewById<TextView>(R.id.clinicalFoldNum),
+            findViewById<TextView>(R.id.clinicalFoldChev),
+            findViewById<android.widget.LinearLayout>(R.id.clinicalFoldBody)
+        ) { refreshClinicalFold() }
+        refreshClinicalFold()
+    }
+
+    /** বন্ধ অবস্থাতেও ধাপ ২-এ কতগুলো ভরা আছে সেটা মাথার ব্যাজে দেখানো।
+     *  ⛔ চেকবক্সে নতুন শোনার-কাজ (listener) বসানো হয়নি — `buildChecks`-এর
+     *     নিজের `setOnCheckedChangeListener` (পিলের রং) তাহলে মুছে যেত।
+     *     তাই সংখ্যাটা বসে: শুরুতে · পুরোনো রেকর্ড খোলার পরে · আর ভাঁজ
+     *     খোলা-বন্ধ করার সময় (ব্যাজ তো বন্ধ অবস্থাতেই দেখা যায়)। */
+    private fun refreshClinicalFold() {
+        var n = 0
+        n += visualChecks.count { it.isChecked }
+        n += dreChecks.count { it.isChecked }
+        if (findViewById<android.widget.EditText>(R.id.etDreOther)?.text?.toString()?.isNotBlank() == true) n++
+        if (findViewById<android.widget.EditText>(R.id.etProctoscopy)?.text?.toString()?.isNotBlank() == true) n++
+        if (findViewById<android.widget.EditText>(R.id.etOnProbing)?.text?.toString()?.isNotBlank() == true) n++
+        setFoldCount("clin", n)
     }
 
     /* ═══════════════════════════════════════════════════════════════════
