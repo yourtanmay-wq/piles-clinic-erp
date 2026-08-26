@@ -549,7 +549,7 @@ class DraftListActivity : AppCompatActivity() {
         //    যেন কখনো না হয়।
         if (!DeletePermission.canDeleteNow(user)) {
             androidx.appcompat.app.AlertDialog.Builder(this)
-                .setCustomTitle(PremiumAlert.header(this, "Master-এর অনুমতি লাগবে"))
+                .setCustomTitle(PremiumAlert.header(this, "Master's approval needed"))
                 .setMessage(
                     "${e.name.ifBlank { e.mobile }}\n\n" +
                     "ডিলিট করতে পারেন শুধু Master Admin।\n" +
@@ -660,7 +660,7 @@ class DraftListActivity : AppCompatActivity() {
                         }
                         "PERMISSION" -> {
                             androidx.appcompat.app.AlertDialog.Builder(this@DraftListActivity)
-                                .setCustomTitle(PremiumAlert.header(this@DraftListActivity, "Master-এর অনুমতি লাগবে"))
+                                .setCustomTitle(PremiumAlert.header(this@DraftListActivity, "Master's approval needed"))
                                 .setMessage(
                                     "${e.name.ifBlank { e.mobile }}\n\n" +
                                     "ডিলিট করতে পারেন শুধু Master Admin।\n" +

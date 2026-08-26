@@ -568,7 +568,7 @@ class FollowCalendarActivity : AppCompatActivity() {
                 }
             }
         }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH), cal.get(java.util.Calendar.DAY_OF_MONTH))
-        picker.setTitle(NoBengali.s("⏰ Next Follow-up Call — বাধ্যতামূলক"))
+        picker.setTitle(NoBengali.s("⏰ Next Follow-up Call — required"))
         picker.setCancelable(false)
         picker.setCanceledOnTouchOutside(false)
         picker.setOnShowListener {

@@ -940,8 +940,8 @@ class DoctorVisitActivity : AppCompatActivity() {
                 .show().also { PremiumAlert.paint(it) }
         } else {
             androidx.appcompat.app.AlertDialog.Builder(this)
-                .setCustomTitle(PremiumAlert.header(this, "Delete request পাঠাবেন?"))
-                .setMessage(NoBengali.s("${item.name.ifBlank { item.mobile }}\n\nAdmin অনুমোদন দিলে তবেই ডিলিট হবে — এখনই কিছু মুছবে না।"))
+                .setCustomTitle(PremiumAlert.header(this, "Send the Delete request?"))
+                .setMessage(NoBengali.s("Nothing is deleted now — it is deleted only after Admin approves."))
                 .setPositiveButton("Send Request") { _, _ ->
                     lifecycleScope.launch {
                         val ok = withContext(Dispatchers.IO) { repository.requestDelete(item.id, user.mobile) }
@@ -959,7 +959,7 @@ class DoctorVisitActivity : AppCompatActivity() {
         val requesterName = StaffDirectory.findAccount(item.deleteRequestedBy)?.name ?: item.deleteRequestedBy
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setCustomTitle(PremiumAlert.header(this, "Approve Delete?"))
-            .setMessage(NoBengali.s("${item.name.ifBlank { item.mobile }}\nRequested by: $requesterName\n\nআসলেই ডিলিট হবে (Trash Bin-এ যাবে)।"))
+            .setMessage(NoBengali.s("It will really be deleted (goes to the Trash Bin)."))
             .setPositiveButton("Approve") { _, _ ->
                 lifecycleScope.launch {
                     val ok = withContext(Dispatchers.IO) { repository.approveDelete(item.raw, user.mobile, this@DoctorVisitActivity) }
@@ -4510,7 +4510,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                         .show().also { PremiumAlert.paint(it) }
                     else AlertDialog.Builder(this@DoctorVisitActivity)
                         .setCustomTitle(PremiumAlert.header(this@DoctorVisitActivity, "Payment is higher than Ref. Due"))
-                        .setMessage("Ref. Due: ₹${"%,.2f".format(due)}\nPayment: ₹${"%,.2f".format(pay)}\nMore: ₹${"%,.2f".format(pay - due)}\n\nএই বাড়তি টাকা শুধু Master অনুমোদন করতে পারেন।")
+                        .setMessage("Ref. Due: ₹${"%,.2f".format(due)}\nPayment: ₹${"%,.2f".format(pay)}\nMore: ₹${"%,.2f".format(pay - due)}\n\nOnly Master can approve this extra amount.")   /* 🔤 V726 */
                         .setPositiveButton("Close", null)
                         .show().also { PremiumAlert.paint(it) }
                 }

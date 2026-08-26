@@ -1922,7 +1922,7 @@ class BriefingActivity : AppCompatActivity() {
             if (rows.length() == 0) {
                 AlertDialog.Builder(this@BriefingActivity)
                     .setCustomTitle(PremiumAlert.header(this@BriefingActivity, "Not found"))
-                    .setMessage(NoBengali.s("$patientCode-এর জন্য এখন আর কোনো Pending Refund নেই — হয়তো আগেই Approve/Reject হয়ে গেছে, বা অন্য ফোন থেকে এখনো ক্লাউডে পৌঁছায়নি।"))
+                    .setMessage(NoBengali.s(" has no Pending Refund now — it may already be Approved/Rejected, or has not reached the cloud from the other phone yet."))
                     .setPositiveButton("Mark notice done") { _, _ ->
                         lifecycleScope.launch {
                             withContext(Dispatchers.IO) { try { BriefingRepository().deleteOrHide(item.id, user) } catch (_: Throwable) { } }

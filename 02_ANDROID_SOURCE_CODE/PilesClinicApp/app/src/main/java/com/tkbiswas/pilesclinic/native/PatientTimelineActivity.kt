@@ -908,7 +908,7 @@ class PatientTimelineActivity : AppCompatActivity() {
         // দেখানোর জন্য — cloud ছুঁয়ে চেম্বার-বন্ধ যাচাই মেনু খোলার সময় নয়,
         // আসল বোতাম চাপার সময় হয় (উপরের ফাংশন দুটোতে); তাই কালেভদ্রে
         // (চেম্বার ঠিক ওই মুহূর্তে বন্ধ হলে) লেবেল "যাবে" দেখালেও বোতাম
-        // চাপলে "Master-এর অনুমতি লাগবে"-তে পড়তে পারে — এটা নিরাপদ দিকেই,
+        // চাপলে "Master's approval needed"-তে পড়তে পারে — এটা নিরাপদ দিকেই,
         // কখনো উল্টো (না-বলা জিনিস চুপচাপ হয়ে যাওয়া) হয় না।
         val todayLocal = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
         val yesterdayLocal = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(
@@ -1339,7 +1339,7 @@ class PatientTimelineActivity : AppCompatActivity() {
         })
 
         val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
-            .setCustomTitle(PremiumAlert.header(this, "⏰ আসার কথা দেওয়া আছে"))
+            .setCustomTitle(PremiumAlert.header(this, "⏰ Expected visit already set"))
             .setView(box)
             .setCancelable(true)
             .create()
@@ -2190,7 +2190,7 @@ class PatientTimelineActivity : AppCompatActivity() {
         // 🔴 দ্বিতীয় নিশ্চিতকরণ — লাল/গুরুতর, কারণ এটা একবার হয়ে গেলে
         // হাতে-ধরে আবার উল্টাতে হবে (কোনো "Undo" নেই)।
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setCustomTitle(PremiumAlert.header(this, NoBengali.s("⚠️ এই ব্রাঞ্চ-বদল স্থায়ী")))
+            .setCustomTitle(PremiumAlert.header(this, NoBengali.s("⚠️ This branch change is permanent")))
             .setMessage(
                 "$fromBranches → $newBranch\n" +
                 preview.totalCount + NoBengali.s("টা সারি সরবে (Patient/Follow-up/Payment)।\n\n") +
@@ -2198,7 +2198,7 @@ class PatientTimelineActivity : AppCompatActivity() {
                 NoBengali.s("শুধু ID-র শুরুর অক্ষর নতুন ব্রাঞ্চের সাথে নাও মিলতে পারে, এটা শুধু দেখতে, হিসাবে ভুল করে না।\n\n") +
                 NoBengali.s("সত্যিই এগোতে চান?")
             )
-            .setPositiveButton(NoBengali.s("হ্যাঁ, সরান")) { _, _ ->
+            .setPositiveButton(NoBengali.s("Yes, move it")) { _, _ ->
                 lifecycleScope.launch {
                     val result = withContext(Dispatchers.IO) { BranchTransferRepository.transfer(preview, newBranch) }
                     val resultMsg = if (result.failed == 0)
@@ -2248,13 +2248,13 @@ class PatientTimelineActivity : AppCompatActivity() {
             }
             val amt = patient.visitFeePaid
             androidx.appcompat.app.AlertDialog.Builder(this@PatientTimelineActivity)
-                .setCustomTitle(PremiumAlert.header(this@PatientTimelineActivity, NoBengali.s("⚠️ Return Fees — স্থায়ী")))
+                .setCustomTitle(PremiumAlert.header(this@PatientTimelineActivity, NoBengali.s("⚠️ Return Fees — permanent")))
                 .setMessage(
                     "₹${"%,.0f".format(amt)} " + NoBengali.s("ফেরত দেওয়া হবে।\n") +
                     NoBengali.s("এই Visit \"Return Visit\" তালিকায় (Draft) সরে যাবে — Chamber Date-সহ সক্রিয় তালিকা থেকে বাদ পড়বে।\n\n") +
                     NoBengali.s("সত্যিই এগোতে চান?")
                 )
-                .setPositiveButton(NoBengali.s("হ্যাঁ, Return করুন")) { _, _ ->
+                .setPositiveButton(NoBengali.s("Yes, Return it")) { _, _ ->
                     lifecycleScope.launch {
                         val result = withContext(Dispatchers.IO) {
                             PaymentRepository(this@PatientTimelineActivity).saveRefund(patient, amt, "CASH", "Fees Return (Visit Card)", user)
@@ -2605,7 +2605,7 @@ class PatientTimelineActivity : AppCompatActivity() {
      */
     private fun askMasterToDelete(user: NativeUser, what: String) {
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setCustomTitle(PremiumAlert.header(this, "Master-এর অনুমতি লাগবে"))
+            .setCustomTitle(PremiumAlert.header(this, "Master's approval needed"))
             .setMessage(
                 "${currentPatientName.ifBlank { currentMobile }}\n\n" +
                 "ডিলিট করতে পারেন শুধু Master Admin।\n" +
@@ -4116,8 +4116,8 @@ class PatientTimelineActivity : AppCompatActivity() {
             checkupRecordFromJsonStringOrNull(checkup.medicalSelected) != null
         ) {
             androidx.appcompat.app.AlertDialog.Builder(this)
-                .setCustomTitle(PremiumAlert.header(this, NoBengali.s("আজকের Check-up")))
-                .setMessage(NoBengali.s("আজকের চেকআপ আগেই সেভ করা আছে — দেখবেন নাকি এডিট করবেন?"))
+                .setCustomTitle(PremiumAlert.header(this, NoBengali.s("Today's Check-up")))
+                .setMessage(NoBengali.s("Today's check-up is already saved — view it or edit it?"))
                 .setPositiveButton("Edit") { _, _ ->
                     prepareClinicalRoleSession()
                     startActivity(

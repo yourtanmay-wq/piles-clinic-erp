@@ -449,7 +449,7 @@ class ReportCardActivity : AppCompatActivity() {
         if (dayList.size == 1) { editPaid(dayList[0]); return }
         val labels = dayList.map { "${money(it.paymentAmount)} · ${it.paymentMode}" }.toTypedArray()
         AlertDialog.Builder(this)
-            .setCustomTitle(PremiumAlert.header(this, "কোন পেমেন্ট Edit করবেন?"))
+            .setCustomTitle(PremiumAlert.header(this, "Which payment do you want to Edit?"))
             .setItems(labels) { _, which -> editPaid(dayList[which]) }
             .setNegativeButton("Cancel", null)
             .show().also { PremiumAlert.paint(it) }

@@ -1426,9 +1426,9 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                     }
                     if (!existing.isNullOrBlank() && existing != chosenDate) {
                         AlertDialog.Builder(this@ChamberAttendanceActivity)
-                            .setCustomTitle(PremiumAlert.header(this@ChamberAttendanceActivity, "⏰ আসার কথা দেওয়া আছে"))
+                            .setCustomTitle(PremiumAlert.header(this@ChamberAttendanceActivity, "⏰ Expected visit already set"))
                             .setMessage(NoBengali.s("এই রোগীর আসার কথা ইতিমধ্যে দেওয়া হয়েছে — ${FollowUpModel.displayDate(existing)}\n\nনতুন তারিখ ${FollowUpModel.displayDate(chosenDate)} বসাতে চান?"))
-                            .setPositiveButton(NoBengali.s("তারিখ বদলান")) { _, _ ->
+                            .setPositiveButton(NoBengali.s("Change the date")) { _, _ ->
                                 lifecycleScope.launch { saveExpectedFromChamber(digits, name, branch, chosenDate, parts.dialog) }
                             }
                             .setNegativeButton("Close", null)
@@ -1829,7 +1829,7 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                 val value = amt.text.toString().trim().toDoubleOrNull() ?: 0.0
                 if (value <= 0) { android.widget.Toast.makeText(this, "Enter a valid amount", android.widget.Toast.LENGTH_SHORT).show(); return@setPositiveButton }
                 val p = patient
-                if (p == null) { android.widget.Toast.makeText(this, NoBengali.s("হিসাব এখনো আসেনি — এক মুহূর্ত"), android.widget.Toast.LENGTH_SHORT).show(); return@setPositiveButton }
+                if (p == null) { android.widget.Toast.makeText(this, NoBengali.s("Figures have not arrived yet — one moment"), android.widget.Toast.LENGTH_SHORT).show(); return@setPositiveButton }
                 val paidSoFar = p.paid
                 val enteredBill = if (!hasBill) (billInput.text.toString().trim().toDoubleOrNull() ?: 0.0) else p.bill
                 // TK-DECISION (2026-07-26): the Total Bill is NOT forced here.
@@ -1883,9 +1883,9 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                 if (wouldExceed) {
                     val due = (enteredBill - paidSoFar).coerceAtLeast(0.0)
                     AlertDialog.Builder(this)
-                        .setCustomTitle(PremiumAlert.header(this, NoBengali.s("⚠️ Bill-এর থেকে বেশি হয়ে যাচ্ছে")))
-                        .setMessage(NoBengali.s("Bill ₹${"%,.0f".format(enteredBill)} · এখনো বাকি ₹${"%,.0f".format(due)}। আপনি ₹${"%,.0f".format(value)} নিতে চাইছেন — এটা বিলের থেকে বেশি। তবুও এগোবেন?"))
-                        .setPositiveButton(NoBengali.s("হ্যাঁ, এগোন")) { _, _ -> proceed() }
+                        .setCustomTitle(PremiumAlert.header(this, NoBengali.s("⚠️ Going higher than the Bill")))
+                        .setMessage(NoBengali.s("Bill ₹${"%,.0f".format(enteredBill)} · still due ₹${"%,.0f".format(due)}. You are taking ₹${"%,.0f".format(value)} — this is more than the bill. Continue anyway?"))   /* 🔤 V726 */
+                        .setPositiveButton(NoBengali.s("Yes, continue")) { _, _ -> proceed() }
                         .setNegativeButton("Cancel", null)
                         .show().also { PremiumAlert.paint(it) }
                 } else proceed()
@@ -2505,7 +2505,7 @@ Thread {
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setCustomTitle(PremiumAlert.header(this, "Reopen Chamber"))
             .setMessage(NoBengali.s("এই দিনের ($dateDisplay, $br) চেম্বার আবার খুলবেন?"))
-            .setPositiveButton(NoBengali.s("হ্যাঁ, খুলুন")) { _, _ ->
+            .setPositiveButton(NoBengali.s("Yes, reopen")) { _, _ ->
                 lifecycleScope.launch {
                     val ok = withContext(Dispatchers.IO) {
                         try { ChamberCloseRepository.reopen(this@ChamberAttendanceActivity, br, selectedDate) }
@@ -2524,7 +2524,7 @@ Thread {
                     if (ok) try { dateClosedFlag = false; loadBoard() } catch (_: Throwable) { }
                 }
             }
-            .setNegativeButton(NoBengali.s("না"), null)
+            .setNegativeButton(NoBengali.s("No"), null)
             .show().also { PremiumAlert.paint(it) }
     }
 
@@ -2535,7 +2535,7 @@ Thread {
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setCustomTitle(PremiumAlert.header(this, "Request Reopen"))
             .setMessage(NoBengali.s("এই দিনের ($dateDisplay, $br) চেম্বার আবার খোলার অনুরোধ Master-এর কাছে পাঠাবেন?"))
-            .setPositiveButton(NoBengali.s("হ্যাঁ, পাঠান")) { _, _ ->
+            .setPositiveButton(NoBengali.s("Yes, Send")) { _, _ ->
                 lifecycleScope.launch {
                     val ok = withContext(Dispatchers.IO) {
                         try { ChamberReopenPermission.sendRequest(this@ChamberAttendanceActivity, u, br, selectedDate) }
@@ -2551,7 +2551,7 @@ Thread {
                     ).show()
                 }
             }
-            .setNegativeButton(NoBengali.s("না"), null)
+            .setNegativeButton(NoBengali.s("No"), null)
             .show().also { PremiumAlert.paint(it) }
     }
 
@@ -2580,15 +2580,15 @@ Thread {
         }
         closeTapCount = 0
         // 🔵 B607 (10.08.2026, TK-অনুমোদিত): কেউ না এলে (Arrived 0) ভুলে ফাঁকা
-        // চেম্বার বন্ধ/প্রিন্ট আটকাতে একটা নিশ্চিতকরণ — "হ্যাঁ, বন্ধ করুন" দিলে
-        // আগের মতোই বন্ধ হয় (রোগীশূন্য দিনও বন্ধ করা যায়), "না" দিলে থামে।
+        // চেম্বার বন্ধ/প্রিন্ট আটকাতে একটা নিশ্চিতকরণ — "Yes, Close" দিলে
+        // আগের মতোই বন্ধ হয় (রোগীশূন্য দিনও বন্ধ করা যায়), "No" দিলে থামে।
         // ⛔ Arrived>0 হলে এই পপ-আপ আসে না — স্বাভাবিক ফ্লো একটুও বদলায়নি।
         if (board.rows.none { it.arrived }) {
             androidx.appcompat.app.AlertDialog.Builder(this)
                 .setCustomTitle(PremiumAlert.header(this, "Nobody Arrived"))
-                .setMessage(NoBengali.s("আজ কেউ আসেননি (Arrived 0)। তবুও চেম্বার বন্ধ করবেন?"))
-                .setPositiveButton(NoBengali.s("হ্যাঁ, বন্ধ করুন")) { _, _ -> askPrintBranchThenReview(board) }
-                .setNegativeButton(NoBengali.s("না"), null)
+                .setMessage(NoBengali.s("Nobody arrived today (Arrived 0). Still close the chamber?"))
+                .setPositiveButton(NoBengali.s("Yes, Close")) { _, _ -> askPrintBranchThenReview(board) }
+                .setNegativeButton(NoBengali.s("No"), null)
                 .show().also { PremiumAlert.paint(it) }
             return
         }
@@ -3475,8 +3475,8 @@ Thread {
                 }
                 if (!allowedNow) {
                     AlertDialog.Builder(this@ChamberAttendanceActivity)
-                        .setCustomTitle(PremiumAlert.header(this@ChamberAttendanceActivity, NoBengali.s("Master-এর অনুমতি লাগবে")))
-                        .setMessage(NoBengali.s("$amtT\n\n⛔ এখনই কিছুই মুছবে না। Master-এর ঘন্টায় অনুরোধ যাবে; তিনি অনুমোদন দিলে তবেই ডিলিট হবে।"))
+                        .setCustomTitle(PremiumAlert.header(this@ChamberAttendanceActivity, NoBengali.s("Master's approval needed")))
+                        .setMessage(NoBengali.s("⛔ Nothing will be deleted now. A request goes to the Master; it is deleted only after approval."))
                         .setPositiveButton("Send Request") { _, _ ->
                             lifecycleScope.launch {
                                 val sent = withContext(Dispatchers.IO) {
@@ -3882,7 +3882,7 @@ Thread {
             if (user.role == "master") Pair("🗑️ Trash Bin", TrashBinActivity::class.java) else null
         )
         val actionNames = actions.map { it.first }.toTypedArray()
-        androidx.appcompat.app.AlertDialog.Builder(this).setCustomTitle(PremiumAlert.header(this, "সব কাজ / পরবর্তী কাজ")).setItems(actionNames) { _, which ->
+        androidx.appcompat.app.AlertDialog.Builder(this).setCustomTitle(PremiumAlert.header(this, "All work / next work")).setItems(actionNames) { _, which ->
             try {
                 startActivity(android.content.Intent(this, actions[which].second))
             } catch (_: Throwable) { }

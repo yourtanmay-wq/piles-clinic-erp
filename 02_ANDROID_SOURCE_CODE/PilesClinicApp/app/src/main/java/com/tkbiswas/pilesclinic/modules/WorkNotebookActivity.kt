@@ -331,7 +331,7 @@ class WorkNotebookActivity : AppCompatActivity() {
                 com.tkbiswas.pilesclinic.native.BranchSimHelper.saveHasChamberNumber(this, true)
                 askWhichSimSlot()
             }
-            .setNegativeButton(NoBengali.s("না")) { _, _ ->
+            .setNegativeButton(NoBengali.s("No")) { _, _ ->
                 com.tkbiswas.pilesclinic.native.BranchSimHelper.saveHasChamberNumber(this, false)
                 applyAutoOutsideCalls()
             }
@@ -444,7 +444,7 @@ class WorkNotebookActivity : AppCompatActivity() {
     //    "wn_prefs" — markReminderFlag-এর হুবহু একই প্রমাণিত ধরন), Supabase-এ
     //    কোনো নতুন ঘর লেখা হয় না, তাই সেভ ভাঙার কোনো ঝুঁকি নেই।
     // ⛔ তারিখ মিলিয়ে দেখা হয় — পরের দিন নিজে থেকেই আবার বোতাম ফিরে আসে।
-    // ⛔ "না" বললে বোতাম থেকেই যায় — কেউ কখনো আটকা পড়বে না।
+    // ⛔ "No" বললে বোতাম থেকেই যায় — কেউ কখনো আটকা পড়বে না।
     private fun waSentKey(kind: String) = if (kind == "in") "wa_sent_in_date" else "wa_sent_out_date"
 
     private fun isWaSent(kind: String): Boolean = try {
@@ -471,12 +471,12 @@ class WorkNotebookActivity : AppCompatActivity() {
             androidx.appcompat.app.AlertDialog.Builder(this)
                 .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(
                     this, NoBengali.s("পাঠানো হয়েছে?")))
-                .setMessage(NoBengali.s("WhatsApp-এ পাঠানো হয়ে গেছে?"))
-                .setPositiveButton(NoBengali.s("হ্যাঁ, পাঠানো হয়েছে")) { _, _ ->
+                .setMessage(NoBengali.s("Has it been sent on WhatsApp?"))
+                .setPositiveButton(NoBengali.s("Yes, sent")) { _, _ ->
                     setWaSent(kind)
                     try { render() } catch (_: Throwable) { }
                 }
-                .setNegativeButton(NoBengali.s("না, পাঠানো হয়নি"), null)
+                .setNegativeButton(NoBengali.s("No, not sent"), null)
                 .setCancelable(true)
                 .show().also {
                     try { NoBengali.installDialog(it); com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) { }
@@ -606,7 +606,7 @@ class WorkNotebookActivity : AppCompatActivity() {
         try {
             androidx.appcompat.app.AlertDialog.Builder(this)
                 .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, NoBengali.s("আবার চেষ্টা করুন")))
-                .setMessage(NoBengali.s("আজকের তথ্য এখন আনা গেল না। OUT TIME নিরাপদে বসাতে আজকের তথ্যটা দরকার (নইলে আগের IN TIME মুছে যেতে পারত)। একবার আবার চেষ্টা করুন।"))
+                .setMessage(NoBengali.s("Today's information could not be loaded. It is required to save OUT TIME safely; otherwise the previous IN TIME could be lost. Please try again."))
                 .setCancelable(true)
                 .setPositiveButton(NoBengali.s("🔄 আবার চেষ্টা")) { _, _ -> loadDay() }
                 .setNegativeButton(NoBengali.s("বন্ধ")) { _, _ -> render() }
@@ -888,7 +888,7 @@ class WorkNotebookActivity : AppCompatActivity() {
         box.addView(chip("🎉", "Festival"))
         box.addView(spacedField(input))
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, NoBengali.s("🏖️ ছুটির আবেদন")))
+            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, NoBengali.s("🏖️ Apply for Leave")))
             .setView(box)
             .setPositiveButton(NoBengali.s("ছুটির আবেদন করুন")) { _, _ ->
                 val reason = input.text.toString().trim()
@@ -1428,7 +1428,7 @@ class WorkNotebookActivity : AppCompatActivity() {
         val input = ModuleUi.input(this, NoBengali.s("কেন বাড়ি যাচ্ছেন লিখুন"))
         lateinit var prDlg: androidx.appcompat.app.AlertDialog
         prDlg = androidx.appcompat.app.AlertDialog.Builder(this)
-            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, NoBengali.s("কেন ব্যক্তিগত কাজে যাচ্ছেন?")))
+            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, NoBengali.s("Why are you leaving for personal work?")))
             .setView(input)
             .setPositiveButton("Save") { _, _ ->
                 val r = input.text.toString().trim()
@@ -1488,14 +1488,14 @@ class WorkNotebookActivity : AppCompatActivity() {
         else null
         lateinit var missDlg: androidx.appcompat.app.AlertDialog
         missDlg = androidx.appcompat.app.AlertDialog.Builder(this)
-            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, NoBengali.s("⚠️ কিছু ঘর ফাঁকা আছে")))
+            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, NoBengali.s("⚠️ Some fields are empty")))
             .setView(box)
-            .setPositiveButton(NoBengali.s("ভরে OUT TIME বসান")) { _, _ ->
+            .setPositiveButton(NoBengali.s("Fill & mark OUT TIME")) { _, _ ->
                 ocInput?.text?.toString()?.toIntOrNull()?.let { day.put("outside_calls_manual", it) }
                 noteInput?.text?.toString()?.let { day.put("day_note", it) }
                 then()
             }
-            .setNegativeButton(NoBengali.s("এড়িয়ে যান")) { _, _ -> then() }
+            .setNegativeButton(NoBengali.s("Skip")) { _, _ -> then() }
             .setOnCancelListener { then() }
             .show()
         try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(missDlg) } catch (_: Throwable) { }
@@ -2060,13 +2060,13 @@ class WorkNotebookActivity : AppCompatActivity() {
                 // বাতিল হয়। ⛔ বাতিলের সেভ-লজিক (is_leave/flag/saveDay) একটুও বদলায়নি।
                 androidx.appcompat.app.AlertDialog.Builder(this)
                     .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "Cancel Leave"))
-                    .setMessage(NoBengali.s("ভুল করে ছুটি দিয়েছিলেন? ছুটি বাতিল করে আজকের হাজিরা আবার চালু করবেন?"))
-                    .setPositiveButton(NoBengali.s("হ্যাঁ, বাতিল করুন")) { _, _ ->
+                    .setMessage(NoBengali.s("Marked leave by mistake? Cancel the leave and resume today's attendance?"))
+                    .setPositiveButton(NoBengali.s("Yes, Cancel")) { _, _ ->
                         day.put("is_leave", false); day.put("leave_reason", "")
                         markReminderFlag("in", false); markReminderFlag("out", false)
                         saveDay { render() }
                     }
-                    .setNegativeButton(NoBengali.s("না"), null)
+                    .setNegativeButton(NoBengali.s("No"), null)
                     .show().also { try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) {} }
             }
             cancelLeaveBtn.layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)

@@ -257,7 +257,7 @@ class DialerActivity : AppCompatActivity() {
     private fun maybeAskWhichSimIsBranch(then: () -> Unit) {
         if (BranchSimHelper.hasGenuinelyChosenSim(this)) { then(); return } // 🔴🔒 B509
         if (BranchSimHelper.hasChamberAnswer(this)) {
-            if (!BranchSimHelper.hasChamberNumber(this)) { then(); return } // "না" — কল লিস্ট এমনিতেই ফাঁকা থাকবে
+            if (!BranchSimHelper.hasChamberNumber(this)) { then(); return } // "No" — কল লিস্ট এমনিতেই ফাঁকা থাকবে
             askWhichSimSlot(then)
             return
         }
@@ -278,7 +278,7 @@ class DialerActivity : AppCompatActivity() {
                 BranchSimHelper.saveHasChamberNumber(this, true)
                 askWhichSimSlot(then)
             }
-            .setNegativeButton(NoBengali.s("না")) { _, _ ->
+            .setNegativeButton(NoBengali.s("No")) { _, _ ->
                 BranchSimHelper.saveHasChamberNumber(this, false)
                 then()
             }
