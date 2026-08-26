@@ -5743,9 +5743,23 @@ function _followupCore(tab='Inquiry'){
  let body=`<div class="followPage followPage-${tab}">
    <div class="followFilterLine wlv1HdrPick" id="fuFilterLineWrap">${branchPick}<button class="small ghost" onclick="openRealFollowCalendar('${tab}')">⏰ Calendar</button></div>
    <input class="input wlv1FuSearch" placeholder="🔍 Search name or mobile" data-nocaps="1" value="${esc(wlv1FuSearch)}" oninput="wlv1FuSearch=this.value;wlv1FuRedraw('${tab}')">
-   <div class="followTabs">${tabs2}</div>
-   ${__wlv1FuAllSections?`<div class="card mut wlv1FuAllNote">📞 Today's calls - Enquiry, Visit and Patient together (${shown.length}). Tap any tab above to see that section only.</div>`:''}
-   <div class="wlv1FuFilters">${fbtns}</div>
+   ${/* 🖥️🟣🔒🔁 V710 (২৬.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত): TK —
+        *"staff রা বিভ্রান্ত হয়ে যাচ্ছে, Enquiry এর মধ্যে patient কেন দেখাচ্ছে"*
+        → *"ওখান থেকে আসলে Enquiry Visit Patient, তা ছাড়া নিচের ফিল্টারগুলিও
+        যদি না রাখা হয় তাহলে ভালো হয়"*। ⇒ ব্যানার থেকে আসা মিশ্র তালিকায়
+        ট্যাবের সারি ও ছাঁকনির সারি **লুকানো** হয়, জায়গায় একটাই পরিষ্কার লাইন।
+        ফোনের `applyCallListChrome()`-এর হুবহু যমজ।
+        🔁 TK পছন্দ না করলে ফেরানোর উপায়: নিচের `__wlv1FuHideChrome`-কে
+           `false` করে দিলেই আগের চেহারা (ট্যাব + ছাঁকনি + নোট) ফিরে আসে।
+        ⛔ তালিকা · কার্ড · Remark · বোতাম — কিছুই বদলায় না। */''}
+   ${(function(){
+      const __wlv1FuHideChrome = true;              /* 🔁 এক লাইনে ফেরানোর সুইচ */
+      const hide = __wlv1FuHideChrome && __wlv1FuAllSections;
+      if(hide) return `<div class="wlv1FuAllHead">📞 TODAY'S CALLS - Enquiry . Visit . Patient <b>${shown.length}</b></div>`;
+      return `<div class="followTabs">${tabs2}</div>`
+        + (__wlv1FuAllSections?`<div class="card mut wlv1FuAllNote">📞 Today's calls - Enquiry, Visit and Patient together (${shown.length}). Tap any tab above to see that section only.</div>`:'')
+        + `<div class="wlv1FuFilters">${fbtns}</div>`;
+   })()}
    <div id="followRows" data-stage="${tab}">${__fuAsk?wlv1BranchAskCard():(shown.map(fuCard).join('')||'<div class="card mut">No records found</div>')}</div></div>`;
  page(titles[tab]||'Follow-up',body,true);
  setTimeout(function(){

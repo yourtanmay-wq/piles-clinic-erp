@@ -6188,3 +6188,10 @@ body.wlv1AnatFullOpen{overflow:hidden}
       এটা শুধু দুটো নতুন ক্লাস, ফোনের bg_tag_extra_purple (#6B4FBB)-এর হুবহু এক রং। */
 .anFuBreak{flex-basis:100%!important;height:0!important;margin:0!important;padding:0!important}
 .anFuTag.anFuTagX{background:#6B4FBB!important}
+
+/* 🖥️🟣🔒 V710 (২৬.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত) — ব্যানার থেকে
+   আসা "আজকের কল" তালিকার মাথার লাইন (ফোনের bg_all_sections_head-এর একই রং)।
+   ⛔ নতুন একটাই ক্লাস — পুরোনো .followTabs/.wlv1FuFilters-এর কোনো নিয়ম ছোঁয়া হয়নি। */
+.wlv1FuAllHead{display:flex;align-items:center;gap:8px;background:#5B3A9E;color:#fff;
+  border-radius:11px;padding:10px 12px;margin:8px 0 0;font-size:13px;font-weight:800}
+.wlv1FuAllHead b{margin-left:auto;background:rgba(255,255,255,.22);border-radius:14px;padding:2px 10px;font-size:12px}

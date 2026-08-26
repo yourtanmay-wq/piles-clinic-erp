@@ -63,6 +63,29 @@ class FollowUpActivity : AppCompatActivity() {
      *  ⛔ যে কোনো ট্যাবে চাপ দিলেই `false` হয়ে আগের আচরণ ফিরে আসে। */
     private var todayAllSections = false
 
+    /* ═══════════════════════════════════════════════════════════════════════
+       🟣🔒🔁 V710 (২৬.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত)
+
+       TK: *"staff রা বিভ্রান্ত হয়ে যাচ্ছে — Enquiry এর মধ্যে patient কেন
+       দেখাচ্ছে"* → *"ওখান থেকে আসলে Enquiry Visit Patient, তা ছাড়া নিচের
+       ফিল্টারগুলিও যদি না রাখা হয় তাহলে ভালো হয়"*।
+
+       **কারণ:** ড্যাশবোর্ডের "N calls pending" ব্যানার থেকে এলে অ্যাপ
+       ইচ্ছে করেই **তিন সেকশন একসাথে** দেখায় (TK-এর ২৯.০৭.২০২৬-এর নির্দেশ,
+       খাতার সারি B90)। কিন্তু উপরে "Enquiry" ট্যাবটা সবুজ হয়েই থাকত, তাই
+       স্টাফ ভাবতেন এটা শুধু Enquiry-র তালিকা।
+
+       ⇒ ওই মোডে ট্যাবের সারি ও ফিল্টারের সারি **লুকানো** হয়, জায়গায় একটাই
+         পরিষ্কার বেগুনি লাইন।
+
+       🔁🔁 **TK পরে পছন্দ না করলে এক লাইনেই ফেরানো যাবে:**
+            নিচের `HIDE_TABS_IN_CALL_LIST`-কে `false` করে দিলেই V709-এর
+            হুবহু আগের চেহারা ফিরে আসে (ট্যাব ও ফিল্টার আবার দেখা যাবে)।
+            আর কোথাও কিছু বদলাতে হবে না — বাকি সব কোড এই একটা মান দেখেই চলে।
+       ⛔ তালিকার তথ্য · কার্ড · Remark · বোতাম · সেভ — কিছুই এতে বদলায় না।
+       ═══════════════════════════════════════════════════════════════════════ */
+    private val HIDE_TABS_IN_CALL_LIST = true
+
     /**
      * 🔴🔴🔒 V511 (২১.০৮.২০২৬, TK লাইভ টেস্টে ধরেছেন — ব্যানারে ৭, ভিতরে ৮)।
      *
@@ -329,6 +352,7 @@ class FollowUpActivity : AppCompatActivity() {
             // 🔵 TK (10.08.2026): সাধারণভাবে Enquiry দিয়েই শুরু; কিন্তু "কাল আসার
             // কথা" থেকে এলে ওই ব্যক্তি যে সেকশনে আছেন সেটা দিয়েই শুরু হয় — ক্যাশ
             // থেকে জানা গেলে সঙ্গে সঙ্গে, না জানলে তাজা তালিকা এলে ঠিক সেকশনে সরে।
+            applyCallListChrome()   // 🟣 V710 — ব্যানার-মোড হলে ট্যাব ও ফিল্টার লুকায়
             val startStage = initialFocusStage()
             /* 🔵 V523: শর্তে `pendingFocusCardMobile` আর দরকার নেই — আগে
                ওটা ফাঁকা থাকলে `initialFocusStage()` **সবসময়** "Inquiry"
@@ -532,12 +556,32 @@ class FollowUpActivity : AppCompatActivity() {
         }
     }
 
+    /** 🟣🔒🔁 V710 — ব্যানার থেকে আসা "আজকের কল" তালিকায় ট্যাব ও ফিল্টারের
+     *  সারি লুকিয়ে একটাই পরিষ্কার লাইন দেখায়; অন্য সব ক্ষেত্রে হুবহু আগের চেহারা।
+     *  ⛔ শুধু **দেখা/লুকানো** — কোনো তথ্য, ছাঁকনি বা সেভ এতে বদলায় না।
+     *  ⛔ `HIDE_TABS_IN_CALL_LIST = false` করলেই পুরোটা আগের মতো (উপরে দেখুন)। */
+    private fun applyCallListChrome() {
+        try {
+            val hide = HIDE_TABS_IN_CALL_LIST && todayAllSections
+            binding.tabRow.visibility = if (hide) View.GONE else View.VISIBLE
+            binding.filterRow.visibility = if (hide) View.GONE else View.VISIBLE
+            binding.tvAllSectionsHead.visibility = if (hide) View.VISIBLE else View.GONE
+            if (hide) {
+                // ⛔ লেখাটা ইংরেজি-বাংলা মেশানো নয় — বাংলা-বন্ধ স্টাফের ফোনেও
+                //    যাতে হুবহু একই দেখায়, তাই পুরোটা ইংরেজি।
+                val what = if (overdue3PlusOnly) "OVERDUE CALLS" else "TODAY'S CALLS"
+                binding.tvAllSectionsHead.text = "\uD83D\uDCDE  $what  -  Enquiry . Visit . Patient"
+            }
+        } catch (_: Throwable) { /* চেহারার কাজ — ব্যর্থ হলেও তালিকা আগের মতোই চলে */ }
+    }
+
     private fun switchTab(stage: String) {
         // 🔒 খাতার সারি B90: মিশ্র মোডে থাকলে **একই ট্যাবে** চাপ দিলেও মোডটা
         // বন্ধ হয়ে স্বাভাবিক তালিকায় ফিরতে হবে — তাই পুরনো "একই ট্যাব হলে কিছু
         // কোরো না" নিয়মটা শুধু মিশ্র মোড বন্ধ থাকলেই খাটে।
         if (stage == currentStage && !todayAllSections) return
         todayAllSections = false
+        applyCallListChrome()   // 🟣 V710 — ট্যাবে চাপ দিলে সারি দুটো আবার ফিরে আসে
         listOf(binding.tabEnquiry, binding.tabVisit, binding.tabPatient).forEach {
             it.setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_tab_inactive)
             it.setTextColor(getColor(com.tkbiswas.pilesclinic.R.color.clinic_text_primary))

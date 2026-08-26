@@ -105,7 +105,13 @@
          so the whole top of the screen is much shorter. Same three ids,
          same taps, same counts . only the shape/order changed. -->
 
+    <!-- 🟣🔒 V710 (২৬.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত) — id দুটো
+         (`tabRow` · `filterRow`) **নতুন যোগ করা হলো**, শুধু যাতে ড্যাশবোর্ডের
+         "N calls pending" ব্যানার থেকে এলে সারি দুটো লুকানো যায়।
+         ⛔ ভিতরের একটাও ঘর/বোতাম/মাপ/রং বদলায়নি — Follow-up আলাদা করে খুললে
+            সব হুবহু আগের মতোই। -->
     <LinearLayout
+        android:id="@+id/tabRow"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
@@ -154,6 +160,7 @@
 
 
     <HorizontalScrollView
+        android:id="@+id/filterRow"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
@@ -198,6 +205,23 @@
             <Button android:id="@+id/fSheet" android:layout_width="wrap_content" android:layout_height="32dp" android:textAllCaps="false" android:minWidth="0dp" android:textSize="11.5sp" android:paddingHorizontal="12dp" android:insetTop="0dp" android:insetBottom="0dp" android:text="⬇ Sheet" />
         </LinearLayout>
     </HorizontalScrollView>
+
+    <!-- 🟣🔒 V710 — ব্যানার থেকে এলে ট্যাব ও ফিল্টারের জায়গায় **একটাই পরিষ্কার
+         লাইন**, যাতে স্টাফ বুঝতে পারেন এটা তিন সেকশন মেশানো কল-তালিকা।
+         ⛔ ডিফল্ট `gone` — স্বাভাবিক Follow-up-এ এটা কখনো দেখা যায় না। -->
+    <TextView
+        android:id="@+id/tvAllSectionsHead"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="10dp"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/bg_all_sections_head"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="10dp"
+        android:textColor="#FFFFFF"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
 
     <ProgressBar
         android:id="@+id/progressLoad"
