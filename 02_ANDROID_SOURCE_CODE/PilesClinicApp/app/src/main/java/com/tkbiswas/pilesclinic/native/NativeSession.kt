@@ -78,6 +78,9 @@ object NativeSession {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().clear().apply()
         // 🔐🔒 V494 (TK-যাচাই ২): লগআউট — সব জমানো cloud-পড়া মুছে যায়।
         try { CloudReadDedupe.setSession(null) } catch (_: Throwable) { }
+        /* 🔴🔒 V721 — লগ-আউটে রোগীর জমানো প্রসঙ্গও মুছে যায়, যাতে অন্য কেউ
+           লগইন করলে আগের রোগীর নাম/ব্রাঞ্চ কিছুতেই ফিরে না আসে। */
+        try { com.tkbiswas.pilesclinic.clinical.RoleSession.clearPersisted() } catch (_: Throwable) { }
     }
 
     /** Builds the same {mobile,name,branch,role} JSON shape app.js's own login()
