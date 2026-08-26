@@ -874,7 +874,27 @@ class BriefingActivity : AppCompatActivity() {
                 )
                 val want = child.measuredHeight
                 val cap = (resources.displayMetrics.heightPixels * 0.62f).toInt()
-                val target = if (want in 1 until cap) want else cap
+                /* 🔴🔴🔒 V705 (২৬.০৮.২০২৬, TK-রিপোর্ট ছবিসহ — কিষানগঞ্জের ফোনে
+                   নোটিশ বোর্ডের উপরে **পর্দার প্রায় ২/৩ জুড়ে সাদা ফাঁকা**)।
+                   **আসল কারণ (কোড ধরে যাচাই):** স্টাফের ফোনে উপরের আটটা খোপই
+                   GONE (সবগুলোই Master-only বা pending-only), তাই `want` = ০।
+                   কিন্তু পুরোনো লাইনটা ছিল `if (want in 1 until cap) want else cap` —
+                   ০ ওই সীমার বাইরে পড়ায় `cap`-ই বসত, অর্থাৎ **ফাঁকা খোপগুলোকে
+                   জোর করে পর্দার ৬২% উঁচু** করে দেওয়া হত। Master-এর ফোনে খোপ
+                   থাকে বলে (want > 0) সেখানে চোখে পড়ত না — তাই এতদিন ধরা পড়েনি।
+                   ⇒ কিছুই না থাকলে এখন আগের স্বাভাবিক `wrap_content`-এ ফেরত
+                     (উচ্চতা ০), তাই তালিকা একদম উপর থেকেই শুরু হয়।
+                   ⛔ `wrap_content` বসানো হচ্ছে, স্থির ০ নয় — নইলে ভিতরে নতুন
+                      খোপ এলে ছেলেটার layout আর হত না, শোনার কাজটাও (
+                      `installPanelsScrollClamp`) চালু হত না, খোপ চিরতরে
+                      লুকিয়ে যেত।
+                   ⛔ ভরা অবস্থার নিয়ম (দরকারমতো উচ্চতা, তবে ৬২%-এর বেশি নয়)
+                      এক অক্ষরও বদলায়নি। */
+                val target = when {
+                    want <= 0 -> android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+                    want < cap -> want
+                    else -> cap
+                }
                 val lp = sv.layoutParams
                 // ⛔ একই মান আবার বসালে layout-এর অসীম চক্র তৈরি হতে পারত,
                 //    তাই সত্যিই বদলালে তবেই বসানো হয়।
