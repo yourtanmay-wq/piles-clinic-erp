@@ -5995,7 +5995,13 @@ function draffHome(tab='home'){
     ⛔ কিছুই তৈরি/মোছা/বদল হচ্ছে না — শুধু **কোন তালিকায় দেখাবে** তার নিয়ম।
     ⛔ runningTreatment (উপরে) থেকে 'cancelled' আগে থেকেই বাদ, তাই একই সারি
        দু'জায়গায় যাবে না। */
- let wlv1CancelledTreatment=f.filter(x=>x.stage==='Treatment'&&String(x.status||'').toLowerCase()==='cancelled');
+ /* 🔵🔒 V717 — Android DraftRepository.kt-এর হুবহু একই নিয়ম: Refund-অনুমোদিত
+    রোগী আগে থেকেই "Refunded" তালিকায় আছেন, তাই এখানে বাদ (একই মানুষ দুই
+    তালিকায় নয়, আর ভুল করে Restore হওয়ার পথও বন্ধ)।
+    ⛔ V435-এর গতি অক্ষত: ভারী `wlv1RefundedMobilesSet()` **একবারই** ডাকা হয়
+       (নিচে "Refunded" বাকেটও এই একই সেটটাই ব্যবহার করে)। */
+ var __refSetOnce=wlv1RefundedMobilesSet();
+ let wlv1CancelledTreatment=f.filter(x=>x.stage==='Treatment'&&String(x.status||'').toLowerCase()==='cancelled'&&!__refSetOnce.has(mob(x.mobile)));
  let visitReject=f.filter(x=>x.stage==='Patient'&&String(x.status||'').toLowerCase()==='cancelled').concat(wlv1StaleVisit).concat(wlv1CancelledTreatment);
  /* 🟢🔒 V623 (২৪.০৮.২০২৬, TK-নির্দেশ) — নতুন "Return Visit" বাকেট। Android
     DraftRepository.kt:669-এর হুবহু একই শর্ত (`stage=="Patient" && status==
@@ -6087,7 +6093,7 @@ let map={received:['My Enquiry',received,'📥','All branch','enq'],
       ব্রাউজারে মেপে দেখা: Draft পর্দা খুলতে **১০০ সেকেন্ডেরও বেশি** (কার্যত ঝুলে যাওয়া)।
       **সমাধান:** হিসাবটা **একবারই** করা হয়, তারপর সেটা দিয়েই ছাঁকা হয়।
       ⛔ ফল হুবহু আগের মতোই — একই তালিকা, একই ক্রম; শুধু একবার হিসাব হয়। */
-   var __refSet=wlv1RefundedMobilesSet();
+   var __refSet=__refSetOnce;   /* 🔵🔒 V717 — উপরে একবারই হিসাব হয়েছে (V435-এর গতি অক্ষত) */
    return wlv1OnePerPerson.filter(x=>__refSet.has(mob(x.mobile)));
  })(),'💸','Money returned','pat']};
  /* 🔴🆕🔒 V438 (TK-নির্দেশ) — ব্রাঞ্চ ছাঁকনি, ফোনের DraftActivity-র মতোই।
@@ -6236,7 +6242,13 @@ let map={received:['My Enquiry',received,'📥','All branch','enq'],
      // জমা পড়েছে (Advance/Bill) — শুধু তখনই same-day নিয়ম প্রযোজ্য।
      // 'Inquiry' (Enquiry) ও 'Patient' (internal নাম, আসলে Visit — এখনো
      // টাকা জমা পড়েনি) সবসময় ফ্রি।
-     let cardPaid=(cardStage==='Treatment');
+     /* 🔴🔴🔒 V717 (নিজে গভীরে যাচাই করে ধরা) — `cardStage` **ট্যাব দেখে** ঠিক হয়
+        (visitreject ⇒ 'Patient'), সারির আসল ধাপ দেখে নয়। V716-এ "Visit Reject"
+        তালিকায় **Treatment-ধাপের** (বাতিল করা) কার্ডও আসায় সেগুলো ভুল করে
+        "টাকা জমা পড়েনি" ধরা পড়ত ⇒ স্টাফ অনুমতি ছাড়াই মুছতে পারতেন।
+        এখন সারির **নিজের** ধাপও দেখা হয়।
+        ⛔ পুরোনো সব কার্ডে ফল হুবহু আগের মতোই (তাদের আসল ধাপ ট্যাবের সঙ্গে মেলে)। */
+     let cardPaid=(cardStage==='Treatment')||(String(x&&x.stage||'')==='Treatment');
      let delOk=isMaster()||wlv1CanDeletePaymentNow({date:delDate,branch:normalized.branch}, cardPaid);
      let delLabel=(normalized.name||normMob(normalized.mobile||'')).replace(/'/g,"\\'");
      let delBtn=delOk

@@ -54,13 +54,20 @@ object PendingRetryBackoff {
     /** এর আগে কোনো দেরি নেই — সাময়িক নেট-সমস্যায় আচরণ হুবহু আগের মতো। */
     private const val FREE_TRIES = 2
 
-    private const val MAX_WAIT_MS = 60L * 60L * 1000L   // ১ ঘণ্টা
+    /* 🔵🔒 V717 (নিজে গভীরে যাচাই করে ধরা) — **সর্বোচ্চ অপেক্ষা ১ ঘণ্টা থেকে
+       কমিয়ে ১৫ মিনিট।**
+
+       কেন: ফোন অনেকক্ষণ নেটের বাইরে থাকলে (সন্ধ্যায় টাকা নেওয়া হলো, লাইন নেই)
+       একটা **সত্যিকারের** সারিও পরপর ব্যর্থ হয়ে ১ ঘণ্টার ঘরে পৌঁছে যেতে পারত —
+       তারপর নেট ফিরলেও সেটা এক ঘণ্টা পর্যন্ত বসে থাকত। আগে এমন হত না।
+       ⇒ সেটা "ভাল কাজ খারাপ হওয়া"। তাই সর্বোচ্চ ১৫ মিনিট।
+       ⇒ আটকে থাকা সারির খরচ তবুও দিনে ~৪,০০০ → ~১০০ বার (৯৭%+ কম)। */
+    private const val MAX_WAIT_MS = 15L * 60L * 1000L   // ১৫ মিনিট
 
     private fun waitFor(fails: Int): Long = when {
         fails <= FREE_TRIES -> 0L
         fails == 3          -> 60L * 1000L
         fails == 4          -> 5L * 60L * 1000L
-        fails == 5          -> 15L * 60L * 1000L
         else                -> MAX_WAIT_MS
     }
 
@@ -92,6 +99,19 @@ object PendingRetryBackoff {
             if (wait > 0L) entry.put(K_NEXT, System.currentTimeMillis() + wait)
             else entry.remove(K_NEXT)
         } catch (_: Throwable) { }
+    }
+
+    /**
+     * 🔵🔒 V717 — **নেট ভালো আছে, এটা প্রমাণ হলেই সবার অপেক্ষা মুছে যায়।**
+     *
+     * একই দফায় অন্য কোনো সারি সফল হওয়া মানে লাইন ঠিক আছে — তখন বাকিদের
+     * অপেক্ষা করানোর আর কোনো কারণ নেই (তাদের ব্যর্থতা নেটের দোষ ছিল)।
+     * ⇒ নেট ফেরার সঙ্গে সঙ্গেই সত্যিকারের সারিগুলো আবার চেষ্টা পায়।
+     * ⛔ শুধু অপেক্ষার হিসাব মোছে — কোনো সারি/তথ্য ছোঁয়া হয় না।
+     */
+    fun clearWait(entry: JSONObject?) {
+        if (entry == null) return
+        try { entry.remove(K_NEXT); entry.remove(K_FAILS) } catch (_: Throwable) { }
     }
 
     /**

@@ -419,7 +419,7 @@ class DraftListActivity : AppCompatActivity() {
                         try {
                             // ⛔ একক Restore/Delete-এর হুবহু একই ডাক (আচরণ/হিসাব অপরিবর্তিত)।
                             if (restoreMode) repository.restore(e, user)
-                            else repository.deleteEnquiry(e, user, isFreeDeleteTab(e.tab)) == "OK"
+                            else repository.deleteEnquiry(e, user, isFreeDelete(e)) == "OK"   // 🔴🔒 V717
                         } catch (_: Throwable) { false }
                     }
                     if (ok) done++ else { failed++; failedItems.add(e) }
@@ -495,6 +495,26 @@ class DraftListActivity : AppCompatActivity() {
     private fun isFreeDeleteTab(tab: String): Boolean =
         tab == "received" || tab == "enqreject" || tab == "visitreject" || tab == "unexpected"
 
+    /* 🔴🔴🔒 V717 (নিজে গভীরে যাচাই করে ধরা — TK-নির্দেশ *"কোন ভাল কাজ যেন
+       খারাপ না হয়"*):
+
+       উপরের ছাড়ের **ভিত্তি** ছিল TK-এর কথা (০৩ ও ০৭.০৮.২০২৬) — *"Enquiry
+       reject, Visit card reject — পেমেন্ট সংক্রান্ত কোনো ব্যাপার না থাকলে
+       স্টাফ নিজেই করতে পারবে"* — আর কোডে লেখা যুক্তি: **"এই দুই তালিকায়
+       কোনো টাকা জমা নেই বলে নিশ্চিত, কারণ টাকা শুধু Patient/Treatment ধাপেই
+       থাকে।"**
+
+       V716-এ "Visit Reject" তালিকায় **Treatment-ধাপের** (বাতিল করা) কার্ডও
+       দেখানো শুরু হলো — অর্থাৎ ওই "টাকা নেই" ভিত্তিটাই আর সত্যি নয়। তাহলে
+       স্টাফ **মাস্টারের অনুমতি ছাড়াই** একজন Treatment-রোগীর কার্ড মুছে
+       ফেলতে পারতেন। সেটা TK-এর লক করা নিয়মের বিরুদ্ধে।
+
+       ⇒ তাই ছাড়টা এখন **শুধু সেই কার্ডেই**, যার ধাপ Treatment নয়।
+       Treatment-ধাপের কার্ডে আগের মতোই **মাস্টারের অনুমতি লাগবে**।
+       ⛔ পুরোনো (Patient/Inquiry ধাপের) কার্ডে আচরণ এক অক্ষরও বদলায়নি। */
+    private fun isFreeDelete(e: DraftEntry): Boolean =
+        isFreeDeleteTab(e.tab) && !e.stage.equals("Treatment", ignoreCase = true)
+
     private fun confirmDelete(e: DraftEntry) {
         if (e.tab == "refunded") { confirmDeleteRefundedPatient(e); return }
         // 🆕 TK-নির্দেশ (03.08.2026) — "Enquiry reject, Visit card reject —
@@ -518,7 +538,7 @@ class DraftListActivity : AppCompatActivity() {
         // ⛔ মোছার আসল পথ (Trash Bin + followup cascade) এক অক্ষরও বদলায়নি —
         //    ডিলিট আগের মতোই ফেরানো যায় (Master → Trash Bin → Restore)।
         // (আগের কোড ছিল: if (e.tab == "enqreject" || e.tab == "visitreject"))
-        if (isFreeDeleteTab(e.tab)) {
+        if (isFreeDelete(e)) {   // 🔴🔒 V717 — Treatment-ধাপে ছাড় নেই
             showDeleteEnquiryDialogDirect(e)
             return
         }
@@ -578,7 +598,7 @@ class DraftListActivity : AppCompatActivity() {
                     // দ্বিতীয় গেট `TrashHelper.canDelete`-ও পাশ কাটে), নইলে
                     // পর্দায় ছাড় দিলেও "PERMISSION" ফেরত আসত।
                     // (আগে: e.tab == "enqreject" || e.tab == "visitreject")
-                    val bypass = isFreeDeleteTab(e.tab)
+                    val bypass = isFreeDelete(e)   // 🔴🔒 V717
                     val result = withContext(Dispatchers.IO) { repository.deleteEnquiry(e, user, bypass) }
                     if (result == "OK") {
                         entries.remove(e)

@@ -883,7 +883,14 @@ class DraftRepository(private val context: Context? = null) {
                    ⛔ নিচের `Treatment` (স্বাভাবিক active) নিয়মে হাত পড়েনি —
                       সেখানে `cancelled` আগে থেকেই বাদ ছিল, তাই একই সারি
                       দু'জায়গায় যেতে পারে না। */
-                stage == "Treatment" && status == "cancelled" -> visitRejectRows.add(row)
+                /* 🔵🔒 V717 (নিজে গভীরে যাচাই করে ধরা, TK-নির্দেশ "কোন ভাল কাজ
+                   যেন খারাপ না হয়"): যাঁর টাকা **ফেরত (Refund) অনুমোদিত** হয়ে
+                   গেছে, তিনি আগে থেকেই আলাদা **"Refunded"** তালিকায় আছেন।
+                   তাঁকে এখানেও দেখালে **একই মানুষ দুই তালিকায়** পড়তেন, আর
+                   কেউ ভুল করে Refund-হওয়া রোগীকে Restore করে ফেলতে পারতেন।
+                   ⛔ তাই শুধু এঁরাই বাদ; বাকি সব লুকানো কার্ড আগের মতোই দেখাবে। */
+                stage == "Treatment" && status == "cancelled" &&
+                    !hasApprovedRefundByMobile.contains(mobKeyForAge) -> visitRejectRows.add(row)
                 stage == "Treatment" && status == "incomplete" -> notCompleteRows.add(row)
                 // 🔴🔒 V681 (২৫.০৮.২০২৬, TK-নির্দেশ, স্পষ্ট যুক্তি — "Advance দিলেই
                 // অটোমেটিক Patient(Treatment) হয়ে যায়, তাহলে যে কখনো Advance-ই

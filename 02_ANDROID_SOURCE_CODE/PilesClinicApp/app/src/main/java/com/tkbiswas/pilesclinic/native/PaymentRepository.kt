@@ -2230,13 +2230,18 @@ class PaymentRepository(private val context: Context? = null) {
         val queue = loadPaymentPendingQueue()
         if (queue.length() == 0) return
         val stillPending = org.json.JSONArray()
+        /* 🔵🔒 V717 — এই দফায় অপেক্ষার জন্য যাদের ছোঁয়া হলো না, তাদের তালিকা।
+           নিচে দেখুন: এই দফায় অন্য কেউ সফল হলে (= নেট ভালো, প্রমাণিত) এদের
+           অপেক্ষা মুছে দেওয়া হয়, যাতে নেট ফেরার সঙ্গে সঙ্গেই এরা সুযোগ পায়। */
+        val skipped = mutableListOf<org.json.JSONObject>()
+        var anySuccess = false
         for (i in 0 until queue.length()) {
             val e = queue.optJSONObject(i) ?: continue
             /* 🔴🔒 V715 — পরপর অনেকবার ব্যর্থ হওয়া সারিটা এই দফায় বাদ।
                ⛔ **সারিটা ফেলা হচ্ছে না** — হুবহু আগের মতোই `stillPending`-এ
                   রেখে দেওয়া হচ্ছে, শুধু এইবার নেটে হাত দেওয়া হচ্ছে না।
                ⛔ প্রথম দু'বার ব্যর্থতায় কোনো দেরি নেই (দুর্বল নেট অক্ষত)। */
-            if (!PendingRetryBackoff.shouldTry(e, force)) { stillPending.put(e); continue }
+            if (!PendingRetryBackoff.shouldTry(e, force)) { skipped.add(e); stillPending.put(e); continue }
             try {
                 val paymentRow = e.optJSONObject("paymentRow") ?: continue
                 // TK-REQUESTED (2026-07-26): if this payment was deleted in
@@ -2269,12 +2274,21 @@ class PaymentRepository(private val context: Context? = null) {
                     // 🔴🔒 V715 — আবার ব্যর্থ; পরের চেষ্টার ফাঁক বাড়ানো হলো।
                     PendingRetryBackoff.noteFailure(e)
                     stillPending.put(e)
-                } else activateRmpCommissionAfterCloud(patient)
+                } else { anySuccess = true; activateRmpCommissionAfterCloud(patient) }   // 🔵🔒 V717
             } catch (_: Throwable) {
                 PendingRetryBackoff.noteFailure(e)   // 🔴🔒 V715
                 stillPending.put(e)
             }
         }
+        /* 🔵🔒 V717 — এই দফায় অন্তত একটা সারি সফল হয়েছে ⇒ **লাইন ভালো**।
+           তাই যাদের শুধু অপেক্ষার জন্য ছোঁয়া হয়নি, তাদের অপেক্ষা মুছে দেওয়া
+           হলো — পরের বারই তারা আবার চেষ্টা পাবে।
+           ⛔ **এই দফায় যারা সত্যিই চেষ্টা করেও ব্যর্থ হয়েছে, তাদের অপেক্ষা
+              মোছা হয় না** — নেট ভালো থাকা সত্ত্বেও ব্যর্থ মানে দোষটা নেটের নয়,
+              তাই তাদের বারবার চেষ্টা করানোর কোনো মানে নেই (এটাই তো আসল সমস্যা
+              ছিল — দিনে ~৪,০০০ বার)।
+           ⛔ কোনো সারি ফেলা/বদলানো হয় না, শুধু অপেক্ষার হিসাব। */
+        if (anySuccess) skipped.forEach { PendingRetryBackoff.clearWait(it) }
         prefs.edit().putString("queue", stillPending.toString()).commit()
         }
     }
