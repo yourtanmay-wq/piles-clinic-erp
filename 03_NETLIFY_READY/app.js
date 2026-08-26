@@ -6803,7 +6803,12 @@ window["wlv1TodayRemarkIdx"]=wlv1TodayRemarkIdx;
    ধরে রাখা হয় — পরে ঘর থেকে আর পড়া হয় না। */
 let wlv1PendingRemark={id:'',text:''};
 function wlv1SameDayRemarkWarn(id,r,prev){wlv1PendingRemark={id:id,text:r};
- modal(`<h2>⚠️ Same-day Remark</h2><div class="card"><div>A remark has already been saved today.</div><div style="margin:10px 0"><b>Previous Remark:</b> ${esc(prev.remark)}</div><div>What would you like to do?</div></div><div class="actions"><button class="ghost" onclick="wlv1UpdatePrevRemark(${prev.i})">Update Previous</button><button onclick="wlv1SaveRemarkNewFromWarn()">Save New Remark</button><button class="ghost" onclick="closeModal()">Cancel</button></div>`)}
+ /* 🎨🔒 V719 (২৬.০৮.২০২৬, TK-নির্দেশ "এবার এটাকে প্রফেশনাল বানান", ডেমো-প্রুফে
+    প্রস্তাব ১ অনুমোদিত) — ফোনের PatientTimelineActivity.kt-এর হুবহু যমজ:
+    আজকের লেখাটা আলাদা হালকা-হলুদ বাক্সে, আর তিনটে বোতামই সমান চওড়া, উপর-নিচ।
+    ক্রম: Save New Remark (মূল) → Update Previous → Cancel।
+    ⛔ তিনটে বোতামের কাজ এক অক্ষরও বদলায়নি (একই ফাংশন, একই সূচক)। */
+ modal(`<h2>⚠️ Same-day Remark</h2><div class="card"><div>A remark has already been saved today.</div><div style="margin:12px 0 14px;padding:10px 13px;background:#FFF9EC;border:1.5px solid #F3DFAF;border-radius:12px"><div style="font-size:11px;font-weight:800;color:#9A6B00;letter-spacing:.6px">TODAY'S REMARK</div><div style="font-size:15px;font-weight:800;color:#3A2A00;margin-top:3px">${esc(prev.remark)}</div></div><div>What would you like to do?</div><button onclick="wlv1SaveRemarkNewFromWarn()" style="width:100%;margin-top:13px;padding:14px;border:0;border-radius:14px;background:#E8A100;color:#3A2600;font-size:15.5px;font-weight:800">Save New Remark</button><button onclick="wlv1UpdatePrevRemark(${prev.i})" style="width:100%;margin-top:11px;padding:14px;border:2px solid #D4DAE4;border-radius:14px;background:#fff;color:#22304A;font-size:15.5px;font-weight:800">Update Previous</button><button onclick="closeModal()" style="width:100%;margin-top:6px;padding:12px;border:0;border-radius:14px;background:transparent;color:#7A8798;font-size:15px;font-weight:700">Cancel</button></div>`)}
 window["wlv1SameDayRemarkWarn"]=wlv1SameDayRemarkWarn;
 function wlv1SaveRemarkNewFromWarn(){let p=wlv1PendingRemark;if(!p.text)return closeModal();wlv1SaveRemarkNow(p.id,p.text)}
 window["wlv1SaveRemarkNewFromWarn"]=wlv1SaveRemarkNewFromWarn;

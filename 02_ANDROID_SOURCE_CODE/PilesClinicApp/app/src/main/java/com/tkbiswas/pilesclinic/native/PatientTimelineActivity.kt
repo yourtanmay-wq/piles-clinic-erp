@@ -1943,25 +1943,92 @@ class PatientTimelineActivity : AppCompatActivity() {
             textSize = 14.5f
             setTextColor(android.graphics.Color.parseColor("#101828"))
         })
-        body.addView(android.widget.TextView(this).apply {
-            text = "Previous Remark: " + previous.note
-            textSize = 14f
-            setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setTextColor(android.graphics.Color.parseColor("#41506A"))
-            setPadding(0, (10 * d).toInt(), 0, (10 * d).toInt())
+        /* 🎨🔒 V719 (২৬.০৮.২০২৬, TK-নির্দেশ *"এবার এটাকে প্রফেশনাল বানান"*,
+           ডেমো-প্রুফে **প্রস্তাব ১** অনুমোদিত):
+
+           **আগে কী দেখাত:** Android নিজের তিনটে বোতাম (Positive/Negative/
+           Neutral) ডান দিকে **তিন মাপে** সাজাত, আর "Cancel" মাঝখানে পড়ে
+           যেত — অগোছালো (TK-এর পাঠানো ছবি)।
+
+           **এখন:** আজকের লেখাটা আলাদা একটা হালকা-হলুদ বাক্সে, আর তিনটে
+           বোতামই **সমান চওড়া, উপর-নিচ** — পপ-আপের ভিতরেই।
+           ক্রম: **Save New Remark** (মূল) → **Update Previous** → **Cancel**।
+
+           ⛔ **কাজ এক অক্ষরও বদলায়নি** — তিনটে বোতাম ঠিক আগের তিনটে কাজই
+              করে (`saveQuickRemark` · `replaceRemarkText` · কিছু না)।
+           ⛔ রং নিজে বানানো হয়নি — `PremiumAlert`-এর লক করা হলুদ
+              (#E8A100 · লেখা #3A2600) ও নিরপেক্ষ মানগুলোই নেওয়া হয়েছে,
+              যাতে বাকি পপ-আপের সঙ্গে হুবহু মেলে।
+           ⛔ শিরোনাম · হলুদ হেডার · `PremiumAlert.paint()` অপরিবর্তিত।
+              `paint()` বোতাম না পেলে চুপচাপ ছেড়ে দেয় (`?.let`) — নিরাপদ।
+              বাংলা-বন্ধ স্টাফের ঢাকনা (`NoBengali.installDialog`) পুরো
+              পপ-আপেই বসে, তাই নতুন বোতামগুলোও ঢাকা পড়ে।
+           ⛔ সব লেখা ইংরেজি — TK-এর নিয়ম। */
+        body.addView(android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding((13 * d).toInt(), (10 * d).toInt(), (13 * d).toInt(), (11 * d).toInt())
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = 12 * d
+                setColor(android.graphics.Color.parseColor("#FFF9EC"))
+                setStroke((1.5f * d).toInt(), android.graphics.Color.parseColor("#F3DFAF"))
+            }
+            addView(android.widget.TextView(this@PatientTimelineActivity).apply {
+                text = "TODAY'S REMARK"
+                textSize = 10.5f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#9A6B00"))
+            })
+            addView(android.widget.TextView(this@PatientTimelineActivity).apply {
+                text = previous.note
+                textSize = 15f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#3A2A00"))
+                setPadding(0, (3 * d).toInt(), 0, 0)
+            })
+            layoutParams = android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.MATCH_PARENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = (12 * d).toInt(); bottomMargin = (14 * d).toInt()
+            }
         })
         body.addView(android.widget.TextView(this).apply {
             text = "What would you like to do?"
             textSize = 13.5f
             setTextColor(android.graphics.Color.parseColor("#5B6B81"))
         })
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setCustomTitle(PremiumAlert.header(this, "⚠️ Same-day Remark"))
+
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(PremiumAlert.header(this, "\u26A0\uFE0F Same-day Remark"))
             .setView(body)
-            .setPositiveButton("Save New Remark") { _, _ -> saveQuickRemark(newRemark) }
-            .setNeutralButton("Update Previous") { _, _ -> replaceRemarkText(previous, newRemark) }
-            .setNegativeButton("Cancel", null)
-            .show().also { PremiumAlert.paint(it) }
+            .create()
+
+        // সমান চওড়া, উপর-নিচ সাজানো একটা বোতাম।
+        fun wideBtn(label: String, bg: String, fg: String, edge: String?, top: Int, action: (() -> Unit)?) {
+            body.addView(android.widget.TextView(this).apply {
+                text = label
+                textSize = 15.5f
+                gravity = android.view.Gravity.CENTER
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor(fg))
+                setPadding(0, (14 * d).toInt(), 0, (14 * d).toInt())
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = 14 * d
+                    setColor(android.graphics.Color.parseColor(bg))
+                    if (edge != null) setStroke((2 * d).toInt(), android.graphics.Color.parseColor(edge))
+                }
+                isClickable = true
+                isFocusable = true
+                setOnClickListener { dialog.dismiss(); action?.invoke() }
+                layoutParams = android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.MATCH_PARENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                    topMargin = (top * d).toInt()
+                }
+            })
+        }
+        wideBtn("Save New Remark", "#E8A100", "#3A2600", null, 13) { saveQuickRemark(newRemark) }
+        wideBtn("Update Previous", "#FFFFFF", "#22304A", "#D4DAE4", 11) { replaceRemarkText(previous, newRemark) }
+        wideBtn("Cancel", "#00000000", "#7A8798", null, 4, null)
+        body.setPadding(pad, (14 * d).toInt(), pad, (14 * d).toInt())
+
+        dialog.show()
+        PremiumAlert.paint(dialog)
     }
 
     /** 🟡🔒 V691 — আগে যে সেভটা Save-এর ভিতরেই লেখা ছিল, সেটাই এখানে
