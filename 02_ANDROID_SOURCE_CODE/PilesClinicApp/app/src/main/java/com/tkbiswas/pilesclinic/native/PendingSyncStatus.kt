@@ -214,7 +214,9 @@ object PendingSyncStatus {
         try { CloudWriteQueue.flush(context) } catch (_: Throwable) { }
         try { EnquiryRepository(context).flushPending() } catch (_: Throwable) { }
         try { RegistrationRepository(context).flushPending() } catch (_: Throwable) { }
-        try { PaymentRepository(context).flushPending() } catch (_: Throwable) { }
+        // 🔴🔒 V715 — মালিক/স্টাফ নিজে বোতাম চেপেছেন, তাই `force = true`:
+        //    পরপর ব্যর্থ হওয়া সারির অপেক্ষা এখানে মানা হয় না, সঙ্গে সঙ্গে চেষ্টা।
+        try { PaymentRepository(context).flushPending(force = true) } catch (_: Throwable) { }
         try { FollowUpRepository(context).flushPending() } catch (_: Throwable) { }
         try { ChamberAttendanceRepository.flushPending(context) } catch (_: Throwable) { }
         try { com.tkbiswas.pilesclinic.clinical.ClinicalCloudRepository.flushPending(context) } catch (_: Throwable) { }

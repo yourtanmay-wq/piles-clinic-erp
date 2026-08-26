@@ -12,6 +12,31 @@ class PaymentRepository(private val context: Context? = null) {
         private val LOCK = Any()
         private const val CACHE_PREFS = "todays_collection_cache"
 
+        /* 🔴🔒 V715 (২৬.০৮.২০২৬, TK-নির্দেশ — Supabase Egress-এর আসল কারণ,
+           সার্ভারের লগ থেকে **মেপে** পাওয়া):
+
+           গত ২৪ ঘণ্টায় `GET /rest/v1/followups` চলেছে **২০,৩১২ বার** — তার
+           ~১১,৭০০ বার এই একটাই ফাংশন (`promoteFollowUpToTreatment`) থেকে,
+           কারণ একটা পেমেন্ট ফোনের পেন্ডিং-তালিকায় আটকে আছে আর
+           `flushPending()` **প্রতিবার যেকোনো পর্দা খোলার সময়** চলে।
+
+           সবচেয়ে খারাপ দিকটা ছিল `select=*` — অর্থাৎ প্রতিবার রোগীর
+           **base64 ছবিসহ** ১০০টা পর্যন্ত সারি নামত (একটা ছবি ~৫৫–১২০ KB)।
+           এই একটা লাইনই দিনের egress-এর সিংহভাগ খেত।
+
+           এই তিনটে তালিকা আসলে **মাত্র কয়েকটা ঘর** পড়ে (কোডে মিলিয়ে দেখা):
+             · scan   → id · stage · status · lastRemark
+             · inquiry→ id · name · patientId · refId  (PatientIdentity.provablyOtherPatient)
+             · verify → শুধু গোনা হয় (`.length()`), একটাও ঘর পড়া হয় না
+
+           ⛔ `fetchListSlim` ব্যবহার করা হয়েছে — সরু পড়া ব্যর্থ হলে সে
+              **আগের মতোই পুরো সারি** নামায় (V405-এর প্রমাণিত fallback), তাই
+              কোনো অবস্থাতেই কম তথ্য নিয়ে ভুল সিদ্ধান্ত হতে পারে না।
+           ⛔ ছাঁকনি · limit · সাজানো · ফেরত আসা সারির সংখ্যা — কিছুই বদলায়নি। */
+        private const val PROMOTE_COLS_SCAN    = "id,stage,status,lastRemark,mobile,updatedAt"
+        private const val PROMOTE_COLS_INQUIRY = "id,name,patientId,refId,mobile,stage,status,updatedAt"
+        private const val PROMOTE_COLS_VERIFY  = "id"
+
         // 🟢🔒 B662 (15.08.2026, TK-অনুমোদিত · Egress-৪): "Visit Fee Missing" গোনার জন্য
         //   `fetchMissingVisitFeePatients()` **পাঁচ ব্রাঞ্চের সব রোগী** (ছাঁকনি নেই, limit
         //   5000) + সব visit_fee টাকার সারি নামায়। মাস্টারের ঘণ্টা (BellCounter) এটা
@@ -2192,7 +2217,14 @@ class PaymentRepository(private val context: Context? = null) {
      * fixed id (never creates a second row), and promoteFollowUpToTreatment
      * simply re-confirms stage="Treatment" if that already happened. Does
      * nothing (no network call at all) if nothing is pending. */
-    fun flushPending() {
+    /**
+     * 🔴🔒 V715 (২৬.০৮.২০২৬) — `force` ঘরটা **নতুন, ঐচ্ছিক**, ডিফল্ট `false`।
+     * তাই আগের প্রতিটা ডাক (`BottomNav.wire()` · `SyncWorker` · অন্য সব) এক
+     * অক্ষরও না বদলেই চলে। মালিক/স্টাফ নিজে "Send" চাপলে (`PendingSyncStatus
+     * .retryAllNow`) `force = true` যায় — তখন অপেক্ষা মানা হয় না, সঙ্গে সঙ্গে
+     * চেষ্টা হয়, ঠিক আগের মতোই।
+     */
+    fun flushPending(force: Boolean = false) {
         val prefs = paymentPendingPrefs ?: return
         synchronized(LOCK) {
         val queue = loadPaymentPendingQueue()
@@ -2200,6 +2232,11 @@ class PaymentRepository(private val context: Context? = null) {
         val stillPending = org.json.JSONArray()
         for (i in 0 until queue.length()) {
             val e = queue.optJSONObject(i) ?: continue
+            /* 🔴🔒 V715 — পরপর অনেকবার ব্যর্থ হওয়া সারিটা এই দফায় বাদ।
+               ⛔ **সারিটা ফেলা হচ্ছে না** — হুবহু আগের মতোই `stillPending`-এ
+                  রেখে দেওয়া হচ্ছে, শুধু এইবার নেটে হাত দেওয়া হচ্ছে না।
+               ⛔ প্রথম দু'বার ব্যর্থতায় কোনো দেরি নেই (দুর্বল নেট অক্ষত)। */
+            if (!PendingRetryBackoff.shouldTry(e, force)) { stillPending.put(e); continue }
             try {
                 val paymentRow = e.optJSONObject("paymentRow") ?: continue
                 // TK-REQUESTED (2026-07-26): if this payment was deleted in
@@ -2229,9 +2266,12 @@ class PaymentRepository(private val context: Context? = null) {
                           `pushPaymentToCloud` এই ঘরটা পড়েও না, তাই টাকার
                           হিসাবে বা পাঠানোর নিয়মে কোনো প্রভাব নেই। */
                     try { if (why.isNotEmpty()) e.put("lastWhy", why.toString()) } catch (_: Throwable) { }
+                    // 🔴🔒 V715 — আবার ব্যর্থ; পরের চেষ্টার ফাঁক বাড়ানো হলো।
+                    PendingRetryBackoff.noteFailure(e)
                     stillPending.put(e)
                 } else activateRmpCommissionAfterCloud(patient)
             } catch (_: Throwable) {
+                PendingRetryBackoff.noteFailure(e)   // 🔴🔒 V715
                 stillPending.put(e)
             }
         }
@@ -2242,7 +2282,10 @@ class PaymentRepository(private val context: Context? = null) {
     private fun promoteFollowUpToTreatment(patient: PatientBillInfo, staffMobile: String): Boolean {
         return try {
             val digits = patient.mobile.filter { it.isDigit() }.takeLast(10)
-            val followups = SupabaseClient.fetchList("followups", "mobile=like.*$digits", 100)
+            // 🔴🔒 V715 — আগে `fetchList(...)` = `select=*` (রোগীর ছবিসহ ১০০ সারি)।
+            // এই লুপ শুধু stage · status · id · lastRemark পড়ে — উপরের মন্তব্য দ্রষ্টব্য।
+            val followups = SupabaseClient.fetchListSlim(
+                "followups", "mobile=like.*$digits", 100, PROMOTE_COLS_SCAN)
             var moved = 0
             for (i in 0 until followups.length()) {
                 val row = followups.getJSONObject(i)
@@ -2326,8 +2369,11 @@ class PaymentRepository(private val context: Context? = null) {
             // retried along with everything else next time.
             var closeOk = true
             try {
-                val inquiries = SupabaseClient.fetchList(
-                    "followups", "mobile=like.*$digits&stage=eq.Inquiry", 5000
+                // 🔴🔒 V715 — আগে `select=*` (ছবিসহ, ৫০০০ পর্যন্ত)। এই লুপ শুধু
+                // id + PatientIdentity-র তিনটে ঘর (name · patientId · refId) পড়ে।
+                val inquiries = SupabaseClient.fetchListSlim(
+                    "followups", "mobile=like.*$digits&stage=eq.Inquiry", 5000,
+                    PROMOTE_COLS_INQUIRY
                 )
                 for (i in 0 until inquiries.length()) {
                     val row = inquiries.getJSONObject(i)
@@ -2349,8 +2395,11 @@ class PaymentRepository(private val context: Context? = null) {
             } catch (_: Exception) { closeOk = false }
 
             // Verify the Patient-tab record is actually readable before reporting success.
-            val verify = SupabaseClient.fetchList(
-                "followups", "mobile=like.*$digits&stage=eq.Treatment&status=not.in.(Cancelled,Incomplete,Rejected,Closed)", 10
+            // 🔴🔒 V715 — আগে `select=*` (ছবিসহ)। এখানে শুধু **গোনা** হয়
+            // (`verify.length()`), একটাও ঘর পড়া হয় না — তাই `id`-ই যথেষ্ট।
+            val verify = SupabaseClient.fetchListSlim(
+                "followups", "mobile=like.*$digits&stage=eq.Treatment&status=not.in.(Cancelled,Incomplete,Rejected,Closed)", 10,
+                PROMOTE_COLS_VERIFY
             )
             moved > 0 && verify.length() > 0 && closeOk
         } catch (_: Exception) {

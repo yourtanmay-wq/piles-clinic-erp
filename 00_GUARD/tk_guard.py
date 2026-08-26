@@ -656,6 +656,93 @@ def check_followup_cache_fields():
                      f"কিন্তু লেখার সময় বসানো হয় না (লেখা-পড়া আলাদা হয়ে গেছে)")
 
 # ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯.২০ — ছবিওয়ালা টেবিলে "সব ঘর" (select=*) তালিকা পড়া নিষেধ
+#  🔴🔴🔴 V715 (২৬.০৮.২০২৬) — Supabase-এর লগ থেকে **মেপে** পাওয়া দোষ:
+#  `PaymentRepository.promoteFollowUpToTreatment()` প্রতিবার `followups`
+#  থেকে **`select=*`** দিয়ে ১০০ সারি পর্যন্ত টানত — অর্থাৎ **রোগীর base64
+#  ছবিসহ** (একটা ছবি ~৫৫–১২০ KB)। একটা আটকে থাকা পেমেন্টের জন্য সেটা
+#  দিনে ~৪,০০০ বার চলত ⇒ দিনের egress-এর সিংহভাগ।
+#
+#  TK-এর নিয়ম ৬.২: *"একই ধরনের সমস্যা প্রত্যেকবার কেন বলতে হবে, একবারে
+#  কেন ঠিক করতে পারেন না"* — তাই এই পাহারা গোটা শ্রেণিটাই আটকায়:
+#   ক) ওই ফাংশনে আর কখনো `fetchList(` (= select=*) ব্যবহার করা যাবে না
+#   খ) `followups/patients/medical`-এ **মোবাইল ধরে খোঁজা** (`like.`) তালিকা
+#      কোথাও `select=*` হতে পারবে না — সরু ঘর (`fetchListSlim`) লাগবেই
+#   গ) `findByMobile*`-এ `"*"` চাইলে limit ছোট (<৫০) হতে হবে; বড় হলে
+#      শুধু অনুমোদিত ফাইলেই (Trash-এর পুরো সারি সত্যিই দরকার)
+#  ⛔ `id=eq.…` ধরে এক সারি পড়া — আগের মতোই, কিছুই বদলায়নি।
+# ═══════════════════════════════════════════════════════════════
+PHOTO_TABLES = ("followups", "patients", "medical")
+#  পুরো সারি সত্যিই দরকার (ডিলিটের স্ন্যাপশট — ছবি বাদ দিলে Restore-এ
+#  রোগীর ছবি চিরতরে হারাবে; ২৩.০৮.২০২৬-এর অডিটে TK-অনুমোদিত)।
+#  ⚠️ **পুরোনো ভিত্তি (baseline)** — V715-এ পাহারাটা বসানোর দিন এই ফাইলগুলোয়
+#  আগে থেকেই এই ধরনের চওড়া পড়া ছিল। প্রতিটার কারণ কোডে গিয়ে দেখা হয়েছে
+#  (২৩.০৮.২০২৬-এর egress অডিটেও এদের কয়েকটা "ছোঁয়া যাবে না" বলা আছে —
+#  ওখানে **পুরো সারিটাই আবার লেখা/জমা হয়**, ছবি বাদ দিলে Restore/ব্রাঞ্চ-বদলে
+#  রোগীর ছবি চিরতরে হারাত)। এগুলো **মাপা হয়নি এখনো** — তাই এখন ছোঁয়া হচ্ছে
+#  না, শুধু নতুন কোনো জায়গা যোগ হলে পাহারা আটকাবে।
+#  🔴 TK-কে জানানো হয়েছে; তাঁর অনুমতি পেলে একটা একটা করে মেপে ঠিক করা হবে।
+WIDE_MOBILE_READ_ALLOWED = (
+    "TrashHelper.kt",              # ডিলিটের স্ন্যাপশট — পুরো সারি সত্যিই দরকার
+    "ReturnVisitRepository.kt",    # ভিত্তি (V715), মাপা হয়নি
+    "ChamberAttendanceActivity.kt",# ভিত্তি (V715), মাপা হয়নি
+    "PatientTimelineActivity.kt",  # ভিত্তি (V715), মাপা হয়নি
+    "EnquiryRepository.kt",        # ব্রাঞ্চ বদল — পুরো সারি আবার লেখা হয়
+    "ReportCardActivity.kt",       # ভিত্তি (V715), মাপা হয়নি
+    "ReportCardPrinter.kt",        # ভিত্তি (V715), মাপা হয়নি
+    "FollowUpActivity.kt",         # ভিত্তি (V715), মাপা হয়নি
+)
+
+
+def check_no_wide_photo_reads():
+    base = os.path.join(ROOT, "02_ANDROID_SOURCE_CODE", "PilesClinicApp", "app", "src", "main",
+                        "java", "com", "tkbiswas", "pilesclinic")
+    if not os.path.isdir(base):
+        return
+
+    # ── (ক) promoteFollowUpToTreatment-এ select=* ফিরে আসেনি তো ──
+    pr = os.path.join(base, "native", "PaymentRepository.kt")
+    s = read(pr)
+    if s:
+        i = s.find("fun promoteFollowUpToTreatment")
+        if i < 0:
+            fail("৯.২০", "PaymentRepository.kt-এ promoteFollowUpToTreatment() খুঁজে পাওয়া গেল না")
+        else:
+            j = s.find("\n    private fun ", i + 10)
+            body = s[i:j if j > 0 else len(s)]
+            body = "\n".join(ln for ln in body.split("\n") if not ln.strip().startswith("//"))
+            if "SupabaseClient.fetchList(" in body:
+                fail("৯.২০", "PaymentRepository.promoteFollowUpToTreatment()-এ `fetchList(` "
+                             "(= select=*, রোগীর ছবিসহ) ফিরে এসেছে — `fetchListSlim(` ব্যবহার করুন")
+
+    # ── (খ) ও (গ) গোটা প্রজেক্ট ──
+    for root, _dirs, files in os.walk(base):
+        for fn in files:
+            if not fn.endswith(".kt"):
+                continue
+            path = os.path.join(root, fn)
+            txt = read(path)
+            if not txt:
+                continue
+            for n, line in enumerate(txt.split("\n"), 1):
+                bare = line.strip()
+                if bare.startswith("//") or bare.startswith("*"):
+                    continue
+                for t in PHOTO_TABLES:
+                    if fn in WIDE_MOBILE_READ_ALLOWED:
+                        continue
+                    if 'SupabaseClient.fetchList("%s"' % t in line and "like." in line:
+                        fail("৯.২০", "%s:%d — `%s` টেবিলে মোবাইল ধরে (`like.`) তালিকা পড়া হচ্ছে "
+                                     "`select=*` দিয়ে (ছবিসহ)। `fetchListSlim(` + সরু ঘর ব্যবহার করুন"
+                                     % (fn, n, t))
+                if "findByMobile" in line and '"*"' in line and fn not in WIDE_MOBILE_READ_ALLOWED:
+                    m = re.search(r'"\*"\s*,\s*(\d+)', line)
+                    if m and int(m.group(1)) >= 50:
+                        fail("৯.২০", "%s:%d — মোবাইল ধরে `\"*\"` (সব ঘর, ছবিসহ) %s সারি পর্যন্ত "
+                                     "পড়া হচ্ছে। সরু ঘরের তালিকা দিন" % (fn, n, m.group(1)))
+
+
+# ═══════════════════════════════════════════════════════════════
 #  যাচাই ৯.১১ — সংখ্যা সবসময় ইংরেজিতে
 #  🔒 TK-এর গ্লোবাল রুল (29.07.2026 সন্ধ্যা ৬.১০, খাতার সারি B93):
 #  *"সংখ্যা সব সময় ইংলিশেই হতে হবে। বাংলা অথবা হিন্দিতে হবে না।"*
@@ -1733,6 +1820,7 @@ def main():
     check_fake_layoutparams_class()   # 🔴🔴🔴 খাতার সারি B266-সংশোধন — ScrollView-এর নিজের LayoutParams নেই
     check_bare_number_input()         # 🔴🔴🔴 খাতার সারি B411 — একা TYPE_CLASS_NUMBER-এ কীবোর্ড না খোলার বাগ
     check_followup_cache_fields()     # 🏷️ V712 — জমানো তালিকায় কার্ডের ট্যাগের ঘর বাদ পড়েনি তো
+    check_no_wide_photo_reads()       # 📉 V715 — ছবিওয়ালা টেবিলে select=* তালিকা পড়া নিষেধ
     check_digits()
     check_locked_rules()
     check_hidden_spinner()
@@ -1759,6 +1847,7 @@ def main():
         ("৯.১৬", "ScrollView/HorizontalScrollView-এর ভুয়া .LayoutParams ডাকা হয়নি"),
         ("৯.১৭", "সংখ্যা-ঘরে একা TYPE_CLASS_NUMBER (কীবোর্ড না-খোলার ঝুঁকি) নেই"),
         ("৯.১৯", "Follow-up কার্ডের ট্যাগ জমানো তালিকাতেও লেখা হয় (Unexpected · RMP · ঠিকানা)"),
+        ("৯.২০", "ছবিওয়ালা টেবিলে (followups/patients/medical) select=* তালিকা পড়া নেই"),
         ("৯.১১", "সংখ্যা সবসময় ইংরেজিতে"),
         ("৯.১২", f"🚔 লক করা নিয়ম অক্ষত — {len(LOCKED_RULES)}টি + লুকানো Spinner-এর ফাঁদ"),
         ("৯.১৩", f"🧾 কাজের নিয়ম অক্ষত — {len(WORK_RULES)}টি + followups-এর আইডি + ব্রাঞ্চের encode"),
