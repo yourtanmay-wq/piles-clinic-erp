@@ -1215,7 +1215,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
             setPadding(symDp(14), symDp(10), symDp(14), symDp(10))
         }
         android.app.AlertDialog.Builder(this)
-            .setTitle(NoBengali.s("ছবির নাম"))
+            .setTitle(NoBengali.s("Picture name"))   /* 🔤 V728 */
             .setView(input)
             .setNegativeButton("Cancel", null)
             .setPositiveButton("Add") { _, _ ->
@@ -2269,7 +2269,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 Toast.makeText(this@DoctorCheckupActivity, NoBengali.s("মোছার মত কিছু নেই"), Toast.LENGTH_SHORT).show()
             } else {
                 android.app.AlertDialog.Builder(this@DoctorCheckupActivity)
-                    .setMessage("ছবির সব দাগ মুছে যাবে। মুছব?")
+                    .setMessage("All marks on the picture will be erased. Erase?")   /* 🔤 V728 */
                     .setNegativeButton("No", null)
                     .setPositiveButton("Yes") { _, _ -> view.clearMarks() }
                     // 🔴🔒 V610 (২৪.০৮.২০২৬) — V512-এর একই প্রমাণিত পথ।
@@ -2406,7 +2406,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
     private fun askDropPicture(pic: AnatomyModel.Picture,
                                strip: android.widget.LinearLayout, view: AnatomyView) {
         android.app.AlertDialog.Builder(this)
-            .setMessage("\"" + pic.label + "\" ছবিটা তালিকা থেকে সরাব?\n\n" +
+            .setMessage("\"" + pic.label + "\" — remove this picture from the list?\n\n" +
                         "ছবিটা মুছে যাবে না — পুরোনো চেক-আপে এর উপরে আঁকা থাকলে সেটা আগের মতোই দেখা যাবে।")
             .setNegativeButton("No", null)
             .setPositiveButton("Yes") { _, _ ->
@@ -2797,7 +2797,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         val view = target ?: anatomyView ?: return
         val all = listOf("নাম ছাড়াই") + (1..12).map { "${it}টা" }
         android.app.AlertDialog.Builder(this)
-            .setTitle("ঘড়ির কাঁটা অনুযায়ী জায়গা")
+            .setTitle("Clock position")   /* 🔤 V728 */
             .setItems(all.toTypedArray()) { d, which ->
                 view.pileLabel = if (which == 0) "" else all[which]
                 d.dismiss()

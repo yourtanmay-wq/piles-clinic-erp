@@ -1836,7 +1836,7 @@ class BriefingActivity : AppCompatActivity() {
         // dismiss হয়। ⛔ ডিলিট/Trash/অনুমতির আসল লজিক এক অক্ষরও বদলায়নি।
         val dlg = AlertDialog.Builder(this)
             .setCustomTitle(PremiumAlert.header(this, "Approve & Delete?"))
-            .setMessage(item.message + NoBengali.s("\n\n⚠️ অনুমোদন দিলে রেকর্ডটা Trash Bin-এ চলে যাবে (পরে ফেরানো যাবে)।"))
+            .setMessage(item.message + NoBengali.s("\n\n⚠️ If you approve, the record goes to the Trash Bin (it can be restored later).")   /* 🔤 V728 */)
             .setPositiveButton("Approve & Delete", null)
             .setNegativeButton("Cancel", null)
             .show().also { PremiumAlert.paint(it) }

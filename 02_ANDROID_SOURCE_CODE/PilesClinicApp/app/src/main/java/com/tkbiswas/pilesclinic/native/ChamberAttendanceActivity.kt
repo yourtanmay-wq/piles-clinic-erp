@@ -2504,7 +2504,7 @@ Thread {
         val dateDisplay = FollowUpModel.displayDate(selectedDate)
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setCustomTitle(PremiumAlert.header(this, "Reopen Chamber"))
-            .setMessage(NoBengali.s("এই দিনের ($dateDisplay, $br) চেম্বার আবার খুলবেন?"))
+            .setMessage(NoBengali.s("Reopen the chamber for this day ($dateDisplay, $br)?")   /* 🔤 V728 */)
             .setPositiveButton(NoBengali.s("Yes, reopen")) { _, _ ->
                 lifecycleScope.launch {
                     val ok = withContext(Dispatchers.IO) {
@@ -2534,7 +2534,7 @@ Thread {
         val dateDisplay = FollowUpModel.displayDate(selectedDate)
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setCustomTitle(PremiumAlert.header(this, "Request Reopen"))
-            .setMessage(NoBengali.s("এই দিনের ($dateDisplay, $br) চেম্বার আবার খোলার অনুরোধ Master-এর কাছে পাঠাবেন?"))
+            .setMessage(NoBengali.s("Send a request to the Master to reopen this day ($dateDisplay, $br)?")   /* 🔤 V728 */)
             .setPositiveButton(NoBengali.s("Yes, Send")) { _, _ ->
                 lifecycleScope.launch {
                     val ok = withContext(Dispatchers.IO) {
