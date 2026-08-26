@@ -149,11 +149,20 @@ class InvestigationAdviceActivity : AppCompatActivity() {
         // প্রিন্টের সব তথ্য ফোনেই আছে, ক্লাউডের কিছু লাগে না। সেভটা আগে
         // ফোনেই লেখা হয়, তারপর পিছনে ক্লাউডে যায়; না গেলে অপেক্ষমাণ
         // তালিকায় জমা থেকে নিজে থেকেই আবার যায়, তাই কিছু হারায় না।
-        Toast.makeText(this@InvestigationAdviceActivity, "Saved (${requested.size} test/s).", Toast.LENGTH_SHORT).show()
         val appCtx = applicationContext
+        val detailsStr = if (invRem.isNotBlank()) invRem else summary
+        /* 🟡🔒 V708 (২৬.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত) — TK-এর ছবিতে
+           ৩.১৭–৩.২১-এর মধ্যে **৫টা হুবহু এক Investigation**। কারণ: এই পর্দার
+           `Save` ও `Save & Print` — দুটো বোতামই এই একই ফাংশন ডাকে, আর সেভের
+           কোডে ডুপ্লিকেট যাচাই ছিল না। এখন আজকের হুবহু একই লেখা আগে থেকে
+           থাকলে Warning আসে: **Cancel** = সেভ হবে না · **OK** = তবুও সেভ।
+           ⛔ নেটের খরচ শূন্য (শুধু ফোনের জমা তালিকা দেখা হয়)।
+           ⛔ Toast · প্রিন্ট · সেভ — তিনটেই আগের মতোই, শুধু সিদ্ধান্তের পরে। */
+        DuplicateSaveGuard.run(this, pid, "Investigation", selectedStr, detailsStr) {
+        Toast.makeText(this@InvestigationAdviceActivity, "Saved (${requested.size} test/s).", Toast.LENGTH_SHORT).show()
         com.tkbiswas.pilesclinic.native.BackgroundWork.run {
             ClinicalCloudRepository.saveMedical(appCtx, pid, pname, "Investigation", selectedStr,
-                if (invRem.isNotBlank()) invRem else summary, createdBy)
+                detailsStr, createdBy)
         }
         if (openPrintAfter) {
             /* 🩸🔒 V596 (২৩.০৮.২০২৬, TK-অনুমোদিত ডেমো-ফটো দেখে): Blood Test এখন
@@ -165,6 +174,7 @@ class InvestigationAdviceActivity : AppCompatActivity() {
             com.tkbiswas.pilesclinic.print.InvestigationHtmlPrint.print(
                 this@InvestigationAdviceActivity, invRemarks())
         }
+        }   // 🟡 V708 — DuplicateSaveGuard.run ব্লকের শেষ
     }
 
     override fun onResume() {

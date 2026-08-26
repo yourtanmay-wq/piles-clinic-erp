@@ -13142,7 +13142,32 @@ function rxFillDefaults(){
   }catch(e){}
 }
 window["rxFillDefaults"]=rxFillDefaults;
-function saveMedicalRecord(id,type,selected,details){let p=patientById(id);if(!p)return toast('Patient not found');add('medical',{id:uid('med'),patientId:id,mobile:p.mobile,branch:p.branch,name:p.name,type,date:today(),selected:selected||'',details:details||'',createdBy:user.mobile});toast(type+' saved')}
+/* 🖥️🟡🔒 V708 (২৬.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত) — ফোনের
+   DuplicateSaveGuard-এর হুবহু একই নিয়ম কম্পিউটারেও:
+   আজকের দিনে একই রোগীর · একই ধরনের · **হুবহু একই লেখা** আগে থেকে জমা থাকলে
+   সতর্কবার্তা — **Cancel** = সেভ হবে না · **OK** = জেনেশুনে তবুও সেভ।
+   ⛔ নেটের একটাও নতুন অনুরোধ নয় — পর্দায় ইতিমধ্যে ধরা `load('medical')` থেকেই দেখা হয়।
+   ⛔ মিল না থাকলে (বা কিছু ভাঙলে) আগের মতোই সরাসরি সেভ — একটাও পুরোনো নিয়ম বদলায়নি। */
+function wlv1SameMedNorm(v){return String(v||'').trim().replace(/\s+/g,' ').toLowerCase()}
+function wlv1TodaysSameMedical(id,type,selected,details){
+  try{
+    if(!wlv1SameMedNorm(selected)&&!wlv1SameMedNorm(details))return null;
+    var d=today(),out=null;
+    load('medical').forEach(function(r){
+      if(String(r.patientId||'')!==String(id))return;
+      if(String(r.date||'').slice(0,10)!==d)return;
+      if(wlv1SameMedNorm(r.type)!==wlv1SameMedNorm(type))return;
+      if(wlv1SameMedNorm(r.selected)!==wlv1SameMedNorm(selected))return;
+      if(wlv1SameMedNorm(r.details)!==wlv1SameMedNorm(details))return;
+      out=r;
+    });
+    return out;
+  }catch(e){return null}
+}
+function saveMedicalRecord(id,type,selected,details){let p=patientById(id);if(!p)return toast('Patient not found');
+ var dup=wlv1TodaysSameMedical(id,type,selected,details);
+ if(dup&&!confirm('Already saved today\n\nThe same '+type+' is already saved for this patient today.\n\nCancel  -  do not save again (recommended)\nOK  -  save it anyway'))return;
+ add('medical',{id:uid('med'),patientId:id,mobile:p.mobile,branch:p.branch,name:p.name,type,date:today(),selected:selected||'',details:details||'',createdBy:user.mobile});toast(type+' saved')}
 window["saveMedicalRecord"]=saveMedicalRecord;
 /* WEB APP . Prescription / Medicine Slip extra buttons, same as the native
    screen: Save & Print and Share as Text (the native screen has Save,

@@ -149,8 +149,15 @@ class MedicineSlipActivity : AppCompatActivity() {
         val pid = RoleSession.currentPatientId
         val pname = RoleSession.currentPatientName
         val appCtx = applicationContext
-        com.tkbiswas.pilesclinic.native.BackgroundWork.run {
-            ClinicalCloudRepository.saveMedical(appCtx, pid, pname, "Medicine Slip", names, details, createdBy)
+        /* 🟡🔒 V708 — এখানে আগে থেকেই `lastSavedSlipSig` ছিল, কিন্তু সেটা শুধু
+           **এই পর্দা খোলা থাকা অবস্থায়** কাজ করত; পর্দা বন্ধ করে আবার খুললে
+           একই স্লিপ আবার জমা হতে পারত। এখন আজকের হুবহু একই লেখা আগে থেকে
+           থাকলে Warning আসে (Cancel = না · OK = তবুও)।
+           ⛔ পুরোনো `lastSavedSlipSig` পাহারাটা **তোলা হয়নি** — দুটোই থাকল। */
+        DuplicateSaveGuard.run(this, pid, "Medicine Slip", names, details) {
+            com.tkbiswas.pilesclinic.native.BackgroundWork.run {
+                ClinicalCloudRepository.saveMedical(appCtx, pid, pname, "Medicine Slip", names, details, createdBy)
+            }
         }
     }
 

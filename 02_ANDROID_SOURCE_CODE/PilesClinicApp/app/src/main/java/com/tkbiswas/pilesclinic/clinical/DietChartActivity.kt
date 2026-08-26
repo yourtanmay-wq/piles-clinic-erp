@@ -168,8 +168,10 @@ class DietChartActivity : AppCompatActivity() {
         // প্রিন্টের সব তথ্য ফোনেই আছে, ক্লাউডের কিছু লাগে না। সেভটা আগে
         // ফোনেই লেখা হয়, তারপর পিছনে ক্লাউডে যায়; না গেলে অপেক্ষমাণ
         // তালিকায় জমা থেকে নিজে থেকেই আবার যায়, তাই কিছু হারায় না।
-        Toast.makeText(this@DietChartActivity, "Diet chart saved (${selected.size} item/s).", Toast.LENGTH_SHORT).show()
         val appCtx = applicationContext
+        // 🟡🔒 V708 — Investigation-এর হুবহু একই পাহারা (উপরের ফাইলের ব্যাখ্যা দেখুন)।
+        DuplicateSaveGuard.run(this, pid, "Diet Chart", selectedStr, summary) {
+        Toast.makeText(this@DietChartActivity, "Diet chart saved (${selected.size} item/s).", Toast.LENGTH_SHORT).show()
         com.tkbiswas.pilesclinic.native.BackgroundWork.run {
             ClinicalCloudRepository.saveMedical(appCtx, pid, pname, "Diet Chart", selectedStr, summary, createdBy)
         }
@@ -183,5 +185,6 @@ class DietChartActivity : AppCompatActivity() {
             //    ঘরটা ফাঁকা থাকলে কাগজ হুবহু আগের মতোই ছাপে।
             com.tkbiswas.pilesclinic.print.DietChartHtmlPrint.print(this@DietChartActivity, dietRemarks())
         }
+        }   // 🟡 V708 — DuplicateSaveGuard.run ব্লকের শেষ
     }
 }
