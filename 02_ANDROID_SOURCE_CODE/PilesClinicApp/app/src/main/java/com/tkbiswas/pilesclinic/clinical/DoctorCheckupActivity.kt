@@ -715,7 +715,12 @@ class DoctorCheckupActivity : AppCompatActivity() {
 
         val tv = findViewById<TextView>(R.id.tvDoctorReminderDate)
         val tvTime = findViewById<TextView>(R.id.tvDoctorReminderTime)
-        tv.setOnClickListener {
+        /* 🔴🔒 V700 — আইকনটা এখন লেখার পাশে নিজের ঘরে, তাই চাপ ধরার কাজটা
+           **বাইরের বাক্সটা** করে (নইলে আইকনের উপরে চাপ দিলে কিছুই হত না)।
+           লেখা বদলানো আগের মতোই `tv`/`tvTime`-এ। */
+        val dateBox = findViewById<android.view.View>(R.id.boxDoctorReminderDate)
+        val timeBox = findViewById<android.view.View>(R.id.boxDoctorReminderTime)
+        dateBox.setOnClickListener {
             val cal = java.util.Calendar.getInstance()
             if (doctorReminderDateIso.isNotBlank()) {
                 try {
@@ -739,7 +744,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         }
         // 🟢🔒 V671 — নতুন সময়-বাছাই (ঘড়ি), তারিখের একই প্যাটার্নে।
         // ⛔ TK-নিয়ম: "কোনোটাই বাধ্যতামূলক নয়" — তাই কোনো ভ্যালিডেশন নেই।
-        tvTime.setOnClickListener {
+        timeBox.setOnClickListener {
             val cal = java.util.Calendar.getInstance()
             if (doctorReminderTimeStr.isNotBlank()) {
                 try {
@@ -785,8 +790,14 @@ class DoctorCheckupActivity : AppCompatActivity() {
         btn.setOnClickListener {
             originalParent.removeView(card)
             card.visibility = android.view.View.VISIBLE
-            val headRow1 = findViewById<TextView?>(R.id.tvDoctorReminderHeading)
-            val headRow2 = findViewById<TextView?>(R.id.tvDoctorReminderHeadingText)
+            /* 🔴🔒 V700 (২৬.০৮.২০২৬, TK-এর ছবিতে ধরা — শিরোনাম দুবার দেখাচ্ছিল)।
+               **আসল কারণ:** ঠিক উপরের লাইনে কার্ডটা পর্দা থেকে **খুলে নেওয়া
+               হয়** (`removeView`), তার পরে `findViewById(...)` ডাকলে
+               Activity-র গাছে ওই ঘরগুলো আর **থাকেই না** — তাই `null` ফিরত,
+               আর শিরোনামটা কখনো লুকাত না। ⇒ এখন কার্ডের নিজের ভিতরেই খোঁজা
+               হয় (`card.findViewById`)। */
+            val headRow1 = card.findViewById<TextView?>(R.id.tvDoctorReminderHeading)
+            val headRow2 = card.findViewById<TextView?>(R.id.tvDoctorReminderHeadingText)
             headRow1?.visibility = android.view.View.GONE
             headRow2?.visibility = android.view.View.GONE
             val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
@@ -794,7 +805,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
                     com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "🩺 Doctor Note & Reminder")
                 )
                 .setView(card)
-                .setPositiveButton("\uD83D\uDCBE Save") { _, _ -> saveDoctorReminderNow() }
+                .setPositiveButton("\uD83D\uDCBE Save") { _, _ -> saveDoctorReminderNow(card) }
                 .setNegativeButton("Close", null)
                 .create()
             dlg.setOnDismissListener {
@@ -817,9 +828,17 @@ class DoctorCheckupActivity : AppCompatActivity() {
      * ⛔ চেক-আপের বাকি কিছুই এখানে সেভ হয় না — শুধু এই তিনটে ঘর।
      * ⛔ রোগীর id না জানা গেলে কিছুই লেখা হয় না (ভুল সারিতে লেখার ঝুঁকি নেই)।
      */
-    private fun saveDoctorReminderNow() {
-        val note = findViewById<android.widget.EditText>(R.id.etDoctorReminderNote)
-            .text?.toString().orEmpty().trim()
+    private fun saveDoctorReminderNow(card: android.view.View) {
+        /* 🔴🔒 V700 — একই ফাঁদ, আরও মারাত্মক জায়গায়: পপ-আপ খোলা থাকা মানে
+           কার্ডটা Activity-র গাছ থেকে খোলা। তখন `findViewById(...)` **null**
+           ফেরাত, আর Save চাপলে অ্যাপ **বন্ধ হয়ে যেত (crash)**। এখন কার্ডের
+           নিজের ভিতর থেকেই নেওয়া হয়। */
+        val noteBox = card.findViewById<android.widget.EditText?>(R.id.etDoctorReminderNote)
+        if (noteBox == null) {
+            Toast.makeText(this, NoBengali.s("সেভ হয়নি — নিচের SAVE চাপুন"), Toast.LENGTH_LONG).show()
+            return
+        }
+        val note = noteBox.text?.toString().orEmpty().trim()
         val dateIso = doctorReminderDateIso
         val timeStr = doctorReminderTimeStr
         if (note.isBlank() && dateIso.isBlank() && timeStr.isBlank()) {

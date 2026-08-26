@@ -381,15 +381,41 @@
                     <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="ইচ্ছেমতো" android:textStyle="bold" android:textSize="10.5sp" android:textColor="#8A93A0" />
                 </LinearLayout>
+<!-- 🔴🔒 V700 (২৬.০৮.২০২৬, TK-এর ছবিতে ধরা — আইকন লেখার **উপরে** বসে
+                     গিয়েছিল)। আসল কারণ: আইকনটা ঘরের ব্যাকগ্রাউন্ডে (layer-list) আঁকা
+                     ছিল, আর লেখাটা সরানোর জন্য দেওয়া `paddingStart` স্টাইলের
+                     `android:padding`-এর সাথে লড়ে হেরে যাচ্ছিল — ফলে লেখা একদম বাঁ
+                     প্রান্ত থেকেই শুরু হত, আইকনের গায়ে।
+                     ⇒ এখন আইকন আর ব্যাকগ্রাউন্ডে নয়, **নিজের ImageView**-তে, লেখার
+                       পাশে বসানো। দুটো আলাদা ঘর বলে গায়ে লাগার সুযোগই নেই। -->
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="4dp">
-                    <TextView android:id="@+id/tvDoctorReminderDate" style="@style/DocNoteInputSingle"
-                        android:layout_width="0dp" android:layout_weight="1"
-                        android:background="@drawable/bg_input_field_date" android:paddingStart="36dp" android:paddingEnd="36dp"
-                        android:text="তারিখ বাছুন" android:textColor="#8A93A0" android:clickable="true" android:focusable="true" />
-                    <TextView android:id="@+id/tvDoctorReminderTime" style="@style/DocNoteInputSingle"
-                        android:layout_width="0dp" android:layout_weight="1" android:layout_marginStart="8dp"
-                        android:background="@drawable/bg_input_field_time" android:paddingStart="36dp" android:paddingEnd="36dp"
-                        android:text="সময় বাছুন" android:textColor="#8A93A0" android:clickable="true" android:focusable="true" />
+                    <LinearLayout android:id="@+id/boxDoctorReminderDate"
+                        android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                        android:orientation="horizontal" android:gravity="center_vertical"
+                        android:background="@drawable/bg_input_field_picker"
+                        android:paddingStart="11dp" android:paddingEnd="34dp" android:paddingTop="9dp" android:paddingBottom="9dp"
+                        android:clickable="true" android:focusable="true">
+                        <ImageView android:layout_width="16dp" android:layout_height="16dp" android:layout_marginEnd="8dp"
+                            android:src="@drawable/ic_pd_calendar_green" android:contentDescription="@null" />
+                        <TextView android:id="@+id/tvDoctorReminderDate"
+                            android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                            android:maxLines="1" android:ellipsize="end"
+                            android:textSize="14.5sp" android:text="তারিখ বাছুন" android:textColor="#8A93A0" />
+                    </LinearLayout>
+                    <LinearLayout android:id="@+id/boxDoctorReminderTime"
+                        android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                        android:layout_marginStart="8dp"
+                        android:orientation="horizontal" android:gravity="center_vertical"
+                        android:background="@drawable/bg_input_field_picker"
+                        android:paddingStart="11dp" android:paddingEnd="34dp" android:paddingTop="9dp" android:paddingBottom="9dp"
+                        android:clickable="true" android:focusable="true">
+                        <ImageView android:layout_width="16dp" android:layout_height="16dp" android:layout_marginEnd="8dp"
+                            android:src="@drawable/ic_pd_clock" android:contentDescription="@null" />
+                        <TextView android:id="@+id/tvDoctorReminderTime"
+                            android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                            android:maxLines="1" android:ellipsize="end"
+                            android:textSize="14.5sp" android:text="সময় বাছুন" android:textColor="#8A93A0" />
+                    </LinearLayout>
                 </LinearLayout>
                 <TextView android:id="@+id/tvDoctorReminderHelp" android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:layout_marginTop="12dp" android:background="@drawable/bg_brief_infobox"
