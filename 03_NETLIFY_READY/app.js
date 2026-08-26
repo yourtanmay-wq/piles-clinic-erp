@@ -6831,7 +6831,13 @@ function wlv1SaveRemarkNow(id,r){wlv1PendingRemark={id:'',text:''};let x=load('f
  try{ if(x&&x.mobile) wlv1RemarkPendingRemove(x.mobile) }catch(_e){}if(x?.nextFollow===today())patch.nextFollow='';updateFollowAction(id,patch,{date:today(),time:isoNow(),remark:r,staff:user.name,nextFollow:patch.nextFollow??(x?.nextFollow||''),status:'Called'},x?.stage);nextFollowDate(id)}
 window["wlv1SaveRemarkNow"]=wlv1SaveRemarkNow;function nextFollowDate(id){
       let x=load('followups').find(a=>a.id===id);
-      modal(`<h2>Next Follow-up Date</h2><label>Select Date</label><input id="fd" type="date" class="input" value="${x?.nextFollow&&x.nextFollow>=today()?x.nextFollow:''}" min="${today()}" onclick="try{this.showPicker&&this.showPicker()}catch(e){}" onfocus="try{this.showPicker&&this.showPicker()}catch(e){}"><div class="actions"><button onclick="saveNextFollow('${id}')">Save Date</button><button class="ghost" onclick="saveNextFollow('${id}')">Skip</button></div>`)
+      modal(`<h2>Next Follow-up Date</h2><label>Select Date</label><input id="fd" type="date" class="input" value="${x?.nextFollow&&x.nextFollow>=today()?x.nextFollow:''}" min="${today()}" onclick="try{this.showPicker&&this.showPicker()}catch(e){}" onfocus="try{this.showPicker&&this.showPicker()}catch(e){}"><div class="actions"><button onclick="saveNextFollow('${id}')">Save Date</button><button class="ghost" onclick="saveNextFollow('${id}')">Skip</button></div>
+      <!-- 📵🔒 V711 (২৬.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত): TK — *"কোন পেশেন্ট
+           যখন কন্টিনিউ পেশেন্ট অথবা কন্টিনিউ ট্রিটমেন্ট করাচ্ছে, তাদেরকে আর ফোন না
+           করলেও চলে"*। ফোনের ক্যালেন্ডারের নিচের বোতামটার হুবহু যমজ।
+           ⛔ উপরের "Save Date" ও "Skip" — দুটোই এক অক্ষরও বদলায়নি।
+           ⛔ নতুন কোনো কলাম/SQL নয় — পরের তারিখ ফাঁকা করলেই অ্যাপ আর গোনে না। -->
+      <button class="ghost" style="width:100%;margin-top:10px;border:2px solid #C9B8F0;background:#F6F2FE;color:#5B3A9E;font-weight:800" onclick="wlv1NoMoreCalls('${id}')">📵 No more calls needed</button>`)
       setTimeout(()=>{let el=document.getElementById('fd');if(el)try{el.showPicker&&el.showPicker()}catch(e){}},60)
     }
 window.nextFollowDate=nextFollowDate;function saveNextFollow(id){
@@ -6849,6 +6855,19 @@ window.nextFollowDate=nextFollowDate;function saveNextFollow(id){
 
     }
 window.saveNextFollow=saveNextFollow;
+/* 📵🔒 V711 — "আর কল লাগবে না": পরের কলের তারিখ ফাঁকা করে দেওয়া হয়, তাই এই
+   রোগী আর কল-তালিকা বা ব্যানারে গোনা হন না। ফোনের `saveNoMoreCalls()`-এর যমজ।
+   ⛔ রোগীর কোনো তথ্য মোছা হয় না · টাকার হিসাবে হাত পড়ে না · ইতিহাস অক্ষত।
+   ⛔ ফেরানো সহজ: ➜ চেপে আবার একটা তারিখ দিলেই আগের মতোই ফিরে আসবেন। */
+function wlv1NoMoreCalls(id){
+  var x=load('followups').find(function(a){return a.id===id});
+  updateFollowAction(id,{nextFollow:'',lastRemark:(x&&x.lastRemark)||'No more calls needed'},
+    {date:today(),time:isoNow(),remark:'No more calls needed',staff:(user&&(user.name||user.mobile))||'',nextFollow:''},
+    x&&x.stage);
+  toast('Removed from the call list');
+  closeModal();
+}
+window["wlv1NoMoreCalls"]=wlv1NoMoreCalls;
 function saveFollow(id){return saveRemarkOnly(id)}
 window["saveFollow"]=saveFollow;
 function convertReg(id){let x=load('followups').find(a=>a.id===id);registration(x)}

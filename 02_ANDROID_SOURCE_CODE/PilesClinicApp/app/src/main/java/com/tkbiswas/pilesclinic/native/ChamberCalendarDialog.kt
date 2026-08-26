@@ -47,6 +47,13 @@ object ChamberCalendarDialog {
         chamberOnly: Boolean,
         initialIso: String?,
         mandatory: Boolean,
+        /* 📵🔒 V711 (২৬.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত) — TK: *"কোন
+           পেশেন্ট যখন কন্টিনিউ পেশেন্ট অথবা কন্টিনিউ ট্রিটমেন্ট করাচ্ছে, তাদেরকে
+           আর ফোন না করলেও চলে"*। এই ঘরটা দেওয়া থাকলে ক্যালেন্ডারের নিচে একটা
+           বাড়তি বোতাম আসে — "📵 No more calls needed"।
+           ⛔ ডিফল্ট `null`, তাই প্রজেক্টের **বাকি সব ডাক এক অক্ষরও বদলায়নি** —
+              যেখানে দেওয়া হয়নি সেখানে বোতামটা বসেই না। */
+        onNoMoreCalls: (() -> Unit)? = null,
         onPicked: (String) -> Unit
     ) {
         val iso = SimpleDateFormat("yyyy-MM-dd", Locale.US)
@@ -311,6 +318,30 @@ object ChamberCalendarDialog {
         }
         footer.addView(confirm)
         root.addView(footer)
+
+        /* 📵🔒 V711 — "আর কল লাগবে না" (শুধু যেখানে চাওয়া হয়েছে)।
+           ⛔ ক্যালেন্ডারের বাকি সব — তারিখ বাছা · Cancel · Set — এক অক্ষরও
+              বদলায়নি; এটা তাদের **নিচে** একটা আলাদা বোতাম। */
+        if (onNoMoreCalls != null) {
+            root.addView(TextView(context).apply {
+                text = "\uD83D\uDCF5  No more calls needed"
+                textSize = 13.5f
+                gravity = Gravity.CENTER
+                setTypeface(typeface, Typeface.BOLD)
+                setTextColor(Color.parseColor("#5B3A9E"))
+                setPadding(0, dp(12), 0, dp(12))
+                background = GradientDrawable().apply {
+                    cornerRadius = dp(11).toFloat()
+                    setStroke(dp(2), Color.parseColor("#C9B8F0"))
+                    setColor(Color.parseColor("#F6F2FE"))
+                }
+                isClickable = true; isFocusable = true
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+                ).also { it.topMargin = dp(10) }
+                setOnClickListener { dialog.dismiss(); onNoMoreCalls.invoke() }
+            })
+        }
 
         rebuild()
 

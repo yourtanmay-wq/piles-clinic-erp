@@ -1905,6 +1905,20 @@ class FollowUpActivity : AppCompatActivity() {
         // branch/disease tags, so no information is lost. Same pill colour,
         // same pill shape, same Patient ID text. The Enquiry card never had
         // them and is not touched.
+        /* 📵🔒 V711 (২৬.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত) — যাঁর পরের
+           কলের তারিখ ইচ্ছে করে তুলে দেওয়া হয়েছে, কার্ডে সেটা বোঝা যাওয়া দরকার।
+           **শর্ত দুটো:** পরের তারিখ ফাঁকা **এবং** আগে কখনো কল হয়েছিল
+           (`lastCallDate`) — তাই একদম নতুন, কখনো কল-না-হওয়া রেকর্ডে এটা বসে না।
+           ⛔ শুধু একটা লেখা — কোনো তথ্য/হিসাব/ছাঁকনি এতে বদলায় না। */
+        val noMoreCalls = item.nextFollow.isBlank() && item.lastCallDate.isNotBlank()
+        fun noCallChip(): android.widget.TextView = tv(NoBengali.s("📵 কল বন্ধ"), 9.5f, "#4B2E93", true).apply {
+            setPadding(dpx(8), dpx(3), dpx(8), dpx(3))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dpx(7).toFloat()
+                setColor(android.graphics.Color.parseColor("#EDE7FA"))
+                setStroke(dpx(1), android.graphics.Color.parseColor("#C9B8F0"))
+            }
+        }
         if (!isInquiry) {
             val idRow = ll(android.widget.LinearLayout.HORIZONTAL).apply {
                 gravity = android.view.Gravity.CENTER_VERTICAL
@@ -1929,6 +1943,13 @@ class FollowUpActivity : AppCompatActivity() {
                 idRow.addView(idOnRow)
                 TripleTapEdit.attach(idOnRow) { showEditDialog(item) }
             }
+            // 📵 V711 — PATIENT/VISITED পিল ও আইডির পাশেই।
+            if (noMoreCalls) {
+                idRow.addView(noCallChip().apply {
+                    val p = android.widget.LinearLayout.LayoutParams(WRAP, WRAP)
+                    p.marginStart = dpx(8); layoutParams = p
+                })
+            }
             info.addView(idRow)
         }
         top.addView(info)
@@ -1936,6 +1957,10 @@ class FollowUpActivity : AppCompatActivity() {
         // right slot: badge / Visit-Advance / payment ring
         val right = ll(android.widget.LinearLayout.VERTICAL).apply { gravity = android.view.Gravity.CENTER_HORIZONTAL }
         val rlp = android.widget.LinearLayout.LayoutParams(WRAP, WRAP); rlp.marginStart = dpx(6); right.layoutParams = rlp
+        /* 📵 V711 — Enquiry কার্ডে তারিখ ফাঁকা থাকলে কোনো ব্যাজই আসত না
+           (`daysUntil` null), তাই ওই খালি জায়গাতেই চিপটা বসে। ⛔ Overdue /
+           Today Due / xd Due — তিনটে ব্যাজের একটাও ছোঁয়া হয়নি। */
+        if (isInquiry && noMoreCalls) right.addView(noCallChip())
         if (isInquiry) {
             val days = FollowUpModel.daysUntil(item.nextFollow)
             if (days != null) {
@@ -2525,13 +2550,50 @@ class FollowUpActivity : AppCompatActivity() {
                         this, item.branch, NoBengali.s("পরের ফোন কবে?"),
                         chamberOnly = false, initialIso = defaultIso, mandatory = mandatory
                     ) { iso -> saveNextFollowDate(item, iso, markExpected = false) }
-                }
+                },
+                // 📵 V711 — Enquiry-তে তৃতীয় বোতামটা এই বাছাইয়ের পর্দাতেই (ডেমো অনুযায়ী)
+                onNoMoreCalls = { saveNoMoreCalls(item) }
             )
         } else {
+            /* 📵🔒 V711 — Visit/Patient কার্ডে বাছাইয়ের পর্দা নেই (এক চাপেই
+               ক্যালেন্ডার খোলে, TK-এর পুরোনো নিয়ম)। তাই ওই এক চাপ বাঁচিয়ে
+               রেখে বোতামটা **ক্যালেন্ডারের নিচেই** বসে — কোনো বাড়তি ধাপ নেই।
+               ⛔ ক্যালেন্ডার · তারিখ বাছা · Set · Cancel — কিছুই বদলায়নি। */
             ChamberCalendarDialog.show(
                 this, item.branch, NoBengali.s("পরের আসার দিন"),
-                chamberOnly = false, initialIso = defaultIso, mandatory = mandatory
+                chamberOnly = false, initialIso = defaultIso, mandatory = mandatory,
+                onNoMoreCalls = { saveNoMoreCalls(item) }
             ) { iso -> saveNextFollowDate(item, iso, markExpected = true) }
+        }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       📵🔒 V711 (২৬.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত)
+
+       TK: *"কোন পেশেন্ট যখন কন্টিনিউ পেশেন্ট অথবা কন্টিনিউ ট্রিটমেন্ট করাচ্ছে,
+       তাদেরকে আর ফোন না করলেও চলে — সেটার ব্যবস্থা কীভাবে করা যায়"*।
+
+       ⛔ **নতুন কোনো কলাম বা SQL লাগেনি** — অ্যাপে নিয়মটা **আগে থেকেই আছে**:
+          পরের কলের তারিখ (`nextFollow`) ফাঁকা থাকলে ড্যাশবোর্ডের ব্যানার ও
+          Overdue — দুটোর কোনোটাই তাঁকে গোনে না
+          (`DashboardActivity.isDue`: `nextFollow.isNotBlank() && ...`)।
+          তাই এখানে শুধু তারিখটা **ফাঁকা করে দেওয়া হয়** — Supabase-এ খরচ
+          এক পয়সাও বাড়ে না।
+       ⛔ রোগীর কোনো তথ্য মোছা হয় না · টাকার হিসাবে হাত পড়ে না ·
+          পুরোনো Remark/ইতিহাস সব অক্ষত।
+       ⛔ ফেরানো সহজ: ➜ বোতামে চেপে আবার একটা তারিখ দিলেই তিনি আগের মতোই
+          কল-তালিকায় ফিরে আসবেন।
+       ═══════════════════════════════════════════════════════════════════════ */
+    private fun saveNoMoreCalls(item: FollowUpItem) {
+        android.widget.Toast.makeText(
+            this, NoBengali.s("ঠিক আছে — এঁকে আর কল-তালিকায় দেখাবে না"),
+            android.widget.Toast.LENGTH_SHORT
+        ).show()
+        BackgroundWork.run {
+            val ok = try { repository.updateNextFollow(resolveFollowUpId(item), "") } catch (_: Throwable) { false }
+            if (ok && !isFinishing && !isDestroyed) {
+                runOnUiThread { if (!isFinishing && !isDestroyed) loadTab(currentStage) }
+            }
         }
     }
 
@@ -2568,7 +2630,13 @@ class FollowUpActivity : AppCompatActivity() {
 
     /** Two-choice card for an Enquiry follow-up: আসবে (চেম্বারে) vs শুধু ফোন করব.
      *  Non-dismissable in the mandatory (post-remark) flow. */
-    private fun showComeOrCallChooser(mandatory: Boolean, onCome: () -> Unit, onCallOnly: () -> Unit) {
+    private fun showComeOrCallChooser(
+        mandatory: Boolean,
+        onCome: () -> Unit,
+        onCallOnly: () -> Unit,
+        // 📵 V711 — ডিফল্ট null, তাই পুরোনো কোনো ডাক ভাঙে না।
+        onNoMoreCalls: (() -> Unit)? = null
+    ) {
         val d = android.app.Dialog(this)
         d.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
         d.setCancelable(!mandatory)
@@ -2619,6 +2687,15 @@ class FollowUpActivity : AppCompatActivity() {
         // 🔒 B604 (TK-নির্দেশ): বিভ্রান্তিকর ⏰ (কিছু ফন্টে "Jul 17" আঁকে) বাদ।
         bigBtn(NoBengali.s("আসবে (চেম্বারে)"), NoBengali.s("চেম্বার-দিন বাছুন → একদিন আগে ফোন-রিমাইন্ডার"), true) { onCome() }
         bigBtn(NoBengali.s("📞 শুধু ফোন করব"), NoBengali.s("যেকোনো দিন → ওইদিনই ফোনের তারিখ"), false) { onCallOnly() }
+        /* 📵🔒 V711 — তৃতীয় বোতাম (TK-এর অনুমোদিত ডেমো অনুযায়ী)। উপরের দুটো
+           বোতাম **এক অক্ষরও বদলায়নি**। */
+        if (onNoMoreCalls != null) {
+            bigBtn(
+                NoBengali.s("📵 আর কল লাগবে না"),
+                NoBengali.s("চিকিৎসা চলছে — কল-তালিকা ও ব্যানার থেকে সরে যাবে"),
+                false
+            ) { onNoMoreCalls.invoke() }
+        }
         d.setContentView(root)
         d.window?.setBackgroundDrawableResource(android.R.color.transparent)
         d.window?.setLayout((resources.displayMetrics.widthPixels * 0.9f).toInt(), android.view.ViewGroup.LayoutParams.WRAP_CONTENT)
