@@ -807,7 +807,7 @@ class RegistrationActivity : AppCompatActivity() {
                 // এবং সিদ্ধান্তটা তাঁর হাতে দেওয়া হয়। ⛔ কিছুই আটকানো হয়নি — তিনি
                 // চাইলে আগের মতোই সেভ করতে পারবেন।
                 AlertDialog.Builder(this@RegistrationActivity)
-                    .setCustomTitle(PremiumAlert.header(this@RegistrationActivity, "⚠️ যাচাই করা গেল না"))
+                    .setCustomTitle(PremiumAlert.header(this@RegistrationActivity, "⚠️ Could not be checked")   /* 🔤 V726 */)
                     .setMessage(
                         "নেট ঠিকমতো কাজ করছে না, তাই এই নম্বরটা আগে থেকে রেজিস্টার করা আছে কিনা দেখা গেল না।\n\n" +
                         "এখনই সেভ করলে একই রোগীর দ্বিতীয় রেকর্ড তৈরি হয়ে যেতে পারে।\n\n" +
@@ -1000,7 +1000,7 @@ class RegistrationActivity : AppCompatActivity() {
         btnDifferent.visibility = android.view.View.VISIBLE
         btnDifferent.setOnClickListener {
             AlertDialog.Builder(this)
-                .setCustomTitle(PremiumAlert.header(this, "নতুন আলাদা রোগী?"))
+                .setCustomTitle(PremiumAlert.header(this, "A new, separate patient?")   /* 🔤 V726 */)
                 .setMessage(
                     "এই মোবাইল নম্বরটা ইতিমধ্যে " +
                         duplicate.name.ifBlank { "একজন রোগীর" } +

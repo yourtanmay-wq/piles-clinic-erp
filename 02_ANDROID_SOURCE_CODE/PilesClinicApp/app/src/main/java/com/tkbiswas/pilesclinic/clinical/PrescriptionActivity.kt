@@ -136,7 +136,7 @@ class PrescriptionActivity : AppCompatActivity() {
                 ClinicalCloudRepository.SameDayPrescriptionCheck.EXISTS -> {
                     AlertDialog.Builder(this@PrescriptionActivity)
                         .setTitle("Prescription already saved today")
-                        .setMessage("এই রোগীর আজ একটি Prescription সেভ হয়েছে। আপনি কি আবার Prescription করতে চান?")
+                        .setMessage("A Prescription has already been saved for this patient today. Do you want to make another one?")   /* 🔤 V726 */
                         .setNegativeButton("No") { _, _ -> saveInProgress = false }
                         .setPositiveButton("Yes") { _, _ -> commitPrescription(openPrintAfter, finishAfter) }
                         .setOnCancelListener { saveInProgress = false }
@@ -152,8 +152,8 @@ class PrescriptionActivity : AppCompatActivity() {
                 ClinicalCloudRepository.SameDayPrescriptionCheck.UNVERIFIED -> {
                     saveInProgress = false
                     AlertDialog.Builder(this@PrescriptionActivity)
-                        .setTitle("Prescription যাচাই করা যায়নি")
-                        .setMessage("ইন্টারনেট সংযোগ পরীক্ষা করে আবার Save করুন। কোনো Prescription সেভ হয়নি।")
+                        .setTitle("Prescription could not be verified")   /* 🔤 V726 */
+                        .setMessage("Check the internet connection and Save again. No Prescription was saved.")   /* 🔤 V726 */
                         .setPositiveButton("OK", null)
                         // 🔴🔒 V512: উপরেরটার হুবহু একই কারণ ও একই নিরাপত্তা।
                         .show().also { com.tkbiswas.pilesclinic.native.NoBengali.installDialog(it) }

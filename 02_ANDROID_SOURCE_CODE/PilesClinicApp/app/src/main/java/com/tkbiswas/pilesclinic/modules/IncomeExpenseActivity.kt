@@ -280,7 +280,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
             }
             val labels = yms.map { monthLabel(it) }.toTypedArray()
             androidx.appcompat.app.AlertDialog.Builder(this)
-                .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "মাস বাছুন"))
+                .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "Select Month")   /* 🔤 V726 */)
                 .setItems(labels) { _, which ->
                     month.tag = yms[which]; month.setText(labels[which]); reload()
                 }
@@ -1069,7 +1069,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
                 ModuleUi.toast(this, "Paid To — নাম লিখুন (শুধু সংখ্যা চলবে না)"); return@compactFooter
             }
             val amt = amount.text.toString().toDoubleOrNull() ?: 0.0
-            if (amt <= 0.0) { ModuleUi.toast(this, "Amount লিখুন"); return@compactFooter }
+            if (amt <= 0.0) { ModuleUi.toast(this, "Enter Amount")   /* 🔤 V726 */; return@compactFooter }
             /* 🟢🔒 V401: পুরনো তারিখের খরচ — মাস্টারের অনুমতি লাগবে। */
             val dNow = (dateInp.tag as? String) ?: startIso
             if (ieRestricted && !ieIsToday(dNow)) {
@@ -1113,7 +1113,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
             setOnClickListener {
                 val amtNow = amount.text.toString().toDoubleOrNull() ?: exp.optDouble("amount", 0.0)
                 androidx.appcompat.app.AlertDialog.Builder(this@IncomeExpenseActivity)
-                    .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this@IncomeExpenseActivity, "🗑️ এই খরচটি মুছবেন?"))
+                    .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this@IncomeExpenseActivity, "🗑️ Delete this expense?")   /* 🔤 V726 */)
                     .setMessage(
                         slashIso((dateInp.tag as? String) ?: startIso) + " · " + branch.selectedItem.toString() + "\n" +
                         ((cat.tag as? String) ?: "") + " · " + paidTo.text.toString() + "\n" +
@@ -1333,7 +1333,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
             .setNegativeButton("Cancel", null)
             .setPositiveButton("Save") { _, _ ->
                 val desired = input.text.toString().toDoubleOrNull() ?: 0.0
-                if (desired < 0.0) { ModuleUi.toast(this, "Amount লিখুন"); return@setPositiveButton }
+                if (desired < 0.0) { ModuleUi.toast(this, "Enter Amount")   /* 🔤 V726 */; return@setPositiveButton }
                 ModuleUi.toast(this, "Saving...")
                 Thread {
                     val bq = java.net.URLEncoder.encode(branch, "UTF-8").replace("+", "%20")
@@ -1425,7 +1425,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
             ).apply { rightMargin = dp(8) }
             if (!branchLocked) setOnClickListener {
                 androidx.appcompat.app.AlertDialog.Builder(this@IncomeExpenseActivity)
-                    .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this@IncomeExpenseActivity, "ব্রাঞ্চ বাছুন"))
+                    .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this@IncomeExpenseActivity, "Select Branch")   /* 🔤 V726 */)
                     .setItems(homeBranchItems) { _, which ->
                         homeBranch = homeBranchItems[which]
                         v398Remember(homeBranch)   // 🟢🔒 V398: সব পর্দার জন্য মনে রাখা
@@ -2663,7 +2663,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
                 ModuleUi.toast(this, "Category বাছুন অথবা Paid To-তে নাম লিখুন"); return@compactFooter
             }
             val amt = amount.text.toString().toDoubleOrNull() ?: 0.0
-            if (amt <= 0.0) { ieSaveBusy = false; ModuleUi.toast(this, "Amount লিখুন"); return@compactFooter }
+            if (amt <= 0.0) { ieSaveBusy = false; ModuleUi.toast(this, "Enter Amount")   /* 🔤 V726 */; return@compactFooter }
             val d = (date.tag as? String) ?: todayIso()
             val c = selectedCategory ?: "Other Expense"
             val p = if (selectedCategory != null) selectedCategory else paidTo.text.toString().trim()
