@@ -7738,3 +7738,31 @@ link বসে, তাই অন্য কার্ডের নাম দেখ
 **Scope:** শুধু `BriefingAdapter.kt`; Web-এর আগে থেকেই থাকা Seen-by modal,
 Notice/Reply/Approve/Delete, database ও অন্য কোনো কাজ বদলানো হয়নি।
 > 26.08.2026 — TK-এর বর্তমান নির্দেশে Income–Expense বাকি কাজ সম্পন্ন: আজকের Cash/Online এক-চাপ entry; আয়/মোটে Cash-Online chooser; ব্যয় সরাসরি selected-branch locked Add Expense; Category থাকলে Paid To লাগে না, Category না থাকলে Paid To নাম বাধ্যতামূলক; Full Ledger-এ শুধু compact full month-name, পুরনো duplicate header/branch/month-label বাদ, Back/Show নিচে স্থির ও ছোট। হিসাবের formula, পুরনো rows, RLS ও অন্যান্য screen অপরিবর্তিত। একই সেশনে Chamber Close: mandatory Review → Confirm Close → cloud/local retry close → optional Print; Staff Profile: branch-wise Staff → Doctors → Field, missing four doctors, verified Remove, Time Picker, collapsed Removed section। Guard সব পাশ; কোনো ZIP পাঠানো হয়নি।
+
+## V714 — ২৬.০৮.২০২৬ — Egress কমানোর প্ল্যান (TK-এর "২ নম্বর কাজ") · **কোড বদলায়নি**
+
+**TK-এর নির্দেশ:** *"সব ফোনে নতুন Apk আছে। আপনি ২ নম্বর কাজ এর প্লান করুন।
+সাবধানে যাচাই করে গভীরে গিয়ে।"*
+
+**মাপা তথ্য (TK-এর Usage পাতা):** Pro Plan · চক্র ২৪ অগাস্ট–২৪ সেপ্টেম্বর ·
+২৫০ GB ধরা · খরচ ১.২৫ GB · overage ০ · দৈনিক বার ~৫৬০ MB।
+⇒ মাসে ~১৫ GB, ফ্রি-র সীমা ৫ GB ⇒ **৩ গুণ কমাতে হবে (দিনে ~১৭০ MB)**।
+
+**সবচেয়ে দরকারি আবিষ্কার:** ২১–২২ অগাস্টে ছিল ৬৩৩ / ৫৭১ MB, আজ ~৫৬০ MB —
+অর্থাৎ V579 · V586 · V601 বসানোর পরেও সংখ্যাটা নামেনি। কোড পড়ে যা যা পাওয়া
+গেছে তার যোগফল দিনে মাত্র ~৪০ MB। ⇒ **আসল ফুটোটা এখনো পাওয়া যায়নি**, তাই
+এবার আন্দাজে কোড না বদলে **আগে সার্ভারের লগ থেকে মেপে** দেখা হবে।
+
+**তৈরি হলো:**
+· `V714_EGRESS_KOMANOR_PLAN_2026-08-26.md` — সম্পূর্ণ প্ল্যান, ৭টা সম্ভাব্য
+  জায়গা, প্রতিটার লাভ ও ঝুঁকিসহ; এক ধাপে একটাই বদল, তারপর ২ দিন মেপে দেখা।
+· `00_SQL/V714_EGRESS_MAPAR_QUERY.sql` — Supabase **Log Explorer**-এ কপি-পেস্ট
+  করার ৩টা query (কোন টেবিল কত বাইট · ফোন না ওয়েব · কোন ঘণ্টায়)। শুধু পড়ে,
+  কিছুই বদলায় না।
+
+**⚠️ TK-এর সিদ্ধান্ত লাগবে (পরে, মাপ আসার পরে):** বড় তালিকাগুলোয় তারিখের
+কোনো সীমা নেই — ২ বছর আগের সারিও প্রতিবার নামে। এটাই সম্ভবত সবচেয়ে বড় লাভ,
+কিন্তু "কত পুরনো পর্যন্ত তালিকায় দেখাতে হবে" সেটা ব্যবসার সিদ্ধান্ত।
+
+**Scope:** একটাও কোড ফাইল ছোঁয়া হয়নি; ভার্সন V712 অক্ষত; কোনো ZIP পাঠানো হয়নি।
+**এখনকার ঝুঁকি:** নেই — Pro-তে ২৫০ GB-র মধ্যে ১.২৫ GB, overage ০।
