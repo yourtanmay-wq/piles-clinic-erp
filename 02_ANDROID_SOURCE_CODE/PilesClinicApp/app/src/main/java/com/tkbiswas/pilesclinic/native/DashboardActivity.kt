@@ -898,7 +898,28 @@ class DashboardActivity : AppCompatActivity() {
             }
         }
         binding.btnSyncRetry.setOnClickListener(retry)
-        binding.syncWarnBanner.setOnClickListener(retry)
+        /* 🟢🔒 V706 (২৬.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত) — TK: *"কোন
+           পেশেন্ট এর পেমেন্ট আটকে রয়েছে সেটাই বা আমি জানবো কি করে"*।
+           ⇒ লাল বাক্সে **চাপ দিলে এখন তালিকা** খোলে (নাম · রোগী নম্বর · টাকা ·
+             তারিখ), আর তালিকার নিচেই "Send All" — সেটা হুবহু আগের `retry`-ই
+             চালায়, নতুন কোনো পাঠানোর পথ বানানো হয়নি।
+           ⛔ পাশের ছোট "send" বোতাম (`btnSyncRetry`) আগের মতোই সরাসরি পাঠায় —
+              এক অক্ষরও বদলায়নি, তাই পুরোনো অভ্যাস অটুট।
+           ⛔ দীর্ঘ-চাপের কাজটাও (নিচে, B274) অপরিবর্তিত।
+           ⛔ TK-নির্দেশ: *"বাংলা হবে না, শুধুমাত্র ইংরেজিতে করুন"* ⇒ এই
+              পপ-আপের প্রতিটা লেখা ইংরেজি। */
+        binding.syncWarnBanner.setOnClickListener {
+            lifecycleScope.launch {
+                val items = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    try { PendingSyncStatus.details(this@DashboardActivity) }
+                    catch (_: Throwable) { emptyList<PendingSyncStatus.Item>() }
+                }
+                if (isFinishing || isDestroyed) return@launch
+                // কিছু পড়া না গেলে আগের আচরণেই ফেরত — বোতামটা যেন কখনো "মরে" না যায়
+                if (items.isEmpty()) { retry.onClick(binding.syncWarnBanner); return@launch }
+                showPendingListDialog(items, retry)
+            }
+        }
         // 🔒🔒 B274 (02.08.2026, TK-অনুমোদিত): লাল বাক্সে **দীর্ঘ চাপ** দিলে
         // "যায়নি" (স্থায়ীভাবে ব্যর্থ) এন্ট্রিগুলো ছেড়ে দেওয়ার অপশন — শুধু তখনই
         // কাজ করে যখন সত্যিই কিছু "যায়নি" ঘরে আছে (`failedCount > 0`); সচল
@@ -920,6 +941,88 @@ class DashboardActivity : AppCompatActivity() {
                 .show().also { PremiumAlert.paint(it); try { NoBengali.installDialog(it) } catch (_: Throwable) { } }
             true
         }
+    }
+
+    /** 🟢🔒 V706 — "Not sent to the cloud" তালিকা। শুধু দেখায়; পাঠানোর কাজটা
+     *  পুরোনো `retry` listener-ই করে। সব লেখা ইংরেজি (TK-নির্দেশ)। */
+    private fun showPendingListDialog(
+        items: List<PendingSyncStatus.Item>,
+        retry: android.view.View.OnClickListener
+    ) {
+        val d = resources.displayMetrics.density
+        fun dp(v: Int) = (v * d).toInt()
+        val box = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(dp(4), dp(6), dp(4), dp(2))
+        }
+        for (it in items) {
+            val row = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                setPadding(dp(14), dp(9), dp(14), dp(9))
+            }
+            val left = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+                layoutParams = android.widget.LinearLayout.LayoutParams(
+                    0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            }
+            left.addView(android.widget.TextView(this).apply {
+                text = it.name
+                textSize = 13f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#10223A"))
+            })
+            val sub = listOf(it.kind, it.code, it.date).filter { p -> p.isNotBlank() }.joinToString(" · ")
+            left.addView(android.widget.TextView(this).apply {
+                text = sub
+                textSize = 11f
+                setTextColor(android.graphics.Color.parseColor("#5A6B80"))
+            })
+            if (it.why.isNotBlank()) {
+                left.addView(android.widget.TextView(this).apply {
+                    text = it.why
+                    textSize = 10.5f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    // টাকা পৌঁছে গেছে হলে হলুদ, টাকাই যায়নি হলে লাল
+                    val sent = it.why.startsWith("Money sent")
+                    setTextColor(android.graphics.Color.parseColor(if (sent) "#8A5A00" else "#A02A2A"))
+                    setPadding(dp(7), dp(1), dp(7), dp(1))
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        cornerRadius = dp(10).toFloat()
+                        setColor(android.graphics.Color.parseColor(if (sent) "#FFF6E5" else "#FDECEA"))
+                    }
+                    val lp = android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
+                    lp.topMargin = dp(3)
+                    layoutParams = lp
+                })
+            }
+            row.addView(left)
+            if (it.amount.isNotBlank()) {
+                row.addView(android.widget.TextView(this).apply {
+                    text = it.amount
+                    textSize = 13f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.parseColor("#0B4F2A"))
+                })
+            }
+            box.addView(row)
+            box.addView(android.view.View(this).apply {
+                layoutParams = android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT, dp(1))
+                setBackgroundColor(android.graphics.Color.parseColor("#EEF2F7"))
+            })
+        }
+        val scroll = android.widget.ScrollView(this).apply { addView(box) }
+        AlertDialog.Builder(this)
+            .setCustomTitle(PremiumAlert.header(this, "\u26A0 Not sent to the cloud - ${items.size}"))
+            .setView(scroll)
+            .setPositiveButton("Send All") { _, _ -> retry.onClick(binding.syncWarnBanner) }
+            .setNegativeButton("Close", null)
+            .show().also { dlg ->
+                PremiumAlert.paint(dlg)
+                try { NoBengali.installDialog(dlg) } catch (_: Throwable) { }
+            }
     }
 
     /** Notification bell: shows unseen-notice count and today's pending-call count.

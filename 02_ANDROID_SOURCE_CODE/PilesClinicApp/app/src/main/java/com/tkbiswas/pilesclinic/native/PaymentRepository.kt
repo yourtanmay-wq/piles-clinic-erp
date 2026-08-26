@@ -2025,7 +2025,13 @@ class PaymentRepository(private val context: Context? = null) {
      * flushPending()'s retry, so both paths do exactly the same thing. */
     private fun pushPaymentToCloud(
         patient: PatientBillInfo, effectiveBill: Double, paymentRow: JSONObject,
-        staffMobile: String, sameDayRepeat: Boolean = false
+        staffMobile: String, sameDayRepeat: Boolean = false,
+        /* 🟢🔒 V706 (২৬.০৮.২০২৬, TK-নির্দেশ) — TK: *"কোন পেশেন্ট এর পেমেন্ট আটকে
+           রয়েছে সেটাই বা আমি জানবো কি করে"*। এখানে **কিছুই বদলায়নি** — শুধু
+           কোন ধাপটা আটকাল সেটা ডাকনেওয়ালাকে জানানোর একটা ঐচ্ছিক বাক্স।
+           ⛔ ডিফল্ট `null`, তাই আগের দুটো ডাক (প্রথম চেষ্টা ও flushPending)
+              এক অক্ষরও না বদলেই চলে; টাকার হিসাব/return মান অপরিবর্তিত। */
+        whyOut: StringBuilder? = null
     ): Boolean {
         // 🔴🔴🔒 V663 (২৫.০৮.২০২৬) — একই বাগের দ্বিতীয়, সমান গুরুত্বপূর্ণ অংশ:
         // আগে এখানে `if (!patient.billLocked)` — billLocked থাকলে ক্লাউডে
@@ -2054,6 +2060,17 @@ class PaymentRepository(private val context: Context? = null) {
             }
         }
         val promoted = if (billUpdateOk && paymentOk) promoteFollowUpToTreatment(patient, staffMobile) else false
+        // 🟢🔒 V706 — শুধু লেখা হয়, কোনো সিদ্ধান্ত এর উপর নির্ভর করে না।
+        //    ইংরেজি (TK-নির্দেশ: "বাংলা হবে না, শুধুমাত্র ইংরেজিতে করুন")।
+        whyOut?.setLength(0)
+        whyOut?.append(
+            when {
+                !paymentOk -> "Money row not sent yet"
+                !billUpdateOk -> "Money sent - bill update pending"
+                !promoted -> "Money sent - patient card pending"
+                else -> ""
+            }
+        )
         return billUpdateOk && paymentOk && promoted
     }
 
@@ -2200,11 +2217,20 @@ class PaymentRepository(private val context: Context? = null) {
                     paid = 0.0,
                     billLocked = e.optBoolean("billLocked", false)
                 )
+                val why = StringBuilder()
                 val ok = pushPaymentToCloud(
                     patient, e.optDouble("effectiveBill", 0.0), paymentRow,
-                    e.optString("staffMobile"), e.optBoolean("sameDayRepeat", false)
+                    e.optString("staffMobile"), e.optBoolean("sameDayRepeat", false), why
                 )
-                if (!ok) stillPending.put(e) else activateRmpCommissionAfterCloud(patient)
+                if (!ok) {
+                    /* 🟢🔒 V706 — কেন আটকাল সেটা এই ফোনের তালিকার সারিতেই লিখে
+                       রাখা, যাতে Dashboard-এর তালিকায় দেখা যায়।
+                       ⛔ এটা শুধু ফোনের ভিতরের একটা বাড়তি ঘর — ক্লাউডে যায় না,
+                          `pushPaymentToCloud` এই ঘরটা পড়েও না, তাই টাকার
+                          হিসাবে বা পাঠানোর নিয়মে কোনো প্রভাব নেই। */
+                    try { if (why.isNotEmpty()) e.put("lastWhy", why.toString()) } catch (_: Throwable) { }
+                    stillPending.put(e)
+                } else activateRmpCommissionAfterCloud(patient)
             } catch (_: Throwable) {
                 stillPending.put(e)
             }
