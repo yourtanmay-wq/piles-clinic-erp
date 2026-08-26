@@ -166,7 +166,7 @@ class ExpectedTomorrowActivity : AppCompatActivity() {
                         for (idx in items.indices) {
                             val m = items[idx].mobile.filter { it.isDigit() }.takeLast(10)
                             val fr = byMobile[m] ?: continue
-                            val remark = fr.optString("lastRemark", "")
+                            val remark = fr.s("lastRemark")   // 🔴🔒 V696
                             items[idx] = items[idx].copy(
                                 disease = fr.optString("disease", ""),
                                 address = fr.optString("address", ""),
@@ -233,7 +233,7 @@ class ExpectedTomorrowActivity : AppCompatActivity() {
                 val o = arr.getJSONObject(i)
                 list.add(ExpectedItem(
                     o.optString("name", ""), o.optString("mobile", ""),
-                    o.optString("disease", ""), o.optString("address", ""), o.optString("remark", ""),
+                    o.s("disease"), o.s("address"), o.s("remark"),   // 🔴🔒 V696
                     o.optString("lastCallDate", "")
                 ))
             }

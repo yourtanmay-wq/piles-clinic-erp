@@ -148,7 +148,7 @@ object DialerRepository {
             val rows = SupabaseClient.fetchListSlimOrNull(
                 "call_remarks", "mobile=eq.$digits", 1, "remark", order = "calledAt.desc"
             ) ?: return ""
-            if (rows.length() == 0) "" else rows.getJSONObject(0).optString("remark", "")
+            if (rows.length() == 0) "" else rows.getJSONObject(0).s("remark")   // 🔴🔒 V696
         } catch (_: Throwable) { "" }
     }
 
@@ -168,7 +168,7 @@ object DialerRepository {
             for (i in 0 until rows.length()) {
                 val r = rows.optJSONObject(i) ?: continue
                 val m = r.optString("mobile")
-                if (m.isNotBlank() && !out.containsKey(m)) out[m] = r.optString("remark", "")
+                if (m.isNotBlank() && !out.containsKey(m)) out[m] = r.s("remark")   // 🔴🔒 V696
             }
             out
         } catch (_: Throwable) { emptyMap() }

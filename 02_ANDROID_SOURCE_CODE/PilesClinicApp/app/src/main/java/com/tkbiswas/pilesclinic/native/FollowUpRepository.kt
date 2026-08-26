@@ -149,7 +149,7 @@ class FollowUpRepository(private val context: Context? = null) {
             for (i in 0 until (row.optJSONArray("history")?.length() ?: 0)) {
                 val h = row.optJSONArray("history")?.optJSONObject(i) ?: continue
                 val hs = h.optString("status", "").trim().lowercase()
-                val remark = h.optString("remark", "").trim().lowercase()
+                val remark = h.s("remark").trim().lowercase()   // 🔴🔒 V696
 
                 val activeDecision = hs in setOf("active", "restored", "continued", "continue") ||
                     remark.startsWith("restored & moved to") ||
@@ -453,7 +453,7 @@ class FollowUpRepository(private val context: Context? = null) {
                     FollowUpItem(
                         id = r.optString("id", ""), name = r.optString("name", ""), mobile = r.optString("mobile", ""),
                         branch = r.optString("branch", ""), disease = r.optString("disease", ""), stage = r.optString("stage", ""),
-                        lastRemark = r.optString("lastRemark", ""), nextFollow = r.optString("nextFollow", ""),
+                        lastRemark = r.s("lastRemark"), nextFollow = r.s("nextFollow"),   // 🔴🔒 V696
                         recordDate = r.optString("recordDate", ""), callCount = r.optInt("callCount", 0),
                         createdAt = r.optString("createdAt", ""),   // 🔒 খাতার সারি B65
                         bill = r.optDouble("bill", 0.0), paid = r.optDouble("paid", 0.0),
@@ -2651,7 +2651,7 @@ class FollowUpRepository(private val context: Context? = null) {
             if (remark.isBlank()) true
             else {
                 val back = SupabaseClient.fetchList("followups", "id=eq.$id", 1)
-                back.length() > 0 && back.getJSONObject(0).optString("lastRemark") == remark
+                back.length() > 0 && back.getJSONObject(0).s("lastRemark") == remark   // 🔴🔒 V696
             }
         } catch (_: Exception) { false }
         if (!reallySaved) queueFieldUpdate(id, fields)
@@ -2778,7 +2778,7 @@ class FollowUpRepository(private val context: Context? = null) {
                 val done = when (kind) {
                     "patient" -> markPatientDoctorCompleteByMobile(mob)
                     "followup_stage" -> closeSiblingFollowUpsInternal(
-                        mob, stage, "", status, e.optString("remark"), e.optString("staffName"), false
+                        mob, stage, "", status, e.s("remark"), e.s("staffName"), false   // 🔴🔒 V696
                     )
                     else -> markEnquiryClosedByMobile(mob, status)
                 }

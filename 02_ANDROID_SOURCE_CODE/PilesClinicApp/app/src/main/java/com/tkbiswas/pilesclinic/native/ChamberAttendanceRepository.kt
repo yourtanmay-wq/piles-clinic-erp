@@ -300,7 +300,7 @@ object ChamberAttendanceRepository {
                         feesCash = r.optDouble("feesCash", 0.0), feesOnline = r.optDouble("feesOnline", 0.0),
                         paymentCash = r.optDouble("paymentCash", 0.0), paymentOnline = r.optDouble("paymentOnline", 0.0),
                         medicineCash = r.optDouble("medicineCash", 0.0), medicineOnline = r.optDouble("medicineOnline", 0.0),   // 🟢🔒 V612 (পুরোনো cache-এ নেই ⇒ 0.0)
-                        remark = r.optString("remark", ""),
+                        remark = r.s("remark"),   // 🔴🔒 V696 — জমানো cache-এ "null" ঢুকে থাকলেও পরের বার নিজেই সেরে যায়
                         whatHappened = r.optJSONArray("whatHappened")?.let { arr -> (0 until arr.length()).map { arr.getString(it) } } ?: emptyList(),
                         followUpId = r.optString("followUpId", ""), patientId = r.optString("patientId", ""),
                         arrivedAt = r.optString("arrivedAt", ""), refDoctor = r.optString("refDoctor", ""),
@@ -975,7 +975,14 @@ object ChamberAttendanceRepository {
             // `progress` নিয়ে আসে (writeTreatment-এর syncProgressToReportCard
             // এটা বসায়), সেটাই এই বোর্ডের "remark" — ফোন-কল কখনো এই ঘর
             // লেখে না, তাই এখানে এলে সত্যিই আজকের চেম্বার-নোট।
-            val progressToday = row.optString("progress", "")
+            // 🔴🔒 V696 (২৬.০৮.২০২৬, TK-এর ছবিতে ধরা — SERINA KHATTON-এর সারিতে
+            //   TREATMENT PROGRESS-এ লেখা ছিল **"null"**)। আসল কারণ:
+            //   `payments.progress` ঘরটা ফাঁকা (SQL NULL) হলে org.json-এর
+            //   `optString()` **"null" লেখাটাই** ফেরত দেয় — আর সেটা
+            //   `isNotBlank()` পাশ করে যাওয়ায় আসল লেখা ভেবে বসে যেত।
+            //   ⛔ এই ফাঁদের জন্যই `JsonExt.s()` বানানো ছিল, এখানে ব্যবহার
+            //      হয়নি। ঠিক উপরের লাইনেই `row.s("mobile")` আছে।
+            val progressToday = row.s("progress")
             if (progressToday.isNotBlank()) {
                 entry["remark"] = progressToday
                 // 🔴🔒 V687 — এই payments সারিই এই বোর্ডের নিজের `date`-এর

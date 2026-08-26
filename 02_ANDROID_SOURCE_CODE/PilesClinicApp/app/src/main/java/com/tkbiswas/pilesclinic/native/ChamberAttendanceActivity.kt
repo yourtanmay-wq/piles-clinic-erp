@@ -2993,8 +2993,14 @@ Thread {
             // ⛔ এই একই sentinel টেক্সট প্রজেক্টের অন্য কোথাও (Draft/Follow-up
             // কার্ড, PatientModel.kt) ব্যবহার হয় — সেসব জায়গার প্রদর্শন এতটুকু
             // ছোঁয়া হয়নি, শুধু এই একটা "Treatment Progress" কলামের রঙ/লেখা।
-            val isAutoStubRemark = r.remark.trim().equals("Registered patient / Visit created", ignoreCase = true)
-            val treatText = if (isAutoStubRemark) NoBengali.s("কিছু লেখা হয়নি — চাপুন") else r.remark.trim().ifBlank { "—" }
+            /* 🔴🔒 V696 (২৬.০৮.২০২৬, TK-এর ছবিতে ধরা) — **শেষ পাহারা।**
+               আসল দোষটা উৎসেই সারানো হয়েছে (`ChamberAttendanceRepository`-তে
+               `row.s("progress")`), কিন্তু যাঁদের ফোনে আগের বিল্ডের জমানো
+               তালিকায় ইতিমধ্যেই "null" লেখাটা ঢুকে গেছে, তাঁদের পর্দাতেও যেন
+               ওটা আর না দেখায় — তাই এখানেও ফাঁকা ধরা হয়। */
+            val rawRemark = r.remark.trim().let { if (it.equals("null", ignoreCase = true)) "" else it }
+            val isAutoStubRemark = rawRemark.equals("Registered patient / Visit created", ignoreCase = true)
+            val treatText = if (isAutoStubRemark) NoBengali.s("কিছু লেখা হয়নি — চাপুন") else rawRemark.ifBlank { "—" }
             // 🟢🔒🔒 V654 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবিসহ — "গত দিনের ট্রিটমেন্ট
             // প্রগ্রেস যেন হাইড থাকে... আজকে যেটা লিখব সেটা যেন উজ্জ্বল থাকে")
             // — আসল কারণ (আগের V535-এর একই সমস্যা, আজকের বোর্ডে): `remark`
@@ -3006,9 +3012,9 @@ Thread {
             // ⛔ লেখা/সেভ/এডিট — কিছুই বদলায়নি, শুধু রং।
             val today = FollowUpModel.today()
             val isFromToday = r.remarkUpdatedAt.take(10) == today
-            val hasRealRemark = r.remark.isNotBlank() && !isAutoStubRemark
+            val hasRealRemark = rawRemark.isNotBlank() && !isAutoStubRemark
             val treatColor = when {
-                r.remark.isBlank() || isAutoStubRemark -> "#C47B00"
+                rawRemark.isBlank() || isAutoStubRemark -> "#C47B00"
                 hasRealRemark && isFromToday -> "#0B4F2A"       // আজকের — গাঢ়, উজ্জ্বল সবুজ
                 else -> "#9AA4B2"                                // আগের দিনের — হালকা ধূসর
             }

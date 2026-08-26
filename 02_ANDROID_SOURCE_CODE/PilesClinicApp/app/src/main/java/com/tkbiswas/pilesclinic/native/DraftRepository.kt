@@ -161,7 +161,7 @@ class DraftRepository(private val context: Context? = null) {
                     disease = r.optString("disease", ""), stage = r.optString("stage", ""),
                     patientId = r.optString("patientId", ""), id = r.optString("id", ""),
                     tab = r.optString("tab", ""), recordDate = r.optString("recordDate", ""),
-                    nextFollow = r.optString("nextFollow", ""), lastRemark = r.optString("lastRemark", ""),
+                    nextFollow = r.s("nextFollow"), lastRemark = r.s("lastRemark"),   // 🔴🔒 V696
                     createdByMobile = r.optString("createdByMobile", "")
                 )
             )
