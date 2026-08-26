@@ -1905,20 +1905,14 @@ class FollowUpActivity : AppCompatActivity() {
         // branch/disease tags, so no information is lost. Same pill colour,
         // same pill shape, same Patient ID text. The Enquiry card never had
         // them and is not touched.
-        /* 📵🔒 V711 (২৬.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত) — যাঁর পরের
-           কলের তারিখ ইচ্ছে করে তুলে দেওয়া হয়েছে, কার্ডে সেটা বোঝা যাওয়া দরকার।
-           **শর্ত দুটো:** পরের তারিখ ফাঁকা **এবং** আগে কখনো কল হয়েছিল
-           (`lastCallDate`) — তাই একদম নতুন, কখনো কল-না-হওয়া রেকর্ডে এটা বসে না।
-           ⛔ শুধু একটা লেখা — কোনো তথ্য/হিসাব/ছাঁকনি এতে বদলায় না। */
-        val noMoreCalls = item.nextFollow.isBlank() && item.lastCallDate.isNotBlank()
-        fun noCallChip(): android.widget.TextView = tv(NoBengali.s("📵 কল বন্ধ"), 9.5f, "#4B2E93", true).apply {
-            setPadding(dpx(8), dpx(3), dpx(8), dpx(3))
-            background = android.graphics.drawable.GradientDrawable().apply {
-                cornerRadius = dpx(7).toFloat()
-                setColor(android.graphics.Color.parseColor("#EDE7FA"))
-                setStroke(dpx(1), android.graphics.Color.parseColor("#C9B8F0"))
-            }
-        }
+        /* 📵🔒 V718 (২৬.০৮.২০২৬, TK-নির্দেশ — লাইভে ধরা):
+           V711-এ কার্ডে "📵 কল বন্ধ" লেখাটা বসানো হয়েছিল, শর্ত ছিল
+           "পরের তারিখ ফাঁকা + আগে কল হয়েছে"। **সেটা ভুল ছিল** — যে রোগীর
+           পরের তারিখটা এখনো বসানোই হয়নি, তাঁর কার্ডেও লেখাটা উঠত
+           (TK-এর ছবি: MOKIM · MUZAFFAR HUSSAIN)।
+           TK-এর সিদ্ধান্ত: *"সিস্টেমে ওটা দেখানোরও দরকার নেই, লুকিয়ে থাকলেও
+           চলবে"* ⇒ **লেখাটা পুরোপুরি তুলে দেওয়া হলো**।
+           ⛔ কোনো তথ্য · হিসাব · ছাঁকনি · অন্য কোনো ব্যাজ ছোঁয়া হয়নি। */
         if (!isInquiry) {
             val idRow = ll(android.widget.LinearLayout.HORIZONTAL).apply {
                 gravity = android.view.Gravity.CENTER_VERTICAL
@@ -1943,13 +1937,6 @@ class FollowUpActivity : AppCompatActivity() {
                 idRow.addView(idOnRow)
                 TripleTapEdit.attach(idOnRow) { showEditDialog(item) }
             }
-            // 📵 V711 — PATIENT/VISITED পিল ও আইডির পাশেই।
-            if (noMoreCalls) {
-                idRow.addView(noCallChip().apply {
-                    val p = android.widget.LinearLayout.LayoutParams(WRAP, WRAP)
-                    p.marginStart = dpx(8); layoutParams = p
-                })
-            }
             info.addView(idRow)
         }
         top.addView(info)
@@ -1957,10 +1944,6 @@ class FollowUpActivity : AppCompatActivity() {
         // right slot: badge / Visit-Advance / payment ring
         val right = ll(android.widget.LinearLayout.VERTICAL).apply { gravity = android.view.Gravity.CENTER_HORIZONTAL }
         val rlp = android.widget.LinearLayout.LayoutParams(WRAP, WRAP); rlp.marginStart = dpx(6); right.layoutParams = rlp
-        /* 📵 V711 — Enquiry কার্ডে তারিখ ফাঁকা থাকলে কোনো ব্যাজই আসত না
-           (`daysUntil` null), তাই ওই খালি জায়গাতেই চিপটা বসে। ⛔ Overdue /
-           Today Due / xd Due — তিনটে ব্যাজের একটাও ছোঁয়া হয়নি। */
-        if (isInquiry && noMoreCalls) right.addView(noCallChip())
         if (isInquiry) {
             val days = FollowUpModel.daysUntil(item.nextFollow)
             if (days != null) {
@@ -2551,18 +2534,31 @@ class FollowUpActivity : AppCompatActivity() {
                         chamberOnly = false, initialIso = defaultIso, mandatory = mandatory
                     ) { iso -> saveNextFollowDate(item, iso, markExpected = false) }
                 },
-                // 📵 V711 — Enquiry-তে তৃতীয় বোতামটা এই বাছাইয়ের পর্দাতেই (ডেমো অনুযায়ী)
-                onNoMoreCalls = { saveNoMoreCalls(item) }
+                /* 📵🔒 V718 (TK-নির্দেশ) — **Enquiry-তে এই বোতাম আর নেই।**
+                   TK: *"enquiry visit এই সমস্ত ক্ষেত্রে হবে না, কারণ সেই ক্ষেত্রে
+                   একটা নিয়ম অলরেডি করাই আছে — পাঁচ বার ফোন কল করার পরে
+                   অটোমেটিক রিজেক্ট হয়ে যায়।"*
+                   ⛔ আসবে / শুধু ফোন করব — দুটো বোতামই আগের মতোই অক্ষত। */
             )
         } else {
             /* 📵🔒 V711 — Visit/Patient কার্ডে বাছাইয়ের পর্দা নেই (এক চাপেই
                ক্যালেন্ডার খোলে, TK-এর পুরোনো নিয়ম)। তাই ওই এক চাপ বাঁচিয়ে
                রেখে বোতামটা **ক্যালেন্ডারের নিচেই** বসে — কোনো বাড়তি ধাপ নেই।
                ⛔ ক্যালেন্ডার · তারিখ বাছা · Set · Cancel — কিছুই বদলায়নি। */
+            /* 📵🔒 V718 (২৬.০৮.২০২৬, TK-নির্দেশ) — **শুধু "Patient" ট্যাবের
+               কার্ডেই** (অর্থাৎ যাঁরা সত্যিই ট্রিটমেন্ট করাচ্ছেন) এই বোতামটা।
+               TK: *"শুধুমাত্র পেশেন্ট ট্যাগ লাগানো থাকলে … তাদের ক্ষেত্রে
+               পরবর্তীতে ফোন কল না করলেও চলবে।"*
+               ⛔ কোডে যাচাই করা: "Patient" ট্যাব = `stage "Treatment"`
+                  (`binding.tabPatient.setOnClickListener { switchTab("Treatment") }`),
+                  আর "Visit" ট্যাব = `stage "Patient"` — নাম দুটো উল্টো, তাই
+                  আন্দাজে নয়, কোড ধরে মিলিয়ে নেওয়া হয়েছে।
+               ⛔ Visit কার্ডে বোতামটা আর আসবে না; ক্যালেন্ডার · তারিখ বাছা ·
+                  Set · Cancel — কিছুই বদলায়নি। */
             ChamberCalendarDialog.show(
                 this, item.branch, NoBengali.s("পরের আসার দিন"),
                 chamberOnly = false, initialIso = defaultIso, mandatory = mandatory,
-                onNoMoreCalls = { saveNoMoreCalls(item) }
+                onNoMoreCalls = if (item.stage == "Treatment") ({ saveNoMoreCalls(item) }) else null
             ) { iso -> saveNextFollowDate(item, iso, markExpected = true) }
         }
     }

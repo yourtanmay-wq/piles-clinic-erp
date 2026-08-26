@@ -6853,13 +6853,24 @@ function wlv1SaveRemarkNow(id,r){wlv1PendingRemark={id:'',text:''};let x=load('f
  try{ if(x&&x.mobile) wlv1RemarkPendingRemove(x.mobile) }catch(_e){}if(x?.nextFollow===today())patch.nextFollow='';updateFollowAction(id,patch,{date:today(),time:isoNow(),remark:r,staff:user.name,nextFollow:patch.nextFollow??(x?.nextFollow||''),status:'Called'},x?.stage);nextFollowDate(id)}
 window["wlv1SaveRemarkNow"]=wlv1SaveRemarkNow;function nextFollowDate(id){
       let x=load('followups').find(a=>a.id===id);
+      /* 🔴🔒 V718 — বোতামের HTML আগে বানিয়ে নেওয়া হলো (টেমপ্লেটের ভিতরে
+         টেমপ্লেট বসালে ব্যাকটিক সংঘর্ষ হয় — নিজে পরীক্ষা করে ধরা)। */
+      var __noCallBtn = (String(x&&x.stage||'')==='Treatment')
+        ? '<button class="ghost" style="width:100%;margin-top:10px;border:2px solid #C9B8F0;background:#F6F2FE;color:#5B3A9E;font-weight:800" onclick="wlv1NoMoreCalls(\'' + id + '\')">\uD83D\uDCF5 No more calls needed</button>'
+        : '';
       modal(`<h2>Next Follow-up Date</h2><label>Select Date</label><input id="fd" type="date" class="input" value="${x?.nextFollow&&x.nextFollow>=today()?x.nextFollow:''}" min="${today()}" onclick="try{this.showPicker&&this.showPicker()}catch(e){}" onfocus="try{this.showPicker&&this.showPicker()}catch(e){}"><div class="actions"><button onclick="saveNextFollow('${id}')">Save Date</button><button class="ghost" onclick="saveNextFollow('${id}')">Skip</button></div>
       <!-- 📵🔒 V711 (২৬.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত): TK — *"কোন পেশেন্ট
            যখন কন্টিনিউ পেশেন্ট অথবা কন্টিনিউ ট্রিটমেন্ট করাচ্ছে, তাদেরকে আর ফোন না
            করলেও চলে"*। ফোনের ক্যালেন্ডারের নিচের বোতামটার হুবহু যমজ।
            ⛔ উপরের "Save Date" ও "Skip" — দুটোই এক অক্ষরও বদলায়নি।
-           ⛔ নতুন কোনো কলাম/SQL নয় — পরের তারিখ ফাঁকা করলেই অ্যাপ আর গোনে না। -->
-      <button class="ghost" style="width:100%;margin-top:10px;border:2px solid #C9B8F0;background:#F6F2FE;color:#5B3A9E;font-weight:800" onclick="wlv1NoMoreCalls('${id}')">📵 No more calls needed</button>`)
+           ⛔ নতুন কোনো কলাম/SQL নয় — পরের তারিখ ফাঁকা করলেই অ্যাপ আর গোনে না।
+           🔴🔒 V718 (২৬.০৮.২০২৬, TK-নির্দেশ): বোতামটা এখন **শুধু "Patient"
+           ট্যাবের কার্ডে** (stage="Treatment") দেখাবে। TK: *"enquiry visit এই
+           সমস্ত ক্ষেত্রে হবে না — সেখানে পাঁচ বার ফোন করার পরে অটোমেটিক রিজেক্ট
+           হয়ে যায়; শুধুমাত্র পেশেন্ট ট্যাগ লাগানো থাকলে"*।
+           ⛔ ফোনের FollowUpActivity.kt-এর হুবহু একই শর্ত। "Save Date"/"Skip"
+              দুটো বোতাম আগের মতোই সব কার্ডে থাকবে। -->
+      ${__noCallBtn}`)
       setTimeout(()=>{let el=document.getElementById('fd');if(el)try{el.showPicker&&el.showPicker()}catch(e){}},60)
     }
 window.nextFollowDate=nextFollowDate;function saveNextFollow(id){
