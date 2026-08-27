@@ -58,7 +58,6 @@ class PrescriptionActivity : AppCompatActivity() {
         val btnAddBlank = findViewById<MaterialButton>(R.id.btnAddBlank)
         val btnSave = findViewById<MaterialButton>(R.id.btnSavePrescription)
         val btnSaveAndPrint = findViewById<MaterialButton>(R.id.btnSaveAndPrint)
-        val btnShare = findViewById<MaterialButton>(R.id.btnSharePrescription)
 
         if (!editable) {
             findViewById<TextView>(R.id.tvReadOnlyNotice).visibility = android.view.View.VISIBLE
@@ -77,7 +76,6 @@ class PrescriptionActivity : AppCompatActivity() {
 
         btnSaveAndPrint.setOnClickListener { savePrescription(openPrintAfter = true) }
 
-        btnShare.setOnClickListener { sharePrescription() }
 
         // TK-REQUESTED CHANGE (2026-07-19): always jump straight into the
         // reference-list picker when editable — this used to only happen on
@@ -230,7 +228,14 @@ class PrescriptionActivity : AppCompatActivity() {
     }
 
     /** TK APPROVED (2026-07-15): plain text share, same pattern as Medicine
-     *  Slip's "Share as Text" — sends via WhatsApp/SMS/any share target. */
+     *  Slip's "Share as Text" — sends via WhatsApp/SMS/any share target.
+     *
+     *  🔴 TK-নির্দেশ (২৭.০৮.২০২৬): *"share As Text থাকবে না"* — বোতামটা
+     *  পর্দা থেকে তুলে নেওয়া হয়েছে, তাই এই ফাংশনটা এখন **আর ডাকা হয় না**।
+     *  ⛔ মুছে ফেলা হয়নি — TK কখনো ফেরত চাইলে শুধু একটা লাইন
+     *     (`btnShare.setOnClickListener { sharePrescription() }`) বসালেই
+     *     আগের মতো কাজ করবে; কোড আবার নতুন করে লিখতে হবে না। */
+    @Suppress("unused")
     private fun sharePrescription() {
         val medicines = ClinicalRepository.currentPrescription
         if (medicines.isEmpty()) {
