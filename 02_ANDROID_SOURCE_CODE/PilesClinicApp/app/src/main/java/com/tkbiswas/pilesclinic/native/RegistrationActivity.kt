@@ -345,20 +345,62 @@ class RegistrationActivity : AppCompatActivity() {
                 if (enquiryOriginMobile.length == 10 && digits.length == 10 &&
                     digits != enquiryOriginMobile &&
                     MobileInput.digits(binding.etAltMobile).isBlank()) {
+                    // ⛔ V754 — অ্যাপ **নিজে** বসাচ্ছে, তাই এতে পপ-আপ দেখানো হবে না
+                    //    (নইলে প্রতিবার নিজের বসানো নম্বরেই সতর্কবার্তা আসত)।
+                    altFilledByApp = true
                     binding.etAltMobile.setText(enquiryOriginMobile)
+                    altFilledByApp = false
                 }
+            }
+        })
+
+        /* 🔍🔒 V754 (২৭.০৮.২০২৬, TK-নির্দেশ — *"অল্টারনেট নাম্বার বসালে আগে যদি
+           আমাদের ডাটাবেসে থাকে তাহলে কেন শো করবে না"*)
+
+           **আসল কারণ (কোড ধরে যাচাই):** পুরনো রোগী খোঁজার কাজটা **শুধু মূল
+           Mobile ঘরে** লেখা ছিল (উপরের TextWatcher)। Alternate ঘরে কোনো
+           লুকআপই ছিল না, তাই ডেটাবেসে থাকা নম্বর ওখানে বসালেও কিছু দেখাত না।
+
+           এখন Alternate ঘরেও **হুবহু একই পপ-আপ** আসে।
+           ⛔ শুধু **দেখানো** — ফর্মের কোনো ঘর নিজে থেকে ভরে না
+              (`autofillFromEnquiry` ইচ্ছে করেই ডাকা হয়নি; নইলে স্টাফের টাইপ
+              করা তথ্য অন্য রোগীর তথ্যে চাপা পড়ে যেত)।
+           ⛔ মূল নম্বরের সমান হলে কিছুই হয় না (একই রোগী, অকারণ পপ-আপ নয়)। */
+        binding.etAltMobile.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun afterTextChanged(s: android.text.Editable) {
+                if (altFilledByApp) return
+                val alt = MobileInput.digits(binding.etAltMobile)
+                if (alt.length != 10) return
+                if (alt == MobileInput.digits(binding.etMobile)) return
+                if (alt == lastDupCheckedAltMobile) return
+                lastDupCheckedAltMobile = alt
+                checkExistingPatientPopup(alt, fromAlt = true)
             }
         })
     }
 
     private var lastDupCheckedMobile = ""
 
+    /** 🔍 V754 — Alternate ঘরের নিজের আলাদা পাহারা। মূল ঘরেরটার সঙ্গে মিলিয়ে
+     *  ফেললে একটা আরেকটাকে আটকে দিত (একই নম্বর দু'ঘরে বসলে দ্বিতীয়বার আর
+     *  দেখাত না) — তাই আলাদা রাখা হলো। */
+    private var lastDupCheckedAltMobile = ""
+
+    /** ⛔ অ্যাপ নিজে Alternate ঘর ভরছে কিনা — তখন পপ-আপ দেখানো হয় না। */
+    private var altFilledByApp = false
+
     /** Web parity: as soon as a full mobile number is entered, if that patient
      *  already exists show the duplicate popup immediately (not after the form is
      *  filled). The final "Update Existing" confirm still runs at save time. */
-    private fun checkExistingPatientPopup(digits: String) {
-        if (digits == lastDupCheckedMobile) return
-        lastDupCheckedMobile = digits
+    private fun checkExistingPatientPopup(digits: String, fromAlt: Boolean = false) {
+        // 🔍 V754 — Alternate ঘর থেকে এলে নিজের পাহারা আগেই দেখা হয়ে গেছে,
+        //    তাই মূল ঘরের পাহারায় আটকানো চলবে না (নইলে কিছুই দেখাত না)।
+        if (!fromAlt) {
+            if (digits == lastDupCheckedMobile) return
+            lastDupCheckedMobile = digits
+        }
         lifecycleScope.launch {
             val dup = withContext(Dispatchers.IO) { repository.checkDuplicatePatient(digits) }
             if (!dup.found) return@launch
@@ -372,7 +414,9 @@ class RegistrationActivity : AppCompatActivity() {
             tvDupName.copyOnLongPress("Name", dup.name)
             tvDupMobile.copyOnLongPress("Mobile", digits)
             view.findViewById<android.widget.TextView>(com.tkbiswas.pilesclinic.R.id.tvDupBranch).text = dup.branch.ifBlank { "-" }
-            view.findViewById<android.widget.TextView>(com.tkbiswas.pilesclinic.R.id.tvDupSection).text = "Patient"
+            // 🔍 V754 — কোন ঘরের নম্বরে মিলেছে, সেটা স্পষ্ট থাকুক।
+            view.findViewById<android.widget.TextView>(com.tkbiswas.pilesclinic.R.id.tvDupSection).text =
+                if (fromAlt) "Patient (Alternate number)" else "Patient"
             UppercaseInputUtil.applyToAll(view)  // TK-REQUESTED GLOBAL RULE (2026-07-24): English text auto-CAPITAL, Password fields excluded automatically
             val dialog = AlertDialog.Builder(this@RegistrationActivity).setView(view).setCancelable(true).create()
             dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
