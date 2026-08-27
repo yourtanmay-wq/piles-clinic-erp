@@ -72,7 +72,13 @@ object ModuleUi {
         }
 
     fun input(ctx: Context, hint: String, type: Int = InputType.TYPE_CLASS_TEXT): EditText =
-        EditText(ctx).apply { this.hint = hint; inputType = type; textSize = 15f }
+        EditText(ctx).apply {
+            this.hint = hint; inputType = type; textSize = 15f
+            // ⌨️🔒 V756 — ফোনের নিজের সাজেশন এখানেই বন্ধ। এই এক লাইনেই
+            //    **সব Module পর্দার** ঘর ঢেকে যায় (ওগুলো পর্দা খোলার পরে
+            //    বানানো হয় বলে `NoAutofill.scrub()` পৌঁছাত না)।
+            try { com.tkbiswas.pilesclinic.native.NoAutofill.harden(this) } catch (_: Throwable) { }
+        }
 
     // 🔴 B409 (04.08.2026, TK-নির্দেশ — অনেক স্টাফের ফোনে সংখ্যা-ঘরে চাপ
     // দিলে কীবোর্ড আসত না, "Notes" (TYPE_CLASS_TEXT) জাতীয় ঘরে সমস্যা ছিল

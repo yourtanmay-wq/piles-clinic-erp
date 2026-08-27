@@ -262,6 +262,26 @@ class BriefingRepository {
         return SupabaseClient.upsert("briefings", row)
     }
 
+    /**
+     * ⚡🔒 V756 (২৭.০৮.২০২৬) — **আগে থেকে জানা সারি দিয়ে "seen" লেখা।**
+     *
+     * ⚠️ কেন লাগল: `markSeen()` প্রতিবার আগে সারিটা **মেঘ থেকে টেনে আনে**,
+     *    তারপর লেখে — অর্থাৎ প্রতি নোটিশে **দুটো** নেট-কল। V753-এ মাস্টারের
+     *    জন্য সব নোটিশ "seen" হতে শুরু করায় এটা বিপজ্জনক হয়ে দাঁড়াত
+     *    (Supabase free প্ল্যানে অকারণ খরচ)। নিজের কাজ যাচাই করতে গিয়ে ধরা।
+     *
+     * এখানে সারিটা **হাতেই আছে** (পর্দা আঁকার জন্য যেটা আনা হয়েছে), তাই
+     * টানার দরকারই নেই ⇒ **অর্ধেক নেট-কল**।
+     * ⛔ যা লেখা হয় তা হুবহু একই (`buildSeenUpdate`), তাই ফল অপরিবর্তিত।
+     */
+    fun markSeenWithRow(id: String, existingSeen: JSONArray, userMobile: String): Boolean {
+        if (id.isBlank()) return false
+        return try {
+            SupabaseClient.updateById(
+                "briefings", id, BriefingModel.buildSeenUpdate(existingSeen, userMobile))
+        } catch (_: Throwable) { false }
+    }
+
     fun markSeen(id: String, userMobile: String): Boolean {
         val existing = SupabaseClient.fetchList("briefings", "id=eq.$id", 1)
         if (existing.length() == 0) return false

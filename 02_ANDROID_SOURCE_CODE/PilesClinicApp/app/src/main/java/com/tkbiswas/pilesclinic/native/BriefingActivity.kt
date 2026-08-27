@@ -655,6 +655,9 @@ class BriefingActivity : AppCompatActivity() {
             this.hint = hint; textSize = 13f
             setPadding(dp(10), dp(10), dp(10), dp(10))
             setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
+            // ⌨️🔒 V756 — এই ঘরগুলো পপ-আপ খোলার সময় বানানো হয়, তাই পর্দার
+            //    পাহারা পৌঁছাত না। এখানেই বন্ধ করা হলো।
+            try { NoAutofill.harden(this) } catch (_: Throwable) { }
             val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
             lp.topMargin = dp(8)
             layoutParams = lp
@@ -720,6 +723,7 @@ class BriefingActivity : AppCompatActivity() {
                     textSize = 14f
                     setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
                     setPadding(px(12), px(10), px(12), px(10))
+                    try { NoAutofill.harden(this) } catch (_: Throwable) { }
                 }
                 val listView = android.widget.ListView(this@BriefingActivity).apply {
                     divider = android.graphics.drawable.ColorDrawable(
@@ -2197,6 +2201,9 @@ class BriefingActivity : AppCompatActivity() {
            ⛔ এখানে **কোনো নেট-কল নেই** — শুধু JSON পড়া, তাই মূল থ্রেডে নিরাপদ।
               নেটের কাজগুলো (নিচে) আগের মতোই আলাদা থ্রেডেই হয়। */
         val seenIds = mutableListOf<String>()
+        /** ⚡ V756 — প্রতিটা নোটিশের **আগের** seen-তালিকা, যাতে মেঘ থেকে আবার
+         *  টানতে না হয় (`markSeenWithRow`)। */
+        val seenPayload = HashMap<String, org.json.JSONArray>()
         val hideIds = mutableListOf<String>()
         val titleById = HashMap<String, String>()
         try {
@@ -2222,7 +2229,28 @@ class BriefingActivity : AppCompatActivity() {
                     val mine = BriefingModel.targetsHit(row, user.mobile, user.role, user.branch)
                     if (!mine && !isMasterUser) continue // আমাকে target নয় (নিজের পাঠানো) — বাদ
                     // (ক) সবগুলোই "seen" — ঘন্টা ও ১০-মিনিটের রিমাইন্ডার থামাতে।
-                    if (!BriefingModel.hasSeen(row, user.mobile)) {
+                    /* ⚡🔒 V756 — **খরচের পাহারা (নিজের কাজ যাচাই করে ধরা)।**
+                       V753-এ মাস্টারের জন্য সব নোটিশ "seen" হতে শুরু করেছিল।
+                       কিন্তু নোটিশ **৫০০০ পর্যন্ত** আনা হয় (BriefingRepository),
+                       আর প্রতি "seen"-এ নেট-কল হয় ⇒ Supabase free প্ল্যানে
+                       বিপুল অকারণ খরচের ঝুঁকি ছিল।
+                       এখন দুটো বাঁধন:
+                         ১. যেগুলো **পর্দায় সত্যিই দেখা যায়** শুধু সেগুলোই
+                            (`visibleForUser`) — অদৃশ্য পুরনো নোটিশ নয়।
+                         ২. একবারে **সর্বোচ্চ ৬০টা** — বাকিগুলো পরের বার।
+                       ⛔ TK-এর নিয়ম: *"supabase free প্ল্যানে ঝুঁকি থাকলে আগে
+                          আমাকে বলবেন"* — তাই ঝুঁকিটা তৈরিই হতে দেওয়া হলো না। */
+                    if (!BriefingModel.hasSeen(row, user.mobile) &&
+                        seenIds.size < 60 &&
+                        repository.visibleForUser(row, user)) {
+                        // ⛔ মূল `seen` তালিকাটা **কপি করে** রাখি — ঠিক নিচেই
+                        //    নামটা বসানো হয়, তাই পরে ব্যবহার করলে দুবার বসত।
+                        val before = org.json.JSONArray()
+                        try {
+                            val cur = row.optJSONArray("seen") ?: org.json.JSONArray()
+                            for (k in 0 until cur.length()) before.put(cur.get(k))
+                        } catch (_: Throwable) { }
+                        seenPayload[id] = before
                         seenIds.add(id)
                         /* 👁️ V753 — এই সারিটার নিজের `seen` তালিকাতেও **এখনই**
                            নামটা বসিয়ে দিই। কারণ ঠিক নিচেই `parseForUser(rawRows)`
@@ -2246,7 +2274,13 @@ class BriefingActivity : AppCompatActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 for (id in seenIds) {
-                    try { repository.markSeen(id, user.mobile) } catch (_: Throwable) { }
+                    // ⚡ V756 — সারিটা হাতেই আছে, তাই মেঘ থেকে আর টানা হয় না
+                    //    (আগে প্রতি নোটিশে ২টো নেট-কল হত, এখন ১টা)।
+                    val before = seenPayload[id]
+                    try {
+                        if (before != null) repository.markSeenWithRow(id, before, user.mobile)
+                        else repository.markSeen(id, user.mobile)
+                    } catch (_: Throwable) { }
                 }
                 for (id in hideIds) {
                     autoClearedThisSession.add(id)

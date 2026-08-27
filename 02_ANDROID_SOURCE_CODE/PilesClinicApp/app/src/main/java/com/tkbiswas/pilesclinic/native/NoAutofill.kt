@@ -87,6 +87,25 @@ object NoAutofill {
         }
     }
 
+    /**
+     * 🔧 V756 — **কোড দিয়ে বানানো একটা ঘরে** সাজেশন বন্ধ করার এক-লাইনের হাতিয়ার।
+     *
+     * ⚠️ কেন লাগল: `scrub()` চলে পর্দা **খোলার সময়** (onStart/onResume)। কিন্তু
+     *    Module-এর পর্দাগুলো (Staff Profiles · বেতন · Add Person …) ঘরগুলো
+     *    বানায় **তার পরে**, বোতাম চাপার পর। তাই ওখানে পাহারা পৌঁছাত না —
+     *    নিজের কাজ যাচাই করতে গিয়ে ধরা পড়েছে (২৭.০৮.২০২৬)।
+     * ⛔ কখনো ব্যতিক্রম ছোড়ে না; Android 8-এর আগে কিছুই করে না।
+     */
+    fun harden(et: android.widget.EditText) {
+        try {
+            et.imeOptions = et.imeOptions or IME_FLAG_NO_PERSONALIZED_LEARNING
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                et.importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
+                et.setAutofillHints(null as String?)
+            }
+        } catch (_: Throwable) {}
+    }
+
     /** `android.view.inputmethod.EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING` */
     private const val IME_FLAG_NO_PERSONALIZED_LEARNING = 0x1000000
 
