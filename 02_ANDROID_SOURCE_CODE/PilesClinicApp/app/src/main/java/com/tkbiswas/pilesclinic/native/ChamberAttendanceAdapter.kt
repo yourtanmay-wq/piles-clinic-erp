@@ -276,27 +276,23 @@ class ChamberAttendanceAdapter(
             b.tvPatientId.setOnClickListener { onClinical(row) }
 
             b.tvName.setOnLongClickListener {
-                val cm = it.context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                cm.setPrimaryClip(android.content.ClipData.newPlainText("name", row.name))
+                com.tkbiswas.pilesclinic.native.Clip.copy(it.context, "name", row.name)   // 🤫 V772
                 android.widget.Toast.makeText(it.context, "Name copied", android.widget.Toast.LENGTH_SHORT).show()
                 true
             }
             b.tvMobile.setOnLongClickListener {
-                val cm = it.context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                cm.setPrimaryClip(android.content.ClipData.newPlainText("mobile", row.mobile))
+                com.tkbiswas.pilesclinic.native.Clip.copy(it.context, "mobile", row.mobile)   // 🤫 V772
                 android.widget.Toast.makeText(it.context, "Mobile copied", android.widget.Toast.LENGTH_SHORT).show()
                 true
             }
             b.tvPatientId.setOnLongClickListener {
-                val cm = it.context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                cm.setPrimaryClip(android.content.ClipData.newPlainText("patient id", row.patientId))
+                com.tkbiswas.pilesclinic.native.Clip.copy(it.context, "patient id", row.patientId)   // 🤫 V772
                 android.widget.Toast.makeText(it.context, "Patient ID copied", android.widget.Toast.LENGTH_SHORT).show()
                 true
             }
             b.cellPatient.setOnLongClickListener {
                 val details = listOf(row.name, row.mobile, row.patientId).filter { it.isNotBlank() }.joinToString("\n")
-                val cm = it.context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                cm.setPrimaryClip(android.content.ClipData.newPlainText("patient", details))
+                com.tkbiswas.pilesclinic.native.Clip.copy(it.context, "patient", details)   // 🤫 V772
                 android.widget.Toast.makeText(it.context, "Patient details copied", android.widget.Toast.LENGTH_SHORT).show()
                 true
             }
@@ -323,20 +319,17 @@ class ChamberAttendanceAdapter(
             // shows again on this patient's next visit.
             b.tvTreatmentW.setOnClickListener { onTreatmentTap(row) }
             b.tvMobileW.setOnLongClickListener {
-                val cm = it.context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                cm.setPrimaryClip(android.content.ClipData.newPlainText("mobile", row.mobile))
+                com.tkbiswas.pilesclinic.native.Clip.copy(it.context, "mobile", row.mobile)   // 🤫 V772
                 android.widget.Toast.makeText(it.context, "Mobile copied", android.widget.Toast.LENGTH_SHORT).show()
                 true
             }
             b.tvNameW.setOnLongClickListener {
-                val cm = it.context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                cm.setPrimaryClip(android.content.ClipData.newPlainText("name", row.name))
+                com.tkbiswas.pilesclinic.native.Clip.copy(it.context, "name", row.name)   // 🤫 V772
                 android.widget.Toast.makeText(it.context, "Name copied", android.widget.Toast.LENGTH_SHORT).show()
                 true
             }
             b.tvPatientIdW.setOnLongClickListener {
-                val cm = it.context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                cm.setPrimaryClip(android.content.ClipData.newPlainText("patient id", row.patientId))
+                com.tkbiswas.pilesclinic.native.Clip.copy(it.context, "patient id", row.patientId)   // 🤫 V772
                 android.widget.Toast.makeText(it.context, "Patient ID copied", android.widget.Toast.LENGTH_SHORT).show()
                 true
             }

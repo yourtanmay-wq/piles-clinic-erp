@@ -1,7 +1,5 @@
 package com.tkbiswas.pilesclinic.native
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -556,8 +554,7 @@ class DialerActivity : AppCompatActivity() {
     }
 
     private fun copyNumber(digits: String) {
-        val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        cm.setPrimaryClip(ClipData.newPlainText("mobile", digits))
+        com.tkbiswas.pilesclinic.native.Clip.copy(this, "mobile", digits)   // 🤫 V772
         Toast.makeText(this, "Number copied", Toast.LENGTH_SHORT).show()
     }
 

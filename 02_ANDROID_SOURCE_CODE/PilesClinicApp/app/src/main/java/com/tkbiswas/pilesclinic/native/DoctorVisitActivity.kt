@@ -2813,8 +2813,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                             }
                             fun copyOnLongPress(view: TextView, value: String, label: String) {
                                 view.setOnLongClickListener {
-                                    val clipboard = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText(label, value))
+                                    com.tkbiswas.pilesclinic.native.Clip.copy(this@DoctorVisitActivity, label, value)   // 🤫 V772
                                     Toast.makeText(this@DoctorVisitActivity, "$label copied", Toast.LENGTH_SHORT).show()
                                     true
                                 }

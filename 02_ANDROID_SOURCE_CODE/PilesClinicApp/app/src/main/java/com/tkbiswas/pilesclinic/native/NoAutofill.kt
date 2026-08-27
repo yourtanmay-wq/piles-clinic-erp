@@ -37,7 +37,7 @@ object NoAutofill {
             override fun onActivityPaused(activity: Activity) {}
             override fun onActivityStopped(activity: Activity) {}
             override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
-            override fun onActivityDestroyed(activity: Activity) {}
+            override fun onActivityDestroyed(activity: Activity) { removeNet(activity) }
         })
     }
 
@@ -52,12 +52,19 @@ object NoAutofill {
      * **Autofill সেবাটা নিজে চালুই ছিল** — তাই Google/Samsung-এর জমানো
      * নম্বর-পাসওয়ার্ড তবু ভেসে উঠত।
      *
-     * `AutofillManager.disableAutofillServices()` হলো Android-এর **নিজের
-     * সরকারি উপায়** — এটা ডাকলে **এই অ্যাপের জন্য** Autofill পুরোপুরি বন্ধ
-     * হয়ে যায়। এতদিন এই যন্ত্রটা ব্যবহারই করা হয়নি।
+     * 🔴🔴 **V772-এ নিজের ভুল ধরা পড়ল — সৎভাবে লিখে রাখছি।**
+     *    V758-এ আমি লিখেছিলাম *"এটাই আসল সমাধান"*। **সেটা ভুল ছিল।**
+     *    Android-এর ভিতরে `disableAutofillServices()` আসলে ডাকে
+     *    `disableOwnedAutofillServices()` — অর্থাৎ **যে অ্যাপ নিজেই একটা
+     *    Autofill সেবা**, শুধু তারই সেবা বন্ধ হয়। আমাদের অ্যাপ Autofill
+     *    সেবা নয় ⇒ **এই ডাকটা কার্যত কিছুই করে না।**
+     *    ⇒ তাই TK-কে "সমাধান হয়ে গেছে" বলা ঠিক হয়নি। ডাকটা রাখা হলো
+     *      (ক্ষতি নেই), কিন্তু এটাকে আর ভরসা করা হচ্ছে না।
+     *    ⇒ আসল কাজটা করে — `importantForAutofill` (নিচে) + `cancel()` +
+     *      **V772-এর নতুন জাল** (`netForEveryWindow`) + সবচেয়ে বড় কথা,
+     *      ক্লিপবোর্ডের গোপন-পতাকা (`Clip.copy`, ClipboardUtil.kt)।
      *
      * ⛔ শুধু **এই অ্যাপে** — ফোনের অন্য অ্যাপে কোনো প্রভাব নেই।
-     * ⛔ ফোনের Settings থেকে TK চাইলে আবার চালু করতে পারেন — কিছু হারায় না।
      * ⛔ পুরোটা try/catch-এ, তাই এখানে কিছু ভুল হলেও কোনো পর্দা ভাঙে না।
      */
     private fun killAutofillService(activity: Activity) {
@@ -93,6 +100,65 @@ object NoAutofill {
             }
             scrub(root)
             watchFocus(activity)
+            netForEveryWindow(activity)
+        } catch (_: Throwable) {}
+    }
+
+    /** কোন পর্দায় জাল বসানো হয়ে গেছে — দুবার বসানো ঠেকাতে। */
+    private val netted = java.util.WeakHashMap<Activity, Any>()
+
+    /**
+     * 🕸️🔒 V772 (২৮.০৮.২০২৬) — **চার নম্বর স্তর: প্রতিটা উইন্ডোর জন্য জাল।**
+     *
+     * **কেন লাগল (কোড গুনে দেখা):** পর্দার পাহারা বসে `decorView`-এ। কিন্তু
+     * **প্রতিটা পপ-আপের নিজের আলাদা উইন্ডো** — তাই ওখানে পৌঁছায় না।
+     * `PremiumAlert.paint()` দিয়ে বেশিরভাগ পপ-আপ ঢাকা পড়ে, কিন্তু গুনে
+     * দেখা গেল **৬৫টা পপ-আপ** PremiumAlert দিয়ে যায় না (MedicinePicker ·
+     * DoctorCheckup · Registration · Payment · FollowUp …)। ওগুলোতে ফাঁক
+     * থেকে যাচ্ছিল।
+     *
+     * ৬৫টা ফাইল হাতে বদলানোর বদলে **একটাই জাল** — `AutofillCallback`।
+     * Autofill-এর সাজেশন যদি অ্যাপের **যেকোনো** ঘরে ভেসে ওঠে, Android
+     * নিজেই এখানে খবর দেয়; তখন ওই ঘরটাকে চিরতরে "Autofill নয়" চিহ্ন দিয়ে
+     * চলতি সাজেশনটা বন্ধ করে দেওয়া হয়।
+     *
+     * ⛔ কোনো ঘরের নিজের কাজ · listener · টাইপ করা — কিচ্ছু ছোঁয়া হয় না।
+     * ⛔ পর্দা বন্ধ হলে জাল খুলে নেওয়া হয় (`removeNet`), তাই স্মৃতি জমে না।
+     * ⛔ পুরোটা try/catch — এখানে ভুল হলেও কোনো পর্দা ভাঙবে না।
+     */
+    private fun netForEveryWindow(activity: Activity) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        if (netted.containsKey(activity)) return
+        try {
+            val am = activity.getSystemService(android.view.autofill.AutofillManager::class.java)
+                ?: return
+            val cb = object : android.view.autofill.AutofillManager.AutofillCallback() {
+                override fun onAutofillEvent(view: View, event: Int) {
+                    try {
+                        if (event == EVENT_INPUT_SHOWN) {
+                            view.importantForAutofill =
+                                View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
+                            am.cancel()
+                        }
+                    } catch (_: Throwable) {}
+                }
+                override fun onAutofillEvent(view: View, virtualId: Int, event: Int) {
+                    try { if (event == EVENT_INPUT_SHOWN) am.cancel() } catch (_: Throwable) {}
+                }
+            }
+            am.registerCallback(cb)
+            netted[activity] = cb
+        } catch (_: Throwable) {}
+    }
+
+    /** পর্দা বন্ধ হলে জাল খুলে নেওয়া — নইলে স্মৃতি ধরে রাখত। */
+    private fun removeNet(activity: Activity) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        try {
+            val cb = netted.remove(activity)
+                as? android.view.autofill.AutofillManager.AutofillCallback ?: return
+            activity.getSystemService(android.view.autofill.AutofillManager::class.java)
+                ?.unregisterCallback(cb)
         } catch (_: Throwable) {}
     }
 

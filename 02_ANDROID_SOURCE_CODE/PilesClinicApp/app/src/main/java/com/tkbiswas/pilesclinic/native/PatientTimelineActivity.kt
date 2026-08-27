@@ -4175,14 +4175,12 @@ class PatientTimelineActivity : AppCompatActivity() {
                 TripleTapEdit.attach(binding.tvName) { showPatientHeaderEdit() }
                 TripleTapEdit.attach(binding.tvMobVal) { showPatientHeaderEdit() }
                 binding.tvName.setOnLongClickListener {
-                    val cm = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                    cm.setPrimaryClip(android.content.ClipData.newPlainText("name", currentPatientName))
+                    com.tkbiswas.pilesclinic.native.Clip.copy(this@PatientTimelineActivity, "name", currentPatientName)   // 🤫 V772
                     android.widget.Toast.makeText(this@PatientTimelineActivity, "Name copied", android.widget.Toast.LENGTH_SHORT).show()
                     true
                 }
                 binding.tvMobVal.setOnLongClickListener {
-                    val cm = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                    cm.setPrimaryClip(android.content.ClipData.newPlainText("mobile", currentMobile))
+                    com.tkbiswas.pilesclinic.native.Clip.copy(this@PatientTimelineActivity, "mobile", currentMobile)   // 🤫 V772
                     android.widget.Toast.makeText(this@PatientTimelineActivity, "Mobile copied", android.widget.Toast.LENGTH_SHORT).show()
                     true
                 }

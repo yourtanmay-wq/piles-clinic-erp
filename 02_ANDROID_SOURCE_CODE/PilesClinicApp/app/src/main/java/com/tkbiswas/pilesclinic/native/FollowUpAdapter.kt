@@ -67,8 +67,7 @@ class FollowUpAdapter(
         b.tvName.text = item.name.ifBlank { "UNKNOWN" }
         b.tvMobile.text = "📞 ${formatMobileForDisplay(item.mobile)}"
         b.tvMobile.setOnLongClickListener {
-            val cm = it.context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-            cm.setPrimaryClip(android.content.ClipData.newPlainText("mobile", item.mobile))
+            com.tkbiswas.pilesclinic.native.Clip.copy(it.context, "mobile", item.mobile)   // 🤫 V772
             android.widget.Toast.makeText(it.context, "Mobile copied", android.widget.Toast.LENGTH_SHORT).show()
             true
         }

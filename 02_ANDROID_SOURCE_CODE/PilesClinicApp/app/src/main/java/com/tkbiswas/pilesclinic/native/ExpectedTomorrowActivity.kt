@@ -319,8 +319,7 @@ class ExpectedTomorrowActivity : AppCompatActivity() {
                     isLongClickable = true
                     setOnLongClickListener {
                         try {
-                            val cm = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                            cm.setPrimaryClip(android.content.ClipData.newPlainText("patient name", name))
+                            com.tkbiswas.pilesclinic.native.Clip.copy(this@ExpectedTomorrowActivity, "patient name", name)   // 🤫 V772
                             android.widget.Toast.makeText(this@ExpectedTomorrowActivity, NoBengali.s("নাম কপি হয়েছে"), android.widget.Toast.LENGTH_SHORT).show()
                         } catch (_: Throwable) { }
                         true
@@ -347,8 +346,7 @@ class ExpectedTomorrowActivity : AppCompatActivity() {
                 isLongClickable = true
                 setOnLongClickListener {
                     try {
-                        val cm = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                        cm.setPrimaryClip(android.content.ClipData.newPlainText("mobile", formatMobile(mobile)))
+                        com.tkbiswas.pilesclinic.native.Clip.copy(this@ExpectedTomorrowActivity, "mobile", formatMobile(mobile))   // 🤫 V772
                         android.widget.Toast.makeText(this@ExpectedTomorrowActivity, NoBengali.s("নম্বর কপি হয়েছে"), android.widget.Toast.LENGTH_SHORT).show()
                     } catch (_: Throwable) { }
                     true

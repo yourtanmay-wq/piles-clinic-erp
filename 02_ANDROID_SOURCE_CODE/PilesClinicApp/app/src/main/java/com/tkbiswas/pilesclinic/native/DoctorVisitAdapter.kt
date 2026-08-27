@@ -294,14 +294,12 @@ class DoctorVisitAdapter(
         // TK-REQUESTED (2026-07-18): long-press to copy, matching the same
         // pattern already used on the Follow-up card's mobile field.
         b.tvName.setOnLongClickListener {
-            val cm = it.context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-            cm.setPrimaryClip(android.content.ClipData.newPlainText("name", item.name))
+            com.tkbiswas.pilesclinic.native.Clip.copy(it.context, "name", item.name)   // 🤫 V772
             android.widget.Toast.makeText(it.context, "Name copied", android.widget.Toast.LENGTH_SHORT).show()
             true
         }
         b.tvMeta.setOnLongClickListener {
-            val cm = it.context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-            cm.setPrimaryClip(android.content.ClipData.newPlainText("mobile", item.mobile))
+            com.tkbiswas.pilesclinic.native.Clip.copy(it.context, "mobile", item.mobile)   // 🤫 V772
             android.widget.Toast.makeText(it.context, "Mobile copied", android.widget.Toast.LENGTH_SHORT).show()
             true
         }

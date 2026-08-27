@@ -834,6 +834,42 @@ def check_no_autofill_kept():
                      f"যে পপ-আপগুলো বাদ পড়ল সেখানে ফোনের সাজেশন ফিরে আসবে")
 
 # ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯.২৯ — কপি করা নম্বর যেন কীবোর্ডের সাজেশনে না ওঠে
+#  ─────────────────────────────────────────────────────────────
+#  🔴 TK-রিপোর্ট (২৮.০৮.২০২৬): *"যেকোনো ঘরে চাপ দিয়ে দেখলাম — নম্বরের
+#  সাজেশন আসে, সম্পূর্ণ প্রজেক্টের সমস্ত জায়গায় আসতেছে।"*
+#
+#  **আসল কারণ (V772-এ ধরা):** সাজেশনটা Autofill-এর নয় — **কীবোর্ডের
+#  ক্লিপবোর্ড-চিপ**। অ্যাপ ১৭টা জায়গায় রোগীর মোবাইল ক্লিপবোর্ডে রাখে
+#  (Dialer · Chamber · Follow-up · Timeline …), আর Gboard সদ্য-কপি করা
+#  লেখা ~১ ঘণ্টা ধরে **প্রত্যেক ঘরের** সাজেশন-পট্টিতে দেখায়।
+#
+#  ⇒ তাই কপি এখন একটাই দরজা দিয়ে যায় — `Clip.copy()` — যা লেখাটাকে
+#    "গোপন" (IS_SENSITIVE) চিহ্ন দেয়। এই পাহারা নিশ্চিত করে যে
+#    ভবিষ্যতে কেউ আবার সরাসরি `setPrimaryClip` লিখে ফাঁক তৈরি না করে।
+# ═══════════════════════════════════════════════════════════════
+def check_clip_sensitive():
+    util = os.path.join(JAVA, "com", "tkbiswas", "pilesclinic", "native", "ClipboardUtil.kt")
+    if not os.path.exists(util):
+        fail("৯.২৯", "ClipboardUtil.kt খুঁজে পাওয়া গেল না")
+        return
+    s_u = read(util)
+    if "object Clip" not in s_u or "fun copy(" not in s_u:
+        fail("৯.২৯", "ClipboardUtil.kt-এ `object Clip` / `copy()` নেই ⇒ কপি করা নম্বর আবার সাজেশনে উঠবে")
+    if "android.content.extra.IS_SENSITIVE" not in s_u:
+        fail("৯.২৯", "Clip.copy()-তে IS_SENSITIVE পতাকাটা নেই ⇒ কীবোর্ড আবার নম্বর দেখাবে")
+    bad = []
+    for f in kt_files():
+        if os.path.basename(f) == "ClipboardUtil.kt":
+            continue
+        txt = read(f)
+        if "setPrimaryClip(" in txt:
+            bad.append(os.path.basename(f))
+    if bad:
+        fail("৯.২৯", "সরাসরি `setPrimaryClip(` লেখা আছে — `Clip.copy()` দিয়ে যেতে হবে: "
+                     + ", ".join(sorted(set(bad))))
+
+# ═══════════════════════════════════════════════════════════════
 #  যাচাই ৯.২৭ — মেঘের সারি পড়ার সময় "null" লেখা যেন পর্দায় না আসে
 #  ─────────────────────────────────────────────────────────────
 #  🔴 TK-রিপোর্ট (২৭.০৮.২০২৬, ছবিসহ): Staff & Doctors তালিকায় নামের জায়গায়
@@ -2411,6 +2447,7 @@ def main():
     check_cloud_login_name_is_code()  # 👥 V748 — মেঘের লোকের name ঘরে কোড
     check_web_cache_busters()         # 🌐 V750 — ওয়েব ফাইল বদলে cache-নম্বর
     check_no_autofill_kept()          # ⌨️ V752 — ফোনের নিজের সাজেশন বন্ধ
+    check_clip_sensitive()            # 📋 V772 — কপি করা নম্বর সাজেশনে উঠবে না
     check_qualified_calls()           # 🎯 V769 — ভুল object-এর নামে ডাকা
     check_cloud_row_null_text()       # 🚫 V760 — পর্দায় "null" লেখা
     check_webview_popup()             # 🩹 V738 — পপ-আপে WebView বসানোর ফাঁদ (কম্পন)
