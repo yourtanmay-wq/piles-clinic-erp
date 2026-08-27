@@ -811,7 +811,7 @@ const CLOUD_TABLE_WRITE_ALIASES=t=>{
 const CLOUD_TABLE_ALIASES=CLOUD_TABLE_READ_ALIASES;
 const CLOUD_SAFE_COLS={
  enquiries:['id','date','branch','name','mobile','disease','address','remarks','timeType','receivedBy','status','stage','callCount','nextFollow','appointmentDate','convertedPatientId','convertedAt','createdBy','createdAt','updatedAt'],
- patients:['id','patientId','date','registrationDate','visitDate','name','mobile','altMobile','branch','age','sex','address','occupation','refBy','disease','complaint','diagnosis','sinceWhen','medicalHistory','previousTreatment','previousResult','previousCost','treatmentDuration','doctorAdvice','doctorFullNote','decision','stage','queue','doctorComplete','bill','discount','photo','createdBy','registeredBy','createdAt','updatedAt',
+ patients:['id','patientId','date','registrationDate','visitDate','name','mobile','altMobile','branch','age','sex','address','occupation','refBy','disease','complaint','editHistory','diagnosis','sinceWhen','medicalHistory','previousTreatment','previousResult','previousCost','treatmentDuration','doctorAdvice','doctorFullNote','decision','stage','queue','doctorComplete','bill','discount','photo','createdBy','registeredBy','createdAt','updatedAt',
    /* 🔵🔒 V521 (২২.০৮.২০২৬, TK-নির্দেশ): `timeType` ("Official Time"/"Unexpected Time")।
       স্টাফের Extra Income **শুধু অসময়ের এনকোয়ারিতেই** হয় (V418-এর SQL), তাই এটা না
       দেখাতে পারলে TK বুঝতেই পারতেন না কেন টাকাটা পাওনা। ফোনের অ্যাপে ঘরটা আগে থেকেই আসত।
@@ -7231,7 +7231,9 @@ function viewFollow(id){
          বদলায়নি, শুধু দুটো বাড়তি ঘর যোগ হলো। */
       if(e.id)timeline.push({type:'Enquiry',date:e.date||e.createdAt,by:e.receivedBy||e.createdBy,note:e.remarks||'',status:e.status||e.stage,_eid:e.id});
       (x.history||[]).forEach((h,hi)=>timeline.push({type:h.status||'Follow-up',date:h.date,by:h.staff,note:h.remark,next:h.nextFollow,_fid:x.id,_hidx:hi}));
-      if(p.id)timeline.push({type:'Registration / Visit',date:p.registrationDate||p.visitDate||p.date,by:p.registeredBy||p.createdBy,note:wlv1RegistrationNote(p),status:'Visit'});
+      /* ✏️🔒 V736 — সংশোধনের চাবি `_pid` (কোন রোগীর সারি)। ⛔ দেখানোর লেখা,
+         ক্রম, গণনা — কিছুই বদলায়নি, শুধু একটা বাড়তি ঘর। */
+      if(p.id)timeline.push({type:'Registration / Visit',date:p.registrationDate||p.visitDate||p.date,by:p.registeredBy||p.createdBy,note:wlv1RegistrationNote(p),status:'Visit',_pid:p.id});
       /* 🔒 খাতার সারি B52 (TK, 28.07.2026 রাত): নম্বর বাড়ে দিন ধরে, সারি ধরে নয়।
          একই দিনে যতবারই টাকা নেওয়া হোক — সব একটাই নম্বরে (Advance / 2nd Payment …)।
          ফোনের অ্যাপেও ঠিক এই একই হিসাব (PatientTimelineRepository), তাই দুই জায়গায়
@@ -7241,7 +7243,11 @@ function viewFollow(id){
       let wlv1PayDays=[...new Set(wlv1TreatPays.map(z=>String(z.date||'')).filter(Boolean))].sort();
       pays.forEach(pay=>{let isTreat=wlv1TreatPays.indexOf(pay)>-1,di=wlv1PayDays.indexOf(String(pay.date||''));
         let lbl=(isTreat&&di>-1)?wlv1PayOrd(di+1):(pay.payLabel||pay.paymentLabel||'Payment');
-        timeline.push({type:lbl,date:pay.date,by:pay.receivedBy||pay.createdBy,note:money(pay.amount)+' · '+(pay.mode||''),status:'Payment'})});
+        /* ✏️🔒 V736 — পেমেন্টের নোট (স্টাফের লেখা) এখন সারিতেও দেখা যায় ও
+           সংশোধন করা যায়। ⛔ টাকার অঙ্ক ও ধরন আগের মতোই, ছোঁয়া হয়নি। */
+        var __pn=String(pay.progress||'').trim();
+        timeline.push({type:lbl,date:pay.date,by:pay.receivedBy||pay.createdBy,
+          note:(__pn?__pn+' — ':'')+money(pay.amount)+' · '+(pay.mode||''),status:'Payment',_payid:pay.id})});
       med.forEach(m=>timeline.push({type:m.type||'Medical',date:m.date,by:m.createdBy,note:m.details||m.selected||m.decision||'',status:'Medical'}));
       // Most recent update first -- what actually happened LAST is what staff need to
       // see immediately (e.g. "why wasn't treatment started after registration"),
@@ -7256,6 +7262,7 @@ function viewFollow(id){
           <small class="anTlDate">${esc(fmtDate(t.date||''))}</small>
         </div>
         <small class="anTlBy">By: ${esc(codeName(t.by||'')||t.by||'-')}${t.next?' · Next: '+esc(fmtDate(t.next)):''}</small>
+        ${(t._pid||t._payid)?`<button class="small ghost anTlEditBtn" onclick="wlv1EditRegPayNote('${esc(t._pid||'')}','${esc(t._payid||'')}','${esc(x.id||'')}')">✏️ Edit</button>`:''}
         ${(t._eid||t._fid)?`<button class="small ghost anTlEditBtn" onclick="wlv1EditTlNote('${esc(t._eid||'')}','${esc(t._fid||'')}',${(t._hidx===undefined||t._hidx===null)?-1:Number(t._hidx)},'${esc(x.id)}');event.stopPropagation();">✏️ Edit</button>`:''}
         ${t.note?(wlv1NoteIsStructured(t.note)?`<p class="anTlNote anTlTap" onclick="${String(t.type||'').toLowerCase().includes('prescription')?'wlv1ShowPrescriptionCards':'wlv1ShowNoteCards'}('${wlv1B64(t.note)}','${esc(fmtDate(t.date||''))}');event.stopPropagation();">${esc(String(t.note).slice(0,58))}${String(t.note).length>58?'…':''} <span class="anTlMore">📄 বিস্তারিত</span></p>`:`<p class="anTlNote">${esc(t.note)}</p>`):''}
       </div>`};
@@ -7372,6 +7379,111 @@ function wlv1SaveTlNote(eid,fid,hidx,backId){
   try{ if(backId) viewFollow(backId); }catch(_e){}
 }
 window["wlv1SaveTlNote"]=wlv1SaveTlNote;
+/* ═══════════════════════════════════════════════════════════════════════
+   ✏️🔒 V736 (২৭.০৮.২০২৬, TK-অনুমোদিত **অপশন ৩**) — কম্পিউটারের অ্যাপেও
+   "Registration / Visit" ও পেমেন্টের ভুল লেখা সংশোধন, **পুরোনো লেখা জমা রেখে**।
+
+   ফোনের `PatientTimelineActivity.editRegistrationAndPayNote()`-এর যমজ।
+   লেখাটা আসলে দুই টেবিলের চার টুকরো:
+     · patients.complaint · patients.sinceWhen · patients.previousTreatment
+     · payments.progress
+   তাই প্রতিটার নিজের ঘর, আর সেভ হয় নিজের ঠিকানায়।
+
+   🔒 কেন নিরাপদ:
+   ⛔ টাকার অঙ্ক ও ধরন এই পর্দায় **দেখা যায়, ছোঁয়া যায় না** — টাকার পুরোনো
+      পথ (Payment পর্দা) এক অক্ষরও বদলায়নি।
+   ⛔ **যে ঘর বদলায়নি সেটা ছোঁয়াই হয় না।**
+   ⛔ পুরোনো লেখা `editHistory`-তে জমা হয় (patients-এ V736-এর নতুন ঘর,
+      payments-এ আগে থেকেই ছিল) — কখনো মোছা হয় না, শুধু যোগ হয়।
+   ⛔ লেখার পথ অ্যাপের নিজস্ব প্রমাণিত `upd()` — নিজে হাতে save() নয়।
+   ═══════════════════════════════════════════════════════════════════════ */
+function wlv1EditHistLines(row){
+  try{
+    var a=(row&&Array.isArray(row.editHistory))?row.editHistory:[];
+    return a.map(function(o){ return String((o&&o.text)||'') }).filter(Boolean);
+  }catch(_e){ return [] }
+}
+function wlv1EditRegPayNote(pid,payid,backId){
+  var p = pid ? (load('patients')||[]).find(function(a){return String(a.id)===String(pid)}) : null;
+  var pay= payid ? (load('payments')||[]).find(function(a){return String(a.id)===String(payid)}) : null;
+  if(!p && !pay) return toast('This row cannot be edited');
+  window.__wlv1RegPay={pid:pid||'',payid:payid||'',backId:backId||''};
+  var hist=[].concat(wlv1EditHistLines(p), wlv1EditHistLines(pay)).slice(-6);
+  var payTyped = pay ? String(pay.progress||'') : '';
+  var h='<h2>✏️ Edit Note</h2>';
+  if(p){
+    h+='<div class="wlv1RpSec">REGISTRATION DETAILS</div>'
+     + '<label class="wlv1RpLbl">Complaint</label>'
+     + '<input id="wlv1RpComplaint" class="input" value="'+esc(p.complaint||'')+'" oninput="wlv1Caps(this)">'
+     + '<label class="wlv1RpLbl">Duration</label>'
+     + '<input id="wlv1RpDuration" class="input" value="'+esc(p.sinceWhen||'')+'" oninput="wlv1Caps(this)">'
+     + '<label class="wlv1RpLbl">Previous Treatment</label>'
+     + '<input id="wlv1RpPrev" class="input" value="'+esc(p.previousTreatment||'')+'" oninput="wlv1Caps(this)">';
+  }
+  if(pay){
+    h+='<div class="wlv1RpSec">PAYMENT NOTE</div>'
+     + '<label class="wlv1RpLbl">Note</label>'
+     + '<input id="wlv1RpPayNote" class="input" value="'+esc(payTyped)+'" oninput="wlv1Caps(this)">'
+     + '<label class="wlv1RpLbl">Amount &amp; Mode</label>'
+     + '<div class="wlv1RpLock">'+esc(money(pay.amount||0)+' · '+(pay.mode||''))+'<em>🔒 LOCKED</em></div>';
+  }
+  h+='<div class="wlv1RpWarn">⚠️ The amount and mode cannot be changed here — use the Payment screen for that.</div>';
+  if(hist.length) h+='<div class="wlv1RpHist"><b>🕘 Earlier versions (kept)</b>'+hist.map(function(t){return '<div>'+esc(t)+'</div>'}).join('')+'</div>';
+  h+='<div class="wlv1RpInfo">📝 Nothing is lost — who changed what, and when, is always kept.</div>';
+  h+='<div class="actions"><button onclick="wlv1SaveRegPayNote()">💾 Save</button>'
+   + '<button class="ghost" onclick="closeModal()">Cancel</button></div>';
+  modal(h);
+}
+window["wlv1EditRegPayNote"]=wlv1EditRegPayNote;
+
+function wlv1RpVal(id){ var el=document.getElementById(id); return el?String(el.value||'').trim():null; }
+
+function wlv1SaveRegPayNote(){
+  var C0=window.__wlv1RegPay||{}; var changed=0;
+  var whoRow=(typeof user!=='undefined'&&user)?user:{};
+  var who=String(whoRow.name||whoRow.mobile||'');
+  var nowIso=new Date().toISOString();
+  var whenShown=fmtDate(nowIso.slice(0,10));
+  function pushHist(row,lines){
+    var a=(row&&Array.isArray(row.editHistory))?row.editHistory.slice():[];
+    lines.forEach(function(t){ a.push({at:nowIso,by:who,text:t}) });
+    return a;
+  }
+  try{
+    /* ── ১. রেজিস্ট্রেশনের ঘরগুলো ─────────────────────────────── */
+    if(C0.pid){
+      var p=(load('patients')||[]).find(function(a){return String(a.id)===String(C0.pid)});
+      if(!p) return toast('Patient not found');
+      var nc=wlv1RpVal('wlv1RpComplaint'), nd=wlv1RpVal('wlv1RpDuration'), np=wlv1RpVal('wlv1RpPrev');
+      var patch={}, lines=[];
+      function mark(label,col,was,now){
+        if(now===null||String(now)===String(was||'')) return;
+        patch[col]=now; changed++;
+        lines.push(whenShown+' · '+who+' — '+label+': "'+(was||'(blank)')+'" → "'+(now||'(blank)')+'"');
+      }
+      mark('Complaint','complaint',p.complaint,nc);
+      mark('Duration','sinceWhen',p.sinceWhen,nd);
+      mark('Previous Treatment','previousTreatment',p.previousTreatment,np);
+      if(lines.length){ patch.editHistory=pushHist(p,lines); upd('patients',C0.pid,patch); }
+    }
+    /* ── ২. পেমেন্টের নোট ─────────────────────────────────────── */
+    if(C0.payid){
+      var pay=(load('payments')||[]).find(function(a){return String(a.id)===String(C0.payid)});
+      if(!pay) return toast('Payment not found');
+      var nn=wlv1RpVal('wlv1RpPayNote');
+      if(nn!==null && String(nn)!==String(pay.progress||'')){
+        var ln=whenShown+' · '+who+' — Payment Note: "'+(pay.progress||'(blank)')+'" → "'+(nn||'(blank)')+'"';
+        upd('payments',C0.payid,{progress:nn,editHistory:pushHist(pay,[ln]),
+          editedBy:String(whoRow.mobile||''),editedAt:nowIso});
+        changed++;
+      }
+    }
+  }catch(_e){ return toast('Could not save - try again') }
+  if(!changed) return toast('Nothing changed');
+  closeModal(); toast('Saved ✅');
+  try{ if(C0.backId) viewFollow(C0.backId); }catch(_e){}
+}
+window["wlv1SaveRegPayNote"]=wlv1SaveRegPayNote;
 function wlv1ShowPrescriptionCards(b64,dateStr){
   var txt='';try{txt=decodeURIComponent(atob(b64))}catch(e){txt=b64||''}
   var medicines=String(txt||'').split(';').map(function(s){return s.trim()}).filter(Boolean);

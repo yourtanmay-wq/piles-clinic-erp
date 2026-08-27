@@ -64,6 +64,24 @@ data class TimelineEntry(
     // TK-REQUESTED ADDITION (2026-07-20): 3-tap edit target for Enquiry-stage
     // rows (Enquiry & Call History table). Optional, default null/-1, so
     // every other reader of TimelineEntry is completely unaffected.
+    /* ✏️🔒 V736 (২৭.০৮.২০২৬, TK-অনুমোদিত অপশন ৩) — **"Registration / Visit"
+       সারির ভুল লেখা ডাক্তার নিজে ঠিক করতে পারবেন, আর পুরোনো লেখাও জমা থাকবে।**
+
+       ডা. কে. এইচ. মণ্ডলের রিপোর্ট: *"এটা staff ভুল তুলেছে, এটা আমাকে ঠিক
+       করার অধিকার দেওয়া হোক"*। TK: *"অপশন ৩ — চারটেই বদলানো যাবে, তবে পুরোনো
+       লেখা জমা থাকবে।"*
+
+       ওই সারিটার লেখা আসলে **দুই জায়গার তিন+এক টুকরো জোড়া**:
+         · patients.complaint · patients.sinceWhen · patients.previousTreatment
+         · payments.progress  (+ টাকার লাইন, যেটা কখনো এডিটে আসে না)
+       তাই এডিট করতে হলে প্রতিটা টুকরোর **আসল ঠিকানা** সঙ্গে নিয়ে যেতে হয় —
+       নিচের ঘরগুলো ঠিক সেটাই বয়ে নেয়।
+       ⛔ যে সারিতে এসব নেই সেখানে সব `null`/ফাঁকা ⇒ আচরণ আগের মতোই। */
+    val regPatientRowId: String? = null,   // patients.id — কোন সারি বদলাবে
+    val regComplaint: String = "",         // patients.complaint
+    val regDuration: String = "",          // patients.sinceWhen
+    val regPrevTreatment: String = "",     // patients.previousTreatment
+    val payTypedNote: String = "",         // payments.progress-এর মানুষের লেখা অংশ
     val enquiryRowId: String? = null,
     val followUpHistoryId: String? = null,
     val followUpHistoryIndex: Int = -1,
@@ -801,7 +819,12 @@ object PatientTimelineRepository {
                     sortKey = patient.s("createdAt").ifBlank {
                         patient.s("registrationDate").ifBlank { patient.s("date") }
                     },
-                    callTime = patient.s("createdAt")
+                    callTime = patient.s("createdAt"),
+                    // ✏️🔒 V736 — এডিটের জন্য আসল ঠিকানা ও আসল তিনটে লেখা
+                    regPatientRowId = patient.s("id").ifBlank { null },
+                    regComplaint = patient.s("complaint"),
+                    regDuration = regDuration,
+                    regPrevTreatment = regPrevTreatment
                 ))
         }
 
@@ -971,6 +994,8 @@ object PatientTimelineRepository {
             }
             entries.add(TimelineEntry(
                 icon, color, label, pDate, paymentBy, noteText,
+                // ✏️🔒 V736 — শুধু মানুষের টাইপ করা অংশ (টাকার লাইন ছাড়া)
+                payTypedNote = humanPart,
                 paymentId = p.s("id"), paymentBranch = p.s("branch"),
                 paymentAmount = amt,
                 paymentMode = if (isTreatmentMoney) PaymentModel.splitMode(split.first, split.second) else p.s("mode").ifBlank { "CASH" },
@@ -1044,6 +1069,9 @@ object PatientTimelineRepository {
                         .joinToString(" | ")
                     val merged = reg.copy(
                         note = combinedNote,
+                        // ✏️🔒 V736 — reg-এর তিনটে ঘর `copy` নিজেই ধরে রাখে;
+                        //    পেমেন্টের মানুষের-লেখা অংশটা এখানে জুড়ে দেওয়া হলো
+                        payTypedNote = fee.payTypedNote,
                         paymentId = fee.paymentId,
                         paymentBranch = fee.paymentBranch,
                         paymentAmount = fee.paymentAmount,

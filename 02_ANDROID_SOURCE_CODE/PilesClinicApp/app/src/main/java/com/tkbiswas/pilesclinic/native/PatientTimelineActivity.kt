@@ -3257,8 +3257,19 @@ class PatientTimelineActivity : AppCompatActivity() {
                        ⛔ জমানো কপির চাবিহীন সারি দিয়ে **কখনো** এডিট করা হয় না —
                           `TimelineCache`-এর সুরক্ষা-নিয়মটা অটুট।
                        ⛔ পেমেন্টের সারি আগের মতোই আলাদা পথে (এখানে বাদ)। */
-                    val noteEditAction: (() -> Unit)? =
-                        if (e.paymentId == null) ({ editNoteEnsuringFresh(e) }) else null
+                    /* ✏️🔒 V736 (TK-অনুমোদিত অপশন ৩) — কোন সারিতে কোন সম্পাদক:
+                         · "Registration / Visit" (রেজিস্ট্রেশনের ঘর আছে) ⇒ **নতুন
+                           সম্পাদক** — Complaint · Duration · Previous Treatment ·
+                           Payment Note আলাদা আলাদা ঘরে, টাকার অঙ্ক তালাবন্ধ।
+                           ডাক্তার যে সারিটা ঠিক করতে চেয়েছিলেন সেটা **এটাই**;
+                           V724-এ `paymentId == null` শর্তের জন্য বোতামটাই আসত না।
+                         · সাধারণ নোটের সারি ⇒ আগের সাদামাটা নোট-বাক্সই (অপরিবর্তিত)
+                         · শুধু পেমেন্টের সারি ⇒ কোনো বোতাম নয় (টাকার নিজস্ব পথ আছে) */
+                    val noteEditAction: (() -> Unit)? = when {
+                        !e.regPatientRowId.isNullOrBlank() -> ({ editRegistrationAndPayNote(e) })
+                        e.paymentId == null -> ({ editNoteEnsuringFresh(e) })
+                        else -> null
+                    }
                     try {
                         showNoteCardsDialog(fullNote, e.date, e.title, noteEditAction)
                         return@setOnClickListener
@@ -3427,6 +3438,300 @@ class PatientTimelineActivity : AppCompatActivity() {
             }
             .setNegativeButton("Cancel", null)
             .show().also { PremiumAlert.paint(it) }
+    }
+
+
+    /* ═══════════════════════════════════════════════════════════════════
+       ✏️🔒 V736 (২৭.০৮.২০২৬, TK-অনুমোদিত **অপশন ৩**, ফটো-প্রুফ দেখে পাশ)
+       —————————————————————————————————————————————————————————————————
+       ডা. কে. এইচ. মণ্ডল: *"এটা staff ভুল তুলেছে। এটা আমাকে ঠিক করার
+       অধিকার দেওয়া হোক।"*  TK: *"৩ — চারটেই বদলানো যাবে, তবে পুরোনো লেখা
+       জমা থাকবে।"*
+
+       "Registration / Visit" সারির লেখাটা আসলে **দুই টেবিলের চার টুকরো**:
+         · patients.complaint          — Complaint
+         · patients.sinceWhen          — Duration
+         · patients.previousTreatment  — Previous Treatment
+         · payments.progress           — Payment Note
+       তাই একটাই সাধারণ নোট-বাক্স দিয়ে এডিট করা যেত না — মেশানো লেখা সেভ
+       করলে টাকার লাইনটাও রিমার্কের ঘরে ঢুকে যেত। এখানে প্রতিটা টুকরোর
+       **নিজের ঘর**, আর সেভ হয় **নিজের ঠিকানায়**।
+
+       🔒 কেন এটা নিরাপদ:
+       ⛔ **টাকার অঙ্ক ও ধরন (₹ · CASH/ONLINE) এই পর্দায় নেই** — দেখা যায়,
+          ছোঁয়া যায় না। টাকা বদলানোর পুরোনো পথ (Payment পর্দা · ৩-ট্যাপ)
+          এক অক্ষরও বদলায়নি।
+       ⛔ **যে ঘর বদলায়নি সেটা ছোঁয়াই হয় না** — শুধু বদলানো ঘরগুলো যায়।
+       ⛔ **পুরোনো লেখা কখনো হারায় না** — `editHistory`-তে কে · কবে · কী
+          থেকে কী, সব জমা হয় (patients-এ V736-এর নতুন ঘর, payments-এ
+          আগে থেকেই ছিল)।
+       ⛔ `editHistory` তালিকা-পড়ায় **টানা হয় না** (egress বাঁচাতে) — শুধু
+          এই পর্দা খুললে ওই এক রোগীর জন্য একবার আনা হয়।
+       ⛔ কিছু সেভ না হলে সৎ বার্তা দেখানো হয়, চুপচাপ "হয়ে গেছে" বলা হয় না।
+       ═══════════════════════════════════════════════════════════════════ */
+    private fun editRegistrationAndPayNote(e: TimelineEntry) {
+        val patientRowId = e.regPatientRowId
+        if (patientRowId.isNullOrBlank() && e.paymentId.isNullOrBlank()) {
+            android.widget.Toast.makeText(this, "This row cannot be edited", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        android.widget.Toast.makeText(this, "Loading…", android.widget.Toast.LENGTH_SHORT).show()
+        lifecycleScope.launch {
+            // পুরোনো ইতিহাস — শুধু এই রোগীর/এই পেমেন্টের, একবার
+            val hist = withContext(Dispatchers.IO) { loadEditHistory(patientRowId, e.paymentId) }
+            if (isFinishing || isDestroyed) return@launch
+            showRegPayEditor(e, hist)
+        }
+    }
+
+    /** patients ও payments — দুই দিকের `editHistory` একসাথে (শুধু এই সারির)। */
+    private fun loadEditHistory(patientRowId: String?, paymentId: String?): List<String> {
+        val out = ArrayList<String>()
+        fun pull(table: String, id: String) {
+            try {
+                val rows = SupabaseClient.fetchListSlim(table, "id=eq.$id", 1, "id,editHistory")
+                if (rows.length() == 0) return
+                val arr = rows.getJSONObject(0).optJSONArray("editHistory") ?: return
+                for (i in 0 until arr.length()) {
+                    val o = arr.optJSONObject(i) ?: continue
+                    val line = o.optString("text").trim()
+                    if (line.isNotEmpty()) out.add(line)
+                }
+            } catch (_: Throwable) { }
+        }
+        if (!patientRowId.isNullOrBlank()) pull("patients", patientRowId)
+        if (!paymentId.isNullOrBlank()) pull("payments", paymentId)
+        return out.takeLast(6)
+    }
+
+    private fun showRegPayEditor(e: TimelineEntry, history: List<String>) {
+        val d = resources.displayMetrics.density
+        fun dp(v: Int) = (v * d).toInt()
+        // এই পর্দার নিজের ধরনেই (PremiumAlert হেডার + ScrollView + ফর্ম)
+        val container = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(dp(18), dp(12), dp(18), dp(4))
+        }
+
+        fun sectionLabel(text: String) = android.widget.TextView(this).apply {
+            this.text = text
+            textSize = 11.5f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#5B6B81"))
+            setPadding(0, dp(12), 0, dp(2))
+        }
+        fun fieldLabelView(text: String) = android.widget.TextView(this).apply {
+            this.text = text
+            textSize = 11.5f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#5B6B81"))
+            setPadding(0, dp(8), 0, dp(3))
+        }
+        fun box(value: String) = android.widget.EditText(this).apply {
+            setText(value)
+            setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
+            val p = dp(11); setPadding(p, p, p, p)
+            textSize = 13.5f
+            setTextColor(android.graphics.Color.parseColor("#10223A"))
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
+        }
+
+        val hasReg = !e.regPatientRowId.isNullOrBlank()
+        val hasPay = !e.paymentId.isNullOrBlank()
+
+        var complaintIn: android.widget.EditText? = null
+        var durationIn: android.widget.EditText? = null
+        var prevIn: android.widget.EditText? = null
+        var payNoteIn: android.widget.EditText? = null
+
+        if (hasReg) {
+            container.addView(sectionLabel("REGISTRATION DETAILS"))
+            container.addView(fieldLabelView("Complaint"))
+            complaintIn = box(e.regComplaint); container.addView(complaintIn)
+            container.addView(fieldLabelView("Duration"))
+            durationIn = box(e.regDuration); container.addView(durationIn)
+            container.addView(fieldLabelView("Previous Treatment"))
+            prevIn = box(e.regPrevTreatment); container.addView(prevIn)
+        }
+        if (hasPay) {
+            container.addView(sectionLabel("PAYMENT NOTE"))
+            container.addView(fieldLabelView("Note"))
+            payNoteIn = box(e.payTypedNote); container.addView(payNoteIn)
+            container.addView(fieldLabelView("Amount & Mode"))
+            // 🔒 টাকার লাইন — শুধু দেখার, ছোঁয়ার নয়
+            container.addView(android.widget.TextView(this).apply {
+                text = "₹" + "%,.0f".format(e.paymentAmount) + "  ·  " +
+                       e.paymentMode + "      🔒 LOCKED"
+                textSize = 13.5f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#7A879A"))
+                val p = dp(11); setPadding(p, p, p, p)
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(android.graphics.Color.parseColor("#F1F4F8"))
+                    cornerRadius = 12f * d
+                    setStroke(dp(1), android.graphics.Color.parseColor("#C6D2E0"))
+                }
+                layoutParams = android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
+            })
+        }
+        container.addView(android.widget.TextView(this).apply {
+            text = "⚠️ The amount and mode cannot be changed here — use the Payment screen for that."
+            textSize = 11.5f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#8A5A00"))
+            val p = dp(10); setPadding(p, p, p, p)
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(android.graphics.Color.parseColor("#FFF6E0")); cornerRadius = 10f * d
+            }
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(12) }
+        })
+        if (history.isNotEmpty()) {
+            container.addView(android.widget.TextView(this).apply {
+                text = "🕘 Earlier versions (kept)\n" + history.joinToString("\n")
+                textSize = 11.5f
+                setTextColor(android.graphics.Color.parseColor("#3C4859"))
+                val p = dp(10); setPadding(p, p, p, p)
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(android.graphics.Color.parseColor("#F4F8FF")); cornerRadius = 12f * d
+                    setStroke(dp(1), android.graphics.Color.parseColor("#D9E4F5"))
+                }
+                layoutParams = android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { topMargin = dp(10) }
+            })
+        }
+        container.addView(android.widget.TextView(this).apply {
+            text = "📝 Nothing is lost — who changed what, and when, is always kept."
+            textSize = 11.5f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#1A4E8A"))
+            val p = dp(10); setPadding(p, p, p, p)
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(android.graphics.Color.parseColor("#E8F1FC")); cornerRadius = 10f * d
+            }
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(10) }
+        })
+
+        UppercaseInputUtil.applyToAll(container)  // প্রজেক্টের নিয়ম: ইংরেজি লেখা বড় হাতের
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(PremiumAlert.header(this, "✏️ Edit Note"))
+            .setView(android.widget.ScrollView(this).apply { addView(container) })
+            .setPositiveButton("💾 Save") { _, _ ->
+                val newComplaint = complaintIn?.text?.toString()?.trim() ?: e.regComplaint
+                val newDuration  = durationIn?.text?.toString()?.trim() ?: e.regDuration
+                val newPrev      = prevIn?.text?.toString()?.trim() ?: e.regPrevTreatment
+                val newPayNote   = payNoteIn?.text?.toString()?.trim() ?: e.payTypedNote
+                saveRegPayNote(e, newComplaint, newDuration, newPrev, newPayNote)
+            }
+            .setNegativeButton("Cancel", null)
+            .show().also { PremiumAlert.paint(it) }
+    }
+
+    /** 🔒 V736 — সেভ। **শুধু বদলানো ঘরগুলো** যায়; প্রতিটার পুরোনো লেখা
+     *  `editHistory`-তে জমা হয়। কিছু ব্যর্থ হলে সৎ বার্তা দেখানো হয়। */
+    private fun saveRegPayNote(
+        e: TimelineEntry, complaint: String, duration: String, prevTreat: String, payNote: String
+    ) {
+        val user = NativeSession.current(this)
+        val who = (user?.name ?: "").ifBlank { user?.mobile ?: "" }
+        val whenIso = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
+            .format(java.util.Date())
+        val whenShown = FollowUpModel.displayDate(whenIso.take(10))
+
+        val regChanges = ArrayList<Triple<String, String, String>>()   // ঘর · আগে · পরে
+        if (!e.regPatientRowId.isNullOrBlank()) {
+            if (complaint != e.regComplaint) regChanges.add(Triple("Complaint", e.regComplaint, complaint))
+            if (duration != e.regDuration) regChanges.add(Triple("Duration", e.regDuration, duration))
+            if (prevTreat != e.regPrevTreatment) regChanges.add(Triple("Previous Treatment", e.regPrevTreatment, prevTreat))
+        }
+        val payChanged = !e.paymentId.isNullOrBlank() && payNote != e.payTypedNote
+
+        if (regChanges.isEmpty() && !payChanged) {
+            android.widget.Toast.makeText(this, "Nothing changed", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        android.widget.Toast.makeText(this, "Saving…", android.widget.Toast.LENGTH_SHORT).show()
+        lifecycleScope.launch {
+            val failed = ArrayList<String>()
+            withContext(Dispatchers.IO) {
+                // ── ১. রেজিস্ট্রেশনের ঘরগুলো ───────────────────────────
+                if (regChanges.isNotEmpty()) {
+                    val id = e.regPatientRowId!!
+                    val fields = org.json.JSONObject()
+                    regChanges.forEach { (label, _, now) ->
+                        when (label) {
+                            "Complaint" -> fields.put("complaint", now)
+                            "Duration" -> fields.put("sinceWhen", now)
+                            "Previous Treatment" -> fields.put("previousTreatment", now)
+                        }
+                    }
+                    val lines = regChanges.map { (label, was, now) ->
+                        "$whenShown · $who — $label: \"${was.ifBlank { "(blank)" }}\" → \"${now.ifBlank { "(blank)" }}\""
+                    }
+                    fields.put("editHistory", appendHistory("patients", id, lines, whenIso, who))
+                    fields.put("updatedAt", whenIso)
+                    val ok = try { SupabaseClient.updateById("patients", id, fields) } catch (_: Throwable) { false }
+                    if (!ok) {
+                        GenericUpdateQueue.queue(this@PatientTimelineActivity, "patients", id, fields)
+                        failed.add("Registration details")
+                    }
+                }
+                // ── ২. পেমেন্টের নোট ───────────────────────────────────
+                if (payChanged) {
+                    val pid = e.paymentId!!
+                    val line = "$whenShown · $who — Payment Note: " +
+                        "\"${e.payTypedNote.ifBlank { "(blank)" }}\" → \"${payNote.ifBlank { "(blank)" }}\""
+                    val fields = org.json.JSONObject()
+                        .put("progress", payNote)
+                        .put("editHistory", appendHistory("payments", pid, listOf(line), whenIso, who))
+                        .put("editedBy", user?.mobile ?: "")
+                        .put("editedAt", whenIso)
+                        .put("updatedAt", whenIso)
+                    val ok = try { SupabaseClient.updateById("payments", pid, fields) } catch (_: Throwable) { false }
+                    if (!ok) {
+                        GenericUpdateQueue.queue(this@PatientTimelineActivity, "payments", pid, fields)
+                        failed.add("Payment note")
+                    }
+                }
+            }
+            if (isFinishing || isDestroyed) return@launch
+            if (failed.isEmpty()) {
+                android.widget.Toast.makeText(this@PatientTimelineActivity, "Saved ✅", android.widget.Toast.LENGTH_SHORT).show()
+            } else {
+                androidx.appcompat.app.AlertDialog.Builder(this@PatientTimelineActivity)
+                    .setCustomTitle(PremiumAlert.header(this@PatientTimelineActivity, "⚠ Saved offline"))
+                    .setMessage(
+                        failed.joinToString(", ") + " could not reach the cloud right now.\n\n" +
+                        "It is saved on this phone and will go up by itself when the internet is back. " +
+                        "Nothing is lost."
+                    )
+                    .setPositiveButton("OK", null)
+                    .show().also { PremiumAlert.paint(it) }
+            }
+            load(currentMobile, currentSection)
+        }
+    }
+
+    /** পুরোনো `editHistory` এনে তার শেষে নতুন লাইন যোগ করে ফেরত দেয়।
+     *  ⛔ পুরোনো কিছু কখনো মোছা হয় না — শুধু যোগ হয়। */
+    private fun appendHistory(
+        table: String, id: String, lines: List<String>, whenIso: String, who: String
+    ): org.json.JSONArray {
+        val arr = try {
+            val rows = SupabaseClient.fetchListSlim(table, "id=eq.$id", 1, "id,editHistory")
+            if (rows.length() > 0) rows.getJSONObject(0).optJSONArray("editHistory") ?: org.json.JSONArray()
+            else org.json.JSONArray()
+        } catch (_: Throwable) { org.json.JSONArray() }
+        lines.forEach { t ->
+            arr.put(org.json.JSONObject().put("at", whenIso).put("by", who).put("text", t))
+        }
+        return arr
     }
 
     /** TK APPROVED (2026-07-15): standing rule — 3-tap must edit everything.
@@ -4272,8 +4577,15 @@ class PatientTimelineActivity : AppCompatActivity() {
             "^(Converted|Registered|Advance|Bill|Follow|Visit|Treatment|Refund|Enquiry|Marked|Moved|Inquiry)",
             RegexOption.IGNORE_CASE
         )
+        /* 💰🔒 V736 (TK-অনুমোদিত ডেমো) — আগে শুধু **"₹" দিয়ে শুরু** হওয়া
+           টুকরোটাকে টাকার কার্ডে পাঠানো হত। কিন্তু পেমেন্টের নোট আসে
+           "KSHAR SUTRA করা হল — ₹400 · CASH" ধাঁচে — শুরুতে মানুষের লেখা,
+           তাই ওটা রিমার্কের কার্ডে ঢুকে যেত আর সব একসাথে মেশানো দেখাত।
+           এখন **যে টুকরোয় "— ₹" আছে** সেটাও টাকার কার্ডে যায়।
+           ⛔ যে টুকরোয় ₹ নেই তার আচরণ এক অক্ষরও বদলায়নি। */
+        val payJoined = Regex("[—-]\\s*₹\\s*[0-9,]")
         for (b in blocks) {
-            if (payRe.containsMatchIn(b)) { pay = b; continue }
+            if (payRe.containsMatchIn(b) || payJoined.containsMatchIn(b)) { pay = b; continue }
             if (b.contains(":") && b.count { it == ';' } >= 1) {
                 for (pairRaw in b.split(";")) {
                     val pair = pairRaw.trim()
@@ -4295,7 +4607,7 @@ class PatientTimelineActivity : AppCompatActivity() {
             sb.append("<div class=\"nkCard\"><div class=\"nkNote\">")
                 .append(noteHtmlEsc(txt.ifBlank { "—" })).append("</div></div>")
         } else {
-            if (remarks.isNotEmpty()) sb.append("<div class=\"nkCard\"><div class=\"nkT\">"+noteHtmlEsc(NoBengali.s("📌 রিমার্ক"))+"</div><div class=\"nkNote\">")
+            if (remarks.isNotEmpty()) sb.append("<div class=\"nkCard\"><div class=\"nkT\">"+noteHtmlEsc(NoBengali.s("📌 Remark"))+"</div><div class=\"nkNote\">")
                 .append(remarks.joinToString("<br>") { noteHtmlEsc(it) }).append("</div></div>")
             if (status.isNotEmpty()) {
                 sb.append("<div class=\"nkCard\"><div class=\"nkT\">"+noteHtmlEsc(NoBengali.s("🧾 স্ট্যাটাস"))+"</div><div class=\"nkChips\">")
@@ -4308,7 +4620,7 @@ class PatientTimelineActivity : AppCompatActivity() {
                     .append("</span><span class=\"nkV\">").append(noteHtmlEsc(p.second)).append("</span></div>")
                 sb.append("</div>")
             }
-            if (pay != null) sb.append("<div class=\"nkCard\"><div class=\"nkT\">"+noteHtmlEsc(NoBengali.s("💰 পেমেন্ট"))+"</div><div class=\"nkPay\">")
+            if (pay != null) sb.append("<div class=\"nkCard\"><div class=\"nkT\">"+noteHtmlEsc(NoBengali.s("💰 Payment Note"))+"</div><div class=\"nkPay\">")
                 .append(noteHtmlEsc(pay!!)).append("</div></div>")
         }
         val html = "<!doctype html><html><head><meta charset=\"utf-8\">" +

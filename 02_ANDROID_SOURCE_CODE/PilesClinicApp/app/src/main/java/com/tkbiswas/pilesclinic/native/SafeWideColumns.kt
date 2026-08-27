@@ -60,7 +60,7 @@ object SafeWideColumns {
     /** টেবিল → (সব ঘর, ভারী ঘর)। ঘরের নাম `PILES_CLINIC_DB_SETUP.sql` ও
      *  প্রজেক্টে ব্যবহৃত প্রমাণিত তালিকা মিলিয়ে নেওয়া। */
     private val ALL: Map<String, String> = mapOf(
-        "patients" to "id,address,age,altMobile,bill,branch,complaint,completeApprovedBy,completeRequestedBy,createdAt,createdBy,date,decision,diagnosis,discount,disease,doctorAdvice,doctorComplete,doctorFullNote,medicalHistory,mobile,name,occupation,patientId,photo,previousCost,previousResult,previousTreatment,queue,refBy,refDoctor,refDoctorMobile,refundRestoredBy,registeredBy,registrationDate,sex,sinceWhen,stage,timeType,treatmentDuration,updatedAt,visitDate",
+        "patients" to "id,address,age,altMobile,bill,branch,complaint,editHistory,completeApprovedBy,completeRequestedBy,createdAt,createdBy,date,decision,diagnosis,discount,disease,doctorAdvice,doctorComplete,doctorFullNote,medicalHistory,mobile,name,occupation,patientId,photo,previousCost,previousResult,previousTreatment,queue,refBy,refDoctor,refDoctorMobile,refundRestoredBy,registeredBy,registrationDate,sex,sinceWhen,stage,timeType,treatmentDuration,updatedAt,visitDate",
         "followups" to "id,address,age,branch,callCount,convertedPatientId,createdAt,createdBy,date,disease,history,lastCallDate,lastRemark,mobile,name,nextFollow,patientId,photo,refId,registrationDate,sex,stage,status,timeType,updatedAt,visitDate",
         "payments" to "id,amount,branch,cashAmount,createdAt,createdBy,dailyEvents,date,editHistory,editedAt,editedBy,mobile,mode,name,onlineAmount,patientCode,patientId,payLabel,payType,paymentLabel,receivedBy,refundApprovalStatus,remarks,updatedAt",
         "medical" to "id,branch,createdAt,createdBy,date,days,decision,details,diagnosis,doctorFullNote,mobile,name,nextFollow,patientId,photos,selected,type,updatedAt",
@@ -68,7 +68,9 @@ object SafeWideColumns {
     )
 
     private val HEAVY: Map<String, List<String>> = mapOf(
-        "patients" to listOf("photo", "medicalHistory"),
+        // ✏️ V736 — editHistory ভারী হতে পারে, তাই তালিকা-পড়ায় বাদ
+        //    (egress বাঁচে); সংশোধনের পর্দা খুললে শুধু ওই এক সারির জন্য আনা হয়
+        "patients" to listOf("photo", "medicalHistory", "editHistory"),
         "followups" to listOf("photo", "history"),
         "medical" to listOf("photos", "details"),
         "doctor_visits" to listOf("callHistory", "referralPayments"),
