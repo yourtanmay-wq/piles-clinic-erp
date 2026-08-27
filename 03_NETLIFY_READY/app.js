@@ -4070,6 +4070,598 @@ function wlv1LogSent(mobile,kind,branch,name,channel,recipientType){
   }catch(e){}
 }
 window["wlv1LogSent"]=wlv1LogSent;
+/* ==== WLV1_DOCMSG_BEGIN (যন্ত্রে তৈরি — হাতে বদলাবেন না) ==== */
+/* 🔒 V733 — এই পুরো অংশটা `00_GUARD/gen_web_doctor_messages.py` **যন্ত্রে**
+   বানিয়েছে, উৎস = ফোনের `DoctorMessage.kt` (লেখার একমাত্র উৎস)।
+   ⛔ এখানে হাতে একটা অক্ষরও বদলাবেন না — বদলালে গার্ড [৯.২১] ফেল করবে।
+   ⛔ লেখা বদলাতে হলে ফোনের DoctorMessage.kt বদলান, তারপর:
+        python3 00_GUARD/gen_web_doctor_messages.py --write   */
+var WLV1_DOCMSG_BRANCH={"birpara": {"addressLine": "MG Road, near Axis Bank, Birpara", "clinicName": "MAA AYURVED PILES CLINIC", "displayName": "Birpara", "id": "birpara", "phoneLine": "8538002200"}, "cooch_behar": {"addressLine": "Opp. Mini Bus Stand, Sengupta Complex 2nd Floor, Cooch Behar", "clinicName": "MAA AYURVED PILES CLINIC", "displayName": "Cooch Behar", "id": "cooch_behar", "phoneLine": "8514002200"}, "falakata": {"addressLine": "BDO Office Road, near Hotel Nandonik, Falakata", "clinicName": "MAA AYURVED PILES CLINIC", "displayName": "Falakata", "id": "falakata", "phoneLine": "8514001100"}, "jalpaiguri": {"addressLine": "Raikatpara, Opp. Sports Complex, Jalpaiguri", "clinicName": "MAA AYURVED PILES CLINIC", "displayName": "Jalpaiguri", "id": "jalpaiguri", "phoneLine": "8436002200"}, "kishanganj": {"addressLine": "Caltex Chowk, Modi Gola, Kishanganj", "clinicName": "TK BISWAS PILES CLINIC", "displayName": "Kishanganj", "id": "kishanganj", "phoneLine": "8676002200"}};
+var WLV1_DOCMSG_EXTRA={"birpara": {"bnDays": "রবিবার ও বুধবার", "bnName": "বীরপাড়া", "enDays": "Sunday and Wednesday", "facebookLink": "https://www.facebook.com/share/19HV5QLgnW/", "hiDays": "रविवार एवं बुधवार", "hiName": "बीरपाड़ा", "mapLink": "https://maps.app.goo.gl/euEW22kdnE21Fove6"}, "cooch_behar": {"bnDays": "সোমবার ও শুক্রবার", "bnName": "কোচবিহার", "enDays": "Monday and Friday", "facebookLink": "https://www.facebook.com/share/19HV5QLgnW/", "hiDays": "सोमवार एवं शुक्रवार", "hiName": "कूचबिहार", "mapLink": "https://maps.app.goo.gl/hR5YK4jpELetmQDQ8?g_st=ac"}, "falakata": {"bnDays": "মঙ্গলবার ও বৃহস্পতিবার", "bnName": "ফালাকাটা", "enDays": "Tuesday and Thursday", "facebookLink": "https://www.facebook.com/share/19HV5QLgnW/", "hiDays": "मंगलवार एवं गुरुवार", "hiName": "फालाकाटा", "mapLink": "https://maps.app.goo.gl/FdwYxUukwK9kTMUcA"}, "jalpaiguri": {"bnDays": "মঙ্গলবার ও শনিবার", "bnName": "জলপাইগুড়ি", "enDays": "Tuesday and Saturday", "facebookLink": "https://www.facebook.com/share/19HV5QLgnW/", "hiDays": "मंगलवार एवं शनिवार", "hiName": "जलपाईगुड़ी", "mapLink": "https://maps.app.goo.gl/YS6k4B8XD1NYaUDK7?g_st=ac"}, "kishanganj": {"bnDays": "বুধবার থেকে শনিবার", "bnName": "কিশানগঞ্জ", "enDays": "Wednesday to Saturday", "facebookLink": "https://www.facebook.com/share/1CuUNwf48e/", "hiDays": "बुधवार से शनिवार", "hiName": "किशनगंज", "mapLink": "https://maps.app.goo.gl/NWxduLdY6NKae1aj8"}};
+var WLV1_DOCMSG_SITE='https://maaayurvedpilesclinic.netlify.app';
+function wlv1DocBranch(branch){
+  var k=String(branch||'').trim().toLowerCase().replace(/[-_]/g,' ');
+  var all=WLV1_DOCMSG_BRANCH;
+  for(var id in all){ if(!Object.prototype.hasOwnProperty.call(all,id))continue;
+    var b=all[id];
+    if(String(b.displayName).toLowerCase()===k||String(id).replace(/_/g,' ')===k)return b; }
+  return all['kishanganj'];
+}
+function wlv1DocExtra(branch){ var b=wlv1DocBranch(branch);
+  return WLV1_DOCMSG_EXTRA[b.id]||WLV1_DOCMSG_EXTRA['kishanganj']; }
+function wlv1DocName(raw,fallback){
+  var t=String(raw||'').trim(); return (t?t:String(fallback||'').trim()).toUpperCase(); }
+function wlv1DocMsgBuild(kind,lang,branch,o){
+  o=o||{};
+  var b=wlv1DocBranch(branch), x=wlv1DocExtra(branch), W={site:WLV1_DOCMSG_SITE};
+  var dr=wlv1DocName(o.doctorName,o.doctorMobile), pt=wlv1DocName(o.patientName,o.patientMobile);
+  var dateText=String(o.dateText||''), visitDate=String(o.visitDate||'');
+  var treatment=String(o.treatment||''), bloodTest=String(o.bloodTest||''), nextVisit=String(o.nextVisit||'');
+  var amount=Number(o.amount||0), paymentDate=String(o.paymentDate||''), mode=String(o.mode||'');
+  var referenceNo=String(o.referenceNo||''), blank='______';
+  var areaLine=(String(o.doctorArea||'').trim()==='')?'':(String(o.doctorArea).trim()+'\n');
+  function S(v){ return String(v||'').trim(); }
+  function H(b,l){ return (l==='hi')? (b.clinicName+'\n'+b.addressLine+'\n\u092b\u094b\u0928: '+b.phoneLine)
+                 : (l==='en')? (b.clinicName+'\n'+b.addressLine+'\nPhone: '+b.phoneLine)
+                 : (b.clinicName+'\n'+b.addressLine+'\n\u09ab\u09cb\u09a8: '+b.phoneLine); }
+  function F(b,l){ var s=(l==='hi')?'\u0938\u0938\u094d\u0928\u0947\u0939,':(l==='en')?'Regards,':'\u09b8\u09ac\u09bf\u09a8\u09af\u09bc\u09c7,';
+    return s+'\nTK BISWAS\nFounder & Consultant\n'+b.clinicName+' \u00b7 '+b.displayName; }
+  function AMT(a,bl){ return a>0? Math.round(a).toLocaleString('en-IN') : bl; }
+  function REF(m,r,bl){ return (S(m).toLowerCase()!=='online')? 'Not Applicable' : (S(r)||bl); }
+  switch(kind+'|'+lang){
+    case 'intro|bn': return (
+    'THANK YOU FOR YOUR VALUABLE TIME\n\n'
+  + 'সম্মানীয় ডা. '
+  + dr
+  + ' মহাশয়\n'
+  + areaLine
+  + '\n'
+  + 'আজকের আলোচনার পর আমাদের ক্লিনিকের চিকিৎসা পরিষেবা সম্পর্কে সংক্ষিপ্ত তথ্য পাঠানো হলো।\n\n'
+  + 'আমাদের ক্লিনিকে Piles (অর্শ), Fissure (ফিশার), Fistula (ভগন্দর), Hydrocele (একশিরা) ও Gupt Rog (গুপ্তরোগ)-এর বিশেষায়িত মূল্যায়ন, পরামর্শ ও চিকিৎসা প্রদান করা হয়।\n\n'
+  + 'বিশেষভাবে যেসব রোগী দীর্ঘদিন ধরে মলদ্বারের সমস্যায় ভুগছেন, বিভিন্ন স্থানে চিকিৎসা নিয়েও কাঙ্ক্ষিত ফলাফল পাননি, বারবার একই সমস্যা ফিরে আসছে অথবা অপারেশন নিয়ে ভয় ও দ্বিধায় আছেন—তাঁদের রোগের অবস্থা বিস্তারিতভাবে মূল্যায়ন করে উপযুক্ত চিকিৎসার ব্যবস্থা করা হয়। উপযুক্ত ক্ষেত্রে বিনা অপারেশনে চিকিৎসার সুযোগ রয়েছে।\n\n'
+  + 'আপনার চেম্বারে এ ধরনের কোনো রোগী এলে প্রয়োজনীয় মূল্যায়ন ও চিকিৎসার জন্য আমাদের '
+  + x.bnName
+  + ' শাখায় রেফার করতে পারেন। রোগী পাঠানোর আগে যোগাযোগ করলে অ্যাপয়েন্টমেন্ট ও প্রয়োজনীয় সমন্বয় করা হবে।\n\n'
+  + x.bnName
+  + ' চেম্বার: '
+  + x.bnDays
+  + '\n'
+  + 'সময়: সকাল 11টা থেকে বিকেল 4টা\n\n'
+  + 'Regards,\nTK BISWAS\nFounder & Consultant\n\n'
+  + b.clinicName
+  + '\n'
+  + b.displayName
+  + ' Branch\n'
+  + '📍 '
+  + b.addressLine
+  + '\n'
+  + 'Contact Us: +91 '
+  + b.phoneLine
+  + '\n\n'
+  + 'রোগ ও চিকিৎসা পরিষেবা সম্পর্কে বিস্তারিত জানুন:\n'
+  + W.site
+  + '\n\n'
+  + 'Google Map:\n'
+  + x.mapLink
+  + '\n\n'
+  + '🔵 Facebook Page:\n'
+  + x.facebookLink
+    );
+    case 'intro|hi': return (
+    'THANK YOU FOR YOUR VALUABLE TIME\n\n'
+  + 'सम्माननीय डॉ. '
+  + dr
+  + ' जी\n'
+  + areaLine
+  + '\n'
+  + 'आज की बातचीत के बाद हमारे क्लिनिक की चिकित्सा सेवाओं के बारे में संक्षिप्त जानकारी साझा की जा रही है।\n\n'
+  + 'हमारे क्लिनिक में Piles (बवासीर), Fissure (फिशर), Fistula (भगंदर), Hydrocele (हाइड्रोसील) एवं Gupt Rog (गुप्त रोग) का विशेष मूल्यांकन, परामर्श एवं उपचार किया जाता है।\n\n'
+  + 'विशेष रूप से ऐसे रोगी, जो लंबे समय से गुदा संबंधी समस्याओं से पीड़ित हैं, विभिन्न स्थानों पर उपचार कराने के बाद भी अपेक्षित परिणाम प्राप्त नहीं कर पाए हैं, जिनकी समस्या बार-बार लौट आती है अथवा जो ऑपरेशन को लेकर भय या दुविधा में हैं—उनकी स्थिति का विस्तार से मूल्यांकन करके उपयुक्त उपचार किया जाता है। उपयुक्त मामलों में बिना ऑपरेशन उपचार की सुविधा उपलब्ध है।\n\n'
+  + 'आपके क्लिनिक में ऐसा कोई रोगी आए तो आवश्यक मूल्यांकन एवं उपचार के लिए उसे हमारी '
+  + x.hiName
+  + ' शाखा में रेफर कर सकते हैं। रोगी भेजने से पहले संपर्क करने पर अपॉइंटमेंट एवं आवश्यक समन्वय किया जाएगा।\n\n'
+  + x.hiName
+  + ' चैंबर: '
+  + x.hiDays
+  + '\n'
+  + 'समय: सुबह 11 बजे से शाम 4 बजे तक\n\n'
+  + 'Regards,\nTK BISWAS\nFounder & Consultant\n\n'
+  + b.clinicName
+  + '\n'
+  + b.displayName
+  + ' Branch\n'
+  + '📍 '
+  + b.addressLine
+  + '\n'
+  + 'Contact Us: +91 '
+  + b.phoneLine
+  + '\n\n'
+  + 'रोगों एवं हमारी चिकित्सा सेवाओं के बारे में विस्तार से जानें:\n'
+  + W.site
+  + '\n\n'
+  + 'Google Map:\n'
+  + x.mapLink
+  + '\n\n'
+  + '🔵 Facebook Page:\n'
+  + x.facebookLink
+    );
+    case 'intro|en': return (
+    'THANK YOU FOR YOUR VALUABLE TIME\n\n'
+  + 'Dear Dr. '
+  + dr
+  + ',\n'
+  + areaLine
+  + '\n'
+  + 'Following our discussion today, we are sharing a brief overview of our clinic\'s medical services.\n\n'
+  + 'Our clinic provides specialized evaluation, consultation and treatment for Piles (Haemorrhoids), Anal Fissure, Anal Fistula, Hydrocele and Gupt Rog (Private Health Conditions).\n\n'
+  + 'Patients who have been suffering from anorectal problems for a long time, have not achieved the expected results after receiving treatment elsewhere, experience recurrent symptoms, or feel anxious about surgery are thoroughly evaluated and offered treatment according to their clinical condition. Non-surgical treatment options are available in suitable cases.\n\n'
+  + 'When such a patient visits your clinic, you may refer them to our '
+  + b.displayName
+  + ' Branch for further evaluation and treatment. Please contact us before sending the patient so that the appointment and necessary coordination can be arranged.\n\n'
+  + b.displayName
+  + ' Branch Chamber: '
+  + x.enDays
+  + '\n'
+  + 'Time: 11:00 AM to 4:00 PM\n\n'
+  + 'Regards,\nTK BISWAS\nFounder & Consultant\n\n'
+  + b.clinicName
+  + '\n'
+  + b.displayName
+  + ' Branch\n'
+  + '📍 '
+  + b.addressLine
+  + '\n'
+  + 'Contact Us: +91 '
+  + b.phoneLine
+  + '\n\n'
+  + 'Learn more about the conditions and our medical services:\n'
+  + W.site
+  + '\n\n'
+  + 'Google Map:\n'
+  + x.mapLink
+  + '\n\n'
+  + '🔵 Facebook Page:\n'
+  + x.facebookLink
+    );
+    case 'arrived|bn': return (
+    H(b,"bn")
+  + '\n\n'
+  + 'শ্রদ্ধেয় Dr. '
+  + dr
+  + ',\n\n'
+  + 'আপনার পাঠানো পেশেন্ট আজ আমাদের ক্লিনিকে এসেছেন। আপনাকে সেটা inform করছি।\n\n'
+  + 'Patient Name — '
+  + pt
+  + '\n'
+  + 'Date — '
+  + dateText
+  + '\n\n'
+  + 'পেশেন্টের রেজিস্ট্রেশন কমপ্লিট হয়েছে। '
+  + 'ডাক্তারের চেকআপের পর চিকিৎসার update আপনাকে যথাসময়ে জানানো হবে।\n\n'
+  + 'আপনার ভরসার জন্য Thank you স্যার।\n\n'
+  + F(b,"bn")
+    );
+    case 'arrived|hi': return (
+    H(b,"hi")
+  + '\n\n'
+  + 'आदरणीय Dr. '
+  + dr
+  + ',\n\n'
+  + 'आपके भेजे मरीज़ आज हमारे क्लिनिक में आए हैं। आपको यह inform कर रहे हैं।\n\n'
+  + 'Patient Name — '
+  + pt
+  + '\n'
+  + 'Date — '
+  + dateText
+  + '\n\n'
+  + 'मरीज़ का रजिस्ट्रेशन पूरा हो गया है। '
+  + 'डॉक्टर के चेकअप के बाद इलाज का update आपको समय पर बता दिया जाएगा।\n\n'
+  + 'आपके भरोसे के लिए Thank you सर।\n\n'
+  + F(b,"hi")
+    );
+    case 'arrived|en': return (
+    H(b,"en")
+  + '\n\n'
+  + 'Dear Dr. '
+  + dr
+  + ',\n\n'
+  + 'The patient you referred has visited our clinic today. Informing you accordingly.\n\n'
+  + 'Patient Name — '
+  + pt
+  + '\n'
+  + 'Date — '
+  + dateText
+  + '\n\n'
+  + 'The patient\'s registration has been completed. '
+  + 'Further treatment update will be shared with you after the doctor\'s checkup.\n\n'
+  + 'Thank you for your trust, Sir.\n\n'
+  + F(b,"en")
+    );
+    case 'details|bn': return (
+    H(b,"bn")
+  + '\n\n'
+  + 'শ্রদ্ধেয় Dr. '
+  + dr
+  + ',\n\n'
+  + 'আপনার পাঠানো পেশেন্টের update আপনাকে জানানো হচ্ছে।\n\n'
+  + 'Patient Name — '
+  + pt
+  + '\n'
+  + 'Visit Date — '
+  + visitDate
+  + '\n'
+  + 'Treatment — '
+  + treatment
+  + '\n'
+  + 'Blood Test — '
+  + bloodTest
+  + '\n'
+  + 'Next Visit Date — '
+  + nextVisit
+  + '\n\n'
+  + 'পেশেন্টের প্রতি সম্পূর্ণ যত্ন নেওয়া হচ্ছে। '
+  + 'পরবর্তী follow-up-এর খবরও আপনাকে যথাসময়ে জানানো হবে।\n\n'
+  + 'আপনার ভরসার জন্য Thank you স্যার।\n\n'
+  + F(b,"bn")
+    );
+    case 'details|hi': return (
+    H(b,"hi")
+  + '\n\n'
+  + 'आदरणीय Dr. '
+  + dr
+  + ',\n\n'
+  + 'आपके भेजे मरीज़ का update आपको बताया जा रहा है।\n\n'
+  + 'Patient Name — '
+  + pt
+  + '\n'
+  + 'Visit Date — '
+  + visitDate
+  + '\n'
+  + 'Treatment — '
+  + treatment
+  + '\n'
+  + 'Blood Test — '
+  + bloodTest
+  + '\n'
+  + 'Next Visit Date — '
+  + nextVisit
+  + '\n\n'
+  + 'मरीज़ का पूरा ध्यान रखा जा रहा है। '
+  + 'अगले follow-up की जानकारी भी आपको समय पर दे दी जाएगी।\n\n'
+  + 'आपके भरोसे के लिए Thank you सर।\n\n'
+  + F(b,"hi")
+    );
+    case 'details|en': return (
+    H(b,"en")
+  + '\n\n'
+  + 'Dear Dr. '
+  + dr
+  + ',\n\n'
+  + 'Here is the latest update on the patient you referred.\n\n'
+  + 'Patient Name — '
+  + pt
+  + '\n'
+  + 'Visit Date — '
+  + visitDate
+  + '\n'
+  + 'Treatment — '
+  + treatment
+  + '\n'
+  + 'Blood Test — '
+  + bloodTest
+  + '\n'
+  + 'Next Visit Date — '
+  + nextVisit
+  + '\n\n'
+  + 'The patient is receiving complete care. '
+  + 'The next follow-up update will also be shared with you on time.\n\n'
+  + 'Thank you for your trust, Sir.\n\n'
+  + F(b,"en")
+    );
+    case 'referralPaid|bn': return (
+    H(b,"bn")
+  + '\n\n'
+  + 'শ্রদ্ধেয় Dr. '
+  + dr
+  + ',\n\n'
+  + 'আপনি যে পেশেন্ট পাঠিয়েছিলেন, সেই পেশেন্টের referral income আপনাকে পাঠানো হলো।\n\n'
+  + 'Patient Name — '
+  + pt
+  + '\n'
+  + 'Visit Date — '
+  + visitDate
+  + '\n'
+  + 'Referral Income — Rs '
+  + AMT(amount,blank)
+  + '\n'
+  + 'Payment Mode — '
+  + (S(mode)||blank)
+  + ' (Cash / Online)\n'
+  + 'Payment Date — '
+  + (S(paymentDate)||blank)
+  + '\n'
+  + 'Reference No. — '
+  + REF(mode,referenceNo,blank)
+  + '\n\n'
+  + 'টাকা পেয়ে একবার জানিয়ে দিলে ভালো হয় স্যার। কোনো অসুবিধা হলে উপরের নম্বরে জানাবেন।\n\n'
+  + 'আপনার সহযোগিতার জন্য Thank you স্যার।\n\n'
+  + F(b,"bn")
+    );
+    case 'referralPaid|hi': return (
+    H(b,"hi")
+  + '\n\n'
+  + 'आदरणीय Dr. '
+  + dr
+  + ',\n\n'
+  + 'आपने जो मरीज़ भेजा था, उस मरीज़ की referral income आपको भेज दी गई है।\n\n'
+  + 'Patient Name — '
+  + pt
+  + '\n'
+  + 'Visit Date — '
+  + visitDate
+  + '\n'
+  + 'Referral Income — Rs '
+  + AMT(amount,blank)
+  + '\n'
+  + 'Payment Mode — '
+  + (S(mode)||blank)
+  + ' (Cash / Online)\n'
+  + 'Payment Date — '
+  + (S(paymentDate)||blank)
+  + '\n'
+  + 'Reference No. — '
+  + REF(mode,referenceNo,blank)
+  + '\n\n'
+  + 'पैसा मिलने पर एक बार बता दें तो अच्छा रहेगा सर। कोई दिक्कत हो तो ऊपर दिए नंबर पर बताएँ।\n\n'
+  + 'आपके सहयोग के लिए Thank you सर।\n\n'
+  + F(b,"hi")
+    );
+    case 'referralPaid|en': return (
+    H(b,"en")
+  + '\n\n'
+  + 'Dear Dr. '
+  + dr
+  + ',\n\n'
+  + 'The referral income for the patient you sent has been paid to you.\n\n'
+  + 'Patient Name — '
+  + pt
+  + '\n'
+  + 'Visit Date — '
+  + visitDate
+  + '\n'
+  + 'Referral Income — Rs '
+  + AMT(amount,blank)
+  + '\n'
+  + 'Payment Mode — '
+  + (S(mode)||blank)
+  + ' (Cash / Online)\n'
+  + 'Payment Date — '
+  + (S(paymentDate)||blank)
+  + '\n'
+  + 'Reference No. — '
+  + REF(mode,referenceNo,blank)
+  + '\n\n'
+  + 'Kindly confirm once you receive the payment, Sir. Contact us on the above number for any issue.\n\n'
+  + 'Thank you for your cooperation, Sir.\n\n'
+  + F(b,"en")
+    );
+  }
+  return '';
+}
+window['wlv1DocMsgBuild']=wlv1DocMsgBuild;
+/* ==== WLV1_DOCMSG_END ==== */
+
+/* ═════════════════════════════════════════════════════════════════════
+   📩🔒 V733 — **ডাক্তার/RMP-কে তৈরি বার্তা পাঠানো** (কম্পিউটারের অ্যাপ)
+   TK-নির্দেশ (২৭.০৮.২০২৬, ডেমো দেখে অনুমোদিত): *"হ্যাঁ অনুমতি দিলাম, তবে
+   কাজগুলো যেন কার্যকরী হয়। কোন ভালো কাজ যেন খারাপ না হয়।"*
+
+   ফোনে (`DoctorVisitActivity`) ৪ রকম বার্তা ছিল, ওয়েবে ছিল না — স্টাফকে
+   নিজে টাইপ করতে হত। এখন ওয়েবেও একই ৪টে বার্তা।
+
+   🔒 লেখার উৎস একটাই: ফোনের `DoctorMessage.kt`। উপরের WLV1_DOCMSG অংশটা
+      যন্ত্রে বানানো (গার্ড [৯.২১] প্রতিবার মিলিয়ে দেখে)।
+   ⛔ নতুন কোনো টেবিল/কলাম লাগেনি — `message_log` আগে থেকেই আছে,
+      রোগীর বার্তায় ব্যবহার হয় (recipient_type শুধু 'doctor' হবে)।
+   ⛔ পুরোনো কোনো ফাংশন বদলানো হয়নি; কার্ডে শুধু **একটা বোতাম** যোগ।
+   ⛔ পাঠানোর লেখা কখনো অনুবাদ হয় না — যে ভাষা বাছবেন সেটাই যায়।
+   ═════════════════════════════════════════════════════════════════════ */
+var __wlv1Doc = null;   /* {id,x,kind,lang,patient,extra} — চলতি বাছাই */
+
+function wlv1DocDesk(){ try{ return document.body.classList.contains('hasDeskNav'); }catch(e){ return false } }
+
+/* 🔤 V733 — TK-নির্দেশ (২৭.০৮.২০২৬): *"রোগী বাছুন · ভাষা বাছুন · বার্তা বাছুন
+   — এই ধরনের বাংলা লেখা থাকবে না, তার বদলে ইংরেজিতে লেখা হবে।"*
+   ⛔ শুধু **পর্দার লেখা** ইংরেজি; ডাক্তারের কাছে যাওয়া বার্তা অপরিবর্তিত। */
+var WLV1_DOC_KINDS = [
+  ['intro',        'Msg 1 · Intro & Request',      'Clinic introduction and request to refer patients', false],
+  ['arrived',      'Msg 2 · Patient Arrived',      'Your referred patient has arrived',                 true ],
+  ['details',      'Msg 3 · Patient Details',      'Treatment progress of the patient',                 true ],
+  ['referralPaid', 'Msg 4 · Referral Income Sent', 'Referral income has been sent',                     true ]
+];
+var WLV1_DOC_LOGKIND = {intro:'DOCTOR_INTRO', arrived:'DOCTOR_ARRIVED',
+                        details:'DOCTOR_DETAILS', referralPaid:'DOCTOR_REFERRAL_PAID'};
+
+function wlv1DocCard(html){ return '<div class="card wlv1DocMsgCard" style="padding:0;overflow:hidden">'+html+'</div>'; }
+function wlv1DocHead(t, right, cls){
+  return '<div class="wlv1DocHead'+(cls?' '+cls:'')+'">'+esc(t)+
+         (right?'<small>'+esc(right)+'</small>':'')+'</div>';
+}
+function wlv1DocItem(onclick, title, sub){
+  return '<div class="wlv1DocItem" onclick="'+onclick+'"><b>'+esc(title)+'</b>'+
+         (sub?'<small>'+esc(sub)+'</small>':'')+'</div>';
+}
+
+/* ── ধাপ ১ — কোন বার্তা? (ডেস্কটপে ভাষাও একই পর্দায়) ───────────── */
+function wlv1DocSendPick(id){
+  var x = load('doctor_visits').find(function(a){return a.id===id});
+  if(!x) return toast('Doctor not found');
+  var d = mob(x.mobile);
+  if(!d || d.length!==10) return toast('This doctor has no valid 10-digit mobile number');
+  __wlv1Doc = {id:id, x:x, kind:'', lang:'', patient:null, extra:{}};
+  var rows='';
+  WLV1_DOC_KINDS.forEach(function(k){
+    rows += wlv1DocItem("wlv1DocPickKind('"+k[0]+"')", k[1], k[2]);
+  });
+  modal(wlv1DocCard(
+    wlv1DocHead('📩  Choose Message', (x.name||normMob(x.mobile))+' · '+normMob(x.mobile))+
+    '<div class="wlv1DocSub">Which message do you want to send?</div>'+
+    '<div class="wlv1DocGrid">'+rows+'</div>'+
+    '<div class="wlv1DocFoot"><button class="ghost" onclick="closeModal()">Cancel</button></div>'
+  ));
+}
+window["wlv1DocSendPick"]=wlv1DocSendPick;
+
+/* ── ধাপ ২ — দরকার হলে রোগী বাছা ─────────────────────────────────── */
+function wlv1DocPickKind(kind){
+  if(!__wlv1Doc) return; __wlv1Doc.kind = kind;
+  var need = (WLV1_DOC_KINDS.filter(function(k){return k[0]===kind})[0]||[])[3];
+  if(!need) { closeModal(); return wlv1DocPickLangBox(); }
+  var refs = doctorReferralPatients(__wlv1Doc.x) || [];
+  if(!refs.length){ closeModal(); return toast('No referred patient found for this doctor'); }
+  var rows='';
+  refs.slice(0,60).forEach(function(p,i){
+    rows += wlv1DocItem("wlv1DocPickPatient("+i+")", (p.name||normMob(p.mobile)),
+             normMob(p.mobile)+' · '+(fmtDate(p.date||p.registrationDate||'')||'-'));
+  });
+  __wlv1Doc.refs = refs.slice(0,60);
+  closeModal();
+  modal(wlv1DocCard(
+    wlv1DocHead('👤  Choose Patient', (__wlv1Doc.x.name||''))+
+    '<div class="wlv1DocSub">Which patient is this message about?</div>'+
+    '<div class="wlv1DocGrid">'+rows+'</div>'+
+    '<div class="wlv1DocFoot"><button class="ghost" onclick="closeModal()">Cancel</button></div>'
+  ));
+}
+window["wlv1DocPickKind"]=wlv1DocPickKind;
+
+function wlv1DocPickPatient(i){
+  if(!__wlv1Doc||!__wlv1Doc.refs) return;
+  __wlv1Doc.patient = __wlv1Doc.refs[i]; closeModal();
+  if(__wlv1Doc.kind==='details') return wlv1DocDetailsForm();
+  wlv1DocPickLangBox();
+}
+window["wlv1DocPickPatient"]=wlv1DocPickPatient;
+
+/* ── ধাপ ২খ — Msg 3-এর ছোট ফর্ম (ফোনের হুবহু তিনটে ঘর) ──────────── */
+function wlv1DocDetailsForm(){
+  modal(wlv1DocCard(
+    wlv1DocHead('📤  Patient Details', (__wlv1Doc.patient&&__wlv1Doc.patient.name)||'')+
+    '<div class="wlv1DocBody">'+
+      '<label class="wlv1DocLbl">Treatment</label>'+
+      '<select id="wlv1DocTreat" class="input"><option value="1">Done</option><option value="0">Not done</option></select>'+
+      '<label class="wlv1DocLbl">Blood Test</label>'+
+      '<select id="wlv1DocBlood" class="input"><option value="1">Given</option><option value="0">Not given</option></select>'+
+      '<label class="wlv1DocLbl">Next Visit Date</label>'+
+      '<input id="wlv1DocNext" class="input wlv1DateBox" placeholder="dd-mm-yyyy">'+
+    '</div>'+
+    '<div class="wlv1DocFoot2">'+
+      '<button class="ghost" onclick="closeModal()">Cancel</button>'+
+      '<button class="wlv1DocGo" onclick="wlv1DocDetailsNext()">Next ▶</button>'+
+    '</div>'
+  ));
+}
+window["wlv1DocDetailsForm"]=wlv1DocDetailsForm;
+
+function wlv1DocDetailsNext(){
+  var t=document.getElementById('wlv1DocTreat'), b=document.getElementById('wlv1DocBlood'),
+      n=document.getElementById('wlv1DocNext');
+  __wlv1Doc.extra = {treatYes:(t?t.value:'1')==='1', bloodYes:(b?b.value:'1')==='1',
+                     nextVisit:(n?String(n.value||'').trim():'')};
+  closeModal(); wlv1DocPickLangBox();
+}
+window["wlv1DocDetailsNext"]=wlv1DocDetailsNext;
+
+/* ── ধাপ ৩ — ভাষা (ফোনের showLanguagePicker-এর হুবহু চেহারা) ─────── */
+function wlv1DocPickLangBox(){
+  var x=__wlv1Doc.x;
+  modal(wlv1DocCard(
+    wlv1DocHead('🌐  Choose Language', (x.name||normMob(x.mobile))+' · '+normMob(x.mobile))+
+    '<div class="wlv1DocSub">Which language should the message go in?</div>'+
+    '<div class="wlv1DocGrid wlv1DocLang">'+
+      wlv1DocItem("wlv1DocPickLang('bn')",'Bengali','Send message in Bengali')+
+      wlv1DocItem("wlv1DocPickLang('hi')",'Hindi','Send message in Hindi')+
+      wlv1DocItem("wlv1DocPickLang('en')",'English','Send message in English')+
+    '</div>'+
+    '<div class="wlv1DocFoot"><button class="ghost" onclick="closeModal()">Cancel</button></div>'
+  ));
+}
+window["wlv1DocPickLangBox"]=wlv1DocPickLangBox;
+
+function wlv1DocPickLang(lang){ if(!__wlv1Doc)return; __wlv1Doc.lang=lang; closeModal(); wlv1DocShowSendBox(); }
+window["wlv1DocPickLang"]=wlv1DocPickLang;
+
+/* ── বার্তার লেখা বানানো (উৎস: যন্ত্রে তৈরি WLV1_DOCMSG) ──────────── */
+function wlv1DocText(lang){
+  var D=__wlv1Doc, x=D.x, p=D.patient||{}, e=D.extra||{};
+  var wDone = (lang==='hi') ? (e.treatYes?'कराया गया':'नहीं कराया गया')
+            : (lang==='en') ? (e.treatYes?'Done':'Not done')
+            : (e.treatYes?'করানো হয়েছে':'করানো হয়নি');
+  var wGiven= (lang==='hi') ? (e.bloodYes?'दिया गया':'नहीं दिया गया')
+            : (lang==='en') ? (e.bloodYes?'Given':'Not given')
+            : (e.bloodYes?'দেওয়া হয়েছে':'দেওয়া হয়নি');
+  var pay = doctorReferralPayments(x).filter(function(r){
+      return mob(r.mobile||'')===mob(p.mobile||'') && String(r.status||'').toLowerCase()==='paid';
+    }).sort(function(a,b){return String(b.date||'')<String(a.date||'')?-1:1})[0] || {};
+  return wlv1DocMsgBuild(D.kind, lang, x.branch||'', {
+    doctorName:x.name, doctorMobile:x.mobile, doctorArea:x.area,
+    patientName:p.name, patientMobile:p.mobile,
+    dateText: fmtDate(p.date||p.registrationDate||'')||'',
+    visitDate: fmtDate(p.date||p.registrationDate||'')||'',
+    treatment:wDone, bloodTest:wGiven, nextVisit:e.nextVisit||'',
+    amount:Number(pay.amount||0), paymentDate:fmtDate(pay.date||'')||'',
+    mode:pay.mode||'', referenceNo:pay.referenceNo||pay.reference||''
+  });
+}
+
+/* ── ধাপ ৪ — পাঠানোর বাক্স (মোবাইলে ফোনের হুবহু) ─────────────────── */
+async function wlv1DocShowSendBox(){
+  var D=__wlv1Doc, x=D.x, d=mob(x.mobile);
+  var text = wlv1DocText(D.lang);
+  /* 🔴 V732-এর হুবহু নিয়ম: বাংলা-বন্ধ স্টাফের পর্দায় ভাঙা বাংলার বদলে
+     **ইংরেজি নমুনা**। ⛔ পাঠানো লেখা (`text`) এক অক্ষরও বদলায় না। */
+  var show = text;
+  try{ if(wlv1NoBnActive()) show = wlv1DocText('en') || text; }catch(e){}
+  D.text = text;
+  var prior=null;
+  try{ prior = await wlv1CheckPriorSend(d, WLV1_DOC_LOGKIND[D.kind]||'', 'doctor'); }catch(e){}
+  var title = (WLV1_DOC_KINDS.filter(function(k){return k[0]===D.kind})[0]||[])[1]||'';
+  var langName = D.lang==='hi'?'Hindi':(D.lang==='en'?'English':'Bengali');
+  var toLine = '<div class="wlv1DocTo">To doctor : Dr. '+esc(String(x.name||'').toUpperCase())+'  ·  '+esc(d)+'</div>';
+  var warn   = wlv1PriorWarningHtml(prior);
+  var prev   = '<div class="wlv1DocPrev">'+esc(show)+'</div>';
+  /* বোতামের ক্রম ও রং — ফোনের `pillButton`-এর হুবহু */
+  var btns = '<div class="wlv1DocBtns">'+
+    '<button class="wlv1DocWa" onclick="wlv1DocDoSend(\'wa\')">💬&nbsp; WhatsApp</button>'+
+    '<button class="wlv1DocLater" onclick="closeModal()">Later</button>'+
+    '<button class="wlv1DocSms" onclick="wlv1DocDoSend(\'sms\')">✉&nbsp; SMS</button>'+
+  '</div>';
+  modal(wlv1DocCard(
+    wlv1DocHead('📩  Send Message', title+' · '+langName, 'wlv1DocHeadSend')+
+    (wlv1DocDesk()
+      ? '<div class="wlv1DocSend2">'+prev+'<div>'+toLine+warn+
+        '<div class="wlv1DocBtnsCol">'+
+          '<button class="wlv1DocWa" onclick="wlv1DocDoSend(\'wa\')">💬&nbsp; WhatsApp</button>'+
+          '<button class="wlv1DocSms" onclick="wlv1DocDoSend(\'sms\')">✉&nbsp; SMS</button>'+
+          '<button class="wlv1DocLater" onclick="closeModal()">Later</button>'+
+        '</div></div></div>'
+      : '<div class="wlv1DocBody">'+toLine+warn+prev+'</div>'+btns)
+  ));
+}
+window["wlv1DocShowSendBox"]=wlv1DocShowSendBox;
+
+function wlv1DocDoSend(how){
+  var D=__wlv1Doc; if(!D||!D.text) return;
+  var x=D.x, d=mob(x.mobile), t=D.text;      /* ⛔ পাঠানো লেখা — অনুবাদহীন */
+  closeModal();
+  try{ wlv1LogSent(d, WLV1_DOC_LOGKIND[D.kind]||'', x.branch||'', x.name||'',
+                   how==='wa'?'whatsapp':'sms', 'doctor'); }catch(e){}
+  if(how==='wa') window.open('https://wa.me/91'+d+'?text='+encodeURIComponent(t),'_blank');
+  else window.location.href='sms:'+d+'?body='+encodeURIComponent(t);
+}
+window["wlv1DocDoSend"]=wlv1DocDoSend;
+
+
 function wlv1PriorWarningHtml(prior){
   if(!prior)return '';
   let who=esc(prior.sent_by_name||'staff');
@@ -12530,6 +13122,9 @@ function doctorVisitCard(x){
     <button class="dvpBtn dvpView" onclick="viewDoctorVisit('${x.id}')">👁 View</button>
     <button class="dvpBtn dvpRemarks" onclick="openDoctorCallForm('${x.id}')">📝 Remarks</button>
     <button class="dvpBtn" onclick="openWebRmpCommission('${x.id}')">💰 Referral Income</button>
+    <!-- 📩🔒 V733 (TK-অনুমোদিত ডেমো) — ফোনের ৪টে তৈরি বার্তা এখন ওয়েবেও।
+         ⛔ উপরের বোতামগুলো এক অক্ষরও বদলায়নি; এটা নতুন সারিতে বসে। -->
+    <button class="dvpBtn dvpMsg" onclick="wlv1DocSendPick('${x.id}')">📩 Send Message</button>
     ${isMaster()?`<button class="dvpBtn" style="color:#b42318" onclick="wlv1DeleteDoctor('${x.id}')">🗑️ Delete</button>`:''}
   </div>
  </div>`

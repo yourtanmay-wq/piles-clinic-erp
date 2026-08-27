@@ -23,7 +23,8 @@
    দেওয়া যাবে না। যাচাই বাদ দেওয়া মানে মালিকের কাছে ভাঙা ফাইল যাওয়া।
 """
 
-import os, re, io, sys, json, glob, datetime
+import os
+import subprocess, re, io, sys, json, glob, datetime
 import xml.dom.minidom as md
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -749,6 +750,36 @@ def check_no_wide_photo_reads():
 #  ব্যবহারকারী যে লেখা দেখেন (স্ট্রিং) তাতে ০-৯ (বাংলা) বা ०-९ (হিন্দি)
 #  থাকলে ফাইল বানানো আটকে যাবে। কমেন্টে থাকলে সমস্যা নেই।
 # ═══════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════════
+#  যাচাই ৯.২১ — ডাক্তার/RMP-এর ৪টে বার্তা ফোনে ও ওয়েবে **হুবহু এক**
+#  🔒 V733 (২৭.০৮.২০২৬, TK-অনুমোদিত)। TK-নির্দেশ: *"ফোনের লেখা থেকে যন্ত্র
+#  দিয়ে ওয়েবেরটা বানাবেন"* এবং *"দুটো আলাদা হলে যেন ধরা পড়ে"*।
+#
+#  লেখার **একমাত্র উৎস** `DoctorMessage.kt`। `03_NETLIFY_READY/app.js`-এর
+#  WLV1_DOCMSG অংশটা `00_GUARD/gen_web_doctor_messages.py` যন্ত্রে বানায়।
+#  কেউ ওয়েবে হাতে লেখা বদলালে — বা ফোনে বদলে ওয়েবে না বসালে — এই যাচাই
+#  আটকে দেবে, তাই ডাক্তারের কাছে দুই জায়গা থেকে দু-রকম বার্তা যেতে পারে না।
+#
+#  ঠিক করার উপায়:  python3 00_GUARD/gen_web_doctor_messages.py --write
+# ══════════════════════════════════════════════════════════════════════
+def check_doctor_message_twin():
+    gen = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                       "gen_web_doctor_messages.py")
+    if not os.path.exists(gen):
+        fail("৯.২১", "gen_web_doctor_messages.py ফাইলটাই নেই — ফোন ও ওয়েবের "
+                     "ডাক্তার-বার্তা মিলিয়ে দেখার যন্ত্র হারিয়ে গেছে")
+        return
+    try:
+        r = subprocess.run([sys.executable, gen, "--check"], cwd=ROOT,
+                           capture_output=True, text=True, timeout=120)
+    except Exception as e:
+        fail("৯.২১", "ফোন ও ওয়েবের ডাক্তার-বার্তা মেলানো গেল না: %s" % e)
+        return
+    if r.returncode != 0:
+        msg = (r.stdout + r.stderr).strip().replace("\n", " · ")[:400]
+        fail("৯.২১", "ডাক্তার/RMP-এর বার্তা ফোনে ও ওয়েবে এক নয় → " + msg)
+
+
 def check_digits():
     DIG = set(chr(0x09E6 + i) for i in range(10)) | set(chr(0x0966 + i) for i in range(10))
     STR = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"|\'([^\'\\]*(?:\\.[^\'\\]*)*)\'')
@@ -1822,6 +1853,7 @@ def main():
     check_followup_cache_fields()     # 🏷️ V712 — জমানো তালিকায় কার্ডের ট্যাগের ঘর বাদ পড়েনি তো
     check_no_wide_photo_reads()       # 📉 V715 — ছবিওয়ালা টেবিলে select=* তালিকা পড়া নিষেধ
     check_digits()
+    check_doctor_message_twin()
     check_locked_rules()
     check_hidden_spinner()
     check_work_rules()          # 🧾 খাতার সারি B147 — কাজের নিয়ম

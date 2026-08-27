@@ -6195,3 +6195,58 @@ body.wlv1AnatFullOpen{overflow:hidden}
 .wlv1FuAllHead{display:flex;align-items:center;gap:8px;background:#5B3A9E;color:#fff;
   border-radius:11px;padding:10px 12px;margin:8px 0 0;font-size:13px;font-weight:800}
 .wlv1FuAllHead b{margin-left:auto;background:rgba(255,255,255,.22);border-radius:14px;padding:2px 10px;font-size:12px}
+
+/* =====================================================================
+   📩🔒 V733 — ডাক্তার/RMP-কে তৈরি বার্তা (TK-অনুমোদিত ডেমো, ২৭.০৮.২০২৬)
+   ⛔ সবগুলো নিয়ম **নতুন ক্লাসে** (`dvpMsg` · `wlv1Doc*`) — পুরোনো একটা
+      ক্লাসেও হাত পড়েনি, তাই আগের কোনো পর্দা বদলাতে পারে না।
+   🖥️ ডেস্কটপ আর 📱 মোবাইল আলাদা — TK-নির্দেশ।
+   ===================================================================== */
+/* কার্ডের নতুন বোতাম — ডেস্কটপে গ্রিডে পুরো সারি জুড়ে */
+.dvpMsg{background:#a86b0f;grid-column:1 / -1}
+/* মোবাইলে .dvpActions ফ্লেক্স (উপরে ৩৯৮৪ লাইন), তাই পুরো চওড়ায় নামাতে হয় */
+@media (max-width:899px){
+  .doctorVisitCardPro .dvpMsg{flex:1 0 100%!important;background:#a86b0f!important;height:38px!important}
+  /* ফোনে হেডারে শুধু শিরোনামটাই থাকে (অ্যান্ড্রয়েডের মতো) — সরু পর্দায়
+     ডানের ছোট লেখাটা লুকানো, নইলে শিরোনাম দুই লাইনে ভেঙে যেত */
+  .wlv1DocHead small{display:none}
+  .wlv1DocHead{font-size:16px}
+}
+/* পপ-আপের সাজ — ফোনের premiumDialogShell-এর হুবহু মান */
+.wlv1DocMsgCard{padding:0!important;overflow:hidden}
+.wlv1DocHead{background:#145A32;color:#fff;font-size:16.5px;font-weight:800;padding:16px;
+  display:flex;justify-content:space-between;align-items:center;gap:10px}
+.wlv1DocHead small{font-size:12px;font-weight:700;opacity:.9;white-space:nowrap}
+.wlv1DocSub{padding:12px 16px 2px;font-size:12.5px;color:#3C4859;font-weight:600}
+.wlv1DocGrid{display:grid;grid-template-columns:1fr;gap:8px;padding:8px 16px 2px}
+.wlv1DocItem{background:#F7FAFC;border:1px solid #D8E1EC;border-radius:12px;padding:12px 14px;cursor:pointer}
+.wlv1DocItem b{display:block;font-size:13.5px;color:#10223a}
+.wlv1DocItem small{display:block;font-size:11.5px;color:#667085;margin-top:3px;line-height:1.45}
+.wlv1DocItem:active{background:#EEF4FB}
+.wlv1DocFoot{padding:8px 16px 16px}
+.wlv1DocFoot .ghost{width:100%}
+.wlv1DocFoot2{display:flex;gap:10px;padding:8px 16px 16px}
+.wlv1DocFoot2>button{flex:1}
+.wlv1DocGo{background:#0C9E33;color:#fff;border:0;border-radius:12px;padding:12px;font-weight:800}
+.wlv1DocBody{padding:12px 16px 4px}
+.wlv1DocLbl{display:block;font-size:11.5px;font-weight:800;color:#5B6B81;margin:8px 0 4px}
+.wlv1DocTo{font-size:13.5px;font-weight:700;color:#10223A;padding:0 0 8px}
+.wlv1DocPrev{background:#F7FAFC;border:1px solid #D8E1EC;border-radius:12px;padding:12px 14px;
+  font-size:12.5px;line-height:1.55;color:#1E2A3A;white-space:pre-wrap;max-height:230px;overflow:auto}
+/* বোতাম — ফোনের pillButton: এক সারিতে সমান · radius 12 · 13.5px · পাশে 6px */
+.wlv1DocBtns{display:flex;padding:8px 10px 16px}
+.wlv1DocBtns>button{flex:1 1 0;min-width:0;border:0;border-radius:12px;padding:12px 0;margin:0 6px;
+  font-size:13.5px;font-weight:400;text-transform:none;color:#fff}
+.wlv1DocWa{background:#0C9E33;color:#fff}
+.wlv1DocSms{background:#1E5AB4;color:#fff}
+.wlv1DocLater{background:#E4E8EE;color:#3C4859}
+/* 🖥️ ডেস্কটপ — চওড়া জায়গা কাজে লাগে */
+@media (min-width:900px){
+  .wlv1DocGrid{grid-template-columns:1fr 1fr;gap:10px}
+  .wlv1DocGrid.wlv1DocLang{grid-template-columns:repeat(3,1fr)}
+  .wlv1DocSend2{display:grid;grid-template-columns:1fr 250px;gap:16px;padding:14px 16px 18px}
+  .wlv1DocSend2 .wlv1DocPrev{max-height:300px}
+  .wlv1DocBtnsCol>button{width:100%;border:0;border-radius:12px;padding:12px;
+    font-size:13.5px;font-weight:400;margin-bottom:8px}
+  .wlv1DocFoot .ghost{width:180px}
+}
