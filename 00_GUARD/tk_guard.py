@@ -657,6 +657,69 @@ def check_followup_cache_fields():
                      f"কিন্তু লেখার সময় বসানো হয় না (লেখা-পড়া আলাদা হয়ে গেছে)")
 
 # ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯.২৪ — মেঘ থেকে আসা লোকের `name` ঘরে **কোডই** আছে তো?
+#  ─────────────────────────────────────────────────────────────
+#  🔴🔴🔴 TK-রিপোর্ট (২৭.০৮.২০২৬, ছবিসহ): ROHINI-র নম্বর দিয়ে ঢোকা গেল,
+#  কিন্তু মডিউল খুলতে গিয়ে *"Could not open — Sign-in failed"*।
+#
+#  **আসল কারণ:** মডিউলের পরিচয় বার হয় `ModuleAuth.expectedCode()` থেকে,
+#  আর সেটা পড়ে **`user.name.uppercase()`** — অর্থাৎ প্রজেক্টে `name` ঘরে
+#  চিরকাল **কোড** থাকে (KNE-LAXMI · KNE-BRANCH …), মানুষের নাম নয়।
+#  সার্ভারের auth-ইমেলও তৈরি হয় **কোড** থেকে (`kne-laxmi@staff.piles`)।
+#  তাই মেঘের তালিকা পার্স করার সময় ভুল করে `full_name` বসালে ইমেল হত
+#  `raju-das@staff.piles` — যা নেই ⇒ **প্রতিটা নতুন লোকের মডিউল বন্ধ**।
+#
+#  TK-এর নিয়ম ৬.২ (*"একবারে কেন ঠিক করতে পারেন না"*) মেনে ফোন **ও**
+#  কম্পিউটার — দুই জায়গাতেই পাহারা বসানো হলো।
+# ═══════════════════════════════════════════════════════════════
+def check_cloud_login_name_is_code():
+    kt = os.path.join(JAVA, "com", "tkbiswas", "pilesclinic",
+                      "native", "CloudStaffDirectory.kt")
+    if not os.path.exists(kt):
+        fail("৯.২৪", "CloudStaffDirectory.kt খুঁজে পাওয়া গেল না")
+    else:
+        s_kt = read(kt)
+        body = s_kt.split("private fun parse(")
+        if len(body) < 2:
+            fail("৯.২৪", "CloudStaffDirectory.kt-এ `parse(` খুঁজে পাওয়া গেল না")
+        else:
+            seg = body[1].split("\n    }")[0]
+            if "StaffAccount(" not in seg:
+                fail("৯.২৪", "CloudStaffDirectory.parse()-এ StaffAccount তৈরির লাইন নেই")
+            else:
+                made = seg.split("StaffAccount(")[1].split(")")[0]
+                if "full_name" in made or "name" in made.replace("person_code", ""):
+                    fail("৯.২৪", "CloudStaffDirectory.parse() — StaffAccount-এর ২য় ঘরে "
+                                 "`full_name`/নাম বসানো হয়েছে; ওখানে **person_code** থাকতে হয়, "
+                                 "নইলে নতুন লোকের মডিউলে Sign-in failed হবে")
+                if "person_code" not in seg:
+                    fail("৯.২৪", "CloudStaffDirectory.parse()-এ `person_code` পড়াই হচ্ছে না")
+
+    js = os.path.join(ROOT, "03_NETLIFY_READY", "app.js")
+    if not os.path.exists(js):
+        fail("৯.২৪", "app.js খুঁজে পাওয়া গেল না")
+        return
+    s_js = read(js)
+    if "staff_login_list" not in s_js:
+        return          # ওয়েবে মেঘ-লগইন নেই — পাহারার কিছু নেই
+    # ⚠️ `staff_login_list` ফাইলে দুবার আছে (একটা কমেন্টে, একটা আসল কলে) —
+    #    তাই `[1]` নিলে মাঝের টুকরোটা আসত, যেখানে push লাইনটা নেই। নিজের
+    #    ফাঁদ-পরীক্ষাতেই এটা ধরা পড়েছে; এখন গোটা ফাইলেই খোঁজা হয়।
+    push = s_js.split("cfg2.users[rk].push(")
+    if len(push) < 2:
+        fail("৯.২৪", "app.js — মেঘ-লগইনে ব্যবহারকারী যোগ করার লাইন খুঁজে পাওয়া গেল না")
+        return
+    seg = push[1].split("});")[0]
+    if "name:" not in seg:
+        fail("৯.২৪", "app.js — মেঘ-লগইনে `name:` ঘরটাই নেই")
+        return
+    val = seg.split("name:")[1].split(",")[0]
+    if "person_code" not in val or "full_name" in val:
+        fail("৯.২৪", "app.js — মেঘ-লগইনে `name:` ঘরে `person_code` ছাড়া অন্য কিছু "
+                     "বসানো হয়েছে; নাম বসালে নতুন লোকের মডিউলে Sign-in failed হবে")
+
+
+# ═══════════════════════════════════════════════════════════════
 #  যাচাই ৯.২৩ — Draft-এর জমানো তালিকায় **একটা ঘরও** বাদ পড়েনি তো?
 #  ─────────────────────────────────────────────────────────────
 #  🔴🔴🔴 TK-রিপোর্ট (২৭.০৮.২০২৬, ছবিসহ): *"এইসব পেশেন্টের তো বিল ক্লিয়ার
@@ -2108,6 +2171,7 @@ def main():
     check_digits()
     check_doctor_message_twin()
     check_draft_cache_fields()        # 💰 V741 — Draft-এর জমানো তালিকায় টাকার ঘর
+    check_cloud_login_name_is_code()  # 👥 V748 — মেঘের লোকের name ঘরে কোড
     check_webview_popup()             # 🩹 V738 — পপ-আপে WebView বসানোর ফাঁদ (কম্পন)
     check_locked_rules()
     check_hidden_spinner()

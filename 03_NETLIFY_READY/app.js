@@ -2636,8 +2636,12 @@ async function login(){
      cfg2.users=cfg2.users||{};
      cfg2.users[rk]=Array.isArray(cfg2.users[rk])?cfg2.users[rk]:[];
      if(!cfg2.users[rk].some(function(x){return mob(x.mobile)===m})){
+      /* 🔴🔒 V748 — এখানে `full_name` নয়, **`person_code`** বসাতেই হবে।
+         `MOD.expectedCode()` মডিউলের পরিচয় বার করে `raw.name.toUpperCase()`
+         থেকে, আর সার্ভারের auth-ইমেল তৈরি হয় **কোড** থেকে। নাম বসালে
+         প্রতিটা নতুন লোকের মডিউলে "Sign-in failed" হত। ফোনেও হুবহু একই। */
       cfg2.users[rk].push({mobile:String(hit.mobile||''),
-        name:String(hit.full_name||hit.person_code||''),
+        name:String(hit.person_code||'').trim().toUpperCase(),
         branch:String(hit.branch||'')});
      }
      return login();   /* ⇒ এবার উপরের পুরনো পথেই যাচাই হবে */

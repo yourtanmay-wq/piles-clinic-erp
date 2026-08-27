@@ -96,10 +96,17 @@ object CloudStaffDirectory {
             // ⛔ master এখানে কখনো আসে না (সার্ভারের ফাংশনই দেয় না) — তবু
             //    দ্বিতীয় পাহারা, যাতে ভুল করেও কেউ মাস্টার হয়ে না যায়।
             if (role != "staff" && role != "doctor" && role != "field") continue
-            val name = o.optString("full_name", "").trim()
-                .ifBlank { o.optString("person_code", "").trim() }
-            if (name.isBlank()) continue
-            out.add(StaffAccount(mob, name, o.optString("branch", "").trim(), role))
+            // 🔴🔒 V748 — **এখানে `full_name` বসানো যাবে না, `person_code` বসাতে হবে।**
+            //    কারণ `ModuleAuth.expectedCode()` মডিউলের পরিচয় বার করে
+            //    `user.name.uppercase()` থেকে, আর সার্ভারের auth-ইমেল তৈরি হয়
+            //    **কোড** থেকে (`kne-kishan9@staff.piles`)। নাম বসালে ইমেল হত
+            //    `raju-das@staff.piles` — যা নেই ⇒ প্রতিটা নতুন লোকের মডিউলে
+            //    "Sign-in failed" হত (ROHINI-র সঙ্গে ঠিক এটাই হয়েছিল)।
+            //    ⛔ বাঁধা তালিকার ২৩ জনেও `name` ঘরে কোডই আছে (KNE-LAXMI …),
+            //       তাই এটা নতুন কিছু নয় — ওদের সঙ্গেই হুবহু মিল।
+            val code = o.optString("person_code", "").trim().uppercase()
+            if (code.isBlank()) continue
+            out.add(StaffAccount(mob, code, o.optString("branch", "").trim(), role))
         }
         return out
     }
@@ -146,14 +153,7 @@ object CloudStaffDirectory {
         return cached(ctx).find { StaffDirectory.normalizeMobile(it.mobile) == target }
     }
 
-    /** নাম দেখানোর জন্য (মোবাইল → নাম)। ⛔ নেটে যায় না, শুধু জমানোটা দেখে। */
-    fun cachedNameFor(ctx: Context, mobile: String): String? {
-        val target = StaffDirectory.normalizeMobile(mobile)
-        if (target.length != 10) return null
-        return cached(ctx)
-            .find { StaffDirectory.normalizeMobile(it.mobile) == target }?.name
-    }
-
-    /** জমানো সব অ্যাকাউন্ট (তালিকা দেখানোর জন্য)। ⛔ নেটে যায় না। */
-    fun cachedAccounts(ctx: Context): List<StaffAccount> = cached(ctx)
+    // 🧹 V748 — `cachedNameFor()` ও `cachedAccounts()` মুছে দেওয়া হলো।
+    //    কোথাও ব্যবহার হচ্ছিল না, আর `cachedNameFor` এখন **নাম নয়, কোড**
+    //    ফেরাত (উপরের V748 বদলের পরে) — নামটাই বিভ্রান্তিকর হয়ে যেত।
 }
