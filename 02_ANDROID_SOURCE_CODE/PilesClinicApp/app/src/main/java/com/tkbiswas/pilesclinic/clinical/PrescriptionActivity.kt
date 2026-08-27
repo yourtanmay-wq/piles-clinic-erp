@@ -96,7 +96,9 @@ class PrescriptionActivity : AppCompatActivity() {
         // ⛔ বোতাম চেপে নিজে তালিকা খুললে আগের মতোই — ব্যাক করলে এই পর্দাতেই
         // থাকবেন, কিছু হারাবে না।
         if (editable) {
-            openedFromEntry = true
+            // 🔴 V743 — আগে এখানে `openedFromEntry = true` বসত, যেটা দিয়ে
+            //    পিকার-বাতিলে পর্দা বন্ধ করা হতো (B38/B177)। TK-এর নতুন
+            //    সিদ্ধান্তে ওই নিয়মটাই উঠে গেছে, তাই ঘরটারও দরকার নেই।
             // Read only this patient's last Doctor Check-up before the picker
             // opens. Failure safely falls back to the patient-bound phone copy.
             lifecycleScope.launch {
@@ -107,9 +109,6 @@ class PrescriptionActivity : AppCompatActivity() {
             }
         }
     }
-
-    /** খাতার সারি B38: ঢোকার সময় নিজে থেকে তালিকা খোলা হয়েছিল কি না। */
-    private var openedFromEntry = false
 
     /** ROOT-CAUSE FIX (2026-07-15): "Generate Medicine Slip" button removed from
      *  Prescription screen (TK approved) — Prescription and Medicine Slip are
@@ -299,8 +298,18 @@ class PrescriptionActivity : AppCompatActivity() {
                 // "শুধুমাত্র এই ফটোটাই থাকবে" — পিকার থেকে কিছু না করে বেরোলে
                 // তালিকা খালি থাক বা ভরা, **সবসময়ই** সরাসরি Take Action-এ
                 // ফিরতে হবে। তাই এখন `isEmpty()` শর্তটা তুলে দেওয়া হলো।
-                if (openedFromEntry) finish()
-                openedFromEntry = false
+                /* 🔴🔒 V743 (২৭.০৮.২০২৬) — **TK-এর নতুন সিদ্ধান্ত, পুরনোটা তুলে দেওয়া।**
+                   TK ছবি দিয়ে দেখালেন: ওষুধ বাছার পর্দা → ব্যাক → সোজা Follow-up
+                   তালিকায় চলে আসে, Prescription পর্দাটা দেখাই যায় না। প্রশ্ন করলেন
+                   *"৩ থেকে ব্যাকে আবার ১ এ কেন আসে"*, আর তিনটে বিকল্প দেখানোর পর
+                   স্পষ্ট বললেন: **"২ করুন"** = B177 তুলে দিতে হবে।
+
+                   ⛔ **উপরের B38/B177-এর লেখা মুছিনি ইচ্ছে করেই** — ওটা ইতিহাস,
+                      কেন একদিন উল্টো নিয়ম ছিল সেটা যেন পরে বোঝা যায়।
+                   ⇒ এখন পিকার থেকে কিছু না নিয়ে বেরোলেও পর্দাটা **বন্ধ হয় না**,
+                     Prescription পর্দাই দেখায়; সেখান থেকে ব্যাক = Follow-up।
+                   ⚠️ তাই কিছু না নিয়ে বেরোলে **ফাঁকা Prescription পর্দা** দেখা
+                      যাবে — ঠিক যেটা B38-এ TK পছন্দ করেননি। TK-কে জানানো হয়েছে। */
             },
             /* 🔵 V488 (20.08.2026, TK-নির্দেশ): নিচের বারের নতুন "WhatsApp" বোতাম।
                Save-এর মতোই সব সেভ হয় (আগে ফোনে, পিছনে ক্লাউডে), শুধু ছাপার পর্দা
