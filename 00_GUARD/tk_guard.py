@@ -688,12 +688,26 @@ def check_draft_cache_fields():
         fail("৯.২৩", "DraftEntry-র ঘরগুলো পড়া গেল না")
         return
 
+    # ⚠️ ফাংশনের শেষ **ব্রেস গুনে** বের করা হয়। প্রথম চেষ্টায় "পরের `fun`
+    #    পর্যন্ত" ধরেছিলাম — তাতে `private fun` মেলেনি, দুটো ফাংশন এক হয়ে
+    #    গিয়েছিল, আর ফাঁদ পেতে দেখে ধরা পড়ল পাহারা ফাঁকি খাচ্ছে।
     def body(fn_name):
         i = s.find("fun " + fn_name)
         if i < 0:
             return None
-        j = s.find("\n    fun ", i + 10)
-        return s[i:(j if j > 0 else len(s))]
+        k = s.find("{", i)
+        if k < 0:
+            return None
+        d, j = 0, k
+        while j < len(s):
+            if s[j] == "{":
+                d += 1
+            elif s[j] == "}":
+                d -= 1
+                if d == 0:
+                    return s[i:j + 1]
+            j += 1
+        return None
 
     save = body("serializeEntries")
     load = body("deserializeEntries")
@@ -701,8 +715,10 @@ def check_draft_cache_fields():
         fail("৯.২৩", "serializeEntries/deserializeEntries খুঁজে পাওয়া গেল না")
         return
 
-    # ⛔ মন্তব্যে ঢাকা লাইন গোনা চলবে না — নইলে `//` দিয়ে ঢেকে দিলেই পাহারা ঠকত।
+    # ⛔ মন্তব্যে ঢাকা লেখা গোনা চলবে না — `//` **আর** `/* */` দুটোই বাদ,
+    #    নইলে ঢেকে দিলেই পাহারা ঠকত (ফাঁদ পেতে যাচাই করা)।
     def no_comments(t):
+        t = re.sub(r"/\*.*?\*/", " ", t, flags=re.S)
         return "\n".join(ln.split("//", 1)[0] for ln in t.split("\n"))
     save_c, load_c = no_comments(save), no_comments(load)
 
