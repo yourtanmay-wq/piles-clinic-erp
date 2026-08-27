@@ -831,8 +831,8 @@ _STEADY_PILLARS = [
      "একবারই মাপ বসানোর পাহারা (`applied`) — এটাই চক্র ভাঙে"),
     ("if (applied) return",
      "দ্বিতীয়বার মাপ বসানো আটকানো"),
-    ("coerceIn(minH, maxH)",
-     "উচ্চতা ১৪০dp আর পর্দার ৭০%-এর মধ্যে বাঁধা"),
+    ("if (px <= 0) fallbackH else px.coerceIn(minH, maxH)",
+     "মাপা উচ্চতা ১৪০dp আর পর্দার ৭০%-এর মধ্যে বাঁধা (মাপ না পেলে নিরাপদ মাপ)"),
     ("android.widget.LinearLayout.LayoutParams.MATCH_PARENT, fallbackH",
      "শুরুতেই একটা নিরাপদ মাপ, তাই প্রথম মাপাতেই পপ-আপ স্থির"),
 ]
