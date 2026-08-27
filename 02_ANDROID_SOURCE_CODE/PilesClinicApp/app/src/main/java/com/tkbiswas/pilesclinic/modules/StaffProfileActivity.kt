@@ -3327,8 +3327,14 @@ class StaffProfileActivity : AppCompatActivity() {
         val etCode = ModuleUi.input(this, "e.g. KNE-KISHAN9")
         box.addView(etCode)
         box.addView(ModuleUi.body(this, "Branch"))
-        val etBranch = ModuleUi.input(this, "e.g. Kishanganj")
-        box.addView(etBranch)
+        /* 🔒 V747 (২৭.০৮.২০২৬, TK-অনুমোদিত) — **ব্রাঞ্চ আর হাতে লেখা যাবে না।**
+           আগে বানান একটু এদিক-ওদিক হলে (যেমন "Kisanganj") `BranchCatalog.byName()`
+           চুপচাপ **কিশানগঞ্জ** ধরে নিত — লোকটা ভুল ব্রাঞ্চে বসে যেত, কেউ টেরও
+           পেত না। এখন তালিকা থেকে বেছে নিতে হয়, তাই ভুল বানানের পথই নেই।
+           ⛔ নামগুলো `BranchCatalog` থেকেই আসে — দুই জায়গায় আলাদা হওয়ার ভয় নেই। */
+        val branchNames = com.tkbiswas.pilesclinic.print.BranchCatalog.all.map { it.displayName }
+        val spBranch = spinner(branchNames)
+        box.addView(spBranch)
 
         val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
             .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "Add Staff or Doctor"))
@@ -3342,11 +3348,11 @@ class StaffProfileActivity : AppCompatActivity() {
             val name = etName.text?.toString().orEmpty().trim()
             val mob = etMobile.text?.toString().orEmpty().filter { c -> c.isDigit() }.takeLast(10)
             val code = etCode.text?.toString().orEmpty().trim().uppercase()
-            val branch = etBranch.text?.toString().orEmpty().trim()
+            val branch = branchNames.getOrNull(spBranch.selectedItemPosition).orEmpty()
             // ⛔ এটুকু শুধু স্টাফকে বাঁচাতে — আসল পাহারা সার্ভারেই।
             if (name.isBlank() || code.isBlank() || branch.isBlank() || mob.length != 10) {
                 android.widget.Toast.makeText(this,
-                    "Please fill all four boxes (mobile must be 10 digits)",
+                    "Please fill name, mobile and code (mobile must be 10 digits)",
                     android.widget.Toast.LENGTH_LONG).show()
                 return@setOnClickListener
             }
