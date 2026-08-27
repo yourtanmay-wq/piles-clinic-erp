@@ -4516,6 +4516,10 @@ class PatientTimelineActivity : AppCompatActivity() {
 
        ⛔ **লেখা · সাজ · রং · কার্ড — এক অক্ষরও বদলায়নি**; শুধু কত উঁচু
           হবে সেটা ঠিক করার নিয়ম বদলেছে।
+       🔴 **V738-এ সংশোধন:** V737-এ `useWideViewPort`/`loadWithOverviewMode`
+          তিনটে পাতাতেই বন্ধ করে দিয়েছিলাম — সেটা A4 কাগজের জন্য **ভুল** ছিল
+          (নিচে বিস্তারিত)। এখন A4-এ ওরা আগের মতোই চালু; কম্পন থামানোর আসল
+          কাজটা করে **উচ্চতা বেঁধে দেওয়া**, ওই দুটো সেটিং নয়।
        ⛔ মাপ না পেলে (কিছু ফোনে `contentHeight` ০ আসতে পারে) নিরাপদ
           মাপে বসে — তখনও কম্পন হয় না, শুধু ভিতরে স্ক্রল করতে হয়।
        ⛔ সর্বোচ্চ পর্দার ৭০% — লম্বা লেখায় পপ-আপ পর্দা ছাড়িয়ে যায় না।
@@ -4542,9 +4546,20 @@ class PatientTimelineActivity : AppCompatActivity() {
         var applied = false      // 🔒 একবারই — এটাই চক্র ভাঙার চাবি
         val wv = android.webkit.WebView(this).apply {
             settings.javaScriptEnabled = false
-            // ⛔ এই দুটো বন্ধ — এরাই লেখাকে বারবার মাপমতো ছোট-বড় করত
-            settings.loadWithOverviewMode = false
-            settings.useWideViewPort = false
+            /* 🔴🔒 V738 — **নিজের V737-এর ভুল নিজেই ধরে ঠিক করা।**
+               V737-এ আমি এই দুটো **সব পাতায়** বন্ধ করে দিয়েছিলাম। Note ও
+               Prescription পাতায় তাতে কিছুই বদলায় না (ওদের পাতায় লেখা আছে
+               `width=device-width` — বন্ধ থাকলেও WebView ওই মাপই নিত)।
+               কিন্তু **Check-up Record-এর A4 কাগজে লেখা আছে `width=794`** —
+               ওটা পড়তে হলে `useWideViewPort` **চালু** থাকতেই হবে, আর
+               ৭৯৪-এর কাগজটাকে পর্দার মাপে ছোট করে দেখাতে `loadWithOverviewMode`।
+               বন্ধ করে দিলে A4 কাগজটা ~৩৬০ পিক্সেলের সরু কলামে ঠাসা হয়ে যেত
+               (হুবহু V698-এর সেই দোষ, যেটা TK ছবি দিয়ে ধরিয়েছিলেন)।
+               ⇒ তাই A4-এর ক্ষেত্রে দুটোই **V737-এর আগের মতোই চালু**।
+               ⛔ এতে কম্পন ফেরে না — কম্পন থামে **উচ্চতা বেঁধে দেওয়ায়**
+                  (নিচের `applied` পাহারা), এই দুটোতে নয়। */
+            settings.loadWithOverviewMode = zoomable
+            settings.useWideViewPort = zoomable
             if (zoomable) {
                 settings.builtInZoomControls = true
                 settings.displayZoomControls = false
