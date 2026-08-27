@@ -112,7 +112,14 @@
     try { raw = JSON.parse(localStorage.getItem('rk_session') || 'null'); } catch (e) {}
     if (!raw || !raw.mobile) return null;
     var mobDigits = String(raw.mobile).replace(/\D/g, '').slice(-10);
-    return MOD.SPECIAL_CODE[mobDigits] || String(raw.name || '').trim().toUpperCase() || null;
+    // 🔑 V749 (২৭.০৮.২০২৬, TK: "KNE-LAXMI — এত মানুষ") — অ্যাপ থেকে যোগ করা
+    //    লোকের **কোড** এখন আলাদা `code` ঘরে আসে, নাম থেকে নয়। তাই পর্দায়
+    //    আসল নাম দেখানো যায়, আর auth-ইমেল (`<কোড>@staff.piles`) মিলে যায়।
+    //    ⛔ পুরনো ২৩ জনের সেশনে `code` ঘর নেই ⇒ আগের নিয়মই (নাম→কোড) অটুট,
+    //       এক অক্ষরও বদল নেই। Android-এ হুবহু একই ব্যবস্থা (ModuleAuth)।
+    return MOD.SPECIAL_CODE[mobDigits]
+        || String(raw.code || '').trim().toUpperCase()
+        || String(raw.name || '').trim().toUpperCase() || null;
   };
 
   MOD.autoSignIn = async function () {

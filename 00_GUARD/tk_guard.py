@@ -673,51 +673,70 @@ def check_followup_cache_fields():
 #  কম্পিউটার — দুই জায়গাতেই পাহারা বসানো হলো।
 # ═══════════════════════════════════════════════════════════════
 def check_cloud_login_name_is_code():
+    """মেঘের লোকের **কোড** কোথা থেকে আসে — নাম থেকে নয়, `person_code` থেকে।"""
     kt = os.path.join(JAVA, "com", "tkbiswas", "pilesclinic",
                       "native", "CloudStaffDirectory.kt")
+    ma = os.path.join(JAVA, "com", "tkbiswas", "pilesclinic",
+                      "modules", "ModuleAuth.kt")
+
+    # ── ফোন, ধাপ ১: জমানো তালিকা থেকে কোড বার করার পথটা আছে তো? ──────────
     if not os.path.exists(kt):
         fail("৯.২৪", "CloudStaffDirectory.kt খুঁজে পাওয়া গেল না")
     else:
         s_kt = read(kt)
-        body = s_kt.split("private fun parse(")
-        if len(body) < 2:
-            fail("৯.২৪", "CloudStaffDirectory.kt-এ `parse(` খুঁজে পাওয়া গেল না")
-        else:
-            seg = body[1].split("\n    }")[0]
-            if "StaffAccount(" not in seg:
-                fail("৯.২৪", "CloudStaffDirectory.parse()-এ StaffAccount তৈরির লাইন নেই")
-            else:
-                made = seg.split("StaffAccount(")[1].split(")")[0]
-                if "full_name" in made or "name" in made.replace("person_code", ""):
-                    fail("৯.২৪", "CloudStaffDirectory.parse() — StaffAccount-এর ২য় ঘরে "
-                                 "`full_name`/নাম বসানো হয়েছে; ওখানে **person_code** থাকতে হয়, "
-                                 "নইলে নতুন লোকের মডিউলে Sign-in failed হবে")
-                if "person_code" not in seg:
-                    fail("৯.২৪", "CloudStaffDirectory.parse()-এ `person_code` পড়াই হচ্ছে না")
+        if "fun cachedCodeFor(" not in s_kt:
+            fail("৯.২৪", "CloudStaffDirectory-তে `cachedCodeFor()` নেই — তাহলে মডিউলের "
+                         "কোড নাম থেকে বার হবে ⇒ নতুন লোকের Sign-in failed হবে")
+        elif "person_code" not in s_kt.split("fun cachedCodeFor(")[1][:1200]:
+            fail("৯.২৪", "`cachedCodeFor()` `person_code` পড়ছে না")
 
-    js = os.path.join(ROOT, "03_NETLIFY_READY", "app.js")
-    if not os.path.exists(js):
-        fail("৯.২৪", "app.js খুঁজে পাওয়া গেল না")
+    # ── ফোন, ধাপ ২: `expectedCode()` সত্যিই ওটা ব্যবহার করছে তো? ─────────
+    if not os.path.exists(ma):
+        fail("৯.২৪", "ModuleAuth.kt খুঁজে পাওয়া গেল না")
+    else:
+        s_ma = read(ma)
+        if "fun expectedCode(" not in s_ma:
+            fail("৯.২৪", "ModuleAuth-এ `expectedCode()` খুঁজে পাওয়া গেল না")
+        else:
+            seg = s_ma.split("fun expectedCode(")[1][:2600]
+            if "cachedCodeFor" not in seg:
+                fail("৯.২৪", "ModuleAuth.expectedCode() মেঘের `cachedCodeFor()` ব্যবহার করছে না "
+                             "⇒ অ্যাপ থেকে যোগ করা লোক কোনো মডিউল খুলতে পারবেন না")
+            # ⚠️ পুরনো ২৩ জন যেন কখনো এই নতুন পথে না ঢোকেন — শর্তটা থাকতেই হবে।
+            elif "StaffDirectory.findAccount(mobile) == null" not in seg:
+                fail("৯.২৪", "ModuleAuth.expectedCode() — মেঘের কোড নেওয়ার আগে "
+                             "`StaffDirectory.findAccount(mobile) == null` শর্তটা নেই; "
+                             "শর্ত ছাড়া বাঁধা তালিকার ২৩ জনের পরিচয়ও বদলে যেতে পারে")
+
+    # ── কম্পিউটার: `code` ঘরে person_code, আর expectedCode সেটা পড়ে তো? ──
+    js = os.path.join(WEB, "app.js")
+    mc = os.path.join(WEB, "module_core.js")
+    if not os.path.exists(js) or not os.path.exists(mc):
+        fail("৯.২৪", "app.js বা module_core.js খুঁজে পাওয়া গেল না")
         return
-    s_js = read(js)
+    s_js, s_mc = read(js), read(mc)
     if "staff_login_list" not in s_js:
         return          # ওয়েবে মেঘ-লগইন নেই — পাহারার কিছু নেই
     # ⚠️ `staff_login_list` ফাইলে দুবার আছে (একটা কমেন্টে, একটা আসল কলে) —
-    #    তাই `[1]` নিলে মাঝের টুকরোটা আসত, যেখানে push লাইনটা নেই। নিজের
-    #    ফাঁদ-পরীক্ষাতেই এটা ধরা পড়েছে; এখন গোটা ফাইলেই খোঁজা হয়।
+    #    তাই `split(...)[1]` ভুল টুকরো নিত। নিজের ফাঁদ-পরীক্ষাতেই ধরা পড়েছে।
     push = s_js.split("cfg2.users[rk].push(")
     if len(push) < 2:
         fail("৯.২৪", "app.js — মেঘ-লগইনে ব্যবহারকারী যোগ করার লাইন খুঁজে পাওয়া গেল না")
         return
     seg = push[1].split("});")[0]
-    if "name:" not in seg:
-        fail("৯.২৪", "app.js — মেঘ-লগইনে `name:` ঘরটাই নেই")
-        return
-    val = seg.split("name:")[1].split(",")[0]
-    if "person_code" not in val or "full_name" in val:
-        fail("৯.২৪", "app.js — মেঘ-লগইনে `name:` ঘরে `person_code` ছাড়া অন্য কিছু "
-                     "বসানো হয়েছে; নাম বসালে নতুন লোকের মডিউলে Sign-in failed হবে")
-
+    if "code:" not in seg:
+        fail("৯.২৪", "app.js — মেঘ-লগইনে `code:` ঘরটাই নেই ⇒ নতুন লোকের মডিউল খুলবে না")
+    else:
+        val = seg.split("code:")[1].split(",")[0]
+        if "person_code" not in val:
+            fail("৯.২৪", "app.js — মেঘ-লগইনে `code:` ঘরে `person_code` বসানো হয়নি")
+    # ⚠️ `MOD.expectedCode` ফাইলে কয়েকবার আছে (সংজ্ঞা + কল)। `[-1]` নিলে
+    #    শেষ **কল**-টা আসত, সংজ্ঞা নয় — নিজের পরীক্ষাতেই ধরা পড়েছে।
+    if "MOD.expectedCode = function" not in s_mc:
+        fail("৯.২৪", "module_core.js — `MOD.expectedCode` সংজ্ঞাটাই খুঁজে পাওয়া গেল না")
+    elif "raw.code" not in s_mc.split("MOD.expectedCode = function")[1][:900]:
+        fail("৯.২৪", "module_core.js — `MOD.expectedCode()` `raw.code` পড়ছে না "
+                     "⇒ নতুন লোকের মডিউলে Sign-in failed হবে")
 
 # ═══════════════════════════════════════════════════════════════
 #  যাচাই ৯.২৩ — Draft-এর জমানো তালিকায় **একটা ঘরও** বাদ পড়েনি তো?

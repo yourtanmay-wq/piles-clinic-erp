@@ -175,7 +175,26 @@ object ModuleAuth {
             "9002610352" -> "DR-GOKUL"
             "7810907954" -> "DR-SAIKAT-ROY"
             "9242009205" -> "DR-PRANAB-BISWAS"
-            else -> user.name.trim().uppercase()
+            // 🔑 V749 (২৭.০৮.২০২৬, TK: *"KNE-LAXMI — এত মানুষ"*) —
+            //    অ্যাপ থেকে যোগ করা লোকের **কোড** এখন জমানো তালিকা থেকে আসে,
+            //    নাম থেকে নয়। তাই পর্দায় আসল নাম দেখানো যায়, আর মডিউলের
+            //    auth-ইমেল (`<কোড>@staff.piles`) ঠিকঠাক মেলে।
+            //
+            //    ⚠️⚠️ **শর্তটা খেয়াল করুন — বাঁধা তালিকায় থাকলে এখানে ঢোকাই হয় না।**
+            //      অর্থাৎ আজকের ২৩ জনের ক্ষেত্রে আগের নিয়মই (নাম→কোড) অটুট,
+            //      এক অক্ষরও বদল নেই। মেঘের তালিকা না পেলেও আগের নিয়মেই ফেরে।
+            //    ⛔ `cachedCodeFor` কখনো নেটে যায় না — শুধু ফোনে জমানোটা পড়ে।
+            else -> {
+                var out = user.name.trim().uppercase()
+                if (StaffDirectory.findAccount(mobile) == null) {
+                    val fromCloud = try {
+                        com.tkbiswas.pilesclinic.native.CloudStaffDirectory
+                            .cachedCodeFor(context, mobile)
+                    } catch (_: Throwable) { null }
+                    if (!fromCloud.isNullOrBlank()) out = fromCloud
+                }
+                out
+            }
         }
     }
 

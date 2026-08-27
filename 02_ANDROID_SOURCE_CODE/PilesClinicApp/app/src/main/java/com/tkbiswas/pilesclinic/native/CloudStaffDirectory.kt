@@ -96,17 +96,16 @@ object CloudStaffDirectory {
             // ⛔ master এখানে কখনো আসে না (সার্ভারের ফাংশনই দেয় না) — তবু
             //    দ্বিতীয় পাহারা, যাতে ভুল করেও কেউ মাস্টার হয়ে না যায়।
             if (role != "staff" && role != "doctor" && role != "field") continue
-            // 🔴🔒 V748 — **এখানে `full_name` বসানো যাবে না, `person_code` বসাতে হবে।**
-            //    কারণ `ModuleAuth.expectedCode()` মডিউলের পরিচয় বার করে
-            //    `user.name.uppercase()` থেকে, আর সার্ভারের auth-ইমেল তৈরি হয়
-            //    **কোড** থেকে (`kne-kishan9@staff.piles`)। নাম বসালে ইমেল হত
-            //    `raju-das@staff.piles` — যা নেই ⇒ প্রতিটা নতুন লোকের মডিউলে
-            //    "Sign-in failed" হত (ROHINI-র সঙ্গে ঠিক এটাই হয়েছিল)।
-            //    ⛔ বাঁধা তালিকার ২৩ জনেও `name` ঘরে কোডই আছে (KNE-LAXMI …),
-            //       তাই এটা নতুন কিছু নয় — ওদের সঙ্গেই হুবহু মিল।
+            // 👤 V749 (২৭.০৮.২০২৬, TK-নির্দেশ: *"KNE-LAXMI — এত মানুষ"*) —
+            //    পর্দায় **আসল নামই** দেখাতে হবে, কোড নয়।
+            //    ⚠️ কিন্তু মডিউলের পরিচয় আর নাম থেকে বার করা হয় না —
+            //       `ModuleAuth.expectedCode()` এখন `cachedCodeFor()` থেকে
+            //       **কোড** নেয় (নিচে দেখুন)। তাই নাম আর কোড আলাদা রাখা যায়,
+            //       আর V748-এর "Sign-in failed"-ও ফিরে আসে না।
             val code = o.optString("person_code", "").trim().uppercase()
             if (code.isBlank()) continue
-            out.add(StaffAccount(mob, code, o.optString("branch", "").trim(), role))
+            val shown = o.optString("full_name", "").trim().ifBlank { code }
+            out.add(StaffAccount(mob, shown, o.optString("branch", "").trim(), role))
         }
         return out
     }
@@ -153,7 +152,35 @@ object CloudStaffDirectory {
         return cached(ctx).find { StaffDirectory.normalizeMobile(it.mobile) == target }
     }
 
-    // 🧹 V748 — `cachedNameFor()` ও `cachedAccounts()` মুছে দেওয়া হলো।
-    //    কোথাও ব্যবহার হচ্ছিল না, আর `cachedNameFor` এখন **নাম নয়, কোড**
-    //    ফেরাত (উপরের V748 বদলের পরে) — নামটাই বিভ্রান্তিকর হয়ে যেত।
+    /**
+     * 🔑 V749 — এই মোবাইলের **person_code** (মডিউলে ঢোকার পরিচয়)।
+     *
+     * ⚠️ **এটাই V748-এর "Sign-in failed"-এর আসল সমাধান।**
+     *   সার্ভারের auth-ইমেল তৈরি হয় কোড থেকে (`kne-kishan9@staff.piles`),
+     *   তাই `ModuleAuth.expectedCode()` এখান থেকেই কোড নেয় — নাম থেকে নয়।
+     *   ফলে পর্দায় আসল নাম দেখানো যায়, আর মডিউলও ঠিকঠাক খোলে।
+     *
+     * ⛔ **কখনো নেটে যায় না** — শুধু ফোনে জমানোটা পড়ে, তাই মূল থ্রেড থেকেও
+     *    ডাকা নিরাপদ।
+     * ⛔ না পেলে `null` — তখন আগের নিয়মই চলে (নাম থেকে কোড), অর্থাৎ বাঁধা
+     *    তালিকার ২৩ জনের ক্ষেত্রে **এক অক্ষরও বদল নেই**।
+     */
+    fun cachedCodeFor(ctx: Context, mobile: String): String? {
+        val target = StaffDirectory.normalizeMobile(mobile)
+        if (target.length != 10) return null
+        var found: String? = null
+        try {
+            val txt = prefs(ctx).getString(KEY_JSON, "") ?: ""
+            if (txt.isNotBlank()) {
+                val arr = JSONArray(txt)
+                for (i in 0 until arr.length()) {
+                    val o = arr.optJSONObject(i) ?: continue
+                    if (StaffDirectory.normalizeMobile(o.optString("mobile", "")) != target) continue
+                    val c = o.optString("person_code", "").trim().uppercase()
+                    if (c.isNotBlank()) { found = c; break }
+                }
+            }
+        } catch (_: Throwable) { found = null }
+        return found
+    }
 }

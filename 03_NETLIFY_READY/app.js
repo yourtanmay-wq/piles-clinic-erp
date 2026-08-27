@@ -2636,12 +2636,16 @@ async function login(){
      cfg2.users=cfg2.users||{};
      cfg2.users[rk]=Array.isArray(cfg2.users[rk])?cfg2.users[rk]:[];
      if(!cfg2.users[rk].some(function(x){return mob(x.mobile)===m})){
-      /* 🔴🔒 V748 — এখানে `full_name` নয়, **`person_code`** বসাতেই হবে।
-         `MOD.expectedCode()` মডিউলের পরিচয় বার করে `raw.name.toUpperCase()`
-         থেকে, আর সার্ভারের auth-ইমেল তৈরি হয় **কোড** থেকে। নাম বসালে
-         প্রতিটা নতুন লোকের মডিউলে "Sign-in failed" হত। ফোনেও হুবহু একই। */
+      /* 👤🔑 V749 (২৭.০৮.২০২৬, TK: "KNE-LAXMI — এত মানুষ") — পর্দায় **আসল নাম**,
+         আর মডিউলের পরিচয়ের জন্য আলাদা `code` ঘর।
+         ⚠️ `MOD.expectedCode()` আগে শুধু `raw.name.toUpperCase()` পড়ত, তাই নাম
+            বসালে auth-ইমেল মিলত না ⇒ "Sign-in failed" (V748-এ ধরা পড়েছিল)।
+            এখন সেটা আগে `raw.code` দেখে — তাই নাম আর কোড আলাদা রাখা যায়।
+         ⛔ পুরনো ২৩ জনের object-এ `code` ঘর নেই ⇒ তাদের ক্ষেত্রে আগের
+            নিয়মই (নাম→কোড) হুবহু অটুট। ফোনেও ঠিক একই ব্যবস্থা। */
       cfg2.users[rk].push({mobile:String(hit.mobile||''),
-        name:String(hit.person_code||'').trim().toUpperCase(),
+        name:String(hit.full_name||hit.person_code||'').trim(),
+        code:String(hit.person_code||'').trim().toUpperCase(),
         branch:String(hit.branch||'')});
      }
      return login();   /* ⇒ এবার উপরের পুরনো পথেই যাচাই হবে */
