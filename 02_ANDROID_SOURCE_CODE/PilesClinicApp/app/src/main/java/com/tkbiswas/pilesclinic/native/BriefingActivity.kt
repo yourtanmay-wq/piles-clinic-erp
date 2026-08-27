@@ -677,20 +677,131 @@ class BriefingActivity : AppCompatActivity() {
                 // 🔴 TK-নির্দেশ (05.08.2026 রাত — "স্টাফের সাথে ডাক্তাররা কি করছে
                 // ওখানে") — এখন শুধু "staff" রোলই এই তালিকায়, Doctor/Field
                 // Officer/Master বাদ। ব্যাকডেট-পেমেন্ট পারমিশন শুধু স্টাফের জন্যই।
-                val accounts = StaffDirectory.allAccounts().filter { it.role == "staff" }.sortedBy { it.name }
+                val targetField = this
+                /* 📋 V755 (২৭.০৮.২০২৬) — **অ্যাপ থেকে যোগ করা স্টাফও এই তালিকায়**।
+                   ⚠️ V746-এ অ্যাপ থেকে স্টাফ যোগ করার সুবিধা এল, কিন্তু এই তালিকা
+                      শুধু বাঁধা তালিকা দেখত ⇒ নতুন স্টাফ এখানে আসতই না।
+                   ⛔ `cachedAccounts` কখনো নেটে যায় না (শুধু ফোনে জমানোটা)।
+                   ⛔ একই মোবাইল দুবার এলে একবারই থাকে। */
+                val builtIn = StaffDirectory.allAccounts().filter { it.role == "staff" }
+                val fromCloud = try {
+                    CloudStaffDirectory.cachedAccounts(applicationContext)
+                        .filter { it.role == "staff" }
+                } catch (_: Throwable) { emptyList() }
+                val accounts = (builtIn + fromCloud)
+                    .distinctBy { StaffDirectory.normalizeMobile(it.mobile) }
+                    .sortedBy { it.name.uppercase() }
                 if (accounts.isEmpty()) {
                     Toast.makeText(this@BriefingActivity, "No staff found", Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
-                val labels = accounts.map { "${it.name}  ·  ${it.branch}  ·  ${it.role.uppercase()}" }.toTypedArray()
-                AlertDialog.Builder(this@BriefingActivity)
-                    .setCustomTitle(PremiumAlert.header(this@BriefingActivity, "SELECT STAFF"))
-                    .setItems(labels) { dialog, which ->
-                        val acc = accounts[which]
-                        setText("${acc.name}  ·  ${acc.mobile}")
-                        dialog.dismiss()
+
+                /* 🎨🔒 V755 (TK-অনুমোদিত ডিজাইন **C**, ডেমো ফটো দেখে বাছা) —
+                   *"এটা এখনো কেন সাদা মিঠা, প্রফেশনাল বানাতে হবে"*
+                   আগে সাধারণ `setItems()` ছিল — শুধু সাদা পটভূমিতে এক লাইন লেখা।
+                   এখন: উপরে **খোঁজার ঘর**, তারপর প্রতি সারিতে সবুজ বিন্দু · নাম
+                   (মোটা) · ডানে ব্রাঞ্চ · নিচে মোবাইল — মাঝে হালকা দাগ।
+                   ⛔ ডিজাইনটা প্রজেক্টের **নিজের প্রমাণিত ধাঁচেই** (Saved RMP
+                      পর্দার মতো: EditText + ListView + BaseAdapter), নতুন কোনো
+                      লাইব্রেরি বা XML লাগেনি।
+                   ⛔ বাছার পরে কী বসে (`নাম · মোবাইল`) — **এক অক্ষরও বদলায়নি**,
+                      তাই সেভের পুরনো কোড (শেষ ১০ অঙ্ক) আগের মতোই চলে। */
+                val d = resources.displayMetrics.density
+                fun px(v: Int) = (v * d).toInt()
+                val box = LinearLayout(this@BriefingActivity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(px(14), px(8), px(14), 0)
+                    setBackgroundColor(android.graphics.Color.WHITE)
+                }
+                val search = EditText(this@BriefingActivity).apply {
+                    hint = "Search staff or branch"
+                    inputType = android.text.InputType.TYPE_CLASS_TEXT
+                    maxLines = 1
+                    textSize = 14f
+                    setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
+                    setPadding(px(12), px(10), px(12), px(10))
+                }
+                val listView = android.widget.ListView(this@BriefingActivity).apply {
+                    divider = android.graphics.drawable.ColorDrawable(
+                        android.graphics.Color.parseColor("#EDF1F4"))
+                    dividerHeight = 1
+                    setBackgroundColor(android.graphics.Color.WHITE)
+                    isFastScrollEnabled = accounts.size > 30
+                }
+                box.addView(search, LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+                box.addView(listView, LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, px(360)).apply { topMargin = px(10) })
+
+                var shown = accounts
+                fun draw(query: String) {
+                    val q = query.trim().lowercase(java.util.Locale.US)
+                    shown = if (q.isBlank()) accounts else accounts.filter {
+                        (it.name + " " + it.branch + " " + it.mobile).lowercase(java.util.Locale.US).contains(q)
                     }
-                    .show().also { PremiumAlert.paint(it) }
+                    listView.adapter = object : android.widget.BaseAdapter() {
+                        override fun getCount(): Int = shown.size
+                        override fun getItem(position: Int): Any = shown[position]
+                        override fun getItemId(position: Int): Long = position.toLong()
+                        override fun getView(
+                            position: Int, convertView: View?, parent: android.view.ViewGroup?
+                        ): View {
+                            val acc = shown[position]
+                            return LinearLayout(this@BriefingActivity).apply {
+                                orientation = LinearLayout.VERTICAL
+                                setPadding(px(6), px(13), px(6), px(13))
+                                addView(LinearLayout(this@BriefingActivity).apply {
+                                    orientation = LinearLayout.HORIZONTAL
+                                    gravity = android.view.Gravity.CENTER_VERTICAL
+                                    addView(View(this@BriefingActivity).apply {
+                                        background = android.graphics.drawable.GradientDrawable().apply {
+                                            shape = android.graphics.drawable.GradientDrawable.OVAL
+                                            setColor(android.graphics.Color.parseColor("#118452"))
+                                        }
+                                    }, LinearLayout.LayoutParams(px(8), px(8)).apply { marginEnd = px(9) })
+                                    addView(TextView(this@BriefingActivity).apply {
+                                        text = acc.name.trim().uppercase()
+                                        textSize = 16f
+                                        setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+                                        setTextColor(android.graphics.Color.parseColor("#17312A"))
+                                        maxLines = 1
+                                    }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                                    addView(TextView(this@BriefingActivity).apply {
+                                        text = acc.branch
+                                        textSize = 12.5f
+                                        setTextColor(android.graphics.Color.parseColor("#7A8A82"))
+                                    })
+                                })
+                                addView(TextView(this@BriefingActivity).apply {
+                                    text = acc.mobile
+                                    textSize = 13.5f
+                                    setTextColor(android.graphics.Color.parseColor("#5C6B64"))
+                                    setPadding(px(17), px(3), 0, 0)
+                                })
+                            }
+                        }
+                    }
+                }
+                draw("")
+                search.addTextChangedListener(object : android.text.TextWatcher {
+                    override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+                    override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+                    override fun afterTextChanged(s: android.text.Editable) { draw(s.toString()) }
+                })
+
+                val dlg = AlertDialog.Builder(this@BriefingActivity)
+                    .setCustomTitle(PremiumAlert.header(this@BriefingActivity, "SELECT STAFF"))
+                    .setView(box)
+                    .setNegativeButton("Close", null)
+                    .create()
+                listView.setOnItemClickListener { _, _, position, _ ->
+                    val acc = shown.getOrNull(position) ?: return@setOnItemClickListener
+                    // ⛔ যা বসে তা আগের মতোই — "নাম · মোবাইল"।
+                    targetField.setText("${acc.name}  ·  ${acc.mobile}")
+                    dlg.dismiss()
+                }
+                dlg.show()
+                PremiumAlert.paint(dlg)
             }
         }
         val startDateInput = field("Start date (tap to pick)").apply { isFocusable = false }
