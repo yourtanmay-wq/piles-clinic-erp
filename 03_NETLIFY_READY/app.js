@@ -2606,10 +2606,45 @@ async function login(){
    user={...u,mobile:m,role};
    try{localStorage.setItem('rk_session',JSON.stringify(user))}catch(e){}
    closeModal();
+   try{window.__wlv1CloudLoginTried=null}catch(_e){}   /* 🔒 V746 — পাহারা ছেড়ে দিই */
    setTimeout(()=>{try{dashboard();startFastCloudSync('login-fast',300)}catch(e){console.error('Dashboard boot failed',e);toast('Dashboard loading error. Reload once.')}},0);
    return;
   }
  }
+ /* 👥🔒 V746 (২৭.০৮.২০২৬, TK-অনুমোদিত) — **অ্যাপ থেকে যোগ করা লোকজন**।
+    ⚠️ **পুরনো লগইনের পথে এক অক্ষরও হাত পড়েনি** — উপরের বাঁধা তালিকাটাই
+       আগের মতোই প্রথমে দেখা হয়। মেঘ তখনই দেখা হয় যখন নম্বরটা ওখানে **নেই**,
+       অর্থাৎ আজ যেখানে লগইন এমনিতেই "Mobile not allowed" বলে থেমে যেত।
+    ⇒ তাই আজকের চেয়ে খারাপ হওয়ার কোনো পথ নেই।
+    ⛔ সার্ভারের `public.staff_login_list()` শুধু লগইনে যেটুকু দরকার তাই দেয়।
+    ⛔ পেলে **উপরের সেই একই যাচাইয়েই** (পাসওয়ার্ড · সাসপেন্ড · বাদ-দেওয়া)
+       ফেরত পাঠানো হয় — নতুন কোনো সহজ পথ তৈরি করা হয়নি। */
+ /* 🔒 একবারই — নইলে মেঘে পাওয়া গেলেও উপরের তালিকায় কোনো কারণে না বসলে
+    `login()` নিজেকেই বারবার ডেকে **অসীম লুপ** হয়ে যেত (নিজের কোড আবার
+    পড়ে ধরা পড়েছে)। এই পাহারায় সর্বোচ্চ একবার দ্বিতীয় চেষ্টা হয়। */
+ if(window.__wlv1CloudLoginTried===m){ toast('Mobile not allowed'); return; }
+ window.__wlv1CloudLoginTried=m;
+ try{
+  if(typeof sb!=='undefined' && sb){
+   let cr=await sb.rpc('staff_login_list');
+   let rows=(cr&&cr.data)||[];
+   let hit=rows.find(function(x){return mob(x.mobile)===m});
+   if(hit){
+    let rk=String(hit.role_kind||'staff').toLowerCase();
+    if(rk==='staff'||rk==='doctor'||rk==='field'){
+     let cfg2=window.RK_CONFIG||C||{};
+     cfg2.users=cfg2.users||{};
+     cfg2.users[rk]=Array.isArray(cfg2.users[rk])?cfg2.users[rk]:[];
+     if(!cfg2.users[rk].some(function(x){return mob(x.mobile)===m})){
+      cfg2.users[rk].push({mobile:String(hit.mobile||''),
+        name:String(hit.full_name||hit.person_code||''),
+        branch:String(hit.branch||'')});
+     }
+     return login();   /* ⇒ এবার উপরের পুরনো পথেই যাচাই হবে */
+    }
+   }
+  }
+ }catch(_e){}
  toast('Mobile not allowed');
 }
 window["login"]=login;

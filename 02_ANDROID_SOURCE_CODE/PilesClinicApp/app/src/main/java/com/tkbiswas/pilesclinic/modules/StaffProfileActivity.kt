@@ -183,6 +183,13 @@ class StaffProfileActivity : AppCompatActivity() {
            তালিকার উপরে একটাই বোতাম। ⛔ শুধু Master দেখতে পাবেন। */
         if (ModuleAuth.isMaster) {
             root.addView(salOutlineButton("🏆 Staff Performance", "#0A5C33", "#0A5C33") { performanceList("") })
+            /* 👥🔒 V746 (২৭.০৮.২০২৬, TK-অনুমোদিত ডেমো-প্রুফের পরে) —
+               TK: *"আপনি তো আর আমার সাথে সারা জীবন থাকবেন না... আমি
+               অ্যাপ্লিকেশন থেকে কোন স্টাফ যোগ বা বিয়োগ করতে পারব কিনা।"*
+               ⛔ শুধু মাস্টার — সার্ভারেও একই পাহারা, তাই ফোন থেকে ফাঁকি নেই।
+               ⛔ পুরনো তালিকা/বেতন/পারফরম্যান্স — কিচ্ছু ছোঁয়া হয়নি,
+                  শুধু একটা নতুন বোতাম যোগ। */
+            root.addView(salOutlineButton("👥 Add / Remove People", "#1457B8", "#1457B8") { peopleAdminScreen() })
         }
         val cachedNow = loadCachedStaffList()
         if (cachedNow != null) {
@@ -3203,6 +3210,173 @@ class StaffProfileActivity : AppCompatActivity() {
                         sbox.addView(ModuleUi.body(this, ns(pp, "paid_on") + " · " + money(pp.optDouble("amount", 0.0)) + " · " + ns(pp, "mode")))
                     }
                 }
+            }
+        }.start()
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       👥🔒 V746 (২৭.০৮.২০২৬) — **মাস্টার নিজে স্টাফ ও ডাক্তার যোগ / বাদ /
+       ফেরাতে পারবেন** — SQL ছাড়া, নতুন APK ছাড়া।
+       —————————————————————————————————————————————————————————————————
+       ⛔ **একটাও নিয়ম এখানে যাচাই হয় না** — সব সার্ভারে
+          (`00_SQL/V745_STAFF_DOCTOR_FROM_APP.sql`)। ফোনের অ্যাপ বদলে
+          ফেললেও নিয়ম ফাঁকি দেওয়ার পথ নেই।
+       ⛔ **কাউকে কখনো মোছা হয় না** — শুধু নিষ্ক্রিয়, তাই পুরনো রেকর্ডে
+          নাম চিরকাল থাকে আর লগইন নিজে থেকেই বন্ধ হয় (V403)।
+       ⛔ টাকার হিসাব ছোঁয়া হয় না — সেসব মোবাইল ধরে চলে (V308)।
+       ⛔ TK-নির্দেশ: নতুন লেখা ইংরেজিতে।
+       ═══════════════════════════════════════════════════════════════════ */
+    private fun peopleAdminScreen() {
+        backAction = { renderList() }
+        val col = ModuleUi.screen(this, "Staff & Doctors")
+        val head = ModuleUi.card(this); col.addView(head)
+        head.addView(ModuleUi.button(this, "+ Add Staff or Doctor") { addPersonDialog() })
+        val listBox = ModuleUi.card(this); col.addView(listBox)
+        col.addView(ModuleUi.button(this, "Back") { renderList() })
+        listBox.addView(ModuleUi.body(this, "Loading..."))
+        loadPeople(listBox)
+    }
+
+    private fun loadPeople(listBox: LinearLayout) {
+        Thread {
+            val rows = com.tkbiswas.pilesclinic.native.PeopleAdminRepository.list()
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                listBox.removeAllViews()
+                if (rows.isEmpty()) {
+                    listBox.addView(ModuleUi.body(this, "Could not load. Check internet and try again."))
+                    listBox.addView(ModuleUi.buttonSoft(this, "Try again") { loadPeople(listBox) })
+                    return@runOnUiThread
+                }
+                for (r in rows) {
+                    val role = com.tkbiswas.pilesclinic.native.PeopleAdminRepository.roleLabel(r.role)
+                    val tail = if (r.active) "" else "   ·   REMOVED"
+                    listBox.addView(ModuleUi.body(this, r.name + tail))
+                    listBox.addView(ModuleUi.body(this,
+                        "   " + r.code + " · " + r.branch + " · " + role +
+                            "   ·   " + ModuleUi.fullMobile(r.mobile)))
+                    if (r.active) {
+                        listBox.addView(ModuleUi.buttonSoft(this, "Remove " + r.name) {
+                            confirmSetActive(r, false, listBox)
+                        })
+                    } else {
+                        listBox.addView(ModuleUi.buttonSoft(this, "Restore " + r.name) {
+                            confirmSetActive(r, true, listBox)
+                        })
+                    }
+                }
+            }
+        }.start()
+    }
+
+    private fun confirmSetActive(
+        person: com.tkbiswas.pilesclinic.native.PeopleAdminRepository.Person,
+        active: Boolean,
+        listBox: LinearLayout
+    ) {
+        val title = if (active) "Restore This Person?" else "Remove This Person?"
+        val body = if (active)
+            person.name + "\n" + person.code + " · " + person.branch +
+                "\n\nLogin will start working again."
+        else
+            person.name + "\n" + person.code + " · " + person.branch +
+                "\n\nLogin will stop working at once." +
+                "\nOld records keep the name — nothing is deleted." +
+                "\nYou can restore this person any time."
+        val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, title))
+            .setMessage(body)
+            .setPositiveButton(if (active) "Yes, restore" else "Yes, remove") { _, _ ->
+                Thread {
+                    val res = com.tkbiswas.pilesclinic.native.PeopleAdminRepository
+                        .setActive(person.code, active)
+                    runOnUiThread {
+                        android.widget.Toast.makeText(this, res.message, android.widget.Toast.LENGTH_LONG).show()
+                        if (res.ok) loadPeople(listBox)
+                    }
+                }.start()
+            }
+            .setNegativeButton("Cancel", null)
+            .create()
+        dlg.show()
+        com.tkbiswas.pilesclinic.native.PremiumAlert.paint(dlg)
+    }
+
+    /** নতুন স্টাফ/ডাক্তার — ⛔ সব যাচাই সার্ভারে, এখানে শুধু ঘরগুলো। */
+    private fun addPersonDialog() {
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(6), dp(18), dp(6))
+        }
+        var role = "staff"
+        val roleLine = ModuleUi.body(this, "Type:  Staff")
+        box.addView(roleLine)
+        val pickStaff = ModuleUi.buttonSoft(this, "Staff") { }
+        val pickDoctor = ModuleUi.buttonSoft(this, "Doctor") { }
+        pickStaff.setOnClickListener { role = "staff"; roleLine.text = "Type:  Staff" }
+        pickDoctor.setOnClickListener { role = "doctor"; roleLine.text = "Type:  Doctor" }
+        box.addView(pickStaff); box.addView(pickDoctor)
+
+        box.addView(ModuleUi.body(this, "Full Name"))
+        val etName = ModuleUi.input(this, "Full name")
+        box.addView(etName)
+        box.addView(ModuleUi.body(this, "Mobile (10 digits)"))
+        val etMobile = ModuleUi.input(this, "10-digit mobile")
+        box.addView(etMobile)
+        box.addView(ModuleUi.body(this, "Staff Code"))
+        val etCode = ModuleUi.input(this, "e.g. KNE-KISHAN9")
+        box.addView(etCode)
+        box.addView(ModuleUi.body(this, "Branch"))
+        val etBranch = ModuleUi.input(this, "e.g. Kishanganj")
+        box.addView(etBranch)
+
+        val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "Add Staff or Doctor"))
+            .setView(android.widget.ScrollView(this).apply { addView(box) })
+            .setPositiveButton("Save", null)   // ⛔ null — নিজেরাই বন্ধ করব
+            .setNegativeButton("Close", null)
+            .create()
+        dlg.show()
+        com.tkbiswas.pilesclinic.native.PremiumAlert.paint(dlg)
+        dlg.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)?.setOnClickListener {
+            val name = etName.text?.toString().orEmpty().trim()
+            val mob = etMobile.text?.toString().orEmpty().filter { c -> c.isDigit() }.takeLast(10)
+            val code = etCode.text?.toString().orEmpty().trim().uppercase()
+            val branch = etBranch.text?.toString().orEmpty().trim()
+            // ⛔ এটুকু শুধু স্টাফকে বাঁচাতে — আসল পাহারা সার্ভারেই।
+            if (name.isBlank() || code.isBlank() || branch.isBlank() || mob.length != 10) {
+                android.widget.Toast.makeText(this,
+                    "Please fill all four boxes (mobile must be 10 digits)",
+                    android.widget.Toast.LENGTH_LONG).show()
+                return@setOnClickListener
+            }
+            dlg.dismiss()
+            savePerson(code, mob, name, branch, role)
+        }
+    }
+
+    private fun savePerson(code: String, mobile: String, name: String, branch: String, role: String) {
+        android.widget.Toast.makeText(this, "Saving...", android.widget.Toast.LENGTH_SHORT).show()
+        Thread {
+            val res = com.tkbiswas.pilesclinic.native.PeopleAdminRepository
+                .add(code, mobile, name, branch, role)
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                val title = if (res.ok) "Added" else "Not done"
+                val body = if (res.ok)
+                    name + "\n" + code + " · " + branch + " · " +
+                        com.tkbiswas.pilesclinic.native.PeopleAdminRepository.roleLabel(role) +
+                        "\n\nThis person can log in right now." +
+                        "\nMobile: " + ModuleUi.fullMobile(mobile) +
+                        "\n" + res.message
+                else res.message
+                val d = androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, title))
+                    .setMessage(body)
+                    .setPositiveButton("OK") { _, _ -> if (res.ok) peopleAdminScreen() }
+                    .create()
+                d.show()
+                com.tkbiswas.pilesclinic.native.PremiumAlert.paint(d)
             }
         }.start()
     }
