@@ -3363,5 +3363,11 @@
     "versionCode": 147,
     "when": "28.07.2026 11.52 am",
     "note": "প্রথমবার — এতে DoctorVisitActivity-তে বিল্ড এরর ছিল, ⛔ ব্যবহার করবেন না"
+  },
+  {
+    "file": "PILES_CLINIC_APP_V751_FINAL.zip",
+    "version": 751,
+    "date": "2026-08-27",
+    "reason": "TK: হ্যাঁ (অ্যাপ থেকে স্টাফ ও ডাক্তার যোগ/বাদ)"
   }
 ]
