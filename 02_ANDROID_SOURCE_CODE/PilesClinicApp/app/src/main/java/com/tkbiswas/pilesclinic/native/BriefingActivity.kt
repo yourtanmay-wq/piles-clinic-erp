@@ -2079,24 +2079,61 @@ class BriefingActivity : AppCompatActivity() {
         // (NotificationsActivity-র ➕ → openCompose) ব্যবহারকারী তালিকাটা
         // পড়েনই না; তখন অটো-সিন/অটো-হাইড করলে না-পড়া নোটিশ হারিয়ে যেত।
         if (intent.getBooleanExtra("openCompose", false)) return
-        lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                val seenIds = mutableListOf<String>()
-                val hideIds = mutableListOf<String>()
-                val titleById = HashMap<String, String>()
+        /* 👁️ V753 — **তালিকাটা পড়া হয় এখানেই (মূল থ্রেডে), আলাদা থ্রেডে নয়।**
+           কারণ ঠিক এই ফাংশনের পরের লাইনেই `parseForUser(rawRows)` দিয়ে পর্দা
+           আঁকা হয়। আগে পুরো কাজটা `launch(Dispatchers.IO)`-র ভিতরে ছিল, তাই
+           `seen`-এ নাম বসার **আগেই** পর্দা আঁকা হয়ে যেত ⇒ সংখ্যা পুরনোই থাকত।
+           ⛔ এখানে **কোনো নেট-কল নেই** — শুধু JSON পড়া, তাই মূল থ্রেডে নিরাপদ।
+              নেটের কাজগুলো (নিচে) আগের মতোই আলাদা থ্রেডেই হয়। */
+        val seenIds = mutableListOf<String>()
+        val hideIds = mutableListOf<String>()
+        val titleById = HashMap<String, String>()
+        try {
                 for (i in 0 until rawRows.length()) {
                     val row = rawRows.optJSONObject(i) ?: continue
                     val id = row.optString("id")
                     if (id.isBlank() || autoClearedThisSession.contains(id)) continue
                     if (BriefingModel.isDeletedForMe(row, user.mobile)) continue        // আগেই সরানো
-                    if (!BriefingModel.targetsHit(row, user.mobile, user.role, user.branch)) continue // আমাকে target নয় (নিজের পাঠানো) — বাদ
+                    /* 👁️🔒 V753 (২৭.০৮.২০২৬, TK-সিদ্ধান্ত "১" — *"seen by 0 কেন
+                       দেখাচ্ছে? আমি নিজেই তো কয়েকবার সিন করেছি"*)
+
+                       **আসল কারণ (কোড ধরে যাচাই):** `targetsHit()` শুধু তাঁকেই
+                       মেলায় যাঁর উদ্দেশ্যে নোটিশটা পাঠানো — ব্রাঞ্চ/ভূমিকা/মোবাইল
+                       ধরে। মাস্টারের ব্রাঞ্চ **"All"**, তাই "Birpara" বা
+                       "Cooch Behar"-এর নোটিশে কখনোই মেলে না ⇒ তিনি যতবারই পড়ুন,
+                       নাম বসত না, চিরকাল "Seen by 0" থাকত।
+
+                       ⚠️ **শুধু মাস্টারের জন্যই বদল** — স্টাফের পথে এক অক্ষরও নয়।
+                       ⛔ আর **শুধু "seen"** — তালিকা থেকে সরানো (`hideForMe`)
+                          আগের মতোই শুধু target-করা নোটিশে; নইলে অন্য ব্রাঞ্চের
+                          নোটিশ মাস্টারের চোখের আড়ালে চলে যেত। */
+                    val isMasterUser = user.role.equals("master", ignoreCase = true)
+                    val mine = BriefingModel.targetsHit(row, user.mobile, user.role, user.branch)
+                    if (!mine && !isMasterUser) continue // আমাকে target নয় (নিজের পাঠানো) — বাদ
                     // (ক) সবগুলোই "seen" — ঘন্টা ও ১০-মিনিটের রিমাইন্ডার থামাতে।
-                    if (!BriefingModel.hasSeen(row, user.mobile)) seenIds.add(id)
+                    if (!BriefingModel.hasSeen(row, user.mobile)) {
+                        seenIds.add(id)
+                        /* 👁️ V753 — এই সারিটার নিজের `seen` তালিকাতেও **এখনই**
+                           নামটা বসিয়ে দিই। কারণ ঠিক নিচেই `parseForUser(rawRows)`
+                           দিয়ে পর্দাটা আঁকা হয় — মেঘে লেখা শেষ হওয়ার **আগেই**।
+                           না বসালে এই বারের পর্দায় পুরনো সংখ্যাই থাকত (TK-এর
+                           রিপোর্ট: *"আমি নিজেই তো কয়েকবার সিন করেছি"*)।
+                           ⛔ শুধু এই বারের দেখানোর জন্য — আসল লেখা নিচের
+                              `repository.markSeen()`-ই করে, তাই দুবার লেখা হয় না। */
+                        try {
+                            val arr = row.optJSONArray("seen") ?: org.json.JSONArray()
+                            arr.put(BriefingModel.mob(user.mobile))
+                            row.put("seen", arr)
+                        } catch (_: Throwable) { }
+                    }
                     // (খ) অ্যাকশন লাগে না এমনগুলোই শুধু নিজের তালিকা থেকে সরানো।
-                    if (!needsMasterApproval(row.optString("title"))) {
+                    if (mine && !needsMasterApproval(row.optString("title"))) {
                         hideIds.add(id); titleById[id] = row.optString("title")
                     }
                 }
+        } catch (_: Throwable) { }
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
                 for (id in seenIds) {
                     try { repository.markSeen(id, user.mobile) } catch (_: Throwable) { }
                 }

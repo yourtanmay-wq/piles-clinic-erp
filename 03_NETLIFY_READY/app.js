@@ -3483,7 +3483,7 @@ function anBrBriefThreadBtn(b,label){
   return '<button onclick="openBriefThread(\''+b.id+'\')">'+(label||'Open Thread')+'</button>';
 }
 window["anBrBriefThreadBtn"]=anBrBriefThreadBtn;
-function briefingHome(){currentView='briefing';if(!isMaster()&&!window.__RK_BRIEF_REFRESHING){window.__RK_BRIEF_REFRESHING=true;refreshBriefingsFromCloud().then(()=>{window.__RK_BRIEF_REFRESHING=false;if(currentView==='briefing')briefingHome()}).catch(()=>{window.__RK_BRIEF_REFRESHING=false})}let all=briefings().filter(b=>!isBriefingDeletedForMe(b));if(isMaster()){let list=all.filter(briefingVisibleForMaster).slice().reverse().slice(0,30).map(b=>`<div class="card briefingAdminCard ${anBrUrgentCls(b.title)}"><b>${esc(b.title||'Briefing')}</b><br><small>${anBrBriefWhen(b)}</small><p>${esc(b.message||'')}</p>${anBrBriefMeta(b)}${briefingReplies(b).map(r=>briefingReplyLine(b,r)).join('')}<div class="actions">${wlv1ApprovalButtons(b)}${wlv1OverdueViewBtn(b)}${anBrBriefThreadBtn(b,'Open Thread')}${briefingDeleteButton(b)}</div></div>`).join('')||/* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬) — ফোনে পর্দার নাম সবার জন্যই
+function briefingHome(){currentView='briefing';if(!isMaster()&&!window.__RK_BRIEF_REFRESHING){window.__RK_BRIEF_REFRESHING=true;refreshBriefingsFromCloud().then(()=>{window.__RK_BRIEF_REFRESHING=false;if(currentView==='briefing')briefingHome()}).catch(()=>{window.__RK_BRIEF_REFRESHING=false})}let all=briefings().filter(b=>!isBriefingDeletedForMe(b));if(isMaster()){let __mList=all.filter(briefingVisibleForMaster).slice().reverse().slice(0,30);try{wlv1AutoSeenForMaster(__mList)}catch(e){}let list=__mList.map(b=>`<div class="card briefingAdminCard ${anBrUrgentCls(b.title)}"><b>${esc(b.title||'Briefing')}</b><br><small>${anBrBriefWhen(b)}</small><p>${esc(b.message||'')}</p>${anBrBriefMeta(b)}${briefingReplies(b).map(r=>briefingReplyLine(b,r)).join('')}<div class="actions">${wlv1ApprovalButtons(b)}${wlv1OverdueViewBtn(b)}${anBrBriefThreadBtn(b,'Open Thread')}${briefingDeleteButton(b)}</div></div>`).join('')||/* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬) — ফোনে পর্দার নাম সবার জন্যই
    "Briefing / Notice Board" আর খালি-লেখা "No briefing / notice yet"
    (res/layout/activity_briefing.xml:30,148)। ওয়েবে মাস্টারের জন্য আলাদা
    নাম ও ছোট খালি-লেখা ছিল। */
@@ -3492,6 +3492,43 @@ let pendLeave=all.filter(b=>briefingNeedsApproval(b)&&String(b.title||'').toLowe
 window["briefingHome"]=briefingHome;
 async function createBriefing(){let msg=($('#brMsg')?.value||'').trim();if(!msg)return toast('Message required');let sel=$('#brTarget')?.value||'allStaff';let targets={};if(sel==='allStaff')targets.allStaff=true;else if(sel==='branch')targets.branches=[user.branch];else if(sel==='role_staff')targets.roles=['staff'];else if(sel==='role_doctor')targets.roles=['doctor'];else if(sel==='role_field')targets.roles=['field'];else if(sel==='individual'){let mobiles=$$('.brUserChk:checked').map(x=>mob(x.value)).filter(Boolean);if(!mobiles.length)return toast('Select at least one person');targets.mobiles=mobiles}let row={id:uid('brief'),date:today(),title:'Today Briefing',message:msg,targets,branch:user.branch,seen:[],replies:[],createdBy:user.mobile,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};add('briefings',row);let cloudOk=await cloudUpsertBriefing(row);toast(cloudOk?'Briefing sent to staff':'Internet/Supabase not connected. Briefing saved on this device only.');briefingHome()}
 window["createBriefing"]=createBriefing;
+/* 👁️🔒 V753 (২৭.০৮.২০২৬, TK-সিদ্ধান্ত "১" — "seen by 0 কেন দেখাচ্ছে? আমি
+   নিজেই তো কয়েকবার সিন করেছি")
+
+   **আসল কারণ (কোড ধরে যাচাই):** কম্পিউটারে মাস্টারের নোটিশ-পাতায় "Seen"
+   বলে কিছুই ছিল না — না বোতাম, না অটো। (স্টাফের পাতায় "Seen & Hide" আছে।)
+   তাই মাস্টার যতবারই পড়ুন, নাম কখনো বসত না।
+
+   এখন মাস্টারের পাতা খুললেই, যে নোটিশগুলো তিনি আগে দেখেননি, সেগুলোয় নাম
+   বসে যায় — ঠিক ফোনের মতো (BriefingActivity.autoClearActionlessForMaster)।
+
+   ⛔ **শুধু "seen"** — কোনো নোটিশ লুকোনো বা মোছা হয় না। মাস্টার সব দেখেন।
+   ⛔ শুধু মাস্টারের জন্য — স্টাফের পথে এক অক্ষরও বদল নেই।
+   ⚡ যেগুলো **আগেই** seen, সেগুলোয় কিছুই লেখা হয় না ⇒ অকারণ Egress নেই। */
+function wlv1AutoSeenForMaster(rows){
+ try{
+  if(typeof isMaster!=='function'||!isMaster())return;
+  var me=mob(user&&user.mobile);if(!me)return;
+  var all=briefings(),changed=[];
+  (rows||[]).forEach(function(b){
+   if(!b||!b.id)return;
+   var i=all.findIndex(function(x){return x.id===b.id});
+   if(i<0)return;
+   var seen=(all[i].seen||[]).map(mob);
+   if(seen.indexOf(me)>=0)return;
+   all[i].seen=(all[i].seen||[]).concat([me]);
+   all[i].updatedAt=new Date().toISOString();
+   /* এই বারের পর্দাতেই সংখ্যাটা ঠিক দেখাতে — যে object দিয়ে কার্ড আঁকা
+      হচ্ছে সেটাতেও বসিয়ে দিই (ফোনেও হুবহু একই কারণে করা হয়)। */
+   try{b.seen=all[i].seen}catch(_e){}
+   changed.push(all[i]);
+  });
+  if(!changed.length)return;
+  saveBriefings(all);
+  changed.forEach(function(r){try{cloudUpsertBriefing(r)}catch(_e){}});
+ }catch(_e){}
+}
+window["wlv1AutoSeenForMaster"]=wlv1AutoSeenForMaster;
 function markBriefSeen(id){let all=briefings();let i=all.findIndex(b=>b.id===id);if(i>-1){all[i].seen=[...(all[i].seen||[]),mob(user.mobile)].filter((v,k,a)=>v&&a.indexOf(v)===k);all[i].updatedAt=new Date().toISOString();saveBriefings(all);cloudUpsertBriefing(all[i]);toast('Seen');briefingHome()}}
 window["markBriefSeen"]=markBriefSeen;
 function openBriefThread(id){let b=briefings().find(x=>x.id===id);if(!b)return toast('Briefing not found');modal(`<h2>${esc(b.title||'Briefing')}</h2><div class="card"><p>${esc(b.message||'')}</p></div><div>${briefingReplies(b).map(r=>briefingReplyLine(b,r)).join('')||'<div class="mut">No reply yet</div>'}</div><textarea id="briefReplyText" class="input" placeholder="Type reply"></textarea><div class="actions"><button onclick="saveBriefReply('${id}')">Send Reply</button>${briefingDeleteButton(b)}<button class="ghost" onclick="closeModal()">Close</button></div>`)}
