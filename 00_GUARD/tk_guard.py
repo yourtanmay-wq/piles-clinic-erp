@@ -657,6 +657,66 @@ def check_followup_cache_fields():
                      f"কিন্তু লেখার সময় বসানো হয় না (লেখা-পড়া আলাদা হয়ে গেছে)")
 
 # ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯.২৩ — Draft-এর জমানো তালিকায় **একটা ঘরও** বাদ পড়েনি তো?
+#  ─────────────────────────────────────────────────────────────
+#  🔴🔴🔴 TK-রিপোর্ট (২৭.০৮.২০২৬, ছবিসহ): *"এইসব পেশেন্টের তো বিল ক্লিয়ার
+#  হয়ে গেছে, তাহলে এখানে 0% কেন দেখাচ্ছে? বিলও লেখা নাই।"*
+#
+#  **আসল কারণ:** `DraftEntry`-তে V646-এ কার্ডের জন্য ৯টা নতুন ঘর যোগ হয়েছিল
+#  (bill · paid · refId ইত্যাদি), কিন্তু `serializeEntries()`-এ সেগুলো যোগ
+#  করা হয়নি। ফলে ফোনে **জমানো** তালিকা থেকে দেখালে টাকার ঘর ০ আসত ⇒
+#  Bill ₹0 · Due ₹0 · 0%, আর ➡️ বোতামের রোগী-আইডিও (`refId`) হারাত।
+#
+#  §৯.১৯ ঠিক এই শ্রেণির পাহারা, কিন্তু সেটা শুধু Follow-up-এর জমানো তালিকায়
+#  ছিল। TK-এর নিয়ম ৬.২ (*"একবারে কেন ঠিক করতে পারেন না"*) মেনে এখানে
+#  Draft-এর তালিকাটাও একই পাহারায় আনা হলো — **নাম ধরে নয়, `DraftEntry`-র
+#  ঘরগুলো নিজে গুনে**, তাই ভবিষ্যতে নতুন ঘর যোগ হলেও পাহারা নিজেই ধরবে।
+# ═══════════════════════════════════════════════════════════════
+def check_draft_cache_fields():
+    f = os.path.join(JAVA, "com", "tkbiswas", "pilesclinic", "native", "DraftRepository.kt")
+    if not os.path.exists(f):
+        fail("৯.২৩", "DraftRepository.kt খুঁজে পাওয়া গেল না")
+        return
+    s = read(f)
+
+    m = re.search(r'data class DraftEntry\((.*?)\n\)\s*:\s*java\.io\.Serializable', s, re.S)
+    if not m:
+        fail("৯.২৩", "DraftRepository.kt-এ `data class DraftEntry` খুঁজে পাওয়া গেল না")
+        return
+    fields = re.findall(r'^\s*val (\w+)\s*:', m.group(1), re.M)
+    if not fields:
+        fail("৯.২৩", "DraftEntry-র ঘরগুলো পড়া গেল না")
+        return
+
+    def body(fn_name):
+        i = s.find("fun " + fn_name)
+        if i < 0:
+            return None
+        j = s.find("\n    fun ", i + 10)
+        return s[i:(j if j > 0 else len(s))]
+
+    save = body("serializeEntries")
+    load = body("deserializeEntries")
+    if save is None or load is None:
+        fail("৯.২৩", "serializeEntries/deserializeEntries খুঁজে পাওয়া গেল না")
+        return
+
+    # ⛔ মন্তব্যে ঢাকা লাইন গোনা চলবে না — নইলে `//` দিয়ে ঢেকে দিলেই পাহারা ঠকত।
+    def no_comments(t):
+        return "\n".join(ln.split("//", 1)[0] for ln in t.split("\n"))
+    save_c, load_c = no_comments(save), no_comments(load)
+
+    for name in fields:
+        if '"%s"' % name not in save_c:
+            fail("৯.২৩", f"DraftRepository.serializeEntries()-এ `{name}` জমা হচ্ছে না — "
+                         f"জমানো তালিকা দেখানোর সময় কার্ডে ওটা উধাও থাকবে "
+                         f"(TK-রিপোর্ট ২৭.০৮.২০২৬: বিল/০% হারিয়ে যাওয়া)")
+        if '"%s"' % name not in load_c:
+            fail("৯.২৩", f"DraftRepository.deserializeEntries()-এ `{name}` পড়া হচ্ছে না — "
+                         f"জমা হলেও কার্ডে বসবে না")
+
+
+# ═══════════════════════════════════════════════════════════════
 #  যাচাই ৯.২০ — ছবিওয়ালা টেবিলে "সব ঘর" (select=*) তালিকা পড়া নিষেধ
 #  🔴🔴🔴 V715 (২৬.০৮.২০২৬) — Supabase-এর লগ থেকে **মেপে** পাওয়া দোষ:
 #  `PaymentRepository.promoteFollowUpToTreatment()` প্রতিবার `followups`
@@ -2031,6 +2091,7 @@ def main():
     check_no_wide_photo_reads()       # 📉 V715 — ছবিওয়ালা টেবিলে select=* তালিকা পড়া নিষেধ
     check_digits()
     check_doctor_message_twin()
+    check_draft_cache_fields()        # 💰 V741 — Draft-এর জমানো তালিকায় টাকার ঘর
     check_webview_popup()             # 🩹 V738 — পপ-আপে WebView বসানোর ফাঁদ (কম্পন)
     check_locked_rules()
     check_hidden_spinner()
@@ -2059,6 +2120,7 @@ def main():
         ("৯.১৯", "Follow-up কার্ডের ট্যাগ জমানো তালিকাতেও লেখা হয় (Unexpected · RMP · ঠিকানা)"),
         ("৯.২০", "ছবিওয়ালা টেবিলে (followups/patients/medical) select=* তালিকা পড়া নেই"),
         ("৯.২২", "পপ-আপে সরাসরি WebView বসানো নেই (কম্পনের ফাঁদ) + steadyWebView-এর খুঁটি অক্ষত"),
+        ("৯.২৩", "Draft-এর জমানো তালিকায় DraftEntry-র একটাও ঘর বাদ পড়েনি"),
         ("৯.১১", "সংখ্যা সবসময় ইংরেজিতে"),
         ("৯.১২", f"🚔 লক করা নিয়ম অক্ষত — {len(LOCKED_RULES)}টি + লুকানো Spinner-এর ফাঁদ"),
         ("৯.১৩", f"🧾 কাজের নিয়ম অক্ষত — {len(WORK_RULES)}টি + followups-এর আইডি + ব্রাঞ্চের encode"),

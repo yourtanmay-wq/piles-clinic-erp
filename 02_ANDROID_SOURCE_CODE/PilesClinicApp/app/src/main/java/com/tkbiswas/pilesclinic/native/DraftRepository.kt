@@ -145,6 +145,21 @@ class DraftRepository(private val context: Context? = null) {
                     .put("patientId", e.patientId).put("id", e.id).put("tab", e.tab)
                     .put("recordDate", e.recordDate).put("nextFollow", e.nextFollow)
                     .put("lastRemark", e.lastRemark).put("createdByMobile", e.createdByMobile)
+                    /* 🔴🔒 V741 (২৭.০৮.২০২৬, TK-রিপোর্ট ছবিসহ — "বিল ক্লিয়ার হয়ে
+                       গেছে তাহলে এখানে 0% কেন দেখাচ্ছে, বিলও লেখা নাই")।
+                       **আসল কারণ (কোড ধরে, আন্দাজ নয়):** V646-এ কার্ডের জন্য
+                       ৯টা নতুন ঘর যোগ হয়েছিল (bill · paid · refId ইত্যাদি),
+                       কিন্তু **এই জমা-করার তালিকায় সেগুলো যোগ করা হয়নি**।
+                       ফলে ফোনে জমানো তালিকা থেকে দেখালে টাকার ঘর ফাঁকা (০)
+                       আসত ⇒ Bill ₹0 · Due ₹0 · 0%। "Paid 30600" লেখাটা টিকে
+                       থাকত, কারণ ওটা `extra` ঘরে — সেটা জমা হতো।
+                       ⛔ শুধু **যোগ** করা হলো; পুরনো একটা ঘরও বদলায়নি।
+                       ⛔ পুরনো জমানো তালিকায় এই ঘরগুলো নেই — তখন আগের মতোই
+                          ০ আসবে, তারপর মেঘ থেকে এলেই ঠিক হয়ে যাবে (খারাপ হয় না)। */
+                    .put("status", e.status).put("bill", e.bill).put("paid", e.paid)
+                    .put("callCount", e.callCount).put("timeType", e.timeType)
+                    .put("address", e.address).put("age", e.age).put("sex", e.sex)
+                    .put("refId", e.refId)
             )
         }
         return arr
@@ -162,7 +177,18 @@ class DraftRepository(private val context: Context? = null) {
                     patientId = r.optString("patientId", ""), id = r.optString("id", ""),
                     tab = r.optString("tab", ""), recordDate = r.optString("recordDate", ""),
                     nextFollow = r.s("nextFollow"), lastRemark = r.s("lastRemark"),   // 🔴🔒 V696
-                    createdByMobile = r.optString("createdByMobile", "")
+                    createdByMobile = r.optString("createdByMobile", ""),
+                    // 🔴🔒 V741 — উপরের `serializeEntries`-এর জোড়া। এগুলো না
+                    // পড়লে কার্ডে টাকা ও ➡️ বোতামের রোগী-আইডি (`refId`) হারাত।
+                    status = r.optString("status", ""),
+                    bill = r.optDouble("bill", 0.0),
+                    paid = r.optDouble("paid", 0.0),
+                    callCount = r.optInt("callCount", 0),
+                    timeType = r.optString("timeType", ""),
+                    address = r.optString("address", ""),
+                    age = r.optString("age", ""),
+                    sex = r.optString("sex", ""),
+                    refId = r.optString("refId", "")
                 )
             )
         }
