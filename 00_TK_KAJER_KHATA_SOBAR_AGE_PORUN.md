@@ -8507,13 +8507,13 @@ TK বলেছেন *"কোনো কিছুই যেন না থাক�
 | ১ | Full Name | **ROHINI KUMARI** |
 | ২ | Branch | Kishanganj |
 | ৩ | Designation | **STAFF CUM TELECALLER** |
-| ৪ | Join Date | ❓ বাকি |
+| ৪ | Join Date | **25-08-2026** |
 | ৫ | Date of Birth | **04-03-2001** |
 | ৬ | Gender | **FEMALE** |
 | ৭ | Blood Group | **B+** |
 | ৮ | Qualification | **GRADUATE** |
 | ৯ | Address | **VILL-DHANPURA, PO-KANYABARI, PS-KOCHADHAMAN, DIST-KISHANGANJ** |
-| ১০ | Alternate Mobile | ❓ বাকি |
+| ১০ | Alternate Mobile | **নেই** (ফাঁকা থাকবে) |
 | ১১ | Emergency Contact | **BINOD PASWAN — 8809675331** |
 | ১২ | Emergency Relationship | **Father** |
 | ১৩ | ID Type | **Aadhaar** |
@@ -8528,7 +8528,6 @@ TK বলেছেন *"কোনো কিছুই যেন না থাক�
 নিরাপত্তার জন্য। তাই ঘরে পুরো নম্বর লিখলেও ডেটাবেসে শেষ ৪টাই যাবে।
 
 ### ❓ এখনো বাকি (রোহিণীর কাছ থেকে)
-**Join Date** · **Alternate Mobile** · **ছবি** — এই তিনটে।
-(বাকি সব পাওয়া গেছে, উপরের ছকে বসানো আছে।)
+শুধু **ছবি** — বাকি সব পাওয়া গেছে, উপরের ছকে বসানো আছে।
 
 **ভার্সন:** V734 → **V735**
