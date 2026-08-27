@@ -817,7 +817,8 @@ class PaymentActivity : AppCompatActivity() {
                         .show().also { PremiumAlert.paint(it) }
                 }
                 delIcn.setOnClickListener {
-                    AlertDialog.Builder(this@PaymentActivity)
+                    // 🛡️ V768 — এখানেও একই পাহারা (নিচে dlgOne-এ ১ সেকেন্ড অপেক্ষা)।
+                    val dlgOne = AlertDialog.Builder(this@PaymentActivity)
                         .setCustomTitle(PremiumAlert.header(this@PaymentActivity, "🗑️ Delete this entry?"))
                         .setMessage("₹${"%,.0f".format(amt)} ($mode${if (timeTxt.isNotBlank()) ", $timeTxt" else ""}) will be removed. The other ${evs.length() - 1} entries stay unchanged. Master is informed.")
                         .setPositiveButton("Yes, delete this entry") { _, _ ->
@@ -836,6 +837,16 @@ class PaymentActivity : AppCompatActivity() {
                         }
                         .setNegativeButton("Cancel", null)
                         .show().also { PremiumAlert.paint(it) }
+                    // 🛡️ V768 — "Yes, delete this entry" প্রথম ১ সেকেন্ড নিষ্ক্রিয়,
+                    //    যাতে পরপর চাপ দেওয়ার সময় ভুল করে মুছে না যায়।
+                    //    ⛔ Cancel প্রথম থেকেই সচল।
+                    dlgOne.getButton(AlertDialog.BUTTON_POSITIVE)?.let { yes ->
+                        yes.isEnabled = false
+                        yes.alpha = 0.45f
+                        yes.postDelayed({
+                            try { yes.isEnabled = true; yes.alpha = 1f } catch (_: Throwable) {}
+                        }, 1000L)
+                    }
                 }
                 listBox.addView(row)
                 listBox.addView(View(this).apply {
@@ -1087,6 +1098,25 @@ class PaymentActivity : AppCompatActivity() {
                     .setNegativeButton("No", null)
                     .setCancelable(false)
                     .show().also { PremiumAlert.paint(it) }
+                /* 🛡️🔒 V768 (২৭.০৮.২০২৬, TK-রিপোর্ট: *"৩ বার চাপ দিতে গিয়ে ভুল করে
+                   ডিলিট হয়ে গেছে ... সতর্কবার্তা দিক Are you sure"*)
+
+                   **আসল কারণ (কোড ধরে যাচাই):** সতর্কবার্তা **আগে থেকেই ছিল**।
+                   কিন্তু এই পর্দায় এডিট খুলতে পরপর চাপ দিতে হয় — সতর্কবার্তা
+                   ভেসে ওঠামাত্র পরের চাপটা ঠিক "Yes, delete"-এর উপরেই পড়ে যেত।
+                   অর্থাৎ TK সতর্কবার্তা দেখারই সময় পাননি।
+
+                   **সমাধান:** "Yes, delete" প্রথম **১ সেকেন্ড নিষ্ক্রিয়** থাকে
+                   (লেখাও ধূসর), তাই তাড়াহুড়োর চাপ কখনো ওটায় লাগতে পারে না।
+                   ⛔ "No" প্রথম থেকেই সচল — বাতিল করতে কোনো অপেক্ষা নেই।
+                   ⛔ ডিলিটের আসল কাজ এক অক্ষরও বদলায়নি। */
+                confirmDialog.getButton(AlertDialog.BUTTON_POSITIVE).let { yes ->
+                    yes.isEnabled = false
+                    yes.alpha = 0.45f
+                    yes.postDelayed({
+                        try { yes.isEnabled = true; yes.alpha = 1f } catch (_: Throwable) {}
+                    }, 1000L)
+                }
                 confirmDialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                     confirmDialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = false
                     confirmDialog.getButton(AlertDialog.BUTTON_NEGATIVE).isEnabled = false

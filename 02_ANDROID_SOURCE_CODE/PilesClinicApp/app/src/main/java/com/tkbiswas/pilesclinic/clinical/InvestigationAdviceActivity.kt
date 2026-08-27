@@ -37,34 +37,25 @@ class InvestigationAdviceActivity : AppCompatActivity() {
         setContentView(R.layout.activity_investigation_advice)
         UppercaseInputUtil.applyToAll(window.decorView.findViewById(android.R.id.content))  // TK-REQUESTED GLOBAL RULE (2026-07-24): English text auto-CAPITAL, Password fields excluded automatically
 
-        val toolbar = findViewById<Toolbar>(R.id.toolbar)
-        setSupportActionBar(toolbar)
-        toolbar.setNavigationOnClickListener { finish() }
-        // TK-DECISION (2026-07-22): show the current patient under the title so
-        // a Blood Test can't be made for the wrong patient by mistake.
+        /* 🎨🔒 V767 (২৭.০৮.২০২৬, TK-অনুমোদিত **ডিজাইন B**, ডেমো ফটো দেখে বাছা)
+           TK: *"পেশেন্ট ডিটেইলসের হেডারটা Check Up সেকশনের হেডারের সাথে মিলিয়ে দিন"*
+
+           **আগে কী হত:** রোগীর নাম·ID·রোগ টুলবারের **সাবটাইটেলে** বসত। টুলবারে
+           জায়গা কম, তাই তৃতীয় লাইনটা (COB-… · Piles, Fistula) **অর্ধেক কেটে**
+           যেত — TK ছবিতে সেটাই দেখিয়েছেন।
+
+           **এখন:** টুলবারটাই নেই (Check-Up পর্দার মতো), রোগীর তথ্য একটা
+           পরিষ্কার কার্ডে — কাটার প্রশ্নই ওঠে না।
+           ⛔ পিছনে ফেরা ফোনের নিজের Back-এ চলে (Check-Up-এ ঠিক যেভাবে চলে)।
+           ⛔ নাম/ID/রোগ যেখান থেকে আসে (`RoleSession`) তা এক অক্ষরও বদলায়নি। */
         run {
             // 🔒 খাতার সারি B175 — মানুষ-পড়া-যায় Patient ID।
             val line = listOf(RoleSession.currentPatientName, RoleSession.displayId(), RoleSession.currentPatientDisease)
-                .map { it.trim() }.filter { it.isNotBlank() }.joinToString(" · ")
-            if (line.isNotBlank()) {
-                supportActionBar?.subtitle = "👤 $line"
-                toolbar.setSubtitleTextColor(android.graphics.Color.parseColor("#DDE7F2"))
-            }
-        }
-        // TK-REPORTED BUG FIX (2026-07-16): the title was cut off with "..."
-        // because Toolbar titles are single-line by default. Let it wrap to
-        // 2 lines instead so the full "Blood Test / Investigation Advice"
-        // is always readable.
-        // 🔴 TK-REPORTED (02.08.2026, স্ক্রিনশট — "হেডার ঠিক নেই"): ঠিক এই
-        // একই কারণে সাবটাইটেলও (রোগীর নাম · ID · রোগ লাইন) কেটে "..." দেখাত —
-        // উপরের ফিক্স শুধু title-এর TextView ধরেছিল, subtitle-এর নিজের
-        // TextView আলাদা, সেটা তখন ছোঁয়া হয়নি। এখন দুটোই একই নিয়মে wrap হবে।
-        for (i in 0 until toolbar.childCount) {
-            val child = toolbar.getChildAt(i)
-            if (child is TextView && (child.text == toolbar.title || child.text == toolbar.subtitle)) {
-                child.isSingleLine = false
-                child.maxLines = 2
-                child.ellipsize = null
+                .map { it.trim() }.filter { it.isNotBlank() }
+            val head = findViewById<TextView>(R.id.tvPatientHead)
+            if (head != null && line.isNotEmpty()) {
+                head.text = "👤 " + line.joinToString("\n")
+                head.visibility = android.view.View.VISIBLE
             }
         }
 
@@ -93,29 +84,38 @@ class InvestigationAdviceActivity : AppCompatActivity() {
      *  ভিতরেই লেখা ছিল — এখন আলাদা ফাংশনে বার করা হলো যাতে "Common Blood Test"
      *  পপ-আপের নতুন Share বোতামও (TK-এর নির্দেশে) ঠিক এই একই কোড ব্যবহার করে,
      *  আলাদা করে দ্বিতীয়বার লেখা লাগেনি। ⛔ ভিতরের লজিক এক অক্ষরও বদলায়নি। */
+    /**
+     * 📄🔒 V765 (২৭.০৮.২০২৬, TK-নির্দেশ ছবিসহ: *"এখানে share এ চাপলে Text কেন
+     * যাবে, A4 Size এর PDF যেতে হবে"*)
+     *
+     * **আগে কী হত:** `Intent.ACTION_SEND` + `type = "text/plain"` — অর্থাৎ
+     * শুধু কয়েক লাইন লেখা যেত, কোনো কাগজ নয়।
+     *
+     * **এখন:** প্রিন্টে যে **হুবহু একই A4 কাগজ** যায়
+     * (`InvestigationHtmlPrint.build()`), সেটাই PDF বানিয়ে পাঠানো হয়
+     * (`PrescriptionWhatsAppShare.shareHtml()` — প্রজেক্টের প্রমাণিত যন্ত্র,
+     * প্রেসক্রিপশন ও Check-up History-তে বহুদিন ধরে চলছে)।
+     * ⇒ **নতুন কোনো কাগজ বা PDF-যন্ত্র বানানো হয়নি** — যা ছিল তাই জোড়া হলো,
+     *   তাই প্রিন্ট আর শেয়ারের কাগজ কখনো আলাদা হবে না।
+     * ⛔ "কোনো টেস্ট বাছা হয়নি" পাহারা আগের মতোই আছে।
+     */
     private fun shareInvestigations() {
         val chosen = ClinicalRepository.currentInvestigations.filter { it.isSelected }
         if (chosen.isEmpty()) {
             Toast.makeText(this, "No tests selected yet.", Toast.LENGTH_SHORT).show()
             return
         }
-        val line = listOf(RoleSession.currentPatientName, RoleSession.displayId())
-            .map { it.trim() }.filter { it.isNotBlank() }.joinToString(" \u00b7 ")
-        val shareText = buildString {
-            append("Blood Test / Investigation Advice\n")
-            if (line.isNotBlank()) append("$line\n")
-            append("\n")
-            chosen.forEach { append("\u2022 ${it.name}\n") }
-            // 🔴 V430 — লেখা থাকলে Advice / Remarks-ও সঙ্গে যায় (কম্পিউটারের মতোই)।
-            val rem = invRemarks()
-            if (rem.isNotBlank()) append("\nAdvice / Remarks : $rem\n")
+        try {
+            val html = com.tkbiswas.pilesclinic.print.InvestigationHtmlPrint.build(invRemarks())
+            com.tkbiswas.pilesclinic.print.PrescriptionWhatsAppShare.shareHtml(
+                activity = this,
+                html = html,
+                documentTitle = "Blood Test Advice",
+                patientName = RoleSession.currentPatientName
+            )
+        } catch (_: Throwable) {
+            Toast.makeText(this, "Could not prepare the PDF. Please try Print instead.", Toast.LENGTH_LONG).show()
         }
-        val sendIntent = Intent(Intent.ACTION_SEND).apply {
-            type = "text/plain"
-            putExtra(Intent.EXTRA_SUBJECT, "Blood Test Advice - ${RoleSession.currentPatientName}")
-            putExtra(Intent.EXTRA_TEXT, shareText)
-        }
-        startActivity(Intent.createChooser(sendIntent, "Share Blood Test Advice"))
     }
 
     /** TK APPROVED (2026-07-15): printing matters more than just saving — added

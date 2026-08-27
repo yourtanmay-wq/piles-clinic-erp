@@ -30,7 +30,7 @@ body { background: linear-gradient(145deg, rgb(237, 246, 255) 0%, rgb(247, 255, 
 .printTable { width: 100%; border-collapse: collapse; margin-top: 10px; }
 .printTable th, .printTable td { border: 1px solid rgb(34, 34, 34); padding: 6px; text-align: left; font-size: 12px; }
 .printTable th { background: rgb(238, 242, 246); }
-@media print{@page { size: a4; margin: 0mm; }
+@media print{@page { size: a4; margin: 0mm;
 body { background: rgb(255, 255, 255) !important; }
 .printArea.prescriptionLock { position: relative; min-height: 282mm; font-family: Arial, "Noto Sans Bengali", sans-serif; color: rgb(17, 17, 17); background: rgb(255, 255, 255); overflow: hidden; border: 1.3px solid rgb(24, 79, 59); padding: 0px !important; }
 .printHead.compact { border-bottom: 2px solid rgb(17, 107, 74); background: linear-gradient(90deg, rgb(247, 255, 251), rgb(255, 253, 244)); display: grid !important; grid-template-columns: 58px 1fr 68px !important; gap: 6px !important; align-items: center !important; text-align: center !important; padding: 5mm 6mm 2mm !important; }
@@ -84,7 +84,7 @@ body.printModeActive .printArea { display: block !important; visibility: visible
 @media print{.printArea.prescriptionLock { break-after: avoid !important; }
 .printHead.compact { min-height: 21mm !important; }
 .printTitle, .medicalPrintTitle { break-after: avoid !important; }
-.thanksStrip { position: absolute !important; left: 0px !important; right: 0px !important; bottom: 1mm !important; text-align: center !important; font-size: 8px !important; color: rgb(17, 107, 74) !important; }
+.thanksStrip { position: absolute !important; left: 0px !important; right: 0px !important; bottom: 7mm !important; /* 🖨️🔒 V766 (২৭.০৮.২০২৬, TK-রিপোর্ট: "প্রেসক্রিপশন ও মেডিসিন স্লিপ প্রিন্ট আউটে একদম নিচের লাইনটা হাফ কেটে যায়")। মেপে দেখা গেছে এই ফিতেটা কাগজের প্রান্ত থেকে মাত্র 1mm উপরে শেষ হত, আর ভিতরের লেখা 1.6mm — কিন্তু **প্রতিটা প্রিন্টারই** নিচের 3-5mm ছাপতে পারে না, তাই অর্ধেক কেটে যেত। এখন 7mm উপরে। ⛔ এটা absolute অবস্থানে, তাই কাগজের আর কিছুই নড়ে না ও পাতা বাড়ে না (PDF-এ পাতা গুনে যাচাই করা)। ⛔ @page-এ হাত দেওয়া হয়নি — সেটা বদলাতে গিয়ে ২ পাতা হয়ে যাচ্ছিল, পরীক্ষায় ধরা পড়ে ফিরিয়ে নেওয়া হয়েছে। */ text-align: center !important; font-size: 8px !important; color: rgb(17, 107, 74) !important; }
 .finalPrintTable { break-inside: auto !important; }
 .finalPrintTable tr { break-inside: avoid !important; break-after: auto !important; }}
 @media print{.printArea.prescriptionLock .printHead.compact { min-height: 22mm !important; padding: 3mm 7mm 1.8mm !important; grid-template-columns: 20mm 1fr !important; gap: 3mm !important; }
@@ -127,7 +127,7 @@ body.printModeActive .printArea { display: block !important; visibility: visible
 .doctorLine small { display: block !important; font-size: 8.5px !important; line-height: 1.15 !important; color: rgb(51, 51, 51) !important; }
 .docLeft { text-align: left !important; }
 .docRight { text-align: right !important; }
-.thanksStrip { position: absolute !important; left: 0px !important; right: 0px !important; bottom: 0px !important; background: rgb(11, 93, 42) !important; color: rgb(255, 255, 255) !important; text-align: center !important; font-size: 8.8px !important; font-weight: 900 !important; padding: 1.4mm 0px !important; z-index: 2 !important; }}
+.thanksStrip { position: absolute !important; left: 0px !important; right: 0px !important; bottom: 7mm !important; /* V766 — প্রিন্টারের নিচের ছাপাহীন অংশে যেন না পড়ে */ background: rgb(11, 93, 42) !important; color: rgb(255, 255, 255) !important; text-align: center !important; font-size: 8.8px !important; font-weight: 900 !important; padding: 1.4mm 0px !important; z-index: 2 !important; }}
 @media screen{.rxPrescriptionPrint .medicalPrintTitle { display: none !important; }
 .rxPrescriptionPrint .printTitle { display: block !important; }}
 @media screen{img { max-width: 100%; height: auto; }}
@@ -244,7 +244,7 @@ body { background: linear-gradient(135deg, rgb(237, 246, 255) 0%, rgb(247, 255, 
 .printArea.rxPrescriptionPrint .verifyCenter .vbar { order: 1 !important; height: 5mm !important; width: 30mm !important; margin: 0px auto 0.8mm !important; }
 .printArea.rxPrescriptionPrint .verifyCenter b { order: 2 !important; display: block !important; font-size: 6pt !important; color: rgb(10, 84, 40) !important; font-weight: bold !important; }
 .printArea.rxPrescriptionPrint .verifyCenter .vid { display: none !important; }
-.printArea.rxPrescriptionPrint .thanksStrip { position: absolute !important; left: 0px !important; right: 0px !important; bottom: 0px !important; margin: 0px !important; }
+.printArea.rxPrescriptionPrint .thanksStrip { position: absolute !important; left: 0px !important; right: 0px !important; bottom: 7mm !important; /* V766 — প্রিন্টারের নিচের ছাপাহীন অংশে যেন না পড়ে */ margin: 0px !important; }
 </style><style>/* V425 — TK-নির্দেশ ১৭.০৮.২০২৬: (১) ℞ সামান্য ডানে · (২) ℞-এর ঠিক উপরের
    পাতলা ধূসর দাগটা বাদ (তার উপরের সবুজ দাগটাই থাকবে)। ⛔ আর কিছু বদলায়নি। */
 .rxPrescriptionPrint .rxBox{border-top:0 !important}

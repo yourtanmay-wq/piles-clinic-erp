@@ -13,16 +13,27 @@
          needs", with 48dp as the MINIMUM . short titled screens stay exactly
          as small as they are now, and only a long title grows, by about
          8dp. -->
-    <androidx.appcompat.widget.Toolbar
-        android:id="@+id/toolbar"
+    <!-- 🎨🔒 V767 (২৭.০৮.২০২৬, TK-অনুমোদিত **ডিজাইন B**, ডেমো ফটো দেখে বাছা)
+         TK: *"পেশেন্ট ডিটেইলসের হেডারটা Check Up সেকশনের হেডারের সাথে
+         মিলিয়ে দিন"*। Check-Up পর্দায় (activity_doctor_checkup.xml) কোনো
+         সবুজ টুলবার নেই — রোগীর কার্ডই পাতার প্রথম জিনিস। এখানেও হুবহু তাই।
+         ⛔ আগে টুলবারের সাবটাইটেলে রোগীর নাম·ID·রোগ ঢুকত, জায়গা না থাকায়
+            নিচের লাইনটা **কেটে যেত** — সেটাই TK ধরিয়ে দিয়েছেন।
+         ⛔ পিছনে ফেরা: ফোনের নিজের Back (গেসচার/বোতাম) — Check-Up-এ ঠিক
+            যেভাবে চলে। এই পর্দায় আলাদা কোনো onBackPressed override নেই। -->
+    <TextView
+        android:id="@+id/tvPatientHead"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:minHeight="48dp"
-        android:background="@drawable/bg_login_hero"
-        app:navigationIcon="?attr/homeAsUpIndicator"
-        app:titleTextColor="@color/white"
-        app:titleTextAppearance="@style/InvestigationToolbarTitle"
-        app:title="Test / Investigation" />
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="12dp"
+        android:layout_marginTop="12dp"
+        android:background="@drawable/bg_input_field"
+        android:padding="12dp"
+        android:textColor="#17312A"
+        android:textSize="15sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
 
     <!-- 🟢 V600 (২৩.০৮.২০২৬, TK-অনুমোদিত, ছবি-প্রুফ পাশ): "Blood Test /
          Investigation Advice" লম্বা বলে ২ লাইনে ভেঙে বড় দেখাত। TK-এর
