@@ -1457,6 +1457,38 @@ class ChamberAttendanceActivity : AppCompatActivity() {
         if (chosenDate == selectedDate) loadBoard()
     }
 
+    /**
+     * 🩺 V763 — রোগের নামের রঙিন চিপ (TK-অনুমোদিত ডিজাইন A)।
+     * ⛔ অচেনা রোগের জন্যও রং আছে (ধূসর-সবুজ), তাই কখনো ফাঁকা/সাদা দেখায় না।
+     */
+    private fun diseaseChip(disease: String): android.widget.TextView {
+        val d = resources.displayMetrics.density
+        val t = disease.trim().uppercase()
+        val (bg, fg) = when {
+            t.contains("PILES") -> "#FDECEA" to "#B4231A"
+            t.contains("FISSURE") -> "#FFF3E0" to "#A05A00"
+            t.contains("FISTULA") -> "#EEF0FD" to "#3B3FA8"
+            t.contains("HYDROCELE") -> "#E8F2FF" to "#15549B"
+            else -> "#EAF6EE" to "#0B8A3E"
+        }
+        return android.widget.TextView(this).apply {
+            text = t
+            textSize = 10.5f
+            setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor(fg))
+            setPadding((11 * d).toInt(), (4 * d).toInt(), (11 * d).toInt(), (4 * d).toInt())
+            background = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+                cornerRadius = 18f * d
+                setColor(android.graphics.Color.parseColor(bg))
+            }
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { marginStart = (8 * d).toInt() }
+        }
+    }
+
     private fun showSearchDialog() {
         val parts = premiumDialogShellChamber("🔍 Search Patient")
         val d = resources.displayMetrics.density
@@ -1467,15 +1499,34 @@ class ChamberAttendanceActivity : AppCompatActivity() {
             setPadding(padH, pad, padH, pad)
         }
         parts.body.addView(queryInput)
+        /* 🩺🎨🔒 V763 (২৭.০৮.২০২৬, TK-অনুমোদিত **ডিজাইন A**, ডেমো ফটো দেখে বাছা)
+           TK-এর কথা: *"এখানে নাম Type করার পরেও দেখায় না, নীচে search করার পরে
+           দেখায় কেন? আমি চাই কয়েকটা Type করলে যেন সাজেস্ট করে। তাছাড়া পেশেন্টের
+           নাম, রোগের নামও দেখাক। একটু প্রফেশনাল বানাতে হবে।"*
+
+           ⚡ **খরচের পাহারা (সবচেয়ে জরুরি):** প্রতিটা অক্ষরে খোঁজা হয় **না**।
+              টাইপ থামার **০.৫ সেকেন্ড পরে** একবারই যায় (debounce), আর আগের
+              অপেক্ষমাণ খোঁজাটা বাতিল হয়ে যায়। তাই "namita" লিখলে ৬টা নয়,
+              **একটাই** নেট-কল। ৩ অক্ষরের কম হলে কিছুই যায় না (পুরনো নিয়ম)।
+           ⛔ "Arrived" ও ৩-চাপে "Undo"-র কোড **এক অক্ষরও বদলায়নি**। */
+        val countLine = android.widget.TextView(this).apply {
+            textSize = 12.5f
+            setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#147A45"))
+            setPadding((4 * d).toInt(), (12 * d).toInt(), 0, 0)
+            visibility = View.GONE
+        }
+        parts.body.addView(countLine)
         val resultsBox = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.VERTICAL
-            setPadding(0, (12 * d).toInt(), 0, 0)
+            setPadding(0, (6 * d).toInt(), 0, 0)
         }
         parts.body.addView(resultsBox)
 
         fun runSearch() {
             val q = queryInput.text.toString().trim()
             resultsBox.removeAllViews()
+            countLine.visibility = View.GONE
             if (q.isBlank()) return
             // TK-REQUESTED OPTIMIZATION (2026-07-16): at least 3 characters
             // before a search request goes out at all, to keep Supabase
@@ -1502,18 +1553,61 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                     })
                     return@launch
                 }
+                countLine.text = if (results.size == 1) "1 patient found"
+                    else "${results.size} patients found"
+                countLine.visibility = View.VISIBLE
                 results.forEach { res ->
+                    // 🎨 ডিজাইন A — বাঁয়ে সবুজ দাগ · নাম + রোগের চিপ · নিচে মোবাইল ও আইডি
+                    val card = android.widget.LinearLayout(this@ChamberAttendanceActivity).apply {
+                        orientation = android.widget.LinearLayout.HORIZONTAL
+                        background = android.graphics.drawable.GradientDrawable().apply {
+                            shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+                            cornerRadius = 14f * d
+                            setColor(android.graphics.Color.WHITE)
+                            setStroke((1 * d).toInt(), android.graphics.Color.parseColor("#DBE8E2"))
+                        }
+                        elevation = 2f * d
+                        layoutParams = android.widget.LinearLayout.LayoutParams(
+                            android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                        ).apply { topMargin = (9 * d).toInt(); bottomMargin = (2 * d).toInt() }
+                    }
+                    card.addView(View(this@ChamberAttendanceActivity).apply {
+                        setBackgroundColor(android.graphics.Color.parseColor("#0E7A72"))
+                    }, android.widget.LinearLayout.LayoutParams(
+                        (5 * d).toInt(), android.widget.LinearLayout.LayoutParams.MATCH_PARENT))
                     val row = android.widget.LinearLayout(this@ChamberAttendanceActivity).apply {
                         orientation = android.widget.LinearLayout.HORIZONTAL
                         gravity = android.view.Gravity.CENTER_VERTICAL
-                        setPadding(0, (8 * d).toInt(), 0, (8 * d).toInt())
+                        setPadding((12 * d).toInt(), (11 * d).toInt(), (11 * d).toInt(), (11 * d).toInt())
+                        layoutParams = android.widget.LinearLayout.LayoutParams(
+                            0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                     }
-                    val info = android.widget.TextView(this@ChamberAttendanceActivity).apply {
-                        text = "${res.name}\n${res.mobile}${if (res.patientId.isNotBlank()) " · ${res.patientId}" else ""}"
-                        textSize = 13f
-                        setTextColor(android.graphics.Color.parseColor("#10223A"))
+                    card.addView(row)
+                    val info = android.widget.LinearLayout(this@ChamberAttendanceActivity).apply {
+                        orientation = android.widget.LinearLayout.VERTICAL
                         layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                        copyOnLongPress("Name/Mobile", "${res.name} · ${res.mobile}")
+                        addView(android.widget.LinearLayout(this@ChamberAttendanceActivity).apply {
+                            orientation = android.widget.LinearLayout.HORIZONTAL
+                            gravity = android.view.Gravity.CENTER_VERTICAL
+                            addView(android.widget.TextView(this@ChamberAttendanceActivity).apply {
+                                text = res.name.trim().uppercase()
+                                textSize = 15.5f
+                                setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+                                setTextColor(android.graphics.Color.parseColor("#17312A"))
+                                maxLines = 2
+                                copyOnLongPress("Name/Mobile", "${res.name} · ${res.mobile}")
+                            }, android.widget.LinearLayout.LayoutParams(
+                                0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                            // 🩺 রোগের চিপ — না থাকলে বসেই না (ফাঁকা চিপ দেখায় না)
+                            if (res.disease.isNotBlank()) addView(diseaseChip(res.disease))
+                        })
+                        addView(android.widget.TextView(this@ChamberAttendanceActivity).apply {
+                            text = res.mobile + (if (res.patientId.isNotBlank()) "   ·   ${res.patientId}" else "")
+                            textSize = 12.5f
+                            setTextColor(android.graphics.Color.parseColor("#5C6B64"))
+                            setPadding(0, (5 * d).toInt(), 0, 0)
+                        })
                     }
                     val arrivedBtn = pillButtonChamber("✅ Arrived", "#0C9E33").apply {
                         layoutParams = android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
@@ -1586,17 +1680,36 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                     }
                     row.addView(info)
                     row.addView(arrivedBtn)
-                    resultsBox.addView(row)
+                    resultsBox.addView(card)
                 }
             }
         }
         queryInput.setOnEditorActionListener { _, _, _ -> runSearch(); true }
 
-        parts.actionRow.addView(pillButtonChamber("Cancel", "#E5E8EC", android.graphics.Color.parseColor("#0F5C5C")).apply {
-            setOnClickListener { parts.dialog.dismiss() }
+        /* ⚡🔒 V763 — **টাইপ থামলে তবেই খোঁজা** (TK: "কয়েকটা Type করলে যেন সাজেস্ট করে")।
+           ⛔ প্রতিটা অক্ষরে নয় — প্রতিবার নতুন অক্ষর পড়লে আগের অপেক্ষমাণ খোঁজাটা
+              **বাতিল** হয়ে যায়, আর শেষ অক্ষরের ০.৫ সেকেন্ড পরে একবারই যায়।
+              ⇒ "namita" লিখলে ৬টা নয়, **১টা** নেট-কল। Supabase-এ বাড়তি চাপ নেই।
+           ⛔ ৩ অক্ষরের কম হলে কিছুই যায় না — পুরনো নিয়মটাই (runSearch-এর ভিতরে)।
+           ⛔ পর্দা বন্ধ হলে অপেক্ষমাণ কাজটাও মুছে ফেলা হয় (নইলে বন্ধ পর্দায় কাজ চলত)। */
+        val typeHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        val typeJob = Runnable { runSearch() }
+        queryInput.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(c: CharSequence?, a: Int, b: Int, x: Int) {}
+            override fun onTextChanged(c: CharSequence?, a: Int, b: Int, x: Int) {}
+            override fun afterTextChanged(e: android.text.Editable) {
+                typeHandler.removeCallbacks(typeJob)
+                if (e.toString().trim().length >= 3) typeHandler.postDelayed(typeJob, 500L)
+                else { resultsBox.removeAllViews(); countLine.visibility = View.GONE }
+            }
         })
-        parts.actionRow.addView(pillButtonChamber("Search", "#0A8C8C").apply {
-            setOnClickListener { runSearch() }
+        parts.dialog.setOnDismissListener { typeHandler.removeCallbacks(typeJob) }
+
+        // 🔍 V763 — টাইপ করলেই খোঁজা হয় বলে আলাদা "Search" বোতামের আর দরকার নেই
+        //    (TK: *"নীচে search করার পরে দেখায় কেন?"*)। কীবোর্ডের নিজের Search
+        //    বোতামটা আগের মতোই কাজ করে (উপরের setOnEditorActionListener)।
+        parts.actionRow.addView(pillButtonChamber("Close", "#0A8C8C").apply {
+            setOnClickListener { parts.dialog.dismiss() }
         })
         parts.dialog.show()
     }

@@ -1386,7 +1386,12 @@ object ChamberAttendanceRepository {
         return board
     }
 
-    data class PatientSearchResult(val name: String, val mobile: String, val patientId: String, val branch: String)
+    /** 🩺 V763 (২৭.০৮.২০২৬, TK-নির্দেশ: *"পেশেন্টের নাম, রোগের নামও দেখাক"*) —
+     *  `disease` ঘরটা যোগ করা হলো। ⛔ ডিফল্ট খালি, তাই পুরনো কোনো কল ভাঙে না। */
+    data class PatientSearchResult(
+        val name: String, val mobile: String, val patientId: String,
+        val branch: String, val disease: String = ""
+    )
 
     /** TK APPROVED (2026-07-16): "Search & Add existing patient" -- Name /
      *  Mobile / Patient ID. TK-REQUESTED OPTIMIZATION (2026-07-16, to keep
@@ -1415,11 +1420,17 @@ object ChamberAttendanceRepository {
         // (ছবিসহ) আনত — সর্বোচ্চ ২০ জনের ছবি অকারণে দুর্বল লাইনে নামত।
         // এখন শুধু ৪টা দরকারি কলামই আনা হয়। ⛔ ফলাফল/ফিল্টার/সংখ্যা কিছুই
         // বদলায়নি — শুধু ছবির বোঝাটা বাদ।
-        val patients = SupabaseClient.fetchListSlim("patients", filter, 20, "name,mobile,patientId,branch")
+        // 🩺 V763 — `disease` ও `diagnosis` যোগ (TK: রোগের নামও দেখাতে হবে)।
+        //    ⛔ মাত্র দুটো ছোট লেখার ঘর — Egress-এ প্রভাব নগণ্য, ছবি আগের মতোই বাদ।
+        val patients = SupabaseClient.fetchListSlim(
+            "patients", filter, 20, "name,mobile,patientId,branch,disease,diagnosis")
         val results = mutableListOf<PatientSearchResult>()
         for (i in 0 until patients.length()) {
             val p = patients.optJSONObject(i) ?: continue
-            results.add(PatientSearchResult(p.s("name"), p.s("mobile"), p.s("patientId"), p.s("branch")))
+            // ⛔ `disease` খালি থাকলে `diagnosis` — রেজিস্ট্রেশনে দুটোর যেকোনোটায় বসে।
+            val dis = p.s("disease").trim().ifBlank { p.s("diagnosis").trim() }
+            results.add(PatientSearchResult(
+                p.s("name"), p.s("mobile"), p.s("patientId"), p.s("branch"), dis))
         }
         return results
     }
