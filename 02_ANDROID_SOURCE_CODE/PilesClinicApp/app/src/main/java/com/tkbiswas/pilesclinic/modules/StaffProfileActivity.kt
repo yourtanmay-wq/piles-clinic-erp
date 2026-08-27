@@ -160,7 +160,44 @@ class StaffProfileActivity : AppCompatActivity() {
     // ---------- MASTER: list all ----------
     private fun renderList() {
         backAction = { finish() }
-        val root = ModuleUi.screen(this, "🧑‍💼 Staff Profiles")
+        /* 🎨🔒 V764 (২৭.০৮.২০২৬, TK-অনুমোদিত **ডিজাইন A**, ডেমো ফটো দেখে বাছা)
+           TK: *"Add staff & Doctor উপরে হেডারে রাখুন, একটা icon সহ"*।
+           ⛔ `ModuleUi.screen()`-কে **খালি শিরোনাম** দেওয়া হলো, কারণ ওটা নিজে
+              শুধু একটা লেখা বসায় — পাশে বোতাম বসানোর জায়গা নেই। শিরোনাম ও
+              গোল ➕ বোতাম এখানে নিজেই এক সারিতে বসানো হলো।
+           ⛔ `ModuleUi.screen()` **ছোঁয়া হয়নি** — নইলে প্রজেক্টের অন্য সব
+              Module-পর্দার শিরোনাম বদলে যেত। */
+        val root = ModuleUi.screen(this, "")
+        run {
+            val d = resources.displayMetrics.density
+            val head = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(0, 0, 0, (10 * d).toInt())
+            }
+            head.addView(ModuleUi.heading(this, "🧑\u200d💼 Staff Profiles").apply {
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            })
+            // ➕ শুধু মাস্টার দেখবেন — সার্ভারেও একই পাহারা আছে।
+            if (ModuleAuth.isMaster) {
+                head.addView(android.widget.TextView(this).apply {
+                    text = "\uFF0B"
+                    textSize = 20f
+                    setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.WHITE)
+                    gravity = android.view.Gravity.CENTER
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        shape = android.graphics.drawable.GradientDrawable.OVAL
+                        setColor(android.graphics.Color.parseColor("#0B7A3E"))
+                    }
+                    elevation = 3f * d
+                    contentDescription = "Add Staff or Doctor"
+                    setOnClickListener { addPersonDialog() }
+                    layoutParams = LinearLayout.LayoutParams((40 * d).toInt(), (40 * d).toInt())
+                })
+            }
+            root.addView(head)
+        }
         // 🔧 V486: এই তালিকার ScrollView চিনে রাখি + কতটা নিচে নামা হচ্ছে মাপি।
         listScroll = (root.parent as? android.widget.ScrollView)?.also { sv ->
             sv.setOnScrollChangeListener { _, _, y, _, _ -> if (trackListScroll) listScrollY = y }
@@ -198,7 +235,7 @@ class StaffProfileActivity : AppCompatActivity() {
    ফেলেছিলাম — সেটা মুছে দেওয়া হলো।
    ⇒ সত্যিই যেটা ছিল না তা হলো **যোগ করা**। তাই বোতামটা এখন সরাসরি
      যোগ করার ঘরটাই খোলে — বাড়তি কোনো পর্দা নেই। */
-            root.addView(salOutlineButton("➕ Add Staff or Doctor", "#0B7A3E", "#0B7A3E") { addPersonDialog() })
+            // ⛔ V764 — বোতামটা এখন উপরে হেডারে (গোল ➕), তাই এখানে আর নেই।
         }
         val cachedNow = loadCachedStaffList()
         if (cachedNow != null) {
