@@ -1081,7 +1081,15 @@ class BriefingActivity : AppCompatActivity() {
                     val branch = req.s("branch")
                     val date = req.s("leave_date")
                     val reason = req.s("reason").ifBlank { "—" }
-                    val need = req.s("need_reason").ifBlank { "-" }
+                    /* 🏖️🔒 V740 (২৭.০৮.২০২৬) — কারণটা মাস্টারের পড়ার মতো ইংরেজিতে।
+                       আগে সাংকেতিক লেখা যেত ("5th+conflict")। ⛔ ডেটাবেসে যা লেখা
+                       আছে তা এক অক্ষরও বদলায়নি — শুধু দেখানোর ভাষা। */
+                    val needRaw = req.s("need_reason")
+                    val need = if (needRaw.isBlank()) "-" else buildList {
+                        if (needRaw.contains("chamber")) add("Chamber day")
+                        if (needRaw.contains("conflict")) add("Colleague on leave")
+                        if (needRaw.contains("5th")) add("5th day this month")
+                    }.joinToString(" + ").ifBlank { needRaw }
                     val dotted = try { val p = date.split("-"); p[2] + "." + p[1] + "." + p[0] } catch (_: Throwable) { date }
                     val row = LinearLayout(this@BriefingActivity).apply {
                         orientation = LinearLayout.VERTICAL

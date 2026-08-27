@@ -44,12 +44,18 @@ object LeaveChamberDays {
     /** মেঘ থেকে একবার পড়ার পর এখানে জমা থাকে। */
     private var cloud: Map<String, Set<Int>>? = null
 
+    /** ⚠️ একবার চেষ্টা হয়ে গেছে কিনা। **ব্যর্থ হলেও** সত্যি হয়, তাই বারবার
+     *  মেঘে যাওয়ার চেষ্টা হয় না (নইলে প্রতিবার নেট-কল = ক্র্যাশের ঝুঁকি ও
+     *  অকারণ Egress)। */
+    @Volatile private var tried = false
+
     /** সার্ভারে রবি=0 … শনি=6; Calendar-এ রবি=1 … শনি=7। */
     private fun toCalendarDow(pgDow: Int): Int = pgDow + 1
 
     /** ⛔ কখনো ব্যতিক্রম ছুড়ে না — ব্যর্থ হলে চুপচাপ বাঁধা তালিকাই চলে। */
     private fun loadCloudOnce() {
-        if (cloud != null) return
+        if (tried) return
+        tried = true
         val out = HashMap<String, Set<Int>>()
         try {
             val rows = ModuleAuth.getRows("hr", "branch_chamber_days", "select=branch,weekdays")
@@ -90,12 +96,49 @@ object LeaveChamberDays {
         }
     }
 
-    /** এই ব্রাঞ্চের চেম্বার-দিনগুলো (Calendar-এর সংখ্যায়)। চেনা না গেলে `null`। */
+    /**
+     * এই ব্রাঞ্চের চেম্বার-দিনগুলো (Calendar-এর সংখ্যায়)। চেনা না গেলে `null`।
+     *
+     * ⚠️ **এটা নেট-কল করতে পারে — মূল থ্রেডে (পর্দা আঁকার সময়) কখনো ডাকবেন না**,
+     *    নইলে Android অ্যাপ থামিয়ে দেয় (NetworkOnMainThreadException)।
+     *    পর্দায় দেখাতে হলে আগে `preload()` (আলাদা থ্রেডে), তারপর
+     *    `isChamberDateNoNet()` — ওটা কখনো নেটে যায় না।
+     */
     fun weekdaysFor(branch: String?): Set<Int>? {
         val id = branchId(branch)
         if (id.isBlank()) return null
         loadCloudOnce()
         return cloud?.get(id) ?: FALLBACK[id]
+    }
+
+    /** 🧵 আলাদা থ্রেড থেকে ডাকুন — তালিকাটা একবার এনে রাখে। */
+    fun preload(branch: String?) {
+        try { weekdaysFor(branch) } catch (_: Throwable) { }
+    }
+
+    /** ⛔ **কখনো নেটে যায় না** — যা আনা আছে (বা বাঁধা তালিকা) তাই দিয়ে বলে।
+     *  পর্দায় "এটা চেম্বারের দিন" দেখানোর জন্য এটাই ব্যবহার করুন। */
+    fun isChamberDateNoNet(branch: String?, dateIso: String): Boolean {
+        val id = branchId(branch)
+        if (id.isBlank()) return false
+        val set = cloud?.get(id) ?: FALLBACK[id] ?: return false
+        return dowOf(dateIso)?.let { set.contains(it) } ?: false
+    }
+
+    /** তারিখ (yyyy-MM-dd) → সপ্তাহের দিন। না পারলে `null`।
+     *  ⛔ block body — expression body-তে `return` চলে না (কম্পাইল-পাহারায় ধরা পড়েছিল)। */
+    private fun dowOf(dateIso: String): Int? {
+        return try {
+            val f = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+            f.timeZone = java.util.TimeZone.getTimeZone("Asia/Kolkata")
+            val parsed = f.parse(dateIso)
+            if (parsed == null) null else {
+                val c = java.util.Calendar.getInstance(
+                    java.util.TimeZone.getTimeZone("Asia/Kolkata"))
+                c.time = parsed
+                c.get(java.util.Calendar.DAY_OF_WEEK)
+            }
+        } catch (_: Throwable) { null }
     }
 
     /**
@@ -105,13 +148,7 @@ object LeaveChamberDays {
      */
     fun isChamberDate(branch: String?, dateIso: String): Boolean {
         val set = weekdaysFor(branch) ?: return false
-        return try {
-            val f = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
-            f.timeZone = java.util.TimeZone.getTimeZone("Asia/Kolkata")
-            val c = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("Asia/Kolkata"))
-            c.time = f.parse(dateIso) ?: return false
-            set.contains(c.get(java.util.Calendar.DAY_OF_WEEK))
-        } catch (_: Throwable) { false }
+        return dowOf(dateIso)?.let { set.contains(it) } ?: false
     }
 
     /** "Wed, Sat" — পর্দায় দেখানোর জন্য (সংখ্যা নেই, তাই ভাষার ঝামেলাও নেই)। */
