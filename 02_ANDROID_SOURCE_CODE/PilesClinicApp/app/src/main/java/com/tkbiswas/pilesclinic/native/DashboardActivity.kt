@@ -843,6 +843,20 @@ class DashboardActivity : AppCompatActivity() {
             show(com.tkbiswas.pilesclinic.native.AppVersionCheck.newerVersionOrZero(this))
             // তারপর পিছনে গিয়ে (দিনে একবার) আবার দেখে নেওয়া
             com.tkbiswas.pilesclinic.native.AppVersionCheck.refresh(this, false) { newer -> show(newer) }
+
+            /* 📱🔒 V771 (২৮.০৮.২০২৬, TK-নির্দেশ: *"আমি কি করে জানবো — App থেকে
+               দেখার ব্যবস্থা রাখুন"*) — এই ফোন নিজের ভার্সনটা মেঘকে জানিয়ে দেয়,
+               যাতে মাস্টার এক পর্দাতেই দেখতে পান কোন ফোনে কোন ভার্সন চলছে।
+               ⚡ দিনে **একবার** (ভার্সন বদলালে সঙ্গে সঙ্গে) — একটাই ছোট্ট ডাক।
+               ⛔ 🧵 আলাদা থ্রেডে; ব্যর্থ হলে চুপচাপ ছেড়ে দেয়, কিছুই আটকায় না।
+               ⛔ পুরনো ভার্সন-সতর্কবার্তার কোড (উপরে) এক অক্ষরও ছোঁয়া হয়নি। */
+            try {
+                val mob = user?.mobile.orEmpty()
+                if (mob.isNotBlank()) Thread {
+                    com.tkbiswas.pilesclinic.native.AppVersionReporter
+                        .reportIfDue(applicationContext, mob)
+                }.start()
+            } catch (_: Throwable) { }
         } catch (_: Throwable) { }
     }
 

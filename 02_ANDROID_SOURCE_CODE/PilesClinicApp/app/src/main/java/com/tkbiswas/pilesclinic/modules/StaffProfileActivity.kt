@@ -221,6 +221,12 @@ class StaffProfileActivity : AppCompatActivity() {
            তালিকার উপরে একটাই বোতাম। ⛔ শুধু Master দেখতে পাবেন। */
         if (ModuleAuth.isMaster) {
             root.addView(salOutlineButton("🏆 Staff Performance", "#0A5C33", "#0A5C33") { performanceList("") })
+            /* 📱🔒 V771 (২৮.০৮.২০২৬, TK-নির্দেশ: *"আমি কি করে জানবো —
+               App থেকে দেখার ব্যবস্থা রাখুন"*) — কোন ফোনে কোন ভার্সন চলছে।
+               Supabase-এর লগ বলছে কিছু ফোনে **পুরনো বিল্ড** চলছে আর সেটাই
+               বাড়তি Egress খরচ করছে; কোন ফোন সেটা না জানলে ঠিক করা যায় না।
+               ⛔ শুধু মাস্টার — সার্ভারেও একই পাহারা (`hr.app_devices_list`)। */
+            root.addView(salOutlineButton("📱 Phone Versions", "#0A5C33", "#0A5C33") { phoneVersionsScreen() })
             /* 👥🔒 V746 (২৭.০৮.২০২৬, TK-অনুমোদিত ডেমো-প্রুফের পরে) —
                TK: *"আপনি তো আর আমার সাথে সারা জীবন থাকবেন না... আমি
                অ্যাপ্লিকেশন থেকে কোন স্টাফ যোগ বা বিয়োগ করতে পারব কিনা।"*
@@ -1495,6 +1501,177 @@ class StaffProfileActivity : AppCompatActivity() {
     }
 
     /** ---- ১) সবার তালিকা ---- */
+    // =====================================================================
+    // 📱🔒 V771 (২৮.০৮.২০২৬, TK-নির্দেশ) — **কোন ফোনে কোন ভার্সন চলছে।**
+    //
+    // TK-এর কথা: *"আমি কি করে জানবো — App থেকে দেখার ব্যবস্থা রাখুন তাহলে।"*
+    //
+    // **কেন (প্রমাণসহ, আন্দাজে নয়):** Supabase-এর লগে একটা পড়া বারবার 400 ভুল
+    // দিচ্ছে — `deleted_records?select=*&order=updatedAt…`। এই ডাক **আজকের
+    // কোডে নেই** (V451-এ মোছা)। ⇒ কোনো ফোনে এখনো পুরনো বিল্ড চলছে, আর সেটাই
+    // অকারণে Egress খরচ করছে। কোন ফোন — সেটা এই পর্দাই বলে দেবে।
+    //
+    // ⛔ শুধু **মাস্টার**। ফোন থেকে ফাঁকি দেওয়ার পথ নেই — `hr.app_devices_list()`
+    //    নিজেই `hr.is_master()` যাচাই করে, নইলে খালি তালিকা ফেরে।
+    // ⛔ এই পর্দা **কিছুই লেখে না** — শুধু পড়ে। কারও নাম · বেতন · ভূমিকা
+    //    ছোঁয়ার কোনো কোডই এখানে নেই।
+    // ⚡ **একটাই RPC**, তাও শুধু বোতাম চাপলে। Egress-এ প্রভাব কার্যত শূন্য।
+    // =====================================================================
+    private fun phoneVersionsScreen() {
+        backAction = { renderList() }
+        val col = ModuleUi.screen(this, "")
+        col.addView(ModuleUi.heading(this, "📱 Phone Versions"))
+        col.addView(TextView(this).apply {
+            text = "Which phone is running which app version. " +
+                "An old version keeps using extra internet, so it must be updated."
+            textSize = 12f
+            setTextColor(android.graphics.Color.parseColor("#5B6B81"))
+            setPadding(0, dp(2), 0, dp(8))
+        })
+        val listBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        listBox.addView(ModuleUi.body(this, "Loading..."))
+        col.addView(listBox)
+        col.addView(ModuleUi.button(this, "Back") { renderList() })
+        Thread {
+            val rows = try {
+                val r = ModuleAuth.rpc("hr", "app_devices_list", JSONObject())
+                if (r.ok) JSONArray(r.body) else null
+            } catch (_: Throwable) { null }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                listBox.removeAllViews()
+                if (rows == null) {
+                    listBox.addView(ModuleUi.body(this, "Could not load. Please try again."))
+                    return@runOnUiThread
+                }
+                if (rows.length() == 0) {
+                    listBox.addView(ModuleUi.body(this, "No one yet."))
+                    return@runOnUiThread
+                }
+                /* সর্বশেষ ভার্সন কোনটা?
+                   ⛔ শুধু নিজের বিল্ডের সংখ্যা ধরলে ভুল হতো — মাস্টারের ফোনটাই
+                      যদি পুরনো হয়, তবে সবাইকে "Latest" দেখাত। তাই ওয়েবসাইটের
+                      `version.json` থেকে জানা সংখ্যাও (থাকলে) ধরা হয়। */
+                val latest = maxOf(
+                    com.tkbiswas.pilesclinic.BuildConfig.VERSION_CODE,
+                    com.tkbiswas.pilesclinic.native.AppVersionCheck.newerVersionOrZero(this)
+                )
+                var old = 0
+                var never = 0
+                for (i in 0 until rows.length()) {
+                    val v = rows.optJSONObject(i)?.optInt("app_version_code", 0) ?: 0
+                    if (v <= 0) never++ else if (v < latest) old++
+                }
+                if (old > 0 || never > 0) {
+                    val warn = ModuleUi.card(this)
+                    warn.addView(TextView(this).apply {
+                        text = "⚠️ " + (old + never) + " phone" + (if (old + never == 1) "" else "s") +
+                            " not on the latest version"
+                        textSize = 14f
+                        setTypeface(typeface, android.graphics.Typeface.BOLD)
+                        setTextColor(android.graphics.Color.parseColor("#B3261E"))
+                    })
+                    warn.addView(TextView(this).apply {
+                        text = "Old: " + old + "   ·   Never opened: " + never +
+                            "\nPlease install V" + latest + " on these phones."
+                        textSize = 12f
+                        setTextColor(android.graphics.Color.parseColor("#5B6B81"))
+                        setPadding(0, dp(3), 0, 0)
+                    })
+                    listBox.addView(warn)
+                }
+                for (i in 0 until rows.length()) {
+                    val x = rows.optJSONObject(i) ?: continue
+                    val v = x.optInt("app_version_code", 0)
+                    val card = ModuleUi.card(this)
+                    card.addView(TextView(this).apply {
+                        text = ns(x, "full_name").ifBlank { ns(x, "person_code") }
+                        textSize = 15f
+                        setTypeface(typeface, android.graphics.Typeface.BOLD)
+                        setTextColor(android.graphics.Color.parseColor("#0A5C33"))
+                    })
+                    card.addView(TextView(this).apply {
+                        // ⛔ `PeopleAdminRepository.roleLabel()` "master" চেনে না
+                        //    (ওখানে master যোগ করাই যায় না), তাই এখানে আলাদা।
+                        text = ns(x, "person_code") + " · " + ns(x, "branch") + " · " +
+                            (if (ns(x, "role_kind").trim().lowercase() == "master") "Master"
+                             else com.tkbiswas.pilesclinic.native.PeopleAdminRepository
+                                 .roleLabel(ns(x, "role_kind")))
+                        textSize = 12f
+                        setTextColor(android.graphics.Color.parseColor("#5B6B81"))
+                        setPadding(0, dp(2), 0, dp(6))
+                    })
+                    card.addView(when {
+                        v <= 0 -> pvChip("Never opened the new app", "#5B6B81", "#EEF1F5")
+                        v < latest -> pvChip("V" + v + "  ·  OLD — must update", "#B3261E", "#FDECEA")
+                        else -> pvChip("V" + v + "  ·  Latest", "#0A5C33", "#E9F7EE")
+                    })
+                    val seen = pvSeen(ns(x, "app_seen_at"))
+                    if (seen.isNotBlank()) {
+                        card.addView(TextView(this).apply {
+                            text = "Last seen: " + seen
+                            textSize = 11.5f
+                            setTextColor(android.graphics.Color.parseColor("#5B6B81"))
+                            setPadding(0, dp(5), 0, 0)
+                        })
+                    }
+                    listBox.addView(card)
+                }
+            }
+        }.start()
+    }
+
+    /** ছোট রঙিন চিপ — শুধু দেখানোর জন্য, কোনো কাজ করে না। */
+    private fun pvChip(text: String, textHex: String, bgHex: String): TextView =
+        TextView(this).apply {
+            this.text = text
+            textSize = 12.5f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor(textHex))
+            setPadding(dp(10), dp(6), dp(10), dp(6))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(20).toFloat()
+                setColor(android.graphics.Color.parseColor(bgHex))
+                setStroke(dp(1), android.graphics.Color.parseColor(textHex))
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+    /* ⏰ PostgREST-এর timestamptz আসে `2026-08-28T05:12:33.123456+00:00` রূপে।
+       `DateUtil` এই রূপটা চেনে না (মাইক্রোসেকেন্ড + অফসেট), আর অফসেট না ধরলে
+       সময় সাড়ে ৫ ঘণ্টা ভুল দেখাত। তাই এখানে নিজেই ঠিকভাবে পড়া হলো, তারপর
+       ফোনের নিজের সময়-অঞ্চলে (IST) দেখানো — খাতার লক-করা ছাঁদেই (B76)।
+       ⛔ চিনতে না পারলে ফাঁকা ফেরে — পর্দা কখনো ভাঙে না। */
+    private fun pvSeen(raw: String): String {
+        if (raw.isBlank()) return ""
+        return try {
+            var body = raw.trim()
+            var off = "+0000"
+            val dot = body.indexOf('.')
+            if (dot > 0) {
+                var end = dot + 1
+                while (end < body.length && body[end].isDigit()) end++
+                off = pvOffset(body.substring(end))
+                body = body.substring(0, dot)
+            } else if (body.length > 19) {
+                off = pvOffset(body.substring(19))
+                body = body.substring(0, 19)
+            }
+            val f = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", Locale.US)
+            val d = f.parse(body + off) ?: return ""
+            com.tkbiswas.pilesclinic.native.DateUtil.displayWithTime(d)
+        } catch (_: Throwable) { "" }
+    }
+
+    private fun pvOffset(tail: String): String {
+        val t = tail.trim()
+        if (t.isEmpty() || t.equals("Z", true)) return "+0000"
+        return t.replace(":", "")
+    }
+
     private fun performanceList(month: String) {
         backAction = { renderList() }
         // 🔧 V421খ: ডিফল্ট **আজকের দিন** (আগে মাস ছিল)।
