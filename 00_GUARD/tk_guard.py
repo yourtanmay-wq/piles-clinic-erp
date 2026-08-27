@@ -739,6 +739,59 @@ def check_cloud_login_name_is_code():
                      "⇒ নতুন লোকের মডিউলে Sign-in failed হবে")
 
 # ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯.২৫ — কম্পিউটারের ফাইল বদলেছে, অথচ cache-নম্বর বদলায়নি?
+#  ─────────────────────────────────────────────────────────────
+#  🔴🔴🔴 ২৭.০৮.২০২৬-এ ধরা পড়া আসল ভুল: V746-এ `app.js` বদলানো হয়েছিল,
+#  কিন্তু `index.html`-এর `app.js?v=v712` অপরিবর্তিত ছিল। ফলে ব্রাউজার
+#  **পুরনো ফাইলটাই** ধরে রাখত ⇒ Netlify-তে তুললেও TK কোনো বদল দেখতেন না,
+#  আর "কাজ করছে না" বলে ভুল খোঁজাখুঁজি হত।
+#
+#  **পাহারাটা কীভাবে কাজ করে**
+#   · `index.html`-এ `xxx.js?v=NNN` ধাঁচের প্রতিটা ফাইলের বিষয়বস্তুর
+#     আঙুলছাপ (sha) `00_GUARD/web_cache_hash.json`-এ জমা থাকে।
+#   · আঙুলছাপ বদলেছে **কিন্তু** `v=` একই ⇒ **আটকায়**।
+#   · দুটোই বদলেছে ⇒ ঠিক আছে, নতুন আঙুলছাপ জমা হয়।
+#   ⇒ তাই ভবিষ্যতে ওয়েবের কোনো ফাইল বদলে cache-নম্বর ভুলে গেলে guard ধরবে।
+# ═══════════════════════════════════════════════════════════════
+def check_web_cache_busters():
+    import hashlib, json as _json
+    idx = os.path.join(WEB, "index.html")
+    ledger = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web_cache_hash.json")
+    if not os.path.exists(idx):
+        fail("৯.২৫", "index.html খুঁজে পাওয়া গেল না")
+        return
+    html = read(idx)
+    found = re.findall(r'(?:src|href)="([A-Za-z0-9_.-]+\.(?:js|css))\?v=([A-Za-z0-9_.-]+)"', html)
+    if not found:
+        fail("৯.২৫", "index.html-এ `?v=` সহ কোনো js/css পাওয়া গেল না")
+        return
+    try:
+        old = _json.load(io.open(ledger, encoding="utf-8")) if os.path.exists(ledger) else {}
+    except Exception:
+        old = {}
+    new = {}
+    before = len(problems)          # ⛔ শুধু **এই** যাচাইয়ের অভিযোগ গোনা হয়
+    for fname, ver in found:
+        fpath = os.path.join(WEB, fname)
+        if not os.path.exists(fpath):
+            fail("৯.২৫", f"index.html `{fname}` চাইছে, কিন্তু ফাইলটা নেই")
+            continue
+        sha = hashlib.sha256(io.open(fpath, "rb").read()).hexdigest()
+        new[fname] = {"v": ver, "sha": sha}
+        prev = old.get(fname)
+        if prev and prev.get("sha") != sha and prev.get("v") == ver:
+            fail("৯.২৫", f"`{fname}` বদলেছে, কিন্তু index.html-এ cache-নম্বর `?v={ver}` "
+                         f"একই রয়ে গেছে ⇒ ব্রাউজার পুরনো ফাইলই ধরে রাখবে, "
+                         f"TK কোনো বদল দেখবেন না। নম্বরটা বাড়ান।")
+    # ⛔ অভিযোগ থাকলে খাতা লেখা হয় না — নইলে ভুলটা এক দৌড়েই চাপা পড়ে যেত।
+    if len(problems) == before:
+        try:
+            io.open(ledger, "w", encoding="utf-8").write(
+                _json.dumps(new, indent=2, ensure_ascii=False) + "\n")
+        except Exception:
+            pass
+
+# ═══════════════════════════════════════════════════════════════
 #  যাচাই ৯.২৩ — Draft-এর জমানো তালিকায় **একটা ঘরও** বাদ পড়েনি তো?
 #  ─────────────────────────────────────────────────────────────
 #  🔴🔴🔴 TK-রিপোর্ট (২৭.০৮.২০২৬, ছবিসহ): *"এইসব পেশেন্টের তো বিল ক্লিয়ার
@@ -2191,6 +2244,7 @@ def main():
     check_doctor_message_twin()
     check_draft_cache_fields()        # 💰 V741 — Draft-এর জমানো তালিকায় টাকার ঘর
     check_cloud_login_name_is_code()  # 👥 V748 — মেঘের লোকের name ঘরে কোড
+    check_web_cache_busters()         # 🌐 V750 — ওয়েব ফাইল বদলে cache-নম্বর
     check_webview_popup()             # 🩹 V738 — পপ-আপে WebView বসানোর ফাঁদ (কম্পন)
     check_locked_rules()
     check_hidden_spinner()

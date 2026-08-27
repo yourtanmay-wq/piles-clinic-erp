@@ -132,7 +132,13 @@
     if (!listHtml) listHtml = '<div class="card mut">' + (listFailed ? 'Could not load. Please try again.' : 'No profiles.') + '</div>';
     /* 🏆 V419 (TK-নির্দেশ): সবার পারফরম্যান্স এক পর্দায় — উপরে একটাই বোতাম। */
     var perfBtn = '<div class="card"><button style="width:100%;background:#fff;color:#0A5C33;border:2px solid #0A5C33;font-weight:800;font-size:15px;padding:13px;border-radius:12px" onclick="staffPerformance()">🏆 Staff Performance</button></div>';
-    document.getElementById('spList').innerHTML = perfBtn + dueHtml + listHtml + removedHtml();
+    /* 👥🔒 V750 (২৭.০৮.২০২৬, TK-নির্দেশ: *"Web+Android ২ যায়গাতেই করতে হবে"*)
+       ফোনে "👥 Add / Remove People" বোতামটা V746-এ বসেছিল, কম্পিউটারে বসেনি।
+       ⛔ Remove ও Restore ওয়েবে **আগে থেকেই ছিল** (profRemove/profRestore) —
+          তাই শুধু **Add**-টাই বাকি ছিল, সেটাই এখানে যোগ হলো।
+       ⛔ সব পাহারা সার্ভারে (00_SQL/V745 + V747) — মাস্টার ছাড়া কেউ পারে না। */
+    var addBtn = '<div class="card"><button style="width:100%;background:#1457B8;color:#fff;border:0;font-weight:800;font-size:15px;padding:13px;border-radius:12px" onclick="pfAddPerson()">➕ Add Staff or Doctor</button></div>';
+    document.getElementById('spList').innerHTML = perfBtn + addBtn + dueHtml + listHtml + removedHtml();
 
     // 🔴 V404: বাদ-দেওয়া কর্মীদের ছোট তালিকা — গোনা থাকে, ভুল হলে Restore।
     function removedHtml() {
@@ -151,6 +157,74 @@
         }).join('') + '</details>';
     }
   }
+
+  /* 👥🔒 V750 — নতুন স্টাফ বা ডাক্তার (ফোনের addPersonDialog-এর হুবহু সঙ্গী)।
+     ⛔ এই ফাংশন নিজে **কোনো নিয়ম যাচাই করে না** — সব পাহারা সার্ভারে
+        (`hr.admin_create_person`): শুধু মাস্টার · master ভূমিকা বানানো যায় না ·
+        মোবাইল ১০ অঙ্ক · একই মোবাইল অন্য কারও নয় · কোড আগে থেকে অন্য কারও নয়।
+     ⛔ ব্রাঞ্চ **হাতে লেখা যায় না** — config.js-এর তালিকা থেকেই বাছতে হয়
+        (ফোনেও ঠিক একই, V747; বানান ভুল হলে ভুল ব্রাঞ্চে বসে যেত)। */
+  async function pfAddPerson() {
+    var m = window.MOD;
+    if (!m.isMasterModule()) return pfToast('Only Master');
+    var brs = [];
+    try { brs = ((window.RK_CONFIG || C || {}).branches || []).map(function (b) { return String(b.name || ''); }); } catch (e) { brs = []; }
+    brs = brs.filter(function (x) { return x; });
+    if (!brs.length) brs = ['Kishanganj', 'Jalpaiguri', 'Cooch Behar', 'Falakata', 'Birpara'];
+    var host = document.getElementById('app');
+    host.innerHTML = '<div class="wrap anMod anModPf"><div class="topbar"><b>👥 Add Staff or Doctor</b>' +
+      '<button class="ghost" onclick="staffProfiles()">Back</button></div><div class="page">' +
+      '<div class="card">' +
+      '<label class="tiny mut">Type</label>' +
+      '<select id="apRole" class="input"><option value="staff">Staff</option><option value="doctor">Doctor</option></select>' +
+      '<label class="tiny mut">Full Name</label><input id="apName" class="input" placeholder="Full name">' +
+      '<label class="tiny mut">Mobile (10 digits)</label><input id="apMobile" class="input" inputmode="numeric" placeholder="10-digit mobile">' +
+      '<label class="tiny mut">Staff Code</label><input id="apCode" class="input" placeholder="e.g. KNE-KISHAN9">' +
+      '<label class="tiny mut">Branch</label><select id="apBranch" class="input">' +
+      brs.map(function (b) { return '<option value="' + m.esc(b) + '">' + m.esc(b) + '</option>'; }).join('') + '</select>' +
+      '<div style="margin-top:14px"><button id="apSave" onclick="pfSavePerson()" style="width:100%;background:#1457B8;color:#fff;border:0;font-weight:800;padding:12px;border-radius:10px">Save</button></div>' +
+      '<div id="apMsg" class="tiny mut" style="margin-top:10px"></div>' +
+      '</div></div></div>';
+  }
+
+  async function pfSavePerson() {
+    var m = window.MOD;
+    if (!m.isMasterModule()) return pfToast('Only Master');
+    function v(id) { var e = document.getElementById(id); return e ? String(e.value || '') : ''; }
+    var name = v('apName').trim();
+    var mobile = v('apMobile').replace(/\D/g, '').slice(-10);
+    var code = v('apCode').trim().toUpperCase();
+    var branch = v('apBranch').trim();
+    var role = v('apRole').trim().toLowerCase();
+    var msg = document.getElementById('apMsg');
+    // ⛔ এটুকু শুধু বাঁচাতে — আসল পাহারা সার্ভারেই।
+    if (!name || !code || !branch || mobile.length !== 10) {
+      if (msg) msg.textContent = 'Please fill name, mobile and code (mobile must be 10 digits).';
+      return;
+    }
+    var btn = document.getElementById('apSave');
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+    if (msg) msg.textContent = 'Saving...';
+    var out = null;
+    try {
+      var client = await sb();
+      var r = await client.schema('hr').rpc('admin_create_person', {
+        p_code: code, p_mobile: mobile, p_name: name, p_branch: branch, p_role: role
+      });
+      out = (r && !r.error) ? r.data : null;
+      if (r && r.error && msg) msg.textContent = 'Could not reach the server. Please try again.';
+    } catch (e) { out = null; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
+    if (!out) { if (msg && !msg.textContent) msg.textContent = 'Could not reach the server. Please try again.'; return; }
+    if (out.ok) {
+      pfToast(String(out.message || 'Added'));
+      staffProfiles();
+    } else if (msg) {
+      msg.textContent = String(out.message || 'Could not do it');
+    }
+  }
+  window["pfAddPerson"] = pfAddPerson;
+  window["pfSavePerson"] = pfSavePerson;
 
   // 🔴 V404 (16.08.2026, TK-নির্দেশ: "কর্মী বাদ দিন বোতাম বসান")
   //    বাদ দিলে যা যা হয় — একটাই বোতামে:
