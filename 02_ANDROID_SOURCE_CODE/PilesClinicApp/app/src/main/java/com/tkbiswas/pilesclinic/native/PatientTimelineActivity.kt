@@ -4489,6 +4489,95 @@ class PatientTimelineActivity : AppCompatActivity() {
         startActivity(android.content.Intent(this, com.tkbiswas.pilesclinic.print.PrintPreviewActivity::class.java))
     }
 
+
+    /* ═══════════════════════════════════════════════════════════════════
+       🩹🔒 V737 (২৭.০৮.২০২৬) — **পপ-আপের "কম্পন" চিরতরে বন্ধ**
+       —————————————————————————————————————————————————————————————————
+       TK-রিপোর্ট (ভিডিও): *"কম্পন হচ্ছে কেন?"* — Note পপ-আপ সেকেন্ডে
+       কয়েকবার ছোট-বড় হচ্ছিল, দুটো Close বোতাম দেখা যাচ্ছিল।
+
+       ── আসল কারণ (ভিডিওর ফ্রেম বের করে মেপে + কোড ধরে) ──────────────
+       পপ-আপের ভিতরে **WebView** বসানো ছিল, তার উচ্চতা বাঁধা ছিল না
+       (`WRAP_CONTENT`)। তাতে একটা **গোল চক্র** তৈরি হয়:
+           পপ-আপের মাপ  →  WebView-এর চওড়া  →  লেখার উচ্চতা
+                 ↑                                      ↓
+                 └──────────  পপ-আপ আবার মাপে  ←────────┘
+       একবার এদিকে, একবার ওদিকে — সেটাই চোখে **কম্পন**। ফিকে Close
+       বোতামটা ছিল আগের মাপের ছবি, নতুনটা আসার আগে।
+       `useWideViewPort` + `loadWithOverviewMode` চালু থাকায় WebView
+       লেখাকে আবার মাপমতো ছোট-বড় করত — চক্রটা তাতে আরও জোরালো হতো,
+       আর ছোট লেখার নিচে অত ফাঁকা জায়গাও তাই দেখাত।
+
+       ── সমাধান ───────────────────────────────────────────────────────
+       **চক্রটাই কেটে দেওয়া হলো।** WebView-এর উচ্চতা আর লেখার উপর
+       নির্ভর করে না — একবার মেপে **বসিয়ে দেওয়া হয়, তারপর আর বদলায় না**
+       (`applied` পাহারা)। পপ-আপ তাই দ্বিতীয়বার মাপেই না ⇒ কম্পনের
+       কারণটাই আর থাকে না।
+
+       ⛔ **লেখা · সাজ · রং · কার্ড — এক অক্ষরও বদলায়নি**; শুধু কত উঁচু
+          হবে সেটা ঠিক করার নিয়ম বদলেছে।
+       ⛔ মাপ না পেলে (কিছু ফোনে `contentHeight` ০ আসতে পারে) নিরাপদ
+          মাপে বসে — তখনও কম্পন হয় না, শুধু ভিতরে স্ক্রল করতে হয়।
+       ⛔ সর্বোচ্চ পর্দার ৭০% — লম্বা লেখায় পপ-আপ পর্দা ছাড়িয়ে যায় না।
+       ⛔ সবচেয়ে ছোট ১৪০dp — দু-লাইনের নোটেও বোতাম চাপা পড়ে না।
+       ⛔ এই একটাই ফাংশন **তিনটে পপ-আপেই** বসেছে (Note · Check-up Record ·
+          Prescription Details), তাই একই দোষ আর কোথাও থাকল না।
+       ═══════════════════════════════════════════════════════════════════ */
+    private fun steadyWebView(
+        html: String,
+        zoomable: Boolean = false
+    ): android.widget.FrameLayout {
+        val d = resources.displayMetrics.density
+        val screenH = resources.displayMetrics.heightPixels
+        val maxH = (screenH * 0.70f).toInt()
+        val minH = (140 * d).toInt()
+        val fallbackH = (screenH * 0.55f).toInt().coerceIn(minH, maxH)
+
+        val holder = android.widget.FrameLayout(this)
+        // শুরুতেই একটা নিরাপদ মাপ — তাই প্রথম মাপাতেই পপ-আপ স্থির
+        holder.layoutParams = android.widget.LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams.MATCH_PARENT, fallbackH
+        )
+
+        var applied = false      // 🔒 একবারই — এটাই চক্র ভাঙার চাবি
+        val wv = android.webkit.WebView(this).apply {
+            settings.javaScriptEnabled = false
+            // ⛔ এই দুটো বন্ধ — এরাই লেখাকে বারবার মাপমতো ছোট-বড় করত
+            settings.loadWithOverviewMode = false
+            settings.useWideViewPort = false
+            if (zoomable) {
+                settings.builtInZoomControls = true
+                settings.displayZoomControls = false
+            }
+            isVerticalScrollBarEnabled = true
+            webViewClient = object : android.webkit.WebViewClient() {
+                override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
+                    if (applied) return
+                    applied = true
+                    try {
+                        val ch = (view?.contentHeight ?: 0)
+                        val px = (ch * resources.displayMetrics.density).toInt()
+                        val want = if (px <= 0) fallbackH else px.coerceIn(minH, maxH)
+                        val lp = holder.layoutParams
+                        if (lp != null && lp.height != want) {
+                            lp.height = want
+                            holder.layoutParams = lp
+                        }
+                    } catch (_: Throwable) { /* মাপ না পেলে নিরাপদ মাপেই থাকবে */ }
+                }
+            }
+            loadDataWithBaseURL("file:///android_asset/", html, "text/html", "UTF-8", null)
+        }
+        holder.addView(
+            wv,
+            android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        )
+        return holder
+    }
+
     private fun showCheckupA4Dialog(note: String, dateText: String) {
         val html = com.tkbiswas.pilesclinic.clinical.CheckupA4Report.html(
             com.tkbiswas.pilesclinic.clinical.CheckupA4Report.Info(
@@ -4505,17 +4594,10 @@ class PatientTimelineActivity : AppCompatActivity() {
             ),
             com.tkbiswas.pilesclinic.clinical.CheckupA4Report.parseDetails(note)
         )
-        val wv = android.webkit.WebView(this).apply {
-            settings.javaScriptEnabled = false
-            settings.loadWithOverviewMode = true
-            settings.useWideViewPort = true
-            settings.builtInZoomControls = true
-            settings.displayZoomControls = false
-            loadDataWithBaseURL("file:///android_asset/", html, "text/html", "UTF-8", null)
-        }
         val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
             .setCustomTitle(PremiumAlert.header(this, "Check-up Record — $dateText"))
-            .setView(wv)
+            // 🩹🔒 V737: কম্পন-মুক্ত — উচ্চতা একবার বসে, তারপর আর বদলায় না
+            .setView(steadyWebView(html, zoomable = true))
             .setPositiveButton("Close", null)
             .setNeutralButton("Print") { _, _ -> printCheckupA4(html) }
             .create()
@@ -4637,15 +4719,10 @@ class PatientTimelineActivity : AppCompatActivity() {
             ".nkKv .nkK{color:#667085;font-weight:700}.nkKv .nkV{color:#10223a;font-weight:800}" +
             ".nkPay{color:#0b7a34;font-size:18px;font-weight:900}" +
             "</style></head><body>" + sb.toString() + "</body></html>"
-        val wv = android.webkit.WebView(this).apply {
-            settings.javaScriptEnabled = false
-            settings.loadWithOverviewMode = true
-            settings.useWideViewPort = true
-            loadDataWithBaseURL("file:///android_asset/", html, "text/html", "UTF-8", null)
-        }
         val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
             .setCustomTitle(PremiumAlert.header(this, "Note — $dateText"))
-            .setView(wv)
+            // 🩹🔒 V737: কম্পন-মুক্ত — উচ্চতা একবার বসে, তারপর আর বদলায় না
+            .setView(steadyWebView(html))
             .setPositiveButton("Close", null)
             // 🔴🔒 V512: সংশোধনের পথ এখন চোখে দেখা যায়। ⛔ কাজটা করে ঐ
             //    পুরোনো `editEnquiryHistoryNote()`-ই — নতুন সেভের পথ নেই।
@@ -4689,15 +4766,10 @@ class PatientTimelineActivity : AppCompatActivity() {
             ".rxBox{background:#eef8f2;color:#29483c;border-radius:9px;padding:7px 9px;font-size:12.5px;font-weight:700;line-height:1.3;flex:1 1 42%}" +
             ".rxBox:nth-child(even){background:#eef5ff}" +
             "</style></head><body>" + body + "</body></html>"
-        val wv = android.webkit.WebView(this).apply {
-            settings.javaScriptEnabled = false
-            settings.loadWithOverviewMode = true
-            settings.useWideViewPort = true
-            loadDataWithBaseURL("file:///android_asset/", html, "text/html", "UTF-8", null)
-        }
         val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
             .setCustomTitle(PremiumAlert.header(this, "Prescription Details — $dateText"))
-            .setView(wv)
+            // 🩹🔒 V737: কম্পন-মুক্ত — উচ্চতা একবার বসে, তারপর আর বদলায় না
+            .setView(steadyWebView(html))
             .setPositiveButton("Close", null)
             .create()
         dlg.show()
