@@ -834,6 +834,54 @@ def check_no_autofill_kept():
                      f"যে পপ-আপগুলো বাদ পড়ল সেখানে ফোনের সাজেশন ফিরে আসবে")
 
 # ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯.২৭ — মেঘের সারি পড়ার সময় "null" লেখা যেন পর্দায় না আসে
+#  ─────────────────────────────────────────────────────────────
+#  🔴 TK-রিপোর্ট (২৭.০৮.২০২৬, ছবিসহ): Staff & Doctors তালিকায় নামের জায়গায়
+#  **"null"**, আর বোতামে **"Remove null"**।
+#
+#  **আসল কারণ:** ডেটাবেসে ঘরটা ভরা না থাকলে JSON-এ `null` আসে, আর
+#  `optString("full_name","")` তখন **"null" লেখাটাই** ফেরত দেয় — ফাঁকা নয়।
+#  তাই `ifBlank { ... }` পাহারা কখনো চলত না।
+#
+#  **সমাধান:** প্রজেক্টের নিজের `JsonExt.s()` — `if (isNull(key)) "" else …`।
+#  এই পাহারা নিশ্চিত করে, মেঘের সারি পড়া এই ফাইলদুটোয় আর কখনো কাঁচা
+#  `optString(` দিয়ে **লেখা** পড়া না হয় (সংখ্যা/সত্য-মিথ্যা বাদ)।
+# ═══════════════════════════════════════════════════════════════
+def check_cloud_row_null_text():
+    files = [
+        os.path.join(JAVA, "com", "tkbiswas", "pilesclinic", "native", "PeopleAdminRepository.kt"),
+        os.path.join(JAVA, "com", "tkbiswas", "pilesclinic", "native", "CloudStaffDirectory.kt"),
+    ]
+    for f in files:
+        if not os.path.exists(f):
+            fail("৯.২৭", f"{os.path.basename(f)} খুঁজে পাওয়া গেল না")
+            continue
+        # ⚠️ `/* ... */` কমেন্টও বাদ দিতে হয় — নইলে ব্যাখ্যার ভিতরে লেখা
+        #    `optString(` -ও ভুল বলে ধরা পড়ে (নিজের পরীক্ষাতেই ধরা পড়েছে)।
+        raw = read(f)
+        out, i, n_ = [], 0, len(raw)
+        while i < n_:
+            if raw[i] == "/" and i + 1 < n_ and raw[i + 1] == "*":
+                i += 2
+                while i + 1 < n_ and not (raw[i] == "*" and raw[i + 1] == "/"):
+                    if raw[i] == "\n":
+                        out.append("\n")
+                    i += 1
+                i += 2
+                continue
+            out.append(raw[i]); i += 1
+        for n, line in enumerate("".join(out).split("\n"), 1):
+            code = line.split("//")[0]
+            if "optString(" not in code:
+                continue
+            # ⛔ `message` ঘরটা সার্ভারের নিজের লেখা — কখনো null আসে না, তাই ছাড়।
+            if "optString(\"message\"" in code:
+                continue
+            fail("৯.২৭", f"{os.path.basename(f)}:{n} — মেঘের সারি থেকে লেখা পড়তে "
+                         f"`optString(` ব্যবহার হয়েছে; ঘরটা null হলে পর্দায় **\"null\"** "
+                         f"দেখাবে। বদলে প্রজেক্টের `JsonExt.s()` ব্যবহার করুন।")
+
+# ═══════════════════════════════════════════════════════════════
 #  যাচাই ৯.২৩ — Draft-এর জমানো তালিকায় **একটা ঘরও** বাদ পড়েনি তো?
 #  ─────────────────────────────────────────────────────────────
 #  🔴🔴🔴 TK-রিপোর্ট (২৭.০৮.২০২৬, ছবিসহ): *"এইসব পেশেন্টের তো বিল ক্লিয়ার
@@ -2288,6 +2336,7 @@ def main():
     check_cloud_login_name_is_code()  # 👥 V748 — মেঘের লোকের name ঘরে কোড
     check_web_cache_busters()         # 🌐 V750 — ওয়েব ফাইল বদলে cache-নম্বর
     check_no_autofill_kept()          # ⌨️ V752 — ফোনের নিজের সাজেশন বন্ধ
+    check_cloud_row_null_text()       # 🚫 V760 — পর্দায় "null" লেখা
     check_webview_popup()             # 🩹 V738 — পপ-আপে WebView বসানোর ফাঁদ (কম্পন)
     check_locked_rules()
     check_hidden_spinner()

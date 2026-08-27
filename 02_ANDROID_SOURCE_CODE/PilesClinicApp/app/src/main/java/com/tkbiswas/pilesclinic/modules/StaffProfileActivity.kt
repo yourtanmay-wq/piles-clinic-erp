@@ -10,6 +10,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.text.InputType
 import android.widget.ImageView
+import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Spinner
@@ -3248,22 +3249,68 @@ class StaffProfileActivity : AppCompatActivity() {
                     listBox.addView(ModuleUi.buttonSoft(this, "Try again") { loadPeople(listBox) })
                     return@runOnUiThread
                 }
-                for (r in rows) {
+                /* 🎨🔒 V760 (২৭.০৮.২০২৬, TK-নির্দেশ: *"লুক প্রফেশনাল বানাতে হবে"*)
+                   আগে এটা ছিল সাধারণ লেখার লাইন + লম্বা "Remove <নাম>" বোতাম।
+                   এখন TK-অনুমোদিত **ডিজাইন C**-র হুবহু ধাঁচ (SELECT STAFF-এর
+                   মতোই): সবুজ বিন্দু · নাম (মোটা) · ডানে ব্রাঞ্চ · নিচে
+                   কোড · ভূমিকা · মোবাইল · মাঝে হালকা দাগ, আর ডানে ছোট বোতাম।
+                   ⛔ কোনো কাজ বদলায়নি — শুধু চেহারা। */
+                for ((idx, r) in rows.withIndex()) {
                     val role = com.tkbiswas.pilesclinic.native.PeopleAdminRepository.roleLabel(r.role)
-                    val tail = if (r.active) "" else "   ·   REMOVED"
-                    listBox.addView(ModuleUi.body(this, r.name + tail))
-                    listBox.addView(ModuleUi.body(this,
-                        "   " + r.code + " · " + r.branch + " · " + role +
-                            "   ·   " + ModuleUi.fullMobile(r.mobile)))
-                    if (r.active) {
-                        listBox.addView(ModuleUi.buttonSoft(this, "Remove " + r.name) {
-                            confirmSetActive(r, false, listBox)
-                        })
-                    } else {
-                        listBox.addView(ModuleUi.buttonSoft(this, "Restore " + r.name) {
-                            confirmSetActive(r, true, listBox)
-                        })
+                    if (idx > 0) {
+                        listBox.addView(View(this).apply {
+                            setBackgroundColor(android.graphics.Color.parseColor("#EDF1F4"))
+                        }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1))
                     }
+                    val row = LinearLayout(this).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                        gravity = android.view.Gravity.CENTER_VERTICAL
+                        setPadding(dp(4), dp(13), dp(4), dp(13))
+                    }
+                    val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+                    left.addView(LinearLayout(this).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                        gravity = android.view.Gravity.CENTER_VERTICAL
+                        addView(View(this@StaffProfileActivity).apply {
+                            background = android.graphics.drawable.GradientDrawable().apply {
+                                shape = android.graphics.drawable.GradientDrawable.OVAL
+                                setColor(android.graphics.Color.parseColor(
+                                    if (r.active) "#118452" else "#B0B8BD"))
+                            }
+                        }, LinearLayout.LayoutParams(dp(8), dp(8)).apply { marginEnd = dp(9) })
+                        addView(TextView(this@StaffProfileActivity).apply {
+                            text = r.name
+                            textSize = 16f
+                            setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+                            setTextColor(android.graphics.Color.parseColor(
+                                if (r.active) "#17312A" else "#8A9499"))
+                            maxLines = 1
+                        }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                        addView(TextView(this@StaffProfileActivity).apply {
+                            text = if (r.active) r.branch else "REMOVED"
+                            textSize = 12.5f
+                            setTypeface(android.graphics.Typeface.DEFAULT,
+                                if (r.active) android.graphics.Typeface.NORMAL else android.graphics.Typeface.BOLD)
+                            setTextColor(android.graphics.Color.parseColor(
+                                if (r.active) "#7A8A82" else "#C0392B"))
+                        })
+                    })
+                    left.addView(TextView(this).apply {
+                        text = r.code + " · " + role + " · " + ModuleUi.fullMobile(r.mobile)
+                        textSize = 13f
+                        setTextColor(android.graphics.Color.parseColor("#5C6B64"))
+                        setPadding(dp(17), dp(3), 0, 0)
+                    })
+                    row.addView(left, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                    row.addView(ModuleUi.buttonSoft(this,
+                        if (r.active) "Remove" else "Restore") {
+                        confirmSetActive(r, !r.active, listBox)
+                    }.apply {
+                        textSize = 13f
+                        minWidth = dp(96)
+                        setPadding(dp(12), dp(6), dp(12), dp(6))
+                    })
+                    listBox.addView(row)
                 }
             }
         }.start()

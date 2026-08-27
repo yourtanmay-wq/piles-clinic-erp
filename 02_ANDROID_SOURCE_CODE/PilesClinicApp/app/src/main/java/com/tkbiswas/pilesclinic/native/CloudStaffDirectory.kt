@@ -90,9 +90,9 @@ object CloudStaffDirectory {
         val out = ArrayList<StaffAccount>()
         for (i in 0 until arr.length()) {
             val o = arr.optJSONObject(i) ?: continue
-            val mob = StaffDirectory.normalizeMobile(o.optString("mobile", ""))
+            val mob = StaffDirectory.normalizeMobile(o.s("mobile"))
             if (mob.length != 10) continue
-            val role = o.optString("role_kind", "").trim().lowercase()
+            val role = o.s("role_kind").trim().lowercase()
             // ⛔ master এখানে কখনো আসে না (সার্ভারের ফাংশনই দেয় না) — তবু
             //    দ্বিতীয় পাহারা, যাতে ভুল করেও কেউ মাস্টার হয়ে না যায়।
             if (role != "staff" && role != "doctor" && role != "field") continue
@@ -102,10 +102,11 @@ object CloudStaffDirectory {
             //       `ModuleAuth.expectedCode()` এখন `cachedCodeFor()` থেকে
             //       **কোড** নেয় (নিচে দেখুন)। তাই নাম আর কোড আলাদা রাখা যায়,
             //       আর V748-এর "Sign-in failed"-ও ফিরে আসে না।
-            val code = o.optString("person_code", "").trim().uppercase()
+            // 🔴 V760 — একই "null" ভুল এখানেও ছিল; প্রমাণিত `JsonExt.s()` দিয়ে বন্ধ।
+            val code = o.s("person_code").trim().uppercase()
             if (code.isBlank()) continue
-            val shown = o.optString("full_name", "").trim().ifBlank { code }
-            out.add(StaffAccount(mob, shown, o.optString("branch", "").trim(), role))
+            val shown = o.s("full_name").trim().ifBlank { code }
+            out.add(StaffAccount(mob, shown, o.s("branch").trim(), role))
         }
         return out
     }
@@ -175,8 +176,8 @@ object CloudStaffDirectory {
                 val arr = JSONArray(txt)
                 for (i in 0 until arr.length()) {
                     val o = arr.optJSONObject(i) ?: continue
-                    if (StaffDirectory.normalizeMobile(o.optString("mobile", "")) != target) continue
-                    val c = o.optString("person_code", "").trim().uppercase()
+                    if (StaffDirectory.normalizeMobile(o.s("mobile")) != target) continue
+                    val c = o.s("person_code").trim().uppercase()
                     if (c.isNotBlank()) { found = c; break }
                 }
             }

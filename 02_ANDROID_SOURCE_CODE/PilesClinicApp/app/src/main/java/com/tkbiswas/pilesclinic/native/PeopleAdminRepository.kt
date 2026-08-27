@@ -2,6 +2,7 @@ package com.tkbiswas.pilesclinic.native
 
 import com.tkbiswas.pilesclinic.modules.ModuleAuth
 import org.json.JSONObject
+import com.tkbiswas.pilesclinic.native.s
 
 /**
  * 👥🔒 V746 (২৭.০৮.২০২৬, TK-অনুমোদিত) — **মাস্টার নিজে স্টাফ ও ডাক্তার
@@ -84,15 +85,24 @@ object PeopleAdminRepository {
         val out = ArrayList<Person>()
         for (i in 0 until arr.length()) {
             val o = arr.optJSONObject(i) ?: continue
-            val code = o.optString("person_code", "")
+            /* 🔴🔒 V760 (২৭.০৮.২০২৬, TK-রিপোর্ট ছবিসহ: তালিকায় **"null"** নাম)
+               **আসল কারণ:** ডেটাবেসে নাম ভরা না থাকলে সেটা `null` আসে, আর
+               `optString("full_name","")` তখন **"null" লেখাটাই** ফেরত দেয় —
+               ফাঁকা নয়। তাই আমার `ifBlank { code }` পাহারা কখনো চলত না, আর
+               পর্দায় "null" ও "Remove null" দেখাত।
+               ⛔ এখন প্রজেক্টের **নিজের প্রমাণিত** `JsonExt.s()` ব্যবহার করা হলো
+                  (`if (isNull(key)) "" else optString(...)`) — নতুন কিছু বানানো হয়নি।
+               ⛔ **প্রতিটা ঘরেই** বদলানো হলো, শুধু নামেরটা নয় — একই শ্রেণির ভুল
+                  যেন মোবাইল · ব্রাঞ্চ · ভূমিকাতেও না থাকে (TK-এর নিয়ম ৬.২)। */
+            val code = o.s("person_code")
             if (code.isBlank()) continue
             out.add(
                 Person(
                     code = code,
-                    name = o.optString("full_name", "").ifBlank { code },
-                    mobile = o.optString("link_mobile", ""),
-                    branch = o.optString("branch", ""),
-                    role = o.optString("role_kind", ""),
+                    name = o.s("full_name").trim().ifBlank { code },
+                    mobile = o.s("link_mobile"),
+                    branch = o.s("branch"),
+                    role = o.s("role_kind"),
                     active = o.optBoolean("active", true)
                 )
             )
