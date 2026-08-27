@@ -8501,13 +8501,34 @@ TK বলেছেন *"কোনো কিছুই যেন না থাক�
 **অ্যাপ থেকে ভরতে হবে**: Master → Staff Profiles → KNE-KISHAN8 → Edit Profile → Save।
 বেতন ও আয়-খরচের অনুমতিও ওখান থেকেই।
 
-### 📝 TK-এর দেওয়া তথ্য (প্রোফাইলে বসানোর জন্য)
-Full Name: **ROHINI KUMARI** · Branch: Kishanganj · Blood Group: **B+**
-Qualification: **GRADUATE** · Emergency: **8809675331 (Father)**
-Address: **VILL-DHANPURA, PO-KANYABARI, PS-KOCHADHAMAN, DIST-KISHANGANJ**
+### 📝 TK-এর দেওয়া তথ্য — প্রোফাইলের ১৫টা ঘরে যা বসবে
+| # | ঘর | যা বসবে |
+|---|---|---|
+| ১ | Full Name | **ROHINI KUMARI** |
+| ২ | Branch | Kishanganj |
+| ৩ | Designation | **STAFF CUM TELECALLER** |
+| ৪ | Join Date | ❓ বাকি |
+| ৫ | Date of Birth | **04-03-2001** |
+| ৬ | Gender | **FEMALE** |
+| ৭ | Blood Group | **B+** |
+| ৮ | Qualification | **GRADUATE** |
+| ৯ | Address | **VILL-DHANPURA, PO-KANYABARI, PS-KOCHADHAMAN, DIST-KISHANGANJ** |
+| ১০ | Alternate Mobile | ❓ বাকি |
+| ১১ | Emergency Contact | **BINOD PASWAN — 8809675331** |
+| ১২ | Emergency Relationship | **Father** |
+| ১৩ | ID Type | **Aadhaar** |
+| ১৪ | ID Number | **5616 3973 1741** |
+| ১৫ | Notes | (ইচ্ছেমতো) |
+· লগইন মোবাইল: **7321960416** · WhatsApp: **একই নম্বর** ✅
+· ছবি: ❓ বাকি
+
+### 🔒 আধার নিয়ে একটা জরুরি কথা (যাচাই করে দেখা)
+অ্যাপ **পুরো আধার নম্বর জমা রাখে না** — শুধু **শেষ ৪ সংখ্যা** (`gov_id_last4`)
+রাখে, অর্থাৎ **1741**। এটা কোডে ইচ্ছে করে করা (`StaffProfileActivity.doSave()`),
+নিরাপত্তার জন্য। তাই ঘরে পুরো নম্বর লিখলেও ডেটাবেসে শেষ ৪টাই যাবে।
 
 ### ❓ এখনো বাকি (রোহিণীর কাছ থেকে)
-Designation · Join Date · Date of Birth · Gender · Alternate Mobile ·
-Emergency Contact-এর নাম · ID Type ও ID Number · ছবি · WhatsApp আছে কি না
+**Join Date** · **Alternate Mobile** · **ছবি** — এই তিনটে।
+(বাকি সব পাওয়া গেছে, উপরের ছকে বসানো আছে।)
 
 **ভার্সন:** V734 → **V735**
