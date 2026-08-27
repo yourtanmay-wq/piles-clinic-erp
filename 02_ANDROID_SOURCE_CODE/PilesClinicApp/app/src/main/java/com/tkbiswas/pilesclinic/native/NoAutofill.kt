@@ -92,6 +92,45 @@ object NoAutofill {
                 root.importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
             }
             scrub(root)
+            watchFocus(activity)
+        } catch (_: Throwable) {}
+    }
+
+    /** কোন পর্দায় পাহারাদার বসানো হয়ে গেছে — দুবার বসানো ঠেকাতে। */
+    private val focusWatched = java.util.WeakHashMap<Activity, Boolean>()
+
+    /**
+     * 🔴🔒 V761 (২৭.০৮.২০২৬, TK: *"সম্পূর্ণ প্রজেক্টের সমস্ত জায়গায় আসতেছে"*)
+     *
+     * **তিন নম্বর স্তর — সবচেয়ে জোরালো।** আগের দুটো (ঘরের পতাকা + সেবা বন্ধ)
+     * TK-এর ফোনে যথেষ্ট হয়নি। তাই এখন **যতবার কোনো লেখার ঘরে চাপ পড়ে**,
+     * ততবার `AutofillManager.cancel()` ডেকে চলতি সাজেশন **জোর করে বন্ধ** করা হয়।
+     *
+     * ⛔ **কোনো ঘরের নিজের listener ছোঁয়া হয় না** — `OnGlobalFocusChangeListener`
+     *    পর্দার সবার উপরে বসে, তাই অ্যাপের কোনো পুরনো কাজ ভাঙে না।
+     *    (`setOnFocusChangeListener` ব্যবহার করলে পুরনো listener মুছে যেত —
+     *     সেটা ইচ্ছে করেই এড়ানো হলো।)
+     * ⛔ প্রতি পর্দায় একবারই বসে (WeakHashMap), তাই বারবার জমে না।
+     * ⛔ পুরোটা try/catch — কিছু ভুল হলেও পর্দা ভাঙে না।
+     *
+     * ⚠️ সৎ কথা: এটাও **Android-এর Autofill** থামায়। সাজেশনটা যদি
+     *    কীবোর্ডের **নিজের** হয় (Gboard/ফোনের কীবোর্ডের সেটিং), তাহলে
+     *    কোনো অ্যাপের পক্ষেই সেটা বন্ধ করা সম্ভব নয় — ফোনের Settings থেকে
+     *    বন্ধ করতে হয়।
+     */
+    private fun watchFocus(activity: Activity) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        if (focusWatched.containsKey(activity)) return
+        try {
+            val decor = activity.window?.decorView ?: return
+            val am = activity.getSystemService(android.view.autofill.AutofillManager::class.java)
+                ?: return
+            decor.viewTreeObserver.addOnGlobalFocusChangeListener { _, newFocus ->
+                if (newFocus is android.widget.EditText) {
+                    try { am.cancel() } catch (_: Throwable) {}
+                }
+            }
+            focusWatched[activity] = true
         } catch (_: Throwable) {}
     }
 

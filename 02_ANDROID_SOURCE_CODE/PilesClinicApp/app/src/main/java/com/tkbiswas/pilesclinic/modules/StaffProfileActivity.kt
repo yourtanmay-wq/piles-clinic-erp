@@ -190,7 +190,15 @@ class StaffProfileActivity : AppCompatActivity() {
                ⛔ শুধু মাস্টার — সার্ভারেও একই পাহারা, তাই ফোন থেকে ফাঁকি নেই।
                ⛔ পুরনো তালিকা/বেতন/পারফরম্যান্স — কিচ্ছু ছোঁয়া হয়নি,
                   শুধু একটা নতুন বোতাম যোগ। */
-            root.addView(salOutlineButton("👥 Add / Remove People", "#1457B8", "#1457B8") { peopleAdminScreen() })
+            /* 🧹🔒 V761 (২৭.০৮.২০২৬, TK: *"Remove করার অপশন আগেই ছিল, আবার কেন
+   ডুপ্লিকেট বানালেন"*) — TK সম্পূর্ণ ঠিক বলেছেন।
+   এই পর্দার **প্রতিটা কার্ডেই** আগে থেকে Remove · Restore · Suspend আছে
+   (V404/V603, ডাক্তার ও ফিল্ড-অফিসার সহ সবার জন্য), আর নিচে আলাদা
+   "Removed" ভাগও আছে। V746-এ আমি ভুল করে ওই একই তালিকা আবার বানিয়ে
+   ফেলেছিলাম — সেটা মুছে দেওয়া হলো।
+   ⇒ সত্যিই যেটা ছিল না তা হলো **যোগ করা**। তাই বোতামটা এখন সরাসরি
+     যোগ করার ঘরটাই খোলে — বাড়তি কোনো পর্দা নেই। */
+            root.addView(salOutlineButton("➕ Add Staff or Doctor", "#0B7A3E", "#0B7A3E") { addPersonDialog() })
         }
         val cachedNow = loadCachedStaffList()
         if (cachedNow != null) {
@@ -3227,128 +3235,6 @@ class StaffProfileActivity : AppCompatActivity() {
        ⛔ টাকার হিসাব ছোঁয়া হয় না — সেসব মোবাইল ধরে চলে (V308)।
        ⛔ TK-নির্দেশ: নতুন লেখা ইংরেজিতে।
        ═══════════════════════════════════════════════════════════════════ */
-    private fun peopleAdminScreen() {
-        backAction = { renderList() }
-        val col = ModuleUi.screen(this, "Staff & Doctors")
-        val head = ModuleUi.card(this); col.addView(head)
-        head.addView(ModuleUi.button(this, "+ Add Staff or Doctor") { addPersonDialog() })
-        val listBox = ModuleUi.card(this); col.addView(listBox)
-        col.addView(ModuleUi.button(this, "Back") { renderList() })
-        listBox.addView(ModuleUi.body(this, "Loading..."))
-        loadPeople(listBox)
-    }
-
-    private fun loadPeople(listBox: LinearLayout) {
-        Thread {
-            val rows = com.tkbiswas.pilesclinic.native.PeopleAdminRepository.list()
-            runOnUiThread {
-                if (isFinishing || isDestroyed) return@runOnUiThread
-                listBox.removeAllViews()
-                if (rows.isEmpty()) {
-                    listBox.addView(ModuleUi.body(this, "Could not load. Check internet and try again."))
-                    listBox.addView(ModuleUi.buttonSoft(this, "Try again") { loadPeople(listBox) })
-                    return@runOnUiThread
-                }
-                /* 🎨🔒 V760 (২৭.০৮.২০২৬, TK-নির্দেশ: *"লুক প্রফেশনাল বানাতে হবে"*)
-                   আগে এটা ছিল সাধারণ লেখার লাইন + লম্বা "Remove <নাম>" বোতাম।
-                   এখন TK-অনুমোদিত **ডিজাইন C**-র হুবহু ধাঁচ (SELECT STAFF-এর
-                   মতোই): সবুজ বিন্দু · নাম (মোটা) · ডানে ব্রাঞ্চ · নিচে
-                   কোড · ভূমিকা · মোবাইল · মাঝে হালকা দাগ, আর ডানে ছোট বোতাম।
-                   ⛔ কোনো কাজ বদলায়নি — শুধু চেহারা। */
-                for ((idx, r) in rows.withIndex()) {
-                    val role = com.tkbiswas.pilesclinic.native.PeopleAdminRepository.roleLabel(r.role)
-                    if (idx > 0) {
-                        listBox.addView(View(this).apply {
-                            setBackgroundColor(android.graphics.Color.parseColor("#EDF1F4"))
-                        }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 1))
-                    }
-                    val row = LinearLayout(this).apply {
-                        orientation = LinearLayout.HORIZONTAL
-                        gravity = android.view.Gravity.CENTER_VERTICAL
-                        setPadding(dp(4), dp(13), dp(4), dp(13))
-                    }
-                    val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-                    left.addView(LinearLayout(this).apply {
-                        orientation = LinearLayout.HORIZONTAL
-                        gravity = android.view.Gravity.CENTER_VERTICAL
-                        addView(View(this@StaffProfileActivity).apply {
-                            background = android.graphics.drawable.GradientDrawable().apply {
-                                shape = android.graphics.drawable.GradientDrawable.OVAL
-                                setColor(android.graphics.Color.parseColor(
-                                    if (r.active) "#118452" else "#B0B8BD"))
-                            }
-                        }, LinearLayout.LayoutParams(dp(8), dp(8)).apply { marginEnd = dp(9) })
-                        addView(TextView(this@StaffProfileActivity).apply {
-                            text = r.name
-                            textSize = 16f
-                            setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
-                            setTextColor(android.graphics.Color.parseColor(
-                                if (r.active) "#17312A" else "#8A9499"))
-                            maxLines = 1
-                        }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-                        addView(TextView(this@StaffProfileActivity).apply {
-                            text = if (r.active) r.branch else "REMOVED"
-                            textSize = 12.5f
-                            setTypeface(android.graphics.Typeface.DEFAULT,
-                                if (r.active) android.graphics.Typeface.NORMAL else android.graphics.Typeface.BOLD)
-                            setTextColor(android.graphics.Color.parseColor(
-                                if (r.active) "#7A8A82" else "#C0392B"))
-                        })
-                    })
-                    left.addView(TextView(this).apply {
-                        text = r.code + " · " + role + " · " + ModuleUi.fullMobile(r.mobile)
-                        textSize = 13f
-                        setTextColor(android.graphics.Color.parseColor("#5C6B64"))
-                        setPadding(dp(17), dp(3), 0, 0)
-                    })
-                    row.addView(left, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-                    row.addView(ModuleUi.buttonSoft(this,
-                        if (r.active) "Remove" else "Restore") {
-                        confirmSetActive(r, !r.active, listBox)
-                    }.apply {
-                        textSize = 13f
-                        minWidth = dp(96)
-                        setPadding(dp(12), dp(6), dp(12), dp(6))
-                    })
-                    listBox.addView(row)
-                }
-            }
-        }.start()
-    }
-
-    private fun confirmSetActive(
-        person: com.tkbiswas.pilesclinic.native.PeopleAdminRepository.Person,
-        active: Boolean,
-        listBox: LinearLayout
-    ) {
-        val title = if (active) "Restore This Person?" else "Remove This Person?"
-        val body = if (active)
-            person.name + "\n" + person.code + " · " + person.branch +
-                "\n\nLogin will start working again."
-        else
-            person.name + "\n" + person.code + " · " + person.branch +
-                "\n\nLogin will stop working at once." +
-                "\nOld records keep the name — nothing is deleted." +
-                "\nYou can restore this person any time."
-        val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
-            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, title))
-            .setMessage(body)
-            .setPositiveButton(if (active) "Yes, restore" else "Yes, remove") { _, _ ->
-                Thread {
-                    val res = com.tkbiswas.pilesclinic.native.PeopleAdminRepository
-                        .setActive(person.code, active)
-                    runOnUiThread {
-                        android.widget.Toast.makeText(this, res.message, android.widget.Toast.LENGTH_LONG).show()
-                        if (res.ok) loadPeople(listBox)
-                    }
-                }.start()
-            }
-            .setNegativeButton("Cancel", null)
-            .create()
-        dlg.show()
-        com.tkbiswas.pilesclinic.native.PremiumAlert.paint(dlg)
-    }
-
     /** নতুন স্টাফ/ডাক্তার — ⛔ সব যাচাই সার্ভারে, এখানে শুধু ঘরগুলো। */
     private fun addPersonDialog() {
         val box = LinearLayout(this).apply {
@@ -3426,7 +3312,7 @@ class StaffProfileActivity : AppCompatActivity() {
                 val d = androidx.appcompat.app.AlertDialog.Builder(this)
                     .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, title))
                     .setMessage(body)
-                    .setPositiveButton("OK") { _, _ -> if (res.ok) peopleAdminScreen() }
+                    .setPositiveButton("OK") { _, _ -> if (res.ok) renderList() }
                     .create()
                 d.show()
                 com.tkbiswas.pilesclinic.native.PremiumAlert.paint(d)

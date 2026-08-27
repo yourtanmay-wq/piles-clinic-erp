@@ -108,7 +108,22 @@ object TrashCardText {
         val parts = mutableListOf<String>()
         val mob = r.s("mobile").trim()
         if (mob.isNotBlank()) parts.add("📞 $mob")
-        val pid = r.s("patientId").trim().ifBlank { r.s("patientCode").trim() }
+        /* 🔴🔒 V762 (২৭.০৮.২০২৬, TK-রিপোর্ট ছবিসহ: *"Patient ID ভুল কেন?"*)
+           **আসল কারণ (কোড ধরে যাচাই):** টেবিল-ভেদে ঘর দুটোর মানে **উল্টো**—
+             · `patients` সারিতে  → `patientId` = আসল আইডি (COB-28072026-003)
+             · `payments` সারিতে  → `patientId` = **ভিতরের সারি-আইডি**
+               (`pat_7f6251fdac…`), আর আসল আইডি থাকে `patientCode`-এ
+               (PaymentModel: `.put("patientId", patient.id)` ও
+                `.put("patientCode", patient.patientId)`)
+           আগে সবসময় `patientId` আগে দেখা হতো, তাই পেমেন্টের কার্ডে মানুষের
+           বদলে যন্ত্রের আইডি দেখাত।
+           ⇒ এখন **যেটা মানুষের আইডির মতো দেখতে সেটাই** বাছা হয়। ভিতরের
+             আইডিতে সবসময় `_` থাকে (pat_ · enq_ · rfnd_ · brief_), আর আসল
+             আইডিতে কখনো থাকে না (COB-28072026-003) — এটাই পার্থক্যের চিহ্ন।
+           ⛔ কোনো তথ্য বদলানো হয়নি — শুধু কোনটা **দেখানো** হবে সেটা ঠিক করা। */
+        fun looksHuman(v: String) = v.isNotBlank() && !v.contains("_")
+        val pid = listOf(r.s("patientCode").trim(), r.s("patientId").trim())
+            .firstOrNull { looksHuman(it) }.orEmpty()
         if (pid.isNotBlank()) {
             parts.add(pid)
         } else {

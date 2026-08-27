@@ -66,49 +66,10 @@ object PeopleAdminRepository {
                 .put("p_role", role)
         )
 
-    /** বাদ দেওয়া (`false`) বা ফেরানো (`true`)। */
-    fun setActive(code: String, active: Boolean): AdminResult =
-        call(
-            "admin_set_person_active",
-            JSONObject().put("p_code", code).put("p_active", active)
-        )
-
-    /** মাস্টারের তালিকা — বাদ-দেওয়া লোকও থাকে, যাতে ফেরানো যায়।
-     *  ⛔ মাস্টার ছাড়া কেউ ডাকলে সার্ভারই খালি তালিকা দেয়। */
-    fun list(): List<Person> {
-        val r = try {
-            ModuleAuth.rpc(SCHEMA, "admin_people_list", JSONObject())
-        } catch (_: Throwable) { null } ?: return emptyList()
-        if (!r.ok) return emptyList()
-        val arr = try { org.json.JSONArray(r.body) } catch (_: Throwable) { null }
-            ?: return emptyList()
-        val out = ArrayList<Person>()
-        for (i in 0 until arr.length()) {
-            val o = arr.optJSONObject(i) ?: continue
-            /* 🔴🔒 V760 (২৭.০৮.২০২৬, TK-রিপোর্ট ছবিসহ: তালিকায় **"null"** নাম)
-               **আসল কারণ:** ডেটাবেসে নাম ভরা না থাকলে সেটা `null` আসে, আর
-               `optString("full_name","")` তখন **"null" লেখাটাই** ফেরত দেয় —
-               ফাঁকা নয়। তাই আমার `ifBlank { code }` পাহারা কখনো চলত না, আর
-               পর্দায় "null" ও "Remove null" দেখাত।
-               ⛔ এখন প্রজেক্টের **নিজের প্রমাণিত** `JsonExt.s()` ব্যবহার করা হলো
-                  (`if (isNull(key)) "" else optString(...)`) — নতুন কিছু বানানো হয়নি।
-               ⛔ **প্রতিটা ঘরেই** বদলানো হলো, শুধু নামেরটা নয় — একই শ্রেণির ভুল
-                  যেন মোবাইল · ব্রাঞ্চ · ভূমিকাতেও না থাকে (TK-এর নিয়ম ৬.২)। */
-            val code = o.s("person_code")
-            if (code.isBlank()) continue
-            out.add(
-                Person(
-                    code = code,
-                    name = o.s("full_name").trim().ifBlank { code },
-                    mobile = o.s("link_mobile"),
-                    branch = o.s("branch"),
-                    role = o.s("role_kind"),
-                    active = o.optBoolean("active", true)
-                )
-            )
-        }
-        return out
-    }
+    // 🧹 V761 — `setActive()` ও `list()` মুছে দেওয়া হলো।
+    //    TK ধরিয়ে দিয়েছেন: Remove · Restore · Suspend মূল Staff Profiles
+    //    পর্দায় **আগে থেকেই** আছে (V404/V603)। ওগুলো আবার বানানো ছিল
+    //    নিছক ডুপ্লিকেট — তাই কোডও রাখা হলো না, শুধু `add()` থাকল।
 
     /** পর্দায় দেখানোর জন্য — "Staff" / "Doctor" / "Field Officer"। */
     fun roleLabel(role: String): String = when (role.trim().lowercase()) {
