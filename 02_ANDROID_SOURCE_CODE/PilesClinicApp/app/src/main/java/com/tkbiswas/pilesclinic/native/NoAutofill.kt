@@ -41,10 +41,52 @@ object NoAutofill {
         })
     }
 
+    /** ⛔ একবারই — বারবার ডাকার দরকার নেই। */
+    @Volatile private var serviceOff = false
+
+    /**
+     * 🔴🔒 V758 (২৭.০৮.২০২৬, TK-লাইভ রিপোর্ট: *"মোবাইল নম্বর সাজেস্ট এখনও করছে"*)
+     *
+     * **আসল কারণ (গভীরে গিয়ে ধরা):** এতদিন শুধু ঘরে-ঘরে "এখানে Autofill
+     * লাগবে না" বলা হচ্ছিল (`importantForAutofill`)। কিন্তু Android-এর
+     * **Autofill সেবাটা নিজে চালুই ছিল** — তাই Google/Samsung-এর জমানো
+     * নম্বর-পাসওয়ার্ড তবু ভেসে উঠত।
+     *
+     * `AutofillManager.disableAutofillServices()` হলো Android-এর **নিজের
+     * সরকারি উপায়** — এটা ডাকলে **এই অ্যাপের জন্য** Autofill পুরোপুরি বন্ধ
+     * হয়ে যায়। এতদিন এই যন্ত্রটা ব্যবহারই করা হয়নি।
+     *
+     * ⛔ শুধু **এই অ্যাপে** — ফোনের অন্য অ্যাপে কোনো প্রভাব নেই।
+     * ⛔ ফোনের Settings থেকে TK চাইলে আবার চালু করতে পারেন — কিছু হারায় না।
+     * ⛔ পুরোটা try/catch-এ, তাই এখানে কিছু ভুল হলেও কোনো পর্দা ভাঙে না।
+     */
+    private fun killAutofillService(activity: Activity) {
+        if (serviceOff || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        try {
+            val am = activity.getSystemService(android.view.autofill.AutofillManager::class.java)
+            if (am != null) {
+                try { am.cancel() } catch (_: Throwable) {}          // এখন খোলা থাকলে বন্ধ করো
+                if (am.isEnabled) am.disableAutofillServices()        // আর কখনো এসো না
+            }
+        } catch (_: Throwable) {}
+        serviceOff = true
+    }
+
     /** পর্দার মূল বাক্স খুঁজে নিয়ে Autofill বন্ধ করে দেয়। */
     private fun apply(activity: Activity) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        killAutofillService(activity)
         try {
+            // 🔴 V758 — শুধু `android.R.id.content` নয়, **পুরো উইন্ডোর বাইরের
+            //    বাক্সেও** (decorView) বসানো হয়। content-এর উপরে আরও কিছু
+            //    থাকতে পারে, সেগুলোও তখন ঢেকে যায়।
+            try {
+                val decor = activity.window?.decorView
+                if (decor != null &&
+                    decor.importantForAutofill != View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS) {
+                    decor.importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
+                }
+            } catch (_: Throwable) {}
             val root = activity.findViewById<View>(android.R.id.content) ?: return
             if (root.importantForAutofill != View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS) {
                 root.importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
