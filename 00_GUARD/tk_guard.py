@@ -882,6 +882,81 @@ def check_cloud_row_null_text():
                          f"দেখাবে। বদলে প্রজেক্টের `JsonExt.s()` ব্যবহার করুন।")
 
 # ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯.২৮ — `পুরো-নাম.অবজেক্ট.ফাংশন(` সত্যিই আছে তো?
+#  ─────────────────────────────────────────────────────────────
+#  🔴🔴 TK-এর Android Studio-র ছবি (২৮.০৮.২০২৬, রাত ১২:৫৯):
+#      InvestigationAdviceActivity.kt → Unresolved reference: build :109
+#  আমি লিখেছিলাম `InvestigationHtmlPrint.build(...)`, কিন্তু `build()`
+#  আছে **`InvestigationHtml`**-এ (দুটোই একই ফাইলে)। ফাইলের নাম ধরে
+#  লিখে ফেলাই ছিল ভুল।
+#
+#  **কেন কম্পাইল-পাহারা ধরেনি (সৎ কথা):** `verify_kotlin_compile.py`-এর
+#  `is_noise()` "unresolved reference: X"-কে **নীরব** ধরে যদি `X` নামটা
+#  প্রজেক্টের কোথাও থাকে (Android SDK নেই বলে ওই ছাড়টা দরকার)। `build`
+#  নামটা প্রজেক্টে আছে ⇒ আসল ভুলটাও চাপা পড়ে যায়।
+#
+#  এই পাহারা কম্পাইলার ছাড়াই, শুধু লেখা পড়ে কাজ করে:
+#    ১) প্রজেক্টের সব `object X {` / `class X {`-এর নাম ও তাদের `fun` জমা হয়
+#    ২) কোডে `com.tkbiswas.pilesclinic.….X.y(` লেখা খুঁজে দেখা হয় —
+#       `X` চেনা হলে, `y` সত্যিই `X`-এ আছে কি না
+#    ⛔ অচেনা `X` (বাইরের লাইব্রেরি) বাদ — মিথ্যা সতর্কতা হয় না।
+# ═══════════════════════════════════════════════════════════════
+def check_qualified_calls():
+    root = os.path.join(JAVA, "com", "tkbiswas", "pilesclinic")
+    if not os.path.isdir(root):
+        return
+    files = []
+    for dp, _, fns in os.walk(root):
+        for fn in fns:
+            if fn.endswith(".kt"):
+                files.append(os.path.join(dp, fn))
+
+    # ধাপ ১ — কোন object/class-এ কোন কোন সদস্য আছে
+    # ⚠️ **ব্রেস গুনে** ঠিক করা হয় কোন সদস্য কার — নইলে ভিতরের
+    #    `data class Person` শুরু হলে বাইরের object-এর বাকি ফাংশনগুলোও
+    #    ভুল করে Person-এর বলে ধরা হত (প্রথম চেষ্টায় ২১টা ভুয়া অভিযোগ
+    #    এসেছিল, নিজের পরীক্ষাতেই ধরা পড়ে)।
+    owns = {}
+    decl = re.compile(r"^\s*(?:internal\s+|private\s+|public\s+|sealed\s+|abstract\s+|open\s+)*"
+                      r"(?:data\s+|enum\s+|annotation\s+)?(?:object|class|interface)\s+([A-Z]\w*)")
+    mem = re.compile(r"^\s*(?:@\w+\s+)*(?:override\s+|public\s+|internal\s+|private\s+|protected\s+"
+                     r"|suspend\s+|inline\s+|lateinit\s+|open\s+|const\s+)*"
+                     r"(?:fun|val|var)\s+(?:<[^>]*>\s*)?([A-Za-z_]\w*)")
+    for f in files:
+        stack = []          # (নাম, যে গভীরতায় শুরু)
+        depth = 0
+        for line in read(f).splitlines():
+            code = line.split("//")[0]
+            d = decl.match(line)
+            if d:
+                stack.append([d.group(1), depth])
+                owns.setdefault(d.group(1), set())
+            elif stack:
+                m = mem.match(line)
+                # সরাসরি ভিতরের সদস্যই গোনা হয় (আরও গভীরে নয়)
+                if m and depth == stack[-1][1] + 1:
+                    owns[stack[-1][0]].add(m.group(1))
+            depth += code.count("{") - code.count("}")
+            while stack and depth <= stack[-1][1]:
+                stack.pop()
+
+    # ধাপ ২ — পুরো-নাম দিয়ে ডাকা প্রতিটা জায়গা যাচাই
+    call = re.compile(r"com\.tkbiswas\.pilesclinic(?:\.\w+)*\.([A-Z]\w*)\.([a-z]\w*)\s*\(")
+    for f in files:
+        txt = read(f)
+        for m in call.finditer(txt):
+            obj, member = m.group(1), m.group(2)
+            if obj not in owns:
+                continue                      # অচেনা — বাইরের কিছু, ছোঁয়া হয় না
+            if member in owns[obj]:
+                continue
+            # অন্য কোন object-এ আছে? থাকলে নামটা বলে দিই — সারানো সহজ হয়
+            where = [k for k, v in owns.items() if member in v]
+            hint = (" — এটা আছে `" + "`, `".join(sorted(where)[:3]) + "`-এ") if where else ""
+            fail("৯.২৮", f"{os.path.basename(f)} — `{obj}.{member}(` ডাকা হয়েছে, "
+                         f"কিন্তু `{obj}`-এ `{member}` নেই{hint}")
+
+# ═══════════════════════════════════════════════════════════════
 #  যাচাই ৯.২৩ — Draft-এর জমানো তালিকায় **একটা ঘরও** বাদ পড়েনি তো?
 #  ─────────────────────────────────────────────────────────────
 #  🔴🔴🔴 TK-রিপোর্ট (২৭.০৮.২০২৬, ছবিসহ): *"এইসব পেশেন্টের তো বিল ক্লিয়ার
@@ -2336,6 +2411,7 @@ def main():
     check_cloud_login_name_is_code()  # 👥 V748 — মেঘের লোকের name ঘরে কোড
     check_web_cache_busters()         # 🌐 V750 — ওয়েব ফাইল বদলে cache-নম্বর
     check_no_autofill_kept()          # ⌨️ V752 — ফোনের নিজের সাজেশন বন্ধ
+    check_qualified_calls()           # 🎯 V769 — ভুল object-এর নামে ডাকা
     check_cloud_row_null_text()       # 🚫 V760 — পর্দায় "null" লেখা
     check_webview_popup()             # 🩹 V738 — পপ-আপে WebView বসানোর ফাঁদ (কম্পন)
     check_locked_rules()

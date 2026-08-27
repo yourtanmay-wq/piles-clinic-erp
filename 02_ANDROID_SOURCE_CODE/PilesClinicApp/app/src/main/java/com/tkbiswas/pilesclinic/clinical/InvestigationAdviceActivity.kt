@@ -106,7 +106,8 @@ class InvestigationAdviceActivity : AppCompatActivity() {
             return
         }
         try {
-            val html = com.tkbiswas.pilesclinic.print.InvestigationHtmlPrint.build(invRemarks())
+            val html = com.tkbiswas.pilesclinic.print.InvestigationHtml.build(invRemarks())  // ⚠️ V769 — `build()` আছে `InvestigationHtml`-এ, `InvestigationHtmlPrint`-এ নয়
+                //    (দুটোই একই ফাইলে — ফাইলের নাম ধরে লিখে ফেলাই ছিল ভুল)
             com.tkbiswas.pilesclinic.print.PrescriptionWhatsAppShare.shareHtml(
                 activity = this,
                 html = html,
