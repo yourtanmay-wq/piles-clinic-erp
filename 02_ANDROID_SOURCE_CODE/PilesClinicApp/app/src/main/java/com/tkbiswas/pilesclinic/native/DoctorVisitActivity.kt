@@ -1384,21 +1384,39 @@ class DoctorVisitActivity : AppCompatActivity() {
     // বার্তার (`PatientMessage.presentSendBox()`) ঠিক একই "আগে পাঠানো
     // হয়েছে কিনা" যাচাই এখানেও — একই শেয়ার্ড `MessageSentLog` টেবিল/
     // ফাংশন ব্যবহার করে (নতুন কিছু বানানো হয়নি, পুনর্ব্যবহার)।
+    /* 🔴🔒 V732 (২৭.০৮.২০২৬, TK-অনুমোদিত) — **পর্দায় দেখানো নমুনা**।
+       TK: *"ওই বাক্সের দেখানো লেখাটা ঠিক করে দিন, তবে খুব সাবধানে।"*
+       বাংলা-বন্ধ ফোনে (কিশানগঞ্জ স্টাফ) বাংলা নমুনা পর্দায় ভেঙে যেত
+       ("Piles (Piles), Fissure (Fissure)…")। এখন ওই ফোনে **সম্পূর্ণ ইংরেজি
+       নমুনা** দেখানো হয় — রোগীর বার্তার পর্দায় V503-এ TK যেটা অনুমোদন
+       করেছিলেন, **হুবহু সেই নিয়ম**।
+       ⛔ ডাক্তারের কাছে যে বার্তা যায় (`text`) **এক অক্ষরও বদলায় না** —
+          স্টাফ যে ভাষা বাছবেন ডাক্তার সেই ভাষাতেই পাবেন।
+       ⛔ `previewEn` না দিলে বা বানাতে না পারলে আগের মতোই `text` দেখায়। */
     private fun sendDoctorMessage(mobile: String, doctorName: String, text: String, logKind: String = "") {
+        // 🔒 এই লাইনটা পাহারাদারে **লক করা** (B154/B156) — তাই এক অক্ষরও
+        //    বদলানো হয়নি। V732-এর নতুন কাজটা নিচের **একই নামের**
+        //    পাঁচ-ঘরের রূপে (overload) — তাই লক করা লেখাটাও অক্ষত।
+        sendDoctorMessage(mobile, doctorName, text, logKind, null)
+    }
+
+    private fun sendDoctorMessage(
+        mobile: String, doctorName: String, text: String, logKind: String, previewEn: String?
+    ) {
         val digits = mobile.filter { it.isDigit() }.takeLast(10)
         if (digits.length != 10) {
             Toast.makeText(this, "This doctor has no valid 10-digit mobile number", Toast.LENGTH_LONG).show()
             return
         }
         if (logKind.isBlank()) {
-            buildAndShowDoctorSendBox(digits, doctorName, text, logKind, null)
+            buildAndShowDoctorSendBox(digits, doctorName, text, logKind, null, previewEn)
             return
         }
         BackgroundWork.run {
             val prior = try { MessageSentLog.checkPrior(digits, logKind, recipientType = "doctor") } catch (_: Throwable) { null }
             try {
                 if (!isFinishing && !isDestroyed) {
-                    runOnUiThread { buildAndShowDoctorSendBox(digits, doctorName, text, logKind, prior) }
+                    runOnUiThread { buildAndShowDoctorSendBox(digits, doctorName, text, logKind, prior, previewEn) }
                 }
             } catch (_: Throwable) { }
         }
@@ -1406,7 +1424,8 @@ class DoctorVisitActivity : AppCompatActivity() {
 
     private fun buildAndShowDoctorSendBox(
         digits: String, doctorName: String, text: String, logKind: String,
-        prior: MessageSentLog.PriorSend?
+        prior: MessageSentLog.PriorSend?,
+        previewEn: String? = null          // 🔴 V732 — শুধু পর্দায় দেখানোর জন্য
     ) {
         // 🔒 TK-APPROVED (30.07.2026 দুপুর ৩.১০, ফটো-প্রুফে "ওকে পছন্দ হয়েছে"
         //    · খাতার সারি B163): রোগীর বার্তার পপ-আপের **হুবহু একই প্রফেশনাল
@@ -1443,7 +1462,11 @@ class DoctorVisitActivity : AppCompatActivity() {
             })
         }
         parts.body.addView(TextView(this).apply {
-            this.text = text
+            // 🔴🔒 V732 — বাংলা-বন্ধ ফোনে ভাঙা বাংলার বদলে ইংরেজি নমুনা।
+            //    ⛔ পাঠানো বার্তা এতে বদলায় না (নিচে `text` সরাসরি যায়)।
+            this.text = try {
+                if (NoBengali.active() && previewEn != null) previewEn else text
+            } catch (_: Throwable) { text }
             textSize = 12.5f
             setTextColor(android.graphics.Color.parseColor("#1E2A3A"))
             setPadding((14 * d).toInt(), (12 * d).toInt(), (14 * d).toInt(), (12 * d).toInt())
@@ -2582,10 +2605,18 @@ class DoctorVisitActivity : AppCompatActivity() {
                                 p.name, p.patientId, FollowUpModel.displayDate(p.rawDate),
                                 spTreat.selectedItemPosition == 0, spBlood.selectedItemPosition == 0, nextTxt, lang
                             )
+                            // 🔴 V732 — শুধু পর্দায় দেখানোর ইংরেজি নমুনা (পাঠানো লেখা উপরেরটাই)
+                            val previewEn = try {
+                                DoctorMessage.details(
+                                    item.branch, item.name, item.area,
+                                    p.name, p.patientId, FollowUpModel.displayDate(p.rawDate),
+                                    spTreat.selectedItemPosition == 0, spBlood.selectedItemPosition == 0, nextTxt, "en"
+                                )
+                            } catch (_: Throwable) { null }
                             // 🔒 খাতার সারি B185 — এই পর্দাটাও আগে পুরো বন্ধ, তারপর
                             //    বার্তা পাঠানোর পর্দা (একই কারণ)।
                             parts.dialog.dismiss()
-                            afterUi { sendDoctorMessage(item.mobile, item.name, text, logKind = "DOCTOR_DETAILS") }
+                            afterUi { sendDoctorMessage(item.mobile, item.name, text, "DOCTOR_DETAILS", previewEn) }
                         }
                     })
                     parts.dialog.show()
@@ -2986,7 +3017,9 @@ class DoctorVisitActivity : AppCompatActivity() {
                                 2 -> { fsDialog.dismiss(); showLogCallDialog(item) }
                                 3 -> { menuDlg.dismiss(); editLastCallNote(item) }
                                 4 -> withIntroLanguage { lang ->
-                                    sendDoctorMessage(item.mobile, item.name, DoctorMessage.intro(item.branch, item.name, item.area, lang), logKind = "DOCTOR_INTRO")
+                                    // 🔴 V732 — পর্দায় দেখানোর ইংরেজি নমুনা; পাঠানো বার্তা `lang`-এই
+                                    val __pvEn = try { DoctorMessage.intro(item.branch, item.name, item.area, "en") } catch (_: Throwable) { null }
+                                    sendDoctorMessage(item.mobile, item.name, DoctorMessage.intro(item.branch, item.name, item.area, lang), "DOCTOR_INTRO", __pvEn)
                                 }
                                 // 🔒 খাতার সারি B185 (TK, 30.07.2026 বিকেল ৫.০০): বার্তা
                                 //    ২·৩·৪-এ পপ-আপ তিন ধাপে খোলে, তাই মেনুটা **আগে
@@ -2999,13 +3032,20 @@ class DoctorVisitActivity : AppCompatActivity() {
                                 // দেওয়া হতো, তাই ভাষা যাই বাছুন বার্তা সবসময় বাংলাই যেত।
                                 5 -> { menuDlg.dismiss(); afterUi { withLanguage { lang ->
                                     pickReferredPatient { p ->
+                                        // 🔴 V732 — পর্দায় দেখানোর ইংরেজি নমুনা
+                                        val __pvEn = try {
+                                            DoctorMessage.arrived(
+                                                item.branch, item.name, item.area,
+                                                p.name, p.patientId, FollowUpModel.displayDate(p.rawDate), "en"
+                                            )
+                                        } catch (_: Throwable) { null }
                                         sendDoctorMessage(
                                             item.mobile, item.name,
                                             DoctorMessage.arrived(
                                                 item.branch, item.name, item.area,
                                                 p.name, p.patientId, FollowUpModel.displayDate(p.rawDate), lang
                                             ),
-                                            logKind = "DOCTOR_ARRIVED"
+                                            "DOCTOR_ARRIVED", __pvEn
                                         )
                                     }
                                 } } }
@@ -3020,6 +3060,15 @@ class DoctorVisitActivity : AppCompatActivity() {
                                         val match = data.refIncome
                                             .filter { it.mobile == p.mobile && it.status.equals("Paid", true) }
                                             .maxByOrNull { it.rawDate }
+                                        // 🔴 V732 — পর্দায় দেখানোর ইংরেজি নমুনা
+                                        val __pvEn = try {
+                                            DoctorMessage.referralPaid(
+                                                item.branch, item.name, item.area,
+                                                p.name, p.patientId, FollowUpModel.displayDate(p.rawDate),
+                                                match?.amount ?: 0.0, match?.date ?: "",
+                                                match?.mode ?: "", match?.referenceNo ?: "", "en"
+                                            )
+                                        } catch (_: Throwable) { null }
                                         sendDoctorMessage(
                                             item.mobile, item.name,
                                             DoctorMessage.referralPaid(
@@ -3028,7 +3077,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                                                 match?.amount ?: 0.0, match?.date ?: "",
                                                 match?.mode ?: "", match?.referenceNo ?: "", lang
                                             ),
-                                            logKind = "DOCTOR_REFERRAL_PAID"
+                                            "DOCTOR_REFERRAL_PAID", __pvEn
                                         )
                                     }
                                 } } }
