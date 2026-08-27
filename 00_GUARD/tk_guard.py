@@ -780,6 +780,183 @@ def check_doctor_message_twin():
         fail("৯.২১", "ডাক্তার/RMP-এর বার্তা ফোনে ও ওয়েবে এক নয় → " + msg)
 
 
+# ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯.২২ — 🩹 পপ-আপে WebView বসানোর ফাঁদ (কম্পনের দোষ)
+#  ─────────────────────────────────────────────────────────────
+#  🔴🔴🔴 TK-রিপোর্ট (২৭.০৮.২০২৬, ভিডিও সহ): *"কম্পন হচ্ছে কেন?"* — Note
+#  পপ-আপ সেকেন্ডে কয়েকবার ছোট-বড় হচ্ছিল, দুটো Close বোতাম দেখা যাচ্ছিল।
+#
+#  **দোষটা কী:** পপ-আপে (`AlertDialog.setView`) সরাসরি WebView বসালে তার
+#  উচ্চতা বাঁধা থাকে না, আর তাতে একটা গোল চক্র তৈরি হয় —
+#      পপ-আপের মাপ → WebView-এর চওড়া → লেখার উচ্চতা → পপ-আপ আবার মাপে
+#  একবার এদিকে একবার ওদিকে ⇒ চোখে **কম্পন**।
+#  V737-এ তিনটে পপ-আপেই (Note · Check-up Record · Prescription Details)
+#  এটা ঠিক করা হয়েছে — সবকটা এখন `steadyWebView()` দিয়ে যায়, যেখানে
+#  উচ্চতা **একবার মেপে বসে, তারপর আর বদলায় না**।
+#
+#  TK-এর নির্দেশ (২৭.০৮.২০২৬): *"নিরাপদে করতে হবে... যাতে কোনো ভালো কাজ
+#  খারাপ না হয় আর আপনাকে কোন সমস্যার কথা আমাকে বলতে না হয়।"*
+#  ⇒ এই পাহারাটা যাতে দোষটা **আর কোনোদিন ফিরতে না পারে**।
+#
+#  তিনটে ভাগে যাচাই:
+#    (ক) পপ-আপে (`setView`) কোনো WebView বসানো হয়নি তো?
+#    (খ) Kotlin-এ নতুন কোনো WebView গজায়নি তো? (অনুমোদিত তালিকার বাইরে)
+#    (গ) `steadyWebView()`-এর তিনটে খুঁটি অক্ষত আছে তো?
+#
+#  ⛔ কমেন্ট ও লেখার ভিতরের "WebView(" ধরা হয় না — নইলে ভুয়া ভুল দেখাত
+#     (FollowUpActivity ও UserPhotoActivity-র ডক-কমেন্টে ওই শব্দটা আছে)।
+# ═══════════════════════════════════════════════════════════════
+
+# 🔒 অনুমোদিত WebView — ফাইল : কতগুলো। সবকটাই যাচাই করা (২৭.০৮.২০২৬):
+#    হয় ছাপার/শেয়ারের (পর্দায় বসে না), নয় মাপ বাঁধা।
+#    ⛔ নতুন WebView লাগলে **আগে TK-কে জানাতে হবে**, তারপর এখানে যোগ।
+_WEBVIEW_ALLOWED = {
+    "modules/IncomeExpenseActivity.kt":  (1, "ছাপা — Statement PDF"),
+    "modules/PartnerSharesActivity.kt":  (1, "ছাপা — Partner Shares"),
+    "clinical/DoctorCheckupActivity.kt": (3, "১টা পূর্ণ-পর্দা (weight=1f, মাপ বাঁধা) + ২টা ছাপার"),
+    "native/MedicinePaymentActivity.kt": (1, "ছাপা — Medicine receipt"),
+    "native/PatientTimelineActivity.kt": (2, "১টা `steadyWebView()`-এর ভিতরে + ১টা ছাপার"),
+    "native/PaymentActivity.kt":         (1, "ছাপা — Treatment receipt"),
+    "native/ReportCardPrinter.kt":       (1, "পর্দার বাইরে, আসল ছাপার মাপে"),
+    "print/DietChartHtmlPrint.kt":       (1, "ছাপা"),
+    "print/InvestigationHtmlPrint.kt":   (1, "ছাপা"),
+    "print/PrescriptionHtmlPrint.kt":    (1, "ছাপা"),
+    "print/PrescriptionWhatsAppShare.kt":(1, "WhatsApp-এ PDF"),
+    "print/RegistrationHtmlPrint.kt":    (1, "ছাপা"),
+}
+
+# 🔒 `steadyWebView()`-এর খুঁটি — একটাও সরালে কম্পন ফিরে আসতে পারে।
+_STEADY_PILLARS = [
+    ("var applied = false",
+     "একবারই মাপ বসানোর পাহারা (`applied`) — এটাই চক্র ভাঙে"),
+    ("if (applied) return",
+     "দ্বিতীয়বার মাপ বসানো আটকানো"),
+    ("coerceIn(minH, maxH)",
+     "উচ্চতা ১৪০dp আর পর্দার ৭০%-এর মধ্যে বাঁধা"),
+    ("android.widget.LinearLayout.LayoutParams.MATCH_PARENT, fallbackH",
+     "শুরুতেই একটা নিরাপদ মাপ, তাই প্রথম মাপাতেই পপ-আপ স্থির"),
+]
+
+
+def _blank_comments(src):
+    """কমেন্ট ও লেখার ভিতরটা ফাঁকা করে দেয়, **লাইন-সংখ্যা অটুট রেখে**।
+       তাই ভুলের বার্তায় লাইন নম্বর ঠিক থাকে।"""
+    out = list(src)
+    i, n = 0, len(src)
+    def blank(a, b):
+        for k in range(a, min(b, n)):
+            if out[k] != '\n':
+                out[k] = ' '
+    while i < n:
+        c = src[i]
+        if src.startswith('"""', i):                       # raw string
+            j = src.find('"""', i + 3)
+            j = (j + 3) if j >= 0 else n
+            blank(i, j); i = j; continue
+        if c == '"':                                       # সাধারণ লেখা
+            j = i + 1
+            while j < n and src[j] != '"':
+                if src[j] == '\\': j += 2
+                elif src[j] == '\n': break
+                else: j += 1
+            j = min(j + 1, n)
+            blank(i, j); i = j; continue
+        if c == "'":                                       # অক্ষর-লেখা ('"' সহ)
+            j = i + 1
+            while j < n and src[j] != "'":
+                if src[j] == '\\': j += 2
+                elif src[j] == '\n': break
+                else: j += 1
+            j = min(j + 1, n)
+            blank(i, j); i = j; continue
+        if src.startswith('//', i):
+            j = src.find('\n', i); j = j if j >= 0 else n
+            blank(i, j); i = j; continue
+        if src.startswith('/*', i):                        # Kotlin-এ নেস্টেডও হয়
+            d, j = 1, i + 2
+            while j < n and d > 0:
+                if src.startswith('/*', j): d += 1; j += 2; continue
+                if src.startswith('*/', j): d -= 1; j += 2; continue
+                j += 1
+            blank(i, j); i = j; continue
+        i += 1
+    return ''.join(out)
+
+
+def _arg_of(src, open_paren):
+    """`(` থেকে শুরু করে মিলে যাওয়া `)` পর্যন্ত ভিতরের লেখা।"""
+    d, j, n = 0, open_paren, len(src)
+    while j < n:
+        if src[j] == '(': d += 1
+        elif src[j] == ')':
+            d -= 1
+            if d == 0: return src[open_paren + 1:j]
+        j += 1
+    return ""
+
+
+_WV_NEW = re.compile(r'\bWebView\s*\(')
+
+
+def check_webview_popup():
+    pkg = os.path.join(JAVA, "com", "tkbiswas", "pilesclinic")
+    JAVA_REL = lambda p: os.path.relpath(p, pkg).replace(os.sep, "/")
+
+    # ── (ক) পপ-আপে (`setView`) WebView বসানো হয়নি তো? ──────────────
+    for f in kt_files():
+        src = _blank_comments(read(f))
+        for m in re.finditer(r'\.setView\s*\(', src):
+            op = src.index('(', m.start())
+            arg = _arg_of(src, op)
+            ln = src.count('\n', 0, m.start()) + 1
+            hit = None
+            if _WV_NEW.search(arg):
+                hit = "সরাসরি WebView বসানো হয়েছে"
+            else:
+                ident = arg.strip()
+                if re.fullmatch(r'[A-Za-z_]\w*', ident):
+                    if re.search(
+                        r'\b(?:val|var)\s+' + re.escape(ident) +
+                        r'\s*(?::[^=\n]*)?=\s*[^\n]*\bWebView\s*\(', src):
+                        hit = f"`{ident}` একটা WebView, সেটাই বসানো হয়েছে"
+            if hit:
+                fail("৯.২২",
+                     f"{JAVA_REL(f)}:{ln} — পপ-আপে ({'.setView'}) {hit}। "
+                     "এতে পপ-আপ **কাঁপে** (TK-রিপোর্ট ২৭.০৮.২০২৬, V737)। "
+                     "`steadyWebView(html)` ব্যবহার করুন — ওতে উচ্চতা একবার "
+                     "বসে, তারপর আর বদলায় না")
+
+    # ── (খ) অনুমোদিত তালিকার বাইরে নতুন WebView গজায়নি তো? ─────────
+    for f in kt_files():
+        rel = JAVA_REL(f)
+        src = _blank_comments(read(f))
+        n = len(_WV_NEW.findall(src))
+        if n == 0:
+            continue
+        allowed, why = _WEBVIEW_ALLOWED.get(rel, (0, ""))
+        if n > allowed:
+            fail("৯.২২",
+                 f"{rel} — {n}টা WebView পাওয়া গেল, অনুমোদিত {allowed}টা"
+                 + (f" ({why})" if why else " (এই ফাইলে কোনো WebView অনুমোদিত নয়)")
+                 + "। পপ-আপে দেখাতে হলে `steadyWebView()` ব্যবহার করুন; ছাপার "
+                   "হলে TK-কে জানিয়ে 00_GUARD/tk_guard.py-র `_WEBVIEW_ALLOWED`-এ যোগ করুন")
+
+    # ── (গ) `steadyWebView()`-এর তিনটে খুঁটি অক্ষত আছে তো? ──────────
+    ptl = os.path.join(pkg, "native", "PatientTimelineActivity.kt")
+    if os.path.exists(ptl):
+        s = read(ptl)
+        if "private fun steadyWebView(" not in s:
+            fail("৯.২২",
+                 "native/PatientTimelineActivity.kt — `steadyWebView()` ফাংশনটাই নেই। "
+                 "এটা কম্পন থামায় (V737) — সরানো যাবে না")
+        else:
+            for needle, what in _STEADY_PILLARS:
+                if needle not in s:
+                    fail("৯.২২",
+                         f"native/PatientTimelineActivity.kt — `steadyWebView()`-এর খুঁটি "
+                         f"হারিয়েছে: {what} (`{needle}`)। এটা ছাড়া পপ-আপ আবার কাঁপতে পারে")
+
+
 def check_digits():
     DIG = set(chr(0x09E6 + i) for i in range(10)) | set(chr(0x0966 + i) for i in range(10))
     STR = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"|\'([^\'\\]*(?:\\.[^\'\\]*)*)\'')
@@ -1854,6 +2031,7 @@ def main():
     check_no_wide_photo_reads()       # 📉 V715 — ছবিওয়ালা টেবিলে select=* তালিকা পড়া নিষেধ
     check_digits()
     check_doctor_message_twin()
+    check_webview_popup()             # 🩹 V738 — পপ-আপে WebView বসানোর ফাঁদ (কম্পন)
     check_locked_rules()
     check_hidden_spinner()
     check_work_rules()          # 🧾 খাতার সারি B147 — কাজের নিয়ম
@@ -1880,6 +2058,7 @@ def main():
         ("৯.১৭", "সংখ্যা-ঘরে একা TYPE_CLASS_NUMBER (কীবোর্ড না-খোলার ঝুঁকি) নেই"),
         ("৯.১৯", "Follow-up কার্ডের ট্যাগ জমানো তালিকাতেও লেখা হয় (Unexpected · RMP · ঠিকানা)"),
         ("৯.২০", "ছবিওয়ালা টেবিলে (followups/patients/medical) select=* তালিকা পড়া নেই"),
+        ("৯.২২", "পপ-আপে সরাসরি WebView বসানো নেই (কম্পনের ফাঁদ) + steadyWebView-এর খুঁটি অক্ষত"),
         ("৯.১১", "সংখ্যা সবসময় ইংরেজিতে"),
         ("৯.১২", f"🚔 লক করা নিয়ম অক্ষত — {len(LOCKED_RULES)}টি + লুকানো Spinner-এর ফাঁদ"),
         ("৯.১৩", f"🧾 কাজের নিয়ম অক্ষত — {len(WORK_RULES)}টি + followups-এর আইডি + ব্রাঞ্চের encode"),
