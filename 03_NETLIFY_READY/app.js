@@ -21437,8 +21437,10 @@ var WLV1_NOBN_HI=[
 ['কম','Low'],
 ['রঙ','Colour']
 ];
-var WLV1_NOBN_MOBILES=['6207841890'];
-var WLV1_NOBN_CODES=['KNE-KISHAN5'];
+/* 🟢🔒 V735 (২৭.০৮.২০২৬, TK-নির্দেশ: *"বাংলা পড়তে পারে না"*) — কিশানগঞ্জের
+   নতুন স্টাফ KNE-KISHAN8 যোগ। ⛔ ফোনের NoBengali.kt-র হুবহু যমজ। */
+var WLV1_NOBN_MOBILES=['6207841890','7321960416'];
+var WLV1_NOBN_CODES=['KNE-KISHAN5','KNE-KISHAN8'];
 function wlv1NoBnActive(){
   try{
     if(typeof user==='undefined'||!user)return false;

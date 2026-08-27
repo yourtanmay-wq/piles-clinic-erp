@@ -43,12 +43,18 @@ object NoBengali {
      *  ⛔ TK-এর অনুমতি ছাড়া এই তালিকা বদলানো যাবে না; নতুন কেউ যোগ করতে হলে
      *     TK বলবেন, তখন শুধু একটা নম্বর যোগ হবে। */
     private val NO_BENGALI_MOBILES = setOf(
-        "6207841890"   // KNE-KISHAN5 (Kishanganj)
+        "6207841890",  // KNE-KISHAN5 (Kishanganj) — কাজ ছেড়ে দিয়েছেন (V453),
+                       // সারিটা নিরীহ, তাই তোলা হয়নি
+        // 🟢🔒 V735 (২৭.০৮.২০২৬, TK-এর সরাসরি নির্দেশ) — TK: *"বাংলা পড়তে পারে
+        //    না"*। কিশানগঞ্জের নতুন স্টাফ KNE-KISHAN8 — তাই ওঁর পর্দাতেও বাংলা
+        //    বন্ধ, ঠিক আগের নিয়মেই।
+        "7321960416"   // KNE-KISHAN8 (Kishanganj)
     )
 
     /** অ্যাকাউন্টের কোড ধরেও মেলানো হয় — নম্বর কখনো বদলে গেলেও যেন কাজ চলে। */
     private val NO_BENGALI_CODES = setOf(
-        "KNE-KISHAN5"
+        "KNE-KISHAN5",
+        "KNE-KISHAN8"   // 🟢 V735 — উপরের একই কারণ
     )
 
     @Volatile private var activeCache: Boolean = false

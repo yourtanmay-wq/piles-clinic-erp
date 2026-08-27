@@ -23,6 +23,8 @@ window.RK_CONFIG = {
          কোথাও রাখা হয়নি — কমেন্টেও নয়। ⇒ ওই নম্বরে আর লগইন হবে না।
          V453-এ KNE-KISHAN5-এর হুবহু একই নিয়ম।
          ⛔ পুরোনো রেকর্ড কিছুই মোছা হয়নি — শুধু ঢোকার পথ বন্ধ। */
+      /* 🟢 V735 (27.08.2026, TK-এর সরাসরি নির্দেশ): কিশানগঞ্জের নতুন স্টাফ। */
+      {mobile:'7321960416', name:'KNE-KISHAN8', branch:'Kishanganj'},
       {mobile:'9647840067', name:'JPE-CRP', branch:'Jalpaiguri'},
       {mobile:'8101397763', name:'JPE-JALPAI-13', branch:'Jalpaiguri'},
       {mobile:'8167096595', name:'JPE-RUPAM', branch:'Jalpaiguri'},

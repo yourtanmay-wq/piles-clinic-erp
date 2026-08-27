@@ -8470,3 +8470,44 @@ TK বলেছেন *"কোনো কিছুই যেন না থাক�
 (ফোন ও ওয়েব দুটোতেই)।
 
 **ভার্সন:** V733 → **V734**
+
+## V735 — ২৭.০৮.২০২৬ — কিশানগঞ্জে **নতুন স্টাফ KNE-KISHAN8** যোগ
+
+**TK-নির্দেশ:** নতুন স্টাফের তথ্য দিলেন, কোড নিশ্চিত করলেন **KNE-KISHAN8**,
+আর জানালেন *"১০ — বাংলা পড়তে পারে না"*।
+
+### ✅ যা করা হলো (ফোন + ওয়েব দুটোতেই)
+**১. লগইন যোগ**
+· ফোনে `StaffDirectory.kt` · ওয়েবে `config.js`
+· `KNE-KISHAN8` · `7321960416` · Kishanganj · staff
+
+**২. বাংলা বন্ধ** (TK: *"বাংলা পড়তে পারে না"*)
+· ফোনে `NoBengali.kt` — `NO_BENGALI_MOBILES` ও `NO_BENGALI_CODES`
+· ওয়েবে `app.js` — `WLV1_NOBN_MOBILES` ও `WLV1_NOBN_CODES`
+⇒ ওঁর পর্দায় বাংলা লেখা আসবে না, ইংরেজি বসবে (আগের নিয়মেই)।
+⛔ পুরোনো `KNE-KISHAN5` সারিটা তোলা হয়নি — ওই অ্যাকাউন্ট আর নেই বলে
+   সারিটা নিরীহ; অকারণে হাত দিলে নতুন ঝুঁকি তৈরি হত।
+
+### 🔬 যাচাই
+· লগইন তালিকা — ফোনে **২২টি** · ওয়েবে **২২টি** · **অমিল ০**
+· বাংলা-বন্ধ নম্বর ও কোড — ফোন ও ওয়েবে **হুবহু এক**
+· কিশানগঞ্জে এখন: KNE-KISHAN8 · KNE-LAXMI · KNE-BRANCH (ব্রাঞ্চ নম্বর) ·
+  AMIT GOLDAR (ডাক্তার)
+· Kotlin ০ ভুল · `node --check` পাশ (app.js ও config.js) · গার্ড সব পাশ
+
+### ⚠️ কোড থেকে যা করা যায় না — TK-কে অ্যাপে করতে হবে
+**স্টাফ প্রোফাইলের ঘরগুলো ডেটাবেসে (`hr.staff_profiles`) থাকে, কোডে নয়।**
+তাই নাম · ঠিকানা · ব্লাড গ্রুপ · জরুরি যোগাযোগ · ছবি ইত্যাদি
+**অ্যাপ থেকে ভরতে হবে**: Master → Staff Profiles → KNE-KISHAN8 → Edit Profile → Save।
+বেতন ও আয়-খরচের অনুমতিও ওখান থেকেই।
+
+### 📝 TK-এর দেওয়া তথ্য (প্রোফাইলে বসানোর জন্য)
+Full Name: **ROHINI KUMARI** · Branch: Kishanganj · Blood Group: **B+**
+Qualification: **GRADUATE** · Emergency: **8809675331 (Father)**
+Address: **VILL-DHANPURA, PO-KANYABARI, PS-KOCHADHAMAN, DIST-KISHANGANJ**
+
+### ❓ এখনো বাকি (রোহিণীর কাছ থেকে)
+Designation · Join Date · Date of Birth · Gender · Alternate Mobile ·
+Emergency Contact-এর নাম · ID Type ও ID Number · ছবি · WhatsApp আছে কি না
+
+**ভার্সন:** V734 → **V735**
