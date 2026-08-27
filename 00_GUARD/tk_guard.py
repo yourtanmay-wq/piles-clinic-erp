@@ -792,6 +792,48 @@ def check_web_cache_busters():
             pass
 
 # ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯.২৬ — ফোনের নিজের সাজেশন বন্ধ রাখার পাহারা
+#  ─────────────────────────────────────────────────────────────
+#  🔴 TK-রিপোর্ট (২৭.০৮.২০২৬, ৪টা ছবিসহ): *"এরকম যেন সাজেস্ট না করে"* —
+#  নাম · মোবাইল · টাকার ঘরে ফোনের পুরনো লেখা ভেসে উঠছিল।
+#
+#  V418-এ শুধু পর্দার মূল বাক্সে `importantForAutofill` বসেছিল — সেটা
+#  Google-এর Autofill থামায়, **কীবোর্ডের নিজের সাজেশন থামায় না**। আর
+#  পপ-আপের আলাদা উইন্ডোতে সেটা পৌঁছাতই না।
+#
+#  V752-এ ৩টে জিনিস বসেছে; এই পাহারা তিনটেই টিকিয়ে রাখে:
+#    ১. `NoAutofill.scrub()` — প্রতিটা লেখার ঘরে NO_PERSONALIZED_LEARNING
+#    ২. `apply()` থেকে `scrub()` ডাকা হয় (নইলে পর্দায় খাটবে না)
+#    ৩. `PremiumAlert.paint()`-এর **দুটোতেই** `scrubDialogWindow()`
+#       (নইলে পপ-আপে আবার সাজেশন ফিরে আসবে)
+# ═══════════════════════════════════════════════════════════════
+def check_no_autofill_kept():
+    na = os.path.join(JAVA, "com", "tkbiswas", "pilesclinic", "native", "NoAutofill.kt")
+    pa = os.path.join(JAVA, "com", "tkbiswas", "pilesclinic", "native", "PremiumAlert.kt")
+    if not os.path.exists(na):
+        fail("৯.২৬", "NoAutofill.kt খুঁজে পাওয়া গেল না")
+    else:
+        s_na = read(na)
+        if "fun scrub(" not in s_na and "private fun scrub(" not in s_na:
+            fail("৯.২৬", "NoAutofill-এ `scrub()` নেই ⇒ কীবোর্ডের সাজেশন আবার আসবে")
+        if "IME_FLAG_NO_PERSONALIZED_LEARNING" not in s_na:
+            fail("৯.২৬", "NoAutofill-এ NO_PERSONALIZED_LEARNING পতাকাটা নেই")
+        if "fun scrubDialogWindow(" not in s_na:
+            fail("৯.২৬", "NoAutofill-এ `scrubDialogWindow()` নেই ⇒ পপ-আপে সাজেশন ফিরবে")
+        if "fun apply(" in s_na and "scrub(root)" not in s_na:
+            fail("৯.২৬", "NoAutofill.apply() থেকে `scrub(root)` ডাকা হচ্ছে না")
+    if not os.path.exists(pa):
+        fail("৯.২৬", "PremiumAlert.kt খুঁজে পাওয়া গেল না")
+        return
+    s_pa = read(pa)
+    n_paint = s_pa.count("fun paint(")
+    n_hook = s_pa.count("NoAutofill.scrubDialogWindow(")
+    if n_hook < n_paint:
+        fail("৯.২৬", f"PremiumAlert-এ {n_paint} টা `paint()` আছে কিন্তু "
+                     f"`NoAutofill.scrubDialogWindow()` ডাকা হয়েছে {n_hook} বার — "
+                     f"যে পপ-আপগুলো বাদ পড়ল সেখানে ফোনের সাজেশন ফিরে আসবে")
+
+# ═══════════════════════════════════════════════════════════════
 #  যাচাই ৯.২৩ — Draft-এর জমানো তালিকায় **একটা ঘরও** বাদ পড়েনি তো?
 #  ─────────────────────────────────────────────────────────────
 #  🔴🔴🔴 TK-রিপোর্ট (২৭.০৮.২০২৬, ছবিসহ): *"এইসব পেশেন্টের তো বিল ক্লিয়ার
@@ -2245,6 +2287,7 @@ def main():
     check_draft_cache_fields()        # 💰 V741 — Draft-এর জমানো তালিকায় টাকার ঘর
     check_cloud_login_name_is_code()  # 👥 V748 — মেঘের লোকের name ঘরে কোড
     check_web_cache_busters()         # 🌐 V750 — ওয়েব ফাইল বদলে cache-নম্বর
+    check_no_autofill_kept()          # ⌨️ V752 — ফোনের নিজের সাজেশন বন্ধ
     check_webview_popup()             # 🩹 V738 — পপ-আপে WebView বসানোর ফাঁদ (কম্পন)
     check_locked_rules()
     check_hidden_spinner()

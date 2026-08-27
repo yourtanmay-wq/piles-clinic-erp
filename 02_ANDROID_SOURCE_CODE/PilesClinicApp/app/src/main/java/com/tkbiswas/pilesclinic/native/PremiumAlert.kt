@@ -174,6 +174,11 @@ object PremiumAlert {
             // প্রজেক্টের সব PremiumAlert পপ-আপ ঢেকে যায়।
             // ⛔ বাংলা বন্ধ না থাকলে এটা কিছুই করে না।
             try { NoBengali.installDialog(dialog) } catch (_: Throwable) { }
+            // 🔴🔒 V752 (TK-রিপোর্ট ছবিসহ: "এরকম যেন সাজেস্ট না করে") — পপ-আপের
+            //    নিজের আলাদা উইন্ডো, তাই পর্দার Autofill-পাহারা এখানে পৌঁছায় না।
+            //    এই এক লাইনেই প্রজেক্টের সব PremiumAlert পপ-আপ ঢেকে যায়
+            //    (ঠিক উপরের NoBengali-র প্রমাণিত পথেই)।
+            try { NoAutofill.scrubDialogWindow(dialog.window) } catch (_: Throwable) { }
             val ctx = dialog.context
             val d = ctx.resources.displayMetrics.density
             dialog.window?.setBackgroundDrawable(GradientDrawable().apply {
@@ -227,6 +232,11 @@ object PremiumAlert {
             // প্রজেক্টের সব PremiumAlert পপ-আপ ঢেকে যায়।
             // ⛔ বাংলা বন্ধ না থাকলে এটা কিছুই করে না।
             try { NoBengali.installDialog(dialog) } catch (_: Throwable) { }
+            // 🔴🔒 V752 (TK-রিপোর্ট ছবিসহ: "এরকম যেন সাজেস্ট না করে") — পপ-আপের
+            //    নিজের আলাদা উইন্ডো, তাই পর্দার Autofill-পাহারা এখানে পৌঁছায় না।
+            //    এই এক লাইনেই প্রজেক্টের সব PremiumAlert পপ-আপ ঢেকে যায়
+            //    (ঠিক উপরের NoBengali-র প্রমাণিত পথেই)।
+            try { NoAutofill.scrubDialogWindow(dialog.window) } catch (_: Throwable) { }
             val d = dialog.context.resources.displayMetrics.density
             dialog.window?.setBackgroundDrawable(GradientDrawable().apply {
                 setColor(Color.WHITE)

@@ -49,6 +49,60 @@ object NoAutofill {
             if (root.importantForAutofill != View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS) {
                 root.importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
             }
+            scrub(root)
+        } catch (_: Throwable) {}
+    }
+
+    /**
+     * 🔴🔒 V752 (২৭.০৮.২০২৬, TK-রিপোর্ট ছবিসহ: *"এরকম যেন সাজেস্ট না করে"*)
+     *
+     * **আসল কারণ (কোড ধরে যাচাই):** V418-এ শুধু পর্দার মূল বাক্সে
+     * `importantForAutofill` বসানো হয়েছিল — সেটা **Google-এর Autofill**
+     * থামায়, কিন্তু **কীবোর্ডের নিজের সাজেশন** থামায় না। ওটা থামাতে
+     * প্রতিটা ঘরে আলাদা করে `IME_FLAG_NO_PERSONALIZED_LEARNING` লাগে।
+     * এতদিন সেটা **শুধু মোবাইলের ঘরে** ছিল (`MobileInput.attach`), তাই
+     * নাম · টাকা · অন্য সব ঘরে পুরনো লেখা ভেসে উঠত।
+     *
+     * এখন পর্দার **প্রতিটা লেখার ঘরে** একবার করে বসিয়ে দেওয়া হয়।
+     * ⛔ টাইপ করা · সেভ · কীবোর্ডের ভাষা — কিছুই বদলায় না। `inputType`-এ
+     *    হাত দেওয়া হয়নি (নইলে বাংলা লেখার সুবিধা নষ্ট হত)।
+     * ⛔ অ্যাপের নিজের সাজেশন (যেমন "Select Saved RMP") অক্ষত — সেগুলো
+     *    কীবোর্ডের নয়, অ্যাপের নিজের তালিকা।
+     * ⚠️ সৎ কথা: `NO_PERSONALIZED_LEARNING` একটা **অনুরোধ** — প্রায় সব
+     *    কীবোর্ড মানে, কিন্তু কোনো কীবোর্ড না মানলে অ্যাপের আর কিছু করার নেই।
+     */
+    private fun scrub(v: View) {
+        if (v is android.widget.EditText) {
+            try {
+                v.imeOptions = v.imeOptions or IME_FLAG_NO_PERSONALIZED_LEARNING
+                v.importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
+                v.setAutofillHints(null as String?)
+            } catch (_: Throwable) {}
+            return
+        }
+        if (v is android.view.ViewGroup) {
+            for (i in 0 until v.childCount) {
+                try { scrub(v.getChildAt(i)) } catch (_: Throwable) {}
+            }
+        }
+    }
+
+    /** `android.view.inputmethod.EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING` */
+    private const val IME_FLAG_NO_PERSONALIZED_LEARNING = 0x1000000
+
+    /**
+     * 🪟 V752 — **পপ-আপের নিজের আলাদা উইন্ডো থাকে**, তাই পর্দার পাহারা
+     * ওখানে পৌঁছায় না (TK-এর ছবিতে "Cash" ঘরে সাজেশন — ঠিক এই কারণেই)।
+     * `PremiumAlert.paint()` প্রজেক্টের **সব** পপ-আপে ডাকা হয়, তাই সেখান
+     * থেকে একবার এটা ডাকলেই সবক'টা ঢেকে যায়।
+     * ⛔ কখনো ব্যতিক্রম ছোড়ে না — পপ-আপ ভাঙার ঝুঁকি নেই।
+     */
+    fun scrubDialogWindow(window: android.view.Window?) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        try {
+            val root = window?.decorView ?: return
+            root.importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
+            scrub(root)
         } catch (_: Throwable) {}
     }
 }

@@ -183,7 +183,13 @@ object RmpPicker {
                                 orientation = LinearLayout.HORIZONTAL
                                 gravity = android.view.Gravity.CENTER_VERTICAL
                                 addView(TextView(act).apply {
-                                    text = item.name
+                                    // 👁️ V752 (২৭.০৮.২০২৬, TK-রিপোর্ট ছবিসহ:
+                                    //    *"একই যায়গায় ২ রকম — সবাই আমরা বিভ্রান্ত হয়ে যাচ্ছি"*)
+                                    //    স্টাফেরা কেউ ছোট হাতে, কেউ বড় হাতে নাম লিখে সেভ
+                                    //    করেছেন ("amit goldar" বনাম "AMIT LAL BARMAN"), তাই এক
+                                    //    তালিকাতেই দু'রকম দেখাত। ⛔ ডেটাবেসের লেখা বদলানো হয়নি —
+                                    //    শুধু **দেখানোর সময়** এক রকম করা হলো।
+                                    text = item.name.trim().uppercase()
                                     textSize = 17f
                                     setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
                                     setTextColor(android.graphics.Color.parseColor("#17312A"))
@@ -198,7 +204,8 @@ object RmpPicker {
                                 setPadding(0, pad / 3, 0, 0)
                             })
                             if (item.area.isNotBlank()) addView(TextView(act).apply {
-                                text = item.area
+                                // 👁️ V752 — এলাকার নামও একই কারণে এক রকম।
+                                text = item.area.trim().uppercase()
                                 textSize = 13f
                                 setTextColor(android.graphics.Color.parseColor("#60766D"))
                                 setPadding(0, pad / 5, 0, 0)
