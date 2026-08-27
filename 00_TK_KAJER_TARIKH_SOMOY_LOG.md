@@ -7084,7 +7084,7 @@ Coochbehar@··· / Falakata@··· / Birpara@···) — ফলে ২২টা
 ### 20.08.2026 — Password rollout চূড়ান্ত + KISHAN5→KISHAN6 স্টাফ বদল
 
 **Staff বদল (TK-অনুমোদিত):** KNE-KISHAN5 (6207841890) কাজ ছেড়েছে। নতুন:
-KNE-KISHAN6 (9162625854, SITARA PARBIN, বাংলা পড়তে পারেন না — তাই Kishanganj
+KNE-KISHAN6 ( বাংলা পড়তে পারেন না — তাই Kishanganj
 branch-এর বিদ্যমান No-Bengali branch-rule-এই কভার হবে, নতুন কোনো কোড লাগেনি)।
 **ছোঁয়া ফাইল:** `native/StaffDirectory.kt` (পুরনো এন্ট্রি সরানো/নতুন যোগ,
 পুরনো রেকর্ড অক্ষত রাখার নিয়মে — FALA-15/PK-ROY-এর মতোই), `config.js`

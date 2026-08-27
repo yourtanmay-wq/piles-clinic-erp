@@ -18,7 +18,11 @@ window.RK_CONFIG = {
       {mobile:'8676002200', name:'KNE-BRANCH', branch:'Kishanganj'},
       /* V453 (20.08.2026, TK-approved): KNE-KISHAN5 (6207841890) কাজ ছেড়ে দিয়েছে,
          আর এখানে নেই — পুরনো নম্বর দিয়ে আর লগইন হবে না। পুরনো রেকর্ড অক্ষত। */
-      {mobile:'9162625854', name:'KNE-KISHAN6', branch:'Kishanganj'}, // SITARA PARBIN
+      /* 🔴 V734 (27.08.2026, TK-এর সরাসরি নির্দেশ): কিশানগঞ্জের KNE-KISHAN6
+         ঘরের স্টাফ কাজ থেকে বাদ। TK-এর নির্দেশে তাঁর নাম ও মোবাইল নম্বর
+         কোথাও রাখা হয়নি — কমেন্টেও নয়। ⇒ ওই নম্বরে আর লগইন হবে না।
+         V453-এ KNE-KISHAN5-এর হুবহু একই নিয়ম।
+         ⛔ পুরোনো রেকর্ড কিছুই মোছা হয়নি — শুধু ঢোকার পথ বন্ধ। */
       {mobile:'9647840067', name:'JPE-CRP', branch:'Jalpaiguri'},
       {mobile:'8101397763', name:'JPE-JALPAI-13', branch:'Jalpaiguri'},
       {mobile:'8167096595', name:'JPE-RUPAM', branch:'Jalpaiguri'},
