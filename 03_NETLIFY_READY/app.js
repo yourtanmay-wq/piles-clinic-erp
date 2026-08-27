@@ -1881,12 +1881,47 @@ function anDialogIcon(title){
   return '\u2139\uFE0F';
 }
 window["anSeverityOf"]=anSeverityOf;window["anDialogIcon"]=anDialogIcon;
+/* ⌨️🔒 V757 (২৭.০৮.২০২৬, TK-নির্দেশ ছবিসহ: "এরকম যেন সাজেস্ট না করে" —
+   ফোনে V752-এ করা হয়েছে, কম্পিউটারেও একই নিয়ম দরকার)।
+
+   **আসল অবস্থা (গুনে দেখা):** কম্পিউটারে ২৩৬টা ঘরের মধ্যে মাত্র ১৬টায়
+   ব্রাউজারের সাজেশন বন্ধ ছিল। বাকিগুলোয় ব্রাউজার/Google-এর জমানো পুরনো
+   লেখা (নাম · নম্বর) ভেসে উঠত — ফোনের সমস্যাটারই কম্পিউটার-রূপ।
+
+   এখন পর্দা বা পপ-আপ আঁকা হলেই ভিতরের সব ঘরে একবার বন্ধ করে দেওয়া হয়।
+   ⛔ **পাসওয়ার্ডের ঘর ছোঁয়া হয় না** (`type=password`) — নইলে ব্রাউজারে
+      সেভ করা লগইন পাসওয়ার্ড আর আসত না, TK-এর অসুবিধা হত।
+   ⛔ **লগইনের নম্বরের ঘরও (`#lm`) বাদ** — একই কারণে।
+   ⛔ টাইপ করা · সেভ · কোনো ডিজাইন — কিছুই বদলায় না।
+   ⛔ কখনো ব্যতিক্রম ছোড়ে না। */
+function wlv1NoSuggest(root){
+ try{
+  var box=root||document;
+  var els=box.querySelectorAll?box.querySelectorAll('input,textarea'):[];
+  for(var i=0;i<els.length;i++){
+   var e=els[i];
+   try{
+    if(String(e.type||'').toLowerCase()==='password')continue;
+    if(e.id==='lm'||e.id==='lp')continue;
+    e.setAttribute('autocomplete','off');
+    e.setAttribute('autocorrect','off');
+    e.setAttribute('spellcheck','false');
+    e.setAttribute('data-lpignore','true');
+    e.setAttribute('data-form-type','other');
+   }catch(_e){}
+  }
+ }catch(_e){}
+}
+window["wlv1NoSuggest"]=wlv1NoSuggest;
 window["toast"]=toast;function modal(html){
       const root=$id('modalRoot'); if(!root)return;
       const hasClose=/closeModal\s*\(|>\s*Close\s*</i.test(String(html||''));
       root.innerHTML=`<div class="modalBack" onclick="if(event.target.className==='modalBack')closeModal()"><div class="modal">${html}${hasClose?'':`<div class="actions"><button class="ghost" onclick="closeModal()">Close</button></div>`}</div></div>`;
       /* 🔴 V436 — পপ-আপের ভিতরের তারিখ-ঘরগুলোতেও একই dd/mm/yyyy ব্যবস্থা */
       try{ wlv1AutoDateBoxes(root); }catch(e){}
+      /* ⌨️ V757 — পপ-আপের ঘরগুলোতেও ব্রাউজারের সাজেশন বন্ধ (ফোনের
+         PremiumAlert.paint-এর মতোই এক জায়গা থেকে সব পপ-আপ ঢাকে)। */
+      try{ wlv1NoSuggest(root); }catch(e){}
       /* শিরোনামে severity-ক্লাস + (দরকার হলে) ইমোজি — অ্যান্ড্রয়েডের নিয়মে */
       try{
         const h=root.querySelector('.modal>h2');
@@ -2256,7 +2291,7 @@ function page(title,body,hideSearch){if(!isFollowupTitle(title)){resetFollowDate
     __topExtra=`<div class="wlv1TopPayBar">${__payBrPick}${__payNav}<div class="wlv1DateBox wlv1TopDateBox"><span id="wlv1PayDateShow">${esc(String(wlv1Dot(__payD)).replace(/\./g,'/'))}</span><input type="date" max="${today()}" value="${__payD}" onchange="wlv1PayDate=this.value;paymentHome()"></div></div>`;
   }
   let __titleCls=(title==='Medicine Payment')?' wlv1HideDesk':'';
-  app().innerHTML=`<div class="wrap ${esc(user?.role||'')}"><div class="topbar"><button class="ghost" onclick="goBackOnePage()">←</button><b class="${__titleCls}">${title}</b>${__topExtra}<button class="ghost" onclick="menu()">☰</button></div><div class="page">${__searchBar}${body}</div>${bottomNav()}</div>`;try{wlv1EnsureDesktopChrome(title)}catch(e){}try{wlv1HeaderPick()}catch(e){}try{wlv1AutoDateBoxes(document)}catch(e){}}
+  app().innerHTML=`<div class="wrap ${esc(user?.role||'')}"><div class="topbar"><button class="ghost" onclick="goBackOnePage()">←</button><b class="${__titleCls}">${title}</b>${__topExtra}<button class="ghost" onclick="menu()">☰</button></div><div class="page">${__searchBar}${body}</div>${bottomNav()}</div>`;try{wlv1EnsureDesktopChrome(title)}catch(e){}try{wlv1HeaderPick()}catch(e){}try{wlv1AutoDateBoxes(document)}catch(e){}/* ⌨️ V757 — পর্দার ঘরগুলোতেও ব্রাউজারের সাজেশন বন্ধ (পাসওয়ার্ড ও লগইনের ঘর বাদ)। */try{wlv1NoSuggest(document)}catch(e){}}
 function goBackOnePage(){
   if(window.__prevPageHTML && window.__prevPageHTML.length>150){
     let html=window.__prevPageHTML;
@@ -7711,10 +7746,12 @@ window["wlv1CachedRmpRows"]=wlv1CachedRmpRows;
 function wlv1RenderRmpChoices(q=''){
   let box=$('#wlv1RmpChoiceList');if(!box)return;let rows=wlv1CachedRmpRows(q);
   let status=$('#wlv1RmpChoiceStatus');if(status)status.textContent=rows.length?rows.length+' saved RMP found':'No matching saved RMP — use manual entry';
-  box.innerHTML=rows.length?rows.map(x=>`<button type="button" class="rmpChoiceCard" onclick="wlv1ChooseCachedRmp('${esc(x.id||'')}')"><span class="rmpChoiceBar"></span><span class="rmpChoiceBody"><span class="rmpChoiceHead"><b>${esc(x.name||'-')}</b>${x.branch?`<em>${esc(x.branch)}</em>`:''}</span><span class="rmpChoiceMobile">${esc(mob(x.mobile||'')||'Mobile not saved')}</span>${x.area?`<span class="rmpChoiceArea">${esc(x.area)}</span>`:''}</span></button>`).join(''):'<div class="card mut">No matching saved RMP — use manual entry</div>';
+  box.innerHTML=rows.length?rows.map(x=>`<button type="button" class="rmpChoiceCard" onclick="wlv1ChooseCachedRmp('${esc(x.id||'')}')"><span class="rmpChoiceBar"></span><span class="rmpChoiceBody"><span class="rmpChoiceHead"><b>${esc(String(x.name||'-').trim().toUpperCase())}</b>${x.branch?`<em>${esc(x.branch)}</em>`:''}</span><span class="rmpChoiceMobile">${esc(mob(x.mobile||'')||'Mobile not saved')}</span>${x.area?`<span class="rmpChoiceArea">${esc(String(x.area).trim().toUpperCase())}</span>`:''}</span></button>`).join(''):'<div class="card mut">No matching saved RMP — use manual entry</div>';
 }
 window["wlv1RenderRmpChoices"]=wlv1RenderRmpChoices;
-function wlv1ChooseCachedRmp(id){let x=(load('doctor_visits')||[]).find(r=>String(r.id||'')===String(id));if(!x)return;let n=$('#pRefDocName'),m=$('#pRefDocMobile');if(n)n.value=x.name||'';if(m)m.value=mob(x.mobile||'');closeModal();}
+function wlv1ChooseCachedRmp(id){let x=(load('doctor_visits')||[]).find(r=>String(r.id||'')===String(id));if(!x)return;let n=$('#pRefDocName'),m=$('#pRefDocMobile');/* 👁️ V757 — তালিকায় যেমন দেখাচ্ছে, ঘরেও ঠিক তেমনই বসবে (ফোনেও হুবহু একই,
+   V752)। নইলে বেছে নেওয়ার পরে চেহারা বদলে যেত — সেটাই বিভ্রান্তির শুরু। */
+ if(n)n.value=String(x.name||'').trim().toUpperCase();if(m)m.value=mob(x.mobile||'');closeModal();}
 window["wlv1ChooseCachedRmp"]=wlv1ChooseCachedRmp;
 function wlv1OpenCachedRmpPicker(){
   let rows=wlv1CachedRmpRows('');if(!rows.length)return modal('<h2>Saved RMP list not available</h2><div class="card mut">Enter the Doctor / RMP name and mobile manually below. No cloud search was made.</div><button onclick="closeModal()">OK</button>');
