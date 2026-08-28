@@ -659,6 +659,137 @@ class DoctorCheckupActivity : AppCompatActivity() {
     private val sectionIds = intArrayOf(
         R.id.secHistory, R.id.secClinical, R.id.secCounsel, R.id.secEstimate, R.id.secPhoto
     )
+    /**
+     * 🎓🔒 V783 — **রোগীকে বোঝানোর পর্দা।** পাইলস · ফিশার · ফিস্টুলা —
+     * তিনটে বোতাম সবসময় থাকে, ইচ্ছেমতো বদলানো যায় (একই রোগীর তিন রোগ
+     * থাকলেও একটার পর একটা দেখানো যাবে — TK-এর শর্ত)।
+     *
+     * ⛔ **কিচ্ছু সেভ হয় না** — কোনো ডেটাবেস-কল নেই, প্রিন্ট নেই, A4 নেই।
+     * ⛔ ডাক্তারের আঁকা ছবি ছোঁয়া হয় না — আলাদা View, আলাদা পর্দা।
+     * ⛔ পুরোটা try/catch-এ; এখানে কিছু ভুল হলেও Check-up পর্দা ভাঙে না।
+     */
+    private fun openKsharTeach() {
+        try {
+            val d = symDp(1)
+            val view = KsharTeachView(this)
+            val root = android.widget.FrameLayout(this).apply {
+                setBackgroundColor(android.graphics.Color.parseColor("#08111C"))
+            }
+            root.addView(view, android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT))
+
+            val dlg = android.app.Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+
+            // ── নিচের প্যানেল: রোগ বাছাই + ধাপের লেখা + বোতাম ──
+            val panel = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+                setPadding(symDp(10), symDp(9), symDp(10), symDp(11))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = symDp(18).toFloat()
+                    setColor(android.graphics.Color.parseColor("#D908111C"))
+                    setStroke(symDp(1), android.graphics.Color.parseColor("#40FFFFFF"))
+                }
+                layoutParams = android.widget.FrameLayout.LayoutParams(
+                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                    android.view.Gravity.BOTTOM).apply { setMargins(symDp(10), 0, symDp(10), symDp(10)) }
+            }
+
+            val chipRow = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                setPadding(0, 0, 0, symDp(8))
+            }
+            val chips = ArrayList<TextView>()
+            val names = listOf("\uD83E\uDE78 পাইলস", "✂️ ফিশার", "\uD83D\uDD04 ফিস্টুলা")
+
+            val cap = TextView(this).apply {
+                textSize = 13.5f
+                setTextColor(android.graphics.Color.WHITE)
+                layoutParams = android.widget.LinearLayout.LayoutParams(
+                    0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            }
+            fun btn(label: String, wide: Boolean): TextView = TextView(this).apply {
+                text = label; textSize = 13.5f
+                gravity = android.view.Gravity.CENTER
+                setTextColor(android.graphics.Color.WHITE)
+                setPadding(symDp(12), symDp(9), symDp(12), symDp(9))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = symDp(9).toFloat()
+                    setColor(android.graphics.Color.parseColor("#1F6D4A"))
+                }
+                layoutParams = android.widget.LinearLayout.LayoutParams(
+                    if (wide) 0 else android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                    if (wide) 1f else 0f).apply { setMargins(symDp(4), 0, symDp(4), 0) }
+            }
+            val bPrev = btn("◀", false)
+            val bNext = btn("পরের ধাপ ▶", true)
+            val bClose = btn("✕", false)
+
+            var anim: android.animation.ValueAnimator? = null
+            fun run() {
+                anim?.cancel()
+                view.t = 0f; view.invalidate()
+                val a = android.animation.ValueAnimator.ofFloat(0f, 1f)
+                a.duration = 1100L
+                a.addUpdateListener { v -> view.t = v.animatedValue as Float; view.invalidate() }
+                anim = a; a.start()
+            }
+            fun paint() {
+                cap.text = KsharTeachView.caption(view.disease, view.step)
+                bPrev.visibility = if (view.step > 0) android.view.View.VISIBLE else android.view.View.GONE
+                bNext.visibility = if (view.step < KsharTeachView.stepCount(view.disease) - 1)
+                    android.view.View.VISIBLE else android.view.View.GONE
+                chips.forEachIndexed { i, ch ->
+                    val on = i == view.disease
+                    ch.background = android.graphics.drawable.GradientDrawable().apply {
+                        cornerRadius = symDp(10).toFloat()
+                        setColor(android.graphics.Color.parseColor(if (on) "#1F6D4A" else "#2216222E"))
+                        setStroke(symDp(1), android.graphics.Color.parseColor(if (on) "#2E9366" else "#553B4A5A"))
+                    }
+                    ch.setTextColor(android.graphics.Color.parseColor(if (on) "#FFFFFF" else "#B9C6D4"))
+                }
+            }
+            names.forEachIndexed { i, nm ->
+                val ch = TextView(this).apply {
+                    text = nm; textSize = 13f
+                    gravity = android.view.Gravity.CENTER
+                    setPadding(symDp(6), symDp(9), symDp(6), symDp(9))
+                    isClickable = true; isFocusable = true
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                        .apply { setMargins(symDp(3), 0, symDp(3), 0) }
+                    setOnClickListener {
+                        view.disease = i; view.step = 0; paint(); run()
+                    }
+                }
+                chips.add(ch); chipRow.addView(ch)
+            }
+            bPrev.setOnClickListener { if (view.step > 0) { view.step--; paint(); run() } }
+            bNext.setOnClickListener {
+                if (view.step < KsharTeachView.stepCount(view.disease) - 1) { view.step++; paint(); run() }
+            }
+            bClose.setOnClickListener { anim?.cancel(); dlg.dismiss() }
+
+            val row = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+            }
+            row.addView(cap); row.addView(bPrev); row.addView(bNext); row.addView(bClose)
+            panel.addView(chipRow); panel.addView(row)
+            root.addView(panel)
+            dlg.setOnDismissListener { anim?.cancel() }
+            dlg.setContentView(root)
+            paint()
+            dlg.show()
+            try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dlg) } catch (_: Throwable) { }
+            run()
+        } catch (e: Throwable) {
+            Toast.makeText(this, NoBengali.s("পর্দাটা খোলা গেল না — আবার চেষ্টা করুন"), Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private fun showStep(i: Int) {
         currentStep = i
         val scroll = findViewById<ScrollView>(R.id.stepScroll)
@@ -2757,6 +2888,18 @@ class DoctorCheckupActivity : AppCompatActivity() {
             }
         }
         topRow.addView(btnKs, 2)
+
+        /* 🎓🔒 V783 (২৮.০৮.২০২৬, TK-নির্দেশ ও ডেমো-ফটো অনুমোদনের পরে) —
+           **রোগীকে বোঝানোর পর্দা: পাইলস · ফিশার · ফিস্টুলা।**
+           TK: *"আমি যেন বেছে নিতে পারি — যে রোগীর যে সমস্যা সেই অনুসারে যেন
+           বোঝাতে পারি"* · *"এটা লিখে রাখার কিছু নেই"* · *"একই পেশেন্টের তিন
+           রকম রোগও তো থাকতে পারে"*।
+           ⛔ **কিচ্ছু সেভ হয় না** — ডেটাবেস · প্রিন্ট · A4 কোথাও যায় না।
+           ⛔ ডাক্তারের নিজের আঁকা ছবি এক বিন্দুও ছোঁয়া হয় না — এটা সম্পূর্ণ
+              আলাদা একটা পর্দা, আলাদা View (`KsharTeachView`)।
+           ⛔ পুরনো 🧵 (নিজের আঁকা ছবির উপরে অ্যানিমেশন) আগের মতোই আছে। */
+        val btnTeach = roundBtn("🎓").apply { setOnClickListener { openKsharTeach() } }
+        topRow.addView(btnTeach, 3)
 
         /* বন্ধ করার সময় বড় বোর্ডে যা আঁকা হয়েছে সেটাই ছোট বোর্ডে ফেরত যায়।
            ⛔ লেখাটা (`note`) ছোট বোর্ডেরটাই থাকে — বড় পর্দায় লেখার ঘর নেই,
