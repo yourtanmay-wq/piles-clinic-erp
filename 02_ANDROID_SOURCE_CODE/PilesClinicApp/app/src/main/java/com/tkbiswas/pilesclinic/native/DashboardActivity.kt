@@ -851,7 +851,13 @@ class DashboardActivity : AppCompatActivity() {
                ⛔ 🧵 আলাদা থ্রেডে; ব্যর্থ হলে চুপচাপ ছেড়ে দেয়, কিছুই আটকায় না।
                ⛔ পুরনো ভার্সন-সতর্কবার্তার কোড (উপরে) এক অক্ষরও ছোঁয়া হয়নি। */
             try {
-                val mob = user?.mobile.orEmpty()
+                /* 🔴 V775 — এখানে `user` নামে কিছু **নেই**। ওটা `onCreate()`-এর
+                   ভিতরের নিজস্ব ভেরিয়েবল (line 79), এই ফাংশনের নয় — V771-এ
+                   আমি ভুল করে ওটাই লিখে ফেলেছিলাম, তাই Android Studio-তে
+                   বিল্ড ভেঙেছিল ("Unresolved reference: user")।
+                   ⇒ এখন সরাসরি সেশন থেকেই নেওয়া হয়, যেভাবে এই ফাইলের
+                     আরও ৪ জায়গায় নেওয়া হয় (line 39 · 258 · 315)। */
+                val mob = NativeSession.current(this)?.mobile.orEmpty()
                 if (mob.isNotBlank()) Thread {
                     com.tkbiswas.pilesclinic.native.AppVersionReporter
                         .reportIfDue(applicationContext, mob)
