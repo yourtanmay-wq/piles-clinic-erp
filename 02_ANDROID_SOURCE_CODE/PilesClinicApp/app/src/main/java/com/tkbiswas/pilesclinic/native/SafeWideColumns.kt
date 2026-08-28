@@ -59,12 +59,34 @@ object SafeWideColumns {
 
     /** টেবিল → (সব ঘর, ভারী ঘর)। ঘরের নাম `PILES_CLINIC_DB_SETUP.sql` ও
      *  প্রজেক্টে ব্যবহৃত প্রমাণিত তালিকা মিলিয়ে নেওয়া। */
+    /* 🔴🔒 V801 (২৮.০৮.২০২৬) — TK: "গভীরে যাচাই করুন / কোন ভালো কাজ যেন খারাপ না হয়"।
+       ─── যা ধরা পড়ল ────────────────────────────────────────────────────────
+       এই তালিকাগুলো **শেষ-ভরসার** পড়ায় ব্যবহার হয় (সরু পড়া ব্যর্থ হলে,
+       `select=*`-এর ঠিক আগে)। কিন্তু নতুন ঘর যোগ হলে এখানে যোগ করা হয়নি,
+       তাই SQL-এর সঙ্গে মিলিয়ে দেখে **১৫টা আসল ঘর বাদ পড়ে ছিল**:
+         · patients      — doctorReminderDate · doctorReminderNote · doctorReminderTime
+                           (V656, V671)
+         · payments      — refundReason · refundRequestedBy · refundApprovedBy ·
+                           refundOfPaymentId (V215) · backdateRequestedBy ·
+                           backdateApprovedBy (PATCH 24.07) · editRequestedBy ·
+                           editApprovedBy (PATCH 25.07) · progress (V533)
+         · doctor_visits — altMobiles (V318) · expectedPatientDate (PATCH 30.07) ·
+                           remarksEditedBy (V458)
+       অর্থাৎ শেষ-ভরসার পড়াটা চললে **রিফান্ড কে চেয়েছে/কে অনুমোদন করেছে,
+       ব্যাকডেট-অনুমোদন, ডাক্তারের বাড়তি মোবাইল, "কবে রোগী পাঠাবেন" তারিখ**
+       — এসব চুপচাপ উধাও হয়ে যেত। টাকার ঘরও ছিল, তাই এটা গুরুতর।
+       ─── সারানো ───────────────────────────────────────────────────────────
+       প্রতিটা ঘর SQL ফাইল ধরে মিলিয়ে যোগ করা হলো (উপরে ফাইলের নাম লেখা আছে)।
+       ⛔ ঝুঁকি নেই: নাম ভুল হলে ওই পড়াটা ব্যর্থ হয়ে নিচের `select=*`-এ নামত —
+          অর্থাৎ **আজকের আচরণ**, তার চেয়ে খারাপ কিছু হতে পারত না।
+       ⛔ পাহারাদারে নতুন যাচাই ৯.৩৪ বসানো হলো, যাতে ভবিষ্যতে নতুন ঘর যোগ
+          হলে এই তালিকা পুরনো হয়ে গেলে সঙ্গে সঙ্গে ধরা পড়ে। */
     private val ALL: Map<String, String> = mapOf(
-        "patients" to "id,address,age,altMobile,bill,branch,complaint,editHistory,completeApprovedBy,completeRequestedBy,createdAt,createdBy,date,decision,diagnosis,discount,disease,doctorAdvice,doctorComplete,doctorFullNote,medicalHistory,mobile,name,occupation,patientId,photo,previousCost,previousResult,previousTreatment,queue,refBy,refDoctor,refDoctorMobile,refundRestoredBy,registeredBy,registrationDate,sex,sinceWhen,stage,timeType,treatmentDuration,updatedAt,visitDate",
+        "patients" to "id,address,age,altMobile,bill,branch,complaint,completeApprovedBy,completeRequestedBy,createdAt,createdBy,date,decision,diagnosis,discount,disease,doctorAdvice,doctorComplete,doctorFullNote,doctorReminderDate,doctorReminderNote,doctorReminderTime,editHistory,medicalHistory,mobile,name,occupation,patientId,photo,previousCost,previousResult,previousTreatment,queue,refBy,refDoctor,refDoctorMobile,refundRestoredBy,registeredBy,registrationDate,sex,sinceWhen,stage,timeType,treatmentDuration,updatedAt,visitDate",
         "followups" to "id,address,age,branch,callCount,convertedPatientId,createdAt,createdBy,date,disease,history,lastCallDate,lastRemark,mobile,name,nextFollow,patientId,photo,refId,registrationDate,sex,stage,status,timeType,updatedAt,visitDate",
-        "payments" to "id,amount,branch,cashAmount,createdAt,createdBy,dailyEvents,date,editHistory,editedAt,editedBy,mobile,mode,name,onlineAmount,patientCode,patientId,payLabel,payType,paymentLabel,receivedBy,refundApprovalStatus,remarks,updatedAt",
+        "payments" to "id,amount,backdateApprovedBy,backdateRequestedBy,branch,cashAmount,createdAt,createdBy,dailyEvents,date,editApprovedBy,editedAt,editedBy,editHistory,editRequestedBy,mobile,mode,name,onlineAmount,patientCode,patientId,payLabel,paymentLabel,payType,progress,receivedBy,refundApprovalStatus,refundApprovedBy,refundOfPaymentId,refundReason,refundRequestedBy,remarks,updatedAt",
         "medical" to "id,branch,createdAt,createdBy,date,days,decision,details,diagnosis,doctorFullNote,mobile,name,nextFollow,patientId,photos,selected,type,updatedAt",
-        "doctor_visits" to "id,area,branch,callHistory,callStatus,createdAt,createdBy,date,lastCallDate,mobile,name,nextCallDate,referralDue,referralPaid,referralPayments,remarks,status,updatedAt"
+        "doctor_visits" to "id,altMobiles,area,branch,callHistory,callStatus,createdAt,createdBy,date,expectedPatientDate,lastCallDate,mobile,name,nextCallDate,referralDue,referralPaid,referralPayments,remarks,remarksEditedBy,status,updatedAt"
     )
 
     private val HEAVY: Map<String, List<String>> = mapOf(

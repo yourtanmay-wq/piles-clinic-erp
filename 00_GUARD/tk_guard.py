@@ -267,6 +267,91 @@ def check_companion():
 
 
 # ═══════════════════════════════════════════════════════════════
+#  🔴🔒 V801 — ডেটাবেসের আসল ঘরগুলো এক জায়গা থেকে (আগে যাচাই ৮-এর ভিতরে
+#  আটকে ছিল, তাই অন্য যাচাই ওটা কাজে লাগাতে পারত না)।
+#  ⛔ সঙ্গে একটা গর্তও বন্ধ হলো: আগে শুধু `04_SUPABASE_DATABASE_SETUP/`
+#     দেখা হত, অথচ `00_SQL/`-এও আসল migration আছে (যেমন V736 — patients-এর
+#     `editHistory`)। ফলে সত্যিকারের ঘরকেও "নেই" বলে মিথ্যে ভুল দেখাত।
+# ═══════════════════════════════════════════════════════════════
+_DB_COLS_CACHE = {}
+
+
+def _db_columns():
+    if _DB_COLS_CACHE:
+        return _DB_COLS_CACHE
+    cols = {}
+    setup = os.path.join(SQLD, "PILES_CLINIC_DB_SETUP.sql")
+    if os.path.exists(setup):
+        s = read(setup)
+        for m in re.finditer(r'create table if not exists public\.(\w+)\s*\((.*?)\n\);', s, re.S):
+            cols[m.group(1)] = set(re.findall(r'"(\w+)"\s+\w', m.group(2)))
+    folders = [SQLD, os.path.join(ROOT, "00_SQL")]
+    for d in folders:
+        if not os.path.isdir(d):
+            continue
+        for f in glob.glob(os.path.join(d, "*.sql")):
+            if os.path.basename(f) == "PILES_CLINIC_DB_SETUP.sql":
+                continue
+            s = read(f)
+            for m in re.finditer(
+                r'alter table\s+(?:if exists\s+)?(?:public\.)?"?(\w+)"?\s+add column\s+(?:if not exists\s+)?"?(\w+)"?',
+                s, re.I
+            ):
+                cols.setdefault(m.group(1), set()).add(m.group(2))
+            for m in re.finditer(r'create table if not exists (?:public\.)?"?(\w+)"?\s*\((.*?)\n\);', s, re.S | re.I):
+                cols.setdefault(m.group(1), set()).update(re.findall(r'"(\w+)"\s+\w', m.group(2)))
+    cols.setdefault('patients', set()).add('timeType')   # setup.sql-এর চেয়ে আসল DB নতুন (সার্কুলার ১০)
+    _DB_COLS_CACHE.update(cols)
+    return _DB_COLS_CACHE
+
+
+# ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯.৩৪ — SafeWideColumns পুরনো হয়ে যায়নি তো?
+#  🔴🔒 V801 (২৮.০৮.২০২৬), TK-নির্দেশ: "গভীরে যাচাই করুন / কোন ভালো কাজ
+#  যেন খারাপ না হয়"। SafeWideColumns-এর তালিকাগুলো **শেষ-ভরসার** পড়ায়
+#  ব্যবহার হয় (সরু পড়া ব্যর্থ হলে, `select=*`-এর ঠিক আগে)। নতুন ঘর যোগ
+#  হলে ওখানে যোগ করা হত না — মিলিয়ে দেখে **১৫টা আসল ঘর** বাদ পড়ে ছিল,
+#  তার মধ্যে রিফান্ড/ব্যাকডেট-অনুমোদনের মতো **টাকার ঘরও**। ওই পড়াটা
+#  চললে সেগুলো চুপচাপ উধাও হয়ে যেত। এখন আর কখনো পুরনো হতে পারবে না।
+# ═══════════════════════════════════════════════════════════════
+def check_safe_wide_columns():
+    path = None
+    for f in kt_files():
+        if os.path.basename(f) == "SafeWideColumns.kt":
+            path = f
+            break
+    if not path:
+        return                     # ফাইলই নেই — যাচাইয়ের কিছু নেই
+    s = read(path)
+    all_m = re.search(r'private val ALL[^=]*=\s*mapOf\((.*?)\n    \)', s, re.S)
+    heavy_m = re.search(r'private val HEAVY[^=]*=\s*mapOf\((.*?)\n    \)', s, re.S)
+    if not all_m or not heavy_m:
+        fail("৯.৩৪", "SafeWideColumns.kt-এর ALL / HEAVY তালিকা পড়া গেল না")
+        return
+    heavy = {}
+    for m in re.finditer(r'"(\w+)"\s*to\s*listOf\(([^)]*)\)', heavy_m.group(1)):
+        heavy[m.group(1)] = set(re.findall(r'"(\w+)"', m.group(2)))
+    db = _db_columns()
+    bad = []
+    for m in re.finditer(r'"(\w+)"\s*to\s*"([^"]+)"', all_m.group(1)):
+        tb = m.group(1)
+        listed = set(x.strip() for x in m.group(2).split(",") if x.strip())
+        real = db.get(tb)
+        if not real:
+            continue                      # এই টেবিলের SQL জানা নেই — চুপ থাকি
+        missing = sorted(real - listed - heavy.get(tb, set()))
+        ghost = sorted(listed - real - heavy.get(tb, set()))
+        if missing:
+            bad.append(f"{tb}: SafeWideColumns-এ নেই → {', '.join(missing)}")
+        if ghost:
+            bad.append(f"{tb}: ডেটাবেসে নেই এমন নাম → {', '.join(ghost)}")
+    if bad:
+        for b in bad[:8]:
+            fail("৯.৩৪", "SafeWideColumns পুরনো হয়ে গেছে — " + b +
+                 "  (শেষ-ভরসার পড়ায় ঘরটা চুপচাপ উধাও হবে)")
+
+
+# ═══════════════════════════════════════════════════════════════
 #  যাচাই ৮ — Supabase কলাম (সার্কুলার ৯.৭)
 # ═══════════════════════════════════════════════════════════════
 def check_columns():
@@ -2816,6 +2901,7 @@ def main():
     nxml = check_xml()
     check_companion()
     check_columns()
+    check_safe_wide_columns()   # 🛟 V801 — শেষ-ভরসার কলাম-তালিকা পুরনো হয়নি তো
     check_static_calls()
     check_unresolved_imports()   # 🔴🔴🔴🔴 TK-নির্দেশ (20.08.2026) — Unresolved reference কখনো ফাইল পাঠাতে দেবে না
     check_qualified_extension_fn()   # 🔴🔴🔴 খাতার সারি B203 — async/launch fully-qualified কল
@@ -2874,6 +2960,7 @@ def main():
         ("৪.৫", "সম্পূর্ণ প্রজেক্ট (মূল ফোল্ডার সব আছে)"),
         ("৪.৬", "সব বাধ্যতামূলক নোট আছে"),
         ("১১",  "রোগীর সময় ১১টা–৪টা"),
+        ("৯.৩৪", "🛟 SafeWideColumns (শেষ-ভরসার পড়া) ডেটাবেসের সঙ্গে মেলে"),
         ("১০",  "মাইন-পোঁতা জায়গা অক্ষত"),
     ]
     broken_rules = {r for r, _ in problems}
