@@ -60,6 +60,7 @@ object RetrofitProvider {
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(20, TimeUnit.SECONDS)
             .writeTimeout(20, TimeUnit.SECONDS)
+            .callTimeout(45, TimeUnit.SECONDS)   // 🔴 V803 — নিয়ম ৬.২
             .build()
 
         return Retrofit.Builder()

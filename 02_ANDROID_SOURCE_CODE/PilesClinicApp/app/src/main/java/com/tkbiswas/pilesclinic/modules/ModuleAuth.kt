@@ -30,7 +30,28 @@ import com.tkbiswas.pilesclinic.native.StaffDirectory
 object ModuleAuth {
 
     private const val EMAIL_DOMAIN = "staff.piles"
-    private val http = OkHttpClient()
+    /* 🔴🔴🔒 V803 (২৮.০৮.২০২৬) — **"Staff Profile তো খুলছেই না"** (TK-রিপোর্ট, ফটো সহ:
+       সাদা ফাঁকা পর্দা, নিচে "Opening..." লেখা আটকে আছে)।
+       ─── আসল কারণ (কোড ধরে প্রমাণিত) ────────────────────────────────────────
+       এখানে লেখা ছিল খালি `OkHttpClient()` — **একটাও timeout বসানো ছিল না**।
+       OkHttp-র নিজের ডিফল্টে `callTimeout = 0`, মানে **কোনো সময়সীমা নেই**।
+       নেট আধমরা হয়ে উত্তরটা ফোঁটা-ফোঁটা করে এলে `readTimeout` প্রতিবার নতুন
+       করে শুরু হয় ⇒ ডাকটা **কোনোদিনই শেষ হয় না**। আর Staff Profile পর্দা
+       ঠিক এই ডাকটার উত্তরের জন্যই অপেক্ষা করে (`ModuleUi.ensureSignedIn`),
+       তাই পর্দা সাদা থেকে যায়, কোনো ভুলের বার্তাও আসে না।
+       ⛔ এটা নতুন কোনো আবিষ্কার নয় — প্রজেক্টেই আগে ধরা পড়েছিল ও সারানো
+          হয়েছিল: `SupabaseClient.kt:19-29`-এ হুবহু এই কারণটা লেখা আছে
+          ("...loading spinner just span forever. callTimeout caps the TOTAL time")।
+          শুধু **এই ফাইলটায় সেটা বসানো হয়নি** — খাতার নিয়ম ৬.২ অনুযায়ী এখন বসল।
+       ─── সারানো ─────────────────────────────────────────────────────────────
+       মূল অ্যাপের প্রমাণিত মাপগুলোই: connect ৮s · read ৮s · **callTimeout ২৫s**।
+       ⇒ সবচেয়ে খারাপ অবস্থাতেও ২৫ সেকেন্ডে ডাক শেষ হয়ে "Could not open"
+       বার্তা আসে — পর্দা আর চিরকাল সাদা হয়ে বসে থাকে না। */
+    private val http = OkHttpClient.Builder()
+        .connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+        .callTimeout(25, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
     private val JSON = "application/json".toMediaType()
 
     @Volatile var accessToken: String? = null; private set

@@ -12815,7 +12815,7 @@ var __medFilter='today', __medPick='', __medQ='';
 function medicinePaymentHome(){
   __medFilter='today'; __medPick=''; __medQ='';
   page('Medicine Payment', '<div class="card medForm">'+
-    '<div id="medBranchWrap"><label>Branch</label><select id="medBranch" class="input">'+(isMaster()?branchOptions(user.branch==='All'?'':user.branch):'<option selected>'+esc(user.branch)+'</option>')+'</select></div>'+
+    '<div id="medBranchWrap"><label>Branch</label><select id="medBranch" class="input" onchange="medRenderHistory()">'+(isMaster()?branchOptions(user.branch==='All'?'':user.branch):'<option selected>'+esc(user.branch)+'</option>')+'</select></div>'+
     '<label>Patient Mobile / Name</label><input id="medCust" class="input" placeholder="Patient name or mobile" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">'+
     '<label>Medicine / Product Name</label>'+
     '<div id="medMeds"><div class="medRow"><input class="input medProdInp" placeholder="Medicine / product name" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"><button type="button" class="ghost medDel" onclick="this.closest(\'.medRow\').remove()">✕</button></div></div>'+
@@ -12872,7 +12872,15 @@ function medSetFilter(f){__medFilter=f;__medPick='';medRenderHistory();}
 window["medSetFilter"]=medSetFilter;
 function medDaysAgo(n){var d=new Date();d.setDate(d.getDate()-n);var m=('0'+(d.getMonth()+1)).slice(-2),day=('0'+d.getDate()).slice(-2);return d.getFullYear()+'-'+m+'-'+day;}
 function medFiltered(){
-  var all=scoped(load('products')).filter(function(x){return x.kind==='medicinePayment';});
+  /* 🔴🔒 V804 (২৮.০৮.২০২৬, ফোনের হুবহু একই দোষ — নিয়ম ৬.৬) — TK: "Kishanganj
+     ব্রাঞ্চ সিলেক্ট করা আছে, কিন্তু Jalpaiguri-র মেডিসিন পেমেন্ট কেন দেখাচ্ছে?"
+     আগে শুধু `scoped()` ছিল — সেটা **লগইন করা লোকের** ব্রাঞ্চ দেখে, আর Master-এর
+     ব্রাঞ্চ "All" ⇒ সব ব্রাঞ্চের বিক্রি দেখাত। উপরের Branch বাছাইটা তালিকায়
+     ধরাই হত না। এখন বাছা ব্রাঞ্চ দিয়েই ছাঁকা হয়।
+     ⛔ Master ছাড়া কারো কিছু বদলায়নি — তাদের ঘরটায় নিজের ব্রাঞ্চই বসানো থাকে। */
+  var __br=String((($('#medBranch')||{}).value)||'').trim();
+  var all=scoped(load('products')).filter(function(x){return x.kind==='medicinePayment';})
+    .filter(function(x){ return !__br || __br==='All' || !x.branch || sameBranch(x.branch,__br); });
   var t=today(),s7=medDaysAgo(6),s30=medDaysAgo(29),q=(__medQ||'').trim().toLowerCase();
   return all.filter(function(x){
     var d=String(x.date||'');

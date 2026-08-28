@@ -38,6 +38,7 @@ object AppVersionReporter {
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
+        .callTimeout(20, TimeUnit.SECONDS)   // 🔴 V803 — নিয়ম ৬.২: এখানেও সময়সীমা ছিল না
         .build()
 
     /**

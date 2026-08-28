@@ -53,6 +53,7 @@ object CloudStaffDirectory {
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
+        .callTimeout(25, TimeUnit.SECONDS)   // 🔴 V803 — নিয়ম ৬.২
         .build()
 
     /** সার্ভারের `public.staff_login_list()` — শুধু লগইনে যেটুকু দরকার।

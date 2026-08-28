@@ -101,6 +101,21 @@ class MedicinePaymentActivity : AppCompatActivity() {
                     selectedBranch = branches[which]
                     btnBranchChip.text = "🏥 $selectedBranch ▾"
                     dialog.dismiss()
+                    /* 🔴🔒 V804 (২৮.০৮.২০২৬) — TK: "Kishanganj ব্রাঞ্চ সিলেক্ট করা আছে,
+                       কিন্তু এখানে Jalpaiguri-র মেডিসিন পেমেন্ট কেন দেখাচ্ছে?"
+                       ─── আসল কারণ ─────────────────────────────────────────────
+                       উপরের এই চিপটা এতদিন শুধু **নিজের লেখাটাই** বদলাত আর নতুন
+                       বিক্রি কোন ব্রাঞ্চে বসবে সেটা ঠিক করত — **নিচের তালিকাটা
+                       একবারও নতুন করে আঁকা হত না**। আর তালিকা ছাঁকা হত
+                       `user.branch` দিয়ে (`loadHistory(user?.branch)`), যেটা
+                       Master-এর ক্ষেত্রে **"All"** ⇒ কোনো ছাঁকনিই বসত না।
+                       ⇒ Master যে ব্রাঞ্চই বাছুন, **সব ব্রাঞ্চের** বিক্রি দেখাত,
+                         আর উপরের সবুজ ঘরের মোট টাকা/সংখ্যাও সব ব্রাঞ্চ মিলিয়ে।
+                       ─── সারানো ───────────────────────────────────────────────
+                       চিপ বদলালেই তালিকা আবার আঁকা হয়, আর ছাঁকনি হয় **চিপের
+                       ব্রাঞ্চ** দিয়ে। ⛔ Master ছাড়া কারো কিছুই বদলায়নি — তাদের
+                       `selectedBranch` আর `user.branch` একই (লাইন ২১৭)। */
+                    showRows(loadedRows, selectedBranch)
                 }
                 .setNegativeButton("Cancel", null)
                 .show().also { PremiumAlert.paint(it) }
@@ -237,7 +252,7 @@ class MedicinePaymentActivity : AppCompatActivity() {
             save(user?.mobile ?: "", user?.branch ?: "") { row -> printReceipt(row) }
         }
 
-        loadHistory(user?.branch ?: "All")
+        loadHistory(selectedBranch)   // 🔴 V804 — চিপের ব্রাঞ্চ, user.branch নয়
     }
 
     // 🔒 B558 — "+ ADD MEDICINE": নতুন ওষুধ-ঘর যোগ, ✕ দিয়ে মোছা।
@@ -356,7 +371,7 @@ val mode = selectedMpMode
                 clearMedicineRows()
                 etBill.setText(""); etDeposit.setText(""); etRemarks.setText(""); etCustomer.setText("")
                 customerSuggestions.removeAllViews()
-                loadHistory(NativeSession.current(this@MedicinePaymentActivity)?.branch ?: "All")
+                loadHistory(selectedBranch)   // 🔴 V804
             }
         }
     }
@@ -365,7 +380,7 @@ val mode = selectedMpMode
     override fun onResume() {
         super.onResume()
         if (firstResume) { firstResume = false; return }
-        loadHistory(NativeSession.current(this)?.branch ?: "All")
+        loadHistory(selectedBranch)   // 🔴 V804
     }
 
     // TK-REQUESTED ADDITION (2026-07-20): same "show what was already on the

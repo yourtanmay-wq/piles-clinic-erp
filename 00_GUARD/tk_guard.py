@@ -306,6 +306,35 @@ def _db_columns():
 
 
 # ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯.৩৫ — প্রতিটা OkHttpClient-এ callTimeout আছে তো?
+#  🔴🔴 TK-REPORTED, LIVE (২৮.০৮.২০২৬, ফটো সহ — "Staff Profile তো খুলছেই
+#  না?", সাদা ফাঁকা পর্দা): `ModuleAuth.kt`-এ ছিল খালি `OkHttpClient()` —
+#  একটাও timeout নেই। OkHttp-র ডিফল্টে `callTimeout = 0` (সময়সীমা নেই), আর
+#  নেট আধমরা হয়ে উত্তর ফোঁটা-ফোঁটা এলে `readTimeout` বারবার নতুন করে শুরু
+#  হয় ⇒ ডাক কোনোদিন শেষ হয় না ⇒ পর্দা চিরকাল সাদা।
+#  প্রজেক্টে এটা আগেই একবার ধরা পড়ে সারানো হয়েছিল (SupabaseClient.kt:19-29),
+#  কিন্তু বাকি ফাইলে বসানো হয়নি। এখন আর কোনো নতুন ক্লায়েন্ট পার পাবে না।
+# ═══════════════════════════════════════════════════════════════
+def check_http_call_timeout():
+    bad = []
+    for f in kt_files():
+        s = _blank_comments(read(f))
+        if "OkHttpClient" not in s:
+            continue
+        name = os.path.basename(f)
+        # খালি OkHttpClient() — একটাও timeout নেই
+        if re.search(r'OkHttpClient\s*\(\s*\)', s):
+            bad.append(name + " — খালি `OkHttpClient()`, একটাও timeout নেই")
+            continue
+        for m in re.finditer(r'OkHttpClient\s*\.\s*Builder\s*\(\s*\)(.*?)\.build\s*\(\s*\)', s, re.S):
+            if "callTimeout" not in m.group(1):
+                bad.append(name + " — Builder-এ `callTimeout` বসানো নেই")
+    if bad:
+        for b in sorted(set(bad))[:8]:
+            fail("৯.৩৫", "নেট-ডাকে সময়সীমা নেই ⇒ পর্দা চিরকাল সাদা হয়ে বসে থাকতে পারে — " + b)
+
+
+# ═══════════════════════════════════════════════════════════════
 #  যাচাই ৯.৩৪ — SafeWideColumns পুরনো হয়ে যায়নি তো?
 #  🔴🔒 V801 (২৮.০৮.২০২৬), TK-নির্দেশ: "গভীরে যাচাই করুন / কোন ভালো কাজ
 #  যেন খারাপ না হয়"। SafeWideColumns-এর তালিকাগুলো **শেষ-ভরসার** পড়ায়
@@ -2901,6 +2930,7 @@ def main():
     nxml = check_xml()
     check_companion()
     check_columns()
+    check_http_call_timeout()   # ⏱️ V803 — প্রতিটা নেট-ডাকে সময়সীমা
     check_safe_wide_columns()   # 🛟 V801 — শেষ-ভরসার কলাম-তালিকা পুরনো হয়নি তো
     check_static_calls()
     check_unresolved_imports()   # 🔴🔴🔴🔴 TK-নির্দেশ (20.08.2026) — Unresolved reference কখনো ফাইল পাঠাতে দেবে না
@@ -2960,6 +2990,7 @@ def main():
         ("৪.৫", "সম্পূর্ণ প্রজেক্ট (মূল ফোল্ডার সব আছে)"),
         ("৪.৬", "সব বাধ্যতামূলক নোট আছে"),
         ("১১",  "রোগীর সময় ১১টা–৪টা"),
+        ("৯.৩৫", "⏱️ প্রতিটা OkHttpClient-এ callTimeout বসানো আছে"),
         ("৯.৩৪", "🛟 SafeWideColumns (শেষ-ভরসার পড়া) ডেটাবেসের সঙ্গে মেলে"),
         ("১০",  "মাইন-পোঁতা জায়গা অক্ষত"),
     ]

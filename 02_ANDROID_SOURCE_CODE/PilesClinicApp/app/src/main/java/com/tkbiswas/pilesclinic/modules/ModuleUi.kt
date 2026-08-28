@@ -200,6 +200,23 @@ object ModuleUi {
         if (ModuleAuth.isSignedIn && ModuleAuth.personCode == expected) { onReady(); return }
         if (ModuleAuth.isSignedIn) ModuleAuth.signOut()
         toast(activity, "Opening...")
+        /* 🔴🔒 V803 (২৮.০৮.২০২৬) — TK: "Staff Profile তো খুলছেই না?" (ফটো: সাদা
+           ফাঁকা পর্দা)। আসল দোষ ছিল timeout না থাকা (ModuleAuth.kt দেখুন), সেটা
+           সারানো হয়েছে। কিন্তু এখানে **দ্বিতীয় দোষটাও** ছিল: উত্তর আসার আগে
+           পর্দায় **কিচ্ছু আঁকা হত না** — তাই মানুষ শুধু সাদা কাগজ দেখত, বুঝতেই
+           পারত না কিছু চলছে কিনা। এখন একটা স্পষ্ট "Opening…" পর্দা বসে।
+           ⛔ সফল হলে নিচের `onReady()` আগের মতোই পুরো পর্দা এঁকে দেয় (এই
+              অস্থায়ী লেখাটা তখন নিজে থেকেই চাপা পড়ে যায়) — কোনো আচরণ বদলায়নি। */
+        try {
+            val wait = android.widget.TextView(activity).apply {
+                text = "Opening…\n\nPlease wait a moment."
+                textSize = 15f
+                gravity = android.view.Gravity.CENTER
+                setTextColor(android.graphics.Color.parseColor("#33404F"))
+                setPadding(48, 220, 48, 48)
+            }
+            activity.setContentView(wait)
+        } catch (_: Throwable) { }
         Thread {
             val err = ModuleAuth.signInCurrentSession(activity.applicationContext)
             activity.runOnUiThread {
