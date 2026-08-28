@@ -249,6 +249,113 @@ object RoleSession {
         persist()
     }
 
+    /* ═══════════════════════════════════════════════════════════════════════
+       🔴🔴🔒 V786 (২৮.০৮.২০২৬, TK-রিপোর্ট + ফটো-প্রমাণ) —
+       **"Patient / - / -" — রোগীর নাম-আইডি ফাঁকা হয়ে যাওয়া।**
+
+       ─── TK কী দেখেছেন ────────────────────────────────────────────────────
+       Doctor Check-up পর্দা খোলা, Chief Complaint-এ "BLEEDING" লেখা আছে,
+       অথচ উপরের কার্ডে নাম = "Patient", ID = "-", ব্রাঞ্চ = "-"।
+
+       ─── কারণ (কোড ধরে প্রমাণিত, আন্দাজ নয়) ───────────────────────────────
+       এই পর্দাগুলো রোগীকে চেনে **শুধু মেমরির** `RoleSession` থেকে — খোলার
+       Intent-এ রোগীর আইডি **পাঠানোই হয় না** (৫টা খোলার জায়গাতেই যাচাই
+       করা হয়েছে)। ফোনে কল এলে / মেমরি কম পড়লে Android অ্যাপের প্রসেস বন্ধ
+       করে দেয়, পরে পর্দাটা **আবার নিজে থেকে খোলে** —
+         · ঘরে টাইপ করা লেখা (BLEEDING) Android নিজেই ফিরিয়ে দেয়
+         · কিন্তু `RoleSession` মেমরির জিনিস ⇒ **ফাঁকা**
+       V721-এ ফোনে জমা রাখার ব্যবস্থা হয়েছিল, কিন্তু সেখানে **৩০ মিনিটের
+       সীমা** — এর বেশি সময় পরে ফিরলে (পর্দা খোলা রেখে ফোন রেখে দিলে) আর
+       ফেরে না। TK-এর ছবিটা ঠিক সেই অবস্থার।
+
+       ─── কেন এটা বিপজ্জনক ────────────────────────────────────────────────
+       আইডি ফাঁকা থাকলেও **Save চাপা যেত** — "Check-up saved." লেখা উঠত,
+       অথচ সারিটা যেত ফাঁকা আইডিতে, অর্থাৎ **ডাক্তারের লেখা হারিয়ে যেত**
+       আর কেউ টেরও পেত না।
+
+       ─── এখন কী হয় ───────────────────────────────────────────────────────
+       ১. রোগীর পরিচয় পর্দার নিজের **Bundle**-এও রাখা হয় (`saveTo`)। Bundle
+          প্রসেস মরলেও বাঁচে এবং **কোনো সময়সীমা নেই** — তাই ৩০ মিনিটের
+          গণ্ডি আর সমস্যা নয়।
+       ২. পর্দা আবার খুললে মেমরি ফাঁকা থাকলে সেখান থেকেই ফেরানো হয়
+          (`restoreFrom`)।
+       ৩. তবুও আইডি না পেলে ওই পর্দায় **Save বন্ধ** — মিথ্যা "saved" আর নয়।
+
+       ─── 🔒 নিরাপত্তা ────────────────────────────────────────────────────
+        • **মেমরিতে রোগী থাকলে কিচ্ছু ফেরানো হয় না** — চালু রোগীর উপর কখনো
+          লেখা হয় না, তাই পুরোনো পর্দা থেকে অন্য রোগী ফিরে আসার পথ নেই।
+        • ফেরানো হয় `applyFrom()` দিয়েই — V537/V538-এর রোগী-বদল পাহারা
+          এক অক্ষরও এড়ানো হয়নি।
+        • যেকোনো গোলমালে চুপচাপ সরে দাঁড়ায় (try/catch)।
+        • কোনো ক্লাউড-কল নয়, Egress-এ প্রভাব শূন্য।
+       ═══════════════════════════════════════════════════════════════════ */
+    private const val BKEY = "rolesession_patient_"
+
+    /** পর্দার নিজের Bundle-এ রোগীর পরিচয় রেখে দেওয়া (onSaveInstanceState)। */
+    fun saveTo(out: android.os.Bundle?) {
+        try {
+            val b = out ?: return
+            if (currentPatientId.isBlank()) return
+            b.putString(BKEY + "id", currentPatientId)
+            b.putString(BKEY + "name", currentPatientName)
+            b.putString(BKEY + "displayId", currentPatientDisplayId)
+            b.putString(BKEY + "branch", currentPatientBranch)
+            b.putString(BKEY + "mobile", currentPatientMobile)
+            b.putString(BKEY + "address", currentPatientAddress)
+            b.putString(BKEY + "age", currentPatientAge)
+            b.putString(BKEY + "sex", currentPatientSex)
+            b.putString(BKEY + "disease", currentPatientDisease)
+            b.putString(BKEY + "role", currentRole.name)
+        } catch (_: Throwable) { }
+    }
+
+    /** প্রসেস মরে পর্দা আবার খুললে ফিরিয়ে আনা (onCreate)। ⛔ মেমরিতে রোগী
+     *  থাকলে **কিছুই করে না**। */
+    fun restoreFrom(b: android.os.Bundle?) {
+        try {
+            if (currentPatientId.isNotBlank()) return
+            val s = b ?: return
+            val id = s.getString(BKEY + "id").orEmpty()
+            if (id.isBlank()) return
+            applyFrom(
+                roleExtra = s.getString(BKEY + "role"),
+                patientName = s.getString(BKEY + "name"),
+                patientId = id,
+                patientBranch = s.getString(BKEY + "branch"),
+                patientMobile = s.getString(BKEY + "mobile"),
+                patientAddress = s.getString(BKEY + "address"),
+                patientAge = s.getString(BKEY + "age"),
+                patientSex = s.getString(BKEY + "sex"),
+                patientDisease = s.getString(BKEY + "disease"),
+                patientDisplayId = s.getString(BKEY + "displayId")
+            )
+        } catch (_: Throwable) { }
+    }
+
+    /**
+     * 🔴🔒 V786 — রোগী চেনা না গেলে সেভ করতে দেওয়া যাবে না।
+     * `true` ফিরলে ডাকা জায়গাটা **থেমে যাবে** (রোগীকে বার্তা দেখিয়ে)।
+     */
+    fun blockIfNoPatient(ctx: android.content.Context): Boolean {
+        if (currentPatientId.isNotBlank()) return false
+        try {
+            androidx.appcompat.app.AlertDialog.Builder(ctx)
+                .setTitle("⚠️ Patient not loaded")
+                .setMessage(
+                    "This screen lost the patient (the phone closed the app in the " +
+                    "background — a call, or low memory).\n\nNothing was saved. Please " +
+                    "open the patient again from the list and re-enter."
+                )
+                .setPositiveButton("OK", null)
+                .setCancelable(true)
+                .show().also {
+                    com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it)
+                    com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it)
+                }
+        } catch (_: Throwable) { }
+        return true
+    }
+
     /** লগ-আউটে জমা তথ্য মুছে ফেলা — অন্য কেউ লগইন করলে যেন কিছু না থাকে। */
     fun clearPersisted() {
         try { prefs()?.edit()?.clear()?.apply() } catch (_: Throwable) { }

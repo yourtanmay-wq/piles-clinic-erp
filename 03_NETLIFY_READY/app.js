@@ -20168,6 +20168,26 @@ async function openRefundFormWeb(patientId){
 }
 window["openRefundFormWeb"]=openRefundFormWeb;
 
+/* 🖥️🟡🔒 V786 — আজকের দিনে এই রোগীর হুবহু একই পরিমাণের ফেরত আগে থেকে আছে
+   কিনা (বাতিল/না-মঞ্জুর সারি বাদ, আর চলতি এই সারিটাও বাদ — retry যেন না
+   আটকায়)। ⛔ শুধু **দেখে**, কিছুই বদলায় না। */
+function wlv1TodaysSameRefund(p,amt,selfId){
+  try{
+    var d=today(),out=null;
+    load('payments').forEach(function(r){
+      if(out)return;
+      if(String(r.patientId||'')!==String(p.id))return;
+      if(!wlv1IsRefundRow(r))return;
+      if(String(r.date||'').slice(0,10)!==d)return;
+      if(selfId&&String(r.id)===String(selfId))return;
+      var st=String(r.refundApprovalStatus||'').toLowerCase();
+      if(st==='rejected'||st==='cancelled')return;
+      if(Math.abs(Number(r.amount||0)-Number(amt||0))<=0.5)out=r;
+    });
+    return out;
+  }catch(e){return null}
+}
+window["wlv1TodaysSameRefund"]=wlv1TodaysSameRefund;
 async function saveRefundWeb(patientId){
   try{
     var p=load('patients').find(function(x){ return x.id===patientId; });
@@ -20192,6 +20212,18 @@ async function saveRefundWeb(patientId){
     var pending=wlv1PendingRefundSum(p,rid); // এই একই refund বাদ দিয়ে (retry হলে যেন না আটকায়)
     var maxRefundable=Math.max(0,paidNow-pending);
     if(amt>maxRefundable+0.5) return toast('Refund ₹'+numFmt(amt)+' is more than the refundable amount ₹'+numFmt(maxRefundable));
+    /* 🖥️🟡🔒 V786 (২৮.০৮.২০২৬, TK-রিপোর্ট + ফটো: KABITA BANU, ২৭.০৮.২০২৬
+       রাত ৯.২৫ ও ৯.২৬ — দুটো হুবহু ₹4,001 Refund) — *"Refund ২ বার হয়ে গেল
+       আটকালো না কেন? ডুপ্লিকেট সেরকম একটা pop up কেন আসলো না?"*
+
+       আগে তিনটে পাহারা ছিল (একই ফর্মে দুই চাপ · nonce · জমার সীমা), কিন্তু
+       **ডুপ্লিকেট ধরার পাহারা ছিল না** — আর জমা ₹9,501 থাকায় ₹4,001 × ২
+       সীমার ভিতরেই ছিল, তাই কিছুই আটকায়নি।
+       ⇒ এখন V708-এর সেই একই TK-অনুমোদিত নিয়ম: **Cancel = না · OK = তবুও**।
+       ⛔ নেটের একটাও নতুন অনুরোধ নয় — পর্দায় ধরা `load('payments')` থেকেই।
+       ⛔ ফোনের `PaymentRepository.todaysRefundLike()`-এর হুবহু একই নিয়ম। */
+    var _rfDup=wlv1TodaysSameRefund(p,amt,rid);
+    if(_rfDup&&!confirm('Same refund already today\n\nA refund of ₹'+numFmt(amt)+' for this patient is already recorded today'+(_rfDup.time?' at '+_rfDup.time:'')+'.\n\nCancel  -  do nothing (recommended)\nOK  -  refund again anyway'))return;
     var row={id:rid,payType:'refund',payLabel:'Refund',paymentLabel:'Refund',
       patientId:p.id,patientCode:p.patientId||'',mobile:p.mobile,branch:p.branch,name:p.name,
       date:today(),amount:amt,mode:mode,remarks:reason||'Refund',

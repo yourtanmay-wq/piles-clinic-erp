@@ -1553,12 +1553,56 @@ class PaymentActivity : AppCompatActivity() {
                ⛔ উপরের সব যাচাই (জমার চেয়ে বেশি নয়, duplicate-tap পাহারা) আগেই
                   হয়ে গেছে — টাকার নিয়ম এক অক্ষরও বদলায়নি। */
             refundSaving = true
+            /* 🟡🔒 V786 (২৮.০৮.২০২৬, TK-রিপোর্ট: *"Refund ২ বার হয়ে গেল আটকালো
+               কেন না? … ডুপ্লিকেট সেরকম একটা pop up কেন আসলো না"*)
+
+               আজকের দিনে এই রোগীর হুবহু **একই পরিমাণ** ফেরত আগে থেকে থাকলে
+               আগে সতর্কবার্তা — V708-এ TK-অনুমোদিত সেই একই নিয়ম:
+               **Cancel = কিছুই হবে না · OK = জেনেশুনে তবুও**।
+               ⛔ টাকার নিয়ম/সীমা/আঙুলের তালা — কিচ্ছু বদলায়নি, শুধু আগে
+                  একটা প্রশ্ন যোগ হলো।
+               ⛔ নেট খারাপ হলে `todaysRefundLike` চুপচাপ `null` দেয় ⇒ সৎ
+                  ফেরত কখনো আটকায় না। */
+            lifecycleScope.launch {
+                val dup = withContext(Dispatchers.IO) { repository.todaysRefundLike(patient, amt) }
+                if (dup == null) { refundUnlockAndSave(patient, amt, modeSpinner.selectedItem.toString(), reason, refundNonce, autoApprove, dialog, directFormOnly); return@launch }
+                val prevTime = dup.s("time")
+                val prevWhy = dup.s("reason")
+                AlertDialog.Builder(this@PaymentActivity)
+                    .setCustomTitle(PremiumAlert.header(this@PaymentActivity, "⚠️ Same refund already today"))
+                    .setMessage(
+                        "A refund of ₹${"%,.0f".format(amt)} for this patient is already recorded today" +
+                        (if (prevTime.isNotBlank()) " at $prevTime" else "") +
+                        (if (prevWhy.isNotBlank()) "\n(Reason: $prevWhy)" else "") +
+                        "\n\nRefunding again will take another ₹${"%,.0f".format(amt)} out of the collection.\n\n" +
+                        "Cancel = do nothing.  OK = refund again anyway."
+                    )
+                    .setPositiveButton("OK, refund again") { _, _ ->
+                        refundUnlockAndSave(patient, amt, modeSpinner.selectedItem.toString(), reason, refundNonce, autoApprove, dialog, directFormOnly)
+                    }
+                    .setNegativeButton("Cancel") { _, _ -> refundSaving = false }
+                    .setOnCancelListener { refundSaving = false }
+                    .show().also {
+                        PremiumAlert.paint(it)
+                        com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it)
+                    }
+            }
+        }
+    }
+
+    /** 🟡🔒 V786 — উপরের সতর্কবার্তার পরে (বা সতর্কবার্তা না লাগলে) আসল
+     *  ফেরতের কাজ। ⛔ ভিতরের একটাও লাইন বদলায়নি — শুধু আলাদা ফাংশনে সরানো
+     *  হলো, যাতে "OK, refund again"-এও হুবহু একই পথ চলে। */
+    private fun refundUnlockAndSave(
+        patient: PatientBillInfo, amt: Double, mode: String, reason: String,
+        refundNonce: String, autoApprove: Boolean, dialog: AlertDialog, directFormOnly: Boolean
+    ) {
             askMoneyUnlock("Refund \u20b9${"%,.0f".format(amt)}") { unlocked ->
             if (!unlocked) { refundSaving = false; return@askMoneyUnlock }
             lifecycleScope.launch {
                 try {
                     val result = withContext(Dispatchers.IO) {
-                        repository.saveRefund(patient, amt, modeSpinner.selectedItem.toString(), reason, user, refundNonce)
+                        repository.saveRefund(patient, amt, mode, reason, user, refundNonce)
                     }
                     // সৎ বার্তা: cloud-এ সত্যিই বসলে তবেই Success — নইলে আসল কারণ
                     // (নেট সমস্যা / জমার চেয়ে বেশি) দেখানো হয়, কখনো ভুয়ো "Success" নয়।
@@ -1574,7 +1618,6 @@ class PaymentActivity : AppCompatActivity() {
                 } finally { refundSaving = false }
             }
             }
-        }
     }
 
     /**

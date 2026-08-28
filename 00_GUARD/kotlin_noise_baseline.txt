@@ -1,7 +1,7 @@
 # 🛡️ Kotlin কম্পাইলারের **জানা গোলমাল** (Android SDK নেই বলে)।
 # ⛔ হাতে লিখবেন না — `verify_kotlin_compile.py --update-baseline`
 # প্রতিটা সারি:  ফাইল <TAB> ভুলের বার্তা (সংখ্যা N দিয়ে ঢাকা)
-# মোট: 868
+# মোট: 875
 com/tkbiswas/pilesclinic/clinical/ClinicalModulesActivity.kt	none of the following functions can be called with the arguments supplied:
 com/tkbiswas/pilesclinic/clinical/ClinicalModulesActivity.kt	unresolved reference: findViewById
 com/tkbiswas/pilesclinic/clinical/ClinicalModulesActivity.kt	unresolved reference: finish
@@ -20,6 +20,7 @@ com/tkbiswas/pilesclinic/clinical/DietChartActivity.kt	unresolved reference: fin
 com/tkbiswas/pilesclinic/clinical/DietChartActivity.kt	unresolved reference: finish
 com/tkbiswas/pilesclinic/clinical/DietChartActivity.kt	unresolved reference: material
 com/tkbiswas/pilesclinic/clinical/DietChartActivity.kt	unresolved reference: onCreate
+com/tkbiswas/pilesclinic/clinical/DietChartActivity.kt	unresolved reference: onSaveInstanceState
 com/tkbiswas/pilesclinic/clinical/DietChartActivity.kt	unresolved reference: resources
 com/tkbiswas/pilesclinic/clinical/DietChartActivity.kt	unresolved reference: setContentView
 com/tkbiswas/pilesclinic/clinical/DietChartActivity.kt	unresolved reference: setSupportActionBar
@@ -40,6 +41,7 @@ com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference:
 com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: material
 com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: mkdirs
 com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: onCreate
+com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: onSaveInstanceState
 com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: packageName
 com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: registerForActivityResult
 com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: resources
@@ -59,6 +61,7 @@ com/tkbiswas/pilesclinic/clinical/InvestigationAdviceActivity.kt	unresolved refe
 com/tkbiswas/pilesclinic/clinical/InvestigationAdviceActivity.kt	unresolved reference: material
 com/tkbiswas/pilesclinic/clinical/InvestigationAdviceActivity.kt	unresolved reference: onCreate
 com/tkbiswas/pilesclinic/clinical/InvestigationAdviceActivity.kt	unresolved reference: onResume
+com/tkbiswas/pilesclinic/clinical/InvestigationAdviceActivity.kt	unresolved reference: onSaveInstanceState
 com/tkbiswas/pilesclinic/clinical/InvestigationAdviceActivity.kt	unresolved reference: putExtra
 com/tkbiswas/pilesclinic/clinical/InvestigationAdviceActivity.kt	unresolved reference: resources
 com/tkbiswas/pilesclinic/clinical/InvestigationAdviceActivity.kt	unresolved reference: setBackgroundResource
@@ -82,6 +85,7 @@ com/tkbiswas/pilesclinic/clinical/MedicineSlipActivity.kt	unresolved reference: 
 com/tkbiswas/pilesclinic/clinical/MedicineSlipActivity.kt	unresolved reference: finish
 com/tkbiswas/pilesclinic/clinical/MedicineSlipActivity.kt	unresolved reference: material
 com/tkbiswas/pilesclinic/clinical/MedicineSlipActivity.kt	unresolved reference: onCreate
+com/tkbiswas/pilesclinic/clinical/MedicineSlipActivity.kt	unresolved reference: onSaveInstanceState
 com/tkbiswas/pilesclinic/clinical/MedicineSlipActivity.kt	unresolved reference: setContentView
 com/tkbiswas/pilesclinic/clinical/MedicineSlipActivity.kt	unresolved reference: setSupportActionBar
 com/tkbiswas/pilesclinic/clinical/MedicineSlipActivity.kt	unresolved reference: startActivity
@@ -91,6 +95,7 @@ com/tkbiswas/pilesclinic/clinical/PatientClinicalHistoryActivity.kt	unresolved r
 com/tkbiswas/pilesclinic/clinical/PatientClinicalHistoryActivity.kt	unresolved reference: finish
 com/tkbiswas/pilesclinic/clinical/PatientClinicalHistoryActivity.kt	unresolved reference: getSharedPreferences
 com/tkbiswas/pilesclinic/clinical/PatientClinicalHistoryActivity.kt	unresolved reference: onCreate
+com/tkbiswas/pilesclinic/clinical/PatientClinicalHistoryActivity.kt	unresolved reference: onSaveInstanceState
 com/tkbiswas/pilesclinic/clinical/PatientClinicalHistoryActivity.kt	unresolved reference: setContentView
 com/tkbiswas/pilesclinic/clinical/PatientClinicalHistoryActivity.kt	unresolved reference: setSupportActionBar
 com/tkbiswas/pilesclinic/clinical/PatientClinicalHistoryActivity.kt	unresolved reference: window
@@ -106,6 +111,7 @@ com/tkbiswas/pilesclinic/clinical/PrescriptionActivity.kt	unresolved reference: 
 com/tkbiswas/pilesclinic/clinical/PrescriptionActivity.kt	unresolved reference: notifyDataSetChanged
 com/tkbiswas/pilesclinic/clinical/PrescriptionActivity.kt	unresolved reference: notifyItemRemoved
 com/tkbiswas/pilesclinic/clinical/PrescriptionActivity.kt	unresolved reference: onCreate
+com/tkbiswas/pilesclinic/clinical/PrescriptionActivity.kt	unresolved reference: onSaveInstanceState
 com/tkbiswas/pilesclinic/clinical/PrescriptionActivity.kt	unresolved reference: setContentView
 com/tkbiswas/pilesclinic/clinical/PrescriptionActivity.kt	unresolved reference: setSupportActionBar
 com/tkbiswas/pilesclinic/clinical/PrescriptionActivity.kt	unresolved reference: startActivity
@@ -826,6 +832,7 @@ com/tkbiswas/pilesclinic/print/PrintCenterActivity.kt	unresolved reference: isDe
 com/tkbiswas/pilesclinic/print/PrintCenterActivity.kt	unresolved reference: isFinishing
 com/tkbiswas/pilesclinic/print/PrintCenterActivity.kt	unresolved reference: material
 com/tkbiswas/pilesclinic/print/PrintCenterActivity.kt	unresolved reference: onCreate
+com/tkbiswas/pilesclinic/print/PrintCenterActivity.kt	unresolved reference: onSaveInstanceState
 com/tkbiswas/pilesclinic/print/PrintCenterActivity.kt	unresolved reference: resources
 com/tkbiswas/pilesclinic/print/PrintCenterActivity.kt	unresolved reference: setContentView
 com/tkbiswas/pilesclinic/print/PrintCenterActivity.kt	unresolved reference: setSupportActionBar

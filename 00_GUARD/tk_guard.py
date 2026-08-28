@@ -2471,6 +2471,79 @@ HUMAN = [
 ]
 
 
+# ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯.৩১ — রোগীর পরিচয় হারালে ফাঁকা আইডিতে সেভ হতে পারবে না
+#  ─────────────────────────────────────────────────────────────
+#  🔴 TK-রিপোর্ট (২৮.০৮.২০২৬, ছবিসহ): Doctor Check-up পর্দার হেডারে
+#  নাম "Patient", ID "-", ব্রাঞ্চ "-" — অথচ ঘরে "BLEEDING" লেখা।
+#
+#  **আসল কারণ:** এই পর্দাগুলো রোগীকে চেনে শুধু মেমরির `RoleSession` থেকে;
+#  খোলার Intent-এ রোগীর আইডি পাঠানোই হয় না। ফোনে কল এলে/মেমরি কম পড়লে
+#  Android প্রসেস বন্ধ করে দেয়, পর্দা আবার খোলে — টাইপ করা লেখা ফেরে,
+#  কিন্তু `RoleSession` ফাঁকা। V721-এর ফোনে-জমা ব্যবস্থার ৩০ মিনিটের সীমা
+#  পেরোলে সেটাও ফেরাতে পারে না। তখনও **Save চাপা যেত** — "saved" লেখা
+#  উঠত, অথচ সারি যেত ফাঁকা আইডিতে ⇒ ডাক্তারের লেখা চুপচাপ হারাত।
+#
+#  **সমাধান (V786):** প্রতিটা রোগী-নির্ভর পর্দা (ক) নিজের Bundle-এ পরিচয়
+#  রাখে (`RoleSession.saveTo` — Bundle-এ সময়সীমা নেই), (খ) খুলে ফাঁকা
+#  পেলে সেখান থেকেই ফেরায় (`restoreFrom`), আর (গ) তবু না পেলে
+#  `blockIfNoPatient()` দিয়ে সেভ থামিয়ে দেয়।
+#  এই পাহারা নিশ্চিত করে তিনটেই জায়গামতো থাকে।
+# ═══════════════════════════════════════════════════════════════
+def check_patient_session_survives():
+    import re
+    rs = os.path.join(JAVA, "com", "tkbiswas", "pilesclinic", "clinical", "RoleSession.kt")
+    if not os.path.exists(rs):
+        fail("৯.৩১", "RoleSession.kt খুঁজে পাওয়া গেল না")
+        return
+    src = read(rs)
+    for need, why in (
+        ("fun saveTo(", "পর্দার Bundle-এ রোগী জমানোর ব্যবস্থা নেই"),
+        ("fun restoreFrom(", "Bundle থেকে রোগী ফেরানোর ব্যবস্থা নেই"),
+        ("fun blockIfNoPatient(", "রোগী না চিনলে সেভ থামানোর পাহারা নেই"),
+    ):
+        if need not in src:
+            fail("৯.৩১", "RoleSession-এ `%s` নেই ⇒ %s" % (need.replace("fun ", "").rstrip("("), why))
+    # ফাঁকা রোগীর উপর কখনো লেখা যাবে না — মেমরিতে রোগী থাকলে ফেরানো বন্ধ
+    if "if (currentPatientId.isNotBlank()) return" not in src:
+        fail("৯.৩১", "restoreFrom/restoreIfEmpty-এ 'মেমরিতে রোগী থাকলে কিছু নয়' পাহারা নেই "
+                     "⇒ পুরোনো পর্দা থেকে অন্য রোগী ফিরে আসতে পারে")
+
+    # রোগী-নির্ভর প্রতিটা পর্দায় Bundle-এ জমা + ফেরানো — দুটোই থাকতেই হবে
+    missing = []
+    for f in kt_files():
+        base = os.path.basename(f)
+        if not base.endswith("Activity.kt"):
+            continue
+        src2 = read(f)
+        # ⚠️ শুধু **পড়া**-র জায়গা ধরা হয়। Dashboard-এর Print টাইল ঘরটা
+        #    ইচ্ছে করে **ফাঁকা করে** (`currentPatientId = ""`) — সেটা রোগী
+        #    ব্যবহার করা নয়, তাই ওটা এই পাহারার আওতায় নয়।
+        reads = [ln for ln in src2.split("\n")
+                 if "RoleSession.currentPatientId" in ln
+                 and not re.search(r"currentPatientId\s*=[^=]", ln)
+                 and not ln.strip().startswith(("//", "*", "/*"))]
+        if not reads:
+            continue
+        if ".saveTo(outState)" not in src2 or ".restoreFrom(savedInstanceState)" not in src2:
+            missing.append(base)
+    if missing:
+        fail("৯.৩১", "এই পর্দাগুলো রোগীর পরিচয় Bundle-এ রাখে/ফেরায় না ⇒ কল এলে "
+                     "রোগী হারিয়ে ফাঁকা আইডিতে সেভ হবে: " + ", ".join(sorted(missing)))
+
+    # যে পর্দাগুলো সত্যিই ক্লাউডে সেভ করে, সেখানে সেভ-থামানোর পাহারা লাগবেই
+    for base in ("DoctorCheckupActivity.kt", "PrescriptionActivity.kt",
+                 "DietChartActivity.kt", "InvestigationAdviceActivity.kt",
+                 "MedicineSlipActivity.kt"):
+        f = os.path.join(JAVA, "com", "tkbiswas", "pilesclinic", "clinical", base)
+        if not os.path.exists(f):
+            fail("৯.৩১", base + " খুঁজে পাওয়া গেল না")
+            continue
+        if "blockIfNoPatient(this)" not in read(f):
+            fail("৯.৩১", base + "-এ `blockIfNoPatient()` নেই ⇒ রোগী না চিনেও সেভ "
+                                "হয়ে যাবে আর মিথ্যা \"saved\" দেখাবে")
+
+
 def main():
     release = "--release" in sys.argv
     print("=" * 66)
@@ -2500,6 +2573,7 @@ def main():
     check_no_autofill_kept()          # ⌨️ V752 — ফোনের নিজের সাজেশন বন্ধ
     check_clip_sensitive()            # 📋 V772 — কপি করা নম্বর সাজেশনে উঠবে না
     check_dialog_suggestion_guard()   # ⌨️ V774 — পপ-আপেও সাজেশন বন্ধ
+    check_patient_session_survives()  # 👤 V786 — কল এলে রোগীর পরিচয় হারাবে না
     check_qualified_calls()           # 🎯 V769 — ভুল object-এর নামে ডাকা
     check_cloud_row_null_text()       # 🚫 V760 — পর্দায় "null" লেখা
     check_webview_popup()             # 🩹 V738 — পপ-আপে WebView বসানোর ফাঁদ (কম্পন)

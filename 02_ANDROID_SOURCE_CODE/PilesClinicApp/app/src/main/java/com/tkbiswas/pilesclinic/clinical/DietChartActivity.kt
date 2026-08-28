@@ -19,8 +19,20 @@ import com.tkbiswas.pilesclinic.native.UppercaseInputUtil
 
 class DietChartActivity : AppCompatActivity() {
 
+    /* 🔴🔒 V786 (২৮.০৮.২০২৬, TK-রিপোর্ট: হেডারে "Patient / - / -") —
+       ফোনে কল এলে বা মেমরি কম পড়লে Android অ্যাপের প্রসেস বন্ধ করে দেয়;
+       পরে এই পর্দাটা আবার খোলে, কিন্তু মেমরির `RoleSession` ততক্ষণে ফাঁকা।
+       তাই রোগীর পরিচয় এই পর্দার নিজের Bundle-এও রাখা হয় — Bundle প্রসেস
+       মরলেও বাঁচে, আর V721-এর ৩০ মিনিটের সীমাও এতে লাগে না।
+       ⛔ মেমরিতে রোগী থাকলে `restoreFrom()` কিচ্ছু করে না (RoleSession.kt)। */
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        RoleSession.saveTo(outState)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        RoleSession.restoreFrom(savedInstanceState)   // 🔴🔒 V786 — কল/মেমরির কারণে হারানো রোগী ফেরানো
         setContentView(R.layout.activity_diet_chart)
         UppercaseInputUtil.applyToAll(window.decorView.findViewById(android.R.id.content))  // TK-REQUESTED GLOBAL RULE (2026-07-24): English text auto-CAPITAL, Password fields excluded automatically
 
@@ -157,6 +169,10 @@ class DietChartActivity : AppCompatActivity() {
         catch (_: Throwable) { "" }
 
     private fun saveDietChart(openPrintAfter: Boolean) {
+        /* 🔴🔒 V786 — রোগী চেনা না গেলে (কল/মেমরির কারণে প্রসেস মরে পর্দা
+           আবার খোলা) এখানেই থেমে যায়। আগে ফাঁকা আইডিতেও সেভ হয়ে যেত আর
+           "saved" লেখা উঠত — ডাক্তারের লেখা চুপচাপ হারাত। */
+        if (RoleSession.blockIfNoPatient(this)) return
         val selected = ClinicalRepository.currentDiet.filter { it.isSelected }
         if (selected.isEmpty()) {
             Toast.makeText(this, "Select at least one diet guideline before saving.", Toast.LENGTH_SHORT).show()

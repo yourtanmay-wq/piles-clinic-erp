@@ -1588,6 +1588,54 @@ class PaymentRepository(private val context: Context? = null) {
         } catch (_: Throwable) { 0.0 }
     }
 
+    /* ═══════════════════════════════════════════════════════════════════
+       🟡🔒 V786 (২৮.০৮.২০২৬, TK-রিপোর্ট + ফটো-প্রমাণ) —
+       **"Refund ২ বার হয়ে গেল, আটকালো না কেন? ডুপ্লিকেট pop up কেন এলো না?"**
+
+       TK-এর ছবি (KABITA BANU · COB-26082026-001): ২৭.০৮.২০২৬ রাত ৯.২৫ ও
+       ৯.২৬ — **দুটো হুবহু ₹4,001 CASH Refund**, এক মিনিটের ব্যবধানে।
+
+       ─── কেন আটকায়নি (কোড ধরে যাচাই, আন্দাজ নয়) ─────────────────────────
+       Refund-এ তিনটে পাহারা ছিল, কিন্তু **ডুপ্লিকেট ধরার পাহারা ছিল না**:
+         ১. `refundSaving` — শুধু **একই ফর্মে** পরপর দুই চাপ আটকায়
+         ২. `nonce` — ইচ্ছে করেই **ফর্ম নতুন করে খুললে নতুন**, যাতে একই দিনে
+            একই টাকার **বৈধ** দ্বিতীয় ফেরত দেওয়া যায়
+         ৩. `maxRefundable` — জমার চেয়ে বেশি ফেরত আটকায়। এখানে জমা ছিল
+            ₹9,501 (₹5,500 + ₹4,001), তাই ₹4,001 × ২ = ₹8,002 **সীমার
+            ভিতরেই** ছিল ⇒ অঙ্কের দিক থেকে কিছুই ভুল ছিল না, তাই আটকায়নি।
+       ⇒ ফর্মটা দ্বিতীয়বার খোলা হয়েছিল, তাই ১ ও ২ কাজে লাগেনি; আর ৩ তো
+         এটাকে ভুলই মনে করেনি।
+
+       ─── এখন কী হয় ─────────────────────────────────────────────────────
+       V708-এ Prescription/Investigation-এ TK যে নিয়ম পাশ করেছিলেন, টাকার
+       পর্দাতেও ঠিক সেটাই — **Cancel = না · OK = জেনেশুনে তবুও**।
+       আজকের দিনে এই রোগীর **একই পরিমাণ** ফেরত আগে থেকে থাকলে সতর্কবার্তা।
+
+       ⛔ টাকার একটাও নিয়ম বদলায়নি — এটা শুধু **জিজ্ঞাসা** করে।
+       ⛔ Egress: একটাই ছোট query (`select=id,amount,time,reason`), আর সেটাও
+          শুধু Refund বোতাম চাপলে — তালিকা খোলার সময় নয়।
+       ═══════════════════════════════════════════════════════════════════ */
+    fun todaysRefundLike(patient: PatientBillInfo, amount: Double): org.json.JSONObject? {
+        if (patient.id.isBlank() || amount <= 0.0) return null
+        return try {
+            val today = PaymentModel.today()
+            val rows = SupabaseClient.fetchList(
+                "payments",
+                "patientId=eq.${patient.id}&payType=eq.refund&date=eq.$today",
+                200, select = "id,amount,time,reason,refundApprovalStatus"
+            )
+            var hit: org.json.JSONObject? = null
+            for (i in 0 until rows.length()) {
+                val r = rows.optJSONObject(i) ?: continue
+                // বাতিল/না-মঞ্জুর সারি ডুপ্লিকেট নয়
+                val st = r.optString("refundApprovalStatus", "")
+                if (st.equals("rejected", true) || st.equals("cancelled", true)) continue
+                if (kotlin.math.abs(r.optDouble("amount", 0.0) - amount) <= 0.5) { hit = r; break }
+            }
+            hit
+        } catch (_: Throwable) { null }   // নেট খারাপ হলে চুপচাপ সরে দাঁড়ায় — সৎ ফেরত আটকানো যাবে না
+    }
+
     /** Refund সেভ। Master → সরাসরি approved। Staff → **শুধু তখনই** সরাসরি
      *  approved, যখন (ক) আজকের Chamber এখনো বন্ধ হয়নি, **আর** (খ) এই
      *  রোগী থেকে আজকেই এই রিফান্ডের সমান বা বেশি টাকা জমা পড়েছে (তাই

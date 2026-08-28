@@ -175,8 +175,20 @@ class DoctorCheckupActivity : AppCompatActivity() {
         "Choose Occupation", "Farmer", "Housewife", "Business", "Service", "Student", "Labour", "Retired", "Others"
     )
 
+    /* 🔴🔒 V786 (২৮.০৮.২০২৬, TK-রিপোর্ট: হেডারে "Patient / - / -") —
+       ফোনে কল এলে বা মেমরি কম পড়লে Android অ্যাপের প্রসেস বন্ধ করে দেয়;
+       পরে এই পর্দাটা আবার খোলে, কিন্তু মেমরির `RoleSession` ততক্ষণে ফাঁকা।
+       তাই রোগীর পরিচয় এই পর্দার নিজের Bundle-এও রাখা হয় — Bundle প্রসেস
+       মরলেও বাঁচে, আর V721-এর ৩০ মিনিটের সীমাও এতে লাগে না।
+       ⛔ মেমরিতে রোগী থাকলে `restoreFrom()` কিচ্ছু করে না (RoleSession.kt)। */
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        RoleSession.saveTo(outState)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        RoleSession.restoreFrom(savedInstanceState)   // 🔴🔒 V786 — কল/মেমরির কারণে হারানো রোগী ফেরানো
         setContentView(R.layout.activity_doctor_checkup)
         UppercaseInputUtil.applyToAll(window.decorView.findViewById(android.R.id.content))  // TK-REQUESTED GLOBAL RULE (2026-07-24): English text auto-CAPITAL, Password fields excluded automatically
 
@@ -345,6 +357,10 @@ class DoctorCheckupActivity : AppCompatActivity() {
         }
 
         btnSave.setOnClickListener {
+            /* 🔴🔒 V786 — রোগী চেনা না গেলে (কল/মেমরির কারণে প্রসেস মরে পর্দা
+               আবার খোলা) এখানেই থেমে যায়। আগে ফাঁকা আইডিতেও সেভ হয়ে যেত আর
+               "saved" লেখা উঠত — ডাক্তারের লেখা চুপচাপ হারাত। */
+            if (RoleSession.blockIfNoPatient(this)) return@setOnClickListener
             val record = collect()
             // 🟢🔒 V656 — মূল থ্রেডেই (View স্পর্শ করা নিরাপদ) ধরে রাখা হলো,
             // নিচের ব্যাকগ্রাউন্ড-সেভে ব্যবহারের জন্য (View off-thread ছুঁলে
@@ -1075,7 +1091,14 @@ class DoctorCheckupActivity : AppCompatActivity() {
     } catch (_: Throwable) { hhmm }
 
     private fun bindPatientHeader() {
-        val name = RoleSession.currentPatientName.ifBlank { "Patient" }
+        /* 🔴🔒 V786 (২৮.০৮.২০২৬, TK-এর ফটো: নাম "Patient", ID "-") — রোগী
+           চেনা না গেলে আগে চুপচাপ "Patient / - / -" দেখাত, ডাক্তার বুঝতেই
+           পারতেন না যে পর্দাটা রোগী হারিয়ে ফেলেছে। এখন হেডারেই স্পষ্ট
+           সতর্কতা ওঠে (Save-ও বন্ধ — উপরে btnSave দেখুন)।
+           ⛔ কার্ডের নকশা/মাপ/রং কিচ্ছু বদলায়নি — শুধু লেখাটা। */
+        val noPatient = RoleSession.currentPatientId.isBlank()
+        val name = if (noPatient) "\u26A0\uFE0F Patient not loaded"
+                   else RoleSession.currentPatientName.ifBlank { "Patient" }
         // 🔒 খাতার সারি B175 (TK, 30.07.2026): "Reg ID:"-এ raw আইডি (pat_...)
         // দেখাত। এখন `displayId()` — মানুষ-পড়া-যায় কোড থাকলে সেটাই দেখাবে।
         // ⛔ নিচের ক্লাউড-খোঁজাও অক্ষত থাকল — ওটা আগে থেকেই মানুষ-পড়া-যায়
