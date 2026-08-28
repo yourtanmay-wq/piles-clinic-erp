@@ -145,6 +145,12 @@ class RegistrationActivity : AppCompatActivity() {
                 val arr = try { org.json.JSONArray(raw) } catch (_: Throwable) { continue }
                 for (i in 0 until arr.length()) arr.optJSONObject(i)?.let { combined.put(it) }
             }
+            // 🟢🔒 V802 — Doctor Visit পর্দার জমানো ঘরের সঙ্গে RMP-বাছার নিজস্ব
+            // হালকা ঘরটাও যোগ (নিচের `seen` ইতিমধ্যেই ডুপ্লিকেট বাদ দেয়)।
+            run {
+                val extra = RmpDirectory.cachedRows(this, user.branch)
+                for (i in 0 until extra.length()) extra.optJSONObject(i)?.let { combined.put(it) }
+            }
             // Include a doctor/RMP just added on this phone even if its cloud
             // copy has not yet appeared in the saved cache.
             val rows = MyPhoneWrites.overlay(this, "doctor_visits", combined)
@@ -179,6 +185,32 @@ class RegistrationActivity : AppCompatActivity() {
 
     private fun showSavedRmpPicker(user: NativeUser) {
         val all = cachedRmpChoices(user)
+        /* 🟢🔒 V802 (২৮.০৮.২০২৬) — TK: "RMP পাঠিয়েছে, তাহলে এখন কেন দেখাচ্ছে না
+           আরএমপি লিস্ট?" ─ কারণ ছিল: তালিকাটা শুধু `doctor_visit_cache` থেকে পড়ত,
+           আর ওই ঘরটা ভরে **একমাত্র Doctor Visit পর্দা খুললে**। যে ফোনে কেউ ওই
+           পর্দা কখনো খোলেনি, সেখানে তালিকা চিরকাল ফাঁকাই থাকত (পুরনো লেখাতেই
+           ছিল — "No cloud search was made")।
+           এখন ফাঁকা হলে **একবার** হালকা পড়া হয় (৮টা ঘর, ভারী `callHistory` ও
+           `referralPayments` ছাড়া ⇒ কয়েক KB), তারপর ফোনে জমা থাকে — পরের বার
+           এক বাইটও খরচ নেই। নেট না থাকলে আগের মতোই হাতে লেখা যায়। */
+        if (all.isEmpty() && !RmpDirectory.hasDoctorVisitCache(this@RegistrationActivity, user.branch) &&
+            RmpDirectory.cachedRows(this@RegistrationActivity, user.branch).length() == 0) {   // ⛔ একবারই — নামানো হয়ে গেলে আর নয়
+            android.widget.Toast.makeText(this@RegistrationActivity, "Loading saved RMP list…", android.widget.Toast.LENGTH_SHORT).show()
+            Thread {
+                val got = RmpDirectory.refreshFromCloud(this@RegistrationActivity, user.branch)   // SharedPreferences একই ফাইল, তাই Activity-context যথেষ্ট
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    // ⛔ পর্দা ইতিমধ্যে বন্ধ হয়ে গেলে ডায়ালগ দেখাতে গিয়ে যেন অ্যাপ না থামে
+                    try {
+                    if (got) showSavedRmpPicker(user) else AlertDialog.Builder(this@RegistrationActivity)
+                        .setCustomTitle(PremiumAlert.header(this@RegistrationActivity, "Saved RMP list not available"))
+                        .setMessage("Could not load the saved RMP list. Check the internet connection and try again, or enter the Doctor / RMP name and mobile manually below.")
+                        .setPositiveButton("OK", null)
+                        .show().also { PremiumAlert.paint(it) }
+                    } catch (_: Throwable) { }
+                }
+            }.start()
+            return
+        }
         if (all.isEmpty()) {
             AlertDialog.Builder(this)
                 .setCustomTitle(PremiumAlert.header(this, "Saved RMP list not available"))

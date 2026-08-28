@@ -1,6 +1,6 @@
 {
   "styles.css": {
-    "v": "v800",
+    "v": "v802",
     "sha": "1a2069a1f8f5c521356c46cc188e22fef967f7a8a358cd3e267214964921dd36"
   },
   "config.js": {
@@ -8,8 +8,8 @@
     "sha": "1011d1fd32a4a12ac339aa259f26ca1908b58bf5d6064645441571a042347097"
   },
   "app.js": {
-    "v": "v800",
-    "sha": "6dbd6e464261933e86daaf6e400dcee639aa7cf2af33fdff13e97a216b445831"
+    "v": "v802",
+    "sha": "4c00abdc293cd3f86a46678f22d4509bd3d51e0e11b30b1b8cce4ed6794e88cd"
   },
   "module_core.js": {
     "v": "v468",

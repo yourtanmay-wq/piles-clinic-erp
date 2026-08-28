@@ -7796,7 +7796,11 @@ window["wlv1RefByChanged"]=wlv1RefByChanged;
    name/mobile entry remains below as a fail-safe. */
 function wlv1CachedRmpRows(q=''){
   let term=String(q||'').trim().toLowerCase(), br=String(($('#pBranch')||{}).value||user?.branch||'').trim();
-  return (load('doctor_visits')||[]).filter(x=>{
+  let __base=(load('doctor_visits')||[]);
+  /* 🟢 V802 — আসল ঘরে কিছু না থাকলে RMP-বাছার নিজস্ব হালকা ঘরটা ব্যবহার হয়।
+     ⛔ আসল ঘরে সারি থাকলে সেটাই চলে — Doctor Visit পর্দার কিছুই বদলায় না। */
+  if(!__base.length) __base=wlv1RmpDirRows();
+  return __base.filter(x=>{
     if(String(x.status||'Active').toLowerCase()!=='active')return false;
     if(br&&br!=='All'&&x.branch&&String(x.branch).toLowerCase()!==br.toLowerCase())return false;
     let hay=[x.name,x.mobile,x.altMobiles,x.area,x.branch].join(' ').toLowerCase();return !term||hay.includes(term);
@@ -7813,7 +7817,42 @@ function wlv1ChooseCachedRmp(id){let x=(load('doctor_visits')||[]).find(r=>Strin
    V752)। নইলে বেছে নেওয়ার পরে চেহারা বদলে যেত — সেটাই বিভ্রান্তির শুরু। */
  if(n)n.value=String(x.name||'').trim().toUpperCase();if(m)m.value=mob(x.mobile||'');closeModal();}
 window["wlv1ChooseCachedRmp"]=wlv1ChooseCachedRmp;
-function wlv1OpenCachedRmpPicker(){
+/* 🟢🔒 V802 (২৮.০৮.২০২৬) — TK: "RMP পাঠিয়েছে, তাহলে এখন কেন দেখাচ্ছে না আরএমপি লিস্ট?"
+   ফোনের হুবহু একই সমস্যা ও একই সমাধান (খাতার নিয়ম ৬.৬ — ফোন ও কম্পিউটার সমান)।
+   তালিকাটা শুধু ফোনে/ব্রাউজারে জমানো `doctor_visits` থেকে পড়ত; নতুন ব্রাউজারে বা
+   Doctor Visit পর্দা একবারও না খুললে ওটা ফাঁকা ⇒ তালিকাও ফাঁকা।
+   এখন ফাঁকা হলে **একবার** হালকা পড়া হয় — শুধু ৮টা ঘর, ভারী `callHistory` ও
+   `referralPayments` **ছাড়া** (কয়েক KB)।
+   ⛔ সবচেয়ে জরুরি: এই হালকা সারিগুলো `doctor_visits`-এ **সেভ করা হয় না**, আলাদা
+      ঘরে (`wlv1RmpDir`) রাখা হয়। কারণ Doctor Visit পর্দা ওই আসল ঘরটাই পড়ে, আর
+      সেখানে হালকা সারি ঢুকলে কার্ডে কল-সংখ্যা ০ ও Paid ₹0 দেখাত (V543-এর বাগ ফিরত)। */
+const WLV1_RMP_DIR_COLS='id,name,mobile,altMobiles,area,branch,status,updatedAt';
+let wlv1RmpDirTry=0;
+function wlv1RmpDirRows(){ try{ return JSON.parse(localStorage.getItem('wlv1RmpDir')||'[]')||[] }catch(_e){ return [] } }
+async function wlv1RmpDirFetch(){
+  let now=Date.now(); if(now-wlv1RmpDirTry<60000) return false; wlv1RmpDirTry=now;
+  try{
+    if(!sb) return false;
+    let br=String(($('#pBranch')||{}).value||user?.branch||'').trim();
+    let q=sb.from('doctor_visits').select(WLV1_RMP_DIR_COLS).limit(2000);
+    if(br&&br!=='All') q=q.eq('branch',br);
+    let r=await q;
+    if(r.error||!Array.isArray(r.data)) return false;
+    try{ localStorage.setItem('wlv1RmpDir',JSON.stringify(r.data)) }catch(_e){}
+    return r.data.length>0;
+  }catch(_e){ return false }
+}
+async function wlv1OpenCachedRmpPicker(){
+  let rows=wlv1CachedRmpRows('');
+  if(!rows.length){
+    toast('Loading saved RMP list…');
+    let got=await wlv1RmpDirFetch();
+    rows=wlv1CachedRmpRows('');
+    if(!rows.length) return modal('<h2>Saved RMP list not available</h2><div class="card mut">Could not load the saved RMP list. Check the internet connection and try again, or enter the Doctor / RMP name and mobile manually below.</div><div class="row" style="justify-content:flex-end"><button class="btn" onclick="closeModal()">OK</button></div>');
+  }
+  return wlv1OpenCachedRmpPickerBody();
+}
+function wlv1OpenCachedRmpPickerBody(){
   let rows=wlv1CachedRmpRows('');if(!rows.length)return modal('<h2>Saved RMP list not available</h2><div class="card mut">Enter the Doctor / RMP name and mobile manually below. No cloud search was made.</div><button onclick="closeModal()">OK</button>');
   modal(`<h2>Select Saved RMP / Doctor</h2><div class="rmpPickerWhite"><input class="input" placeholder="Search by name, mobile or area" oninput="wlv1RenderRmpChoices(this.value)"><div id="wlv1RmpChoiceStatus" class="rmpChoiceStatus"></div><div id="wlv1RmpChoiceList" class="rmpChoiceList"></div></div><button class="ghost" onclick="closeModal()">Manual Entry</button>`);wlv1RenderRmpChoices('');
 }
