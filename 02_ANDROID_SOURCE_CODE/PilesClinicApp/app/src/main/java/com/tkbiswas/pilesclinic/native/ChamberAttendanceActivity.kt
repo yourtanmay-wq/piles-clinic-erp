@@ -2337,6 +2337,30 @@ class ChamberAttendanceActivity : AppCompatActivity() {
     private fun isEffectivelyBlankRemark(remark: String): Boolean =
         remark.trim().isBlank() || remark.trim().equals("Registered patient / Visit created", ignoreCase = true)
 
+    /* 🔴🔴🔒 V810 (২৮.০৮.২০২৬, TK-অনুমোদিত) — **"স্টাফ কিছু লেখেনি, তাহলে চেম্বার
+       বন্ধ সেভ হলো কি করে?"** (TK-এর কাগজে TREATMENT PROGRESS-এ "ASBEN")।
+       ─── আসল কারণ (কোড ধরে প্রমাণিত) ───────────────────────────────────────
+       বোর্ডের `remark` ঘরে রোগীর **সবচেয়ে সাম্প্রতিক** লেখাটা বসে — সেটা আজকের
+       হোক বা বহু দিন আগের (`ChamberAttendanceRepository`-তে `followups.lastRemark`)।
+       V654-এ **দেখানোর** দিকটা ঠিক করা হয়েছিল (পুরনো লেখা ধূসর, আজকেরটা গাঢ়) —
+       কিন্তু নিচের দুটো জায়গা তারিখটা **মেলাতোই না**, শুধু "ঘর ফাঁকা কিনা" দেখত:
+         ১) চেম্বার-বন্ধের পাহারা  ২) ছাপা রেজিস্টারের TREATMENT PROGRESS ঘর
+       ⇒ পুরনো একটা লেখা ঘরে বসে থাকায় পাহারা "লেখা আছে" ধরে **বন্ধ করতে দিত**,
+         আর কাগজে পুরনো লেখাটাই **আজকের চিকিৎসা-নোট** হিসেবে ছাপা হত।
+       ─── সারানো ────────────────────────────────────────────────────────────
+       এখন ওই দুটো জায়গায় তারিখও মেলানো হয়। V687-এর লেখা নির্দেশটাই
+       ("আজকের লেখা যতক্ষণ না লেখা হবে, ততক্ষণ চেম্বার বন্ধ করা যাবে না")
+       এবার সত্যিই কার্যকর হলো।
+       ⛔ **পুরনো দিনের বোর্ড/কাগজ অক্ষত** — তারিখ মেলানো হয় **শুধু আজকের**
+          বোর্ডে (নিচের শর্তটা দেখুন)। নইলে V535-এ ফিরিয়ে আনা পুরনো দিনের
+          লেখাগুলো "PENDING" হয়ে যেত — একটা ভালো কাজ নষ্ট হত।
+       ⛔ পর্দায় দেখানোর রং/লেখা (V654) এক অক্ষরও বদলায়নি। */
+    private fun todaysProgressMissing(remark: String, remarkUpdatedAt: String): Boolean {
+        if (isEffectivelyBlankRemark(remark)) return true
+        if (selectedDate != FollowUpModel.today()) return false   // পুরনো দিন — আগের মতোই
+        return remarkUpdatedAt.take(10) != selectedDate
+    }
+
     private fun writeTreatment(row: ChamberAttendanceRow) {
         val digitsForId = row.mobile.filter { it.isDigit() }.takeLast(10)
         if (row.followUpId.isBlank() && digitsForId.length != 10) {
@@ -2710,7 +2734,8 @@ Thread {
         // নেওয়া হলো — এখন প্রতিটা Arrived রোগীর আজকের (V687-এ ঠিক করা
         // payments.progress-ভিত্তিক) Treatment Progress লেখা **বাধ্যতামূলক**,
         // কোনো bypass নেই। ফাঁকা থাকলেই বক্স খুলে যায়, close হয় না।
-        val missing = board.rows.firstOrNull { it.arrived && isEffectivelyBlankRemark(it.remark) }
+        // 🔴 V810 — এখন তারিখও মেলানো হয় (পুরনো লেখা আর পাহারা ফাঁকি দিতে পারবে না)
+        val missing = board.rows.firstOrNull { it.arrived && todaysProgressMissing(it.remark, it.remarkUpdatedAt) }
         if (missing != null) {
             android.widget.Toast.makeText(
                 this,
@@ -3907,7 +3932,8 @@ Thread {
                     // হুবহু অক্ষত থাকে (TK-এর সিদ্ধান্ত)। ⛔ ডেটাবেসে কিছু
                     // বদলায় না — শুধু কাগজে ছাপার আগে লেখাটা বদলে নেওয়া হয়।
                     // নিচের ফাঁকা-ঘরের লেখাটা শুধু কাগজেই যায়, পর্দায় নয়।
-                    treatment = if (isEffectivelyBlankRemark(r.remark)) "⚠️ PROGRESS PENDING"
+                    // 🔴 V810 — পুরনো দিনের লেখা আর আজকের নোট সেজে ছাপা হবে না
+                    treatment = if (todaysProgressMissing(r.remark, r.remarkUpdatedAt)) "⚠️ PROGRESS PENDING"
                         else com.tkbiswas.pilesclinic.print.PrintTextEnglish.forPrint(r.remark).ifBlank { "⚠️ PROGRESS PENDING" },
                     visitLabel = visitLabels[r.mobile] ?: "",
                     // TK-REQUESTED (2026-07-22): mode the registration/doctor-visit

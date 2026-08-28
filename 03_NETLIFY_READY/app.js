@@ -17334,6 +17334,20 @@ function wlv1EffectivelyBlankRemark(remark){
   return !t || t.toLowerCase()==='registered patient / visit created';
 }
 window["wlv1EffectivelyBlankRemark"]=wlv1EffectivelyBlankRemark;
+/* 🔴🔴🔒 V810 (২৮.০৮.২০২৬, TK-অনুমোদিত · ফোনের যমজ — নিয়ম ৬.৬) —
+   TK: "স্টাফ কিছু লেখে নাই, তাহলে চেম্বার বন্ধ সেভ হলো কি করে?" (কাগজে "ASBEN")।
+   কারণ: বোর্ডের `treatment` ঘরে রোগীর **সবচেয়ে সাম্প্রতিক** লেখা বসে — আজকের
+   হোক বা বহু দিন আগের (`app.js` ~17208, `f.lastRemark`)। দেখানোর দিকটা আগেই
+   ঠিক ছিল (আজকের/পুরনো আলাদা রঙে), কিন্তু **চেম্বার-বন্ধের পাহারা ও ছাপা
+   কাগজ তারিখটা মেলাতোই না** — শুধু "ঘর ফাঁকা কিনা" দেখত। ফলে পুরনো লেখা
+   পাহারা ফাঁকি দিত, আর কাগজে আজকের নোট সেজে ছাপা হত।
+   ⛔ পুরনো দিনের বোর্ড/কাগজ অক্ষত — তারিখ মেলানো হয় **শুধু আজকের** দিনে। */
+function wlv1TodaysProgressMissing(r){
+  if(wlv1EffectivelyBlankRemark(r&&r.treatment)) return true;
+  if(String(wlv1ChamberDate||'')!==today()) return false;   // পুরনো দিন — আগের মতোই
+  return String((r&&r.treatmentUpdatedAt)||'').slice(0,10)!==today();
+}
+window["wlv1TodaysProgressMissing"]=wlv1TodaysProgressMissing;
 function wlv1ChamberRowHtml(r){
   // 🔒 V217 (§B216): আগে শুধু >0 হলেই সংখ্যা দেখাত, নইলে "—"। এখন refund-এর
   // পরে কোনো দিন cash/online ঋণাত্মক হতে পারে (শুধু ওই দিন refund হলে) —
@@ -19763,7 +19777,7 @@ function wlv1CloseChamber(){
   // আগে ৩ বার চাপলে ফাঁকা/পুরনো Treatment Progress থাকা সত্ত্বেও বন্ধ করার
   // একটা ছাড় (bypass) ছিল। TK-এর স্পষ্ট নির্দেশে সেই ছাড় পুরোপুরি তুলে
   // নেওয়া হলো — কোনো bypass নেই, ফাঁকা থাকলেই বক্স খুলে যায়, close হয় না।
-  const missing = arrived.find(r=>wlv1EffectivelyBlankRemark(r.treatment));
+  const missing = arrived.find(r=>wlv1TodaysProgressMissing(r));   /* 🔴 V810 — তারিখও মেলানো হয় */
   if(missing){
     toast('⚠️ '+String(missing.name||missing.mobile)+"'s আজকের Treatment Progress লেখা হয়নি — না লিখলে চেম্বার বন্ধ করা যাবে না");
     try{ wlv1ChamberWriteTreatment(missing.mobile); }catch(e){}
@@ -20028,7 +20042,7 @@ async function wlv1ConfirmChamberClose(){
   const rows=wlv1ChamberArrivedRows(), pick=wlv1ClosePrintBranch;
   const chosen=pick?rows.filter(r=>String(r.branch||'').trim()===pick):rows;
   if(!chosen.length)return toast('Nobody has been marked Arrived yet');
-  if(chosen.some(r=>wlv1EffectivelyBlankRemark(r.treatment)))return toast('Review incomplete — Treatment Progress লিখুন');
+  if(chosen.some(r=>wlv1TodaysProgressMissing(r)))return toast('Review incomplete — Treatment Progress লিখুন');   /* 🔴 V810 */
   const br=pick||String(chosen[0].branch||(user&&user.branch)||'');
   const ok=await wlv1MarkChamberClosed(br,wlv1ChamberDate);
   if(!ok)return toast('Cloud-এ বন্ধ করা যায়নি — আবার চেষ্টা করুন');
@@ -20076,7 +20090,7 @@ function wlv1ChamberRegisterPrint(){
       <td class="cbPat"><b>${esc(String(r.name||r.mobile).toUpperCase())}</b>
         <div class="cbSub">Mob: ${esc(shownMob(r.mobile))}</div>
         ${r.patientId?`<div class="cbSubId">ID: ${esc(r.patientId)}</div>`:''}</td>
-      <td class="cbTreat">${!wlv1EffectivelyBlankRemark(r.treatment)?esc(wlv1PrintEn(r.treatment)):'⚠️ PROGRESS PENDING'}</td>
+      <td class="cbTreat">${!wlv1TodaysProgressMissing(r)?esc(wlv1PrintEn(r.treatment)):'⚠️ PROGRESS PENDING'}</td>
       <td class="cbVisit">${visitCell}</td>
       <td class="cbMoney">${rupee(r.cash)}</td>
       <td class="cbMoney">${rupee(r.online)}</td></tr>`;
@@ -20361,7 +20375,7 @@ function wlv1ChamberRegisterText(){
     tMedCash+=Number(r.medicineCash||0); tMedOnline+=Number(r.medicineOnline||0);
     return (i+1)+'. '+String(r.name||r.mobile).toUpperCase()+' ('+normMob(r.mobile)+')'
       + (r.patientId?' ID '+r.patientId:'')
-      + '\n   ' + (wlv1EffectivelyBlankRemark(r.treatment) ? '⚠️ PROGRESS PENDING'
+      + '\n   ' + (wlv1TodaysProgressMissing(r) ? '⚠️ PROGRESS PENDING'
                    : (wlv1PrintEn(r.treatment).trim() || '⚠️ PROGRESS PENDING'))
       + '\n   FEES '+rupee(r.fee)+' | CASH '+rupee(r.cash)+' | ONLINE '+rupee(r.online);
   }).join('\n');
