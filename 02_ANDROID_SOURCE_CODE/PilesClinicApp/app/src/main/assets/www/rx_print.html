@@ -288,13 +288,18 @@ body { background: linear-gradient(135deg, rgb(237, 246, 255) 0%, rgb(247, 255, 
 .printArea.prescriptionLock.rxPrescriptionPrint .clinicCell h2{
   color:#C0192B!important;font-size:34px!important;line-height:1.06!important}
 .printArea.prescriptionLock.rxPrescriptionPrint .clinicCell p{
-  font-size:14px!important;line-height:1.25!important}
+  font-size:14px!important;line-height:1.25!important;text-transform:uppercase!important}
 .printArea.prescriptionLock.rxPrescriptionPrint .rxTagline{
   line-height:1.2!important;padding:1.4mm 3mm!important}
 .printArea.prescriptionLock.rxPrescriptionPrint .rxTagline b,
 .printArea.prescriptionLock.rxPrescriptionPrint .rxTagline span{
   display:inline!important;white-space:nowrap!important;margin:0!important}
-.printArea.prescriptionLock.rxPrescriptionPrint .rxTagline span{font-size:7.6px!important}
+/* V797 (২৮.০৮.২০২৬) — TK: "We provide … সম্পূর্ণ ঐ লাইনটাও ক্যাপিটাল লেটার এই
+   করুন, একই সাইজের ফন্ট হবে সবগুলো" ⇒ দুই টুকরোই 8.5px ও uppercase।
+   মেপে: এক লাইনে মোট চওড়া 621px, জায়গা আছে 733px। */
+.printArea.prescriptionLock.rxPrescriptionPrint .rxTagline b,
+.printArea.prescriptionLock.rxPrescriptionPrint .rxTagline span{
+  font-size:8.5px!important;text-transform:uppercase!important}
 .printArea.prescriptionLock.rxPrescriptionPrint .rxTagline b::after{content:"  —  "}
 
 /* V796 — সইয়ের লাইন 6.5mm উপরে ওঠায় বাঁদিকের খাড়া দাগ দুটোও ততটাই ছোট করা হলো,
