@@ -1713,4 +1713,45 @@ object ChamberAttendanceRepository {
         if (row.optString("payType", "") != "attendance_mark") return false
         return SupabaseClient.deleteById("payments", paymentRowId)
     }
+
+    /* 🆕🔒 V805 (২৮.০৮.২০২৬, TK-অনুমোদিত) — চেম্বার-প্রিন্টে দেখানোর জন্য ওই
+       দিনের **ওষুধ ও স্যালাইন বিক্রির মোট** টাকা।
+       ─── কেন আলাদা করে পড়তে হচ্ছে ────────────────────────────────────────
+       ওষুধ/স্যালাইন বিক্রি জমা হয় `products` টেবিলে, আর চেম্বার রেজিস্টার
+       এতদিন পড়ত শুধু `payments` — দুটো আলাদা জায়গা। সেই কারণেই কাগজে
+       "MEDICINE SALES" লাইনটা **কোনোদিন ছাপাই হয়নি** (সবসময় ₹0 হয়ে যেত)।
+       ─── egress ───────────────────────────────────────────────────────────
+       একটাই সরু পড়া: **শুধু ওই এক দিনের, ওই এক ব্রাঞ্চের** সারি, আর মাত্র
+       ৫টা ঘর (`kind,mode,deposit,date,branch`) — কয়েক KB-র বেশি নয়।
+       ─── সুরক্ষা ──────────────────────────────────────────────────────────
+       ⛔ ব্যর্থ হলে সব শূন্য ফেরে ⇒ লাইনদুটো ছাপা হয় না, কাগজ হুবহু আগের মতোই।
+       ⛔ FEES / TREATMENT / GRAND TOTAL-এর হিসাবে **একটুও হাত পড়েনি** —
+          এই টাকা কোনো মোটে যোগ হয় না (TK-এর নিজের সিদ্ধান্ত)।
+       ⛔ যে টাকা **সত্যিই জমা পড়েছে** সেটাই গোনা হয় (`deposit`), বিল নয় —
+          বাকি থাকলে সেটা ড্রয়ারে আসেনি। */
+    fun saleTotals(date: String, branch: String?): com.tkbiswas.pilesclinic.print.ChamberRegisterPdfBuilder.SaleTotals {
+        val Z = com.tkbiswas.pilesclinic.print.ChamberRegisterPdfBuilder.SaleTotals()
+        return try {
+            val filter = StringBuilder("date=eq.").append(date)
+                .append("&kind=in.(medicinePayment,salinePayment)")
+            if (!branch.isNullOrBlank() && !branch.equals("All", ignoreCase = true)) {
+                filter.append("&branch=eq.").append(java.net.URLEncoder.encode(branch, "UTF-8"))
+            }
+            val rows = SupabaseClient.fetchListSlimOrNull(
+                "products", filter.toString(), 2000, "kind,mode,deposit,date,branch"
+            ) ?: return Z
+            var mc = 0.0; var mo = 0.0; var sc = 0.0; var so = 0.0
+            for (i in 0 until rows.length()) {
+                val r = rows.optJSONObject(i) ?: continue
+                val amt = r.s("deposit").replace(",", "").trim().toDoubleOrNull() ?: 0.0
+                if (amt <= 0.0) continue
+                val online = r.s("mode").equals("ONLINE", ignoreCase = true) ||
+                    r.s("mode").equals("UPI", ignoreCase = true)
+                if (r.s("kind") == "salinePayment") { if (online) so += amt else sc += amt }
+                else { if (online) mo += amt else mc += amt }
+            }
+            com.tkbiswas.pilesclinic.print.ChamberRegisterPdfBuilder.SaleTotals(mc, mo, sc, so)
+        } catch (_: Throwable) { Z }
+    }
+
 }

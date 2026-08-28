@@ -21,7 +21,7 @@
         android:background="@drawable/bg_login_hero"
         app:navigationIcon="?attr/homeAsUpIndicator"
         app:titleTextColor="@color/white"
-        app:title="Medicine Payment">
+        app:title="Medicine or Saline">
 
         <!-- 🔒 TK-APPROVED (29.07.2026, খাতার সারি B84): ব্রাঞ্চ বাছার ঘর
              হেডারের ডান দিকে, Follow-up · Draft · CHECK-UP Queue-র হুবহু একই
@@ -59,7 +59,18 @@
             <!-- Medicine Sale card -->
             <androidx.cardview.widget.CardView style="@style/RegCard">
                 <LinearLayout style="@style/RegCardInner">
-                    <TextView style="@style/SectionHead" android:layout_marginTop="0dp" android:layout_marginStart="-16dp" android:layout_marginEnd="-16dp" android:paddingHorizontal="16dp" android:paddingVertical="8dp" android:background="@drawable/bg_payment_header" android:textColor="@color/white" android:text="💊 Medicine Sale" />
+                    <TextView style="@style/SectionHead" android:layout_marginTop="0dp" android:layout_marginStart="-16dp" android:layout_marginEnd="-16dp" android:paddingHorizontal="16dp" android:paddingVertical="8dp" android:background="@drawable/bg_payment_header" android:textColor="@color/white" android:text="💊 Medicine or Saline" />
+
+                    <!-- 🆕🔒 V805 (২৮.০৮.২০২৬, TK-অনুমোদিত ডেমো ফটো) — TK-নির্দেশ:
+                         *"কোন রোগীকে স্যালাইন লাগানো হলে তার জন্য আলাদা টাকা নেয়া হয় …
+                         এবার আমি চাইছি এখানে সেটা জয়েন করে দিন, অর্থাৎ নাম হবে
+                         medicine or saline"*। নিচের দুটো বোতাম **Mode-এর (CASH/ONLINE)
+                         হুবহু একই চেহারা ও একই কায়দায়** বসানো — নতুন কোনো ডিজাইন নয়। -->
+                    <TextView style="@style/FieldLabel" android:text="Type" />
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="6dp">
+                        <Button android:id="@+id/btnTypeMedicine" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginEnd="4dp" android:textAllCaps="false" android:text="💊 MEDICINE" />
+                        <Button android:id="@+id/btnTypeSaline" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textAllCaps="false" android:text="💧 SALINE" />
+                    </LinearLayout>
 
                     <TextView style="@style/FieldLabel" android:text="Patient Mobile / Name" />
                     <EditText android:id="@+id/etCustomer" style="@style/FieldInput" android:hint="Patient name or mobile" />
@@ -70,7 +81,7 @@
                         android:orientation="vertical"
                         android:layout_marginTop="4dp" />
 
-                    <TextView style="@style/FieldLabel" android:text="Medicine / Product Name" />
+                    <TextView style="@style/FieldLabel" android:id="@+id/lblProduct" android:text="Medicine / Product Name" />
                     <!-- 🔒 B556 (08.08.2026, TK-অনুমোদিত প্রুফ) — একাধিক মেডিসিন:
                          প্রথম ঘর etProduct (id অপরিবর্তিত, তাই পুরনো কোড অটুট),
                          নিচে "+ ADD MEDICINE" চাপলে নতুন ঘর যোগ হয়। সেভের সময়
@@ -97,7 +108,7 @@
 
                     <LinearLayout style="@style/Row2" android:layout_marginTop="0dp">
                         <LinearLayout style="@style/Col">
-                            <TextView style="@style/FieldLabel" android:text="Total Medicine Bill" />
+                            <TextView style="@style/FieldLabel" android:id="@+id/lblBill" android:text="Total Medicine Bill" />
                             <EditText android:id="@+id/etBill" style="@style/FieldInput" android:inputType="number" android:hint="Total bill" />
                         </LinearLayout>
                         <LinearLayout style="@style/ColEnd">
@@ -119,14 +130,26 @@
                          পাশাপাশি: Save · Share · Print। Save id অপরিবর্তিত (পুরনো
                          সেভ-লজিক অটুট)। Share/Print চাপলে আগে অটো-সেভ, তারপর
                          WhatsApp/প্রিন্ট — একবার সেভ হলে আর দ্বিতীয়বার সেভ হয় না। -->
+                    <!-- 📏🔒 V805 (২৮.০৮.২০২৬) — TK: *"নিচে যে তিনটে বটম আছে Save
+                         share print তিনটে একই সাইজের বোতাম হতে হবে, উচ্চতা যতটা কম
+                         রেখে পারা যায়"*।
+                         ─── কারণ (মেপে দেখা) ────────────────────────────────────
+                         তিনটের চওড়া আগে থেকেই সমান ছিল (`weight=1`)। কিন্তু
+                         **"🟢 Share" লেখাটা এক লাইনে ধরত না**, দু'লাইনে ভেঙে যেত —
+                         `layout_height="wrap_content"` বলে ওই বোতামটাই লম্বা হয়ে
+                         যেত। তাই তিনটে অসমান দেখাত।
+                         ─── সারানো ──────────────────────────────────────────────
+                         · উচ্চতা তিনটেরই বাঁধা **40dp** (আগের wrap_content-এর চেয়ে কম)
+                         · `maxLines="1"` — লেখা আর কখনো দু'লাইনে ভাঙবে না
+                         · ছোট আইকন + ছোট লেখা, যাতে এক লাইনেই ধরে -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
-                        android:layout_marginTop="16dp">
-                        <com.google.android.material.button.MaterialButton android:id="@+id/btnSave" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginEnd="5dp" app:backgroundTint="#12A04A" android:insetTop="0dp" android:insetBottom="0dp" android:textAllCaps="false" android:text="💾 Save" />
-                        <com.google.android.material.button.MaterialButton android:id="@+id/btnShare" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginEnd="5dp" app:backgroundTint="#12A04A" android:insetTop="0dp" android:insetBottom="0dp" android:textAllCaps="false" android:text="🟢 Share" />
-                        <com.google.android.material.button.MaterialButton android:id="@+id/btnPrint" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" app:backgroundTint="#12A04A" android:insetTop="0dp" android:insetBottom="0dp" android:textAllCaps="false" android:text="🖨️ Print" />
+                        android:layout_marginTop="14dp">
+                        <com.google.android.material.button.MaterialButton android:id="@+id/btnSave" android:layout_width="0dp" android:layout_weight="1" android:layout_height="40dp" android:minHeight="0dp" android:maxLines="1" android:ellipsize="end" android:textSize="13sp" android:paddingStart="2dp" android:paddingEnd="2dp" android:layout_marginEnd="5dp" app:backgroundTint="#12A04A" android:insetTop="0dp" android:insetBottom="0dp" android:textAllCaps="false" android:text="💾 Save" />
+                        <com.google.android.material.button.MaterialButton android:id="@+id/btnShare" android:layout_width="0dp" android:layout_weight="1" android:layout_height="40dp" android:minHeight="0dp" android:maxLines="1" android:ellipsize="end" android:textSize="13sp" android:paddingStart="2dp" android:paddingEnd="2dp" android:layout_marginEnd="5dp" app:backgroundTint="#12A04A" android:insetTop="0dp" android:insetBottom="0dp" android:textAllCaps="false" android:text="🔗 Share" />
+                        <com.google.android.material.button.MaterialButton android:id="@+id/btnPrint" android:layout_width="0dp" android:layout_weight="1" android:layout_height="40dp" android:minHeight="0dp" android:maxLines="1" android:ellipsize="end" android:textSize="13sp" android:paddingStart="2dp" android:paddingEnd="2dp" app:backgroundTint="#12A04A" android:insetTop="0dp" android:insetBottom="0dp" android:textAllCaps="false" android:text="🖨 Print" />
                     </LinearLayout>
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
@@ -134,7 +157,7 @@
             <!-- History card -->
             <androidx.cardview.widget.CardView style="@style/RegCard">
                 <LinearLayout style="@style/RegCardInner">
-                    <TextView style="@style/SectionHead" android:layout_marginTop="0dp" android:text="Medicine Payment History" />
+                    <TextView style="@style/SectionHead" android:layout_marginTop="0dp" android:text="Medicine / Saline History" />
 
                     <!-- 🔒 B557 (08.08.2026, TK-অনুমোদিত প্রুফ) — প্রফেশনাল History:
                          সার্চ + Today/Last 7/Last 30/Pick Date চিপ + মোট বিক্রি।

@@ -12813,16 +12813,23 @@ window["saveTreatmentPayment"]=saveTreatmentPayment;
    আগের মতোই — শুধু চেহারা+বোতাম যোগ; কোনো money-লজিক বদলায়নি। */
 var __medFilter='today', __medPick='', __medQ='';
 function medicinePaymentHome(){
-  __medFilter='today'; __medPick=''; __medQ='';
-  page('Medicine Payment', '<div class="card medForm">'+
+  __medFilter='today'; __medPick=''; __medQ=''; __medType='medicinePayment';   /* 🆕 V805 — পর্দা খুললেই আগের মতোই ওষুধ */
+  page('Medicine or Saline', '<div class="card medForm">'+
+    /* 🆕🔒 V805 (২৮.০৮.২০২৬, TK-অনুমোদিত · ফোনের হুবহু যমজ — নিয়ম ৬.৬) —
+       TK: "নাম হবে medicine or saline"। `products.kind` = medicinePayment | salinePayment।
+       ⛔ নতুন কোনো ডেটাবেস-ঘর লাগেনি, পুরনো সব সারি আগের মতোই ওষুধ। */
+    '<div class="medTypeWrap"><label>Type</label><div class="row medTypeRow">'+
+      '<button type="button" id="medTypeMed" class="btn medTypeBtn on" onclick="medSetType(\'medicinePayment\')">💊 MEDICINE</button>'+
+      '<button type="button" id="medTypeSal" class="btn medTypeBtn" onclick="medSetType(\'salinePayment\')">💧 SALINE</button>'+
+    '</div></div>'+
     '<div id="medBranchWrap"><label>Branch</label><select id="medBranch" class="input" onchange="medRenderHistory()">'+(isMaster()?branchOptions(user.branch==='All'?'':user.branch):'<option selected>'+esc(user.branch)+'</option>')+'</select></div>'+
     '<label>Patient Mobile / Name</label><input id="medCust" class="input" placeholder="Patient name or mobile" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">'+
-    '<label>Medicine / Product Name</label>'+
+    '<label id="medLblProduct">Medicine / Product Name</label>'+
     '<div id="medMeds"><div class="medRow"><input class="input medProdInp" placeholder="Medicine / product name" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"><button type="button" class="ghost medDel" onclick="this.closest(\'.medRow\').remove()">✕</button></div></div>'+
     '<button type="button" class="ghost medAddBtn" onclick="medAddRow()">＋ Add Medicine</button>'+
     /* 🔴 V437 #13 — ফোনে ঘরটার নাম "Total Medicine Bill", আর উপরে "💊 Medicine Sale" শিরোনাম */
-    '<div class="sectionTitle">💊 Medicine Sale</div>'+
-    '<div class="grid payFormGrid"><div><label>Total Medicine Bill</label><input id="medBill" class="input" inputmode="numeric"></div><div><label>Deposit</label><input id="medDep" class="input" inputmode="numeric"></div></div>'+
+    '<div class="sectionTitle">💊 Medicine or Saline</div>'+
+    '<div class="grid payFormGrid"><div><label id="medLblBill">Total Medicine Bill</label><input id="medBill" class="input" inputmode="numeric"></div><div><label>Deposit</label><input id="medDep" class="input" inputmode="numeric"></div></div>'+
     /* 🔴🔴🔴🆕🔒 V437 (নিজের অডিটে ধরা, TK-কে জানানো ১৮.০৮.২০২৬ — ফোন-বনাম-ওয়েব
        মেলানোর তালিকার #২)। **আসল দোষ:** ওষুধ বিক্রির সারিতে ওয়েব `mode` ঘরে
        **`UPI`** লিখত, অথচ ফোন লেখে **`ONLINE`** (`MedicinePaymentActivity.kt:309,319`)
@@ -12868,6 +12875,17 @@ window["medicinePaymentHome"]=medicinePaymentHome;
 function medAddRow(){var c=document.getElementById('medMeds');if(!c)return;var d=document.createElement('div');d.className='medRow';d.innerHTML='<input class="input medProdInp" placeholder="Medicine / product name" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"><button type="button" class="ghost medDel" onclick="this.closest(\'.medRow\').remove()">✕</button>';c.appendChild(d);var i=d.querySelector('.medProdInp');if(i)i.focus();}
 window["medAddRow"]=medAddRow;
 function medCollect(){return [].slice.call(document.querySelectorAll('.medProdInp')).map(function(i){return (i.value||'').trim()}).filter(Boolean).join(', ');}
+/* 🆕🔒 V805 — বাছা টাইপ (ওষুধ / স্যালাইন)। ঘরের নামদুটোও সঙ্গে সঙ্গে বদলায়। */
+let __medType='medicinePayment';
+function medSetType(t){
+  __medType=(t==='salinePayment'?'salinePayment':'medicinePayment');
+  var m=$('#medTypeMed'),sa=$('#medTypeSal'),isMed=(__medType==='medicinePayment');
+  if(m)m.classList.toggle('on',isMed); if(sa)sa.classList.toggle('on',!isMed);
+  var lp=$('#medLblProduct'),lb=$('#medLblBill');
+  if(lp)lp.textContent=isMed?'Medicine / Product Name':'Saline Name / Details';
+  if(lb)lb.textContent=isMed?'Total Medicine Bill':'Total Saline Bill';
+}
+window["medSetType"]=medSetType;
 function medSetFilter(f){__medFilter=f;__medPick='';medRenderHistory();}
 window["medSetFilter"]=medSetFilter;
 function medDaysAgo(n){var d=new Date();d.setDate(d.getDate()-n);var m=('0'+(d.getMonth()+1)).slice(-2),day=('0'+d.getDate()).slice(-2);return d.getFullYear()+'-'+m+'-'+day;}
@@ -12879,7 +12897,7 @@ function medFiltered(){
      ধরাই হত না। এখন বাছা ব্রাঞ্চ দিয়েই ছাঁকা হয়।
      ⛔ Master ছাড়া কারো কিছু বদলায়নি — তাদের ঘরটায় নিজের ব্রাঞ্চই বসানো থাকে। */
   var __br=String((($('#medBranch')||{}).value)||'').trim();
-  var all=scoped(load('products')).filter(function(x){return x.kind==='medicinePayment';})
+  var all=scoped(load('products')).filter(function(x){return x.kind==='medicinePayment'||x.kind==='salinePayment';})   /* 🆕 V805 */
     .filter(function(x){ return !__br || __br==='All' || !x.branch || sameBranch(x.branch,__br); });
   var t=today(),s7=medDaysAgo(6),s30=medDaysAgo(29),q=(__medQ||'').trim().toLowerCase();
   return all.filter(function(x){
@@ -12909,7 +12927,7 @@ function medicinePayRows(rows){
      "No sale in this filter."। ওয়েবে দুই ক্ষেত্রেই একই লেখা উঠত। */
   if(!rows.length){
     var __anyMed=false;
-    try{ __anyMed = scoped(load('products')).some(function(x){return x.kind==='medicinePayment'}); }catch(e){}
+    try{ __anyMed = scoped(load('products')).some(function(x){return x.kind==='medicinePayment'||x.kind==='salinePayment'}); }catch(e){}
     return '<div class="card mut">'+(__anyMed?'No sale in this filter.':'No medicine payment yet.')+'</div>';
   }
   return rows.map(function(x){
@@ -12935,7 +12953,7 @@ function saveMedicinePayment(action){
   if(!(bill>0))return toast('সঠিক Bill দিন');
   if(!(dep>0))return toast('সঠিক Deposit দিন');
   if(dep>bill&&!confirm('Deposit is more than bill. Continue?'))return;
-  var row={id:uid('prd'),kind:'medicinePayment',customer:cust||'Walk-in',product:prod,bill:bill,total:bill,deposit:dep,due:Math.max(0,bill-dep),mode:(String($('#medMode').value||'').toUpperCase()==='CASH'?'CASH':'ONLINE'),   /* 🔴 V437 — নিচের টীকা দেখুন */remarks:$('#medRem').value,date:today(),branch:br,receivedBy:user.mobile,createdBy:user.mobile,createdAt:isoNow()};
+  var row={id:uid('prd'),kind:__medType,   /* 🆕 V805 */ customer:cust||'Walk-in',product:prod,bill:bill,total:bill,deposit:dep,due:Math.max(0,bill-dep),mode:(String($('#medMode').value||'').toUpperCase()==='CASH'?'CASH':'ONLINE'),   /* 🔴 V437 — নিচের টীকা দেখুন */remarks:$('#medRem').value,date:today(),branch:br,receivedBy:user.mobile,createdBy:user.mobile,createdAt:isoNow()};
   add('products',row);
   toast('Medicine payment saved');
   if(action==='share')medShareReceipt(row);
@@ -19979,6 +19997,31 @@ async function wlv1MarkChamberClosed(branch, date){
 }
 window["wlv1MarkChamberClosed"]=wlv1MarkChamberClosed;
 
+/* 🆕🔒 V805 (২৮.০৮.২০২৬, TK-অনুমোদিত · ফোনের `ChamberAttendanceRepository.saleTotals()`-এর
+   হুবহু যমজ — নিয়ম ৬.৬) — ওই দিনের ওষুধ ও স্যালাইন বিক্রির মোট।
+   ⛔ বিক্রি জমা হয় `products`-এ, আর চেম্বার রেজিস্টার পড়ে `payments` — দুটো আলাদা
+      জায়গা। সেই কারণেই কাগজে "MEDICINE SALES" লাইনটা এতদিন কোনোদিন ছাপাই হয়নি।
+   ⛔ যা **সত্যিই জমা পড়েছে** সেটাই গোনা হয় (`deposit`), বিল নয় — বাকি থাকলে সেটা
+      ড্রয়ারে আসেনি।
+   ⛔ ফোনের মতোই: এই টাকা কোনো মোটে যোগ হয় না, শুধু আলাদা লাইনে দেখানো হয়
+      (TK-এর নিজের সিদ্ধান্ত)। */
+function wlv1SaleTotals(date, brName){
+  var mc=0,mo=0,sc=0,so=0;
+  try{
+    (load('products')||[]).forEach(function(x){
+      var k=String(x.kind||''); if(k!=='medicinePayment'&&k!=='salinePayment') return;
+      if(String(x.date||'')!==String(date||'')) return;
+      if(brName && String(brName)!=='All' && x.branch && !sameBranch(x.branch,brName)) return;
+      var amt=Number(String(x.deposit==null?0:x.deposit).toString().replace(/,/g,''))||0;
+      if(!(amt>0)) return;
+      var online=/^(ONLINE|UPI)$/i.test(String(x.mode||''));
+      if(k==='salinePayment'){ if(online) so+=amt; else sc+=amt; }
+      else { if(online) mo+=amt; else mc+=amt; }
+    });
+  }catch(_e){}
+  return {medicineCash:mc,medicineOnline:mo,salineCash:sc,salineOnline:so};
+}
+window["wlv1SaleTotals"]=wlv1SaleTotals;
 async function wlv1ConfirmChamberClose(){
   const rows=wlv1ChamberArrivedRows(), pick=wlv1ClosePrintBranch;
   const chosen=pick?rows.filter(r=>String(r.branch||'').trim()===pick):rows;
@@ -20091,7 +20134,13 @@ function wlv1ChamberRegisterPrint(){
           var rmpNote = pd>0 ? ('&nbsp;·&nbsp;Paid to RMP today '+n(pd)) : '';
           var out = row('FEES COLLECTED', tFeeCash, tFeeOnline, '')
             + row('TREATMENT COST', tTreatCash, tTreatOnline, '');
-          if(tMedCash>0 || tMedOnline>0) out += row('MEDICINE SALES', tMedCash, tMedOnline, '');
+          /* 🆕🔒 V805 — ওষুধ ও স্যালাইনের টাকা `products` থেকে, আলাদা দুটো লাইনে
+             **শুধু দেখানো** (GRAND TOTAL-এ যোগ হয় না — TK-এর সিদ্ধান্ত)।
+             ⛔ উপরের tMedCash/tMedOnline (payments-ভিত্তিক) ছোঁয়া হয়নি, তাই
+                TREATMENT COST-এর সূত্র এক অক্ষরও বদলায়নি। */
+          var __st=wlv1SaleTotals(wlv1ChamberDate, brName);
+          if(__st.medicineCash>0 || __st.medicineOnline>0) out += row('MEDICINE SALES', __st.medicineCash, __st.medicineOnline, '');
+          if(__st.salineCash>0 || __st.salineOnline>0) out += row('SALINE CHARGE', __st.salineCash, __st.salineOnline, '');
           out += row('<b>GRAND TOTAL</b>', tCash+tFeeCash, tOnline+tFeeOnline, '<b>= '+n(g)+'/-</b>'+rmpNote);
           return out;
         })()}</div>
@@ -20321,7 +20370,10 @@ function wlv1ChamberRegisterText(){
   const gTotal = Number(tFee||0)+Number(tCash||0)+Number(tOnline||0);
   let summary = '\n\nFEES COLLECTED  CASH '+rupee(tFeeCash)+' | ONLINE '+rupee(tFeeOnline)
     + '\nTREATMENT COST  CASH '+rupee(tTreatCash)+' | ONLINE '+rupee(tTreatOnline);
-  if(tMedCash>0 || tMedOnline>0) summary += '\nMEDICINE SALES  CASH '+rupee(tMedCash)+' | ONLINE '+rupee(tMedOnline);
+  /* 🆕 V805 — ফোন ও ওয়েবের কাগজে একই দুটো লাইন */
+  var __st2=wlv1SaleTotals(wlv1ChamberDate, brName);
+  if(__st2.medicineCash>0 || __st2.medicineOnline>0) summary += '\nMEDICINE SALES  CASH '+rupee(__st2.medicineCash)+' | ONLINE '+rupee(__st2.medicineOnline);
+  if(__st2.salineCash>0 || __st2.salineOnline>0) summary += '\nSALINE CHARGE  CASH '+rupee(__st2.salineCash)+' | ONLINE '+rupee(__st2.salineOnline);
   summary += '\nGRAND TOTAL  CASH '+rupee(tCash+tFeeCash)+' | ONLINE '+rupee(tOnline+tFeeOnline)+' | = ₹'+gTotal.toLocaleString('en-IN')+'/-';
   return (isKishanganjBranchName(brName)?'TK BISWAS PILES CLINIC':'MAA AYURVED PILES CLINIC')
     + '\n' + String(brName||'').toUpperCase() + ' — ' + (b.address||'')

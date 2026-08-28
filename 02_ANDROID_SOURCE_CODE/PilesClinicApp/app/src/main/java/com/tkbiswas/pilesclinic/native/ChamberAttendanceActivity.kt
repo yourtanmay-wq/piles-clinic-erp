@@ -482,7 +482,12 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                     android.widget.Toast.makeText(this, "Loading…", android.widget.Toast.LENGTH_SHORT).show()
                     lifecycleScope.launch {
                         val labels = try { withContext(Dispatchers.IO) { computeVisitLabels(b) } } catch (_: Throwable) { emptyMap() }
-                        if (!isFinishing && !isDestroyed) finalizeAndShare(b, labels)
+                        // 🆕 V805 — ওষুধ/স্যালাইনের মোট, ব্যাকগ্রাউন্ডেই (ব্যর্থ হলে শূন্য)
+                        val st = try { withContext(Dispatchers.IO) {
+                            ChamberAttendanceRepository.saleTotals(selectedDate, printBranchOverride.ifBlank {
+                                if (selectedBranch != "All") selectedBranch else user.branch })
+                        } } catch (_: Throwable) { ChamberRegisterPdfBuilder.SaleTotals() }
+                        if (!isFinishing && !isDestroyed) finalizeAndShare(b, labels, st)
                     }
                 }
             }
@@ -3780,7 +3785,12 @@ Thread {
             .setPositiveButton("Print") { _, _ ->
                 lifecycleScope.launch {
                     val visitLabels = withContext(Dispatchers.IO) { computeVisitLabels(board) }
-                    if (!isFinishing && !isDestroyed) finalizeAndShare(board, visitLabels)
+                    // 🆕 V805 — ওষুধ/স্যালাইনের মোট, ব্যাকগ্রাউন্ডেই (ব্যর্থ হলে শূন্য)
+                    val st = try { withContext(Dispatchers.IO) {
+                        ChamberAttendanceRepository.saleTotals(selectedDate, printBranchOverride.ifBlank {
+                            if (selectedBranch != "All") selectedBranch else user.branch })
+                    } } catch (_: Throwable) { ChamberRegisterPdfBuilder.SaleTotals() }
+                    if (!isFinishing && !isDestroyed) finalizeAndShare(board, visitLabels, st)
                 }
             }
             .setNegativeButton("Not Now", null)
@@ -3829,7 +3839,20 @@ Thread {
         return "$n$s Visit"
     }
 
-    private fun finalizeAndShare(board: ChamberAttendanceBoard, visitLabels: Map<String, String> = emptyMap()) {
+    /* 🆕🔒 V805 (২৮.০৮.২০২৬, TK-অনুমোদিত) — কাগজে ওষুধ ও স্যালাইনের টাকা
+       **আলাদা দুটো লাইনে শুধু দেখানোর** জন্য (TK-এর নিজের সিদ্ধান্ত: GRAND
+       TOTAL-এ যোগ হবে না)।
+       ⛔ **নিজের যাচাইয়ে ধরা পড়া ভুল, লেখার সময়ই সারানো:** প্রথমে এই
+          ফাংশনের ভিতরেই নেট-পড়াটা বসিয়েছিলাম — কিন্তু এই ফাংশনটা **মূল
+          থ্রেডে** চলে (`withContext(Dispatchers.IO)` শুধু `computeVisitLabels`-কে
+          ঘিরে আছে, তারপরই মূল থ্রেডে ফিরে আসে)। ওখানে নেট-পড়া দিলে
+          `NetworkOnMainThreadException` — অ্যাপ ক্র্যাশ করত। তাই এখন হিসাবটা
+          **ডাকার জায়গার IO-ব্লকেই** হয়ে যায়, আর এখানে শুধু তৈরি সংখ্যাটা আসে। */
+    private fun finalizeAndShare(
+        board: ChamberAttendanceBoard,
+        visitLabels: Map<String, String> = emptyMap(),
+        saleTotals: ChamberRegisterPdfBuilder.SaleTotals = ChamberRegisterPdfBuilder.SaleTotals()
+    ) {
         // TK-REQUESTED CHANGE (2026-07-19): print order is chronological
         // (earliest arrivedAt first), not the on-screen board's alphabetical
         // order -- NEW and OLD patients end up interleaved in the actual
@@ -3916,7 +3939,7 @@ Thread {
             //    আগের মতোই ছাপে।
             ChamberRegisterPdfBuilder(this).build(
                 branchInfo, dateLabel, dayLabel, registerRows, outFile,
-                cbDayCommissionTotal, cbDayPaidTotal, cbDayCommissionByRmp
+                cbDayCommissionTotal, cbDayPaidTotal, cbDayCommissionByRmp, saleTotals
             )
             // TK-REQUESTED (2026-07-25): Save PDF / Share PDF (WhatsApp etc.)
             // / Print -- reusing the SAME already-built, already-working

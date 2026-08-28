@@ -172,7 +172,7 @@
         <activity
             android:name=".native.MedicinePaymentActivity"
             android:exported="false"
-            android:label="Medicine Payment"
+            android:label="Medicine or Saline"
             android:theme="@style/Theme.PilesClinic" />
 
         <activity

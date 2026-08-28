@@ -64,6 +64,14 @@ class MedicinePaymentActivity : AppCompatActivity() {
     private var searchQuery: String = ""
 
     private val branches = listOf("Kishanganj", "Jalpaiguri", "Cooch Behar", "Falakata", "Birpara")
+
+    companion object {
+        /** 🆕 V805 — `products.kind`-এর দুটো মান। পুরনো সব সারি = ওষুধ। */
+        const val KIND_MEDICINE = "medicinePayment"
+        const val KIND_SALINE = "salinePayment"
+        /** এই পর্দার তালিকায় **দুটোই** দেখাবে। */
+        fun isSaleRow(kind: String) = kind == KIND_MEDICINE || kind == KIND_SALINE
+    }
     private val modes = listOf("CASH", "ONLINE")
 
     // TK-REQUESTED REDESIGN (2026-07-20): Branch is now a compact tappable
@@ -71,6 +79,15 @@ class MedicinePaymentActivity : AppCompatActivity() {
     // selection is tracked here the same way spBranch.selectedItem was read.
     private var selectedBranch = "Kishanganj"
     private var selectedMpMode = "CASH"
+
+    /* 🆕🔒 V805 (২৮.০৮.২০২৬, TK-অনুমোদিত) — TK-নির্দেশ: *"রোগীকে স্যালাইন লাগানো
+       হলে তার জন্য আলাদা টাকা নেয়া হয় … এখানে সেটা জয়েন করে দিন, নাম হবে
+       medicine or saline"*।
+       ⛔ **নতুন কোনো ডেটাবেস-ঘর লাগেনি** — `products` টেবিলের পুরনো `kind` ঘরটাই
+          ব্যবহার হচ্ছে: ওষুধ হলে আগের মতোই `medicinePayment`, স্যালাইন হলে
+          `salinePayment`। ⇒ TK-কে কোনো SQL চালাতে হবে না, আর **পুরনো সব সারি
+          আগের মতোই ওষুধ হিসেবেই থাকবে** (একটাও সারি ছোঁয়া হয়নি)। */
+    private var selectedSaleType = KIND_MEDICINE
 
     // 🔒 B619 (11.08.2026, TK-নির্দেশ): ওষুধ বিক্রিও টাকা — তাই নিজের ব্রাঞ্চ ছাড়া
     // অন্য ব্রাঞ্চ দেখা/বেছে নেওয়া যাবে না (master সব ব্রাঞ্চ পারবেন)। MoneyBranchGuard-এর
@@ -191,6 +208,31 @@ class MedicinePaymentActivity : AppCompatActivity() {
         render()
     }
 
+    /* 🆕🔒 V805 — MEDICINE / SALINE বাছাই। উপরের `setupMpModeButtons()`-এর
+       **হুবহু একই কায়দা** (একই render/click নকশা), শুধু রঙ সবুজ — যাতে Mode-এর
+       নীল দুটোর সঙ্গে গুলিয়ে না যায়। ঘরের নামদুটোও সঙ্গে সঙ্গে বদলায়, তাই
+       স্যালাইন বাছলে "Medicine / Product Name" লেখা থেকে বিভ্রান্তি হয় না। */
+    private fun setupSaleTypeButtons() {
+        val med = findViewById<android.widget.Button>(R.id.btnTypeMedicine)
+        val sal = findViewById<android.widget.Button>(R.id.btnTypeSaline)
+        val lblProduct = findViewById<android.widget.TextView>(R.id.lblProduct)
+        val lblBill = findViewById<android.widget.TextView>(R.id.lblBill)
+        val green = android.graphics.Color.parseColor("#0B6E33")
+        val lightGreen = android.graphics.Color.parseColor("#E6F4EC")
+        fun render() {
+            val isMed = selectedSaleType == KIND_MEDICINE
+            med.backgroundTintList = android.content.res.ColorStateList.valueOf(if (isMed) green else lightGreen)
+            med.setTextColor(if (isMed) android.graphics.Color.WHITE else green)
+            sal.backgroundTintList = android.content.res.ColorStateList.valueOf(if (!isMed) green else lightGreen)
+            sal.setTextColor(if (!isMed) android.graphics.Color.WHITE else green)
+            lblProduct?.text = if (isMed) "Medicine / Product Name" else "Saline Name / Details"
+            lblBill?.text = if (isMed) "Total Medicine Bill" else "Total Saline Bill"
+        }
+        med.setOnClickListener { selectedSaleType = KIND_MEDICINE; render() }
+        sal.setOnClickListener { selectedSaleType = KIND_SALINE; render() }
+        render()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_medicine_payment)
@@ -224,6 +266,7 @@ class MedicinePaymentActivity : AppCompatActivity() {
         isMasterUser = NativeSession.current(this)?.role == "master"
 
         setupMpModeButtons()
+        setupSaleTypeButtons()   // 🆕 V805
         setupCustomerSuggestions()
         setupAddMedicine()
         setupHistoryControls()
@@ -324,7 +367,7 @@ class MedicinePaymentActivity : AppCompatActivity() {
 val mode = selectedMpMode
         val row = JSONObject()
             .put("id", "prd_" + UUID.randomUUID().toString().replace("-", ""))
-            .put("kind", "medicinePayment")
+            .put("kind", selectedSaleType)   // 🆕 V805 — ওষুধ না স্যালাইন
             .put("customer", customer)
             .put("product", product)
             .put("bill", bill)
@@ -473,7 +516,7 @@ val mode = selectedMpMode
         renderTotal(shown, totalCollected, cashCollected, onlineCollected)
         renderChips()
         if (shown == 0) {
-            tvEmpty.text = if (loadedRows.length() == 0) "No medicine payment yet." else "No sale in this filter."
+            tvEmpty.text = if (loadedRows.length() == 0) "No medicine / saline payment yet." else "No sale in this filter."
             tvEmpty.visibility = View.VISIBLE
         } else {
             tvEmpty.visibility = View.GONE
@@ -511,7 +554,11 @@ val mode = selectedMpMode
             // wrong empty data.
             val rows = try {
                 withContext(Dispatchers.IO) {
-                    SupabaseClient.fetchListOrNull("products", "kind=eq.medicinePayment", 500)
+                    /* 🆕🔒 V805 — এখন দুই রকমের সারিই আসে (ওষুধ + স্যালাইন)।
+                       ⛔ `in.(...)` PostgREST-এর নিজের লেখা, `eq.`-এর মতোই নিরাপদ;
+                          পুরনো সব সারি `medicinePayment` বলে একটাও বাদ যায় না। */
+                    SupabaseClient.fetchListOrNull(
+                        "products", "kind=in.($KIND_MEDICINE,$KIND_SALINE)", 500)
                 }
             } catch (t: Throwable) {
                 null
@@ -519,7 +566,7 @@ val mode = selectedMpMode
             progressLoad.visibility = View.GONE
             if (rows == null) {
                 if (!hadCache) {
-                    tvEmpty.text = "No medicine payment yet."
+                    tvEmpty.text = "No medicine / saline payment yet."
                     tvEmpty.visibility = View.VISIBLE
                 }
                 return@launch
@@ -562,7 +609,9 @@ val mode = selectedMpMode
         val outer = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             background = android.graphics.drawable.GradientDrawable().apply {
-                cornerRadius = dp(10).toFloat(); setColor(green)
+                // 🆕 V805 — স্যালাইন হলে বাঁ দিকের দাগটা নীল, ওষুধ হলে আগের মতোই সবুজ
+                cornerRadius = dp(10).toFloat()
+                setColor(if (r.s("kind") == KIND_SALINE) 0xFF1167D8.toInt() else green)
             }
             setPadding(dp(4), 0, 0, 0)
             layoutParams = LinearLayout.LayoutParams(
@@ -604,7 +653,10 @@ val mode = selectedMpMode
 
         // সারি ২: ওষুধ
         card.addView(TextView(this).apply {
-            text = "💊 $meds"; textSize = 12f; setTextColor(grey)
+            /* 🆕 V805 — স্যালাইনের সারিতে আলাদা আইকন, যাতে তালিকায় এক নজরেই
+               বোঝা যায় কোনটা ওষুধ আর কোনটা স্যালাইন। ⛔ ওষুধের সারি হুবহু আগের মতোই। */
+            val isSaline = r.s("kind") == KIND_SALINE
+            text = (if (isSaline) "💧 " else "💊 ") + meds; textSize = 12f; setTextColor(grey)
             setPadding(0, dp(3), 0, 0)
         })
 

@@ -106,7 +106,27 @@ class ChamberRegisterPdfBuilder(private val context: Context) {
      *     RMP-র কত কমিশন সহ"): প্রতিটা RMP-র নাম + সেদিনের কমিশন, আলাদা আলাদা।
      *  ⛔ তিনটাই ঐচ্ছিক — ফাঁকা/০ দিলে কাগজ **হুবহু আগের মতোই** ছাপে,
      *     তাই পুরনো কোনো ডাক বদলাতে হয়নি। */
-    fun build(branch: BranchInfo, dateLabel: String, dayLabel: String, rows: List<RegisterRow>, outputFile: File, rmpCommission: Double = 0.0, rmpPaidToday: Double = 0.0, rmpByName: List<Pair<String, Double>> = emptyList()): File {
+    /* 🆕🔒 V805 (২৮.০৮.২০২৬, TK-অনুমোদিত) — TK-নির্দেশ: *"মেডিসিনের টাকা কত,
+       স্যালাইনের টাকা কত … আলাদাভাবে মেনশন থাকে"*, আর *"আলাদা লাইনে শুধু
+       দেখানো হবে"* (GRAND TOTAL-এ যোগ হবে না — TK নিজে বলেছেন)।
+       ─── এই টাকা কোথা থেকে আসে ───────────────────────────────────────────
+       ওষুধ/স্যালাইন বিক্রি জমা হয় **`products`** টেবিলে, আর চেম্বার রেজিস্টার
+       পড়ে **`payments`** টেবিল — দুটো আলাদা জায়গা। তাই এখানে দিনের মোটটা
+       আলাদা করে হিসাব করে পাঠানো হয় (`ChamberAttendanceRepository.saleTotals`)।
+       ⛔ **আগের কোনো অঙ্কে হাত পড়েনি** — FEES / TREATMENT / GRAND TOTAL হুবহু
+          আগের সূত্রেই থাকে; এই দুটো নিছক **দেখানোর** লাইন। */
+    data class SaleTotals(
+        val medicineCash: Double = 0.0,
+        val medicineOnline: Double = 0.0,
+        val salineCash: Double = 0.0,
+        val salineOnline: Double = 0.0
+    ) {
+        fun hasMedicine() = medicineCash > 0.0 || medicineOnline > 0.0
+        fun hasSaline() = salineCash > 0.0 || salineOnline > 0.0
+        fun lineCount() = (if (hasMedicine()) 1 else 0) + (if (hasSaline()) 1 else 0)
+    }
+
+    fun build(branch: BranchInfo, dateLabel: String, dayLabel: String, rows: List<RegisterRow>, outputFile: File, rmpCommission: Double = 0.0, rmpPaidToday: Double = 0.0, rmpByName: List<Pair<String, Double>> = emptyList(), saleTotals: SaleTotals = SaleTotals()): File {
         val doc = PdfDocument()
         val logo = loadAssetBitmap(branch.logoAssetPath)
         val pages = if (rows.isEmpty()) listOf(emptyList()) else rows.chunked(ROWS_PER_PAGE)
@@ -125,7 +145,7 @@ class ChamberRegisterPdfBuilder(private val context: Context) {
             val rowH = ((ROWS_BOTTOM_LIMIT - usableTop) / count).coerceIn(MIN_ROW_HEIGHT, MAX_ROW_HEIGHT)
             drawTable(canvas, pageRows, rowH)
             if (pageNum == pages.size) {
-                drawTotals(canvas, rows, usableTop + pageRows.size * rowH + 12f, rmpCommission, rmpPaidToday, rmpByName)
+                drawTotals(canvas, rows, usableTop + pageRows.size * rowH + 12f, rmpCommission, rmpPaidToday, rmpByName, saleTotals)
             }
             doc.finishPage(page)
         }
@@ -290,7 +310,7 @@ class ChamberRegisterPdfBuilder(private val context: Context) {
         canvas.drawText(text, colLeft + colWidth - 6f - paint.measureText(text), baselineY, paint)
     }
 
-    private fun drawTotals(canvas: Canvas, rows: List<RegisterRow>, y: Float, rmpCommission: Double = 0.0, rmpPaidToday: Double = 0.0, rmpByName: List<Pair<String, Double>> = emptyList()) {
+    private fun drawTotals(canvas: Canvas, rows: List<RegisterRow>, y: Float, rmpCommission: Double = 0.0, rmpPaidToday: Double = 0.0, rmpByName: List<Pair<String, Double>> = emptyList(), saleTotals: SaleTotals = SaleTotals()) {
         val colVisit = MARGIN + 20f + 148f + 150f
         val label = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor(GREEN); textSize = 8.5f; isFakeBoldText = true }
         val value = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor(GREEN); textSize = 8.5f; isFakeBoldText = true }
@@ -365,7 +385,11 @@ class ChamberRegisterPdfBuilder(private val context: Context) {
         // ৩টা (Medicine না থাকলে) বা ৪টা (থাকলে) সারি: FEES → TREATMENT →
         // [MEDICINE] → GRAND TOTAL। তিনটে (বা প্রথম দুটো+GRAND) যোগ করলে
         // ঠিক GRAND TOTAL-ই পাওয়া যায় — কোথাও কিছু হারায় না, দ্বিগুণও হয় না।
-        val hasMedicine = totalMedicineCash > 0.0 || totalMedicineOnline > 0.0
+        /* 🆕🔒 V805 — `products` থেকে আসা দিনের ওষুধ ও স্যালাইনের টাকা।
+           ⛔ পুরনো `totalMedicineCash` (payments-ভিত্তিক) **ছোঁয়া হয়নি**, তাই
+              উপরের TREATMENT COST-এর সূত্র এক অক্ষরও বদলায়নি। */
+        val hasMedicine = saleTotals.hasMedicine()
+        val hasSaline = saleTotals.hasSaline()
         // 🔴🔒 V685 (২৫.০৮.২০২৬) — প্রতিটা RMP-র নিজের লাইনের জন্য বাড়তি জায়গা।
         // 🔴🔒 V688 (নিজের যাচাইয়ে ধরা পড়া বাগ, তক্ষুনি ঠিক করা হলো — V685-এর
         // আগের হিসাবে TOTAL RMP লাইনটা সবসময় পাতার একদম শেষ কানায় (PAGE_HEIGHT-2)
@@ -375,13 +399,21 @@ class ChamberRegisterPdfBuilder(private val context: Context) {
         // **উপরে** সাজে, প্রতিটা রঙের/অবস্থানের হিসাব নতুন করে ঠিক করা হলো।
         val rmpLineCount = if (rmpByName.isNotEmpty()) rmpByName.size + 1 else 0  // +1 = TOTAL লাইন
         val rmpLinesExtra = if (rmpLineCount > 0) (rmpLineCount - 1) * 10f else 0f
-        var rowY = ((if (hasMedicine) (PAGE_HEIGHT - 60) else (PAGE_HEIGHT - 48)) - rmpLinesExtra).toFloat()
+        // 🆕 V805 — যত সারি বসবে, তত উপর থেকে শুরু (কাগজের কিনারা ঘেঁষে যেন না যায়)
+        var rowY = ((PAGE_HEIGHT - 48) - saleTotals.lineCount() * 12 - rmpLinesExtra).toFloat()
         summaryRow("FEES COLLECTED", totalFeesCash, totalFeesOnline, rowY)
         rowY += 12f
         summaryRow("TREATMENT COST", totalTreatmentCash, totalTreatmentOnline, rowY)
         rowY += 12f
+        /* 🆕🔒 V805 — TK-নির্দেশ: মেডিসিন ও স্যালাইনের টাকা **আলাদা লাইনে শুধু
+           দেখানো** হবে (GRAND TOTAL-এ যোগ হবে না — TK নিজে ঠিক করেছেন)।
+           ⛔ টাকা না থাকলে লাইনটাই ছাপা হয় না, তাই খালি দিনে কাগজ আগের মতোই। */
         if (hasMedicine) {
-            summaryRow("MEDICINE SALES", totalMedicineCash, totalMedicineOnline, rowY)
+            summaryRow("MEDICINE SALES", saleTotals.medicineCash, saleTotals.medicineOnline, rowY)
+            rowY += 12f
+        }
+        if (hasSaline) {
+            summaryRow("SALINE CHARGE", saleTotals.salineCash, saleTotals.salineOnline, rowY)
             rowY += 12f
         }
         // 🔴 V427: "আজ RMP-দের হাতে কত গেল" — এখন GRAND TOTAL সারির শেষে, ⛔
