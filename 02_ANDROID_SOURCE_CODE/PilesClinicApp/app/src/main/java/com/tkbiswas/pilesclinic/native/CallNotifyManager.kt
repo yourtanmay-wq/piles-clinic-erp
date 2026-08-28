@@ -172,22 +172,35 @@ object CallNotifyManager {
             val match = activeMatch
             val existingRemark = activeExistingRemark   // 🟢🔒 V637
 
+            /* 🔴🔒 V812 (২৮.০৮.২০২৬) — TK-রিপোর্ট (ফটো সহ): কল-নোটিফিকেশনে
+               **"null · Kishanganj"** লেখা উঠছিল। TK: *"এটা কি প্রফেশনাল লুক?"*
+               কারণ: ঘরটা সত্যিই ফাঁকা নয় — তাতে **"null" শব্দটাই লেখা** থাকে
+               (org.json-এর পুরনো ফাঁদ: SQL NULL পড়লে `optString` আক্ষরিক "null"
+               ফেরায়)। তাই `ifBlank {}` ছাঁকনি ওটাকে ফাঁকা ধরতে পারত না।
+               ⛔ এই সাফাইটা **নোটিফিকেশনের প্রতিটা ঘরেই** বসানো হলো (নিয়ম ৬.২),
+                  যাতে অন্য কোনো ঘরেও কোনোদিন "null" ছাপা না হয়। */
+            fun cln(v: String?): String {
+                val t = v?.trim().orEmpty()
+                return if (t.equals("null", ignoreCase = true) || t.equals("undefined", ignoreCase = true)) "" else t
+            }
             val title = when {
-                ringing -> "📞 Incoming: " + (match?.name?.ifBlank { number } ?: number)
-                direction == "outgoing" -> "📞 Calling: " + (match?.name?.ifBlank { number } ?: number)
-                else -> "📞 " + (match?.name?.ifBlank { number } ?: number)
+                ringing -> "📞 Incoming: " + (cln(match?.name).ifBlank { number })
+                direction == "outgoing" -> "📞 Calling: " + (cln(match?.name).ifBlank { number })
+                else -> "📞 " + (cln(match?.name).ifBlank { number })
             }
             val lines = ArrayList<String>()
             if (match != null) {
                 // 🟢🔒 V632 (২৪.০৮.২০২৬) — RMP মিললে স্পষ্ট "🩺 RMP" ট্যাগ +
                 // এলাকা (area), যাতে রোগীর সারির সাথে গুলিয়ে না যায়।
                 if (match.isRmp) {
-                    lines.add(listOfNotNull("🩺 RMP", match.branch.ifBlank { null }).joinToString(" · "))
-                    if (match.address.isNotBlank()) lines.add(match.address)
+                    lines.add(listOfNotNull("🩺 RMP", cln(match.branch).ifBlank { null }).joinToString(" · "))
+                    if (cln(match.address).isNotBlank()) lines.add(cln(match.address))
                 } else {
-                    lines.add(listOfNotNull(match.patientId.ifBlank { null }, match.branch.ifBlank { null }).joinToString(" · "))
-                    if (match.disease.isNotBlank()) lines.add(match.disease)
-                    if (match.address.isNotBlank()) lines.add(match.address)
+                    // ⛔ V812 — দুটো ঘরই ফাঁকা হলে যেন **খালি লাইন** না বসে।
+                    val idBr = listOfNotNull(cln(match.patientId).ifBlank { null }, cln(match.branch).ifBlank { null }).joinToString(" · ")
+                    if (idBr.isNotBlank()) lines.add(idBr)
+                    if (cln(match.disease).isNotBlank()) lines.add(cln(match.disease))
+                    if (cln(match.address).isNotBlank()) lines.add(cln(match.address))
                 }
             } else {
                 lines.add("Not saved anywhere in the app")
