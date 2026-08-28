@@ -8674,7 +8674,8 @@ function wlv1CounselBoxHtml(note,p){
     if (picKey) out.push('pic=' + picKey);
     for (var i = 0; i < marks.length; i++) {
       var m = marks[i];
-      if (m.kind === 'tract' || m.kind === 'pen') {
+      /* 🔴🔒 V793 — ফাটলও আঙুলের **পুরো পথ** হিসেবে জমা হয় (ফোনের যমজ) */
+      if (m.kind === 'tract' || m.kind === 'pen' || m.kind === 'fis') {
         out.push(m.kind + ':' + m.pts.map(function (p) { return n1(p[0]) + ',' + n1(p[1]); }).join(';'));
       } else if (m.kind === 'bulge') {
         /* 🔵 V571 — দিক জানা থাকলে শেষ বিন্দুও লেখা হয়। পুরোনো চার-সংখ্যার
@@ -8708,7 +8709,7 @@ function wlv1CounselBoxHtml(note,p){
       if (t.indexOf('note=') === 0) { res.note = t.slice(5); continue; }
       var c = t.indexOf(':'); if (c < 0) continue;
       var kind = t.slice(0, c), body = t.slice(c + 1);
-      if (kind === 'tract' || kind === 'pen') {
+      if (kind === 'tract' || kind === 'pen' || kind === 'fis') {
         var pts = body.split(';').map(function (s) {
           var a = s.split(','); return [parseFloat(a[0]), parseFloat(a[1])];
         }).filter(function (p) { return !isNaN(p[0]) && !isNaN(p[1]); });
@@ -8971,8 +8972,12 @@ function wlv1CounselBoxHtml(note,p){
   function draw(ctx, W, H, marks, opts) {
     opts = opts || {};
     var s = Math.min(W, H) / 100;                 // সব মাপ ছবির অনুপাতে
-    for (var b = 0; b < marks.length; b++) {      // মাংস ফোলানো আগে, দাগ পরে
-      if (marks[b].kind === 'bulge') bulge(ctx, W, H, marks[b]);
+    /* 🔴🔒 V793 — আসল ছবিতে **আঁকা মাংস বসে না**; ছবির পিক্সেলই ফোলে
+       (`wlv1AnatPhotoBulge`)। হাতে-আঁকা ছবিতে আগের মতোই। */
+    if (!opts.photoBulge) {
+      for (var b = 0; b < marks.length; b++) {    // মাংস ফোলানো আগে, দাগ পরে
+        if (marks[b].kind === 'bulge') bulge(ctx, W, H, marks[b]);
+      }
     }
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     for (var i = 0; i < marks.length; i++) {
@@ -8991,6 +8996,12 @@ function wlv1CounselBoxHtml(note,p){
           if (cm > 0) chip(ctx, last[0] * W / 100 + 3 * s, last[1] * H / 100,
                            tractLabel(cm, !!opts.exactScale), COLORS.tract, s);
         }
+      } else if (m.kind === 'fis') {
+        /* 🔴🔒 V793 — **ফিশারের ফাটল**, ডাক্তারের আঙুলের পথ ধরেই।
+           ভিতরে গাঢ় লাল খাঁজ, উপরে সরু সাদা রেখা (শক্ত কিনারা)।
+           ⚠️ ফোনের `AnatomyView` KIND_FISSURE-এর হুবহু একই রং ও মাপ। */
+        stroke(ctx, m.pts, W, H, '#6E1710', 3.6 * s);
+        stroke(ctx, m.pts, W, H, '#F3E7DA', 1.15 * s);
       } else if (m.kind === 'ring') {
         ctx.beginPath();
         ctx.ellipse(m.x * W / 100, m.y * H / 100, m.r * W / 100, m.r * W / 100 * 0.82, 0, 0, 6.3);
@@ -9114,7 +9125,13 @@ const WLV1_ANAT_PICS=[
 /* 🔴 V564: ছবির চওড়া কত সেমি — নালীর মাপ বার করার মাপকাঠি। আমাদের আঁকা
    ছবিতে জানা (exact), আসল ফটোয় আন্দাজি (তখন "≈" দেখানো হয়)। */
 function wlv1AnatPic(k){var L=wlv1AnatAllPics();for(var i=0;i<L.length;i++){if(L[i].key===k)return L[i]}return null}
-function wlv1AnatScale(){var p=wlv1AnatPic(wlv1AnatState.pic)||{};return {cmWide:p.cmWide||10,exactScale:!!p.exact}}
+/* 🔴🔒 V793 — ছবিটা ডাক্তারের তোলা **আসল ফটো** কি না।
+   TK: *"বাস্তব ফটোতে … প্রকৃত রোগীর যে মাংসটা ফুলেছে সেটাই টানলে যেন বড় হয়;
+   আর যেগুলো হাতে আঁকা ছবি সেখানে অ্যানিমেশন টাইপের ফুলবে"*।
+   ⚠️ ফোনের `AnatomyView.baseIsPhoto`-র হুবহু একই নিয়ম (ক্লাউডে যোগ করা ছবি)। */
+function wlv1AnatIsPhoto(){ try{ return wlv1AnatIsCloudKey(wlv1AnatState.pic) }catch(_e){ return false } }
+function wlv1AnatScale(){var p=wlv1AnatPic(wlv1AnatState.pic)||{};
+  return {cmWide:p.cmWide||10,exactScale:!!p.exact,photoBulge:wlv1AnatIsPhoto()}}
 function wlv1AnatLabelOf(k){var p=wlv1AnatPic(k);return p?p.label:k}
 function wlv1AnatSrc(k){
   /* 🔵 V573 — ডাক্তারের যোগ করা ছবি হলে ছবিটা সারিতেই আছে (data URL) */
@@ -9257,6 +9274,9 @@ var WLV1_ANAT_ICONS={
     +'<circle cx="9.5" cy="12" r="0.9"/><circle cx="12.8" cy="15" r="0.9"/><circle cx="13.5" cy="10.5" r="0.7"/>',
   pile:'<path d="M12 21s6.2-6.1 6.2-10.4A6.2 6.2 0 0 0 5.8 10.6C5.8 14.9 12 21 12 21z"/><circle cx="12" cy="10.5" r="2.1"/>',
   tract:'<path d="M3 15c2.6 0 2.6-6 5.2-6s2.6 6 5.2 6 2.6-6 5.2-6"/>',
+  /* 🔴🔒 V793 — "ফাটল" (Fissure)। ⚠️ ফোনের `AnatToolIcon.pathData("fis")`-এর হুবহু একই পথ। */
+  fis:'<path d="M12 3.5c-1.6 3.4 1.6 4.4 0 7.6-1.6 3.2 1.6 4.2 0 9.4"/>'
+    +'<path d="M8.6 8.2 6.8 6.6M15.4 8.2l1.8-1.6M8.4 16l-1.8 1.6M15.6 16l1.8 1.6"/>',
   ring:'<ellipse cx="12" cy="12" rx="7.6" ry="6.3"/>',
   arrow:'<path d="M4 12h14M13 7l5 5-5 5"/>',
   erase:'<path d="M8.5 19.5 4 15a2 2 0 0 1 0-2.8l7.2-7.2a2 2 0 0 1 2.8 0l4.6 4.6a2 2 0 0 1 0 2.8l-7 7z"/><path d="M9 20h10"/>',
@@ -9271,7 +9291,9 @@ var WLV1_ANAT_ICONS={
    তারপরে যেগুলো ছিল পরপর থাকবে" ⇒ ফোলান সবার আগে, তারপর নালী, তারপর
    বাকিগুলো (চিহ্ন/গোল/মুছুন) আগের ক্রমেই।
    ⚠️ ফোনের `DoctorCheckupActivity.toolList`-এর হুবহু একই ক্রম। */
-var WLV1_ANAT_TOOLS=[['bulge','ফোলান'],['tract','নালী'],['pile','চিহ্ন'],
+var WLV1_ANAT_TOOLS=[['bulge','ফোলান'],['tract','নালী'],
+                     /* 🔴🔒 V793 — ফাটল (Fissure); ফোনের toolList-এর হুবহু একই ক্রম */
+                     ['fis','ফাটল'],['pile','চিহ্ন'],
                      ['ring','গোল'],['erase','মুছুন'],
                      /* 🔵 V585 (TK-অনুমোদিত) — পায়ুপথের মাঝখানে একবার ছুঁয়ে দিলে
                         ওই ছবির ঘড়ির কেন্দ্র জমা হয়, তারপর o'clock নিজে হিসাব হয়। */
@@ -9286,7 +9308,7 @@ function wlv1AnatToolName(t){
 }
 /* কোন হাতিয়ার চলছে তার এক লাইনের লেখা — কী করতে হবে সেটাও বলে দেয় */
 var WLV1_ANAT_TIPS={bulge:'মাংসের উপরে আঙুল টানুন',pile:'যেখানে চিহ্ন দেবেন সেখানে ছুঁয়ে দিন',
-  tract:'নালীর পথ ধরে আঙুল টানুন',ring:'যেটা ঘিরে দেখাবেন তার উপরে টানুন',
+  tract:'নালীর পথ ধরে আঙুল টানুন',fis:'ফাটল যে বরাবর, সেই বরাবর আঙুল টানুন',ring:'যেটা ঘিরে দেখাবেন তার উপরে টানুন',
   arrow:'যেদিকে দেখাবেন সেদিকে টানুন',erase:'যে দাগটা তুলবেন তার উপরে ছুঁয়ে দিন',
   centre:'পায়ুপথের ঠিক মাঝখানে একবার ছুঁয়ে দিন'};
 function wlv1AnatBarHtml(full){
@@ -9628,6 +9650,75 @@ function wlv1AnatRedraw(){
   }
   wlv1AnatPaint();
 }
+/* ═══════════════════════════════════════════════════════════════════════
+   🔴🔒 V793 — **আসল রোগীর ছবিতে তার নিজের মাংসটাই ফোলে।**
+   ছবিটা আগের মতোই আঁকা হয়, তারপর শুধু ফোলার জায়গাটুকুর পিক্সেল বাইরের
+   দিকে ঠেলে দেওয়া হয় — আলাদা কোনো আঁকা মাংস বসে না।
+   ⚠️ ফোনের `AnatomyView.drawPhotoBulge()`-এর হুবহু একই সূত্র (p = 1 + জোর×1.9;
+      ভিতরের বিন্দু কেন্দ্রের কাছ থেকে আসে ⇒ ফুলে ওঠে)।
+   ⛔ শুধু **ফোলার চৌকো ঘরটুকুই** ছোঁয়া হয় (পুরো ছবি নয়), তাই ব্রাউজারে
+      টানার সময় আটকায় না। কোনো দাগ/সেভ বদলায় না।
+   ═══════════════════════════════════════════════════════════════════ */
+/* 🔴 V793 — ধাপ চলাকালীন বাছা মাংসটার ফোলার জোর (ফোনের `ksLumpStrength()`)। */
+function wlv1KsLumpStr(){
+  try{
+    var K=WLV1_KS_STEP, st=WLV1_KS.step, t=WLV1_KS.t;
+    var m=(wlv1AnatState.marks||[])[WLV1_KS.idx]; if(!m||m.kind!=='bulge')return null;
+    var b=m.s||0.45;
+    if(st>=K.WORSE_1&&st<=K.WORSE_3) return Math.min(0.92,b+(0.92-b)*wlv1KsWorseGrow(st,t));
+    if(st===K.LUMP_SWELL) return b+(0.85-b)*t;
+    if(st===K.LUMP_TIE||st===K.LUMP_FALL) return 0.85;
+    return b;
+  }catch(_e){ return null }
+}
+function wlv1AnatPhotoBulge(ctx,rx,ry,rw,rh,marks,ksIdx,ksStr){
+  try{
+    var list=[];
+    for(var i=0;i<marks.length;i++){
+      var m=marks[i]; if(m.kind!=='bulge')continue;
+      var g=AnatomyMark.__lumpGeom(m); if(!g||!(g.L>0))continue;
+      var st=(i===ksIdx&&typeof ksStr==='number')?ksStr:(m.s||0.45);
+      st=Math.max(0,Math.min(0.92,st));
+      list.push({cx:m.x+Math.cos(g.ang)*g.L*0.55, cy:m.y+Math.sin(g.ang)*g.L*0.55,
+                 rad:g.L*1.35, p:1+st*1.9});
+    }
+    if(!list.length)return;
+    // ছোঁয়ার ঘর — সব ফোলা ঢেকে দেওয়ার মতো একটা চৌকো (ছবির ভিতরেই)
+    var x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+    list.forEach(function(b){
+      x0=Math.min(x0,b.cx-b.rad); x1=Math.max(x1,b.cx+b.rad);
+      y0=Math.min(y0,b.cy-b.rad); y1=Math.max(y1,b.cy+b.rad);
+    });
+    var PX=function(v){return rx+v*rw/100}, PY=function(v){return ry+v*rh/100};
+    var sx=Math.max(0,Math.floor(PX(x0))), sy=Math.max(0,Math.floor(PY(y0)));
+    var ex=Math.min(ctx.canvas.width, Math.ceil(PX(x1))), ey=Math.min(ctx.canvas.height, Math.ceil(PY(y1)));
+    var bw=ex-sx, bh=ey-sy;
+    if(bw<4||bh<4||bw*bh>4200000)return;          // খুব বড় হলে বাদ (ব্রাউজার আটকাবে না)
+    var src=ctx.getImageData(sx,sy,bw,bh);
+    var out=ctx.createImageData(bw,bh);
+    var S=src.data, O=out.data;
+    for(var yy=0;yy<bh;yy++){
+      for(var xx=0;xx<bw;xx++){
+        var gx=(sx+xx-rx)/rw*100, gy=(sy+yy-ry)/rh*100;   // শতকরা মাপে
+        var px=gx, py=gy;
+        for(var k=0;k<list.length;k++){
+          var b=list[k], dx=px-b.cx, dy=py-b.cy;
+          var d=Math.sqrt(dx*dx+dy*dy);
+          if(d>=b.rad||d<1e-6)continue;
+          var f=Math.pow(d/b.rad,b.p);
+          px=b.cx+dx*f; py=b.cy+dy*f;
+        }
+        var ux=Math.round(PX(px))-sx, uy=Math.round(PY(py))-sy;
+        if(ux<0)ux=0; if(uy<0)uy=0; if(ux>=bw)ux=bw-1; if(uy>=bh)uy=bh-1;
+        var a=(yy*bw+xx)*4, c=(uy*bw+ux)*4;
+        O[a]=S[c]; O[a+1]=S[c+1]; O[a+2]=S[c+2]; O[a+3]=S[c+3];
+      }
+    }
+    ctx.putImageData(out,sx,sy);
+  }catch(_e){}                                     // গোলমাল হলে ছবিটা আগের মতোই
+}
+window["wlv1AnatPhotoBulge"]=wlv1AnatPhotoBulge;
+
 function wlv1AnatPaint(){
   var cv=wlv1AnatCv(),im=wlv1AnatImg;
   if(!cv||!im)return;
@@ -9661,6 +9752,10 @@ function wlv1AnatPaint(){
     var ctxF=cv.getContext('2d');
     ctxF.clearRect(0,0,w,h);
     ctxF.drawImage(im,rx,ry,rw,rh);
+    /* 🔴🔒 V793 — আসল ছবি হলে ছবির পিক্সেলই ফোলে (ফোনের যমজ) */
+    if(wlv1AnatIsPhoto())
+      wlv1AnatPhotoBulge(ctxF,rx,ry,rw,rh,wlv1AnatState.marks||[],
+        (WLV1_KS.on?WLV1_KS.idx:-1), (WLV1_KS.on?wlv1KsLumpStr():null));
     ctxF.save(); ctxF.translate(rx,ry);
     /* 🐞🟢 V589 (২৩.০৮.২০২৬) — **আসল ফাঁক ধরা পড়ল।** ক্ষারসূত্রের ধাপগুলো
        আঁকার কাজটা (`wlv1KsPaintMark`) শুধু ছোট বোর্ডের পথে ডাকা হত; অথচ
@@ -9695,6 +9790,10 @@ function wlv1AnatPaint(){
   var ctx=cv.getContext('2d');
   ctx.clearRect(0,0,w,h);
   ctx.drawImage(im,0,0,w,h);
+  /* 🔴🔒 V793 — ছোট বোর্ডেও একই নিয়ম: আসল ছবি হলে ছবির পিক্সেলই ফোলে */
+  if(wlv1AnatIsPhoto())
+    wlv1AnatPhotoBulge(ctx,0,0,w,h,wlv1AnatState.marks||[],
+      (WLV1_KS.on?WLV1_KS.idx:-1), (WLV1_KS.on?wlv1KsLumpStr():null));
   wlv1AnatDrawClock(ctx,w,h);   // 🔵 V585 (V587-এ আর কিছু আঁকে না)
   /* 🔵 V587 — ক্ষারসূত্রের মোডে বাছা চিহ্নটা আলাদা করে ধাপ অনুযায়ী আঁকা হয়,
      বাকিগুলো আগের মতোই। ⛔ `marks` তালিকা ছোঁয়া হয় না। */
@@ -9776,7 +9875,7 @@ function wlv1AnatMove(ev){
       if(m.length&&m[m.length-1].kind==='bulge'&&m[m.length-1].x===s.down[0]&&m[m.length-1].y===s.down[1])m.pop();
       m.push(AnatomyMark.bulgeFromDrag(s.down,p));
     }
-  }else if(t==='tract'||t==='pen'){
+  }else if(t==='tract'||t==='pen'||t==='fis'){   /* 🔴 V793 — ফাটলও পথ */
     var last=s.live[s.live.length-1];
     if(!last||Math.abs(last[0]-p[0])+Math.abs(last[1]-p[1])>0.6)s.live.push(p.slice());
   }else if(t==='ring'){
@@ -9789,11 +9888,12 @@ function wlv1AnatMove(ev){
     m.push({kind:'arrow',x:s.down[0],y:s.down[1],x2:p[0],y2:p[1]});
   }else if(t==='erase'){ wlv1AnatErase(p) }
   wlv1AnatPaint();
-  if(s.tool==='tract'&&s.live.length>1){
+  /* 🔴 V793 — টানার সময়েই দাগটা দেখা যায় (ফাটলও, ফোনের মতোই) */
+  if((s.tool==='tract'||s.tool==='fis')&&s.live.length>1){
     var cv=wlv1AnatCv(), R=wlv1AnatRect;
     if(cv&&R&&R.w){
       var c2=cv.getContext('2d'); c2.save(); c2.translate(R.x,R.y);
-      AnatomyMark.draw(c2,R.w,R.h,[{kind:'tract',pts:s.live}],wlv1AnatScale());
+      AnatomyMark.draw(c2,R.w,R.h,[{kind:s.tool,pts:s.live}],wlv1AnatScale());
       c2.restore();
     }
   }
@@ -9810,7 +9910,7 @@ function wlv1AnatUp(ev){
     wlv1AnatCentreSet(s.pic,s.down[0],s.down[1]);
     try{toast('কেন্দ্র বসানো হলো — এবার চিহ্ন দিলেই ঘড়ির সময় নিজে বসবে')}catch(_e){}
   }
-  else if(t==='tract'||t==='pen'){ if(s.live.length>1)s.marks.push({kind:t,pts:s.live.slice()}) }
+  else if(t==='tract'||t==='pen'||t==='fis'){ if(s.live.length>1)s.marks.push({kind:t,pts:s.live.slice()}) }
   else if(t==='bulge'){
     /* 🟢🔒 V626 — এখানেও একই অনুমোদিত-এলাকা পাহারা। */
     var m=s.marks;
@@ -9827,7 +9927,7 @@ function wlv1AnatErase(p){
   var m=wlv1AnatState.marks,best=-1,bestD=6,asp=wlv1AnatAspect();
   for(var i=0;i<m.length;i++){
     var d;
-    if(m[i].kind==='tract'||m[i].kind==='pen'){
+    if(m[i].kind==='tract'||m[i].kind==='pen'||m[i].kind==='fis'){
       d=999; (m[i].pts||[]).forEach(function(q){ var e=Math.hypot(q[0]-p[0],(q[1]-p[1])*asp); if(e<d)d=e });
     }else d=Math.hypot(m[i].x-p[0],(m[i].y-p[1])*asp);
     if(d<bestD){bestD=d;best=i}
@@ -9941,13 +10041,22 @@ function wlv1AnatClampZoom(){
    সরে যায় না)। ডিফল্টে সুতো গোড়াতেই — TK: *"পাইলসের মাংসের গোড়ায় বাঁধতে হয়"*।
    ⛔ কিছুই সেভ হয় না — পর্দা বন্ধ করলেই ডিফল্টে ফেরে। */
 var WLV1_KS={on:false,idx:-1,step:0,t:0,steps:[],at:0,inj:true,timer:null,
+             worse:false,weeks:4,kind:'',   /* 🔴 V793 */
              injAlong:0.55,injAcross:0.10,tieAt:0.20};
 function wlv1KsClampTie(v){return Math.max(0.06,Math.min(0.78,v))}
 function wlv1KsClampAlong(v){return Math.max(0.10,Math.min(0.92,v))}
 function wlv1KsClampAcross(v){return Math.max(-0.42,Math.min(0.42,v))}
 window["wlv1KsClampTie"]=wlv1KsClampTie;
 var WLV1_KS_STEP={LUMP_DRAWN:1,LUMP_INJECT:2,LUMP_SWELL:3,LUMP_TIE:4,LUMP_FALL:5,
-                  TRACT_DRAWN:11,TRACT_LACE:12,TRACT_TIE:13,TRACT_CUT:14};
+                  TRACT_DRAWN:11,TRACT_LACE:12,TRACT_TIE:13,TRACT_CUT:14,
+  /* 🔴🔒 V793 — ফোনের `KsharSutraAnim`-এর **হুবহু একই সংখ্যা**, নইলে দুই
+     জায়গায় ধাপ আলাদা হয়ে যেত। TK: *"ওয়েব ডেস্কটপ, মোবাইল, এবং এন্ড্রয়েড
+     সমান ভাবে হয়ে থাকে"*। */
+                  WORSE_1:21,WORSE_2:22,WORSE_3:23,
+                  FIS_DRAWN:31,FIS_NUMB:32,FIS_KSHAR:33,FIS_WASH:34,FIS_HEAL:35,
+                  TRACT_HEAL:39,TRACT_WEEK:40};
+var WLV1_KS_WEEKS_MIN=2, WLV1_KS_WEEKS_MAX=12;
+function wlv1KsClampWeeks(n){return Math.max(WLV1_KS_WEEKS_MIN,Math.min(WLV1_KS_WEEKS_MAX,n|0))}
 function wlv1KsCaption(st){
   var K=WLV1_KS_STEP;
   if(st===K.LUMP_DRAWN) return '1) যেভাবে আঁকা হয়েছে';
@@ -9968,6 +10077,60 @@ function wlv1KsStepsFor(kind,inj){
               :[K.LUMP_DRAWN,K.LUMP_TIE,K.LUMP_FALL];
   if(kind==='tract') return [K.TRACT_DRAWN,K.TRACT_LACE,K.TRACT_TIE,K.TRACT_CUT];
   return [];
+}
+/* 🔴🔒 V793 — ফোনের `KsharSutraAnim.stepsFor2()`-এর হুবহু যমজ।
+   ⛔ উপরের পুরোনো `wlv1KsStepsFor` এক অক্ষরও বদলায়নি। */
+function wlv1KsStepsFor2(kind,inj,worse,weeks){
+  var K=WLV1_KS_STEP;
+  if(worse) return [K.WORSE_1,K.WORSE_2,K.WORSE_3];
+  if(kind==='fis') return [K.FIS_DRAWN,K.FIS_NUMB,K.FIS_KSHAR,K.FIS_WASH,K.FIS_HEAL];
+  if(kind==='tract'){
+    var w=wlv1KsClampWeeks(weeks), out=[K.TRACT_DRAWN,K.TRACT_LACE];
+    for(var i=1;i<=w;i++) out.push(K.TRACT_WEEK+i);
+    out.push(K.TRACT_HEAL); return out;
+  }
+  return wlv1KsStepsFor(kind,inj);
+}
+/* 🔴🔒 V793 — ফোনের `caption2()`-এর হুবহু একই লেখা। */
+function wlv1KsCaption2(st,kind,weeks){
+  var K=WLV1_KS_STEP;
+  if(st>=K.WORSE_1&&st<=K.WORSE_3){
+    var n=st-K.WORSE_1;
+    if(kind==='fis') return ['1) এখন এই অবস্থা — ফাটল','2) না সারালে — ফাটল আরো গভীর ও লম্বা',
+                             '3) আরো পরে — কিনারা শক্ত, বাইরে মাংস বড়'][n];
+    if(kind==='tract') return ['1) এখন এই অবস্থা — নালী','2) না সারালে — নালী লম্বা হয়',
+                               '3) আরো পরে — নতুন মুখ, পুঁজ পড়ে'][n];
+    return ['1) এখন এই অবস্থা — ফোলা মাংস','2) না সারালে — মাংস আরো বড়',
+            '3) আরো পরে — অনেক বড়, রক্ত বেশি'][n];
+  }
+  if(st>K.TRACT_WEEK){
+    var k=st-K.TRACT_WEEK;
+    return (k>=wlv1KsClampWeeks(weeks))? (k+') শেষ সপ্তাহ — সুতো প্রায় শেষ')
+                                       : (k+') সপ্তাহ '+k+' — সুতো বদল, গোল ছোট হলো');
+  }
+  if(st===K.FIS_DRAWN) return '1) ফাটল — আপনার টানা জায়গাতেই';
+  if(st===K.FIS_NUMB)  return '2) জায়গাটা অবশ করা হচ্ছে';
+  if(st===K.FIS_KSHAR) return '3) ফাটলের উপর ক্ষার লাগানো হচ্ছে';
+  if(st===K.FIS_WASH)  return '4) ক্ষার ধুয়ে ফেলা — শক্ত কিনারা গলে গেল';
+  if(st===K.FIS_HEAL)  return '5) ঘা ভরে উঠছে — সপ্তাহে একবার, 3-4 বারে সারে';
+  if(st===K.TRACT_HEAL) return 'নালী নেই — ঘা ভরে গেছে';
+  return wlv1KsCaption(st);
+}
+/* 🔴 V793 — "না সারালে" ধাপে কতটা বেড়েছে (ফোনের `worseGrow`) */
+function wlv1KsWorseGrow(st,t){
+  var K=WLV1_KS_STEP;
+  if(st===K.WORSE_1) return 0;
+  if(st===K.WORSE_2) return 0.5*t;
+  if(st===K.WORSE_3) return 0.5+0.5*t;
+  return 0;
+}
+/* 🔴 V793 — এই সপ্তাহে নালীর কতটা কেটে ভরে গেছে (ফোনের `weekHealed`) */
+function wlv1KsWeekHealed(st,t,weeks){
+  var K=WLV1_KS_STEP;
+  if(st===K.TRACT_HEAL) return 1;
+  if(st<=K.TRACT_WEEK) return 0;
+  var w=wlv1KsClampWeeks(weeks), n=Math.max(1,Math.min(w,st-K.TRACT_WEEK));
+  var a=(n-1)/w, b=n/w; return a+(b-a)*t;
 }
 /* গোড়া থেকে d দূরত্বে মাংসের অর্ধেক-চওড়া — আসল পথের বাঁক মেপে (আন্দাজে নয়) */
 function wlv1KsHalfWidth(L,LW,d){
@@ -10170,8 +10333,85 @@ window["wlv1KsSkinColour"]=wlv1KsSkinColour;
 function wlv1KsPaintMark(ctx,w,h,m){
   if(!m) return;
   var K=WLV1_KS_STEP, st=WLV1_KS.step, t=WLV1_KS.t, sc=wlv1AnatScale();
+  var s0=Math.min(w,h)/100;
+  var worse=(st>=K.WORSE_1&&st<=K.WORSE_3);
+
+  /* ═══ 🔴🔒 V793 — **ফিশার** (ক্ষার-কর্ম; সুতো বাঁধা হয় না)।
+     ⚠️ ফোনের `AnatomyView.drawKs()`-এর ফিশার-অংশের হুবহু যমজ। ═══ */
+  if(m.kind==='fis'){
+    var fp=m.pts||[]; if(fp.length<2) return;
+    function fsSeg(u){ var n=Math.max(2,Math.round(fp.length*Math.max(0,Math.min(1,u)))); return fp.slice(0,n) }
+    function fsTag(k){
+      var q=fp[fp.length-1], X=q[0]*w/100, Y=q[1]*h/100, r=2.6*s0*k;
+      ctx.save(); ctx.fillStyle='#D8A08C'; ctx.beginPath();
+      ctx.ellipse(X,Y,r,r*1.25,0,0,6.2832); ctx.fill();
+      ctx.strokeStyle='#B87B67'; ctx.lineWidth=0.7*s0; ctx.stroke(); ctx.restore();
+    }
+    function fsTool(prog,col){
+      var q=fp[Math.floor(fp.length/2)], X=q[0]*w/100, Y=q[1]*h/100;
+      var back=(1-Math.max(0,Math.min(1,prog)))*22*s0;
+      ctx.save(); ctx.lineCap='round'; ctx.strokeStyle=col; ctx.lineWidth=1.8*s0;
+      ctx.beginPath(); ctx.moveTo(X+16*s0+back,Y+14*s0+back); ctx.lineTo(X,Y); ctx.stroke();
+      ctx.fillStyle='#EFE3C9'; ctx.beginPath(); ctx.arc(X,Y,1.6*s0,0,6.2832); ctx.fill(); ctx.restore();
+    }
+    if(worse){
+      var gr=wlv1KsWorseGrow(st,t);
+      wlv1KsStroke(ctx,fp,w,h,'#6E1710',(3.6+3.4*gr)*s0);
+      wlv1KsStroke(ctx,fp,w,h,'#F3E7DA',(1.15+1.1*gr)*s0);
+      if(gr>0.05) fsTag(1+1.4*gr);
+      return;
+    }
+    if(st===K.FIS_NUMB){
+      wlv1KsStroke(ctx,fp,w,h,'#6E1710',3.6*s0); wlv1KsStroke(ctx,fp,w,h,'#F3E7DA',1.15*s0);
+      fsTag(1); fsTool(t,'#9FB6C8'); return;
+    }
+    if(st===K.FIS_KSHAR){
+      wlv1KsStroke(ctx,fp,w,h,'#6E1710',3.6*s0); fsTag(1);
+      wlv1KsStroke(ctx,fsSeg(t),w,h,'#3B2A0C',3.2*s0); fsTool(1,'#C9A96B'); return;
+    }
+    if(st===K.FIS_WASH){
+      wlv1KsStroke(ctx,fp,w,h,'#8E2A22',3.2*s0); wlv1KsStroke(ctx,fp,w,h,'#C4564A',1.5*s0);
+      ctx.save(); ctx.globalAlpha=1-t; wlv1KsStroke(ctx,fp,w,h,'#3B2A0C',3.2*s0); ctx.restore(); return;
+    }
+    if(st===K.FIS_HEAL){
+      wlv1KsHealTract(ctx,w,h,fp,t);
+      ctx.save(); ctx.globalAlpha=1-t; wlv1KsStroke(ctx,fp,w,h,'#8E2A22',3.2*s0); ctx.restore();
+      wlv1KsStroke(ctx,fp,w,h,'#E7C9BD',1.4*s0); return;
+    }
+    wlv1KsStroke(ctx,fp,w,h,'#6E1710',3.6*s0); wlv1KsStroke(ctx,fp,w,h,'#F3E7DA',1.15*s0); fsTag(1);
+    return;
+  }
+
   if(m.kind==='tract'){
     var pts=m.pts||[]; if(pts.length<2) return;
+    /* 🔴🔒 V793 — না সারালে: নালী মোটা হয়, শেষ মাথায় নতুন মুখ ফোটে (ফোনের যমজ) */
+    if(worse){
+      var gw=wlv1KsWorseGrow(st,t);
+      wlv1KsStroke(ctx,pts,w,h,'#F0A400',(1.35+1.5*gw)*s0);
+      if(gw>0.35){
+        var e=pts[pts.length-1], EX=e[0]*w/100, EY=e[1]*h/100;
+        ctx.save(); ctx.fillStyle='rgba(227,178,60,0.35)';
+        ctx.beginPath(); ctx.arc(EX,EY,(6+10*gw)*s0,0,6.2832); ctx.fill();
+        ctx.fillStyle='#C62828'; ctx.beginPath(); ctx.arc(EX,EY,2.6*s0,0,6.2832); ctx.fill();
+        ctx.restore();
+      }
+      return;
+    }
+    /* 🔴🔒 V793 — **সপ্তাহে সপ্তাহে সুতো বদল** — কাটা অংশ ভরে যায়, গোল ছোট হয়।
+       TK: *"ফুটবলের সাইজ ১০ → ৯ → ৮ → ৭"*। ⚠️ ফোনের হুবহু একই হিসাব। */
+    if(st>K.TRACT_WEEK||st===K.TRACT_HEAL){
+      var u=wlv1KsWeekHealed(st,t,WLV1_KS.weeks);
+      var cut=Math.max(0,Math.min(pts.length-2,Math.round(pts.length*u)));
+      var head=pts.slice(0,Math.max(2,Math.round(pts.length*u)));
+      var rest=pts.slice(cut);
+      if(u>0.01) wlv1KsHealTract(ctx,w,h,head,1);
+      if(rest.length>1){
+        wlv1KsStroke(ctx,rest,w,h,'#F0A400',1.35*s0);
+        wlv1KsTract(ctx,w,h,rest,rest.length,true);
+      }
+      if(u>0.01) wlv1KsStroke(ctx,head,w,h,'rgba(154,124,119,0.9)',0.9*s0);
+      return;
+    }
     var n=Math.max(2,Math.round(pts.length*(st===K.TRACT_LACE?t:1)));
     if(st===K.TRACT_CUT){
       wlv1KsHealTract(ctx,w,h,pts,t);   /* 🟢 V589 — আসল ছবির জায়গাটাও পরিষ্কার */
@@ -10192,7 +10432,10 @@ function wlv1KsPaintMark(ctx,w,h,m){
   }
   // ── মাংস ──
   var base=(m.s||0.45);
-  var str = (st===K.LUMP_SWELL) ? base+(0.85-base)*t
+  /* 🔴🔒 V793 — "না সারালে" ধাপে মাংস ধাপে ধাপে বড় হয় (ফোনের
+     `ksLumpStrength()`-এর হুবহু একই হিসাব)। ⛔ চিকিৎসার হিসাব অপরিবর্তিত। */
+  var str = worse ? Math.min(0.92, base+(0.92-base)*wlv1KsWorseGrow(st,t))
+          : (st===K.LUMP_SWELL) ? base+(0.85-base)*t
           : (st===K.LUMP_TIE||st===K.LUMP_FALL) ? 0.85 : base;
   var drop=(st===K.LUMP_FALL)?30*t*t:0;
   var shown={kind:'bulge',x:m.x,y:m.y+drop,x2:m.x2,y2:(typeof m.y2==='number'?m.y2+drop:m.y2),r:m.r,s:str,label:m.label};
@@ -10219,6 +10462,18 @@ function wlv1KsPaintMark(ctx,w,h,m){
   else if(st===K.LUMP_FALL && t<0.80) wlv1KsThread(ctx,L,LW,1,WLV1_KS.tieAt);
   ctx.restore();
 }
+/* 🔴🔒 V793 — পথ ধরে দাগ টানা। `AnatomyMark`-এর ভিতরের `stroke()` ওই
+   IIFE-র **ব্যক্তিগত** ফাংশন, বাইরে থেকে ডাকা যায় না — তাই এখানে একই কাজের
+   নিজস্ব সহায়ক (ফোনের `strokePts()`-এর যমজ)। */
+function wlv1KsStroke(ctx,pts,w,h,col,wd){
+  if(!pts||pts.length<2)return;
+  ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round';
+  ctx.strokeStyle=col; ctx.lineWidth=Math.max(0.6,wd);
+  ctx.beginPath();
+  for(var i=0;i<pts.length;i++){ var X=pts[i][0]*w/100, Y=pts[i][1]*h/100;
+    if(i===0)ctx.moveTo(X,Y); else ctx.lineTo(X,Y); }
+  ctx.stroke(); ctx.restore();
+}
 function wlv1KsTract(ctx,w,h,pts,n,knot){
   ctx.save(); ctx.lineCap='round'; ctx.lineJoin='round';
   ctx.strokeStyle='#2F3A45'; ctx.lineWidth=Math.max(2.0,Math.min(w,h)*0.010);
@@ -10239,7 +10494,7 @@ function wlv1KsTract(ctx,w,h,pts,n,knot){
 function wlv1KsSetSpot(x,y){
   var K=WLV1_KS_STEP;
   var m=wlv1AnatState.marks[WLV1_KS.idx]; if(!m) return false;
-  if(m.kind==='tract') return false;
+  if(m.kind==='tract'||m.kind==='fis') return false;   /* 🔴 V793 */
   var inject=(WLV1_KS.step===K.LUMP_INJECT||WLV1_KS.step===K.LUMP_SWELL);
   var tie=(WLV1_KS.step===K.LUMP_TIE);
   if(!inject&&!tie) return false;
@@ -10266,7 +10521,7 @@ function wlv1KsNearest(x,y){
       var g=AnatomyMark.__lumpGeom(m);
       var hx=m.x+Math.cos(g.ang)*g.L*0.55, hy=m.y+Math.sin(g.ang)*g.L*0.55;
       d=Math.min(Math.hypot(x-m.x,(y-m.y)*asp),Math.hypot(x-hx,(y-hy)*asp));
-    } else if(m.kind==='tract'){
+    } else if(m.kind==='tract'||m.kind==='fis'){   /* 🔴 V793 — ফাটলও বাছা যায় */
       (m.pts||[]).forEach(function(q){ d=Math.min(d,Math.hypot(x-q[0],(y-q[1])*asp)) });
     }
     if(d<bd){bd=d;best=i}
@@ -10277,26 +10532,52 @@ function wlv1KsRun(step){
   if(WLV1_KS.timer){ clearInterval(WLV1_KS.timer); WLV1_KS.timer=null }
   WLV1_KS.step=step; WLV1_KS.t=0; wlv1AnatPaint();
   var K=WLV1_KS_STEP;
-  if(step===K.LUMP_DRAWN||step===K.TRACT_DRAWN){ WLV1_KS.t=1; wlv1AnatPaint(); return }
+  if(step===K.LUMP_DRAWN||step===K.TRACT_DRAWN||step===K.FIS_DRAWN||step===K.WORSE_1){
+    WLV1_KS.t=1; wlv1AnatPaint(); return }
   var n=0;
   WLV1_KS.timer=setInterval(function(){
     n++; WLV1_KS.t=Math.min(1,n/22); wlv1AnatPaint();
     if(WLV1_KS.t>=1){ clearInterval(WLV1_KS.timer); WLV1_KS.timer=null }
   },50);
 }
+/* 🔴🔒 V793 — কোন মোড চালু, বোতামের রঙে সেটাই (ফোনের `ksPaintChips()`-এর যমজ) */
+function wlv1KsChips(){
+  var a=$('#dnKsWorse'), b=$('#dnKsCure');
+  if(a){ a.style.background=WLV1_KS.worse?'#8A3A2E':'rgba(22,34,46,0.85)';
+         a.style.color=WLV1_KS.worse?'#fff':'#B9C6D4' }
+  if(b){ b.style.background=WLV1_KS.worse?'rgba(22,34,46,0.85)':'#1F6D4A';
+         b.style.color=WLV1_KS.worse?'#B9C6D4':'#fff' }
+}
 function wlv1KsPaintBar(){
   var cap=$('#dnKsCap'), prev=$('#dnKsPrev'), next=$('#dnKsNext'), inj=$('#dnKsInj');
+  var wkRow=$('#dnKsWeekRow'), wkTxt=$('#dnKsWeekTxt');
   if(!cap)return;
+  wlv1KsChips();
+  if(wkTxt) wkTxt.textContent='সপ্তাহ : '+wlv1KsClampWeeks(WLV1_KS.weeks);
   if(!WLV1_KS.steps.length){
-    cap.textContent='যে ফোলা বা নালীতে ক্ষারসূত্র দেখাবেন, সেটা ছুঁয়ে দিন';
+    cap.textContent='যে ফোলা · ফাটল বা নালীতে ধাপ দেখাবেন, সেটা ছুঁয়ে দিন';
     if(prev)prev.style.display='none'; if(next)next.style.display='none'; if(inj)inj.style.display='none';
+    if(wkRow)wkRow.style.display='none';
     return;
   }
-  cap.textContent=wlv1KsCaption(WLV1_KS.steps[WLV1_KS.at]);
+  cap.textContent=wlv1KsCaption2(WLV1_KS.steps[WLV1_KS.at],WLV1_KS.kind,WLV1_KS.weeks);
   if(prev)prev.style.display=(WLV1_KS.at>0)?'':'none';
   if(next)next.style.display=(WLV1_KS.at<WLV1_KS.steps.length-1)?'':'none';
-  if(inj){ inj.style.display=''; inj.style.opacity=WLV1_KS.inj?'1':'0.45' }
+  var injUse=!WLV1_KS.worse&&(WLV1_KS.kind==='bulge'||WLV1_KS.kind==='pile');
+  if(inj){ inj.style.display=injUse?'':'none'; inj.style.opacity=WLV1_KS.inj?'1':'0.45' }
+  if(wkRow) wkRow.style.display=(!WLV1_KS.worse&&WLV1_KS.kind==='tract')?'':'none';
 }
+/* 🔴 V793 — মোড বদল ও সপ্তাহ ➖➕ (ফোনের বোতামগুলোর যমজ) */
+function wlv1KsMode(w){
+  var nw=!!w; if(nw===WLV1_KS.worse)return;
+  WLV1_KS.worse=nw;
+  if(WLV1_KS.idx>=0) wlv1KsSelect(WLV1_KS.idx); else wlv1KsPaintBar();
+}
+function wlv1KsWeek(d){
+  WLV1_KS.weeks=wlv1KsClampWeeks((WLV1_KS.weeks||4)+d);
+  if(WLV1_KS.idx>=0) wlv1KsSelect(WLV1_KS.idx); else wlv1KsPaintBar();
+}
+window["wlv1KsMode"]=wlv1KsMode; window["wlv1KsWeek"]=wlv1KsWeek;
 function wlv1KsGo(i){
   if(!WLV1_KS.steps.length)return;
   WLV1_KS.at=Math.max(0,Math.min(WLV1_KS.steps.length-1,i));
@@ -10304,9 +10585,10 @@ function wlv1KsGo(i){
 }
 function wlv1KsSelect(i){
   var m=(wlv1AnatState.marks||[])[i]; if(!m)return;
-  WLV1_KS.steps=wlv1KsStepsFor(m.kind,WLV1_KS.inj);
+  WLV1_KS.kind=m.kind;                                   /* 🔴 V793 */
+  WLV1_KS.steps=wlv1KsStepsFor2(m.kind,WLV1_KS.inj,WLV1_KS.worse,WLV1_KS.weeks);
   if(!WLV1_KS.steps.length){
-    try{toast('এখানে ক্ষারসূত্র দেখানো যায় না — ফোলা বা নালী ছুঁয়ে দিন')}catch(_e){}
+    try{toast('এখানে ধাপ দেখানো যায় না — ফোলা · ফাটল · নালী ছুঁয়ে দিন')}catch(_e){}
     return;
   }
   /* 🟢 V589 — নতুন মাংস বাছলে ইনজেকশন ও সুতোর জায়গা ডিফল্টে ফেরে
@@ -10323,14 +10605,15 @@ function wlv1KsStop(){
   if(WLV1_KS.timer){ clearInterval(WLV1_KS.timer); WLV1_KS.timer=null }
   WLV1_KS.on=false; WLV1_KS.idx=-1; WLV1_KS.step=0; WLV1_KS.t=0;
   WLV1_KS.steps=[]; WLV1_KS.at=0;
+  WLV1_KS.worse=false; WLV1_KS.kind='';                  /* 🔴 V793 */
   var box=$('#dnKsBox'); if(box)box.style.display='none';
   var bar=$('#dnAnatFullBar'); if(bar)bar.style.display='';
   wlv1AnatPaint();
 }
 function wlv1KsStart(){
   if(WLV1_KS.on){ wlv1KsStop(); return }
-  var ok=(wlv1AnatState.marks||[]).some(function(m){return m.kind==='bulge'||m.kind==='tract'});
-  if(!ok){ try{toast('আগে ছবিতে ফোলা বা নালী আঁকুন — তারপর ক্ষারসূত্র দেখানো যাবে')}catch(_e){} return }
+  var ok=(wlv1AnatState.marks||[]).some(function(m){return m.kind==='bulge'||m.kind==='tract'||m.kind==='fis'});
+  if(!ok){ try{toast('আগে ছবিতে ফোলা · ফাটল বা নালী আঁকুন — তারপর ধাপ দেখানো যাবে')}catch(_e){} return }
   WLV1_KS.on=true; WLV1_KS.idx=-1; WLV1_KS.step=0; WLV1_KS.t=0; WLV1_KS.steps=[]; WLV1_KS.at=0;
   var bar=$('#dnAnatFullBar'); if(bar)bar.style.display='none';
   var box=$('#dnKsBox'); if(box)box.style.display='';
@@ -10993,7 +11276,18 @@ function wlv1AnatFull(){
     +'<canvas id="dnAnatFullCanvas" class="wlv1AnatFullCanvas"></canvas>'
     +'<div id="dnAnatFullBar" class="wlv1AnatFullBar">'+wlv1AnatBarHtml(true)+'</div>'
     +'<div id="dnKsBox" class="wlv1KsBox" style="display:none">'
-    +'<div id="dnKsCap" class="wlv1KsCap">যে ফোলা বা নালীতে ক্ষারসূত্র দেখাবেন, সেটা ছুঁয়ে দিন</div>'
+    /* 🔴🔒 V793 — TK: *"না করলে সমস্যাটা কত বাড়তে পারে … আর চিকিৎসা কিভাবে
+       করি সেটা ধাপে ধাপে"* ⇒ দুটো মোড। ⚠️ ফোনের প্যানেলের হুবহু যমজ। */
+    +'<div class="wlv1KsRow" style="padding-bottom:8px">'
+    +'<button type="button" id="dnKsWorse" class="wlv1KsBtn wide" onclick="wlv1KsMode(1)">⚠️ না সারালে</button>'
+    +'<button type="button" id="dnKsCure" class="wlv1KsBtn wide" onclick="wlv1KsMode(0)">🩺 চিকিৎসা</button>'
+    +'</div>'
+    +'<div class="wlv1KsRow" id="dnKsWeekRow" style="padding-bottom:8px;display:none">'
+    +'<button type="button" class="wlv1KsBtn" onclick="wlv1KsWeek(-1)">➖</button>'
+    +'<button type="button" id="dnKsWeekTxt" class="wlv1KsBtn wide">সপ্তাহ : 4</button>'
+    +'<button type="button" class="wlv1KsBtn" onclick="wlv1KsWeek(1)">➕</button>'
+    +'</div>'
+    +'<div id="dnKsCap" class="wlv1KsCap">যে ফোলা · ফাটল বা নালীতে ধাপ দেখাবেন, সেটা ছুঁয়ে দিন</div>'
     +'<div class="wlv1KsRow">'
     +'<button type="button" id="dnKsPrev" class="wlv1KsBtn" onclick="wlv1KsGo(WLV1_KS.at-1)">◀ আগের</button>'
     +'<button type="button" id="dnKsNext" class="wlv1KsBtn wide" onclick="wlv1KsGo(WLV1_KS.at+1)">পরের ধাপ ▶</button>'
