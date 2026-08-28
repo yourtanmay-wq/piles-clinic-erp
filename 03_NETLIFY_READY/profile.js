@@ -138,12 +138,13 @@
           তাই শুধু **Add**-টাই বাকি ছিল, সেটাই এখানে যোগ হলো।
        ⛔ সব পাহারা সার্ভারে (00_SQL/V745 + V747) — মাস্টার ছাড়া কেউ পারে না। */
     var addBtn = '<div class="card"><button style="width:100%;background:#1457B8;color:#fff;border:0;font-weight:800;font-size:15px;padding:13px;border-radius:12px" onclick="pfAddPerson()">➕ Add Staff or Doctor</button></div>';
-    /* 📱🔒 V771 (২৮.০৮.২০২৬, TK-নির্দেশ: *"আমি কি করে জানবো — App
-       থেকে দেখার ব্যবস্থা রাখুন"*) — কোন ফোনে কোন ভার্সন চলছে।
-       ⛔ ফোনের অ্যাপেও হুবহু একই পর্দা (StaffProfileActivity.phoneVersionsScreen)।
-       ⛔ সব পাহারা সার্ভারে (`hr.app_devices_list` নিজেই মাস্টার যাচাই করে)। */
-    var phvBtn = '<div class="card"><button style="width:100%;background:#fff;color:#0A5C33;border:2px solid #0A5C33;font-weight:800;font-size:15px;padding:13px;border-radius:12px" onclick="pfPhoneVersions()">📱 Phone Versions</button></div>';
-    document.getElementById('spList').innerHTML = perfBtn + phvBtn + addBtn + dueHtml + listHtml + removedHtml();
+    /* 📱🔒 V813 (২৮.০৮.২০২৬, TK-নির্দেশ ও অনুমোদিত ডেমো-প্রুফ:
+       *"phone Version আলাদা থাকবে না"*) — V771-এর আলাদা "📱 Phone Versions"
+       **বোতাম ও পর্দা দুটোই উঠে গেল**। ভার্সন এখন Staff Performance-এর
+       ভিতরেই প্রত্যেকের নামের নিচে ছোট ট্যাগ হয়ে দেখায়।
+       ⛔ ফোনের অ্যাপেও হুবহু একই বদল (StaffProfileActivity.performanceList)।
+       ⛔ কোনো তথ্য · পাহারা · SQL বদলায়নি — একই `hr.app_devices_list`। */
+    document.getElementById('spList').innerHTML = perfBtn + addBtn + dueHtml + listHtml + removedHtml();
 
     // 🔴 V404: বাদ-দেওয়া কর্মীদের ছোট তালিকা — গোনা থাকে, ভুল হলে Restore।
     function removedHtml() {
@@ -1192,6 +1193,28 @@
       '<div class="actions" style="margin-top:12px"><button class="ghost" onclick="staffProfiles()">Back</button></div>' +
       '</div></div>';
     var rows = await perfRows(ym);
+    /* 📱🔒 V813 — ভার্সনের তালিকাও আনা হয় (person_code → version)।
+       ⛔ ব্যর্থ হলে ম্যাপ ফাঁকা থাকে — পারফরম্যান্সের পর্দা আগের মতোই
+          পুরোপুরি চলে, একটাও সংখ্যা আটকায় না।
+       ⛔ "সর্বশেষ ভার্সন" আসে `version.json` থেকে (ফোনের অ্যাপও ঠিক ওটাই
+          পড়ে) — নইলে তালিকার সবচেয়ে বড় সংখ্যাটাই ধরা হয়। */
+    var verMap = {}, verLatest = 0;
+    try {
+      var vclient = await sb();
+      var vres = await vclient.schema('hr').rpc('app_devices_list', {});
+      if (!vres.error && vres.data && vres.data.length) {
+        vres.data.forEach(function (d) {
+          var c = String(d.person_code || '').trim().toUpperCase();
+          if (c) verMap[c] = parseInt(d.app_version_code, 10) || 0;
+          var dv = parseInt(d.app_version_code, 10) || 0;
+          if (dv > verLatest) verLatest = dv;
+        });
+        try {
+          var vjr = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
+          if (vjr.ok) { var vj = await vjr.json(); var jc = parseInt(vj.versionCode, 10) || 0; if (jc > verLatest) verLatest = jc; }
+        } catch (e2) { }
+      }
+    } catch (e) { verMap = {}; verLatest = 0; }
     var out = document.getElementById('perfOut'); if (!out) return;
     if (rows === null) { out.className = 'card mut'; out.textContent = 'Could not load. Please try again.'; return; }
     if (!rows.length) { out.className = 'card mut'; out.textContent = 'No staff yet.'; return; }
@@ -1205,7 +1228,10 @@
              কখনো নামহীন হয় না। ওয়েবে ফাঁকা বোল্ড লাইন পড়ে থাকত। */
           '<b style="color:#0A5C33;font-size:15px">' + m.esc(x.full_name || x.person_code) + '</b>' +
           '<span style="color:#9AA8B5">&rsaquo;</span></div>' +
-        '<div style="font-size:12px;color:#3B5A49;margin-top:2px">' + m.esc(x.person_code) + ' · ' + m.esc(x.branch) + '</div>' +
+        /* 📱🔒 V813 — কোড · ব্রাঞ্চ-এর পাশেই ফোনের ভার্সনের ট্যাগ (ফোনের হুবহু জোড়া)।
+           ⛔ পুরনো লাইনটা একটুও বদলায়নি, শুধু পাশে একটা ট্যাগ যোগ হলো। */
+        '<div style="font-size:12px;color:#3B5A49;margin-top:2px">' + m.esc(x.person_code) + ' · ' + m.esc(x.branch) +
+          perfVerChip(x.person_code, verMap, verLatest) + '</div>' +
         '<div style="display:flex;gap:8px;margin-top:9px">' +
           /* 🔴 V429 (TK-নির্দেশ: ওয়েব হুবহু অ্যান্ড্রয়েডের মতো) — ফোনের কার্ডে
              লেখা আছে "Enquiry · Regist. · Treat. · Collected"; ওয়েবে ভুল করে
@@ -1223,6 +1249,17 @@
     return '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px solid #F0F4F1">' +
       '<span style="color:#3B5A49;font-size:13.5px">' + label + '</span>' +
       '<b style="color:' + (hex || '#123A26') + ';font-size:14.5px">' + value + '</b></div>';
+  }
+
+  /* 📱🔒 V813 — একজনের ভার্সন-ট্যাগ। জানা না থাকলে কিছুই ফেরে না (ফাঁকা)। */
+  function perfVerChip(code, verMap, latest) {
+    if (!latest) return '';
+    var c = String(code || '').trim().toUpperCase();
+    if (!Object.prototype.hasOwnProperty.call(verMap, c)) return '';
+    var v = verMap[c] || 0;
+    if (v <= 0) return phvChip('No app yet', '#B3261E', '#FDECEA');
+    if (v < latest) return phvChip('V' + v + ' · old', '#B3261E', '#FDECEA');
+    return phvChip('V' + v, '#0A5C33', '#E9F7EE');
   }
 
   function perfTile(cap, val) {
@@ -1412,100 +1449,15 @@
         perfRowLink('Leave days', perfNum(x.leave_days), (perfNum(x.leave_days) > 0 ? '#B42318' : '#5B6B81'), "perfWebDrillList('attendance','" + m.esc(code) + "','" + m.esc(ym) + "'," + (viaList ? 'true' : 'false') + ")"));
   }
 
-  /* 📱🔒 V771 — **কোন ফোনে কোন ভার্সন চলছে** (ফোনের অ্যাপের সঙ্গী)।
-     **কেন:** Supabase-এর লগে একটা পড়া বারবার 400 ভুল দিচ্ছে
-     (`deleted_records?select=*&order=updatedAt…`) — যেটা আজকের কোডে **নেই**
-     (V451-এ মোছা)। ⇒ কোনো ফোনে পুরনো বিল্ড চলছে আর অকারণে Egress খরচ করছে।
-     ⛔ এই পর্দা **কিছুই লেখে না**, শুধু পড়ে — একটাই RPC, তাও বোতাম চাপলে।
-     ⛔ "সর্বশেষ ভার্সন" আসে `version.json` থেকে (ফোনের অ্যাপও ঠিক ওটাই পড়ে,
-        AppVersionCheck) — নইলে তালিকার সবচেয়ে বড় সংখ্যাটাই ধরা হয়। */
-  async function pfPhoneVersions() {
-    var m = window.MOD;
-    if (!m.isMasterModule()) return pfToast('Only Master');
-    document.getElementById('app').innerHTML = '<div class="wrap anMod anModPf">' +
-      '<div class="topbar"><b>📱 Phone Versions</b></div><div class="page">' +
-      '<div class="card mut" style="font-size:12px">Which phone is running which app version. ' +
-      'An old version keeps using extra internet, so it must be updated.</div>' +
-      '<div id="phvOut" class="card mut">Loading...</div>' +
-      '<div class="actions" style="margin-top:12px"><button class="ghost" onclick="staffProfiles()">Back</button></div>' +
-      '</div></div>';
-    var rows = null;
-    try {
-      var client = await sb();
-      var r = await client.schema('hr').rpc('app_devices_list', {});
-      if (!r.error) rows = r.data || [];
-    } catch (e) { rows = null; }
-    var out = document.getElementById('phvOut'); if (!out) return;
-    if (rows === null) { out.className = 'card mut'; out.textContent = 'Could not load. Please try again.'; return; }
-    if (!rows.length) { out.className = 'card mut'; out.textContent = 'No one yet.'; return; }
-    // সর্বশেষ ভার্সন — আগে version.json, না পেলে তালিকার সবচেয়ে বড় সংখ্যা।
-    var latest = 0;
-    try {
-      var vr = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
-      if (vr.ok) { var vj = await vr.json(); latest = parseInt(vj.versionCode, 10) || 0; }
-    } catch (e) { latest = 0; }
-    rows.forEach(function (x) {
-      var v = parseInt(x.app_version_code, 10) || 0;
-      if (v > latest) latest = v;
-    });
-    var old = 0, never = 0;
-    rows.forEach(function (x) {
-      var v = parseInt(x.app_version_code, 10) || 0;
-      if (v <= 0) never++; else if (v < latest) old++;
-    });
-    var warn = '';
-    if (old + never > 0) {
-      warn = '<div class="card" style="border:1px solid #F2C4BF;background:#FDECEA">' +
-        '<b style="color:#B3261E">⚠️ ' + (old + never) + ' phone' + (old + never === 1 ? '' : 's') +
-        ' not on the latest version</b>' +
-        '<div class="mut" style="font-size:12px;margin-top:3px">Old: ' + old +
-        '   ·   Never opened: ' + never + '<br>Please install V' + latest + ' on these phones.</div></div>';
-    }
-    out.className = '';
-    out.innerHTML = warn + rows.map(function (x) {
-      var v = parseInt(x.app_version_code, 10) || 0;
-      var chip;
-      if (v <= 0) chip = phvChip('Never opened the new app', '#5B6B81', '#EEF1F5');
-      else if (v < latest) chip = phvChip('V' + v + '  ·  OLD — must update', '#B3261E', '#FDECEA');
-      else chip = phvChip('V' + v + '  ·  Latest', '#0A5C33', '#E9F7EE');
-      var role = String(x.role_kind || '').toLowerCase();
-      var roleTxt = role === 'master' ? 'Master' : role === 'doctor' ? 'Doctor' :
-        role === 'field' ? 'Field Officer' : 'Staff';
-      var seen = phvSeen(x.app_seen_at);
-      return '<div class="card">' +
-        '<b style="color:#0A5C33;font-size:15px">' + m.esc(x.full_name || x.person_code || '') + '</b>' +
-        '<div class="mut" style="font-size:12px;margin:2px 0 6px">' +
-          m.esc(x.person_code || '') + ' · ' + m.esc(x.branch || '') + ' · ' + roleTxt + '</div>' +
-        chip +
-        (seen ? '<div class="mut" style="font-size:11.5px;margin-top:5px">Last seen: ' + m.esc(seen) + '</div>' : '') +
-        '</div>';
-    }).join('');
-  }
-
+  /* 📱🔒 V813 — ছোট রঙিন ট্যাগ (শুধু দেখানোর)। V771-এ এটা আলাদা
+     "Phone Versions" পর্দায় ছিল; TK-র নির্দেশে সেই পর্দা উঠে গেছে,
+     তাই ট্যাগটাই এখন Performance-এর সারিতে বসে (ফোনের `pvChip`-এর জোড়া)। */
   function phvChip(text, fg, bg) {
-    return '<span style="display:inline-block;font-size:12.5px;font-weight:800;color:' + fg +
-      ';background:' + bg + ';border:1px solid ' + fg + ';border-radius:20px;padding:6px 10px">' +
+    return '<span style="display:inline-block;font-size:11.5px;font-weight:800;color:' + fg +
+      ';background:' + bg + ';border:1px solid ' + fg + ';border-radius:20px;padding:2px 8px;margin-left:7px">' +
       window.MOD.esc(text) + '</span>';
   }
 
-  /* ⏰ Supabase-এর timestamptz (`2026-08-28T05:12:33.123456+00:00`) — ব্রাউজারের
-     `new Date()` এটা ঠিকভাবেই পড়ে, তারপর ফোন/কম্পিউটারের নিজের সময়-অঞ্চলে
-     খাতার লক-করা ছাঁদে দেখানো হয় (B76): `28.08.2026 5.40 PM`।
-     ⛔ চিনতে না পারলে ফাঁকা ফেরে — পর্দা কখনো ভাঙে না। */
-  function phvSeen(raw) {
-    if (!raw) return '';
-    try {
-      var d = new Date(raw);
-      if (isNaN(d.getTime())) return '';
-      var p2 = function (n) { return (n < 10 ? '0' : '') + n; };
-      var h = d.getHours(); var ap = h >= 12 ? 'PM' : 'AM';
-      h = h % 12; if (h === 0) h = 12;
-      return p2(d.getDate()) + '.' + p2(d.getMonth() + 1) + '.' + d.getFullYear() +
-        ' ' + h + '.' + p2(d.getMinutes()) + ' ' + ap;
-    } catch (e) { return ''; }
-  }
-
-  window.pfPhoneVersions = pfPhoneVersions;
   window.staffPerformance = staffPerformance;
   window.staffPerformanceOne = staffPerformanceOne;
   window.perfWebDrillList = perfWebDrillList;
