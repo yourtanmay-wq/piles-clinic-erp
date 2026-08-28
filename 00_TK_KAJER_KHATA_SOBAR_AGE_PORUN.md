@@ -10683,3 +10683,8 @@ V810-এ মেলানো হত `followups.updatedAt` — *"লেখাট�
 
 **যাচাই:** `verify_kotlin_compile.py` → নতুন ভুল **০** · `tk_guard.py` → সব পাশ
 (ফাঁদ-পরীক্ষা সহ) · `node --check app.js` → ঠিক আছে।
+
+> ✅ **SQL চালানো হয়েছে** — TK নিজে, **২৮.০৮.২০২৬ রাত ১০.১৮** (স্ক্রিনশট-প্রমাণ:
+> Supabase SQL Editor, প্রোজেক্ট `biswasayurvedkis…`, শাখা `main` —
+> *"Success. No rows returned"*)। ফাইল: `00_SQL/V814_LAST_REMARK_AT.sql`
+> (`followups."lastRemarkAt"` ঘরটি এখন ডেটাবেসে আছে)।
