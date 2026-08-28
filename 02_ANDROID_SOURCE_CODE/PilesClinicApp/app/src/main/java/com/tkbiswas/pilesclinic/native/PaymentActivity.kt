@@ -1564,7 +1564,7 @@ class PaymentActivity : AppCompatActivity() {
                ⛔ নেট খারাপ হলে `todaysRefundLike` চুপচাপ `null` দেয় ⇒ সৎ
                   ফেরত কখনো আটকায় না। */
             lifecycleScope.launch {
-                val dup = withContext(Dispatchers.IO) { repository.todaysRefundLike(patient, amt) }
+                val dup = withContext(Dispatchers.IO) { repository.todaysRefundLike(patient, amt, reason, user.mobile) }
                 if (dup == null) { refundUnlockAndSave(patient, amt, modeSpinner.selectedItem.toString(), reason, refundNonce, autoApprove, dialog, directFormOnly); return@launch }
                 val prevTime = dup.s("time")
                 val prevWhy = dup.s("reason")

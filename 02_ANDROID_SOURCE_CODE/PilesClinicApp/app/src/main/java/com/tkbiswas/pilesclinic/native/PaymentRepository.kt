@@ -1502,6 +1502,12 @@ class PaymentRepository(private val context: Context? = null) {
         } catch (_: Throwable) { "" }
     }
 
+    /** 🔵🔒 V789 — জমা থাকা nonce **শুধু পড়ে** (না থাকলে ফাঁকা, নতুন বানায় না)।
+     *  ⛔ `getOrCreateRefundNonce()` এক অক্ষরও বদলায়নি — সেভের পথ অটুট। */
+    private fun peekRefundNonce(ctx: Context, key: String): String = try {
+        ctx.getSharedPreferences(REFUND_NONCE_PREF, Context.MODE_PRIVATE).getString(key, "") ?: ""
+    } catch (_: Throwable) { "" }
+
     private fun clearRefundNonce(ctx: Context, key: String) {
         try {
             val p = ctx.getSharedPreferences(REFUND_NONCE_PREF, Context.MODE_PRIVATE)
@@ -1615,8 +1621,20 @@ class PaymentRepository(private val context: Context? = null) {
        ⛔ Egress: একটাই ছোট query (`select=id,amount,time,reason`), আর সেটাও
           শুধু Refund বোতাম চাপলে — তালিকা খোলার সময় নয়।
        ═══════════════════════════════════════════════════════════════════ */
-    fun todaysRefundLike(patient: PatientBillInfo, amount: Double): org.json.JSONObject? {
+    fun todaysRefundLike(
+        patient: PatientBillInfo, amount: Double, reason: String = "", byMobile: String = ""
+    ): org.json.JSONObject? {
         if (patient.id.isBlank() || amount <= 0.0) return null
+        /* 🔵🔒 V789 — **কম্পিউটারের সঙ্গে মিলিয়ে নেওয়া।** ওয়েবের
+           `wlv1TodaysSameRefund()` চলতি এই Refund-এর **নিজের সারিটা** বাদ দেয়
+           (`selfId`), ফোনে সেটা বাদ পড়েছিল। ফল: প্রথম চেষ্টা অর্ধেক সফল হয়ে
+           নেট কেটে গেলে, আবার চাপলে নিজের সারিটাই "ডুপ্লিকেট" বলে দেখাত।
+           ⛔ nonce এখানে **শুধু পড়া হয়, তৈরি করা হয় না** (`peekRefundNonce`) —
+              তাই এই যাচাই কোনো কিছু বদলায় না, শুধু দেখে। */
+        val selfId = try {
+            val n = context?.let { peekRefundNonce(it, refundNonceKey(patient, amount, reason)) }.orEmpty()
+            if (n.isBlank()) "" else PaymentModel.refundIdFor(patient, amount, reason, byMobile, n)
+        } catch (_: Throwable) { "" }
         return try {
             val today = PaymentModel.today()
             val rows = SupabaseClient.fetchList(
@@ -1630,6 +1648,7 @@ class PaymentRepository(private val context: Context? = null) {
                 // বাতিল/না-মঞ্জুর সারি ডুপ্লিকেট নয়
                 val st = r.optString("refundApprovalStatus", "")
                 if (st.equals("rejected", true) || st.equals("cancelled", true)) continue
+                if (selfId.isNotBlank() && r.optString("id") == selfId) continue   // 🔵 V789 — নিজের সারি নয়
                 if (kotlin.math.abs(r.optDouble("amount", 0.0) - amount) <= 0.5) { hit = r; break }
             }
             hit
