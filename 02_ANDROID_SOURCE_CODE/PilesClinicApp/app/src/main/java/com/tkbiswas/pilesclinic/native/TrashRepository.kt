@@ -147,6 +147,11 @@ class TrashRepository {
     //   (এটা নতুন কোনো কৌশল নয় — Chamber Attendance · Draft · Payment ও
     //    Doctor Visit পর্দায় ঠিক এই একই সমাধান আগে থেকেই চলছে।)
     //
+    // ⚠️🔒 V798 — এই `fetchTrashRaw()` **কোথাও ডাকা হয় না** (প্রজেক্ট খুঁজে যাচাই
+    //    করা, ২৮.০৮.২০২৬)। এটা `select=*` দিয়ে পড়ে, আর `trash.record`-এ রোগীর
+    //    ছবিসহ পুরো সারি থাকে ⇒ কেউ ভবিষ্যতে এটাকে ডাকলে egress হু-হু করে বাড়বে।
+    //    ⛔ নতুন কোনো কোডে এটা ব্যবহার করবেন না — `fetchTrashRawOrNull()` ব্যবহার
+    //       করুন, ওটা সরু কলামে পড়ে।
     // ⛔ URL · টেবিল · সাজানোর নিয়ম · ৫০০০ সীমা — এক অক্ষরও বদলায়নি।
     // ⛔ উপরের `fetchTrashRaw()` **হুবহু আগের মতোই** রাখা হলো, তাই
     //    `fetchTrash()` বা অন্য কোনো ডাকার জায়গার আচরণ বদলায়নি।
@@ -170,6 +175,24 @@ class TrashRepository {
             "trash", null, 5000, order = "deletedAt.desc.nullslast", select = TRASH_LIST_COLS
         )
         if (narrow != null) return narrow
+        /* 🔴🔒 V798 (২৮.০৮.২০২৬) — TK-নির্দেশ: "Supabase egress-এর ঝুঁকি সব সারান"।
+           ─── সমস্যা যেটা ছিল ────────────────────────────────────────────────
+           উপরের সরু পড়াটা PostgREST-এর `record->>field` লেখা ব্যবহার করে।
+           কোনো কারণে ওটা ব্যর্থ হলে সোজা `select=*` চলত — আর `trash.record`
+           ঘরে **মুছে ফেলা পুরো সারিটা, রোগীর ছবিসহ** থাকে। ৫০০০ সারি × ছবি
+           = একবারেই বহু-শত MB। free প্ল্যানের জন্য এটাই সবচেয়ে বড় গর্ত ছিল।
+           ─── সারানো ───────────────────────────────────────────────────────
+           মাঝখানে আর একটা ধাপ বসল: **শুধু আসল, সাধারণ ঘরগুলো** — কোনো JSON
+           লেখা নেই, তাই সিনট্যাক্স-ভুলে ব্যর্থ হওয়ার পথ নেই। এতে পর্দা ভরে
+           ওঠে (নাম না পেলে id দেখায়), ছবি নামে না।
+           ⛔ একদম নিচের `select=*` পথটা **হুবহু আগের মতোই** রয়ে গেল, শুধু
+              এখন সেখানে পৌঁছতে হলে **দুটো** পড়াকেই ব্যর্থ হতে হবে ⇒ V512-এর
+              প্রতিশ্রুতি ("Trash Bin কখনো ফাঁকা দেখাবে না") অক্ষত। */
+        val plain = SupabaseClient.fetchListOrNullDirect(
+            "trash", null, 5000, order = "deletedAt.desc.nullslast",
+            select = "id,table,deletedAt,deletedBy,cascadedFollowups"
+        )
+        if (plain != null) return plain
         return SupabaseClient.fetchListOrNullDirect("trash", null, 5000, order = "deletedAt.desc.nullslast")
     }
 
