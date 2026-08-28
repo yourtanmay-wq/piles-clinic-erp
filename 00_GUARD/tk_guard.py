@@ -2544,6 +2544,92 @@ def check_patient_session_survives():
                                 "হয়ে যাবে আর মিথ্যা \"saved\" দেখাবে")
 
 
+# ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯.৩২ — XML-এ বসানো বোতামের রং ফোনে চুপচাপ হারাবে না
+#  ─────────────────────────────────────────────────────────────
+#  🔴 TK-রিপোর্ট (২৮.০৮.২০২৬, Trash Bin-এর ছবিসহ):
+#  *"ফটোপ্রুফ দেখিয়েছিলেন কিন্তু সেই অনুসারে ডিজাইন তো এখানে হয় নাই"*
+#
+#  **আসল কারণ:** অ্যাপের থিম `Theme.MaterialComponents.Light.NoActionBar`।
+#  সেই থিমে XML-এর সাদামাটা `<Button>` আপনা-আপনি **MaterialButton** হয়ে যায়,
+#  আর MaterialButton `android:background` **অগ্রাহ্য করে** — নিজের
+#  `backgroundTint` (থিমের গাঢ় নীল) বসিয়ে দেয়। ⇒ V773-এ Trash-এর নরম রং
+#  XML-এ লেখা থাকা সত্ত্বেও ফোনে কখনো দেখা যায়নি; কম্পিউটারে (CSS) দেখা গেছে।
+#  একই ভুল ধরা না পড়ায় "হয়ে গেছে" বলা হয়েছিল — সেটাই ছিল অসততা।
+#
+#  **প্রমাণিত ওষুধ (প্রকল্পেরই নিজের):** `DoctorQueueAdapter` ও
+#  `DraftCardAdapter` কোডে `backgroundTintList = null` বসায় — তখন XML-এর
+#  drawable-টাই দেখা যায়। Doctor Queue-র চার রঙের বোতাম এভাবেই ঠিক আছে।
+#
+#  এই পাহারা: XML-এ নিজের রং (`android:background="@drawable/…"` বা `"#…"`)
+#  দেওয়া প্রতিটা `<Button>`-এর জন্য কোডে হয় `backgroundTintList` বসাতে হবে,
+#  নয়তো XML-এ `backgroundTint` থাকতে হবে। নইলে রংটা ফোনে হারাবে।
+#  ⚠️ যেগুলো এখনো সারানো হয়নি সেগুলো `MATERIAL_TINT_KNOWN`-এ লেখা আছে —
+#     TK-কে ডিজাইন-প্রুফ দেখিয়ে অনুমতি নেওয়ার পরে সারানো হবে; তালিকা
+#     **বাড়ানো যাবে না**, শুধু কমবে।
+# ═══════════════════════════════════════════════════════════════
+MATERIAL_TINT_KNOWN = {
+    # (layout ফাইল, বোতামের id) — TK-এর অনুমতির অপেক্ষায়, নতুন কিছু যোগ নিষেধ
+    ("activity_chamber_attendance.xml", "btnSharePastPdf"),
+    ("activity_chamber_attendance.xml", "btnPrintPast"),
+    ("activity_payment.xml", "btnAddPayment"),
+    ("activity_payment.xml", "btnMedicinePayment"),
+    ("activity_payment.xml", "btnMonthlyCollection"),
+    ("activity_payment.xml", "btnCollectionHistory"),
+    ("activity_public_site.xml", "btnBook"),
+    ("activity_public_site.xml", "btnCallTop"),
+    ("activity_public_site.xml", "btnBranchTop"),
+    ("activity_public_site.xml", "btnStaffLogin"),
+    ("activity_registration.xml", "btnSelectRefDoctor"),
+    ("item_briefing_card.xml", "priorityBar"),
+    ("item_credential_card.xml", "btnChange"),
+}
+
+
+def check_material_button_background():
+    import re
+    lay = os.path.join(RES, "layout")
+    if not os.path.isdir(lay):
+        fail("৯.৩২", "res/layout ফোল্ডার খুঁজে পাওয়া গেল না")
+        return
+    kt = ""
+    for f in kt_files():
+        kt += read(f)
+    bad, healed = [], []
+    for fn in sorted(os.listdir(lay)):
+        if not fn.endswith(".xml"):
+            continue
+        src = read(os.path.join(lay, fn))
+        for m in re.finditer(r"<Button\b(.*?)/>", src, re.S):
+            blk = m.group(1)
+            if not ('android:background="@drawable/' in blk or 'android:background="#' in blk):
+                continue
+            if "backgroundTint" in blk:
+                continue
+            idm = re.search(r'android:id="@\+id/(\w+)"', blk)
+            if not idm:
+                continue
+            bid = idm.group(1)
+            fixed = re.search(r"\b" + re.escape(bid) + r"\.backgroundTintList", kt) is not None
+            key = (fn, bid)
+            if fixed:
+                if key in MATERIAL_TINT_KNOWN:
+                    healed.append(fn + " · " + bid)
+                continue
+            if key in MATERIAL_TINT_KNOWN:
+                continue
+            bad.append(fn + " · " + bid)
+    if bad:
+        fail("৯.৩২", "এই বোতামগুলোর XML-এ নিজের রং আছে, কিন্তু কোডে "
+                     "`backgroundTintList = null` নেই ⇒ MaterialButton রংটা "
+                     "চুপচাপ ফেলে দেবে, ফোনে ডিজাইন দেখা যাবে না: "
+                     + ", ".join(bad[:10])
+                     + (" …আরও " + str(len(bad) - 10) if len(bad) > 10 else ""))
+    if healed:
+        fail("৯.৩২", "এগুলো সারানো হয়ে গেছে — `MATERIAL_TINT_KNOWN` তালিকা থেকে "
+                     "নামগুলো তুলে দিন (তালিকা শুধু ছোট হবে): " + ", ".join(healed[:10]))
+
+
 def main():
     release = "--release" in sys.argv
     print("=" * 66)
@@ -2574,6 +2660,7 @@ def main():
     check_clip_sensitive()            # 📋 V772 — কপি করা নম্বর সাজেশনে উঠবে না
     check_dialog_suggestion_guard()   # ⌨️ V774 — পপ-আপেও সাজেশন বন্ধ
     check_patient_session_survives()  # 👤 V786 — কল এলে রোগীর পরিচয় হারাবে না
+    check_material_button_background()  # 🎨 V790 — XML-এর বোতামের রং ফোনে হারাবে না
     check_qualified_calls()           # 🎯 V769 — ভুল object-এর নামে ডাকা
     check_cloud_row_null_text()       # 🚫 V760 — পর্দায় "null" লেখা
     check_webview_popup()             # 🩹 V738 — পপ-আপে WebView বসানোর ফাঁদ (কম্পন)

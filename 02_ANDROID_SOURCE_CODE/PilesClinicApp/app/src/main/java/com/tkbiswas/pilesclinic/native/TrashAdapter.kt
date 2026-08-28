@@ -58,6 +58,34 @@ class TrashAdapter(
         val b = holder.binding
         val rec = item.record
 
+        /* 🔴🔴🔒 V790 (২৮.০৮.২০২৬, TK-রিপোর্ট ছবিসহ: *"ফটোপ্রুফ দেখিয়েছিলেন
+           কিন্তু সেই অনুসারে ডিজাইন তো এখানে হয় নাই"*)
+
+           ─── আসল কারণ (কোড ধরে প্রমাণিত, আন্দাজ নয়) ───────────────────────
+           V773-এ তিনটে বোতামের নরম রং **XML-এ ঠিকই বসানো হয়েছিল**
+           (`bg_trash_btn_view/restore/delete` + `#2F6E80/#2F7A4B/#A4453A`)।
+           কিন্তু অ্যাপের থিম `Theme.MaterialComponents.Light.NoActionBar`,
+           আর সেই থিমে XML-এর সাদামাটা `<Button>` আপনা-আপনি **MaterialButton**
+           হয়ে যায় — যে `android:background` **অগ্রাহ্য করে**, নিজের
+           `backgroundTint` (থিমের গাঢ় নীল) বসিয়ে দেয়।
+           ⇒ তাই কম্পিউটারে রংটা এসেছিল (CSS), কিন্তু **ফোনে আসেনি** —
+             TK-এর ছবিতে গাঢ় নীল বোতামই দেখা যাচ্ছে। ভুলটা আমার।
+
+           ─── সমাধান (প্রকল্পের নিজেরই প্রমাণিত ওষুধ) ───────────────────────
+           `DoctorQueueAdapter` (লাইন 150-153) ও `DraftCardAdapter` ঠিক এই
+           কাজটাই করে: `backgroundTintList = null` — তখন MaterialButton আর
+           নিজের রং চাপায় না, XML-এর drawable-টাই দেখা যায়। Doctor Queue-র
+           চার রঙের বোতাম এভাবেই ঠিক দেখাচ্ছে, তাই এটা যাচাই-করা পথ।
+           `textAllCaps = false` — কম্পিউটারের হুবহু একই লেখা ("👁 View"),
+           MaterialButton নইলে জোর করে বড় হাতের করে দেয়।
+           ⛔ layout · মাপ · কী চাপলে কী হয় — কিচ্ছু বদলায়নি। */
+        b.btnView.backgroundTintList = null
+        b.btnRestore.backgroundTintList = null
+        b.btnDeleteForever.backgroundTintList = null
+        b.btnView.isAllCaps = false
+        b.btnRestore.isAllCaps = false
+        b.btnDeleteForever.isAllCaps = false
+
         b.tvLabel.text = item.label.ifBlank { "(record)" }
 
         // ── কবে মোছা হয়েছে + কে মুছেছে (একই লাইনে, TK-নির্দেশ V660) ────────
