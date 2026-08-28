@@ -12828,7 +12828,9 @@ function medicinePaymentHome(){
     '<div id="medMeds"><div class="medRow"><input class="input medProdInp" placeholder="Medicine / product name" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"><button type="button" class="ghost medDel" onclick="this.closest(\'.medRow\').remove()">✕</button></div></div>'+
     '<button type="button" class="ghost medAddBtn" onclick="medAddRow()">＋ Add Medicine</button>'+
     /* 🔴 V437 #13 — ফোনে ঘরটার নাম "Total Medicine Bill", আর উপরে "💊 Medicine Sale" শিরোনাম */
-    '<div class="sectionTitle">💊 Medicine or Saline</div>'+
+    /* 🗑️🔒 V806 (২৮.০৮.২০২৬) — TK: "আলাদাভাবে উপরে আবার ছোট করে নাম লেখা থাকবে না"।
+       পর্দার শিরোনামেই (`page('Medicine or Saline', …)`) নামটা আছে, তাই কার্ডের
+       ভিতরের এই দ্বিতীয় লেখাটা বাদ। ⛔ ফোনেও হুবহু একই বাদ (নিয়ম ৬.৬)। */
     '<div class="grid payFormGrid"><div><label id="medLblBill">Total Medicine Bill</label><input id="medBill" class="input" inputmode="numeric"></div><div><label>Deposit</label><input id="medDep" class="input" inputmode="numeric"></div></div>'+
     /* 🔴🔴🔴🆕🔒 V437 (নিজের অডিটে ধরা, TK-কে জানানো ১৮.০৮.২০২৬ — ফোন-বনাম-ওয়েব
        মেলানোর তালিকার #২)। **আসল দোষ:** ওষুধ বিক্রির সারিতে ওয়েব `mode` ঘরে

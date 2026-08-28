@@ -59,7 +59,11 @@
             <!-- Medicine Sale card -->
             <androidx.cardview.widget.CardView style="@style/RegCard">
                 <LinearLayout style="@style/RegCardInner">
-                    <TextView style="@style/SectionHead" android:layout_marginTop="0dp" android:layout_marginStart="-16dp" android:layout_marginEnd="-16dp" android:paddingHorizontal="16dp" android:paddingVertical="8dp" android:background="@drawable/bg_payment_header" android:textColor="@color/white" android:text="💊 Medicine or Saline" />
+                    <!-- 🗑️🔒 V806 (২৮.০৮.২০২৬) — TK: *"medicine or saline আলাদাভাবে
+                         উপরে আবার ছোট করে নাম লেখা থাকবে না"*। উপরের নীল-সবুজ
+                         টুলবারেই (`app:title`) নামটা বড় করে লেখা আছে, তাই কার্ডের
+                         ভিতরের সবুজ ফিতেটায় সেই একই নাম **দ্বিতীয়বার** লেখা হচ্ছিল।
+                         ⛔ শুধু ওই একটাই লাইন বাদ — আর কিছুই সরানো হয়নি। -->
 
                     <!-- 🆕🔒 V805 (২৮.০৮.২০২৬, TK-অনুমোদিত ডেমো ফটো) — TK-নির্দেশ:
                          *"কোন রোগীকে স্যালাইন লাগানো হলে তার জন্য আলাদা টাকা নেয়া হয় …
