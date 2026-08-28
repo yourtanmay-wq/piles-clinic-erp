@@ -134,12 +134,18 @@ class DietChartActivity : AppCompatActivity() {
         // 🔴 V430 — লেখা থাকলে "Extra Advice"-ও সঙ্গে যায় (কম্পিউটারের মতোই)।
         val dRem = dietRemarks()
         if (dRem.isNotBlank()) sb.append("\n\n").append(dRem)
-        val sendIntent = Intent(Intent.ACTION_SEND).apply {
-            type = "text/plain"
-            putExtra(Intent.EXTRA_SUBJECT, "Diet Chart - ${RoleSession.currentPatientName}")
-            putExtra(Intent.EXTRA_TEXT, sb.toString())
-        }
-        startActivity(Intent.createChooser(sendIntent, "Share Diet Chart"))
+        /* 📄🔒 V773 — TK: "share করলে PDF যেতে হবে"। উপরের `sb` (টেক্সট) আর
+           পাঠানো হয় না; একই তথ্য এখন **A4 PDF** হয়ে যায় — ছাপার সময় যে
+           কাগজটা তৈরি হয় (`DietChartHtml.build`) ঠিক সেটাই, তাই ছাপা ও শেয়ার
+           করা কাগজ হুবহু এক। allowPrint = true ⇒ চাইলে সরাসরি ছাপাও যায়।
+           ⛔ বাছাই · সেভ · ছাপা — কিছুই বদলায়নি, শুধু পাঠানোর ধরন। */
+        com.tkbiswas.pilesclinic.print.PrescriptionWhatsAppShare.shareHtml(
+            activity = this,
+            html = com.tkbiswas.pilesclinic.print.DietChartHtml.build(dietRemarks()),
+            documentTitle = "Diet Chart",
+            patientName = RoleSession.currentPatientName
+        )   // ⛔ allowPrint দেওয়া হয়নি — এই পর্দায় নিজের "Save & Print" আগে
+            //    থেকেই আছে (Investigation-এর মতোই), তাই ডুপ্লিকেট পথ নয়।
     }
 
     /** TK APPROVED (2026-07-15): printing matters more than just saving — added

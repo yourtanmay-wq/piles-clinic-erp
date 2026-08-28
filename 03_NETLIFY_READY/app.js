@@ -12665,7 +12665,19 @@ function wlv1TrashExtraChip(x){
 function wlv1TrashLine1(x){
   var r=(x&&x.record)||{}, p=[];
   if(String(r.mobile||'').trim()) p.push('📞 '+String(r.mobile).trim());
-  var pid=String(r.patientId||'').trim()||String(r.patientCode||'').trim();
+  /* 🔴🔒 V773 (২৮.০৮.২০২৬) — TK: *"Patient ID ভুল কেন?"*
+     ফোনে V762-এ এটা ঠিক করা হয়েছিল, **কম্পিউটারে করা হয়নি** — যাচাই করতে
+     গিয়ে ধরা পড়ল। টেবিল-ভেদে ঘর দুটোর মানে উল্টো:
+       · `patients` সারিতে → `patientId` = আসল আইডি (COB-28072026-003)
+       · `payments` সারিতে → `patientId` = **ভিতরের সারি-আইডি** (`pat_7f62…`),
+         আর আসল আইডি থাকে `patientCode`-এ।
+     ⇒ তাই আগে সবসময় `patientId` দেখানোয় পেমেন্টের কার্ডে যন্ত্রের আইডি উঠত।
+     এখন **যেটা মানুষের আইডির মতো দেখতে সেটাই** বাছা হয় — ভিতরের আইডিতে
+     সবসময় `_` থাকে (pat_ · enq_ · rfnd_), আসল আইডিতে কখনো থাকে না।
+     ⛔ কোনো তথ্য বদলানো হয়নি — শুধু কোনটা দেখানো হবে সেটা। (Android:
+        TrashCardText.line1()-এর হুবহু একই নিয়ম।) */
+  var __human=function(v){ v=String(v||'').trim(); return (v && v.indexOf('_')<0) ? v : ''; };
+  var pid=__human(r.patientCode) || __human(r.patientId);
   if(pid) p.push(pid);
   else { var d0=String(r.date||'').trim(); if(d0) p.push(fmtDate(d0)); }
   return p.join('  ·  ');
@@ -14067,10 +14079,19 @@ window["saveMedicalRecord"]=saveMedicalRecord;
 /* WEB APP . Prescription / Medicine Slip extra buttons, same as the native
    screen: Save & Print and Share as Text (the native screen has Save,
    Save & Print and Share as Text). */
-function wlv1RxShare(id, type){
+/* 📄🔒 V773 — উপরের `wlv1InvShare`-এর মতোই: টেক্সট নয়, **একই A4 কাগজ**।
+   ফোনে Medicine Slip-এর Share এখন সরাসরি A4 PDF পাঠায় (V773,
+   MedicineSlipActivity)। কম্পিউটারে কাগজটা খুলে দেওয়া হয় → "Save as PDF"।
+   ⛔ Save ও Save & Print-এর পথ একটুও বদলায়নি। */
+function wlv1RxShare(id, type, printTitle){
   const p = patientById(id) || {};
   const rows = (typeof medDraft!=='undefined' && medDraft) ? medDraft : [];
   if(!rows.length) return toast('No medicine added yet');
+  try{
+    toast('Choose "Save as PDF", then send that file');
+    printSimple(id, printTitle || type);
+    return;
+  }catch(e){ /* নিচের পুরনো টেক্সট-পথ শুধু জরুরি ব্যাকআপ */ }
   const lines = rows.map((m,i)=>{
     const name = m.name||m.med||m.medicine||'';
     const dose = m.dose||'';
@@ -14120,7 +14141,7 @@ window["rxMoreInformation"]=rxMoreInformation;window["rxCommonPrescription"]=rxC
    এখানে একবার ঠিক করলেই দুটোই ঠিক হয়।
    ⛔ ভিতরের কিচ্ছু বদলায়নি — শুধু ভিতরের `<h2>` বাদ, কারণ পাতার নিজের শিরোনামেই
       ওই একই লেখা বসে (নইলে একই নাম দুবার উঠত)। */
-function rxModalBody(id,type,list,printTitle){let p=patientById(id),isRx=String(type)==='Prescription';return `${patientDetailsPanel(p)}${isRx?rxOptionsCard(id):''}${isRx?`<button type="button" class="rxCommonBtn" onclick="rxCommonPrescription('${id}')">⭐ Common</button>`:''}<label>Medicine</label>${medCheckList(list)}${customMedBox()}<div class="actions"><button onclick="addRxItem()">➕ Add Medicine</button><button class="ghost" onclick="${isRx?`rxSaveOptions('${id}');`:''}saveRx('${id}','${esc(type)}')">Save</button><button onclick="${isRx?`rxSaveOptions('${id}');`:''}wlv1RxSavePrint('${id}','${esc(type)}','${esc(printTitle)}')">Save &amp; Print</button>${isRx?'':`<button class="ghost" onclick="wlv1RxShare('${id}','${esc(type)}')">Share as Text</button>`}</div><div id="rxList" class="card mut">No medicine added yet</div>`}
+function rxModalBody(id,type,list,printTitle){let p=patientById(id),isRx=String(type)==='Prescription';return `${patientDetailsPanel(p)}${isRx?rxOptionsCard(id):''}${isRx?`<button type="button" class="rxCommonBtn" onclick="rxCommonPrescription('${id}')">⭐ Common</button>`:''}<label>Medicine</label>${medCheckList(list)}${customMedBox()}<div class="actions"><button onclick="addRxItem()">➕ Add Medicine</button><button class="ghost" onclick="${isRx?`rxSaveOptions('${id}');`:''}saveRx('${id}','${esc(type)}')">Save</button><button onclick="${isRx?`rxSaveOptions('${id}');`:''}wlv1RxSavePrint('${id}','${esc(type)}','${esc(printTitle)}')">Save &amp; Print</button>${isRx?'':`<button class="ghost" onclick="wlv1RxShare('${id}','${esc(type)}','${esc(printTitle)}')">📤 Share PDF</button>`}</div><div id="rxList" class="card mut">No medicine added yet</div>`}
 window["rxModalBody"]=rxModalBody;
 function prescription(id){let p=patientById(id);if(!p)return toast('Patient not found');rxDefaultsRefreshFromCloud(false,false);medDraft=[];page('Prescription',rxModalBody(id,'Prescription',AYURVEDIC_MEDICINES,'PRESCRIPTION'))}
 window["prescription"]=prescription;
@@ -17596,9 +17617,26 @@ window["wlv1InvSave"]=wlv1InvSave;
    (res/layout/activity_investigation_advice.xml:73,88,104)। ওয়েবে Share
    ছিল না, তাই WhatsApp-এ পাঠানোর উপায়ও ছিল না।
    ⛔ সেভ ও ছাপার পুরনো পথ একটুও বদলায়নি — শুধু একটা নতুন বোতাম যোগ হলো। */
+/* 📄🔒 V773 (২৮.০৮.২০২৬, TK-নির্দেশ: *"এখানে share এ চাপলে Text কেন যাবে —
+   A4 Size এর PDF যেতে হবে"*) — ফোনে V765-এ এটা ঠিক করা হয়েছিল, কিন্তু
+   **কম্পিউটারে করা হয়নি**; যাচাই করতে গিয়ে ধরা পড়ল।
+   ⚠️ **সৎ কথা:** ব্রাউজার নিজে থেকে PDF ফাইল বানিয়ে WhatsApp-এ জুড়তে পারে না
+      (ফোনের অ্যাপ পারে)। কম্পিউটারে সবচেয়ে কাছের সঠিক পথ — **হুবহু একই A4
+      কাগজটা** খুলে দেওয়া, সেখান থেকে "Save as PDF" করে পাঠানো।
+   ⛔ Print বোতামের সঙ্গে এটা ডুপ্লিকেট নয় — Print **সেভ করে** তারপর ছাপে,
+      Share সেভ করে না (ফোনেও ঠিক এই নিয়ম)।
+   ⛔ কোন পরীক্ষা বাছা হলো বা কী সেভ হলো — কিচ্ছু বদলায়নি। */
 function wlv1InvShare(id){
   const picked = Object.keys(wlv1InvPick||{});
   if(!picked.length) return toast('Select at least one test');
+  try{
+    const box = document.getElementById('wlv1InvHidden');
+    if(box) box.innerHTML = picked.map(function(t){
+      return '<input type="checkbox" class="bt" value="'+esc(t)+'" checked>'; }).join('');
+    toast('Choose "Save as PDF", then send that file');
+    printBlood(id);
+    return;
+  }catch(e){ /* নিচের পুরনো টেক্সট-পথ শুধু জরুরি ব্যাকআপ */ }
   const p = (typeof patientById==='function' ? (patientById(id)||{}) : {});
   const rem = (document.getElementById('btRem')||{}).value || '';
   const b = (typeof branch==='function' ? (branch(p.branch)||{}) : {});

@@ -991,11 +991,40 @@ class PaymentActivity : AppCompatActivity() {
                 isClickable = true; isFocusable = true
             }
             root.addView(deleteBtn)
+            /* 🛡️🔴🔒 V773 (২৮.০৮.২০২৬) — **TK-এর আসল অভিযোগটা এখানেই ছিল।**
+               TK: *"সেখানে চাপ দিলে অটোমেটিক ডিলিট হয়ে যায় — আমি চাইছি
+               সতর্কবার্তা দিক, Are you sure"*।
+
+               V768-এ আমি ভুল করেছিলাম: ধরে নিয়েছিলাম সতর্কবার্তা সব জায়গায়
+               আগে থেকেই আছে, শুধু তাড়াহুড়োর চাপ লেগে যাচ্ছে — তাই শুধু ১
+               সেকেন্ডের অপেক্ষা বসিয়েছিলাম। কিন্তু **এই বোতামটায় কোনো
+               সতর্কবার্তাই ছিল না** — এক চাপেই সোজা মুছে যেত। যাচাই করতে
+               গিয়ে ধরা পড়ল।
+
+               এখন: আগে "Are you sure?" পপ-আপ, আর "Yes" প্রথম ১ সেকেন্ড
+               নিষ্ক্রিয় (ঠিক V768-এর অন্য দুটো ডিলিটের মতোই)।
+               ⛔ Cancel প্রথম থেকেই সচল।
+               ⛔ ডিলিটের আসল কাজ (undoAttendanceMark) এক অক্ষরও বদলায়নি। */
             deleteBtn.setOnClickListener {
-                lifecycleScope.launch {
-                    val ok = withContext(Dispatchers.IO) { ChamberAttendanceRepository.undoAttendanceMark(id) }
-                    Toast.makeText(this@PaymentActivity, if (ok) "Entry deleted" else "Failed — check connection", Toast.LENGTH_SHORT).show()
-                    if (ok) { if (!directFormOnly) loadSummary(); dialog.dismiss() }
+                val ask = AlertDialog.Builder(this@PaymentActivity)
+                    .setCustomTitle(PremiumAlert.header(this@PaymentActivity, "🗑️ Delete this entry?"))
+                    .setMessage("The \"Marked Arrived\" entry will be removed. This cannot be undone from here.")
+                    .setPositiveButton("Yes, delete") { _, _ ->
+                        lifecycleScope.launch {
+                            val ok = withContext(Dispatchers.IO) { ChamberAttendanceRepository.undoAttendanceMark(id) }
+                            Toast.makeText(this@PaymentActivity, if (ok) "Entry deleted" else "Failed — check connection", Toast.LENGTH_SHORT).show()
+                            if (ok) { if (!directFormOnly) loadSummary(); dialog.dismiss() }
+                        }
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .setCancelable(false)
+                    .show().also { PremiumAlert.paint(it) }
+                ask.getButton(AlertDialog.BUTTON_POSITIVE)?.let { yes ->
+                    yes.isEnabled = false
+                    yes.alpha = 0.45f
+                    yes.postDelayed({
+                        try { yes.isEnabled = true; yes.alpha = 1f } catch (_: Throwable) {}
+                    }, 1000L)
                 }
             }
         }

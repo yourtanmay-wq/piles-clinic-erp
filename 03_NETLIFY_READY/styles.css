@@ -868,7 +868,7 @@ button.doctorKpi{cursor:pointer}
  .printHead.compact{min-height:21mm!important}
  .printTitle,.medicalPrintTitle{break-after:avoid!important}
  .printFoot{break-inside:avoid!important}
- .thanksStrip{position:absolute!important;left:0!important;right:0!important;bottom:1mm!important;text-align:center!important;font-size:8px!important;color:#116b4a!important}
+ .thanksStrip{position:absolute!important;left:0!important;right:0!important;bottom:7mm!important;text-align:center!important;font-size:8px!important;color:#116b4a!important} /* 🖨️🔒 V773 (২৮.০৮.২০২৬) — TK: "প্রেসক্রিপশন ও মেডিসিন স্লিপ প্রিন্ট আউটে একদম নিচের লাইনটা হাফ কেটে যায়"। V766-এ ফোনের টেমপ্লেটে (assets/www/rx_print.html) ঠিক করা হয়েছিল, কিন্তু **কম্পিউটারে করা হয়নি** — যাচাই করতে গিয়ে ধরা পড়ল। প্রতিটা প্রিন্টারই কাগজের নিচের ৩-৫ মিমি ছাপতে পারে না, তাই ফিতেটা ৭ মিমি উপরে তোলা হলো — ফোনের ফাইলে হুবহু একই মাপ। ⛔ absolute অবস্থানে, তাই কাগজের আর কিছুই নড়ে না, পাতাও বাড়ে না। */
  .finalPrintTable{page-break-inside:auto!important}
  .finalPrintTable tr{page-break-inside:avoid!important;page-break-after:auto!important}
  .rxSelectedList,.noPrint{display:none!important}
@@ -995,7 +995,7 @@ button.doctorKpi{cursor:pointer}
   .printFoot{display:grid!important;grid-template-columns:1fr 52mm!important;align-items:center!important;gap:6mm!important;margin:.5mm 8mm 0!important;padding:1.5mm 2mm!important;border:1px solid #96aa9a!important;border-radius:4px!important;background:rgba(255,255,255,.94)!important;font-size:8.8px!important;position:relative!important;left:auto!important;right:auto!important;bottom:auto!important;z-index:1!important;}
   .barcodeCell{display:flex!important;justify-content:flex-end!important;align-items:center!important;}
   .printBarcode{width:44mm!important;height:9mm!important;background:repeating-linear-gradient(90deg,#111 0 1px,transparent 1px 3px,#111 3px 5px,transparent 5px 7px,#111 7px 8px,transparent 8px 11px)!important;border:0!important;}
-  .thanksStrip{position:absolute!important;left:0!important;right:0!important;bottom:0!important;background:#0b5d2a!important;color:#fff!important;text-align:center!important;font-size:8.8px!important;font-weight:900!important;padding:1.4mm 0!important;z-index:2!important;}
+  .thanksStrip{position:absolute!important;left:0!important;right:0!important;bottom:7mm!important;background:#0b5d2a!important;color:#fff!important;text-align:center!important;font-size:8.8px!important;font-weight:900!important;padding:1.4mm 0!important;z-index:2!important;} /* 🖨️🔒 V773 (২৮.০৮.২০২৬) — TK: "প্রেসক্রিপশন ও মেডিসিন স্লিপ প্রিন্ট আউটে একদম নিচের লাইনটা হাফ কেটে যায়"। V766-এ ফোনের টেমপ্লেটে (assets/www/rx_print.html) ঠিক করা হয়েছিল, কিন্তু **কম্পিউটারে করা হয়নি** — যাচাই করতে গিয়ে ধরা পড়ল। প্রতিটা প্রিন্টারই কাগজের নিচের ৩-৫ মিমি ছাপতে পারে না, তাই ফিতেটা ৭ মিমি উপরে তোলা হলো — ফোনের ফাইলে হুবহু একই মাপ। ⛔ absolute অবস্থানে, তাই কাগজের আর কিছুই নড়ে না, পাতাও বাড়ে না। */
 }
 @media screen{
   .rxPrescriptionPrint .medicalPrintTitle{display:none!important;}
@@ -5259,7 +5259,7 @@ button.small{min-height:36px!important;font-size:13px!important;border-radius:12
 .printArea.rxPrescriptionPrint .verifyCenter .vid{display:none!important}
 
 /* ৭) নিচের সবুজ পটি একদম পাতার তলায় */
-.printArea.rxPrescriptionPrint .thanksStrip{position:absolute!important;left:0!important;right:0!important;bottom:0!important;margin:0!important}
+.printArea.rxPrescriptionPrint .thanksStrip{position:absolute!important;left:0!important;right:0!important;bottom:7mm!important;margin:0!important} /* 🖨️🔒 V773 (২৮.০৮.২০২৬) — TK: "প্রেসক্রিপশন ও মেডিসিন স্লিপ প্রিন্ট আউটে একদম নিচের লাইনটা হাফ কেটে যায়"। V766-এ ফোনের টেমপ্লেটে (assets/www/rx_print.html) ঠিক করা হয়েছিল, কিন্তু **কম্পিউটারে করা হয়নি** — যাচাই করতে গিয়ে ধরা পড়ল। প্রতিটা প্রিন্টারই কাগজের নিচের ৩-৫ মিমি ছাপতে পারে না, তাই ফিতেটা ৭ মিমি উপরে তোলা হলো — ফোনের ফাইলে হুবহু একই মাপ। ⛔ absolute অবস্থানে, তাই কাগজের আর কিছুই নড়ে না, পাতাও বাড়ে না। */
 
 /* ════════════════════════════════════════════════════════════════════════
    V425 (১৭.০৮.২০২৬) — TK-নির্দেশে ফোনের সঙ্গে হুবহু মিল (Web parity)।
@@ -5821,11 +5821,16 @@ button.card.reportKpi span, .card.reportKpi span, button.card.reportKpi small, .
 .wlv1TrashBtns{display:flex;gap:6px;margin-top:8px}
 /* 🟢🔒 V660 — বোতাম আরও ছোট (padding কমানো), Android-এর ৩৪dp→২৬dp-র
    একই অনুপাতে। */
+/* 🎨🔒 V773 (২৮.০৮.২০২৬) — TK-অনুমোদিত **ডিজাইন A** (ডেমো ফটো দেখে বাছা):
+   *"View Restore Delete আলাদা আলাদা কালার হবে, উজ্জলতা কম, নেভি ব্লু থাকবে না"*।
+   V764-এ ফোনে এটা করা হয়েছিল, **কম্পিউটারে করা হয়নি** — যাচাই করতে গিয়ে
+   ধরা পড়ল। রঙগুলো ফোনের drawable-এর হুবহু একই মান
+   (bg_trash_btn_view/restore/delete + item_trash_card.xml-এর textColor)। */
 .wlv1TrashB{flex:1;border:0;border-radius:9px;padding:5px 4px;font-size:12.5px;
-  font-weight:700;color:#fff;cursor:pointer}
-.wlv1TrashB.v{background:#1167D8}
-.wlv1TrashB.r{background:#16A34A}
-.wlv1TrashB.d{background:#D32F2F}
+  font-weight:700;cursor:pointer}
+.wlv1TrashB.v{background:#E7F1F4;color:#2F6E80}
+.wlv1TrashB.r{background:#E9F4EC;color:#2F7A4B}
+.wlv1TrashB.d{background:#FBEBE9;color:#A4453A}
 .wlv1TrashBulk{position:sticky;bottom:0;display:flex;gap:8px;align-items:center;
   background:#fff;border-top:1px solid #E6EBF2;padding:9px 10px;margin-top:6px;z-index:5}
 .wlv1TrashCnt{font-size:12.5px;font-weight:700;color:#1167D8;white-space:nowrap}

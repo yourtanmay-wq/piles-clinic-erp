@@ -40,20 +40,28 @@ class MedicineSlipActivity : AppCompatActivity() {
         // মৃত লাইনটা তুলে দেওয়া হলো, যাতে ভবিষ্যতে কেউ ভুল করে ওটা ব্যবহার না করে।
         findViewById<TextView>(R.id.tvDateLine).text = "Date: ${DateUtil.displayWithTime(Date())}"
 
-        val medicines = ClinicalRepository.currentSlip
+        // 🔴 V773 — এখানকার পুরনো `val medicines` লাইনটা তুলে দেওয়া হলো;
+        //    Share এখন টেক্সট নয়, PDF — তাই ওটা আর কোথাও ব্যবহার হয় না।
         refreshMedicineList()
 
         findViewById<MaterialButton>(R.id.btnAddSlipList).setOnClickListener { showSlipMedicinePicker() }
         findViewById<MaterialButton>(R.id.btnAddSlipCustom).setOnClickListener { showCustomSlipMedicineDialog() }
 
+        /* 📄🔒 V773 (২৮.০৮.২০২৬, TK-নির্দেশ: *"এখানে share এ চাপলে Text কেন যাবে —
+           A4 Size এর PDF যেতে হবে… এখান থেকেও share করলে PDF যেতে হবে"*)
+           V765-এ শুধু Investigation-এর Share PDF করা হয়েছিল; **Medicine Slip ও
+           Diet Chart বাকি থেকে গিয়েছিল** — যাচাই করতে গিয়ে ধরা পড়ল।
+           ⛔ পথটা নতুন নয় — Print Preview-র প্রমাণিত `PrescriptionWhatsAppShare
+              .share()`; ছাপা কাগজ আর শেয়ার করা কাগজ তাই হুবহু এক থাকে।
+           ⛔ ওষুধের তালিকা · সেভ · ছাপা — কিছুই ছোঁয়া হয়নি, শুধু এই বোতামটা। */
         findViewById<MaterialButton>(R.id.btnShareText).setOnClickListener {
-            val shareText = buildSlipText(medicines)
-            val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                type = "text/plain"
-                putExtra(Intent.EXTRA_SUBJECT, "Medicine Slip - ${RoleSession.currentPatientName}")
-                putExtra(Intent.EXTRA_TEXT, shareText)
+            if (ClinicalRepository.currentSlip.isEmpty()) {
+                Toast.makeText(this, "Add at least one medicine first.", Toast.LENGTH_SHORT).show()
+            } else {
+                com.tkbiswas.pilesclinic.print.PrescriptionWhatsAppShare.share(
+                    this, com.tkbiswas.pilesclinic.print.PrintMappers.medicineSlip()
+                )
             }
-            startActivity(Intent.createChooser(sendIntent, "Share Medicine Slip"))
         }
 
         findViewById<MaterialButton>(R.id.btnPrint).setOnClickListener {
@@ -227,6 +235,10 @@ class MedicineSlipActivity : AppCompatActivity() {
         }
     }
 
+    /** 🔴 V773 — Share এখন A4 PDF, তাই এই টেক্সট-বানানো ফাংশনটা আর ডাকা হয় না।
+     *  ⛔ মুছে ফেলা হয়নি (PrescriptionActivity.sharePrescription-এর মতোই) — TK
+     *     কখনো টেক্সট-শেয়ার ফেরত চাইলে এক লাইনেই ফিরবে। */
+    @Suppress("unused")
     private fun buildSlipText(
         medicines: List<MedicineEntry>
     ): String {

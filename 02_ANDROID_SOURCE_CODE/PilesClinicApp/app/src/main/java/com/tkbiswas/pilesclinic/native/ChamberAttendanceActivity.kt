@@ -1618,8 +1618,7 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                     // pattern used everywhere else in the app) before it
                     // actually deletes anything. This button switches
                     // between two modes: "✅ Arrived" (tap to mark) and,
-                    // once marked, "↩️ Undo" (3 taps to un-mark).
-                    var undoTapCount = 0
+                    // once marked, "↩️ Undo" (V773: এক চাপ + "Are you sure?" পপ-আপ)।
                     var markedRowId: String? = null
 
                     fun setArrivedMode() {
@@ -1648,33 +1647,56 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                                 }
                                 arrivedBtn.isEnabled = true
                                 markedRowId = newId
-                                undoTapCount = 0
                                 setUndoMode()
                                 android.widget.Toast.makeText(this@ChamberAttendanceActivity, "${res.name} marked Arrived", android.widget.Toast.LENGTH_SHORT).show()
                                 loadBoard()
                             }
                         } else {
-                            // Mode 2: already marked -- 3 taps to undo.
-                            undoTapCount++
-                            if (undoTapCount < 3) {
-                                android.widget.Toast.makeText(this@ChamberAttendanceActivity, "Tap ${3 - undoTapCount} more time(s) to undo", android.widget.Toast.LENGTH_SHORT).show()
-                                return@setOnClickListener
-                            }
-                            arrivedBtn.isEnabled = false
-                            lifecycleScope.launch {
-                                val ok = withContext(Dispatchers.IO) { ChamberAttendanceRepository.undoAttendanceMark(this@ChamberAttendanceActivity, id) }
-                                arrivedBtn.isEnabled = true
-                                android.widget.Toast.makeText(
-                                    this@ChamberAttendanceActivity,
-                                    if (ok) "Undone — ${res.name} removed from today's board" else "Could not undo — check connection",
-                                    android.widget.Toast.LENGTH_SHORT
-                                ).show()
-                                if (ok) {
-                                    markedRowId = null
-                                    undoTapCount = 0
-                                    setArrivedMode()
-                                    loadBoard()
+                            /* 🛡️🔴🔒 V773 (২৮.০৮.২০২৬) — **TK-এর আসল অভিযোগটা এখানেই।**
+                               TK: *"আমি তো বললাম পেমেন্ট মুছে গেছিল… সেখানে চাপ দিলে
+                               অটোমেটিক ডিলিট হয়ে যায় — আমি চাইছি সতর্কবার্তা দিক,
+                               Are you sure"*।
+
+                               **আগে কী হত:** পরপর **৩ বার চাপ** দিলেই সারিটা মুছে যেত
+                               (`undoAttendanceMark` → payments সারি সত্যিই ডিলিট)।
+                               মাঝের দুটো চাপে শুধু একটা টোস্ট ভেসে উঠত — তাড়াহুড়োয়
+                               সেটা চোখেই পড়ে না। তাই ভুল করে পেমেন্ট মুছে গিয়েছিল।
+
+                               **এখন:** এক চাপেই **"Are you sure?" পপ-আপ**, আর "Yes"
+                               প্রথম ১ সেকেন্ড নিষ্ক্রিয় — অর্থাৎ তাড়াহুড়োর চাপ কখনো
+                               ওটায় লাগতে পারে না। ⛔ Cancel প্রথম থেকেই সচল।
+                               ⛔ গোনার পুরনো নিয়ম (৩ চাপ) তুলে দেওয়া হলো — ওটাই
+                                  বিপদটা তৈরি করেছিল; সতর্কবার্তা তার চেয়ে অনেক জোরালো।
+                               ⛔ Arrived করার পথ ও ডিলিটের আসল কাজ এক অক্ষরও বদলায়নি। */
+                            val ask = androidx.appcompat.app.AlertDialog.Builder(this@ChamberAttendanceActivity)
+                                .setCustomTitle(PremiumAlert.header(this@ChamberAttendanceActivity, "↩️ Undo Arrived?"))
+                                .setMessage(res.name + " will be removed from today's board and this entry will be deleted.")
+                                .setPositiveButton("Yes, undo") { _, _ ->
+                                    arrivedBtn.isEnabled = false
+                                    lifecycleScope.launch {
+                                        val ok = withContext(Dispatchers.IO) { ChamberAttendanceRepository.undoAttendanceMark(this@ChamberAttendanceActivity, id) }
+                                        arrivedBtn.isEnabled = true
+                                        android.widget.Toast.makeText(
+                                            this@ChamberAttendanceActivity,
+                                            if (ok) "Undone — ${res.name} removed from today's board" else "Could not undo — check connection",
+                                            android.widget.Toast.LENGTH_SHORT
+                                        ).show()
+                                        if (ok) {
+                                            markedRowId = null
+                                            setArrivedMode()
+                                            loadBoard()
+                                        }
+                                    }
                                 }
+                                .setNegativeButton("Cancel", null)
+                                .setCancelable(false)
+                                .show().also { PremiumAlert.paint(it) }
+                            ask.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)?.let { yes ->
+                                yes.isEnabled = false
+                                yes.alpha = 0.45f
+                                yes.postDelayed({
+                                    try { yes.isEnabled = true; yes.alpha = 1f } catch (_: Throwable) {}
+                                }, 1000L)
                             }
                         }
                     }
