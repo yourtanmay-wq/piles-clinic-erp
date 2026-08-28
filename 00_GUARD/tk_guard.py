@@ -306,6 +306,43 @@ def _db_columns():
 
 
 # ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯.৩৭ — Supabase-এ প্রতিটা ডাকে দুটো হেডারই আছে তো?
+#  🔴🔴🔴 TK-REPORTED, LIVE (২৮.০৮.২০২৬ — "Staff Profile খুলছেই না",
+#  সাদা পর্দা / "Could not open — timeout")। **আসল কারণ:** মডিউল-লগইনের
+#  ডাকটা পাঠাত শুধু `apikey`, কিন্তু `Authorization: Bearer <key>` হেডারটা
+#  ছিল না। এই অ্যাপের বাকি **সব** ডাক (SupabaseClient) ও ওয়েবের Supabase
+#  SDK — দুটোই পাঠায়। নতুন ধরনের চাবিতে (`sb_publishable_…`) একটা না পেলে
+#  Supabase সাড়া দেয় না ⇒ অ্যাপ অপেক্ষা করতেই থাকে।
+#  ⇒ এখন কোনো ডাকে হেডারটা বাদ পড়লে ফাইলই বানানো যাবে না।
+# ═══════════════════════════════════════════════════════════════
+def check_supabase_auth_header():
+    bad = []
+    for f in kt_files():
+        # ⚠️ এখানে `_blank_comments()` **ব্যবহার করা যাবে না** — ওটা স্ট্রিং-ও
+        #    ফাঁকা করে দেয়, ফলে `"apikey"` লেখাটাই আর খুঁজে পাওয়া যায় না
+        #    (নিজের ফাঁদ-পরীক্ষায় ধরা পড়েছে, ২৮.০৮.২০২৬)। তাই আসল লেখাই পড়া হয়;
+        #    কমেন্টে লেখা উদাহরণ যেন না ধরা পড়ে, সেজন্য নিচে `.url(` বাধ্যতামূলক।
+        s = read(f)
+        if "supabase.co" not in s and "baseUrl()" not in s and "SupabaseConfig.url" not in s:
+            continue
+        for m in re.finditer(r'Request\.Builder\(\)(.*?)\.build\(\)', s, re.S):
+            blk = m.group(1)
+            if 'addHeader("apikey"' not in blk:
+                continue
+            if 'addHeader("Authorization"' in blk:
+                continue
+            url = re.search(r'\.url\(([^\n]{0,90})', blk)
+            if not url:
+                continue
+            ln = s[:m.start()].count("\n") + 1
+            bad.append("%s:%d — %s" % (os.path.basename(f), ln, url.group(1).strip()[:70]))
+    if bad:
+        for b in bad[:8]:
+            fail("৯.৩৭", "Supabase-এর ডাকে `apikey` আছে কিন্তু `Authorization: Bearer` নেই "
+                         "⇒ সার্ভার সাড়া না দিলে পর্দা আটকে যাবে — " + b)
+
+
+# ═══════════════════════════════════════════════════════════════
 #  যাচাই ৯.৩৬ — 🕵️ **ইন্সপেক্টর**: প্রকল্পের নিজের ক্লাস import ছাড়া ব্যবহার
 #  🔴🔴🔴 TK-REPORTED, LIVE (২৮.০৮.২০২৬, ফটো সহ — Android Studio:
 #  "Unresolved reference: PilesClinicApplication", PatientPhotoCache.kt:41,
@@ -2995,6 +3032,7 @@ def main():
     nxml = check_xml()
     check_companion()
     check_columns()
+    check_supabase_auth_header()    # 🔑 V811 — দুটো হেডারই আছে তো
     check_project_class_imports()   # 🕵️ V807 — ইন্সপেক্টর: import ছাড়া প্রকল্পের ক্লাস
     check_http_call_timeout()   # ⏱️ V803 — প্রতিটা নেট-ডাকে সময়সীমা
     check_safe_wide_columns()   # 🛟 V801 — শেষ-ভরসার কলাম-তালিকা পুরনো হয়নি তো
@@ -3056,6 +3094,7 @@ def main():
         ("৪.৫", "সম্পূর্ণ প্রজেক্ট (মূল ফোল্ডার সব আছে)"),
         ("৪.৬", "সব বাধ্যতামূলক নোট আছে"),
         ("১১",  "রোগীর সময় ১১টা–৪টা"),
+        ("৯.৩৭", "🔑 Supabase-এর প্রতিটা ডাকে apikey + Authorization দুটোই আছে"),
         ("৯.৩৬", "🕵️ ইন্সপেক্টর — প্রকল্পের প্রতিটা ক্লাসের import আছে"),
         ("৯.৩৫", "⏱️ প্রতিটা OkHttpClient-এ callTimeout বসানো আছে"),
         ("৯.৩৪", "🛟 SafeWideColumns (শেষ-ভরসার পড়া) ডেটাবেসের সঙ্গে মেলে"),

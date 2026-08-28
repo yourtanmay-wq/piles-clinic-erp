@@ -297,9 +297,29 @@ object ModuleAuth {
                 .put("email", codeToEmail(code))
                 .put("password", password)
                 .toString().toRequestBody(JSON)
+            /* 🔴🔴🔴🔒 V811 (২৮.০৮.২০২৬) — **আসল কারণ পাওয়া গেল।**
+               TK-এর নেট মেপে দেখা: 10.4 Mbps ↓ · 42.3 Mbps ↑ · latency ৫৮ ms —
+               অর্থাৎ নেট দ্রুত, "ধীর নেট" আমার আগের অনুমান **ভুল** ছিল।
+               ─── যেভাবে ধরা পড়ল (কাজ করা vs আটকে যাওয়া ডাক মিলিয়ে) ──────────
+               এই অ্যাপের **যত ডাক কাজ করে** (`SupabaseClient.kt:333-334, 464-465`)
+               সবগুলোই **দুটো** হেডার পাঠায়:
+                     apikey: <key>   ও   Authorization: Bearer <key>
+               ওয়েবের Supabase SDK-ও (`createClient`) দুটোই পাঠায় — ওয়েবে তাই
+               মডিউল-লগইন চলে।
+               কিন্তু **এই একটামাত্র ডাক** পাঠাত **শুধু `apikey`** — `Authorization`
+               হেডারটাই ছিল না। নতুন ধরনের চাবিতে (`sb_publishable_…`) Supabase-এর
+               গেটওয়ে দুটোই চায়; একটা না পেলে ডাকটা সাড়াই দেয় না ⇒ অ্যাপ
+               অপেক্ষা করতেই থাকে ⇒ V793-এ সাদা পর্দা, V803-এর পরে "timeout"।
+               ─── প্রমাণ যে সময়সীমা দোষী নয় ─────────────────────────────────
+               `SupabaseClient`-এর নিজের মাপও connect ৮s · read ৮s · call ২৫s —
+               **হুবহু একই**, আর ওগুলো দিব্যি কাজ করে। তাই ২৫ সেকেন্ড কম ছিল না।
+               ⇒ আমি আগে যে বলেছিলাম "সময়সীমা কমিয়ে আমি ভেঙেছি" — **সেটাও ভুল
+                 ছিল**। দোষটা এই অনুপস্থিত হেডার, প্রথম দিন থেকেই।
+               ⛔ সারানো: বাকি সব ডাকের মতোই দুটো হেডারই পাঠানো হয়। */
             val req = Request.Builder()
                 .url(baseUrl() + "/auth/v1/token?grant_type=password")
                 .addHeader("apikey", anonKey())
+                .addHeader("Authorization", "Bearer " + anonKey())
                 .addHeader("Content-Type", "application/json")
                 .post(body).build()
             http.newCall(req).execute().use { resp ->
