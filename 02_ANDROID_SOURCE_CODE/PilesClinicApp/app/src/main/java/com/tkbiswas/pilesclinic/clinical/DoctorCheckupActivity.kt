@@ -2353,6 +2353,9 @@ class DoctorCheckupActivity : AppCompatActivity() {
         AnatomyView.Tool.ARROW -> "তীর — যেদিকে দেখাবেন সেদিকে টানুন"
         AnatomyView.Tool.ERASE -> "মুছুন — যে দাগটা তুলবেন তার উপরে ছুঁয়ে দিন"
         AnatomyView.Tool.PEN   -> "কলম — আঙুল দিয়ে লিখুন"
+        /* 🔴🔒 V793 (TK: *"ফিসারের দাগটা যেন আমি বেকা আঁকতে পারি … আঙুল
+           দিয়ে যেখানে ঘষা দিব সেখানে যেন দাগ হয়ে যায়"*) */
+        AnatomyView.Tool.FISSURE -> "ফাটল — ফাটল যে বরাবর, সেই বরাবর আঙুল টানুন"
         /* 🔵 V585 (TK-নির্দেশ) — নতুন হাতিয়ার */
         AnatomyView.Tool.CENTRE -> "কেন্দ্র — পায়ুপথের ঠিক মাঝখানে একবার ছুঁয়ে দিন"
     }
@@ -2436,6 +2439,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         val toolList = listOf(
             Triple("bulge", "ফোলান", AnatomyView.Tool.BULGE),
             Triple("tract", "নালী",   AnatomyView.Tool.TRACT),
+            Triple("fis",   "ফাটল",   AnatomyView.Tool.FISSURE),   // 🔴 V793
             Triple("pile",  "চিহ্ন",  AnatomyView.Tool.PILE),
             Triple("ring",  "গোল",    AnatomyView.Tool.RING),
             Triple("erase", "মুছুন",  AnatomyView.Tool.ERASE),
@@ -2825,6 +2829,44 @@ class DoctorCheckupActivity : AppCompatActivity() {
             gravity = android.view.Gravity.CENTER
             setPadding(0, 0, 0, symDp(9))
         }
+        /* ═══ 🔴🔒 V793 (২৮.০৮.২০২৬, TK-নির্দেশ ও ডেমো-প্রুফ অনুমোদনের পরে) ═══
+           TK: *"সেই রোগীর চিকিৎসা না করলে সমস্যাটা কত বাড়তে পারে সেটা যেন
+           বোঝাতে পারি, এবং চিকিৎসা কিভাবে করি সেটা ধাপে ধাপে বোঝাতে পারি"*
+           ⇒ **কী বোঝাবেন** — ⚠️ না সারালে · 🩺 চিকিৎসা।
+           ⛔ পুরোনো ধাপগুলো (চিকিৎসা) এক অক্ষরও বদলায়নি; "না সারালে" নতুন। */
+        val ksModeRow = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            setPadding(0, 0, 0, symDp(8))
+        }
+        fun ksChip(label: String): TextView = TextView(this).apply {
+            text = NoBengali.s(label); textSize = 13.5f
+            gravity = android.view.Gravity.CENTER
+            setPadding(symDp(6), symDp(9), symDp(6), symDp(9))
+            isClickable = true; isFocusable = true
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                .apply { setMargins(symDp(3), 0, symDp(3), 0) }
+        }
+        val ksChipWorse = ksChip("⚠️ না সারালে")
+        val ksChipCure  = ksChip("🩺 চিকিৎসা")
+        ksModeRow.addView(ksChipWorse); ksModeRow.addView(ksChipCure)
+        ksBox.addView(ksModeRow)
+
+        /* 🔴🔒 V793 — TK: *"কোন কোন পেশেন্টের তো চার সপ্তাহেও ঠিক হয়ে যেতে
+           পারে"* ⇒ ফিস্টুলায় কত সপ্তাহে সারবে সেটা ➖ ➕ দিয়ে ডাক্তার বসান;
+           সুতোর গোল তত ধাপে ছোট হয়ে আসে। ⛔ অন্য রোগে সারিটা লুকানো থাকে। */
+        val ksWeekRow = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER
+            setPadding(0, 0, 0, symDp(8))
+            visibility = android.view.View.GONE
+        }
+        val ksWkMinus = ksChip("➖")
+        val ksWkText  = ksChip("সপ্তাহ : 4")
+        val ksWkPlus  = ksChip("➕")
+        ksWeekRow.addView(ksWkMinus); ksWeekRow.addView(ksWkText); ksWeekRow.addView(ksWkPlus)
+        ksBox.addView(ksWeekRow)
+
         ksBox.addView(ksCap)
         val ksRow = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.HORIZONTAL
@@ -2857,8 +2899,31 @@ class DoctorCheckupActivity : AppCompatActivity() {
         var ksWithInjection = true
         var ksSteps: List<Int> = emptyList()
         var ksAt = 0
+        var ksWorse = false                       // 🔴 V793 — "না সারালে" মোড
+        var ksKind = ""                           // 🔴 V793 — বাছা চিহ্নের ধরন
         var ksAnim: android.animation.ValueAnimator? = null
 
+        /** 🔴 V793 — কোন মোডটা চালু, চিপের রঙে সেটাই দেখা যায়। */
+        fun ksPaintChips() {
+            for ((i, ch) in listOf(ksChipWorse, ksChipCure).withIndex()) {
+                val on = (i == 0) == ksWorse
+                ch.background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = symDp(10).toFloat()
+                    setColor(android.graphics.Color.parseColor(
+                        if (!on) "#2216222E" else if (i == 0) "#8A3A2E" else "#1F6D4A"))
+                    setStroke(symDp(1), android.graphics.Color.parseColor(
+                        if (!on) "#553B4A5A" else if (i == 0) "#C4564A" else "#2E9366"))
+                }
+                ch.setTextColor(android.graphics.Color.parseColor(if (on) "#FFFFFF" else "#B9C6D4"))
+            }
+            for (ch in listOf(ksWkMinus, ksWkText, ksWkPlus)) {
+                ch.background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = symDp(9).toFloat()
+                    setColor(android.graphics.Color.parseColor("#1A4E7A"))
+                }
+                ch.setTextColor(android.graphics.Color.WHITE)
+            }
+        }
         fun ksPaint() {
             if (ksSteps.isEmpty()) {
                 ksCap.text = NoBengali.s("যে ফোলা বা নালীতে ক্ষারসূত্র দেখাবেন, সেটা ছুঁয়ে দিন")
@@ -2867,11 +2932,20 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 ksInj.visibility = android.view.View.GONE
                 return
             }
-            ksCap.text = KsharSutraAnim.caption(ksSteps[ksAt])
+            // 🔴 V793 — নতুন ধাপগুলোর লেখা (পুরোনোগুলোর লেখা অবিকল একই থাকে)
+            ksCap.text = NoBengali.s(KsharSutraAnim.caption2(ksSteps[ksAt], ksKind, big.ksWeeks))
             ksPrev.visibility = if (ksAt > 0) android.view.View.VISIBLE else android.view.View.GONE
             ksNext.visibility = if (ksAt < ksSteps.size - 1) android.view.View.VISIBLE else android.view.View.GONE
-            ksInj.visibility = android.view.View.VISIBLE
+            // ইনজেকশনের বোতাম শুধু মাংসের চিকিৎসায়
+            val injUse = !ksWorse && (ksKind == AnatomyModel.KIND_BULGE || ksKind == AnatomyModel.KIND_PILE)
+            ksInj.visibility = if (injUse) android.view.View.VISIBLE else android.view.View.GONE
             ksInj.alpha = if (ksWithInjection) 1f else 0.45f
+            // সপ্তাহের সারি শুধু ফিস্টুলার চিকিৎসায়
+            ksWeekRow.visibility =
+                if (!ksWorse && ksKind == AnatomyModel.KIND_TRACT) android.view.View.VISIBLE
+                else android.view.View.GONE
+            ksWkText.text = NoBengali.s("সপ্তাহ : ${big.ksWeeks}")
+            ksPaintChips()
         }
         /** ধাপটা নরম করে চালানো — ০ থেকে ১। */
         fun ksRun(step: Int) {
@@ -2881,7 +2955,9 @@ class DoctorCheckupActivity : AppCompatActivity() {
             big.invalidate()
             val a = android.animation.ValueAnimator.ofFloat(0f, 1f)
             a.duration = if (step == KsharSutraAnim.LUMP_DRAWN ||
-                             step == KsharSutraAnim.TRACT_DRAWN) 1L else 1100L
+                             step == KsharSutraAnim.TRACT_DRAWN ||
+                             step == KsharSutraAnim.FIS_DRAWN ||
+                             step == KsharSutraAnim.WORSE_1) 1L else 1100L
             a.addUpdateListener { v -> big.ksT = v.animatedValue as Float; big.invalidate() }
             ksAnim = a
             a.start()
@@ -2894,10 +2970,11 @@ class DoctorCheckupActivity : AppCompatActivity() {
         }
         fun ksSelect(index: Int) {
             val m = AnatomyModel.parse(big.save()).marks.getOrNull(index) ?: return
-            ksSteps = KsharSutraAnim.stepsFor(m.kind, ksWithInjection)
+            ksKind = m.kind                                     // 🔴 V793
+            ksSteps = KsharSutraAnim.stepsFor2(m.kind, ksWithInjection, ksWorse, big.ksWeeks)
             if (ksSteps.isEmpty()) {
                 Toast.makeText(this@DoctorCheckupActivity,
-                    NoBengali.s("এখানে ক্ষারসূত্র দেখানো যায় না — ফোলা বা নালী ছুঁয়ে দিন"),
+                    NoBengali.s("এখানে ধাপ দেখানো যায় না — ফোলা · ফাটল · নালী ছুঁয়ে দিন"),
                     Toast.LENGTH_SHORT).show()
                 return
             }
@@ -2915,6 +2992,22 @@ class DoctorCheckupActivity : AppCompatActivity() {
         /* 🟢 V589 — ডাক্তার ছুঁয়ে জায়গা দেখালে ওই ধাপটা তখনই আবার চলে,
            তাই সুচ/সুতো নতুন জায়গায় যেতে দেখা যায়। */
         big.onKsSpot = { if (ksSteps.isNotEmpty()) ksRun(ksSteps[ksAt]) }
+        /* 🔴🔒 V793 — মোড বদলালে ওই রোগের ওই তালিকাটাই আবার প্রথম থেকে চলে।
+           ⛔ ডাক্তারের আঁকা দাগ কিচ্ছু বদলায় না — শুধু কোন ধাপগুলো দেখানো হবে। */
+        ksChipWorse.setOnClickListener {
+            if (!ksWorse) { ksWorse = true; if (big.ksIndex >= 0) ksSelect(big.ksIndex) else ksPaint() }
+        }
+        ksChipCure.setOnClickListener {
+            if (ksWorse) { ksWorse = false; if (big.ksIndex >= 0) ksSelect(big.ksIndex) else ksPaint() }
+        }
+        ksWkMinus.setOnClickListener {
+            big.ksWeeks = KsharSutraAnim.clampWeeks(big.ksWeeks - 1)
+            if (big.ksIndex >= 0) ksSelect(big.ksIndex) else ksPaint()
+        }
+        ksWkPlus.setOnClickListener {
+            big.ksWeeks = KsharSutraAnim.clampWeeks(big.ksWeeks + 1)
+            if (big.ksIndex >= 0) ksSelect(big.ksIndex) else ksPaint()
+        }
         ksNext.setOnClickListener { ksGo(ksAt + 1) }
         ksPrev.setOnClickListener { ksGo(ksAt - 1) }
         ksInj.setOnClickListener {
@@ -2929,6 +3022,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
             ksAnim?.cancel(); ksAnim = null
             big.ksOn = false; big.ksIndex = -1; big.ksStep = 0; big.ksT = 0f
             ksSteps = emptyList(); ksAt = 0
+            ksWorse = false; ksKind = ""          // 🔴 V793
             ksBox.visibility = android.view.View.GONE
             bar.visibility = android.view.View.VISIBLE
             big.invalidate()
@@ -2939,9 +3033,10 @@ class DoctorCheckupActivity : AppCompatActivity() {
             setOnClickListener {
                 if (big.ksOn) { ksStop(); return@setOnClickListener }
                 if (AnatomyModel.parse(big.save()).marks.none {
-                        it.kind == AnatomyModel.KIND_BULGE || it.kind == AnatomyModel.KIND_TRACT }) {
+                        it.kind == AnatomyModel.KIND_BULGE || it.kind == AnatomyModel.KIND_TRACT ||
+                        it.kind == AnatomyModel.KIND_FISSURE }) {          // 🔴 V793 — ফাটলও
                     Toast.makeText(this@DoctorCheckupActivity,
-                        NoBengali.s("আগে ছবিতে ফোলা বা নালী আঁকুন — তারপর ক্ষারসূত্র দেখানো যাবে"),
+                        NoBengali.s("আগে ছবিতে ফোলা · ফাটল বা নালী আঁকুন — তারপর ধাপ দেখানো যাবে"),
                         Toast.LENGTH_LONG).show()
                     return@setOnClickListener
                 }

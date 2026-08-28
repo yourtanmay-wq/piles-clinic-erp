@@ -37,7 +37,9 @@ class AnatomyView(context: Context) : View(context) {
        নতুন হাতিয়ার **CENTRE**: ছবির পায়ুপথের মাঝখানে একবার ছুঁয়ে দিলে ওই
        ছবির ঘড়ির কেন্দ্র জমা হয়। তারপর প্রতিটা চিহ্নের o'clock নিজে হিসাব হয়।
        ⛔ আগের সাতটা হাতিয়ারের একটাও বদলায়নি, শুধু একটা যোগ হলো। */
-    enum class Tool { BULGE, PILE, TRACT, RING, ARROW, PEN, ERASE, CENTRE }
+    /* 🔴🔒 V793 — FISSURE যোগ হলো (TK: "আঙুল দিয়ে যেখানে ঘষা দিব সেখানে
+       যেন দাগ হয়ে যায়")। ⛔ পুরোনো সাতটা হাতিয়ার অপরিবর্তিত। */
+    enum class Tool { BULGE, PILE, TRACT, RING, ARROW, PEN, ERASE, CENTRE, FISSURE }
 
     var tool: Tool = Tool.BULGE
     /* 🔵 V585 — আগে এখানে পপ-আপে বাছা লেখাটা জমা থাকত আর **প্রতিটা** চিহ্নে
@@ -71,6 +73,9 @@ class AnatomyView(context: Context) : View(context) {
     var ksInjAlong = 0.55f
     var ksInjAcross = 0.10f
     var ksTieAt = KsharSutraAnim.TIE_AT_BASE
+    /* 🔴🔒 V793 (TK-নির্দেশ) — *"কোন কোন পেশেন্টের তো চার সপ্তাহেও ঠিক হয়ে
+       যেতে পারে"* ⇒ সপ্তাহের সংখ্যা ডাক্তার ➖ ➕ দিয়ে বসান। */
+    var ksWeeks = KsharSutraAnim.WEEKS_DEFAULT
     /** ছুঁয়ে জায়গা বসানো হলে Activity-কে জানানো হয় (লেখাটা বদলায়)। */
     var onKsSpot: (() -> Unit)? = null
     var onChanged: (() -> Unit)? = null        // কিছু আঁকা হলেই ডাকা হয়
@@ -182,6 +187,93 @@ class AnatomyView(context: Context) : View(context) {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val path = Path()
 
+    /* ═══════════════════════════════════════════════════════════════════════
+       🔴🔴🔒 V793 (২৮.০৮.২০২৬, TK-নির্দেশ ও ডেমো-প্রুফ অনুমোদনের পরে) —
+       **আসল রোগীর ছবিতে তার নিজের মাংসটাই ফুলবে।**
+
+       TK-এর কথা (হুবহু): *"এখানে যে বাস্তব রোগীর বাস্তব ফটো তোলা হয়েছে,
+       সেখানে মাংসটা টানলে যেন প্রকৃত এই রোগের মাংসটাই ফুলে যায়। আলাদা কোন
+       অ্যানিমেশন ওখানে যাবে না। … আর যেগুলো হাতে আঁকা ছবি সেখানে
+       অ্যানিমেশন টাইপের ফুলবে।"*
+
+       ─── ইতিহাস (সৎভাবে) ────────────────────────────────────────────────
+       V558-এ পিক্সেল-ফোলানো ছিল, কিন্তু V571-এ TK বলেছিলেন *"যথাযথ মিল
+       খাচ্ছে না"* — তখন সেটা তুলে দিয়ে **আঁকা মাংস** (`drawLump`) বসানো
+       হয়েছিল। এখন TK নিজেই আসল ছবির জন্য পিক্সেল-ফোলানো ফেরত চেয়েছেন,
+       আর ডেমো-প্রুফ দেখে অনুমোদন করেছেন।
+
+       ─── এখন কী হয় ─────────────────────────────────────────────────────
+        • **আসল ছবি** (ডাক্তারের তোলা/গ্যালারির) ⇒ ছবির পিক্সেলই বাইরের দিকে
+          ঠেলে দেওয়া হয় (`Canvas.drawBitmapMesh`) — আঁকা মাংস বসে **না**।
+        • **অ্যাপের আঁকা ছবি** ⇒ আগের মতোই `drawLump()` — এক অক্ষরও বদলায়নি।
+
+       ─── কেন এবার হালকা ও নিখুঁত ───────────────────────────────────────
+       V558-এ প্রতিবার পুরো bitmap কপি করে পিক্সেল-লুপ চলত (ফোন আটকে যেত)।
+       এখন **একটাও পিক্সেল ছোঁয়া হয় না** — শুধু ২৮×২৮ জালের কোণগুলো সরানো
+       হয়, বাকিটা GPU করে। তাই টানার সময় আটকায় না, মেমরিও বাড়ে না।
+       ⛔ কোনো জোড়া/চৌকো দাগ পড়ে না — জালটা মসৃণ।
+       ⛔ ছবির বাইরে কিছু যায় না; ফোলার সীমা `AnatomyModel.BULGE_MAX`-ই।
+       ═══════════════════════════════════════════════════════════════════ */
+    private var baseIsPhoto = false
+    private val meshN = 28                       // জালের ঘর (২৮×২৮)
+    private val meshVerts = FloatArray((meshN + 1) * (meshN + 1) * 2)
+
+    /** এই ছবিতে পিক্সেল-ফোলানো চলবে কি না। */
+    private fun photoBulgeOn(): Boolean =
+        baseIsPhoto && marks.any { it.kind == AnatomyModel.KIND_BULGE }
+
+    /**
+     * জালের প্রতিটা কোণ সরিয়ে ছবিটা আঁকা। প্রতিটা `bulge` চিহ্নের চারপাশে
+     * ভিতরের বিন্দুগুলো কেন্দ্রের কাছ থেকে টেনে আনা হয় ⇒ ওই জায়গাটা ফুলে ওঠে।
+     * ⛔ শুধু আঁকার সময়ের হিসাব — কোনো দাগ/সেভ বদলায় না।
+     */
+    private fun drawPhotoBulge(canvas: Canvas, img: Bitmap) {
+        val w = dst.width(); val h = dst.height()
+        var i = 0
+        for (row in 0..meshN) {
+            val fy = row.toFloat() / meshN
+            for (col in 0..meshN) {
+                val fx = col.toFloat() / meshN
+                var x = fx * 100f          // শতকরা মাপে (দাগও একই মাপে)
+                var y = fy * 100f
+                for ((mi, m0) in marks.withIndex()) {
+                    if (m0.kind != AnatomyModel.KIND_BULGE) continue
+                    /* 🔴🔒 V793 — ধাপ চলার সময় **এই** মাংসটার ফোলা ধাপ অনুযায়ী
+                       বাড়ে/কমে, তাই আসল ছবির চামড়াই ধাপে ধাপে ফুলে ওঠে
+                       (TK: *"না সারালে … মাংস আরো বড়"*)। বাকিগুলো অপরিবর্তিত। */
+                    val m = if (ksOn && mi == ksIndex) m0.copy(s = ksLumpStrength(m0)) else m0
+                    val g = AnatomyModel.lumpGeom(m)
+                    // ফোলার কেন্দ্র = মাংসের মাথা, ব্যাসার্ধ = তার দৈর্ঘ্যের একটু বেশি
+                    val cx = (m.x + Math.cos(g.ang) * g.len * 0.55).toFloat()
+                    val cy = (m.y + Math.sin(g.ang) * g.len * 0.55).toFloat()
+                    val rad = (g.len * 1.35).toFloat()
+                    if (rad <= 0.01f) continue
+                    val dx = x - cx; val dy = y - cy
+                    val d = Math.sqrt((dx * dx + dy * dy).toDouble()).toFloat()
+                    if (d >= rad || d < 0.0001f) continue
+                    val raw = if (m.s != 0.0) m.s else 0.45
+                    val st = (if (raw < 0.0) 0.0
+                              else if (raw > AnatomyModel.BULGE_MAX) AnatomyModel.BULGE_MAX
+                              else raw).toFloat()
+                    // p > 1 ⇒ ভিতরের বিন্দু কেন্দ্রের কাছ থেকে আসে = ফুলে ওঠে
+                    val p = 1f + st * 1.9f
+                    val f = Math.pow((d / rad).toDouble(), p.toDouble()).toFloat()
+                    x = cx + dx * f; y = cy + dy * f
+                }
+                meshVerts[i++] = dst.left + x / 100f * w
+                meshVerts[i++] = dst.top + y / 100f * h
+            }
+        }
+        try {
+            canvas.save()
+            canvas.clipRect(dst)
+            canvas.drawBitmapMesh(img, meshN, meshN, meshVerts, 0, null, 0, null)
+            canvas.restore()
+        } catch (_: Throwable) {
+            canvas.drawBitmap(img, null, dst, null)   // গোলমাল হলে আগের মতোই
+        }
+    }
+
     init {
         /* 🔵 V571 — মাংসের নিচের নরম ছায়াটা (`setShadowLayer`) হার্ডওয়্যার
            আঁকায় পথের উপরে কাজ করে না, তাই এই পর্দাটা সফটওয়্যারে আঁকা হয়।
@@ -196,6 +288,7 @@ class AnatomyView(context: Context) : View(context) {
     fun setPicture(key: String, resId: Int) {
         if (key == picKey && base != null) return
         picKey = key
+        baseIsPhoto = false          // 🔴 V793 — অ্যাপের নিজের আঁকা ছবি
         clockCentre = AnatomyClock.centreOf(context, key)   // 🔵 V585
         marks.clear()
         resetZoom()
@@ -216,6 +309,7 @@ class AnatomyView(context: Context) : View(context) {
     fun setPictureBitmap(key: String, bmp: Bitmap?) {
         if (key == picKey && base != null) return
         picKey = key
+        baseIsPhoto = true           // 🔴 V793 — ডাক্তারের তোলা আসল ছবি
         clockCentre = AnatomyClock.centreOf(context, key)   // 🔵 V585
         marks.clear()
         resetZoom()
@@ -298,7 +392,8 @@ class AnatomyView(context: Context) : View(context) {
                     val hy = m.y + Math.sin(g.ang) * g.len * 0.55
                     Math.min(Math.hypot(xPct - m.x, (yPct - m.y) * aspect), Math.hypot(xPct - hx, (yPct - hy) * aspect))
                 }
-                AnatomyModel.KIND_TRACT ->
+                // 🔴 V793 — ফাটলও ছুঁয়ে বাছা যায় (নালীর মতোই পথ ধরে)
+                AnatomyModel.KIND_TRACT, AnatomyModel.KIND_FISSURE ->
                     m.pts.minOfOrNull { Math.hypot(xPct - it.first, (yPct - it.second) * aspect) } ?: Double.MAX_VALUE
                 else -> Double.MAX_VALUE
             }
@@ -582,7 +677,7 @@ class AnatomyView(context: Context) : View(context) {
                                 s[0].toDouble(), s[1].toDouble(), p[0].toDouble(), p[1].toDouble()))
                         }
                     }
-                    Tool.TRACT, Tool.PEN -> {
+                    Tool.TRACT, Tool.PEN, Tool.FISSURE -> {   // 🔴 V793 — ফিশারও পথ
                         val last = livePts.lastOrNull()
                         if (last == null || Math.abs(last.first - p[0]) + Math.abs(last.second - p[1]) > 0.6) {
                             livePts.add(Pair(p[0].toDouble(), p[1].toDouble()))
@@ -628,10 +723,16 @@ class AnatomyView(context: Context) : View(context) {
                             clockCentre = Pair(s[0].toDouble(), s[1].toDouble())
                             onCentreSet?.invoke(s[0].toDouble(), s[1].toDouble())
                         }
-                        Tool.TRACT, Tool.PEN -> {
+                        Tool.TRACT, Tool.PEN, Tool.FISSURE -> {
                             if (livePts.size > 1) {
+                                /* 🔴🔒 V793 — আঙুল যে পথে গেছে, ঠিক সেই পথই
+                                   জমা হয় — তাই ফাটল/নালী বাঁকা হলেও হুবহু বসে। */
                                 marks.add(AnatomyModel.Mark(
-                                    if (tool == Tool.TRACT) AnatomyModel.KIND_TRACT else AnatomyModel.KIND_PEN,
+                                    when (tool) {
+                                        Tool.TRACT -> AnatomyModel.KIND_TRACT
+                                        Tool.FISSURE -> AnatomyModel.KIND_FISSURE
+                                        else -> AnatomyModel.KIND_PEN
+                                    },
                                     pts = livePts.toList()))
                             }
                         }
@@ -676,7 +777,7 @@ class AnatomyView(context: Context) : View(context) {
         for (i in marks.indices) {
             val m = marks[i]
             val d = when (m.kind) {
-                AnatomyModel.KIND_TRACT, AnatomyModel.KIND_PEN ->
+                AnatomyModel.KIND_TRACT, AnatomyModel.KIND_PEN, AnatomyModel.KIND_FISSURE ->
                     m.pts.minOfOrNull { Math.hypot(it.first - x, (it.second - y) * aspect) } ?: 999.0
                 else -> Math.hypot(m.x - x, (m.y - y) * aspect)
             }
@@ -738,7 +839,9 @@ class AnatomyView(context: Context) : View(context) {
         val left = (vw - w) / 2f + (if (allowZoom) panX else 0f)
         val top = (vh - h) / 2f + (if (allowZoom) panY else 0f)
         dst.set(left, top, left + w, top + h)
-        canvas.drawBitmap(img, null, dst, null)
+        /* 🔴🔒 V793 — আসল ছবিতে ছবির পিক্সেলই ফোলে; আঁকা ছবিতে আগের মতোই। */
+        if (photoBulgeOn()) drawPhotoBulge(canvas, img)
+        else canvas.drawBitmap(img, null, dst, null)
 
         drawMarks(canvas)
     }
@@ -924,7 +1027,12 @@ class AnatomyView(context: Context) : View(context) {
         paint.strokeCap = Paint.Cap.ROUND; paint.strokeJoin = Paint.Join.ROUND
 
         // এখন আঙুল যেটা টানছে সেটাও দেখা যাবে, ছাড়ার অপেক্ষা করতে হবে না
-        if (livePts.size > 1 && (tool == Tool.TRACT || tool == Tool.PEN)) {
+        if (livePts.size > 1 && (tool == Tool.TRACT || tool == Tool.PEN || tool == Tool.FISSURE)) {
+            /* 🔴 V793 — ফিশার টানার সময়েও সঙ্গে সঙ্গে ফাটলের চেহারাতেই দেখা যায় */
+            if (tool == Tool.FISSURE) {
+                strokePts(canvas, livePts, s, "#6E1710", 3.6f, false)
+                strokePts(canvas, livePts, s, "#F3E7DA", 1.15f, false)
+            } else
             strokePts(canvas, livePts, s, if (tool == Tool.TRACT) "#F0A400" else "#111111",
                       if (tool == Tool.TRACT) 1.35f else 1.4f, tool == Tool.TRACT)
             // আঙুল টানার সময়েই মাপটা দেখা যায় — ছাড়ার অপেক্ষা করতে হয় না
@@ -935,7 +1043,8 @@ class AnatomyView(context: Context) : View(context) {
            `drawKs()` তাকে ধাপ অনুযায়ী আঁকে (ফোলা · সুতো · কেটে পড়া)। */
         for ((i, m) in marks.withIndex()) {
             if (ksOn && i == ksIndex) continue
-            if (m.kind == AnatomyModel.KIND_BULGE) drawLump(canvas, m)
+            // 🔴🔒 V793 — আসল ছবিতে আঁকা মাংস বসে না (ছবির পিক্সেলই ফুলেছে)
+            if (m.kind == AnatomyModel.KIND_BULGE && !baseIsPhoto) drawLump(canvas, m)
         }
         paint.reset(); paint.isAntiAlias = true
         paint.strokeCap = Paint.Cap.ROUND; paint.strokeJoin = Paint.Join.ROUND
@@ -948,6 +1057,13 @@ class AnatomyView(context: Context) : View(context) {
                     drawTractCm(canvas, m.pts, s)
                 }
                 AnatomyModel.KIND_PEN   -> strokePts(canvas, m.pts, s, "#111111", 1.4f, false)
+                /* 🔴🔒 V793 — **ফিশারের ফাটল**, ডাক্তারের আঙুলের পথ ধরেই।
+                   ভিতরে গাঢ় লাল খাঁজ, উপরে সরু সাদা রেখা (শক্ত কিনারা) —
+                   তাই রোগী দেখেই বোঝেন "এই বরাবর ফাটল"। */
+                AnatomyModel.KIND_FISSURE -> {
+                    strokePts(canvas, m.pts, s, "#6E1710", 3.6f, false)
+                    strokePts(canvas, m.pts, s, "#F3E7DA", 1.15f, false)
+                }
                 AnatomyModel.KIND_RING -> {
                     val cx = px(m.x); val cy = py(m.y); val r = (m.r / 100.0 * dst.width()).toFloat()
                     paint.style = Paint.Style.STROKE
@@ -976,11 +1092,123 @@ class AnatomyView(context: Context) : View(context) {
      * 🔵🔒 V587 — বাছা চিহ্নটা ধাপ অনুযায়ী আঁকা।
      * ⛔ শুধু আঁকা — `marks` তালিকা ছোঁয়া হয় না, কিছু সেভ হয় না।
      */
+    /**
+     * 🔴🔒 V793 — চলতি ধাপে এই মাংসটা কতটা ফোলা।
+     *  · **না সারালে** (WORSE) — ধাপে ধাপে বড় হতে থাকে
+     *  · **চিকিৎসা** — আগের V587-এর হুবহু সেই হিসাব (`lumpStrength`)
+     */
+    private fun ksLumpStrength(m: AnatomyModel.Mark): Double {
+        val b = if (m.s != 0.0) m.s else 0.45
+        if (ksStep in KsharSutraAnim.WORSE_1..KsharSutraAnim.WORSE_3) {
+            val gr = KsharSutraAnim.worseGrow(ksStep, ksT).toDouble()
+            return b + (AnatomyModel.BULGE_MAX - b) * gr
+        }
+        return KsharSutraAnim.lumpStrength(b, ksStep, ksT)
+    }
+
+    /** পথের শুরু থেকে `u` ভগ্নাংশ পর্যন্ত অংশ (সাপ্তাহিক কাটার জন্য)। */
+    private fun ptsHead(pts: List<Pair<Double, Double>>, u: Float): List<Pair<Double, Double>> {
+        if (u <= 0f) return emptyList()
+        val n = Math.max(2, Math.round(pts.size * u.coerceIn(0f, 1f)))
+        return pts.take(Math.min(n, pts.size))
+    }
+    /** `u` ভগ্নাংশের পর বাকি অংশ। */
+    private fun ptsTail(pts: List<Pair<Double, Double>>, u: Float): List<Pair<Double, Double>> {
+        if (u >= 1f) return emptyList()
+        val n = Math.round(pts.size * u.coerceIn(0f, 1f))
+        return pts.drop(Math.max(0, Math.min(n, pts.size - 2)))
+    }
+
     private fun drawKs(canvas: Canvas, s: Float) {
         val m = marks.getOrNull(ksIndex) ?: return
+        val worse = ksStep in KsharSutraAnim.WORSE_1..KsharSutraAnim.WORSE_3
+
+        /* ═══ 🔴🔒 V793 — **ফিশার** (ক্ষার-কর্ম; সুতো বাঁধা হয় না) ═══
+           ফাটলটা ডাক্তারের আঙুলের পথ ধরেই, তাই বাঁকা হলেও ধাপগুলো সেই বাঁকেই। */
+        if (m.kind == AnatomyModel.KIND_FISSURE) {
+            val pts = m.pts
+            if (pts.size < 2) return
+            if (worse) {
+                // না সারালে — ফাটল আরো গভীর ও লম্বা
+                val gr = KsharSutraAnim.worseGrow(ksStep, ksT)
+                strokePts(canvas, pts, s, "#6E1710", 3.6f + 3.4f * gr, false)
+                strokePts(canvas, pts, s, "#F3E7DA", 1.15f + 1.1f * gr, false)
+                if (gr > 0.05f) ksFisTag(canvas, pts, s, 1f + 1.4f * gr)
+                return
+            }
+            when (ksStep) {
+                KsharSutraAnim.FIS_NUMB -> {
+                    strokePts(canvas, pts, s, "#6E1710", 3.6f, false)
+                    strokePts(canvas, pts, s, "#F3E7DA", 1.15f, false)
+                    ksFisTag(canvas, pts, s, 1f)
+                    ksFisTool(canvas, pts, s, ksT, "#9FB6C8")   // অবশ করার সুচ
+                }
+                KsharSutraAnim.FIS_KSHAR -> {
+                    strokePts(canvas, pts, s, "#6E1710", 3.6f, false)
+                    ksFisTag(canvas, pts, s, 1f)
+                    // ক্ষার লাগছে — ফাটল বরাবর গাঢ় বাদামি প্রলেপ
+                    strokePts(canvas, ptsHead(pts, ksT), s, "#3B2A0C", 3.2f, false)
+                    ksFisTool(canvas, pts, s, 1f, "#C9A96B")
+                }
+                KsharSutraAnim.FIS_WASH -> {
+                    strokePts(canvas, pts, s, "#8E2A22", 3.2f, false)
+                    strokePts(canvas, pts, s, "#C4564A", 1.5f, false)
+                    val a = ((1f - ksT) * 255f).toInt().coerceIn(0, 255)
+                    if (a > 4) {
+                        val lay = canvas.saveLayerAlpha(0f, 0f, width.toFloat(), height.toFloat(), a)
+                        strokePts(canvas, pts, s, "#3B2A0C", 3.2f, false)
+                        canvas.restoreToCount(lay)
+                    }
+                }
+                KsharSutraAnim.FIS_HEAL -> {
+                    ksHealTract(canvas, pts, s, ksT)            // আসল ছবির জায়গাটাও পরিষ্কার
+                    val a = ((1f - ksT) * 255f).toInt().coerceIn(0, 255)
+                    if (a > 4) {
+                        val lay = canvas.saveLayerAlpha(0f, 0f, width.toFloat(), height.toFloat(), a)
+                        strokePts(canvas, pts, s, "#8E2A22", 3.2f, false)
+                        canvas.restoreToCount(lay)
+                    }
+                    strokePts(canvas, pts, s, "#E7C9BD", 1.4f, false)
+                }
+                else -> {                                       // FIS_DRAWN
+                    strokePts(canvas, pts, s, "#6E1710", 3.6f, false)
+                    strokePts(canvas, pts, s, "#F3E7DA", 1.15f, false)
+                    ksFisTag(canvas, pts, s, 1f)
+                }
+            }
+            return
+        }
+
         if (m.kind == AnatomyModel.KIND_TRACT) {
             val pts = m.pts
             if (pts.size < 2) return
+            /* 🔴🔒 V793 — না সারালে: নালী মোটা হয়, শেষ মাথায় নতুন মুখ ফোটে */
+            if (worse) {
+                val gr = KsharSutraAnim.worseGrow(ksStep, ksT)
+                strokePts(canvas, pts, s, "#F0A400", 1.35f + 1.5f * gr, true)
+                if (gr > 0.35f) {
+                    val e = pts.last()
+                    paint.reset(); paint.isAntiAlias = true; paint.style = Paint.Style.FILL
+                    paint.color = Color.argb(90, 227, 178, 60)
+                    canvas.drawCircle(px(e.first), py(e.second), (6f + 10f * gr) * s, paint)
+                    paint.color = Color.parseColor("#C62828")
+                    canvas.drawCircle(px(e.first), py(e.second), 2.6f * s, paint)
+                }
+                return
+            }
+            /* 🔴🔒 V793 — **সপ্তাহে সপ্তাহে সুতো বদল** (TK: "ফুটবলের সাইজ ১০ →
+               ৯ → ৮ → ৭")। কাটা অংশটা পিছনে ভরে যায়, তাই সুতোর গোলটা ছোট হয়। */
+            if (ksStep > KsharSutraAnim.TRACT_WEEK || ksStep == KsharSutraAnim.TRACT_HEAL) {
+                val u = KsharSutraAnim.weekHealed(ksStep, ksT, ksWeeks)
+                ksHealTract(canvas, ptsHead(pts, u), s, 1f)      // ভরে যাওয়া অংশ
+                val rest = ptsTail(pts, u)
+                if (rest.size > 1) {
+                    strokePts(canvas, rest, s, "#F0A400", 1.35f, true)
+                    ksTractThread(canvas, s, rest, 1f, true)
+                }
+                strokePts(canvas, ptsHead(pts, u), s, "#9A7C77", 0.9f, true)
+                return
+            }
             when (ksStep) {
                 KsharSutraAnim.TRACT_DRAWN ->
                     strokePts(canvas, pts, s, "#F0A400", 1.35f, true)
@@ -1059,6 +1287,34 @@ class AnatomyView(context: Context) : View(context) {
     }
 
     /** নালী বরাবর সুতো (grow = কতটা পরানো হলো)। */
+    /** 🔴🔒 V793 — ফাটলের বাইরের ছোট মাংস (sentinel tag)। `k` = কত বড়। */
+    private fun ksFisTag(canvas: Canvas, pts: List<Pair<Double, Double>>, s: Float, k: Float) {
+        val q = pts.last()
+        val cx = px(q.first); val cy = py(q.second)
+        val r = 2.6f * s * k
+        paint.reset(); paint.isAntiAlias = true; paint.style = Paint.Style.FILL
+        paint.color = Color.parseColor("#D8A08C")
+        canvas.drawOval(RectF(cx - r, cy - r * 1.25f, cx + r, cy + r * 1.25f), paint)
+        paint.style = Paint.Style.STROKE; paint.strokeWidth = 0.7f * s
+        paint.color = Color.parseColor("#B87B67")
+        canvas.drawOval(RectF(cx - r, cy - r * 1.25f, cx + r, cy + r * 1.25f), paint)
+    }
+
+    /** 🔴🔒 V793 — অবশ করার সুচ / ক্ষার লাগানোর কাঠি — ফাটলের মাথায় এগিয়ে আসে। */
+    private fun ksFisTool(canvas: Canvas, pts: List<Pair<Double, Double>>, s: Float,
+                          prog: Float, colour: String) {
+        val q = pts[pts.size / 2]
+        val tx = px(q.first); val ty = py(q.second)
+        val back = (1f - prog.coerceIn(0f, 1f)) * 22f * s
+        val bx = tx + (16f * s + back); val by = ty + (14f * s + back)
+        paint.reset(); paint.isAntiAlias = true; paint.style = Paint.Style.STROKE
+        paint.strokeCap = Paint.Cap.ROUND
+        paint.color = Color.parseColor(colour); paint.strokeWidth = 1.8f * s
+        canvas.drawLine(bx, by, tx, ty, paint)
+        paint.style = Paint.Style.FILL; paint.color = Color.parseColor("#EFE3C9")
+        canvas.drawCircle(tx, ty, 1.6f * s, paint)
+    }
+
     private fun ksTractThread(canvas: Canvas, s: Float,
                               pts: List<Pair<Double, Double>>, grow: Float, knot: Boolean) {
         val n = Math.max(2, Math.round(pts.size * grow))

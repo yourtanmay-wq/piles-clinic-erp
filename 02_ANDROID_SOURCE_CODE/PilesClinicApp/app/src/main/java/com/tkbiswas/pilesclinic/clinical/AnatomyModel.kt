@@ -56,6 +56,12 @@ object AnatomyModel {
     const val KIND_RING  = "ring"
     const val KIND_ARROW = "arrow"
     const val KIND_BULGE = "bulge"
+    /* 🔴🔒 V793 (২৮.০৮.২০২৬, TK-নির্দেশ) — **ফিশারের ফাটল।**
+       TK: *"ফিসারের দাগটা যেন আমি বেকা আঁকতে পারি … আঙুল দিয়ে যেখানে ঘষা
+       দিব সেখানে যেন দাগ হয়ে যায়, যাতে বোঝা যায় এই বরাবর আপনার ফিসার
+       হয়েছে।"* ⇒ আঙুলের পুরো পথটা `pts`-এ জমা হয় (নালীর মতোই), তাই দাগ
+       ঠিক সেই বাঁক ধরেই বসে। ⛔ পুরোনো কোনো ধরন বদলায়নি — এটা নতুন। */
+    const val KIND_FISSURE = "fis"
 
     /** ফোলানোর সীমা — এর বেশি টানলে ছবি ভেঙে যায়, তাই আটকানো। */
     const val BULGE_MAX = 0.92
@@ -258,7 +264,9 @@ object AnatomyModel {
         for (m in board.marks) {
             if (out.isNotEmpty()) out.append('|')
             when (m.kind) {
-                KIND_TRACT, KIND_PEN -> {
+                /* 🔴🔒 V793 — ফিশারও আঙুলের **পুরো পথ** হিসেবেই জমা হয়
+                   (নালী/কলমের মতোই), তাই বাঁকটা হুবহু ফেরে। */
+                KIND_TRACT, KIND_PEN, KIND_FISSURE -> {
                     out.append(m.kind).append(':')
                     out.append(m.pts.joinToString(";") { "${n1(it.first)},${n1(it.second)}" })
                 }
@@ -296,7 +304,7 @@ object AnatomyModel {
             val kind = t.substring(0, c)
             val body = t.substring(c + 1)
             when (kind) {
-                KIND_TRACT, KIND_PEN -> {
+                KIND_TRACT, KIND_PEN, KIND_FISSURE -> {
                     val pts = body.split(";").mapNotNull { p ->
                         val a = p.split(",")
                         if (a.size < 2) null else {
