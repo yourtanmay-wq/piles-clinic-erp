@@ -663,7 +663,16 @@ class DoctorCheckupActivity : AppCompatActivity() {
         currentStep = i
         val scroll = findViewById<ScrollView>(R.id.stepScroll)
         val target = findViewById<android.view.View>(sectionIds.getOrElse(i) { R.id.secHistory })
-        if (target != null) scroll.post { scroll.smoothScrollTo(0, target.top) }
+        /* 🎨🔒 V776 (২৮.০৮.২০২৬, TK-অনুমোদিত ডিজাইন B) — ধাপ ১-এ স্ক্রল
+           **একদম উপরে** নেওয়া হয়, `secHistory`-তে নয়। কারণ V776-এ রোগীর
+           কার্ড ও ৫টা ধাপ-চিপ দুটোই এখন স্ক্রলের ভিতরে, `secHistory`-র
+           **উপরে** বসে — আগের নিয়মে স্ক্রল করলে ওই দুটোই পর্দার বাইরে
+           চলে যেত, অর্থাৎ TK যা চেয়েছেন (হেডার উপরে, নিচে ১-৫) সেটাই
+           দেখা যেত না।
+           ⛔ ধাপ ২-৫ আগের মতোই নিজের সেকশনে যায় — এক অক্ষরও বদলায়নি। */
+        if (target != null) scroll.post {
+            scroll.smoothScrollTo(0, if (i == 0) 0 else target.top)
+        }
         // 🎨 (07.08.2026, প্রুফ-চেহারা) — নম্বর-বৃত্ত: চলতি ধাপ সবুজ+সাদা নম্বর,
         // বাকিগুলো ধূসর। নিচের লেবেলও সেই অনুযায়ী রঙ। (আগে বড় পিলে
         // bg_chip_seg_on_green / bg_chip_seg ব্যবহার হতো।)

@@ -132,7 +132,15 @@
          <HorizontalScrollView ... paddingHorizontal=12dp>
              <LinearLayout id=stepBar width=wrap_content orientation=horizontal/>
          </HorizontalScrollView> -->
-    <LinearLayout android:id="@+id/stepBar" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="6dp" android:paddingHorizontal="8dp" />
+    <!-- 🎨🔒 V776 (২৮.০৮.২০২৬, TK-অনুমোদিত **ডিজাইন B**, ডেমো ফটো দেখে বাছা)
+         TK: *"হেডার উপরে রাখতে হবে, 1-5 তার নিচে"* — আর স্ক্রল করলে দুটোই
+         উপরে উঠে যাবে (TK নিজে B বেছেছেন, A নয়)।
+         ⇒ তাই 5টা ধাপ-চিপের সারিটা এখান থেকে (পাতার উপরে, স্থির) তুলে
+           **`flipper`-এর ভিতরে, রোগীর কার্ডের ঠিক পরে** বসানো হলো — নিচে দেখুন।
+         ⛔ চিপ তৈরির কোড (`wireSteps()`), চাপলে কী হয় (`showStep()`), id —
+            কিচ্ছু বদলায়নি; শুধু XML-এ জায়গা বদলেছে।
+         ⛔ ধাপ 2-5-এ উপরের এক-লাইনের রোগীর-বার (`patientDetailsCollapsed`)
+            আগের মতোই স্থির থাকে, তাই রোগীর পরিচয় সবসময় চোখে থাকে। -->
 
     <!-- Section content (one step at a time) -->
     <ScrollView android:id="@+id/stepScroll" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:layout_marginTop="6dp">
@@ -334,6 +342,12 @@
 
         </LinearLayout><!-- 🔵 V584: ptlHeaderCard শেষ — ID/Ref By এখন ক্রিম হেডারের ভিতরে -->
     </LinearLayout>
+
+            <!-- 🎨🔒 V776 (TK-অনুমোদিত ডিজাইন B) — 5টা ধাপ-চিপ এখন রোগীর কার্ডের
+                 **ঠিক নিচে**, আর স্ক্রলের ভিতরে (তাই কার্ডের সাথেই উপরে উঠে যায়)।
+                 ⛔ id/attribute হুবহু আগের মতোই — `wireSteps()` ও `showStep()`
+                    একটুও বদলায়নি। শুধু marginTop 6dp→8dp (কার্ড থেকে একটু ফাঁক)। -->
+            <LinearLayout android:id="@+id/stepBar" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="8dp" android:paddingHorizontal="8dp" />
 
     <!-- 🟢🔒🔒 V656 (২৫.০৮.২০২৬, TK-নির্দেশ — "Doctor Note & Reminder থাকুক
          ... রোগীর আসার আগের দিন যেন ডাক্তারবাবুকে মনে করিয়ে দেওয়া হয়") —
