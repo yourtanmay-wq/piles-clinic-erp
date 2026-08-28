@@ -3381,5 +3381,11 @@
     "version": 774,
     "date": "2026-08-28",
     "reason": "TK: হ্যাঁ — V761-V774 (নম্বরের সাজেশনের আসল ফাঁক · পেমেন্ট ডিলিটে Are you sure · Share→A4 PDF · Phone Versions · ওয়েবে বাদ পড়া ৪টে)"
+  },
+  {
+    "file": "PILES_CLINIC_APP_V775_FINAL.zip",
+    "version": 775,
+    "date": "2026-08-28",
+    "reason": "TK-এর Studio-তে বিল্ড ভেঙেছিল (Unresolved reference: user) — সারানো + পাহারাদারের ফাঁক বন্ধ"
   }
 ]
