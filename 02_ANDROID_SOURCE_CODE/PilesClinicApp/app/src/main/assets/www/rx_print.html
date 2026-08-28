@@ -307,6 +307,43 @@ body { background: linear-gradient(135deg, rgb(237, 246, 255) 0%, rgb(247, 255, 
    মেপে: দাগের তলা ↔ সইয়ের দাগ — আগে 33px, এখন 26px। */
 .printArea.prescriptionLock.rxPrescriptionPrint .rxComplaintHistory{min-height:193mm!important}
 
+
+/* ══════════════════════════════════════════════════════════════════════════
+   🔎🔒 V799 (২৮.০৮.২০২৬) — TK: "যাচাই করে দেখুন সঠিকভাবে কার্যকরী হয়েছে কিনা"।
+   যাচাই করতে গিয়েই একটা **ভবিষ্যতের ফাটল** ধরা পড়ল, TK রিপোর্ট করার আগেই।
+
+   ─── কী ধরা পড়ল (মেপে) ────────────────────────────────────────────────────
+   কিশনগঞ্জ ছাড়া অন্য ব্রাঞ্চে মাথায় একটা বাড়তি লাইন বসে ("PURNIA BRANCH")।
+   তখন মেপে পাওয়া গেল:  .rxBox তলা = 1024.8 · .doctorLine মাথা = 1022.4
+   ⇒ ২.৪px ঢুকে গেছে। এখনো চোখে পড়ে না (সইয়ের দাগ 1028.1-এ), কিন্তু ঠিকানা
+   দুই লাইন হলে বা ব্রাঞ্চের নাম লম্বা হলে সইয়ের ঘরের উপরে উঠে যেত।
+
+   ─── আসল কারণ ────────────────────────────────────────────────────────────
+   বাঁ ঘরটার উচ্চতা **পাথরে খোদাই** ছিল (`min-height:197mm`)। কাগজের উচ্চতা
+   ফিক্সড 297mm, তাই মাথা যতটা বাড়ে বাক্সটা ততটাই নিচে নামে — ছোট হয় না।
+
+   ─── স্থায়ী সমাধান ───────────────────────────────────────────────────────
+   খোদাই করা উচ্চতা তুলে দিয়ে ঘরটাকে **যতটা জায়গা আছে ততটাই ভরতে** বলা হলো
+   (`align-items:stretch`)। এখন মাথা যত বড়ই হোক, খাড়া দাগ দুটো **নিজে থেকেই**
+   সইয়ের ঘরের ঠিক উপরে গিয়ে থামে — V425-এর নিয়ম চিরকালের জন্য নিশ্চিত।
+   ⛔ কোনো লেখা/ঘর/বোতাম বাদ যায়নি — শুধু উচ্চতা মাপার নিয়ম বদলাল।
+   ══════════════════════════════════════════════════════════════════════════ */
+/* ⚠️ যাচাই করতে গিয়ে আরও একটা জিনিস ধরা পড়ল: এই কাগজটাকে "খাড়া flex কলাম"
+   বানানোর নিয়মটা (`.printArea.rxPrescriptionPrint{display:flex}`) **কখনোই চালু
+   হয়নি** — কারণ `body.printModeActive .printArea{display:block!important}`-এর
+   ওজন (0,2,2) বেশি ছিল। তাই বাক্সটা নিজে থেকে জায়গা ভরতে পারত না, আর
+   বাঁ ঘরের উচ্চতা হাতে-লেখা `min-height` দিয়ে ধরে রাখতে হচ্ছিল। এখন ওজন
+   বাড়িয়ে নিয়মটা সত্যিই চালু করা হলো। */
+body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
+.printArea.prescriptionLock.rxPrescriptionPrint{
+  display:flex!important;flex-direction:column!important}
+.printArea.prescriptionLock.rxPrescriptionPrint .rxBox{
+  display:flex!important;flex-direction:column!important;margin-bottom:28.5mm!important}
+.printArea.prescriptionLock.rxPrescriptionPrint .rxApprovedGrid{
+  flex:1 1 auto!important;align-items:stretch!important;min-height:0!important}
+.printArea.prescriptionLock.rxPrescriptionPrint .rxApprovedGrid>aside.rxComplaintHistory{
+  min-height:0!important;height:auto!important}
+
 </style>
 </head>
 <body class="printModeActive"><div id="app">

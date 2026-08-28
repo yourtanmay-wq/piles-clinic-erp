@@ -95,6 +95,24 @@ class FollowUpRepository(private val context: Context? = null) {
             val narrow = SupabaseClient.fetchListOrNull(table, filter, 5000, select = cols)
             if (narrow != null) { narrowProven = true; return narrow }
             if (narrowProven) return null
+            /* 🔴🔒 V800 (২৮.০৮.২০২৬) — TK: "আরো যাচাই করুন egress-এর ঝুঁকি আছে কিনা"।
+               ─── যা ধরা পড়ল ────────────────────────────────────────────────────
+               এই `slim()` ডাকা হয় **followups ও patients**-এর জন্য (নিচে দেখুন) —
+               দুটোতেই রোগীর base64 ছবি আছে। সরু পড়াটা প্রথমবারেই ব্যর্থ হলে
+               (দুর্বল নেট = খুব সাধারণ ব্যাপার) সোজা `select=*` × ৫০০০ সারি চলত।
+               ঠিক এই একই দোষ trash-এ V798-এ সারানো হয়েছে (খাতার নিয়ম ৬.২ —
+               "একটা দোষ পেলে পুরো প্রজেক্টে একই ধরনের সব জায়গা ঠিক করা")।
+               ─── সারানো ───────────────────────────────────────────────────────
+               মাঝখানে `SafeWideColumns` ধাপ — **ভারী ঘর (ছবি) ছাড়া বাকি সব ঘর**।
+               এটা ঠিক সেই ধাপ যেটা `SupabaseClient.fetchListSlimOrNull()`-এ
+               V493/V494-এ প্রমাণিত হয়ে বসানো আছে; এখানে ভুলে বাদ পড়েছিল।
+               ⛔ শেষ ধাপের `select=*` **হুবহু আগের মতোই** রইল, তাই B446-এর
+                  গ্যারান্টি ("খালি তালিকা / ₹0 কখনো দেখাবে না") অটুট। */
+            val safe = SafeWideColumns.forTable(table, cols)
+            if (safe != null) {
+                val safeRead = SupabaseClient.fetchListOrNull(table, filter, 5000, select = safe)
+                if (safeRead != null) return safeRead
+            }
             return SupabaseClient.fetchListOrNull(table, filter, 5000)
         }
 

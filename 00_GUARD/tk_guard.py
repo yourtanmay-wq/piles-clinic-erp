@@ -401,6 +401,88 @@ def check_version():
 #  instance-ফাংশন ডাকা যায় না, আগে `BriefingRepository()` বানাতে হয়।
 #  পাহারাদার এতদিন এটা ধরতে পারত না — এখন পারবে।
 # ═══════════════════════════════════════════════════════════════
+def _blank_comments(s: str) -> str:
+    """কমেন্ট ও স্ট্রিং-এর ভিতরের সব অক্ষর ফাঁকা করে দেয়, কিন্তু **লাইন-সংখ্যা ও
+    দৈর্ঘ্য অটুট** রাখে (নতুন লাইন যেমন ছিল তেমনই)। ফলে লাইন নম্বর ধরে যাচাই
+    করা কোড আগের মতোই চলে, শুধু কমেন্টের লেখা আর কোড বলে ভুল হয় না।
+    🔴🔒 V800 — TK-এর যাচাইয়ে ধরা পড়ল: RoleSession.kt-এর বাংলা `/** … */`
+    মন্তব্যের ভিতরে `PilesClinicApplication.onCreate()` লেখা ছিল, আর সেই
+    লাইনটা `*` দিয়ে শুরু হয় না বলে পুরনো ছাঁকনি ওটাকে **কোড** ভেবে
+    মিথ্যে ভুল দেখাচ্ছিল।"""
+    out = list(s)
+    n = len(s)
+    i = 0
+    def blank(a, b):
+        for k in range(a, min(b, n)):
+            if out[k] != "\n":
+                out[k] = " "
+    while i < n:
+        c = s[i]
+        if c == "/" and i + 1 < n and s[i + 1] == "/":
+            j = s.find("\n", i)
+            j = n if j < 0 else j
+            blank(i, j); i = j; continue
+        if c == "/" and i + 1 < n and s[i + 1] == "*":
+            j = s.find("*/", i + 2)
+            j = n if j < 0 else j + 2
+            blank(i, j); i = j; continue
+        if s.startswith('\"\"\"', i):
+            j = s.find('\"\"\"', i + 3)
+            j = n if j < 0 else j + 3
+            blank(i, j); i = j; continue
+        if c in "\"'":
+            j = i + 1
+            while j < n and s[j] != c and s[j] != "\n":
+                if s[j] == "\\":
+                    j += 1
+                j += 1
+            j = min(j + 1, n)
+            blank(i, j); i = j; continue
+        i += 1
+    return "".join(out)
+
+
+def _brace_block(s: str, start: int) -> str:
+    """`start` থেকে শুরু করে প্রথম `{` খুঁজে তার মিল-করা `}` পর্যন্ত অংশটা ফেরায়।
+    কমেন্ট (`//`, `/* */`) ও স্ট্রিং (`"`, `\'`, `\"\"\"`) -এর ভিতরের বন্ধনী গোনা হয় না,
+    তাই বাংলা মন্তব্যে `{` থাকলেও ভুল হবে না। মিল না পেলে ফাইলের শেষ পর্যন্ত।"""
+    i = s.find("{", start)
+    if i < 0:
+        return s[start:]
+    n = len(s)
+    depth = 0
+    while i < n:
+        c = s[i]
+        if c == "/" and i + 1 < n and s[i + 1] == "/":
+            j = s.find("\n", i)
+            i = n if j < 0 else j + 1
+            continue
+        if c == "/" and i + 1 < n and s[i + 1] == "*":
+            j = s.find("*/", i + 2)
+            i = n if j < 0 else j + 2
+            continue
+        if s.startswith('\"\"\"', i):
+            j = s.find('\"\"\"', i + 3)
+            i = n if j < 0 else j + 3
+            continue
+        if c in "\"'":
+            j = i + 1
+            while j < n and s[j] != c:
+                if s[j] == "\\":
+                    j += 1
+                j += 1
+            i = j + 1
+            continue
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                return s[start:i + 1]
+        i += 1
+    return s[start:]
+
+
 def check_static_calls():
     files = {}
     for root, _, fs in os.walk(JAVA):
@@ -427,13 +509,21 @@ def check_static_calls():
         j = s.find("companion object", i)
         if j < 0:
             continue
-        blk = s[j:j + 8000]
+        # 🔴🔒 V800 (২৮.০৮.২০২৬) — আগে এখানে লেখা ছিল `s[j:j+8000]`, অর্থাৎ
+        # companion object-এর প্রথম ৮০০০ অক্ষরই দেখা হত। বড় কমেন্ট বা বড়
+        # companion থাকলে পরের `fun`-গুলো জানালার বাইরে পড়ে যেত, আর
+        # পাহারাদার **মিথ্যে ভুল** দেখাত (FollowUpRepository-তে ঠিক এটাই হলো:
+        # `inquiryHistoryEndsTerminal` ১৬০ নম্বর লাইনে, কিন্তু ৮০০০ অক্ষরের
+        # বাইরে)। এখন সত্যিকারের `{`…`}` গুনে companion-এর শেষ বার করা হয় —
+        # কমেন্ট ও স্ট্রিং-এর ভিতরের বন্ধনী গোনা হয় না।
+        blk = _brace_block(s, j)
         comp[cname] = set(re.findall(r'\bfun\s+(\w+)', blk)) | set(re.findall(r'\b(?:val|var|const val)\s+(\w+)', blk))
 
     bad = []
     for q, s in files.items():
         own = os.path.basename(q)[:-3]
-        for ln, line in enumerate(s.split("\n"), 1):
+        # 🔴🔒 V800 — কমেন্ট/স্ট্রিং ফাঁকা করে নিয়ে তবেই খোঁজা হয়
+        for ln, line in enumerate(_blank_comments(s).split("\n"), 1):
             t = line.strip()
             if t.startswith("//") or t.startswith("*") or t.startswith("/*"):
                 continue
