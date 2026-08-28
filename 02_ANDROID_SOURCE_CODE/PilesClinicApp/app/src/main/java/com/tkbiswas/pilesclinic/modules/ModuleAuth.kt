@@ -47,10 +47,22 @@ object ModuleAuth {
        মূল অ্যাপের প্রমাণিত মাপগুলোই: connect ৮s · read ৮s · **callTimeout ২৫s**।
        ⇒ সবচেয়ে খারাপ অবস্থাতেও ২৫ সেকেন্ডে ডাক শেষ হয়ে "Could not open"
        বার্তা আসে — পর্দা আর চিরকাল সাদা হয়ে বসে থাকে না। */
+    /* 🔴🔒 V808 (২৮.০৮.২০২৬) — TK: "staff Profile খুলছে না তো, কি কাজ করেছেন আপনি?"
+       V803-এ সময়সীমা বসিয়ে সাদা-পর্দা থামিয়েছিলাম — কিন্তু ওটা ছিল **উপসর্গ**
+       সারানো, রোগ নয়। পর্দা এখন "Could not open — timeout" দেখায়, খোলে না।
+       ─── "timeout" লেখাটা কেন অকেজো ──────────────────────────────────────
+       OkHttp ডিফল্টে **নিজে থেকেই বারবার অন্য রাস্তায় চেষ্টা করে**
+       (`retryOnConnectionFailure`)। তাই আসল ভুলটা (যেমন "connect হলো না" বা
+       HTTP ৪২৯) চাপা পড়ে যেত, আর শেষে শুধু `callTimeout`-এর নিরর্থক
+       "timeout" বেরিয়ে আসত — যা দিয়ে কারণ বোঝার উপায় নেই।
+       ─── এখন ────────────────────────────────────────────────────────────
+       বারবার চেষ্টা বন্ধ ⇒ আসল ভুলটা **তাড়াতাড়ি ও নিজের নামেই** আসে।
+       সময়সীমা একটু বাড়ানো হলো (দুর্বল নেটে যেন অকারণে না কাটে)। */
     private val http = OkHttpClient.Builder()
-        .connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
-        .readTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
-        .callTimeout(25, java.util.concurrent.TimeUnit.SECONDS)
+        .retryOnConnectionFailure(false)
+        .connectTimeout(12, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
+        .callTimeout(35, java.util.concurrent.TimeUnit.SECONDS)
         .build()
     private val JSON = "application/json".toMediaType()
 
@@ -255,7 +267,13 @@ object ModuleAuth {
 
     /** Sign in with Staff Code + module password. Returns null on success, else error text.
      *  Blocking network call — run it on a background thread. */
+    /* 🔴🔒 V808 — এখন ভুলের বার্তায় **ঠিক কী হয়েছে** লেখা থাকে: কোন ধাপে
+       আটকেছে · সার্ভার কী কোড পাঠিয়েছে · কত সেকেন্ড লেগেছে · কোন ধরনের গোলমাল।
+       আগে শুধু "timeout" আসত — ওটা দিয়ে কারণ বোঝার কোনো উপায় ছিল না, তাই
+       সমস্যাটা ধরাই যাচ্ছিল না। ⛔ সফল পথে এক অক্ষরও বদলায়নি। */
     fun signIn(code: String, password: String): String? {
+        val t0 = System.currentTimeMillis()
+        fun secs() = "%.1f".format((System.currentTimeMillis() - t0) / 1000.0)
         try {
             val body = JSONObject()
                 .put("email", codeToEmail(code))
@@ -269,13 +287,17 @@ object ModuleAuth {
             http.newCall(req).execute().use { resp ->
                 val txt = resp.body?.string() ?: ""
                 if (!resp.isSuccessful) {
-                    return try { JSONObject(txt).optString("error_description", "Sign-in failed") }
-                    catch (e: Exception) { "Sign-in failed" }
+                    val why = try { JSONObject(txt).optString("error_description", "").ifBlank {
+                        JSONObject(txt).optString("msg", "")
+                    } } catch (_: Exception) { "" }
+                    return "Step 1 (login) — server said HTTP ${resp.code}" +
+                        (if (why.isNotBlank()) ": $why" else "") +
+                        "\n\nCode: $code · ${secs()}s"
                 }
                 val json = JSONObject(txt)
                 accessToken = json.optString("access_token", "")
                 lastExpiresIn = json.optInt("expires_in", 3600)
-                if (accessToken.isNullOrBlank()) return "Sign-in failed"
+                if (accessToken.isNullOrBlank()) return "Step 1 (login) — no token came back. ${secs()}s"
             }
             val id = getRows("hr", "app_identity", "select=person_code,role_kind,is_master&limit=1")
             if (id.length() > 0) {
@@ -283,7 +305,21 @@ object ModuleAuth {
                 isMaster = id.getJSONObject(0).optBoolean("is_master", false)
             } else { personCode = code; isMaster = false }
             return null
-        } catch (e: Exception) { return e.message ?: "Sign-in error" }
+        } catch (e: Exception) {
+            val kind = e.javaClass.simpleName
+            val msg = e.message.orEmpty()
+            val plain = when {
+                kind.contains("UnknownHost") -> "Could not find the server — check the internet connection."
+                kind.contains("SSL") || kind.contains("Certificate") -> "Secure connection failed."
+                msg.contains("timeout", true) || kind.contains("Timeout") ->
+                    "The server did not answer in time."
+                kind.contains("ConnectException") || kind.contains("SocketException") ->
+                    "Could not reach the server."
+                else -> "Could not sign in."
+            }
+            return "Step 1 (login) — $plain\n\n$kind" +
+                (if (msg.isNotBlank()) ": $msg" else "") + " · ${secs()}s"
+        }
     }
 
     // 🔴🔒 V453: context ঐচ্ছিক — পুরনো ৫+ ব্যবহারের জায়গা (identity-switch

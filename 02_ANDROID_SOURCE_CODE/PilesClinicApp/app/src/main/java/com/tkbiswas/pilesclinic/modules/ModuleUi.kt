@@ -222,11 +222,19 @@ object ModuleUi {
             activity.runOnUiThread {
                 if (err == null) onReady()
                 else {
+                    /* 🔴🔒 V808 (২৮.০৮.২০২৬) — TK: "staff Profile খুলছে না তো"।
+                       আগে একটাই বোতাম ছিল ("Back") — অর্থাৎ নেট এক সেকেন্ডের জন্য
+                       খারাপ হলেও পর্দা থেকে বেরিয়ে গিয়ে আবার সব শুরু করতে হত।
+                       এখন **Try again** — একই জায়গা থেকে আবার চেষ্টা। */
                     AlertDialog.Builder(activity)
                         // 🎨 TK-APPROVED (2026-08-06, দল ২): রঙিন হেডার + রাউন্ডেড কার্ড।
                         .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(activity, "Could not open"))
                         .setMessage(err)
-                        .setPositiveButton("Back") { _, _ -> activity.finish() }
+                        .setPositiveButton("Try again") { d, _ ->
+                            try { d.dismiss() } catch (_: Throwable) { }
+                            ensureSignedIn(activity, prefillCode, onReady)
+                        }
+                        .setNegativeButton("Back") { _, _ -> activity.finish() }
                         .setCancelable(false)
                         .show().also { try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) { } }
                 }
