@@ -2586,6 +2586,88 @@ MATERIAL_TINT_KNOWN = {
 }
 
 
+# ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯.৩৩ — "কোডে যা লেখা" আর "ফোনে যা দেখায়" আলাদা হলে জানাবে
+#  ─────────────────────────────────────────────────────────────
+#  🔴 TK-এর প্রশ্ন (২৮.০৮.২০২৬): *"কতবারই তো এরকম করেন কিন্তু কার্যকরী
+#  কেন হয় না"*
+#
+#  **সৎ উত্তর:** কম্পিউটারের কাজ এখানে সত্যিই **চালিয়ে চোখে দেখা যায়**
+#  (ব্রাউজার আছে)। ফোনের অ্যাপ এখানে **চালানো যায় না** — শুধু কোড পড়া যায়।
+#  তাই ফোনের বেলায় যাচাই হচ্ছিল *"আমি কি ঠিক জিনিসটা লিখেছি?"*, অথচ আসল
+#  প্রশ্ন *"ফোন কি সেটা দেখাবে?"* — দুটো এক নয়। Android যেখানে নিজে থেকে
+#  লেখাটা বদলে দেয় (যেমন MaterialButton), সেখানেই "হয়ে গেছে" বলা হয়ে
+#  যাচ্ছিল, অথচ হয়নি। এটাই বারবার হওয়ার আসল কারণ।
+#
+#  **এই পাহারা সেই ফাঁকটাই বন্ধ করে** — XML যা বলে আর ফোন যা দেখাবে, তার
+#  মধ্যে জানা প্রতিটা অমিল এখানে ধরা পড়ে, তাই আর "চুপচাপ" থাকে না।
+#
+#  এখনকার জানা অমিল: `<Button>`-এর লেখা ছোট হাতে লেখা থাকলেও Material
+#  থিমে ফোন সেটা **বড় হাতে** দেখায় (`textAllCaps` ডিফল্ট true) — অথচ
+#  কম্পিউটারে ছোট হাতেই থাকে। এটা ভুল নয়, কিন্তু **ফোন ও কম্পিউটার এক নয়**,
+#  তাই তালিকাটা চোখের সামনে থাকা দরকার। TK-এর অনুমতি ছাড়া বদলানো হবে না;
+#  তালিকা শুধু **ছোট** হতে পারে, বড় নয়।
+# ═══════════════════════════════════════════════════════════════
+ALLCAPS_KNOWN = {
+    ("activity_enquiry.xml", "btnSave"),
+    ("activity_login.xml", "btnLogin"),
+    ("activity_patient_photo.xml", "btnFind"),
+    ("activity_patient_photo.xml", "btnPick"),
+    ("activity_patient_photo.xml", "btnSave"),
+    ("activity_registration.xml", "btnSexMale"),
+    ("activity_registration.xml", "btnSexFemale"),
+    ("activity_registration.xml", "btnSexOther"),
+    ("activity_registration.xml", "btnRegTimingOfficial"),
+    ("activity_registration.xml", "btnRegTimingUnexpected"),
+    ("activity_registration.xml", "btnSave"),
+    ("activity_user_photo.xml", "btnSave"),
+    ("activity_user_photo.xml", "btnRemove"),
+    ("item_credential_card.xml", "btnChange"),
+}
+
+
+def check_phone_shows_what_code_says():
+    import re
+    lay = os.path.join(RES, "layout")
+    if not os.path.isdir(lay):
+        return
+    kt = ""
+    for f in kt_files():
+        kt += read(f)
+    new, healed = [], []
+    for fn in sorted(os.listdir(lay)):
+        if not fn.endswith(".xml"):
+            continue
+        src = read(os.path.join(lay, fn))
+        for m in re.finditer(r"<Button\b(.*?)/>", src, re.S):
+            blk = m.group(1)
+            tm = re.search(r'android:text="([^"]*)"', blk)
+            if not tm:
+                continue
+            letters = [c for c in tm.group(1) if c.isalpha()]
+            if not letters or not any(c.islower() for c in letters):
+                continue
+            idm = re.search(r'android:id="@\+id/(\w+)"', blk)
+            bid = idm.group(1) if idm else "?"
+            key = (fn, bid)
+            off = ('textAllCaps="false"' in blk
+                   or re.search(r"\b" + re.escape(bid) + r"\.isAllCaps", kt) is not None)
+            if off:
+                if key in ALLCAPS_KNOWN:
+                    healed.append(fn + " · " + bid)
+                continue
+            if key in ALLCAPS_KNOWN:
+                continue
+            new.append(fn + " · " + bid)
+    if new:
+        fail("৯.৩৩", "এই বোতামের লেখা কোডে ছোট হাতে, কিন্তু ফোনে বড় হাতে দেখাবে "
+                     "(কম্পিউটারের সঙ্গে মিলবে না)। ইচ্ছাকৃত হলে `ALLCAPS_KNOWN`-এ "
+                     "লিখুন, নইলে `isAllCaps = false` বসান: " + ", ".join(new[:10]))
+    if healed:
+        fail("৯.৩৩", "এগুলো ঠিক হয়ে গেছে — `ALLCAPS_KNOWN` থেকে নামগুলো তুলে দিন: "
+                     + ", ".join(healed[:10]))
+
+
 def check_material_button_background():
     import re
     lay = os.path.join(RES, "layout")
@@ -2661,6 +2743,7 @@ def main():
     check_dialog_suggestion_guard()   # ⌨️ V774 — পপ-আপেও সাজেশন বন্ধ
     check_patient_session_survives()  # 👤 V786 — কল এলে রোগীর পরিচয় হারাবে না
     check_material_button_background()  # 🎨 V790 — XML-এর বোতামের রং ফোনে হারাবে না
+    check_phone_shows_what_code_says()  # 📱 V791 — কোডে যা লেখা, ফোনে তাই দেখায় তো?
     check_qualified_calls()           # 🎯 V769 — ভুল object-এর নামে ডাকা
     check_cloud_row_null_text()       # 🚫 V760 — পর্দায় "null" লেখা
     check_webview_popup()             # 🩹 V738 — পপ-আপে WebView বসানোর ফাঁদ (কম্পন)
