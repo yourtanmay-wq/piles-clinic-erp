@@ -56,8 +56,13 @@ object ReportCardPrinter {
                         // than every other screen. It now reads the same way and
                         // applies the ONE shared rule.
                         val rid = data.rowId
-                        val arr = if (rid.isNotBlank()) SupabaseClient.fetchList("patients", "id=eq.$rid", 1)
-                            else SupabaseClient.findByMobile("patients", "+91$mobile", "*", 50)
+                        /* 🔴🔒 V794 — এই সারিটা থেকে শুধু বয়স/ঠিকানা/লিঙ্গ নেওয়া হয়
+                           (যাচাই করা); ছবিটা আসে `PatientTimelineRepository.build`
+                           থেকে। তাই এখানে ছবি ছাড়া পড়া হয়। */
+                        val arr = if (rid.isNotBlank()) SupabaseClient.fetchListSlim("patients",
+                                "id=eq.$rid", 1, SupabaseClient.PATIENT_NO_PHOTO_COLS)
+                            else SupabaseClient.findByMobile("patients", "+91$mobile",
+                                SupabaseClient.PATIENT_NO_PHOTO_COLS, 50)
                         val ownBranch = user.branch
                         PatientIdentity.pickPatientRow(arr, ownBranch)
                     } catch (_: Throwable) { null }

@@ -1134,8 +1134,14 @@ class DoctorCheckupActivity : AppCompatActivity() {
             val p = withContext(Dispatchers.IO) {
                 try {
                     val enc = java.net.URLEncoder.encode(pid, "UTF-8")
-                    var rows = SupabaseClient.fetchList("patients", "patientId=eq.$enc")
-                    if (rows.length() == 0) rows = SupabaseClient.fetchList("patients", "id=eq.$enc")
+                    /* 🔴🔒 V794 — সারিটা **ছবি ছাড়া** পড়া হয়; ছবিটা নিচে
+                       `PatientPhotoCache` থেকে আসে (জমা থাকলে বিনা খরচে,
+                       নইলে শুধু ওই এক সারির `id,photo`)। ⛔ হেডারের ছবি,
+                       A4 কাগজের ছবি ও ৩-চাপে ঘোরানো — তিনটেই অটুট। */
+                    var rows = SupabaseClient.fetchListSlim("patients", "patientId=eq.$enc", 1,
+                        SupabaseClient.PATIENT_NO_PHOTO_COLS)
+                    if (rows.length() == 0) rows = SupabaseClient.fetchListSlim("patients",
+                        "id=eq.$enc", 1, SupabaseClient.PATIENT_NO_PHOTO_COLS)
                     if (rows.length() > 0) rows.getJSONObject(0) else null
                 } catch (_: Exception) { null }
             } ?: return@launch
@@ -1144,7 +1150,10 @@ class DoctorCheckupActivity : AppCompatActivity() {
             val sex = p.s("sex")
             val disease = p.s("disease")
             val address = p.s("address")
-            val photo = p.s("photo")
+            /* 🔴🔒 V794 — ছবিটা আর সারির সঙ্গে নামে না; জমা থাকলে ফোন থেকেই,
+               নইলে একবারই ক্লাউড থেকে (শুধু `id,photo`)। ⛔ ছবি হারায় না। */
+            val photo = com.tkbiswas.pilesclinic.native.PatientPhotoCache.photoFor(
+                applicationContext, p.s("id").ifBlank { pid }, p.s("updatedAt"))
             // 🆕 (07.08.2026) — A4 রিপোর্টের জন্য একই তথ্য মনে রাখা (কোনো নতুন কল নয়)।
             patMobile = mobile; patAge = age; patSex = sex; patDisease = disease; patAddress = address; patPhoto = photo
             // 🟢🔒 V656 (২৫.০৮.২০২৬, TK-নির্দেশ) — আগে থেকে বসানো Doctor Note &
@@ -1585,8 +1594,9 @@ class DoctorCheckupActivity : AppCompatActivity() {
         if (patientKey.isBlank()) return
         try {
             val enc = java.net.URLEncoder.encode(patientKey, "UTF-8")
-            var rows = SupabaseClient.fetchList("patients", "patientId=eq.$enc")
-            if (rows.length() == 0) rows = SupabaseClient.fetchList("patients", "id=eq.$enc")
+            // 🔴🔒 V794 — এখানে ছবি লাগে না (markDoctorComplete), তাই ছবি ছাড়া
+            var rows = SupabaseClient.fetchListSlim("patients", "patientId=eq.$enc", 1, SupabaseClient.PATIENT_NO_PHOTO_COLS)
+            if (rows.length() == 0) rows = SupabaseClient.fetchListSlim("patients", "id=eq.$enc", 1, SupabaseClient.PATIENT_NO_PHOTO_COLS)
             if (rows.length() == 0) return
             val id = rows.getJSONObject(0).optString("id")
             if (id.isBlank()) return

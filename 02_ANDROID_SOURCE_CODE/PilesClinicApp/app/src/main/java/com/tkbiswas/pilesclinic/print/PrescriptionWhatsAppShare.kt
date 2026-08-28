@@ -141,6 +141,40 @@ object PrescriptionWhatsAppShare {
         docPatient = patientName
         wantPrint = allowPrint
 
+        /* ═══════════════════════════════════════════════════════════════════
+           🔴🔴🔒 V795 (২৮.০৮.২০২৬, TK-রিপোর্ট ছবিসহ — *"প্রেসক্রিপশন যখন
+           হোয়াটসঅ্যাপে শেয়ার করতে যাই, ঘোড়ার ডিম এসেছে"*: PDF-এ শুধু বিশাল
+           লোগো, ৪ পাতা)।
+
+           ─── আসল কারণ (কোড ধরে প্রমাণিত, আন্দাজ নয়) ─────────────────────
+           V698-এ ঠিক এই দোষটাই সারানো হয়েছিল — কিন্তু **শর্ত দিয়ে**: পাতার
+           `<meta viewport>`-এ যদি একটা **সংখ্যা** থাকে (`width=794`) তবেই
+           `useWideViewPort` চালু হয়। Check-up-এর কাগজে সংখ্যা আছে, তাই
+           ওটা সেরে গিয়েছিল।
+           কিন্তু **Prescription ও Medicine Slip**-এর টেমপ্লেট
+           (`assets/www/rx_print.html` লাইন ৩) লেখা `width=device-width` —
+           কোনো সংখ্যা নেই। তাই শর্তটা মেলে না, wide-viewport চালুই হয় না,
+           আর ফোনের ঘনত্ব ধরে CSS চওড়া দাঁড়ায় ৭৯৪ ÷ ৩ ≈ ২৬৫px ⇒ ৭৮px-এর
+           লোগোই পাতার তিন ভাগের এক ভাগ জুড়ে বসে, উচ্চতার মাপ ভুল হয়,
+           বাড়তি পাতা তৈরি হয় — TK-এর ছবিতে ঠিক এটাই।
+           ⚠️ V698-এর মন্তব্যে আমি নিজেই লিখেছিলাম *"Prescription-এ এক অক্ষরও
+              বদলায়নি"* — সেটাই ছিল ফাঁক। তখন ওটাকে নিরাপত্তা ভেবেছিলাম।
+
+           ─── সমাধান ─────────────────────────────────────────────────────
+           **শুধু এই PDF বানানোর জন্য** পাতার viewport-টা A4-এর সংখ্যায়
+           বদলে নেওয়া হয়। তাতে V698/V701-এর ইতিমধ্যে-প্রমাণিত পথটাই চালু
+           হয়, আর কাগজ হুবহু A4 মাপে সাজে।
+           ⛔ আসল টেমপ্লেট ফাইল **ছোঁয়া হয়নি** — বদলটা শুধু মেমরির এই কপিতে।
+           ⛔ ছাপার পথ (PrintManager · `PdfPrintDocumentAdapter`) সম্পূর্ণ
+              আলাদা, সেখানে হাত পড়েনি — তাই প্রিন্ট আগের মতোই।
+           ═══════════════════════════════════════════════════════════════ */
+        val htmlForPdf = try {
+            if (Regex("name=[\"']viewport[\"'][^>]*content=[\"'][^\"']*width\\s*=\\s*\\d{3,4}",
+                    RegexOption.IGNORE_CASE).containsMatchIn(html)) html
+            else Regex("<meta[^>]*name=[\"']viewport[\"'][^>]*>", RegexOption.IGNORE_CASE)
+                .replace(html, "<meta name=\"viewport\" content=\"width=$A4_WIDTH_PX\">")
+        } catch (_: Throwable) { html }
+
         val wv = WebView(activity)
         // ⚠️ JavaScript শুধু পাতার **উচ্চতা মাপার** জন্য। টেমপ্লেটে নিজের কোনো
         //    স্ক্রিপ্ট নেই ও বাইরের কিছু লোড হয় না, তাই এতে ঝুঁকি নেই।
@@ -171,7 +205,7 @@ object PrescriptionWhatsAppShare {
             val wantWidth = Regex(
                 "name=[\"']viewport[\"'][^>]*content=[\"'][^\"']*width\\s*=\\s*(\\d{3,4})",
                 RegexOption.IGNORE_CASE
-            ).find(html)?.groupValues?.getOrNull(1)?.toIntOrNull()
+            ).find(htmlForPdf)?.groupValues?.getOrNull(1)?.toIntOrNull()
             if (wantWidth != null && wantWidth >= 300) {
                 wv.settings.useWideViewPort = true
                 /* 🔴🔒🔒 V701 (২৬.০৮.২০২৬, TK-এর ৪টে ছবিতে ধরা — PDF-এ লোগো
@@ -210,7 +244,7 @@ object PrescriptionWhatsAppShare {
         } catch (_: Throwable) { }
         layoutAt(wv, A4_HEIGHT_PX)
         // baseURL = file:///android_asset/  → লোগোর ছবি রিজলভ হয় (ছাপার পথের মতোই)।
-        wv.loadDataWithBaseURL("file:///android_asset/", html, "text/html", "UTF-8", null)
+        wv.loadDataWithBaseURL("file:///android_asset/", htmlForPdf, "text/html", "UTF-8", null)
     }
 
     /* 🔴🔒 V701 — কাগজের আসল চওড়া। সাধারণত A4 (৭৯৪), কিন্তু কোনো ফোনে

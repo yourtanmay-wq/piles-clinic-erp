@@ -3870,7 +3870,11 @@ class FollowUpActivity : AppCompatActivity() {
             var fOk = SupabaseClient.updateById("followups", item.id, fields)
             try {
                 val oldMobileForLookup = item.mobile.filter { it.isDigit() }.takeLast(10)
-                val realFollowUps = SupabaseClient.fetchList("followups", "mobile=like.*$oldMobileForLookup&stage=eq.${item.stage}", 20)
+                /* 🔴🔒 V794 — এখানেও সারি থেকে শুধু `id` নেওয়া হয় (যাচাই করা), তাই
+                   ছবি/ইতিহাস ছাড়া ছোট্ট তালিকা। */
+                val realFollowUps = SupabaseClient.fetchListSlim("followups",
+                    "mobile=like.*$oldMobileForLookup&stage=eq.${item.stage}", 20,
+                    SupabaseClient.FOLLOWUP_ID_COLS)
                 for (i in 0 until realFollowUps.length()) {
                     val realId = realFollowUps.getJSONObject(i).optString("id")
                     if (realId.isBlank() || realId == item.id) continue

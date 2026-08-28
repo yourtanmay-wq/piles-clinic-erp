@@ -1078,7 +1078,8 @@ class DraftRepository(private val context: Context? = null) {
         if (!DeletePermission.canDeleteEntryNow(context, user, e.recordDate, e.branch, paid = true)) return "PERMISSION"
         if (e.id.isBlank() && e.mobile.isBlank()) return "NOT_FOUND"
         val rows = if (e.id.isNotBlank()) {
-            val byId = SupabaseClient.fetchList("patients", "id=eq.${e.id}", 1)
+            val byId = SupabaseClient.fetchListSlim("patients", "id=eq.${e.id}", 1,
+                    SupabaseClient.PATIENT_NO_PHOTO_COLS)   // 🔴 V794 — ছবি ছাড়া
             if (byId.length() > 0) byId else SupabaseClient.findByMobile("patients", e.mobile, "*", 1)
         } else {
             SupabaseClient.findByMobile("patients", e.mobile, "*", 1)

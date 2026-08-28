@@ -6274,3 +6274,46 @@ body.wlv1AnatFullOpen{overflow:hidden}
 .wlv1RpHist{background:#F4F8FF;border:1px solid #D9E4F5;border-radius:12px;padding:10px 12px;margin-top:12px}
 .wlv1RpHist b{display:block;font-size:11.5px;font-weight:800;color:#1067d8;margin-bottom:6px}
 .wlv1RpHist div{font-size:11.5px;line-height:1.6;color:#3C4859}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   🖨️🔒 V796 (২৮.০৮.২০২৬) — TK-রিপোর্ট: প্রেসক্রিপশন A4-এর ৫টি সমস্যা।
+   সবগুলোই Chromium-এ print media, 794×1123px-এ **মেপে** ধরা হয়েছে, আন্দাজে নয়।
+
+   ① সবুজ ফিতে সইয়ের নিচের লেখা ঢেকে দিত —
+        মাপ:  .docLeft small  → y 1075.7 … 1085.5
+              .thanksStrip    → y 1075.5 … 1096.1   (z-index:2, নিরেট সবুজ)
+        অর্থাৎ "Founder & Consultant" ও "(B.A.M.S) Regd 12386" **পুরোপুরি** ঢাকা।
+        কারণ: V766-এ ফিতেটা bottom:0 → bottom:7mm-এ তোলা হয়েছিল (প্রিন্টারের
+        ছাপাহীন প্রান্ত বাঁচাতে), কিন্তু .doctorLine আগে থেকেই bottom:7mm-এ ছিল।
+        ⛔ ফিতে 7mm-এই থাকছে (V766-এর প্রমাণিত কাজ নষ্ট করা হয়নি), সইয়ের
+        লাইনটাকেই ফিতের উপরে তোলা হলো।
+
+   ② ADVICE ও NEXT FOLLOW-UP উপরে চলে যেত —
+        কারণ: `.rxPrescriptionPrint .rxComplaintHistory > div:first-child
+        {margin-top:0!important}` (specificity 0,4,1)। HISTORY ফাঁকা থাকলে
+        .anRxBot-ই first-child হয়ে যেত, তাই তার `margin-top:auto` মুছে যেত।
+        এখানে বেশি specificity (0,5,2) দিয়ে শুধু .anRxBot-কে ফেরত আনা হলো —
+        HISTORY-র নিজের first-child নিয়ম অক্ষত।
+
+   ③ ক্লিনিকের নাম লাল ও বড়   ④ ঠিকানা বড়   ⑤ tagline এক লাইনে
+   ══════════════════════════════════════════════════════════════════════════ */
+.printArea.prescriptionLock.rxPrescriptionPrint .doctorLine{bottom:13.5mm!important}
+.printArea.prescriptionLock.rxPrescriptionPrint .rxBox{margin-bottom:43mm!important}
+.printArea.prescriptionLock.rxPrescriptionPrint .rxApprovedGrid>aside.rxComplaintHistory>div.anRxBot{
+  margin-top:auto!important;padding-top:3mm!important}
+.printArea.prescriptionLock.rxPrescriptionPrint .clinicCell h2{
+  color:#C0192B!important;font-size:34px!important;line-height:1.06!important}
+.printArea.prescriptionLock.rxPrescriptionPrint .clinicCell p{
+  font-size:14px!important;line-height:1.25!important}
+.printArea.prescriptionLock.rxPrescriptionPrint .rxTagline{
+  line-height:1.2!important;padding:1.4mm 3mm!important}
+.printArea.prescriptionLock.rxPrescriptionPrint .rxTagline b,
+.printArea.prescriptionLock.rxPrescriptionPrint .rxTagline span{
+  display:inline!important;white-space:nowrap!important;margin:0!important}
+.printArea.prescriptionLock.rxPrescriptionPrint .rxTagline span{font-size:7.6px!important}
+.printArea.prescriptionLock.rxPrescriptionPrint .rxTagline b::after{content:"  —  "}
+
+/* V796 — সইয়ের লাইন 6.5mm উপরে ওঠায় বাঁদিকের খাড়া দাগ দুটোও ততটাই ছোট করা হলো,
+   যাতে V425-এর নিয়ম ("দাগ ২টা সইয়ের ঘরের ঠিক উপর পর্যন্ত") ঠিক আগের মতোই থাকে।
+   মেপে: দাগের তলা ↔ সইয়ের দাগ — আগে 33px, এখন 26px। */
+.printArea.prescriptionLock.rxPrescriptionPrint .rxComplaintHistory{min-height:193mm!important}

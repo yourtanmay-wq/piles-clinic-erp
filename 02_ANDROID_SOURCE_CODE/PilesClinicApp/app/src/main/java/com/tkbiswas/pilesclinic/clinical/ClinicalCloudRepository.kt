@@ -207,7 +207,9 @@ object ClinicalCloudRepository {
     fun loadMedical(patientId: String, context: android.content.Context? = null): List<ClinicalVisit> {
         if (patientId.isBlank()) return emptyList()
         val enc = java.net.URLEncoder.encode(patientId, "UTF-8")
-        val rows = try { SupabaseClient.fetchList("medical", "patientId=eq.$enc", 500) }
+        // 🔴🔒 V794 — ছবি ছাড়া (`photos` কেউ পড়ে না; বিশদ SupabaseClient.MEDICAL_COLS)
+        val rows = try { SupabaseClient.fetchListSlim("medical", "patientId=eq.$enc", 500,
+                            SupabaseClient.MEDICAL_COLS) }
         catch (e: Exception) { org.json.JSONArray() }
         return buildFromRows(rows, patientId, context)
     }
@@ -220,7 +222,8 @@ object ClinicalCloudRepository {
     fun loadMedicalRaw(patientId: String): org.json.JSONArray {
         if (patientId.isBlank()) return org.json.JSONArray()
         val enc = java.net.URLEncoder.encode(patientId, "UTF-8")
-        return try { SupabaseClient.fetchList("medical", "patientId=eq.$enc", 500) }
+        return try { SupabaseClient.fetchListSlim("medical", "patientId=eq.$enc", 500,
+                        SupabaseClient.MEDICAL_COLS) }   // 🔴🔒 V794 — ছবি ছাড়া
         catch (e: Exception) { org.json.JSONArray() }
     }
 
@@ -232,7 +235,9 @@ object ClinicalCloudRepository {
     fun loadMedicalRawOrNull(patientId: String): org.json.JSONArray? {
         if (patientId.isBlank()) return org.json.JSONArray()   // ফাঁকা id = "রেকর্ড নেই" (ব্যর্থতা নয়)
         val enc = java.net.URLEncoder.encode(patientId, "UTF-8")
-        return try { SupabaseClient.fetchListOrNull("medical", "patientId=eq.$enc", 500) }
+        // 🔴🔒 V794 — ছবি ছাড়া
+        return try { SupabaseClient.fetchListSlimOrNull("medical", "patientId=eq.$enc", 500,
+                        SupabaseClient.MEDICAL_COLS) }
         catch (e: Exception) { null }
     }
 

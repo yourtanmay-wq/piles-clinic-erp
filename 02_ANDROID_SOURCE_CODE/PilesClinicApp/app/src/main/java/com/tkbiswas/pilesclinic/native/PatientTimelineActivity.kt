@@ -537,10 +537,15 @@ class PatientTimelineActivity : AppCompatActivity() {
                                       করা থাকলে সেগুলো **ছোঁয়াই হয় না** (ভুল করে অন্যের নাম বসিয়ে
                                       দেওয়ার চেয়ে কিছু না করা নিরাপদ)। */
                                 val myCode = try {
-                                    val prow0 = SupabaseClient.fetchList("patients", "id=eq.$currentPatientRowId", 1)
+                                    val prow0 = SupabaseClient.fetchListSlim("patients", "id=eq.$currentPatientRowId", 1,
+                                        SupabaseClient.PATIENT_NO_PHOTO_COLS)   // 🔴 V794 — ছবি ছাড়া
                                     if (prow0.length() > 0) prow0.getJSONObject(0).s("patientId") else ""
                                 } catch (_: Exception) { "" }
-                                val oldFollowups = SupabaseClient.fetchList("followups", "mobile=like.*$currentMobile", 20)
+                                /* 🔴🔒 V794 — এই পড়াটা সারি থেকে **শুধু `id`** নেয় (যাচাই করা), অথচ
+                       `followups`-এ `photo` ও `history` দুটোই ভারী — ২০ সারিতে
+                       ≈১.৮ MB পর্যন্ত নামত। এখন ছোট্ট তালিকা। */
+                    val oldFollowups = SupabaseClient.fetchListSlim("followups",
+                        "mobile=like.*$currentMobile", 20, SupabaseClient.FOLLOWUP_ID_COLS)
                                 val shared = PatientIdentity.isSharedNumber(oldFollowups, currentMobile)
                                 for (i in 0 until oldFollowups.length()) {
                                     val frow = oldFollowups.optJSONObject(i)
@@ -573,7 +578,8 @@ class PatientTimelineActivity : AppCompatActivity() {
                             // nothing disappears from Timeline / Report Card.
                             try {
                                 val pid = try {
-                                    val prow = SupabaseClient.fetchList("patients", "id=eq.$currentPatientRowId", 1)
+                                    val prow = SupabaseClient.fetchListSlim("patients", "id=eq.$currentPatientRowId", 1,
+                                        SupabaseClient.PATIENT_NO_PHOTO_COLS)   // 🔴 V794 — ছবি ছাড়া
                                     if (prow.length() > 0) prow.getJSONObject(0).optString("patientId", "") else ""
                                 } catch (_: Exception) { "" }
                                 MobileChangeSync.sync(currentMobile, newMobile, pid, this@PatientTimelineActivity)
@@ -2695,7 +2701,8 @@ class PatientTimelineActivity : AppCompatActivity() {
                         // found"। ⛔ অনুমতির যাচাই, Trash-এ সরানো, Payment/History
                         // অক্ষত রাখা — কিছুই বদলায়নি।
                         val rows = if (currentPatientRowId.isNotBlank()) {
-                            val byId = SupabaseClient.fetchList("patients", "id=eq.$currentPatientRowId", 1)
+                            val byId = SupabaseClient.fetchListSlim("patients", "id=eq.$currentPatientRowId", 1,
+                                        SupabaseClient.PATIENT_NO_PHOTO_COLS)   // 🔴 V794 — ছবি ছাড়া
                             if (byId.length() > 0) byId
                             else SupabaseClient.findByMobile("patients", currentMobile, "*", 1)
                         } else {

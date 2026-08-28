@@ -295,6 +295,16 @@ object PatientTimelineRepository {
             SupabaseClient.fetchListSlim(
                 "followups", "mobile=like.*$digits", 500, SupabaseClient.FOLLOWUP_COLS_NO_PHOTO
             )
+        else if (table == "patients")
+            /* 🔴🔒 V794 (২৮.০৮.২০২৬, TK-নির্দেশে Egress-যাচাইয়ের পরে) —
+               এখানেও ছবিটা সারির সঙ্গে নামত (≈৬০–১২০ KB × যত সারি)। এখন
+               ছবি ছাড়া পড়া হয়, আর নিচে (`photo = …`) ছবিটা
+               `PatientPhotoCache` থেকে আসে — জমা থাকলে **একটাও বাইট নয়**,
+               নইলে একবারই শুধু `id,photo`।
+               ⛔ পর্দায় ও Report Card-এ ছবি আগের মতোই দেখাবে। */
+            SupabaseClient.fetchListSlim(
+                "patients", "mobile=like.*$digits", 500, SupabaseClient.PATIENT_NO_PHOTO_COLS
+            )
         else
             SupabaseClient.fetchList(table, "mobile=like.*$digits", 500)
 
@@ -480,7 +490,9 @@ object PatientTimelineRepository {
                 else null
             }
             val medDef = async(Dispatchers.IO) {
-                if (medFilter != null) SupabaseClient.fetchList("medical", medFilter, 500) else null
+                // 🔴🔒 V794 — ছবি ছাড়া (Timeline শুধু type/details/selected/তারিখ পড়ে)
+                if (medFilter != null) SupabaseClient.fetchListSlim("medical", medFilter, 500,
+                        SupabaseClient.MEDICAL_COLS) else null
             }
             Pair(payDef.await(), medDef.await())
         }
@@ -1312,7 +1324,11 @@ object PatientTimelineRepository {
             disease = patient.s("disease").ifBlank {
                 if (followups.length() > 0) followups.getJSONObject(0).s("disease") else ""
             },
-            photo = patient.s("photo"),
+            // 🔴🔒 V794 — ছবিটা জমা থাকলে ফোন থেকেই, নইলে একবারই ক্লাউড থেকে
+            photo = patient.s("photo").ifBlank {
+                com.tkbiswas.pilesclinic.native.PatientPhotoCache.photoFor(
+                    context, patient.s("id"), patient.s("updatedAt"))
+            },
             entries = filtered,
             billTotal = billTotal,
             rowId = uuid,

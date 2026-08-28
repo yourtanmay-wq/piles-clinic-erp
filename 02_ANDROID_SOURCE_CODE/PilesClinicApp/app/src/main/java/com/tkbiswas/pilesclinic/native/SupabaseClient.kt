@@ -200,6 +200,53 @@ object SupabaseClient {
     //    (Collection Summary ₹0) কখনো ফিরে আসতে পারে না।
     // ⛔ যে টেবিল এখনো প্রমাণিত নয়, তার পথ **হুবহু আগের মতোই** (সরু → পুরো)।
     // ⛔ সফল slim-পড়ার পথ (বেশিরভাগ সময়) এক অক্ষরও বদলায়নি।
+    /* ═══════════════════════════════════════════════════════════════════════
+       🔴🔴🔒 V794 (২৮.০৮.২০২৬, TK-নির্দেশে পূর্ণ Egress-যাচাইয়ের পরে) —
+       **যে ঘরগুলো কেউ পড়েই না, সেগুলো আর নামানো হবে না।**
+
+       TK: *"Supabase egress এর ঝুঁকি আর কোথায় কোথায় আছে … আন্দাজে কিছু করবেন
+       না, যাচাই করে কাজ করবেন।"*
+
+       ─── প্রমাণ (আন্দাজ নয়) ────────────────────────────────────────────────
+       `medical.photos` ঘরে চেক-আপের before + during + after তিনটে ছবিই
+       base64 হিসেবে জমা হয় (`DoctorCheckupActivity.kt:1392-1402`,
+       ছবি ≈ ৫৫–১২০ KB করে ⇒ এক সারি ≈ ৩৬০ KB পর্যন্ত)।
+       কিন্তু পুরো প্রকল্পে খুঁজে দেখা গেছে — **এই ঘরটা কেউ কখনো পড়েই না**
+       (ফোনে `optString("photos")`/`s("photos")` একটাও নেই; ওয়েবেও `.photos`
+       পড়া নেই)। শুধু লেখা হয়, পড়া হয় না।
+       ⇒ অথচ পাঁচ জায়গায় ৫০০ সারি পর্যন্ত **ছবিসহ** নামত।
+
+       ─── এখন ─────────────────────────────────────────────────────────────
+       এই তালিকাটা `photos` **বাদ দিয়ে** বাকি সব ঘর চায় — তাই যারা এই সারি
+       ব্যবহার করে (Checkup History · Timeline · Print Center) তাদের একটাও
+       দরকারি ঘর হারায় না, শুধু না-পড়া ছবিগুলো আর নামে না।
+       ⛔ `photos` লেখার কোড এক অক্ষরও বদলায়নি — ডেটাবেসে ছবি আগের মতোই জমা
+          থাকে, ভবিষ্যতে দরকার হলে আলাদা করে ওই এক সারিটা পড়া যাবে।
+       ⛔ সরু পড়া ব্যর্থ হলে আগের মতোই তিন-ধাপের fallback চলে
+          (`fetchListSlim*`), তাই পর্দা কখনো ফাঁকা হবে না।
+       ═══════════════════════════════════════════════════════════════════ */
+    const val MEDICAL_COLS =
+        "id,patientId,type,date,selected,days,details,nextFollow,diagnosis," +
+        "decision,doctorFullNote,name,mobile,branch,createdBy,createdAt,updatedAt"
+
+    /** 🔴🔒 V794 — রোগীর সারির **সব ঘর, শুধু `photo` বাদ**।
+     *  যেসব জায়গায় ছবিটা পর্দায় দেখানো হয় **না** (যাচাই করে বার করা ৭টা
+     *  জায়গা), সেখানে এটাই ব্যবহার হয় — একটাও দরকারি ঘর হারায় না, শুধু
+     *  ৬০–১২০ KB-র base64 ছবিটা আর নামে না।
+     *  ⛔ যেখানে ছবি সত্যিই দেখানো হয় (Check-up হেডার · Report Card) সেখানে
+     *     এটা ব্যবহার হয় না — সেগুলোর জন্য `PatientPhotoCache`।
+     *  ⛔ V796 — `photo`-র সঙ্গে `editHistory`-ও বাদ। কারণ দুটো:
+     *     (১) খাতার নিয়ম — "editHistory তালিকা-পড়ায় টানা হয় না (egress বাঁচাতে)";
+     *     (২) যাচাই করে দেখা গেছে এই ১২টা জায়গার একটাও ওটা পড়ে না —
+     *         একমাত্র PatientTimelineActivity নিজে আলাদা করে `id,editHistory`
+     *         টানে, তাই কোনো কাজ নষ্ট হয়নি। */
+    const val PATIENT_NO_PHOTO_COLS = "id,address,age,altMobile,bill,branch,complaint,completeApprovedBy,completeRequestedBy,createdAt,createdBy,date,decision,diagnosis,discount,disease,doctorAdvice,doctorComplete,doctorFullNote,medicalHistory,mobile,name,occupation,patientId,previousCost,previousResult,previousTreatment,queue,refBy,refDoctor,refDoctorMobile,refundRestoredBy,registeredBy,registrationDate,sex,sinceWhen,stage,timeType,treatmentDuration,updatedAt,visitDate"
+
+    /** 🔴🔒 V794 — Follow-up সারিতে `photo` ও `history` দুটোই ভারী
+     *  (`SafeWideColumns`)। যেসব জায়গায় শুধু id/মিল দেখা হয়, সেখানে এই
+     *  ছোট্ট তালিকাটাই যথেষ্ট — প্রমাণ করে দেখা হয়েছে ওরা আর কিছু পড়ে না। */
+    const val FOLLOWUP_ID_COLS = "id,mobile,stage,patientId,name,updatedAt"
+
     fun fetchListSlimOrNull(table: String, filter: String?, limit: Int, cols: String, order: String = "updatedAt.desc.nullslast", offset: Int = 0): JSONArray? {
         val narrow = fetchListOrNull(table, filter, limit, order = order, select = cols, offset = offset)
         if (narrow != null) { slimProven.add(table); return narrow }

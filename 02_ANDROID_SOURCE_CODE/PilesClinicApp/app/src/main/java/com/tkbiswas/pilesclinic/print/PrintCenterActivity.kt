@@ -1066,7 +1066,9 @@ class PrintCenterActivity : AppCompatActivity() {
                     pid.isNotBlank() -> "patientId=eq.$pid"
                     else -> "patientId=eq.$puuid"
                 }
-                val meds = SupabaseClient.fetchList("medical", medFilter)
+                // 🔴🔒 V794 — ছবি ছাড়া; সীমাও বসানো হলো (আগে সীমাই ছিল না)
+                val meds = SupabaseClient.fetchListSlim("medical", medFilter, 500,
+                        SupabaseClient.MEDICAL_COLS)
                 var latest: org.json.JSONObject? = null
                 for (i in 0 until meds.length()) {
                     val row = meds.getJSONObject(i)

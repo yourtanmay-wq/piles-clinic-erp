@@ -734,7 +734,8 @@ class DoctorVisitRepository {
     fun linkReferringDoctorIfBlank(patientRowId: String, doctorName: String, doctorMobile: String, context: android.content.Context? = null): Boolean {
         if (patientRowId.isBlank()) return false
         return try {
-            val rows = SupabaseClient.fetchList("patients", "id=eq.$patientRowId", 1)
+            val rows = SupabaseClient.fetchListSlim("patients", "id=eq.$patientRowId", 1,
+                SupabaseClient.PATIENT_NO_PHOTO_COLS)   // 🔴 V794 — ছবি ছাড়া
             if (rows.length() == 0) return false
             val pat = rows.getJSONObject(0)
             val existingRefBy = pat.s("refBy")
