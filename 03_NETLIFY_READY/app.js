@@ -10339,6 +10339,640 @@ function wlv1KsStart(){
 window["wlv1KsStart"]=wlv1KsStart; window["wlv1KsStop"]=wlv1KsStop;
 window["wlv1KsGo"]=wlv1KsGo; window["wlv1KsInjToggle"]=wlv1KsInjToggle;
 
+/* ============================================================================
+   🎓🔒 V787 (২৮.০৮.২০২৬) — **রোগীকে বোঝানোর পর্দা, কম্পিউটারেও।**
+   ⚠️ ফোনের `clinical/KsharTeachView.kt` + `DoctorCheckupActivity.openKsharTeach()`
+      -এর **হুবহু যমজ** — একই মাপ (900×640), একই রং, একই ধাপ, একই লেখা।
+   TK: *"আমি যেন বেছে নিতে পারি — পাইলস ফিসার ফিস্টুলা"* · *"এরকম বেশ কয়েকটা
+   অ্যানিমেশন টাইপের ফটো বানিয়ে রাখবেন, সেখান থেকে আমি যে কোন একটা চুস করে নেব"*
+   ⛔ **কিচ্ছু সেভ হয় না** — ডেটাবেস · প্রিন্ট · A4 কোথাও যায় না, শুধু আঁকে।
+   ⛔ ডাক্তারের নিজের আঁকা ছবি (`wlv1AnatState`) এক বিন্দুও ছোঁয়া হয় না —
+      এটা সম্পূর্ণ আলাদা একটা ওভারলে, আলাদা canvas।
+   ⛔ কোনো ছবি-ফাইল/ভিডিও নেই — সবটাই gradient/shadow দিয়ে আঁকা, তাই নেট
+      লাগে না, Egress-এ প্রভাব শূন্য, অফলাইনেও চলে।
+   ⛔ styles.css-এ একটাও নতুন নিয়ম নয় — পুরোনো প্রমাণিত ক্লাসগুলোই
+      (`wlv1AnatFullBack` · `wlv1KsBox` · `wlv1KsBtn`) ব্যবহার হয়েছে।
+   ========================================================================== */
+var WLV1_TEACH={on:false,disease:0,base:0,step:0,t:1,timer:null,t0:0,
+                pileX:0,pileY:0,extX:0,extY:0,fisX:0,fisY:0,sc:1,ox:0,oy:0,drag:false};
+var TVW=900,TVH=640,TCANAL_X=548,TSKIN_Y=470,TTOP_Y=40,
+    TEXT_X=272,TEXT_Y=472,TINT_X=500,TINT_Y=296,
+    TS_CX=450,TS_INT_X=432,TS_INT_Y=330;
+
+/* ফোনের `java.util.Random`-এর হুবহু একই সংখ্যা (একই বীজ ⇒ একই ছবি) —
+   তাই চর্বির কোষ ও রক্তনালী দুই জায়গায় **এক জায়গাতেই** বসে। */
+function wlv1JRand(seed){
+  var M=(1n<<48n)-1n, s=(BigInt(seed)^0x5DEECE66Dn)&M;
+  return {nextFloat:function(){
+    s=(s*0x5DEECE66Dn+0xBn)&M;
+    return Number(s>>24n)/16777216;
+  }};
+}
+var WLV1_TEACH_FAT=(function(){
+  var r=wlv1JRand(11),o=[];
+  for(var i=0;i<190;i++)o.push([6+r.nextFloat()*(TVW-12),14+r.nextFloat()*(TSKIN_Y-78),
+                                4+r.nextFloat()*7,0.55+r.nextFloat()*0.3]);
+  return o;
+})();
+var WLV1_TEACH_VES=(function(){
+  var r=wlv1JRand(5),o=[];
+  for(var i=0;i<20;i++){
+    var x=TCANAL_X-88+r.nextFloat()*176;
+    var y=TTOP_Y+40+r.nextFloat()*(TSKIN_Y-TTOP_Y-60);
+    var len=30+r.nextFloat()*50;
+    var a=-1.9+r.nextFloat()*0.7;
+    o.push([x,y,x+Math.cos(a)*len,y+Math.sin(a)*len,0.9+r.nextFloat()*1.2]);
+  }
+  return o;
+})();
+
+function wlv1TeachSteps(d){ return d===2?6:5 }
+function wlv1TeachCap(d,s){
+  if(d===0)return ['1) Piles — ফোলা মাংস','2) ইনজেকশন দেওয়া হচ্ছে','3) মাংস আরো ফুলে উঠল',
+                   '4) গোড়ায় ক্ষারসূত্র বাঁধা হলো','5) কেটে পড়ল — জায়গা পরিষ্কার'][s]||'';
+  if(d===1)return ['1) Fissure — শক্ত সাদা কিনারা, বাইরে ছোট মাংস','2) জায়গাটা অবশ করা হচ্ছে',
+                   '3) ফাটলের উপর ক্ষার লাগানো হচ্ছে','4) ক্ষার ধুয়ে ফেলা — শক্ত কিনারা গলে গেল',
+                   '5) ঘা ভরে উঠছে — সপ্তাহে একবার, 3-4 বারে সারে'][s]||'';
+  return ['1) Fistula — নালী, বাইরের ও ভিতরের মুখ','2) প্রোব ঢোকানো হচ্ছে',
+          '3) প্রোবের ফুটোয় ক্ষারসূত্র বেঁধে টেনে আনা','4) দুই মাথা বাইরে এনে গিঁট — সুতো বাঁধা থাকে',
+          '5) সপ্তাহে একবার সুতো বদল — একটু একটু কেটে ভরাট',
+          '6) নালী সম্পূর্ণ কেটে গেল — ঘা ভরে গেল'][s]||'';
+}
+/* ভিত্তি-ছবি বদলালে নিশানাগুলো ওই ছবির স্বাভাবিক জায়গায় ফেরে (ফোনের `resetSpots()`)। */
+function wlv1TeachResetSpots(){
+  var T=WLV1_TEACH;
+  if(T.base===0){
+    T.pileX=TCANAL_X-46; T.pileY=TINT_Y-38;
+    T.extX=TEXT_X; T.extY=TEXT_Y;
+    T.fisX=TCANAL_X-24; T.fisY=TSKIN_Y-2;
+  }else{
+    T.pileX=TS_CX-20; T.pileY=300;
+    T.extX=300; T.extY=TSKIN_Y+2;
+    T.fisX=TS_CX-12; T.fisY=TSKIN_Y-4;
+  }
+}
+function wlv1TeachIX(){ return WLV1_TEACH.base===0?TINT_X:TS_INT_X }
+function wlv1TeachIY(){ return WLV1_TEACH.base===0?TINT_Y:TS_INT_Y }
+function wlv1TeachCX(){ return WLV1_TEACH.base===0?TCANAL_X:TS_CX }
+
+/* ── আঁকার ছোট সহায়ক (ফোনের Paint-এর যমজ) ───────────────────────────── */
+function wlv1TGrad(x,x0,y0,x1,y1,cols){
+  var g=x.createLinearGradient(x0,y0,x1,y1);
+  for(var i=0;i<cols.length;i++)g.addColorStop(cols.length===1?0:i/(cols.length-1),cols[i]);
+  return g;
+}
+function wlv1TBlur(x,px){ try{ x.filter=px>0?('blur('+px+'px)'):'none' }catch(_e){} }
+function wlv1TOval(x,cx,cy,rx,ry){ x.beginPath(); x.ellipse(cx,cy,Math.abs(rx),Math.abs(ry),0,0,6.2831853); }
+function wlv1TBlurOval(x,cx,cy,rx,ry,col,alpha,blur){
+  x.save(); x.globalAlpha=alpha/255; x.fillStyle=col; wlv1TBlur(x,blur*0.5);
+  wlv1TOval(x,cx,cy,rx,ry); x.fill(); x.restore();
+}
+function wlv1TBlurRect(x,l,t,r,b,col,alpha,blur){
+  x.save(); x.globalAlpha=alpha/255; x.fillStyle=col; wlv1TBlur(x,blur*0.5);
+  x.fillRect(l,t,r-l,b-t); x.restore();
+}
+function wlv1TCanalPath(wTop,wBot,y0,y1){
+  var P=new Path2D();
+  P.moveTo(TCANAL_X-wTop,y0);
+  P.quadraticCurveTo(TCANAL_X-wTop-16,y0+170,TCANAL_X-wBot-22,y0+290);
+  P.lineTo(TCANAL_X-wBot,y1); P.lineTo(TCANAL_X+wBot,y1);
+  P.lineTo(TCANAL_X+wBot+22,y0+290);
+  P.quadraticCurveTo(TCANAL_X+wTop+16,y0+170,TCANAL_X+wTop,y0);
+  P.closePath(); return P;
+}
+
+/* ── ভিত্তি-ছবি ১ : সামনে থেকে কাটা (ফোনের `drawBody`) ───────────────── */
+function wlv1TeachBody(x){
+  x.save();
+  x.fillStyle='#EFE6E0'; x.fillRect(0,0,TVW,TVH);
+
+  var body=new Path2D();
+  body.moveTo(0,0); body.lineTo(TVW,0); body.lineTo(TVW,TSKIN_Y-16);
+  body.quadraticCurveTo(TCANAL_X+160,TSKIN_Y+2,TCANAL_X+30,TSKIN_Y+6);
+  body.lineTo(TCANAL_X-30,TSKIN_Y+6);
+  body.quadraticCurveTo(TCANAL_X-160,TSKIN_Y+2,0,TSKIN_Y-16); body.closePath();
+  x.fillStyle=wlv1TGrad(x,TVW*0.2,0,TVW*0.8,TSKIN_Y,['#FBEEE0','#F2DCC6','#E4C6A9']);
+  x.fill(body);
+
+  x.save(); x.clip(body);
+  for(var i=0;i<WLV1_TEACH_FAT.length;i++){
+    var f=WLV1_TEACH_FAT[i];
+    x.globalAlpha=34/255; x.fillStyle='#FFF7EC';
+    wlv1TOval(x,f[0],f[1],f[2],f[2]*f[3]); x.fill();
+    x.globalAlpha=40/255; x.strokeStyle='#CDA687'; x.lineWidth=0.8;
+    wlv1TOval(x,f[0],f[1],f[2],f[2]*0.7); x.stroke();
+  }
+  x.globalAlpha=1; x.restore();
+
+  var skin=new Path2D();
+  skin.moveTo(0,TSKIN_Y-56); skin.lineTo(TVW,TSKIN_Y-56); skin.lineTo(TVW,TSKIN_Y-16);
+  skin.quadraticCurveTo(TCANAL_X+160,TSKIN_Y+2,TCANAL_X+30,TSKIN_Y+6);
+  skin.lineTo(TCANAL_X-30,TSKIN_Y+6);
+  skin.quadraticCurveTo(TCANAL_X-160,TSKIN_Y+2,0,TSKIN_Y-16); skin.closePath();
+  x.fillStyle=wlv1TGrad(x,0,TSKIN_Y-56,0,TSKIN_Y+6,['#F6DFD2','#EBC7B5','#D9A18E']);
+  x.fill(skin);
+
+  x.globalAlpha=115/255; x.strokeStyle='#B67F6C'; x.lineWidth=1.8;
+  for(var k=0;k<16;k++){
+    var a=Math.PI*(0.06+0.88*k/15);
+    var x0=TCANAL_X+Math.cos(a)*38, x1=TCANAL_X+Math.cos(a)*150;
+    var y0=TSKIN_Y+4-Math.sin(a)*7, y1=TSKIN_Y-14-Math.sin(a)*20;
+    x.beginPath(); x.moveTo(x0,y0);
+    x.quadraticCurveTo((x0+x1)/2,(y0+y1)/2-6,x1,y1); x.stroke();
+  }
+  x.globalAlpha=1;
+
+  var ex=wlv1TCanalPath(186,58,TTOP_Y+12,TSKIN_Y+6);
+  x.fillStyle=wlv1TGrad(x,TCANAL_X-186,0,TCANAL_X+186,0,['#7E3330','#C06A62','#79302D']);
+  x.fill(ex);
+  x.save(); x.clip(ex);
+  x.globalAlpha=90/255; x.strokeStyle='#5F2321'; x.lineWidth=1.5;
+  for(var y=TTOP_Y+20;y<TSKIN_Y+6;y+=9){
+    x.beginPath(); x.moveTo(TCANAL_X-200,y);
+    x.quadraticCurveTo(TCANAL_X,y+4,TCANAL_X+200,y); x.stroke();
+  }
+  x.globalAlpha=1; x.restore();
+
+  var inn=wlv1TCanalPath(152,38,TTOP_Y+20,TSKIN_Y+6);
+  x.fillStyle=wlv1TGrad(x,TCANAL_X-152,0,TCANAL_X+152,0,['#A8534D','#E4A79F','#9E4A45']);
+  x.fill(inn);
+  x.globalAlpha=115/255; x.strokeStyle='#7C2F2C'; x.lineWidth=2.4; x.stroke(inn); x.globalAlpha=1;
+
+  var mu=wlv1TCanalPath(120,22,TTOP_Y+28,TSKIN_Y+6);
+  x.fillStyle=wlv1TGrad(x,TCANAL_X-120,0,TCANAL_X+120,0,['#9E2F35','#E06C68','#96292F']);
+  x.fill(mu);
+  x.save(); x.clip(mu);
+  x.globalAlpha=128/255; x.strokeStyle='#7E1F25';
+  for(var v=0;v<WLV1_TEACH_VES.length;v++){
+    var w=WLV1_TEACH_VES[v]; x.lineWidth=w[4];
+    x.beginPath(); x.moveTo(w[0],w[1]); x.lineTo(w[2],w[3]); x.stroke();
+  }
+  x.globalAlpha=1;
+  var dxs=[-66,-44,-22,0,22,44,66];
+  for(var q=0;q<dxs.length;q++){
+    var dx=dxs[q];
+    x.beginPath(); x.moveTo(TCANAL_X+dx,TTOP_Y+40);
+    x.quadraticCurveTo(TCANAL_X+dx*1.25,TTOP_Y+220,TCANAL_X+dx*0.22,TSKIN_Y);
+    x.globalAlpha=107/255; x.strokeStyle='#7E2126'; x.lineWidth=3.2; x.stroke();
+    x.globalAlpha=90/255; x.strokeStyle='#F0938C'; x.lineWidth=1.4; x.stroke();
+  }
+  x.globalAlpha=1; x.restore();
+
+  var lu=wlv1TCanalPath(84,10,TTOP_Y+34,TSKIN_Y+8);
+  x.fillStyle=wlv1TGrad(x,0,TTOP_Y,0,TSKIN_Y,['#75302C','#4A1B19','#240C0B']);
+  x.fill(lu);
+
+  wlv1TBlurOval(x,TCANAL_X-40,TTOP_Y+150,26,90,'#FFD9CF',40,18);
+  wlv1TBlurOval(x,TCANAL_X+52,TTOP_Y+120,16,70,'#FFFFFF',26,18);
+
+  x.save(); x.globalAlpha=140/255; x.strokeStyle='#6E2024'; x.lineWidth=3;
+  x.setLineDash([9,7]);
+  x.beginPath(); x.moveTo(TCANAL_X-58,TINT_Y+2);
+  x.quadraticCurveTo(TCANAL_X,TINT_Y+10,TCANAL_X+58,TINT_Y+2); x.stroke(); x.restore();
+
+  x.fillStyle='#E7DAD2'; x.fillRect(0,TSKIN_Y+6,TVW,TVH-(TSKIN_Y+6));
+  wlv1TBlurRect(x,0,TSKIN_Y+6,TVW,TSKIN_Y+32,'#B99A8B',71,10);
+
+  wlv1TBlurOval(x,TCANAL_X,TSKIN_Y+8,40,13,'#3B1A18',128,8);
+  x.fillStyle='#22090A'; wlv1TOval(x,TCANAL_X,TSKIN_Y+5,18,6); x.fill();
+
+  wlv1TBlurOval(x,TVW*0.32,60,380,150,'#FFFFFF',36,26);
+  x.restore();
+}
+
+/* ── ভিত্তি-ছবি ২ : পাশ থেকে কাটা (ফোনের `drawBodySide`) ─────────────── */
+function wlv1TTube(p){
+  var P=new Path2D();
+  P.moveTo(p[0],p[1]);
+  P.bezierCurveTo(p[2],p[3],p[4],p[5],p[6],p[7]);
+  P.lineTo(p[6],TSKIN_Y+6); P.lineTo(p[8],TSKIN_Y+6); P.lineTo(p[8],p[7]);
+  P.bezierCurveTo(p[10],p[5],p[10],p[3],p[12],p[1]);
+  P.closePath(); return P;
+}
+function wlv1TeachBodySide(x){
+  x.save();
+  x.fillStyle='#FDF6EA'; x.fillRect(0,0,TVW,TVH);
+  x.fillStyle=wlv1TGrad(x,0,60,0,TSKIN_Y+6,['#FBEFC0','#F0DE9C']);
+  x.fillRect(0,60,TVW,TSKIN_Y+6-60);
+  for(var i=0;i<WLV1_TEACH_FAT.length;i++){
+    var f=WLV1_TEACH_FAT[i], fx=f[0], fy=f[1];
+    if(fx>300&&fx<600)continue;
+    var g=x.createRadialGradient(fx-f[2]*0.3,fy-f[2]*0.3,0,fx-f[2]*0.3,fy-f[2]*0.3,f[2]*1.6);
+    g.addColorStop(0,'#FFF3B8'); g.addColorStop(1,'#E8CB63');
+    x.fillStyle=g; wlv1TOval(x,fx,fy,f[2]*1.6,f[2]*1.2); x.fill();
+    x.globalAlpha=200/255; x.strokeStyle='#D9B93F'; x.lineWidth=1.1;
+    wlv1TOval(x,fx,fy,f[2]*1.6,f[2]*1.2); x.stroke(); x.globalAlpha=1;
+  }
+  x.globalAlpha=190/255; x.strokeStyle='#4C79C8';
+  for(var v=0;v<WLV1_TEACH_VES.length;v++){
+    var w=WLV1_TEACH_VES[v];
+    if(w[0]>300&&w[0]<600)continue;
+    x.lineWidth=w[4]+1.4; x.beginPath(); x.moveTo(w[0],w[1]); x.lineTo(w[2],w[3]); x.stroke();
+  }
+  x.globalAlpha=1;
+
+  x.fillStyle=wlv1TGrad(x,300,0,600,0,['#A94545','#D07C77','#A54242']);
+  x.fill(wlv1TTube([330,40,300,180,300,286,372,368,528,0,600,0,570]));
+  x.fillStyle=wlv1TGrad(x,340,0,560,0,['#C0605F','#F0AFA6','#BC5A59']);
+  x.fill(wlv1TTube([366,52,340,182,340,288,400,370,500,0,560,0,534]));
+  x.fillStyle=wlv1TGrad(x,378,0,522,0,['#C6555B','#F2A8A6','#C25258']);
+  x.fill(wlv1TTube([398,64,378,188,378,292,424,372,476,0,522,0,502]));
+  x.fillStyle=wlv1TGrad(x,0,74,0,TSKIN_Y,['#8E4340','#5A2523']);
+  x.fill(wlv1TTube([424,74,408,192,408,296,442,374,458,0,492,0,476]));
+
+  x.save(); x.globalAlpha=150/255; x.strokeStyle='#8E3438'; x.lineWidth=3;
+  x.setLineDash([10,8]); x.beginPath(); x.moveTo(424,352); x.lineTo(476,352); x.stroke(); x.restore();
+
+  x.fillStyle=wlv1TGrad(x,0,TSKIN_Y-30,0,TSKIN_Y+6,['#F8E3D6','#D9A38E']);
+  x.fillRect(0,TSKIN_Y-30,372,36); x.fillRect(528,TSKIN_Y-30,TVW-528,36);
+  x.fillStyle='#EFE4DA'; x.fillRect(0,TSKIN_Y+6,TVW,TVH-(TSKIN_Y+6));
+  wlv1TBlurOval(x,TS_CX,TSKIN_Y+8,44,13,'#3B1A18',115,8);
+  wlv1TBlurOval(x,TVW*0.3,70,340,130,'#FFFFFF',30,24);
+  x.restore();
+}
+
+/* ── সুতো · গিঁট · প্রোব · নালী (ফোনের যমজ) ──────────────────────────── */
+function wlv1TRope(x,P,w,glow){
+  w=w||10;
+  if(glow!==false){
+    x.save(); x.lineCap='round'; x.lineWidth=w*2.8;
+    x.globalAlpha=77/255; x.strokeStyle='#5BE58C'; wlv1TBlur(x,7);
+    x.stroke(P); x.restore();
+  }
+  x.save(); x.lineCap='round';
+  x.lineWidth=w+5; x.globalAlpha=102/255; x.strokeStyle='#4A2E08'; x.stroke(P);
+  x.globalAlpha=1; x.lineWidth=w;
+  x.strokeStyle=wlv1TGrad(x,0,TSKIN_Y-200,0,TSKIN_Y+120,['#F2CC63','#C08820','#8B5D10']);
+  x.stroke(P);
+  x.lineCap='butt'; x.lineWidth=w*0.92; x.globalAlpha=140/255; x.strokeStyle='#7A5210';
+  x.setLineDash([2.5,6]); x.stroke(P);
+  x.lineWidth=w*0.30; x.globalAlpha=190/255; x.strokeStyle='#FFF0BC';
+  x.setLineDash([3,7]); x.lineDashOffset=2; x.stroke(P);
+  x.restore();
+}
+function wlv1TKnot(x,kx,ky){
+  wlv1TBlurOval(x,kx,ky+4,17,11,'#2A1B04',90,6);
+  x.save();
+  x.fillStyle=wlv1TGrad(x,kx-13,ky-13,kx+13,ky+13,['#F2CC63','#B37D18']);
+  x.beginPath(); x.arc(kx,ky,13,0,6.2831853); x.fill();
+  x.strokeStyle='#6E4A0C'; x.lineWidth=2.4; x.stroke();
+  var P=new Path2D();
+  P.moveTo(kx,ky); P.quadraticCurveTo(kx-30,ky+24,kx-62,ky+17);
+  P.moveTo(kx,ky); P.quadraticCurveTo(kx-7,ky+32,kx-32,ky+45);
+  x.lineWidth=7.5; x.lineCap='round';
+  x.strokeStyle=wlv1TGrad(x,kx-60,ky,kx+10,ky+60,['#E8B23A','#A96E18']);
+  x.stroke(P); x.restore();
+}
+function wlv1TProbe(x,prog){
+  var T=WLV1_TEACH;
+  var px=T.extX+(wlv1TeachIX()-T.extX)*prog;
+  var py=T.extY+(wlv1TeachIY()-T.extY)*prog;
+  var P=new Path2D();
+  P.moveTo(T.extX-64,T.extY+34); P.lineTo(T.extX,T.extY); P.lineTo(px,py);
+  x.save(); x.lineCap='round';
+  x.lineWidth=15; x.globalAlpha=90/255; x.strokeStyle='#2E3A46'; x.stroke(P);
+  x.globalAlpha=1; x.lineWidth=10;
+  x.strokeStyle=wlv1TGrad(x,0,T.extY-200,0,T.extY+40,['#FFFFFF','#96A5B4','#5E6C7A']);
+  x.stroke(P);
+  x.lineWidth=2.6; x.globalAlpha=165/255; x.strokeStyle='#FFFFFF'; x.stroke(P);
+  x.globalAlpha=1;
+  x.fillStyle='#E8EEF4'; x.beginPath(); x.arc(px,py,6,0,6.2831853); x.fill();
+  x.lineWidth=5; x.strokeStyle='#B9C4CF';
+  wlv1TOval(x,T.extX-64,T.extY+34,11,8); x.stroke();
+  x.restore();
+}
+function wlv1TTract(x,healed){
+  var T=WLV1_TEACH, ix=wlv1TeachIX(), iy=wlv1TeachIY();
+  var hx=T.extX+(ix-T.extX)*healed, hy=T.extY+(iy-T.extY)*healed;
+  if(healed<1){
+    x.save(); x.lineCap='round';
+    x.lineWidth=30; x.globalAlpha=140/255; x.strokeStyle='#42160F'; wlv1TBlur(x,3.5);
+    x.beginPath(); x.moveTo(hx,hy); x.lineTo(ix,iy); x.stroke();
+    wlv1TBlur(x,0); x.globalAlpha=1;
+    x.lineWidth=21; x.strokeStyle='#5E241B';
+    x.beginPath(); x.moveTo(hx,hy); x.lineTo(ix,iy); x.stroke();
+    var g=x.createRadialGradient((hx+ix)/2,(hy+iy)/2,0,(hx+ix)/2,(hy+iy)/2,120);
+    g.addColorStop(0,'#8E3A2E'); g.addColorStop(1,'#C97F70');
+    x.lineWidth=17; x.strokeStyle=g;
+    x.beginPath(); x.moveTo(hx,hy); x.lineTo(ix,iy); x.stroke();
+    x.restore();
+  }
+  if(healed>0){
+    x.save(); x.lineCap='round';
+    x.lineWidth=10; x.strokeStyle='#C08A7C';
+    x.beginPath(); x.moveTo(T.extX,T.extY); x.lineTo(hx,hy); x.stroke();
+    x.lineWidth=4; x.globalAlpha=205/255; x.strokeStyle='#EFCDC2';
+    x.beginPath(); x.moveTo(T.extX,T.extY); x.lineTo(hx,hy); x.stroke();
+    x.restore();
+  }
+}
+function wlv1TLoopPath(fromX,fromY,kx,ky){
+  var cx=wlv1TeachCX(), ix=wlv1TeachIX(), iy=wlv1TeachIY();
+  var P=new Path2D();
+  P.moveTo(fromX,fromY); P.lineTo(ix,iy);
+  P.quadraticCurveTo(cx-16,iy+26,cx,iy+52);
+  P.lineTo(cx,TSKIN_Y+10);
+  P.quadraticCurveTo(cx-12,TSKIN_Y+90,kx,ky);
+  P.quadraticCurveTo((fromX+kx)/2-18,ky-8,fromX-12,fromY+52);
+  P.lineTo(fromX,fromY); return P;
+}
+function wlv1TDot(x,px,py,hex){
+  wlv1TBlurOval(x,px,py,12,12,'#000000',56,5);
+  x.save(); x.fillStyle=hex; x.beginPath(); x.arc(px,py,9,0,6.2831853); x.fill();
+  x.lineWidth=3.2; x.strokeStyle='#FFFFFF'; x.stroke(); x.restore();
+}
+
+/* ── ফিস্টুলা (৬ ধাপ) — ফোনের `drawFistula`-এর যমজ ───────────────────── */
+function wlv1TeachFistula(x){
+  var T=WLV1_TEACH, t=T.t, ix=wlv1TeachIX(), iy=wlv1TeachIY(), cx=wlv1TeachCX();
+  if(T.step===0){ wlv1TTract(x,0); wlv1TDot(x,T.extX,T.extY,'#C62828'); wlv1TDot(x,ix,iy,'#7A3FD0'); }
+  else if(T.step===1){ wlv1TTract(x,0); wlv1TProbe(x,t); wlv1TDot(x,T.extX,T.extY,'#C62828'); wlv1TDot(x,ix,iy,'#7A3FD0'); }
+  else if(T.step===2){
+    wlv1TTract(x,0); wlv1TProbe(x,1);
+    var P=new Path2D();
+    P.moveTo(T.extX-52+104*t,T.extY+30-16*t); P.lineTo(T.extX,T.extY);
+    P.lineTo(T.extX+(ix-T.extX)*t,T.extY+(iy-T.extY)*t);
+    wlv1TRope(x,P,10,true);
+  }
+  else if(T.step===3){
+    wlv1TTract(x,0);
+    var kx=(T.extX+cx)/2-56, ky=TSKIN_Y+114;
+    wlv1TRope(x,wlv1TLoopPath(T.extX,T.extY,kx,ky),10,true); wlv1TKnot(x,kx,ky);
+  }
+  else if(T.step===4){
+    var h=0.12+0.55*t;
+    var hx=T.extX+(ix-T.extX)*h, hy=T.extY+(iy-T.extY)*h;
+    var kx2=(hx+cx)/2-56, ky2=TSKIN_Y+112;
+    wlv1TTract(x,h); wlv1TRope(x,wlv1TLoopPath(hx,hy,kx2,ky2),10,true); wlv1TKnot(x,kx2,ky2);
+  }
+  else { wlv1TTract(x,1); wlv1TDot(x,T.extX,T.extY,'#E9C9C4'); }
+}
+
+/* ── ফিশার (৫ ধাপ, ক্ষার-কর্ম) — ফোনের `drawFissure`-এর যমজ ──────────── */
+function wlv1TeachFissure(x){
+  var T=WLV1_TEACH, t=T.t;
+  var topX=T.fisX-42, topY=Math.max(T.fisY-174,TTOP_Y+80), botX=T.fisX, botY=T.fisY;
+  var d=new Path2D();
+  d.moveTo(topX,topY); d.quadraticCurveTo((topX+botX)/2-8,(topY+botY)/2,botX,botY);
+  if(T.step<4){
+    var tx=botX-6, ty=TSKIN_Y+4, tag=new Path2D();
+    tag.moveTo(tx,ty);
+    tag.quadraticCurveTo(tx-14,ty+14,tx-4,ty+26); tx=tx-4; ty=ty+26;
+    tag.quadraticCurveTo(tx+12,ty+10,tx+22,ty-2); tx=tx+22; ty=ty-2;
+    tag.quadraticCurveTo(tx+6,ty-12,tx-4,ty-24); tag.closePath();
+    x.save(); x.fillStyle='#D8A08C'; x.fill(tag);
+    x.strokeStyle='#B87B67'; x.lineWidth=1.6; x.stroke(tag); x.restore();
+  }
+  x.save(); x.lineCap='round';
+  if(T.step===0){
+    x.lineWidth=15; x.globalAlpha=128/255; x.strokeStyle='#3A100D'; wlv1TBlur(x,3);
+    x.stroke(d); wlv1TBlur(x,0); x.globalAlpha=1;
+    x.lineWidth=12; x.strokeStyle='#7E1A12'; x.stroke(d);
+    x.lineWidth=4.6; x.globalAlpha=215/255; x.strokeStyle='#FBEFE2'; x.stroke(d); x.globalAlpha=1;
+    x.restore(); wlv1TDot(x,topX,topY,'#C62828'); return;
+  }
+  if(T.step===1){
+    x.lineWidth=12; x.strokeStyle='#7E1A12'; x.stroke(d);
+    x.lineWidth=4.6; x.strokeStyle='#FBEFE2'; x.stroke(d);
+    var px=botX+70-70*t, py=botY+70-58*t;
+    x.lineWidth=7; x.strokeStyle=wlv1TGrad(x,px,py,px+60,py+50,['#FFFFFF','#7C8B99']);
+    x.beginPath(); x.moveTo(px+52,py+42); x.lineTo(px,py); x.stroke();
+    x.restore();
+    if(t>0.85)wlv1TBlurOval(x,botX-4,botY-14,26,20,'#BFD8E8',90,8);
+    return;
+  }
+  if(T.step===2){
+    x.lineWidth=12; x.strokeStyle='#7E1A12'; x.stroke(d);
+    var cx2=topX+40-30*t, cy2=topY+60-50*t;
+    x.lineWidth=6; x.strokeStyle='#C9A96B';
+    x.beginPath(); x.moveTo(cx2+92,cy2+78); x.lineTo(cx2+10,cy2+8); x.stroke();
+    x.fillStyle='#EFE3C9'; wlv1TOval(x,cx2,cy2,13,10); x.fill();
+    x.lineWidth=12*t; x.strokeStyle='#3B2A0C'; x.stroke(d);
+    x.lineWidth=5*t; x.globalAlpha=205/255; x.strokeStyle='#6B4E12'; x.stroke(d);
+    x.restore(); return;
+  }
+  if(T.step===3){
+    x.lineWidth=12; x.strokeStyle='#8E2A22'; x.stroke(d);
+    x.lineWidth=5.5; x.strokeStyle='#C4564A'; x.stroke(d);
+    x.lineWidth=12*(1-t); x.globalAlpha=215/255; x.strokeStyle='#3B2A0C'; x.stroke(d);
+    x.globalAlpha=205/255; x.fillStyle='#BFE2F0';
+    for(var k=0;k<4;k++){
+      var yy=topY+40+k*34+t*40;
+      wlv1TOval(x,topX+16.5+k*4,yy,4.5,7); x.fill();
+    }
+    x.restore(); return;
+  }
+  x.lineWidth=12-5*t; x.strokeStyle='#C9847A'; x.stroke(d);
+  x.lineWidth=5-2.5*t; x.strokeStyle='#EFCEC4'; x.stroke(d);
+  x.restore();
+}
+
+/* ── পাইলস (৫ ধাপ) — ফোনের `drawPiles`-এর যমজ ────────────────────────── */
+function wlv1TeachPiles(x){
+  var T=WLV1_TEACH, t=T.t;
+  var swell=(T.step===0||T.step===1)?0.45:(T.step===2?0.45+0.55*t:1);
+  var fallen=(T.step===4)?t:0;
+  var cy=T.pileY+70*fallen*fallen;
+  var rx=26+16*swell, ry=34+18*swell;
+  var op=Math.max(0,Math.min(255,Math.round((1-fallen)*255)));
+  if(op>6){
+    wlv1TBlurOval(x,T.pileX+6,cy+6,rx,ry,'#3A0E13',Math.round(op*0.45),8);
+    x.save();
+    x.globalAlpha=op/255; x.fillStyle='#8E2340'; wlv1TOval(x,T.pileX,cy,rx,ry); x.fill();
+    x.globalAlpha=(op*0.85)/255; x.fillStyle='#B23A55';
+    wlv1TOval(x,T.pileX,cy,rx*0.82,ry*0.82); x.fill();
+    x.restore();
+    wlv1TBlurOval(x,T.pileX-rx*0.3,cy-ry*0.34,rx*0.34,ry*0.28,'#FFD3D8',Math.round(op*0.35),7);
+    x.save(); x.globalAlpha=(op*0.45)/255; x.strokeStyle='#66101F'; x.lineWidth=1.6;
+    for(var k=0;k<6;k++){
+      var px=T.pileX-rx*0.7+k*rx*0.28;
+      x.beginPath(); x.moveTo(px,cy-ry*0.7);
+      x.quadraticCurveTo(px+6,cy,px,cy+ry*0.6); x.stroke();
+    }
+    x.restore();
+  }else{
+    x.save(); x.globalAlpha=180/255; x.fillStyle='#C08A7C';
+    wlv1TOval(x,T.pileX+8,T.pileY-20,14,8); x.fill(); x.restore();
+  }
+  if(T.step===1){
+    var nx=T.pileX+130-120*t, ny=cy+120-110*t;
+    x.save(); x.lineCap='round'; x.lineWidth=6;
+    x.strokeStyle=wlv1TGrad(x,nx,ny,nx+90,ny+80,['#FFFFFF','#7C8B99']);
+    x.beginPath(); x.moveTo(nx+86,ny+76); x.lineTo(nx,ny); x.stroke();
+    x.globalAlpha=235/255; x.fillStyle='#DCEAF6';
+    x.fillRect(nx+84,ny+66,66,30); x.restore();
+  }
+  if(T.step>=3&&op>6){
+    var by=cy+ry*0.92;
+    x.save();
+    x.lineWidth=9; x.globalAlpha=115/255; x.strokeStyle='#4A2E08';
+    wlv1TOval(x,T.pileX,by,rx*0.72,7); x.stroke();
+    x.globalAlpha=1; x.lineWidth=6.5;
+    x.strokeStyle=wlv1TGrad(x,0,by-20,0,by+20,['#F2CC63','#A96E18']);
+    wlv1TOval(x,T.pileX,by,rx*0.72,7); x.stroke();
+    x.restore();
+    wlv1TKnot(x,T.pileX+rx*0.72,by);
+  }
+}
+
+/* ── আঁকা · ছোঁয়া · বোতাম (ফোনের `openKsharTeach()`-এর যমজ) ──────────── */
+function wlv1TeachPaint(){
+  var cv=$('#dnTeachCanvas'); if(!cv)return;
+  var T=WLV1_TEACH;
+  var box=cv.parentElement;
+  /* 🎨🔒 ছবির জায়গা প্যানেলের ঠিক উপরে শেষ — TK-অনুমোদিত "1 & 3 কম্বো"। */
+  var pan=$('#dnTeachPanel');
+  if(pan)box.style.bottom=(pan.offsetHeight+20)+'px';
+  var w=Math.max(80,box.clientWidth), h=Math.max(80,box.clientHeight);
+  var dpr=Math.min(2,window.devicePixelRatio||1);
+  if(cv.width!==Math.round(w*dpr)||cv.height!==Math.round(h*dpr)){
+    cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr);
+    cv.style.width=w+'px'; cv.style.height=h+'px';
+  }
+  var x=cv.getContext('2d'); if(!x)return;
+  x.setTransform(dpr,0,0,dpr,0,0);
+  x.clearRect(0,0,w,h);
+  T.sc=Math.min(w/TVW,h/TVH); T.ox=(w-TVW*T.sc)/2; T.oy=(h-TVH*T.sc)/2;
+  x.save(); x.translate(T.ox,T.oy); x.scale(T.sc,T.sc);
+  try{
+    if(T.base===0)wlv1TeachBody(x); else wlv1TeachBodySide(x);
+    if(T.disease===0)wlv1TeachPiles(x);
+    else if(T.disease===1)wlv1TeachFissure(x);
+    else wlv1TeachFistula(x);
+  }catch(_e){}
+  x.restore();
+}
+window["wlv1TeachPaint"]=wlv1TeachPaint;
+
+/* ১১০০ মিলিসেকেন্ডের অ্যানিমেশন — ফোনের `ValueAnimator`-এর হুবহু একই সময়। */
+function wlv1TeachRun(){
+  var T=WLV1_TEACH;
+  if(T.timer){ cancelAnimationFrame(T.timer); T.timer=null }
+  T.t=0; T.t0=(window.performance&&performance.now)?performance.now():Date.now();
+  function tick(){
+    if(!WLV1_TEACH.on)return;
+    var now=(window.performance&&performance.now)?performance.now():Date.now();
+    T.t=Math.min(1,(now-T.t0)/1100);
+    wlv1TeachPaint();
+    if(T.t<1)T.timer=requestAnimationFrame(tick); else T.timer=null;
+  }
+  T.timer=requestAnimationFrame(tick);
+}
+function wlv1TeachChips(){
+  var T=WLV1_TEACH,i,el;
+  for(i=0;i<3;i++){
+    el=$('#dnTeachDis'+i); if(!el)continue;
+    var on=(i===T.disease);
+    el.style.background=on?'#1F6D4A':'rgba(22,34,46,0.85)';
+    el.style.border='1px solid '+(on?'#2E9366':'rgba(59,74,90,0.55)');
+    el.style.color=on?'#FFFFFF':'#B9C6D4';
+  }
+  for(i=0;i<2;i++){
+    el=$('#dnTeachPic'+i); if(!el)continue;
+    var onp=(i===T.base);
+    el.style.background=onp?'#1A4E7A':'rgba(22,34,46,0.85)';
+    el.style.border='1px solid '+(onp?'#3B84C4':'rgba(59,74,90,0.55)');
+    el.style.color=onp?'#FFFFFF':'#B9C6D4';
+  }
+  var cap=$('#dnTeachCap'); if(cap)cap.textContent=wlv1TeachCap(T.disease,T.step);
+  var pv=$('#dnTeachPrev'); if(pv)pv.style.display=T.step>0?'':'none';
+  var nx=$('#dnTeachNext'); if(nx)nx.style.display=(T.step<wlv1TeachSteps(T.disease)-1)?'':'none';
+}
+function wlv1TeachGo(n){
+  var T=WLV1_TEACH;
+  T.step=Math.max(0,Math.min(wlv1TeachSteps(T.disease)-1,n));
+  wlv1TeachChips(); wlv1TeachRun();
+}
+function wlv1TeachDisease(i){
+  WLV1_TEACH.disease=Math.max(0,Math.min(2,i)); WLV1_TEACH.step=0;
+  wlv1TeachChips(); wlv1TeachRun();
+}
+function wlv1TeachBase(i){
+  WLV1_TEACH.base=Math.max(0,Math.min(1,i));
+  wlv1TeachResetSpots(); wlv1TeachChips(); wlv1TeachRun();
+}
+window["wlv1TeachGo"]=wlv1TeachGo;
+window["wlv1TeachDisease"]=wlv1TeachDisease;
+window["wlv1TeachBase"]=wlv1TeachBase;
+
+/* 👆 ছুঁয়ে/টেনে নিশানা সরানো — যে রোগ চালু আছে সেটারই সরে (ফোনের `onTouchEvent`)। */
+function wlv1TeachAt(ev){
+  var cv=$('#dnTeachCanvas'); if(!cv)return;
+  var T=WLV1_TEACH; if(T.sc<=0)return;
+  var r=cv.getBoundingClientRect();
+  var pt=(ev.touches&&ev.touches[0])?ev.touches[0]:ev;
+  var px=(pt.clientX-r.left-T.ox)/T.sc, py=(pt.clientY-r.top-T.oy)/T.sc;
+  function cl(v,a,b){ return Math.max(a,Math.min(b,v)) }
+  if(T.disease===0){ T.pileX=cl(px,60,TVW-60); T.pileY=cl(py,TTOP_Y+60,TSKIN_Y-20) }
+  else if(T.disease===1){ T.fisX=cl(px,60,TVW-60); T.fisY=cl(py,TTOP_Y+120,TSKIN_Y+10) }
+  else { T.extX=cl(px,40,TVW-40); T.extY=cl(py,TTOP_Y+80,TSKIN_Y+20) }
+  wlv1TeachPaint();
+}
+function wlv1TeachWire(cv){
+  cv.addEventListener('pointerdown',function(e){ WLV1_TEACH.drag=true; try{cv.setPointerCapture(e.pointerId)}catch(_e){} wlv1TeachAt(e); e.preventDefault() });
+  cv.addEventListener('pointermove',function(e){ if(WLV1_TEACH.drag){ wlv1TeachAt(e); e.preventDefault() } });
+  cv.addEventListener('pointerup',function(){ WLV1_TEACH.drag=false });
+  cv.addEventListener('pointercancel',function(){ WLV1_TEACH.drag=false });
+}
+function wlv1TeachResize(){ if($('#dnTeachCanvas'))wlv1TeachPaint() }
+
+function wlv1TeachOpen(){
+  if($('#dnTeachBack'))return;
+  var T=WLV1_TEACH;
+  T.on=true; T.disease=0; T.base=0; T.step=0; T.t=1; T.drag=false;
+  wlv1TeachResetSpots();
+  function chip(id,label,fn){
+    return '<button type="button" id="'+id+'" onclick="'+fn+'" '
+      +'style="flex:1;margin:0 3px;padding:8px 6px;border-radius:9px;border:0;'
+      +'font-size:12.5px;cursor:pointer;background:rgba(22,34,46,0.85);color:#B9C6D4">'+label+'</button>';
+  }
+  var back=document.createElement('div');
+  back.id='dnTeachBack'; back.className='wlv1AnatFullBack';
+  back.innerHTML=
+     '<div class="wlv1AnatFullTop">'
+    +'<button type="button" class="wlv1AnatFullBtn" title="বন্ধ করুন" onclick="wlv1TeachClose()">✕</button>'
+    +'</div>'
+    /* 🎨🔒 TK-অনুমোদিত নিয়ম (V779, "1 & 3 কম্বো"): **ছবির জায়গা নিচের
+       প্যানেলের উপরেই শেষ হবে** — প্যানেল যেন ছবির উপরে উঠে না আসে।
+       তাই canvas নিজের ঘরে (`dnTeachStage`), যার নিচের সীমা প্যানেলের
+       উচ্চতা মেপে বসানো হয় (`wlv1TeachPaint`)। */
+    +'<div id="dnTeachStage" style="position:absolute;left:0;right:0;top:0;bottom:0">'
+    +'<canvas id="dnTeachCanvas" class="wlv1AnatFullCanvas"></canvas></div>'
+    +'<div id="dnTeachPanel" class="wlv1KsBox">'
+    +'<div style="display:flex;padding-bottom:7px">'
+    +chip('dnTeachPic0','🖼 ছবি 1 · সামনে','wlv1TeachBase(0)')
+    +chip('dnTeachPic1','🖼 ছবি 2 · পাশ','wlv1TeachBase(1)')
+    +'</div>'
+    +'<div style="display:flex;padding-bottom:8px">'
+    +chip('dnTeachDis0','🩸 Piles','wlv1TeachDisease(0)')
+    +chip('dnTeachDis1','✂️ Fissure','wlv1TeachDisease(1)')
+    +chip('dnTeachDis2','🔄 Fistula','wlv1TeachDisease(2)')
+    +'</div>'
+    +'<div style="color:#9FB6C8;font-size:11.5px;padding:0 0 6px 2px">'
+    +'👆 ছবিতে ছুঁয়ে নিশানার জায়গা সরাতে পারেন</div>'
+    +'<div id="dnTeachCap" class="wlv1KsCap" style="text-align:left;font-size:13.5px"></div>'
+    +'<div class="wlv1KsRow">'
+    +'<button type="button" id="dnTeachPrev" class="wlv1KsBtn" onclick="wlv1TeachGo(WLV1_TEACH.step-1)">◀</button>'
+    +'<button type="button" id="dnTeachNext" class="wlv1KsBtn wide" onclick="wlv1TeachGo(WLV1_TEACH.step+1)">পরের ধাপ ▶</button>'
+    +'<button type="button" class="wlv1KsBtn" title="বন্ধ" onclick="wlv1TeachClose()">✕</button>'
+    +'</div></div>';
+  document.body.appendChild(back);
+  document.body.classList.add('wlv1AnatFullOpen');
+  wlv1TeachWire($('#dnTeachCanvas'));
+  window.addEventListener('resize',wlv1TeachResize);
+  wlv1TeachChips(); wlv1TeachRun();
+}
+function wlv1TeachClose(){
+  var T=WLV1_TEACH;
+  T.on=false;
+  if(T.timer){ cancelAnimationFrame(T.timer); T.timer=null }
+  window.removeEventListener('resize',wlv1TeachResize);
+  var b=$('#dnTeachBack'); if(b&&b.parentNode)b.parentNode.removeChild(b);
+  document.body.classList.remove('wlv1AnatFullOpen');
+}
+window["wlv1TeachOpen"]=wlv1TeachOpen;
+window["wlv1TeachClose"]=wlv1TeachClose;
+
 function wlv1AnatFull(){
   if(!wlv1AnatState.pic){ try{toast('আগে উপরের সারি থেকে একটা ছবি বাছুন')}catch(_e){} return }
   if($('#dnAnatFullBack'))return;
@@ -10351,6 +10985,8 @@ function wlv1AnatFull(){
     +'<button type="button" class="wlv1AnatFullBtn" title="বড় করুন" onclick="wlv1AnatZoomBy(1.35)">➕</button>'
     /* 🔵 V587 — ক্ষারসূত্রের ধাপ রোগীকে দেখানো (ফোনের 🧵 বোতামের যমজ) */
     +'<button type="button" class="wlv1AnatFullBtn" title="ক্ষারসূত্র দেখান" onclick="wlv1KsStart()">🧵</button>'
+    /* 🎓 V787 — রোগীকে বোঝানোর পর্দা (ফোনের 🎓 বোতামের যমজ, একই জায়গায়) */
+    +'<button type="button" class="wlv1AnatFullBtn" title="রোগীকে বোঝান — পাইলস · ফিশার · ফিস্টুলা" onclick="wlv1TeachOpen()">🎓</button>'
     +'<button type="button" class="wlv1AnatFullBtn" title="বোতাম লুকান / দেখান" onclick="wlv1AnatFullBar()">🧰</button>'
     +'<button type="button" class="wlv1AnatFullBtn" title="বন্ধ করুন" onclick="wlv1AnatFullClose()">✕</button>'
     +'</div>'

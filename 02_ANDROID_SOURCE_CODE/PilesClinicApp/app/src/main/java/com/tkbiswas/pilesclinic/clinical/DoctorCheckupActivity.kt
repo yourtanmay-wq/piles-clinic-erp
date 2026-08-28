@@ -717,7 +717,11 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 setPadding(0, 0, 0, symDp(8))
             }
             val chips = ArrayList<TextView>()
-            val names = listOf("\uD83E\uDE78 পাইলস", "✂️ ফিশার", "\uD83D\uDD04 ফিস্টুলা")
+            /* 🔤🔒 V787 (TK-নির্দেশ ২৮.০৮.২০২৬: *"রোগের নাম ইংরেজিতে রাখুন"*) —
+               তিনটে রোগের নাম প্রজেক্টের বাকি জায়গার মতোই ইংরেজিতে
+               (Registration/Enquiry-তে যেমন Piles · Fissure · Fistula)।
+               ⛔ ধাপের ব্যাখ্যা আগের মতোই বাংলা — ওটা রোগীর জন্য। */
+            val names = listOf("\uD83E\uDE78 Piles", "✂️ Fissure", "\uD83D\uDD04 Fistula")
 
             val hint = TextView(this).apply {
                 text = NoBengali.s("👆 ছবিতে ছুঁয়ে নিশানার জায়গা সরাতে পারেন")
