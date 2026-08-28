@@ -69,6 +69,10 @@ object PremiumAlert {
         ).any { low.contains(it) } || t.contains("মুছ") || t.contains("ধ্বংস")
         if (red) return SEV_RED
         val yellow = listOf(
+            // 🟡🔒 V814 (২৮.০৮.২০২৬, TK-নির্দেশ, ছবিসহ: *"সবুজ কালারের বদলে
+            //    হলুদ কালার দিলে ভালো হয় যাতে সহজেই বুঝতে পারি"*) —
+            //    "already paid"/"duplicate" এখন সতর্কতার হলুদ, সবুজ নয়।
+            "already paid", "duplicate",
             "already exists", "already in the system", "confirm", "logout",
             "restore", "problem", "crash", "error", "warning", "overpay"
         ).any { low.contains(it) } ||
@@ -104,6 +108,9 @@ object PremiumAlert {
             low.contains("remark") || low.contains("note") -> "📝"
             low.contains("payment") || low.contains("income") || t.contains("পেমেন্ট") -> "💰"
             low.contains("arrived") || low.contains("approve") || low.contains("confirm") -> "✅"
+            // 🟡🔒 V814 — "already paid"-এর আইকন ⚠️, নইলে "payment" ধরে 💰 বসত
+            //    আর একই দিনে দ্বিতীয়বার টাকা নেওয়ার সতর্কতাটা চোখেই পড়ত না।
+            low.contains("already paid") || low.contains("duplicate") -> "⚠️"
             low.contains("crash") || low.contains("error") || low.contains("problem") -> "⚠️"
             low.contains("branch") || low.contains("select") -> "📋"
             low.contains("call") -> "📞"

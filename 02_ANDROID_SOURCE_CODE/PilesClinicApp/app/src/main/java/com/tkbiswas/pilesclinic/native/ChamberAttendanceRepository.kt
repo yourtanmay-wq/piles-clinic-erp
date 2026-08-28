@@ -1202,6 +1202,13 @@ object ChamberAttendanceRepository {
             val m = keyFor(fu.s("mobile"), fu.s("refId"))
             val pr = stagePriority(fu.s("stage"))
             val ua = fu.s("updatedAt").ifBlank { fu.s("createdAt") }
+            /* 🔴🔒 V814 (২৮.০৮.২০২৬, TK-রিপোর্ট "ASBEN এখনো কেন?") — রিমার্কের
+               লেখাটা **কবে লেখা হলো** সেটাই এখন রিমার্কের তারিখ। আগে সারির
+               `updatedAt` ধরা হত, কিন্তু ওটা `updateNextFollow()`-এর মতো
+               অন্য কাজেও আজকের হয়ে যায় — ফলে পুরনো লেখা আজকের সেজে
+               চেম্বার-বন্ধের পাহারা পার হয়ে যেত।
+               ⛔ পুরনো সারিতে ঘরটা ফাঁকা ⇒ আগের নিয়মেই (`ua`) চলে। */
+            val ra = fu.s("lastRemarkAt").ifBlank { ua }
             if (pr > (bestStageByMobile[m] ?: -1) || (pr == bestStageByMobile[m] && ua > (bestStageUpdatedAt[m] ?: ""))) {
                 bestStageByMobile[m] = pr
                 bestStageUpdatedAt[m] = ua
@@ -1218,7 +1225,7 @@ object ChamberAttendanceRepository {
                 bestRemarkPriority[m] = pr
                 bestRemarkUpdatedAt[m] = ua
                 byMobile[m]?.set("remark", remark)
-                byMobile[m]?.set("remarkUpdatedAt", ua)   // 🟢🔒 V654
+                byMobile[m]?.set("remarkUpdatedAt", ra)   // 🟢🔒 V654 · 🔴🔒 V814
             }
         }
         // Also pick up remarks/followUpId for mobiles that arrived/expected
@@ -1234,6 +1241,7 @@ object ChamberAttendanceRepository {
                 if (m !in stillMissing) continue
                 val pr = stagePriority(fu.s("stage"))
                 val ua = fu.s("updatedAt").ifBlank { fu.s("createdAt") }   // 🟢🔒 V638
+                val ra = fu.s("lastRemarkAt").ifBlank { ua }               // 🔴🔒 V814
                 if (pr > (bestStageByMobile[m] ?: -1) || (pr == bestStageByMobile[m] && ua > (bestStageUpdatedAt[m] ?: ""))) {
                     bestStageByMobile[m] = pr
                     bestStageUpdatedAt[m] = ua
@@ -1247,7 +1255,7 @@ object ChamberAttendanceRepository {
                     bestRemarkPriority[m] = pr
                     bestRemarkUpdatedAt[m] = ua
                     byMobile[m]?.set("remark", remark)
-                    byMobile[m]?.set("remarkUpdatedAt", ua)   // 🟢🔒 V654
+                    byMobile[m]?.set("remarkUpdatedAt", ra)   // 🟢🔒 V654 · 🔴🔒 V814
                 }
             }
         }

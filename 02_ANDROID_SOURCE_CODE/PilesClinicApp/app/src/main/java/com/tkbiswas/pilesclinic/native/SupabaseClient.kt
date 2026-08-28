@@ -117,7 +117,11 @@ object SupabaseClient {
      * ⛔ সারির সংখ্যা · ছাঁকনি · সাজানো · limit — কিচ্ছু বদলায়নি, শুধু ঘর কমল।
      * ⛔ সরু পড়া ব্যর্থ হলে অ্যাপ নিজেই সব ঘর চেয়ে নেয় (fetchListSlimOrNull-এর B446 নিয়ম)।
      */
-    const val FOLLOWUP_COLS_CHAMBER_BOARD = "branch,id,lastRemark,mobile,nextFollow,stage,status,updatedAt"
+    /* 🔴🔒 V814 — `lastRemarkAt` যোগ হলো: রিমার্কের কথাটা **কবে লেখা হলো**।
+       চেম্বার বোর্ডের "আজকের Treatment Progress" পাহারা এই ঘরটাই দেখে,
+       কারণ `updatedAt` রিমার্ক ছাড়া অন্য কাজেও আজকের হয়ে যায়।
+       ⛔ একটা ছোট সময় (~৩০ বাইট) — Egress-এ প্রভাব নগণ্য। */
+    const val FOLLOWUP_COLS_CHAMBER_BOARD = "branch,id,lastRemark,lastRemarkAt,mobile,nextFollow,stage,status,updatedAt"
 
     /** Everything the money lists actually read from a payment row.
      *  🔒 সংশোধন (29.07.2026, খাতার সারি B114): এই তালিকায় **`patientCode` ছিল না**,

@@ -2659,6 +2659,12 @@ class FollowUpRepository(private val context: Context? = null) {
         val fields = JSONObject().put("updatedAt", isoNow())
         if (haveRow) fields.put("history", history)
         if (remark.isNotBlank()) fields.put("lastRemark", remark)
+        /* 🔴🔒 V814 (২৮.০৮.২০২৬, TK-রিপোর্ট "ASBEN এখনো কেন?") — লেখাটা **কবে
+           লেখা হলো** সেটা এখন আলাদা ঘরে বসে। `updatedAt` অন্য কাজেও (যেমন
+           `updateNextFollow`) আজকের হয়ে যেত, তাই সেটা দিয়ে "আজকের নোট কি না"
+           বোঝা যেত না — পুরনো লেখা আজকের সেজে চেম্বার-বন্ধের পাহারা পার হত।
+           ⛔ ঘরটা **শুধু তখনই** লেখা হয় যখন রিমার্কের কথাটা সত্যিই বদলায়। */
+        if (remark.isNotBlank()) fields.put("lastRemarkAt", isoNow())
         // Final safety gate: regardless of which Follow-up screen calls this
         // function, empty text can never change Last Call or Call Count.
         if (incrementCall && remark.isNotBlank() && haveRow) {
@@ -2894,6 +2900,12 @@ class FollowUpRepository(private val context: Context? = null) {
     ): Boolean {
         val fields = JSONObject().put("status", status).put("updatedAt", isoNow())
         if (remark.isNotBlank()) fields.put("lastRemark", remark)
+        /* 🔴🔒 V814 (২৮.০৮.২০২৬, TK-রিপোর্ট "ASBEN এখনো কেন?") — লেখাটা **কবে
+           লেখা হলো** সেটা এখন আলাদা ঘরে বসে। `updatedAt` অন্য কাজেও (যেমন
+           `updateNextFollow`) আজকের হয়ে যেত, তাই সেটা দিয়ে "আজকের নোট কি না"
+           বোঝা যেত না — পুরনো লেখা আজকের সেজে চেম্বার-বন্ধের পাহারা পার হত।
+           ⛔ ঘরটা **শুধু তখনই** লেখা হয় যখন রিমার্কের কথাটা সত্যিই বদলায়। */
+        if (remark.isNotBlank()) fields.put("lastRemarkAt", isoNow())
         val terminal = status.equals("Cancelled", true) || status.equals("Incomplete", true) ||
             status.equals("Rejected", true) || status.equals("Closed", true)
         var knownRow: JSONObject? = null
@@ -2988,6 +3000,12 @@ class FollowUpRepository(private val context: Context? = null) {
             if (PatientIdentity.provablyOtherPatient(row, d, myRowId, myCode, myName)) continue
             val fields = JSONObject().put("status", status).put("updatedAt", isoNow())
             if (remark.isNotBlank()) fields.put("lastRemark", remark)
+        /* 🔴🔒 V814 (২৮.০৮.২০২৬, TK-রিপোর্ট "ASBEN এখনো কেন?") — লেখাটা **কবে
+           লেখা হলো** সেটা এখন আলাদা ঘরে বসে। `updatedAt` অন্য কাজেও (যেমন
+           `updateNextFollow`) আজকের হয়ে যেত, তাই সেটা দিয়ে "আজকের নোট কি না"
+           বোঝা যেত না — পুরনো লেখা আজকের সেজে চেম্বার-বন্ধের পাহারা পার হত।
+           ⛔ ঘরটা **শুধু তখনই** লেখা হয় যখন রিমার্কের কথাটা সত্যিই বদলায়। */
+        if (remark.isNotBlank()) fields.put("lastRemarkAt", isoNow())
             if (staffName.isNotBlank()) {
                 val history = row.optJSONArray("history") ?: JSONArray()
                 history.put(JSONObject().put("date", FollowUpModel.today()).put("time", isoNow())

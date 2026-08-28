@@ -502,17 +502,25 @@ def check_columns():
     # সঙ্গে regex-ও নরম করা হলো — বাস্তব ফাইলে "alter table if exists <name>"
     # (কোনো "public." প্রিফিক্স ছাড়া) প্যাটার্নও আছে, আগের regex শুধু
     # "alter table public.<name>" ধরত।
-    for f in glob.glob(os.path.join(SQLD, "*.sql")):
-        if os.path.basename(f) == "PILES_CLINIC_DB_SETUP.sql":
+    # 🔴🔒 V814 (২৮.০৮.২০২৬, নিজের যাচাইয়ে ধরা পড়া পাহারার ফাঁক) — এই যাচাই
+    # এতদিন **শুধু `04_SUPABASE_DATABASE_SETUP/`** ফোল্ডার দেখত। কিন্তু আসল
+    # migration ফাইল অনেকগুলোই **`00_SQL/`**-এ থাকে (যেমন V770, V814) — তাই
+    # ওখানে যোগ-করা সত্যিকারের ঘরকেও "ডেটাবেসে নেই" বলে ধরা পড়ত। §৯.৩৪-এর
+    # `_db_columns()` দুটো ফোল্ডারই দেখত, এটা দেখত না — দুটো এখন এক নিয়মে।
+    for _d in (SQLD, os.path.join(ROOT, "00_SQL")):
+        if not os.path.isdir(_d):
             continue
-        s = read(f)
-        for m in re.finditer(
-            r'alter table\s+(?:if exists\s+)?(?:public\.)?"?(\w+)"?\s+add column\s+(?:if not exists\s+)?"?(\w+)"?',
-            s, re.I
-        ):
-            cols.setdefault(m.group(1), set()).add(m.group(2))
-        for m in re.finditer(r'create table if not exists (?:public\.)?"?(\w+)"?\s*\((.*?)\n\);', s, re.S | re.I):
-            cols.setdefault(m.group(1), set()).update(re.findall(r'"(\w+)"\s+\w', m.group(2)))
+        for f in glob.glob(os.path.join(_d, "*.sql")):
+            if os.path.basename(f) == "PILES_CLINIC_DB_SETUP.sql":
+                continue
+            s = read(f)
+            for m in re.finditer(
+                r'alter table\s+(?:if exists\s+)?(?:public\.)?"?(\w+)"?\s+add column\s+(?:if not exists\s+)?"?(\w+)"?',
+                s, re.I
+            ):
+                cols.setdefault(m.group(1), set()).add(m.group(2))
+            for m in re.finditer(r'create table if not exists (?:public\.)?"?(\w+)"?\s*\((.*?)\n\);', s, re.S | re.I):
+                cols.setdefault(m.group(1), set()).update(re.findall(r'"(\w+)"\s+\w', m.group(2)))
     # setup.sql আসল ডেটাবেসের চেয়ে পুরনো — এই ঘরটা সত্যিই আছে (সার্কুলার ১০)
     cols.setdefault('patients', set()).add('timeType')
     bad = []

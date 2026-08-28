@@ -6228,7 +6228,7 @@ function wlv1RejectFollowupGroup(source,status='Cancelled',remark='Rejected',sta
       matched=true;
       if(wlv1IsTerminalFollowStatus(r.status))continue;
       let hist={date:today(),time:isoNow(),remark:remark||status,staff:staffName||user?.name||user?.mobile||'',nextFollow:'',status:status,decisionVersion:'V450'};
-      let updRow={...r,status:status,lastRemark:remark||r.lastRemark||status,nextFollow:'',updatedAt:now,history:[...(r.history||[]),hist]};
+      let updRow={...r,status:status,lastRemark:remark||r.lastRemark||status,lastRemarkAt:(remark?now:(r.lastRemarkAt||'')),nextFollow:'',updatedAt:now,history:[...(r.history||[]),hist]};
       if(Number(source.__rejectCallCountMin||0)>0)updRow.callCount=Math.max(Number(source.__rejectCallCountMin||0),Number(r.callCount||0));
       rows[j]=updRow; protectNewRow('followups',updRow); changed=true;
     }
@@ -6654,7 +6654,7 @@ function saveVisitAdvancePayment(fid,pid){let ps=arr('patients'),i=ps.findIndex(
     let fs2=arr('followups'),fi2=fs2.findIndex(f=>String(f.id)===String(fid));
     if(fi2>=0){
      let note=`💰 Bill corrected ${money(oldBill)} → ${money(bill)} by ${user?.name||codeName(user?.mobile||'')||'User'}`;
-     fs2[fi2]={...fs2[fi2],lastRemark:note,updatedAt:isoNow(),history:[...(fs2[fi2].history||[]),{date:todaySafe(),remark:note,staff:user?.name||user?.mobile||''}]};
+     fs2[fi2]={...fs2[fi2],lastRemark:note,lastRemarkAt:isoNow(),updatedAt:isoNow(),history:[...(fs2[fi2].history||[]),{date:todaySafe(),remark:note,staff:user?.name||user?.mobile||''}]};
      put('followups',fs2);
      try{directCloudUpsertRow('followups',fs2[fi2])}catch(_e){}
     }
@@ -12552,9 +12552,11 @@ function wlv1DayGuardOk(pid,name,forDate){
  let day=String(forDate||today()).slice(0,10),paid=Number(wlv1PaidOnDate(pid,day)||0);
  if(paid<=0)return true;
  let who=String(name||'').trim()||'this patient',when=day===today()?'TODAY':fmtDate(day);
- return confirm('₹'+Math.round(paid).toLocaleString('en-IN')+' has already been taken from '+who+' '+when+' ('+nextPaymentLabel(pid,day)+').\n\n'
-  +'If the connection was slow, that earlier payment may have saved without you noticing.\n\n'
-  +'If this is genuinely NEW money, it will be ADDED to that day’s existing payment. No second payment row will be created; CASH and ONLINE stay separately counted.');
+ /* 🟡🔒 V814 (২৮.০৮.২০২৬, TK-নির্দেশ: *"এত বড় মেসেজ কেন? শর্টকাট দিলে ভালো হয়"*)
+    — লেখাটা দুই লাইনে। ⛔ ফোনের `PaymentDayGuard`-এ হুবহু একই লেখা।
+    ⛔ কাজের নিয়ম এক অক্ষরও বদলায়নি। */
+ return confirm('⚠️ Already paid\n\n₹'+Math.round(paid).toLocaleString('en-IN')+' already taken from '+who+' '+when+' ('+nextPaymentLabel(pid,day)+').\n\n'
+  +'Add this as NEW money to that day’s payment?');
 }
 window["wlv1DayGuardOk"]=wlv1DayGuardOk;
 function paymentDisplayLabel(x,idx){return x.payLabel||x.paymentLabel||ordinalPaymentLabel((idx||0)+1)}
@@ -12758,7 +12760,7 @@ async function saveTreatmentPayment(id){
     let fus=load('followups'),fi=fus.findIndex(x=>mob(x.mobile)===mob(p.mobile)&&x.stage&&x.stage!=='Inquiry');
     if(fi>=0){
      let note=`💰 Bill corrected ${money(oldBill)} → ${money(bill)} by ${user?.name||codeName(user?.mobile||'')||'User'}`;
-     fus[fi]={...fus[fi],lastRemark:note,updatedAt:new Date().toISOString(),history:[...(fus[fi].history||[]),{date:today(),remark:note,staff:user?.name||user?.mobile||''}]};
+     fus[fi]={...fus[fi],lastRemark:note,lastRemarkAt:new Date().toISOString(),updatedAt:new Date().toISOString(),history:[...(fus[fi].history||[]),{date:today(),remark:note,staff:user?.name||user?.mobile||''}]};
      save('followups',fus);
     }
    }catch(_e){}
@@ -17205,7 +17207,13 @@ function wlv1ChamberRows(date, branch){
       if(!r.name) r.name = f.name||'';
       // 🔴🔒 V687 — আজকের আসল চেম্বার-নোট (payments.progress) ইতিমধ্যে বসে
       // থাকলে followups.lastRemark (কল-লগ-সহ) সেটা ওভাররাইট করবে না।
-      if(!r.__hasProgressToday){ r.treatment = String(f.lastRemark||''); r.treatmentUpdatedAt = String(f.updatedAt||f.createdAt||''); }
+      /* 🔴🔒 V814 (২৮.০৮.২০২৬, TK-রিপোর্ট "ASBEN এখনো কেন?") — রিমার্কের লেখাটা
+         **কবে লেখা হলো** সেটাই এখন রিমার্কের তারিখ। আগে সারির `updatedAt` ধরা হত,
+         কিন্তু ওটা পরের ফলো-আপ তারিখ বসানোর মতো অন্য কাজেও আজকের হয়ে যায় —
+         ফলে পুরনো লেখা আজকের সেজে চেম্বার-বন্ধের পাহারা পার হয়ে যেত।
+         ⛔ পুরনো সারিতে ঘরটা ফাঁকা ⇒ আগের নিয়মেই (`updatedAt`) চলে।
+         ⛔ ফোনের `ChamberAttendanceRepository`-তেও হুবহু একই বদল। */
+      if(!r.__hasProgressToday){ r.treatment = String(f.lastRemark||''); r.treatmentUpdatedAt = String(f.lastRemarkAt||f.updatedAt||f.createdAt||''); }
     }
   });
   /* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬) — এখন হুবহু ফোনের নিয়ম
@@ -17528,7 +17536,9 @@ function wlv1ChamberSaveTreatment(mobile, rowId){
   const own = wlv1ChamberOwnFollow(m, rowId);
   const i = own ? rows.findIndex(x=>String(x.id)===String(own.id)) : -1;
   if(i<0) return toast('No Follow-up record yet for this patient');
-  rows[i] = {...rows[i], lastRemark: txt, updatedAt: new Date().toISOString(),
+  /* 🔴🔒 V814 — লেখাটা **কবে লেখা হলো** সেটা আলাদা ঘরে বসে (ফোনের
+     `FollowUpRepository.updateRemark`-এর হুবহু জোড়া)। */
+  rows[i] = {...rows[i], lastRemark: txt, lastRemarkAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
     history: [...(rows[i].history||[]), {date: today(), time: isoNow(), remark: txt, staff: (user&&(user.name||user.mobile))||''}]};
   save('followups', rows);
   /* 🟢🔒 V590 (২৩.০৮.২০২৬, TK-রিপোর্ট: *"ট্রিটমেন্ট প্রোগ্রেসে যা লেখা হয় রিপোর্ট

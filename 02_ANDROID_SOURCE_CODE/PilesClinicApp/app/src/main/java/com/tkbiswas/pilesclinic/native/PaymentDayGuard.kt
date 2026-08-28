@@ -43,10 +43,14 @@ object PaymentDayGuard {
         val who = patientName.ifBlank { "this patient" }
         // অ্যাপের সব জায়গার মতোই একই ধাঁচ — `₹10,000`।
         val amt = "₹" + "%,.0f".format(alreadyPaid)
-        val msg = "$amt has already been taken from $who TODAY ($todayLabel).\n\n" +
-            "If the connection was slow, that earlier payment may have saved without you noticing.\n\n" +
-            "If this is genuinely NEW money, it will be ADDED to today's existing payment. " +
-            "No second payment row will be created; CASH and ONLINE will stay separately counted."
+        /* 🟡🔒 V814 (২৮.০৮.২০২৬, TK-নির্দেশ, ছবিসহ: *"এত বড় মেসেজ কেন?
+           শর্টকাট দিলে ভালো হয়"*) — লেখাটা চার অনুচ্ছেদ থেকে **দুই লাইনে**।
+           ⛔ যা জানার দরকার তার একটাও হারায়নি: কত টাকা · কার · কত নম্বর
+              পেমেন্ট · আর প্রশ্নটা কী। বাকি ব্যাখ্যা (দ্বিতীয় সারি হবে না,
+              CASH/ONLINE আলাদা গোনা) — ওটা নিয়মেই আছে, প্রতিবার পড়ার দরকার নেই।
+           ⛔ কাজের নিয়ম এক অক্ষরও বদলায়নি, শুধু লেখা ছোট হলো। */
+        val msg = "$amt already taken from $who TODAY ($todayLabel).\n\n" +
+            "Add this as NEW money to today's payment?"
         AlertDialog.Builder(activity)
             .setCustomTitle(PremiumAlert.header(activity, "Already paid today"))
             .setMessage(msg)
