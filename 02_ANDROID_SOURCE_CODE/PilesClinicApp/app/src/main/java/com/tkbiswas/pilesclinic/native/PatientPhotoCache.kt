@@ -1,6 +1,12 @@
 package com.tkbiswas.pilesclinic.native
 
 import android.content.Context
+/* 🔴🔒 V807 (২৮.০৮.২০২৬) — TK-এর Android Studio-তে বিল্ড ভেঙেছিল:
+ * `Unresolved reference: PilesClinicApplication` (PatientPhotoCache.kt:41)।
+ * কারণ: এই ফাইলটা `…pilesclinic.native` প্যাকেজে, আর ক্লাসটা তার **উপরের**
+ * প্যাকেজে (`…pilesclinic`)। Kotlin-এ উপরের প্যাকেজের নাম **নিজে থেকে আসে না**,
+ * import লিখতেই হয়। V794-এ ফাইলটা লেখার সময় সেটা বাদ পড়েছিল। */
+import com.tkbiswas.pilesclinic.PilesClinicApplication
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════

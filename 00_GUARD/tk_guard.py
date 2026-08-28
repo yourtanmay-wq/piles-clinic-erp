@@ -306,6 +306,71 @@ def _db_columns():
 
 
 # ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯.৩৬ — 🕵️ **ইন্সপেক্টর**: প্রকল্পের নিজের ক্লাস import ছাড়া ব্যবহার
+#  🔴🔴🔴 TK-REPORTED, LIVE (২৮.০৮.২০২৬, ফটো সহ — Android Studio:
+#  "Unresolved reference: PilesClinicApplication", PatientPhotoCache.kt:41,
+#  Gradle build failed)। TK: *"কি ধরনের ফালতু পাহারাদার রেখেছেন … ইন্সপেক্টর
+#  রাখুন"* — একদম ঠিক কথা, দুটো পাহারাদারই এটা ছেড়ে দিয়েছিল:
+#    (ক) `verify_kotlin_compile.py`-র `is_noise()` — যে নাম প্রকল্পের **অন্য
+#        কোনো** ফাইলে import করা আছে, সেটা সব ফাইলেই "ঠিক আছে" ধরে নিত
+#        (`ext` তালিকাটা ফাইল-ধরে নয়, গোটা প্রকল্প ধরে বানানো)।
+#    (খ) `missing_import_errors()` — শুধু `android`/`androidx` ক্লাস দেখত,
+#        **প্রকল্পের নিজের ক্লাস কখনো দেখত না**।
+#  ─── এই ইন্সপেক্টর যা করে ─────────────────────────────────────────────
+#  ১) প্রকল্পের প্রতিটা `class/object/interface` কোন প্যাকেজে ঘোষিত — তালিকা।
+#  ২) প্রতিটা ফাইলে কমেন্ট ও স্ট্রিং ফাঁকা করে নিয়ে খোঁজে: এমন কোনো নাম
+#     `Name.` বা `Name(` হিসেবে ব্যবহার হয়েছে কিনা, যেটা **অন্য প্যাকেজে**
+#     ঘোষিত অথচ এই ফাইলে import করা নেই।
+#  ৩) পেলে ফাইল · লাইন · **যে import লাইনটা লিখতে হবে** — সব দেখিয়ে FAIL।
+#  ⛔ কম্পাইলার লাগে না, তাই সবসময় চলে ও নিখুঁত।
+# ═══════════════════════════════════════════════════════════════
+def check_project_class_imports():
+    files = {}
+    for f in kt_files():
+        if "/src/test/" in f.replace("\\", "/"):
+            continue
+        files[f] = read(f)
+
+    decl = {}
+    DECL_RE = (r'^\s*(?:@\w+\s+)*(?:public\s+|internal\s+|private\s+|open\s+|abstract\s+'
+               r'|sealed\s+|data\s+|enum\s+|annotation\s+|value\s+)*'
+               r'(?:class|object|interface)\s+(\w+)')
+    for f, t in files.items():
+        pm = re.search(r'^\s*package\s+([\w.]+)', t, re.M)
+        if not pm:
+            continue
+        code = _blank_comments(t)
+        for m in re.finditer(DECL_RE, code, re.M):
+            decl.setdefault(m.group(1), set()).add(pm.group(1))
+
+    bad = []
+    for f in sorted(files):
+        t = files[f]
+        pm = re.search(r'^\s*package\s+([\w.]+)', t, re.M)
+        if not pm:
+            continue
+        mypkg = pm.group(1)
+        code = _blank_comments(t)
+        imported = {(m.group(2) or m.group(1).split(".")[-1]) for m in
+                    re.finditer(r'^\s*import\s+([\w.]+)(?:\s+as\s+(\w+))?', code, re.M)}
+        star = {m.group(1) for m in re.finditer(r'^\s*import\s+([\w.]+)\.\*', code, re.M)}
+        local = {m.group(1) for m in re.finditer(r'\b(?:class|object|interface)\s+(\w+)', code)}
+        for name, pkgs in decl.items():
+            if name in imported or name in local or mypkg in pkgs or (pkgs & star):
+                continue
+            m = re.search(r'(?<![\w.])' + re.escape(name) + r'\s*[.(]', code)
+            if m:
+                ln = code[:m.start()].count("\n") + 1
+                rel = f.replace("\\", "/")
+                rel = rel[rel.find("com/"):] if "com/" in rel else os.path.basename(rel)
+                bad.append((rel, ln, name, sorted(pkgs)[0]))
+    if bad:
+        for rel, ln, name, pkg in bad[:8]:
+            fail("৯.৩৬", "Android Studio-তে `Unresolved reference: %s` হবে — %s:%d। "
+                         "এই লাইনটা যোগ করুন:  import %s.%s" % (name, rel, ln, pkg, name))
+
+
+# ═══════════════════════════════════════════════════════════════
 #  যাচাই ৯.৩৫ — প্রতিটা OkHttpClient-এ callTimeout আছে তো?
 #  🔴🔴 TK-REPORTED, LIVE (২৮.০৮.২০২৬, ফটো সহ — "Staff Profile তো খুলছেই
 #  না?", সাদা ফাঁকা পর্দা): `ModuleAuth.kt`-এ ছিল খালি `OkHttpClient()` —
@@ -2930,6 +2995,7 @@ def main():
     nxml = check_xml()
     check_companion()
     check_columns()
+    check_project_class_imports()   # 🕵️ V807 — ইন্সপেক্টর: import ছাড়া প্রকল্পের ক্লাস
     check_http_call_timeout()   # ⏱️ V803 — প্রতিটা নেট-ডাকে সময়সীমা
     check_safe_wide_columns()   # 🛟 V801 — শেষ-ভরসার কলাম-তালিকা পুরনো হয়নি তো
     check_static_calls()
@@ -2990,6 +3056,7 @@ def main():
         ("৪.৫", "সম্পূর্ণ প্রজেক্ট (মূল ফোল্ডার সব আছে)"),
         ("৪.৬", "সব বাধ্যতামূলক নোট আছে"),
         ("১১",  "রোগীর সময় ১১টা–৪টা"),
+        ("৯.৩৬", "🕵️ ইন্সপেক্টর — প্রকল্পের প্রতিটা ক্লাসের import আছে"),
         ("৯.৩৫", "⏱️ প্রতিটা OkHttpClient-এ callTimeout বসানো আছে"),
         ("৯.৩৪", "🛟 SafeWideColumns (শেষ-ভরসার পড়া) ডেটাবেসের সঙ্গে মেলে"),
         ("১০",  "মাইন-পোঁতা জায়গা অক্ষত"),

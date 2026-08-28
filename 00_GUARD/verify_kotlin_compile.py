@@ -376,6 +376,26 @@ def missing_import_errors():
             name = m.group(2) or m.group(1).split(".")[-1]
             if name[:1].isupper():
                 known.setdefault(name, m.group(1))
+    # 🔴🔴🔒 V807 (২৮.০৮.২০২৬) — **TK-এর Android Studio-তে আবার বিল্ড ভাঙল**
+    #   ("Unresolved reference: PilesClinicApplication", PatientPhotoCache.kt:41),
+    #   অথচ এই পাহারাদার PASS বলেছিল। TK: *"কি ধরনের ফালতু পাহারাদার রেখেছেন …
+    #   ইন্সপেক্টর রাখুন"*।
+    #   **আসল গর্ত:** উপরের লুপটা শুধু `android`/`androidx` ক্লাস শিখত —
+    #   **প্রকল্পের নিজের ক্লাস কখনো দেখত না**। তাই উপরের প্যাকেজের
+    #   (`com.tkbiswas.pilesclinic`) ক্লাস নিচের প্যাকেজে (`…native`) import
+    #   ছাড়া লিখলে কেউ ধরত না — অথচ Kotlin-এ ওটা লিখতেই হয়।
+    #   এখন প্রকল্প নিজে যত ক্লাস/object/interface ঘোষণা করে, সবগুলোই শেখা হয়।
+    #   ⛔ একই প্যাকেজ হলে ছাড় (নিচে `pkg == mypkg` যাচাই) — মিথ্যে ভুল আসবে না।
+    for t in files.values():
+        pm = re.search(r"^\s*package\s+([\w.]+)", t, re.M)
+        if not pm:
+            continue
+        pkg = pm.group(1)
+        for m in re.finditer(
+                r"^\s*(?:@\w+\s+)*(?:public\s+|internal\s+|private\s+|open\s+|abstract\s+"
+                r"|sealed\s+|data\s+|enum\s+|annotation\s+|value\s+)*"
+                r"(?:class|object|interface)\s+(\w+)", t, re.M):
+            known.setdefault(m.group(1), pkg)
     hits = []
     for p in sorted(files):
         code = _strip_code(files[p])
@@ -385,8 +405,12 @@ def missing_import_errors():
         declared = set(re.findall(
             r"\b(?:class|object|interface|enum class|annotation class)\s+(\w+)",
             code))
+        mypkg_m = re.search(r"^\s*package\s+([\w.]+)", code, re.M)
+        mypkg = mypkg_m.group(1) if mypkg_m else ""
         for name, pkg in known.items():
             if name in mine or name in IMP_SKIP or name in declared:
+                continue
+            if pkg == mypkg:      # 🔴 V807 — একই প্যাকেজে import লাগে না
                 continue
             if re.search(r"(?<![\w.])" + re.escape(name) + r"\s*[.(]", code):
                 short = p.replace("\\", "/")
