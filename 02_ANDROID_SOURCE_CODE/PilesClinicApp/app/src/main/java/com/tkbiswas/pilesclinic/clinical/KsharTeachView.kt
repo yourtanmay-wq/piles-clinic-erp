@@ -57,6 +57,10 @@ class KsharTeachView(ctx: Context) : View(ctx) {
         private const val EXT_Y = 472f
         private const val INT_X = 500f
         private const val INT_Y = 296f
+        /** ছবি ২ (পাশ থেকে কাটা) — নালীর কেন্দ্র ও ভিতরের মুখ। */
+        private const val S_CX = 450f
+        private const val S_INT_X = 432f
+        private const val S_INT_Y = 330f
 
         fun stepCount(disease: Int): Int = when (disease) {
             PILES -> 5
@@ -94,6 +98,54 @@ class KsharTeachView(ctx: Context) : View(ctx) {
     var disease: Int = PILES
     var step: Int = 0
     var t: Float = 1f
+
+    /** 🖼️🔒 V783 — কোন ভিত্তি-ছবি (TK-এর বাছাই: ১ = সামনে থেকে কাটা,
+     *  ২ = পাশ থেকে কাটা)। বদলালেই নিশানার জায়গা ওই ছবির ডিফল্টে ফেরে। */
+    var base: Int = 0
+        set(v) { field = v.coerceIn(0, 1); resetSpots() }
+
+    /* 👆 ডাক্তার ছুঁয়ে নিশানা যেখানে দেবেন — TK: *"মাংস ফোলাবো বা ফিস্টুলার
+       নিশানা দিব অথবা ফিশারের দাগ"*। তিন রোগের তিনটে আলাদা জায়গা, তাই
+       একটা বদলালে অন্যটা নড়ে না। ⛔ কিছুই সেভ হয় না। */
+    private var pileX = 0f; private var pileY = 0f      // পাইলসের মাংস
+    private var extX = 0f;  private var extY = 0f       // ফিস্টুলার বাইরের মুখ
+    private var fisX = 0f;  private var fisY = 0f       // ফিশারের নিচের মাথা
+
+    /** ভিত্তি-ছবি বদলালে নিশানাগুলো ওই ছবির স্বাভাবিক জায়গায় ফেরে। */
+    fun resetSpots() {
+        if (base == 0) {
+            pileX = CANAL_X - 46f; pileY = INT_Y - 38f
+            extX = EXT_X; extY = EXT_Y
+            fisX = CANAL_X - 24f; fisY = SKIN_Y - 2f
+        } else {
+            pileX = S_CX - 20f; pileY = 300f
+            extX = 300f; extY = SKIN_Y + 2f
+            fisX = S_CX - 12f; fisY = SKIN_Y - 4f
+        }
+        invalidate()
+    }
+
+    init { resetSpots(); isClickable = true }
+
+    /** 👆 ছুঁয়ে/টেনে নিশানা সরানো — যে রোগ চালু আছে সেটারই সরে। */
+    @android.annotation.SuppressLint("ClickableViewAccessibility")
+    override fun onTouchEvent(e: android.view.MotionEvent): Boolean {
+        if (sc <= 0f) return false
+        val x = (e.x - ox) / sc
+        val y = (e.y - oy) / sc
+        when (e.actionMasked) {
+            android.view.MotionEvent.ACTION_DOWN,
+            android.view.MotionEvent.ACTION_MOVE -> {
+                when (disease) {
+                    PILES -> { pileX = x.coerceIn(60f, VW - 60f); pileY = y.coerceIn(TOP_Y + 60f, SKIN_Y - 20f) }
+                    FISSURE -> { fisX = x.coerceIn(60f, VW - 60f); fisY = y.coerceIn(TOP_Y + 120f, SKIN_Y + 10f) }
+                    else -> { extX = x.coerceIn(40f, VW - 40f); extY = y.coerceIn(TOP_Y + 80f, SKIN_Y + 20f) }
+                }
+                invalidate(); return true
+            }
+        }
+        return true
+    }
 
     private val p = Paint(Paint.ANTI_ALIAS_FLAG)
     private var sc = 1f
@@ -134,7 +186,7 @@ class KsharTeachView(ctx: Context) : View(ctx) {
         canvas.translate(ox, oy)
         canvas.scale(sc, sc)
         try {
-            drawBody(canvas)
+            if (base == 0) drawBody(canvas) else drawBodySide(canvas)
             when (disease) {
                 PILES -> drawPiles(canvas)
                 FISSURE -> drawFissure(canvas)
@@ -296,6 +348,89 @@ class KsharTeachView(ctx: Context) : View(ctx) {
         blurOval(c, VW * 0.32f, 60f, 380f, 150f, Color.WHITE, 36, 26f)
     }
 
+    /**
+     * 🖼️🔒 V783 — **ছবি ২: পাশ থেকে কাটা** (TK-এর বাছাই "১ অথবা ২")।
+     * মলাশয় উপরে, নিচে বেঁকে মলদ্বার-নালী, দু'পাশে হলুদ চর্বি।
+     * ⛔ ছবি ১-এর কোড এক অক্ষরও ছোঁয়া হয়নি — এটা আলাদা ফাংশন।
+     */
+    private fun drawBodySide(c: Canvas) {
+        p.reset(); p.isAntiAlias = true; p.style = Paint.Style.FILL
+        p.color = Color.parseColor("#FDF6EA"); c.drawRect(0f, 0f, VW, VH, p)
+        // চর্বির পটভূমি
+        p.shader = vgrad(0f, 60f, 0f, SKIN_Y + 6f,
+            Color.parseColor("#FBEFC0"), Color.parseColor("#F0DE9C"))
+        c.drawRect(0f, 60f, VW, SKIN_Y + 6f, p); p.shader = null
+        // চর্বির কোষ (দু'পাশে)
+        for (f in fatCells) {
+            val x = f[0]; val y = f[1]
+            if (x > 300f && x < 600f) continue
+            p.style = Paint.Style.FILL
+            p.shader = RadialGradient(x - f[2] * 0.3f, y - f[2] * 0.3f, f[2] * 1.6f,
+                intArrayOf(Color.parseColor("#FFF3B8"), Color.parseColor("#E8CB63")), null, Shader.TileMode.CLAMP)
+            c.drawOval(RectF(x - f[2] * 1.6f, y - f[2] * 1.2f, x + f[2] * 1.6f, y + f[2] * 1.2f), p)
+            p.shader = null
+            p.style = Paint.Style.STROKE; p.strokeWidth = 1.1f
+            p.color = Color.parseColor("#D9B93F"); p.alpha = 200
+            c.drawOval(RectF(x - f[2] * 1.6f, y - f[2] * 1.2f, x + f[2] * 1.6f, y + f[2] * 1.2f), p)
+            p.alpha = 255
+        }
+        // রক্তনালী
+        p.style = Paint.Style.STROKE; p.color = Color.parseColor("#4C79C8"); p.alpha = 190
+        for (v in vessels) {
+            if (v[0] > 300f && v[0] < 600f) continue
+            p.strokeWidth = v[4] + 1.4f; c.drawLine(v[0], v[1], v[2], v[3], p)
+        }
+        p.alpha = 255
+
+        fun tube(pts: FloatArray): Path {
+            val path = Path()
+            path.moveTo(pts[0], pts[1])
+            path.cubicTo(pts[2], pts[3], pts[4], pts[5], pts[6], pts[7])
+            path.lineTo(pts[6], SKIN_Y + 6f)
+            path.lineTo(pts[8], SKIN_Y + 6f)
+            path.lineTo(pts[8], pts[7])
+            path.cubicTo(pts[10], pts[5], pts[10], pts[3], pts[12], pts[1])
+            path.close(); return path
+        }
+        // বাইরের পেশি
+        p.style = Paint.Style.FILL
+        p.shader = vgrad(300f, 0f, 600f, 0f,
+            Color.parseColor("#A94545"), Color.parseColor("#D07C77"), Color.parseColor("#A54242"))
+        c.drawPath(tube(floatArrayOf(330f, 40f, 300f, 180f, 300f, 286f, 372f, 368f, 528f, 0f, 600f, 0f, 570f)), p)
+        p.shader = null
+        // ভিতরের পেশি
+        p.shader = vgrad(340f, 0f, 560f, 0f,
+            Color.parseColor("#C0605F"), Color.parseColor("#F0AFA6"), Color.parseColor("#BC5A59"))
+        c.drawPath(tube(floatArrayOf(366f, 52f, 340f, 182f, 340f, 288f, 400f, 370f, 500f, 0f, 560f, 0f, 534f)), p)
+        p.shader = null
+        // শ্লেষ্মা
+        p.shader = vgrad(378f, 0f, 522f, 0f,
+            Color.parseColor("#C6555B"), Color.parseColor("#F2A8A6"), Color.parseColor("#C25258"))
+        c.drawPath(tube(floatArrayOf(398f, 64f, 378f, 188f, 378f, 292f, 424f, 372f, 476f, 0f, 522f, 0f, 502f)), p)
+        p.shader = null
+        // ফাঁকা নালী
+        p.shader = vgrad(0f, 74f, 0f, SKIN_Y,
+            Color.parseColor("#8E4340"), Color.parseColor("#5A2523"))
+        c.drawPath(tube(floatArrayOf(424f, 74f, 408f, 192f, 408f, 296f, 442f, 374f, 458f, 0f, 492f, 0f, 476f)), p)
+        p.shader = null
+        // dentate line
+        p.style = Paint.Style.STROKE; p.strokeWidth = 3f
+        p.color = Color.parseColor("#8E3438"); p.alpha = 150
+        p.pathEffect = android.graphics.DashPathEffect(floatArrayOf(10f, 8f), 0f)
+        c.drawLine(424f, 352f, 476f, 352f, p); p.pathEffect = null; p.alpha = 255
+        // চামড়া
+        p.style = Paint.Style.FILL
+        p.shader = vgrad(0f, SKIN_Y - 30f, 0f, SKIN_Y + 6f,
+            Color.parseColor("#F8E3D6"), Color.parseColor("#D9A38E"))
+        c.drawRect(0f, SKIN_Y - 30f, 372f, SKIN_Y + 6f, p)
+        c.drawRect(528f, SKIN_Y - 30f, VW, SKIN_Y + 6f, p)
+        p.shader = null
+        p.color = Color.parseColor("#EFE4DA")
+        c.drawRect(0f, SKIN_Y + 6f, VW, VH, p)
+        blurOval(c, S_CX, SKIN_Y + 8f, 44f, 13f, Color.parseColor("#3B1A18"), 115, 8f)
+        blurOval(c, VW * 0.3f, 70f, 340f, 130f, Color.WHITE, 30, 24f)
+    }
+
     private fun blurOval(c: Canvas, cx: Float, cy: Float, rx: Float, ry: Float, col: Int, alpha: Int, blur: Float) {
         p.reset(); p.isAntiAlias = true; p.style = Paint.Style.FILL
         p.color = col; p.alpha = alpha
@@ -359,84 +494,94 @@ class KsharTeachView(ctx: Context) : View(ctx) {
     }
 
     private fun probe(c: Canvas, prog: Float) {
-        val px = EXT_X + (INT_X - EXT_X) * prog
-        val py = EXT_Y + (INT_Y - EXT_Y) * prog
-        val path = Path().apply { moveTo(EXT_X - 64f, EXT_Y + 34f); lineTo(EXT_X, EXT_Y); lineTo(px, py) }
+        val px = extX + (iX() - extX) * prog
+        val py = extY + (iY() - extY) * prog
+        val path = Path().apply { moveTo(extX - 64f, extY + 34f); lineTo(extX, extY); lineTo(px, py) }
         p.reset(); p.isAntiAlias = true; p.style = Paint.Style.STROKE; p.strokeCap = Paint.Cap.ROUND
         p.strokeWidth = 15f; p.color = Color.parseColor("#2E3A46"); p.alpha = 90
         c.drawPath(path, p); p.alpha = 255
         p.strokeWidth = 10f
-        p.shader = vgrad(0f, EXT_Y - 200f, 0f, EXT_Y + 40f,
+        p.shader = vgrad(0f, extY - 200f, 0f, extY + 40f,
             Color.WHITE, Color.parseColor("#96A5B4"), Color.parseColor("#5E6C7A"))
         c.drawPath(path, p); p.shader = null
         p.strokeWidth = 2.6f; p.color = Color.WHITE; p.alpha = 165; c.drawPath(path, p); p.alpha = 255
         p.style = Paint.Style.FILL; p.color = Color.parseColor("#E8EEF4"); c.drawCircle(px, py, 6f, p)
         p.style = Paint.Style.STROKE; p.strokeWidth = 5f; p.color = Color.parseColor("#B9C4CF")
-        c.drawOval(RectF(EXT_X - 75f, EXT_Y + 26f, EXT_X - 53f, EXT_Y + 42f), p)
+        c.drawOval(RectF(extX - 75f, extY + 26f, extX - 53f, extY + 42f), p)
     }
+
+    /** ভিতরের মুখ — কোন ভিত্তি-ছবি চলছে তার উপর নির্ভর করে। */
+    private fun iX() = if (base == 0) INT_X else S_INT_X
+    private fun iY() = if (base == 0) INT_Y else S_INT_Y
+    /** নালীর কেন্দ্র — ছবি অনুযায়ী। */
+    private fun cX() = if (base == 0) CANAL_X else S_CX
 
     // ─────────────────────────── নালী ───────────────────────────
     private fun tract(c: Canvas, healed: Float) {
-        val hx = EXT_X + (INT_X - EXT_X) * healed
-        val hy = EXT_Y + (INT_Y - EXT_Y) * healed
+        val ix = iX(); val iy = iY()
+        val hx = extX + (ix - extX) * healed
+        val hy = extY + (iy - extY) * healed
         if (healed < 1f) {
             p.reset(); p.isAntiAlias = true; p.style = Paint.Style.STROKE; p.strokeCap = Paint.Cap.ROUND
             p.strokeWidth = 30f; p.color = Color.parseColor("#42160F"); p.alpha = 140
             try { p.maskFilter = BlurMaskFilter(7f, BlurMaskFilter.Blur.NORMAL) } catch (_: Throwable) { }
-            c.drawLine(hx, hy, INT_X, INT_Y, p); p.maskFilter = null; p.alpha = 255
-            p.strokeWidth = 21f; p.color = Color.parseColor("#5E241B"); c.drawLine(hx, hy, INT_X, INT_Y, p)
+            c.drawLine(hx, hy, ix, iy, p); p.maskFilter = null; p.alpha = 255
+            p.strokeWidth = 21f; p.color = Color.parseColor("#5E241B"); c.drawLine(hx, hy, ix, iy, p)
             p.strokeWidth = 17f
-            p.shader = RadialGradient((hx + INT_X) / 2, (hy + INT_Y) / 2, 120f,
+            p.shader = RadialGradient((hx + ix) / 2, (hy + iy) / 2, 120f,
                 intArrayOf(Color.parseColor("#8E3A2E"), Color.parseColor("#C97F70")), null, Shader.TileMode.CLAMP)
-            c.drawLine(hx, hy, INT_X, INT_Y, p); p.shader = null
+            c.drawLine(hx, hy, ix, iy, p); p.shader = null
         }
         if (healed > 0f) {
             p.reset(); p.isAntiAlias = true; p.style = Paint.Style.STROKE; p.strokeCap = Paint.Cap.ROUND
-            p.strokeWidth = 10f; p.color = Color.parseColor("#C08A7C"); c.drawLine(EXT_X, EXT_Y, hx, hy, p)
+            p.strokeWidth = 10f; p.color = Color.parseColor("#C08A7C"); c.drawLine(extX, extY, hx, hy, p)
             p.strokeWidth = 4f; p.color = Color.parseColor("#EFCDC2"); p.alpha = 205
-            c.drawLine(EXT_X, EXT_Y, hx, hy, p); p.alpha = 255
+            c.drawLine(extX, extY, hx, hy, p); p.alpha = 255
         }
     }
 
     private fun loopPath(fromX: Float, fromY: Float, kx: Float, ky: Float): Path = Path().apply {
-        moveTo(fromX, fromY); lineTo(INT_X, INT_Y)
-        quadTo(CANAL_X - 16f, INT_Y + 26f, CANAL_X, INT_Y + 52f)
-        lineTo(CANAL_X, SKIN_Y + 10f)
-        quadTo(CANAL_X - 12f, SKIN_Y + 90f, kx, ky)
+        moveTo(fromX, fromY); lineTo(iX(), iY())
+        quadTo(cX() - 16f, iY() + 26f, cX(), iY() + 52f)
+        lineTo(cX(), SKIN_Y + 10f)
+        quadTo(cX() - 12f, SKIN_Y + 90f, kx, ky)
         quadTo((fromX + kx) / 2 - 18f, ky - 8f, fromX - 12f, fromY + 52f)
         lineTo(fromX, fromY)
     }
 
     private fun drawFistula(c: Canvas) {
         when (step) {
-            0 -> { tract(c, 0f); dot(c, EXT_X, EXT_Y, "#C62828"); dot(c, INT_X, INT_Y, "#7A3FD0") }
-            1 -> { tract(c, 0f); probe(c, t); dot(c, EXT_X, EXT_Y, "#C62828"); dot(c, INT_X, INT_Y, "#7A3FD0") }
+            0 -> { tract(c, 0f); dot(c, extX, extY, "#C62828"); dot(c, iX(), iY(), "#7A3FD0") }
+            1 -> { tract(c, 0f); probe(c, t); dot(c, extX, extY, "#C62828"); dot(c, iX(), iY(), "#7A3FD0") }
             2 -> {
                 tract(c, 0f); probe(c, 1f)
                 val d = Path().apply {
-                    moveTo(EXT_X - 52f + 104f * t, EXT_Y + 30f - 16f * t); lineTo(EXT_X, EXT_Y)
-                    lineTo(EXT_X + (INT_X - EXT_X) * t, EXT_Y + (INT_Y - EXT_Y) * t)
+                    moveTo(extX - 52f + 104f * t, extY + 30f - 16f * t); lineTo(extX, extY)
+                    lineTo(extX + (iX() - extX) * t, extY + (iY() - extY) * t)
                 }
                 rope(c, d)
             }
             3 -> {
                 tract(c, 0f)
-                val kx = (EXT_X + CANAL_X) / 2 - 56f; val ky = SKIN_Y + 114f
-                rope(c, loopPath(EXT_X, EXT_Y, kx, ky)); knot(c, kx, ky)
+                val kx = (extX + cX()) / 2 - 56f; val ky = SKIN_Y + 114f
+                rope(c, loopPath(extX, extY, kx, ky)); knot(c, kx, ky)
             }
             4 -> {
                 val h = 0.12f + 0.55f * t
-                val hx = EXT_X + (INT_X - EXT_X) * h; val hy = EXT_Y + (INT_Y - EXT_Y) * h
-                val kx = (hx + CANAL_X) / 2 - 56f; val ky = SKIN_Y + 112f
+                val hx = extX + (iX() - extX) * h; val hy = extY + (iY() - extY) * h
+                val kx = (hx + cX()) / 2 - 56f; val ky = SKIN_Y + 112f
                 tract(c, h); rope(c, loopPath(hx, hy, kx, ky)); knot(c, kx, ky)
             }
-            else -> { tract(c, 1f); dot(c, EXT_X, EXT_Y, "#E9C9C4") }
+            else -> { tract(c, 1f); dot(c, extX, extY, "#E9C9C4") }
         }
     }
 
     // ─────────────────────────── ফিশার ───────────────────────────
-    private val fisTopX = CANAL_X - 66f; private val fisTopY = INT_Y + 16f
-    private val fisBotX = CANAL_X - 24f; private val fisBotY = SKIN_Y - 2f
+    /** ফাটলের নিচের মাথা ডাক্তার ছুঁয়ে বসান; উপরের মাথা তার থেকেই হিসেব হয়। */
+    private val fisTopX get() = fisX - 42f
+    private val fisTopY get() = (fisY - 174f).coerceAtLeast(TOP_Y + 80f)
+    private val fisBotX get() = fisX
+    private val fisBotY get() = fisY
     private fun fisPath(): Path = Path().apply {
         moveTo(fisTopX, fisTopY)
         quadTo((fisTopX + fisBotX) / 2 - 8f, (fisTopY + fisBotY) / 2, fisBotX, fisBotY)
@@ -509,27 +654,26 @@ class KsharTeachView(ctx: Context) : View(ctx) {
     }
 
     // ─────────────────────────── পাইলস ───────────────────────────
-    private val pileCx = CANAL_X - 46f; private val pileCy = INT_Y - 38f
 
     private fun drawPiles(c: Canvas) {
         val swell = when (step) { 0, 1 -> 0.45f; 2 -> 0.45f + 0.55f * t; else -> 1f }
         val fallen = if (step == 4) t else 0f
-        val cy = pileCy + 70f * fallen * fallen
+        val cy = pileY + 70f * fallen * fallen
         val rx = 26f + 16f * swell; val ry = 34f + 18f * swell
         val op = ((1f - fallen) * 255).toInt().coerceIn(0, 255)
         if (op > 6) {
-            blurOval(c, pileCx + 6f, cy + 6f, rx, ry, Color.parseColor("#3A0E13"), (op * 0.45f).toInt(), 8f)
+            blurOval(c, pileX + 6f, cy + 6f, rx, ry, Color.parseColor("#3A0E13"), (op * 0.45f).toInt(), 8f)
             p.reset(); p.isAntiAlias = true; p.style = Paint.Style.FILL
             p.color = Color.parseColor("#8E2340"); p.alpha = op
-            c.drawOval(RectF(pileCx - rx, cy - ry, pileCx + rx, cy + ry), p)
+            c.drawOval(RectF(pileX - rx, cy - ry, pileX + rx, cy + ry), p)
             p.color = Color.parseColor("#B23A55"); p.alpha = (op * 0.85f).toInt()
-            c.drawOval(RectF(pileCx - rx * 0.82f, cy - ry * 0.82f, pileCx + rx * 0.82f, cy + ry * 0.82f), p)
-            blurOval(c, pileCx - rx * 0.3f, cy - ry * 0.34f, rx * 0.34f, ry * 0.28f,
+            c.drawOval(RectF(pileX - rx * 0.82f, cy - ry * 0.82f, pileX + rx * 0.82f, cy + ry * 0.82f), p)
+            blurOval(c, pileX - rx * 0.3f, cy - ry * 0.34f, rx * 0.34f, ry * 0.28f,
                 Color.parseColor("#FFD3D8"), (op * 0.35f).toInt(), 7f)
             p.style = Paint.Style.STROKE; p.strokeWidth = 1.6f
             p.color = Color.parseColor("#66101F"); p.alpha = (op * 0.45f).toInt()
             for (k in 0 until 6) {
-                val x = pileCx - rx * 0.7f + k * rx * 0.28f
+                val x = pileX - rx * 0.7f + k * rx * 0.28f
                 val pp = Path().apply { moveTo(x, cy - ry * 0.7f); rQuadTo(6f, ry * 0.7f, 0f, ry * 1.3f) }
                 c.drawPath(pp, p)
             }
@@ -537,11 +681,11 @@ class KsharTeachView(ctx: Context) : View(ctx) {
         } else {
             p.reset(); p.isAntiAlias = true; p.style = Paint.Style.FILL
             p.color = Color.parseColor("#C08A7C"); p.alpha = 180
-            c.drawOval(RectF(pileCx - 6f, pileCy - 28f, pileCx + 22f, pileCy - 12f), p); p.alpha = 255
+            c.drawOval(RectF(pileX - 6f, pileY - 28f, pileX + 22f, pileY - 12f), p); p.alpha = 255
         }
         if (step == 1) {
             // ইনজেকশনের সুচ
-            val px = pileCx + 130f - 120f * t; val py = cy + 120f - 110f * t
+            val px = pileX + 130f - 120f * t; val py = cy + 120f - 110f * t
             p.reset(); p.isAntiAlias = true; p.style = Paint.Style.STROKE; p.strokeCap = Paint.Cap.ROUND
             p.strokeWidth = 6f
             p.shader = vgrad(px, py, px + 90f, py + 80f, Color.WHITE, Color.parseColor("#7C8B99"))
@@ -553,12 +697,12 @@ class KsharTeachView(ctx: Context) : View(ctx) {
             val by = cy + ry * 0.92f
             p.reset(); p.isAntiAlias = true; p.style = Paint.Style.STROKE
             p.strokeWidth = 9f; p.color = Color.parseColor("#4A2E08"); p.alpha = 115
-            c.drawOval(RectF(pileCx - rx * 0.72f, by - 7f, pileCx + rx * 0.72f, by + 7f), p); p.alpha = 255
+            c.drawOval(RectF(pileX - rx * 0.72f, by - 7f, pileX + rx * 0.72f, by + 7f), p); p.alpha = 255
             p.strokeWidth = 6.5f
             p.shader = vgrad(0f, by - 20f, 0f, by + 20f,
                 Color.parseColor("#F2CC63"), Color.parseColor("#A96E18"))
-            c.drawOval(RectF(pileCx - rx * 0.72f, by - 7f, pileCx + rx * 0.72f, by + 7f), p); p.shader = null
-            knot(c, pileCx + rx * 0.72f, by)
+            c.drawOval(RectF(pileX - rx * 0.72f, by - 7f, pileX + rx * 0.72f, by + 7f), p); p.shader = null
+            knot(c, pileX + rx * 0.72f, by)
         }
     }
 

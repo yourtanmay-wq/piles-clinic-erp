@@ -703,6 +703,12 @@ class DoctorCheckupActivity : AppCompatActivity() {
             val chips = ArrayList<TextView>()
             val names = listOf("\uD83E\uDE78 পাইলস", "✂️ ফিশার", "\uD83D\uDD04 ফিস্টুলা")
 
+            val hint = TextView(this).apply {
+                text = NoBengali.s("👆 ছবিতে ছুঁয়ে নিশানার জায়গা সরাতে পারেন")
+                textSize = 11.5f
+                setTextColor(android.graphics.Color.parseColor("#9FB6C8"))
+                setPadding(symDp(2), 0, 0, symDp(6))
+            }
             val cap = TextView(this).apply {
                 textSize = 13.5f
                 setTextColor(android.graphics.Color.WHITE)
@@ -751,6 +757,39 @@ class DoctorCheckupActivity : AppCompatActivity() {
                     ch.setTextColor(android.graphics.Color.parseColor(if (on) "#FFFFFF" else "#B9C6D4"))
                 }
             }
+            /* 🖼️🔒 V783 — **ভিত্তি-ছবি বাছাই** (TK-এর বাছাই: "১ অথবা ২")।
+               ⛔ ছবি বদলালে নিশানার জায়গা ওই ছবির স্বাভাবিক জায়গায় ফেরে,
+                  তাই কখনো ভুল জায়গায় বসে থাকে না। */
+            val picRow = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                setPadding(0, 0, 0, symDp(7))
+            }
+            val pics = ArrayList<TextView>()
+            fun paintPics() {
+                pics.forEachIndexed { i, ch ->
+                    val on = i == view.base
+                    ch.background = android.graphics.drawable.GradientDrawable().apply {
+                        cornerRadius = symDp(9).toFloat()
+                        setColor(android.graphics.Color.parseColor(if (on) "#1A4E7A" else "#2216222E"))
+                        setStroke(symDp(1), android.graphics.Color.parseColor(if (on) "#3B84C4" else "#553B4A5A"))
+                    }
+                    ch.setTextColor(android.graphics.Color.parseColor(if (on) "#FFFFFF" else "#B9C6D4"))
+                }
+            }
+            listOf("\uD83D\uDDBC ছবি 1 · সামনে", "\uD83D\uDDBC ছবি 2 · পাশ").forEachIndexed { i, nm ->
+                val ch = TextView(this).apply {
+                    text = nm; textSize = 12.5f
+                    gravity = android.view.Gravity.CENTER
+                    setPadding(symDp(6), symDp(8), symDp(6), symDp(8))
+                    isClickable = true; isFocusable = true
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                        .apply { setMargins(symDp(3), 0, symDp(3), 0) }
+                    setOnClickListener { view.base = i; paintPics(); run() }
+                }
+                pics.add(ch); picRow.addView(ch)
+            }
+
             names.forEachIndexed { i, nm ->
                 val ch = TextView(this).apply {
                     text = nm; textSize = 13f
@@ -777,11 +816,11 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 gravity = android.view.Gravity.CENTER_VERTICAL
             }
             row.addView(cap); row.addView(bPrev); row.addView(bNext); row.addView(bClose)
-            panel.addView(chipRow); panel.addView(row)
+            panel.addView(picRow); panel.addView(chipRow); panel.addView(hint); panel.addView(row)
             root.addView(panel)
             dlg.setOnDismissListener { anim?.cancel() }
             dlg.setContentView(root)
-            paint()
+            paint(); paintPics()
             dlg.show()
             try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dlg) } catch (_: Throwable) { }
             run()
