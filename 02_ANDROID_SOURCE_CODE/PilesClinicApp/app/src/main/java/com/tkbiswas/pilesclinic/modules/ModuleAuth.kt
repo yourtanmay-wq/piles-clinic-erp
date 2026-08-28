@@ -58,11 +58,29 @@ object ModuleAuth {
        ─── এখন ────────────────────────────────────────────────────────────
        বারবার চেষ্টা বন্ধ ⇒ আসল ভুলটা **তাড়াতাড়ি ও নিজের নামেই** আসে।
        সময়সীমা একটু বাড়ানো হলো (দুর্বল নেটে যেন অকারণে না কাটে)। */
+    /* 🔴🔴🔴🔒 V809 (২৮.০৮.২০২৬) — **আমার নিজের করা ক্ষতি ফিরিয়ে নেওয়া হলো।**
+       TK: *"এক জলপাইগুড়ির স্টাফ পাঠিয়েছে — timeout, কাজ হচ্ছে না। কেন এরকম
+       ফাজলামো করলেন আপনি আমার সাথে?"*
+       ─── git-এর প্রমাণ ─────────────────────────────────────────────────────
+       V793 (যেটা এতদিন সবার ফোনে চলছিল) — `private val http = OkHttpClient()`
+         ⇒ OkHttp-র ডিফল্ট: connect ১০s · read ১০s · **মোট সময়ের কোনো সীমা নেই**
+       আমি V803-এ বসিয়েছিলাম — connect ৮s · read ৮s · **মোট ২৫s**
+       V808-এ আরও কড়া করেছিলাম — `retryOnConnectionFailure(false)`
+       ⇒ **তিনটে দিকেই আমি আগের চেয়ে কড়া করে দিয়েছিলাম।**
+       দুর্বল নেটে (স্টাফের ফোনে ৫ KB/s) যে ডাকটা আগে ধীরে হলেও **শেষ হত**,
+       সেটা এখন ২৫ সেকেন্ডে **জোর করে কেটে** যেত ⇒ "timeout"।
+       অর্থাৎ আগে পর্দাটা **ধীর** ছিল, আমি সেটাকে **ভাঙা** বানিয়ে ফেলেছি।
+       ─── এখন যা করা হলো ───────────────────────────────────────────────────
+       প্রতিটা মাপ V793-এর চেয়ে **উদার** — তাই আগে যা চলত, সবই চলবে:
+         connect ১০s → **২০s** · read ১০s → **৪০s** · বারবার চেষ্টা **আবার চালু**
+       শুধু একটা **শেষ ভরসার** সীমা (১২০s) রাখা হলো, যাতে V803-এর আসল সমস্যাটা
+       (পর্দা চিরকাল সাদা হয়ে বসে থাকা) ফিরে না আসে। ১২০ সেকেন্ড এত বড় যে
+       সত্যিকারের কোনো কাজ এতে কাটা পড়বে না। */
     private val http = OkHttpClient.Builder()
-        .retryOnConnectionFailure(false)
-        .connectTimeout(12, java.util.concurrent.TimeUnit.SECONDS)
-        .readTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
-        .callTimeout(35, java.util.concurrent.TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
+        .connectTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(40, java.util.concurrent.TimeUnit.SECONDS)
+        .callTimeout(120, java.util.concurrent.TimeUnit.SECONDS)
         .build()
     private val JSON = "application/json".toMediaType()
 
