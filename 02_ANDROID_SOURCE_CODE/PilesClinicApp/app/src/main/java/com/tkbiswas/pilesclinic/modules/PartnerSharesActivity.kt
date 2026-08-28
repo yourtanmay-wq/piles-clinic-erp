@@ -506,7 +506,7 @@ class PartnerSharesActivity : Activity() {
                         openBranch(branch)
                     }
                 }.start()
-            }.show()
+            }.show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
     }
 
     // ---------- SETUP ----------

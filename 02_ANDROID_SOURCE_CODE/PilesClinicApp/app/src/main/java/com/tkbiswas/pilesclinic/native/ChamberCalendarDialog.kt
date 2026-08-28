@@ -354,5 +354,6 @@ object ChamberCalendarDialog {
         )
         try { NoBengali.installDialog(dialog) } catch (_: Throwable) {}
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 }

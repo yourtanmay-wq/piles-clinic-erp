@@ -237,20 +237,20 @@ class SettingsActivity : AppCompatActivity() {
                     this@SettingsActivity,
                     "Cloud data (JSON) saved:\n$jsonPath",
                     Toast.LENGTH_LONG
-                ).show()
+                ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
             } else {
                 Toast.makeText(
                     this@SettingsActivity,
                     "Cloud backup could not be completed — nothing was overwritten.",
                     Toast.LENGTH_LONG
-                ).show()
+                ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
             }
             if (csvDir != null) {
                 Toast.makeText(
                     this@SettingsActivity,
                     "Excel-ready CSV backup saved:\n$csvDir",
                     Toast.LENGTH_LONG
-                ).show()
+                ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
             }
         }
     }

@@ -1220,6 +1220,7 @@ object PatientMessage {
                 android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
             )
             dlg.show()
+            try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dlg) } catch (_: Throwable) { }   // 🤫 V774
             // 🔒 খাতার সারি B158: বাংলা বন্ধ থাকা স্টাফের জন্য এই পপ-আপের
             // **দেখানো লেখাটা** বাংলা-মুক্ত হয়। ⛔ রোগীর কাছে যাওয়া আসল
             // বার্তা (`text` / `waText`) এতে **এক অক্ষরও বদলায় না** — ওটা
@@ -1402,6 +1403,7 @@ object PatientMessage {
             android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
         )
         dlg.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dlg) } catch (_: Throwable) { }   // 🤫 V774
         try { NoBengali.installDialog(dlg) } catch (_: Throwable) { }
     }
 

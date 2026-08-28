@@ -436,7 +436,7 @@ class DraftListActivity : AppCompatActivity() {
                     this@DraftListActivity,
                     "$done record(s) $completedAction." + (if (failed > 0) " · $failed record(s) failed — please try again." else ""),
                     Toast.LENGTH_LONG
-                ).show()
+                ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
             }
         }
     }
@@ -568,7 +568,7 @@ class DraftListActivity : AppCompatActivity() {
                         Toast.makeText(
                             this@DraftListActivity, NoBengali.s(if (ok) "Master-কে অনুরোধ পাঠানো হয়েছে" else "পাঠানো গেল না — নেট চেক করুন"),
                             Toast.LENGTH_LONG
-                        ).show()
+                        ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                     }
                 }
                 .setNegativeButton("Cancel", null)
@@ -679,7 +679,7 @@ class DraftListActivity : AppCompatActivity() {
                                         Toast.makeText(
                                             this@DraftListActivity, NoBengali.s(if (ok) "Master-কে অনুরোধ পাঠানো হয়েছে" else "পাঠানো গেল না — নেট চেক করুন"),
                                             Toast.LENGTH_LONG
-                                        ).show()
+                                        ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                                     }
                                 }
                                 .setNegativeButton("Cancel", null)

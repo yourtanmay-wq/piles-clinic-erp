@@ -672,6 +672,7 @@ class PaymentActivity : AppCompatActivity() {
             dlg.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
             close.setOnClickListener { dlg.dismiss() }
             dlg.show()
+            try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dlg) } catch (_: Throwable) { }   // 🤫 V774
         }
     }
 
@@ -1097,7 +1098,7 @@ class PaymentActivity : AppCompatActivity() {
                                 Toast.makeText(
                                     this@PaymentActivity, NoBengali.s(if (sent) "Request sent to Master" else "Failed — check the network"),
                                     Toast.LENGTH_LONG
-                                ).show()
+                                ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                             }
                         }
                         .setNegativeButton("Close", null)
@@ -1161,7 +1162,7 @@ class PaymentActivity : AppCompatActivity() {
                             this@PaymentActivity,
                             if (ok) "Payment deleted — Master informed" else "Could not delete — check connection and try again",
                             Toast.LENGTH_LONG
-                        ).show()
+                        ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                         confirmDialog.dismiss()
                         if (ok) { if (!directFormOnly) loadSummary(); dialog.dismiss() }
                     }
@@ -1210,6 +1211,7 @@ class PaymentActivity : AppCompatActivity() {
                 }
         }
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
         }
         if (!canEdit) {
             lifecycleScope.launch {
@@ -1369,6 +1371,7 @@ class PaymentActivity : AppCompatActivity() {
 
         dialog.setButton(AlertDialog.BUTTON_POSITIVE, "Search") { _, _ -> runSearch() }
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     /**
@@ -1400,7 +1403,7 @@ class PaymentActivity : AppCompatActivity() {
             .setItems(labels) { _, which -> finishWith(people.getOrNull(which)) }
             .setNegativeButton("Cancel") { _, _ -> finishWith(null) }
             .setOnCancelListener { finishWith(null) }
-            .show()
+            .show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
     }
 
     /**
@@ -2404,5 +2407,6 @@ $dueRow
             }
         }
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 }

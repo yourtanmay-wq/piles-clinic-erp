@@ -269,7 +269,7 @@ object MedicinePickerDialog {
                     AlertDialog.Builder(activity).setTitle("Choose More Information")
                         .setMultiChoiceItems(labels, checks) { _, i, checked -> if (checked) chosen.add(keys[i]) else chosen.remove(keys[i]) }
                         .setPositiveButton("Apply") { _, _ -> PrescriptionOptionsStore.saveSelectedFields(activity, chosen) }
-                        .setNegativeButton("Cancel", null).show()
+                        .setNegativeButton("Cancel", null).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                 }
             })
             card.addView(TextView(activity).apply {
@@ -814,6 +814,7 @@ object MedicinePickerDialog {
 
         rebuild()
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
         // Same screen/design: if a newer permanent default exists (for example
         // after reinstall or a change on another phone), quietly repaint only
         // the existing rows when the small cloud refresh completes.

@@ -878,7 +878,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
                     this,
                     if (ok) NoBengali.s("মনে করানোর নোট সেভ হয়েছে") else NoBengali.s("সেভ হয়নি — নিচের SAVE চাপুন"),
                     Toast.LENGTH_SHORT
-                ).show()
+                ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
             }
         }.start()
     }
@@ -1233,7 +1233,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 }
                 Toast.makeText(this, "Photo added", Toast.LENGTH_SHORT).show()
             }
-            .show()
+            .show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
     }
 
     /** কে যোগ করলেন — শুধু হিসাব রাখার জন্য, কোনো নিয়মে লাগে না।
@@ -2273,7 +2273,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
                     .setNegativeButton("No", null)
                     .setPositiveButton("Yes") { _, _ -> view.clearMarks() }
                     // 🔴🔒 V610 (২৪.০৮.২০২৬) — V512-এর একই প্রমাণিত পথ।
-                    .show().also { com.tkbiswas.pilesclinic.native.NoBengali.installDialog(it) }
+                    .show().also { com.tkbiswas.pilesclinic.native.NoBengali.installDialog(it); com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) }   // 🤫 V774
             }
         }
         if (!full) {
@@ -2418,7 +2418,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 buildAnatomyStrip(strip, view)
                 Toast.makeText(this, NoBengali.s("তালিকা থেকে সরানো হলো"), Toast.LENGTH_SHORT).show()
             }
-            .show()
+            .show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
     }
 
     /**
@@ -2450,7 +2450,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 doRestorePicture(dropped[which], strip, view)
             }
             .setNegativeButton("← Back", null)
-            .show()
+            .show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
     }
 
     private fun doRestorePicture(row: AnatomyModel.PicRow,
@@ -2763,6 +2763,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         }
         dialog.setContentView(root)
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
 
@@ -2806,7 +2807,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
             .setCancelable(true)
             // 🔴🔒 V610 (২৪.০৮.২০২৬) — V512-এর একই প্রমাণিত পথ; এই dialog-এ
             // .setItems()-এর তালিকাও (নাম ছাড়াই/১টা/২টা…) বাংলা ছিল, একবারেই ঢেকে যায়।
-            .show().also { com.tkbiswas.pilesclinic.native.NoBengali.installDialog(it) }
+            .show().also { com.tkbiswas.pilesclinic.native.NoBengali.installDialog(it); com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) }   // 🤫 V774
     }
 
     /** শেষবার যা জমা ছিল — পর্দা তৈরি না থাকলে এটাই ফেরত যায়, নইলে
@@ -3644,7 +3645,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
                     "WhatsApp-এ পাঠানো যাবে।"
                 )
                 .setPositiveButton("OK", null)
-                .show()
+                .show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
             return
         }
         showCheckupHistoryDialog(rec)
@@ -3744,6 +3745,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
             }
         }
         dlg.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dlg) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     /** View — পুরো পর্দা জুড়ে A4 রিপোর্ট, উপরে Back। */
@@ -3773,6 +3775,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
             dlg.setContentView(box)
             bar.setOnClickListener { try { dlg.dismiss() } catch (_: Throwable) { } }
             dlg.show()
+            try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dlg) } catch (_: Throwable) { }   // 🤫 V774
         } catch (e: Throwable) {
             Toast.makeText(this, "View not available: ${e.message}", Toast.LENGTH_LONG).show()
         }

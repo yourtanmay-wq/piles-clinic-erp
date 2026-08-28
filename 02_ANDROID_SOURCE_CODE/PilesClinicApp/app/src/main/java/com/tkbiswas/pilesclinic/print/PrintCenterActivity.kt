@@ -350,6 +350,7 @@ class PrintCenterActivity : AppCompatActivity() {
             }
         }
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     /** TK APPROVED (2026-07-15): patient snapshot collected on every Direct /
@@ -626,6 +627,7 @@ class PrintCenterActivity : AppCompatActivity() {
             primary.setOnClickListener { if (onPrimary()) dialog.dismiss() }
         }
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     /** No patient found (or nothing saved yet) for this mobile -- instead of a
@@ -736,6 +738,7 @@ class PrintCenterActivity : AppCompatActivity() {
             }
         }
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     /**
@@ -1168,7 +1171,7 @@ class PrintCenterActivity : AppCompatActivity() {
                     this@PrintCenterActivity,
                     "No patient found for this mobile. Check the number or connection.",
                     Toast.LENGTH_LONG
-                ).show()
+                ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                 return@launch
             }
             // 🔒 B601 (TK-নির্দেশ, প্রুফ-হুবহু, 10.08.2026): নেটিভ structured প্রিন্টের বদলে
@@ -1293,7 +1296,7 @@ class PrintCenterActivity : AppCompatActivity() {
                     this@PrintCenterActivity,
                     "No payment found for this mobile. Check the number or connection.",
                     Toast.LENGTH_LONG
-                ).show()
+                ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                 return@launch
             }
             PrintDataHolder.pendingModel = PrintMappersCloud.paymentReceipt(payment)
@@ -1327,7 +1330,7 @@ class PrintCenterActivity : AppCompatActivity() {
                             this@PrintCenterActivity,
                             "No patient found for this mobile. Check the number or connection.",
                             Toast.LENGTH_LONG
-                        ).show()
+                        ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                         return@launch
                     }
                     PrintDataHolder.pendingModel = PrintMappersCloud.doctorVisitPrint(patient)
@@ -1753,7 +1756,7 @@ class PrintCenterActivity : AppCompatActivity() {
             .setItems(labels) { _, which -> finishWith(people.getOrNull(which)) }
             .setNegativeButton("Cancel") { _, _ -> finishWith(null) }
             .setOnCancelListener { finishWith(null) }
-            .show()
+            .show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
     }
 
     private fun myBranchOnly(rows: org.json.JSONArray): org.json.JSONArray {

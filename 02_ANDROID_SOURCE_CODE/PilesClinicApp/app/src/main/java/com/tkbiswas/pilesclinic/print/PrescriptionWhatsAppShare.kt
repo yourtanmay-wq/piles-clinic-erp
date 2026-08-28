@@ -389,7 +389,7 @@ object PrescriptionWhatsAppShare {
                     }
                 }
                 .setNegativeButton("Cancel", null)
-                .show()
+                .show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
         } catch (e: Throwable) {
             fail(activity, "Could not show the WhatsApp choice: ${e.message}")
         }

@@ -228,7 +228,7 @@ class TrashBinActivity : AppCompatActivity() {
                         this@TrashBinActivity,
                         "Offline - showing this phone's saved copy",
                         android.widget.Toast.LENGTH_SHORT
-                    ).show()
+                    ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                 } else {
                     // ⚠️ সৎ বার্তা: "Trash empty" নয় — কারণ আমরা জানিই না
                     //    ভিতরে কী আছে। ভুল করে "সব মুছে গেছে" মনে হওয়ার
@@ -445,7 +445,7 @@ class TrashBinActivity : AppCompatActivity() {
                 this@TrashBinActivity,
                 if (fail == 0) "$word $ok" else "$word $ok · $fail failed — check connection",
                 Toast.LENGTH_LONG
-            ).show()
+            ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
             loadList()
         }
     }
@@ -485,7 +485,7 @@ class TrashBinActivity : AppCompatActivity() {
                         this@TrashBinActivity,
                         if (ok) "Deleted forever" else "Failed — check connection",
                         Toast.LENGTH_SHORT
-                    ).show()
+                    ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                     if (ok) loadList()
                 }
             }

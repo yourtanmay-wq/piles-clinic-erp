@@ -2,6 +2,7 @@ package com.tkbiswas.pilesclinic.native
 
 import android.app.Activity
 import android.app.Application
+import android.content.Context
 import android.os.Build
 import android.os.Bundle
 import android.view.View
@@ -99,8 +100,56 @@ object NoAutofill {
                 root.importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
             }
             scrub(root)
+            keepScrubbing(activity.window?.decorView)   // 🔴 V774 — আসল ফাঁকটা এখানেই
             watchFocus(activity)
             netForEveryWindow(activity)
+        } catch (_: Throwable) {}
+    }
+
+    /** কোন উইন্ডোতে পাহারাদার বসানো হয়ে গেছে — দুবার বসানো ঠেকাতে। */
+    private val sweeping = java.util.WeakHashMap<View, Boolean>()
+
+    /**
+     * 🔴🔴🔒 V774 (২৮.০৮.২০২৬) — **এতদিনের আসল ফাঁক, এবার প্রমাণসহ ধরা।**
+     *
+     * TK: *"যেকোনো পর্দাতে মোবাইল নাম্বার সাজেস্ট… এই সমস্যা নিয়ে আমি বেশ
+     * কয়েকবার আপনাকে কমপ্লেন করেছি।"* — TK ঠিক বলেছেন, এতদিন সারেনি।
+     *
+     * ═══════════════════════════════════════════════════════════════════
+     * **কেন সারেনি — কোড ধরে যাচাই (আন্দাজ নয়)**
+     *
+     * ১) **এটা Autofill নয়** — প্রমাণ: `activity_registration.xml`-এর
+     *    মোবাইলের ঘরে XML-এই `importantForAutofill="no"` লেখা আছে, আর
+     *    পর্দার decorView-তেও পাহারা বসে। তবু TK-এর ফোনে **ওই ঘরেও**
+     *    সাজেশন আসে। ⇒ সাজেশনটা **কীবোর্ডের নিজের** পট্টি।
+     *
+     * ২) কীবোর্ডকে থামানোর একমাত্র পতাকা `IME_FLAG_NO_PERSONALIZED_LEARNING`
+     *    — আর এটা **প্রতিটা ঘরে আলাদা করে** বসাতে হয়; উপরের বাক্সে বসালে
+     *    ভিতরের ঘরে নামে না (`importantForAutofill`-এর মতো উত্তরাধিকার নেই)।
+     *
+     * ৩) 🔴 **`scrub()` চলত শুধু পর্দা খোলার সময়** (onStart/onResume) —
+     *    অর্থাৎ **ওই মুহূর্তে যে ঘরগুলো ছিল** কেবল সেগুলোতেই পতাকা বসত।
+     *    কিন্তু এই অ্যাপের প্রায় **সব ঘরই পরে তৈরি হয়** — তথ্য আসার পরে,
+     *    বোতাম চাপার পরে, তালিকা আঁকার পরে। ⇒ সেই ঘরগুলোতে পতাকা
+     *    **কখনোই** বসত না। এই কারণেই "যেকোনো পর্দাতে, যেকোনো ঘরে"।
+     * ═══════════════════════════════════════════════════════════════════
+     *
+     * **সমাধান:** `NoBengali`-র বহুদিনের প্রমাণিত পথ — **প্রতিটা layout-এর
+     * পরে** আবার মিলিয়ে দেখা। ফলে পরে বসানো ঘরও, চোখে পড়ার আগেই, পতাকা
+     * পেয়ে যায়। ⇒ কোনো ঝিলিক নেই, ব্যবহারকারী কিছুই টের পান না।
+     *
+     * ⛔ ইতিমধ্যে পতাকা-পাওয়া ঘর আবার ছোঁয়া হয় না (`hardened` চিহ্ন), তাই
+     *    বারবার কাজ হয় না — খরচ নগণ্য।
+     * ⛔ টাইপ করা · সেভ · কীবোর্ডের ভাষা · `inputType` — কিছুই বদলায় না।
+     * ⛔ প্রতি উইন্ডোতে একবারই বসে (WeakHashMap), পুরোটা try/catch-এ।
+     */
+    private fun keepScrubbing(decor: View?) {
+        val d = decor ?: return
+        if (sweeping.containsKey(d)) { scrub(d); return }
+        try {
+            sweeping[d] = true
+            d.viewTreeObserver.addOnGlobalLayoutListener { try { scrub(d) } catch (_: Throwable) {} }
+            scrub(d)
         } catch (_: Throwable) {}
     }
 
@@ -220,11 +269,9 @@ object NoAutofill {
      */
     private fun scrub(v: View) {
         if (v is android.widget.EditText) {
-            try {
-                v.imeOptions = v.imeOptions or IME_FLAG_NO_PERSONALIZED_LEARNING
-                v.importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
-                v.setAutofillHints(null as String?)
-            } catch (_: Throwable) {}
+            // 🔴 V774 — এখন এক জায়গা দিয়েই যায় (`harden`), তাই পর্দা ও পপ-আপে
+            //    নিয়ম হুবহু এক থাকে, আর যা আগেই হয়ে গেছে তা আবার ছোঁয়া হয় না।
+            harden(v)
             return
         }
         if (v is android.view.ViewGroup) {
@@ -245,8 +292,25 @@ object NoAutofill {
      */
     fun harden(et: android.widget.EditText) {
         try {
-            et.imeOptions = et.imeOptions or IME_FLAG_NO_PERSONALIZED_LEARNING
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // ⛔ V774 — যে ঘরে পতাকা **আগেই** বসে গেছে সেটা আর ছোঁয়া হয় না।
+            //    layout-এর পরে বারবার ডাকা হয় বলে এই ছাঁকনিটা জরুরি — নইলে
+            //    অকারণে কাজ হত, আর টাইপ করার সময় কীবোর্ড রিফ্রেশ হতে পারত।
+            if ((et.imeOptions and IME_FLAG_NO_PERSONALIZED_LEARNING) == 0) {
+                et.imeOptions = et.imeOptions or IME_FLAG_NO_PERSONALIZED_LEARNING
+                /* ⌨️ V774 — ঘরটা যদি **এই মুহূর্তে খোলা** থাকে, কীবোর্ড পুরনো
+                   নিয়ম ধরে বসে আছে; তাই একবার নতুন করে জানানো হয়। এটা ঘরে
+                   একবারই ঘটে (উপরের ছাঁকনির জন্য), তাই বাংলা/হিন্দি টাইপ করার
+                   মাঝপথে বারবার ব্যাঘাত ঘটার ভয় নেই। */
+                if (et.hasFocus()) {
+                    try {
+                        val imm = et.context?.getSystemService(Context.INPUT_METHOD_SERVICE)
+                            as? android.view.inputmethod.InputMethodManager
+                        imm?.restartInput(et)
+                    } catch (_: Throwable) {}
+                }
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                et.importantForAutofill != View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS) {
                 et.importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
                 et.setAutofillHints(null as String?)
             }
@@ -263,12 +327,30 @@ object NoAutofill {
      * থেকে একবার এটা ডাকলেই সবক'টা ঢেকে যায়।
      * ⛔ কখনো ব্যতিক্রম ছোড়ে না — পপ-আপ ভাঙার ঝুঁকি নেই।
      */
+    /**
+     * 🪟🔒 V774 — **যেকোনো পপ-আপ** (Dialog / AlertDialog / BottomSheet) সরাসরি
+     * দেওয়া যায়; ভিতরের উইন্ডোটা এখান থেকেই বার করে নেওয়া হয়।
+     *
+     * ⛔ ইচ্ছে করেই `Any?` — প্রজেক্টে পপ-আপের ক্লাস তিন রকম (androidx
+     *    `AlertDialog` · framework `android.app.AlertDialog` · `Dialog`)।
+     *    একটাই ডাক সবগুলোতে চলে, আর ভুল কিছু দিলে চুপচাপ কিছুই হয় না।
+     * ⛔ পপ-আপ **দেখানোর পরে** ডাকতে হয় (তখনই উইন্ডো তৈরি হয়)।
+     */
+    fun scrubAnyDialog(d: Any?) {
+        try {
+            val w = (d as? android.app.Dialog)?.window ?: return
+            scrubDialogWindow(w)
+        } catch (_: Throwable) {}
+    }
+
     fun scrubDialogWindow(window: android.view.Window?) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         try {
             val root = window?.decorView ?: return
             root.importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
-            scrub(root)
+            // 🔴 V774 — পপ-আপেও **প্রতিটা layout-এর পরে** মিলিয়ে দেখা হয়:
+            //    পপ-আপের ভিতরেও ঘর পরে যোগ হয় (তালিকা · সারি · ওষুধের ঘর)।
+            keepScrubbing(root)
         } catch (_: Throwable) {}
     }
 }

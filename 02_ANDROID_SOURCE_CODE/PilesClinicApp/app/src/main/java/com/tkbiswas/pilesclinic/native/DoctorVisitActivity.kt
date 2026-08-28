@@ -108,7 +108,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                 .setItems(labels) { _, which -> finishWith(people.getOrNull(which)) }
                 .setNegativeButton("Cancel") { _, _ -> finishWith(null) }
                 .setOnCancelListener { finishWith(null) }
-                .show()
+                .show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
         }
     private lateinit var repository: DoctorVisitRepository
     private lateinit var adapter: DoctorVisitAdapter
@@ -752,6 +752,7 @@ class DoctorVisitActivity : AppCompatActivity() {
         })
         UppercaseInputUtil.applyToAll(root)
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     // 🔒 TK-ORDER (30.07.2026 রাত, খাতার সারি B205 — TK: "স্টাফ তো ভুল করে
@@ -895,6 +896,7 @@ class DoctorVisitActivity : AppCompatActivity() {
             }
         })
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     // TK-REQUESTED CHANGE (2026-07-23): Doctor/RMP delete now needs Admin
@@ -1523,6 +1525,7 @@ class DoctorVisitActivity : AppCompatActivity() {
             setOnClickListener { parts.dialog.dismiss() }
         })
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     /** TK APPROVED (2026-07-16): premium dialog shell (navy header + rounded
@@ -1859,6 +1862,7 @@ class DoctorVisitActivity : AppCompatActivity() {
         }
         parts.actionRow.addView(saveDoctorBtn)
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     private fun showLogCallDialog(item: DoctorVisitItem) {
@@ -2064,6 +2068,7 @@ class DoctorVisitActivity : AppCompatActivity() {
         }
         parts.actionRow.addView(saveCallBtn)
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     /**
@@ -2562,6 +2567,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                         setOnClickListener { parts.dialog.dismiss() }
                     })
                     parts.dialog.show()
+                    try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
                 }
 
                 /** বার্তা ৩-এর তিনটে ঘর স্টাফ নিজে বেছে দেন — অ্যাপ আন্দাজে
@@ -2620,6 +2626,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                         }
                     })
                     parts.dialog.show()
+                    try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
                 }
 
                 /** 🔗 পুরনো (মোবাইলহীন) রেফারেল ইনকামের সারিটা আসল রোগীর সঙ্গে
@@ -2710,6 +2717,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                         }
                     })
                     parts.dialog.show()
+                    try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
                 }
 
                 /** 👥 TK-ORDER (30.07.2026 সকাল ৮.৪৫ · খাতার সারি B156):
@@ -2955,6 +2963,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                     listDialog = AlertDialog.Builder(this@DoctorVisitActivity).setView(listRoot).create()
                     listDialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
                     listDialog.show()
+                    try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(listDialog) } catch (_: Throwable) { }   // 🤫 V774
                     forceDialogFullScreen(listDialog, listRoot)
                 }
 
@@ -3371,6 +3380,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                 fsDialog = AlertDialog.Builder(this@DoctorVisitActivity).setView(root).create()
                 fsDialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
                 fsDialog.show()
+                try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(fsDialog) } catch (_: Throwable) { }   // 🤫 V774
                 // 🔒 TK-ORDER (30.07.2026 · খাতার সারি B156, **দ্বিতীয়বার বলতে
                 // হয়েছে**): শুধু window MATCH_PARENT করলে হয় না — AlertDialog-এর
                 // নিজের কনটেইনারগুলো WRAP_CONTENT, তাই পর্দা অর্ধেক আসত।
@@ -3727,6 +3737,7 @@ class DoctorVisitActivity : AppCompatActivity() {
             .sortedByDescending { it.second.second }
         render(rows)
         fsDialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(fsDialog) } catch (_: Throwable) { }   // 🤫 V774
         forceDialogFullScreen(fsDialog, root)
 
         // ধাপ ২ — শুধু এই তালিকার (সর্বোচ্চ ২৫) RMP-র সংখ্যা ক্লাউডে মিলিয়ে
@@ -4011,6 +4022,7 @@ class DoctorVisitActivity : AppCompatActivity() {
         }
 
         fsDialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(fsDialog) } catch (_: Throwable) { }   // 🤫 V774
         forceDialogFullScreen(fsDialog, root)
         loadAndRender()
     }
@@ -4142,7 +4154,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                         submitReferralChange(item, entryId, patient, patientMobile, entryDate, curAmount, curStatus, curAmount, curStatus, isDelete = true, isMaster = isMaster, sameDay = sameDay, u = u)
                     }
                     .setNegativeButton("Cancel", null)
-                    .show()
+                    .show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
             }
         })
         parts.actionRow.addView(pillButton("Cancel", "#E5E8EC", android.graphics.Color.parseColor("#145A32")).apply {
@@ -4160,6 +4172,7 @@ class DoctorVisitActivity : AppCompatActivity() {
         // V377: this was the missing final step. The dialog shell and all
         // Edit/Delete controls were built correctly but never displayed.
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     /** 🟢 B628: এডিট/ডিলিট প্রয়োগ — মাস্টার/একই-দিন সরাসরি; নইলে মাস্টারকে অনুরোধ। */
@@ -4566,6 +4579,7 @@ class DoctorVisitActivity : AppCompatActivity() {
             }
         })
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     private fun showRmpApprovalRequests(returnItem: DoctorVisitItem) {
@@ -4738,6 +4752,7 @@ class DoctorVisitActivity : AppCompatActivity() {
             }
         })
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     private fun showPatientCommission(item: DoctorVisitItem) {
@@ -4851,6 +4866,7 @@ class DoctorVisitActivity : AppCompatActivity() {
             }
         })
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     private fun showCommissionPayment(patient: PatientPhotoRepository.PatientRef, expectedRmpId: String) {
@@ -4972,6 +4988,7 @@ class DoctorVisitActivity : AppCompatActivity() {
             }
         })
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     private fun showCommissionPaymentHistory(patient: PatientPhotoRepository.PatientRef) {
@@ -5084,6 +5101,7 @@ class DoctorVisitActivity : AppCompatActivity() {
             }
         })
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     /** WebView parity (saveReferralIncome): records a referral commission entry
@@ -5227,6 +5245,7 @@ class DoctorVisitActivity : AppCompatActivity() {
             }
         })
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     private data class Quad(val a: String, val b: Double, val c: Double, val d: Int)

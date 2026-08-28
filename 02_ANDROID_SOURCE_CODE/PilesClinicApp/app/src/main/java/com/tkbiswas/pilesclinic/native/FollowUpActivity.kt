@@ -2485,7 +2485,7 @@ class FollowUpActivity : AppCompatActivity() {
                         this@FollowUpActivity,
                         if (ok) "Address tag saved" else "Saved on this phone — will sync when network is back",
                         android.widget.Toast.LENGTH_SHORT
-                    ).show()
+                    ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                     // ⛔ ব্যর্থ হলেও পর্দায় সঙ্গে সঙ্গে দেখানো হয় (TK-এর লক করা
                     // নিয়ম — "আমার ফোনে যা করলাম তা সাথে সাথে দেখাবে")। ব্যর্থ
                     // লেখাটা `SupabaseClient.upsert()`-এর নিজের নিয়মেই
@@ -2697,6 +2697,7 @@ class FollowUpActivity : AppCompatActivity() {
         d.window?.setLayout((resources.displayMetrics.widthPixels * 0.9f).toInt(), android.view.ViewGroup.LayoutParams.WRAP_CONTENT)
         try { NoBengali.installDialog(d) } catch (_: Throwable) {}
         d.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(d) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     private fun pickNextFollow(item: FollowUpItem) {
@@ -3031,6 +3032,7 @@ class FollowUpActivity : AppCompatActivity() {
                 }
             }
             dialog.show()
+            try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
 
             // রোগীর আসল সারি পিছনে আনা হয়; এলে নাম/ব্রাঞ্চ/বিল ঠিক হয়ে যায় ও
             // Save কাজ করতে শুরু করে। স্টাফ ততক্ষণ টাকার ঘরে টাইপ করতে পারেন।
@@ -3249,7 +3251,7 @@ class FollowUpActivity : AppCompatActivity() {
                         this@FollowUpActivity,
                         "This patient's Bill has not been created yet — please create the Bill first",
                         Toast.LENGTH_LONG
-                    ).show()
+                    ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                     etTotal.requestFocus()
                 }
                 else if (!MoneyBranchGuard.canTakeMoney(this@FollowUpActivity, patientNow.branch, patientNow.patientId)) {
@@ -3300,6 +3302,7 @@ class FollowUpActivity : AppCompatActivity() {
                 }
             }
             dialog.show()
+            try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
 
             // আসল সারি পিছনে আনা হয়; এলে নাম · Patient ID · বিল · জমা · বকেয়া ·
             // "কততম পেমেন্ট" সব ঠিক হয়ে যায় এবং Save কাজ করতে শুরু করে।
@@ -3511,6 +3514,7 @@ class FollowUpActivity : AppCompatActivity() {
             dlg.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
             close.setOnClickListener { dlg.dismiss() }
             dlg.show()
+            try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dlg) } catch (_: Throwable) { }   // 🤫 V774
         }
     }
 
@@ -3600,7 +3604,7 @@ class FollowUpActivity : AppCompatActivity() {
                         this@FollowUpActivity,
                         if (ok) "Payment updated" else "Failed — check connection",
                         Toast.LENGTH_SHORT
-                    ).show()
+                    ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                     if (ok) onSuccess()
                 }
             }
@@ -3809,7 +3813,7 @@ class FollowUpActivity : AppCompatActivity() {
                         this@FollowUpActivity,
                         if (ok) "Record updated" else "Failed — check connection",
                         android.widget.Toast.LENGTH_SHORT
-                    ).show()
+                    ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                     if (ok) loadTab(currentStage)
                 }
             }
@@ -3821,6 +3825,7 @@ class FollowUpActivity : AppCompatActivity() {
             dialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.setTextColor(green)
         }
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     private fun saveRecordEdit(
@@ -4164,6 +4169,7 @@ class FollowUpActivity : AppCompatActivity() {
             picker.getButton(AlertDialog.BUTTON_NEGATIVE)?.visibility = View.GONE
         }
         picker.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(picker) } catch (_: Throwable) { }   // 🤫 V774
         ---- end old mandatory body ---- */
     }
 
@@ -4481,7 +4487,7 @@ class FollowUpActivity : AppCompatActivity() {
                         this@FollowUpActivity,
                         if (ok) (if (which == 0) "Continued" else "Entry cancelled") else "Failed — check connection",
                         Toast.LENGTH_SHORT
-                    ).show()
+                    ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                     if (ok) loadTab(currentStage)
                 }
             }
@@ -4697,6 +4703,7 @@ class FollowUpActivity : AppCompatActivity() {
         body.addView(close)
 
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     private fun showNextFollowPicker(item: FollowUpItem) {

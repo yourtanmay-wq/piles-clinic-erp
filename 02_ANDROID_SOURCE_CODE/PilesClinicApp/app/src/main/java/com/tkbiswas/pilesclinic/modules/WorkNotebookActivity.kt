@@ -412,7 +412,7 @@ class WorkNotebookActivity : AppCompatActivity() {
                 this,
                 NoBengali.s(com.tkbiswas.pilesclinic.native.RoleRules.DOCTOR_NO_ATTENDANCE_MSG),
                 android.widget.Toast.LENGTH_LONG
-            ).show()
+            ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
             finish()
             return
         }
@@ -1122,6 +1122,7 @@ class WorkNotebookActivity : AppCompatActivity() {
                     .setPositiveButton("Close", null)
                     .create()
                 dlg.show()
+                try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dlg) } catch (_: Throwable) { }   // 🤫 V774
                 try {
                     NoBengali.installDialog(dlg)
                     com.tkbiswas.pilesclinic.native.PremiumAlert.paint(dlg)
@@ -1140,6 +1141,7 @@ class WorkNotebookActivity : AppCompatActivity() {
             .setNegativeButton("Keep it", null)
             .create()
         dlg.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dlg) } catch (_: Throwable) { }   // 🤫 V774
         try {
             NoBengali.installDialog(dlg)
             com.tkbiswas.pilesclinic.native.PremiumAlert.paint(dlg)
@@ -1737,7 +1739,7 @@ class WorkNotebookActivity : AppCompatActivity() {
                         this,
                         NoBengali.s("⚠️ এখনই ক্লাউডে সেভ হয়নি (ফোনে জমা আছে, নেট এলে নিজে বসে যাবে)। এখনই ইন্টারনেট/ওয়াইফাই চেক করে আবার বোতাম চাপুন।"),
                         android.widget.Toast.LENGTH_LONG
-                    ).show()
+                    ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                 }
             }
         }.start()

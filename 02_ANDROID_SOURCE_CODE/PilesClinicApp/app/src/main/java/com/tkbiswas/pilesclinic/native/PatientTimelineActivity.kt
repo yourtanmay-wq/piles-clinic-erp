@@ -1198,6 +1198,7 @@ class PatientTimelineActivity : AppCompatActivity() {
             }
         }
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
         // 🔒 খাতার সারি B181 (TK, 30.07.2026): "Take Action" মেনুর নিজের
         // পাহারা ছিল না।
         PremiumAlert.paint(dialog)
@@ -1391,6 +1392,7 @@ class PatientTimelineActivity : AppCompatActivity() {
             setOnClickListener { dialog.dismiss() }
         })
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
         // Same rounded white popup shell every other dialog in this app uses.
         // paint() is fully guarded internally and simply does nothing about
         // the standard buttons this dialog deliberately does not have.
@@ -1851,6 +1853,7 @@ class PatientTimelineActivity : AppCompatActivity() {
             }
         }
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
         // 🔒 খাতার সারি B181 (TK, 30.07.2026): "Add Referral Income" পপ-আপের
         // নিজের পাহারা ছিল না।
         PremiumAlert.paint(dialog)
@@ -2053,7 +2056,7 @@ class PatientTimelineActivity : AppCompatActivity() {
                 this@PatientTimelineActivity,
                 if (ok) "Remark saved" else "Failed — check connection",
                 android.widget.Toast.LENGTH_SHORT
-            ).show()
+            ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
             if (ok) load(currentMobile, currentSection)
         }
     }
@@ -2073,7 +2076,7 @@ class PatientTimelineActivity : AppCompatActivity() {
                 this@PatientTimelineActivity,
                 if (ok) "Remark updated" else "Failed — retry",
                 android.widget.Toast.LENGTH_SHORT
-            ).show()
+            ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
             if (ok) load(currentMobile, currentSection)
         }
     }
@@ -2273,7 +2276,7 @@ class PatientTimelineActivity : AppCompatActivity() {
                             this@PatientTimelineActivity,
                             NoBengali.s(if (marked) "✅ Fees ফেরত হলো — Return Visit-এ সরানো হলো" else "Fees ফেরত হয়েছে, কিন্তু Return Visit-ট্যাগ ব্যর্থ — Draft-এ হাতে ঠিক করুন"),
                             android.widget.Toast.LENGTH_LONG
-                        ).show()
+                        ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                         load(currentMobile, currentSection)
                     }
                 }
@@ -2461,7 +2464,7 @@ class PatientTimelineActivity : AppCompatActivity() {
                                 this@PatientTimelineActivity,
                                 if (sent) "Master notified" else "Could not send — check connection",
                                 android.widget.Toast.LENGTH_LONG
-                            ).show()
+                            ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                         }
                     }
                     .setNegativeButton("Cancel", null)
@@ -2624,7 +2627,7 @@ class PatientTimelineActivity : AppCompatActivity() {
                     android.widget.Toast.makeText(
                         this@PatientTimelineActivity, NoBengali.s(if (ok) "Master-কে অনুরোধ পাঠানো হয়েছে" else "পাঠানো গেল না — নেট চেক করুন"),
                         android.widget.Toast.LENGTH_LONG
-                    ).show()
+                    ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                 }
             }
             .setNegativeButton("Cancel", null)
@@ -2741,7 +2744,7 @@ class PatientTimelineActivity : AppCompatActivity() {
                     android.widget.Toast.makeText(
                         this@PatientTimelineActivity, NoBengali.s(if (ok) "Request sent to Master" else "Failed — check network"),
                         android.widget.Toast.LENGTH_SHORT
-                    ).show()
+                    ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                     if (ok) load(currentMobile, currentSection)
                 }
             }
@@ -2768,7 +2771,7 @@ class PatientTimelineActivity : AppCompatActivity() {
                     android.widget.Toast.makeText(
                         this@PatientTimelineActivity, NoBengali.s(if (ok) "Approved — moved to Complete Patient" else "Failed — check network"),
                         android.widget.Toast.LENGTH_SHORT
-                    ).show()
+                    ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                     if (ok) load(currentMobile, currentSection)
                 }
             }
@@ -2788,7 +2791,7 @@ class PatientTimelineActivity : AppCompatActivity() {
             android.widget.Toast.makeText(
                 this@PatientTimelineActivity, NoBengali.s(if (ok) "Request rejected" else "Failed — check network"),
                 android.widget.Toast.LENGTH_SHORT
-            ).show()
+            ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
             if (ok) load(currentMobile, currentSection)
         }
     }
@@ -3757,7 +3760,7 @@ class PatientTimelineActivity : AppCompatActivity() {
                 this,
                 "This day's payment combines ${entry.paymentEventCount} entries. Use the Payment screen for a split-safe correction.",
                 android.widget.Toast.LENGTH_LONG
-            ).show()
+            ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
             return
         }
         val user = NativeSession.current(this)
@@ -3823,7 +3826,7 @@ class PatientTimelineActivity : AppCompatActivity() {
                         this@PatientTimelineActivity,
                         if (ok) "Payment updated" else "Failed — check connection",
                         android.widget.Toast.LENGTH_SHORT
-                    ).show()
+                    ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                     if (ok) load(currentMobile, currentSection)
                 }
             }

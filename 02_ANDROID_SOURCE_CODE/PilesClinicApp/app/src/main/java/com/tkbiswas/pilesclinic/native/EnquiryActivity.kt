@@ -372,6 +372,7 @@ val disease = selectedDisease
         }
         view.findViewById<android.widget.TextView>(com.tkbiswas.pilesclinic.R.id.btnDupClose).setOnClickListener { dialog.dismiss() }
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
         // 🔒 খাতার সারি B181 (TK, 30.07.2026): এই পপ-আপে এখন সরাসরি বাংলা লেখা
         // পাওয়া যায়নি, তবু ধারাবাহিকতার জন্য পাহারা বসানো হলো (ভবিষ্যতে কেউ
         // বাংলা যোগ করলেও যেন আটকায়)।
@@ -674,7 +675,7 @@ val disease = selectedDisease
                     this@EnquiryActivity,
                     if (savedOnline) "Enquiry saved" else "Saved — will sync when online",
                     android.widget.Toast.LENGTH_LONG
-                ).show()
+                ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                 // 🔒 ENQUIRY_WHATSAPP_MESSAGE_FINAL_LOCK_2026-07-31_0950_IST —
                 // পুরনো তিন-ভাষা-একসাথে ENQUIRY বার্তার বদলে এখন আগে ভাষা
                 // বাছাই (বাংলা/হিন্দি/English), তারপর সেই ভাষার লকড টেমপ্লেট।

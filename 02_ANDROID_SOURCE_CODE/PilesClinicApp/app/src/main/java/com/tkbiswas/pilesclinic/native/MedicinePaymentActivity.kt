@@ -348,7 +348,7 @@ val mode = selectedMpMode
                 this@MedicinePaymentActivity,
                 if (ok) "Medicine payment saved" else "Saved failed — check connection",
                 Toast.LENGTH_SHORT
-            ).show()
+            ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
             if (ok) {
                 // Share/Print-এর জন্য ফর্ম খালি করার আগেই সেভ-হওয়া row হাতে
                 // ধরিয়ে দিই — তখন WhatsApp টেক্সট/প্রিন্ট রসিদ ওই row থেকেই বানে।

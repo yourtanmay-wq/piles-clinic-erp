@@ -870,6 +870,57 @@ def check_clip_sensitive():
                      + ", ".join(sorted(set(bad))))
 
 # ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯.৩০ — প্রতিটা পপ-আপেও কীবোর্ডের সাজেশন বন্ধ থাকতেই হবে
+#  ─────────────────────────────────────────────────────────────
+#  🔴 TK বহুবার বলেছেন: *"যেকোনো পর্দাতে মোবাইল নাম্বার সাজেস্ট"*।
+#
+#  **আসল কারণ (V774-এ প্রমাণসহ ধরা):** কীবোর্ড থামানোর পতাকা
+#  `IME_FLAG_NO_PERSONALIZED_LEARNING` **প্রতিটা ঘরে আলাদা করে** বসাতে হয়,
+#  উপরের বাক্সে বসালে ভিতরে নামে না। আর পপ-আপের **নিজের আলাদা উইন্ডো**,
+#  তাই পর্দার পাহারা ওখানে পৌঁছায় না।
+#
+#  ⇒ নিয়ম: যে পপ-আপ `PremiumAlert.paint()` দিয়ে যায় না, তাকে নিজে
+#    `NoAutofill.scrubAnyDialog(...)` ডাকতেই হবে — নইলে ওই পপ-আপের ঘরে
+#    আবার পুরনো নম্বর ভেসে উঠবে।
+# ═══════════════════════════════════════════════════════════════
+def check_dialog_suggestion_guard():
+    import re as _re
+    na = os.path.join(JAVA, "com", "tkbiswas", "pilesclinic", "native", "NoAutofill.kt")
+    if os.path.exists(na):
+        s_na = read(na)
+        # V774-এর তিনটে খুঁটি — একটাও সরলে সাজেশন ফিরে আসবে
+        if "fun scrubAnyDialog(" not in s_na:
+            fail("৯.৩০", "NoAutofill-এ `scrubAnyDialog()` নেই ⇒ পপ-আপে সাজেশন ফিরবে")
+        if "keepScrubbing(" not in s_na or "addOnGlobalLayoutListener" not in s_na:
+            fail("৯.৩০", "NoAutofill-এ layout-এর পরে বারবার মেলানো (`keepScrubbing`) নেই ⇒ "
+                         "পরে তৈরি হওয়া ঘরে পতাকা বসবে না — এটাই ছিল আসল ফাঁক (V774)")
+        if "restartInput" not in s_na:
+            fail("৯.৩০", "NoAutofill-এ `restartInput` নেই ⇒ খোলা ঘরে নতুন নিয়ম পৌঁছাবে না")
+    bad = []
+    for f in kt_files():
+        lines = read(f).split("\n")
+        for i, l in enumerate(lines):
+            st = l.strip()
+            if ".show()" not in l or st.startswith("//") or st.startswith("*"):
+                continue
+            if "Toast" in l or "Snackbar" in l:
+                continue
+            ctx = "\n".join(lines[i:i + 6])
+            if ("PremiumAlert.paint" in ctx or "scrubAnyDialog" in ctx
+                    or "scrubDialogWindow" in ctx):
+                continue
+            back = "\n".join(lines[max(0, i - 90):i + 1])
+            if not _re.search(r"AlertDialog\.Builder|BottomSheetDialog|= *Dialog\(|Dialog\(this", back):
+                continue
+            if _re.search(r"DatePickerDialog|TimePickerDialog", back):
+                continue
+            bad.append(os.path.basename(f) + ":" + str(i + 1))
+    if bad:
+        fail("৯.৩০", "এই পপ-আপগুলোতে সাজেশন-পাহারা নেই (PremiumAlert.paint বা "
+                     "NoAutofill.scrubAnyDialog দুটোর একটাও ডাকা হয়নি): " + ", ".join(bad[:12])
+                     + (" …আরও " + str(len(bad) - 12) if len(bad) > 12 else ""))
+
+# ═══════════════════════════════════════════════════════════════
 #  যাচাই ৯.২৭ — মেঘের সারি পড়ার সময় "null" লেখা যেন পর্দায় না আসে
 #  ─────────────────────────────────────────────────────────────
 #  🔴 TK-রিপোর্ট (২৭.০৮.২০২৬, ছবিসহ): Staff & Doctors তালিকায় নামের জায়গায়
@@ -2448,6 +2499,7 @@ def main():
     check_web_cache_busters()         # 🌐 V750 — ওয়েব ফাইল বদলে cache-নম্বর
     check_no_autofill_kept()          # ⌨️ V752 — ফোনের নিজের সাজেশন বন্ধ
     check_clip_sensitive()            # 📋 V772 — কপি করা নম্বর সাজেশনে উঠবে না
+    check_dialog_suggestion_guard()   # ⌨️ V774 — পপ-আপেও সাজেশন বন্ধ
     check_qualified_calls()           # 🎯 V769 — ভুল object-এর নামে ডাকা
     check_cloud_row_null_text()       # 🚫 V760 — পর্দায় "null" লেখা
     check_webview_popup()             # 🩹 V738 — পপ-আপে WebView বসানোর ফাঁদ (কম্পন)

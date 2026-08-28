@@ -1913,6 +1913,66 @@ function wlv1NoSuggest(root){
  }catch(_e){}
 }
 window["wlv1NoSuggest"]=wlv1NoSuggest;
+/* ⌨️🔴🔒 V774 (২৮.০৮.২০২৬) — **কম্পিউটারেও ঠিক একই ফাঁক ছিল।**
+
+   TK: *"যেকোনো পর্দাতে মোবাইল নাম্বার সাজেস্ট… বেশ কয়েকবার কমপ্লেন করেছি।"*
+
+   **আসল কারণ (ফোনের V774-এর হুবহু একই):** `wlv1NoSuggest()` চলত শুধু পর্দা
+   বা পপ-আপ **আঁকার সময়** — অর্থাৎ ওই মুহূর্তে যে ঘরগুলো ছিল কেবল সেগুলোতেই।
+   কিন্তু এই অ্যাপে বহু ঘর **পরে** যোগ হয় (➕ Add Medicine · নতুন সারি ·
+   তালিকা আঁকার পরে বসা ঘর)। সেগুলোতে সাজেশন-বন্ধ কখনোই পৌঁছাত না।
+
+   **সমাধান:** একটাই `MutationObserver` — পাতায় নতুন ঘর বসলেই সঙ্গে সঙ্গে
+   তাকেও বন্ধ করে দেয়। ⛔ শুধু **নতুন বসা অংশটুকুই** দেখা হয়, তাই খরচ নগণ্য।
+   ⛔ পাসওয়ার্ড ও লগইনের ঘর আগের মতোই বাদ (ব্রাউজারে সেভ করা পাসওয়ার্ড
+      যেন নষ্ট না হয়)। ⛔ পুরোটা try/catch — কিছু ভুল হলেও পাতা ভাঙে না। */
+var __wlv1NoSuggestWatching = false;
+function wlv1NoSuggestWatch(){
+ try{
+  if(__wlv1NoSuggestWatching) return;
+  if(typeof MutationObserver !== 'function' || !document.body) return;
+  __wlv1NoSuggestWatching = true;
+  new MutationObserver(function(list){
+   try{
+    for(var i=0;i<list.length;i++){
+     var added = list[i].addedNodes;
+     for(var j=0;j<added.length;j++){
+      var n = added[j];
+      if(!n || n.nodeType !== 1) continue;           // শুধু আসল element
+      var tag = String(n.tagName||'').toUpperCase();
+      if(tag==='INPUT' || tag==='TEXTAREA'){
+       wlv1NoSuggestOne(n);            // নিজেই একটা ঘর
+      } else if(n.querySelectorAll){
+       // ভিতরে ঘর থাকতে পারে — সেগুলোও
+
+       wlv1NoSuggest(n);
+      }
+     }
+    }
+   }catch(_e){}
+  }).observe(document.body, {childList:true, subtree:true});
+ }catch(_e){}
+}
+/* একটামাত্র ঘরের জন্য — `wlv1NoSuggest`-এর ভিতরের নিয়ম হুবহু এক। */
+function wlv1NoSuggestOne(e){
+ try{
+  if(String(e.type||'').toLowerCase()==='password')return;
+  if(e.id==='lm'||e.id==='lp')return;
+  e.setAttribute('autocomplete','off');
+  e.setAttribute('autocorrect','off');
+  e.setAttribute('spellcheck','false');
+  e.setAttribute('data-lpignore','true');
+  e.setAttribute('data-form-type','other');
+ }catch(_e){}
+}
+window["wlv1NoSuggestWatch"]=wlv1NoSuggestWatch;
+window["wlv1NoSuggestOne"]=wlv1NoSuggestOne;
+try{
+ if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded', function(){ wlv1NoSuggestWatch(); });
+ } else { wlv1NoSuggestWatch(); }
+}catch(_e){}
+
 window["toast"]=toast;function modal(html){
       const root=$id('modalRoot'); if(!root)return;
       const hasClose=/closeModal\s*\(|>\s*Close\s*</i.test(String(html||''));

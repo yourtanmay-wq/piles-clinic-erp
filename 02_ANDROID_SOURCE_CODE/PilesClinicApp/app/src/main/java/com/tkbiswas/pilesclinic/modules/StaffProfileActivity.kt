@@ -641,7 +641,7 @@ class StaffProfileActivity : AppCompatActivity() {
             )
             .setNegativeButton("Cancel", null)
             .setPositiveButton("Remove") { _, _ -> doSetActive(pc, false) }
-            .show()
+            .show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
     }
 
     private fun restoreStaffDialog(pc: String, fullName: String) {
@@ -654,7 +654,7 @@ class StaffProfileActivity : AppCompatActivity() {
             )
             .setNegativeButton("Cancel", null)
             .setPositiveButton("Restore") { _, _ -> doSetActive(pc, true) }
-            .show()
+            .show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
     }
 
     private fun doSetActive(pc: String, active: Boolean) {

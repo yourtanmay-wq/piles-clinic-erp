@@ -440,6 +440,7 @@ class FollowCalendarActivity : AppCompatActivity() {
         dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
         close.setOnClickListener { dialog.dismiss() }
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     // TK-REQUESTED (2026-07-24): "everywhere calling is possible in the
@@ -578,5 +579,6 @@ class FollowCalendarActivity : AppCompatActivity() {
             picker.getButton(AlertDialog.BUTTON_NEGATIVE)?.visibility = View.GONE
         }
         picker.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(picker) } catch (_: Throwable) { }   // 🤫 V774
     }
 }

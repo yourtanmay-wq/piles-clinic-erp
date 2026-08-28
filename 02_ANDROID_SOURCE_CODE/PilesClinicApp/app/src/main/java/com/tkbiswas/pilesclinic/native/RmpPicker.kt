@@ -235,5 +235,6 @@ object RmpPicker {
         })
         dialog.setOnShowListener { PremiumAlert.paint(dialog) }
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 }

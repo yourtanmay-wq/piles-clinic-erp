@@ -1941,7 +1941,7 @@ class BriefingActivity : AppCompatActivity() {
                     this@BriefingActivity,
                     "$done request(s) approved." + (if (failed > 0) " · $failed request(s) failed — please try again." else ""),
                     Toast.LENGTH_LONG
-                ).show()
+                ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                 try { dlg.dismiss() } catch (_: Throwable) { }
                 loadList()
             }
@@ -2094,7 +2094,7 @@ class BriefingActivity : AppCompatActivity() {
                 this@BriefingActivity,
                 if (ok) (if (approve) "Refund Approved" else "Refund Rejected") else "Failed — check connection",
                 Toast.LENGTH_LONG
-            ).show()
+            ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
             if (ok) {
                 withContext(Dispatchers.IO) {
                     try {
@@ -2577,6 +2577,7 @@ class BriefingActivity : AppCompatActivity() {
         chatDialog = AlertDialog.Builder(this).setView(root).create()
         chatDialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
         chatDialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(chatDialog) } catch (_: Throwable) { }   // 🤫 V774
         chatDialog.window?.setLayout(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT)
         scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
     }
@@ -2725,6 +2726,7 @@ class BriefingActivity : AppCompatActivity() {
             }
         }
         postDlg.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(postDlg) } catch (_: Throwable) { }   // 🤫 V774
         // 🔒🔒 খাতার সারি B181 (TK, 30.07.2026 — "সম্পূর্ণ প্রজেক্ট ব্যবহার
         // করার সময় কেন এখনো অনেক জায়গায় বাংলা আসছে?")। **আসল কারণ:** পপ-আপের
         // নিজের আলাদা উইন্ডো থাকে, তাই পর্দার সাধারণ পাহারা সেখানে পৌঁছায় না —

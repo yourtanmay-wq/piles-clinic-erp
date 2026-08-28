@@ -88,6 +88,7 @@ class AppointmentActivity : AppCompatActivity() {
         }, c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH))
         dlg.datePicker.minDate = System.currentTimeMillis() - 1000
         dlg.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dlg) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     private fun save(staffMobile: String) {

@@ -142,7 +142,7 @@ class PrescriptionActivity : AppCompatActivity() {
                         //   তাই এতদিন বাদ পড়ে যেত। ⛔ বাংলা-বন্ধ না থাকলে
                         //   `installDialog()` প্রথম লাইনেই ফিরে যায় — অর্থাৎ বাকি
                         //   সবার জন্য **এক অক্ষরও বদলায়নি**।
-                        .show().also { com.tkbiswas.pilesclinic.native.NoBengali.installDialog(it) }
+                        .show().also { com.tkbiswas.pilesclinic.native.NoBengali.installDialog(it); com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) }   // 🤫 V774
                 }
                 ClinicalCloudRepository.SameDayPrescriptionCheck.NONE ->
                     commitPrescription(openPrintAfter, finishAfter)
@@ -153,7 +153,7 @@ class PrescriptionActivity : AppCompatActivity() {
                         .setMessage("Check the internet connection and Save again. No Prescription was saved.")   /* 🔤 V726 */
                         .setPositiveButton("OK", null)
                         // 🔴🔒 V512: উপরেরটার হুবহু একই কারণ ও একই নিরাপত্তা।
-                        .show().also { com.tkbiswas.pilesclinic.native.NoBengali.installDialog(it) }
+                        .show().also { com.tkbiswas.pilesclinic.native.NoBengali.installDialog(it); com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) }   // 🤫 V774
                 }
             }
         }

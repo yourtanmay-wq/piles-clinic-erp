@@ -318,6 +318,7 @@ class RegistrationActivity : AppCompatActivity() {
         })
         dialog.setOnShowListener { PremiumAlert.paint(dialog) }
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     // 🔒 V235: Enquiry থেকে Registration খোলা হলে সেই পুরনো নম্বর (থাকলে)।
@@ -427,6 +428,7 @@ class RegistrationActivity : AppCompatActivity() {
             }
             view.findViewById<android.widget.TextView>(com.tkbiswas.pilesclinic.R.id.btnDupClose).setOnClickListener { dialog.dismiss() }
             dialog.show()
+            try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
         }
     }
 
@@ -939,6 +941,7 @@ class RegistrationActivity : AppCompatActivity() {
         }
         view.findViewById<android.widget.TextView>(com.tkbiswas.pilesclinic.R.id.btnDupClose).setOnClickListener { dialog.dismiss() }
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     /** APPROVED UPDATE #3: Professional Duplicate Popup (same dialog_duplicate
@@ -1072,9 +1075,10 @@ class RegistrationActivity : AppCompatActivity() {
                     )
                 }
                 .setNegativeButton("No") { d, _ -> d.dismiss() }
-                .show()
+                .show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
         }
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     private fun performSave(user: NativeUser, name: String, mobile: String, branch: String, fee: Double, existingPatientId: String = "", existingRowId: String = "", forceNewPatientRowId: String = "") {

@@ -629,6 +629,7 @@ class ReportsActivity : AppCompatActivity() {
         dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
         close.setOnClickListener { dialog.dismiss() }
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
         // 🔒 খাতার সারি B181 (TK, 30.07.2026): এই পপ-আপে বাংলা লেখা ("কোনো
         // এন্ট্রি নেই" গোছের) আছে, কিন্তু পাহারা ছিল না।
         PremiumAlert.paint(dialog)
@@ -693,6 +694,7 @@ class ReportsActivity : AppCompatActivity() {
         dialog2.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
         close.setOnClickListener { dialog2.dismiss() }
         dialog2.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog2) } catch (_: Throwable) { }   // 🤫 V774
         // 🔒 খাতার সারি B181 (TK, 30.07.2026): এই পপ-আপে বাংলা লেখা ("কোনো
         // এন্ট্রি নেই" গোছের) আছে, কিন্তু পাহারা ছিল না।
         PremiumAlert.paint(dialog2)

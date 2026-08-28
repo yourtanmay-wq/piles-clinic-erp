@@ -92,7 +92,7 @@ class ChamberAttendanceActivity : AppCompatActivity() {
             .setItems(labels) { _, which -> finishWith(people.getOrNull(which)) }
             .setNegativeButton("Cancel") { _, _ -> finishWith(null) }
             .setOnCancelListener { finishWith(null) }
-            .show()
+            .show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
     }
 
     // V450: a live mobile lookup can prove that follow-up rows exist but every
@@ -1440,6 +1440,7 @@ class ChamberAttendanceActivity : AppCompatActivity() {
             }
         })
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     /** TK-REQUESTED (2026-07-27): the actual save, kept in one place so the
@@ -1680,7 +1681,7 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                                             this@ChamberAttendanceActivity,
                                             if (ok) "Undone — ${res.name} removed from today's board" else "Could not undo — check connection",
                                             android.widget.Toast.LENGTH_SHORT
-                                        ).show()
+                                        ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                                         if (ok) {
                                             markedRowId = null
                                             setArrivedMode()
@@ -1734,6 +1735,7 @@ class ChamberAttendanceActivity : AppCompatActivity() {
             setOnClickListener { parts.dialog.dismiss() }
         })
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     /** Updates the SAME Follow-up "Last Remark" field the Visit/Patient
@@ -2026,7 +2028,7 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                 } else proceed()
             }
             .setNegativeButton("Cancel", null)
-            .show().also { dlg ->
+            .show().also { dlg ->   // ⛔ V774 — এখানে নিচে PremiumAlert.paint(dlg) আগে থেকেই আছে, তাই আলাদা কিছু লাগেনি
                 // 🔒🔒 খাতার সারি B181 (TK, 30.07.2026): এই বাইরের ডায়ালগটার
                 // (নিজের টাইটেল/লেবেল) নিজে থেকে কোনো পাহারা ছিল না — ভিতরের
                 // দুটো নেস্টেড কনফার্ম-ডায়ালগ (উপরে) আগে থেকেই ঢাকা ছিল।
@@ -2653,7 +2655,7 @@ Thread {
                             else "খোলা গেল না — নেট চেক করে আবার চেষ্টা করুন"
                         ),
                         android.widget.Toast.LENGTH_LONG
-                    ).show()
+                    ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                     // দিনটা এখন আর "বন্ধ" নয় — পর্দা নতুন করে পড়ে নেয়
                     // (ব্রাঞ্চ বদলালে যা হয়, ঠিক সেই একই দুটো লাইন)।
                     if (ok) try { dateClosedFlag = false; loadBoard() } catch (_: Throwable) { }
@@ -2683,7 +2685,7 @@ Thread {
                             else "পাঠানো গেল না — নেট চেক করে আবার চেষ্টা করুন"
                         ),
                         android.widget.Toast.LENGTH_LONG
-                    ).show()
+                    ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                 }
             }
             .setNegativeButton(NoBengali.s("No"), null)
@@ -2709,7 +2711,7 @@ Thread {
                 this,
                 "⚠️ ${missing.name.ifBlank { missing.mobile }} — " + NoBengali.s("আজকের Treatment Progress লেখা হয়নি — না লিখলে চেম্বার বন্ধ করা যাবে না"),
                 android.widget.Toast.LENGTH_LONG
-            ).show()
+            ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
             showRemarkDialog(missing)
             return
         }
@@ -2848,6 +2850,7 @@ Thread {
             setOnClickListener { parts.dialog.dismiss() }
         })
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     // ============================================================
@@ -3253,6 +3256,7 @@ Thread {
             .create()
         currentReviewDialog = dialog
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
 
         /* 🔴🔒 V426 (TK-নির্দেশ ১৭.০৮.২০২৬) — *"Review পর্দাতে যদি কোন আরএমপির
            পেশেন্ট হয়ে থাকে তাহলে তার কমিশন এখানে মেনশন করতে হবে · এবং কমিশন বাদ
@@ -3626,7 +3630,7 @@ Thread {
                                 android.widget.Toast.makeText(
                                     this@ChamberAttendanceActivity, NoBengali.s(if (sent) "Master-কে অনুরোধ পাঠানো হয়েছে" else "ব্যর্থ — নেট চেক করুন"),
                                     android.widget.Toast.LENGTH_LONG
-                                ).show()
+                                ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                             }
                         }
                         .setNegativeButton("Close", null)
@@ -3723,7 +3727,7 @@ Thread {
                     android.widget.Toast.makeText(
                         this@ChamberAttendanceActivity, NoBengali.s(if (ok) "Master-এর কাছে অনুরোধ পাঠানো হয়েছে ✅" else "পাঠানো যায়নি — আবার চেষ্টা করুন"),
                         android.widget.Toast.LENGTH_LONG
-                    ).show()
+                    ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                 }
             }
             .setNegativeButton("Cancel", null)
