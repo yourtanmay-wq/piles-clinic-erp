@@ -102,9 +102,33 @@ class DoctorQueueAdapter(
                    দেখানো হয় না — আন্দাজে বসানো হয় না। */
                 val nvpBadge = com.tkbiswas.pilesclinic.clinical.NextVisitPlan
                     .oldOrNew(item.registrationDate)
-                b.tvName.text = item.name.ifBlank { "UNKNOWN" } +
-                    (if (nvpBadge.isNotBlank()) "   $nvpBadge" else "")
-                b.tvMeta.text = "📞 ${item.mobile}"
+                /* 🔵🟢🔒 V842 (২৯.০৮.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) —
+                   *"ওয়েটিং যেখানে লেখা আছে সেটাকেই পরিবর্তন করে নিউ অথবা
+                   old করুন"*
+                   ⇒ V839-এ ব্যাজটা **নামের পাশে** বসত, তাতে লম্বা নাম কেটে
+                     যেত (TK-এর লাইভ ছবিতে "POPI GOSWAMI  O…")। এখন লেখাটা
+                     ডান দিকের ওই লাল `tvStatus` পিলেই বসে — নাম আর কাটে না।
+                   ⛔ পিলের আকার · জায়গা · মাপ কিছুই বদলায়নি, শুধু লেখা ও রং।
+                   ⛔ তারিখ জানা না থাকলে আগের মতোই "WAITING" (লাল) থাকে —
+                      আন্দাজে NEW/OLD বসানো হয় না। */
+                b.tvName.text = item.name.ifBlank { "UNKNOWN" }
+                when (nvpBadge) {
+                    "NEW" -> {
+                        b.tvStatus.text = "NEW"
+                        b.tvStatus.setBackgroundResource(R.drawable.bg_badge_new)
+                    }
+                    "OLD" -> {
+                        b.tvStatus.text = "OLD"
+                        b.tvStatus.setBackgroundResource(R.drawable.bg_badge_old)
+                    }
+                    else -> {
+                        b.tvStatus.text = "WAITING"
+                        b.tvStatus.setBackgroundResource(R.drawable.bg_badge)
+                    }
+                }
+                /* 📞 V842 — TK: *"মোবাইল নাম্বারের আগে মোবাইল আইকন রাখার
+                   দরকার নেই"* ⇒ আইকনটা বাদ, শুধু নম্বর। */
+                b.tvMeta.text = item.mobile
                 b.tvDiseaseBranch.text = "${item.disease.ifBlank { "-" }} · ${item.branch.ifBlank { "-" }} · ${item.patientId.ifBlank { "-" }}"
                 /* 🩺🔒 V839 — NEXT VISIT PLAN-এর ট্যাগ।
                    ⛔ প্ল্যান না থাকলে **পুরোপুরি লুকানো** (TK-নির্দেশ:

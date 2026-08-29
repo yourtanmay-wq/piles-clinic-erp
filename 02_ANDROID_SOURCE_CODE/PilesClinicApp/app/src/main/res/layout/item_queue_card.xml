@@ -43,7 +43,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="Patient Name"
-                    android:textSize="18sp"
+                    android:textSize="15sp"
                     android:textStyle="bold"
                     android:maxLines="1"
                     android:ellipsize="end"
@@ -54,8 +54,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:text="📞 9999999999"
-                    android:textSize="14sp"
+                    android:text="9999999999"
+                    android:textSize="15sp"
                     android:textStyle="bold"
                     android:textColor="@color/brand_blue" />
             </LinearLayout>

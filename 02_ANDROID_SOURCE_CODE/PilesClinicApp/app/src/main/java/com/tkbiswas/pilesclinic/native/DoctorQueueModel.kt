@@ -81,13 +81,52 @@ object DoctorQueueModel {
     }
 
     /** True if this patient row belongs in the doctor queue right now. */
+    /* 🔴🔒 V842 (২৯.০৮.২০২৬, TK-এর লাইভ রিপোর্ট, ছবিসহ) —
+       *"আজকে তো চেম্বারের ডেট ছিল না কোচবিহারের, তাহলে এত পেসেন্ট কোথা
+       থেকে আসলো… এই নম্বর গুলি Today তে কেন দেখাবে?"*
+
+       🔬 আসল কারণ (কোড ধরে যাচাই, আন্দাজ নয়): রোগী তালিকায় ঢোকেন
+       রেজিস্ট্রেশনে (`queue=true`), আর বেরোন **শুধু** ডাক্তার চেকআপ Save
+       করলে (`doctorComplete=true`)। কেউ যদি এসে চেকআপ না করিয়ে চলে যান,
+       তাঁর নাম **চিরকাল** তালিকায় থেকে যেত — TK-এর ছবিতে ০৯.০৩ · ২৭.০৪ ·
+       ২৬.০৬-এর রোগী আজও "Today"-তে দেখাচ্ছিল।
+       ⛔ এটা V839-এর দোষ নয় — নিয়মটা V838-এও হুবহু এই ছিল (git-এ মিলিয়ে দেখা)।
+
+       ✅ TK-অনুমোদিত সমাধান: **৭ দিনের বেশি** চেকআপ ছাড়া পড়ে থাকলে
+          তালিকায় আর দেখাবে না।
+
+       🛡️ কেন এটা নিরাপদ:
+       · রোগীর **একটাও তথ্য মোছা হয় না** — শুধু আজকের তালিকায় দেখানো বন্ধ।
+         Search · Follow-up · Patient Timeline — সব জায়গায় আগের মতোই আছেন।
+       · আবার এলে (পেমেন্ট বা চেম্বারে নাম) `NextVisitQueue` তারিখটা আজকের
+         করে দেয় ⇒ **সঙ্গে সঙ্গে ফিরে আসেন**।
+       · তারিখ জানা না গেলে (পুরনো/ফাঁকা সারি) **সরানো হয় না** — সন্দেহ হলে
+         রেখে দেওয়াই নিরাপদ, নইলে ভুল করে আজকের রোগী হারিয়ে যেত।
+       · ৭ দিনের ভিতরের সব রোগী **আগের মতোই** থাকেন — এক অক্ষরও বদলায়নি। */
+    const val QUEUE_STALE_DAYS = 7
+
+    /** সারিটা শেষ কবে ছোঁয়া হয়েছিল — না বোঝা গেলে `null`। */
+    private fun ageDaysOrNull(row: JSONObject): Long? {
+        val raw = listOf("updatedAt", "visitDate", "registrationDate", "createdAt")
+            .map { row.s(it) }.firstOrNull { it.length >= 10 } ?: return null
+        return try {
+            val d = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+                .parse(raw.substring(0, 10)) ?: return null
+            val ms = System.currentTimeMillis() - d.time
+            if (ms < 0) 0L else ms / (24L * 60 * 60 * 1000)
+        } catch (_: Throwable) { null }
+    }
+
     fun isInQueue(row: JSONObject): Boolean {
         if (isSeed(row)) return false
         val doctorComplete = row.optBoolean("doctorComplete", false)
         if (doctorComplete) return false
         val queueFlag = row.optBoolean("queue", false)
         val stage = row.s("stage")
-        return queueFlag || stage == "Doctor Queue" || stage == "Visit"
+        if (!(queueFlag || stage == "Doctor Queue" || stage == "Visit")) return false
+        // 🔴 V842 — বহুদিনের পুরনো, চেকআপ ছাড়া পড়ে থাকা নাম আর দেখাবে না।
+        val age = ageDaysOrNull(row) ?: return true   // জানা না থাকলে রেখে দিই
+        return age <= QUEUE_STALE_DAYS
     }
 
     fun parse(row: JSONObject): QueuePatient = QueuePatient(

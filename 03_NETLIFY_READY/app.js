@@ -8368,7 +8368,24 @@ function visitQueueRows(){
  // V461 — এই একজন ডাক্তারের জন্য branch-scope (scoped()) বাদ, সব ব্রাঞ্চের
  // সারিই আসে; বাকি ফিল্টার (queue/stage/doctorComplete) আগের মতোই।
  let base=wlv1IsCrossBranchDoctorQueueAccess()?(load('patients')||[]).filter(function(x){return !isSeededRecord(x)}):scoped(load('patients'));
- let rows=base.filter(x=>(x.queue===true||x.stage==='Doctor Queue'||x.stage==='Visit')&&!x.doctorComplete&&!isSeededRecord(x));
+ /* 🔴🔒 V842 (২৯.০৮.২০২৬, TK-এর লাইভ রিপোর্ট) — ফোনের `DoctorQueueModel
+    .isInQueue()`-এর হুবহু একই নিয়ম, যাতে দুই জায়গায় এক তালিকা দেখায়।
+    চেকআপ ছাড়া ৭ দিনের বেশি পড়ে থাকা নাম আর "Today"-তে দেখাবে না।
+    ⛔ কোনো তথ্য মোছে না — Search/Follow-up/Timeline-এ আগের মতোই আছেন।
+    ⛔ তারিখ জানা না গেলে সরানো হয় না (সন্দেহ হলে রেখে দেওয়াই নিরাপদ)। */
+ var WLV1_Q_STALE_DAYS=7;
+ var wlv1QFresh=function(x){
+   try{
+     var raw=[x.updatedAt,x.visitDate,x.registrationDate,x.createdAt]
+       .map(function(v){return String(v||'')}).filter(function(v){return v.length>=10})[0];
+     if(!raw)return true;
+     var t=new Date(raw.slice(0,10)+'T00:00:00').getTime();
+     if(isNaN(t))return true;
+     var d=Math.floor((Date.now()-t)/86400000);
+     return d<0?true:(d<=WLV1_Q_STALE_DAYS);
+   }catch(_e){return true}
+ };
+ let rows=base.filter(x=>(x.queue===true||x.stage==='Doctor Queue'||x.stage==='Visit')&&!x.doctorComplete&&!isSeededRecord(x)&&wlv1QFresh(x));
  try{
   let last=localStorage.getItem('rk_last_visit_queue_id');
   if(last&&!rows.some(x=>x.id===last)){
@@ -8569,7 +8586,7 @@ function wlv1DqCard(p){
   let rcBtn=bill>0
     ? `<button class="ghost" onclick="wlv1ReportCard('${p.id}')">Report Card</button>`
     : `<button class="ghost" style="opacity:.45" onclick="toast('No bill yet for this patient — Report Card needs an Advance Payment first')">Report Card</button>`;
-  return `<div class="card doctorQueuePro"><div class="queueRow">${p.photo?`<img class="queuePhoto" src="${p.photo}">`:`<div class="queuePhoto blank">👤</div>`}<div class="queueInfo"><b class="wlv1NameLink" onclick="wlv1FullJourney('${esc(normMob(p.mobile))}')" title="Tap for History">${esc(p.name)}${(function(){var b=wlv1NvpOldNew(p);return b?(' <span style="font-size:10.5px;font-weight:800;color:'+(b==='NEW'?'#12805C':'#0B3D91')+'">'+b+'</span>'):''})()}</b><span><span class="wlv1CallLink" onclick="event.stopPropagation();contact('${esc(p.mobile)}','call')" title="Tap to call">${esc(normMob(p.mobile))}</span> · ${esc(p.patientId||'')}</span><small>${esc(p.disease||'-')} · ${esc(p.branch||'-')}</small></div><span class="queueBadge">WAITING</span></div>${wlv1NvpTagHtml(p)}<div class="actions queueActions"><button class="ghost" onclick="wlv1FullJourney('${esc(normMob(p.mobile))}')">History</button>${rcBtn}<button onclick="wlv1NvpCheckupWithReminder('${p.id}')">Check-up</button><button class="ghost" onclick="summary('${p.id}')">⚡ Action</button></div></div>`;
+  return `<div class="card doctorQueuePro"><div class="queueRow">${p.photo?`<img class="queuePhoto" src="${p.photo}">`:`<div class="queuePhoto blank">👤</div>`}<div class="queueInfo"><b class="wlv1NameLink" onclick="wlv1FullJourney('${esc(normMob(p.mobile))}')" title="Tap for History">${esc(p.name)}</b><span><span class="wlv1CallLink" onclick="event.stopPropagation();contact('${esc(p.mobile)}','call')" title="Tap to call">${esc(normMob(p.mobile))}</span> · ${esc(p.patientId||'')}</span><small>${esc(p.disease||'-')} · ${esc(p.branch||'-')}</small></div><span class="queueBadge"${(function(){var b=wlv1NvpOldNew(p);return b?(' style="background:'+(b==='NEW'?'#16A36D':'#0B3D91')+'"'):''})()}>${wlv1NvpOldNew(p)||'WAITING'}</span></div>${wlv1NvpTagHtml(p)}<div class="actions queueActions"><button class="ghost" onclick="wlv1FullJourney('${esc(normMob(p.mobile))}')">History</button>${rcBtn}<button onclick="wlv1NvpCheckupWithReminder('${p.id}')">Check-up</button><button class="ghost" onclick="summary('${p.id}')">⚡ Action</button></div></div>`;
 }
 function doctorQueue(){try{repairBranchWorkflowRows()}catch(_e){}let rows=visitQueueRows();
  /* 🟢🔒 V398: মনে-রাখা ব্রাঞ্চ (এক জায়গা থেকে)। বাছা না-থাকলে তালিকা নয়, বার্তা। */
