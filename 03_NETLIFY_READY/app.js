@@ -17059,6 +17059,26 @@ window["regMobileDupCheck"]=regMobileDupCheck;
    ⛔ শুধু **দেখানো** — ফর্মের কোনো ঘর নিজে থেকে ভরে না।
    ⛔ মূল নম্বরের সমান হলে কিছুই দেখায় না (একই রোগী, অকারণ সতর্কতা নয়)।
    ⛔ `recordsByMobile()` মূল ও Alternate — দুটোতেই খোঁজে (ফোনেও তাই)। */
+/* 🔍🔒 V831 (২৯.০৮.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — Alternate ঘরেও ফোনের
+   মতোই পুরো পপ-আপ।
+
+   ─── যাচাই করে যা পাওয়া গেল (আন্দাজ নয়) ─────────────────────────────
+   ফোনে এটা **V754-এ (২৭.০৮.২০২৬) বসানো হয়ে গেছে** — `RegistrationActivity.kt`
+   -এর `etAltMobile` watcher ১০ ডিজিট পেলেই `checkExistingPatientPopup(
+   alt, fromAlt = true)` ডাকে, আর `dialog_duplicate`-এ Name · Mobile ·
+   Branch · Section ("Patient (Alternate number)") দেখিয়ে **VIEW ও CLOSE**
+   দুটো বোতাম দেয়। কম্পিউটারে ছিল শুধু ঘরের নিচে ছোট্ট এক লাইন — তাই
+   স্টাফের চোখেই পড়ত না।
+
+   ⛔ **Continue / Reject বোতাম ইচ্ছাকৃতভাবে রাখা হয়নি** — ওগুলো ফর্মের
+      তথ্য বদলে দিতে পারে, আর ফোনেও এই ঘরে ও দুটো নেই (*"শুধু দেখানো —
+      ফর্মের কোনো ঘর নিজে থেকে ভরে না"*, V754)।
+   ⛔ মূল নম্বরের সমান হলে কিছুই হয় না (একই রোগী, অকারণ পপ-আপ নয়) —
+      আগের নিয়মটাই অটুট।
+   ⛔ ঘরের নিচের ছোট লাইনটাও **থেকে গেল** — পপ-আপ বন্ধ করার পরেও যেন
+      মনে থাকে। শুধু লেখাটা ইংরেজি করা হলো (স্টাফের পর্দা)।
+   ⛔ কোনো নতুন ক্লাউড-পড়া নেই — `recordsByMobile()` ফোনের জমানো তালিকা
+      থেকেই খোঁজে (Egress বাড়ে না)। */
 function regAltMobileDupCheck(v){
  try{
   var mm=mob(v);
@@ -17068,9 +17088,29 @@ function regAltMobileDupCheck(v){
   if(mm===main){ if(box)box.innerHTML=''; return; }
   var rows=(typeof recordsByMobile==='function')?recordsByMobile(mm):[];
   if(!rows.length){ if(box)box.innerHTML=''; return; }
-  if(box)box.innerHTML='<div class="card tiny" style="border:1px solid #f6b93b">এই নম্বর আগে থেকেই সিস্টেমে আছে — <span style="color:#1067d8;cursor:pointer" onclick="summaryByMobile(\''+mm+'\')">Preview History</span></div>';
+  if(box)box.innerHTML='<div class="card tiny" style="border:1px solid #f6b93b">This number already exists in the system — <span style="color:#1067d8;cursor:pointer" onclick="summaryByMobile(\''+mm+'\')">Preview History</span></div>';
+  if(mm!==wlv1AltDupShown){ wlv1AltDupShown=mm; wlv1AltDupPopup(mm,rows); }
  }catch(_e){}
 }
+/* একই নম্বরে বারবার পপ-আপ নয় — ফোনের `lastDupCheckedAltMobile`-এর যমজ। */
+var wlv1AltDupShown='';
+function wlv1AltDupPopup(mm,rows){
+ try{
+  var r=(rows&&rows[0])||{};
+  var esc2=(typeof esc==='function')?esc:function(x){return String(x==null?'':x)};
+  modal('<div style="text-align:center;font-size:34px">\u26A0\uFE0F</div>'
+   +'<h2 style="text-align:center;color:#B3261E">This number already exists in the system</h2>'
+   +'<div class="card">'
+   +'<div><b>Name</b> &middot; '+esc2(r.name||'-')+'</div>'
+   +'<div><b>Mobile</b> &middot; '+esc2(normMob(mm))+'</div>'
+   +'<div><b>Branch</b> &middot; '+esc2(r.branch||'-')+'</div>'
+   +'<div><b>Section</b> &middot; Patient (Alternate number)</div>'
+   +'</div>'
+   +'<div class="actions"><button class="ghost" onclick="closeModal()">Close</button>'
+   +'<button onclick="closeModal();summaryByMobile(\''+mm+'\')">View</button></div>');
+ }catch(_e){}
+}
+window["wlv1AltDupPopup"]=wlv1AltDupPopup;
 window["regAltMobileDupCheck"]=regAltMobileDupCheck;
 
 /* 🔒🔒 B601 (10.08.2026, TK-অনুমোদিত প্রুফ): নম্বরটা আগে Reject/Incomplete/
