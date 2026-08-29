@@ -2772,10 +2772,11 @@ class FollowUpActivity : AppCompatActivity() {
         }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH), cal.get(java.util.Calendar.DAY_OF_MONTH)).show()
         ---- end old pickNextFollow body ---- */
     }
-    /** 🔵 V543: `31.12.2026 : 12.30 PM` — সময় না থাকলে শুধু তারিখ। */
+    /** 🔵 V543: `31.12.2026 : 12.30 PM` — সময় না থাকলে শুধু তারিখ।
+     *  ⏰ V835: সময়ের ধাঁচ `3:15 PM` → `3.15 PM` (TK-নির্দেশ, ২৯.০৮.২০২৬)। */
     private fun fuLastWhen(item: FollowUpItem): String {
         val d = FollowUpModel.displayDate(item.lastCallDate)
-        val t = PaymentModel.displayTime12(item.lastCallTime)
+        val t = PaymentModel.displayTime12Dot(item.lastCallTime)   /* ⏰ V835 — 3.15 PM */
         return if (t.isNotBlank()) "$d : $t" else d
     }
 

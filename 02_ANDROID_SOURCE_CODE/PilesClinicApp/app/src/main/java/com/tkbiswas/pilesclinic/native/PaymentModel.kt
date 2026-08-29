@@ -508,6 +508,19 @@ object PaymentModel {
         }
     }
 
+    /** ⏰🔒 V835 (২৯.০৮.২০২৬, TK-নির্দেশ — *"LAST CALL 31/12/2026 : 3.15 PM"*):
+     *  ঠিক উপরের `displayTime12()`-এরই লেখা, শুধু ঘণ্টা-মিনিটের মাঝে `:`-র
+     *  বদলে `.` — অর্থাৎ `3:15 PM` → `3.15 PM`।
+     *  ⛔ কেন আলাদা ফাংশন: `displayTime12()` অ্যাপের ২০ জায়গায় চলে (রসিদ ·
+     *     পেমেন্ট · টাইমলাইন)। ওটায় হাত দিলে সব জায়গা বদলে যেত — তাই ছোঁয়া
+     *     হয়নি। এটা **শুধু LAST CALL লাইনে** ব্যবহার হয়।
+     *  ⛔ ধাঁচটা নতুন নয় — প্রজেক্টে `h.mm a` আগে থেকেই চলে
+     *     (DoctorCheckupActivity V671 · PatientTimelineActivity · ওয়েবের
+     *     `wlv1Ampm`), আর V543-এর নিজের নোটেই লেখা ছিল `12.30 PM`।
+     *  ⛔ ফাঁকা ভিতরে = ফাঁকা বাইরে; `h:mm a`-তে একটাই `:` থাকে, তাই
+     *     AM/PM বা অন্য কিছু নষ্ট হওয়ার সুযোগ নেই। */
+    fun displayTime12Dot(iso: String): String = displayTime12(iso).replace(":", ".")
+
     // TK-REPORTED BUG FIX (2026-07-25): shared with PatientTimelineRepository
     // so it can recompute the true ordinal (Advance/2nd/3rd...) fresh from
     // the full payment history instead of trusting a possibly stale

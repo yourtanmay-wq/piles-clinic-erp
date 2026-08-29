@@ -283,7 +283,9 @@ class FollowUpAdapter(
             val m = parts[1].toInt()
             val ampm = if (h < 12) "AM" else "PM"
             if (h == 0) h = 12 else if (h > 12) h -= 12
-            "%d:%02d %s".format(h, m, ampm)
+            /* ⏰ V835 (TK-নির্দেশ): `3:15 PM` → `3.15 PM`। এই ফাংশনটা
+               প্রজেক্টে **শুধু এখানেই** (LAST CALL লাইনে) চলে — খুঁজে দেখা। */
+            "%d.%02d %s".format(h, m, ampm)
         } catch (_: Throwable) { "" }
     }
 

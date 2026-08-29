@@ -205,7 +205,11 @@ function wlv1Tm12(iso){
   var H=parseInt(hm.slice(0,2),10), M=hm.slice(3,5);
   if(isNaN(H)) return '';
   var ap=H>=12?'PM':'AM', h12=H%12; if(h12===0)h12=12;
-  return h12+':'+M+' '+ap;
+  /* ⏰ V835 (২৯.০৮.২০২৬, TK-নির্দেশ — "LAST CALL 31/12/2026 : 3.15 PM"):
+     `3:15 PM` → `3.15 PM`। ⛔ এই ফাংশনটা গোটা app.js-এ **শুধু একটাই জায়গায়**
+     চলে — LAST CALL লাইন (খুঁজে দেখা), তাই আর কোথাও কিছু বদলায় না।
+     ⛔ ধাঁচটা নতুন নয় — পাশের `wlv1Ampm()` আগে থেকেই বিন্দু ব্যবহার করে। */
+  return h12+'.'+M+' '+ap;
 }
 window["wlv1Tm12"]=wlv1Tm12;function wlv1Ampm(hhmm){let p=String(hhmm||'').split(':');if(p.length<2)return String(hhmm||'');let h=parseInt(p[0],10);if(isNaN(h))return String(hhmm||'');let s=h<12?'AM':'PM';let h12=h%12;if(h12===0)h12=12;return h12+'.'+p[1]+' '+s}
 /* 🔒 TK-এর স্থায়ী নিয়ম (২৯.০৭.২০২৬): ছাপা কাগজে কখনো বাংলা যাবে না —

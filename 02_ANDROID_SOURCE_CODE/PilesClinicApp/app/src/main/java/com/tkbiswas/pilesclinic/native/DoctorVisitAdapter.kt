@@ -161,7 +161,7 @@ class DoctorVisitAdapter(
                   অ্যাপের বাকি সব জায়গার সাথে এক থাকে।
                ⛔ সময় না থাকলে (পুরোনো কল) লাইনটা **হুবহু আগের মতোই**। */
             val lastWhen = if (item.lastCallTime.isNotBlank())
-                "$lastCallText : " + PaymentModel.displayTime12(item.lastCallTime)
+                "$lastCallText : " + PaymentModel.displayTime12Dot(item.lastCallTime)   /* ⏰ V835 — 3.15 PM */
             else lastCallText
             val lastText = if (item.lastCallDate.isNotBlank()) {
                 if (whoRaw.isNotBlank()) "LAST CALL $lastWhen ($whoRaw)" else "LAST CALL $lastWhen"
