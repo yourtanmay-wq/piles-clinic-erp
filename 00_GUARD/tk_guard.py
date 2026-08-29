@@ -2882,22 +2882,11 @@ def check_patient_session_survives():
 #     TK-কে ডিজাইন-প্রুফ দেখিয়ে অনুমতি নেওয়ার পরে সারানো হবে; তালিকা
 #     **বাড়ানো যাবে না**, শুধু কমবে।
 # ═══════════════════════════════════════════════════════════════
-MATERIAL_TINT_KNOWN = {
-    # (layout ফাইল, বোতামের id) — TK-এর অনুমতির অপেক্ষায়, নতুন কিছু যোগ নিষেধ
-    ("activity_chamber_attendance.xml", "btnSharePastPdf"),
-    ("activity_chamber_attendance.xml", "btnPrintPast"),
-    ("activity_payment.xml", "btnAddPayment"),
-    ("activity_payment.xml", "btnMedicinePayment"),
-    ("activity_payment.xml", "btnMonthlyCollection"),
-    ("activity_payment.xml", "btnCollectionHistory"),
-    ("activity_public_site.xml", "btnBook"),
-    ("activity_public_site.xml", "btnCallTop"),
-    ("activity_public_site.xml", "btnBranchTop"),
-    ("activity_public_site.xml", "btnStaffLogin"),
-    ("activity_registration.xml", "btnSelectRefDoctor"),
-    ("item_briefing_card.xml", "priorityBar"),
-    ("item_credential_card.xml", "btnChange"),
-}
+# ✅ V829 (২৯.০৮.২০২৬) — TK ফটো-প্রুফ দেখে অনুমতি দিয়েছেন ("হ্যাঁ করুন, তবে
+#    সাবধানে"), আর **তেরোটাই সারানো হয়েছে** (`backgroundTintList = null`)।
+#    তাই তালিকাটা এখন ফাঁকা। ⛔ নতুন নাম এখানে যোগ করা যাবে না — বোতামের
+#    রং XML-এ দিলে কোডেও tint খালি করতে হবে, নইলে ফোনে রং হারাবে।
+MATERIAL_TINT_KNOWN = set()
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -2922,21 +2911,17 @@ MATERIAL_TINT_KNOWN = {
 #  তাই তালিকাটা চোখের সামনে থাকা দরকার। TK-এর অনুমতি ছাড়া বদলানো হবে না;
 #  তালিকা শুধু **ছোট** হতে পারে, বড় নয়।
 # ═══════════════════════════════════════════════════════════════
+# ✅ V829 (২৯.০৮.২০২৬) — TK-এর অনুমতিতে **৯টা সারানো হয়েছে**
+#    (`android:textAllCaps="false"` — ফোনেও এখন কম্পিউটারের মতো ছোট হাতে)।
+#    ⚠️ নিচের **৫টা রয়ে গেল** — ওগুলোর XML-এ **নিজে হাতে `textAllCaps="true"`
+#    লেখা আছে**, অর্থাৎ বড় হাতে দেখানোটা কেউ ইচ্ছে করে বেছেছিলেন। TK-কে
+#    আলাদা করে জিজ্ঞেস না করে সেই স্পষ্ট নির্দেশ উল্টে দেওয়া হয়নি।
 ALLCAPS_KNOWN = {
-    ("activity_enquiry.xml", "btnSave"),
-    ("activity_login.xml", "btnLogin"),
-    ("activity_patient_photo.xml", "btnFind"),
-    ("activity_patient_photo.xml", "btnPick"),
-    ("activity_patient_photo.xml", "btnSave"),
     ("activity_registration.xml", "btnSexMale"),
     ("activity_registration.xml", "btnSexFemale"),
     ("activity_registration.xml", "btnSexOther"),
     ("activity_registration.xml", "btnRegTimingOfficial"),
     ("activity_registration.xml", "btnRegTimingUnexpected"),
-    ("activity_registration.xml", "btnSave"),
-    ("activity_user_photo.xml", "btnSave"),
-    ("activity_user_photo.xml", "btnRemove"),
-    ("item_credential_card.xml", "btnChange"),
 }
 
 

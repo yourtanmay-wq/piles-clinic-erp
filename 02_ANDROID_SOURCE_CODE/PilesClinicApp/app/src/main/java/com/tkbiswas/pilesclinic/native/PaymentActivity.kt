@@ -160,6 +160,18 @@ class PaymentActivity : AppCompatActivity() {
         })
 
         binding.btnBack.setOnClickListener { finish() }
+        /* 🎨🔒 V829 (২৯.০৮.২০২৬, TK-অনুমোদিত ফটো-প্রুফ: *"হ্যাঁ করুন, তবে সাবধানে"*)
+           — অ্যাপের থিমে XML-এর সাদামাটা `<Button>` আপনা-আপনি **MaterialButton**
+           হয়ে যায়, আর সেটা `android:background` **অগ্রাহ্য করে** নিজের গাঢ় নীল
+           `backgroundTint` বসিয়ে দেয়। ফলে XML-এ লেখা রংটা ফোনে কখনো দেখা যেত না
+           (কম্পিউটারে ঠিকই দেখা যেত)। `backgroundTintList = null` বসালে তবেই
+           XML-এর drawable-টা দেখা যায় — প্রজেক্টের নিজেরই প্রমাণিত ওষুধ
+           (`DoctorQueueAdapter` · `DraftCardAdapter`-এ আগে থেকেই চলছে, পাহারা ৯.৩২)।
+           ⛔ শুধু চেহারা — বোতামের কাজ · জায়গা · লেখা কিচ্ছু বদলায়নি। */
+        binding.btnAddPayment.backgroundTintList = null
+        binding.btnMedicinePayment.backgroundTintList = null
+        binding.btnMonthlyCollection.backgroundTintList = null
+        binding.btnCollectionHistory.backgroundTintList = null
         binding.btnAddPayment.setOnClickListener { showSearchPatientDialog() }
         binding.btnMedicinePayment.setOnClickListener { startActivity(Intent(this, MedicinePaymentActivity::class.java)) }
         setupDatePick()

@@ -274,6 +274,12 @@ class BriefingAdapter(
         // নেভি ছিল)। ⛔ শুধু রঙ — কোনো লজিক/ডেটা বদলায়নি।
         val redLine = android.graphics.Color.parseColor("#C0392B")
         val greenLine = android.graphics.Color.parseColor("#0F7A43")
+        /* 🎨🔒 V829 (২৯.০৮.২০২৬, TK-অনুমোদিত) — এই দাগটা XML-এ `<Button>`, আর
+           অ্যাপের থিমে সেটা MaterialButton হয়ে যায় ⇒ নিচের `setBackgroundColor`
+           (লাল/সবুজ) চুপচাপ ফেলে দিয়ে থিমের গাঢ় নীল বসত। `backgroundTintList`
+           খালি করলে তবেই আসল রংটা ফোনে দেখা যায় (পাহারা ৯.৩২)।
+           ⛔ শুধু চেহারা — নোটিশের লজিক/তথ্য কিচ্ছু বদলায়নি। */
+        b.priorityBar.backgroundTintList = null
         if (urgent) {
             b.priorityBar.setBackgroundColor(redLine)
             b.tvChip.text = "URGENT"

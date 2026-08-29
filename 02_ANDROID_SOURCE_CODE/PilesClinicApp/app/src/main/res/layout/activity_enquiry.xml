@@ -184,7 +184,8 @@
                     android:background="@drawable/bg_gradient_button"
                     android:text="Save Enquiry"
                     android:textColor="@color/white"
-                    android:textStyle="bold" />
+                    android:textStyle="bold"
+            android:textAllCaps="false" />
 
                 <ProgressBar
                     android:id="@+id/progressSave"
