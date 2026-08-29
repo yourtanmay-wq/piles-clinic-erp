@@ -7486,7 +7486,7 @@ function fuCard(x){
    +`<div class="anFuMain">`
     +`<div class="anFuHead">`
      +`<div class="anFuInfo">`
-      /* 📋🔒 V825 (২৯.০৮.২০২৬, TK-নির্দেশ, ছবিসহ) — নাম ও নম্বরে **লম্বা চাপ
+      /* 📋🔒 V826 (২৯.০৮.২০২৬, TK-নির্দেশ, ছবিসহ) — নাম ও নম্বরে **লম্বা চাপ
          দিলে কপি**। ⛔ প্রজেক্টে আগে থেকেই থাকা, প্রমাণিত `wlv1PatientHold*`
          (RMP-এর রোগী-কার্ডে চলছে) — নতুন কিছু বানানো হয়নি।
          ⛔ ৬৫০ ms-এর কম চাপে আগের মতোই কার্ড খোলে; কপি হলে `event.stopPropagation()`
@@ -14661,7 +14661,7 @@ function saveVisit(){
 }
 window["saveVisit"]=saveVisit;
 let wlv1PatientHoldTimer=null,wlv1PatientHoldCopied=false;
-/* 📋🔒 V825 (২৯.০৮.২০২৬, TK-নির্দেশ) — তৃতীয় ঘরটা (`fixed`) নতুন, **ঐচ্ছিক**:
+/* 📋🔒 V826 (২৯.০৮.২০২৬, TK-নির্দেশ) — তৃতীয় ঘরটা (`fixed`) নতুন, **ঐচ্ছিক**:
    না দিলে আগের মতোই লেখাটাই কপি হয় (পুরনো সব ডাক এক অক্ষরও বদলায়নি);
    দিলে ঠিক ওই লেখাটাই কপি হয় — Follow-up কার্ডে 📞 চিহ্নটা যেন কপিতে
    না ঢোকে, সেজন্যই দরকার হলো। */
@@ -14679,7 +14679,7 @@ function wlv1RmpPatientCard(p,fast){
  return `<div class="card rmpPatientMini" style="cursor:pointer" onclick="wlv1OpenPatientCard('${mobile}')"><div class="rmpPatientTop"><b class="rmpPatientName" onpointerdown="wlv1PatientHoldStart(this,'Name')" onpointerup="wlv1PatientHoldEnd()" onpointerleave="wlv1PatientHoldEnd()" onpointercancel="wlv1PatientHoldEnd()">${esc(name)}</b><span class="rmpPatientMobile" onpointerdown="wlv1PatientHoldStart(this,'Mobile number')" onpointerup="wlv1PatientHoldEnd()" onpointerleave="wlv1PatientHoldEnd()" onpointercancel="wlv1PatientHoldEnd()">${esc(mobile)}</span></div><div class="rmpPatientMeta"><span class="rmpPatientDisease">${esc(String(disease).toUpperCase())}</span><span>Sent: ${esc(sent)}</span></div><div class="rmpPatientMoney"><span class="bill">Bill ${money(bill)}</span><span class="paid">Paid ${paidText}</span><span class="due">Due ${dueText}</span></div></div>`;
 }
 window["wlv1PatientHoldStart"]=wlv1PatientHoldStart;window["wlv1PatientHoldEnd"]=wlv1PatientHoldEnd;window["wlv1OpenPatientCard"]=wlv1OpenPatientCard;
-/* 📋🔒 V825 — লম্বা চাপে কপি হয়ে গেলে ওই একবারের জন্য কার্ডের ক্লিক খায়,
+/* 📋🔒 V826 — লম্বা চাপে কপি হয়ে গেলে ওই একবারের জন্য কার্ডের ক্লিক খায়,
    যাতে কপি করতে গিয়ে পর্দা বদলে না যায়। ⛔ কপি না হলে `false` ফেরে, তখন
    কার্ড আগের মতোই খোলে — এক অক্ষরও বদলায়নি। */
 function wlv1FuHoldEat(ev){
@@ -18371,6 +18371,86 @@ function wlv1OpenDoc(kind, mobile){
 }
 window["wlv1OpenDoc"]=wlv1OpenDoc;
 
+/* ════════════════════════════════════════════════════════════════════════
+   📝🔒 V826 (২৯.০৮.২০২৬, TK-নির্দেশ) — Search থেকে রিমার্ক (ফোনের
+   GlobalSearchActivity.writeRemarkForHit()-এর হুবহু জোড়া)।
+
+   *"কিশনগঞ্জের স্টাফ কল রিসিভ করেছিল, কিন্তু নম্বরটা জলপাইগুড়ির এনকোয়ারি —
+    সে রিমার্ক লিখতে পারে না। … রিমার্কটা ফলোআপ কার্ডে চলে যেতে হবে, যাতে
+    জলপাইগুড়ির স্টাফ বোঝে লাস্ট কে কথা বলেছিল।"*
+
+   TK-অনুমোদিত **তৃতীয় পথ**: LAST CALL-এর তারিখ আজকের হয় ও স্টাফের নাম বসে,
+   কিন্তু **কল-গোনা (callCount) বাড়ে না** — তাই "৫ কলের পর বাতিল" নিয়মে
+   এক অক্ষরও প্রভাব পড়ে না।
+
+   ⛔ **নতুন কোনো রেকর্ড তৈরি হয় না** — সারি না থাকলে পরিষ্কার বার্তা দিয়ে থামে।
+   ⛔ লেখার ধরন প্রজেক্টের প্রমাণিত পথেই (`save('followups', rows)`), হুবহু
+      `wlv1ChamberSaveTreatment()`-এর মতো।
+   ════════════════════════════════════════════════════════════════════════ */
+function wlv1LiveFollowRow(m){
+  /* বাছার নিয়ম প্রজেক্টের হুবহু একই (V638/V646): আগে স্টেজ-অগ্রাধিকার
+     (Treatment > Patient > Inquiry), সমান হলে সবচেয়ে সাম্প্রতিক updatedAt. */
+  const pr=s=>s==='Treatment'?3:(s==='Patient'?2:(s==='Inquiry'?1:0));
+  let best=null;
+  load('followups').forEach(x=>{
+    if(mob(x.mobile)!==m) return;
+    if(!best){best=x;return}
+    const pn=pr(x.stage), pb=pr(best.stage);
+    if(pn>pb || (pn===pb && String(x.updatedAt||'')>String(best.updatedAt||''))) best=x;
+  });
+  return best;
+}
+function wlv1SearchRemark(mobile){
+  const m=mob(mobile);
+  const f=wlv1LiveFollowRow(m);
+  if(!f) return toast('No follow-up record for this number yet — remark not saved');
+  const who=[String(f.name||'').toUpperCase(), f.branch||'', f.stage||''].filter(Boolean).join('  ·  ');
+  modal(`<h2>Write Remark</h2>
+    <div class="tiny mut">${esc(who)}</div>
+    ${f.lastRemark?`<div class="tiny mut" style="margin-top:4px">Last remark: ${esc(String(f.lastRemark))}</div>`:''}
+    <textarea id="wlv1SrIn" class="input" rows="3" placeholder="What did the caller say?"></textarea>
+    <div class="actions"><button class="ghost" onclick="closeModal()">Cancel</button>
+    <button onclick="wlv1SearchRemarkSave('${esc(m)}')">Save</button></div>`);
+}
+window["wlv1SearchRemark"]=wlv1SearchRemark;
+function wlv1SearchRemarkSave(mobile){
+  const m=mob(mobile);
+  const txt=String((($('#wlv1SrIn')||{}).value)||'').trim();
+  /* 🔒 খাতার সারি B54-এর একই পাহারা: ফাঁকা লেখায় আগের রিমার্ক কখনো মুছবে না। */
+  if(!txt) return toast('Please write the remark first');
+  const rows=load('followups');
+  const f=wlv1LiveFollowRow(m);
+  const i=f?rows.findIndex(x=>String(x.id)===String(f.id)):-1;
+  if(i<0) return toast('No follow-up record for this number yet — remark not saved');
+  const now=new Date().toISOString();
+  rows[i]={...rows[i], lastRemark:txt, lastRemarkAt:now, updatedAt:now,
+    /* ⛔ শুধু তারিখ — `callCount` ইচ্ছাকৃতভাবে ছোঁয়া হয় না (TK-অনুমোদিত)। */
+    lastCallDate: today(),
+    history:[...(rows[i].history||[]),
+      {date:today(), time:isoNow(), remark:txt, staff:(user&&(user.name||user.mobile))||''}]};
+  save('followups', rows);
+  closeModal();
+  toast('Remark saved to Follow-up');
+}
+window["wlv1SearchRemarkSave"]=wlv1SearchRemarkSave;
+
+/* 🖨️🔒 V826 (২৯.০৮.২০২৬, TK-নির্দেশ: *"Prescription · Medicine Slip · Blood
+   Test · Diet Chart — এগুলো আলাদা আলাদা থাকবে না, একটার মধ্যেই থাকবে, যার
+   নাম হবে প্রিন্ট"*)। ⛔ চারটে পর্দার কাজ এক অক্ষরও বদলায়নি — ঠিক আগের
+   `wlv1OpenDoc(...)`-ই ডাকা হয়, শুধু এখন তালিকা থেকে বাছতে হয়। */
+function wlv1SearchPrint(mobile){
+  const m=mob(mobile);
+  const row=(icon,label,kind)=>
+    `<button class="menuBtn" onclick="closeModal();wlv1OpenDoc('${kind}','${esc(m)}')"><span>${icon}</span><b>${label}</b></button>`;
+  modal(`<h2>Print</h2>
+    ${row('\u{1F4DD}','Prescription','prescription')}
+    ${row('\u{1F48A}','Medicine Slip','medicine')}
+    ${row('\u{1FA78}','Blood Test','blood')}
+    ${row('\u{1F957}','Diet Chart','diet')}
+    <div class="actions"><button class="ghost" onclick="closeModal()">Cancel</button></div>`);
+}
+window["wlv1SearchPrint"]=wlv1SearchPrint;
+
 function wlv1SearchCard(r){
   const nm = String(r.name||'').trim() || normMob(r.mobile);
   const initials = nm.split(/\s+/).map(a=>a[0]).join('').slice(0,2).toUpperCase() || 'PC';
@@ -18387,15 +18467,14 @@ function wlv1SearchCard(r){
       ${act('\u{1F4AC}','WhatsApp',false,`contact('${m}','wa')`)}
       ${act('\u{1F4B3}','Payment',true,`patientPaymentHome()`)}
       ${act('\u{1F9ED}','Full Journey',true,`wlv1FullJourney('${m}')`)}
-      ${act('\u{1F4DD}','Prescription',false,`wlv1OpenDoc('prescription','${m}')`)}
-      ${act('\u{1F48A}','Medicine Slip',false,`wlv1OpenDoc('medicine','${m}')`)}
-      ${act('\u{1FA78}','Blood Test',false,`wlv1OpenDoc('blood','${m}')`)}
-      ${act('\u{1F957}','Diet Chart',false,`wlv1OpenDoc('diet','${m}')`)}
       ${act('\u{1F4CB}','Report Card',true,`wlv1ReportCard('${m}')`)}
       ${act('\u{1F4DA}','Clinical History',false,`wlv1ClinicalHistory('${m}')`)}
+      ${/* 🖨️ V826 — চারটে ছাপার বোতাম এখন একটাই, পুরো চওড়া জুড়ে */''}
+      <button class="wlv1SAct wlv1SFull" onclick="wlv1SearchPrint('${m}')"><span>\u{1F5A8}\uFE0F</span><b>Print</b></button>
+      ${/* 📝 V826 — TK-নির্দেশ: Remarks ও Mark Arrived পাশাপাশি */''}
+      ${act('\u{1F5D2}\uFE0F','Write Remark',true,`wlv1SearchRemark('${m}')`)}
+      ${act('\u{1F3E5}','Mark Arrived (এসেছেন)',true,`wlv1MarkArrived('${m}')`)}
     </div>
-    <button class="wlv1SAct g wlv1SWide" onclick="wlv1MarkArrived('${m}')">
-      <span>\u{1F3E5}</span><b>Mark Arrived (এসেছেন)</b></button>
   </div>`;
 }
 window["wlv1SearchCard"]=wlv1SearchCard;

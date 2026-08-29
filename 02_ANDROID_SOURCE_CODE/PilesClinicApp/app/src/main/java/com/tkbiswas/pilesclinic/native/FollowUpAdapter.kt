@@ -66,7 +66,7 @@ class FollowUpAdapter(
         //   কার্ডের মতো (`buildFollowCard`: সিরিয়াল থাকলে 👤 বসে না)।
         b.tvName.text = item.name.ifBlank { "UNKNOWN" }
         b.tvMobile.text = "📞 ${formatMobileForDisplay(item.mobile)}"
-        /* 📋🔒 V825 (২৯.০৮.২০২৬, TK-নির্দেশ) — নামেও লম্বা চাপে কপি, ঠিক
+        /* 📋🔒 V826 (২৯.০৮.২০২৬, TK-নির্দেশ) — নামেও লম্বা চাপে কপি, ঠিক
            নিচের নম্বরটার মতোই (Draft-এর কার্ডও একই দেখতে, তাই একই আচরণ)।
            ⛔ নম্বর কপির পুরনো কোডে এক অক্ষরও হাত পড়েনি। */
         b.tvName.setOnLongClickListener {

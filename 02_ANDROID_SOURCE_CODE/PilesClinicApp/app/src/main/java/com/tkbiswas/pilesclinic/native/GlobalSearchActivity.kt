@@ -77,7 +77,8 @@ class GlobalSearchActivity : AppCompatActivity() {
             onBloodTest = { hit -> openClinicalDoc(hit, com.tkbiswas.pilesclinic.clinical.InvestigationAdviceActivity::class.java) },
             onDietChart = { hit -> openClinicalDoc(hit, com.tkbiswas.pilesclinic.clinical.DietChartActivity::class.java) },
             onMarkArrived = { hit -> markArrivedHit(hit) },
-            onRemark = { hit -> writeRemarkForHit(hit) }   // 📝 V825
+            onRemark = { hit -> writeRemarkForHit(hit) },   // 📝 V826
+            onPrint = { hit -> showPrintPicker(hit) }       // 🖨️ V826
         )
         recycler.adapter = adapter
 
@@ -336,7 +337,7 @@ class GlobalSearchActivity : AppCompatActivity() {
     }
 
     /* ════════════════════════════════════════════════════════════════════
-       📝🔒🔒 V825 (২৯.০৮.২০২৬, TK-নির্দেশ, ছবিসহ)
+       📝🔒🔒 V826 (২৯.০৮.২০২৬, TK-নির্দেশ, ছবিসহ)
 
        *"মনে করুন কিশনগঞ্জের স্টাফ কল রিসিভ করেছিল, কিন্তু কলটা অটোমেটিক
         জলপাইগুড়ির কোনো এনকোয়ারি ছিল — কিশনগঞ্জের স্টাফ কোনো রিমার্ক লিখতে
@@ -519,6 +520,58 @@ class GlobalSearchActivity : AppCompatActivity() {
         )
     }
 
+    /**
+     * 🖨️🔒 V826 (২৯.০৮.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — একটাই "Print" বোতাম,
+     * ভিতরে সেই চারটেই।
+     *
+     * ⛔ প্রতিটা সারি ঠিক আগের ফাংশনটাই ডাকে (`openClinicalDoc(...)`) —
+     *    কোন পর্দা খুলবে · কী তথ্য যাবে · কে ছাপতে পারবে, কিচ্ছু বদলায়নি।
+     * ⛔ ক্রমও আগের মতোই: Prescription → Medicine Slip → Blood Test → Diet Chart।
+     */
+    private fun showPrintPicker(hit: SearchHit) {
+        val d = resources.displayMetrics.density
+        fun px(v: Int) = (v * d).toInt()
+        val col = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, px(4), 0, px(4))
+        }
+        fun rowItem(icon: String, label: String, open: () -> Unit): View {
+            val r = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(px(22), px(15), px(22), px(15))
+                isClickable = true
+                isFocusable = true
+            }
+            r.addView(TextView(this).apply {
+                text = icon
+                textSize = 17f
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT).also { it.marginEnd = px(14) }
+            })
+            r.addView(TextView(this).apply {
+                text = label
+                textSize = 15f
+                setTextColor(android.graphics.Color.parseColor("#101828"))
+            })
+            r.setOnClickListener { open() }
+            return r
+        }
+        lateinit var dlg: androidx.appcompat.app.AlertDialog
+        col.addView(rowItem("📝", "Prescription") { dlg.dismiss(); openClinicalDoc(hit, com.tkbiswas.pilesclinic.clinical.PrescriptionActivity::class.java) })
+        col.addView(rowItem("💊", "Medicine Slip") { dlg.dismiss(); openClinicalDoc(hit, com.tkbiswas.pilesclinic.clinical.MedicineSlipActivity::class.java) })
+        col.addView(rowItem("🩸", "Blood Test") { dlg.dismiss(); openClinicalDoc(hit, com.tkbiswas.pilesclinic.clinical.InvestigationAdviceActivity::class.java) })
+        col.addView(rowItem("🥗", "Diet Chart") { dlg.dismiss(); openClinicalDoc(hit, com.tkbiswas.pilesclinic.clinical.DietChartActivity::class.java) })
+        dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(PremiumAlert.header(this, "Print"))
+            .setView(col)
+            .setNegativeButton("Cancel", null)
+            .create()
+        dlg.show()
+        PremiumAlert.paint(dlg)
+    }
+
     // TK APPROVED (2026-07-15): Search result card redesigned -- the four
     // clinical documents now each have their own direct one-tap button
     // (instead of hiding behind a "Docs" picker dialog), same destination
@@ -562,9 +615,11 @@ class GlobalSearchActivity : AppCompatActivity() {
         // TK-REQUESTED (2026-07-20): mark a searched patient Arrived into
         // today's Chamber Attendance directly from Search.
         val onMarkArrived: (SearchHit) -> Unit,
-        /* 📝🔒 V825 (২৯.০৮.২০২৬, TK-নির্দেশ) — অন্য ব্রাঞ্চের কল ধরা স্টাফও
+        /* 📝🔒 V826 (২৯.০৮.২০২৬, TK-নির্দেশ) — অন্য ব্রাঞ্চের কল ধরা স্টাফও
            যেন এখান থেকে রিমার্ক লিখতে পারেন। */
-        val onRemark: (SearchHit) -> Unit
+        val onRemark: (SearchHit) -> Unit,
+        /* 🖨️🔒 V826 — চারটে ছাপার পর্দা এখন একটাই "Print" বোতামের ভিতরে। */
+        val onPrint: (SearchHit) -> Unit
     ) : RecyclerView.Adapter<SearchAdapter.VH>() {
         // TK APPROVED (2026-07-15): premium dual-green search result card --
         // navy replaced with green (per TK's request), avatar + name/mobile in
@@ -726,15 +781,19 @@ class GlobalSearchActivity : AppCompatActivity() {
                 Triple("💳", "Payment", true) to { onPayment(h) },
                 Triple("🧭", "Full Journey", true) to { onFullJourney(h) }
             )
-            addPairRow(
-                Triple("📝", "Prescription", false) to { onPrescription(h) },
-                Triple("💊", "Medicine Slip", false) to { onMedicineSlip(h) }
-            )
-            addPairRow(
-                Triple("🩸", "Blood Test", false) to { onBloodTest(h) },
-                Triple("🥗", "Diet Chart", false) to { onDietChart(h) }
-            )
-            /* 📝🔒 V825 (২৯.০৮.২০২৬, TK-নির্দেশ: *"Remarks & Mark Arrived
+            /* 🖨️🔒 V826 (২৯.০৮.২০২৬, TK-নির্দেশ: *"Prescription · Medicine Slip ·
+               Blood Test · Diet Chart — এগুলো আলাদা আলাদা থাকবে না, একটার
+               মধ্যেই থাকবে, যার নাম হবে প্রিন্ট"*)।
+               ⛔ চারটে পর্দার কাজ · ঠিকানা · তথ্য এক অক্ষরও বদলায়নি — ওই
+                  একই `onPrescription/onMedicineSlip/onBloodTest/onDietChart`
+                  ডাকা হয়, শুধু এখন একটা তালিকা থেকে বাছতে হয়।
+               ⛔ কার্ডটা ছোট হলো, তাই সব বোতাম এক পর্দাতেই ধরে। */
+            run {
+                val row = newRow()
+                row.addView(actionButton("🖨️", "Print", false) { onPrint(h) })
+                holder.grid.addView(row)
+            }
+            /* 📝🔒 V826 (২৯.০৮.২০২৬, TK-নির্দেশ: *"Remarks & Mark Arrived
                পাশাপাশি রাখুন"*) — সবচেয়ে নিচের সারিতে দুটো একসাথে।
                ⛔ Mark Arrived-এর লেখা · আইকন · রং · কাজ এক অক্ষরও বদলায়নি,
                   শুধু আগে পুরো চওড়া সারিতে একা বসত, এখন অর্ধেক জায়গায়।
