@@ -37,7 +37,14 @@ data class QueuePatient(
     // এটাই ঘুরপথে "নতুন" (আজ প্রথম এসেছেন, এখনো Advance করেননি) বনাম
     // "পুরনো" (আগে Advance হয়ে গেছে) রোগী বোঝার উপায় -- আলাদা কোনো
     // NEW/REPEAT ব্যাজ ছাড়াই।
-    val bill: Double = 0.0
+    val bill: Double = 0.0,
+    /* 🩺🔒 V839 (২৯.০৮.২০২৬, TK-নির্দেশ) — কার্ডে NEXT VISIT PLAN-এর ট্যাগ ও
+       OLD/NEW ব্যাজ দেখানোর জন্য। দুটোই **ডিফল্ট ফাঁকা** — তাই পুরনো কোনো
+       ডাক ভাঙে না, আর মান না এলে কার্ড হুবহু আগের মতোই দেখায়। */
+    val registrationDate: String = "",
+    val nvpLine: String = "",      // "Dressing · সুতো চেঞ্জ · ঔষধ"
+    val nvpWhen: String = "",      // "29.08.2026"
+    val nvpBy: String = ""         // "Dr. A. Sarkar"
 )
 
 object DoctorQueueModel {
@@ -90,7 +97,8 @@ object DoctorQueueModel {
         photo = row.s("photo"),
         updatedAt = row.s("updatedAt"),
         createdAt = row.s("createdAt"),
-        bill = row.optDouble("bill", 0.0)
+        bill = row.optDouble("bill", 0.0),
+        registrationDate = row.s("registrationDate")   // 🩺 V839 — OLD/NEW ঠিক করতে
     )
 
     /** Newest first, matching visitQueueRows()'s sort by

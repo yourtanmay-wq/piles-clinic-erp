@@ -82,6 +82,25 @@
             android:textSize="12sp"
             android:textColor="@color/brand_blue" />
 
+        <!-- 🩺🔒 V839 — NEXT VISIT PLAN-এর ট্যাগ (TK-নির্দেশ, ফটো-প্রুফ পাশ)।
+             ⛔ শুরুতে **লুকানো** — প্ল্যান না থাকলে কার্ড হুবহু আগের মতোই
+                দেখাবে (TK: "LAST PLAN না থাকলে যেন card থেকে হাইড হয়ে যায়")।
+             ⛔ কার্ডের আর কিছু (নাম · মোবাইল · রোগ · বোতাম) ছোঁয়া হয়নি। -->
+        <TextView
+            android:id="@+id/tvNvpTag"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="7dp"
+            android:paddingTop="7dp"
+            android:paddingBottom="7dp"
+            android:paddingStart="9dp"
+            android:paddingEnd="9dp"
+            android:background="@drawable/bg_nvp_tag"
+            android:textSize="12sp"
+            android:lineSpacingExtra="2dp"
+            android:textColor="#0B3D91"
+            android:visibility="gone" />
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

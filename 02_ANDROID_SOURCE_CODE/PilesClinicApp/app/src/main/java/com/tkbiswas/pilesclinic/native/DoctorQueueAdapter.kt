@@ -96,9 +96,35 @@ class DoctorQueueAdapter(
                 val b = (holder as ViewHolder).binding
 
                 // 🔴🔴 TK-REPORTED (31.07.2026): নাম না থাকলে মোবাইল দুইবার দেখাত।
-                b.tvName.text = item.name.ifBlank { "UNKNOWN" }
+                /* 🟢🔒 V839 (TK-নির্দেশ: *"OLD নাকি NEW — এই কথা যেন মেনশন
+                   থাকে"*) — নামের পরেই ব্যাজ। নিয়ম: রেজিস্ট্রেশনের তারিখ
+                   আজ হলে NEW, নইলে OLD। ⛔ তারিখ জানা না থাকলে **কিছুই**
+                   দেখানো হয় না — আন্দাজে বসানো হয় না। */
+                val nvpBadge = com.tkbiswas.pilesclinic.clinical.NextVisitPlan
+                    .oldOrNew(item.registrationDate)
+                b.tvName.text = item.name.ifBlank { "UNKNOWN" } +
+                    (if (nvpBadge.isNotBlank()) "   $nvpBadge" else "")
                 b.tvMeta.text = "📞 ${item.mobile}"
                 b.tvDiseaseBranch.text = "${item.disease.ifBlank { "-" }} · ${item.branch.ifBlank { "-" }} · ${item.patientId.ifBlank { "-" }}"
+                /* 🩺🔒 V839 — NEXT VISIT PLAN-এর ট্যাগ।
+                   ⛔ প্ল্যান না থাকলে **পুরোপুরি লুকানো** (TK-নির্দেশ:
+                      "LAST PLAN না থাকলে যেন card থেকে হাইড হয়ে যায়") —
+                      তখন কার্ড হুবহু আগের মতোই দেখায়।
+                   ⛔ RecyclerView সারি পুনরায় ব্যবহার করে, তাই **দুই দিকেই**
+                      (দেখানো ও লুকানো) স্পষ্ট করে বসানো হয় — নইলে অন্য
+                      রোগীর ট্যাগ ভুল কার্ডে থেকে যেত। */
+                if (item.nvpLine.isNotBlank()) {
+                    val whenBy = listOfNotNull(
+                        item.nvpWhen.ifBlank { null },
+                        item.nvpBy.ifBlank { null }
+                    ).joinToString(" · ")
+                    b.tvNvpTag.text = "LAST PLAN: " + item.nvpLine +
+                        (if (whenBy.isNotBlank()) "\n" + whenBy else "")
+                    b.tvNvpTag.visibility = android.view.View.VISIBLE
+                } else {
+                    b.tvNvpTag.text = ""
+                    b.tvNvpTag.visibility = android.view.View.GONE
+                }
                 // TK-REQUESTED (2026-07-18): long-press to copy name/mobile.
                 b.tvName.copyOnLongPress("Name", item.name)
                 b.tvMeta.copyOnLongPress("Mobile", item.mobile)

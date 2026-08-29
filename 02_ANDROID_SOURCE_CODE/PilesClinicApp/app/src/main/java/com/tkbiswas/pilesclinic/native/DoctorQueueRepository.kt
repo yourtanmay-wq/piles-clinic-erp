@@ -184,9 +184,9 @@ class DoctorQueueRepository(private val context: Context? = null) {
         //   ছবি এখন শুধু তখনই নামে যখন কেউ **সত্যিই Doctor Queue স্ক্রিন খোলে** (includePhoto=
         //   true দিলে) — তবে Doctor Queue screen এখন default slim path ব্যবহার করে; কার্ডের ছবি cache/missing-id batch থেকে পূরণ হয়।
         val cols = if (includePhoto)
-            "id,name,mobile,branch,disease,patientId,photo,queue,stage,doctorComplete,createdBy,registeredBy,createdAt,updatedAt,bill"
+            "id,name,mobile,branch,disease,patientId,photo,queue,stage,doctorComplete,createdBy,registeredBy,createdAt,updatedAt,bill,registrationDate"
         else
-            "id,name,mobile,branch,disease,patientId,queue,stage,doctorComplete,createdBy,registeredBy,createdAt,updatedAt,bill"
+            "id,name,mobile,branch,disease,patientId,queue,stage,doctorComplete,createdBy,registeredBy,createdAt,updatedAt,bill,registrationDate"
         val rowsRaw = SupabaseClient.fetchListSlimOrNull("patients", filter, 5000, cols)
         if (rowsRaw == null) loadCachedQueue(branchFilter)?.let { return it }
         val rows = rowsRaw ?: JSONArray()
@@ -254,9 +254,58 @@ class DoctorQueueRepository(private val context: Context? = null) {
         //   রাখা হত, ফেরত-দেওয়া তালিকায় নয় — তাই ৩০ সেকেন্ডের অটো-রিফ্রেশ হলেই কার্ড
         //   থেকে ছবি উধাও হয়ে যেত (DoctorQueueAdapter ফাঁকা ছবি পেলে setImageDrawable(null))।
         //   ⛔ ছবিসহ টানার পথ (includePhoto=true) এক অক্ষরও বদলায়নি।
-        val result = if (includePhoto) result0 else fillPhotosFromCache(branchFilter, result0)
+        val result1 = if (includePhoto) result0 else fillPhotosFromCache(branchFilter, result0)
+        val result = fillNextVisitPlans(result1)   // 🩺 V839
         saveCachedQueue(branchFilter, result, includePhoto)
         return result
+    }
+
+    /**
+     * 🩺🔒 V839 (২৯.০৮.২০২৬, TK-নির্দেশ) — কার্ডে দেখানোর জন্য প্রতিটা
+     * সারিতে **শেষ NEXT VISIT PLAN**-টা বসানো।
+     *
+     * ### 🚨 Egress — কেন এভাবে, আন্দাজে নয়
+     * উপরের বড় পড়াটা **ব্রাঞ্চের সব রোগীর** সারি টানে (৫০০০ পর্যন্ত)।
+     * সেখানে `nextVisitPlan` ঘরটা যোগ করলে **প্রত্যেক রোগীর পুরো
+     * প্ল্যান-তালিকা** নামত — দিনে বহুবার, প্রতিটা ফোনে। সেটা করা হয়নি।
+     *
+     * বদলে: **ছাঁকনির পরে** যে ক'জন সত্যিই আজ তালিকায় আছেন (সাধারণত ৫–৩০ জন)
+     * **শুধু তাঁদের** জন্য একটাই ছোট অনুরোধ — `id=in.(…)&select=id,nextVisitPlan`।
+     * প্রকল্পের আগে থেকে থাকা প্রমাণিত ধাঁচ (`DraftRepository`/`ReportsActivity`-র
+     * মতো একবারে-সবগুলো পড়া)।
+     *
+     * ⛔ ব্যর্থ হলে (নেট নেই / ঘরটা এখনো নেই) **তালিকা হুবহু আগের মতোই** ফেরে —
+     *    ট্যাগ দেখায় না, কিছুই ভাঙে না।
+     * ⛔ একসাথে সর্বোচ্চ ৬০টা id (URL খুব লম্বা হওয়া এড়াতে — `MAX_BATCH`-এর
+     *    হুবহু একই সীমা)।
+     */
+    private fun fillNextVisitPlans(list: List<QueuePatient>): List<QueuePatient> {
+        if (list.isEmpty()) return list
+        return try {
+            val ids = list.map { it.id }.filter { it.isNotBlank() }.distinct().take(60)
+            if (ids.isEmpty()) return list
+            val filter = "id=in.(" + ids.joinToString(",") { java.net.URLEncoder.encode(it, "UTF-8") } + ")"
+            val rows = SupabaseClient.fetchListSlimOrNull(
+                "patients", filter, ids.size,
+                "id," + com.tkbiswas.pilesclinic.clinical.NextVisitPlan.FIELD
+            ) ?: return list
+            val byId = HashMap<String, com.tkbiswas.pilesclinic.clinical.NextVisitPlan.Entry>()
+            for (i in 0 until rows.length()) {
+                val r = rows.optJSONObject(i) ?: continue
+                val rid = r.optString("id")
+                if (rid.isBlank()) continue
+                com.tkbiswas.pilesclinic.clinical.NextVisitPlan.latest(r)?.let { byId[rid] = it }
+            }
+            if (byId.isEmpty()) return list
+            list.map { q ->
+                val e = byId[q.id] ?: return@map q
+                q.copy(
+                    nvpLine = e.shortLine(),
+                    nvpWhen = if (e.at.length >= 10) FollowUpModel.displayDate(e.at.take(10)) else "",
+                    nvpBy = e.byName
+                )
+            }
+        } catch (_: Throwable) { list }
     }
 
     /**
@@ -392,9 +441,9 @@ class DoctorQueueRepository(private val context: Context? = null) {
         val sinceEnc = try { java.net.URLEncoder.encode(since, "UTF-8") } catch (_: Throwable) { since }
         val filter = "updatedAt=gt.$sinceEnc$branchPart"
         val cols = if (includePhoto)
-            "id,name,mobile,branch,disease,patientId,photo,queue,stage,doctorComplete,createdBy,registeredBy,createdAt,updatedAt,bill"
+            "id,name,mobile,branch,disease,patientId,photo,queue,stage,doctorComplete,createdBy,registeredBy,createdAt,updatedAt,bill,registrationDate"
         else
-            "id,name,mobile,branch,disease,patientId,queue,stage,doctorComplete,createdBy,registeredBy,createdAt,updatedAt,bill"
+            "id,name,mobile,branch,disease,patientId,queue,stage,doctorComplete,createdBy,registeredBy,createdAt,updatedAt,bill,registrationDate"
 
         val delta = try {
             SupabaseClient.fetchListSlimOrNull("patients", filter, 2000, cols)

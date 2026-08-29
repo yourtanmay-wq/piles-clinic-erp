@@ -370,6 +370,9 @@ class DoctorCheckupActivity : AppCompatActivity() {
             // 🟢🔒 V671 — সময়ও একই মূল-থ্রেডেই ধরে রাখা হলো।
             val reminderTimeNow = doctorReminderTimeStr
             PrescriptionOptionsStore.captureCheckup(applicationContext, record)
+            /* 🩺 V839 — View মূল থ্রেডেই পড়া হয় (V656-এর প্রমাণিত নিয়ম),
+               নিচের ব্যাকগ্রাউন্ড-সেভ শুধু জমা মানটা ব্যবহার করে। */
+            pendingNvp = try { collectNextVisitPlan() } catch (_: Throwable) { null }
             // 🔴 B437 — আগে এখানে `ClinicalRepository.lastCheckup = record`
             // বসত, যেটাই উপরের ক্রস-রোগী বাগের উৎস ছিল। যেহেতু এখন কেউ এই
             // ভ্যারিয়েবলটা পড়েই না (populate() ডাক সরানো হয়েছে), এই লাইনটাও
@@ -1138,10 +1141,16 @@ class DoctorCheckupActivity : AppCompatActivity() {
                        `PatientPhotoCache` থেকে আসে (জমা থাকলে বিনা খরচে,
                        নইলে শুধু ওই এক সারির `id,photo`)। ⛔ হেডারের ছবি,
                        A4 কাগজের ছবি ও ৩-চাপে ঘোরানো — তিনটেই অটুট। */
+                    /* 🩺🔒 V839 — নিজের ঘরটাও চাওয়া হয় (`nextVisitPlan`)।
+                       ⛔ শেয়ার করা `PATIENT_NO_PHOTO_COLS` **ছোঁয়া হয়নি** —
+                          ওটা প্রকল্পের ১৩টা জায়গায় চলে, তার একটায় ৫০০ সারি
+                          পড়া হয়; ওখানে ঘরটা যোগ করলে অকারণে Egress বাড়ত।
+                          এখানে সারি মাত্র **একটাই**, তাই খরচ নগণ্য। */
+                    val colsWithPlan = SupabaseClient.PATIENT_NO_PHOTO_COLS + ",${NextVisitPlan.FIELD}"
                     var rows = SupabaseClient.fetchListSlim("patients", "patientId=eq.$enc", 1,
-                        SupabaseClient.PATIENT_NO_PHOTO_COLS)
+                        colsWithPlan)
                     if (rows.length() == 0) rows = SupabaseClient.fetchListSlim("patients",
-                        "id=eq.$enc", 1, SupabaseClient.PATIENT_NO_PHOTO_COLS)
+                        "id=eq.$enc", 1, colsWithPlan)
                     if (rows.length() > 0) rows.getJSONObject(0) else null
                 } catch (_: Exception) { null }
             } ?: return@launch
@@ -1195,6 +1204,10 @@ class DoctorCheckupActivity : AppCompatActivity() {
             findViewById<TextView>(R.id.btnPatientHistory).setOnClickListener {
                 openCheckupHistory()
             }
+            /* 🩺🔒 V839 — NEXT VISIT PLAN অংশটা চালু করা।
+               ⛔ সারিটা **এইমাত্র এই রোগীরই** id দিয়ে আনা হয়েছে (উপরে
+                  `patientId=eq.$enc`), তাই B437-এর ক্রস-রোগী ফাঁদ এখানে নেই। */
+            setupNextVisitPlan(p)
             /* 🔵🔒 V559 (২২.০৮.২০২৬, TK-অনুমোদিত: *"হ্যাঁ"*) — আগে সেভ করা
                চেকআপ ফর্মে ফিরিয়ে আনা।
 
@@ -1595,8 +1608,11 @@ class DoctorCheckupActivity : AppCompatActivity() {
         try {
             val enc = java.net.URLEncoder.encode(patientKey, "UTF-8")
             // 🔴🔒 V794 — এখানে ছবি লাগে না (markDoctorComplete), তাই ছবি ছাড়া
-            var rows = SupabaseClient.fetchListSlim("patients", "patientId=eq.$enc", 1, SupabaseClient.PATIENT_NO_PHOTO_COLS)
-            if (rows.length() == 0) rows = SupabaseClient.fetchListSlim("patients", "id=eq.$enc", 1, SupabaseClient.PATIENT_NO_PHOTO_COLS)
+            /* 🩺 V839 — পুরনো প্ল্যান-তালিকাটাও পড়া হয়, যাতে নতুনটা **যোগ**
+               করা যায় (কখনো উপরে বসানো নয়)। একই সারি, বাড়তি অনুরোধ নেই। */
+            val colsSave = SupabaseClient.PATIENT_NO_PHOTO_COLS + ",${NextVisitPlan.FIELD}"
+            var rows = SupabaseClient.fetchListSlim("patients", "patientId=eq.$enc", 1, colsSave)
+            if (rows.length() == 0) rows = SupabaseClient.fetchListSlim("patients", "id=eq.$enc", 1, colsSave)
             if (rows.length() == 0) return
             val id = rows.getJSONObject(0).optString("id")
             if (id.isBlank()) return
@@ -1614,6 +1630,16 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 val rec = pendingNote
                 if (rec != null) body.put("doctorFullNote",
                     mapToJson(CheckupNoteJson.merge(jsonToMap(oldNote), rec)))
+                /* 🩺🔒 V839 — NEXT VISIT PLAN **একই কলেই** বসে, বাড়তি কোনো
+                   নেটওয়ার্ক অনুরোধ নয়।
+                   ⛔ পুরনো তালিকা হুবহু রেখে নতুন সারিটা **শেষে যোগ** হয়
+                      (`NextVisitPlan.appended`) — একটাও পুরনো প্ল্যান মোছে না।
+                   ⛔ ডাক্তার কিছুই না বাছলে (`isEmpty`) ঘরটা **ছোঁয়াই হয় না** —
+                      তখন আগের প্ল্যান আগের মতোই থেকে যায়। */
+                val plan = pendingNvp
+                if (plan != null && !plan.isEmpty) {
+                    body.put(NextVisitPlan.FIELD, NextVisitPlan.appended(row0, plan))
+                }
             } catch (_: Throwable) { }
             SupabaseClient.updateById("patients", id, body)
         } catch (_: Exception) {
@@ -3139,6 +3165,9 @@ class DoctorCheckupActivity : AppCompatActivity() {
         রোগীর সারিতে বসায়। ⛔ এক রোগীর সেভ শেষ হলেই মুছে ফেলা হয়, যাতে
         পরের রোগীর ঘরে আগেরজনের তথ্য বসার পথ না থাকে (B437-এর শিক্ষা)। */
     @Volatile private var pendingNote: CheckupRecord? = null
+    /** 🩺 V839 — সেভের সময় ব্যাকগ্রাউন্ড থ্রেডে পাঠানোর জন্য, মূল থ্রেডেই
+     *  ধরে রাখা প্ল্যানটা (View off-thread ছোঁয়া নিরাপদ নয় — V656-এর নিয়ম)। */
+    @Volatile private var pendingNvp: NextVisitPlan.Entry? = null
 
     // 🟢🔒 V656 (২৫.০৮.২০২৬, TK-নির্দেশ — Doctor Note & Reminder) — বাছা
     // তারিখটা (ISO, yyyy-MM-dd) এখানে ধরে রাখা হয়; TextView-তে শুধু দেখানোর
@@ -3954,6 +3983,91 @@ class DoctorCheckupActivity : AppCompatActivity() {
         val obj = hdrDoctorNote ?: return null
         if (obj.length() == 0) return null
         return try { CheckupNoteJson.fromMap(jsonToMap(obj)) } catch (_: Throwable) { null }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // 🩺🔒 V839 — NEXT VISIT PLAN · পরের বার এই রোগীর কী হবে
+    // TK-নির্দেশ (২৯.০৮.২০২৬, ফটো-প্রুফ দেখিয়ে অনুমোদিত)।
+    // ⛔ চেকআপের আর কোনো ঘর · Treatment Plan · খরচ · ছাপার কাগজ — কিছুই
+    //    ছোঁয়া হয়নি। এই অংশটা সম্পূর্ণ আলাদা, নিজের ঘরে (`nextVisitPlan`) লেখে।
+    // ═══════════════════════════════════════════════════════════════════
+
+    /** ৯টা চেকবক্স — XML-এর id-র সাথে `NextVisitPlan.OPTIONS`-এর চাবি মেলানো। */
+    private fun nvpBoxes(): List<Pair<String, android.widget.CheckBox>> =
+        NextVisitPlan.OPTIONS.mapNotNull { opt ->
+            val idName = "cbNvp" + opt.key.replaceFirstChar { it.uppercase() }
+            val id = resources.getIdentifier(idName, "id", packageName)
+            if (id == 0) null else findViewById<android.widget.CheckBox>(id)?.let { opt.key to it }
+        }
+
+    private var nvpDateIso: String = ""
+
+    private fun setupNextVisitPlan(row: org.json.JSONObject) {
+        val boxes = nvpBoxes()
+        val medRow = findViewById<android.view.View>(R.id.rowNvpMedicine)
+        val etMed = findViewById<android.widget.EditText>(R.id.etNvpMedicine)
+        val etNote = findViewById<android.widget.EditText>(R.id.etNvpNote)
+        val tvDate = findViewById<TextView>(R.id.tvNvpDate)
+        val tvBy = findViewById<TextView>(R.id.tvNvpBy)
+
+        /* ঔষধ বাছলে তবেই "কোন ঔষধ" ঘরটা দেখায় — না বাছলে লুকানো। */
+        fun syncMedicineRow() {
+            val on = boxes.firstOrNull { it.first == NextVisitPlan.KEY_MEDICINE }?.second?.isChecked == true
+            medRow.visibility = if (on) android.view.View.VISIBLE else android.view.View.GONE
+        }
+        for ((_, cb) in boxes) cb.setOnCheckedChangeListener { _, _ -> syncMedicineRow() }
+        syncMedicineRow()
+
+        /* তারিখ — বাধ্যতামূলক নয় (TK-নির্দেশ)। অতীতের তারিখ বাছা যায় না। */
+        tvDate.setOnClickListener {
+            val cal = java.util.Calendar.getInstance()
+            if (nvpDateIso.isNotBlank()) try {
+                val q = nvpDateIso.split("-").map { it.toInt() }
+                cal.set(q[0], q[1] - 1, q[2])
+            } catch (_: Throwable) { }
+            android.app.DatePickerDialog(
+                this, com.tkbiswas.pilesclinic.R.style.PilesDatePicker,
+                { _, y, m, d ->
+                    nvpDateIso = String.format(java.util.Locale.US, "%04d-%02d-%02d", y, m + 1, d)
+                    tvDate.text = com.tkbiswas.pilesclinic.native.FollowUpModel.displayDate(nvpDateIso)
+                    tvDate.setTextColor(android.graphics.Color.parseColor("#101828"))
+                },
+                cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH),
+                cal.get(java.util.Calendar.DAY_OF_MONTH)
+            ).apply { datePicker.minDate = System.currentTimeMillis() - 1000L }.show()
+        }
+
+        /* গত বারের প্ল্যান — শুধু **দেখানোর** জন্য, ফর্মে ভরা হয় না।
+           ⛔ B437-এর নিয়ম: আগের লেখা কখনো সম্পাদনাযোগ্য ঘরে বসে না। */
+        val last = NextVisitPlan.latest(row)
+        if (last != null) {
+            val whenTxt = if (last.at.length >= 10) com.tkbiswas.pilesclinic.native.FollowUpModel.displayDate(last.at.take(10)) else ""
+            tvBy.text = "Last plan · " + last.shortLine() +
+                (if (whenTxt.isNotBlank()) "  ($whenTxt" else "") +
+                (if (last.byName.isNotBlank()) (if (whenTxt.isNotBlank()) " · " else "  (") + last.byName else "") +
+                (if (whenTxt.isNotBlank() || last.byName.isNotBlank()) ")" else "")
+            tvBy.visibility = android.view.View.VISIBLE
+        } else {
+            tvBy.visibility = android.view.View.GONE
+        }
+    }
+
+    /** পর্দা থেকে আজকের প্ল্যানটা তোলা — **মূল থ্রেডেই** ডাকতে হবে। */
+    private fun collectNextVisitPlan(): NextVisitPlan.Entry {
+        val boxes = nvpBoxes()
+        val items = boxes.filter { it.second.isChecked }.map { it.first }
+        val med = findViewById<android.widget.EditText>(R.id.etNvpMedicine).text?.toString().orEmpty().trim()
+        val note = findViewById<android.widget.EditText>(R.id.etNvpNote).text?.toString().orEmpty().trim()
+        val user = com.tkbiswas.pilesclinic.native.NativeSession.current(this)
+        return NextVisitPlan.Entry(
+            date = nvpDateIso,
+            items = items,
+            /* ঔষধ না বাছলে লেখাটা জমা হয় না — ভুল তথ্য জমার সুযোগ নেই। */
+            medicine = if (items.contains(NextVisitPlan.KEY_MEDICINE)) med else "",
+            note = note,
+            byName = user?.name.orEmpty(),
+            byMobile = user?.mobile.orEmpty()
+        )
     }
 
     private fun openCheckupHistory() {
