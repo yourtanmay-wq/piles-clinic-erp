@@ -302,6 +302,12 @@
             android:exported="false"
             android:label="Draft"
             android:theme="@style/Theme.PilesClinic" />
+        <!-- 📊 V824 — Yearly Registration (শুধু মাস্টার) -->
+        <activity
+            android:name=".native.YearlyRegistrationActivity"
+            android:exported="false"
+            android:label="Yearly Registration"
+            android:theme="@style/Theme.PilesClinic" />
         <activity
             android:name=".native.ReportsActivity"
             android:exported="false"

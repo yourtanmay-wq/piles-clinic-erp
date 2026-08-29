@@ -121,7 +121,14 @@ data class DraftBuckets(
     // Incomplete Patient-এর ঠিক আগে বসে (TK-নির্দিষ্ট ক্রম)। ⛔ ডিফল্ট
     // খালি লিস্ট — পুরনো কোনো `DraftBuckets(...)` কল এই ঘর ছাড়াই ঠিকভাবে
     // চলে, শুধু এই ঘর খালি থাকবে।
-    val runningTreatment: List<DraftEntry> = emptyList()
+    val runningTreatment: List<DraftEntry> = emptyList(),
+    // 📊🔒 V824 (২৯.০৮.২০২৬, TK-নির্দেশ) — "Yearly Registration": চলতি বছরে
+    // (০১ জানুয়ারি → ৩১ ডিসেম্বর) **বাছা ব্রাঞ্চে** যত জনের সত্যিকারের
+    // রেজিস্ট্রেশন হয়েছে। ⛔ শুধু মাস্টারের পর্দায় দেখা যায়।
+    // ⛔ Draft-এর উপরের All/This Month/Custom ছাঁকনি এই ঘরে **লাগে না** —
+    //    এটা সবসময় পুরো বছরের হিসাব (TK-এর স্পষ্ট নির্দেশ)।
+    // ⛔ ডিফল্ট খালি — পুরনো কোনো `DraftBuckets(...)` কল ভাঙে না।
+    val yearlyReg: List<DraftEntry> = emptyList()
 )
 
 class DraftRepository(private val context: Context? = null) {
@@ -223,7 +230,9 @@ class DraftRepository(private val context: Context? = null) {
                 // 🟢🔒 V621 — একই নিরাপদ ধরন, পুরনো cache-এ এই চাবি নেই তো খালি।
                 returnVisit = deserializeEntries(obj.optJSONArray("returnVisit") ?: org.json.JSONArray()),
                 // 🟢🔒 V644 — একই নিরাপদ ধরন, পুরনো cache-এ এই চাবি নেই তো খালি।
-                runningTreatment = dropDeleted(deserializeEntries(obj.optJSONArray("runningTreatment") ?: org.json.JSONArray()))
+                runningTreatment = dropDeleted(deserializeEntries(obj.optJSONArray("runningTreatment") ?: org.json.JSONArray())),
+                // 📊🔒 V824 — একই নিরাপদ ধরন, পুরনো cache-এ এই চাবি নেই তো খালি।
+                yearlyReg = deserializeEntries(obj.optJSONArray("yearlyReg") ?: org.json.JSONArray())
             ).let { if (myMobile.isBlank()) it else mergeOwnPhoneEnquiries(it, myMobile) }
         } catch (t: Throwable) { null }
     }
@@ -281,6 +290,7 @@ class DraftRepository(private val context: Context? = null) {
                 .put("refunded", serializeEntries(buckets.refunded))
                 .put("returnVisit", serializeEntries(buckets.returnVisit))
                 .put("runningTreatment", serializeEntries(buckets.runningTreatment))
+                .put("yearlyReg", serializeEntries(buckets.yearlyReg))
             ctx.getSharedPreferences(CACHE_PREFS, Context.MODE_PRIVATE).edit().putString(cacheKey(branchFilter, from, to), obj.toString()).apply()
         } catch (_: Throwable) { }
     }
@@ -1024,6 +1034,54 @@ class DraftRepository(private val context: Context? = null) {
             refunded.add(entry(row, "refunded", "Refunded"))
         }
 
+        /* 📊🔒🔒 V824 (২৯.০৮.২০২৬, TK-নির্দেশ) — "Yearly Registration"
+           (শুধু মাস্টার, শুধু বাছা ব্রাঞ্চ, ০১ জানু → ৩১ ডিসে চলতি বছর)।
+
+           TK-এর শর্ত হুবহু, একটাও নিজের মনগড়া নয়:
+             ১) **শুধু বাছা ব্রাঞ্চ** — উপরের `branchPart` দিয়েই এই `patients`
+                তালিকা আনা হয়েছে, তাই আলাদা কিছু করার নেই।
+             ২) **এক নম্বরে একজন** — `patientByMobile` (প্রজেক্টের প্রমাণিত,
+                একটাই শেয়ার-করা নিয়ম), নতুন কোনো নিয়ম বানানো হয়নি।
+             ৩) **Refund ও Return Visit বাদ** — ঠিক উপরে তৈরি হওয়া সেই দুটো
+                তালিকা থেকেই মোবাইল নেওয়া হয় (আলাদা করে নতুন শর্ত লেখা হয়নি,
+                তাই দুই জায়গার হিসাব কখনো আলাদা হতে পারে না)।
+             ৪) **নামে DEMO বা TEST থাকলে বাদ**।
+             ৫) **মাস্টার নিজে হাতে বাদ দিলে বাদ** — সেই তালিকা এই ফোনে জমানো
+                (`YearlyRegistration.cachedExcludedIds`), তাই এখানে **একটাও
+                নতুন ক্লাউড-কল হয় না** (Egress এক বাইটও বাড়ে না)।
+
+           ⛔ উপরের All / This Month / Custom Date ছাঁকনি এই ঘরে ইচ্ছাকৃতভাবে
+              লাগানো হয় না (নিচে `filt()`-এর বাইরে রাখা) — TK চেয়েছেন সবসময়
+              পুরো বছরের হিসাব।
+           ⛔ কোনো রেকর্ড তৈরি/বদল/মোছা হয় না — শুধু গোনা। */
+        val yearlyReg: List<DraftEntry> = run {
+            val year = YearlyRegistration.currentYear()
+            val skipMobiles = HashSet<String>()
+            for (e in refunded) {
+                val m = e.mobile.filter { it.isDigit() }.takeLast(10)
+                if (m.isNotBlank()) skipMobiles.add(m)
+            }
+            for (e in returnVisit) {
+                val m = e.mobile.filter { it.isDigit() }.takeLast(10)
+                if (m.isNotBlank()) skipMobiles.add(m)
+            }
+            val excludedIds = YearlyRegistration.cachedExcludedIds(context)
+            val out = mutableListOf<DraftEntry>()
+            for ((mobKey, row) in patientByMobile) {
+                val regDate = YearlyRegistration.regDateOf(row)
+                if (regDate.length < 4 || regDate.take(4) != year) continue
+                if (skipMobiles.contains(mobKey)) continue
+                if (YearlyRegistration.isDemoName(row.s("name"))) continue
+                // মাস্টার নিজে বাদ দিয়ে থাকলে সারিটা **তালিকা থেকে সরে যায় না** —
+                // দাগ দেওয়া থাকে (`extra = SKIPPED`), যাতে বিস্তারিত পর্দায় কাটা
+                // দাগে দেখা যায় ও "Undo" চেপে ফেরানো যায়। গোনায় ধরা হয় শুধু
+                // দাগ-ছাড়া সারিগুলো (`YearlyRegistration.countedOf`)।
+                val marked = if (excludedIds.contains(row.s("id"))) YearlyRegistration.SKIP_MARK else ""
+                out.add(entry(row, "yearlyreg", marked).copy(recordDate = regDate, lastRemark = ""))
+            }
+            out.sortedWith(compareByDescending<DraftEntry> { it.recordDate }.thenBy { it.name })
+        }
+
         // 🟢🔒🔒 V646 (২৫.০৮.২০২৬, TK-নির্দেশ) — My Enquiry এখন সব বাকেট
         // তৈরি হওয়ার পরে বানানো হয়, দুইটা কারণে:
         //  ১) `followByMobile`-এর সাথে জোড়া হয়ে **বর্তমান অবস্থা** দেখায়
@@ -1061,7 +1119,9 @@ class DraftRepository(private val context: Context? = null) {
                 (from == null || d >= from) && (to == null || d <= to)
             }
         }
-        val result = DraftBuckets(filt(received), filt(enqReject), filt(visitReject), filt(notComplete), filt(complete), filt(unexpectedTime), filt(refunded), filt(returnVisit), filt(runningTreatment))
+        // ⛔ `yearlyReg` ইচ্ছাকৃতভাবে `filt()`-এর বাইরে — উপরের তারিখ-ছাঁকনি
+        //    এই ঘরে লাগে না (TK: সবসময় ০১ জানু → ৩১ ডিসে, পুরো বছর)।
+        val result = DraftBuckets(filt(received), filt(enqReject), filt(visitReject), filt(notComplete), filt(complete), filt(unexpectedTime), filt(refunded), filt(returnVisit), filt(runningTreatment), yearlyReg)
         saveCachedBuckets(branchFilter, from, to, result)
         return result
     }

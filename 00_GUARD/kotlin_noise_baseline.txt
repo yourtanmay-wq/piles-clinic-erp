@@ -1,7 +1,7 @@
 # 🛡️ Kotlin কম্পাইলারের **জানা গোলমাল** (Android SDK নেই বলে)।
 # ⛔ হাতে লিখবেন না — `verify_kotlin_compile.py --update-baseline`
 # প্রতিটা সারি:  ফাইল <TAB> ভুলের বার্তা (সংখ্যা N দিয়ে ঢাকা)
-# মোট: 875
+# মোট: 886
 com/tkbiswas/pilesclinic/clinical/ClinicalModulesActivity.kt	none of the following functions can be called with the arguments supplied:
 com/tkbiswas/pilesclinic/clinical/ClinicalModulesActivity.kt	unresolved reference: findViewById
 com/tkbiswas/pilesclinic/clinical/ClinicalModulesActivity.kt	unresolved reference: finish
@@ -815,6 +815,17 @@ com/tkbiswas/pilesclinic/native/UserPhotoActivity.kt	unresolved reference: onCre
 com/tkbiswas/pilesclinic/native/UserPhotoActivity.kt	unresolved reference: packageName
 com/tkbiswas/pilesclinic/native/UserPhotoActivity.kt	unresolved reference: registerForActivityResult
 com/tkbiswas/pilesclinic/native/UserPhotoActivity.kt	unresolved reference: setContentView
+com/tkbiswas/pilesclinic/native/YearlyRegistrationActivity.kt	none of the following functions can be called with the arguments supplied:
+com/tkbiswas/pilesclinic/native/YearlyRegistrationActivity.kt	type mismatch: inferred type is YearlyRegistrationActivity but Context was expected
+com/tkbiswas/pilesclinic/native/YearlyRegistrationActivity.kt	type mismatch: inferred type is YearlyRegistrationActivity but Context! was expected
+com/tkbiswas/pilesclinic/native/YearlyRegistrationActivity.kt	unresolved reference: finish
+com/tkbiswas/pilesclinic/native/YearlyRegistrationActivity.kt	unresolved reference: intent
+com/tkbiswas/pilesclinic/native/YearlyRegistrationActivity.kt	unresolved reference: isDestroyed
+com/tkbiswas/pilesclinic/native/YearlyRegistrationActivity.kt	unresolved reference: isFinishing
+com/tkbiswas/pilesclinic/native/YearlyRegistrationActivity.kt	unresolved reference: onCreate
+com/tkbiswas/pilesclinic/native/YearlyRegistrationActivity.kt	unresolved reference: resources
+com/tkbiswas/pilesclinic/native/YearlyRegistrationActivity.kt	unresolved reference: runOnUiThread
+com/tkbiswas/pilesclinic/native/YearlyRegistrationActivity.kt	unresolved reference: setContentView
 com/tkbiswas/pilesclinic/print/PrintCenterActivity.kt	none of the following functions can be called with the arguments supplied:
 com/tkbiswas/pilesclinic/print/PrintCenterActivity.kt	suspend function 'pickPatientForPrint' should be called only from a coroutine or another suspend function
 com/tkbiswas/pilesclinic/print/PrintCenterActivity.kt	suspension functions can be called only within coroutine body

@@ -6704,6 +6704,118 @@ function wlv1DraftInRange(x){
   return (!f.from||d>=f.from)&&(!f.to||d<=f.to);
 }
 window["wlv1DraftInRange"]=wlv1DraftInRange;
+/* ════════════════════════════════════════════════════════════════════════
+   📊🔒🔒 V824 (২৯.০৮.২০২৬, TK-নির্দেশ) — "Yearly Registration"
+   *"শুধুমাত্র মাস্টারের জন্য এখানে চেম্বারে কতজন এসেছে ০১/০১/২০২৬ থেকে
+    ৩১/১২/২০২৬ পর্যন্ত তার একটা হিসাব রাখতে হবে… সত্যিকারের, কোন ডেমোগুলো
+    ধরা হবে না… এই লিস্টে Refund এবং Visit Return বাদ যাবে… নামে DEMO বা
+    TEST থাকলে বাদ… তাছাড়া ওই লিস্ট থেকে আমি যদি কিছু বাদ দিয়ে দেই… সেটা
+    আমি দেখে দেখে বাদ দিতে পারব, তার ব্যবস্থা রাখবেন"* +
+   *"সমস্ত ব্রাঞ্চের একসাথে যোগ করতে আপনাকে বলা হয়নি — আমার যে ব্রাঞ্চ
+    সিলেক্ট করা থাকবে শুধুমাত্র সেই ব্রাঞ্চের"*
+
+   ⛔ গোনাটা Draft ইতিমধ্যে যে তালিকা এনেছে ঠিক তার উপরেই হয় — **একটাও নতুন
+      বড় পড়া নেই** (Supabase Egress এক বাইটও বাড়ে না)।
+   ⛔ কোনো রোগীর রেকর্ড · টাকা · Follow-up কিচ্ছু ছোঁয়া হয় না। "Skip" মানে
+      শুধু **এই গোনায় ধরা হবে না** — "Undo" চাপলেই আবার ফিরে আসে।
+   ⛔ Android-এ হুবহু একই নিয়ম (YearlyRegistration.kt / DraftRepository.kt)।
+   ════════════════════════════════════════════════════════════════════════ */
+var WLV1_YR_KEY='wlv1_v824_skip_ids';
+function wlv1YrYear(){ return String(new Date().getFullYear()); }
+function wlv1YrIsDemo(n){ var s=String(n||'').toUpperCase(); return s.indexOf('DEMO')>=0||s.indexOf('TEST')>=0; }
+function wlv1YrRegDate(p){ return String((p&&(p.registrationDate||p.date))||'').slice(0,10); }
+/* ⛔ কখনো নেটে যায় না — Draft-এর পথে এই জমানো তালিকাটাই ব্যবহার হয়। */
+function wlv1YrSkipIds(){
+  try{ var a=JSON.parse(localStorage.getItem(WLV1_YR_KEY)||'[]');
+       return new Set((a||[]).map(function(x){return String(x)})); }
+  catch(e){ return new Set(); }
+}
+function wlv1YrSaveSkipIds(set){
+  try{ localStorage.setItem(WLV1_YR_KEY, JSON.stringify(Array.from(set))); }catch(e){}
+}
+/* মডিউল-লগইন (আলাদা কোনো পাসওয়ার্ড নয়, প্রজেক্টের চালু ব্যবস্থাই)। */
+async function wlv1YrSb(){
+  if(!window.MOD) return null;
+  try{
+    var ok=false;
+    try{ ok = await MOD.restore(); }catch(e){}
+    if(!ok){ var r = await MOD.autoSignIn(); if(!r||!r.ok) return null; }
+    return await MOD.client();
+  }catch(e){ return null; }
+}
+/* অন্য ফোনে করা "বাদ" এখানেও মিলিয়ে নেওয়া। ব্যর্থ হলে null — তখন জমানো
+   তালিকাই বহাল থাকে, তাই নেট খারাপে ভুল সংখ্যা দেখাবে না। */
+async function wlv1YrPullSkips(){
+  var sb=await wlv1YrSb(); if(!sb) return null;
+  try{
+    var r=await sb.schema('fin').from('registration_count_excluded').select('patient_row_id');
+    if(!r||r.error) return null;
+    var out=new Set((r.data||[]).map(function(x){return String(x.patient_row_id)}));
+    wlv1YrSaveSkipIds(out); return out;
+  }catch(e){ return null; }
+}
+async function wlv1YrToggle(id, code, name, want){
+  if(!id) return;
+  var sb=await wlv1YrSb();
+  if(!sb) return toast('Could not save — check connection and try again');
+  try{
+    var r;
+    if(want){
+      r=await sb.schema('fin').from('registration_count_excluded')
+        .upsert({patient_row_id:String(id), patient_code:String(code||''),
+                 patient_name:String(name||''),
+                 excluded_by:String((typeof user!=='undefined'&&user&&user.name)||'')},
+                {onConflict:'patient_row_id'});
+    }else{
+      r=await sb.schema('fin').from('registration_count_excluded')
+        .delete().eq('patient_row_id', String(id));
+    }
+    if(r&&r.error) return toast('Could not save — check connection and try again');
+  }catch(e){ return toast('Could not save — check connection and try again'); }
+  var s=wlv1YrSkipIds();
+  if(want) s.add(String(id)); else s.delete(String(id));
+  wlv1YrSaveSkipIds(s);
+  draffHome('yearlyreg');
+}
+window["wlv1YrToggle"]=wlv1YrToggle;
+
+/* বিস্তারিত পর্দা — মাসভিত্তিক হিসাব + রোগীর তালিকা (পাশে Skip / Undo)। */
+function wlv1YrScreen(rows, branchLabel){
+  var year=wlv1YrYear();
+  var months=['January','February','March','April','May','June',
+              'July','August','September','October','November','December'];
+  var cnt=[0,0,0,0,0,0,0,0,0,0,0,0], total=0;
+  rows.forEach(function(x){
+    if(x.__skip) return;
+    total++;
+    var d=String(x.__reg||''); if(d.length<7) return;
+    var m=parseInt(d.slice(5,7),10);
+    if(m>=1&&m<=12) cnt[m-1]++;
+  });
+  function col(a,b){
+    var sum=0, r='';
+    for(var i=a;i<=b;i++){ sum+=cnt[i];
+      r+='<tr><td>'+months[i]+'</td><td class="wlv1YrN">'+cnt[i]+'</td></tr>'; }
+    return '<table class="wlv1YrTbl"><tr><th>Month</th><th class="wlv1YrN">Count</th></tr>'+r+
+           '<tr class="wlv1YrTot"><td>Total</td><td class="wlv1YrN">'+sum+'</td></tr></table>';
+  }
+  var list=rows.length? rows.map(function(x){
+    var sub=[x.__code, x.__reg?fmtDate(x.__reg):''].filter(Boolean).join(' · ');
+    return '<div class="wlv1YrRow'+(x.__skip?' off':'')+'">'+
+      '<div class="wlv1YrWho"><b>'+esc(x.name||'UNKNOWN')+'</b><small>'+esc(sub)+'</small></div>'+
+      '<button class="wlv1YrBtn '+(x.__skip?'undo':'skip')+'" onclick="wlv1YrToggle(\''+
+        String(x.id).replace(/'/g,"")+'\',\''+String(x.__code||'').replace(/'/g,"")+'\',\''+
+        String(x.name||'').replace(/'/g,"")+'\','+(x.__skip?'false':'true')+')">'+
+        (x.__skip?'Undo':'Skip')+'</button></div>';
+  }).join('') : '<div class="tiny mut">No registration in this year.</div>';
+
+  page('Yearly Registration',
+    '<div class="tiny mut">'+esc((branchLabel||'All')+' · '+year)+'</div>'+
+    '<div class="wlv1YrBig">'+total+'</div>'+
+    '<div class="wlv1YrCols">'+col(0,5)+col(6,11)+'</div>'+
+    '<h3 class="wlv1YrH">Patients</h3>'+list, true);
+}
+
 function draffHome(tab='home'){
  let enq=scoped(load('enquiries')),f=mergeFollow(scoped(load('followups'))),p=scoped(load('patients')),pay=scoped(load('payments'));
  let paidByPid={};pay.forEach(x=>{paidByPid[x.patientId]=(paidByPid[x.patientId]||0)+Number(x.amount||0)});
@@ -6875,6 +6987,46 @@ let map={received:['My Enquiry',received,'📥','All branch','enq'],
    var __g=wlv1BranchGate(map[k][1]);
    if(__g===null){ __drAsk=true; map[k][1]=[]; } else { map[k][1]=__g; }
  });
+ /* 📊🔒🔒 V824 — বার্ষিক রেজিস্ট্রেশনের তালিকা (শুধু মাস্টার)।
+    TK-এর শর্ত হুবহু, একটাও নিজের মনগড়া নয়:
+      ১) **শুধু বাছা ব্রাঞ্চ** — উপরের বাকেটগুলোর হুবহু একই `wlv1BranchGate`।
+      ২) **এক নম্বরে একজন** — `wlv1OnePerPerson` (প্রজেক্টের প্রমাণিত নিয়ম)।
+      ৩) **Refund বাদ** — ঠিক যে সেটটা দিয়ে "Refunded" ঘর বানানো হয় (`__refSetOnce`)।
+      ৪) **Return Visit বাদ** — ঠিক উপরের `returnVisit` তালিকার মোবাইল।
+      ৫) **নামে DEMO / TEST থাকলে বাদ**।
+      ৬) **মাস্টার হাতে বাদ দিলে** সারিটা তালিকায় থাকে কিন্তু কাটা দাগে
+         (`__skip`) — গোনায় ধরা হয় না, "Undo" চাপলেই ফেরে।
+    ⛔ একটাও নতুন ক্লাউড-পড়া নেই — সব উপরের, ইতিমধ্যে আনা তালিকা থেকেই। */
+ let wlv1YrRows=[];
+ if(isMaster()){
+   const __yrY=wlv1YrYear(), __yrSkipMob=new Set(), __yrIds=wlv1YrSkipIds();
+   returnVisit.forEach(x=>{const m=mob(x.mobile); if(m) __yrSkipMob.add(m);});
+   const __yrPool=wlv1BranchGate(wlv1OnePerPerson.filter(x=>{
+     const m=mob(x.mobile);
+     if(!m||__yrSkipMob.has(m)||__refSetOnce.has(m)) return false;
+     if(wlv1YrIsDemo(x.name)) return false;
+     return wlv1YrRegDate(x).slice(0,4)===__yrY;
+   }));
+   wlv1YrRows=(__yrPool||[]).map(x=>Object.assign({},x,{
+     __reg: wlv1YrRegDate(x),
+     __code: x.patientId||'',
+     __skip: __yrIds.has(String(x.id))
+   })).sort((a,b)=>(b.__reg||'').localeCompare(a.__reg||'')||String(a.name||'').localeCompare(String(b.name||'')));
+ }
+ if(tab==='yearlyreg'){
+   if(!isMaster()) return draffHome('home');
+   wlv1YrScreen(wlv1YrRows, wlv1BranchGet&&wlv1BranchGet()||'All');
+   /* ⛔ ছোট্ট তালিকাটা (কয়েকটা সারি) একবার মিলিয়ে নেওয়া — অন্য ফোনে করা
+      "বাদ"ও যেন দেখা যায়। ব্যর্থ হলে কিচ্ছু বদলায় না। */
+   (async function(){
+     const got=await wlv1YrPullSkips();
+     if(!got) return;
+     const now=wlv1YrRows.map(x=>String(x.id)).filter(id=>got.has(id)).join(',');
+     const was=wlv1YrRows.filter(x=>x.__skip).map(x=>String(x.id)).join(',');
+     if(now!==was) draffHome('yearlyreg');
+   })();
+   return;
+ }
  let __drBrWrap=isMaster()?`<div id="draftBranchWrap" class="wlv1HdrPick">${wlv1BranchSelectHtml(`draffHome('${String(tab).replace(/'/g,"")}')`)}</div>`:'';
  const __drToHeader=function(){ setTimeout(function(){ try{
      if(window.innerWidth>=900){
@@ -6887,8 +7039,16 @@ let map={received:['My Enquiry',received,'📥','All branch','enq'],
   // has zero records — previously empty categories were hidden entirely, making it look
   // like the feature was missing.
   const __drRow=([k,v])=>`<button class="drRow" onclick="draffHome('${k}')"><span class="drIcon">${v[2]}</span><span class="drTxt"><b>${esc(v[0])}</b><small>${esc(v[3]||'')}</small></span><b class="drNum">${v[1].length}</b><span class="drGo">&rsaquo;</span></button>`;
-  const __drSec=(icon,title,grp)=>`<div class="drSecHead"><span>${icon}</span><b>${title}</b></div><div class="drSec">${Object.entries(map).filter(([k,v])=>v[4]===grp).map(__drRow).join('')}</div>`;
-  let cards=__drSec('&#128233;','ENQUIRY','enq')+__drSec('&#129489;&#8205;&#9877;&#65039;','PATIENT','pat');
+  const __drSec=(icon,title,grp,extra)=>`<div class="drSecHead"><span>${icon}</span><b>${title}</b></div><div class="drSec">${Object.entries(map).filter(([k,v])=>v[4]===grp).map(__drRow).join('')}${extra||''}</div>`;
+  /* 📊🔒 V824 — PATIENT সেকশনের শেষে নতুন সারি, **শুধু মাস্টারের পর্দায়**।
+     ⛔ স্টাফ/ডাক্তারের জন্য `__yrRow` ফাঁকা স্ট্রিং, তাই তাঁদের পর্দায়
+        সারিটা একেবারেই থাকে না — এক অক্ষরও বদলায়নি।
+     ⛔ উপরের All / This Month / Custom ছাঁকনি এই সারিতে লাগে না (TK-নির্দেশ:
+        সবসময় ০১ জানু → ৩১ ডিসে, পুরো বছর)। */
+  const __yrRow = isMaster()
+    ? `<button class="drRow" onclick="draffHome('yearlyreg')"><span class="drIcon">&#128202;</span><span class="drTxt"><b>Yearly Registration</b><small>${esc(wlv1YrYear())}</small></span><b class="drNum" style="color:#1D6FE0">${wlv1YrRows.filter(x=>!x.__skip).length}</b><span class="drGo">&rsaquo;</span></button>`
+    : '';
+  let cards=__drSec('&#128233;','ENQUIRY','enq')+__drSec('&#129489;&#8205;&#9877;&#65039;','PATIENT','pat',__yrRow);
   let chips=['All','This Month','⏰ Custom Date'].map(m=>{
     let val=(m==='All'?'':(m==='⏰ Custom Date'?'Custom Date':m));
     let on=(wlv1DraftFilter.mode||'')===val;

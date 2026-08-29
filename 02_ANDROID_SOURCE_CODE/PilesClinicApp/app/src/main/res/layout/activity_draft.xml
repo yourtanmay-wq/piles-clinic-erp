@@ -570,6 +570,70 @@
             </LinearLayout>
         </LinearLayout>
 
+        <!-- 📊🔒 V824 (২৯.০৮.২০২৬, TK-নির্দেশ) — "Yearly Registration":
+             চলতি বছরে (০১ জানু → ৩১ ডিসে) বাছা ব্রাঞ্চে কত জনের সত্যিকারের
+             রেজিস্ট্রেশন হয়েছে। ⛔ শুধু মাস্টারের পর্দায় দেখা যায়
+             (DraftActivity-তে visibility ঠিক করা হয়) — স্টাফ/ডাক্তারের
+             পর্দায় এই সারিটা একেবারেই থাকে না।
+             ⛔ বাকি সারিগুলোর হুবহু একই কার্ড-ডিজাইন, শুধু রং ও আইকন আলাদা। -->
+        <LinearLayout
+            android:id="@+id/btnYearlyReg"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="10dp"
+            android:layout_marginBottom="7dp"
+            android:orientation="horizontal"
+            android:background="@drawable/bg_more_card"
+            android:clipToOutline="true"
+            android:elevation="2dp"
+            android:visibility="gone"
+            android:clickable="true"
+            android:focusable="true">
+
+            <View
+                android:layout_width="4dp"
+                android:layout_height="match_parent"
+                android:background="#1D6FE0" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:padding="9dp">
+
+                <FrameLayout
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="@drawable/bg_more_icon_badge"
+                    android:backgroundTint="#E8F0FE">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center" android:text="📊" android:textSize="15sp" />
+                </FrameLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="10dp"
+                    android:orientation="vertical">
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Yearly Registration" android:textStyle="bold" android:textSize="12.5sp" android:textColor="#101828" android:maxLines="1" android:ellipsize="end" />
+                    <TextView android:id="@+id/tvYearlyRegSub" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="2026" android:textSize="9.5sp" android:textColor="#7A8794" android:maxLines="1" android:ellipsize="end" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tvCountYearlyReg"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="0"
+                    android:textStyle="bold"
+                    android:textSize="15sp"
+                    android:textColor="#1D6FE0" />
+
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="4dp" android:text="›" android:textSize="15sp" android:textColor="#C3CCD5" />
+            </LinearLayout>
+        </LinearLayout>
+
         <LinearLayout
             android:id="@+id/btnRefunded"
             android:layout_width="match_parent"

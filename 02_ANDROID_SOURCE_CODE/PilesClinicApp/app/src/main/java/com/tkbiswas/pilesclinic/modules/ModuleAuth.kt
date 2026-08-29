@@ -530,6 +530,27 @@ object ModuleAuth {
         } catch (e: Exception) { false }
     }
 
+    /** 📊 V824 — DELETE from a schema-qualified table (raw PostgREST filter).
+     *  ⛔ শুধু নতুন `fin.registration_count_excluded` ("গোনায় ধরব না" দাগ)
+     *     সরাতে ব্যবহার হয় — রোগী · টাকা · Follow-up কোনো টেবিলে এটা ডাকা
+     *     হয় না। RLS সার্ভারেই ঠিক করে কে মুছতে পারে (শুধু মাস্টার)।
+     *  ⛔ পুরনো কোনো ফাংশন ছোঁয়া হয়নি — এটা সম্পূর্ণ নতুন ও আলাদা। */
+    fun deleteRows(schema: String, table: String, filter: String): Boolean {
+        fun once(): Pair<Boolean, Int> = try {
+            val req = Request.Builder().url(baseUrl() + "/rest/v1/" + table + "?" + filter)
+                .addHeader("apikey", anonKey())
+                .addHeader("Authorization", "Bearer " + (accessToken ?: ""))
+                .addHeader("Content-Profile", schema)
+                .addHeader("Accept-Profile", schema)
+                .addHeader("Prefer", "return=minimal")
+                .delete().build()
+            http.newCall(req).execute().use { resp -> Pair(resp.isSuccessful, resp.code) }
+        } catch (_: Exception) { Pair(false, -1) }
+        var result = once()
+        if (!result.first && result.second == 401 && reAuth()) result = once()
+        return result.first
+    }
+
     /** PATCH করে সত্যিই অন্তত একটি সারি বদলেছে কি না যাচাই করে।
      *  PostgREST `return=minimal`-এ ০ সারিও HTTP-success হওয়ায় Remove-এর মতো
      *  গুরুত্বপূর্ণ কাজে সেই পুরনো Boolean যথেষ্ট নয়। */
