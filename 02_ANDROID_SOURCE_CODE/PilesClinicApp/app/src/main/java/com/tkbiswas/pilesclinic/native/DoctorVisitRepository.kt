@@ -393,6 +393,18 @@ class DoctorVisitRepository {
                 .put("referralPayments", newArr)
                 .put("referralPaid", paid)
                 .put("referralDue", due)
+            /* 🔴🔒 V817 (২৯.০৮.২০২৬, V816-এর পরে TK-নির্দেশে পুরো প্রজেক্ট যাচাই) —
+               এই সারিটা **পুরো `referralPayments` তালিকাটাই** নতুন করে লেখে।
+               কোনো ফোনে ওই একই ঘরগুলোর **পুরনো একটা snapshot** অপেক্ষমাণ থাকলে
+               সেটা পরে চললে এই নতুন লেখাটা **মুছে গিয়ে পুরনোটা ফিরে আসত**।
+               V378-এ ঠিক এই সুরক্ষাটা delete ও edit-এ বসানো ছিল, কিন্তু এখানে
+               বাদ পড়েছিল — এখন তিন জায়গাতেই এক নিয়ম।
+               ⛔ উপরের তালিকাটা এইমাত্র ক্লাউড থেকে পড়া, তাই আমাদেরটাই নবীনতম;
+                  পুরনো snapshot বাদ দেওয়া সম্পূর্ণ নিরাপদ।
+               ⛔ শুধু এই তিনটে ঘর — অন্য কোনো ঘরের অপেক্ষমাণ লেখা ছোঁয়া হয় না। */
+            val refKeysV817 = setOf("referralPayments", "referralPaid", "referralDue")
+            if (context != null) try { GenericUpdateQueue.discardFields(context, "doctor_visits", docId, refKeysV817) } catch (_: Throwable) {}
+            try { CloudWriteQueue.discardUpdateFields("doctor_visits", docId, refKeysV817) } catch (_: Throwable) {}
             val ok = SupabaseClient.updateById("doctor_visits", docId, fields)
             if (!ok && context != null) {
                 try { GenericUpdateQueue.queue(context, "doctor_visits", docId, fields) } catch (_: Throwable) { }
@@ -450,6 +462,18 @@ class DoctorVisitRepository {
             if (matches.size != 1) return ""
             val newId = "ref_legacy_" + java.util.UUID.randomUUID().toString().replace("-", "")
             arr.getJSONObject(matches.single()).put("id", newId)
+            /* 🔴🔒 V817 (২৯.০৮.২০২৬, V816-এর পরে TK-নির্দেশে পুরো প্রজেক্ট যাচাই) —
+               এই সারিটা **পুরো `referralPayments` তালিকাটাই** নতুন করে লেখে।
+               কোনো ফোনে ওই একই ঘরগুলোর **পুরনো একটা snapshot** অপেক্ষমাণ থাকলে
+               সেটা পরে চললে এই নতুন লেখাটা **মুছে গিয়ে পুরনোটা ফিরে আসত**।
+               V378-এ ঠিক এই সুরক্ষাটা delete ও edit-এ বসানো ছিল, কিন্তু এখানে
+               বাদ পড়েছিল — এখন তিন জায়গাতেই এক নিয়ম।
+               ⛔ উপরের তালিকাটা এইমাত্র ক্লাউড থেকে পড়া, তাই আমাদেরটাই নবীনতম;
+                  পুরনো snapshot বাদ দেওয়া সম্পূর্ণ নিরাপদ।
+               ⛔ শুধু এই তিনটে ঘর — অন্য কোনো ঘরের অপেক্ষমাণ লেখা ছোঁয়া হয় না। */
+            val refKeysV817 = setOf("referralPayments", "referralPaid", "referralDue")
+            if (context != null) try { GenericUpdateQueue.discardFields(context, "doctor_visits", docId, refKeysV817) } catch (_: Throwable) {}
+            try { CloudWriteQueue.discardUpdateFields("doctor_visits", docId, refKeysV817) } catch (_: Throwable) {}
             val fields = org.json.JSONObject().put("referralPayments", arr)
             val ok = SupabaseClient.updateById("doctor_visits", docId, fields)
             if (!ok && context != null) try { GenericUpdateQueue.queue(context, "doctor_visits", docId, fields) } catch (_: Throwable) {}
@@ -712,6 +736,18 @@ class DoctorVisitRepository {
             entry.put("patientMobile", mob)
             if (patientName.isNotBlank()) entry.put("patient", patientName)
             arr.put(hitIndex, entry)
+            /* 🔴🔒 V817 (২৯.০৮.২০২৬, V816-এর পরে TK-নির্দেশে পুরো প্রজেক্ট যাচাই) —
+               এই সারিটা **পুরো `referralPayments` তালিকাটাই** নতুন করে লেখে।
+               কোনো ফোনে ওই একই ঘরগুলোর **পুরনো একটা snapshot** অপেক্ষমাণ থাকলে
+               সেটা পরে চললে এই নতুন লেখাটা **মুছে গিয়ে পুরনোটা ফিরে আসত**।
+               V378-এ ঠিক এই সুরক্ষাটা delete ও edit-এ বসানো ছিল, কিন্তু এখানে
+               বাদ পড়েছিল — এখন তিন জায়গাতেই এক নিয়ম।
+               ⛔ উপরের তালিকাটা এইমাত্র ক্লাউড থেকে পড়া, তাই আমাদেরটাই নবীনতম;
+                  পুরনো snapshot বাদ দেওয়া সম্পূর্ণ নিরাপদ।
+               ⛔ শুধু এই তিনটে ঘর — অন্য কোনো ঘরের অপেক্ষমাণ লেখা ছোঁয়া হয় না। */
+            val refKeysV817 = setOf("referralPayments", "referralPaid", "referralDue")
+            if (context != null) try { GenericUpdateQueue.discardFields(context, "doctor_visits", docId, refKeysV817) } catch (_: Throwable) {}
+            try { CloudWriteQueue.discardUpdateFields("doctor_visits", docId, refKeysV817) } catch (_: Throwable) {}
             val fields = org.json.JSONObject().put("referralPayments", arr)
             val ok = SupabaseClient.updateById("doctor_visits", docId, fields)
             if (!ok && context != null) {
