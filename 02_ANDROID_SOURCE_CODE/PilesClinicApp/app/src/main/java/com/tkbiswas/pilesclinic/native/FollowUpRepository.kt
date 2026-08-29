@@ -1062,8 +1062,47 @@ class FollowUpRepository(private val context: Context? = null) {
                     }
                 }
                 jobs += async(Dispatchers.IO) {
-                    preEnquiries = CloudReadCache.get("enq:inquiry") {
-                        SupabaseClient.fetchListOrNull("enquiries", "stage=eq.Inquiry", 5000)
+                    /* 🔴🔒 V820 (২৯.০৮.২০২৬) — **Supabase লগ মেপে পাওয়া সবচেয়ে বড় ফুটো।**
+                       লগে (Log Explorer, chunked উত্তর) গত এক ঘণ্টায় ২৪ বার এসেছে:
+                       `?select=*&order=updatedAt.desc.nullslast&limit=5000&stage=eq.Inquiry`
+                       — অর্থাৎ `enquiries` টেবিলের **সব ঘর, ৫০০০ সারি, সব ব্রাঞ্চের**।
+                       এটাই ছিল দৈনিক ~৫০০ MB-র বড় অংশ।
+
+                       দুটো বদল, দুটোই **কোড পড়ে প্রমাণ করে** নেওয়া:
+
+                       ১) **শুধু দরকারি ঘর** (`ENQUIRY_COLS_INQUIRY_TAB`) — বিস্তারিত
+                          ওই ধ্রুবকের মাথায়।
+
+                       ২) **নিজের ব্রাঞ্চের সারিই** আনা হয়, যদি ছাঁকনিতে ঠিক একটাই
+                          ব্রাঞ্চ থাকে। কেন এটা নিরাপদ (আন্দাজ নয়):
+                          · নিচের প্রতিটা ব্যবহারেই সারিটা শেষে `branchAllows()`
+                            দিয়েই বাছা হয় — অন্য ব্রাঞ্চের সারি আজও দেখানো হয় না।
+                          · `branchAllows()` এখানে শুধু **ব্রাঞ্চের নাম** মেলায়,
+                            কারণ তার দ্বিতীয় শর্তটা `patientId` ধরে চলে আর ঘরটা
+                            `enquiries` টেবিলে নেই (সবসময় ফাঁকা)।
+                          · ফাঁকা-ব্রাঞ্চ সারানোর কাজটাও (`branchFromEnquiries`)
+                            **নিজের ব্রাঞ্চের** এনকোয়ারি থেকেই হয় — অন্য ব্রাঞ্চের
+                            সারি পেলেও সেটা পরের ধাপে বাদই যেত। ⇒ ফল অভিন্ন।
+                       ⛔ Master / "All" / একাধিক ব্রাঞ্চের ছাঁকনি হলে **আগের মতোই
+                          সব** আনা হয় — কোনো ঝুঁকি নেওয়া হয়নি।
+                       ⛔ জমানো কপির চাবিতে ব্রাঞ্চ যোগ করা হলো, নইলে এক ফোনে
+                          মাস্টার ও স্টাফ পালা করে খুললে ভুল তালিকা দেখাতে পারত।
+                       ⛔ সরু পড়া ব্যর্থ হলে `fetchListSlimOrNull` নিজেই আগের
+                          পথে (`select=*`) ফিরে যায় — কিছুই ভাঙে না। */
+                    val enqOneBranch = branchFilter
+                        ?.takeIf { it.isNotBlank() && it != "All" }
+                        ?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() }
+                        ?.singleOrNull()
+                        .orEmpty()
+                    val enqScope =
+                        if (enqOneBranch.isNotBlank())
+                            "&branch=eq." + java.net.URLEncoder.encode(enqOneBranch, "UTF-8").replace("+", "%20")
+                        else ""
+                    preEnquiries = CloudReadCache.get("enq:inquiry:" + enqOneBranch.ifBlank { "all" }) {
+                        SupabaseClient.fetchListSlimOrNull(
+                            "enquiries", "stage=eq.Inquiry$enqScope", 5000,
+                            SupabaseClient.ENQUIRY_COLS_INQUIRY_TAB
+                        )
                     } ?: JSONArray()
                 }
                 jobs += async(Dispatchers.IO) {

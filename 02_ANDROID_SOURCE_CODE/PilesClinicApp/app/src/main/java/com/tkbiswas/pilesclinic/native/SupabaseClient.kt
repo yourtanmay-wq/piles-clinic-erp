@@ -91,6 +91,21 @@ object SupabaseClient {
     // এখন এটা **TK-এর নিজের হাতে লাইভ ডেটাবেসে যাচাই করা** তালিকাটাই
     // (`FollowUpRepository.FOLLOWUP_COLS`) — অর্থাৎ **শুধু `photo` ছাড়া
     // followups টেবিলের প্রতিটা ঘর**।
+    /* 🔴🔒 V820 (২৯.০৮.২০২৬, TK-নির্দেশে Supabase লগ **মেপে** পাওয়া সবচেয়ে বড় ফুটো) —
+       Enquiry ট্যাব `enquiries` টেবিল থেকে `select=*` দিয়ে **৫০০০ সারি** টানত
+       (লগে গত এক ঘণ্টায় ২৪ বার, chunked)। কোড পড়ে যাচাই করা হয়েছে — ওই
+       সারিগুলো থেকে সত্যিই পড়া হয় **শুধু নিচের ঘরগুলো**।
+       ⛔ বাদ পড়া ঘর: `stage` (কখনো পড়া হয় না — কোডে সবসময় "Inquiry" **লেখা**
+          হয়), `updatedAt` · `appointmentDate` · `convertedPatientId` ·
+          `convertedAt` (একবারও পড়া হয় না)।
+       ⛔ `patientId` ইচ্ছে করে নেই — ঘরটা `enquiries` টেবিলে **নেই-ই**
+          (schema-তে `convertedPatientId`)। আজও `row.s("patientId")` ফাঁকাই
+          ফেরে, তাই আচরণ এক চুলও বদলায় না; বরং তালিকায় রাখলে পড়াটাই ব্যর্থ হত।
+       ⛔ `order=updatedAt.desc.nullslast` আগের মতোই চলে — সাজানোর জন্য ঘরটা
+          select-এ থাকা লাগে না। */
+    const val ENQUIRY_COLS_INQUIRY_TAB =
+        "address,branch,callCount,createdAt,createdBy,date,disease,id,mobile,name,nextFollow,receivedBy,remarks,status,timeType"
+
     const val FOLLOWUP_COLS_NO_PHOTO = "address,age,branch,callCount,convertedPatientId,createdAt,createdBy,date,disease,history,id,lastCallDate,lastRemark,mobile,name,nextFollow,patientId,refId,registrationDate,sex,stage,status,timeType,updatedAt,visitDate"
 
     /** 🔵🔒 V441 (19.08.2026, TK-অনুমোদিত — Draft egress): Draft-এর enquiry
