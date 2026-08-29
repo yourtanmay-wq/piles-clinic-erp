@@ -65,7 +65,15 @@ class PaymentRingView @JvmOverloads constructor(
             val sweep = 360f * (percent / 100f)
             canvas.drawArc(arcRect, -90f, sweep, false, progressPaint)
         }
-        textPaint.textSize = height * 0.32f
+        /* 🟢🔒 V823 (২৯.০৮.২০২৬, TK-নির্দেশ ও অনুমোদিত ফটো-প্রুফ:
+           *"গোল আকৃতির পার্সেন্টেজের মধ্যে 100% লেখাটার ফন্ট একটু ছোট করুন,
+           যাতে গোলাকৃতিতে ঘেঁষে না যায়"*)।
+           আগে ছিল `0.32f` — তাতে **"100%"** (চার অক্ষর) দু'পাশে বেড়ে ছুঁয়ে
+           যেত। TK ফটো-প্রুফে ০.২৪ বেছেছেন।
+           ⛔ বৃত্তের আকার · রং · বেড়ের মোটা · লেখার জায়গা — কিছুই বদলায়নি,
+              শুধু লেখার মাপ। ⛔ কম শতাংশে (যেমন "0%") আরও বেশি ফাঁক থাকবে,
+              তাই কোথাও কেটে যাওয়ার ভয় নেই। */
+        textPaint.textSize = height * 0.24f
         val fm = textPaint.fontMetrics
         val textY = height / 2f - (fm.ascent + fm.descent) / 2f
         canvas.drawText("$percent%", width / 2f, textY, textPaint)
