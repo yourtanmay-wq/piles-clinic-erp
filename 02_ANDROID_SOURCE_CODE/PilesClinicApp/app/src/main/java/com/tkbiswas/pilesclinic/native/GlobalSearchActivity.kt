@@ -77,8 +77,8 @@ class GlobalSearchActivity : AppCompatActivity() {
             onBloodTest = { hit -> openClinicalDoc(hit, com.tkbiswas.pilesclinic.clinical.InvestigationAdviceActivity::class.java) },
             onDietChart = { hit -> openClinicalDoc(hit, com.tkbiswas.pilesclinic.clinical.DietChartActivity::class.java) },
             onMarkArrived = { hit -> markArrivedHit(hit) },
-            onRemark = { hit -> writeRemarkForHit(hit) },   // 📝 V826
-            onPrint = { hit -> showPrintPicker(hit) }       // 🖨️ V826
+            onRemark = { hit -> writeRemarkForHit(hit) },   // 📝 V827
+            onPrint = { hit -> showPrintPicker(hit) }       // 🖨️ V827
         )
         recycler.adapter = adapter
 
@@ -337,7 +337,7 @@ class GlobalSearchActivity : AppCompatActivity() {
     }
 
     /* ════════════════════════════════════════════════════════════════════
-       📝🔒🔒 V826 (২৯.০৮.২০২৬, TK-নির্দেশ, ছবিসহ)
+       📝🔒🔒 V827 (২৯.০৮.২০২৬, TK-নির্দেশ, ছবিসহ)
 
        *"মনে করুন কিশনগঞ্জের স্টাফ কল রিসিভ করেছিল, কিন্তু কলটা অটোমেটিক
         জলপাইগুড়ির কোনো এনকোয়ারি ছিল — কিশনগঞ্জের স্টাফ কোনো রিমার্ক লিখতে
@@ -521,7 +521,7 @@ class GlobalSearchActivity : AppCompatActivity() {
     }
 
     /**
-     * 🖨️🔒 V826 (২৯.০৮.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — একটাই "Print" বোতাম,
+     * 🖨️🔒 V827 (২৯.০৮.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — একটাই "Print" বোতাম,
      * ভিতরে সেই চারটেই।
      *
      * ⛔ প্রতিটা সারি ঠিক আগের ফাংশনটাই ডাকে (`openClinicalDoc(...)`) —
@@ -615,10 +615,10 @@ class GlobalSearchActivity : AppCompatActivity() {
         // TK-REQUESTED (2026-07-20): mark a searched patient Arrived into
         // today's Chamber Attendance directly from Search.
         val onMarkArrived: (SearchHit) -> Unit,
-        /* 📝🔒 V826 (২৯.০৮.২০২৬, TK-নির্দেশ) — অন্য ব্রাঞ্চের কল ধরা স্টাফও
+        /* 📝🔒 V827 (২৯.০৮.২০২৬, TK-নির্দেশ) — অন্য ব্রাঞ্চের কল ধরা স্টাফও
            যেন এখান থেকে রিমার্ক লিখতে পারেন। */
         val onRemark: (SearchHit) -> Unit,
-        /* 🖨️🔒 V826 — চারটে ছাপার পর্দা এখন একটাই "Print" বোতামের ভিতরে। */
+        /* 🖨️🔒 V827 — চারটে ছাপার পর্দা এখন একটাই "Print" বোতামের ভিতরে। */
         val onPrint: (SearchHit) -> Unit
     ) : RecyclerView.Adapter<SearchAdapter.VH>() {
         // TK APPROVED (2026-07-15): premium dual-green search result card --
@@ -781,7 +781,7 @@ class GlobalSearchActivity : AppCompatActivity() {
                 Triple("💳", "Payment", true) to { onPayment(h) },
                 Triple("🧭", "Full Journey", true) to { onFullJourney(h) }
             )
-            /* 🖨️🔒 V826 (২৯.০৮.২০২৬, TK-নির্দেশ: *"Prescription · Medicine Slip ·
+            /* 🖨️🔒 V827 (২৯.০৮.২০২৬, TK-নির্দেশ: *"Prescription · Medicine Slip ·
                Blood Test · Diet Chart — এগুলো আলাদা আলাদা থাকবে না, একটার
                মধ্যেই থাকবে, যার নাম হবে প্রিন্ট"*)।
                ⛔ চারটে পর্দার কাজ · ঠিকানা · তথ্য এক অক্ষরও বদলায়নি — ওই
@@ -793,7 +793,7 @@ class GlobalSearchActivity : AppCompatActivity() {
                 row.addView(actionButton("🖨️", "Print", false) { onPrint(h) })
                 holder.grid.addView(row)
             }
-            /* 📝🔒 V826 (২৯.০৮.২০২৬, TK-নির্দেশ: *"Remarks & Mark Arrived
+            /* 📝🔒 V827 (২৯.০৮.২০২৬, TK-নির্দেশ: *"Remarks & Mark Arrived
                পাশাপাশি রাখুন"*) — সবচেয়ে নিচের সারিতে দুটো একসাথে।
                ⛔ Mark Arrived-এর আইকন · রং · কাজ এক অক্ষরও বদলায়নি, শুধু আগে
                   পুরো চওড়া সারিতে একা বসত, এখন অর্ধেক জায়গায়।

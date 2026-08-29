@@ -483,7 +483,10 @@ class FollowUpRepository(private val context: Context? = null) {
                         timeType = r.optString("timeType", ""),
                         refDoctor = r.optString("refDoctor", ""),
                         addressTag = r.optString("addressTag", ""),
-                        lastCallDate = r.optString("lastCallDate", ""), lastCallBy = FollowUpModel.prettyStaff(r.optString("lastCallBy", ""))
+                        lastCallDate = r.optString("lastCallDate", ""), lastCallBy = FollowUpModel.prettyStaff(r.optString("lastCallBy", "")),
+                        // ⏰🔒 V827 — পুরোনো জমানো তালিকায় ঘরটা নেই ⇒ ফাঁকা,
+                        //    অর্থাৎ হুবহু আগের আচরণ; কিছুই ভাঙে না।
+                        lastCallTime = r.optString("lastCallTime", "")
                     )
                 )
             }
@@ -647,6 +650,19 @@ class FollowUpRepository(private val context: Context? = null) {
                         .put("address", it.address).put("age", it.age).put("sex", it.sex)
                         .put("photo", it.photo).put("updatedAt", it.updatedAt)
                         .put("lastCallDate", it.lastCallDate).put("lastCallBy", it.lastCallBy)
+                        /* ⏰🔒 V827 (২৯.০৮.২০২৬, TK-রিপোর্ট ছবিসহ — *"LAST CALL
+                           তারিখের পরে যেন Time থাকে"*)।
+                           **আসল কারণ (কোড ধরে যাচাই, আন্দাজ নয়):** V543-এ সময়টা
+                           দেখানোর ব্যবস্থা হয়েছিল, কিন্তু **জমানো তালিকায়
+                           (`saveCachedTab`) ঘরটা কখনো লেখাই হত না**, আর ফেরত
+                           পড়ার সময়ও (`loadCachedTab`) তোলা হত না। Follow-up
+                           পর্দা "আগে জমানোটা দেখাও" নিয়মে চলে — তাই পর্দা
+                           খুললেই সময়হীন লাইনটা চোখে পড়ত, আর লাইন খারাপ থাকলে
+                           চিরকালই সময় থাকত না।
+                           ⛔ ছোট্ট একটা লেখা — জমানো ফাইল কার্যত বড় হয় না।
+                           ⛔ ক্লাউডে একটাও বাড়তি অনুরোধ যায় না (সময়টা `history`
+                              থেকেই আসে, যা আগে থেকেই তালিকার সঙ্গে আসে)। */
+                        .put("lastCallTime", it.lastCallTime)
                         /* 🏷️🔒 V712 (২৬.০৮.২০২৬, TK-রিপোর্ট ছবিসহ — *"Tag এ Unexpected
                            লেখা নেই, কিন্তু View All-এ ক্লিক করলে আছে"*)।
                            **আসল কারণ:** এই তিনটে ঘর জমানো তালিকায় **লেখাই হত না**
@@ -1600,6 +1616,7 @@ class FollowUpRepository(private val context: Context? = null) {
                         fbHistory.put(
                             JSONObject()
                                 .put("date", row.s("date"))
+                                .put("time", isoNow())   /* ⏰ V827 — সময়ও জমা হয় (TK: "LAST CALL তারিখের পরে যেন Time থাকে")। */
                                 .put("remark", row.s("remarks"))
                                 .put("staff", row.s("receivedBy").ifBlank { row.s("createdBy") })
                         )
@@ -2660,7 +2677,7 @@ class FollowUpRepository(private val context: Context? = null) {
     }
 
     /**
-     * 📝🔒 V826 (২৯.০৮.২০২৬, TK-নির্দেশ) — নতুন, **ঐচ্ছিক** ঘর `stampCallDate`।
+     * 📝🔒 V827 (২৯.০৮.২০২৬, TK-নির্দেশ) — নতুন, **ঐচ্ছিক** ঘর `stampCallDate`।
      *
      * TK-এর সমস্যা: *"কিশনগঞ্জের স্টাফ কল রিসিভ করেছিল, কিন্তু নম্বরটা
      * জলপাইগুড়ির এনকোয়ারি — সে রিমার্ক লিখতে পারে না। … রিমার্কটা ফলোআপ
@@ -2741,7 +2758,7 @@ class FollowUpRepository(private val context: Context? = null) {
             fields.put("callCount", newCount)
             fields.put("lastCallDate", todayStr)
         }
-        /* 📝🔒 V826 — কল-গোনা ছোঁয়া হয় না, শুধু তারিখটা আজকের হয়, যাতে কার্ডের
+        /* 📝🔒 V827 — কল-গোনা ছোঁয়া হয় না, শুধু তারিখটা আজকের হয়, যাতে কার্ডের
            `LAST CALL <তারিখ> (<স্টাফ>)` লাইনটা সত্যি কথা বলে।
            ⛔ উপরের `incrementCall` পথে ইতিমধ্যে তারিখ বসে গেলে এখানে আর কিছু
               করা হয় না (দুই পথ কখনো একে অপরের উপর লিখবে না)। */

@@ -364,6 +364,7 @@ class RegistrationRepository(private val context: Context) {
                 history.put(
                     JSONObject()
                         .put("date", PatientModel.today())
+                        .put("time", java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US).format(java.util.Date()))   /* ⏰ V827 — সময়ও জমা হয় (TK: "LAST CALL তারিখের পরে যেন Time থাকে")। */
                         .put("remark", "Converted to Patient Registration")
                         .put("staff", "Registration")
                 )

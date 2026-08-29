@@ -5165,7 +5165,7 @@ function wlv1ContinueEntry(mmRaw){
    const nf={...f,
     branch:br||f.branch, status:'Active', nextFollow:next||f.nextFollow, updatedAt:now,
     lastRemark:rem||f.lastRemark, disease:dis||f.disease,
-    history:[...(f.history||[]),{date:today(),remark:'Restored & moved to '+(br||f.branch||'')+' (Enquiry form)',staff:staff,status:'Active'}]};
+    history:[...(f.history||[]),{date:today(),time:isoNow(),remark:'Restored & moved to '+(br||f.branch||'')+' (Enquiry form)',staff:staff,status:'Active'}]};
    push.push({table:'followups',row:nf});
    return nf;
   });
@@ -5417,7 +5417,7 @@ function ensureFollow(r,stage,next,rem){let f=load('followups'),i=f.findIndex(x=
     ⛔ উৎসে না থাকলে ফাঁকা যায় ⇒ আচরণ **হুবহু আগের মতোই**, কিছুই ভাঙে না।
     ⛔ টাকার হিসাব ছোঁয়া হয়নি — Extra Income `patients.timeType` দেখে,
        `followups`-এরটা নয় (V418-এর SQL)। এটা শুধু **দেখানোর** ঘর। */
-  timeType:r.timeType||'',stage,date:r.date||today(),registrationDate:r.date||r.registrationDate||today(),visitDate:r.visitDate||r.date||today(),lastRemark:rem||r.remarks||'',nextFollow:next||'',callCount:r.callCount||(stage==='Inquiry'?1:0),status:(srcTerminal?srcStatus:'Active'),history:[{date:today(),remark:rem||r.remarks||'',staff:user?.name||'Public'}]};let saved;if(i>-1){
+  timeType:r.timeType||'',stage,date:r.date||today(),registrationDate:r.date||r.registrationDate||today(),visitDate:r.visitDate||r.date||today(),lastRemark:rem||r.remarks||'',nextFollow:next||'',callCount:r.callCount||(stage==='Inquiry'?1:0),status:(srcTerminal?srcStatus:'Active'),history:[{date:today(),time:isoNow(),remark:rem||r.remarks||'',staff:user?.name||'Public'}]};let saved;if(i>-1){
  // V448: ensureFollow is a generic create/heal helper, NOT an explicit Restore.
  // Therefore it must never turn an existing Reject/Incomplete/Closed row Active.
  // Explicit Restore/Continue paths append their own Active history marker below.
@@ -5469,7 +5469,7 @@ window["wlv1MobileHasSeparateIdentity"]=wlv1MobileHasSeparateIdentity;
 window["wlv1ProvablyOtherPatient"]=wlv1ProvablyOtherPatient;
 function closeEnquiryAfterRegistration(m,p){
  try{
-  let mm=mob(m),now=new Date().toISOString(),hist={date:today(),remark:'Converted to Patient Registration',staff:user?.name||user?.mobile||'Staff',status:'Registered'};
+  let mm=mob(m),now=new Date().toISOString(),hist={date:today(),time:isoNow(),remark:'Converted to Patient Registration',staff:user?.name||user?.mobile||'Staff',status:'Registered'};
   let changedE=[];
   let es=load('enquiries').map(e=>{if(mob(e.mobile)===mm&&!wlv1ProvablyOtherPatient(e,mm,p)){let row={...e,status:'Registered',stage:'Registered',nextFollow:'',convertedPatientId:p?.id||e.convertedPatientId||'',convertedAt:e.convertedAt||now,updatedAt:now};changedE.push(row);return row}return e});
   changedE.forEach(r=>protectNewRow('enquiries',r));
@@ -5571,7 +5571,7 @@ function repairBranchWorkflowRows(){
    if(!e||!e.id||isConvertedOrClosed(e))return;
    let mm=__M(e.mobile); if(!mm)return;
    let i=__firstIdx('Inquiry',e.id,mm);
-   let base={refId:e.id,mobile:normMob(mm),name:e.name||'',branch:e.branch||'',disease:e.disease||'',address:e.address||'',stage:'Inquiry',date:e.date||today(),registrationDate:e.date||today(),visitDate:e.date||today(),lastRemark:e.remarks||'',nextFollow:e.nextFollow||'',callCount:Number(e.callCount||0),status:e.status||'Active',history:[{date:e.date||today(),remark:e.remarks||'',staff:e.receivedBy||e.createdBy||''}],createdBy:e.createdBy||e.receivedBy||'',createdAt:e.createdAt||now,updatedAt:e.updatedAt||now};
+   let base={refId:e.id,mobile:normMob(mm),name:e.name||'',branch:e.branch||'',disease:e.disease||'',address:e.address||'',stage:'Inquiry',date:e.date||today(),registrationDate:e.date||today(),visitDate:e.date||today(),lastRemark:e.remarks||'',nextFollow:e.nextFollow||'',callCount:Number(e.callCount||0),status:e.status||'Active',history:[{date:e.date||today(),time:isoNow(),remark:e.remarks||'',staff:e.receivedBy||e.createdBy||''}],createdBy:e.createdBy||e.receivedBy||'',createdAt:e.createdAt||now,updatedAt:e.updatedAt||now};
    // 🟢 B626 (11.08.2026, TK-নির্দেশ · ডুপ্লিকেট/Reject-ফিরে-আসা রোগ): আগে
    //   uid('fu') দিয়ে র‍্যান্ডম id বসত — লোকাল কপিতে সারি না পেলে প্রতিবার নতুন
    //   একটা তৈরি হত (ভিন্ন id, তাই mergeById মেলাতে পারত না) → একই এনকোয়ারিতে
@@ -5599,7 +5599,7 @@ function repairBranchWorkflowRows(){
   patients.forEach(p=>{
    if(!p||!p.id)return;let mm=__M(p.mobile);if(!mm)return;
    let pi=__firstIdx('Patient',p.id,mm);
-   let prow={refId:p.id,mobile:normMob(mm),name:p.name||'',branch:p.branch||'',disease:p.disease||'',address:p.address||'',stage:'Patient',date:p.registrationDate||p.visitDate||p.date||today(),registrationDate:p.registrationDate||p.date||today(),visitDate:p.visitDate||p.registrationDate||p.date||today(),lastRemark:'Registered patient / Visit created',nextFollow:'',callCount:0,status:'Active',history:[{date:today(),remark:'Registered patient / Visit created',staff:p.registeredBy||p.createdBy||''}],createdBy:p.createdBy||'',createdAt:p.createdAt||now,updatedAt:p.updatedAt||now};
+   let prow={refId:p.id,mobile:normMob(mm),name:p.name||'',branch:p.branch||'',disease:p.disease||'',address:p.address||'',stage:'Patient',date:p.registrationDate||p.visitDate||p.date||today(),registrationDate:p.registrationDate||p.date||today(),visitDate:p.visitDate||p.registrationDate||p.date||today(),lastRemark:'Registered patient / Visit created',nextFollow:'',callCount:0,status:'Active',history:[{date:today(),time:isoNow(),remark:'Registered patient / Visit created',staff:p.registeredBy||p.createdBy||''}],createdBy:p.createdBy||'',createdAt:p.createdAt||now,updatedAt:p.updatedAt||now};
    // 🟢 B626: Patient-stage self-heal-ও একইভাবে নির্দিষ্ট id — ডুপ্লিকেট বন্ধ।
    if(pi<0){followups.unshift({id:'fu_pat_'+p.id,...prow});changed=true;__idxNoteUnshift('Patient',p.id,mm)}
    else{
@@ -5680,7 +5680,7 @@ function isInquiryVisibleRow(x){
  return !patientForMobile(mm)&&!isConvertedOrClosed(x)
 }
 window["isInquiryVisibleRow"]=isInquiryVisibleRow;
-function canonicalVisitFollowRow(p){let now=new Date().toISOString(),vd=p.visitDate||p.registrationDate||p.date||today();return {refId:p.id,mobile:normMob(p.mobile),name:p.name||'',branch:p.branch||'',disease:p.disease||'',address:p.address||'',stage:'Patient',date:vd,registrationDate:p.registrationDate||p.date||vd,visitDate:vd,lastRemark:'Registered patient / Visit created',nextFollow:'',callCount:0,status:'Active',history:[{date:today(),remark:'Registered patient / Visit created',staff:p.registeredBy||p.createdBy||user?.mobile||''}],createdBy:p.createdBy||user?.mobile||'',createdAt:p.createdAt||now,updatedAt:now}}
+function canonicalVisitFollowRow(p){let now=new Date().toISOString(),vd=p.visitDate||p.registrationDate||p.date||today();return {refId:p.id,mobile:normMob(p.mobile),name:p.name||'',branch:p.branch||'',disease:p.disease||'',address:p.address||'',stage:'Patient',date:vd,registrationDate:p.registrationDate||p.date||vd,visitDate:vd,lastRemark:'Registered patient / Visit created',nextFollow:'',callCount:0,status:'Active',history:[{date:today(),time:isoNow(),remark:'Registered patient / Visit created',staff:p.registeredBy||p.createdBy||user?.mobile||''}],createdBy:p.createdBy||user?.mobile||'',createdAt:p.createdAt||now,updatedAt:now}}
 window["canonicalVisitFollowRow"]=canonicalVisitFollowRow;
 function ensureVisitFollowForPatient(p){
  try{
@@ -6265,7 +6265,7 @@ window["todayPendingCall"]=todayPendingCall;function followStats(tab){
         rows=rows.filter(isInquiryVisibleRow);
         let __rowMobiles=new Set(rows.map(r=>mob(r.mobile)));
         scoped(load('enquiries')).filter(isInquiryVisibleRow).forEach(e=>{
-          if(!__rowMobiles.has(mob(e.mobile)))rows.push({id:'virtual_'+(e.id||mob(e.mobile)),refId:e.id,mobile:e.mobile,name:e.name,branch:e.branch,disease:e.disease,address:e.address,stage:'Inquiry',date:e.date||today(),registrationDate:e.date||today(),visitDate:e.date||today(),lastRemark:e.remarks||'',nextFollow:e.nextFollow||'',callCount:e.callCount||0,status:e.status||'Active',history:[{date:e.date||today(),remark:e.remarks||'',staff:e.receivedBy||e.createdBy||''}],createdBy:e.createdBy||'',receivedBy:e.receivedBy||''});
+          if(!__rowMobiles.has(mob(e.mobile)))rows.push({id:'virtual_'+(e.id||mob(e.mobile)),refId:e.id,mobile:e.mobile,name:e.name,branch:e.branch,disease:e.disease,address:e.address,stage:'Inquiry',date:e.date||today(),registrationDate:e.date||today(),visitDate:e.date||today(),lastRemark:e.remarks||'',nextFollow:e.nextFollow||'',callCount:e.callCount||0,status:e.status||'Active',history:[{date:e.date||today(),time:isoNow(),remark:e.remarks||'',staff:e.receivedBy||e.createdBy||''}],createdBy:e.createdBy||'',receivedBy:e.receivedBy||''});
         });
       }
       /* 🔴🔴🔴🆕🔒 V436 (TK-রিপোর্ট ১৮.০৮.২০২৬, ছবিসহ — Jalpaiguri-তে ফোনে
@@ -6654,7 +6654,7 @@ function saveVisitAdvancePayment(fid,pid){let ps=arr('patients'),i=ps.findIndex(
     let fs2=arr('followups'),fi2=fs2.findIndex(f=>String(f.id)===String(fid));
     if(fi2>=0){
      let note=`💰 Bill corrected ${money(oldBill)} → ${money(bill)} by ${user?.name||codeName(user?.mobile||'')||'User'}`;
-     fs2[fi2]={...fs2[fi2],lastRemark:note,lastRemarkAt:isoNow(),updatedAt:isoNow(),history:[...(fs2[fi2].history||[]),{date:todaySafe(),remark:note,staff:user?.name||user?.mobile||''}]};
+     fs2[fi2]={...fs2[fi2],lastRemark:note,lastRemarkAt:isoNow(),updatedAt:isoNow(),history:[...(fs2[fi2].history||[]),{date:todaySafe(),time:isoNow(),remark:note,staff:user?.name||user?.mobile||''}]};
      put('followups',fs2);
      try{directCloudUpsertRow('followups',fs2[fi2])}catch(_e){}
     }
@@ -7486,7 +7486,7 @@ function fuCard(x){
    +`<div class="anFuMain">`
     +`<div class="anFuHead">`
      +`<div class="anFuInfo">`
-      /* 📋🔒 V826 (২৯.০৮.২০২৬, TK-নির্দেশ, ছবিসহ) — নাম ও নম্বরে **লম্বা চাপ
+      /* 📋🔒 V827 (২৯.০৮.২০২৬, TK-নির্দেশ, ছবিসহ) — নাম ও নম্বরে **লম্বা চাপ
          দিলে কপি**। ⛔ প্রজেক্টে আগে থেকেই থাকা, প্রমাণিত `wlv1PatientHold*`
          (RMP-এর রোগী-কার্ডে চলছে) — নতুন কিছু বানানো হয়নি।
          ⛔ ৬৫০ ms-এর কম চাপে আগের মতোই কার্ড খোলে; কপি হলে `event.stopPropagation()`
@@ -8302,7 +8302,7 @@ async function savePatient(evt){
   // Enquiry to registration conversion. Never blocks patient registration.
   try{
    let oldHist=(enquiryFollow?.history||[]).slice();
-   let regHist={date:today(),remark:'Converted to Patient Registration',staff:user?.name||user?.mobile||'Staff',status:'Registered'};
+   let regHist={date:today(),time:isoNow(),remark:'Converted to Patient Registration',staff:user?.name||user?.mobile||'Staff',status:'Registered'};
    // V175: Visit section entry is mandatory after Registration Save.
    // This creates/updates the Patient/Visit follow-up row while the main patient remains in Doctor Queue.
    ensureFollow({...p,refId:p.id,stage:'Patient',visitDate:regDate,registrationDate:regDate},'Patient','', 'Registered patient / Visit created');
@@ -12926,7 +12926,7 @@ async function saveTreatmentPayment(id){
     let fus=load('followups'),fi=fus.findIndex(x=>mob(x.mobile)===mob(p.mobile)&&x.stage&&x.stage!=='Inquiry');
     if(fi>=0){
      let note=`💰 Bill corrected ${money(oldBill)} → ${money(bill)} by ${user?.name||codeName(user?.mobile||'')||'User'}`;
-     fus[fi]={...fus[fi],lastRemark:note,lastRemarkAt:new Date().toISOString(),updatedAt:new Date().toISOString(),history:[...(fus[fi].history||[]),{date:today(),remark:note,staff:user?.name||user?.mobile||''}]};
+     fus[fi]={...fus[fi],lastRemark:note,lastRemarkAt:new Date().toISOString(),updatedAt:new Date().toISOString(),history:[...(fus[fi].history||[]),{date:today(),time:isoNow(),remark:note,staff:user?.name||user?.mobile||''}]};
      save('followups',fus);
     }
    }catch(_e){}
@@ -14661,7 +14661,7 @@ function saveVisit(){
 }
 window["saveVisit"]=saveVisit;
 let wlv1PatientHoldTimer=null,wlv1PatientHoldCopied=false;
-/* 📋🔒 V826 (২৯.০৮.২০২৬, TK-নির্দেশ) — তৃতীয় ঘরটা (`fixed`) নতুন, **ঐচ্ছিক**:
+/* 📋🔒 V827 (২৯.০৮.২০২৬, TK-নির্দেশ) — তৃতীয় ঘরটা (`fixed`) নতুন, **ঐচ্ছিক**:
    না দিলে আগের মতোই লেখাটাই কপি হয় (পুরনো সব ডাক এক অক্ষরও বদলায়নি);
    দিলে ঠিক ওই লেখাটাই কপি হয় — Follow-up কার্ডে 📞 চিহ্নটা যেন কপিতে
    না ঢোকে, সেজন্যই দরকার হলো। */
@@ -14679,7 +14679,7 @@ function wlv1RmpPatientCard(p,fast){
  return `<div class="card rmpPatientMini" style="cursor:pointer" onclick="wlv1OpenPatientCard('${mobile}')"><div class="rmpPatientTop"><b class="rmpPatientName" onpointerdown="wlv1PatientHoldStart(this,'Name')" onpointerup="wlv1PatientHoldEnd()" onpointerleave="wlv1PatientHoldEnd()" onpointercancel="wlv1PatientHoldEnd()">${esc(name)}</b><span class="rmpPatientMobile" onpointerdown="wlv1PatientHoldStart(this,'Mobile number')" onpointerup="wlv1PatientHoldEnd()" onpointerleave="wlv1PatientHoldEnd()" onpointercancel="wlv1PatientHoldEnd()">${esc(mobile)}</span></div><div class="rmpPatientMeta"><span class="rmpPatientDisease">${esc(String(disease).toUpperCase())}</span><span>Sent: ${esc(sent)}</span></div><div class="rmpPatientMoney"><span class="bill">Bill ${money(bill)}</span><span class="paid">Paid ${paidText}</span><span class="due">Due ${dueText}</span></div></div>`;
 }
 window["wlv1PatientHoldStart"]=wlv1PatientHoldStart;window["wlv1PatientHoldEnd"]=wlv1PatientHoldEnd;window["wlv1OpenPatientCard"]=wlv1OpenPatientCard;
-/* 📋🔒 V826 — লম্বা চাপে কপি হয়ে গেলে ওই একবারের জন্য কার্ডের ক্লিক খায়,
+/* 📋🔒 V827 — লম্বা চাপে কপি হয়ে গেলে ওই একবারের জন্য কার্ডের ক্লিক খায়,
    যাতে কপি করতে গিয়ে পর্দা বদলে না যায়। ⛔ কপি না হলে `false` ফেরে, তখন
    কার্ড আগের মতোই খোলে — এক অক্ষরও বদলায়নি। */
 function wlv1FuHoldEat(ev){
@@ -16630,7 +16630,7 @@ window["frDuplicateModal"]=frDuplicateModal;
 
     window.finalEnsureVisitAfterRegistration=function(mm,p){
       mm=frMobile(mm);p=p||frArr('patients').find(x=>frMobile(x.mobile)===mm);if(!p)return;
-      let now=frNow(), hist={date:today(),remark:'Converted to Patient Registration',staff:user?.name||user?.mobile||'Staff',status:'Registered'};
+      let now=frNow(), hist={date:today(),time:isoNow(),remark:'Converted to Patient Registration',staff:user?.name||user?.mobile||'Staff',status:'Registered'};
       let enquiries=frArr('enquiries').map(e=>frMobile(e.mobile)===mm?{...e,status:'Registered',stage:'Registered',nextFollow:'',convertedPatientId:p.id,convertedAt:e.convertedAt||now,updatedAt:now}:e);save('enquiries',enquiries);
       let fs=frArr('followups').map(f=>frMobile(f.mobile)===mm&&String(f.stage||'')==='Inquiry'?{...f,previousStage:f.previousStage||'Inquiry',stage:'Registered',status:'Closed',nextFollow:'',convertedPatientId:p.id,convertedAt:f.convertedAt||now,updatedAt:now,history:[...(f.history||[]),hist]}:f);
       let vi=fs.findIndex(f=>(f.refId===p.id||f.patientDbId===p.id||frMobile(f.mobile)===mm)&&String(f.stage||'')==='Patient');
@@ -16825,7 +16825,7 @@ window["dupPopup"]=dupPopup;
     const oldReg=window.registration||registration; window.registration=function(pref={}){oldReg(pref||{});setTimeout(()=>{let el=document.getElementById('pMob');if(el){el.oninput=function(){v279RegistrationMobileCheck(this.value)};el.addEventListener('input',function(){v279RegistrationMobileCheck(this.value)},{passive:true});} if(pref&&pref.mobile)v279FillRegistration(pref.mobile);},120)}; try{registration=window.registration}catch(_e){}
     const oldEnq=window.enquiryForm||enquiryForm; window.enquiryForm=function(){oldEnq();setTimeout(()=>{let el=document.getElementById('eMob');if(el){el.oninput=function(){v279EnquiryMobileCheck(this.value)};el.addEventListener('input',function(){v279EnquiryMobileCheck(this.value)},{passive:true});}},120)}; try{enquiryForm=window.enquiryForm}catch(_e){}
 
-    window.v279EnsureVisit=function(mm,p){mm=m(mm);p=p||ar('patients').find(x=>m(x.mobile)===mm); if(!p)return null;let t=now();let hist={date:today(),remark:'Registered patient / Visit created',staff:user?.name||user?.mobile||'Staff',status:'Visit'};let enqs=ar('enquiries').map(e=>m(e.mobile)===mm?{...e,status:'Registered',stage:'Registered',nextFollow:'',convertedPatientId:p.id,convertedAt:e.convertedAt||t,updatedAt:t}:e);sv('enquiries',enqs);let fs=ar('followups').filter(f=>!(m(f.mobile)===mm&&String(f.stage||'')==='Treatment'));
+    window.v279EnsureVisit=function(mm,p){mm=m(mm);p=p||ar('patients').find(x=>m(x.mobile)===mm); if(!p)return null;let t=now();let hist={date:today(),time:isoNow(),remark:'Registered patient / Visit created',staff:user?.name||user?.mobile||'Staff',status:'Visit'};let enqs=ar('enquiries').map(e=>m(e.mobile)===mm?{...e,status:'Registered',stage:'Registered',nextFollow:'',convertedPatientId:p.id,convertedAt:e.convertedAt||t,updatedAt:t}:e);sv('enquiries',enqs);let fs=ar('followups').filter(f=>!(m(f.mobile)===mm&&String(f.stage||'')==='Treatment'));
       fs=fs.map(f=>m(f.mobile)===mm&&String(f.stage||'')==='Inquiry'?{...f,stage:'Registered',status:'Closed',nextFollow:'',convertedPatientId:p.id,convertedAt:f.convertedAt||t,updatedAt:t,history:[...(f.history||[]),hist]}:f);
       let vi=fs.findIndex(f=>(f.refId===p.id||f.patientDbId===p.id||m(f.mobile)===mm)&&String(f.stage||'')==='Patient');let row={refId:p.id,patientDbId:p.id,convertedPatientId:p.id,mobile:nm(mm),name:p.name||'',branch:p.branch||'',disease:p.disease||'',address:p.address||'',stage:'Patient',status:'Active',date:p.registrationDate||p.visitDate||p.date||today(),registrationDate:p.registrationDate||p.date||today(),visitDate:p.visitDate||p.registrationDate||p.date||today(),lastRemark:'Registered patient / Visit created',nextFollow:'',callCount:0,history:[...((vi>-1&&fs[vi].history)||[]),hist],createdBy:p.createdBy||user?.mobile||'',createdAt:p.createdAt||t,updatedAt:t}; if(vi>-1){let old=fs[vi];fs[vi]={...old,...row,id:old.id,status:(old.status!==undefined&&String(old.status)!=='')?old.status:row.status};} else fs.unshift({id:uid('fu'),...row}); sv('followups',fs);pushCloud([...enqs.filter(e=>m(e.mobile)===mm).map(row=>({table:'enquiries',row})),...fs.filter(f=>m(f.mobile)===mm).map(row=>({table:'followups',row})),{table:'patients',row:p}]);return row};
     const oldSavePatient=window.savePatient||savePatient; window.savePatient=async function(evt){let mm=m(document.getElementById('pMob')?.value||'');let r=await oldSavePatient(evt);setTimeout(()=>{try{let p=ar('patients').find(x=>m(x.mobile)===mm);if(p)v279EnsureVisit(mm,p)}catch(e){console.warn('V279 visit ensure failed',e)}},500);return r}; try{savePatient=window.savePatient}catch(_e){}
@@ -16985,7 +16985,7 @@ window["stageName"]=stageName;
       fs=fs.map(f=>mm(f.mobile)===m&&String(f.stage||'')==='Inquiry'?{...f,previousStage:f.previousStage||'Inquiry',stage:'Registered',status:'Closed',nextFollow:'',convertedPatientId:p.id,lastRemark:'Converted to Registration',updatedAt:isoNow()}:f);
       let vi=fs.findIndex(f=>mm(f.mobile)===m&&(String(f.stage||'')==='Patient'||String(f.stage||'')==='Visit'||String(f.stage||'')==='Registered'));
       const oldVisit=vi>-1?fs[vi]:null; const preservedVisitStatus=(oldVisit&&wlv1IsTerminalFollowStatus(oldVisit.status))?oldVisit.status:'Visited';
-      const row={id:vi>-1?fs[vi].id:uid('fu'),refId:p.id,patientDbId:p.id,convertedPatientId:p.id,mobile:shownMob(p.mobile),name:p.name,branch:p.branch,disease:p.disease||'',address:p.address||'',stage:'Patient',status:preservedVisitStatus,date:p.registrationDate||p.date||todaySafe(),registrationDate:p.registrationDate||p.date||todaySafe(),visitDate:p.visitDate||p.registrationDate||p.date||todaySafe(),lastRemark:'Registered patient / Visit created',nextFollow:'',createdBy:p.createdBy||user?.mobile||'',registeredBy:p.registeredBy||user?.mobile||'',updatedAt:isoNow(),history:[...((vi>-1&&fs[vi].history)||[]),{date:todaySafe(),remark:'Registered patient / Visit created',staff:user?.mobile||'',status:'Visit'}]};
+      const row={id:vi>-1?fs[vi].id:uid('fu'),refId:p.id,patientDbId:p.id,convertedPatientId:p.id,mobile:shownMob(p.mobile),name:p.name,branch:p.branch,disease:p.disease||'',address:p.address||'',stage:'Patient',status:preservedVisitStatus,date:p.registrationDate||p.date||todaySafe(),registrationDate:p.registrationDate||p.date||todaySafe(),visitDate:p.visitDate||p.registrationDate||p.date||todaySafe(),lastRemark:'Registered patient / Visit created',nextFollow:'',createdBy:p.createdBy||user?.mobile||'',registeredBy:p.registeredBy||user?.mobile||'',updatedAt:isoNow(),history:[...((vi>-1&&fs[vi].history)||[]),{date:todaySafe(),time:isoNow(),remark:'Registered patient / Visit created',staff:user?.mobile||'',status:'Visit'}]};
       if(vi>-1)fs[vi]=row; else fs.unshift(row); put('followups',fs); try{directCloudUpsertRow('patients',p);directCloudUpsertRow('followups',row)}catch(e){} return row; }
 window["ensureVisit"]=ensureVisit;
     window.v280EnsureVisit=ensureVisit;
@@ -18372,7 +18372,7 @@ function wlv1OpenDoc(kind, mobile){
 window["wlv1OpenDoc"]=wlv1OpenDoc;
 
 /* ════════════════════════════════════════════════════════════════════════
-   📝🔒 V826 (২৯.০৮.২০২৬, TK-নির্দেশ) — Search থেকে রিমার্ক (ফোনের
+   📝🔒 V827 (২৯.০৮.২০২৬, TK-নির্দেশ) — Search থেকে রিমার্ক (ফোনের
    GlobalSearchActivity.writeRemarkForHit()-এর হুবহু জোড়া)।
 
    *"কিশনগঞ্জের স্টাফ কল রিসিভ করেছিল, কিন্তু নম্বরটা জলপাইগুড়ির এনকোয়ারি —
@@ -18434,7 +18434,7 @@ function wlv1SearchRemarkSave(mobile){
 }
 window["wlv1SearchRemarkSave"]=wlv1SearchRemarkSave;
 
-/* 🖨️🔒 V826 (২৯.০৮.২০২৬, TK-নির্দেশ: *"Prescription · Medicine Slip · Blood
+/* 🖨️🔒 V827 (২৯.০৮.২০২৬, TK-নির্দেশ: *"Prescription · Medicine Slip · Blood
    Test · Diet Chart — এগুলো আলাদা আলাদা থাকবে না, একটার মধ্যেই থাকবে, যার
    নাম হবে প্রিন্ট"*)। ⛔ চারটে পর্দার কাজ এক অক্ষরও বদলায়নি — ঠিক আগের
    `wlv1OpenDoc(...)`-ই ডাকা হয়, শুধু এখন তালিকা থেকে বাছতে হয়। */
@@ -18469,11 +18469,11 @@ function wlv1SearchCard(r){
       ${act('\u{1F9ED}','Full Journey',true,`wlv1FullJourney('${m}')`)}
       ${act('\u{1F4CB}','Report Card',true,`wlv1ReportCard('${m}')`)}
       ${act('\u{1F4DA}','Clinical History',false,`wlv1ClinicalHistory('${m}')`)}
-      ${/* 🖨️ V826 — চারটে ছাপার বোতাম এখন একটাই, পুরো চওড়া জুড়ে */''}
+      ${/* 🖨️ V827 — চারটে ছাপার বোতাম এখন একটাই, পুরো চওড়া জুড়ে */''}
       <button class="wlv1SAct wlv1SFull" onclick="wlv1SearchPrint('${m}')"><span>\u{1F5A8}\uFE0F</span><b>Print</b></button>
-      ${/* 📝 V826 — TK-নির্দেশ: Remarks ও Mark Arrived পাশাপাশি */''}
+      ${/* 📝 V827 — TK-নির্দেশ: Remarks ও Mark Arrived পাশাপাশি */''}
       ${act('\u{1F5D2}\uFE0F','Write Remark',true,`wlv1SearchRemark('${m}')`)}
-      ${/* ⛔ V826 — TK-এর অনুমতি নিয়ে লেখাটা ছোট (অর্ধেক জায়গায় কাটার ভয় নেই)।
+      ${/* ⛔ V827 — TK-এর অনুমতি নিয়ে লেখাটা ছোট (অর্ধেক জায়গায় কাটার ভয় নেই)।
             শুধু এই Search কার্ডে; অন্য পর্দায় লেখাটা আগের মতোই পুরো আছে। */''}
       ${act('\u{1F3E5}','Mark Arrived',true,`wlv1MarkArrived('${m}')`)}
     </div>

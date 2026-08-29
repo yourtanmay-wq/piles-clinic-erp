@@ -1760,7 +1760,7 @@ class FollowUpActivity : AppCompatActivity() {
         }
         nameCol.addView(nameView)
         TripleTapEdit.attach(nameView) { showEditDialog(item) }
-        /* 📋🔒 V826 (২৯.০৮.২০২৬, TK-নির্দেশ, ছবিসহ) — নামের উপরে **লম্বা চাপ**
+        /* 📋🔒 V827 (২৯.০৮.২০২৬, TK-নির্দেশ, ছবিসহ) — নামের উপরে **লম্বা চাপ**
            দিলে নামটা কপি হয়। ⛔ কপি হয় **শুধু নামটাই** — সামনের 👤 চিহ্ন বা
            ক্রমিক সংখ্যা নয়। এক-চাপ ও তিন-চাপে-এডিট এক অক্ষরও বদলায়নি
            (লম্বা চাপে Android কখনো `onClick` ডাকে না)।
@@ -1778,7 +1778,7 @@ class FollowUpActivity : AppCompatActivity() {
         }
         nameCol.addView(mobileView)
         TripleTapEdit.attach(mobileView) { showEditDialog(item) }
-        /* 📋🔒 V826 — নম্বরের উপরে লম্বা চাপ দিলে নম্বরটা কপি হয়।
+        /* 📋🔒 V827 — নম্বরের উপরে লম্বা চাপ দিলে নম্বরটা কপি হয়।
            ⛔ 📞 চিহ্নটা বাদ দিয়ে **পর্দায় যেমন দেখাচ্ছে ঠিক সেই নম্বরটাই**
               (যেমন +919382292755) কপি হয়। */
         mobileView.setOnLongClickListener {

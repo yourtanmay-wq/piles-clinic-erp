@@ -244,6 +244,7 @@ object PatientModel {
         val history = JSONArray().put(
             JSONObject()
                 .put("date", patientRow.getString("date"))
+                .put("time", isoNow())   /* ⏰ V827 — সময়ও জমা হয় (TK: "LAST CALL তারিখের পরে যেন Time থাকে")। */
                 .put("remark", "Registered patient / Visit created")
                 .put("staff", staffMobile)
         )

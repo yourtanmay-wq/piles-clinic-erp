@@ -6397,7 +6397,7 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
 .wlv1YrBtn.skip{background:#FDECEA;color:#B3261E}
 .wlv1YrBtn.undo{background:#E9F6EE;color:#0B6E33}
 
-/* 🖨️🔒 V826 (২৯.০৮.২০২৬, TK-নির্দেশ) — Search কার্ডের "Print" বোতামটা দুই
+/* 🖨️🔒 V827 (২৯.০৮.২০২৬, TK-নির্দেশ) — Search কার্ডের "Print" বোতামটা দুই
    ঘরের গ্রিডে **পুরো চওড়া** জুড়ে বসে (ফোনের কার্ডের হুবহু একই চেহারা)।
    ⛔ সম্পূর্ণ নতুন ক্লাস — পুরনো `.wlv1SAct` / `.wlv1SWide` কিছুই ছোঁয়া হয়নি। */
 .wlv1SFull{grid-column:1 / -1}

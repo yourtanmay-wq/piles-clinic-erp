@@ -68,6 +68,7 @@ object EnquiryModel {
         val history = org.json.JSONArray().put(
             JSONObject()
                 .put("date", enquiryRow.getString("date"))
+                .put("time", isoNow())   /* ⏰ V827 — সময়ও জমা হয় (TK: "LAST CALL তারিখের পরে যেন Time থাকে")। */
                 .put("remark", enquiryRow.getString("remarks"))
                 .put("staff", staffName)
         )
