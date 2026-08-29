@@ -327,7 +327,7 @@ object RmpCommissionRepository {
                 out.add(LegacyViewAllPatient(id, row.optString("patient_code", ""),
                     row.optString("patient_name", ""), row.optString("patient_mobile", ""),
                     row.optString("referral_date", ""), bill, paid,
-                    row.optString("disease", "").ifBlank { row.optString("diagnosis", "") }))
+                    row.s("disease").ifBlank { row.s("diagnosis") }))   // 🔴 V819 — `optString` SQL NULL-এ আক্ষরিক "null" ফেরায় (V696/V812-এর ফাঁদ); `s()` সেটা ফাঁকা ধরে
             }
             RepoResult(true, out)
         } catch (_: Exception) { RepoResult(false, message = "Invalid RMP View All result") }

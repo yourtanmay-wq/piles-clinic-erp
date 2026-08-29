@@ -896,7 +896,7 @@ object PatientTimelineRepository {
                 val names = mutableListOf<String>()
                 for (di in 0 until dailyEvents.length()) {
                     val ev = dailyEvents.optJSONObject(di) ?: continue
-                    val by = ev.optString("receivedBy").ifBlank { ev.optString("createdBy") }.trim()
+                    val by = ev.s("receivedBy").ifBlank { ev.s("createdBy") }.trim()   // 🔴 V819 — `optString` SQL NULL-এ আক্ষরিক "null" ফেরায় (V696/V812-এর ফাঁদ); `s()` সেটা ফাঁকা ধরে
                     if (by.isNotBlank() && !names.contains(by)) names.add(by)
                 }
                 names.joinToString(" / ").ifBlank { pBy }
