@@ -12361,3 +12361,22 @@ Draft-এ (দিনে ১ বার/ফোন) ও Follow-up পর্দা �
 
 **যাচাই:** `verify_kotlin_compile.py` → নতুন ভুল **০** ·
 `tk_guard.py` → সব পাশ (ভার্সন এক — V838)।
+
+---
+
+## ✅ V839-এর SQL চালানো হয়েছে — TK নিজে (২৯.০৮.২০২৬ · ৮.৪৯)
+
+**ফাইল:** `00_SQL/V839_NEXT_VISIT_PLAN.sql`
+**ফল:** `Success. No rows returned`
+**প্রমাণ:** TK-এর পাঠানো স্ক্রিনশট — Supabase SQL Editor, প্রোজেক্ট
+`biswasayurvedkis…`, শাখা `main`, লাইন ৪১–৪৪ দেখা যাচ্ছে:
+
+```sql
+alter table public.patients
+  add column if not exists "nextVisitPlan" jsonb;
+notify pgrst, 'reload schema';
+```
+
+⇒ `patients` টেবিলে **`nextVisitPlan` (jsonb)** ঘরটি এখন **লাইভ**।
+⛔ পুরনো একটাও ঘর বা সারি ছোঁয়া হয়নি — শুধু একটা খালি নতুন ঘর যোগ।
+⇒ V839-এর কোডের কাজ এখন এগোতে পারে।

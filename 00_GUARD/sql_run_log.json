@@ -1,5 +1,12 @@
 [
   {
+    "sql_file": "V839_NEXT_VISIT_PLAN.sql",
+    "run_by": "TK",
+    "when": "29.08.2026 · 8.49 (স্ক্রিনশটে দেখা সময়)",
+    "result": "Success. No rows returned — patients.nextVisitPlan (jsonb) ঘরটি যোগ হয়েছে",
+    "proof": "screenshot — Supabase SQL Editor, প্রোজেক্ট biswasayurvedkis…, শাখা main"
+  },
+  {
     "sql_file": "V384_RMP_REFERRED_PATIENT_DISEASE_2026-08-14.sql",
     "run_by": "TK",
     "when": "15.08.2026 (confirmed via has_function_privilege check)",
