@@ -722,16 +722,6 @@ class GlobalSearchActivity : AppCompatActivity() {
                 Triple("📞", "Call", false) to { onCall(h) },
                 Triple("💬", "WhatsApp", false) to { onWhatsApp(h) }
             )
-            /* 📝🔒 V825 (২৯.০৮.২০২৬, TK-নির্দেশ) — *"যে staff কলটা রিসিভ করেছে
-               সে যেন রিমার্কটা লিখে দিতে পারে, তাতে জলপাইগুড়ির স্টাফের সুবিধা
-               হবে বুঝতে যে লাস্ট কে কথা বলেছিল"*। কল/WhatsApp-এর ঠিক নিচে,
-               নিজের পুরো চওড়া সারিতে — কল ধরার পরেই হাতের কাছে।
-               ⛔ বাকি আটটা বোতামের জায়গা · রং · কাজ কিচ্ছু বদলায়নি। */
-            run {
-                val row = newRow()
-                row.addView(actionButton("🗒️", "Write Remark", true) { onRemark(h) })
-                holder.grid.addView(row)
-            }
             addPairRow(
                 Triple("💳", "Payment", true) to { onPayment(h) },
                 Triple("🧭", "Full Journey", true) to { onFullJourney(h) }
@@ -744,13 +734,15 @@ class GlobalSearchActivity : AppCompatActivity() {
                 Triple("🩸", "Blood Test", false) to { onBloodTest(h) },
                 Triple("🥗", "Diet Chart", false) to { onDietChart(h) }
             )
-            // TK-REQUESTED (2026-07-20): Mark Arrived from Search -- one
-            // full-width row so it stands out from the paired actions above.
-            run {
-                val row = newRow()
-                row.addView(actionButton("🏥", "Mark Arrived (এসেছেন)", true) { onMarkArrived(h) })
-                holder.grid.addView(row)
-            }
+            /* 📝🔒 V825 (২৯.০৮.২০২৬, TK-নির্দেশ: *"Remarks & Mark Arrived
+               পাশাপাশি রাখুন"*) — সবচেয়ে নিচের সারিতে দুটো একসাথে।
+               ⛔ Mark Arrived-এর লেখা · আইকন · রং · কাজ এক অক্ষরও বদলায়নি,
+                  শুধু আগে পুরো চওড়া সারিতে একা বসত, এখন অর্ধেক জায়গায়।
+               ⛔ উপরের আটটা বোতাম হুবহু আগের জায়গাতেই আছে। */
+            addPairRow(
+                Triple("🗒️", "Write Remark", true) to { onRemark(h) },
+                Triple("🏥", "Mark Arrived (এসেছেন)", true) to { onMarkArrived(h) }
+            )
         }
     }
 }
