@@ -108,7 +108,9 @@ object PrintMappers {
         )
     }
 
-    fun medicineSlip(): PrintDocumentModel {
+    /** 🖨️🔒 V833 — `context` **ঐচ্ছিক** (ডিফল্ট null) ⇒ পুরনো কোনো ডাক ভাঙে না;
+     *  না দিলে বাঁ কলাম আগের মতোই ফাঁকা যায়। */
+    fun medicineSlip(context: android.content.Context? = null): PrintDocumentModel {
         val medicines = ClinicalRepository.currentSlip
         val lines = if (medicines.isEmpty()) {
             listOf("No medicines in the current slip.")
@@ -149,6 +151,14 @@ object PrintMappers {
             patientAddress = RoleSession.currentPatientAddress,
             patientAgeSex = patientAgeSex(),
             patientDisease = RoleSession.currentPatientDisease,
+            /* 🖨️🔒 V833 (TK-নির্দেশ) — Medicine Slip-এও এখন বাঁ কলামে
+               DISEASE · SYMPTOMS · DURATION · CHIEF COMPLAINT, ঠিক
+               Prescription-এর মতোই। ⛔ ঘরগুলোর তথ্য **আগে থেকেই জমা**
+               (ডাক্তারের চেক-আপ থেকে `syncFromCloud`), তাই নতুন কোনো
+               ক্লাউড-পড়া লাগেনি — Egress বাড়ে না। */
+            complaintHistory = if (context != null)
+                com.tkbiswas.pilesclinic.clinical.PrescriptionOptionsStore.printLinesForSlip(context)
+            else emptyList(),
             patientMobile = RoleSession.currentPatientMobile
         )
     }

@@ -138,6 +138,31 @@ object PrescriptionOptionsStore {
             .apply()
     }
 
+    /**
+     * 🖨️🔒 V833 (২৯.০৮.২০২৬, TK-নির্দেশ: *"প্রেসক্রিপশনে diseases · symptom ·
+     * duration · chief complaint আছে, কিন্তু মেডিসিন স্লিপে নেই কেন?"*)
+     *
+     * Medicine Slip-এর জন্য **ঠিক ওই চারটে ঘরই সবসময়** — ডাক্তার
+     * Prescription-এ কোন ঘরগুলো টিক দিয়েছেন তার উপর নির্ভর করে না।
+     * ⛔ তাই দুটো কাগজ একে অপরকে টানে না; Prescription-এর `printLines()`
+     *    এক অক্ষরও বদলায়নি।
+     * ⛔ তথ্য না থাকলে ঘরটা ফাঁকাই যায় — V425-এর নিয়ম (শিরোনাম থাকে,
+     *    নিচে হাতে লেখার জায়গা)।
+     */
+    fun printLinesForSlip(context: Context): List<String> {
+        val prefs = p(context)
+        fun value(field: String): String = when (field) {
+            "disease" -> RoleSession.currentPatientDisease.trim()
+            else -> prefs.getString(key(field), "").orEmpty().trim()
+        }
+        return listOf(
+            "DISEASE" to "disease",
+            "SYMPTOMS" to "symptoms",
+            "DURATION" to "since",
+            "CHIEF COMPLAINT" to "complaint"
+        ).map { (label, field) -> "$label\n" + value(field) }
+    }
+
     fun printLines(context: Context): List<String> {
         val prefs = p(context)
         val selected = selectedFields(context)

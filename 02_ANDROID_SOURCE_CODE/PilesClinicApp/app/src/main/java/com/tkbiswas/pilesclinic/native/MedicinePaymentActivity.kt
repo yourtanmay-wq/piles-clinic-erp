@@ -836,7 +836,7 @@ val mode = selectedMpMode
         return buildString {
             append("*${b.clinicName}*\n")
             append("${b.addressLine}\n")
-            append("Ph: ${b.phoneLine}\n")
+            append("Ph: ${b.phoneLine}  |  Helpline: ${com.tkbiswas.pilesclinic.print.BranchInfo.HELPLINE}\n")
             append("--------------------------------\n")
             append("*MEDICINE PAYMENT RECEIPT*\n\n")
             append("Patient  : $cust\n")
@@ -881,7 +881,7 @@ td.v{font-weight:700;color:#10223A}
 .ft{margin-top:22px;font-size:12px;color:#555;display:flex;justify-content:space-between}
 .ty{text-align:center;margin-top:26px;font-size:13px;color:#0B7A34;font-weight:700}
 </style></head><body>
-<div class="h"><div class="cn">${esc(b.clinicName)}</div><div class="ad">${esc(b.addressLine)} &nbsp;·&nbsp; Ph: ${esc(b.phoneLine)}</div></div>
+<div class="h"><div class="cn">${esc(b.clinicName)}</div><div class="ad">${esc(b.addressLine)} &nbsp;·&nbsp; Ph: ${esc(b.phoneLine)} &nbsp;·&nbsp; Helpline: ${esc(com.tkbiswas.pilesclinic.print.BranchInfo.HELPLINE)}</div></div>
 <div class="tt">MEDICINE PAYMENT RECEIPT</div>
 <table>
 <tr><td class="k">Patient</td><td class="v">$cust</td></tr>

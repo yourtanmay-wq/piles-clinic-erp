@@ -71,7 +71,7 @@ class MedicineSlipActivity : AppCompatActivity() {
                 Toast.makeText(this, "Add at least one medicine first.", Toast.LENGTH_SHORT).show()
             } else {
                 com.tkbiswas.pilesclinic.print.PrescriptionWhatsAppShare.share(
-                    this, com.tkbiswas.pilesclinic.print.PrintMappers.medicineSlip()
+                    this, com.tkbiswas.pilesclinic.print.PrintMappers.medicineSlip(this)
                 )
             }
         }
@@ -85,7 +85,7 @@ class MedicineSlipActivity : AppCompatActivity() {
             ClinicalRepository.saveCommonMedicineSlip(ClinicalRepository.currentSlip.map { it.name }.toSet())
             persistSlipToHistory()  // AUDIT FIX 2026-08-06: keep a record in patient history
             com.tkbiswas.pilesclinic.print.PrintDataHolder.pendingModel =
-                com.tkbiswas.pilesclinic.print.PrintMappers.medicineSlip()
+                com.tkbiswas.pilesclinic.print.PrintMappers.medicineSlip(this)
             startActivity(Intent(this, com.tkbiswas.pilesclinic.print.PrintPreviewActivity::class.java))
         }
 

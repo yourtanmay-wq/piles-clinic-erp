@@ -195,7 +195,7 @@ body{font-family:Arial,"Noto Sans Bengali","Noto Sans Devanagari",sans-serif;col
             "<img class=\"wm\" src=\"${info.logoAssetPath}\">" +
             "<div class=\"head\"><img src=\"${info.logoAssetPath}\"><div class=\"hc\">" +
             "<h1>${esc(info.clinicName)}</h1>$brLine<div class=\"rule\"></div>" +
-            "<div class=\"ad\">${esc(info.addressLine)} &nbsp;|&nbsp; Mob: ${esc(info.phoneLine)}</div>" +
+            "<div class=\"ad\">${esc(info.addressLine)} &nbsp;|&nbsp; Mob: ${esc(info.phoneLine)} &nbsp;|&nbsp; Helpline: ${esc(BranchInfo.HELPLINE)}</div>" +
             "<div class=\"tag\"><b>WE PROVIDE AYURVEDA KSHAR SUTRA THERAPY IN PILES, FISSURE &amp; FISTULA</b>" +
             "<span>MOST SUCCESSFUL TREATMENT WITH HIGH SUCCESS RATE</span></div></div></div><div class=\"sep\"></div>" +
             "<div class=\"title\"><b>DIET &amp; LIFESTYLE CHART</b><span>PILES &nbsp;·&nbsp; FISSURE &nbsp;·&nbsp; FISTULA</span></div>" +

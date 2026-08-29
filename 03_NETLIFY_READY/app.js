@@ -14981,7 +14981,7 @@ function printDirectRx(type){
     return `<tr><td>${i+1}</td><td><span class="rxPrintType">${esc(m.medicineType||'')}</span>${esc(m.name)}</td><td>${esc(dw.dose)}</td><td>${esc(dw.whenText)}</td><td>${esc(rxDaysForPrint(m.days))}</td></tr>`;
   }).join(''):'<tr><td colspan="5">No item selected</td></tr>';
   closeModal();
-  professionalDirectMedicalPrint(p,title,`<div class="rxApprovedGrid" style="--clinic-watermark:url('${branchPrintLogoPath(p)}')"><aside class="rxComplaintHistory"><div class="anRxBot"><div class="rxPrintAdvice"><span><b>ADVICE:</b> Sitz Bath &mdash; 2 Times Daily</span></div><div class="anRxNext"><b>Next Follow-up Date</b><span>_______________</span></div></div></aside><section><div class="rxGridMark">&#8478;</div><table class="printTable finalPrintTable"><tr><th>SL</th><th>Medicine Name</th><th>Dose</th><th>When</th><th>Duration</th></tr>${list}</table></section></div>`);
+  professionalDirectMedicalPrint(p,title,`<div class="rxApprovedGrid" style="--clinic-watermark:url('${branchPrintLogoPath(p)}')"><aside class="rxComplaintHistory">${wlv1SlipHistoryHtml(p)}<div class="anRxBot"><div class="rxPrintAdvice"><span><b>ADVICE:</b> Sitz Bath &mdash; 2 Times Daily</span></div><div class="anRxNext"><b>Next Follow-up Date</b><span>_______________</span></div></div></aside><section><div class="rxGridMark">&#8478;</div><table class="printTable finalPrintTable"><tr><th>SL</th><th>Medicine Name</th><th>Dose</th><th>When</th><th>Duration</th></tr>${list}</table></section></div>`);
 }
 window["printDirectRx"]=printDirectRx;
 /* 🔴 V430 — নাম-ছাড়া Diet কাগজে ওয়েবে **যা খাওয়া বারণ তার পাশেও ☑ টিক**
@@ -15069,7 +15069,7 @@ function printHead(p,type){let b=branch(p?.branch),title=clinicPrintTitle(p),t=S
     এই একটাই সুইচ ঠিক করে কোন কাগজে নতুন লেআউট বসবে — বাকি সব কাগজ অটুট।
     ⛔ ডাক্তারের নাম Slip-এ বসবে না — TK: "আগে কি ছিল তাই থাকবে"। সেটা
        `printDoctorsHtml` নিজেই মানে (ওটা শুধু PRESCRIPTION-এ নাম বসায়)। */
- let isRx=(t==='PRESCRIPTION'||t==='MEDICINE SLIP');let tag=isRx?`<div class="rxTagline"><b>WE PROVIDE AYURVEDA KSHAR SUTRA THERAPY IN PILES, FISSURE &amp; FISTULA</b><span>MOST SUCCESSFUL TREATMENT WITH HIGH SUCCESS RATE</span></div>`:'';return `<div class="printArea prescriptionLock ${isRx?'rxPrescriptionPrint':''}"><div class="wm">${branchPrintLogoHtml(p)}</div><div class="printHead compact"><div class="logoCell">${branchPrintLogoHtml(p)}</div><div class="clinicCell"><h2>${esc(title)}</h2>${isKishanganjBranchName(p?.branch)?'':`<div class="brSub">${esc(String(p?.branch||'').toUpperCase())} BRANCH</div>`}<p>${esc(b.address)} · Mobile: ${esc(normMob(b.mobile))}</p></div></div>${tag}${type?`<div class="printTitle">${esc(type)}</div>`:''}`}
+ let isRx=(t==='PRESCRIPTION'||t==='MEDICINE SLIP');let tag=isRx?`<div class="rxTagline"><b>WE PROVIDE AYURVEDA KSHAR SUTRA THERAPY IN PILES, FISSURE &amp; FISTULA</b><span>MOST SUCCESSFUL TREATMENT WITH HIGH SUCCESS RATE</span></div>`:'';return `<div class="printArea prescriptionLock ${isRx?'rxPrescriptionPrint':''}"><div class="wm">${branchPrintLogoHtml(p)}</div><div class="printHead compact"><div class="logoCell">${branchPrintLogoHtml(p)}</div><div class="clinicCell"><h2>${esc(title)}</h2>${isKishanganjBranchName(p?.branch)?'':`<div class="brSub">${esc(String(p?.branch||'').toUpperCase())} BRANCH</div>`}<p>${esc(b.address)} · Mobile: ${esc(normMob(b.mobile))} · Helpline: +91${esc(WLV1_HELPLINE)}</p></div></div>${tag}${type?`<div class="printTitle">${esc(type)}</div>`:''}`}
 window["printHead"]=printHead;
 /* 🔵 V406 (TK-অনুমোদিত V397) — দুটো বদল, **শুধু Prescription ও Medicine Slip-এ**:
    ১) নিচের সবুজ পটিতে যোগ হলো *In an emergency, visit your nearest hospital immediately*
@@ -15707,7 +15707,7 @@ function wlv1DietA4Html(p, picked, remarks){
   return '<!DOCTYPE html><html><head><meta charset="utf-8"><style>'+wlv1DietA4Css()+'</style></head><body><div class="sheet">'
   +'<img class="wm" src="'+logo+'">'
   +'<div class="head"><img src="'+logo+'"><div class="hc"><h1>'+esc(clinic)+'</h1>'+brLine
-  +'<div class="rule"></div><div class="ad">'+esc(b.address||'')+' &nbsp;|&nbsp; Mob: '+esc(b.mobile||'')+'</div>'
+  +'<div class="rule"></div><div class="ad">'+esc(b.address||'')+' &nbsp;|&nbsp; Mob: '+esc(b.mobile||'')+' &nbsp;|&nbsp; Helpline: '+esc(WLV1_HELPLINE)+'</div>'
   +'<div class="tag"><b>WE PROVIDE AYURVEDA KSHAR SUTRA THERAPY IN PILES, FISSURE &amp; FISTULA</b>'
   +'<span>MOST SUCCESSFUL TREATMENT WITH HIGH SUCCESS RATE</span></div></div></div><div class="sep"></div>'
   +'<div class="title"><b>DIET &amp; LIFESTYLE CHART</b><span>PILES &nbsp;·&nbsp; FISSURE &nbsp;·&nbsp; FISTULA</span></div>'
@@ -15791,6 +15791,39 @@ function rxPrintPatientTwoCol(p){
   +`</div>`;
 }
 window["rxPrintPatientTwoCol"]=rxPrintPatientTwoCol;
+/* 🖨️🔒 V833 (২৯.০৮.২০২৬, TK-নির্দেশ: *"প্রেসক্রিপশনে diseases · symptom ·
+   duration · chief complaint আছে, কিন্তু মেডিসিন স্লিপে নেই কেন?"*)।
+   Medicine Slip-এর বাঁ কলামের চারটে ঘর — **ঠিক ওই চারটেই সবসময়**, ডাক্তার
+   Prescription-এ কোন ঘর টিক দিয়েছেন তার উপর নির্ভর করে না।
+   ⛔ ফোনে হুবহু একই চারটে (`PrescriptionOptionsStore.printLinesForSlip`)।
+   ⛔ তথ্যগুলো **রোগীর নিজের সারিতেই আছে** — নতুন কোনো ক্লাউড-পড়া লাগেনি।
+   ⛔ তথ্য না থাকলে ঘরটা ফাঁকাই যায় (V425-এর নিয়ম: শিরোনাম থাকে, নিচে
+      হাতে লেখার জায়গা)। */
+/* ☎️🔒 V833 (২৯.০৮.২০২৬, TK-নির্দেশ) — *"+919429690640 — এটা সর্বজনীন নম্বর,
+   অর্থাৎ প্রতিটা ব্রাঞ্চের ক্ষেত্রেই এটা হেল্পলাইন নাম্বার। প্রতিটা প্রিন্ট
+   আউটে ক্লিনিকের নাম্বারের পাশে যেন এই নম্বরটা থাকে।"*
+   ⛔ **এক জায়গায় লেখা** — বদলাতে হলে শুধু এখানেই। ফোনেও হুবহু একই নম্বর
+      (`BranchInfo.HELPLINE`)। কোনো ব্রাঞ্চের নিজের নম্বর ছোঁয়া হয়নি।
+   ⛔ শুধু **ছাপার কাগজে** — WhatsApp/SMS-এর লেখায় হাত দেওয়া হয়নি। */
+var WLV1_HELPLINE='9429690640';
+window["WLV1_HELPLINE"]=WLV1_HELPLINE;
+
+function wlv1SlipHistoryHtml(p){
+  try{
+    var n=(p&&p.doctorFullNote)||{};
+    var v={
+      'DISEASE': p&&p.disease||'',
+      'SYMPTOMS': (typeof rxRegSymptoms==='function'?rxRegSymptoms(p):'')||'',
+      'DURATION': (p&&(p.sinceWhen||p.duration))||n.duration||'',
+      'CHIEF COMPLAINT': n.complaint||(typeof rxRegComplaint==='function'?rxRegComplaint(p):'')||''
+    };
+    return Object.keys(v).map(function(k){
+      return '<div><b>'+esc(k)+'</b><span>'+esc(String(v[k]||''))+'</span></div>';
+    }).join('');
+  }catch(e){ return ''; }
+}
+window["wlv1SlipHistoryHtml"]=wlv1SlipHistoryHtml;
+
 function medicalPrintPatientBlock(p,type){
  const t=String(type||'').toUpperCase();
  if(t==='PRESCRIPTION'||t==='MEDICINE SLIP')
@@ -15834,7 +15867,7 @@ function printSimple(id,type){
        বেরিয়ে যেত। এখন মাথা ও সারি দুটোই ৫ ঘরের, তাই ওই গোলমালও শেষ।
     ⛔ ডাক্তারের নাম Slip-এ বসছে না — TK: "আগে কি ছিল তাই থাকবে"। */
  if(String(type||'').toUpperCase()==='MEDICINE SLIP'){
-  professionalMedicalPrint(id,type,`<div class="rxApprovedGrid" style="--clinic-watermark:url('${branchPrintLogoPath(p)}')"><aside class="rxComplaintHistory"><div class="anRxBot"><div class="rxPrintAdvice"><span><b>ADVICE:</b> Sitz Bath — 2 Times Daily</span></div><div class="anRxNext"><b>Next Follow-up Date</b><span>${p.nextFollow?esc(wlv1Dot(p.nextFollow)):'_______________'}</span></div></div></aside><section><div class="rxGridMark">℞</div><table class="printTable finalPrintTable"><tr><th>SL</th><th>Medicine Name</th><th>Dose</th><th>When</th><th>Duration</th></tr>${list}</table></section></div>`);
+  professionalMedicalPrint(id,type,`<div class="rxApprovedGrid" style="--clinic-watermark:url('${branchPrintLogoPath(p)}')"><aside class="rxComplaintHistory">${wlv1SlipHistoryHtml(p)}<div class="anRxBot"><div class="rxPrintAdvice"><span><b>ADVICE:</b> Sitz Bath — 2 Times Daily</span></div><div class="anRxNext"><b>Next Follow-up Date</b><span>${p.nextFollow?esc(wlv1Dot(p.nextFollow)):'_______________'}</span></div></div></aside><section><div class="rxGridMark">℞</div><table class="printTable finalPrintTable"><tr><th>SL</th><th>Medicine Name</th><th>Dose</th><th>When</th><th>Duration</th></tr>${list}</table></section></div>`);
   return;
  }
  professionalMedicalPrint(id,type,`<table class="printTable finalPrintTable"><tr><th>Medicine Name</th><th>Dose / Advice</th><th>Duration</th></tr>${list}</table>`);

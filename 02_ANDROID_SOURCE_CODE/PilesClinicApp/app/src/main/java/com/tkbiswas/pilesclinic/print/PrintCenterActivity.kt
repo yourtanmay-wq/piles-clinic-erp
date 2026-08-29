@@ -120,7 +120,7 @@ class PrintCenterActivity : AppCompatActivity() {
         }
         findViewById<CardView>(R.id.cardMedicineSlip).setOnClickListener {
             if (hasActiveClinicalPatient() && clinicalRepo.currentSlip.isNotEmpty()) {
-                PrintDataHolder.pendingModel = PrintMappers.medicineSlip()
+                PrintDataHolder.pendingModel = PrintMappers.medicineSlip(this)
                 openPreview()
             } else {
                 showClinicalPrintFromMobile("Medicine Slip")

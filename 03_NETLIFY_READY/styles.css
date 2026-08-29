@@ -1637,20 +1637,28 @@ button.doctorKpi{cursor:pointer}
 /* FIX (approved): Prescription/Medicine Slip print header — bigger logo, bigger clinic
    name, matching user's reference sample. Uses maximum specificity + !important since
    multiple older conflicting rules exist for .logoCell/.clinicCell h2/.wm at this point. */
+/* 🖨️🔒 V833 (২৯.০৮.২০২৬, TK-অনুমোদিত ফটো-প্রুফ: *"শুধুমাত্র লোগোটা সামান্য
+   একটু বড় হবে, আরেকটু উপরের দিকে উঠবে … হেডারের সাইজ যা ছিল তাই থাকবে"*)।
+   লোগো 70 → 80px, কিন্তু ঘরটা **70px উচ্চতাতেই** রইল; ছবিটা উপরে টেনে
+   (`align-items:flex-start` + `margin-top:-10px`) বসানো ⇒ **হেডারের উচ্চতা
+   এক চুলও বাড়ে না** (মেপে দেখা: আগে 70px, এখনও 70px)।
+   ⛔ ক্লিনিকের নাম ও ঠিকানার ফন্ট এক অক্ষরও বদলায়নি।
+   ⛔ ফোনের `rx_print.html`-এ হুবহু একই মাপ (একটাই ডিজাইন, দুই জায়গায়)। */
 .printArea .printHead .logoCell,
 .printArea.prescriptionLock .logoCell{
   height:70px!important;
-  width:70px!important;
+  width:80px!important;
   display:flex!important;
-  align-items:center!important;
+  align-items:flex-start!important;
   justify-content:center!important;
 }
 .printArea .printHead .printLogoImg,
 .printArea.prescriptionLock .printLogoImg{
-  max-width:70px!important;
-  max-height:70px!important;
-  width:70px!important;
-  height:70px!important;
+  max-width:80px!important;
+  max-height:80px!important;
+  width:80px!important;
+  height:80px!important;
+  margin-top:-10px!important;
   object-fit:contain!important;
   border-radius:50%!important;
 }
@@ -1661,10 +1669,12 @@ button.doctorKpi{cursor:pointer}
   margin:0!important;
   font-weight:950!important;
 }
+/* 🖨️🔒 V833 — TK: *"ক্লিনিকের নাম এবং ঠিকানার মধ্যে সামান্য গ্যাপ থাকবে"* ⇒ 3px → 6px।
+   ⛔ ফন্টের মাপ অপরিবর্তিত। */
 .printArea .clinicCell p,
 .printArea.prescriptionLock .clinicCell p{
   font-size:11px!important;
-  margin:3px 0 0!important;
+  margin:6px 0 0!important;
 }
 .printArea .wm,
 .printArea.prescriptionLock .wm{
@@ -6320,7 +6330,11 @@ body.wlv1AnatFullOpen{overflow:hidden}
    মেপে: এক লাইনে মোট চওড়া 621px, জায়গা আছে 733px। */
 .printArea.prescriptionLock.rxPrescriptionPrint .rxTagline b,
 .printArea.prescriptionLock.rxPrescriptionPrint .rxTagline span{
-  font-size:8.5px!important;text-transform:uppercase!important}
+/* 🖨️🔒 V833 — TK: *"We Provide ওই লাইনটার ফন্ট সাইজ একটু বড় করতে হবে সামান্য,
+   একলাইনেই হবে"* ⇒ 8.5px → 9.5px, একলাইনই (উপরের `display:inline` অক্ষত)।
+   ⚠️ **মেপে দেখা:** 9.5px-এ লাইনটা 732px নেয়, জায়গা আছে 732px — কোনোমতে ধরে।
+      এর বেশি বড় করলে `white-space:nowrap`-এর জন্য লেখা বাইরে বেরিয়ে যাবে। */
+  font-size:9.5px!important;text-transform:uppercase!important}
 .printArea.prescriptionLock.rxPrescriptionPrint .rxTagline b::after{content:"  —  "}
 
 /* V796 — সইয়ের লাইন 6.5mm উপরে ওঠায় বাঁদিকের খাড়া দাগ দুটোও ততটাই ছোট করা হলো,

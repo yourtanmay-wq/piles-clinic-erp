@@ -1704,7 +1704,7 @@ class PaymentActivity : AppCompatActivity() {
         return buildString {
             append("*${b.clinicName}*\n")
             append("${b.addressLine}\n")
-            append("Ph: ${b.phoneLine}\n")
+            append("Ph: ${b.phoneLine}  |  Helpline: ${com.tkbiswas.pilesclinic.print.BranchInfo.HELPLINE}\n")
             append("--------------------------------\n")
             append("*TREATMENT PAYMENT RECEIPT*\n\n")
             append("Patient : ${patient.name}\n")
@@ -1750,7 +1750,7 @@ td.v{font-weight:700;color:#10223A}
 .due{color:#b0392b}
 .ty{text-align:center;margin-top:26px;font-size:13px;color:#0B7A34;font-weight:700}
 </style></head><body>
-<div class="h"><div class="cn">${payEsc(b.clinicName)}</div><div class="ad">${payEsc(b.addressLine)} &nbsp;·&nbsp; Ph: ${payEsc(b.phoneLine)}</div></div>
+<div class="h"><div class="cn">${payEsc(b.clinicName)}</div><div class="ad">${payEsc(b.addressLine)} &nbsp;·&nbsp; Ph: ${payEsc(b.phoneLine)} &nbsp;·&nbsp; Helpline: ${payEsc(com.tkbiswas.pilesclinic.print.BranchInfo.HELPLINE)}</div></div>
 <div class="tt">TREATMENT PAYMENT RECEIPT</div>
 <table>
 <tr><td class="k">Patient</td><td class="v">${payEsc(patient.name)}</td></tr>

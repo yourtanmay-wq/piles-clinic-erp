@@ -378,7 +378,7 @@ body{background:#fff;color:#111;}
 <div class="gold"></div>
 <div class="lh"><img src="${b.logoAssetPath}">
 <div><div class="cn">${esc(b.clinicName)}</div><div class="tag">Ayurveda &amp; Anorectal Diseases</div>
-<div class="addr"><b>${esc(b.displayName)}:</b> ${esc(b.addressLine)} &nbsp;|&nbsp; <b>&#9742;</b> ${esc(b.phoneLine)}</div></div></div>
+<div class="addr"><b>${esc(b.displayName)}:</b> ${esc(b.addressLine)} &nbsp;|&nbsp; <b>&#9742;</b> ${esc(b.phoneLine)} &nbsp;|&nbsp; <b>&#9742;</b> ${esc(com.tkbiswas.pilesclinic.print.BranchInfo.HELPLINE)}</div></div></div>
 <div class="gbar"></div>
 <div class="tb"><span class="t">DOCTOR CHECK-UP RECORD</span><span class="r">Rec. No: $pid &nbsp;&middot;&nbsp; Date: $date</span></div>
 <div class="pi">

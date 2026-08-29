@@ -186,7 +186,7 @@ class ChamberRegisterPdfBuilder(private val context: Context) {
         // clinic name above it (same centerX) -- it never shifts left for
         // anything else. Date + Day sit small, on their own, in the
         // top-right corner of the page, well clear of this centered block.
-        val oneLine = "${branch.addressLine}   |   Mob: ${branch.phoneLine}"
+        val oneLine = "${branch.addressLine}   |   Mob: ${branch.phoneLine}   |   Helpline: ${BranchInfo.HELPLINE}"
         canvas.drawText(fitText(oneLine, detail, headerRight - logoRight - 20f), centerX, 38f, detail)
 
         val dateDayText = "$dateLabel  ($dayLabel)"
