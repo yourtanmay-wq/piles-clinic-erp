@@ -527,6 +527,9 @@ class PaymentActivity : AppCompatActivity() {
             // is completely unchanged, only the look was plain before.
             val d = resources.displayMetrics.density
             fun dp(v: Int) = (v * d).toInt()
+            // 🔴🔒 V816 — নিচে তৈরি হওয়া পপ-আপটা উপরের কলব্যাকে দরকার,
+            //    তাই নামটা আগেই ঘোষণা করা (Kotlin-এ ব্যবহারের আগে ঘোষণা লাগে)।
+            lateinit var dlg: AlertDialog
             val root = LinearLayout(this@PaymentActivity).apply {
                 orientation = LinearLayout.VERTICAL
                 background = android.graphics.drawable.GradientDrawable().apply {
@@ -644,7 +647,12 @@ class PaymentActivity : AppCompatActivity() {
                             // আগে থেকেই ব্যবহৃত একই একটাই উৎস।
                             val canOpenBreakdown = user.role == "master" || PaymentModel.withinFreeEditWindow(p.s("date"))
                             TripleTapEdit.attach(row2) {
-                                if (canOpenBreakdown) showDailyEventsBreakdown(p)
+                                if (canOpenBreakdown) showDailyEventsBreakdown(p) {
+                                    // 🔴 V816 — বাইরের পপ-আপ বন্ধ করে নতুন করে খোলা,
+                                    //    যাতে উপরের মোট ও "X payments" সঙ্গে সঙ্গে ঠিক দেখায়।
+                                    try { dlg.dismiss() } catch (_: Throwable) { }
+                                    showCollectionDetails(row)
+                                }
                                 else Toast.makeText(this@PaymentActivity, NoBengali.s("এই দিনের মিশ্র পেমেন্ট বদলাতে এখন Master-এর অনুমতি লাগবে (আজ/গতকাল পার হয়ে গেছে)।"), Toast.LENGTH_LONG).show()
                             }
                         } else TripleTapEdit.attach(row2) { tryEditPayment(p) }
@@ -668,7 +676,7 @@ class PaymentActivity : AppCompatActivity() {
             root.addView(close)
 
             UppercaseInputUtil.applyToAll(root)  // TK-REQUESTED GLOBAL RULE (2026-07-24): English text auto-CAPITAL, Password fields excluded automatically
-            val dlg = AlertDialog.Builder(this@PaymentActivity).setView(root).setCancelable(true).create()
+            dlg = AlertDialog.Builder(this@PaymentActivity).setView(root).setCancelable(true).create()
             dlg.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
             close.setOnClickListener { dlg.dismiss() }
             dlg.show()
@@ -699,7 +707,11 @@ class PaymentActivity : AppCompatActivity() {
     // ⛔ সাধারণ (মিশ্র নয়) পেমেন্টের Edit/Delete — উপরের/নিচের কোড —
     //    এক অক্ষরও বদলানো হয়নি।
     // =========================================================================
-    private fun showDailyEventsBreakdown(p: org.json.JSONObject) {
+    /* 🔴🔒 V816 (২৯.০৮.২০২৬, TK-রিপোর্ট) — ভিতরের এন্ট্রি মুছলে/বদলালে
+       **বাইরের রোগী-পপ-আপটাও** নতুন করে আঁকতে হবে; নইলে উপরে পুরনো মোট
+       (₹10,001) আর "2 payments" লেখাই থেকে যেত, TK ভাবতেন মোছেইনি।
+       ⛔ কলব্যাক না দিলে আচরণ হুবহু আগের মতোই। */
+    private fun showDailyEventsBreakdown(p: org.json.JSONObject, onChanged: (() -> Unit)? = null) {
         val events = p.optJSONArray("dailyEvents") ?: return
         val label = p.s("payLabel").ifBlank { p.s("paymentLabel").ifBlank { "Payment" } }
         val d = resources.displayMetrics.density
@@ -810,6 +822,7 @@ class PaymentActivity : AppCompatActivity() {
                                         val fresh = withContext(Dispatchers.IO) { try { repository.findPaymentById(p.s("id")) } catch (_: Throwable) { null } }
                                         if (fresh != null) refreshList(fresh) else dialog.dismiss()
                                         loadSummary()
+                                        onChanged?.invoke()   // 🔴 V816
                                     }
                                 }
                             }
@@ -833,6 +846,7 @@ class PaymentActivity : AppCompatActivity() {
                                     if (fresh != null && (fresh.optJSONArray("dailyEvents")?.length() ?: 0) > 0) refreshList(fresh)
                                     else dialog.dismiss()
                                     loadSummary()
+                                    onChanged?.invoke()   // 🔴 V816 — বাইরের পপ-আপও নতুন হবে
                                 }
                             }
                         }

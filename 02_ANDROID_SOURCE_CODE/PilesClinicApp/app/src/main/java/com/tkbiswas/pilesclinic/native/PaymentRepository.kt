@@ -1064,6 +1064,27 @@ class PaymentRepository(private val context: Context? = null) {
                 .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }.format(java.util.Date()))
         val ok = try { SupabaseClient.updateById("payments", id, fields) } catch (_: Throwable) { false }
         if (!ok) return false
+        /* 🔴🔒 V816 (২৯.০৮.২০২৬, TK-রিপোর্ট ছবিসহ — GULGAR HOSSAIN, ₹1 CASH:
+           *"পেমেন্ট ডিলিট করার পরেও থেকে যায়, অনেকক্ষণ পরে গিয়ে মোছে কেন?"*)
+
+           **আসল কারণ (কোড ধরে প্রমাণিত, আন্দাজে নয়):**
+           একই দিনের দ্বিতীয় টাকাটা আলাদা সারি হয়ে বসে না — সার্ভারের
+           `tk_record_treatment_payment` ওটাকে ওই দিনের **একটাই** সারির
+           `dailyEvents`-এ ঢুকিয়ে দেয়। কিন্তু টাকা সেভ করার সময় ফোন ওই
+           পেমেন্টটা **অপেক্ষমাণ তালিকাতেও** (`piles_clinic_payment_pending`)
+           রেখে দেয়, আর সেটা মুছে যায় **শুধু ক্লাউডে পাঠানো সফল হলে**।
+           প্রথম চেষ্টা ব্যর্থ হলে (নেটের এক মুহূর্তের গোলমাল) এন্ট্রিটা
+           তালিকায় থেকে যায়। এদিকে ভিতরের এন্ট্রিটা মুছে দিলেও **ওই
+           অপেক্ষমাণ কপিটা কেউ মুছত না** — পরের বার `flushPending()` চললে
+           সেটা আবার সার্ভারে যেত, আর সার্ভার সেই একই `eventId` ওই দিনের
+           সারিতে **ফিরিয়ে বসাত**। ⇒ মোছা টাকা ফিরে আসত।
+
+           ⛔ এখন মোছার সঙ্গে সঙ্গেই ওই এন্ট্রির অপেক্ষমাণ কপিটাও তুলে দেওয়া
+              হয় — দুটো তালিকা থেকেই — তাই ফিরে আসার আর কোনো পথ নেই।
+           ⛔ শুধু **যেটা মোছা হলো ঠিক সেই eventId**-টাই সরে; বাকি এন্ট্রি
+              বা অন্য কারো টাকা এক পয়সাও ছোঁয়া হয় না। */
+        try { removePaymentPending(eventId) } catch (_: Throwable) { }
+        try { CloudWriteQueue.forget("UPSERT", "payments", eventId) } catch (_: Throwable) { }
         try {
             val updatedRow = JSONObject(row.toString())
             val it = fields.keys(); while (it.hasNext()) { val k = it.next(); updatedRow.put(k, fields.get(k)) }
