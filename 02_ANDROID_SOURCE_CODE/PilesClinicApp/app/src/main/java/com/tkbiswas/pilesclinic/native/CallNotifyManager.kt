@@ -223,6 +223,37 @@ object CallNotifyManager {
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setCategory(NotificationCompat.CATEGORY_CALL)
 
+            /* 👆🔒 V844 (৩০.০৮.২০২৬, TK-রিপোর্ট ছবিসহ: *"যে নাম্বার থেকে কল
+               এসেছিল সেই কার্ডে চাপ দিলে সেই নাম্বারের পেজে যেতে হবে…
+               বারবার চাপা সত্ত্বেও কেন যাচ্ছে না"*)
+
+               ❗ আসল কারণ — **আমারই বাদ পড়া**: এই নোটিফিকেশনে কখনো
+               `setContentIntent(...)` বসানোই হয়নি। তাই নিচের বোতাম দুটো
+               কাজ করত, কিন্তু **কার্ডের গায়ে চাপ দিলে কিচ্ছু হত না**।
+
+               ✅ এখন চাপ দিলে ওই নম্বরের নিজের পাতা খোলে:
+                 · RMP হলে → RMP-র তালিকা, ওই নম্বর খোঁজা অবস্থায়
+                   (`searchMobile` — পর্দাটা আগে থেকেই এই extra পড়ে)
+                 · রোগী হলে → তার Full Journey (`PatientTimelineActivity`,
+                   `mobile` extra — এটাও আগে থেকেই আছে)
+                 · কোথাও সেভ না থাকলে → নতুন Enquiry ফর্ম, নম্বর ভরা
+                   (নিচের "➕ New Enquiry" বোতামের হুবহু একই কাজ)
+               ⛔ নতুন কোনো পর্দা বা extra বানানো হয়নি — সবই প্রমাণিত।
+               ⛔ নিচের তিনটে বোতাম · লেখা · রং — কিছুই বদলায়নি। */
+            val tapIntent = when {
+                match == null -> Intent(ctx, EnquiryActivity::class.java)
+                    .putExtra("prefillMobile", number)
+                match.isRmp -> Intent(ctx, DoctorVisitActivity::class.java)
+                    .putExtra("searchMobile", number)
+                    .putExtra("searchBranch", match.branch)
+                else -> Intent(ctx, PatientTimelineActivity::class.java)
+                    .putExtra("mobile", number)
+                    .putExtra("preName", match.name)
+                    .putExtra("preBranch", match.branch)
+                    .putExtra("prePatientId", match.patientId)
+            }.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            builder.setContentIntent(pendingActivity(ctx, 4, tapIntent))
+
             // ✕ Dismiss — ভুল নম্বর/দরকার নেই হলে সরাসরি সরানোর জন্য।
             val dismissIntent = Intent(ctx, CallDismissReceiver::class.java)
             val dismissPi = android.app.PendingIntent.getBroadcast(
