@@ -51,14 +51,38 @@
        দেখাত। ⛔ কারও তথ্য মোছা হয় না — শুধু এই এক পর্দায় দেখানো হয় না। */
     var __nameFallback = {'DR-JH-MANDAL':'J.H. MANDAL','DR-GOKUL':'GOKUL','DR-PRANAB-BISWAS':'PRANAB BISWAS','DR-SAIKAT-ROY':'SAIKAT ROY','DR-JAY-BANIK':'JAY BANIK','DR-KH-MANDAL':'J.H. MANDAL','DR-PK-ROY':'SAIKAT ROY'};
     rows.forEach(function(p){ if (!String(p.full_name||'').trim()) p.full_name=__nameFallback[String(p.person_code||'').toUpperCase()]||p.person_code; });
-    /* 🔵🔒 V828 (২৯.০৮.২০২৬, TK-অনুমোদিত) — এই তালিকায় **Birpara ছিল না**,
-       তাই ওই ব্রাঞ্চের স্টাফরা তালিকায় ঠিক জায়গা না পেয়ে সবার শেষে পড়তেন
-       (নিচের হিসাবে না-পাওয়া ব্রাঞ্চ ৯৯ ধরা হয়)। এখন পাঁচটাই আছে।
-       ⛔ **আজ পর্দায় কিছুই নড়বে না** — Birpara এমনিতেই শেষে ছিল, এখনো
-          শেষেই থাকবে। এটা তালিকাটা সম্পূর্ণ করার কাজ, যাতে ভবিষ্যতে আরেকটা
-          ব্রাঞ্চ যোগ হলে দুটো ব্রাঞ্চ একসাথে "৯৯"-এ পড়ে গুলিয়ে না যায়।
-       ⛔ ক্রমটা এক অক্ষরও বদলানো হয়নি — শুধু শেষে একটা নাম যোগ। */
-    var __branchOrder = ['Jalpaiguri','Cooch Behar','Falakata','Kishanganj','Birpara'];
+    /* 🔵🔒🔒 V828 (২৯.০৮.২০২৬, TK-অনুমোদিত: *"ঠিক আছে খুব সাবধানে করুন"*) —
+       **Staff Profiles-এ ফোন ও কম্পিউটার এখন হুবহু একই ক্রমে সাজায়।**
+
+       ─── আগে কী ভুল ছিল (কোড ধরে যাচাই করা) ─────────────────────────────
+       এখানে ব্রাঞ্চের ক্রমটা **হাতে লেখা একটা আলাদা তালিকা** ছিল —
+       ['Jalpaiguri','Cooch Behar','Falakata','Kishanganj'] — আর তাতে
+       **Birpara ছিলই না**। অথচ ফোনে (`StaffProfileActivity.kt:469`) ক্রমটা
+       আসে প্রজেক্টের একটাই আসল তালিকা `BranchFilterStore.BRANCHES` থেকে
+       (Kishanganj · Jalpaiguri · Cooch Behar · Falakata · Birpara)।
+       ⇒ একই পর্দা দুই জায়গায় দুই রকম দেখাত, আর Birpara-র স্টাফ
+         "অচেনা ব্রাঞ্চ" (৯৯) হিসেবে সবার শেষে পড়তেন।
+
+       ─── এখন কী হলো ────────────────────────────────────────────────────
+       ক্রমটা আর হাতে লেখা নয় — ওয়েবের **নিজের আসল তালিকা**
+       `RK_CONFIG.branches` (config.js) থেকেই আসে, যার ক্রম ফোনের
+       `BranchFilterStore.BRANCHES`-এর সঙ্গে হুবহু মেলে (দুটোই যাচাই করা)।
+       ⇒ ভবিষ্যতে নতুন ব্রাঞ্চ যোগ হলে **এখানে আর হাত দিতেই হবে না** —
+         config.js-এ বসালেই এই পর্দাও নিজে থেকে ঠিক ক্রমে সাজাবে।
+
+       ⛔ শুধু **সাজানোর ক্রম** — কে তালিকায় থাকবেন, কার কী তথ্য দেখাবে,
+          ডাক্তার-ছাঁকনি (V430) — কিচ্ছু বদলায়নি।
+       ⛔ `RK_CONFIG` কোনো কারণে না পাওয়া গেলে (বা ফাঁকা হলে) আগের হাতে-লেখা
+          তালিকাটাই ব্যবহার হয় — তাই পর্দা কখনো ভাঙবে না। */
+    var __branchOrder = (function(){
+      try{
+        var c = (window.RK_CONFIG && window.RK_CONFIG.branches) || [];
+        var names = c.map(function(b){ return String((b && b.name) || '').trim(); })
+                     .filter(function(n){ return n; });
+        if (names.length) return names;
+      }catch(e){}
+      return ['Kishanganj','Jalpaiguri','Cooch Behar','Falakata','Birpara'];
+    })();
     rows.sort(function(a,b){
       var ar=String(a.role_kind||'').toLowerCase(), br=String(b.role_kind||'').toLowerCase();
       var ag=ar==='staff'?0:(ar==='doctor'?1:2), bg=br==='staff'?0:(br==='doctor'?1:2);
