@@ -190,7 +190,7 @@ table.inv tr.tot td{background:rgba(10,84,40,.07);letter-spacing:.6px;font-size:
   <div class="head">
     <img src="$logo">
     <div class="hc"><h1>${esc(branch.clinicName)}</h1>$brLine
-      <div class="ad">${esc(branch.addressLine)} &nbsp;·&nbsp; Mobile: ${esc(branch.phoneLine)} &nbsp;·&nbsp; Helpline: ${esc(BranchInfo.HELPLINE)}</div></div>
+      <div class="ad">${esc(branch.addressLine)} &nbsp;·&nbsp; Mobile: ${esc(branch.phoneLine)} &nbsp;·&nbsp; Helpline: ${esc(BranchCatalog.HELPLINE)}</div></div>
     <img src="$logo" style="visibility:hidden">
   </div>
   <div class="sep"></div>

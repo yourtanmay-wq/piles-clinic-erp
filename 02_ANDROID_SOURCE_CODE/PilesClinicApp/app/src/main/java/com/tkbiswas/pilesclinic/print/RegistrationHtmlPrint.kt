@@ -162,7 +162,7 @@ object RegistrationHtml {
 
         return "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><style>$css</style></head><body>" +
             "<div class=\"gold\"></div><div class=\"lh\"><img src=\"${info.logoAssetPath}\"><div><div class=\"cn\">${esc(info.clinicName)}</div><div class=\"tag\">Ayurveda &amp; Anorectal Diseases</div>" +
-            "<div class=\"addr\"><b>${esc(s("branch"))}:</b> ${esc(info.addressLine)} &nbsp;|&nbsp; <b>&#9742;</b> ${esc(info.phoneLine)} &nbsp;|&nbsp; <b>&#9742;</b> ${esc(BranchInfo.HELPLINE)}</div></div></div><div class=\"gbar\"></div>" +
+            "<div class=\"addr\"><b>${esc(s("branch"))}:</b> ${esc(info.addressLine)} &nbsp;|&nbsp; <b>&#9742;</b> ${esc(info.phoneLine)} &nbsp;|&nbsp; <b>&#9742;</b> ${esc(BranchCatalog.HELPLINE)}</div></div></div><div class=\"gbar\"></div>" +
             "<div class=\"tb\"><span class=\"t\">PATIENT REGISTRATION FORM</span><span class=\"r\">Reg. No: $pid<br>${esc(dateStr)}</span></div>" +
             "<div class=\"pi\"><div class=\"pphoto\">🧑</div>" +
             "<div class=\"c\"><div class=\"r\"><b>Name</b> : ${esc(s("name").ifBlank { "-" }).uppercase()}</div><div class=\"r\"><b>Patient ID</b> : $pid</div><div class=\"r\"><b>Age / Sex</b> : $ageSex</div><div class=\"r\"><b>Occupation</b> : ${esc(s("occupation").ifBlank { "-" })}</div><div class=\"r\"><b>Branch</b> : ${esc(s("branch").ifBlank { "-" })}</div></div>" +

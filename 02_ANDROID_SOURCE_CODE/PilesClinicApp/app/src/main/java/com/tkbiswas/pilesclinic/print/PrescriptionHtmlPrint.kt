@@ -204,7 +204,7 @@ object PrescriptionHtml {
             "<div class=\"brSub\">" + esc(model.branchName.trim().uppercase(Locale.US)) + " BRANCH</div>"
         }
         val clinicAddr = esc(branch.addressLine) + " · Mobile: +91" + esc(branch.phoneLine) +
-            " · Helpline: +91" + esc(BranchInfo.HELPLINE)   // ☎️ V833
+            " · Helpline: +91" + esc(BranchCatalog.HELPLINE)   // ☎️ V833
 
         // 🔵 ওয়েবের মতোই: Diet ও রোগীর ইতিহাস শুধু PRESCRIPTION-এ, Medicine Slip-এ নয়।
         /* 🖨️🔒 V833 (২৯.০৮.২০২৬, TK-নির্দেশ) — আগে এখানে `if (isPrescription)`

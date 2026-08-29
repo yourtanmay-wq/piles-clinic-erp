@@ -244,7 +244,7 @@ td.v{font-weight:700;color:#0e7c7b;background:#F2FAF8}
 td.pd{color:#0c8a4e;font-weight:700}
 </style></head><body>
 $watermark
-<div class="clinic"><div class="cn">${esc(branch.clinicName)}</div><div class="ca">${esc(branch.addressLine)} · ${esc(branch.phoneLine)} · Helpline: ${esc(com.tkbiswas.pilesclinic.print.BranchInfo.HELPLINE)}</div></div>
+<div class="clinic"><div class="cn">${esc(branch.clinicName)}</div><div class="ca">${esc(branch.addressLine)} · ${esc(branch.phoneLine)} · Helpline: ${esc(com.tkbiswas.pilesclinic.print.BranchCatalog.HELPLINE)}</div></div>
 <div class="pd2">
   ${if (data.photo.isNotBlank()) "<img class='photo' src='${esc(data.photo)}'/>" else "<div class='photo'></div>"}
   <div class="col"><div class="pname">${esc(data.name)}</div><div><b>AGE:</b> ${esc(age)}${if (sex.isNotBlank()) "&nbsp;&nbsp;${esc(sex)}" else ""}</div><div><b>ID:</b> ${esc(data.patientId)}</div><div><b>MOB:</b> +91${esc(data.mobile)}</div></div>

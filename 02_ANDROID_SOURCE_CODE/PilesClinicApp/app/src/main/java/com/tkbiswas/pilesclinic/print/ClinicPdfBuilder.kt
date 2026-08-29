@@ -530,7 +530,7 @@ class ClinicPdfBuilder(private val context: Context) {
         val nameMaxWidth = headerRight - logoRight - 16f
         canvas.drawText(fitText(branch.clinicName, title, nameMaxWidth), centerX, 31f, title)
         canvas.drawLine(logoRight + 20f, 40f, headerRight - 20f, 40f, Paint().apply { color = gold; strokeWidth = 1.2f })
-        val oneLine = "${branch.addressLine}   |   Mob: ${branch.phoneLine}   |   Helpline: ${BranchInfo.HELPLINE}"
+        val oneLine = "${branch.addressLine}   |   Mob: ${branch.phoneLine}   |   Helpline: ${BranchCatalog.HELPLINE}"
         canvas.drawText(fitText(oneLine, detail, headerRight - logoRight - 20f), centerX, 57f, detail)
 
         // TK-REQUESTED ADDITION (2026-07-16): tagline badge, same text for
