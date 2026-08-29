@@ -7486,8 +7486,14 @@ function fuCard(x){
    +`<div class="anFuMain">`
     +`<div class="anFuHead">`
      +`<div class="anFuInfo">`
-      +`<div class="anFuNameRow"><span class="anFuSl"></span><b class="anFuName">${esc(display)}</b></div>`
-      +`<b class="anFuMobile">📞 ${esc(normMob(x.mobile))}</b>`
+      /* 📋🔒 V825 (২৯.০৮.২০২৬, TK-নির্দেশ, ছবিসহ) — নাম ও নম্বরে **লম্বা চাপ
+         দিলে কপি**। ⛔ প্রজেক্টে আগে থেকেই থাকা, প্রমাণিত `wlv1PatientHold*`
+         (RMP-এর রোগী-কার্ডে চলছে) — নতুন কিছু বানানো হয়নি।
+         ⛔ ৬৫০ ms-এর কম চাপে আগের মতোই কার্ড খোলে; কপি হলে `event.stopPropagation()`
+            দিয়ে সেই একবারের জন্য কার্ড খোলা আটকানো হয়, তাই ভুল করে
+            পর্দা বদলে যায় না। */
+      +`<div class="anFuNameRow"><span class="anFuSl"></span><b class="anFuName" onpointerdown="wlv1PatientHoldStart(this,'Name')" onpointerup="wlv1PatientHoldEnd()" onpointerleave="wlv1PatientHoldEnd()" onpointercancel="wlv1PatientHoldEnd()" onclick="if(wlv1FuHoldEat(event))return;">${esc(display)}</b></div>`
+      +`<b class="anFuMobile" onpointerdown="wlv1PatientHoldStart(this,'Mobile','${String(normMob(x.mobile)).replace(/[^0-9+]/g,'')}')" onpointerup="wlv1PatientHoldEnd()" onpointerleave="wlv1PatientHoldEnd()" onpointercancel="wlv1PatientHoldEnd()" onclick="if(wlv1FuHoldEat(event))return;">📞 ${esc(normMob(x.mobile))}</b>`
       +`<div class="anFuTags"><span class="anFuTag">${esc(String(x.branch||'-').toUpperCase())}</span><span class="anFuSep">|</span><span class="anFuTag">${esc(String(x.disease||'-').toUpperCase())}</span>${wlv1AddrChip}</div>`
       +wlv1IdRow
      +`</div>`
@@ -14655,9 +14661,13 @@ function saveVisit(){
 }
 window["saveVisit"]=saveVisit;
 let wlv1PatientHoldTimer=null,wlv1PatientHoldCopied=false;
-function wlv1PatientHoldStart(el,label){
+/* 📋🔒 V825 (২৯.০৮.২০২৬, TK-নির্দেশ) — তৃতীয় ঘরটা (`fixed`) নতুন, **ঐচ্ছিক**:
+   না দিলে আগের মতোই লেখাটাই কপি হয় (পুরনো সব ডাক এক অক্ষরও বদলায়নি);
+   দিলে ঠিক ওই লেখাটাই কপি হয় — Follow-up কার্ডে 📞 চিহ্নটা যেন কপিতে
+   না ঢোকে, সেজন্যই দরকার হলো। */
+function wlv1PatientHoldStart(el,label,fixed){
  clearTimeout(wlv1PatientHoldTimer);wlv1PatientHoldCopied=false;
- wlv1PatientHoldTimer=setTimeout(async()=>{wlv1PatientHoldCopied=true;let value=String(el.textContent||'').trim();try{await navigator.clipboard.writeText(value);toast(label+' copied')}catch(_){toast('Copy was not available')}},650);
+ wlv1PatientHoldTimer=setTimeout(async()=>{wlv1PatientHoldCopied=true;let value=String((fixed!==undefined&&fixed!==null&&fixed!=='')?fixed:(el.textContent||'')).trim();try{await navigator.clipboard.writeText(value);toast(label+' copied')}catch(_){toast('Copy was not available')}},650);
 }
 function wlv1PatientHoldEnd(){clearTimeout(wlv1PatientHoldTimer)}
 function wlv1OpenPatientCard(mobile){if(wlv1PatientHoldCopied){wlv1PatientHoldCopied=false;return}closeModal();wlv1FullJourney(mobile)}
@@ -14669,6 +14679,16 @@ function wlv1RmpPatientCard(p,fast){
  return `<div class="card rmpPatientMini" style="cursor:pointer" onclick="wlv1OpenPatientCard('${mobile}')"><div class="rmpPatientTop"><b class="rmpPatientName" onpointerdown="wlv1PatientHoldStart(this,'Name')" onpointerup="wlv1PatientHoldEnd()" onpointerleave="wlv1PatientHoldEnd()" onpointercancel="wlv1PatientHoldEnd()">${esc(name)}</b><span class="rmpPatientMobile" onpointerdown="wlv1PatientHoldStart(this,'Mobile number')" onpointerup="wlv1PatientHoldEnd()" onpointerleave="wlv1PatientHoldEnd()" onpointercancel="wlv1PatientHoldEnd()">${esc(mobile)}</span></div><div class="rmpPatientMeta"><span class="rmpPatientDisease">${esc(String(disease).toUpperCase())}</span><span>Sent: ${esc(sent)}</span></div><div class="rmpPatientMoney"><span class="bill">Bill ${money(bill)}</span><span class="paid">Paid ${paidText}</span><span class="due">Due ${dueText}</span></div></div>`;
 }
 window["wlv1PatientHoldStart"]=wlv1PatientHoldStart;window["wlv1PatientHoldEnd"]=wlv1PatientHoldEnd;window["wlv1OpenPatientCard"]=wlv1OpenPatientCard;
+/* 📋🔒 V825 — লম্বা চাপে কপি হয়ে গেলে ওই একবারের জন্য কার্ডের ক্লিক খায়,
+   যাতে কপি করতে গিয়ে পর্দা বদলে না যায়। ⛔ কপি না হলে `false` ফেরে, তখন
+   কার্ড আগের মতোই খোলে — এক অক্ষরও বদলায়নি। */
+function wlv1FuHoldEat(ev){
+ if(!wlv1PatientHoldCopied)return false;
+ wlv1PatientHoldCopied=false;
+ try{ev.stopPropagation();ev.preventDefault();}catch(_){}
+ return true;
+}
+window["wlv1FuHoldEat"]=wlv1FuHoldEat;
 function viewDoctorVisit(id){
  let x=load('doctor_visits').find(a=>a.id===id);if(!x)return;
  let refs=doctorReferralPatients(x),calls=Array.isArray(x.callHistory)?x.callHistory:[],inc=doctorReferralTotals([x]);

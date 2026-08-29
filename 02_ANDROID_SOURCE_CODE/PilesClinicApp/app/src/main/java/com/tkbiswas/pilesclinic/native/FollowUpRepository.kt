@@ -2659,7 +2659,27 @@ class FollowUpRepository(private val context: Context? = null) {
         } catch (_: Exception) {}
     }
 
-    fun updateRemark(id: String, remark: String, staffName: String, incrementCall: Boolean = false): Boolean {
+    /**
+     * 📝🔒 V825 (২৯.০৮.২০২৬, TK-নির্দেশ) — নতুন, **ঐচ্ছিক** ঘর `stampCallDate`।
+     *
+     * TK-এর সমস্যা: *"কিশনগঞ্জের স্টাফ কল রিসিভ করেছিল, কিন্তু নম্বরটা
+     * জলপাইগুড়ির এনকোয়ারি — সে রিমার্ক লিখতে পারে না। … রিমার্কটা ফলোআপ
+     * কার্ডে চলে যেতে হবে, যাতে জলপাইগুড়ির স্টাফ বোঝে লাস্ট কে কথা বলেছিল।"*
+     *
+     * কার্ডে লেখা থাকে `LAST CALL <তারিখ> (<স্টাফ>)`. স্টাফের নামটা আসে
+     * history-র শেষ সারি থেকে, আর তারিখটা `lastCallDate` থেকে — **দুটো আলাদা
+     * ঘর**। তাই শুধু রিমার্ক লিখলে **পুরনো তারিখের পাশে নতুন নাম** বসে যেত,
+     * যেটা মিথ্যা।
+     *
+     * TK-অনুমোদিত তৃতীয় পথ: তারিখটা আজকের হবে, **কিন্তু কল-গোনা বাড়বে না** —
+     * তাই "৫ কলের পর বাতিল" নিয়মে এক অক্ষরও প্রভাব পড়ে না।
+     *
+     * ⛔ ডিফল্ট `false` ⇒ আগের প্রতিটা ডাক (Chamber · Dialer · Appointment ·
+     *    Follow-up) হুবহু আগের মতোই চলে।
+     * ⛔ `incrementCall = true` হলে সেই পুরনো নিয়মই আগে চলে; এই ঘরটা তখন
+     *    বাড়তি কিছু করে না (তারিখ ওখানেই বসে যায়)।
+     */
+    fun updateRemark(id: String, remark: String, staffName: String, incrementCall: Boolean = false, stampCallDate: Boolean = false): Boolean {
         // Match the WebView's updateFollowAction: append to the history log and,
         // when this is an enquiry call, bump callCount (capped at 5) + stamp today.
         val existing = SupabaseClient.fetchList("followups", "id=eq.$id", 1)
@@ -2720,6 +2740,13 @@ class FollowUpRepository(private val context: Context? = null) {
             val newCount = if (lastCall == todayStr) current else (current + 1).coerceAtMost(5)
             fields.put("callCount", newCount)
             fields.put("lastCallDate", todayStr)
+        }
+        /* 📝🔒 V825 — কল-গোনা ছোঁয়া হয় না, শুধু তারিখটা আজকের হয়, যাতে কার্ডের
+           `LAST CALL <তারিখ> (<স্টাফ>)` লাইনটা সত্যি কথা বলে।
+           ⛔ উপরের `incrementCall` পথে ইতিমধ্যে তারিখ বসে গেলে এখানে আর কিছু
+              করা হয় না (দুই পথ কখনো একে অপরের উপর লিখবে না)। */
+        if (stampCallDate && !incrementCall && remark.isNotBlank() && haveRow) {
+            fields.put("lastCallDate", FollowUpModel.today())
         }
         rememberEditOnThisPhone(id, fields, row)
         // TK-REPORTED BUG FIX (2026-07-16): if this cloud write fails, queue

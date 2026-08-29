@@ -76,7 +76,8 @@ class GlobalSearchActivity : AppCompatActivity() {
             onMedicineSlip = { hit -> openClinicalDoc(hit, com.tkbiswas.pilesclinic.clinical.MedicineSlipActivity::class.java) },
             onBloodTest = { hit -> openClinicalDoc(hit, com.tkbiswas.pilesclinic.clinical.InvestigationAdviceActivity::class.java) },
             onDietChart = { hit -> openClinicalDoc(hit, com.tkbiswas.pilesclinic.clinical.DietChartActivity::class.java) },
-            onMarkArrived = { hit -> markArrivedHit(hit) }
+            onMarkArrived = { hit -> markArrivedHit(hit) },
+            onRemark = { hit -> writeRemarkForHit(hit) }   // 📝 V825
         )
         recycler.adapter = adapter
 
@@ -334,6 +335,160 @@ class GlobalSearchActivity : AppCompatActivity() {
             .show().also { PremiumAlert.paint(it) }
     }
 
+    /* ════════════════════════════════════════════════════════════════════
+       📝🔒🔒 V825 (২৯.০৮.২০২৬, TK-নির্দেশ, ছবিসহ)
+
+       *"মনে করুন কিশনগঞ্জের স্টাফ কল রিসিভ করেছিল, কিন্তু কলটা অটোমেটিক
+        জলপাইগুড়ির কোনো এনকোয়ারি ছিল — কিশনগঞ্জের স্টাফ কোনো রিমার্ক লিখতে
+        পারে না। … আমি চাইছি এখানে নাম্বার সার্চ করলে যে staff কলটা রিসিভ
+        করেছে সে যেন রিমার্কটা লিখে দিতে পারে, তাতে জলপাইগুড়ির স্টাফের
+        সুবিধা হবে বুঝতে যে লাস্ট কে কথা বলেছিল। … রিমার্কটা ফলোআপ কার্ডে
+        যেখানে রিমার্ক লেখা হয় সেখানে অটোমেটিক চলে যেতে হবে।"*
+
+       ⛔ লেখাটা যায় প্রজেক্টের **একটাই প্রমাণিত পথে** — `FollowUpRepository.
+          updateRemark()` (Chamber · Dialer · Appointment · Follow-up সবাই
+          এটাই ব্যবহার করে)। নতুন কোনো লেখার নিয়ম বানানো হয়নি।
+       ⛔ TK-অনুমোদিত **তৃতীয় পথ**: `LAST CALL`-এর তারিখ আজকের হয় ও স্টাফের
+          নাম বসে, কিন্তু **কল-গোনা বাড়ে না** — তাই "৫ কলের পর বাতিল"
+          নিয়মে এক অক্ষরও প্রভাব পড়ে না।
+       ⛔ **নতুন কোনো রেকর্ড তৈরি হয় না।** ওই নম্বরের Follow-up সারি না
+          থাকলে পরিষ্কার বার্তা দিয়ে থেমে যায়।
+       ⛔ Search পর্দা আগে থেকেই **সব ব্রাঞ্চ** দেখায় (এই অ্যাপের একমাত্র
+          ইচ্ছাকৃত "সব দেখা" জায়গা — উপরে `canSee()`-তে লেখা আছে), তাই
+          অন্য ব্রাঞ্চের সারিতে লেখাটা এই পর্দার নিজের নিয়মের সাথেই মেলে।
+       ⛔ Egress: একটা সরু পড়া (কয়েকটা ঘর) + একটা লেখা। নগণ্য।
+       ════════════════════════════════════════════════════════════════════ */
+    private fun writeRemarkForHit(hit: SearchHit) {
+        val digits = hit.mobile.filter { it.isDigit() }.takeLast(10)
+        if (digits.length != 10) {
+            android.widget.Toast.makeText(this, "No valid 10-digit mobile", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        val user = NativeSession.current(this) ?: return
+        lifecycleScope.launch {
+            val row = withContext(Dispatchers.IO) { findLiveFollowUpRow(digits) }
+            if (isFinishing || isDestroyed) return@launch
+            if (row == null) {
+                android.widget.Toast.makeText(
+                    this@GlobalSearchActivity,
+                    "No follow-up record for this number yet — remark not saved",
+                    android.widget.Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            showRemarkDialog(hit, row, user)
+        }
+    }
+
+    /**
+     * ওই নম্বরের **চলতি** Follow-up সারিটা বার করা।
+     * ⛔ বাছার নিয়ম প্রজেক্টের হুবহু একই (V638/V646): আগে স্টেজ-অগ্রাধিকার
+     *    (Treatment > Patient > Inquiry), সমান হলে সবচেয়ে সাম্প্রতিক
+     *    `updatedAt`. নতুন কোনো নিয়ম বানানো হয়নি।
+     * ⛔ `findByMobileOrNull` প্রজেক্টের প্রমাণিত, ৪০+ জায়গায় ব্যবহৃত পথ —
+     *    শেষ ১০ অঙ্ক মেলায়, তাই ওয়েব ("9046…") ও ফোন ("+919046…") দুই
+     *    ধাঁচের সারিই ধরা পড়ে।
+     */
+    private fun findLiveFollowUpRow(digits: String): org.json.JSONObject? {
+        val arr = SupabaseClient.findByMobileOrNull(
+            "followups", "+91$digits",
+            "id,mobile,name,branch,stage,status,lastRemark,lastCallDate,updatedAt", 20) ?: return null
+        fun pr(st: String) = when (st) {
+            "Treatment" -> 3
+            "Patient" -> 2
+            "Inquiry" -> 1
+            else -> 0
+        }
+        var best: org.json.JSONObject? = null
+        for (i in 0 until arr.length()) {
+            val r = arr.optJSONObject(i) ?: continue
+            val b = best
+            if (b == null) { best = r; continue }
+            val pn = pr(r.s("stage"))
+            val pb = pr(b.s("stage"))
+            if (pn > pb || (pn == pb && r.s("updatedAt") > b.s("updatedAt"))) best = r
+        }
+        return best
+    }
+
+    private fun showRemarkDialog(hit: SearchHit, row: org.json.JSONObject, user: NativeUser) {
+        val d = resources.displayMetrics.density
+        fun px(v: Int) = (v * d).toInt()
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(px(18), px(6), px(18), px(2))
+        }
+        val who = listOf(
+            row.s("name").ifBlank { hit.name }.ifBlank { "UNKNOWN" },
+            row.s("branch").ifBlank { hit.branch },
+            row.s("stage")
+        ).filter { it.isNotBlank() }.joinToString("  ·  ")
+        box.addView(android.widget.TextView(this).apply {
+            text = who
+            textSize = 12.5f
+            setTextColor(android.graphics.Color.parseColor("#5B6B81"))
+        })
+        val old = row.s("lastRemark")
+        if (old.isNotBlank()) {
+            box.addView(android.widget.TextView(this).apply {
+                text = "Last remark: $old"
+                textSize = 12f
+                setTextColor(android.graphics.Color.parseColor("#9AA6B4"))
+                setPadding(0, px(4), 0, 0)
+            })
+        }
+        val input = android.widget.EditText(this).apply {
+            hint = "What did the caller say?"
+            setSingleLine(false)
+            minLines = 2
+            maxLines = 5
+            textSize = 14f
+            val p = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            p.topMargin = px(8)
+            layoutParams = p
+        }
+        box.addView(input)
+        // প্রজেক্টের স্থায়ী নিয়ম (২৪.০৭.২০২৬): ইংরেজি লেখা নিজে থেকে বড় হাতের।
+        try { UppercaseInputUtil.applyToAll(box) } catch (_: Throwable) { }
+
+        val id = row.s("id")
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(PremiumAlert.header(this, "Write Remark"))
+            .setView(box)
+            .setPositiveButton("Save", null)
+            .setNegativeButton("Cancel", null)
+            .create().also { dlg ->
+                dlg.setOnShowListener {
+                    dlg.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                        val text = input.text.toString().trim()
+                        /* 🔒 খাতার সারি B54-এর একই পাহারা: ফাঁকা লেখায় আগের
+                           রিমার্ক কখনো মুছবে না — তাই এখানেই আটকে দেওয়া হয়। */
+                        if (text.isBlank()) {
+                            android.widget.Toast.makeText(this, "Please write the remark first", android.widget.Toast.LENGTH_SHORT).show()
+                            return@setOnClickListener
+                        }
+                        dlg.dismiss()
+                        val staffName = user.name.ifBlank { user.mobile }
+                        lifecycleScope.launch {
+                            val ok = withContext(Dispatchers.IO) {
+                                try {
+                                    FollowUpRepository(this@GlobalSearchActivity)
+                                        .updateRemark(id, text, staffName, incrementCall = false, stampCallDate = true)
+                                } catch (_: Throwable) { false }
+                            }
+                            if (isFinishing || isDestroyed) return@launch
+                            android.widget.Toast.makeText(
+                                this@GlobalSearchActivity,
+                                if (ok) "Remark saved to Follow-up" else "Could not save — check connection and try again",
+                                android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+                dlg.show()
+                PremiumAlert.paint(dlg)
+            }
+    }
+
     private fun callHit(mobile: String) {
         val digits = mobile.filter { it.isDigit() }.takeLast(10)
         try {
@@ -406,7 +561,10 @@ class GlobalSearchActivity : AppCompatActivity() {
         val onDietChart: (SearchHit) -> Unit,
         // TK-REQUESTED (2026-07-20): mark a searched patient Arrived into
         // today's Chamber Attendance directly from Search.
-        val onMarkArrived: (SearchHit) -> Unit
+        val onMarkArrived: (SearchHit) -> Unit,
+        /* 📝🔒 V825 (২৯.০৮.২০২৬, TK-নির্দেশ) — অন্য ব্রাঞ্চের কল ধরা স্টাফও
+           যেন এখান থেকে রিমার্ক লিখতে পারেন। */
+        val onRemark: (SearchHit) -> Unit
     ) : RecyclerView.Adapter<SearchAdapter.VH>() {
         // TK APPROVED (2026-07-15): premium dual-green search result card --
         // navy replaced with green (per TK's request), avatar + name/mobile in
@@ -564,6 +722,16 @@ class GlobalSearchActivity : AppCompatActivity() {
                 Triple("📞", "Call", false) to { onCall(h) },
                 Triple("💬", "WhatsApp", false) to { onWhatsApp(h) }
             )
+            /* 📝🔒 V825 (২৯.০৮.২০২৬, TK-নির্দেশ) — *"যে staff কলটা রিসিভ করেছে
+               সে যেন রিমার্কটা লিখে দিতে পারে, তাতে জলপাইগুড়ির স্টাফের সুবিধা
+               হবে বুঝতে যে লাস্ট কে কথা বলেছিল"*। কল/WhatsApp-এর ঠিক নিচে,
+               নিজের পুরো চওড়া সারিতে — কল ধরার পরেই হাতের কাছে।
+               ⛔ বাকি আটটা বোতামের জায়গা · রং · কাজ কিচ্ছু বদলায়নি। */
+            run {
+                val row = newRow()
+                row.addView(actionButton("🗒️", "Write Remark", true) { onRemark(h) })
+                holder.grid.addView(row)
+            }
             addPairRow(
                 Triple("💳", "Payment", true) to { onPayment(h) },
                 Triple("🧭", "Full Journey", true) to { onFullJourney(h) }

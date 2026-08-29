@@ -1760,6 +1760,17 @@ class FollowUpActivity : AppCompatActivity() {
         }
         nameCol.addView(nameView)
         TripleTapEdit.attach(nameView) { showEditDialog(item) }
+        /* 📋🔒 V825 (২৯.০৮.২০২৬, TK-নির্দেশ, ছবিসহ) — নামের উপরে **লম্বা চাপ**
+           দিলে নামটা কপি হয়। ⛔ কপি হয় **শুধু নামটাই** — সামনের 👤 চিহ্ন বা
+           ক্রমিক সংখ্যা নয়। এক-চাপ ও তিন-চাপে-এডিট এক অক্ষরও বদলায়নি
+           (লম্বা চাপে Android কখনো `onClick` ডাকে না)।
+           ⛔ কপি করা হয় প্রজেক্টের একটাই প্রমাণিত পথ `Clip` দিয়ে (পাহারা ৯.২৯),
+              তাই কীবোর্ডের সাজেশনে নামটা জমে থাকবে না — FollowUpAdapter-এ
+              নম্বর কপির হুবহু একই ব্যবস্থা। */
+        nameView.setOnLongClickListener {
+            if (item.name.isBlank()) false
+            else { Clip.copyWithToast(it.context, "Name", item.name.trim()); true }
+        }
 
         val mobileView = tv("\uD83D\uDCDE " + formatMobileForDisplay(item.mobile), 12.5f, "#5B6B81").apply {
             maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
@@ -1767,6 +1778,13 @@ class FollowUpActivity : AppCompatActivity() {
         }
         nameCol.addView(mobileView)
         TripleTapEdit.attach(mobileView) { showEditDialog(item) }
+        /* 📋🔒 V825 — নম্বরের উপরে লম্বা চাপ দিলে নম্বরটা কপি হয়।
+           ⛔ 📞 চিহ্নটা বাদ দিয়ে **পর্দায় যেমন দেখাচ্ছে ঠিক সেই নম্বরটাই**
+              (যেমন +919382292755) কপি হয়। */
+        mobileView.setOnLongClickListener {
+            if (item.mobile.isBlank()) false
+            else { Clip.copyWithToast(it.context, "Mobile", formatMobileForDisplay(item.mobile)); true }
+        }
         nameRow.addView(nameCol)
         info.addView(nameRow)
         // 🔒🔒 খাতার সারি B184 (TK, 30.07.2026 বিকেল ৪.৫০ — ফটো-প্রুফে ফাইনাল):
