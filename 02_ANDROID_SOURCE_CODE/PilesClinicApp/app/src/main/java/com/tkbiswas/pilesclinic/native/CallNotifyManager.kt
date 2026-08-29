@@ -245,6 +245,10 @@ object CallNotifyManager {
                 // বাড়ে। RMP মিললে (match.isRmp) এটা ইচ্ছাকৃতভাবে ফাঁকা —
                 // RMP-দের নিজস্ব followups সারি থাকে না।
                 .putExtra("followupId", if (match != null && !match.isRmp) match.id else "")
+                // 🩺🔒 V836 (২৯.০৮.২০২৬, TK-নির্দেশ) — RMP মিললে তার নিজের
+                // `doctor_visits` সারির id, যাতে লেখা রিমার্ক **RMP সেকশনেই**
+                // বসে। ⛔ RMP না হলে ফাঁকা, তাই পুরনো আচরণ হুবহু অক্ষত।
+                .putExtra("rmpId", if (match != null && match.isRmp) match.id else "")
                 // 🟢🔒🔒 V637 (২৪.০৮.২০২৬, TK-রিপোর্ট, ছবিসহ — "প্রথমবার
                 // 'কাল আসবে' লিখেছিলাম, পরেরবার কল এলে সেটা দেখাচ্ছে না
                 // কেন") — আসল কারণ: এই বোতাম আগে কখনো আগের রিমার্কস আনতই

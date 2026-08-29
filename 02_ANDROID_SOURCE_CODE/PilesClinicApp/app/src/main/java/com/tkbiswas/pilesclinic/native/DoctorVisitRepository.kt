@@ -245,6 +245,48 @@ class DoctorVisitRepository {
         return ok
     }
 
+    /**
+     * 🟢🔒 V836 (২৯.০৮.২০২৬, TK-নির্দেশ, ডেমো-ফটো পাশ) — কল-শেষের
+     * নোটিফিকেশনের "📝 Add Remark" থেকে RMP-র কল-নোট লেখা।
+     *
+     * TK: *"কল কাটার পরে এখানে যেন Remarks লেখার অপশন আসে এবং Remarks
+     * লিখলে যেন অটোমেটিক Update হয়ে যায় RMP section এ।"*
+     * আর Next Call তারিখ — *"তবে বাধ্যতামূলক নয়"*।
+     *
+     * 🔴 কেন উপরের `logCall()` **সরাসরি ব্যবহার করা গেল না** (যাচাই করে ধরা,
+     *    TK-কে আগে জানানো হয়েছে): `buildCallUpdateFields()` সবসময়
+     *    `nextCallDate` **আর** `expectedPatientDate` দুটোই লিখে দেয়।
+     *    নোটিফিকেশন থেকে ওই দুটো জানা থাকে না ⇒ ফাঁকা পাঠালে ওই ডাক্তারের
+     *    **আগের Next Call ও Expected Patient তারিখ মুছে যেত**।
+     *    তাই এখানে সারিটা পড়ে **আগের মানদুটো নিজেই ফেরত বসিয়ে** দেওয়া হয়।
+     *
+     * ⛔ নতুন কোনো লেখার নিয়ম বানানো হয়নি — একই প্রমাণিত
+     *    `buildCallUpdateFields()` ব্যবহার হয়, তাই callHistory-র ধাঁচ,
+     *    `callStatus`, `remarks`, `lastCallDate` হুবহু আগের মতোই বসে।
+     * ⛔ V434-এর নিয়ম মানা: পড়া ব্যর্থ হলে (`null`) **কিছুই লেখা হয় না**,
+     *    `false` ফেরে — পুরনো callHistory মুছে যাওয়ার সুযোগ নেই।
+     * ⛔ `nextCallDate` ফাঁকা এলে আগেরটাই থাকে; স্টাফ তারিখ বাছলে তবেই বদলায়।
+     */
+    fun logCallKeepingDates(
+        id: String, note: String, staffMobile: String,
+        nextCallDate: String = "", context: android.content.Context? = null
+    ): Boolean {
+        if (id.isBlank() || note.isBlank()) return false
+        val existing = SupabaseClient.fetchListOrNull("doctor_visits", "id=eq.$id", 1) ?: return false
+        if (existing.length() == 0) return false
+        val row = existing.getJSONObject(0)
+        val existingHistory = row.optJSONArray("callHistory") ?: JSONArray()
+        val oldNext = if (row.isNull("nextCallDate")) "" else row.optString("nextCallDate", "")
+        val oldExpected = if (row.isNull("expectedPatientDate")) "" else row.optString("expectedPatientDate", "")
+        val useNext = nextCallDate.trim().ifBlank { oldNext }
+        val fields = DoctorVisitModel.buildCallUpdateFields(
+            existingHistory, note, useNext, staffMobile, oldExpected
+        )
+        val ok = SupabaseClient.updateById("doctor_visits", id, fields)
+        try { MyPhoneWrites.remember(context, "doctor_visits", id, fields) } catch (_: Throwable) { }
+        return ok
+    }
+
     // 🔒 TK-ORDER (30.07.2026 রাত, খাতার সারি B205 — TK: "স্টাফ তো ভুল করে
     // কিছু লিখতেই পারে, তার ভুল সংশোধনের রাস্তা তো করতে হবে")। এটা
     // logCall()-এর থেকে ইচ্ছে করেই আলাদা -- logCall() সবসময় নতুন এন্ট্রি

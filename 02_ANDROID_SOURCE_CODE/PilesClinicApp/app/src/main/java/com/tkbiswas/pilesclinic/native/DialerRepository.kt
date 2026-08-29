@@ -105,10 +105,38 @@ object DialerRepository {
      * হিসাব-নিয়ম বানানো হয়নি, প্রমাণিত পথই পুনর্ব্যবহার।
      * ⛔ `call_remarks` সেভের নিয়ম এক অক্ষরও বদলায়নি — শুধু বাড়তি এই
      *    একটা ধাপ যোগ হলো। */
+    /**
+     * 🟢🔒 V836 (২৯.০৮.২০২৬, TK-নির্দেশ, ডেমো-ফটো পাশ) — নোটিফিকেশনে লেখা
+     * রিমার্ক এখন **নিজের সেকশনেও** বসে।
+     *
+     * TK: *"Enquiry, Visit, Patient, RMP — যদি আমাদের Save Data হয়ে থাকে
+     * তাহলে যেন Remarks লেখা যায়। আর এখানে Remarks লিখলে উক্ত সেকশনে যেন
+     * অটোমেটিক Update হয়ে যায়।"*
+     *
+     * আগে কী হত: লেখাটা **শুধু** `call_remarks` টেবিলে জমা হত। Follow-up-এর
+     * Enquiry/Visit/Patient কার্ডে বা RMP সেকশনে কখনো দেখা যেত না — শুধু
+     * কল-গোনাটা বাড়ত (V634)। TK-এর অভিযোগ ঠিক এটাই।
+     *
+     * এখন কী হয় (তিনটেই, একের পর এক — একটা ব্যর্থ হলেও বাকিগুলো চলে):
+     *   ১. `call_remarks` — **আগের মতোই**, একটুও বদলায়নি।
+     *   ২. `followupId` থাকলে → `updateRemark()` — Follow-up কার্ডের
+     *      `lastRemark` + `history`। ⛔ গোনা বাড়ানোর কাজটা নিচের
+     *      `logEnquiryCall()`-ই করে (দিনে একবার, B53), তাই এখানে
+     *      `incrementCall = false` — **দু'বার গোনা হবে না**।
+     *   ৩. `rmpId` থাকলে → `logCallKeepingDates()` — RMP সেকশনের
+     *      `remarks` + `callHistory`। ⛔ আগের Next Call ও Expected Patient
+     *      তারিখ **অক্ষত** থাকে (স্টাফ নিজে নতুন তারিখ বাছলে তবেই বদলায়)।
+     *
+     * ⛔ একটা নম্বর একই সাথে followups ও RMP — দুটোতেই থাকতে পারে না
+     *    (`matchNumbersBatch` আগে followups দেখে, না পেলে তবেই RMP), তাই
+     *    দুটো একসাথে লেখা হওয়ার সুযোগ নেই।
+     * ⛔ পুরো কাজটা আগের মতোই ব্যাকগ্রাউন্ড থ্রেডে, try/catch-এর ভিতরে —
+     *    ব্যর্থ হলেও কল বা অ্যাপ কখনো আটকাবে না।
+     */
     fun saveCallRemark(
         ctx: Context?, mobile: String, direction: String, remark: String, patientId: String,
         staffMobile: String, staffName: String, branch: String, calledAtIso: String,
-        followupId: String = ""
+        followupId: String = "", rmpId: String = "", nextCallDate: String = ""
     ) {
         Thread {
             try {
@@ -133,7 +161,24 @@ object DialerRepository {
                 // পাঠানো হয় — নেট না থাকলে অফলাইন-সারিতে যেন জমা থাকে
                 // (offline queue-এর জন্য context লাগে)।
                 if (followupId.isNotBlank()) {
+                    // ⏺️ V836 — আগে রিমার্কটা সারিতে বসাই, তারপর গোনা বাড়াই।
+                    //    দুটো আলাদা লেখা, আলাদা ঘরে — একটা অন্যটাকে মোছে না।
+                    try {
+                        FollowUpRepository(ctx).updateRemark(
+                            followupId, remark.trim(), staffName,
+                            incrementCall = false, stampCallDate = false
+                        )
+                    } catch (_: Throwable) { }
                     try { FollowUpRepository(ctx).logEnquiryCall(followupId) } catch (_: Throwable) { }
+                }
+                // 🩺 V836 — RMP হলে RMP সেকশনেই বসে।
+                if (rmpId.isNotBlank()) {
+                    try {
+                        DoctorVisitRepository().logCallKeepingDates(
+                            id = rmpId, note = remark.trim(), staffMobile = staffMobile,
+                            nextCallDate = nextCallDate, context = ctx
+                        )
+                    } catch (_: Throwable) { }
                 }
             } catch (_: Throwable) { /* রিমার্কস সেভ ব্যর্থ হলেও অ্যাপ আটকাবে না */ }
         }.start()

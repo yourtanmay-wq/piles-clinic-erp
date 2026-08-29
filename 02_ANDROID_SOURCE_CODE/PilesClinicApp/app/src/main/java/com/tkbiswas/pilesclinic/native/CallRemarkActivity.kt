@@ -40,6 +40,10 @@ class CallRemarkActivity : AppCompatActivity() {
         // সেভের সময় সিগন্যাল-আইকনের callCount-ও ঠিকভাবে বাড়ে (RMP-মিলে
         // এটা ফাঁকা থাকে, CallNotifyManager নিজেই পাঠায় না)।
         val followupId = intent.getStringExtra("followupId").orEmpty()
+        // 🩺🔒 V836 (২৯.০৮.২০২৬, TK-নির্দেশ, ডেমো-ফটো পাশ) — RMP-র নিজের
+        // `doctor_visits` সারির id। ফাঁকা মানে এটা RMP নয় ⇒ তারিখের ঘরটাও
+        // দেখানো হয় না (পর্দা তখন হুবহু আগের মতোই থাকে)।
+        val rmpId = intent.getStringExtra("rmpId").orEmpty()
 
         val user = NativeSession.current(this)
         if (mobile.isBlank() || user == null) { finish(); return }
@@ -87,6 +91,77 @@ class CallRemarkActivity : AppCompatActivity() {
         }
         root.addView(input)
 
+        /* 📅🔒 V836 (২৯.০৮.২০২৬, TK-নির্দেশ — *"পপ-আপে Next Call তারিখ বাছার
+           ঘরও থাকবে, তবে বাধ্যতামূলক নয়"*; ডেমো-ফটো দেখিয়ে অনুমতি নেওয়া)।
+           ⛔ **শুধু RMP-র বেলায়** দেখানো হয় — Enquiry/Visit/Patient-এর পর্দা
+              এক অক্ষরও বদলায়নি।
+           ⛔ ফাঁকা রাখলে আগের Next Call তারিখ অক্ষত থাকে
+              (`DoctorVisitRepository.logCallKeepingDates` সেটাই করে)। */
+        var pickedNextCall = ""
+        val dateLine = TextView(this)
+        if (rmpId.isNotBlank()) {
+            root.addView(TextView(this).apply {
+                text = "NEXT CALL DATE  (optional)"
+                textSize = 12.5f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#0B4F2A"))
+                setPadding(0, dp(16), 0, dp(6))
+            })
+            val dateRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            dateLine.apply {
+                text = "Tap to choose date"
+                textSize = 14f
+                setTextColor(android.graphics.Color.parseColor("#101828"))
+                setPadding(dp(14), dp(12), dp(14), dp(12))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(10).toFloat()
+                    setColor(android.graphics.Color.WHITE)
+                    setStroke(dp(1), android.graphics.Color.parseColor("#DBE2EA"))
+                }
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                isClickable = true; isFocusable = true
+                setOnClickListener {
+                    val cal = java.util.Calendar.getInstance()
+                    android.app.DatePickerDialog(
+                        this@CallRemarkActivity,
+                        { _, y, m, d ->
+                            pickedNextCall = String.format(java.util.Locale.US, "%04d-%02d-%02d", y, m + 1, d)
+                            text = FollowUpModel.displayDate(pickedNextCall)
+                        },
+                        cal.get(java.util.Calendar.YEAR),
+                        cal.get(java.util.Calendar.MONTH),
+                        cal.get(java.util.Calendar.DAY_OF_MONTH)
+                    ).show()
+                }
+            }
+            dateRow.addView(dateLine)
+            dateRow.addView(TextView(this).apply {
+                text = "Clear"
+                textSize = 13f
+                setTextColor(android.graphics.Color.parseColor("#5B6B81"))
+                setPadding(dp(14), dp(12), dp(14), dp(12))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(10).toFloat()
+                    setColor(android.graphics.Color.parseColor("#EEF2F7"))
+                    setStroke(dp(1), android.graphics.Color.parseColor("#DBE2EA"))
+                }
+                isClickable = true; isFocusable = true
+                setOnClickListener {
+                    pickedNextCall = ""
+                    dateLine.text = "Tap to choose date"
+                }
+            }.also { it.layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { leftMargin = dp(8) } })
+            root.addView(dateRow)
+            root.addView(TextView(this).apply {
+                text = "Leave it empty - the old Next Call date stays as it is."
+                textSize = 11.5f
+                setTextColor(android.graphics.Color.parseColor("#8A93A0"))
+                setPadding(0, dp(6), 0, 0)
+            })
+        }
+
         val btnRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(0, dp(16), 0, 0)
@@ -111,7 +186,8 @@ class CallRemarkActivity : AppCompatActivity() {
                     ctx = applicationContext,
                     mobile = mobile, direction = direction, remark = text, patientId = patientId,
                     staffMobile = user.mobile, staffName = user.name, branch = user.branch,
-                    calledAtIso = calledAt, followupId = followupId
+                    calledAtIso = calledAt, followupId = followupId,
+                    rmpId = rmpId, nextCallDate = pickedNextCall   /* 🩺 V836 */
                 )
                 Toast.makeText(this@CallRemarkActivity, "Remark saved", Toast.LENGTH_SHORT).show()
                 finish()
