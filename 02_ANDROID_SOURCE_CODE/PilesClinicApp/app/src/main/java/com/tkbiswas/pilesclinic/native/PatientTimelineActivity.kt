@@ -2095,7 +2095,18 @@ class PatientTimelineActivity : AppCompatActivity() {
     private fun writeFollowUpHistoryRemark(e: TimelineEntry, text: String): Boolean {
         val fuId = e.followUpHistoryId ?: return false
         if (e.followUpHistoryIndex < 0) return false
-        val rows = SupabaseClient.findByMobile("followups", "+91$currentMobile", "*", 5000)
+        /* 🟢🔒 V837 (২৯.০৮.২০২৬, TK-নির্দেশে মেপে পাওয়া) — আগে এখানে `"*"`
+           লেখা ছিল, অর্থাৎ ওই নম্বরের প্রতিটা followups সারির **সব ঘর**
+           নামত — **রোগীর ছবিসহ** (`photo` ঘরটা base64 ছবি, সবচেয়ে ভারী)।
+           ⛔ অথচ নিচের কোড এই সারিগুলো থেকে পড়ে **মাত্র দুটো ঘর**:
+              `id` (কোন সারিটা) আর `history` (কোন লেখাটা বদলাবে) —
+              পুরো ফাংশনটা পড়ে গুনে দেখা, আর কিচ্ছু ছোঁয়া হয় না।
+           ⛔ লেখাটা আগের মতোই `updateById`-তে শুধু `history` (+ শেষ সারি হলে
+              `lastRemark`) পাঠায় — **পুরো সারি কখনো ফেরত লেখা হয় না**,
+              তাই ছবি হারানোর কোনো সুযোগ নেই।
+           ⛔ ৫০০০ সীমা আগের মতোই রইল (এক নম্বরে ৩-৪টার বেশি সারি হয় না;
+              সংখ্যাটা কমালে কোনো লাভ নেই, বরং ঝুঁকি)। */
+        val rows = SupabaseClient.findByMobile("followups", "+91$currentMobile", "id,history", 5000)
         var target: org.json.JSONObject? = null
         for (i in 0 until rows.length()) { if (rows.getJSONObject(i).optString("id") == fuId) { target = rows.getJSONObject(i); break } }
         val row = target ?: return false
