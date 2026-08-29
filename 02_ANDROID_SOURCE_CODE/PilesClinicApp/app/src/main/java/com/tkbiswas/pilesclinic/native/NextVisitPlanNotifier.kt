@@ -95,7 +95,7 @@ object NextVisitPlanNotifier {
 
             notify(
                 ctx, NOTIF_ID_TOMORROW,
-                NoBengali.s("🔵 কাল ${lines.size} জনের প্ল্যান আছে"),
+                "🔵 Tomorrow: ${lines.size} patient(s) have a plan",
                 lines.first().removePrefix("• "),
                 lines.take(6).joinToString("\n") +
                     (if (lines.size > 6) "\n+${lines.size - 6} more" else "")
@@ -134,7 +134,7 @@ object NextVisitPlanNotifier {
                 if (e.byName.isNotBlank()) big.append("\n(").append(e.byName).append(")")
                 notify(
                     ctx, NOTIF_ID_ARRIVED,
-                    "🔔 $nm" + (if (badge.isNotBlank()) " ($badge)" else "") + " — " + NoBengali.s("প্ল্যান আছে"),
+                    "🔔 $nm" + (if (badge.isNotBlank()) " ($badge)" else "") + " — " + "has a plan",
                     e.shortLine(), big.toString()
                 )
                 fresh.add(id)
@@ -166,7 +166,7 @@ object NextVisitPlanNotifier {
             val publicVersion = NotificationCompat.Builder(ctx, channel)
                 .setSmallIcon(R.drawable.ic_notif_bell)
                 .setColor(android.graphics.Color.parseColor("#0B3D91"))
-                .setContentTitle(NoBengali.s("🔵 রোগীর প্ল্যান"))
+                .setContentTitle("🔵 Patient plan")
                 .setContentText("Open the app to see.")
                 .build()
 

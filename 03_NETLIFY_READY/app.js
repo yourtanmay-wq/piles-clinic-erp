@@ -8513,12 +8513,63 @@ window["wlv1DqToggleOverdue"]=wlv1DqToggleOverdue;
    ⛔ কাজ একটুও বদলায়নি — একই wlv1FullJourney / wlv1ReportCard / doctorCheck / summary।
    ⛔ রং একটুও বদলায়নি — যে বোতাম যেমন ছিল (ghost সাদা / আগের gradient) তেমনই আছে,
       নতুন কোনো নেভি-ব্লু বসানো হয়নি। bill=0 হলে Report Card ধূসর — আগের মতোই। */
+/** 🩺🔒 V839 — কার্ডের নীল ট্যাগ।
+    ⛔ প্ল্যান না থাকলে **কিছুই ফেরে না** (TK: "LAST PLAN না থাকলে যেন card
+       থেকে হাইড হয়ে যায়") — কার্ড হুবহু আগের মতোই দেখায়। */
+function wlv1NvpTagHtml(p){
+  try{
+    var e=wlv1NvpLatest(p); if(!e)return '';
+    var line=wlv1NvpShortLine(e); if(!line)return '';
+    var bits=[fmtDate(String(e.at||'').slice(0,10)),e.byName||''].filter(Boolean).join(' · ');
+    return '<div style="margin-top:7px;background:#E8F1FF;border:1px solid #BBD4F7;border-radius:8px;padding:7px 9px;font-size:12px;color:#0B3D91;line-height:1.5">'+
+      '<b>LAST PLAN:</b> '+esc(line)+(bits?('<br><span style="color:#5B7CB8;font-size:11px">'+esc(bits)+'</span>'):'')+'</div>';
+  }catch(_e){ return ''; }
+}
+window["wlv1NvpTagHtml"]=wlv1NvpTagHtml;
+
+/** 🔔🔒 V839 — Check-up চাপলে **ফর্ম খোলার আগে** গত বারের প্ল্যান।
+    TK: *"এটা পরের দিন যখন পেশেন্ট আসবে তখন যেন আগে মনে করিয়ে দেয়।"*
+    ⛔ প্ল্যান না থাকলে পপ-আপ আসেই না — সরাসরি আগের মতোই খোলে।
+    ⛔ দিনে **একবারই** প্রতি রোগীর জন্য।
+    ⛔ কোনো বাড়তি ক্লাউড-অনুরোধ নেই — তথ্যটা সারিতেই আছে। */
+function wlv1NvpCheckupWithReminder(id){
+  try{
+    var p=load('patients').find(function(x){return x.id===id});
+    var e=p?wlv1NvpLatest(p):null;
+    var key='wlv1NvpPop_'+today();
+    var seen=[]; try{ seen=JSON.parse(localStorage.getItem(key)||'[]')||[] }catch(_e){ seen=[] }
+    var pid=(p&&(p.patientId||p.id))||'';
+    if(!e||!pid||seen.indexOf(pid)>-1){ doctorCheck(id); return; }
+    seen.push(pid);
+    try{
+      for(var i=localStorage.length-1;i>=0;i--){
+        var k=localStorage.key(i);
+        if(k&&k.indexOf('wlv1NvpPop_')===0&&k!==key)localStorage.removeItem(k);
+      }
+      localStorage.setItem(key,JSON.stringify(seen));
+    }catch(_e){}
+    var badge=wlv1NvpOldNew(p);
+    var labels=WLV1_NVP_OPTIONS.filter(function(o){return (e.items||[]).indexOf(o[0])>-1})
+      .map(function(o){return '• '+esc(o[1])});
+    var bits=[fmtDate(String(e.at||'').slice(0,10)),e.byName||''].filter(Boolean).join(' · ');
+    var body='';
+    if(bits)body+='<div style="color:#5B7CB8;font-size:12px;margin-bottom:8px">'+esc(bits)+'</div>';
+    body+=(labels.length?labels.join('<br>'):esc(wlv1NvpShortLine(e)));
+    if(e.medicine)body+='<div style="margin-top:8px"><b>Medicine:</b> '+esc(e.medicine)+'</div>';
+    if(e.note)body+='<div style="margin-top:8px">'+esc(e.note)+'</div>';
+    page('🔵 '+esc((p&&p.name)||'Patient')+(badge?(' ('+badge+')'):'')+' — Last plan',
+      '<div style="font-size:13.5px;line-height:1.7">'+body+'</div>'+
+      '<div class="actions"><button onclick="closeModal();doctorCheck(\''+esc(id)+'\')">OK · বুঝেছি</button></div>');
+  }catch(_e){ try{ doctorCheck(id) }catch(_e2){} }
+}
+window["wlv1NvpCheckupWithReminder"]=wlv1NvpCheckupWithReminder;
+
 function wlv1DqCard(p){
   let bill=Number(p.bill||0);
   let rcBtn=bill>0
     ? `<button class="ghost" onclick="wlv1ReportCard('${p.id}')">Report Card</button>`
     : `<button class="ghost" style="opacity:.45" onclick="toast('No bill yet for this patient — Report Card needs an Advance Payment first')">Report Card</button>`;
-  return `<div class="card doctorQueuePro"><div class="queueRow">${p.photo?`<img class="queuePhoto" src="${p.photo}">`:`<div class="queuePhoto blank">👤</div>`}<div class="queueInfo"><b class="wlv1NameLink" onclick="wlv1FullJourney('${esc(normMob(p.mobile))}')" title="Tap for History">${esc(p.name)}</b><span><span class="wlv1CallLink" onclick="event.stopPropagation();contact('${esc(p.mobile)}','call')" title="Tap to call">${esc(normMob(p.mobile))}</span> · ${esc(p.patientId||'')}</span><small>${esc(p.disease||'-')} · ${esc(p.branch||'-')}</small></div><span class="queueBadge">WAITING</span></div><div class="actions queueActions"><button class="ghost" onclick="wlv1FullJourney('${esc(normMob(p.mobile))}')">History</button>${rcBtn}<button onclick="doctorCheck('${p.id}')">Check-up</button><button class="ghost" onclick="summary('${p.id}')">⚡ Action</button></div></div>`;
+  return `<div class="card doctorQueuePro"><div class="queueRow">${p.photo?`<img class="queuePhoto" src="${p.photo}">`:`<div class="queuePhoto blank">👤</div>`}<div class="queueInfo"><b class="wlv1NameLink" onclick="wlv1FullJourney('${esc(normMob(p.mobile))}')" title="Tap for History">${esc(p.name)}${(function(){var b=wlv1NvpOldNew(p);return b?(' <span style="font-size:10.5px;font-weight:800;color:'+(b==='NEW'?'#12805C':'#0B3D91')+'">'+b+'</span>'):''})()}</b><span><span class="wlv1CallLink" onclick="event.stopPropagation();contact('${esc(p.mobile)}','call')" title="Tap to call">${esc(normMob(p.mobile))}</span> · ${esc(p.patientId||'')}</span><small>${esc(p.disease||'-')} · ${esc(p.branch||'-')}</small></div><span class="queueBadge">WAITING</span></div>${wlv1NvpTagHtml(p)}<div class="actions queueActions"><button class="ghost" onclick="wlv1FullJourney('${esc(normMob(p.mobile))}')">History</button>${rcBtn}<button onclick="wlv1NvpCheckupWithReminder('${p.id}')">Check-up</button><button class="ghost" onclick="summary('${p.id}')">⚡ Action</button></div></div>`;
 }
 function doctorQueue(){try{repairBranchWorkflowRows()}catch(_e){}let rows=visitQueueRows();
  /* 🟢🔒 V398: মনে-রাখা ব্রাঞ্চ (এক জায়গা থেকে)। বাছা না-থাকলে তালিকা নয়, বার্তা। */
@@ -8769,6 +8820,16 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
        (wlv1AnatBoxHtml) এখান (ধাপ ৪) থেকে সরিয়ে ধাপ ৫ (Photo and Video)-এ, তিনটে
        ছবির ঠিক নিচে — ফোনের একই বদল। ⛔ id/সেভ-লজিক/A4-রিপোর্ট কিছুই বদলায়নি। -->
  </details>
+ <!-- 🩺🔒 V839 (২৯.০৮.২০২৬, TK-নির্দেশ, ফটো-প্রুফ দেখিয়ে অনুমোদিত) —
+      NEXT VISIT PLAN · পরের বার এই রোগীর কী হবে। ফোনের হুবহু একই নয়টি
+      অপশন, একই চাবি (NextVisitPlan.OPTIONS) — তাই ফোনে লিখলে ওয়েবে
+      দেখা যায়, উল্টোটাও।
+      ⛔ ধাপ ৪-এর ঠিক পরে, ধাপ ৫-এর আগে — ধাপের সংখ্যা বাড়ানো হয়নি।
+      ⛔ এই ঘরগুলোর কোনোটাই প্রেসক্রিপশনে বা কোনো ছাপার কাগজে যায় না
+         (TK: "শুধুমাত্র সিস্টেমে থাকবে")। -->
+ <details class="card" open><summary><b>NEXT VISIT PLAN · পরের বার কী হবে</b></summary>
+  ${wlv1NvpBoxHtml(p)}
+ </details>
  <details class="card"><summary><b>5. Photo &amp; Video · ছবি ও ভিডিও</b></summary>
   <div class="grid"><div><label>Before Treatment Photo · আগের ছবি</label><input id="dnBeforePhoto" class="input" type="file" accept="image/*"><small>${note.beforePhoto?'Before photo saved':''}</small></div><div><label>During Treatment Photo · চলাকালীন ছবি</label><input id="dnDuringPhoto" class="input" type="file" accept="image/*"><small>${note.duringPhoto?'During photo saved':''}</small></div><div><label>After Treatment Photo · পরের ছবি</label><input id="dnAfterPhoto" class="input" type="file" accept="image/*"><small>${note.afterPhoto?'After photo saved':''}</small></div></div>
   ${wlv1AnatBoxHtml(note,id)}
@@ -8850,6 +8911,136 @@ function wlv1CostMessage(name,pid,branch,cost,disease,timeAsked,by){
   var b=String(by||'').trim(); if(b) bits.push('বলেছেন: '+b);
   return bits.filter(Boolean).join(' · ');
 }
+/* ═══════════════════════════════════════════════════════════════════════
+   🩺🔒 V839 (২৯.০৮.২০২৬) — NEXT VISIT PLAN · পরের বার এই রোগীর কী হবে
+   TK-নির্দেশ, দীর্ঘ আলোচনা ও ফটো-প্রুফ দেখিয়ে অনুমোদিত।
+
+   ⛔ ফোনের NextVisitPlan.kt-এর **হুবহু একই নয়টি চাবি** — এক পাশে লিখলে
+      অন্য পাশে পড়া যায়। চাবিগুলো কখনো বদলানো যাবে না।
+   ⛔ জমা হয় patients.nextVisitPlan (jsonb তালিকা) ঘরে — পুরনো সারি কখনো
+      মোছে না, নতুনটা শেষে যোগ হয়।
+   ⛔ এই ঘরটা প্রেসক্রিপশন বা কোনো ছাপার কাগজে **কোথাও পড়া হয় না**।
+   ═══════════════════════════════════════════════════════════════════════ */
+var WLV1_NVP_OPTIONS=[
+  ['followUp','Follow up / ফলো আপ'],
+  ['dressing','Dressing / ড্রেসিং'],
+  ['cautery','Cautery Machine / মেশিনের কাজ'],
+  ['threadInside','Inside Thread Tie / ভেতরে সুতো বাঁধা'],
+  ['threadOutside','Outside Thread Tie / বাইরে সুতো বাঁধা'],
+  ['threadChange','Thread Change / সুতো চেঞ্জ'],
+  ['threadTighten','Thread Tighten / সুতো টানা'],
+  ['threadNew','New Thread / নতুন সুতো পরানো'],
+  ['medicine','Medicine / ঔষধ দিতে হবে']
+];
+var WLV1_NVP_SHORT={followUp:'Follow up',dressing:'Dressing',cautery:'Cautery',
+  threadInside:'ভেতরে সুতো',threadOutside:'বাইরে সুতো',threadChange:'সুতো চেঞ্জ',
+  threadTighten:'সুতো টানা',threadNew:'নতুন সুতো',medicine:'ঔষধ'};
+window["WLV1_NVP_OPTIONS"]=WLV1_NVP_OPTIONS;
+
+/** সারির ঘরটা তালিকা হিসেবে পড়া — ফাঁকা/অচেনা হলে খালি তালিকা (নীরবে)। */
+function wlv1NvpList(p){
+  try{
+    var v=p&&p.nextVisitPlan; if(!v)return [];
+    if(typeof v==='string'){ v=v.trim(); if(v.charAt(0)!=='[')return []; v=JSON.parse(v); }
+    return Array.isArray(v)?v:[];
+  }catch(e){ return []; }
+}
+window["wlv1NvpList"]=wlv1NvpList;
+
+/** সবচেয়ে নতুন প্ল্যান — তালিকার শেষেরটাই নতুন। কিছু না থাকলে null। */
+function wlv1NvpLatest(p){
+  var a=wlv1NvpList(p);
+  for(var i=a.length-1;i>=0;i--){
+    var e=a[i]||{};
+    var has=(Array.isArray(e.items)&&e.items.length)||(e.note||'').trim()||(e.medicine||'').trim();
+    if(has)return e;
+  }
+  return null;
+}
+window["wlv1NvpLatest"]=wlv1NvpLatest;
+
+/** কার্ড ও নোটিফিকেশনের এক লাইন — "Dressing · সুতো চেঞ্জ · ঔষধ" */
+function wlv1NvpShortLine(e){
+  if(!e)return '';
+  var parts=(e.items||[]).map(function(k){return WLV1_NVP_SHORT[k]||''}).filter(Boolean);
+  return parts.length?parts.join(' · '):String(e.note||'').slice(0,40);
+}
+window["wlv1NvpShortLine"]=wlv1NvpShortLine;
+
+/** 🟢 OLD নাকি NEW — রেজিস্ট্রেশনের তারিখ আজ হলে NEW, নইলে OLD।
+    ⛔ তারিখ জানা না থাকলে ফাঁকা — আন্দাজে কিছু বসানো হয় না। */
+function wlv1NvpOldNew(p){
+  try{
+    var d=String((p&&(p.registrationDate||p.date))||'').slice(0,10);
+    if(d.length!==10)return '';
+    return d===today()?'NEW':'OLD';
+  }catch(e){ return ''; }
+}
+window["wlv1NvpOldNew"]=wlv1NvpOldNew;
+
+/** চেকআপ ফর্মের অংশটা আঁকা। ⛔ শুরুতে সব ফাঁকা — আগের প্ল্যান কখনো
+    সম্পাদনাযোগ্য ঘরে বসে না (ফোনের B437-এর একই নিয়ম), শুধু উপরে দেখানো হয়। */
+function wlv1NvpBoxHtml(p){
+  var last=wlv1NvpLatest(p);
+  var head='';
+  if(last){
+    var whenTxt=String(last.at||'').slice(0,10);
+    var bits=[fmtDate(whenTxt),last.byName||''].filter(Boolean).join(' · ');
+    head='<div style="background:#E8F1FF;border:1px solid #BBD4F7;border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:12.5px;color:#0B3D91">'+
+      '<b>Last plan:</b> '+esc(wlv1NvpShortLine(last))+(bits?('<br><span style="color:#5B7CB8;font-size:11.5px">'+esc(bits)+'</span>'):'')+'</div>';
+  }
+  var rows=WLV1_NVP_OPTIONS.map(function(o){
+    return '<label style="display:flex;align-items:center;gap:8px;padding:4px 0"><input type="checkbox" id="nvp_'+o[0]+'" onchange="wlv1NvpSyncMed()"><span>'+esc(o[1])+'</span></label>';
+  }).join('');
+  return head+rows+
+    '<div id="nvpMedRow" style="display:none;margin:6px 0 2px 24px">'+
+      '<label>Which medicine · কোন ঔষধ</label><input id="nvpMedicine" class="input" placeholder="Tab. ... · Oint. ...">'+
+    '</div>'+
+    '<label>Anything else · অন্য কিছু হলে এখানে লিখুন</label><textarea id="nvpNote" class="input" rows="2"></textarea>'+
+    '<label>Date · তারিখ (বাধ্যতামূলক নয়)</label><input id="nvpDate" class="input" type="date">'+
+    '<div style="margin-top:6px;font-size:11.5px;color:#9A6400;background:#FFF4E5;border:1px solid #F0D9B5;border-radius:8px;padding:7px 9px">⛔ এই প্ল্যান রোগীর প্রেসক্রিপশনে কখনো ছাপা হবে না — শুধু সিস্টেমে থাকবে</div>';
+}
+window["wlv1NvpBoxHtml"]=wlv1NvpBoxHtml;
+
+/** ঔষধ বাছলে তবেই "কোন ঔষধ" ঘরটা দেখায়। */
+function wlv1NvpSyncMed(){
+  try{
+    var on=$('#nvp_medicine')&&$('#nvp_medicine').checked;
+    var row=$('#nvpMedRow'); if(row)row.style.display=on?'':'none';
+  }catch(e){}
+}
+window["wlv1NvpSyncMed"]=wlv1NvpSyncMed;
+
+/** পর্দা থেকে আজকের প্ল্যান তোলা। কিছুই বাছা না হলে null ⇒ ঘরটা ছোঁয়াই হয় না। */
+function wlv1NvpCollect(){
+  try{
+    var items=WLV1_NVP_OPTIONS.map(function(o){return o[0]})
+      .filter(function(k){var el=$('#nvp_'+k);return el&&el.checked});
+    var med=(($('#nvpMedicine')||{}).value||'').trim();
+    var note=(($('#nvpNote')||{}).value||'').trim();
+    var date=(($('#nvpDate')||{}).value||'').trim();
+    if(!items.length&&!note&&!med)return null;
+    return {
+      id:'nvp_'+Date.now()+'_'+Math.floor(Math.random()*1000),
+      date:date, items:items,
+      /* ঔষধ না বাছলে লেখাটা জমা হয় না — ভুল তথ্য জমার সুযোগ নেই। */
+      medicine:items.indexOf('medicine')>-1?med:'',
+      note:note,
+      byName:(user&&(user.name||user.mobile))||'', byMobile:(user&&user.mobile)||'',
+      at:isoNow()
+    };
+  }catch(e){ return null; }
+}
+window["wlv1NvpCollect"]=wlv1NvpCollect;
+
+/** পুরনো তালিকা হুবহু রেখে নতুনটা **শেষে** যোগ করা। */
+function wlv1NvpAppended(p,entry){
+  var a=wlv1NvpList(p).slice();
+  a.push(entry);
+  return a;
+}
+window["wlv1NvpAppended"]=wlv1NvpAppended;
+
 function wlv1CounselBoxHtml(note,p){
   var picked=String((note&&note.probableDisease)||'');
   var ta=wlv1SplitTimeAsked(String((note&&note.timeAsked)||''));
@@ -12040,7 +12231,12 @@ async function saveDoctor(id){
   // 🟢🔒 V656 (২৫.০৮.২০২৬, TK-নির্দেশ) — Doctor Note & Reminder — Android-এর
   // একই আলাদা ঘরে বসে (doctorFullNote ব্লবের বাইরে), যাতে রিমাইন্ডার-চেক
   // প্রতিদিন সরাসরি তারিখ-ফিল্টার করে খুঁজতে পারে (পুরো JSON স্ক্যান না করে)।
-  doctorReminderNote:$('#dnReminderNote')?.value||'',doctorReminderDate:$('#dnReminderDate')?.value||''});
+  doctorReminderNote:$('#dnReminderNote')?.value||'',doctorReminderDate:$('#dnReminderDate')?.value||'',
+  /* 🩺🔒 V839 — NEXT VISIT PLAN **একই সেভেই** বসে, বাড়তি কোনো কল নয়।
+     ⛔ পুরনো তালিকা হুবহু রেখে নতুনটা শেষে যোগ হয় — একটাও পুরনো প্ল্যান মোছে না।
+     ⛔ ডাক্তার কিছুই না বাছলে (`null`) ঘরটা **ছোঁয়াই হয় না** — তখন আগের
+        প্ল্যান আগের মতোই থেকে যায় (`...(x?{}:{})` দিয়ে ঘরটা বাদ পড়ে)। */
+  ...(function(){var e=wlv1NvpCollect();return e?{nextVisitPlan:wlv1NvpAppended(p,e)}:{}})()});
  add('medical',{id:uid('med'),patientId:id,mobile:p.mobile,branch:p.branch,name:p.name,type:'checkup',date:today(),doctorFullNote:note,diagnosis:details,decision:dec,createdBy:user?.mobile||''});
  if(dec==='Treatment Started'&&(up||p))ensureFollow({...p,...(up||{})},'Treatment','', 'Treatment started by doctor note');
  // V460 (১৯.০৮.২০২৬) — Decision ঘর বাদ যাওয়ায় "Not Agree" নোটিশ পাঠানোর
@@ -12963,6 +13159,10 @@ async function saveTreatmentPayment(id){
  let payLabel=nextPaymentLabel(id,payDate),payModeNow=payMode($('#mode')?.value||'CASH');
  let payRow=wlv1BuildTreatmentEventRow(p,amt,payModeNow,payDate,payLabel,$('#prem')?.value||payLabel);
  wlv1UpsertDailyTreatmentLocal(payRow);
+ /* 🔁🔒 V839 (TK-নির্দেশ: *"পেমেন্ট করলেও যেন কাজ হয়"*) — টাকা জমা হলে
+    রোগী আবার CHECK-UP তালিকায় ফিরবেন। ⛔ দিনে একবারের পাহারা ভিতরে;
+    টাকার অঙ্ক · হিসাব · রসিদ কিচ্ছু ছোঁয়া হয়নি। */
+ try{ wlv1NvpReopenQueue(p.mobile); }catch(_e){}
  try{if(typeof window.webRmpActivateAfterPayment==='function')window.webRmpActivateAfterPayment(id);}catch(_e){}
  ensureFollow({...p,...(up||{}),bill,discount,stage:'Treatment Running'},'Treatment','', '');
  /* TK (27.07.2026): আটকানো নয়, শুধু মনে করিয়ে দেওয়া। */
@@ -18375,10 +18575,51 @@ function wlv1ChamberMarkRow(payType, mobile, name){
   // on the next full sync, so a mark made on the computer could stay unseen
   // on the phone for a while.
   add('payments', row);
+  /* 🔁🔒 V839 (TK-নির্দেশ) — চেম্বারের তালিকায় নাম উঠলে রোগী আবার
+     CHECK-UP তালিকায় ফিরবেন। ⛔ দিনে একবারের পাহারা ভিতরে। */
+  try{ wlv1NvpReopenQueue(m); }catch(e){}
   try{ if(typeof flushPendingCloud==='function') flushPendingCloud('pending').catch(()=>{}); }catch(e){}
   return row;
 }
 window["wlv1ChamberMarkRow"]=wlv1ChamberMarkRow;
+
+/* ═══════════════════════════════════════════════════════════════════════
+   🔁🔒 V839 — রোগী আবার CHECK-UP তালিকায় ফিরবেন
+   TK: *"Arrived নয় পেমেন্ট করলেও যেন কাজ হয়… চেম্বার তারিখ ডেট সেই
+   পর্দায় যদি পেশেন্টের নাম আসে, তাহলেও যেন চেকআপে চলে আসে।"*
+
+   ⛔ তালিকার মূল নিয়ম (`visitQueueRows`-এর শর্ত) **এক অক্ষরও বদলানো হয়নি**।
+      বদলে প্রকল্পের নিজের প্রমাণিত `forceVisitQueueEntry()` যা করে, ঠিক সেই
+      তিনটে ঘরই ফিরিয়ে বসানো হয়।
+   🛡️ **একই রোগী দিনে একবারই** — নইলে ডাক্তার চেকআপ শেষ করার পরে রোগী
+      দ্বিতীয়বার টাকা দিলে (ওষুধের টাকা) আবার তালিকায় ফিরে আসতেন।
+   ⛔ যিনি ইতিমধ্যেই তালিকায় আছেন, তাঁকে ছোঁয়া হয় না।
+   ═══════════════════════════════════════════════════════════════════════ */
+function wlv1NvpReopenQueue(mobile){
+  try{
+    var d=String(mobile||'').replace(/\D/g,'').slice(-10);
+    if(d.length!==10)return;
+    var key='wlv1NvpReopen_'+today();
+    var seen=[]; try{ seen=JSON.parse(localStorage.getItem(key)||'[]')||[] }catch(_e){ seen=[] }
+    if(seen.indexOf(d)>-1)return;                    // আজ একবার হয়ে গেছে
+    var did=false;
+    load('patients').filter(function(x){return mob(x.mobile)===d}).forEach(function(x){
+      if(!x.doctorComplete)return;                   // ইতিমধ্যেই তালিকায় আছেন
+      try{ upd('patients',x.id,{stage:'Doctor Queue',queue:true,doctorComplete:false}); did=true; }catch(_e){}
+    });
+    seen.push(d);
+    /* পুরনো দিনের চাবি জমতে দেওয়া হয় না — আজকেরটাই রাখা হয়। */
+    try{
+      for(var i=localStorage.length-1;i>=0;i--){
+        var k=localStorage.key(i);
+        if(k&&k.indexOf('wlv1NvpReopen_')===0&&k!==key)localStorage.removeItem(k);
+      }
+      localStorage.setItem(key,JSON.stringify(seen));
+    }catch(_e){}
+    if(did&&String(currentView||'')==='CHECK-UP Queue'){ try{ doctorQueue() }catch(_e){} }
+  }catch(e){}
+}
+window["wlv1NvpReopenQueue"]=wlv1NvpReopenQueue;
 
 /* TK-REQUESTED (2026-07-27), same rule as the phone app: if this person
    ALREADY has an "আসার কথা" date, say which date it is and ask before
