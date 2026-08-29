@@ -51,7 +51,14 @@
        দেখাত। ⛔ কারও তথ্য মোছা হয় না — শুধু এই এক পর্দায় দেখানো হয় না। */
     var __nameFallback = {'DR-JH-MANDAL':'J.H. MANDAL','DR-GOKUL':'GOKUL','DR-PRANAB-BISWAS':'PRANAB BISWAS','DR-SAIKAT-ROY':'SAIKAT ROY','DR-JAY-BANIK':'JAY BANIK','DR-KH-MANDAL':'J.H. MANDAL','DR-PK-ROY':'SAIKAT ROY'};
     rows.forEach(function(p){ if (!String(p.full_name||'').trim()) p.full_name=__nameFallback[String(p.person_code||'').toUpperCase()]||p.person_code; });
-    var __branchOrder = ['Jalpaiguri','Cooch Behar','Falakata','Kishanganj'];
+    /* 🔵🔒 V828 (২৯.০৮.২০২৬, TK-অনুমোদিত) — এই তালিকায় **Birpara ছিল না**,
+       তাই ওই ব্রাঞ্চের স্টাফরা তালিকায় ঠিক জায়গা না পেয়ে সবার শেষে পড়তেন
+       (নিচের হিসাবে না-পাওয়া ব্রাঞ্চ ৯৯ ধরা হয়)। এখন পাঁচটাই আছে।
+       ⛔ **আজ পর্দায় কিছুই নড়বে না** — Birpara এমনিতেই শেষে ছিল, এখনো
+          শেষেই থাকবে। এটা তালিকাটা সম্পূর্ণ করার কাজ, যাতে ভবিষ্যতে আরেকটা
+          ব্রাঞ্চ যোগ হলে দুটো ব্রাঞ্চ একসাথে "৯৯"-এ পড়ে গুলিয়ে না যায়।
+       ⛔ ক্রমটা এক অক্ষরও বদলানো হয়নি — শুধু শেষে একটা নাম যোগ। */
+    var __branchOrder = ['Jalpaiguri','Cooch Behar','Falakata','Kishanganj','Birpara'];
     rows.sort(function(a,b){
       var ar=String(a.role_kind||'').toLowerCase(), br=String(b.role_kind||'').toLowerCase();
       var ag=ar==='staff'?0:(ar==='doctor'?1:2), bg=br==='staff'?0:(br==='doctor'?1:2);
