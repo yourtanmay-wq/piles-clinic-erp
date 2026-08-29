@@ -605,11 +605,26 @@ class WorkNotebookActivity : AppCompatActivity() {
     private fun showWnRetry() {
         try {
             androidx.appcompat.app.AlertDialog.Builder(this)
-                .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, NoBengali.s("আবার চেষ্টা করুন")))
+            /* 🔤🔒 V832 (২৯.০৮.২০২৬, TK-নির্দেশ: *"ঝুঁকিহীনভাবে যেগুলি করা
+               যাবে শুধুমাত্র সেগুলি করুন"*) — V728-এ এই লেখাগুলো বাংলা রাখা
+               হয়েছিল **একটাই কারণে**: তখন ইংরেজি লেখাটা হিন্দি-তালিকার চাবি
+               হয়ে গিয়ে অন্য পর্দার লেখা ভুল করে হিন্দি করে দিতে পারত।
+               ⇒ **V730-এ হিন্দি পুরোটাই তুলে দেওয়া হয়েছে** (যাচাই করে দেখা:
+                 HINDI-তালিকার ৩৫৩টা মানের একটাতেও আর দেবনাগরী নেই)।
+               ⇒ তাই সেই ঝুঁকিটা **আর নেই**, আর এই লেখাগুলো ইংরেজি করা যায়।
+               ⛔ ইংরেজি লেখাটা **নিজে বানানো হয়নি** — `NoBengali`-র নিজের
+                  অনুবাদ ("Try Again" · "Close") হুবহু বসানো হলো, তাই
+                  কিশানগঞ্জের স্টাফ আগে যা দেখতেন **হুবহু তাই** দেখবেন।
+               ⛔ পপ-আপের রং যাচাই করা হয়েছে — `PremiumAlert.severityOf()`-এর
+                  লাল/হলুদ কোনো শব্দই পুরনো বা নতুন শিরোনামে নেই ⇒ **রং এক**।
+               ⛔ এগুলো **জমা/তুলনার মান নয়** — শুধু পর্দায় দেখানোর লেখা
+                  (`অন্য কারণ` ও `হ্যাঁ` ইচ্ছাকৃতভাবে বাংলাই রইল, ওগুলো
+                  ডেটাবেসে জমা হয় / কোডে মিলিয়ে দেখা হয়)। */
+                .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, NoBengali.s("Try Again")))
                 .setMessage(NoBengali.s("Today's information could not be loaded. It is required to save OUT TIME safely; otherwise the previous IN TIME could be lost. Please try again."))
                 .setCancelable(true)
-                .setPositiveButton(NoBengali.s("🔄 আবার চেষ্টা")) { _, _ -> loadDay() }
-                .setNegativeButton(NoBengali.s("বন্ধ")) { _, _ -> render() }
+                .setPositiveButton(NoBengali.s("🔄 Try Again")) { _, _ -> loadDay() }
+                .setNegativeButton(NoBengali.s("Close")) { _, _ -> render() }
                 .show().also { try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) {} }
         } catch (_: Throwable) {}
     }

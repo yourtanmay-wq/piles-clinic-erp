@@ -195,7 +195,9 @@ class ChamberCloseActivity : AppCompatActivity() {
             })
 
             row.addView(android.widget.TextView(this).apply {
-                text = NoBengali.s("বন্ধ করুন")
+                // 🔤🔒 V832 — একই কারণ (উপরে WorkNotebookActivity-তে বিস্তারিত)।
+                //    `NoBengali`-র নিজের অনুবাদই বসানো হলো ⇒ কিশানগঞ্জে বদল নেই।
+                text = NoBengali.s("Close")
                 textSize = 11.5f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setTextColor(android.graphics.Color.parseColor("#FFFFFF"))
