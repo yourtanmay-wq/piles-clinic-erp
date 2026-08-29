@@ -3917,7 +3917,20 @@ TK-নির্দেশ: হয়ে যাওয়া কাজ বাদ; �
    ক৭. প্রজেক্ট GitHub-এ তোলা — ২৬.০৭.২০২৬
 
 🟧 **খ · কোডের বাকি কাজ — TK-এর অনুমতি পেলে**
-   খ১. **ডেস্কটপ: আরও ৫টি পপ-আপ → পূর্ণ পাতা** (আজকের অডিটে যাচাই-করা, ১৫.০৮.২০২৬):
+   খ১. ~~**ডেস্কটপ: আরও ৫টি পপ-আপ → পূর্ণ পাতা**~~
+       ✅ **সম্পূর্ণ — বন্ধ করা হলো (TK-অনুমোদিত, ২৯.০৮.২০২৬: "হ্যাঁ")।**
+       ২৯.০৮.২০২৬-এ `03_NETLIFY_READY/app.js` ধরে যাচাই করে দেখা গেল
+       **পাঁচটাই ইতিমধ্যে পূর্ণ পাতা** (এই নোটটা ১৫.০৮-এর, তারপরেই কাজটা
+       হয়ে গিয়েছিল — যেমন B667):
+       · `doctorCheck` → `page('Doctor Note', …)`
+       · `prescription` → `page('Prescription', …)`
+       · `medicine` → `page('Medicine Slip', …)`
+       · `wlv1BloodOpen` → `page('Test / Investigation', …)`  (B667)
+       · `diet` → `page('Diet Chart', …)`  (B667)
+       ⛔ ভিতরের ছোট টিক-তালিকাগুলো (⏰ Previous · ⭐ Common) ইচ্ছাকৃতভাবে
+          পপ-আপই আছে — ফোনেও ওগুলো AlertDialog, তাই দুই দিকে মিল।
+       ⛔ নিচের পুরনো তালিকাটা শুধু ইতিহাসের জন্য রইল, করার কিছু নেই।
+       (পুরনো নোট, ১৫.০৮.২০২৬):
        · `doctorCheck` → `clinical/DoctorCheckupActivity.kt` (অ্যাপের সবচেয়ে বড় ফর্ম)
        · `prescription` → `clinical/PrescriptionActivity.kt`
        · `medicine` → `clinical/MedicineSlipActivity.kt`
