@@ -3369,13 +3369,51 @@ class StaffProfileActivity : AppCompatActivity() {
             setPadding(dp(18), dp(6), dp(18), dp(6))
         }
         var role = "staff"
-        val roleLine = ModuleUi.body(this, "Type:  Staff")
-        box.addView(roleLine)
+        /* 🟢🔒 V821 (২৯.০৮.২০২৬, TK-নির্দেশ ও অনুমোদিত ডেমো-প্রুফ:
+           *"staff doctor পাশাপাশি থাকতে হবে, যেটা সিলেক্ট করবো সেটা হাইলাইট হবে"*)
+
+           **আগে:** দুটো বোতাম উপরে-নিচে, দুটোই একই হালকা সবুজ — কোনটা বাছা
+           হয়েছে বোঝার একমাত্র উপায় ছিল উপরের "Type:  Staff" লেখাটা।
+           **এখন:** পাশাপাশি, আর বাছা বোতামটাই **গাঢ় সবুজ + সাদা লেখা**।
+           ⇒ লেখাটার আর দরকার নেই, তাই তুলে দেওয়া হলো।
+
+           ⛔ রংগুলো নতুন নয় — `MedicinePaymentActivity.setupSaleTypeButtons()`-এর
+              (V805/V806, TK-অনুমোদিত) হুবহু একই দুটো রং, তাই অ্যাপ জুড়ে
+              বাছাই দেখানোর চেহারা একই থাকে।
+           ⛔ `role`-এর মান ("staff" / "doctor") ও নিচের সেভের যুক্তি
+              **এক অক্ষরও বদলায়নি** — শুধু দেখার ভঙ্গি বদলাল। */
         val pickStaff = ModuleUi.buttonSoft(this, "Staff") { }
         val pickDoctor = ModuleUi.buttonSoft(this, "Doctor") { }
-        pickStaff.setOnClickListener { role = "staff"; roleLine.text = "Type:  Staff" }
-        pickDoctor.setOnClickListener { role = "doctor"; roleLine.text = "Type:  Doctor" }
-        box.addView(pickStaff); box.addView(pickDoctor)
+        val roleOn = android.graphics.Color.parseColor("#0B6E33")
+        val roleOff = android.graphics.Color.parseColor("#E6F4EC")
+        fun paintRole() {
+            val isStaff = role == "staff"
+            pickStaff.background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(10).toFloat()
+                setColor(if (isStaff) roleOn else roleOff)
+                setStroke(dp(1), roleOn)
+            }
+            pickStaff.setTextColor(if (isStaff) android.graphics.Color.WHITE else roleOn)
+            pickDoctor.background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(10).toFloat()
+                setColor(if (!isStaff) roleOn else roleOff)
+                setStroke(dp(1), roleOn)
+            }
+            pickDoctor.setTextColor(if (!isStaff) android.graphics.Color.WHITE else roleOn)
+        }
+        pickStaff.setOnClickListener { role = "staff"; paintRole() }
+        pickDoctor.setOnClickListener { role = "doctor"; paintRole() }
+        // পাশাপাশি বসানো — দুজনেই সমান চওড়া (weight 1f), মাঝে একটু ফাঁক।
+        val roleRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(2), 0, dp(6))
+        }
+        roleRow.addView(pickStaff, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        roleRow.addView(pickDoctor, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+            marginStart = dp(10)
+        })
+        box.addView(roleRow)
+        paintRole()
 
         box.addView(ModuleUi.body(this, "Full Name"))
         val etName = ModuleUi.input(this, "Full name")
