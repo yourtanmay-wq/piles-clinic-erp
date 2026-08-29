@@ -2740,6 +2740,7 @@ class FollowUpActivity : AppCompatActivity() {
                 if (d != null) cal.time = d
             }
         } catch (_: Exception) {}
+        /* 🔴 V843 — নিচে `.apply { datePicker.minDate = ... }` দেখুন */
         DatePickerDialog(this, { _, y, m, day ->
             val iso = String.format(java.util.Locale.US, "%04d-%02d-%02d", y, m + 1, day)
             lifecycleScope.launch {
@@ -2769,7 +2770,13 @@ class FollowUpActivity : AppCompatActivity() {
                 ).show()
                 if (ok) loadTab(currentStage)
             }
-        }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH), cal.get(java.util.Calendar.DAY_OF_MONTH)).show()
+        }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH), cal.get(java.util.Calendar.DAY_OF_MONTH)).apply {
+            /* 🔴🔒 V843 (২৯.০৮.২০২৬, নিয়ম ৭ — একটা দোষ পেলে পুরো প্রজেক্টে):
+               **পরের** তারিখ বাছার ঘরে অতীতের তারিখ বাছা যেত। V671-এর
+               প্রমাণিত একই লাইন বসানো হলো।
+               ⛔ অতীতের তারিখ শুধু ধূসর হয় — জমা থাকা পুরনো তারিখ মোছে না। */
+            datePicker.minDate = System.currentTimeMillis() - 1000L
+        }.show()
         ---- end old pickNextFollow body ---- */
     }
     /** 🔵 V543: `31.12.2026 : 12.30 PM` — সময় না থাকলে শুধু তারিখ।
@@ -4191,6 +4198,10 @@ class FollowUpActivity : AppCompatActivity() {
             // No escape without picking a date -- hide the built-in Cancel button.
             picker.getButton(AlertDialog.BUTTON_NEGATIVE)?.visibility = View.GONE
         }
+        /* 🔴🔒 V843 (২৯.০৮.২০২৬, নিয়ম ৭) — বাধ্যতামূলক Next Follow-up-এও
+           অতীতের তারিখ বাছা যেত। V671-এর প্রমাণিত একই লাইন।
+           ⛔ জমা থাকা পুরনো তারিখ মোছে না, শুধু নতুন বাছা আটকায়। */
+        try { picker.datePicker.minDate = System.currentTimeMillis() - 1000L } catch (_: Throwable) { }
         picker.show()
         try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(picker) } catch (_: Throwable) { }   // 🤫 V774
         ---- end old mandatory body ---- */

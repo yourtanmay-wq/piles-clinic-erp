@@ -121,9 +121,27 @@ class CallRemarkActivity : AppCompatActivity() {
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                 isClickable = true; isFocusable = true
                 setOnClickListener {
+                    /* 🔴🔒 V843 (২৯.০৮.২০২৬, TK-রিপোর্ট ছবিসহ: *"Next Follow Up
+                       Call এ কেন Old Date দেখাবে"*) — **আমার V836-এর বাদ পড়া**:
+                       এখানে `minDate` বসানোই হয়নি, তাই **পুরনো তারিখ বাছা যেত**
+                       আর ক্যালেন্ডার আজকের দিনে না-ও খুলতে পারত।
+                       ⇒ ডাক্তার-রিমাইন্ডারের (V671) **হুবহু প্রমাণিত নিয়মই**
+                         এখানে বসানো হলো — নতুন কিছু বানানো হয়নি:
+                         · প্রজেক্টের নিজের `PilesDatePicker` চেহারা
+                         · শুরু সবসময় **আজকের দিনে** (আগে বাছা থাকলে সেটিতে)
+                         · `minDate` = আজ ⇒ **অতীতের তারিখ ধূসর, বাছাই বন্ধ**
+                       ⛔ Next Call তারিখ সবসময় ভবিষ্যতের — অতীতের তারিখ
+                          বসালে RMP সেকশনে ভুল তথ্য যেত। */
                     val cal = java.util.Calendar.getInstance()
+                    if (pickedNextCall.isNotBlank()) {
+                        try {
+                            val parts = pickedNextCall.split("-").map { it.toInt() }
+                            cal.set(parts[0], parts[1] - 1, parts[2])
+                        } catch (_: Throwable) { }
+                    }
                     android.app.DatePickerDialog(
                         this@CallRemarkActivity,
+                        com.tkbiswas.pilesclinic.R.style.PilesDatePicker,
                         { _, y, m, d ->
                             pickedNextCall = String.format(java.util.Locale.US, "%04d-%02d-%02d", y, m + 1, d)
                             text = FollowUpModel.displayDate(pickedNextCall)
@@ -131,7 +149,10 @@ class CallRemarkActivity : AppCompatActivity() {
                         cal.get(java.util.Calendar.YEAR),
                         cal.get(java.util.Calendar.MONTH),
                         cal.get(java.util.Calendar.DAY_OF_MONTH)
-                    ).show()
+                    ).apply {
+                        // ⛔ অতীতের তারিখ বাছা যাবে না (V671-এর হুবহু একই লাইন)
+                        datePicker.minDate = System.currentTimeMillis() - 1000L
+                    }.show()
                 }
             }
             dateRow.addView(dateLine)

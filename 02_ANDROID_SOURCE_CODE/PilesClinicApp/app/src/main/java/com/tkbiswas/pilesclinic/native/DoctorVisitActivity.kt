@@ -2596,7 +2596,13 @@ class DoctorVisitActivity : AppCompatActivity() {
                             //    বাংলায় বসে যেত (খাতার সারি B93-এর গ্লোবাল রুল)।
                             nextDate = String.format(Locale.US, "%02d.%02d.%04d", d, m + 1, y)
                             btnDate.text = nextDate
-                        }, c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH)).show()
+                        }, c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH)).apply {
+            /* 🔴🔒 V843 (২৯.০৮.২০২৬, নিয়ম ৭ — একটা দোষ পেলে পুরো প্রজেক্টে):
+               **পরের** তারিখ বাছার ঘরে অতীতের তারিখ বাছা যেত। V671-এর
+               প্রমাণিত একই লাইন বসানো হলো।
+               ⛔ অতীতের তারিখ শুধু ধূসর হয় — জমা থাকা পুরনো তারিখ মোছে না। */
+            datePicker.minDate = System.currentTimeMillis() - 1000L
+        }.show()
                     }
                     parts.body.addView(btnDate)
 
