@@ -3258,7 +3258,27 @@ class StaffProfileActivity : AppCompatActivity() {
             val myRoleKind = if (r.length() > 0) ns(r.getJSONObject(0), "role_kind") else ""
             val salaryAllowed = com.tkbiswas.pilesclinic.native.RoleRules.salaryAppliesToRoleKind(myRoleKind)
             val sc = if (salaryAllowed) ModuleAuth.getRows("hr", "salary_config", "select=*&limit=1") else JSONArray()
-            val pays = if (salaryAllowed) ModuleAuth.getRows("hr", "salary_payments", "select=*&order=paid_on.desc") else JSONArray()
+            /* 🔵🔒 V818 (২৯.০৮.২০২৬, TK-নির্দেশে Egress-এর পূর্ণ যাচাই) —
+               এটা **"My Profile"** পর্দা, অর্থাৎ শুধু নিজের বেতনের হিসাব।
+               কিন্তু পড়াটা ছিল `select=*&order=paid_on.desc` — **কোনো ছাঁকনি
+               নেই, কোনো সীমা নেই**। সার্ভারের নিয়ম (`spay_read`) বলে
+               মাস্টার **সবার** সারি দেখতে পান — তাই মাস্টার নিজের প্রোফাইল
+               খুললেই **সব কর্মীর জীবনের সব বেতন-লেনদেন** নেমে আসত। প্রতি
+               মাসে এটা বাড়তেই থাকত।
+               ⛔ এখন নিজের `person_code` দিয়ে ছাঁকা, সর্বোচ্চ ৩০০ সারি
+                  (২৫ বছরের মাসিক বেতনও ধরে যায়)।
+               ⛔ ঘরগুলো `select=*`-ই রইল — ইচ্ছে করেই। এই সারির অনেকগুলো ঘর
+                  (amount · paid_on · for_month · mode · paid_by · remark ·
+                  extra_reason · kind) নানা জায়গায় পড়া হয়; ঘর ছেঁটে দিলে
+                  কোথাও একটা ফাঁকা দেখানোর ঝুঁকি ছিল। ছাঁকনি + সীমাতেই
+                  আসল সাশ্রয়টা হয়ে যায়, আর কোনো ভালো কাজ নষ্ট হয় না।
+               ⛔ কর্মীর নিজের পর্দায় আচরণ হুবহু আগের মতোই (সার্ভার এমনিতেই
+                  তাঁকে নিজের সারিই দিত)। */
+            val myCode = if (r.length() > 0) ns(r.getJSONObject(0), "person_code") else ""
+            val payScope = if (myCode.isNotBlank()) "&person_code=eq." + (try { java.net.URLEncoder.encode(myCode, "UTF-8").replace("+", "%20") } catch (_: Throwable) { myCode }) else ""
+            val pays = if (salaryAllowed) ModuleAuth.getRows(
+                "hr", "salary_payments", "select=*" + payScope + "&order=paid_on.desc&limit=300"
+            ) else JSONArray()
             runOnUiThread {
                 box.removeAllViews()
                 val p = if (r.length() > 0) r.getJSONObject(0) else JSONObject()

@@ -68,7 +68,16 @@
     // 🟢 B629: স্যালারির তারিখ পেরিয়েছে অথচ এ মাসে দেওয়া হয়নি — এমন স্টাফ থাকলে উপরে "Salary Due"
     var paysByCode = {};
     try {
-      var __pa = (await client.schema('hr').from('salary_payments').select('person_code,amount,paid_on,for_month')).data || [];
+      /* 🔵🔒 V818 (২৯.০৮.২০২৬, TK-নির্দেশে Egress-এর পূর্ণ যাচাই) — আগে এখানে
+         **সব কর্মীর জীবনের সব বেতন-লেনদেন** নামত, কোনো সীমা ছাড়া; প্রতি মাসে
+         তালিকাটা বাড়তেই থাকত। অথচ নিচের `salaryDueThisMonth()` শুধু
+         **চলতি মাসের** সারিই দেখে (`salPayMonth(p)===cur`)।
+         ⇒ শেষ ৬ মাসে ছেঁকে নেওয়া সম্পূর্ণ নিরাপদ — হিসাব এক পয়সাও বদলায় না। */
+      var __since = new Date(); __since.setMonth(__since.getMonth() - 6);
+      var __sinceIso = __since.toISOString().slice(0, 10);
+      var __pa = (await client.schema('hr').from('salary_payments')
+        .select('person_code,amount,paid_on,for_month')
+        .gte('paid_on', __sinceIso)).data || [];
       __pa.forEach(function (p) { (paysByCode[p.person_code] = paysByCode[p.person_code] || []).push(p); });
     } catch (e) {}
     var dueRows = [];
@@ -442,7 +451,8 @@
     var m = window.MOD, client = await sb();
     await profIncentiveSync(client);
     var sc = ((await client.schema('hr').from('salary_config').select('*').eq('person_code', code).maybeSingle()).data) || { person_code: code };
-    var pays = ((await client.schema('hr').from('salary_payments').select('*').eq('person_code', code).order('paid_on', { ascending: false })).data) || [];
+    /* 🔵 V818 — একজনেরই তালিকা, তবু সীমা বসানো (ফোনের সঙ্গে এক নিয়ম)। */
+    var pays = ((await client.schema('hr').from('salary_payments').select('*').eq('person_code', code).order('paid_on', { ascending: false }).limit(300)).data) || [];
     var prof = ((await client.schema('hr').from('staff_profiles').select('join_date').eq('person_code', code).maybeSingle()).data) || {};
     // 🔴🆕🔒 TK-নির্দেশ (08.08.2026, ফটো-প্রুফে লক) — ফোনের মতোই সহজ: উপরে মাসিক
     // বেতন + "কোন মাস পর্যন্ত দেওয়া / এই মাসে বাকি", নিচে এই-মাসের-বেতন দিন, পুরো
@@ -970,7 +980,7 @@
     var m=window.MOD, client=await sb();
     var sc=((await client.schema('hr').from('salary_config').select('*').eq('person_code',code).maybeSingle()).data)||{};
     var prof=((await client.schema('hr').from('staff_profiles').select('join_date').eq('person_code',code).maybeSingle()).data)||{};
-    var pays=((await client.schema('hr').from('salary_payments').select('*').eq('person_code',code)).data)||[];
+    var pays=((await client.schema('hr').from('salary_payments').select('*').eq('person_code',code).limit(300)).data)||[];   /* 🔵 V818 — সীমা */
     var months=monthsFromJoin(prof.join_date||'');
     var paidSet={}; pays.forEach(function(p){ paidSet[salPayMonth(p)]=1; });
     var amount=Number(sc.salary_amount||0);

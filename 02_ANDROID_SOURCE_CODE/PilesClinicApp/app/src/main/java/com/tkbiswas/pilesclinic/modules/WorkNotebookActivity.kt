@@ -2920,7 +2920,25 @@ class WorkNotebookActivity : AppCompatActivity() {
         val box = ModuleUi.card(this); col.addView(box); box.addView(ModuleUi.body(this, "Loading..."))
         col.addView(ModuleUi.button(this, "Back") { render() })
         Thread {
-            val r = ModuleAuth.getRows("wn", "work_reports", "select=*&order=submitted_at.desc")
+            /* 🔵🔒 V818 (২৯.০৮.২০২৬, TK-নির্দেশে Egress-এর পূর্ণ যাচাই) —
+               আগে এখানে ছিল `select=*` **কোনো সীমা ও কোনো ছাঁকনি ছাড়া**।
+               ফল: এই পর্দা খুললেই ওই স্টাফের (মাস্টার হলে **সবার**) জীবনের
+               **সব রিপোর্ট, সব সংস্করণ** নামত — সঙ্গে সবচেয়ে ভারী দুটো ঘর
+               `auto_stats` (jsonb) আর `manual_summary` (স্টাফের লেখা পুরো
+               কথা), অথচ এই পর্দা ওদুটোর **একটাও ব্যবহার করে না**।
+               ⛔ এখন শুধু যে চারটে ঘর সত্যিই পড়া হয় সেগুলোই আসে
+                  (`period_key` · `version` · `accepted` · `seen_at`), নিজের
+                  কোড দিয়ে ছাঁকা, আর সর্বোচ্চ ৪০০ সারি (কয়েক বছরের রিপোর্টও
+                  এতে ধরে যায়)।
+               ⛔ পর্দায় দেখানো এক অক্ষরও বদলায়নি — গোনা · সংস্করণ · অবস্থা
+                  সবই ঠিক ওই একই ঘরগুলো থেকেই হয়। ওয়েবে (`notebook.js`)
+                  আগে থেকেই `limit(100)` বসানো ছিল, ফোনেই বাকি ছিল। */
+            val myScope = if (staffCode.isNotBlank()) "&staff_code=eq." + (try { java.net.URLEncoder.encode(staffCode, "UTF-8").replace("+", "%20") } catch (_: Throwable) { staffCode }) else ""
+            val r = ModuleAuth.getRows(
+                "wn", "work_reports",
+                "select=period_key,version,accepted,seen_at" + myScope +
+                    "&order=submitted_at.desc&limit=400"
+            )
             runOnUiThread {
                 box.removeAllViews()
                 if (r.length() == 0) { box.addView(ModuleUi.body(this, "No reports yet.")); return@runOnUiThread }
