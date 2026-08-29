@@ -1510,6 +1510,10 @@ object ChamberAttendanceRepository {
     fun markArrived(context: android.content.Context, mobile: String, name: String, branch: String, staffMobile: String): String {
         val row = PaymentModel.buildAttendanceMarkRow(mobile, name, branch, staffMobile)
         LocalWorkflowStore(context).upsertPayment(row) // PENDING by default -- visible on this device now
+        /* 🔁🔒 V839 (TK-নির্দেশ) — চেম্বারের আজকের তালিকায় নাম উঠলে রোগী
+           আবার CHECK-UP তালিকায় ফিরবেন। ⛔ নিজের ব্যাকগ্রাউন্ড থ্রেডে চলে,
+           দিনে একবারের পাহারা ভিতরে; এখানকার কাজ এক মুহূর্তও আটকায় না। */
+        NextVisitQueue.reopenForToday(context, mobile)
         val appCtx = context.applicationContext
         BackgroundWork.run {
             val ok = try { SupabaseClient.upsert("payments", row) } catch (_: Throwable) { false }

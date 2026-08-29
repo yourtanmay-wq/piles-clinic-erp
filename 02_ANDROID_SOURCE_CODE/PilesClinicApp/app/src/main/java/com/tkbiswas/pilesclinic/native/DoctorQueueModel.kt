@@ -44,7 +44,10 @@ data class QueuePatient(
     val registrationDate: String = "",
     val nvpLine: String = "",      // "Dressing · সুতো চেঞ্জ · ঔষধ"
     val nvpWhen: String = "",      // "29.08.2026"
-    val nvpBy: String = ""         // "Dr. A. Sarkar"
+    val nvpBy: String = "",        // "Dr. A. Sarkar"
+    val nvpItems: List<String> = emptyList(),   // পপ-আপে পুরো তালিকা
+    val nvpMedicine: String = "",               // কোন ঔষধ
+    val nvpNote: String = ""                    // ডাক্তারের নিজের লেখা
 )
 
 object DoctorQueueModel {

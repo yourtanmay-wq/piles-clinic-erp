@@ -1315,6 +1315,12 @@ class PaymentRepository(private val context: Context? = null) {
             // locally too, so Today's Collection can show it immediately.
             localStore.upsertPayment(paymentRow)
         }
+        /* 🔁🔒 V839 (TK-নির্দেশ: *"Arrived নয় পেমেন্ট করলেও যেন কাজ হয়"*) —
+           টাকা জমা হলে রোগী আবার CHECK-UP তালিকায় ফিরবেন।
+           ⛔ নিজের ব্যাকগ্রাউন্ড থ্রেডে চলে, দিনে একবারের পাহারা ভিতরে;
+              পেমেন্ট সেভের কাজ এক মুহূর্তও আটকায় না, ব্যর্থ হলেও কিছু ভাঙে না।
+           ⛔ টাকার অঙ্ক · হিসাব · রসিদ — কিছুই ছোঁয়া হয়নি। */
+        try { NextVisitQueue.reopenForToday(context, patient.mobile) } catch (_: Throwable) { }
 
         // TK-REPORTED BUG FIX (2026-07-16): this ALSO used to be a single
         // one-shot background attempt with no retry -- exactly the same

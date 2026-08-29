@@ -302,7 +302,10 @@ class DoctorQueueRepository(private val context: Context? = null) {
                 q.copy(
                     nvpLine = e.shortLine(),
                     nvpWhen = if (e.at.length >= 10) FollowUpModel.displayDate(e.at.take(10)) else "",
-                    nvpBy = e.byName
+                    nvpBy = e.byName,
+                    nvpItems = e.items,        // 🩺 V839 — পপ-আপের জন্য, একই পড়া
+                    nvpMedicine = e.medicine,
+                    nvpNote = e.note
                 )
             }
         } catch (_: Throwable) { list }

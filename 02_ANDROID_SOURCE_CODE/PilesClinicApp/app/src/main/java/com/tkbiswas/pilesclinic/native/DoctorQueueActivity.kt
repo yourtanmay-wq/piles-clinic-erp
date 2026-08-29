@@ -94,7 +94,15 @@ class DoctorQueueActivity : AppCompatActivity() {
 
         adapter = DoctorQueueAdapter(
             this, emptyList<QueueRow>(),
-            onCheckup = { openClinical(it, asDoctor = user.role == "doctor", autoOpen = "CHECKUP") },
+            /* 🩺🔒 V839 (২৯.০৮.২০২৬, TK-নির্দেশ: *"আগে মনে করিয়ে দেয়"*) —
+               Check-up চাপলে **ফর্ম খোলার আগে** গত বারের প্ল্যান দেখানো হয়।
+               ⛔ প্ল্যান না থাকলে পপ-আপ আসেই না — সরাসরি আগের মতোই খোলে।
+               ⛔ দিনে **একবারই** (নিচে `nvpReminderShown` দেখুন)। */
+            onCheckup = { p ->
+                showNvpReminderThen(p) {
+                    openClinical(p, asDoctor = user.role == "doctor", autoOpen = "CHECKUP")
+                }
+            },
             // 🔴 TK-নির্দেশ (04.08.2026, আলোচনার পরে — অপশন ১ বেছেছেন):
             // "Journey" বোতাম এখন সরাসরি পূর্ণ চিকিৎসা-ইতিহাস (Full Journey)
             // খোলে -- প্রথম আসার দিনের অভিযোগ থেকে শুরু করে checkup ·
@@ -434,6 +442,60 @@ class DoctorQueueActivity : AppCompatActivity() {
     // jump to the sub-screen) so RoleSession.applyFrom() runs first with
     // THIS patient's extras -- skipping that hub would risk the clinical
     // screen showing a stale/previous patient's data.
+    // ═══════════════════════════════════════════════════════════════════
+    // 🩺🔒 V839 — "গত বারের প্ল্যান" মনে করিয়ে দেওয়ার পপ-আপ
+    // TK-নির্দেশ (২৯.০৮.২০২৬, ফটো-প্রুফ দেখিয়ে অনুমোদিত):
+    //   *"এটা পরের দিন যখন পেশেন্ট আসবে তখন যেন আগে মনে করিয়ে দেয়।"*
+    // ⛔ কোনো বাড়তি ক্লাউড-অনুরোধ নেই — লেখাটা তালিকার সঙ্গেই এসে গেছে।
+    // ⛔ পপ-আপ বন্ধ/OK — দুই পথেই চেকআপ পর্দা আগের মতোই খোলে; কখনো আটকায় না।
+    // ═══════════════════════════════════════════════════════════════════
+
+    /** দিনে একবারের পাহারা — একই রোগীর জন্য আজ আগে দেখানো হয়েছে কি না। */
+    private fun nvpAlreadyShownToday(patientId: String): Boolean {
+        return try {
+            val sp = getSharedPreferences("nvp_reminder", MODE_PRIVATE)
+            val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+                .format(java.util.Date())
+            val seen = sp.getStringSet("shown_" + today, emptySet()) ?: emptySet()
+            if (seen.contains(patientId)) return true
+            val updated = HashSet(seen); updated.add(patientId)
+            /* পুরনো দিনের চাবি জমতে দেওয়া হয় না — আজকেরটা লিখে বাকিগুলো মোছা। */
+            sp.edit().clear().putStringSet("shown_" + today, updated).apply()
+            false
+        } catch (_: Throwable) { false }
+    }
+
+    private fun showNvpReminderThen(p: QueuePatient, go: () -> Unit) {
+        val hasPlan = p.nvpLine.isNotBlank() || p.nvpItems.isNotEmpty() ||
+            p.nvpMedicine.isNotBlank() || p.nvpNote.isNotBlank()
+        val key = p.patientId.ifBlank { p.id }
+        if (!hasPlan || key.isBlank() || nvpAlreadyShownToday(key)) { go(); return }
+
+        val badge = com.tkbiswas.pilesclinic.clinical.NextVisitPlan.oldOrNew(p.registrationDate)
+        val labels = com.tkbiswas.pilesclinic.clinical.NextVisitPlan.OPTIONS
+            .filter { p.nvpItems.contains(it.key) }.map { it.label }
+        val body = StringBuilder()
+        val whenBy = listOfNotNull(p.nvpWhen.ifBlank { null }, p.nvpBy.ifBlank { null })
+            .joinToString(" · ")
+        if (whenBy.isNotBlank()) body.append(whenBy).append("\n\n")
+        if (labels.isEmpty()) body.append("• ").append(p.nvpLine).append("\n")
+        else for (l in labels) body.append("• ").append(l).append("\n")
+        if (p.nvpMedicine.isNotBlank()) body.append("\nMedicine: ").append(p.nvpMedicine).append("\n")
+        if (p.nvpNote.isNotBlank()) body.append("\n").append(p.nvpNote).append("\n")
+
+        val title = p.name.ifBlank { "Patient" } +
+            (if (badge.isNotBlank()) "  ($badge)" else "") + " — Last plan"
+        try {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(title)
+                .setMessage(body.toString().trim())
+                .setPositiveButton("OK") { _, _ -> go() }
+                .setOnCancelListener { go() }
+                .show()
+                .also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }
+        } catch (_: Throwable) { go() }   // পপ-আপ ব্যর্থ হলেও পর্দা কখনো আটকাবে না
+    }
+
     private fun openClinical(patient: QueuePatient, asDoctor: Boolean, autoOpen: String? = null) {
         // 🔒🔒 খাতার সারি B179 (TK, 30.07.2026 — TK-এর স্পষ্ট অনুমতি: "জায়গাতেও
         // ঠিক করতে চাই")। `QueuePatient`-এ address/age/sex নেই, তাই এখানে

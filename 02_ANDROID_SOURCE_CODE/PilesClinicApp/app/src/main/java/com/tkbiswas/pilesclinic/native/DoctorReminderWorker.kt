@@ -34,6 +34,12 @@ class DoctorReminderWorker(
             val user = NativeSession.current(ctx)
             // ⛔ শুধু ডাক্তার — TK-এর স্পষ্ট নির্দেশ ("শুধু ডাক্তার")।
             if (user != null && user.role == "doctor") {
+                /* 🔔🔒 V839 (TK-নির্দেশ) — NEXT VISIT PLAN-এর দুটো নোটিফিকেশন
+                   (কাল কী আছে · রোগী এসেছেন) **এই চলতি কাজের ভিতরেই** —
+                   নতুন কোনো WorkManager কাজ নয়, তাই ব্যাটারিতে বাড়তি চাপ নেই।
+                   ⛔ নিজের try/catch-এ; ব্যর্থ হলেও নিচের পুরনো রিমাইন্ডার
+                      এক অক্ষরও প্রভাবিত হয় না। */
+                try { NextVisitPlanNotifier.run(ctx) } catch (_: Throwable) { }
                 val now = Calendar.getInstance()
                 val todayKey = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(now.time)
                 val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
