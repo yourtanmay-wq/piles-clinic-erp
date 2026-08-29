@@ -118,6 +118,15 @@ class DoctorQueueRepository(private val context: Context? = null) {
                         .put("mobile", q.mobile).put("disease", q.disease).put("branch", q.branch)
                         .put("photo", photo).put("updatedAt", q.updatedAt).put("createdAt", q.createdAt)
                         .put("bill", q.bill)
+                        /* 🩺🔒 V839 — নেট না থাকলেও কার্ডে ট্যাগ ও OLD/NEW যেন
+                           থাকে, তাই জমানো তালিকাতেও ঘরগুলো লেখা হয়।
+                           ⛔ এটা শুধু ফোনের ভিতরের জমা — ক্লাউডে কিছু যায় না,
+                              Egress-এ কোনো প্রভাব নেই। */
+                        .put("registrationDate", q.registrationDate)
+                        .put("nvpLine", q.nvpLine).put("nvpWhen", q.nvpWhen)
+                        .put("nvpBy", q.nvpBy).put("nvpMedicine", q.nvpMedicine)
+                        .put("nvpNote", q.nvpNote)
+                        .put("nvpItems", q.nvpItems.joinToString(","))
                         // queue/doctorComplete/stage aren't needed back -- isInQueue() isn't
                         // re-applied to cached data, it's only used for the raw fetch above.
                 )

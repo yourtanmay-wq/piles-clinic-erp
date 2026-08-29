@@ -27,8 +27,8 @@ import java.util.Locale
  * (IMPORTANCE_HIGH · আওয়াজ · কাঁপুনি · আলো)। নতুন কিছু বানানো হয়নি।
  *
  * ### 🚨 Egress — মেপে বসানো
- * · **ক (আগের দিন):** `patients?nextVisitPlan=not.is.null` নয় — বরং
- *   সন্ধ্যার নির্দিষ্ট জানালায় **দিনে একবারই** একটামাত্র সরু পড়া।
+ * · **ক (আগের দিন):** সন্ধ্যার নির্দিষ্ট জানালায় **দিনে একবারই** একটামাত্র
+ *   সরু পড়া, আর ছাঁকনি "যাঁদের প্ল্যান আছে" — প্ল্যানহীন সারি একটাও নামে না।
  * · **খ (রোগী এলে):** শুধু **গত ২০ মিনিটে বদলানো** সারি
  *   (`updatedAt=gt.…`) — সাধারণত ০–৩টা সারি। এটাই সবচেয়ে সস্তা পথ,
  *   কারণ `NextVisitQueue` রোগী ফেরানোর সময় `updatedAt` আজকের করে দেয়।
@@ -76,8 +76,14 @@ object NextVisitPlanNotifier {
             val tomorrow = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, 1) }
             val tKey = ymd(tomorrow.time)
 
+            /* 🔴🔒 V839 — **নিজের অডিটে ধরা পড়া ভুল** (TK আলাদা করে বলেননি):
+               আগে এখানে `doctorComplete=is.false` ছাঁকনি ছিল। কিন্তু ডাক্তার
+               প্ল্যান লিখে Save করলেই `doctorComplete=true` বসে যায় ⇒ ঠিক
+               যাঁদের জন্য এই নোটিফিকেশন, তাঁরাই বাদ পড়ে যেতেন — **কোনোদিন
+               বাজতই না**। এখন ছাঁকনি "যাঁদের প্ল্যান আছে" — এটাই সঠিক, আর
+               সস্তাও (প্ল্যানহীন সারি একটাও নামে না)। */
             val rows = SupabaseClient.fetchListSlimOrNull(
-                "patients", "doctorComplete=is.false" + branchFilter(branch), 300,
+                "patients", NextVisitPlan.FIELD + "=not.is.null" + branchFilter(branch), 300,
                 "id,name,registrationDate," + NextVisitPlan.FIELD
             ) ?: return
 

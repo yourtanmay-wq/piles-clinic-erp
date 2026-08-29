@@ -92,9 +92,11 @@ object NextVisitPlan {
         SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).format(Date())
 
     /** সারির ঘরটা তালিকা হিসেবে পড়া। ফাঁকা/অচেনা হলে খালি তালিকা (নীরবে)।
+     *  ⛔ নাম `entriesOf` — `listOf` নয়, কারণ ওটা Kotlin-এর নিজের নামের সাথে
+     *     সংঘর্ষ করত; এখন কাজ করলেও ভবিষ্যতে লুকানো ভুলের ফাঁদ হত।
      *  ⛔ ঘরটা কখনো লেখা (string) হয়ে এলেও সামলানো হয় — পুরনো ওয়েব-সারি
      *     এভাবেই আসতে পারে (প্রজেক্টের `doctorFullNote`-এ একই ব্যবস্থা আছে)। */
-    fun listOf(row: JSONObject?): List<Entry> {
+    fun entriesOf(row: JSONObject?): List<Entry> {
         if (row == null) return emptyList()
         val arr: JSONArray = row.optJSONArray(FIELD) ?: try {
             val raw = row.optString(FIELD, "")
@@ -127,7 +129,7 @@ object NextVisitPlan {
 
     /** সবচেয়ে নতুন প্ল্যান — না থাকলে `null`.
      *  ⛔ তালিকার **শেষেরটাই** নতুন (নতুন সারি শেষে যোগ হয়)। */
-    fun latest(row: JSONObject?): Entry? = listOf(row).lastOrNull { !it.isEmpty }
+    fun latest(row: JSONObject?): Entry? = entriesOf(row).lastOrNull { !it.isEmpty }
 
     /** নতুন সারি **যোগ** করা — পুরনো তালিকা হুবহু রেখে।
      *  ⛔ কখনো পুরনো সারি মোছে না বা বদলায় না। */

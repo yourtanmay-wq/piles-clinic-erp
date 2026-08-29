@@ -101,7 +101,15 @@ object DoctorQueueModel {
         updatedAt = row.s("updatedAt"),
         createdAt = row.s("createdAt"),
         bill = row.optDouble("bill", 0.0),
-        registrationDate = row.s("registrationDate")   // 🩺 V839 — OLD/NEW ঠিক করতে
+        registrationDate = row.s("registrationDate"),   // 🩺 V839 — OLD/NEW ঠিক করতে
+        /* 🩺 V839 — ঘরগুলো **শুধু জমানো তালিকায়** থাকে (ক্লাউডের সারিতে
+           থাকে না), তাই ওখানে না পেলে ফাঁকাই থাকে — কিছুই ভাঙে না। */
+        nvpLine = row.s("nvpLine"),
+        nvpWhen = row.s("nvpWhen"),
+        nvpBy = row.s("nvpBy"),
+        nvpItems = row.s("nvpItems").split(",").map { it.trim() }.filter { it.isNotEmpty() },
+        nvpMedicine = row.s("nvpMedicine"),
+        nvpNote = row.s("nvpNote")
     )
 
     /** Newest first, matching visitQueueRows()'s sort by
