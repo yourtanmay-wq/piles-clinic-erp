@@ -298,6 +298,18 @@ object NoBengali {
               হুবহু একই ভুল উঠত, মিলিয়ে দেখা হয়েছে)।
            ⛔ WHOLE-এ রাখা হলো, MAP-এ নয় — WHOLE **গোটা লেখাটা হুবহু** মেলায়,
               তাই অন্য কোনো পর্দার একটা অক্ষরও ছোঁয়ার পথ নেই (সংঘর্ষ ০)। */
+        // 🪟 V845 (৩০.০৮.২০২৬) — কল-স্ক্রিনের উপরের ভাসমান কার্ড ও
+        // তার অনুমতি চাওয়ার পপ-আপের লেখা।
+        "গত রিমার্ক" to "Last remark",
+        "কল এলে রোগীর তথ্য পর্দায় দেখতে" to "See patient details when a call comes",
+        "কল-স্ক্রিনের উপরে রোগীর তথ্য দেখাতে একটা অনুমতি লাগে" to
+            "To show patient details over the call screen, one permission is needed",
+        "পরের পর্দায় এই অ্যাপটা বেছে চালু করে দিন" to
+            "On the next screen, pick this app and switch it on",
+        "না দিলেও কিছু নষ্ট হবে না — আগের মতোই নোটিফিকেশন আসবে।" to
+            "Nothing breaks if you skip it - the notification will come as before.",
+        "চালু করি" to "Turn on",
+        "এখন নয়" to "Not now",
         "Expense / ব্যায়" to "Expense",
         "Reason (কারণ)" to "Reason",
         /* 🟢🔒 V591 (২৩.০৮.২০২৬) — পরামর্শের এই লাইনগুলো **একাই সম্পূর্ণ**

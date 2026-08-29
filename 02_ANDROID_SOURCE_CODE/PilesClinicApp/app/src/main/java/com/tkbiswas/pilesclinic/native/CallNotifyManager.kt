@@ -305,6 +305,75 @@ object CallNotifyManager {
             }
 
             nm.notify(NOTIF_ID, builder.build())
+
+            /* 🪟🔒 V845 (৩০.০৮.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) —
+               নোটিফিকেশনের **ঠিক পাশাপাশি** কল-স্ক্রিনের উপরে ভাসমান কার্ড।
+               TK: *"ফোন কল যখন আসবে তখনই যেন স্ক্রিনের ডিসপ্লেতে দেখা যায়।"*
+
+               ⛔ **নোটিফিকেশনের একটা অক্ষরও বদলায়নি** — ওটা আগের মতোই যায়।
+                  কার্ডটা শুধু বাড়তি; অনুমতি না থাকলে চুপচাপ কিছুই হয় না।
+               ⛔ **কল বাজা ও কল চলা** — এই দুই অবস্থাতেই দেখায়; কল কেটে গেলে
+                  (`ended`) সরে যায়, কারণ তখন পর্দা এমনিতেই খালি, আর
+                  নোটিফিকেশন তো থেকেই যাচ্ছে।
+               ⛔ **কোনো বাড়তি ক্লাউড-পড়া নেই** — উপরে তৈরি হওয়া `title` ·
+                  `lines` · `existingRemark`-ই ব্যবহার হয়। Egress শূন্য।
+               ⛔ কার্ড কল ধরার/কাটার বোতাম কেড়ে নেয় না (NOT_FOCUSABLE)। */
+            try {
+                if (ended) {
+                    CallOverlay.hide(ctx)
+                } else if (CallOverlay.allowed(ctx)) {
+                    val ovNumber = number
+                    val ovName = cln(match?.name)
+                    val ovLines = if (match != null) lines.toList() else listOf("Not saved anywhere in the app")
+                    val ovRemark = existingRemark
+                    val ovSaved = match != null
+                    val ovIsRmp = match?.isRmp == true
+                    val ovBranch = cln(match?.branch)
+                    val ovPatientId = cln(match?.patientId)
+                    val app = ctx.applicationContext
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        CallOverlay.show(
+                            ctx = app,
+                            number = ovNumber,
+                            name = ovName,
+                            lines = ovLines,
+                            lastRemark = ovRemark,
+                            saved = ovSaved,
+                            onOpen = {
+                                /* ⛔ V844-এর হুবহু একই গন্তব্য — নতুন নিয়ম নয়। */
+                                val i = when {
+                                    !ovSaved -> Intent(app, EnquiryActivity::class.java)
+                                        .putExtra("prefillMobile", ovNumber)
+                                    ovIsRmp -> Intent(app, DoctorVisitActivity::class.java)
+                                        .putExtra("searchMobile", ovNumber)
+                                        .putExtra("searchBranch", ovBranch)
+                                    else -> Intent(app, PatientTimelineActivity::class.java)
+                                        .putExtra("mobile", ovNumber)
+                                        .putExtra("preName", ovName)
+                                        .putExtra("preBranch", ovBranch)
+                                        .putExtra("prePatientId", ovPatientId)
+                                }.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                try { app.startActivity(i) } catch (_: Throwable) { }
+                            },
+                            onRemark = {
+                                /* ⛔ "📝 Add Remark" বোতামের হুবহু একই পর্দা ও extras। */
+                                val i = Intent(app, CallRemarkActivity::class.java)
+                                    .putExtra("mobile", ovNumber)
+                                    .putExtra("direction", direction)
+                                    .putExtra("patientId", match?.patientId.orEmpty())
+                                    .putExtra("patientName", match?.name.orEmpty())
+                                    .putExtra("branch", match?.branch.orEmpty())
+                                    .putExtra("calledAt", calledAt)
+                                    .putExtra("followupId", if (match != null && !match.isRmp) match.id else "")
+                                    .putExtra("rmpId", if (match != null && match.isRmp) match.id else "")
+                                    .putExtra("existingRemark", ovRemark)
+                                    .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                try { app.startActivity(i) } catch (_: Throwable) { }
+                            }
+                        )
+                    }
+                }
+            } catch (_: Throwable) { /* কার্ড না দেখানো গেলেও কল/অ্যাপ কখনো আটকাবে না */ }
         } catch (_: Throwable) {
             // নোটিফিকেশন ব্যর্থ হলেও কল/অ্যাপ কখনো আটকাবে না।
         }

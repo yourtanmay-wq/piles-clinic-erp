@@ -329,6 +329,7 @@ class DashboardActivity : AppCompatActivity() {
         remindPendingRemarks(session)   // 🔒 খাতার সারি B51
         requestNotificationPermissionIfNeeded()
         requestIgnoreBatteryOptimizationsIfNeeded()
+        requestOverlayPermissionIfNeeded()   // 🪟 V845
     }
 
     /*
@@ -439,6 +440,38 @@ class DashboardActivity : AppCompatActivity() {
     // অনুমতি থাকলে বা আগেই একবার জিজ্ঞাসা করা হয়ে থাকলে কিছুই হয় না। ⛔
     // ব্যর্থ হলেও (কোনো ফোনে এই সিস্টেম-স্ক্রিন না থাকলে) অ্যাপ ক্র্যাশ
     // করবে না — পুরো ফাংশন try/catch-এ ঢাকা।
+    /* 🪟🔒 V845 (৩০.০৮.২০২৬, TK-নির্দেশ) — কল বাজার সময় কল-স্ক্রিনের উপরে
+       কার্ড দেখাতে "Display over other apps" অনুমতি লাগে। এটা special
+       অনুমতি — কোড থেকে দেওয়া যায় না, স্টাফকে **একবার হাতে** চালু করতে হয়।
+
+       ⛔ উপরের `requestIgnoreBatteryOptimizationsIfNeeded()`-এর **হুবহু একই
+          প্রমাণিত ধাঁচ**: জীবনে একবারই জিজ্ঞেস করে, না দিলে আর জ্বালায় না।
+       ⛔ না দিলে **কিচ্ছু ভাঙে না** — আজকের মতোই নোটিফিকেশন আসবে।
+       ⛔ পুরোটা try/catch-এ — কোনো ফোনে এই সিস্টেম-পর্দা না থাকলেও
+          Dashboard কখনো ক্র্যাশ করবে না। */
+    private fun requestOverlayPermissionIfNeeded() {
+        try {
+            if (CallOverlay.allowed(this)) return
+            val prefs = getSharedPreferences("piles_clinic_overlay_perm", android.content.Context.MODE_PRIVATE)
+            if (prefs.getBoolean("asked_once", false)) return
+            prefs.edit().putBoolean("asked_once", true).apply()
+            /* ⛔ প্রজেক্টের নিজের প্রমাণিত ধাঁচ (উপরের crash-log ডায়ালগের
+               হুবহু একই): AlertDialog + PremiumAlert.header/paint। */
+            AlertDialog.Builder(this)
+                .setCustomTitle(PremiumAlert.header(this, NoBengali.s("কল এলে রোগীর তথ্য পর্দায় দেখতে")))
+                .setMessage(
+                    NoBengali.s("কল-স্ক্রিনের উপরে রোগীর তথ্য দেখাতে একটা অনুমতি লাগে") +
+                    " — \"Display over other apps\"\n\n" +
+                    NoBengali.s("পরের পর্দায় এই অ্যাপটা বেছে চালু করে দিন") + "\n\n" +
+                    NoBengali.s("না দিলেও কিছু নষ্ট হবে না — আগের মতোই নোটিফিকেশন আসবে।"))
+                .setPositiveButton(NoBengali.s("চালু করি")) { _, _ ->
+                    CallOverlay.openPermissionScreen(this)
+                }
+                .setNegativeButton(NoBengali.s("এখন নয়"), null)
+                .show().also { PremiumAlert.paint(it) }
+        } catch (_: Throwable) { }
+    }
+
     private fun requestIgnoreBatteryOptimizationsIfNeeded() {
         try {
             val pm = getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
