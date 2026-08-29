@@ -17554,8 +17554,29 @@ function wlv1ChamberRowHtml(r){
   // কার্ড) যেভাবে ব্যবহার হয় তা ছোঁয়া হয়নি — শুধু এই Chamber Date টেবিলের
   // একটা কলাম।
   const isAutoStubRemark = treat.toLowerCase() === 'registered patient / visit created';
-  const treatHtml = (treat && !isAutoStubRemark) ? `<span>${esc(treat)}</span>`
-                          : `<span style="color:#C47B00">${isAutoStubRemark ? 'Nothing written — tap to add' : '\u2014'}</span>`;
+  /* 🔆🔒 V830 (২৯.০৮.২০২৬, TK-নির্দেশ: *"আগে যা লেখা ছিল সেটা হাইড থাকবে,
+     অর্থাৎ উজ্জ্বলতা কম থাকবে; যখন লেখা হবে তখন ওটা উজ্জ্বল হয়ে যাবে"*)।
+
+     ─── যাচাই করে যা পাওয়া গেল (আন্দাজ নয়) ──────────────────────────────
+     এই নিয়মটা **ফোনে আগে থেকেই আছে** — `ChamberAttendanceAdapter.kt`-এ
+     V668-এ বসানো, TK-এর ওই একই কথায়। কিন্তু **কম্পিউটারে বাদ পড়েছিল**:
+     এখানে আজকের আর পুরনো লেখা **একই উজ্জ্বলতায়** দেখাত, তাই স্টাফ বুঝতেই
+     পারতেন না আজ কিছু লেখা হয়েছে কি না।
+
+     এখন ফোনের **হুবহু একই তিনটে রং** (নতুন কিছু বানানো হয়নি):
+       · আজকের লেখা      → #0B4F2A গাঢ় সবুজ, মোটা হরফ (উজ্জ্বল)
+       · আগের দিনের লেখা → #9AA4B2 হালকা ধূসর (ম্লান)
+       · কিছুই লেখা নেই   → #C47B00 (আগের মতোই)
+     ⛔ তারিখ মেলানোর নিয়মও ফোনের হুবহু এক (`remarkUpdatedAt` ↔
+        `treatmentUpdatedAt`-এর প্রথম ১০ অক্ষর আজকের সঙ্গে মেলানো)।
+     ⛔ শুধু **রং ও মোটা হরফ** — কোন লেখা দেখাবে, কোথায় বসবে, চেম্বার বন্ধের
+        পাহারা (V810) কিচ্ছু বদলায়নি। */
+  const isTreatFromToday = String(r.treatmentUpdatedAt||'').slice(0,10) === today();
+  const treatHtml = (treat && !isAutoStubRemark)
+    ? (isTreatFromToday
+        ? `<span style="color:#0B4F2A;font-weight:700">${esc(treat)}</span>`
+        : `<span style="color:#9AA4B2">${esc(treat)}</span>`)
+    : `<span style="color:#C47B00">${isAutoStubRemark ? 'Nothing written — tap to add' : '\u2014'}</span>`;
   const feeHtml = Number(r.fee||0)>0 ? `<span style="color:#334155">${money(r.fee)}</span>`
                                      : `<span style="color:#8A97AB">OLD</span>`;
   /* 🟢🔒 V588 (২৩.০৮.২০২৬, TK-নির্দেশ, ছবিসহ) — *"নাম · তার নিচে মোবাইল · তার
