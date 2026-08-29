@@ -18473,7 +18473,9 @@ function wlv1SearchCard(r){
       <button class="wlv1SAct wlv1SFull" onclick="wlv1SearchPrint('${m}')"><span>\u{1F5A8}\uFE0F</span><b>Print</b></button>
       ${/* 📝 V826 — TK-নির্দেশ: Remarks ও Mark Arrived পাশাপাশি */''}
       ${act('\u{1F5D2}\uFE0F','Write Remark',true,`wlv1SearchRemark('${m}')`)}
-      ${act('\u{1F3E5}','Mark Arrived (এসেছেন)',true,`wlv1MarkArrived('${m}')`)}
+      ${/* ⛔ V826 — TK-এর অনুমতি নিয়ে লেখাটা ছোট (অর্ধেক জায়গায় কাটার ভয় নেই)।
+            শুধু এই Search কার্ডে; অন্য পর্দায় লেখাটা আগের মতোই পুরো আছে। */''}
+      ${act('\u{1F3E5}','Mark Arrived',true,`wlv1MarkArrived('${m}')`)}
     </div>
   </div>`;
 }
