@@ -132,7 +132,28 @@ object PatientModel {
     }
 
     /** Builds the "patients" row, matching savePatient()'s field-for-field. */
-    fun buildPatientRow(draft: RegistrationDraft, patientId: String, createdByMobile: String, existingRowId: String = ""): JSONObject {
+    /* 🔴🔒🔒 V868 (৩০.০৮.২০২৬, TK-রিপোর্ট ছবিসহ — RAJA MANDAL কার্ড):
+       *"ওই স্টাফ নিজে ফরম ফিলাপ করেছিল, তখন দেখিয়েছিল তার আইডি —
+       কিন্তু ভবিষ্যতে কেন বদলে গেল?"*
+
+       **আসল দোষ (কোড ধরে যাচাই করা, আন্দাজ নয়):** রোগীর সারি **আবার সেভ**
+       হলে (Update Existing · টাইপো সংশোধন) এই ফাংশনটা `createdBy`,
+       `registeredBy` ও `createdAt`-এ **যে তখন লগইন আছে তার নম্বর ও এখনকার
+       সময়** বসিয়ে দিত — আসল রেজিস্ট্রারের নাম ও আসল সময় মুছে যেত।
+
+       **এখন:** সারিটা আগে থেকে থাকলে ওই তিনটে ঘরে **পুরোনো মানই** ফিরে বসে
+       (`keep…` তিনটে)। ফাঁকা পাঠালে আগের মতোই এখনকার লগইন/সময় বসে, তাই
+       **নতুন রেজিস্ট্রেশন এক অক্ষরও বদলায়নি**।
+       ⛔ বাকি প্রতিটা ঘর হুবহু আগের মতোই। */
+    fun buildPatientRow(
+        draft: RegistrationDraft,
+        patientId: String,
+        createdByMobile: String,
+        existingRowId: String = "",
+        keepCreatedBy: String = "",
+        keepRegisteredBy: String = "",
+        keepCreatedAt: String = ""
+    ): JSONObject {
         val now = isoNow()
         val diagnosis = draft.diseases.joinToString(", ")
         val symptomsJoined = draft.symptoms.joinToString(", ")
@@ -193,8 +214,8 @@ object PatientModel {
             // জিনিস) ছোঁয়া হয়নি, শুধু নতুন এই একটা কলাম।
             .put("previousTreatment", draft.prevTreatmentNote)
             .put("photo", draft.photo)
-            .put("createdBy", createdByMobile)
-            .put("registeredBy", createdByMobile)
+            .put("createdBy", keepCreatedBy.ifBlank { createdByMobile })
+            .put("registeredBy", keepRegisteredBy.ifBlank { createdByMobile })
             .put("stage", "Doctor Queue")
             .put("queue", true)
             .put("doctorComplete", false)
@@ -204,7 +225,7 @@ object PatientModel {
             // patientRow the same way disease/address/age/sex already are,
             // so buildVisitFollowUpRow below can read it back.
             .put("timeType", draft.timeType)
-            .put("createdAt", now)
+            .put("createdAt", keepCreatedAt.ifBlank { now })
             .put("updatedAt", now)
     }
 
@@ -233,10 +254,15 @@ object PatientModel {
      * ⛔ পুরোনো সারি না পেলে (নতুন রোগী · নেট নেই) আগের হুবহু আচরণ — নতুন আইডি
      *    ও "Registered patient / Visit created" লেখা।
      */
+    /* 🔴🔒 V868 — উপরের একই দোষ এখানেও ছিল: Follow-up (Visit) সারি
+       আবার লেখা হলে `createdBy`/`createdAt`-এ নতুন লগইনের নাম ও সময় বসত।
+       এখন পুরোনো সারি হলে পুরোনো মানই থাকে। */
     fun buildVisitFollowUpRow(
         patientRow: JSONObject,
         staffMobile: String,
-        existingFollowUpRowId: String = ""
+        existingFollowUpRowId: String = "",
+        keepCreatedBy: String = "",
+        keepCreatedAt: String = ""
     ): JSONObject {
         val now = isoNow()
         val visitDate = patientRow.getString("visitDate")
@@ -271,8 +297,8 @@ object PatientModel {
             // above). optString default keeps this safe even for any
             // existing/older patientRow that doesn't have it.
             .put("timeType", patientRow.s("timeType").ifBlank { "Official Time" })
-            .put("createdBy", staffMobile)
-            .put("createdAt", now)
+            .put("createdBy", keepCreatedBy.ifBlank { staffMobile })
+            .put("createdAt", keepCreatedAt.ifBlank { now })
             .put("updatedAt", now)
         if (!reuse) {
             /* নতুন সারি — আগের মতোই ইতিহাস, লেখা ও গণনা বসে। */

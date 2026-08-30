@@ -8450,7 +8450,7 @@ async function savePatient(evt){
 
   if(updatingExistingPatient&&patientDup){
    let old={...patientDup};
-   p={...old,...p,id:old.id,patientId:old.patientId||p.patientId,createdAt:old.createdAt||p.createdAt,createdBy:old.createdBy||p.createdBy,previousMobiles:Array.from(new Set([...(old.previousMobiles||[]),mob(old.mobile)].filter(Boolean))),history:[...(old.history||[]),{date:today(),type:'Registration Update',staff:user?.mobile||'',note:'Same patient re-registration updated old record'}]};
+   p={...old,...p,id:old.id,patientId:old.patientId||p.patientId,createdAt:old.createdAt||p.createdAt,createdBy:old.createdBy||p.createdBy,registeredBy:old.registeredBy||old.createdBy||p.registeredBy,previousMobiles:Array.from(new Set([...(old.previousMobiles||[]),mob(old.mobile)].filter(Boolean))),history:[...(old.history||[]),{date:today(),type:'Registration Update',staff:user?.mobile||'',note:'Same patient re-registration updated old record'}]};
   }
   // V175 selective safe fix: registration success must create one patient row that is always visible in Visit/Doctor Queue.
   // Registration fee is optional. Payment/photo/cloud side-effects must never remove queue=true.
@@ -8476,8 +8476,17 @@ async function savePatient(evt){
   let cloudDupExists=false;
   if(!updatingExistingPatient && typeof sb!=='undefined' && sb){
     try{
-      let cres=await sb.from('patients').select('id').eq('id',p.id).limit(1);
-      if(!cres.error && Array.isArray(cres.data) && cres.data.length>0) cloudDupExists=true;
+      // V868 (TK-রিপোর্ট, RAJA MANDAL কার্ড) — সারিটা ক্লাউডে আগে থেকে থাকলে
+      // আসল রেজিস্ট্রারের নাম ও আসল সময় এই একই অনুরোধেই আনা হয়, যাতে
+      // দ্বিতীয়বার সেভে সেগুলো নতুন লগইনের নামে বদলে না যায়।
+      let cres=await sb.from('patients').select('id,createdBy,registeredBy,createdAt').eq('id',p.id).limit(1);
+      if(!cres.error && Array.isArray(cres.data) && cres.data.length>0){
+        cloudDupExists=true;
+        let old=cres.data[0]||{};
+        if(old.createdBy)p.createdBy=old.createdBy;
+        if(old.registeredBy||old.createdBy)p.registeredBy=old.registeredBy||old.createdBy;
+        if(old.createdAt)p.createdAt=old.createdAt;
+      }
     }catch(_e){}
   }
   let rows=load('patients').filter(x=>x.id!==p.id);

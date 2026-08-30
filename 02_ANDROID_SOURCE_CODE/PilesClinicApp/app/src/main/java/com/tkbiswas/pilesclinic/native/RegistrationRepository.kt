@@ -151,6 +151,13 @@ class RegistrationRepository(private val context: Context) {
         // ব্যর্থ হলে (নেট সমস্যা) আগের আচরণই চলে — নতুন কোনো ব্লক নেই।
         var effectiveRowId = existingRowId
         var effectivePatientId = existingPatientId
+        /* 🔴🔒🔒 V868 (TK-রিপোর্ট, RAJA MANDAL কার্ড) — আসল রেজিস্ট্রারের নাম
+           ও আসল সময় ধরে রাখার তিনটে ঘর। সারিটা আগে থেকে থাকলে নিচে এগুলো
+           ভরা হয়, আর `buildPatientRow`/`buildVisitFollowUpRow` পুরোনো মানই
+           বসায় — দ্বিতীয়বার সেভেও নাম বদলায় না। */
+        var keepCreatedBy = ""
+        var keepRegisteredBy = ""
+        var keepCreatedAt = ""
         /* 🔴🔵🔒 V516 (TK-অনুমোদিত): নিচের B455-পাহারাটা মোবাইল থেকে তৈরি স্থায়ী
            আইডি (`pat_<মোবাইল>`) ধরে খোঁজে — অর্থাৎ **ওই নম্বরের প্রথম রোগীকে**।
            রোজকার সেভে ওটাই ঠিক (একই রোগী দুবার সেভ হলে Visit Fee দুবার কাটে না)।
@@ -162,11 +169,34 @@ class RegistrationRepository(private val context: Context) {
         if (effectiveRowId.isBlank() && forceNewPatientRowId.isBlank()) {
             try {
                 val stableId = PatientModel.stableRowId(draft.mobileDigitsOnly)
-                val existing = SupabaseClient.fetchListOrNull("patients", "id=eq.$stableId", 1, select = "id,patientId")
+                // 🟢 V868 — তিনটে ঘর **এই একই অনুরোধেই** আসে, নতুন কোনো পড়া নয়।
+                val existing = SupabaseClient.fetchListOrNull(
+                    "patients", "id=eq.$stableId", 1,
+                    select = "id,patientId,createdBy,registeredBy,createdAt")
                 if (existing != null && existing.length() > 0) {
                     val row = existing.getJSONObject(0)
                     effectiveRowId = row.s("id")
                     effectivePatientId = row.s("patientId").ifBlank { existingPatientId }
+                    keepCreatedBy = row.s("createdBy")
+                    keepRegisteredBy = row.s("registeredBy")
+                    keepCreatedAt = row.s("createdAt")
+                }
+            } catch (_: Throwable) { }
+        }
+        /* 🟢 V868 — "Update Existing"-এর পথে উপরের যাচাইটা চলে না (আইডি
+           আগে থেকেই জানা)। তাই ঠিক তখনই, শুধু ওই একটা সারির তিনটে ছোট ঘর
+           একবার আনা হয়। ⛔ নতুন রেজিস্ট্রেশনে এটা চলে না ⇒ রোজকার কাজে
+           Egress এক বাইটও বাড়ে না। ⛔ না আনতে পারলে আগের আচরণই চলে। */
+        if (effectiveRowId.isNotBlank() && keepCreatedBy.isBlank() && keepRegisteredBy.isBlank()) {
+            try {
+                val own = SupabaseClient.fetchListOrNull(
+                    "patients", "id=eq.$effectiveRowId", 1,
+                    select = "createdBy,registeredBy,createdAt")
+                if (own != null && own.length() > 0) {
+                    val row = own.getJSONObject(0)
+                    keepCreatedBy = row.s("createdBy")
+                    keepRegisteredBy = row.s("registeredBy")
+                    keepCreatedAt = row.s("createdAt")
                 }
             } catch (_: Throwable) { }
         }
@@ -181,7 +211,9 @@ class RegistrationRepository(private val context: Context) {
            ⛔ Follow-up (Visit) সারিও এই নতুন আইডি ধরেই তৈরি হয়, তাই প্রথম
               রোগীর Follow-up-এ হাত পড়ে না। */
         val rowIdForSave = existingRowIdSafe.ifBlank { forceNewPatientRowId }
-        val patientRow = PatientModel.buildPatientRow(draft, patientId, staffMobile, rowIdForSave)
+        val patientRow = PatientModel.buildPatientRow(
+            draft, patientId, staffMobile, rowIdForSave,
+            keepCreatedBy, keepRegisteredBy, keepCreatedAt)
         /* 🔴🔒 V399 (16.08.2026, TK-রিপোর্ট ছবিসহ — "২ বার ৩ বার হয়ে যাচ্ছে"):
            এই রোগীর Follow-up (Visit) সারি ক্লাউডে আগে থেকেই আছে কিনা দেখা হয় —
            থাকলে **সেটার আইডিই** ব্যবহার হয়, তাই নতুন সারি আর তৈরি হয় না।
@@ -190,15 +222,25 @@ class RegistrationRepository(private val context: Context) {
            ⛔ স্থানীয় স্টোরে আগে থেকেই (মোবাইল+stage) মিলিয়ে আপডেট হয়
               (`LocalWorkflowStore.upsertFollowUp`), তাই সমস্যাটা শুধু ক্লাউডেই ছিল। */
         var existingFollowUpRowId = ""
+        var keepFuCreatedBy = ""
+        var keepFuCreatedAt = ""
         try {
             val refForFu = patientRow.s("id")
             if (refForFu.isNotBlank()) {
+                // 🟢 V868 — createdBy/createdAt **এই একই অনুরোধেই**, নতুন পড়া নয়।
                 val fu = SupabaseClient.fetchListOrNull(
-                    "followups", "refId=eq.$refForFu&stage=eq.Patient", 1, select = "id")
-                if (fu != null && fu.length() > 0) existingFollowUpRowId = fu.getJSONObject(0).s("id")
+                    "followups", "refId=eq.$refForFu&stage=eq.Patient", 1,
+                    select = "id,createdBy,createdAt")
+                if (fu != null && fu.length() > 0) {
+                    val row = fu.getJSONObject(0)
+                    existingFollowUpRowId = row.s("id")
+                    keepFuCreatedBy = row.s("createdBy")
+                    keepFuCreatedAt = row.s("createdAt")
+                }
             }
         } catch (_: Throwable) { }
-        val visitFollowUpRow = PatientModel.buildVisitFollowUpRow(patientRow, staffMobile, existingFollowUpRowId)
+        val visitFollowUpRow = PatientModel.buildVisitFollowUpRow(
+            patientRow, staffMobile, existingFollowUpRowId, keepFuCreatedBy, keepFuCreatedAt)
         // TK-REPORTED BUG FIX (2026-07-25): this used to build+queue a brand
         // new Visit Fee payment row EVERY time save() ran, even via "Update
         // Existing" on the duplicate-mobile popup -- so re-saving an

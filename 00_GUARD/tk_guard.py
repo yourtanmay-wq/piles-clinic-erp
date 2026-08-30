@@ -582,6 +582,48 @@ def check_r_import():
             fail("৯.৩৮", f"{b} — `R.` ব্যবহার হয়েছে কিন্তু `import com.tkbiswas.pilesclinic.R` নেই ⇒ Android Studio-তে `Unresolved reference: R` (৩০.০৮.২০২৬-এ ধরা পড়া বিল্ড-এরর)")
 
 
+# ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯.৩৯ — 🧑‍💼 আসল রেজিস্ট্রারের নাম কখনো বদলাবে না
+#  (TK-রিপোর্ট ৩০.০৮.২০২৬, ছবিসহ — RAJA MANDAL কার্ডে JPE-CRP-এর নাম
+#   মুছে TK BISWAS হয়ে গিয়েছিল, কারণ সারি আবার সেভ হলে `registeredBy`
+#   /`createdBy`/`createdAt`-এ তখনকার লগইনের নাম-সময় বসে যেত।)
+#  ⛔ এই তিনটে ঘর যেন আর কখনো সরাসরি বসানো না হয় — `keep…ifBlank` হয়েই
+#     যেতে হবে। ফোন ও কম্পিউটার — দুটোতেই যাচাই হয়।
+# ═══════════════════════════════════════════════════════════════
+def check_owner_preserved():
+    pm = os.path.join(APP, "app", "src", "main", "java", "com", "tkbiswas",
+                      "pilesclinic", "native", "PatientModel.kt")
+    rr = os.path.join(APP, "app", "src", "main", "java", "com", "tkbiswas",
+                      "pilesclinic", "native", "RegistrationRepository.kt")
+    if os.path.exists(pm):
+        s = read(pm)
+        for needle, what in (
+            ('.put("createdBy", keepCreatedBy.ifBlank { createdByMobile })',
+             "রোগীর সারিতে `createdBy` আসল রেজিস্ট্রারের নামই রাখতে হবে"),
+            ('.put("registeredBy", keepRegisteredBy.ifBlank { createdByMobile })',
+             "রোগীর সারিতে `registeredBy` আসল রেজিস্ট্রারের নামই রাখতে হবে"),
+            ('.put("createdBy", keepCreatedBy.ifBlank { staffMobile })',
+             "Follow-up (Visit) সারিতে `createdBy` আসল স্টাফের নামই রাখতে হবে"),
+        ):
+            if needle not in s:
+                fail("৯.৩৯", f"PatientModel.kt — {what} (V868-এর পাহারা)")
+        if s.count('.put("createdAt", keepCreatedAt.ifBlank { now })') < 2:
+            fail("৯.৩৯", "PatientModel.kt — রোগী ও Follow-up দুটো সারিতেই `createdAt` আসল সময়ই রাখতে হবে (V868)")
+    if os.path.exists(rr):
+        s = read(rr)
+        for needle in ("keepCreatedBy", "keepRegisteredBy", "keepCreatedAt",
+                       "keepFuCreatedBy", "keepFuCreatedAt"):
+            if needle not in s:
+                fail("৯.৩৯", f"RegistrationRepository.kt — `{needle}` নেই ⇒ আবার সেভ করলে রেজিস্ট্রারের নাম বদলে যাবে (V868)")
+    js = os.path.join(ROOT, "03_NETLIFY_READY", "app.js")
+    if os.path.exists(js):
+        s = read(js)
+        if "registeredBy:old.registeredBy||old.createdBy||p.registeredBy" not in s:
+            fail("৯.৩৯", "app.js — আবার রেজিস্ট্রেশনে `registeredBy` পুরোনোটাই রাখতে হবে (V868)")
+        if "select('id,createdBy,registeredBy,createdAt')" not in s:
+            fail("৯.৩৯", "app.js — ক্লাউডে সারি থাকলে আসল নাম-সময় ফিরিয়ে আনতে হবে (V868)")
+
+
 
 # ═══════════════════════════════════════════════════════════════
 #  যাচাই ৯ — ভার্সন তিন জায়গায় এক (সার্কুলার ৯.৮)
@@ -3062,6 +3104,7 @@ def main():
     check_supabase_auth_header()    # 🔑 V811 — দুটো হেডারই আছে তো
     check_project_class_imports()   # 🕵️ V807 — ইন্সপেক্টর: import ছাড়া প্রকল্পের ক্লাস
     check_r_import()                # 🅰️ V855 — R-এর import (TK-এর বিল্ড-এরর ৩০.০৮.২০২৬)
+    check_owner_preserved()         # 🧑‍💼 V868 — আসল রেজিস্ট্রারের নাম কখনো বদলাবে না
     check_http_call_timeout()   # ⏱️ V803 — প্রতিটা নেট-ডাকে সময়সীমা
     check_safe_wide_columns()   # 🛟 V801 — শেষ-ভরসার কলাম-তালিকা পুরনো হয়নি তো
     check_static_calls()
@@ -3124,6 +3167,7 @@ def main():
         ("১১",  "রোগীর সময় ১১টা–৪টা"),
         ("৯.৩৭", "🔑 Supabase-এর প্রতিটা ডাকে apikey + Authorization দুটোই আছে"),
         ("৯.৩৬", "🕵️ ইন্সপেক্টর — প্রকল্পের প্রতিটা ক্লাসের import আছে"),
+        ("৯.৩৯", "🧑\u200d💼 আসল রেজিস্ট্রারের নাম ও সময় কখনো বদলায় না"),
         ("৯.৩৮", "🅰️ `R.` ব্যবহারকারী প্রতিটা ফাইলে R-এর import আছে"),
         ("৯.৩৫", "⏱️ প্রতিটা OkHttpClient-এ callTimeout বসানো আছে"),
         ("৯.৩৪", "🛟 SafeWideColumns (শেষ-ভরসার পড়া) ডেটাবেসের সঙ্গে মেলে"),
