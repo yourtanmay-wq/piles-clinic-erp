@@ -6810,8 +6810,8 @@ function wlv1YrAskSkip(id,code,name){
 window["wlv1YrAskSkip"]=wlv1YrAskSkip;
 /* টিক-মার্ক করা সবাইকে একসাথে — একটা একটা করে পাঠানো হয়, যেগুলো ব্যর্থ
    হয় সেগুলো আগের মতোই থাকে আর কতগুলো ব্যর্থ হলো বলা হয়। */
-async function wlv1YrBulk(rowsJson, want){
-  var list=[]; try{ list=JSON.parse(rowsJson||'[]'); }catch(e){}
+async function wlv1YrBulk(want){
+  var list=window.__yrBulkList||[];
   if(!list.length) return;
   var msg = want
     ? 'Are you sure? '+list.length+' will not be counted in '+wlv1YrYear()+'.'
@@ -6888,17 +6888,21 @@ function wlv1YrScreen(rows, branchLabel){
 
   var selBar='';
   if(__yrPick.size){
-    var payload=rows.filter(function(x){return __yrPick.has(String(x.id))})
+    /* 🔒 V853 — বাছা তালিকাটা HTML-এর ভিতরে JSON হিসেবে বসালে নামের ভিতরের
+       উদ্ধৃতি/বিশেষ অক্ষরে বোতামটা ভেঙে যেতে পারত। এখন তালিকাটা একটা
+       গ্লোবাল ঘরে রাখা হয়, HTML-এ কিছুই বসে না। */
+    window.__yrBulkList=rows.filter(function(x){return __yrPick.has(String(x.id))})
       .map(function(x){return {id:String(x.id),code:String(x.__code||''),name:String(x.name||'')}});
-    var j=esc(JSON.stringify(payload));
     selBar='<div class="wlv1YrSel"><span>'+__yrPick.size+' selected</span>'+
-      '<button class="wlv1YrBtn skip" onclick="wlv1YrBulk(\''+j.replace(/'/g,'')+'\',true)">Skip</button>'+
-      '<button class="wlv1YrBtn undo" onclick="wlv1YrBulk(\''+j.replace(/'/g,'')+'\',false)">Restore</button></div>';
+      '<button class="wlv1YrBtn skip" onclick="wlv1YrBulk(true)">Skip</button>'+
+      '<button class="wlv1YrBtn undo" onclick="wlv1YrBulk(false)">Restore</button></div>';
   }
 
   var list=shown.length? shown.map(function(x){
     var sub=[x.__code, x.__reg?fmtDate(x.__reg):''].filter(Boolean).join(' · ');
-    var dz=x.disease?' <span class="wlv1YrDz">'+esc(String(x.disease).toUpperCase())+'</span>':'';
+    /* 🔒 V853 — কিছু সারিতে রোগের নাম `diagnosis`-এ থাকে (ফোনের হুবহু একই fallback)। */
+    var dzTxt=String(x.disease||x.diagnosis||'');
+    var dz=dzTxt?' <span class="wlv1YrDz">'+esc(dzTxt.toUpperCase())+'</span>':'';
     var tg=x.__tag?' <span class="wlv1YrTag '+(x.__tag==='Refund'?'rf':'rt')+'">('+esc(x.__tag)+')</span>':'';
     var on=__yrPick.has(String(x.id));
     return '<div class="wlv1YrRow'+(x.__skip?' off':'')+'">'+
@@ -7115,8 +7119,28 @@ let map={received:['My Enquiry',received,'📥','All branch','enq'],
         সেই সারিগুলোও আলাদা মানুষ হিসেবে গোনা হয়। */
    const __yrY=wlv1YrYear(), __yrRetMob=new Set(), __yrIds=wlv1YrSkipIds();
    returnVisit.forEach(x=>{const m=mob(x.mobile); if(m) __yrRetMob.add(m);});
+   /* 🔴🔒 V853 (নিজের যাচাইয়ে ধরা পড়া দোষ — ফোনেও একই, নিয়ম ৬.২) —
+      `wlv1OnePerPerson` "আলাদা রোগী" চিহ্নটা চেনে না, তাই এক নম্বরে
+      [সাধারণ + আলাদা-ঘোষিত] থাকলে সে আলাদা-ঘোষিতটাকেই বেছে নিতে পারত এবং
+      সাধারণ মানুষটা গোনা থেকে বাদ পড়ে যেতেন। এখন এই তালিকাটা আলাদা করে
+      বানানো হয়: প্রতিটা আলাদা-ঘোষিত সারি নিজে, আর বাকি সাধারণ সারি থেকে
+      প্রমাণিত নিয়মে (`wlv1PickPatientRow`) একজন। ⛔ অন্য বাকেটের
+      `wlv1OnePerPerson` এক অক্ষরও ছোঁয়া হয়নি। */
    const __yrDeclared=(z)=>{const m=mob(z.mobile);return m.length===10&&String(z.id||'').indexOf('pat_'+m+'_')===0;};
-   const __yrPeople=wlv1OnePerPerson.concat(p.filter(z=>__yrDeclared(z)&&wlv1OnePerPerson.indexOf(z)<0));
+   const __yrByMob=new Map();
+   p.forEach(z=>{const m=mob(z.mobile); if(!m) return;
+     if(!__yrByMob.has(m)) __yrByMob.set(m,[]);
+     __yrByMob.get(m).push(z);});
+   const __yrPeople=[];
+   __yrByMob.forEach((list,m)=>{
+     const plain=[];
+     list.forEach(z=>{ if(__yrDeclared(z)) __yrPeople.push(z); else plain.push(z); });
+     if(plain.length){
+       const one = plain.length===1 ? plain[0]
+         : (wlv1PickPatientRow(plain,(typeof user!=='undefined'&&user&&user.branch)||'')||plain[0]);
+       if(one) __yrPeople.push(one);
+     }
+   });
    /* 🆕 V852 — যারা তালিকাতেও নেই, গোনাতেও নেই — শুধু এই দুটো কারণে। */
    window.__yrOutDemo=0; window.__yrOutNoDate=0;
    const __yrPool=wlv1BranchGate(__yrPeople.filter(x=>{

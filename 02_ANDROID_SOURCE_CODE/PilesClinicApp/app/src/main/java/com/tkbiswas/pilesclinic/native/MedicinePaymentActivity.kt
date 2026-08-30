@@ -946,6 +946,17 @@ val mode = selectedMpMode
      *  আজ হাতে-পাওয়া টাকাটা আজকের কালেকশনেই ওঠে। */
     private fun saveDueCollection(orig: JSONObject, amount: Double, mode: String) {
         if (dueSaving) return
+        /* 🔒 V853 (নিজের যাচাইয়ে যোগ করা শেষ পাহারা — টাকার কাজ) — পপ-আপ খোলার
+           পর তালিকা নতুন করে এসে থাকলে বাকির অঙ্ক বদলে যেতে পারে। লেখার ঠিক
+           আগে আরেকবার মেপে নিই, যাতে বাকির চেয়ে বেশি টাকা কখনো বসতে না পারে।
+           ⛔ ওয়েবেও ঠিক এই যাচাইটাই আছে (medSaveDueCollection)। */
+        rebuildSettledMap()
+        val liveNow = netDueOf(orig)
+        if (amount > liveNow) {
+            Toast.makeText(this, "More than the remaining due", Toast.LENGTH_SHORT).show()
+            applyFilters()
+            return
+        }
         val user = NativeSession.current(this)
         val staffMobile = user?.mobile ?: ""
         val origId = orig.s("id")

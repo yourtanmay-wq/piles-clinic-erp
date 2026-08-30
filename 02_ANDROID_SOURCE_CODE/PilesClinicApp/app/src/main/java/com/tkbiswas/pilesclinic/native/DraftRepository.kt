@@ -466,7 +466,11 @@ class DraftRepository(private val context: Context? = null) {
             mobile = row.s("mobile"),
             extra = extra,
             branch = row.s("branch"),
-            disease = row.s("disease"),
+            /* 🔒 V853 (নিজের যাচাইয়ে ধরা) — কিছু `patients` সারিতে রোগের নাম
+               `disease`-এ নয়, `diagnosis`-এ থাকে (প্রজেক্টের অন্য জায়গায়
+               আগে থেকেই এই fallback আছে — FollowUpRepository)। ⛔ ফাঁকা ঘর
+               ভরে, ভরা ঘর কখনো বদলায় না। */
+            disease = row.s("disease").ifBlank { row.s("diagnosis") },
             stage = row.s("stage"),
             // 🟢🔒 V646 (২৫.০৮.২০২৬, TK-রিপোর্ট — "আইডি কখনো দেখাই যায় না") —
             // followups সারিতে patientId নামেই ঘর আছে (আগের মতোই)। কিন্তু
@@ -1180,15 +1184,23 @@ class DraftRepository(private val context: Context? = null) {
                 return rowId.startsWith(prefix) && rowId.length > prefix.length
             }
 
+            /* 🔴🔒 V853 (নিজের যাচাইয়ে ধরা পড়া দোষ, ৩০.০৮.২০২৬) — প্রথমে
+               `patientByMobile` (যেটা `pickPatientRow` দিয়ে বাছা) থেকে শুরু
+               করেছিলাম। কিন্তু `pickPatientRow` "আলাদা রোগী" চিহ্নটা চেনে না —
+               তাই এক নম্বরে [সাধারণ সারি + আলাদা-ঘোষিত সারি] থাকলে সে
+               আলাদা-ঘোষিত সারিটাকেই বেছে নিতে পারত, আর তখন **সাধারণ মানুষটাই
+               গোনা থেকে বাদ পড়ে যেতেন** (একজন বাড়ার বদলে একজন হারাত)।
+               এখন দুটো ভাগ আলাদা করা হয়: প্রতিটা আলাদা-ঘোষিত সারি নিজে গোনা
+               হয়, আর বাকি সাধারণ সারিগুলো থেকে প্রজেক্টের প্রমাণিত নিয়মেই
+               (`pickPatientRow`) একজন। ⇒ কেউ হারায় না, কেউ দুবারও গোনা হয় না। */
             val counted = ArrayList<JSONObject>()
             for ((mobKey, rowsForMobile) in patientRowsByMobile) {
-                val chosen = patientByMobile[mobKey]
-                if (chosen != null) counted.add(chosen)
+                val plain = JSONArray()
                 for (i in 0 until rowsForMobile.length()) {
                     val r = rowsForMobile.optJSONObject(i) ?: continue
-                    if (chosen != null && r.s("id") == chosen.s("id")) continue
-                    if (declaredSeparate(r.s("id"), mobKey)) counted.add(r)
+                    if (declaredSeparate(r.s("id"), mobKey)) counted.add(r) else plain.put(r)
                 }
+                PatientIdentity.pickPatientRow(plain, branchFilter.orEmpty())?.let { counted.add(it) }
             }
 
             /* 🆕 V852 — TK: *"কতজন বাদ পড়ল ও কেন, সেটা দেখতে চাই"*।
