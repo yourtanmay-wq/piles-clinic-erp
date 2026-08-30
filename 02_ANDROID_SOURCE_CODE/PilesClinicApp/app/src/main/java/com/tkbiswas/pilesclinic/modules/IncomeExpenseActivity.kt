@@ -2210,71 +2210,60 @@ class IncomeExpenseActivity : AppCompatActivity() {
     }
 
     /**
-     * 🟢🔒 V695 (২৬.০৮.২০২৬, TK-নির্দেশ — **ডেমো ছবি দেখিয়ে "২ করুন" অনুমোদন**) —
-     * Monthly Summary-র **উপরের জায়গা কমানো**।
+     * 🟢🔒 V891 (৩০.০৮.২০২৬, TK ডেমো ফটো দেখে **"হ্যাঁ পাশ, বসিয়ে দিন"**) —
+     * Monthly Summary-র উপরের হেডার **আরো কম্প্যাক্ট ও প্রফেশনাল**।
      *
-     * TK-এর কথা: *"উপরে অনেক জায়গা খেয়েছে, কমাতে হবে। আগে ডেমো ফটো প্রুফ
-     * দেখান"* → ডেমোর **প্রস্তাব ২** তিনি বেছেছেন: Month ও Branch আলাদা
-     * সাদা কার্ডে নয়, **সবুজ হেডারের ভিতরেই** পাশাপাশি দুটো ঘরে।
+     * TK-এর কথা: *"উপরের হেডার আরো কম্প্যাক্ট হবে … উচ্চতায় আরো কম হবে"* ও
+     * *"হেডারে এত গ্রিন থাকবেনা"*।
      *
-     * আগে: হেডার (১৬dp প্যাডিং, ১৯sp) + নিচে আলাদা কার্ডে দুটো সারি
-     *      ⇒ টেবিল শুরুর আগেই ≈২২০dp চলে যেত।
-     * এখন: একটাই হেডার, ভিতরে দুটো ঘর ⇒ ≈১১৫dp — **৪ সারি বেশি দেখা যায়**।
+     * আগে: সবুজ গ্রেডিয়েন্ট হেডার, নিচে Month ও Branch দুটো আলাদা ঘর (দুই সারি)।
+     * এখন: **একটাই সাদা কার্ড, একটাই সারি** — বাঁয়ে সবুজ শিরোনাম, ডানে Month ও
+     *      Branch দুটো ছোট পিল। উচ্চতা প্রায় অর্ধেক, টেবিলের সারি বেশি দেখা যায়।
      *
-     * ⛔ শুধু এই পর্দাটার জন্য। বাকি পর্দার `hero()` ও `entryCard()` এক
-     *    অক্ষরও বদলায়নি — নতুন এই ফাংশনটা আলাদা।
-     * ⛔ টাকা · হিসাব · ছাঁকনি · ডেটা — কিছুই ছোঁয়া হয়নি, শুধু সাজ।
+     * ⛔ শুধু এই পর্দাটার সাজ। টেবিল · নিচের মোট আয়/ব্যয়/অবশিষ্ট · টাকার
+     *    কোনো হিসাব — এক অক্ষরও ছোঁয়া হয়নি (TK: *"সেগুলোতে কোন পরিবর্তন করতে
+     *    আপনাকে বলা হয় নাই"*)।
      */
-    private fun heroWithFields(title: String, leftLabel: String, leftView: android.view.View,
-                               rightLabel: String, rightView: android.view.View): LinearLayout {
+    private fun heroWithFields(title: String, leftView: android.view.View,
+                               rightView: android.view.View): LinearLayout {
         val h = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), dp(10), dp(12), dp(12))
-            background = android.graphics.drawable.GradientDrawable(
-                android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
-                intArrayOf(android.graphics.Color.parseColor("#0B4F2A"), android.graphics.Color.parseColor("#0B8A3E"))
-            ).apply { cornerRadius = dp(16).toFloat() }
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dp(12), dp(8), dp(9), dp(8))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(18).toFloat()
+                setColor(android.graphics.Color.WHITE)
+                setStroke(dp(1), android.graphics.Color.parseColor("#DCE6E0"))
+            }
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
                 .apply { bottomMargin = dp(8) }
         }
         h.addView(android.widget.TextView(this).apply {
-            text = title; textSize = 16f
+            text = title; textSize = 15f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setTextColor(android.graphics.Color.WHITE)
+            setTextColor(android.graphics.Color.parseColor("#0A5C33"))
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         })
-        // সবুজের উপরে হালকা-সাদা দুটো ঘর — লেখা সাদা, তাই পড়তে অসুবিধা নেই।
-        fun box(label: String, field: android.view.View): LinearLayout {
+        // ডানের দুটো ছোট পিল — হালকা সবুজ-ধূসর, ভিতরের লেখা গাঢ় সবুজ।
+        fun pill(field: android.view.View): LinearLayout {
             val b = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(dp(9), dp(5), dp(9), dp(6))
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(dp(9), dp(5), dp(9), dp(5))
                 background = android.graphics.drawable.GradientDrawable().apply {
-                    cornerRadius = dp(9).toFloat()
-                    setColor(android.graphics.Color.parseColor("#2EFFFFFF"))
-                    setStroke(dp(1), android.graphics.Color.parseColor("#73FFFFFF"))
+                    cornerRadius = dp(12).toFloat()
+                    setColor(android.graphics.Color.parseColor("#F1F6F3"))
+                    setStroke(dp(1), android.graphics.Color.parseColor("#D6E4DC"))
                 }
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                    .apply { marginStart = dp(6) }
             }
-            b.addView(android.widget.TextView(this).apply {
-                text = label; textSize = 9.5f
-                setTextColor(android.graphics.Color.parseColor("#D9F2E2"))
-                isAllCaps = true; letterSpacing = 0.04f
-            })
             b.addView(field)
             return b
         }
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-                .apply { topMargin = dp(8) }
-        }
-        val lb = box(leftLabel, leftView).apply {
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                .apply { marginEnd = dp(8) }
-        }
-        val rb = box(rightLabel, rightView).apply {
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-        }
-        row.addView(lb); row.addView(rb)
-        h.addView(row)
+        h.addView(pill(leftView)); h.addView(pill(rightView))
         return h
     }
 
@@ -2790,22 +2779,22 @@ class IncomeExpenseActivity : AppCompatActivity() {
               পর্দার ব্রাঞ্চ-চিপ (`.setItems(BRANCHES)` পপ-আপ)। নতুন কিছু নয়।
            ⛔ `spinner()` হেল্পার ও বাকি পর্দার ব্রাঞ্চ-ঘর এক অক্ষরও বদলায়নি। */
         var branchSel = v398Branch().let { if (it in BRANCHES) it else BRANCHES.first() }
+        /* 🟢🔒 V891 — হেডার এখন সাদা, তাই মাস ও ব্রাঞ্চের লেখা সাদা নয়,
+           গাঢ় সবুজ — না বদলালে সাদার উপর সাদা লেখা পড়াই যেত না। */
         val branchBox = android.widget.TextView(this).apply {
             text = "$branchSel  ▾"
-            textSize = 13.5f
+            textSize = 12f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setTextColor(android.graphics.Color.WHITE)
-            setPadding(0, dp(2), 0, 0)
+            setTextColor(android.graphics.Color.parseColor("#0A5C33"))
             isClickable = true; isFocusable = true
         }
-        // মাসের ঘরটাও সবুজের উপরে — সাদা লেখা, আন্ডারলাইন নেই।
         month.background = null
-        month.textSize = 13.5f
-        month.setTextColor(android.graphics.Color.WHITE)
-        month.setHintTextColor(android.graphics.Color.parseColor("#BFE4CD"))
+        month.textSize = 12f
+        month.setTextColor(android.graphics.Color.parseColor("#0A5C33"))
+        month.setHintTextColor(android.graphics.Color.parseColor("#8AA79A"))
         month.setTypeface(month.typeface, android.graphics.Typeface.BOLD)
-        month.setPadding(0, dp(2), 0, 0)
-        col.addView(heroWithFields("📈 Monthly Summary", "Month", month, "Branch", branchBox))
+        month.setPadding(0, 0, 0, 0)
+        col.addView(heroWithFields("📈 Monthly Summary", month, branchBox))
         val out = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
 
         /* 🔴🔒 V412 (TK-রিপোর্ট, ৪টে ছবিসহ, ১৭.০৮.২০২৬) — **টাকার অঙ্ক ভুল পড়ার ফাঁদ।**
@@ -2847,14 +2836,28 @@ class IncomeExpenseActivity : AppCompatActivity() {
         // 🟢🔒 V693 (২৬.০৮.২০২৬, TK-নির্দেশ ছবিসহ) — মাঝখানে "••• Options"
         //   (WhatsApp-এ শেয়ার · PDF Download · Print)। ⛔ শুধু এই মাসের
         //   পর্দাতেই; বাকি পর্দার Back/Show ফুটার এক অক্ষরও বদলায়নি।
-        col.addView(compactFooter("Back", "Show", { renderMenu() },
-            middleText = "••• Options",
+        /* 🟢🔒 V891 (৩০.০৮.২০২৬, TK-অনুমোদিত প্রুফ) — *"অপশনের আগে তিনটে ডট
+           থাকবে না"* ও *"back option show তিনটে বক্সের সাইজ একই রকম হতে হবে"*।
+           — ডট বাদ, তিনটেই এক মাপ ও উচ্চতায় কম।
+           ⛔ শুধু এই পর্দার ফুটার—বাকি পর্দার Back/Show এক অক্ষরও বদলায়নি। */
+        val monthFooter = compactFooter("Back", "Show", { renderMenu() },
+            middleText = "Options",
             onMiddle = { v -> showMonthlyOptions(v) }
         ) {
             v398Remember(branchSel)   // 🟢🔒 V398
             monthlyShareText = null; monthlyPdfHtml = null  // নতুন মাস দেখানোর আগে পুরনো লেখা মুছে
             runMonthly(month.text.toString(), branchSel, out)
-        })
+        }
+        for (i in 0 until monthFooter.childCount) {
+            val b = monthFooter.getChildAt(i)
+            if (b is android.widget.Button) {
+                b.minWidth = 0; b.minimumWidth = 0
+                b.minHeight = dp(40); b.minimumHeight = dp(40)
+                b.setPadding(dp(2), 0, dp(2), 0)
+                b.textSize = 13.5f
+            }
+        }
+        col.addView(monthFooter)
         col.addView(out)
     }
 
