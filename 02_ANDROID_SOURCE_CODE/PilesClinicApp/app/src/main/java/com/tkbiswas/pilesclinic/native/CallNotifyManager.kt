@@ -86,22 +86,25 @@ object CallNotifyManager {
      *     এক অক্ষরও বদলায়নি — এই হোয়াইটলিস্ট শুধু **কল-শনাক্তকরণ
      *     নোটিফিকেশন**-এর (এই ফাইল) জন্য প্রযোজ্য।
      */
-    private val ALLOWED_CALLER_ID_LOGINS = setOf(
-        "8676002200",  // Kishanganj
-        "8436002200",  // Jalpaiguri
-        "8514002200",  // Coochbehar
-        "8001080080"   // Master
-    )
+    /* 🔴🔒🔒 V869 (৩০.০৮.২০২৬, TK-রিপোর্ট ছবিসহ — JPE-CRP-এর ফোন,
+       Jalpaiguri, "Display over other apps = Allowed", তবু ব্যানার আসে না):
+       *"ব্রাঞ্চের নাম্বার যে সমস্ত ফোনে লাগানো আছে সে সমস্ত ফোনেও যেন একই
+       কাজ হতে হয় … এটা তো আগেই আপনাকে বলা হয়েছিল"*।
 
-    private fun isWhitelistedLogin(ctx: Context): Boolean {
-        val mobile = try {
-            NativeSession.current(ctx)?.mobile?.filter { it.isDigit() }?.takeLast(10)
-        } catch (_: Throwable) { null }
-        return mobile != null && mobile in ALLOWED_CALLER_ID_LOGINS
-    }
+       **আমার দোষ (স্বীকার করছি):** V633-এ আমি লগইন-নম্বরের একটা **চারজনের
+       তালিকা** বসিয়েছিলাম (৩টে ব্রাঞ্চ + মাস্টার)। ফলে —
+         · স্টাফের নিজের আইডিতে (যেমন JPE-CRP) ব্যানার **কখনোই** আসত না,
+         · Falakata ও Birpara-র নম্বর তালিকাতেই ছিল না।
+       TK-এর নির্দেশ ছিল **ফোনে ব্রাঞ্চের নম্বর থাকলেই** চলবে — লগইন কার,
+       সেটা শর্ত ছিল না। তালিকাটা আমার নিজের বাড়তি শর্ত, TK-এর নয়।
 
+       **এখন:** শর্ত একটাই — ফোনে সত্যিই চেম্বার/ব্রাঞ্চের SIM আছে কিনা
+       (`hasExplicitlyConfirmedChamberSim`)। এটাই TK-এর আসল নিয়ম, আর এটা
+       V633-এর কড়া যাচাই — কোনো ছাড় নেই, তাই ব্রাঞ্চের নম্বর ছাড়া কারো
+       ফোনে এখনো চালু হবে না।
+       ⛔ Dialer-এর কল-লগ দেখানোর নিয়ম এক অক্ষরও বদলায়নি। */
     private fun allowed(ctx: Context): Boolean =
-        BranchSimHelper.hasExplicitlyConfirmedChamberSim(ctx) && isWhitelistedLogin(ctx)
+        BranchSimHelper.hasExplicitlyConfirmedChamberSim(ctx)
 
     /** ফোন বাজছে — নম্বর মিলিয়ে সঙ্গে সঙ্গে দেখানো। */
     fun onRinging(ctx: Context, rawNumber: String) {
