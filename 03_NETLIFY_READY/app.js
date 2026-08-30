@@ -6577,7 +6577,15 @@ window.filterFollowRows=filterFollowRows;function mergeFollow(rows){
         let e=(x.refId&&c.enquiriesById.get(x.refId))||(p.id&&c.enquiriesByConvertedPatientId.get(p.id))||(mm&&c.enquiriesByMobile.get(mm))||{};
         let bill=Number(p.bill||0),paid=v266TreatmentPaidForPatient(p),visitDate=x.visitDate||p.visitDate||p.registrationDate||p.date||x.date||e.date||'';
         let regDate=p.registrationDate||p.date||x.registrationDate||e.date||x.date||'';
-        return {...x,patientDbId:p.id||x.patientDbId||'',refId:x.refId||p.id||e.id||'',photo:p.photo||x.photo||'',name:x.name||p.name||e.name||normMob(mm),mobile:normMob(mm||p.mobile||e.mobile||''),branch:x.branch||p.branch||e.branch||'',disease:x.disease||p.disease||e.disease||'',recordDate:regDate,registrationDate:regDate,visitDate,bill,paid,due:Math.max(0,bill-paid),payPct:bill?Math.min(100,Math.round(paid/bill*100)):0,hasPayment:paid>0,createdBy:x.createdBy||e.createdBy||p.createdBy||'',receivedBy:x.receivedBy||e.receivedBy||'',lastRemark:x.lastRemark||e.remarks||'',history:x.history||[]};
+        return {...x,patientDbId:p.id||x.patientDbId||'',refId:x.refId||p.id||e.id||'',photo:p.photo||x.photo||'',name:x.name||p.name||e.name||normMob(mm),mobile:normMob(mm||p.mobile||e.mobile||''),branch:x.branch||p.branch||e.branch||'',disease:x.disease||p.disease||e.disease||'',recordDate:regDate,registrationDate:regDate,visitDate,bill,paid,due:Math.max(0,bill-paid),payPct:bill?Math.min(100,Math.round(paid/bill*100)):0,hasPayment:paid>0,createdBy:x.createdBy||e.createdBy||p.createdBy||'',receivedBy:x.receivedBy||e.receivedBy||'',lastRemark:x.lastRemark||e.remarks||'',history:x.history||[],
+          /* 🆕🔒 V851 (৩০.০৮.২০২৬, TK-অনুমোদিত · ফোনের হুবহু যমজ, নিয়ম ৬.৬) —
+             TK: "যেগুলো রেজিস্ট্রেশন করা হয়েছে সেখানে লিখতে হবে কত তারিখে
+             রেজিস্ট্রেশন হয়েছে এবং কে রেজিস্ট্রেশন করেছিল"।
+             ⛔ **শুধু তখনই** ভরে যখন সত্যিই রোগীর সারি আছে (`p.id`) — উপরের
+                `regDate` এনকোয়ারির তারিখেও ভরে যায়, তাই ওটা দিয়ে বিচার করা
+                যায় না (যাচাই করে দেখা)। ⛔ নতুন কোনো পড়া লাগেনি। */
+          wlv1RegDate:(p&&p.id)?regDate:'',
+          wlv1RegBy:(p&&p.id)?String(p.registeredBy||p.createdBy||''):''};
       });
     }
 window.mergeFollow=mergeFollow;function followPaymentPatientId(x){let p=v267PatientByFollow(x);return p?p.id:''}
@@ -7467,7 +7475,13 @@ function fuCard(x){
        **হুবহু আগের মতোই** শুধু তারিখ দেখায়। */
  let wlv1LastTm=(function(){try{var h=x.history;if(typeof h==='string')h=JSON.parse(h);if(!Array.isArray(h))return '';for(var i=h.length-1;i>=0;i--){var d=(h[i]&&h[i].date)||'';if(String(d).trim())return String((h[i]&&h[i].time)||'').trim()}return ''}catch(e){return ''}})();
  let wlv1LastWhen=fmtDate(wlv1LastDt)+(wlv1Tm12(wlv1LastTm)?(' : '+wlv1Tm12(wlv1LastTm)):'');
- let wlv1LastTxt=wlv1LastDt?('LAST CALL '+wlv1LastWhen+(wlv1LastBy?(' <span class="anFuBy">('+esc(wlv1LastBy)+')</span>'):'')):'LAST CALL —';
+ /* 🆕🔒 V851 — রেজিস্ট্রেশন হয়ে থাকলে এই লাইনটা REGISTERED দেখায় (ফোনের
+    FollowUpActivity/FollowUpAdapter-এর হুবহু একই নিয়ম)। ⛔ এনকোয়ারি কার্ডে
+    `wlv1RegDate` ফাঁকা ⇒ নিচের লাইনটা **হুবহু আগের মতোই** চলে। */
+ let wlv1RegBy2=codeName(x.wlv1RegBy||'')||String(x.wlv1RegBy||'');
+ let wlv1LastTxt=x.wlv1RegDate
+   ?('REGISTERED '+fmtDate(x.wlv1RegDate)+(wlv1RegBy2?(' <span class="anFuBy">('+esc(wlv1RegBy2)+')</span>'):''))
+   :(wlv1LastDt?('LAST CALL '+wlv1LastWhen+(wlv1LastBy?(' <span class="anFuBy">('+esc(wlv1LastBy)+')</span>'):'')):'LAST CALL —');
  let wlv1NextTxt=x.nextFollow?(nextLabel+' '+fmtDate(x.nextFollow)):(nextLabel+' —');
 
  /* ---------- রিমার্ক বাক্স: ভিতরে কল-লাইন + দাগ + লেখা (FollowUpActivity.kt:1936-1949) ---------- */

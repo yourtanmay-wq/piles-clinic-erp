@@ -1438,7 +1438,10 @@ class FollowUpActivity : AppCompatActivity() {
                 .append(i.lastRemark).append('|').append(i.stage).append('|')
                 .append(i.paid).append('|').append(i.bill).append('|')
                 .append(i.callCount).append('|')
-                .append(i.lastCallDate).append('|').append(i.lastCallBy).append(';')
+                .append(i.lastCallDate).append('|').append(i.lastCallBy).append('|')
+                // 🆕 V851 — এই দুটোও কার্ডে দেখা যায়, তাই চিহ্নে থাকতেই হবে;
+                //    নইলে বদলালেও তালিকা নতুন করে আঁকত না।
+                .append(i.regDate).append('|').append(i.regBy).append(';')
         }
         return sb.toString()
     }
@@ -2118,8 +2121,18 @@ class FollowUpActivity : AppCompatActivity() {
             // স্টাফের কোডটা **আলাদা হালকা সোনালি রঙে**।
             // ⛔ লাল ইচ্ছে করেই নেওয়া হয়নি — এই অ্যাপে লাল মানে Overdue/সতর্কতা,
             // স্টাফের নামেও লাল দিলে দুটো গুলিয়ে যেত।
-            val whoRaw = item.lastCallBy.trim()
-            val lastText = if (item.lastCallDate.isNotBlank()) {
+            /* 🆕🔒 V851 (৩০.০৮.২০২৬, TK-অনুমোদিত) — TK: "যেগুলো এনকোয়ারি কার্ড
+               সেগুলোতে লাস্ট কল থাকবে; যেগুলো রেজিস্ট্রেশন করা হয়েছে সেখানে
+               লিখতে হবে কত তারিখে রেজিস্ট্রেশন হয়েছে এবং কে করেছিল"।
+               V850-এ Draft-এর কার্ডে বসেছে, এখানেও একই নিয়ম (খাতার নিয়ম ৬.২)।
+               ⛔ `regDate` ফাঁকা (নিছক এনকোয়ারি) হলে নিচের সবটা **হুবহু আগের
+                  মতোই** চলে — এনকোয়ারি কার্ড এক অক্ষরও বদলায়নি। */
+            val isReg = item.regDate.isNotBlank()
+            val whoRaw = if (isReg) item.regBy.trim() else item.lastCallBy.trim()
+            val lastText = if (isReg) {
+                if (whoRaw.isNotBlank()) "REGISTERED ${FollowUpModel.displayDate(item.regDate)} ($whoRaw)"
+                else "REGISTERED ${FollowUpModel.displayDate(item.regDate)}"
+            } else if (item.lastCallDate.isNotBlank()) {
                 /* 🔵🔒 V543 (২২.০৮.২০২৬, TK-নির্দেশ): *"শুধুমাত্র RMP সেকশনে নয়,
                    Follow-up সেকশনেও একই নিয়ম থাকবে"* — LAST CALL-এ তারিখের
                    সাথে সময়, তারপর স্টাফের নাম। NEXT CALL-এ সময় নয়।
@@ -2157,7 +2170,7 @@ class FollowUpActivity : AppCompatActivity() {
             }
 
             // স্টাফের কোডের অংশটুকু আলাদা রঙে — বাকি লেখা আগের রঙেই।
-            val lastStyled: CharSequence = if (whoRaw.isNotBlank() && item.lastCallDate.isNotBlank()) {
+            val lastStyled: CharSequence = if (whoRaw.isNotBlank() && (isReg || item.lastCallDate.isNotBlank())) {
                 val open = lastText.lastIndexOf("(")
                 if (open >= 0) android.text.SpannableString(lastText).apply {
                     setSpan(

@@ -486,7 +486,10 @@ class FollowUpRepository(private val context: Context? = null) {
                         lastCallDate = r.optString("lastCallDate", ""), lastCallBy = FollowUpModel.prettyStaff(r.optString("lastCallBy", "")),
                         // ⏰🔒 V827 — পুরোনো জমানো তালিকায় ঘরটা নেই ⇒ ফাঁকা,
                         //    অর্থাৎ হুবহু আগের আচরণ; কিছুই ভাঙে না।
-                        lastCallTime = r.optString("lastCallTime", "")
+                        lastCallTime = r.optString("lastCallTime", ""),
+                        // 🆕 V851 — উপরের `saveCachedTab`-এর জোড়া।
+                        regDate = r.optString("regDate", ""),
+                        regBy = r.optString("regBy", "")
                     )
                 )
             }
@@ -663,6 +666,11 @@ class FollowUpRepository(private val context: Context? = null) {
                            ⛔ ক্লাউডে একটাও বাড়তি অনুরোধ যায় না (সময়টা `history`
                               থেকেই আসে, যা আগে থেকেই তালিকার সঙ্গে আসে)। */
                         .put("lastCallTime", it.lastCallTime)
+                        /* 🆕🔒 V851 — জমানো তালিকাতেও দুটো ঘর, নইলে পর্দা খোলার
+                           সঙ্গে সঙ্গে (ক্যাশ থেকে) লাইনটা আবার `LAST CALL`
+                           দেখাত, আর লাইন খারাপ থাকলে চিরকালই (V827-এর শিক্ষা)। */
+                        .put("regDate", it.regDate)
+                        .put("regBy", it.regBy)
                         /* 🏷️🔒 V712 (২৬.০৮.২০২৬, TK-রিপোর্ট ছবিসহ — *"Tag এ Unexpected
                            লেখা নেই, কিন্তু View All-এ ক্লিক করলে আছে"*)।
                            **আসল কারণ:** এই তিনটে ঘর জমানো তালিকায় **লেখাই হত না**
@@ -1871,6 +1879,14 @@ class FollowUpRepository(private val context: Context? = null) {
             val nameByMobile = HashMap<String, String>()
             val branchByMobile = HashMap<String, String>()
             val createdByMobileMap = HashMap<String, String>()
+            /* 🆕🔒 V851 (৩০.০৮.২০২৬, TK-অনুমোদিত) — TK: "যেগুলো রেজিস্ট্রেশন করা
+               হয়েছে সেখানে লিখতে হবে কত তারিখে রেজিস্ট্রেশন হয়েছে এবং কে
+               রেজিস্ট্রেশন করেছিল"। V850-এ Draft-এর কার্ডে বসেছে, এবার
+               Follow-up পর্দার নিজের কার্ডেও (নিয়ম ৬.২ — একই দোষ সব জায়গায়)।
+               ⛔ দুটো ঘরই `PATIENT_COLS`-এ **আগে থেকেই** আসে ⇒ নতুন কোনো
+                  ক্লাউড-পড়া নেই, egress এক বিন্দুও বাড়ে না। */
+            val regDateByMobile = HashMap<String, String>()
+            val regByMobile = HashMap<String, String>()
             // TK-REQUESTED ADDITION (2026-07-24): "Complete despite Due"
             // workflow -- a patient Master has approved for this must also
             // stop showing in the active Treatment call/reminder tab, same
@@ -1936,6 +1952,9 @@ class FollowUpRepository(private val context: Context? = null) {
                 nameByMobile[m] = p.s("name")
                 branchByMobile[m] = p.s("branch")
                 createdByMobileMap[m] = p.s("createdBy")
+                // 🆕 V851 — রেজিস্ট্রেশনের তারিখ ও কে করেছিলেন।
+                regDateByMobile[m] = p.s("registrationDate").ifBlank { p.s("date") }.take(10)
+                regByMobile[m] = p.s("registeredBy").ifBlank { p.s("createdBy") }
                 if (p.s("completeApprovedBy").isNotBlank()) completeApprovedByMobile[m] = p.s("completeApprovedBy")
                 if (p.s("refundRestoredBy").isNotBlank()) refundRestoredByMobile[m] = p.s("refundRestoredBy")
             }
@@ -2394,7 +2413,15 @@ class FollowUpRepository(private val context: Context? = null) {
                     name = (if (own != null) own.s("name") else nameByMobile[m].orEmpty()).ifBlank { items[idx].name },
                     branch = branchByMobile[m].orEmpty().ifBlank { items[idx].branch },
                     hasApprovedRefund = refundExists,
-                    refundManuallyRestored = refundRestoredByMobile.containsKey(m)
+                    refundManuallyRestored = refundRestoredByMobile.containsKey(m),
+                    /* 🆕 V851 — রোগীর নিজের সারি থাকলে তবেই ভরে; নিছক এনকোয়ারিতে
+                       ফাঁকা থাকে ⇒ ওই কার্ডে আগের মতোই `LAST CALL` দেখায়। */
+                    regDate = (if (own != null) own.s("registrationDate").ifBlank { own.s("date") }.take(10)
+                               else regDateByMobile[m].orEmpty()),
+                    regBy = FollowUpModel.prettyStaff(
+                        if (own != null) own.s("registeredBy").ifBlank { own.s("createdBy") }
+                        else regByMobile[m].orEmpty()
+                    )
                 )
             }
 
