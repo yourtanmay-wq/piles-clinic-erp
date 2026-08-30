@@ -311,6 +311,31 @@ class YearlyRegistrationActivity : AppCompatActivity() {
         return table
     }
 
+    /* 🟢🔒 V878 — নামে চাপ দিলে রোগীর নিজস্ব পাতা।
+       ⛔ `FollowUpActivity.openTimelineFor()`-এর হুবহু একই extras — তাই এক
+          নম্বরে দুজন রোগী থাকলেও ঠিক এই রোগীরই পাতা খোলে (`prePatientId`)।
+       ⛔ `section` পাঠানো হয় না ⇒ ড্যাশবোর্ডের View-এর মতো **সব** ইতিহাস
+          দেখায়, কোনো ভাগ বাদ পড়ে না। */
+    private fun openPatientPage(e: DraftEntry) {
+        val digits = e.mobile.filter { it.isDigit() }.takeLast(10)
+        if (digits.length != 10) {
+            android.widget.Toast.makeText(this, "No mobile number saved for this patient",
+                android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        val i = android.content.Intent(this, PatientTimelineActivity::class.java)
+        i.putExtra("mobile", digits)
+        i.putExtra("preStage", e.stage)
+        i.putExtra("preName", e.name)
+        i.putExtra("preBranch", e.branch.ifBlank { branch })
+        i.putExtra("preDisease", e.disease)
+        i.putExtra("preAge", e.age)
+        i.putExtra("preSex", e.sex)
+        i.putExtra("preAddress", e.address)
+        i.putExtra("prePatientId", e.patientId)
+        try { startActivity(i) } catch (_: Throwable) { }
+    }
+
     private fun patientRow(e: DraftEntry): View {
         val skipped = e.extra == YearlyRegistration.SKIP_MARK
         val row = LinearLayout(this).apply {
@@ -370,6 +395,18 @@ class YearlyRegistrationActivity : AppCompatActivity() {
             text = nameLine
             if (skipped) paintFlags = paintFlags or android.graphics.Paint.STRIKE_THRU_TEXT_FLAG
             if (skipped) setTextColor(android.graphics.Color.parseColor("#9AA6B4"))
+            /* 🟢🔒 V878 (৩০.০৮.২০২৬, TK-নির্দেশ, জিজ্ঞাসা করে নিশ্চিত হয়ে):
+               *"এখানে পেশেন্টের নামে চাপ দিলে রি-ডাইরেক্ট হতে হবে যে সেকশনে
+               আছে"* ⇒ নামে চাপ দিলে **ওই রোগীর নিজস্ব পাতা** খোলে — কার্ডের
+               👁 বোতাম যেখানে নিয়ে যায়, হুবহু সেই পর্দা ও সেই তথ্যগুলোই
+               (`FollowUpActivity.openTimelineFor`-এর প্রমাণিত নিয়ম, নতুন কিছু
+               বানানো হয়নি)।
+               ⛔ বাঁয়ের টিক-বাক্স ও ডানের Skip/Undo বোতাম নিজেরা চাপ ধরে,
+                  তাই ওগুলোর কাজ এক অক্ষরও বদলায়নি।
+               ⛔ কোনো নতুন ক্লাউড-পড়া নেই — তথ্যগুলো এই সারিতেই ছিল। */
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { openPatientPage(e) }
         })
         texts.addView(label(
             listOf(e.patientId, DateUtil.display(e.recordDate)).filter { it.isNotBlank() }.joinToString(" · "),
