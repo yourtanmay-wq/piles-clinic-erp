@@ -168,23 +168,31 @@
                          সব ছাঁকা আগে-নামানো ডেটার উপরেই (client-side) — বাড়তি
                          সার্ভার-কল/egress নেই। -->
                     <EditText android:id="@+id/etHistorySearch" style="@style/FieldInput" android:hint="Search name / product / mobile" android:layout_marginTop="6dp" android:inputType="text" android:imeOptions="actionSearch" android:maxLines="1" />
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="8dp">
-                        <TextView android:id="@+id/chipToday" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginEnd="4dp" android:gravity="center" android:paddingVertical="7dp" android:text="Today" android:textSize="10.5sp" android:textStyle="bold" android:textColor="#0B7A34" android:background="@drawable/bg_price_chip" />
-                        <TextView android:id="@+id/chip7" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginEnd="4dp" android:gravity="center" android:paddingVertical="7dp" android:text="Last 7 Days" android:textSize="10.5sp" android:textStyle="bold" android:textColor="#0B7A34" android:background="@drawable/bg_price_chip" />
-                        <TextView android:id="@+id/chip30" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginEnd="4dp" android:gravity="center" android:paddingVertical="7dp" android:text="Last 30 Days" android:textSize="10.5sp" android:textStyle="bold" android:textColor="#0B7A34" android:background="@drawable/bg_price_chip" />
-                        <TextView android:id="@+id/chipPick" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:gravity="center" android:paddingVertical="7dp" android:text="Pick Date" android:textSize="10.5sp" android:textStyle="bold" android:textColor="#0B7A34" android:background="@drawable/bg_price_chip" />
-                    </LinearLayout>
+                    <!-- 🔄🔒 V848 (৩০.০৮.২০২৬, TK-নির্দেশ: "Pick Date-এর পরেই থাকবে
+                         Statement, প্রয়োজনে ডান দিকে স্ক্রল করতে হবে") — পাঁচটা
+                         তারিখ-চিপ এক সারিতেই; জায়গায় না ধরলে ডান দিকে স্ক্রল।
+                         ⛔ চিপগুলোর কাজ ও রং কিছুই বদলায়নি। -->
+                    <HorizontalScrollView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:scrollbars="none"
+                        android:overScrollMode="never">
+                        <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:orientation="horizontal">
+                            <TextView android:id="@+id/chipToday" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginEnd="4dp" android:gravity="center" android:paddingHorizontal="14dp" android:paddingVertical="7dp" android:textSize="10.5sp" android:textStyle="bold" android:textColor="#0B7A34" android:background="@drawable/bg_price_chip" android:text="Today" />
+                            <TextView android:id="@+id/chip7" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginEnd="4dp" android:gravity="center" android:paddingHorizontal="14dp" android:paddingVertical="7dp" android:textSize="10.5sp" android:textStyle="bold" android:textColor="#0B7A34" android:background="@drawable/bg_price_chip" android:text="Last 7 Days" />
+                            <TextView android:id="@+id/chip30" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginEnd="4dp" android:gravity="center" android:paddingHorizontal="14dp" android:paddingVertical="7dp" android:textSize="10.5sp" android:textStyle="bold" android:textColor="#0B7A34" android:background="@drawable/bg_price_chip" android:text="Last 30 Days" />
+                            <TextView android:id="@+id/chipPick" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginEnd="4dp" android:gravity="center" android:paddingHorizontal="14dp" android:paddingVertical="7dp" android:textSize="10.5sp" android:textStyle="bold" android:textColor="#0B7A34" android:background="@drawable/bg_price_chip" android:text="Pick Date" />
+                            <!-- 🆕🔒 V847 — Statement: চাপলে From ও To তারিখ চায়,
+                                 তারপর চিপেই তারিখদুটো দেখায় (01.08.2026 – 30.08.2026)। -->
+                            <TextView android:id="@+id/chipStatement" android:layout_width="wrap_content" android:layout_height="wrap_content" android:gravity="center" android:paddingHorizontal="14dp" android:paddingVertical="7dp" android:textSize="10.5sp" android:textStyle="bold" android:textColor="#0B7A34" android:background="@drawable/bg_price_chip" android:text="Statement" />
+                        </LinearLayout>
+                    </HorizontalScrollView>
                     <!-- 🆕🔒 V846 (৩০.০৮.২০২৬, TK-নির্দেশ: "বিল ২০০০, দিলেন ১২০০ —
                          বাকি ৮০০ কোথায় শো করবে") — শুধু বাকি-থাকা বিক্রির তালিকা।
                          তারিখ-চিপের বাইরে (সব দিনের বাকি একসাথে), আর উপরের সবুজ
                          ঘরে মোট বাকির অঙ্ক। ⛔ কোনো নতুন ডেটাবেস-ঘর/SQL লাগে না। -->
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="6dp">
-                        <!-- 🆕🔒 V847 (৩০.০৮.২০২৬, TK-নির্দেশ: "Pick Date-এর পরে … কত
-                             তারিখ থেকে কত তারিখ পর্যন্ত", নাম TK নিজে বেছেছেন) —
-                             চাপলে From ও To তারিখ চায়, তারপর চিপেই তারিখদুটো দেখায়। -->
-                        <TextView android:id="@+id/chipStatement" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginEnd="4dp" android:gravity="center" android:paddingVertical="7dp" android:text="Statement" android:textSize="10.5sp" android:textStyle="bold" android:textColor="#0B7A34" android:background="@drawable/bg_price_chip" />
-                        <TextView android:id="@+id/chipDue" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:gravity="center" android:paddingVertical="7dp" android:text="Due Only" android:textSize="10.5sp" android:textStyle="bold" android:textColor="#0B7A34" android:background="@drawable/bg_price_chip" />
-                    </LinearLayout>
+                    <TextView android:id="@+id/chipDue" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:gravity="center" android:paddingVertical="7dp" android:text="Due Only" android:textSize="10.5sp" android:textStyle="bold" android:textColor="#0B7A34" android:background="@drawable/bg_price_chip" />
                     <TextView
                         android:id="@+id/tvHistoryTotal"
                         android:layout_width="match_parent"

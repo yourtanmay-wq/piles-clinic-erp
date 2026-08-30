@@ -12783,3 +12783,24 @@ Medicine / Saline History-তে নতুন **Statement** চিপ (Due Only-
 
 **যাচাই:** `verify_kotlin_compile.py` → নতুন ভুল **০** · `verify_android_resources.py`
 → PASS · `node --check app.js` → OK · `tk_guard.py` → **সব পাশ** (ভার্সন এক — V847)।
+
+---
+
+## 🔄 V848 — Statement চিপ Pick Date-এর পরেই, এক সারিতে
+**৩০.০৮.২০২৬ · রাত ২টা ৫০ (IST)** · TK-নির্দেশ
+
+**TK:** *"Pick Date-এর পরেই থাকবে Statement, প্রয়োজনে ডান দিকে স্ক্রল করতে হবে"*
+
+পাঁচটা তারিখ-চিপ (Today · Last 7 Days · Last 30 Days · Pick Date · Statement)
+এখন **এক সারিতেই**; জায়গায় না ধরলে ডান দিকে স্ক্রল করা যায়। "Due Only" আগের
+মতোই নিচে নিজের সারিতে (লাল)।
+
+### 🛡️ ঝুঁকি — সততার সাথে
+· চিপগুলোর **কাজ ও রং কিছুই বদলায়নি** — শুধু সাজানো।
+· ⚠️ একটা লুকানো ফাঁদ ধরা পড়ল ও সারানো হলো: চিপের background বদলালে Android
+  ভিউয়ের padding মুছে দিতে পারে — স্ক্রল-সারিতে সেটা চিপগুলোকে চেপ্টা করে
+  দিত। এখন padding মেপে রেখে আবার বসানো হয়।
+· ⚠️ **ফোনে চালিয়ে দেখা যায়নি** — TK-এর লাইভ টেস্ট বাকি।
+
+**যাচাই:** `verify_kotlin_compile.py` → নতুন ভুল **০** · `verify_android_resources.py`
+→ PASS · `node --check app.js` → OK · `tk_guard.py` → **সব পাশ** (ভার্সন এক — V848)।

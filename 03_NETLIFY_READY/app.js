@@ -13244,14 +13244,16 @@ function medicinePaymentHome(){
       '<button class="medChip" data-f="7" onclick="medSetFilter(\'7\')">Last 7 Days</button>'+
       '<button class="medChip" data-f="30" onclick="medSetFilter(\'30\')">Last 30 Days</button>'+
       '<button class="medChip" data-f="pick" onclick="var e=document.getElementById(\'medDateInp\');if(e){e.showPicker?e.showPicker():e.click()}">Pick Date</button>'+
+      /* 🆕🔒 V847 (৩০.০৮.২০২৬, নাম TK নিজে বেছেছেন) — Statement: From ও To
+         তারিখ চেয়ে ওই সময়ের সব বিক্রি; বাছার পর চিপেই তারিখদুটো দেখায়।
+         🔄 V848 — TK: "Pick Date-এর পরেই থাকবে Statement, প্রয়োজনে ডান দিকে
+         স্ক্রল করতে হবে" ⇒ পাঁচটা চিপ এক সারিতেই (ফোনের হুবহু যমজ)। */
+      '<button class="medChip" id="medChipStmt" data-f="range" onclick="medOpenStatement()">Statement</button>'+
       '<input type="date" id="medDateInp" style="position:absolute;left:-9999px" max="'+today()+'" onchange="if(this.value){__medFilter=\'pick\';__medPick=this.value;medRenderHistory()}">'+
     '</div>'+
     /* 🆕🔒 V846 (৩০.০৮.২০২৬, TK-নির্দেশ: "বিল ২০০০, দিলেন ১২০০ — বাকি ৮০০
        কোথায় শো করবে") — তারিখ না দেখে সব দিনের বাকি একসাথে, উপরে মোট বাকি। */
-    /* 🆕🔒 V847 (৩০.০৮.২০২৬, নাম TK নিজে বেছেছেন) — Statement: From ও To
-       তারিখ চেয়ে ওই সময়ের সব বিক্রি; বাছার পর চিপেই তারিখদুটো দেখায়। */
     '<div class="medChips">'+
-      '<button class="medChip" id="medChipStmt" data-f="range" onclick="medOpenStatement()">Statement</button>'+
       '<button class="medChip medChipDue" id="medChipDue" onclick="medDueToggle()">Due Only</button>'+
     '</div>'+
     '</div><div id="medTotal"></div><div id="medPayList"></div></div>', true);

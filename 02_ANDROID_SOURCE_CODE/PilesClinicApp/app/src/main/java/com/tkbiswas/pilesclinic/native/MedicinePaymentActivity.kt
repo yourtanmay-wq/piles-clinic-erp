@@ -1043,7 +1043,12 @@ val mode = selectedMpMode
 
     private fun renderChips() {
         val green = 0xFF0B7A34.toInt()
+        /* 🔒 V848 — background বদলালে Android ভিউয়ের padding মুছে দিতে পারে;
+           চিপগুলো এখন এক সারিতে স্ক্রল করে বলে padding হারালে ওগুলো চেপ্টা
+           দেখাত। তাই আগের padding মেপে রেখে আবার বসানো হয়। */
         fun paint(chip: TextView, on: Boolean) {
+            val pl = chip.paddingLeft; val pt = chip.paddingTop
+            val pr = chip.paddingRight; val pb = chip.paddingBottom
             if (on) {
                 chip.background = android.graphics.drawable.GradientDrawable().apply {
                     cornerRadius = dp(16).toFloat(); setColor(green)
@@ -1053,6 +1058,7 @@ val mode = selectedMpMode
                 chip.setBackgroundResource(R.drawable.bg_price_chip)
                 chip.setTextColor(green)
             }
+            chip.setPadding(pl, pt, pr, pb)
         }
         paint(chipToday, activeDateFilter == "today")
         paint(chip7, activeDateFilter == "7")
@@ -1062,6 +1068,8 @@ val mode = selectedMpMode
         chipStatement.text = if (activeDateFilter == "range" && rangeFrom != null && rangeTo != null)
             DateUtil.display(rangeFrom) + " – " + DateUtil.display(rangeTo) else "Statement"
         // 🆕 V846 — বাকি-চিপ চালু থাকলে লাল, যাতে তারিখ-চিপের সঙ্গে না মেলে।
+        val dl = chipDue.paddingLeft; val dt = chipDue.paddingTop
+        val dr = chipDue.paddingRight; val db = chipDue.paddingBottom
         if (dueOnly) {
             chipDue.background = android.graphics.drawable.GradientDrawable().apply {
                 cornerRadius = dp(16).toFloat(); setColor(0xFFC62828.toInt())
@@ -1071,6 +1079,7 @@ val mode = selectedMpMode
             chipDue.setBackgroundResource(R.drawable.bg_price_chip)
             chipDue.setTextColor(0xFFC62828.toInt())
         }
+        chipDue.setPadding(dl, dt, dr, db)
         // ⛔ B313/B202: ⏰ ইমোজি ফোনের ফন্টে "Jul 17" এঁকে দেয় (বিভ্রান্তিকর) —
         //    তাই এখানে ইমোজি ছাড়া পরিষ্কার লেখা; তারিখ বাছলে আসল তারিখ দেখায়।
         chipPick.text = if (activeDateFilter == "pick" && pickedDate != null)
