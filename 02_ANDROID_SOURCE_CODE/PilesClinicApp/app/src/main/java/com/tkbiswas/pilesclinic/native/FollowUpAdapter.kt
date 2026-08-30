@@ -250,10 +250,17 @@ class FollowUpAdapter(
            ⛔ `regDate` ফাঁকা হলে নিচের লাইনটা **হুবহু আগের মতোই** চলে — তাই
               Follow-up ও Trash-প্রিভিউর কার্ড এক অক্ষরও বদলায়নি। */
         val regDt = item.regDate
+        /* 🟢🔒 V874 (৩০.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত) — Follow-up
+           কার্ডের হুবহু একই বদল এখানেও (খাতার নিয়ম ৭): REGISTERED-এর লাইনটা
+           আগের মতোই, তার **নিচের লাইনে** LAST CALL-এর তারিখ · সময় · কে।
+           ⛔ কল না হয়ে থাকলে দ্বিতীয় লাইনটা বসেই না — কার্ড আগের মতোই।
+           ⛔ TK: *"NEXT CALL এ time থাকবে না"* ⇒ ডান দিকের লেখা অপরিবর্তিত। */
+        val regLastLine = if (lastDt.isNotBlank())
+            "\nLAST CALL $lastWhen" + (if (lastBy.isNotBlank()) " (${lastBy})" else "") else ""
         b.tvLastCall.text = when {
             regDt.isNotBlank() ->
                 "REGISTERED ${FollowUpModel.displayDate(regDt)}" +
-                    (if (item.regBy.isNotBlank()) " (${item.regBy})" else "")
+                    (if (item.regBy.isNotBlank()) " (${item.regBy})" else "") + regLastLine
             lastDt.isNotBlank() ->
                 "LAST CALL $lastWhen" + (if (lastBy.isNotBlank()) " (${lastBy})" else "")
             else -> "LAST CALL —"

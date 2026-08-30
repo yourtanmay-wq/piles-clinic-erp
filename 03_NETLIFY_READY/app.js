@@ -7658,7 +7658,11 @@ function fuCard(x){
     `wlv1RegDate` ফাঁকা ⇒ নিচের লাইনটা **হুবহু আগের মতোই** চলে। */
  let wlv1RegBy2=codeName(x.wlv1RegBy||'')||String(x.wlv1RegBy||'');
  let wlv1LastTxt=x.wlv1RegDate
-   ?('REGISTERED '+fmtDate(x.wlv1RegDate)+(wlv1RegBy2?(' <span class="anFuBy">('+esc(wlv1RegBy2)+')</span>'):''))
+   /* V874 (৩০.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত) — ফোনের হুবহু একই বদল:
+      REGISTERED-এর লাইনটা আগের মতোই, তার নিচের লাইনে LAST CALL তারিখ · সময় · কে।
+      TK: "NEXT CALL এ time থাকবে না" — ডান দিকের লেখা অপরিবর্তিত। */
+   ?('REGISTERED '+fmtDate(x.wlv1RegDate)+(wlv1RegBy2?(' <span class="anFuBy">('+esc(wlv1RegBy2)+')</span>'):'')
+      +(wlv1LastDt?('<br>LAST CALL '+wlv1LastWhen+(wlv1LastBy?(' <span class="anFuBy">('+esc(wlv1LastBy)+')</span>'):'')):''))
    :(wlv1LastDt?('LAST CALL '+wlv1LastWhen+(wlv1LastBy?(' <span class="anFuBy">('+esc(wlv1LastBy)+')</span>'):'')):'LAST CALL —');
  let wlv1NextTxt=x.nextFollow?(nextLabel+' '+fmtDate(x.nextFollow)):(nextLabel+' —');
 

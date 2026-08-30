@@ -2105,6 +2105,12 @@ class FollowUpActivity : AppCompatActivity() {
         // ⛔ এটা **তিন রকম কার্ডেই** (Enquiry · Visit · Patient) একসঙ্গে হয়,
         //    কারণ কার্ড তৈরির এই কোডটাই তিন সেকশন ব্যবহার করে।
         var statusRowForBox: android.widget.LinearLayout? = null
+        /* 🟢🔒 V874 (৩০.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত):
+           রেজিস্টার হওয়া কার্ডে REGISTERED-এর লাইনটা আগের মতোই থাকে (TK-এর
+           পুরোনো লক করা নিয়ম), আর তার **ঠিক নিচে** LAST CALL-এর তারিখ · সময় ·
+           কে করেছিল — একটা নতুন লাইনে।
+           ⛔ TK: *"NEXT CALL এ time থাকবে না"* ⇒ NEXT CALL-এ শুধু তারিখই। */
+        var lastCallLineForBox: android.widget.TextView? = null
         run {
             val statusRow = ll(android.widget.LinearLayout.HORIZONTAL).apply {
                 gravity = android.view.Gravity.CENTER_VERTICAL
@@ -2207,6 +2213,33 @@ class FollowUpActivity : AppCompatActivity() {
             statusRow.addView(rightText)
 
             statusRowForBox = statusRow
+
+            /* 🟢🔒 V874 — শুধু রেজিস্টার হওয়া কার্ডে, আর কল হয়ে থাকলে।
+               ⛔ এনকোয়ারি কার্ডে LAST CALL উপরের লাইনেই থাকে (আগের মতোই),
+                  তাই সেখানে এই দ্বিতীয় লাইনটা বসে না — একই কথা দু'বার নয়। */
+            if (isReg && item.lastCallDate.isNotBlank()) {
+                val lcWho = item.lastCallBy.trim()
+                val lcText = if (lcWho.isNotBlank()) "LAST CALL ${fuLastWhen(item)} ($lcWho)"
+                             else "LAST CALL ${fuLastWhen(item)}"
+                val lcStyled: CharSequence = if (lcWho.isNotBlank()) {
+                    val open = lcText.lastIndexOf("(")
+                    if (open >= 0) android.text.SpannableString(lcText).apply {
+                        setSpan(
+                            android.text.style.ForegroundColorSpan(android.graphics.Color.parseColor("#B8860B")),
+                            open, lcText.length,
+                            android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                        )
+                    } else lcText
+                } else lcText
+                lastCallLineForBox = tv(lcStyled, 8f, "#344054", true).apply {
+                    maxLines = 2
+                    ellipsize = null
+                    gravity = android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
+                    val p = android.widget.LinearLayout.LayoutParams(MATCH, WRAP)
+                    p.topMargin = dpx(3)
+                    layoutParams = p
+                }
+            }
         }
 
         // Last Remark box (dashed, light green) — tap to edit remark
@@ -2257,6 +2290,7 @@ class FollowUpActivity : AppCompatActivity() {
             setPadding(dpx(10), dpx(7), dpx(10), dpx(8))
             val p = android.widget.LinearLayout.LayoutParams(MATCH, WRAP); p.topMargin = dpx(6); layoutParams = p
             statusRowForBox?.let { addView(it) }
+            lastCallLineForBox?.let { addView(it) }   // 🟢 V874
             // পাতলা লম্বা দাগ — বাক্সের এক প্রান্ত থেকে আরেক প্রান্ত পর্যন্ত।
             addView(android.view.View(this@FollowUpActivity).apply {
                 setBackgroundColor(android.graphics.Color.parseColor("#A8D8BC"))
