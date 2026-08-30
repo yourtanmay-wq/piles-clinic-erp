@@ -9,6 +9,16 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/00_GUARD/tk_short_reply_guard.py\""
+          }
+        ]
+      }
     ]
   }
 }
