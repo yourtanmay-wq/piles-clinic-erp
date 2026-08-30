@@ -340,7 +340,12 @@ object CallOverlay {
                 try { wm?.updateViewLayout(root, lp) } catch (_: Throwable) { }
             }
             root.onDragDone = { savePosY(ctx, lp.y) }   // সরানো ⇒ জায়গাটা মনে রাখি
-            root.onCardTap = { hide(ctx); onOpen() }    // শুধু চাপ ⇒ আগের মতোই Open
+            /* 🔴🔒 V867 (৩০.০৮.২০২৬, TK-নির্দেশ): *"Card এ চাপ দিলে
+               অটোমেটিক ইনকয়ারি ফর্ম কেন খুলবে"* ⇒ কার্ডের গায়ে শুধু চাপ দিলে
+               **আর কিছুই খোলে না**। খুলতে হলে নিচের বোতামেই চাপতে হবে
+               (Open / + New Enquiry · 📝 Remark), বন্ধ করতে উপরে ডানের ✕।
+               ⛔ তিনটে বোতামের কাজ এক অক্ষরও বদলায়নি। */
+            root.onCardTap = null
 
             val manager = ctx.getSystemService(Context.WINDOW_SERVICE) as WindowManager
             manager.addView(root, lp)
