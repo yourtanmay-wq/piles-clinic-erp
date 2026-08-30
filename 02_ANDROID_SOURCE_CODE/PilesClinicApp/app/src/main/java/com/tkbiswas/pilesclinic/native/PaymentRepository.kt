@@ -2448,9 +2448,30 @@ class PaymentRepository(private val context: Context? = null) {
             // enquiry-derived / virtual row) — create the Patient-tab record so the
             // bill + advance still show up, mirroring web saveVisitAdvancePayment().
             if (moved == 0) {
-                val fuId = "fu_" + java.util.UUID.randomUUID().toString().replace("-", "")
+                /* 🔴🔒🔒 V881 (৩০.০৮.২০২৬, TK-রিপোর্ট ছবিসহ — SHAHARYA ও
+                   GOURANGO BARMAN-এর কার্ডে Patient ID উধাও):
+                   TK: *"ভবিষ্যতে যেন এরকম ফালতু কাজ অ্যাপ নিজে থেকে না করে"*
+
+                   **আসল দোষ (কোড ধরে যাচাই, ডেটাবেসেও মিলিয়ে দেখা):** এই
+                   ফলব্যাক সারিটার আইডি ছিল **এলোমেলো** (`fu_<random>`), আর
+                   `patientId` ঘরটা বসানোই হতো না। ফলে —
+                     · উপরের খোঁজা কোনো কারণে ফসকালে (লাইন খারাপ) **প্রতিবার
+                       নতুন একটা সারি** জমত ⇒ একই ধাপে দুটো-তিনটে সারি
+                       (৩০.০৮.২০২৬-এ মাপা: **৮৭ জনের** এমন হয়েছিল),
+                     · আর ওই সারিতে আইডি না থাকায় কার্ডে আইডির বদলে তারিখ
+                       দেখাত (TK-এর ছবি)।
+
+                   **এখন:** আইডিটা **স্থির** — `fu_pat_<রোগীর সারির আইডি>`।
+                   এটা প্রকল্পের নিজের প্রমাণিত নিয়ম (ওয়েবের B626/V406 ও
+                   `PatientTimelineRepository` হুবহু এটাই ব্যবহার করে), তাই
+                   যতবারই চলুক **একই সারিতেই বসে — নতুন সারি আর জমে না**।
+                   সঙ্গে `patientId` ও `patientId`-এর তারিখও বসে, তাই কার্ডে
+                   আইডি কখনো ফাঁকা যাবে না।
+                   ⛔ টাকার হিসাব · বিল · advance — কিছুই বদলায়নি। */
+                val fuId = "fu_pat_" + patient.id
                 val tr = JSONObject()
                     .put("id", fuId).put("refId", patient.id)
+                    .put("patientId", patient.patientId)
                     .put("mobile", patient.mobile).put("name", patient.name).put("branch", patient.branch)
                     .put("stage", "Treatment").put("status", "Active")
                     .put("date", PatientIdGenerator.todayIso())
