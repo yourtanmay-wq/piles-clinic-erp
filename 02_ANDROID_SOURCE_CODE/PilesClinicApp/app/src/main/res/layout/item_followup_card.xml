@@ -55,10 +55,17 @@
                 android:orientation="vertical"
                 android:gravity="center">
 
+                <!-- 🎨🔒 V882 (৩০.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত):
+                     TK: *"Wi-Fi signal তার নিচে তারিখটা কেটে গেল কেন — ওয়াইফাই
+                     সিগনাল সামান্য একটু উপরে তুলুন বা সাইজে ছোট করুন"*।
+                     বাঁ দিকের কলামটা ডান দিকের চেয়ে লম্বা হয়ে যেত, তাই নিচের
+                     তারিখটা কেটে যেত। সিগন্যালের উচ্চতা ৪০dp → ৩৪dp আর নিচের
+                     ফাঁক ৭dp → ৩dp — মোট ১০dp জায়গা খালি হলো, তারিখ পুরো বসে।
+                     ⛔ কার্ডের আর কিছুই বদলায়নি — লেখা · রং · মাপ সব একই। -->
                 <ImageView
                     android:id="@+id/ivWifiSignal"
                     android:layout_width="48dp"
-                    android:layout_height="40dp"
+                    android:layout_height="34dp"
                     android:contentDescription="Enquiry calls: 0 of 5"
                     android:scaleType="fitCenter"
                     android:src="@drawable/ic_wifi_calls_0" />
@@ -67,7 +74,7 @@
                     android:id="@+id/tvSignalLabel"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="7dp"
+                    android:layout_marginTop="3dp"
                     android:text="Enquiry"
                     android:textSize="8.5sp"
                     android:textStyle="bold"

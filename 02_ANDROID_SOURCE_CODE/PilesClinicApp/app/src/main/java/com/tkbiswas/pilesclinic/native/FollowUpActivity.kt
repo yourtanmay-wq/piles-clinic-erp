@@ -1611,12 +1611,17 @@ class FollowUpActivity : AppCompatActivity() {
                 setImageResource(wifiDrawable)
                 contentDescription = "Enquiry calls: $n of 5"
                 scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
-                layoutParams = android.widget.LinearLayout.LayoutParams(dpx(48), dpx(40))
+                /* 🎨🔒 V882 (৩০.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত):
+                   TK: *"Wi-Fi signal তার নিচে তারিখটা কেটে গেল কেন — সিগনাল
+                   সামান্য উপরে তুলুন বা সাইজে ছোট করুন"*। উচ্চতা ৪০ → ৩৪dp,
+                   নিচের ফাঁক ৭ → ৩dp ⇒ ১০dp জায়গা খালি, তারিখ পুরো বসে।
+                   ⛔ Draft কার্ডেও (item_followup_card.xml) হুবহু একই বদল। */
+                layoutParams = android.widget.LinearLayout.LayoutParams(dpx(48), dpx(34))
             }
             left.addView(wifi)
             TripleTapEdit.attach(wifi) { entryActionMenu(item) }
             val status = tv("Enquiry", 10f, "#1067D8", true).apply {   // V229: section name slightly bigger (readability)
-                val p = android.widget.LinearLayout.LayoutParams(WRAP, WRAP); p.topMargin = dpx(7); layoutParams = p
+                val p = android.widget.LinearLayout.LayoutParams(WRAP, WRAP); p.topMargin = dpx(3); layoutParams = p   // 🎨 V882
             }
             left.addView(status)
             TripleTapEdit.attach(status) { entryActionMenu(item) }
