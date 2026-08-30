@@ -550,6 +550,40 @@ def check_columns():
 
 
 # ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯.৩৮ — `R.drawable`/`R.id`… ব্যবহার করলে `R`-এর import থাকতেই হবে
+#
+#  🔴🔴🔴 TK-এর Android Studio-তে ধরা পড়া বিল্ড-এরর (৩০.০৮.২০২৬ সকাল ৯.৫৬):
+#      DoctorQueueAdapter.kt — `Unresolved reference: R` :118 :122 :126
+#
+#  **আসল কারণ:** ফাইলটা `com.tkbiswas.pilesclinic.native` প্যাকেজে, কিন্তু
+#  `R` ক্লাসটা তৈরি হয় মূল প্যাকেজে (`com.tkbiswas.pilesclinic.R`)। তাই
+#  উপ-প্যাকেজের ফাইলে খালি `R` লিখলে কম্পাইলার খুঁজে পায় না — import লাগে।
+#
+#  আগের কোনো পাহারা এটা ধরত না: §৯.১৮/§৯.৩৬ শুধু **প্রকল্পে লেখা** ক্লাসের
+#  নাম মেলায়, আর `R` কোডে লেখা নয় — বিল্ডের সময় তৈরি হয়। এখন এই ফাঁকটা বন্ধ।
+# ═══════════════════════════════════════════════════════════════
+def check_r_import():
+    bad = []
+    for f in kt_files():
+        s = read(f)
+        m = re.search(r'^package\s+([\w.]+)', s, re.M)
+        pkg = m.group(1) if m else ''
+        # মূল প্যাকেজের ফাইলে import লাগে না
+        if pkg == 'com.tkbiswas.pilesclinic':
+            continue
+        code = re.sub(r'/\*.*?\*/', '', s, flags=re.S)
+        code = '\n'.join(l.split('//', 1)[0] for l in code.split('\n'))
+        if not re.search(r'(?<![\w.])R\.(drawable|layout|id|string|color|style|mipmap|raw|anim|array|dimen)\b', code):
+            continue
+        if not re.search(r'^import\s+com\.tkbiswas\.pilesclinic\.R\s*$', s, re.M):
+            bad.append(os.path.relpath(f, ROOT))
+    if bad:
+        for b in bad[:8]:
+            fail("৯.৩৮", f"{b} — `R.` ব্যবহার হয়েছে কিন্তু `import com.tkbiswas.pilesclinic.R` নেই ⇒ Android Studio-তে `Unresolved reference: R` (৩০.০৮.২০২৬-এ ধরা পড়া বিল্ড-এরর)")
+
+
+
+# ═══════════════════════════════════════════════════════════════
 #  যাচাই ৯ — ভার্সন তিন জায়গায় এক (সার্কুলার ৯.৮)
 # ═══════════════════════════════════════════════════════════════
 def check_version():
@@ -3027,6 +3061,7 @@ def main():
     check_columns()
     check_supabase_auth_header()    # 🔑 V811 — দুটো হেডারই আছে তো
     check_project_class_imports()   # 🕵️ V807 — ইন্সপেক্টর: import ছাড়া প্রকল্পের ক্লাস
+    check_r_import()                # 🅰️ V855 — R-এর import (TK-এর বিল্ড-এরর ৩০.০৮.২০২৬)
     check_http_call_timeout()   # ⏱️ V803 — প্রতিটা নেট-ডাকে সময়সীমা
     check_safe_wide_columns()   # 🛟 V801 — শেষ-ভরসার কলাম-তালিকা পুরনো হয়নি তো
     check_static_calls()
@@ -3089,6 +3124,7 @@ def main():
         ("১১",  "রোগীর সময় ১১টা–৪টা"),
         ("৯.৩৭", "🔑 Supabase-এর প্রতিটা ডাকে apikey + Authorization দুটোই আছে"),
         ("৯.৩৬", "🕵️ ইন্সপেক্টর — প্রকল্পের প্রতিটা ক্লাসের import আছে"),
+        ("৯.৩৮", "🅰️ `R.` ব্যবহারকারী প্রতিটা ফাইলে R-এর import আছে"),
         ("৯.৩৫", "⏱️ প্রতিটা OkHttpClient-এ callTimeout বসানো আছে"),
         ("৯.৩৪", "🛟 SafeWideColumns (শেষ-ভরসার পড়া) ডেটাবেসের সঙ্গে মেলে"),
         ("১০",  "মাইন-পোঁতা জায়গা অক্ষত"),

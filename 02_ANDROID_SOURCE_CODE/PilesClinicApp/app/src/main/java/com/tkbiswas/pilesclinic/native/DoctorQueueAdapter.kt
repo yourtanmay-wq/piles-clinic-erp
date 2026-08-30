@@ -4,6 +4,13 @@ import android.content.Context
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
+/* 🔴🔒 V855 (৩০.০৮.২০২৬, TK-এর Android Studio-তে ধরা পড়া বিল্ড-এরর —
+   `Unresolved reference: R` :118 :122 :126)। **আমার V842-এর ভুল:** এই ফাইলটা
+   `…pilesclinic.native` প্যাকেজে, তাই খালি `R` লিখলে কম্পাইলার খুঁজে পায় না —
+   `com.tkbiswas.pilesclinic.R` আলাদা করে import করতে হয়।
+   ⛔ পুরো প্রজেক্ট স্ক্যান করে দেখা হয়েছে — একই দোষ আর কোথাও নেই (নিয়ম ৬.২),
+      আর এখন পাহারাদারও (§৯.৩৮) এটা ধরবে, তাই আর কখনো পার হতে পারবে না। */
+import com.tkbiswas.pilesclinic.R
 import com.tkbiswas.pilesclinic.databinding.ItemQueueCardBinding
 import com.tkbiswas.pilesclinic.databinding.ItemQueueSectionHeaderBinding
 
