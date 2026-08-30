@@ -51,6 +51,10 @@ object NativeSession {
         // প্রমাণিত হলো, তাই ২৪-ঘণ্টার ঘড়ি এখান থেকেই শুরু — লগইনের পরপরই
         // আবার আঙুল চাইবে না।
         try { AppLock.recordLoginUnlock(context) } catch (_: Throwable) { }
+        /* 📱🔒 V889 (৩০.০৮.২০২৬, TK-নির্দেশ) — *"কোন ফোনে কে লগইন জমা
+           রাখুন"*। শুধু লগইনের সময় একটাই সারি বসে (deviceId-ই আইডি), তাই
+           Egress প্রায় শূন্য। ব্যর্থ হলেও লগইন কখনো আটকায় না। */
+        try { DeviceLoginLog.record(context, user.mobile, user.name, user.branch, user.role) } catch (_: Throwable) { }
     }
 
     fun current(context: Context): NativeUser? {
