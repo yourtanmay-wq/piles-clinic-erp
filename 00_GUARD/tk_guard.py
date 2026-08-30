@@ -620,7 +620,7 @@ def check_owner_preserved():
         s = read(js)
         if "registeredBy:old.registeredBy||old.createdBy||p.registeredBy" not in s:
             fail("৯.৩৯", "app.js — আবার রেজিস্ট্রেশনে `registeredBy` পুরোনোটাই রাখতে হবে (V868)")
-        if "select('id,createdBy,registeredBy,createdAt')" not in s:
+        if not re.search(r"\.select\('id,createdBy,registeredBy,createdAt[^']*'\)", s):
             fail("৯.৩৯", "app.js — ক্লাউডে সারি থাকলে আসল নাম-সময় ফিরিয়ে আনতে হবে (V868)")
 
 

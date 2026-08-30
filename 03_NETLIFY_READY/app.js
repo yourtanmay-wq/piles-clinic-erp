@@ -5653,7 +5653,17 @@ function repairBranchWorkflowRows(){
    if(pi<0){followups.unshift({id:'fu_pat_'+p.id,...prow});changed=true;__idxNoteUnshift('Patient',p.id,mm)}
    else{
     // 🟢 B626: status/stage/converted পুরনো সারি থেকে — উল্টায় না।
-    let old=followups[pi];let fixed={...old,...prow,id:old.id,status:(old.status!==undefined&&old.status!=='')?old.status:prow.status,stage:old.stage||prow.stage,previousStage:old.previousStage,convertedPatientId:old.convertedPatientId,convertedAt:old.convertedAt,history:(old.history&&old.history.length)?old.history:prow.history,createdAt:old.createdAt||prow.createdAt,updatedAt:old.updatedAt||prow.updatedAt};
+    let old=followups[pi];/* 🔴🔒🔒 V875 (৩০.০৮.২০২৬) — TK-এর যাচাইয়ে ধরা পড়া **আমার নিজের ফাঁক**:
+       V406-এ এই একই দোষ অন্য দুটো জায়গায় সারানো হয়েছিল, কিন্তু **এই তৃতীয়
+       জায়গাটা বাদ পড়ে গিয়েছিল**। এটা ড্যাশবোর্ড খুললেই চলে, তাই পুরোনো
+       Patient-সারিতে —
+         · পরের কলের তারিখ (nextFollow) **মুছে যেত**
+         · শেষ রিমার্ক **"Registered patient / Visit created"** হয়ে যেত
+         · কল-গোনা (callCount) **০ হয়ে যেত**
+       এখন V406-এর হুবহু প্রমাণিত তিনটে লাইনই এখানেও বসানো হলো।
+       ⛔ পুরোনো সারিতে সত্যিই কিছু লেখা থাকলে তবেই রাখা হয়; ফাঁকা হলে আগের
+          মতোই। কোনো তথ্য নতুন করে বানানো হয় না। */
+    let fixed={...old,...prow,id:old.id,status:(old.status!==undefined&&old.status!=='')?old.status:prow.status,stage:old.stage||prow.stage,callCount:Number(old.callCount||0)>0?old.callCount:prow.callCount,nextFollow:(old.nextFollow||'')!==''?old.nextFollow:prow.nextFollow,lastRemark:(old.lastRemark||'')!==''?old.lastRemark:prow.lastRemark,previousStage:old.previousStage,convertedPatientId:old.convertedPatientId,convertedAt:old.convertedAt,history:(old.history&&old.history.length)?old.history:prow.history,createdAt:old.createdAt||prow.createdAt,updatedAt:old.updatedAt||prow.updatedAt};
     if(JSON.stringify(fixed)!==JSON.stringify(old)){followups[pi]=fixed;changed=true;__idxDirty=true}
    }
    /* ⛔ এই নম্বরে কোনো Inquiry-সারিই না থাকলে নিচের পাসটা আগেও **কিছুই**
@@ -8454,14 +8464,22 @@ async function savePatient(evt){
 
   if(updatingExistingPatient&&patientDup){
    let old={...patientDup};
-   p={...old,...p,id:old.id,patientId:old.patientId||p.patientId,createdAt:old.createdAt||p.createdAt,createdBy:old.createdBy||p.createdBy,registeredBy:old.registeredBy||old.createdBy||p.registeredBy,previousMobiles:Array.from(new Set([...(old.previousMobiles||[]),mob(old.mobile)].filter(Boolean))),history:[...(old.history||[]),{date:today(),type:'Registration Update',staff:user?.mobile||'',note:'Same patient re-registration updated old record'}]};
+   p={...old,...p,id:old.id,patientId:old.patientId||p.patientId,createdAt:old.createdAt||p.createdAt,createdBy:old.createdBy||p.createdBy,registeredBy:old.registeredBy||old.createdBy||p.registeredBy,stage:old.stage||p.stage,queue:(old.queue!==undefined?old.queue:p.queue),doctorComplete:(old.doctorComplete!==undefined?old.doctorComplete:p.doctorComplete),bill:((old.bill!==undefined&&old.bill!==null&&old.bill!=='')?old.bill:p.bill),previousMobiles:Array.from(new Set([...(old.previousMobiles||[]),mob(old.mobile)].filter(Boolean))),history:[...(old.history||[]),{date:today(),type:'Registration Update',staff:user?.mobile||'',note:'Same patient re-registration updated old record'}]};
   }
   // V175 selective safe fix: registration success must create one patient row that is always visible in Visit/Doctor Queue.
   // Registration fee is optional. Payment/photo/cloud side-effects must never remove queue=true.
   // Use the common save() pipeline so local + cloud + realtime pending flags stay consistent with the rest of the ERP.
-  p.stage='Doctor Queue';
-  p.queue=true;
-  p.doctorComplete=false;
+  /* 🔴🔒🔒 V875 (৩০.০৮.২০২৬) — TK-এর যাচাইয়ে ধরা পড়া **আমার নিজের ফাঁক**:
+     V872-এ ফোনে ঠিক করেছিলাম, কিন্তু কম্পিউটারে বাকি ছিল (খাতার নিয়ম ৮ —
+     "ফোন ও কম্পিউটার দুটোতেই")। এই তিনটে লাইন আগে **সব সময়** চলত, তাই
+     পুরোনো রোগীর তথ্য আবার সেভ করলে চেকআপ হয়ে যাওয়া রোগীও আবার ডাক্তারের
+     লাইনে ফিরে আসত। TK-অনুমতি: *"লাইনে ফেরা বন্ধ করে দিন"*।
+     ⛔ নতুন রেজিস্ট্রেশনে আচরণ এক অক্ষরও বদলায়নি। */
+  if(!updatingExistingPatient){
+   p.stage='Doctor Queue';
+   p.queue=true;
+   p.doctorComplete=false;
+  }
   p.visitDate=regDate;
   p.registrationDate=regDate;
   // 🔴🔴🔴🔴 V672 (২৫.০৮.২০২৬, TK-কড়া-রিপোর্ট, ছবিসহ — "ভিজিট ফেরত দেওয়া
@@ -8483,13 +8501,19 @@ async function savePatient(evt){
       // V868 (TK-রিপোর্ট, RAJA MANDAL কার্ড) — সারিটা ক্লাউডে আগে থেকে থাকলে
       // আসল রেজিস্ট্রারের নাম ও আসল সময় এই একই অনুরোধেই আনা হয়, যাতে
       // দ্বিতীয়বার সেভে সেগুলো নতুন লগইনের নামে বদলে না যায়।
-      let cres=await sb.from('patients').select('id,createdBy,registeredBy,createdAt').eq('id',p.id).limit(1);
+      let cres=await sb.from('patients').select('id,createdBy,registeredBy,createdAt,stage,queue,doctorComplete,bill').eq('id',p.id).limit(1);
       if(!cres.error && Array.isArray(cres.data) && cres.data.length>0){
         cloudDupExists=true;
         let old=cres.data[0]||{};
         if(old.createdBy)p.createdBy=old.createdBy;
         if(old.registeredBy||old.createdBy)p.registeredBy=old.registeredBy||old.createdBy;
         if(old.createdAt)p.createdAt=old.createdAt;
+        /* V875 — সারিটা ক্লাউডে আগে থেকে থাকলেও একই নিয়ম: ডাক্তারের লাইন ও
+           বিল পুরোনোটাই থাকে, জোর করে রিসেট হয় না। */
+        if(old.stage)p.stage=old.stage;
+        if(old.queue!==undefined&&old.queue!==null)p.queue=old.queue;
+        if(old.doctorComplete!==undefined&&old.doctorComplete!==null)p.doctorComplete=old.doctorComplete;
+        if(old.bill!==undefined&&old.bill!==null&&old.bill!=='')p.bill=old.bill;
       }
     }catch(_e){}
   }
