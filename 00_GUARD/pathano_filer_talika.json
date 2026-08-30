@@ -3553,5 +3553,11 @@
     "version": 891,
     "date": "2026-08-30",
     "reason": "TK: ফাইল পাঠান — V891 (Monthly Summary হেডার কম্প্যাক্ট) + V820→V891 সম্পূর্ণ যাচাই, ওয়েবে V871-এর দোষ ৩ জায়গায় সারানো"
+  },
+  {
+    "file": "PILES_CLINIC_APP_V892_FINAL.zip",
+    "version": 892,
+    "date": "2026-08-31",
+    "reason": "TK: ফাইল পাঠান — V892 (Registration ফর্মের বক্স উচ্চতায় ছোট + SELECT BRANCH উজ্জ্বল)"
   }
 ]
