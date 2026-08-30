@@ -52,6 +52,7 @@ class MedicinePaymentActivity : AppCompatActivity() {
     private lateinit var chip7: TextView
     private lateinit var chip30: TextView
     private lateinit var chipPick: TextView
+    private lateinit var chipStatement: TextView  // 🆕 V847
     private lateinit var chipDue: TextView        // 🆕 V846
     private lateinit var tvHistoryTotal: TextView
 
@@ -60,7 +61,7 @@ class MedicinePaymentActivity : AppCompatActivity() {
     // সার্চ প্রয়োগ করে দেখাই।
     private var loadedRows: org.json.JSONArray = org.json.JSONArray()
     private var userBranchFilter: String = "All"
-    private var activeDateFilter: String = "today"   // today | 7 | 30 | pick
+    private var activeDateFilter: String = "today"   // today | 7 | 30 | pick | range
     private var pickedDate: String? = null            // yyyy-MM-dd
     private var searchQuery: String = ""
 
@@ -68,6 +69,11 @@ class MedicinePaymentActivity : AppCompatActivity() {
        টাকাটা কোথায় শো করবে?" ⇒ "Due Only" চিপ চাপলে **তারিখ না দেখে** সব দিনের
        বাকি-থাকা বিক্রি একসাথে দেখায়, উপরে মোট বাকির অঙ্ক। */
     private var dueOnly: Boolean = false
+
+    /* 🆕🔒 V847 (৩০.০৮.২০২৬) — TK: "Pick Date-এর পরে … কত তারিখ থেকে কত তারিখ
+       পর্যন্ত"। নাম TK নিজে বেছেছেন — **Statement**। */
+    private var rangeFrom: String? = null            // yyyy-MM-dd
+    private var rangeTo: String? = null              // yyyy-MM-dd
 
     private val branches = listOf("Kishanganj", "Jalpaiguri", "Cooch Behar", "Falakata", "Birpara")
 
@@ -291,6 +297,7 @@ class MedicinePaymentActivity : AppCompatActivity() {
         chip7 = findViewById(R.id.chip7)
         chip30 = findViewById(R.id.chip30)
         chipPick = findViewById(R.id.chipPick)
+        chipStatement = findViewById(R.id.chipStatement)  // 🆕 V847
         chipDue = findViewById(R.id.chipDue)          // 🆕 V846
         tvHistoryTotal = findViewById(R.id.tvHistoryTotal)
 
@@ -510,7 +517,8 @@ val mode = selectedMpMode
                 historyContainer,
                 loadedRows.toString() + "|" + userBranchFilter + "|" +
                     activeDateFilter + "|" + (pickedDate ?: "") + "|" + q +
-                    "|" + dueOnly)) return                       // 🆕 V846
+                    "|" + dueOnly +
+                    "|" + (rangeFrom ?: "") + "|" + (rangeTo ?: ""))) return   // 🆕 V846 · V847
 
         rebuildSettledMap()                                       // 🆕 V846
         historyContainer.removeAllViews()
@@ -537,6 +545,9 @@ val mode = selectedMpMode
                     "7" -> d.isNotBlank() && d >= start7
                     "30" -> d.isNotBlank() && d >= start30
                     "pick" -> pickedDate != null && d == pickedDate
+                    // 🆕 V847 — Statement: From ≤ তারিখ ≤ To (দুই প্রান্তই ধরা)
+                    "range" -> rangeFrom != null && rangeTo != null &&
+                        d.isNotBlank() && d >= rangeFrom!! && d <= rangeTo!!
                     else -> true
                 }
                 if (!dateOk) continue
@@ -962,6 +973,7 @@ val mode = selectedMpMode
         chip7.setOnClickListener { activeDateFilter = "7"; applyFilters() }
         chip30.setOnClickListener { activeDateFilter = "30"; applyFilters() }
         chipPick.setOnClickListener { openDatePicker() }
+        chipStatement.setOnClickListener { openStatementRange() }   // 🆕 V847
         // 🆕 V846 — টগল: চাপলে শুধু বাকি, আবার চাপলে আগের তারিখ-তালিকা।
         chipDue.setOnClickListener { dueOnly = !dueOnly; applyFilters() }
         renderChips()
@@ -989,6 +1001,46 @@ val mode = selectedMpMode
         ).show()
     }
 
+    /** 🆕🔒 V847 — Statement: আগে From তারিখ, তারপর To তারিখ। দুটোই বাছা হলে
+     *  তবেই তালিকা বদলায় — মাঝপথে ছেড়ে দিলে আগের ছাঁকনি হুবহু আগের মতোই থাকে। */
+    private fun openStatementRange() {
+        pickOneDate("Statement — From", rangeFrom) { from ->
+            pickOneDate("Statement — To", rangeTo ?: from) { to ->
+                // উল্টো বাছলে নিজে থেকেই ঠিক করে নেয় (ভুল ছাঁকনি হতে পারবে না)
+                val a = if (from <= to) from else to
+                val b = if (from <= to) to else from
+                rangeFrom = a; rangeTo = b
+                activeDateFilter = "range"
+                dueOnly = false
+                applyFilters()
+            }
+        }
+    }
+
+    private fun pickOneDate(title: String, preset: String?, onPicked: (String) -> Unit) {
+        val cal = java.util.Calendar.getInstance()
+        preset?.let {
+            try {
+                val d = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(it)
+                if (d != null) cal.time = d
+            } catch (_: Exception) {}
+        }
+        val dlg = android.app.DatePickerDialog(
+            this,
+            { _, y, m, day ->
+                val c = java.util.Calendar.getInstance().apply { set(y, m, day) }
+                onPicked(SimpleDateFormat("yyyy-MM-dd", Locale.US).format(c.time))
+            },
+            cal.get(java.util.Calendar.YEAR),
+            cal.get(java.util.Calendar.MONTH),
+            cal.get(java.util.Calendar.DAY_OF_MONTH)
+        )
+        dlg.setTitle(title)
+        // বিক্রি ভবিষ্যতে হয় না — আগামী তারিখ বাছা বন্ধ (ওয়েবেও max=today)
+        try { dlg.datePicker.maxDate = System.currentTimeMillis() } catch (_: Throwable) { }
+        dlg.show()
+    }
+
     private fun renderChips() {
         val green = 0xFF0B7A34.toInt()
         fun paint(chip: TextView, on: Boolean) {
@@ -1006,6 +1058,9 @@ val mode = selectedMpMode
         paint(chip7, activeDateFilter == "7")
         paint(chip30, activeDateFilter == "30")
         paint(chipPick, activeDateFilter == "pick")
+        paint(chipStatement, activeDateFilter == "range")           // 🆕 V847
+        chipStatement.text = if (activeDateFilter == "range" && rangeFrom != null && rangeTo != null)
+            DateUtil.display(rangeFrom) + " – " + DateUtil.display(rangeTo) else "Statement"
         // 🆕 V846 — বাকি-চিপ চালু থাকলে লাল, যাতে তারিখ-চিপের সঙ্গে না মেলে।
         if (dueOnly) {
             chipDue.background = android.graphics.drawable.GradientDrawable().apply {
@@ -1028,6 +1083,8 @@ val mode = selectedMpMode
             "7" -> "LAST 7 DAYS SALE"
             "30" -> "LAST 30 DAYS SALE"
             "pick" -> "SALE ON ${DateUtil.display(pickedDate)}"
+            // 🆕 V847
+            "range" -> "STATEMENT ${DateUtil.display(rangeFrom)} – ${DateUtil.display(rangeTo)}"
             else -> "MEDICINE SALE"
         }
         val line2 = "₹ ${fmt(total)}   ·   $count ${if (count == 1) "sale" else "sales"}"

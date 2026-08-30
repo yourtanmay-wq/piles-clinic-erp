@@ -178,7 +178,13 @@
                          বাকি ৮০০ কোথায় শো করবে") — শুধু বাকি-থাকা বিক্রির তালিকা।
                          তারিখ-চিপের বাইরে (সব দিনের বাকি একসাথে), আর উপরের সবুজ
                          ঘরে মোট বাকির অঙ্ক। ⛔ কোনো নতুন ডেটাবেস-ঘর/SQL লাগে না। -->
-                    <TextView android:id="@+id/chipDue" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:gravity="center" android:paddingVertical="7dp" android:text="Due Only" android:textSize="10.5sp" android:textStyle="bold" android:textColor="#0B7A34" android:background="@drawable/bg_price_chip" />
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="6dp">
+                        <!-- 🆕🔒 V847 (৩০.০৮.২০২৬, TK-নির্দেশ: "Pick Date-এর পরে … কত
+                             তারিখ থেকে কত তারিখ পর্যন্ত", নাম TK নিজে বেছেছেন) —
+                             চাপলে From ও To তারিখ চায়, তারপর চিপেই তারিখদুটো দেখায়। -->
+                        <TextView android:id="@+id/chipStatement" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginEnd="4dp" android:gravity="center" android:paddingVertical="7dp" android:text="Statement" android:textSize="10.5sp" android:textStyle="bold" android:textColor="#0B7A34" android:background="@drawable/bg_price_chip" />
+                        <TextView android:id="@+id/chipDue" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:gravity="center" android:paddingVertical="7dp" android:text="Due Only" android:textSize="10.5sp" android:textStyle="bold" android:textColor="#0B7A34" android:background="@drawable/bg_price_chip" />
+                    </LinearLayout>
                     <TextView
                         android:id="@+id/tvHistoryTotal"
                         android:layout_width="match_parent"

@@ -13202,8 +13202,9 @@ window["saveTreatmentPayment"]=saveTreatmentPayment;
    আগের মতোই — শুধু চেহারা+বোতাম যোগ; কোনো money-লজিক বদলায়নি। */
 var __medFilter='today', __medPick='', __medQ='';
 var __medDueOnly=false;   /* 🆕🔒 V846 — শুধু বাকি-থাকা বিক্রি (ফোনের হুবহু যমজ) */
+var __medFrom='', __medTo='';   /* 🆕🔒 V847 — Statement: কত তারিখ থেকে কত তারিখ */
 function medicinePaymentHome(){
-  __medFilter='today'; __medPick=''; __medQ=''; __medDueOnly=false; __medType='medicinePayment';   /* 🆕 V805 — পর্দা খুললেই আগের মতোই ওষুধ */
+  __medFilter='today'; __medPick=''; __medQ=''; __medDueOnly=false; __medFrom=''; __medTo=''; __medType='medicinePayment';   /* 🆕 V805 — পর্দা খুললেই আগের মতোই ওষুধ */
   page('Medicine or Saline', '<div class="card medForm">'+
     /* 🆕🔒 V805 (২৮.০৮.২০২৬, TK-অনুমোদিত · ফোনের হুবহু যমজ — নিয়ম ৬.৬) —
        TK: "নাম হবে medicine or saline"। `products.kind` = medicinePayment | salinePayment।
@@ -13247,7 +13248,12 @@ function medicinePaymentHome(){
     '</div>'+
     /* 🆕🔒 V846 (৩০.০৮.২০২৬, TK-নির্দেশ: "বিল ২০০০, দিলেন ১২০০ — বাকি ৮০০
        কোথায় শো করবে") — তারিখ না দেখে সব দিনের বাকি একসাথে, উপরে মোট বাকি। */
-    '<div class="medChips"><button class="medChip medChipDue" id="medChipDue" onclick="medDueToggle()">Due Only</button></div>'+
+    /* 🆕🔒 V847 (৩০.০৮.২০২৬, নাম TK নিজে বেছেছেন) — Statement: From ও To
+       তারিখ চেয়ে ওই সময়ের সব বিক্রি; বাছার পর চিপেই তারিখদুটো দেখায়। */
+    '<div class="medChips">'+
+      '<button class="medChip" id="medChipStmt" data-f="range" onclick="medOpenStatement()">Statement</button>'+
+      '<button class="medChip medChipDue" id="medChipDue" onclick="medDueToggle()">Due Only</button>'+
+    '</div>'+
     '</div><div id="medTotal"></div><div id="medPayList"></div></div>', true);
   setTimeout(medRenderHistory,0);
   // 🖥️🔧 TK-নির্দেশে (১৫.০৮.২০২৬, "Branch হেডারে, History এভাবে খোলা থাকবে না"):
@@ -13283,6 +13289,24 @@ function medSetType(t){
 }
 window["medSetType"]=medSetType;
 function medSetFilter(f){__medFilter=f;__medPick='';__medDueOnly=false;medRenderHistory();}
+/* 🆕🔒 V847 — Statement (ফোনের openStatementRange-এর হুবহু যমজ) */
+function medOpenStatement(){
+  modal('<h2>Statement</h2><div class="card">'+
+    '<label>From</label><input type="date" id="medStmtFrom" class="input" max="'+today()+'" value="'+esc(__medFrom||'')+'">'+
+    '<label>To</label><input type="date" id="medStmtTo" class="input" max="'+today()+'" value="'+esc(__medTo||today())+'">'+
+    '<div class="actions"><button onclick="medApplyStatement()">Show</button>'+
+    '<button class="ghost" onclick="closeModal()">Cancel</button></div></div>');
+}
+window["medOpenStatement"]=medOpenStatement;
+function medApplyStatement(){
+  var a=String((($('#medStmtFrom')||{}).value)||''),b=String((($('#medStmtTo')||{}).value)||'');
+  if(!a||!b)return toast('Pick both dates');
+  /* উল্টো বাছলে নিজে থেকেই ঠিক করে নেয় (ভুল ছাঁকনি হতে পারবে না) */
+  __medFrom=(a<=b?a:b); __medTo=(a<=b?b:a);
+  __medFilter='range'; __medPick=''; __medDueOnly=false;
+  closeModal(); medRenderHistory();
+}
+window["medApplyStatement"]=medApplyStatement;
 /* ══════════ 🆕🔒 V846 — বাকি টাকা (ফোনের MedicinePaymentActivity-র হুবহু নিয়ম) ══════════
    ⛔ পুরনো একটাও সারি বদলানো হয় না · নতুন কোনো ডেটাবেস-ঘর/SQL লাগে না।
    বাকি জমা নিলে **আজকের তারিখে নতুন একটা সারি** বসে (deposit = যত নেওয়া হলো,
@@ -13330,7 +13354,7 @@ function medFiltered(){
     /* 🆕 V846 — "Due Only" চললে তারিখ দেখা হয় না (বাকি পুরনো দিনেরও হতে পারে) */
     if(__medDueOnly){ if(medNetDue(x,__sm)<=0)return false; }
     else{
-    var dok=__medFilter==='today'?d===t:__medFilter==='7'?(d&&d>=s7):__medFilter==='30'?(d&&d>=s30):__medFilter==='pick'?d===__medPick:true;
+    var dok=__medFilter==='today'?d===t:__medFilter==='7'?(d&&d>=s7):__medFilter==='30'?(d&&d>=s30):__medFilter==='pick'?d===__medPick:__medFilter==='range'?(d&&__medFrom&&__medTo&&d>=__medFrom&&d<=__medTo):true;   /* 🆕 V847 */
     if(!dok)return false;
     }
     if(q){var hay=((x.customer||'')+' '+(x.product||'')+' '+(x.mobile||'')+' '+(x.receivedBy||'')).toLowerCase();if(hay.indexOf(q)<0)return false;}
@@ -13342,6 +13366,7 @@ function medRenderHistory(){
   if(!listEl)return;
   [].slice.call(document.querySelectorAll('.medChip')).forEach(function(c){c.classList.toggle('on',!__medDueOnly&&c.getAttribute('data-f')===__medFilter);});
   try{var __dc=document.getElementById('medChipDue');if(__dc)__dc.classList.toggle('on',__medDueOnly);}catch(e){}   /* 🆕 V846 */
+  try{var __sc=document.getElementById('medChipStmt');if(__sc)__sc.textContent=(__medFilter==='range'&&__medFrom&&__medTo)?(wlv1Dot(__medFrom)+' – '+wlv1Dot(__medTo)):'Statement';}catch(e){}   /* 🆕 V847 */
   var rows=medFiltered();
   listEl.innerHTML=medicinePayRows(rows);
   if(totEl)totEl.innerHTML=medTotalHtml(rows);
@@ -13426,7 +13451,7 @@ function medTotalHtml(rows){
     return '<div class="medTotBox"><div class="medTotL">TOTAL OUTSTANDING DUE</div><div class="medTotN">'+money(out)+' · '+rows.length+' '+(rows.length===1?'sale':'sales')+'</div><div class="medTotS">All dates · tap a card\'s button to collect</div></div>';
   }
   var tot=0,cash=0,onl=0;rows.forEach(function(x){var d=Number(x.deposit||0);   /* 🔴 V437 #14 */tot+=d;if(String(x.mode||'').toUpperCase()==='CASH'||!x.mode)cash+=d;else onl+=d;});
-  var label=__medFilter==='today'?"TODAY'S MEDICINE SALE":__medFilter==='7'?'LAST 7 DAYS SALE':__medFilter==='30'?'LAST 30 DAYS SALE':__medFilter==='pick'?('SALE ON '+esc(wlv1Dot(__medPick))):'MEDICINE SALE';
+  var label=__medFilter==='today'?"TODAY'S MEDICINE SALE":__medFilter==='7'?'LAST 7 DAYS SALE':__medFilter==='30'?'LAST 30 DAYS SALE':__medFilter==='pick'?('SALE ON '+esc(wlv1Dot(__medPick))):__medFilter==='range'?('STATEMENT '+esc(wlv1Dot(__medFrom))+' – '+esc(wlv1Dot(__medTo))):'MEDICINE SALE';   /* 🆕 V847 */
   return '<div class="medTotBox"><div class="medTotL">'+label+'</div><div class="medTotN">'+money(tot)+' · '+rows.length+' '+(rows.length===1?'sale':'sales')+'</div><div class="medTotS">Cash '+money(cash)+' · Online '+money(onl)+'</div></div>';
 }
 function saveMedicinePayment(action){
