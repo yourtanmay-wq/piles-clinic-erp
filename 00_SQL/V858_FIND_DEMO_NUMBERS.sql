@@ -53,27 +53,35 @@ begin
 end $$;
 
 -- ─── ২. এই নম্বরগুলোর কোনটা এনকোয়ারি / ভিজিট / রোগী হয়ে বসে আছে ─────────
-select o.kind                                   as "কার নম্বর",
-       o.m                                      as "নম্বর",
-       'enquiries'                              as "যেখানে আছে",
-       e."name"                                 as "নাম",
-       e."branch"                               as "ব্রাঞ্চ",
-       e."date"                                 as "তারিখ",
-       ''                                       as "টাকা"
+-- ⛔ প্রতিটা ঘর `::text` করে নেওয়া হয় — কোন ঘর text আর কোনটা সংখ্যা,
+--    টেবিলভেদে আলাদা হতে পারে (V858-এর প্রথম চেষ্টায় ঠিক এখানেই
+--    "COALESCE types text and integer cannot be matched" ভুলটা হয়েছিল)।
+select o.kind::text                             as "কার নম্বর",
+       o.m::text                                as "নম্বর",
+       'enquiries'::text                        as "যেখানে আছে",
+       coalesce(e."name"::text,'')              as "নাম",
+       coalesce(e."branch"::text,'')            as "ব্রাঞ্চ",
+       coalesce(e."date"::text,'')              as "তারিখ",
+       ''::text                                 as "টাকা"
   from _own o join public.enquiries e on e."mobile" like '%'||o.m
 
 union all
-select o.kind, o.m, 'followups', f."name", f."branch", f."date", ''
+select o.kind::text, o.m::text, 'followups'::text,
+       coalesce(f."name"::text,''), coalesce(f."branch"::text,''),
+       coalesce(f."date"::text,''), ''::text
   from _own o join public.followups f on f."mobile" like '%'||o.m
 
 union all
-select o.kind, o.m, 'patients', p."name", p."branch",
-       coalesce(p."registrationDate", p."date"),
-       coalesce(p."bill",0)::text
+select o.kind::text, o.m::text, 'patients'::text,
+       coalesce(p."name"::text,''), coalesce(p."branch"::text,''),
+       coalesce(p."registrationDate"::text, p."date"::text, ''),
+       coalesce(p."bill"::text,'')
   from _own o join public.patients p on p."mobile" like '%'||o.m or p."altMobile" like '%'||o.m
 
 union all
-select o.kind, o.m, 'payments', '', y."branch", y."date", coalesce(y."amount",0)::text
+select o.kind::text, o.m::text, 'payments'::text,
+       ''::text, coalesce(y."branch"::text,''),
+       coalesce(y."date"::text,''), coalesce(y."amount"::text,'')
   from _own o join public.payments y on y."mobile" like '%'||o.m
 
 order by 1, 2, 3;
