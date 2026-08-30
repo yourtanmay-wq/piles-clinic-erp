@@ -1916,33 +1916,70 @@ class ChamberAttendanceActivity : AppCompatActivity() {
         // হিসাব আসার আগে এগুলো ফাঁকা; আসামাত্র বসে যায় এবং Save চালু হয়।
         var patient: PatientBillInfo? = null
         var hasBill = false
-        val amt = android.widget.EditText(this).apply {
-            inputType = android.text.InputType.TYPE_CLASS_TEXT; keyListener = android.text.method.DigitsKeyListener.getInstance("0123456789."); hint = "Amount"
-            setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
-            val p = dp(12); setPadding(p, p, p, p)
+        /* 🎨🔒🔒 V876 (৩০.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত):
+           TK: *"২ যায়গায় ২ রকম কেন? Follow Up card এ যে রকম সেরকম ই থাকতে হবে"*
+           ⇒ এই বাক্সটা এখন Follow-up কার্ডের Advance Payment বাক্সের
+             (`dialog_advance.xml`) হুবহু একই চেহারায় — নেভি মাথা, গোল ঘর,
+             বাঁয়ে লেখা · ডানে টাকা, নিচে Close/Save পিল-বোতাম।
+           TK-এর আরও তিনটে নির্দেশ এখানে মানা হয়েছে:
+             · কোনো বাংলা লেখা নেই
+             · "No bill set…" ধরনের সতর্কবার্তা নেই
+             · প্রকৃত জমার তারিখের ঘরটা **হালকা/হাইড-টাইপ**, আর মাথার আইকন বাদ
+           ⛔ টাকার সেভ · যাচাই · কনফার্ম · day-guard — একটা অক্ষরও বদলায়নি,
+              শুধু চেহারা। */
+        fun rowField(label: String, dim: Boolean = false): Pair<android.widget.LinearLayout, android.widget.EditText> {
+            val et = android.widget.EditText(this).apply {
+                inputType = android.text.InputType.TYPE_CLASS_TEXT
+                keyListener = android.text.method.DigitsKeyListener.getInstance("0123456789.")
+                hint = "Enter amount"
+                setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                gravity = android.view.Gravity.END
+                textSize = if (dim) 17f else 19f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor(if (dim) "#B26A00" else "#16A36D"))
+                setHintTextColor(android.graphics.Color.parseColor("#B7C0CE"))
+                minWidth = dp(96)
+                setPadding(0, 0, 0, 0)
+            }
+            val row = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
+                setPadding(dp(14), dp(6), dp(14), dp(6))
+                addView(android.widget.TextView(this@ChamberAttendanceActivity).apply {
+                    text = label; textSize = 12.5f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.parseColor("#5B6B81"))
+                    layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                })
+                addView(et)
+            }
+            return row to et
         }
-        val billInput = android.widget.EditText(this).apply {
-            inputType = android.text.InputType.TYPE_CLASS_TEXT; keyListener = android.text.method.DigitsKeyListener.getInstance("0123456789."); hint = "Total Bill (optional)"
-            setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
-            val p = dp(12); setPadding(p, p, p, p)
-        }
+        val (rowBill, billInput) = rowField("Total Bill", dim = true)
+        val (rowAmt, amt) = rowField("Amount")
         // TK-REQUESTED (2026-07-25): same backdate date-picker pattern as
         // PaymentActivity's own Add-Treatment-Payment dialog (dateLabel/
         // dateValue/pickedActualDate there) -- reused here verbatim so
         // both payment-entry points behave identically.
         var pickedActualDate = PaymentModel.today()
+        /* 🎨 V876 — TK: *"এই ঘরটা উজ্জ্বলতা কম থাকবে, হাইড টাইপের থাকবে"*
+           ⇒ হালকা ধূসর লেখা, বাকি ঘরের মতো একই গোল ঘরে। ⛔ কাজ অপরিবর্তিত। */
         val dateValue = android.widget.TextView(this).apply {
-            text = NoBengali.s("আজকের তারিখ (ডিফল্ট) — বদলাতে ট্যাপ করুন")
-            setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
-            setPadding(dp(14), dp(12), dp(14), dp(12))
+            text = "Today \u2014 tap to change"
+            textSize = 13f
+            gravity = android.view.Gravity.END
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#AEB8C4"))
+            setPadding(0, 0, 0, 0)
             setOnClickListener {
                 val cal = java.util.Calendar.getInstance()
                 android.app.DatePickerDialog(this@ChamberAttendanceActivity, { _, y, m, dd ->
                     val cal2 = java.util.Calendar.getInstance().apply { set(y, m, dd) }
                     val iso = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(cal2.time)
                     pickedActualDate = iso
-                    text = if (iso == PaymentModel.today()) NoBengali.s("আজকের তারিখ (ডিফল্ট) — বদলাতে ট্যাপ করুন")
-                        else NoBengali.s("প্রকৃত জমা: ${DateUtil.display(iso)} (ট্যাপ করে বদলান)")
+                    text = if (iso == PaymentModel.today()) "Today \u2014 tap to change"
+                        else DateUtil.display(iso)
                 }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH), cal.get(java.util.Calendar.DAY_OF_MONTH)).apply {
                     datePicker.maxDate = System.currentTimeMillis()
                 }.show()
@@ -1950,16 +1987,22 @@ class ChamberAttendanceActivity : AppCompatActivity() {
         }
         // দুটো ঘরই আগেই তৈরি — হিসাব এলে কেবল লেখা ও দেখা/না-দেখা ঠিক হয়।
         val infoLine = android.widget.TextView(this).apply {
-            text = NoBengali.s("হিসাব আসছে…")
+            text = "Loading\u2026"
             textSize = 11f; setTextColor(android.graphics.Color.parseColor("#5B6B81"))
             setPadding(0, 0, 0, dp(8))
         }
-        billInput.visibility = android.view.View.GONE
+        rowBill.visibility = android.view.View.GONE
+        fun gapView() = android.view.View(this).apply {
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT, dp(10))
+        }
         val box = android.widget.LinearLayout(this).apply {
-            orientation = android.widget.LinearLayout.VERTICAL; setPadding(dp(20), dp(12), dp(20), 0)
+            orientation = android.widget.LinearLayout.VERTICAL; setPadding(dp(20), dp(16), dp(20), dp(4))
             addView(infoLine)
-            addView(billInput)
-            addView(amt)
+            addView(rowBill)
+            addView(gapView())
+            addView(rowAmt)
+            addView(gapView())
             // TK-REQUESTED (2026-07-25, fixes TK's live-reported "can't take
             // payment for past days"): this dialog was completely missing
             // the "actual deposit date" picker PaymentActivity's own
@@ -1968,14 +2011,45 @@ class ChamberAttendanceActivity : AppCompatActivity() {
             // entry point) had NO way to backdate at all. Same exact
             // pattern/wording as PaymentActivity: defaults to today (no
             // behaviour change for the normal case); past dates only.
-            addView(android.widget.TextView(this@ChamberAttendanceActivity).apply {
-                text = NoBengali.s("⏰ প্রকৃত জমার তারিখ (যদি আজ না হয়)"); textSize = 11f; setPadding(0, dp(10), 0, dp(4))
+            addView(android.widget.LinearLayout(this@ChamberAttendanceActivity).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
+                setPadding(dp(14), dp(12), dp(14), dp(12))
+                addView(android.widget.TextView(this@ChamberAttendanceActivity).apply {
+                    text = "Actual Date"; textSize = 12.5f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.parseColor("#AEB8C4"))
+                    layoutParams = android.widget.LinearLayout.LayoutParams(0,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                })
+                addView(dateValue)
+                isClickable = true
+                setOnClickListener { dateValue.performClick() }
             })
-            addView(dateValue)
         }
         UppercaseInputUtil.applyToAll(box)  // TK-REQUESTED GLOBAL RULE (2026-07-24): English text auto-CAPITAL, Password fields excluded automatically
         AlertDialog.Builder(this)
-            .setCustomTitle(PremiumAlert.header(this, "💵 $mode Payment — ${row.name.ifBlank { digits }}"))
+            /* 🎨 V876 — TK: *"উপরে ক্যাশ পেমেন্টের বাঁ পাশে আইকন থাকবে না"*
+               ⇒ আইকন বাদ, আর সবুজ মাথার বদলে Follow-up কার্ডের নেভি মাথা
+                 (`dialog_advance.xml`-এর হুবহু একই রং ও মাপ)। */
+            .setCustomTitle(android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+                setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_header_navy_top_round)
+                setPadding(dp(18), dp(18), dp(18), dp(18))
+                addView(android.widget.TextView(this@ChamberAttendanceActivity).apply {
+                    text = "$mode Payment"; textSize = 17f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.WHITE)
+                })
+                addView(android.widget.TextView(this@ChamberAttendanceActivity).apply {
+                    text = listOf(row.name.ifBlank { digits }, digits, row.branch)
+                        .filter { it.isNotBlank() }.joinToString(" \u00b7 ")
+                    textSize = 12f
+                    setTextColor(android.graphics.Color.parseColor("#B8C6D8"))
+                    setPadding(0, dp(3), 0, 0)
+                })
+            })
             .setView(android.widget.ScrollView(this).apply { addView(box) })
             .setPositiveButton("Save") { _, _ ->
                 val value = amt.text.toString().trim().toDoubleOrNull() ?: 0.0
@@ -2042,12 +2116,31 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                         .show().also { PremiumAlert.paint(it) }
                 } else proceed()
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton("Close", null)
             .show().also { dlg ->   // ⛔ V774 — এখানে নিচে PremiumAlert.paint(dlg) আগে থেকেই আছে, তাই আলাদা কিছু লাগেনি
                 // 🔒🔒 খাতার সারি B181 (TK, 30.07.2026): এই বাইরের ডায়ালগটার
                 // (নিজের টাইটেল/লেবেল) নিজে থেকে কোনো পাহারা ছিল না — ভিতরের
                 // দুটো নেস্টেড কনফার্ম-ডায়ালগ (উপরে) আগে থেকেই ঢাকা ছিল।
                 PremiumAlert.paint(dlg)
+                /* 🎨 V876 — Follow-up কার্ডের Close / Save Advance বোতামের
+                   হুবহু একই পিল-চেহারা (`bg_pill_ghost` ও `bg_btn_green`)।
+                   ⛔ বোতামের কাজ এক অক্ষরও বদলায়নি — শুধু চেহারা। */
+                try {
+                    val negBtn: android.widget.Button? = dlg.getButton(AlertDialog.BUTTON_NEGATIVE)
+                    if (negBtn != null) {
+                        negBtn.setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_pill_ghost)
+                        negBtn.setTextColor(android.graphics.Color.parseColor("#5B6B81"))
+                        negBtn.isAllCaps = false
+                        negBtn.setPadding(dp(22), dp(11), dp(22), dp(11))
+                    }
+                    val posBtn: android.widget.Button? = dlg.getButton(AlertDialog.BUTTON_POSITIVE)
+                    if (posBtn != null) {
+                        posBtn.setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_btn_green)
+                        posBtn.setTextColor(android.graphics.Color.WHITE)
+                        posBtn.isAllCaps = false
+                        posBtn.setPadding(dp(26), dp(11), dp(26), dp(11))
+                    }
+                } catch (_: Throwable) { }
                 // 🔒 হিসাব না আসা পর্যন্ত Save বন্ধ — টাকার জায়গায় কোনো আন্দাজ নয়।
                 val save = dlg.getButton(AlertDialog.BUTTON_POSITIVE)
                 save?.isEnabled = false
@@ -2055,20 +2148,24 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                     val p = try { patientJob.await() } catch (_: Throwable) { null }
                     if (isFinishing || isDestroyed) return@launch
                     if (p == null) {
-                        infoLine.text = NoBengali.s("হিসাব আনা গেল না — লাইন দেখে আবার চেষ্টা করুন")
+                        infoLine.text = "Could not load the figures \u2014 check the line and try again"
                         infoLine.setTextColor(android.graphics.Color.parseColor("#B42318"))
                         return@launch
                     }
                     patient = p
                     hasBill = p.bill > 0.0
+                    /* 🎨 V876 — TK: *"no bill set for this payment — এই ধরনের
+                       লেখাও থাকবে না"* ⇒ সতর্কবার্তাটা বাদ। বিল বসানো না থাকলে
+                       শুধু Total Bill-এর ঘরটা দেখায়, কোনো লেখা নয়।
+                       ⛔ বিল থাকলে হিসাবের লাইনটা আগের মতোই (ওটা সতর্কবার্তা নয়)। */
                     if (hasBill) {
                         infoLine.text = "Bill ₹${"%,.0f".format(p.bill)} · Paid so far ₹${"%,.0f".format(p.paid)}"
                         infoLine.setTextColor(android.graphics.Color.parseColor("#5B6B81"))
-                        billInput.visibility = android.view.View.GONE
+                        infoLine.visibility = android.view.View.VISIBLE
+                        rowBill.visibility = android.view.View.GONE
                     } else {
-                        infoLine.text = NoBengali.s("⚠️ এখনো এই পেশেন্টের Bill বসানো হয়নি। বিল না বসালেও Advance নেওয়া যাবে — চাইলে নিচে বিল-ও বসিয়ে দিন।")
-                        infoLine.setTextColor(android.graphics.Color.parseColor("#B45309"))
-                        billInput.visibility = android.view.View.VISIBLE
+                        infoLine.visibility = android.view.View.GONE
+                        rowBill.visibility = android.view.View.VISIBLE
                     }
                     save?.isEnabled = true
                 }
