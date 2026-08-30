@@ -590,6 +590,71 @@ def check_r_import():
 #  ⛔ এই তিনটে ঘর যেন আর কখনো সরাসরি বসানো না হয় — `keep…ifBlank` হয়েই
 #     যেতে হবে। ফোন ও কম্পিউটার — দুটোতেই যাচাই হয়।
 # ═══════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯.৪০ — 🧱 প্রতিটা Kotlin ফাইলে ব্রেস ও বন্ধনী মেলে
+#  (TK-নির্দেশ ৩০.০৮.২০২৬: *"Android studio তে Build করার সময় যেন
+#   কোন প্রকারে error না আসে"*)
+#  ⛔ একটা ব্রেস কম/বেশি হলে Android Studio-তে parse-error — অথচ
+#     kotlinc-এর বেসলাইন-ব্যবস্থায় সেটা চাপা পড়ে যেতে পারত।
+#  ⚠️ স্ট্রিং · ক্যারেক্টার · মন্তব্য · `${...}` — সব বাদ দিয়ে গোনা হয়,
+#     তাই ভুল সংকেত (false alarm) আসে না।
+# ═══════════════════════════════════════════════════════════════
+def _scan_balance(s):
+    i = 0; n = len(s); depth = 0; par = 0
+    while i < n:
+        c = s[i]
+        if c == '/' and i + 1 < n and s[i+1] == '/':
+            while i < n and s[i] != '\n': i += 1
+        elif c == '/' and i + 1 < n and s[i+1] == '*':
+            i += 2
+            while i + 1 < n and not (s[i] == '*' and s[i+1] == '/'): i += 1
+            i += 2
+        elif c == '"':
+            if s[i:i+3] == '"""':
+                i += 3
+                while i + 2 < n and s[i:i+3] != '"""': i += 1
+                i += 3
+            else:
+                i += 1
+                while i < n and s[i] != '"':
+                    if s[i] == '\\': i += 1
+                    elif s[i] == '$' and i + 1 < n and s[i+1] == '{':
+                        d = 1; i += 2
+                        while i < n and d > 0:
+                            if s[i] == '{': d += 1
+                            elif s[i] == '}': d -= 1
+                            elif s[i] == '"':
+                                i += 1
+                                while i < n and s[i] != '"':
+                                    if s[i] == '\\': i += 1
+                                    i += 1
+                            i += 1
+                        continue
+                    i += 1
+                i += 1
+        elif c == "'":
+            i += 1
+            while i < n and s[i] != "'":
+                if s[i] == '\\': i += 1
+                i += 1
+            i += 1
+        else:
+            if c == '{': depth += 1
+            elif c == '}': depth -= 1
+            elif c == '(': par += 1
+            elif c == ')': par -= 1
+            i += 1
+    return depth, par
+
+
+def check_kotlin_balance():
+    for f in kt_files():
+        d, p = _scan_balance(read(f))
+        if d != 0 or p != 0:
+            fail("৯.৪০", f"{os.path.relpath(f, ROOT)} — ব্রেস/বন্ধনী মেলেনি "
+                        f"(brace {d:+d} · paren {p:+d}) ⇒ Android Studio-তে parse-error")
+
+
 def check_owner_preserved():
     pm = os.path.join(APP, "app", "src", "main", "java", "com", "tkbiswas",
                       "pilesclinic", "native", "PatientModel.kt")
@@ -3105,6 +3170,7 @@ def main():
     check_project_class_imports()   # 🕵️ V807 — ইন্সপেক্টর: import ছাড়া প্রকল্পের ক্লাস
     check_r_import()                # 🅰️ V855 — R-এর import (TK-এর বিল্ড-এরর ৩০.০৮.২০২৬)
     check_owner_preserved()         # 🧑‍💼 V868 — আসল রেজিস্ট্রারের নাম কখনো বদলাবে না
+    check_kotlin_balance()          # 🧱 V877 — ব্রেস/বন্ধনী মেলে (বিল্ড-এরর ঠেকানো)
     check_http_call_timeout()   # ⏱️ V803 — প্রতিটা নেট-ডাকে সময়সীমা
     check_safe_wide_columns()   # 🛟 V801 — শেষ-ভরসার কলাম-তালিকা পুরনো হয়নি তো
     check_static_calls()
@@ -3167,6 +3233,7 @@ def main():
         ("১১",  "রোগীর সময় ১১টা–৪টা"),
         ("৯.৩৭", "🔑 Supabase-এর প্রতিটা ডাকে apikey + Authorization দুটোই আছে"),
         ("৯.৩৬", "🕵️ ইন্সপেক্টর — প্রকল্পের প্রতিটা ক্লাসের import আছে"),
+        ("৯.৪০", "🧱 প্রতিটা Kotlin ফাইলে ব্রেস ও বন্ধনী মেলে"),
         ("৯.৩৯", "🧑\u200d💼 আসল রেজিস্ট্রারের নাম ও সময় কখনো বদলায় না"),
         ("৯.৩৮", "🅰️ `R.` ব্যবহারকারী প্রতিটা ফাইলে R-এর import আছে"),
         ("৯.৩৫", "⏱️ প্রতিটা OkHttpClient-এ callTimeout বসানো আছে"),
