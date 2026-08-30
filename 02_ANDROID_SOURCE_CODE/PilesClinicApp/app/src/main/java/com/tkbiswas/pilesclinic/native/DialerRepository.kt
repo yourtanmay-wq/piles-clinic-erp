@@ -186,6 +186,38 @@ object DialerRepository {
 
     /** এই নম্বরের সবচেয়ে সাম্প্রতিক রিমার্ক — কল-লগ তালিকার নিচে ছোট
      *  করে দেখানোর জন্য। না থাকলে ফাঁকা স্ট্রিং (নীরবে)। */
+    /* 🆕🔒 V856 (৩০.০৮.২০২৬, TK-অনুমোদিত ডেমো প্রুফ) — TK: *"LAST CALL-এর
+       তারিখ এবং সময় লাগবে · missed call, incoming call নাকি outgoing call
+       এগুলি থাকতে হবে"*।
+       ⛔ **Egress এক বাইটও বাড়ে না** — নিচের `fetchLatestRemark()` ইতিমধ্যেই
+          ঠিক এই একটাই সারি পড়ে (`call_remarks`, limit 1, calledAt.desc)।
+          এখানে শুধু **একই সারির আরও তিনটে ছোট ঘর** চাওয়া হলো, নতুন কোনো
+          অনুরোধ নয়। (যাচাই করে দেখা: টেবিলে ঘরগুলো আছে — V605-এর SQL।)
+       ⚠️ **সীমা (TK-কে জানানো ও তিনি মেনেছেন):** `call_remarks`-এ সারি বসে
+          **শুধু তখনই যখন স্টাফ রিমার্ক লেখেন**। তাই "LAST CALL" মানে
+          *শেষ যে কলে রিমার্ক লেখা হয়েছিল*। প্রিমিয়াম প্ল্যান নিলে TK
+          "সব কল" দেখাতে বলবেন (খাতায় লেখা আছে)। */
+    data class LastCallInfo(
+        val remark: String = "",
+        val calledAt: String = "",
+        val staffName: String = "",
+        val direction: String = ""
+    )
+
+    fun fetchLatestCallInfo(mobile: String): LastCallInfo {
+        return try {
+            val digits = mobile.filter { it.isDigit() }.takeLast(10)
+            if (digits.length != 10) return LastCallInfo()
+            val rows = SupabaseClient.fetchListSlimOrNull(
+                "call_remarks", "mobile=eq.$digits", 1,
+                "remark,calledAt,staffName,direction", order = "calledAt.desc"
+            ) ?: return LastCallInfo()
+            if (rows.length() == 0) return LastCallInfo()
+            val r = rows.getJSONObject(0)
+            LastCallInfo(r.s("remark"), r.s("calledAt"), r.s("staffName"), r.s("direction"))
+        } catch (_: Throwable) { LastCallInfo() }
+    }
+
     fun fetchLatestRemark(mobile: String): String {
         return try {
             val digits = mobile.filter { it.isDigit() }.takeLast(10)

@@ -44,6 +44,18 @@ object CallNotifyManager {
     // সাথে পাঠানো হয়।
     @Volatile private var activeExistingRemark: String = ""
 
+    /* 🆕🔒 V856 (৩০.০৮.২০২৬, TK-অনুমোদিত ডেমো প্রুফ) — ভাসমান কার্ডে
+       **LAST CALL-এর তারিখ · সময় · কে করেছিল**, আর কলটা
+       **INCOMING / OUTGOING / MISSED** কোনটা।
+       ⛔ Egress এক বাইটও বাড়েনি — যে একটাই সারি আগে থেকেই পড়া হত
+          (`call_remarks`), সেটারই আরও তিনটে ছোট ঘর চাওয়া হলো। */
+    @Volatile private var activeLastCall: DialerRepository.LastCallInfo =
+        DialerRepository.LastCallInfo()
+
+    /** এই কলটা ধরা হয়েছিল কি না — না ধরলে (incoming) সেটাই **Missed**। */
+    @Volatile private var answeredThisCall: Boolean = false
+    @Volatile private var activeMissed: Boolean = false
+
     private fun isoNow(): String =
         java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US)
             .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }.format(java.util.Date())
@@ -101,6 +113,9 @@ object CallNotifyManager {
         activeCalledAt = isoNow()
         activeMatch = null
         activeExistingRemark = ""   // 🟢🔒 V637
+        activeLastCall = DialerRepository.LastCallInfo()   // 🆕 V856
+        answeredThisCall = false
+        activeMissed = false
         post(ctx, ringing = true, ended = false)
         // পিছনে গিয়ে মেলানো — পাওয়া গেলে নোটিফিকেশন আপডেট হবে।
         Thread {
@@ -112,9 +127,12 @@ object CallNotifyManager {
                 // ফাংশনটা আগে থেকেই ছিল (Dialer-এর নিজের তালিকায় ব্যবহৃত),
                 // কিন্তু এই কল-শনাক্তকরণ ফ্লো থেকে কখনো ডাকাই হত না। এখন
                 // একই ব্যাকগ্রাউন্ড থ্রেডেই আগের রিমার্কও আনা হয়।
-                val remark = try { DialerRepository.fetchLatestRemark(digits) } catch (_: Throwable) { "" }
+                /* 🆕 V856 — আগের মতোই **একটাই** অনুরোধ, শুধু একই সারির
+                   আরও তিনটে ঘর সঙ্গে আসে (তারিখ · সময় · কে · কোন দিকের কল)। */
+                val info = try { DialerRepository.fetchLatestCallInfo(digits) } catch (_: Throwable) { DialerRepository.LastCallInfo() }
                 if (activeNumber == digits) {
-                    activeMatch = m; activeExistingRemark = remark
+                    activeMatch = m; activeExistingRemark = info.remark
+                    activeLastCall = info
                     post(ctx, ringing = true, ended = false)
                 }
             } catch (_: Throwable) { }
@@ -126,6 +144,7 @@ object CallNotifyManager {
     fun onOffhook(ctx: Context) {
         if (!allowed(ctx)) return
         if (activeNumber.isBlank()) return   // outgoing হলে notifyOutgoingDialed() থেকেই শুরু হয়
+        answeredThisCall = true   // 🆕 V856 — কল ধরা হলো ⇒ এটা আর Missed নয়
         post(ctx, ringing = false, ended = false)
     }
 
@@ -133,6 +152,9 @@ object CallNotifyManager {
     fun onIdle(ctx: Context) {
         if (!allowed(ctx)) return
         if (activeNumber.isBlank()) return
+        /* 🆕🔒 V856 — **Missed** কল: এসেছিল (incoming), কিন্তু কেউ ধরেনি
+           (OFFHOOK কখনো আসেনি)। ⛔ নিজের করা কল (outgoing) কখনো Missed নয়। */
+        activeMissed = (activeDirection == "incoming" && !answeredThisCall)
         post(ctx, ringing = false, ended = true)
         // পরের কলের জন্য প্রস্তুত — কিন্তু নোটিফিকেশনটা (ended অবস্থায়)
         // থেকে যায়, স্টাফ চাপলে Remark/Enquiry খুলবে। নতুন RINGING/
@@ -150,13 +172,19 @@ object CallNotifyManager {
         activeCalledAt = isoNow()
         activeMatch = matched
         activeExistingRemark = ""   // 🟢🔒 V637 — নিচে ব্যাকগ্রাউন্ডে আনা হচ্ছে
+        activeLastCall = DialerRepository.LastCallInfo()   // 🆕 V856
+        answeredThisCall = true      // নিজে ডায়াল করা কল কখনো "Missed" নয়
+        activeMissed = false
         post(ctx, ringing = false, ended = false)
         // 🟢🔒 V637 — outgoing কলেও আগের রিমার্কস আনা হয় (incoming-এর
         // `onRinging()`-এর হুবহু একই প্যাটার্ন)।
         Thread {
             try {
-                val remark = DialerRepository.fetchLatestRemark(digits)
-                if (activeNumber == digits) { activeExistingRemark = remark; post(ctx, ringing = false, ended = false) }
+                val info = DialerRepository.fetchLatestCallInfo(digits)   // 🆕 V856
+                if (activeNumber == digits) {
+                    activeExistingRemark = info.remark; activeLastCall = info
+                    post(ctx, ringing = false, ended = false)
+                }
             } catch (_: Throwable) { }
         }.start()
     }
@@ -319,7 +347,11 @@ object CallNotifyManager {
                   `lines` · `existingRemark`-ই ব্যবহার হয়। Egress শূন্য।
                ⛔ কার্ড কল ধরার/কাটার বোতাম কেড়ে নেয় না (NOT_FOCUSABLE)। */
             try {
-                if (ended) {
+                /* 🆕🔒 V856 — কল কেটে গেলে কার্ড সরে যায় (আগের মতোই), **শুধু
+                   Missed হলে** কার্ডটা থেকে যায় যাতে স্টাফ দেখে সঙ্গে সঙ্গে
+                   Remark লিখতে বা ফিরতি কল করতে পারেন। ⛔ সেটাও ৬০ সেকেন্ড
+                   পরে নিজে থেকেই সরে যায় — পর্দায় কখনো আটকে থাকবে না। */
+                if (ended && !activeMissed) {
                     CallOverlay.hide(ctx)
                 } else if (CallOverlay.allowed(ctx)) {
                     val ovNumber = number
@@ -330,6 +362,14 @@ object CallNotifyManager {
                     val ovIsRmp = match?.isRmp == true
                     val ovBranch = cln(match?.branch)
                     val ovPatientId = cln(match?.patientId)
+                    // 🆕 V856 — কলের ধরন ও শেষ কলের তথ্য।
+                    val ovType = when {
+                        activeMissed -> "MISSED"
+                        direction == "outgoing" -> "OUTGOING"
+                        else -> "INCOMING"
+                    }
+                    val ovLast = activeLastCall
+                    val ovAutoHide = activeMissed
                     val app = ctx.applicationContext
                     android.os.Handler(android.os.Looper.getMainLooper()).post {
                         CallOverlay.show(
@@ -339,6 +379,10 @@ object CallNotifyManager {
                             lines = ovLines,
                             lastRemark = ovRemark,
                             saved = ovSaved,
+                            callType = ovType,               // 🆕 V856
+                            lastCallAt = ovLast.calledAt,
+                            lastCallBy = ovLast.staffName,
+                            autoHide = ovAutoHide,
                             onOpen = {
                                 /* ⛔ V844-এর হুবহু একই গন্তব্য — নতুন নিয়ম নয়। */
                                 val i = when {
