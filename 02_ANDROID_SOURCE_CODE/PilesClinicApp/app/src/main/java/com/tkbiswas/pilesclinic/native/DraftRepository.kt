@@ -54,7 +54,23 @@ data class DraftEntry(
     val address: String = "",
     val age: String = "",
     val sex: String = "",
-    val refId: String = ""
+    val refId: String = "",
+    /* 🆕🔒 V850 (৩০.০৮.২০২৬, TK-অনুমোদিত ডেমো প্রুফ) — TK: "Last call
+       Date & Time staff নাম এখানে কেন আসে না"।
+       **আসল কারণ (কোড ধরে যাচাই, আন্দাজ নয়):** Draft-এর পাঁচটা "জীবন্ত"
+       তালিকা কার্ডে তথ্য পাঠায় এই DraftEntry বাক্সে ভরে (`toFollowUpItem`)।
+       এই বাক্সে **LAST CALL-এর তিনটে ঘরই ছিল না**, তাই ডেটাবেসে যা-ই থাক
+       কার্ডে সব সময় `LAST CALL —` দেখাত।
+       ⛔ তথ্যগুলো আগে থেকেই ফোনে নেমে আসে (`FOLLOWUP_COLS_NO_PHOTO`-এ
+          `history` ও `lastCallDate`, `PATIENT_COLS_NO_PHOTO`-এ
+          `registrationDate` ও `registeredBy`) — **একটাও নতুন ক্লাউড-পড়া নেই**। */
+    val lastCallDate: String = "",
+    val lastCallBy: String = "",
+    val lastCallTime: String = "",
+    /* TK: "যেগুলো রেজিস্ট্রেশন করা হয়েছে সেখানে লিখতে হবে কত তারিখে
+       রেজিস্ট্রেশন হয়েছে এবং কে রেজিস্ট্রেশন করেছিল"। */
+    val regDate: String = "",
+    val regBy: String = ""
 ) : java.io.Serializable
 
 /**
@@ -86,7 +102,13 @@ fun DraftEntry.toFollowUpItem(): FollowUpItem = FollowUpItem(
     sex = sex,
     photo = "",
     timeType = timeType,
-    refId = refId
+    refId = refId,
+    // 🆕 V850 — এই পাঁচটা ঘর না পাঠালে কার্ডের লাইনটা চিরকাল `—` থাকত।
+    lastCallDate = lastCallDate,
+    lastCallBy = lastCallBy,
+    lastCallTime = lastCallTime,
+    regDate = regDate,
+    regBy = regBy
 )
 
 data class DraftBuckets(
@@ -167,6 +189,14 @@ class DraftRepository(private val context: Context? = null) {
                     .put("callCount", e.callCount).put("timeType", e.timeType)
                     .put("address", e.address).put("age", e.age).put("sex", e.sex)
                     .put("refId", e.refId)
+                    /* 🆕 V850 — জমানো তালিকাতেও এই পাঁচটা ঘর লিখতে হবে, নইলে
+                       পর্দা খোলার সঙ্গে সঙ্গে (ক্যাশ থেকে) লাইনটা আবার ফাঁকা
+                       দেখাত, আর লাইন খারাপ থাকলে চিরকালই। (পাহারা §৯.২৩) */
+                    .put("lastCallDate", e.lastCallDate)
+                    .put("lastCallBy", e.lastCallBy)
+                    .put("lastCallTime", e.lastCallTime)
+                    .put("regDate", e.regDate)
+                    .put("regBy", e.regBy)
             )
         }
         return arr
@@ -195,7 +225,13 @@ class DraftRepository(private val context: Context? = null) {
                     address = r.optString("address", ""),
                     age = r.optString("age", ""),
                     sex = r.optString("sex", ""),
-                    refId = r.optString("refId", "")
+                    refId = r.optString("refId", ""),
+                    // 🆕 V850 — উপরের `serializeEntries`-এর জোড়া (পাহারা §৯.২৩)।
+                    lastCallDate = r.optString("lastCallDate", ""),
+                    lastCallBy = r.optString("lastCallBy", ""),
+                    lastCallTime = r.optString("lastCallTime", ""),
+                    regDate = r.optString("regDate", ""),
+                    regBy = r.optString("regBy", "")
                 )
             )
         }
@@ -382,7 +418,27 @@ class DraftRepository(private val context: Context? = null) {
 
     private fun today(): String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
 
-    private fun entry(row: JSONObject, tab: String, extra: String = "", bill: Double = 0.0, paid: Double = 0.0): DraftEntry =
+    /* 🆕🔒 V850 — কার্ডের `LAST CALL` / `REGISTERED` লাইনের তথ্য।
+       ⛔ সবটাই **আগে থেকে নামানো** সারি থেকে — নতুন কোনো ক্লাউড-পড়া নেই।
+       `pat` = এই মানুষের `patients` সারি (থাকলে); ওখান থেকেই রেজিস্ট্রেশনের
+       তারিখ ও কে রেজিস্টার করেছিলেন। */
+    private fun histLast(row: JSONObject, key: String): String = try {
+        val arr = row.optJSONArray("history")
+        if (arr == null || arr.length() == 0) "" else {
+            var found = ""
+            for (i in arr.length() - 1 downTo 0) {
+                val e = arr.optJSONObject(i) ?: continue
+                val d = if (e.isNull("date")) "" else e.optString("date", "")
+                if (d.isNotBlank()) { found = if (e.isNull(key)) "" else e.optString(key, ""); break }
+            }
+            found
+        }
+    } catch (_: Throwable) { "" }
+
+    private fun entry(
+        row: JSONObject, tab: String, extra: String = "", bill: Double = 0.0, paid: Double = 0.0,
+        pat: JSONObject? = null   // 🆕 V850
+    ): DraftEntry =
         DraftEntry(
             // 🔴🔴🔴 TK-REPORTED (31.07.2026): "Patient Name-এর জায়গায় Mobile
             // দুবার দেখানো"। আসল কারণ এইখানে পাওয়া গেল — এই সারিতেই আগে থেকে
@@ -420,7 +476,21 @@ class DraftRepository(private val context: Context? = null) {
             address = row.s("address"),
             age = row.s("age"),
             sex = row.s("sex"),
-            refId = row.s("refId")
+            refId = row.s("refId"),
+            /* 🆕 V850 — LAST CALL: আগে `lastCallDate` ঘর, না থাকলে `history`-র
+               শেষ সারির তারিখ। সময় ও স্টাফের নাম **শুধু `history`-তেই** থাকে
+               (ডেটাবেসে ওদের আলাদা ঘরই নেই — যাচাই করে দেখা)। */
+            lastCallDate = row.s("lastCallDate").ifBlank { histLast(row, "date").take(10) },
+            lastCallBy = FollowUpModel.prettyStaff(histLast(row, "staff")),
+            lastCallTime = histLast(row, "time"),
+            /* 🆕 V850 — REGISTERED: রোগীর নিজের সারি থাকলে সেখান থেকে; না
+               থাকলে (নিছক এনকোয়ারি) ফাঁকা ⇒ কার্ডে আগের মতোই LAST CALL। */
+            regDate = (pat ?: row.takeIf { it.has("registeredBy") })
+                ?.let { it.s("registrationDate").ifBlank { it.s("date") } }.orEmpty().take(10),
+            regBy = FollowUpModel.prettyStaff(
+                (pat ?: row.takeIf { it.has("registeredBy") })
+                    ?.let { it.s("registeredBy").ifBlank { it.s("createdBy") } }.orEmpty()
+            )
         )
 
     /** Merges any locally-pending rows (not yet synced) matching this branch
@@ -950,7 +1020,8 @@ class DraftRepository(private val context: Context? = null) {
         val notComplete = dedupByMobile(notCompleteRows).map {
             val m = it.s("mobile").filter { c -> c.isDigit() }.takeLast(10)
             val b = patientByMobile[m]?.optDouble("bill", 0.0) ?: 0.0
-            entry(it, "notcomplete", "Incomplete", bill = b, paid = paidByMobile[m] ?: 0.0)
+            entry(it, "notcomplete", "Incomplete", bill = b, paid = paidByMobile[m] ?: 0.0,
+                  pat = patientByMobile[m])   // 🆕 V850
         }.toMutableList()
         // 🟢🔒 V621 — "cancelled" bucket-এর ঠিক পাশে, সম্পূর্ণ আলাদা tab id
         // ("returnvisit") ও লেবেল ("Return Visit")।
@@ -959,7 +1030,8 @@ class DraftRepository(private val context: Context? = null) {
         val runningTreatment = dedupByMobile(runningTreatmentRows).map {
             val m = it.s("mobile").filter { c -> c.isDigit() }.takeLast(10)
             val b = patientByMobile[m]?.optDouble("bill", 0.0) ?: 0.0
-            entry(it, "runningtreatment", "Running Treatment", bill = b, paid = paidByMobile[m] ?: 0.0)
+            entry(it, "runningtreatment", "Running Treatment", bill = b, paid = paidByMobile[m] ?: 0.0,
+                  pat = patientByMobile[m])   // 🆕 V850
         }.toMutableList()
 
         // 🟢🔒 V646 — Unexpected Time Calls এখন `unexpectedTimeRows`
@@ -984,7 +1056,8 @@ class DraftRepository(private val context: Context? = null) {
             // 🔒 TK-এর লক করা নিয়ম (খাতার সারি B96-এ আবার ধরা পড়ল, ছবিসহ):
             // *"By: ঘরে সবসময় স্টাফের নাম দেখাবে, কখনো কাঁচা মোবাইল নম্বর নয়।"*
             val byName = FollowUpModel.prettyStaff(by)
-            entry(row, "unexpected", "$status${if (byName.isNotBlank()) " · by $byName" else ""}", bill = bill, paid = paid)
+            entry(row, "unexpected", "$status${if (byName.isNotBlank()) " · by $byName" else ""}",
+                  bill = bill, paid = paid, pat = pat)   // 🆕 V850
         }.toMutableList()
 
         val complete = mutableListOf<DraftEntry>()
@@ -1105,7 +1178,8 @@ class DraftRepository(private val context: Context? = null) {
             if (live != null) {
                 val bill = patientByMobile[m]?.optDouble("bill", 0.0) ?: 0.0
                 val paid = paidByMobile[m] ?: 0.0
-                received.add(entry(live, "received", bill = bill, paid = paid))
+                received.add(entry(live, "received", bill = bill, paid = paid,
+                                   pat = patientByMobile[m]))   // 🆕 V850
             } else {
                 received.add(entry(enqRow, "received"))
             }

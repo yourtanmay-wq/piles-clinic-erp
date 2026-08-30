@@ -244,9 +244,20 @@ class FollowUpAdapter(
             val tm = formatTime12(lastTm)
             dateTxt + (if (tm.isNotBlank()) " : $tm" else "")
         } else ""
-        b.tvLastCall.text = if (lastDt.isNotBlank())
-            "LAST CALL $lastWhen" + (if (lastBy.isNotBlank()) " (${lastBy})" else "")
-        else "LAST CALL —"
+        /* 🆕🔒 V850 (৩০.০৮.২০২৬, TK-অনুমোদিত ডেমো প্রুফ) — TK: "যেগুলো এনকোয়ারি
+           কার্ড সেগুলোতে লাস্ট কল থাকবে; যেগুলো রেজিস্ট্রেশন করা হয়েছে সেখানে
+           লিখতে হবে কত তারিখে রেজিস্ট্রেশন হয়েছে এবং কে রেজিস্ট্রেশন করেছিল"।
+           ⛔ `regDate` ফাঁকা হলে নিচের লাইনটা **হুবহু আগের মতোই** চলে — তাই
+              Follow-up ও Trash-প্রিভিউর কার্ড এক অক্ষরও বদলায়নি। */
+        val regDt = item.regDate
+        b.tvLastCall.text = when {
+            regDt.isNotBlank() ->
+                "REGISTERED ${FollowUpModel.displayDate(regDt)}" +
+                    (if (item.regBy.isNotBlank()) " (${item.regBy})" else "")
+            lastDt.isNotBlank() ->
+                "LAST CALL $lastWhen" + (if (lastBy.isNotBlank()) " (${lastBy})" else "")
+            else -> "LAST CALL —"
+        }
         b.tvNextFollow.text = if (item.nextFollow.isNotBlank())
             "NEXT CALL ${FollowUpModel.displayDate(item.nextFollow)}" else "NEXT CALL —"
 
@@ -277,10 +288,17 @@ class FollowUpAdapter(
     private fun formatTime12(raw: String): String {
         if (raw.isBlank()) return ""
         return try {
-            val parts = raw.trim().split(":")
+            /* 🔴🔒 V850 (নিজের যাচাইয়ে ধরা পড়া দোষ) — `history`-র `time` ঘরে
+               কোথাও "HH:mm" জমা হয়, আবার কোথাও **পুরো ISO** ("2026-08-29T
+               11:20:05.000Z" — যেমন `EnquiryModel.buildFollowUpRow()`)। আগে
+               সরাসরি `:` দিয়ে ভাঙা হত, তাই ISO হলে প্রথম টুকরো "…T11" হয়ে
+               `toInt()` ভেঙে যেত ⇒ সময়টা চুপচাপ উধাও হয়ে যেত।
+               এখন 'T'-এর পরের অংশটাই নেওয়া হয়। ⛔ "HH:mm" আগের মতোই চলে। */
+            val body = raw.trim().substringAfter('T', raw.trim())
+            val parts = body.split(":")
             if (parts.size < 2) return ""
-            var h = parts[0].toInt()
-            val m = parts[1].toInt()
+            var h = parts[0].trim().toInt()
+            val m = parts[1].take(2).toInt()
             val ampm = if (h < 12) "AM" else "PM"
             if (h == 0) h = 12 else if (h > 12) h -= 12
             /* ⏰ V835 (TK-নির্দেশ): `3:15 PM` → `3.15 PM`। এই ফাংশনটা
