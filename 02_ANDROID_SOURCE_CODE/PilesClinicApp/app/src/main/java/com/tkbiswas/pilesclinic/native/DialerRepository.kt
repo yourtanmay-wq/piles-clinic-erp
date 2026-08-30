@@ -170,6 +170,17 @@ object DialerRepository {
                         )
                     } catch (_: Throwable) { }
                     try { FollowUpRepository(ctx).logEnquiryCall(followupId) } catch (_: Throwable) { }
+                    /* 🔴🔒🔒 V873 (৩০.০৮.২০২৬, TK-রিপোর্ট + অনুমতি —
+                       BHUDEV CHANDRA ROY): কল হয়ে গেলেও নাম "টুডে পেন্ডিং"-এ
+                       আটকে থাকত, কারণ **এই পথে `nextFollow` কখনো বদলাতই না** —
+                       `nextCallDate` শুধু RMP-র ঘরে যেত, রোগীর ঘরে নয়।
+                       এখন স্টাফের বাছা তারিখটা রোগীর সারিতেও বসে ⇒ নামটা
+                       পেন্ডিং থেকে সরে গিয়ে ঠিক দিনে ফিরে আসে।
+                       ⛔ ফাঁকা হলে কিছুই বদলায় না — পুরোনো তারিখ অক্ষত
+                          (প্রমাণিত `updateNextFollow`-ই ব্যবহার, নতুন কিছু নয়)। */
+                    if (nextCallDate.isNotBlank()) {
+                        try { FollowUpRepository(ctx).updateNextFollow(followupId, nextCallDate) } catch (_: Throwable) { }
+                    }
                 }
                 // 🩺 V836 — RMP হলে RMP সেকশনেই বসে।
                 if (rmpId.isNotBlank()) {

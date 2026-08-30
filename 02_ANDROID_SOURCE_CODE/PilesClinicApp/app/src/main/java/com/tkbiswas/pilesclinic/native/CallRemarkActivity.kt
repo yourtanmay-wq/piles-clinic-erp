@@ -99,9 +99,23 @@ class CallRemarkActivity : AppCompatActivity() {
               (`DoctorVisitRepository.logCallKeepingDates` সেটাই করে)। */
         var pickedNextCall = ""
         val dateLine = TextView(this)
-        if (rmpId.isNotBlank()) {
+        /* 🔴🔒🔒 V873 (৩০.০৮.২০২৬, TK-রিপোর্ট + অনুমতি — BHUDEV CHANDRA ROY):
+           *"২৯.৮ এই ব্যক্তি তো চলে এসেছিল, তাহলে কেন বাকির খাতায় দেখাচ্ছে"*
+
+           **আসল দোষ (কোড ধরে যাচাই):** "টুডে পেন্ডিং" ঠিক হয় **শুধু**
+           `nextFollow` (পরের কলের তারিখ) দেখে। Follow-up পর্দায় রিমার্ক সেভ
+           করলে তারিখ বাধ্যতামূলকভাবে চাওয়া হয় — কিন্তু **এই পর্দায় (Dialer-এর
+           "📝 Add / Edit Remark" ও কল আসার সময়ের রিমার্ক) তারিখের ঘরটা শুধু
+           RMP ডাক্তারের বেলায় দেখাত**, রোগীর বেলায় নয়। তাই রোগীর তারিখ
+           পুরোনোই থেকে যেত আর নাম পেন্ডিং তালিকায় আটকে থাকত।
+
+           **এখন (TK-অনুমোদিত):** রোগীর বেলাতেও ঘরটা দেখায়, আর Save চাপলে
+           তারিখ না দেওয়া থাকলে **ক্যালেন্ডার নিজে খোলে** — Follow-up পর্দার
+           হুবহু একই আচরণ (নতুন কিছু বানানো হয়নি, একই `PilesDatePicker`)।
+           ⛔ RMP-র বেলায় আচরণ এক অক্ষরও বদলায়নি। */
+        if (rmpId.isNotBlank() || followupId.isNotBlank()) {
             root.addView(TextView(this).apply {
-                text = "NEXT CALL DATE  (optional)"
+                text = "NEXT CALL DATE"
                 textSize = 12.5f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setTextColor(android.graphics.Color.parseColor("#0B4F2A"))
@@ -176,7 +190,9 @@ class CallRemarkActivity : AppCompatActivity() {
             ).apply { leftMargin = dp(8) } })
             root.addView(dateRow)
             root.addView(TextView(this).apply {
-                text = "Leave it empty - the old Next Call date stays as it is."
+                text = if (followupId.isNotBlank())
+                    "Not given? The calendar opens on Save - this decides today's pending call list."
+                else "Leave it empty - the old Next Call date stays as it is."
                 textSize = 11.5f
                 setTextColor(android.graphics.Color.parseColor("#8A93A0"))
                 setPadding(0, dp(6), 0, 0)
@@ -203,6 +219,13 @@ class CallRemarkActivity : AppCompatActivity() {
             setOnClickListener {
                 val text = input.text?.toString().orEmpty().trim()
                 if (text.isBlank()) { Toast.makeText(this@CallRemarkActivity, "Write something first", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
+                /* 🟢 V873 — রোগীর বেলায় তারিখ না দিলে আগে ক্যালেন্ডার।
+                   ⛔ RMP-র বেলায় আগের মতোই ঐচ্ছিক, কিছু বদলায়নি। */
+                if (followupId.isNotBlank() && pickedNextCall.isBlank()) {
+                    Toast.makeText(this@CallRemarkActivity, "Now give the next call date", Toast.LENGTH_SHORT).show()
+                    dateLine.performClick()
+                    return@setOnClickListener
+                }
                 DialerRepository.saveCallRemark(
                     ctx = applicationContext,
                     mobile = mobile, direction = direction, remark = text, patientId = patientId,
