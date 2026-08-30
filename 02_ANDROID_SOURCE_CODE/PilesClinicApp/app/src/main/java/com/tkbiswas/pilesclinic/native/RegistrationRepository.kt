@@ -211,9 +211,13 @@ class RegistrationRepository(private val context: Context) {
            ⛔ Follow-up (Visit) সারিও এই নতুন আইডি ধরেই তৈরি হয়, তাই প্রথম
               রোগীর Follow-up-এ হাত পড়ে না। */
         val rowIdForSave = existingRowIdSafe.ifBlank { forceNewPatientRowId }
+        /* 🔴🔒 V872 — শেষ শর্তটা: এটা কি আগে থেকে থাকা রোগীর সারি?
+           ⛔ ঠিক যে শর্তে Visit Fee কাটা হয় না, হুবহু সেই শর্তই (প্রমাণিত)।
+              "Different Patient" নতুন রোগী ⇒ এখানে `false`, আগের মতোই। */
         val patientRow = PatientModel.buildPatientRow(
             draft, patientId, staffMobile, rowIdForSave,
-            keepCreatedBy, keepRegisteredBy, keepCreatedAt)
+            keepCreatedBy, keepRegisteredBy, keepCreatedAt,
+            isExistingRow = existingRowIdSafe.isNotBlank())
         /* 🔴🔒 V399 (16.08.2026, TK-রিপোর্ট ছবিসহ — "২ বার ৩ বার হয়ে যাচ্ছে"):
            এই রোগীর Follow-up (Visit) সারি ক্লাউডে আগে থেকেই আছে কিনা দেখা হয় —
            থাকলে **সেটার আইডিই** ব্যবহার হয়, তাই নতুন সারি আর তৈরি হয় না।

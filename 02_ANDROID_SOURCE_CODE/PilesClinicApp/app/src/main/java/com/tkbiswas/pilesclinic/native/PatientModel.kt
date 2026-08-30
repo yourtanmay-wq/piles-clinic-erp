@@ -152,7 +152,8 @@ object PatientModel {
         existingRowId: String = "",
         keepCreatedBy: String = "",
         keepRegisteredBy: String = "",
-        keepCreatedAt: String = ""
+        keepCreatedAt: String = "",
+        isExistingRow: Boolean = false
     ): JSONObject {
         val now = isoNow()
         val diagnosis = draft.diseases.joinToString(", ")
@@ -216,10 +217,6 @@ object PatientModel {
             .put("photo", draft.photo)
             .put("createdBy", keepCreatedBy.ifBlank { createdByMobile })
             .put("registeredBy", keepRegisteredBy.ifBlank { createdByMobile })
-            .put("stage", "Doctor Queue")
-            .put("queue", true)
-            .put("doctorComplete", false)
-            .put("bill", 0)
             // TK-REQUESTED ADDITION (2026-07-24): same Official/Unexpected
             // Time concept Enquiry already has -- threaded through
             // patientRow the same way disease/address/age/sex already are,
@@ -227,6 +224,25 @@ object PatientModel {
             .put("timeType", draft.timeType)
             .put("createdAt", keepCreatedAt.ifBlank { now })
             .put("updatedAt", now)
+            .also { row ->
+                /* 🔴🔒🔒 V872 (৩০.০৮.২০২৬, TK-অনুমোদিত — *"লাইনে ফেরা বন্ধ
+                   করে দিন"*): এই চারটে ঘর আগে **সব সময়** পাঠানো হতো। তাই
+                   পুরোনো রোগীর তথ্য দ্বিতীয়বার সেভ করলেই (নামের বানান ঠিক
+                   করা · Update Existing) —
+                     · চেকআপ হয়ে যাওয়া রোগী আবার **ডাক্তারের লাইনে** ফিরত
+                       (`stage`/`queue`/`doctorComplete`),
+                     · আর তাঁর **বিলটা ০ হয়ে যেত** (`bill`)।
+                   **এখন:** চারটেই শুধু **নতুন রোগীর সারিতে** বসে। পুরোনো সারিতে
+                   ঘরগুলো পাঠানোই হয় না ⇒ ক্লাউডে ও ফোনে দুটোতেই অপরিবর্তিত
+                   থাকে। ⛔ নতুন রেজিস্ট্রেশনে আচরণ এক অক্ষরও বদলায়নি
+                   ("Different Patient"-ও নতুনই, তাই সেখানেও আগের মতোই)। */
+                if (!isExistingRow) {
+                    row.put("stage", "Doctor Queue")
+                       .put("queue", true)
+                       .put("doctorComplete", false)
+                       .put("bill", 0)
+                }
+            }
     }
 
     /** Builds the matching "followups" row (stage=Patient), matching
