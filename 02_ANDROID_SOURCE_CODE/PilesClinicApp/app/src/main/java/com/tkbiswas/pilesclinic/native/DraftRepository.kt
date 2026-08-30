@@ -70,7 +70,12 @@ data class DraftEntry(
     /* TK: "যেগুলো রেজিস্ট্রেশন করা হয়েছে সেখানে লিখতে হবে কত তারিখে
        রেজিস্ট্রেশন হয়েছে এবং কে রেজিস্ট্রেশন করেছিল"। */
     val regDate: String = "",
-    val regBy: String = ""
+    val regBy: String = "",
+    /* 🆕🔒 V852 (৩০.০৮.২০২৬, TK-অনুমোদিত ডেমো প্রুফ) — TK: "return visit /
+       refund এরকম কোনো ব্যাপার থাকলে ওই ব্যক্তির পাশে ফার্স্ট ব্র্যাকেটের
+       মধ্যে মেনশন থাকবে" · "তালিকায় যা দেখাবে গোনাও যেন একই হয়"।
+       মান: "" · "Return Visit" · "Refund"। */
+    val regTag: String = ""
 ) : java.io.Serializable
 
 /**
@@ -150,7 +155,12 @@ data class DraftBuckets(
     // ⛔ Draft-এর উপরের All/This Month/Custom ছাঁকনি এই ঘরে **লাগে না** —
     //    এটা সবসময় পুরো বছরের হিসাব (TK-এর স্পষ্ট নির্দেশ)।
     // ⛔ ডিফল্ট খালি — পুরনো কোনো `DraftBuckets(...)` কল ভাঙে না।
-    val yearlyReg: List<DraftEntry> = emptyList()
+    val yearlyReg: List<DraftEntry> = emptyList(),
+    /* 🆕🔒 V852 — Yearly Registration-এ যারা **তালিকাতেও নেই, গোনাতেও নেই**:
+       নামে DEMO/TEST · রেজিস্ট্রেশনের তারিখ নেই। পর্দার উপরে ছোট করে দেখানো
+       হয় যাতে TK নিজেই বুঝতে পারেন কেউ চুপচাপ বাদ পড়ছে কিনা। */
+    val yearlyOutDemo: Int = 0,
+    val yearlyOutNoDate: Int = 0
 )
 
 class DraftRepository(private val context: Context? = null) {
@@ -197,6 +207,7 @@ class DraftRepository(private val context: Context? = null) {
                     .put("lastCallTime", e.lastCallTime)
                     .put("regDate", e.regDate)
                     .put("regBy", e.regBy)
+                    .put("regTag", e.regTag)   // 🆕 V852 (পাহারা §৯.২৩)
             )
         }
         return arr
@@ -231,7 +242,8 @@ class DraftRepository(private val context: Context? = null) {
                     lastCallBy = r.optString("lastCallBy", ""),
                     lastCallTime = r.optString("lastCallTime", ""),
                     regDate = r.optString("regDate", ""),
-                    regBy = r.optString("regBy", "")
+                    regBy = r.optString("regBy", ""),
+                    regTag = r.optString("regTag", "")   // 🆕 V852
                 )
             )
         }
@@ -268,7 +280,9 @@ class DraftRepository(private val context: Context? = null) {
                 // 🟢🔒 V644 — একই নিরাপদ ধরন, পুরনো cache-এ এই চাবি নেই তো খালি।
                 runningTreatment = dropDeleted(deserializeEntries(obj.optJSONArray("runningTreatment") ?: org.json.JSONArray())),
                 // 📊🔒 V824 — একই নিরাপদ ধরন, পুরনো cache-এ এই চাবি নেই তো খালি।
-                yearlyReg = deserializeEntries(obj.optJSONArray("yearlyReg") ?: org.json.JSONArray())
+                yearlyReg = deserializeEntries(obj.optJSONArray("yearlyReg") ?: org.json.JSONArray()),
+                yearlyOutDemo = obj.optInt("yearlyOutDemo", 0),    // 🆕 V852
+                yearlyOutNoDate = obj.optInt("yearlyOutNoDate", 0)
             ).let { if (myMobile.isBlank()) it else mergeOwnPhoneEnquiries(it, myMobile) }
         } catch (t: Throwable) { null }
     }
@@ -327,6 +341,8 @@ class DraftRepository(private val context: Context? = null) {
                 .put("returnVisit", serializeEntries(buckets.returnVisit))
                 .put("runningTreatment", serializeEntries(buckets.runningTreatment))
                 .put("yearlyReg", serializeEntries(buckets.yearlyReg))
+                .put("yearlyOutDemo", buckets.yearlyOutDemo)       // 🆕 V852
+                .put("yearlyOutNoDate", buckets.yearlyOutNoDate)
             ctx.getSharedPreferences(CACHE_PREFS, Context.MODE_PRIVATE).edit().putString(cacheKey(branchFilter, from, to), obj.toString()).apply()
         } catch (_: Throwable) { }
     }
@@ -1127,31 +1143,79 @@ class DraftRepository(private val context: Context? = null) {
               লাগানো হয় না (নিচে `filt()`-এর বাইরে রাখা) — TK চেয়েছেন সবসময়
               পুরো বছরের হিসাব।
            ⛔ কোনো রেকর্ড তৈরি/বদল/মোছা হয় না — শুধু গোনা। */
+        // 🆕 V852 — "কতজন বাদ পড়ল ও কেন" (নিচের run-ব্লক ভরে দেয়)।
+        var yearlyOutDemo = 0
+        var yearlyOutNoDate = 0
         val yearlyReg: List<DraftEntry> = run {
             val year = YearlyRegistration.currentYear()
-            val skipMobiles = HashSet<String>()
-            for (e in refunded) {
-                val m = e.mobile.filter { it.isDigit() }.takeLast(10)
-                if (m.isNotBlank()) skipMobiles.add(m)
-            }
+            /* 🔄🔒 V852 (৩০.০৮.২০২৬, TK-অনুমোদিত) — TK: *"এটা কী করে সম্ভব
+               তালিকায় দেখাবে আবার গুনবে না? তালিকায় যা দেখাবে গোনা যেন একই হয়।
+               প্রয়োজনে আমি তালিকা থেকে স্কিপ করে দেব, তখন গোনা ঠিক হয়ে যাবে।"*
+               ⇒ Return Visit ও Refund আর **আপনা-আপনি বাদ যায় না**; তালিকায়
+                 থাকে, নামের পাশে `(Return Visit)` / `(Refund)` লেখা, আর
+                 **গোনাতেও ধরা হয়**। মাস্টার চাইলে Skip করবেন। */
+            val returnMobiles = HashSet<String>()
             for (e in returnVisit) {
                 val m = e.mobile.filter { it.isDigit() }.takeLast(10)
-                if (m.isNotBlank()) skipMobiles.add(m)
+                if (m.isNotBlank()) returnMobiles.add(m)
+            }
+            val refundMobiles = HashSet<String>()
+            for (e in refunded) {
+                val m = e.mobile.filter { it.isDigit() }.takeLast(10)
+                if (m.isNotBlank()) refundMobiles.add(m)
             }
             val excludedIds = YearlyRegistration.cachedExcludedIds(context)
-            val out = mutableListOf<DraftEntry>()
-            for ((mobKey, row) in patientByMobile) {
-                val regDate = YearlyRegistration.regDateOf(row)
-                if (regDate.length < 4 || regDate.take(4) != year) continue
-                if (skipMobiles.contains(mobKey)) continue
-                if (YearlyRegistration.isDemoName(row.s("name"))) continue
-                // মাস্টার নিজে বাদ দিয়ে থাকলে সারিটা **তালিকা থেকে সরে যায় না** —
-                // দাগ দেওয়া থাকে (`extra = SKIPPED`), যাতে বিস্তারিত পর্দায় কাটা
-                // দাগে দেখা যায় ও "Undo" চেপে ফেরানো যায়। গোনায় ধরা হয় শুধু
-                // দাগ-ছাড়া সারিগুলো (`YearlyRegistration.countedOf`)।
-                val marked = if (excludedIds.contains(row.s("id"))) YearlyRegistration.SKIP_MARK else ""
-                out.add(entry(row, "yearlyreg", marked).copy(recordDate = regDate, lastRemark = ""))
+
+            /* 🔴🔒 V852 — TK: *"২ নম্বর নিয়মটা ঠিক নয়, এক নম্বরে দুজন থাকতে পারে"*।
+               আগে `patientByMobile` ধরে **প্রতি নম্বরে একজনই** গোনা হত, তাই এক
+               নম্বরে সত্যিকারের দুজন থাকলে একজন হারিয়ে যেতেন।
+               এখন প্রজেক্টের **প্রমাণিত চিহ্ন** ব্যবহার হয়: স্টাফ নিজে
+               "Different Patient — Same Mobile" চাপলে রোগীর সারির আইডি হয়
+               `pat_<১০ সংখ্যা>_…` ধাঁচের (V516/V518)। সেই সারিগুলো আলাদা মানুষ
+               হিসেবে গোনা হয়। ⛔ অন্য কোনো পথে এই ধাঁচ তৈরি হয় না, তাই ভুল করে
+               দুবার রেজিস্টার হওয়া সারি এতে দুবার গোনা হবে না। */
+            fun declaredSeparate(rowId: String, mobileDigits: String): Boolean {
+                if (mobileDigits.length != 10) return false
+                val prefix = "pat_" + mobileDigits + "_"
+                return rowId.startsWith(prefix) && rowId.length > prefix.length
             }
+
+            val counted = ArrayList<JSONObject>()
+            for ((mobKey, rowsForMobile) in patientRowsByMobile) {
+                val chosen = patientByMobile[mobKey]
+                if (chosen != null) counted.add(chosen)
+                for (i in 0 until rowsForMobile.length()) {
+                    val r = rowsForMobile.optJSONObject(i) ?: continue
+                    if (chosen != null && r.s("id") == chosen.s("id")) continue
+                    if (declaredSeparate(r.s("id"), mobKey)) counted.add(r)
+                }
+            }
+
+            /* 🆕 V852 — TK: *"কতজন বাদ পড়ল ও কেন, সেটা দেখতে চাই"*।
+               তালিকাতেও নেই, গোনাতেও নেই — শুধু এই দুটো কারণে। */
+            var outDemo = 0
+            var outNoDate = 0
+            val out = mutableListOf<DraftEntry>()
+            for (row in counted) {
+                val mobKey = row.s("mobile").filter { it.isDigit() }.takeLast(10)
+                val regDate = YearlyRegistration.regDateOf(row)
+                if (regDate.length < 4) { outNoDate++; continue }
+                if (regDate.take(4) != year) continue
+                if (YearlyRegistration.isDemoName(row.s("name"))) { outDemo++; continue }
+                // মাস্টার নিজে বাদ দিয়ে থাকলে সারিটা **তালিকা থেকে সরে যায় না** —
+                // দাগ দেওয়া থাকে (`extra = SKIPPED`), যাতে কাটা দাগে দেখা যায় ও
+                // "Undo" চেপে ফেরানো যায়। গোনায় ধরা হয় শুধু দাগ-ছাড়া সারিগুলো।
+                val marked = if (excludedIds.contains(row.s("id"))) YearlyRegistration.SKIP_MARK else ""
+                val tag = when {
+                    refundMobiles.contains(mobKey) -> YearlyRegistration.TAG_REFUND
+                    returnMobiles.contains(mobKey) -> YearlyRegistration.TAG_RETURN
+                    else -> ""
+                }
+                out.add(entry(row, "yearlyreg", marked)
+                    .copy(recordDate = regDate, lastRemark = "", regTag = tag))
+            }
+            yearlyOutDemo = outDemo
+            yearlyOutNoDate = outNoDate
             out.sortedWith(compareByDescending<DraftEntry> { it.recordDate }.thenBy { it.name })
         }
 
@@ -1195,7 +1259,7 @@ class DraftRepository(private val context: Context? = null) {
         }
         // ⛔ `yearlyReg` ইচ্ছাকৃতভাবে `filt()`-এর বাইরে — উপরের তারিখ-ছাঁকনি
         //    এই ঘরে লাগে না (TK: সবসময় ০১ জানু → ৩১ ডিসে, পুরো বছর)।
-        val result = DraftBuckets(filt(received), filt(enqReject), filt(visitReject), filt(notComplete), filt(complete), filt(unexpectedTime), filt(refunded), filt(returnVisit), filt(runningTreatment), yearlyReg)
+        val result = DraftBuckets(filt(received), filt(enqReject), filt(visitReject), filt(notComplete), filt(complete), filt(unexpectedTime), filt(refunded), filt(returnVisit), filt(runningTreatment), yearlyReg, yearlyOutDemo, yearlyOutNoDate)   // 🆕 V852
         saveCachedBuckets(branchFilter, from, to, result)
         return result
     }

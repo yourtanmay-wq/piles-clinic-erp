@@ -276,6 +276,9 @@ class DraftActivity : AppCompatActivity() {
                 .putExtra("branch", shownBranch())
                 .putExtra("year", YearlyRegistration.currentYear())
                 .putExtra("entries", ArrayList(rows))
+                // 🆕 V852 — "কতজন বাদ পড়ল ও কেন" (তালিকাতেও নেই, গোনাতেও নেই)।
+                .putExtra("outDemo", buckets?.yearlyOutDemo ?: 0)
+                .putExtra("outNoDate", buckets?.yearlyOutNoDate ?: 0)
         )
     }
 

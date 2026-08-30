@@ -7,6 +7,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 
 /**
@@ -30,6 +31,13 @@ class YearlyRegistrationActivity : AppCompatActivity() {
     private var year: String = ""
     private var rows: MutableList<DraftEntry> = mutableListOf()
 
+    /* 🆕🔒 V852 (৩০.০৮.২০২৬, TK-অনুমোদিত ডেমো প্রুফ) — ছাঁকনি · টিক-মার্ক ·
+       "কতজন বাদ পড়ল"। ⛔ সবই এই পর্দার ভিতরে, কোনো নতুন ক্লাউড-পড়া নেই। */
+    private var outDemo: Int = 0
+    private var outNoDate: Int = 0
+    private var filter: String = "all"   // all | counted | skipped | return | refund
+    private val picked = HashSet<String>()
+
     private lateinit var bodyCol: LinearLayout
     private lateinit var totalView: TextView
 
@@ -42,6 +50,8 @@ class YearlyRegistrationActivity : AppCompatActivity() {
         branch = intent.getStringExtra("branch").orEmpty()
         year = intent.getStringExtra("year").orEmpty().ifBlank { YearlyRegistration.currentYear() }
         rows = ((intent.getSerializableExtra("entries") as? ArrayList<DraftEntry>) ?: ArrayList()).toMutableList()
+        outDemo = intent.getIntExtra("outDemo", 0)        // 🆕 V852
+        outNoDate = intent.getIntExtra("outNoDate", 0)
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -107,17 +117,133 @@ class YearlyRegistrationActivity : AppCompatActivity() {
         totalView.setPadding(0, px(2), 0, px(8))
         bodyCol.addView(totalView)
 
+        // 🆕 V852 — TK: "কতজন বাদ পড়ল ও কেন" (তালিকাতেও নেই, গোনাতেও নেই)।
+        excludedLine()?.let { bodyCol.addView(it) }
+
         bodyCol.addView(monthTable())
 
-        bodyCol.addView(label("Patients", 14f, "#0B5E2A", true).apply {
+        bodyCol.addView(filterChips())   // 🆕 V852
+
+        /* 🔤🔒 V852 — TK: *"Patients লিখেছেন কেন, এতে বিভ্রান্ত হয়ে যাচ্ছি —
+           যত লোক চেম্বারে এসেছে তারা প্রত্যেকে ট্রিটমেন্ট শুরু করেনি"*।
+           তাই লেখাটা "Registered"। */
+        bodyCol.addView(label("Registered", 14f, "#0B5E2A", true).apply {
             setPadding(0, px(14), 0, px(6))
         })
 
-        if (rows.isEmpty()) {
-            bodyCol.addView(label("No registration in this year.", 13f, "#7A8794"))
+        if (picked.isNotEmpty()) bodyCol.addView(selectionBar())   // 🆕 V852
+
+        val shown = rows.filter { visibleIn(it) }
+        if (shown.isEmpty()) {
+            bodyCol.addView(label(
+                if (rows.isEmpty()) "No registration in this year." else "Nothing in this filter.",
+                13f, "#7A8794"))
             return
         }
-        for (e in rows) bodyCol.addView(patientRow(e))
+        for (e in shown) bodyCol.addView(patientRow(e))
+    }
+
+    // ───────────────────── 🆕 V852 — নতুন অংশগুলো ─────────────────────
+
+    private fun excludedLine(): View? {
+        if (outDemo <= 0 && outNoDate <= 0) return null
+        val parts = ArrayList<String>()
+        if (outDemo > 0) parts.add("$outDemo demo/test name")
+        if (outNoDate > 0) parts.add("$outNoDate no registration date")
+        return label("Not in this list: " + parts.joinToString(" · "), 11.5f, "#7A8794").apply {
+            setBackgroundColor(android.graphics.Color.parseColor("#EDF2F8"))
+            setPadding(px(9), px(7), px(9), px(7))
+            val lp = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            lp.bottomMargin = px(10)
+            layoutParams = lp
+        }
+    }
+
+    private fun visibleIn(e: DraftEntry): Boolean = when (filter) {
+        "counted" -> e.extra != YearlyRegistration.SKIP_MARK
+        "skipped" -> e.extra == YearlyRegistration.SKIP_MARK
+        "return" -> e.regTag == YearlyRegistration.TAG_RETURN
+        "refund" -> e.regTag == YearlyRegistration.TAG_REFUND
+        else -> true
+    }
+
+    private fun filterChips(): View {
+        val holder = android.widget.HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+            val lp = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            lp.topMargin = px(14)
+            layoutParams = lp
+        }
+        val bar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val items = listOf(
+            "all" to "All", "counted" to "Counted", "skipped" to "Skipped",
+            "return" to YearlyRegistration.TAG_RETURN, "refund" to YearlyRegistration.TAG_REFUND
+        )
+        for ((key, text) in items) {
+            val on = filter == key
+            bar.addView(TextView(this).apply {
+                this.text = text
+                textSize = 10.5f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor(if (on) "#FFFFFF" else "#0B7A34"))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = 16f * d()
+                    setColor(android.graphics.Color.parseColor(if (on) "#0B7A34" else "#EFF7F1"))
+                    if (!on) setStroke(px(1), android.graphics.Color.parseColor("#CFE9D8"))
+                }
+                setPadding(px(12), px(6), px(12), px(6))
+                val lp = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                lp.marginEnd = px(5)
+                layoutParams = lp
+                setOnClickListener { filter = key; render() }
+            })
+        }
+        holder.addView(bar)
+        return holder
+    }
+
+    /** টিক-মার্ক করা থাকলে উপরে এই বার — একসাথে Skip / Restore। */
+    private fun selectionBar(): View {
+        val bar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = 8f * d()
+                setColor(android.graphics.Color.parseColor("#0B2B59"))
+            }
+            setPadding(px(10), px(8), px(10), px(8))
+            val lp = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            lp.bottomMargin = px(8)
+            layoutParams = lp
+        }
+        bar.addView(label("${picked.size} selected", 12f, "#FFFFFF").apply {
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        })
+        fun act(text: String, fg: String, bg: String, wantSkip: Boolean): TextView =
+            TextView(this).apply {
+                this.text = text
+                textSize = 11.5f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor(fg))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = 7f * d()
+                    setColor(android.graphics.Color.parseColor(bg))
+                }
+                setPadding(px(12), px(6), px(12), px(6))
+                val lp = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                lp.marginStart = px(8)
+                layoutParams = lp
+                setOnClickListener { confirmBulk(wantSkip) }
+            }
+        bar.addView(act("Skip", "#B3261E", "#FDECEA", true))
+        bar.addView(act("Restore", "#0B6E33", "#E9F6EE", false))
+        return bar
     }
 
     /** মাসভিত্তিক হিসাব — দুই কলামে (জানু–জুন | জুলাই–ডিসে), শেষে Total। */
@@ -193,13 +319,57 @@ class YearlyRegistrationActivity : AppCompatActivity() {
             setBackgroundColor(android.graphics.Color.parseColor(if (skipped) "#F7F9FC" else "#FFFFFF"))
             setPadding(px(10), px(9), px(10), px(9))
         }
+        // 🆕 V852 — টিক-মার্ক (একসাথে অনেককে Skip / Restore করার জন্য)।
+        row.addView(TextView(this).apply {
+            val on = picked.contains(e.id)
+            text = if (on) "✓" else ""
+            textSize = 12f
+            gravity = Gravity.CENTER
+            setTextColor(android.graphics.Color.WHITE)
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = 4f * d()
+                setColor(android.graphics.Color.parseColor(if (on) "#0B7A34" else "#FFFFFF"))
+                setStroke(px(2), android.graphics.Color.parseColor(if (on) "#0B7A34" else "#B7C3D1"))
+            }
+            layoutParams = LinearLayout.LayoutParams(px(19), px(19)).apply { marginEnd = px(10) }
+            setOnClickListener {
+                if (!picked.remove(e.id)) picked.add(e.id)
+                render()
+            }
+        })
+
         val texts = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
-        texts.addView(label(e.name.ifBlank { "UNKNOWN" }, 13.5f,
-            if (skipped) "#9AA6B4" else "#101828", true).apply {
+        /* 🆕 V852 — TK: *"নামের আশে পাশে রোগের নাম চাই"* + *"return visit /
+           refund … ফার্স্ট ব্র্যাকেটের মধ্যে মেনশন থাকবে"*। নাম · রোগ · ট্যাগ
+           একটাই লাইনে, রঙ আলাদা (Follow-up কার্ডের সবুজ রোগ-পিলের মতোই)। */
+        val nameLine = android.text.SpannableStringBuilder(e.name.ifBlank { "UNKNOWN" })
+        val nameEnd = nameLine.length
+        if (e.disease.isNotBlank()) {
+            val a = nameLine.length
+            nameLine.append("  ").append(e.disease.uppercase())
+            nameLine.setSpan(android.text.style.ForegroundColorSpan(
+                android.graphics.Color.parseColor("#0C9E33")), a, nameLine.length,
+                android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            nameLine.setSpan(android.text.style.RelativeSizeSpan(0.82f), a, nameLine.length,
+                android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        if (e.regTag.isNotBlank()) {
+            val a = nameLine.length
+            nameLine.append("  (").append(e.regTag).append(")")
+            nameLine.setSpan(android.text.style.ForegroundColorSpan(android.graphics.Color.parseColor(
+                if (e.regTag == YearlyRegistration.TAG_REFUND) "#B3261E" else "#B54708")),
+                a, nameLine.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            nameLine.setSpan(android.text.style.RelativeSizeSpan(0.82f), a, nameLine.length,
+                android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        texts.addView(label("", 13.5f, if (skipped) "#9AA6B4" else "#101828", true).apply {
+            text = nameLine
             if (skipped) paintFlags = paintFlags or android.graphics.Paint.STRIKE_THRU_TEXT_FLAG
+            if (skipped) setTextColor(android.graphics.Color.parseColor("#9AA6B4"))
         })
         texts.addView(label(
             listOf(e.patientId, DateUtil.display(e.recordDate)).filter { it.isNotBlank() }.joinToString(" · "),
@@ -216,7 +386,18 @@ class YearlyRegistrationActivity : AppCompatActivity() {
                 setColor(android.graphics.Color.parseColor(if (skipped) "#E9F6EE" else "#FDECEA"))
             }
             setPadding(px(14), px(7), px(14), px(7))
-            setOnClickListener { toggle(e, this) }
+            // 🆕 V852 — TK: *"Skip করলে যেন বাধা দেয়, warning দেখাতে হবে
+            //    are you sure — yes / no"*। ⛔ Undo-তে বাধা নেই (ওটা ফেরানো)।
+            setOnClickListener {
+                if (skipped) toggle(e, this)
+                else AlertDialog.Builder(this@YearlyRegistrationActivity)
+                    .setCustomTitle(PremiumAlert.header(this@YearlyRegistrationActivity, "Skip from count?"))
+                    .setMessage("Are you sure? " + e.name.ifBlank { "This person" } +
+                        " will not be counted in " + year + ".")
+                    .setPositiveButton("Yes") { _, _ -> toggle(e, this) }
+                    .setNegativeButton("No", null)
+                    .show().also { PremiumAlert.paint(it) }
+            }
         }
         row.addView(btn)
 
@@ -227,6 +408,53 @@ class YearlyRegistrationActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, px(1))
         })
         return wrap
+    }
+
+    /** 🆕 V852 — টিক-মার্ক করা সবাইকে একসাথে Skip / Restore (আগে সতর্কবার্তা)। */
+    private fun confirmBulk(wantSkip: Boolean) {
+        val ids = picked.toList()
+        if (ids.isEmpty()) return
+        val what = if (wantSkip) "Skip" else "Restore"
+        AlertDialog.Builder(this)
+            .setCustomTitle(PremiumAlert.header(this, "$what ${ids.size} selected?"))
+            .setMessage(
+                if (wantSkip) "Are you sure? They will not be counted in $year."
+                else "Are you sure? They will be counted again in $year.")
+            .setPositiveButton("Yes") { _, _ -> applyBulk(ids, wantSkip) }
+            .setNegativeButton("No", null)
+            .show().also { PremiumAlert.paint(it) }
+    }
+
+    /* ⛔ একটা একটা করে পাঠানো হয় ও প্রতিটার উত্তর দেখে তবেই দাগ বসে — নেট
+       খারাপ হলে যেগুলো সত্যিই হয়নি সেগুলো আগের মতোই থাকে, আর কতগুলো ব্যর্থ
+       হলো সেটা পর্দায় বলা হয় (চুপচাপ ভুল সংখ্যা দেখাবে না)। */
+    private fun applyBulk(ids: List<String>, wantSkip: Boolean) {
+        val me = try { NativeSession.current(this)?.name.orEmpty() } catch (_: Throwable) { "" }
+        Thread {
+            var failed = 0
+            for (id in ids) {
+                val e = rows.firstOrNull { it.id == id } ?: continue
+                val already = (e.extra == YearlyRegistration.SKIP_MARK)
+                if (already == wantSkip) continue
+                val ok = try {
+                    if (wantSkip) YearlyRegistration.exclude(this, e.id, e.patientId, e.name, me)
+                    else YearlyRegistration.include(this, e.id)
+                } catch (_: Throwable) { false }
+                if (!ok) { failed++; continue }
+                val idx = rows.indexOfFirst { it.id == e.id }
+                if (idx >= 0) rows[idx] = rows[idx].copy(
+                    extra = if (wantSkip) YearlyRegistration.SKIP_MARK else "")
+            }
+            val bad = failed
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                picked.clear()
+                if (bad > 0) Toast.makeText(
+                    this, "$bad could not be saved — check connection and try again",
+                    Toast.LENGTH_LONG).show()
+                render()
+            }
+        }.start()
     }
 
     private fun toggle(e: DraftEntry, btn: TextView) {

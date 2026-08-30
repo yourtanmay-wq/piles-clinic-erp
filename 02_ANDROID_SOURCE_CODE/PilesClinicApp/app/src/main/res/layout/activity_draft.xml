@@ -131,6 +131,21 @@
          ⛔ প্রতিটার নিজের রংও আগেরটাই, শুধু এখন দাগ/আইকন/সংখ্যায় ব্যবহার।
          ⛔ সংখ্যাটা এখন আলাদা `tvCount*` ঘরে বসে (আগে বোতামের লেখার সাথে
             জোড়া ছিল) — `DraftActivity`-তে সেই সাতটা লাইনই শুধু বদলেছে। -->
+    <!-- 🔴🔒 V852 (৩০.০৮.২০২৬, TK-রিপোর্ট: *"স্ক্রোল করা যাচ্ছে না"* ·
+         *"refunded তার নিচে একটা লাইন মনে হচ্ছে আধাদুরা কিছু রয়ে গেছে"*) —
+         **আসল কারণ (কোড ধরে যাচাই, আন্দাজ নয়):** এই পর্দায় স্ক্রলের কোনো
+         ব্যবস্থাই ছিল না — পুরো তালিকা একটা সাধারণ LinearLayout-এ বসানো,
+         তাই পর্দার উচ্চতার বাইরে চলে যাওয়া শেষ সারিটা ("Return Visit")
+         অর্ধেক কাটা অবস্থায় থাকত আর কোনোভাবেই নাগাল পাওয়া যেত না।
+         এখন পুরো তালিকা ScrollView-এর ভিতরে; নিচের BottomNav আগের মতোই
+         স্থির থাকে। ⛔ একটাও সারি/আইডি/রং বদলায়নি — শুধু স্ক্রল যোগ। -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true"
+        android:scrollbars="none"
+        android:overScrollMode="never">
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -752,6 +767,7 @@
         </LinearLayout>
 
     </LinearLayout>
+    </ScrollView>
 
     <include layout="@layout/bottom_nav_bar" />
 </LinearLayout>

@@ -30,6 +30,12 @@ object YearlyRegistration {
     /** গোনায় ধরা হয় শুধু দাগ-ছাড়া সারিগুলো। */
     fun countedOf(rows: List<DraftEntry>): Int = rows.count { it.extra != SKIP_MARK }
 
+    /* 🆕🔒 V852 (৩০.০৮.২০২৬, TK-অনুমোদিত) — TK: *"return visit / refund এরকম
+       কোনো ব্যাপার থাকলে ওই ব্যক্তির পাশে ফার্স্ট ব্র্যাকেটের মধ্যে মেনশন
+       থাকবে"*। ⛔ এঁরা এখন গোনাতেও ধরা হয় — TK চাইলে নিজে Skip করবেন। */
+    const val TAG_RETURN = "Return Visit"
+    const val TAG_REFUND = "Refund"
+
     private const val PREFS = "v824_yearly_reg"
     private const val KEY_IDS = "excluded_ids"
 

@@ -6416,6 +6416,25 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
 .wlv1YrTbl .wlv1YrN{text-align:right}
 .wlv1YrTbl tr.wlv1YrTot td{border-top:1px solid #0B7A3E;color:#0B5E2A;font-weight:700;padding-top:5px}
 .wlv1YrH{font-size:14px;color:#0B5E2A;margin:14px 0 6px}
+/* 🆕🔒 V852 — ছাঁকনি · টিক-মার্ক · বাদ-পড়ার লাইন · রোগ ও Return/Refund ট্যাগ
+   (ফোনের YearlyRegistrationActivity-র হুবহু একই রং)। */
+.wlv1YrExc{font-size:11.5px;color:#7A8794;background:#EDF2F8;border-radius:8px;
+  padding:7px 9px;margin-bottom:10px}
+.wlv1YrChips{display:flex;flex-wrap:nowrap;overflow-x:auto;gap:5px;margin-top:14px;scrollbar-width:none}
+.wlv1YrChips::-webkit-scrollbar{display:none}
+.wlv1YrChip{flex:0 0 auto;border:1px solid #CFE9D8;background:#EFF7F1;color:#0B7A34;
+  border-radius:16px;padding:6px 12px;font-size:10.5px;font-weight:700;white-space:nowrap;box-shadow:none}
+.wlv1YrChip.on{background:#0B7A34;border-color:#0B7A34;color:#fff}
+.wlv1YrSel{display:flex;align-items:center;gap:8px;background:#0B2B59;color:#fff;
+  border-radius:8px;padding:8px 10px;font-size:12px;margin-bottom:8px}
+.wlv1YrSel span{flex:1}
+.wlv1YrCb{flex:0 0 auto;width:19px;height:19px;border:2px solid #B7C3D1;border-radius:4px;
+  display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;cursor:pointer}
+.wlv1YrCb.on{background:#0B7A34;border-color:#0B7A34}
+.wlv1YrDz{color:#0C9E33;font-size:82%}
+.wlv1YrTag{font-size:82%}
+.wlv1YrTag.rt{color:#B54708}
+.wlv1YrTag.rf{color:#B3261E}
 .wlv1YrRow{display:flex;align-items:center;gap:10px;background:#fff;
   border-bottom:1px solid #ECF1F6;padding:9px 10px}
 .wlv1YrRow.off{background:#F7F9FC}

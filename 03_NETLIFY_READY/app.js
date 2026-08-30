@@ -6791,7 +6791,60 @@ async function wlv1YrToggle(id, code, name, want){
 }
 window["wlv1YrToggle"]=wlv1YrToggle;
 
-/* বিস্তারিত পর্দা — মাসভিত্তিক হিসাব + রোগীর তালিকা (পাশে Skip / Undo)। */
+/* বিস্তারিত পর্দা — মাসভিত্তিক হিসাব + রোগীর তালিকা (পাশে Skip / Undo)।
+   🆕🔒 V852 (৩০.০৮.২০২৬, TK-অনুমোদিত ডেমো প্রুফ · ফোনের হুবহু যমজ):
+   ছাঁকনি (All · Counted · Skipped · Return Visit · Refund) · টিক-মার্কে
+   একসাথে Skip/Restore · Skip-এ "Are you sure? Yes/No" · নামের পাশে রোগ ও
+   `(Return Visit)`/`(Refund)` · উপরে "কতজন বাদ পড়ল ও কেন"।
+   ⛔ একটাও নতুন ক্লাউড-পড়া নেই — সব আগে-আনা তালিকা থেকেই। */
+var __yrFilter='all';
+var __yrPick=new Set();
+function wlv1YrSetFilter(f){ __yrFilter=f; draffHome('yearlyreg'); }
+window["wlv1YrSetFilter"]=wlv1YrSetFilter;
+function wlv1YrPickToggle(id){ id=String(id); if(!__yrPick.delete(id)) __yrPick.add(id); draffHome('yearlyreg'); }
+window["wlv1YrPickToggle"]=wlv1YrPickToggle;
+function wlv1YrAskSkip(id,code,name){
+  if(!confirm('Are you sure? '+(name||'This person')+' will not be counted in '+wlv1YrYear()+'.')) return;
+  wlv1YrToggle(id,code,name,true);
+}
+window["wlv1YrAskSkip"]=wlv1YrAskSkip;
+/* টিক-মার্ক করা সবাইকে একসাথে — একটা একটা করে পাঠানো হয়, যেগুলো ব্যর্থ
+   হয় সেগুলো আগের মতোই থাকে আর কতগুলো ব্যর্থ হলো বলা হয়। */
+async function wlv1YrBulk(rowsJson, want){
+  var list=[]; try{ list=JSON.parse(rowsJson||'[]'); }catch(e){}
+  if(!list.length) return;
+  var msg = want
+    ? 'Are you sure? '+list.length+' will not be counted in '+wlv1YrYear()+'.'
+    : 'Are you sure? '+list.length+' will be counted again in '+wlv1YrYear()+'.';
+  if(!confirm(msg)) return;
+  var sb=await wlv1YrSb();
+  if(!sb) return toast('Could not save — check connection and try again');
+  var bad=0, ids=wlv1YrSkipIds();
+  for(var i=0;i<list.length;i++){
+    var it=list[i];
+    try{
+      var r;
+      if(want){
+        r=await sb.schema('fin').from('registration_count_excluded')
+          .upsert({patient_row_id:String(it.id), patient_code:String(it.code||''),
+                   patient_name:String(it.name||''),
+                   excluded_by:String((typeof user!=='undefined'&&user&&user.name)||'')},
+                  {onConflict:'patient_row_id'});
+      }else{
+        r=await sb.schema('fin').from('registration_count_excluded')
+          .delete().eq('patient_row_id', String(it.id));
+      }
+      if(r&&r.error){ bad++; continue; }
+      if(want) ids.add(String(it.id)); else ids.delete(String(it.id));
+    }catch(e){ bad++; }
+  }
+  wlv1YrSaveSkipIds(ids);
+  __yrPick.clear();
+  if(bad>0) toast(bad+' could not be saved — check connection and try again');
+  draffHome('yearlyreg');
+}
+window["wlv1YrBulk"]=wlv1YrBulk;
+
 function wlv1YrScreen(rows, branchLabel){
   var year=wlv1YrYear();
   var months=['January','February','March','April','May','June',
@@ -6811,21 +6864,62 @@ function wlv1YrScreen(rows, branchLabel){
     return '<table class="wlv1YrTbl"><tr><th>Month</th><th class="wlv1YrN">Count</th></tr>'+r+
            '<tr class="wlv1YrTot"><td>Total</td><td class="wlv1YrN">'+sum+'</td></tr></table>';
   }
-  var list=rows.length? rows.map(function(x){
+
+  var outD=Number(window.__yrOutDemo||0), outN=Number(window.__yrOutNoDate||0), excParts=[];
+  if(outD>0) excParts.push(outD+' demo/test name');
+  if(outN>0) excParts.push(outN+' no registration date');
+  var excLine = excParts.length
+    ? '<div class="wlv1YrExc">Not in this list: '+esc(excParts.join(' · '))+'</div>' : '';
+
+  var chipDefs=[['all','All'],['counted','Counted'],['skipped','Skipped'],
+                ['return','Return Visit'],['refund','Refund']];
+  var chips='<div class="wlv1YrChips">'+chipDefs.map(function(c){
+    return '<button class="wlv1YrChip'+(__yrFilter===c[0]?' on':'')+
+      '" onclick="wlv1YrSetFilter(\''+c[0]+'\')">'+c[1]+'</button>';
+  }).join('')+'</div>';
+
+  var shown=rows.filter(function(x){
+    if(__yrFilter==='counted') return !x.__skip;
+    if(__yrFilter==='skipped') return !!x.__skip;
+    if(__yrFilter==='return') return x.__tag==='Return Visit';
+    if(__yrFilter==='refund') return x.__tag==='Refund';
+    return true;
+  });
+
+  var selBar='';
+  if(__yrPick.size){
+    var payload=rows.filter(function(x){return __yrPick.has(String(x.id))})
+      .map(function(x){return {id:String(x.id),code:String(x.__code||''),name:String(x.name||'')}});
+    var j=esc(JSON.stringify(payload));
+    selBar='<div class="wlv1YrSel"><span>'+__yrPick.size+' selected</span>'+
+      '<button class="wlv1YrBtn skip" onclick="wlv1YrBulk(\''+j.replace(/'/g,'')+'\',true)">Skip</button>'+
+      '<button class="wlv1YrBtn undo" onclick="wlv1YrBulk(\''+j.replace(/'/g,'')+'\',false)">Restore</button></div>';
+  }
+
+  var list=shown.length? shown.map(function(x){
     var sub=[x.__code, x.__reg?fmtDate(x.__reg):''].filter(Boolean).join(' · ');
+    var dz=x.disease?' <span class="wlv1YrDz">'+esc(String(x.disease).toUpperCase())+'</span>':'';
+    var tg=x.__tag?' <span class="wlv1YrTag '+(x.__tag==='Refund'?'rf':'rt')+'">('+esc(x.__tag)+')</span>':'';
+    var on=__yrPick.has(String(x.id));
     return '<div class="wlv1YrRow'+(x.__skip?' off':'')+'">'+
-      '<div class="wlv1YrWho"><b>'+esc(x.name||'UNKNOWN')+'</b><small>'+esc(sub)+'</small></div>'+
-      '<button class="wlv1YrBtn '+(x.__skip?'undo':'skip')+'" onclick="wlv1YrToggle(\''+
+      '<span class="wlv1YrCb'+(on?' on':'')+'" onclick="wlv1YrPickToggle(\''+
+        String(x.id).replace(/'/g,"")+'\')">'+(on?'&#10003;':'')+'</span>'+
+      '<div class="wlv1YrWho"><b>'+esc(x.name||'UNKNOWN')+dz+tg+'</b><small>'+esc(sub)+'</small></div>'+
+      '<button class="wlv1YrBtn '+(x.__skip?'undo':'skip')+'" onclick="'+
+        (x.__skip?'wlv1YrToggle':'wlv1YrAskSkip')+'(\''+
         String(x.id).replace(/'/g,"")+'\',\''+String(x.__code||'').replace(/'/g,"")+'\',\''+
-        String(x.name||'').replace(/'/g,"")+'\','+(x.__skip?'false':'true')+')">'+
+        String(x.name||'').replace(/'/g,"")+'\''+(x.__skip?',false':'')+')">'+
         (x.__skip?'Undo':'Skip')+'</button></div>';
-  }).join('') : '<div class="tiny mut">No registration in this year.</div>';
+  }).join('') : '<div class="tiny mut">'+(rows.length?'Nothing in this filter.':'No registration in this year.')+'</div>';
 
   page('Yearly Registration',
     '<div class="tiny mut">'+esc((branchLabel||'All')+' · '+year)+'</div>'+
     '<div class="wlv1YrBig">'+total+'</div>'+
+    excLine+
     '<div class="wlv1YrCols">'+col(0,5)+col(6,11)+'</div>'+
-    '<h3 class="wlv1YrH">Patients</h3>'+list, true);
+    chips+
+    /* 🔤 V852 — TK: "Patients লিখেছেন কেন, এতে বিভ্রান্ত হয়ে যাচ্ছি" */
+    '<h3 class="wlv1YrH">Registered</h3>'+selBar+list, true);
 }
 
 function draffHome(tab='home'){
@@ -7011,18 +7105,33 @@ let map={received:['My Enquiry',received,'📥','All branch','enq'],
     ⛔ একটাও নতুন ক্লাউড-পড়া নেই — সব উপরের, ইতিমধ্যে আনা তালিকা থেকেই। */
  let wlv1YrRows=[];
  if(isMaster()){
-   const __yrY=wlv1YrYear(), __yrSkipMob=new Set(), __yrIds=wlv1YrSkipIds();
-   returnVisit.forEach(x=>{const m=mob(x.mobile); if(m) __yrSkipMob.add(m);});
-   const __yrPool=wlv1BranchGate(wlv1OnePerPerson.filter(x=>{
-     const m=mob(x.mobile);
-     if(!m||__yrSkipMob.has(m)||__refSetOnce.has(m)) return false;
-     if(wlv1YrIsDemo(x.name)) return false;
-     return wlv1YrRegDate(x).slice(0,4)===__yrY;
+   /* 🔄🔒 V852 (৩০.০৮.২০২৬, TK-অনুমোদিত · ফোনের হুবহু যমজ, নিয়ম ৬.৬)
+      TK: *"তালিকায় যা দেখাবে গোনা যেন একই হয় — প্রয়োজনে আমি স্কিপ করে দেব"*
+      ⇒ Return Visit ও Refund আর আপনা-আপনি বাদ যায় না; তালিকায় থাকে,
+        নামের পাশে `(Return Visit)` / `(Refund)` লেখা, গোনাতেও ধরা হয়।
+      TK: *"২ নম্বর নিয়মটা ঠিক নয়, এক নম্বরে দুজন থাকতে পারে"*
+      ⇒ স্টাফ "Different Patient — Same Mobile" চেপে রেজিস্টার করলে রোগীর
+        সারির আইডি হয় `pat_<১০ সংখ্যা>_…` (V516/V518-এর প্রমাণিত চিহ্ন) —
+        সেই সারিগুলোও আলাদা মানুষ হিসেবে গোনা হয়। */
+   const __yrY=wlv1YrYear(), __yrRetMob=new Set(), __yrIds=wlv1YrSkipIds();
+   returnVisit.forEach(x=>{const m=mob(x.mobile); if(m) __yrRetMob.add(m);});
+   const __yrDeclared=(z)=>{const m=mob(z.mobile);return m.length===10&&String(z.id||'').indexOf('pat_'+m+'_')===0;};
+   const __yrPeople=wlv1OnePerPerson.concat(p.filter(z=>__yrDeclared(z)&&wlv1OnePerPerson.indexOf(z)<0));
+   /* 🆕 V852 — যারা তালিকাতেও নেই, গোনাতেও নেই — শুধু এই দুটো কারণে। */
+   window.__yrOutDemo=0; window.__yrOutNoDate=0;
+   const __yrPool=wlv1BranchGate(__yrPeople.filter(x=>{
+     const m=mob(x.mobile); if(!m) return false;
+     const d=wlv1YrRegDate(x);
+     if(d.length<4){ window.__yrOutNoDate++; return false; }
+     if(d.slice(0,4)!==__yrY) return false;
+     if(wlv1YrIsDemo(x.name)){ window.__yrOutDemo++; return false; }
+     return true;
    }));
    wlv1YrRows=(__yrPool||[]).map(x=>Object.assign({},x,{
      __reg: wlv1YrRegDate(x),
      __code: x.patientId||'',
-     __skip: __yrIds.has(String(x.id))
+     __skip: __yrIds.has(String(x.id)),
+     __tag: __refSetOnce.has(mob(x.mobile))?'Refund':(__yrRetMob.has(mob(x.mobile))?'Return Visit':'')
    })).sort((a,b)=>(b.__reg||'').localeCompare(a.__reg||'')||String(a.name||'').localeCompare(String(b.name||'')));
  }
  if(tab==='yearlyreg'){
