@@ -179,7 +179,7 @@ class YearlyRegistrationActivity : AppCompatActivity() {
         }
         val bar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         val items = listOf(
-            "all" to "All", "counted" to "Counted", "skipped" to "Skipped",
+            "all" to "All", "counted" to "Counted", "skipped" to "Removed",   // 🎨 V891 — শুধু লেখা (V884-এর একই নিয়ম)
             "return" to YearlyRegistration.TAG_RETURN, "refund" to YearlyRegistration.TAG_REFUND
         )
         for ((key, text) in items) {

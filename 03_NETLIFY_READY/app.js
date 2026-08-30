@@ -17263,7 +17263,19 @@ window["frDuplicateModal"]=frDuplicateModal;
       let fs=frArr('followups').map(f=>frMobile(f.mobile)===mm&&String(f.stage||'')==='Inquiry'?{...f,previousStage:f.previousStage||'Inquiry',stage:'Registered',status:'Closed',nextFollow:'',convertedPatientId:p.id,convertedAt:f.convertedAt||now,updatedAt:now,history:[...(f.history||[]),hist]}:f);
       let vi=fs.findIndex(f=>(f.refId===p.id||f.patientDbId===p.id||frMobile(f.mobile)===mm)&&String(f.stage||'')==='Patient');
       let visitRow={refId:p.id,patientDbId:p.id,convertedPatientId:p.id,mobile:frNorm(mm),name:p.name||'',branch:p.branch||'',disease:p.disease||'',address:p.address||'',stage:'Patient',status:'Active',date:p.registrationDate||p.visitDate||p.date||today(),registrationDate:p.registrationDate||p.date||today(),visitDate:p.visitDate||p.registrationDate||p.date||today(),lastRemark:'Registered patient / Visit created',nextFollow:'',callCount:0,history:[hist],createdBy:p.createdBy||user?.mobile||'',createdAt:p.createdAt||now,updatedAt:now};
-      if(vi>-1){let old=fs[vi];fs[vi]={...old,...visitRow,id:old.id,status:(old.status!==undefined&&String(old.status)!=='')?old.status:visitRow.status,history:[...(old.history||[]),hist]};} else fs.unshift({id:uid('fu'),...visitRow});
+      /* 🔴🔒🔒 V891 — ফোনের V871-এর হুবহু একই সুরক্ষা এখানেও (তিন নম্বর পথ):
+         পুরোনো সারি পেলে ধাপ · তারিখ · পরের কলের তারিখ · কল-গোনা · শেষ রিমার্ক ·
+         ইতিহাস অক্ষত থাকে। ⛔ নতুন সারিতে আগের মতোই। */
+      if(vi>-1){let old=fs[vi];fs[vi]={...old,...visitRow,id:old.id,
+        status:(old.status!==undefined&&String(old.status)!=='')?old.status:visitRow.status,
+        stage:old.stage||visitRow.stage,
+        date:old.date||visitRow.date,
+        nextFollow:(old.nextFollow||'')!==''?old.nextFollow:visitRow.nextFollow,
+        callCount:Number(old.callCount||0)>0?old.callCount:visitRow.callCount,
+        lastRemark:(old.lastRemark||'')!==''?old.lastRemark:visitRow.lastRemark,
+        createdBy:old.createdBy||visitRow.createdBy,
+        createdAt:old.createdAt||visitRow.createdAt,
+        history:(old.history&&old.history.length)?old.history:visitRow.history};} else fs.unshift({id:uid('fu'),...visitRow});
       save('followups',fs);
       try{forceCloudVisibleRows([...enquiries.filter(e=>frMobile(e.mobile)===mm).map(row=>({table:'enquiries',row})),...fs.filter(f=>frMobile(f.mobile)===mm).map(row=>({table:'followups',row})),{table:'patients',row:p}])}catch(_e){}
     };
@@ -17453,9 +17465,18 @@ window["dupPopup"]=dupPopup;
     const oldReg=window.registration||registration; window.registration=function(pref={}){oldReg(pref||{});setTimeout(()=>{let el=document.getElementById('pMob');if(el){el.oninput=function(){v279RegistrationMobileCheck(this.value)};el.addEventListener('input',function(){v279RegistrationMobileCheck(this.value)},{passive:true});} if(pref&&pref.mobile)v279FillRegistration(pref.mobile);},120)}; try{registration=window.registration}catch(_e){}
     const oldEnq=window.enquiryForm||enquiryForm; window.enquiryForm=function(){oldEnq();setTimeout(()=>{let el=document.getElementById('eMob');if(el){el.oninput=function(){v279EnquiryMobileCheck(this.value)};el.addEventListener('input',function(){v279EnquiryMobileCheck(this.value)},{passive:true});}},120)}; try{enquiryForm=window.enquiryForm}catch(_e){}
 
-    window.v279EnsureVisit=function(mm,p){mm=m(mm);p=p||ar('patients').find(x=>m(x.mobile)===mm); if(!p)return null;let t=now();let hist={date:today(),time:isoNow(),remark:'Registered patient / Visit created',staff:user?.name||user?.mobile||'Staff',status:'Visit'};let enqs=ar('enquiries').map(e=>m(e.mobile)===mm?{...e,status:'Registered',stage:'Registered',nextFollow:'',convertedPatientId:p.id,convertedAt:e.convertedAt||t,updatedAt:t}:e);sv('enquiries',enqs);let fs=ar('followups').filter(f=>!(m(f.mobile)===mm&&String(f.stage||'')==='Treatment'));
+    /* 🔴🔒🔒 V891 (৩০.০৮.২০২৬ — সম্পূর্ণ যাচাইয়ে ধরা পড়ল)। ফোনে V871/V872-তে
+       সারানো দোষটাই কম্পিউটারের এই পথে **রয়ে গিয়েছিল**: রোগীর তথ্য আবার সেভ
+       করলে এই ফাংশনটা —
+         · Treatment ধাপের সারিটা **মুছে ফেলত**,
+         · পরের কলের তারিখ (nextFollow) · কল-গোনা · শেষ রিমার্ক · ধাপ · তারিখ
+           সব **রিসেট** করে দিত, আর প্রতিবার ইতিহাসে একই লাইন জমাত।
+       এখন পুরোনো সারি পেলে ওই ঘরগুলো **অক্ষত থাকে** — ফোনের হুবহু একই নিয়ম
+       (`repairBranchWorkflowRows`-এ V875-এ প্রমাণিত ধরনটাই)।
+       ⛔ নতুন রেজিস্ট্রেশনে আচরণ এক অক্ষরও বদলায়নি। */
+    window.v279EnsureVisit=function(mm,p){mm=m(mm);p=p||ar('patients').find(x=>m(x.mobile)===mm); if(!p)return null;let t=now();let hist={date:today(),time:isoNow(),remark:'Registered patient / Visit created',staff:user?.name||user?.mobile||'Staff',status:'Visit'};let enqs=ar('enquiries').map(e=>m(e.mobile)===mm?{...e,status:'Registered',stage:'Registered',nextFollow:'',convertedPatientId:p.id,convertedAt:e.convertedAt||t,updatedAt:t}:e);sv('enquiries',enqs);let fs=ar('followups').slice();
       fs=fs.map(f=>m(f.mobile)===mm&&String(f.stage||'')==='Inquiry'?{...f,stage:'Registered',status:'Closed',nextFollow:'',convertedPatientId:p.id,convertedAt:f.convertedAt||t,updatedAt:t,history:[...(f.history||[]),hist]}:f);
-      let vi=fs.findIndex(f=>(f.refId===p.id||f.patientDbId===p.id||m(f.mobile)===mm)&&String(f.stage||'')==='Patient');let row={refId:p.id,patientDbId:p.id,convertedPatientId:p.id,mobile:nm(mm),name:p.name||'',branch:p.branch||'',disease:p.disease||'',address:p.address||'',stage:'Patient',status:'Active',date:p.registrationDate||p.visitDate||p.date||today(),registrationDate:p.registrationDate||p.date||today(),visitDate:p.visitDate||p.registrationDate||p.date||today(),lastRemark:'Registered patient / Visit created',nextFollow:'',callCount:0,history:[...((vi>-1&&fs[vi].history)||[]),hist],createdBy:p.createdBy||user?.mobile||'',createdAt:p.createdAt||t,updatedAt:t}; if(vi>-1){let old=fs[vi];fs[vi]={...old,...row,id:old.id,status:(old.status!==undefined&&String(old.status)!=='')?old.status:row.status};} else fs.unshift({id:uid('fu'),...row}); sv('followups',fs);pushCloud([...enqs.filter(e=>m(e.mobile)===mm).map(row=>({table:'enquiries',row})),...fs.filter(f=>m(f.mobile)===mm).map(row=>({table:'followups',row})),{table:'patients',row:p}]);return row};
+      let vi=fs.findIndex(f=>(f.refId===p.id||f.patientDbId===p.id||m(f.mobile)===mm)&&String(f.stage||'')==='Patient');let row={refId:p.id,patientDbId:p.id,convertedPatientId:p.id,mobile:nm(mm),name:p.name||'',branch:p.branch||'',disease:p.disease||'',address:p.address||'',stage:'Patient',status:'Active',date:p.registrationDate||p.visitDate||p.date||today(),registrationDate:p.registrationDate||p.date||today(),visitDate:p.visitDate||p.registrationDate||p.date||today(),lastRemark:'Registered patient / Visit created',nextFollow:'',callCount:0,history:[...((vi>-1&&fs[vi].history)||[]),hist],createdBy:p.createdBy||user?.mobile||'',createdAt:p.createdAt||t,updatedAt:t}; if(vi>-1){let old=fs[vi];fs[vi]={...old,...row,id:old.id,status:(old.status!==undefined&&String(old.status)!=='')?old.status:row.status,stage:old.stage||row.stage,date:old.date||row.date,nextFollow:(old.nextFollow||'')!==''?old.nextFollow:row.nextFollow,callCount:Number(old.callCount||0)>0?old.callCount:row.callCount,lastRemark:(old.lastRemark||'')!==''?old.lastRemark:row.lastRemark,createdBy:old.createdBy||row.createdBy,createdAt:old.createdAt||row.createdAt,history:(old.history&&old.history.length)?old.history:row.history};} else fs.unshift({id:uid('fu'),...row}); sv('followups',fs);pushCloud([...enqs.filter(e=>m(e.mobile)===mm).map(row=>({table:'enquiries',row})),...fs.filter(f=>m(f.mobile)===mm).map(row=>({table:'followups',row})),{table:'patients',row:p}]);return row};
     const oldSavePatient=window.savePatient||savePatient; window.savePatient=async function(evt){let mm=m(document.getElementById('pMob')?.value||'');let r=await oldSavePatient(evt);setTimeout(()=>{try{let p=ar('patients').find(x=>m(x.mobile)===mm);if(p)v279EnsureVisit(mm,p)}catch(e){console.warn('V279 visit ensure failed',e)}},500);return r}; try{savePatient=window.savePatient}catch(_e){}
 
     function patientForVisit(x){let mm=m(x?.mobile||'');let id=String(x?.patientDbId||x?.refId||x?.convertedPatientId||'');return ar('patients').find(p=>p.id===id||p.patientId===id||m(p.mobile)===mm)||null}
@@ -17614,7 +17635,25 @@ window["stageName"]=stageName;
       let vi=fs.findIndex(f=>mm(f.mobile)===m&&(String(f.stage||'')==='Patient'||String(f.stage||'')==='Visit'||String(f.stage||'')==='Registered'));
       const oldVisit=vi>-1?fs[vi]:null; const preservedVisitStatus=(oldVisit&&wlv1IsTerminalFollowStatus(oldVisit.status))?oldVisit.status:'Visited';
       const row={id:vi>-1?fs[vi].id:uid('fu'),refId:p.id,patientDbId:p.id,convertedPatientId:p.id,mobile:shownMob(p.mobile),name:p.name,branch:p.branch,disease:p.disease||'',address:p.address||'',stage:'Patient',status:preservedVisitStatus,date:p.registrationDate||p.date||todaySafe(),registrationDate:p.registrationDate||p.date||todaySafe(),visitDate:p.visitDate||p.registrationDate||p.date||todaySafe(),lastRemark:'Registered patient / Visit created',nextFollow:'',createdBy:p.createdBy||user?.mobile||'',registeredBy:p.registeredBy||user?.mobile||'',updatedAt:isoNow(),history:[...((vi>-1&&fs[vi].history)||[]),{date:todaySafe(),time:isoNow(),remark:'Registered patient / Visit created',staff:user?.mobile||'',status:'Visit'}]};
-      if(vi>-1)fs[vi]=row; else fs.unshift(row); put('followups',fs); try{directCloudUpsertRow('patients',p);directCloudUpsertRow('followups',row)}catch(e){} return row; }
+      /* 🔴🔒🔒 V891 (৩০.০৮.২০২৬ — সম্পূর্ণ যাচাইয়ে ধরা পড়ল)। ফোনে V871-এ সারানো
+         দোষটাই এখানে ছিল: পুরোনো সারিটা **হুবহু বদলে** ফেলা হতো, তাই রোগীর
+         তথ্য আবার সেভ করলেই পরের কলের তারিখ · শেষ রিমার্ক · ধাপ · তারিখ ·
+         অবস্থা সব রিসেট হয়ে যেত (কার্ডে PATIENT-এর বদলে VISITED)।
+         এখন পুরোনো ঘরগুলো **অক্ষত রেখে** শুধু নাম-ঠিকানা জাতীয় তথ্য মেলানো হয় —
+         ফোনের হুবহু একই নিয়ম। ⛔ নতুন রেজিস্ট্রেশনে আচরণ অপরিবর্তিত। */
+      let outRow=row;
+      if(vi>-1){const old=fs[vi];outRow={...old,...row,id:old.id,
+        stage:old.stage||row.stage,
+        status:(old.status!==undefined&&String(old.status)!=='')?old.status:row.status,
+        date:old.date||row.date,
+        nextFollow:(old.nextFollow||'')!==''?old.nextFollow:row.nextFollow,
+        lastRemark:(old.lastRemark||'')!==''?old.lastRemark:row.lastRemark,
+        createdBy:old.createdBy||row.createdBy,
+        createdAt:old.createdAt||row.createdAt,
+        registeredBy:old.registeredBy||row.registeredBy,
+        history:(old.history&&old.history.length)?old.history:row.history};
+        fs[vi]=outRow;} else fs.unshift(row);
+      put('followups',fs); try{directCloudUpsertRow('patients',p);directCloudUpsertRow('followups',outRow)}catch(e){} return outRow; }
 window["ensureVisit"]=ensureVisit;
     window.v280EnsureVisit=ensureVisit;
     const oldSavePatient=window.savePatient||savePatient;
