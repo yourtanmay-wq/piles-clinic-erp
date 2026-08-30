@@ -478,10 +478,21 @@
 
                     <!-- 🎨 (07.08.2026, প্রুফ-চেহারা) সেকশন-শিরোনাম (RegCardInner-এর
                          ভিতরে প্রথম সন্তান, তাই lockSection-এর getChildAt(0) অক্ষত)। -->
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="6dp">
+                    <!-- 🟢🔒🔒 V886 (৩০.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত):
+                         TK: *"মেইন পয়েন্টগুলো ফর্ম খোলা থাকবে না"* ⇒ এই ধাপটাও
+                         এখন **বন্ধ অবস্থায়** শুরু হয়, নামে চাপ দিলে খোলে।
+                         ⛔ ধাপ ২ (V703) · NEXT VISIT PLAN (V866) · ধাপ ৫ (V600)-এর
+                            হুবহু একই ভাঁজ — চালু `attachFold`, নতুন কিছু নয়।
+                         ⛔ ভিতরের একটাও ঘর · লেখা · সেভ বদলায়নি — শুধু একটা
+                            মোড়ক (`histFoldBody`) ও মাথায় চ্যাভরন যোগ হয়েছে। -->
+                    <LinearLayout android:id="@+id/histFoldHead" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:clickable="true" android:focusable="true" android:gravity="center_vertical" android:layout_marginBottom="6dp">
                         <TextView android:layout_width="23dp" android:layout_height="23dp" android:gravity="center" android:text="1" android:textStyle="bold" android:textSize="12sp" android:textColor="#12805C" android:background="@drawable/bg_checkup_step_num" />
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="9dp" android:text="History &amp; Previous" android:textStyle="bold" android:textSize="14sp" android:textColor="#101828" />
+                        <TextView android:id="@+id/histFoldNum" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:background="@drawable/bg_fold_count_chip" android:paddingLeft="9dp" android:paddingTop="2dp" android:paddingRight="9dp" android:paddingBottom="2dp" android:textColor="#0B4F2A" android:textSize="11.5sp" android:textStyle="bold" android:visibility="gone" />
+                        <TextView android:id="@+id/histFoldChev" android:layout_width="24dp" android:layout_height="24dp" android:layout_marginStart="8dp" android:gravity="center" android:background="@drawable/bg_fold_chevron" android:text="⌄" android:textColor="#FFFFFF" android:textStyle="bold" android:textSize="15sp" />
+                        <View android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
                     </LinearLayout>
+                    <LinearLayout android:id="@+id/histFoldBody" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
 
                     <!-- Chief Complaint -->
                     <LinearLayout style="@style/DocNoteFieldBox" android:layout_marginTop="0dp">
@@ -758,6 +769,7 @@
                         </LinearLayout>
                     </LinearLayout>
 
+                    </LinearLayout><!-- histFoldBody -->
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
@@ -903,10 +915,21 @@
             <androidx.cardview.widget.CardView android:id="@+id/secCounsel" style="@style/RegCard" app:cardBackgroundColor="#FFFFFF">
                 <LinearLayout style="@style/RegCardInner">
                     <!-- 🎨 (07.08.2026, প্রুফ-চেহারা) সেকশন-শিরোনাম -->
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="6dp">
+                    <!-- 🟢🔒🔒 V886 (৩০.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত):
+                         TK: *"মেইন পয়েন্টগুলো ফর্ম খোলা থাকবে না"* ⇒ এই ধাপটাও
+                         এখন **বন্ধ অবস্থায়** শুরু হয়, নামে চাপ দিলে খোলে।
+                         ⛔ ধাপ ২ (V703) · NEXT VISIT PLAN (V866) · ধাপ ৫ (V600)-এর
+                            হুবহু একই ভাঁজ — চালু `attachFold`, নতুন কিছু নয়।
+                         ⛔ ভিতরের একটাও ঘর · লেখা · সেভ বদলায়নি — শুধু একটা
+                            মোড়ক (`counsFoldBody`) ও মাথায় চ্যাভরন যোগ হয়েছে। -->
+                    <LinearLayout android:id="@+id/counsFoldHead" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:clickable="true" android:focusable="true" android:gravity="center_vertical" android:layout_marginBottom="6dp">
                         <TextView android:layout_width="23dp" android:layout_height="23dp" android:gravity="center" android:text="3" android:textStyle="bold" android:textSize="12sp" android:textColor="#12805C" android:background="@drawable/bg_checkup_step_num" />
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="9dp" android:text="Counsel · চিকিৎসা পরিকল্পনা" android:textStyle="bold" android:textSize="14sp" android:textColor="#101828" />
+                        <TextView android:id="@+id/counsFoldNum" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:background="@drawable/bg_fold_count_chip" android:paddingLeft="9dp" android:paddingTop="2dp" android:paddingRight="9dp" android:paddingBottom="2dp" android:textColor="#0B4F2A" android:textSize="11.5sp" android:textStyle="bold" android:visibility="gone" />
+                        <TextView android:id="@+id/counsFoldChev" android:layout_width="24dp" android:layout_height="24dp" android:layout_marginStart="8dp" android:gravity="center" android:background="@drawable/bg_fold_chevron" android:text="⌄" android:textColor="#FFFFFF" android:textStyle="bold" android:textSize="15sp" />
+                        <View android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
                     </LinearLayout>
+                    <LinearLayout android:id="@+id/counsFoldBody" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
                     <!-- 🔴🔒 V501 (TK-নির্দেশ ২১.০৮.২০২৬, ফটো-প্রুফ অনুমোদিত):
                          *"ট্রিটমেন্ট প্ল্যান বক্স সেগুলো সব একই সাইজের হবে।"*
                          • প্রতিটা সারির ভিতরে স্থির উচ্চতা ৪২dp
@@ -1024,6 +1047,7 @@
                     </LinearLayout>
 
 
+                    </LinearLayout><!-- counsFoldBody -->
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
@@ -1042,14 +1066,25 @@
                 <LinearLayout style="@style/RegCardInner">
 
                     <!-- 🎨 (07.08.2026, প্রুফ-চেহারা) সেকশন-শিরোনাম -->
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="6dp">
+                    <!-- 🟢🔒🔒 V886 (৩০.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত):
+                         TK: *"মেইন পয়েন্টগুলো ফর্ম খোলা থাকবে না"* ⇒ এই ধাপটাও
+                         এখন **বন্ধ অবস্থায়** শুরু হয়, নামে চাপ দিলে খোলে।
+                         ⛔ ধাপ ২ (V703) · NEXT VISIT PLAN (V866) · ধাপ ৫ (V600)-এর
+                            হুবহু একই ভাঁজ — চালু `attachFold`, নতুন কিছু নয়।
+                         ⛔ ভিতরের একটাও ঘর · লেখা · সেভ বদলায়নি — শুধু একটা
+                            মোড়ক (`estmFoldBody`) ও মাথায় চ্যাভরন যোগ হয়েছে। -->
+                    <LinearLayout android:id="@+id/estmFoldHead" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:clickable="true" android:focusable="true" android:gravity="center_vertical" android:layout_marginBottom="6dp">
                         <TextView android:layout_width="23dp" android:layout_height="23dp" android:gravity="center" android:text="4" android:textStyle="bold" android:textSize="12sp" android:textColor="#12805C" android:background="@drawable/bg_checkup_step_num" />
                         <!-- 🟢🔒 V651 (২৫.০৮.২০২৬, TK-নির্দেশ — "নামকরণটাও থাকবে
                              না") — Estimated Cost ঘর সরানোর পরে এই শিরোনামও
                              আর ঠিক না (এখন শুধু রোগ+সময়ের ঘর দেখা যায়) —
                              তাই বদলানো হলো। -->
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="9dp" android:text="Probable Disease and Time Asked · সম্ভাব্য রোগ ও সময়" android:textStyle="bold" android:textSize="14sp" android:textColor="#101828" />
+                        <TextView android:id="@+id/estmFoldNum" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:background="@drawable/bg_fold_count_chip" android:paddingLeft="9dp" android:paddingTop="2dp" android:paddingRight="9dp" android:paddingBottom="2dp" android:textColor="#0B4F2A" android:textSize="11.5sp" android:textStyle="bold" android:visibility="gone" />
+                        <TextView android:id="@+id/estmFoldChev" android:layout_width="24dp" android:layout_height="24dp" android:layout_marginStart="8dp" android:gravity="center" android:background="@drawable/bg_fold_chevron" android:text="⌄" android:textColor="#FFFFFF" android:textStyle="bold" android:textSize="15sp" />
+                        <View android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
                     </LinearLayout>
+                    <LinearLayout android:id="@+id/estmFoldBody" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
 
                     <!-- 🟢 V600 (২৩.০৮.২০২৬, TK-নির্দেশ) — Step 3 থেকে সরিয়ে আনা।
                          🔴 রোগ বদলালে রোগীর সারিতেও লেখা হয় (আগের মতোই, CounselModel.diseaseChanged)।
@@ -1099,6 +1134,7 @@
                          "Other / Remarks" দুটোই বাদ। ⛔ ClinicalModels-এর patientDecision/
                          decisionRemark ঘর অটুট (ডিফল্ট ""), শুধু UI সরানো। -->
 
+                    </LinearLayout><!-- estmFoldBody -->
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 

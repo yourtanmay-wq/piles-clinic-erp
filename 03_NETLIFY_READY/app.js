@@ -8977,7 +8977,10 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
  <div class="card softInfo">ℹ️ Auto filled from Registration. Doctor can edit/add clinical details if needed.</div>
  <div id="wlv1CkChips" class="wlv1CkChips"></div>
  <div id="wlv1CkBox">
- <details open class="card"><summary><b>1. History &amp; Previous Treatment · বর্তমান রোগের ইতিহাস ও পূর্ববর্তী চিকিৎসার বিবরণ</b></summary>
+ <!-- V886 (৩০.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত): "মেইন পয়েন্টগুলো
+      ফর্ম খোলা থাকবে না" — ধাপ ১-ও এখন এই পাতার বাকি সব কার্ডের মতোই বন্ধ
+      অবস্থায় শুরু হয়, নামে চাপ দিলে খোলে। ভিতরের কিছু বদলায়নি। -->
+ <details class="card"><summary><b>1. History &amp; Previous Treatment · বর্তমান রোগের ইতিহাস ও পূর্ববর্তী চিকিৎসার বিবরণ</b></summary>
   <label>Chief Complaint · প্রধান সমস্যা</label><textarea id="dnComplaint">${esc(complaint)}</textarea>
   <label>Duration · কতদিন থেকে</label><input id="dnDuration" class="input" value="${esc(duration)}">
   ${wlv1SymBoxHtml(note,p)}

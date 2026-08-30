@@ -275,6 +275,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
            চেকবক্সগুলো এক অক্ষরও বদলায়নি। */
         wireClinicalFold()   // 🟢 V703 — ধাপ ২ বন্ধ অবস্থায় শুরু হয়
         wireNvpFold()        // 🟢 V866 — NEXT VISIT PLAN বন্ধ অবস্থায় শুরু হয়
+        wireMainFolds()      // 🟢 V886 — ধাপ ১ · ৩ · ৪-ও বন্ধ অবস্থায় শুরু হয়
         internalPilesBox()?.setOnClickListener { askInternalGrade() }
         /* 🔵 V540: Grade বাছা হলে চেকবক্স নিজে থেকেই টিক পড়ে ও পাশে Grade দেখায়।
            ⛔ শোনার কাজটা **একবারই** বসে (পপ-আপ খোলার সময় বারবার নয়)। */
@@ -2080,6 +2081,32 @@ class DoctorCheckupActivity : AppCompatActivity() {
             findViewById<android.widget.LinearLayout>(R.id.nvpFoldBody)
         ) { refreshNvpFold() }
         refreshNvpFold()
+    }
+
+    /* 🟢🔒🔒 V886 (৩০.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত):
+       TK: *"মেইন পয়েন্টগুলো ফর্ম খোলা থাকবে না"* — তিনি নিজে নিশ্চিত করেছেন
+       *"নামের উপরে চাপ দিলে ফর্ম ওপেন হবে তো"* ⇒ হ্যাঁ, ঠিক ধাপ ২ ও ধাপ ৫-এর
+       মতোই।
+       ⇒ ধাপ ১ (History & Previous) · ধাপ ৩ (Counsel) · ধাপ ৪ (Probable Disease
+         and Time Asked) এখন **বন্ধ অবস্থায়** শুরু হয়।
+       ⛔ নতুন কোনো ভাঁজ-ব্যবস্থা বানানো হয়নি — চালু `attachFold`-ই।
+       ⛔ ভিতরের একটাও ঘর · টিক · তারিখ · সেভ বদলায়নি — শুধু মোড়ক ও চ্যাভরন।
+       ⛔ ধাপ ১-এর ভিতরের পুরোনো ছোট ভাঁজগুলো (symptom/life) আগের মতোই কাজ করে। */
+    private fun wireMainFolds() {
+        for (key in listOf("hist", "couns", "estm")) {
+            val head = resources.getIdentifier("${key}FoldHead", "id", packageName)
+            val num = resources.getIdentifier("${key}FoldNum", "id", packageName)
+            val chev = resources.getIdentifier("${key}FoldChev", "id", packageName)
+            val body = resources.getIdentifier("${key}FoldBody", "id", packageName)
+            if (head == 0 || num == 0 || chev == 0 || body == 0) continue
+            attachFold(
+                key,
+                findViewById<android.widget.LinearLayout>(head),
+                findViewById<TextView>(num),
+                findViewById<TextView>(chev),
+                findViewById<android.widget.LinearLayout>(body)
+            )
+        }
     }
 
     /** বন্ধ অবস্থাতেও ভিতরে কতগুলো টিক পড়েছে সেটা মাথার সবুজ ব্যাজে দেখানো। */
