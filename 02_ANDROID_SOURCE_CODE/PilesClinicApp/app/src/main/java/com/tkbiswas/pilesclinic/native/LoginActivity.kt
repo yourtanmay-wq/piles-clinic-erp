@@ -136,6 +136,10 @@ class LoginActivity : AppCompatActivity() {
              লগইন এমনিতেই "Mobile number not found" বলে থেমে যেত।
            ⇒ তাই **আজকের চেয়ে খারাপ হওয়ার কোনো পথ নেই।**
            ⛔ 🧵 মেঘে যাওয়া আলাদা থ্রেডে — মূল থ্রেডে নয়, নইলে অ্যাপ থামত। */
+        /* ⛔🔒 V890 (৩০.০৮.২০২৬, TK-নির্দেশ) — বাদ দেওয়া স্টাফ কোনোভাবেই
+           ঢুকতে পারবেন না। তালিকা: `BlockedStaff`। এটা **সবার আগে** বসে,
+           তাই কোড-তালিকা বা ক্লাউড — কোনো পথেই ফাঁক থাকে না। */
+        if (BlockedStaff.isBlockedMobile(mobile)) { showError("Mobile number not found"); return }
         val builtIn = StaffDirectory.findAccount(mobile)
         if (builtIn == null) {
             setLoading(true)

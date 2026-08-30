@@ -343,7 +343,20 @@ class StaffProfileActivity : AppCompatActivity() {
                 }
                 return@Thread   // ব্যর্থ পড়া — ভালো cache/তালিকা অক্ষত
             }
-            val rows = rowsR.rows
+            /* ⛔🔒 V890 (৩০.০৮.২০২৬, TK-নির্দেশ) — বাদ দেওয়া স্টাফের একটাও
+               তথ্য কোথাও দেখাবে না। এই **একটাই জায়গায়** ছেঁকে দেওয়া হয়, তাই
+               স্টাফ-তালিকা · Performance · Phone Versions · বেতন — সব পর্দাতেই
+               একসাথে বাদ পড়ে, কোনো জায়গা ভুলে বাদ যায় না।
+               তালিকা: `BlockedStaff`। ⛔ রোগীর তথ্য/টাকা কিছুই মোছে না। */
+            val rows = com.tkbiswas.pilesclinic.native.BlockedStaff.let { blk ->
+                val keep = JSONArray()
+                for (i in 0 until rowsR.rows.length()) {
+                    val r = rowsR.rows.optJSONObject(i) ?: continue
+                    if (blk.isBlocked(ns(r, "link_mobile"), ns(r, "person_code"))) continue
+                    keep.put(r)
+                }
+                keep
+            }
             val cfg = cfgR.rows
             saveCachedStaffList(rows, cfg)
             val cfgMap = HashMap<String, JSONObject>()

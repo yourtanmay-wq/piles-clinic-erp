@@ -39,6 +39,16 @@
     try { var __rp = await client.schema('hr').from('staff_profiles')
       .select('person_code,designation,role_kind,branch,full_name,link_mobile,active')
       .order('person_code'); if (__rp && __rp.error) listFailed = true; rows = __rp.data || []; } catch (e) { listFailed = true; }
+    /* ⛔🔒 V890 (৩০.০৮.২০২৬, TK-নির্দেশ) — বাদ দেওয়া স্টাফের একটাও তথ্য
+       কোথাও দেখাবে না। ফোনের `BlockedStaff`-এর হুবহু একই তালিকা।
+       ⛔ রোগীর তথ্য/টাকা কিছুই মোছে না — শুধু ওই ব্যক্তি দেখা যায় না। */
+    var WLV1_BLOCKED_MOB = ['9339139852'];          // BIR-5 · RESAM KHATUN
+    var WLV1_BLOCKED_CODE = ['BIR-5'];
+    rows = (rows || []).filter(function (r) {
+      var m = String((r && r.link_mobile) || '').replace(/[^0-9]/g, '').slice(-10);
+      var c = String((r && r.person_code) || '').trim().toUpperCase();
+      return WLV1_BLOCKED_MOB.indexOf(m) < 0 && WLV1_BLOCKED_CODE.indexOf(c) < 0;
+    });
     // 🔴 V404 (16.08.2026, TK-নির্দেশ): বাদ-দেওয়া কর্মী (active = false) মূল
     //    তালিকায় ও "Salary Due"-তে আর আসবে না। আগে আসত — SWAPNA ADHIKARI
     //    কাজ ছেড়ে দেওয়ার পরেও তাঁর নাম উঠত।
