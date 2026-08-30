@@ -241,7 +241,7 @@ class YearlyRegistrationActivity : AppCompatActivity() {
                 layoutParams = lp
                 setOnClickListener { confirmBulk(wantSkip) }
             }
-        bar.addView(act("Skip", "#B3261E", "#FDECEA", true))
+        bar.addView(act("Remove", "#B3261E", "#FDECEA", true))   // 🎨 V884 — শুধু লেখা
         bar.addView(act("Restore", "#0B6E33", "#E9F6EE", false))
         return bar
     }
@@ -414,7 +414,12 @@ class YearlyRegistrationActivity : AppCompatActivity() {
         row.addView(texts)
 
         val btn = TextView(this).apply {
-            text = if (skipped) "Undo" else "Skip"
+            /* 🎨🔒 V884 (৩০.০৮.২০২৬, TK-নির্দেশ — *"নামটা Skip না করে
+               Remove করলে কেমন হয়"*, জিজ্ঞাসা করে নিশ্চিত: **শুধু লেখাটা**):
+               বোতামের শব্দ Skip → Remove। ⛔ কাজ এক অক্ষরও বদলায়নি — এখনো
+               শুধু বছরের গোনা থেকে বাদ, রোগী/টাকা/Follow-up কিচ্ছু মোছে না,
+               আর Undo-ও আগের মতোই আছে। */
+            text = if (skipped) "Undo" else "Remove"
             textSize = 12.5f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(android.graphics.Color.parseColor(if (skipped) "#0B6E33" else "#B3261E"))
@@ -428,7 +433,7 @@ class YearlyRegistrationActivity : AppCompatActivity() {
             setOnClickListener {
                 if (skipped) toggle(e, this)
                 else AlertDialog.Builder(this@YearlyRegistrationActivity)
-                    .setCustomTitle(PremiumAlert.header(this@YearlyRegistrationActivity, "Skip from count?"))
+                    .setCustomTitle(PremiumAlert.header(this@YearlyRegistrationActivity, "Remove from count?"))
                     .setMessage("Are you sure? " + e.name.ifBlank { "This person" } +
                         " will not be counted in " + year + ".")
                     .setPositiveButton("Yes") { _, _ -> toggle(e, this) }
@@ -451,7 +456,7 @@ class YearlyRegistrationActivity : AppCompatActivity() {
     private fun confirmBulk(wantSkip: Boolean) {
         val ids = picked.toList()
         if (ids.isEmpty()) return
-        val what = if (wantSkip) "Skip" else "Restore"
+        val what = if (wantSkip) "Remove" else "Restore"   // 🎨 V884 — শুধু লেখা
         AlertDialog.Builder(this)
             .setCustomTitle(PremiumAlert.header(this, "$what ${ids.size} selected?"))
             .setMessage(

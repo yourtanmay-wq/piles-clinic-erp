@@ -6949,7 +6949,9 @@ function wlv1YrScreen(rows, branchLabel){
     window.__yrBulkList=rows.filter(function(x){return __yrPick.has(String(x.id))})
       .map(function(x){return {id:String(x.id),code:String(x.__code||''),name:String(x.name||'')}});
     selBar='<div class="wlv1YrSel"><span>'+__yrPick.size+' selected</span>'+
-      '<button class="wlv1YrBtn skip" onclick="wlv1YrBulk(true)">Skip</button>'+
+      /* V884 (৩০.০৮.২০২৬, TK-নির্দেশ) — শুধু লেখাটা Skip → Remove।
+         কাজ এক অক্ষরও বদলায়নি (গোনা থেকে বাদ, Undo আগের মতোই)। */
+      '<button class="wlv1YrBtn skip" onclick="wlv1YrBulk(true)">Remove</button>'+
       '<button class="wlv1YrBtn undo" onclick="wlv1YrBulk(false)">Restore</button></div>';
   }
 
@@ -6968,7 +6970,7 @@ function wlv1YrScreen(rows, branchLabel){
         (x.__skip?'wlv1YrToggle':'wlv1YrAskSkip')+'(\''+
         String(x.id).replace(/'/g,"")+'\',\''+String(x.__code||'').replace(/'/g,"")+'\',\''+
         String(x.name||'').replace(/'/g,"")+'\''+(x.__skip?',false':'')+')">'+
-        (x.__skip?'Undo':'Skip')+'</button></div>';
+        (x.__skip?'Undo':'Remove')+'</button></div>';   /* V884 — শুধু লেখা */
   }).join('') : '<div class="tiny mut">'+(rows.length?'Nothing in this filter.':'No registration in this year.')+'</div>';
 
   page('Yearly Registration',
