@@ -707,11 +707,20 @@ class RegistrationActivity : AppCompatActivity() {
                 if (boxTextSp != null) {
                     tv?.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, boxTextSp)
                     tv?.setPadding(0, 0, 0, 0)
+                    /* 🎨🔒 V892 (৩১.০৮.২০২৬, TK ডেমো ফটো দেখে "হ্যাঁ পাশ") —
+                       TK: *"উপরে ব্রাঞ্চের নাম সিলেক্ট করার জায়গার উজ্জ্বলতা কম"*।
+                       হেডারের ঘরটার লেখা মোটা (bold) হলো, আর নিচের রঙের নিয়মে
+                       "SELECT BRANCH" ফ্যাকাশে ধূসরের বদলে গাঢ় নেভি।
+                       ⛔ শুধু হেডারের এই ঘরটাতেই (`boxTextSp` একমাত্র এখানেই
+                          পাঠানো হয়) — ফর্মের বাকি বাছাই-ঘরগুলো অপরিবর্তিত। */
+                    tv?.setTypeface(null, android.graphics.Typeface.BOLD)
                 }
                 tv?.setTextColor(
                     androidx.core.content.ContextCompat.getColor(
                         this@RegistrationActivity,
-                        if (hintFirstInBox && position == 0) com.tkbiswas.pilesclinic.R.color.field_hint
+                        if (hintFirstInBox && position == 0)
+                            (if (boxTextSp != null) com.tkbiswas.pilesclinic.R.color.brand_navy
+                             else com.tkbiswas.pilesclinic.R.color.field_hint)
                         else com.tkbiswas.pilesclinic.R.color.clinic_text_primary
                     )
                 )

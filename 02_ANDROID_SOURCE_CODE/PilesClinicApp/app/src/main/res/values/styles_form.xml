@@ -23,6 +23,18 @@
         <item name="android:textColor">@color/clinic_text_primary</item>
     </style>
 
+    <!-- 🎨🔒 V892 (৩১.০৮.২০২৬, TK ডেমো ফটো দেখে **"হ্যাঁ পাশ, বসিয়ে দিন"**) —
+         TK: *"সম্পূর্ণ ফর্মে যত বক্স আছে প্রয়োজনের থেকে উচ্চতায় অনেক বেশি …
+         একটু ছোট করবেন … অফিসিয়াল ও প্রফেশনাল দেখাতে হবে"*।
+         উচ্চতা 50dp → **42dp**, উপরের ফাঁক 6dp → 5dp। লেখার আকার (14.5sp) ও
+         ভিতরের বাঁ-ডান ফাঁক (14dp) এক অক্ষরও বদলায়নি, তাই কোনো লেখা কাটে না।
+         ⛔ **শুধু Registration পর্দার জন্য** — শেয়ার্ড `FieldInput` অক্ষত, তাই
+            Enquiry · Appointment · Medicine · Check-up · Search আগের মতোই। -->
+    <style name="RegFieldInput" parent="FieldInput">
+        <item name="android:layout_height">42dp</item>
+        <item name="android:layout_marginTop">5dp</item>
+    </style>
+
     <style name="FieldInputMultiline">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
