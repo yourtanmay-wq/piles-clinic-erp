@@ -1113,9 +1113,21 @@
             <androidx.cardview.widget.CardView android:id="@+id/secNextVisitPlan" style="@style/RegCard" app:cardBackgroundColor="#FFFFFF">
                 <LinearLayout style="@style/RegCardInner">
 
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="2dp">
+                    <!-- 🟢🔒 V866 (৩০.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত):
+                         *"next visit plan — এই ফর্মটা ওপেন থাকবে না"* ⇒ ধাপ ২ (V703) ও
+                         ধাপ ৫ (V600)-এর হুবহু একই ভাঁজ — শুরুতে বন্ধ, মাথায়
+                         চাপ দিলে খোলে। বন্ধ অবস্থাতেও ভিতরে কতগুলো টিক পড়েছে
+                         সবুজ ব্যাজে দেখাবে।
+                         ⛔ ভিতরের একটাও ঘর/টিক/সেভ বদলায়নি — শুধু একটা মোড়ক
+                            (`nvpFoldBody`) ও মাথায় চ্যাভরন যোগ হয়েছে।
+                         ⛔ নতুন কোনো ভাঁজ-ব্যবস্থা বানানো হয়নি — চালু `attachFold`-ই। -->
+                    <LinearLayout android:id="@+id/nvpFoldHead" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="2dp">
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="NEXT VISIT PLAN" android:textStyle="bold" android:textSize="14sp" android:textColor="#0B4F2A" />
+                        <TextView android:id="@+id/nvpFoldNum" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:background="@drawable/bg_fold_count_chip" android:paddingLeft="9dp" android:paddingTop="2dp" android:paddingRight="9dp" android:paddingBottom="2dp" android:textColor="#0B4F2A" android:textSize="11.5sp" android:textStyle="bold" android:visibility="gone" />
+                        <TextView android:id="@+id/nvpFoldChev" android:layout_width="24dp" android:layout_height="24dp" android:layout_marginStart="8dp" android:gravity="center" android:background="@drawable/bg_fold_chevron" android:text="⌄" android:textColor="#FFFFFF" android:textStyle="bold" android:textSize="15sp" />
+                        <View android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
                     </LinearLayout>
+                    <LinearLayout android:id="@+id/nvpFoldBody" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
                     <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="What to do next visit · পরের দিন বা পরের সপ্তাহে কী হবে" android:textSize="11.5sp" android:textColor="#8A93A0" android:layout_marginBottom="6dp" />
 
                     <CheckBox android:id="@+id/cbNvpFollowUp" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="13.5sp" android:textColor="#101828" android:paddingTop="3dp" android:paddingBottom="3dp" android:textAllCaps="false" android:text="Follow up / ফলো আপ" />
@@ -1141,6 +1153,8 @@
                     <TextView android:id="@+id/tvNvpDate" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingTop="12dp" android:paddingBottom="12dp" android:paddingStart="12dp" android:paddingEnd="12dp" android:background="@drawable/bg_input_field" android:text="Tap to choose date" android:textSize="14sp" android:textColor="#98A2B3" />
 
                     <TextView android:id="@+id/tvNvpBy" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:textSize="11sp" android:textColor="#8A93A0" android:visibility="gone" />
+
+                    </LinearLayout><!-- nvpFoldBody -->
 
                 </LinearLayout>
             </androidx.cardview.widget.CardView>

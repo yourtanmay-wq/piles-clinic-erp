@@ -274,6 +274,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         /* 🔵 V539: Internal Piles-এ চাপ দিলেই Grade বাছার তালিকা। ⛔ বাকি
            চেকবক্সগুলো এক অক্ষরও বদলায়নি। */
         wireClinicalFold()   // 🟢 V703 — ধাপ ২ বন্ধ অবস্থায় শুরু হয়
+        wireNvpFold()        // 🟢 V866 — NEXT VISIT PLAN বন্ধ অবস্থায় শুরু হয়
         internalPilesBox()?.setOnClickListener { askInternalGrade() }
         /* 🔵 V540: Grade বাছা হলে চেকবক্স নিজে থেকেই টিক পড়ে ও পাশে Grade দেখায়।
            ⛔ শোনার কাজটা **একবারই** বসে (পপ-আপ খোলার সময় বারবার নয়)। */
@@ -2063,6 +2064,29 @@ class DoctorCheckupActivity : AppCompatActivity() {
             findViewById<android.widget.LinearLayout>(R.id.clinicalFoldBody)
         ) { refreshClinicalFold() }
         refreshClinicalFold()
+    }
+
+    /* 🟢🔒 V866 (৩০.০৮.২০২৬, TK-নির্দেশ ডেমো-প্রুফে অনুমোদিত):
+       *"next visit plan — এই ফর্মটা ওপেন থাকবে না"* — ধাপ ২ (V703) ও ধাপ ৫
+       (V600)-এর হুবহু একই ব্যবস্থা: শুরুতে বন্ধ, মাথায় চাপ দিলে খোলে।
+       ⛔ নতুন কোনো ভাঁজ-ব্যবস্থা বানানো হয়নি — চালু `attachFold`-ই।
+       ⛔ NEXT VISIT PLAN-এর ভিতরের একটাও ঘর · টিক · তারিখ · সেভ বদলায়নি। */
+    private fun wireNvpFold() {
+        attachFold(
+            "nvp",
+            findViewById<android.widget.LinearLayout>(R.id.nvpFoldHead),
+            findViewById<TextView>(R.id.nvpFoldNum),
+            findViewById<TextView>(R.id.nvpFoldChev),
+            findViewById<android.widget.LinearLayout>(R.id.nvpFoldBody)
+        ) { refreshNvpFold() }
+        refreshNvpFold()
+    }
+
+    /** বন্ধ অবস্থাতেও ভিতরে কতগুলো টিক পড়েছে সেটা মাথার সবুজ ব্যাজে দেখানো। */
+    private fun refreshNvpFold() {
+        var n = 0
+        for ((_, cb) in nvpBoxes()) if (cb.isChecked) n++
+        setFoldCount("nvp", n)
     }
 
     /** বন্ধ অবস্থাতেও ধাপ ২-এ কতগুলো ভরা আছে সেটা মাথার ব্যাজে দেখানো।
@@ -4019,8 +4043,9 @@ class DoctorCheckupActivity : AppCompatActivity() {
             val on = boxes.firstOrNull { it.first == NextVisitPlan.KEY_MEDICINE }?.second?.isChecked == true
             medRow.visibility = if (on) android.view.View.VISIBLE else android.view.View.GONE
         }
-        for ((_, cb) in boxes) cb.setOnCheckedChangeListener { _, _ -> syncMedicineRow() }
+        for ((_, cb) in boxes) cb.setOnCheckedChangeListener { _, _ -> syncMedicineRow(); refreshNvpFold() }
         syncMedicineRow()
+        refreshNvpFold()
 
         /* তারিখ — বাধ্যতামূলক নয় (TK-নির্দেশ)। অতীতের তারিখ বাছা যায় না। */
         tvDate.setOnClickListener {

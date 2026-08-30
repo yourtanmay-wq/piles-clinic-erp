@@ -9038,7 +9038,11 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
       ⛔ ধাপ ৪-এর ঠিক পরে, ধাপ ৫-এর আগে — ধাপের সংখ্যা বাড়ানো হয়নি।
       ⛔ এই ঘরগুলোর কোনোটাই প্রেসক্রিপশনে বা কোনো ছাপার কাগজে যায় না
          (TK: "শুধুমাত্র সিস্টেমে থাকবে")। -->
- <details class="card" open><summary><b>NEXT VISIT PLAN · পরের বার কী হবে</b></summary>
+ <!-- 🟢🔒 V866 (৩০.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত):
+      *"next visit plan — এই ফর্মটা ওপেন থাকবে না"* ⇒ "open" সরানো হলো,
+      এখন এই পাতার বাকি সব কার্ডের (ধাপ ২·৩·৪·৫) মতোই বন্ধ অবস্থায় শুরু
+      হয়, নামে চাপ দিলে খোলে। ⛔ ভিতরের একটাও ঘর/টিক/সেভ বদলায়নি। -->
+ <details class="card"><summary><b>NEXT VISIT PLAN · পরের বার কী হবে</b></summary>
   ${wlv1NvpBoxHtml(p)}
  </details>
  <details class="card"><summary><b>5. Photo &amp; Video · ছবি ও ভিডিও</b></summary>
