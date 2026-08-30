@@ -285,12 +285,8 @@ object PatientModel {
             .put("address", patientRow.getString("address"))
             .put("age", patientRow.s("age"))
             .put("sex", patientRow.s("sex"))
-            .put("stage", "Patient")
-            .put("date", visitDate)
             .put("registrationDate", patientRow.getString("registrationDate"))
             .put("visitDate", visitDate)
-            .put("nextFollow", "")
-            .put("status", "Active")
             // TK-REQUESTED ADDITION (2026-07-24): same Official/Unexpected
             // Time badge concept the Enquiry-created followups row already
             // carries -- read back from patientRow (set in buildPatientRow
@@ -301,6 +297,28 @@ object PatientModel {
             .put("createdAt", keepCreatedAt.ifBlank { now })
             .put("updatedAt", now)
         if (!reuse) {
+            /* 🔴🔒🔒 V871 (৩০.০৮.২০২৬, TK-রিপোর্ট ছবিসহ — SHAMOL ROY):
+               *"ইনি একজন পেশেন্ট, আগে দুই-একবার পেমেন্ট করেছে, তারপরও এখানে
+               কেন তাকে ভিজিট কাটে দেখাচ্ছে"*
+
+               **আসল দোষ (কোড ধরে যাচাই করা):** নিচের চারটে ঘর আগে **সব
+               সময়** পাঠানো হতো — পুরোনো সারিতেও। তাই রোগীর তথ্য দ্বিতীয়বার
+               সেভ হলেই —
+                 · `stage` "Treatment" থেকে জোর করে "Patient" হয়ে যেত
+                   ⇒ কার্ডে PATIENT-এর বদলে **VISITED** দেখাত, বিল/বকেয়া
+                   উধাও, আর ADVANCE বোতাম ফিরে আসত,
+                 · `nextFollow` (পরের কলের তারিখ) **মুছে** যেত,
+                 · `status` জোর করে "Active" — বন্ধ করা সারিও ফিরে আসত,
+                 · `date` আজকের তারিখে লাফিয়ে যেত।
+
+               **এখন:** চারটেই শুধু **নতুন সারিতে** বসে। পুরোনো সারিতে ঘরগুলো
+               পাঠানোই হয় না ⇒ ক্লাউডে ও স্থানীয় স্টোরে দুটোতেই অপরিবর্তিত
+               থাকে (`history`/`lastRemark`-এর ক্ষেত্রে V399-এ প্রমাণিত একই
+               নিয়ম)। ⛔ নতুন রেজিস্ট্রেশনে আচরণ এক অক্ষরও বদলায়নি। */
+            out.put("stage", "Patient")
+            out.put("date", visitDate)
+            out.put("nextFollow", "")
+            out.put("status", "Active")
             /* নতুন সারি — আগের মতোই ইতিহাস, লেখা ও গণনা বসে। */
             out.put("history", history)
             out.put("lastRemark", "Registered patient / Visit created")
