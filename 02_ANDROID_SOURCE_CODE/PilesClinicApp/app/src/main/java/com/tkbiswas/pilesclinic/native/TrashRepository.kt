@@ -316,6 +316,13 @@ class TrashRepository {
                     // ⛔ `enquiries`-এ এই ট্রিগার নেই, তাই সেখানে আগের মতোই শুধু status।
                     if (ctable == "followups" && status.equals("Active", ignoreCase = true)) {
                         val line = JSONObject()
+                            /* ⏰🔒 V888 (৩০.০৮.২০২৬, TK-নির্দেশ — *"তারিখ এবং সময়
+                               সমস্ত জায়গায় লাগবে"*): এই একটাই লাইন `date`/`time`
+                               ছাড়া লেখা হতো, তাই টাইমলাইনে তারিখ-সময় দুটোই ফাঁকা
+                               দেখাত। এখন প্রকল্পের বাকি সব history-লেখার হুবহু
+                               একই দুটো ঘর বসে। ⛔ পুরোনো `at`/`by` ঘর দুটো অটুট। */
+                            .put("date", com.tkbiswas.pilesclinic.native.FollowUpModel.today())
+                            .put("time", trashIsoNow())
                             .put("status", "Active")
                             .put("remark", "Restored from Trash")
                             .put("at", trashIsoNow())

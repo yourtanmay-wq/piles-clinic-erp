@@ -647,6 +647,32 @@ def _scan_balance(s):
     return depth, par
 
 
+# ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯.৪১ — ⏰ history-তে লেখা প্রতিটা সারিতে date **ও** time
+#  (TK-নির্দেশ ৩০.০৮.২০২৬: *"তারিখ এবং সময় সমস্ত জায়গায় লাগবে"*)
+#  ⛔ V827-এর আগে কিছু জায়গায় শুধু তারিখ বসত, সময় বসত না — তাই
+#     টাইমলাইনে সময়ের ঘর ফাঁকা দেখাত (TK ছবি দিয়ে ধরেছিলেন)।
+#  ⚠️ শুধু সেই সারিগুলোই দেখা হয় যেগুলো সত্যিই `history`-তে যায়
+#     (JSONObject-এ `remark` **ও** (`staff`/`status`) দুটোই আছে) —
+#     তাই call_remarks/বেতন/চেম্বারের সারিতে ভুল সংকেত আসে না।
+# ═══════════════════════════════════════════════════════════════
+def check_history_time():
+    pat = re.compile(r'JSONObject\(\)((?:\s*\.put\([^\n]*\n?){1,12})')
+    for f in kt_files():
+        s = read(f)
+        for m in pat.finditer(s):
+            blk = m.group(1)
+            if '.put("remark"' not in blk:
+                continue
+            if not re.search(r'\.put\("staff"\s*,', blk):
+                continue
+            if '.put("time"' in blk and '.put("date"' in blk:
+                continue
+            line = s[:m.start()].count('\n') + 1
+            fail("৯.৪১", f"{os.path.relpath(f, ROOT)}:{line} — history-র সারিতে "
+                        f"`date`/`time` দুটোই নেই ⇒ টাইমলাইনে সময় ফাঁকা দেখাবে")
+
+
 def check_kotlin_balance():
     for f in kt_files():
         d, p = _scan_balance(read(f))
@@ -3171,6 +3197,7 @@ def main():
     check_r_import()                # 🅰️ V855 — R-এর import (TK-এর বিল্ড-এরর ৩০.০৮.২০২৬)
     check_owner_preserved()         # 🧑‍💼 V868 — আসল রেজিস্ট্রারের নাম কখনো বদলাবে না
     check_kotlin_balance()          # 🧱 V877 — ব্রেস/বন্ধনী মেলে (বিল্ড-এরর ঠেকানো)
+    check_history_time()            # ⏰ V888 — history-র প্রতিটা সারিতে তারিখ ও সময়
     check_http_call_timeout()   # ⏱️ V803 — প্রতিটা নেট-ডাকে সময়সীমা
     check_safe_wide_columns()   # 🛟 V801 — শেষ-ভরসার কলাম-তালিকা পুরনো হয়নি তো
     check_static_calls()
@@ -3233,6 +3260,7 @@ def main():
         ("১১",  "রোগীর সময় ১১টা–৪টা"),
         ("৯.৩৭", "🔑 Supabase-এর প্রতিটা ডাকে apikey + Authorization দুটোই আছে"),
         ("৯.৩৬", "🕵️ ইন্সপেক্টর — প্রকল্পের প্রতিটা ক্লাসের import আছে"),
+        ("৯.৪১", "⏰ history-র প্রতিটা সারিতে তারিখ ও সময় দুটোই বসে"),
         ("৯.৪০", "🧱 প্রতিটা Kotlin ফাইলে ব্রেস ও বন্ধনী মেলে"),
         ("৯.৩৯", "🧑\u200d💼 আসল রেজিস্ট্রারের নাম ও সময় কখনো বদলায় না"),
         ("৯.৩৮", "🅰️ `R.` ব্যবহারকারী প্রতিটা ফাইলে R-এর import আছে"),
