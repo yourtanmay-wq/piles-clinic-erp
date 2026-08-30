@@ -297,6 +297,18 @@ val disease = selectedDisease
         if (remarks.isBlank()) { focusError(binding.etRemarks, "Remarks mandatory"); return }
         if (selectedNextFollow.isBlank()) { focusError(binding.tvNextFollow, "Next Follow-up Call date mandatory"); return }
 
+        /* 🛡️🔒 V863 (৩০.০৮.২০২৬, TK-অনুমোদিত) — নম্বরটা আমাদের নিজেদের কারো
+           (স্টাফ · ক্লিনিক · ডাক্তার) হলে সেভের আগে একবার সতর্কবার্তা।
+           ⛔ আমাদের নম্বর না হলে **এক মুহূর্তও দেরি নয়** — নিচের সবটা হুবহু
+              আগের মতোই চলে। ⛔ আটকায় না, শুধু জিজ্ঞেস করে (আসল রোগীও
+              স্টাফ/ডাক্তারের নম্বর দিতে পারেন — যাচাই করে দেখা)। */
+        OwnNumberGuard.confirmIfOwn(this, mobile) { continueSave(user, mobile, branch, name, disease, address, remarks, timing) }
+    }
+
+    private fun continueSave(
+        user: NativeUser, mobile: String, branch: String, name: String,
+        disease: String, address: String, remarks: String, timing: String
+    ) {
         setLoading(true)
         lifecycleScope.launch {
             try {

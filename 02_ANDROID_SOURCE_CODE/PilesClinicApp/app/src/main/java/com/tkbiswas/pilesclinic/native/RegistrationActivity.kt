@@ -880,6 +880,12 @@ class RegistrationActivity : AppCompatActivity() {
         // নিয়মে (focusError → লাল বর্ডার + সরাসরি ওখানে স্ক্রল+ফোকাস)।
         if (diseaseChecks.none { it.isChecked }) { focusError(binding.diseaseGroup, "Disease mandatory — select at least one"); return }
 
+        /* 🛡️🔒 V863 (৩০.০৮.২০২৬, TK-অনুমোদিত) — এনকোয়ারির হুবহু একই পাহারা।
+           ⛔ আমাদের নম্বর না হলে নিচের সবটা এক অক্ষরও না বদলে আগের মতোই চলে। */
+        OwnNumberGuard.confirmIfOwn(this, mobile) { continueSave(user, name, mobile, branch, fee) }
+    }
+
+    private fun continueSave(user: NativeUser, name: String, mobile: String, branch: String, fee: Double) {
         setLoading(true)
         lifecycleScope.launch {
             val duplicate = withContext(Dispatchers.IO) { repository.checkDuplicatePatient(mobile) }

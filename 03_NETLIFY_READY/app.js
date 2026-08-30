@@ -343,6 +343,48 @@ function staffCodeMap(){
  return m;
 }
 const codeName=v=>staffCodeMap()[mob(v)]||String(v||'').replace(/^\+?91/,'');
+
+/* 🛡️🔒 V863 (৩০.০৮.২০২৬, TK-অনুমোদিত ডেমো প্রুফ · ফোনের হুবহু যমজ, নিয়ম ৬.৬)
+   — **নিজেদের নম্বর পাহারা**।
+   TK: *"সত্যতা যাচাই করুন কেন এই ধরনের সমস্যা হলো"* ⇒ অ্যাপে কোনো পাহারাই
+   ছিল না; টেস্টের সময় স্টাফরা নিজেদের নম্বর দিয়ে যা বানিয়েছিলেন সেগুলোই
+   আসল রেকর্ড হয়ে গিয়েছিল (৩০.০৮-এ ৮টা নম্বর, ≈₹১,৪২,৪০০ মুছতে হয়েছে)।
+   ⛔ **আটকায় না, শুধু সতর্ক করে** — আসল রোগীও স্টাফ/ডাক্তারের নম্বর দিতে
+      পারেন (TK নিশ্চিত করেছেন: Raja Roy · SERINA KHATTON আসল রোগী)।
+   ⛔ কোনো নতুন পড়া নেই — নম্বরের তালিকা `config.js`-এই আছে। */
+function wlv1OwnNumberOwner(rawMobile){
+  try{
+    const m=mob(rawMobile);
+    if(!m||m.length!==10) return null;
+    // ১) ক্লিনিকের নিজের নম্বর (৫ ব্রাঞ্চ)
+    const brs=(typeof C!=='undefined'&&C.branches)||[];
+    for(const b of brs){
+      if(String((b&&b.mobile)||'').replace(/\D/g,'').slice(-10)===m)
+        return String(b.name||'Clinic')+' clinic number';
+    }
+    // ২) আমাদের স্টাফ / ডাক্তার / ফিল্ড-এর নিজের নম্বর
+    const u=(typeof C!=='undefined'&&C.users)||{};
+    const list=Array.isArray(u)?u:Object.values(u).flatMap(x=>Array.isArray(x)?x:[]);
+    for(const x of list){
+      if(String((x&&x.mobile)||'').replace(/\D/g,'').slice(-10)===m){
+        const who=[String(x.name||'').trim(),String(x.branch||'').trim()].filter(Boolean).join(' · ');
+        return (who||m)+' — '+String(x.role||'staff');
+      }
+    }
+    return null;
+  }catch(e){ return null; }
+}
+window["wlv1OwnNumberOwner"]=wlv1OwnNumberOwner;
+
+/** সেভের ঠিক আগে ডাকুন। আমাদের নম্বর না হলে সঙ্গে সঙ্গে `true`. */
+function wlv1OwnNumberOk(rawMobile){
+  const owner=wlv1OwnNumberOwner(rawMobile);
+  if(!owner) return true;
+  return confirm('⚠️ This is our own number\n\n'+owner+
+    '\n\nThis number belongs to us, so saving it as a patient is usually a demo or a mistake.'+
+    '\n\nContinue only if this patient really uses this number.');
+}
+window["wlv1OwnNumberOk"]=wlv1OwnNumberOk;
 // 🆕 TK-নির্দেশ (04.08.2026 — "সব জায়গায় একই কার্যকারিতা"): ঠিকানা-ট্যাগ,
 // ফোনের `AddressTagRepository.kt`-এর হুবহু একই নিয়মে (parseAddress/
 // defaultTagFromAddress)। ⛔ patients/enquiries/followups-এ হাত পড়েনি —
@@ -5248,6 +5290,9 @@ function saveEnq(){
   if(!user||!user.role)return toast('Login required');
   if(!date||date>today())return toast('Future date not allowed');
   if(!valid(m))return focusFieldFail('eMob','Valid mobile number required');
+  /* 🛡️ V863 — নম্বরটা আমাদের নিজেদের কারো হলে একবার জিজ্ঞেস করে নেয়।
+     ⛔ আমাদের নম্বর না হলে সঙ্গে সঙ্গে `true` — আগের আচরণ অপরিবর্তিত। */
+  if(!wlv1OwnNumberOk(m)) return;
   if(!br)return focusFieldFail('eBranch','Branch mandatory');
   if(!disease)return focusFieldFail('eDisRow','Please select a disease');
   if(!rem)return focusFieldFail('eRem','Remarks mandatory');
@@ -8286,6 +8331,8 @@ async function savePatient(evt){
   if(!regDate||regDate>today()){focusFieldFail('pDate','Future registration date not allowed');return}
   if(!name){focusFieldFail('pName','Patient name mandatory');return}
   if(!valid(m)){focusFieldFail('pMob','Valid mobile number mandatory');return}
+  /* 🛡️ V863 — এনকোয়ারির হুবহু একই পাহারা (ফোনেও একই)। */
+  if(!wlv1OwnNumberOk(m)){ if(btn){btn.disabled=false;btn.textContent='Save'} return }
   if(!br){focusFieldFail('pBranch','Branch mandatory');return}
   if(!(regFee>0)){focusFieldFail('regFee','Registration Fee mandatory');return}
   // V167 workflow correction: enquiry duplicate is a conversion path, not a registration block.
