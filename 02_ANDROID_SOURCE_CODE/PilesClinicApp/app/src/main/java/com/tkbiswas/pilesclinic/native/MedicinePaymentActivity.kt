@@ -38,7 +38,12 @@ class MedicinePaymentActivity : AppCompatActivity() {
     private lateinit var etProduct: EditText
     private lateinit var etBill: EditText
     private lateinit var etDeposit: EditText
-    private lateinit var etRemarks: EditText
+    /* 🔄🔒 V849 (৩০.০৮.২০২৬, TK-অনুমোদিত ডেমো প্রুফ) — TK: "Remarks বক্সটাই
+       থাকবে না, সেখানে হবে … প্রকৃত জমার তারিখ"। PaymentActivity-র হুবহু একই
+       ধাঁচ: না ছুঁলে আজকের তারিখ · চাপলে পুরনো তারিখ বাছা যায় · ভবিষ্যতের
+       তারিখ বাছা যায় না (maxDate = আজ)। */
+    private lateinit var tvActualDate: TextView
+    private var pickedActualDate: String = ""
     private lateinit var historyContainer: LinearLayout
     private lateinit var progressLoad: ProgressBar
     private lateinit var tvEmpty: TextView
@@ -229,6 +234,43 @@ class MedicinePaymentActivity : AppCompatActivity() {
         })
     }
 
+    /* 🔄🔒 V849 — প্রকৃত জমার তারিখ। না ছুঁলে `pickedActualDate` ফাঁকাই থাকে
+       ⇒ সেভের সময় আজকের তারিখ বসে (আগের আচরণ হুবহু অটুট)। */
+    private fun actualDate(): String = pickedActualDate.ifBlank { today() }
+
+    private fun resetActualDate() {
+        pickedActualDate = ""
+        tvActualDate.text = "Actual deposit date"
+        tvActualDate.setTextColor(0xFF9AA4B0.toInt())
+    }
+
+    private fun setupActualDate() {
+        resetActualDate()
+        tvActualDate.setOnClickListener {
+            val cal = java.util.Calendar.getInstance()
+            try {
+                if (pickedActualDate.isNotBlank()) {
+                    SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(pickedActualDate)?.let { cal.time = it }
+                }
+            } catch (_: Exception) { }
+            android.app.DatePickerDialog(this, { _, y, m, d ->
+                val c = java.util.Calendar.getInstance().apply { set(y, m, d) }
+                val iso = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(c.time)
+                if (iso == today()) {
+                    resetActualDate()
+                } else {
+                    pickedActualDate = iso
+                    tvActualDate.text = DateUtil.display(iso)
+                    tvActualDate.setTextColor(0xFF10223A.toInt())
+                }
+            }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH),
+               cal.get(java.util.Calendar.DAY_OF_MONTH)).apply {
+                // ⛔ ভবিষ্যতের তারিখ বাছা যাবে না (TK-নির্দেশ)
+                try { datePicker.maxDate = System.currentTimeMillis() } catch (_: Throwable) { }
+            }.show()
+        }
+    }
+
     private fun setupMpModeButtons() {
         val cash = findViewById<android.widget.Button>(R.id.btnMpCash)
         val upi = findViewById<android.widget.Button>(R.id.btnMpUpi)
@@ -286,7 +328,7 @@ class MedicinePaymentActivity : AppCompatActivity() {
         etProduct = findViewById(R.id.etProduct)
         etBill = findViewById(R.id.etBill)
         etDeposit = findViewById(R.id.etDeposit)
-        etRemarks = findViewById(R.id.etRemarks)
+        tvActualDate = findViewById(R.id.tvActualDate)   // 🔄 V849
         historyContainer = findViewById(R.id.historyContainer)
         progressLoad = findViewById(R.id.progressLoad)
         tvEmpty = findViewById(R.id.tvEmpty)
@@ -309,6 +351,7 @@ class MedicinePaymentActivity : AppCompatActivity() {
         setupCustomerSuggestions()
         setupAddMedicine()
         setupHistoryControls()
+        setupActualDate()                            // 🔄 V849
 
         val user = NativeSession.current(this)
         val defaultBranch = if (user != null && user.branch != "All" && branches.contains(user.branch)) user.branch else branches.first()
@@ -414,8 +457,8 @@ val mode = selectedMpMode
             .put("deposit", deposit)
             .put("due", max(0.0, bill - deposit))
             .put("mode", mode)
-            .put("remarks", etRemarks.text?.toString()?.trim().orEmpty())
-            .put("date", today())
+            .put("remarks", "")                          // 🔄 V849 — Remarks ঘরটাই আর নেই
+            .put("date", actualDate())                   // 🔄 V849 — প্রকৃত জমার তারিখ
             .put("branch", branch)
             .put("receivedBy", staffMobile)
             .put("createdBy", staffMobile)
@@ -451,7 +494,8 @@ val mode = selectedMpMode
                 // ধরিয়ে দিই — তখন WhatsApp টেক্সট/প্রিন্ট রসিদ ওই row থেকেই বানে।
                 postAction?.invoke(row)
                 clearMedicineRows()
-                etBill.setText(""); etDeposit.setText(""); etRemarks.setText(""); etCustomer.setText("")
+                etBill.setText(""); etDeposit.setText(""); etCustomer.setText("")
+                resetActualDate()                        // 🔄 V849
                 customerSuggestions.removeAllViews()
                 loadHistory(selectedBranch)   // 🔴 V804
             }

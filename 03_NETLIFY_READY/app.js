@@ -13203,13 +13203,21 @@ window["saveTreatmentPayment"]=saveTreatmentPayment;
 var __medFilter='today', __medPick='', __medQ='';
 var __medDueOnly=false;   /* 🆕🔒 V846 — শুধু বাকি-থাকা বিক্রি (ফোনের হুবহু যমজ) */
 var __medFrom='', __medTo='';   /* 🆕🔒 V847 — Statement: কত তারিখ থেকে কত তারিখ */
+var __medActualDate='';   /* 🔄🔒 V849 — প্রকৃত জমার তারিখ (ফাঁকা = আজ) */
+function medSetActualDate(v){
+  var box=document.getElementById('medDateBox'); if(!box)return;
+  if(!v||v===today()){ __medActualDate=''; box.textContent='Actual deposit date'; box.classList.remove('on'); }
+  else{ __medActualDate=v; box.textContent=wlv1Dot(v); box.classList.add('on'); }
+}
+window["medSetActualDate"]=medSetActualDate;
 function medicinePaymentHome(){
-  __medFilter='today'; __medPick=''; __medQ=''; __medDueOnly=false; __medFrom=''; __medTo=''; __medType='medicinePayment';   /* 🆕 V805 — পর্দা খুললেই আগের মতোই ওষুধ */
+  __medFilter='today'; __medPick=''; __medQ=''; __medDueOnly=false; __medFrom=''; __medTo=''; __medActualDate=''; __medType='medicinePayment';   /* 🆕 V805 — পর্দা খুললেই আগের মতোই ওষুধ */
   page('Medicine or Saline', '<div class="card medForm">'+
     /* 🆕🔒 V805 (২৮.০৮.২০২৬, TK-অনুমোদিত · ফোনের হুবহু যমজ — নিয়ম ৬.৬) —
        TK: "নাম হবে medicine or saline"। `products.kind` = medicinePayment | salinePayment।
        ⛔ নতুন কোনো ডেটাবেস-ঘর লাগেনি, পুরনো সব সারি আগের মতোই ওষুধ। */
-    '<div class="medTypeWrap"><label>Type</label><div class="row medTypeRow">'+
+    /* 🗑️🔒 V849 (৩০.০৮.২০২৬, TK-অনুমোদিত ডেমো প্রুফ) — TK: "Type লেখা থাকবে না" */
+    '<div class="medTypeWrap"><div class="row medTypeRow">'+
       '<button type="button" id="medTypeMed" class="btn medTypeBtn on" onclick="medSetType(\'medicinePayment\')">💊 MEDICINE</button>'+
       '<button type="button" id="medTypeSal" class="btn medTypeBtn" onclick="medSetType(\'salinePayment\')">💧 SALINE</button>'+
     '</div></div>'+
@@ -13233,8 +13241,15 @@ function medicinePaymentHome(){
        (`payMode()` ONLINE→UPI ধরে), তাই ওয়েবে কিছুই বদলায়নি।
        ⛔ **পুরনো সারি:** আগে ওয়েব থেকে নেওয়া `UPI` সারিগুলো এখনো ফোনে Cash-এ
           গুনবে — ওগুলো ঠিক করতে হলে TK-কে জানিয়ে আলাদা SQL লাগবে। */
-    '<div class="grid payFormGrid"><div><label>Mode</label><select id="medMode" class="input"><option>CASH</option><option>ONLINE</option></select></div><div><label>Remarks</label><textarea id="medRem" class="input"></textarea></div></div>'+
-    '<div class="medBtnRow"><button class="medBtn medSave" onclick="saveMedicinePayment(\'save\')">💾 Save</button><button class="medBtn medShare" onclick="saveMedicinePayment(\'share\')">🟢 Share</button><button class="medBtn medPrint" onclick="saveMedicinePayment(\'print\')">🖨️ Print</button></div>'+
+    /* 🗑️🔄🔒 V849 — TK: "Mode লেখা থাকবে না" · "Remarks বক্সটাই থাকবে না,
+       সেখানে হবে প্রজেক্টের অন্যান্য জায়গার মতন প্রকৃত জমার তারিখ (পরিবর্তন
+       করলে পূর্বের তারিখ দেয়া যাবে, না করলে আজকের তারিখ, ভবিষ্যতের তারিখ নয়)"।
+       ফোনের MedicinePaymentActivity-র হুবহু যমজ (নিয়ম ৬.৬)। */
+    '<select id="medMode" class="input"><option>CASH</option><option>ONLINE</option></select>'+
+    '<div id="medDateBox" class="input medDateBox" onclick="var e=document.getElementById(\'medDateInp2\');if(e){e.showPicker?e.showPicker():e.click()}">Actual deposit date</div>'+
+    '<input type="date" id="medDateInp2" style="position:absolute;left:-9999px" max="'+today()+'" onchange="medSetActualDate(this.value)">'+
+    /* 🔄🔒 V849 — TK: "print share save এইভাবে থাকবে" (ফোনেও একই ক্রম)। */
+    '<div class="medBtnRow"><button class="medBtn medPrint" onclick="saveMedicinePayment(\'print\')">🖨️ Print</button><button class="medBtn medShare" onclick="saveMedicinePayment(\'share\')">🟢 Share</button><button class="medBtn medSave" onclick="saveMedicinePayment(\'save\')">💾 Save</button></div>'+
     '</div>'+
     '<div class="card">'+
     '<div id="medHistBar" class="sectionTitle" style="margin-top:0">'+
@@ -13463,7 +13478,7 @@ function saveMedicinePayment(action){
   if(!(bill>0))return toast('সঠিক Bill দিন');
   if(!(dep>0))return toast('সঠিক Deposit দিন');
   if(dep>bill&&!confirm('Deposit is more than bill. Continue?'))return;
-  var row={id:uid('prd'),kind:__medType,   /* 🆕 V805 */ customer:cust||'Walk-in',product:prod,bill:bill,total:bill,deposit:dep,due:Math.max(0,bill-dep),mode:(String($('#medMode').value||'').toUpperCase()==='CASH'?'CASH':'ONLINE'),   /* 🔴 V437 — নিচের টীকা দেখুন */remarks:$('#medRem').value,date:today(),branch:br,receivedBy:user.mobile,createdBy:user.mobile,createdAt:isoNow()};
+  var row={id:uid('prd'),kind:__medType,   /* 🆕 V805 */ customer:cust||'Walk-in',product:prod,bill:bill,total:bill,deposit:dep,due:Math.max(0,bill-dep),mode:(String($('#medMode').value||'').toUpperCase()==='CASH'?'CASH':'ONLINE'),   /* 🔴 V437 — নিচের টীকা দেখুন */remarks:'',date:(__medActualDate||today()),branch:br,   /* 🔄 V849 */receivedBy:user.mobile,createdBy:user.mobile,createdAt:isoNow()};
   add('products',row);
   toast('Medicine payment saved');
   if(action==='share')medShareReceipt(row);

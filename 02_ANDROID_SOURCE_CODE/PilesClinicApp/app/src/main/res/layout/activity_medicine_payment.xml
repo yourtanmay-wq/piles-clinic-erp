@@ -70,8 +70,9 @@
                          এবার আমি চাইছি এখানে সেটা জয়েন করে দিন, অর্থাৎ নাম হবে
                          medicine or saline"*। নিচের দুটো বোতাম **Mode-এর (CASH/ONLINE)
                          হুবহু একই চেহারা ও একই কায়দায়** বসানো — নতুন কোনো ডিজাইন নয়। -->
-                    <TextView style="@style/FieldLabel" android:text="Type" />
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="6dp">
+                    <!-- 🗑️🔒 V849 (৩০.০৮.২০২৬, TK-অনুমোদিত ডেমো প্রুফ) — TK: "Type
+                         লেখা থাকবে না"। বোতাম দুটো দেখলেই বোঝা যায়, তাই লেবেল বাদ। -->
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
                         <Button android:id="@+id/btnTypeMedicine" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginEnd="4dp" android:textAllCaps="false" android:text="💊 MEDICINE" />
                         <Button android:id="@+id/btnTypeSaline" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textAllCaps="false" android:text="💧 SALINE" />
                     </LinearLayout>
@@ -121,14 +122,20 @@
                         </LinearLayout>
                     </LinearLayout>
 
-                    <TextView style="@style/FieldLabel" android:text="Mode" />
-                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="6dp">
+                    <!-- 🗑️🔒 V849 — TK: "Mode লেখা থাকবে না"। -->
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="14dp">
                         <Button android:id="@+id/btnMpCash" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginEnd="4dp" android:textAllCaps="false" android:text="💵 CASH" />
                         <Button android:id="@+id/btnMpUpi" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textAllCaps="false" android:text="💳 ONLINE" />
                     </LinearLayout>
 
-                    <TextView style="@style/FieldLabel" android:text="Remarks" />
-                    <EditText android:id="@+id/etRemarks" style="@style/FieldInput" android:hint="Remarks" android:minLines="2" android:gravity="top" />
+                    <!-- 🔄🔒 V849 (৩০.০৮.২০২৬, TK-অনুমোদিত ডেমো প্রুফ) — TK: "Remarks
+                         বক্সটাই থাকবে না, সেখানে হবে প্রজেক্টের অন্যান্য জায়গার মতন
+                         প্রকৃত জমার তারিখ (পরিবর্তন করলে পূর্বের তারিখ দেয়া যাবে,
+                         পরিবর্তন না করলে আজকের তারিখ, ভবিষ্যতের তারিখ নয়)"।
+                         PaymentActivity-র হুবহু একই ধাঁচ: ধূসর placeholder-লেখা,
+                         চাপলে তারিখ-বাছাই (maxDate = আজ), বাছলে গাঢ় রঙে তারিখ।
+                         লেখাটা বক্সের মাঝখানে (TK-নির্দেশ)। -->
+                    <TextView android:id="@+id/tvActualDate" style="@style/FieldInput" android:layout_marginTop="14dp" android:gravity="center" android:text="Actual deposit date" android:textColor="#9AA4B0" />
 
                     <!-- 🔒 B556 (08.08.2026, TK-অনুমোদিত প্রুফ) — ৩টি সবুজ বোতাম
                          পাশাপাশি: Save · Share · Print। Save id অপরিবর্তিত (পুরনো
@@ -151,9 +158,12 @@
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:layout_marginTop="14dp">
-                        <com.google.android.material.button.MaterialButton android:id="@+id/btnSave" android:layout_width="0dp" android:layout_weight="1" android:layout_height="40dp" android:minHeight="0dp" android:maxLines="1" android:ellipsize="end" android:textSize="13sp" android:paddingStart="2dp" android:paddingEnd="2dp" android:layout_marginEnd="5dp" app:backgroundTint="#12A04A" android:insetTop="0dp" android:insetBottom="0dp" android:textAllCaps="false" android:text="💾 Save" />
+                        <!-- 🔄🔒 V849 — TK: "print share save এইভাবে থাকবে"।
+                             ⛔ তিনটে id-ই হুবহু আগের (btnPrint · btnShare · btnSave),
+                                তাই কোনো বোতামের কাজ বদলায়নি — শুধু সাজানোর ক্রম। -->
+                        <com.google.android.material.button.MaterialButton android:id="@+id/btnPrint" android:layout_width="0dp" android:layout_weight="1" android:layout_height="40dp" android:minHeight="0dp" android:maxLines="1" android:ellipsize="end" android:textSize="13sp" android:paddingStart="2dp" android:paddingEnd="2dp" android:layout_marginEnd="5dp" app:backgroundTint="#12A04A" android:insetTop="0dp" android:insetBottom="0dp" android:textAllCaps="false" android:text="🖨 Print" />
                         <com.google.android.material.button.MaterialButton android:id="@+id/btnShare" android:layout_width="0dp" android:layout_weight="1" android:layout_height="40dp" android:minHeight="0dp" android:maxLines="1" android:ellipsize="end" android:textSize="13sp" android:paddingStart="2dp" android:paddingEnd="2dp" android:layout_marginEnd="5dp" app:backgroundTint="#12A04A" android:insetTop="0dp" android:insetBottom="0dp" android:textAllCaps="false" android:text="🔗 Share" />
-                        <com.google.android.material.button.MaterialButton android:id="@+id/btnPrint" android:layout_width="0dp" android:layout_weight="1" android:layout_height="40dp" android:minHeight="0dp" android:maxLines="1" android:ellipsize="end" android:textSize="13sp" android:paddingStart="2dp" android:paddingEnd="2dp" app:backgroundTint="#12A04A" android:insetTop="0dp" android:insetBottom="0dp" android:textAllCaps="false" android:text="🖨 Print" />
+                        <com.google.android.material.button.MaterialButton android:id="@+id/btnSave" android:layout_width="0dp" android:layout_weight="1" android:layout_height="40dp" android:minHeight="0dp" android:maxLines="1" android:ellipsize="end" android:textSize="13sp" android:paddingStart="2dp" android:paddingEnd="2dp" app:backgroundTint="#12A04A" android:insetTop="0dp" android:insetBottom="0dp" android:textAllCaps="false" android:text="💾 Save" />
                     </LinearLayout>
                 </LinearLayout>
             </androidx.cardview.widget.CardView>

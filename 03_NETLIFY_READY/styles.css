@@ -3828,6 +3828,11 @@ button.small{min-height:36px!important;font-size:13px!important;border-radius:12
 .medDueBtn{display:block;width:100%;margin-top:7px;padding:8px 10px;border:0;border-radius:8px;
   background:#C62828;color:#fff;font-weight:800;font-size:12px;box-shadow:none}
 .medDueHead{font-size:13px;font-weight:800;color:#0B2B59;margin-bottom:6px}
+/* 🔄🔒 V849 — প্রকৃত জমার তারিখ: ফোনের হুবহু চেহারা (ধূসর placeholder, মাঝখানে
+   লেখা; তারিখ বাছলে গাঢ়)। */
+.medDateBox{display:flex;align-items:center;justify-content:center;text-align:center;
+  color:#9AA4B0;cursor:pointer}
+.medDateBox.on{color:#10223A;font-weight:700}
 /* সেগমেন্ট বাছাই (Male/Female · CASH/ONLINE · Official/Unexpected) —
    RegistrationActivity.kt tint(): বাছা #1167D8/সাদা · না-বাছা #E8F2FF/#1167D8 */
 .wlv1PickRow{display:flex!important;flex-wrap:wrap!important;gap:4px!important;margin-top:12px!important}
