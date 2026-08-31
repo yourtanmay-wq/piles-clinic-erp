@@ -3163,6 +3163,76 @@ function wlv1CollectionRowsRaw(refunded, keepZero){
  return [...pays,...meds].filter(x=>keepZero?true:Number(x.amount||0)>0);
 }
 window["collectionRows"]=collectionRows;
+
+/* 🟢🔒 V927 (৩১.০৮.২০২৬, TK ডেমো প্রুফ দেখে "আমার উত্তর পাশ") —
+   ═══ টাকার হিসাবের আয় নিজে থেকে বসবে ═══
+   TK: *"নিজে থেকে আসুক… Visit Fee · Treatment Payment · medicine and saline
+   payment এসব যায়গার পেমেন্ট আসতে হবে"* এবং *"01/09/2026 থেকে এই নীয়ম করুন"*।
+
+   ⛔⛔ **সবচেয়ে বড় সুরক্ষা — এটা ডেটাবেসে একটা অক্ষরও লেখে না।** শুধু গুনে
+      দেখায়। তাই এক মাস পরে TK-এর পছন্দ না হলে এই ব্লকটা সরালেই আগের অবস্থা
+      হুবহু ফিরে আসে, কোনো তথ্য নষ্ট হওয়ার প্রশ্নই ওঠে না।
+   ⛔ **০১/০৯/২০২৬-এর আগের কোনো দিন কখনো ছোঁয়া হয় না** — TK: *"পুরানো দিনে
+      অনেক ডেমো করা হয়েছিল… সেটা তো আর আমাদের ইনকাম না"*।
+   ⛔ যে দিনে **হাতে লেখা সারি আছে**, সেখানে এই হিসাব চলে না — মানুষের লেখাই
+      সবসময় জেতে।
+   ⛔ গোনার নিয়ম নতুন নয় — Payment পর্দার প্রমাণিত `collectionRows()` ও
+      `overview()`-এর হুবহু একই: refund বাদ, approved refund বিয়োগ,
+      cashAmount/onlineAmount থাকলে সেটাই, নইলে mode ধরে। */
+const WLV1_AUTO_INCOME_FROM='2026-09-01';
+window["WLV1_AUTO_INCOME_FROM"]=WLV1_AUTO_INCOME_FROM;
+function wlv1AutoIncomeForDay(dateISO,branch){
+  try{
+    var d=String(dateISO||'').slice(0,10);
+    if(d.length!==10 || d<WLV1_AUTO_INCOME_FROM) return null;
+    var all=(typeof branch==='string' && branch && branch!=='__all' && branch!=='All Branches' && branch!=='All');
+    function inBr(x){ return !all || String(x&&x.branch||'')===String(branch) }
+    var rows=collectionRows().filter(function(x){
+      return String(x&&x.date||'').slice(0,10)===d && inBr(x);
+    });
+    var cash=0, online=0;
+    rows.forEach(function(x){
+      var c=(x.cashAmount!=null&&x.cashAmount!=='')?Number(x.cashAmount||0):(payMode(x.mode)==='CASH'?Number(x.amount||0):0);
+      var o=(x.onlineAmount!=null&&x.onlineAmount!=='')?Number(x.onlineAmount||0):(payMode(x.mode)==='UPI'?Number(x.amount||0):0);
+      if(isFinite(c)) cash+=c;
+      if(isFinite(o)) online+=o;
+    });
+    /* অনুমোদিত Refund বিয়োগ — overview()-এর হুবহু একই নিয়ম */
+    try{
+      (load('payments')||[]).forEach(function(x){
+        if(String(x&&x.date||'').slice(0,10)!==d) return;
+        if(!inBr(x)) return;
+        if(!wlv1IsApprovedRefund(x)) return;
+        var amt=Number(x.amount||0); if(!isFinite(amt)) return;
+        if(payMode(x.mode)==='UPI') online-=amt; else cash-=amt;
+      });
+    }catch(_e){}
+    if(!(cash>0)) cash=0;
+    if(!(online>0)) online=0;
+    if(!rows.length && cash===0 && online===0) return null;
+    return {cash:Math.round(cash), online:Math.round(online), count:rows.length};
+  }catch(_e){ return null }
+}
+window["wlv1AutoIncomeForDay"]=wlv1AutoIncomeForDay;
+/* মাসের প্রতিটা দিনের অটো-আয় একসাথে — Monthly Summary-র জন্য। */
+function wlv1AutoIncomeForMonth(monthYm,branch){
+  try{
+    var ym=String(monthYm||'').slice(0,7); if(ym.length!==7) return {};
+    var out={}, seen={};
+    collectionRows().forEach(function(x){
+      var d=String(x&&x.date||'').slice(0,10);
+      if(d.slice(0,7)!==ym) return;
+      if(d<WLV1_AUTO_INCOME_FROM) return;
+      seen[d]=true;
+    });
+    Object.keys(seen).forEach(function(d){
+      var v=wlv1AutoIncomeForDay(d,branch);
+      if(v && (v.cash>0 || v.online>0)) out[d]=v;
+    });
+    return out;
+  }catch(_e){ return {} }
+}
+window["wlv1AutoIncomeForMonth"]=wlv1AutoIncomeForMonth;
 function overview(){
   let all=collectionRows().filter(x=>x.date===today());
   let cashRows=all.filter(x=>Number(x.cashAmount||0)>0),upiRows=all.filter(x=>Number(x.onlineAmount||0)>0);
@@ -3795,7 +3865,7 @@ function briefingHome(){currentView='briefing';if(!isMaster()&&!window.__RK_BRIE
    "Briefing / Notice Board" আর খালি-লেখা "No briefing / notice yet"
    (res/layout/activity_briefing.xml:30,148)। ওয়েবে মাস্টারের জন্য আলাদা
    নাম ও ছোট খালি-লেখা ছিল। */
-'<div class="card mut">No briefing / notice yet</div>';page('Briefing / Notice Board',`<div class="card"><label>Message</label><textarea id="brMsg" placeholder="Today target / notice"></textarea><label>Send To</label><select id="brTarget" class="input" onchange="briefingTargetExtra()"><option value="allStaff">All Staff</option><option value="branch">My Branch Staff</option><option value="role_staff">All Staff Role</option><option value="role_doctor">All Doctors</option><option value="role_field">All Field Officers</option><option value="individual">Individual / Multiple Staff</option></select><div id="brExtra"></div><button onclick="createBriefing()">Send Briefing</button></div><div id="wlv1Approvals"></div><div id="finIeApprovals"></div>${list}`);briefingTargetExtra();setTimeout(()=>{try{wlv1LoadApprovals()}catch(e){}/* 🔵 V406: মাস্টারের ঘণ্টার পাতায় আয়-খরচের অনুরোধও (Approve/Reject) — আগে শুধু ফোনে ছিল। ⛔ finance.js না থাকলে/ব্যর্থ হলে কিছুই ভাঙে না। */try{if(typeof window.finRenderApprovals==='function')window.finRenderApprovals()}catch(e){}},60);}else{/* 🔵 B618: ব্রাঞ্চ-ডাক্তার পুরনো দিনেরও pending ছুটির অনুরোধ দেখেন (Approve/Reject); দিন পেরোলেও হারায় না। */
+'<div class="card mut">No briefing / notice yet</div>';page('Briefing / Notice Board',`<div class="card"><label>Message</label><textarea id="brMsg" placeholder="Today target / notice"></textarea><label>Send To</label><select id="brTarget" class="input" onchange="briefingTargetExtra()"><option value="allStaff">All Staff</option><option value="branch">My Branch Staff</option><option value="role_staff">All Staff Role</option><option value="role_doctor">All Doctors</option><option value="role_field">All Field Officers</option><option value="individual">Individual / Multiple Staff</option></select><div id="brExtra"></div><button onclick="createBriefing()">Send Briefing</button></div><div class="card"><button class="ghost" style="width:100%;color:#6A5320;border:1px solid #E0CFA0;font-weight:800" onclick="wlv1BpgScreen()">🔑 Backdate Payment Permissions</button></div><div id="wlv1Approvals"></div><div id="finIeApprovals"></div>${list}`);briefingTargetExtra();setTimeout(()=>{try{wlv1LoadApprovals()}catch(e){}/* 🔵 V406: মাস্টারের ঘণ্টার পাতায় আয়-খরচের অনুরোধও (Approve/Reject) — আগে শুধু ফোনে ছিল। ⛔ finance.js না থাকলে/ব্যর্থ হলে কিছুই ভাঙে না। */try{if(typeof window.finRenderApprovals==='function')window.finRenderApprovals()}catch(e){}},60);}else{/* 🔵 B618: ব্রাঞ্চ-ডাক্তার পুরনো দিনেরও pending ছুটির অনুরোধ দেখেন (Approve/Reject); দিন পেরোলেও হারায় না। */
 let pendLeave=all.filter(b=>briefingNeedsApproval(b)&&String(b.title||'').toLowerCase().indexOf('leave request')>=0&&wlv1CanApproveLeave(b));let pendIds={};pendLeave.forEach(b=>{pendIds[b.id]=1;});let leaveCards=pendLeave.slice().reverse().map(b=>`<div class="card briefCard ${anBrUrgentCls(b.title)}"><b>${esc(b.title||'')}</b><p>${esc(b.message||'')}</p>${briefingReplies(b).map(r=>briefingReplyLine(b,r)).join('')}<div class="actions">${wlv1ApprovalButtons(b)}${anBrBriefThreadBtn(b,'Reply')}</div></div>`).join('');let list=activeBriefings().filter(b=>!pendIds[b.id]).map(b=>`<div class="card briefCard ${anBrUrgentCls(b.title)}"><b>${esc(b.title||'Today Briefing')}</b><p>${esc(b.message||'')}</p>${briefingReplies(b).map(r=>briefingReplyLine(b,r)).join('')}<div class="actions">${isAutoNotice(b)?wlv1NoticeViewBtn(b):(wlv1IsOverdueAlert(b)?wlv1OverdueViewBtn(b):anBrBriefThreadBtn(b,'Reply'))}<button class="ghost" onclick="markBriefSeen('${b.id}')">Seen & Hide</button>${briefingDeleteButton(b)}</div></div>`).join('')||(leaveCards?'':'<div class="card mut">No briefing / notice yet</div>');page('Briefing / Notice Board','<div id="wlv1Approvals"></div><div id="finIeApprovals"></div>'+leaveCards+list);setTimeout(()=>{try{wlv1LoadApprovals()}catch(e){}/* 🔵 V406: মাস্টারের ঘণ্টার পাতায় আয়-খরচের অনুরোধও (Approve/Reject) — আগে শুধু ফোনে ছিল। ⛔ finance.js না থাকলে/ব্যর্থ হলে কিছুই ভাঙে না। */try{if(typeof window.finRenderApprovals==='function')window.finRenderApprovals()}catch(e){}},60);}}
 window["briefingHome"]=briefingHome;
 async function createBriefing(){let msg=($('#brMsg')?.value||'').trim();if(!msg)return toast('Message required');let sel=$('#brTarget')?.value||'allStaff';let targets={};if(sel==='allStaff')targets.allStaff=true;else if(sel==='branch')targets.branches=[user.branch];else if(sel==='role_staff')targets.roles=['staff'];else if(sel==='role_doctor')targets.roles=['doctor'];else if(sel==='role_field')targets.roles=['field'];else if(sel==='individual'){let mobiles=$$('.brUserChk:checked').map(x=>mob(x.value)).filter(Boolean);if(!mobiles.length)return toast('Select at least one person');targets.mobiles=mobiles}let row={id:uid('brief'),date:today(),title:'Today Briefing',message:msg,targets,branch:user.branch,seen:[],replies:[],createdBy:user.mobile,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};add('briefings',row);let cloudOk=await cloudUpsertBriefing(row);toast(cloudOk?'Briefing sent to staff':'Internet/Supabase not connected. Briefing saved on this device only.');briefingHome()}
@@ -22283,6 +22353,116 @@ function wlv1IsBackdateGranted(date){
   }catch(_e){ return false; }
 }
 window["wlv1IsBackdateGranted"]=wlv1IsBackdateGranted;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   🔑🔒 V927 (৩১.০৮.২০২৬, TK ডেমো প্রুফ দেখে "আমার উত্তর পাশ") —
+   **Backdate Payment Permissions — এখন কম্পিউটার থেকেও।**
+
+   TK: *"অনেক পুরানো পেশেন্ট এর অরিজিনাল পেমেন্ট এখনো তোলা হয় নাই — সেটা যেন
+   Staff রা তুলতে পারে… তার জন্য যেন আমার কাছে অনুমতি না আসে"*।
+
+   ⛔ **নতুন কোনো নিয়ম বা টেবিল বানানো হয়নি।** ফোনের `BackdatePaymentGrant.kt`
+      যে `backdate_payment_grants` টেবিলে লেখে, হুবহু সেই টেবিল ও সেই ঘরগুলো —
+      তাই ফোন ও কম্পিউটার একই জিনিস দেখে (নিয়ম ৬.৬)।
+   ⛔ **শুধু মাস্টার।** অন্য কেউ এই পর্দা খুলতেই পারবেন না।
+   ⛔ কিছু মোছা হয় না — Revoke মানে `active=false`, সারিটা থেকেই যায়।
+   ⛔ ফোনে নম্বর টাইপ করতে হয়; কম্পিউটারে নাম বেছে নেওয়া যায় বলে ভুল নম্বর
+      বসার ঝুঁকি নেই — কিন্তু জমা হয় সেই একই ১০ অঙ্কের নম্বরই।
+   ═══════════════════════════════════════════════════════════════════════════ */
+function wlv1BpgStaffList(){
+  try{
+    return allUsers().filter(function(u){
+      return u && ['staff','doctor','field'].indexOf(String(u.role||''))>=0
+        && String(u.mobile||'').replace(/\D/g,'').length>=10;
+    });
+  }catch(_e){ return [] }
+}
+async function wlv1BpgScreen(){
+  if(!isMaster()) return toast('Only Master Admin');
+  var staff=wlv1BpgStaffList();
+  var opts=staff.map(function(u){
+    var d=String(u.mobile||'').replace(/\D/g,'').slice(-10);
+    return '<option value="'+esc(d)+'">'+esc([codeName(u.mobile)||u.name||'',u.branch||'',d].filter(Boolean).join(' · '))+'</option>';
+  }).join('');
+  var t=today();
+  var end=''; try{ var e=new Date(t+'T00:00:00'); e.setDate(e.getDate()+30); end=e.toISOString().slice(0,10) }catch(_e){ end=t }
+  /* বড় পর্দায় বাঁয়ে ফর্ম · ডানে তালিকা (styles.css); ছোট পর্দায় এই
+     মোড়কগুলোর কোনো নিয়ম নেই, তাই ফোনে একটার নিচে একটা — আগের মতোই। */
+  page('Backdate Payment Permissions',
+    '<div class="bpgScreen"><div class="bpgFormCol">'
+    +'<div class="card"><div class="sectionTitle miniTitle">Give a new permission</div>'
+    +'<label>Staff</label><select id="bpgWho" class="input">'+(opts||'<option value="">No staff found</option>')+'</select>'
+    +'<label>Start Date</label><input id="bpgFrom" class="input" type="date" value="'+esc(t)+'">'
+    +'<label>End Date</label><input id="bpgTo" class="input" type="date" value="'+esc(end)+'">'
+    +'<label>Note (optional)</label><input id="bpgNote" class="input" placeholder="Old patients\' payment entry">'
+    +'<button onclick="wlv1BpgGrant()">✅ Grant Permission</button>'
+    +'<div class="tiny mut" style="margin-top:8px;line-height:1.6">এই মেয়াদের মধ্যে ওই স্টাফ পুরনো তারিখের পেমেন্ট তুলতে · Edit · Delete করতে পারবেন — আপনার কাছে আর অনুমতি চাইবে না। মেয়াদ শেষ হলে নিজে থেকেই বন্ধ।</div></div>'
+    +'</div><div class="bpgListCol">'
+    +'<div class="sectionTitle">Active permissions</div><div id="bpgList"><div class="card mut">Loading…</div></div>'
+    +'</div></div>', true);
+  wlv1BpgLoad();
+}
+window["wlv1BpgScreen"]=wlv1BpgScreen;
+async function wlv1BpgLoad(){
+  var box=$id('bpgList'); if(!box) return;
+  try{
+    var ok=await initCloudClientOnly(); if(!ok||!sb){ box.innerHTML='<div class="card mut">No internet — could not load.</div>'; return }
+    var r=await sb.from('backdate_payment_grants').select('*')
+      .eq('active',true).gte('endDate',today()).order('grantedAt',{ascending:false}).limit(100);
+    if(r&&r.error){ box.innerHTML='<div class="card mut">Could not load — please try again.</div>'; return }
+    var rows=(r&&r.data)||[];
+    if(!rows.length){ box.innerHTML='<div class="card mut">No active permission right now.</div>'; return }
+    box.innerHTML=rows.map(function(g){
+      return '<div class="card bpgRow"><div class="bpgWho"><b>'+esc(g.staffName||g.staffMobile||'')+'</b>'
+        +'<small>'+esc([String(g.staffMobile||''),g.branch||'',(g.grantedByName?('দিয়েছেন '+g.grantedByName):'')].filter(Boolean).join(' · '))+'</small></div>'
+        +'<span class="bpgDates">'+esc(fmtDate(String(g.startDate||'').slice(0,10))||g.startDate||'')+' → '+esc(fmtDate(String(g.endDate||'').slice(0,10))||g.endDate||'')+'</span>'
+        +'<button class="bpgRev" onclick="wlv1BpgRevoke(\''+esc(String(g.id||''))+'\')">Revoke</button></div>';
+    }).join('')+'<div class="tiny mut" style="margin-top:6px;line-height:1.6">Revoke চাপলে মেয়াদ শেষ হওয়ার আগেই বন্ধ হয়ে যাবে — তখন থেকে আবার আপনার অনুমতি লাগবে।</div>';
+  }catch(_e){ box.innerHTML='<div class="card mut">Could not load — please try again.</div>' }
+}
+window["wlv1BpgLoad"]=wlv1BpgLoad;
+async function wlv1BpgGrant(){
+  if(!isMaster()) return toast('Only Master Admin');
+  var mob=String(($id('bpgWho')||{}).value||'').replace(/\D/g,'').slice(-10);
+  var from=String(($id('bpgFrom')||{}).value||'').slice(0,10);
+  var to=String(($id('bpgTo')||{}).value||'').slice(0,10);
+  var note=String(($id('bpgNote')||{}).value||'').trim();
+  if(mob.length!==10) return toast('Please select a staff member');
+  if(!from||!to) return toast('Pick start and end date');
+  if(to<from) return toast('End date cannot be before start date');
+  var who=wlv1BpgStaffList().find(function(u){ return String(u.mobile||'').replace(/\D/g,'').slice(-10)===mob });
+  if(!who) return toast('No staff found with this mobile number');
+  if(!confirm('Grant backdate payment permission?\n\n'+((codeName(who.mobile)||who.name||mob))+'\n'+from+' → '+to+'\n\nএই মেয়াদে ওই স্টাফের পুরনো তারিখের পেমেন্টে আপনার অনুমতি লাগবে না।')) return;
+  try{
+    var ok=await initCloudClientOnly(); if(!ok||!sb) return toast('No internet — could not save');
+    var row={id:'bpg_'+Date.now()+'_'+Math.floor(Math.random()*1000),
+      staffMobile:mob, staffName:(codeName(who.mobile)||who.name||''), branch:(who.branch||''),
+      startDate:from, endDate:to, note:note, active:true,
+      grantedBy:(user&&user.mobile)||'', grantedByName:(codeName(user&&user.mobile)||(user&&user.name)||''),
+      grantedAt:new Date().toISOString()};
+    var r=await sb.from('backdate_payment_grants').upsert([row],{onConflict:'id'});
+    if(r&&r.error) return toast('Failed — check connection');
+    toast('Permission granted');
+    var n=$id('bpgNote'); if(n) n.value='';
+    wlv1BpgLoad();
+  }catch(_e){ toast('Failed — check connection') }
+}
+window["wlv1BpgGrant"]=wlv1BpgGrant;
+async function wlv1BpgRevoke(id){
+  if(!isMaster()) return toast('Only Master Admin');
+  if(!id) return;
+  if(!confirm('Revoke this permission?\n\nএখন থেকে ওই স্টাফের পুরনো তারিখের পেমেন্টে আবার আপনার অনুমতি লাগবে।\nকিছুই মোছা হবে না — শুধু বন্ধ হবে।')) return;
+  try{
+    var ok=await initCloudClientOnly(); if(!ok||!sb) return toast('No internet — could not save');
+    var r=await sb.from('backdate_payment_grants')
+      .update({active:false, revokedAt:new Date().toISOString(), revokedBy:(user&&user.mobile)||''})
+      .eq('id',id);
+    if(r&&r.error) return toast('Failed — check connection');
+    toast('Permission revoked');
+    wlv1BpgLoad();
+  }catch(_e){ toast('Failed — check connection') }
+}
+window["wlv1BpgRevoke"]=wlv1BpgRevoke;
 
 /* =====================================================================
    V217 (§B216, Master Fix Order §14 — কম্পিউটারে, TK-এর ডিজাইন-প্রুফ পাশ

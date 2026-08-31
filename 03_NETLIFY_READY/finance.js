@@ -736,7 +736,37 @@ function finRowTap(id) {
       if (month === todayNow.slice(0, 7) && !seen[todayNow]) {
         rows.push({ entry_date: todayNow, cash: 0, online: 0, expense_notes: '', branch: branchSel });
       }
+      /* 🟢🔒 V927 — অটো-আয়ের দিনগুলোও খাতায় দেখাতে হবে, নইলে যে দিনে কেউ
+         হাতে কিছু লেখেনি সেই দিনটা খাতায় আসতই না। ⛔ ০১/০৯/২০২৬-এর আগে নয়,
+         আর হাতে লেখা সারি থাকলে সেটাই থাকে। */
+      try {
+        if (typeof window.wlv1AutoIncomeForMonth === 'function') {
+          var __am2 = window.wlv1AutoIncomeForMonth(month, branchSel) || {};
+          Object.keys(__am2).forEach(function (d) {
+            if (seen[d]) return;
+            rows.push({ entry_date: d, cash: 0, online: 0, expense_notes: '', branch: branchSel, __v927Auto: 1 });
+            seen[d] = 1;
+          });
+        }
+      } catch (e) { }
       rows.sort(function (a2, b2) { return String(a2.entry_date || '') < String(b2.entry_date || '') ? -1 : 1; });
+    } catch (e) { }
+    /* 🟢🔒 V927 — খাতার সারিতে অটো-আয় বসানো। ⛔ যে সারিতে ক্লাউডের আসল id
+       আছে (মানে কেউ হাতে লিখেছেন) সেটা কখনো ছোঁয়া হয় না। */
+    var v927Auto = {};
+    var v927ShowTag = false;
+    try { v927ShowTag = (typeof window.isMaster === 'function') && window.isMaster(); } catch (e) { v927ShowTag = false; }
+    try {
+      if (typeof window.wlv1AutoIncomeForDay === 'function') {
+        rows.forEach(function (r) {
+          var d = String(r.entry_date || '');
+          if (!d || r.id) return;                                  // হাতে লেখা সারি → ছোঁয়া হবে না
+          if (Number(r.cash || 0) !== 0 || Number(r.online || 0) !== 0) return;
+          var v = window.wlv1AutoIncomeForDay(d, branchSel);
+          if (!v || (!v.cash && !v.online)) return;
+          r.cash = v.cash; r.online = v.online; v927Auto[d] = 1;
+        });
+      }
     } catch (e) { }
     // 🔵 আগের বাকি (Previous Balance) = এই মাসের আগের সব দিনের (একই ব্রাঞ্চের)
     // নগদ+অনলাইন − খরচ। শুধু দরকারি ৪টা কলাম টানা (egress কম)। ফোনের হুবহু হিসাব।
@@ -773,6 +803,14 @@ function finRowTap(id) {
         + Number(v399ExpByDate[String(row.entry_date || '')] || 0);
       cashTot += cash; onlineTot += online; expTot += expSum;
       var dp = String(row.entry_date).split('-'); var dotted = dp[2] + '/' + dp[1] + '/' + dp[0];
+      /* 🟢🔒 V927 — ট্যাগ শুধু মাস্টারের পর্দায় (TK: "অটো না হাতে ঠিক করা এটা
+         মাস্টার ছাড়া কেউ দেখতে পাবে না")। `dotted` নিজে অপরিবর্তিত, তাই
+         খরচের পপ-আপের শিরোনামে ট্যাগ যায় না। */
+      var dottedCell = dotted;
+      if (v927ShowTag && String(row.entry_date || '') >= (window.WLV1_AUTO_INCOME_FROM || '2026-09-01')) {
+        if (v927Auto[String(row.entry_date || '')]) dottedCell += '<span style="display:inline-block;margin-left:6px;background:#EAF6EE;color:#0B8A3E;border:1px solid #CFE9D8;border-radius:6px;padding:1px 5px;font-size:8.5px;font-weight:800;vertical-align:middle">AUTO</span>';
+        else if (row.id) dottedCell += '<span style="display:inline-block;margin-left:6px;background:#EAF2FE;color:#0B4FA8;border:1px solid #C9DDF7;border-radius:6px;padding:1px 5px;font-size:8.5px;font-weight:800;vertical-align:middle">হাতে ঠিক করা</span>';
+      }
       /* 🔒 V399: শুধু-খরচের দিনে ক্লাউডে collection সারি নেই — তাই আলাদা একটা কী,
          আর ৩-চাপে এডিট খোলে না (নিচে দেখুন)। */
       var v399Only = !!row.__v399ExpenseOnly;
@@ -815,7 +853,7 @@ function finRowTap(id) {
            বার্তা ওঠে ("এই দিনে শুধু খরচ আছে — Add Expense পর্দা থেকে দেখুন");
            ওয়েবে চাপ **নিঃশব্দে হারিয়ে যেত**, কেউ বুঝতেন না কেন কিছু হচ্ছে না। */
         (v399Only ? ' onclick="finExpenseOnlyNote()"' : ' onclick="finRowTap(\'' + rid + '\')"') + '>' +
-        '<td style="padding:6px;font-weight:700;border:1px solid #CFE9D8">' + dotted + '</td>' +
+        '<td style="padding:6px;font-weight:700;border:1px solid #CFE9D8">' + dottedCell + '</td>' +
         cashCell + onlineCell +
         expCell + '</tr>';
     }).join('');
@@ -1461,6 +1499,27 @@ function finRowTap(id) {
       var cat = row.category || '', pt = row.paid_to || '';
       o.seg.push((pt ? (cat + ' — ' + pt) : cat) + '-' + a);
     });
+    /* 🟢🔒 V927 (৩১.০৮.২০২৬, TK ডেমো প্রুফ দেখে "আমার উত্তর পাশ") —
+       ০১/০৯/২০২৬ থেকে যে দিনগুলোয় **হাতে লেখা কোনো সারি নেই**, সেই দিনের আয়
+       অ্যাপ নিজেই Visit Fee · Treatment · Medicine/Saline পেমেন্ট থেকে গুনে
+       দেখায়। ⛔ ডেটাবেসে কিচ্ছু লেখা হয় না — শুধু দেখানো; হাতে লেখা সারি
+       থাকলে সেটাই জেতে; ০১/০৯-এর আগের দিন কখনো ছোঁয়া হয় না। */
+    var autoDays = {};
+    try {
+      if (typeof window.wlv1AutoIncomeForMonth === 'function') {
+        var __am = window.wlv1AutoIncomeForMonth(month, branch) || {};
+        Object.keys(__am).forEach(function (d) {
+          if (rowByDate[d]) return;                 // হাতে লেখা আছে → অ্যাপ ছোঁবে না
+          var o = ensure(d);
+          if (Number(o.cash || 0) !== 0 || Number(o.online || 0) !== 0) return;
+          o.cash = Number(__am[d].cash || 0);
+          o.online = Number(__am[d].online || 0);
+          autoDays[d] = true;
+        });
+      }
+    } catch (e) {}
+    var showTag = false;
+    try { showTag = (typeof window.isMaster === 'function') && window.isMaster(); } catch (e) { showTag = false; }
     var dates = Object.keys(days).sort();
     window.__finExpMap = window.__finExpMap || {};
     var cashTot = 0, onlineTot = 0, expTot = 0;
@@ -1468,6 +1527,16 @@ function finRowTap(id) {
       var o = days[d];
       cashTot += o.cash; onlineTot += o.online; expTot += o.exp;
       var dp = String(d).split('-'); var dotted = dp[2] + '/' + dp[1] + '/' + dp[0];
+      /* ট্যাগ শুধু মাস্টারের পর্দায় — TK: "অটো না হাতে ঠিক করা এটা মাস্টার
+         ছাড়া কেউ দেখতে পাবে না"। স্টাফ/ডাক্তার শুধু সংখ্যাটাই দেখেন। */
+      var tag = '';
+      if (showTag && d >= (window.WLV1_AUTO_INCOME_FROM || '2026-09-01')) {
+        tag = autoDays[d]
+          ? '<span style="display:inline-block;margin-left:6px;background:#EAF6EE;color:#0B8A3E;border:1px solid #CFE9D8;border-radius:6px;padding:1px 5px;font-size:8.5px;font-weight:800;vertical-align:middle">AUTO</span>'
+          : (rowByDate[d] ? '<span style="display:inline-block;margin-left:6px;background:#EAF2FE;color:#0B4FA8;border:1px solid #C9DDF7;border-radius:6px;padding:1px 5px;font-size:8.5px;font-weight:800;vertical-align:middle">হাতে ঠিক করা</span>' : '');
+      }
+      var dottedCell = dotted + tag;   /* ⛔ `dotted` নিজে অপরিবর্তিত — খরচের
+             পপ-আপের শিরোনামে (`__finExpMap[key].dotted`) ট্যাগ যাবে না */
       var key = 'M' + d;
       var expCell;
       if (o.exp > 0 || o.seg.length) {
@@ -1477,7 +1546,7 @@ function finRowTap(id) {
       } else {
         expCell = '<td style="padding:6px;text-align:right;color:#B42318;border:1px solid #CFE9D8">-</td>';
       }
-      return '<tr><td style="padding:6px;font-weight:700;border:1px solid #CFE9D8">' + dotted + '</td>' +
+      return '<tr><td style="padding:6px;font-weight:700;border:1px solid #CFE9D8">' + dottedCell + '</td>' +
         '<td style="padding:6px;text-align:right;color:#0A7C3F;border:1px solid #CFE9D8">' + m.money(o.cash).replace('₹', '') + '</td>' +
         '<td style="padding:6px;text-align:right;color:#0A7C3F;border:1px solid #CFE9D8">' + m.money(o.online).replace('₹', '') + '</td>' +
         expCell + '</tr>';

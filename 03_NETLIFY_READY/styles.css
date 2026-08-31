@@ -6682,3 +6682,27 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
   .nbRowPro .cnt small{display:block;font-size:9px;font-weight:800;letter-spacing:.5px;color:#8A97AB}
   .nbRowPro .arw{flex:0 0 auto;color:#B9C4D2;font-size:18px}
 }
+
+/* 🟢🔒 V927 (৩১.০৮.২০২৬, TK ডেমো প্রুফ দেখে "আমার উত্তর পাশ") —
+   Backdate Payment Permissions পর্দার সারি (মাস্টার-only)।
+   ছোট পর্দায় একটার নিচে একটা, বড় পর্দায় এক সারিতে — নাম · মেয়াদ · Revoke। */
+.card.bpgRow{display:flex;flex-direction:column;align-items:stretch;gap:8px;
+  border-left:4px solid #0C9E33}
+.bpgWho{flex:1 1 auto;min-width:0}
+.bpgWho b{display:block;font-size:14px;font-weight:800;color:#0B1B2E}
+.bpgWho small{display:block;font-size:12px;color:#6B7A8D;margin-top:2px}
+.bpgDates{flex:0 0 auto;align-self:flex-start;background:#EAF6EE;border:1px solid #CFE9D8;
+  border-radius:9px;padding:5px 11px;font-size:11.5px;font-weight:800;color:#0B4F2A;white-space:nowrap}
+.bpgRev{flex:0 0 auto;background:#FDECEA;border:1px solid #F3B9B2;color:#B42318;border-radius:9px;
+  padding:8px 16px;font-size:12px;font-weight:800;cursor:pointer;box-shadow:none;min-height:0}
+@media (min-width:900px){
+  .bpgScreen{display:grid;grid-template-columns:400px minmax(0,1fr);gap:18px;align-items:start}
+  .bpgScreen>.bpgFormCol>.card{margin:0}
+  .bpgScreen .bpgFormCol label{display:block;margin:9px 0 4px;font-size:11px;font-weight:800;
+    letter-spacing:.5px;text-transform:uppercase;color:#7C8BA0}
+  .bpgScreen .bpgFormCol .input{margin:0;min-height:40px;height:40px;padding:9px 12px;font-size:13.5px}
+  .bpgScreen .bpgFormCol>.card>button{margin-top:14px;width:100%}
+  .bpgScreen .bpgListCol>.sectionTitle{margin-top:0}
+  .card.bpgRow{flex-direction:row;align-items:center;gap:12px;margin:0 0 10px}
+  .bpgDates{align-self:auto}
+}
