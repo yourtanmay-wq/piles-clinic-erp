@@ -257,14 +257,16 @@ class FollowUpAdapter(
            ⛔ TK: *"NEXT CALL এ time থাকবে না"* ⇒ ডান দিকের লেখা অপরিবর্তিত। */
         val regLastLine = if (lastDt.isNotBlank())
             "\nLAST CALL $lastWhen" + (if (lastBy.isNotBlank()) " (${lastBy})" else "") else ""
-        b.tvLastCall.text = when {
-            regDt.isNotBlank() ->
-                "REGISTERED ${FollowUpModel.displayDate(regDt)}" +
-                    (if (item.regBy.isNotBlank()) " (${item.regBy})" else "") + regLastLine
-            lastDt.isNotBlank() ->
-                "LAST CALL $lastWhen" + (if (lastBy.isNotBlank()) " (${lastBy})" else "")
-            else -> "LAST CALL —"
-        }
+        /* 🔒 V931 (৩১.০৮.২০২৬, TK ডেমো প্রুফ দেখে "হ্যাঁ পাশ, দুটোই বসিয়ে দিন") —
+           TK: *"Registered এর তারিখ এবং কে করেছে এখানে থাকবে না — View All এ
+           ক্লিক করলে দেখা যায় শুধুমাত্র সেটাই থাকবে"*।
+           ⚠️ ৩০.০৮.২০২৬-এ TK এই লাইনটা *"যা আছে তাই থাকবে"* বলে বন্ধ করেছিলেন;
+              ৩১.০৮-এ তিনি নিজে উল্টো নির্দেশ দিয়েছেন — আজকেরটাই চলবে।
+           ⛔ তথ্য কোথাও মোছা হয়নি — REGISTERED-এর তারিখ ও কে করেছে, দুটোই
+              View All-এ আগের মতোই আছে; শুধু কার্ড থেকে লাইনটা উঠল। */
+        b.tvLastCall.text = if (lastDt.isNotBlank())
+            "LAST CALL $lastWhen" + (if (lastBy.isNotBlank()) " (${lastBy})" else "")
+        else "LAST CALL —"
         b.tvNextFollow.text = if (item.nextFollow.isNotBlank())
             "NEXT CALL ${FollowUpModel.displayDate(item.nextFollow)}" else "NEXT CALL —"
 

@@ -7937,7 +7937,35 @@ function fuCard(x){
   : '';
 
  let wlv1AddrTagVal=wlv1AddrTagForCard(x.mobile,x.address,x.stage);
- /* 🖥️🟣🔒 V707 (২৬.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত):
+ /* ⏰🔒 V931 — LAST CALL-এর সময়। উপরের বড় টীকা দেখুন।
+   ফোনের `FollowUpModel.lastCallTimeFromHistory()`-এর হুবহু যমজ (নিয়ম ৬.৬)। */
+function wlv1LastCallTime(x,lastDt){
+  try{
+    var h=x&&x.history; if(typeof h==='string') h=JSON.parse(h);
+    if(!Array.isArray(h)||!h.length) return '';
+    var want=String(lastDt||'').trim().slice(0,10);
+    if(want){
+      /* ⛔ **শুধু ওই দিনের** সারিগুলোর মধ্যেই খোঁজা — নতুন থেকে পুরনো দিকে,
+         প্রথম যে সারিতে সময় লেখা আছে সেটাই। কল করার পরে "Next follow-up date
+         updated" নামে আরেকটা সারি বসে; ওটায় সময় না থাকলে যেন আসল কলের সময়টা
+         হারিয়ে না যায়, তাই থেমে না গিয়ে ওই দিনের বাকি সারিগুলোও দেখা হয়। */
+      for(var i=h.length-1;i>=0;i--){
+        var e=h[i]||{};
+        if(String(e.date||'').trim().slice(0,10)!==want) continue;
+        var t=String(e.time||'').trim();
+        if(t) return t;
+      }
+      return '';                              /* ⛔ ওই দিনে সময় কোথাও নেই — অন্য দিনের সময় কখনো নয় */
+    }
+    for(var j=h.length-1;j>=0;j--){
+      var e2=h[j]||{};
+      if(String(e2.date||'').trim()) return String(e2.time||'').trim();
+    }
+    return '';
+  }catch(_e){ return '' }
+}
+window["wlv1LastCallTime"]=wlv1LastCallTime;
+/* 🖥️🟣🔒 V707 (২৬.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত):
     "ব্রাঞ্চ+রোগের নাম একই কালার হবে · ঠিকানা+Unexpected+RMP অন্য কালার হবে"
     ⇒ ঠিকানার ট্যাগ এখন (ক) নিজের নতুন সারিতে (anFuBreak — flex-এর সারি-ভাঙা,
       উচ্চতা ০) আর (খ) বেগুনি (anFuTagX)। ফোনের একই বদল।
@@ -7959,19 +7987,29 @@ function fuCard(x){
     ⛔ সময়টা `history`-র সেই সারির `time` ঘর থেকেই আসে, যা আগে থেকেই জমা হয় —
        **নতুন কোনো অনুরোধ বা কলাম লাগেনি**। না থাকলে (পুরোনো কল) লাইনটা
        **হুবহু আগের মতোই** শুধু তারিখ দেখায়। */
- let wlv1LastTm=(function(){try{var h=x.history;if(typeof h==='string')h=JSON.parse(h);if(!Array.isArray(h))return '';for(var i=h.length-1;i>=0;i--){var d=(h[i]&&h[i].date)||'';if(String(d).trim())return String((h[i]&&h[i].time)||'').trim()}return ''}catch(e){return ''}})();
+ /* ⏰🔒 V931 (৩১.০৮.২০২৬, TK ডেমো প্রুফ দেখে "হ্যাঁ পাশ, দুটোই বসিয়ে দিন") —
+    TK-এর প্রশ্ন: *"LAST CALL এর তারিখ এবং সময় নেই কেন?"*
+    **আসল কারণ (কোড ধরে যাচাই, আন্দাজ নয়):** তারিখ আসত `lastCallDate` ঘর
+    থেকে, কিন্তু সময় আসত `history`-র **সবচেয়ে নতুন** সারি থেকে — দুটো আলাদা
+    জায়গা। তাই (ক) ওই তারিখের সারিতে সময় থাকলেও দেখাত না, আর (খ) অন্য দিনের
+    সময় ভুল করে ওই তারিখের পাশে বসে যেত।
+    ⇒ এখন সময়টা **ঠিক ওই তারিখের** সবচেয়ে নতুন সারি থেকেই নেওয়া হয়।
+    ⛔ ওই দিনের সময় জমা না থাকলে ফাঁকা — বানিয়ে কিছু দেখানো হয় না।
+    ⛔ `lastCallDate` ফাঁকা হলে (তারিখটাই history থেকে এসেছে) আগের মতোই
+       সবচেয়ে নতুন সারির সময়। */
+ let wlv1LastTm=wlv1LastCallTime(x,wlv1LastDt);
  let wlv1LastWhen=fmtDate(wlv1LastDt)+(wlv1Tm12(wlv1LastTm)?(' : '+wlv1Tm12(wlv1LastTm)):'');
  /* 🆕🔒 V851 — রেজিস্ট্রেশন হয়ে থাকলে এই লাইনটা REGISTERED দেখায় (ফোনের
     FollowUpActivity/FollowUpAdapter-এর হুবহু একই নিয়ম)। ⛔ এনকোয়ারি কার্ডে
     `wlv1RegDate` ফাঁকা ⇒ নিচের লাইনটা **হুবহু আগের মতোই** চলে। */
- let wlv1RegBy2=codeName(x.wlv1RegBy||'')||String(x.wlv1RegBy||'');
- let wlv1LastTxt=x.wlv1RegDate
-   /* V874 (৩০.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত) — ফোনের হুবহু একই বদল:
-      REGISTERED-এর লাইনটা আগের মতোই, তার নিচের লাইনে LAST CALL তারিখ · সময় · কে।
-      TK: "NEXT CALL এ time থাকবে না" — ডান দিকের লেখা অপরিবর্তিত। */
-   ?('REGISTERED '+fmtDate(x.wlv1RegDate)+(wlv1RegBy2?(' <span class="anFuBy">('+esc(wlv1RegBy2)+')</span>'):'')
-      +(wlv1LastDt?('<br>LAST CALL '+wlv1LastWhen+(wlv1LastBy?(' <span class="anFuBy">('+esc(wlv1LastBy)+')</span>'):'')):''))
-   :(wlv1LastDt?('LAST CALL '+wlv1LastWhen+(wlv1LastBy?(' <span class="anFuBy">('+esc(wlv1LastBy)+')</span>'):'')):'LAST CALL —');
+ /* 🔒 V931 (৩১.০৮.২০২৬, TK ডেমো প্রুফ দেখে "হ্যাঁ পাশ, দুটোই বসিয়ে দিন") —
+    TK: *"Registered এর তারিখ এবং কে করেছে এখানে থাকবে না — View All এ ক্লিক
+    করলে দেখা যায় শুধুমাত্র সেটাই থাকবে"*।
+    ⚠️ ৩০.০৮.২০২৬-এ TK এই লাইনটা *"যা আছে তাই থাকবে"* বলে বন্ধ করেছিলেন;
+       ৩১.০৮-এ তিনি নিজে উল্টো নির্দেশ দিয়েছেন — **আজকের নির্দেশই চলবে**।
+    ⛔ তথ্য কোথাও মোছা হয়নি — REGISTERED-এর তারিখ ও কে করেছে, দুটোই
+       👁 View All-এ আগের মতোই আছে; শুধু কার্ড থেকে লাইনটা উঠল। */
+ let wlv1LastTxt=(wlv1LastDt?('LAST CALL '+wlv1LastWhen+(wlv1LastBy?(' <span class="anFuBy">('+esc(wlv1LastBy)+')</span>'):'')):'LAST CALL —');
  let wlv1NextTxt=x.nextFollow?(nextLabel+' '+fmtDate(x.nextFollow)):(nextLabel+' —');
 
  /* ---------- রিমার্ক বাক্স: ভিতরে কল-লাইন + দাগ + লেখা (FollowUpActivity.kt:1936-1949) ---------- */

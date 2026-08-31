@@ -2138,7 +2138,15 @@ class FollowUpActivity : AppCompatActivity() {
                V850-এ Draft-এর কার্ডে বসেছে, এখানেও একই নিয়ম (খাতার নিয়ম ৬.২)।
                ⛔ `regDate` ফাঁকা (নিছক এনকোয়ারি) হলে নিচের সবটা **হুবহু আগের
                   মতোই** চলে — এনকোয়ারি কার্ড এক অক্ষরও বদলায়নি। */
-            val isReg = item.regDate.isNotBlank()
+            /* 🔒 V931 (৩১.০৮.২০২৬, TK ডেমো প্রুফ দেখে "হ্যাঁ পাশ, দুটোই বসিয়ে দিন") —
+               TK: *"Registered এর তারিখ এবং কে করেছে এখানে থাকবে না — View All
+               এ ক্লিক করলে দেখা যায় শুধুমাত্র সেটাই থাকবে"*।
+               ⚠️ ৩০.০৮.২০২৬-এ TK এই লাইনটা *"যা আছে তাই থাকবে"* বলে বন্ধ
+                  করেছিলেন; ৩১.০৮-এ তিনি নিজে উল্টো নির্দেশ দিয়েছেন।
+               ⛔ তথ্য কোথাও মোছা হয়নি — View All-এ দুটোই আগের মতোই আছে।
+               ⇒ `isReg` এখন সবসময় false, তাই কার্ডে শুধু LAST CALL-এর লাইন।
+                 (নামটা রাখা হলো, নিচের `whoRaw` ওই একই ধারায় চলে।) */
+            val isReg = false
             val whoRaw = if (isReg) item.regBy.trim() else item.lastCallBy.trim()
             val lastText = if (isReg) {
                 if (whoRaw.isNotBlank()) "REGISTERED ${FollowUpModel.displayDate(item.regDate)} ($whoRaw)"
