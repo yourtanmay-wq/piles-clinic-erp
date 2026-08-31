@@ -391,11 +391,14 @@ object SupabaseClient {
                     //    তালিকায় থেকে যায়, কিছুই হারায় না।
                     // ⛔ অন্য যে কোনো ব্যর্থতায় (নেট/অন্য কোড) আচরণ অবিকল আগের মতোই।
                     val payId = row.optString("id", "")
+                    /* 🔴🔒 V903 — একই কারণে (উপরে CloudWriteQueue দেখুন) এখানেও
+                       "already exists" ও আইডি-মিল আর চাওয়া হয় না; সার্ভার ওই
+                       বিস্তারিত অংশটা না পাঠালে এই পথটাও কাজ করত না।
+                       ⛔ নিচে সারিটা **পড়ে** নিশ্চিত হওয়া হয় — না পেলে আগের
+                          মতোই ব্যর্থ ধরা হয়, তাই ভুল করে "হয়ে গেছে" বলার পথ নেই। */
                     val dup = payId.isNotBlank() &&
                         raw.contains("23505") &&
-                        raw.contains("payments_pkey") &&
-                        raw.contains("already exists") &&
-                        raw.contains(payId)
+                        raw.contains("payments_pkey")
                     if (dup) {
                         val existing = try {
                             val enc = java.net.URLEncoder.encode(payId, "UTF-8")
