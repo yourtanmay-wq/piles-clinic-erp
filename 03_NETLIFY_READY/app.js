@@ -879,6 +879,18 @@ const CLOUD_TABLE_ALIASES=CLOUD_TABLE_READ_ALIASES;
 const CLOUD_SAFE_COLS={
  enquiries:['id','date','branch','name','mobile','disease','address','remarks','timeType','receivedBy','status','stage','callCount','nextFollow','appointmentDate','convertedPatientId','convertedAt','createdBy','createdAt','updatedAt'],
  patients:['id','patientId','date','registrationDate','visitDate','name','mobile','altMobile','branch','age','sex','address','occupation','refBy','disease','complaint','editHistory','diagnosis','sinceWhen','medicalHistory','previousTreatment','previousResult','previousCost','treatmentDuration','doctorAdvice','doctorFullNote','decision','stage','queue','doctorComplete','bill','discount','photo','createdBy','registeredBy','createdAt','updatedAt',
+  /* 🔴🔒 V916 (৩১.০৮.২০২৬, TK: *"এখনো কোথায় কোথায় ওয়েবে মিল নেই"*) —
+     এই পাঁচটা ঘর ওয়েব **পড়ে ও ব্যবহার করে**, কিন্তু এই তালিকায় না থাকায়
+     ক্লাউডে পাঠানোর আগে **চুপচাপ কেটে ফেলা হত**। ফল:
+       · `refDoctor`/`refDoctorMobile` — কম্পিউটার থেকে ভর্তি করা রোগীর
+         রেফার-করা RMP-র নাম ও নম্বর ক্লাউডে যেতই না ⇒ ফোনে দেখা যেত না,
+         RMP-র কমিশন/রেফারেল গোনাতেও ওই রোগী উঠত না;
+       · `refundRestoredBy` — Refunded ঘর থেকে Restore করলে অন্য যন্ত্রে যেত না;
+       · `completeApprovedBy`/`completeRequestedBy` — Complete-অনুমোদনের দাগ।
+     ⛔ পাঁচটাই ডেটাবেসে আছে (ফোনের `PATIENT_COLS` এগুলোই পড়ে), আর
+        `cloudUpsertAdaptive` ঘর না পেলে নিজেই বাদ দিয়ে আবার চেষ্টা করে —
+        তাই সেভ কখনো আটকাবে না। */
+  'refDoctor','refDoctorMobile','refundRestoredBy','completeApprovedBy','completeRequestedBy',
    /* 🔵🔒 V521 (২২.০৮.২০২৬, TK-নির্দেশ): `timeType` ("Official Time"/"Unexpected Time")।
       স্টাফের Extra Income **শুধু অসময়ের এনকোয়ারিতেই** হয় (V418-এর SQL), তাই এটা না
       দেখাতে পারলে TK বুঝতেই পারতেন না কেন টাকাটা পাওনা। ফোনের অ্যাপে ঘরটা আগে থেকেই আসত।
@@ -886,7 +898,13 @@ const CLOUD_SAFE_COLS={
          `medicalHistory`-র তুলনায় নগণ্য; egress-এ কার্যত কিছুই বাড়ে না। */
    'timeType'],
  payments:['id','payType','payLabel','paymentLabel','patientId','patientCode','mobile','branch','name','date','amount','mode','cashAmount','onlineAmount','dailyEvents','remarks','editHistory','editedAt','editedBy','receivedBy','createdBy','createdAt','updatedAt','backdateRequestedBy','backdateApprovedBy','editRequestedBy','editApprovedBy','approvedAt','approvedBy','status','refundReason','refundApprovalStatus','refundRequestedBy','refundApprovedBy','refundOfPaymentId'],
- followups:['id','refId','mobile','name','branch','disease','address','stage','date','registrationDate','visitDate','lastRemark','nextFollow','callCount','status','history','photo','createdBy','createdAt','updatedAt'],
+ followups:['id','refId','mobile','name','branch','disease','address','stage','date','registrationDate','visitDate','lastRemark','nextFollow','callCount','status','history','photo','createdBy','createdAt','updatedAt',
+  /* 🔴🔒 V916 — উপরের একই দোষ এখানেও। সবচেয়ে জরুরি `convertedPatientId`:
+     এনকোয়ারি রোগীতে রূপান্তরিত হলে ওই দাগটা ক্লাউডে যেতই না ⇒ সারিটা
+     আবার "খোলা এনকোয়ারি" হয়ে ফিরে আসতে পারত (আজকের ভূতুড়ে সারির
+     পরিবার)। `lastCallDate` না যাওয়ায় ফোনের কার্ডে "LAST CALL —" ফাঁকা
+     দেখাত, আর `age`/`sex`/`patientId`/`timeType` কার্ডে ফাঁকা থাকত। */
+  'age','sex','patientId','timeType','lastCallDate','convertedPatientId'],
  medical:['id','patientId','type','date','selected','days','details','nextFollow','diagnosis','decision','doctorFullNote','name','mobile','branch','createdBy','createdAt','updatedAt'],
  products:['id','kind','product','customer','mobile','qty','price','bill','total','deposit','due','mode','remarks','date','branch','receivedBy','createdBy','createdAt','updatedAt'],
  doctor_visits:['id','name','mobile','altMobiles','area','remarks','date','branch','lastCallDate','nextCallDate','expectedPatientDate','callStatus','status','callHistory','referralPayments','referralPaid','referralDue','createdBy','createdAt','updatedAt'],
@@ -1852,7 +1870,7 @@ let rtWired=false;
 // (select='*') রাখা হলো।
 const RT_NO_PHOTO_COLS={
  followups:'address,age,branch,callCount,convertedPatientId,createdAt,createdBy,date,disease,history,id,lastCallDate,lastRemark,mobile,name,nextFollow,patientId,refId,registrationDate,sex,stage,status,timeType,updatedAt,visitDate',
- patients:'address,age,bill,branch,complaint,completeApprovedBy,completeRequestedBy,createdAt,createdBy,date,decision,diagnosis,discount,disease,doctorAdvice,doctorComplete,doctorFullNote,id,medicalHistory,mobile,name,occupation,patientId,previousCost,previousResult,previousTreatment,queue,refBy,refDoctor,refDoctorMobile,registeredBy,registrationDate,sex,sinceWhen,stage,timeType,treatmentDuration,updatedAt,visitDate',
+ patients:'address,age,bill,branch,complaint,completeApprovedBy,completeRequestedBy,createdAt,createdBy,date,decision,diagnosis,discount,disease,doctorAdvice,doctorComplete,doctorFullNote,id,medicalHistory,mobile,name,occupation,patientId,previousCost,previousResult,previousTreatment,queue,refBy,refDoctor,refDoctorMobile,refundRestoredBy,registeredBy,registrationDate,sex,sinceWhen,stage,timeType,treatmentDuration,updatedAt,visitDate',
  medical:'id,patientId,type,date,selected,days,details,nextFollow,diagnosis,decision,doctorFullNote,name,mobile,branch,createdBy,createdAt,updatedAt'
 };
 function wireRealtime(){
