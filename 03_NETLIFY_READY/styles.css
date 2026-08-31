@@ -6527,3 +6527,27 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
     padding:0;border:0;border-radius:50%;box-shadow:none;
     background:linear-gradient(135deg,#0B66D8,#16A36D);color:#fff;font-size:22px;display:grid;place-items:center;cursor:pointer}
 }
+
+/* 🟢🔒 V922 (৩১.০৮.২০২৬, TK ডেমো প্রুফ দেখে "card এ পাশাপাশি ২ টা করে
+   থাকতে হবে") — Dr. Visit / RMP-এর কার্ড কম্পিউটারে।
+   আগে কম্পিউটারে একটা কার্ড পুরো চওড়া জুড়ে বসত, এক পর্দায় মাত্র দুটো
+   দেখা যেত; ৭টা বোতাম ৪-কলামের ছকে এবড়োখেবড়ো ৩ সারিতে ভাগ হয়ে যেত,
+   Delete নীলের উপর লাল লেখা আর ✎ বোতাম সাদা-অদৃশ্য ছিল।
+   ⛔ সবকিছু শুধু `min-width:900px`-এ — ফোনের চেহারা একটুও বদলায়নি। */
+@media (min-width:900px){
+  .dvCardGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}
+  .dvCardGrid>.doctorVisitCardPro{margin:0;padding:14px}
+  .doctorVisitCardPro .dvpStatsRow{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .doctorVisitCardPro .dvpRemark{padding:9px 34px 9px 12px}
+  .doctorVisitCardPro .doctorPenBtn{top:5px;right:6px;width:24px;height:24px;line-height:1;
+    background:#fff;border:1px solid #EBD9AE;border-radius:8px;color:#A9741B;display:grid;place-items:center}
+  /* ৭টা বোতাম সমান মাপে নিজে নিজে সারি ভরে নেবে */
+  .doctorVisitCardPro .dvpActions{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px}
+  .doctorVisitCardPro .dvpBtn{flex:1 1 118px;height:34px;min-height:34px;padding:0 6px;border:0;
+    border-radius:9px;font-size:12px;font-weight:800;color:#fff;background:#1777F2;white-space:nowrap;cursor:pointer}
+  .doctorVisitCardPro .dvpCall,.doctorVisitCardPro .dvpWa{background:#078C18}
+  .doctorVisitCardPro .dvpView{background:#1777F2}
+  .doctorVisitCardPro .dvpRemarks{background:linear-gradient(45deg,#9D22E9,#6A1DD2)}
+  .doctorVisitCardPro .dvpMsg{background:#A86B0F;grid-column:auto}
+  .doctorVisitCardPro .dvpDel{background:#FDECEA;border:1px solid #F3B9B2}
+}

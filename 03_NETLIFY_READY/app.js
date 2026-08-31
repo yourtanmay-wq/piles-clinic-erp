@@ -15196,7 +15196,11 @@ function doctorVisit(filter='home'){
     কিছুই বদলায়নি; শুধু কম্পিউটারে জায়গার ব্যবহার। */
  let rmpBannerRow=(rmpPerfHtml||rmpDueHtml)?`<div class="dvRmpBannerRow">${rmpPerfHtml}${rmpDueHtml}</div>`:'';
  let body=`${masterBranchHtml}${stats}${rmpBannerRow}${callSummaryHtml}${searchRow}`;
- if(filter!=='home'||q){body+=`<div class="sectionTitle">${esc(title)}</div>${filtered.map(doctorVisitCard).join('')||'<div class="card mut">No doctor/RMP contact history</div>'}`}
+ /* 🟢🔒 V922 (৩১.০৮.২০২৬, TK ডেমো প্রুফ দেখে "card এ পাশাপাশি ২ টা করে
+    থাকতে হবে") — কার্ডগুলো একটা মোড়কে। কম্পিউটারে (≥900px) পাশাপাশি দুটো
+    (styles.css), ফোনে মোড়কটার কোনো নিয়ম নেই তাই আগের মতোই একটার নিচে একটা।
+    ⛔ কার্ডের ভিতরের কিছুই বদলায়নি — শুধু বসার জায়গা। */
+ if(filter!=='home'||q){body+=`<div class="sectionTitle">${esc(title)}</div>`+(filtered.length?`<div class="dvCardGrid">${filtered.map(doctorVisitCard).join('')}</div>`:'<div class="card mut">No doctor/RMP contact history</div>')}
  page('Doctor Visit / RMP',body,true);setTimeout(wlv1RefreshRmpCardCounts,0)
  // 🖥️🔧 TK-নির্দেশে (১৫.০৮.২০২৬, Android XML যাচাই করে): activity_doctorvisit.xml-এ
  // branchPicker হেডারেই ছোট পিল হিসেবে থাকে — ওয়েবে আগে বড় আলাদা ড্রপডাউন
@@ -15513,7 +15517,7 @@ function doctorVisitCard(x){
     <!-- 📩🔒 V733 (TK-অনুমোদিত ডেমো) — ফোনের ৪টে তৈরি বার্তা এখন ওয়েবেও।
          ⛔ উপরের বোতামগুলো এক অক্ষরও বদলায়নি; এটা নতুন সারিতে বসে। -->
     <button class="dvpBtn dvpMsg" onclick="wlv1DocSendPick('${x.id}')">📩 Send Message</button>
-    ${isMaster()?`<button class="dvpBtn" style="color:#b42318" onclick="wlv1DeleteDoctor('${x.id}')">🗑️ Delete</button>`:''}
+    ${isMaster()?`<button class="dvpBtn dvpDel" style="color:#b42318" onclick="wlv1DeleteDoctor('${x.id}')">🗑️ Delete</button>`:''}
   </div>
  </div>`
 }
