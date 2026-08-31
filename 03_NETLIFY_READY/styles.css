@@ -6551,3 +6551,18 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
   .doctorVisitCardPro .dvpMsg{background:#A86B0F;grid-column:auto}
   .doctorVisitCardPro .dvpDel{background:#FDECEA;border:1px solid #F3B9B2}
 }
+
+/* 🟢🔒 V923 (৩১.০৮.২০২৬, TK ডেমো প্রুফ দেখে "হ্যাঁ পাশ, বসিয়ে দিন") —
+   Staff Profiles কম্পিউটারে। আগে একটা কার্ড পুরো চওড়া জুড়ে বসত আর ৪টে
+   বোতাম ডানপাশে খাড়া সারিতে থাকত, ফলে প্রতিটা কার্ডে বিরাট ফাঁকা জায়গা
+   পড়ে থাকত — এক পর্দায় সাড়ে তিনজন। এখন পাশাপাশি দুটো কার্ড, বোতাম চারটে
+   নিচে এক সারিতে — এক পর্দায় ছ'জন। উপরের দুটো বোতামও পাশাপাশি।
+   ⛔ সবকিছু শুধু `min-width:900px`-এ — ফোনের চেহারা একটুও বদলায়নি। */
+@media (min-width:900px){
+  .pfTopBtns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .pfTopBtns>.card{margin:0}
+  .pfGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start;margin-top:12px}
+  .pfGrid>.pfStaffCard{margin:0;padding:13px 14px;flex-direction:column;align-items:stretch}
+  .pfGrid .pfStaffBtns{flex-direction:row;width:100%;margin-top:10px;gap:7px}
+  .pfGrid .pfStaffBtns .pfBtn{flex:1 1 0;min-width:0;padding:8px 6px;font-size:12px}
+}

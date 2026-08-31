@@ -194,7 +194,14 @@
        ভিতরেই প্রত্যেকের নামের নিচে ছোট ট্যাগ হয়ে দেখায়।
        ⛔ ফোনের অ্যাপেও হুবহু একই বদল (StaffProfileActivity.performanceList)।
        ⛔ কোনো তথ্য · পাহারা · SQL বদলায়নি — একই `hr.app_devices_list`। */
-    document.getElementById('spList').innerHTML = perfBtn + addBtn + dueHtml + listHtml + removedHtml();
+    /* 🟢🔒 V923 (৩১.০৮.২০২৬, TK ডেমো প্রুফ দেখে "হ্যাঁ পাশ, বসিয়ে দিন") —
+       কম্পিউটারে জায়গার সদ্ব্যবহার: উপরের দুটো বোতাম একটা `pfTopBtns` মোড়কে,
+       কর্মীর কার্ডগুলো একটা `pfGrid` মোড়কে। ≥900px-এ দুটোই পাশাপাশি দুই
+       কলামে (styles.css); ছোট পর্দায় মোড়ক দুটোর কোনো নিয়ম নেই, তাই ফোনে
+       আগের মতোই একটার নিচে একটা। ⛔ বোতাম · লেখা · কাজ কিছুই বদলায়নি। */
+    var topBtns = '<div class="pfTopBtns">' + perfBtn + addBtn + '</div>';
+    var listWrap = rows.length ? ('<div class="pfGrid">' + listHtml + '</div>') : listHtml;
+    document.getElementById('spList').innerHTML = topBtns + dueHtml + listWrap + removedHtml();
 
     // 🔴 V404: বাদ-দেওয়া কর্মীদের ছোট তালিকা — গোনা থাকে, ভুল হলে Restore।
     function removedHtml() {
