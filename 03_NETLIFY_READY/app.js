@@ -10087,6 +10087,20 @@ function wlv1AnatBoxHtml(note,pid){
   var b=AnatomyMark.parse(saved);
   wlv1AnatState={pic:b.pic||'',marks:b.marks||[],tool:'bulge',label:'',down:null,live:[],
     id:String(pid||''),saved:saved,note:b.note||''};
+  /* 🔴🔒 V910 (৩১.০৮.২০২৬, TK-নির্দেশ — "মোবাইলে কার্যকর কিন্তু কম্পিউটারে
+     নয় এমন সব খুঁজে বের করুন")। **ধরা পড়ল:** ছবির তালিকা ক্লাউড থেকে নামানোর
+     ঘরটা (`wlv1AnatCloudPull`) V576-এ লেখা হয়েছিল, কিন্তু **কোথাও ডাকাই হয়নি**
+     — তাই ফোনে যোগ করা বা সরানো ছবি কম্পিউটারে কোনোদিনই আসত না।
+     (ফোনে `AnatomyPictureRepository.pull()` পর্দা খুললেই চলে।)
+     এখন পর্দা আঁকা হলেই একবার ডাকা হয়; কিছু বদলালে শুধু ছবির সারিটা আবার আঁকে।
+     ⛔ ১৫ মিনিটে একবারের বেশি নামে না, আর ছবি শুধু তাদেরই আসে যেগুলো এই
+        ব্রাউজারে নেই — ইন্টারনেট-খরচ প্রায় শূন্য (V576-এর নিজের নিয়ম)।
+     ⛔ নেট না থাকলে চুপচাপ বাদ — আগের মতোই অ্যাপের নিজের ৩১টা ছবি চলে। */
+  try{ setTimeout(function(){
+    try{ wlv1AnatCloudPull().then(function(ch){
+      try{ if(ch && document.getElementById('dnAnatStrip')) wlv1AnatStripPaint(); }catch(_e){}
+    }).catch(function(){}); }catch(_e){}
+  },0) }catch(_e){}
   return '<label>Patient Picture · to show and explain</label>'
     +'<div class="wlv1AnatStrip" id="dnAnatStrip">'+wlv1AnatStripHtml()+'</div>'
     +'<div class="wlv1AnatWrap"><canvas id="dnAnatCanvas" class="wlv1AnatCanvas"></canvas>'
