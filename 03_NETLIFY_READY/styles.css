@@ -6804,3 +6804,36 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
   .pubFootHours{margin-top:10px;padding:9px 12px}
   .pubFootBar{padding:11px 18px}
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   🔴🔒 V935 (৩১.০৮.২০২৬, TK-অনুমোদিত — ডেমো-প্রুফ দেখে *"পাশ"*)
+   TK: *"আরো একটু প্রফেশনাল লুক বানাতে হবে"*। তিনটে জায়গা:
+     ১) ভরসা-পট্টির মেশানো ইমোজি → এক রকম সবুজ রেখা-আঁকা চিহ্ন
+     ২) রোগের পাঁচটা ছবি এক মাপের ফ্যাকাশে-সবুজ গোল ঘরে (আগে একেকটা একেক মাপের)
+     ৩) হিরোর ছবিটা নরম সাদা পাতায়, উপরের পট্টিতে সরু কিনারা
+   ⛔ **ফোনের সাইট অপরিবর্তিত** — পুরোটাই min-width:900px-এর ভিতরে, আর ফোনে
+      আগের ইমোজিগুলোই (.tEmo) দেখায়।
+   ══════════════════════════════════════════════════════════════════════════ */
+.v227Trust .tIco{display:none}
+@media(min-width:900px){
+  .v227Trust .tEmo{display:none}
+  .v227Trust div{gap:9px}
+  .v227Trust .tIco{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;
+      background:#f1f8f2;border:1px solid #e0ece2;color:#0b663b}
+  .v227Trust .tIco svg{width:20px;height:20px}
+  .v227Trust b{font-size:11px;letter-spacing:.7px;color:#0e2f1f}
+
+  .v227Disease{padding:16px 8px 13px;gap:10px;min-height:112px;position:relative}
+  .v227Disease:before{content:'';position:absolute;top:14px;left:50%;transform:translateX(-50%);
+      width:58px;height:58px;border-radius:50%;background:#f2f8f3;border:1px solid #e4efe6}
+  .v227Disease .diseaseArt{position:relative;z-index:1;width:44px;height:40px}
+
+  .v227HeroArt{background:#fff;border:1px solid #eaf0eb;border-radius:24px;
+      box-shadow:0 14px 34px rgba(16,48,32,.07);margin:2px 0 6px}
+
+  .v227Top{border-bottom:1px solid #eef3ef;box-shadow:0 1px 0 rgba(16,48,32,.03)}
+  .v227Title{letter-spacing:-.4px}
+  .v227Checks i{background:#f7fbf7}
+  .v227Quick{border-radius:16px}
+  .v227Quick button{border-right-color:rgba(255,255,255,.12)}
+}

@@ -2699,6 +2699,27 @@ function publicHeader(backFn=''){
  return `<header class="pubTop v227Top"><div class="v227Brand" ${backFn?'':`onclick="loginForm()"`} style="cursor:pointer">${backFn?`<button class="v227Back" onclick="${backFn};event.stopPropagation()">←</button>`:`<img class="v227Logo" src="assets/maa-ayurved-final-logo.jpg" alt="PILES CLINIC">`}<div><div class="v227Title">PILES CLINIC</div><div class="v227Sub">AYURVEDIC TREATMENT CENTRE</div><div class="v227Founder"><b>TK BISWAS</b><span class="v227FcRole">Founder &amp; Consultant</span></div></div></div><div class="v227HeadActions"><button onclick="event.stopPropagation();publicBranchSelector('whatsapp')">☘</button><button onclick="event.stopPropagation();publicBranchSelector('call')">☎</button><button onclick="event.stopPropagation();openPublicMenu()">☰</button></div></header>`
 }
 window["publicHeader"]=publicHeader;
+/* 🔴🔒 V935 (৩১.০৮.২০২৬, TK-অনুমোদিত — ডেমো-প্রুফ দেখে *"পাশ"*) — TK:
+   *"আরো একটু প্রফেশনাল লুক বানাতে হবে"*। ভরসা-পট্টিতে চারটে **মেশানো ইমোজি**
+   (🌿 🛡️ 👥 ✅) ছিল — একেক ফোনে একেক রকম আঁকা, রঙও আলাদা; এটাই পাতার সবচেয়ে
+   অপেশাদার জায়গা ছিল। এখন কম্পিউটারে **এক রকম সবুজ রেখা-আঁকা চিহ্ন**।
+   ⛔ **ফোনে হুবহু আগের ইমোজিই থাকে** — দুটোই লেখা হয়, CSS ঠিক করে কোনটা
+      দেখাবে (`.tIco` শুধু ≥900px-এ, `.tEmo` শুধু ফোনে)। তাই ফোনের পর্দা
+      এক অক্ষরও বদলায় না। */
+function wlv1TrustStrip(){
+  const svg = {
+    leaf:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg>',
+    shield:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg>',
+    users:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+    check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21.8 10A10 10 0 1 1 17 3.34"/><path d="m9 11 3 3L22 4"/></svg>'
+  };
+  const row = [['leaf','\uD83C\uDF3F','100% Ayurvedic'],['shield','\uD83D\uDEE1\uFE0F','No Surgery'],
+               ['users','\uD83D\uDC65','Personal Care'],['check','\u2705','Follow-up Support']];
+  return '<section class="v227Trust">'+row.map(function(x){
+    return '<div><span class="tIco">'+svg[x[0]]+'</span><span class="tEmo">'+x[1]+'</span><b>'+x[2]+'</b></div>';
+  }).join('')+'</section>';
+}
+window["wlv1TrustStrip"]=wlv1TrustStrip;
 function publicSite(){
  currentView='public';
  let dis=publicDiseases();
@@ -2708,7 +2729,7 @@ function publicSite(){
       আসল বোতাম, যাতে রোগীকে স্ক্রোল করে নিচে নামতে না হয়। ⛔ দুটোই আগে থেকে
       থাকা ফাংশনই ডাকে, নতুন কোনো পথ বানানো হয়নি। -->
  <div class="v227HeroCta"><button class="heroPrimary" onclick="scrollAppt()">Book Appointment</button><button class="heroGhost" onclick="publicBranchSelector('call')">&#9742; Call Now</button></div></div><div class="v227HeroArt"><div class="v227Bowl"></div><div class="v227Shield">AYURVEDA</div></div></section>
- <section class="v227Trust"><div>🌿<b>100% Ayurvedic</b></div><div>🛡️<b>No Surgery</b></div><div>👥<b>Personal Care</b></div><div>✅<b>Follow-up Support</b></div></section>
+ ${wlv1TrustStrip()}
  <section class="v227Quick"><button onclick="publicBranchSelector('call')"><span>☎</span><b>Call Now</b><small>Select Branch</small></button><button onclick="publicBranchSelector('whatsapp')"><span>☘</span><b>WhatsApp</b><small>Select Branch</small></button><button onclick="scrollAppt()"><span>▣</span><b>Book Appointment</b><small>Quick Booking</small></button><button onclick="publicBranches()"><span>⌖</span><b>Our Branches</b><small>Find Clinic</small></button></section>
  <section id="treatments" class="v227Section"><h2>WE TREAT</h2><p>Common Anorectal & Genital Problems</p><div class="v227DiseaseGrid">${dis.map(d=>`<button class="v227Disease" onclick="disease('${esc(d.key)}')"><div class="diseaseArt ${d.art}"></div><b>${esc(d.name)}</b></button>`).join('')}</div><button class="v227More" onclick="disease('Piles')">Learn More About These Conditions →</button></section>
  <section id="branches" class="v227Section"><h2>OUR BRANCHES</h2><div class="v227BranchGrid">${(C.branches||[]).map(b=>`<article class="v227Branch"><b>${esc(b.name)}</b><p>${esc(b.address)}</p><strong>☎ ${esc(publicBranchPhones(b))}</strong><div><button onclick="location.href='tel:+91${publicPrimaryPhone(b)}'">Call</button><button onclick="location.href='https://wa.me/91${publicPrimaryPhone(b)}'">WhatsApp</button></div></article>`).join('')}</div></section>
