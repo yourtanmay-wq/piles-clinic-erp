@@ -78,9 +78,21 @@ object BranchSimHelper {
     // স্টাফদের কাজ থামবে না।
     fun hasChamberAnswer(context: Context): Boolean = prefs(context).contains("has_chamber_number")
 
+    /* 🔴🔒 V908 (৩১.০৮.২০২৬, JPE-CRP-এর রিপোর্ট — TK: *"চেম্বারের ফোনে
+       ক্লিনিকের সিম আছে"*)। **এখানেই আসল দোষ ছিল:** উপরের grandfather-লাইনটা
+       স্টাফের **নিজের সাফ উত্তরের আগে** বসত। তাই যে ফোনে পুরনো (নিঃশব্দে বসা)
+       সিম-বাছাই জমা ছিল, সেখানে স্টাফ *"না, এই ফোনে চেম্বারের নম্বর নেই"*
+       বললেও এই ঘর **হ্যাঁ**-ই বলত ⇒ ব্যক্তিগত ফোনের নিজের কলও
+       "Superfone/Clinic Number Call"-এ গোনা হয়ে যেত (B509-এ TK ঠিক এই কথাই
+       বলেছিলেন — *"না বলেছে, তারপরও কাউন্টিং করছে"*)।
+       **এখন নিয়ম:** স্টাফ একবার উত্তর দিয়ে থাকলে **সেই উত্তরই চূড়ান্ত**;
+       grandfather শুধু তখনই, যখন কোনো উত্তরই দেওয়া হয়নি।
+       ⛔ যে ফোনে "হ্যাঁ" আছে, তার আচরণ এক অক্ষরও বদলায়নি। */
     fun hasChamberNumber(context: Context): Boolean {
+        val p = prefs(context)
+        if (p.contains("has_chamber_number")) return p.getBoolean("has_chamber_number", false)
         if (hasGenuinelyChosenSim(context)) return true // grandfathered — সত্যিই একাধিক SIM থেকে হাতে বেছেছেন
-        return prefs(context).getBoolean("has_chamber_number", false)
+        return false
     }
 
     fun saveHasChamberNumber(context: Context, value: Boolean) {
@@ -198,7 +210,9 @@ object BranchSimHelper {
         // Notebook দুটোতেই শেয়ার হয় (B488)।
         // 🔴🔒 B491 (06.08.2026) — আসল কারণ Call Log অনুমতি ছিল, এই গেট
         // না — TK লাইভ টেস্টে নিশ্চিত করার পরে আবার চালু।
-        if (hasChamberAnswer(context) && !hasGenuinelyChosenSim(context) && !hasChamberNumber(context)) return out // 🔴🔒 B509
+        /* 🔴🔒 V908 — সাফ "না" এখন সিম-বাছাইকেও হারায় (উপরের টীকা দেখুন)।
+           ⇒ ব্যক্তিগত ফোনের কল আর ক্লিনিকের গোনায় ঢোকে না। */
+        if (hasChamberAnswer(context) && !hasChamberNumber(context)) return out // 🔴🔒 B509 · V908
         try {
             val midnight = java.util.Calendar.getInstance().apply {
                 set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
