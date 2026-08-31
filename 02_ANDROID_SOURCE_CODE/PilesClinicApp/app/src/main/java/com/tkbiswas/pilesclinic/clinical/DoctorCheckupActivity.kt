@@ -3040,8 +3040,13 @@ class DoctorCheckupActivity : AppCompatActivity() {
         val ksPrev = ksBtn("◀ আগের")
         val ksNext = ksBtn("পরের ধাপ ▶", wide = true)
         val ksInj  = ksBtn("💉")
+        /* 🔵🔒 V898 (TK-অনুমোদিত প্রুফ) — বাক্সটা ছোট করে রাখার বোতাম। ছোট
+           অবস্থায় শুধু ধাপের নাম ও "পরের ধাপ" থাকে, তাই ছবি ঢাকা পড়ে না;
+           ⌃ চাপলে না সারালে · চিকিৎসা · সপ্তাহ · আগের · 💉 আবার ফিরে আসে। */
+        val ksMore = ksBtn("⌃")
         val ksEnd  = ksBtn("✕")
-        ksRow.addView(ksPrev); ksRow.addView(ksNext); ksRow.addView(ksInj); ksRow.addView(ksEnd)
+        ksRow.addView(ksPrev); ksRow.addView(ksNext); ksRow.addView(ksInj)
+        ksRow.addView(ksMore); ksRow.addView(ksEnd)
         ksBox.addView(ksRow)
         root.addView(ksBox)
 
@@ -3049,6 +3054,9 @@ class DoctorCheckupActivity : AppCompatActivity() {
         var ksSteps: List<Int> = emptyList()
         var ksAt = 0
         var ksWorse = false                       // 🔴 V793 — "না সারালে" মোড
+        /* 🔵 V898 — নিচের বাক্স বড় (সব বোতাম) না ছোট (শুধু ধাপের নাম +
+           "পরের ধাপ")। ছোট রাখলে ছবি ঢাকা পড়ে না — TK-অনুমোদিত প্রুফ। */
+        var ksFull = false
         var ksKind = ""                           // 🔴 V793 — বাছা চিহ্নের ধরন
         var ksAnim: android.animation.ValueAnimator? = null
 
@@ -3083,16 +3091,17 @@ class DoctorCheckupActivity : AppCompatActivity() {
             }
             // 🔴 V793 — নতুন ধাপগুলোর লেখা (পুরোনোগুলোর লেখা অবিকল একই থাকে)
             ksCap.text = NoBengali.s(KsharSutraAnim.caption2(ksSteps[ksAt], ksKind, big.ksWeeks))
-            ksPrev.visibility = if (ksAt > 0) android.view.View.VISIBLE else android.view.View.GONE
+            ksPrev.visibility = if (ksFull && ksAt > 0) android.view.View.VISIBLE else android.view.View.GONE   // 🔵 V898
             ksNext.visibility = if (ksAt < ksSteps.size - 1) android.view.View.VISIBLE else android.view.View.GONE
             // ইনজেকশনের বোতাম শুধু মাংসের চিকিৎসায়
             val injUse = !ksWorse && (ksKind == AnatomyModel.KIND_BULGE || ksKind == AnatomyModel.KIND_PILE)
-            ksInj.visibility = if (injUse) android.view.View.VISIBLE else android.view.View.GONE
+            ksInj.visibility = if (ksFull && injUse) android.view.View.VISIBLE else android.view.View.GONE   // 🔵 V898
             ksInj.alpha = if (ksWithInjection) 1f else 0.45f
             // সপ্তাহের সারি শুধু ফিস্টুলার চিকিৎসায়
             ksWeekRow.visibility =
-                if (!ksWorse && ksKind == AnatomyModel.KIND_TRACT) android.view.View.VISIBLE
+                if (ksFull && !ksWorse && ksKind == AnatomyModel.KIND_TRACT) android.view.View.VISIBLE   // 🔵 V898
                 else android.view.View.GONE
+            ksModeRow.visibility = if (ksFull) android.view.View.VISIBLE else android.view.View.GONE   // 🔵 V898
             ksWkText.text = NoBengali.s("সপ্তাহ : ${big.ksWeeks}")
             ksPaintChips()
         }
@@ -3174,9 +3183,46 @@ class DoctorCheckupActivity : AppCompatActivity() {
             ksWorse = false; ksKind = ""          // 🔴 V793
             ksBox.visibility = android.view.View.GONE
             bar.visibility = android.view.View.VISIBLE
+            topRow.visibility = android.view.View.VISIBLE   // 🔵 V898
+            big.ksDrawAllowed = false                       // 🔵 V898
+            big.fillScreen = true                           // 🔵 V898 — আগের চেহারায়
+            big.resetZoom()
             big.invalidate()
         }
         ksEnd.setOnClickListener { ksStop() }
+
+        /* ═══ 🔵🔒🔒 V898 (৩১.০৮.২০২৬, TK ডেমো প্রুফ দেখে "হ্যাঁ পাশ") ═══
+           TK: *"ফিস্টুলার চিকিৎসা কীভাবে হয় দেখতে পারছি না, ফটো ঢেকে যাচ্ছে"* ·
+           *"ফটোটাই মনে হয় বেশি বড় করে ফেলেছেন"* ·
+           *"ফটোতে একবার চাপ দিলে যেন শুধু ফটোটাই থাকে … আবার চাপ দিলে
+           পরের ধাপ · ইনজেকশন এগুলো ফিরে আসে"* · *"হাইড হলেও যেন ছবি আঁকা যায়"*।
+
+           তিনটে কাজ:
+             ১) ধাপ দেখানোর সময় ছবিটা **পর্দা-ভরা** না রেখে **পুরোটা** দেখানো হয়
+                (`fillScreen=false`) — তাই নিচের নালী/সুতো আর কাটা যায় না;
+             ২) ছবির ফাঁকা জায়গায় **এক টোকা** — উপরের গোল বোতাম ও নিচের বাক্স
+                লুকিয়ে যায়, আবার টোকায় ফিরে আসে;
+             ৩) লুকানো অবস্থায় আঙুল টানলে **আঁকা যায়** (AnatomyView-এ V898)।
+           ⛔ ধাপের হিসাব · অ্যানিমেশন · সেভ — কিচ্ছু ছোঁয়া হয়নি, শুধু দেখানো। */
+        var ksHidden = false
+        fun ksSetChrome(show: Boolean) {
+            ksHidden = !show
+            val vis = if (show) android.view.View.VISIBLE else android.view.View.GONE
+            topRow.visibility = vis
+            ksBox.visibility = if (big.ksOn) vis else android.view.View.GONE
+            if (!big.ksOn) bar.visibility = vis
+            big.ksDrawAllowed = !show          // লুকানো থাকলে আঁকা যাবে
+            big.invalidate()
+        }
+        big.onKsBlankTap = { ksSetChrome(ksHidden) }
+
+        // 🔵 V898 — ⌃ / ⌄ চাপলে বাক্স বড় বা ছোট।
+        ksMore.setOnClickListener {
+            ksFull = !ksFull
+            ksMore.text = if (ksFull) "⌄" else "⌃"
+            ksPaint()
+        }
+        ksMore.text = "⌃"
 
         val btnKs = roundBtn("🧵").apply {
             setOnClickListener {
@@ -3193,6 +3239,11 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 ksSteps = emptyList(); ksAt = 0
                 bar.visibility = android.view.View.GONE
                 ksBox.visibility = android.view.View.VISIBLE
+                /* 🔵🔒 V898 — TK: *"ফটোটাই বেশি বড় করে ফেলেছেন"*। ধাপ দেখানোর
+                   সময় ছবিটা পর্দা-ভরা নয়, **পুরোটা** দেখানো হয় — তাই নিচের
+                   নালী ও সুতো আর কাটা পড়ে না। বন্ধ করলে আগের মতোই ফিরে যায়। */
+                big.fillScreen = false
+                big.resetZoom()
                 ksPaint()
                 big.invalidate()
             }

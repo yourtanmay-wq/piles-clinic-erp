@@ -60,6 +60,10 @@ class AnatomyView(context: Context) : View(context) {
        ⛔ এটা **শুধু দেখার** — `marks` তালিকায় কিছু যোগ/বাদ হয় না, কিছু সেভও
           হয় না। মোড বন্ধ করলেই ছবিটা হুবহু আগের মতো। */
     var ksOn = false
+    /** 🔵 V898 — ছবির ফাঁকা জায়গায় এক টোকা (বোতাম লুকানো/ফেরানো)। */
+    var onKsBlankTap: (() -> Unit)? = null
+    /** 🔵 V898 — বোতাম লুকানো থাকলে সত্যি হয়; তখন ক্ষারসূত্রের মোডেও আঁকা যায়। */
+    var ksDrawAllowed: Boolean = false
     var ksIndex = -1              // কোন চিহ্নের উপরে চলছে (marks-এর ক্রম)
     var ksStep = 0                // KsharSutraAnim-এর ধাপ
     var ksT = 0f                  // ওই ধাপের অগ্রগতি ০…১
@@ -586,23 +590,49 @@ class AnatomyView(context: Context) : View(context) {
         paint.reset(); paint.isAntiAlias = true
     }
 
+    /* 🔵🔒🔒 V898 (৩১.০৮.২০২৬, TK ডেমো প্রুফ দেখে **"হ্যাঁ পাশ, বসিয়ে দিন"**) —
+       TK: *"ফটোতে একবার চাপ দিলে যেন শুধু ফটোটাই থাকে, বাকি সব হাইড হয়ে যায়;
+       আবার চাপ দিলে পরের ধাপ · ইনজেকশন এগুলো যেন ফিরে আসে"* এবং
+       *"ওগুলো হাইড হলেও যেন ছবি আঁকা যায়"*।
+
+       ⇒ **ফাঁকা জায়গায় এক টোকা** = বোতাম লুকানো/ফেরানো (`onKsBlankTap`)।
+       ⇒ **আঙুল টানলে** = আগের মতোই আঁকা — কিন্তু শুধু তখনই, যখন বোতাম লুকানো
+         আছে (`ksDrawAllowed`)। বোতাম দেখা যাওয়া অবস্থায় V587-এর নিয়মই বহাল:
+         ক্ষারসূত্রের মোডে ভুল করে দাগ পড়ার পথ নেই।
+       ⛔ চিহ্ন **বেছে নেওয়া** ও ইনজেকশন/সুতোর **জায়গা দেখানো** — দুটোই আগের
+          মতোই কাজ করে (চিহ্নের কাছে টোকা দিলে সেটাই আগে ধরা হয়)। */
+    private var ksDownX = 0f
+    private var ksDownY = 0f
+    private var ksMoved = false
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        /* 🔵 V587 — ক্ষারসূত্র দেখানোর মোডে আঙুল দিয়ে কিছু আঁকা যায় না,
-           শুধু একটা চিহ্ন **বেছে নেওয়া** যায়। ⛔ তাই এই মোডে ভুল করেও
-           ছবিতে নতুন দাগ পড়ার পথ নেই। */
         if (ksOn) {
-            if (event.actionMasked == MotionEvent.ACTION_UP) {
-                val p = toPercent(event.x, event.y)
-                if (p != null) {
-                    /* 🟢 V589 — ইনজেকশনের ধাপে বা সুতোর ধাপে ছোঁয়া মানে
-                       "এইখানে করুন"; বাকি ধাপে আগের মতোই চিহ্ন বেছে নেওয়া। */
-                    if (!ksSetSpot(p[0].toDouble(), p[1].toDouble())) {
-                        val i = ksNearestAt(p[0].toDouble(), p[1].toDouble())
-                        if (i >= 0) onKsPick?.invoke(i)
+            val slop = 10f * resources.displayMetrics.density
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    ksDownX = event.x; ksDownY = event.y; ksMoved = false
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (Math.abs(event.x - ksDownX) > slop || Math.abs(event.y - ksDownY) > slop) ksMoved = true
+                }
+                MotionEvent.ACTION_UP -> {
+                    if (!ksMoved) {
+                        val p = toPercent(event.x, event.y)
+                        if (p != null) {
+                            /* 🟢 V589 — ইনজেকশনের ধাপে বা সুতোর ধাপে ছোঁয়া মানে
+                               "এইখানে করুন"; বাকি ধাপে আগের মতোই চিহ্ন বেছে নেওয়া। */
+                            if (!ksSetSpot(p[0].toDouble(), p[1].toDouble())) {
+                                val i = ksNearestAt(p[0].toDouble(), p[1].toDouble())
+                                if (i >= 0) onKsPick?.invoke(i)
+                                else onKsBlankTap?.invoke()      // 🔵 V898
+                            }
+                        }
+                        return true
                     }
                 }
             }
-            return true
+            // 🔵 V898 — লুকানো অবস্থায় টান দিলে নিচের স্বাভাবিক আঁকার পথেই যায়।
+            if (!ksDrawAllowed) return true
         }
         if (base == null) return false
 
