@@ -1169,7 +1169,8 @@ async function wlv1FollowUpCloudPull(){
       try{ if(await wlv1CloudUnchanged('fu|'+table, table, null)) return null;
            const __c=(typeof RT_NO_PHOTO_COLS!=='undefined'&&RT_NO_PHOTO_COLS[table])||'*';
            const r=await sb.from(table).select(__c).gte('updatedAt',since).limit(500);
-           return (r&&!r.error&&Array.isArray(r.data))?r.data:null; }
+           if(r&&!r.error&&Array.isArray(r.data)){ wlv1SigCommit('fu|'+table); return r.data; }
+           return null; }
       catch(e){ return null; }
     };
     const [fu,enq,pt]=await Promise.all([grab('followups'),grab('enquiries'),grab('patients')]);
@@ -2469,6 +2470,16 @@ function page(title,body,hideSearch){if(!isFollowupTitle(title)){resetFollowDate
   let __titleCls=(title==='Medicine Payment')?' wlv1HideDesk':'';
   app().innerHTML=`<div class="wrap ${esc(user?.role||'')}"><div class="topbar"><button class="ghost" onclick="goBackOnePage()">←</button><b class="${__titleCls}">${title}</b>${__topExtra}<button class="ghost" onclick="menu()">☰</button></div><div class="page">${__searchBar}${body}</div>${bottomNav()}</div>`;try{wlv1EnsureDesktopChrome(title)}catch(e){}try{wlv1HeaderPick()}catch(e){}try{wlv1AutoDateBoxes(document)}catch(e){}/* ⌨️ V757 — পর্দার ঘরগুলোতেও ব্রাউজারের সাজেশন বন্ধ (পাসওয়ার্ড ও লগইনের ঘর বাদ)। */try{wlv1NoSuggest(document)}catch(e){}}
 function goBackOnePage(){
+  /* 🔴🔒 V917 (৩১.০৮.২০২৬, TK: *"পেমেন্ট থেকে ব্যাক করলে এই অপশনটা কেন আসবে"*)
+     — ব্যাক চাপলে **আগের পাতার জমানো HTML** আবার বসানো হয়। কিন্তু আগের পাতাটা
+     যদি মডিউল-পর্দা হয় (টাকার হিসাব · Staff Profiles · Work Notebook), তার
+     ভিতরের কাজ চলে **আলাদা স্ক্রিপ্টে** — শুধু HTML ফিরিয়ে দিলে ওটা "Loading…"
+     অবস্থায় মরা পর্দা হয়ে বসে থাকে (TK-এর ছবিতে ঠিক তাই)।
+     এখন ওরকম হলে সোজা Dashboard-এ ফেরে — ফোনে ব্যাক চাপলেও Dashboard-ই আসে।
+     ⛔ সাধারণ পাতার ব্যাক এক অক্ষরও বদলায়নি। */
+  var __prevIsModule=false;
+  try{ __prevIsModule = !!(window.__prevPageHTML && window.__prevPageHTML.indexOf('anMod')>=0); }catch(_e){}
+  if(__prevIsModule){ window.__prevPageHTML=null; dashboard(); return; }
   if(window.__prevPageHTML && window.__prevPageHTML.length>150){
     let html=window.__prevPageHTML;
     window.__prevPageHTML=null;
@@ -8838,9 +8849,11 @@ async function wlv1QueueCloudPull(){
        ⛔ যেকোনো একটা বদলালে সেটা আগের মতোই পুরোটা নামে (সন্দেহ ⇒ নামাও)। */
     const [a,b2] = await Promise.all([
       (async()=> (await wlv1CloudUnchanged('dq|queue','patients',q=>q.eq('queue',true))) ? null
-                 : grab(q=>q.eq('queue',true).limit(500)))(),
+                 : await (async()=>{ const d=await grab(q=>q.eq('queue',true).limit(500));
+                                     if(d) wlv1SigCommit('dq|queue'); return d; })())(),
       (async()=> (await wlv1CloudUnchanged('dq|stage','patients',q=>q.in('stage',['Doctor Queue','Visit']))) ? null
-                 : grab(q=>q.in('stage',['Doctor Queue','Visit']).limit(500)))()
+                 : await (async()=>{ const d=await grab(q=>q.in('stage',['Doctor Queue','Visit']).limit(500));
+                                     if(d) wlv1SigCommit('dq|stage'); return d; })())()
     ]);
     const rows = [].concat(Array.isArray(a)?a:[], Array.isArray(b2)?b2:[]);
     /* 🔴🔒 V914 (৩১.০৮.২০২৬, TK: *"ছবি কেন আসছে না"*)। **আসল দোষ:** ঠিক
@@ -15041,7 +15054,9 @@ async function wlv1DvCloudPull(){
     if(await wlv1CloudUnchanged('dv|doctor_visits','doctor_visits',null)) return false;
     const since=new Date(Date.now()-3*3600*1000).toISOString();
     const r=await sb.from('doctor_visits').select('*').gte('updatedAt',since).limit(500);
-    if(!r||r.error||!Array.isArray(r.data)||!r.data.length) return false;
+    if(!r||r.error||!Array.isArray(r.data)) return false;
+    wlv1SigCommit('dv|doctor_visits');
+    if(!r.data.length) return false;
     const one=wlv1WebNotDeleted('doctor_visits',normalizeCloudRows(r.data));
     if(!one||!one.length) return false;
     save('doctor_visits', mergeById([].concat(protectedRows('doctor_visits'),one), load('doctor_visits')), {skipCloud:true});
@@ -19138,12 +19153,33 @@ async function wlv1CloudSig(table, apply){
   }catch(e){ return null }
 }
 /** `true` = একটাও সারি বদলায়নি ⇒ তালিকাটা নামানোর দরকার নেই। */
+/* 🔴🔒 V917 (৩১.০৮.২০২৬, TK-এর লাইভ রিপোর্ট: *"মোবাইলে পেমেন্ট/চেম্বার ডেট
+   দেখাচ্ছে, কম্পিউটারে দেখাচ্ছে না"*)।
+
+   **আসল দোষ ঠিক এখানেই ছিল:** নতুন সইটা **পড়া সফল হওয়ার আগেই** জমা করে
+   ফেলা হত। তাই একবার নেট আটকে গিয়ে সারিগুলো না নামলেও অ্যাপ ভেবে নিত
+   "সব নামানো হয়ে গেছে"; তারপর ওই পাতায় যতবারই খোলা হোক, প্রতিবার
+   "কিছু বদলায়নি" বলে **আর কখনো নামাতই না** — পর্দা চিরকাল ফাঁকা।
+   ⇒ Payment · Chamber Date · Follow-up · CHECK-UP · Dr. Visit — পাঁচটা
+     পর্দাতেই এই একই ফাঁদ ছিল।
+
+   **এখন:** সই আগে **অপেক্ষায়** রাখা হয়, আর সারিগুলো সত্যিই নামার পরে
+   ডাকার জায়গা থেকে `wlv1SigCommit()` ডাকা হলে তবেই পাকা হয়।
+   ⇒ পড়া ব্যর্থ হলে সই পুরোনোই থাকে, পরের বার আবার চেষ্টা হয়।
+   ⛔ সফল পথে আচরণ হুবহু আগের মতোই — একবার নামার পরে অকারণে আর নামে না। */
+var WLV1_SIG_PENDING={};
+function wlv1SigCommit(key){
+  try{ if(Object.prototype.hasOwnProperty.call(WLV1_SIG_PENDING,key)){
+    WLV1_SIG[key]=WLV1_SIG_PENDING[key]; delete WLV1_SIG_PENDING[key];
+  } }catch(_e){}
+}
+window["wlv1SigCommit"]=wlv1SigCommit;
 async function wlv1CloudUnchanged(key, table, apply){
   try{
     var now=await wlv1CloudSig(table, apply);
     if(!now) return false;                 // সন্দেহ ⇒ পুরোটা নামুক
     var old=WLV1_SIG[key];
-    WLV1_SIG[key]=now;
+    WLV1_SIG_PENDING[key]=now;             // ⛔ এখনো পাকা নয় — নামা সফল হলে তবেই
     if(!old) return false;                 // আগে কখনো দেখা হয়নি
     return old.count===now.count && old.stamp===now.stamp;
   }catch(e){ return false }
@@ -19170,7 +19206,8 @@ async function wlv1PaymentCloudPull(date){
            if(await wlv1CloudUnchanged('pay|'+table+'|'+key, table, q=>q.eq('date',key))) return null;
            const __c=(typeof RT_NO_PHOTO_COLS!=='undefined'&&RT_NO_PHOTO_COLS[table])||'*';
            const r=await sb.from(table).select(__c).eq('date',key).limit(5000);
-           return (r&&!r.error&&Array.isArray(r.data))?r.data:null; }
+           if(r&&!r.error&&Array.isArray(r.data)){ wlv1SigCommit('pay|'+table+'|'+key); return r.data; }
+           return null; }
       catch(e){ return null; }
     };
     const [pay,prod]=await Promise.all([grab('payments'),grab('products')]);
