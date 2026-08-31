@@ -8527,7 +8527,24 @@ async function savePatient(evt){
 
   // Visit fee/payment is separate from treatment payment and must not block registration.
   try{
-   if(regFee>0 && !updatingExistingPatient && !cloudDupExists){
+   /* 🔴🔒🔒 V901 (৩১.০৮.২০২৬ — ফোনের যমজ) — TK: *"Visit Fee তো
+      বাধ্যতামূলক, তাহলে Missing কেন হবে?"* পুরোনো রোগীর উপরে সেভ করলে
+      (Update Existing / ক্লাউডে আগে থেকেই আছে) স্টাফের নেওয়া ফি-টা কোথাও
+      লেখা হতো না। এখন লেখা হয় — **শুধু তখনই, যদি ওই রোগীর ভিজিট ফি আগে
+      কখনো নেওয়া না হয়ে থাকে**, তাই দুবার কাটার পথ নেই। */
+   let wlv1FeeTakenBefore=false;
+   try{
+     wlv1FeeTakenBefore=(ar('payments')||[]).some(function(z){
+       let t=String(z&&z.payType||'').toLowerCase();
+       return String(z&&z.patientId||'')===String(p.id||'') && (t==='visit_fee'||t==='visitfee'||t==='registration');
+     });
+     if(!wlv1FeeTakenBefore && sb && (updatingExistingPatient||cloudDupExists)){
+       let cf=await sb.from('payments').select('id').eq('patientId',p.id).eq('payType','visit_fee').limit(1);
+       if(cf&&cf.error) wlv1FeeTakenBefore=true;              // যাচাই করা গেল না ⇒ লিখব না
+       else if(cf&&cf.data&&cf.data.length) wlv1FeeTakenBefore=true;
+     }
+   }catch(_e){ wlv1FeeTakenBefore=true; }
+   if(regFee>0 && !wlv1FeeTakenBefore){
     add('payments',{
      id:uid('pay'),payType:'visit_fee',payLabel:'Visit Fee',paymentLabel:'Visit Fee',patientId:p.id,patientCode:String(p.patientId||''),mobile:p.mobile,branch:p.branch,name:p.name,
      date:today(),amount:regFee,mode:payMode($('#regMode')?.value||'CASH'),

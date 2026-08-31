@@ -255,7 +255,26 @@ class RegistrationRepository(private val context: Context) {
         // a genuinely NEW registration (existingRowId blank); "Update
         // Existing" (existingRowId set) now only updates the patient/
         // followup record, no new fee.
-        val paymentRow = if (existingRowIdSafe.isBlank()) PatientModel.buildVisitFeePaymentRow(patientRow, draft, staffMobile) else null
+        /* 🔴🔒🔒 V901 (৩১.০৮.২০২৬, TK-রিপোর্ট — *"Visit Fee তো বাধ্যতামূলক,
+           তাহলে Missing কেন হবে?"*):
+
+           **আসল দোষ (কোড ধরে যাচাই):** ফর্মে ফি না লিখলে Save-ই হয় না, কিন্তু
+           ডুপ্লিকেট-পপ-আপে **"Update Existing"** চাপলে ফি-র টাকার সারিটা
+           **কোথাও লেখা হতো না** — স্টাফের নেওয়া টাকাটা হারিয়ে যেত, আর
+           Briefing-এ ওই নামটা "Visit Fee Missing"-এ উঠত।
+
+           **এখন (TK-অনুমোদিত নিয়ম):** "Update Existing"-এও ফি লেখা থাকলে সারিটা
+           বসে — **কিন্তু শুধু তখনই, যদি ওই রোগীর ভিজিট ফি আগে কখনো নেওয়া
+           না হয়ে থাকে**। তাই দুবার ফি কাটার পুরোনো সমস্যা (যেটার জন্য এই
+           নিয়মটা বসানো হয়েছিল) ফিরে আসার পথ নেই।
+           ⛔ যাচাই করতে না পারলে (নেট নেই) **কিছুই লেখা হয় না** — ভুল করে
+              দ্বিতীয়বার কাটার চেয়ে না-লেখাই নিরাপদ।
+           ⛔ নতুন রেজিস্ট্রেশনের পথ এক অক্ষরও বদলায়নি। */
+        val paymentRow = if (existingRowIdSafe.isBlank()) {
+            PatientModel.buildVisitFeePaymentRow(patientRow, draft, staffMobile)
+        } else if (draft.regFee > 0.0 && !visitFeeAlreadyTaken(patientRow.s("id"))) {
+            PatientModel.buildVisitFeePaymentRow(patientRow, draft, staffMobile)
+        } else null
 
         // OWNER-LOCK: Registration and Registration Fee are one action.
         // Move Enquiry -> Visit locally first and return without waiting for network.
@@ -354,6 +373,19 @@ class RegistrationRepository(private val context: Context) {
      * actually succeeded, so a real failure gets retried and a real success
      * removes it from the queue -- still "best-effort" in the sense that it
      * never throws/blocks the original save either way. */
+    /** 🔴🔒 V901 — এই রোগীর ভিজিট ফি আগে কখনো নেওয়া হয়েছে কিনা।
+     *  ⚠️ যাচাই করা না গেলে (নেট নেই) **সত্যি** ফেরত যায়, অর্থাৎ নতুন ফি
+     *  লেখা হয় না — দুবার কাটার ঝুঁকি নেওয়ার চেয়ে সেটাই নিরাপদ। */
+    private fun visitFeeAlreadyTaken(patientRowId: String): Boolean {
+        if (patientRowId.isBlank()) return true
+        return try {
+            val rows = SupabaseClient.fetchListOrNull(
+                "payments", "patientId=eq.$patientRowId&payType=eq.visit_fee", 1, select = "id")
+                ?: return true
+            rows.length() > 0
+        } catch (_: Throwable) { true }
+    }
+
     private fun closeSourceEnquiry(mobileDigitsOnly: String, patientId: String): Boolean {
         val digits = mobileDigitsOnly.filter { it.isDigit() }.takeLast(10)
         if (digits.length != 10) return true // nothing meaningful to retry
