@@ -7018,6 +7018,28 @@ function wlv1YrScreen(rows, branchLabel){
 }
 
 function draffHome(tab='home'){
+ /* 🔴🔒 V912 (৩১.০৮.২০২৬, TK-নির্দেশ — বাকি ধাপগুলো চালিয়ে যাওয়া)।
+    **ধরা পড়ল:** ফোনের Draft পর্দা খুললেই `enquiries` ও `followups` **ক্লাউড
+    থেকে নতুন করে** টানে (`DraftRepository.kt`), কিন্তু কম্পিউটার শুধু ব্রাউজারে
+    জমা কপিই পড়ত। ⇒ একটা ফোনে Reject/Incomplete করলে সেটা কম্পিউটারের
+    Draft তালিকায় পরের লগইন বা রাত ২টার সিঙ্কের আগে দেখাত না।
+    **এখন:** পর্দা আঁকা হলেই Follow-up-এর সেই **প্রমাণিত** pull-টাই একবার চলে
+    (গত ৩ ঘণ্টায় বদলানো সারি, ছবি ছাড়া, সই না বদলালে একটাও বাইট নয়) — নতুন
+    কোনো পড়ার নিয়ম বানানো হয়নি, তাই ইন্টারনেট-খরচ বাড়ে না।
+    ⛔ লুপের ভয় নেই — ওই pull ৪৫ সেকেন্ডে দ্বিতীয়বার টানে না।
+    ⛔ কেউ কিছু টাইপ করতে থাকলে ওই বারে আঁকা হয় না। */
+ try{ var __drTab=tab; setTimeout(function(){
+   try{ wlv1FollowUpCloudPull().then(function(ch){
+     try{
+       if(!ch) return;
+       var ae=document.activeElement;
+       if(ae && /^(INPUT|TEXTAREA|SELECT)$/.test(String(ae.tagName||''))) return;
+       var cur=String(currentView||'');
+       if(cur!=='Draft' && ['My Enquiry','Unexpected Time Calls','Enquiry Reject','Visit Reject','Incomplete Patient','Complete Patient','Refunded'].indexOf(cur)<0) return;
+       draffHome(__drTab);
+     }catch(_e){}
+   }).catch(function(){}); }catch(_e){}
+ },0) }catch(_e){}
  let enq=scoped(load('enquiries')),f=mergeFollow(scoped(load('followups'))),p=scoped(load('patients')),pay=scoped(load('payments'));
  let paidByPid={};pay.forEach(x=>{paidByPid[x.patientId]=(paidByPid[x.patientId]||0)+Number(x.amount||0)});
  /* TK (27.07.2026) ধাপ ৩খ — Draft: একই মানুষের দুটো সারি থাকলে এখানে তিনি দুবার আসতে পারতেন, আর ভুল সারির বিল ধরে বিচার হত। এখন ফোনের মতোই প্রতি নম্বরে একটাই সারি — চলতি ব্রাঞ্চ → বিল-ওয়ালা → প্রথমটা। একটাই সারি থাকলে কিছুই বদলায় না। */
@@ -14952,6 +14974,33 @@ function dateAddDays(dateStr,days=30){
 window["dateAddDays"]=dateAddDays;
 function doctorDefaultNextDate(){return dateAddDays(today(),30)}
 window["doctorDefaultNextDate"]=doctorDefaultNextDate;
+/* 🔴🔒 V912 (৩১.০৮.২০২৬) — Doctor Visit / RMP পর্দাতেও ফোনের মতো তাজা তথ্য।
+   **ধরা পড়ল:** ফোন এই পর্দা খুললেই `doctor_visits` ক্লাউড থেকে টানে
+   (`DoctorVisitActivity`), কম্পিউটার শুধু ব্রাউজারে জমা কপি পড়ত — তাই এক
+   ফোনে যোগ করা RMP বা কলের তারিখ কম্পিউটারে পরের লগইনের আগে দেখাত না।
+   **নিয়মটা Follow-up-এর প্রমাণিত pull-এর হুবহু নকল:** টেবিলের সই না বদলালে
+   একটাও বাইট নামে না; বদলালে শুধু **গত ৩ ঘণ্টায় বদলানো** সারি (সর্বোচ্চ ৫০০)।
+   ⛔ ৪৫ সেকেন্ডে দ্বিতীয়বার টানে না, তাই লুপ হয় না।
+   ⛔ তথ্য কখনো মোছে না — `protectedRows` আগে, তারপর `mergeById`, আর
+      `skipCloud:true` (কোনো নতুন আপলোড নয়)। */
+let __wlv1DvPullAt=0;
+async function wlv1DvCloudPull(){
+  try{
+    if(Date.now()-__wlv1DvPullAt<45000) return false;
+    __wlv1DvPullAt=Date.now();
+    let ok=false; try{ ok=await initCloudClientOnly(); }catch(e){ ok=false; }
+    if(!ok||!sb) return false;
+    if(await wlv1CloudUnchanged('dv|doctor_visits','doctor_visits',null)) return false;
+    const since=new Date(Date.now()-3*3600*1000).toISOString();
+    const r=await sb.from('doctor_visits').select('*').gte('updatedAt',since).limit(500);
+    if(!r||r.error||!Array.isArray(r.data)||!r.data.length) return false;
+    const one=wlv1WebNotDeleted('doctor_visits',normalizeCloudRows(r.data));
+    if(!one||!one.length) return false;
+    save('doctor_visits', mergeById([].concat(protectedRows('doctor_visits'),one), load('doctor_visits')), {skipCloud:true});
+    return true;
+  }catch(e){ return false; }
+}
+window["wlv1DvCloudPull"]=wlv1DvCloudPull;
 function doctorBranchListRows(q=''){
  let all=load('doctor_visits').filter(x=>!isSeededRecord(x));
  let query=String(q||'').toLowerCase().trim();
@@ -14983,6 +15032,19 @@ function doctorSortList(rows){
 }
 window["doctorSortList"]=doctorSortList;
 function doctorVisit(filter='home'){
+ /* 🔴🔒 V912 — পর্দা আঁকার পরে একবার তাজা তথ্য (উপরের `wlv1DvCloudPull` টীকা)। */
+ try{ var __dvF=filter; setTimeout(function(){
+   try{ wlv1DvCloudPull().then(function(ch){
+     try{
+       if(!ch) return;
+       var ae=document.activeElement;
+       if(ae && /^(INPUT|TEXTAREA|SELECT)$/.test(String(ae.tagName||''))) return;
+       var cur=String(currentView||'');
+       if(['Doctor Visit / RMP','Expected Patient','Overdue Call','This Month Called','Dr. Visit - All Doctors','Search Result'].indexOf(cur)<0) return;
+       doctorVisit(__dvF);
+     }catch(_e){}
+   }).catch(function(){}); }catch(_e){}
+ },0) }catch(_e){}
  if(!(isMaster()||user.role==='field'||user.role==='staff'||user.role==='doctor'))return page('Doctor Visit / RMP','<div class="card redP">This role cannot use Doctor Visit / RMP</div>');
  let q=(safeSessionGet('doctorVisitSearch')||'').toLowerCase().trim();
  let base=doctorBranchListRows(q);
