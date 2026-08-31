@@ -237,22 +237,24 @@
                         android:layout_marginTop="10dp"
                         android:padding="12dp"
                         android:background="@drawable/bg_reveal_panel">
-                        <!-- V324 owner-approved addition: this button reads only the
-                             RMP list already saved on this phone. It never performs a
-                             Supabase request; the two existing manual fields below
-                             remain available as the fail-safe. -->
-                        <Button
-                            android:id="@+id/btnSelectRefDoctor"
+                        <!-- 🟢🔒 V895 (৩১.০৮.২০২৬, TK ডেমো ফটো দেখে "হ্যাঁ পাশ, বসিয়ে দিন") —
+                             TK: *"নামের ঘরে ডাক্তারের নাম, ঠিকানা বা নম্বর লিখলেই যেন
+                             নিচে অটোমেটিক সাজেস্ট করে … সবুজ 'Select Saved RMP / Doctor'
+                             বোতামটা থাকবে না"*।
+                             পুরোনো বোতামটা এখানেই ছিল, এখন সরানো হলো; তার বদলে নিচের
+                             `llRmpSuggest` ঘরে টাইপ করতে করতেই তালিকা নামে।
+                             ⛔ তালিকা আগের মতোই **ফোনে জমা থাকা** ঘর থেকে আসে —
+                                ইন্টারনেট-খরচ এক বাইটও বাড়ে না। -->
+                        <TextView style="@style/FieldLabel" android:layout_marginTop="0dp" android:text="Doctor / RMP Name" />
+                        <EditText android:id="@+id/etRefDoctorName" style="@style/RegFieldInput" android:hint="Doctor / RMP name" android:inputType="textPersonName" android:maxLines="1" />
+                        <LinearLayout
+                            android:id="@+id/llRmpSuggest"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:background="@drawable/bg_btn_green"
-                            android:text="🔍  Select Saved RMP / Doctor"
-                            android:textAllCaps="false"
-                            android:textColor="@color/white"
-                            android:textStyle="bold"
-                            android:textSize="14sp" />
-                        <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="Doctor / RMP Name" />
-                        <EditText android:id="@+id/etRefDoctorName" style="@style/RegFieldInput" android:hint="Doctor / RMP name" android:inputType="textPersonName" android:maxLines="1" />
+                            android:orientation="vertical"
+                            android:visibility="gone"
+                            android:layout_marginTop="6dp"
+                            android:background="@drawable/bg_rmp_suggest" />
                         <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="Doctor Mobile" />
                         <EditText android:id="@+id/etRefDoctorMobile" style="@style/RegFieldInput" android:hint="Doctor mobile" android:inputType="phone" android:maxLines="1" />
                     </LinearLayout>

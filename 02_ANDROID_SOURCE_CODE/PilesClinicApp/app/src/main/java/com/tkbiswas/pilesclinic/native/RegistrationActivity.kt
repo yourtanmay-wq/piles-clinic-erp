@@ -102,8 +102,13 @@ class RegistrationActivity : AppCompatActivity() {
            XML-এর drawable-টা দেখা যায় — প্রজেক্টের নিজেরই প্রমাণিত ওষুধ
            (`DoctorQueueAdapter` · `DraftCardAdapter`-এ আগে থেকেই চলছে, পাহারা ৯.৩২)।
            ⛔ শুধু চেহারা — বোতামের কাজ · জায়গা · লেখা কিচ্ছু বদলায়নি। */
-        binding.btnSelectRefDoctor.backgroundTintList = null
-        binding.btnSelectRefDoctor.setOnClickListener { showSavedRmpPicker(user) }
+        /* 🟢🔒 V895 (৩১.০৮.২০২৬, TK ডেমো ফটো দেখে **"হ্যাঁ পাশ, বসিয়ে দিন"**) —
+           সবুজ "Select Saved RMP / Doctor" বোতামটা তুলে দেওয়া হলো; এখন নামের
+           ঘরে **নাম · এলাকা** বা মোবাইলের ঘরে **নম্বর** লিখতে শুরু করলেই নিচে
+           সেভ করা RMP-র তালিকা নামে (TK-এর নির্দেশ)।
+           ⛔ তালিকার উৎস · ছাঁকনি · বেছে নিলে যা বসে — সবই আগের পপ-আপের হুবহু
+              একই কোড থেকে (`cachedRmpChoices` · `searchText`), নতুন কিছু নয়। */
+        wireRmpSuggest(user)
 
         lifecycleScope.launch(Dispatchers.IO) { repository.flushPending() }
 
@@ -191,6 +196,130 @@ class RegistrationActivity : AppCompatActivity() {
             out.sortedBy { it.name.lowercase(Locale.US) }
         } catch (_: Throwable) { emptyList() }
     }
+
+    // ---------- 🟢🔒 V895: টাইপ করতে করতে RMP সাজেশন ----------
+
+    /** ফোনে জমা থাকা তালিকা — একবারই পড়া হয়, তারপর মনে থাকে। */
+    private var rmpSuggestCache: List<RmpChoice>? = null
+    /** ঘরে নিজেরা লেখা বসানোর সময় যেন সাজেশন আবার না খোলে। */
+    private var rmpSuggestMuted = false
+    /** ফাঁকা তালিকা হলে একবারই হালকা করে নামানো (V802-এর হুবহু নিয়ম)। */
+    private var rmpSuggestFetchTried = false
+
+    private fun wireRmpSuggest(user: NativeUser) {
+        val watcher = object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
+            override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {
+                if (!rmpSuggestMuted) showRmpSuggest(user, s?.toString().orEmpty())
+            }
+            override fun afterTextChanged(s: android.text.Editable?) {}
+        }
+        binding.etRefDoctorName.addTextChangedListener(watcher)
+        binding.etRefDoctorMobile.addTextChangedListener(watcher)
+    }
+
+    private fun showRmpSuggest(user: NativeUser, typed: String) {
+        val boxView = binding.llRmpSuggest
+        val q = typed.trim().lowercase(Locale.US)
+        if (q.length < 2) { boxView.removeAllViews(); boxView.visibility = View.GONE; return }
+        var all = rmpSuggestCache
+        if (all == null) { all = cachedRmpChoices(user); rmpSuggestCache = all }
+        /* ফোনে তালিকা না থাকলে (এই ফোনে Doctor Visit পর্দা কখনো খোলা হয়নি)
+           একবারই হালকা করে নামানো — আগের বোতামেও ঠিক এই ব্যবস্থাই ছিল (V802)। */
+        if (all.isEmpty() && !rmpSuggestFetchTried &&
+            !RmpDirectory.hasDoctorVisitCache(this, user.branch) &&
+            RmpDirectory.cachedRows(this, user.branch).length() == 0) {
+            rmpSuggestFetchTried = true
+            Thread {
+                /* ⚠️ Activity-context-ই যথেষ্ট (SharedPreferences একই ফাইল) —
+                   উপরের পুরোনো পথটাও ঠিক এটাই ব্যবহার করে। */
+                val got = try { RmpDirectory.refreshFromCloud(this@RegistrationActivity, user.branch) } catch (_: Throwable) { false }
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    // পর্দা বন্ধ হয়ে গেলে যেন কিছু না ভাঙে — try/catch-ই পাহারা।
+                    try {
+                        if (got) {
+                            rmpSuggestCache = cachedRmpChoices(user)
+                            showRmpSuggest(user, binding.etRefDoctorName.text.toString().ifBlank {
+                                binding.etRefDoctorMobile.text.toString() })
+                        }
+                    } catch (_: Throwable) { }
+                }
+            }.start()
+        }
+        val hits = all.filter { it.searchText().contains(q) }.take(6)
+        boxView.removeAllViews()
+        if (hits.isEmpty()) { boxView.visibility = View.GONE; return }
+        boxView.visibility = View.VISIBLE
+        boxView.addView(TextView(this).apply {
+            text = if (hits.size == 1) "1 saved RMP found" else "${hits.size} saved RMP found"
+            textSize = 10.5f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#118452"))
+            setPadding(dpRmp(10), dpRmp(7), dpRmp(10), dpRmp(5))
+        })
+        for ((i, item) in hits.withIndex()) {
+            if (i > 0) boxView.addView(View(this).apply {
+                setBackgroundColor(android.graphics.Color.parseColor("#EDF2F8"))
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpRmp(1))
+            })
+            boxView.addView(rmpSuggestRow(item))
+        }
+    }
+
+    private fun rmpSuggestRow(item: RmpChoice): View {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dpRmp(10), dpRmp(8), dpRmp(10), dpRmp(8))
+            isClickable = true
+        }
+        row.addView(View(this).apply {
+            setBackgroundColor(android.graphics.Color.parseColor("#118452"))
+            layoutParams = LinearLayout.LayoutParams(dpRmp(3), dpRmp(30)).apply { marginEnd = dpRmp(9) }
+        })
+        val texts = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        texts.addView(TextView(this).apply {
+            // 👁 V752-এর একই নিয়ম — তালিকায় নাম সবসময় বড় হাতে।
+            text = item.name.trim().uppercase()
+            textSize = 13.5f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#17312A"))
+            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+        })
+        val line2 = listOf(item.mobile, item.area.trim().uppercase()).filter { it.isNotBlank() }.joinToString(" · ")
+        if (line2.isNotBlank()) texts.addView(TextView(this).apply {
+            text = line2; textSize = 11f
+            setTextColor(android.graphics.Color.parseColor("#60766D"))
+            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+        })
+        row.addView(texts)
+        if (item.branch.isNotBlank()) row.addView(TextView(this).apply {
+            text = item.branch
+            textSize = 10f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#15549B"))
+            setPadding(dpRmp(9), dpRmp(3), dpRmp(9), dpRmp(3))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dpRmp(12).toFloat()
+                setColor(android.graphics.Color.parseColor("#E8F2FF"))
+            }
+        })
+        row.setOnClickListener {
+            rmpSuggestMuted = true
+            try {
+                binding.etRefDoctorName.setText(item.name.trim().uppercase())
+                binding.etRefDoctorMobile.setText(item.mobile)
+            } finally { rmpSuggestMuted = false }
+            binding.llRmpSuggest.removeAllViews()
+            binding.llRmpSuggest.visibility = View.GONE
+        }
+        return row
+    }
+
+    private fun dpRmp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
     private fun showSavedRmpPicker(user: NativeUser) {
         val all = cachedRmpChoices(user)
@@ -1368,6 +1497,9 @@ class RegistrationActivity : AppCompatActivity() {
         binding.etRefDoctorName.setText("")
         binding.etRefDoctorMobile.setText("")
         binding.llRefDoctor.visibility = View.GONE
+        // 🟢 V895 — ফর্ম ফাঁকা হলে সাজেশনের তালিকাও বন্ধ।
+        binding.llRmpSuggest.removeAllViews()
+        binding.llRmpSuggest.visibility = View.GONE
 
         diseaseChecks.forEach { it.isChecked = false }
         symptomChecks.forEach { it.isChecked = false }
