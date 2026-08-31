@@ -2387,10 +2387,20 @@ class WorkNotebookActivity : AppCompatActivity() {
                     // স্থানীয় গণনা (আজ এই ফোনে কতবার কল-বোতাম চাপা
                     // হয়েছে) সাথে সাথেই দেখানো হয়, তারপর ক্লাউড থেকে
                     // মিলিয়ে/সংশোধন করে নেওয়া হয় (নিচের fetchStats-এ)।
-                    try {
-                        val localCalls = ModuleAuth.localCallTapCount(this, callTapCode(), todayIso())
-                        if (localCalls > 0) appVal.text = localCalls.toString()
-                    } catch (_: Throwable) { }
+                    /* 🔴🔒 V907 (৩১.০৮.২০২৬, JPE-CRP-এর রিপোর্ট, TK-নির্দেশ:
+                       *"যাতে দুটো ফোনে একই দেখায় … এটাও আবার অরিজিনাল সংখ্যা"*)
+
+                       এখানে আগে **এই ফোনে জমা গোনাটা** সঙ্গে সঙ্গে বসিয়ে দেওয়া
+                       হত (B503), আর নিচে ক্লাউডের সঙ্গে **বড়টা** নেওয়া হত
+                       (V590)। ফল: একই আইডি দুটো ফোনে খুললে দু'রকম সংখ্যা —
+                       যে ফোন ক্লাউড পড়তে পারেনি সে শুধু নিজের গোনা দেখাত
+                       (JPE-CRP-এর ছবিতে ৪ বনাম ১৫)।
+                       এখন **একটাই সত্য — ক্লাউডের `wn.call_taps`**; পড়া না গেলে
+                       সংখ্যা নয়, "…" থাকে (ভুল সংখ্যার চেয়ে সৎ)। ⇒ যত ফোনেই
+                       খোলা হোক, সংখ্যা এক।
+                       ⛔ কম্পিউটারের অ্যাপ (`notebook.js`) আগে থেকেই শুধু ক্লাউডই
+                          পড়ে — এই বদলে তিন জায়গা এক নিয়মে এল।
+                       ⛔ ফোনে-জমা গোনাটা মুছে ফেলা হয়নি; শুধু আর দেখানো হয় না। */
 
                     applyAutoOutsideCalls()
 
@@ -2453,18 +2463,15 @@ class WorkNotebookActivity : AppCompatActivity() {
                                     হয় — কারণ এইমাত্র করা কলটা ক্লাউডে পৌঁছাতে
                                     কয়েক সেকেন্ড লাগতে পারে, তখন ক্লাউড কম বলত।
                                ⛔ দুটোই মিলিয়ে: গোনা **কখনো কমে যায় না**। */
+                            /* 🔴🔒 V907 — শুধু ক্লাউডের সংখ্যাই (উপরের টীকা)। */
                             val cloudCalls = s.optInt("appCalls")
-                            val phoneCalls = try {
-                                ModuleAuth.localCallTapCount(this@WorkNotebookActivity, callTapCode(), todayIso())
-                            } catch (_: Throwable) { 0 }
-                            appCallsNow = if (callsOk(s))
-                                maxOf(cloudCalls, phoneCalls) else maxOf(phoneCalls, appCallsNow)
+                            if (callsOk(s)) appCallsNow = cloudCalls
                             /* 🔴 V593 — আগে এই লাইনটা **শর্ত ছাড়াই** বসত, তাই
                                পড়া ব্যর্থ হলে "…"-এর জায়গায় সাফ **0** লেখা হয়ে
                                যেত (অথচ পাশের New Enquiry তখন "…" দেখাত)।
                                এখন: পড়া সফল হলে, বা এই ফোনেই কল চাপা থাকলে
                                তবেই সংখ্যা — নইলে "…" আগের মতোই থাকে। */
-                            if (callsOk(s) || appCallsNow > 0) {
+                            if (callsOk(s)) {
                                 appVal.text = appCallsNow.toString()
                                 refreshTotal()
                             }
