@@ -1064,7 +1064,12 @@ class WorkNotebookActivity : AppCompatActivity() {
                     // ছোট-হাতের "key :" লাইন খোঁজে আর leave_date ISO ধরে টেবিলে মেলায় — তাই
                     // Android-এ পাঠানো এই বার্তাও পরিষ্কার ISO লাইন রাখি, যাতে কম্পিউটার থেকেও
                     // (মাস্টার/ডাক্তার) Android-এর ছুটি Approve করা যায়।
-                    val rmsg = "Staff : ${staffCode.ifBlank { mobile }}\nBranch : $br\nLeave date : " + leaveDate +
+                    /* 🔴🔒 V936 (TK-নির্দেশ — এক ফরম্যাট) — আগে এখানে কাঁচা ISO
+                       (`2026-09-05`) লেখা হত **ইচ্ছে করেই**, কারণ কম্পিউটারের
+                       approval-বেল ওই লাইনটা পড়ে। এখন কম্পিউটারের পড়ার কোড
+                       (`wlv1IsoDate`) বিন্দু-ধাঁচও বোঝে, তাই মানুষের জন্য
+                       `05.09.2026` লেখা যায়। পুরনো অনুরোধগুলোও আগের মতোই চলে। */
+                    val rmsg = "Staff : ${staffCode.ifBlank { mobile }}\nBranch : $br\nLeave date : " + dotDate(leaveDate) +
                         /* 🏖️🔒 V740 — কারণটা **পড়ার মতো ইংরেজিতে**। ⛔ "Need" লাইনটা
                            কেউ মেশিনে পড়ে না (যাচাই করা — ওয়েব শুধু Staff · Leave date ·
                            Branch · Reason পড়ে), তাই এটা বদলানো নিরাপদ, আর এতে

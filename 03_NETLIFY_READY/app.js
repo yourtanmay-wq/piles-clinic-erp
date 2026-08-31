@@ -2513,7 +2513,7 @@ function page(title,body,hideSearch){if(!isFollowupTitle(title)){resetFollowDate
        ⛔ তারিখ বাছার কাজ/মান এক অক্ষরও বদলায়নি — শুধু কীভাবে দেখা যাচ্ছে। */
     let __payBrPick=isMaster()?`<div id="payBranchWrap" class="wlv1HdrPick">${wlv1BranchSelectHtml('paymentHome()',{cls:'wlv1PayBranch'})}</div>`:'';
     let __payD=esc(wlv1PayDate||today());
-    __topExtra=`<div class="wlv1TopPayBar">${__payBrPick}${__payNav}<div class="wlv1DateBox wlv1TopDateBox"><span id="wlv1PayDateShow">${esc(String(wlv1Dot(__payD)).replace(/\./g,'/'))}</span><input type="date" max="${today()}" value="${__payD}" onchange="wlv1PayDate=this.value;paymentHome()"></div></div>`;
+    __topExtra=`<div class="wlv1TopPayBar">${__payBrPick}${__payNav}<div class="wlv1DateBox wlv1TopDateBox"><span id="wlv1PayDateShow">${esc(wlv1Dot(__payD))}</span><input type="date" max="${today()}" value="${__payD}" onchange="wlv1PayDate=this.value;paymentHome()"></div></div>`;
   }
   let __titleCls=(title==='Medicine Payment')?' wlv1HideDesk':'';
   app().innerHTML=`<div class="wrap ${esc(user?.role||'')}"><div class="topbar"><button class="ghost" onclick="goBackOnePage()">←</button><b class="${__titleCls}">${title}</b>${__topExtra}<button class="ghost" onclick="menu()">☰</button></div><div class="page">${__searchBar}${body}</div>${bottomNav()}</div>`;try{wlv1EnsureDesktopChrome(title)}catch(e){}try{wlv1HeaderPick()}catch(e){}try{wlv1AutoDateBoxes(document)}catch(e){}/* ⌨️ V757 — পর্দার ঘরগুলোতেও ব্রাউজারের সাজেশন বন্ধ (পাসওয়ার্ড ও লগইনের ঘর বাদ)। */try{wlv1NoSuggest(document)}catch(e){}}
@@ -5405,6 +5405,24 @@ window["handlePatientPhotoTap"]=handlePatientPhotoTap;
    must have the same). All names start with wlv1 so nothing existing clashes. */
 function wlv1Dot(iso){ if(!iso) return ''; const p=String(iso).split('-'); return p.length===3?(p[2]+'.'+p[1]+'.'+p[0]):String(iso); }
 window["wlv1Dot"]=wlv1Dot;
+/* 🔴🔒 V936 (৩১.০৮.২০২৬, TK-নির্দেশ: *"সম্পূর্ণ প্রজেক্টে তারিখ একই ফরমেটে থাকতে
+   হবে … ঝুঁকিহীন ভাবে"*) — কিছু নোটিশের ভিতরের তারিখ **মেশিনও পড়ে** (Reopen ও
+   ছুটির Approve বোতাম ওই লাইনটা পড়েই বোঝে কোন দিনের কাজ)। তাই দেখার লেখাটা
+   `31.08.2026` করার আগে এই ফাংশনটা বসানো হলো — বিন্দু · স্ল্যাশ · হাইফেন ·
+   পুরনো কাঁচা ISO, সব ধাঁচ থেকেই আসল `yyyy-MM-dd` ফিরিয়ে দেয়।
+   ⇒ **পুরনো অপেক্ষমাণ অনুরোধেও Approve আগের মতোই কাজ করে।**
+   ⛔ চেনা না গেলে যা এসেছে তাই ফেরে — কখনো ফাঁকা বা ভুল তারিখ নয়।
+   ⚠️ ফোনের `DateUtil.iso()`-এর হুবহু যমজ। */
+function wlv1IsoDate(raw){
+  var t=String(raw==null?'':raw).trim();
+  if(!t) return '';
+  if(t.length>=10 && t[4]==='-' && t[7]==='-') return t.slice(0,10);
+  var m=/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})/.exec(t);
+  if(!m) return t;
+  var d=('0'+m[1]).slice(-2), mo=('0'+m[2]).slice(-2);
+  return m[3]+'-'+mo+'-'+d;
+}
+window["wlv1IsoDate"]=wlv1IsoDate;
 function wlv1ShowDate(inputId,showId){ const i=$('#'+inputId), s=$('#'+showId); if(i&&s) s.textContent = i.value? wlv1Dot(i.value) : (showId==='eNextShow'?'Tap to select (optional)':''); }
 window["wlv1ShowDate"]=wlv1ShowDate;
 /* 🔴🔴🔴🆕🔒 V436 (TK-রিপোর্ট ১৮.০৮.২০২৬ — *"ওয়েব এ Date Format ঠিক নেই কেন?
@@ -19568,8 +19586,12 @@ async function wlv1RequestReopenChamber(){
     const rid = 'reopen_'+String(br).trim().toUpperCase().replace(/[^A-Z0-9]/g,'')+'_'+date;
     const req = {id:'brief_'+rid, date:today(), title:'Reopen request — '+br,
       message:'Chamber reopen requested for '+br+
-        '\nBranch : '+br+'\nDate : '+date+
+        /* 🔴🔒 V936 — আগে কাঁচা `2026-08-31` লেখা হত; নিচের Approve এখন
+           `wlv1IsoDate()` দিয়ে ফিরিয়ে পড়ে, তাই লেখাটা মানুষের ধাঁচে করা গেল।
+           TK: *"তারিখের পাশে সময় থাকা জরুরী"* ⇒ অনুরোধ কখন এলো সেটাও বসল। */
+        '\nBranch : '+br+'\nDate : '+wlv1Dot(date)+
         '\nRequested by : '+((typeof codeName==='function'?codeName(user&&user.mobile):'')||(user&&user.mobile)||'')+
+        '\nRequested at : '+wlv1Dot(today())+' '+(typeof wlv1Time12==='function'?wlv1Time12(new Date().toISOString()):'')+
         '\nApprove/Reject from the bell.',
       targets:{roles:['master']}, branch:br, seen:[], replies:[],
       createdBy:(user&&user.mobile)||'', createdAt:new Date().toISOString(), updatedAt:new Date().toISOString()};
@@ -21303,7 +21325,7 @@ async function wlv1ResolveRefundNotice(id,approve){if(!isMaster())return toast('
 function wlv1ApproveRefundNotice(id){return wlv1ResolveRefundNotice(id,true);}
 function wlv1RejectRefundNotice(id){return wlv1ResolveRefundNotice(id,false);}
 window["wlv1ApproveRefundNotice"]=wlv1ApproveRefundNotice;window["wlv1RejectRefundNotice"]=wlv1RejectRefundNotice;
-async function wlv1ApproveReopenNotice(id){if(!isMaster())return toast('Only Master Admin');var b=briefings().find(function(x){return x.id===id;});if(!b)return toast('Notice not found');var branch=wlv1NoticeField(b.message,'Branch');var date=wlv1NoticeField(b.message,'Date');if(!branch||!date)return toast('এই অনুরোধ থেকে Branch/Date চেনা গেল না');var closeId=String(branch).trim().toUpperCase()+'|'+String(date).trim();try{var gone=true;if(typeof sb!=='undefined'&&sb){gone=await wlv1CloudDeleteRow('chamber_close',closeId);}if(!gone)return toast('Cloud-এ reopen করা গেল না — আবার চেষ্টা করুন');try{save('chamber_close',(load('chamber_close')||[]).filter(function(r){return r&&String(r.id)!==closeId;}),{skipCloud:true,skipBackup:true});}catch(_e){}wlv1CloseNotice(id,'✅ Reopened by '+(codeName(user.mobile)||user.mobile));toast('Reopened ✓ — '+branch+' · '+date);briefingHome();}catch(e){toast('Reopen করা গেল না — আবার চেষ্টা করুন');}}
+async function wlv1ApproveReopenNotice(id){if(!isMaster())return toast('Only Master Admin');var b=briefings().find(function(x){return x.id===id;});if(!b)return toast('Notice not found');var branch=wlv1NoticeField(b.message,'Branch');var date=wlv1IsoDate(wlv1NoticeField(b.message,'Date'));if(!branch||!date)return toast('এই অনুরোধ থেকে Branch/Date চেনা গেল না');var closeId=String(branch).trim().toUpperCase()+'|'+String(date).trim();try{var gone=true;if(typeof sb!=='undefined'&&sb){gone=await wlv1CloudDeleteRow('chamber_close',closeId);}if(!gone)return toast('Cloud-এ reopen করা গেল না — আবার চেষ্টা করুন');try{save('chamber_close',(load('chamber_close')||[]).filter(function(r){return r&&String(r.id)!==closeId;}),{skipCloud:true,skipBackup:true});}catch(_e){}wlv1CloseNotice(id,'✅ Reopened by '+(codeName(user.mobile)||user.mobile));toast('Reopened ✓ — '+branch+' · '+wlv1Dot(date));briefingHome();}catch(e){toast('Reopen করা গেল না — আবার চেষ্টা করুন');}}
 function wlv1RejectReopenNotice(id){if(!isMaster())return toast('Only Master Admin');wlv1CloseNotice(id,'❌ Reopen Rejected by '+(codeName(user.mobile)||user.mobile));toast('Reopen Rejected');briefingHome();}
 window["wlv1ApproveReopenNotice"]=wlv1ApproveReopenNotice;window["wlv1RejectReopenNotice"]=wlv1RejectReopenNotice;
 /* Delete-অনুমোদন: ওয়েবের নিজস্ব delete-রেসিপির হুবহু (trash upsert → wlv1CloudDeleteRow → local remove →
@@ -21323,7 +21345,7 @@ async function wlv1ResolveLeaveNotice(id,approve){
   if(!b)return toast('Notice not found');
   if(!wlv1CanApproveLeave(b))return toast('Only Master or Branch Doctor');
   var staff=wlv1NoticeField(b.message,'Staff');
-  var date=wlv1NoticeField(b.message,'Leave date');
+  var date=wlv1IsoDate(wlv1NoticeField(b.message,'Leave date'));   /* 🔴🔒 V936 — বিন্দু-ধাঁচও বোঝে */
   var branch=wlv1NoticeField(b.message,'Branch');
   var reason=wlv1NoticeField(b.message,'Reason');
   if(!staff||!date)return toast('এই অনুরোধ থেকে Staff/তারিখ চেনা গেল না');
@@ -21343,7 +21365,7 @@ async function wlv1ResolveLeaveNotice(id,approve){
         await c.schema('wn').from('notebook_days').upsert({staff_code:staff,staff_mobile:smob,work_date:date,is_leave:true,leave_reason:reason||'',updated_at:now},{onConflict:'staff_code,work_date'});
       }catch(_e){}
       try{
-        var row={id:'brief_'+MOD.uuid().replace(/-/g,''),date:MOD.todayIST(),title:'Staff Leave',message:'Staff : '+staff+'\nBranch : '+branch+'\nLeave : '+date+'\nReason : '+(reason||''),targets:{branches:[branch]},seen:[],replies:[],hiddenFor:[],branch:branch,createdBy:byMob,createdAt:now,updatedAt:now};
+        var row={id:'brief_'+MOD.uuid().replace(/-/g,''),date:MOD.todayIST(),title:'Staff Leave',message:'Staff : '+staff+'\nBranch : '+branch+'\nLeave : '+wlv1Dot(date)+'\nReason : '+(reason||''),targets:{branches:[branch]},seen:[],replies:[],hiddenFor:[],branch:branch,createdBy:byMob,createdAt:now,updatedAt:now};
         await cloudUpsertBriefing(row);
       }catch(_e){}
     }

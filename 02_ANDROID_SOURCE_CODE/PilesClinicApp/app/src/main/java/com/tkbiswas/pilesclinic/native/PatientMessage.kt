@@ -57,9 +57,10 @@ object PatientMessage {
           তাই শুধু **রোগীর বার্তায়** এই ধরন — অ্যাপের বাকি কিছুই বদলানো হয়নি।
        ═══════════════════════════════════════════════════════════════════ */
 
-    /** `31/12/2026` — শুধু রোগীর বার্তার জন্য (TK-এর বাছাই)। */
+    /** `31.12.2026` — 🔴🔒 V936 (TK-নির্দেশ ৩১.০৮.২০২৬: *"সম্পূর্ণ প্রজেক্টে
+     *  তারিখ একই ফরমেটে থাকতে হবে"*)। আগে স্ল্যাশ ছিল। */
     private fun tkDate(d: java.util.Date): String {
-        val sdf = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.US)
+        val sdf = java.text.SimpleDateFormat("dd.MM.yyyy", java.util.Locale.US)
         sdf.timeZone = java.util.TimeZone.getDefault()
         return sdf.format(d)
     }

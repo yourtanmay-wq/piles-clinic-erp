@@ -64,8 +64,9 @@ class PatientTimelineActivity : AppCompatActivity() {
     private var currentPatientPhoto: String = ""
     /** 🔴 V505 — `2026-08-21` → `21/08/2026` (TK-এর বাছাই করা ধরন)।
      *  পড়া না গেলে যা আছে তাই ফেরে — কখনো আন্দাজে কিছু বসে না। */
+    // 🔴🔒 V936 (TK-নির্দেশ — এক ফরম্যাট): স্ল্যাশ ছিল, এখন প্রজেক্টের বিন্দু।
     private fun tkSlashDate(raw: String): String = try {
-        if (raw.isBlank()) "" else java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.US)
+        if (raw.isBlank()) "" else java.text.SimpleDateFormat("dd.MM.yyyy", java.util.Locale.US)
             .format(java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(raw.take(10))!!)
     } catch (_: Throwable) { raw }
 

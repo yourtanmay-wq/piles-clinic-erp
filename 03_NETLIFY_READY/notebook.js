@@ -610,11 +610,11 @@
         await client.schema('wn').from('notebook_days').upsert(nd, { onConflict: 'staff_code,work_date' });
       } catch (e) {}
       if (date === m.todayIST() && window._nbDay) { window._nbDay.is_leave = true; window._nbDay.leave_reason = reason; }
-      nbPostBriefing('Staff Leave', '👤 Staff : ' + (code || mobile) + '\n🏥 Branch : ' + branch + '\n🏖️ Leave : ' + date + '\nReason : ' + reason, { branches: [branch] }, branch, mobile);
+      nbPostBriefing('Staff Leave', '👤 Staff : ' + (code || mobile) + '\n🏥 Branch : ' + branch + '\n🏖️ Leave : ' + (window.wlv1Dot ? window.wlv1Dot(date) : date) + '\nReason : ' + reason   /* 🔴🔒 V936 — এক ফরম্যাট */, { branches: [branch] }, branch, mobile);
       try { m.whatsapp('🏖️ Leave\nStaff: ' + code + '\nBranch: ' + branch + '\nDate: ' + date + '\nReason: ' + reason); } catch (e) {}
     } else {
       // ⚠️ ওয়েব approval bell (wlv1NoticeField) ছোট-হাতের "key :" খোঁজে — তাই emoji ছাড়া পরিষ্কার লাইন রাখি।
-      nbPostBriefing('Leave request', 'Staff : ' + (code || mobile) + '\nBranch : ' + branch + '\nLeave date : ' + date + '\nReason : ' + reason + '\nNeed : ' + needReason, { branches: [branch], roles: ['master'] }, branch, mobile);
+      nbPostBriefing('Leave request', 'Staff : ' + (code || mobile) + '\nBranch : ' + branch + '\nLeave date : ' + (window.wlv1Dot ? window.wlv1Dot(date) : date) + '\nReason : '   /* 🔴🔒 V936 — Approve `wlv1IsoDate()` দিয়ে ফিরিয়ে পড়ে */ + reason + '\nNeed : ' + needReason, { branches: [branch], roles: ['master'] }, branch, mobile);
       nbAddPendingLeave(date);
       try { toast('ছুটির অনুরোধ পাঠানো হয়েছে — Pending'); } catch (e) {}
     }

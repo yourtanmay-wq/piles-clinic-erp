@@ -63,7 +63,8 @@ object CheckupA4Report {
     )
 
     fun today(): String {
-        val f = java.text.SimpleDateFormat("dd-MM-yyyy", java.util.Locale.US)
+        // 🔴🔒 V936 (TK-নির্দেশ — এক ফরম্যাট): হাইফেন ছিল, এখন প্রজেক্টের বিন্দু।
+        val f = java.text.SimpleDateFormat("dd.MM.yyyy", java.util.Locale.US)
         f.timeZone = java.util.TimeZone.getTimeZone("Asia/Kolkata")
         return f.format(java.util.Date())
     }

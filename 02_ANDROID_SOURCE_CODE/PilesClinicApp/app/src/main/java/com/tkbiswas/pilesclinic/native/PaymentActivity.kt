@@ -293,7 +293,9 @@ class PaymentActivity : AppCompatActivity() {
         fun refreshDateText() {
             // 🔒 B576 (TK-নির্দেশ): তারিখ 08/08/2026 রূপে (স্ল্যাশ), ▾ তীর ছাড়া।
             // DateUtil.display দেয় dd.MM.yyyy — শুধু ডট→স্ল্যাশ, অন্য পর্দা অপরিবর্তিত।
-            binding.tvDatePick.text = DateUtil.display(selectedCollectionDate).replace('.', '/')
+            // 🔴🔒 V936 (TK-নির্দেশ — এক ফরম্যাট): এখানে বিন্দুকে স্ল্যাশ করা হত,
+            // তাই একই অ্যাপে দুই রকম তারিখ দেখাত। এখন প্রজেক্টের এক ফরম্যাটই।
+            binding.tvDatePick.text = DateUtil.display(selectedCollectionDate)
             val isToday = selectedCollectionDate == PaymentModel.today()
             // 🔵 B611 (10.08.2026, TK-অনুমোদিত ফুল-স্ক্রিন প্রুফ): তারিখ উপরে
             // ব্যাজেই একবার আছে — তাই summary কার্ডের "COLLECTION SUMMARY · তারিখ"

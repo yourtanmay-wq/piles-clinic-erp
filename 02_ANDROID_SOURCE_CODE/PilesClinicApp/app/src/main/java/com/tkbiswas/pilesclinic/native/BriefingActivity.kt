@@ -1419,7 +1419,8 @@ class BriefingActivity : AppCompatActivity() {
                         text = com.tkbiswas.pilesclinic.modules.IeRequests.describe(
                             req,
                             { n -> "₹" + "%,.0f".format(n) },
-                            { iso -> try { val p = iso.split("-"); if (p.size == 3) "${p[2]}/${p[1]}/${p[0]}" else iso } catch (_: Exception) { iso } }
+                            // 🔴🔒 V936 (TK-নির্দেশ — এক ফরম্যাট): স্ল্যাশ ছিল, এখন বিন্দু।
+                            { iso -> com.tkbiswas.pilesclinic.native.DateUtil.display(iso) }
                         )
                         textSize = 13f
                         setTextColor(android.graphics.Color.parseColor("#10223A"))

@@ -1195,7 +1195,8 @@ class StaffProfileActivity : AppCompatActivity() {
     private fun dmy(iso: String): String {
         val t = iso.trim()
         val m = Regex("^(\\d{4})-(\\d{2})-(\\d{2})").find(t) ?: return t
-        return m.groupValues[3] + "/" + m.groupValues[2] + "/" + m.groupValues[1]
+        // 🔴🔒 V936 (TK-নির্দেশ — এক ফরম্যাট): স্ল্যাশ ছিল, এখন প্রজেক্টের বিন্দু।
+        return m.groupValues[3] + "." + m.groupValues[2] + "." + m.groupValues[1]
     }
 
     /** একটা সারি এখনো "বাকি" না "দেওয়া হয়েছে"। পুরনো সারিতে ঘরটা নেই ⇒ দেওয়া হয়েছে। */

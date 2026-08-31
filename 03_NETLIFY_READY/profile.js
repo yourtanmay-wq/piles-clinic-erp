@@ -729,7 +729,7 @@
   window["salExtraWhy"]=salExtraWhy;
 
   function salIsExtra(p){ return salKind(p) === 'EXTRA'; }
-  /* 2026-12-31 → 31/12/2026 (TK-নির্দেশ)। ডেটাবেসে তারিখ আগের মতোই থাকে। */
+  /* 🔴🔒 V936 (TK ৩১.০৮.২০২৬ — সম্পূর্ণ প্রজেক্টে এক ফরম্যাট): 2026-12-31 → 31.12.2026। ডেটাবেসে তারিখ আগের মতোই থাকে। */
 
   /* 🔵🔒 V532 (২২.০৮.২০২৬, TK-নির্দেশ) — **ভাগের হিসাবটা এখন সত্যি।**
      এতদিন সবসময় লেখা থাকত "Shared 50-50", কিন্তু ডেটাবেসের আসল নিয়ম
@@ -755,7 +755,7 @@
   function salDmy(v){
     var t = String(v || '').trim();
     var mm = /^(\d{4})-(\d{2})-(\d{2})/.exec(t);
-    return mm ? (mm[3] + '/' + mm[2] + '/' + mm[1]) : t;
+    return mm ? (mm[3] + '.' + mm[2] + '.' + mm[1]) : t;   /* 🔴🔒 V936 — এক ফরম্যাট */
   }
   /* 🔵 V417: Payment History খোলা/গোটানো — ক্লাউড থেকে নতুন কিছু আনা হয় না। */
   function profTogglePayHistory() {
@@ -1152,7 +1152,7 @@
   function perfLabel(k){
     try {
       var p = String(k).split('-');
-      if (perfIsDay(k)) return p[2] + '/' + p[1] + '/' + p[0];
+      if (perfIsDay(k)) return p[2] + '.' + p[1] + '.' + p[0];   /* 🔴🔒 V936 — এক ফরম্যাট */
       return PERF_NAMES[Number(p[1]) - 1] + ' ' + p[0];
     } catch (e) { return k; }
   }

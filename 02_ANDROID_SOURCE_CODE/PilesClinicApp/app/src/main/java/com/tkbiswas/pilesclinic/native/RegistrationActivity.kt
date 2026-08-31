@@ -1363,7 +1363,7 @@ class RegistrationActivity : AppCompatActivity() {
                        ⛔ A4 কাগজে আগের জোড়া-লাগানো লেখাটাই যায় (`a4DateTime`) —
                           ছাপা এক অক্ষরও বদলায়নি। */
                     val a4DateOnly = try {
-                        java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.US)
+                        java.text.SimpleDateFormat("dd.MM.yyyy", java.util.Locale.US)   // 🔴🔒 V936 — এক ফরম্যাট
                             .format(java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(draft.date)!!)
                     } catch (_: Throwable) { draft.date }
                     // এই মুহূর্তটাই রেজিস্ট্রেশনের আসল সময় (এখনই সেভ হচ্ছে)।

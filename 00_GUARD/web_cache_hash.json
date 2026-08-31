@@ -8,24 +8,24 @@
     "sha": "55264bd05328d116879b0b22d202bfe154720c65aeb5b91fc0cdfc0f067b907e"
   },
   "app.js": {
-    "v": "v935",
-    "sha": "3e892752f124479479f8f9740d79e695c39d0dc84fbd79288fb811addd62b0e2"
+    "v": "v936",
+    "sha": "366d5f540042e9024c1bbde9d2d3b96070261320fd61913a73ff0e36bd6e91ca"
   },
   "module_core.js": {
     "v": "v913",
     "sha": "1a1cca88a368cfd695e22f5e847c133d0fc6162289011c5cb5dc5bd910625dda"
   },
   "profile.js": {
-    "v": "v923",
-    "sha": "49905291818096aa270b43e81a0273df105cd2db59b5259c5c64d974daafa553"
+    "v": "v936",
+    "sha": "839914059bf6059a04444b45dc3388bd543cc2bf7624f75025f017b9b2bfaf5d"
   },
   "notebook.js": {
-    "v": "v690",
-    "sha": "f781b690b233a74e14ada3eb72ed349bacef3e96dd5e3946965aab236d094aed"
+    "v": "v936",
+    "sha": "cacc7e1774e984ba0b0f63d4e933a1776e96e35b7320c60dc04139eb83490f04"
   },
   "finance.js": {
-    "v": "v928",
-    "sha": "9a29d4f2685268f90d031df91aa6c14902282c53bf5bba3fbb135a30a3623994"
+    "v": "v936",
+    "sha": "bf64c174fc73a8ca1af6e12d9579568508aba8c424479c3f59c09b4a76b431ad"
   },
   "partners.js": {
     "v": "v466",
