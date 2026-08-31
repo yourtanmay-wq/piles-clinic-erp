@@ -397,7 +397,33 @@ class WorkNotebookActivity : AppCompatActivity() {
             com.tkbiswas.pilesclinic.native.BranchSimHelper.hasChamberAnswer(this)
         if (!resolved) { maybeAskWhichSimIsBranch(); return }
         val n = countTodayIncomingCalls()
-        if (n > 0 && field.text.toString().trim().let { it.isBlank() || it == "0" }) field.setText(n.toString())
+        if (n > 0 && field.text.toString().trim().let { it.isBlank() || it == "0" }) {
+            field.setText(n.toString())
+            pushOutsideCallsSilently(n)
+        }
+    }
+
+    /* 🔴🔒 V909 (৩১.০৮.২০২৬, TK-নির্দেশ: *"আসা কলও চেম্বারের ফোন থেকেই গুনবেন,
+       … ওই নম্বর দিয়ে যে ফোনেই লগ ইন করবে একই রকম দেখাতে হবে"*)
+
+       আগে ক্লিনিকের নম্বরে আসা কলের গোনাটা ক্লাউডে যেত **শুধু স্টাফ সেভ/OUT
+       TIME চাপার পরে**। তার আগে পর্যন্ত অন্য ফোনে ওই ঘর ফাঁকা/০ থাকত — তাই
+       একই আইডিতে দুই ফোনে দুই রকম দেখাত।
+       এখন চেম্বারের ফোন সংখ্যাটা বার করার **সঙ্গে সঙ্গেই** ক্লাউডে বসিয়ে দেয়,
+       তাই যে ফোনেই ওই আইডিতে খোলা হোক, একই সংখ্যা।
+       ⛔ সংখ্যা কখনো কমে না — জমা সংখ্যার চেয়ে বড় হলে তবেই লেখা হয়।
+       ⛔ চুপচাপ — ব্যর্থ হলে কোনো সতর্কবার্তা দেখায় না (স্টাফ কিছু চাপেননি);
+          সেভ/OUT TIME-এর নিজের পথ ও তার বার্তা এক অক্ষরও বদলায়নি। */
+    private fun pushOutsideCallsSilently(n: Int) {
+        try {
+            if (!day.has("work_date")) return
+            if (day.optInt("outside_calls_manual", 0) >= n) return
+            day.put("outside_calls_manual", n)
+            day.put("updated_at", nowIso())
+            val snapshot = try { JSONObject(day.toString()) } catch (_: Throwable) { return }
+            try { saveDayCache() } catch (_: Throwable) { }
+            Thread { try { robustSaveNotebookDay(snapshot) } catch (_: Throwable) { } }.start()
+        } catch (_: Throwable) { }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
