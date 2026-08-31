@@ -617,6 +617,11 @@ class AnatomyView(context: Context) : View(context) {
                 }
                 MotionEvent.ACTION_UP -> {
                     if (!ksMoved) {
+                        /* 🔵🔒 V898 — **লুকানো অবস্থায় এক টোকা মানে সবসময় বোতাম
+                           ফিরে আসা**। (নইলে ইনজেকশন/সুতোর ধাপে টোকাটা "এইখানে
+                           করুন" হিসেবে ধরা হতো, আর বোতাম আর ফিরত না — নিজের
+                           যাচাইয়ে ধরা পড়েছে।) */
+                        if (ksDrawAllowed) { onKsBlankTap?.invoke(); return true }
                         val p = toPercent(event.x, event.y)
                         if (p != null) {
                             /* 🟢 V589 — ইনজেকশনের ধাপে বা সুতোর ধাপে ছোঁয়া মানে
