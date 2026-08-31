@@ -26,6 +26,12 @@ import java.util.TimeZone
 
 class IncomeExpenseActivity : AppCompatActivity() {
 
+    /* 🟢🔒 V929 — TK: *"01/09/2026 থেকে এই নীয়ম করুন"*। এই তারিখের আগের কোনো
+       দিনে অটো-আয় কখনো বসবে না। এক জায়গায় লেখা, যাতে পরে সরাতে বা বদলাতে
+       একটাই লাইন লাগে। */
+    private val AUTO_INCOME_FROM = "2026-09-01"
+
+
     // 🔴 বাগ-ফিক্স (02.08.2026, TK-রিপোর্ট): এই পর্দাগুলো একই Activity-র ভিতরে
     // setContentView বদলে বদলে দেখানো হয় (আলাদা Activity/Fragment নয়), তাই ফোনের
     // সিস্টেম Back বোতাম আগে সরাসরি পুরো Activity বন্ধ করে দিত (হোমে চলে যেত),
@@ -302,6 +308,62 @@ class IncomeExpenseActivity : AppCompatActivity() {
         reload()
     }
 
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       🟢🔒 V929 (৩১.০৮.২০২৬, TK-নির্দেশ: *"হ্যাঁ, অ্যান্ড্রয়েডেও অটো ইনকাম
+       বসিয়ে দিন"*) — **টাকার হিসাবের আয় নিজে থেকে বসবে।**
+       ওয়েবে এটা V927-এ বসেছে; এটা তারই হুবহু যমজ (নিয়ম ৬.৬)।
+
+       ⛔⛔ **ডেটাবেসে একটা অক্ষরও লেখা হয় না** — শুধু গুনে দেখানো। তাই TK-এর
+          পছন্দ না হলে এই অংশটুকু সরালেই আগের অবস্থা হুবহু ফিরে আসে।
+       ⛔ **০১/০৯/২০২৬-এর আগের কোনো দিন কখনো ছোঁয়া হয় না** (TK: *"পুরানো দিনে
+          অনেক ডেমো করা হয়েছিল… সেটা তো আর আমাদের ইনকাম না"*)।
+       ⛔ যে দিনে **হাতে লেখা `collections` সারি আছে**, সেখানে চলে না —
+          মানুষের লেখাই সবসময় জেতে।
+       ⛔ গোনার নিয়ম নতুন নয় — Payment পর্দার প্রমাণিত
+          `PaymentRepository.fetchCollectionRange()`; refund-এর নিয়ম, ব্রাঞ্চ-
+          ছাঁকনি, cashAmount/onlineAmount — সবই ওর ভিতরেই আগে থেকে আছে।
+       ⛔ পড়া ব্যর্থ হলে (null) কিচ্ছু বসে না — ভুল/অসম্পূর্ণ সংখ্যা কখনো নয়।
+       ⚠️ ক্লাউড ছোঁয় — শুধু background thread থেকে ডাকা হয়।
+       ═══════════════════════════════════════════════════════════════════════ */
+    private fun autoIncomeByDate(ym: String, branchSel: String): Map<String, Pair<Double, Double>> {
+        val out = HashMap<String, Pair<Double, Double>>()
+        try {
+            val start = "$ym-01"
+            if (start < AUTO_INCOME_FROM) {
+                // মাসটা পুরোপুরি নিয়মের আগে হলে একটাও অনুরোধ পাঠানোর দরকার নেই
+                if (ym < AUTO_INCOME_FROM.substring(0, 7)) return out
+            }
+            val y = ym.substring(0, 4).toInt(); val m = ym.substring(5, 7).toInt()
+            val cal = java.util.Calendar.getInstance()
+            cal.set(y, m - 1, 1)
+            val last = cal.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)
+            val from = if (start < AUTO_INCOME_FROM) AUTO_INCOME_FROM else start
+            val to = String.format(Locale.US, "%04d-%02d-%02d", y, m, last)
+            if (from > to) return out
+            val br = if (branchSel == "All Branches") "All" else branchSel
+            /* ⛔ Context ছাড়াই — `fetchCollectionRange()` নিজে Context ব্যবহার
+               করে না; Context শুধু `fillPatientIds()`-এ রোগীর ID/রোগ/ঠিকানা
+               **দেখানোর** জন্য লাগে, আর সেটা এখানে দরকারই নেই (আমরা শুধু
+               টাকার অঙ্ক গুনছি)। Context না দিলে ওই ধাপটা সারিগুলো অবিকৃত
+               ফেরত দেয় — টাকার এক পয়সাও বদলায় না। */
+            val rows = com.tkbiswas.pilesclinic.native.PaymentRepository()
+                .fetchCollectionRange(br, from, to) ?: return out
+            for (row in rows) {
+                val d = row.date.take(10)
+                if (d.length != 10 || d < AUTO_INCOME_FROM) continue
+                val cur = out[d] ?: Pair(0.0, 0.0)
+                out[d] = Pair(cur.first + row.cashAmount, cur.second + row.onlineAmount)
+            }
+            // ঋণাত্মক (বেশি refund) হলে ০ ধরা হয় — ওয়েবের হুবহু একই নিয়ম
+            for (k in out.keys.toList()) {
+                val v = out[k] ?: continue
+                out[k] = Pair(if (v.first > 0) v.first else 0.0, if (v.second > 0) v.second else 0.0)
+            }
+        } catch (_: Throwable) { }
+        return out
+    }
+
     private fun loadSheet(ym: String, branchSel: String, out: LinearLayout) {
         // 🔒🔒 B602 (10.08.2026, TK-নির্দেশ "cache-first, খুব সাবধানে"): এই ফোনে জমানো
         // শেষ সফল খাতা থাকলে সাথে সাথে দেখানো হয় (Loading... এর বদলে), তারপর ক্লাউড
@@ -426,7 +488,39 @@ class IncomeExpenseActivity : AppCompatActivity() {
                 if (ym == todayNow.substring(0, 7) && !seenDates.contains(todayNow)) {
                     mergedRows.put(org.json.JSONObject()
                         .put("entry_date", todayNow).put("branch", branchSel).put("cash", 0.0).put("online", 0.0))
+                    seenDates.add(todayNow)
                 }
+                /* 🟢🔒 V929 — অটো-আয় বসানো (ওয়েবের V927-এর হুবহু যমজ)।
+                   ⛔ যে দিনে ক্লাউডে সত্যিকারের `collections` সারি আছে সেটা কখনো
+                      ছোঁয়া হয় না — শুধু খরচ-only সারি · আজকের খালি সারি · আর
+                      যে দিনের কোনো সারিই নেই, সেগুলোতেই বসে। */
+                try {
+                    val auto = autoIncomeByDate(ym, branchSel)
+                    if (auto.isNotEmpty()) {
+                        val realDates = HashSet<String>()
+                        for (i in 0 until r.rows.length()) {
+                            val d0 = r.rows.getJSONObject(i).optString("entry_date", "")
+                            if (d0.isNotBlank()) realDates.add(d0)
+                        }
+                        for (i in 0 until mergedRows.length()) {
+                            val row0 = mergedRows.getJSONObject(i)
+                            val d0 = row0.optString("entry_date", "")
+                            if (d0.isBlank() || realDates.contains(d0)) continue
+                            val v = auto[d0] ?: continue
+                            if (row0.optDouble("cash", 0.0) != 0.0 || row0.optDouble("online", 0.0) != 0.0) continue
+                            row0.put("cash", v.first).put("online", v.second).put("_v929Auto", true)
+                            row0.remove("_v399ExpenseOnly")   // এখন আয়ও আছে, তাই আর "শুধু খরচ" নয়
+                        }
+                        for ((d0, v) in auto) {
+                            if (seenDates.contains(d0)) continue
+                            if (v.first <= 0.0 && v.second <= 0.0) continue
+                            mergedRows.put(org.json.JSONObject()
+                                .put("entry_date", d0).put("branch", branchSel)
+                                .put("cash", v.first).put("online", v.second).put("_v929Auto", true))
+                            seenDates.add(d0)
+                        }
+                    }
+                } catch (_: Throwable) { }
             }
             /* তারিখ অনুসারে সাজানো (ক্লাউড থেকে collections আগেই সাজানো আসে; নতুন
                যোগ হওয়া খরচ-দিনগুলোও যেন সঠিক জায়গায় বসে)। */
@@ -553,7 +647,14 @@ class IncomeExpenseActivity : AppCompatActivity() {
             val dotted = try {
                 val p = r.optString("entry_date").split("-"); p[2] + "/" + p[1] + "/" + p[0]
             } catch (e: Exception) { r.optString("entry_date") }
-            dateColPx = maxOf(dateColPx, measure.measureText(dotted))
+            /* 🔴🔒 V929 — মাস্টারের পর্দায় তারিখের পাশে ট্যাগ বসে, তাই কলামের
+               প্রস্থ মাপার সময়ও সেটাই মাপতে হবে — নইলে লেখাটা কেটে যেত। */
+            val dottedM = if (ModuleAuth.isMaster && r.optString("entry_date") >= AUTO_INCOME_FROM) {
+                if (r.optBoolean("_v929Auto", false)) "$dotted  AUTO"
+                else if (r.optString("id", "").isNotBlank()) "$dotted  ✎"
+                else dotted
+            } else dotted
+            dateColPx = maxOf(dateColPx, measure.measureText(dottedM))
             amtColPx = maxOf(amtColPx, measure.measureText(money(r.optDouble("cash", 0.0)).removePrefix("₹")),
                 measure.measureText(money(r.optDouble("online", 0.0)).removePrefix("₹")))
         }
@@ -655,7 +756,15 @@ class IncomeExpenseActivity : AppCompatActivity() {
                     } else onlineCell.postDelayed(resetOnlineTaps, 1200)
                 }
             }
-            row.addView(boxCell(dotted, dateColWidth, bg, "#41506A", true))
+            /* 🟢🔒 V929 — TK: *"অটো না হাতে ঠিক করা এটা মাস্টার ছাড়া কেউ দেখতে
+               পাবে না"*। তাই ট্যাগটা শুধু মাস্টারের পর্দায়; স্টাফ/ডাক্তার
+               শুধু সংখ্যাটাই দেখেন। ⛔ টাকার অঙ্কে কোনো হাত পড়ে না। */
+            val dottedShown = if (ModuleAuth.isMaster && d >= AUTO_INCOME_FROM) {
+                if (r.optBoolean("_v929Auto", false)) "$dotted  AUTO"
+                else if (r.optString("id", "").isNotBlank()) "$dotted  ✎"
+                else dotted
+            } else dotted
+            row.addView(boxCell(dottedShown, dateColWidth, bg, "#41506A", true))
             row.addView(cashCell)
             row.addView(onlineCell)
             // 🔵 খাতার সারি (TK-প্রুফ): খরচের ঘরে শুধু মোট টাকা (লাল)। সংখ্যায় চাপ দিলে
@@ -2906,9 +3015,14 @@ class IncomeExpenseActivity : AppCompatActivity() {
             }
             val coll = collR.rows
             val exp = expR.rows
+            /* 🟢🔒 V929 — Monthly Summary-তেও অটো-আয় (loadSheet-এর হুবহু নিয়ম)।
+               ⛔ background thread-এই আনা হয়, UI-তে নয়। পড়া ব্যর্থ হলে খালি
+                  মানচিত্র — তখন আগের মতোই কিছু বসে না। */
+            val autoMonthly: Map<String, Pair<Double, Double>> =
+                if (loadOk) (try { autoIncomeByDate(ym, branchSel) } catch (_: Throwable) { emptyMap() }) else emptyMap()
             runOnUiThread {
                 out.removeAllViews()
-                if (loadOk) buildMonthlyKhata(coll, exp, prevBal, prevOk, branchSel, out)
+                if (loadOk) buildMonthlyKhata(coll, exp, prevBal, prevOk, branchSel, out, autoMonthly)
                 else out.addView(ModuleUi.body(this, "⚠️ Could not load right now — weak internet. Your data is safe; open this again when online."))
             }
         }.start()
@@ -2917,7 +3031,22 @@ class IncomeExpenseActivity : AppCompatActivity() {
     // দিন-ধরে খাতা-টেবিল বানায় (buildSheetTable-এর হুবহু একই বক্স-স্টাইল ও কলাম-মাপ)।
     // প্রতিটি দিনের খরচ = ওই দিনের খাতার খরচ (expense_notes) + ওই দিনের Add-Expense
     // এন্ট্রিগুলোর যোগফল। খরচের ঘরে চাপ দিলে দুই উৎস মিলিয়ে ভাঙা-হিসাব দেখায়।
-    private fun buildMonthlyKhata(coll: JSONArray, exp: JSONArray, prevBalance: Double, prevOk: Boolean, branchSel: String, out: LinearLayout) {
+
+    /* 🟢🔒 V929 — তারিখের পাশে ট্যাগ, **শুধু মাস্টারের পর্দায়** (TK: *"অটো না
+       হাতে ঠিক করা এটা মাস্টার ছাড়া কেউ দেখতে পাবে না"*)। মাপা ও দেখানো —
+       দুই জায়গায় যেন হুবহু একই লেখা হয়, তাই একটাই ঘরে রাখা। */
+    private fun monthlyDateLabel(d: String, dotted: String, autoDays: Set<String>,
+                                 rowByDate: Map<String, JSONObject>): String {
+        if (!ModuleAuth.isMaster || d < AUTO_INCOME_FROM) return dotted
+        return when {
+            autoDays.contains(d) -> "$dotted  AUTO"
+            rowByDate.containsKey(d) -> "$dotted  ✎"
+            else -> dotted
+        }
+    }
+
+    private fun buildMonthlyKhata(coll: JSONArray, exp: JSONArray, prevBalance: Double, prevOk: Boolean, branchSel: String, out: LinearLayout,
+                                 autoIncome: Map<String, Pair<Double, Double>> = emptyMap()) {
         val dayCash = LinkedHashMap<String, Double>()
         val dayOnline = LinkedHashMap<String, Double>()
         val dayExp = LinkedHashMap<String, Double>()
@@ -2958,6 +3087,19 @@ class IncomeExpenseActivity : AppCompatActivity() {
             val label = if (pt.isNotBlank()) "$cat — $pt" else cat
             addSeg(d, "$label-${segAmt(a)}")
         }
+        /* 🟢🔒 V929 — অটো-আয় বসানো। ⛔ যে দিনে হাতে লেখা `collections` সারি আছে
+           (`rowByDate`) সেখানে কখনো নয় — মানুষের লেখাই জেতে। ⛔ ০১/০৯/২০২৬-এর
+           আগে কখনো নয় (`autoIncomeByDate` নিজেই আটকায়)। */
+        val autoDays = HashSet<String>()
+        for ((d, v) in autoIncome) {
+            if (d.isBlank() || rowByDate.containsKey(d)) continue
+            if ((dayCash[d] ?: 0.0) != 0.0 || (dayOnline[d] ?: 0.0) != 0.0) continue
+            if (v.first <= 0.0 && v.second <= 0.0) continue
+            dayCash[d] = v.first
+            dayOnline[d] = v.second
+            dates.add(d)
+            autoDays.add(d)
+        }
 
         val table = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -2975,7 +3117,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
         var amtColPx = maxOf(measure.measureText("Cash"), measure.measureText("Online"))
         for (d in dates) {
             val dotted = try { val p = d.split("-"); p[2] + "/" + p[1] + "/" + p[0] } catch (e: Exception) { d }
-            dateColPx = maxOf(dateColPx, measure.measureText(dotted))
+            dateColPx = maxOf(dateColPx, measure.measureText(monthlyDateLabel(d, dotted, autoDays, rowByDate)))
             amtColPx = maxOf(amtColPx, measure.measureText(money(dayCash[d] ?: 0.0).removePrefix("₹")),
                 measure.measureText(money(dayOnline[d] ?: 0.0).removePrefix("₹")))
         }
@@ -3008,12 +3150,13 @@ class IncomeExpenseActivity : AppCompatActivity() {
         var idx = 0
         for (d in dates) {
             val dotted = try { val p = d.split("-"); p[2] + "/" + p[1] + "/" + p[0] } catch (e: Exception) { d }
+            val dottedShown = monthlyDateLabel(d, dotted, autoDays, rowByDate)
             val cash = dayCash[d] ?: 0.0; val online = dayOnline[d] ?: 0.0
             val expSum = dayExp[d] ?: 0.0; val seg = daySeg[d]?.toString() ?: ""
             cashTot += cash; onlineTot += online; expTot += expSum
             val bg = if (idx % 2 == 0) "#FFFFFF" else "#F7FBF8"; idx++
             val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            row.addView(boxCell(dotted, dateColWidth, bg, "#41506A", true))
+            row.addView(boxCell(dottedShown, dateColWidth, bg, "#41506A", true))
             row.addView(boxCell(money(cash).removePrefix("₹"), amtColWidth, bg, "#0A7C3F", false, gravityV = android.view.Gravity.END))
             row.addView(boxCell(money(online).removePrefix("₹"), amtColWidth, bg, "#0A7C3F", false, gravityV = android.view.Gravity.END))
             val expText = if (expSum > 0.0) money(expSum).removePrefix("₹") else "-"
