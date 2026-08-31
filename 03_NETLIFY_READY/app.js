@@ -589,6 +589,31 @@ const fileData=inp=>new Promise(res=>{
 });
 const V='258_PASSWORD_CLOUD_LOGIN_SAFE_FIX';
 const RAM_STORE={};
+/* 🔴🔴🔴🔒 V918 (৩১.০৮.২০২৬, TK: *"সম্পূর্ণ প্রজেক্ট খুঁটিয়ে দেখুন কম্পিউটারে
+   কোন কোন জিনিস এখনো কমি আছে"*) — **আজকের সবচেয়ে বড় দোষ, শেষে ধরা পড়ল।**
+
+   ব্রাউজারের জমা-ঘরে (localStorage) জায়গা ভরে গেলে লেখা ব্যর্থ হয়। ভুলটা
+   ছিল তার পরের ধাপে: `rawLoad()` **সবসময় আগে জমা-ঘরই পড়ত**, আর সেটাই
+   RAM-এর তালিকার উপরে বসিয়ে দিত। ⇒ ক্লাউড থেকে সদ্য নামা সারিগুলো
+   **পরের বার তালিকা পড়ার সঙ্গে সঙ্গেই মুছে যেত**, আর পর্দা পুরোনো/ফাঁকা
+   অবস্থাতেই থেকে যেত — কোনো ভুলের বার্তা ছাড়া।
+   ⇒ আজকের পেমেন্ট/চেম্বার/ছবি না-দেখানোর পিছনে এটাও একটা আসল কারণ।
+
+   **এখন:** কোনো টেবিলের লেখা ব্যর্থ হলে ওই টেবিলটা এই সেশনে **RAM-ভিত্তিক**
+   ধরা হয় — জমা-ঘরের পুরোনো কপি আর তার উপরে বসতে পারে না। সঙ্গে স্টাফকে
+   একবার সৎভাবে জানানো হয়, যাতে তাঁরা বুঝতে পারেন কেন পুরোনো দেখাচ্ছিল।
+   ⛔ জায়গা ঠিক থাকলে আচরণ এক অক্ষরও বদলায় না। */
+const RAM_ONLY={};
+let __ramOnlyToldAt=0;
+function wlv1RamOnlyMark(t){
+  try{
+    RAM_ONLY[t]=true;
+    if(Date.now()-__ramOnlyToldAt>600000){
+      __ramOnlyToldAt=Date.now();
+      try{ toast('Browser storage is full — new data is kept for this session only. Please close and reopen the app.') }catch(_e){}
+    }
+  }catch(_e){}
+}
 const PROTECTED_NEW_ROWS={};
 function protectNewRow(t,r){try{if(!r||!r.id)return;let a=PROTECTED_NEW_ROWS[t]||[];a=a.filter(x=>x&&x.id!==r.id);a.unshift({...r,__protectedAt:Date.now()});PROTECTED_NEW_ROWS[t]=a.slice(0,50)}catch(e){}}
 window["protectNewRow"]=protectNewRow;
@@ -636,6 +661,8 @@ function emergencyPhotoStorageCleanup(){
 window["emergencyPhotoStorageCleanup"]=emergencyPhotoStorageCleanup;
 const rawLoad=t=>{
  try{
+  /* 🔴 V918 — এই টেবিলের লেখা ব্যর্থ হয়েছিল ⇒ RAM-ই সত্য (উপরের টীকা)। */
+  if(RAM_ONLY[t]&&Array.isArray(RAM_STORE[t])) return normalizeTableRows(t,RAM_STORE[t]);
   let a=JSON.parse(localStorage.getItem('rk_'+t)||'[]');
   if(Array.isArray(a)&&a.length){
    let n=normalizeTableRows(t,a);
@@ -813,7 +840,9 @@ const save=(t,d,opts={})=>{
  try{localStorage.setItem('rk_'+t,JSON.stringify(stripLargePhotos(rows)))}
  catch(e){
   console.warn('Local save quota issue, cleaning photo storage',e);
-  try{emergencyPhotoStorageCleanup();localStorage.setItem('rk_'+t,JSON.stringify(stripLargePhotos(rows)))}catch(_){}
+  /* 🔴 V918 — সাফ করে আবার চেষ্টা; তাতেও না পারলে টেবিলটা RAM-ভিত্তিক। */
+  try{emergencyPhotoStorageCleanup();localStorage.setItem('rk_'+t,JSON.stringify(stripLargePhotos(rows)))}
+  catch(_){ wlv1RamOnlyMark(t); }
  }
  // A genuine local write (not a save that's just writing back merged/pulled cloud
  // data -- those pass skipCloud:true) must never be silently erased by a cloud
@@ -1022,7 +1051,11 @@ function resetLocalTableFromCloud(t,rows){
   let keep=mergeById(unsyncedLocalRowsForCloudReset(t,remote),protectedRows(t));
   let merged=normalizeTableRows(t,mergeById(remote,keep));
   RAM_STORE[t]=merged;
-  localStorage.setItem('rk_'+t,JSON.stringify(stripLargePhotos(RAM_STORE[t])));
+  /* 🔴 V918 — জমা-ঘরে জায়গা না থাকলেও এই সারিগুলো যেন হারিয়ে না যায়:
+     লেখা ব্যর্থ হলে টেবিলটা RAM-ভিত্তিক ধরা হয় (উপরের `RAM_ONLY` টীকা),
+     আর পুরো কাজটা আগের মতোই সফল ধরা হয় — নইলে এখানেই থেমে যেত। */
+  try{ localStorage.setItem('rk_'+t,JSON.stringify(stripLargePhotos(RAM_STORE[t]))); }
+  catch(_e){ try{ emergencyPhotoStorageCleanup(); localStorage.setItem('rk_'+t,JSON.stringify(stripLargePhotos(RAM_STORE[t]))); }catch(__e){ wlv1RamOnlyMark(t); } }
   if(!keep.length)clearPendingCloud(t); else markPendingCloud(t);
   return true
  }catch(e){return false}
