@@ -15215,3 +15215,27 @@ resource · manifest · dex যাচাই হয় না।
 **ভার্সন:** ৯৩০ / ৯.৩০ (তিন জায়গায়)।
 **যাচাই:** verify_kotlin_compile ✅ (নতুন ভুল ০) · verify_android_resources ✅ ·
 node --check ✅ · tk_guard ✅।
+
+---
+
+## 📦 V930 — ফাইল পাঠানো (৩১.০৮.২০২৬, রাত ১২:০৫)
+
+**TK-এর নির্দেশ:** *"ফুল প্রজেক্ট ফাইল পাঠাও"*।
+
+**ফাইল:** `PILES_CLINIC_APP_V930_FINAL.zip` — ২৫ MB, ভিতরে ১৭৪৫টা ফাইল,
+Web + Android পুরো প্রজেক্ট এক জিপে। ভার্সন তিন জায়গাতেই ৯৩০ / ৯.৩০।
+
+**পাঠানোর আগে যা মিলিয়ে দেখা হলো:** verify_zip_root_name ✅ ·
+verify_zip_contents ✅ (১০টা অ্যাপ-আইকনসহ) · verify_kotlin_compile ✅ ·
+verify_android_resources ✅ · node --check (সব JS) ✅ · tk_guard ✅ ·
+V921 থেকে V930 — **দশটা কাজেরই চিহ্ন জিপের ভিতরে পাওয়া গেছে**।
+
+**এই ফাইলে যা আছে:** V921 Dialer · V922 Dr. Visit · V923 Staff Profiles ·
+V924 Appointment · V925 বাকি পাঁচটা জায়গা · V926 Pending Call ফোনের নিয়মে ·
+V927 অটো-ইনকাম (ওয়েব) ও কম্পিউটারে Backdate অনুমতি · V928 প্রথম দফা যাচাইয়ের
+চারটে সংশোধন · V929 অটো-ইনকাম (অ্যান্ড্রয়েড) · V930 দ্বিতীয় দফা যাচাইয়ের
+দুটো সংশোধন।
+
+**⚠️ সৎ কথা (আগের মতোই):** এই কম্পিউটারে Android SDK নেই, তাই `.apk` বানানো
+যায়নি — সোর্সে ভার্সন ৯৩০ বসানো আছে, **APK-টা TK-এর Android Studio-তেই
+বানাতে হবে**। আর `03_NETLIFY_READY` ফোল্ডারটা Netlify-তে তুলতে হবে।
