@@ -24836,7 +24836,9 @@ function wlv1DlTags(r){
 function wlv1DlRow(r){
   var d=String(r.mobile||'').replace(/\D/g,'').slice(-10);
   var nm=String(r.name||'').trim()||'Name Not Available';
-  var tags=wlv1DlTags(r).map(function(t){ return '<span class="dlTag">'+esc(t)+'</span>' }).join('');
+  /* 🟢🔒 V921 — ট্যাগে ক্রম-নম্বরের ক্লাস (dlT0/dlT1/…)। রং শুধু বড় পর্দায়
+     styles.css-এ দেওয়া; ফোনে আগের মতোই সব ট্যাগ নীল — চেহারা বদলায়নি। */
+  var tags=wlv1DlTags(r).map(function(t,i){ return '<span class="dlTag dlT'+i+'">'+esc(t)+'</span>' }).join('');
   return '<div class="dlRow">'
    +'<div class="dlInfo"><div class="dlName">'+esc(nm)+'</div><div class="dlMob">'+esc(d)+'</div>'
    +(tags?'<div class="dlTags">'+tags+'</div>':'')+'</div>'
