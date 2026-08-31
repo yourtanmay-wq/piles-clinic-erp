@@ -8807,7 +8807,12 @@ async function wlv1QueueCloudPull(){
                  : grab(q=>q.in('stage',['Doctor Queue','Visit']).limit(500)))()
     ]);
     const rows = [].concat(Array.isArray(a)?a:[], Array.isArray(b2)?b2:[]);
-    if(!rows.length){ __dqPulling=false; return false; }
+    /* 🔴🔒 V914 (৩১.০৮.২০২৬, TK: *"ছবি কেন আসছে না"*)। **আসল দোষ:** ঠিক
+       এখানে `if(!rows.length) return` লেখা ছিল — অর্থাৎ **সারির তালিকা না
+       বদলালে নিচের ছবি-আনার ধাপটা কখনো চলতই না**। তালিকা তো রোজ কয়েকবারই
+       অবদল থাকে, তাই কম্পিউটারে কার্ডে চিরকাল 👤 বসে থাকত, অথচ ফোনে ছবি আসত।
+       এখন সারি না নামলেও ছবির ধাপটা চলে (নিচে দেখুন), তাই বাকি ছবিগুলো
+       ধীরে ধীরে চলে আসে। ⛔ সারি নামানোর নিয়ম এক অক্ষরও বদলায়নি। */
     let changed=false;
     try{
       const one = wlv1WebNotDeleted('patients', normalizeCloudRows(rows));
@@ -8828,7 +8833,14 @@ async function wlv1QueueCloudPull(){
           মেয়াদে একটা ছোট তালিকা রাখা হয়। */
     try{
       const stored=new Map((load('patients')||[]).map(x=>[x&&x.id,x]));
-      const need=[...new Set(rows.map(r=>r&&r.id).filter(id=>{
+      /* 🔴🔒 V914 — কার তালিকা ধরে ছবি চাওয়া হবে: এখন **পর্দায় যাঁরা সত্যিই
+         আছেন** (`visitQueueRows()`), শুধু এইমাত্র নামা সারি নয়। তাই নতুন
+         কিছু না নামলেও বাকি ছবিগুলো আসে, আর তালিকার বাইরের কারও ছবি
+         কখনো চাওয়া হয় না — খরচ আগের মতোই সীমিত। */
+      let __picBase=[];
+      try{ __picBase=visitQueueRows()||[] }catch(_e){ __picBase=[] }
+      if(!__picBase.length) __picBase=rows;
+      const need=[...new Set(__picBase.map(r=>r&&r.id).filter(id=>{
         if(!id||__dqNoPhoto.has(id))return false;
         const cur=stored.get(id);
         return !(cur&&cur.photo);
