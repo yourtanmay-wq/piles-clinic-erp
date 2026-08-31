@@ -349,9 +349,28 @@ class IncomeExpenseActivity : AppCompatActivity() {
                ফেরত দেয় — টাকার এক পয়সাও বদলায় না। */
             val rows = com.tkbiswas.pilesclinic.native.PaymentRepository()
                 .fetchCollectionRange(br, from, to) ?: return out
+            /* 🔴🔒 V930 (নিজের যাচাইয়ে ধরা পড়া দোষ) — **ফেরত-দেওয়া রেকর্ডের টাকা
+               বাদ দিতে হবে।** খাতার সারি B110 (TK, ২৯.০৭.২০২৬): Reject / Delete /
+               Registration Cancel হয়ে যাওয়া রেকর্ডের টাকা রোগীকে ফেরত দেওয়া
+               হয়েছে, তাই দিনের হিসাবে সেটা ধরা যাবে না।
+               `fetchTodayCollection()` এই ছাঁকনি বসায়, কিন্তু `fetchCollectionRange()`
+               বসায় না — আমি ওটাই ব্যবহার করেছিলাম, ফলে ফোনের অটো-আয় ওয়েবের
+               চেয়ে বেশি দেখাত (ওয়েবের `collectionRows()` ছাঁকনিটা বসায়)।
+               ⇒ এখানেই একই `RefundedRecords` দিয়ে ছেঁকে নেওয়া হলো — দুই দিকের
+               সংখ্যা এক (নিয়ম ৬.৬)। ⛔ খোঁজা ব্যর্থ হলে তালিকা ফাঁকা ফেরে,
+               তখন আগের মতোই কারও টাকা বাদ যায় না। */
+            val refundedMobiles = try {
+                com.tkbiswas.pilesclinic.native.RefundedRecords.fetch(br)
+            } catch (_: Throwable) { HashSet<String>() }
+            fun isRefunded(mob: String): Boolean {
+                if (refundedMobiles.isEmpty()) return false
+                val dg = mob.filter { it.isDigit() }.takeLast(10)
+                return dg.length == 10 && dg in refundedMobiles
+            }
             for (row in rows) {
                 val d = row.date.take(10)
                 if (d.length != 10 || d < AUTO_INCOME_FROM) continue
+                if (isRefunded(row.mobile)) continue
                 val cur = out[d] ?: Pair(0.0, 0.0)
                 out[d] = Pair(cur.first + row.cashAmount, cur.second + row.onlineAmount)
             }

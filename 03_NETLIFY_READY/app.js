@@ -25098,38 +25098,33 @@ function wlv1DlContacts(){
 window["wlv1DlContacts"]=wlv1DlContacts;
 
 /* ট্যাগের লেখা — DialerActivity.kt:591-650 (STAGE · BRANCH · DISEASE · ADDRESS) */
-function wlv1DlTags(r){
-  var st=r.stage==='Treatment'?'PATIENT':(r.stage==='Patient'?'VISIT':'ENQUIRY');
-  var t=[st];
-  if(String(r.branch||'').trim()) t.push(String(r.branch).toUpperCase());
-  if(String(r.disease||'').trim()) t.push(String(r.disease).toUpperCase());
-  var ad=''; try{ ad=wlv1AddrTagForCard(r.mobile,r.address,r.stage)||'' }catch(e){ ad=String(r.address||'') }
-  if(String(ad).trim()) t.push(String(ad).toUpperCase());
-  return t;
-}
 /* 🔴🔒 V928 (৩১.০৮.২০২৬, নিজের যাচাইয়ে ধরা পড়া দোষ) — V921-এ ট্যাগের রং
    **ক্রম-নম্বর ধরে** বসানো হয়েছিল (`dlT0/dlT1/dlT2`)। কিন্তু ব্রাঞ্চ বা রোগের
    ঘর ফাঁকা থাকলে ক্রম সরে যেত — তখন রোগের ট্যাগে ব্রাঞ্চের সবুজ রং পড়ত।
-   এখন রংটা **কোন ধরনের ট্যাগ** তার উপরেই বসে, ক্রমের উপরে নয়।
+   ⇒ লেখা ও ধরন এখন **একটাই ঘরে একসাথে** বানানো হয়, তাই দুটো কখনো আলাদা হতে
+   পারে না, আর ঠিকানার ট্যাগটাও প্রতি সারিতে **একবারই** হিসাব হয় (আগে দু'বার
+   হত — শত শত সারিতে অকারণ কাজ)।
    ⛔ ফোনে এই রংগুলোর কোনো নিয়মই নেই (সব নীল) — ফোন আগের মতোই। */
-function wlv1DlTagKinds(r){
-  var k=['stage'];
-  if(String(r.branch||'').trim()) k.push('branch');
-  if(String(r.disease||'').trim()) k.push('disease');
+function wlv1DlTagPairs(r){
+  var out=[{t:(r.stage==='Treatment'?'PATIENT':(r.stage==='Patient'?'VISIT':'ENQUIRY')),k:'stage'}];
+  if(String(r.branch||'').trim()) out.push({t:String(r.branch).toUpperCase(),k:'branch'});
+  if(String(r.disease||'').trim()) out.push({t:String(r.disease).toUpperCase(),k:'disease'});
   var ad=''; try{ ad=wlv1AddrTagForCard(r.mobile,r.address,r.stage)||'' }catch(e){ ad=String(r.address||'') }
-  if(String(ad).trim()) k.push('addr');
-  return k;
+  if(String(ad).trim()) out.push({t:String(ad).toUpperCase(),k:'addr'});
+  return out;
 }
+window["wlv1DlTagPairs"]=wlv1DlTagPairs;
+/* পুরনো নামটা রাখা হলো — অন্য কোথাও ডাকা হলে যেন কিছু না ভাঙে। */
+function wlv1DlTags(r){ return wlv1DlTagPairs(r).map(function(x){ return x.t }) }
 
 function wlv1DlRow(r){
   var d=String(r.mobile||'').replace(/\D/g,'').slice(-10);
   var nm=String(r.name||'').trim()||'Name Not Available';
   /* 🟢🔒 V921 — ট্যাগে ক্রম-নম্বরের ক্লাস (dlT0/dlT1/…)। রং শুধু বড় পর্দায়
      styles.css-এ দেওয়া; ফোনে আগের মতোই সব ট্যাগ নীল — চেহারা বদলায়নি। */
-  var __kinds=wlv1DlTagKinds(r);
   var __cls={stage:'dlTStage',branch:'dlTBranch',disease:'dlTDisease',addr:'dlTAddr'};
-  var tags=wlv1DlTags(r).map(function(t,i){
-    return '<span class="dlTag '+(__cls[__kinds[i]]||'dlTStage')+'">'+esc(t)+'</span>';
+  var tags=wlv1DlTagPairs(r).map(function(x){
+    return '<span class="dlTag '+(__cls[x.k]||'dlTStage')+'">'+esc(x.t)+'</span>';
   }).join('');
   return '<div class="dlRow">'
    +'<div class="dlInfo"><div class="dlName">'+esc(nm)+'</div><div class="dlMob">'+esc(d)+'</div>'
