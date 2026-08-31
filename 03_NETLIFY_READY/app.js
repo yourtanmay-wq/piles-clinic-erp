@@ -933,10 +933,17 @@ const CLOUD_SAFE_COLS={
      আবার "খোলা এনকোয়ারি" হয়ে ফিরে আসতে পারত (আজকের ভূতুড়ে সারির
      পরিবার)। `lastCallDate` না যাওয়ায় ফোনের কার্ডে "LAST CALL —" ফাঁকা
      দেখাত, আর `age`/`sex`/`patientId`/`timeType` কার্ডে ফাঁকা থাকত। */
-  'age','sex','patientId','timeType','lastCallDate','convertedPatientId'],
+  'age','sex','patientId','timeType','lastCallDate','convertedPatientId',
+  /* 🔴🔒 V919 (৩১.০৮.২০২৬) — এই তিনটেও ওয়েব নিজে বসায় অথচ পাঠানোর আগে
+     কেটে যেত: `previousStage` (Restore করলে কোন ধাপে ফিরবে) ·
+     `convertedAt` (কখন রোগী হলো) · `lastRemarkAt` (শেষ রিমার্ক কখন)। */
+  'previousStage','convertedAt','lastRemarkAt'],
  medical:['id','patientId','type','date','selected','days','details','nextFollow','diagnosis','decision','doctorFullNote','name','mobile','branch','createdBy','createdAt','updatedAt'],
  products:['id','kind','product','customer','mobile','qty','price','bill','total','deposit','due','mode','remarks','date','branch','receivedBy','createdBy','createdAt','updatedAt'],
- doctor_visits:['id','name','mobile','altMobiles','area','remarks','date','branch','lastCallDate','nextCallDate','expectedPatientDate','callStatus','status','callHistory','referralPayments','referralPaid','referralDue','createdBy','createdAt','updatedAt'],
+ doctor_visits:['id','name','mobile','altMobiles','area','remarks','date','branch','lastCallDate','nextCallDate','expectedPatientDate','callStatus','status','callHistory','referralPayments','referralPaid','referralDue','createdBy','createdAt','updatedAt',
+  /* 🔴🔒 V919 — RMP-র রিমার্ক কে/কখন বদলেছেন, আর মোছার অনুরোধ —
+     ওয়েব এগুলো দেখায় ও বসায়, কিন্তু পাঠানোর আগে কেটে যেত। */
+  'remarksEditedBy','remarksEditedAt','deleteRequestedBy','deleteRequestedAt'],
  doctor_visits:['id','name','mobile','altMobiles','area','remarks','date','branch','lastCallDate','nextCallDate','expectedPatientDate','callStatus','status','callHistory','referralPayments','referralPaid','referralDue','createdBy','createdAt','updatedAt'],
  doctor_visits:['id','name','mobile','altMobiles','area','remarks','date','branch','lastCallDate','nextCallDate','expectedPatientDate','callStatus','status','callHistory','referralPayments','referralPaid','referralDue','createdBy','createdAt','updatedAt'],
  briefings:['id','date','title','message','targets','seen','replies','hiddenFor','deletedAt','deletedBy','branch','createdBy','createdAt','updatedAt'],
