@@ -19947,9 +19947,17 @@ function appointmentScreen(){
       ${r.remarks?`<div class="wlv1ApRem">${esc(r.remarks)}</div>`:''}
       <div class="actions" style="margin-top:8px"><button class="ghost small" onclick="wlv1ApptEdit('${esc(r.id)}')">✏️ Edit</button></div>
     </div>`).join('') || '<div class="card mut">No upcoming appointments.</div>';
-  page('Appointment', `<div class="card"><div class="sectionTitle miniTitle">Add Appointment</div>
-      ${apptForm()}</div>
-    <div class="sectionTitle">Upcoming Appointments</div>${list}`, true);
+  /* 🟢🔒 V924 (৩১.০৮.২০২৬, TK ডেমো প্রুফ দেখে "হ্যাঁ পাশ, বসিয়ে দিন") —
+     কম্পিউটারে বাঁয়ে ফর্ম, ডানে Upcoming Appointments পাশাপাশি দুই কলামে।
+     সেজন্য তিনটে মোড়ক (`apScreen` · `apFormCol` · `apListCol`/`apList`)।
+     ছোট পর্দায় এই ক্লাসগুলোর কোনো নিয়ম নেই — ফোনে আগের মতোই ফর্মের নিচে
+     তালিকা, একটার নিচে একটা। ⛔ ঘর · লেখা · Save · Edit কিছুই বদলায়নি। */
+  page('Appointment', `<div class="apScreen">
+      <div class="apFormCol"><div class="card"><div class="sectionTitle miniTitle">Add Appointment</div>
+      ${apptForm()}</div></div>
+      <div class="apListCol"><div class="sectionTitle">Upcoming Appointments</div>
+      <div class="apList">${list}</div></div>
+    </div>`, true);
 }
 window["appointmentScreen"]=appointmentScreen;
 
