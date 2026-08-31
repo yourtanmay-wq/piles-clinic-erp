@@ -56,6 +56,24 @@ object CallNotifyManager {
     @Volatile private var answeredThisCall: Boolean = false
     @Volatile private var activeMissed: Boolean = false
 
+    /* 🔴🔒🔒 V896 (৩১.০৮.২০২৬, TK-রিপোর্ট ছবিসহ — *"ফোন আসে বা যায় এক
+       নাম্বার দিয়ে, আর এটা ওঠে আরেক নাম্বার"*):
+
+       **আসল দোষ (কোড ধরে যাচাই, আন্দাজ নয়):** কল কেটে গেলেও (`onIdle`)
+       আগের নম্বরটা মনে থেকে যেত — ইচ্ছে করেই, যাতে স্টাফ পরে Remark
+       লিখতে পারেন। কিন্তু তারপর **ফোনের নিজের ডায়ালার** থেকে কল করলে/ধরলে
+       Android অ্যাপকে নতুন নম্বর দেয় না, শুধু "কথা হচ্ছে" (OFFHOOK) জানায়।
+       `onOffhook()` তখন **ওই পুরোনো নম্বর নিয়েই** কার্ডটা আবার "চলছে"
+       অবস্থায় দেখিয়ে দিত — TK-এর ছবিতে ঠিক সেটাই (স্ত্রীর কল চলাকালীন
+       আগের কলের নম্বর)।
+
+       **এখন:** কল শেষ হলে এই চিহ্নটা বসে। পরের OFFHOOK-এ যদি চিহ্নটা বসানো
+       থাকে, বোঝা যায় এটা **নতুন একটা কল যার নম্বর অ্যাপ জানে না** — তখন
+       ভাসমান কার্ডটা সরিয়ে দেওয়া হয়, ভুল নম্বর আর দেখানো হয় না।
+       ⛔ আগের কলের নোটিফিকেশনটা ট্রে-তে অক্ষত থাকে (নম্বরটা ওখানে ঠিকই
+          আছে), তাই পরে Remark লেখার পথ এক অক্ষরও বন্ধ হয়নি। */
+    @Volatile private var activeEnded: Boolean = false
+
     private fun isoNow(): String =
         java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US)
             .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }.format(java.util.Date())
@@ -119,6 +137,7 @@ object CallNotifyManager {
         activeLastCall = DialerRepository.LastCallInfo()   // 🆕 V856
         answeredThisCall = false
         activeMissed = false
+        activeEnded = false   // 🔴 V896 — নতুন কল, নম্বর জানা
         post(ctx, ringing = true, ended = false)
         // পিছনে গিয়ে মেলানো — পাওয়া গেলে নোটিফিকেশন আপডেট হবে।
         Thread {
@@ -147,6 +166,14 @@ object CallNotifyManager {
     fun onOffhook(ctx: Context) {
         if (!allowed(ctx)) return
         if (activeNumber.isBlank()) return   // outgoing হলে notifyOutgoingDialed() থেকেই শুরু হয়
+        /* 🔴🔒🔒 V896 — আগের কল ইতিমধ্যে শেষ, অথচ "কথা হচ্ছে" এলো ⇒ এটা
+           **নতুন একটা কল, যার নম্বর অ্যাপ জানে না** (ফোনের নিজের ডায়ালার)।
+           পুরোনো নম্বরের কার্ড আর দেখানো হবে না — সরিয়ে দেওয়া হয়।
+           ⛔ নোটিফিকেশন ছোঁয়া হয় না, তাই আগের কলের Remark লেখা যাবে। */
+        if (activeEnded) {
+            try { CallOverlay.hide(ctx) } catch (_: Throwable) { }
+            return
+        }
         answeredThisCall = true   // 🆕 V856 — কল ধরা হলো ⇒ এটা আর Missed নয়
         post(ctx, ringing = false, ended = false)
     }
@@ -155,10 +182,15 @@ object CallNotifyManager {
     fun onIdle(ctx: Context) {
         if (!allowed(ctx)) return
         if (activeNumber.isBlank()) return
+        /* 🔴🔒 V896 — আগের কল আগেই শেষ হয়েছিল ⇒ এখন যেটা শেষ হলো সেটা
+           **অন্য একটা কল, যার নম্বর অ্যাপ জানে না**। পুরোনো নম্বরের কার্ড বা
+           নোটিফিকেশন আর নতুন করে দেখানো হবে না। */
+        if (activeEnded) return
         /* 🆕🔒 V856 — **Missed** কল: এসেছিল (incoming), কিন্তু কেউ ধরেনি
            (OFFHOOK কখনো আসেনি)। ⛔ নিজের করা কল (outgoing) কখনো Missed নয়। */
         activeMissed = (activeDirection == "incoming" && !answeredThisCall)
         post(ctx, ringing = false, ended = true)
+        activeEnded = true   // 🔴 V896 — এই নম্বরের কল শেষ
         // পরের কলের জন্য প্রস্তুত — কিন্তু নোটিফিকেশনটা (ended অবস্থায়)
         // থেকে যায়, স্টাফ চাপলে Remark/Enquiry খুলবে। নতুন RINGING/
         // notifyOutgoingDialed() এলে এই ভেরিয়েবলগুলো নতুন করে বসবে।
@@ -178,6 +210,7 @@ object CallNotifyManager {
         activeLastCall = DialerRepository.LastCallInfo()   // 🆕 V856
         answeredThisCall = true      // নিজে ডায়াল করা কল কখনো "Missed" নয়
         activeMissed = false
+        activeEnded = false   // 🔴 V896 — নতুন কল, নম্বর জানা
         post(ctx, ringing = false, ended = false)
         // 🟢🔒 V637 — outgoing কলেও আগের রিমার্কস আনা হয় (incoming-এর
         // `onRinging()`-এর হুবহু একই প্যাটার্ন)।
