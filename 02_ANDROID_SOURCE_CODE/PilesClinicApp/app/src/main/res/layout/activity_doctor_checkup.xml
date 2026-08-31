@@ -142,6 +142,24 @@
          ⛔ ধাপ 2-5-এ উপরের এক-লাইনের রোগীর-বার (`patientDetailsCollapsed`)
             আগের মতোই স্থির থাকে, তাই রোগীর পরিচয় সবসময় চোখে থাকে। -->
 
+    <!-- 🎨🔒 V897 (৩১.০৮.২০২৬, TK ডেমো প্রুফ দেখে **"হ্যাঁ পাশ, বসিয়ে দিন"**) —
+         TK: *"স্ক্রোল করার সময় 1-5 স্টিল থাকতে হবে … হলুদ কার্ডটা স্ক্রোল হবে"*।
+         ⇒ 5টা ধাপের সারিটা স্ক্রলের **বাইরে** (উপরে স্থির) ফিরে এলো; রোগীর
+           হলুদ কার্ড আগের মতোই স্ক্রলের ভিতরেই থাকল, তাই সেটা উপরে উঠে যায়।
+         ⛔ id `stepBar` এক অক্ষরও বদলায়নি — `wireSteps()`/`showStep()` আগের
+            মতোই কাজ করে; শুধু XML-এ জায়গা বদলেছে (V776-এর উল্টো)। -->
+    <LinearLayout
+        android:id="@+id/stepBarWrap"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@drawable/bg_step_bar"
+        android:elevation="3dp"
+        android:paddingTop="9dp"
+        android:paddingBottom="7dp">
+        <LinearLayout android:id="@+id/stepBar" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:paddingHorizontal="8dp" />
+    </LinearLayout>
+
     <!-- Section content (one step at a time) -->
     <ScrollView android:id="@+id/stepScroll" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:layout_marginTop="6dp">
         <!-- 🔴🎨🔒 TK-নির্দেশ (07.08.2026, scroll_A/B/C মকআপ অনুযায়ী): আগে
@@ -343,11 +361,6 @@
         </LinearLayout><!-- 🔵 V584: ptlHeaderCard শেষ — ID/Ref By এখন ক্রিম হেডারের ভিতরে -->
     </LinearLayout>
 
-            <!-- 🎨🔒 V776 (TK-অনুমোদিত ডিজাইন B) — 5টা ধাপ-চিপ এখন রোগীর কার্ডের
-                 **ঠিক নিচে**, আর স্ক্রলের ভিতরে (তাই কার্ডের সাথেই উপরে উঠে যায়)।
-                 ⛔ id/attribute হুবহু আগের মতোই — `wireSteps()` ও `showStep()`
-                    একটুও বদলায়নি। শুধু marginTop 6dp→8dp (কার্ড থেকে একটু ফাঁক)। -->
-            <LinearLayout android:id="@+id/stepBar" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="8dp" android:paddingHorizontal="8dp" />
 
     <!-- 🟢🔒🔒 V656 (২৫.০৮.২০২৬, TK-নির্দেশ — "Doctor Note & Reminder থাকুক
          ... রোগীর আসার আগের দিন যেন ডাক্তারবাবুকে মনে করিয়ে দেওয়া হয়") —

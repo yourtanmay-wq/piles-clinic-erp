@@ -1500,6 +1500,12 @@ object NoBengali {
         "রক্তযুক্ত পুঁজ" to "Blood-stained pus",
         "😣 ব্যথার ইতিহাস" to "😣 Pain history",
         "তীক্ষ্ণ কাটাকাটা" to "Sharp cutting",
+        // 🎨 V897 — দলের নাম বদলেছে ("ইতিহাস" → "History"); নতুন নামগুলোও
+        //    যোগ, পুরোনোগুলো রইল (আগে সেভ হওয়া রেকর্ডের জন্য)।
+        "🩸 রক্তপাতের History" to "🩸 Bleeding history",
+        "😣 ব্যথার History" to "😣 Pain history",
+        "🫃 ফোলা / মাংসপিণ্ডের History" to "🫃 Swelling / mass history",
+        "💧 পুঁজ / জল পড়ার History" to "💧 Pus / discharge history",
         "🩸 রক্তপাতের ইতিহাস" to "🩸 Bleeding history",
         "সারাক্ষণ একটানা থাকে" to "Stays on continuously",
         "💧 পুঁজ / জল পড়ার ইতিহাস" to "💧 Pus / discharge history",

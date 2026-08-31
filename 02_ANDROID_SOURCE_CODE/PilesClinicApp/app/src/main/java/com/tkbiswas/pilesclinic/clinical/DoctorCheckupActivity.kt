@@ -585,6 +585,30 @@ class DoctorCheckupActivity : AppCompatActivity() {
             setColor(android.graphics.Color.parseColor(if (green) "#12805C" else "#DFE5EC"))
         }
 
+    /* 🎨🔒 V897 (৩১.০৮.২০২৬, TK-অনুমোদিত ডেমো প্রুফ) — ধাপের বৃত্তের তিন
+       অবস্থা: **হয়ে গেছে** (ভরাট সবুজ) · **এখন এখানে** (ভরাট সবুজ, চারপাশে
+       হালকা সবুজ বলয়) · **এখনো বাকি** (সাদা, ধূসর পাড়)। ⛔ পুরোনো
+       `stepCircleBg()` অক্ষত — লক-হয়ে-যাওয়া পর্দা ওটাই ব্যবহার করে। */
+    private fun stepDotBg(done: Boolean, current: Boolean): android.graphics.drawable.GradientDrawable =
+        android.graphics.drawable.GradientDrawable().apply {
+            shape = android.graphics.drawable.GradientDrawable.OVAL
+            when {
+                current -> {
+                    setColor(android.graphics.Color.parseColor("#12805C"))
+                    setStroke(dp(4), android.graphics.Color.parseColor("#CFE9DD"))
+                }
+                done -> setColor(android.graphics.Color.parseColor("#12805C"))
+                else -> {
+                    setColor(android.graphics.Color.WHITE)
+                    setStroke(dp(2), android.graphics.Color.parseColor("#DDE5EE"))
+                }
+            }
+        }
+
+    /** ধাপের বৃত্তগুলোর মাঝের সরু রেখা — বাঁ দিকেরটা ও ডান দিকেরটা আলাদা। */
+    private var stepLineLeft = mutableListOf<android.view.View>()
+    private var stepLineRight = mutableListOf<android.view.View>()
+
     private fun wireSteps() {
         val bar = findViewById<LinearLayout>(R.id.stepBar)
         // 🎨🔒 (07.08.2026, প্রুফ-চেহারা, TK-অনুমোদিত) — আগে প্রতিটা চিপ ছিল
@@ -598,6 +622,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         //       setOnClickListener { showStep(i) } }
         //     bar.addView(chip); stepChips.add(chip) }
         bar.removeAllViews(); stepChips.clear(); stepChipLabels.clear()
+        stepLineLeft.clear(); stepLineRight.clear()
         stepShort.forEachIndexed { i, short ->
             val cell = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -608,24 +633,42 @@ class DoctorCheckupActivity : AppCompatActivity() {
             }
             val circle = TextView(this).apply {
                 text = (i + 1).toString()
-                textSize = 11.5f
+                textSize = 12f
                 gravity = android.view.Gravity.CENTER
                 setTextColor(android.graphics.Color.parseColor("#9AA6B4"))
-                background = stepCircleBg(false)
-                val s = dp(24)
+                background = stepDotBg(done = false, current = false)
+                val s = dp(26)
                 layoutParams = LinearLayout.LayoutParams(s, s)
             }
+            /* 🎨 V897 — বৃত্তের দু'পাশে সরু রেখা, তাই পাঁচটা ধাপ একটা সরু
+               পথে জোড়া দেখায় (TK-অনুমোদিত প্রুফ)। প্রথমটার বাঁ দিকের ও শেষেরটার
+               ডান দিকের রেখা অদৃশ্য থাকে। */
+            fun line(visible: Boolean): android.view.View = android.view.View(this).apply {
+                layoutParams = LinearLayout.LayoutParams(0, dp(3), 1f)
+                setBackgroundColor(android.graphics.Color.parseColor("#E4EAF1"))
+                visibility = if (visible) android.view.View.VISIBLE else android.view.View.INVISIBLE
+            }
+            val lLine = line(i > 0)
+            val rLine = line(i < stepShort.size - 1)
+            val top = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            }
+            top.addView(lLine); top.addView(circle); top.addView(rLine)
             val lbl = TextView(this).apply {
                 text = short
-                textSize = 8.5f
+                textSize = 9f
                 gravity = android.view.Gravity.CENTER
                 maxLines = 1
-                setTextColor(android.graphics.Color.parseColor("#9AA6B4"))
-                setPadding(0, dp(3), 0, 0)
+                setTextColor(android.graphics.Color.parseColor("#8A97A6"))
+                setPadding(0, dp(4), 0, 0)
             }
-            cell.addView(circle); cell.addView(lbl)
+            cell.addView(top); cell.addView(lbl)
             bar.addView(cell)
             stepChips.add(circle); stepChipLabels.add(lbl)
+            stepLineLeft.add(lLine); stepLineRight.add(rLine)
         }
         // 🔴 (07.08.2026, scroll_A মকআপ) — এক-পেজ স্ক্রলে "Next" ধাপ নেই;
         // btnNext লুকানো, btnBack এখন পর্দা থেকে বেরোয় (finish)। রোগীর পূর্ণ
@@ -875,15 +918,30 @@ class DoctorCheckupActivity : AppCompatActivity() {
         // 🎨 (07.08.2026, প্রুফ-চেহারা) — নম্বর-বৃত্ত: চলতি ধাপ সবুজ+সাদা নম্বর,
         // বাকিগুলো ধূসর। নিচের লেবেলও সেই অনুযায়ী রঙ। (আগে বড় পিলে
         // bg_chip_seg_on_green / bg_chip_seg ব্যবহার হতো।)
+        /* 🎨🔒 V897 — আগের ধাপগুলো সবুজ (হয়ে গেছে), চলতি ধাপ সবুজ+বলয়,
+           পরেরগুলো সাদা-ধূসর; মাঝের রেখাও সেই অনুযায়ী রং বদলায়। */
         stepChips.forEachIndexed { idx, circle ->
             val active = idx == i
-            circle.background = stepCircleBg(active)
+            val done = idx < i
+            circle.background = stepDotBg(done = done, current = active)
             circle.text = (idx + 1).toString()
-            circle.setTextColor(if (active) android.graphics.Color.WHITE else android.graphics.Color.parseColor("#9AA6B4"))
-            circle.setTypeface(null, if (active) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
+            circle.setTextColor(
+                if (active || done) android.graphics.Color.WHITE
+                else android.graphics.Color.parseColor("#9AA6B4"))
+            circle.setTypeface(null, android.graphics.Typeface.BOLD)
             stepChipLabels.getOrNull(idx)?.setTextColor(
-                if (active) android.graphics.Color.parseColor("#0F766E") else android.graphics.Color.parseColor("#9AA6B4")
+                when {
+                    active -> android.graphics.Color.parseColor("#0E6B4E")
+                    done -> android.graphics.Color.parseColor("#5B7F72")
+                    else -> android.graphics.Color.parseColor("#8A97A6")
+                }
             )
+            stepChipLabels.getOrNull(idx)?.setTypeface(
+                null, if (active) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
+            val doneCol = android.graphics.Color.parseColor("#12805C")
+            val restCol = android.graphics.Color.parseColor("#E4EAF1")
+            stepLineLeft.getOrNull(idx)?.setBackgroundColor(if (idx <= i) doneCol else restCol)
+            stepLineRight.getOrNull(idx)?.setBackgroundColor(if (idx < i) doneCol else restCol)
         }
         // (এক-পেজ স্ক্রলে btnBack/btnNext isEnabled + smoothScrollTo(0,0)
         //  আর দরকার নেই — স্ক্রল উপরে target.top-এ হয়।)
@@ -2188,7 +2246,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
             }
             head.addView(TextView(this).apply {
                 text = group.title
-                textSize = 13.5f
+                textSize = 15f   // 🎨 V897 — TK: "ফন্টের সাইজ সামান্য বড় করতে হবে"
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setTextColor(android.graphics.Color.parseColor("#0B2B59"))
                 layoutParams = android.widget.LinearLayout.LayoutParams(
@@ -3681,7 +3739,9 @@ class DoctorCheckupActivity : AppCompatActivity() {
         // 🎨 (07.08.2026, প্রুফ-চেহারা) — সব ধাপ সম্পন্ন: প্রতিটা নম্বর-বৃত্ত এখন
         // সবুজ ✓। (আগে: chip.text = "✓ " + stepTitles[idx].substringAfter(" "))
         stepChips.forEachIndexed { idx, circle ->
-            circle.background = stepCircleBg(true)
+            circle.background = stepDotBg(done = true, current = false)   // 🎨 V897
+            stepLineLeft.getOrNull(idx)?.setBackgroundColor(android.graphics.Color.parseColor("#12805C"))
+            stepLineRight.getOrNull(idx)?.setBackgroundColor(android.graphics.Color.parseColor("#12805C"))
             circle.text = "✓"
             circle.setTextColor(android.graphics.Color.WHITE)
             circle.setTypeface(null, android.graphics.Typeface.BOLD)
@@ -3740,7 +3800,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         wv.settings.builtInZoomControls = true
         wv.settings.displayZoomControls = false
         wv.loadDataWithBaseURL("file:///android_asset/", html, "text/html", "UTF-8", null)
-        findViewById<android.view.View>(R.id.stepBar).visibility = android.view.View.GONE
+        findViewById<android.view.View>(R.id.stepBarWrap).visibility = android.view.View.GONE   // 🎨 V897
         findViewById<android.view.View>(R.id.stepScroll).visibility = android.view.View.GONE
         findViewById<android.view.View>(R.id.patientDetailsFull).visibility = android.view.View.GONE
         wv.visibility = android.view.View.VISIBLE
@@ -3756,7 +3816,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
 
     private fun showEditForm() {
         findViewById<android.view.View>(R.id.savedA4View).visibility = android.view.View.GONE
-        findViewById<android.view.View>(R.id.stepBar).visibility = android.view.View.VISIBLE
+        findViewById<android.view.View>(R.id.stepBarWrap).visibility = android.view.View.VISIBLE   // 🎨 V897
         findViewById<android.view.View>(R.id.stepScroll).visibility = android.view.View.VISIBLE
         findViewById<android.view.View>(R.id.patientDetailsFull).visibility = android.view.View.VISIBLE
         fun vis(b: Boolean) = if (b) android.view.View.VISIBLE else android.view.View.GONE
