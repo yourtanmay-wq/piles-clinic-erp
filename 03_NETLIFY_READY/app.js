@@ -2703,7 +2703,11 @@ function publicSite(){
  currentView='public';
  let dis=publicDiseases();
  app().innerHTML=`<div class="wrap publicWrap v227Public">${publicHeader()}<main>
- <section class="v227Hero"><div class="v227HeroText"><small>100% AYURVEDIC • NON-SURGICAL • NATURAL</small><h1>Trusted Ayurvedic Care&nbsp;for <span>Lasting Relief</span></h1><p>Advanced Ayurvedic care for Piles, Fissure, Fistula, Hydrocele & Gupt-Rog. No surgery. No laser. Only natural Ayurvedic treatment.</p><div class="v227Checks"><i>100% Ayurvedic</i><i>Non-Surgical</i><i>Natural & Safe</i></div></div><div class="v227HeroArt"><div class="v227Bowl"></div><div class="v227Shield">AYURVEDA</div></div></section>
+ <section class="v227Hero"><div class="v227HeroText"><small>100% AYURVEDIC • NON-SURGICAL • NATURAL</small><h1>Trusted Ayurvedic Care&nbsp;for <span>Lasting Relief</span></h1><p>Advanced Ayurvedic care for Piles, Fissure, Fistula, Hydrocele & Gupt-Rog. No surgery. No laser. Only natural Ayurvedic treatment.</p><div class="v227Checks"><i>100% Ayurvedic</i><i>Non-Surgical</i><i>Natural & Safe</i></div>
+ <!-- 🔴🔒 V934 (TK: "আরো প্রফেশনাল লুক আনতে হবে", ডেমো-প্রুফে পাশ) — উপরেই দুটো
+      আসল বোতাম, যাতে রোগীকে স্ক্রোল করে নিচে নামতে না হয়। ⛔ দুটোই আগে থেকে
+      থাকা ফাংশনই ডাকে, নতুন কোনো পথ বানানো হয়নি। -->
+ <div class="v227HeroCta"><button class="heroPrimary" onclick="scrollAppt()">Book Appointment</button><button class="heroGhost" onclick="publicBranchSelector('call')">&#9742; Call Now</button></div></div><div class="v227HeroArt"><div class="v227Bowl"></div><div class="v227Shield">AYURVEDA</div></div></section>
  <section class="v227Trust"><div>🌿<b>100% Ayurvedic</b></div><div>🛡️<b>No Surgery</b></div><div>👥<b>Personal Care</b></div><div>✅<b>Follow-up Support</b></div></section>
  <section class="v227Quick"><button onclick="publicBranchSelector('call')"><span>☎</span><b>Call Now</b><small>Select Branch</small></button><button onclick="publicBranchSelector('whatsapp')"><span>☘</span><b>WhatsApp</b><small>Select Branch</small></button><button onclick="scrollAppt()"><span>▣</span><b>Book Appointment</b><small>Quick Booking</small></button><button onclick="publicBranches()"><span>⌖</span><b>Our Branches</b><small>Find Clinic</small></button></section>
  <section id="treatments" class="v227Section"><h2>WE TREAT</h2><p>Common Anorectal & Genital Problems</p><div class="v227DiseaseGrid">${dis.map(d=>`<button class="v227Disease" onclick="disease('${esc(d.key)}')"><div class="diseaseArt ${d.art}"></div><b>${esc(d.name)}</b></button>`).join('')}</div><button class="v227More" onclick="disease('Piles')">Learn More About These Conditions →</button></section>
@@ -2722,8 +2726,11 @@ window["publicSite"]=publicSite;
    ⛔ সময়সূচি লেখা হয়নি, কারণ ওটা কোথাও রাখা নেই — আন্দাজে লিখিনি। */
 function publicFooter(){
  var y=new Date().getFullYear();
- var bs=(C.branches||[]);
- return `<footer class="pubFooter"><div class="pubFootTop"><div class="pubFootCol"><div class="pubFootBrand"><img src="assets/maa-ayurved-final-logo.jpg" alt="PILES CLINIC"><div><b>PILES CLINIC</b><small>AYURVEDIC TREATMENT CENTRE</small><span>TK BISWAS &middot; Founder &amp; Consultant</span></div></div><div class="pubFootHours"><b>Clinic Timings</b><strong>11:00 AM &ndash; 4:00 PM</strong><span>Same at all branches</span></div></div><nav class="pubFootLinks"><b>Quick Links</b><button onclick="publicSite()">Home</button><button onclick="publicSite();setTimeout(()=>scrollToPublic('treatments'),60)">Treatments</button><button onclick="publicBranches()">Our Branches</button><button onclick="scrollAppt()">Book Appointment</button></nav><div class="pubFootBranches"><b>Our Branches</b>${bs.map(b=>`<div><strong>${esc(b.name)}</strong><span>${esc(b.address)}</span><a href="tel:+91${publicPrimaryPhone(b)}">&#9742; ${esc(publicBranchPhones(b))}</a></div>`).join('')}</div></div><div class="pubFootBar">&copy; ${y} PILES CLINIC &middot; AYURVEDIC TREATMENT CENTRE &middot; All rights reserved.</div></footer>`;
+ /* 🔴🔒 V934 (৩১.০৮.২০২৬, TK-রিপোর্ট: *"একই পেজে ২ জায়গায় কেন ক্লিনিকের ঠিকানা,
+    নম্বর থাকতে হবে"*) — ফুটার থেকে ব্রাঞ্চের তালিকাটা **তুলে নেওয়া হলো**।
+    ঠিকানা ও নম্বর এখন পাতায় একবারই — উপরের "OUR BRANCHES" ঘরে।
+    ⛔ লোগো · সময় · Quick Links · কপিরাইট আগের মতোই আছে। */
+ return `<footer class="pubFooter"><div class="pubFootTop"><div class="pubFootCol"><div class="pubFootBrand"><img src="assets/maa-ayurved-final-logo.jpg" alt="PILES CLINIC"><div><b>PILES CLINIC</b><small>AYURVEDIC TREATMENT CENTRE</small><span>TK BISWAS &middot; Founder &amp; Consultant</span></div></div><div class="pubFootHours"><b>Clinic Timings</b><strong>11:00 AM &ndash; 4:00 PM</strong><span>Same at all branches</span></div></div><nav class="pubFootLinks"><b>Quick Links</b><button onclick="publicSite()">Home</button><button onclick="publicSite();setTimeout(()=>scrollToPublic('treatments'),60)">Treatments</button><button onclick="publicBranches()">Our Branches</button><button onclick="scrollAppt()">Book Appointment</button></nav></div><div class="pubFootBar">&copy; ${y} PILES CLINIC &middot; AYURVEDIC TREATMENT CENTRE &middot; All rights reserved.</div></footer>`;
 }
 window["publicFooter"]=publicFooter;
 function publicBottomNav(){return `<nav class="pubBottom v227Bottom"><button onclick="publicSite()"><span>⌂</span>Home</button><button onclick="publicSite();setTimeout(()=>scrollToPublic('treatments'),60)"><span>✚</span>Treatments</button><button onclick="publicBranches()"><span>⌖</span>Branches</button><button onclick="scrollAppt()"><span>▣</span>Book</button><button onclick="openPublicMenu()"><span>☰</span>Menu</button></nav>`}
@@ -2786,7 +2793,27 @@ function disease(n){
 window["disease"]=disease;
 function scrollApptFromEdu(){publicSite();setTimeout(()=>scrollAppt(),80)}
 window["scrollApptFromEdu"]=scrollApptFromEdu;
-function apptForm(){return `<label>Name</label><input id="apName" class="input"><label>Mobile</label><input id="apMob" class="input" inputmode="tel"><label>Branch</label><select id="apBranch" class="input">${C.branches.map(b=>`<option>${b.name}</option>`).join('')}</select><label>Appointment Date</label><input id="apDate" class="input" type="date" min="${today()}"><label>Remarks</label><textarea id="apRem"></textarea><button onclick="saveAppt()">Save Appointment</button>`}
+/* 🔴🔒 V934 (৩১.০৮.২০২৬, TK-অনুমোদিত · ডেমো-প্রুফে পাশ) — প্রকাশ্য সাইটের
+   বুকিং-ফর্ম। TK-এর তিনটে নির্দেশ:
+     ১) *"পেশেন্ট এখান থেকে book appointment করে তাহলে এখানে সে কেন Remarks
+        লিখবে"* ⇒ ঘরের নাম এখন **"Your Problem"** (স্টাফের ভাষা নয়, রোগীর ভাষা)।
+     ২) *"Diseases যেন সে সিলেক্ট করতে পারে"* ⇒ পাঁচটা রোগের চিপ, একাধিকও বাছা যায়
+        (রেজিস্ট্রেশনের হুবহু একই `wlv1Chip2` চিপ, নতুন কোনো ডিজাইন নয়)।
+     ৩) *"সব ই বাধ্যতা"* ⇒ প্রতিটা ঘরের পাশে লাল তারা, একটাও ফাঁকা থাকলে সেভ হয় না।
+   ⛔ ঘরগুলোর id এক অক্ষরও বদলায়নি (apName/apMob/apBranch/apDate/apRem) — তাই
+      `openAppt()`/`scrollAppt()`-এর মতো পুরনো সব ডাক আগের মতোই কাজ করে। */
+function apptForm(){
+ const st='<b class="wlv1Star">*</b>';
+ const dis=publicDiseases().map(d=>`<label class="wlv1Chip2"><input type="checkbox" name="apDis" value="${esc(d.key)}" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>${esc(d.name)}</span></label>`).join('');
+ return `<div class="apGrid">`
+ +`<div class="apF"><label>Name ${st}</label><input id="apName" class="input"></div>`
+ +`<div class="apF"><label>Mobile ${st}</label><input id="apMob" class="input" inputmode="tel"></div>`
+ +`<div class="apF"><label>Branch ${st}</label><select id="apBranch" class="input">${C.branches.map(b=>`<option>${esc(b.name)}</option>`).join('')}</select></div>`
+ +`<div class="apF"><label>Appointment Date ${st}</label><input id="apDate" class="input" type="date" min="${today()}"></div>`
+ +`<div class="apF apWide"><label>Disease ${st}</label><div class="wlv1ChipRow">${dis}</div></div>`
+ +`<div class="apF apWide"><label>Your Problem ${st}</label><textarea id="apRem" placeholder="Write your problem here"></textarea></div>`
+ +`</div><button class="apSave" onclick="saveAppt()">Save Appointment</button>`;
+}
 window["apptForm"]=apptForm;function scrollAppt(){
   if(!document.getElementById('appt')) publicSite();
   setTimeout(()=>{
@@ -2811,9 +2838,14 @@ window["openAppt"]=openAppt;
    truth -- if it could not reach the clinic, they are asked to call instead, so
    no patient is lost. Nothing else changed: same fields, same tables, same
    branch, same follow-up row, same screen afterwards. */
-async function saveAppt(){let name=$('#apName').value.trim(),m=mob($('#apMob').value),br=$('#apBranch').value,dt=$('#apDate').value,rem=$('#apRem').value.trim();if(!name||!valid(m)||!br||!dt||!rem)return toast('Name, mobile, branch, date, remarks mandatory');if(dt<today())return toast('Past appointment not allowed');
+async function saveAppt(){let name=$('#apName').value.trim(),m=mob($('#apMob').value),br=$('#apBranch').value,dt=$('#apDate').value,rem=$('#apRem').value.trim();
+/* 🔴🔒 V934 (TK: *"রোগের নাম বাধ্যতামূলক"*) — বাছা রোগগুলো। একটাও না বাছলে সেভ হয় না। */
+let disPick=[];try{disPick=Array.prototype.slice.call(document.querySelectorAll('input[name="apDis"]:checked')).map(function(x){return String(x.value||'').trim()}).filter(Boolean)}catch(_e){disPick=[]}
+if(!name||!valid(m)||!br||!dt||!rem||!disPick.length)return toast('All fields are mandatory');
+let disTxt=disPick.join(', ');
+if(dt<today())return toast('Past appointment not allowed');
 /* TK-ORDER (30.07.2026 রাত): "একই নম্বর বারবার বুক করলে প্রতিবার নতুন রেকর্ড তৈরি হয়" -- এই ফাংশন আগে প্রতিবার একটা নতুন 'enquiries' সারি বানাত, একই মোবাইল হলেও। এখন আগে থেকে থাকা নম্বর কিনা যাচাই হয় (duplicate(), যেটা staff-এর ডুপ্লিকেট বাক্সেও ব্যবহার হয়) -- থাকলে নতুন এনকোয়ারি সারি না বানিয়ে শুধু সেই পুরনো রেকর্ডের followups সারিতেই নতুন আসার তারিখ/রিমার্ক বসে (ensureFollow ইতিমধ্যেই একই মোবাইলের সারি খুঁজে আপডেট করে)। ⛔ পাবলিক সাইটে কোনো নতুন পপ-আপ/ডিজাইন যোগ হয়নি -- toast-এর কথাও অপরিবর্তিত, ব্যবহারকারীর কাছে দুই ক্ষেত্রেই একই অভিজ্ঞতা। নম্বর সত্যিই নতুন হলে আগের মতোই আচরণ, এক অক্ষরও বদলায়নি। */
-let d=duplicate(m),e,fu,sent=false;if(d){fu=ensureFollow(d,d.stage||'Inquiry',dt,rem);try{sent=await directCloudUpsertRow('followups',fu)}catch(_e){sent=false}try{forceCloudVisibleRows([{table:'followups',row:fu}])}catch(_e){}}else{e={id:uid('enq'),name,mobile:normMob(m),branch:br,date:today(),appointmentDate:dt,disease:'Public Appointment',remarks:rem,status:'Active',stage:'Inquiry',callCount:0,receivedBy:'Public Website',createdBy:'Public Website',timeType:'Online Appointment',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};add('enquiries',e);fu=ensureFollow(e,'Inquiry',dt,rem);try{sent=await directCloudUpsertRow('enquiries',e);let okFu=await directCloudUpsertRow('followups',fu);sent=sent&&okFu}catch(_e){sent=false}try{forceCloudVisibleRows([{table:'enquiries',row:e},{table:'followups',row:fu}])}catch(_e){}}toast(sent?'Appointment booked — our team will call you':'Could not reach the clinic just now — please call the branch number to confirm');publicSite()}
+let d=duplicate(m),e,fu,sent=false;if(d){fu=ensureFollow(d,d.stage||'Inquiry',dt,rem);try{sent=await directCloudUpsertRow('followups',fu)}catch(_e){sent=false}try{forceCloudVisibleRows([{table:'followups',row:fu}])}catch(_e){}}else{e={id:uid('enq'),name,mobile:normMob(m),branch:br,date:today(),appointmentDate:dt,disease:disTxt,remarks:rem,status:'Active',stage:'Inquiry',callCount:0,receivedBy:'Public Website',createdBy:'Public Website',timeType:'Online Appointment',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};add('enquiries',e);fu=ensureFollow(e,'Inquiry',dt,rem);try{sent=await directCloudUpsertRow('enquiries',e);let okFu=await directCloudUpsertRow('followups',fu);sent=sent&&okFu}catch(_e){sent=false}try{forceCloudVisibleRows([{table:'enquiries',row:e},{table:'followups',row:fu}])}catch(_e){}}toast(sent?'Appointment booked — our team will call you':'Could not reach the clinic just now — please call the branch number to confirm');publicSite()}
 window["saveAppt"]=saveAppt;function loginForm(){modal(`<div class="wlv1Hero"><img class="wlv1Logo" src="assets/maa-ayurved-final-logo.jpg" alt="Maa Ayurved Piles Clinic"><div class="wlv1Names"><div class="wlv1N1">TK BISWAS</div><div class="wlv1N2">MAA AYURVED PILES CLINIC</div></div></div><div class="wlv1Card"><div class="wlv1Lab">Mobile Number</div><input id="lm" class="input wlv1Inp" inputmode="tel" autocomplete="username" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Enter mobile number"><div class="wlv1Lab wlv1LabTop">Password</div><div class="passwordField wlv1Pass"><input id="lp" class="input wlv1Inp" type="password" autocomplete="current-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" placeholder="Enter password"><button class="eyeBtn" onclick="let p=document.getElementById('lp');p.type=p.type==='password'?'text':'password'">&#128065;</button></div><button id="loginBtn" class="wlv1Btn" onclick="login()">Login</button><button class="ghost wlv1Forgot" onclick="forgotPasswordFlow()">Forgot Password?</button></div>`);setTimeout(()=>{let lm=$('#lm'),lp=$('#lp');if(lm)lm.focus();[lm,lp].forEach(el=>{if(el)el.addEventListener('keydown',e=>{if(e.key==='Enter')login()})})},50)}
 window.loginForm=loginForm;
 async function login(){
