@@ -673,6 +673,92 @@ def check_history_time():
                         f"`date`/`time` দুটোই নেই ⇒ টাইমলাইনে সময় ফাঁকা দেখাবে")
 
 
+# ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯.৪২ — 🔤 হ্যাঁ/না-এর ঘর কখনো সোজাসুজি পড়া যাবে না
+#  (TK-এর লাইভ রিপোর্ট ৩১.০৮.২০২৬: *"মোবাইলে পেশেন্ট আছে কিন্তু
+#   কম্পিউটারে নেই কেন?"* — V906-এ ধরা পড়া আসল দোষের পাহারা)
+#
+#  ডেটাবেসে `patients.queue` ও `patients.doctorComplete` জমা থাকে
+#  **লেখা** হিসেবে — `"true"` / `"false"` — সত্যি-মিথ্যা হিসেবে নয়
+#  (TK-এর আসল Backup ফাইলে ৩৯৭টার মধ্যে ৩৯৪টাই এমন)।
+#    · ফোন — `optBoolean()` ওই লেখাটা বুঝে নেয়, তাই ঠিক দেখায়।
+#    · কম্পিউটার — `!x.doctorComplete` লিখলে `"false"` একটা **ভরা লেখা**,
+#      তাই "সত্যি" ধরা হত ⇒ প্রত্যেক রোগীকেই "চেকআপ শেষ" ভেবে CHECK-UP
+#      তালিকা থেকে বাদ দিত ⇒ কম্পিউটারে তালিকা সবসময়ই ফাঁকা থাকত।
+#
+#  ⇒ এখন থেকে ওয়েবের কোনো ফাইলে এই দুটো ঘর `!` / `&&` / `||` /
+#     `===true` — এভাবে পড়া যাবে না; সবসময় `wlv1Flag(...)` দিয়ে।
+#  ⛔ শুধু **পড়া** আটকানো হয় — লেখা (`queue:true`), ঘর আছে কিনা দেখা
+#     (`!==undefined` / `!==null`), আর বয়ে নিয়ে যাওয়া (`?:`) আগের মতোই।
+# ═══════════════════════════════════════════════════════════════
+FLAG_FIELDS = ("queue", "doctorComplete")
+
+
+def _js_code_mask(src):
+    """মন্তব্যের ঘরগুলো বাদ দিয়ে শুধু আসল কোডের জায়গা চিহ্নিত করে।
+       ⛔ পাহারা যেন মন্তব্যের ভিতরের উদাহরণ দেখে ভুল করে না ধরে।
+       ⚠️ লেখার (string) ভিতরটা আলাদা করে দেখা হয় না — ইচ্ছে করেই।
+          `x.queue` ধাঁচটা লেখার ভিতরে থাকে না, আর string-খোঁজা করতে গেলে
+          regex-literal (`/['"]/`)-এ হিসাব গুলিয়ে যায় ⇒ আসল দোষ ফসকে যেত
+          (৩১.০৮.২০২৬-এ নিজে পরীক্ষা করে ধরা পড়েছে)। """
+    n = len(src)
+    m = bytearray(b"\x01") * n
+    i = 0
+    while True:                                   # /* ... */ মন্তব্য
+        i = src.find("/*", i)
+        if i < 0:
+            break
+        j = src.find("*/", i + 2)
+        j = n if j < 0 else j + 2
+        for k in range(i, j):
+            m[k] = 0
+        i = j
+    pos = 0
+    for line in src.split("\n"):                  # // দিয়ে শুরু হওয়া লাইন
+        t = line.lstrip()
+        if t.startswith("//") or t.startswith("*"):
+            for k in range(pos, pos + len(line)):
+                m[k] = 0
+        pos += len(line) + 1
+    return m
+
+
+def check_web_flag_fields():
+    import glob as _glob
+    obj = re.compile(r'(?<![\w$.])[A-Za-z_$][\w$]*(?:\??\.[A-Za-z_$][\w$]*)*'
+                     r'\.(?:' + '|'.join(FLAG_FIELDS) + r')\b')
+    cmp_re = re.compile(r'^\s*(?:===|!==|==|!=)\s*([A-Za-z0-9_$\'"]+)')
+    for js in sorted(_glob.glob(os.path.join(WEB, "*.js"))):
+        if os.path.basename(js).startswith("V"):
+            continue                      # পুরোনো ডেমো-সোর্স, অ্যাপে চলে না
+        s = read(js)
+        mask = _js_code_mask(s)
+        for m in obj.finditer(s):
+            if not mask[m.start()]:
+                continue                  # মন্তব্য বা লেখার ভিতরে — কোড নয়
+            before, after = s[:m.start()], s[m.end():]
+            if before.rstrip().endswith("wlv1Flag("):
+                continue                  # ঠিকভাবেই পড়া হচ্ছে
+            c = cmp_re.match(after)
+            if c:                         # তুলনা — শুধু true/false হলেই দোষ
+                if c.group(1) in ("true", "false"):
+                    bad = "`" + c.group(0).strip() + "` — লেখা `\"true\"`/`\"false\"`-এর সঙ্গে মিলবে না"
+                else:
+                    continue
+            elif before.rstrip().endswith("!"):
+                bad = "`!` দিয়ে উল্টো করা হয়েছে"
+            elif before.rstrip().endswith(("&&", "||")) or after.lstrip().startswith(("&&", "||")):
+                bad = "`&&`/`||`-এ সরাসরি ব্যবহার"
+            else:
+                continue
+            line = before.count("\n") + 1
+            fail("৯.৪২", f"{os.path.basename(js)}:{line} — `{m.group(0)}` {bad} "
+                        f"⇒ `wlv1Flag(...)` দিয়ে পড়তে হবে (V906)")
+    app = os.path.join(WEB, "app.js")
+    if os.path.exists(app) and "function wlv1Flag(" not in read(app):
+        fail("৯.৪২", "app.js — `wlv1Flag()` ঘরটাই নেই ⇒ হ্যাঁ/না পড়ার এক নিয়ম ভেঙে গেছে (V906)")
+
+
 def check_kotlin_balance():
     for f in kt_files():
         d, p = _scan_balance(read(f))
@@ -3198,6 +3284,7 @@ def main():
     check_owner_preserved()         # 🧑‍💼 V868 — আসল রেজিস্ট্রারের নাম কখনো বদলাবে না
     check_kotlin_balance()          # 🧱 V877 — ব্রেস/বন্ধনী মেলে (বিল্ড-এরর ঠেকানো)
     check_history_time()            # ⏰ V888 — history-র প্রতিটা সারিতে তারিখ ও সময়
+    check_web_flag_fields()         # 🔤 V906 — হ্যাঁ/না-এর ঘর wlv1Flag() ছাড়া পড়া নিষেধ
     check_http_call_timeout()   # ⏱️ V803 — প্রতিটা নেট-ডাকে সময়সীমা
     check_safe_wide_columns()   # 🛟 V801 — শেষ-ভরসার কলাম-তালিকা পুরনো হয়নি তো
     check_static_calls()
@@ -3260,6 +3347,7 @@ def main():
         ("১১",  "রোগীর সময় ১১টা–৪টা"),
         ("৯.৩৭", "🔑 Supabase-এর প্রতিটা ডাকে apikey + Authorization দুটোই আছে"),
         ("৯.৩৬", "🕵️ ইন্সপেক্টর — প্রকল্পের প্রতিটা ক্লাসের import আছে"),
+        ("৯.৪২", "🔤 হ্যাঁ/না-এর ঘর সবসময় wlv1Flag() দিয়েই পড়া হয়"),
         ("৯.৪১", "⏰ history-র প্রতিটা সারিতে তারিখ ও সময় দুটোই বসে"),
         ("৯.৪০", "🧱 প্রতিটা Kotlin ফাইলে ব্রেস ও বন্ধনী মেলে"),
         ("৯.৩৯", "🧑\u200d💼 আসল রেজিস্ট্রারের নাম ও সময় কখনো বদলায় না"),
