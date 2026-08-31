@@ -15032,6 +15032,7 @@ function doctorSortList(rows){
 }
 window["doctorSortList"]=doctorSortList;
 function doctorVisit(filter='home'){
+ if(!(isMaster()||user.role==='field'||user.role==='staff'||user.role==='doctor'))return page('Doctor Visit / RMP','<div class="card redP">This role cannot use Doctor Visit / RMP</div>');
  /* 🔴🔒 V912 — পর্দা আঁকার পরে একবার তাজা তথ্য (উপরের `wlv1DvCloudPull` টীকা)। */
  try{ var __dvF=filter; setTimeout(function(){
    try{ wlv1DvCloudPull().then(function(ch){
@@ -15045,7 +15046,6 @@ function doctorVisit(filter='home'){
      }catch(_e){}
    }).catch(function(){}); }catch(_e){}
  },0) }catch(_e){}
- if(!(isMaster()||user.role==='field'||user.role==='staff'||user.role==='doctor'))return page('Doctor Visit / RMP','<div class="card redP">This role cannot use Doctor Visit / RMP</div>');
  let q=(safeSessionGet('doctorVisitSearch')||'').toLowerCase().trim();
  let base=doctorBranchListRows(q);
  let pendingRows=doctorSortList(base.filter(doctorDue));
