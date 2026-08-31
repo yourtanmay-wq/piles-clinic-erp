@@ -59,12 +59,12 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="18dp">
+                android:padding="12dp">
 
-                <TextView style="@style/FieldLabel" android:text="📞 Mobile *" />
+                <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="📞 Mobile *" />
                 <EditText
                     android:id="@+id/etMobile"
-                    style="@style/FieldInput"
+                    style="@style/RegFieldInput"
                     android:inputType="phone"
                     android:maxLines="1"
                     android:importantForAutofill="no"
@@ -82,27 +82,27 @@
                     android:textSize="12sp"
                     android:visibility="gone" />
 
-                <TextView style="@style/FieldLabel" android:text="⏰ Date" />
+                <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="⏰ Date" />
                 <TextView
                     android:id="@+id/tvDate"
-                    style="@style/FieldInput"
+                    style="@style/RegFieldInput"
                     android:text="" />
 
-                <TextView style="@style/FieldLabel" android:text="🏥 Branch *" />
+                <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="🏥 Branch *" />
                 <Spinner
                     android:id="@+id/spBranch"
-                    style="@style/FieldInput"
+                    style="@style/RegFieldInput"
                     android:background="@drawable/bg_input_field_picker"
                     android:paddingEnd="40dp" />
 
-                <TextView style="@style/FieldLabel" android:text="👤 Name" />
+                <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="👤 Name" />
                 <EditText
                     android:id="@+id/etName"
-                    style="@style/FieldInput"
+                    style="@style/RegFieldInput"
                     android:inputType="textPersonName|textCapWords"
                     android:hint="Patient name" />
 
-                <TextView style="@style/FieldLabel" android:text="🩺 Disease *" />
+                <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="🩺 Disease *" />
                 <GridLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -116,28 +116,30 @@
                     <Button android:id="@+id/btnDisOther" android:layout_width="0dp" android:layout_height="48dp" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="3dp" android:padding="2dp" android:textAllCaps="false" android:maxLines="1" app:autoSizeTextType="uniform" app:autoSizeMinTextSize="9sp" app:autoSizeMaxTextSize="14sp" android:text="📋 Other" />
                 </GridLayout>
 
-                <TextView style="@style/FieldLabel" android:text="📍 Address" />
+                <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="📍 Address" />
                 <EditText
                     android:id="@+id/etAddress"
                     style="@style/FieldInputMultiline"
+                    android:padding="10dp"
                     android:inputType="textMultiLine|textCapSentences"
                     android:minLines="2" />
 
-                <TextView style="@style/FieldLabel" android:text="📝 Remarks *" />
+                <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="📝 Remarks *" />
                 <EditText
                     android:id="@+id/etRemarks"
                     style="@style/FieldInputMultiline"
+                    android:padding="10dp"
                     android:inputType="textMultiLine|textCapSentences"
                     android:minLines="2"
                     android:hint="Required" />
 
-                <TextView style="@style/FieldLabel" android:text="🎧 Call Received By" />
+                <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="🎧 Call Received By" />
                 <Spinner
                     android:id="@+id/spReceivedBy"
-                    style="@style/FieldInput"
+                    style="@style/RegFieldInput"
                     android:popupBackground="@color/white" />
 
-                <TextView style="@style/FieldLabel" android:text="⏱️ Call Timing" />
+                <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="⏱️ Call Timing" />
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -160,10 +162,10 @@
                         android:text="Unexpected Time" />
                 </LinearLayout>
 
-                <TextView style="@style/FieldLabel" android:text="⏰ Next Follow-up Date *" />
+                <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="⏰ Next Follow-up Date *" />
                 <TextView
                     android:id="@+id/tvNextFollow"
-                    style="@style/FieldInput"
+                    style="@style/RegFieldInput"
                     android:text="Tap to select (optional)" />
 
                 <TextView

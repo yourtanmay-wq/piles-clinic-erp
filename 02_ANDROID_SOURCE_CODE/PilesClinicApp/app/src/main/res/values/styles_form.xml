@@ -28,8 +28,10 @@
          একটু ছোট করবেন … অফিসিয়াল ও প্রফেশনাল দেখাতে হবে"*।
          উচ্চতা 50dp → **42dp**, উপরের ফাঁক 6dp → 5dp। লেখার আকার (14.5sp) ও
          ভিতরের বাঁ-ডান ফাঁক (14dp) এক অক্ষরও বদলায়নি, তাই কোনো লেখা কাটে না।
-         ⛔ **শুধু Registration পর্দার জন্য** — শেয়ার্ড `FieldInput` অক্ষত, তাই
-            Enquiry · Appointment · Medicine · Check-up · Search আগের মতোই। -->
+         ⛔ শেয়ার্ড `FieldInput` অক্ষত, তাই Appointment · Medicine · Check-up ·
+            Search পর্দা আগের মতোই।
+         🎨 V893 (৩১.০৮.২০২৬, TK-নির্দেশ *"এবার ইনকয়ারি ফর্ম … রেজিস্ট্রেশনের
+            ফরমের মতন"*) — Enquiry পর্দাও এখন এই একই ছোট মাপ ব্যবহার করে। -->
     <style name="RegFieldInput" parent="FieldInput">
         <item name="android:layout_height">42dp</item>
         <item name="android:layout_marginTop">5dp</item>
