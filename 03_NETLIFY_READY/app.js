@@ -10402,7 +10402,13 @@ function wlv1AnatPaint(){
     if(cv.width!==pw||cv.height!==ph){cv.width=pw;cv.height=ph}
     cv.style.width=w+'px'; cv.style.height=h+'px';
     w=pw; h=ph;
-    var cover=Math.max(w/im.width,h/im.height)*(wlv1AnatZoom.sc||1);
+    /* 🔵🔒 V899 (৩১.০৮.২০২৬, TK: *"হ্যাঁ করুন"* — ফোনের V898-এর যমজ) —
+       ধাপ দেখানোর সময় (`WLV1_KS.on`) ছবিটা পর্দা **ভরে** না বসে **পুরোটা**
+       বসে, তাই নিচের নালী ও সুতো আর কাটা পড়ে না বা বাক্সের পিছনে যায় না।
+       ⛔ ধাপ বন্ধ থাকলে আগের মতোই কভার — সাধারণ আঁকার চেহারা অপরিবর্তিত।
+       ⛔ জুম · সরানো · ছোঁয়ার হিসাব (`wlv1AnatRect` ধরে) — কিছুই বদলায়নি। */
+    var fitK=WLV1_KS.on?Math.min(w/im.width,h/im.height):Math.max(w/im.width,h/im.height);
+    var cover=fitK*(wlv1AnatZoom.sc||1);
     var rw=im.width*cover, rh=im.height*cover;
     var rx=(w-rw)/2+(wlv1AnatZoom.tx||0), ry=(h-rh)/2+(wlv1AnatZoom.ty||0);
     wlv1AnatRect={x:rx,y:ry,w:rw,h:rh};
