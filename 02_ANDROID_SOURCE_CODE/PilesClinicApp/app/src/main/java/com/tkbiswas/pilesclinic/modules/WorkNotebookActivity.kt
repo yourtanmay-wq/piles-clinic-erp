@@ -458,7 +458,13 @@ class WorkNotebookActivity : AppCompatActivity() {
         // কোনো IN/OUT সেভ না-বসে জমা থাকলে সেটা ক্লাউডে বসে যায়), **তারপর আজকের
         // দিন লোড** — তাই "হারানো IN TIME" আর দেখাবে না। ⛔ জমা খালি থাকলে
         // flushPendingNotebook() সঙ্গে সঙ্গে ফিরে আসে (বাড়তি কিছু হয় না)।
-        ModuleUi.ensureSignedIn(this, staffCode) { flushThenLoad() }
+        /* 🔎🔒 V932 — কোন ধাপে আটকাচ্ছে সেটা পর্দায় দেখানোর জন্য (OpenTrace)।
+           ⛔ শুধু একটা ছোট লেখা — কোনো নিয়ম · হিসাব · সেভ কিছুই বদলায়নি। */
+        OpenTrace.step(this, "0. notebook screen started")
+        ModuleUi.ensureSignedIn(this, staffCode) {
+            OpenTrace.step(this, "7. saving pending marks")
+            flushThenLoad()
+        }
     }
 
     // 🔴🆕 V433 (TK-নির্দেশ ১৮.০৮.২০২৬ — "WhatsApp এ একবার পাঠানো হয়ে গেলে আর
@@ -2060,7 +2066,18 @@ class WorkNotebookActivity : AppCompatActivity() {
 
     // 🔵 আগে জমা-থাকা দিন বসাও, তারপর আজকের দিন লোড করো — তাই স্ক্রিনে ঠিক তথ্যই দেখায়।
     private fun flushThenLoad() {
-        Thread { flushPendingNotebook(); runOnUiThread { loadDay(); checkPendingLeaves() } }.start()
+        /* 🔎🔒 V932 — শেষ দুটো ধাপও চিহ্নিত, যাতে "লগইন হয়ে গেল কিন্তু পর্দা
+           আঁকতে গিয়ে আটকাল" — এই অবস্থাটাও ধরা পড়ে।
+           ⛔ কাজের ক্রম · থ্রেড · সেভ কিছুই বদলায়নি। */
+        Thread {
+            flushPendingNotebook()
+            runOnUiThread {
+                OpenTrace.step(this, "8. drawing the day")
+                loadDay()
+                checkPendingLeaves()
+                OpenTrace.done(this)
+            }
+        }.start()
     }
 
     // 🔴 B321 (03.08.2026, TK-অনুমোদিত মকআপ — "লক করে রাখুন") — সবুজ গ্রেডিয়েন্ট

@@ -196,9 +196,17 @@ object ModuleUi {
      *  বর্তমান ব্যবহারকারী হিসেবেই আবার সাইন-ইন হয় — কোনো দ্বিতীয় পাসওয়ার্ড
      *  স্ক্রিন দেখানো হয় না। */
     fun ensureSignedIn(activity: Activity, prefillCode: String, onReady: () -> Unit) {
+        /* 🔎🔒 V932 — কোন ধাপে আটকাচ্ছে সেটা পর্দাতেই দেখা যাবে (OpenTrace দেখুন)।
+           ⛔ শুধু একটা ছোট লেখা — কোনো নিয়ম · হিসাব · ডাক কিছুই বদলায়নি। */
+        val stuckBefore = OpenTrace.lastStuckStep(activity)
+        OpenTrace.step(activity, "1. checking login")
         val expected = ModuleAuth.expectedCode(activity)
-        if (ModuleAuth.isSignedIn && ModuleAuth.personCode == expected) { onReady(); return }
-        if (ModuleAuth.isSignedIn) ModuleAuth.signOut()
+        OpenTrace.step(activity, "2. login checked")
+        if (ModuleAuth.isSignedIn && ModuleAuth.personCode == expected) {
+            OpenTrace.done(activity); onReady(); return
+        }
+        if (ModuleAuth.isSignedIn) { OpenTrace.step(activity, "3. closing old session"); ModuleAuth.signOut() }
+        OpenTrace.step(activity, "4. drawing screen")
         toast(activity, "Opening...")
         /* 🔴🔒 V803 (২৮.০৮.২০২৬) — TK: "Staff Profile তো খুলছেই না?" (ফটো: সাদা
            ফাঁকা পর্দা)। আসল দোষ ছিল timeout না থাকা (ModuleAuth.kt দেখুন), সেটা
@@ -217,8 +225,11 @@ object ModuleUi {
         fun secsSoFar(): String = "%.1f".format((android.os.SystemClock.elapsedRealtime() - t0) / 1000.0)
         val tick = android.os.Handler(android.os.Looper.getMainLooper())
         try {
+            /* 🔎🔒 V932 — গতবার যদি খোলা শেষ না হয়ে থাকে, উপরে সেই ধাপটা
+               দেখানো হয় — TK যেন ছবি তুলে পাঠাতে পারেন। */
+            val prevLine = if (stuckBefore.isNotBlank()) "Last time it stopped at:  " + stuckBefore + "\n\n" else ""
             val wait = android.widget.TextView(activity).apply {
-                text = "Opening…\n\nPlease wait a moment."
+                text = prevLine + "Opening…\n\nPlease wait a moment."
                 textSize = 15f
                 gravity = android.view.Gravity.CENTER
                 setTextColor(android.graphics.Color.parseColor("#33404F"))
@@ -229,20 +240,38 @@ object ModuleUi {
                 override fun run() {
                     try {
                         if (activity.isFinishing) return
-                        wait.text = "Opening…\n\nPlease wait a moment.\n\n" + secsSoFar() + " s"
+                        /* ⛔ ধাপের নামটাও দেখানো হয় — জমে গেলে **শেষ ধাপটাই
+                           পর্দায় থেকে যাবে**, তখন ঠিক জায়গাটা ধরা যাবে। */
+                        wait.text = prevLine + "Opening…\n\nPlease wait a moment.\n\n" +
+                            secsSoFar() + " s\n\nStep:  " + OpenTrace.current()
                         tick.postDelayed(this, 500)
                     } catch (_: Throwable) { }
                 }
             }
             tick.postDelayed(ticker, 500)
+            /* ⛔ ধাপ বদলালে সঙ্গে সঙ্গেও লেখাটা বদলায় (৫০০ ms-এর অপেক্ষা নয়)। */
+            OpenTrace.onStep = { st ->
+                try {
+                    activity.runOnUiThread {
+                        try {
+                            if (!activity.isFinishing) wait.text = prevLine +
+                                "Opening…\n\nPlease wait a moment.\n\n" + secsSoFar() + " s\n\nStep:  " + st
+                        } catch (_: Throwable) { }
+                    }
+                } catch (_: Throwable) { }
+            }
         } catch (_: Throwable) { }
+        OpenTrace.step(activity, "5. signing in")
         Thread {
             val err = ModuleAuth.signInCurrentSession(activity.applicationContext)
             activity.runOnUiThread {
                 try { tick.removeCallbacksAndMessages(null) } catch (_: Throwable) { }
+                try { OpenTrace.onStep = null } catch (_: Throwable) { }
                 if (err == null) {
+                    OpenTrace.step(activity, "6. opening the screen")
                     toast(activity, "Opened in " + secsSoFar() + " s")
                     onReady()
+                    OpenTrace.done(activity)
                 }
                 else {
                     /* 🔴🔒 V808 (২৮.০৮.২০২৬) — TK: "staff Profile খুলছে না তো"।
