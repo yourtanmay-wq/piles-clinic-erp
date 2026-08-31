@@ -6499,9 +6499,11 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
   .dlTags{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
   .dlTag{display:inline-block;background:#1167D8;color:#fff;border-radius:8px;
     padding:3px 7px;font-size:9.5px;font-weight:700;line-height:1.2;white-space:nowrap}
-  /* STAGE নীল · BRANCH সবুজ · DISEASE বাদামি — শুধু বড় পর্দায় */
-  .dlTag.dlT1{background:#0E8A4F}
-  .dlTag.dlT2{background:#B7791F}
+  /* STAGE নীল · BRANCH সবুজ · DISEASE ও ঠিকানা বাদামি — শুধু বড় পর্দায়।
+     🔴 V928 — রং এখন ট্যাগের **ধরন** ধরে, ক্রম-নম্বর ধরে নয় (ব্রাঞ্চ বা রোগ
+     ফাঁকা থাকলে আগে রং সরে যেত)। */
+  .dlTag.dlTBranch{background:#0E8A4F}
+  .dlTag.dlTDisease,.dlTag.dlTAddr{background:#B7791F}
   .dlCall{flex:0 0 auto;width:38px;height:38px;min-height:38px;margin-left:8px;
     padding:0;border:0;border-radius:50%;box-shadow:none;
     background:linear-gradient(135deg,#0B66D8,#16A36D);color:#fff;font-size:18px;

@@ -1082,6 +1082,35 @@ function finRowTap(id) {
     var m = window.MOD, client = await sb();
     var row = null;
     if (id) { try { row = (await client.schema('fin').from('collections').select('*').eq('id', id).maybeSingle()).data; } catch (e) {} }
+    /* 🔴🔒 V928 (৩১.০৮.২০২৬, নিজের যাচাইয়ে ধরা পড়া দোষ) — **ভুল তারিখ খুলত।**
+       খাতায় যে দিনে ক্লাউডে কোনো সারি নেই (শুধু খরচের দিন · আজকের খালি সারি ·
+       V927-এর অটো-আয়ের দিন), সেখানে id হয় `v399exp_<তারিখ>`। ক্লাউডে ওই id
+       পাওয়া যায় না বলে নিচের fallback-টা **সবসময় আজকের তারিখ** বসিয়ে দিত —
+       ফলে ০১/০৯-এর সারিতে ৩-চাপ দিলে ফর্মে আজকের তারিখ উঠত, আর Save করলে ভুল
+       দিনে হিসাব বসত। এখন id-র ভিতরের তারিখটাই ধরা হয়।
+       ⛔ আগে যেখানে id সত্যিই ক্লাউডের (হাতে লেখা সারি), সেখানে কিছুই বদলায়নি।
+       ⛔ V927-এর অটো-আয়ের দিন হলে Cash/Online-ও আগে থেকে ভরা থাকে, যাতে TK
+          শুধু দরকারি সংখ্যাটা বদলে Save করতে পারেন। */
+    var v928Date = '', v928Branch = '';
+    try {
+      var mm = String(id || '').match(/^v399exp_(\d{4}-\d{2}-\d{2})$/);
+      if (mm) {
+        v928Date = mm[1];
+        try { v928Branch = finLockedBranch() || finGlobalBranch() || ''; } catch (e) { v928Branch = ''; }
+      }
+    } catch (e) {}
+    if (!row && v928Date) {
+      var v928Auto = null;
+      try {
+        if (typeof window.wlv1AutoIncomeForDay === 'function')
+          v928Auto = window.wlv1AutoIncomeForDay(v928Date, v928Branch || null);
+      } catch (e) { v928Auto = null; }
+      var v928Br = (v928Branch && v928Branch !== 'All Branches') ? v928Branch : (branches()[0] || '');
+      row = { entry_date: v928Date, branch: v928Br,
+              cash: (v928Auto ? Number(v928Auto.cash || 0) : 0),
+              online: (v928Auto ? Number(v928Auto.online || 0) : 0),
+              expense_notes: '' };
+    }
     row = row || { entry_date: m.todayIST(), branch: branches()[0], cash: 0, online: 0, expense_notes: '' };
     document.getElementById('finBody').innerHTML = '<div class="card"><h2>Ledger Entry</h2>' +
       /* 🖥️🔵 B677 (১৫.০৮.২০২৬, TK-নির্দেশ): *"এটা তো ডেক্সটপের ভিউ — তাহলে সবগুলো

@@ -614,6 +614,14 @@ function wlv1RamOnlyMark(t){
     }
   }catch(_e){}
 }
+/* 🔴🔒 V928 (৩১.০৮.২০২৬, নিজের যাচাইয়ে ধরা পড়া দোষ) — **RAM-চিহ্নটা কখনো
+   উঠত না।** V918-এ জায়গা ভরে গেলে টেবিলটা RAM-ভিত্তিক ধরা হত, কিন্তু পরে
+   জায়গা খালি হয়ে লেখা সফল হলেও চিহ্নটা বসেই থাকত — ফলে ওই সেশনে
+   localStorage-এ লেখা থাকা সত্ত্বেও তা আর পড়া হত না। এখন একবার সফল লেখা
+   হলেই চিহ্নটা উঠে যায়। ⛔ তথ্য কখনো হারায় না (RAM_STORE সবসময় হালনাগাদ),
+   এটা শুধু অকারণ RAM-নির্ভরতা বন্ধ করে। */
+function wlv1RamOnlyClear(t){ try{ if(RAM_ONLY[t]) delete RAM_ONLY[t]; }catch(_e){} }
+window["wlv1RamOnlyClear"]=wlv1RamOnlyClear;
 const PROTECTED_NEW_ROWS={};
 function protectNewRow(t,r){try{if(!r||!r.id)return;let a=PROTECTED_NEW_ROWS[t]||[];a=a.filter(x=>x&&x.id!==r.id);a.unshift({...r,__protectedAt:Date.now()});PROTECTED_NEW_ROWS[t]=a.slice(0,50)}catch(e){}}
 window["protectNewRow"]=protectNewRow;
@@ -837,11 +845,11 @@ const save=(t,d,opts={})=>{
  RAM_STORE[t]=rows;
  /* 🔴 V435 — রোগী বদলালে মোবাইল→ID তালিকাটা বাতিল, নইলে পুরনো ID দেখাত। */
  if(t==='patients'){try{wlv1PidIndexInvalidate()}catch(_e){}}
- try{localStorage.setItem('rk_'+t,JSON.stringify(stripLargePhotos(rows)))}
+ try{localStorage.setItem('rk_'+t,JSON.stringify(stripLargePhotos(rows)));wlv1RamOnlyClear(t)}
  catch(e){
   console.warn('Local save quota issue, cleaning photo storage',e);
   /* 🔴 V918 — সাফ করে আবার চেষ্টা; তাতেও না পারলে টেবিলটা RAM-ভিত্তিক। */
-  try{emergencyPhotoStorageCleanup();localStorage.setItem('rk_'+t,JSON.stringify(stripLargePhotos(rows)))}
+  try{emergencyPhotoStorageCleanup();localStorage.setItem('rk_'+t,JSON.stringify(stripLargePhotos(rows)));wlv1RamOnlyClear(t)}
   catch(_){ wlv1RamOnlyMark(t); }
  }
  // A genuine local write (not a save that's just writing back merged/pulled cloud
@@ -1061,8 +1069,8 @@ function resetLocalTableFromCloud(t,rows){
   /* 🔴 V918 — জমা-ঘরে জায়গা না থাকলেও এই সারিগুলো যেন হারিয়ে না যায়:
      লেখা ব্যর্থ হলে টেবিলটা RAM-ভিত্তিক ধরা হয় (উপরের `RAM_ONLY` টীকা),
      আর পুরো কাজটা আগের মতোই সফল ধরা হয় — নইলে এখানেই থেমে যেত। */
-  try{ localStorage.setItem('rk_'+t,JSON.stringify(stripLargePhotos(RAM_STORE[t]))); }
-  catch(_e){ try{ emergencyPhotoStorageCleanup(); localStorage.setItem('rk_'+t,JSON.stringify(stripLargePhotos(RAM_STORE[t]))); }catch(__e){ wlv1RamOnlyMark(t); } }
+  try{ localStorage.setItem('rk_'+t,JSON.stringify(stripLargePhotos(RAM_STORE[t]))); wlv1RamOnlyClear(t); }
+  catch(_e){ try{ emergencyPhotoStorageCleanup(); localStorage.setItem('rk_'+t,JSON.stringify(stripLargePhotos(RAM_STORE[t]))); wlv1RamOnlyClear(t); }catch(__e){ wlv1RamOnlyMark(t); } }
   if(!keep.length)clearPendingCloud(t); else markPendingCloud(t);
   return true
  }catch(e){return false}
@@ -3214,20 +3222,47 @@ function wlv1AutoIncomeForDay(dateISO,branch){
   }catch(_e){ return null }
 }
 window["wlv1AutoIncomeForDay"]=wlv1AutoIncomeForDay;
-/* মাসের প্রতিটা দিনের অটো-আয় একসাথে — Monthly Summary-র জন্য। */
+/* মাসের প্রতিটা দিনের অটো-আয় একসাথে — Monthly Summary ও খাতার জন্য।
+   🔴🔒 V928 (৩১.০৮.২০২৬, নিজের যাচাইয়ে ধরা পড়া দোষ) — আগে প্রতিটা দিনের
+   জন্য আলাদা করে `wlv1AutoIncomeForDay()` ডাকা হত, আর সেটা প্রতিবার পুরো
+   `collectionRows()` নতুন করে বানাত — এক মাসে ৩০ বার। হাজার হাজার পেমেন্টে
+   পর্দা থমকে যেতে পারত (নিয়ম ২: "থমকাবে না")। এখন **একবারই** তালিকাটা বানিয়ে
+   তারিখ ধরে ভাগ করা হয়। ⛔ ফলাফল হুবহু আগের মতোই — শুধু দ্রুত। */
 function wlv1AutoIncomeForMonth(monthYm,branch){
   try{
     var ym=String(monthYm||'').slice(0,7); if(ym.length!==7) return {};
-    var out={}, seen={};
+    var all=(typeof branch==='string' && branch && branch!=='__all' && branch!=='All Branches' && branch!=='All');
+    function inBr(x){ return !all || String(x&&x.branch||'')===String(branch) }
+    var agg={};
+    function bucket(d){ if(!agg[d]) agg[d]={cash:0,online:0,count:0}; return agg[d] }
     collectionRows().forEach(function(x){
       var d=String(x&&x.date||'').slice(0,10);
-      if(d.slice(0,7)!==ym) return;
-      if(d<WLV1_AUTO_INCOME_FROM) return;
-      seen[d]=true;
+      if(d.slice(0,7)!==ym || d<WLV1_AUTO_INCOME_FROM) return;
+      if(!inBr(x)) return;
+      var b=bucket(d);
+      var c=(x.cashAmount!=null&&x.cashAmount!=='')?Number(x.cashAmount||0):(payMode(x.mode)==='CASH'?Number(x.amount||0):0);
+      var o=(x.onlineAmount!=null&&x.onlineAmount!=='')?Number(x.onlineAmount||0):(payMode(x.mode)==='UPI'?Number(x.amount||0):0);
+      if(isFinite(c)) b.cash+=c;
+      if(isFinite(o)) b.online+=o;
+      b.count++;
     });
-    Object.keys(seen).forEach(function(d){
-      var v=wlv1AutoIncomeForDay(d,branch);
-      if(v && (v.cash>0 || v.online>0)) out[d]=v;
+    /* অনুমোদিত Refund বিয়োগ — wlv1AutoIncomeForDay()-এর হুবহু একই নিয়ম */
+    try{
+      (load('payments')||[]).forEach(function(x){
+        var d=String(x&&x.date||'').slice(0,10);
+        if(d.slice(0,7)!==ym || d<WLV1_AUTO_INCOME_FROM) return;
+        if(!inBr(x)) return;
+        if(!wlv1IsApprovedRefund(x)) return;
+        var amt=Number(x.amount||0); if(!isFinite(amt)) return;
+        var b=bucket(d);
+        if(payMode(x.mode)==='UPI') b.online-=amt; else b.cash-=amt;
+      });
+    }catch(_e){}
+    var out={};
+    Object.keys(agg).forEach(function(d){
+      var b=agg[d];
+      var cash=(b.cash>0)?Math.round(b.cash):0, online=(b.online>0)?Math.round(b.online):0;
+      if(cash>0 || online>0) out[d]={cash:cash, online:online, count:b.count};
     });
     return out;
   }catch(_e){ return {} }
@@ -25072,13 +25107,30 @@ function wlv1DlTags(r){
   if(String(ad).trim()) t.push(String(ad).toUpperCase());
   return t;
 }
+/* 🔴🔒 V928 (৩১.০৮.২০২৬, নিজের যাচাইয়ে ধরা পড়া দোষ) — V921-এ ট্যাগের রং
+   **ক্রম-নম্বর ধরে** বসানো হয়েছিল (`dlT0/dlT1/dlT2`)। কিন্তু ব্রাঞ্চ বা রোগের
+   ঘর ফাঁকা থাকলে ক্রম সরে যেত — তখন রোগের ট্যাগে ব্রাঞ্চের সবুজ রং পড়ত।
+   এখন রংটা **কোন ধরনের ট্যাগ** তার উপরেই বসে, ক্রমের উপরে নয়।
+   ⛔ ফোনে এই রংগুলোর কোনো নিয়মই নেই (সব নীল) — ফোন আগের মতোই। */
+function wlv1DlTagKinds(r){
+  var k=['stage'];
+  if(String(r.branch||'').trim()) k.push('branch');
+  if(String(r.disease||'').trim()) k.push('disease');
+  var ad=''; try{ ad=wlv1AddrTagForCard(r.mobile,r.address,r.stage)||'' }catch(e){ ad=String(r.address||'') }
+  if(String(ad).trim()) k.push('addr');
+  return k;
+}
 
 function wlv1DlRow(r){
   var d=String(r.mobile||'').replace(/\D/g,'').slice(-10);
   var nm=String(r.name||'').trim()||'Name Not Available';
   /* 🟢🔒 V921 — ট্যাগে ক্রম-নম্বরের ক্লাস (dlT0/dlT1/…)। রং শুধু বড় পর্দায়
      styles.css-এ দেওয়া; ফোনে আগের মতোই সব ট্যাগ নীল — চেহারা বদলায়নি। */
-  var tags=wlv1DlTags(r).map(function(t,i){ return '<span class="dlTag dlT'+i+'">'+esc(t)+'</span>' }).join('');
+  var __kinds=wlv1DlTagKinds(r);
+  var __cls={stage:'dlTStage',branch:'dlTBranch',disease:'dlTDisease',addr:'dlTAddr'};
+  var tags=wlv1DlTags(r).map(function(t,i){
+    return '<span class="dlTag '+(__cls[__kinds[i]]||'dlTStage')+'">'+esc(t)+'</span>';
+  }).join('');
   return '<div class="dlRow">'
    +'<div class="dlInfo"><div class="dlName">'+esc(nm)+'</div><div class="dlMob">'+esc(d)+'</div>'
    +(tags?'<div class="dlTags">'+tags+'</div>':'')+'</div>'
