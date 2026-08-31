@@ -311,6 +311,27 @@ function normalizeTableRows(t,rows){
  return t==='patients'?arr.map(normalizePatientRecord):arr;
 }
 window["normalizeTableRows"]=normalizeTableRows;
+/* 🔴🔒 V906 (৩১.০৮.২০২৬, TK-এর লাইভ রিপোর্ট: *"মোবাইলে পেশেন্ট আছে কিন্তু
+   কম্পিউটারে নেই কেন?"* — ব্যাকআপ ফাইল খুলে প্রমাণ পাওয়া গেছে)।
+   **আসল কারণ:** ডেটাবেসে `patients.queue` ও `patients.doctorComplete` দুটোই
+   **লেখা** হিসেবে জমা থাকে (`"true"` / `"false"`), সত্যি-মিথ্যা হিসেবে নয়।
+   ৩৯৪টা সারির প্রত্যেকটাই এমন।
+     · ফোন — `optBoolean()` ওই লেখাটাকে বুঝে নেয়, তাই ঠিক দেখায়।
+     · কম্পিউটার — `!x.doctorComplete` লিখলে `"false"` একটা **ভরা লেখা**, তাই
+       সেটাকে "সত্যি" ধরে নিত ⇒ প্রত্যেক রোগীকেই "চেকআপ শেষ" ভেবে CHECK-UP
+       তালিকা থেকে বাদ দিত। ⇒ কম্পিউটারে তালিকা সবসময়ই ফাঁকা থাকত।
+   **সমাধান:** ফোনের `optBoolean()`-এর হুবহু একই নিয়মে পড়া হয়, নিচের এই
+   একটাই ঘর দিয়ে — প্রকল্পের প্রতিটা জায়গায় এটাই ব্যবহার হয় (খাতার নিয়ম ৭)।
+   ⛔ ডেটাবেসে এক অক্ষরও লেখা হয় না — শুধু **পড়ার** নিয়ম ঠিক হলো।
+   ⛔ সেভের পথ (queue:true / doctorComplete:false) আগের মতোই অপরিবর্তিত। */
+function wlv1Flag(v){
+  if(v===true)return true;
+  if(v===false||v===null||v===undefined)return false;
+  if(typeof v==='number')return v!==0;
+  var t=String(v).trim().toLowerCase();
+  return t==='true'||t==='t'||t==='1'||t==='yes';
+}
+window["wlv1Flag"]=wlv1Flag;
 const esc=s=>String(s??'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
 const mob=s=>String(s||'').replace(/\D/g,'').slice(-10);const normMob=s=>valid(s)?'+91'+mob(s):mob(s);const valid=m=>/^\d{10}$/.test(mob(m));/* 🔴 V430 (TK-সিদ্ধান্ত ১৮.০৮.২০২৬: "₹2,10,850 — ভারতীয় ভাগ") — টাকার অঙ্কে
    এতদিন ওয়েবের এই ফাংশনে **কোনো কমাই ছিল না** (₹210850), অথচ ফোনে সব
@@ -3060,7 +3081,7 @@ function overview(){
   return {cash,on:upi,upi,total:cash+upi,cashCount,onCount:upiCount,upiCount,totalCount:all.length};
 }
 window["overview"]=overview;
-function counts(){let f=scoped(load('followups')),p=scoped(load('patients')),e=scoped(load('enquiries'));return {inq:f.filter(x=>x.stage==='Inquiry'&&!isConvertedOrClosed(x)).length,pat:f.filter(x=>x.stage==='Patient'&&!isConvertedOrClosed(x)).length,tr:f.filter(x=>x.stage==='Treatment'&&!isConvertedOrClosed(x)).length,over:f.filter(x=>x.nextFollow&&x.nextFollow<=today()&&!isConvertedOrClosed(x)).length,q:p.filter(x=>x.queue&&!x.doctorComplete).length,reg:p.length,enq:e.length}}
+function counts(){let f=scoped(load('followups')),p=scoped(load('patients')),e=scoped(load('enquiries'));return {inq:f.filter(x=>x.stage==='Inquiry'&&!isConvertedOrClosed(x)).length,pat:f.filter(x=>x.stage==='Patient'&&!isConvertedOrClosed(x)).length,tr:f.filter(x=>x.stage==='Treatment'&&!isConvertedOrClosed(x)).length,over:f.filter(x=>x.nextFollow&&x.nextFollow<=today()&&!isConvertedOrClosed(x)).length,q:p.filter(x=>wlv1Flag(x.queue)&&!wlv1Flag(x.doctorComplete)).length,reg:p.length,enq:e.length}}
 window["counts"]=counts;
 function wlv1TileTheme(t){
  // Dashboard tile colours, copied from the native Android app so both look the same.
@@ -6295,7 +6316,7 @@ function wlv1RejectFollowupGroup(source,status='Cancelled',remark='Rejected',sta
     if(d.length===10){
       try{syncEnquiryCancelFromFollow(source,remark,status)}catch(_e){}
       if(stage==='Patient'||stage==='Treatment'){
-        try{load('patients').filter(p=>mob(p.mobile)===d&&!p.doctorComplete).forEach(p=>{try{upd('patients',p.id,{doctorComplete:true})}catch(_e){}})}catch(_e){}
+        try{load('patients').filter(p=>mob(p.mobile)===d&&!wlv1Flag(p.doctorComplete)).forEach(p=>{try{upd('patients',p.id,{doctorComplete:true})}catch(_e){}})}catch(_e){}
       }
     }
     try{_invalidateFollowLookupCache()}catch(_e){}
@@ -6350,7 +6371,7 @@ window["todayPendingCall"]=todayPendingCall;function followStats(tab){
         let __rowMobiles2=new Set(rows.map(r=>mob(r.mobile)));
         scoped(load('patients')).forEach(pt=>{
           const m=mob(pt.mobile); if(!m||__rowMobiles2.has(m))return;
-          if(pt.doctorComplete&&tab==='Patient')return;   /* চেক-আপ শেষ হলে Visit-এ নয় */
+          if(wlv1Flag(pt.doctorComplete)&&tab==='Patient')return;   /* চেক-আপ শেষ হলে Visit-এ নয় */
           if(tab==='Treatment'&&!(Number(v266TreatmentPaidForPatient(pt)||0)>0))return;
           __rowMobiles2.add(m);
           rows.push({id:'virtual_'+(pt.id||m),refId:pt.id,patientDbId:pt.id,mobile:pt.mobile,name:pt.name,
@@ -6992,7 +7013,7 @@ function draffHome(tab='home'){
    if(!prev)wlv1PatByMob.set(m,x);
    else wlv1PatByMob.set(m,wlv1PickPatientRow([prev,x],(typeof user!=='undefined'&&user&&user.branch)||'')||prev);});
  let wlv1OnePerPerson=Array.from(wlv1PatByMob.values());
- let complete=wlv1OnePerPerson.filter(x=>x.completeApprovedBy||(Number(x.bill||0)>0&&Math.max(0,Number(x.bill||0)-Number(paidByPid[x.id]||0))===0&&(String(x.stage||'').toLowerCase().includes('complete')||x.doctorComplete)));
+ let complete=wlv1OnePerPerson.filter(x=>x.completeApprovedBy||(Number(x.bill||0)>0&&Math.max(0,Number(x.bill||0)-Number(paidByPid[x.id]||0))===0&&(String(x.stage||'').toLowerCase().includes('complete')||wlv1Flag(x.doctorComplete))));
  /* 🟢🔒 V645 (২৫.০৮.২০২৬, TK-নির্দেশ, সততার সাথে সম্পূর্ণ করা) — আসল কারণ:
     এই নিয়ম stage==='Patient' হলেই ধরত, কিন্তু status==='returned' (Return
     Visit বাকেট, ঠিক নিচেই stage==='Patient'&&status==='returned' দিয়ে
@@ -8682,12 +8703,12 @@ function visitQueueRows(){
      return d<0?true:(d<=WLV1_Q_STALE_DAYS);
    }catch(_e){return true}
  };
- let rows=base.filter(x=>(x.queue===true||x.stage==='Doctor Queue'||x.stage==='Visit')&&!x.doctorComplete&&!isSeededRecord(x)&&wlv1QFresh(x));
+ let rows=base.filter(x=>(wlv1Flag(x.queue)||x.stage==='Doctor Queue'||x.stage==='Visit')&&!wlv1Flag(x.doctorComplete)&&!isSeededRecord(x)&&wlv1QFresh(x));
  try{
   let last=localStorage.getItem('rk_last_visit_queue_id');
   if(last&&!rows.some(x=>x.id===last)){
    let p=load('patients').find(x=>x.id===last);
-   if(p&&!p.doctorComplete&&!isSeededRecord(p)&&(isMaster()||user?.branch==='All'||!p.branch||sameBranch(p.branch,user?.branch)))rows.unshift(p);
+   if(p&&!wlv1Flag(p.doctorComplete)&&!isSeededRecord(p)&&(isMaster()||user?.branch==='All'||!p.branch||sameBranch(p.branch,user?.branch)))rows.unshift(p);
   }
  }catch(e){}
  rows=[...rows].sort((a,b)=>{
@@ -14312,7 +14333,7 @@ function reports(){
    <button class="card reportKpi" onclick="todayPendingCall()">Due Today<br><b>${c.over}</b></button>
  </div>`)
 }
-window["reports"]=reports;function reportList(kind){let rows=[];if(kind==='enquiries')rows=scoped(load('enquiries'));else if(kind==='patients')rows=scoped(load('patients'));else if(kind==='queue')rows=scoped(load('patients')).filter(x=>x.queue&&!x.doctorComplete);let html=rows.map(x=>`<div class="card"><b>${esc(x.name||normMob(x.mobile)||x.patientId||'-')}</b><br><span class="mut">${esc(normMob(x.mobile||''))} · ${esc(x.branch||'')} · ${esc(fmtDate(x.date||x.visitDate||x.registrationDate||''))}</span><br><small>${esc(x.disease||x.status||'')}</small><div class="actions"><button class="small ghost" onclick="${x.id?`summary('${x.id}')`:`summaryByMobile('${mob(x.mobile)}')`}">View Details</button>${x.id?`<button class="small ghost" onclick="openPrintMenu('${esc(x.id)}')">Print</button>`:''}</div></div>`).join('')||'<div class="card mut">No records yet</div>';page('Report Details',html)}
+window["reports"]=reports;function reportList(kind){let rows=[];if(kind==='enquiries')rows=scoped(load('enquiries'));else if(kind==='patients')rows=scoped(load('patients'));else if(kind==='queue')rows=scoped(load('patients')).filter(x=>wlv1Flag(x.queue)&&!wlv1Flag(x.doctorComplete));let html=rows.map(x=>`<div class="card"><b>${esc(x.name||normMob(x.mobile)||x.patientId||'-')}</b><br><span class="mut">${esc(normMob(x.mobile||''))} · ${esc(x.branch||'')} · ${esc(fmtDate(x.date||x.visitDate||x.registrationDate||''))}</span><br><small>${esc(x.disease||x.status||'')}</small><div class="actions"><button class="small ghost" onclick="${x.id?`summary('${x.id}')`:`summaryByMobile('${mob(x.mobile)}')`}">View Details</button>${x.id?`<button class="small ghost" onclick="openPrintMenu('${esc(x.id)}')">Print</button>`:''}</div></div>`).join('')||'<div class="card mut">No records yet</div>';page('Report Details',html)}
 window.reportList=reportList;
 function staffReportDetails(name){let q=String(name||'').toLowerCase();let rows=[...scoped(load('enquiries')),...scoped(load('patients')),...scoped(load('payments'))].filter(x=>String([x.createdBy,x.receivedBy,x.name,x.mobile,codeName(x.createdBy||''),codeName(x.receivedBy||'')].join(' ')).toLowerCase().includes(q));let en=rows.filter(x=>x.id&&String(x.id).startsWith('enq')).length, pt=rows.filter(x=>x.patientId||String(x.id||'').startsWith('pat')).length, payRows=rows.filter(x=>String(x.id||'').startsWith('pay'));let pay=payRows.reduce((s,x)=>s+Number(x.amount||0),0);
  // 🔴 TK-অডিট-অনুরোধ (01.08.2026): Refund এখানেও প্লেইন যোগ হচ্ছিল।
@@ -19148,7 +19169,7 @@ function wlv1NvpReopenQueue(mobile){
     if(seen.indexOf(d)>-1)return;                    // আজ একবার হয়ে গেছে
     var did=false;
     load('patients').filter(function(x){return mob(x.mobile)===d}).forEach(function(x){
-      if(!x.doctorComplete)return;                   // ইতিমধ্যেই তালিকায় আছেন
+      if(!wlv1Flag(x.doctorComplete))return;          // ইতিমধ্যেই তালিকায় আছেন
       try{ upd('patients',x.id,{stage:'Doctor Queue',queue:true,doctorComplete:false}); did=true; }catch(_e){}
     });
     seen.push(d);
