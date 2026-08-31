@@ -15118,3 +15118,9 @@ V916-এ `followups`-এর সাদা-তালিকায় **`previousSta
 **ভার্সন:** ৯২৮ / ৯.২৮ (তিন জায়গায়)।
 **যাচাই:** verify_kotlin_compile ✅ · verify_android_resources ✅ ·
 node --check (সব JS) ✅ · tk_guard ✅।
+
+**✅ খোলা ঝুঁকিটা বন্ধ হয়েছে (৩১.০৮.২০২৬ রাত ৭:৪৯):** TK নিজে Supabase-এ
+`alter table public.followups add column if not exists "previousStage" text;`
+চালিয়েছেন — "Success. No rows returned"। এখন ঘরটা সত্যিই আছে, তাই ওই ৪০০
+ভুল-বার্তা আর হবে না এবং মানটাও সত্যিই জমবে। SQL রাখা হলো
+`00_SQL/V928_FOLLOWUPS_PREVIOUS_STAGE.sql`-এ।
