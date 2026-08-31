@@ -3311,9 +3311,31 @@ function removeUserPhoto(m){if(!isMaster())return toast('Only Master Admin');let
 window["removeUserPhoto"]=removeUserPhoto;
 function masterUserPhotoManager(){if(!isMaster())return toast('Only Master Admin');let list=allUsers().filter(u=>['staff','doctor'].includes(u.role));let rows=list.map(u=>`<button class="menuBtn" onclick="openUserPhotoSheet('${mob(u.mobile)}')"><span>👤</span><b>${esc(codeName(u.mobile)||u.name)}</b><small>${esc(u.role)} · ${esc(u.branch)}</small></button>`).join('');modal(`<h2>Staff / Doctor Photo</h2><div class="grid menuGrid">${rows}</div>`)}
 window["masterUserPhotoManager"]=masterUserPhotoManager;
+/* 🟢🔒 V926 (৩১.০৮.২০২৬, TK ডেমো প্রুফ দেখে "হ্যাঁ পাশ, বসিয়ে দিন") —
+   "Pending Call"-এর গোনা এখন **ফোনের অ্যাপের হুবহু নিয়মে**।
+   **আসল অমিল (কোড ধরে যাচাই, আন্দাজ নয়):** ফোনের ড্যাশবোর্ড-ব্যানার গোনে
+   `nextFollow.isNotBlank() && nextFollow <= today` — অর্থাৎ **আজ + বকেয়া**
+   (DashboardActivity.kt-এর `isDue`, TK-অনুমোদিত V590-এর নিয়ম)। কম্পিউটার
+   গোনত `nextFollow === today()` — **শুধু ঠিক আজকের**। তাই দুই জায়গার
+   সংখ্যা কখনোই মিলত না, আর একদিন বাদ পড়া কল কম্পিউটারে চিরতরে হারিয়ে যেত।
+   ⛔ তারিখ ফাঁকা হলে (কল ঠিক করাই নেই) আগের মতোই গোনা হয় না।
+   ⛔ Converted/Closed বাদ দেওয়ার নিয়ম এক অক্ষরও বদলায়নি। */
+function wlv1CallDue(x){
+  var d=String((x&&x.nextFollow)||'');
+  if(!d) return false;
+  if(d>today()) return false;
+  try{ if(isConvertedOrClosed(x)) return false }catch(_e){}
+  return true;
+}
+window["wlv1CallDue"]=wlv1CallDue;
+function wlv1CallLate(x){
+  var d=String((x&&x.nextFollow)||'');
+  return !!d && d<today();
+}
+window["wlv1CallLate"]=wlv1CallLate;
 function headerBell(){
  let n=0;
- try{n=mergeFollow(scoped(load('followups'))).filter(x=>x.nextFollow===today()&&!isConvertedOrClosed(x)).length}catch(e){n=0}
+ try{n=mergeFollow(scoped(load('followups'))).filter(wlv1CallDue).length}catch(e){n=0}
  // 🔔 TK-অনুমোদিত (১৫.০৮.২০২৬): ঘন্টা এখন **পূর্ণ Notifications পাতা** খোলে
  // (Android-এর মতো)। ⛔ ব্যাজের সংখ্যা গোনার নিয়ম উপরে এক অক্ষরও বদলায়নি।
  // ⛔ পুরনো `pendingBellMenu()` মোছা হয়নি — নতুনটা কোনো কারণে না চললে ওটাই চলে।
@@ -3321,11 +3343,13 @@ function headerBell(){
 }
 window["headerBell"]=headerBell;
 function pendingBellMenu(){
- let f=mergeFollow(scoped(load('followups'))).filter(x=>x.nextFollow===today()&&!isConvertedOrClosed(x));
+ /* 🟢🔒 V926 — গোনা এখন ফোনের নিয়মে (আজ + বকেয়া)। */
+ let f=mergeFollow(scoped(load('followups'))).filter(wlv1CallDue);
  let stages=['Inquiry','Patient','Treatment'].filter(t=>f.some(x=>x.stage===t));
- if(!stages.length){modal(`<h2>Today Pending Call</h2><div class="card mut">আজ কোনো Pending Call নেই</div>`);return}
+ if(!stages.length){modal(`<h2>Pending Calls</h2><div class="card mut">আজ কোনো Pending Call নেই</div>`);return}
+ let lateAll=f.filter(wlv1CallLate).length;
  let opts=stages.map(t=>`<button class="menuBtn" onclick="closeModal();todayPendingCall('${t}')"><span>📞</span><b>${stageLabel(t)}</b><small>${f.filter(x=>x.stage===t).length}</small></button>`).join('');
- modal(`<h2>Today Pending Call</h2><div class="grid menuGrid">${opts}</div>`);
+ modal(`<h2>Pending Calls${lateAll>0?` — ${lateAll} overdue`:''}</h2><div class="grid menuGrid">${opts}</div>`);
 }
 window["pendingBellMenu"]=pendingBellMenu;
 /* 🔔🖥️ Notifications — পূর্ণ পাতা (TK-অনুমোদিত প্রুফ, ১৫.০৮.২০২৬, "খুব সাবধানে")।
@@ -3410,17 +3434,39 @@ function wlv1NotificationsPage(){
       }
     }
   }
-  // ৪) 📞 Today Pending Call — কম্পিউটারের নিজস্ব (পুরনো ঘন্টার হুবহু একই হিসাব)।
-  var f=[]; try{ f=mergeFollow(scoped(load('followups'))).filter(function(x){return x.nextFollow===t&&!isConvertedOrClosed(x)}) }catch(e){ f=[] }
+  /* 🟢🔒 V926 — গোনা এখন ফোনের নিয়মে (আজ + বকেয়া), আর বকেয়ার সংখ্যাটা
+     আলাদা করে দেখানো হয় — নইলে "Today" লেখাটা মিথ্যে হয়ে যেত।
+     ⛔ ফোনের চেহারা অক্ষত: বড় পর্দায় (≥900px) নতুন সাজের সারি, ছোট পর্দায়
+        হুবহু আগের `wlv1NbRow` — দুটোর কাজ ও গন্তব্য এক। */
+  var f=[]; try{ f=mergeFollow(scoped(load('followups'))).filter(wlv1CallDue) }catch(e){ f=[] }
   var stages=['Inquiry','Patient','Treatment'].filter(function(s){return f.some(function(x){return x.stage===s})});
   if(stages.length){
     total+=f.length;
-    html+='<div class="nbSec" style="color:#E5484D"><i style="background:#E5484D"></i>📞 Today Pending Call</div>';
-    stages.forEach(function(s){
-      var n=f.filter(function(x){return x.stage===s}).length;
-      html+=wlv1NbRow('📞','#ffe9e9',((typeof stageLabel==='function'?stageLabel(s):s)+' — '+n),'Tap to open the list',
-        "todayPendingCall('"+s+"')");
-    });
+    var lateAll=f.filter(wlv1CallLate).length;
+    var wide=false; try{ wide=(window.innerWidth>=900) }catch(_e){ wide=false }
+    if(wide){
+      html+='<div class="nbSecPro"><i></i><b>\u{1F4DE} Pending Calls</b>'
+        +(lateAll>0?'<span class="od">'+lateAll+' overdue</span>':'')+'</div>';
+      var ICO={Inquiry:'\u{1F465}',Patient:'\u{1F463}',Treatment:'\u{1F464}'};
+      stages.forEach(function(s){
+        var rows=f.filter(function(x){return x.stage===s});
+        var late=rows.filter(wlv1CallLate).length, tod=rows.length-late;
+        html+='<div class="nbRowPro" onclick="todayPendingCall(\''+s+'\')">'
+          +'<div class="ico">'+(ICO[s]||'\u{1F4DE}')+'</div>'
+          +'<div class="txt"><b>'+esc(typeof stageLabel==='function'?stageLabel(s):s)+'</b>'
+          +'<small>'+tod+' today \u00b7 '+late+' overdue</small></div>'
+          +'<div class="cnt"><b>'+rows.length+'</b><small>CALLS</small></div>'
+          +'<div class="arw">\u203a</div></div>';
+      });
+    }else{
+      html+='<div class="nbSec" style="color:#E5484D"><i style="background:#E5484D"></i>\u{1F4DE} Pending Calls'
+        +(lateAll>0?' \u2014 '+lateAll+' overdue':'')+'</div>';
+      stages.forEach(function(s){
+        var n=f.filter(function(x){return x.stage===s}).length;
+        html+=wlv1NbRow('\u{1F4DE}','#ffe9e9',((typeof stageLabel==='function'?stageLabel(s):s)+' — '+n),'Tap to open the list',
+          "todayPendingCall('"+s+"')");
+      });
+    }
   }
   // 🔧 নিজের ভুল ধরা পড়ল ও ঠিক করা হলো (১৫.০৮.২০২৬): এখানে `home()` লেখা ছিল, কিন্তু
   // এই প্রজেক্টে ঐ নামে কোনো ফাংশনই নেই — Back বোতাম চাপলে কিছুই হত না।
@@ -6435,7 +6481,9 @@ function updateFollowAction(id,patch,historyItem,redirectStage){let rows=load('f
    ⛔ ভিন্ন-দিনের বৃদ্ধির শাখা (Math.min(5,...+1)) অপরিবর্তিত। */
 let inc=(x.stage==='Inquiry'?(x.lastCallDate===today()?Math.max(1,Number(x.callCount||0)):Math.min(5,Number(x.callCount||0)+1)):Number(x.callCount||0));rows[i]={...x,...patch,callCount:inc,lastCallDate:today(),updatedAt:new Date().toISOString(),history:[...(x.history||[]),historyItem]};save('followups',rows);closeModal();followup(redirectStage||x.stage)}
 window["updateFollowAction"]=updateFollowAction;
-function _todayPendingCallCore(tab='Inquiry'){let f=mergeFollow(scoped(load('followups'))).filter(x=>x.nextFollow===today()&&!isConvertedOrClosed(x)).filter(x=>x.stage!=='Inquiry'||isInquiryVisibleRow(x));let stages=['Inquiry','Patient','Treatment'].filter(t=>f.some(x=>x.stage===t));if(!stages.length)return page('Today Pending Call','<div class="card mut">আজ কোনো Pending Call নেই</div>');if(!stages.includes(tab))tab=stages[0];let tabs=stages.map(t=>`<button class="small ${t===tab?'':'ghost'}" onclick="todayPendingCall('${t}')">${stageLabel(t)} (${f.filter(x=>x.stage===t).length})</button>`).join('');let rows=f.filter(x=>x.stage===tab);page('Today Pending Call',`<div class="actions">${tabs}</div><div id="followRows">${rows.map(fuCard).join('')||'<div class="card mut">No records found</div>'}</div>`) }
+/* 🟢🔒 V926 — গোনা ও তালিকা এখন ফোনের নিয়মে (আজ + বকেয়া)।
+   ⛔ Inquiry-র দৃশ্যমানতার পুরনো ছাঁকনি (`isInquiryVisibleRow`) অটুট। */
+function _todayPendingCallCore(tab='Inquiry'){let f=mergeFollow(scoped(load('followups'))).filter(wlv1CallDue).filter(x=>x.stage!=='Inquiry'||isInquiryVisibleRow(x));let stages=['Inquiry','Patient','Treatment'].filter(t=>f.some(x=>x.stage===t));if(!stages.length)return page('Pending Calls','<div class="card mut">আজ কোনো Pending Call নেই</div>');if(!stages.includes(tab))tab=stages[0];let lateAll=f.filter(wlv1CallLate).length;let tabs=stages.map(t=>`<button class="small ${t===tab?'':'ghost'}" onclick="todayPendingCall('${t}')">${stageLabel(t)} (${f.filter(x=>x.stage===t).length})</button>`).join('');let rows=f.filter(x=>x.stage===tab);page('Pending Calls'+(lateAll>0?` — ${lateAll} overdue`:''),`<div class="actions">${tabs}</div><div id="followRows">${rows.map(fuCard).join('')||'<div class="card mut">No records found</div>'}</div>`) }
 window["_todayPendingCallCore"]=_todayPendingCallCore;
 function todayPendingCall(tab='Inquiry'){try{_todayPendingCallCore(tab)}catch(e){console.error('Today pending load failed',e);page('Today Pending Call',`<div class="card mut">Pending call list could not load. Please retry.</div><div class="actions"><button onclick="dashboard()">Home</button><button onclick="todayPendingCall('Inquiry')">Retry</button></div>`)}}
 window["todayPendingCall"]=todayPendingCall;function followStats(tab){
