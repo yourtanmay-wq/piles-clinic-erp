@@ -207,6 +207,15 @@ object ModuleUi {
            পারত না কিছু চলছে কিনা। এখন একটা স্পষ্ট "Opening…" পর্দা বসে।
            ⛔ সফল হলে নিচের `onReady()` আগের মতোই পুরো পর্দা এঁকে দেয় (এই
               অস্থায়ী লেখাটা তখন নিজে থেকেই চাপা পড়ে যায়) — কোনো আচরণ বদলায়নি। */
+        /* 🕑🔒 V902 (৩১.০৮.২০২৬, TK-নির্দেশ — *"হ্যাঁ করুন, কত সেকেন্ড লাগল
+           দেখান"*): TK-এর ফোনে এই পর্দাটা প্রায় ১ মিনিট আটকে ছিল, অথচ
+           চেম্বারে দ্রুত নেট। কারণ ধরতে হলে আগে **সময়টা চোখে দেখা** দরকার —
+           তাই এখন পর্দাতেই সেকেন্ড গোনা হয়, আর খোলার পরে কত লাগল সেটা
+           একটা ছোট বার্তায় দেখায়।
+           ⛔ শুধু দেখানো — লগইনের নিয়ম · সময়সীমা · কোনো ডাক কিছুই বদলায়নি। */
+        val t0 = android.os.SystemClock.elapsedRealtime()
+        fun secsSoFar(): String = "%.1f".format((android.os.SystemClock.elapsedRealtime() - t0) / 1000.0)
+        val tick = android.os.Handler(android.os.Looper.getMainLooper())
         try {
             val wait = android.widget.TextView(activity).apply {
                 text = "Opening…\n\nPlease wait a moment."
@@ -216,11 +225,25 @@ object ModuleUi {
                 setPadding(48, 220, 48, 48)
             }
             activity.setContentView(wait)
+            val ticker = object : Runnable {
+                override fun run() {
+                    try {
+                        if (activity.isFinishing) return
+                        wait.text = "Opening…\n\nPlease wait a moment.\n\n" + secsSoFar() + " s"
+                        tick.postDelayed(this, 500)
+                    } catch (_: Throwable) { }
+                }
+            }
+            tick.postDelayed(ticker, 500)
         } catch (_: Throwable) { }
         Thread {
             val err = ModuleAuth.signInCurrentSession(activity.applicationContext)
             activity.runOnUiThread {
-                if (err == null) onReady()
+                try { tick.removeCallbacksAndMessages(null) } catch (_: Throwable) { }
+                if (err == null) {
+                    toast(activity, "Opened in " + secsSoFar() + " s")
+                    onReady()
+                }
                 else {
                     /* 🔴🔒 V808 (২৮.০৮.২০২৬) — TK: "staff Profile খুলছে না তো"।
                        আগে একটাই বোতাম ছিল ("Back") — অর্থাৎ নেট এক সেকেন্ডের জন্য
