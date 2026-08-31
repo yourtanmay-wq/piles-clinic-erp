@@ -10503,14 +10503,13 @@ function wlv1AnatDown(ev){
   /* 🔵 V587 — ক্ষারসূত্র দেখানোর মোডে কিছু আঁকা যায় না, শুধু একটা চিহ্ন
      বেছে নেওয়া যায়। ⛔ তাই ভুল করেও নতুন দাগ পড়ার পথ নেই। */
   if(WLV1_KS.on){
-    ev.preventDefault();
-    /* 🟢 V589 — ইনজেকশনের ধাপে বা সুতোর ধাপে ছোঁয়া মানে "এইখানে করুন";
-       বাকি ধাপে আগের মতোই চিহ্ন বেছে নেওয়া (ফোনের `ksSetSpot`-এর যমজ)। */
-    if(!wlv1KsSetSpot(p[0],p[1])){
-      var pick=wlv1KsNearest(p[0],p[1]);
-      if(pick>=0) wlv1KsSelect(pick);
-    }
-    return;
+    /* 🔵🔒🔒 V900 (৩১.০৮.২০২৬, TK: *"হ্যাঁ লাগবে"* — ফোনের V898-এর যমজ):
+       এক **টোকা** = বোতাম লুকানো/ফেরানো · **টান** = আঁকা (শুধু লুকানো অবস্থায়) ·
+       বোতাম দেখা যাওয়া অবস্থায় টোকা আগের মতোই চিহ্ন বাছে বা জায়গা দেখায়।
+       তাই সিদ্ধান্তটা এখন **আঙুল তোলার সময়** হয়, নামানোর সময় নয়। */
+    WLV1_KS.tapX=p[0]; WLV1_KS.tapY=p[1]; WLV1_KS.moved=false;
+    if(!WLV1_KS.hidden){ ev.preventDefault(); return; }
+    /* লুকানো অবস্থায় নিচের স্বাভাবিক আঁকার পথেই যায় */
   }
   ev.preventDefault();
   wlv1AnatState.down=p; wlv1AnatState.live=[p.slice()];
@@ -10528,7 +10527,13 @@ function wlv1AnatDown(ev){
   }
 }
 function wlv1AnatMove(ev){
-  var s=wlv1AnatState; if(!s.down)return;
+  var s=wlv1AnatState;
+  if(WLV1_KS.on){                                   /* 🔵 V900 */
+    var pk=wlv1AnatXY(ev);
+    if(pk&&(Math.abs(pk[0]-(WLV1_KS.tapX||0))>1.5||Math.abs(pk[1]-(WLV1_KS.tapY||0))>1.5)) WLV1_KS.moved=true;
+    if(!WLV1_KS.hidden){ return; }
+  }
+  if(!s.down)return;
   var p=wlv1AnatXY(ev); if(!p)return;
   ev.preventDefault();
   var t=s.tool,m=s.marks;
@@ -10562,7 +10567,21 @@ function wlv1AnatMove(ev){
   }
 }
 function wlv1AnatUp(ev){
-  var s=wlv1AnatState; if(!s.down)return;
+  var s=wlv1AnatState;
+  if(WLV1_KS.on){                                   /* 🔵 V900 */
+    if(!WLV1_KS.moved){
+      if(WLV1_KS.hidden){ wlv1KsChrome(true); s.down=null; return; }
+      var px=WLV1_KS.tapX, py=WLV1_KS.tapY;
+      if(!wlv1KsSetSpot(px,py)){
+        var pick=wlv1KsNearest(px,py);
+        if(pick>=0) wlv1KsSelect(pick); else wlv1KsChrome(false);
+      }
+      s.down=null; return;
+    }
+    if(!WLV1_KS.hidden){ s.down=null; return; }
+    /* লুকানো অবস্থায় টান — নিচের স্বাভাবিক পথেই দাগটা শেষ হয় */
+  }
+  if(!s.down)return;
   var t=s.tool;
   /* 🔵 V585 — লেখাটা এখানেই হিসাব হয়ে `label`-এ বসে, অর্থাৎ ঠিক সেই ঘরেই
      যেখানে আগে prompt-এর লেখা বসত। তাই A4 রিপোর্ট · প্রিন্ট · সেভ — নিচের
@@ -11221,14 +11240,19 @@ function wlv1KsPaintBar(){
     cap.textContent='যে ফোলা · ফাটল বা নালীতে ধাপ দেখাবেন, সেটা ছুঁয়ে দিন';
     if(prev)prev.style.display='none'; if(next)next.style.display='none'; if(inj)inj.style.display='none';
     if(wkRow)wkRow.style.display='none';
+    var mr0=$('#dnKsModeRow'); if(mr0)mr0.style.display=WLV1_KS.full?'':'none';   /* 🔵 V900 */
     return;
   }
   cap.textContent=wlv1KsCaption2(WLV1_KS.steps[WLV1_KS.at],WLV1_KS.kind,WLV1_KS.weeks);
-  if(prev)prev.style.display=(WLV1_KS.at>0)?'':'none';
+  /* 🔵🔒 V900 — বাক্স ছোট রাখলে শুধু ধাপের নাম ও "পরের ধাপ" থাকে,
+     তাই ছবি ঢাকা পড়ে না; ⌃ চাপলে বাকি বোতামগুলো ফিরে আসে। */
+  var full=!!WLV1_KS.full;
+  if(prev)prev.style.display=(full&&WLV1_KS.at>0)?'':'none';
   if(next)next.style.display=(WLV1_KS.at<WLV1_KS.steps.length-1)?'':'none';
   var injUse=!WLV1_KS.worse&&(WLV1_KS.kind==='bulge'||WLV1_KS.kind==='pile');
-  if(inj){ inj.style.display=injUse?'':'none'; inj.style.opacity=WLV1_KS.inj?'1':'0.45' }
-  if(wkRow) wkRow.style.display=(!WLV1_KS.worse&&WLV1_KS.kind==='tract')?'':'none';
+  if(inj){ inj.style.display=(full&&injUse)?'':'none'; inj.style.opacity=WLV1_KS.inj?'1':'0.45' }
+  if(wkRow) wkRow.style.display=(full&&!WLV1_KS.worse&&WLV1_KS.kind==='tract')?'':'none';
+  var modeRow=$('#dnKsModeRow'); if(modeRow)modeRow.style.display=full?'':'none';
 }
 /* 🔴 V793 — মোড বদল ও সপ্তাহ ➖➕ (ফোনের বোতামগুলোর যমজ) */
 function wlv1KsMode(w){
@@ -11264,11 +11288,28 @@ function wlv1KsInjToggle(){
   try{toast(WLV1_KS.inj?'ইনজেকশনের ধাপ থাকবে':'ইনজেকশনের ধাপ বাদ')}catch(_e){}
   if(WLV1_KS.idx>=0) wlv1KsSelect(WLV1_KS.idx); else wlv1KsPaintBar();
 }
+/* 🔵🔒 V900 — উপরের গোল বোতাম ও নিচের বাক্স লুকানো / ফেরানো
+   (ফোনের `ksSetChrome`-এর যমজ)। লুকানো থাকলে ছবিতে আঁকাও যায়। */
+function wlv1KsChrome(show){
+  WLV1_KS.hidden=!show;
+  var top=document.querySelector('.wlv1AnatFullTop'); if(top)top.style.display=show?'':'none';
+  var box=$('#dnKsBox'); if(box)box.style.display=(show&&WLV1_KS.on)?'':'none';
+}
+window["wlv1KsChrome"]=wlv1KsChrome;
+/* 🔵🔒 V900 — বাক্স ছোট/বড় (ফোনের ⌃ বোতামের যমজ)। */
+function wlv1KsMore(){
+  WLV1_KS.full=!WLV1_KS.full;
+  var b=$('#dnKsMore'); if(b)b.textContent=WLV1_KS.full?'⌄':'⌃';
+  wlv1KsPaintBar();
+}
+window["wlv1KsMore"]=wlv1KsMore;
 function wlv1KsStop(){
   if(WLV1_KS.timer){ clearInterval(WLV1_KS.timer); WLV1_KS.timer=null }
   WLV1_KS.on=false; WLV1_KS.idx=-1; WLV1_KS.step=0; WLV1_KS.t=0;
   WLV1_KS.steps=[]; WLV1_KS.at=0;
   WLV1_KS.worse=false; WLV1_KS.kind='';                  /* 🔴 V793 */
+  WLV1_KS.hidden=false; WLV1_KS.full=false;              /* 🔵 V900 */
+  try{ var tp=document.querySelector('.wlv1AnatFullTop'); if(tp)tp.style.display='' }catch(_e){}
   var box=$('#dnKsBox'); if(box)box.style.display='none';
   var bar=$('#dnAnatFullBar'); if(bar)bar.style.display='';
   wlv1AnatPaint();
@@ -11278,6 +11319,7 @@ function wlv1KsStart(){
   var ok=(wlv1AnatState.marks||[]).some(function(m){return m.kind==='bulge'||m.kind==='tract'||m.kind==='fis'});
   if(!ok){ try{toast('আগে ছবিতে ফোলা · ফাটল বা নালী আঁকুন — তারপর ধাপ দেখানো যাবে')}catch(_e){} return }
   WLV1_KS.on=true; WLV1_KS.idx=-1; WLV1_KS.step=0; WLV1_KS.t=0; WLV1_KS.steps=[]; WLV1_KS.at=0;
+  WLV1_KS.hidden=false; WLV1_KS.full=false; WLV1_KS.moved=false;   /* 🔵 V900 */
   var bar=$('#dnAnatFullBar'); if(bar)bar.style.display='none';
   var box=$('#dnKsBox'); if(box)box.style.display='';
   wlv1KsPaintBar(); wlv1AnatPaint();
@@ -11941,7 +11983,7 @@ function wlv1AnatFull(){
     +'<div id="dnKsBox" class="wlv1KsBox" style="display:none">'
     /* 🔴🔒 V793 — TK: *"না করলে সমস্যাটা কত বাড়তে পারে … আর চিকিৎসা কিভাবে
        করি সেটা ধাপে ধাপে"* ⇒ দুটো মোড। ⚠️ ফোনের প্যানেলের হুবহু যমজ। */
-    +'<div class="wlv1KsRow" style="padding-bottom:8px">'
+    +'<div class="wlv1KsRow" id="dnKsModeRow" style="padding-bottom:8px;display:none">'
     +'<button type="button" id="dnKsWorse" class="wlv1KsBtn wide" onclick="wlv1KsMode(1)">⚠️ না সারালে</button>'
     +'<button type="button" id="dnKsCure" class="wlv1KsBtn wide" onclick="wlv1KsMode(0)">🩺 চিকিৎসা</button>'
     +'</div>'
@@ -11955,6 +11997,8 @@ function wlv1AnatFull(){
     +'<button type="button" id="dnKsPrev" class="wlv1KsBtn" onclick="wlv1KsGo(WLV1_KS.at-1)">◀ আগের</button>'
     +'<button type="button" id="dnKsNext" class="wlv1KsBtn wide" onclick="wlv1KsGo(WLV1_KS.at+1)">পরের ধাপ ▶</button>'
     +'<button type="button" id="dnKsInj" class="wlv1KsBtn" title="ইনজেকশনের ধাপ থাকবে কি না" onclick="wlv1KsInjToggle()">💉</button>'
+    /* 🔵 V900 — বাক্স ছোট/বড় (ফোনের ⌃ বোতামের যমজ) */
+    +'<button type="button" id="dnKsMore" class="wlv1KsBtn" title="সব বোতাম দেখান / লুকান" onclick="wlv1KsMore()">⌃</button>'
     +'<button type="button" class="wlv1KsBtn" title="বন্ধ" onclick="wlv1KsStop()">✕</button>'
     +'</div></div>';
   document.body.appendChild(back);
