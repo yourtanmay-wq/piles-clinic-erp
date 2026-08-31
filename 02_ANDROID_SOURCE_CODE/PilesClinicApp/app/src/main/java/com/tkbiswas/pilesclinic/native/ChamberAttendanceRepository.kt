@@ -105,6 +105,14 @@ data class ChamberAttendanceRow(
     // নাম (থাকলে) দেখানোর জন্য। ⛔ Display-only, বাকি কোনো হিসাব/সংখ্যা
     // এই ঘরের উপর নির্ভর করে না।
     val refDoctor: String = "",
+    /* 🔴🔒 V933 (৩১.০৮.২০২৬, TK-রিপোর্ট, ছবিসহ — "কোন পেশেন্ট যদি RMP পাঠায়
+       সে ক্ষেত্রে পেশেন্ট নামের পাশে আরএমপি কেন লেখা থাকে না?")। V684-এ
+       শুধু RMP-র **নাম** (`refDoctor`) দেখানো হত — কিন্তু রেজিস্ট্রেশনে
+       "Referred By = Dr. Visit" বাছার পরেও নামের ঘরটা **ফাঁকা রাখা যায়**,
+       তখন বোর্ডে কিছুই বসত না। Today's Collection-এর চিপ (`PaymentModel.
+       rmpTagOf`) কিন্তু ওই অবস্থাতেও "RMP" লেখে — সেই একই নিয়ম এখন এখানেও।
+       ⛔ Display-only, কোনো হিসাব এই ঘরের উপর নির্ভর করে না। */
+    val refBy: String = "",
     // 🟢🔒 V612 (২৪.০৮.২০২৬, TK-নির্দেশ, "খুব নিরাপদে") — ওষুধ-বিক্রির
     // Cash/Online আলাদা করে ধরার জন্য। ⛔ ডিফল্ট 0.0 — paymentCash/
     // paymentOnline-এর হিসাব এক অক্ষরও বদলায়নি (ওষুধের টাকা এখনো তাতেও
@@ -317,6 +325,7 @@ object ChamberAttendanceRepository {
                         whatHappened = r.optJSONArray("whatHappened")?.let { arr -> (0 until arr.length()).map { arr.getString(it) } } ?: emptyList(),
                         followUpId = r.optString("followUpId", ""), patientId = r.optString("patientId", ""),
                         arrivedAt = r.optString("arrivedAt", ""), refDoctor = r.optString("refDoctor", ""),
+                        refBy = r.optString("refBy", ""),   // 🔴🔒 V933 (পুরোনো cache-এ নেই ⇒ ফাঁকা, আগের আচরণ)
                         patientRowId = r.optString("patientRowId", ""),
                         remarkUpdatedAt = r.optString("remarkUpdatedAt", "")   // 🟢🔒 V654 (পুরোনো cache-এ নেই ⇒ ফাঁকা)   // 🔵 V526 (পুরোনো cache-এ নেই ⇒ ফাঁকা, আগের আচরণ)
                     )
@@ -353,7 +362,25 @@ object ChamberAttendanceRepository {
         return rows.map { row ->
             val local = mine[row.followUpId] ?: return@map row
             val text = local.s("lastRemark")
-            if (text.isBlank() || text == row.remark) row else row.copy(remark = text)
+            if (text.isBlank()) return@map row
+            /* 🔴🔴🔒 V933 (৩১.০৮.২০২৬, TK-রিপোর্ট — "চেম্বার বন্ধ করার পরে আবার
+               যখন ওপেন করা হয় সেক্ষেত্রে আবার কেন Treatment Progress লিখতে?")
+               ─── আসল কারণ (কোড ধরে, আন্দাজ নয়) ───────────────────────────
+               এই ফাংশনটা জমানো বোর্ডে **শুধু লেখাটাই** ফিরিয়ে আনত, লেখাটা
+               **কবে লেখা হয়েছিল** সেই ঘরটা (`remarkUpdatedAt`) নয়। V810-এর
+               চেম্বার-বন্ধের পাহারা ঠিক ওই তারিখটাই মেলায় — জমানো বোর্ডে ঘরটা
+               ফাঁকা/পুরনো থাকলে পাহারা ভাবত "আজ কিছু লেখা হয়নি", আর স্টাফকে
+               একই লেখা আবার লিখতে হত। চেম্বার আবার খোলার পরেই এটা সবচেয়ে বেশি
+               চোখে পড়ত, কারণ তখন পর্দা প্রথমে জমানো বোর্ডটাই দেখায়।
+               **সমাধান:** লেখাটার সাথে তার নিজের তারিখটাও ফেরে।
+               ⛔ টাকার কোনো ঘরে হাত পড়ে না (আগের মতোই) — শুধু লেখা ও তার তারিখ।
+               ⛔ ফোনের নিজের লেখাটা পুরনো হলে জমানো বোর্ডেরটাই থাকে। */
+            val at = local.s("lastRemarkAt")
+            if (text == row.remark) {
+                if (at.isNotBlank() && at > row.remarkUpdatedAt) row.copy(remarkUpdatedAt = at) else row
+            } else {
+                row.copy(remark = text, remarkUpdatedAt = at.ifBlank { row.remarkUpdatedAt })
+            }
         }
     }
 
@@ -373,6 +400,7 @@ object ChamberAttendanceRepository {
                         .put("remark", row.remark).put("whatHappened", org.json.JSONArray(row.whatHappened))
                         .put("followUpId", row.followUpId).put("patientId", row.patientId).put("arrivedAt", row.arrivedAt)
                         .put("refDoctor", row.refDoctor)
+                        .put("refBy", row.refBy)   // 🔴🔒 V933
                         .put("patientRowId", row.patientRowId)   // 🔵 V526
                         .put("remarkUpdatedAt", row.remarkUpdatedAt)   // 🟢🔒 V654
                 )
@@ -395,6 +423,21 @@ object ChamberAttendanceRepository {
     // (Mark Arrived / Undo / retry could otherwise race on the same
     // pending queue and silently drop each other's change).
     private val LOCK = Any()
+
+    /* 🔴🔒 V933 (৩১.০৮.২০২৬, TK-রিপোর্ট) — চেম্বার বোর্ডের "Ref By" লাইনটা
+       কী লেখা হবে, তার **একটাই নিয়ম** (বোর্ডের সরু ও চওড়া সারি, আর Close
+       Chamber-এর Review — তিন জায়গাই এটাই ডাকে, যাতে তিন রকম না হয়)।
+       ⛔ নিয়মটা Today's Collection-এর RMP-চিপের (`PaymentModel.rmpTagOf`)
+          হুবহু একই: নাম থাকলে নাম, নাম না থাকলেও "Referred By = Dr. Visit"
+          হলে অন্তত "RMP" — আগে এই দ্বিতীয় ক্ষেত্রে কিছুই দেখাত না।
+       ⛔ কিছুই না থাকলে ফাঁকা ফেরে ⇒ লাইনটা আগের মতোই বসে না। */
+    fun refByLabel(row: ChamberAttendanceRow): String {
+        val name = row.refDoctor.trim()
+        if (name.isNotBlank()) return "Ref By: $name"
+        val by = row.refBy.trim().lowercase()
+        val isDoc = Regex("^dr\\.? ?visit$").matches(by) || by == "rmp" || by.contains("doctor")
+        return if (isDoc) "Ref By: RMP" else ""
+    }
 
     private fun digits(v: String): String = v.filter { it.isDigit() }.takeLast(10)
 
@@ -827,7 +870,7 @@ object ChamberAttendanceRepository {
                     "medicineCash" to 0.0, "medicineOnline" to 0.0,   // 🟢🔒 V612
                     "refundCash" to 0.0, "refundOnline" to 0.0,   // 🔴🔒 V709
                     "remark" to "", "happened" to mutableListOf<String>(), "followUpId" to "", "patientId" to "",
-                    "arrivedAt" to "", "refDoctor" to "",
+                    "arrivedAt" to "", "refDoctor" to "", "refBy" to "",   /* 🔴🔒 V933 */
                     // TK-REQUESTED (2026-07-24): itemized payment lines for
                     // the new live-screen "Payment" box (e.g. "Fees-400/-
                     // Cash", "2000/- Cash", "1000/- Medicine") -- purely
@@ -928,6 +971,13 @@ object ChamberAttendanceRepository {
             val refDoc = (chosenRow?.s("refDoctor") ?: "").ifBlank { row.s("refDoctor") }
             if (refDoc.isNotBlank() && (byMobile[m]?.get("refDoctor") as? String).isNullOrBlank()) {
                 byMobile[m]?.set("refDoctor", refDoc)
+            }
+            /* 🔴🔒 V933 — RMP-র নাম না লেখা থাকলেও "Referred By" ঘরটা বলে দেয়
+               রোগীকে RMP/ডাক্তার পাঠিয়েছেন। হুবহু একই "জিতে যাওয়া সারি" থেকে,
+               কোনো বাড়তি cloud-কল নেই। */
+            val refByVal = (chosenRow?.s("refBy") ?: "").ifBlank { row.s("refBy") }
+            if (refByVal.isNotBlank() && (byMobile[m]?.get("refBy") as? String).isNullOrBlank()) {
+                byMobile[m]?.set("refBy", refByVal)
             }
             // TK-REQUESTED ADDITION (2026-07-19): earliest real timestamp
             // for this row, used to print in actual chronological order
@@ -1347,6 +1397,7 @@ object ChamberAttendanceRepository {
                 paymentLines = (v["paymentLines"] as? MutableList<String>) ?: emptyList(),
                 arrivedAt = v["arrivedAt"] as? String ?: "",
                 refDoctor = v["refDoctor"] as? String ?: "",
+                refBy = v["refBy"] as? String ?: "",   // 🔴🔒 V933
                 patientRowId = v["patientRowId"] as? String ?: "",   // 🔵 V526
                 remarkUpdatedAt = v["remarkUpdatedAt"] as? String ?: ""   // 🟢🔒 V654
             )

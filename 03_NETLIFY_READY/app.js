@@ -18671,6 +18671,10 @@ function wlv1ChamberRows(date, branch){
     Object.values(rows).forEach(r=>{
       const p = refByMob.get(r.mobile);
       if(p && p.refDoctor) r.refDoctor = String(p.refDoctor);
+      /* 🔴🔒 V933 (৩১.০৮.২০২৬, TK-রিপোর্ট) — RMP-র **নাম** না লেখা থাকলেও
+         "Referred By = Dr. Visit" ঘরটা বলে দেয় রোগীকে RMP পাঠিয়েছেন।
+         ⛔ ফোনের `ChamberAttendanceRepository.refByLabel()`-এর হুবহু যমজ। */
+      if(p && p.refBy) r.refBy = String(p.refBy);
     });
   }
   return Object.values(rows)
@@ -18765,6 +18769,20 @@ function wlv1TodaysProgressMissing(r){
   return String((r&&r.treatmentUpdatedAt)||'').slice(0,10)!==today();
 }
 window["wlv1TodaysProgressMissing"]=wlv1TodaysProgressMissing;
+/* 🔴🔒 V933 (৩১.০৮.২০২৬, TK-রিপোর্ট, ছবিসহ — "কোন পেশেন্ট যদি RMP পাঠায় সে
+   ক্ষেত্রে পেশেন্ট নামের পাশে আরএমপি কেন লেখা থাকে না?")। V684-এ শুধু RMP-র
+   **নাম** দেখানো হত, কিন্তু রেজিস্ট্রেশনে "Referred By = Dr. Visit" বাছার
+   পরেও নামের ঘরটা ফাঁকা রাখা যায় — তখন বোর্ডে কিছুই বসত না। Today's
+   Collection-এর চিপ (`wlv1PayRmpTag`) ওই অবস্থাতেও "RMP" লেখে; সেই একই
+   নিয়ম এখন এই বোর্ডেও। ⛔ নাম থাকলে লেখাটা হুবহু আগের মতোই। */
+function wlv1ChamberRefByLabel(r){
+  var nm=String((r&&r.refDoctor)||'').trim();
+  if(nm) return 'Ref By: '+nm;
+  var by=String((r&&r.refBy)||'').trim();
+  var isDoc=/^dr\.? ?visit$/i.test(by)||/^rmp$/i.test(by)||/doctor/i.test(by);
+  return isDoc ? 'Ref By: RMP' : '';
+}
+window["wlv1ChamberRefByLabel"]=wlv1ChamberRefByLabel;
 function wlv1ChamberRowHtml(r){
   // 🔒 V217 (§B216): আগে শুধু >0 হলেই সংখ্যা দেখাত, নইলে "—"। এখন refund-এর
   // পরে কোনো দিন cash/online ঋণাত্মক হতে পারে (শুধু ওই দিন refund হলে) —
@@ -18822,8 +18840,11 @@ function wlv1ChamberRowHtml(r){
   const idLine = whenTxt ? `<div class="wlv1CbId" onclick="event.stopPropagation();wlv1ChamberPatientChoices('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')">${esc(whenTxt)}</div>` : '';
   // 🔴🔒 V684 (২৫.০৮.২০২৬, TK-নির্দেশ) — Android-এর হুবহু একই, "Ref By: [নাম]"
   // চতুর্থ লাইনে, বোর্ড খোলার সাথে সাথেই (Close Chamber-এর অপেক্ষা ছাড়াই)।
-  const refByLine = String(r.refDoctor||'').trim()
-    ? `<div class="wlv1CbId" style="color:#B42318;font-weight:bold">Ref By: ${esc(r.refDoctor)}</div>` : '';
+  /* 🔴🔒 V933 — লেখাটা কী হবে তার নিয়ম এখন একটাই জায়গায়
+     (`wlv1ChamberRefByLabel`), ফোনের `refByLabel()`-এর হুবহু একই। */
+  const refByTxt = wlv1ChamberRefByLabel(r);
+  const refByLine = refByTxt
+    ? `<div class="wlv1CbId" style="color:#B42318;font-weight:bold">${esc(refByTxt)}</div>` : '';
   const patientBox = `<div class="wlv1CbPat" onclick="wlv1ChamberPatientChoices('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')" oncontextmenu="event.preventDefault();copyToClipboard('${esc([r.name,r.mobile,r.patientId].filter(Boolean).join(' | '))}');return false;" style="cursor:pointer"><div class="wlv1CbName" onclick="event.stopPropagation();wlv1ChamberPatientChoices('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')" oncontextmenu="event.preventDefault();event.stopPropagation();copyToClipboard('${esc(r.name||'')}');return false;">${esc(String(r.name||r.mobile).toUpperCase())}</div><div class="wlv1CbMob" onclick="event.stopPropagation();contact('${esc(r.mobile)}','call')" oncontextmenu="event.preventDefault();event.stopPropagation();copyToClipboard('${esc(shownMob(r.mobile))}');return false;">${esc(shownMob(r.mobile))}</div>${idLine}${refByLine}</div>`;
   /* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬: "সব কিছু Android এর মত হোক") — ফোনে
      এই তিনটে ঘরে **চাপ দিলেই** কাজ হয় (ChamberAttendanceAdapter.kt:176-180):

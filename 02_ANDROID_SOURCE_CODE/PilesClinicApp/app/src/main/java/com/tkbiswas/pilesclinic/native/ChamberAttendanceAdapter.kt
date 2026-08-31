@@ -120,7 +120,8 @@ class ChamberAttendanceAdapter(
                 // 🟢🔒 V668 (২৫.০৮.২০২৬, TK-নির্দেশ, স্পষ্ট — "Ref By RMP-এর নাম
                 // থাকে") — লেখাটা এখন "👨‍⚕️" emoji-এর বদলে স্পষ্ট "Ref By:"
                 // — TK-এর নিজের শব্দের সাথে হুবহু মিলিয়ে।
-                row.refDoctor.ifBlank { null }?.let { "Ref By: $it" }
+                // 🔴🔒 V933 — এক নিয়ম, তাই নাম না থাকলেও "Ref By: RMP" বসে।
+                ChamberAttendanceRepository.refByLabel(row).ifBlank { null }
             ).joinToString("\n")
             b.tvPatientId.text = pidTextV
             b.tvPatientId.visibility = if (pidTextV.isNotBlank()) View.VISIBLE else View.GONE
@@ -218,7 +219,8 @@ class ChamberAttendanceAdapter(
             val pidTextVW = listOfNotNull(
                 whenV.ifBlank { null },
                 // 🟢🔒 V668 — Wide-লেআউটেও একই ("Ref By:")।
-                row.refDoctor.ifBlank { null }?.let { "Ref By: $it" }
+                // 🔴🔒 V933 — Wide-লেআউটেও একই এক নিয়ম।
+                ChamberAttendanceRepository.refByLabel(row).ifBlank { null }
             ).joinToString("\n")
             b.tvPatientIdW.text = pidTextVW
             b.tvPatientIdW.visibility = if (pidTextVW.isNotBlank()) View.VISIBLE else View.GONE

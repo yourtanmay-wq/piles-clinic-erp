@@ -3276,7 +3276,9 @@ Thread {
             // cloud-call লাগে না), শুধু এতদিন এখানে ব্যবহার হতো না। এখন সরাসরি
             // চতুর্থ লাইনে বসে। ⛔ নিচের V667-এর "Close Chamber" review-ধাপের
             // RMP-কমিশন ট্যাগ অক্ষত রইল (ওটা আলাদা, কমিশনের হিসাবের জন্য)।
-            if (r.refDoctor.isNotBlank()) nameLines.add("Ref By: ${r.refDoctor}")
+            /* 🔴🔒 V933 — নিয়মটা এখন একটাই জায়গায় (`refByLabel`), তাই RMP-র
+               নাম না লেখা থাকলেও "Ref By: RMP" বসে। ⛔ নাম থাকলে হুবহু আগের লেখা। */
+            ChamberAttendanceRepository.refByLabel(r).takeIf { it.isNotBlank() }?.let { nameLines.add(it) }
             // 🔴 V426: RMP-চিহ্ন বসানোর জন্য এই ঘরটা মনে রাখা হয় (মোবাইল ধরে)।
             val nameCell = rvCell(nameLines.joinToString("\n"), 82, 0f, "#10223A", true).apply {
                 gravity = android.view.Gravity.START; setPadding(dp(8), dp(10), dp(4), dp(10)); textSize = 11f
