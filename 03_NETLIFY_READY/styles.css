@@ -6606,3 +6606,54 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
     font-weight:800;border-radius:8px;background:#fff;color:#0B4FA8;border:1px solid #C9DDF7;box-shadow:none}
   .apList>.card.mut{grid-column:1/-1}
 }
+
+/* 🟢🔒 V925 (৩১.০৮.২০২৬, TK ডেমো প্রুফ দেখে "পাশ") — কম্পিউটারে যে পাঁচটা
+   জায়গার সাজ পড়ত না, সেগুলো।
+   ⚠️ সততার কথা: প্রথমে "৪৩টা জায়গা" বলেছিলাম — সেটা ভুল ছিল। এক এক করে
+   ১৪০০px-এ পর্দায় ফেলে যাচাই করে দেখা গেল বাকিগুলো কম্পিউটারে ঠিকই দেখায়
+   (ওগুলো ফোনের জন্য ইচ্ছে করে লেখা অ্যান্ড্রয়েড-নকল, কম্পিউটারের নিজস্ব
+   সাজ আগে থেকেই আছে)। সত্যিকারের নষ্ট এই পাঁচটাই — প্রমাণ-ছবি TK-কে
+   দেখানো হয়েছে।
+   ⛔ সবকিছু শুধু `min-width:900px`-এ — ফোনের চেহারা একটুও বদলায়নি। */
+@media (min-width:900px){
+  /* ১. Registration — রোগ-চিপ। আগে টিক-বাক্সগুলো কাঁচা অবস্থায় একটার নিচে
+     একটা দেখাত, চিপের চেহারাই ছিল না। রং ফোনের হুবহু (#E5E7EB / #16A36D)। */
+  .wlv1ChipRow{display:flex;flex-wrap:wrap;gap:7px;margin-top:6px}
+  .wlv1Chip2{display:inline-flex;align-items:center;background:#E5E7EB;color:#1A1A1A;
+    border-radius:16px;padding:7px 13px;font-size:12px;font-weight:700;text-transform:uppercase;
+    border:0;margin:0;cursor:pointer}
+  .wlv1Chip2.on{background:#16A36D;color:#FFFFFF}
+  .wlv1Chip2 input{display:none}
+  /* ২. CHECK-UP — টিক-চিপ। একই দোষ; বড় পর্দায় তিনটে করে এক সারিতে। */
+  #wlv1CkBox .checkGrid.premiumChecks{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  #wlv1CkBox .checkGrid.premiumChecks>label{background:transparent;border:1px solid #D0D5DD;
+    border-radius:16px;padding:9px 12px;margin:0;font-size:13px;font-weight:400;color:#475467;
+    display:flex;align-items:center;gap:8px;cursor:pointer}
+  #wlv1CkBox .checkGrid.premiumChecks>label:has(input:checked){background:#EAF7F0;border-color:#12805C;
+    color:#12805C;font-weight:700}
+  #wlv1CkBox .checkGrid.premiumChecks>label>input[type=checkbox]{display:none}
+  /* ৩. Payment History — আগে সারিগুলো গায়ে গায়ে লেগে যেত, টাকাটা বাক্সে
+     বসত না। CASH সবুজ · ONLINE নীল — ফোনের হুবহু রং। */
+  .card.payHistoryList>.row{display:flex;align-items:center;gap:10px;padding:12px 14px;
+    border-top:1px solid #EEF3F8}
+  .card.payHistoryList>.row:first-child{border-top:0}
+  .card.payHistoryList>.row>div:first-child{flex:1 1 auto;min-width:0}
+  .card.payHistoryList .payAmount{flex:0 0 auto;min-width:92px;padding:8px 12px;text-align:center;
+    border-radius:12px;background:#E8F7EE;border:1px solid #BFE6CD}
+  .card.payHistoryList .payAmount b{display:block;font-size:15px;font-weight:700;color:#0B7A34}
+  .card.payHistoryList .payAmount em{display:block;margin-top:2px;padding:0;background:none;
+    border-radius:0;font-style:normal;font-size:10px;font-weight:700;color:#0B7A34}
+  .card.payHistoryList .payAmount:has(em.online){background:#E7F0FD;border-color:#C3DCFA}
+  .card.payHistoryList .payAmount:has(em.online) b,
+  .card.payHistoryList .payAmount em.online{color:#1457B8}
+  /* ৪. Login — চোখের বোতাম। আগে বড় রঙিন বাক্স হয়ে বসত। */
+  .eyeBtn{flex:0 0 auto;width:44px;min-height:44px;background:transparent;color:#6B7280;
+    border:0;box-shadow:none;padding:0;cursor:pointer}
+  /* ৫. Medicine — "Due Only" চিপ সবুজ হয়ে যেত (বাকি টাকার চিপ লাল হওয়ার কথা),
+     আর বাকি-টাকার কার্ডের দুটো লাইন সাজহীন ছিল। */
+  .medChipDue{background:#FBE9E9;color:#C62828;border:1px solid #F3C6C6}
+  .medChipDue.on{background:#C62828;color:#fff;border-color:#C62828}
+  .medDueHead{font-size:13.5px;font-weight:800;color:#0B2B59;margin-bottom:4px}
+  .medDueLater{font-size:11.5px;color:#0b7a34;margin-top:3px}
+  .medDueBtn{display:block;width:100%;margin-top:8px}
+}
