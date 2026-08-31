@@ -1,7 +1,7 @@
 {
   "styles.css": {
-    "v": "v905",
-    "sha": "f1cbb6a06f2dc0bc3f325cc000e16d60b58bdbaf503dae218c9e50cfd1c93df3"
+    "v": "v920",
+    "sha": "85350a7c42214196f200a8355ea2511579c07fa66a1b79c12b01d6ede67d1cd4"
   },
   "config.js": {
     "v": "v834",
@@ -24,8 +24,8 @@
     "sha": "f781b690b233a74e14ada3eb72ed349bacef3e96dd5e3946965aab236d094aed"
   },
   "finance.js": {
-    "v": "v695",
-    "sha": "4ee032145617c98edd24db07d45a6acf3d1bfefef279cd6a43b74a2d77259842"
+    "v": "v920",
+    "sha": "2b2c5a6a89b1dcb3cb00ca875f1b5f463c49dc450d0bde7847f608d1e27a5f85"
   },
   "partners.js": {
     "v": "v466",

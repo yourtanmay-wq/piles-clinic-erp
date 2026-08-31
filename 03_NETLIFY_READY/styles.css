@@ -6464,3 +6464,11 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
 .wlv1RmpSugWho b{display:block;font-size:14px;font-weight:800;color:#17312a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .wlv1RmpSugWho small{display:block;font-size:12px;color:#60766d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .wlv1RmpSugChip{font-size:11px;font-weight:800;color:#15549b;background:#e8f2ff;border-radius:12px;padding:3px 10px;white-space:nowrap;flex:none}
+
+/* 🟢🔒 V920 (৩১.০৮.২০২৬, TK ডেমো প্রুফ দেখে "হ্যাঁ পাশ, বসিয়ে দিন") —
+   টাকার হিসাবের বোতামগুলো এক সারিতে। বড় পর্দায় পাশাপাশি সমান ভাগে,
+   ছোট পর্দায় (৭২০px-এর নিচে) আগের মতোই একটার নিচে একটা পুরো চওড়া জুড়ে।
+   ⛔ বোতামের রং · লেখা · কাজ কিছুই বদলায়নি — শুধু বসার জায়গা। */
+.anModFin .finTileRow{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 12px}
+.anModFin .finTileRow>div{flex:1 1 100%}
+@media (min-width:720px){ .anModFin .finTileRow>div{flex:1 1 0;min-width:0} }

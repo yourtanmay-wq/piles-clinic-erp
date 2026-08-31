@@ -305,10 +305,14 @@
          (IncomeExpenseActivity.kt:1194, 251, 1326, 2614)। ⛔ ফোনে এগুলো
          বাংলাতেই আছে ও TK-এর অনুমোদিত — তাই ওয়েবেও সেই একই লেখা। */
       '<b style="color:#0A5C33">💵 টাকার হিসাব</b>' +
-      '<span style="display:flex;gap:8px;align-items:center">' +
+      /* 🟢🔒 V920 (৩১.০৮.২০২৬, TK ডেমো প্রুফ দেখে "হ্যাঁ পাশ, বসিয়ে দিন") —
+         TK: *"ব্রাঞ্চ সিলেক্ট উপরে হেডারে ডান পাশে, ক্যালেন্ডারের বাঁ পাশে"*।
+         নিচের আলাদা সারিটা উঠে গেল, তাই টেবিল আরও উপরে ওঠে — বড় পর্দায়
+         স্ক্রল না করেই সব দেখা যায়। ⛔ বাছাইয়ের কাজ ও নিয়ম অপরিবর্তিত। */
+      '<span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">' +
+      branchSel +
       '<span onclick="finPickDay()" style="cursor:pointer">' + liveCal + '</span>' +
       '<button class="ghost" onclick="dashboard()">Home</button></span></div><div class="page">' +
-      '<div style="margin:0 0 9px">' + branchSel + '</div>' +
       '<div id="finToday" class="card" style="padding:14px">Loading...</div>' +
       /* 🟢🔒 V630 (২৪.০৮.২০২৬, TK-নির্দেশ) — "আয় এবং ব্যয় এটা দুই রকম ভাবে
          আলাদা কলম থাকবে না।" আলাদা "Add Collection"/"Add Expense" বোতাম দুটো
@@ -328,32 +332,27 @@
          ছিল, ফলে স্টাফ `finDailyLedger()`-এ পৌঁছানোরই কোনো পথ পেতেন না
          (ফাংশনটা আছে, কিন্তু কোনো বোতাম ছিল না)।
          ⛔ master/doctor-এর জন্য আগের দুটো ঘরই অপরিবর্তিত। */
+      /* 🟢🔒 V920 — বোতামগুলো এখন **একটাই সারিতে** (আগে প্রতিটা আলাদা সারিতে
+         পুরো চওড়া জুড়ে বসত, তাই বড় পর্দায় চারটে সারি জায়গা খেয়ে টেবিলকে
+         নিচে ঠেলে দিত)। ছোট পর্দায় `flex-wrap` নিজে থেকেই আগের মতো একটার
+         নিচে একটা সাজায় (`.finTileRow` — styles.css)।
+         ⛔ কোন বোতাম কার জন্য, কী কাজ করে — কিছুই বদলায়নি। */
+      '<div class="finTileRow">' +
       (finIsStaffOnly() ?
-       '<div style="display:flex;gap:10px;margin:0 0 10px">' +
-        finBox('', "Today's Entries", 'finDailyLedger()', false, '', '#0A5C33') +
-       '</div>' :
-       '<div style="display:flex;gap:10px;margin:0 0 10px">' +
+        finBox('', "Today's Entries", 'finDailyLedger()', false, '', '#0A5C33') :
         finBox('', 'এই মাসের হিসাব', 'finMonthly()', false, '', '#0A5C33') +
-        finBox('', 'পুরো খাতা', 'finLedgerSheet()', false, '', '#0A5C33') +
-       '</div>') +
+        finBox('', 'পুরো খাতা', 'finLedgerSheet()', false, '', '#0A5C33')) +
       /* 🟢🔒 V629 (২৪.০৮.২০২৬, TK-নির্দেশ) — "ব্যাংকে যেমন স্টেটমেন্ট বের করা
          যায়, আমার অ্যাপেও সেরকম চাই।" Ledger Sheet/Monthly-র মতোই বিধিনিষেধ
          (staff-only দেখবেন না)। */
-      (!finIsStaffOnly() ?
-       '<div style="display:flex;gap:10px;margin:0 0 10px">' +
-        finBox('📄', 'Statement', 'finStatement()', false, '', '#0A5C33') +
-       '</div>' : '') +
+      (!finIsStaffOnly() ? finBox('📄', 'Statement', 'finStatement()', false, '', '#0A5C33') : '') +
       /* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬) — ফোনে এই সারিতে **আগে "🤝 অংশীদারি ভাগ",
          তারপর "Entry Permission"** (IncomeExpenseActivity.kt:1468-1478), আর
          Entry Permission-এ কোনো চাবি-আইকন নেই। ওয়েবে ক্রম উল্টো ছিল ও
          🔑 আইকন বসানো ছিল। ⛔ বোতামের কাজ ও অনুমতির নিয়ম অপরিবর্তিত। */
-      '<div style="display:flex;gap:10px;margin:0 0 10px">' +
-        finBox('🤝', 'অংশীদারি ভাগ', 'finPartners()', false, '', '#0A5C33') +
+      finBox('🤝', 'অংশীদারি ভাগ', 'finPartners()', false, '', '#0A5C33') +
+      (finIsMaster() ? finBox('', 'Entry Permission', 'finEntryPermission()', false, '', '#6A5320') : '') +
       '</div>' +
-      (finIsMaster() ?
-       '<div style="display:flex;gap:10px;margin:0 0 10px">' +
-        finBox('', 'Entry Permission', 'finEntryPermission()', false, '', '#6A5320') +
-       '</div>' : '') +
       '<div id="finBody"></div></div></div>';
     finLoadToday();
   }
