@@ -819,17 +819,20 @@ class DoctorVisitActivity : AppCompatActivity() {
         val parts = premiumDialogShell("🩺", "Edit Doctor / RMP")
         val container = parts.body
 
-        container.addView(fieldLabel("🧑‍⚕️", "Doctor Name *", 0))
-        val name = EditText(this).apply { setText(item.name); hint = "Doctor Name" }
-        styleInput(name); clearErrorOnEdit(name); container.addView(name)
-
-        container.addView(fieldLabel("📱", "Mobile *"))
+        /* 🟢 V944 (01.09.2026, TK-নির্দেশ "Edit ফর্মেও মিলিয়ে দিন") — Add ফর্মের
+           মতোই এখানেও **মোবাইল ঘরটা সবার আগে**, তারপর নাম।
+           ⛔ কোনো ঘর বাদ যায়নি, সেভের নিয়ম এক অক্ষরও বদলায়নি — শুধু বসার ক্রম। */
+        container.addView(fieldLabel("📱", "Mobile *", 0))
         val mobile = EditText(this).apply { hint = "Mobile (10-digit)" }
         styleInput(mobile)
         MobileInput.attach(mobile)
         mobile.setText(MobileInput.digits(item.mobile))
         clearErrorOnEdit(mobile)
         container.addView(mobile)
+
+        container.addView(fieldLabel("🧑‍⚕️", "Doctor Name *"))
+        val name = EditText(this).apply { setText(item.name); hint = "Doctor Name" }
+        styleInput(name); clearErrorOnEdit(name); container.addView(name)
 
         container.addView(fieldLabel("🏥", "Branch *"))
         val branch = Spinner(this).apply {
