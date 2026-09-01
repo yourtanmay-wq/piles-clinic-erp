@@ -1608,21 +1608,22 @@ class DoctorVisitActivity : AppCompatActivity() {
     /** Small colored icon+label field header, reused across the premium
      *  dialogs below (e.g. "👨‍⚕️ Doctor Name") instead of a plain textSize-only
      *  label — look-only change, the field it labels is unchanged. */
-    private fun fieldLabel(icon: String, text: String, marginTopDp: Int = 16): TextView {
+    private fun fieldLabel(icon: String, text: String, marginTopDp: Int = 10): TextView {
         val d = resources.displayMetrics.density
         return TextView(this).apply {
             this.text = "$icon  $text"
             textSize = 12.5f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(android.graphics.Color.parseColor("#B42318"))
-            setPadding(0, (marginTopDp * d).toInt(), 0, (4 * d).toInt())
+            // 🟢 V942 (01.09.2026, TK): ঘরগুলো উচ্চতায় ছোট — লেখার আকার/রং অটুট।
+            setPadding(0, (marginTopDp * d).toInt(), 0, (3 * d).toInt())
         }
     }
 
     private fun styleInput(v: EditText) {
         val d = resources.displayMetrics.density
         v.setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
-        val padH = (14 * d).toInt(); val pad = (12 * d).toInt()
+        val padH = (14 * d).toInt(); val pad = (7 * d).toInt()
         v.setPadding(padH, pad, padH, pad)
         v.setTextColor(android.graphics.Color.parseColor("#10223A"))
     }
@@ -1632,7 +1633,7 @@ class DoctorVisitActivity : AppCompatActivity() {
      *  to the normal style the moment the user edits that field. */
     private fun setFieldError(v: View) {
         val d = resources.displayMetrics.density
-        val padH = (14 * d).toInt(); val pad = (12 * d).toInt()
+        val padH = (14 * d).toInt(); val pad = (7 * d).toInt()
         v.background = android.graphics.drawable.GradientDrawable().apply {
             cornerRadius = 12f * d
             setColor(android.graphics.Color.parseColor("#FFF4F4"))
@@ -1680,13 +1681,14 @@ class DoctorVisitActivity : AppCompatActivity() {
         val parts = premiumDialogShell("🧑‍⚕️", "Add Doctor/RMP")
         val container = parts.body
 
-        container.addView(fieldLabel("🧑‍⚕️", "Doctor Name *", 0))
+        /* 🟢 V942 (01.09.2026, TK-নির্দেশ "আগে মোবাইল নাম্বার রাখুন") — মোবাইল ঘরটা
+           সবার উপরে, তারপর নাম — নম্বর লিখলেই "সেভ আছে কি না" আগে দেখা যায়।
+           ⛔ কোনো ঘর বাদ যায়নি, সেভের নিয়ম এক অক্ষরও বদলায়নি — শুধু বসার ক্রম। */
         val nameInput = EditText(this).apply { hint = "Doctor Name" }
         styleInput(nameInput)
         clearErrorOnEdit(nameInput)
-        container.addView(nameInput)
 
-        container.addView(fieldLabel("📱", "Mobile *"))
+        container.addView(fieldLabel("📱", "Mobile *", 0))
         val mobileInput = EditText(this).apply { hint = "Mobile (10-digit)" }
         styleInput(mobileInput)
         // TK-DECISION (2026-07-22): standard phone field -- MobileInput enforces
@@ -1752,9 +1754,12 @@ class DoctorVisitActivity : AppCompatActivity() {
             text = "＋ Add another number"
             textSize = 13.5f; setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(android.graphics.Color.parseColor("#166534"))
-            setPadding(0, (8 * resources.displayMetrics.density).toInt(), 0, (2 * resources.displayMetrics.density).toInt())
+            setPadding(0, (6 * resources.displayMetrics.density).toInt(), 0, (2 * resources.displayMetrics.density).toInt())
             setOnClickListener { addAltNumberRow() }
         })
+
+        container.addView(fieldLabel("🧑‍⚕️", "Doctor Name *"))
+        container.addView(nameInput)
 
         container.addView(fieldLabel("🏥", "Branch *"))
         val branchSpinner = Spinner(this).apply {
