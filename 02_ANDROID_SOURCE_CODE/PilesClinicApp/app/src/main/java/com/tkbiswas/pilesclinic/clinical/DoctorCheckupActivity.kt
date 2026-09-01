@@ -1102,12 +1102,16 @@ class DoctorCheckupActivity : AppCompatActivity() {
             val headRow2 = card.findViewById<TextView?>(R.id.tvDoctorReminderHeadingText)
             headRow1?.visibility = android.view.View.GONE
             headRow2?.visibility = android.view.View.GONE
+            v952PaintSavedStrip(card)   // 🟢 V952 — পপ-আপেও সেভ-অবস্থা দেখা যায়
             val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
                 .setCustomTitle(
                     com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "🩺 Doctor Note & Reminder")
                 )
                 .setView(card)
-                .setPositiveButton("\uD83D\uDCBE Save") { _, _ -> saveDoctorReminderNow(card) }
+                /* 🟢🔒 V952 — আগে কিছু সেভ থাকলে বোতামের লেখা UPDATE (TK-এর প্রুফ)। */
+                .setPositiveButton(
+                    if (v952SavedNote.isNotBlank()) "\uD83D\uDCBE Update" else "\uD83D\uDCBE Save"
+                ) { _, _ -> v952SaveOrWarn(card) }
                 .setNegativeButton("Close", null)
                 .create()
             dlg.setOnDismissListener {
@@ -1130,6 +1134,59 @@ class DoctorCheckupActivity : AppCompatActivity() {
      * ⛔ চেক-আপের বাকি কিছুই এখানে সেভ হয় না — শুধু এই তিনটে ঘর।
      * ⛔ রোগীর id না জানা গেলে কিছুই লেখা হয় না (ভুল সারিতে লেখার ঝুঁকি নেই)।
      */
+    /* ══ 🟢🔒 V952 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) ════════════════════
+       TK: *"একই জিনিস দুবার সেভ হলে তাতেও কোন ওয়ার্নিং আসলো না · একবার সেভ
+       হওয়ার পরে বোঝার ক্ষমতা নেই কোন কিছু সেভ হয়ে আছে কিনা।"*
+         (ক) কী সেভ আছে — সবুজ পট্টিতে পর্দাতেই দেখায়
+         (খ) **হুবহু একই** নোট+তারিখ+সময় আবার সেভ করলে জিজ্ঞাসা করে
+       ⛔ নতুন/বদলানো রিমাইন্ডারে আগের মতোই সরাসরি সেভ — একটাও বাড়তি চাপ নয়।
+       ⛔ সেভের পথ (`saveDoctorReminderNow`) এক অক্ষরও বদলায়নি। */
+    private var v952SavedNote: String = ""
+    private var v952SavedDate: String = ""
+    private var v952SavedTime: String = ""
+
+    private fun v952PaintSavedStrip(card: android.view.View?) {
+        try {
+            val root: android.view.View = card ?: findViewById(R.id.secDoctorReminder)
+            val tv: TextView = root.findViewById(R.id.tvDoctorReminderSaved) ?: return
+            if (v952SavedNote.isBlank() && v952SavedDate.isBlank() && v952SavedTime.isBlank()) {
+                tv.visibility = android.view.View.GONE
+                return
+            }
+            val bits = listOfNotNull(
+                v952SavedNote.ifBlank { null },
+                v952SavedDate.ifBlank { null }?.let { displayDateForReminder(it) },
+                v952SavedTime.ifBlank { null }?.let { displayTimeForReminder(it) }
+            ).joinToString(" · ")
+            tv.text = NoBengali.s("✓ আগেই সেভ করা আছে") + "\n" + bits
+            tv.visibility = android.view.View.VISIBLE
+        } catch (_: Throwable) { }
+    }
+
+    /** সেভের ঠিক আগে — হুবহু একই হলে জিজ্ঞাসা, নইলে আগের মতোই সোজা সেভ। */
+    private fun v952SaveOrWarn(card: android.view.View) {
+        val noteBox = card.findViewById<android.widget.EditText?>(R.id.etDoctorReminderNote)
+        val note = noteBox?.text?.toString().orEmpty().trim()
+        val same = note == v952SavedNote &&
+            doctorReminderDateIso.trim() == v952SavedDate &&
+            doctorReminderTimeStr.trim() == v952SavedTime &&
+            (v952SavedNote.isNotBlank() || v952SavedDate.isNotBlank() || v952SavedTime.isNotBlank())
+        if (!same) { saveDoctorReminderNow(card); return }
+        val bits = listOfNotNull(
+            v952SavedNote.ifBlank { null },
+            v952SavedDate.ifBlank { null }?.let { displayDateForReminder(it) },
+            v952SavedTime.ifBlank { null }?.let { displayTimeForReminder(it) }
+        ).joinToString(" · ")
+        val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "⚠ Already saved"))
+            .setMessage(NoBengali.s("এই রোগীর জন্য হুবহু একই রিমাইন্ডার আগেই সেভ করা আছে। আবার সেভ করতে চান?") + "\n\n" + bits)
+            .setPositiveButton(NoBengali.s("হ্যাঁ")) { _, _ -> saveDoctorReminderNow(card) }
+            .setNegativeButton(NoBengali.s("না"), null)
+            .create()
+        dlg.show()
+        try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(dlg) } catch (_: Throwable) { }
+    }
+
     private fun saveDoctorReminderNow(card: android.view.View) {
         /* 🔴🔒 V700 — একই ফাঁদ, আরও মারাত্মক জায়গায়: পপ-আপ খোলা থাকা মানে
            কার্ডটা Activity-র গাছ থেকে খোলা। তখন `findViewById(...)` **null**
@@ -1274,6 +1331,13 @@ class DoctorCheckupActivity : AppCompatActivity() {
             }
             findViewById<android.view.View>(R.id.dotDoctorReminder).visibility =
                 if (savedReminderNote.trim().isNotBlank()) android.view.View.VISIBLE else android.view.View.GONE
+            /* 🟢🔒 V952 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — কী সেভ আছে সেটা
+               মনে রাখা হয়, যাতে (ক) পর্দায় দেখানো যায়, (খ) হুবহু একই জিনিস আবার
+               সেভ করলে সতর্ক করা যায়। ⛔ কোনো ঘরের মান বদলানো হয় না। */
+            v952SavedNote = savedReminderNote.trim()
+            v952SavedDate = savedReminderDate.trim()
+            v952SavedTime = savedReminderTime.trim()
+            v952PaintSavedStrip(null)
             val tvMobile = findViewById<TextView>(R.id.tvPatientMobile)
             tvMobile.text = mobile.ifBlank { "—" }
             findViewById<TextView>(R.id.tvPatientMobileMini).text = mobile.ifBlank { "—" }

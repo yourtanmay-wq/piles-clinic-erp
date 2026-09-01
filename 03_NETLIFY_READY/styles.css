@@ -6857,3 +6857,8 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
 .dqFh{font-size:11px;font-weight:700;letter-spacing:.3px;color:#5B6B60}
 .dqFh.today{color:#0C7A3E}.dqFh.over{color:#B4291B}
 .dqFt{font-size:14px;color:#1b2b3a;margin-top:4px}
+
+/* 🟢🔒 V952 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — "আগেই সেভ করা আছে" পট্টি। */
+.dnSaved{margin-top:10px;background:#EAF8EF;border:1px solid #BFE6CF;border-radius:12px;padding:9px 12px}
+.dnSaved b{display:block;font-size:11.5px;letter-spacing:.4px;color:#0C7A3E}
+.dnSaved span{display:block;font-size:14px;color:#22323f;margin-top:4px}

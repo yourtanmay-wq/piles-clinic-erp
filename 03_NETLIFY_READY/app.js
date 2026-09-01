@@ -9597,6 +9597,7 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
   <textarea id="dnReminderNote" placeholder="পরের বার রোগীকে কী ওষুধ/কী কাজ করা হবে — এখানে লিখুন">${esc(p.doctorReminderNote||'')}</textarea>
   <label>কোন দিনের আগের দিন মনে করাবে?</label>
   <input id="dnReminderDate" class="input" type="date" value="${esc(p.doctorReminderDate||'')}">
+  ${wlv1DnSavedStrip(p)}
  </div>
  <div class="card softInfo">ℹ️ Auto filled from Registration. Doctor can edit/add clinical details if needed.</div>
  <div id="wlv1CkChips" class="wlv1CkChips"></div>
@@ -10005,6 +10006,24 @@ function wlv1CollectProbableDisease(){
   }catch(_e){ return WLV1_PICK_NONE }
 }
 window["wlv1CollectProbableDisease"]=wlv1CollectProbableDisease;
+/* 🟢🔒 V952 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — TK: *"একবার সেভ হওয়ার পরে
+   বোঝার ক্ষমতা নেই কোন কিছু সেভ হয়ে আছে কিনা"*। আগে সেভ করা রিমাইন্ডার থাকলে
+   এই সবুজ পট্টিতে দেখায় (ফোনের `tvDoctorReminderSaved`-এর হুবহু যমজ)।
+   ⛔ কিছু সেভ না থাকলে একটা অক্ষরও বসে না — কার্ড হুবহু আগের মতোই। */
+function wlv1DnSavedStrip(p){
+  try{
+    var n=String((p&&p.doctorReminderNote)||'').trim();
+    var d=String((p&&p.doctorReminderDate)||'').trim();
+    if(!n && !d) return '';
+    var bits=[n, d?wlv1Dot(d):''].filter(Boolean).join(' · ');
+    return '<div class="dnSaved"><b>✓ আগেই সেভ করা আছে</b><span>'+esc(bits)+'</span></div>';
+  }catch(_e){ return '' }
+}
+window["wlv1DnSavedStrip"]=wlv1DnSavedStrip;
+/* 🟢🔒 V952 — ⛔ "দুবার সেভের সতর্কতা" ওয়েবে **লাগে না**, তাই বসানো হয়নি:
+   কম্পিউটারে রিমাইন্ডারের নিজস্ব কোনো Save বোতাম নেই — পুরো চেক-আপ সেভের
+   সাথেই একবারে বসে (উপরের `upd('patients', …)`)। ফোনে আলাদা 💾 Save আছে,
+   তাই সতর্কতাটা শুধু ফোনেই দরকার ছিল (যাচাই করে দেখা হয়েছে)। */
 function wlv1CounselBoxHtml(note,p){
   var picked=String((note&&note.probableDisease)||'');
   var ta=wlv1SplitTimeAsked(String((note&&note.timeAsked)||''));

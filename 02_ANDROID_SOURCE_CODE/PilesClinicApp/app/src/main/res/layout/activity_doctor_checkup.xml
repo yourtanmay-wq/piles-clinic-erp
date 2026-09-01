@@ -444,6 +444,16 @@
                             android:textSize="14.5sp" android:text="সময় বাছুন" android:textColor="#8A93A0" />
                     </LinearLayout>
                 </LinearLayout>
+                <!-- 🟢🔒 V952 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — TK: *"একবার
+                     সেভ হওয়ার পরে বোঝার ক্ষমতা নেই কোন কিছু সেভ হয়ে আছে কিনা"*।
+                     আগে সেভ করা রিমাইন্ডার থাকলে এই সবুজ পট্টিতে দেখাবে।
+                     ⛔ ডিফল্ট gone — কিছু সেভ না থাকলে কার্ড হুবহু আগের মতোই। -->
+                <TextView android:id="@+id/tvDoctorReminderSaved" android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:layout_marginTop="12dp"
+                    android:background="@drawable/bg_brief_infobox"
+                    android:paddingStart="11dp" android:paddingEnd="11dp" android:paddingTop="9dp" android:paddingBottom="9dp"
+                    android:textSize="12sp" android:textColor="#0C7A3E" android:lineSpacingExtra="2dp"
+                    android:visibility="gone" />
                 <TextView android:id="@+id/tvDoctorReminderHelp" android:layout_width="match_parent" android:layout_height="wrap_content"
                     android:layout_marginTop="12dp" android:background="@drawable/bg_brief_infobox"
                     android:paddingStart="11dp" android:paddingEnd="11dp" android:paddingTop="9dp" android:paddingBottom="9dp"
