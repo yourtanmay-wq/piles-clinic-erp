@@ -96,6 +96,7 @@ class EnquiryActivity : AppCompatActivity() {
                 if (digits.length != 10) { binding.tvDupWarning.visibility = View.GONE; lastDupChecked = ""; return }
                 if (digits == lastDupChecked) return
                 lastDupChecked = digits
+                refreshTimingForMobile(digits)   // ☎️ V963
                 lifecycleScope.launch {
                     val dup = withContext(Dispatchers.IO) { repository.checkDuplicate(StaffDirectory.normalizeMobile(digits)) }
                     binding.tvDupWarning.visibility = View.GONE
@@ -227,26 +228,106 @@ class EnquiryActivity : AppCompatActivity() {
 
     private var selectedTiming = "Official Time"
 
-    /* 🕘🔒 V962 (০১.০৯.২০২৬, TK-নির্দেশ) — TK: *"Unexpected time যেন App হিসাব
-       করে, ম্যানুয়ালি যেন Staff চুস করতে না পারে — সকাল ন'টা থেকে সন্ধ্যা ছটা
-       পর্যন্ত অফিসিয়াল টাইম, তার বাইরে আনএক্সপেক্টেড টাইম"*।
-       আগে এটা স্টাফের হাতে ছিল (দুটো বোতাম, ডিফল্ট Official) — তাই ইচ্ছেমতো
-       Unexpected বেছে বাড়তি টাকা তৈরি করা যেত। এখন ঘড়িই ঠিক করে; বোতাম দুটো
-       **দেখা যায়, কিন্তু চাপা যায় না** — কোনটা ধরা হয়েছে সেটা যেন বোঝা যায়।
-       ⛔ সেভের সময় আবার ঘড়ি দেখা হয় (ফর্ম অনেকক্ষণ খোলা থাকলেও ঠিক থাকে)। */
-    private fun autoTimingNow(): String {
+    /* ☎️🕘🔒 V963 (০১.০৯.২০২৬, TK-এর লক করা নিয়ম, ফটো-প্রুফ পাশ) —
+       TK-এর নিয়ম হুবহু:
+         · ভারতীয় সময়ে সকাল ৯.০০ – সন্ধ্যা ৬.০০ = Official, বাইরে = Unexpected
+         · নম্বর লেখামাত্রই অ্যাপ **ব্রাঞ্চের ফোনের কল-তালিকায়** ওই নম্বরের
+           **প্রথম কল** খোঁজে (গত ৩ দিনের মধ্যে)
+         · কল পাওয়া গেল ও সেটা **অফিসিয়াল** সময়ের ⇒ Unexpected বোতামটা
+           **লুকিয়ে যায়** — স্টাফ চাইলেও বাছতে পারবে না
+         · কল পাওয়া গেল ও সেটা **অসময়ের** ⇒ দুটো বোতামই থাকে, Unexpected
+           বাছা থাকে (TK: *"অ্যাপ তো অনেক সময় ভুল করতেই পারে"*)
+         · কল পাওয়া গেল না ⇒ দুটোই থাকে, Official বাছা; Unexpected চাপলে
+           শুধু একটা ফ্ল্যাশ বার্তা — TK যেকোনো সময় যাচাই করতে পারেন
+       ⛔ ক্লাউডে একটাও অনুরোধ নেই — ফোনের নিজের কল-তালিকা থেকেই।
+       ⛔ V962-এর "কোনো বোতামই চাপা যাবে না" নিয়মটা TK-এর নতুন নির্দেশে
+          তুলে নেওয়া হলো। */
+    private fun timingOf(whenMs: Long): String {
         val c = Calendar.getInstance(java.util.TimeZone.getTimeZone("Asia/Kolkata"))
+        c.timeInMillis = whenMs
         val mins = c.get(Calendar.HOUR_OF_DAY) * 60 + c.get(Calendar.MINUTE)
         // সকাল ৯.০০ (৫৪০) থেকে সন্ধ্যা ৬.০০ (১০৮০) পর্যন্ত — দুটোই ধরা
         return if (mins in 540..1080) "Official Time" else "Unexpected Time"
     }
 
+    private fun autoTimingNow(): String = timingOf(System.currentTimeMillis())
+
+    /** কল-তালিকায় ওই নম্বরের প্রথম কল পাওয়া গেছে কি না (পেলে তার সময়)। */
+    private var branchCallMs: Long? = null
+
     private fun setupTimingButtons() {
-        binding.btnTimingOfficial.isClickable = false
-        binding.btnTimingUnexpected.isClickable = false
-        binding.btnTimingOfficial.isFocusable = false
-        binding.btnTimingUnexpected.isFocusable = false
-        selectTiming(autoTimingNow())
+        binding.btnTimingOfficial.setOnClickListener { selectTiming("Official Time") }
+        binding.btnTimingUnexpected.setOnClickListener {
+            selectTiming("Unexpected Time")
+            // কল পাওয়া যায়নি ⇒ স্টাফের নিজের বাছাই ⇒ ফ্ল্যাশ বার্তা
+            if (branchCallMs == null) showVerifyFlash()
+        }
+        applyTimingFromCall(null)
+    }
+
+    /** কল-তালিকার ফল অনুযায়ী বোতাম দুটো সাজায়। */
+    private fun applyTimingFromCall(callMs: Long?) {
+        branchCallMs = callMs
+        if (callMs == null) {
+            binding.btnTimingUnexpected.visibility = View.VISIBLE
+            selectTiming("Official Time")
+            return
+        }
+        val fromCall = timingOf(callMs)
+        if (fromCall == "Official Time") {
+            // অফিসিয়াল সময়ের কল ⇒ Unexpected বাছার সুযোগই থাকবে না
+            binding.btnTimingUnexpected.visibility = View.GONE
+            selectTiming("Official Time")
+        } else {
+            binding.btnTimingUnexpected.visibility = View.VISIBLE
+            selectTiming("Unexpected Time")
+        }
+    }
+
+    /** নম্বর লেখা হলে ব্রাঞ্চের কল-তালিকায় প্রথম কলটা খুঁজে বোতাম সাজানো। */
+    private fun refreshTimingForMobile(digits: String) {
+        lifecycleScope.launch {
+            val ms = withContext(Dispatchers.IO) {
+                try { BranchSimHelper.firstCallTimeMs(this@EnquiryActivity, digits) }
+                catch (_: Throwable) { null }
+            }
+            if (!isFinishing && !isDestroyed) applyTimingFromCall(ms)
+        }
+    }
+
+    /* 🔎 ফ্ল্যাশ বার্তা — কোথাও কিছু পাঠানো হয় না, শুধু পর্দায় দেখায়।
+       TK: *"শুধুমাত্র বার্তা হিসেবেই দেখাবে … একটু বড় করে দেখাবে যাতে বুঝতে
+       পারে"*। কয়েক সেকেন্ড পরে নিজেই বন্ধ হয়ে যায়। */
+    private fun showVerifyFlash() {
+        try {
+            val d = resources.displayMetrics.density
+            fun px(v: Int) = (v * d).toInt()
+            val box = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+                setPadding(px(20), px(22), px(20), px(22))
+                gravity = android.view.Gravity.CENTER
+            }
+            box.addView(android.widget.TextView(this).apply {
+                text = "TK BISWAS can verify this at any time"
+                textSize = 18f
+                gravity = android.view.Gravity.CENTER
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#0B4F2A"))
+            })
+            box.addView(android.widget.TextView(this).apply {
+                text = "You marked this call as UNEXPECTED TIME"
+                textSize = 13.5f
+                gravity = android.view.Gravity.CENTER
+                setTextColor(android.graphics.Color.parseColor("#33404F"))
+                setPadding(0, px(12), 0, 0)
+            })
+            val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+                .setCustomTitle(PremiumAlert.header(this, "Recorded"))
+                .setView(box)
+                .setCancelable(true)
+                .show().also { try { PremiumAlert.paint(it) } catch (_: Throwable) { } }
+            binding.root.postDelayed({ try { dlg.dismiss() } catch (_: Throwable) { } }, 4000L)
+        } catch (_: Throwable) { }
     }
 
     private fun selectTiming(value: String) {
@@ -304,7 +385,9 @@ class EnquiryActivity : AppCompatActivity() {
 val disease = selectedDisease
         val address = binding.etAddress.text.toString().trim()
         val remarks = binding.etRemarks.text.toString().trim()
-        val timing = autoTimingNow()   // 🕘 V962 — সেভের মুহূর্তের ঘড়িই শেষ কথা
+        // ☎️ V963 — বোতামে যা দেখাচ্ছে সেটাই; কল পাওয়া গেলে অ্যাপ আগেই বসিয়ে
+        //   রেখেছে, না পেলে স্টাফের বাছাই (Unexpected হলে ফ্ল্যাশ বার্তা দেখানো হয়েছে)।
+        val timing = selectedTiming
 
         // Same validation order as saveEnq(); on failure, jump to that field.
         if (mobile.length != 10) { focusError(binding.etMobile, "Valid mobile number required"); return }

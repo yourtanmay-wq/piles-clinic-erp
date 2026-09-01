@@ -253,6 +253,63 @@ object BranchSimHelper {
         return out
     }
 
+    /* ═══════════════════════════════════════════════════════════════════
+       ☎️🔒 V963 (০১.০৯.২০২৬, TK-এর লক করা নির্দেশ) — TK: *"চেম্বার এর ফোনে যখন
+       ফোন আসবে তখন স্টাফ এর কোন হাত থাকবে না, এটা অটোমেটিক অ্যাপ counting
+       করবে"* · *"প্রথম কলটাই ধরবেন"* · *"দিনের দিন, বড়জোর তারপরের দিন"*।
+
+       এই ঘরটা একটা নম্বরের **সবচেয়ে প্রথম কলের সময়** ফেরত দেয় — ব্রাঞ্চের
+       SIM-এর কল-লগ থেকে, গত ৩ দিনের মধ্যে (ইনকামিং · আউটগোয়িং · মিসড
+       তিনটেই, কারণ TK-এর নিয়মে আউটগোয়িং কলও গোনা হয়)।
+       ⇒ রাত ১০টার কল পরের দিন দুপুরে ফর্মে তুললেও **ওই কলের সময়টাই** ধরা হয়।
+
+       ⛔ ক্লাউডে একটাও অনুরোধ নেই — পুরোটাই ফোনের নিজের Call Log পড়া।
+       ⛔ উপরের `fetchTodayCallLog()`-এর **হুবহু একই** নিরাপত্তা-গেট: অনুমতি
+          নেই ⇒ কিছু নয় · এই ফোনে চেম্বারের নম্বর নেই বলে জানানো থাকলে ⇒ কিছু
+          নয় (ব্যক্তিগত কল কখনো গোনায় ঢুকবে না) · ব্রাঞ্চের SIM বাছা থাকলে
+          শুধু সেই SIM-এর কল।
+       ⛔ না পাওয়া গেলে `null` — তখন ডাকা জায়গাটা আগের নিয়মেই চলে।
+       ═══════════════════════════════════════════════════════════════════ */
+    private const val CALL_LOOKBACK_DAYS = 3L
+
+    fun firstCallTimeMs(context: Context, mobile: String): Long? {
+        if (!hasCallLogPermission(context)) return null
+        if (hasChamberAnswer(context) && !hasChamberNumber(context)) return null
+        val digits = mobile.filter { it.isDigit() }.takeLast(10)
+        if (digits.length != 10) return null
+        return try {
+            val since = System.currentTimeMillis() - CALL_LOOKBACK_DAYS * 24L * 60L * 60L * 1000L
+            val branchSubIdsSet = branchSubIds(context)
+            var earliest: Long? = null
+            context.contentResolver.query(
+                android.provider.CallLog.Calls.CONTENT_URI,
+                arrayOf(
+                    android.provider.CallLog.Calls.NUMBER,
+                    android.provider.CallLog.Calls.DATE,
+                    android.provider.CallLog.Calls.PHONE_ACCOUNT_ID
+                ),
+                "${android.provider.CallLog.Calls.DATE} >= ?",
+                arrayOf(since.toString()),
+                "${android.provider.CallLog.Calls.DATE} ASC"
+            )?.use { c ->
+                val numIdx = c.getColumnIndex(android.provider.CallLog.Calls.NUMBER)
+                val dateIdx = c.getColumnIndex(android.provider.CallLog.Calls.DATE)
+                val accIdx = c.getColumnIndex(android.provider.CallLog.Calls.PHONE_ACCOUNT_ID)
+                while (c.moveToNext()) {
+                    if (branchSubIdsSet.isNotEmpty()) {
+                        val acc = if (accIdx >= 0) c.getString(accIdx) else null
+                        if (acc != null && branchSubIdsSet.none { acc.contains(it) }) continue
+                    }
+                    val num = (if (numIdx >= 0) c.getString(numIdx) else null) ?: continue
+                    if (num.filter { ch -> ch.isDigit() }.takeLast(10) != digits) continue
+                    val dateMs = if (dateIdx >= 0) c.getLong(dateIdx) else 0L
+                    if (dateMs > 0L) { earliest = dateMs; break }   // ASC — প্রথমটাই সবচেয়ে পুরনো
+                }
+            }
+            earliest
+        } catch (_: Throwable) { null }
+    }
+
     /**
      * 🆕🔒 খাতার সারি — Dialer → Missed ট্যাব (TK-নির্দেশ, 05.08.2026 —
      * "বেল-নোটিফিকেশন হবে, ফিরতি কল বাকি মনে করাবে")। একটা মিসড কল
