@@ -468,7 +468,36 @@ class PaymentActivity : AppCompatActivity() {
         }
     }
 
+    /* 🔴🔴🔒 V937 (৩১.০৮.২০২৬, TK-রিপোর্ট, ৬টা ছবিসহ — *"আমি মাস্টার, ৩ টাকা
+       ডিলিট করতে পারলাম না"* · *"আমি ক্লোজ কেন চাপবো, ডিলিট করেছি আমার সামনের
+       থেকে অটোমেটিক ডিলিট হতে হবে"*)।
+
+       ─── আসল কারণ (কোড ধরে, আন্দাজ নয়) ─────────────────────────────────
+       ডিলিট **সত্যিই হচ্ছিল** (`TrashHelper.moveToTrash` ক্লাউড থেকে মুছে
+       Trash-এ রাখে, তাই "Master informed" বার্তাও আসত)। কিন্তু রোগীর খোলা
+       **পেমেন্ট-তালিকার পপ-আপটা কেউ নতুন করে আঁকত না** — তাই মুছে যাওয়া
+       সারিটা পর্দায় থেকে যেত, আর উপরের "Total · X payments"-ও পুরনো থাকত।
+       TK ওই পুরনো সারিতেই আবার চাপ দিয়েছেন, তাই একই বার্তা আবার এসেছে ও
+       মনে হয়েছে ডিলিট হচ্ছেই না।
+
+       ─── সমাধান ────────────────────────────────────────────────────────
+       কোন রোগীর তালিকা এই মুহূর্তে খোলা আছে সেটা মনে রাখা হয়, আর ডিলিট/এডিট
+       সফল হলে `refreshOpenCollectionDetails()` সেটাকে **নিজেই** নতুন করে
+       আঁকে — TK-কে আর Close চেপে আবার ঢুকতে হবে না।
+       ⛔ টাকার হিসাব · ডিলিটের নিয়ম · অনুমতি — কিছুই ছোঁয়া হয়নি, শুধু পর্দা। */
+    private var openCollectionRow: CollectionRow? = null
+    private var openCollectionDlg: AlertDialog? = null
+
+    private fun refreshOpenCollectionDetails() {
+        val r = openCollectionRow ?: return
+        val d = openCollectionDlg
+        if (d == null || !d.isShowing) return
+        try { d.dismiss() } catch (_: Throwable) { }
+        showCollectionDetails(r)
+    }
+
     private fun showCollectionDetails(row: CollectionRow) {
+        openCollectionRow = row
         val digits = row.mobile.filter { it.isDigit() }.takeLast(10)
         if (digits.length != 10) {
             Toast.makeText(this, "This entry has no mobile number", Toast.LENGTH_SHORT).show()
@@ -691,6 +720,7 @@ class PaymentActivity : AppCompatActivity() {
 
             UppercaseInputUtil.applyToAll(root)  // TK-REQUESTED GLOBAL RULE (2026-07-24): English text auto-CAPITAL, Password fields excluded automatically
             dlg = AlertDialog.Builder(this@PaymentActivity).setView(root).setCancelable(true).create()
+            openCollectionDlg = dlg   // 🔴🔒 V937 — এই পপ-আপটাই পরে নিজে নতুন হবে
             dlg.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
             close.setOnClickListener { dlg.dismiss() }
             dlg.show()
@@ -727,6 +757,14 @@ class PaymentActivity : AppCompatActivity() {
        ⛔ কলব্যাক না দিলে আচরণ হুবহু আগের মতোই। */
     private fun showDailyEventsBreakdown(p: org.json.JSONObject, onChanged: (() -> Unit)? = null) {
         val events = p.optJSONArray("dailyEvents") ?: return
+        /* 🔴🔒 V937 (TK-রিপোর্ট: *"এখান থেকে একটা ডিলিট হয়ে যাওয়ার পরে অটোমেটিক
+           বেঁকে চলে যায় কেন?"*) — আগে ভিতরের এন্ট্রি মোছার সাথে সাথেই বাইরের
+           তালিকা-পপ-আপ বন্ধ করে **নতুন করে খোলা** হত (V816, যাতে উপরের মোট ঠিক
+           দেখায়) — সেই নতুন পপ-আপটাই উপরে এসে এই ভাঙা-দেখার পপ-আপ ঢেকে দিত।
+           এখন বাইরেরটা নতুন হবে **এই পপ-আপ বন্ধ হওয়ার পরে**, তাই পরপর কয়েকটা
+           এন্ট্রি মোছা যাবে, বারবার তিনবার চাপতে হবে না।
+           ⛔ V816-এর উদ্দেশ্য (মোট সবসময় ঠিক) অক্ষত — শুধু সময়টা পিছিয়ে গেল। */
+        var outerNeedsRefresh = false
         val label = p.s("payLabel").ifBlank { p.s("paymentLabel").ifBlank { "Payment" } }
         val d = resources.displayMetrics.density
         fun dp(v: Int) = (v * d).toInt()
@@ -836,7 +874,7 @@ class PaymentActivity : AppCompatActivity() {
                                         val fresh = withContext(Dispatchers.IO) { try { repository.findPaymentById(p.s("id")) } catch (_: Throwable) { null } }
                                         if (fresh != null) refreshList(fresh) else dialog.dismiss()
                                         loadSummary()
-                                        onChanged?.invoke()   // 🔴 V816
+                                        outerNeedsRefresh = true   // 🔴🔒 V937 — বন্ধ হলে তবেই বাইরেরটা নতুন হবে
                                     }
                                 }
                             }
@@ -860,7 +898,7 @@ class PaymentActivity : AppCompatActivity() {
                                     if (fresh != null && (fresh.optJSONArray("dailyEvents")?.length() ?: 0) > 0) refreshList(fresh)
                                     else dialog.dismiss()
                                     loadSummary()
-                                    onChanged?.invoke()   // 🔴 V816 — বাইরের পপ-আপও নতুন হবে
+                                    outerNeedsRefresh = true   // 🔴🔒 V937 — বন্ধ হলে তবেই বাইরেরটা নতুন হবে
                                 }
                             }
                         }
@@ -889,6 +927,8 @@ class PaymentActivity : AppCompatActivity() {
             .setView(root)
             .setNegativeButton("Close", null)
             .create()
+        // 🔴🔒 V937 — ভিতরে কিছু বদলে থাকলে বাইরের তালিকা এখন নতুন হবে।
+        dialog.setOnDismissListener { if (outerNeedsRefresh) onChanged?.invoke() }
         dialog.show()
         try { PremiumAlert.paint(dialog) } catch (_: Throwable) { }
     }
@@ -1192,7 +1232,11 @@ class PaymentActivity : AppCompatActivity() {
                             Toast.LENGTH_LONG
                         ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                         confirmDialog.dismiss()
-                        if (ok) { if (!directFormOnly) loadSummary(); dialog.dismiss() }
+                        if (ok) {
+                            if (!directFormOnly) loadSummary()
+                            dialog.dismiss()
+                            refreshOpenCollectionDetails()   // 🔴🔒 V937 — সারিটা সঙ্গে সঙ্গে চলে যাবে
+                        }
                     }
                 }
                 }
@@ -1235,7 +1279,9 @@ class PaymentActivity : AppCompatActivity() {
                 lifecycleScope.launch {
                     val ok = withContext(Dispatchers.IO) { SupabaseClient.updateById("payments", id, fields) }
                     Toast.makeText(this@PaymentActivity, if (ok) "Payment updated" else "Failed — check connection", Toast.LENGTH_SHORT).show()
-                    if (ok) { if (!directFormOnly) loadSummary(); dialog.dismiss() }
+                    // 🔴🔒 V937 — নিয়ম ৬.২: এডিটেও ঠিক একই ফাঁক ছিল (বদলানো অঙ্ক
+                    // তালিকায় পুরনোই দেখাত)। ডিলিটের মতোই তালিকা নিজেই নতুন হবে।
+                    if (ok) { if (!directFormOnly) loadSummary(); dialog.dismiss(); refreshOpenCollectionDetails() }
                 }
         }
         dialog.show()

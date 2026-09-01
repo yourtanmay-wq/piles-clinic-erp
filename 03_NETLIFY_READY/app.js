@@ -23475,6 +23475,12 @@ async function wlv1DeletePaymentImpl(payId){
 
     toast('Payment deleted — Master informed');
     try{ closeModal() }catch(_e){}
+    /* 🔴🔒 V937 (৩১.০৮.২০২৬, TK-রিপোর্ট ফোনে: *"ডিলিট করেছি, আমার সামনের থেকে
+       অটোমেটিক ডিলিট হতে হবে"*) — নিয়ম ৬.২ মেনে কম্পিউটারেও একই ফাঁক বন্ধ:
+       পপ-আপ বন্ধ হত, কিন্তু পিছনের টাকার তালিকাটা পুরনোই থেকে যেত।
+       ⛔ ভিতরের এক-এন্ট্রি মোছার পথে (`wlv1RemoveOneDailyEvent`) এই একই লাইনটা
+          আগে থেকেই আছে — সেটারই পুনরাবৃত্তি, নতুন কোনো পথ নয়। */
+    try{ paymentHistory(row.patientId, row.payType||'treatment'); }catch(_e){}
   }catch(e){
     try{ toast('মোছা গেল না — আবার চেষ্টা করুন') }catch(_e){}
   }
