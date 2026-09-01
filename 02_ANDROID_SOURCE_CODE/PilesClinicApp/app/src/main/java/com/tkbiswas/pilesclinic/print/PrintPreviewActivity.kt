@@ -97,9 +97,25 @@ class PrintPreviewActivity : AppCompatActivity() {
             val wvPreview = findViewById<android.webkit.WebView>(R.id.wvRxPreview)
             try {
                 wvPreview.settings.javaScriptEnabled = false
+                /* 🔵🔒 V954 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — TK: *"কী প্রিন্ট
+                   আউট হবে সেটা যেন এখানে দেখতে পারি, এবং জুম করলে যেন বড়-ছোট হয়"*।
+                     · `loadWithOverviewMode` + `useWideViewPort` ⇒ খোলার সাথে সাথেই
+                       **পুরো কাগজটা** এঁটে দেখায় (আগে শুধু লোগোর টুকরো দেখাত)।
+                     · `setSupportZoom` + `builtInZoomControls` ⇒ **চিমটি দিয়ে জুম**।
+                       `displayZoomControls=false` ⇒ পর্দায় পুরনো ধাঁচের +/− বোতাম
+                       ভেসে ওঠে না, চেহারা পরিষ্কার থাকে।
+                   ⛔ ছাপার HTML এক অক্ষরও বদলায়নি — শুধু দেখানোর ধরন। */
+                wvPreview.settings.loadWithOverviewMode = true
+                wvPreview.settings.useWideViewPort = true
+                wvPreview.settings.setSupportZoom(true)
+                wvPreview.settings.builtInZoomControls = true
+                wvPreview.settings.displayZoomControls = false
                 val previewHtml = com.tkbiswas.pilesclinic.print.PrescriptionHtml.build(this, model)
                 wvPreview.loadDataWithBaseURL("file:///android_asset/", previewHtml, "text/html", "UTF-8", null)
-                wvPreview.visibility = android.view.View.VISIBLE
+                /* 🔵 V954 — WebView এখন আলাদা কার্ডে, পুরো জায়গা জুড়ে; তাই ছবির
+                   ScrollView-টা লুকিয়ে দেওয়া হয় (নইলে দুটো একসাথে জায়গা নিত)। */
+                findViewById<android.view.View>(R.id.cardRxPreview).visibility = android.view.View.VISIBLE
+                findViewById<android.view.View>(R.id.scrollImgPreview).visibility = android.view.View.GONE
             } catch (_: Throwable) { }
             findViewById<MaterialButton>(R.id.btnSavePdf).visibility = android.view.View.GONE
             findViewById<MaterialButton>(R.id.btnSharePdf).visibility = android.view.View.VISIBLE

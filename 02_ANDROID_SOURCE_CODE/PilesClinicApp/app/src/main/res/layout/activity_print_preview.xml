@@ -40,7 +40,22 @@
         </LinearLayout>
     </androidx.cardview.widget.CardView>
 
-    <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:paddingHorizontal="10dp" android:clipToPadding="false">
+    <!-- 🔵🔒 V954 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — TK: *"কী প্রিন্ট আউট
+         হবে সেটা যেন এখানে দেখতে পারি, এবং জুম করলে যেন বড়-ছোট হয়"*।
+         আগে WebView-টা ScrollView-এর ভিতরে **ফিক্সড ৬০০dp** ছিল, তাই কাগজের
+         এক টুকরোই দেখা যেত আর জুম কাজ করত না (ScrollView নিজেই স্ক্রল ধরে নিত)।
+         এখন WebView **আলাদা**, পুরো জায়গা জুড়ে — নিজের স্ক্রল ও চিমটি-জুম চলে।
+         ⛔ ivPreview-এর পুরনো পথ (বাকি সব কাগজ) এক অক্ষরও বদলায়নি। -->
+    <androidx.cardview.widget.CardView android:id="@+id/cardRxPreview"
+        android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"
+        android:layout_marginHorizontal="10dp" android:layout_marginBottom="10dp"
+        app:cardCornerRadius="8dp" app:cardElevation="8dp" app:cardBackgroundColor="@color/white"
+        android:visibility="gone">
+        <WebView android:id="@+id/wvRxPreview" android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+    </androidx.cardview.widget.CardView>
+
+    <ScrollView android:id="@+id/scrollImgPreview" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:paddingHorizontal="10dp" android:clipToPadding="false">
         <androidx.cardview.widget.CardView android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginBottom="14dp" app:cardCornerRadius="8dp" app:cardElevation="8dp" app:cardBackgroundColor="@color/white">
             <FrameLayout android:layout_width="match_parent" android:layout_height="wrap_content">
@@ -51,8 +66,7 @@
                      পথে ivPreview (bitmap) কাজ করে না; একই HTML এখানে সরাসরি
                      WebView-তে দেখানো হয়। ⛔ ivPreview-এর নিজের ব্যবহার
                      (বাকি সব কাগজে) এক অক্ষরও বদলায়নি। -->
-                <WebView android:id="@+id/wvRxPreview" android:layout_width="match_parent" android:layout_height="600dp"
-                    android:visibility="gone" />
+
             </FrameLayout>
         </androidx.cardview.widget.CardView>
     </ScrollView>
@@ -63,22 +77,22 @@
          SHARE PDF এখন সরাসরি WhatsApp টার্গেট করে (না থাকলে সাধারণ Share)। -->
     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical"
         android:padding="10dp" android:background="@color/clinic_card" android:elevation="8dp">
-        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal"
-            android:layout_marginBottom="8dp">
-            <com.google.android.material.button.MaterialButton android:id="@+id/btnSharePdf"
-                android:layout_width="0dp" android:layout_weight="1" android:layout_marginEnd="4dp" android:layout_height="52dp"
-                android:textSize="12sp" android:textStyle="bold" android:text="💬 WhatsApp"
-                android:background="@drawable/bg_btn_green" app:backgroundTint="@null" android:textColor="@color/white" app:cornerRadius="12dp" />
-            <com.google.android.material.button.MaterialButton android:id="@+id/btnSavePdf"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="0dp" android:layout_weight="1"
-                android:layout_marginStart="4dp" android:layout_height="52dp" android:textSize="12sp" android:text="💾 Save"
-                app:cornerRadius="12dp" app:strokeColor="@color/brand_navy" android:textColor="@color/brand_navy" />
-        </LinearLayout>
+        <!-- 🔵🔒 V954 (TK-নির্দেশ: *"প্রিন্ট শেয়ার ক্লোজ — এগুলো এক লাইনে পাশাপাশি
+             থাকবে"*) — আগে ২x২ গ্রিড ছিল। ⛔ একটাও বোতাম বাদ যায়নি, কাজও
+             অপরিবর্তিত; Save আগের মতোই শুধু যেসব কাগজে ছিল সেখানেই দেখায়। -->
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
             <com.google.android.material.button.MaterialButton android:id="@+id/btnPrint"
                 android:layout_width="0dp" android:layout_weight="1" android:layout_marginEnd="4dp" android:layout_height="52dp"
                 android:textSize="12sp" android:textStyle="bold" android:text="🖨 Print"
                 android:background="@drawable/bg_btn_navy" app:backgroundTint="@null" android:textColor="@color/white" app:cornerRadius="12dp" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/btnSharePdf"
+                android:layout_width="0dp" android:layout_weight="1" android:layout_marginHorizontal="4dp" android:layout_height="52dp"
+                android:textSize="12sp" android:textStyle="bold" android:text="💬 Share"
+                android:background="@drawable/bg_btn_green" app:backgroundTint="@null" android:textColor="@color/white" app:cornerRadius="12dp" />
+            <com.google.android.material.button.MaterialButton android:id="@+id/btnSavePdf"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="0dp" android:layout_weight="1"
+                android:layout_marginHorizontal="4dp" android:layout_height="52dp" android:textSize="12sp" android:text="💾 Save"
+                app:cornerRadius="12dp" app:strokeColor="@color/brand_navy" android:textColor="@color/brand_navy" />
             <com.google.android.material.button.MaterialButton android:id="@+id/btnClosePreview"
                 style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="0dp" android:layout_weight="1"
                 android:layout_marginStart="4dp" android:layout_height="52dp" android:textSize="12sp" android:text="✕ Close"
