@@ -707,7 +707,13 @@ object SupabaseClient {
         }
     }
 
-    fun findByMobile(table: String, normalizedMobile: String, selectCols: String = "*", limit: Int = 1): JSONArray {
+    /* 🟣🔒 V961 (০১.০৯.২০২৬, TK-নির্দেশ) — `order` ঘরটা যোগ হলো (ডিফল্ট ফাঁকা,
+       তাই **পুরনো প্রতিটা ডাক অবিকল আগের মতোই** চলে)। কারণ: এক নম্বরে একাধিক
+       সারি থাকলে `limit=1`-এ সাজানো ছাড়া **যেকোনো একটা** ফিরত — কোনটা, তার
+       নিশ্চয়তা নেই। রেজিস্ট্রেশন ফর্ম এখান থেকেই এনকোয়ারির Timing নেয়, আর
+       সার্ভারের নিয়ম (V418 SQL) **সবচেয়ে নতুন** এনকোয়ারি ধরে — দুই দিক দুই
+       রকম হয়ে যেত। */
+    fun findByMobile(table: String, normalizedMobile: String, selectCols: String = "*", limit: Int = 1, order: String = ""): JSONArray {
         return try {
             // Match by the trailing 10 digits, not an exact "+91..." string. The
             // WebView stores mobiles as bare 10 digits (mob() = slice(-10)) while
@@ -715,7 +721,8 @@ object SupabaseClient {
             // created by the other front-end. `like.*<digits>` matches both.
             val digits = normalizedMobile.filter { it.isDigit() }.takeLast(10)
             val filter = if (digits.length == 10) "mobile=like.*$digits" else "mobile=eq.$normalizedMobile"
-            val url = "$URL/rest/v1/$table?$filter&select=$selectCols&limit=$limit"
+            val orderPart = if (order.isBlank()) "" else "&order=$order"
+            val url = "$URL/rest/v1/$table?$filter&select=$selectCols$orderPart&limit=$limit"
             val body = CloudReadDedupe.body(url) { fetchBodyOrNull(url) } ?: return JSONArray()
             JSONArray(body)
         } catch (e: Exception) {

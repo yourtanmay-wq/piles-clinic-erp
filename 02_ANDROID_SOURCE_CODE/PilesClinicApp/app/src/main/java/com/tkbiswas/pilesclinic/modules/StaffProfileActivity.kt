@@ -313,6 +313,30 @@ class StaffProfileActivity : AppCompatActivity() {
                 "select=person_code,designation,role_kind,branch,full_name,link_mobile,active&order=person_code"
             )
             val cfgR = ModuleAuth.getRowsChecked("hr", "salary_config", "select=*")
+            /* 🟣🔒 V961 (০১.০৯.২০২৬, TK-নির্দেশ) — TK: *"এখানে extra income নেই"*।
+               সত্যিই ছিল না — কার্ডে শুধু Salary লেখা হত। এখন প্রতিটা কার্ডে
+               `Extra: ₹… paid · ₹… due` বসে।
+               ⛔ **একজন-একজন করে নয় — গোটা তালিকার জন্য একটাই পড়া**, আর মাত্র
+                  তিনটে ঘর (`person_code,kind,amount,status`)। Free Plan-এ
+                  Egress-এ প্রভাব নগণ্য।
+               ⛔ ব্যর্থ হলে ম্যাপ ফাঁকা থাকে ⇒ লাইনটা বসে না, কার্ড হুবহু আগের
+                  মতোই — একটাও নাম/তথ্য হারায় না। */
+            try {
+                val exR = ModuleAuth.getRowsChecked(
+                    "hr", "salary_payments", "select=person_code,kind,amount,status&kind=eq.EXTRA")
+                if (exR.ok) {
+                    val paidM = HashMap<String, Double>(); val dueM = HashMap<String, Double>()
+                    for (i in 0 until exR.rows.length()) {
+                        val r = exR.rows.optJSONObject(i) ?: continue
+                        val c = ns(r, "person_code").trim()
+                        if (c.isBlank()) continue
+                        val a = r.optDouble("amount", 0.0)
+                        if (payStatus(r) == "DUE") dueM[c] = (dueM[c] ?: 0.0) + a
+                        else paidM[c] = (paidM[c] ?: 0.0) + a
+                    }
+                    extraPaidByStaff = paidM; extraDueByStaff = dueM
+                }
+            } catch (_: Throwable) { }
             /* 📱🔒 V822 — কার সাথে কোন ভার্সন, সেটাও একই থ্রেডে আনা হয়।
                ⛔ একটাই ছোট RPC (~৩০ সারি) — Egress-এ প্রভাব নগণ্য।
                ⛔ ব্যর্থ হলে ম্যাপ ফাঁকা থাকে ⇒ কোনো ট্যাগ বসে না, আর
@@ -472,8 +496,14 @@ class StaffProfileActivity : AppCompatActivity() {
             val branch = ns(p, "branch").ifBlank { directory?.branch ?: "" }
             val salTxt = if (sc != null && sc.optBoolean("salary_enabled", false))
                 "Salary: " + money(sc.optDouble("salary_amount", 0.0)) + " (day " + ns(sc, "salary_date") + ")" else "Salary: disabled"
+            /* 🟣 V961 — কোনো এক্সট্রা না থাকলে লাইনটাই বসে না (কার্ড আগের মতো)। */
+            val exPaid = extraPaidByStaff[pc] ?: 0.0
+            val exDue = extraDueByStaff[pc] ?: 0.0
+            val extraTxt = if (exPaid > 0.0 || exDue > 0.0)
+                "Extra: " + money(exPaid) + " paid · " + money(exDue) + " due" else ""
             listBox.addView(staffCard(pc, desig, roleKind, branch, fullName, ns(p, "link_mobile"), salTxt,
-                onView = { editProfile(pc) }, onSalary = { salary(pc) }, isRemoved = removed))
+                onView = { editProfile(pc) }, onSalary = { salary(pc) }, isRemoved = removed,
+                extraText = extraTxt))
         }
 
         var shown = 0
@@ -565,7 +595,8 @@ class StaffProfileActivity : AppCompatActivity() {
         mobile: String, salaryText: String, onView: () -> Unit, onSalary: () -> Unit,
         // 🔴 V404 (16.08.2026): বাদ-দেওয়া কর্মীর কার্ডে Suspend/Remove-এর বদলে
         //    শুধু Restore থাকবে। ডিফল্ট false ⇒ পুরনো সব ডাক অবিকল আগের মতোই চলে।
-        isRemoved: Boolean = false
+        isRemoved: Boolean = false,
+        extraText: String = ""      // 🟣 V961 — ফাঁকা হলে লাইনটা বসে না
     ): LinearLayout {
         val card = ModuleUi.card(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -613,8 +644,15 @@ class StaffProfileActivity : AppCompatActivity() {
         info.addView(TextView(this).apply {
             text = salaryText; textSize = 10.5f
             setTextColor(android.graphics.Color.parseColor(if (salaryText.startsWith("Salary: disabled")) "#A7B0AB" else "#0B8A3E"))
-            setPadding(0, dp(3), 0, dp(10))
+            setPadding(0, dp(3), 0, if (extraText.isBlank()) dp(8) else dp(2))   // 🟣 V961
         })
+        if (extraText.isNotBlank()) {   // 🟣 V961
+            info.addView(TextView(this).apply {
+                text = extraText; textSize = 10.5f
+                setTextColor(android.graphics.Color.parseColor("#B45309"))
+                setPadding(0, 0, 0, dp(8))
+            })
+        }
         // 🔴 V442 — দুই সারির অনুভূমিক বোতাম-বার (প্রতিটা বোতাম সমান চওড়া, `weight=1f`)।
         val row1 = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -1428,8 +1466,14 @@ class StaffProfileActivity : AppCompatActivity() {
         val btnAddSalary = if (active) salOutlineButton("Add Salary", "#0A5C33", "#0A5C33") {
             addSalaryAnyMonth(code, amount, joinDate, pays)
         } else null
-        val btnHistory = salOutlineButton("Payment History (" + pays.length() + ")", "#0A5C33", "#0A5C33") {
-            showAllPayments(code, pays)
+        /* 🟣🔒 V961 — TK-নির্দেশ: বেতন ও এক্সট্রার হিস্ট্রি আলাদা। এই বোতামটা
+           এখন **শুধু বেতনের** সারিগুলো দেখায়; এক্সট্রার নিজের বোতাম নিচের
+           Extra Income বাক্সে বসে। ⛔ কোনো সারি হারায় না — দুটো মিলিয়ে আগের
+           সেই একই তালিকা। */
+        var salaryCount = 0
+        for (i in 0 until pays.length()) if (payKind(pays.getJSONObject(i)) != "EXTRA") salaryCount++
+        val btnHistory = salOutlineButton("Salary History (" + salaryCount + ")", "#0A5C33", "#0A5C33") {
+            showAllPayments(code, pays, "SALARY")
         }
         box.addView(if (btnAddSalary != null) salPairRow(btnAddSalary, btnHistory) else salPairRow(btnHistory, null))
         if (active && due > 0.0) {
@@ -1466,6 +1510,15 @@ class StaffProfileActivity : AppCompatActivity() {
             payExtraDue(code, pays)
         } else null
         extraBox.addView(salPairRow(btnAddExtra, btnPayExtra))
+        /* 🟣🔒 V961 — TK: *"এক্সট্রা ইনকামের টাকার উপরে চাপ দিলে কোনো হিস্ট্রি
+           দেখতে পাচ্ছি না"*। সত্যিই দেখা যেত না — Paid/Due দুটোই স্রেফ লেখা
+           ছিল, চাপা যেত না, আর হিস্ট্রির একটাই বোতামে বেতনের সাথে মেশানো ছিল।
+           এখন এখানেই নিজের বোতাম। ⛔ টাকার কোনো অঙ্ক ছোঁয়া হয়নি। */
+        var extraCount = 0
+        for (i in 0 until pays.length()) if (payKind(pays.getJSONObject(i)) == "EXTRA") extraCount++
+        extraBox.addView(salOutlineButton("Extra Income History (" + extraCount + ")", "#B45309", "#E0A800") {
+            showAllPayments(code, pays, "EXTRA")
+        })
 
         (cfgBox ?: box).addView(salOutlineButton("Salary Settings", "#0A5C33", "#0A5C33") {
             editSalaryConfig(code, enabled, amount, salaryDate)
@@ -2176,7 +2229,9 @@ class StaffProfileActivity : AppCompatActivity() {
             gravity = android.view.Gravity.CENTER
             minWidth = 0
             minimumWidth = 0
-            setPadding(dp(8), dp(13), dp(8), dp(13))
+            // 🟣🔒 V961 (TK: *"প্রতিটা বক্সের সাইজ এত বড় বড় কেন থাকবে"*) —
+            //    উপরে-নিচে ১৩ → ৯dp। ⛔ লেখা · রং · কাজ কিছুই বদলায়নি।
+            setPadding(dp(8), dp(9), dp(8), dp(9))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(android.graphics.Color.parseColor(textHex))
             background = android.graphics.drawable.GradientDrawable().apply {
@@ -2233,7 +2288,7 @@ class StaffProfileActivity : AppCompatActivity() {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = android.view.Gravity.CENTER_VERTICAL
-            setPadding(dp(2), dp(6), dp(2), dp(6))
+            setPadding(dp(2), dp(4), dp(2), dp(4))   // 🟣 V961: ৬ → ৪dp
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         }
         row.addView(TextView(this).apply {
@@ -2857,6 +2912,10 @@ class StaffProfileActivity : AppCompatActivity() {
      * ⛔ ব্যর্থ হলে কিছুই বদলায় না — আগের মতো শুধু কোডই থাকে।
      * ⛔ নাম/মোবাইল পরে পপ-আপেও ব্যবহার হয়, তাই এখানেই জমা রাখা হয়।
      */
+    // 🟣 V961 — তালিকার কার্ডে দেখানোর জন্য প্রতিটা স্টাফের এক্সট্রা ইনকাম।
+    private var extraPaidByStaff: Map<String, Double> = emptyMap()
+    private var extraDueByStaff: Map<String, Double> = emptyMap()
+
     private val extraPatientCache = HashMap<String, Pair<String, String>>()   // id → (name, mobile)
 
     /**
@@ -3063,7 +3122,19 @@ class StaffProfileActivity : AppCompatActivity() {
         d.show().also { try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) { } }
     }
 
-    private fun showAllPayments(code: String, pays: JSONArray) {
+    /* 🟣🔒 V961 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — TK: *"salary history ·
+       extra income history — এগুলো আলাদা আলাদা রাখতে হবে"*।
+       আগে একটাই বোতাম ছিল আর তালিকায় বেতন ও এক্সট্রা **মেশানো** থাকত
+       ("All Entries")। এখন `only` দিয়ে বাছা যায় — "SALARY" · "EXTRA" · ""(সব)।
+       ⛔ উপরের Summary-র তিনটে সংখ্যা **সবসময় গোটা তালিকা** থেকেই গোনা হয়
+          (`pays`), তাই কোনো অঙ্ক বদলায় না — শুধু নিচের সারিগুলো ছাঁকা হয়। */
+    private fun showAllPayments(code: String, pays: JSONArray, only: String = "") {
+        val shownPays = if (only.isBlank()) pays else org.json.JSONArray().also { out ->
+            for (i in 0 until pays.length()) {
+                val r = pays.optJSONObject(i) ?: continue
+                if (payKind(r) == only) out.put(r)
+            }
+        }
         backAction = { salary(code) }
         val col = ModuleUi.screen(this, "")
         (col.parent as? android.widget.ScrollView)?.isFillViewport = true
@@ -3245,13 +3316,18 @@ class StaffProfileActivity : AppCompatActivity() {
             gravity = android.view.Gravity.CENTER_VERTICAL
             setPadding(dp(2), 0, dp(2), dp(7))
         }
-        entriesHead.addView(tv("All Entries  (${pays.length()})", 16f, ink, bold = true).apply {
+        val entriesTitle = when (only) {          // 🟣 V961
+            "SALARY" -> "Salary History"
+            "EXTRA" -> "Extra Income History"
+            else -> "All Entries"
+        }
+        entriesHead.addView(tv("$entriesTitle  (${shownPays.length()})", 16f, ink, bold = true).apply {
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         })
         entriesHead.addView(tv("Most recent", 12f, green, false, android.view.Gravity.END))
         col.addView(entriesHead)
 
-        if (pays.length() == 0) {
+        if (shownPays.length() == 0) {          // 🟣 V961
             col.addView(tv("No payments.", 14f, muted).apply { setPadding(dp(4), dp(18), dp(4), dp(18)) })
         }
 
@@ -3259,8 +3335,8 @@ class StaffProfileActivity : AppCompatActivity() {
         val extraRows = mutableListOf<Triple<String, TextView?, JSONObject>>()
 
         // ── Entry cards. Fixed MODE + DATE columns = one straight line. ────
-        for (i in 0 until pays.length()) {
-            val p = pays.getJSONObject(i)
+        for (i in 0 until shownPays.length()) {          // 🟣 V961
+            val p = shownPays.getJSONObject(i)
             val isExtra = payKind(p) == "EXTRA"
             val isDue = isExtra && payStatus(p) == "DUE"
             val amountText = money(p.optDouble("amount", 0.0))
@@ -3386,7 +3462,7 @@ class StaffProfileActivity : AppCompatActivity() {
             addView(tv(label, 10.5f, android.graphics.Color.parseColor("#D5EEE0")))
             addView(tv(value, 14.5f, android.graphics.Color.WHITE, bold = true).apply { setPadding(0, dp(4), 0, 0) })
         }
-        footer.addView(footerTile("Total Entries", pays.length().toString()))
+        footer.addView(footerTile("Total Entries", shownPays.length().toString()))   // 🟣 V961
         footer.addView(android.view.View(this).apply {
             setBackgroundColor(android.graphics.Color.parseColor("#75A98B"))
             layoutParams = LinearLayout.LayoutParams(dp(1), dp(42)).apply { leftMargin = dp(7); rightMargin = dp(7) }

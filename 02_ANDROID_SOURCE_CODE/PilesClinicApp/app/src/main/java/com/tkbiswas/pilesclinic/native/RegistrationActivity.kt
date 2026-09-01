@@ -612,8 +612,17 @@ class RegistrationActivity : AppCompatActivity() {
         if (selectedTiming == "Unexpected Time") selectRegTiming("Official Time")
         lifecycleScope.launch {
             val enq = withContext(Dispatchers.IO) {
+                /* 🟣🔒 V961 (০১.০৯.২০২৬, TK-নির্দেশ) — TK: *"এই লোক কোন
+                   আনএক্সপেক্টেড টাইমে কল করেনি, অফিশিয়াল টাইমেই কল করেছে,
+                   তাহলে এনাকে আনএক্সপেক্টেড বলে কেন গণ্য করা হলো"*।
+                   **আসল দোষ:** এই খোঁজাটা সাজানো ছাড়া একটামাত্র সারি আনত, তাই
+                   এক নম্বরে একাধিক এনকোয়ারি থাকলে **পুরনো/অন্য যেকোনো একটা**
+                   জিতে যেত — আর তার Timing ("Unexpected Time") রোগীর সারিতে
+                   বসে গিয়ে Extra Income তৈরি করত। সার্ভারের নিয়ম (V418 SQL)
+                   কিন্তু **সবচেয়ে নতুন** এনকোয়ারিই ধরে। এখন এখানেও তাই। */
                 val rows = SupabaseClient.findByMobile(
-                    "enquiries", "+91$digits", "name,branch,disease,address,timeType"
+                    "enquiries", "+91$digits", "name,branch,disease,address,timeType",
+                    order = "createdAt.desc.nullslast,date.desc.nullslast"
                 )
                 if (rows.length() == 0) null else rows.getJSONObject(0)
             } ?: return@launch
