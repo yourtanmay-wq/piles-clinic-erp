@@ -1288,6 +1288,48 @@ async function syncNow(){
 window["syncNow"]=syncNow;
 
 /* ============================================================================
+   🔵🔒 V950 (০১.০৯.২০২৬, TK-নির্দেশ: *"Sync Now এটা কম্পিউটারে উপরের রিফ্রেশ
+   বোতাম ক্লিক করলে যেন হয়ে যায়"* — ব্রাউজারের নিজের রিফ্রেশ বোতাম/F5)
+   ----------------------------------------------------------------------------
+   **আগে কী হত:** ব্রাউজার রিফ্রেশে অ্যাপ শুধু *জমে থাকা* কাজ পাঠাত আর সাধারণ
+   (delta) পড়া করত — "Sync Now"-এর মতো পূর্ণ সিঙ্ক হত না। তাই ডেটাবেসে হাতে
+   বদলানো কিছু (যেমন আজকের পেশেন্ট-কোড শোধরানো) সঙ্গে সঙ্গে দেখা যেত না।
+
+   **এখন:** পাতা রিফ্রেশ/নতুন করে খোলা হলে ঠিক `syncNow()`-ই চলে।
+
+   ⚠️ TK-কে আগে ঝুঁকিটা বলা হয়েছিল (প্রতিবার পূর্ণ সিঙ্ক = বেশি খরচ), TK
+      জেনেই নির্দেশ দিয়েছেন। তাই খরচ যেন হাতছাড়া না হয়, দুটো পাহারা রাখা হলো:
+        ১) পরপর রিফ্রেশ চাপলে **২ মিনিটে একবারের বেশি** নয়
+        ২) লগইন না থাকলে বা নেট না থাকলে কিছুই হয় না
+   ⛔ `syncNow()`-এর ভিতরে এক অক্ষরও বদলায়নি — সেই প্রমাণিত ফাংশনটাই ডাকা হয়
+      (তার নিজের সাপ্তাহিক-পূর্ণ/delta নিয়মও অটুট)।
+   ⛔ ফোনের অ্যাপে কিছুই বদলায়নি — এটা শুধু ব্রাউজারের জন্য।              */
+async function wlv1SyncOnBrowserRefresh(){
+  try{
+    if(!user) return false;
+    if(typeof navigator!=='undefined' && navigator.onLine===false) return false;
+    var KEY='rk_refresh_sync_at';
+    var last=0; try{ last=Number(localStorage.getItem(KEY)||0) }catch(_e){ last=0 }
+    if(Date.now()-last < 2*60*1000) return false;
+    try{ localStorage.setItem(KEY,String(Date.now())) }catch(_e){}
+    var ok=await initCloudClientOnly();
+    if(!ok||!sb) return false;
+    await syncNow();
+    return true;
+  }catch(e){ return false }
+}
+window["wlv1SyncOnBrowserRefresh"]=wlv1SyncOnBrowserRefresh;
+(function wlv1RefreshSyncInstall(){
+  try{
+    if(window.__WLV1_REFRESH_SYNC) return;
+    window.__WLV1_REFRESH_SYNC = true;
+    /* লগইন হওয়া ও ক্লাউড তৈরি হওয়ার একটু সময় দেওয়া হয়, নইলে খুব আগে ডেকে
+       নিঃশব্দে ফিরে আসত। ⛔ পর্দা আঁকা আটকায় না (setTimeout-এ)। */
+    setTimeout(function(){ wlv1SyncOnBrowserRefresh(); }, 2500);
+  }catch(e){}
+})();
+
+/* ============================================================================
    🟢🔒 V399 (16.08.2026, TK-অনুমোদিত: "হ্যাঁ, কাজ শুরু করুন, তবে খুব সাবধানে")
    — Supabase Egress কমানো: **শুধু নতুন/বদলানো তথ্য নামবে** (delta sync)
      আর প্রথমবারের পূর্ণ পড়া **পাতা-ধরে-পাতা** হবে (limit 2000-এ আর আটকাবে না)।
