@@ -1182,6 +1182,25 @@
                     তাই ছাপার ইংরেজি-অনুবাদ (`PrintTextEnglish`) আগের মতোই মেলে।
                  ⛔ ডাক্তার কিছু না বাছলে কিছুই লেখা হয় না — চেম্বারের পুরনো
                     Treatment Progress অক্ষত থাকে। -->
+            <!-- 🔵🔒 V947 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — ডাক্তারের মন্তব্য।
+                 TK: *"তারা বললেন বাড়িতে আলোচনা করে জানাবে · টেস্ট করিয়ে এসে
+                 চিকিৎসা শুরু করব — এই কথা কোথায় লিখব?"*
+                 ⛔ এটা **শুধু** স্টাফের কল-পর্দার Last Remark-এ যাবে —
+                    চেম্বার বোর্ড বা রিপোর্ট কার্ডে **নয়** (TK-এর স্পষ্ট নির্দেশ)।
+                 ⛔ "TODAY'S TREATMENT DONE"-এর ঠিক আগে, প্রুফে দেখানো জায়গাতেই। -->
+            <androidx.cardview.widget.CardView android:id="@+id/secDocRemark" style="@style/RegCard" app:cardBackgroundColor="#FFFFFF">
+                <LinearLayout style="@style/RegCardInner">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="DOCTOR&apos;S REMARK" android:textStyle="bold"
+                        android:textSize="14sp" android:textColor="#0B4F2A"
+                        android:layout_marginBottom="6dp" />
+                    <EditText android:id="@+id/etDoctorRemark" style="@style/DocNoteInputSingle"
+                        android:layout_width="match_parent" android:minLines="2" android:gravity="top"
+                        android:inputType="textMultiLine|textCapSentences"
+                        android:hint="What the patient said today" />
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
             <androidx.cardview.widget.CardView android:id="@+id/secTodayTreat" style="@style/RegCard" app:cardBackgroundColor="#FFFFFF">
                 <LinearLayout style="@style/RegCardInner">
 

@@ -25,9 +25,25 @@ import org.json.JSONObject
  */
 object TodayTreatmentSync {
 
+    /* 🔵🔒 V947 — লাস্ট রিমার্কে দুটো লেখা আলাদা করে চেনার জন্য। ইংরেজি রাখা
+       হলো কারণ স্টাফের পর্দায় সব লেখা ইংরেজি (TK-এর নিয়ম ৯)। */
+    private const val DOC_PREFIX = "Doctor: "
+    private const val TREAT_PREFIX = "Today: "
+
     /**
      * @param patientRowId রোগীর নিজের সারির আইডি (এক নম্বরে দুজন রোগী থাকলে
      *        ঠিক তাঁরই সারিতে বসানোর জন্য — V536-এর একই নিয়ম)। জানা না থাকলে ফাঁকা।
+     */
+    /**
+     * 🔵🔒 V947 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — `doctorRemark` যোগ হলো।
+     * TK-এর স্পষ্ট নিয়ম:
+     *   • **আজকের চিকিৎসা** (`text`) → আগের মতোই **দুই** জায়গায় — followups-এর
+     *     `lastRemark` **এবং** ওই দিনের `payments.progress` (চেম্বার বোর্ড ও
+     *     Report Card ওখান থেকেই পড়ে)। এক অক্ষরও বদলায়নি।
+     *   • **ডাক্তারের মন্তব্য** (`doctorRemark`) → **শুধু** `lastRemark`-এ, যাতে
+     *     স্টাফ পরে কল করার সময় দেখতে পান। ⛔ `payments.progress`-এ **কখনো নয়**
+     *     — তাই চেম্বার বোর্ড ও Report Card-এ এটা দেখাবে না।
+     * দুটোই থাকলে লাস্ট রিমার্কে একসাথে বসে (TK: *"দুটো একসাথে দেখাবে"*)।
      */
     fun push(
         context: Context?,
@@ -35,10 +51,21 @@ object TodayTreatmentSync {
         patientRowId: String,
         text: String,
         staffName: String,
-        dateKey: String = FollowUpModel.today()
+        dateKey: String = FollowUpModel.today(),
+        doctorRemark: String = ""
     ) {
         val note = text.trim()
-        if (note.isBlank()) return
+        val docNote = doctorRemark.trim()
+        /* 🔵 V947 — দুটোর একটাও না থাকলে আগের মতোই কিছুই করা হয় না
+           (পুরনো Progress/Remark কখনো মুছে যায় না)। */
+        if (note.isBlank() && docNote.isBlank()) return
+        /* 🔵 V947 — লাস্ট রিমার্কে যা বসবে: দুটোই থাকলে একসাথে, নইলে যেটা আছে।
+           ⛔ নিচের `payments.progress` কিন্তু **শুধু `note`**-ই পায়। */
+        val remarkText = when {
+            docNote.isNotBlank() && note.isNotBlank() -> "$DOC_PREFIX$docNote · $TREAT_PREFIX$note"
+            docNote.isNotBlank() -> DOC_PREFIX + docNote
+            else -> note
+        }
         var digits = mobile.filter { it.isDigit() }.takeLast(10)
         /* 🔴🔒 V939 (নিজে ধরা) — চেকআপ পর্দা কোন পথে খোলা হয়েছে তার উপরে
            `RoleSession.currentPatientMobile` নির্ভর করে; ফাঁকা থাকলে আগে
@@ -79,11 +106,15 @@ object TodayTreatmentSync {
                 }
             }
             if (bestId.isNotBlank()) {
-                FollowUpRepository(context).updateRemark(bestId, note, staffName)
+                FollowUpRepository(context).updateRemark(bestId, remarkText, staffName)
             }
         } catch (_: Throwable) { }
 
         // ── ২. ওই দিনের টাকার সারির `progress` ঘরে (চেম্বার বোর্ডের আসল উৎস) ──
+        /* 🔵🔒 V947 — এই ধাপে **শুধু আজকের চিকিৎসা** যায়। ডাক্তারের মন্তব্য
+           এখানে কখনো লেখা হয় না (TK: *"ডাক্তারের মন্তব্য শুধু স্টাফরা কল করলে
+           লাস্ট রিমার্ক হিসেবেই শো করবে"*)। শুধু মন্তব্য থাকলে এই ধাপ বাদ। */
+        if (note.isBlank()) return
         try {
             val pays = SupabaseClient.fetchList("payments", "mobile=like.*$digits&date=eq.$day", 20)
             for (i in 0 until pays.length()) {

@@ -9569,6 +9569,13 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
       হয়, নামে চাপ দিলে খোলে। ⛔ ভিতরের একটাও ঘর/টিক/সেভ বদলায়নি। -->
  <!-- 🔴🔴🔒 V938 (৩১.০৮.২০২৬, TK-নির্দেশ · ডেমো-প্রুফে অনুমোদিত) — ফোনের হুবহু
       যমজ: *"আজকে কি TREATMENT করা হল"*, NEXT VISIT PLAN-এর ঠিক **আগে**। -->
+ <!-- 🔵🔒 V947 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — ডাক্তারের মন্তব্য।
+      ⛔ এটা **শুধু** স্টাফের কল-পর্দার Last Remark-এ যায় — চেম্বার বোর্ড বা
+         Report Card-এ **নয়** (TK-এর স্পষ্ট নির্দেশ)। ফোনের হুবহু যমজ। -->
+ <details class="card"><summary><b>DOCTOR'S REMARK · ডাক্তারের মন্তব্য</b></summary>
+  <div style="font-size:12px;color:#8A93A0;margin-bottom:6px">রোগী আজ কী বললেন — পরে স্টাফ কল করার সময় এটাই দেখতে পাবেন</div>
+  <textarea id="ckDocRemark" class="input" rows="2" placeholder="What the patient said today"></textarea>
+ </details>
  <details class="card"><summary><b>TODAY'S TREATMENT DONE · আজকে কি TREATMENT করা হল</b></summary>
   ${wlv1TtdBoxHtml()}
  </details>
@@ -9775,8 +9782,17 @@ window["wlv1TtdBoxHtml"]=wlv1TtdBoxHtml;
    একই দুটো কাজ, যা `wlv1ChamberSaveTreatment()` করে: রোগীর followups সারির
    lastRemark/lastRemarkAt (+history), আর ওই দিনের payments সারির `progress`
    (`wlv1SyncProgressToReportCard`) — চেম্বার বোর্ডের আসল উৎস। */
-function wlv1CkSaveTtd(p, txt){
-  var note=String(txt||'').trim(); if(!note||!p) return;
+function wlv1CkSaveTtd(p, txt, docRemark){
+  /* 🔵🔒 V947 — TK-এর স্পষ্ট নিয়ম:
+       • আজকের চিকিৎসা (`txt`) → লাস্ট রিমার্ক **ও** payments.progress
+         (চেম্বার বোর্ড ও Report Card ওখান থেকেই পড়ে) — আগের মতোই।
+       • ডাক্তারের মন্তব্য (`docRemark`) → **শুধু** লাস্ট রিমার্কে।
+         ⛔ `wlv1SyncProgressToReportCard`-এ কখনো যায় না।
+     দুটোই থাকলে একসাথে বসে। ফোনের `TodayTreatmentSync`-এর হুবহু একই লেখা। */
+  var note=String(txt||'').trim();
+  var doc=String(docRemark||'').trim();
+  if((!note && !doc)||!p) return;
+  var remarkText = (doc && note) ? ('Doctor: '+doc+' · Today: '+note) : (doc ? ('Doctor: '+doc) : note);
   var m=mob(p.mobile); if(!m) return;
   var rows=load('followups');
   var own=null;
@@ -9785,14 +9801,21 @@ function wlv1CkSaveTtd(p, txt){
   if(own){
     var i=rows.findIndex(function(x){ return String(x.id)===String(own.id); });
     if(i>=0){
-      rows[i]={...rows[i], lastRemark:note, lastRemarkAt:new Date().toISOString(), updatedAt:new Date().toISOString(),
-        history:[...(rows[i].history||[]), {date:today(), time:isoNow(), remark:note, staff:(user&&(user.name||user.mobile))||''}]};
+      rows[i]={...rows[i], lastRemark:remarkText, lastRemarkAt:new Date().toISOString(), updatedAt:new Date().toISOString(),
+        history:[...(rows[i].history||[]), {date:today(), time:isoNow(), remark:remarkText, staff:(user&&(user.name||user.mobile))||''}]};
       save('followups', rows);
     }
   }
-  try{ wlv1SyncProgressToReportCard(m, String(p.id||''), note, today()); }catch(_e){}
+  /* 🔵🔒 V947 — এখানে **শুধু আজকের চিকিৎসা**; মন্তব্য কখনো নয়।
+     চিকিৎসা ফাঁকা হলে পুরনো Progress ছোঁয়াই হয় না। */
+  if(note){ try{ wlv1SyncProgressToReportCard(m, String(p.id||''), note, today()); }catch(_e){} }
 }
 window["wlv1CkSaveTtd"]=wlv1CkSaveTtd;
+/* 🔵🔒 V947 — ডাক্তারের মন্তব্য ঘর থেকে তোলা (ফোনের `etDoctorRemark`-এর যমজ)। */
+function wlv1CkDocRemark(){
+  try{ return String((document.getElementById('ckDocRemark')||{}).value||'').trim() }catch(_e){ return '' }
+}
+window["wlv1CkDocRemark"]=wlv1CkDocRemark;
 function wlv1TtdCollect(){
   var out=[];
   try{
@@ -13115,7 +13138,7 @@ async function saveDoctor(id){
     ⛔ প্রজেক্টের প্রমাণিত দুটো ডাকই ব্যবহার হচ্ছে — নতুন কোনো পথ নয়:
        `wlv1CkSaveTtd()` → followups-এর lastRemark + payments-এর progress।
     ⛔ কিছু না বাছলে একটা অক্ষরও লেখা হয় না — পুরনো Progress অক্ষত। */
- try{ wlv1CkSaveTtd(p, wlv1TtdCollect()); }catch(_e){}
+ try{ wlv1CkSaveTtd(p, wlv1TtdCollect(), wlv1CkDocRemark()); }catch(_e){}   /* 🔵 V947 */
  if(dec==='Treatment Started'&&(up||p))ensureFollow({...p,...(up||{})},'Treatment','', 'Treatment started by doctor note');
  // V460 (১৯.০৮.২০২৬) — Decision ঘর বাদ যাওয়ায় "Not Agree" নোটিশ পাঠানোর
  // আর কোনো উপায় নেই (Android-এও এখন একই — এই ব্লক আর ফায়ার হয় না)।

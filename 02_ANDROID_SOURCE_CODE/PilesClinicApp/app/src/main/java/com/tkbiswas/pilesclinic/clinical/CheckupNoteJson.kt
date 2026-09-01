@@ -49,6 +49,7 @@ object CheckupNoteJson {
         "historyDetail" to r.historyDetail,
         "lifestyle" to r.lifestyle,
         "probableDisease" to r.probableDisease,
+        "doctorRemark" to r.doctorRemark,   // 🔵 V947
         "timeAsked" to r.timeAsked,
         "anatomy" to r.anatomy,
         "visual" to r.visual,
@@ -90,6 +91,7 @@ object CheckupNoteJson {
             historyDetail = g("historyDetail"),
             lifestyle = g("lifestyle"),
             probableDisease = g("probableDisease"),
+            doctorRemark = g("doctorRemark"),   // 🔵 V947
             timeAsked = g("timeAsked"),
             anatomy = g("anatomy"),
             visual = g("visual"),
@@ -132,7 +134,7 @@ object CheckupNoteJson {
      */
     val PHONE_KEYS = setOf(
         "complaint", "duration", "occupation", "previousTreatment", "patientSaid",
-        "symptomHistory", "historyDetail", "lifestyle", "probableDisease", "timeAsked",
+        "symptomHistory", "historyDetail", "lifestyle", "probableDisease", "doctorRemark", "timeAsked",
         "anatomy", "visual", "dre", "dreOther", "grade", "proctoscopy", "onProbing",
         "investigations", "treatmentPlan", "amtPerPiles", "amtFistulaPerInch",
         "amtKsharSutra", "counselling", "estimatedCost", "recoveryTime"

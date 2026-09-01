@@ -94,6 +94,9 @@ data class CheckupRecord(
        "কতদিন সময় চাওয়া হল?" ("15 Days" ধরনে, রেজিস্ট্রেশনের মতোই)।
        ⛔ নতুন কলাম/SQL লাগেনি। */
     var probableDisease: String = "",
+    /* 🔵🔒 V947 — ডাক্তারের মন্তব্য (শুধু স্টাফের কল-পর্দার Last Remark-এ যায়;
+       চেম্বার বোর্ড/Report Card-এ কখনো নয়)। */
+    var doctorRemark: String = "",
     var timeAsked: String = "",
     /* 🔵🔒 V558 (TK-অনুমোদিত): কাগজের হাতে-আঁকা ছবির জায়গায় "রোগের ছবি" —
        ডাক্তার ২৫টা ছবির যেটা খুশি বেছে তার উপরেই ফোলা/নালী দেখান, আর
@@ -150,7 +153,7 @@ fun CheckupRecord.toJsonString(): String {
         .put("visual", visual).put("visualOther", visualOther).put("dre", dre).put("dreOther", dreOther)
         .put("grade", grade).put("proctoscopy", proctoscopy).put("patientSaid", patientSaid)
         .put("symptomHistory", symptomHistory).put("historyDetail", historyDetail).put("lifestyle", lifestyle)
-        .put("probableDisease", probableDisease).put("timeAsked", timeAsked).put("anatomy", anatomy)
+        .put("probableDisease", probableDisease).put("doctorRemark", doctorRemark).put("timeAsked", timeAsked).put("anatomy", anatomy)
         .put("onProbing", onProbing).put("investigation", investigation).put("otherFindings", otherFindings)
         .put("treatmentPlan", treatmentPlan).put("amtPerPiles", amtPerPiles)
         .put("amtFistulaPerInch", amtFistulaPerInch).put("amtKsharSutra", amtKsharSutra)

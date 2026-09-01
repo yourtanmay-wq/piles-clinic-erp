@@ -383,6 +383,10 @@ class DoctorCheckupActivity : AppCompatActivity() {
             /* 🔴🔒 V938 — View মূল থ্রেডেই পড়া হয় (উপরের V839-এর একই নিয়ম);
                নিচের ব্যাকগ্রাউন্ড-কাজ শুধু জমা লেখাটাই ব্যবহার করে। */
             val ttdNow = try { collectTodayTreatment() } catch (_: Throwable) { "" }
+            /* 🔵🔒 V947 — ডাক্তারের মন্তব্যও মূল থ্রেডেই পড়া হয় (উপরের একই নিয়ম)। */
+            val docRemarkNow = try {
+                findViewById<android.widget.EditText>(R.id.etDoctorRemark).text?.toString()?.trim().orEmpty()
+            } catch (_: Throwable) { "" }
             val ttdMobile = RoleSession.currentPatientMobile
             // 🔴 B437 — আগে এখানে `ClinicalRepository.lastCheckup = record`
             // বসত, যেটাই উপরের ক্রস-রোগী বাগের উৎস ছিল। যেহেতু এখন কেউ এই
@@ -458,7 +462,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
                    ⛔ ব্যর্থ হলেও চেকআপ সেভ কখনো আটকায় না (ভিতরে try-catch)। */
                 try {
                     com.tkbiswas.pilesclinic.native.TodayTreatmentSync.push(
-                        appCtx, ttdMobile, pid, ttdNow, byName
+                        appCtx, ttdMobile, pid, ttdNow, byName, doctorRemark = docRemarkNow
                     )
                 } catch (_: Throwable) { }
                 // 🔒 কাজ শেষ — সাথে সাথেই মুছে ফেলা হয়, যাতে পরের রোগীর
@@ -1741,6 +1745,8 @@ class DoctorCheckupActivity : AppCompatActivity() {
         historyDetail = collectHistoryDetail(),     // 🔵 V555
         lifestyle = collectLifestyle(),             // 🔵 V556
         probableDisease = collectProbableDisease(),   // 🔵 V557 · V946 (একাধিক রোগ)
+        doctorRemark = findViewById<android.widget.EditText>(R.id.etDoctorRemark)
+            .text?.toString()?.trim().orEmpty(),   // 🔵 V947
         timeAsked = CounselModel.timeAsked(
             findViewById<android.widget.EditText>(R.id.etTimeAsked).text?.toString().orEmpty(),
             CounselModel.UNITS.getOrElse(findViewById<android.widget.Spinner>(R.id.spTimeAskedUnit).selectedItemPosition) { "Days" }),
@@ -1790,6 +1796,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         applyLifestyle(r.lifestyle)             // 🔵 V556
         // 🔵 V557
         applyProbableDisease(r.probableDisease)   // 🔵 V946
+        findViewById<android.widget.EditText>(R.id.etDoctorRemark).setText(r.doctorRemark)   // 🔵 V947
         val (tAmt, tUnit) = CounselModel.splitTimeAsked(r.timeAsked)
         findViewById<android.widget.EditText>(R.id.etTimeAsked).setText(tAmt)
         val ui = CounselModel.UNITS.indexOf(tUnit)
