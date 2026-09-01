@@ -125,7 +125,11 @@ class DoctorQueueAdapter(
                         b.tvStatus.setBackgroundResource(R.drawable.bg_badge_new)
                     }
                     "OLD" -> {
-                        b.tvStatus.text = "OLD"
+                        /* 🩺🔒 V951 (TK-নির্দেশ: *"OLD করবেন না, কত তম ভিজিট সেটা
+                           লিখবেন"*) — ভিজিট গোনা থাকলে "4th Visit", না জানলে
+                           আগের মতোই "OLD"। ⛔ রং/আকার/জায়গা কিছুই বদলায়নি। */
+                        b.tvStatus.text =
+                            if (item.visitNo > 0) DoctorQueueModel.visitOrdinal(item.visitNo) else "OLD"
                         b.tvStatus.setBackgroundResource(R.drawable.bg_badge_old)
                     }
                     else -> {
@@ -155,6 +159,44 @@ class DoctorQueueAdapter(
                 } else {
                     b.tvNvpTag.text = ""
                     b.tvNvpTag.visibility = android.view.View.GONE
+                }
+                /* 🩺🔒 V951 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — আজ ট্রিটমেন্টের
+                   টাকা জমা দেওয়া রোগীর কার্ডে **বিল · আজ জমা · বাকি**।
+                   ⛔ আজ টাকা না দিলে পুরো সারিটা লুকানো ⇒ নতুন রোগীর কার্ড অটুট।
+                   ⛔ RecyclerView সারি পুনর্ব্যবহার করে, তাই দুই দিকেই স্পষ্ট বসানো। */
+                if (item.paidToday > 0.0) {
+                    fun money(v: Double) = "₹" + java.text.NumberFormat
+                        .getIntegerInstance(java.util.Locale("en", "IN")).format(Math.round(v))
+                    val due = Math.max(0.0, item.bill - item.paidTotal)
+                    b.tvMoneyBill.text = "BILL\n" + (if (item.bill > 0.0) money(item.bill) else "—")
+                    b.tvMoneyPaid.text = "PAID TODAY\n" + money(item.paidToday)
+                    b.tvMoneyDue.text = "DUE\n" + (if (item.bill > 0.0) money(due) else "—")
+                    b.boxMoney.visibility = android.view.View.VISIBLE
+                } else {
+                    b.boxMoney.visibility = android.view.View.GONE
+                }
+
+                /* 🩺🔒 V951 — গত ট্রিটমেন্ট ও প্ল্যান, ফলো-আপ কার্ডের মতো এক বাক্সে।
+                   প্ল্যানের লেখাটা তারিখ দেখে নিজে থেকেই বদলায় (TK-এর ব্যাকরণ):
+                   আজ ⇒ TODAY'S PLAN · পরে ⇒ NEXT PLAN · পেরিয়ে গেলে ⇒ OVERDUE PLAN।
+                   ⛔ কিছুই না থাকলে বাক্সটা বসেই না। */
+                run {
+                    val lines = ArrayList<String>()
+                    if (item.lastTreatment.isNotBlank()) {
+                        val d = FollowUpModel.displayDate(item.lastTreatmentDate)
+                        lines.add("LAST TREATMENT · $d\n" + item.lastTreatment)
+                    }
+                    if (item.paidToday > 0.0 && item.nvpLine.isNotBlank()) {
+                        val lbl = DoctorQueueModel.planLabel(item.nvpWhenIso())
+                        val d = item.nvpWhen.ifBlank { "" }
+                        lines.add(lbl + (if (d.isNotBlank()) " · $d" else "") + "\n" + item.nvpLine)
+                    }
+                    if (lines.isEmpty()) {
+                        b.tvLastTreat.visibility = android.view.View.GONE
+                    } else {
+                        b.tvLastTreat.text = lines.joinToString("\n────────────\n")
+                        b.tvLastTreat.visibility = android.view.View.VISIBLE
+                    }
                 }
                 // TK-REQUESTED (2026-07-18): long-press to copy name/mobile.
                 b.tvName.copyOnLongPress("Name", item.name)

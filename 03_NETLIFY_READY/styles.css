@@ -6842,3 +6842,18 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
    চিপগুলোর মোড়ক (একাধিক রোগ বাছা যায়)। ⛔ শুধু এই নতুন ঘরের জন্য — চিপের
    নিজের চেহারা `.wlv1Chip2`-ই, এক অক্ষরও বদলায়নি। */
 .wlv1DisChips{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 2px}
+
+/* 🩺🔒 V951 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — ডাক্তারের লাইনের কার্ডে
+   বিল · আজ জমা · বাকি, আর গত ট্রিটমেন্ট/প্ল্যানের বাক্স।
+   ⛔ শুধু এই নতুন ঘরগুলোর জন্য — কার্ডের বাকি চেহারা এক অক্ষরও বদলায়নি। */
+.dqMoney{display:flex;gap:8px;margin:10px 0 4px}
+.dqM{flex:1;background:#F4F7FA;border:1px solid #E1E8EF;border-radius:10px;padding:7px 4px;text-align:center}
+.dqM span{display:block;font-size:10px;font-weight:700;letter-spacing:.5px;color:#7A8794}
+.dqM b{display:block;font-size:15px;color:#1b2b3a;margin-top:2px}
+.dqM.paid{background:#EAF8EF;border-color:#CDEBD9}.dqM.paid b{color:#0C7A3E}
+.dqM.due{background:#FDF0EE;border-color:#F6D6D0}.dqM.due b{color:#B4291B}
+.dqFbox{border:1px dashed #57B77F;background:#F1FAF4;border-radius:10px;padding:9px 11px;margin:6px 0 2px}
+.dqFsep{border-top:1px dashed #9CCBB0;margin:8px 0}
+.dqFh{font-size:11px;font-weight:700;letter-spacing:.3px;color:#5B6B60}
+.dqFh.today{color:#0C7A3E}.dqFh.over{color:#B4291B}
+.dqFt{font-size:14px;color:#1b2b3a;margin-top:4px}

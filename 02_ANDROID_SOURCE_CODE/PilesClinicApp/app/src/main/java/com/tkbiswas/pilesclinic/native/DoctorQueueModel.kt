@@ -47,10 +47,50 @@ data class QueuePatient(
     val nvpBy: String = "",        // "Dr. A. Sarkar"
     val nvpItems: List<String> = emptyList(),   // পপ-আপে পুরো তালিকা
     val nvpMedicine: String = "",               // কোন ঔষধ
-    val nvpNote: String = ""                    // ডাক্তারের নিজের লেখা
-)
+    val nvpNote: String = "",                   // ডাক্তারের নিজের লেখা
+    /* 🩺🔒 V951 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — আজ ট্রিটমেন্টের টাকা
+       জমা দেওয়া **পুরনো** রোগীও ডাক্তারের লাইনে আসবেন। কার্ডে দেখাবে:
+       কত তম ভিজিট · বিল · আজ জমা · বাকি · গত ট্রিটমেন্ট · প্ল্যান।
+       ⛔ সব ঘর **ডিফল্ট ফাঁকা/শূন্য** — তাই পুরনো কোনো ডাক ভাঙে না, আর মান না
+          এলে কার্ড হুবহু আগের মতোই দেখায় (নতুন রোগীর কার্ড অপরিবর্তিত)। */
+    val visitNo: Int = 0,                       // কত তম ভিজিট (০ = জানা নেই)
+    val paidToday: Double = 0.0,                // আজ জমা
+    val paidTotal: Double = 0.0,                // এ পর্যন্ত মোট জমা
+    val lastTreatment: String = "",             // গত যেদিন যা চিকিৎসা হয়েছিল
+    val lastTreatmentDate: String = ""          // সেই তারিখ (yyyy-MM-dd)
+) {
+    /** 🩺 V951 — `nvpWhen` দেখানোর তারিখ (dd.MM.yyyy); তুলনার জন্য ISO-তে ফেরানো।
+     *  বুঝতে না পারলে ফাঁকা ⇒ লেখাটা আগের মতোই "NEXT PLAN" থাকে। */
+    fun nvpWhenIso(): String {
+        val t = nvpWhen.trim()
+        val p = t.split(".", "/", "-")
+        return if (p.size == 3 && p[0].length == 2 && p[2].length == 4)
+            "${p[2]}-${p[1]}-${p[0]}" else if (t.length >= 10 && t[4] == '-') t.take(10) else ""
+    }
+}
 
 object DoctorQueueModel {
+
+    /** 🩺 V951 — "1st Visit · 2nd Visit · 3rd Visit …" (ওয়েবের
+     *  `wlv1VisitOrdinal()`-এর হুবহু একই লেখা, তাই দুই যন্ত্রে এক দেখায়)। */
+    fun visitOrdinal(n: Int): String {
+        val r = n % 100; val u = n % 10
+        val sfx = if (r in 11..13) "th" else when (u) { 1 -> "st"; 2 -> "nd"; 3 -> "rd"; else -> "th" }
+        return "$n$sfx Visit"
+    }
+
+    /** 🩺 V951 — প্ল্যানের লেখা তারিখ দেখে নিজে থেকেই বদলায় (TK-এর নিয়ম):
+     *  আজ ⇒ TODAY'S PLAN · ভবিষ্যৎ ⇒ NEXT PLAN · পেরিয়ে গেলে ⇒ OVERDUE PLAN। */
+    fun planLabel(planIsoDate: String): String {
+        val d = planIsoDate.trim().take(10)
+        if (d.length < 10) return "NEXT PLAN"
+        val t = today()
+        return when {
+            d == t -> "TODAY'S PLAN"
+            d > t -> "NEXT PLAN"
+            else -> "OVERDUE PLAN"
+        }
+    }
 
     fun today(): String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
 

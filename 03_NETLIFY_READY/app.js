@@ -9134,6 +9134,33 @@ function visitQueueRows(){
    }catch(_e){return true}
  };
  let rows=base.filter(x=>(wlv1Flag(x.queue)||x.stage==='Doctor Queue'||x.stage==='Visit')&&!wlv1Flag(x.doctorComplete)&&!isSeededRecord(x)&&wlv1QFresh(x));
+ /* 🩺🔒 V951 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — TK: *"OLD পেশেন্ট যারা
+    ট্রিটমেন্ট করার জন্য টাকা জমা করেছে তাদেরকে কেন দেখাচ্ছে না?"*
+    আগে লাইনে ঢোকার নিয়মে **শুধু** নতুন রেজিস্ট্রেশন ও NEXT VISIT PLAN ছিল।
+    এখন **আজ চিকিৎসার টাকা জমা দিলেই** লাইনে আসবেন (ফোনের হুবহু যমজ)।
+    ⛔ চেকআপ হয়ে গেলে আগের মতোই বাদ · এক মোবাইল = এক কার্ড · ডেমো সারি বাদ।
+    ⛔ ব্রাঞ্চের নিয়ম অটুট — যে তালিকা (`base`) এমনিতেই ছাঁকা, তার ভিতর থেকেই। */
+ try{
+   var __t=today();
+   var __paid={};
+   (load('payments')||[]).forEach(function(p){
+     if(String(p.date||'').slice(0,10)!==__t) return;
+     var t=String(p.payType||'').toLowerCase();
+     if(t==='bill_edit'||t==='chamber_expected'||t==='attendance_mark'||t==='visit_fee'||t==='refund') return;
+     var a=Number(p.amount||0); if(!(a>0)) return;
+     var o=String(p.patientId||'').trim(); if(!o) return;
+     __paid[o]=(__paid[o]||0)+a;
+   });
+   var __have={}; rows.forEach(function(r){ __have[String(r.id)]=1; });
+   var __mob={}; rows.forEach(function(r){ __mob[mob(r.mobile)]=1; });
+   base.forEach(function(x){
+     if(__have[String(x.id)]) return;
+     if(!__paid[String(x.id)]) return;
+     if(wlv1Flag(x.doctorComplete)) return;
+     var m=mob(x.mobile); if(m && __mob[m]) return; if(m) __mob[m]=1;
+     rows.push(x);
+   });
+ }catch(_e){}
  try{
   let last=localStorage.getItem('rk_last_visit_queue_id');
   if(last&&!rows.some(x=>x.id===last)){
@@ -9343,12 +9370,80 @@ function wlv1NvpCheckupWithReminder(id){
 }
 window["wlv1NvpCheckupWithReminder"]=wlv1NvpCheckupWithReminder;
 
+/* 🩺🔒 V951 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — ডাক্তারের লাইনের কার্ডে
+   আজ ট্রিটমেন্টের টাকা জমা দেওয়া রোগীর জন্য: **বিল · আজ জমা · বাকি**, আর তার
+   নিচে **গত ট্রিটমেন্ট** ও **প্ল্যান** (ফলো-আপ কার্ডের সেই একই সবুজ ডটেড বাক্স)।
+   ফোনের `DoctorQueueAdapter`/`DoctorQueueRepository`-র হুবহু একই হিসাব ও লেখা।
+   ⛔ আজ টাকা না দিলে কিছুই বসে না ⇒ নতুন রোগীর কার্ড এক অক্ষরও বদলায় না। */
+function wlv1DqMoney(p){
+  try{
+    var t=today(), paidToday=0, paidTotal=0, days={}, lastD='', lastT='';
+    var skip=function(x){ var k=String(x||'').toLowerCase();
+      return k==='bill_edit'||k==='chamber_expected'||k==='attendance_mark'||k==='visit_fee'||k==='refund'; };
+    (load('payments')||[]).forEach(function(x){
+      if(String(x.patientId||'')!==String(p.id)) return;
+      var d=String(x.date||'').slice(0,10);
+      if(!skip(x.payType)){
+        var a=Number(x.amount||0);
+        if(a>0){ paidTotal+=a; if(d) days[d]=1; if(d===t) paidToday+=a; }
+      }
+      var pr=String(x.progress||'').trim();
+      if(pr && d && d<t && d>lastD){ lastD=d; lastT=pr; }
+    });
+    if(!(paidToday>0)) return null;
+    return {paidToday:paidToday, paidTotal:paidTotal,
+            visitNo:Object.keys(days).length, lastDate:lastD, lastText:lastT};
+  }catch(_e){ return null }
+}
+window["wlv1DqMoney"]=wlv1DqMoney;
+/* 🩺 V951 — প্ল্যানের লেখা তারিখ দেখে নিজে থেকেই বদলায় (TK-এর ব্যাকরণ)। */
+function wlv1DqPlanLabel(iso){
+  var d=String(iso||'').slice(0,10); if(d.length<10) return 'NEXT PLAN';
+  var t=today();
+  return d===t ? "TODAY'S PLAN" : (d>t ? 'NEXT PLAN' : 'OVERDUE PLAN');
+}
+window["wlv1DqPlanLabel"]=wlv1DqPlanLabel;
+function wlv1DqExtraHtml(p, m){
+  if(!m) return '';
+  var money=function(v){ return '₹'+Number(Math.round(v)).toLocaleString('en-IN') };
+  var bill=Number(p.bill||0), due=Math.max(0, bill-m.paidTotal);
+  var cell=function(k,v,cls){ return '<div class="dqM'+(cls?' '+cls:'')+'"><span>'+k+'</span><b>'+v+'</b></div>' };
+  var row='<div class="dqMoney">'
+    + cell('BILL', bill>0?money(bill):'—')
+    + cell('PAID TODAY', money(m.paidToday), 'paid')
+    + cell('DUE', bill>0?money(due):'—', 'due')
+    + '</div>';
+  var parts=[];
+  if(m.lastText) parts.push('<div class="dqFp"><div class="dqFh">LAST TREATMENT · '+esc(wlv1Dot(m.lastDate))+'</div><div class="dqFt">'+esc(m.lastText)+'</div></div>');
+  try{
+    var e=wlv1NvpLatest(p);
+    var line=e?wlv1NvpShortLine(e):'';
+    if(line){
+      var iso=String((e&&e.date)||'').slice(0,10);
+      var lbl=wlv1DqPlanLabel(iso);
+      var cls=(lbl==="TODAY'S PLAN")?' today':((lbl==='OVERDUE PLAN')?' over':'');
+      parts.push('<div class="dqFp"><div class="dqFh'+cls+'">'+lbl+(iso?' · '+esc(wlv1Dot(iso)):'')+'</div><div class="dqFt">'+esc(line)+'</div></div>');
+    }
+  }catch(_e){}
+  var box=parts.length?('<div class="dqFbox">'+parts.join('<div class="dqFsep"></div>')+'</div>'):'';
+  return row+box;
+}
+window["wlv1DqExtraHtml"]=wlv1DqExtraHtml;
 function wlv1DqCard(p){
   let bill=Number(p.bill||0);
   let rcBtn=bill>0
     ? `<button class="ghost" onclick="wlv1ReportCard('${p.id}')">Report Card</button>`
     : `<button class="ghost" style="opacity:.45" onclick="toast('No bill yet for this patient — Report Card needs an Advance Payment first')">Report Card</button>`;
-  return `<div class="card doctorQueuePro"><div class="queueRow">${p.photo?`<img class="queuePhoto" src="${p.photo}">`:`<div class="queuePhoto blank">👤</div>`}<div class="queueInfo"><b class="wlv1NameLink" onclick="wlv1FullJourney('${esc(normMob(p.mobile))}')" title="Tap for History">${esc(p.name)}</b><span><span class="wlv1CallLink" onclick="event.stopPropagation();contact('${esc(p.mobile)}','call')" title="Tap to call">${esc(normMob(p.mobile))}</span> · ${esc(p.patientId||'')}</span><small>${esc(p.disease||'-')} · ${esc(p.branch||'-')}</small></div><span class="queueBadge"${(function(){var b=wlv1NvpOldNew(p);return b?(' style="background:'+(b==='NEW'?'#16A36D':'#0B3D91')+'"'):''})()}>${wlv1NvpOldNew(p)||'WAITING'}</span></div>${wlv1NvpTagHtml(p)}<div class="actions queueActions"><button class="ghost" onclick="wlv1FullJourney('${esc(normMob(p.mobile))}')">History</button>${rcBtn}<button onclick="wlv1NvpCheckupWithReminder('${p.id}')">Check-up</button><button class="ghost" onclick="summary('${p.id}')">⚡ Action</button></div></div>`;
+  let __m=wlv1DqMoney(p);
+  let __badge=(function(){ var b=wlv1NvpOldNew(p);
+    /* 🩺 V951 (TK: "OLD করবেন না, কত তম ভিজিট সেটা লিখবেন") */
+    if(b==='OLD' && __m && __m.visitNo>0){
+      var n=__m.visitNo, r=n%100, u=n%10;
+      var sfx=(r>=11&&r<=13)?'th':(u===1?'st':u===2?'nd':u===3?'rd':'th');
+      return n+sfx+' Visit';
+    }
+    return b||'WAITING'; })();
+  return `<div class="card doctorQueuePro"><div class="queueRow">${p.photo?`<img class="queuePhoto" src="${p.photo}">`:`<div class="queuePhoto blank">👤</div>`}<div class="queueInfo"><b class="wlv1NameLink" onclick="wlv1FullJourney('${esc(normMob(p.mobile))}')" title="Tap for History">${esc(p.name)}</b><span><span class="wlv1CallLink" onclick="event.stopPropagation();contact('${esc(p.mobile)}','call')" title="Tap to call">${esc(normMob(p.mobile))}</span> · ${esc(p.patientId||'')}</span><small>${esc(p.disease||'-')} · ${esc(p.branch||'-')}</small></div><span class="queueBadge"${(function(){var b=wlv1NvpOldNew(p);return b?(' style="background:'+(b==='NEW'?'#16A36D':'#0B3D91')+'"'):''})()}>${esc(__badge)}</span></div>${__m?'':wlv1NvpTagHtml(p)}${wlv1DqExtraHtml(p,__m)}<div class="actions queueActions"><button class="ghost" onclick="wlv1FullJourney('${esc(normMob(p.mobile))}')">History</button>${rcBtn}<button onclick="wlv1NvpCheckupWithReminder('${p.id}')">Check-up</button><button class="ghost" onclick="summary('${p.id}')">⚡ Action</button></div></div>`;
 }
 function doctorQueue(){try{repairBranchWorkflowRows()}catch(_e){}let rows=visitQueueRows();
  /* 🟢🔒 V398: মনে-রাখা ব্রাঞ্চ (এক জায়গা থেকে)। বাছা না-থাকলে তালিকা নয়, বার্তা। */

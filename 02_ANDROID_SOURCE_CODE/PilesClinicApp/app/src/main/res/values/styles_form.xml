@@ -235,4 +235,21 @@
         <item name="android:textSize">16sp</item>
     </style>
 
+
+    <!-- 🩺🔒 V951 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — ডাক্তারের লাইনের কার্ডে
+         বিল · আজ জমা · বাকি — তিনটে সমান ঘর। ⛔ শুধু এই নতুন সারির জন্য;
+         অন্য কোনো স্টাইল ছোঁয়া হয়নি। -->
+    <style name="QueueMoneyCell">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:layout_marginEnd">6dp</item>
+        <item name="android:background">@drawable/bg_nvp_tag</item>
+        <item name="android:gravity">center</item>
+        <item name="android:paddingTop">6dp</item>
+        <item name="android:paddingBottom">6dp</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:lineSpacingExtra">1dp</item>
+        <item name="android:textColor">#1B2B3A</item>
+    </style>
 </resources>

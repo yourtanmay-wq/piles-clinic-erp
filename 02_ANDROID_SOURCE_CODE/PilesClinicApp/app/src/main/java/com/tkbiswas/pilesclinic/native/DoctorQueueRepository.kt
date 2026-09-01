@@ -264,9 +264,134 @@ class DoctorQueueRepository(private val context: Context? = null) {
         //   থেকে ছবি উধাও হয়ে যেত (DoctorQueueAdapter ফাঁকা ছবি পেলে setImageDrawable(null))।
         //   ⛔ ছবিসহ টানার পথ (includePhoto=true) এক অক্ষরও বদলায়নি।
         val result1 = if (includePhoto) result0 else fillPhotosFromCache(branchFilter, result0)
-        val result = fillNextVisitPlans(result1)   // 🩺 V839
+        val result2 = fillNextVisitPlans(result1)   // 🩺 V839
+        /* 🩺🔒 V951 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ): TK — *"OLD পেশেন্ট যারা
+           ট্রিটমেন্ট করার জন্য টাকা জমা করেছে তাদেরকে কেন দেখাচ্ছে না?"*
+           যাচাই করে দেখা গেছে লাইনে ঢোকার নিয়মে **শুধু** নতুন রেজিস্ট্রেশন ও
+           NEXT VISIT PLAN ছিল — টাকা জমা দিলে কেউ লাইনে ঢুকত না। এখন ঢুকবে। */
+        val result = addTodaysTreatmentPayers(branchFilter, merged, result2)
         saveCachedQueue(branchFilter, result, includePhoto)
         return result
+    }
+
+    /**
+     * 🩺🔒 V951 — আজ **ট্রিটমেন্টের টাকা** জমা দেওয়া রোগীদের লাইনে আনা, আর
+     * কার্ডের জন্য কত তম ভিজিট · আজ জমা · মোট জমা · গত ট্রিটমেন্ট বসানো।
+     *
+     * ### Egress — কেন এভাবে (আন্দাজে নয়, V839-এর প্রমাণিত ধাঁচেই)
+     * প্রথমে **একটাই ছোট অনুরোধ**: আজকের তারিখের (ও এই ব্রাঞ্চের) পেমেন্ট সারি।
+     * তাতে যে ক'জন পাওয়া যায় (সাধারণত ৫–২০ জন) **শুধু তাঁদের** জন্য দ্বিতীয়
+     * অনুরোধ — `patientId=in.(…)`। সব রোগীর টাকা কখনো নামানো হয় না।
+     *
+     * ⛔ কেউ ব্যর্থ হলে (null) আগের তালিকাটাই হুবহু ফেরে — লাইন কখনো ফাঁকা হয় না।
+     * ⛔ ইতিমধ্যে লাইনে থাকা রোগীর কার্ডও টাকার তথ্য পায়, কিন্তু **দুবার বসে না**।
+     * ⛔ চেকআপ হয়ে যাওয়া (doctorComplete) রোগী আগের মতোই বাদ।
+     */
+    private fun addTodaysTreatmentPayers(
+        branchFilter: String?,
+        patientRows: JSONArray,
+        current: List<QueuePatient>
+    ): List<QueuePatient> {
+        return try {
+            val today = FollowUpModel.today()
+            val brPart = if (branchFilter != null && branchFilter != "All")
+                "&branch=eq." + java.net.URLEncoder.encode(branchFilter, "UTF-8") else ""
+            val todayPays = SupabaseClient.fetchListSlimOrNull(
+                "payments", "date=eq.$today$brPart", 2000,
+                "id,patientId,mobile,amount,payType,date"
+            ) ?: return current
+
+            /* আজ কে কত **চিকিৎসার** টাকা দিলেন (ফি/হাজিরা/বিল-এডিট বাদ — চেম্বার
+               বোর্ডের হুবহু একই তালিকা)। */
+            fun isMoneyRow(t: String) =
+                t != "bill_edit" && t != "chamber_expected" && t != "attendance_mark" &&
+                t != "visit_fee" && t != "refund"
+            val paidTodayBy = HashMap<String, Double>()
+            for (i in 0 until todayPays.length()) {
+                val p = todayPays.optJSONObject(i) ?: continue
+                val t = p.optString("payType", "").lowercase()
+                if (!isMoneyRow(t)) continue
+                val amt = p.optDouble("amount", 0.0)
+                if (amt <= 0.0) continue
+                val owner = p.optString("patientId", "").trim()
+                if (owner.isBlank()) continue
+                paidTodayBy[owner] = (paidTodayBy[owner] ?: 0.0) + amt
+            }
+            if (paidTodayBy.isEmpty()) return current
+
+            /* ওই ক'জনের **সব** টাকার সারি — মোট জমা, ভিজিট গোনা ও গত ট্রিটমেন্টের
+               জন্য। একটাই অনুরোধ, ২০০ করে ভাগে (URL যেন লম্বা না হয়)। */
+            val ids = paidTodayBy.keys.toList()
+            val allPays = JSONArray()
+            var readOk = true
+            for (i in ids.indices step 200) {
+                val part = ids.subList(i, minOf(i + 200, ids.size))
+                val inList = part.joinToString(",") { "\"" + it.replace("\"", "") + "\"" }
+                val got = SupabaseClient.fetchListSlimOrNull(
+                    "payments", "patientId=in.($inList)", 5000,
+                    "patientId,amount,payType,date,progress"
+                )
+                if (got == null) { readOk = false; break }
+                for (j in 0 until got.length()) allPays.put(got.getJSONObject(j))
+            }
+            if (!readOk) return current
+
+            val paidTotalBy = HashMap<String, Double>()
+            val visitDaysBy = HashMap<String, HashSet<String>>()
+            val lastTreatBy = HashMap<String, Pair<String, String>>()   // id → (তারিখ, লেখা)
+            for (i in 0 until allPays.length()) {
+                val p = allPays.optJSONObject(i) ?: continue
+                val owner = p.optString("patientId", "").trim()
+                if (owner.isBlank()) continue
+                val t = p.optString("payType", "").lowercase()
+                val d = p.optString("date", "").take(10)
+                if (isMoneyRow(t)) {
+                    val amt = p.optDouble("amount", 0.0)
+                    if (amt > 0.0) {
+                        paidTotalBy[owner] = (paidTotalBy[owner] ?: 0.0) + amt
+                        if (d.length == 10) visitDaysBy.getOrPut(owner) { HashSet() }.add(d)
+                    }
+                }
+                /* গত ট্রিটমেন্ট = **আজকের আগের** সবচেয়ে নতুন দিনের চেম্বার-নোট। */
+                val prog = p.optString("progress", "").trim()
+                if (prog.isNotEmpty() && d.length == 10 && d < today) {
+                    val prev = lastTreatBy[owner]
+                    if (prev == null || d > prev.first) lastTreatBy[owner] = d to prog
+                }
+            }
+
+            /* রোগীর সারিগুলো id ধরে হাতের কাছে (নাম/ছবি/বিল বসানোর জন্য)। */
+            val byId = HashMap<String, org.json.JSONObject>()
+            for (i in 0 until patientRows.length()) {
+                val r = patientRows.optJSONObject(i) ?: continue
+                val rid = r.optString("id", "")
+                if (rid.isNotBlank()) byId[rid] = r
+            }
+
+            fun decorate(q: QueuePatient): QueuePatient {
+                val paid = paidTodayBy[q.id] ?: return q
+                return q.copy(
+                    visitNo = visitDaysBy[q.id]?.size ?: 0,
+                    paidToday = paid,
+                    paidTotal = paidTotalBy[q.id] ?: 0.0,
+                    lastTreatmentDate = lastTreatBy[q.id]?.first ?: "",
+                    lastTreatment = lastTreatBy[q.id]?.second ?: ""
+                )
+            }
+
+            val out = current.map { decorate(it) }.toMutableList()
+            val already = HashSet(out.map { it.id })
+            val seenMobiles = HashSet(out.map { it.mobile.filter { c -> c.isDigit() }.takeLast(10) })
+            for (pid in ids) {
+                if (pid in already) continue
+                val row = byId[pid] ?: continue
+                if (row.optBoolean("doctorComplete", false)) continue   // চেকআপ হয়ে গেছে
+                val mob = row.s("mobile").filter { it.isDigit() }.takeLast(10)
+                if (mob.length == 10 && !seenMobiles.add(mob)) continue // এক মোবাইল = এক কার্ড
+                out.add(decorate(DoctorQueueModel.parse(row)))
+            }
+            out
+        } catch (_: Throwable) { current }
     }
 
     /**

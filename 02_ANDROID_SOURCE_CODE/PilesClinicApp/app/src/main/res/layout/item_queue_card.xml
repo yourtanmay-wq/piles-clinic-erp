@@ -101,6 +101,38 @@
             android:textColor="#0B3D91"
             android:visibility="gone" />
 
+        <!-- 🩺🔒 V951 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — আজ ট্রিটমেন্টের টাকা
+             জমা দেওয়া পুরনো রোগীর কার্ডে: বিল · আজ জমা · বাকি, আর তার নিচে
+             গত ট্রিটমেন্ট ও প্ল্যান (ফলো-আপ কার্ডের সেই একই সবুজ ডটেড বাক্স)।
+             ⛔ দুটোই ডিফল্ট gone — নতুন রোগীর কার্ড হুবহু আগের মতোই থাকে। -->
+        <LinearLayout
+            android:id="@+id/boxMoney"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal"
+            android:baselineAligned="false"
+            android:visibility="gone">
+            <TextView android:id="@+id/tvMoneyBill" style="@style/QueueMoneyCell" />
+            <TextView android:id="@+id/tvMoneyPaid" style="@style/QueueMoneyCell" />
+            <TextView android:id="@+id/tvMoneyDue"  style="@style/QueueMoneyCell" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tvLastTreat"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:paddingTop="7dp"
+            android:paddingBottom="7dp"
+            android:paddingStart="9dp"
+            android:paddingEnd="9dp"
+            android:background="@drawable/bg_nvp_tag"
+            android:textSize="12sp"
+            android:lineSpacingExtra="2dp"
+            android:textColor="#1B2B3A"
+            android:visibility="gone" />
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
