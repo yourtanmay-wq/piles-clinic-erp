@@ -792,10 +792,16 @@ class RegistrationActivity : AppCompatActivity() {
     // setupSexButtons/setupPayButtons just above, nothing else changed.
     // Refactored into selectRegTiming() (below) so autofillFromEnquiry can
     // also set this when auto-filling from an existing Enquiry.
+    /* 🕘🔒 V962 (০১.০৯.২০২৬, TK-নির্দেশ) — TK: *"রেজিস্ট্রেশন ফরমে আনএক্সপেক্টেড
+       থাকবে না, এক্সপেক্টেড ও থাকবে না … আনএক্সপেক্টেড টাইম সেটাই গণ্য হবে, অল
+       ব্রাঞ্চ ইনকয়ারি ফর্ম যদি সকাল ৯টা থেকে সন্ধ্যা ৬টার মধ্যে (না হয়)"*।
+       ⇒ এখানে আর কিছু বাছার নেই: সারিটাই লুকানো, কোনো ক্লিকও বসে না। রোগীর
+         সময়টা **শুধু এনকোয়ারি থেকেই** আসে (নিচে `autofillFromEnquiry`)।
+       ⚠️ এই দুটো বোতাম আগে TK-এর লক-করা তালিকায় ছিল — TK নিজেই তুলতে বলেছেন
+          (০১.০৯.২০২৬), তাই তোলা হলো। */
     private fun setupTimingButtons() {
         selectRegTiming(selectedTiming)
-        binding.btnRegTimingOfficial.setOnClickListener { selectRegTiming("Official Time") }
-        binding.btnRegTimingUnexpected.setOnClickListener { selectRegTiming("Unexpected Time") }
+        try { binding.rowRegTiming.visibility = android.view.View.GONE } catch (_: Throwable) { }
         // 🟢🔒 V620 (২৪.০৮.২০২৬, TK-নির্দেশ, স্পষ্ট প্রশ্নে নিশ্চিত হয়ে) —
         // "Enquiry-তে Unexpected থাকলে তবেই Registration-এ Unexpected
         // হতে হবে, অন্যথায় না।" আগে স্টাফ যেকোনো সময় নিজে ইচ্ছেমতো

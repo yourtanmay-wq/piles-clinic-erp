@@ -227,10 +227,26 @@ class EnquiryActivity : AppCompatActivity() {
 
     private var selectedTiming = "Official Time"
 
+    /* 🕘🔒 V962 (০১.০৯.২০২৬, TK-নির্দেশ) — TK: *"Unexpected time যেন App হিসাব
+       করে, ম্যানুয়ালি যেন Staff চুস করতে না পারে — সকাল ন'টা থেকে সন্ধ্যা ছটা
+       পর্যন্ত অফিসিয়াল টাইম, তার বাইরে আনএক্সপেক্টেড টাইম"*।
+       আগে এটা স্টাফের হাতে ছিল (দুটো বোতাম, ডিফল্ট Official) — তাই ইচ্ছেমতো
+       Unexpected বেছে বাড়তি টাকা তৈরি করা যেত। এখন ঘড়িই ঠিক করে; বোতাম দুটো
+       **দেখা যায়, কিন্তু চাপা যায় না** — কোনটা ধরা হয়েছে সেটা যেন বোঝা যায়।
+       ⛔ সেভের সময় আবার ঘড়ি দেখা হয় (ফর্ম অনেকক্ষণ খোলা থাকলেও ঠিক থাকে)। */
+    private fun autoTimingNow(): String {
+        val c = Calendar.getInstance(java.util.TimeZone.getTimeZone("Asia/Kolkata"))
+        val mins = c.get(Calendar.HOUR_OF_DAY) * 60 + c.get(Calendar.MINUTE)
+        // সকাল ৯.০০ (৫৪০) থেকে সন্ধ্যা ৬.০০ (১০৮০) পর্যন্ত — দুটোই ধরা
+        return if (mins in 540..1080) "Official Time" else "Unexpected Time"
+    }
+
     private fun setupTimingButtons() {
-        binding.btnTimingOfficial.setOnClickListener { selectTiming("Official Time") }
-        binding.btnTimingUnexpected.setOnClickListener { selectTiming("Unexpected Time") }
-        selectTiming("Official Time")
+        binding.btnTimingOfficial.isClickable = false
+        binding.btnTimingUnexpected.isClickable = false
+        binding.btnTimingOfficial.isFocusable = false
+        binding.btnTimingUnexpected.isFocusable = false
+        selectTiming(autoTimingNow())
     }
 
     private fun selectTiming(value: String) {
@@ -288,7 +304,7 @@ class EnquiryActivity : AppCompatActivity() {
 val disease = selectedDisease
         val address = binding.etAddress.text.toString().trim()
         val remarks = binding.etRemarks.text.toString().trim()
-        val timing = selectedTiming
+        val timing = autoTimingNow()   // 🕘 V962 — সেভের মুহূর্তের ঘড়িই শেষ কথা
 
         // Same validation order as saveEnq(); on failure, jump to that field.
         if (mobile.length != 10) { focusError(binding.etMobile, "Valid mobile number required"); return }

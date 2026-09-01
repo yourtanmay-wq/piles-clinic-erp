@@ -266,10 +266,18 @@
                          2-button pattern/styling as activity_enquiry.xml's
                          btnTimingOfficial/btnTimingUnexpected. Nothing
                          else in this card or the rest of the form changed. -->
+                    <!-- 🕘🔒 V962 (০১.০৯.২০২৬, TK-নির্দেশ) — TK: *"রেজিস্ট্রেশন
+                         ফরমে আনএক্সপেক্টেড থাকবে না, এক্সপেক্টেড ও থাকবে না"*।
+                         সময়টা এখন **শুধু অল-ব্রাঞ্চ এনকোয়ারি ফর্মে** ঘড়ি ধরে ঠিক
+                         হয়, তাই এখানে বাছার কিছু নেই — পুরো সারিটাই লুকানো।
+                         ⛔ বোতাম দুটো XML-এ রাখা হলো (মুছলে কোড ভাঙত); শুধু
+                            দেখা যায় না ও চাপা যায় না। -->
                     <LinearLayout
+                        android:id="@+id/rowRegTiming"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
+                        android:visibility="gone"
                         android:layout_marginTop="12dp">
                         <Button
                             android:id="@+id/btnRegTimingOfficial"
