@@ -5550,6 +5550,9 @@ function wlv1VerifyFlash(){
       +'<div style="font-size:15px;font-weight:700;color:#33404F;padding-bottom:8px">'+esc(__who)+'</div>'
       +'<div style="font-size:18px;font-weight:700;color:#0B4F2A;line-height:1.35">TK BISWAS can verify this at any time</div>'
       +'<div style="font-size:15px;font-weight:700;color:#B42318;padding-top:10px">Mind it.</div>'
+      /* 🔴🔒 V965 (TK-নির্দেশ) — ইংরেজির সাথে বাংলাও, যাতে সব স্টাফ বোঝে। */
+      +'<div style="border-top:1px solid #DDE8E1;margin:14px 0 12px"></div>'
+      +'<div style="font-size:16px;font-weight:700;color:#0B4F2A;line-height:1.4">TK BISWAS যে কোনো সময় যাচাই করতে পারেন &mdash; সতর্ক থাকুন</div>'
       +'<div style="font-size:13.5px;color:#33404F;padding-top:12px">You marked this call as UNEXPECTED TIME</div>'
       +'</div></div>';
     document.body.appendChild(ov);

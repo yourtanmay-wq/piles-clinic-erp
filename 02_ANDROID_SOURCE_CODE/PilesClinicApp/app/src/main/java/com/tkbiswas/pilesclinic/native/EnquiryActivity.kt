@@ -335,6 +335,24 @@ class EnquiryActivity : AppCompatActivity() {
                 setTextColor(android.graphics.Color.parseColor("#B42318"))
                 setPadding(0, px(10), 0, 0)
             })
+            /* 🔴🔒 V965 (০১.০৯.২০২৬, TK-এর স্পষ্ট নির্দেশ) — *"প্রয়োজনে পপ-আপ আরো
+               বড় হবে, কিন্তু ইংলিশ এবং বাংলা দুটোই থাকবে"*। নিয়ম ৯ (স্টাফের
+               পর্দার লেখা ইংরেজি) TK নিজেই এই একটা বার্তার জন্য শিথিল করেছেন —
+               যাতে প্রতিটা স্টাফ কথাটা নিশ্চিতভাবে বোঝে।
+               ⛔ শুধু এই বার্তাটুকু — অ্যাপের আর কোথাও বাংলা যোগ করা হয়নি। */
+            box.addView(android.view.View(this).apply {
+                setBackgroundColor(android.graphics.Color.parseColor("#DDE8E1"))
+                layoutParams = android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT, px(1)
+                ).also { it.topMargin = px(14); it.bottomMargin = px(12) }
+            })
+            box.addView(android.widget.TextView(this).apply {
+                text = "TK BISWAS যে কোনো সময় যাচাই করতে পারেন — সতর্ক থাকুন"
+                textSize = 16f
+                gravity = android.view.Gravity.CENTER
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#0B4F2A"))
+            })
             box.addView(android.widget.TextView(this).apply {
                 text = "You marked this call as UNEXPECTED TIME"
                 textSize = 13.5f
