@@ -2500,8 +2500,20 @@ class PaymentRepository(private val context: Context? = null) {
             try {
                 // 🔴🔒 V715 — আগে `select=*` (ছবিসহ, ৫০০০ পর্যন্ত)। এই লুপ শুধু
                 // id + PatientIdentity-র তিনটে ঘর (name · patientId · refId) পড়ে।
+                /* 🔴🔒 V953 (০১.০৯.২০২৬, TK-নির্দেশ "খুব সাবধানে") — **আসল কারণ,
+                   যাচাই করা:** এখানে এতদিন শুধু `stage=eq.Inquiry` সারিগুলো বন্ধ
+                   হত। রোগী Advance দিয়ে Treatment-এ গেলেও তাঁর পুরনো
+                   **`Patient`-stage সারিটা কখনো বন্ধ হত না** — তাই তিনি
+                   Follow-up-এর "Visit" তালিকায় চিরকাল ভেসে থাকতেন
+                   (TK-এর FAIZ ANWAR-এর অভিযোগ; ডেটাবেসে ১৮৯টা এমন সারি ছিল)।
+                   **এখন:** Inquiry **ও** Patient — দুটোই বন্ধ হয়।
+                   ⛔ কোনো সারি মোছা হয় না, শুধু `status=Closed` — ইতিহাস অক্ষত।
+                   ⛔ নিচের `provablyOtherPatient` পাহারা আগের মতোই — এক নম্বরে
+                      দু'জন থাকলে অন্যজনের সারিতে হাত পড়ে না।
+                   ⛔ ব্যর্থ হলে আগের মতোই `closeOk=false` ⇒ পেমেন্ট সারিতে
+                      থেকে যায় ও পরে আবার চেষ্টা হয়। */
                 val inquiries = SupabaseClient.fetchListSlim(
-                    "followups", "mobile=like.*$digits&stage=eq.Inquiry", 5000,
+                    "followups", "mobile=like.*$digits&stage=in.(Inquiry,Patient)&status=eq.Active", 5000,
                     PROMOTE_COLS_INQUIRY
                 )
                 for (i in 0 until inquiries.length()) {
@@ -2512,13 +2524,18 @@ class PaymentRepository(private val context: Context? = null) {
                        ⛔ প্রমাণ না থাকলে আগের মতোই — কোনো সারি বাদ পড়ে না। */
                     if (PatientIdentity.provablyOtherPatient(
                             row, digits, patient.id, patient.patientId, patient.name)) continue
+                    /* 🔴 V953 — Inquiry সারির ক্ষেত্রে আগের মতোই stage="Registered"
+                       বসে (পুরনো আচরণ এক অক্ষরও বদলায়নি)। Patient সারির
+                       stage **ছোঁয়াই হয় না** — শুধু বন্ধ করা হয়, নইলে
+                       রোগীর নিজের ইতিহাসের ধাপটা হারিয়ে যেত। */
+                    val wasInquiry = row.s("stage").equals("Inquiry", true)
                     val fields = JSONObject()
-                        .put("stage", "Registered")
                         .put("status", "Closed")
                         .put("nextFollow", "")
                         .put("convertedPatientId", patient.patientId)
                         .put("lastRemark", "Converted to Patient / Treatment")
                         .put("updatedAt", isoNow())
+                    if (wasInquiry) fields.put("stage", "Registered")
                     if (!SupabaseClient.updateById("followups", id, fields)) closeOk = false
                 }
             } catch (_: Exception) { closeOk = false }
