@@ -124,6 +124,14 @@ object PrescriptionHtml {
 
     private fun dot(date: Date): String = SimpleDateFormat("dd.MM.yyyy", Locale.US).format(date)
 
+    /** 🖨️🔒 V955 (০১.০৯.২০২৬, TK-নির্দেশ: *"Date-এর পাশে Time থাকতে হবে"*) —
+     *  প্রকল্পের লক করা ফরম্যাট: তারিখ `dd.MM.yyyy`, সময় `h.mm a` (১২-ঘণ্টা AM/PM,
+     *  ঠিক যেমন `DoctorCheckupActivity`-তে আছে)। ⛔ তারিখের রূপ বদলায়নি,
+     *  শুধু পাশে সময় যোগ হলো। */
+    private fun dotTime(date: Date): String =
+        SimpleDateFormat("dd.MM.yyyy", Locale.US).format(date) + "  " +
+        SimpleDateFormat("h.mm a", Locale.US).format(date)
+
     /** "2026-09-02" বা "02.09.2026" — দুটোই এসে 02.09.2026 হয়ে যায়। */
     private fun dotFromText(raw: String): String {
         val s = raw.trim()
@@ -248,7 +256,7 @@ object PrescriptionHtml {
         out = out.replace("{{AGE}}", esc(agePart(model.patientAgeSex)))
         out = out.replace("{{PID}}", esc(model.patientId.trim()))
         out = out.replace("{{MOBILE}}", esc(model.patientMobile.trim()))
-        out = out.replace("{{DATE}}", dot(Date()))
+        out = out.replace("{{DATE}}", dotTime(Date()))   // 🖨️ V955 — তারিখের পাশে সময়
         out = out.replace("{{SEX}}", esc(sexPart(model.patientAgeSex)))
         out = out.replace("{{DISEASE}}", esc(model.patientDisease.trim().uppercase(Locale.US)))
         out = out.replace("{{ADDRESS}}", esc(model.patientAddress.trim()))
