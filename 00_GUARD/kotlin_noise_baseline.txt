@@ -1,7 +1,7 @@
-# প্রতিটা সারি:  ফাইল <TAB> ভুলের বার্তা (সংখ্যা N দিয়ে ঢাকা)
-# মোট: 893
-# ⛔ হাতে লিখবেন না — `verify_kotlin_compile.py --update-baseline`
 # 🛡️ Kotlin কম্পাইলারের **জানা গোলমাল** (Android SDK নেই বলে)।
+# ⛔ হাতে লিখবেন না — `verify_kotlin_compile.py --update-baseline`
+# প্রতিটা সারি:  ফাইল <TAB> ভুলের বার্তা (সংখ্যা N দিয়ে ঢাকা)
+# মোট: 900
 com/tkbiswas/pilesclinic/clinical/ClinicalModulesActivity.kt	none of the following functions can be called with the arguments supplied:
 com/tkbiswas/pilesclinic/clinical/ClinicalModulesActivity.kt	unresolved reference: findViewById
 com/tkbiswas/pilesclinic/clinical/ClinicalModulesActivity.kt	unresolved reference: finish
@@ -32,11 +32,15 @@ com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	type mismatch: inferr
 com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	type mismatch: inferred type is DoctorCheckupActivity but Context! was expected
 com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: applicationContext
 com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: cacheDir
+com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: checkedIconTint
+com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: chipBackgroundColor
 com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: findViewById
 com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: finish
 com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: getSharedPreferences
 com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: getSystemService
 com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: intent
+com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: isCheckable
+com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: isCloseIconVisible
 com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: length
 com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: material
 com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: mkdirs
@@ -47,7 +51,9 @@ com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference:
 com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: resources
 com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: runOnUiThread
 com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: setContentView
+com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: setTextColor
 com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: startActivity
+com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: text
 com/tkbiswas/pilesclinic/clinical/DoctorCheckupActivity.kt	unresolved reference: window
 com/tkbiswas/pilesclinic/clinical/InvestigationAdapter.kt	unresolved reference: bindingAdapterPosition
 com/tkbiswas/pilesclinic/clinical/InvestigationAdapter.kt	unresolved reference: itemView

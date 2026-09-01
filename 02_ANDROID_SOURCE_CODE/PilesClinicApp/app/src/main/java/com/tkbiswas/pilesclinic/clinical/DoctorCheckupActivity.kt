@@ -320,9 +320,13 @@ class DoctorCheckupActivity : AppCompatActivity() {
         //    ⛔ বাছাইয়ের তালিকা · মান · সেভ — কিছুই বদলায়নি।
         /* 🔵 V557: রোগের তালিকা রেজিস্ট্রেশনের হুবহু একই, আর সময়ের একক
            সেই একই তিনটে — দুটোই প্রজেক্টের নিজের প্রিমিয়াম পিকারে খোলে। */
-        val spDisease = findViewById<android.widget.Spinner>(R.id.spProbableDisease)
-        spDisease.adapter = ArrayAdapter(this, R.layout.item_docnote_spinner, CounselModel.DISEASES)
-        SpinnerPicker.attach(spDisease, "সম্ভাব্য কি রোগ?", hidePlaceholder = true)
+        /* 🔵🔒 V946 (০১.০৯.২০২৬, TK-নির্দেশ — "এই রোগীর PILES ও FISTULA দুটো রোগই
+           আছে, কিন্তু চুস করা যাচ্ছে না কেন?", ফটো-প্রুফ পাশ করা): আগে এক-বাছাইয়ের
+           Spinner ছিল, তাই একটার বেশি রোগ নেওয়া যেত না। এখন রেজিস্ট্রেশনের হুবহু
+           একই চিপ (`RegistrationActivity.makeChip`-এর ধাঁচ ও একই রং-সিলেক্টর)।
+           ⛔ রোগের তালিকা এক অক্ষরও বদলায়নি · সেভের ঘর আগের মতোই লেখা-ধরনের,
+              একাধিক হলে "Piles, Fistula" এভাবে কমা দিয়ে বসে (রেজিস্ট্রেশনের মতোই)। */
+        buildDiseaseChips()
         val spTimeUnit = findViewById<android.widget.Spinner>(R.id.spTimeAskedUnit)
         spTimeUnit.adapter = ArrayAdapter(this, R.layout.item_docnote_spinner, CounselModel.UNITS)
         SpinnerPicker.attach(spTimeUnit, "কতদিন সময় চাওয়া হল?")
@@ -1736,8 +1740,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         symptomHistory = collectSymptomHistory(),   // 🔵 V554
         historyDetail = collectHistoryDetail(),     // 🔵 V555
         lifestyle = collectLifestyle(),             // 🔵 V556
-        probableDisease = CounselModel.DISEASES.getOrElse(   // 🔵 V557
-            findViewById<android.widget.Spinner>(R.id.spProbableDisease).selectedItemPosition) { CounselModel.PICK_NONE },
+        probableDisease = collectProbableDisease(),   // 🔵 V557 · V946 (একাধিক রোগ)
         timeAsked = CounselModel.timeAsked(
             findViewById<android.widget.EditText>(R.id.etTimeAsked).text?.toString().orEmpty(),
             CounselModel.UNITS.getOrElse(findViewById<android.widget.Spinner>(R.id.spTimeAskedUnit).selectedItemPosition) { "Days" }),
@@ -1786,8 +1789,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         applyHistoryDetail(r.historyDetail)     // 🔵 V555
         applyLifestyle(r.lifestyle)             // 🔵 V556
         // 🔵 V557
-        val di = CounselModel.DISEASES.indexOf(r.probableDisease)
-        findViewById<android.widget.Spinner>(R.id.spProbableDisease).setSelection(if (di >= 0) di else 0)
+        applyProbableDisease(r.probableDisease)   // 🔵 V946
         val (tAmt, tUnit) = CounselModel.splitTimeAsked(r.timeAsked)
         findViewById<android.widget.EditText>(R.id.etTimeAsked).setText(tAmt)
         val ui = CounselModel.UNITS.indexOf(tUnit)
@@ -2170,6 +2172,50 @@ class DoctorCheckupActivity : AppCompatActivity() {
         ) { refreshTtdFold() }
         for (cb in ttdBoxes()) cb.setOnCheckedChangeListener { _, _ -> refreshTtdFold() }
         refreshTtdFold()
+    }
+
+    /* ══ 🔵🔒 V946 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — "সম্ভাব্য কি রোগ?"
+       একাধিক বাছা যাবে ══════════════════════════════════════════════════════
+       রেজিস্ট্রেশনের (`RegistrationActivity`) হুবহু একই চিপ ও একই রং-সিলেক্টর,
+       তাই দুই পর্দা দেখতে এক রকম।
+       ⛔ তালিকাটা `CounselModel.DISEASES`-ই — শুধু "বাছেননি" ঘরটা চিপে থাকে না
+          (চিপে কিছু না বাছলেই সেটা "বাছেননি")।
+       ⛔ সেভ/পড়া আগের মতোই একটাই লেখা-ঘরে — একাধিক হলে ", " দিয়ে জোড়া। */
+    private val v946DiseaseChips = ArrayList<com.google.android.material.chip.Chip>()
+
+    private fun v946DiseaseOptions(): List<String> =
+        CounselModel.DISEASES.filter { it != CounselModel.PICK_NONE }
+
+    private fun buildDiseaseChips() {
+        val group = findViewById<com.google.android.material.chip.ChipGroup>(R.id.cgProbableDisease) ?: return
+        group.removeAllViews()
+        v946DiseaseChips.clear()
+        v946DiseaseOptions().forEach { label ->
+            val chip = com.google.android.material.chip.Chip(this).apply {
+                text = label
+                isCheckable = true
+                isCloseIconVisible = false
+                chipBackgroundColor = androidx.core.content.ContextCompat
+                    .getColorStateList(this@DoctorCheckupActivity, R.color.chip_bg_selector)
+                setTextColor(androidx.core.content.ContextCompat
+                    .getColorStateList(this@DoctorCheckupActivity, R.color.chip_text_selector))
+                checkedIconTint = android.content.res.ColorStateList.valueOf(android.graphics.Color.WHITE)
+            }
+            v946DiseaseChips.add(chip)
+            group.addView(chip)
+        }
+    }
+
+    /** ডাক্তার যা যা বেছেছেন — ", " দিয়ে জোড়া। কিছু না বাছলে "বাছেননি"। */
+    private fun collectProbableDisease(): String {
+        val picked = v946DiseaseChips.filter { it.isChecked }.map { it.text.toString() }
+        return if (picked.isEmpty()) CounselModel.PICK_NONE else picked.joinToString(", ")
+    }
+
+    /** আগে সেভ করা লেখা ফিরিয়ে বসানো — পুরনো একটামাত্র রোগও ঠিক বসে। */
+    private fun applyProbableDisease(saved: String) {
+        val want = saved.split(",").map { it.trim() }.filter { it.isNotBlank() }.toSet()
+        v946DiseaseChips.forEach { chip -> chip.isChecked = want.contains(chip.text.toString()) }
     }
 
     /** 🔴🔒 V938 — ডাক্তার আজ যা বেছেছেন, চেম্বারের লেখার হুবহু একই ধাঁচে

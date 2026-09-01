@@ -9831,12 +9831,30 @@ function wlv1NvpAppended(p,entry){
 }
 window["wlv1NvpAppended"]=wlv1NvpAppended;
 
+/* 🔵🔒 V946 — ডাক্তার যা যা বেছেছেন, ", " দিয়ে জোড়া। কিছু না বাছলে "বাছুন"
+   (ফোনের `collectProbableDisease()`-এর হুবহু যমজ, তাই দুই যন্ত্রে একই লেখা সেভ হয়)। */
+function wlv1CollectProbableDisease(){
+  try{
+    var picked=Array.prototype.slice.call(document.querySelectorAll('input[name="dnDis"]:checked'))
+      .map(function(x){return String(x.value||'').trim()}).filter(Boolean);
+    return picked.length?picked.join(', '):WLV1_PICK_NONE;
+  }catch(_e){ return WLV1_PICK_NONE }
+}
+window["wlv1CollectProbableDisease"]=wlv1CollectProbableDisease;
 function wlv1CounselBoxHtml(note,p){
   var picked=String((note&&note.probableDisease)||'');
   var ta=wlv1SplitTimeAsked(String((note&&note.timeAsked)||''));
   return '<label>সম্ভাব্য কি রোগ?</label>'
-    +'<select id="dnProbableDisease" class="input">'+WLV1_DISEASES.map(function(d){
-        return '<option '+((picked||WLV1_PICK_NONE)===d?'selected':'')+'>'+esc(d)+'</option>'}).join('')+'</select>'
+    /* 🔵🔒 V946 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — এক রোগীর একাধিক
+       রোগ থাকতে পারে (PILES + FISTULA)। আগে এক-বাছাইয়ের তালিকা ছিল, তাই দুটো
+       নেওয়া যেত না। এখন ফোনের মতোই চিপ — একাধিক বাছা যায়।
+       ⛔ রোগের তালিকা এক অক্ষরও বদলায়নি ("বাছুন" ঘরটা শুধু চিপে থাকে না — কিছু
+          না বাছলেই সেটা "বাছুন")। সেভের ঘর আগের মতোই একটাই লেখা-ঘর, একাধিক হলে
+          ", " দিয়ে জোড়া (রেজিস্ট্রেশনের হুবহু ধাঁচ)। */
+    +'<div id="dnProbableDisease" class="wlv1DisChips">'+WLV1_DISEASES.filter(function(d){return d!==WLV1_PICK_NONE}).map(function(d){
+        var on=picked.split(',').map(function(x){return x.trim()}).indexOf(d)>=0;
+        return '<label class="wlv1Chip2'+(on?' on':'')+'"><input type="checkbox" name="dnDis" value="'+esc(d)+'"'+(on?' checked':'')+' onchange="this.parentNode.classList.toggle(\'on\',this.checked)"><span>'+esc(d)+'</span></label>'
+      }).join('')+'</div>'
     +'<div class="tiny" style="color:#8A5B00;margin:5px 0 0">⚠️ এখানে রোগ বদলালে রোগীর সারিতেও বদলে যাবে। হাত না দিলে কিছুই বদলায় না।</div>'
     +'<label>কতদিন সময় চাওয়া হল?</label>'
     +'<div class="wlv1SymWhen" style="margin-left:0">'
@@ -13046,7 +13064,7 @@ async function saveDoctor(id){
   symptomHistory:wlv1SymCollect(),   /* 🔵 V554 */
   historyDetail:wlv1HistCollect(),   /* 🔵 V555 */
   lifestyle:wlv1LifeCollect(),       /* 🔵 V556 */
-  probableDisease:$('#dnProbableDisease')?.value||'',   /* 🔵 V557 */
+  probableDisease:wlv1CollectProbableDisease(),   /* 🔵 V557 · V946 (একাধিক রোগ) */
   timeAsked:wlv1TimeAsked(($('#dnTimeAsked')||{}).value||'',($('#dnTimeAskedUnit')||{}).value||''),
   anatomy:wlv1AnatCollect(id),   /* 🔵 V558 — শুধু এই রোগীরই ছবি */
   /* 🔵 V556: ওয়েবে `visual`-এর মতোই তালিকা হিসেবে জমা (chk() তালিকাই বোঝে) */

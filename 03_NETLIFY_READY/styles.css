@@ -6837,3 +6837,8 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
   .v227Quick{border-radius:16px}
   .v227Quick button{border-right-color:rgba(255,255,255,.12)}
 }
+
+/* 🔵🔒 V946 (০১.০৯.২০২৬, TK-নির্দেশ) — Doctor Check-up-এর "সম্ভাব্য কি রোগ?"
+   চিপগুলোর মোড়ক (একাধিক রোগ বাছা যায়)। ⛔ শুধু এই নতুন ঘরের জন্য — চিপের
+   নিজের চেহারা `.wlv1Chip2`-ই, এক অক্ষরও বদলায়নি। */
+.wlv1DisChips{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 2px}

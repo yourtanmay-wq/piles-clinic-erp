@@ -1110,8 +1110,18 @@
                                 <TextView style="@style/DocNoteLabel" android:text="সম্ভাব্য কি রোগ?" />
                             </LinearLayout>
                             <View style="@style/DocNoteDivider" />
-                            <Spinner android:id="@+id/spProbableDisease" style="@style/DocNoteInputSingle"
-                                android:background="@drawable/bg_input_field_picker" android:paddingEnd="40dp" />
+                            <!-- 🔵🔒 V946 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ):
+                                 এক রোগীর একাধিক রোগ থাকতে পারে (PILES + FISTULA)।
+                                 আগে এক-বাছাইয়ের Spinner ছিল, তাই দুটো নেওয়া যেত না।
+                                 এখন রেজিস্ট্রেশনের হুবহু একই ChipGroup — একাধিক বাছা যায়।
+                                 ⛔ সেভের ঘর আগের মতোই লেখা-ধরনের ("Piles, Fistula")। -->
+                            <com.google.android.material.chip.ChipGroup
+                                android:id="@+id/cgProbableDisease"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="6dp"
+                                app:chipSpacingVertical="2dp"
+                                app:singleLine="false" />
                             <TextView style="@style/DocNoteLabel"
                                 android:layout_width="match_parent" android:layout_marginTop="10dp"
                                 android:text="কতদিন সময় চাওয়া হল?" />

@@ -63,6 +63,11 @@ for p in walk(RES, ('.xml',)):
         have['drawable'].add(stem)
     if kind == 'mipmap':
         have['mipmap'].add(stem)
+    # 🔵🔒 V946 (০১.০৯.২০২৬ — নিজের অডিটে ধরা): `res/color/xxx.xml` (রং-সিলেক্টর)
+    #    গোনা হত না, তাই `R.color.chip_bg_selector` "নেই" বলে ভুল FAIL দিত।
+    #    Android-এ এগুলো সম্পূর্ণ বৈধ রং-রিসোর্স। ⛔ শুধু যোগ, কিছু বাদ যায়নি।
+    if kind == 'color':
+        have['color'].add(stem)
     txt = read(p)
     # layout/menu-র ভিতরের সব `@+id/...`
     for m in re.finditer(r'@\+id/([A-Za-z_][A-Za-z0-9_]*)', txt):
