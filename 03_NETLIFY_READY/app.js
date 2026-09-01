@@ -16711,6 +16711,20 @@ window["rxRegSymptoms"]=rxRegSymptoms;window["rxRegComplaint"]=rxRegComplaint;
    (`RX_DOSE_MAP`) ফিরিয়ে দেওয়া হয় — ফোনের `rxWhenFor`-এর হুবহু জোড়া।
    ⛔ তালিকায় নেই এমন ওষুধে ফাঁকাই থাকে, কিছুই বানানো হয় না। */
 function rxWhenFor(name){try{return splitRxDoseWhen(RX_DOSE_MAP[String(name||'').trim()]||'').whenText}catch(e){return ''}}
+/* 🍯🔒 V956 (০১.০৯.২০২৬, TK-নির্দেশ) — TK: *"অনেক সময় কোন মেডিসিন মধু দিয়ে খেতে
+   বলতে হয়, মাখন দিয়ে খেতে বলতে হয় … একবার সেট করে থাকলে সারা জীবন যেন একই রকম
+   থাকে"*। আগে Dose ও When জোড়া লেখা থেকে ভাগ করা হত আর `splitRxDoseWhen` শুধু
+   হুবহু "After Food"/"Before Food" চিনত — তাই "After Food with Honey" পরের বার
+   Dose-এর ঘরে ঢুকে যেত ও When আগেরটাই ফিরে আসত। এই ঘরটা **জমা করা আলাদা
+   whenText**-কেই আগে ধরে (ফোনের `rxDoseWhenFor`-এর হুবহু জোড়া)।
+   ⛔ কিছু জমা না থাকলে আগের নিয়মই চলে — পুরনো কোনো ডিফল্ট নষ্ট হয় না। */
+function rxDoseWhenFor(name){
+  try{
+    let key=String(name||'').trim(), d=rxDefaultFor(key), fb=splitRxDoseWhen(rxDoseFor(key));
+    let sd=String(d&&d.dose||'').trim(), sw=String(d&&d.whenText||'').trim();
+    return {dose:sd||fb.dose, whenText:sw||fb.whenText||rxWhenFor(key)};
+  }catch(e){return {dose:'',whenText:''}}
+}
 window["rxWhenFor"]=rxWhenFor;
 function splitRxDoseWhen(v){
   let s=String(v||'').trim();
@@ -16778,7 +16792,7 @@ function rxSelectedCount(){
 window["rxSelectedCount"]=rxSelectedCount;
 function medCheckList(list){return `<div class="rxPickTop"><input id="rxSearchBox" class="input rxSearchBox" type="search" placeholder="&#128269; Search" oninput="rxSearchFilter(this.value)"><b id="rxSelCount">0 selected</b></div><div class="checkGrid premiumChecks rxCheckGrid rxCheckGridV2">${list.map((x,i)=>`<div class="rxMedRow2" data-med-row="${esc(x)}">
   <label class="rxTickItem2"><input type="checkbox" class="rxChk" value="${esc(x)}" onchange="onRxMedicineChange();rxSelectedCount()"><select class="rxTypeInput" data-med="${esc(x)}" onclick="event.stopPropagation()">${rxTypeOptions(rxTypeFor(x))}</select><span class="rxMedName">${esc(x)}</span></label>
-  <div class="rxDoseRow2"><span class="rxDoseLabel2">Dose:</span><input type="text" class="rxDoseInput rxDoseInput2" id="rxDoseFor_${i}" data-med="${esc(x)}" value="${esc(splitRxDoseWhen(rxDoseFor(x)).dose)}"><span class="rxWhenLabel2">When:</span><input type="text" class="rxWhenInput rxWhenInput2" id="rxWhenFor_${i}" data-med="${esc(x)}" value="${esc(splitRxDoseWhen(rxDoseFor(x)).whenText)}"><input type="text" class="rxDaysInput rxDaysInput2" id="rxDaysFor_${i}" data-med="${esc(x)}" value="${esc(rxDaysForPrint(rxDaysFor(x)))}" inputmode="text"></div>
+  <div class="rxDoseRow2"><span class="rxDoseLabel2">Dose:</span><input type="text" class="rxDoseInput rxDoseInput2" id="rxDoseFor_${i}" data-med="${esc(x)}" value="${esc(rxDoseWhenFor(x).dose)}"><span class="rxWhenLabel2">When:</span><input type="text" class="rxWhenInput rxWhenInput2" id="rxWhenFor_${i}" data-med="${esc(x)}" value="${esc(rxDoseWhenFor(x).whenText)}"><input type="text" class="rxDaysInput rxDaysInput2" id="rxDaysFor_${i}" data-med="${esc(x)}" value="${esc(rxDaysForPrint(rxDaysFor(x)))}" inputmode="text"></div>
 </div>`).join('')}</div>`}
 window["medCheckList"]=medCheckList;
 const RX_DOSE_MAP={
@@ -16960,13 +16974,13 @@ function addRxItem(){let checked=$$('.rxChk:checked').map(x=>x.value),custom=($(
   // instead of always falling back to the shared #rxDose field (which only worked
   // correctly when exactly one medicine was selected at a time).
   let ownDoseInput=$$('.rxDoseInput').find(inp=>inp.getAttribute&&inp.getAttribute('data-med')===name);
-  let dose=ownDoseInput&&ownDoseInput.value&&ownDoseInput.value.trim()?ownDoseInput.value.trim():rxDoseFor(name);
+  let dose=ownDoseInput&&ownDoseInput.value&&ownDoseInput.value.trim()?ownDoseInput.value.trim():rxDoseWhenFor(name).dose;/* 🍯 V956: ফাঁকা হলে শুধু ডোজটুকুই — When জোড়া লেখা যেন ডোজের ঘরে না ঢোকে */
   if(custom&&name===custom&&manualDose&&manualDose!=='As advised')dose=manualDose;
   /* 🔴 V425 (TK-নির্দেশ ১৭.০৮.২০২৬: "When এর যায়গা টা নেই কেন") — ফোনের
      MedicinePickerDialog-এর মতোই এই সারির নিজের When ঘরটা পড়া হয়। ঘরটা ফাঁকা
      থাকলে আগের নিয়মই চলে (ডোজের লেখা থেকে ভাগ) — কিছুই বদলায় না। */
   let ownWhenInput=$$('.rxWhenInput').find(inp=>inp.getAttribute&&inp.getAttribute('data-med')===name);
-  let whenText=(ownWhenInput&&ownWhenInput.value)?ownWhenInput.value.trim():'';
+  let whenText=(ownWhenInput&&ownWhenInput.value&&ownWhenInput.value.trim())?ownWhenInput.value.trim():rxDoseWhenFor(name).whenText;/* 🍯 V956 */
   /* 🔴 V425 (TK-নির্দেশ: "এখানে Days কোথায় গেলো") — ফোনের মতোই এই সারির নিজের
      Days ঘরটা পড়া হয়। ঘরটা ফাঁকা থাকলে আগের নিয়মেই নিচের শেয়ার্ড "Duration
      Days" ঘরটা ধরা হয় — তাই পুরনো কোনো পথ ভাঙে না। */
@@ -16980,7 +16994,7 @@ function editRxItem(i){let x=medDraft[i];if(!x)return;let m=$('#rxMed'),t=$('#rx
 window["editRxItem"]=editRxItem;
 function deleteRxItem(i){medDraft.splice(i,1);renderRxList()}
 window["deleteRxItem"]=deleteRxItem;
-function saveRx(id,type='Prescription'){if(!medDraft.length)addRxItem();if(!medDraft.length)return;medDraft.forEach(x=>rememberRxDefault(x.name,x.medicineType,x.dose,x.days));saveMedicalRecord(id,type,medDraft.map(x=>x.name).join(', '),medDraft.map(x=>`${x.medicineType||''} ${x.name}: ${x.dose} (${x.days} days)`).join(' | '));closeModal();summary(id)}
+function saveRx(id,type='Prescription'){if(!medDraft.length)addRxItem();if(!medDraft.length)return;medDraft.forEach(x=>rememberRxDefault(x.name,x.medicineType,x.dose,x.days,x.whenText));/* 🍯 V956: When না পাঠালে মধু/মাখনের লেখা মুছে যেত */saveMedicalRecord(id,type,medDraft.map(x=>x.name).join(', '),medDraft.map(x=>`${x.medicineType||''} ${x.name}: ${x.dose} (${x.days} days)`).join(' | '));closeModal();summary(id)}
 window["saveRx"]=saveRx;
 function blood(id){let p=patientById(id);if(!p)return toast('Patient not found');wlv1InvPick={};wlv1InvCat='';wlv1BloodOpen(id,'')}
 window["blood"]=blood;

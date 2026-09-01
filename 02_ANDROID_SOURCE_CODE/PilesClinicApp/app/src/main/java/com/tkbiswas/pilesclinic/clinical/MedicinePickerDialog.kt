@@ -545,10 +545,13 @@ object MedicinePickerDialog {
             //   লেখা ছিল, সেটাতেই দেখাত)। এখন Dose-এর পাশেই When-এর ঘর।
             //   ⛔ সেভ করার নিয়ম আগেরটাই — `selectedFreq` আগে থেকেই ছিল, কেবল
             //      ভরার উপায় ছিল না; তাই পুরনো কোনো হিসাব/ডিফল্ট বদলায়নি।
-            val prefilled = selected[name] ?: ClinicalRepository.rxDoseFor(name)
-            val (preDose, preWhenSaved) = ClinicalRepository.splitDoseAndFrequency(prefilled)
-            // 🔵 V548: মনে-রাখা লেখায় When হারিয়ে গেলে প্রজেক্টের আদত When
-            val preWhen = preWhenSaved.ifBlank { ClinicalRepository.rxWhenFor(name) }
+            // 🍯 V956: Dose ও When এখন আলাদা ঘর থেকে আসে, তাই "After Food with
+            //   Honey"-এর মতো লেখা হুবহু ফিরে আসে (আগে ভেঙে যেত)।
+            val liveEdit = selected[name]
+            val (preDose, preWhen) = if (liveEdit != null) {
+                val split = ClinicalRepository.splitDoseAndFrequency(liveEdit)
+                Pair(split.first, split.second.ifBlank { ClinicalRepository.rxWhenFor(name) })
+            } else ClinicalRepository.rxDoseWhenFor(name)
             val doseInput = EditText(activity).apply {
                 setText(preDose)
                 textSize = 13f; background = null; setPadding(0, 0, 0, 0)
@@ -753,7 +756,8 @@ object MedicinePickerDialog {
                 val (dosePart, autoFreqSaved) = if (typedFreq.isBlank())
                     ClinicalRepository.splitDoseAndFrequency(finalDose) else Pair(finalDose, "")
                 // 🔵 V548: সেভের সময়ও একই নিয়ম — When যেন ফাঁকা না ছাপে
-                val autoFreq = autoFreqSaved.ifBlank { ClinicalRepository.rxWhenFor(name) }
+                // 🍯 V956: আগে মনে-রাখা When (মধু/মাখনসহ) অগ্রাধিকার পায়।
+                val autoFreq = autoFreqSaved.ifBlank { ClinicalRepository.rxDoseWhenFor(name).second }
                 ClinicalRepository.rememberPermanentDefault(
                     activity.applicationContext,
                     name,
@@ -1022,12 +1026,10 @@ object MedicinePickerDialog {
                 if (nm.isEmpty()) return
                 fillingDefaults = true
                 try {
-                    val (dDose, dWhen) = ClinicalRepository.splitDoseAndFrequency(
-                        ClinicalRepository.rxDoseFor(nm)
-                    )
+                    // 🍯 V956: Dose ও When নিজের নিজের ঘর থেকে — মধু/মাখনের লেখাও টেকে।
+                    val (dDose, dWhen) = ClinicalRepository.rxDoseWhenFor(nm)
                     if (!touchedDose) dose.setText(dDose)
-                    // 🔵 V548: মনে-রাখা লেখায় When হারিয়ে গেলে প্রজেক্টের আদত When
-                    if (!touchedWhen) frequency.setText(dWhen.ifBlank { ClinicalRepository.rxWhenFor(nm) })
+                    if (!touchedWhen) frequency.setText(dWhen)
                     if (!touchedDays) days.setText(ClinicalRepository.rxDaysFor(nm))
                     if (currentType.isBlank()) {
                         val t = ClinicalRepository.rxTypeFor(nm)
@@ -1068,7 +1070,9 @@ object MedicinePickerDialog {
                 val typedFreq = frequency.text.toString().trim()
                 val (dosePart, autoFreqSaved) = if (typedFreq.isBlank())
                     ClinicalRepository.splitDoseAndFrequency(medDose) else Pair(medDose, "")
-                val autoFreq = autoFreqSaved.ifBlank { ClinicalRepository.rxWhenFor(medName) }   // 🔵 V548
+                // 🍯 V956: When ফাঁকা রাখলে ওষুধটার **মনে-রাখা** When-ই বসে
+                //   (মধু/মাখনসহ), শুধু কিছুই জমা না থাকলে আদত তালিকার লেখা।
+                val autoFreq = autoFreqSaved.ifBlank { ClinicalRepository.rxDoseWhenFor(medName).second }
                 ClinicalRepository.rememberPermanentDefault(
                     activity.applicationContext,
                     medName,
