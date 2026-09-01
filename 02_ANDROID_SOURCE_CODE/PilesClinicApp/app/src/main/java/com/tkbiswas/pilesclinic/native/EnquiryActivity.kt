@@ -307,12 +307,33 @@ class EnquiryActivity : AppCompatActivity() {
                 setPadding(px(20), px(22), px(20), px(22))
                 gravity = android.view.Gravity.CENTER
             }
+            /* 🔎 V963 (TK-নির্দেশ) — বার্তায় স্টাফের নিজের নাম থাকবে, যাতে
+               মনে হয় কথাটা সরাসরি তাঁকেই বলা হচ্ছে। নাম জানা না গেলে শুধু
+               "Hello" — লেখাটা কখনো ফাঁকা/অদ্ভুত হয়ে যায় না। */
+            val who = try { NativeSession.current(this)?.name.orEmpty().trim() } catch (_: Throwable) { "" }
+            val hello = if (who.isBlank()) "Hello," else "Hello " + who.uppercase(java.util.Locale.US) + ","
+            box.addView(android.widget.TextView(this).apply {
+                text = hello
+                textSize = 15f
+                gravity = android.view.Gravity.CENTER
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#33404F"))
+                setPadding(0, 0, 0, px(8))
+            })
             box.addView(android.widget.TextView(this).apply {
                 text = "TK BISWAS can verify this at any time"
                 textSize = 18f
                 gravity = android.view.Gravity.CENTER
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setTextColor(android.graphics.Color.parseColor("#0B4F2A"))
+            })
+            box.addView(android.widget.TextView(this).apply {
+                text = "Mind it."
+                textSize = 15f
+                gravity = android.view.Gravity.CENTER
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#B42318"))
+                setPadding(0, px(10), 0, 0)
             })
             box.addView(android.widget.TextView(this).apply {
                 text = "You marked this call as UNEXPECTED TIME"

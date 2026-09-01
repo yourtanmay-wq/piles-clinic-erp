@@ -5538,12 +5538,18 @@ window["wlv1PickOne"]=wlv1PickOne;
    বার্তা দেখায়। ⛔ কোথাও কিছু পাঠানো হয় না — শুধু পর্দায় দেখানো। */
 function wlv1VerifyFlash(){
   try{
+    /* 🔎 V963 (TK-নির্দেশ) — বার্তায় স্টাফের নিজের নাম। নাম না জানলে শুধু "Hello,". */
+    var __nm='';
+    try{ __nm=String((user&&(user.name||user.mobile))||'').trim() }catch(e){ __nm='' }
+    var __who = __nm ? ('Hello '+__nm.toUpperCase()+',') : 'Hello,';
     var ov=document.createElement('div');
     ov.setAttribute('style','position:fixed;inset:0;background:rgba(10,20,34,.45);z-index:99999;display:flex;align-items:center;justify-content:center;padding:18px');
     ov.innerHTML='<div style="background:#fff;border-radius:20px;max-width:420px;width:100%;overflow:hidden;box-shadow:0 14px 44px rgba(0,0,0,.4)">'
       +'<div style="background:linear-gradient(90deg,#0B5E34,#1F9D55);color:#fff;padding:16px;font-size:16.5px;font-weight:700">&#128269;&nbsp; Recorded</div>'
       +'<div style="padding:22px 20px;text-align:center">'
+      +'<div style="font-size:15px;font-weight:700;color:#33404F;padding-bottom:8px">'+esc(__who)+'</div>'
       +'<div style="font-size:18px;font-weight:700;color:#0B4F2A;line-height:1.35">TK BISWAS can verify this at any time</div>'
+      +'<div style="font-size:15px;font-weight:700;color:#B42318;padding-top:10px">Mind it.</div>'
       +'<div style="font-size:13.5px;color:#33404F;padding-top:12px">You marked this call as UNEXPECTED TIME</div>'
       +'</div></div>';
     document.body.appendChild(ov);
