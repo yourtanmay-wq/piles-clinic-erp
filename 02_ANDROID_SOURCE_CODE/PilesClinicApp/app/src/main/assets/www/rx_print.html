@@ -191,11 +191,15 @@ body.printModeActive .printArea { display: block !important; visibility: visible
 .printArea.prescriptionLock .wm { bottom: 24mm !important; }}
 @media (min-width: 900px){body { background: linear-gradient(135deg, rgb(234, 242, 251), rgb(241, 251, 246) 45%, rgb(253, 246, 234)); }}
 /* 🖨️🔒 V955 (০১.০৯.২০২৬, TK-নির্দেশ): বাঁ কলামের দাগটা আরও বাঁয়ে ⇒ ওষুধ লেখার জায়গা বড় (২৫% → ১৫%, TK দু-দফায় বলেছেন) */
-.rxApprovedGrid { display: grid; grid-template-columns: 15% 85%; align-items: stretch; position: relative; background: rgb(255, 255, 255); }
+.rxApprovedGrid { display: grid; grid-template-columns: 17.5% 82.5%; align-items: stretch; position: relative; background: rgb(255, 255, 255); }
 .rxComplaintHistory { border: 1px solid rgb(10, 84, 40); padding: 12mm 3mm 3mm; min-height: 145mm; background: rgb(255, 255, 255); }
 .rxComplaintHistory div { margin-bottom: 5mm; }
 .rxComplaintHistory b, .rxComplaintHistory span { display: block; font-size: 10px; line-height: 1.35; }
-.rxComplaintHistory b { color: rgb(11, 93, 42); margin-bottom: 1mm; text-transform: uppercase; }
+/* 🖨️🔒 V955 (০১.০৯.২০২৬, TK-নির্দেশ): কলাম সরু হওয়ায় "CHIEF COMPLAINT" ও
+   "PROVISIONAL DIAGNOSIS" দু-লাইনে ভাঙছিল। ফন্ট সামান্য ছোট ও অক্ষরের ফাঁক
+   কমিয়ে এক লাইনে আনা হলো। ⛔ কলামের চওড়া ১৫% → ১৭.৫% (সামান্য), ওষুধের
+   জায়গা আগের মতোই বড়ই থাকে। */
+.rxComplaintHistory b { color: rgb(11, 93, 42); margin-bottom: 1mm; text-transform: uppercase; font-size: 8.6px !important; letter-spacing: -0.2px !important; white-space: nowrap !important; }
 .rxApprovedGrid section { min-width: 0px; background: rgb(255, 255, 255); position: relative; }
 .rxApprovedGrid section::after { content: ""; position: absolute; z-index: 0; width: 52mm; height: 52mm; border-radius: 50%; left: 50%; bottom: 9mm; transform: translateX(-50%); background: var(--clinic-watermark,none) center/contain no-repeat; opacity: 0.08; pointer-events: none; }
 .rxApprovedGrid section > * { position: relative; z-index: 1; }
@@ -211,7 +215,7 @@ body.printModeActive .printArea { display: block !important; visibility: visible
 .rxPrintAdvice .rxDietLine { display: block; margin-top: 1.5mm; white-space: normal; }
 /* 🖨️🔒 V955 (০১.০৯.২০২৬, TK-নির্দেশ, দু-দফায়): ছাপার সময় এই নিয়মটাই জোর করে
    ২৫% বসাত, তাই উপরের বদল কাজ করত না। এখানেও ১৫% ⇒ ওষুধ লেখার জায়গা বড়। */
-@media print{.rxApprovedGrid { grid-template-columns: 15% 85% !important; }
+@media print{.rxApprovedGrid { grid-template-columns: 17.5% 82.5% !important; }
 .rxComplaintHistory { min-height: 145mm !important; }
 .rxApprovedGrid .printTable th, .rxApprovedGrid .printTable td { padding: 3px 4px !important; font-size: 9.5px !important; }
 .rxApprovedGrid .rxPrintType { font-size: 8px !important; }
