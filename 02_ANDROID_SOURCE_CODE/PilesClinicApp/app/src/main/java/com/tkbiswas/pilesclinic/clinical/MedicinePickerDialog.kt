@@ -608,7 +608,7 @@ object MedicinePickerDialog {
                     selectedNote.remove(name)
                     selectedType.remove(name)
                 } else {
-                    selected[name] = doseInput.text.toString().trim().ifBlank { ClinicalRepository.rxDoseFor(name) }
+                    selected[name] = doseInput.text.toString().trim().ifBlank { ClinicalRepository.rxDoseWhenFor(name).first }  /* 🍯 V956: শুধু ডোজটুকু — জোড়া লেখা (মধু/মাখনসহ When) যেন ডোজের ঘরে না ঢোকে */
                     selectedType[name] = ClinicalRepository.rxTypeFor(name)
                     if (showExtraFields) {
                         // V425: টিক দিলে When-এর ঘরে সেভ করা ডিফল্টটাই বসে।
@@ -702,7 +702,7 @@ object MedicinePickerDialog {
             } else {
                 names.forEach { nm ->
                     if (!selected.containsKey(nm)) {
-                        selected[nm] = ClinicalRepository.rxDoseFor(nm)
+                        selected[nm] = ClinicalRepository.rxDoseWhenFor(nm).first  /* 🍯 V956: শুধু ডোজটুকু — জোড়া লেখা (মধু/মাখনসহ When) যেন ডোজের ঘরে না ঢোকে */
                         selectedType[nm] = ClinicalRepository.rxTypeFor(nm)
                         if (showExtraFields) selectedDays[nm] = ClinicalRepository.rxDaysFor(nm)
                     }
@@ -743,7 +743,7 @@ object MedicinePickerDialog {
                 return false
             }
             selected.forEach { (name, dose) ->
-                val finalDose = dose.trim().ifBlank { ClinicalRepository.rxDoseFor(name) }
+                val finalDose = dose.trim().ifBlank { ClinicalRepository.rxDoseWhenFor(name).first }  /* 🍯 V956: শুধু ডোজটুকু — জোড়া লেখা (মধু/মাখনসহ When) যেন ডোজের ঘরে না ঢোকে */
                 val finalType = selectedType[name].orEmpty()
                 val finalDays = if (showExtraFields) (selectedDays[name]?.trim()?.ifBlank { ClinicalRepository.rxDaysFor(name) } ?: ClinicalRepository.rxDaysFor(name)) else ClinicalRepository.DEFAULT_DURATION
                 val effectiveList = targetList ?: (if (listType == "allopathic") ClinicalRepository.currentSlip else ClinicalRepository.currentPrescription)
@@ -877,7 +877,7 @@ object MedicinePickerDialog {
             })
             addNewCard.setOnClickListener {
                 ClinicalRepository.learnMedicine(trimmed, listType)
-                selected[trimmed] = ClinicalRepository.rxDoseFor(trimmed)
+                selected[trimmed] = ClinicalRepository.rxDoseWhenFor(trimmed).first  /* 🍯 V956: শুধু ডোজটুকু — জোড়া লেখা (মধু/মাখনসহ When) যেন ডোজের ঘরে না ঢোকে */
                 rebuildRows(activity, container, baseList, listType, query, selected, accent, buildRow)
             }
             container.addView(addNewCard)
@@ -1061,7 +1061,7 @@ object MedicinePickerDialog {
                     typeChip.requestFocus()
                     return@setOnClickListener
                 }
-                val medDose = dose.text.toString().trim().ifBlank { ClinicalRepository.rxDoseFor(medName) }
+                val medDose = dose.text.toString().trim().ifBlank { ClinicalRepository.rxDoseWhenFor(medName).first }  /* 🍯 V956: শুধু ডোজটুকু — জোড়া লেখা (মধু/মাখনসহ When) যেন ডোজের ঘরে না ঢোকে */
                 ClinicalRepository.learnMedicine(medName, listType)
                 val finalDays = days.text.toString().trim().ifBlank { ClinicalRepository.rxDaysFor(medName) }
                 val targetList = targetListOverride ?: (if (listType == "allopathic") ClinicalRepository.currentSlip else ClinicalRepository.currentPrescription)

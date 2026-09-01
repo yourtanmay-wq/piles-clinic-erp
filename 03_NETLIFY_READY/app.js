@@ -16804,7 +16804,7 @@ function rxDoseFor(name){let key=String(name||'').trim(),def=rxDefaultFor(key);i
 function rememberRxDose(name,dose){try{let key=String(name||'').trim();if(!key||!dose)return;let mem=rxDoseMemoryMap();mem[key]=dose;localStorage.setItem('rxDoseMemory',JSON.stringify(mem))}catch(e){}}
 window["rememberRxDose"]=rememberRxDose;
 window["rxDoseFor"]=rxDoseFor;
-function onRxMedicineChange(){let checked=$$('.rxChk:checked');let last=checked[checked.length-1];let d=$('#rxDose'),days=$('#rxDays');if(d&&last)d.value=rxDoseFor(last.value);if(days&&last)days.value=rxDaysFor(last.value)}
+function onRxMedicineChange(){let checked=$$('.rxChk:checked');let last=checked[checked.length-1];let d=$('#rxDose'),days=$('#rxDays');if(d&&last)d.value=rxDoseWhenFor(last.value).dose;/* 🍯 V956: শুধু ডোজটুকু — When আলাদা ঘর থেকেই আসে */if(days&&last)days.value=rxDaysFor(last.value)}
 window["onRxMedicineChange"]=onRxMedicineChange;
 /* 🔴 V429 (TK-এর স্থায়ী নিয়ম: "পর্দায় নির্দেশ/সাহায্য-লাইন বসাবেন না" — V413)
    এবং ফোনের সঙ্গে হুবহু মেলানোর জন্য — ওষুধ বাছার পর্দার তিনটে নির্দেশ-লাইন
@@ -16840,7 +16840,7 @@ function rxFillDefaults(){
     var m=$('#rxMed'); if(!m) return;
     var name=String(m.value||'').trim(); if(!name) return;
     var d=$('#rxDose'), days=$('#rxDays'), t=$('#rxType');
-    if(d && d.getAttribute('data-touched')!=='1'){ var dv=rxDoseFor(name); if(dv) d.value=dv; }
+    if(d && d.getAttribute('data-touched')!=='1'){ var dv=rxDoseWhenFor(name).dose; if(dv) d.value=dv; }/* 🍯 V956: শুধু ডোজটুকু — When আলাদা ঘর থেকেই আসে */
     if(days && days.getAttribute('data-touched')!=='1'){ var dd=rxDaysFor(name); if(dd) days.value=dd; }
     if(t && t.getAttribute('data-touched')!=='1'){ var tp=rxTypeFor(name); if(tp) t.value=tp; }
   }catch(e){}
