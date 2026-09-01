@@ -204,11 +204,15 @@ body.printModeActive .printArea { display: block !important; visibility: visible
 .rxApprovedGrid section::after { content: ""; position: absolute; z-index: 0; width: 52mm; height: 52mm; border-radius: 50%; left: 50%; bottom: 9mm; transform: translateX(-50%); background: var(--clinic-watermark,none) center/contain no-repeat; opacity: 0.08; pointer-events: none; }
 .rxApprovedGrid section > * { position: relative; z-index: 1; }
 .rxApprovedGrid .finalPrintTable { margin-top: 0px; table-layout: fixed; }
+/* 🖨️🔒 V955 (০১.০৯.২০২৬, TK-নির্দেশ): TK — *"Dose ও Duration যেহেতু ফিক্সড,
+   কিন্তু When কখনো ছোট-বড় হতে পারে — ওই ঘরটা একটু বড় রাখুন"*।
+   When ১৬% → ২০%; Dose ১৩% → ১১%, Duration ১২% → ১০% (দুটোই ছোট, স্থির লেখা)।
+   ⛔ ওষুধের নামের ঘর ৫২%-ই থাকল, SL-ও অপরিবর্তিত। মোট ১০০%। */
 .rxApprovedGrid .finalPrintTable th:nth-child(1) { width: 7%; }
 .rxApprovedGrid .finalPrintTable th:nth-child(2) { width: 52%; }
-.rxApprovedGrid .finalPrintTable th:nth-child(3) { width: 13%; }
-.rxApprovedGrid .finalPrintTable th:nth-child(4) { width: 16%; }
-.rxApprovedGrid .finalPrintTable th:nth-child(5) { width: 12%; }
+.rxApprovedGrid .finalPrintTable th:nth-child(3) { width: 11%; }
+.rxApprovedGrid .finalPrintTable th:nth-child(4) { width: 20%; }
+.rxApprovedGrid .finalPrintTable th:nth-child(5) { width: 10%; }
 .rxGridMark { height: 8mm; padding-left: 4mm; display: flex; align-items: center; color: rgb(11, 93, 42); font: 700 20px Georgia, serif; }
 .rxPrintAdvice { border: 1px solid rgb(10, 84, 40); min-height: 0px; padding: 2mm 3mm; background: rgb(255, 255, 255); white-space: nowrap; font-size: 11px; }
 .rxPrintAdvice b { color: rgb(11, 93, 42); }
