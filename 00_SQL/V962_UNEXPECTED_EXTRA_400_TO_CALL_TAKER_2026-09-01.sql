@@ -118,5 +118,11 @@ $fn$;
 revoke all on function hr.incentive_wanted() from public, anon, authenticated;
 notify pgrst, 'reload schema';
 
--- ── নতুন নিয়মে হিসাব মিলিয়ে নেওয়া (শুধু "বাকি" সারিতে হাত পড়ে) ──────────
-select hr.incentive_sync();
+-- ⛔ এখানে `select hr.incentive_sync();` **রাখা হয়নি** — ইচ্ছে করে।
+--    ০১.০৯.২০২৬: TK চালাতে গিয়ে `P0001: Master identity required` পেয়েছিলেন।
+--    কারণ ওই ফাংশনটা `hr.is_master()` যাচাই করে, আর Supabase-এর SQL এডিটর
+--    কোনো লগইন-করা মাস্টার নয় — তাই যাচাইটা ফেল করত, আর গোটা স্ক্রিপ্টটাই
+--    (একই লেনদেনে থাকায়) ফিরে যেত।
+--    ⇒ হিসাব মেলানোর দরকার নেই: **অ্যাপ নিজেই চালায়** — TK মাস্টার হিসেবে
+--      কোনো স্টাফের Salary পর্দা খুললেই (`incentiveSyncThrottled`, ৫ মিনিটে
+--      একবার)। তাই উপরের অংশটুকু চললেই যথেষ্ট।
