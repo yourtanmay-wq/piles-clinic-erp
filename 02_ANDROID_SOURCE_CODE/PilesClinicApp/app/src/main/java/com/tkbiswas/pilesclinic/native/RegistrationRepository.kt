@@ -270,10 +270,30 @@ class RegistrationRepository(private val context: Context) {
            ⛔ যাচাই করতে না পারলে (নেট নেই) **কিছুই লেখা হয় না** — ভুল করে
               দ্বিতীয়বার কাটার চেয়ে না-লেখাই নিরাপদ।
            ⛔ নতুন রেজিস্ট্রেশনের পথ এক অক্ষরও বদলায়নি। */
+        /* 🟥🔒 V958 (০১.০৯.২০২৬, TK-নির্দেশ *"হ্যাঁ, বন্ধ করুন"*) — উপরের V901-এ
+           একটা দরজা খোলা ছিল: **যাচাই করা না গেলে** (নেট নেই / পড়া ব্যর্থ) ফি-র
+           সারিটা একেবারেই লেখা হত না, তাই স্টাফের নেওয়া টাকা হারিয়ে যেত আর নামটা
+           "Visit Fee Missing"-এ উঠত। এখন "জানি না" মানে **বাদ নয়, অপেক্ষা** —
+           সারিটা তৈরি হয়ে জমা থাকে, লাইন ফিরলে আবার যাচাই করে তবেই বসে।
+           ⛔ দুবার কাটার পথ নেই: সারিটা একবারই তৈরি, নিজের আইডি নিয়ে, আর
+              বসানোর ঠিক আগে প্রতিবার আবার যাচাই হয় (PendingVisitFeeStore)। */
         val paymentRow = if (existingRowIdSafe.isBlank()) {
             PatientModel.buildVisitFeePaymentRow(patientRow, draft, staffMobile)
-        } else if (draft.regFee > 0.0 && !visitFeeAlreadyTaken(patientRow.s("id"))) {
-            PatientModel.buildVisitFeePaymentRow(patientRow, draft, staffMobile)
+        } else if (draft.regFee > 0.0) {
+            when (PendingVisitFeeStore.visitFeeStatus(patientRow.s("id"), patientRow.s("patientId"))) {
+                PendingVisitFeeStore.FEE_NOT_TAKEN ->
+                    PatientModel.buildVisitFeePaymentRow(patientRow, draft, staffMobile)
+                PendingVisitFeeStore.FEE_TAKEN -> null
+                else -> {
+                    // যাচাই করা গেল না — সারিটা জমা থাক, লাইন ফিরলে বসবে।
+                    try {
+                        PendingVisitFeeStore.hold(
+                            context, PatientModel.buildVisitFeePaymentRow(patientRow, draft, staffMobile)
+                        )
+                    } catch (_: Throwable) { }
+                    null
+                }
+            }
         } else null
 
         // OWNER-LOCK: Registration and Registration Fee are one action.
@@ -373,18 +393,9 @@ class RegistrationRepository(private val context: Context) {
      * actually succeeded, so a real failure gets retried and a real success
      * removes it from the queue -- still "best-effort" in the sense that it
      * never throws/blocks the original save either way. */
-    /** 🔴🔒 V901 — এই রোগীর ভিজিট ফি আগে কখনো নেওয়া হয়েছে কিনা।
-     *  ⚠️ যাচাই করা না গেলে (নেট নেই) **সত্যি** ফেরত যায়, অর্থাৎ নতুন ফি
-     *  লেখা হয় না — দুবার কাটার ঝুঁকি নেওয়ার চেয়ে সেটাই নিরাপদ। */
-    private fun visitFeeAlreadyTaken(patientRowId: String): Boolean {
-        if (patientRowId.isBlank()) return true
-        return try {
-            val rows = SupabaseClient.fetchListOrNull(
-                "payments", "patientId=eq.$patientRowId&payType=eq.visit_fee", 1, select = "id")
-                ?: return true
-            rows.length() > 0
-        } catch (_: Throwable) { true }
-    }
+    /* 🔴🔒 V901-এর `visitFeeAlreadyTaken()` V958-এ সরানো হলো — ওটা "যাচাই করা
+       গেল না"-কেও "ফি নেওয়া আছে" বলত, আর ওখান থেকেই টাকা হারাত। এখন তিন রকম
+       উত্তর দেয় `PendingVisitFeeStore.visitFeeStatus()`। */
 
     private fun closeSourceEnquiry(mobileDigitsOnly: String, patientId: String): Boolean {
         val digits = mobileDigitsOnly.filter { it.isDigit() }.takeLast(10)
@@ -512,6 +523,9 @@ class RegistrationRepository(private val context: Context) {
         // often), not skipped just because the Patient/Visit/Payment rows
         // above already finished syncing.
         flushCloseIntents()
+        // 🟥 V958: যাচাই না হওয়ায় যে ভিজিট-ফি সারিগুলো অপেক্ষায় আছে, লাইন
+        // ফিরলে সেগুলোও আবার যাচাই করে বসিয়ে দেওয়া হয়।
+        try { PendingVisitFeeStore.flush(context) } catch (_: Throwable) { }
         }
     }
 

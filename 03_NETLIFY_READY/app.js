@@ -9044,24 +9044,34 @@ async function savePatient(evt){
       (Update Existing / ক্লাউডে আগে থেকেই আছে) স্টাফের নেওয়া ফি-টা কোথাও
       লেখা হতো না। এখন লেখা হয় — **শুধু তখনই, যদি ওই রোগীর ভিজিট ফি আগে
       কখনো নেওয়া না হয়ে থাকে**, তাই দুবার কাটার পথ নেই। */
-   let wlv1FeeTakenBefore=false;
+   /* 🟥🔒 V958 (০১.০৯.২০২৬, TK-নির্দেশ *"হ্যাঁ, বন্ধ করুন"* — ফোনের যমজ):
+      V901-এ একটা দরজা খোলা ছিল — **যাচাই করা না গেলে** ফি-র সারিটা একেবারেই
+      লেখা হত না, তাই স্টাফের নেওয়া টাকা হারিয়ে যেত আর নামটা "Visit Fee
+      Missing"-এ উঠত। এখন "জানি না" মানে বাদ নয়, **অপেক্ষা** — সারিটা জমা
+      থাকে, লাইন ফিরলে আবার যাচাই করে তবেই বসে। ⛔ দুবার কাটার পথ নেই:
+      সারিটা একবারই তৈরি, নিজের আইডি নিয়ে, আর বসানোর আগে ফের যাচাই হয়। */
+   let wlv1FeeTakenBefore=false, wlv1FeeUnknown=false;
    try{
      wlv1FeeTakenBefore=(ar('payments')||[]).some(function(z){
        let t=String(z&&z.payType||'').toLowerCase();
        return String(z&&z.patientId||'')===String(p.id||'') && (t==='visit_fee'||t==='visitfee'||t==='registration');
      });
-     if(!wlv1FeeTakenBefore && sb && (updatingExistingPatient||cloudDupExists)){
-       let cf=await sb.from('payments').select('id').eq('patientId',p.id).eq('payType','visit_fee').limit(1);
-       if(cf&&cf.error) wlv1FeeTakenBefore=true;              // যাচাই করা গেল না ⇒ লিখব না
-       else if(cf&&cf.data&&cf.data.length) wlv1FeeTakenBefore=true;
+     if(!wlv1FeeTakenBefore && (updatingExistingPatient||cloudDupExists)){
+       if(!sb) wlv1FeeUnknown=true;                            // যাচাই করা গেল না
+       else{
+         let cf=await sb.from('payments').select('id').eq('patientId',p.id).eq('payType','visit_fee').limit(1);
+         if(cf&&cf.error) wlv1FeeUnknown=true;                 // যাচাই করা গেল না
+         else if(cf&&cf.data&&cf.data.length) wlv1FeeTakenBefore=true;
+       }
      }
-   }catch(_e){ wlv1FeeTakenBefore=true; }
+   }catch(_e){ wlv1FeeUnknown=true; }
    if(regFee>0 && !wlv1FeeTakenBefore){
-    add('payments',{
+    let wlv1FeeRow={
      id:uid('pay'),payType:'visit_fee',payLabel:'Visit Fee',paymentLabel:'Visit Fee',patientId:p.id,patientCode:String(p.patientId||''),mobile:p.mobile,branch:p.branch,name:p.name,
      date:today(),amount:regFee,mode:payMode($('#regMode')?.value||'CASH'),
      remarks:'Visit Fee',receivedBy:(user&&user.mobile)||'',createdBy:(user&&user.mobile)||'',updatedAt:new Date().toISOString()
-    });
+    };
+    if(wlv1FeeUnknown) wlv1HoldVisitFee(wlv1FeeRow); else add('payments',wlv1FeeRow);
    }
   }catch(e){console.warn('Registration fee save skipped',e)}
 
@@ -25807,6 +25817,39 @@ window["dialerPage"]=dialerPage;
    ⛔ কিছু আটকে না থাকলে একটাও অনুরোধ যায় না (egress খরচ বাড়ে না)।
    ⛔ ডিজাইনে হাত পড়েনি — পর্দায় নতুন কিছু দেখায় না।              */
 var WLV1_OFFLINE_LAST_TRY = 0;
+/* 🟥🔒 V958 (০১.০৯.২০২৬) — ফি-র সারি যাচাই করা না গেলে এখানে **জমা** থাকে
+   (ফোনের `PendingVisitFeeStore`-এর যমজ)। লাইন ফিরলেই নিচের ঘরটা আবার যাচাই
+   করে সারিটা বসিয়ে দেয়, নয়তো বাদ দেয় — দুবার কাটার পথ নেই, কারণ সারিটা
+   একবারই তৈরি হয় ও তার নিজের আইডিতেই লেখা হয়। */
+function wlv1HeldVisitFees(){try{return JSON.parse(localStorage.getItem('wlv1HeldVisitFee')||'[]')||[]}catch(e){return []}}
+function wlv1SaveHeldVisitFees(a){try{localStorage.setItem('wlv1HeldVisitFee',JSON.stringify((a||[]).slice(-300)))}catch(e){}}
+function wlv1HoldVisitFee(row){
+  try{
+    if(!row||!row.id) return;
+    let a=wlv1HeldVisitFees().filter(function(z){return String(z&&z.id||'')!==String(row.id)});
+    a.push(row); wlv1SaveHeldVisitFees(a);
+  }catch(e){}
+}
+window["wlv1HoldVisitFee"]=wlv1HoldVisitFee;
+async function wlv1FlushHeldVisitFee(){
+  try{
+    let held=wlv1HeldVisitFees(); if(!held.length) return false;
+    if(typeof navigator!=='undefined' && navigator.onLine===false) return false;
+    let ok=await initCloudClientOnly(); if(!ok||!sb) return false;
+    let still=[];
+    for(const row of held){
+      try{
+        let cf=await sb.from('payments').select('id').eq('patientId',row.patientId).eq('payType','visit_fee').limit(1);
+        if(cf&&cf.error){ still.push(row); continue }          /* এখনো জানা গেল না */
+        if(cf&&cf.data&&cf.data.length) continue;              /* আগেই নেওয়া আছে ⇒ বাদ */
+        add('payments',row);                                   /* এবার বসল */
+      }catch(_e){ still.push(row) }
+    }
+    wlv1SaveHeldVisitFees(still);
+    return true;
+  }catch(e){ return false }
+}
+window["wlv1FlushHeldVisitFee"]=wlv1FlushHeldVisitFee;
 async function wlv1FlushWhenBack(reason){
   try{
     if(!user) return false;
@@ -25827,8 +25870,9 @@ window["wlv1FlushWhenBack"]=wlv1FlushWhenBack;
   try{
     if(window.__WLV1_OFFLINE_WATCH) return;
     window.__WLV1_OFFLINE_WATCH = true;
-    window.addEventListener('online', function(){ wlv1FlushWhenBack('online') });
-    setInterval(function(){ wlv1FlushWhenBack('tick') }, 60000);
+    window.addEventListener('online', function(){ wlv1FlushWhenBack('online'); wlv1FlushHeldVisitFee() });
+    setInterval(function(){ wlv1FlushWhenBack('tick'); wlv1FlushHeldVisitFee() }, 60000);   /* 🟥 V958 */
+    setTimeout(function(){ wlv1FlushHeldVisitFee() }, 4000);                                /* 🟥 V958: খোলার পরেই একবার */
   }catch(e){}
 })();
 
