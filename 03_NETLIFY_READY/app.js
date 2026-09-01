@@ -2289,8 +2289,12 @@ window["sameBranch"]=sameBranch;
 // লাইন ~7389) এই ফাইল কখনো ছোঁয় না, Payment আগের মতোই নিজের ব্রাঞ্চে লকড।
 function wlv1CrossBranchExtra(){
   try{
-    var m=String(user&&user.mobile||'').replace(/\D/g,'').slice(-10);
-    if(m==='9647840067') return ['Falakata','Birpara']; // JPE-CRP
+    /* 🔴🔒 V949 (০১.০৯.২০২৬, TK-নির্দেশ) — JPE-CRP-র Falakata/Birpara ছাড়
+       বন্ধ করা হলো (ফোনের `CrossBranchStaffAccess.EXTRA_BRANCHES` ফাঁকা করার
+       হুবহু যমজ)। ⇒ প্রত্যেকে শুধু নিজের ব্রাঞ্চই দেখেন।
+       ⛔ ব্যবস্থাটা মোছা হয়নি, শুধু কেউ তালিকায় নেই — ভবিষ্যতে TK চাইলে
+          একটা সারি ফিরিয়ে দিলেই চলবে।
+       ⛔ সব-ব্রাঞ্চ এনকোয়ারি ফর্ম এই ফাংশনের উপর নির্ভর করে না (যাচাই করা)। */
     return [];
   }catch(e){ return []; }
 }
