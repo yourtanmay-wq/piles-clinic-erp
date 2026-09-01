@@ -1159,6 +1159,51 @@
                  ⛔ এই ঘরগুলোর কোনোটাই ছাপার কাগজে যায় না
                     (TK: "শুধুমাত্র সিস্টেমে থাকবে")।
                  ⛔ কার্ডের ধাঁচ Step 1/2/4-এর হুবহু একই (সাদা RegCard)। -->
+            <!-- 🔴🔴🔒 V938 (৩১.০৮.২০২৬, TK-নির্দেশ · ডেমো-প্রুফে অনুমোদিত: *"হ্যাঁ পাশ"*)
+                 TK: *"উক্ত পেশেন্টের আজকে কি চিকিৎসা করা হলো — এটা যদি ডাক্তার
+                 চেকআপের সময় করে দেয়, সেক্ষেত্রে সেখান থেকে যেন অটোমেটিক
+                 চেম্বারে চলে আসে"* · *"যেমন NEXT PLAN আছে সেরকমই একটা বানিয়ে
+                 দিন, তবে এই লেখাটা NEXT PLAN-এর আগে হবে"*।
+
+                 ⛔ কার্ড ও ভাঁজের ধাঁচ NEXT VISIT PLAN-এর **হুবহু একই** — নতুন
+                    কোনো ধাপ যোগ হয়নি, উপরের চিপ-বার অপরিবর্তিত।
+                 ⛔ ভিতরের ১০টা লেখা **চেম্বারের সেই একই ১০টা**
+                    (`TreatmentQuickNotes.QUICK_BN`) — নতুন কোনো লেখা বানানো হয়নি,
+                    তাই ছাপার ইংরেজি-অনুবাদ (`PrintTextEnglish`) আগের মতোই মেলে।
+                 ⛔ ডাক্তার কিছু না বাছলে কিছুই লেখা হয় না — চেম্বারের পুরনো
+                    Treatment Progress অক্ষত থাকে। -->
+            <androidx.cardview.widget.CardView android:id="@+id/secTodayTreat" style="@style/RegCard" app:cardBackgroundColor="#FFFFFF">
+                <LinearLayout style="@style/RegCardInner">
+
+                    <LinearLayout android:id="@+id/ttdFoldHead" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="2dp">
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="TODAY&apos;S TREATMENT DONE" android:textStyle="bold" android:textSize="14sp" android:textColor="#0B4F2A" />
+                        <TextView android:id="@+id/ttdFoldNum" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:background="@drawable/bg_fold_count_chip" android:paddingLeft="9dp" android:paddingTop="2dp" android:paddingRight="9dp" android:paddingBottom="2dp" android:textColor="#0B4F2A" android:textSize="11.5sp" android:textStyle="bold" android:visibility="gone" />
+                        <TextView android:id="@+id/ttdFoldChev" android:layout_width="24dp" android:layout_height="24dp" android:layout_marginStart="8dp" android:gravity="center" android:background="@drawable/bg_fold_chevron" android:text="⌄" android:textColor="#FFFFFF" android:textStyle="bold" android:textSize="15sp" />
+                        <View android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
+                    </LinearLayout>
+
+                    <LinearLayout android:id="@+id/ttdFoldBody" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="আজকে কি TREATMENT করা হল · আজ এই রোগীর কী কাজ হলো" android:textSize="11.5sp" android:textColor="#8A93A0" android:layout_marginBottom="6dp" />
+
+                    <CheckBox android:id="@+id/cbTtd1" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="13.5sp" android:textColor="#101828" android:paddingTop="3dp" android:paddingBottom="3dp" android:textAllCaps="false" android:text="CHECK-UP করা হলো" />
+                    <CheckBox android:id="@+id/cbTtd2" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="13.5sp" android:textColor="#101828" android:paddingTop="3dp" android:paddingBottom="3dp" android:textAllCaps="false" android:text="KTA করা হল" />
+                    <CheckBox android:id="@+id/cbTtd3" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="13.5sp" android:textColor="#101828" android:paddingTop="3dp" android:paddingBottom="3dp" android:textAllCaps="false" android:text="DRESSING করা হল" />
+                    <CheckBox android:id="@+id/cbTtd4" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="13.5sp" android:textColor="#101828" android:paddingTop="3dp" android:paddingBottom="3dp" android:textAllCaps="false" android:text="KSHAR SUTRA করা হল" />
+                    <CheckBox android:id="@+id/cbTtd5" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="13.5sp" android:textColor="#101828" android:paddingTop="3dp" android:paddingBottom="3dp" android:textAllCaps="false" android:text="KSHAR SUTRA ক্লিয়ার করা হল" />
+                    <CheckBox android:id="@+id/cbTtd6" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="13.5sp" android:textColor="#101828" android:paddingTop="3dp" android:paddingBottom="3dp" android:textAllCaps="false" android:text="MEDICINE দেওয়া হল" />
+                    <CheckBox android:id="@+id/cbTtd7" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="13.5sp" android:textColor="#101828" android:paddingTop="3dp" android:paddingBottom="3dp" android:textAllCaps="false" android:text="TEST করতে পাঠানো হল" />
+                    <CheckBox android:id="@+id/cbTtd8" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="13.5sp" android:textColor="#101828" android:paddingTop="3dp" android:paddingBottom="3dp" android:textAllCaps="false" android:text="MACHINE এর কাজ করা হল" />
+                    <CheckBox android:id="@+id/cbTtd9" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="13.5sp" android:textColor="#101828" android:paddingTop="3dp" android:paddingBottom="3dp" android:textAllCaps="false" android:text="LIS করা হল" />
+                    <CheckBox android:id="@+id/cbTtd10" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="13.5sp" android:textColor="#101828" android:paddingTop="3dp" android:paddingBottom="3dp" android:textAllCaps="false" android:text="Visit Return করা হল" />
+
+                    <TextView style="@style/FieldLabel" android:text="Anything else · অন্য কিছু হলে এখানে লিখুন" />
+                    <EditText android:id="@+id/etTtdOther" style="@style/FieldInput" android:minLines="2" android:maxLines="4" android:gravity="top" android:inputType="textMultiLine|textCapSentences" />
+
+                    </LinearLayout><!-- ttdFoldBody -->
+
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
             <androidx.cardview.widget.CardView android:id="@+id/secNextVisitPlan" style="@style/RegCard" app:cardBackgroundColor="#FFFFFF">
                 <LinearLayout style="@style/RegCardInner">
 

@@ -9567,6 +9567,11 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
       *"next visit plan — এই ফর্মটা ওপেন থাকবে না"* ⇒ "open" সরানো হলো,
       এখন এই পাতার বাকি সব কার্ডের (ধাপ ২·৩·৪·৫) মতোই বন্ধ অবস্থায় শুরু
       হয়, নামে চাপ দিলে খোলে। ⛔ ভিতরের একটাও ঘর/টিক/সেভ বদলায়নি। -->
+ <!-- 🔴🔴🔒 V938 (৩১.০৮.২০২৬, TK-নির্দেশ · ডেমো-প্রুফে অনুমোদিত) — ফোনের হুবহু
+      যমজ: *"আজকে কি TREATMENT করা হল"*, NEXT VISIT PLAN-এর ঠিক **আগে**। -->
+ <details class="card"><summary><b>TODAY'S TREATMENT DONE · আজকে কি TREATMENT করা হল</b></summary>
+  ${wlv1TtdBoxHtml()}
+ </details>
  <details class="card"><summary><b>NEXT VISIT PLAN · পরের বার কী হবে</b></summary>
   ${wlv1NvpBoxHtml(p)}
  </details>
@@ -9752,6 +9757,51 @@ function wlv1NvpSyncMed(){
 window["wlv1NvpSyncMed"]=wlv1NvpSyncMed;
 
 /** পর্দা থেকে আজকের প্ল্যান তোলা। কিছুই বাছা না হলে null ⇒ ঘরটা ছোঁয়াই হয় না। */
+/* 🔴🔴🔒 V938 (৩১.০৮.২০২৬, TK-নির্দেশ) — ডাক্তার আজ কী করলেন। লেখাগুলো
+   **চেম্বারের সেই একই ১০টা** (ফোনের `TreatmentQuickNotes.QUICK_BN`), তাই
+   ছাপার ইংরেজি-অনুবাদ আগের মতোই মেলে। ⛔ কিছু না বাছলে কিছুই লেখা হয় না। */
+const WLV1_TTD = ['CHECK-UP করা হলো','KTA করা হল','DRESSING করা হল','KSHAR SUTRA করা হল',
+  'KSHAR SUTRA ক্লিয়ার করা হল','MEDICINE দেওয়া হল','TEST করতে পাঠানো হল',
+  'MACHINE এর কাজ করা হল','LIS করা হল','Visit Return করা হল'];
+function wlv1TtdBoxHtml(){
+  return '<div style="font-size:12px;color:#8A93A0;margin-bottom:6px">আজ এই রোগীর কী কাজ হলো</div>'
+    + WLV1_TTD.map(function(t,i){
+        return '<label style="display:flex;align-items:center;gap:8px;padding:4px 0"><input type="checkbox" id="ttd_'+i+'"><span>'+esc(t)+'</span></label>';
+      }).join('')
+    + '<label>Anything else · অন্য কিছু হলে এখানে লিখুন</label><textarea id="ttdOther" class="input" rows="2"></textarea>';
+}
+window["wlv1TtdBoxHtml"]=wlv1TtdBoxHtml;
+/* 🔴🔒 V938 — ডাক্তারের লেখা চেম্বারে পৌঁছে দেওয়া। ⛔ ভিতরে প্রজেক্টের সেই
+   একই দুটো কাজ, যা `wlv1ChamberSaveTreatment()` করে: রোগীর followups সারির
+   lastRemark/lastRemarkAt (+history), আর ওই দিনের payments সারির `progress`
+   (`wlv1SyncProgressToReportCard`) — চেম্বার বোর্ডের আসল উৎস। */
+function wlv1CkSaveTtd(p, txt){
+  var note=String(txt||'').trim(); if(!note||!p) return;
+  var m=mob(p.mobile); if(!m) return;
+  var rows=load('followups');
+  var own=null;
+  try{ own=wlv1ChamberOwnFollow(m, String(p.id||'')); }catch(_e){ own=null; }
+  if(!own){ own=rows.filter(function(x){ return mob(x.mobile)===m; })[0]||null; }
+  if(own){
+    var i=rows.findIndex(function(x){ return String(x.id)===String(own.id); });
+    if(i>=0){
+      rows[i]={...rows[i], lastRemark:note, lastRemarkAt:new Date().toISOString(), updatedAt:new Date().toISOString(),
+        history:[...(rows[i].history||[]), {date:today(), time:isoNow(), remark:note, staff:(user&&(user.name||user.mobile))||''}]};
+      save('followups', rows);
+    }
+  }
+  try{ wlv1SyncProgressToReportCard(m, String(p.id||''), note, today()); }catch(_e){}
+}
+window["wlv1CkSaveTtd"]=wlv1CkSaveTtd;
+function wlv1TtdCollect(){
+  var out=[];
+  try{
+    WLV1_TTD.forEach(function(t,i){ var b=document.getElementById('ttd_'+i); if(b&&b.checked) out.push(t); });
+    var o=String((document.getElementById('ttdOther')||{}).value||'').trim(); if(o) out.push(o);
+  }catch(_e){}
+  return out.join(' · ');
+}
+window["wlv1TtdCollect"]=wlv1TtdCollect;
 function wlv1NvpCollect(){
   try{
     var items=WLV1_NVP_OPTIONS.map(function(o){return o[0]})
@@ -13042,6 +13092,12 @@ async function saveDoctor(id){
         প্ল্যান আগের মতোই থেকে যায় (`...(x?{}:{})` দিয়ে ঘরটা বাদ পড়ে)। */
   ...(function(){var e=wlv1NvpCollect();return e?{nextVisitPlan:wlv1NvpAppended(p,e)}:{}})()});
  add('medical',{id:uid('med'),patientId:id,mobile:p.mobile,branch:p.branch,name:p.name,type:'checkup',date:today(),doctorFullNote:note,diagnosis:details,decision:dec,createdBy:user?.mobile||''});
+ /* 🔴🔴🔒 V938 (TK-নির্দেশ) — ডাক্তার আজ যা করলেন সেটা **নিজে থেকেই** চেম্বার
+    Date-এর Treatment Progress-এ বসে যায়, ঠিক চেম্বার থেকে লিখলে যা হত।
+    ⛔ প্রজেক্টের প্রমাণিত দুটো ডাকই ব্যবহার হচ্ছে — নতুন কোনো পথ নয়:
+       `wlv1CkSaveTtd()` → followups-এর lastRemark + payments-এর progress।
+    ⛔ কিছু না বাছলে একটা অক্ষরও লেখা হয় না — পুরনো Progress অক্ষত। */
+ try{ wlv1CkSaveTtd(p, wlv1TtdCollect()); }catch(_e){}
  if(dec==='Treatment Started'&&(up||p))ensureFollow({...p,...(up||{})},'Treatment','', 'Treatment started by doctor note');
  // V460 (১৯.০৮.২০২৬) — Decision ঘর বাদ যাওয়ায় "Not Agree" নোটিশ পাঠানোর
  // আর কোনো উপায় নেই (Android-এও এখন একই — এই ব্লক আর ফায়ার হয় না)।
@@ -19081,9 +19137,13 @@ window["wlv1ChamberSaveTreatment"]=wlv1ChamberSaveTreatment;
       · `bill_edit` ও `chamber_expected` সারি বাদ;
       · এক নম্বরে ঘোষিত আলাদা রোগী থাকলে **শুধু তাঁরই** সারি।
    ⛔ ফোনে/লোকালে আগে বসে, তারপর ক্লাউডে — ক্লাউড ব্যর্থ হলেও পর্দা আটকায় না। */
-function wlv1SyncProgressToReportCard(m, rowId, txt){
+function wlv1SyncProgressToReportCard(m, rowId, txt, dayOverride){
   try{
-    const day = String(wlv1ChamberDate||today()).slice(0,10);
+    /* 🔴🔒 V938 — দিনটা এখন **বাইরে থেকেও** বলা যায়। দরকার হলো কারণ ডাক্তার-
+       চেকআপ থেকে ডাকার সময় `wlv1ChamberDate`-এ আগের বার খোলা **পুরনো দিন**
+       থেকে যেতে পারে — তখন আজকের লেখা ভুল দিনের টাকার সারিতে বসত।
+       ⛔ পুরনো তিনটে কল-সাইট এই ঘরটা পাঠায় না ⇒ তাদের আচরণ হুবহু আগের মতোই। */
+    const day = String(dayOverride || wlv1ChamberDate || today()).slice(0,10);
     const own = String(rowId||'');
     const all = load('payments')||[];
     const targets = all.filter(function(x){
@@ -21465,12 +21525,12 @@ function wlv1CloseChamber(){
   // আগে ৩ বার চাপলে ফাঁকা/পুরনো Treatment Progress থাকা সত্ত্বেও বন্ধ করার
   // একটা ছাড় (bypass) ছিল। TK-এর স্পষ্ট নির্দেশে সেই ছাড় পুরোপুরি তুলে
   // নেওয়া হলো — কোনো bypass নেই, ফাঁকা থাকলেই বক্স খুলে যায়, close হয় না।
-  const missing = arrived.find(r=>wlv1TodaysProgressMissing(r));   /* 🔴 V810 — তারিখও মেলানো হয় */
-  if(missing){
-    toast('⚠️ '+String(missing.name||missing.mobile)+"'s আজকের Treatment Progress লেখা হয়নি — না লিখলে চেম্বার বন্ধ করা যাবে না");
-    try{ wlv1ChamberWriteTreatment(missing.mobile); }catch(e){}
-    return;
-  }
+  /* 🔴🔴🔒 V938 (৩১.০৮.২০২৬, TK-নির্দেশ · ফোনের হুবহু যমজ) — *"একবার চাপ দিলেই
+     পরের পর্দায় আসতে হবে, তবে সেখানে ওয়ার্নিং দেবে Are you sure Yes/No"*।
+     ⇒ V687/V810-এর পাহারাটা **তুলে দেওয়া হয়নি**, শুধু **সরে গেছে** Review-এর
+       Confirm-এ (`wlv1ConfirmChamberClose`) — ফাঁকা Treatment Progress নিয়ে
+       চেম্বার বন্ধ · শেয়ার · প্রিন্ট আগের মতোই অসম্ভব। */
+  if(!confirm('Close today\'s chamber?\n\nআপনি পরের পর্দায় সবটা দেখে নিতে পারবেন।')) return;
   wlv1CloseTapCount = 0;
   wlv1ClosePrintBranch = '';
   const branches = [...new Set(arrived.map(r=>String(r.branch||'').trim()).filter(Boolean))].sort();
@@ -21730,7 +21790,15 @@ async function wlv1ConfirmChamberClose(){
   const rows=wlv1ChamberArrivedRows(), pick=wlv1ClosePrintBranch;
   const chosen=pick?rows.filter(r=>String(r.branch||'').trim()===pick):rows;
   if(!chosen.length)return toast('Nobody has been marked Arrived yet');
-  if(chosen.some(r=>wlv1TodaysProgressMissing(r)))return toast('Review incomplete — Treatment Progress লিখুন');   /* 🔴 V810 */
+  /* 🔴🔴🔒 V938 (TK-নির্দেশ) — পাহারাটা এখন এখানেই। ফাঁকা ঘর থাকলে সেভ · শেয়ার ·
+     প্রিন্ট কিছুই হয় না, আর **ঠিক ওই রোগীর লেখার বাক্সটাই খুলে যায়** (আগে শুধু
+     একটা বার্তা দেখাত, কোন রোগী তাও বলত না)। ফোনের হুবহু একই আচরণ। */
+  const __pend = chosen.find(r=>wlv1TodaysProgressMissing(r));
+  if(__pend){
+    toast('⚠️ '+String(__pend.name||__pend.mobile)+" — আজকের Treatment Progress লেখা হয়নি — না লিখলে সেভ · শেয়ার · প্রিন্ট কিছুই হবে না");
+    try{ closeModal(); wlv1ChamberWriteTreatment(__pend.mobile, __pend.patientRowId||''); }catch(e){}
+    return;
+  }
   const br=pick||String(chosen[0].branch||(user&&user.branch)||'');
   const ok=await wlv1MarkChamberClosed(br,wlv1ChamberDate);
   if(!ok)return toast('Cloud-এ বন্ধ করা যায়নি — আবার চেষ্টা করুন');

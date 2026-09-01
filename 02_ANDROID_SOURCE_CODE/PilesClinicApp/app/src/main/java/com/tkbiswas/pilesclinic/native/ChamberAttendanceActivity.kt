@@ -2842,16 +2842,20 @@ Thread {
         // payments.progress-ভিত্তিক) Treatment Progress লেখা **বাধ্যতামূলক**,
         // কোনো bypass নেই। ফাঁকা থাকলেই বক্স খুলে যায়, close হয় না।
         // 🔴 V810 — এখন তারিখও মেলানো হয় (পুরনো লেখা আর পাহারা ফাঁকি দিতে পারবে না)
-        val missing = board.rows.firstOrNull { it.arrived && todaysProgressMissing(it.remark, it.remarkUpdatedAt) }
-        if (missing != null) {
-            android.widget.Toast.makeText(
-                this,
-                "⚠️ ${missing.name.ifBlank { missing.mobile }} — " + NoBengali.s("আজকের Treatment Progress লেখা হয়নি — না লিখলে চেম্বার বন্ধ করা যাবে না"),
-                android.widget.Toast.LENGTH_LONG
-            ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
-            showRemarkDialog(missing)
-            return
-        }
+        /* 🔴🔴🔒 V938 (৩১.০৮.২০২৬, TK-নির্দেশ, স্পষ্ট) — *"চেম্বার বন্ধ করুন-এ
+           একবার চাপ দিলেই পরের পর্দায় আসতে হবে, তবে সেখানে ওয়ার্নিং দেবে
+           Are you sure Yes/No। Yes চাপলে Review পর্দায় আসবে। কিন্তু এখানে
+           Treatment Progress প্রত্যেকটা ঘর লেখা না হলে সেভ হবে না, শেয়ার হবে
+           না, প্রিন্ট আউট হবে না — save/share/print যেখানেই চাপ দিক, যে ঘরে
+           লেখা নেই অটোমেটিক সেখানে রিডাইরেক্ট হয়ে যাবে।"*
+
+           ⇒ V687/V810-এর পাহারাটা **তুলে দেওয়া হয়নি**, শুধু **সরে গেছে** —
+             আগে এই প্রথম চাপেই আটকাত, এখন Review-এর "✅ Confirm Close"-এ
+             আটকায় (নিচে `showCloseReview`)। তাই ফাঁকা Treatment Progress
+             নিয়ে চেম্বার বন্ধ হওয়া আগের মতোই **অসম্ভব**, কিন্তু TK ভিতরে
+             ঢুকে সবটা এক পর্দায় দেখে নিতে পারেন।
+           ⛔ পুরনো "৩ বার চাপলে ছাড়" (bypass) ফেরানো হয়নি — সেটা V687-এ
+              চিরতরে বাদ। */
         closeTapCount = 0
         // 🔵 B607 (10.08.2026, TK-অনুমোদিত): কেউ না এলে (Arrived 0) ভুলে ফাঁকা
         // চেম্বার বন্ধ/প্রিন্ট আটকাতে একটা নিশ্চিতকরণ — "Yes, Close" দিলে
@@ -2871,7 +2875,13 @@ Thread {
         // triple-taps to fix any wrong Payment / Treatment / Remark (which
         // writes back to the source so ALL sections update), and only then
         // taps "Confirm & Print".
-        askPrintBranchThenReview(board)
+        /* 🔴🔒 V938 — TK-এর চাওয়া "Are you sure Yes/No"। Yes দিলে তবেই Review। */
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(PremiumAlert.header(this, "Close Chamber"))
+            .setMessage(NoBengali.s("আজকের চেম্বার বন্ধ করবেন? পরের পর্দায় সবটা দেখে নিতে পারবেন।"))
+            .setPositiveButton(NoBengali.s("Yes")) { _, _ -> askPrintBranchThenReview(board) }
+            .setNegativeButton(NoBengali.s("No"), null)
+            .show().also { PremiumAlert.paint(it) }
     }
 
     // TK-APPROVED (2026-07-26, photo proof): the printed register used to mix
@@ -3019,6 +3029,44 @@ Thread {
      *  ভাঙন, নতুন কোনো হিসাব/cloud-কল লাগে না (একই `dayCommission()` ফলাফল
      *  থেকেই bmpName ধরে group করা)। */
     private var cbDayCommissionByRmp: List<Pair<String, Double>> = emptyList()
+
+    /** 🔴🔒 V938 — Review-এর "✅ Confirm Close"-এর আসল কাজ। ⛔ ভিতরের কোড
+     *  V938-এর আগে যা ছিল **হুবহু তাই** — শুধু আলাদা ফাংশনে সরানো হয়েছে,
+     *  যাতে Treatment Progress-এর পাহারা পার হলে তবেই ডাকা যায়। */
+    private fun performConfirmClose(board: ChamberAttendanceBoard) {
+
+                lifecycleScope.launch {
+                    // Review বাধ্যতামূলক; Confirm হলেই close mark লেখা হয়।
+                    // Print আর close-এর শর্ত নয়—নেট ব্যর্থ হলে repository-র
+                    // প্রমাণিত pending queue পরে Cloud-এ নিজে পাঠাবে।
+                    val cloudSaved = withContext(Dispatchers.IO) {
+                        val br = printBranchOverride.ifBlank { selectedBranch }
+                        if (br.isNotBlank() && !br.equals("All", ignoreCase = true)) {
+                            ChamberCloseRepository.markClosed(
+                                this@ChamberAttendanceActivity, br, selectedDate,
+                                NativeSession.current(this@ChamberAttendanceActivity)
+                            )
+                        } else false
+                    }
+                    // 🔒 TK-APPROVED (28.07.2026, ফটো-প্রুফে লক · খাতার সারি B35):
+                    // *"সেভ ও ক্লোজ করলে তো এখানে জিরো হয়ে যেতে হবে বা ব্ল্যাঙ্ক
+                    // হয়ে যেতে হবে।"* — ছাপা হয়ে যাওয়ার পরে বোর্ড ফাঁকা হয়ে যায়,
+                    // দুটো সংখ্যাই 0, আর উপরের কাজের বোতামগুলো বন্ধ।
+                    // ⛔ কোনো তথ্য মোছা হয় না — উপরের ক্যালেন্ডারে ওই তারিখ চাপলে
+                    // পুরো তালিকা আবার দেখা যায় (এবং Share PDF / Print-ও)।
+                    if (!isFinishing && !isDestroyed) {
+                        closedToday = true
+                        // 🔒 খাতার সারি B46: বিগত দিনের চেম্বার বন্ধ করলেও ঠিক
+                        // এখানেই চিহ্নটা বসে, আর "চেম্বার বন্ধ করুন" তালিকার
+                        // পুরনো স্মৃতি ফেলে দেওয়া হয় যাতে ফিরে গেলে দিনটা আর
+                        // তালিকায় না থাকে।
+                        dateClosedFlag = true
+                        try { ChamberUnclosedRepository.clearCache() } catch (_: Throwable) { }
+                        applyDayState()
+                        offerOptionalRegisterPrint(board, cloudSaved)
+                    }
+                }
+    }
 
     private fun showCloseReview(board: ChamberAttendanceBoard) {
         cbReviewNameCells.clear()
@@ -3357,44 +3405,39 @@ Thread {
         UppercaseInputUtil.applyToAll(list)  // TK-REQUESTED GLOBAL RULE (2026-07-24): English text auto-CAPITAL, Password fields excluded automatically
         val dialog = AlertDialog.Builder(this)
             .setView(android.widget.ScrollView(this).apply { addView(list) })
-            .setPositiveButton("✅ Confirm Close") { _, _ ->
-                currentReviewDialog = null
-                lifecycleScope.launch {
-                    // Review বাধ্যতামূলক; Confirm হলেই close mark লেখা হয়।
-                    // Print আর close-এর শর্ত নয়—নেট ব্যর্থ হলে repository-র
-                    // প্রমাণিত pending queue পরে Cloud-এ নিজে পাঠাবে।
-                    val cloudSaved = withContext(Dispatchers.IO) {
-                        val br = printBranchOverride.ifBlank { selectedBranch }
-                        if (br.isNotBlank() && !br.equals("All", ignoreCase = true)) {
-                            ChamberCloseRepository.markClosed(
-                                this@ChamberAttendanceActivity, br, selectedDate,
-                                NativeSession.current(this@ChamberAttendanceActivity)
-                            )
-                        } else false
-                    }
-                    // 🔒 TK-APPROVED (28.07.2026, ফটো-প্রুফে লক · খাতার সারি B35):
-                    // *"সেভ ও ক্লোজ করলে তো এখানে জিরো হয়ে যেতে হবে বা ব্ল্যাঙ্ক
-                    // হয়ে যেতে হবে।"* — ছাপা হয়ে যাওয়ার পরে বোর্ড ফাঁকা হয়ে যায়,
-                    // দুটো সংখ্যাই 0, আর উপরের কাজের বোতামগুলো বন্ধ।
-                    // ⛔ কোনো তথ্য মোছা হয় না — উপরের ক্যালেন্ডারে ওই তারিখ চাপলে
-                    // পুরো তালিকা আবার দেখা যায় (এবং Share PDF / Print-ও)।
-                    if (!isFinishing && !isDestroyed) {
-                        closedToday = true
-                        // 🔒 খাতার সারি B46: বিগত দিনের চেম্বার বন্ধ করলেও ঠিক
-                        // এখানেই চিহ্নটা বসে, আর "চেম্বার বন্ধ করুন" তালিকার
-                        // পুরনো স্মৃতি ফেলে দেওয়া হয় যাতে ফিরে গেলে দিনটা আর
-                        // তালিকায় না থাকে।
-                        dateClosedFlag = true
-                        try { ChamberUnclosedRepository.clearCache() } catch (_: Throwable) { }
-                        applyDayState()
-                        offerOptionalRegisterPrint(board, cloudSaved)
-                    }
-                }
-            }
+            // 🔴🔒 V938 — আসল কাজটা `performConfirmClose()`-এ সরানো হলো; এই
+            // বোতামের লিসেনার `show()`-এর পরে বদলে দেওয়া হয় (নিচে দেখুন),
+            // যাতে Treatment Progress ফাঁকা থাকলে পর্দা বন্ধ না হয়ে যায়।
+            .setPositiveButton("✅ Confirm Close", null)
             .setNegativeButton("Back", null)
             .create()
         currentReviewDialog = dialog
         dialog.show()
+        try { PremiumAlert.paint(dialog) } catch (_: Throwable) { }   // 🛡️ পাহারা ৯.৩০
+        /* 🔴🔴🔒 V938 (TK-নির্দেশ) — Treatment Progress-এর পাহারা এখন **এখানে**।
+           ফাঁকা ঘর থাকলে "✅ Confirm Close" কিছুই করে না — সেভ · শেয়ার ·
+           প্রিন্ট কোনোটাই না; বদলে **ঠিক ওই রোগীর লেখার বাক্সটাই খুলে যায়**,
+           আর Review পর্দাটা খোলা থাকে (তাই লিখেই আবার Confirm চাপা যায়)।
+           ⛔ AlertDialog-এর নিজের বোতাম চাপলেই পর্দা বন্ধ হয়ে যায় — তাই
+              `show()`-এর পরে লিসেনার বদলানো হলো, প্রজেক্টের প্রমাণিত পথ
+              (PaymentActivity-র delete-confirm-এ একই কৌশল)।
+           ⛔ সব ঘর লেখা থাকলে হুবহু আগের কাজই হয় (নিচের `performConfirmClose`
+              সেই একই কোড, এক অক্ষরও বদলায়নি — শুধু আলাদা ফাংশনে সরানো)। */
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setOnClickListener {
+            val pending = board.rows.firstOrNull { it.arrived && todaysProgressMissing(it.remark, it.remarkUpdatedAt) }
+            if (pending != null) {
+                android.widget.Toast.makeText(
+                    this,
+                    "⚠️ ${pending.name.ifBlank { pending.mobile }} — " + NoBengali.s("আজকের Treatment Progress লেখা হয়নি — না লিখলে সেভ · শেয়ার · প্রিন্ট কিছুই হবে না"),
+                    android.widget.Toast.LENGTH_LONG
+                ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }
+                editRemarkInReview(pending)
+                return@setOnClickListener
+            }
+            try { dialog.dismiss() } catch (_: Throwable) { }
+            currentReviewDialog = null
+            performConfirmClose(board)
+        }
         try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
 
         /* 🔴🔒 V426 (TK-নির্দেশ ১৭.০৮.২০২৬) — *"Review পর্দাতে যদি কোন আরএমপির

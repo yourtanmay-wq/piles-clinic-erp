@@ -1233,6 +1233,10 @@ object NoBengali {
         "আজকের Check-up" to "Today's Check-up",
         // 🟢🔒 V687 (২৫.০৮.২০২৬) — Chamber বন্ধ করার আগে আজকের Treatment Progress বাধ্যতামূলক।
         "আজকের Treatment Progress লেখা হয়নি — না লিখলে চেম্বার বন্ধ করা যাবে না" to "Today's Treatment Progress hasn't been written — chamber can't be closed until it is",
+        // 🔴🔒 V938 (০১.০৯.২০২৬) — পাহারাটা Review-এর Confirm-এ সরে যাওয়ায় নতুন দুটো লেখা।
+        "আজকের Treatment Progress লেখা হয়নি — না লিখলে সেভ · শেয়ার · প্রিন্ট কিছুই হবে না" to "Today's Treatment Progress hasn't been written — nothing will be saved, shared or printed until it is",
+        "আজকের চেম্বার বন্ধ করবেন? পরের পর্দায় সবটা দেখে নিতে পারবেন।" to "Close today's chamber? You can check everything on the next screen.",
+        "আজকে কি TREATMENT করা হল · আজ এই রোগীর কী কাজ হলো" to "What treatment was done today for this patient",
         "আজকের চেকআপ আগেই সেভ করা আছে — দেখবেন নাকি এডিট করবেন?" to "Today's check-up is already saved — view it or edit it?",
         // — V618: মিশ্র পেমেন্ট এডিটর (Chamber Date + Payment) —
         "মিশ্র পেমেন্ট — বিস্তারিত এডিটরে নিয়ে যাওয়া হচ্ছে…" to "Mixed payment — opening the detailed editor…",

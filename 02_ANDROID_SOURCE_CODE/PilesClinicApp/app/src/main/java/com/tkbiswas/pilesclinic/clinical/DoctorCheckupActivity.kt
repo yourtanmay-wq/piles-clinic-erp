@@ -274,6 +274,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         /* 🔵 V539: Internal Piles-এ চাপ দিলেই Grade বাছার তালিকা। ⛔ বাকি
            চেকবক্সগুলো এক অক্ষরও বদলায়নি। */
         wireClinicalFold()   // 🟢 V703 — ধাপ ২ বন্ধ অবস্থায় শুরু হয়
+        wireTtdFold()        // 🔴 V938 — TODAY'S TREATMENT DONE (NEXT PLAN-এর ঠিক উপরে)
         wireNvpFold()        // 🟢 V866 — NEXT VISIT PLAN বন্ধ অবস্থায় শুরু হয়
         wireMainFolds()      // 🟢 V886 — ধাপ ১ · ৩ · ৪-ও বন্ধ অবস্থায় শুরু হয়
         internalPilesBox()?.setOnClickListener { askInternalGrade() }
@@ -375,6 +376,10 @@ class DoctorCheckupActivity : AppCompatActivity() {
             /* 🩺 V839 — View মূল থ্রেডেই পড়া হয় (V656-এর প্রমাণিত নিয়ম),
                নিচের ব্যাকগ্রাউন্ড-সেভ শুধু জমা মানটা ব্যবহার করে। */
             pendingNvp = try { collectNextVisitPlan() } catch (_: Throwable) { null }
+            /* 🔴🔒 V938 — View মূল থ্রেডেই পড়া হয় (উপরের V839-এর একই নিয়ম);
+               নিচের ব্যাকগ্রাউন্ড-কাজ শুধু জমা লেখাটাই ব্যবহার করে। */
+            val ttdNow = try { collectTodayTreatment() } catch (_: Throwable) { "" }
+            val ttdMobile = RoleSession.currentPatientMobile
             // 🔴 B437 — আগে এখানে `ClinicalRepository.lastCheckup = record`
             // বসত, যেটাই উপরের ক্রস-রোগী বাগের উৎস ছিল। যেহেতু এখন কেউ এই
             // ভ্যারিয়েবলটা পড়েই না (populate() ডাক সরানো হয়েছে), এই লাইনটাও
@@ -442,6 +447,16 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 // হয় — Save-এর সাথে সাথেই doctorComplete=true, Queue থেকে সরে
                 // যায়। Best-effort; কখনো checkup সেভ আটকায় না।
                 markDoctorComplete(pid)
+                /* 🔴🔴🔒 V938 (TK-নির্দেশ) — ডাক্তার আজ যা করেছেন সেটা এখন
+                   **নিজে থেকেই** চেম্বার Date-এর Treatment Progress-এ বসে যায়
+                   (ও Report Card-এ), ঠিক যেভাবে চেম্বার থেকে লিখলে বসত।
+                   ⛔ কিছু না বাছলে একটা অক্ষরও লেখা হয় না — পুরনো Progress অক্ষত।
+                   ⛔ ব্যর্থ হলেও চেকআপ সেভ কখনো আটকায় না (ভিতরে try-catch)। */
+                try {
+                    com.tkbiswas.pilesclinic.native.TodayTreatmentSync.push(
+                        appCtx, ttdMobile, pid, ttdNow, byName
+                    )
+                } catch (_: Throwable) { }
                 // 🔒 কাজ শেষ — সাথে সাথেই মুছে ফেলা হয়, যাতে পরের রোগীর
                 // ঘরে আগেরজনের লেখা বসার কোনো পথ না থাকে (B437-এর শিক্ষা)।
                 pendingNote = null
@@ -2130,6 +2145,44 @@ class DoctorCheckupActivity : AppCompatActivity() {
        (V600)-এর হুবহু একই ব্যবস্থা: শুরুতে বন্ধ, মাথায় চাপ দিলে খোলে।
        ⛔ নতুন কোনো ভাঁজ-ব্যবস্থা বানানো হয়নি — চালু `attachFold`-ই।
        ⛔ NEXT VISIT PLAN-এর ভিতরের একটাও ঘর · টিক · তারিখ · সেভ বদলায়নি। */
+    /* 🔴🔒 V938 — TODAY'S TREATMENT DONE-এর ভাঁজ। NEXT VISIT PLAN-এর হুবহু
+       একই `attachFold` — নতুন কোনো ভাঁজ-ব্যবস্থা বানানো হয়নি। */
+    private fun ttdBoxes(): List<CheckBox> = listOf(
+        findViewById(R.id.cbTtd1), findViewById(R.id.cbTtd2), findViewById(R.id.cbTtd3),
+        findViewById(R.id.cbTtd4), findViewById(R.id.cbTtd5), findViewById(R.id.cbTtd6),
+        findViewById(R.id.cbTtd7), findViewById(R.id.cbTtd8), findViewById(R.id.cbTtd9),
+        findViewById(R.id.cbTtd10)
+    )
+
+    private fun refreshTtdFold() {
+        var n = 0
+        for (cb in ttdBoxes()) if (cb.isChecked) n++
+        setFoldCount("ttd", n)
+    }
+
+    private fun wireTtdFold() {
+        attachFold(
+            "ttd",
+            findViewById<android.widget.LinearLayout>(R.id.ttdFoldHead),
+            findViewById<TextView>(R.id.ttdFoldNum),
+            findViewById<TextView>(R.id.ttdFoldChev),
+            findViewById<android.widget.LinearLayout>(R.id.ttdFoldBody)
+        ) { refreshTtdFold() }
+        for (cb in ttdBoxes()) cb.setOnCheckedChangeListener { _, _ -> refreshTtdFold() }
+        refreshTtdFold()
+    }
+
+    /** 🔴🔒 V938 — ডাক্তার আজ যা বেছেছেন, চেম্বারের লেখার হুবহু একই ধাঁচে
+     *  (" · " দিয়ে জোড়া, ঠিক `TreatmentQuickNotes`-এর লেখাগুলোই)।
+     *  ⛔ কিছু না বাছলে ফাঁকা ফেরে ⇒ চেম্বারের পুরনো লেখা ছোঁয়াই হয় না। */
+    private fun collectTodayTreatment(): String {
+        val parts = ArrayList<String>()
+        for (cb in ttdBoxes()) if (cb.isChecked) parts.add(cb.text.toString().trim())
+        val other = findViewById<android.widget.EditText>(R.id.etTtdOther).text?.toString()?.trim().orEmpty()
+        if (other.isNotBlank()) parts.add(other)
+        return parts.joinToString(" · ")
+    }
+
     private fun wireNvpFold() {
         attachFold(
             "nvp",
