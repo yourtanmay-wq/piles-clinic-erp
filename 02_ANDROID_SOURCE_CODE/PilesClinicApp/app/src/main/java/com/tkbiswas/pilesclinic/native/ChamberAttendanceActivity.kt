@@ -3603,7 +3603,21 @@ Thread {
                 // থেকে আনার দরকারই নেই)। আসল সেভ পিছনে চলে।
                 val board0 = lastBoard
                 if (board0 != null) {
-                    val updatedRows = board0.rows.map { if (it.mobile == r.mobile) it.copy(remark = remark) else it }
+                    /* 🔴🔴🔒 V939 (০১.০৯.২০২৬, নিজে ধরা — V938-এর পরে গভীরে যাচাই করে):
+                       এখানে শুধু `remark` বসত, **`remarkUpdatedAt` নয়**। V938-এ
+                       Treatment Progress-এর পাহারা Review-এর Confirm-এ সরে যাওয়ায়
+                       এটাই মারাত্মক হত: স্টাফ Review-এ লেখাটা লিখলেও তারিখ পুরনো
+                       থাকায় পাহারা আবার "লেখা হয়নি" ধরত — চেম্বার কখনোই বন্ধ করা
+                       যেত না (লিখুন → আবার আটকাল → আবার লিখুন…)।
+                       ⇒ লেখার সাথে তার নিজের তারিখটাও এখন বসে।
+                       ⛔ V933-এ জমানো বোর্ডে ঠিক এই একই ফাঁকই সারানো হয়েছিল। */
+                    /* ⛔ তারিখটা **যে দিনের বোর্ড খোলা আছে সেটাই** (`selectedDate`) —
+                       ঘড়ির UTC নয়। কারণ পাহারা ঠিক ওই দিনের সাথেই মেলায়, আর
+                       বোর্ডের payments-পথও হুবহু এই ধাঁচেই লেখে (V687)। */
+                    val nowIso = selectedDate + "T00:00:00.000Z"
+                    val updatedRows = board0.rows.map {
+                        if (it.mobile == r.mobile) it.copy(remark = remark, remarkUpdatedAt = nowIso) else it
+                    }
                     val updatedBoard = board0.copy(rows = updatedRows)
                     lastBoard = updatedBoard
                     currentReviewDialog?.dismiss(); currentReviewDialog = null

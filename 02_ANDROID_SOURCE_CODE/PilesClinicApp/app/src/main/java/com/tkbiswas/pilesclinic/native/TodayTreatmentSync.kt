@@ -39,7 +39,19 @@ object TodayTreatmentSync {
     ) {
         val note = text.trim()
         if (note.isBlank()) return
-        val digits = mobile.filter { it.isDigit() }.takeLast(10)
+        var digits = mobile.filter { it.isDigit() }.takeLast(10)
+        /* 🔴🔒 V939 (নিজে ধরা) — চেকআপ পর্দা কোন পথে খোলা হয়েছে তার উপরে
+           `RoleSession.currentPatientMobile` নির্ভর করে; ফাঁকা থাকলে আগে
+           নিঃশব্দে কিছুই হত না। এখন রোগীর সারি থেকে একবার নম্বরটা তুলে নেওয়া
+           হয় — শুধু তখনই, আর শুধু ডাক্তার কিছু বাছলে (উপরে ফাঁকা হলে ফিরে গেছে)। */
+        if (digits.length != 10 && patientRowId.isNotBlank()) {
+            try {
+                val rows = SupabaseClient.fetchList("patients", "id=eq.$patientRowId", 1)
+                if (rows.length() > 0) {
+                    digits = rows.getJSONObject(0).optString("mobile", "").filter { it.isDigit() }.takeLast(10)
+                }
+            } catch (_: Throwable) { }
+        }
         if (digits.length != 10) return
         val day = dateKey.ifBlank { FollowUpModel.today() }
 

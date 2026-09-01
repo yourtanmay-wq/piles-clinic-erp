@@ -19105,6 +19105,8 @@ function wlv1ChamberWriteTreatment(mobile, rowId){
     <button onclick="wlv1ChamberSaveTreatment('${esc(m)}','${esc(String(rowId||''))}')">Save</button></div>`);   /* 🔴 V550 */
 }
 window["wlv1ChamberWriteTreatment"]=wlv1ChamberWriteTreatment;
+/* 🔴🔒 V939 — Review পর্দা থেকে লেখার বাক্স খোলা হয়েছিল কিনা। */
+var wlv1ReopenReviewAfterWrite = false;
 function wlv1ChamberSaveTreatment(mobile, rowId){
   const m = mob(mobile);
   const txt = String(($('#cbTrIn')||{}).value||'').trim();
@@ -19126,6 +19128,15 @@ function wlv1ChamberSaveTreatment(mobile, rowId){
   wlv1SyncProgressToReportCard(m, rowId, txt);
   closeModal();
   try{ chamberAttendance(); }catch(e){}
+  /* 🔴🔒 V939 — Review থেকে পাঠানো হয়ে থাকলে ওই পর্দাটাই আবার খোলা হয়,
+     যাতে পরের ফাঁকা ঘরটাতে সাথে সাথে যাওয়া যায়। ⛔ চেম্বার বোর্ড থেকে
+     সরাসরি লিখলে পতাকাটা false — আচরণ হুবহু আগের মতোই। */
+  try{
+    if(wlv1ReopenReviewAfterWrite){
+      wlv1ReopenReviewAfterWrite = false;
+      setTimeout(function(){ try{ wlv1CloseReview(wlv1ChamberArrivedRows()); }catch(_e){} }, 60);
+    }
+  }catch(_e){}
 }
 window["wlv1ChamberSaveTreatment"]=wlv1ChamberSaveTreatment;
 
@@ -21796,7 +21807,10 @@ async function wlv1ConfirmChamberClose(){
   const __pend = chosen.find(r=>wlv1TodaysProgressMissing(r));
   if(__pend){
     toast('⚠️ '+String(__pend.name||__pend.mobile)+" — আজকের Treatment Progress লেখা হয়নি — না লিখলে সেভ · শেয়ার · প্রিন্ট কিছুই হবে না");
-    try{ closeModal(); wlv1ChamberWriteTreatment(__pend.mobile, __pend.patientRowId||''); }catch(e){}
+    /* 🔴🔒 V939 (নিজে ধরা) — লেখা শেষ হলে Review পর্দাটা **নিজে থেকেই আবার
+       খুলবে** (ফোনে ঠিক তাই হয়)। নইলে TK-কে আবার "চেম্বার বন্ধ করুন" থেকে
+       শুরু করতে হত — TK-এর কথার বিপরীত। */
+    try{ wlv1ReopenReviewAfterWrite = true; closeModal(); wlv1ChamberWriteTreatment(__pend.mobile, __pend.patientRowId||''); }catch(e){}
     return;
   }
   const br=pick||String(chosen[0].branch||(user&&user.branch)||'');
