@@ -5348,6 +5348,10 @@ button.small{min-height:36px!important;font-size:13px!important;border-radius:12
 .wlv1CbRevSum>div>b.c{color:#0C9E33}.wlv1CbRevSum>div>b.o{color:#123A8C}
 .wlv1CbRevSum>div.tot{border-top:1px solid #BFE9CE;margin-top:5px;padding-top:6px}
 .wlv1CbRevSum>div.tot>b{color:#0B4F2A;font-weight:800}
+/* 🟩🔒 V959 — ওষুধ ও স্যালাইন বিক্রি: TOTAL-এর নিচে নিজের লাইনে, যোগ হয় না।
+   ⛔ বিক্রি না থাকলে লাইনদুটো বসেই না, তাই পুরনো চেহারা অটুট। */
+.wlv1CbRevSum>div.msLine{border-top:1px solid #BFE9CE;margin-top:5px;padding-top:6px}
+.wlv1CbRevSum>div.wlv1CbMsNote{display:block;padding:0 0 2px 70px;font-size:10.5px;color:#8A94A6}
 /* V426 — ছাপা রেজিস্টারের একদম নিচে এক লাইনের হিসাব */
 .cbRegOneLine{margin-top:4mm;padding-top:2mm;border-top:1px solid #0A5428;font-size:10.5px;font-weight:800;color:#0A5428;text-align:left;white-space:nowrap}
 @media print{.cbRegOneLine{position:absolute;left:6mm;right:6mm;bottom:6mm;margin:0}}

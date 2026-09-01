@@ -3030,6 +3030,21 @@ Thread {
      *  থেকেই bmpName ধরে group করা)। */
     private var cbDayCommissionByRmp: List<Pair<String, Double>> = emptyList()
 
+    /* 🟩🔒 V959 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — TK দুটো পর্দার ছবি
+       পাশাপাশি দিয়ে বললেন *"হিসাব ২ জায়গায় দুরকম কেন"*।
+       **আসল কারণ (কোডে মেপে, দুই দিনের ছবিতে পয়সায় পয়সায় মিলিয়ে):** ওষুধ ও
+       স্যালাইন বিক্রি জমা হয় আলাদা `products` টেবিলে। PAYMENT → Collection ওই
+       টেবিলটাও পড়ে, কিন্তু এই REVIEW পড়ে শুধু `payments` — তাই দুই পর্দার
+       ফারাক ঠিক ওই বিক্রির টাকাটাই (৬.৫৬ pm-এ ₹১,৬৫০/৫টা · ৭.৪৫ pm-এ
+       ₹১,৮০০/৬টা — দুবারই হুবহু মিলেছে)। টাকার কোনো গণ্ডগোল ছিল না।
+       **এখন:** সংখ্যাটা এখানেই দেখানো হয়, TOTAL-এর নিচে আলাদা লাইনে।
+       ⛔ TOTAL · Fees · Cash · Online · RMP — একটাও অঙ্ক বদলায়নি (V805-এ
+          TK-এর নিজের সিদ্ধান্ত: এই টাকা চেম্বারের মোটে যোগ হবে না)।
+       ⛔ বিক্রি না থাকলে লাইনটাই বসে না · ডাক ব্যর্থ হলে পর্দা হুবহু আগের মতো। */
+    private var cbMedicineSaleTotal: Double = 0.0
+    private var cbLastCommRows: List<RmpCommissionRepository.DayCommissionRow> = emptyList()
+    private var cbLastPaidRows: List<RmpCommissionRepository.DayPaidRow> = emptyList()
+
     /** 🔴🔒 V938 — Review-এর "✅ Confirm Close"-এর আসল কাজ। ⛔ ভিতরের কোড
      *  V938-এর আগে যা ছিল **হুবহু তাই** — শুধু আলাদা ফাংশনে সরানো হয়েছে,
      *  যাতে Treatment Progress-এর পাহারা পার হলে তবেই ডাকা যায়। */
@@ -3073,6 +3088,9 @@ Thread {
         cbDayCommissionTotal = 0.0
         cbDayPaidTotal = 0.0
         cbDayCommissionByRmp = emptyList()
+        cbMedicineSaleTotal = 0.0            // 🟩 V959
+        cbLastCommRows = emptyList()         // 🟩 V959
+        cbLastPaidRows = emptyList()         // 🟩 V959
         val arrivedOnly = board.rows.filter { it.arrived }
         /* 🔴🔒 V709 (২৬.০৮.২০২৬, TK-রিপোর্ট, ডেমো-প্রুফে অনুমোদিত) — TK: *"আজকে
            কিষানগঞ্জের চেম্বার থেকে একজন পেশেন্টের টাকা রিফান্ড করা হলো, কিন্তু
@@ -3178,6 +3196,19 @@ Thread {
             }
             cbSumBox.addView(cbThinLine())
             cbSumBox.addView(cbMoneyLine("TOTAL", cbGrandTotal, "#0B4F2A", true))
+            // 🟩🔒 V959 — ওষুধ ও স্যালাইন বিক্রির টাকা (আলাদা `products` টেবিল)।
+            //    TOTAL-এর নিচে নিজের লাইনে, যোগ হয় না — তাই Collection-এর
+            //    সঙ্গে ফারাক দেখলে কারণটা এখানেই চোখে পড়ে।
+            if (cbMedicineSaleTotal > 0.0) {
+                cbSumBox.addView(cbThinLine())
+                cbSumBox.addView(cbMoneyLine("Medicine", cbMedicineSaleTotal, "#5B6B81", false))
+                cbSumBox.addView(android.widget.TextView(this).apply {
+                    text = "Medicine & Saline sales — not counted in TOTAL"
+                    textSize = 10.5f
+                    setTextColor(android.graphics.Color.parseColor("#8A94A6"))
+                    setPadding(dp(70), 0, 0, dp(2))
+                })
+            }
             val withComm = comm.filter { it.commissionToday > 0.0 }
             if (withComm.isNotEmpty()) {
                 cbSumBox.addView(cbThinLine())
@@ -3488,6 +3519,7 @@ Thread {
                         cbDayCommissionByRmp = rows.groupBy { it.rmpName.ifBlank { "RMP" } }
                             .map { (name, list) -> name to list.sumOf { it.commissionToday } }
                             .filter { it.second > 0.0 }
+                        cbLastCommRows = rows; cbLastPaidRows = paidRows   // 🟩 V959
                         try { cbDrawSum(rows, paidRows) } catch (_: Throwable) { }
                         rows.forEach { rw ->
                             val key = rw.patientMobile.filter { c -> c.isDigit() }.takeLast(10)
@@ -3520,6 +3552,27 @@ Thread {
                     }
                 }
             }
+        }
+        /* 🟩🔒 V959 — ওই দিনের ওষুধ ও স্যালাইন বিক্রির মোট (আলাদা `products`
+           টেবিল, V805-এ ছাপার জন্য বানানো **একই** সরু পড়া — নতুন কোনো ধরন নয়:
+           এক দিন · এক ব্রাঞ্চ · মাত্র ৫টা ঘর)। পর্দা আগেই দেখানো হয়ে গেছে;
+           সংখ্যা এলে শুধু একটা লাইন যোগ হয়। ⛔ ব্যর্থ হলে বা বিক্রি না থাকলে
+           পর্দা হুবহু আগের মতোই — কোনো অঙ্কে হাত পড়ে না। */
+        lifecycleScope.launch {
+            val msBranch = printBranchOverride.ifBlank {
+                if (selectedBranch != "All") selectedBranch else ""
+            }
+            val st = withContext(Dispatchers.IO) {
+                try {
+                    ChamberAttendanceRepository.saleTotals(
+                        selectedDate, msBranch.ifBlank { null }
+                    )
+                } catch (_: Throwable) { null }
+            } ?: return@launch
+            val saleTotal = st.medicineCash + st.medicineOnline + st.salineCash + st.salineOnline
+            if (saleTotal <= 0.0 || isFinishing || isDestroyed) return@launch
+            cbMedicineSaleTotal = saleTotal
+            try { cbDrawSum(cbLastCommRows, cbLastPaidRows) } catch (_: Throwable) { }
         }
         // TK-REQUESTED (2026-07-22): this was a small centered popup ("ছোট
         // ডিসপ্লে") -- now expanded to fill the entire screen. Everything

@@ -21991,8 +21991,30 @@ function wlv1CloseReview(rows){
         __oT=rows.reduce((a,r)=>a+Number(r.online||0)+Number(r.refundOnline||0),0), __gT=__fT+__cT+__oT-__rT;
   const __arrivedN=rows.filter(r=>r.arrived).length;
   const rs = v => '₹'+Number(v||0).toLocaleString('en-IN');
+  /* 🟩🔒 V959 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ — ফোনের যমজ): TK দুটো পর্দার
+     ছবি দিয়ে বললেন *"হিসাব ২ জায়গায় দুরকম কেন"*। **আসল কারণ:** ওষুধ ও স্যালাইন
+     বিক্রি জমা হয় আলাদা `products` টেবিলে; PAYMENT-এর Collection ওটা গোনে, এই
+     REVIEW গোনে না — তাই ফারাকটা ঠিক ওই বিক্রির টাকাই (দুই সময়ের ছবিতে পয়সায়
+     পয়সায় মিলেছে)। এখন সংখ্যাটা এখানেই TOTAL-এর নিচে আলাদা লাইনে দেখা যায়।
+     ⛔ TOTAL/Fees/Cash/Online-এর একটাও অঙ্ক বদলায়নি — যোগ হয় না, শুধু দেখায়
+        (V805-এ TK-এর নিজের সিদ্ধান্ত)। ⛔ বিক্রি না থাকলে লাইনটাই বসে না।
+     ⛔ নতুন কোনো ক্লাউড-কল নয় — পর্দায় ইতিমধ্যে ধরা `products` থেকেই গোনা। */
+  const __msT=(function(){
+    try{
+      const d=String(wlv1ChamberDate||today()).slice(0,10);
+      const br=String(wlv1ChamberBranch||'').trim();
+      return (load('products')||[]).reduce(function(a,x){
+        if(String(x&&x.date||'').slice(0,10)!==d) return a;
+        const k=String(x&&x.kind||'');
+        if(k!=='medicinePayment'&&k!=='salinePayment') return a;
+        if(br&&br!=='All'&&String(x.branch||'').toLowerCase()!==br.toLowerCase()) return a;
+        const v=Number(x.deposit||0);
+        return a+(v>0?v:0);
+      },0);
+    }catch(_e){ return 0 }
+  })();
   modal(`<h2>REVIEW — ${__arrivedN} arrived</h2>
-    <div class="wlv1CbRevSum"><div><span>Fees</span><b>${rs(__fT)}</b></div><div><span>Cash</span><b class="c">${rs(__cT)}</b></div><div><span>Online</span><b class="o">${rs(__oT)}</b></div>${__rT>0?`<div><span>Refund</span><b style="color:#C0392B">− ${rs(__rT)}</b></div>`:''}<div class="tot"><span>TOTAL</span><b>${rs(__gT)}</b></div></div>
+    <div class="wlv1CbRevSum"><div><span>Fees</span><b>${rs(__fT)}</b></div><div><span>Cash</span><b class="c">${rs(__cT)}</b></div><div><span>Online</span><b class="o">${rs(__oT)}</b></div>${__rT>0?`<div><span>Refund</span><b style="color:#C0392B">− ${rs(__rT)}</b></div>`:''}<div class="tot"><span>TOTAL</span><b>${rs(__gT)}</b></div>${__msT>0?`<div class="msLine"><span>Medicine</span><b style="color:#5B6B81">${rs(__msT)}</b></div><div class="wlv1CbMsNote">Medicine &amp; Saline sales &mdash; not counted in TOTAL</div>`:''}</div>
     <div class="wlv1CbRevWrap">${list}</div>
     <div class="actions"><button class="ghost" onclick="closeModal()">Back</button>
     <button onclick="wlv1ConfirmChamberClose()">&#9989; Confirm Close</button></div>`);
