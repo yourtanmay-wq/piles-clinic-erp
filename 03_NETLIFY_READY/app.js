@@ -25517,3 +25517,48 @@ function dialerPage(){
   wlv1DlPaint();
 }
 window["dialerPage"]=dialerPage;
+
+/* ============================================================
+   🟢🔒 V943 (০১.০৯.২০২৬, TK-নির্দেশ: "ইন্টারনেট ছাড়া কাজটা ঠিক করুন")
+   ------------------------------------------------------------
+   **আগে কী হত (কোড ধরে যাচাই):** নেট ছাড়া সেভ করলে তথ্য কম্পিউটারেই
+   জমা থাকত (`save()` → localStorage) আর টেবিলটা "pending" চিহ্নিত হত —
+   কিছুই হারাত না। কিন্তু জমে থাকা কাজ ক্লাউডে পাঠানো হত **শুধু**
+   বুট/লগইন/রিফ্রেশ · "Sync Now" · রাত ২টায়। তাই নেট চলে গিয়ে ফিরে এলেও,
+   স্টাফ যদি পাতাটা খোলা রেখে কাজ চালিয়ে যান, লেখাগুলো ক্লাউডে যেত না —
+   অন্য ব্রাঞ্চ/ফোন সেগুলো দেখতে পেত না।
+
+   **এখন:** (১) ব্রাউজার নেট ফিরে পাওয়ার সাথে সাথেই জানায় (`online`) —
+   তখনই জমে থাকা কাজ পাঠানো হয়। (২) নেট থাকা অবস্থায়ও প্রতি ৬০ সেকেন্ডে
+   একবার দেখা হয় — **শুধু সত্যিই কিছু আটকে থাকলে** পাঠানো হয়।
+
+   ⛔ নতুন কোনো লেখার নিয়ম লেখা হয়নি — আগের প্রমাণিত `flushPendingCloud('pending')`
+      ই ডাকা হয়, যেটা শুধু আটকে-থাকা টেবিলের বদলানো সারি পাঠায়।
+   ⛔ কিছু আটকে না থাকলে একটাও অনুরোধ যায় না (egress খরচ বাড়ে না)।
+   ⛔ ডিজাইনে হাত পড়েনি — পর্দায় নতুন কিছু দেখায় না।              */
+var WLV1_OFFLINE_LAST_TRY = 0;
+async function wlv1FlushWhenBack(reason){
+  try{
+    if(!user) return false;
+    if(typeof navigator!=='undefined' && navigator.onLine===false) return false;
+    var pend=pendingCloudTables();
+    if(!pend || !pend.length) return false;                 /* আটকে কিছু নেই ⇒ চুপ */
+    var now=Date.now();
+    if(now - WLV1_OFFLINE_LAST_TRY < 20000) return false;   /* বারবার নয় */
+    WLV1_OFFLINE_LAST_TRY = now;
+    var ok = await initCloudClientOnly();
+    if(!ok || !sb) return false;
+    await flushPendingCloud('pending');
+    return true;
+  }catch(e){ return false }
+}
+window["wlv1FlushWhenBack"]=wlv1FlushWhenBack;
+(function wlv1OfflineWatchInstall(){
+  try{
+    if(window.__WLV1_OFFLINE_WATCH) return;
+    window.__WLV1_OFFLINE_WATCH = true;
+    window.addEventListener('online', function(){ wlv1FlushWhenBack('online') });
+    setInterval(function(){ wlv1FlushWhenBack('tick') }, 60000);
+  }catch(e){}
+})();
+
