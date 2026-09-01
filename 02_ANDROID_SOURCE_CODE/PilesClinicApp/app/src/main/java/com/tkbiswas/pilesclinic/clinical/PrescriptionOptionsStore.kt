@@ -155,11 +155,15 @@ object PrescriptionOptionsStore {
             "disease" -> RoleSession.currentPatientDisease.trim()
             else -> prefs.getString(key(field), "").orEmpty().trim()
         }
+        /* 🖨️🔒 V955 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — TK-এর ঠিক করা ক্রম:
+           Chief Complaint → Duration → Symptoms → Provisional Diagnosis
+           ("DISEASE" নামটা বদলে "PROVISIONAL DIAGNOSIS")।
+           ⛔ কোন ঘর থেকে কোন তথ্য আসে — একটুও বদলায়নি, শুধু ক্রম ও নাম। */
         return listOf(
-            "DISEASE" to "disease",
-            "SYMPTOMS" to "symptoms",
+            "CHIEF COMPLAINT" to "complaint",
             "DURATION" to "since",
-            "CHIEF COMPLAINT" to "complaint"
+            "SYMPTOMS" to "symptoms",
+            "PROVISIONAL DIAGNOSIS" to "disease"
         ).map { (label, field) -> "$label\n" + value(field) }
     }
 
@@ -170,9 +174,13 @@ object PrescriptionOptionsStore {
             "disease" -> RoleSession.currentPatientDisease.trim()
             else -> prefs.getString(key(field), "").orEmpty().trim()
         }
+        /* 🖨️🔒 V955 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — TK-এর ঠিক করা ক্রম ও
+           নামকরণ (উপরের `printLinesForSlip`-এর হুবহু একই, যাতে দুই কাগজ এক দেখায়)।
+           ⛔ কোন ঘর বাছা আছে সেই নিয়ম (`selected`) এক অক্ষরও বদলায়নি — শুধু
+              তালিকার ক্রম বদলেছে, তাই বাছাই-পর্দাতেও কিছু ভাঙে না। */
         val labels = linkedMapOf(
-            "disease" to "DISEASE", "symptoms" to "SYMPTOMS",
-            "since" to "DURATION", "complaint" to "CHIEF COMPLAINT",
+            "complaint" to "CHIEF COMPLAINT", "since" to "DURATION",
+            "symptoms" to "SYMPTOMS", "disease" to "PROVISIONAL DIAGNOSIS",
             "previousTreatment" to "PREVIOUS TREATMENT", "previousResult" to "PREVIOUS RESULT",
             "onset" to "ONSET", "treatmentDuration" to "TREATMENT DURATION"
         )

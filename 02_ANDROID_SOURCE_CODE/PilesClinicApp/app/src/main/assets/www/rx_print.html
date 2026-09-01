@@ -37,6 +37,7 @@ body { background: rgb(255, 255, 255) !important; }
 .logoCell { height: 48px; display: grid; place-items: center; }
 .printLogoImg { max-width: 48px; max-height: 48px; border-radius: 50%; object-fit: contain; }
 .clinicCell h2 { letter-spacing: 0.5px; color: rgb(7, 59, 43); line-height: 1.05; margin: 0px !important; font-size: 18px !important; }
+/* 🖨️🔒 V955 (TK-নির্দেশ): ঠিকানা+মোবাইল দু-লাইনে ভেঙে যাচ্ছিল ⇒ ফন্ট একটু ছোট করে এক লাইনে। */
 .clinicCell p { line-height: 1.2; color: rgb(34, 34, 34); margin: 2px 0px 0px !important; font-size: 9.5px !important; }
 .printTitle { text-align: center; font-weight: 900; font-size: 12px; margin: 2mm 6mm 1mm; padding: 1mm; border-top: 1px solid rgb(212, 177, 95); border-bottom: 1px solid rgb(212, 177, 95); color: rgb(7, 59, 43); letter-spacing: 0.6px; }
 .rxBox { position: relative; min-height: 196mm; margin: 0px 6mm 1.5mm; border: 1px solid rgb(224, 224, 224); padding: 5mm 3mm 2mm; background: rgba(255, 255, 255, 0.84); }
@@ -113,7 +114,10 @@ body.printModeActive .printArea { display: block !important; visibility: visible
 .rxPrescriptionPrint .printTitle { display: block !important; }
 .rxPrescriptionPrint .medicalPrintTitle { display: none !important; }
 .rxPatientInfo { display: grid !important; grid-template-columns: 1.12fr 0.88fr !important; gap: 3mm !important; margin: 2mm 8mm !important; padding: 2mm 3mm !important; border: 1px solid rgb(200, 215, 206) !important; border-radius: 5px !important; background: rgba(255, 255, 255, 0.92) !important; font-size: 10px !important; line-height: 1.32 !important; position: relative !important; z-index: 1 !important; }
-.clinicPadRx { min-height: 184mm !important; margin: 0px 8mm 1.5mm !important; padding: 8mm 4mm 3mm !important; border: 1.2px solid rgb(207, 216, 220) !important; border-radius: 7px !important; background: rgba(255, 255, 255, 0.8) !important; position: relative !important; z-index: 1 !important; }
+/* 🖨️🔒 V955 (০১.০৯.২০২৬, TK-নির্দেশ): TK — *"মেডিসিন লেখার বক্সের ডান দিকের দাগটা
+   অনেক দূর পর্যন্ত, ওটা আরেকটু কাছে আনতে হবে"*। ডান-বাঁয়ের ভিতরের ফাঁক
+   ৪mm → ২mm ⇒ টেবিলটা বাক্সের ধার ছুঁয়ে বসে, ফাঁকা জায়গা কমে। */
+.clinicPadRx { min-height: 184mm !important; margin: 0px 8mm 1.5mm !important; padding: 8mm 2mm 3mm !important; border: 1.2px solid rgb(207, 216, 220) !important; border-radius: 7px !important; background: rgba(255, 255, 255, 0.8) !important; position: relative !important; z-index: 1 !important; }
 .clinicPadRx .rxMark, .rxBox .rxMark { font-size: 34px !important; color: rgb(11, 93, 42) !important; top: 4mm !important; left: 5mm !important; font-family: Georgia, serif !important; font-weight: 700 !important; }
 .rxPrescriptionPrint .finalPrintTable { margin-top: 10mm !important; }
 .finalPrintTable { width: 100% !important; border-collapse: collapse !important; background: rgba(255, 255, 255, 0.94) !important; }
@@ -155,7 +159,7 @@ body.printModeActive .printArea { display: block !important; visibility: visible
 .printArea .clinicCell h2, .printArea.prescriptionLock .clinicCell h2 { font-size: 24px !important; line-height: 1.1 !important; margin: 0px !important; font-weight: 950 !important; }
 /* 🖨️🔒 V833 — TK: *"ক্লিনিকের নাম এবং ঠিকানার মধ্যে সামান্য গ্যাপ থাকবে"* ⇒ 3px → 6px।
    ⛔ ফন্টের মাপ অপরিবর্তিত, তাই হেডারের উচ্চতাও কার্যত একই। */
-.printArea .clinicCell p, .printArea.prescriptionLock .clinicCell p { font-size: 11px !important; margin: 6px 0px 0px !important; }
+.printArea.prescriptionLock .clinicCell p { font-size: 11px !important; margin: 6px 0px 0px !important; }
 .printArea .wm, .printArea.prescriptionLock .wm { position: absolute !important; inset: 0px !important; opacity: 0.06 !important; display: grid !important; place-items: center !important; z-index: 0 !important; }
 .printArea .wm .printLogoImg, .printArea.prescriptionLock .wm .printLogoImg { max-width: 140mm !important; max-height: 140mm !important; width: auto !important; height: auto !important; }
 @keyframes fadeSlideUp { 
@@ -186,7 +190,8 @@ body.printModeActive .printArea { display: block !important; visibility: visible
 .printArea.prescriptionLock .doctorLine { margin-top: auto !important; }
 .printArea.prescriptionLock .wm { bottom: 24mm !important; }}
 @media (min-width: 900px){body { background: linear-gradient(135deg, rgb(234, 242, 251), rgb(241, 251, 246) 45%, rgb(253, 246, 234)); }}
-.rxApprovedGrid { display: grid; grid-template-columns: 25% 75%; align-items: stretch; position: relative; background: rgb(255, 255, 255); }
+/* 🖨️🔒 V955 (০১.০৯.২০২৬, TK-নির্দেশ): বাঁ কলামের দাগটা আরও বাঁয়ে ⇒ ওষুধ লেখার জায়গা বড় (২৫% → ১৯%) */
+.rxApprovedGrid { display: grid; grid-template-columns: 19% 81%; align-items: stretch; position: relative; background: rgb(255, 255, 255); }
 .rxComplaintHistory { border: 1px solid rgb(10, 84, 40); padding: 12mm 3mm 3mm; min-height: 145mm; background: rgb(255, 255, 255); }
 .rxComplaintHistory div { margin-bottom: 5mm; }
 .rxComplaintHistory b, .rxComplaintHistory span { display: block; font-size: 10px; line-height: 1.35; }
@@ -295,8 +300,13 @@ body { background: linear-gradient(135deg, rgb(237, 246, 255) 0%, rgb(247, 255, 
   margin-top:auto!important;padding-top:3mm!important}
 .printArea.prescriptionLock.rxPrescriptionPrint .clinicCell h2{
   color:#C0192B!important;font-size:34px!important;line-height:1.06!important}
+/* 🖨️🔒 V955 (০১.০৯.২০২৬, TK-নির্দেশ): TK — *"উপরে ঠিকানা আর মোবাইল নম্বর দু-লাইনে
+   ভেঙে গেছে · প্রয়োজনে ফন্টের সাইজ একটু ছোট করুন যাতে এক লাইনে চলে আসে"*।
+   এটাই ঠিকানার **শেষ ও কার্যকর** নিয়ম (আগে ১৪px ছিল, তাই দু-লাইনে ভাঙত)।
+   ৯.৩px + `nowrap` ⇒ এক লাইনেই ধরে। ⛔ ক্লিনিকের নাম · ব্রাঞ্চ · লোগো অটুট। */
 .printArea.prescriptionLock.rxPrescriptionPrint .clinicCell p{
-  font-size:14px!important;line-height:1.25!important;text-transform:uppercase!important}
+  font-size:9.3px!important;line-height:1.25!important;text-transform:uppercase!important;
+  white-space:nowrap!important;letter-spacing:-0.05px!important}
 .printArea.prescriptionLock.rxPrescriptionPrint .rxTagline{
   line-height:1.2!important;padding:1.4mm 3mm!important}
 .printArea.prescriptionLock.rxPrescriptionPrint .rxTagline b,
