@@ -1236,6 +1236,8 @@ object NoBengali {
         // 🔴🔒 V938 (০১.০৯.২০২৬) — পাহারাটা Review-এর Confirm-এ সরে যাওয়ায় নতুন দুটো লেখা।
         "আজকের Treatment Progress লেখা হয়নি — না লিখলে সেভ · শেয়ার · প্রিন্ট কিছুই হবে না" to "Today's Treatment Progress hasn't been written — nothing will be saved, shared or printed until it is",
         "আজকের চেম্বার বন্ধ করবেন? পরের পর্দায় সবটা দেখে নিতে পারবেন।" to "Close today's chamber? You can check everything on the next screen.",
+        // 🔴🔒 V940 (০১.০৯.২০২৬) — একই নম্বর অন্য ব্রাঞ্চে থাকলে জিজ্ঞাসা।
+        "এই নম্বর অন্য ব্রাঞ্চের জন্য আগেই সেভ করা আছে। এই ব্রাঞ্চের জন্যও আলাদাভাবে সেভ করতে চান?" to "This number is already saved for another branch. Save it separately for this branch too?",
         "আজকে কি TREATMENT করা হল · আজ এই রোগীর কী কাজ হলো" to "What treatment was done today for this patient",
         "আজকের চেকআপ আগেই সেভ করা আছে — দেখবেন নাকি এডিট করবেন?" to "Today's check-up is already saved — view it or edit it?",
         // — V618: মিশ্র পেমেন্ট এডিটর (Chamber Date + Payment) —

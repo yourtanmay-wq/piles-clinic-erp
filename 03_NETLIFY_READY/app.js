@@ -15568,7 +15568,31 @@ function doctorReferralSummary(){
 window["doctorReferralSummary"]=doctorReferralSummary;
 function monthKey(d){return String(d||'').slice(0,7)}
 window["monthKey"]=monthKey;
-function doctorReferralPatients(x){let m=mob(x.mobile);return load('patients').filter(p=>mob(p.refDoctorMobile||p.refMobile||'')===m||(p.refDoctor&&String(p.refDoctor).toLowerCase()===String(x.name||'').toLowerCase())||p.refByDoctorId===x.id||p.refBy===x.name)}
+/* 🔴🔴🔒 V940 (০১.০৯.২০২৬, TK-অনুমোদিত) — একই নম্বর এখন একাধিক ব্রাঞ্চে আলাদা
+   RMP হিসেবে থাকতে পারে। আগে এই তালিকা শুধু **নম্বর/নাম** ধরে মেলাত, তাই দুই
+   ব্রাঞ্চের দুটো কার্ডেই **একই রোগীরা** দেখাত (কমিশনও দুবার গোনা হয়ে যেত)।
+   ⇒ এখন নিয়ম: রোগী যাবেন **তাঁর নিজের ব্রাঞ্চের** সারিতে; ওই নম্বরে ওই
+     ব্রাঞ্চে কোনো সারি না থাকলে **আগের মতোই** একমাত্র সারিতেই থাকবেন।
+   ⛔ ওই নম্বরে একটাই সারি থাকলে (আজকের ৯৯%) আচরণ **এক অক্ষরও বদলায় না**। */
+function doctorReferralPatients(x){
+  let m=mob(x.mobile);
+  const all=load('doctor_visits')||[];
+  const sameNum=all.filter(d=>dHasNumber(d,m));
+  const multi=sameNum.length>1;
+  return load('patients').filter(p=>{
+    /* স্টাফ নিজে যে সারিটার সঙ্গে বেঁধে দিয়েছেন সেটাই সবার আগে (আগের মতোই)। */
+    if(p.refByDoctorId) return String(p.refByDoctorId)===String(x.id);
+    const hit = mob(p.refDoctorMobile||p.refMobile||'')===m
+      || (p.refDoctor&&String(p.refDoctor).toLowerCase()===String(x.name||'').toLowerCase())
+      || p.refBy===x.name;
+    if(!hit) return false;
+    if(!multi) return true;
+    let own=null;
+    try{ own=sameNum.find(d=>sameBranch(d.branch,p.branch)); }catch(_e){ own=sameNum.find(d=>String(d.branch||'').trim()===String(p.branch||'').trim()); }
+    if(!own) return true;
+    return String(own.id)===String(x.id);
+  });
+}
 window["doctorReferralPatients"]=doctorReferralPatients;
 function doctorReferralPayments(x){return Array.isArray(x.referralPayments)?x.referralPayments:[]}
 window["doctorReferralPayments"]=doctorReferralPayments;
@@ -15843,9 +15867,25 @@ window["doctorVisitCard"]=doctorVisitCard;
 let doctorBranchTapCount=0, doctorEditBranchTapCount=0;
 function doctorBranchFieldHtml(prefix='d',selected=''){
  let sel=selected||user?.branch||C.defaultBranch||C.branches?.[0]?.name||'';
- if(isMaster()||user?.branch==='All')return `<select id="${prefix}Branch" class="input">${branchOptions(sel)}</select>`;
- return `<div id="${prefix}BranchLock" class="doctorBranchLock" onclick="unlockDoctorBranch('${prefix}')">${esc(sel)} <small>tap 3 times to change</small></div><select id="${prefix}Branch" class="input hidden" data-locked="1">${branchOptions(sel)}</select>`
+ /* 🔴🔒 V940 — ব্রাঞ্চ বদলালে নম্বরের সতর্কবার্তাটাও সাথে সাথে নতুন হয়
+    (একই নম্বর এক ব্রাঞ্চে ডুপ্লিকেট, অন্য ব্রাঞ্চে নয়)। */
+ const __re=`onchange="try{dDupRecheck('${prefix}')}catch(e){}"`;
+ if(isMaster()||user?.branch==='All')return `<select id="${prefix}Branch" class="input" ${__re}>${branchOptions(sel)}</select>`;
+ return `<div id="${prefix}BranchLock" class="doctorBranchLock" onclick="unlockDoctorBranch('${prefix}')">${esc(sel)} <small>tap 3 times to change</small></div><select id="${prefix}Branch" class="input hidden" data-locked="1" ${__re}>${branchOptions(sel)}</select>`
 }
+/* 🔴🔒 V940 — ফর্মের প্রাইমারি ও বাড়তি — সব নম্বরের সতর্কবার্তা আবার আঁকা। */
+function dDupRecheck(prefix){
+  try{
+    var mainId = (prefix==='ed') ? 'edm' : 'dm';
+    var mainSt = (prefix==='ed') ? 'edmStatus' : 'dmStatus';
+    if(document.getElementById(mainId)) dDupCheck(mainId, mainSt);
+    (document.querySelectorAll('#'+(prefix==='ed'?'edAltBox':'dAltBox')+' input.altnum')||[]).forEach(function(inp){
+      var st = String(inp.id||'').replace('Alt','AltS');
+      if(document.getElementById(st)) dDupCheck(inp.id, st);
+    });
+  }catch(_e){}
+}
+window["dDupRecheck"]=dDupRecheck;
 window["doctorBranchFieldHtml"]=doctorBranchFieldHtml;
 function unlockDoctorBranch(prefix='d'){
  let key=prefix==='ed'?'doctorEditBranchTapCount':'doctorBranchTapCount';
@@ -15869,7 +15909,40 @@ window["doctorFormBranch"]=doctorFormBranch;
    একাধিক নম্বর (altMobiles)। ⛔ মূল mobile ও পুরনো কল/খোঁজা/referral সব অটুট। */
 function dHasNumber(x,ten){ if(!ten||ten.length!==10)return false; if(mob(x.mobile)===ten)return true; let a=(x&&x.altMobiles)?String(x.altMobiles):''; if(!a)return false; return a.split(',').some(s=>mob(s)===ten); }
 function dDupNameFor(ten){ if(!ten||ten.length!==10)return null; let hit=load('doctor_visits').find(x=>dHasNumber(x,ten)); return hit?(hit.name||'(no name)'):null; }
-function dDupCheck(inpId,statusId){ let el=$('#'+statusId); if(!el)return; let ten=mob(($('#'+inpId)?.value)||''); if(ten.length!==10){el.textContent='';return;} let n=dDupNameFor(ten); if(n){el.innerHTML='⚠️ Already saved: '+esc(n);el.style.color='#C0392B';} else {el.innerHTML='✓ New number';el.style.color='#0C9E33';} }
+/* 🔴🔴🔒 V940 (০১.০৯.২০২৬, TK-নির্দেশ, অনুমতি নিয়ে) — TK: *"একই নম্বর প্রতিটা
+   ব্রাঞ্চে আলাদা RMP হিসেবে বসুক"* · *"নাম্বার এন্ট্রি করার সাথে সাথেই পপ-আপ
+   আসবে যে এই নাম্বার অন্য ব্রাঞ্চের জন্য সেভ করা আছে — আপনার ব্রাঞ্চের জন্যও
+   আলাদাভাবে সেভ করতে চান?"*
+   ⇒ ডুপ্লিকেট এখন **নম্বর + ব্রাঞ্চ** ধরে:
+      · একই ব্রাঞ্চে আগে থাকলে ⇒ আগের মতোই সেভ হবে না,
+      · শুধু অন্য ব্রাঞ্চে থাকলে ⇒ জিজ্ঞাসা করে, স্টাফ চাইলে সেভ হবে।
+   ⛔ বাড়তি নম্বরে (`altMobiles`) মেলানোর B630-এর নিয়ম হুবহু অক্ষত। */
+function dDupSplit(ten, branch){
+  var out={same:null, other:null};
+  if(!ten||ten.length!==10) return out;
+  var br=String(branch||'').trim();
+  (load('doctor_visits')||[]).forEach(function(x){
+    if(!dHasNumber(x,ten)) return;
+    var isSame;
+    try{ isSame = (typeof sameBranch==='function') ? sameBranch(x.branch, br) : (String(x.branch||'').trim()===br); }
+    catch(_e){ isSame = (String(x.branch||'').trim()===br); }
+    if(br && isSame){ if(!out.same) out.same=x; }
+    else if(!out.other) out.other=x;
+  });
+  return out;
+}
+window["dDupSplit"]=dDupSplit;
+function dDupCheck(inpId,statusId){
+  let el=$('#'+statusId); if(!el)return;
+  let ten=mob(($('#'+inpId)?.value)||'');
+  if(ten.length!==10){el.textContent='';return;}
+  let pre=(inpId==='edm'||String(inpId).indexOf('edAlt')===0)?'ed':'d';
+  let br=''; try{ br=doctorFormBranch(pre); }catch(_e){ br=''; }
+  let d=dDupSplit(ten,br);
+  if(d.same){ el.innerHTML='⚠️ '+esc(br)+' — Already saved: '+esc(d.same.name||'(no name)'); el.style.color='#C0392B'; return; }
+  if(d.other){ el.innerHTML='ℹ️ '+esc(String(d.other.branch||'')) +'-এ আছে: '+esc(d.other.name||'(no name)')+' — এই ব্রাঞ্চের জন্য আলাদা করে সেভ করা যাবে'; el.style.color='#B58C2D'; return; }
+  el.innerHTML='✓ New number'; el.style.color='#0C9E33';
+}
 window["dDupCheck"]=dDupCheck;
 let dAltSeq=0;
 function dAddAltRow(){ let box=$('#dAltBox'); if(!box)return; let i=++dAltSeq; let div=document.createElement('div'); div.className='altrow'; div.style.marginTop='6px'; div.innerHTML='<div style="display:flex;gap:8px;align-items:center"><input id="dAlt'+i+'" class="input altnum" inputmode="numeric" autocomplete="off" placeholder="Another number (10 digit)" oninput="dDupCheck(\'dAlt'+i+'\',\'dAltS'+i+'\')" style="flex:1"><button type="button" class="ghost small" onclick="this.closest(\'.altrow\').remove()">✕</button></div><div id="dAltS'+i+'" class="tiny" style="font-weight:700"></div>'; box.appendChild(div); }
@@ -15880,11 +15953,15 @@ function openDoctorAddForm(){
 }
 window["openDoctorAddForm"]=openDoctorAddForm;
 function saveVisit(){
- let m=mob($('#dm').value), exists=load('doctor_visits').find(x=>dHasNumber(x,m));
+ let m=mob($('#dm').value);
  let br=doctorFormBranch('d'),rem=($('#dr')?.value||'').trim(),next=$('#dNext')?.value||doctorDefaultNextDate();
  if(!$('#dn').value||!valid(m)||!br||!rem)return toast('Doctor name, mobile, branch and remarks mandatory');
  if(next<today())return toast('Past date not allowed');
- if(exists){closeModal();modal(`<h2>Duplicate Doctor/RMP</h2><p>এই মোবাইল নম্বর দিয়ে <b>${esc(exists.name||'')}</b> নামে আগেই একজন ডাক্তার/RMP আছেন।</p><div class="actions"><button onclick="viewDoctorVisit('${exists.id}')">View Existing</button><button class="ghost" onclick="closeModal()">Close</button></div>`);return;}
+ /* 🔴🔒 V940 — একই ব্রাঞ্চে থাকলে আগের মতোই আটকায়; শুধু অন্য ব্রাঞ্চে থাকলে
+    জিজ্ঞাসা করে (TK: "যদি এক স্টাফ চায় তাহলে করতে পারবে")। */
+ let __d=dDupSplit(m,br);
+ if(__d.same){const exists=__d.same;closeModal();modal(`<h2>Duplicate Doctor/RMP</h2><p><b>${esc(br)}</b>-এর জন্য এই মোবাইল নম্বর দিয়ে <b>${esc(exists.name||'')}</b> নামে আগেই একজন ডাক্তার/RMP আছেন।</p><div class="actions"><button onclick="viewDoctorVisit('${exists.id}')">View Existing</button><button class="ghost" onclick="closeModal()">Close</button></div>`);return;}
+ if(__d.other && !confirm('এই নম্বর '+String(__d.other.branch||'')+'-এর জন্য "'+String(__d.other.name||'')+'" নামে সেভ করা আছে।\n\n'+br+'-এর জন্যও আলাদাভাবে সেভ করতে চান?')) return;
  // B630: বাড়তি নম্বর সংগ্রহ (প্রতিটাই ১০-ডিজিট + ডুপ্লিকেট-চেক), প্রাইমারি বাদ দিয়ে uniq
  let extras=[];
  (document.querySelectorAll('#dAltBox input.altnum')||[]).forEach(inp=>{
@@ -16037,11 +16114,19 @@ function editDoctorVisit(id){
 }
 window["editDoctorVisit"]=editDoctorVisit;
 function updateDoctorVisit(id){
- let m=mob($('#edm').value), dup=load('doctor_visits').find(x=>x.id!==id&&dHasNumber(x,m));
+ let m=mob($('#edm').value);
  let br=doctorFormBranch('ed'),rem=($('#edr')?.value||'').trim(),next=$('#edNext')?.value||doctorDefaultNextDate();
  if(!$('#edn').value||!valid(m)||!br||!rem)return toast('Doctor/RMP name, mobile, branch and remarks mandatory');
  if(next<today())return toast('Past date not allowed');
- if(dup)return toast('Duplicate Doctor/RMP mobile found');
+ /* 🔴🔒 V940 — এডিটেও একই নিয়ম: **একই ব্রাঞ্চে** অন্য কারো নামে ওই নম্বর থাকলে
+    আটকায়; অন্য ব্রাঞ্চে থাকলে আর আটকায় না (সেটাই এখন বৈধ)। */
+ let __dup=(load('doctor_visits')||[]).find(function(x){
+   if(String(x.id)===String(id)) return false;
+   if(!dHasNumber(x,m)) return false;
+   try{ return (typeof sameBranch==='function') ? sameBranch(x.branch,br) : (String(x.branch||'').trim()===br); }
+   catch(_e){ return String(x.branch||'').trim()===br; }
+ });
+ if(__dup)return toast('এই ব্রাঞ্চে এই নম্বর আগেই আছে — '+String(__dup.name||''));
  // B630: Other numbers (comma separated) — ১০-ডিজিট + প্রাইমারি বাদ + ডুপ্লিকেট-চেক
  let raw=($('#edAlt')?.value||'').split(',').map(s=>mob(s)).filter(Boolean);
  let seen={};seen[m]=1;let alt=[];

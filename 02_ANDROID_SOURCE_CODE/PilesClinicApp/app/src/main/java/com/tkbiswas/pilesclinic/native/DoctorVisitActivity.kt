@@ -381,6 +381,25 @@ class DoctorVisitActivity : AppCompatActivity() {
     }
 
     private var allItems: List<DoctorVisitItem> = emptyList()
+
+    /* 🔴🔴🔒 V940 (০১.০৯.২০২৬, TK-অনুমোদিত) — একই নম্বর এখন একাধিক ব্রাঞ্চে
+       আলাদা RMP হিসেবে থাকতে পারে। আগে "কোন কোন রোগী পাঠিয়েছেন" তালিকা শুধু
+       **নম্বর/নাম** ধরে মেলাত, তাই দুই ব্রাঞ্চের দুটো কার্ডেই **একই রোগীরা**
+       দেখাত — কমিশনও দুবার গোনা হয়ে যেতে পারত।
+       ⇒ নিয়ম: রোগী যাবেন **তাঁর নিজের ব্রাঞ্চের** সারিতে; ওই নম্বরে ওই
+         ব্রাঞ্চে কোনো সারি না থাকলে **আগের মতোই** একমাত্র সারিতেই থাকবেন।
+       ⛔ ওই নম্বরে একটাই সারি থাকলে (আজকের ৯৯%) আচরণ এক অক্ষরও বদলায় না। */
+    private fun v940Belongs(patientBranch: String, docBranch: String, docMobile10: String): Boolean {
+        if (docMobile10.length != 10) return true
+        val branches = allItems
+            .filter { it.mobile.filter { c -> c.isDigit() }.takeLast(10) == docMobile10 }
+            .map { it.branch.trim() }.filter { it.isNotBlank() }.distinct()
+        if (branches.size <= 1) return true
+        val pb = patientBranch.trim()
+        if (pb.isBlank()) return true
+        if (branches.none { it.equals(pb, ignoreCase = true) }) return true
+        return docBranch.trim().equals(pb, ignoreCase = true)
+    }
     private var currentFilter: String = "all"
     private var searchQuery: String = ""
     private var branchFilter: String = ""
@@ -1250,7 +1269,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                         //    থাকলে সারিটা আগের মতোই রাখা হয়, কোনো সারি হারায় না।
                         val myBranch = user.branch
                         val patients = SupabaseClient.fetchListSlim("patients", null, 5000, "id,refBy,refDoctorMobile,branch,updatedAt")
-                        val patientRefs = ArrayList<Pair<String, String>>(patients.length())
+                        val patientRefs = ArrayList<Triple<String, String, String>>(patients.length())
                         for (i in 0 until patients.length()) {
                             val pat = patients.optJSONObject(i) ?: continue
                             if (myBranch.isNotBlank() && myBranch != "All") {
@@ -1259,13 +1278,16 @@ class DoctorVisitActivity : AppCompatActivity() {
                             }
                             val refBy = pat.s("refBy").trim().lowercase()
                             val refMob = pat.s("refDoctorMobile").filter { it.isDigit() }.takeLast(10)
-                            if (refBy.isNotBlank() || refMob.isNotBlank()) patientRefs.add(refBy to refMob)
+                            // 🔴🔒 V940 — রোগীর ব্রাঞ্চটাও সঙ্গে রাখা হয়, নিচের গোনায় লাগে।
+                            if (refBy.isNotBlank() || refMob.isNotBlank())
+                                patientRefs.add(Triple(refBy, refMob, pat.s("branch")))
                         }
                         items.map { doc ->
                             val docName = doc.name.trim().lowercase()
                             val docMobile = doc.mobile.filter { it.isDigit() }.takeLast(10)
                             val oldCount = patientRefs.count { r ->
-                                (r.first.isNotBlank() && r.first == docName) || (r.second.isNotBlank() && r.second == docMobile)
+                                ((r.first.isNotBlank() && r.first == docName) || (r.second.isNotBlank() && r.second == docMobile)) &&
+                                    v940Belongs(r.third, doc.branch, docMobile)   // 🔴🔒 V940
                             }
                             // If the server result is valid, retain it for every cloud RMP
                             // and use the old count only for a not-yet-cloud local overlay.
@@ -1824,15 +1846,41 @@ class DoctorVisitActivity : AppCompatActivity() {
                 // কিছুই বদলায় না।
                 // 🟢 B630 (ক.১): প্রাইমারি + প্রতিটা বাড়তি নম্বর — কোনোটা আগে সেভ থাকলে Save আটকাবে।
                 val allNums = ArrayList<String>().apply { add(mobile); addAll(extras) }
-                var dupNum = ""; var dupName = ""
+                /* 🔴🔴🔒 V940 (০১.০৯.২০২৬, TK-নির্দেশ, অনুমতি নিয়ে) — *"ওই নাম্বার
+                   যদি এই ব্রাঞ্চের জন্য না হয়ে থাকে তাহলে যেন ওভাররাইড করতে
+                   পারে ... যদি এক স্টাফ চায় তাহলে করতে পারবে"*।
+                   ⇒ **একই ব্রাঞ্চে** থাকলে আগের মতোই আটকায়; শুধু **অন্য
+                     ব্রাঞ্চে** থাকলে জিজ্ঞাসা করে, স্টাফ Yes দিলে সেভ হয়।
+                   ⛔ যাচাই হয় **ফর্মে বাছা ব্রাঞ্চ** ধরে (TK-কে জানিয়ে নেওয়া)। */
+                var dupNum = ""; var dupName = ""; var dupBranch = ""; var dupSame = false
                 for (num in allNums) {
-                    val d = withContext(Dispatchers.IO) { repository.checkDuplicate(num, allItems) }
-                    if (d.found) { dupNum = num; dupName = d.name; break }
+                    val d = withContext(Dispatchers.IO) { repository.checkDuplicate(num, allItems, branch) }
+                    if (d.found) {
+                        dupNum = num; dupName = d.name; dupBranch = d.branch
+                        dupSame = d.branch.isBlank() || d.branch.equals(branch, ignoreCase = true)
+                        if (dupSame) break
+                    }
                 }
-                if (dupNum.isNotEmpty()) {
-                    Toast.makeText(this@DoctorVisitActivity, "Already saved: $dupName ($dupNum)", Toast.LENGTH_LONG).show()
+                if (dupNum.isNotEmpty() && dupSame) {
+                    Toast.makeText(this@DoctorVisitActivity, "Already saved in $branch: $dupName ($dupNum)", Toast.LENGTH_LONG).show()
                     saveDoctorBtn.isEnabled = true
                     return@launch
+                }
+                if (dupNum.isNotEmpty() && !dupSame) {
+                    val goOn = kotlinx.coroutines.CompletableDeferred<Boolean>()
+                    androidx.appcompat.app.AlertDialog.Builder(this@DoctorVisitActivity)
+                        .setCustomTitle(PremiumAlert.header(this@DoctorVisitActivity, "Same number, another branch"))
+                        // ⛔ লেখাটা স্থির রাখা হলো (নাম/ব্রাঞ্চ পরে জোড়া হয়), নইলে
+                        //    বাংলা-বন্ধ স্টাফের জন্য অনুবাদ মেলানো যেত না (পাহারা ৯.১৪)।
+                        .setMessage(
+                            NoBengali.s("এই নম্বর অন্য ব্রাঞ্চের জন্য আগেই সেভ করা আছে। এই ব্রাঞ্চের জন্যও আলাদাভাবে সেভ করতে চান?") +
+                            "\n\n" + dupBranch + " · " + dupName + " · " + dupNum + "\n➜ " + branch
+                        )
+                        .setPositiveButton(NoBengali.s("Yes")) { _, _ -> goOn.complete(true) }
+                        .setNegativeButton(NoBengali.s("No")) { _, _ -> goOn.complete(false) }
+                        .setOnCancelListener { goOn.complete(false) }
+                        .show().also { PremiumAlert.paint(it) }
+                    if (!goOn.await()) { saveDoctorBtn.isEnabled = true; return@launch }
                 }
                 val altCsv = extras.joinToString(",") { "+91$it" }
                 val ok = withContext(Dispatchers.IO) {
@@ -2228,6 +2276,8 @@ class DoctorVisitActivity : AppCompatActivity() {
                             val refMob = pat.s("refDoctorMobile").filter { it.isDigit() }.takeLast(10)
                             val hit = (refBy.isNotBlank() && refBy == docName) || (refMob.isNotBlank() && refMob == docMobile)
                             if (!hit) continue
+                            // 🔴🔒 V940 — একই নম্বরে একাধিক ব্রাঞ্চের সারি থাকলে রোগী তাঁর নিজের ব্রাঞ্চেরটিতেই।
+                            if (!v940Belongs(pat.s("branch"), item.branch, docMobile)) continue
                             val m = pat.s("mobile").filter { it.isDigit() }.takeLast(10)
                             val regDate = pat.s("registrationDate").ifBlank { pat.s("date") }
                             old.add(ReferredPatient(regDate, pat.s("name"), m, pat.optDouble("bill", 0.0), paidByMobile[m] ?: 0.0, pat.s("patientId"), pat.s("disease").ifBlank { pat.s("diagnosis") }))
@@ -4086,6 +4136,8 @@ class DoctorVisitActivity : AppCompatActivity() {
                         val refMob = pat.s("refDoctorMobile").filter { it.isDigit() }.takeLast(10)
                         val hit = (refBy.isNotBlank() && refBy == docName) || (refMob.isNotBlank() && refMob == docMobile)
                         if (!hit) continue
+                        // 🔴🔒 V940 — একই নম্বরে একাধিক ব্রাঞ্চ থাকলে রোগী তাঁর নিজের ব্রাঞ্চেরটিতেই।
+                        if (!v940Belongs(pat.s("branch"), item.branch, docMobile)) continue
                         val m = pat.s("mobile").filter { it.isDigit() }.takeLast(10)
                         val bill = pat.optDouble("bill", 0.0)
                         val paid = paidByMobile[m] ?: 0.0

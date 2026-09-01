@@ -150,7 +150,9 @@ class DoctorVisitRepository {
         return out
     }
 
-    data class DuplicateDoctor(val found: Boolean, val name: String)
+    /** 🔴🔒 V940 — `branch` যোগ হলো: ওই নম্বরটা **কোন ব্রাঞ্চে** আগে থেকে
+     *  আছে সেটা জানাতে। ⛔ ডিফল্ট ফাঁকা, তাই পুরনো কোনো ব্যবহার ভাঙে না। */
+    data class DuplicateDoctor(val found: Boolean, val name: String, val branch: String = "")
 
     // 🔒 (03.08.2026, TK-অনুমোদনে, খাতার সারি B190-এর গভীর পুনর্বিবেচনা) —
     // আগে এখানে `SupabaseClient.findByMobile()` ব্যবহার হত, যেটা নেট-ব্যর্থতায়ও
@@ -167,17 +169,41 @@ class DoctorVisitRepository {
     // সত্যিই উত্তর এলে (খালি হোক বা না) স্থানীয় তালিকা মোটেও ছোঁয়া হয় না —
     // তাই স্বাভাবিক নেটে আচরণ অপরিবর্তিত। ⛔ `localFallback` ডিফল্ট `null`
     // (এই একটাই call-site, তাই পুরনো কোনো ব্যবহার ভাঙে না)।
-    fun checkDuplicate(mobileDigitsOnly: String, localFallback: List<DoctorVisitItem>? = null): DuplicateDoctor {
+    fun checkDuplicate(mobileDigitsOnly: String, localFallback: List<DoctorVisitItem>? = null,
+                       forBranch: String = ""): DuplicateDoctor {
         val normalized = "+91$mobileDigitsOnly"
         // ১) ক্লাউডে প্রাইমারি mobile-এ মিলছে কিনা (আগের মতোই)।
-        val cloud = SupabaseClient.findByMobileOrNull("doctor_visits", normalized, "name")
-        if (cloud != null && cloud.length() > 0) return DuplicateDoctor(true, cloud.getJSONObject(0).s("name"))
+        val cloud = SupabaseClient.findByMobileOrNull("doctor_visits", normalized, "name,branch", 20)
+        if (cloud != null && cloud.length() > 0) {
+            /* 🔴🔴🔒 V940 (০১.০৯.২০২৬, TK-নির্দেশ, অনুমতি নিয়ে) — *"একই নম্বর
+               প্রতিটা ব্রাঞ্চে আলাদা RMP হিসেবে বসুক"*। তাই এখন **যে ব্রাঞ্চের
+               জন্য সেভ করা হচ্ছে** সেই ব্রাঞ্চে আগে আছে কিনা সেটাই আসল প্রশ্ন।
+               একই ব্রাঞ্চে থাকলে আগের মতোই আটকাবে; অন্য ব্রাঞ্চে থাকলে
+               ডাকার জায়গা স্টাফকে জিজ্ঞাসা করে সেভ করতে দেবে।
+               ⛔ `forBranch` ফাঁকা পাঠালে আচরণ **হুবহু আগের মতোই** (যে-কোনো
+                  ব্রাঞ্চের মিলই ডুপ্লিকেট) — তাই পুরনো কোনো কল ভাঙে না। */
+            var other: DuplicateDoctor? = null
+            for (i in 0 until cloud.length()) {
+                val r = cloud.optJSONObject(i) ?: continue
+                val b = r.s("branch")
+                if (forBranch.isBlank() || b.equals(forBranch, ignoreCase = true))
+                    return DuplicateDoctor(true, r.s("name"), b)
+                if (other == null) other = DuplicateDoctor(true, r.s("name"), b)
+            }
+            if (forBranch.isBlank()) return DuplicateDoctor(true, cloud.getJSONObject(0).s("name"))
+            if (other != null) return other
+            return DuplicateDoctor(false, "")
+        }
         // ২) 🟢 B630 (11.08.2026): এই ফোনের জানা তালিকায় প্রাইমারি **বা বাড়তি নম্বরে**
         //    মিলছে কিনা — ক্লাউড-query শুধু প্রাইমারি mobile দেখে, তাই বাড়তি নম্বরের
         //    ডুপ্লিকেট এখানেই ধরা হয়। (ক্লাউড ব্যর্থ হলেও এই তালিকা কাজ করে — পুরনো fail-safe অটুট।)
         if (localFallback != null) {
-            val hit = localFallback.firstOrNull { doctorItemHasNumber(it, mobileDigitsOnly) }
-            if (hit != null) return DuplicateDoctor(true, hit.name)
+            // 🔴🔒 V940 — এখানেও একই ব্রাঞ্চের নিয়ম (ক্লাউড ব্যর্থ হলে এই পথটাই চলে)।
+            val hits = localFallback.filter { doctorItemHasNumber(it, mobileDigitsOnly) }
+            val same = hits.firstOrNull { forBranch.isBlank() || it.branch.equals(forBranch, ignoreCase = true) }
+            if (same != null) return DuplicateDoctor(true, same.name, same.branch)
+            val other = hits.firstOrNull()
+            if (other != null) return DuplicateDoctor(true, other.name, other.branch)
         }
         return DuplicateDoctor(false, "")
     }
