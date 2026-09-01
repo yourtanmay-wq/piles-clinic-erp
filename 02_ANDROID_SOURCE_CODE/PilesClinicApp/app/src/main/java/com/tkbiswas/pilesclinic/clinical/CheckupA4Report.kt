@@ -251,8 +251,14 @@ object CheckupA4Report {
 
         fun t(k: String) = CheckupA4Lang.s(k, lang)
         fun v(x: String) = esc(x.ifBlank { "—" })
+        /* 🔵🔒 V948 (০১.০৯.২০২৬, TK-রিপোর্ট ছবিসহ, ফটো-প্রুফ পাশ) — TK: *"মন্তব্য
+           একটা সোজা লাইনে থাকার দরকার ছিল, উপর-নিচে ভেঙে আসছে"*।
+           কারণ: লম্বা লেখাও অর্ধেক-চওড়া ঘরে বসত, তাই ভেঙে যেত।
+           এখন লেখা লম্বা হলে ঘরটা **নিজে থেকেই** পুরো চওড়া নেয়।
+           ⛔ ছোট লেখা আগের মতোই পাশাপাশি — কোনো তথ্য বাদ যায় না।
+           ⛔ কাগজের প্রতিটা ভাগেই এক নিয়ম (এখানে একটাই জায়গা)। */
         fun cell(k: String, value: String, full: Boolean = false) =
-            """<div class="cell${if (full) " full" else ""}"><span class="k">$k</span><span class="v">${v(value)}</span></div>"""
+            """<div class="cell${if (full || value.trim().length > 42) " full" else ""}"><span class="k">$k</span><span class="v">${v(value)}</span></div>"""
         /** সব ঘর ফাঁকা হলে সেকশনটাই বসে না — নইলে পাতায় শুধু "—" ভরা ঘর পড়ে থাকত। */
         fun sec(title: String, cells: List<String>, one: Boolean = false): String {
             if (cells.isEmpty()) return ""
@@ -334,7 +340,12 @@ object CheckupA4Report {
         return """<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=794">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:Georgia,'Noto Serif',serif;}
-body{background:#fff;color:#111;}
+body{background:#fff;color:#111;position:relative;min-height:1123px;display:flex;flex-direction:column;}
+/* 🔵🔒 V948 (TK-নির্দেশ) — ক্লিনিকের জল-ছবি, ডায়েট/প্রেসক্রিপশন প্রিন্টের
+   হুবহু একই নিয়ম (`DietChartHtmlPrint.wm`), শুধু TK-এর পাশ-করা মাপ:
+   বড় (দুই পাশ ছোঁয়া) · আরও হালকা (৩%) · একটু উপরে। */
+.wm{position:absolute;left:50%;top:45%;transform:translate(-50%,-50%);width:700px;opacity:.03;z-index:0;pointer-events:none;}
+.pi,.wrap,.foot,.fn{position:relative;z-index:1;}
 .gold{height:5px;background:linear-gradient(90deg,#b8912f,#e6c65c,#b8912f);}
 .gbar{height:3px;background:#0f5132;}
 .lh{display:flex;align-items:center;gap:16px;padding:8px 20px 6px;}
@@ -351,7 +362,7 @@ body{background:#fff;color:#111;}
 .pi .c{flex:1;}
 .pi .r{padding:2.5px 0;}
 .pi .r b{color:#0f5132;display:inline-block;min-width:74px;}
-.wrap{padding:6px 20px 10px;font-family:Arial;}
+.wrap{padding:6px 20px 10px;font-family:Arial;flex:1;}
 .two{display:flex;gap:10px;}
 .two>*{flex:1;min-width:0;}
 .two.btm{align-items:stretch;}
@@ -369,11 +380,21 @@ body{background:#fff;color:#111;}
 .pbox{flex:1;min-height:170px;border:1px solid #d5ddd7;border-radius:4px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;}
 .pbox img{max-width:100%;max-height:225px;}
 .mk{padding:4px 12px 8px;font-size:11.5px;line-height:1.7;color:#111;}
-.foot{display:flex;justify-content:space-between;align-items:flex-end;padding:9px 20px 4px;font-family:Arial;}
-.stamp{width:92px;height:92px;border:1.3px dashed #c3ccd6;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#aeb8c2;font-size:9.5px;}
-.sign{text-align:center;font-size:11px;}
-.sign .ln{width:185px;border-top:1.2px solid #333;margin-bottom:3px;}
-.sign .dn{font-weight:800;color:#0f5132;}
+/* 🔵🔒 V948 (TK-নির্দেশ, ফটো-প্রুফ পাশ) — সই-সারি এখন ডায়েট ও প্রেসক্রিপশন
+   প্রিন্টের **হুবহু একই** ধাঁচে (`DietChartHtmlPrint`-এর `.sign`/`.vfy`):
+   বাঁয়ে TK BISWAS · মাঝে বারকোড · ডানে ডাক্তার, তিনটে দাগ এক সমান্তরাল লাইনে।
+   ⛔ পুরনো গোল "Clinic Stamp" বাদ (TK: আর দরকার নেই)।
+   ⛔ বারকোডের নিচে পেশেন্ট আইডি বসে না — উপরে Rec. No-তে আগে থেকেই আছে। */
+.foot{margin-top:auto;padding:9px 20px 4px;font-family:Arial;}
+.sign{display:grid;grid-template-columns:1fr auto 1fr;align-items:start;gap:22px;}
+.sign .ln{border-top:.9px solid #15231C;text-align:center;padding-top:5px;}
+.sign .ln b{display:block;font-size:11.2px;font-weight:900;color:#15231C;letter-spacing:.2px;}
+.sign .ln small{display:block;font-size:9px;color:#54615A;margin-top:1px;}
+.vfy{text-align:center;border-top:.9px solid #15231C;padding-top:5px;}
+.vfy .bar{height:24px;width:121px;margin:0 auto 1.5px;background:repeating-linear-gradient(90deg,#15231C 0 1.9px,#fff 1.9px 4px);}
+.vfy .vl{margin-top:2px;white-space:nowrap;}
+.vfy b{display:inline;font-size:8.6px;color:#0A5428;}
+.vfy small{display:inline;font-size:8.2px;color:#54615A;}
 .fn{border-top:1px solid #e4ebe6;text-align:center;font-size:9.5px;color:#8a949e;padding:5px 0 6px;font-family:Arial;}
 </style></head><body>
 <div class="gold"></div>
@@ -382,6 +403,7 @@ body{background:#fff;color:#111;}
 <div class="addr"><b>${esc(b.displayName)}:</b> ${esc(b.addressLine)} &nbsp;|&nbsp; <b>&#9742;</b> ${esc(b.phoneLine)} &nbsp;|&nbsp; <b>&#9742;</b> ${esc(com.tkbiswas.pilesclinic.print.BranchCatalog.HELPLINE)}</div></div></div>
 <div class="gbar"></div>
 <div class="tb"><span class="t">DOCTOR CHECK-UP RECORD</span><span class="r">Rec. No: $pid &nbsp;&middot;&nbsp; Date: $date</span></div>
+<img class="wm" src="${b.logoAssetPath}">
 <div class="pi">
 $photoCell<div class="c"><div class="r"><b>Name</b> : $name</div><div class="r"><b>Patient ID</b> : $pid</div><div class="r"><b>Age / Sex</b> : $ageSex</div><div class="r"><b>Mobile</b> : $mobile</div></div>
 <div class="c"><div class="r"><b>Disease</b> : $disease</div><div class="r"><b>Branch</b> : ${esc(b.displayName)}</div><div class="r"><b>Visit Date</b> : $date</div><div class="r"><b>Address</b> : <span style="display:inline-block;vertical-align:top">$addr2</span></div></div>
@@ -392,8 +414,12 @@ $midRow
 ${sec(t("sec3"), hisCells, true)}
 $btmRow
 </div>
-<div class="foot"><div class="stamp">${t("stamp")}</div>
-<div class="sign"><div class="ln"></div><div class="dn">${t("sign")}</div><div style="font-size:8.5px;color:#5a6570;">${esc(b.clinicName)}</div></div></div>
+<div class="foot"><div class="sign">
+<div class="ln"><b>TK BISWAS</b><small>Founder &amp; Consultant</small></div>
+<div class="vfy"><div class="bar"></div>
+<div class="vl"><b>Document Digitally Verified</b> &middot; <small>No Physical Signature Required</small></div></div>
+<div class="ln"><b>Dr. K.H MANDAL</b><small>(B.A.M.S) Regd 12386</small></div>
+</div></div>
 <div class="fn">Computer-generated check-up record &middot; ${esc(b.clinicName)} &middot; Ayurveda &amp; Anorectal Diseases</div>
 </body></html>"""
     }

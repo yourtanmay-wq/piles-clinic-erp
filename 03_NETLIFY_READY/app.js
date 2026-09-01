@@ -20959,7 +20959,10 @@ function wlv1CheckupA4Html(p, dateText, lang, anatImg){
   var addr2=(l1||l2)?(esc(l1)+(l2?'<br>'+esc(l2):'')):(p.address?wlv1AddrTwo(String(p.address)):'-');
   var photoCell=p.photo?('<div class="pphoto" style="background-image:url(\''+esc(p.photo)+'\')"></div>'):'';
   var T=function(k){return wlv1A4S(k,lang)};
-  var cell=function(k,val,full){return '<div class="cell'+(full?' full':'')+'"><span class="k">'+k+'</span><span class="v">'+v(val)+'</span></div>'};
+  /* 🔵🔒 V948 (০১.০৯.২০২৬, TK-রিপোর্ট, ফটো-প্রুফ পাশ) — লম্বা লেখা অর্ধেক ঘরে
+     ভেঙে যেত। এখন লেখা লম্বা হলে ঘরটা নিজে থেকেই পুরো চওড়া নেয় (ফোনের হুবহু
+     একই নিয়ম ও একই ৪২-অক্ষরের মাপ)। ⛔ ছোট লেখা আগের মতোই পাশাপাশি। */
+  var cell=function(k,val,full){var L=String(val||'').trim().length>42;return '<div class="cell'+((full||L)?' full':'')+'"><span class="k">'+k+'</span><span class="v">'+v(val)+'</span></div>'};
   /* সব ঘর ফাঁকা হলে সেকশনটাই বসে না — নইলে পাতায় শুধু "—" ভরা ঘর পড়ে থাকত। */
   var sec=function(title,cells,one){return cells.length?('<div class="sec"><div class="sh">'+title+'</div><div class="g'+(one?' one':'')+'">'+cells.join('')+'</div></div>'):''};
   var rowCells=function(rows,full){return rows.map(function(r){return cell(esc(r[0]),r[1],full)})};
@@ -21009,7 +21012,7 @@ function wlv1CheckupA4Html(p, dateText, lang, anatImg){
 
   return '<!DOCTYPE html><html><head><meta charset="utf-8"><style>'+
 '*{margin:0;padding:0;box-sizing:border-box;font-family:Georgia,"Noto Serif",serif}'+
-'body{background:#fff;color:#111}.gold{height:5px;background:linear-gradient(90deg,#b8912f,#e6c65c,#b8912f)}.gbar{height:3px;background:#0f5132}'+
+'body{background:#fff;color:#111;position:relative;min-height:1123px;display:flex;flex-direction:column}.gold{height:5px;background:linear-gradient(90deg,#b8912f,#e6c65c,#b8912f)}.gbar{height:3px;background:#0f5132}'+
 '.lh{display:flex;align-items:center;gap:16px;padding:8px 20px 6px}.lh img{width:78px;height:78px;object-fit:contain;flex:0 0 auto}'+
 '.cn{font-size:23px;font-weight:800;color:#0f5132;line-height:1}.tag{font-size:11px;font-weight:700;color:#b8912f;letter-spacing:2px;margin-top:2px;text-transform:uppercase;font-family:Arial}'+
 '.addr{font-size:11.5px;color:#3b4650;margin-top:3px;font-family:Arial}.addr b{color:#0f5132}'+
@@ -21017,7 +21020,7 @@ function wlv1CheckupA4Html(p, dateText, lang, anatImg){
 '.pi{display:flex;gap:18px;padding:9px 20px;font-size:12px;font-family:Arial;background:#f7faf8;border-bottom:1.5px solid #e4ebe6}'+
 '.pphoto{width:78px;height:94px;border:2px solid #b8912f;border-radius:4px;background-size:cover;background-position:center;background-color:#eaf0f6;flex:0 0 auto}'+
 '.pi .c{flex:1}.pi .r{padding:2.5px 0}.pi .r b{color:#0f5132;display:inline-block;min-width:74px}'+
-'.wrap{padding:6px 20px 10px;font-family:Arial}'+
+'.wrap{padding:6px 20px 10px;font-family:Arial;flex:1}'+
 '.two{display:flex;gap:10px}.two>*{flex:1;min-width:0}.two.btm{align-items:stretch}'+
 '.sec{margin-top:5px;border:1px solid #d5ddd7;border-radius:4px;overflow:hidden}.sec.tall{display:flex;flex-direction:column;height:100%}'+
 '.sh{background:#eef5f0;color:#0f5132;font-size:11px;font-weight:800;letter-spacing:1px;padding:5.5px 12px;border-left:4px solid #b8912f}'+
@@ -21027,7 +21030,20 @@ function wlv1CheckupA4Html(p, dateText, lang, anatImg){
 '.pbox{flex:1;min-height:170px;border:1px solid #d5ddd7;border-radius:4px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden}'+
 '.pbox img{max-width:100%;max-height:225px}'+
 '.mk{padding:4px 12px 8px;font-size:11.5px;line-height:1.7;color:#111}'+
-'.foot{display:flex;justify-content:space-between;align-items:flex-end;padding:9px 20px 4px;font-family:Arial}'+
+'.foot{margin-top:auto;padding:9px 20px 4px;font-family:Arial}'+
+/* 🔵🔒 V948 — সই-সারি ডায়েট/প্রেসক্রিপশন প্রিন্টের হুবহু ধাঁচে (ফোনের যমজ):
+   বাঁয়ে TK BISWAS · মাঝে বারকোড · ডানে ডাক্তার, তিনটে দাগ এক সমান্তরাল লাইনে। */
+'.sign{display:grid;grid-template-columns:1fr auto 1fr;align-items:start;gap:22px}'+
+'.sign .ln{border-top:.9px solid #15231C;text-align:center;padding-top:5px}'+
+'.sign .ln b{display:block;font-size:11.2px;font-weight:900;color:#15231C;letter-spacing:.2px}'+
+'.sign .ln small{display:block;font-size:9px;color:#54615A;margin-top:1px}'+
+'.vfy{text-align:center;border-top:.9px solid #15231C;padding-top:5px}'+
+'.vfy .bar{height:24px;width:121px;margin:0 auto 1.5px;background:repeating-linear-gradient(90deg,#15231C 0 1.9px,#fff 1.9px 4px)}'+
+'.vfy .vl{margin-top:2px;white-space:nowrap}'+
+'.vfy b{display:inline;font-size:8.6px;color:#0A5428}'+
+'.vfy small{display:inline;font-size:8.2px;color:#54615A}'+
+'.wm{position:absolute;left:50%;top:45%;transform:translate(-50%,-50%);width:700px;opacity:.03;z-index:0;pointer-events:none}'+
+'.pi,.wrap,.foot,.fn{position:relative;z-index:1}'+
 '.stamp{width:92px;height:92px;border:1.3px dashed #c3ccd6;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#aeb8c2;font-size:9.5px}'+
 '.sign{text-align:center;font-size:11px}.sign .ln{width:185px;border-top:1.2px solid #333;margin-bottom:3px}.sign .dn{font-weight:800;color:#0f5132}'+
 '.fn{border-top:1px solid #e4ebe6;text-align:center;font-size:9.5px;color:#8a949e;padding:5px 0 6px;font-family:Arial}'+
@@ -21035,6 +21051,7 @@ function wlv1CheckupA4Html(p, dateText, lang, anatImg){
 '<div class="gold"></div><div class="lh"><img src="'+logo+'"><div><div class="cn">'+esc(clinic)+'</div><div class="tag">Ayurveda &amp; Anorectal Diseases</div>'+
 '<div class="addr"><b>'+esc(p.branch||'')+':</b> '+esc(br.address||'')+' &nbsp;|&nbsp; <b>&#9742;</b> '+esc(br.mobile||'')+'</div></div></div><div class="gbar"></div>'+
 '<div class="tb"><span class="t">DOCTOR CHECK-UP RECORD</span><span class="r">Rec. No: '+pid+' &nbsp;&middot;&nbsp; Date: '+date+'</span></div>'+
+'<img class="wm" src="'+logo+'">'+
 '<div class="pi">'+photoCell+'<div class="c"><div class="r"><b>Name</b> : '+esc(p.name||'-')+'</div><div class="r"><b>Patient ID</b> : '+pid+'</div><div class="r"><b>Age / Sex</b> : '+ageSex+'</div><div class="r"><b>Mobile</b> : '+esc(normMob(p.mobile||'')||'-')+'</div></div>'+
 '<div class="c"><div class="r"><b>Disease</b> : '+esc(p.disease||'-')+'</div><div class="r"><b>Branch</b> : '+esc(p.branch||'')+'</div><div class="r"><b>Visit Date</b> : '+date+'</div><div class="r"><b>Address</b> : <span style="display:inline-block;vertical-align:top">'+addr2+'</span></div></div></div>'+
 '<div class="wrap">'+
@@ -21043,7 +21060,12 @@ midRow+
 sec(T('sec3'),hisCells,true)+
 btmRow+
 '</div>'+
-'<div class="foot"><div class="stamp">'+T('stamp')+'</div><div class="sign"><div class="ln"></div><div class="dn">'+T('sign')+'</div><div style="font-size:8.5px;color:#5a6570">'+esc(clinic)+'</div></div></div>'+
+'<div class="foot"><div class="sign">'+
+'<div class="ln"><b>TK BISWAS</b><small>Founder &amp; Consultant</small></div>'+
+'<div class="vfy"><div class="bar"></div>'+
+'<div class="vl"><b>Document Digitally Verified</b> &middot; <small>No Physical Signature Required</small></div></div>'+
+'<div class="ln"><b>Dr. K.H MANDAL</b><small>(B.A.M.S) Regd 12386</small></div>'+
+'</div></div>'+
 '<div class="fn">Computer-generated check-up record &middot; '+esc(clinic)+' &middot; Ayurveda &amp; Anorectal Diseases</div>'+
 '</body></html>';
 }
