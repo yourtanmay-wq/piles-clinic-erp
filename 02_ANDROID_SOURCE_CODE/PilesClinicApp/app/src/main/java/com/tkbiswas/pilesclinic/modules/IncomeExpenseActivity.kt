@@ -3074,6 +3074,20 @@ class IncomeExpenseActivity : AppCompatActivity() {
         val dayOnline = LinkedHashMap<String, Double>()
         val dayExp = LinkedHashMap<String, Double>()
         val daySeg = LinkedHashMap<String, StringBuilder>()
+        /* 🟠🔒 V960 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — TK: *"এখানে এডিট বা
+           ডিলিটের কোন অপশনই বা নেই কেন?"*
+           **আসল কারণ (কোড ধরে):** এই পর্দার খরচ-পপ-আপ ডাকা হত `items = null`
+           দিয়ে, অর্থাৎ খরচের **আসল সারিগুলো পাঠানোই হত না** — শুধু লেখাটা
+           দেখানো হত, তাই ✏️ বসত না ও চাপা যেত না। অথচ আয়-ব্যয়ের খাতার
+           পপ-আপে (লাইন ~৮০২) ঠিক ওই একই খরচে ✏️ ছিল, চেপে বদলানো/মোছা যেত।
+           **সমাধান:** এখানেও সারিগুলো পাঠানো হয়। এডিটরের কোড এক অক্ষরও নতুন নয়
+           — V400-এর প্রমাণিত `openExpenseEditor`-ই খোলে।
+           ⛔ দুবার দেখানো ঠেকাতে: পপ-আপে **লেখা** হিসেবে যাবে শুধু খাতার নিজের
+              সারিতে লেখা খরচ (`dayOwnSeg`), আর Add-Expense এন্ট্রিগুলো যাবে
+              সারি হিসেবে — মোট (`expSum`) আগের মতোই অপরিবর্তিত। */
+        val dayOwnSeg = LinkedHashMap<String, StringBuilder>()
+        val dayOwnExp = LinkedHashMap<String, Double>()
+        val expItemsByDate = LinkedHashMap<String, JSONArray>()
         // 🟢🔒 V628 (২৪.০৮.২০২৬) — তারিখ ধরে আসল `collections` সারি মনে রাখা, যাতে
         // "✏️ Edit This Day" বোতাম সরাসরি সঠিক সারিতে পৌঁছাতে পারে। ব্রাঞ্চ এখন
         // সবসময় একটাই নির্দিষ্ট (V628-এর "All Branches" অপসারণ) — তাই প্রতি
@@ -3082,6 +3096,11 @@ class IncomeExpenseActivity : AppCompatActivity() {
         val dates = java.util.TreeSet<String>()
         fun addSeg(d: String, text: String) {
             val sb = daySeg.getOrPut(d) { StringBuilder() }
+            if (sb.isNotEmpty()) sb.append(", ")
+            sb.append(text)
+        }
+        fun addOwnSeg(d: String, text: String) {   // 🟠 V960
+            val sb = dayOwnSeg.getOrPut(d) { StringBuilder() }
             if (sb.isNotEmpty()) sb.append(", ")
             sb.append(text)
         }
@@ -3097,7 +3116,8 @@ class IncomeExpenseActivity : AppCompatActivity() {
             val se = c.optDouble("expense_total", -1.0).let { if (it >= 0.0) it else sumNumbersInText(note) }
             if (se != 0.0 || note.isNotBlank()) {
                 dayExp[d] = (dayExp[d] ?: 0.0) + se
-                if (note.isNotBlank()) addSeg(d, note)
+                dayOwnExp[d] = (dayOwnExp[d] ?: 0.0) + se        // 🟠 V960
+                if (note.isNotBlank()) { addSeg(d, note); addOwnSeg(d, note) }
             }
         }
         for (i in 0 until exp.length()) {
@@ -3109,6 +3129,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
             val cat = e.s("category"); val pt = e.s("paid_to")
             val label = if (pt.isNotBlank()) "$cat — $pt" else cat
             addSeg(d, "$label-${segAmt(a)}")
+            expItemsByDate.getOrPut(d) { JSONArray() }.put(e)    // 🟠 V960
         }
         /* 🟢🔒 V929 — অটো-আয় বসানো। ⛔ যে দিনে হাতে লেখা `collections` সারি আছে
            (`rowByDate`) সেখানে কখনো নয় — মানুষের লেখাই জেতে। ⛔ ০১/০৯/২০২৬-এর
@@ -3186,7 +3207,15 @@ class IncomeExpenseActivity : AppCompatActivity() {
             val expCell = boxCell(expText, 0, bg, "#B42318", false, weight = 1f, gravityV = android.view.Gravity.END)
             if (expSum > 0.0 || seg.isNotBlank()) {
                 expCell.isClickable = true
-                expCell.setOnClickListener { showExpenseBreakdown(dotted, seg, expSum, -1.0, null, rowByDate[d]) }
+                // 🟠🔒 V960 — খরচের আসল সারিগুলোও পাঠানো হয় (✏️ চেপে বদল/মোছা),
+                //    আর "লেখা" হিসেবে যায় শুধু খাতার নিজের লেখাটুকু — তাই একই
+                //    খরচ দুবার দেখায় না। মোট (`expSum`) আগের মতোই।
+                expCell.setOnClickListener {
+                    showExpenseBreakdown(
+                        dotted, dayOwnSeg[d]?.toString() ?: "", expSum,
+                        dayOwnExp[d] ?: 0.0, expItemsByDate[d], rowByDate[d]
+                    )
+                }
             }
             row.addView(expCell)
             table.addView(row); builtRows.add(row)

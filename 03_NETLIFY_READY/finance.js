@@ -1505,7 +1505,13 @@ function finRowTap(id) {
 
     // দিন-ধরে জড়ো: প্রতিটি দিনের নগদ/অনলাইন + খরচ (খাতার খরচ + Add-Expense এন্ট্রি)।
     var days = {};
-    function ensure(d) { if (!days[d]) days[d] = { cash: 0, online: 0, exp: 0, seg: [] }; return days[d]; }
+    /* 🟠🔒 V960 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ — ফোনের যমজ) — TK:
+       *"এখানে এডিট বা ডিলিটের কোন অপশনই বা নেই কেন?"* এই পর্দার খরচ-পপ-আপে
+       খরচের **আসল সারিগুলো পাঠানোই হত না**, তাই ✏️ বসত না। এখন পাঠানো হয়
+       (`items`), আর "লেখা" হিসেবে যায় শুধু খাতার নিজের লেখাটুকু (`own`/`ownSeg`)
+       — তাই একই খরচ দুবার দেখায় না। ⛔ মোট (`exp`) আগের মতোই অপরিবর্তিত।
+       ⛔ এডিটরের কোড নতুন কিছু নয় — V400-এর `finExpenseEdit`-ই খোলে। */
+    function ensure(d) { if (!days[d]) days[d] = { cash: 0, online: 0, exp: 0, seg: [], ownSeg: [], own: 0, items: [] }; return days[d]; }
     /* 🟢🔒 V628 (২৪.০৮.২০২৬) — তারিখ ধরে আসল collections সারি মনে রাখা, যাতে
        "✏️ Edit This Day" বোতাম সঠিক সারিতে পৌঁছাতে পারে। ব্রাঞ্চ এখন সবসময়
        একটাই নির্দিষ্ট (V628-এর "All Branches" অপসারণ) — তাই প্রতি তারিখে
@@ -1518,7 +1524,7 @@ function finRowTap(id) {
       rowByDate[d] = row;
       var note = row.expense_notes || '';
       var se = (row.expense_total != null && row.expense_total >= 0) ? Number(row.expense_total) : finSumNumbers(note);
-      if (se !== 0 || note) { o.exp += se; if (note) o.seg.push(note); }
+      if (se !== 0 || note) { o.exp += se; o.own += se; if (note) { o.seg.push(note); o.ownSeg.push(note); } }   /* 🟠 V960 */
     });
     exp.forEach(function (row) {
       var d = row.entry_date; if (!d) return;
@@ -1527,6 +1533,7 @@ function finRowTap(id) {
       o.exp += a;
       var cat = row.category || '', pt = row.paid_to || '';
       o.seg.push((pt ? (cat + ' — ' + pt) : cat) + '-' + a);
+      o.items.push(row);   /* 🟠 V960 — ✏️ চেপে বদলানো/মোছার জন্য আসল সারিটাই */
     });
     /* 🟢🔒 V927 (৩১.০৮.২০২৬, TK ডেমো প্রুফ দেখে "আমার উত্তর পাশ") —
        ০১/০৯/২০২৬ থেকে যে দিনগুলোয় **হাতে লেখা কোনো সারি নেই**, সেই দিনের আয়
@@ -1569,7 +1576,7 @@ function finRowTap(id) {
       var key = 'M' + d;
       var expCell;
       if (o.exp > 0 || o.seg.length) {
-        window.__finExpMap[key] = { dotted: dotted, note: o.seg.join(', '), total: o.exp, editRowId: rowByDate[d] ? rowByDate[d].id : null };
+        window.__finExpMap[key] = { dotted: dotted, note: (o.ownSeg || []).join(', '), total: o.exp, own: Number(o.own || 0), items: (o.items || []), editRowId: rowByDate[d] ? rowByDate[d].id : null };   /* 🟠 V960 */
         expCell = '<td onclick="finExpenseBreakdown(\'' + key + '\')" style="padding:6px;text-align:right;color:#B42318;font-weight:700;cursor:pointer;border:1px solid #CFE9D8">' +
           (o.exp > 0 ? m.money(o.exp).replace('₹', '') : '-') + '</td>';
       } else {
