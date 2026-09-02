@@ -63,11 +63,22 @@ object EstimateModel {
     data class Sheet(
         val lines: MutableList<Line> = mutableListOf(),
         var discount: Double = 0.0,
+        /* 💰🔒 V980 (০২.০৯.২০২৬, TK-নির্দেশ) — *"ডিসকাউন্ট আমি চাইলে ফিক্সড
+           এমাউন্ট দিতে পারি, আমি চাইলে পার্সেন্টেজ হিসাবেও দিতে পারি"*।
+           `false` = টাকা (আগের আচরণ), `true` = শতাংশ।
+           ⛔ পুরনো সেভ করা হিসাবে এই ঘরটা নেই ⇒ `false` ⇒ হুবহু আগের মতোই। */
+        var discountPct: Boolean = false,
         var finding: String = ""
     ) {
         /** কাটা লাইন বাদ দিয়ে যোগ (TK-এর নিয়ম)। */
         val subtotal: Double get() = lines.filter { !it.struck }.sumOf { it.total }
-        val netPayable: Double get() = (subtotal - discount).coerceAtLeast(0.0)
+
+        /** শতাংশ হলে Subtotal-এর উপর হিসাব; কখনো Subtotal-এর বেশি নয়। */
+        val discountAmount: Double get() =
+            if (discountPct) (subtotal * discount / 100.0).coerceIn(0.0, subtotal)
+            else discount.coerceIn(0.0, subtotal)
+
+        val netPayable: Double get() = (subtotal - discountAmount).coerceAtLeast(0.0)
         val isEmpty: Boolean get() = lines.isEmpty()
 
         fun toJson(): JSONObject {
@@ -76,6 +87,7 @@ object EstimateModel {
             return JSONObject()
                 .put("lines", arr)
                 .put("discount", discount)
+                .put("discountPct", discountPct)
                 .put("finding", finding)
         }
     }
@@ -97,6 +109,7 @@ object EstimateModel {
                 if (line.name.isNotBlank()) s.lines.add(line)
             }
             s.discount = o.optDouble("discount", 0.0)
+            s.discountPct = o.optBoolean("discountPct", false)
             s.finding = o.optString("finding", "")
         } catch (_: Throwable) { }
         return s

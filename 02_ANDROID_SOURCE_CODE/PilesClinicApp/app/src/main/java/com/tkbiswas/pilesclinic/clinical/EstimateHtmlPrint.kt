@@ -46,8 +46,11 @@ object EstimateHtmlPrint {
         val findingBlock = if (sheet.finding.isBlank()) "" else
             """<div class="sec"><div class="sh">CLINICAL FINDING</div>
 <div class="note">${esc(sheet.finding)}</div></div>"""
-        val discountRow = if (sheet.discount <= 0.0) "" else
-            """<div><span class="lbl">Total Discount</span><span class="disc">&minus; ${EstimateModel.money(sheet.discount)}</span></div>"""
+        /* 💰 V980 (TK-নির্দেশ) — শতাংশে দিলে কাগজেও "(20%)" লেখা থাকে। */
+        val discLabel = if (sheet.discountPct && sheet.discount > 0.0)
+            "Total Discount (" + EstimateModel.moneyShort(sheet.discount) + "%)" else "Total Discount"
+        val discountRow = if (sheet.discountAmount <= 0.0) "" else
+            """<div><span class="lbl">$discLabel</span><span class="disc">&minus; ${EstimateModel.money(sheet.discountAmount)}</span></div>"""
 
         return """<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=794">
 <style>

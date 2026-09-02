@@ -26030,16 +26030,26 @@ function wlv1EstNum(v){ var c=String(v==null?'':v).replace(/[^0-9.]/g,''); var n
 function wlv1EstMoney(v){ return Number(v||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}) }
 function wlv1EstShort(v){ v=Number(v||0); return (v===Math.floor(v))?v.toLocaleString('en-IN'):v.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}) }
 
-var wlv1EstSheet={lines:[],discount:0,finding:''};
+var wlv1EstSheet={lines:[],discount:0,discountPct:false,finding:''};
 function wlv1EstLoad(){
-  try{ var raw=window.__wlv1EstJson||''; if(!raw){ wlv1EstSheet={lines:[],discount:0,finding:''}; return }
+  try{ var raw=window.__wlv1EstJson||''; if(!raw){ wlv1EstSheet={lines:[],discount:0,discountPct:false,finding:''}; return }
     var o=JSON.parse(raw);
     wlv1EstSheet={lines:(o.lines||[]).map(function(l){return{name:l.name||'',measure:l.measure||'',position:l.position||'',rate:Number(l.rate||0),qty:Number(l.qty||1),struck:!!l.struck}}),
-      discount:Number(o.discount||0),finding:String(o.finding||'')};
-  }catch(e){ wlv1EstSheet={lines:[],discount:0,finding:''} }
+      discount:Number(o.discount||0),discountPct:!!o.discountPct,finding:String(o.finding||'')};
+  }catch(e){ wlv1EstSheet={lines:[],discount:0,discountPct:false,finding:''} }
 }
 function wlv1EstSubtotal(){ return wlv1EstSheet.lines.filter(function(l){return !l.struck}).reduce(function(n,l){return n+Number(l.rate||0)*Number(l.qty||0)},0) }
-function wlv1EstNet(){ return Math.max(0, wlv1EstSubtotal()-Number(wlv1EstSheet.discount||0)) }
+/* 💰🔒 V980 (০২.০৯.২০২৬, TK-নির্দেশ) — *"ডিসকাউন্ট আমি চাইলে ফিক্সড এমাউন্ট
+   দিতে পারি, আমি চাইলে পার্সেন্টেজ হিসাবেও দিতে পারি"*। ফোনের হুবহু জোড়া। */
+function wlv1EstDiscAmt(){
+  var sub=wlv1EstSubtotal(), d=Number(wlv1EstSheet.discount||0);
+  var v=wlv1EstSheet.discountPct ? (sub*d/100) : d;
+  return Math.max(0, Math.min(v, sub));
+}
+function wlv1EstNet(){ return Math.max(0, wlv1EstSubtotal()-wlv1EstDiscAmt()) }
+window["wlv1EstDiscAmt"]=wlv1EstDiscAmt;
+function wlv1EstDiscMode(){ wlv1EstSheet.discountPct=!wlv1EstSheet.discountPct; wlv1EstRender() }
+window["wlv1EstDiscMode"]=wlv1EstDiscMode;
 function wlv1EstStore(){ try{ window.__wlv1EstJson = wlv1EstSheet.lines.length?JSON.stringify(wlv1EstSheet):'' }catch(e){} }
 
 function wlv1EstOpen(){
@@ -26069,7 +26079,10 @@ function wlv1EstRender(){
     +'<div class="card" style="background:#F7FAFD">'
     +'<div class="row"><span class="mut">Subtotal</span><b id="wlv1EstSub">'+wlv1EstShort(wlv1EstSubtotal())+'</b></div>'
     +'<div class="row" style="margin-top:6px"><span class="mut">Discount</span>'
-    +'<input class="input" style="width:120px;margin:0;text-align:right" value="'+(wlv1EstSheet.discount?wlv1EstShort(wlv1EstSheet.discount):'')+'" placeholder="0" oninput="wlv1EstDiscount(this.value)"></div>'
+    +'<span><button type="button" class="small" style="margin-right:6px;min-width:38px" onclick="wlv1EstDiscMode()">'+(wlv1EstSheet.discountPct?'%':'&#8377;')+'</button>'
+    +'<input class="input" style="width:110px;margin:0;text-align:right;display:inline-block" value="'+(wlv1EstSheet.discount?wlv1EstShort(wlv1EstSheet.discount):'')+'" placeholder="0" oninput="wlv1EstDiscount(this.value)"></span></div>'
+    +(wlv1EstSheet.discountPct&&Number(wlv1EstSheet.discount||0)>0
+       ? '<div class="row" style="margin-top:4px"><span class="mut">Discount amount</span><b style="color:#B42318">'+wlv1EstShort(wlv1EstDiscAmt())+'</b></div>' : '')
     +'<div class="row" style="margin-top:8px"><b style="color:#0B4F2A">Net Payable</b><b style="color:#0B4F2A;font-size:17px" id="wlv1EstNet">'+wlv1EstShort(wlv1EstNet())+'</b></div></div>'
     +'<div class="actions"><button class="ghost" onclick="closeModal()">Cancel</button>'
     +'<button class="ghost" onclick="wlv1EstPaper()">Print / Share</button>'
@@ -26239,8 +26252,11 @@ function wlv1EstPaperHtml(){
       +'<td class="r">'+wlv1EstMoney(l.rate)+'</td><td class="r">'+wlv1EstShort(l.qty)+'</td>'
       +'<td'+amt+'>'+wlv1EstMoney(Number(l.rate||0)*Number(l.qty||0))+'</td></tr>';
   }).join('');
-  var disc=Number(wlv1EstSheet.discount||0)>0
-    ? '<div><span class="lbl">Total Discount</span><span class="disc">&minus; '+wlv1EstMoney(wlv1EstSheet.discount)+'</span></div>' : '';
+  /* 💰 V980 — শতাংশে দিলে কাগজেও "(20%)" লেখা থাকে। */
+  var discLbl = (wlv1EstSheet.discountPct && Number(wlv1EstSheet.discount||0)>0)
+    ? ('Total Discount ('+wlv1EstShort(wlv1EstSheet.discount)+'%)') : 'Total Discount';
+  var disc=wlv1EstDiscAmt()>0
+    ? '<div><span class="lbl">'+discLbl+'</span><span class="disc">&minus; '+wlv1EstMoney(wlv1EstDiscAmt())+'</span></div>' : '';
   var ageSex=[String(p.age||''),String(p.sex||'')].filter(Boolean).join(' / ')||'-';
   var dt=wlv1Dot(today());
   return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Estimate</title><style>'

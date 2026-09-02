@@ -180,6 +180,20 @@ object EstimateDialog {
                 setTypeface(typeface, Typeface.BOLD)
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             })
+            /* 💰🔒 V980 (TK-নির্দেশ) — টাকা না শতাংশ, একটাই ছোট বোতামে বদলায়। */
+            discRow.addView(TextView(activity).apply {
+                text = if (sheet.discountPct) "%" else "₹"
+                textSize = 13f
+                gravity = Gravity.CENTER
+                setTypeface(typeface, Typeface.BOLD)
+                setTextColor(Color.WHITE)
+                background = box(activity, NAVY, NAVY, 9)
+                setPadding(dp(activity, 12), dp(activity, 7), dp(activity, 12), dp(activity, 7))
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { rightMargin = dp(activity, 7) }
+                setOnClickListener { sheet.discountPct = !sheet.discountPct; paintTotals() }
+            })
             val discField = numberField(activity, if (sheet.discount > 0) EstimateModel.moneyShort(sheet.discount) else "")
             discField.hint = "0"
             discField.gravity = Gravity.END
@@ -194,6 +208,11 @@ object EstimateDialog {
             })
             discRow.addView(discField)
             totalBox.addView(discRow)
+            /* 💰 V980 — শতাংশ হলে কত টাকা হলো সেটাও এক নজরে। */
+            if (sheet.discountPct && sheet.discount > 0.0) {
+                totalBox.addView(totalRow(activity, "Discount amount",
+                    EstimateModel.moneyShort(sheet.discountAmount), RED))
+            }
             totalBox.addView(totalRow(activity, "Net Payable", EstimateModel.moneyShort(sheet.netPayable), GREEN, true))
         }
         redraw()
