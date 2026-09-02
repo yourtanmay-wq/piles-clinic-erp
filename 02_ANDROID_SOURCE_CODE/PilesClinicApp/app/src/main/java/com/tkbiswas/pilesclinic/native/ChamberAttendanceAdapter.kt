@@ -98,6 +98,16 @@ class ChamberAttendanceAdapter(
             // ঠিক নিচের লাইনেও (tvMobile) মোবাইল — দুইবার দেখাত। এখন নাম
             // না থাকলে "UNKNOWN"।
             b.tvName.text = row.name.ifBlank { "UNKNOWN" }.uppercase()
+            /* 🔵🔒 V987 (০৩.০৯.২০২৬, TK-নির্দেশ, আসল পর্দার ছবিতে প্রুফ পাশ) —
+               *"আরএমপি যে পেসেন্ট পাঠাবে, আরএমপি পেশেন্টের নামগুলো নেভি ব্লু
+               কালার করুন"*। যাঁর "Ref By" আছে তিনিই RMP-র পাঠানো রোগী — ওই
+               একই নিয়মেই (`refByLabel`) রংটা ঠিক হয়, নতুন কোনো শর্ত নয়।
+               ⛔ বাকি সব নাম আগের মতোই লাল; আকার · মাপ · জায়গা কিছুই বদলায়নি। */
+            b.tvName.setTextColor(
+                if (ChamberAttendanceRepository.refByLabel(row).isNotBlank())
+                    android.graphics.Color.parseColor("#0B3D91")
+                else android.graphics.Color.parseColor("#B42318")
+            )
             b.tvMobile.text = row.mobile
             // 🔴🔒 V471 (20.08.2026, TK-অনুমোদিত) — রেফারিং RMP-র নাম (থাকলেই)
             // Patient ID-এর নিচে, একই ঘরে নতুন লাইনে — নতুন কোনো XML view
@@ -212,6 +222,12 @@ class ChamberAttendanceAdapter(
             // + bordered Treatment Progress box (last remark, tap-editable).
             // 🔴🔴 TK-REPORTED (31.07.2026): একই ফিক্স — নাম না থাকলে মোবাইল দুইবার দেখাত।
             b.tvNameW.text = row.name.ifBlank { "UNKNOWN" }.uppercase()
+            // 🔵 V987 — "আসার কথা" সারিতেও একই নিয়ম (নিয়ম ৭)।
+            b.tvNameW.setTextColor(
+                if (ChamberAttendanceRepository.refByLabel(row).isNotBlank())
+                    android.graphics.Color.parseColor("#0B3D91")
+                else android.graphics.Color.parseColor("#B42318")
+            )
             b.tvMobileW.text = row.mobile
             // 🔴🔒 V471 (20.08.2026, TK-অনুমোদিত) — Wide-লেআউটেও একই যোগ
             // (উপরের tvPatientId-এর হুবহু একই যুক্তি)।
