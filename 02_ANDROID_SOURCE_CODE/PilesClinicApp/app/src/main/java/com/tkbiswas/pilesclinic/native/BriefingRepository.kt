@@ -58,6 +58,66 @@ class BriefingRepository {
     }
 
     /**
+     * 🟢🔒 V997 (০৩.০৯.২০২৬, TK-নির্দেশ — Egress তালিকার ১ নম্বর) —
+     * **নোটিশ বোর্ড খুললে আর সবসময় পুরো টেবিল নামে না।**
+     *
+     * **আসল কারণ (কোড ধরে, আন্দাজ নয়):** `fetchRaw()` ব্যবহার করে
+     * `SupabaseClient.fetchListGuarded()`, যার নামে "পাহারা" থাকলেও ভিতরে
+     * (SupabaseClient.kt:870-872) সেটা শুধু `fetchListOrNull(...) ?: JSONArray()` —
+     * **কোনো বদল-যাচাই নেই**। তাই পর্দা খুললেই ৫০০০ সারি, নোটিশের পুরো
+     * লেখা (`message`) ও সব উত্তর (`replies`) সহ আবার নামত।
+     *
+     * **এখন:** প্রথমে একটা **অতি-ছোট** পড়া (`fetchListFingerprintOrNull` —
+     * শুধু গোনা ও সবচেয়ে নতুন `updatedAt`)। ফোনে জমা কপির সঙ্গে মিলে গেলে
+     * **একটা সারিও নামে না**; না মিললে শুধু `updatedAt` বড় সারিগুলো নামে
+     * আর জমা কপির উপরে বসে।
+     *
+     * ⛔ এটা `DoctorVisitRepository.fetchListRawSmartOrNull()`-এর **হুবহু একই
+     *    প্রমাণিত ধাঁচ** — নতুন কোনো নিয়ম বানানো হয়নি।
+     * ⛔ যেকোনো ধাপ ব্যর্থ হলে (জমা কপি নেই · fingerprint আসেনি · গোনা মেলেনি ·
+     *    delta ব্যর্থ) **আগের হুবহু পুরো পড়াটাই** চলে — তাই নোটিশ কখনো
+     *    হারাবে না বা অসম্পূর্ণ দেখাবে না।
+     * ⛔ সারি যোগ বা মোছা হলে গোনা মেলে না ⇒ পুরোটাই নামে, তাই মুছে যাওয়া
+     *    নোটিশ পর্দায় পড়ে থাকতে পারে না।
+     * ⛔ ফেরত তালিকার ক্রম আগের মতোই (`updatedAt` নতুন আগে)।
+     */
+    fun fetchRawSmart(cached: JSONArray?): JSONArray {
+        val full = { fetchRaw() }
+        if (cached == null || cached.length() == 0) return full()
+
+        val fp = SupabaseClient.fetchListFingerprintOrNull("briefings", null) ?: return full()
+        if (fp.first != cached.length()) return full()          // যোগ/মোছা হয়েছে
+        if (fp.second.isBlank()) return full()
+
+        var localStamp = ""
+        for (i in 0 until cached.length()) {
+            val u = cached.optJSONObject(i)?.optString("updatedAt").orEmpty()
+            if (u > localStamp) localStamp = u
+        }
+        if (localStamp.isBlank()) return full()
+        if (fp.second == localStamp) return cached              // ✅ কিছুই বদলায়নি
+
+        val enc = java.net.URLEncoder.encode(localStamp, "UTF-8")
+        val delta = SupabaseClient.fetchListOrNull(
+            "briefings", "updatedAt=gt.$enc", 5000) ?: return full()
+
+        val byId = LinkedHashMap<String, org.json.JSONObject>()
+        for (i in 0 until cached.length()) {
+            val o = cached.optJSONObject(i) ?: continue
+            val id = o.optString("id"); if (id.isNotBlank()) byId[id] = o
+        }
+        for (i in 0 until delta.length()) {
+            val o = delta.optJSONObject(i) ?: continue
+            val id = o.optString("id"); if (id.isNotBlank()) byId[id] = o
+        }
+        // সার্ভারের ক্রম হুবহু রাখা — নতুন `updatedAt` আগে
+        val sorted = byId.values.sortedByDescending { it.optString("updatedAt").orEmpty() }
+        val out = JSONArray()
+        for (v in sorted) out.put(v)
+        return out
+    }
+
+    /**
      * 🔵 V405 (16.08.2026, TK-অনুমোদিত — Egress) — **শুধু ঘণ্টার সংখ্যা গোনার
      * জন্য** সরু পড়া। গোনায় নোটিশের **পুরো লেখা (`message`) ও সব উত্তর
      * (`replies`)** কখনোই লাগে না — অথচ `fetchRaw()` সেগুলোসহ পুরো টেবিল নামাত,

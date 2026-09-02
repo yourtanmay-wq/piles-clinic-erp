@@ -425,9 +425,14 @@ class BriefingActivity : AppCompatActivity() {
         // the fresh fetch below finishes.
         val cachePrefs = getSharedPreferences("piles_clinic_briefing_cache", MODE_PRIVATE)
         var hasCache = false
+        /* 🟢🔒 V997 — জমা কাঁচা সারিগুলো নিচের স্মার্ট পড়াতেও লাগে
+           (মিলে গেলে একটা সারিও নামে না), তাই এখানে ধরে রাখা হলো।
+           ⛔ পাওয়া না গেলে `null` — তখন আগের মতোই পুরো পড়া। */
+        var cachedRaw: org.json.JSONArray? = null
         try {
             val json = cachePrefs.getString("rows", null)
             if (!json.isNullOrBlank()) {
+                cachedRaw = try { org.json.JSONArray(json) } catch (_: Throwable) { null }
                 val cachedItems = repository.parseForUser(org.json.JSONArray(json), user)
                 if (cachedItems.isNotEmpty()) {
                     hasCache = true
@@ -444,7 +449,7 @@ class BriefingActivity : AppCompatActivity() {
         }
         lifecycleScope.launch {
             val rawRows = try {
-                withContext(Dispatchers.IO) { repository.fetchRaw() }
+                withContext(Dispatchers.IO) { repository.fetchRawSmart(cachedRaw) }
             } catch (_: Throwable) { null }
             binding.progressLoad.visibility = View.GONE
             if (rawRows == null) {

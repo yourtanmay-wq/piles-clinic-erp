@@ -867,6 +867,15 @@ object SupabaseClient {
      * ⛔ ভারী সারির টেবিল (যেমন `trash` — সারিতে মুছে ফেলা পুরো রেকর্ড ও ছবি)
      *    ইচ্ছে করে এখানে আনা হয়নি; V512-এর কারণটা অটুট।
      */
+    /* ⚠️🔒 V997 (০৩.০৯.২০২৬, TK-এর Egress অডিটে নিজে ধরা) — **সাবধান:**
+       নামে "Guarded" থাকলেও এই ফাংশনে **কোনো বদল-যাচাই নেই** — নিচের এক
+       লাইনই সব: প্রতিবার পুরো তালিকা নামে। উপরের লম্বা মন্তব্যটা যে
+       পাহারার কথা বলে, সেটা কোডে কখনো বসেনি।
+       ⇒ Egress বাঁচাতে হলে ডাকার জায়গায় `fetchListFingerprintOrNull()` দিয়ে
+         আগে মিলিয়ে নিতে হবে (যেমন `DoctorVisitRepository.fetchListRawSmartOrNull`
+         ও V997-এর `BriefingRepository.fetchRawSmart`)।
+       ⛔ এখানে আচরণ ইচ্ছে করেই বদলানো হয়নি — ৬০+ ডাকার জায়গা এর উপরে
+          দাঁড়িয়ে; শুধু ভুল বোঝাটা যেন আর না হয় সেজন্য এই সতর্কবার্তা। */
     fun fetchListGuarded(table: String, filter: String? = null, limit: Int = 500, order: String = "updatedAt.desc.nullslast", select: String = "*"): JSONArray {
         return fetchListOrNull(table, filter, limit, order = order, select = select) ?: JSONArray()
     }
