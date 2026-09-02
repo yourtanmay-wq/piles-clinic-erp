@@ -87,12 +87,33 @@ object PrescriptionOptionsStore {
         val needComplaint = blank("complaint")
         if (!needSymptoms && !needSince && !needComplaint) return
         val encodedId = URLEncoder.encode(patientId, "UTF-8")
-        val rows = SupabaseClient.fetchListOrNull(
+        /* ➕🔒 V993 (০২.০৯.২০২৬, TK-এর কাগজসহ — SERINA BIBI):
+           *"টিক দেওয়া সত্ত্বেও CHIEF COMPLAINT · DURATION · SYMPTOMS ফাঁকা ছাপা হলো কেন?"*
+
+           **আসল কারণ (কোড ধরে, আন্দাজ নয়):** CHECK-UP Queue থেকে রোগী খুললে
+           `DoctorQueueActivity` (লাইন 571) `EXTRA_PATIENT_ID`-তে **মানুষ-পড়া-যায়
+           কোডটা** (যেমন "KNE-31082026-001") পাঠায়, raw আইডি ("pat_...") নয়।
+           তাই এখানকার `patients?id=eq.<কোড>` খোঁজায় একটাও সারি পাওয়া যেত না,
+           আর তিনটে ঘরই ফাঁকা ছাপা হত — যদিও রেজিস্ট্রেশনে লেখা আছে।
+
+           **সমাধান:** দুরকম আইডিতেই খোঁজা হয় — ঠিক যেমন `DoctorCheckupActivity.
+           markDoctorComplete()` আগে থেকেই করে। প্রথম খোঁজাতে পেলে দ্বিতীয়টা
+           চলেই না, তাই Supabase-এ বাড়তি চাপ নেই।
+           ⛔ কোনো তথ্য লেখা/মোছা হয় না, নতুন কলাম লাগে না, SQL লাগে না। */
+        var rows = SupabaseClient.fetchListOrNull(
             table = "patients",
             filter = "id=eq.$encodedId",
             limit = 1,
             select = "complaint,sinceWhen"
         ) ?: return
+        if (rows.length() == 0) {
+            rows = SupabaseClient.fetchListOrNull(
+                table = "patients",
+                filter = "patientId=eq.$encodedId",
+                limit = 1,
+                select = "complaint,sinceWhen"
+            ) ?: return
+        }
         if (rows.length() == 0) return
         val row = rows.optJSONObject(0) ?: return
         val complaintRaw = row.optString("complaint").orEmpty().trim()
