@@ -238,7 +238,7 @@ class EnquiryActivity : AppCompatActivity() {
          · কল পাওয়া গেল ও সেটা **অসময়ের** ⇒ দুটো বোতামই থাকে, Unexpected
            বাছা থাকে (TK: *"অ্যাপ তো অনেক সময় ভুল করতেই পারে"*)
          · কল পাওয়া গেল না ⇒ দুটোই থাকে, Official বাছা; Unexpected চাপলে
-           শুধু একটা ফ্ল্যাশ বার্তা — TK যেকোনো সময় যাচাই করতে পারেন
+           Unexpected চাপলে শুধু একটা "Are you sure? Yes/No" সতর্কতা (V966)
        ⛔ ক্লাউডে একটাও অনুরোধ নেই — ফোনের নিজের কল-তালিকা থেকেই।
        ⛔ V962-এর "কোনো বোতামই চাপা যাবে না" নিয়মটা TK-এর নতুন নির্দেশে
           তুলে নেওয়া হলো। */
@@ -258,9 +258,8 @@ class EnquiryActivity : AppCompatActivity() {
     private fun setupTimingButtons() {
         binding.btnTimingOfficial.setOnClickListener { selectTiming("Official Time") }
         binding.btnTimingUnexpected.setOnClickListener {
-            selectTiming("Unexpected Time")
-            // কল পাওয়া যায়নি ⇒ স্টাফের নিজের বাছাই ⇒ ফ্ল্যাশ বার্তা
-            if (branchCallMs == null) showVerifyFlash()
+            // কল পাওয়া যায়নি ⇒ স্টাফের নিজের বাছাই ⇒ আগে সতর্কতা, তারপর বাছাই
+            if (branchCallMs == null) confirmUnexpected() else selectTiming("Unexpected Time")
         }
         applyTimingFromCall(null)
     }
@@ -295,78 +294,20 @@ class EnquiryActivity : AppCompatActivity() {
         }
     }
 
-    /* 🔎 ফ্ল্যাশ বার্তা — কোথাও কিছু পাঠানো হয় না, শুধু পর্দায় দেখায়।
-       TK: *"শুধুমাত্র বার্তা হিসেবেই দেখাবে … একটু বড় করে দেখাবে যাতে বুঝতে
-       পারে"*। কয়েক সেকেন্ড পরে নিজেই বন্ধ হয়ে যায়। */
-    private fun showVerifyFlash() {
+    /* ⚠️🔒 V966 (০২.০৯.২০২৬, TK-এর স্পষ্ট নির্দেশ) — *"এই সতর্কবার্তা লাগবে না,
+       শুধুমাত্র ওয়ার্নিং PopUp আসুক — Are You Sure Yes/No"*। তাই V963/V965-এর
+       বড় ফ্ল্যাশ বার্তাটা পুরো তুলে দেওয়া হলো; এখন শুধু একটা সাধারণ নিশ্চিতকরণ।
+       ⛔ কোথাও কিছু পাঠানো হয় না — Yes চাপলে তবেই Unexpected Time বসে। */
+    private fun confirmUnexpected() {
         try {
-            val d = resources.displayMetrics.density
-            fun px(v: Int) = (v * d).toInt()
-            val box = android.widget.LinearLayout(this).apply {
-                orientation = android.widget.LinearLayout.VERTICAL
-                setPadding(px(20), px(22), px(20), px(22))
-                gravity = android.view.Gravity.CENTER
-            }
-            /* 🔎 V963 (TK-নির্দেশ) — বার্তায় স্টাফের নিজের নাম থাকবে, যাতে
-               মনে হয় কথাটা সরাসরি তাঁকেই বলা হচ্ছে। নাম জানা না গেলে শুধু
-               "Hello" — লেখাটা কখনো ফাঁকা/অদ্ভুত হয়ে যায় না। */
-            val who = try { NativeSession.current(this)?.name.orEmpty().trim() } catch (_: Throwable) { "" }
-            val hello = if (who.isBlank()) "Hello," else "Hello " + who.uppercase(java.util.Locale.US) + ","
-            box.addView(android.widget.TextView(this).apply {
-                text = hello
-                textSize = 15f
-                gravity = android.view.Gravity.CENTER
-                setTypeface(typeface, android.graphics.Typeface.BOLD)
-                setTextColor(android.graphics.Color.parseColor("#33404F"))
-                setPadding(0, 0, 0, px(8))
-            })
-            box.addView(android.widget.TextView(this).apply {
-                text = "TK BISWAS can verify this at any time"
-                textSize = 18f
-                gravity = android.view.Gravity.CENTER
-                setTypeface(typeface, android.graphics.Typeface.BOLD)
-                setTextColor(android.graphics.Color.parseColor("#0B4F2A"))
-            })
-            box.addView(android.widget.TextView(this).apply {
-                text = "Mind it."
-                textSize = 15f
-                gravity = android.view.Gravity.CENTER
-                setTypeface(typeface, android.graphics.Typeface.BOLD)
-                setTextColor(android.graphics.Color.parseColor("#B42318"))
-                setPadding(0, px(10), 0, 0)
-            })
-            /* 🔴🔒 V965 (০১.০৯.২০২৬, TK-এর স্পষ্ট নির্দেশ) — *"প্রয়োজনে পপ-আপ আরো
-               বড় হবে, কিন্তু ইংলিশ এবং বাংলা দুটোই থাকবে"*। নিয়ম ৯ (স্টাফের
-               পর্দার লেখা ইংরেজি) TK নিজেই এই একটা বার্তার জন্য শিথিল করেছেন —
-               যাতে প্রতিটা স্টাফ কথাটা নিশ্চিতভাবে বোঝে।
-               ⛔ শুধু এই বার্তাটুকু — অ্যাপের আর কোথাও বাংলা যোগ করা হয়নি। */
-            box.addView(android.view.View(this).apply {
-                setBackgroundColor(android.graphics.Color.parseColor("#DDE8E1"))
-                layoutParams = android.widget.LinearLayout.LayoutParams(
-                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT, px(1)
-                ).also { it.topMargin = px(14); it.bottomMargin = px(12) }
-            })
-            box.addView(android.widget.TextView(this).apply {
-                text = "TK BISWAS যে কোনো সময় যাচাই করতে পারেন — সতর্ক থাকুন"
-                textSize = 16f
-                gravity = android.view.Gravity.CENTER
-                setTypeface(typeface, android.graphics.Typeface.BOLD)
-                setTextColor(android.graphics.Color.parseColor("#0B4F2A"))
-            })
-            box.addView(android.widget.TextView(this).apply {
-                text = "You marked this call as UNEXPECTED TIME"
-                textSize = 13.5f
-                gravity = android.view.Gravity.CENTER
-                setTextColor(android.graphics.Color.parseColor("#33404F"))
-                setPadding(0, px(12), 0, 0)
-            })
-            val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
-                .setCustomTitle(PremiumAlert.header(this, "Recorded"))
-                .setView(box)
-                .setCancelable(true)
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setCustomTitle(PremiumAlert.header(this, "Are you sure?"))
+                .setMessage("Mark this call as UNEXPECTED TIME?")
+                .setPositiveButton("Yes") { _, _ -> selectTiming("Unexpected Time") }
+                .setNegativeButton("No") { d, _ -> try { d.dismiss() } catch (_: Throwable) { } }
+                .setCancelable(false)
                 .show().also { try { PremiumAlert.paint(it) } catch (_: Throwable) { } }
-            binding.root.postDelayed({ try { dlg.dismiss() } catch (_: Throwable) { } }, 4000L)
-        } catch (_: Throwable) { }
+        } catch (_: Throwable) { selectTiming("Unexpected Time") }
     }
 
     private fun selectTiming(value: String) {

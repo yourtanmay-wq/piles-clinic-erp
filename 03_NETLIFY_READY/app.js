@@ -5534,33 +5534,28 @@ window["wlv1PickOne"]=wlv1PickOne;
       সেটা স্টাফ দেখতে পান। সেভের সময় আবার ঘড়ি দেখা হয়। */
 /* 🔎🔒 V963 (০১.০৯.২০২৬, TK-নির্দেশ) — কম্পিউটারে ফোনের কল-তালিকা পড়ার কোনো
    উপায় নেই (ব্রাউজারে সেই সুযোগই নেই), তাই এখানে অ্যাপ নিজে থেকে সময় ঠিক করতে
-   পারে না। ⇒ দুটো বোতামই খোলা থাকে, আর Unexpected চাপলে ফোনের মতোই একটা বড়
-   বার্তা দেখায়। ⛔ কোথাও কিছু পাঠানো হয় না — শুধু পর্দায় দেখানো। */
-function wlv1VerifyFlash(){
+   পারে না। ⇒ দুটো বোতামই খোলা থাকে।
+   ⚠️🔒 V966 (০২.০৯.২০২৬, TK-নির্দেশ) — *"এই সতর্কবার্তা লাগবে না, শুধুমাত্র
+   ওয়ার্নিং PopUp আসুক — Are You Sure Yes/No"*। V963/V965-এর বড় ফ্ল্যাশ বার্তা
+   তুলে দেওয়া হলো; Yes চাপলে তবেই Unexpected Time বসে। ফোনেও হুবহু একই। */
+function wlv1AskUnexpected(){
   try{
-    /* 🔎 V963 (TK-নির্দেশ) — বার্তায় স্টাফের নিজের নাম। নাম না জানলে শুধু "Hello,". */
-    var __nm='';
-    try{ __nm=String((user&&(user.name||user.mobile))||'').trim() }catch(e){ __nm='' }
-    var __who = __nm ? ('Hello '+__nm.toUpperCase()+',') : 'Hello,';
     var ov=document.createElement('div');
     ov.setAttribute('style','position:fixed;inset:0;background:rgba(10,20,34,.45);z-index:99999;display:flex;align-items:center;justify-content:center;padding:18px');
-    ov.innerHTML='<div style="background:#fff;border-radius:20px;max-width:420px;width:100%;overflow:hidden;box-shadow:0 14px 44px rgba(0,0,0,.4)">'
-      +'<div style="background:linear-gradient(90deg,#0B5E34,#1F9D55);color:#fff;padding:16px;font-size:16.5px;font-weight:700">&#128269;&nbsp; Recorded</div>'
-      +'<div style="padding:22px 20px;text-align:center">'
-      +'<div style="font-size:15px;font-weight:700;color:#33404F;padding-bottom:8px">'+esc(__who)+'</div>'
-      +'<div style="font-size:18px;font-weight:700;color:#0B4F2A;line-height:1.35">TK BISWAS can verify this at any time</div>'
-      +'<div style="font-size:15px;font-weight:700;color:#B42318;padding-top:10px">Mind it.</div>'
-      /* 🔴🔒 V965 (TK-নির্দেশ) — ইংরেজির সাথে বাংলাও, যাতে সব স্টাফ বোঝে। */
-      +'<div style="border-top:1px solid #DDE8E1;margin:14px 0 12px"></div>'
-      +'<div style="font-size:16px;font-weight:700;color:#0B4F2A;line-height:1.4">TK BISWAS যে কোনো সময় যাচাই করতে পারেন &mdash; সতর্ক থাকুন</div>'
-      +'<div style="font-size:13.5px;color:#33404F;padding-top:12px">You marked this call as UNEXPECTED TIME</div>'
+    ov.innerHTML='<div style="background:#fff;border-radius:20px;max-width:380px;width:100%;overflow:hidden;box-shadow:0 14px 44px rgba(0,0,0,.4)">'
+      +'<div style="background:linear-gradient(90deg,#8A1810,#C43325);color:#fff;padding:16px;font-size:16.5px;font-weight:700">&#9888;&nbsp; Are you sure?</div>'
+      +'<div style="padding:22px 20px;text-align:center;font-size:15.5px;font-weight:600;color:#33404F">Mark this call as UNEXPECTED TIME?</div>'
+      +'<div style="display:flex;gap:10px;padding:0 18px 18px">'
+      +'<button type="button" id="wlv1UxNo" style="flex:1;background:#EEF2F7;color:#41506A;border:0;border-radius:12px;padding:12px;font-size:15px;font-weight:700">No</button>'
+      +'<button type="button" id="wlv1UxYes" style="flex:1;background:#C43325;color:#fff;border:0;border-radius:12px;padding:12px;font-size:15px;font-weight:700">Yes</button>'
       +'</div></div>';
     document.body.appendChild(ov);
-    ov.addEventListener('click',function(){ try{ov.remove()}catch(e){} });
-    setTimeout(function(){ try{ov.remove()}catch(e){} },4000);
-  }catch(e){}
+    var kill=function(){ try{ov.remove()}catch(e){} };
+    ov.querySelector('#wlv1UxNo').onclick=kill;
+    ov.querySelector('#wlv1UxYes').onclick=function(){ kill(); try{ wlv1PickOne('time','Unexpected Time','eTime') }catch(e){} };
+  }catch(e){ try{ wlv1PickOne('time','Unexpected Time','eTime') }catch(e2){} }
 }
-window["wlv1VerifyFlash"]=wlv1VerifyFlash;
+window["wlv1AskUnexpected"]=wlv1AskUnexpected;
 function wlv1AutoTiming(){
   try{
     var d=new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Kolkata'}));
@@ -5569,7 +5564,7 @@ function wlv1AutoTiming(){
   }catch(e){ return 'Official Time' }
 }
 window["wlv1AutoTiming"]=wlv1AutoTiming;
-function enquiryForm(){page('New Enquiry',`<div class="card enquiryCard wlv1Form"><div class="regSection"><label class="enqLabel"><span class="enqIco">📞</span>Mobile <b class="wlv1Star">*</b></label><input id="eMob" class="input enqInput" inputmode="tel" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" placeholder="Enter Mobile Number"><span id="eMobPrefix" class="mobPrefixBadge hidden">+91</span><div id="eMobDupBox"></div><label class="enqLabel"><span class="enqIco">⏰</span>Date</label><div class="wlv1DateBox input enqInput"><span id="eDateShow">${wlv1Dot(today())}</span><input id="eDate" type="date" value="${today()}" max="${today()}" oninput="wlv1ShowDate('eDate','eDateShow')"></div><label class="enqLabel"><span class="enqIco">🏥</span>Branch <b class="wlv1Star">*</b></label><select id="eBranch" class="input enqInput"><option value="" hidden selected>Select Branch</option>${branchOptions('')}</select><label class="enqLabel"><span class="enqIco">👤</span>Name</label><input id="eName" class="input enqInput" oninput="wlv1Caps(this)"><label class="enqLabel"><span class="enqIco">🩺</span>Disease <b class="wlv1Star">*</b></label><div id="eDisRow" class="wlv1PickRow" data-wlv1group="dis"><button type="button" class="wlv1Pick" data-val="Piles" onclick="wlv1PickOne('dis','Piles','eDis')">🩸 Piles</button><button type="button" class="wlv1Pick" data-val="Fissure" onclick="wlv1PickOne('dis','Fissure','eDis')">✂️ Fissure</button><button type="button" class="wlv1Pick" data-val="Fistula" onclick="wlv1PickOne('dis','Fistula','eDis')">🔄 Fistula</button><button type="button" class="wlv1Pick" data-val="Hydrocele" onclick="wlv1PickOne('dis','Hydrocele','eDis')">💧 Hydrocele</button><button type="button" class="wlv1Pick" data-val="Gupt Rog" onclick="wlv1PickOne('dis','Gupt Rog','eDis')">🛡️ Gupt Rog</button><button type="button" class="wlv1Pick" data-val="Other" onclick="wlv1PickOne('dis','Other','eDis')">📋 Other</button></div><input id="eDis" type="hidden" value=""></div><div class="regSection"><label class="enqLabel"><span class="enqIco">📍</span>Address</label><textarea id="eAddr" class="enqInput" oninput="wlv1Caps(this)"></textarea><label class="enqLabel"><span class="enqIco">📝</span>Remarks <b class="wlv1Star">*</b></label><textarea id="eRem" class="enqInput" oninput="wlv1Caps(this)"></textarea><label class="enqLabel"><span class="enqIco">🎧</span>Call Received By</label><div id="eStaffDisplay" class="input enqInput" style="cursor:pointer" onclick="eStaffTripleTap()">${esc(codeName(user.mobile))}</div><select id="eStaff" class="input enqInput hidden" style="display:none">${callReceivedOptions(user.mobile)}</select><label class="enqLabel"><span class="enqIco">⏱️</span>Call Timing</label><div class="wlv1PickRow wlv1Pick2" data-wlv1group="time"><button type="button" class="wlv1Pick on" data-val="Official Time" onclick="wlv1PickOne('time','Official Time','eTime')">Official Time</button><button type="button" class="wlv1Pick" data-val="Unexpected Time" onclick="wlv1PickOne('time','Unexpected Time','eTime');wlv1VerifyFlash()">Unexpected Time</button></div><input id="eTime" type="hidden" value="Official Time"><label class="enqLabel"><span class="enqIco">⏰</span>Next Follow-up Date <b class="wlv1Star">*</b></label><div id="eNextBox" class="wlv1DateBox input enqInput"><span id="eNextShow">Tap to select (optional)</span><input id="eNext" type="date" min="${today()}" oninput="wlv1ShowDate('eNext','eNextShow')"></div></div><button onclick="saveEnq()">Save Enquiry</button></div>`);setTimeout(function(){try{wlv1PhTint('eBranch')}catch(e){}},0) }
+function enquiryForm(){page('New Enquiry',`<div class="card enquiryCard wlv1Form"><div class="regSection"><label class="enqLabel"><span class="enqIco">📞</span>Mobile <b class="wlv1Star">*</b></label><input id="eMob" class="input enqInput" inputmode="tel" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" placeholder="Enter Mobile Number"><span id="eMobPrefix" class="mobPrefixBadge hidden">+91</span><div id="eMobDupBox"></div><label class="enqLabel"><span class="enqIco">⏰</span>Date</label><div class="wlv1DateBox input enqInput"><span id="eDateShow">${wlv1Dot(today())}</span><input id="eDate" type="date" value="${today()}" max="${today()}" oninput="wlv1ShowDate('eDate','eDateShow')"></div><label class="enqLabel"><span class="enqIco">🏥</span>Branch <b class="wlv1Star">*</b></label><select id="eBranch" class="input enqInput"><option value="" hidden selected>Select Branch</option>${branchOptions('')}</select><label class="enqLabel"><span class="enqIco">👤</span>Name</label><input id="eName" class="input enqInput" oninput="wlv1Caps(this)"><label class="enqLabel"><span class="enqIco">🩺</span>Disease <b class="wlv1Star">*</b></label><div id="eDisRow" class="wlv1PickRow" data-wlv1group="dis"><button type="button" class="wlv1Pick" data-val="Piles" onclick="wlv1PickOne('dis','Piles','eDis')">🩸 Piles</button><button type="button" class="wlv1Pick" data-val="Fissure" onclick="wlv1PickOne('dis','Fissure','eDis')">✂️ Fissure</button><button type="button" class="wlv1Pick" data-val="Fistula" onclick="wlv1PickOne('dis','Fistula','eDis')">🔄 Fistula</button><button type="button" class="wlv1Pick" data-val="Hydrocele" onclick="wlv1PickOne('dis','Hydrocele','eDis')">💧 Hydrocele</button><button type="button" class="wlv1Pick" data-val="Gupt Rog" onclick="wlv1PickOne('dis','Gupt Rog','eDis')">🛡️ Gupt Rog</button><button type="button" class="wlv1Pick" data-val="Other" onclick="wlv1PickOne('dis','Other','eDis')">📋 Other</button></div><input id="eDis" type="hidden" value=""></div><div class="regSection"><label class="enqLabel"><span class="enqIco">📍</span>Address</label><textarea id="eAddr" class="enqInput" oninput="wlv1Caps(this)"></textarea><label class="enqLabel"><span class="enqIco">📝</span>Remarks <b class="wlv1Star">*</b></label><textarea id="eRem" class="enqInput" oninput="wlv1Caps(this)"></textarea><label class="enqLabel"><span class="enqIco">🎧</span>Call Received By</label><div id="eStaffDisplay" class="input enqInput" style="cursor:pointer" onclick="eStaffTripleTap()">${esc(codeName(user.mobile))}</div><select id="eStaff" class="input enqInput hidden" style="display:none">${callReceivedOptions(user.mobile)}</select><label class="enqLabel"><span class="enqIco">⏱️</span>Call Timing</label><div class="wlv1PickRow wlv1Pick2" data-wlv1group="time"><button type="button" class="wlv1Pick on" data-val="Official Time" onclick="wlv1PickOne('time','Official Time','eTime')">Official Time</button><button type="button" class="wlv1Pick" data-val="Unexpected Time" onclick="wlv1AskUnexpected()">Unexpected Time</button></div><input id="eTime" type="hidden" value="Official Time"><label class="enqLabel"><span class="enqIco">⏰</span>Next Follow-up Date <b class="wlv1Star">*</b></label><div id="eNextBox" class="wlv1DateBox input enqInput"><span id="eNextShow">Tap to select (optional)</span><input id="eNext" type="date" min="${today()}" oninput="wlv1ShowDate('eNext','eNextShow')"></div></div><button onclick="saveEnq()">Save Enquiry</button></div>`);setTimeout(function(){try{wlv1PhTint('eBranch')}catch(e){}},0) }
 window["enquiryForm"]=enquiryForm;
 async function initCloudClientOnly(){
  // V221 real save fix: create Supabase client without doing an immediate pull/reset.
