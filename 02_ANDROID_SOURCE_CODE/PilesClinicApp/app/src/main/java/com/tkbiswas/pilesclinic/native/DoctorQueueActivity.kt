@@ -428,7 +428,13 @@ class DoctorQueueActivity : AppCompatActivity() {
     // "Pending / Overdue" starts collapsed (header only, arrow ▶) and its
     // patient cards only appear after tapping the header (arrow ▼).
     /** 🔍 V972 — নাম · মোবাইল · রোগীর আইডি, তিনটের যেকোনোটায় মিললেই। */
-    private fun matchesSearch(p: DoctorQueueModel.QueuePatient): Boolean {
+    /* 🔴 V975 বিল্ড-ফিক্স (০২.০৯.২০২৬, TK-এর Android Studio-র ছবি) — আগে টাইপটা
+       object-এর নাম দিয়ে লেখা হয়েছিল, অথচ `QueuePatient` **আলাদা** ক্লাস
+       (মডেল-ফাইলের ২৪ নম্বর লাইনে, object-এর বাইরে) ⇒ বিল্ডে
+       "Unresolved reference: QueuePatient"। এই ফাইলের বাকি সব জায়গায়
+       (৬১ · ৬২ · ৫১২ · ৫৪৩ লাইন) সবসময় শুধু `QueuePatient`-ই লেখা ছিল।
+       ⇒ একই ধরনের ভুল আর যেন পার না হয়, তাই পাহারায় নতুন নিয়ম [৯.৪১]। */
+    private fun matchesSearch(p: QueuePatient): Boolean {
         if (queueSearch.isBlank()) return true
         val digits = queueSearch.filter { it.isDigit() }
         return p.name.lowercase().contains(queueSearch) ||

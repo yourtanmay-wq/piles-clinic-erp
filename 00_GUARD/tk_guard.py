@@ -1571,6 +1571,7 @@ def check_qualified_calls():
     #    ভুল করে Person-এর বলে ধরা হত (প্রথম চেষ্টায় ২১টা ভুয়া অভিযোগ
     #    এসেছিল, নিজের পরীক্ষাতেই ধরা পড়ে)।
     owns = {}
+    top_level = set()          # 🔴 V975 — একদম বাইরে ঘোষণা করা টাইপ
     decl = re.compile(r"^\s*(?:internal\s+|private\s+|public\s+|sealed\s+|abstract\s+|open\s+)*"
                       r"(?:data\s+|enum\s+|annotation\s+)?(?:object|class|interface)\s+([A-Z]\w*)")
     mem = re.compile(r"^\s*(?:@\w+\s+)*(?:override\s+|public\s+|internal\s+|private\s+|protected\s+"
@@ -1583,6 +1584,12 @@ def check_qualified_calls():
             code = line.split("//")[0]
             d = decl.match(line)
             if d:
+                # 🔴 V975 — ভিতরে ঘোষণা করা class/object-ও বাইরেরটার **সদস্য**
+                #    (যেমন `EstimatePrices.Item`), নইলে ঠিক লেখাও ভুল বলে ধরা হত।
+                if stack and depth == stack[-1][1] + 1:
+                    owns.setdefault(stack[-1][0], set()).add(d.group(1))
+                if depth == 0:
+                    top_level.add(d.group(1))
                 stack.append([d.group(1), depth])
                 owns.setdefault(d.group(1), set())
             elif stack:
@@ -1609,6 +1616,36 @@ def check_qualified_calls():
             hint = (" — এটা আছে `" + "`, `".join(sorted(where)[:3]) + "`-এ") if where else ""
             fail("৯.২৮", f"{os.path.basename(f)} — `{obj}.{member}(` ডাকা হয়েছে, "
                          f"কিন্তু `{obj}`-এ `{member}` নেই{hint}")
+
+    # ═══════════════════════════════════════════════════════════════
+    #  🔴🔴 যাচাই ৯.৪১ — **টাইপের নামেও একই ভুল** (V975, ০২.০৯.২০২৬)
+    #  ─────────────────────────────────────────────────────────────
+    #  TK-এর Android Studio-র ছবি: `Unresolved reference: QueuePatient`।
+    #  লেখা হয়েছিল `DoctorQueueModel.QueuePatient`, অথচ `QueuePatient`
+    #  **object-এর বাইরে** আলাদা ক্লাস। উপরের ৯.২৮ শুধু **ফাংশন-ডাক**
+    #  (`X.y(`) দেখত, তাই টাইপের এই ভুলটা পার হয়ে গিয়েছিল, আর
+    #  কম্পাইল-পাহারা androidx-এর গোলমালে সেটা চাপা দিয়েছিল।
+    #  ⇒ এখন `X.Y` (দুটোই বড় হাতের) — যেখানে `X` প্রজেক্টের চেনা
+    #    object/class আর `Y` প্রজেক্টেরই **বাইরে ঘোষণা করা** টাইপ, অথচ
+    #    `X`-এর ভিতরে নেই — সোজা FAIL।
+    #  ⛔ ভুয়া ধরার ভয় কম: `Y` প্রজেক্টের top-level টাইপ হতে হবে, আর
+    #     `X`-এর ভিতরে ঘোষণা করা টাইপগুলো উপরে সদস্য হিসেবেই গোনা হয়েছে।
+    # ═══════════════════════════════════════════════════════════════
+    tref = re.compile(r"\b([A-Z]\w*)\.([A-Z]\w*)\b")
+    for f in files:
+        for raw in read(f).splitlines():
+            line = raw.split("//")[0]
+            if line.lstrip().startswith("*"):
+                continue                      # টীকা — ছোঁয়া হয় না
+            for m in tref.finditer(line):
+                obj, typ = m.group(1), m.group(2)
+                if obj not in owns or typ not in top_level:
+                    continue
+                if typ in owns[obj] or typ == obj:
+                    continue
+                fail("৯.৪১", f"{os.path.basename(f)} — `{obj}.{typ}` লেখা হয়েছে, "
+                             f"কিন্তু `{typ}` আলাদা টাইপ, `{obj}`-এর ভিতরে নয় "
+                             f"(শুধু `{typ}` লিখুন)")
 
 # ═══════════════════════════════════════════════════════════════
 #  যাচাই ৯.২৩ — Draft-এর জমানো তালিকায় **একটা ঘরও** বাদ পড়েনি তো?
