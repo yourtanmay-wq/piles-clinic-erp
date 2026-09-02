@@ -364,6 +364,10 @@ details.collapsedForm .formInner{margin-top:10px;border-top:1px dashed #d8e4f2;p
 .enquiryCard .enqLabel{display:flex;align-items:center;gap:8px;font-weight:800;margin-top:14px;color:#334155}
 .enquiryCard .enqIco{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:12px;background:linear-gradient(145deg,#ffffff,#eaf5ff);box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 6px 14px rgba(2,132,199,.16);font-size:15px;line-height:1;flex:0 0 28px}
 .enquiryCard .enqInput{margin-top:6px}
+/* 📏 V989 (TK-নির্দেশ: "address and remarks এই বক্সগুলোর উচ্চতা কম হবে,
+   অন্যান্যগুলির মতোই হবে") — শুরুতে এক লাইন, বাকি ঘরের সমান উঁচু; লিখলে
+   নিজে থেকেই বড় হয়। ফোনের হুবহু যমজ। ⛔ শুধু Enquiry ফরমের ঘর দুটো। */
+.enquiryCard textarea.enqInput{min-height:0;height:auto;overflow:hidden;resize:vertical}
 .enquiryCard .enqDisease{font-weight:700}
 
 

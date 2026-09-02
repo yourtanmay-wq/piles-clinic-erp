@@ -117,12 +117,18 @@
                 </GridLayout>
 
                 <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="📍 Address" />
+                <!-- 📏🔒 V989 (০৩.০৯.২০২৬, TK-নির্দেশ: "address and remarks এই
+                     বক্সগুলোর উচ্চতা কম হবে, অন্যান্যগুলির মতোই হবে") — শুরুতে
+                     এক লাইন, বাকি ঘরগুলোর সমান উঁচু; লিখতে গেলে নিজে থেকেই
+                     বড় হয়, তাই লম্বা ঠিকানাও পুরো লেখা যায়।
+                     ⛔ শুধু এই দুটো ঘর — সাঝা style-এ হাত দেওয়া হয়নি, তাই
+                        অন্য কোনো পর্দা বদলায়নি। -->
                 <EditText
                     android:id="@+id/etAddress"
                     style="@style/FieldInputMultiline"
                     android:padding="10dp"
                     android:inputType="textMultiLine|textCapSentences"
-                    android:minLines="2" />
+                    android:minLines="1" />
 
                 <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="📝 Remarks *" />
                 <EditText
@@ -130,7 +136,7 @@
                     style="@style/FieldInputMultiline"
                     android:padding="10dp"
                     android:inputType="textMultiLine|textCapSentences"
-                    android:minLines="2"
+                    android:minLines="1"
                     android:hint="Required" />
 
                 <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="🎧 Call Received By" />
