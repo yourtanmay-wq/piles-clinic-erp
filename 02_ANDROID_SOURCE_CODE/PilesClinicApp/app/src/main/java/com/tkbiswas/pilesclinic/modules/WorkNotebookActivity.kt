@@ -1299,7 +1299,12 @@ class WorkNotebookActivity : AppCompatActivity() {
         //    পথেই (বোতাম ও নোটিফিকেশন) এই ফাংশনই ডাকা হয়, তাই কখনো আলাদা হবে না।
         try {
             val fv = com.tkbiswas.pilesclinic.native.FieldVisit
-            if (fv.isFieldStaff(this) && fv.chosenMode(this) == fv.MODE_FIELD && !fv.isRunning(this)) {
+            /* 🏍️🔒 V977 (০২.০৯.২০২৬, TK-নির্দেশ) — *"IN TIME চাপলেই GPS চালু হয়ে
+               যাবে"* · *"ফিল্ডে যাবে কি না, সমস্ত কথা জিজ্ঞাসা করার দরকার নেই,
+               একটা বিভ্রান্ত হয়ে যেতে পারে"* ⇒ At Chamber / Field Visit বাছাইটা
+               তুলে দেওয়া হলো; বাইরে ঘোরা স্টাফের (এখন শুধু RUPAM) IN TIME-এই
+               গোনা শুরু। ⛔ অন্য কোনো স্টাফের ফোনে এক লাইনও চলে না। */
+            if (fv.isFieldStaff(this) && !fv.isRunning(this)) {
                 fv.startDay(this, staffCode.ifBlank { mobile }, branch)
                 com.tkbiswas.pilesclinic.native.FieldVisitControl.start(this)
             }
@@ -2653,8 +2658,9 @@ class WorkNotebookActivity : AppCompatActivity() {
                     // থাকে (রাত/বিকেলে ভুল করে IN দেখানো বন্ধ)। ⛔ IN TIME চাপার
                     // সেভ-লজিক এক অক্ষরও বদলায়নি।
                     if (inTimeWindowOpen()) {
-                        // 🏍️ V968 — শুধু RUPAM-এর পর্দায় ওঠে (উপরের টীকা)।
-                        addFieldVisitPicker(form)
+                        // 🏍️ V977 — TK-নির্দেশে বাছাইয়ের সারিটা আর দেখানো হয় না
+                        //    (IN TIME চাপলেই নিজে থেকে চালু)। ⛔ ফাংশনটা মোছা
+                        //    হয়নি (প্রজেক্ট-নিয়ম), শুধু আর ডাকা হয় না।
                         val inBtn = ModuleUi.button(this, "IN TIME") {
                             // 🔒 V496: একই নতুন পথ (উপরের startInTimeFlow দেখুন)।
                             startInTimeFlow { afterInTimeMarked { render() } }
