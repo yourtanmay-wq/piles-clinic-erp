@@ -238,7 +238,7 @@ class EnquiryActivity : AppCompatActivity() {
          · কল পাওয়া গেল ও সেটা **অসময়ের** ⇒ দুটো বোতামই থাকে, Unexpected
            বাছা থাকে (TK: *"অ্যাপ তো অনেক সময় ভুল করতেই পারে"*)
          · কল পাওয়া গেল না ⇒ দুটোই থাকে, Official বাছা; Unexpected চাপলে
-           Unexpected চাপলে শুধু একটা "Are you sure? Yes/No" সতর্কতা (V966)
+           Unexpected চাপলে শুধু একটা "Are you sure? Yes/No" সতর্কতা (V966·V967)
        ⛔ ক্লাউডে একটাও অনুরোধ নেই — ফোনের নিজের কল-তালিকা থেকেই।
        ⛔ V962-এর "কোনো বোতামই চাপা যাবে না" নিয়মটা TK-এর নতুন নির্দেশে
           তুলে নেওয়া হলো। */
@@ -301,7 +301,7 @@ class EnquiryActivity : AppCompatActivity() {
     private fun confirmUnexpected() {
         try {
             androidx.appcompat.app.AlertDialog.Builder(this)
-                .setCustomTitle(PremiumAlert.header(this, "Are you sure?"))
+                .setCustomTitle(PremiumAlert.header(this, "⚠️ Are you sure?"))
                 .setMessage("Mark this call as UNEXPECTED TIME?")
                 .setPositiveButton("Yes") { _, _ -> selectTiming("Unexpected Time") }
                 .setNegativeButton("No") { d, _ -> try { d.dismiss() } catch (_: Throwable) { } }

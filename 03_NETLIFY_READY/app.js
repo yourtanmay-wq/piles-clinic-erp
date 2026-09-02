@@ -5547,7 +5547,7 @@ function wlv1AskUnexpected(){
       +'<div style="padding:22px 20px;text-align:center;font-size:15.5px;font-weight:600;color:#33404F">Mark this call as UNEXPECTED TIME?</div>'
       +'<div style="display:flex;gap:10px;padding:0 18px 18px">'
       +'<button type="button" id="wlv1UxNo" style="flex:1;background:#EEF2F7;color:#41506A;border:0;border-radius:12px;padding:12px;font-size:15px;font-weight:700">No</button>'
-      +'<button type="button" id="wlv1UxYes" style="flex:1;background:#C43325;color:#fff;border:0;border-radius:12px;padding:12px;font-size:15px;font-weight:700">Yes</button>'
+      +'<button type="button" id="wlv1UxYes" style="flex:1;background:#B42318;color:#fff;border:0;border-radius:12px;padding:12px;font-size:15px;font-weight:700">Yes</button>'
       +'</div></div>';
     document.body.appendChild(ov);
     var kill=function(){ try{ov.remove()}catch(e){} };
