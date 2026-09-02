@@ -592,10 +592,27 @@
 
     /* বাক্স ২ — Extra Income। ⛔ "Pay" বোতাম কেবল বাকি থাকলেই আসে; না থাকলে
        "Add Extra" নিজেই পুরো লাইন নেয় (ফাঁকা বাক্স বসে না)। */
+    /* 💰🔒 V991 (০৩.০৯.২০২৬, TK-নির্দেশ: *"ডিজাইনটা আরো প্রফেশনাল লুক বানাতে
+       হবে"*, ফটো-প্রুফ পাশ) — সোনালি পট্টি ও দুটো রঙিন টালি (ফোনের যমজ)।
+       ⛔ শুধু সাজ — টাকার অঙ্ক ও হিসাব এক অক্ষরও বদলায়নি। */
+    function unxMonthName(ym){
+      try{ var q=String(ym||'').split('-');
+        var n=['January','February','March','April','May','June','July','August','September','October','November','December'];
+        return n[parseInt(q[1],10)-1]+' '+q[0]; }catch(e){ return ym||'' }
+    }
+    function salTile(cap,val,fill,ink){
+      return '<div style="flex:1;background:'+fill+';border-radius:12px;padding:11px 14px">'+
+        '<div style="font-size:10px;font-weight:800;letter-spacing:1.2px;color:#6B7A83">'+cap+'</div>'+
+        '<div style="font-size:19px;font-weight:800;color:'+ink+';margin-top:3px">'+val+'</div></div>';
+    }
     var extraCard = '<div class="card">' +
-      '<div style="font-weight:800;color:#B45309;font-size:16px;padding-bottom:4px">Extra Income</div>' +
-      salRow('Paid', m.money(extraTotal), '#123A26', true) +
-      salRow('Due', m.money(extraDue), (extraDue>0 ? '#B42318' : '#5B6B81'), true) +
+      '<div style="background:linear-gradient(90deg,#B45309,#E0A800);color:#fff;border-radius:12px;padding:10px 14px;display:flex;margin-bottom:10px">' +
+        '<b style="font-size:14px;letter-spacing:.6px;flex:1">EXTRA INCOME</b>' +
+        '<span style="font-size:12px;color:#FFF3D6">' + m.esc(unxMonthName(cur)) + '</span></div>' +
+      '<div style="display:flex;gap:8px;margin-bottom:6px">' +
+        salTile('PAID', m.money(extraTotal), '#EAF7F0', '#0B5B2F') +
+        salTile('DUE', m.money(extraDue), (extraDue>0?'#FDEDEC':'#F3F5F7'), (extraDue>0?'#B42318':'#5B6B81')) +
+      '</div>' +
       '<div style="display:flex;gap:9px;margin-top:11px">' +
         salPairBtn('Add Extra', '#B45309', '#E0A800', 'profExtraIncome(\'' + m.esc(code) + '\')') +
         (extraDue>0 ? salPairBtn('Pay ' + m.money(extraDue), '#0A5C33', '#0A5C33', 'profPayExtraDue(\'' + m.esc(code) + '\')') : '') +

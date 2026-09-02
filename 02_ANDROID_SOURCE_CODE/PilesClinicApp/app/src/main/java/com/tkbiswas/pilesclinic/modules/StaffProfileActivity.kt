@@ -1516,9 +1516,10 @@ class StaffProfileActivity : AppCompatActivity() {
 
         // 🔵 V416: বেতন ছাড়াও বাড়তি টাকা। ⛔ `kind='EXTRA'` হয়ে জমা হয়, তাই বেতনের
         //    বাকি-হিসাব ছোঁয় না। 🔵 V417: এখনো না-দেওয়া টাকা লাল "Due" হয়ে থাকে।
-        extraBox.addView(salSectionTitle("Extra Income", "#B45309"))
-        extraBox.addView(salaryStatusRow("Paid", money(extraTotal), "#123A26"))
-        extraBox.addView(salaryStatusRow("Due", money(extraDue), if (extraDue > 0.0) "#B42318" else "#5B6B81"))
+        /* 💰 V991 (TK-নির্দেশ, ফটো-প্রুফ পাশ) — সোনালি পট্টি ও দুটো টালি।
+           ⛔ শুধু সাজ; `extraTotal` ও `extraDue` ঠিক আগের হিসাবেই আসে। */
+        extraBox.addView(salGoldHeader("EXTRA INCOME", salMonthName(salaryCurrentMonth())))
+        extraBox.addView(salMoneyTiles(money(extraTotal), money(extraDue), extraDue > 0.0))
         val btnAddExtra = salOutlineButton("Add Extra", "#B45309", "#E0A800") { addExtraIncome(code) }
         val btnPayExtra = if (extraDue > 0.0) salOutlineButton("Pay " + money(extraDue), "#0A5C33", "#0A5C33") {
             payExtraDue(code, pays)
@@ -2323,6 +2324,85 @@ class StaffProfileActivity : AppCompatActivity() {
     /* 🔴🔴🔒 V440 (TK-নির্দেশ ১৮.০৮.২০২৬) — `onClick` দিলে সারিটা চাপ-যোগ্য হয়
        (হালকা ripple + ডান পাশে ">") — নাহলে আগের মতোই স্থির। ⛔ পুরনো সব ডাক
        (Salary ইত্যাদি, onClick ছাড়া) হুবহু আগের মতোই দেখাবে/আচরণ করবে। */
+    /* 💰🔒 V991 (০৩.০৯.২০২৬, TK-নির্দেশ: *"ডিজাইনটা আরো প্রফেশনাল লুক বানাতে
+       হবে"*, ফটো-প্রুফ পাশ) — Extra Income-এর মাথায় সোনালি পট্টি, আর নিচে
+       "PAID" ও "DUE" দুটো আলাদা রঙিন টালিতে।
+       ⛔ শুধু **সাজ** — টাকার অঙ্ক · হিসাব · সেভ/পড়ার নিয়ম এক অক্ষরও বদলায়নি।
+       ⛔ বেতনের বাক্সে হাত পড়েনি, তাই ওই অংশ হুবহু আগের মতোই। */
+    /** "2026-09" → "September 2026" (শুধু দেখানোর জন্য)। */
+    private fun salMonthName(ym: String): String = try {
+        val p = ym.split("-")
+        val names = listOf("January","February","March","April","May","June",
+            "July","August","September","October","November","December")
+        names[p[1].toInt() - 1] + " " + p[0]
+    } catch (_: Throwable) { ym }
+
+    private fun salGoldHeader(title: String, right: String): LinearLayout =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            background = android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
+                intArrayOf(
+                    android.graphics.Color.parseColor("#B45309"),
+                    android.graphics.Color.parseColor("#E0A800")
+                )
+            ).apply { cornerRadius = dp(12).toFloat() }
+            setPadding(dp(14), dp(10), dp(14), dp(10))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(10) }
+            addView(TextView(this@StaffProfileActivity).apply {
+                text = title; textSize = 14f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.WHITE)
+                letterSpacing = 0.05f
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            })
+            addView(TextView(this@StaffProfileActivity).apply {
+                text = right; textSize = 12f
+                setTextColor(android.graphics.Color.parseColor("#FFF3D6"))
+            })
+        }
+
+    /** "PAID" ও "DUE" — পাশাপাশি দুটো রঙিন টালি। */
+    private fun salMoneyTiles(paid: String, due: String, dueRed: Boolean): LinearLayout {
+        fun tile(cap: String, value: String, fill: String, ink: String) =
+            LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(android.graphics.Color.parseColor(fill))
+                    cornerRadius = dp(12).toFloat()
+                }
+                setPadding(dp(14), dp(11), dp(14), dp(12))
+                addView(TextView(this@StaffProfileActivity).apply {
+                    text = cap; textSize = 10f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.parseColor("#6B7A83"))
+                    letterSpacing = 0.12f
+                })
+                addView(TextView(this@StaffProfileActivity).apply {
+                    text = value; textSize = 19f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.parseColor(ink))
+                    setPadding(0, dp(3), 0, 0)
+                })
+            }
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(4) }
+        }
+        val a = tile("PAID", paid, "#EAF7F0", "#0B5B2F")
+        val b = tile("DUE", due, if (dueRed) "#FDEDEC" else "#F3F5F7", if (dueRed) "#B42318" else "#5B6B81")
+        a.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            .apply { rightMargin = dp(8) }
+        b.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        row.addView(a); row.addView(b)
+        return row
+    }
+
     private fun salaryStatusRow(label: String, value: String, valueColor: String, onClick: (() -> Unit)? = null): LinearLayout {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
