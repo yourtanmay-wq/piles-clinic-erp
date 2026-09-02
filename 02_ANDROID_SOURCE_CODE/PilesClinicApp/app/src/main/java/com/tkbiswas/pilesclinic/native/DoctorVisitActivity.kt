@@ -910,10 +910,35 @@ class DoctorVisitActivity : AppCompatActivity() {
                 // 🟢 B630: altMobiles তখনই লেখা হয় যখন কিছু আছে বা আগে ছিল (মুছতে) —
                 //   নইলে নয়, যাতে SQL কলাম না থাকলেও সাধারণ এডিট ব্যর্থ না হয়।
                 if (altCsv.isNotBlank() || item.altMobiles.isNotBlank()) fields.put("altMobiles", altCsv)
+                /* 🔴🔴🔒 V992 (০৩.০৯.২০২৬, TK-রিপোর্ট ছবিসহ — *"নাম এডিট করে সেভ
+                   করলাম… কিন্তু কই সেভ হলো না তো, এই পুরানোটাই দেখাচ্ছে"*)।
+
+                   **আসল কারণ (কোড ধরে প্রমাণিত, আন্দাজ নয়):** সেভটা ক্লাউডে
+                   ঠিকই যেত, কিন্তু এই PATCH-এ `updatedAt` ঘরটা ছিল না — তাই
+                   সারির সময়-চিহ্ন পুরনোই থেকে যেত। তালিকা নামানোর সময়
+                   (`fetchListRawSmartOrNull`) সার্ভারের সবচেয়ে নতুন
+                   `updatedAt` আর ফোনে জমা থাকা `updatedAt` মিলিয়ে দেখে —
+                   দুটো এক হওয়ায় "কিছুই বদলায়নি" ধরে **জমানো পুরনো তালিকাটাই**
+                   ফেরত দিত। তাই পর্দায় পুরনো নামটাই থেকে যেত, শুধু এই ফোনে নয়,
+                   **সব ফোনেই**।
+
+                   **সমাধান:** বদলের সাথে সময়-চিহ্নটাও বসে — প্রকল্পের বাকি
+                   সব লেখার হুবহু একই নিয়মে। তখন সার্ভারের চিহ্ন নতুন হয়,
+                   আর নতুন নামটা সব ফোনে নেমে আসে।
+                   ⛔ কোন ঘরে কী লেখা হয় তার আর কিছুই বদলায়নি। */
+                fields.put("updatedAt", java.text.SimpleDateFormat(
+                    "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US
+                ).format(java.util.Date()))
                 lifecycleScope.launch {
                     val ok = withContext(Dispatchers.IO) { SupabaseClient.updateById("doctor_visits", item.id, fields) }
                     Toast.makeText(this@DoctorVisitActivity, if (ok) "Updated" else "Failed — check connection", Toast.LENGTH_SHORT).show()
-                    if (ok) { parts.dialog.dismiss(); loadList() }
+                    if (ok) {
+                        /* 🔴 V992 — এই ফোনের জমানো তালিকাটাও ফেলে দেওয়া হয়, যাতে
+                           সাথে সাথেই নতুন নামটা দেখা যায় (নেট থাকলে)। ⛔ তথ্য
+                           কোথাও মোছে না — শুধু জমানো কপি, পরের বারেই আবার বসে। */
+                        try { dvCachePrefs().edit().remove(dvCacheKey()).apply() } catch (_: Throwable) { }
+                        parts.dialog.dismiss(); loadList()
+                    }
                 }
             }
         })

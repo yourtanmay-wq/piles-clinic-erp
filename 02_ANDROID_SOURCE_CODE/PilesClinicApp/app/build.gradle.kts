@@ -20,8 +20,8 @@ plugins {
 // versionName আর APK-র নাম তিনটেই একসাথে বদলাবে, কোনোটা বাদ পড়বে না।
 // ⛔ অ্যাপের কাজ · ডিজাইন · ডেটা · Supabase কিছুই ছোঁয়া হয়নি; শুধু বিল্ডের নাম।
 // ═══════════════════════════════════════════════════════════════════════════
-val appVersionCode = 991
-val appVersionName = "9.91"
+val appVersionCode = 992
+val appVersionName = "9.92"
 
 base {
     archivesName.set("PilesClinic-V$appVersionCode")

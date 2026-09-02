@@ -263,6 +263,12 @@ class DoctorVisitRepository {
         // এখান থেকে লেখার চেষ্টা শুরু — ব্যর্থ হলেও `SupabaseClient.updateById`
         // নিজেই `CloudWriteQueue`-তে বসিয়ে রাখে, তাই নেট এলে নিজে থেকেই যাবে।
         lastCallWriteQueued = true
+        /* 🔴🔒 V992 (TK-রিপোর্ট: এডিট সেভ হয়েও পুরনোটাই দেখাত) — সময়-চিহ্ন
+           না বসায় তালিকা "কিছু বদলায়নি" ধরে জমানো পুরনো কপি দেখাত। এখন
+           প্রতিটা বদলের সাথে চিহ্নটাও বসে, তাই সব ফোনে নতুনটা নামে। */
+        fields.put("updatedAt", java.text.SimpleDateFormat(
+            "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US
+        ).format(java.util.Date()))
         val ok = SupabaseClient.updateById("doctor_visits", id, fields)
         // Same permanent rule as addNewDoctor above: the remark just written on
         // this phone is noted down so the list shows it at once instead of the
@@ -308,6 +314,12 @@ class DoctorVisitRepository {
         val fields = DoctorVisitModel.buildCallUpdateFields(
             existingHistory, note, useNext, staffMobile, oldExpected
         )
+        /* 🔴🔒 V992 (TK-রিপোর্ট: এডিট সেভ হয়েও পুরনোটাই দেখাত) — সময়-চিহ্ন
+           না বসায় তালিকা "কিছু বদলায়নি" ধরে জমানো পুরনো কপি দেখাত। এখন
+           প্রতিটা বদলের সাথে চিহ্নটাও বসে, তাই সব ফোনে নতুনটা নামে। */
+        fields.put("updatedAt", java.text.SimpleDateFormat(
+            "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US
+        ).format(java.util.Date()))
         val ok = SupabaseClient.updateById("doctor_visits", id, fields)
         try { MyPhoneWrites.remember(context, "doctor_visits", id, fields) } catch (_: Throwable) { }
         return ok
@@ -335,6 +347,12 @@ class DoctorVisitRepository {
         val fields = org.json.JSONObject()
             .put("callHistory", newHistory)
             .put("remarks", fixedNote)
+        /* 🔴🔒 V992 (TK-রিপোর্ট: এডিট সেভ হয়েও পুরনোটাই দেখাত) — সময়-চিহ্ন
+           না বসায় তালিকা "কিছু বদলায়নি" ধরে জমানো পুরনো কপি দেখাত। এখন
+           প্রতিটা বদলের সাথে চিহ্নটাও বসে, তাই সব ফোনে নতুনটা নামে। */
+        fields.put("updatedAt", java.text.SimpleDateFormat(
+            "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US
+        ).format(java.util.Date()))
         val ok = SupabaseClient.updateById("doctor_visits", id, fields)
         try { MyPhoneWrites.remember(context, "doctor_visits", id, fields) } catch (_: Throwable) { }
         return ok
@@ -473,6 +491,12 @@ class DoctorVisitRepository {
             val refKeysV817 = setOf("referralPayments", "referralPaid", "referralDue")
             if (context != null) try { GenericUpdateQueue.discardFields(context, "doctor_visits", docId, refKeysV817) } catch (_: Throwable) {}
             try { CloudWriteQueue.discardUpdateFields("doctor_visits", docId, refKeysV817) } catch (_: Throwable) {}
+            /* 🔴🔒 V992 (TK-রিপোর্ট: এডিট সেভ হয়েও পুরনোটাই দেখাত) — সময়-চিহ্ন
+               না বসায় তালিকা "কিছু বদলায়নি" ধরে জমানো পুরনো কপি দেখাত। এখন
+               প্রতিটা বদলের সাথে চিহ্নটাও বসে, তাই সব ফোনে নতুনটা নামে। */
+            fields.put("updatedAt", java.text.SimpleDateFormat(
+                "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US
+            ).format(java.util.Date()))
             val ok = SupabaseClient.updateById("doctor_visits", docId, fields)
             if (!ok && context != null) {
                 try { GenericUpdateQueue.queue(context, "doctor_visits", docId, fields) } catch (_: Throwable) { }
@@ -543,6 +567,12 @@ class DoctorVisitRepository {
             if (context != null) try { GenericUpdateQueue.discardFields(context, "doctor_visits", docId, refKeysV817) } catch (_: Throwable) {}
             try { CloudWriteQueue.discardUpdateFields("doctor_visits", docId, refKeysV817) } catch (_: Throwable) {}
             val fields = org.json.JSONObject().put("referralPayments", arr)
+            /* 🔴🔒 V992 (TK-রিপোর্ট: এডিট সেভ হয়েও পুরনোটাই দেখাত) — সময়-চিহ্ন
+               না বসায় তালিকা "কিছু বদলায়নি" ধরে জমানো পুরনো কপি দেখাত। এখন
+               প্রতিটা বদলের সাথে চিহ্নটাও বসে, তাই সব ফোনে নতুনটা নামে। */
+            fields.put("updatedAt", java.text.SimpleDateFormat(
+                "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US
+            ).format(java.util.Date()))
             val ok = SupabaseClient.updateById("doctor_visits", docId, fields)
             if (!ok && context != null) try { GenericUpdateQueue.queue(context, "doctor_visits", docId, fields) } catch (_: Throwable) {}
             if (ok) newId else ""
@@ -587,6 +617,12 @@ class DoctorVisitRepository {
             val referralKeys = setOf("referralPayments", "referralPaid", "referralDue")
             if (context != null) try { GenericUpdateQueue.discardFields(context, "doctor_visits", docId, referralKeys) } catch (_: Throwable) {}
             try { CloudWriteQueue.discardUpdateFields("doctor_visits", docId, referralKeys) } catch (_: Throwable) {}
+            /* 🔴🔒 V992 (TK-রিপোর্ট: এডিট সেভ হয়েও পুরনোটাই দেখাত) — সময়-চিহ্ন
+               না বসায় তালিকা "কিছু বদলায়নি" ধরে জমানো পুরনো কপি দেখাত। এখন
+               প্রতিটা বদলের সাথে চিহ্নটাও বসে, তাই সব ফোনে নতুনটা নামে। */
+            fields.put("updatedAt", java.text.SimpleDateFormat(
+                "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US
+            ).format(java.util.Date()))
             val ok = SupabaseClient.updateById("doctor_visits", docId, fields)
             if (!ok && context != null) try { GenericUpdateQueue.queue(context, "doctor_visits", docId, fields) } catch (_: Throwable) {}
             if (ok) {
@@ -635,6 +671,12 @@ class DoctorVisitRepository {
             // otherwise replay later and resurrect the deleted income entry.
             if (context != null) try { GenericUpdateQueue.discardFields(context, "doctor_visits", docId, referralKeys) } catch (_: Throwable) {}
             try { CloudWriteQueue.discardUpdateFields("doctor_visits", docId, referralKeys) } catch (_: Throwable) {}
+            /* 🔴🔒 V992 (TK-রিপোর্ট: এডিট সেভ হয়েও পুরনোটাই দেখাত) — সময়-চিহ্ন
+               না বসায় তালিকা "কিছু বদলায়নি" ধরে জমানো পুরনো কপি দেখাত। এখন
+               প্রতিটা বদলের সাথে চিহ্নটাও বসে, তাই সব ফোনে নতুনটা নামে। */
+            fields.put("updatedAt", java.text.SimpleDateFormat(
+                "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US
+            ).format(java.util.Date()))
             val ok = SupabaseClient.updateById("doctor_visits", docId, fields)
             if (!ok && context != null) try { GenericUpdateQueue.queue(context, "doctor_visits", docId, fields) } catch (_: Throwable) {}
             if (ok) {
@@ -736,6 +778,12 @@ class DoctorVisitRepository {
         val fields = org.json.JSONObject()
             .put("deleteRequestedBy", staffMobile)
             .put("deleteRequestedAt", java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US).format(java.util.Date()))
+        /* 🔴🔒 V992 (TK-রিপোর্ট: এডিট সেভ হয়েও পুরনোটাই দেখাত) — সময়-চিহ্ন
+           না বসায় তালিকা "কিছু বদলায়নি" ধরে জমানো পুরনো কপি দেখাত। এখন
+           প্রতিটা বদলের সাথে চিহ্নটাও বসে, তাই সব ফোনে নতুনটা নামে। */
+        fields.put("updatedAt", java.text.SimpleDateFormat(
+            "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US
+        ).format(java.util.Date()))
         return SupabaseClient.updateById("doctor_visits", id, fields)
     }
 
@@ -745,6 +793,12 @@ class DoctorVisitRepository {
         val fields = org.json.JSONObject()
             .put("deleteRequestedBy", "")
             .put("deleteRequestedAt", "")
+        /* 🔴🔒 V992 (TK-রিপোর্ট: এডিট সেভ হয়েও পুরনোটাই দেখাত) — সময়-চিহ্ন
+           না বসায় তালিকা "কিছু বদলায়নি" ধরে জমানো পুরনো কপি দেখাত। এখন
+           প্রতিটা বদলের সাথে চিহ্নটাও বসে, তাই সব ফোনে নতুনটা নামে। */
+        fields.put("updatedAt", java.text.SimpleDateFormat(
+            "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US
+        ).format(java.util.Date()))
         return SupabaseClient.updateById("doctor_visits", id, fields)
     }
 
@@ -817,6 +871,12 @@ class DoctorVisitRepository {
             if (context != null) try { GenericUpdateQueue.discardFields(context, "doctor_visits", docId, refKeysV817) } catch (_: Throwable) {}
             try { CloudWriteQueue.discardUpdateFields("doctor_visits", docId, refKeysV817) } catch (_: Throwable) {}
             val fields = org.json.JSONObject().put("referralPayments", arr)
+            /* 🔴🔒 V992 (TK-রিপোর্ট: এডিট সেভ হয়েও পুরনোটাই দেখাত) — সময়-চিহ্ন
+               না বসায় তালিকা "কিছু বদলায়নি" ধরে জমানো পুরনো কপি দেখাত। এখন
+               প্রতিটা বদলের সাথে চিহ্নটাও বসে, তাই সব ফোনে নতুনটা নামে। */
+            fields.put("updatedAt", java.text.SimpleDateFormat(
+                "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US
+            ).format(java.util.Date()))
             val ok = SupabaseClient.updateById("doctor_visits", docId, fields)
             if (!ok && context != null) {
                 try { GenericUpdateQueue.queue(context, "doctor_visits", docId, fields) } catch (_: Throwable) { }
