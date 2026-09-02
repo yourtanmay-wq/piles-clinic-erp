@@ -26000,10 +26000,11 @@ window["wlv1FlushWhenBack"]=wlv1FlushWhenBack;
    ⛔ দরের তালিকা এই ব্রাউজারেই জমা (TK-এর নিজের সিদ্ধান্ত)।
    ═══════════════════════════════════════════════════════════════════════ */
 var WLV1_EST_DEFAULTS=[
-  {group:'Piles',name:'Grade I Haemorrhoid Treatment',rate:4100,unit:'per position',measure:'Grade I'},
-  {group:'Piles',name:'Grade II Haemorrhoid Treatment',rate:8210,unit:'per position',measure:'Grade II'},
-  {group:'Piles',name:'Grade III Haemorrhoid Treatment',rate:12312,unit:'per position',measure:'Grade III'},
-  {group:'Piles',name:'Grade IV Haemorrhoid Treatment',rate:16400,unit:'per position',measure:'Grade IV'},
+  /* 💰🔒 V979 (০২.০৯.২০২৬, TK নিজে দর বলেছেন) — ফোনের সাথে হুবহু এক। */
+  {group:'Piles',name:'Grade I Haemorrhoid Treatment',rate:8000,unit:'per position',measure:'Grade I'},
+  {group:'Piles',name:'Grade II Haemorrhoid Treatment',rate:8500,unit:'per position',measure:'Grade II'},
+  {group:'Piles',name:'Grade III Haemorrhoid Treatment',rate:9000,unit:'per position',measure:'Grade III'},
+  {group:'Piles',name:'Grade IV Haemorrhoid Treatment',rate:10000,unit:'per position',measure:'Grade IV'},
   {group:'Fistula',name:'Fistula Treatment',rate:3800,unit:'per inch',measure:'inch'},
   {group:'Fissure',name:'Fissure Treatment',rate:6500,unit:'per position',measure:''},
   {group:'Hydrocele',name:'Hydrocele Treatment',rate:11000,unit:'per side',measure:''},
@@ -26091,25 +26092,32 @@ window["wlv1EstDiscount"]=wlv1EstDiscount; window["wlv1EstStrike"]=wlv1EstStrike
 window["wlv1EstDrop"]=wlv1EstDrop; window["wlv1EstSave"]=wlv1EstSave;
 
 /* রোগ · গ্রেড/ইঞ্চি · o'clock — TK-এর পাশ-করা প্রুফের হুবহু ধাপ। */
-var wlv1EstPick={group:'Piles',item:null,clock:[]};
-function wlv1EstAddTreat(){ wlv1EstPick={group:'Piles',item:null,clock:[]}; wlv1EstTreatRender() }
+var wlv1EstPick={group:'Piles',item:null,clock:[],rate:''};
+function wlv1EstAddTreat(){ wlv1EstPick={group:'Piles',item:null,clock:[],rate:''}; wlv1EstTreatRender() }
 function wlv1EstTreatRender(){
   var items=wlv1EstPrices().filter(function(p){return p.group===wlv1EstPick.group});
   var tabs=WLV1_EST_DISEASES.map(function(g){
     var on=g===wlv1EstPick.group;
     return '<button type="button" class="small'+(on?'':' ghost')+'" onclick="wlv1EstPickGroup(\''+g+'\')">'+g+'</button>';
   }).join(' ');
+  /* 🔴🔒 V979 (TK-রিপোর্ট: *"এখানে 4100 ফিক্সড কেন করেছেন"*) — গ্রেডের পাশে
+     ছোট ✎; চাপলে **তালিকার দরই** সবসময়ের জন্য বদলায়। RATE ঘরে লেখা শুধু ওই
+     রোগীর জন্য, তাই একজনকে ছাড় দিলে সবার দর নষ্ট হয় না। ফোনে বোতাম চেপে
+     ধরলে ঠিক একই বাক্স খোলে। */
   var meas=items.map(function(p,i){
     var on=wlv1EstPick.item&&wlv1EstPick.item.name===p.name;
-    return '<button type="button" class="small'+(on?'':' ghost')+'" style="margin:3px" onclick="wlv1EstPickItem('+i+')">'
-      +esc(p.measure||p.name)+' · '+wlv1EstShort(p.rate)+'</button>';
+    return '<span style="display:inline-flex;align-items:center;margin:3px">'
+      +'<button type="button" class="small'+(on?'':' ghost')+'" onclick="wlv1EstPickItem('+i+')">'
+      +esc(p.measure||p.name)+' · '+wlv1EstShort(p.rate)+'</button>'
+      +'<span style="cursor:pointer;padding:0 6px;color:#0B66D8;font-weight:800" onclick="wlv1EstEditListRate('+i+')">&#9998;</span></span>';
   }).join('');
   var clock='';
   for(var h=1;h<=12;h++){
     var on=wlv1EstPick.clock.indexOf(h)>=0;
     clock+='<button type="button" class="small'+(on?'':' ghost')+'" style="margin:2px;min-width:40px" onclick="wlv1EstClock('+h+')">'+h+'</button>';
   }
-  var rate=wlv1EstPick.item?wlv1EstShort(wlv1EstPick.item.rate):'';
+  var rate=wlv1EstPick.rate ? wlv1EstPick.rate
+           : (wlv1EstPick.item?wlv1EstShort(wlv1EstPick.item.rate):'');
   var qty=wlv1EstPick.clock.length?wlv1EstPick.clock.length:'';
   modal('<h2>➕ Add Treatment</h2><div class="card">'+tabs+'</div>'
     +'<div class="card"><div class="tiny mut">'+(wlv1EstPick.group==='Fistula'?'TRACT LENGTH':'GRADE / TYPE')+'</div>'+meas+'</div>'
@@ -26120,10 +26128,29 @@ function wlv1EstTreatRender(){
     +'<div class="actions"><button class="ghost" onclick="wlv1EstRender()">Cancel</button>'
     +'<button onclick="wlv1EstTreatAdd()">Add to estimate</button></div>');
 }
-function wlv1EstPickGroup(g){ wlv1EstPick={group:g,item:null,clock:[]}; wlv1EstTreatRender() }
+function wlv1EstPickGroup(g){ wlv1EstPick={group:g,item:null,clock:[],rate:''}; wlv1EstTreatRender() }
 function wlv1EstPickItem(i){ var items=wlv1EstPrices().filter(function(p){return p.group===wlv1EstPick.group});
+  /* 🔴 V979 — হাতে লেখা দর আর মুছে যায় না; একই গ্রেড আবার চাপলেও অটুট। */
+  try{ var r=$('#wlv1EstRate'); if(r) wlv1EstPick.rate=r.value }catch(e){}
   wlv1EstPick.item=items[i]||null; wlv1EstTreatRender() }
+/* 💰 V979 — তালিকার দর সবসময়ের জন্য বদলানো (✎ চাপলে)। */
+function wlv1EstEditListRate(i){
+  var all=wlv1EstPrices();
+  var items=all.filter(function(p){return p.group===wlv1EstPick.group});
+  var it=items[i]; if(!it) return;
+  var v=prompt('New rate for every patient — '+it.name, String(it.rate));
+  if(v===null) return;
+  var n=wlv1EstNum(v); if(!(n>0)){ toast('Enter a rate'); return }
+  var at=all.findIndex(function(p){return p.name===it.name});
+  if(at>=0) all[at]=Object.assign({},all[at],{rate:n});
+  wlv1EstPricesSave(all);
+  if(wlv1EstPick.item&&wlv1EstPick.item.name===it.name){ wlv1EstPick.item=all[at]; wlv1EstPick.rate='' }
+  wlv1EstTreatRender();
+}
+window["wlv1EstEditListRate"]=wlv1EstEditListRate;
 function wlv1EstClock(h){ var a=wlv1EstPick.clock, i=a.indexOf(h); if(i>=0)a.splice(i,1); else a.push(h);
+  /* 🔴 V979 — ঘড়ির ঘর চাপলেও হাতে লেখা দর অটুট থাকে। */
+  try{ var r=$('#wlv1EstRate'); if(r) wlv1EstPick.rate=r.value }catch(e){}
   a.sort(function(x,y){return x-y}); wlv1EstTreatRender() }
 function wlv1EstTreatAdd(){
   var p=wlv1EstPick.item; if(!p){ toast('Select a treatment first'); return }

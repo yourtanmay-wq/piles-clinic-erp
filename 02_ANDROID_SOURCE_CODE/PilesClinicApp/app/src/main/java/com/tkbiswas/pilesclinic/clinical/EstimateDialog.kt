@@ -349,6 +349,8 @@ object EstimateDialog {
         var group = EstimatePrices.G_PILES
         var picked: EstimatePrices.Item? = null
         val chosen = sortedSetOf<Int>()
+        // 🔴 V979 — স্টাফ নিজে দর লিখেছেন কি না; লিখে থাকলে আর মুছে দেওয়া হয় না।
+        var rateTouched = false
 
         val root = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
@@ -387,10 +389,16 @@ object EstimateDialog {
         cell("RATE", rateField)
         cell("QTY", qtyField)
         root.addView(rateRow)
+        rateField.addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(s: android.text.Editable?) { rateTouched = true }
+            override fun beforeTextChanged(t: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(t: CharSequence?, a: Int, b: Int, c: Int) {}
+        })
 
         lateinit var paint: () -> Unit
 
-        fun rebuildMeasures() {
+        lateinit var rebuildMeasures: () -> Unit
+        rebuildMeasures = {
             measureBox.removeAllViews()
             val items = EstimatePrices.inGroup(activity, group)
             measureBox.addView(label(activity, if (group == EstimatePrices.G_FISTULA) "TRACT LENGTH" else "GRADE / TYPE"))
@@ -415,9 +423,26 @@ object EstimateDialog {
                     setPadding(dp(activity, 4), dp(activity, 9), dp(activity, 4), dp(activity, 9))
                     setOnClickListener {
                         picked = item
-                        // 🔒 TK: দর নিজে থেকেই বসে; পরে হাতে বদলালে সেটাই থাকে।
-                        rateField.setText(EstimateModel.moneyShort(item.rate))
+                        /* 🔒 TK: দর নিজে থেকেই বসে; পরে হাতে বদলালে সেটাই থাকে।
+                           🔴 V979 (TK-রিপোর্ট ছবিসহ: *"এখানে 4100 ফিক্সড কেন
+                           করেছেন"*) — আগে গ্রেড আবার চাপলে হাতে-লেখা দরটা মুছে
+                           তালিকার দর ফিরে আসত। এখন **হাতে বদলানো থাকলে আর
+                           মুছবে না**; একই গ্রেড আবার চাপলে লেখাটা অটুট থাকে। */
+                        if (!rateTouched) rateField.setText(EstimateModel.moneyShort(item.rate))
                         paint()
+                    }
+                    /* 💰🔒 V979 (TK-নির্দেশ: *"ওখানেই 4100 চেঞ্জ করতে পারবো তার
+                       ব্যবস্থা রাখতে হবে"*) — বোতামটা **চেপে ধরলে** তালিকার দরই
+                       বদলে যায় (সবসময়ের জন্য)। RATE ঘরে লেখা শুধু ওই রোগীর জন্য,
+                       তাই একজনকে ছাড় দিলে সবার দর নষ্ট হয় না। */
+                    setOnLongClickListener {
+                        editListRate(activity, item) { fresh ->
+                            picked = fresh
+                            rateTouched = false
+                            rateField.setText(EstimateModel.moneyShort(fresh.rate))
+                            rebuildMeasures(); paint()
+                        }
+                        true
                     }
                 }
                 wrap.addView(t)
@@ -528,6 +553,41 @@ object EstimateDialog {
                         )
                     )
                     redraw()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .create()
+        dlg.show()
+        try { PremiumAlert.paint(dlg) } catch (_: Throwable) { }
+    }
+
+    /** 💰 V979 — তালিকার দর সবসময়ের জন্য বদলানো (গ্রেড চেপে ধরলে খোলে)। */
+    private fun editListRate(
+        activity: Activity,
+        item: EstimatePrices.Item,
+        onSaved: (EstimatePrices.Item) -> Unit
+    ) {
+        val field = numberField(activity, EstimateModel.moneyShort(item.rate))
+        val root = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(activity, 16), dp(activity, 10), dp(activity, 16), dp(activity, 4))
+            addView(label(activity, "NEW RATE FOR EVERY PATIENT", 9.5f))
+            addView(field)
+        }
+        val dlg = AlertDialog.Builder(activity)
+            .setCustomTitle(PremiumAlert.header(activity, "✏️ " + item.name))
+            .setView(root)
+            .setPositiveButton("Save") { _, _ ->
+                val v = EstimateModel.num(field.text?.toString())
+                if (v <= 0.0) {
+                    android.widget.Toast.makeText(activity, "Enter a rate", android.widget.Toast.LENGTH_SHORT).show()
+                } else {
+                    val all = EstimatePrices.list(activity).toMutableList()
+                    val at = all.indexOfFirst { it.name.equals(item.name, ignoreCase = true) }
+                    val fresh = item.copy(rate = v)
+                    if (at >= 0) all[at] = fresh else all.add(fresh)
+                    EstimatePrices.save(activity, all)
+                    onSaved(fresh)
                 }
             }
             .setNegativeButton("Cancel", null)

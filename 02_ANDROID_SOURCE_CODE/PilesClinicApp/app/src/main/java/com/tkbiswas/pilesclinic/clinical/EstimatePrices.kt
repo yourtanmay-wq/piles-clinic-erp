@@ -65,10 +65,13 @@ object EstimatePrices {
     /* 🔒 রেডিমেড তালিকা — TK-এর পাঠানো নমুনা PDF-এর জিনিস ও দর ধরে।
        ⚠️ দরগুলো নমুনার, TK যখন খুশি অ্যাপ থেকেই বদলাতে পারবেন। */
     val DEFAULTS: List<Item> = listOf(
-        Item(G_PILES, "Grade I Haemorrhoid Treatment", 4100.0, "per position", "Grade I"),
-        Item(G_PILES, "Grade II Haemorrhoid Treatment", 8210.0, "per position", "Grade II"),
-        Item(G_PILES, "Grade III Haemorrhoid Treatment", 12312.0, "per position", "Grade III"),
-        Item(G_PILES, "Grade IV Haemorrhoid Treatment", 16400.0, "per position", "Grade IV"),
+        /* 💰🔒 V979 (০২.০৯.২০২৬, TK নিজে দর বলেছেন) — পাইলসের চারটে গ্রেডের
+           রেডিমেড দর। ⛔ কেউ Price List-এ বদলে থাকলে তারটাই থাকে, এটা শুধু
+           কিছু না বদলালে যেটা বসে। */
+        Item(G_PILES, "Grade I Haemorrhoid Treatment", 8000.0, "per position", "Grade I"),
+        Item(G_PILES, "Grade II Haemorrhoid Treatment", 8500.0, "per position", "Grade II"),
+        Item(G_PILES, "Grade III Haemorrhoid Treatment", 9000.0, "per position", "Grade III"),
+        Item(G_PILES, "Grade IV Haemorrhoid Treatment", 10000.0, "per position", "Grade IV"),
 
         Item(G_FISTULA, "Fistula Treatment", 3800.0, "per inch", "inch"),
         Item(G_FISSURE, "Fissure Treatment", 6500.0, "per position", ""),
