@@ -9507,15 +9507,33 @@ function doctorQueue(){try{repairBranchWorkflowRows()}catch(_e){}let rows=visitQ
  }
  let branchWrap=(isMaster()||__crossDoc)?`<div id="dqBranchWrap" class="wlv1HdrPick">${wlv1BranchSelectHtml('doctorQueue()')}</div>`:'';
  let todayRows=rows.filter(wlv1DqIsToday), overdueRows=rows.filter(x=>!wlv1DqIsToday(x));
- let body='';
+ /* 🔍🔒 V972 (০২.০৯.২০২৬, TK-নির্দেশ) — *"এখানে patient Search করার মত অপশন
+    থাকতে হবে"*। ফোনের `DoctorQueueActivity`-র হুবহু জোড়া: নাম · মোবাইল ·
+    রোগীর আইডি — তিনটের যেকোনোটায় মিললেই। ⛔ শুধু পর্দায় ছাঁকে, ক্লাউডে
+    একটাও নতুন অনুরোধ যায় না। */
+ var __q=String(window.__dqSearch||'').trim().toLowerCase();
+ if(__q){
+   var __d=__q.replace(/\D/g,'');
+   var __m=function(x){
+     var nm=String((x&&x.name)||'').toLowerCase();
+     var pid=String((x&&x.patientId)||'').toLowerCase();
+     var mob=String((x&&x.mobile)||'').replace(/\D/g,'');
+     return nm.indexOf(__q)>=0 || pid.indexOf(__q)>=0 || (!!__d && mob.indexOf(__d)>=0);
+   };
+   todayRows=todayRows.filter(__m); overdueRows=overdueRows.filter(__m);
+ }
+ var searchBox='<input id="dqSearch" class="input" style="margin:10px 0" placeholder="Search patient by name / mobile / ID" value="'+esc(window.__dqSearch||'')+'" oninput="wlv1DqSearch(this.value)">';
+ let body=searchBox;
  if(todayRows.length){
    body+=`<div class="dqSectionHead dqToday">Today (${todayRows.length})</div><div id="dqRows">${todayRows.map(wlv1DqCard).join('')}</div>`;
  }
  if(overdueRows.length){
-   body+=`<div class="dqSectionHead dqOverdue" onclick="wlv1DqToggleOverdue()">${wlv1DqOverdueOpen?'▼':'▶'} Pending / Overdue (${overdueRows.length})</div>`;
-   if(wlv1DqOverdueOpen)body+=`<div id="dqRows2">${overdueRows.map(wlv1DqCard).join('')}</div>`;
+   /* 🔍 V972 — খোঁজার সময় গুটানো থাকলে ফল দেখা যেত না, তাই তখন খোলাই থাকে। */
+   var __open = wlv1DqOverdueOpen || !!__q;
+   body+=`<div class="dqSectionHead dqOverdue" onclick="wlv1DqToggleOverdue()">${__open?'▼':'▶'} Pending / Overdue (${overdueRows.length})</div>`;
+   if(__open)body+=`<div id="dqRows2">${overdueRows.map(wlv1DqCard).join('')}</div>`;
  }
- if(!todayRows.length&&!overdueRows.length)body=__dqAsk?wlv1BranchAskCard():'<div class="card mut">No Patient In Queue</div>';
+ if(!todayRows.length&&!overdueRows.length)body=__dqAsk?wlv1BranchAskCard():(searchBox+'<div class="card mut">'+(__q?'No patient found':'No Patient In Queue')+'</div>');
  page('CHECK-UP Queue',`${branchWrap}${body}`,true);
  setTimeout(function(){
    try{
@@ -9543,6 +9561,22 @@ function doctorQueue(){try{repairBranchWorkflowRows()}catch(_e){}let rows=visitQ
  },30);
 }
 window["doctorQueue"]=doctorQueue;
+/* 🔍 V972 — লেখামাত্র ছাঁকে; কার্সর যাতে না হারায়, শুধু সারিগুলোই আবার আঁকা হয়। */
+function wlv1DqSearch(v){
+  window.__dqSearch=String(v||'');
+  try{
+    var box=document.getElementById('dqSearch');
+    var pos=box?box.selectionStart:null;
+    doctorQueue();
+    setTimeout(function(){
+      try{
+        var b2=document.getElementById('dqSearch');
+        if(b2){ b2.focus(); if(pos!=null) b2.setSelectionRange(pos,pos); }
+      }catch(e){}
+    },0);
+  }catch(e){}
+}
+window["wlv1DqSearch"]=wlv1DqSearch;
 
 /* WEB APP . Doctor Note shown one step at a time, like the native
    DoctorCheckupActivity: tappable step chips on top and a Back / Save / Next

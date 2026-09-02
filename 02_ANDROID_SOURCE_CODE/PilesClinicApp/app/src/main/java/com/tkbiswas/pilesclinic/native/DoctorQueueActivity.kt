@@ -67,6 +67,12 @@ class DoctorQueueActivity : AppCompatActivity() {
     private var autoScreenFocused = true
     private var autoBusy = false
     private val autoWatch = LiveRefresh.Watch("patients")
+
+    /* 🔍🔒 V972 (০২.০৯.২০২৬, TK-নির্দেশ) — *"এখানে patient Search করার মত
+       অপশন থাকতে হবে"*। শুধু পর্দায় ছাঁকা হয় — ক্লাউডে একটাও নতুন অনুরোধ
+       যায় না, তাই ফ্রি প্ল্যানে বাড়তি চাপ নেই।
+       ⛔ তালিকা আনা · সাজানো · Today/Overdue ভাগ — কিছুই বদলায়নি। */
+    private var queueSearch = ""
     private val autoTick = object : Runnable {
         override fun run() {
             try { autoCheckForChanges() } catch (_: Throwable) { }
@@ -155,7 +161,27 @@ class DoctorQueueActivity : AppCompatActivity() {
         }
 
         binding.btnBack.setOnClickListener { finish() }
-        binding.btnRefresh.setOnClickListener { loadQueue(withPhotos = false) }
+        /* 🔄🔒 V972 (TK-রিপোর্ট ছবিসহ: *"উপরে ডান দিকে Refreshing icon কোন কাজ
+           করে না"*) — **আসল কারণ (যাচাই করা):** বোতামটা কাজ করত, তালিকা নতুন
+           করে আনত; কিন্তু জমানো তালিকা সঙ্গে সঙ্গে আঁকা হয় বলে **চোখে কোনো
+           বদল দেখা যেত না** ⇒ মনে হত কিছুই হয়নি। এখন চাপলে ছোট একটা বার্তা।
+           ⛔ স্পিনার ঘোরানো হয়নি (TK-এর পুরনো নির্দেশ), তালিকা আনার পথও একই। */
+        binding.btnRefresh.setOnClickListener {
+            loadQueue(withPhotos = false)
+            val waiting = lastTodayItems.size + lastOverdueItems.size
+            android.widget.Toast.makeText(
+                this, "Queue refreshed  ·  $waiting waiting", android.widget.Toast.LENGTH_SHORT
+            ).show()
+        }
+        // 🔍 V972 — লেখামাত্র তালিকা ছাঁকে (নতুন কোনো ক্লাউড-অনুরোধ নেই)।
+        binding.etQueueSearch.addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(s: android.text.Editable?) {
+                queueSearch = s?.toString().orEmpty().trim().lowercase()
+                renderRows()
+            }
+            override fun beforeTextChanged(t: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(t: CharSequence?, a: Int, b: Int, c: Int) {}
+        })
         setupBranchPicker()   // খাতার সারি B42 — শুধু মাস্টারের পর্দায় দেখা যায়
 
         skipNextResumeLoad = true   // 🟢 B659: onCreate-এর পরেই আসা onResume-এ আর দ্বিতীয়বার টানা হবে না
@@ -401,16 +427,34 @@ class DoctorQueueActivity : AppCompatActivity() {
     // TK-REQUESTED (2026-07-20, follow-up): "Today" is always shown open.
     // "Pending / Overdue" starts collapsed (header only, arrow ▶) and its
     // patient cards only appear after tapping the header (arrow ▼).
+    /** 🔍 V972 — নাম · মোবাইল · রোগীর আইডি, তিনটের যেকোনোটায় মিললেই। */
+    private fun matchesSearch(p: DoctorQueueModel.QueuePatient): Boolean {
+        if (queueSearch.isBlank()) return true
+        val digits = queueSearch.filter { it.isDigit() }
+        return p.name.lowercase().contains(queueSearch) ||
+            p.patientId.lowercase().contains(queueSearch) ||
+            (digits.isNotEmpty() && p.mobile.filter { it.isDigit() }.contains(digits))
+    }
+
     private fun renderRows() {
         val rows = mutableListOf<QueueRow>()
-        if (lastTodayItems.isNotEmpty()) {
-            rows.add(QueueRow.Header("Today (${lastTodayItems.size})"))
-            lastTodayItems.forEach { rows.add(QueueRow.Item(it)) }
+        // 🔍 V972 — খোঁজার লেখা থাকলে ছেঁকে নেওয়া তালিকাই দেখানো হয়; ফাঁকা
+        //    থাকলে সব আগের মতোই। ⛔ জমানো আসল তালিকা ছোঁয়া হয় না।
+        val todayShown = lastTodayItems.filter { matchesSearch(it) }
+        val overdueShown = lastOverdueItems.filter { matchesSearch(it) }
+        if (todayShown.isNotEmpty()) {
+            rows.add(QueueRow.Header("Today (${todayShown.size})"))
+            todayShown.forEach { rows.add(QueueRow.Item(it)) }
         }
-        if (lastOverdueItems.isNotEmpty()) {
-            val arrow = if (overdueExpanded) "▼" else "▶"
-            rows.add(QueueRow.Header("$arrow Pending / Overdue (${lastOverdueItems.size})", collapsible = true))
-            if (overdueExpanded) lastOverdueItems.forEach { rows.add(QueueRow.Item(it)) }
+        if (overdueShown.isNotEmpty()) {
+            // 🔍 V972 — খোঁজার সময় গুটানো থাকলে ফল দেখা যেত না, তাই তখন খোলাই থাকে।
+            val open = overdueExpanded || queueSearch.isNotBlank()
+            val arrow = if (open) "▼" else "▶"
+            rows.add(QueueRow.Header("$arrow Pending / Overdue (${overdueShown.size})", collapsible = true))
+            if (open) overdueShown.forEach { rows.add(QueueRow.Item(it)) }
+        }
+        if (queueSearch.isNotBlank() && todayShown.isEmpty() && overdueShown.isEmpty()) {
+            rows.add(QueueRow.Header("No patient found"))
         }
         // 🔒 V217 (§B216, Master Fix Order §14, item 7 "CHECK-UP থেকে Back
         // দিলে একই জায়গায় ফিরবে"): CHECK-UP থেকে ফিরে এলে `onResume()`
