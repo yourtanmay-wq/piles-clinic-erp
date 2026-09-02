@@ -9169,7 +9169,9 @@ function visitQueueRows(){
     চেকআপ ছাড়া ৭ দিনের বেশি পড়ে থাকা নাম আর "Today"-তে দেখাবে না।
     ⛔ কোনো তথ্য মোছে না — Search/Follow-up/Timeline-এ আগের মতোই আছেন।
     ⛔ তারিখ জানা না গেলে সরানো হয় না (সন্দেহ হলে রেখে দেওয়াই নিরাপদ)। */
- var WLV1_Q_STALE_DAYS=7;
+ /* ⏰🔒 V976 (০২.০৯.২০২৬, TK-নির্দেশ) — *"রাত ১২টা পেরোলেই সরে যাবে"* ⇒
+    ৭ দিনের বদলে শুধু আজকের দিনটুকু (ফোনের `QUEUE_STALE_DAYS`-এর হুবহু জোড়া)। */
+ var WLV1_Q_STALE_DAYS=0;
  var wlv1QFresh=function(x){
    try{
      var raw=[x.updatedAt,x.visitDate,x.registrationDate,x.createdAt]
@@ -9425,25 +9427,38 @@ window["wlv1NvpCheckupWithReminder"]=wlv1NvpCheckupWithReminder;
    ⛔ আজ টাকা না দিলে কিছুই বসে না ⇒ নতুন রোগীর কার্ড এক অক্ষরও বদলায় না। */
 function wlv1DqMoney(p){
   try{
-    var t=today(), paidToday=0, paidTotal=0, days={}, lastD='', lastT='';
+    var t=today(), paidToday=0, paidTotal=0, days={}, lastD='', lastT='', lastTime='';
     var skip=function(x){ var k=String(x||'').toLowerCase();
       return k==='bill_edit'||k==='chamber_expected'||k==='attendance_mark'||k==='visit_fee'||k==='refund'; };
     (load('payments')||[]).forEach(function(x){
       if(String(x.patientId||'')!==String(p.id)) return;
       var d=String(x.date||'').slice(0,10);
+      var a=Number(x.amount||0);
       if(!skip(x.payType)){
-        var a=Number(x.amount||0);
-        if(a>0){ paidTotal+=a; if(d) days[d]=1; if(d===t) paidToday+=a; }
+        if(a>0){ paidTotal+=a; if(d===t) paidToday+=a; }
       }
-      var pr=String(x.progress||'').trim();
-      if(pr && d && d<t && d>lastD){ lastD=d; lastT=pr; }
+      /* 🔢🔒 V976 (TK-নির্দেশ) — *"যেদিন ভিজিট ফি দিল সেটা প্রথম দিন"* ⇒ ভিজিট
+         ফি-র দিনটাও গোনায় ধরা। ⛔ টাকার যোগে ভিজিট ফি ঢোকে না, আগের মতোই। */
+      if(a>0 && d && (String(x.payType||'').toLowerCase()==='visit_fee' || !skip(x.payType))) days[d]=1;
+      /* 🔴 V976 (TK-রিপোর্ট) — খালি ঘর "null" লেখা হয়ে আসতে পারে; সেটা লেখা নয়। */
+      var pr=String(x.progress==null?'':x.progress).trim();
+      if(pr==='null') pr='';
+      if(d && d<t && d>lastD){ lastD=d; lastT=pr; lastTime=wlv1DqTime(x.createdAt||''); }
     });
-    if(!(paidToday>0)) return null;
+    /* 💰🔒 V976 (TK-নির্দেশ) — *"সমস্ত পেশেন্টের ক্ষেত্রে দেখাবে"* ⇒ আজ টাকা না
+       দিলেও ঘরগুলো বসে (আগে এখানে `return null` হত)। ফোনের হুবহু জোড়া। */
     return {paidToday:paidToday, paidTotal:paidTotal,
-            visitNo:Object.keys(days).length, lastDate:lastD, lastText:lastT};
+            visitNo:Object.keys(days).length, lastDate:lastD, lastText:lastT, lastTime:lastTime};
   }catch(_e){ return null }
 }
 window["wlv1DqMoney"]=wlv1DqMoney;
+/* 🕐 V976 (TK-নির্দেশ: *"last treatment date and time লাগবে"*) — "3.42 PM"। */
+function wlv1DqTime(iso){
+  try{ var d=new Date(iso); if(isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}).replace(':','.');
+  }catch(e){ return '' }
+}
+window["wlv1DqTime"]=wlv1DqTime;
 /* 🩺 V951 — প্ল্যানের লেখা তারিখ দেখে নিজে থেকেই বদলায় (TK-এর ব্যাকরণ)। */
 function wlv1DqPlanLabel(iso){
   var d=String(iso||'').slice(0,10); if(d.length<10) return 'NEXT PLAN';
@@ -9462,7 +9477,9 @@ function wlv1DqExtraHtml(p, m){
     + cell('DUE', bill>0?money(due):'—', 'due')
     + '</div>';
   var parts=[];
-  if(m.lastText) parts.push('<div class="dqFp"><div class="dqFh">LAST TREATMENT · '+esc(wlv1Dot(m.lastDate))+'</div><div class="dqFt">'+esc(m.lastText)+'</div></div>');
+  /* 🕐🔒 V976 (TK-নির্দেশ) — তারিখের সাথে সময়ও; আর নোট খালি থাকলেও বাক্সটা
+     বসে (*"লুকাতে হবে না, ব্লাংক থাকবে"*), শুধু নিচের লাইনটা ফাঁকা। */
+  if(m.lastDate) parts.push('<div class="dqFp"><div class="dqFh">LAST TREATMENT · '+esc(wlv1Dot(m.lastDate))+(m.lastTime?('  ·  '+esc(m.lastTime)):'')+'</div><div class="dqFt">'+esc(m.lastText||'')+'</div></div>');
   try{
     var e=wlv1NvpLatest(p);
     var line=e?wlv1NvpShortLine(e):'';

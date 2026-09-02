@@ -329,7 +329,7 @@ class DoctorQueueRepository(private val context: Context? = null) {
                 val inList = part.joinToString(",") { "\"" + it.replace("\"", "") + "\"" }
                 val got = SupabaseClient.fetchListSlimOrNull(
                     "payments", "patientId=in.($inList)", 5000,
-                    "patientId,amount,payType,date,progress"
+                    "patientId,amount,payType,date,progress,createdAt"
                 )
                 if (got == null) { readOk = false; break }
                 for (j in 0 until got.length()) allPays.put(got.getJSONObject(j))
@@ -339,6 +339,7 @@ class DoctorQueueRepository(private val context: Context? = null) {
             val paidTotalBy = HashMap<String, Double>()
             val visitDaysBy = HashMap<String, HashSet<String>>()
             val lastTreatBy = HashMap<String, Pair<String, String>>()   // id → (তারিখ, লেখা)
+            val lastTreatTimeBy = HashMap<String, String>()              // id → সময় ("3.42 PM")
             for (i in 0 until allPays.length()) {
                 val p = allPays.optJSONObject(i) ?: continue
                 val owner = p.optString("patientId", "").trim()
@@ -349,14 +350,35 @@ class DoctorQueueRepository(private val context: Context? = null) {
                     val amt = p.optDouble("amount", 0.0)
                     if (amt > 0.0) {
                         paidTotalBy[owner] = (paidTotalBy[owner] ?: 0.0) + amt
-                        if (d.length == 10) visitDaysBy.getOrPut(owner) { HashSet() }.add(d)
                     }
                 }
-                /* গত ট্রিটমেন্ট = **আজকের আগের** সবচেয়ে নতুন দিনের চেম্বার-নোট। */
-                val prog = p.optString("progress", "").trim()
-                if (prog.isNotEmpty() && d.length == 10 && d < today) {
+                /* 🔢🔒 V976 (০২.০৯.২০২৬, TK-নির্দেশ) — *"চেম্বারে যতবার এসেছেন সব দিন
+                   গুনবে; যেদিন ভিজিট ফি দিল সেটা প্রথম দিন"*।
+                   ⇒ আগে শুধু **চিকিৎসার** টাকার দিন গোনা হত, তাই যাঁর প্রথম দিনে
+                     শুধু ভিজিট ফি ছিল তাঁর একটা দিন বাদ পড়ত (TK-এর ছবিতে MERAJ
+                     "1st Visit" দেখাচ্ছিল, হওয়ার কথা ছিল ২য়)।
+                   ⛔ টাকার যোগ (`paidTotalBy`) আগের নিয়মেই — ভিজিট ফি সেখানে
+                      ঢোকে না, তাই একটা পয়সাও এদিক-ওদিক হয়নি; শুধু **দিন গোনা**
+                      বদলেছে। */
+                val countsAsVisit = t == "visit_fee" || isMoneyRow(t)
+                if (countsAsVisit && d.length == 10 && p.optDouble("amount", 0.0) > 0.0) {
+                    visitDaysBy.getOrPut(owner) { HashSet() }.add(d)
+                }
+                /* গত ট্রিটমেন্ট = **আজকের আগের** সবচেয়ে নতুন দিনের চেম্বার-নোট।
+                   🔴🔒 V976 (TK-রিপোর্ট ছবিসহ) — ক্লাউডে ঘরটা খালি থাকলে
+                   `optString` **"null" লেখাটাই** ফেরত দিত, আর সেটাই কার্ডে
+                   উঠত (TK-এর ছবিতে MERAJ-এর কার্ডে লাল "null")। এখন প্রকল্পের
+                   নিজের `s()` দিয়ে পড়া হয় — খালি মানে খালিই।
+                   ⛔ TK-নির্দেশ: *"লুকাতে হবে না, ব্লাংক থাকবে"* ⇒ তারিখের
+                      বাক্সটা থাকে, শুধু নিচের লাইনটা ফাঁকা। */
+                val prog = p.s("progress").trim()
+                if (d.length == 10 && d < today) {
                     val prev = lastTreatBy[owner]
-                    if (prev == null || d > prev.first) lastTreatBy[owner] = d to prog
+                    if (prev == null || d > prev.first) {
+                        lastTreatBy[owner] = d to prog
+                        // 🕐 V976 (TK-নির্দেশ: *"last treatment date and time লাগবে"*)
+                        lastTreatTimeBy[owner] = PaymentModel.displayTime12(p.s("createdAt"))
+                    }
                 }
             }
 
@@ -368,16 +390,19 @@ class DoctorQueueRepository(private val context: Context? = null) {
                 if (rid.isNotBlank()) byId[rid] = r
             }
 
-            fun decorate(q: QueuePatient): QueuePatient {
-                val paid = paidTodayBy[q.id] ?: return q
-                return q.copy(
-                    visitNo = visitDaysBy[q.id]?.size ?: 0,
-                    paidToday = paid,
-                    paidTotal = paidTotalBy[q.id] ?: 0.0,
-                    lastTreatmentDate = lastTreatBy[q.id]?.first ?: "",
-                    lastTreatment = lastTreatBy[q.id]?.second ?: ""
-                )
-            }
+            /* 💰🔒 V976 (০২.০৯.২০২৬, TK-নির্দেশ) — *"সমস্ত পেশেন্টের ক্ষেত্রে
+               দেখাবে"*। আগে **আজ টাকা না দিলে** এই ঘরগুলো একটাও বসত না
+               (`?: return q`), তাই বিল · বাকি · ভিজিট-সংখ্যা · গত ট্রিটমেন্ট
+               শুধু একজন-দুজনের কার্ডেই দেখা যেত। এখন সবার কার্ডেই বসে;
+               আজ টাকা না দিলে "আজ জমা" ₹০। ⛔ টাকার হিসাব এক পয়সাও বদলায়নি। */
+            fun decorate(q: QueuePatient): QueuePatient = q.copy(
+                visitNo = visitDaysBy[q.id]?.size ?: 0,
+                paidToday = paidTodayBy[q.id] ?: 0.0,
+                paidTotal = paidTotalBy[q.id] ?: 0.0,
+                lastTreatmentDate = lastTreatBy[q.id]?.first ?: "",
+                lastTreatment = lastTreatBy[q.id]?.second ?: "",
+                lastTreatmentTime = lastTreatTimeBy[q.id] ?: ""
+            )
 
             val out = current.map { decorate(it) }.toMutableList()
             val already = HashSet(out.map { it.id })

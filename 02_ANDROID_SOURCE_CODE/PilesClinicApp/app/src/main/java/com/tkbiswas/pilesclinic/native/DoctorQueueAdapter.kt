@@ -164,7 +164,11 @@ class DoctorQueueAdapter(
                    টাকা জমা দেওয়া রোগীর কার্ডে **বিল · আজ জমা · বাকি**।
                    ⛔ আজ টাকা না দিলে পুরো সারিটা লুকানো ⇒ নতুন রোগীর কার্ড অটুট।
                    ⛔ RecyclerView সারি পুনর্ব্যবহার করে, তাই দুই দিকেই স্পষ্ট বসানো। */
-                if (item.paidToday > 0.0) {
+                /* 💰🔒 V976 (০২.০৯.২০২৬, TK-নির্দেশ) — *"টোটাল বিল কত, আজকে কত জমা
+                   করছে, বাকি কত … সমস্ত পেশেন্টের ক্ষেত্রে দেখাবে"* ⇒ V951-এর
+                   "শুধু আজ টাকা দিলে" শর্তটা তুলে দেওয়া হলো; এখন প্রতিটা কার্ডেই।
+                   ⛔ টাকার অঙ্ক এক পয়সাও বদলায়নি — আজ টাকা না দিলে "আজ জমা" ₹০। */
+                run {
                     fun money(v: Double) = "₹" + java.text.NumberFormat
                         .getIntegerInstance(java.util.Locale("en", "IN")).format(Math.round(v))
                     val due = Math.max(0.0, item.bill - item.paidTotal)
@@ -172,8 +176,6 @@ class DoctorQueueAdapter(
                     b.tvMoneyPaid.text = "PAID TODAY\n" + money(item.paidToday)
                     b.tvMoneyDue.text = "DUE\n" + (if (item.bill > 0.0) money(due) else "—")
                     b.boxMoney.visibility = android.view.View.VISIBLE
-                } else {
-                    b.boxMoney.visibility = android.view.View.GONE
                 }
 
                 /* 🩺🔒 V951 — গত ট্রিটমেন্ট ও প্ল্যান, ফলো-আপ কার্ডের মতো এক বাক্সে।
@@ -182,9 +184,16 @@ class DoctorQueueAdapter(
                    ⛔ কিছুই না থাকলে বাক্সটা বসেই না। */
                 run {
                     val lines = ArrayList<String>()
-                    if (item.lastTreatment.isNotBlank()) {
+                    /* 🕐🔒 V976 (০২.০৯.২০২৬, TK-নির্দেশ) — *"last treatment date and
+                       time লাগবে"* ⇒ তারিখের পাশে সময়ও।
+                       ⛔ TK-নির্দেশ *"লুকাতে হবে না, ব্লাংক থাকবে"* ⇒ নোট খালি
+                          থাকলেও বাক্সটা বসে, শুধু নিচের লাইনটা ফাঁকা — আর কখনো
+                          "null" লেখা ওঠে না (উপরের রিপোজিটরিতেই ঠেকানো)। */
+                    if (item.lastTreatmentDate.isNotBlank()) {
                         val d = FollowUpModel.displayDate(item.lastTreatmentDate)
-                        lines.add("LAST TREATMENT · $d\n" + item.lastTreatment)
+                        val t = item.lastTreatmentTime
+                        val head = "LAST TREATMENT · $d" + (if (t.isNotBlank()) "  ·  $t" else "")
+                        lines.add(head + "\n" + item.lastTreatment)
                     }
                     if (item.paidToday > 0.0 && item.nvpLine.isNotBlank()) {
                         val lbl = DoctorQueueModel.planLabel(item.nvpWhenIso())
