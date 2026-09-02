@@ -874,8 +874,10 @@ object SupabaseClient {
        ⇒ Egress বাঁচাতে হলে ডাকার জায়গায় `fetchListFingerprintOrNull()` দিয়ে
          আগে মিলিয়ে নিতে হবে (যেমন `DoctorVisitRepository.fetchListRawSmartOrNull`
          ও V997-এর `BriefingRepository.fetchRawSmart`)।
-       ⛔ এখানে আচরণ ইচ্ছে করেই বদলানো হয়নি — ৬০+ ডাকার জায়গা এর উপরে
-          দাঁড়িয়ে; শুধু ভুল বোঝাটা যেন আর না হয় সেজন্য এই সতর্কবার্তা। */
+       ⛔ এখানে আচরণ ইচ্ছে করেই বদলানো হয়নি; শুধু ভুল বোঝাটা যেন আর না হয়
+          সেজন্য এই সতর্কবার্তা। (গুনে দেখা: ডাকার জায়গা মাত্র ৬টা —
+          DoctorVisitRepository ২ · BriefingRepository ২ · মন্তব্যে ২। উপরের
+          পুরনো মন্তব্যের "৬০+" সংখ্যাটাও ভুল ছিল।) */
     fun fetchListGuarded(table: String, filter: String? = null, limit: Int = 500, order: String = "updatedAt.desc.nullslast", select: String = "*"): JSONArray {
         return fetchListOrNull(table, filter, limit, order = order, select = select) ?: JSONArray()
     }
