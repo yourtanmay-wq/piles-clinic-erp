@@ -57,9 +57,9 @@ class DoctorQueueActivity : AppCompatActivity() {
     //   ⛔ চেকআপ থেকে ফেরা/অন্য অ্যাপ থেকে ফেরার রিফ্রেশ আগের মতোই হয়।
     private var skipNextResumeLoad = false
 
-    private var overdueExpanded = false
-    private var lastTodayItems = listOf<QueuePatient>()
-    private var lastOverdueItems = listOf<QueuePatient>()
+    private var doneExpanded = false
+    private var lastPendingItems = listOf<QueuePatient>()
+    private var lastDoneItems = listOf<QueuePatient>()
 
     // 🔔 খাতার সারি B151 (TK, 30.07.2026) — নিজে থেকে নতুন হওয়ার ব্যবস্থা।
     // ⛔ নিয়ম ও সময় দুটোই `LiveRefresh`-এ, তাই চার পর্দায় চার নিয়ম হতে পারে না।
@@ -141,7 +141,7 @@ class DoctorQueueActivity : AppCompatActivity() {
                     .putExtra("patientRowId", p.id)
                     .putExtra("patientCode", p.patientId))
             },
-            onHeaderTap = { overdueExpanded = !overdueExpanded; renderRows() }
+            onHeaderTap = { doneExpanded = !doneExpanded; renderRows() }
         )
         binding.recyclerView.layoutManager = LinearLayoutManager(this)
         binding.recyclerView.adapter = adapter
@@ -168,7 +168,8 @@ class DoctorQueueActivity : AppCompatActivity() {
            ⛔ স্পিনার ঘোরানো হয়নি (TK-এর পুরনো নির্দেশ), তালিকা আনার পথও একই। */
         binding.btnRefresh.setOnClickListener {
             loadQueue(withPhotos = false)
-            val waiting = lastTodayItems.size + lastOverdueItems.size
+            /* ✅ V983 — "কতজন অপেক্ষায়" গোনায় **হয়ে যাওয়া** রোগী ধরা হয় না। */
+            val waiting = lastPendingItems.size
             android.widget.Toast.makeText(
                 this, "Queue refreshed  ·  $waiting waiting", android.widget.Toast.LENGTH_SHORT
             ).show()
@@ -353,8 +354,8 @@ class DoctorQueueActivity : AppCompatActivity() {
             binding.recyclerView.visibility = View.GONE
             binding.tvEmpty.text = BranchFilterStore.ASK_TEXT
             binding.tvEmpty.visibility = View.VISIBLE
-            lastTodayItems = emptyList()
-            lastOverdueItems = emptyList()
+            lastPendingItems = emptyList()
+            lastDoneItems = emptyList()
             return
         }
         val cached = repository.loadCachedQueue(shownBranch())   // খাতার সারি B42
@@ -365,8 +366,8 @@ class DoctorQueueActivity : AppCompatActivity() {
             binding.tvEmpty.visibility = View.GONE
             binding.progressLoad.visibility = View.GONE
             binding.recyclerView.visibility = View.VISIBLE
-            lastTodayItems = cached!!.filter { DoctorQueueModel.isToday(it) }
-            lastOverdueItems = cached.filter { !DoctorQueueModel.isToday(it) }
+            lastPendingItems = cached!!.filter { !it.done }
+            lastDoneItems = cached.filter { it.done }
             renderRows()
         } else {
             binding.progressLoad.visibility = View.GONE  // TK-REQUESTED (2026-07-20): spinner must NEVER spin anywhere; cache-first shows old data instantly, content appears when ready.
@@ -407,8 +408,8 @@ class DoctorQueueActivity : AppCompatActivity() {
                 binding.tvEmpty.text = "No Patient In Queue"
                 binding.tvEmpty.visibility = View.VISIBLE
                 binding.recyclerView.visibility = View.GONE
-                lastTodayItems = emptyList()
-                lastOverdueItems = emptyList()
+                lastPendingItems = emptyList()
+                lastDoneItems = emptyList()
             } else {
                 binding.progressLoad.visibility = View.GONE
                 binding.recyclerView.visibility = View.VISIBLE
@@ -417,8 +418,14 @@ class DoctorQueueActivity : AppCompatActivity() {
                 // day-old still-pending patient doesn't look mixed in with
                 // today's queue. Sort order within each section (newest
                 // first) from the repository is preserved -- only grouped.
-                lastTodayItems = items.filter { DoctorQueueModel.isToday(it) }
-                lastOverdueItems = items.filter { !DoctorQueueModel.isToday(it) }
+                /* ✅🔒 V983 (০২.০৯.২০২৬, TK-নির্দেশ) — *"Pending / Overdue
+                   থাকবে না… এসেছে তাদের গুলোই থাকবে; যাদের চেকআপ অলরেডি হয়ে
+                   গেছে তাদেরকেও এখানে শো করতে হবে… ওভারডিউর বদলে আজকে এখনো
+                   বাকি, বা হয়ে গেছে"*।
+                   ⇒ ভাগ এখন **রেজিস্ট্রেশনের তারিখ দিয়ে নয়**, চেকআপ হয়েছে
+                     কিনা তাই দিয়ে। দুটো ভাগই শুধু আজকের — রাত ১২টায় খালি। */
+                lastPendingItems = items.filter { !it.done }
+                lastDoneItems = items.filter { it.done }
                 renderRows()
             }
         }
@@ -446,20 +453,22 @@ class DoctorQueueActivity : AppCompatActivity() {
         val rows = mutableListOf<QueueRow>()
         // 🔍 V972 — খোঁজার লেখা থাকলে ছেঁকে নেওয়া তালিকাই দেখানো হয়; ফাঁকা
         //    থাকলে সব আগের মতোই। ⛔ জমানো আসল তালিকা ছোঁয়া হয় না।
-        val todayShown = lastTodayItems.filter { matchesSearch(it) }
-        val overdueShown = lastOverdueItems.filter { matchesSearch(it) }
-        if (todayShown.isNotEmpty()) {
-            rows.add(QueueRow.Header("Today (${todayShown.size})"))
-            todayShown.forEach { rows.add(QueueRow.Item(it)) }
+        val pendingShown = lastPendingItems.filter { matchesSearch(it) }
+        val doneShown = lastDoneItems.filter { matchesSearch(it) }
+        if (pendingShown.isNotEmpty()) {
+            rows.add(QueueRow.Header("PENDING TODAY (${pendingShown.size})"))
+            pendingShown.forEach { rows.add(QueueRow.Item(it)) }
         }
-        if (overdueShown.isNotEmpty()) {
-            // 🔍 V972 — খোঁজার সময় গুটানো থাকলে ফল দেখা যেত না, তাই তখন খোলাই থাকে।
-            val open = overdueExpanded || queueSearch.isNotBlank()
+        if (doneShown.isNotEmpty()) {
+            /* ✅ V983 — TK: *"DONE TODAY পর্দা ওপেন থাকবে না"* ⇒ গুটানো থাকে,
+               শিরোনামে চাপ দিলে খোলে।
+               🔍 V972 — খোঁজার সময় গুটানো থাকলে ফল দেখা যেত না, তাই তখন খোলাই থাকে। */
+            val open = doneExpanded || queueSearch.isNotBlank()
             val arrow = if (open) "▼" else "▶"
-            rows.add(QueueRow.Header("$arrow Pending / Overdue (${overdueShown.size})", collapsible = true))
-            if (open) overdueShown.forEach { rows.add(QueueRow.Item(it)) }
+            rows.add(QueueRow.Header("$arrow DONE TODAY (${doneShown.size})", collapsible = true))
+            if (open) doneShown.forEach { rows.add(QueueRow.Item(it)) }
         }
-        if (queueSearch.isNotBlank() && todayShown.isEmpty() && overdueShown.isEmpty()) {
+        if (queueSearch.isNotBlank() && pendingShown.isEmpty() && doneShown.isEmpty()) {
             rows.add(QueueRow.Header("No patient found"))
         }
         // 🔒 V217 (§B216, Master Fix Order §14, item 7 "CHECK-UP থেকে Back

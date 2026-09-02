@@ -58,6 +58,10 @@ data class QueuePatient(
     val paidTotal: Double = 0.0,                // এ পর্যন্ত মোট জমা
     val lastTreatment: String = "",             // গত যেদিন যা চিকিৎসা হয়েছিল
     val lastTreatmentDate: String = "",         // সেই তারিখ (yyyy-MM-dd)
+    /* ✅🔒 V983 (০২.০৯.২০২৬, TK-নির্দেশ) — *"ওভারডিউর বদলে আজকে এখনো বাকি,
+       বা হয়ে গেছে"* ⇒ আজ যাঁর চেকআপ হয়ে গেছে তিনিও তালিকায় থাকেন, শুধু
+       আলাদা ভাগে। ⛔ ডিফল্ট `false` — তাই পুরনো কোনো ডাক ভাঙে না। */
+    val done: Boolean = false,
     val lastTreatmentTime: String = ""          // 🕐 V976 — সেই সময় ("3.42 PM")
 ) {
     /** 🩺 V951 — `nvpWhen` দেখানোর তারিখ (dd.MM.yyyy); তুলনার জন্য ISO-তে ফেরানো।
@@ -168,13 +172,21 @@ object DoctorQueueModel {
     fun isInQueue(row: JSONObject): Boolean {
         if (isSeed(row)) return false
         val doctorComplete = row.optBoolean("doctorComplete", false)
-        if (doctorComplete) return false
         val queueFlag = row.optBoolean("queue", false)
         val stage = row.s("stage")
         if (!(queueFlag || stage == "Doctor Queue" || stage == "Visit")) return false
         // 🔴 V842 — বহুদিনের পুরনো, চেকআপ ছাড়া পড়ে থাকা নাম আর দেখাবে না।
-        val age = ageDaysOrNull(row) ?: return true   // জানা না থাকলে রেখে দিই
-        return age <= QUEUE_STALE_DAYS
+        val age = ageDaysOrNull(row)
+        /* ✅🔒 V983 (০২.০৯.২০২৬, TK-নির্দেশ) — *"যাদের চেকআপ অলরেডি হয়ে গেছে
+           তাদেরকেও এখানে শো করতে হবে… ওভারডিউর বদলে আজকে এখনো বাকি, বা
+           হয়ে গেছে"*।
+           ⇒ চেকআপ হয়ে যাওয়া রোগী **শুধু আজকের দিনটুকুই** থাকেন; রাত ১২টা
+             পেরোলেই নিজে থেকে সরে যান, ঠিক বাকিদের মতোই।
+           ⛔ তারিখ জানা না গেলে দেখানো হয় না — আন্দাজে পুরনো কেউ যেন
+              "হয়ে গেছে" ভাগে চিরকাল বসে না থাকেন। বাকিদের নিয়ম (তারিখ না
+              জানলে রেখে দেওয়া) হুবহু আগের মতোই। */
+        if (doctorComplete) return age != null && age <= 0L
+        return (age ?: return true) <= QUEUE_STALE_DAYS
     }
 
     fun parse(row: JSONObject): QueuePatient = QueuePatient(
@@ -196,7 +208,9 @@ object DoctorQueueModel {
         nvpBy = row.s("nvpBy"),
         nvpItems = row.s("nvpItems").split(",").map { it.trim() }.filter { it.isNotEmpty() },
         nvpMedicine = row.s("nvpMedicine"),
-        nvpNote = row.s("nvpNote")
+        nvpNote = row.s("nvpNote"),
+        /* ✅ V983 — ক্লাউডের সারিতে `doctorComplete`, আর জমানো তালিকায় `done`। */
+        done = row.optBoolean("doctorComplete", false) || row.optBoolean("done", false)
     )
 
     /** Newest first, matching visitQueueRows()'s sort by

@@ -9183,7 +9183,22 @@ function visitQueueRows(){
      return d<0?true:(d<=WLV1_Q_STALE_DAYS);
    }catch(_e){return true}
  };
- let rows=base.filter(x=>(wlv1Flag(x.queue)||x.stage==='Doctor Queue'||x.stage==='Visit')&&!wlv1Flag(x.doctorComplete)&&!isSeededRecord(x)&&wlv1QFresh(x));
+ /* ✅🔒 V983 (০২.০৯.২০২৬, TK-নির্দেশ) — *"যাদের চেকআপ অলরেডি হয়ে গেছে
+    তাদেরকেও এখানে শো করতে হবে… ওভারডিউর বদলে আজকে এখনো বাকি, বা হয়ে গেছে"*।
+    ⇒ চেকআপ হয়ে যাওয়া রোগী **শুধু আজকের দিনটুকুই** থাকেন (তারিখ জানা না
+      গেলে দেখানো হয় না — নইলে পুরনো কেউ চিরকাল বসে থাকতেন)।
+    ⛔ বাকিদের নিয়ম হুবহু আগের মতোই। ফোনের `isInQueue()`-এর যমজ। */
+ var wlv1QDoneToday=function(x){
+   try{
+     var raw=[x.updatedAt,x.visitDate,x.registrationDate,x.createdAt]
+       .map(function(v){return String(v||'')}).filter(function(v){return v.length>=10})[0];
+     if(!raw)return false;
+     var t=new Date(raw.slice(0,10)+'T00:00:00').getTime();
+     if(isNaN(t))return false;
+     return Math.floor((Date.now()-t)/86400000)<=0;
+   }catch(_e){return false}
+ };
+ let rows=base.filter(x=>(wlv1Flag(x.queue)||x.stage==='Doctor Queue'||x.stage==='Visit')&&!isSeededRecord(x)&&(wlv1Flag(x.doctorComplete)?wlv1QDoneToday(x):wlv1QFresh(x)));
  /* 🩺🔒 V951 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — TK: *"OLD পেশেন্ট যারা
     ট্রিটমেন্ট করার জন্য টাকা জমা করেছে তাদেরকে কেন দেখাচ্ছে না?"*
     আগে লাইনে ঢোকার নিয়মে **শুধু** নতুন রেজিস্ট্রেশন ও NEXT VISIT PLAN ছিল।
@@ -9507,8 +9522,10 @@ function wlv1DqCard(p){
       var sfx=(r>=11&&r<=13)?'th':(u===1?'st':u===2?'nd':u===3?'rd':'th');
       return n+sfx+' Visit';
     }
+    /* ✅ V983 — আজ চেকআপ হয়ে গেলে কার্ডে "✓ DONE"। */
+    if(wlv1Flag(p.doctorComplete)) return '\u2713 DONE';
     return b||'WAITING'; })();
-  return `<div class="card doctorQueuePro"><div class="queueRow">${p.photo?`<img class="queuePhoto" src="${p.photo}">`:`<div class="queuePhoto blank">👤</div>`}<div class="queueInfo"><b class="wlv1NameLink" onclick="wlv1FullJourney('${esc(normMob(p.mobile))}')" title="Tap for History">${esc(p.name)}</b><span><span class="wlv1CallLink" onclick="event.stopPropagation();contact('${esc(p.mobile)}','call')" title="Tap to call">${esc(normMob(p.mobile))}</span> · ${esc(p.patientId||'')}</span><small>${esc(p.disease||'-')} · ${esc(p.branch||'-')}</small></div><span class="queueBadge"${(function(){var b=wlv1NvpOldNew(p);return b?(' style="background:'+(b==='NEW'?'#16A36D':'#0B3D91')+'"'):''})()}>${esc(__badge)}</span></div>${__m?'':wlv1NvpTagHtml(p)}${wlv1DqExtraHtml(p,__m)}<div class="actions queueActions"><button class="ghost" onclick="wlv1FullJourney('${esc(normMob(p.mobile))}')">History</button>${rcBtn}<button onclick="wlv1NvpCheckupWithReminder('${p.id}')">Check-up</button><button class="ghost" onclick="summary('${p.id}')">⚡ Action</button></div></div>`;
+  return `<div class="card doctorQueuePro"><div class="queueRow">${p.photo?`<img class="queuePhoto" src="${p.photo}">`:`<div class="queuePhoto blank">👤</div>`}<div class="queueInfo"><b class="wlv1NameLink" onclick="wlv1FullJourney('${esc(normMob(p.mobile))}')" title="Tap for History">${esc(p.name)}</b><span><span class="wlv1CallLink" onclick="event.stopPropagation();contact('${esc(p.mobile)}','call')" title="Tap to call">${esc(normMob(p.mobile))}</span> · ${esc(p.patientId||'')}</span><small>${esc(p.disease||'-')} · ${esc(p.branch||'-')}</small></div><span class="queueBadge"${(function(){ if(wlv1Flag(p.doctorComplete)) return ' style="background:#0E7C5A"'; var b=wlv1NvpOldNew(p);return b?(' style="background:'+(b==='NEW'?'#16A36D':'#0B3D91')+'"'):''})()}>${esc(__badge)}</span></div>${__m?'':wlv1NvpTagHtml(p)}${wlv1DqExtraHtml(p,__m)}<div class="actions queueActions"><button class="ghost" onclick="wlv1FullJourney('${esc(normMob(p.mobile))}')">History</button>${rcBtn}<button onclick="wlv1NvpCheckupWithReminder('${p.id}')">Check-up</button><button class="ghost" onclick="summary('${p.id}')">⚡ Action</button></div></div>`;
 }
 /* 🔍🔒 V974 (নিজে ধরা, দ্বিতীয়বার গভীরে যাচাই করতে গিয়ে) — খোঁজার লেখাটা
    পর্দা ছেড়ে গেলেও থেকে যেত; পরে আবার এসে স্টাফ দেখতেন তালিকা প্রায় ফাঁকা
@@ -9529,7 +9546,9 @@ function doctorQueue(keepSearch){if(!keepSearch){try{window.__dqSearch=''}catch(
    else if(v!=='All'){ rows=rows.filter(function(x){ return sameBranch((x&&x.branch)||'', v); }); }
  }
  let branchWrap=(isMaster()||__crossDoc)?`<div id="dqBranchWrap" class="wlv1HdrPick">${wlv1BranchSelectHtml('doctorQueue(true)')}</div>`:'';
- let todayRows=rows.filter(wlv1DqIsToday), overdueRows=rows.filter(x=>!wlv1DqIsToday(x));
+ /* ✅🔒 V983 (TK-নির্দেশ) — ভাগ এখন রেজিস্ট্রেশনের তারিখ দিয়ে নয়, চেকআপ
+    হয়েছে কিনা তাই দিয়ে: PENDING TODAY (এখনো বাকি) ও DONE TODAY (হয়ে গেছে)। */
+ let todayRows=rows.filter(x=>!wlv1Flag(x.doctorComplete)), overdueRows=rows.filter(x=>wlv1Flag(x.doctorComplete));
  /* 🔍🔒 V972 (০২.০৯.২০২৬, TK-নির্দেশ) — *"এখানে patient Search করার মত অপশন
     থাকতে হবে"*। ফোনের `DoctorQueueActivity`-র হুবহু জোড়া: নাম · মোবাইল ·
     রোগীর আইডি — তিনটের যেকোনোটায় মিললেই। ⛔ শুধু পর্দায় ছাঁকে, ক্লাউডে
@@ -9548,12 +9567,13 @@ function doctorQueue(keepSearch){if(!keepSearch){try{window.__dqSearch=''}catch(
  var searchBox='<input id="dqSearch" class="input" style="margin:10px 0" placeholder="Search patient by name / mobile / ID" value="'+esc(window.__dqSearch||'')+'" oninput="wlv1DqSearch(this.value)">';
  let body=searchBox;
  if(todayRows.length){
-   body+=`<div class="dqSectionHead dqToday">Today (${todayRows.length})</div><div id="dqRows">${todayRows.map(wlv1DqCard).join('')}</div>`;
+   body+=`<div class="dqSectionHead dqToday">PENDING TODAY (${todayRows.length})</div><div id="dqRows">${todayRows.map(wlv1DqCard).join('')}</div>`;
  }
  if(overdueRows.length){
    /* 🔍 V972 — খোঁজার সময় গুটানো থাকলে ফল দেখা যেত না, তাই তখন খোলাই থাকে। */
    var __open = wlv1DqOverdueOpen || !!__q;
-   body+=`<div class="dqSectionHead dqOverdue" onclick="wlv1DqToggleOverdue()">${__open?'▼':'▶'} Pending / Overdue (${overdueRows.length})</div>`;
+   /* ✅ V983 — TK: *"DONE TODAY পর্দা ওপেন থাকবে না"* ⇒ গুটানোই থাকে। */
+   body+=`<div class="dqSectionHead dqDone" onclick="wlv1DqToggleOverdue()">${__open?'▼':'▶'} DONE TODAY (${overdueRows.length})</div>`;
    if(__open)body+=`<div id="dqRows2">${overdueRows.map(wlv1DqCard).join('')}</div>`;
  }
  if(!todayRows.length&&!overdueRows.length)body=__dqAsk?wlv1BranchAskCard():(searchBox+'<div class="card mut">'+(__q?'No patient found':'No Patient In Queue')+'</div>');

@@ -127,6 +127,8 @@ class DoctorQueueRepository(private val context: Context? = null) {
                         .put("nvpBy", q.nvpBy).put("nvpMedicine", q.nvpMedicine)
                         .put("nvpNote", q.nvpNote)
                         .put("nvpItems", q.nvpItems.joinToString(","))
+                        /* ✅ V983 — "হয়ে গেছে" ভাগটা নেট ছাড়াও ঠিক থাকে। */
+                        .put("done", q.done)
                         // queue/doctorComplete/stage aren't needed back -- isInQueue() isn't
                         // re-applied to cached data, it's only used for the raw fetch above.
                 )
@@ -410,7 +412,10 @@ class DoctorQueueRepository(private val context: Context? = null) {
             for (pid in ids) {
                 if (pid in already) continue
                 val row = byId[pid] ?: continue
-                if (row.optBoolean("doctorComplete", false)) continue   // চেকআপ হয়ে গেছে
+                /* ✅🔒 V983 (TK-নির্দেশ) — চেকআপ হয়ে যাওয়া রোগীও আজকের দিনটুকু
+                   তালিকায় থাকেন ("DONE TODAY" ভাগে)। কে থাকবেন সেটা এখন
+                   একটাই জায়গা ঠিক করে — `DoctorQueueModel.isInQueue()`। */
+                if (!DoctorQueueModel.isInQueue(row)) continue
                 val mob = row.s("mobile").filter { it.isDigit() }.takeLast(10)
                 if (mob.length == 10 && !seenMobiles.add(mob)) continue // এক মোবাইল = এক কার্ড
                 out.add(decorate(DoctorQueueModel.parse(row)))

@@ -3303,6 +3303,8 @@ table.dhxHistTable{width:100%;border-collapse:collapse;font-size:12px;margin-top
 .dqSectionHead{border-radius:10px;padding:11px 16px;font-weight:800;font-size:15px;color:#fff;margin:14px 0 8px}
 .dqSectionHead.dqToday{background:#0C9E33}
 .dqSectionHead.dqOverdue{background:#E8890C;cursor:pointer}
+/* ✅ V983 (TK-নির্দেশ) — Overdue-এর বদলে "DONE TODAY", গাঢ় নীল-ধূসর। */
+.dqSectionHead.dqDone{background:#334E68;cursor:pointer}
 
 /* 🔧 TK-নির্দেশে (১৫.০৮.২০২৬, "আইকন থাকবে না"): Draft হোম পাতার ৭টা বক্সে
    (My Enquiry/Reject/Incomplete/Complete/Unexpected/Refunded) আইকন শুধু

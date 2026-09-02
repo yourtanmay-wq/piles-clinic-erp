@@ -119,7 +119,13 @@ class DoctorQueueAdapter(
                    ⛔ তারিখ জানা না থাকলে আগের মতোই "WAITING" (লাল) থাকে —
                       আন্দাজে NEW/OLD বসানো হয় না। */
                 b.tvName.text = item.name.ifBlank { "UNKNOWN" }
-                when (nvpBadge) {
+                /* ✅🔒 V983 (০২.০৯.২০২৬, TK-নির্দেশ) — আজ যাঁর চেকআপ হয়ে গেছে
+                   তাঁর কার্ডে **✓ DONE**। ⛔ পিলের আকার · জায়গা · মাপ কিছুই
+                   বদলায়নি, শুধু লেখা ও রং — বাকি সব কার্ড হুবহু আগের মতোই। */
+                if (item.done) {
+                    b.tvStatus.text = "✓ DONE"
+                    b.tvStatus.setBackgroundResource(R.drawable.bg_badge_old)
+                } else when (nvpBadge) {
                     "NEW" -> {
                         b.tvStatus.text = "NEW"
                         b.tvStatus.setBackgroundResource(R.drawable.bg_badge_new)
