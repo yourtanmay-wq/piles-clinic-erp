@@ -64,10 +64,11 @@ object BellCounter {
         // BellNotifier (CallReminderWorker-এর ভিতরে, দিনে ৩ বার চলে)
         // এমনিতেই ফোনের স্বাভাবিক নোটিফিকেশন-সাউন্ডসহ জানিয়ে দেয় — এটা
         // আগে থেকেই থাকা একই ব্যবস্থা, শুধু এই নতুন সংখ্যাটা তার মধ্যে যোগ হলো।
-        try {
-            val branchFilter = if (session.role == "master") null else session.branch
-            c += DoctorVisitRepository().fetchNextCallDueTodayCount(branchFilter)
-        } catch (_: Exception) {}
+        /* 🔕🔒 V970 (০২.০৯.২০২৬, TK-নির্দেশ) — *"Today RMP Call Due নোটিফিকেশন
+           হিসাবে দেখানোর দরকার নেই"*। ঘন্টার সংখ্যাতেও আর গোনা হয় না — নইলে
+           ঘন্টায় সংখ্যা দেখাত অথচ তালিকায় কিছুই থাকত না।
+           ⛔ `fetchNextCallDueTodayCount()` মোছা হয়নি, শুধু আর ডাকা হয় না —
+              তাই ফ্রি প্ল্যানে দিনে কয়েকটা পড়াও কমল। */
         // 🆕🔒 খাতার সারি — Dialer → Missed কল-ব্যাক বাকি (TK-নির্দেশ,
         // 05.08.2026)। সম্পূর্ণ স্থানীয় (এই ফোনের Call Log), ক্লাউডে
         // কিছু যায় না — তাই নতুন কোনো Supabase-অনুরোধ নেই।

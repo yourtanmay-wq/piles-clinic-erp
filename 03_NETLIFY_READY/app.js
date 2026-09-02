@@ -3600,27 +3600,12 @@ function wlv1NotificationsPage(){
                   .sort(function(a,b){return String(a.name||'').localeCompare(String(b.name||''))});
   var expToday =dv.filter(function(x){return String(x.expectedPatientDate||'').slice(0,10)===t})
                   .sort(function(a,b){return String(a.name||'').localeCompare(String(b.name||''))});
-  // ২) 📞 Call Doctor Today
-  /* 🟢🔒 V410 (TK-নির্দেশ, ১৭.০৮.২০২৬) — লম্বা তালিকা গুটিয়ে রাখা।
-     আজ ১৩৮ জন, ২২ অগাস্ট ৩০৮ জন — একসাথে দেখালে স্টাফ তালিকাটাই এড়িয়ে যান।
-     ⇒ ১০ জনের বেশি হলে এক লাইনে, চাপলে খোলে। ⛔ গোনা (উপরের সংখ্যা) অপরিবর্তিত।
-     ⛔ ফোনের `NotificationsActivity`-তেও হুবহু একই নিয়ম বসানো হয়েছে। */
-  if(callToday.length){
-    total+=callToday.length;
-    html+='<div class="nbSec" style="color:#16A36D"><i style="background:#16A36D"></i>📞 Call Doctor Today</div>';
-    if(callToday.length>WLV1_NB_COLLAPSE_OVER && !window.__wlv1NbExpandCall){
-      html+=wlv1NbRow('📞','#e8fff4',(callToday.length+' doctors to call today'),'Tap to open the full list',
-        "wlv1NbToggle('call')");
-    }else{
-      callToday.forEach(function(d){
-        html+=wlv1NbRow('📞','#e8fff4',(d.name||'UNKNOWN'),(normMob(d.mobile||'')+' · Next Call Date is today'),
-          "wlv1NbOpenDoctor('"+esc(String(d.mobile||''))+"')");
-      });
-      if(callToday.length>WLV1_NB_COLLAPSE_OVER){
-        html+=wlv1NbRow('▲','#eef1f5','Hide this list','Show it as one line again',"wlv1NbToggle('call')");
-      }
-    }
-  }
+  /* 🔕🔒 V970 (০২.০৯.২০২৬, TK-নির্দেশ) — *"Today RMP Call Due নোটিফিকেশন
+     হিসাবে দেখানোর দরকার নেই, শুধুমাত্র RMP সেকশন খুললে সেখানে দেখাক"*।
+     ⇒ "📞 Call Doctor Today" সেকশনটা এখান থেকে তুলে দেওয়া হলো, আর উপরের
+     মোট সংখ্যাতেও (`total`) আর গোনা হয় না — নইলে ঘন্টায় সংখ্যা দেখাত অথচ
+     তালিকায় কিছুই থাকত না। ফোনেও হুবহু একই (NotificationsActivity · BellCounter)।
+     ⛔ `callToday` হিসাবটা উপরে রয়ে গেল — RMP পর্দা ওটাই ব্যবহার করে। */
   // ৩) 🧑‍⚕️ Patient Expected Today
   if(expToday.length){
     total+=expToday.length;
