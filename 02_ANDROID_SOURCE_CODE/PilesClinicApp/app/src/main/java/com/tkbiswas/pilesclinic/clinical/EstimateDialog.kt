@@ -615,6 +615,21 @@ object EstimateDialog {
         try { PremiumAlert.paint(dlg) } catch (_: Throwable) { }
     }
 
+    /* ═══════════════════════════════════════════════════════════════════
+       🖥️🔒 V982 (TK-নির্দেশ: *"ফুল স্ক্রিন পর্দা খুলবে, আলাদা পপ-আপ লাগবে না"*)
+       — নতুন **ফুল-স্ক্রিন কাগজের পর্দা** (`EstimatePaperActivity`) এই তিনটে
+       বাছাই-পপ-আপই ব্যবহার করে। তাই ওগুলো এখান থেকে ডাকার তিনটে ছোট দরজা।
+       ⛔ ভিতরের কোড এক অক্ষরও বদলায়নি — শুধু বাইরে থেকে ডাকা যায়।
+       ═══════════════════════════════════════════════════════════════════ */
+    fun pickTreatment(activity: Activity, sheet: EstimateModel.Sheet, redraw: () -> Unit) =
+        addTreatment(activity, sheet, redraw)
+
+    fun pickMedicine(activity: Activity, sheet: EstimateModel.Sheet, redraw: () -> Unit) =
+        addFromGroup(activity, sheet, EstimatePrices.G_MEDICINE, redraw)
+
+    fun pickOther(activity: Activity, sheet: EstimateModel.Sheet, redraw: () -> Unit) =
+        addFromGroup(activity, sheet, EstimatePrices.G_OTHER, redraw)
+
     /** ওষুধ বা অন্যান্য — তালিকা থেকে বেছে দর ও সংখ্যা। */
     private fun addFromGroup(
         activity: Activity,

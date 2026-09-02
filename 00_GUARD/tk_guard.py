@@ -1881,6 +1881,8 @@ _WEBVIEW_ALLOWED = {
     "modules/IncomeExpenseActivity.kt":  (1, "ছাপা — Statement PDF"),
     "modules/PartnerSharesActivity.kt":  (1, "ছাপা — Partner Shares"),
     "clinical/DoctorCheckupActivity.kt": (3, "১টা পূর্ণ-পর্দা (weight=1f, মাপ বাঁধা) + ২টা ছাপার"),
+    # V982 (TK-নির্দেশ: *"ফুল স্ক্রিন পর্দা খুলবে, আলাদা পপ-আপ লাগবে না"*)
+    "clinical/EstimatePaperActivity.kt": (2, "১টা পূর্ণ-পর্দা (weight=1f, মাপ বাঁধা) + ১টা ছাপার"),
     "native/MedicinePaymentActivity.kt": (1, "ছাপা — Medicine receipt"),
     "native/PatientTimelineActivity.kt": (2, "১টা `steadyWebView()`-এর ভিতরে + ১টা ছাপার"),
     "native/PaymentActivity.kt":         (1, "ছাপা — Treatment receipt"),

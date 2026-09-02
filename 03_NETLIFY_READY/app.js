@@ -26052,42 +26052,125 @@ function wlv1EstDiscMode(){ wlv1EstSheet.discountPct=!wlv1EstSheet.discountPct; 
 window["wlv1EstDiscMode"]=wlv1EstDiscMode;
 function wlv1EstStore(){ try{ window.__wlv1EstJson = wlv1EstSheet.lines.length?JSON.stringify(wlv1EstSheet):'' }catch(e){} }
 
+/* ══════════════════════════════════════════════════════════════════
+   🖥️🔒 V982 (০২.০৯.২০২৬, TK-এর পাশ-করা ফটো-প্রুফ) —
+   **এস্টিমেটের ফুল-স্ক্রিন কাগজ** (ফোনের `EstimatePaperActivity`-এর হুবহু একই)।
+   TK: *"A4 সাইজ প্রিন্ট আউট হওয়ার পর যেমন হবে, ঠিক সে রকম ভাবেই
+   এখানে থাকবে"* · *"ফুল স্ক্রিন পর্দা খুলবে, আলাদা পপ আপ লাগবে না, zoom করা যাবে"*।
+   ⛔ পুরনো বাছাই-পপ-আপগুলো (Add Treatment/Medicine/Other · Price List)
+      হুবহু আগের মতোই — একটাও বদলায়নি।
+   ═════════════════════════════════════════════════════════════════ */
+var wlv1EstZoom=1;
 function wlv1EstOpen(){
   wlv1EstLoad();
+  wlv1EstZoom=1;
+  wlv1EstScreen();
+}
+function wlv1EstScreen(){
+  var old=document.getElementById('wlv1EstScreen'); if(old) old.remove();
+  var box=document.createElement('div');
+  box.id='wlv1EstScreen';
+  box.style.cssText='position:fixed;inset:0;z-index:99999;background:#EDF1EE;display:flex;flex-direction:column';
+  box.innerHTML=
+     '<div style="background:#0B5B2F;color:#fff;padding:12px 14px;display:flex;align-items:center;gap:12px">'
+    +'<span style="cursor:pointer;font-size:17px" onclick="wlv1EstLeave()">&#9664;</span>'
+    +'<b style="font-size:15px;letter-spacing:.5px;flex:1">COST ESTIMATE &nbsp;&middot;&nbsp; A4</b>'
+    +'<span style="cursor:pointer;font-size:18px;padding:0 8px" onclick="wlv1EstZoomBy(-1)">&minus;</span>'
+    +'<span style="cursor:pointer;font-size:18px;padding:0 8px" onclick="wlv1EstZoomBy(1)">+</span></div>'
+    +'<div style="background:#fff;display:flex;gap:6px;padding:7px 8px;border-bottom:1px solid #DCE4DE">'
+    +'<button type="button" class="small ghost" style="flex:1" onclick="wlv1EstAddTreat()">+ Treatment</button>'
+    +'<button type="button" class="small ghost" style="flex:1" onclick="wlv1EstAddGroup(\'Medicine\')">+ Medicine</button>'
+    +'<button type="button" class="small ghost" style="flex:1" onclick="wlv1EstAddGroup(\'Other\')">+ Other</button>'
+    +'<button type="button" class="small ghost" style="flex:1" onclick="wlv1EstPriceList()">Price List</button></div>'
+    +'<div id="wlv1EstStage" style="flex:1;overflow:auto;padding:12px"></div>'
+    +'<div style="background:#fff;display:flex;gap:8px;padding:8px 10px 12px;border-top:1px solid #DCE4DE">'
+    +'<button type="button" class="ghost" style="flex:1" onclick="wlv1EstSave()">&#128190; SAVE</button>'
+    +'<button type="button" class="ghost" style="flex:1" onclick="wlv1EstPaper()">&#128424; PRINT</button>'
+    +'<button type="button" style="flex:1" onclick="wlv1EstShare()">&#128228; SHARE</button></div>';
+  document.body.appendChild(box);
   wlv1EstRender();
 }
+/* কাগজটা নিজের ঘরে (iframe) — তার CSS অ্যাপের CSS-এ কখনো লাগবে না। */
 function wlv1EstRender(){
-  var rows=wlv1EstSheet.lines.map(function(l,i){
-    var strike=l.struck?'text-decoration:line-through;color:#8B98A9':'color:#0B4F2A';
-    return '<div class="card" style="margin:8px 0;padding:11px">'
-      +'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">'
-      +'<div style="flex:1;min-width:0"><b style="'+(l.struck?'text-decoration:line-through;color:#8B98A9':'')+'">'+esc(l.name)+(l.measure?' ('+esc(l.measure)+')':'')+'</b>'
-      +(l.position?'<div class="tiny mut">'+esc(l.position)+'</div>':'')+'</div>'
-      +'<span style="cursor:pointer;font-weight:900;color:'+(l.struck?'#0B7A4B':'#B42318')+'" onclick="wlv1EstStrike('+i+')">'+(l.struck?'↺':'✕')+'</span>'
-      +'<span style="cursor:pointer" onclick="wlv1EstDrop('+i+')">🗑</span></div>'
-      +'<div style="display:flex;gap:7px;margin-top:7px">'
-      +'<div style="flex:1"><div class="tiny mut">RATE</div><input class="input" style="margin:2px 0" value="'+wlv1EstShort(l.rate)+'" oninput="wlv1EstEdit('+i+',\'rate\',this.value)"></div>'
-      +'<div style="flex:1"><div class="tiny mut">QTY</div><input class="input" style="margin:2px 0" value="'+wlv1EstShort(l.qty)+'" oninput="wlv1EstEdit('+i+',\'qty\',this.value)"></div>'
-      +'<div style="flex:1"><div class="tiny mut">TOTAL</div><div id="wlv1EstLineTot'+i+'" style="padding:11px 0;text-align:right;font-weight:900;'+strike+'">'+wlv1EstShort(Number(l.rate||0)*Number(l.qty||0))+'</div></div>'
-      +'</div></div>';
-  }).join('')||'<div class="card mut">No item added yet.</div>';
-  modal('<h2>🧮 Cost Estimate</h2>'+rows
-    +'<div class="actions"><button class="small ghost" onclick="wlv1EstAddTreat()">+ Treatment</button>'
-    +'<button class="small ghost" onclick="wlv1EstAddGroup(\'Medicine\')">+ Medicine</button>'
-    +'<button class="small ghost" onclick="wlv1EstAddGroup(\'Other\')">+ Other</button>'
-    +'<button class="small ghost" onclick="wlv1EstPriceList()">Price List</button></div>'
-    +'<div class="card" style="background:#F7FAFD">'
-    +'<div class="row"><span class="mut">Subtotal</span><b id="wlv1EstSub">'+wlv1EstShort(wlv1EstSubtotal())+'</b></div>'
-    +'<div class="row" style="margin-top:6px"><span class="mut">Discount</span>'
-    +'<span><button type="button" class="small" style="margin-right:6px;min-width:38px" onclick="wlv1EstDiscMode()">'+(wlv1EstSheet.discountPct?'%':'&#8377;')+'</button>'
-    +'<input class="input" style="width:110px;margin:0;text-align:right;display:inline-block" value="'+(wlv1EstSheet.discount?wlv1EstShort(wlv1EstSheet.discount):'')+'" placeholder="0" oninput="wlv1EstDiscount(this.value)"></span></div>'
-    +(wlv1EstSheet.discountPct&&Number(wlv1EstSheet.discount||0)>0
-       ? '<div class="row" style="margin-top:4px"><span class="mut">Discount amount</span><b style="color:#B42318">'+wlv1EstShort(wlv1EstDiscAmt())+'</b></div>' : '')
-    +'<div class="row" style="margin-top:8px"><b style="color:#0B4F2A">Net Payable</b><b style="color:#0B4F2A;font-size:17px" id="wlv1EstNet">'+wlv1EstShort(wlv1EstNet())+'</b></div></div>'
+  var stage=document.getElementById('wlv1EstStage'); if(!stage) return;
+  var w=Math.max(stage.clientWidth-4,240);
+  var fit=Math.min(1,(w/794))*wlv1EstZoom;
+  stage.innerHTML='<div style="width:'+Math.round(794*fit)+'px;height:'+Math.round(1123*fit)
+    +'px;margin:0 auto;box-shadow:0 4px 16px rgba(0,0,0,.18);overflow:hidden;background:#fff">'
+    +'<iframe id="wlv1EstFrame" style="width:794px;height:1123px;border:0;transform:scale('+fit
+    +');transform-origin:top left"></iframe></div>';
+  var fr=document.getElementById('wlv1EstFrame');
+  try{
+    var d=fr.contentWindow.document;
+    d.open(); d.write(wlv1EstPaperHtml(true)); d.close();
+    d.addEventListener('click',function(ev){
+      var a=ev.target && ev.target.closest ? ev.target.closest('a') : null;
+      if(!a) return;
+      ev.preventDefault();
+      var h=String(a.getAttribute('href')||'');
+      if(h.indexOf('est://discount')===0){ wlv1EstDiscountBox(); return }
+      var i=parseInt(h.replace('est://line/',''),10);
+      if(!isNaN(i)) wlv1EstLineBox(i);
+    });
+  }catch(e){}
+}
+function wlv1EstZoomBy(dir){
+  wlv1EstZoom=Math.min(3,Math.max(1,wlv1EstZoom+(dir>0?0.35:-0.35)));
+  wlv1EstRender();
+}
+/* হলুদ ঘরে চাপ — রেট · সংখ্যা · কাটা · মুছে ফেলা। */
+function wlv1EstLineBox(i){
+  var l=wlv1EstSheet.lines[i]; if(!l) return;
+  modal('<h2>&#9998; '+esc(l.name)+'</h2>'
+    +'<div class="card"><div style="display:flex;gap:8px">'
+    +'<div style="flex:1"><div class="tiny mut">RATE (&#8377;)</div><input id="wlv1EstLR" class="input" value="'+wlv1EstShort(l.rate)+'"></div>'
+    +'<div style="flex:1"><div class="tiny mut">QUANTITY</div><input id="wlv1EstLQ" class="input" value="'+wlv1EstShort(l.qty)+'"></div>'
+    +'</div></div>'
+    +'<div class="actions"><button class="ghost" onclick="wlv1EstLineDrop('+i+')">Delete</button>'
+    +'<button class="ghost" onclick="wlv1EstStrike2('+i+')">'+(l.struck?'Un-strike':'Strike out')+'</button>'
+    +'<button onclick="wlv1EstLineSave('+i+')">Save</button></div>');
+}
+function wlv1EstLineSave(i){
+  var l=wlv1EstSheet.lines[i]; if(!l) return;
+  try{ l.rate=wlv1EstNum($('#wlv1EstLR').value); l.qty=wlv1EstNum($('#wlv1EstLQ').value) }catch(e){}
+  closeModal(); wlv1EstRender();
+}
+function wlv1EstLineDrop(i){ wlv1EstSheet.lines.splice(i,1); closeModal(); wlv1EstRender() }
+function wlv1EstStrike2(i){ var l=wlv1EstSheet.lines[i]; if(l) l.struck=!l.struck; closeModal(); wlv1EstRender() }
+function wlv1EstDiscountBox(){
+  modal('<h2>&#128184; Discount</h2><div class="card">'
+    +'<div class="tiny mut">DISCOUNT</div>'
+    +'<input id="wlv1EstDV" class="input" value="'+(wlv1EstSheet.discount?wlv1EstShort(wlv1EstSheet.discount):'')+'" placeholder="0">'
+    +'<button type="button" class="small" style="margin-top:9px;width:100%" onclick="wlv1EstDiscMode2()">'
+    +(wlv1EstSheet.discountPct?'Now in  %  &mdash; tap to use &#8377;':'Now in  &#8377;  &mdash; tap to use %')+'</button></div>'
     +'<div class="actions"><button class="ghost" onclick="closeModal()">Cancel</button>'
-    +'<button class="ghost" onclick="wlv1EstPaper()">Print / Share</button>'
+    +'<button onclick="wlv1EstDiscSave()">Save</button></div>');
+}
+function wlv1EstDiscMode2(){
+  try{ wlv1EstSheet.discount=wlv1EstNum($('#wlv1EstDV').value) }catch(e){}
+  wlv1EstSheet.discountPct=!wlv1EstSheet.discountPct;
+  wlv1EstDiscountBox();
+}
+function wlv1EstDiscSave(){
+  try{ wlv1EstSheet.discount=wlv1EstNum($('#wlv1EstDV').value) }catch(e){}
+  closeModal(); wlv1EstRender();
+}
+function wlv1EstClose(){ var b=document.getElementById('wlv1EstScreen'); if(b) b.remove() }
+function wlv1EstLeave(){
+  if(!wlv1EstSheet.lines.length){ wlv1EstClose(); return }
+  modal('<h2>&#9888;&#65039; Are you sure?</h2><div class="card">Leave without saving this estimate?</div>'
+    +'<div class="actions"><button class="ghost" onclick="closeModal()">Stay</button>'
+    +'<button class="ghost" onclick="closeModal();wlv1EstClose()">Leave</button>'
     +'<button onclick="wlv1EstSave()">Save</button></div>');
 }
+/* 📤 SHARE — ফোনে WhatsApp-এ PDF; কম্পিউটারে ব্রাউজারের নিজের ছাপার পথে PDF সেভ। */
+function wlv1EstShare(){ wlv1EstPaper() }
+window["wlv1EstScreen"]=wlv1EstScreen; window["wlv1EstZoomBy"]=wlv1EstZoomBy;
+window["wlv1EstLineBox"]=wlv1EstLineBox; window["wlv1EstLineSave"]=wlv1EstLineSave;
+window["wlv1EstLineDrop"]=wlv1EstLineDrop; window["wlv1EstStrike2"]=wlv1EstStrike2;
+window["wlv1EstDiscountBox"]=wlv1EstDiscountBox; window["wlv1EstDiscMode2"]=wlv1EstDiscMode2;
+window["wlv1EstDiscSave"]=wlv1EstDiscSave; window["wlv1EstLeave"]=wlv1EstLeave;
+window["wlv1EstClose"]=wlv1EstClose; window["wlv1EstShare"]=wlv1EstShare;
 /* 🔎 V973 (নিজে ধরা) — আগে শুধু Net বদলাত, **Subtotal ও ওই লাইনের টাকা পুরনোই
    থেকে যেত**। এখন তিনটেই সঙ্গে সঙ্গে নতুন করে বসে (ফোনেও হুবহু একই)। */
 function wlv1EstEdit(i,key,v){ var l=wlv1EstSheet.lines[i]; if(!l)return; l[key]=wlv1EstNum(v);
@@ -26099,7 +26182,7 @@ function wlv1EstStrike(i){ var l=wlv1EstSheet.lines[i]; if(!l)return; l.struck=!
 function wlv1EstDrop(i){ wlv1EstSheet.lines.splice(i,1); wlv1EstRender() }
 function wlv1EstSave(){ wlv1EstStore();
   try{ if(wlv1EstSheet.lines.length){ var b=$('#dnEstimatedCost'); if(b) b.value=wlv1EstShort(wlv1EstNet()) } }catch(e){}
-  closeModal(); toast('Estimate saved'); }
+  closeModal(); wlv1EstClose(); toast('Estimate saved'); }
 window["wlv1EstOpen"]=wlv1EstOpen; window["wlv1EstEdit"]=wlv1EstEdit;
 window["wlv1EstDiscount"]=wlv1EstDiscount; window["wlv1EstStrike"]=wlv1EstStrike;
 window["wlv1EstDrop"]=wlv1EstDrop; window["wlv1EstSave"]=wlv1EstSave;
@@ -26234,7 +26317,7 @@ window["wlv1EstPriceReset"]=wlv1EstPriceReset;
 /* 💰🔒 V971 — এস্টিমেটের A4 কাগজ (ফোনের `EstimateHtmlPrint.kt`-এর হুবহু জোড়া)।
    ⛔ প্রকল্পের মাস্টার প্রিন্ট ডিজাইনেই; কাটা লাইনের টাকা কাটা অবস্থায় ছাপে
       আর Subtotal-এ গোনা হয় না। কাগজে বাড়তি কোনো লেখা নেই। */
-function wlv1EstPaperHtml(){
+function wlv1EstPaperHtml(editable){
   var p=null; try{ p=wlv1EstPatient() }catch(e){ p=null }
   p=p||{};
   var br=String(p.branch||(user&&user.branch)||'');
@@ -26244,19 +26327,28 @@ function wlv1EstPaperHtml(){
   var logo=kish?'assets/kishanganj-final-logo.jpg':'assets/maa-ayurved-final-logo.jpg';
   var addr=cfg?cfg.address:'';
   var phone=cfg?cfg.mobile:'';
-  var rows=wlv1EstSheet.lines.map(function(l){
+  /* 🖥️ V982 (TK-নির্দেশ) — `editable` হলে হলুদ ঘর ও চাপ দেওয়ার
+     লিঙ্ক বসে; ছাপা ও শেয়ারে ফ্যাগটা থাকে না ⇒ কাগজ হুবহু আগের মতো। */
+  var rows=wlv1EstSheet.lines.map(function(l,i){
     var cls=l.struck?' class="free"':'';
     var amt=l.struck?' class="r amt"':' class="r"';
     var label=esc(l.name)+(l.measure?(' ('+esc(l.measure)+')'):'');
-    return '<tr'+cls+'><td>'+label+'</td><td class="k">'+(l.position?esc(l.position):'&mdash;')+'</td>'
-      +'<td class="r">'+wlv1EstMoney(l.rate)+'</td><td class="r">'+wlv1EstShort(l.qty)+'</td>'
+    var a0=editable?'<a class="tap" href="est://line/'+i+'">':'';
+    var e0=editable?'<a class="ed" href="est://line/'+i+'">':'';
+    var a1=editable?'</a>':'';
+    return '<tr'+cls+'><td>'+a0+label+a1+'</td><td class="k">'+a0+(l.position?esc(l.position):'&mdash;')+a1+'</td>'
+      +'<td class="r">'+e0+wlv1EstMoney(l.rate)+a1+'</td><td class="r">'+e0+wlv1EstShort(l.qty)+a1+'</td>'
       +'<td'+amt+'>'+wlv1EstMoney(Number(l.rate||0)*Number(l.qty||0))+'</td></tr>';
   }).join('');
+  if(editable && !wlv1EstSheet.lines.length){
+    rows='<tr><td colspan="5" class="k" style="text-align:center;padding:16px 0">No item added yet &mdash; use the buttons at the top.</td></tr>';
+  }
   /* 💰 V980 — শতাংশে দিলে কাগজেও "(20%)" লেখা থাকে। */
   var discLbl = (wlv1EstSheet.discountPct && Number(wlv1EstSheet.discount||0)>0)
     ? ('Total Discount ('+wlv1EstShort(wlv1EstSheet.discount)+'%)') : 'Total Discount';
-  var disc=wlv1EstDiscAmt()>0
-    ? '<div><span class="lbl">'+discLbl+'</span><span class="disc">&minus; '+wlv1EstMoney(wlv1EstDiscAmt())+'</span></div>' : '';
+  var d0=editable?'<a class="ed" href="est://discount">':'', d1=editable?'</a>':'';
+  var disc=(wlv1EstDiscAmt()>0 || editable)
+    ? '<div><span class="lbl">'+discLbl+'</span><span class="disc">&minus; '+d0+wlv1EstMoney(wlv1EstDiscAmt())+d1+'</span></div>' : '';
   var ageSex=[String(p.age||''),String(p.sex||'')].filter(Boolean).join(' / ')||'-';
   var dt=wlv1Dot(today());
   return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Estimate</title><style>'
@@ -26294,6 +26386,7 @@ function wlv1EstPaperHtml(){
    +'.vfy .bar{height:24px;width:121px;margin:0 auto 1.5px;background:repeating-linear-gradient(90deg,#15231C 0 1.9px,#fff 1.9px 4px)}'
    +'.vfy b{font-size:8.6px;color:#0A5428}.vfy small{font-size:8.2px;color:#54615A}'
    +'.fn{border-top:1px solid #e4ebe6;text-align:center;font-size:9.5px;color:#8a949e;padding:5px 0 6px;font-family:Arial}'
+   +(editable?'a{color:inherit;text-decoration:none}.ed{background:#FFF4CE;border-bottom:1.4px dashed #C9A227;border-radius:2px;padding:0 3px}.free .amt .ed{text-decoration:line-through}':'')
    +'</style></head><body>'
    +'<div class="gold"></div><div class="lh"><img src="'+logo+'">'
    +'<div><div class="cn">'+clinic+'</div><div class="tag">Ayurveda &amp; Anorectal Diseases</div>'
@@ -26331,7 +26424,7 @@ function wlv1EstPaper(){
   try{
     var w=window.open('','_blank');
     if(!w){ toast('Allow pop-ups to print'); return }
-    w.document.write(wlv1EstPaperHtml()); w.document.close(); w.focus();
+    w.document.write(wlv1EstPaperHtml(false)); w.document.close(); w.focus();
     setTimeout(function(){ try{ w.print() }catch(e){} },350);
   }catch(e){ toast('Print not available') }
 }

@@ -26,22 +26,36 @@ object EstimateHtmlPrint {
         ageSex: String,
         mobile: String,
         address: String,
-        date: String
+        date: String,
+        /* 🖥️🔒 V982 (TK-নির্দেশ) — `true` হলে এই কাগজটাই পর্দায়
+           দেখায় ও হলুদ ঘরগুলো চাপ দিয়ে বদলানো যায়। ছাপা ও শেয়ারের
+           সময় `false` — তখন হুবহু আগের কাগজ, একটি দাগও বাড়তি নয়। */
+        editable: Boolean = false
     ): String {
         val b = BranchCatalog.byName(branch)
         val rows = StringBuilder()
-        for (l in sheet.lines) {
+        for ((i, l) in sheet.lines.withIndex()) {
             val cls = if (l.struck) " class=\"free\"" else ""
             val amtCls = if (l.struck) " class=\"r amt\"" else " class=\"r\""
             val label = if (l.measure.isBlank()) esc(l.name)
                         else esc(l.name) + " (" + esc(l.measure) + ")"
+            /* ছাপার সময় `editable=false` ⇒ নিচের তিনটে স্ট্রিং ফাঁকা থাকে,
+               তাই কাগজ হুবহু আগের মতোই ছাপে। */
+            val aOpen = if (editable) "<a class=\"tap\" href=\"est://line/$i\">" else ""
+            val eOpen = if (editable) "<a class=\"ed\" href=\"est://line/$i\">" else ""
+            val aEnd = if (editable) "</a>" else ""
             rows.append("<tr").append(cls).append(">")
-                .append("<td>").append(label).append("</td>")
-                .append("<td class=\"k\">").append(if (l.position.isBlank()) "&mdash;" else esc(l.position)).append("</td>")
-                .append("<td class=\"r\">").append(EstimateModel.money(l.rate)).append("</td>")
-                .append("<td class=\"r\">").append(EstimateModel.moneyShort(l.qty)).append("</td>")
+                .append("<td>").append(aOpen).append(label).append(aEnd).append("</td>")
+                .append("<td class=\"k\">").append(aOpen)
+                .append(if (l.position.isBlank()) "&mdash;" else esc(l.position)).append(aEnd).append("</td>")
+                .append("<td class=\"r\">").append(eOpen).append(EstimateModel.money(l.rate)).append(aEnd).append("</td>")
+                .append("<td class=\"r\">").append(eOpen).append(EstimateModel.moneyShort(l.qty)).append(aEnd).append("</td>")
                 .append("<td").append(amtCls).append(">").append(EstimateModel.money(l.total)).append("</td>")
                 .append("</tr>")
+        }
+        if (editable && sheet.lines.isEmpty()) {
+            rows.append("<tr><td colspan=\"5\" class=\"k\" style=\"text-align:center;padding:16px 0\">")
+                .append("No item added yet &mdash; use the buttons at the top.</td></tr>")
         }
         val findingBlock = if (sheet.finding.isBlank()) "" else
             """<div class="sec"><div class="sh">CLINICAL FINDING</div>
@@ -49,8 +63,10 @@ object EstimateHtmlPrint {
         /* 💰 V980 (TK-নির্দেশ) — শতাংশে দিলে কাগজেও "(20%)" লেখা থাকে। */
         val discLabel = if (sheet.discountPct && sheet.discount > 0.0)
             "Total Discount (" + EstimateModel.moneyShort(sheet.discount) + "%)" else "Total Discount"
-        val discountRow = if (sheet.discountAmount <= 0.0) "" else
-            """<div><span class="lbl">$discLabel</span><span class="disc">&minus; ${EstimateModel.money(sheet.discountAmount)}</span></div>"""
+        val discOpen = if (editable) "<a class=\"ed\" href=\"est://discount\">" else ""
+        val discEnd = if (editable) "</a>" else ""
+        val discountRow = if (sheet.discountAmount <= 0.0 && !editable) "" else
+            """<div><span class="lbl">$discLabel</span><span class="disc">&minus; $discOpen${EstimateModel.money(sheet.discountAmount)}$discEnd</span></div>"""
 
         return """<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=794">
 <style>
@@ -101,6 +117,11 @@ tbody tr:last-child td{border-bottom:0;}
 .vfy .vl{margin-top:2px;white-space:nowrap;}
 .vfy b{font-size:8.6px;color:#0A5428;}.vfy small{font-size:8.2px;color:#54615A;}
 .fn{border-top:1px solid #e4ebe6;text-align:center;font-size:9.5px;color:#8a949e;padding:5px 0 6px;font-family:Arial;}
+${if (!editable) "" else """
+a{color:inherit;text-decoration:none;}
+.ed{background:#FFF4CE;border-bottom:1.4px dashed #C9A227;border-radius:2px;padding:0 3px;}
+.free .amt .ed{text-decoration:line-through;}
+"""}
 </style></head><body>
 <div class="gold"></div>
 <div class="lh"><img src="${b.logoAssetPath}">

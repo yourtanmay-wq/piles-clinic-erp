@@ -4624,19 +4624,30 @@ class DoctorCheckupActivity : AppCompatActivity() {
           **Net Payable** বসিয়ে দেয়, বাকি সব আগের পথেই চলে।
        ⛔ ব্যর্থ হলেও (কোনো কারণে) চেকআপ একটুও আটকায় না।
        ═══════════════════════════════════════════════════════════════════ */
+    /** 🖥️ V982 — কাগজের পর্দা থেকে ফেরার সংকেত। */
+    private val REQ_ESTIMATE_PAPER = 9821
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQ_ESTIMATE_PAPER || resultCode != RESULT_OK) return
+        try {
+            val sheet = EstimateModel.parse(data?.getStringExtra(EstimatePaperActivity.RESULT_SHEET))
+            estimateSheet = sheet
+            if (!sheet.isEmpty) etEstimatedCost.setText(EstimateModel.moneyShort(sheet.netPayable))
+        } catch (_: Throwable) { }
+    }
+
     private fun wireEstimateBuilder() {
         try {
             findViewById<TextView>(R.id.btnBuildEstimate)?.setOnClickListener {
-                EstimateDialog.open(
-                    activity = this,
-                    current = estimateSheet,
-                    onDone = { sheet ->
-                        estimateSheet = sheet
-                        if (!sheet.isEmpty) {
-                            etEstimatedCost.setText(EstimateModel.moneyShort(sheet.netPayable))
-                        }
-                    },
-                    onPaper = { sheet -> shareEstimatePaper(sheet) }
+                /* 🖥️🔒 V982 (TK-নির্দেশ: *"তাহলে ফুল স্ক্রিন পর্দা খুলবে, আলাদা
+                   পপ-আপ লাগবে না, zoom করা যাবে"*) — এখন পপ-আপের বদলে
+                   **কাগজের ফুল-স্ক্রিন পর্দা**। পুরনো পপ-আপের বাছাই-বাক্সগুলোই
+                   ওখানে ব্যবহার হয়, তাই দর/গ্রেড/পজিশনের নিয়ম একটুও বদলায়নি। */
+                startActivityForResult(
+                    android.content.Intent(this, EstimatePaperActivity::class.java)
+                        .putExtra(EstimatePaperActivity.EXTRA_SHEET, estimateSheet.toJson().toString()),
+                    REQ_ESTIMATE_PAPER
                 )
             }
         } catch (_: Throwable) { }
