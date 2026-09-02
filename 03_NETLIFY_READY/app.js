@@ -9824,7 +9824,7 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
  <!-- 🟢🔒 V651 (২৫.০৮.২০২৬, TK-নির্দেশ — "নামকরণটাও থাকবে না") — Estimated
       Cost ঘর সরানোর পরে এই শিরোনামও আর ঠিক না — তাই বদলানো হলো
       (Android-এর একই বদল)। -->
- <details class="card"><summary><b>4. Probable Disease and Time Asked · সম্ভাব্য রোগ ও সময়</b></summary>
+ <details class="card"><summary><b>4. Probable Disease and Time Asked<br>সম্ভাব্য রোগ ও সময়</b></summary>
   ${wlv1CounselBoxHtml(note,p)}
   <!-- 🟢🔒 V651 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবিসহ) — Estimated Cost এখন Step
        3-এর নিচে (উপরে দেখুন) — এখান থেকে সরিয়ে নেওয়া হলো, ডুপ্লিকেট id
@@ -10165,7 +10165,10 @@ window["wlv1DnSavedStrip"]=wlv1DnSavedStrip;
 function wlv1CounselBoxHtml(note,p){
   var picked=String((note&&note.probableDisease)||'');
   var ta=wlv1SplitTimeAsked(String((note&&note.timeAsked)||''));
-  return '<label>সম্ভাব্য কি রোগ?</label>'
+  /* 🔒 V996 (০৩.০৯.২০২৬, TK: *"ভেতরেরটা লাগবেই না"*) — উপরের কার্ডের
+     নামেই "সম্ভাব্য রোগ ও সময়" লেখা আছে, তাই ভিতরের এই একই লেখাটা বাদ।
+     ⛔ রোগের তালিকা · বাছাই · সেভ · ছাপা কিছুই বদলায়নি (ফোনেও হুবহু একই)। */
+  return ''
     /* 🔵🔒 V946 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — এক রোগীর একাধিক
        রোগ থাকতে পারে (PILES + FISTULA)। আগে এক-বাছাইয়ের তালিকা ছিল, তাই দুটো
        নেওয়া যেত না। এখন ফোনের মতোই চিপ — একাধিক বাছা যায়।

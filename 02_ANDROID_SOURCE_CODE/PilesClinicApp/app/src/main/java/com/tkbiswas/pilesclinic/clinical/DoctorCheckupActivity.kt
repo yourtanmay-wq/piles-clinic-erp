@@ -1868,6 +1868,9 @@ class DoctorCheckupActivity : AppCompatActivity() {
         // 🔵 V557
         applyProbableDisease(r.probableDisease)   // 🔵 V946
         findViewById<android.widget.EditText>(R.id.etDoctorRemark).setText(r.doctorRemark)   // 🔵 V947
+        /* 📝 V996 — ভাঁজ বন্ধ থাকে, তাই ভিতরে লেখা আছে কি না সেটা মাথার
+           সবুজ ব্যাজেই জানা যায় (বাকি ভাঁজগুলোর হুবহু একই নিয়ম)। */
+        setFoldCount("drem", if (r.doctorRemark.isNotBlank()) 1 else 0)
         val (tAmt, tUnit) = CounselModel.splitTimeAsked(r.timeAsked)
         findViewById<android.widget.EditText>(R.id.etTimeAsked).setText(tAmt)
         val ui = CounselModel.UNITS.indexOf(tUnit)
@@ -2329,7 +2332,10 @@ class DoctorCheckupActivity : AppCompatActivity() {
        ⛔ ভিতরের একটাও ঘর · টিক · তারিখ · সেভ বদলায়নি — শুধু মোড়ক ও চ্যাভরন।
        ⛔ ধাপ ১-এর ভিতরের পুরোনো ছোট ভাঁজগুলো (symptom/life) আগের মতোই কাজ করে। */
     private fun wireMainFolds() {
-        for (key in listOf("hist", "couns", "estm")) {
+        /* 📝🔒 V996 (০৩.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — DOCTOR'S REMARK
+           ("drem") এই তালিকায় যোগ হলো, তাই সেটাও বাকিগুলোর মতোই **বন্ধ
+           অবস্থায় শুরু হয়**। ⛔ ভাঁজের নিয়ম এক অক্ষরও বদলায়নি। */
+        for (key in listOf("hist", "couns", "estm", "drem")) {
             val head = resources.getIdentifier("${key}FoldHead", "id", packageName)
             val num = resources.getIdentifier("${key}FoldNum", "id", packageName)
             val chev = resources.getIdentifier("${key}FoldChev", "id", packageName)

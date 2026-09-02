@@ -856,6 +856,11 @@ object NoBengali {
         " · কোন ঔষধ" to "", " · অন্য কিছু হলে এখানে লিখুন" to "",
         " · তারিখ (বাধ্যতামূলক নয়)" to "",
         " · পরের দিন বা পরের সপ্তাহে কী হবে" to "",
+        /* 🔒 V996 — শিরোনামটা এখন দু লাইনে (ইংরেজি উপরে · বাংলা নিচে),
+           তাই একই অনুবাদ নতুন রূপ দুটোতেও বসানো হলো — পর্দার লেখা
+           (আসল newline) আর XML-এর কাঁচা লেখা (\\n) দুটোই। */
+        "\nপরের দিন বা পরের সপ্তাহে কী হবে" to "",
+        "\\nপরের দিন বা পরের সপ্তাহে কী হবে" to "",
         "\nপ্রোব পরীক্ষা" to "", "\nকীভাবে চিকিৎসা করা হবে" to "", " · কীভাবে চিকিৎসা করা হবে" to "",
         "\nআনুমানিক খরচ ও রোগীর সিদ্ধান্ত" to "", "\nআনুমানিক কতদিন বলা হল" to "",
         "\nঅগ্রিম কত টাকা জমা করতে চাইছে" to "", "\nরোগীর বা রোগী পক্ষের সিদ্ধান্ত" to "",
@@ -1246,6 +1251,11 @@ object NoBengali {
         // 🔴🔒 V940 (০১.০৯.২০২৬) — একই নম্বর অন্য ব্রাঞ্চে থাকলে জিজ্ঞাসা।
         "এই নম্বর অন্য ব্রাঞ্চের জন্য আগেই সেভ করা আছে। এই ব্রাঞ্চের জন্যও আলাদাভাবে সেভ করতে চান?" to "This number is already saved for another branch. Save it separately for this branch too?",
         "আজকে কি TREATMENT করা হল · আজ এই রোগীর কী কাজ হলো" to "What treatment was done today for this patient",
+        /* 🔒 V996 — শিরোনামটা এখন দু লাইনে (ইংরেজি উপরে · বাংলা নিচে),
+           তাই একই অনুবাদ নতুন রূপ দুটোতেও বসানো হলো — পর্দার লেখা
+           (আসল newline) আর XML-এর কাঁচা লেখা (\\n) দুটোই। */
+        "আজকে কি TREATMENT করা হল\nআজ এই রোগীর কী কাজ হলো" to "What treatment was done today for this patient",
+        "আজকে কি TREATMENT করা হল\\nআজ এই রোগীর কী কাজ হলো" to "What treatment was done today for this patient",
         "আজকের চেকআপ আগেই সেভ করা আছে — দেখবেন নাকি এডিট করবেন?" to "Today's check-up is already saved — view it or edit it?",
         // — V618: মিশ্র পেমেন্ট এডিটর (Chamber Date + Payment) —
         "মিশ্র পেমেন্ট — বিস্তারিত এডিটরে নিয়ে যাওয়া হচ্ছে…" to "Mixed payment — opening the detailed editor…",
@@ -1299,6 +1309,11 @@ object NoBengali {
         "পরের বার রোগীকে কী ওষুধ/কী কাজ করা হবে — এখানে লিখুন" to "Note what to do / which medicine next time",
         "কোন দিনের আগের দিন মনে করাবে?" to "Remind one day before which date?",
         "Probable Disease and Time Asked · সম্ভাব্য রোগ ও সময়" to "Probable Disease and Time Asked",
+        /* 🔒 V996 — শিরোনামটা এখন দু লাইনে (ইংরেজি উপরে · বাংলা নিচে),
+           তাই একই অনুবাদ নতুন রূপ দুটোতেও বসানো হলো — পর্দার লেখা
+           (আসল newline) আর XML-এর কাঁচা লেখা (\\n) দুটোই। */
+        "Probable Disease and Time Asked\nসম্ভাব্য রোগ ও সময়" to "Probable Disease and Time Asked",
+        "Probable Disease and Time Asked\\nসম্ভাব্য রোগ ও সময়" to "Probable Disease and Time Asked",
         // 🟢🔒 V651 — Estimated Cost এখন Step 3-এ, নতুন লেবেল-টেক্সট।
         "Estimated Cost · আনুমানিক খরচ কত বলা হল" to "Estimated Cost",
         // 🟢🔒 V656 (২৫.০৮.২০২৬) — Doctor Reminder নোটিফিকেশনের অনুবাদ।

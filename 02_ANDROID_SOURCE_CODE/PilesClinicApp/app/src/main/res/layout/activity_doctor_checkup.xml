@@ -792,7 +792,7 @@
                         <LinearLayout style="@style/DocNoteFieldBoxInner">
                             <LinearLayout style="@style/DocNoteFieldBoxTopRow">
                                 <TextView style="@style/DocNoteIcon" android:text="💊" />
-                                <TextView style="@style/DocNoteLabel" android:text="Previous Treatment Taken · আগের চিকিৎসার বিবরণ" />
+                                <TextView style="@style/DocNoteLabel" android:text="Previous Treatment Taken\nআগের চিকিৎসার বিবরণ" />
                             </LinearLayout>
                             <View style="@style/DocNoteDivider" />
                             <EditText android:id="@+id/etPrevTreatment" style="@style/DocNoteInputMultiline" android:minLines="1" android:hint="Previous treatment" />
@@ -1133,10 +1133,9 @@
                              না") — Estimated Cost ঘর সরানোর পরে এই শিরোনামও
                              আর ঠিক না (এখন শুধু রোগ+সময়ের ঘর দেখা যায়) —
                              তাই বদলানো হলো। -->
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="9dp" android:text="Probable Disease and Time Asked · সম্ভাব্য রোগ ও সময়" android:textStyle="bold" android:textSize="14sp" android:textColor="#101828" />
+                        <TextView android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginStart="9dp" android:text="Probable Disease and Time Asked\nসম্ভাব্য রোগ ও সময়" android:textStyle="bold" android:textSize="14sp" android:textColor="#101828" />
                         <TextView android:id="@+id/estmFoldNum" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:background="@drawable/bg_fold_count_chip" android:paddingLeft="9dp" android:paddingTop="2dp" android:paddingRight="9dp" android:paddingBottom="2dp" android:textColor="#0B4F2A" android:textSize="11.5sp" android:textStyle="bold" android:visibility="gone" />
                         <TextView android:id="@+id/estmFoldChev" android:layout_width="24dp" android:layout_height="24dp" android:layout_marginStart="8dp" android:gravity="center" android:background="@drawable/bg_fold_chevron" android:text="⌄" android:textColor="#FFFFFF" android:textStyle="bold" android:textSize="15sp" />
-                        <View android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
                     </LinearLayout>
                     <LinearLayout android:id="@+id/estmFoldBody" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
 
@@ -1148,7 +1147,6 @@
                         <LinearLayout style="@style/DocNoteFieldBoxInner">
                             <LinearLayout style="@style/DocNoteFieldBoxTopRow">
                                 <TextView style="@style/DocNoteIcon" android:text="🩺" />
-                                <TextView style="@style/DocNoteLabel" android:text="সম্ভাব্য কি রোগ?" />
                             </LinearLayout>
                             <View style="@style/DocNoteDivider" />
                             <!-- 🔵🔒 V946 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ):
@@ -1231,14 +1229,25 @@
                  ⛔ "TODAY'S TREATMENT DONE"-এর ঠিক আগে, প্রুফে দেখানো জায়গাতেই। -->
             <androidx.cardview.widget.CardView android:id="@+id/secDocRemark" style="@style/RegCard" app:cardBackgroundColor="#FFFFFF">
                 <LinearLayout style="@style/RegCardInner">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                        android:text="DOCTOR&apos;S REMARK" android:textStyle="bold"
-                        android:textSize="14sp" android:textColor="#0B4F2A"
-                        android:layout_marginBottom="6dp" />
-                    <EditText android:id="@+id/etDoctorRemark" style="@style/DocNoteInputSingle"
-                        android:layout_width="match_parent" android:minLines="2" android:gravity="top"
-                        android:inputType="textMultiLine|textCapSentences"
-                        android:hint="What the patient said today" />
+                    <!-- 📝🔒 V996 (০৩.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — TK: *"কয়েকটা
+                         ফর্ম ওপেন থাকতেছে"*। এই ঘরটা ভাঁজের বাইরে ছিল বলে সবসময়
+                         খোলা থাকত। এখন TODAY'S TREATMENT DONE-এর হুবহু একই ভাঁজ —
+                         বন্ধ অবস্থায় শুরু হয়, মাথায় চাপ দিলে খোলে।
+                         ⛔ `etDoctorRemark`-এর id · সেভ · হিন্ট কিছুই বদলায়নি। -->
+                    <LinearLayout android:id="@+id/dremFoldHead" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:clickable="true" android:focusable="true" android:gravity="center_vertical" android:layout_marginBottom="6dp">
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                            android:text="DOCTOR&apos;S REMARK" android:textStyle="bold"
+                            android:textSize="14sp" android:textColor="#0B4F2A" />
+                        <TextView android:id="@+id/dremFoldNum" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:background="@drawable/bg_fold_count_chip" android:paddingLeft="9dp" android:paddingTop="2dp" android:paddingRight="9dp" android:paddingBottom="2dp" android:textColor="#0B4F2A" android:textSize="11.5sp" android:textStyle="bold" android:visibility="gone" />
+                        <TextView android:id="@+id/dremFoldChev" android:layout_width="24dp" android:layout_height="24dp" android:layout_marginStart="8dp" android:gravity="center" android:background="@drawable/bg_fold_chevron" android:text="⌄" android:textColor="#FFFFFF" android:textStyle="bold" android:textSize="15sp" />
+                        <View android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
+                    </LinearLayout>
+                    <LinearLayout android:id="@+id/dremFoldBody" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+                        <EditText android:id="@+id/etDoctorRemark" style="@style/DocNoteInputSingle"
+                            android:layout_width="match_parent" android:minLines="2" android:gravity="top"
+                            android:inputType="textMultiLine|textCapSentences"
+                            android:hint="What the patient said today" />
+                    </LinearLayout>
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
@@ -1253,7 +1262,7 @@
                     </LinearLayout>
 
                     <LinearLayout android:id="@+id/ttdFoldBody" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="আজকে কি TREATMENT করা হল · আজ এই রোগীর কী কাজ হলো" android:textSize="11.5sp" android:textColor="#8A93A0" android:layout_marginBottom="6dp" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="আজকে কি TREATMENT করা হল\nআজ এই রোগীর কী কাজ হলো" android:textSize="11.5sp" android:textColor="#8A93A0" android:layout_marginBottom="6dp" />
 
                     <CheckBox android:id="@+id/cbTtd1" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="13.5sp" android:textColor="#101828" android:paddingTop="3dp" android:paddingBottom="3dp" android:textAllCaps="false" android:text="CHECK-UP করা হলো" />
                     <CheckBox android:id="@+id/cbTtd2" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="13.5sp" android:textColor="#101828" android:paddingTop="3dp" android:paddingBottom="3dp" android:textAllCaps="false" android:text="KTA করা হল" />
@@ -1292,7 +1301,7 @@
                         <View android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
                     </LinearLayout>
                     <LinearLayout android:id="@+id/nvpFoldBody" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
-                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="What to do next visit · পরের দিন বা পরের সপ্তাহে কী হবে" android:textSize="11.5sp" android:textColor="#8A93A0" android:layout_marginBottom="6dp" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="What to do next visit\nপরের দিন বা পরের সপ্তাহে কী হবে" android:textSize="11.5sp" android:textColor="#8A93A0" android:layout_marginBottom="6dp" />
 
                     <CheckBox android:id="@+id/cbNvpFollowUp" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="13.5sp" android:textColor="#101828" android:paddingTop="3dp" android:paddingBottom="3dp" android:textAllCaps="false" android:text="Follow up / ফলো আপ" />
                     <CheckBox android:id="@+id/cbNvpDressing" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="13.5sp" android:textColor="#101828" android:paddingTop="3dp" android:paddingBottom="3dp" android:textAllCaps="false" android:text="Dressing / ড্রেসিং" />
@@ -1442,7 +1451,6 @@
                              ⛔ পুরোনো যাঁদের রেকর্ডে এই লেখা জমা আছে সেটা **মুছে যায়নি** —
                                 আগের মতোই জমা থাকে ও ছাপায় আসে, শুধু নতুন করে লেখার ঘর নেই। -->
                     </LinearLayout>
-                    </LinearLayout>
                     <!-- V455 (TK-নির্দেশ ১৮.০৮.২০২৬) — "Documents / Reports Note" বাদ।
                          ⛔ ClinicalModels-এর documents ঘর অটুট (ডিফল্ট ""), শুধু UI সরানো। -->
 
@@ -1459,6 +1467,7 @@
                         <com.google.android.material.button.MaterialButton android:id="@+id/btnBloodTest" style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="0dp" android:layout_weight="1" android:layout_height="32dp" android:minHeight="0dp" android:insetTop="0dp" android:insetBottom="0dp" android:paddingHorizontal="2dp" android:textSize="11.5sp" android:layout_marginEnd="3dp" android:text="Blood Test" />
                         <com.google.android.material.button.MaterialButton android:id="@+id/btnDiet" style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="0dp" android:layout_weight="1" android:layout_height="32dp" android:minHeight="0dp" android:insetTop="0dp" android:insetBottom="0dp" android:paddingHorizontal="2dp" android:textSize="11.5sp" android:layout_marginStart="3dp" android:text="Diet" />
                     </LinearLayout>
+                    </LinearLayout><!-- photoFoldBody 🔒 V996 — Quick Actions এখন এর ভিতরে -->
 
                     <!-- 🔴🔒 V501 — "E. Investigations" এখন এখানে (আগে ধাপ ২,
                          Clinical-এর ভিতরে ছিল)। বোতামগুলো উপরের Quick Action-এর
