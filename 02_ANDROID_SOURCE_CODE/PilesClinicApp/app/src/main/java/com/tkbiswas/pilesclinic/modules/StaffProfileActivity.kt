@@ -1533,6 +1533,26 @@ class StaffProfileActivity : AppCompatActivity() {
         extraBox.addView(salOutlineButton("Extra Income History (" + extraCount + ")", "#B45309", "#E0A800") {
             showAllPayments(code, pays, "EXTRA")
         })
+        /* ⏰🔒 V990 (০৩.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — TK: *"তারা যদি নাই
+           জানতে পারে যে সেই পেশেন্টটা ট্রিটমেন্ট চালু করেছে কিনা, তাহলে তারা
+           হিসাবটা পাবে কি করে"*। এই বোতামে স্টাফ নিজের অসময়ের এনকোয়ারিগুলো ও
+           প্রতিটার এখনকার ধাপ দেখতে পান; মাস্টার যেকোনো স্টাফেরটা।
+           ⛔ টাকার কোনো অঙ্ক এখান থেকে বদলায় না — শুধু দেখা। */
+        extraBox.addView(salOutlineButton("My Unexpected Enquiries", "#123E8C", "#123E8C") {
+            try {
+                startActivity(
+                    android.content.Intent(this, com.tkbiswas.pilesclinic.native.UnexpectedEnquiryActivity::class.java)
+                        .putExtra(
+                            com.tkbiswas.pilesclinic.native.UnexpectedEnquiryActivity.EXTRA_MOBILE,
+                            com.tkbiswas.pilesclinic.native.UnexpectedIncentive.mobileForCode(code)
+                        )
+                        .putExtra(
+                            com.tkbiswas.pilesclinic.native.UnexpectedEnquiryActivity.EXTRA_NAME,
+                            if (ModuleAuth.isMaster) code else ""
+                        )
+                )
+            } catch (_: Throwable) { }
+        })
 
         (cfgBox ?: box).addView(salOutlineButton("Salary Settings", "#0A5C33", "#0A5C33") {
             editSalaryConfig(code, enabled, amount, salaryDate)

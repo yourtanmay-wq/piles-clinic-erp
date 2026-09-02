@@ -431,6 +431,8 @@
         <activity android:name="com.tkbiswas.pilesclinic.clinical.EstimatePaperActivity" android:exported="false" />
         <!-- V984 additive — Money Handover history (TK: "চেম্বার বন্ধ করার history"); nothing existing changed -->
         <activity android:name="com.tkbiswas.pilesclinic.native.MoneyHandoverActivity" android:exported="false" />
+        <!-- V990 additive — My Unexpected Enquiries (TK: "তারা হিসাবটা পাবে কি করে"); nothing existing changed -->
+        <activity android:name="com.tkbiswas.pilesclinic.native.UnexpectedEnquiryActivity" android:exported="false" />
         <activity android:name="com.tkbiswas.pilesclinic.modules.IncomeExpenseActivity" android:exported="false" />
         <!-- V306 additive — Partner Shares (অংশীদারি ভাগ), isolated; nothing existing changed -->
         <activity android:name="com.tkbiswas.pilesclinic.modules.PartnerSharesActivity" android:exported="false" />

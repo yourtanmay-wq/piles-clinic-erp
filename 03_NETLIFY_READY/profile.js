@@ -599,6 +599,13 @@
       '<div style="display:flex;gap:9px;margin-top:11px">' +
         salPairBtn('Add Extra', '#B45309', '#E0A800', 'profExtraIncome(\'' + m.esc(code) + '\')') +
         (extraDue>0 ? salPairBtn('Pay ' + m.money(extraDue), '#0A5C33', '#0A5C33', 'profPayExtraDue(\'' + m.esc(code) + '\')') : '') +
+      '</div>' +
+      /* ⏰🔒 V990 (০৩.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — TK: *"তারা যদি নাই
+         জানতে পারে যে সেই পেশেন্টটা ট্রিটমেন্ট চালু করেছে কিনা, তাহলে তারা
+         হিসাবটা পাবে কি করে"*। ফোনের হুবহু জোড়া বোতাম।
+         ⛔ টাকার কোনো অঙ্ক এখান থেকে বদলায় না — শুধু দেখা। */
+      '<div style="display:flex;gap:9px;margin-top:9px">' +
+        salPairBtn('My Unexpected Enquiries', '#123E8C', '#123E8C', 'profUnexpected(\'' + m.esc(code) + '\')') +
       '</div></div>';
 
     /* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬) — ফোনে এটা **আলাদা পর্দা**
@@ -626,6 +633,96 @@
       salaryCard + payHtml + extraCard + settingsCard + fieldCard +
       '</div></div>';
   }
+
+  /* ⏰🔒 V990 (০৩.০৯.২০২৬, TK-এর পাশ-করা ফটো-প্রুফ) —
+     **MY UNEXPECTED ENQUIRIES** (ফোনের `UnexpectedEnquiryActivity`-র যমজ)।
+     TK: *"তারা যদি নাই জানতে পারে যে সেই পেশেন্টটা ট্রিটমেন্ট চালু করেছে কিনা,
+     তাহলে তারা হিসাবটা পাবে কি করে"*।
+     ⛔ টাকার নিয়ম নতুন করে বানানো হয়নি — ডেটাবেসের চালু নিয়মই দেখানো হয়
+        (ভিজিট ₹১০০ · চিকিৎসা শুরু হলে আরও ₹৪০০ ⇒ ₹৫০০)।
+     ⛔ উপরের লাল লাইনে **কল কখন এসেছিল** — TK-এর কথায় এটাই টাকার শর্ত।
+     ⛔ একটাও সারি লেখা হয় না, শুধু পড়া। */
+  function unxDigits(v){ return String(v||'').replace(/[^0-9]/g,'').slice(-10) }
+  function unxDateTime(raw){
+    var t=String(raw||'').trim(); if(t.length<10) return '';
+    var p=t.slice(0,10).split('-'); if(p.length<3) return '';
+    var d=p[2]+'.'+p[1]+'.'+p[0];
+    if(t.length<16) return d;
+    var hh=parseInt(t.slice(11,13),10), mm=t.slice(14,16);
+    if(isNaN(hh)) return d;
+    var ap=hh>=12?'PM':'AM', h12=(hh===0)?12:(hh>12?hh-12:hh);
+    return d+'  ·  '+h12+'.'+mm+' '+ap;
+  }
+  var UNX_NOT_TREATMENT = ['visit_fee','attendance_mark','bill_edit','chamber_expected','refund'];
+
+  async function profUnexpected(code){
+    var m = window.MOD;
+    var mob='';
+    try{
+      (((window.C&&C.users)||{}).staff||[]).concat(((window.C&&C.users)||{}).doctor||[],((window.C&&C.users)||{}).master||[])
+        .forEach(function(u){ if(String(u.name||'').trim().toLowerCase()===String(code||'').trim().toLowerCase()) mob=unxDigits(u.mobile) });
+    }catch(e){}
+    if(!mob){ try{ mob=unxDigits(user&&user.mobile) }catch(e){} }
+    document.getElementById('app').innerHTML='<div class="wrap anMod anModPf"><div class="topbar"><b>'+m.esc(code)+' · UNEXPECTED</b>'+
+      '<button class="ghost" onclick="profSalary(\''+m.esc(code)+'\')">Back</button></div><div class="page"><div class="card mut">Loading…</div></div></div>';
+
+    var enq=[], pays=[];
+    try{
+      var ok=await initCloudClientOnly();
+      if(ok&&sb){
+        var r1=await sb.from('enquiries').select('id,name,mobile,branch,date,timeType,receivedBy,createdAt')
+          .eq('receivedBy',mob).eq('timeType','Unexpected Time').limit(500);
+        enq=(r1&&r1.data)||[];
+        var mobs=[]; enq.forEach(function(e){ var x=unxDigits(e.mobile); if(x.length===10&&mobs.indexOf(x)<0) mobs.push(x) });
+        if(mobs.length){
+          var r2=await sb.from('payments').select('id,mobile,amount,payType,date,createdAt').in('mobile',mobs).limit(2000);
+          pays=(r2&&r2.data)||[];
+        }
+      }
+    }catch(e){}
+
+    var firstVisit={}, firstTreat={};
+    pays.forEach(function(p){
+      var mm=unxDigits(p.mobile); if(mm.length!==10) return;
+      var t=String(p.payType||'').toLowerCase();
+      var at=String(p.createdAt||p.date||''); if(!at) return;
+      if(t==='visit_fee'){ if(!firstVisit[mm]||at<firstVisit[mm]) firstVisit[mm]=at }
+      else if(UNX_NOT_TREATMENT.indexOf(t)<0 && Number(p.amount||0)>0){ if(!firstTreat[mm]||at<firstTreat[mm]) firstTreat[mm]=at }
+    });
+
+    var seen={}, rows=[], monthTotal=0;
+    var ym=(new Date()).toISOString().slice(0,7);
+    enq.sort(function(a,b){ return String(b.createdAt||'').localeCompare(String(a.createdAt||'')) });
+    enq.forEach(function(e){
+      var mm=unxDigits(e.mobile); if(mm.length!==10||seen[mm]) return; seen[mm]=1;
+      var treat=firstTreat[mm], visit=firstVisit[mm];
+      var stage=treat?'treatment':(visit?'visit':'none');
+      var earned=(stage==='treatment')?500:(stage==='visit'?100:0);
+      var at=treat||visit||'';
+      if(at.slice(0,7)===ym) monthTotal+=earned;
+      rows.push({name:e.name||'(no name)',mobile:mm,branch:e.branch||'',callAt:e.createdAt||e.date||'',stage:stage,at:at,earned:earned});
+    });
+
+    var body='<div class="card" style="background:#0B4F2A;color:#fff;display:flex;justify-content:space-between;font-weight:800">'+
+      '<span>THIS MONTH · EARNED</span><span>₹'+monthTotal.toLocaleString('en-IN')+'</span></div>';
+    if(!rows.length) body+='<div class="card mut">No unexpected-time enquiry found yet.</div>';
+    rows.forEach(function(r){
+      var line,ink,fill;
+      if(r.stage==='treatment'){ line='✓ Treatment started  ·  '+unxDateTime(r.at); ink='#0B5B2F'; fill='#EAF7F0'; }
+      else if(r.stage==='visit'){ line='⌛ Visit given  ·  '+unxDateTime(r.at); ink='#8A5A00'; fill='#FFF6E6'; }
+      else { line='— Not come to the branch yet'; ink='#5B6B81'; fill='#F3F5F7'; }
+      body+='<div class="card"><div style="display:flex;align-items:baseline;gap:10px">'+
+        '<b style="font-size:15px">'+m.esc(r.name)+'</b>'+
+        '<span style="color:#1667D8;flex:1">'+m.esc(r.mobile)+'</span>'+
+        '<span class="mut">'+m.esc(r.branch)+'</span></div>'+
+        '<div style="margin-top:6px;color:#8A1810;font-weight:700;font-size:12px">⏰ Call: '+unxDateTime(r.callAt)+'  ·  UNEXPECTED</div>'+
+        '<div style="margin-top:8px;border-radius:8px;padding:9px 12px;display:flex;color:'+ink+';background:'+fill+'">'+
+        '<span style="flex:1">'+line+'</span><b>₹'+r.earned.toLocaleString('en-IN')+'</b></div></div>';
+    });
+    document.getElementById('app').innerHTML='<div class="wrap anMod anModPf"><div class="topbar"><b>'+m.esc(code)+' · UNEXPECTED</b>'+
+      '<button class="ghost" onclick="profSalary(\''+m.esc(code)+'\')">Back</button></div><div class="page">'+body+'</div></div>';
+  }
+  window.profUnexpected = profUnexpected;
 
   /* 🏍️🔒 V968 — বাইরে ঘোরা স্টাফের কোড। ফোনের `FieldVisit.FIELD_STAFF_MOBILES`-এর
      জোড়া; নতুন কেউ যোগ হলে TK বলবেন, তখন দুই জায়গাতেই এক লাইন। */
