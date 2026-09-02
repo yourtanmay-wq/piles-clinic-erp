@@ -179,7 +179,7 @@ object MoneyHandover {
             /* ⛔ ডাক্তার নিজে স্বীকার না করা পর্যন্ত তাঁর নিজের 🔔 পর্দায় কাজটা
                বসে থাকে — প্রকল্পের প্রমাণিত নোটিশ-ব্যবস্থাতেই। */
             try {
-                BriefingRepository.post(
+                BriefingRepository().post(
                     context,
                     "Money handover — please confirm",
                     branch.trim() + " · " + dotDate(date) + " · " + money(total) +
@@ -203,7 +203,7 @@ object MoneyHandover {
         val ok = try { SupabaseClient.updateById(TABLE, id, body) } catch (_: Throwable) { false }
         if (ok && context != null) {
             try {
-                BriefingRepository.post(
+                BriefingRepository().post(
                     context,
                     "Chamber closed without handover",
                     branch.trim() + " · " + dotDate(date) + " · " + money(total) +
@@ -225,7 +225,7 @@ object MoneyHandover {
         val ok = try { SupabaseClient.updateById(TABLE, day.id, body) } catch (_: Throwable) { false }
         if (ok && context != null) {
             try {
-                BriefingRepository.post(
+                BriefingRepository().post(
                     context,
                     "Money handover confirmed",
                     day.branch + " · " + dotDate(day.date) + " · " + money(day.total) +

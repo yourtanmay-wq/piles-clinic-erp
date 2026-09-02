@@ -63,6 +63,11 @@
 
         <!-- TK-REQUESTED (2026-07-21): Patient ID line (shown only if it exists).
              Name / Mobile / ID each single line so nothing breaks. -->
+        <!-- 🔴🔒 V984 (০২.০৯.২০২৬, TK-রিপোর্ট ছবিসহ: "Ref. by Amit… ডান পাশে
+             রয়েছে যে কারণে কেটে গেছে, দেখা যাচ্ছে না") — এই ঘরে দুটো লাইন বসে
+             (তারিখ-সময়, আর তার নিচে Ref By), অথচ নিয়ম ছিল মাত্র ১ লাইন — তাই
+             দ্বিতীয় লাইনটা কখনো দেখাই যেত না আর প্রথমটাও কেটে যেত। এখন ৩ লাইন।
+             ঘরের চওড়া · রং · মাপ কিছুই বদলায়নি। -->
         <TextView
             android:id="@+id/tvPatientId"
             android:layout_width="match_parent"
@@ -71,11 +76,6 @@
             android:text=""
             android:textSize="10sp"
             android:maxLines="3"
-            <!-- 🔴🔒 V984 (০২.০৯.২০২৬, TK-রিপোর্ট ছবিসহ: *"Ref. by Amit… ডান পাশে
-                 রয়েছে যে কারণে কেটে গেছে, দেখা যাচ্ছে না"*) — এই ঘরে **দুটো লাইন**
-                 বসে (তারিখ-সময়, আর তার নিচে Ref By), অথচ নিয়ম ছিল মাত্র ১ লাইন —
-                 তাই দ্বিতীয় লাইনটা কখনো দেখাই যেত না আর প্রথমটাও কেটে যেত।
-                 ⛔ ঘরের চওড়া · রং · মাপ কিছুই বদলায়নি, শুধু লাইনের সংখ্যা। -->
             android:textColor="#5B6B81"
             android:visibility="gone" />
 
@@ -145,6 +145,7 @@
                 android:focusable="true"
                 android:textColor="#1067D8" />
 
+            <!-- 🔴 V984 — উপরের ঘরের হুবহু একই দোষ ছিল এখানেও (নিয়ম ৭)। -->
             <TextView
                 android:id="@+id/tvPatientIdW"
                 android:layout_width="match_parent"
@@ -153,11 +154,6 @@
                 android:text=""
                 android:textSize="10sp"
                 android:maxLines="3"
-                <!-- 🔴🔒 V984 (০২.০৯.২০২৬, TK-রিপোর্ট ছবিসহ: *"Ref. by Amit… ডান পাশে
-                     রয়েছে যে কারণে কেটে গেছে, দেখা যাচ্ছে না"*) — এই ঘরে **দুটো লাইন**
-                     বসে (তারিখ-সময়, আর তার নিচে Ref By), অথচ নিয়ম ছিল মাত্র ১ লাইন —
-                     তাই দ্বিতীয় লাইনটা কখনো দেখাই যেত না আর প্রথমটাও কেটে যেত।
-                     ⛔ ঘরের চওড়া · রং · মাপ কিছুই বদলায়নি, শুধু লাইনের সংখ্যা। -->
                 android:textColor="#5B6B81"
                 android:visibility="gone" />
 

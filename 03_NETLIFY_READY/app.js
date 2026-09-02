@@ -2459,6 +2459,8 @@ function wlv1DeskNav(){return [
  ["🔁","Follow-up","followup('Inquiry')",["master","staff","doctor"]],
  ["🧾","Registration","registration()",["master","staff","doctor"]],
  ["💰","Payment","paymentHome()",["master","staff","doctor"]],
+ /* 💰 V984 (TK-নির্দেশ) — কোন দিনের টাকা কে বুঝে নিলেন, তার ইতিহাস। */
+ ["💰","Money Handover","wlv1MoneyHandover()",["master","staff","doctor"]],
  ["🖨️","Print","openPrintMenu()",["master","staff","doctor","field"]],
  ["👨‍⚕️","Doctor Visit","doctorVisit()",["master","field","staff","doctor"]],
  ["📂","Draft","draffHome()",["master","staff","doctor"]],
@@ -4208,6 +4210,8 @@ function menu(){let all=[
  // Ledger"-এর জায়গায় "আয় ও ব্যয়" → নিজের ব্রাঞ্চের আয়-ব্যয় (অংশীদারি ভাগ ওই পর্দার
  // ভেতরেই)। Amit Goldar · P.K Roy বাদ (নিচের filter-এ)। master দ্যাশবোর্ডে আগের মতোই পায়।
  ["💵","আয় ও ব্যয়","incomeExpense()",["doctor"]],
+ /* 💰 V984 (TK-নির্দেশ) — কোন দিনের টাকা কে বুঝে নিলেন, তার ইতিহাস। */
+ ["💰","Money Handover","wlv1MoneyHandover()",["master","staff","doctor"]],
  ["🖨️","Print","openPrintMenu()",["master","staff","doctor","field"]],
  ["👨‍⚕️","Doctor Visit / RMP","doctorVisit()",["master","field","staff","doctor"]],
  ["📂","Draft","draffHome()",["master","staff","doctor"]],
@@ -22096,6 +22100,9 @@ function wlv1CloseReview(rows){
         __cT=rows.reduce((a,r)=>a+Number(r.cash||0)+Number(r.refundCash||0),0),
         __oT=rows.reduce((a,r)=>a+Number(r.online||0)+Number(r.refundOnline||0),0), __gT=__fT+__cT+__oT-__rT;
   const __arrivedN=rows.filter(r=>r.arrived).length;
+  /* 💰 V984 — পর্দায় যে অঙ্কগুলো দেখানো হলো, হ্যান্ডওভারেও **হুবহু সেগুলোই**
+     যায় (আবার আলাদা করে হিসাব করা হয় না)। */
+  try{ window.__wlv1MhTot={fees:__fT,cash:__cT,online:__oT,refund:__rT,grand:__gT} }catch(_e){}
   const rs = v => '₹'+Number(v||0).toLocaleString('en-IN');
   /* 🟩🔒 V959 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ — ফোনের যমজ): TK দুটো পর্দার
      ছবি দিয়ে বললেন *"হিসাব ২ জায়গায় দুরকম কেন"*। **আসল কারণ:** ওষুধ ও স্যালাইন
@@ -22265,6 +22272,247 @@ async function wlv1MarkChamberClosed(branch, date){
 }
 window["wlv1MarkChamberClosed"]=wlv1MarkChamberClosed;
 
+/* ══════════════════════════════════════════════════════════════════
+   💰🔒 V984 (০২.০৯.২০২৬, TK-এর পাশ-করা ফটো-প্রুফ) —
+   **চেম্বারের টাকা কে বুঝে নিলেন, তার প্রমাণ** (ফোনের `MoneyHandover`-এর যমজ)।
+   TK: *"স্টাফের কথাই যে… ভবিষ্যতে আপত্তি করেন যে এই দিনের টাকা আমি পাই নাই"* ·
+   *"যে কোনো doctor নিতে পারে, তবে সেই নির্দিষ্ট ব্রাঞ্চের"* · *"অন্যথায় মাস্টার"* ·
+   *"পরে স্টাফ যেন ডাক্তারকে বা মাস্টারকে টাকাটা বুঝে দিতে পারে"*।
+   ⛔ নতুন টেবিল নয় — `chamber_close` সারিরই কয়েকটা নতুন ঘর।
+   ⛔ পাসওয়ার্ড যাচাই লগইনের হুবহু প্রমাণিত পথেই (hash থাকলে hash, নইলে
+      plaintext; নেট না পেলে কখনো "ঠিক আছে" নয়)।
+   ═════════════════════════════════════════════════════════════════ */
+function wlv1MhReceivers(branch){
+  var out=[];
+  try{
+    (C.users.doctor||[]).forEach(function(d){
+      if(sameBranch(String(d.branch||''), String(branch||''))) out.push({mobile:d.mobile,name:d.name,role:'Doctor'});
+    });
+    (C.users.master||[]).forEach(function(m){ out.push({mobile:m.mobile,name:m.name,role:'Master'}); });
+  }catch(e){}
+  return out;
+}
+window["wlv1MhReceivers"]=wlv1MhReceivers;
+
+/* OK / WRONG / NO_NETWORK — ফোনের `MoneyHandover.verifyPassword`-এর যমজ। */
+async function wlv1MhVerify(mobile, role, typed){
+  try{
+    if(!typed) return 'WRONG';
+    var mm=mob(mobile);
+    var ok=await initCloudClientOnly(); if(!ok||!sb) return 'NO_NETWORK';
+    var res=await sb.from('usercredentials').select('password,password_hash').eq('mobile',mm).limit(1);
+    if(res.error) return 'NO_NETWORK';
+    var rows=res.data||[];
+    if(!rows.length) return (typed===(C.passwords[role]||'')) ? 'OK' : 'WRONG';
+    var pw=String(rows[0].password||''), hs=String(rows[0].password_hash||'');
+    if(hs && hs.indexOf('pbkdf2_sha256$')===0){
+      var good=await pbkdf2VerifyWeb(typed, hs);
+      return good ? 'OK' : 'WRONG';
+    }
+    if(!pw && !hs) return (typed===(C.passwords[role]||'')) ? 'OK' : 'WRONG';
+    return (pw && typed===pw) ? 'OK' : 'WRONG';
+  }catch(e){ return 'NO_NETWORK'; }
+}
+window["wlv1MhVerify"]=wlv1MhVerify;
+
+function wlv1MhNow(){ return new Date().toISOString().slice(0,19).replace('T',' ') }
+function wlv1MhTime(raw){
+  var t=String(raw||''); if(t.length<16) return '';
+  try{
+    var hh=parseInt(t.slice(11,13),10), mm=t.slice(14,16);
+    var ap=hh>=12?'PM':'AM', h12=(hh===0)?12:(hh>12?hh-12:hh);
+    return h12+':'+mm+' '+ap;
+  }catch(e){ return '' }
+}
+function wlv1MhMoney(v){ return '₹'+Number(v||0).toLocaleString('en-IN',{maximumFractionDigits:0}) }
+function wlv1MhRoleOf(mobile){
+  var mm=mob(mobile), r='doctor';
+  try{
+    ['master','staff','doctor','field'].forEach(function(k){
+      (C.users[k]||[]).forEach(function(u){ if(mob(u.mobile)===mm) r=k; });
+    });
+  }catch(e){}
+  return r;
+}
+
+/** দিনের অঙ্কগুলো বন্ধের সারিতে বসানো — এটাই প্রমাণের ভিত্তি। */
+async function wlv1MhSaveTotals(branch,date,fees,cash,online,refund,grand){
+  try{
+    var ok=await initCloudClientOnly(); if(!ok||!sb) return false;
+    var id=String(branch).trim().toUpperCase()+'|'+date;
+    var wr=await sb.from('chamber_close').update({
+      feesTotal:fees, cashTotal:cash, onlineTotal:online,
+      refundTotal:refund, grandTotal:grand, updatedAt:wlv1MhNow()
+    }).eq('id',id).select('id');
+    return !!(wr && !wr.error);
+  }catch(e){ return false }
+}
+
+async function wlv1MhSaveHandover(branch,date,total,who,byName){
+  try{
+    var ok=await initCloudClientOnly(); if(!ok||!sb) return false;
+    var id=String(branch).trim().toUpperCase()+'|'+date, now=wlv1MhNow();
+    var wr=await sb.from('chamber_close').update({
+      receivedBy:mob(who.mobile), receivedByName:who.name, receivedAt:now,
+      handoverStatus:'received', handoverByName:byName, updatedAt:now
+    }).eq('id',id).select('id');
+    return !!(wr && !wr.error);
+  }catch(e){ return false }
+}
+
+/** স্টাফের কাছেই থেকে গেল — মাস্টারের কাছে অনুমোদনের নোটিশ। */
+async function wlv1MhMarkPending(branch,date,total,byName){
+  try{
+    var ok=await initCloudClientOnly(); if(!ok||!sb) return false;
+    var id=String(branch).trim().toUpperCase()+'|'+date, now=wlv1MhNow();
+    var wr=await sb.from('chamber_close').update({
+      handoverStatus:'pending', handoverByName:byName, updatedAt:now
+    }).eq('id',id).select('id');
+    if(!wr || wr.error) return false;
+    /* মাস্টারের কাছে অনুমোদনের নোটিশ — প্রকল্পের প্রমাণিত পথেই
+       (`briefings` সারি + `cloudUpsertBriefing`), নতুন কিছু বানানো হয়নি। */
+    try{
+      var req={id:uid('brief'),date:today(),
+        title:'Chamber closed without handover',
+        message:'Branch : '+String(branch)+'\nDate : '+wlv1Dot(date)+
+                '\nAmount : '+wlv1MhMoney(total)+'\nStill with : '+byName,
+        targets:{roles:['master']},branch:String(branch)||'',seen:[],replies:[],
+        createdBy:(user&&user.mobile)||'',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
+      add('briefings',req);
+      try{ cloudUpsertBriefing(req) }catch(_e){}
+    }catch(e){}
+    return true;
+  }catch(e){ return false }
+}
+
+async function wlv1MhDays(branch){
+  try{
+    var ok=await initCloudClientOnly(); if(!ok||!sb) return [];
+    var q=sb.from('chamber_close').select('*').limit(120);
+    if(branch && branch!=='All') q=q.eq('branch',String(branch).trim().toUpperCase());
+    var res=await q; if(res.error||!Array.isArray(res.data)) return [];
+    return res.data.slice().sort(function(a,b){ return String(b.date||'')<String(a.date||'')?-1:1 });
+  }catch(e){ return [] }
+}
+
+/** 💰 MONEY HANDOVER — কোন দিনের টাকা কে বুঝে নিলেন, পুরো ইতিহাস। */
+async function wlv1MoneyHandover(){
+  var br = isMaster() ? (wlv1BranchGet()||'All') : String((user&&user.branch)||'');
+  page('MONEY HANDOVER','<div class="card mut">Loading…</div>',true);
+  var rows=await wlv1MhDays(br);
+  var pend=rows.filter(function(r){ var s=String(r.handoverStatus||''); return !s||s==='pending' })
+               .reduce(function(n,r){ return n+Number(r.grandTotal||0) },0);
+  var body='<div class="card" style="background:#8A1810;color:#fff;display:flex;justify-content:space-between;font-weight:800">'
+    +'<span>STILL WITH YOU</span><span>'+wlv1MhMoney(pend)+'</span></div>';
+  if(!rows.length) body+='<div class="card mut">No closed chamber found yet.</div>';
+  rows.forEach(function(r,i){
+    var st=String(r.handoverStatus||''), tm=wlv1MhTime(r.receivedAt);
+    var line, ink, fill;
+    if(st==='received'){ line='✓ <b>'+esc(String(r.receivedByName||''))+'</b>'+(tm?'  ·  '+tm:''); ink='#0B5B2F'; fill='#EAF7F0'; }
+    else if(st==='waiting'){ line='⌛ <b>'+esc(String(r.receivedByName||''))+'</b>'+(tm?'  ·  '+tm:'')+' — waiting'; ink='#8A5A00'; fill='#FFF6E6'; }
+    else { line='⚠️ Money is still with you — nobody has received it'; ink='#8A1810'; fill='#FDEDEC'; }
+    body+='<div class="card"><div style="display:flex;align-items:baseline;gap:10px">'
+      +'<b style="font-size:15px">'+esc(wlv1Dot(String(r.date||'')))+'</b>'
+      +'<span class="mut" style="flex:1">'+esc(String(r.branch||''))+'</span>'
+      +'<b style="color:#0F5132;font-size:16px">'+wlv1MhMoney(r.grandTotal)+'</b></div>'
+      +'<div style="margin-top:8px;border-radius:8px;padding:9px 12px;color:'+ink+';background:'+fill+'">'+line+'</div>';
+    if(!st||st==='pending'){
+      body+='<div class="actions"><button onclick="wlv1MhHandOver('+i+')">💰 HAND OVER NOW</button></div>';
+    }
+    body+='</div>';
+  });
+  window.__wlv1MhRows=rows;
+  page('MONEY HANDOVER',body,true);
+}
+window["wlv1MoneyHandover"]=wlv1MoneyHandover;
+
+function wlv1MhHandOver(i){
+  var r=(window.__wlv1MhRows||[])[i]; if(!r) return;
+  var list=wlv1MhReceivers(String(r.branch||''));
+  if(!list.length) return toast('No doctor is listed for this branch');
+  window.__wlv1MhPick=r;
+  var opts=list.map(function(x,k){ return '<button class="ghost" style="width:100%;margin:4px 0" onclick="wlv1MhAskPw('+k+')">'+esc(x.name)+'  ·  '+x.role+'</button>' }).join('');
+  window.__wlv1MhList=list;
+  modal('<h2>💰 Hand over '+wlv1MhMoney(r.grandTotal)+'</h2><div class="card">'+opts+'</div>'
+    +'<div class="actions"><button class="ghost" onclick="closeModal()">Cancel</button></div>');
+}
+window["wlv1MhHandOver"]=wlv1MhHandOver;
+
+function wlv1MhAskPw(k){
+  var who=(window.__wlv1MhList||[])[k]; if(!who) return;
+  window.__wlv1MhWho=who;
+  modal('<h2>💰 '+esc(who.name)+'</h2><div class="card">'
+    +'<div class="tiny mut">PASSWORD OF '+esc(who.name)+'</div>'
+    +'<input id="wlv1MhPw" class="input" type="password" autocapitalize="off" autocorrect="off" spellcheck="false" data-nocaps="1"></div>'
+    +'<div class="actions"><button class="ghost" onclick="closeModal()">Cancel</button>'
+    +'<button onclick="wlv1MhDoHandOver()">Hand over</button></div>');
+}
+window["wlv1MhAskPw"]=wlv1MhAskPw;
+
+async function wlv1MhDoHandOver(){
+  var r=window.__wlv1MhPick, who=window.__wlv1MhWho; if(!r||!who) return;
+  var typed=''; try{ typed=$('#wlv1MhPw').value||'' }catch(e){}
+  var v=await wlv1MhVerify(who.mobile, wlv1MhRoleOf(who.mobile), typed);
+  if(v==='NO_NETWORK') return toast('Network problem — could not verify. Please try again.');
+  if(v!=='OK') return toast('Wrong password');
+  var byName=(user&&(user.name||user.mobile))||'';
+  var ok=await wlv1MhSaveHandover(String(r.branch||''), String(r.date||''), Number(r.grandTotal||0), who, byName);
+  if(!ok) return toast('Could not save — please try again');
+  closeModal(); toast('Handed over to '+who.name); wlv1MoneyHandover();
+}
+window["wlv1MhDoHandOver"]=wlv1MhDoHandOver;
+
+/** 💰 V984 — চেম্বার বন্ধ হওয়ার ঠিক পরে: কে টাকা বুঝে নিলেন। */
+function wlv1MhAskAtClose(branch,date,total){
+  var list=wlv1MhReceivers(branch);
+  window.__wlv1MhList=list;
+  window.__wlv1MhPick={branch:branch,date:date,grandTotal:total};
+  if(!list.length){ if(confirm('Print chamber register now?'))wlv1ChamberRegisterPrint();else chamberAttendance(); return; }
+  var opts=list.map(function(x,k){
+    return '<label style="display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid #EDF1F5">'
+      +'<input type="radio" name="wlv1MhR" value="'+k+'"'+(k===0?' checked':'')+'>'
+      +'<b style="flex:1">'+esc(x.name)+'</b><span class="mut">'+x.role+'</span></label>';
+  }).join('');
+  modal('<h2>💰 MONEY HANDOVER</h2>'
+    +'<div class="card" style="display:flex;justify-content:space-between;font-weight:800;color:#0F5132">'
+    +'<span>TOTAL</span><span>'+wlv1MhMoney(total)+'</span></div>'
+    +'<div class="card"><div class="tiny mut">RECEIVED BY</div>'+opts+'</div>'
+    +'<div class="card"><div class="tiny mut">PASSWORD OF THE PERSON RECEIVING</div>'
+    +'<input id="wlv1MhPw2" class="input" type="password" autocapitalize="off" autocorrect="off" spellcheck="false" data-nocaps="1"></div>'
+    +'<div class="actions"><button class="ghost" onclick="wlv1MhNotYet()">Not handed over yet</button>'
+    +'<button onclick="wlv1MhCloseHandOver()">✅ HAND OVER</button></div>');
+}
+window["wlv1MhAskAtClose"]=wlv1MhAskAtClose;
+
+async function wlv1MhCloseHandOver(){
+  var r=window.__wlv1MhPick; if(!r) return;
+  var k=0; try{ k=parseInt((document.querySelector('input[name="wlv1MhR"]:checked')||{}).value||'0',10) }catch(e){}
+  var who=(window.__wlv1MhList||[])[k]; if(!who) return;
+  var typed=''; try{ typed=$('#wlv1MhPw2').value||'' }catch(e){}
+  if(!typed) return toast('Enter the password of the person receiving');
+  var v=await wlv1MhVerify(who.mobile, wlv1MhRoleOf(who.mobile), typed);
+  if(v==='NO_NETWORK') return toast('Network problem — could not verify. Please try again.');
+  if(v!=='OK') return toast('Wrong password');
+  var byName=(user&&(user.name||user.mobile))||'';
+  var ok=await wlv1MhSaveHandover(r.branch, r.date, Number(r.grandTotal||0), who, byName);
+  if(!ok) return toast('Could not save — please try again');
+  closeModal(); toast('Handed over to '+who.name);
+  if(confirm('Print chamber register now?'))wlv1ChamberRegisterPrint();else chamberAttendance();
+}
+window["wlv1MhCloseHandOver"]=wlv1MhCloseHandOver;
+
+async function wlv1MhNotYet(){
+  var r=window.__wlv1MhPick; if(!r) return;
+  var byName=(user&&(user.name||user.mobile))||'';
+  var ok=await wlv1MhMarkPending(r.branch, r.date, Number(r.grandTotal||0), byName);
+  if(!ok) return toast('Could not save — please try again');
+  closeModal(); toast('Master has been informed — the money is still with you');
+  if(confirm('Print chamber register now?'))wlv1ChamberRegisterPrint();else chamberAttendance();
+}
+window["wlv1MhNotYet"]=wlv1MhNotYet;
+
+
+
 /* 🆕🔒 V805 (২৮.০৮.২০২৬, TK-অনুমোদিত · ফোনের `ChamberAttendanceRepository.saleTotals()`-এর
    হুবহু যমজ — নিয়ম ৬.৬) — ওই দিনের ওষুধ ও স্যালাইন বিক্রির মোট।
    ⛔ বিক্রি জমা হয় `products`-এ, আর চেম্বার রেজিস্টার পড়ে `payments` — দুটো আলাদা
@@ -22310,6 +22558,16 @@ async function wlv1ConfirmChamberClose(){
   const ok=await wlv1MarkChamberClosed(br,wlv1ChamberDate);
   if(!ok)return toast('Cloud-এ বন্ধ করা যায়নি — আবার চেষ্টা করুন');
   closeModal();toast('The chamber is closed');
+  /* 💰🔒 V984 (TK-নির্দেশ) — বন্ধ হওয়ার সাথে সাথেই "কে টাকা বুঝে নিলেন"।
+     ⛔ ফোনে এটা Chamber Register পর্দার ভিতরে বসে; কম্পিউটারে ওই পর্দাটা নেই
+        (রেজিস্টার সরাসরি নতুন ট্যাবে ছাপে), তাই এখানে বন্ধ করার ঠিক পরেই
+        একই ঘরটা খোলে — কাজ ও প্রমাণ দুটোই হুবহু এক। */
+  try{
+    var t=window.__wlv1MhTot||{fees:0,cash:0,online:0,refund:0,grand:0};
+    await wlv1MhSaveTotals(br, wlv1ChamberDate, t.fees, t.cash, t.online, t.refund, t.grand);
+    wlv1MhAskAtClose(br, wlv1ChamberDate, t.grand);
+    return;
+  }catch(e){}
   if(confirm('Print chamber register now?'))wlv1ChamberRegisterPrint();else chamberAttendance();
 }
 window["wlv1ConfirmChamberClose"]=wlv1ConfirmChamberClose;
