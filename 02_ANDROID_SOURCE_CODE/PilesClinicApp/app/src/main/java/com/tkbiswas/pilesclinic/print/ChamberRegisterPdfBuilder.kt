@@ -126,7 +126,7 @@ class ChamberRegisterPdfBuilder(private val context: Context) {
         fun lineCount() = (if (hasMedicine()) 1 else 0) + (if (hasSaline()) 1 else 0)
     }
 
-    fun build(branch: BranchInfo, dateLabel: String, dayLabel: String, rows: List<RegisterRow>, outputFile: File, rmpCommission: Double = 0.0, rmpPaidToday: Double = 0.0, rmpByName: List<Pair<String, Double>> = emptyList(), saleTotals: SaleTotals = SaleTotals()): File {
+    fun build(branch: BranchInfo, dateLabel: String, dayLabel: String, rows: List<RegisterRow>, outputFile: File, rmpCommission: Double = 0.0, rmpPaidToday: Double = 0.0, rmpByName: List<Pair<String, Double>> = emptyList(), saleTotals: SaleTotals = SaleTotals(), handoverLine: String = ""): File {
         val doc = PdfDocument()
         val logo = loadAssetBitmap(branch.logoAssetPath)
         val pages = if (rows.isEmpty()) listOf(emptyList()) else rows.chunked(ROWS_PER_PAGE)
@@ -145,7 +145,7 @@ class ChamberRegisterPdfBuilder(private val context: Context) {
             val rowH = ((ROWS_BOTTOM_LIMIT - usableTop) / count).coerceIn(MIN_ROW_HEIGHT, MAX_ROW_HEIGHT)
             drawTable(canvas, pageRows, rowH)
             if (pageNum == pages.size) {
-                drawTotals(canvas, rows, usableTop + pageRows.size * rowH + 12f, rmpCommission, rmpPaidToday, rmpByName, saleTotals)
+                drawTotals(canvas, rows, usableTop + pageRows.size * rowH + 12f, rmpCommission, rmpPaidToday, rmpByName, saleTotals, handoverLine)
             }
             doc.finishPage(page)
         }
@@ -310,7 +310,7 @@ class ChamberRegisterPdfBuilder(private val context: Context) {
         canvas.drawText(text, colLeft + colWidth - 6f - paint.measureText(text), baselineY, paint)
     }
 
-    private fun drawTotals(canvas: Canvas, rows: List<RegisterRow>, y: Float, rmpCommission: Double = 0.0, rmpPaidToday: Double = 0.0, rmpByName: List<Pair<String, Double>> = emptyList(), saleTotals: SaleTotals = SaleTotals()) {
+    private fun drawTotals(canvas: Canvas, rows: List<RegisterRow>, y: Float, rmpCommission: Double = 0.0, rmpPaidToday: Double = 0.0, rmpByName: List<Pair<String, Double>> = emptyList(), saleTotals: SaleTotals = SaleTotals(), handoverLine: String = "") {
         val colVisit = MARGIN + 20f + 148f + 150f
         val label = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor(GREEN); textSize = 8.5f; isFakeBoldText = true }
         val value = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor(GREEN); textSize = 8.5f; isFakeBoldText = true }
@@ -423,6 +423,14 @@ class ChamberRegisterPdfBuilder(private val context: Context) {
         canvas.drawText("Cash " + rs(totalCashCombined), colCashLbl, rowY, sum)
         canvas.drawText("Online " + rs(totalOnlineCombined), colOnlineLbl, rowY, sum)
         canvas.drawText("= " + rs(grand) + "/-" + rmpNote, colOnlineLbl + 150f, rowY, sum)
+        /* 💰🔒 V984 (০২.০৯.২০২৬, TK-নির্দেশ: *"টাকা হ্যান্ডওভার করেছে তার প্রমাণ
+           স্টাফ পাবে কি করে"*) — কে বুঝে নিলেন সেই লাইনটা কাগজেও ছাপে, তাই
+           WhatsApp-এ পাঠানো কপিতেও প্রমাণ থাকে।
+           ⛔ লাইনটা না থাকলে (এখনো বুঝিয়ে দেওয়া হয়নি) কাগজ হুবহু আগের মতোই। */
+        if (handoverLine.isNotBlank()) {
+            rowY += 12f
+            canvas.drawText(handoverLine, MARGIN + 20f, rowY, sum)
+        }
         // 🔴 V562: RMP-কে দিতে হবে এমন টাকা — লাল রঙে, আলাদা লাইনে, কোনো
         //    মোট থেকে বাদ যায় না। ০ হলে লাইনটাই ছাপা হয় না।
         // 🔴🔒 V685 (২৫.০৮.২০২৬, TK-নির্দেশ — "প্রিন্টে RMP কমিশন লাল রঙে,

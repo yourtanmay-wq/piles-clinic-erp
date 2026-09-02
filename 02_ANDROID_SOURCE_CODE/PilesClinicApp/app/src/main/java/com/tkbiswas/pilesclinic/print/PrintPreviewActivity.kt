@@ -56,6 +56,14 @@ class PrintPreviewActivity : AppCompatActivity() {
                 renderPage(0)
                 setupPageNav()
                 setupActionButtons()
+                /* 💰🔒 V984 (TK-নির্দেশ: *"টাকা বুঝিয়ে দেয়ার সিস্টেমটা এই পর্দাতে
+                   রাখুন"*) — শুধু Chamber Register-এর সময় ঘরটা ভরে; বাকি প্রতিটা
+                   কাগজে ওটা লুকানোই থাকে, তাই কোথাও কিছু বদলায়নি। */
+                try {
+                    com.tkbiswas.pilesclinic.print.MoneyHandoverCard.attach(
+                        this, findViewById(R.id.handoverSlot)
+                    )
+                } catch (_: Throwable) { }
             } catch (e: Exception) {
                 showError("Could not render the PDF preview: ${e.message}")
             }

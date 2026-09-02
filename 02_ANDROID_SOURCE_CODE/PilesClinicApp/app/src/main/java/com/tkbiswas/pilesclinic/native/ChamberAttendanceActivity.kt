@@ -3018,6 +3018,15 @@ Thread {
      *  সংখ্যাটাই যায়। কমিশন না এলে ০, তখন কাগজ আগের মতোই। */
     private var cbDayCommissionTotal: Double = 0.0
 
+    /* 💰🔒 V984 (০২.০৯.২০২৬, TK-নির্দেশ) — Review পর্দায় যে অঙ্কগুলো দেখানো
+       হলো, রেজিস্টারের পর্দাতেও **হুবহু সেগুলোই** যায় (আবার আলাদা করে হিসাব
+       করা হয় না, তাই দুই জায়গায় কখনো আলাদা সংখ্যা হবে না)। */
+    private var cbHoFees = 0.0
+    private var cbHoCash = 0.0
+    private var cbHoOnline = 0.0
+    private var cbHoRefund = 0.0
+    private var cbHoTotal = 0.0
+
     /** 🔴 V427: আজ RMP-দের হাতে সত্যিই দেওয়া মোট টাকা — শুধু দেখানোর জন্য,
      *  কোনো মোট থেকে বাদ যায় না। */
     private var cbDayPaidTotal: Double = 0.0
@@ -3132,6 +3141,9 @@ Thread {
         val cbCashTotal = arrived.sumOf { it.paymentCash + it.refundCash }
         val cbOnlineTotal = arrived.sumOf { it.paymentOnline + it.refundOnline }
         val cbGrandTotal = cbFeesTotal + cbCashTotal + cbOnlineTotal - cbRefundTotal
+        // 💰 V984 — রেজিস্টারের পর্দার "MONEY HANDOVER" ঘরের জন্য জমা রাখা।
+        cbHoFees = cbFeesTotal; cbHoCash = cbCashTotal; cbHoOnline = cbOnlineTotal
+        cbHoRefund = cbRefundTotal; cbHoTotal = cbGrandTotal
         list.addView(android.widget.TextView(this).apply {
             text = "REVIEW — ${arrivedOnly.size} arrived"   // 🔴🔒 V709 — রিফান্ড এখানে গোনা হয় না
             textSize = 13f
@@ -4182,9 +4194,20 @@ Thread {
             //    নিচের লাইনেও **হুবহু সেটাই** যায় (আলাদা করে আবার হিসাব করা হয়
             //    না, তাই পর্দা আর কাগজের সংখ্যা কখনো আলাদা হবে না)। ০ হলে কাগজ
             //    আগের মতোই ছাপে।
+            /* 💰🔒 V984 (TK-নির্দেশ) — এই তারিখের টাকা কে বুঝে নিয়েছেন, সেই এক
+               লাইন কাগজেও ছাপে (আগে বুঝিয়ে দেওয়া হয়ে থাকলে)। ⛔ না থাকলে
+               কাগজ হুবহু আগের মতোই; নেট না পেলেও কিছু আটকায় না। */
+            val hoLine = try {
+                val hb = printBranchOverride.ifBlank { selectedBranch }
+                val hid = ChamberCloseRepository.idOf(hb, selectedDate)
+                val enc = java.net.URLEncoder.encode(hid, "UTF-8").replace("+", "%20")
+                val hr = SupabaseClient.fetchListOrNull(MoneyHandover.TABLE, "id=eq.$enc", 1)
+                if (hr != null && hr.length() > 0) MoneyHandover.paperLine(
+                    MoneyHandover.dayFrom(hr.getJSONObject(0))) else ""
+            } catch (_: Throwable) { "" }
             ChamberRegisterPdfBuilder(this).build(
                 branchInfo, dateLabel, dayLabel, registerRows, outFile,
-                cbDayCommissionTotal, cbDayPaidTotal, cbDayCommissionByRmp, saleTotals
+                cbDayCommissionTotal, cbDayPaidTotal, cbDayCommissionByRmp, saleTotals, hoLine
             )
             // TK-REQUESTED (2026-07-25): Save PDF / Share PDF (WhatsApp etc.)
             // / Print -- reusing the SAME already-built, already-working
@@ -4193,6 +4216,22 @@ Thread {
             // to the system print dialog with no way to save or share.
             com.tkbiswas.pilesclinic.print.PrintDataHolder.prebuiltFile = outFile
             com.tkbiswas.pilesclinic.print.PrintDataHolder.prebuiltTitle = "Chamber Register - $dateLabel"
+            /* 💰🔒 V984 (TK-নির্দেশ: *"টাকা বুঝিয়ে দেয়ার সিস্টেমটা এই পর্দাতে
+               রাখুন"*) — রেজিস্টারের পর্দায় "MONEY HANDOVER" ঘরটা দেখানোর জন্য
+               দিনের অঙ্কগুলোও সাথে যায়। ⛔ ছাপার কাগজ · বোতাম · কোনো হিসাব
+               একটুও বদলায়নি। */
+            try {
+                val hoBranch = printBranchOverride.ifBlank { selectedBranch }
+                if (hoBranch.isNotBlank() && !hoBranch.equals("All", ignoreCase = true)) {
+                    com.tkbiswas.pilesclinic.print.PrintDataHolder.handoverBranch = hoBranch
+                    com.tkbiswas.pilesclinic.print.PrintDataHolder.handoverDate = selectedDate
+                    com.tkbiswas.pilesclinic.print.PrintDataHolder.handoverFees = cbHoFees
+                    com.tkbiswas.pilesclinic.print.PrintDataHolder.handoverCash = cbHoCash
+                    com.tkbiswas.pilesclinic.print.PrintDataHolder.handoverOnline = cbHoOnline
+                    com.tkbiswas.pilesclinic.print.PrintDataHolder.handoverRefund = cbHoRefund
+                    com.tkbiswas.pilesclinic.print.PrintDataHolder.handoverTotal = cbHoTotal
+                }
+            } catch (_: Throwable) { }
             startActivity(android.content.Intent(this, com.tkbiswas.pilesclinic.print.PrintPreviewActivity::class.java))
         } catch (e: Exception) {
             android.widget.Toast.makeText(this, NoBengali.s("PDF তৈরি করা যায়নি — ${e.javaClass.simpleName}"), android.widget.Toast.LENGTH_LONG).show()
@@ -4282,6 +4321,9 @@ Thread {
             Pair("📂 Draft", DraftActivity::class.java),
             Pair("💬 Briefing", BriefingActivity::class.java),
             Pair("🔍 Global Search", GlobalSearchActivity::class.java),
+            /* 💰 V984 (TK-নির্দেশ) — কোন দিনের টাকা কে বুঝে নিলেন, তার ইতিহাস।
+               স্টাফ · ডাক্তার · মাস্টার — সবার জন্যই, যে যার নিজের কাজটুকু দেখেন। */
+            Pair("💰 Money Handover", MoneyHandoverActivity::class.java),
             if (user.role == "master") Pair("📊 Reports", ReportsActivity::class.java) else null,
             if (user.role == "master") Pair("📋 Export Data", ExportDataActivity::class.java) else null,
             if (user.role == "master") Pair("☁️ Backup", com.tkbiswas.pilesclinic.security.SettingsActivity::class.java) else null,

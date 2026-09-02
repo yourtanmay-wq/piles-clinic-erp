@@ -70,8 +70,12 @@
             android:layout_marginTop="2dp"
             android:text=""
             android:textSize="10sp"
-            android:maxLines="1"
-            android:ellipsize="end"
+            android:maxLines="3"
+            <!-- 🔴🔒 V984 (০২.০৯.২০২৬, TK-রিপোর্ট ছবিসহ: *"Ref. by Amit… ডান পাশে
+                 রয়েছে যে কারণে কেটে গেছে, দেখা যাচ্ছে না"*) — এই ঘরে **দুটো লাইন**
+                 বসে (তারিখ-সময়, আর তার নিচে Ref By), অথচ নিয়ম ছিল মাত্র ১ লাইন —
+                 তাই দ্বিতীয় লাইনটা কখনো দেখাই যেত না আর প্রথমটাও কেটে যেত।
+                 ⛔ ঘরের চওড়া · রং · মাপ কিছুই বদলায়নি, শুধু লাইনের সংখ্যা। -->
             android:textColor="#5B6B81"
             android:visibility="gone" />
 
@@ -148,8 +152,12 @@
                 android:layout_marginTop="2dp"
                 android:text=""
                 android:textSize="10sp"
-                android:maxLines="1"
-                android:ellipsize="end"
+                android:maxLines="3"
+                <!-- 🔴🔒 V984 (০২.০৯.২০২৬, TK-রিপোর্ট ছবিসহ: *"Ref. by Amit… ডান পাশে
+                     রয়েছে যে কারণে কেটে গেছে, দেখা যাচ্ছে না"*) — এই ঘরে **দুটো লাইন**
+                     বসে (তারিখ-সময়, আর তার নিচে Ref By), অথচ নিয়ম ছিল মাত্র ১ লাইন —
+                     তাই দ্বিতীয় লাইনটা কখনো দেখাই যেত না আর প্রথমটাও কেটে যেত।
+                     ⛔ ঘরের চওড়া · রং · মাপ কিছুই বদলায়নি, শুধু লাইনের সংখ্যা। -->
                 android:textColor="#5B6B81"
                 android:visibility="gone" />
 

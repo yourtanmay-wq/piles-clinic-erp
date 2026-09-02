@@ -71,6 +71,14 @@
         </androidx.cardview.widget.CardView>
     </ScrollView>
 
+    <!-- 💰🔒 V984 (০২.০৯.২০২৬, TK-নির্দেশ: *"টাকা বুঝিয়ে দেয়ার সিস্টেমটা এই
+         পর্দাতে রাখুন"*) — শুধু **Chamber Register**-এর সময় এই ঘরটা ভরে ও
+         দেখা যায়; বাকি প্রতিটা কাগজে (Prescription · Registration · Report
+         Card…) এটা লুকানোই থাকে, তাই ওখানে কিচ্ছু বদলায়নি। -->
+    <LinearLayout android:id="@+id/handoverSlot" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:orientation="vertical"
+        android:visibility="gone" android:paddingHorizontal="10dp" />
+
     <!-- 🔒 B601 (TK-নির্দেশ 09.08.2026): ওয়েবের মতো সমান ৪ বোতাম — WhatsApp / Save /
          Print / Close (২x২ গ্রিড, সব একই মাপ)। এই পর্দা Print Center + বার্তা-বাক্স
          দুটোতেই ব্যবহার হয়, তাই সব প্রিন্ট-প্রিভিউতে একরকম। ⛔ বোতামের কাজ অপরিবর্তিত;

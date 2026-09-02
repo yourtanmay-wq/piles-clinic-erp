@@ -93,4 +93,25 @@ object PrintDataHolder {
     // Registration, etc.) leaves this null and is completely unaffected.
     var prebuiltFile: java.io.File? = null
     var prebuiltTitle: String? = null
+
+    /* 💰🔒 V984 (০২.০৯.২০২৬, TK-নির্দেশ: *"টাকা বুঝিয়ে দেয়ার সিস্টেমটা এই
+       পর্দাতে রাখুন"*) — Chamber Register যখন এই পর্দায় আসে, তখন সেই দিনের
+       ব্রাঞ্চ · তারিখ · টাকার অঙ্কগুলোও সাথে আসে, আর পর্দায় "MONEY HANDOVER"
+       ঘরটা দেখা যায়।
+       ⛔ অন্য প্রতিটা কাগজ এই ঘরগুলো কখনো বসায় না ⇒ তাদের পর্দা হুবহু আগের
+          মতোই থাকে (ঘরটা লুকানো)। ব্যবহারের সাথে সাথেই মুছে ফেলা হয়, যাতে
+          পরের কাগজে ভুল করে থেকে না যায়। */
+    var handoverBranch: String = ""
+    var handoverDate: String = ""
+    var handoverFees: Double = 0.0
+    var handoverCash: Double = 0.0
+    var handoverOnline: Double = 0.0
+    var handoverRefund: Double = 0.0
+    var handoverTotal: Double = 0.0
+
+    fun clearHandover() {
+        handoverBranch = ""; handoverDate = ""
+        handoverFees = 0.0; handoverCash = 0.0; handoverOnline = 0.0
+        handoverRefund = 0.0; handoverTotal = 0.0
+    }
 }
