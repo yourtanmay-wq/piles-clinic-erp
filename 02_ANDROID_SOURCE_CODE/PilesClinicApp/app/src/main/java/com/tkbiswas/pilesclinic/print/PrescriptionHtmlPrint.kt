@@ -135,7 +135,11 @@ object PrescriptionHtml {
     /** "2026-09-02" বা "02.09.2026" — দুটোই এসে 02.09.2026 হয়ে যায়। */
     private fun dotFromText(raw: String): String {
         val s = raw.trim()
-        if (s.isEmpty()) return "_______________"
+        /* 🖨️🔒 V994 (০৩.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — তারিখ না থাকলে
+           আগে `_______________` ছাপত; TK-এর কথায় ওটা দেখতে পেশাদার নয়।
+           এখন ফাঁকা যায় আর টেমপ্লেটের CSS একটা পরিষ্কার পাতলা দাগ আঁকে —
+           হাতে লেখার জায়গা আগের মতোই থাকে। ⛔ তারিখ থাকলে কিছুই বদলায়নি। */
+        if (s.isEmpty()) return ""
         val iso = Regex("^(\\d{4})-(\\d{2})-(\\d{2})").find(s)
         if (iso != null) {
             return iso.groupValues[3] + "." + iso.groupValues[2] + "." + iso.groupValues[1]

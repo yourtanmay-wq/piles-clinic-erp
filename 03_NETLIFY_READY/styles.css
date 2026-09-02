@@ -6895,3 +6895,76 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
 .doctorQueuePro .dqFp{padding:7px 9px!important;border-radius:9px!important;margin-top:6px!important}
 .doctorQueuePro .dqFh{font-size:10px!important}
 .doctorQueuePro .dqFt{font-size:11px!important;min-height:13px}
+
+/* 🖨️🔒 V994 (০৩.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — প্রেসক্রিপশন ও
+   মেডিসিন স্লিপের ছাপা কাগজ: বাঁ কলামের ব্যবধান কমল, দাগগুলো নরম ও
+   পরিষ্কার হলো, লেখা খাঁটি কালো ও একটু বড় হলো, আর প্রিন্টার যাতে রং বাদ
+   দিতে না পারে সেজন্য print-color-adjust বসল।
+   ⛔ শুধু @media print — পর্দার চেহারা এক অক্ষরও বদলায়নি।
+   ⛔ Android-এর `assets/www/rx_print.html`-এ হুবহু একই ব্লক, তাই দুই
+      জায়গার ছাপা কাগজ এক থাকে। */
+
+@media print{
+ /* ১ — বাঁ কলামের ব্যবধান (লক করা #১ এর মতোই) */
+ .printArea.prescriptionLock .rxComplaintHistory div{margin-bottom:2.6mm !important;}
+ .printArea.prescriptionLock .rxComplaintHistory span:empty{min-height:3.4mm !important;}
+ /* ২ — দাগগুলো নরম ও পরিষ্কার */
+ .printArea.prescriptionLock .rxComplaintHistory{border-right:0.7px solid rgb(196,214,202) !important;}
+ .printArea.prescriptionLock .finalPrintTable{border-collapse:separate !important;border-spacing:0 !important;
+   border:0.9px solid rgb(176,193,203) !important;border-radius:5px !important;overflow:hidden !important;}
+ .printArea.prescriptionLock .finalPrintTable th{border:0 !important;
+   border-bottom:1.1px solid rgb(11,93,42) !important;border-right:0.7px solid rgb(214,228,220) !important;
+   background:rgb(241,249,244) !important;letter-spacing:.2px !important;}
+ .printArea.prescriptionLock .finalPrintTable th:last-child{border-right:0 !important;}
+ .printArea.prescriptionLock .finalPrintTable td{border:0 !important;
+   border-top:0.7px solid rgb(223,232,236) !important;border-right:0.7px solid rgb(228,236,240) !important;}
+ .printArea.prescriptionLock .finalPrintTable td:last-child{border-right:0 !important;}
+ .printArea.prescriptionLock .finalPrintTable tr:first-child td{border-top:0 !important;}
+ .printArea.prescriptionLock .rxPatientInfo.anRxPt{border-bottom:0.9px solid rgb(163,192,173) !important;}
+ .printArea.prescriptionLock .rxBox.clinicPadRx{border:0.9px solid rgb(219,227,231) !important;border-radius:7px !important;}
+ .printArea.prescriptionLock .doctorLine > .docLeft,
+ .printArea.prescriptionLock .doctorLine > .docRight{border-top:0.8px solid rgb(90,107,98) !important;}
+ .printArea.prescriptionLock .anRxNext{border-top:0.7px solid rgb(212,224,216) !important;}
+ .printArea.prescriptionLock .anRxNext span{letter-spacing:0 !important;border-bottom:0.8px solid rgb(154,168,160) !important;
+   min-height:4.6mm !important;margin-top:2mm !important;}
+}
+
+@media print{
+ /* ৩ক — প্রিন্টার যেন রং বাদ না দেয় */
+ *,*::before,*::after{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}
+ /* ৩খ — লেখা খাঁটি কালো */
+ .printArea.prescriptionLock{color:#000 !important;}
+ .printArea.prescriptionLock .rxPatientInfo b,
+ .printArea.prescriptionLock .rxPatientInfo span,
+ .printArea.prescriptionLock .rxPatientInfo i,
+ .printArea.prescriptionLock .finalPrintTable td,
+ .printArea.prescriptionLock .rxComplaintHistory span,
+ .printArea.prescriptionLock .rxPrintAdvice span,
+ .printArea.prescriptionLock .anRxNext span,
+ .printArea.prescriptionLock .doctorLine b{color:#000 !important;}
+ .printArea.prescriptionLock .doctorLine small,
+ .printArea.prescriptionLock .rxTagline span{color:#2b2b2b !important;}
+ .printArea.prescriptionLock .clinicCell p{color:#000 !important;}
+ /* সবুজ শিরোনামগুলো আরও গাঢ় সবুজ */
+ .printArea.prescriptionLock .rxComplaintHistory b,
+ .printArea.prescriptionLock .anRxNext b,
+ .printArea.prescriptionLock .rxPrintAdvice b,
+ .printArea.prescriptionLock .finalPrintTable th{color:rgb(6,66,30) !important;}
+ /* ৩গ — হরফ একটু বড় */
+ .printArea.prescriptionLock .rxPatientInfo{font-size:10.4px !important;}
+ .printArea.prescriptionLock .finalPrintTable th{font-size:11.4px !important;}
+ .printArea.prescriptionLock .finalPrintTable td{font-size:12px !important;padding:6px 6px !important;}
+ .printArea.prescriptionLock .rxComplaintHistory b{font-size:8.9px !important;letter-spacing:-.25px !important;}
+ .printArea.prescriptionLock .rxComplaintHistory span{font-size:11px !important;}
+ .printArea.prescriptionLock .rxPrintAdvice span{font-size:9pt !important;}
+ .printArea.prescriptionLock .rxPrintAdvice span{white-space:nowrap !important;font-size:7.9pt !important;letter-spacing:-.15px !important;}
+ .printArea.prescriptionLock .anRxNext b{font-size:8.9px !important;letter-spacing:-.25px !important;}
+ /* দাগগুলো একটু গাঢ়, যাতে ছাপায় হারিয়ে না যায় */
+ .printArea.prescriptionLock .finalPrintTable{border-color:rgb(122,142,154) !important;}
+ .printArea.prescriptionLock .finalPrintTable td{border-top-color:rgb(186,200,208) !important;border-right-color:rgb(190,203,211) !important;}
+ .printArea.prescriptionLock .finalPrintTable th{border-right-color:rgb(180,204,190) !important;}
+ .printArea.prescriptionLock .rxComplaintHistory{border-right-color:rgb(150,182,161) !important;}
+ .printArea.prescriptionLock .rxBox.clinicPadRx{border-color:rgb(186,199,206) !important;}
+ .printArea.prescriptionLock .rxPrintType{background:rgb(96,112,128) !important;color:#fff !important;}
+}
+

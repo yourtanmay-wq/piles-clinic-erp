@@ -16670,7 +16670,7 @@ function printDirectRx(type){
     return `<tr><td>${i+1}</td><td><span class="rxPrintType">${esc(m.medicineType||'')}</span>${esc(m.name)}</td><td>${esc(dw.dose)}</td><td>${esc(dw.whenText)}</td><td>${esc(rxDaysForPrint(m.days))}</td></tr>`;
   }).join(''):'<tr><td colspan="5">No item selected</td></tr>';
   closeModal();
-  professionalDirectMedicalPrint(p,title,`<div class="rxApprovedGrid" style="--clinic-watermark:url('${branchPrintLogoPath(p)}')"><aside class="rxComplaintHistory">${wlv1SlipHistoryHtml(p)}<div class="anRxBot"><div class="rxPrintAdvice"><span><b>ADVICE:</b> Sitz Bath &mdash; 2 Times Daily</span></div><div class="anRxNext"><b>Next Follow-up Date</b><span>_______________</span></div></div></aside><section><div class="rxGridMark">&#8478;</div><table class="printTable finalPrintTable"><tr><th>SL</th><th>Medicine Name</th><th>Dose</th><th>When</th><th>Duration</th></tr>${list}</table></section></div>`);
+  professionalDirectMedicalPrint(p,title,`<div class="rxApprovedGrid" style="--clinic-watermark:url('${branchPrintLogoPath(p)}')"><aside class="rxComplaintHistory">${wlv1SlipHistoryHtml(p)}<div class="anRxBot"><div class="rxPrintAdvice"><span><b>ADVICE:</b> Sitz Bath &mdash; 2 Times Daily</span></div><div class="anRxNext"><b>Next Follow-up Date</b><span></span></div></div></aside><section><div class="rxGridMark">&#8478;</div><table class="printTable finalPrintTable"><tr><th>SL</th><th>Medicine Name</th><th>Dose</th><th>When</th><th>Duration</th></tr>${list}</table></section></div>`);
 }
 window["printDirectRx"]=printDirectRx;
 /* 🔴 V430 — নাম-ছাড়া Diet কাগজে ওয়েবে **যা খাওয়া বারণ তার পাশেও ☑ টিক**
