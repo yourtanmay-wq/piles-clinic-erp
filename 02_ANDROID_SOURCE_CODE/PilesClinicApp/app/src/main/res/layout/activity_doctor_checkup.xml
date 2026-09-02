@@ -307,6 +307,26 @@
                      TK-এর নির্দেশে আগের মতোই হেডারের উপরে-ডানে।
                      🔁 পুরনো Full Journey পথটা মোছা হয়নি — Doctor Queue-র
                         "📜 History" বোতাম আগের মতোই সেটা খোলে। -->
+                <!-- 🧮🔒 V995 (০৩.০৯.২০২৬, TK-অনুমোদিত, লাল-দাগ দেওয়া ছবি) —
+                     Estimated Cost ঘরের পাশের "🧮 Build" বোতামটা এখান থেকে
+                     সরিয়ে হেডারের এই গোল আইকনে আনা হলো। ⛔ id একই
+                     (`btnBuildEstimate`), তাই চাপলে যা খুলত এখনো ঠিক তাই খোলে —
+                     কোনো কোড/সেভ/হিসাব বদলায়নি, শুধু জায়গা ও চেহারা।
+                     ⛔ 📜 ও 🩺 আইকনের হুবহু একই মাপ ও ছাঁচ। -->
+                <TextView
+                    android:id="@+id/btnBuildEstimate"
+                    android:layout_width="30dp"
+                    android:layout_height="30dp"
+                    android:layout_gravity="top"
+                    android:layout_marginStart="6dp"
+                    android:layout_marginTop="1dp"
+                    android:background="@drawable/bg_circle_gradient_violet"
+                    android:gravity="center"
+                    android:text="🧮"
+                    android:textSize="13sp"
+                    android:clickable="true"
+                    android:focusable="true" />
+
                 <TextView
                     android:id="@+id/btnPatientHistory"
                     android:layout_width="30dp"
@@ -1069,20 +1089,6 @@
                                 android:orientation="horizontal"
                                 android:gravity="center_vertical">
                                 <EditText android:id="@+id/etEstimatedCost" style="@style/DocNoteInputSingle" android:inputType="number" android:hint="Estimated cost" android:layout_width="0dp" android:layout_weight="1" />
-                                <TextView
-                                    android:id="@+id/btnBuildEstimate"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="🧮  Build"
-                                    android:textSize="13sp"
-                                    android:textStyle="bold"
-                                    android:textColor="#FFFFFF"
-                                    android:background="@drawable/bg_dv_stat_all_selected"
-                                    android:paddingHorizontal="14dp"
-                                    android:paddingVertical="11dp"
-                                    android:layout_marginStart="8dp"
-                                    android:clickable="true"
-                                    android:focusable="true" />
                             </LinearLayout>
                         </LinearLayout>
                     </LinearLayout>

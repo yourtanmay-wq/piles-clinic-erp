@@ -6968,3 +6968,8 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
  .printArea.prescriptionLock .rxPrintType{background:rgb(96,112,128) !important;color:#fff !important;}
 }
 
+/* 🧮🔒 V995 (০৩.০৯.২০২৬, TK-অনুমোদিত) — Estimated Cost ঘরের পাশের
+   "🧮 Build" বোতামটা রোগীর কার্ডের উপরে গোল আইকনে সরানো হলো
+   (ফোনেও হুবহু একই)। 📜 বোতামের একই মাপ, শুধু বেগুনি পরিবার। */
+.dnHistBtn.dnEstBtn{border-color:#C7B6F5;background:#F1ECFE;color:#4C1D95;margin-right:6px}
+.dnHistBtn.dnEstBtn:hover{background:#E4DBFB}

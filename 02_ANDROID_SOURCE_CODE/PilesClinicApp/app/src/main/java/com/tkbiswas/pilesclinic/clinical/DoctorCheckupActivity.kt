@@ -3954,6 +3954,10 @@ class DoctorCheckupActivity : AppCompatActivity() {
 
         // Estimate & Decision — সেভের পর লুকানো।
         findViewById<android.view.View>(R.id.secEstimate).visibility = android.view.View.GONE
+        /* 🧮🔒 V995 — "🧮 Build" আইকনটা এখন হেডারে, Counsel-এর ভিতরে নয়। আগে
+           সেভের পর Counsel সারাংশে বদলে যেত বলে বোতামটা নিজে থেকেই হারিয়ে
+           যেত; সেই আচরণ হুবহু রাখতে এখানে আইকনটাও লুকানো হয়। */
+        findViewById<android.view.View>(R.id.btnBuildEstimate)?.visibility = android.view.View.GONE
 
         // Photo — ছবি থাকে, শুধু ক্যামেরা-বোতাম + Quick Actions লুকানো।
         findViewById<android.view.View>(R.id.btnBeforePhoto).visibility = android.view.View.GONE

@@ -9719,7 +9719,7 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
       সঙ্গে 📜 Check-up History বোতাম — ফোনের হেডারের সেই একই বোতামের যমজ।
       ⛔ ভিতরের কোনো লেখা/id বদলায়নি, শুধু মোড়ক বদলেছে। -->
  <div class="card dnPatCard">
-  <div class="queueRow dnPatTop">${p.photo?`<img class="miniPatient" src="${p.photo}">`:`<div class="miniPatient blank">👤</div>`}<div class="dnPatWho"><b>${esc(p.name)}</b><br>${esc(p.mobile)} · Age: ${esc(p.age||'-')} · ${esc(p.sex||'-')}<span id="dnOccHeader" class="dnOccHeader" onclick="dnOccChoose()" title="Occupation · পেশা" style="cursor:pointer;font-weight:600"></span><br>Branch: ${esc(p.branch)}</div><button class="dnHistBtn" onclick="wlv1CheckupHistory('${esc(p.id)}')" title="Check-up History">📜</button></div>
+  <div class="queueRow dnPatTop">${p.photo?`<img class="miniPatient" src="${p.photo}">`:`<div class="miniPatient blank">👤</div>`}<div class="dnPatWho"><b>${esc(p.name)}</b><br>${esc(p.mobile)} · Age: ${esc(p.age||'-')} · ${esc(p.sex||'-')}<span id="dnOccHeader" class="dnOccHeader" onclick="dnOccChoose()" title="Occupation · পেশা" style="cursor:pointer;font-weight:600"></span><br>Branch: ${esc(p.branch)}</div><button class="dnHistBtn dnEstBtn" onclick="wlv1EstOpen()" title="Build Estimate">🧮</button><button class="dnHistBtn" onclick="wlv1CheckupHistory('${esc(p.id)}')" title="Check-up History">📜</button></div>
   <!-- 🔵 V574 (TK): *"patient id মোবাইল স্ক্রিনের প্রথম থেকে থাকবে তারপরে Ref by"* -->
   <div class="dnIdRow"><span class="dnIdBadge">ID</span><span class="dnIdNo">${esc(p.patientId)}</span>${wlv1RefByChip(p)}</div>
  </div>
@@ -9812,7 +9812,7 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
        নিচে (Treatment Plan-এর পরে, নোটের আগে) — Android-এর একই বদল।
        ⛔ id/সেভ-লজিক/নোটিফিকেশন/A4-রিপোর্ট কিছুই বদলায়নি — একই
        "dnEstimatedCost" input, শুধু জায়গা বদল (Step 4 থেকে Step 3-এ)। -->
-  <label>Estimated Cost · আনুমানিক খরচ কত বলা হল</label><div style="display:flex;gap:8px;align-items:center"><input id="dnEstimatedCost" class="input" style="flex:1;margin:0" value="${val('estimatedCost')}"><button type="button" class="small" onclick="wlv1EstOpen()">🧮 Build</button></div>
+  <label>Estimated Cost · আনুমানিক খরচ কত বলা হল</label><div style="display:flex;gap:8px;align-items:center"><input id="dnEstimatedCost" class="input" style="flex:1;margin:0" value="${val('estimatedCost')}"></div>
   <label>Other Treatment Note · অন্যান্য চিকিৎসার কথা (টাইপ করুন)</label><textarea id="dnCounselling" placeholder="রোগীকে কিভাবে চিকিৎসা করবেন বলেছেন সেই কথা এখানে লিখুন">${val('counselling')}</textarea>
  </details>
  <!-- 🟢 V600 (২৩.০৮.২০২৬, TK-নির্দেশ, ছবিসহ): "যেখানে আছে সেখান থেকে সরিয়ে
