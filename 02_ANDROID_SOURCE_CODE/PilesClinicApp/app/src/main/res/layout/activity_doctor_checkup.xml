@@ -1058,7 +1058,32 @@
                                 <TextView style="@style/DocNoteLabel" android:text="Estimated Cost · আনুমানিক খরচ কত বলা হল" />
                             </LinearLayout>
                             <View style="@style/DocNoteDivider" />
-                            <EditText android:id="@+id/etEstimatedCost" style="@style/DocNoteInputSingle" android:inputType="number" android:hint="Estimated cost" />
+                            <!-- 💰🔒 V971 (০২.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — ঘরের
+                                 পাশে "Build" বোতাম; চাপলে ভাঙা হিসাবের পপ-আপ খোলে,
+                                 আর Net Payable এই ঘরেই বসে যায়।
+                                 ⛔ `etEstimatedCost`-এর id · সেভ-লজিক · A4 রিপোর্ট
+                                    কিছুই বদলায়নি — শুধু পাশে একটা বোতাম বসল। -->
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal"
+                                android:gravity="center_vertical">
+                                <EditText android:id="@+id/etEstimatedCost" style="@style/DocNoteInputSingle" android:inputType="number" android:hint="Estimated cost" android:layout_width="0dp" android:layout_weight="1" />
+                                <TextView
+                                    android:id="@+id/btnBuildEstimate"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="🧮  Build"
+                                    android:textSize="13sp"
+                                    android:textStyle="bold"
+                                    android:textColor="#FFFFFF"
+                                    android:background="@drawable/bg_dv_stat_all_selected"
+                                    android:paddingHorizontal="14dp"
+                                    android:paddingVertical="11dp"
+                                    android:layout_marginStart="8dp"
+                                    android:clickable="true"
+                                    android:focusable="true" />
+                            </LinearLayout>
                         </LinearLayout>
                     </LinearLayout>
 

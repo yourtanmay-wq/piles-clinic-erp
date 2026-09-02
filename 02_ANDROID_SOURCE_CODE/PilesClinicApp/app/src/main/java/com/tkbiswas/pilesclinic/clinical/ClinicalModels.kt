@@ -125,6 +125,10 @@ data class CheckupRecord(
     var counselling: String = "",
     // 4. Estimate & Decision (merged, TK-নির্দেশ 04.08.2026)
     var estimatedCost: String = "",
+    /* 💰🔒 V971 (TK-অনুমোদিত) — এস্টিমেটের ভাঙা হিসাব, JSON লেখা হিসেবে।
+       ⛔ চেকআপের **আগে থেকেই থাকা** নোট-JSON-এর ভিতরেই যায় ⇒ নতুন কলাম/SQL নেই।
+       ⛔ ফাঁকা থাকলে সব আগের মতোই — পুরনো চেকআপে কিছু ভাঙে না। */
+    var estimateJson: String = "",
     var recoveryTime: String = "",
     var advanceDiscussed: String = "",
     var patientDecision: String = "",
@@ -157,7 +161,8 @@ fun CheckupRecord.toJsonString(): String {
         .put("onProbing", onProbing).put("investigation", investigation).put("otherFindings", otherFindings)
         .put("treatmentPlan", treatmentPlan).put("amtPerPiles", amtPerPiles)
         .put("amtFistulaPerInch", amtFistulaPerInch).put("amtKsharSutra", amtKsharSutra)
-        .put("counselling", counselling).put("estimatedCost", estimatedCost).put("recoveryTime", recoveryTime)
+        .put("counselling", counselling).put("estimatedCost", estimatedCost)
+        .put("estimate", estimateJson).put("recoveryTime", recoveryTime)
         .put("advanceDiscussed", advanceDiscussed).put("patientDecision", patientDecision)
         .put("decisionRemark", decisionRemark).put("beforePhoto", beforePhoto).put("duringPhoto", duringPhoto)
         .put("afterPhoto", afterPhoto).put("documents", documents)
@@ -191,6 +196,7 @@ fun checkupRecordFromJsonStringOrNull(json: String): CheckupRecord? {
             amtFistulaPerInch = o.optString("amtFistulaPerInch").ifBlank { "11000" },
             amtKsharSutra = o.optString("amtKsharSutra").ifBlank { "6000" },
             counselling = o.optString("counselling"), estimatedCost = o.optString("estimatedCost"),
+            estimateJson = o.optString("estimate"),
             recoveryTime = o.optString("recoveryTime"), advanceDiscussed = o.optString("advanceDiscussed"),
             patientDecision = o.optString("patientDecision"), decisionRemark = o.optString("decisionRemark"),
             beforePhoto = o.optString("beforePhoto"), duringPhoto = o.optString("duringPhoto"),

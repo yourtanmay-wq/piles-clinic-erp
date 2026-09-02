@@ -9596,6 +9596,11 @@ function doctorCheck(id){
     রোগীর সেভ করা লেখা যেন মুছে না যায়** — তাই খোলার সময় ওখানে যা ছিল তা এখানে
     রাখা হয়, আর Save করলে হুবহু সেটাই ফিরে বসে (ফোনের `keptRecoveryTime`-এর যমজ)। */
  wlv1KeptRecoveryTime = String(note.recoveryTime||'');
+ /* 💰🔒 V971 — সেভ করা ভাঙা হিসাব ফিরিয়ে আনা, আর কোন রোগীর তা মনে রাখা
+    (কাগজে নাম/আইডি/ঠিকানা এখান থেকেই যায়)। ফোনের সাথে চাবিটা হুবহু এক। */
+ try{ window.__wlv1EstJson = (typeof note.estimate==='string') ? note.estimate
+        : (note.estimate ? JSON.stringify(note.estimate) : ''); }catch(e){ window.__wlv1EstJson='' }
+ try{ window.__dnPatientId = id }catch(e){}
  let chk=(arr,val)=>Array.isArray(arr)&&arr.includes(val)?'checked':''
 /* 🔵🔒 V541 (২২.০৮.২০২৬, TK-নির্দেশ: "Fistula Per CM (centimetre) করুন")
    ⛔ পুরোনো রেকর্ডে সেভ আছে "Fistula Per ইঞ্চি" (ওয়েব) বা "Fistula Per Inch"
@@ -9722,7 +9727,7 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
        নিচে (Treatment Plan-এর পরে, নোটের আগে) — Android-এর একই বদল।
        ⛔ id/সেভ-লজিক/নোটিফিকেশন/A4-রিপোর্ট কিছুই বদলায়নি — একই
        "dnEstimatedCost" input, শুধু জায়গা বদল (Step 4 থেকে Step 3-এ)। -->
-  <label>Estimated Cost · আনুমানিক খরচ কত বলা হল</label><input id="dnEstimatedCost" class="input" value="${val('estimatedCost')}">
+  <label>Estimated Cost · আনুমানিক খরচ কত বলা হল</label><div style="display:flex;gap:8px;align-items:center"><input id="dnEstimatedCost" class="input" style="flex:1;margin:0" value="${val('estimatedCost')}"><button type="button" class="small" onclick="wlv1EstOpen()">🧮 Build</button></div>
   <label>Other Treatment Note · অন্যান্য চিকিৎসার কথা (টাইপ করুন)</label><textarea id="dnCounselling" placeholder="রোগীকে কিভাবে চিকিৎসা করবেন বলেছেন সেই কথা এখানে লিখুন">${val('counselling')}</textarea>
  </details>
  <!-- 🟢 V600 (২৩.০৮.২০২৬, TK-নির্দেশ, ছবিসহ): "যেখানে আছে সেখান থেকে সরিয়ে
@@ -13301,7 +13306,7 @@ async function saveDoctor(id){
   /* 🔵 V556: ওয়েবে `visual`-এর মতোই তালিকা হিসেবে জমা (chk() তালিকাই বোঝে) */
   dre:$$('.dnDre:checked').map(x=>x.value),dreOther:$('#dnDreOther')?.value||'',
   treatmentPlan,amtPerPiles:$('#dnAmtPerPiles')?.value||'8000',amtFistulaPerInch:$('#dnAmtFistulaInch')?.value||'11000',amtKsharSutra:$('#dnAmtKsharSutra')?.value||'6000',
-  counselling:$('#dnCounselling')?.value||'',estimatedCost:$('#dnEstimatedCost')?.value||'',recoveryTime:wlv1KeptRecoveryTime,   /* 🟢 V589: পুরনো লেখা হুবহু ফিরে বসে, মুছে যায় না */advanceDiscussed:$('#dnAdvanceDiscussed')?.value||'',
+  counselling:$('#dnCounselling')?.value||'',estimatedCost:$('#dnEstimatedCost')?.value||'',estimate:(window.__wlv1EstJson||''),   /* 💰 V971 — ভাঙা হিসাব; ফোনেও ঠিক এই "estimate" নামেই বসে */recoveryTime:wlv1KeptRecoveryTime,   /* 🟢 V589: পুরনো লেখা হুবহু ফিরে বসে, মুছে যায় না */advanceDiscussed:$('#dnAdvanceDiscussed')?.value||'',
   // V460 (১৯.০৮.২০২৬, Android-এ V455 হিসেবে করা হয়েছিল — এখানে ওয়েবেও একই ফিক্স):
   // acuteChronic · visualOther · dre/dreOther · otherFindings · patientDecision ·
   // decisionRemark · documents — এই ঘরগুলো UI থেকে বাদ, তাই আর পড়া হয় না।
@@ -25922,3 +25927,308 @@ window["wlv1FlushWhenBack"]=wlv1FlushWhenBack;
   }catch(e){}
 })();
 
+/* ═══════════════════════════════════════════════════════════════════════
+   💰🔒 V971 (০২.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ ও PDF নমুনা) —
+   **এস্টিমেট বানানোর পপ-আপ (কম্পিউটার)।** ফোনের `EstimateDialog.kt` ও
+   `EstimatePrices.kt`-এর হুবহু জোড়া — একই চাবি, একই হিসাব, একই কাগজ।
+
+   TK-এর লক করা নিয়ম:
+    · রোগ বাছার সারিতে **শুধু রোগ** (Piles · Fistula · Fissure · Hydrocele);
+      ওষুধ ও অন্যান্য আলাদা বোতাম থেকে।
+    · পাইলসে **চারটে গ্রেড**, ফিস্টুলায় **ইঞ্চি**; Grade ও Position
+      **চাপ দিলে তবেই খোলে**।
+    · দর নিজে থেকে বসে, হাতে বদলালে বদলানোটাই থাকে।
+    · **কাটা লাইন Subtotal-এ গোনা হয় না**, কাগজে কাটা অবস্থায় ছাপে।
+   ⛔ নতুন কোনো টেবিল · কলাম · SQL নেই — হিসাবটা চেকআপের নোট-JSON-এই যায়।
+   ⛔ দরের তালিকা এই ব্রাউজারেই জমা (TK-এর নিজের সিদ্ধান্ত)।
+   ═══════════════════════════════════════════════════════════════════════ */
+var WLV1_EST_DEFAULTS=[
+  {group:'Piles',name:'Grade I Haemorrhoid Treatment',rate:4100,unit:'per position',measure:'Grade I'},
+  {group:'Piles',name:'Grade II Haemorrhoid Treatment',rate:8210,unit:'per position',measure:'Grade II'},
+  {group:'Piles',name:'Grade III Haemorrhoid Treatment',rate:12312,unit:'per position',measure:'Grade III'},
+  {group:'Piles',name:'Grade IV Haemorrhoid Treatment',rate:16400,unit:'per position',measure:'Grade IV'},
+  {group:'Fistula',name:'Fistula Treatment',rate:3800,unit:'per inch',measure:'inch'},
+  {group:'Fissure',name:'Fissure Treatment',rate:6500,unit:'per position',measure:''},
+  {group:'Hydrocele',name:'Hydrocele Treatment',rate:11000,unit:'per side',measure:''},
+  {group:'Medicine',name:'Q-Alkali',rate:5.20,unit:'per piece',measure:''},
+  {group:'Medicine',name:'Pow. Laxall',rate:125,unit:'per piece',measure:''},
+  {group:'Medicine',name:'Tab. Kankayan (Arsha) Vati',rate:2.25,unit:'per piece',measure:''},
+  {group:'Medicine',name:'Tab. Arshakuthar Ras',rate:3.24,unit:'per piece',measure:''},
+  {group:'Medicine',name:'Jatyadi Ghritam',rate:225,unit:'per piece',measure:''},
+  {group:'Other',name:'Dressing Cost',rate:300,unit:'per day',measure:''},
+  {group:'Other',name:'Nursing Charges',rate:2521,unit:'per day',measure:''}
+];
+var WLV1_EST_DISEASES=['Piles','Fistula','Fissure','Hydrocele'];
+var WLV1_EST_GROUPS=WLV1_EST_DISEASES.concat(['Medicine','Other']);
+
+function wlv1EstPrices(){
+  try{ var raw=localStorage.getItem('wlv1EstPrices'); if(!raw) return WLV1_EST_DEFAULTS.slice();
+    var a=JSON.parse(raw); return (Array.isArray(a)&&a.length)?a:WLV1_EST_DEFAULTS.slice(); }
+  catch(e){ return WLV1_EST_DEFAULTS.slice() }
+}
+function wlv1EstPricesSave(list){ try{ localStorage.setItem('wlv1EstPrices',JSON.stringify(list)) }catch(e){} }
+function wlv1EstPricesReset(){ try{ localStorage.removeItem('wlv1EstPrices') }catch(e){} }
+function wlv1EstNum(v){ var c=String(v==null?'':v).replace(/[^0-9.]/g,''); var n=parseFloat(c); return isFinite(n)?n:0 }
+function wlv1EstMoney(v){ return Number(v||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}) }
+function wlv1EstShort(v){ v=Number(v||0); return (v===Math.floor(v))?v.toLocaleString('en-IN'):v.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}) }
+
+var wlv1EstSheet={lines:[],discount:0,finding:''};
+function wlv1EstLoad(){
+  try{ var raw=window.__wlv1EstJson||''; if(!raw){ wlv1EstSheet={lines:[],discount:0,finding:''}; return }
+    var o=JSON.parse(raw);
+    wlv1EstSheet={lines:(o.lines||[]).map(function(l){return{name:l.name||'',measure:l.measure||'',position:l.position||'',rate:Number(l.rate||0),qty:Number(l.qty||1),struck:!!l.struck}}),
+      discount:Number(o.discount||0),finding:String(o.finding||'')};
+  }catch(e){ wlv1EstSheet={lines:[],discount:0,finding:''} }
+}
+function wlv1EstSubtotal(){ return wlv1EstSheet.lines.filter(function(l){return !l.struck}).reduce(function(n,l){return n+Number(l.rate||0)*Number(l.qty||0)},0) }
+function wlv1EstNet(){ return Math.max(0, wlv1EstSubtotal()-Number(wlv1EstSheet.discount||0)) }
+function wlv1EstStore(){ try{ window.__wlv1EstJson = wlv1EstSheet.lines.length?JSON.stringify(wlv1EstSheet):'' }catch(e){} }
+
+function wlv1EstOpen(){
+  wlv1EstLoad();
+  wlv1EstRender();
+}
+function wlv1EstRender(){
+  var rows=wlv1EstSheet.lines.map(function(l,i){
+    var strike=l.struck?'text-decoration:line-through;color:#8B98A9':'color:#0B4F2A';
+    return '<div class="card" style="margin:8px 0;padding:11px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">'
+      +'<div style="flex:1;min-width:0"><b style="'+(l.struck?'text-decoration:line-through;color:#8B98A9':'')+'">'+esc(l.name)+(l.measure?' ('+esc(l.measure)+')':'')+'</b>'
+      +(l.position?'<div class="tiny mut">'+esc(l.position)+'</div>':'')+'</div>'
+      +'<span style="cursor:pointer;font-weight:900;color:'+(l.struck?'#0B7A4B':'#B42318')+'" onclick="wlv1EstStrike('+i+')">'+(l.struck?'↺':'✕')+'</span>'
+      +'<span style="cursor:pointer" onclick="wlv1EstDrop('+i+')">🗑</span></div>'
+      +'<div style="display:flex;gap:7px;margin-top:7px">'
+      +'<div style="flex:1"><div class="tiny mut">RATE</div><input class="input" style="margin:2px 0" value="'+wlv1EstShort(l.rate)+'" oninput="wlv1EstEdit('+i+',\'rate\',this.value)"></div>'
+      +'<div style="flex:1"><div class="tiny mut">QTY</div><input class="input" style="margin:2px 0" value="'+wlv1EstShort(l.qty)+'" oninput="wlv1EstEdit('+i+',\'qty\',this.value)"></div>'
+      +'<div style="flex:1"><div class="tiny mut">TOTAL</div><div style="padding:11px 0;text-align:right;font-weight:900;'+strike+'">'+wlv1EstShort(Number(l.rate||0)*Number(l.qty||0))+'</div></div>'
+      +'</div></div>';
+  }).join('')||'<div class="card mut">No item added yet.</div>';
+  modal('<h2>🧮 Cost Estimate</h2>'+rows
+    +'<div class="actions"><button class="small ghost" onclick="wlv1EstAddTreat()">+ Treatment</button>'
+    +'<button class="small ghost" onclick="wlv1EstAddGroup(\'Medicine\')">+ Medicine</button>'
+    +'<button class="small ghost" onclick="wlv1EstAddGroup(\'Other\')">+ Other</button>'
+    +'<button class="small ghost" onclick="wlv1EstPriceList()">Price List</button></div>'
+    +'<div class="card" style="background:#F7FAFD">'
+    +'<div class="row"><span class="mut">Subtotal</span><b>'+wlv1EstShort(wlv1EstSubtotal())+'</b></div>'
+    +'<div class="row" style="margin-top:6px"><span class="mut">Discount</span>'
+    +'<input class="input" style="width:120px;margin:0;text-align:right" value="'+(wlv1EstSheet.discount?wlv1EstShort(wlv1EstSheet.discount):'')+'" placeholder="0" oninput="wlv1EstDiscount(this.value)"></div>'
+    +'<div class="row" style="margin-top:8px"><b style="color:#0B4F2A">Net Payable</b><b style="color:#0B4F2A;font-size:17px" id="wlv1EstNet">'+wlv1EstShort(wlv1EstNet())+'</b></div></div>'
+    +'<div class="actions"><button class="ghost" onclick="closeModal()">Cancel</button>'
+    +'<button class="ghost" onclick="wlv1EstPaper()">Print / Share</button>'
+    +'<button onclick="wlv1EstSave()">Save</button></div>');
+}
+function wlv1EstEdit(i,key,v){ var l=wlv1EstSheet.lines[i]; if(!l)return; l[key]=wlv1EstNum(v);
+  try{ $('#wlv1EstNet').textContent=wlv1EstShort(wlv1EstNet()) }catch(e){} }
+function wlv1EstDiscount(v){ wlv1EstSheet.discount=wlv1EstNum(v); try{ $('#wlv1EstNet').textContent=wlv1EstShort(wlv1EstNet()) }catch(e){} }
+function wlv1EstStrike(i){ var l=wlv1EstSheet.lines[i]; if(!l)return; l.struck=!l.struck; wlv1EstRender() }
+function wlv1EstDrop(i){ wlv1EstSheet.lines.splice(i,1); wlv1EstRender() }
+function wlv1EstSave(){ wlv1EstStore();
+  try{ if(wlv1EstSheet.lines.length){ var b=$('#dnEstimatedCost'); if(b) b.value=wlv1EstShort(wlv1EstNet()) } }catch(e){}
+  closeModal(); toast('Estimate saved'); }
+window["wlv1EstOpen"]=wlv1EstOpen; window["wlv1EstEdit"]=wlv1EstEdit;
+window["wlv1EstDiscount"]=wlv1EstDiscount; window["wlv1EstStrike"]=wlv1EstStrike;
+window["wlv1EstDrop"]=wlv1EstDrop; window["wlv1EstSave"]=wlv1EstSave;
+
+/* রোগ · গ্রেড/ইঞ্চি · o'clock — TK-এর পাশ-করা প্রুফের হুবহু ধাপ। */
+var wlv1EstPick={group:'Piles',item:null,clock:[]};
+function wlv1EstAddTreat(){ wlv1EstPick={group:'Piles',item:null,clock:[]}; wlv1EstTreatRender() }
+function wlv1EstTreatRender(){
+  var items=wlv1EstPrices().filter(function(p){return p.group===wlv1EstPick.group});
+  var tabs=WLV1_EST_DISEASES.map(function(g){
+    var on=g===wlv1EstPick.group;
+    return '<button type="button" class="small'+(on?'':' ghost')+'" onclick="wlv1EstPickGroup(\''+g+'\')">'+g+'</button>';
+  }).join(' ');
+  var meas=items.map(function(p,i){
+    var on=wlv1EstPick.item&&wlv1EstPick.item.name===p.name;
+    return '<button type="button" class="small'+(on?'':' ghost')+'" style="margin:3px" onclick="wlv1EstPickItem('+i+')">'
+      +esc(p.measure||p.name)+' · '+wlv1EstShort(p.rate)+'</button>';
+  }).join('');
+  var clock='';
+  for(var h=1;h<=12;h++){
+    var on=wlv1EstPick.clock.indexOf(h)>=0;
+    clock+='<button type="button" class="small'+(on?'':' ghost')+'" style="margin:2px;min-width:40px" onclick="wlv1EstClock('+h+')">'+h+'</button>';
+  }
+  var rate=wlv1EstPick.item?wlv1EstShort(wlv1EstPick.item.rate):'';
+  var qty=wlv1EstPick.clock.length?wlv1EstPick.clock.length:'';
+  modal('<h2>➕ Add Treatment</h2><div class="card">'+tabs+'</div>'
+    +'<div class="card"><div class="tiny mut">'+(wlv1EstPick.group==='Fistula'?'TRACT LENGTH':'GRADE / TYPE')+'</div>'+meas+'</div>'
+    +'<div class="card"><div class="tiny mut">POSITION (O\'CLOCK)</div>'+clock+'</div>'
+    +'<div class="card"><div style="display:flex;gap:8px">'
+    +'<div style="flex:1"><div class="tiny mut">RATE</div><input id="wlv1EstRate" class="input" value="'+rate+'"></div>'
+    +'<div style="flex:1"><div class="tiny mut">QTY</div><input id="wlv1EstQty" class="input" value="'+qty+'"></div></div></div>'
+    +'<div class="actions"><button class="ghost" onclick="wlv1EstRender()">Cancel</button>'
+    +'<button onclick="wlv1EstTreatAdd()">Add to estimate</button></div>');
+}
+function wlv1EstPickGroup(g){ wlv1EstPick={group:g,item:null,clock:[]}; wlv1EstTreatRender() }
+function wlv1EstPickItem(i){ var items=wlv1EstPrices().filter(function(p){return p.group===wlv1EstPick.group});
+  wlv1EstPick.item=items[i]||null; wlv1EstTreatRender() }
+function wlv1EstClock(h){ var a=wlv1EstPick.clock, i=a.indexOf(h); if(i>=0)a.splice(i,1); else a.push(h);
+  a.sort(function(x,y){return x-y}); wlv1EstTreatRender() }
+function wlv1EstTreatAdd(){
+  var p=wlv1EstPick.item; if(!p){ toast('Select a treatment first'); return }
+  var qty=wlv1EstNum(($('#wlv1EstQty')||{}).value)||1;
+  var rate=wlv1EstNum(($('#wlv1EstRate')||{}).value)||p.rate;
+  var measure=(wlv1EstPick.group==='Fistula')?(wlv1EstShort(qty)+' inch'):(p.measure||'');
+  wlv1EstSheet.lines.push({name:p.name,measure:measure,
+    position:wlv1EstPick.clock.length?(wlv1EstPick.clock.join(', ')+" o'clock"):'',
+    rate:rate,qty:qty,struck:false});
+  wlv1EstRender();
+}
+function wlv1EstAddGroup(g){
+  var items=wlv1EstPrices().filter(function(p){return p.group===g});
+  if(!items.length){ toast('Price list is empty for '+g); return }
+  modal('<h2>➕ Add '+esc(g)+'</h2>'+items.map(function(p,i){
+    return '<div class="card" style="cursor:pointer" onclick="wlv1EstAddPick(\''+esc(g)+'\','+i+')"><b>'+esc(p.name)+'</b><span style="float:right">'+wlv1EstShort(p.rate)+'</span></div>';
+  }).join('')+'<div class="actions"><button class="ghost" onclick="wlv1EstRender()">Cancel</button></div>');
+}
+function wlv1EstAddPick(g,i){
+  var items=wlv1EstPrices().filter(function(p){return p.group===g});
+  var p=items[i]; if(!p)return;
+  wlv1EstSheet.lines.push({name:p.name,measure:'',position:'',rate:p.rate,qty:1,struck:false});
+  wlv1EstRender();
+}
+window["wlv1EstAddTreat"]=wlv1EstAddTreat; window["wlv1EstTreatRender"]=wlv1EstTreatRender;
+window["wlv1EstPickGroup"]=wlv1EstPickGroup; window["wlv1EstPickItem"]=wlv1EstPickItem;
+window["wlv1EstClock"]=wlv1EstClock; window["wlv1EstTreatAdd"]=wlv1EstTreatAdd;
+window["wlv1EstAddGroup"]=wlv1EstAddGroup; window["wlv1EstAddPick"]=wlv1EstAddPick;
+window["wlv1EstRender"]=wlv1EstRender;
+
+/* দরের তালিকা — TK: *"আমি এবং যে কেউ বদলাতে পারবে"*। এই ব্রাউজারেই জমা। */
+function wlv1EstPriceList(g){
+  var group=g||'Piles', all=wlv1EstPrices();
+  var tabs=WLV1_EST_GROUPS.map(function(x){
+    return '<button type="button" class="small'+(x===group?'':' ghost')+'" onclick="wlv1EstPriceList(\''+x+'\')">'+x+'</button>';
+  }).join(' ');
+  var rows=all.map(function(p,i){return {p:p,i:i}}).filter(function(r){return r.p.group===group}).map(function(r){
+    return '<div class="card" style="padding:11px"><b>'+esc(r.p.name)+'</b>'
+      +'<span style="float:right;cursor:pointer" onclick="wlv1EstPriceDrop('+r.i+',\''+group+'\')">🗑</span>'
+      +'<div style="display:flex;gap:8px;margin-top:6px">'
+      +'<div style="flex:1"><div class="tiny mut">RATE</div><input class="input" style="margin:2px 0" value="'+wlv1EstShort(r.p.rate)+'" oninput="wlv1EstPriceEdit('+r.i+',\'rate\',this.value)"></div>'
+      +'<div style="flex:1"><div class="tiny mut">UNIT</div><input class="input" style="margin:2px 0" value="'+esc(r.p.unit||'')+'" oninput="wlv1EstPriceEdit('+r.i+',\'unit\',this.value)"></div>'
+      +'</div></div>';
+  }).join('')||'<div class="card mut">Nothing here yet.</div>';
+  modal('<h2>Price List</h2><div class="card mut tiny">Anyone can change · saved on this computer</div>'
+    +'<div class="card">'+tabs+'</div>'+rows
+    +'<div class="actions"><button class="ghost" onclick="wlv1EstPriceAdd(\''+group+'\')">+ Add new item</button>'
+    +'<button class="ghost" onclick="wlv1EstPriceReset()">Reset to default</button>'
+    +'<button onclick="wlv1EstRender()">Done</button></div>');
+}
+function wlv1EstPriceEdit(i,key,v){ var all=wlv1EstPrices(); if(!all[i])return;
+  all[i][key]=(key==='rate')?wlv1EstNum(v):String(v||''); wlv1EstPricesSave(all) }
+function wlv1EstPriceDrop(i,g){ var all=wlv1EstPrices(); all.splice(i,1); wlv1EstPricesSave(all); wlv1EstPriceList(g) }
+function wlv1EstPriceAdd(g){
+  var name=prompt('Item name'); if(!name)return;
+  var rate=wlv1EstNum(prompt('Rate')); var unit=prompt('Unit (per position / per inch / per day)')||'';
+  var all=wlv1EstPrices(); all.push({group:g,name:name,rate:rate,unit:unit,measure:''});
+  wlv1EstPricesSave(all); wlv1EstPriceList(g);
+}
+function wlv1EstPriceReset(){
+  if(!confirm('Are you sure? Bring back the app’s own price list.'))return;
+  wlv1EstPricesReset(); wlv1EstPriceList('Piles');
+}
+window["wlv1EstPriceList"]=wlv1EstPriceList; window["wlv1EstPriceEdit"]=wlv1EstPriceEdit;
+window["wlv1EstPriceDrop"]=wlv1EstPriceDrop; window["wlv1EstPriceAdd"]=wlv1EstPriceAdd;
+window["wlv1EstPriceReset"]=wlv1EstPriceReset;
+
+/* 💰🔒 V971 — এস্টিমেটের A4 কাগজ (ফোনের `EstimateHtmlPrint.kt`-এর হুবহু জোড়া)।
+   ⛔ প্রকল্পের মাস্টার প্রিন্ট ডিজাইনেই; কাটা লাইনের টাকা কাটা অবস্থায় ছাপে
+      আর Subtotal-এ গোনা হয় না। কাগজে বাড়তি কোনো লেখা নেই। */
+function wlv1EstPaperHtml(){
+  var p=null; try{ p=wlv1EstPatient() }catch(e){ p=null }
+  p=p||{};
+  var br=String(p.branch||(user&&user.branch)||'');
+  var cfg=null; try{ cfg=(C.branches||[]).find(function(b){return b.name===br}) }catch(e){}
+  var kish=(String(br).toLowerCase()==='kishanganj');
+  var clinic=kish?'TK BISWAS PILES CLINIC':'MAA AYURVED PILES CLINIC';
+  var logo=kish?'assets/kishanganj-final-logo.jpg':'assets/maa-ayurved-final-logo.jpg';
+  var addr=cfg?cfg.address:'';
+  var phone=cfg?cfg.mobile:'';
+  var rows=wlv1EstSheet.lines.map(function(l){
+    var cls=l.struck?' class="free"':'';
+    var amt=l.struck?' class="r amt"':' class="r"';
+    var label=esc(l.name)+(l.measure?(' ('+esc(l.measure)+')'):'');
+    return '<tr'+cls+'><td>'+label+'</td><td class="k">'+(l.position?esc(l.position):'&mdash;')+'</td>'
+      +'<td class="r">'+wlv1EstMoney(l.rate)+'</td><td class="r">'+wlv1EstShort(l.qty)+'</td>'
+      +'<td'+amt+'>'+wlv1EstMoney(Number(l.rate||0)*Number(l.qty||0))+'</td></tr>';
+  }).join('');
+  var disc=Number(wlv1EstSheet.discount||0)>0
+    ? '<div><span class="lbl">Total Discount</span><span class="disc">&minus; '+wlv1EstMoney(wlv1EstSheet.discount)+'</span></div>' : '';
+  var ageSex=[String(p.age||''),String(p.sex||'')].filter(Boolean).join(' / ')||'-';
+  var dt=wlv1Dot(today());
+  return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Estimate</title><style>'
+   +'*{margin:0;padding:0;box-sizing:border-box;font-family:Georgia,serif}'
+   +'body{background:#fff;color:#111;min-height:1123px;display:flex;flex-direction:column}'
+   +'.gold{height:5px;background:linear-gradient(90deg,#b8912f,#e6c65c,#b8912f)}.gbar{height:3px;background:#0f5132}'
+   +'.lh{display:flex;align-items:center;gap:16px;padding:10px 20px 8px}.lh img{width:78px;height:78px;object-fit:contain}'
+   +'.cn{font-size:23px;font-weight:800;color:#0f5132;line-height:1}'
+   +'.tag{font-size:11px;font-weight:700;color:#b8912f;letter-spacing:2px;margin-top:2px;text-transform:uppercase;font-family:Arial}'
+   +'.addr{font-size:11.5px;color:#3b4650;margin-top:3px;font-family:Arial}.addr b{color:#0f5132}'
+   +'.tb{background:#0f5132;color:#fff;display:flex;justify-content:space-between;padding:7px 20px;font-family:Arial}'
+   +'.tb .t{font-size:13px;font-weight:800;letter-spacing:2px}.tb .r{font-size:10.5px;color:#cfe6d8}'
+   +'.pi{display:flex;gap:18px;padding:9px 20px;font-size:12px;font-family:Arial;background:#f7faf8;border-bottom:1.5px solid #e4ebe6}'
+   +'.pi .c{flex:1}.pi .r{padding:2.5px 0}.pi .r b{color:#0f5132;display:inline-block;min-width:74px}'
+   +'.wrap{padding:8px 20px 10px;font-family:Arial;flex:1}'
+   +'.sec{margin-top:7px;border:1px solid #d5ddd7;border-radius:4px;overflow:hidden}'
+   +'.sh{background:#eef5f0;color:#0f5132;font-size:11px;font-weight:800;letter-spacing:1px;padding:5.5px 12px;border-left:4px solid #b8912f}'
+   +'table{width:100%;border-collapse:collapse;font-size:11.3px}'
+   +'thead th{background:#eef5f0;color:#0f5132;text-align:left;padding:6px 10px;font-size:10px;border-bottom:1px solid #d5ddd7}'
+   +'td{padding:6px 10px;border-bottom:1px solid #f0f3f1}td.k{color:#6b7680}td.r,th.r{text-align:right}'
+   +'tbody tr:last-child td{border-bottom:0}.free td{color:#6b7680}.free .amt{text-decoration:line-through;color:#8a949e}'
+   +'.sum{margin-top:8px;display:flex;justify-content:flex-end}'
+   +'.sumbox{width:300px;border:1px solid #d5ddd7;border-radius:4px;overflow:hidden}'
+   +'.sumbox div{display:flex;justify-content:space-between;padding:6px 12px;font-size:11.5px;font-family:Arial;border-bottom:1px solid #f0f3f1}'
+   +'.sumbox div:last-child{border-bottom:0}.sumbox .lbl{color:#6b7680}'
+   +'.sumbox .net{background:#0f5132;color:#fff;font-weight:800;font-size:13px;padding:9px 12px}'
+   +'.disc{color:#B42318;font-weight:700}'
+   +'.small{font-size:10px;color:#6b7680;font-style:italic;padding:8px 2px 0;font-family:Arial}'
+   +'.foot{margin-top:auto;padding:9px 20px 4px;font-family:Arial}'
+   +'.sign{display:grid;grid-template-columns:1fr auto 1fr;gap:22px}'
+   +'.sign .ln{border-top:.9px solid #15231C;text-align:center;padding-top:5px}'
+   +'.sign .ln b{display:block;font-size:11.2px;font-weight:900;color:#15231C}'
+   +'.sign .ln small{display:block;font-size:9px;color:#54615A;margin-top:1px}'
+   +'.vfy{text-align:center;border-top:.9px solid #15231C;padding-top:5px}'
+   +'.vfy .bar{height:24px;width:121px;margin:0 auto 1.5px;background:repeating-linear-gradient(90deg,#15231C 0 1.9px,#fff 1.9px 4px)}'
+   +'.vfy b{font-size:8.6px;color:#0A5428}.vfy small{font-size:8.2px;color:#54615A}'
+   +'.fn{border-top:1px solid #e4ebe6;text-align:center;font-size:9.5px;color:#8a949e;padding:5px 0 6px;font-family:Arial}'
+   +'</style></head><body>'
+   +'<div class="gold"></div><div class="lh"><img src="'+logo+'">'
+   +'<div><div class="cn">'+clinic+'</div><div class="tag">Ayurveda &amp; Anorectal Diseases</div>'
+   +'<div class="addr"><b>'+esc(br)+':</b> '+esc(addr)+' &nbsp;|&nbsp; &#9742; '+esc(phone)+' &nbsp;|&nbsp; &#9742; 9429690640</div></div></div>'
+   +'<div class="gbar"></div>'
+   +'<div class="tb"><span class="t">TREATMENT COST ESTIMATE</span><span class="r">Rec. No: '+esc(p.patientId||'-')+' &nbsp;&middot;&nbsp; Date: '+esc(dt)+'</span></div>'
+   +'<div class="pi"><div class="c"><div class="r"><b>Name</b> : '+esc(p.name||'-')+'</div>'
+   +'<div class="r"><b>Patient ID</b> : '+esc(p.patientId||'-')+'</div><div class="r"><b>Age / Sex</b> : '+esc(ageSex)+'</div></div>'
+   +'<div class="c"><div class="r"><b>Mobile</b> : '+esc(normMob(p.mobile||''))+'</div>'
+   +'<div class="r"><b>Branch</b> : '+esc(br)+'</div><div class="r"><b>Address</b> : '+esc(p.address||'-')+'</div></div></div>'
+   +'<div class="wrap"><div class="sec"><div class="sh">COST BREAKDOWN</div>'
+   +'<table><thead><tr><th>Treatment / Item</th><th>Position</th><th class="r">Rate (&#8377;)</th><th class="r">Qty</th><th class="r">Total (&#8377;)</th></tr></thead>'
+   +'<tbody>'+rows+'</tbody></table></div>'
+   +'<div class="sum"><div class="sumbox"><div><span class="lbl">Subtotal</span><span>'+wlv1EstMoney(wlv1EstSubtotal())+'</span></div>'
+   +disc+'<div class="net"><span>Net Payable Amount</span><span>'+wlv1EstMoney(wlv1EstNet())+'</span></div></div></div>'
+   +'<div class="small">* This estimate is indicative and based on the initial clinical presentation. The net payable amount may vary.</div></div>'
+   +'<div class="foot"><div class="sign"><div class="ln"><b>TK BISWAS</b><small>Founder &amp; Consultant</small></div>'
+   +'<div class="vfy"><div class="bar"></div><div><b>Document Digitally Verified</b> &middot; <small>No Physical Signature Required</small></div></div>'
+   +'<div class="ln"><b>Dr. K.H MANDAL</b><small>(B.A.M.S) Regd 12386</small></div></div></div>'
+   +'<div class="fn">Computer-generated cost estimate &middot; '+clinic+' &middot; Ayurveda &amp; Anorectal Diseases</div>'
+   +'</body></html>';
+}
+/* যে রোগীর চেকআপ খোলা আছে — নাম/আইডি/ঠিকানা তার সারি থেকেই। */
+function wlv1EstPatient(){
+  try{
+    var id=(window.__dnPatientId||window.currentDoctorPatientId||'');
+    var list=load('patients')||[];
+    var row=list.find(function(x){return String(x.id||'')===String(id)||String(x.patientId||'')===String(id)});
+    return row||null;
+  }catch(e){ return null }
+}
+function wlv1EstPaper(){
+  if(!wlv1EstSheet.lines.length){ toast('Add at least one item first'); return }
+  wlv1EstStore();
+  try{
+    var w=window.open('','_blank');
+    if(!w){ toast('Allow pop-ups to print'); return }
+    w.document.write(wlv1EstPaperHtml()); w.document.close(); w.focus();
+    setTimeout(function(){ try{ w.print() }catch(e){} },350);
+  }catch(e){ toast('Print not available') }
+}
+window["wlv1EstPaper"]=wlv1EstPaper; window["wlv1EstPaperHtml"]=wlv1EstPaperHtml;

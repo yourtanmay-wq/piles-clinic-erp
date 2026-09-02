@@ -425,6 +425,8 @@
         <activity android:name="com.tkbiswas.pilesclinic.modules.WorkNotebookActivity" android:exported="false" />
         <!-- 🏍️🔒 V968 — ফিল্ড ভিজিট (শুধু বাইরে ঘোরা স্টাফ)। -->
         <activity android:name="com.tkbiswas.pilesclinic.modules.FieldVisitActivity" android:exported="false" />
+        <!-- 💰🔒 V971 — এস্টিমেটের দরের তালিকা (যে কেউ বদলাতে পারবে)। -->
+        <activity android:name="com.tkbiswas.pilesclinic.clinical.PriceListActivity" android:exported="false" />
         <activity android:name="com.tkbiswas.pilesclinic.modules.IncomeExpenseActivity" android:exported="false" />
         <!-- V306 additive — Partner Shares (অংশীদারি ভাগ), isolated; nothing existing changed -->
         <activity android:name="com.tkbiswas.pilesclinic.modules.PartnerSharesActivity" android:exported="false" />

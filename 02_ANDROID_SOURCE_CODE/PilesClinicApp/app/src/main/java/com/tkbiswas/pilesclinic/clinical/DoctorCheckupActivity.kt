@@ -11,6 +11,8 @@ import android.widget.LinearLayout
 import android.widget.Spinner
 import android.widget.ScrollView
 import android.widget.TextView
+import java.text.SimpleDateFormat
+import java.util.Locale
 import android.widget.Toast
 import android.widget.ViewFlipper
 import com.tkbiswas.pilesclinic.native.s
@@ -73,6 +75,9 @@ class DoctorCheckupActivity : AppCompatActivity() {
     private lateinit var cbTxInjection: CheckBox
     private lateinit var etCounselling: EditText
     private lateinit var etEstimatedCost: EditText
+    /* 💰🔒 V971 (০২.০৯.২০২৬, TK-অনুমোদিত) — এস্টিমেটের ভাঙা হিসাব। ফাঁকা
+       থাকলে পর্দা হুবহু আগের মতোই চলে (পুরনো চেকআপে কিচ্ছু ভাঙে না)। */
+    private var estimateSheet: EstimateModel.Sheet = EstimateModel.Sheet()
     /* 🟢🔒 V589 (২৩.০৮.২০২৬, TK-নির্দেশ) — "Estimated Recovery Time" ঘরটা পর্দা
        থেকে উঠে গেছে (একই কথা ভাগ ৩-এ আছে)। কিন্তু **পুরনো রোগীর সেভ করা লেখা
        যেন কোনোভাবেই মুছে না যায়** — তাই রেকর্ড খোলার সময় ওখানে যা ছিল তা এই
@@ -238,6 +243,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         cbTxInjection.tag = "Injection (Vaccination) Treatment"
         etCounselling = findViewById(R.id.etCounselling)
         etEstimatedCost = findViewById(R.id.etEstimatedCost)
+        wireEstimateBuilder()   // 💰 V971
         // 🟢 V589: etRecoveryTime findViewById বাদ (ঘরটাই আর নেই)।
         // V455 (18.08.2026): spPatientDecision · etDecisionRemark · etDocuments findViewById বাদ।
         wireDoctorReminder()   // 🟢🔒 V656 — Doctor Note & Reminder
@@ -1830,6 +1836,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         amtKsharSutra = etAmtKsharSutra.text?.toString().orEmpty(),
         counselling = etCounselling.text?.toString().orEmpty(),
         estimatedCost = etEstimatedCost.text?.toString().orEmpty(),
+        estimateJson = if (estimateSheet.isEmpty) "" else estimateSheet.toJson().toString(),   // 💰 V971
         recoveryTime = keptRecoveryTime,   // 🟢 V589: পুরনো লেখা হুবহু ফিরে বসে, মুছে যায় না
         // 🔵 B622 (11.08.2026): "Advance Payment to be Done" ঘর বাদ — মডেলের ডিফল্ট "" থাকে।
         // V455 (18.08.2026): patientDecision · decisionRemark ঘর বাদ — মডেলের ডিফল্ট "" থাকে।
@@ -1895,6 +1902,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         if (r.amtKsharSutra.isNotBlank()) etAmtKsharSutra.setText(r.amtKsharSutra)
         etCounselling.setText(r.counselling)
         etEstimatedCost.setText(r.estimatedCost)
+        estimateSheet = EstimateModel.parse(r.estimateJson)   // 💰 V971
         keptRecoveryTime = r.recoveryTime   // 🟢 V589: দেখানো হয় না, কিন্তু হারায়ও না
         // 🔵 B622: "Advance Payment to be Done" ঘর বাদ।
         // V455 (18.08.2026): patientDecision/decisionRemark/documents populate বাদ (ঘর নেই)।
@@ -4601,6 +4609,68 @@ class DoctorCheckupActivity : AppCompatActivity() {
             wv.loadDataWithBaseURL("file:///android_asset/", html, "text/html", "UTF-8", null)
         } catch (_: Throwable) {
             Toast.makeText(this, "Print not available", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       💰🔒 V971 (০২.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ ও PDF নমুনা) —
+       **এস্টিমেট বানানোর বোতাম।**
+
+       TK: *"আমরা হাতে একটা অ্যামাউন্ট করি, আমি চাইছি তার পাশে একটা অপশন
+       থাকুক, যে অপশনটা ক্লিক করলে একটা পপ-আপ খুলবে"*।
+
+       ⛔ Estimated Cost ঘরটার id · সেভ-লজিক · A4 রিপোর্ট · মাস্টারের কাছে
+          যাওয়া "খরচ বদলেছে" বার্তা — কিছুই বদলায়নি। পপ-আপ শুধু ওই ঘরে
+          **Net Payable** বসিয়ে দেয়, বাকি সব আগের পথেই চলে।
+       ⛔ ব্যর্থ হলেও (কোনো কারণে) চেকআপ একটুও আটকায় না।
+       ═══════════════════════════════════════════════════════════════════ */
+    private fun wireEstimateBuilder() {
+        try {
+            findViewById<TextView>(R.id.btnBuildEstimate)?.setOnClickListener {
+                EstimateDialog.open(
+                    activity = this,
+                    current = estimateSheet,
+                    onDone = { sheet ->
+                        estimateSheet = sheet
+                        if (!sheet.isEmpty) {
+                            etEstimatedCost.setText(EstimateModel.moneyShort(sheet.netPayable))
+                        }
+                    },
+                    onPaper = { sheet -> shareEstimatePaper(sheet) }
+                )
+            }
+        } catch (_: Throwable) { }
+    }
+
+    /** কাগজ — প্রকল্পের প্রমাণিত পথেই (PDF · WhatsApp · Print একসাথে)। */
+    private fun shareEstimatePaper(sheet: EstimateModel.Sheet) {
+        try {
+            if (sheet.isEmpty) {
+                Toast.makeText(this, "Add at least one item first", Toast.LENGTH_SHORT).show()
+                return
+            }
+            val age = RoleSession.currentPatientAge
+            val sex = RoleSession.currentPatientSex
+            val ageSex = listOf(age, sex).filter { it.isNotBlank() }.joinToString(" / ").ifBlank { "-" }
+            val html = EstimateHtmlPrint.build(
+                sheet = sheet,
+                branch = RoleSession.currentPatientBranch,
+                name = RoleSession.currentPatientName.ifBlank { "-" },
+                patientId = RoleSession.currentPatientDisplayId.ifBlank { RoleSession.currentPatientId },
+                ageSex = ageSex,
+                mobile = RoleSession.currentPatientMobile.ifBlank { "-" },
+                address = RoleSession.currentPatientAddress.ifBlank { "-" },
+                date = SimpleDateFormat("dd.MM.yyyy", Locale.US).format(java.util.Date())
+            )
+            com.tkbiswas.pilesclinic.print.PrescriptionWhatsAppShare.shareHtml(
+                activity = this,
+                html = html,
+                documentTitle = "Estimate",
+                patientName = RoleSession.currentPatientName,
+                allowPrint = true
+            )
+        } catch (e: Throwable) {
+            Toast.makeText(this, "Share not available: " + e.message, Toast.LENGTH_LONG).show()
         }
     }
 }
