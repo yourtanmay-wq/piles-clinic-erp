@@ -149,7 +149,18 @@ object CheckupNoteJson {
      */
     fun merge(old: Map<String, String>, r: CheckupRecord): Map<String, String> {
         val out = LinkedHashMap(old)
-        for ((k, v) in toMap(r)) if (PHONE_KEYS.contains(k)) out[k] = v
+        for ((k, v) in toMap(r)) {
+            if (!PHONE_KEYS.contains(k)) continue
+            /* 💰🔒 V973 (নিজে ধরা, গভীরে যাচাই করতে গিয়ে) — **টাকার হিসাব যেন
+               কখনো ফাঁকা দিয়ে মুছে না যায়।** এস্টিমেটের ভাঙা হিসাব ফর্মের কোনো
+               ঘরে দেখা যায় না; কোনো কারণে ফর্মে না বসলে (যেমন ভুল রোগীর তথ্য
+               ঠেকাতে `populate()` বাদ পড়লে) সেভের সময় ফাঁকা লেখা গিয়ে
+               ওয়েবে বানানো হিসাবটা মুছে দিতে পারত।
+               ⇒ ফাঁকা হলে আগেরটাই থাকে; হিসাব থাকলে তবেই বদলায়।
+               ⛔ বাকি সব ঘরের আচরণ এক অক্ষরও বদলায়নি। */
+            if (k == "estimate" && v.isBlank()) continue
+            out[k] = v
+        }
         return out
     }
 }

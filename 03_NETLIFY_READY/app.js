@@ -13340,7 +13340,7 @@ async function saveDoctor(id){
   /* 🔵 V556: ওয়েবে `visual`-এর মতোই তালিকা হিসেবে জমা (chk() তালিকাই বোঝে) */
   dre:$$('.dnDre:checked').map(x=>x.value),dreOther:$('#dnDreOther')?.value||'',
   treatmentPlan,amtPerPiles:$('#dnAmtPerPiles')?.value||'8000',amtFistulaPerInch:$('#dnAmtFistulaInch')?.value||'11000',amtKsharSutra:$('#dnAmtKsharSutra')?.value||'6000',
-  counselling:$('#dnCounselling')?.value||'',estimatedCost:$('#dnEstimatedCost')?.value||'',estimate:(window.__wlv1EstJson||''),   /* 💰 V971 — ভাঙা হিসাব; ফোনেও ঠিক এই "estimate" নামেই বসে */recoveryTime:wlv1KeptRecoveryTime,   /* 🟢 V589: পুরনো লেখা হুবহু ফিরে বসে, মুছে যায় না */advanceDiscussed:$('#dnAdvanceDiscussed')?.value||'',
+  counselling:$('#dnCounselling')?.value||'',estimatedCost:$('#dnEstimatedCost')?.value||'',estimate:(window.__wlv1EstJson||oldNote.estimate||''),   /* 💰 V971 — ভাঙা হিসাব; ফোনেও ঠিক এই "estimate" নামেই বসে। 🔒 V973 (নিজে ধরা): ফাঁকা হলে আগেরটাই থাকে, যাতে টাকার হিসাব কখনো মুছে না যায় (ফোনের `CheckupNoteJson.merge`-এর একই পাহারা) */recoveryTime:wlv1KeptRecoveryTime,   /* 🟢 V589: পুরনো লেখা হুবহু ফিরে বসে, মুছে যায় না */advanceDiscussed:$('#dnAdvanceDiscussed')?.value||'',
   // V460 (১৯.০৮.২০২৬, Android-এ V455 হিসেবে করা হয়েছিল — এখানে ওয়েবেও একই ফিক্স):
   // acuteChronic · visualOther · dre/dreOther · otherFindings · patientDecision ·
   // decisionRemark · documents — এই ঘরগুলো UI থেকে বাদ, তাই আর পড়া হয় না।
@@ -26034,7 +26034,7 @@ function wlv1EstRender(){
       +'<div style="display:flex;gap:7px;margin-top:7px">'
       +'<div style="flex:1"><div class="tiny mut">RATE</div><input class="input" style="margin:2px 0" value="'+wlv1EstShort(l.rate)+'" oninput="wlv1EstEdit('+i+',\'rate\',this.value)"></div>'
       +'<div style="flex:1"><div class="tiny mut">QTY</div><input class="input" style="margin:2px 0" value="'+wlv1EstShort(l.qty)+'" oninput="wlv1EstEdit('+i+',\'qty\',this.value)"></div>'
-      +'<div style="flex:1"><div class="tiny mut">TOTAL</div><div style="padding:11px 0;text-align:right;font-weight:900;'+strike+'">'+wlv1EstShort(Number(l.rate||0)*Number(l.qty||0))+'</div></div>'
+      +'<div style="flex:1"><div class="tiny mut">TOTAL</div><div id="wlv1EstLineTot'+i+'" style="padding:11px 0;text-align:right;font-weight:900;'+strike+'">'+wlv1EstShort(Number(l.rate||0)*Number(l.qty||0))+'</div></div>'
       +'</div></div>';
   }).join('')||'<div class="card mut">No item added yet.</div>';
   modal('<h2>🧮 Cost Estimate</h2>'+rows
@@ -26043,7 +26043,7 @@ function wlv1EstRender(){
     +'<button class="small ghost" onclick="wlv1EstAddGroup(\'Other\')">+ Other</button>'
     +'<button class="small ghost" onclick="wlv1EstPriceList()">Price List</button></div>'
     +'<div class="card" style="background:#F7FAFD">'
-    +'<div class="row"><span class="mut">Subtotal</span><b>'+wlv1EstShort(wlv1EstSubtotal())+'</b></div>'
+    +'<div class="row"><span class="mut">Subtotal</span><b id="wlv1EstSub">'+wlv1EstShort(wlv1EstSubtotal())+'</b></div>'
     +'<div class="row" style="margin-top:6px"><span class="mut">Discount</span>'
     +'<input class="input" style="width:120px;margin:0;text-align:right" value="'+(wlv1EstSheet.discount?wlv1EstShort(wlv1EstSheet.discount):'')+'" placeholder="0" oninput="wlv1EstDiscount(this.value)"></div>'
     +'<div class="row" style="margin-top:8px"><b style="color:#0B4F2A">Net Payable</b><b style="color:#0B4F2A;font-size:17px" id="wlv1EstNet">'+wlv1EstShort(wlv1EstNet())+'</b></div></div>'
@@ -26051,8 +26051,12 @@ function wlv1EstRender(){
     +'<button class="ghost" onclick="wlv1EstPaper()">Print / Share</button>'
     +'<button onclick="wlv1EstSave()">Save</button></div>');
 }
+/* 🔎 V973 (নিজে ধরা) — আগে শুধু Net বদলাত, **Subtotal ও ওই লাইনের টাকা পুরনোই
+   থেকে যেত**। এখন তিনটেই সঙ্গে সঙ্গে নতুন করে বসে (ফোনেও হুবহু একই)। */
 function wlv1EstEdit(i,key,v){ var l=wlv1EstSheet.lines[i]; if(!l)return; l[key]=wlv1EstNum(v);
-  try{ $('#wlv1EstNet').textContent=wlv1EstShort(wlv1EstNet()) }catch(e){} }
+  try{ $('#wlv1EstNet').textContent=wlv1EstShort(wlv1EstNet()) }catch(e){}
+  try{ var sb=$('#wlv1EstSub'); if(sb) sb.textContent=wlv1EstShort(wlv1EstSubtotal()) }catch(e){}
+  try{ var lt=$('#wlv1EstLineTot'+i); if(lt) lt.textContent=wlv1EstShort(Number(l.rate||0)*Number(l.qty||0)) }catch(e){} }
 function wlv1EstDiscount(v){ wlv1EstSheet.discount=wlv1EstNum(v); try{ $('#wlv1EstNet').textContent=wlv1EstShort(wlv1EstNet()) }catch(e){} }
 function wlv1EstStrike(i){ var l=wlv1EstSheet.lines[i]; if(!l)return; l.struck=!l.struck; wlv1EstRender() }
 function wlv1EstDrop(i){ wlv1EstSheet.lines.splice(i,1); wlv1EstRender() }

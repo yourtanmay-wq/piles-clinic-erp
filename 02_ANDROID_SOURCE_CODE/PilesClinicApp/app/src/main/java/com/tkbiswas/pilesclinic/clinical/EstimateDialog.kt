@@ -110,6 +110,7 @@ object EstimateDialog {
         })
 
         lateinit var redraw: () -> Unit
+        lateinit var paintTotals: () -> Unit
 
         fun addChip(text: String, onClick: () -> Unit) {
             val t = TextView(activity).apply {
@@ -158,8 +159,12 @@ object EstimateDialog {
                 })
             }
             for (line in sheet.lines.toList()) {
-                listBox.addView(lineView(activity, line, sheet) { redraw() })
+                listBox.addView(lineView(activity, line, sheet, { redraw() }, { paintTotals() }))
             }
+            paintTotals()
+        }
+
+        paintTotals = {
             totalBox.removeAllViews()
             totalBox.addView(totalRow(activity, "Subtotal", EstimateModel.moneyShort(sheet.subtotal), INK))
             val discRow = LinearLayout(activity).apply {
@@ -238,7 +243,8 @@ object EstimateDialog {
         activity: Activity,
         line: EstimateModel.Line,
         sheet: EstimateModel.Sheet,
-        redraw: () -> Unit
+        redraw: () -> Unit,
+        onMoneyChanged: () -> Unit = {}
     ): View {
         val row = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
@@ -314,6 +320,11 @@ object EstimateDialog {
                 line.rate = EstimateModel.num(rateField.text?.toString())
                 line.qty = EstimateModel.num(qtyField.text?.toString())
                 totalText.text = EstimateModel.moneyShort(line.total)
+                /* 🔎 V973 (নিজে ধরা, TK-কে পাঠানোর আগেই) — আগে শুধু ওই লাইনের
+                   টাকাই বদলাত; নিচের **Subtotal ও Net Payable পুরনোই থেকে যেত**,
+                   ফলে ভুল টাকা চেকআপের ঘরে বসে যেতে পারত। এখন সঙ্গে সঙ্গে দুটোই
+                   নতুন করে বসে। */
+                onMoneyChanged()
             }
             override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}

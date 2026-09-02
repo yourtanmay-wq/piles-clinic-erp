@@ -53,12 +53,22 @@ object PendingVisitFeeStore {
      */
     fun visitFeeStatus(patientRowId: String, patientCode: String = ""): Int {
         if (patientRowId.isBlank() && patientCode.isBlank()) return FEE_TAKEN
-        val ids = listOf(patientRowId, patientCode).filter { it.isNotBlank() }
+        /* 🔎🔒 V973 (নিজে ধরা, গভীরে যাচাই করতে গিয়ে) — **আগে দ্বিতীয় খোঁজাটা
+           অকেজো ছিল।** রোগীর সংকেত (যেমন COB-02092026-004) `payments`-এর
+           `patientCode` ঘরে বসে, `patientId`-তে নয় (`buildVisitFeePaymentRow`
+           দেখুন) — অথচ দুটোতেই `patientId=eq.…` দিয়ে খোঁজা হচ্ছিল, তাই সংকেত
+           ধরে কখনোই কিছু পাওয়া যেত না।
+           ⛔ এতে ভুল করে "টাকা নেওয়া হয়ে গেছে" হত না (তাতে টাকা হারাত),
+              কিন্তু পাহারাটা অর্ধেকই কাজ করত। এখন প্রতিটা ঘর নিজের নামে খোঁজে। */
+        val lookups = listOfNotNull(
+            if (patientRowId.isNotBlank()) "patientId=eq.$patientRowId" else null,
+            if (patientCode.isNotBlank()) "patientCode=eq.$patientCode" else null
+        )
         var sawAnswer = false
-        for (id in ids) {
+        for (filter in lookups) {
             val rows = try {
                 SupabaseClient.fetchListOrNull(
-                    "payments", "patientId=eq.$id&payType=eq.visit_fee", 1, select = "id"
+                    "payments", "$filter&payType=eq.visit_fee", 1, select = "id"
                 )
             } catch (_: Throwable) { null } ?: continue
             sawAnswer = true
