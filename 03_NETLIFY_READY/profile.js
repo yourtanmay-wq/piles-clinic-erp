@@ -172,6 +172,11 @@
         '<div class="pfStaffBtns">' +
         '<button class="small pfBtn pfBtnFill" onclick="profSalary(\'' + m.esc(p.person_code) + '\')">Salary</button>' +
         '<button class="small ghost pfBtn" onclick="staffPerformanceOne(\'' + m.esc(p.person_code) + '\')">Performance</button>' +
+        /* 🏍️🔒 V978 (০২.০৯.২০২৬, TK-নির্দেশ: *"ওই সারিতেই বসিয়ে দিন"*) — বাইরে
+           ঘোরা স্টাফের কার্ডেই Field Visit বোতাম, ফোনের হুবহু জোড়া।
+           ⛔ অন্য কারো কার্ডে ওঠে না; বাকি বোতাম অপরিবর্তিত। */
+        (WLV1_FIELD_STAFF_CODES.indexOf(String(p.person_code||'').toUpperCase()) >= 0
+          ? '<button class="small ghost pfBtn" onclick="profFieldVisit(\'' + m.esc(p.person_code) + '\')">Field Visit</button>' : '') +
         '<button class="small ghost pfBtn pfDanger" onclick="profSuspend(\'' + m.esc(p.person_code) + '\')">Suspend</button>' +
         '<button class="small ghost pfBtn pfDanger" onclick="profRemove(\'' + m.esc(p.person_code) + '\')">Remove</button>' +
         '</div></div>';
@@ -609,7 +614,9 @@
        ফিল্ড ভিজিটের বোতাম (এখন RUPAM)। ফোনের StaffProfileActivity-র হুবহু জোড়া।
        ⛔ GPS গোনা শুধু ফোনেই হয় (ব্রাউজারে পর্দা বন্ধ হলেই থেমে যায়) — এখানে
           শুধু **দেখা** যায়, TK-কে সেটা কাজ শুরুর আগেই জানানো হয়েছে। */
-    var fieldCard = WLV1_FIELD_STAFF_CODES.indexOf(String(code).toUpperCase()) < 0 ? '' :
+    /* 🏍️ V978 (TK-নির্দেশ) — বোতামটা এখন স্টাফ-কার্ডের সারিতেই; বেতন-পর্দার
+       ভিতরের কার্ডটা আর বসে না (একই জিনিস দুই জায়গায় থাকলে বিভ্রান্তি)। */
+    var fieldCard = true ? '' :
       '<div class="card">' +
       '<div onclick="profFieldVisit(\'' + m.esc(code) + '\')" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer">' +
         '<b style="color:#0369A1;font-size:15px">Field Visit Tracking</b><span style="color:#9AA8B5">›</span></div></div>';

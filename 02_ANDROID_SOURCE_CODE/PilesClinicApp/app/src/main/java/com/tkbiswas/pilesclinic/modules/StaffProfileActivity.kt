@@ -719,6 +719,20 @@ class StaffProfileActivity : AppCompatActivity() {
         // ⛔ স্টাফের নিজের Work Notebook স্ক্রিন/নিয়ম এক অক্ষরও বদলায়নি —
         //    এটা সম্পূর্ণ নতুন, আলাদা Master-only পথ, একই টেবিলে লেখে।
         if (ModuleAuth.isMaster) row1Btns.add(smallBtn("Fix Attendance", false) { fixAttendanceDialog(pc, fullName, mobile) })
+        /* 🏍️🔒 V978 (০২.০৯.২০২৬, TK-নির্দেশ: *"হ্যাঁ, ওই সারিতেই বসিয়ে দিন"*) —
+           বাইরে ঘোরা স্টাফের (এখন শুধু RUPAM) কার্ডেই **Field Visit** বোতাম,
+           এই একই সারিতে। আগে এটা Salary পর্দার ভিতরে ছিল, TK খুঁজে পাচ্ছিলেন না।
+           ⛔ অন্য কারো কার্ডে বোতামটা ওঠেই না; বাকি বোতাম-সারি অপরিবর্তিত। */
+        if (ModuleAuth.isMaster &&
+            com.tkbiswas.pilesclinic.native.FieldVisit.isFieldStaffCode(pc)) {
+            row1Btns.add(smallBtn("Field Visit", false) {
+                startActivity(android.content.Intent(this, FieldVisitActivity::class.java)
+                    .putExtra(FieldVisitActivity.EXTRA_OWNER, true)
+                    .putExtra(FieldVisitActivity.EXTRA_STAFF_CODE, pc)
+                    .putExtra(FieldVisitActivity.EXTRA_STAFF_MOBILE,
+                        com.tkbiswas.pilesclinic.native.FieldVisit.mobileForCode(pc)))
+            })
+        }
         row1Btns.forEachIndexed { i, b -> b.layoutParams = rowBtnParams(i == 0, i == row1Btns.size - 1); row1.addView(b) }
         info.addView(row1)
         if (isRemoved) {
@@ -1524,18 +1538,10 @@ class StaffProfileActivity : AppCompatActivity() {
             editSalaryConfig(code, enabled, amount, salaryDate)
         })
 
-        /* 🏍️🔒 V968 (০২.০৯.২০২৬, TK-নির্দেশ) — **শুধু বাইরে ঘোরা স্টাফের** কার্ডে
-           ফিল্ড ভিজিটের বোতাম (এখন RUPAM)। অন্য কারো কার্ডে ওঠেই না।
-           ⛔ বেতনের একটাও হিসাব ছোঁয়া হয়নি — শুধু একটা বোতাম যোগ। */
-        if (com.tkbiswas.pilesclinic.native.FieldVisit.isFieldStaffCode(code)) {
-            (cfgBox ?: box).addView(salOutlineButton("Field Visit Tracking", "#0369A1", "#0369A1") {
-                startActivity(android.content.Intent(this, FieldVisitActivity::class.java)
-                    .putExtra(FieldVisitActivity.EXTRA_OWNER, true)
-                    .putExtra(FieldVisitActivity.EXTRA_STAFF_CODE, code)
-                    .putExtra(FieldVisitActivity.EXTRA_STAFF_MOBILE,
-                        com.tkbiswas.pilesclinic.native.FieldVisit.mobileForCode(code)))
-            })
-        }
+        /* 🏍️ V978 (TK-নির্দেশ) — বোতামটা এখন **স্টাফ-কার্ডের সারিতেই**
+           (Salary · Performance · Fix Attendance-এর পাশে), তাই বেতন-পর্দার
+           ভিতরের এই দ্বিতীয় বোতামটা তুলে দেওয়া হলো — একই জিনিস দুই জায়গায়
+           থাকলে বিভ্রান্তি হত। ⛔ বেতনের একটাও হিসাব ছোঁয়া হয়নি। */
     }
 
     /* =====================================================================
