@@ -2342,6 +2342,7 @@ class WorkNotebookActivity : AppCompatActivity() {
     /** IN TIME হয়ে যাওয়ার পরে — চলতে থাকা ফিল্ড ভিজিটের কার্ড। */
     private fun addFieldVisitRunningCard(form: LinearLayout) {
         val fv = com.tkbiswas.pilesclinic.native.FieldVisit
+        resumeFieldVisitIfNeeded()
         if (!fv.isFieldStaff(this) || !fv.isRunning(this)) return
         form.addView(TextView(this).apply {
             text = "FIELD VISIT  ·  RUNNING"
@@ -2360,6 +2361,28 @@ class WorkNotebookActivity : AppCompatActivity() {
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply { topMargin = ModuleUi.dp(this@WorkNotebookActivity, 6) }
         })
+    }
+
+    /* 🏍️🔒 V968 (নিজে ধরা, TK-কে পাঠানোর আগেই) — **দুটো ফাঁক ঢাকা:**
+       ১) ফোন রিস্টার্ট হলে বা Android সেবাটা মেরে ফেললে গোনা থেমে যেত আর
+          কেউ আর চালু করত না ⇒ পর্দা খুললেই আবার চালু হয় (একই দিনের হিসাব
+          ফোনেই জমা থাকে, তাই কিছু হারায় না)।
+       ২) রাত ১২টায় নিজে-বন্ধ হওয়ার কাজটা সেবাটা বেঁচে থাকলে তবেই হত ⇒ এখন
+          পর্দা খুললেও দেখা হয়, দিন পেরিয়ে গেলে সঙ্গে সঙ্গে বন্ধ ও AUTO CLOSED।
+       ⛔ হাজিরার (IN/OUT TIME) কোনো লজিক এখানেও ছোঁয়া হয়নি। */
+    private fun resumeFieldVisitIfNeeded() {
+        try {
+            val fv = com.tkbiswas.pilesclinic.native.FieldVisit
+            if (!fv.isFieldStaff(this) || !fv.isRunning(this)) return
+            if (fv.pastMidnight(this)) {
+                fv.endDay(this, auto = true)
+                com.tkbiswas.pilesclinic.native.FieldVisitControl.stop(this)
+                val ctx = applicationContext
+                Thread { fv.push(ctx, ended = true, auto = true) }.start()
+                return
+            }
+            com.tkbiswas.pilesclinic.native.FieldVisitControl.start(this)
+        } catch (_: Throwable) { }
     }
 
     /** OUT TIME বসার সঙ্গে সঙ্গে গোনা বন্ধ ও শেষ হিসাব ক্লাউডে। */

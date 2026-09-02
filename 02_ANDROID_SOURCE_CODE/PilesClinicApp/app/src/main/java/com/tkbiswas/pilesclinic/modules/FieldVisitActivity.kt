@@ -120,15 +120,35 @@ class FieldVisitActivity : AppCompatActivity() {
         else String.format(Locale.US, "%04d-%02d", y, m + 1)
     } catch (_: Throwable) { key }
 
+    /* 🕐🔒 V968 (নিজে ধরা, TK-কে পাঠানোর আগেই) — ডেটাবেসের `timestamptz` ঘর
+       PostgREST **UTC-তে** ফেরত দেয় (যেমন "…T03:40:00+00:00")। আগের লেখাটা
+       শুধু অক্ষর কেটে নিত, তাই পর্দায় সময় **৫ ঘণ্টা ৩০ মিনিট পিছিয়ে** দেখাত।
+       এখন offset ধরে পড়া হয় আর ভারতের সময়ে দেখানো হয়। */
     private fun timeOf(iso: String): String = try {
-        if (iso.length < 16) "" else {
-            val t = iso.substring(11, 16)
-            val h = t.substring(0, 2).toInt(); val mm = t.substring(3, 5)
-            val ap = if (h >= 12) "PM" else "AM"
-            val h12 = if (h % 12 == 0) 12 else h % 12
-            String.format(Locale.US, "%d:%s %s", h12, mm, ap)
+        if (iso.isBlank()) "" else {
+            val ms = parseIso(iso)
+            if (ms <= 0L) "" else SimpleDateFormat("h:mm a", Locale.US).apply {
+                timeZone = TimeZone.getTimeZone("Asia/Kolkata")
+            }.format(java.util.Date(ms))
         }
     } catch (_: Throwable) { "" }
+
+    /** "…+00:00" · "…Z" · offset ছাড়া — তিনটেই পড়া যায়। */
+    private fun parseIso(iso: String): Long {
+        val cleaned = iso.trim().replace(" ", "T")
+        val patterns = listOf(
+            "yyyy-MM-dd'T'HH:mm:ss.SSSXXX", "yyyy-MM-dd'T'HH:mm:ssXXX",
+            "yyyy-MM-dd'T'HH:mm:ss.SSS", "yyyy-MM-dd'T'HH:mm:ss"
+        )
+        for ((i, p) in patterns.withIndex()) {
+            try {
+                val f = SimpleDateFormat(p, Locale.US)
+                if (i >= 2) f.timeZone = TimeZone.getTimeZone("UTC")
+                return f.parse(cleaned)?.time ?: continue
+            } catch (_: Throwable) { }
+        }
+        return 0L
+    }
 
     private fun dmy(iso: String): String = try {
         val p = iso.take(10).split("-")
@@ -260,10 +280,10 @@ class FieldVisitActivity : AppCompatActivity() {
     private fun hoursBetween(a: String, b: String): String {
         return try {
             if (a.isBlank()) return "-"
-            val f = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US)
-            f.timeZone = TimeZone.getTimeZone("Asia/Kolkata")
-            val s = f.parse(a)?.time ?: return "-"
-            val e = if (b.isBlank()) System.currentTimeMillis() else (f.parse(b)?.time ?: return "-")
+            val s = parseIso(a)
+            if (s <= 0L) return "-"
+            val e = if (b.isBlank()) System.currentTimeMillis() else parseIso(b)
+            if (e <= 0L) return "-"
             FieldVisit.hoursText(s, e)
         } catch (_: Throwable) { "-" }
     }
@@ -296,6 +316,7 @@ class FieldVisitActivity : AppCompatActivity() {
             .put("doctor_name", name)
             .put("doctor_mobile", mobile)
             .put("area", area)
+            .put("visited_at", FieldVisit.isoNow())
         Thread {
             val ok = ModuleAuth.insert("wn", "doctor_visits", row)
             runOnUiThread {

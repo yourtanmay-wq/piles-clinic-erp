@@ -79,6 +79,9 @@ object FieldVisit {
         timeZone = TimeZone.getTimeZone("Asia/Kolkata")
     }.format(java.util.Date())
 
+    /** এখনকার সময়, ভারতের offset সহ — ডেটাবেসে পাঠানোর জন্য। */
+    fun isoNow(): String = iso(System.currentTimeMillis())
+
     private fun iso(ms: Long): String = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.US).apply {
         timeZone = TimeZone.getTimeZone("Asia/Kolkata")
     }.format(java.util.Date(ms))
