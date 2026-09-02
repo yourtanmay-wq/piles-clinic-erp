@@ -1523,6 +1523,19 @@ class StaffProfileActivity : AppCompatActivity() {
         (cfgBox ?: box).addView(salOutlineButton("Salary Settings", "#0A5C33", "#0A5C33") {
             editSalaryConfig(code, enabled, amount, salaryDate)
         })
+
+        /* 🏍️🔒 V968 (০২.০৯.২০২৬, TK-নির্দেশ) — **শুধু বাইরে ঘোরা স্টাফের** কার্ডে
+           ফিল্ড ভিজিটের বোতাম (এখন RUPAM)। অন্য কারো কার্ডে ওঠেই না।
+           ⛔ বেতনের একটাও হিসাব ছোঁয়া হয়নি — শুধু একটা বোতাম যোগ। */
+        if (com.tkbiswas.pilesclinic.native.FieldVisit.isFieldStaffCode(code)) {
+            (cfgBox ?: box).addView(salOutlineButton("Field Visit Tracking", "#0369A1", "#0369A1") {
+                startActivity(android.content.Intent(this, FieldVisitActivity::class.java)
+                    .putExtra(FieldVisitActivity.EXTRA_OWNER, true)
+                    .putExtra(FieldVisitActivity.EXTRA_STAFF_CODE, code)
+                    .putExtra(FieldVisitActivity.EXTRA_STAFF_MOBILE,
+                        com.tkbiswas.pilesclinic.native.FieldVisit.mobileForCode(code)))
+            })
+        }
     }
 
     /* =====================================================================

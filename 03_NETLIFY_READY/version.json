@@ -1,5 +1,5 @@
 {
-  "versionCode": 967,
-  "versionName": "9.67",
+  "versionCode": 968,
+  "versionName": "9.68",
   "note": "Latest Android build. The app reads this file to warn a phone that is still running an older APK. Update BOTH numbers whenever the APK version changes."
 }

@@ -735,6 +735,7 @@ class WorkNotebookActivity : AppCompatActivity() {
                               val outAt = nowTime()
                               withPlaceNote { placeNote ->
                                 day.put("check_out", outAt); markReminderFlag("out", true)
+                                stopFieldVisitIfRunning()   // 🏍️ V968
                                 if (placeNote.isNotBlank()) {
                                     val old = ns(day, "check_out_reason")
                                     day.put("check_out_reason", if (old.isBlank()) placeNote else "$old · $placeNote")
@@ -1294,6 +1295,15 @@ class WorkNotebookActivity : AppCompatActivity() {
     // ফাংশন ডাকা হয়, তাই কখনো আলাদা হবে না। ⛔ ব্যর্থ হলেও (নেট না থাকলে)
     // নিঃশব্দে বাদ — IN TIME সেভ হওয়াটা কখনো এর জন্য আটকায় না।
     private fun afterInTimeMarked(then: () -> Unit) {
+        // 🏍️🔒 V968 — Field Visit বাছা থাকলে এখান থেকেই গোনা শুরু। দুটো IN TIME
+        //    পথেই (বোতাম ও নোটিফিকেশন) এই ফাংশনই ডাকা হয়, তাই কখনো আলাদা হবে না।
+        try {
+            val fv = com.tkbiswas.pilesclinic.native.FieldVisit
+            if (fv.isFieldStaff(this) && fv.chosenMode(this) == fv.MODE_FIELD && !fv.isRunning(this)) {
+                fv.startDay(this, staffCode.ifBlank { mobile }, branch)
+                com.tkbiswas.pilesclinic.native.FieldVisitControl.start(this)
+            }
+        } catch (_: Throwable) { }
         try {
             // 🎨🔒 B513 (06.08.2026, TK-নির্দেশ — "সম্পূর্ণ প্রজেক্টে
             // যেখানে যেখানে নোটিফিকেশন প্লেইন-টেক্সট, প্রফেশনাল বানাতে
@@ -1564,6 +1574,7 @@ class WorkNotebookActivity : AppCompatActivity() {
               val outAt = nowTime()
               withPlaceNote { placeNote ->
                 day.put("check_out", outAt)
+                stopFieldVisitIfRunning()   // 🏍️ V968
                 // 🔴 V509: জায়গার কথাটা আলাদা কোনো নতুন কলামে নয় — **আগে থেকেই
                 // থাকা** `check_out_reason` ঘরেই জুড়ে দেওয়া হয়। তাই নতুন কোনো
                 // SQL/ডেটাবেস পরিবর্তন লাগে না (পুরনো ফোনেও ভাঙবে না)।
@@ -2280,6 +2291,89 @@ class WorkNotebookActivity : AppCompatActivity() {
     // খোলার নির্ভরযোগ্যতা।
     private fun numericField(hint: String): EditText = ModuleUi.numberInput(this, hint)
 
+    /* 🏍️🔒 V968 (০২.০৯.২০২৬, TK-নির্দেশ) — **ফিল্ড ভিজিট (শুধু RUPAM)।**
+       TK: *"শুধু বাইরে ঘোরা স্টাফদের জন্য"* · *"RUPAM নিজে চাপবে"*।
+       ⛔ অন্য কোনো স্টাফের পর্দায় এই বোতাম বা কার্ড একটুও ওঠে না — নিচের
+          `FieldVisit.isFieldStaff()` ছাড়া কিছুই আঁকা হয় না।
+       ⛔ পুরনো IN/OUT TIME-এর সেভ-লজিক এক অক্ষরও বদলায়নি; এটা শুধু পাশে বসা
+          বাড়তি গোনা, ব্যর্থ হলেও হাজিরা আটকায় না। */
+    private fun addFieldVisitPicker(form: LinearLayout) {
+        if (!com.tkbiswas.pilesclinic.native.FieldVisit.isFieldStaff(this)) return
+        val fv = com.tkbiswas.pilesclinic.native.FieldVisit
+        if (fv.chosenMode(this).isBlank()) fv.chooseMode(this, fv.MODE_CHAMBER)
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = ModuleUi.dp(this@WorkNotebookActivity, 8) }
+        }
+        lateinit var paint: () -> Unit
+        val btnChamber = ModuleUi.buttonSoft(this, "At Chamber") {
+            fv.chooseMode(this, fv.MODE_CHAMBER); paint()
+        }
+        val btnField = ModuleUi.buttonSoft(this, "Field Visit") {
+            fv.chooseMode(this, fv.MODE_FIELD); paint()
+        }
+        for (b in listOf(btnChamber, btnField)) {
+            b.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                .apply {
+                    leftMargin = ModuleUi.dp(this@WorkNotebookActivity, 3)
+                    rightMargin = ModuleUi.dp(this@WorkNotebookActivity, 3)
+                }
+        }
+        paint = {
+            val field = fv.chosenMode(this) == fv.MODE_FIELD
+            val on = android.graphics.Color.parseColor("#0F3D6B")
+            val off = android.graphics.Color.parseColor("#EFF3F8")
+            val onTx = android.graphics.Color.WHITE
+            val offTx = android.graphics.Color.parseColor("#63748C")
+            btnChamber.backgroundTintList = android.content.res.ColorStateList.valueOf(if (field) off else on)
+            btnChamber.setTextColor(if (field) offTx else onTx)
+            btnField.backgroundTintList = android.content.res.ColorStateList.valueOf(if (field) on else off)
+            btnField.setTextColor(if (field) onTx else offTx)
+        }
+        paint()
+        row.addView(btnChamber); row.addView(btnField)
+        form.addView(row)
+        form.addView(ModuleUi.body(this,
+            "Select Field Visit only when you are going out on the bike. Location stays on until you mark OUT TIME."))
+    }
+
+    /** IN TIME হয়ে যাওয়ার পরে — চলতে থাকা ফিল্ড ভিজিটের কার্ড। */
+    private fun addFieldVisitRunningCard(form: LinearLayout) {
+        val fv = com.tkbiswas.pilesclinic.native.FieldVisit
+        if (!fv.isFieldStaff(this) || !fv.isRunning(this)) return
+        form.addView(TextView(this).apply {
+            text = "FIELD VISIT  ·  RUNNING"
+            textSize = 12.5f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#0E6E8C"))
+        })
+        val started = fv.startedAt(this)
+        form.addView(ModuleUi.body(this,
+            "Hours " + fv.hoursText(started, System.currentTimeMillis()) +
+                "   ·   Distance " + fv.kmText(fv.distanceMeters(this)) + "   ·   Location on"))
+        form.addView(ModuleUi.buttonSoft(this, "RMP Doctors - mark visits") {
+            startActivity(android.content.Intent(this, FieldVisitActivity::class.java))
+        }.apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = ModuleUi.dp(this@WorkNotebookActivity, 6) }
+        })
+    }
+
+    /** OUT TIME বসার সঙ্গে সঙ্গে গোনা বন্ধ ও শেষ হিসাব ক্লাউডে। */
+    private fun stopFieldVisitIfRunning() {
+        try {
+            val fv = com.tkbiswas.pilesclinic.native.FieldVisit
+            if (!fv.isRunning(this)) return
+            fv.endDay(this, auto = false)
+            com.tkbiswas.pilesclinic.native.FieldVisitControl.stop(this)
+            val ctx = applicationContext
+            Thread { fv.push(ctx, ended = true, auto = false) }.start()
+        } catch (_: Throwable) { }
+    }
+
     private fun render() {
         backAction = { finish() }
         val isKishanganjStaff = (NativeSession.current(this)?.branch ?: "").trim().lowercase() == "kishanganj"
@@ -2380,6 +2474,8 @@ class WorkNotebookActivity : AppCompatActivity() {
                         .apply { topMargin = ModuleUi.dp(this@WorkNotebookActivity, 6) }
                     form.addView(outBtn)
                     form.addView(ModuleUi.body(this, "✅ IN TIME ${timeWithLate(ns(day, "check_in"))}"))
+                    // 🏍️ V968 — চলতে থাকা ফিল্ড ভিজিটের হিসাব (শুধু RUPAM)।
+                    addFieldVisitRunningCard(form)
                     // 🔴 V432 (TK-রিপোর্ট ১৮.০৮.২০২৬) — WhatsApp খোলার পরে ব্যাক
                     //    করে এলে আগে আর পাঠানোর কোনো উপায় ছিল না। এখন এই বোতামে
                     //    চাপলেই **সেই একই বার্তাটাই** আবার খোলে।
@@ -2534,6 +2630,8 @@ class WorkNotebookActivity : AppCompatActivity() {
                     // থাকে (রাত/বিকেলে ভুল করে IN দেখানো বন্ধ)। ⛔ IN TIME চাপার
                     // সেভ-লজিক এক অক্ষরও বদলায়নি।
                     if (inTimeWindowOpen()) {
+                        // 🏍️ V968 — শুধু RUPAM-এর পর্দায় ওঠে (উপরের টীকা)।
+                        addFieldVisitPicker(form)
                         val inBtn = ModuleUi.button(this, "IN TIME") {
                             // 🔒 V496: একই নতুন পথ (উপরের startInTimeFlow দেখুন)।
                             startInTimeFlow { afterInTimeMarked { render() } }

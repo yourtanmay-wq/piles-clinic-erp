@@ -605,11 +605,103 @@
       '<div onclick="profSalaryEdit(\'' + m.esc(code) + '\')" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer">' +
         '<b style="color:#0A5C33;font-size:15px">Salary Settings</b><span style="color:#9AA8B5">›</span></div></div>';
 
+    /* 🏍️🔒 V968 (০২.০৯.২০২৬, TK-নির্দেশ) — **শুধু বাইরে ঘোরা স্টাফের** কার্ডে
+       ফিল্ড ভিজিটের বোতাম (এখন RUPAM)। ফোনের StaffProfileActivity-র হুবহু জোড়া।
+       ⛔ GPS গোনা শুধু ফোনেই হয় (ব্রাউজারে পর্দা বন্ধ হলেই থেমে যায়) — এখানে
+          শুধু **দেখা** যায়, TK-কে সেটা কাজ শুরুর আগেই জানানো হয়েছে। */
+    var fieldCard = WLV1_FIELD_STAFF_CODES.indexOf(String(code).toUpperCase()) < 0 ? '' :
+      '<div class="card">' +
+      '<div onclick="profFieldVisit(\'' + m.esc(code) + '\')" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer">' +
+        '<b style="color:#0369A1;font-size:15px">Field Visit Tracking</b><span style="color:#9AA8B5">›</span></div></div>';
+
     document.getElementById('app').innerHTML = '<div class="wrap anMod anModPf"><div class="topbar"><b>Salary — ' + m.esc(code) + '</b>' +
       '<button class="ghost" onclick="staffProfiles()">Back</button></div><div class="page">' +
-      salaryCard + payHtml + extraCard + settingsCard +
+      salaryCard + payHtml + extraCard + settingsCard + fieldCard +
       '</div></div>';
   }
+
+  /* 🏍️🔒 V968 — বাইরে ঘোরা স্টাফের কোড। ফোনের `FieldVisit.FIELD_STAFF_MOBILES`-এর
+     জোড়া; নতুন কেউ যোগ হলে TK বলবেন, তখন দুই জায়গাতেই এক লাইন। */
+  var WLV1_FIELD_STAFF_CODES = ['JPE-RUPAM'];
+
+  /* 🏍️ V968 — TK-এর দেখার পর্দা: কোন দিন কত ঘণ্টা · কত কিমি · এখন কোথায়। */
+  async function profFieldVisit(code) {
+    var host = document.getElementById('app');
+    host.innerHTML = '<div class="wrap anMod anModPf"><div class="topbar"><b>Field Visit — ' + m.esc(code) + '</b>' +
+      '<button class="ghost" onclick="profSalary(\'' + m.esc(code) + '\')">Back</button></div>' +
+      '<div class="page"><div class="card mut">Loading...</div></div></div>';
+    var days = [], visits = [];
+    try {
+      var client = await sb();
+      var r = await client.schema('wn').from('field_visit_days')
+        .select('*').eq('staff_code', code).order('work_date', { ascending: false }).limit(30);
+      days = (r && r.data) ? r.data : [];
+      var v = await client.schema('wn').from('doctor_visits')
+        .select('work_date,doctor_name,visited_at').eq('staff_code', code)
+        .order('visited_at', { ascending: false }).limit(300);
+      visits = (v && v.data) ? v.data : [];
+    } catch (_e) { }
+    var byDate = {};
+    visits.forEach(function (x) {
+      var d = String(x.work_date || '').slice(0, 10);
+      if (!byDate[d]) byDate[d] = [];
+      byDate[d].push(x);
+    });
+    var body = '';
+    if (!days.length) body = '<div class="card mut">No field visit recorded yet.</div>';
+    days.forEach(function (r) {
+      var date = String(r.work_date || '').slice(0, 10);
+      var ended = String(r.ended_at || '');
+      var auto = !!r.auto_closed;
+      var today = new Date().toISOString().slice(0, 10);
+      var status = (!ended && date === today) ? 'RUNNING' : (!ended ? 'NOT CLOSED' : (auto ? 'AUTO CLOSED' : 'COMPLETE'));
+      var colour = status === 'NOT CLOSED' ? '#B42318' : (status === 'AUTO CLOSED' ? '#8A5A00' : '#0B7A4B');
+      var km = (Number(r.distance_m || 0) / 1000).toFixed(1) + ' km';
+      var hrs = wlv1FvHours(r.started_at, r.ended_at);
+      var docs = (byDate[date] || []).length;
+      var map = '';
+      if (r.last_lat && r.last_lng) {
+        map = '<a class="pill blueP" style="text-decoration:none" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=' +
+          encodeURIComponent(r.last_lat + ',' + r.last_lng) + '">OPEN IN GOOGLE MAPS</a>';
+      }
+      body += '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center">' +
+        '<b>' + m.esc(wlv1FvDmy(date)) + '</b>' +
+        '<span class="pill" style="color:' + colour + ';background:#F4F7FB">' + status + '</span></div>' +
+        '<div class="tiny mut" style="margin-top:6px">Hours ' + m.esc(hrs) + '  ·  Distance ' + m.esc(km) +
+        '  ·  Doctors ' + docs + '</div>' +
+        (auto ? '<div class="tiny mut">OUT TIME not marked - closed by app at 12:00 AM</div>' : '') +
+        (r.last_seen_at ? '<div class="tiny mut">Last seen ' + m.esc(wlv1FvTime(r.last_seen_at)) +
+          '  ·  accuracy ±' + (r.last_acc_m || 0) + ' m</div>' : '') +
+        (map ? '<div style="margin-top:8px">' + map + '</div>' : '') +
+        '</div>';
+    });
+    host.innerHTML = '<div class="wrap anMod anModPf"><div class="topbar"><b>Field Visit — ' + m.esc(code) + '</b>' +
+      '<button class="ghost" onclick="profSalary(\'' + m.esc(code) + '\')">Back</button></div>' +
+      '<div class="page">' + body + '</div></div>';
+  }
+
+  function wlv1FvDmy(iso) {
+    var p = String(iso || '').slice(0, 10).split('-');
+    return p.length === 3 ? p[2] + '.' + p[1] + '.' + p[0] : String(iso || '');
+  }
+  function wlv1FvTime(iso) {
+    try {
+      var d = new Date(iso);
+      if (isNaN(d.getTime())) return '-';
+      return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' });
+    } catch (_e) { return '-' }
+  }
+  function wlv1FvHours(a, b) {
+    try {
+      if (!a) return '-';
+      var s = new Date(a).getTime();
+      var e = b ? new Date(b).getTime() : Date.now();
+      if (!isFinite(s) || !isFinite(e) || e <= s) return '0h 00m';
+      var mins = Math.round((e - s) / 60000);
+      return Math.floor(mins / 60) + 'h ' + String(mins % 60).padStart(2, '0') + 'm';
+    } catch (_e) { return '-' }
+  }
+  window.profFieldVisit = profFieldVisit;
   /* 🎨 V417গ: Salary Settings খোলা/গোটানো — ক্লাউড থেকে নতুন কিছু আনা হয় না। */
   function profToggleSalCfg() {
     try {

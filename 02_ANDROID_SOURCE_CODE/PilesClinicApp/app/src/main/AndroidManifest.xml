@@ -41,6 +41,13 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-feature android:name="android.hardware.location" android:required="false" />
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+    <!-- 🏍️🔒 V968 (০২.০৯.২০২৬, TK-নির্দেশ): শুধু বাইরে ঘোরা স্টাফের (RUPAM)
+         Field Visit-এ IN TIME থেকে OUT TIME পর্যন্ত কিলোমিটার গোনার জন্য।
+         ⛔ background location চাওয়া হয়নি — foreground service চলা অবস্থায়ই
+            অবস্থান নেওয়া হয়, আর স্থায়ী নোটিফিকেশন দেখানো হয় (Android-এর নিয়ম;
+            TK-কে কাজ শুরুর আগেই জানানো হয়েছে)। -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <!-- 🔴🔴🔴 TK-রিপোর্ট (05.08.2026) — IN/OUT TIME · Call Reminder ·
          Chamber Close Reminder তিনটেই ব্যাকগ্রাউন্ডে (WorkManager) চলে;
          অ্যাপ বন্ধ থাকলে কিছু ফোনের (Xiaomi/Vivo/Oppo-ঘরানার) নিজস্ব
@@ -416,6 +423,8 @@
         <!-- V245 additive — three new module activities (isolated; nothing existing changed) -->
         <activity android:name="com.tkbiswas.pilesclinic.modules.StaffProfileActivity" android:exported="false" />
         <activity android:name="com.tkbiswas.pilesclinic.modules.WorkNotebookActivity" android:exported="false" />
+        <!-- 🏍️🔒 V968 — ফিল্ড ভিজিট (শুধু বাইরে ঘোরা স্টাফ)। -->
+        <activity android:name="com.tkbiswas.pilesclinic.modules.FieldVisitActivity" android:exported="false" />
         <activity android:name="com.tkbiswas.pilesclinic.modules.IncomeExpenseActivity" android:exported="false" />
         <!-- V306 additive — Partner Shares (অংশীদারি ভাগ), isolated; nothing existing changed -->
         <activity android:name="com.tkbiswas.pilesclinic.modules.PartnerSharesActivity" android:exported="false" />
@@ -431,6 +440,12 @@
         </receiver>
         <!-- 🟢🔒 V619 — নোটিফিকেশনের "✕ Dismiss" বোতামের জন্য, শুধু ভিতর থেকেই ডাকা হয়। -->
         <receiver android:name="com.tkbiswas.pilesclinic.native.CallDismissReceiver" android:exported="false" />
+
+        <!-- 🏍️🔒 V968 — ফিল্ড ভিজিট চলাকালীন GPS (foreground service)। -->
+        <service
+            android:name="com.tkbiswas.pilesclinic.native.FieldVisitService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
 
     </application>
 
