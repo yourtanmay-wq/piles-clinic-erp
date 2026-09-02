@@ -55,6 +55,13 @@ class EstimatePaperActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         sheet = try { EstimateModel.parse(intent?.getStringExtra(EXTRA_SHEET).orEmpty()) }
                 catch (_: Throwable) { EstimateModel.Sheet() }
+        /* 💊🔒 V986 (০২.০৯.২০২৬, TK-নির্দেশ: *"এইগুলি ফরমে অটোমেটিক বসে থাকবে…
+           প্রত্যেকবার আমি কেন চুস করতে যাব"*) — নতুন এস্টিমেট খুললে ওষুধ ও
+           অন্যান্য (Dressing · Nursing) কাগজে **আগে থেকেই** বসানো থাকে; যেটা
+           লাগবে না সেটা কেটে বা মুছে দিলেই হলো।
+           ⛔ চিকিৎসার লাইন বসানো হয় না — গ্রেড/ইঞ্চি রোগভেদে আলাদা, ডাক্তারকেই
+              বাছতে হয়। ⛔ আগের সেভ করা হিসাব খুললে কিচ্ছু যোগ হয় না। */
+        if (sheet.lines.isEmpty()) prefillFromPriceList()
         setContentView(buildScreen())
         render()
     }
@@ -70,6 +77,17 @@ class EstimatePaperActivity : AppCompatActivity() {
     override fun onRestoreInstanceState(savedInstanceState: Bundle) {
         super.onRestoreInstanceState(savedInstanceState)
         RoleSession.restoreFrom(savedInstanceState)
+    }
+
+    /** 💊 V986 — দরের তালিকা থেকে ওষুধ ও অন্যান্য সব লাইন বসানো। */
+    private fun prefillFromPriceList() {
+        try {
+            for (g in listOf(EstimatePrices.G_MEDICINE, EstimatePrices.G_OTHER)) {
+                for (item in EstimatePrices.inGroup(this, g)) {
+                    sheet.lines.add(EstimateModel.Line(name = item.name, rate = item.rate, qty = 1.0))
+                }
+            }
+        } catch (_: Throwable) { }
     }
 
     private fun dp(v: Int) = ModuleUi.dp(this, v)

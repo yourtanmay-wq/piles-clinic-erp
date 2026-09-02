@@ -26362,6 +26362,18 @@ function wlv1EstStore(){ try{ window.__wlv1EstJson = wlv1EstSheet.lines.length?J
 var wlv1EstZoom=1;
 function wlv1EstOpen(){
   wlv1EstLoad();
+  /* 💊🔒 V986 (TK-নির্দেশ: *"এইগুলি ফরমে অটোমেটিক বসে থাকবে, প্রত্যেকবার আমি
+     কেন চুস করতে যাব"*) — নতুন এস্টিমেটে ওষুধ ও অন্যান্য আগে থেকেই বসানো।
+     ⛔ চিকিৎসার লাইন নয় (গ্রেড/ইঞ্চি রোগভেদে আলাদা)। ⛔ সেভ করা হিসাব খুললে
+        কিছুই যোগ হয় না। ফোনের হুবহু যমজ। */
+  try{
+    if(!wlv1EstSheet.lines.length){
+      wlv1EstPrices().forEach(function(p){
+        if(p.group==='Medicine'||p.group==='Other')
+          wlv1EstSheet.lines.push({name:p.name,measure:'',position:'',rate:p.rate,qty:1,struck:false});
+      });
+    }
+  }catch(e){}
   wlv1EstZoom=1;
   wlv1EstScreen();
 }
@@ -26567,7 +26579,14 @@ function wlv1EstAddGroup(g){
 function wlv1EstAddPick(g,i){
   var items=wlv1EstPrices().filter(function(p){return p.group===g});
   var p=items[i]; if(!p)return;
-  wlv1EstSheet.lines.push({name:p.name,measure:'',position:'',rate:p.rate,qty:1,struck:false});
+  /* 🔢🔒 V986 (TK-রিপোর্ট ছবিসহ — একই জিনিস বারবার আলাদা লাইনে বসত)।
+     ⇒ একই নাম ও দর আবার বাছলে নতুন লাইন নয়, সংখ্যাটাই বাড়ে (ফোনের যমজ)। */
+  var same=wlv1EstSheet.lines.filter(function(l){
+    return String(l.name||'').toLowerCase()===String(p.name||'').toLowerCase()
+      && !l.measure && !l.position && Number(l.rate||0)===Number(p.rate||0) && !l.struck;
+  })[0];
+  if(same) same.qty=Number(same.qty||0)+1;
+  else wlv1EstSheet.lines.push({name:p.name,measure:'',position:'',rate:p.rate,qty:1,struck:false});
   wlv1EstRender();
 }
 window["wlv1EstAddTreat"]=wlv1EstAddTreat; window["wlv1EstTreatRender"]=wlv1EstTreatRender;
@@ -26631,7 +26650,9 @@ function wlv1EstPaperHtml(editable){
   var rows=wlv1EstSheet.lines.map(function(l,i){
     var cls=l.struck?' class="free"':'';
     var amt=l.struck?' class="r amt"':' class="r"';
-    var label=esc(l.name)+(l.measure?(' ('+esc(l.measure)+')'):'');
+    /* 🏷️ V986 — নামেই মাপ থাকলে বন্ধনীতে আর লেখা হয় না ("Grade II … (Grade II)")। */
+    var __m=String(l.measure||'');
+    var label=esc(l.name)+((__m && String(l.name||'').toLowerCase().indexOf(__m.toLowerCase())<0)?(' ('+esc(__m)+')'):'');
     var a0=editable?'<a class="tap" href="est://line/'+i+'">':'';
     var e0=editable?'<a class="ed" href="est://line/'+i+'">':'';
     var a1=editable?'</a>':'';
@@ -26646,8 +26667,10 @@ function wlv1EstPaperHtml(editable){
   var discLbl = (wlv1EstSheet.discountPct && Number(wlv1EstSheet.discount||0)>0)
     ? ('Total Discount ('+wlv1EstShort(wlv1EstSheet.discount)+'%)') : 'Total Discount';
   var d0=editable?'<a class="ed" href="est://discount">':'', d1=editable?'</a>':'';
-  var disc=(wlv1EstDiscAmt()>0 || editable)
-    ? '<div><span class="lbl">'+discLbl+'</span><span class="disc">&minus; '+d0+wlv1EstMoney(wlv1EstDiscAmt())+d1+'</span></div>' : '';
+  /* 💸 V986 — ছাড় শূন্য হলে কাগজে লাইনটাই নেই; পর্দায় শুধু "Add discount"। */
+  var disc = (wlv1EstDiscAmt()>0)
+    ? '<div><span class="lbl">'+discLbl+'</span><span class="disc">&minus; '+d0+wlv1EstMoney(wlv1EstDiscAmt())+d1+'</span></div>'
+    : (editable ? '<div><span class="lbl">Discount</span><span class="disc">'+d0+'Add discount'+d1+'</span></div>' : '');
   var ageSex=[String(p.age||''),String(p.sex||'')].filter(Boolean).join(' / ')||'-';
   var dt=wlv1Dot(today());
   return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Estimate</title><style>'

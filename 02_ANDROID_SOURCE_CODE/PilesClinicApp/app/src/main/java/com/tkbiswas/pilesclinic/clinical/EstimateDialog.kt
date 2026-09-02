@@ -647,7 +647,17 @@ object EstimateDialog {
             .setCustomTitle(PremiumAlert.header(activity, "➕ Add $group"))
             .setItems(names) { _, which ->
                 val chosenItem = items[which]
-                sheet.lines.add(EstimateModel.Line(name = chosenItem.name, rate = chosenItem.rate, qty = 1.0))
+                /* 🔢🔒 V986 (০২.০৯.২০২৬, TK-রিপোর্ট ছবিসহ — কাগজে "Dressing Cost"
+                   তিনবার, "Nursing Charges" পাঁচবার আলাদা লাইনে বসেছিল)।
+                   ⇒ একই জিনিস আবার বাছলে নতুন লাইন নয়, **সংখ্যাটাই বাড়ে**।
+                   ⛔ দর হাতে বদলানো লাইন আলাদাই থাকে (নইলে বদলানো দর হারাত)। */
+                val same = sheet.lines.firstOrNull {
+                    it.name.equals(chosenItem.name, ignoreCase = true) &&
+                        it.measure.isBlank() && it.position.isBlank() &&
+                        it.rate == chosenItem.rate && !it.struck
+                }
+                if (same != null) same.qty += 1.0
+                else sheet.lines.add(EstimateModel.Line(name = chosenItem.name, rate = chosenItem.rate, qty = 1.0))
                 redraw()
             }
             .setNegativeButton("Cancel", null)

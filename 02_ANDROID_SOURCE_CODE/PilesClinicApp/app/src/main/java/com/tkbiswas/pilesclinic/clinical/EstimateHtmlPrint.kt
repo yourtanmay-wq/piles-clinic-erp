@@ -37,7 +37,11 @@ object EstimateHtmlPrint {
         for ((i, l) in sheet.lines.withIndex()) {
             val cls = if (l.struck) " class=\"free\"" else ""
             val amtCls = if (l.struck) " class=\"r amt\"" else " class=\"r\""
-            val label = if (l.measure.isBlank()) esc(l.name)
+            /* 🏷️🔒 V986 (TK-রিপোর্ট ছবিসহ — "Grade II Haemorrhoid Treatment
+               (Grade II)", একই কথা দুবার)। নামেই মাপটা থাকলে আর বন্ধনীতে লেখা
+               হয় না। ⛔ ফিস্টুলার "(2 inch)" আগের মতোই থাকে। */
+            val label = if (l.measure.isBlank() || l.name.contains(l.measure, ignoreCase = true))
+                            esc(l.name)
                         else esc(l.name) + " (" + esc(l.measure) + ")"
             /* ছাপার সময় `editable=false` ⇒ নিচের তিনটে স্ট্রিং ফাঁকা থাকে,
                তাই কাগজ হুবহু আগের মতোই ছাপে। */
@@ -65,8 +69,14 @@ object EstimateHtmlPrint {
             "Total Discount (" + EstimateModel.moneyShort(sheet.discount) + "%)" else "Total Discount"
         val discOpen = if (editable) "<a class=\"ed\" href=\"est://discount\">" else ""
         val discEnd = if (editable) "</a>" else ""
+        /* 💸🔒 V986 (TK-রিপোর্ট: ছাড় শূন্য হলেও "Total Discount − 0.00" বসত)।
+           ⇒ ছাড় না থাকলে ছাপার কাগজে লাইনটাই নেই; পর্দায় "Add discount" লেখা
+             একটা ছোট জায়গা থাকে, যাতে চাপ দিয়ে ছাড় বসানো যায়। */
         val discountRow = if (sheet.discountAmount <= 0.0 && !editable) "" else
-            """<div><span class="lbl">$discLabel</span><span class="disc">&minus; $discOpen${EstimateModel.money(sheet.discountAmount)}$discEnd</span></div>"""
+            if (sheet.discountAmount <= 0.0)
+                """<div><span class="lbl">Discount</span><span class="disc">${discOpen}Add discount$discEnd</span></div>"""
+            else
+                """<div><span class="lbl">$discLabel</span><span class="disc">&minus; $discOpen${EstimateModel.money(sheet.discountAmount)}$discEnd</span></div>"""
 
         return """<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=794">
 <style>
