@@ -1174,7 +1174,7 @@ function startQueueLiveRefresh(){
    const h=new Date().getHours();
    if(h>=22 || h<6) return;
    const changed=await wlv1QueueCloudPull();
-   if(changed && String(currentView||'')==='CHECK-UP Queue') doctorQueue();
+   if(changed && String(currentView||'')==='CHECK-UP Queue') doctorQueue(true);   /* 🔍 V974 — খোঁজার লেখা অটুট */
   }catch(e){}
  },30000);
 }
@@ -9358,7 +9358,7 @@ function wlv1DqIsToday(p){
   let stamp=String(p.createdAt||p.updatedAt||'');
   return stamp.length>=10 && stamp.slice(0,10)===today();
 }
-function wlv1DqToggleOverdue(){wlv1DqOverdueOpen=!wlv1DqOverdueOpen;doctorQueue();}
+function wlv1DqToggleOverdue(){wlv1DqOverdueOpen=!wlv1DqOverdueOpen;doctorQueue(true);}   /* 🔍 V974 */
 window["wlv1DqToggleOverdue"]=wlv1DqToggleOverdue;
 /* 🟢🔒 B684 (15.08.2026, TK-অনুমোদিত · Android-হুবহু): CHECK-UP Queue কার্ডের
    বোতাম Android-এর item_queue_card.xml-এর মতোই করা হল —
@@ -9493,7 +9493,13 @@ function wlv1DqCard(p){
     return b||'WAITING'; })();
   return `<div class="card doctorQueuePro"><div class="queueRow">${p.photo?`<img class="queuePhoto" src="${p.photo}">`:`<div class="queuePhoto blank">👤</div>`}<div class="queueInfo"><b class="wlv1NameLink" onclick="wlv1FullJourney('${esc(normMob(p.mobile))}')" title="Tap for History">${esc(p.name)}</b><span><span class="wlv1CallLink" onclick="event.stopPropagation();contact('${esc(p.mobile)}','call')" title="Tap to call">${esc(normMob(p.mobile))}</span> · ${esc(p.patientId||'')}</span><small>${esc(p.disease||'-')} · ${esc(p.branch||'-')}</small></div><span class="queueBadge"${(function(){var b=wlv1NvpOldNew(p);return b?(' style="background:'+(b==='NEW'?'#16A36D':'#0B3D91')+'"'):''})()}>${esc(__badge)}</span></div>${__m?'':wlv1NvpTagHtml(p)}${wlv1DqExtraHtml(p,__m)}<div class="actions queueActions"><button class="ghost" onclick="wlv1FullJourney('${esc(normMob(p.mobile))}')">History</button>${rcBtn}<button onclick="wlv1NvpCheckupWithReminder('${p.id}')">Check-up</button><button class="ghost" onclick="summary('${p.id}')">⚡ Action</button></div></div>`;
 }
-function doctorQueue(){try{repairBranchWorkflowRows()}catch(_e){}let rows=visitQueueRows();
+/* 🔍🔒 V974 (নিজে ধরা, দ্বিতীয়বার গভীরে যাচাই করতে গিয়ে) — খোঁজার লেখাটা
+   পর্দা ছেড়ে গেলেও থেকে যেত; পরে আবার এসে স্টাফ দেখতেন তালিকা প্রায় ফাঁকা
+   ("রোগীরা কোথায় গেল?")। ⇒ মেনু/নিচের বোতাম থেকে পর্দা খুললে লেখাটা মুছে
+   যায়; ভিতরের নিজের আবার-আঁকা (খোঁজা · Overdue খোলা/গোটানো · ক্লাউড-পড়া)
+   `true` পাঠায়, তাই তখন লেখা অটুট থাকে। ফোনে পর্দা ছাড়লেই ঘরটা এমনিতেই
+   খালি হয়ে যায় — এখন দুই দিকেই এক আচরণ। */
+function doctorQueue(keepSearch){if(!keepSearch){try{window.__dqSearch=''}catch(e){}}try{repairBranchWorkflowRows()}catch(_e){}let rows=visitQueueRows();
  /* 🟢🔒 V398: মনে-রাখা ব্রাঞ্চ (এক জায়গা থেকে)। বাছা না-থাকলে তালিকা নয়, বার্তা। */
  wlv1DqBranch=wlv1BranchGet();
  // V461 — K.H MANDAL-এর জন্য এখানেই (শুধু এই ফাংশনে) মাস্টারের মতো ব্রাঞ্চ-
@@ -9505,7 +9511,7 @@ function doctorQueue(){try{repairBranchWorkflowRows()}catch(_e){}let rows=visitQ
    if(v===''){ __dqAsk=true; rows=[]; }
    else if(v!=='All'){ rows=rows.filter(function(x){ return sameBranch((x&&x.branch)||'', v); }); }
  }
- let branchWrap=(isMaster()||__crossDoc)?`<div id="dqBranchWrap" class="wlv1HdrPick">${wlv1BranchSelectHtml('doctorQueue()')}</div>`:'';
+ let branchWrap=(isMaster()||__crossDoc)?`<div id="dqBranchWrap" class="wlv1HdrPick">${wlv1BranchSelectHtml('doctorQueue(true)')}</div>`:'';
  let todayRows=rows.filter(wlv1DqIsToday), overdueRows=rows.filter(x=>!wlv1DqIsToday(x));
  /* 🔍🔒 V972 (০২.০৯.২০২৬, TK-নির্দেশ) — *"এখানে patient Search করার মত অপশন
     থাকতে হবে"*। ফোনের `DoctorQueueActivity`-র হুবহু জোড়া: নাম · মোবাইল ·
@@ -9567,7 +9573,7 @@ function wlv1DqSearch(v){
   try{
     var box=document.getElementById('dqSearch');
     var pos=box?box.selectionStart:null;
-    doctorQueue();
+    doctorQueue(true);
     setTimeout(function(){
       try{
         var b2=document.getElementById('dqSearch');
