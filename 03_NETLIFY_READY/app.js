@@ -14430,6 +14430,10 @@ function medicinePaymentHome(){
     '<div class="medBtnRow"><button class="medBtn medPrint" onclick="saveMedicinePayment(\'print\')">🖨️ Print</button><button class="medBtn medShare" onclick="saveMedicinePayment(\'share\')">🟢 Share</button><button class="medBtn medSave" onclick="saveMedicinePayment(\'save\')">💾 Save</button></div>'+
     '</div>'+
     '<div class="card">'+
+    /* 📕🔒 V985 (TK-নির্দেশ: *"মেডিসিন স্যালাইন History এরকম খোলা থাকবে না
+       পর্দা"*) — শিরোনামে চাপ দিলে খোলে/গুটোয় (ফোনের হুবহু যমজ)। */
+    '<div id="medHistHead" class="sectionTitle" style="margin-top:0;cursor:pointer" onclick="medHistToggle()">\u25B6&nbsp; Medicine / Saline History</div>'+
+    '<div id="medHistBody" style="display:none">'+
     '<div id="medHistBar" class="sectionTitle" style="margin-top:0">'+
     '<input id="medSearch" class="input" placeholder="Search name / product / mobile" oninput="__medQ=this.value;medRenderHistory()">'+
     '<div class="medChips">'+
@@ -14449,7 +14453,7 @@ function medicinePaymentHome(){
     '<div class="medChips">'+
       '<button class="medChip medChipDue" id="medChipDue" onclick="medDueToggle()">Due Only</button>'+
     '</div>'+
-    '</div><div id="medTotal"></div><div id="medPayList"></div></div>', true);
+    '</div><div id="medTotal"></div><div id="medPayList"></div></div></div>', true);
   setTimeout(medRenderHistory,0);
   // 🖥️🔧 TK-নির্দেশে (১৫.০৮.২০২৬, "Branch হেডারে, History এভাবে খোলা থাকবে না"):
   // শুধু ডেস্কটপে (≥900px) Branch ও History-ছাঁকনি হেডারের খালি স্লটে (#wlv1MedTopSlot)
@@ -14548,6 +14552,11 @@ function medFiltered(){
     var d=String(x.date||'');
     /* 🆕 V846 — "Due Only" চললে তারিখ দেখা হয় না (বাকি পুরনো দিনেরও হতে পারে) */
     if(__medDueOnly){ if(medNetDue(x,__sm)<=0)return false; }
+    /* 🔍🔒 V985 (TK-নির্দেশ: *"কোন পেশেন্টের কত মেডিসিনের বিল হলো সেটা যেন
+       সার্চ করার অপশন থাকে"*) — খোঁজাটা তারিখ-ছাঁকার পরে চলত, আর শুরুতে
+       "Today" বাছা থাকে, তাই পুরনো রোগী খুঁজলে কিছুই আসত না। এখন কিছু লেখা
+       থাকলে সব তারিখ দেখানো হয়। ⛔ না লিখলে হুবহু আগের আচরণ। (ফোনের যমজ) */
+    else if(q){ /* খোঁজার সময় তারিখ ধরা হয় না */ }
     else{
     var dok=__medFilter==='today'?d===t:__medFilter==='7'?(d&&d>=s7):__medFilter==='30'?(d&&d>=s30):__medFilter==='pick'?d===__medPick:__medFilter==='range'?(d&&__medFrom&&__medTo&&d>=__medFrom&&d<=__medTo):true;   /* 🆕 V847 */
     if(!dok)return false;
@@ -14556,6 +14565,18 @@ function medFiltered(){
     return true;
   }).sort(function(a,b){return String(b.createdAt||b.date||'').localeCompare(String(a.createdAt||a.date||''));});
 }
+/** 📕 V985 — History খোলা/গুটানো। */
+function medHistToggle(){
+  try{
+    var b=document.getElementById('medHistBody'), h=document.getElementById('medHistHead');
+    if(!b||!h)return;
+    var open=(b.style.display==='none');
+    b.style.display=open?'':'none';
+    h.innerHTML=(open?'\u25BC':'\u25B6')+'&nbsp; Medicine / Saline History';
+    if(open) medRenderHistory();
+  }catch(e){}
+}
+window["medHistToggle"]=medHistToggle;
 function medRenderHistory(){
   var listEl=document.getElementById('medPayList'),totEl=document.getElementById('medTotal');
   if(!listEl)return;

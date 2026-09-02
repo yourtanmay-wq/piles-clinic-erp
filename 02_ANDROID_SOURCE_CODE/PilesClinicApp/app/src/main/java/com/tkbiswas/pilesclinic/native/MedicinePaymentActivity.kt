@@ -335,6 +335,31 @@ class MedicinePaymentActivity : AppCompatActivity() {
         medicineContainer = findViewById(R.id.medicineContainer)
         btnAddMedicine = findViewById(R.id.btnAddMedicine)
         etHistorySearch = findViewById(R.id.etHistorySearch)
+        /* 📕🔒 V985 (TK-নির্দেশ: *"মেডিসিন স্যালাইন History এরকম খোলা থাকবে না
+           পর্দা"*) — শিরোনামে চাপ দিলে খোলে, আবার চাপলে গুটিয়ে যায়।
+           ⛔ ভিতরের সব কিছু (খোঁজা · চিপ · মোট · তালিকা) হুবহু আগের মতোই। */
+        try {
+            val head = findViewById<TextView>(R.id.tvHistoryHead)
+            val bodyBox = findViewById<LinearLayout>(R.id.boxHistoryBody)
+            head.setOnClickListener {
+                val open = bodyBox.visibility != View.VISIBLE
+                bodyBox.visibility = if (open) View.VISIBLE else View.GONE
+                head.text = (if (open) "▼  " else "▶  ") + "Medicine / Saline History"
+            }
+        } catch (_: Throwable) { }
+        /* 💊🔒 V985 (TK-নির্দেশ) — Search-এর "Med. Due" বোতাম থেকে এলে ওই
+           রোগীর নম্বরটাই আগে থেকে বসানো থাকে ও শুধু বাকিগুলোই দেখায়, যাতে
+           স্টাফকে খুঁজতে না হয়। ⛔ এমনি খুললে কিচ্ছু বদলায় না। */
+        try {
+            val pre = intent?.getStringExtra("prefill_search").orEmpty()
+            if (pre.isNotBlank()) {
+                searchQuery = pre; dueOnly = true
+                etHistorySearch.setText(pre)
+                // Search থেকে এলে তালিকাটা খোলাই থাকে (নইলে কিছুই দেখা যেত না)।
+                findViewById<LinearLayout>(R.id.boxHistoryBody).visibility = View.VISIBLE
+                findViewById<TextView>(R.id.tvHistoryHead).text = "▼  Medicine / Saline History"
+            }
+        } catch (_: Throwable) { }
         chipToday = findViewById(R.id.chipToday)
         chip7 = findViewById(R.id.chip7)
         chip30 = findViewById(R.id.chip30)
@@ -579,8 +604,16 @@ val mode = selectedMpMode
 
             /* 🆕 V846 — "Due Only" চললে তারিখ দেখা হয় না (বাকি টাকা পুরনো
                দিনেরও হতে পারে); বদলে শুধু যাদের এখনো বাকি আছে তারাই আসে। */
+            /* 🔍🔒 V985 (০২.০৯.২০২৬, TK-নির্দেশ: *"কোন পেশেন্টের কত মেডিসিনের
+               বিল হলো সেটা যেন সার্চ করার অপশন থাকে"*)।
+               **আসল কারণ (কোড ধরে):** খোঁজাটা তারিখ-ছাঁকার **পরে** চলত, আর
+               শুরুতে "Today" বাছা থাকে — তাই পুরনো দিনের রোগী খুঁজলে কিছুই
+               আসত না। এখন কিছু লেখা থাকলে **সব তারিখ** দেখানো হয়।
+               ⛔ কিছু না লিখলে হুবহু আগের আচরণ (Today/7/30/Pick/Statement)। */
             if (dueOnly) {
                 if (netDueOf(r) <= 0.0) continue
+            } else if (q.isNotEmpty()) {
+                // খোঁজার সময় তারিখ ধরা হয় না — সব দিনের বিল একসাথে।
             } else {
                 // তারিখ-ঘর: সঞ্চিত "date" (yyyy-MM-dd) দিয়ে তুলনা (স্ট্রিং তুলনা নিরাপদ)।
                 val d = r.s("date")

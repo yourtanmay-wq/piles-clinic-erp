@@ -626,6 +626,7 @@ com/tkbiswas/pilesclinic/native/MedicinePaymentActivity.kt	unresolved reference:
 com/tkbiswas/pilesclinic/native/MedicinePaymentActivity.kt	unresolved reference: finish
 com/tkbiswas/pilesclinic/native/MedicinePaymentActivity.kt	unresolved reference: getSharedPreferences
 com/tkbiswas/pilesclinic/native/MedicinePaymentActivity.kt	unresolved reference: getSystemService
+com/tkbiswas/pilesclinic/native/MedicinePaymentActivity.kt	unresolved reference: intent
 com/tkbiswas/pilesclinic/native/MedicinePaymentActivity.kt	unresolved reference: layoutInflater
 com/tkbiswas/pilesclinic/native/MedicinePaymentActivity.kt	unresolved reference: material
 com/tkbiswas/pilesclinic/native/MedicinePaymentActivity.kt	unresolved reference: onCreate
@@ -634,7 +635,6 @@ com/tkbiswas/pilesclinic/native/MedicinePaymentActivity.kt	unresolved reference:
 com/tkbiswas/pilesclinic/native/MedicinePaymentActivity.kt	unresolved reference: setContentView
 com/tkbiswas/pilesclinic/native/MedicinePaymentActivity.kt	unresolved reference: setSupportActionBar
 com/tkbiswas/pilesclinic/native/MedicinePaymentActivity.kt	unresolved reference: window
-com/tkbiswas/pilesclinic/native/MoneyHandover.kt	unresolved reference: post
 com/tkbiswas/pilesclinic/native/MoneyHandoverActivity.kt	none of the following functions can be called with the arguments supplied:
 com/tkbiswas/pilesclinic/native/MoneyHandoverActivity.kt	type mismatch: inferred type is MoneyHandoverActivity but Context was expected
 com/tkbiswas/pilesclinic/native/MoneyHandoverActivity.kt	type mismatch: inferred type is MoneyHandoverActivity but Context! was expected

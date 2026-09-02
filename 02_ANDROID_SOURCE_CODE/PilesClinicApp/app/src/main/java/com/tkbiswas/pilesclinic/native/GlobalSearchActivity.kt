@@ -34,6 +34,9 @@ class GlobalSearchActivity : AppCompatActivity() {
     private lateinit var recycler: RecyclerView
     private val results = mutableListOf<SearchHit>()
     private lateinit var adapter: SearchAdapter
+
+    /* 💊 V985 — মোবাইল → মেডিসিনের বাকি (এই পর্দার নিজের ছোট তালিকা)। */
+    private val medDue = HashMap<String, Double>()
     private var searchJob: Job? = null
 
     // 🆔 TK-এর নিয়ম (28.07.2026): নাম ও মোবাইলের সঙ্গে Patient ID-ও দেখাতে হবে।
@@ -78,7 +81,10 @@ class GlobalSearchActivity : AppCompatActivity() {
             onDietChart = { hit -> openClinicalDoc(hit, com.tkbiswas.pilesclinic.clinical.DietChartActivity::class.java) },
             onMarkArrived = { hit -> markArrivedHit(hit) },
             onRemark = { hit -> writeRemarkForHit(hit) },   // 📝 V827
-            onPrint = { hit -> showPrintPicker(hit) }       // 🖨️ V827
+            onPrint = { hit -> showPrintPicker(hit) },      // 🖨️ V827
+            /* 💊 V985 — বাকির অঙ্ক (একবারই আনা, তাই বারবার নেট-কল হয় না)। */
+            dueOf = { mobile -> medDue[mobile.filter { c -> c.isDigit() }.takeLast(10)] ?: 0.0 },
+            onCollectDue = { hit -> openMedicineForDue(hit) }
         )
         recycler.adapter = adapter
 
@@ -294,6 +300,18 @@ class GlobalSearchActivity : AppCompatActivity() {
             results.clear()
             results.addAll(hits)
             adapter.notifyDataSetChanged()
+            /* 💊🔒 V985 — মেডিসিনের বাকি: খোঁজার **সব নম্বর একসাথে**, একটাই
+               ছোট অনুরোধে (মাত্র ৫টা ঘর)। ⛔ ব্যর্থ হলে চুপচাপ কিছুই দেখায় না —
+               কার্ড হুবহু আগের মতোই, কোথাও কিছু আটকায় না। */
+            if (hits.isNotEmpty()) lifecycleScope.launch {
+                val map = withContext(Dispatchers.IO) {
+                    try { MedicineDue.dueByMobile(hits.map { it.mobile }) } catch (_: Throwable) { emptyMap() }
+                }
+                if (map.isNotEmpty()) {
+                    medDue.clear(); medDue.putAll(map)
+                    adapter.notifyDataSetChanged()
+                }
+            }
             tvEmpty.visibility = if (hits.isEmpty()) View.VISIBLE else View.GONE
             if (hits.isEmpty()) tvEmpty.text = "No match found."
         }
@@ -528,6 +546,16 @@ class GlobalSearchActivity : AppCompatActivity() {
      *    কোন পর্দা খুলবে · কী তথ্য যাবে · কে ছাপতে পারবে, কিচ্ছু বদলায়নি।
      * ⛔ ক্রমও আগের মতোই: Prescription → Medicine Slip → Blood Test → Diet Chart।
      */
+    /** 💊 V985 — বাকি নেওয়ার জন্য সোজা Medicine পর্দায়, ওই রোগীর নম্বর বসানো। */
+    private fun openMedicineForDue(hit: SearchHit) {
+        try {
+            startActivity(
+                Intent(this, MedicinePaymentActivity::class.java)
+                    .putExtra("prefill_search", hit.mobile.filter { it.isDigit() }.takeLast(10))
+            )
+        } catch (_: Throwable) { }
+    }
+
     private fun showPrintPicker(hit: SearchHit) {
         val d = resources.displayMetrics.density
         fun px(v: Int) = (v * d).toInt()
@@ -619,7 +647,12 @@ class GlobalSearchActivity : AppCompatActivity() {
            যেন এখান থেকে রিমার্ক লিখতে পারেন। */
         val onRemark: (SearchHit) -> Unit,
         /* 🖨️🔒 V827 — চারটে ছাপার পর্দা এখন একটাই "Print" বোতামের ভিতরে। */
-        val onPrint: (SearchHit) -> Unit
+        val onPrint: (SearchHit) -> Unit,
+        /* 💊🔒 V985 (TK-নির্দেশ: *"মেডিসিন বা স্যালাইনের টাকা বাকি থাকলে তো
+           দেখার কোনো উপায় নেই"*) — মোবাইল ধরে বাকির অঙ্ক; ফাঁকা থাকলে
+           কার্ড হুবহু আগের মতোই দেখায়। */
+        val dueOf: (String) -> Double,
+        val onCollectDue: (SearchHit) -> Unit
     ) : RecyclerView.Adapter<SearchAdapter.VH>() {
         // TK APPROVED (2026-07-15): premium dual-green search result card --
         // navy replaced with green (per TK's request), avatar + name/mobile in
@@ -699,6 +732,11 @@ class GlobalSearchActivity : AppCompatActivity() {
             }
             nameCol.addView(tvName); nameCol.addView(tvMeta); nameCol.addView(tvTag)
             header.addView(nameCol, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            /* 🧭🔒 V985 (TK-নির্দেশ: *"হেডারে চাপ দিলে যেন ভিউ অল পর্দা ওপেন হয়"*)
+               — পুরো সবুজ হেডারে চাপ দিলেই রোগীর সব কিছু (Full Journey)।
+               ⛔ নিচের "Full Journey" বোতামটা আগের মতোই থাকছে — একই পর্দা,
+                  দুটো পথ; কোনো বোতাম সরানো হয়নি। */
+            header.isClickable = true; header.isFocusable = true
             root.addView(header)
 
             val grid = LinearLayout(ctx).apply {
@@ -719,7 +757,11 @@ class GlobalSearchActivity : AppCompatActivity() {
             fun dp(v: Int) = (v * dens).toInt()
 
             holder.avatar.text = if (h.type == "Patient") "🧑‍⚕️" else "📞"
-            holder.tvName.text = h.name.ifBlank { "(no name)" }
+            /* 🩺🔒 V985 (TK-নির্দেশ: *"নামের পাশে কোন রোগের জন্য সে এসেছিল সেটাও
+               লেখা থাকবে"*) — রোগ জানা না থাকলে শুধু নামই বসে, কিছু বদলায় না। */
+            holder.tvName.text = h.name.ifBlank { "(no name)" } +
+                (if (h.disease.isBlank()) "" else "   •   " + h.disease)
+            holder.root.getChildAt(0)?.setOnClickListener { onFullJourney(h) }
             holder.tvMeta.text = PatientIdText.mobileWithId(h.mobile, h.patientId) + " · " + h.branch
             holder.tvTag.text = h.type.uppercase()
 
@@ -788,9 +830,27 @@ class GlobalSearchActivity : AppCompatActivity() {
                   একই `onPrescription/onMedicineSlip/onBloodTest/onDietChart`
                   ডাকা হয়, শুধু এখন একটা তালিকা থেকে বাছতে হয়।
                ⛔ কার্ডটা ছোট হলো, তাই সব বোতাম এক পর্দাতেই ধরে। */
+            /* 💊🔒 V985 (TK-নির্দেশ: *"Print কে ছোট করুন, তার পাশে একই সাইজের
+               বক্স বানিয়ে দিন"*) — Print এখন অর্ধেক, পাশে মেডিসিনের বাকি।
+               বাকি থাকলে লাল ও চাপলে টাকা নেওয়ার বাক্স; না থাকলে ধূসর ও
+               চাপলে কিছুই হয় না। ⛔ Print-এর কাজ এক অক্ষরও বদলায়নি। */
             run {
+                val due = dueOf(h.mobile)
                 val row = newRow()
                 row.addView(actionButton("🖨️", "Print", false) { onPrint(h) })
+                if (due > 0.0) {
+                    val b = actionButton("💊", "Med. Due ₹" + "%,.0f".format(due), false) { onCollectDue(h) }
+                    b.background = android.graphics.drawable.GradientDrawable().apply {
+                        cornerRadius = dp(12).toFloat()
+                        setColor(android.graphics.Color.parseColor("#B42318"))
+                    }
+                    (b.getChildAt(1) as? TextView)?.setTextColor(android.graphics.Color.WHITE)
+                    row.addView(b)
+                } else {
+                    val b = actionButton("💊", "No med. due", false) { }
+                    (b.getChildAt(1) as? TextView)?.setTextColor(android.graphics.Color.parseColor("#8B98A9"))
+                    row.addView(b)
+                }
                 holder.grid.addView(row)
             }
             /* 📝🔒 V827 (২৯.০৮.২০২৬, TK-নির্দেশ: *"Remarks & Mark Arrived
