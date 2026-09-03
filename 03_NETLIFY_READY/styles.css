@@ -7623,3 +7623,211 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
   body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form .wlv1ChipRow{gap:6px;margin:0 0 3px}
   body.hasDeskNav .wrap:not(.publicWrap) .page:has(.regForm.wlv1Form){padding-bottom:4px!important}
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   🧾 V1023 — কম্পিউটারে Patient Registration, TK-এর পাঠানো নকশার ছবি ধরে।
+   ⛔ শুধু ≥1200px; ফোনে একটুও পড়ে না।
+   ═══════════════════════════════════════════════════════════════════ */
+@media (min-width:1200px){
+  body.hasDeskNav .wrap:not(.publicWrap) .page:has(.rdMain){
+    max-width:100%!important;padding:0 96px 10px!important;background:#F7F9FB}
+  /* উপরের শিরোনাম */
+  body.hasDeskNav .wrap:not(.publicWrap) .rdTop{padding:14px 0 10px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdCrumb{
+    font-size:11.5px;color:#6B7A8D;letter-spacing:.2px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdCrumb:first-line{color:#0B7A34}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdTitle{
+    margin:4px 0 0;font-size:25px;font-weight:800;color:#10223A;letter-spacing:-.2px}
+  /* ধাপ-বার */
+  body.hasDeskNav .wrap:not(.publicWrap) .rdSteps{
+    display:flex;align-items:center;gap:14px;padding:6px 0 16px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdStep{
+    display:flex;align-items:center;gap:10px;font-size:13px;font-weight:700;color:#98A5B5}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdStep>span{
+    width:30px;height:30px;border-radius:50%;display:grid;place-items:center;
+    background:#fff;border:2px solid #DCE5EF;color:#98A5B5;font-size:13px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdStep.on{color:#10223A}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdStep.on>span{
+    background:#0B7A34;border-color:#0B7A34;color:#fff}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdSteps>i{
+    flex:1 1 auto;height:2px;background:#DCE5EF;border-radius:2px}
+
+  /* বাঁয়ে বড় কার্ড, ডানে পাশ-কার্ড */
+  body.hasDeskNav .wrap:not(.publicWrap) .rdBody{
+    display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;align-items:start}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.rdMain{
+    margin:0;padding:18px 20px 20px;border-radius:14px;background:#fff;
+    border:1px solid #E7EEF6;box-shadow:0 1px 2px rgba(16,34,58,.04)}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdSide{display:flex;flex-direction:column;gap:14px}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.rdSideCard{
+    margin:0;padding:16px;border-radius:14px;background:#fff;
+    border:1px solid #E7EEF6;box-shadow:0 1px 2px rgba(16,34,58,.04)}
+
+  /* ভাগের শিরোনাম */
+  body.hasDeskNav .wrap:not(.publicWrap) .rdSecHead{
+    display:flex;align-items:center;gap:9px;margin:18px 0 12px;
+    font-size:15px;font-weight:700;color:#0B7A34}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdSecHead:first-of-type{margin-top:2px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdIco{font-size:16px}
+
+  /* ঘর */
+  body.hasDeskNav .wrap:not(.publicWrap) .rdGrid3{
+    display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 16px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdSpan2{grid-column:span 2}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdMain label,
+  body.hasDeskNav .wrap:not(.publicWrap) .rdSideCard label{
+    display:block;margin:0 0 5px;font-size:12px;font-weight:600;color:#41556B}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdMain label em{
+    font-style:normal;font-weight:400;color:#8A97AB}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdStar{color:#D92D20}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdMain .input,
+  body.hasDeskNav .wrap:not(.publicWrap) .rdMain select,
+  body.hasDeskNav .wrap:not(.publicWrap) .rdMain textarea,
+  body.hasDeskNav .wrap:not(.publicWrap) .rdSideCard .input{
+    min-height:40px!important;height:40px!important;padding:8px 12px!important;
+    font-size:13px!important;margin:0!important;border:1px solid #DDE5EE!important;
+    border-radius:8px!important;background:#fff!important;box-shadow:none!important;color:#10223A}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdMain textarea{height:56px!important;min-height:56px!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdMain .input:focus,
+  body.hasDeskNav .wrap:not(.publicWrap) .rdMain select:focus,
+  body.hasDeskNav .wrap:not(.publicWrap) .rdMain textarea:focus{
+    border-color:#0B7A34!important;box-shadow:0 0 0 3px rgba(11,122,52,.10)!important;outline:none}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdF{min-width:0;margin-bottom:12px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdGrid3>.rdF{margin-bottom:0}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdMain .wlv1DateBox.input{display:flex;align-items:center}
+
+  /* লেবেল পাশে, চিপ পাশে (ছবির মতো এক লাইনে) */
+  body.hasDeskNav .wrap:not(.publicWrap) .rdInline{
+    display:flex;align-items:flex-start;gap:14px;margin-bottom:12px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdInline>label{
+    flex:0 0 210px;margin:9px 0 0;text-align:left}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdChips{display:flex;flex-wrap:wrap;gap:8px;margin:0}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdChip{
+    display:inline-flex;align-items:center;background:#fff!important;color:#41556B!important;
+    border:1px solid #DDE5EE!important;border-radius:8px!important;
+    font-size:11px!important;font-weight:700;padding:8px 13px!important;margin:0!important;
+    letter-spacing:.3px;cursor:pointer;text-transform:uppercase}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdChip input{display:none}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdChip.on{
+    background:#EAF7EF!important;color:#0B5B2F!important;border-color:#0B7A34!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdDur{display:flex;gap:10px;max-width:330px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdDur .input:first-child{flex:1 1 auto}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdDur select{flex:0 0 110px}
+
+  /* MALE / FEMALE / OTHER ও CASH / ONLINE — ছবির segmented চেহারা */
+  body.hasDeskNav .wrap:not(.publicWrap) .rdSeg{
+    display:inline-flex;gap:0;border:1px solid #DDE5EE;border-radius:9px;overflow:hidden;margin:0}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdSeg>.wlv1Pick{
+    min-height:40px!important;height:40px!important;padding:0 20px!important;margin:0!important;
+    font-size:12px!important;font-weight:700;letter-spacing:.4px;border-radius:0!important;
+    background:#fff!important;color:#41556B!important;border:0!important;
+    border-right:1px solid #DDE5EE!important;box-shadow:none!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdSeg>.wlv1Pick:last-child{border-right:0!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdSeg>.wlv1Pick.on{
+    background:#0B7A34!important;color:#fff!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdGender{margin-top:14px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdRefBy select{max-width:300px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdMain>.regTopBranch{display:none}
+
+  /* ডান পাশের কার্ড */
+  body.hasDeskNav .wrap:not(.publicWrap) .rdSideHead{
+    font-size:15px;font-weight:800;color:#10223A;margin-bottom:14px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdNP{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdNPBadge{
+    width:52px;height:52px;border-radius:50%;background:#DCF1E4;color:#0B5B2F;
+    display:grid;place-items:center;font-size:17px;font-weight:800}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdNP b{display:block;font-size:14.5px;color:#10223A}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdNP span{font-size:12px;color:#8A97AB}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdCheck{
+    display:flex;align-items:center;gap:11px;font-size:13px;color:#6B7A8D;padding:6px 0}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdCheck>i{
+    width:17px;height:17px;border-radius:50%;border:2px solid #DCE5EF;flex:0 0 auto}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdCheck.on{color:#0B5B2F;font-weight:700}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdCheck.on>i{
+    background:#0B7A34;border-color:#0B7A34;position:relative}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdCheck.on>i:after{
+    content:"";position:absolute;left:4px;top:1px;width:5px;height:9px;
+    border:2px solid #fff;border-top:0;border-left:0;transform:rotate(40deg)}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdFee{
+    display:flex;align-items:center;border:1px solid #DDE5EE;border-radius:8px;overflow:hidden}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdFee>span{
+    flex:0 0 38px;text-align:center;font-size:13px;color:#6B7A8D;
+    border-right:1px solid #DDE5EE;line-height:38px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdFee>.input{border:0!important;border-radius:0!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdSideCard .rdSeg{width:100%;margin-top:12px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdSideCard .rdSeg>.wlv1Pick{flex:1 1 0;padding:0!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdProofLbl{
+    margin:16px 0 8px;font-size:11.5px;color:#8A97AB;font-weight:600}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdSideCard .regPhotoChoice{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:0}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdSideCard .regPhotoChoice>button{
+    min-height:42px!important;height:42px!important;font-size:11.5px!important;
+    border-radius:9px!important;margin:0!important;background:#fff!important;
+    color:#41556B!important;border:1px solid #DDE5EE!important;box-shadow:none!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdSave{
+    width:100%;margin:16px 0 0!important;height:48px!important;border-radius:10px!important;
+    font-size:14px!important;font-weight:800}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdSecure{
+    margin-top:12px;text-align:center;font-size:11px;color:#8A97AB;font-style:italic}
+}
+
+@media (min-width:1200px){
+  /* 🧾 V1023 — ছবির মতো সবুজ Save বোতাম, আর সবটা এক পর্দায় আনার জন্য
+     ফাঁকগুলো একটু ঘন (ছবির অনুপাত রেখেই)। */
+  body.hasDeskNav .wrap:not(.publicWrap) .rdSave{
+    background:linear-gradient(135deg,#0B7A34,#0A6A2D)!important;color:#fff!important;
+    border:0!important;height:44px!important;margin-top:14px!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdTop{padding:10px 0 6px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdTitle{font-size:22px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdSteps{padding:4px 0 10px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdStep>span{width:26px;height:26px;font-size:12px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdStep{font-size:12px}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.rdMain{padding:14px 16px 14px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdSecHead{margin:13px 0 9px;font-size:14px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdGrid3{gap:8px 14px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdMain label,
+  body.hasDeskNav .wrap:not(.publicWrap) .rdSideCard label{margin:0 0 4px;font-size:11.5px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdMain .input,
+  body.hasDeskNav .wrap:not(.publicWrap) .rdMain select,
+  body.hasDeskNav .wrap:not(.publicWrap) .rdSideCard .input{
+    min-height:36px!important;height:36px!important;padding:7px 11px!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdMain textarea{height:46px!important;min-height:46px!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdF{margin-bottom:9px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdInline{gap:12px;margin-bottom:9px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdInline>label{flex:0 0 196px;margin:8px 0 0}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdChip{font-size:10.5px!important;padding:6px 11px!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdChips{gap:6px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdSeg>.wlv1Pick{
+    min-height:36px!important;height:36px!important;padding:0 18px!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdGender{margin-top:10px}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.rdSideCard{padding:14px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdSideHead{font-size:14px;margin-bottom:11px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdNP{margin-bottom:12px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdNPBadge{width:44px;height:44px;font-size:15px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdCheck{padding:5px 0;font-size:12.5px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdFee>span{line-height:34px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdProofLbl{margin:12px 0 7px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdSideCard .regPhotoChoice>button{
+    min-height:38px!important;height:38px!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdSecure{margin-top:9px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdSide{gap:12px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdBody{gap:14px}
+}
+
+@media (min-width:1200px){
+  /* 🧾 V1023 — আরও ঘন, যাতে স্ক্রল যতটা সম্ভব কম হয় */
+  body.hasDeskNav .wrap:not(.publicWrap) .rdMain .input,
+  body.hasDeskNav .wrap:not(.publicWrap) .rdMain select,
+  body.hasDeskNav .wrap:not(.publicWrap) .rdSideCard .input{
+    min-height:34px!important;height:34px!important;padding:6px 11px!important;font-size:12.5px!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdMain textarea{height:40px!important;min-height:40px!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdSecHead{margin:11px 0 8px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdGrid3{gap:7px 14px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdF{margin-bottom:8px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdInline{margin-bottom:8px}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdInline>label{flex:0 0 178px;margin:7px 0 0}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdChip{padding:5px 10px!important;font-size:10px!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdSeg>.wlv1Pick{
+    min-height:34px!important;height:34px!important;padding:0 16px!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .rdGender{margin-top:8px}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.rdMain{padding:12px 14px}
+}

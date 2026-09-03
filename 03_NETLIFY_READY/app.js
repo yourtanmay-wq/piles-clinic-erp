@@ -8932,7 +8932,157 @@ function wlv1BranchLock(id){
   el.addEventListener('change',function(){ open=false; taps=0; });
 }
 window["wlv1BranchLock"]=wlv1BranchLock;
-function registration(pref={}){let wlv1OwnBr=(user&&(user.role==='staff'||user.role==='doctor'));let br=pref.branch||(wlv1OwnBr?user.branch:'');let addr=pref.address||'';page('Patient Registration',`<div class="regForm premiumReg wlv1Form"><div class="regTopBranch"><select id="pBranch" class="input">${(br==='All'||!br)?('<option value="" hidden>Select Branch</option>'+branchOptions('')):branchOptions(br)}</select></div><input id="pSourceFollowId" type="hidden" value="${esc(pref.id||'')}"><input id="pSourceRefId" type="hidden" value="${esc(pref.refId||'')}"><input id="pAddr" type="hidden" value="${esc(addr)}"><div class="regSection"><label>Mobile <b class="wlv1Star">*</b></label><input id="pMob" class="input" value="${esc(pref.mobile||'')}" inputmode="tel" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" placeholder="Enter mobile number" onblur="regMobileDupCheck(this.value)"><span id="pMobPrefix" class="mobPrefixBadge hidden">+91</span><div id="pMobDupBox"></div><input id="pEnqOrigin" type="hidden" value="${esc(pref.mobile||'')}"><!-- 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬) — ফোনের ফর্মে ক্রম: মোবাইল → First
+/* 🧾🔒 V1023 (TK-নির্দেশ ০৩.০৯.২০২৬, তাঁর পাঠানো নকশার ছবি ধরে) —
+   চওড়া কম্পিউটার-পর্দায় Patient Registration-এর নতুন সাজ: বাঁয়ে বড় সাদা
+   কার্ডে চারটে ভাগ (Personal Information · Location & Address · Clinical
+   Information · Treatment Background), ডানে Registration Summary ও
+   Registration Fee-র পাশ-কার্ড। উপরে ধাপ-দেখানো বার।
+   ⛔ **প্রতিটা ঘরের `id` হুবহু আগেরটাই** (pMob · pName · pVill · regFee …),
+      টিক-বাক্সের `name` (diag · symp · medHist) ও `onclick` এক অক্ষরও
+      বদলায়নি — তাই `savePatient()` আগের মতোই কাজ করে।
+   ⛔ ফোনে এই ফাংশনটা ডাকাই হয় না; সেখানে আগের ফর্মই অক্ষত।
+   ⚠️ সততার সাথে দুটো ব্যতিক্রম TK-কে জানানো হয়েছে:
+      (১) ছবির "Save as Draft" অ্যাপে নেই, তাই বসানো হয়নি;
+      (২) Previous Medication/Doctor/Operation/Ayurvedic — ছবিতে লেখার ঘর,
+          অ্যাপে টিক-বাক্স (ওভাবেই সেভ হয়), তাই টিক-বাক্সই রাখা হলো। */
+function registrationDesk(pref){
+ pref=pref||{};
+ var wlv1OwnBr=(user&&(user.role==='staff'||user.role==='doctor'));
+ var br=pref.branch||(wlv1OwnBr?user.branch:'');
+ var addr=pref.address||'';
+ var lbl=function(t,req){return '<label>'+t+(req?' <b class="rdStar">*</b>':'')+'</label>'};
+ var chip=function(nm,v,txt){return '<label class="rdChip"><input type="checkbox" name="'+nm+'" value="'+esc(v)+'" onchange="this.parentNode.classList.toggle(\'on\',this.checked);rdSummary()"><span>'+esc(txt)+'</span></label>'};
+ var body=''
+ +'<div class="rdTop">'
+   +'<div class="rdCrumb">Patients / New Registration</div>'
+   +'<h1 class="rdTitle">New Patient Registration</h1>'
+ +'</div>'
+ +'<div class="rdSteps"><div class="rdStep on" id="rdStep1"><span>1</span>Personal Details</div>'
+   +'<i></i><div class="rdStep" id="rdStep2"><span>2</span>Clinical Details</div>'
+   +'<i></i><div class="rdStep" id="rdStep3"><span>3</span>Fee &amp; Confirm</div></div>'
+ +'<div class="rdBody">'
+ +'<div class="card rdMain">'
+   +'<div class="regTopBranch"><select id="pBranch" class="input">'+((br==='All'||!br)?('<option value="" hidden>Select Branch</option>'+branchOptions('')):branchOptions(br))+'</select></div>'
+   +'<input id="pSourceFollowId" type="hidden" value="'+esc(pref.id||'')+'">'
+   +'<input id="pSourceRefId" type="hidden" value="'+esc(pref.refId||'')+'">'
+   +'<input id="pAddr" type="hidden" value="'+esc(addr)+'">'
+   +'<input id="pEnqOrigin" type="hidden" value="'+esc(pref.mobile||'')+'">'
+   +'<input id="pRegTiming" type="hidden" value="'+(pref.timeType==='Unexpected Time'?'Unexpected Time':'Official Time')+'">'
+
+   +'<div class="rdSecHead"><span class="rdIco">👤</span>Personal Information</div>'
+   +'<div class="rdGrid3">'
+     +'<div class="rdF">'+lbl('Mobile No.',1)+'<input id="pMob" class="input" value="'+esc(pref.mobile||'')+'" inputmode="tel" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" placeholder="Enter mobile number" onblur="regMobileDupCheck(this.value)" oninput="rdSummary()"><span id="pMobPrefix" class="mobPrefixBadge hidden">+91</span><div id="pMobDupBox"></div></div>'
+     +'<div class="rdF">'+lbl('Alternate No.',0)+'<input id="pAltMob" class="input" value="" inputmode="tel" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" placeholder="Enter alternate number" onblur="regAltMobileDupCheck(this.value)"><div id="pAltMobDupBox"></div></div>'
+     +'<div class="rdF">'+lbl('First Visit Date',1)+'<div class="wlv1DateBox input"><span id="pDateShow">'+wlv1Dot(today())+'</span><input id="pDate" type="date" value="'+today()+'" max="'+today()+'" oninput="wlv1ShowDate(\'pDate\',\'pDateShow\')"></div></div>'
+     +'<div class="rdF">'+lbl('Patient Name',1)+'<input id="pName" class="input" value="'+esc(pref.name||'')+'" placeholder="Enter patient name" oninput="wlv1Caps(this);rdSummary()"></div>'
+     +'<div class="rdF">'+lbl('Occupation',0)+'<select id="pOcc" class="input"><option value="" hidden>Enter occupation</option><option>Farmer</option><option>Housewife</option><option>Business</option><option>Service</option><option>Student</option><option>Labour</option><option>Retired</option><option>Others</option></select></div>'
+     +'<div class="rdF">'+lbl('Age',1)+'<input id="pAge" class="input" inputmode="numeric" maxlength="3" placeholder="Enter age" oninput="rdSummary()"></div>'
+   +'</div>'
+   +'<div class="rdF rdGender">'+lbl('Gender',1)
+     +'<div class="wlv1PickRow rdSeg" data-wlv1group="sex">'
+       +'<button type="button" class="wlv1Pick on" data-val="Male" onclick="wlv1PickOne(\'sex\',\'Male\',\'pSex\')">MALE</button>'
+       +'<button type="button" class="wlv1Pick" data-val="Female" onclick="wlv1PickOne(\'sex\',\'Female\',\'pSex\')">FEMALE</button>'
+       +'<button type="button" class="wlv1Pick" data-val="Other" onclick="wlv1PickOne(\'sex\',\'Other\',\'pSex\')">OTHER</button>'
+     +'</div><input id="pSex" type="hidden" value="Male"></div>'
+
+   +'<div class="rdSecHead"><span class="rdIco">📍</span>Location &amp; Address</div>'
+   +'<div class="rdGrid3">'
+     +'<div class="rdF">'+lbl('Village',0)+'<input id="pVill" class="input" placeholder="Enter village" oninput="wlv1Caps(this)"></div>'
+     +'<div class="rdF">'+lbl('District',0)+'<input id="pDist" class="input" placeholder="Enter district" oninput="wlv1Caps(this)"></div>'
+     +'<div class="rdF">'+lbl('PO',0)+'<input id="pPO" class="input" placeholder="Enter PO" oninput="wlv1Caps(this)"></div>'
+     +'<div class="rdF">'+lbl('Pin Code',0)+'<input id="pPin" class="input" inputmode="numeric" maxlength="6" placeholder="Enter pin code"></div>'
+     +'<div class="rdF rdSpan2">'+lbl('PS',0)+'<input id="pPS" class="input" placeholder="Enter PS" oninput="wlv1Caps(this)"></div>'
+   +'</div>'
+
+   +'<div class="rdSecHead"><span class="rdIco">🩺</span>Clinical Information</div>'
+   +'<div class="rdInline">'+lbl('Disease <em>(Select all that apply)</em>',1)
+     +'<div class="wlv1ChipRow rdChips">'
+       +chip('diag','Piles','PILES')+chip('diag','Fissure','FISSURE')+chip('diag','Fistula','FISTULA')
+       +chip('diag','Hydrocele','HYDROCELE')+chip('diag','Gupt Rog','GUPT ROG')+chip('diag','Other','OTHER')
+     +'</div></div>'
+   +'<div class="rdInline">'+lbl('Symptoms <em>(Select all that apply)</em>',1)
+     +'<div class="wlv1ChipRow rdChips">'
+       +chip('symp','Pain','PAIN')+chip('symp','Itching','ITCHING')+chip('symp','Burning','BURNING')
+       +chip('symp','Bleeding','BLEEDING')+chip('symp','Pus Discharge','PUS DISCHARGE')
+       +chip('symp','Fluid Discharge','FLUID DISCHARGE')+chip('symp','Prolapsed Lump','MASSA BARA HUA')
+     +'</div></div>'
+   +'<div class="rdInline">'+lbl('Duration of Problem',1)
+     +'<div class="rdDur"><input id="pDuration" class="input" inputmode="numeric" placeholder="Enter number">'
+       +'<select id="pDurationUnit" class="input"><option>Days</option><option>Months</option><option>Years</option></select></div></div>'
+   +'<div class="rdF">'+lbl('Patient\'s own words (optional)',0)
+     +'<textarea id="pComp" class="input" placeholder="পেশেন্ট এসে আরো কি কি সমস্যার কথা বললেন" oninput="wlv1Caps(this)"></textarea></div>'
+
+   +'<div class="rdSecHead"><span class="rdIco">🩻</span>Treatment Background</div>'
+   +'<div class="rdInline">'+lbl('Previous Treatment <em>(tick what applies)</em>',0)
+     +'<div class="wlv1ChipRow rdChips">'
+       +chip('medHist','Previous Medication','PREVIOUS MEDICATION')
+       +chip('medHist','Previous Medical Treatment','PREVIOUS DOCTOR TREATMENT')
+       +chip('medHist','Previous Surgical History','PREVIOUS OPERATION HISTORY')
+       +chip('medHist','Previous Ayurvedic/Herbal Treatment','PREVIOUS AYURVEDIC/HERBAL TREATMENT')
+     +'</div></div>'
+   +'<div class="rdF">'+lbl('Other Treatment History',0)
+     +'<textarea id="pPrevTreatment" class="input" placeholder="Enter other treatment history" oninput="wlv1Caps(this)"></textarea></div>'
+   +'<div class="rdF rdRefBy">'+lbl('Referred By',1)
+     +'<select id="pRef" class="input" onchange="wlv1RefByChanged()"><option>Self</option><option>Online</option><option>Offline</option><option>Dr. Visit</option><option>Old Patient</option><option>Others</option></select>'
+     +'<div id="llRefDoctor" class="hidden">'+lbl('Doctor / RMP Name',0)+'<input id="pRefDocName" class="input" placeholder="Doctor / RMP name" autocomplete="off" oninput="wlv1Caps(this);wlv1RmpSuggest(this.value)"><div id="wlv1RmpSug" class="wlv1RmpSug hidden"></div>'+lbl('Doctor Mobile',0)+'<input id="pRefDocMobile" class="input" inputmode="tel" maxlength="10" placeholder="Doctor mobile" autocomplete="off" oninput="wlv1RmpSuggest(this.value)"></div>'
+   +'</div>'
+ +'</div>'
+
+ +'<div class="rdSide">'
+   +'<div class="card rdSideCard">'
+     +'<div class="rdSideHead">Registration Summary</div>'
+     +'<div class="rdNP"><div class="rdNPBadge" id="rdNPBadge">NP</div><div><b id="rdNPName">New Patient</b><span id="rdNPSub">Not saved yet</span></div></div>'
+     +'<div class="rdCheck" id="rdChk1"><i></i>Personal details</div>'
+     +'<div class="rdCheck" id="rdChk2"><i></i>Clinical details</div>'
+     +'<div class="rdCheck" id="rdChk3"><i></i>Fee details</div>'
+   +'</div>'
+   +'<div class="card rdSideCard">'
+     +'<div class="rdSideHead">Registration Fee</div>'
+     +lbl('Fee Amount',1)
+     +'<div class="rdFee"><span>₹</span><input id="regFee" class="input" inputmode="numeric" placeholder="Enter amount" oninput="rdSummary()"></div>'
+     +'<div class="wlv1PickRow wlv1Pick2 rdSeg" data-wlv1group="paymode">'
+       +'<button type="button" class="wlv1Pick on" data-val="CASH" onclick="wlv1PickOne(\'paymode\',\'CASH\',\'regMode\')">CASH</button>'
+       +'<button type="button" class="wlv1Pick" data-val="ONLINE" onclick="wlv1PickOne(\'paymode\',\'ONLINE\',\'regMode\')">ONLINE</button>'
+     +'</div><input id="regMode" type="hidden" value="CASH">'
+     +'<div class="rdProofLbl">Upload Payment Proof (Optional)</div>'
+     +(pref.photo?'<img class="patientPhoto" src="'+pref.photo+'">':'')
+     +patientPhotoInputs('pPhoto')
+     +'<button class="fullSave rdSave" onclick="savePatient(event)">💾  Save Registration</button>'
+     +'<div class="rdSecure">🔒 Patient information is securely stored.</div>'
+   +'</div>'
+ +'</div>'
+ +'</div>';
+ page('Patient Registration', body, true);
+ try{ wlv1RegBranchToHeader() }catch(e){}
+ setTimeout(function(){try{wlv1BranchLock('pBranch')}catch(e){}try{wlv1PhTint('pBranch');wlv1PhTint('pOcc')}catch(e){}try{rdSummary()}catch(e){}},0);
+}
+window["registrationDesk"]=registrationDesk;
+
+/* 🧾 V1023 — ডান পাশের Summary-র তিনটে টিক ও ধাপ-বার নিজে নিজে ভরে ওঠে,
+   যা সত্যিই লেখা হয়েছে তার উপর ভিত্তি করে। ⛔ কোনো তথ্য বদলায় না, শুধু দেখায়। */
+function rdSummary(){
+ try{
+  var v=function(id){var e=document.getElementById(id);return e?String(e.value||'').trim():''};
+  var anyCk=function(nm){return !!document.querySelector('input[name="'+nm+'"]:checked')};
+  var p1=!!(v('pMob')&&v('pName')&&v('pAge'));
+  var p2=anyCk('diag')&&anyCk('symp');
+  var p3=Number(String(v('regFee')).replace(/[^0-9]/g,''))>0;
+  var mark=function(id,on){var e=document.getElementById(id);if(e)e.classList.toggle('on',!!on)};
+  mark('rdChk1',p1); mark('rdChk2',p2); mark('rdChk3',p3);
+  mark('rdStep1',true); mark('rdStep2',p1); mark('rdStep3',p1&&p2);
+  var nm=document.getElementById('rdNPName'), sub=document.getElementById('rdNPSub'), bd=document.getElementById('rdNPBadge');
+  var name=v('pName');
+  if(nm)nm.textContent=name?name:'New Patient';
+  if(sub)sub.textContent='Not saved yet';
+  if(bd)bd.textContent=name?name.trim().charAt(0).toUpperCase()+(name.trim().split(/\s+/)[1]||' ').charAt(0).toUpperCase():'NP';
+ }catch(e){}
+}
+window["rdSummary"]=rdSummary;
+
+function registration(pref={}){
+ /* 🧾 V1023 — চওড়া কম্পিউটার-পর্দায় নতুন সাজ; ফোনে আগের ফর্মই। */
+ if(typeof wlv1DeskWide==='function' && wlv1DeskWide()){ return registrationDesk(pref) }
+ let wlv1OwnBr=(user&&(user.role==='staff'||user.role==='doctor'));let br=pref.branch||(wlv1OwnBr?user.branch:'');let addr=pref.address||'';page('Patient Registration',`<div class="regForm premiumReg wlv1Form"><div class="regTopBranch"><select id="pBranch" class="input">${(br==='All'||!br)?('<option value="" hidden>Select Branch</option>'+branchOptions('')):branchOptions(br)}</select></div><input id="pSourceFollowId" type="hidden" value="${esc(pref.id||'')}"><input id="pSourceRefId" type="hidden" value="${esc(pref.refId||'')}"><input id="pAddr" type="hidden" value="${esc(addr)}"><div class="regSection"><label>Mobile <b class="wlv1Star">*</b></label><input id="pMob" class="input" value="${esc(pref.mobile||'')}" inputmode="tel" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" placeholder="Enter mobile number" onblur="regMobileDupCheck(this.value)"><span id="pMobPrefix" class="mobPrefixBadge hidden">+91</span><div id="pMobDupBox"></div><input id="pEnqOrigin" type="hidden" value="${esc(pref.mobile||'')}"><!-- 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬) — ফোনের ফর্মে ক্রম: মোবাইল → First
      Visit Date → Alternate/Enquiry Mobile → রোগীর নাম
      (res/layout/activity_registration.xml:60-73)। ওয়েবে দুটো উল্টো ছিল।
      ⛔ ঘরের নাম (id) ও সেভের নিয়ম একটুও বদলায়নি। --><label>First Visit Date</label><div class="wlv1DateBox input"><span id="pDateShow">${wlv1Dot(today())}</span><input id="pDate" type="date" value="${today()}" max="${today()}" oninput="wlv1ShowDate('pDate','pDateShow')"></div><label>Alternate / Enquiry Mobile</label><input id="pAltMob" class="input" value="" inputmode="tel" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" onblur="regAltMobileDupCheck(this.value)"><div id="pAltMobDupBox"></div><label>Patient Name <b class="wlv1Star">*</b></label><input id="pName" class="input" value="${esc(pref.name||'')}" placeholder="Patient name" oninput="wlv1Caps(this)"><div class="regTwo"><div><label>Occupation</label><select id="pOcc" class="input"><option value="" hidden>Choose Occupation</option><option>Farmer</option><option>Housewife</option><option>Business</option><option>Service</option><option>Student</option><option>Labour</option><option>Retired</option><option>Others</option></select></div><div><label>Age</label><input id="pAge" class="input" inputmode="numeric" maxlength="3" placeholder="Age"></div></div><div class="wlv1PickRow wlv1TopGap" data-wlv1group="sex"><button type="button" class="wlv1Pick on" data-val="Male" onclick="wlv1PickOne('sex','Male','pSex')">Male</button><button type="button" class="wlv1Pick" data-val="Female" onclick="wlv1PickOne('sex','Female','pSex')">Female</button><button type="button" class="wlv1Pick" data-val="Other" onclick="wlv1PickOne('sex','Other','pSex')">Other</button></div><input id="pSex" type="hidden" value="Male"></div><div class="regSection"><div class="regSecHead">Address</div><label>Village</label><input id="pVill" class="input" oninput="wlv1Caps(this)"><label>PO</label><input id="pPO" class="input" oninput="wlv1Caps(this)"><label>PS</label><input id="pPS" class="input" oninput="wlv1Caps(this)"><label>District</label><input id="pDist" class="input" oninput="wlv1Caps(this)"><label>PIN Code</label><input id="pPin" class="input" inputmode="numeric" maxlength="6"></div><div class="regSection"><div class="regSecHead">Disease</div><div class="wlv1ChipRow"><label class="wlv1Chip2"><input type="checkbox" name="diag" value="Piles" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Piles</span></label><label class="wlv1Chip2"><input type="checkbox" name="diag" value="Fissure" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Fissure</span></label><label class="wlv1Chip2"><input type="checkbox" name="diag" value="Fistula" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Fistula</span></label><label class="wlv1Chip2"><input type="checkbox" name="diag" value="Hydrocele" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Hydrocele</span></label><label class="wlv1Chip2"><input type="checkbox" name="diag" value="Gupt Rog" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Gupt Rog</span></label><label class="wlv1Chip2"><input type="checkbox" name="diag" value="Other" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Other</span></label></div></div><div class="regSection"><div class="regSecHead">Symptoms</div><div class="wlv1ChipRow"><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Pain" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Pain</span></label><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Itching" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Itching</span></label><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Burning" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Burning</span></label><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Bleeding" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Bleeding</span></label><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Pus Discharge" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Pus Discharge</span></label><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Fluid Discharge" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Fluid Discharge</span></label><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Prolapsed Lump" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Massa Bara Hua</span></label></div><textarea id="pComp" class="input wlv1TopGap" placeholder="পেশেন্ট এসে আরো কি কি সমস্যার কথা বললেন" oninput="wlv1Caps(this)"></textarea><label>Duration of Problem</label><div class="regTwo"><input id="pDuration" class="input" inputmode="numeric"><select id="pDurationUnit" class="input"><option>Days</option><option>Months</option><option>Years</option></select></div></div><div class="regSection"><div class="regSecHead">Previous Treatment History</div><div class="wlv1ChipRow"><label class="wlv1Chip2"><input type="checkbox" name="medHist" value="Previous Medication" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Previous Medication</span></label><label class="wlv1Chip2"><input type="checkbox" name="medHist" value="Previous Medical Treatment" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Previous Doctor Treatment</span></label><label class="wlv1Chip2"><input type="checkbox" name="medHist" value="Previous Surgical History" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Previous Operation History</span></label><label class="wlv1Chip2"><input type="checkbox" name="medHist" value="Previous Ayurvedic/Herbal Treatment" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Previous Ayurvedic/Herbal Treatment</span></label></div><label>Other Treatment History (Optional)</label><textarea id="pPrevTreatment" class="input" placeholder="Write any other previous treatment" oninput="wlv1Caps(this)"></textarea></div><div class="regSection"><label>Referred By</label><select id="pRef" class="input" onchange="wlv1RefByChanged()"><option>Self</option><option>Online</option><option>Offline</option><option>Dr. Visit</option><option>Old Patient</option><option>Others</option></select><div id="llRefDoctor" class="hidden"><label>Doctor / RMP Name</label><input id="pRefDocName" class="input" placeholder="Doctor / RMP name" autocomplete="off" oninput="wlv1Caps(this);wlv1RmpSuggest(this.value)"><div id="wlv1RmpSug" class="wlv1RmpSug hidden"></div><label>Doctor Mobile</label><input id="pRefDocMobile" class="input" inputmode="tel" maxlength="10" placeholder="Doctor mobile" autocomplete="off" oninput="wlv1RmpSuggest(this.value)"></div><input id="pRegTiming" type="hidden" value="${pref.timeType==='Unexpected Time'?'Unexpected Time':'Official Time'}"></div><div class="regSection"><label>Fee Amount <b class="wlv1Star">*</b></label><input id="regFee" class="input" inputmode="numeric" placeholder="Enter Registration Fee"><div class="wlv1PickRow wlv1Pick2 wlv1TopGap" data-wlv1group="paymode"><button type="button" class="wlv1Pick on" data-val="CASH" onclick="wlv1PickOne('paymode','CASH','regMode')">CASH</button><button type="button" class="wlv1Pick" data-val="ONLINE" onclick="wlv1PickOne('paymode','ONLINE','regMode')">ONLINE</button></div><input id="regMode" type="hidden" value="CASH">${pref.photo?`<img class="patientPhoto" src="${pref.photo}">`:''}${patientPhotoInputs('pPhoto')}</div><button class="fullSave" onclick="savePatient(event)">✓  Save Patient</button></div>`,wlv1DeskWide());try{wlv1RegBranchToHeader()}catch(e){}setTimeout(function(){try{wlv1BranchLock('pBranch')}catch(e){}try{wlv1PhTint('pBranch');wlv1PhTint('pOcc')}catch(e){}},0)}
