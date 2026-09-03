@@ -7380,3 +7380,79 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
     grid-template-columns:minmax(268px,1fr) 130px 130px 130px 18px 444px!important}
   body.hasDeskNav .wrap:not(.publicWrap) .card.payCard>.row>div:first-child .mut{font-size:12px}
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   💊 V1021 — কম্পিউটারে **Medicine or Saline**। TK: *"এটা তো ডেস্কটপের
+   সম্পূর্ণ ডিসপ্লে হয়ে গেল, আরেকটু ছোট করুন যাতে একই ডিসপ্লেতে সমস্ত
+   কিছু দেখা যায়"*। ফর্মটা বাঁয়ে ছোট করে, ইতিহাস ডানে পাশাপাশি।
+   ⛔ শুধু ≥1200px কম্পিউটার-পর্দায়; ফোনে একটুও পড়ে না।
+   ═══════════════════════════════════════════════════════════════════ */
+@media (min-width:1200px){
+  body.hasDeskNav .wrap:not(.publicWrap) .page:has(.card.medForm){
+    max-width:100%!important;padding:12px 16px 8px!important;
+    display:grid;grid-template-columns:600px minmax(0,1fr);gap:14px;align-items:start}
+  body.hasDeskNav .wrap:not(.publicWrap) .page:has(.card.medForm)>.card{margin:0!important}
+  /* ঘরগুলো ছোট — কম্পিউটারে মাউস দিয়ে লেখা হয় */
+  body.hasDeskNav .wrap:not(.publicWrap) .card.medForm .input,
+  body.hasDeskNav .wrap:not(.publicWrap) .card.medForm select{
+    min-height:36px!important;height:36px!important;padding:6px 10px!important;
+    font-size:12.5px!important;margin:0 0 8px!important;border-radius:9px!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.medForm label,
+  body.hasDeskNav .wrap:not(.publicWrap) .card.medForm .sectionTitle{
+    font-size:10.5px!important;font-weight:700;letter-spacing:.4px;
+    text-transform:uppercase;color:#7E8DA2;margin:0 0 4px!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.medForm .medTypeBtn{
+    min-height:38px!important;height:38px!important;font-size:12.5px!important;border-radius:10px!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.medForm .medAddBtn{
+    min-height:34px!important;height:34px!important;font-size:12px!important;
+    padding:0 14px!important;border-radius:9px!important;margin:0 0 8px!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.medForm .medBtnRow{gap:8px;margin-top:4px}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.medForm .medBtn{
+    min-height:40px!important;height:40px!important;font-size:12.5px!important;border-radius:10px!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.medForm .medDel{
+    min-height:36px!important;height:36px!important;width:36px!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.medForm{padding:14px!important}
+}
+
+@media (min-width:1200px){
+  /* 💵 V1021 — ফোনের মতো CASH / ONLINE দুটো বোতাম */
+  body.hasDeskNav .wrap:not(.publicWrap) .card.medForm .medModeHidden{display:none!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.medForm .medModeRow{
+    display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 8px}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.medForm .medModeBtn{
+    min-height:42px;height:42px;border-radius:11px;font-size:13px;font-weight:700;
+    letter-spacing:.3px;background:#F7FAFE;color:#41556B;border:1.5px solid #DCE5EF;
+    box-shadow:none;cursor:pointer}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.medForm #medModeCash.on{
+    background:#F1FAF3;color:#0B5B2F;border-color:#0B7A34}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.medForm #medModeOnline.on{
+    background:#EAF2FE;color:#0B4FA8;border-color:#1067D8}
+}
+
+@media (min-width:1200px){
+  /* 🏥 V1021 — হেডারে ব্রাঞ্চের ঘর (শুধু Master) */
+  body.hasDeskNav .wrap:not(.publicWrap) #wlv1MedTopSlot{
+    flex:0 0 auto;margin:0 12px 0 0;display:flex;align-items:center}
+  body.hasDeskNav .wrap:not(.publicWrap) #wlv1MedTopSlot #medBranchWrap{margin:0}
+  body.hasDeskNav .wrap:not(.publicWrap) #wlv1MedTopSlot #medBranchWrap label{display:none}
+  body.hasDeskNav .wrap:not(.publicWrap) #wlv1MedTopSlot .input{
+    width:210px;min-height:36px!important;height:36px!important;line-height:1.2!important;
+    padding:0 30px 0 12px!important;margin:0!important;font-size:12.5px!important;
+    font-weight:700;color:#123258;border:1px solid #D9E3EF!important;border-radius:8px!important;
+    background:#fff!important;box-shadow:none!important}
+}
+
+@media (min-width:1200px){
+  /* 🚪 V1021 — Close বোতাম (সাদা, সবুজ বর্ডার — ফোনের CANCEL-এর মতো) */
+  body.hasDeskNav .wrap:not(.publicWrap) .card.medForm .medClose{
+    background:#fff!important;color:#0F3D6B!important;border:1.5px solid #0B7A34!important;
+    box-shadow:none!important;flex:0 0 auto;padding:0 18px!important}
+}
+
+@media (min-width:1200px){
+  /* 🚪 V1021 (TK: "একই সাইজের হবে") — চারটে বোতামই সমান চওড়া */
+  body.hasDeskNav .wrap:not(.publicWrap) .card.medForm .medBtnRow{
+    display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.medForm .medBtnRow>.medBtn{
+    width:100%;padding:0 8px!important;flex:none}
+}

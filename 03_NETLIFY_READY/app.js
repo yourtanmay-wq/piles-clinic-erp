@@ -2533,7 +2533,11 @@ function page(title,body,hideSearch){if(!isFollowupTitle(title)){resetFollowDate
   // Callers pass hideSearch=true explicitly; every other existing page() call is unaffected.
   let __searchBar=hideSearch?'':globalCapsuleSearchBar(__pgCtx);
   let __topExtra='';
-  if(title==='Medicine Payment'){
+  if(title==='Medicine Payment'||title==='Medicine or Saline'){
+    /* 🐞🔒 V1021 — এই স্লটটা শুধু 'Medicine Payment' নামে তৈরি হত, অথচ V805-এ
+       পর্দার নাম বদলে **'Medicine or Saline'** হয়েছিল। ফলে হেডারের খালি
+       জায়গাটাই তৈরি হত না, আর Branch-কে হেডারে সরানোর পুরনো কোডটা নিঃশব্দে
+       কিছুই করত না। দুটো নামই ধরা হলো। */
     __topExtra=`<div id="wlv1MedTopSlot" class="wlv1TopPayBar"></div>`;
   } else if(title==='Doctor Visit / RMP'){
     __topExtra=`<div id="wlv1RmpTopSlot" class="wlv1TopPayBar"></div>`;
@@ -5529,6 +5533,20 @@ function wlv1AutoDateBoxes(root){
       var inp=list[i];
       if(!inp||inp.getAttribute('data-wlv1db')) continue;
       if(inp.closest&&inp.closest('.wlv1DateBox')) continue;
+      /* 🐞🔒 V1021 (TK-রিপোর্ট ০৩.০৯.২০২৬: *"dd.mm.yyyy এরকম থাকার মানে কি?"*)
+         **আসল কারণ:** কিছু তারিখ-ঘর ইচ্ছে করে **লুকোনো** থাকে (যেমন Medicine
+         পর্দার `#medDateInp2` — `left:-9999px`, তার নিজের দেখানোর ঘর আলাদা)।
+         এই ফাংশনটা সেগুলোকেও মুড়ে দিত, আর মোড়কের ভিতরের লেখাটা (`dd.mm.yyyy`)
+         পর্দায় ভেসে থাকত — অথচ ওটার কোনো কাজ নেই।
+         এখন লুকোনো ঘর বাদ যায়। ⛔ যে ঘরগুলো সত্যিই দেখা যায়, সেগুলোতে আগের
+         মতোই কাজ করে — একটাও ঘর ছোঁয়া হয়নি। */
+      try{
+        var __st=window.getComputedStyle?window.getComputedStyle(inp):null;
+        var __r=inp.getBoundingClientRect?inp.getBoundingClientRect():null;
+        var __off=(__r && (__r.width===0 || __r.height===0 || __r.right<0 || __r.bottom<0));
+        if(__st && (__st.display==='none' || __st.visibility==='hidden')) continue;
+        if(__off) continue;
+      }catch(_e){}
       var box=document.createElement('div');
       box.className='wlv1AutoDateBox';
       var sp=document.createElement('span');
@@ -14518,6 +14536,17 @@ var __medFilter='today', __medPick='', __medQ='';
 var __medDueOnly=false;   /* 🆕🔒 V846 — শুধু বাকি-থাকা বিক্রি (ফোনের হুবহু যমজ) */
 var __medFrom='', __medTo='';   /* 🆕🔒 V847 — Statement: কত তারিখ থেকে কত তারিখ */
 var __medActualDate='';   /* 🔄🔒 V849 — প্রকৃত জমার তারিখ (ফাঁকা = আজ) */
+/* 💵🔒 V1021 — দুই বোতামের বাছাই সরাসরি পুরনো `#medMode` ঘরেই বসে,
+   তাই সেভের নিয়ম আগের মতোই চলে। */
+function medPickMode(v){
+  try{
+    var sel=document.getElementById('medMode'); if(sel)sel.value=v;
+    var c=document.getElementById('medModeCash'), o=document.getElementById('medModeOnline');
+    if(c)c.classList.toggle('on', v==='CASH');
+    if(o)o.classList.toggle('on', v==='ONLINE');
+  }catch(e){}
+}
+window["medPickMode"]=medPickMode;
 function medSetActualDate(v){
   var box=document.getElementById('medDateBox'); if(!box)return;
   if(!v||v===today()){ __medActualDate=''; box.textContent='Actual deposit date'; box.classList.remove('on'); }
@@ -14559,11 +14588,22 @@ function medicinePaymentHome(){
        সেখানে হবে প্রজেক্টের অন্যান্য জায়গার মতন প্রকৃত জমার তারিখ (পরিবর্তন
        করলে পূর্বের তারিখ দেয়া যাবে, না করলে আজকের তারিখ, ভবিষ্যতের তারিখ নয়)"।
        ফোনের MedicinePaymentActivity-র হুবহু যমজ (নিয়ম ৬.৬)। */
-    '<select id="medMode" class="input"><option>CASH</option><option>ONLINE</option></select>'+
+    /* 💵🔒 V1021 (TK-নির্দেশ ০৩.০৯.২০২৬: *"হ্যাঁ ফোনের মতো দুটো বোতাম করুন"*) —
+       কম্পিউটারে ড্রপডাউনটা দেখতে সাধারণ ঘরের মতো লাগত, ONLINE আছে বোঝাই যেত
+       না। এখন ফোনের মতো দুটো বোতাম। ⛔ `#medMode` ঘরটা হুবহু আগের জায়গায়
+       আগের নামেই থাকে (শুধু লুকোনো), তাই `saveMedicinePayment()` এক অক্ষরও
+       বদলায়নি। ⛔ ফোনে আগের ড্রপডাউনই দেখা যায়। */
+    '<select id="medMode" class="input'+((typeof wlv1DeskWide==='function'&&wlv1DeskWide())?' medModeHidden':'')+'"><option>CASH</option><option>ONLINE</option></select>'+
+    ((typeof wlv1DeskWide==='function'&&wlv1DeskWide())
+      ? '<div class="medModeRow"><button type="button" id="medModeCash" class="medModeBtn on" onclick="medPickMode(\'CASH\')">\uD83D\uDCB5 CASH</button><button type="button" id="medModeOnline" class="medModeBtn" onclick="medPickMode(\'ONLINE\')">\uD83C\uDFE6 ONLINE</button></div>'
+      : '')+
     '<div id="medDateBox" class="input medDateBox" onclick="var e=document.getElementById(\'medDateInp2\');if(e){e.showPicker?e.showPicker():e.click()}">Actual deposit date</div>'+
     '<input type="date" id="medDateInp2" style="position:absolute;left:-9999px" max="'+today()+'" onchange="medSetActualDate(this.value)">'+
     /* 🔄🔒 V849 — TK: "print share save এইভাবে থাকবে" (ফোনেও একই ক্রম)। */
-    '<div class="medBtnRow"><button class="medBtn medPrint" onclick="saveMedicinePayment(\'print\')">🖨️ Print</button><button class="medBtn medShare" onclick="saveMedicinePayment(\'share\')">🟢 Share</button><button class="medBtn medSave" onclick="saveMedicinePayment(\'save\')">💾 Save</button></div>'+
+    /* 🚪🔒 V1021 (TK-নির্দেশ ০৩.০৯.২০২৬: *"কোজ ও তো রাখতে হবে"*) — কম্পিউটারে
+       Print/Share/Save-এর পাশে একটা **Close** বোতাম; চাপলে আগের পর্দায় ফেরে
+       (উপরের ← তীরের মতোই)। ⛔ ফোনে বসে না — ফোনের সাজ অক্ষত। */
+    '<div class="medBtnRow">'+((typeof wlv1DeskWide==='function'&&wlv1DeskWide())?'<button class="medBtn medClose" onclick="goBackOnePage()">\u2715 Close</button>':'')+'<button class="medBtn medPrint" onclick="saveMedicinePayment(\'print\')">🖨️ Print</button><button class="medBtn medShare" onclick="saveMedicinePayment(\'share\')">🟢 Share</button><button class="medBtn medSave" onclick="saveMedicinePayment(\'save\')">💾 Save</button></div>'+
     '</div>'+
     '<div class="card">'+
     /* 📕🔒 V985 (TK-নির্দেশ: *"মেডিসিন স্যালাইন History এরকম খোলা থাকবে না
@@ -14598,11 +14638,16 @@ function medicinePaymentHome(){
   // জায়গাতেই (body-তে) থাকে, আগের মতোই কাজ করে।
   setTimeout(function(){
     try{
-      if(window.innerWidth>=900){
+      /* 🏥🔒 V1021 (TK-নির্দেশ ০৩.০৯.২০২৬): *"ব্রাঞ্চ হেডারে থাকবে, মাস্টারের
+         জন্য শুধুমাত্র — কারণ staff তার নিজস্ব ছাড়া তো পারবে না।"*
+         ⛔ **একই এলিমেন্ট** সরানো হয় (নকল নয়), তাই `#medBranch` আগের নামেই
+            থাকে ও `medFiltered()`/সেভ আগের মতোই পড়ে।
+         ⛔ Master না হলে কিছুই সরে না — ঘরটা যেখানে ছিল সেখানেই।
+         ⛔ ইতিহাসের ছাঁকনি-বারটা আর হেডারে তোলা হয় না; ডান কলামে তালিকার
+            মাথাতেই থাকে, সেখানেই মানানসই। */
+      if(window.innerWidth>=1200 && typeof isMaster==='function' && isMaster()){
         var slot=document.getElementById('wlv1MedTopSlot');
         var bw=document.getElementById('medBranchWrap');
-        var hb=document.getElementById('medHistBar');
-        if(slot&&hb)slot.appendChild(hb);
         if(slot&&bw)slot.appendChild(bw);
       }
     }catch(e){}
