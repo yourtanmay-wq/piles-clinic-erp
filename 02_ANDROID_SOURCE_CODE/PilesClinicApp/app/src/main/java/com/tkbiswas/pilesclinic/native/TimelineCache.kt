@@ -108,6 +108,7 @@ object TimelineCache {
                 .put("sex", data.sex)
                 .put("address", data.address)
                 .put("billTotal", data.billTotal)
+                .put("discount", data.discount)
                 .put("followupStage", data.followupStage)
                 .put("refDoctorDisplay", data.refDoctorDisplay)
                 /* 🔵🔒 V521 (২২.০৮.২০২৬): Timing চিপটা (⏰ UNEXPECTED TIME) যেন
@@ -175,6 +176,7 @@ object TimelineCache {
                 photo = "",
                 entries = list,
                 billTotal = root.optDouble("billTotal", 0.0),
+                discount = root.optDouble("discount", 0.0),
                 age = root.optString("age", ""),
                 sex = root.optString("sex", ""),
                 address = root.optString("address", ""),

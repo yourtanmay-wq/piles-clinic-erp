@@ -915,7 +915,7 @@ const CLOUD_TABLE_WRITE_ALIASES=t=>{
 const CLOUD_TABLE_ALIASES=CLOUD_TABLE_READ_ALIASES;
 const CLOUD_SAFE_COLS={
  enquiries:['id','date','branch','name','mobile','disease','address','remarks','timeType','receivedBy','status','stage','callCount','nextFollow','appointmentDate','convertedPatientId','convertedAt','createdBy','createdAt','updatedAt'],
- patients:['id','patientId','date','registrationDate','visitDate','name','mobile','altMobile','branch','age','sex','address','occupation','refBy','disease','complaint','editHistory','diagnosis','sinceWhen','medicalHistory','previousTreatment','previousResult','previousCost','treatmentDuration','doctorAdvice','doctorFullNote','decision','stage','queue','doctorComplete','bill','discount','photo','createdBy','registeredBy','createdAt','updatedAt',
+ patients:['id','patientId','date','registrationDate','visitDate','name','mobile','altMobile','branch','age','sex','address','occupation','refBy','disease','complaint','editHistory','diagnosis','sinceWhen','medicalHistory','previousTreatment','previousResult','previousCost','treatmentDuration','doctorAdvice','doctorFullNote','decision','stage','queue','doctorComplete','bill','discount','billBeforeDiscount','discountReason','discountBy','discountAt','photo','createdBy','registeredBy','createdAt','updatedAt',
   /* 🔴🔒 V916 (৩১.০৮.২০২৬, TK: *"এখনো কোথায় কোথায় ওয়েবে মিল নেই"*) —
      এই পাঁচটা ঘর ওয়েব **পড়ে ও ব্যবহার করে**, কিন্তু এই তালিকায় না থাকায়
      ক্লাউডে পাঠানোর আগে **চুপচাপ কেটে ফেলা হত**। ফল:
@@ -986,7 +986,7 @@ const cloudSafeRows=(t,d)=>{
 function normalizeCloudRow(r){
  if(!r||typeof r!=='object')return r;
  let x={...r};
- const pairs=[['patientid','patientId'],['patientcode','patientCode'],['cashamount','cashAmount'],['onlineamount','onlineAmount'],['dailyevents','dailyEvents'],['refundapprovalstatus','refundApprovalStatus'],['refundofpaymentid','refundOfPaymentId'],['registrationdate','registrationDate'],['visitdate','visitDate'],['refby','refBy'],['sincewhen','sinceWhen'],['medicalhistory','medicalHistory'],['previoustreatment','previousTreatment'],['previousresult','previousResult'],['previouscost','previousCost'],['treatmentduration','treatmentDuration'],['doctoradvice','doctorAdvice'],['doctorfullnote','doctorFullNote'],['doctorcomplete','doctorComplete'],['paytype','payType'],['paylabel','payLabel'],['paymentlabel','paymentLabel'],['edithistory','editHistory'],['editedat','editedAt'],['editedby','editedBy'],['receivedby','receivedBy'],['refid','refId'],['lastremark','lastRemark'],['nextfollow','nextFollow'],['callcount','callCount'],['lastcalldate','lastCallDate'],['nextcalldate','nextCallDate'],['callstatus','callStatus'],['callhistory','callHistory'],['referralpayments','referralPayments'],['referralpaid','referralPaid'],['referraldue','referralDue'],['createdby','createdBy'],['createdat','createdAt'],['updatedat','updatedAt'],['convertedpatientid','convertedPatientId'],['convertedat','convertedAt'],['appointmentdate','appointmentDate']];
+ const pairs=[['patientid','patientId'],['patientcode','patientCode'],['cashamount','cashAmount'],['onlineamount','onlineAmount'],['dailyevents','dailyEvents'],['refundapprovalstatus','refundApprovalStatus'],['refundofpaymentid','refundOfPaymentId'],['registrationdate','registrationDate'],['visitdate','visitDate'],['refby','refBy'],['sincewhen','sinceWhen'],['medicalhistory','medicalHistory'],['previoustreatment','previousTreatment'],['previousresult','previousResult'],['previouscost','previousCost'],['treatmentduration','treatmentDuration'],['doctoradvice','doctorAdvice'],['doctorfullnote','doctorFullNote'],['doctorcomplete','doctorComplete'],['paytype','payType'],['paylabel','payLabel'],['paymentlabel','paymentLabel'],['edithistory','editHistory'],['billbeforediscount','billBeforeDiscount'],['discountreason','discountReason'],['discountby','discountBy'],['discountat','discountAt'],['editedat','editedAt'],['editedby','editedBy'],['receivedby','receivedBy'],['refid','refId'],['lastremark','lastRemark'],['nextfollow','nextFollow'],['callcount','callCount'],['lastcalldate','lastCallDate'],['nextcalldate','nextCallDate'],['callstatus','callStatus'],['callhistory','callHistory'],['referralpayments','referralPayments'],['referralpaid','referralPaid'],['referraldue','referralDue'],['createdby','createdBy'],['createdat','createdAt'],['updatedat','updatedAt'],['convertedpatientid','convertedPatientId'],['convertedat','convertedAt'],['appointmentdate','appointmentDate']];
  pairs.forEach(([a,b])=>{if(x[b]===undefined&&x[a]!==undefined)x[b]=x[a]});
  return x;
 }
@@ -1961,7 +1961,7 @@ let rtWired=false;
 // (select='*') রাখা হলো।
 const RT_NO_PHOTO_COLS={
  followups:'address,age,branch,callCount,convertedPatientId,createdAt,createdBy,date,disease,history,id,lastCallDate,lastRemark,mobile,name,nextFollow,patientId,refId,registrationDate,sex,stage,status,timeType,updatedAt,visitDate',
- patients:'address,age,bill,branch,complaint,completeApprovedBy,completeRequestedBy,createdAt,createdBy,date,decision,diagnosis,discount,disease,doctorAdvice,doctorComplete,doctorFullNote,id,medicalHistory,mobile,name,occupation,patientId,previousCost,previousResult,previousTreatment,queue,refBy,refDoctor,refDoctorMobile,refundRestoredBy,registeredBy,registrationDate,sex,sinceWhen,stage,timeType,treatmentDuration,updatedAt,visitDate',
+ patients:'address,age,bill,branch,complaint,completeApprovedBy,completeRequestedBy,createdAt,createdBy,date,decision,diagnosis,discount,billBeforeDiscount,discountReason,discountBy,discountAt,disease,doctorAdvice,doctorComplete,doctorFullNote,id,medicalHistory,mobile,name,occupation,patientId,previousCost,previousResult,previousTreatment,queue,refBy,refDoctor,refDoctorMobile,refundRestoredBy,registeredBy,registrationDate,sex,sinceWhen,stage,timeType,treatmentDuration,updatedAt,visitDate',
  medical:'id,patientId,type,date,selected,days,details,nextFollow,diagnosis,decision,doctorFullNote,name,mobile,branch,createdBy,createdAt,updatedAt'
 };
 function wireRealtime(){
@@ -13587,8 +13587,8 @@ function summary(id){
  let latest=(type)=>meds.filter(x=>String(x.type||'').toLowerCase().includes(type.toLowerCase())).slice(-1)[0];
  let checked=latest('Doctor')||latest('Check');
  let hasRx=!!latest('Prescription'),hasMed=!!latest('Medicine'),hasBlood=!!latest('Blood'),hasDiet=!!latest('Diet');
- let payBlock=financeAllowed?`<div class="summaryPayGrid"><div><small>Total Cost</small><b>${money(t.bill)}</b></div><div><small>Deposit</small><b>${money(t.paid)}</b></div><div><small>Due</small><b>${t.bill>0?money(t.due):'-'}</b></div><div><small>Paid</small><b>${t.bill>0?t.pct+'%':'-'}</b></div></div><div class="summaryProgress"><span style="width:${t.bill>0?t.pct:0}%"></span></div>`:`<div class="summaryNotice">Payment / bill details hidden for other branch.</div>`;
- let topActions=`<div class="summaryContactRow">${writeAllowed?`<button class="small ghost" onclick="editPatientPhoto('${p.id}')">Edit Photo</button>`:''}${writeAllowed?`<button class="small ghost" onclick="wlv1ShowEditPatient('${p.id}')">✏️ Edit Patient</button>`:''}<button class="small ghost" onclick="contact('${p.mobile}','call')">Call</button><button class="small ghost" onclick="contact('${p.mobile}','wa')">WhatsApp</button><button class="small ghost" onclick="wlv1ShowCheckupA4('${p.id}')">📜 Checkup History</button>${isMaster()?`<button class="small ghost" style="color:#b42318" onclick="wlv1ShowChangeBranchDialog('${p.id}')">🔀 Change Branch</button>`:''}${writeAllowed&&wlv1VisitFeePaidNow(p)>0?`<button class="small ghost" style="color:#b45309" onclick="wlv1ShowReturnFeesDialog('${p.id}')">💸 Return Fees</button>`:''}</div>`;
+ let payBlock=financeAllowed?`<div class="summaryPayGrid"><div><small>Total Cost</small><b>${money(t.bill)}</b></div><div><small>Deposit</small><b>${money(t.paid)}</b></div><div><small>Due</small><b>${t.bill>0?money(t.due):'-'}</b></div><div><small>Paid</small><b>${t.bill>0?t.pct+'%':'-'}</b></div>${Number(p.discount||0)>0?`<div><small>Discount</small><b style="color:#0B7A34">${money(Number(p.discount||0))}</b></div>`:''}</div><div class="summaryProgress"><span style="width:${t.bill>0?t.pct:0}%"></span></div>`:`<div class="summaryNotice">Payment / bill details hidden for other branch.</div>`;
+ let topActions=`<div class="summaryContactRow">${writeAllowed?`<button class="small ghost" onclick="editPatientPhoto('${p.id}')">Edit Photo</button>`:''}${writeAllowed?`<button class="small ghost" onclick="wlv1ShowEditPatient('${p.id}')">✏️ Edit Patient</button>`:''}<button class="small ghost" onclick="contact('${p.mobile}','call')">Call</button><button class="small ghost" onclick="contact('${p.mobile}','wa')">WhatsApp</button><button class="small ghost" onclick="wlv1ShowCheckupA4('${p.id}')">📜 Checkup History</button>${isMaster()?`<button class="small ghost" style="color:#b42318" onclick="wlv1ShowChangeBranchDialog('${p.id}')">🔀 Change Branch</button>`:''}${financeAllowed&&writeAllowed&&t.bill>0&&t.due>0?`<button class="small ghost" style="color:#0b7a34" onclick="wlv1ShowDiscountDialog('${p.id}')">🏷️ Give Discount</button>`:''}${writeAllowed&&wlv1VisitFeePaidNow(p)>0?`<button class="small ghost" style="color:#b45309" onclick="wlv1ShowReturnFeesDialog('${p.id}')">💸 Return Fees</button>`:''}</div>`;
  let clinicalActions=writeAllowed?`<div class="summaryActionGrid">
    <button onclick="doctorCheck('${p.id}')"><span>🩺</span><b>Doctor Check-up</b><small>${checked?'Completed / Update':'Start Check-up'}</small></button>
    <button class="ghost" onclick="prescription('${p.id}')"><span>📋</span><b>Prescription</b><small>${hasRx?'View / Update':'Create'}</small></button>
@@ -14365,7 +14365,10 @@ function wlv1MoneyBlockMsg(p){
 window["wlv1MoneyBlockMsg"]=wlv1MoneyBlockMsg;
 
 async function saveTreatmentPayment(id){
- let p=load('patients').find(x=>x.id===id),oldBill=Number(p?.bill||0),bill=Number($('#bill')?.value||0),discount=0,amt=Number($('#amt')?.value||0);
+ /* 🏷️🔒 V1014 (03.09.2026) — আগে এখানে `discount=0` বসত, তাই ছাড় দেওয়া রোগীর
+    পরের পেমেন্ট সেভ করলেই ছাড়ের হিসাবটা **মুছে যেত**। এখন সারিতে যা আছে
+    সেটাই থাকে — টাকার কোনো হিসাব বদলায় না, শুধু আর হারায় না। */
+ let p=load('patients').find(x=>x.id===id),oldBill=Number(p?.bill||0),bill=Number($('#bill')?.value||0),discount=Number(p?.discount||0),amt=Number($('#amt')?.value||0);
  if(!p)return toast('Patient not found');
  if(!wlv1CanTakeMoney(p))return toast(wlv1MoneyBlockMsg(p));
  if(oldBill>0&&$('#bill')?.hasAttribute('readonly'))bill=oldBill;
@@ -20631,6 +20634,21 @@ function wlv1TimelineRows(p){
               note:String(x.decision||x.selected||x.details||''), paid:0});
   });
 
+  /* 🏷️🔒 V1014 (03.09.2026, TK-অনুমোদিত) — ছাড় দেওয়া হলে সেটা ইতিহাসে
+     একটা স্থায়ী সারি হয়ে থাকে: কত ছাড়, বিল কত থেকে কত হলো, কে দিল, কেন।
+     ফোনের PatientTimelineRepository-তেও হুবহু একই সারি বসে, তাই দুই
+     জায়গায় রোগীর ইতিহাস কখনো আলাদা পড়বে না। */
+  (function(){
+    const dAmt=Number(p.discount||0); if(!(dAmt>0))return;
+    const before=Number(p.billBeforeDiscount||0), after=Number(p.bill||0);
+    const why=String(p.discountReason||'');
+    /* শিরোনামেই "Discount" লেখা থাকে, তাই নোটে আর দ্বিতীয়বার নয়। */
+    let note=money(dAmt);
+    if(before>0) note+=' · Bill '+money(before)+' → '+money(after);
+    if(why) note+=' · '+why;
+    out.push({date:d10(p.discountAt)||d10(p.updatedAt), title:'Discount', note:note, paid:0});
+  })();
+
   /* ⛔ এই ফাংশনটা **পুরনো→নতুন** ক্রমেই ফেরত দেয় — Report Card ও শেয়ার-লেখা
      এই ক্রম ধরেই চলতি "জমা/বাকি" হিসাব করে, তাই এটা বদলানো যাবে না।
      পর্দায় নতুনটা আগে দেখানোর কাজটা `wlv1TimelineTable()`-এ করা হয়েছে। */
@@ -24119,6 +24137,65 @@ function wlv1ShowChangeBranchDialog(patientId){
     '<button style="background:linear-gradient(135deg,#b42318,#d92d20)" onclick="wlv1ConfirmChangeBranch(\''+esc(patientId)+'\')">Next</button></div>');
 }
 window["wlv1ShowChangeBranchDialog"]=wlv1ShowChangeBranchDialog;
+
+/* 🏷️🔒 V1014 (০৩.০৯.২০২৬, TK-অনুমোদিত ছবি-প্রুফসহ) — **Give Discount**।
+   ফোনের যমজ: PatientTimelineActivity.showDiscountDialog()।
+
+   TK-এর উদাহরণ: ২৫,০০০ বিলের রোগী ২২,০০০ দিয়ে ৩,০০০ ক্ষমা চাইলে ছাড় দিয়ে
+   তাকে Complete করা যাবে, অথচ ভবিষ্যতে দেখা যাবে ৩,০০০ ছাড় দেওয়া হয়েছিল।
+
+   TK-এর সিদ্ধান্ত (০৩.০৯.২০২৬):
+    · **বিলটাই কমে** (২৫,০০০ → ২২,০০০) — তাই `বিল − জমা` দিয়ে Due-এর যত
+      হিসাব প্রজেক্টে ছড়ানো আছে, একটাও ছুঁতে হয়নি। এটাই সবচেয়ে কম ঝুঁকি।
+    · ছাড় ০ হলে বাক্সটাই দেখাবে না — আগের তিনটে বাক্স যেমন ছিল তেমনই।
+    · role-বাধা নেই — ডাক্তারসহ সবাই দিতে পারবে; কে দিল তা জমা থাকে।
+   ⛔ ছাড় কখনো বাকির চেয়ে বেশি নয় (নইলে বিল জমার নিচে নেমে যেত)। */
+function wlv1ShowDiscountDialog(patientId){
+  var p=load('patients').find(function(x){return x.id===patientId});
+  if(!p) return toast('Patient not found');
+  if(typeof wlv1CanTakeMoney==='function' && !wlv1CanTakeMoney(p)) return toast(wlv1MoneyBlockMsg(p));
+  var t=treatmentTotals(p);
+  if(!(t.bill>0)) return toast('No bill on this patient yet');
+  if(!(t.due>0)) return toast('Nothing due — no discount needed');
+  modal('<h2>🏷️ Give Discount</h2>'+
+    '<div class="card"><b>'+esc(String(p.name||'').toUpperCase())+'</b> ('+esc(normMob(p.mobile||''))+')<br>'+
+    '<small>Bill '+money(t.bill)+' · Paid '+money(t.paid)+' · Due '+money(t.due)+'</small></div>'+
+    '<label>Discount amount</label>'+
+    '<input id="wlv1DiscAmt" class="input" type="number" value="'+t.due+'">'+
+    '<label>Reason</label>'+
+    '<input id="wlv1DiscWhy" class="input" placeholder="Why this discount is given">'+
+    '<div class="card mut" style="margin-top:10px">The bill comes down by this amount, so the Due becomes 0 and the patient can be completed. The discount stays saved in this patient\'s history forever.</div>'+
+    '<div class="actions"><button class="ghost" onclick="closeModal()">Cancel</button>'+
+    '<button style="background:linear-gradient(135deg,#0B7A34,#16A36D)" onclick="wlv1SaveDiscount(\''+esc(patientId)+'\')">Save Discount</button></div>');
+}
+window["wlv1ShowDiscountDialog"]=wlv1ShowDiscountDialog;
+
+function wlv1SaveDiscount(patientId){
+  var p=load('patients').find(function(x){return x.id===patientId});
+  if(!p) return toast('Patient not found');
+  if(typeof wlv1CanTakeMoney==='function' && !wlv1CanTakeMoney(p)) return toast(wlv1MoneyBlockMsg(p));
+  var t=treatmentTotals(p);
+  var amt=Number(String(($('#wlv1DiscAmt')||{}).value||'').replace(/[^0-9]/g,''))||0;
+  var why=String((($('#wlv1DiscWhy')||{}).value||'')).trim();
+  if(!(amt>0)) return toast('Write the discount amount');
+  if(amt>t.due) return toast('Discount cannot be more than the Due ('+money(t.due)+')');
+  if(!why) return toast('Write the reason');
+  var liveBill=Number(p.bill||0), had=Number(p.discount||0), orig=Number(p.billBeforeDiscount||0);
+  if(liveBill-amt<0) return toast('Discount is bigger than the bill');
+  upd('patients',patientId,{
+    bill:liveBill-amt,
+    discount:had+amt,
+    billBeforeDiscount:orig>0?orig:liveBill,
+    discountReason:why,
+    discountBy:(typeof user!=='undefined'&&user&&user.mobile)||'',
+    discountAt:new Date().toISOString(),
+    updatedAt:new Date().toISOString()
+  });
+  closeModal();
+  toast('✅ Discount saved');
+  summary(patientId);
+}
+window["wlv1SaveDiscount"]=wlv1SaveDiscount;
 
 /* 🟢🔒🔒 V664 (ওয়েব সংস্করণ, ২৫.০৮.২০২৬, TK-নির্দেশ) — Android-এর
    "Edit Patient" (Take Action মেনু)-এর হুবহু একই যমজ। TK: "Web-এ নেই কেন?

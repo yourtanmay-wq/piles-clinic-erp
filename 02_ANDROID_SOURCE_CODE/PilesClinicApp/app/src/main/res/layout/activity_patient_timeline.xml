@@ -300,12 +300,30 @@
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="wrap_content"
+            android:layout_marginEnd="6dp"
             android:orientation="vertical"
             android:gravity="center"
             android:background="@drawable/bg_summary_chip"
             android:paddingVertical="8dp">
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Due" android:textSize="8.5sp" android:textColor="#8A97AB" />
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:id="@+id/tvChipDue" android:text="—" android:textStyle="bold" android:textSize="12.5sp" android:textColor="#B42318" android:layout_marginTop="2dp" />
+        </LinearLayout>
+
+        <!-- 🏷️ TK-APPROVED (03.09.2026): the Discount box. Same "a box whose
+             amount is zero is not shown at all" rule as the three above.
+             When no discount was ever given this box is GONE and the other
+             three sit exactly as they always did. -->
+        <LinearLayout
+            android:id="@+id/boxDiscount"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="@drawable/bg_summary_chip"
+            android:paddingVertical="8dp">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Discount" android:textSize="8.5sp" android:textColor="#8A97AB" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:id="@+id/tvChipDiscount" android:text="—" android:textStyle="bold" android:textSize="12.5sp" android:textColor="#0B7A34" android:layout_marginTop="2dp" />
         </LinearLayout>
     </LinearLayout>
 

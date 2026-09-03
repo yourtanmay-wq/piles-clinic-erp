@@ -28,6 +28,9 @@ class PatientTimelineActivity : AppCompatActivity() {
     // Enquiry and Visit stage patients have no bill yet, so the option must
     // stay hidden until billTotal > 0.
     private var currentBillTotal: Double = 0.0
+    // 🏷️ TK-APPROVED (03.09.2026): discount already forgiven on this bill,
+    // so the Take Action dialog can show what was given before.
+    private var currentDiscount: Double = 0.0
     // TK-APPROVED (2026-07-20): when opened from the CHECK-UP Queue "Action"
     // button, auto-open the Take Action menu once the patient data has loaded.
     private var autoActionPending = false
@@ -763,6 +766,14 @@ class PatientTimelineActivity : AppCompatActivity() {
         // ⛔ শুধু রেজিস্টার্ড রোগীর জন্য (Enquiry-only-তে Fees-ই নেই)।
         if (isRegistered) {
             actionRow("💸", "Return Fees", "#B45309") { dialog.dismiss(); showReturnFeesDialog() }
+        }
+        // 🏷️ TK-APPROVED (03.09.2026, ছবি-প্রুফসহ) — "Give Discount". TK-এর
+        // উদাহরণ: ২৫,০০০ বিলের রোগী ২২,০০০ দিয়ে ৩,০০০ ক্ষমা চাইল — ছাড় দিলে
+        // বিল কমে ২২,০০০, বাকি ০, রোগী Complete হয়, আর ছাড়ের হিসাবটা চিরকাল
+        // ইতিহাসে থাকে। TK-নির্দেশ: শুধু Master নয়, ডাক্তারসহ সবাই দিতে পারবে।
+        // ⛔ বিল না থাকলে (Enquiry/Visit) ছাড় দেওয়ার কিছু নেই — তাই লুকনো।
+        if (isRegistered && currentBillTotal > 0.0) {
+            actionRow("🏷️", "Give Discount", "#0B7A34") { dialog.dismiss(); showDiscountDialog() }
         }
         actionRow("⏰", "Next Follow-up তারিখ", "#B8860B") { dialog.dismiss(); showQuickNextFollowDialog() }
         // TK-REQUESTED ADDITION (2026-07-20): "Mark Arrived (এসেছেন)" from the
@@ -2310,6 +2321,174 @@ class PatientTimelineActivity : AppCompatActivity() {
                 .setNegativeButton("Cancel", null)
                 .show().also { PremiumAlert.paint(it) }
         }
+    }
+
+    /**
+     * 🏷️🔒 V1014 (০৩.০৯.২০২৬) — **Give Discount**, TK-অনুমোদিত (ছবি-প্রুফসহ)।
+     *
+     * TK-এর নিজের উদাহরণ: *"কোন একটা পেশেন্টের ২৫০০০ বিল হয়েছিল… ২২ হাজার
+     * পরিশোধ করলো… বলল ৩ হাজার ক্ষমা করে দিন… সেই ক্ষেত্রে আমরা তাকে তিন হাজার
+     * টাকা ডিসকাউন্ট করলাম… এবার আমি চাইছি সে কমপ্লিট পেশেন্ট হয়ে যায়, কিন্তু
+     * ভবিষ্যতের জন্য আমি যেন দেখতে পাই যে এই পেশেন্টকে আমি তিন হাজার টাকা
+     * ডিসকাউন্ট করেছিলাম।"*
+     *
+     * **TK যেভাবে চেয়েছেন (০৩.০৯.২০২৬-এ দুটো প্রশ্নের উত্তরে):**
+     *  · *"প্রথমটা করুন"* — **বিলটাই কমবে** (২৫,০০০ → ২২,০০০)। তাই Due-এর
+     *    হিসাব (`বিল − জমা`) অ্যাপের ১০+ জায়গায় যেমন লেখা আছে **তেমনই থাকল**,
+     *    একটা অক্ষরও বদলাতে হয়নি — এটাই সবচেয়ে কম-ঝুঁকির পথ।
+     *  · *"ডিসকাউন্ট যদি না দেয়া হয় সেই ক্ষেত্রে তিনটে বক্স ই থাকতে হবে"* —
+     *    তাই `boxDiscount` শূন্যে GONE (TK-এর পুরনো "শূন্য দেখানোর দরকার নেই"
+     *    নিয়মটাই)।
+     *  · *"শুধু টিকে বিশ্বাস না সবাই করতে পারবে"* + *"ডিসকাউন্ট ডাক্তারও দিতে
+     *    পারবে"* — তাই এখানে **কোনো role-বাধা নেই**; কে দিল সেটা
+     *    `discountBy`-তে চিরকাল লেখা থাকে।
+     *
+     * **যা জমা থাকে (`patients` সারিতেই, নতুন কোনো টেবিল নয়):**
+     * `bill` (কমানো) · `discount` (মোট ছাড়) · `billBeforeDiscount` (একদম আসল
+     * বিল, প্রথমবারেই বসে, পরে আর বদলায় না) · `discountReason` · `discountBy` ·
+     * `discountAt`। ইতিহাসের সারিটা এখান থেকেই তৈরি হয়
+     * (`PatientTimelineRepository`) — তাই ছাড়ের কথা কোনোদিন হারাবে না।
+     *
+     * ⛔ ছাড় কখনো বাকি টাকার চেয়ে বেশি হতে দেওয়া হয় না — নইলে বিল জমার নিচে
+     *    নেমে যেত আর Paid% ১০০-এর উপরে উঠত।
+     */
+    private fun showDiscountDialog() {
+        val rowId = currentPatientRowId
+        if (rowId.isBlank()) {
+            android.widget.Toast.makeText(this, "No Registration record yet for this patient", android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
+        if (currentBillTotal <= 0.0) {
+            android.widget.Toast.makeText(this, "No bill on this patient yet", android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
+        val due = if (currentDue > 0.0) currentDue else 0.0
+        if (due <= 0.0) {
+            android.widget.Toast.makeText(this, "Nothing due — no discount needed", android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
+        val paidSoFar = (currentBillTotal - due).coerceAtLeast(0.0)
+        fun money(v: Double) = "₹" + "%,.0f".format(v)
+        val d = resources.displayMetrics.density
+        fun dp(v: Int) = (v * d).toInt()
+
+        val box = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(dp(20), dp(12), dp(20), dp(0))
+        }
+        box.addView(android.widget.TextView(this).apply {
+            text = "Bill " + money(currentBillTotal) + "   ·   Paid " + money(paidSoFar) + "   ·   Due " + money(due)
+            textSize = 12.5f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#10223A"))
+        })
+        box.addView(android.widget.TextView(this).apply {
+            text = "Discount amount"
+            textSize = 11.5f
+            setPadding(0, dp(14), 0, dp(2))
+        })
+        val amountInput = android.widget.EditText(this).apply {
+            hint = "Discount amount"
+            // B411 — শুধু TYPE_CLASS_NUMBER দিলে কিছু ফোনে কীবোর্ডই খোলে না;
+            // প্রজেক্টের বাকি সব টাকার ঘরের মতো একই জোড়া ব্যবহার করা হলো।
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+            keyListener = android.text.method.DigitsKeyListener.getInstance("0123456789")
+            setText("%.0f".format(due))
+        }
+        box.addView(amountInput)
+        box.addView(android.widget.TextView(this).apply {
+            text = "Reason"
+            textSize = 11.5f
+            setPadding(0, dp(14), 0, dp(2))
+        })
+        val reasonInput = android.widget.EditText(this).apply { hint = "Why this discount is given" }
+        box.addView(reasonInput)
+        box.addView(android.widget.TextView(this).apply {
+            text = "The bill comes down by this amount, so the Due becomes 0 and the patient can be completed. The discount stays saved in this patient's history forever."
+            textSize = 11f
+            setPadding(0, dp(12), 0, dp(4))
+            setTextColor(android.graphics.Color.parseColor("#8A5B00"))
+        })
+        UppercaseInputUtil.applyToAll(box)  // TK-REQUESTED GLOBAL RULE (2026-07-24)
+
+        val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(PremiumAlert.header(this, "🏷️ Give Discount"))
+            .setView(android.widget.ScrollView(this).apply { addView(box) })
+            .setPositiveButton("Save Discount", null)
+            .setNegativeButton("Cancel", null)
+            .create()
+        dlg.setOnShowListener {
+            dlg.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val amount = amountInput.text.toString().filter { it.isDigit() }.toDoubleOrNull() ?: 0.0
+                val why = reasonInput.text.toString().trim()
+                if (amount <= 0.0) {
+                    android.widget.Toast.makeText(this, "Write the discount amount", android.widget.Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                if (amount > due) {
+                    android.widget.Toast.makeText(this, "Discount cannot be more than the Due (" + money(due) + ")", android.widget.Toast.LENGTH_LONG).show()
+                    return@setOnClickListener
+                }
+                if (why.isBlank()) {
+                    android.widget.Toast.makeText(this, "Write the reason", android.widget.Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                val user = NativeSession.current(this)
+                androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setCustomTitle(PremiumAlert.header(this, "⚠️ Confirm discount"))
+                    .setMessage(
+                        money(amount) + " will be forgiven.\n\n" +
+                        "Bill " + money(currentBillTotal) + " → " + money(currentBillTotal - amount) + "\n" +
+                        "Due " + money(due) + " → " + money(due - amount) + "\n\n" +
+                        "This stays in the patient's history forever. Go ahead?"
+                    )
+                    .setPositiveButton("Yes, give discount") { _, _ ->
+                        lifecycleScope.launch {
+                            val ok = withContext(Dispatchers.IO) {
+                                try {
+                                    // আসল সারিটা আবার পড়া হয় — অন্য কেউ ইতিমধ্যে
+                                    // ছাড় দিয়ে থাকলে বা টাকা বসিয়ে থাকলে যেন তার
+                                    // উপরেই যোগ হয়, তার লেখা মুছে না যায়।
+                                    val rows = SupabaseClient.fetchList("patients", "id=eq.$rowId", 1)
+                                    val row = if (rows.length() > 0) rows.getJSONObject(0) else null
+                                    val liveBill = row?.optDouble("bill", currentBillTotal) ?: currentBillTotal
+                                    val hadDiscount = row?.optDouble("discount", 0.0) ?: 0.0
+                                    val origBill = row?.optDouble("billBeforeDiscount", 0.0) ?: 0.0
+                                    if (liveBill - amount < 0.0) return@withContext false
+                                    val fields = org.json.JSONObject()
+                                        .put("bill", liveBill - amount)
+                                        .put("discount", hadDiscount + amount)
+                                        .put("billBeforeDiscount", if (origBill > 0.0) origBill else liveBill)
+                                        .put("discountReason", why)
+                                        .put("discountBy", user?.mobile ?: "")
+                                        .put("discountAt", java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US)
+                                            .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
+                                            .format(java.util.Date()))
+                                        .put("updatedAt", java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US)
+                                            .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
+                                            .format(java.util.Date()))
+                                    SupabaseClient.updateById("patients", rowId, fields)
+                                } catch (_: Throwable) { false }
+                            }
+                            android.widget.Toast.makeText(
+                                this@PatientTimelineActivity,
+                                if (ok) "✅ Discount saved" else "Failed — check connection and try again",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
+                            // load() নিজেই নতুন হিসাব নামিয়ে ক্যাশে বসায়
+                            // (TimelineCache.save) — তাই আলাদা করে ক্যাশ মোছার
+                            // দরকার নেই, আর ভুল করে ক্যাশ মুছে ফেলার ঝুঁকিও নেই।
+                            if (ok) load(currentMobile, currentSection)
+                        }
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .show().also { PremiumAlert.paint(it) }
+                dlg.dismiss()
+            }
+        }
+        dlg.show()
+        PremiumAlert.paint(dlg)
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dlg) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     private fun showQuickNextFollowDialog() {
@@ -4008,11 +4187,14 @@ class PatientTimelineActivity : AppCompatActivity() {
             val showEstimated = data.billTotal > 0.0
             val showPaid = latestPaid > 0.0
             val showDue = latestDue > 0.0
+            val showDiscount = data.discount > 0.0
+            binding.tvChipDiscount.text = if (showDiscount) money(data.discount) else "\u2014"
             binding.boxEstimated.visibility = if (showEstimated) View.VISIBLE else View.GONE
             binding.boxPaid.visibility = if (showPaid) View.VISIBLE else View.GONE
             binding.boxDue.visibility = if (showDue) View.VISIBLE else View.GONE
+            binding.boxDiscount.visibility = if (showDiscount) View.VISIBLE else View.GONE
             binding.billSummaryRow.visibility =
-                if (showEstimated || showPaid || showDue) View.VISIBLE else View.GONE
+                if (showEstimated || showPaid || showDue || showDiscount) View.VISIBLE else View.GONE
 
             // The Updates table itself, built by the SAME function the live
             // data uses, so it looks identical.
@@ -4278,11 +4460,18 @@ class PatientTimelineActivity : AppCompatActivity() {
                 val showEstimated = data.billTotal > 0.0
                 val showPaid = latestPaid > 0.0
                 val showDue = latestDue > 0.0
+                // 🏷️ TK-APPROVED (03.09.2026): the Discount box follows the very
+                // same zero-rule -- no discount given, no box, and the other
+                // three stay exactly where they always were.
+                currentDiscount = data.discount
+                val showDiscount = data.discount > 0.0
+                binding.tvChipDiscount.text = if (showDiscount) money(data.discount) else "\u2014"
                 binding.boxEstimated.visibility = if (showEstimated) View.VISIBLE else View.GONE
                 binding.boxPaid.visibility = if (showPaid) View.VISIBLE else View.GONE
                 binding.boxDue.visibility = if (showDue) View.VISIBLE else View.GONE
+                binding.boxDiscount.visibility = if (showDiscount) View.VISIBLE else View.GONE
                 binding.billSummaryRow.visibility =
-                    if (hasBillingData && (showEstimated || showPaid || showDue)) View.VISIBLE else View.GONE
+                    if (hasBillingData && (showEstimated || showPaid || showDue || showDiscount)) View.VISIBLE else View.GONE
 
                 // TK-LOCKED DESIGN (2026-07-23): the Date/Time/Type/By/Note
                 // history table (originally Enquiry+Visit only) now replaces

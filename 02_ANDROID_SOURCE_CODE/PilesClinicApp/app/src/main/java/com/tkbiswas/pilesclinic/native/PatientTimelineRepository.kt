@@ -122,6 +122,10 @@ data class TimelineData(
     // TK-REQUESTED ADDITION (2026-07-16): total estimated bill, needed for
     // the register table's "Estimated" summary chip. 0 when not yet set.
     val billTotal: Double = 0.0,
+    // 🏷️ TK-APPROVED (03.09.2026): the discount already forgiven on this
+    // patient's bill. 0.0 means none was ever given -- the Discount box then
+    // stays hidden and the three older boxes look exactly as before.
+    val discount: Double = 0.0,
     // TK-REQUESTED ADDITION (2026-07-18): the "patients" table row id (uuid),
     // needed so the Patient Card header's 3-tap Edit can save name/mobile
     // corrections. Blank when no Registration/patients row exists yet for
@@ -212,6 +216,7 @@ object PatientTimelineRepository {
         return when {
             t.contains("enquiry") -> "📞" to "#1067D8"
             t.contains("registration") || t.contains("visit") -> "👣" to "#16A36D"
+            t.contains("discount") -> "🏷️" to "#0B7A34"
             t.contains("payment") || t.contains("advance") -> "💰" to "#F79009"
             t.contains("prescription") || t.contains("medicine") ||
                 t.contains("diet") || t.contains("blood") || t.contains("medical") ||
@@ -1036,6 +1041,27 @@ object PatientTimelineRepository {
         // APPROVED UPDATE #9: Treatment Complete entry when the bill is fully paid
         // (Due = 0). Synthesized from the last payment — no other module changed.
         val billTotal = patient.optDouble("bill", 0.0)
+        // 🏷️ TK-APPROVED (03.09.2026): a discount given on this bill shows as
+        // its own permanent history row -- how much, what the bill was before
+        // and after, who gave it and why. Synthesized from the patients row
+        // itself (no new table), exactly the way Treatment Complete below is.
+        val discGiven = patient.optDouble("discount", 0.0)
+        if (discGiven > 0.0) {
+            val billBefore = patient.optDouble("billBeforeDiscount", 0.0)
+            val why = patient.s("discountReason")
+            val note = buildString {
+                // শিরোনামেই "Discount" লেখা থাকে, তাই নোটে আর দ্বিতীয়বার নয়।
+                append(money(discGiven))
+                if (billBefore > 0.0) append(" · Bill ").append(money(billBefore)).append(" → ").append(money(billTotal))
+                if (why.isNotBlank()) append(" · ").append(why)
+            }
+            entries.add(entry(
+                "Discount",
+                patient.s("discountAt").take(10).ifBlank { lastPayDate },
+                patient.s("discountBy").ifBlank { lastPayBy },
+                note
+            ).copy(sortKey = patient.s("discountAt"), callTime = patient.s("discountAt")))
+        }
         if (billTotal > 0.0 && totalPaid >= billTotal) {
             entries.add(entry("Treatment Complete", lastPayDate, lastPayBy, "Bill fully paid — " + money(billTotal)))
         }
@@ -1331,6 +1357,7 @@ object PatientTimelineRepository {
             },
             entries = filtered,
             billTotal = billTotal,
+            discount = patient.optDouble("discount", 0.0),
             rowId = uuid,
             // TK-REQUESTED (2026-07-18): refDoctor was a name SNAPSHOT saved
             // at the time it was set -- if that doctor's name is later
