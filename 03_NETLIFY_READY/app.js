@@ -2511,6 +2511,22 @@ function page(title,body,hideSearch){if(!isFollowupTitle(title)){resetFollowDate
     let appEl=app();
     if(appEl&&appEl.innerHTML&&appEl.innerHTML.length>150){ window.__prevPageHTML=appEl.innerHTML; }
   }catch(e){}
+  /* V1018 (03.09.2026, TK-রিপোর্ট): "একটু তাড়াতাড়ি যদি চাপা হয় সেই ক্ষেত্রে স্লো
+     হয়ে যায়... একটা থেকে আরেকটা সুইচ হতে চায় না... তারপরে বারবার চাপলাম তখন
+     ওরকম সমস্যাটা আসলো" (Page Unresponsive)।
+     আগে একই বোতাম পরপর চাপলে প্রতিবারই পুরো পর্দা নতুন করে আঁকা হত, আর সঙ্গে
+     wlv1AutoDateBoxes ও wlv1NoSuggest গোটা document হেঁটে যেত। দশবার চাপলে দশবার।
+     এখন: নাম ও লেখা দুটোই হুবহু এক হলে ৭০০ মিলিসেকেন্ডের ভিতরে দ্বিতীয়বার আঁকা হয় না।
+     লেখার এক অক্ষর আলাদা হলেই আগের মতোই আঁকে — তাই "Loading..." থেকে আসল তালিকায়
+     যাওয়া, তালিকা refresh, সব অবিকল আগের মতোই চলে; কিছু হারানোর পথ নেই।
+     ৭০০ms পেরিয়ে গেলেও আগের মতোই আঁকে। */
+  try{
+    var __sig=String(title||'')+String(body||'');
+    var __now=Date.now();
+    if(window.__rkLastPaint && window.__rkLastPaint.sig===__sig &&
+       (__now-window.__rkLastPaint.at)<700 && app() && app().innerHTML){ return; }
+    window.__rkLastPaint={sig:__sig,at:__now};
+  }catch(e){}
   currentView=String(title||'page');body=body||'<div class="card mut">No records</div>';let __pgCtx=(function(){let t=String(title||'').toLowerCase();if(t.includes('payment')||t.includes('collection'))return 'payment';if(t.includes('doctor')||t.includes('rmp'))return 'doctor';if(t.includes('enquiry'))return 'enquiry';return '';})();
   // Issue #2 fix (locked): Branch-wise Collection / Today Collection list-view pages don't need the
   // generic global patient-search capsule (they show finance summaries, not searchable patient records).
