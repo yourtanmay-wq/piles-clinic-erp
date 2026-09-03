@@ -7356,6 +7356,21 @@ async function wlv1YrBulk(want){
 }
 window["wlv1YrBulk"]=wlv1YrBulk;
 
+/* 🔢🔒 V1001 (০৩.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — TK: *"নামের আগে
+   সিরিয়াল নাম্বার দরকার — বছরের প্রথম দিন যে পেশেন্ট এসেছে তার সিরিয়াল
+   নাম্বার ১ … এটা তারিখ এবং সময় অনুসারে নির্ধারণ হবে"*। নম্বর কোথাও জমা
+   হয় না — পর্দা আঁকার সময় প্রতিবার নতুন করে গোনা হয়, তাই পুরনো তারিখে কেউ
+   বসলে বাকি সবার নম্বর নিজে থেকেই সরে যায়।
+   TK: *"ডেমো নাম্বারের কোন অধিকার থাকবে না সিরিয়াল পাওয়ার"* ⇒ Remove করা
+   সারি নম্বর পায় না, কারো নম্বরও খায় না। ফোনের যমজ:
+   YearlyRegistrationActivity.kt। */
+function wlv1YrDaySeq(x){ var t=String((x&&x.__code)||'').split('-').pop()||'';
+  var n=parseInt(t.replace(/\D/g,''),10); return isNaN(n)?0:n; }
+window["wlv1YrDaySeq"]=wlv1YrDaySeq;
+function wlv1YrSerials(rows){ var m={},n=0;
+  for(var i=rows.length-1;i>=0;i--){ var x=rows[i]; if(x.__skip) continue; n++; m[String(x.id)]=n; }
+  return m; }
+window["wlv1YrSerials"]=wlv1YrSerials;
 function wlv1YrScreen(rows, branchLabel){
   var year=wlv1YrYear();
   var months=['January','February','March','April','May','June',
@@ -7389,6 +7404,8 @@ function wlv1YrScreen(rows, branchLabel){
       '" onclick="wlv1YrSetFilter(\''+c[0]+'\')">'+c[1]+'</button>';
   }).join('')+'</div>';
 
+  var serials=wlv1YrSerials(rows);   /* 🔢 V1001 */
+
   var shown=rows.filter(function(x){
     if(__yrFilter==='counted') return !x.__skip;
     if(__yrFilter==='skipped') return !!x.__skip;
@@ -7421,6 +7438,7 @@ function wlv1YrScreen(rows, branchLabel){
     return '<div class="wlv1YrRow'+(x.__skip?' off':'')+'">'+
       '<span class="wlv1YrCb'+(on?' on':'')+'" onclick="wlv1YrPickToggle(\''+
         String(x.id).replace(/'/g,"")+'\')">'+(on?'&#10003;':'')+'</span>'+
+      '<span class="wlv1YrSn">'+(serials[String(x.id)]||'')+'</span>'+   /* 🔢 V1001 */
       '<div class="wlv1YrWho"><b>'+esc(x.name||'UNKNOWN')+dz+tg+'</b><small>'+esc(sub)+'</small></div>'+
       '<button class="wlv1YrBtn '+(x.__skip?'undo':'skip')+'" onclick="'+
         (x.__skip?'wlv1YrToggle':'wlv1YrAskSkip')+'(\''+
@@ -7691,7 +7709,11 @@ let map={received:['My Enquiry',received,'📥','All branch','enq'],
      __code: x.patientId||'',
      __skip: __yrIds.has(String(x.id)),
      __tag: __refSetOnce.has(mob(x.mobile))?'Refund':(__yrRetMob.has(mob(x.mobile))?'Return Visit':'')
-   })).sort((a,b)=>(b.__reg||'').localeCompare(a.__reg||'')||String(a.name||'').localeCompare(String(b.name||'')));
+   /* 🔢🔒 V1001 (০৩.০৯.২০২৬, TK-নির্দেশ, ফোনের হুবহু যমজ) — একই তারিখের
+      ভিতরে "সময়" আসে রোগীর নিজের কোড থেকে: `KNE-02092026-003`-এর শেষ
+      সংখ্যাটাই ওই দিনের ক্রম। তাই সাজানো হয় তারিখ ⇢ ওই দিনের ক্রম ⇢ নাম,
+      নতুন সবার উপরে — তাহলে সিরিয়াল নাম্বারগুলোও পরপর নামে। */
+   })).sort((a,b)=>(b.__reg||'').localeCompare(a.__reg||'')||(wlv1YrDaySeq(b)-wlv1YrDaySeq(a))||String(a.name||'').localeCompare(String(b.name||'')));
  }
  if(tab==='yearlyreg'){
    if(!isMaster()) return draffHome('home');

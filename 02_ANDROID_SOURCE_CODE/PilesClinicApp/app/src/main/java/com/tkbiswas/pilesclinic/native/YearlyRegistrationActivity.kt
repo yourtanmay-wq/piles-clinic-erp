@@ -41,6 +41,44 @@ class YearlyRegistrationActivity : AppCompatActivity() {
     private lateinit var bodyCol: LinearLayout
     private lateinit var totalView: TextView
 
+    /* 🔢🔒 V1001 (০৩.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — TK: *"নামের আগে
+       সিরিয়াল নাম্বার দরকার — বছরের প্রথম দিন যে পেশেন্ট এসেছে তার সিরিয়াল
+       নাম্বার ১ … এটা তারিখ এবং সময় অনুসারে নির্ধারণ হবে। যদি পুরনো তারিখে
+       অন্য কেউকে আবার রেজিস্ট্রেশন করা হয়ে থাকে সেই ক্ষেত্রে সমস্ত সিরিয়াল
+       নাম্বার পরিবর্তন হয়ে যাবে"*।
+       · **সময়** আসে রোগীর নিজের কোড থেকে — `KNE-02092026-003`-এর শেষ
+         সংখ্যাটাই ওই দিনের ক্রম (কে আগে, কে পরে)। আলাদা কোনো ঘর লাগেনি।
+       · নম্বর **কোথাও জমা হয় না** — পর্দা খোলার সময় প্রতিবার নতুন করে গোনা
+         হয়। তাই পুরনো তারিখে কেউ বসলে বাকি সবার নম্বর নিজে থেকেই সরে যায়।
+       · TK: *"রিমুভ তো আমি তাদেরই করব যেগুলো ডেমো ছিল, সুতরাং ডেমো নাম্বারের
+         কোন অধিকার থাকবে না সিরিয়াল পাওয়ার"* ⇒ Skip করা সারি নম্বর পায় না,
+         আর ওরা কারো নম্বরও খায় না। ⇒ সবচেয়ে বড় নম্বরটাই উপরের মোট সংখ্যা।
+       ⛔ একটাও নতুন ক্লাউড-পড়া নেই, ডেটাবেসে কিছু লেখা হয় না। */
+    private val serialOf = HashMap<String, Int>()
+
+    /** রোগীর কোডের শেষ অংশ = ওই দিনের ক্রম (না থাকলে ০)। */
+    private fun daySeqOf(e: DraftEntry): Int =
+        e.patientId.substringAfterLast('-', "").filter { it.isDigit() }.toIntOrNull() ?: 0
+
+    /** তারিখ ⇢ ওই দিনের ক্রম ⇢ নাম — নতুন সবার উপরে (পর্দার চেনা ক্রম)। */
+    private fun sortForScreen() {
+        rows.sortWith(
+            compareByDescending<DraftEntry> { it.recordDate }
+                .thenByDescending { daySeqOf(it) }
+                .thenBy { it.name })
+    }
+
+    /** গোনা-হওয়া সারিগুলোকে পুরনো থেকে নতুন ধরে ১, ২, ৩ … বসায়। */
+    private fun rebuildSerials() {
+        serialOf.clear()
+        var n = 0
+        for (e in rows.asReversed()) {
+            if (e.extra == YearlyRegistration.SKIP_MARK) continue
+            n += 1
+            serialOf[e.id] = n
+        }
+    }
+
     private fun d(): Float = resources.displayMetrics.density
     private fun px(v: Int): Int = (v * d()).toInt()
 
@@ -52,6 +90,7 @@ class YearlyRegistrationActivity : AppCompatActivity() {
         rows = ((intent.getSerializableExtra("entries") as? ArrayList<DraftEntry>) ?: ArrayList()).toMutableList()
         outDemo = intent.getIntExtra("outDemo", 0)        // 🆕 V852
         outNoDate = intent.getIntExtra("outNoDate", 0)
+        sortForScreen()   // 🔢 V1001
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -109,6 +148,7 @@ class YearlyRegistrationActivity : AppCompatActivity() {
 
     private fun render() {
         bodyCol.removeAllViews()
+        rebuildSerials()   // 🔢 V1001 — প্রতিবার নতুন করে গোনা হয়
 
         bodyCol.addView(label(
             (branch.ifBlank { "All" }) + " · " + year, 13f, "#5B6B81"))
@@ -362,6 +402,20 @@ class YearlyRegistrationActivity : AppCompatActivity() {
                 if (!picked.remove(e.id)) picked.add(e.id)
                 render()
             }
+        })
+
+        /* 🔢 V1001 — নামের ঠিক আগে সিরিয়াল নাম্বার (TK-এর পাশ করা প্রুফ)।
+           Skip করা সারিতে নম্বরের জায়গাটা ফাঁকা থাকে, কিন্তু চওড়া একই — তাই
+           নামের কলাম সব সারিতে এক জায়গা থেকেই শুরু হয়। */
+        row.addView(TextView(this).apply {
+            val n = serialOf[e.id]
+            text = if (n != null) n.toString() else ""
+            textSize = 12.5f
+            gravity = Gravity.END or Gravity.CENTER_VERTICAL
+            setTextColor(android.graphics.Color.parseColor("#7A8794"))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            layoutParams = LinearLayout.LayoutParams(px(30), LinearLayout.LayoutParams.WRAP_CONTENT)
+                .apply { marginEnd = px(9) }
         })
 
         val texts = LinearLayout(this).apply {

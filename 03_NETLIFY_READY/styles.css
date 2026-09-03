@@ -6452,6 +6452,11 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
   border-bottom:1px solid #ECF1F6;padding:9px 10px}
 .wlv1YrRow.off{background:#F7F9FC}
 .wlv1YrRow.off .wlv1YrWho b{color:#9AA6B4;text-decoration:line-through}
+/* 🔢🔒 V1001 (০৩.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — নামের ঠিক আগে
+   সিরিয়াল নাম্বার। Remove করা সারিতে ঘরটা ফাঁকা থাকে কিন্তু চওড়া একই,
+   তাই নামের কলাম সব সারিতে এক জায়গা থেকেই শুরু হয়। */
+.wlv1YrSn{flex:0 0 auto;width:30px;text-align:right;font-size:12.5px;
+  font-weight:700;color:#7A8794;font-variant-numeric:tabular-nums}
 .wlv1YrWho{flex:1;min-width:0;display:flex;flex-direction:column}
 .wlv1YrWho b{font-size:13.5px;color:#101828;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .wlv1YrWho small{font-size:11.5px;color:#9AA6B4}
