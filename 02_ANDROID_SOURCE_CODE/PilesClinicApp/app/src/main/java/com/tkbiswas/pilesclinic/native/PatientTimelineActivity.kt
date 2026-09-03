@@ -115,7 +115,8 @@ class PatientTimelineActivity : AppCompatActivity() {
     // -- prescriptions, print, Registration edit) is never touched; this
     // is purely a display transform run fresh every time the header
     // renders.
-    private fun stripAddressLabels(address: String): String {
+    private fun stripAddressLabels(addressIn: String): String {
+        val address = addressIn.uppercase(java.util.Locale.US)   // 🔠🔒 V1009 (০৩.০৯.২০২৬, TK-নির্দেশ) — শুধু দেখানোর সময় বড় হাতে; ডেটাবেসে কিছু বদলায় না।
         if (address.isBlank()) return address
         fun strip(a: String): String = a.split(",").joinToString(",") { part ->
             val trimmed = part.trim()

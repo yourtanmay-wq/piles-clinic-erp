@@ -2501,7 +2501,7 @@ class FollowUpActivity : AppCompatActivity() {
         container.addView(info)
         if (item.address.isNotBlank()) {
             container.addView(android.widget.TextView(this).apply {
-                text = "Full address: " + item.address
+                text = "Full address: " + item.address.uppercase(java.util.Locale.US)   // 🔠🔒 V1009 (০৩.০৯.২০২৬, TK-নির্দেশ) — শুধু দেখানোর সময় বড় হাতে; ডেটাবেসে কিছু বদলায় না।
                 setTextColor(android.graphics.Color.parseColor("#5B6B81"))
                 textSize = 12.5f
                 setPadding(0, dpx(4), 0, dpx(12))
@@ -3203,7 +3203,7 @@ class FollowUpActivity : AppCompatActivity() {
                 "🆔 ${item.patientId.ifBlank { "—" }}  ·  📞 $digits"
             val addressView = view.findViewById<android.widget.TextView>(com.tkbiswas.pilesclinic.R.id.tvNthAddress)
             if (item.address.isNotBlank()) {
-                addressView.text = "📍 ${item.address}"
+                addressView.text = "📍 " + item.address.uppercase(java.util.Locale.US)   // 🔠🔒 V1009 (০৩.০৯.২০২৬, TK-নির্দেশ) — শুধু দেখানোর সময় বড় হাতে; ডেটাবেসে কিছু বদলায় না।
                 addressView.visibility = View.VISIBLE
             } else addressView.visibility = View.GONE
 

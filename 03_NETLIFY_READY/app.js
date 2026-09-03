@@ -8367,7 +8367,7 @@ function viewFollow(id){
          (২) ভিতরের `<h2>` বাদ (পাতার নিজের শিরোনাম আছে, নইলে দুবার লেখা উঠত),
          (৩) "Close" → "← Back", যা অ্যাপের নিজের `goBackOnePage()` ডাকে।
          ⛔ "Add Remark" আগের মতোই `openRemarkNote()` খোলে (পাতার উপরে পপ-আপ — সমস্যা নেই)। */
-      page('View All Timeline', `<div class="card anTlCard anTlStage-${esc(String(x.stage||'Inquiry'))}"><div class="summaryIdentity anTlIdent">${photo}<div><b class="anTlName">${esc(p.name||x.name||e.name||frNorm(mm))}</b><br><span class="anTlSub">${esc(p.patientId||'')} ${p.patientId?'· ':''}${esc(frNorm(mm))}</span><br><span class="anTlSub">${esc(p.branch||x.branch||e.branch||'')}</span> · <span class="anTlStagePill">${esc(frStageName(x))}</span>${((p.address||x.address||e.address||'').trim())?`<br><span class="anTlSub">📍 ${esc((p.address||x.address||e.address||'').trim())}</span>`:''}</div></div></div><div class="sectionTitle anTlSecTitle">Recent Updates</div>${visibleHtml}${hiddenHtml}<div class="actions"><button onclick="openRemarkNote('${id}')">Add Remark</button></div>`, true);
+      page('View All Timeline', `<div class="card anTlCard anTlStage-${esc(String(x.stage||'Inquiry'))}"><div class="summaryIdentity anTlIdent">${photo}<div><b class="anTlName">${esc(p.name||x.name||e.name||frNorm(mm))}</b><br><span class="anTlSub">${esc(p.patientId||'')} ${p.patientId?'· ':''}${esc(frNorm(mm))}</span><br><span class="anTlSub">${esc(p.branch||x.branch||e.branch||'')}</span> · <span class="anTlStagePill">${esc(frStageName(x))}</span>${((p.address||x.address||e.address||'').trim())?`<br><span class="anTlSub">📍 ${esc((p.address||x.address||e.address||'').trim().toUpperCase())}</span>`:''}</div></div></div><div class="sectionTitle anTlSecTitle">Recent Updates</div>${visibleHtml}${hiddenHtml}<div class="actions"><button onclick="openRemarkNote('${id}')">Add Remark</button></div>`, true);
     }
 window.viewFollow=viewFollow;
 function openRemarkNote(id){let x=load('followups').find(a=>a.id===id);if(!x)return toast('Follow-up not found');modal(`<h2>Remarks</h2><b>${esc(x.name||normMob(x.mobile))}</b><div class="remarkHistory">${(x.history||[]).map(h=>`<div class="card remarkLine"><b>${esc(h.date||'')}</b><br>${esc(h.remark||'')}<br><small>By: ${esc(codeName(h.staff||''))}</small></div>`).join('')||'<div class="card mut">No history</div>'}</div><label>New Remark</label><textarea id="fr" placeholder="এখানে কিছু লিখুন…"></textarea><button onclick="saveRemarkOnly('${id}')">Save Remark</button>`)}
@@ -14833,7 +14833,7 @@ function paymentHistory(id,type='all'){
      ${(p.altMobile&&mob(p.altMobile).length===10)?`<div class="phField phNoBreak"><span class="phIco" style="background:#0e7c7b !important;">📱</span><b>Alternate Mobile</b><span>${esc(normMob(p.altMobile))}</span></div>`:''}
      <div class="phField"><span class="phIco" style="background:#1067d8 !important;">👤</span><b>Age / Gender</b><span>${esc(p.age||'-')} / ${esc(String(p.sex||'-').toUpperCase())}</span></div>
      <div class="phField"><span class="phIco" style="background:#6941c6 !important;">💊</span><b>Disease</b><span>${esc(p.disease||'-')}</span></div>
-     <div class="phField"><span class="phIco" style="background:#f79009 !important;">📍</span><b>Address</b><span>${esc(p.address||'-')}</span></div>
+     <div class="phField"><span class="phIco" style="background:#f79009 !important;">📍</span><b>Address</b><span>${esc(String(p.address||'-').toUpperCase())}</span></div>
      <div class="phField"><span class="phIco" style="background:#d92d20 !important;">⏰</span><b>First Visit</b><span>${esc(fmtDate(p.registrationDate||p.visitDate||p.date||'-'))}</span></div>
    </div>
   </div>
@@ -16778,7 +16778,11 @@ window["branchPrintLogoHtml"]=branchPrintLogoHtml;
 function printableBranchName(p){return isKishanganjBranchName(p?.branch)?'KISHANGANJ':String((p?.branch||'')).toUpperCase()+(String(p?.branch||'').toUpperCase().includes('BRANCH')?'':' BRANCH')}
 window["printableBranchName"]=printableBranchName;
 /* 🔒 B552 (08.08.2026, TK-নির্দেশ "গ্লোবাল রুলস") — ঠিকানা দু'লাইনে: থানা-চিহ্নের (PS/P.S/P/S/Thana/থানা/Police Station) ঠিক আগে লাইন-ব্রেক, তাই ১ম লাইনে গ্রাম+পোস্ট, ২য় লাইনে থানা+জেলা। চিহ্ন না পেলে এক লাইনেই থাকে (কিছু ভাঙে না)। ফোনের formatAddressTwoLines/CheckupA4Report.addrTwoLines-এর হুবহু একই নিয়ম। */
-function wlv1AddrTwo(a){a=String(a||'');if(!a)return '';var ms=['PS:','P.S','P/S','Thana','থানা','Police Station'];var idx=-1,U=a.toUpperCase();for(var i=0;i<ms.length;i++){var k=U.indexOf(ms[i].toUpperCase());if(k>0&&(idx===-1||k<idx))idx=k;}if(idx<=0)return esc(a);var first=a.substring(0,idx).replace(/,\s*$/,'').trim(),second=a.substring(idx).trim();if(!first||!second)return esc(a);return esc(first)+'<br>'+esc(second);}
+/* 🔠🔒 V1009 (০৩.০৯.২০২৬, TK-নির্দেশ: *"সমস্ত জায়গায় ক্যাপিটাল লেটারই
+   করবেন"*) — ঠিকানা এখন সবখানে বড় হাতের অক্ষরে। এটা শুধু **দেখানোর**
+   নিয়ম — ডেটাবেসে যা লেখা আছে তা এক অক্ষরও বদলায় না, আর এই ফাংশনের ফল
+   কোথাও সেভ হয় না (HTML ফেরত দেয়)। ফোনের যমজ: `addr2` / `addrTwoLines`। */
+function wlv1AddrTwo(a){a=String(a||'').toUpperCase();if(!a)return '';var ms=['PS:','P.S','P/S','Thana','থানা','Police Station'];var idx=-1,U=a.toUpperCase();for(var i=0;i<ms.length;i++){var k=U.indexOf(ms[i].toUpperCase());if(k>0&&(idx===-1||k<idx))idx=k;}if(idx<=0)return esc(a);var first=a.substring(0,idx).replace(/,\s*$/,'').trim(),second=a.substring(idx).trim();if(!first||!second)return esc(a);return esc(first)+'<br>'+esc(second);}
 window["wlv1AddrTwo"]=wlv1AddrTwo;
 function rxPrintPatientHtml(p){return `<div class="rxPatientLine"><div><b>Patient Name</b> : ${esc(String(p.name||'').toUpperCase())}</div><div><b>PATIENT ID / Reg No.</b> : ${esc(p.patientId||'')}</div><div><b>Age / Sex</b> : ${esc(p.age||'')} / ${esc(String(p.sex||'').toUpperCase())}</div><div><b>Mobile Number</b> : ${esc(normMob(p.mobile||''))}</div><div><b>Address</b> : ${wlv1AddrTwo(p.address||'')}</div></div><div class="rxDoctorLine"><div><b>Date</b> : ${today()}</div><div><b>Branch</b> : ${esc(p.branch||'')}</div></div>`}
 window["rxPrintPatientHtml"]=rxPrintPatientHtml;
@@ -17147,7 +17151,7 @@ function patientDetailsPanel(p){
        ${field('Disease',p.disease)}
        ${field('Branch',p.branch)}
      </div>
-     <div class="pdpAddress">${field('Address',p.address)}</div>
+     <div class="pdpAddress">${field('Address',String(p.address||'').toUpperCase())}</div>
    </div>
  </div>`;
 }
@@ -26832,7 +26836,7 @@ function wlv1EstPaperHtml(editable){
    +'<div class="pi"><div class="c"><div class="r"><b>Name</b> : '+esc(p.name||'-')+'</div>'
    +'<div class="r"><b>Patient ID</b> : '+esc(p.patientId||'-')+'</div><div class="r"><b>Age / Sex</b> : '+esc(ageSex)+'</div></div>'
    +'<div class="c"><div class="r"><b>Mobile</b> : '+esc(normMob(p.mobile||''))+'</div>'
-   +'<div class="r"><b>Branch</b> : '+esc(br)+'</div><div class="r"><b>Address</b> : <span style="display:inline-block;vertical-align:top">'+wlv1AddrTwo(String(p.address||'-').toUpperCase())+'</span></div></div></div>'   /* 🏠 V1008 — গ্রাম+পোস্ট এক লাইনে, থানা+জেলা পরের লাইনে (ফোনের হুবহু যমজ) */
+   +'<div class="r"><b>Branch</b> : '+esc(br)+'</div><div class="r"><b>Address</b> : <span style="display:inline-block;vertical-align:top">'+wlv1AddrTwo(p.address||'-')+'</span></div></div></div>'   /* 🏠 V1008 — গ্রাম+পোস্ট এক লাইনে, থানা+জেলা পরের লাইনে (ফোনের হুবহু যমজ) */
    +'<div class="wrap"><div class="sec"><div class="sh">COST BREAKDOWN</div>'
    +'<table><thead><tr><th>Treatment / Item</th><th>Position</th><th class="r">Rate (&#8377;)</th><th class="r">Qty</th><th class="r">Total (&#8377;)</th></tr></thead>'
    +'<tbody>'+rows+'</tbody></table></div>'

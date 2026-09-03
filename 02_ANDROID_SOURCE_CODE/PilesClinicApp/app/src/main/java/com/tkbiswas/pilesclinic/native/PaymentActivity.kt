@@ -1723,7 +1723,8 @@ class PaymentActivity : AppCompatActivity() {
     // ১ম লাইনে গ্রাম+পোস্ট, ২য় লাইনে থানা+জেলা; তারপর প্রতি লাইন থেকে লেবেল
     // (Vill:/PO:/PS:/Dist:) কাটা হয়। চিহ্ন না পেলে এক লাইন। সেভ-হওয়া ঠিকানা
     // বদলায় না — শুধু দেখানোর সময়।
-    private fun addressTwoLines(address: String): String {
+    private fun addressTwoLines(addressIn: String): String {
+        val address = addressIn.uppercase(java.util.Locale.US)   // 🔠🔒 V1009 (০৩.০৯.২০২৬, TK-নির্দেশ) — শুধু দেখানোর সময় বড় হাতে; ডেটাবেসে কিছু বদলায় না।
         if (address.isBlank()) return address
         fun strip(a: String): String = a.split(",").joinToString(",") { part ->
             val trimmed = part.trim()

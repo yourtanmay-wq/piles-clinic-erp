@@ -78,7 +78,8 @@ object CheckupA4Report {
     // থাকে (কিছু ভাঙে না)। DoctorCheckupActivity.formatAddressTwoLines-এর
     // হুবহু একই প্রমাণিত নিয়ম, শুধু এখানে HTML `<br>` দিয়ে। সেভ-হওয়া মান
     // বদলায় না — শুধু দেখানোর সময় ভাঙা হয়।
-    private fun addrTwoLines(raw: String): String {
+    private fun addrTwoLines(rawIn: String): String {
+        val raw = rawIn.uppercase(java.util.Locale.US)   // 🔠🔒 V1009 (০৩.০৯.২০২৬, TK-নির্দেশ: "সমস্ত জায়গায় ক্যাপিটাল লেটারই করবেন") — শুধু **দেখানোর** সময় বড় হাতে; ডেটাবেসে যা লেখা আছে তা এক অক্ষরও বদলায় না।
         val markers = listOf("PS:", "P.S", "P/S", "Thana", "থানা", "Police Station")
         var idx = -1
         for (m in markers) {

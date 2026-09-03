@@ -174,7 +174,8 @@ class CollectionAdapter(
 
     // 🔒 B575: গ্লোবাল দু'লাইন ঠিকানা নিয়ম (থানা-চিহ্নের আগে ভাঙা) — PaymentActivity-র
     // addressTwoLines-এর হুবহু একই। চিহ্ন না পেলে এক লাইন (কিছু ভাঙে না)।
-    private fun addrTwoLines(address: String): String {
+    private fun addrTwoLines(addressIn: String): String {
+        val address = addressIn.uppercase(java.util.Locale.US)   // 🔠🔒 V1009 (০৩.০৯.২০২৬, TK-নির্দেশ: "সমস্ত জায়গায় ক্যাপিটাল লেটারই করবেন") — শুধু **দেখানোর** সময় বড় হাতে; ডেটাবেসে যা লেখা আছে তা এক অক্ষরও বদলায় না।
         if (address.isBlank()) return address
         fun strip(s: String) = s.replace(Regex("(?i)Vill:?|PO:?|PS:?|Dist:?|PIN:?"), "").replace(Regex("\\s*,\\s*"), ", ").trim().trim(',').trim()
         val markers = listOf("PS:", "P.S", "P/S", "Thana", "থানা", "Police Station")

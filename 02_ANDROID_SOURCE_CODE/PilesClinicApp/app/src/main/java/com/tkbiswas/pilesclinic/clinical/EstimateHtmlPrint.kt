@@ -27,7 +27,8 @@ object EstimateHtmlPrint {
        ⛔ থানার চিহ্ন না পেলে আগের মতোই এক লাইনে থাকে। */
     /* 🔠 V1008 — TK: *"VILL capital লেটার হবে"* ⇒ এস্টিমেটের কাগজে পুরো
        ঠিকানাটাই বড় হাতের অক্ষরে (নাম ও ব্রাঞ্চ এই কাগজে আগে থেকেই বড় হাতে)। */
-    private fun addr2(a: String): String {
+    private fun addr2(aRaw: String): String {
+        val a = aRaw.uppercase(java.util.Locale.US)   // 🔠🔒 V1009 (০৩.০৯.২০২৬, TK-নির্দেশ: "সমস্ত জায়গায় ক্যাপিটাল লেটারই করবেন") — শুধু **দেখানোর** সময় বড় হাতে; ডেটাবেসে যা লেখা আছে তা এক অক্ষরও বদলায় না।
         if (a.isBlank()) return "-"
         val u = a.uppercase()
         val markers = listOf("PS:", "P.S", "P/S", "THANA", "POLICE STATION")
@@ -163,7 +164,7 @@ a{color:inherit;text-decoration:none;}
 <div class="tb"><span class="t">TREATMENT COST ESTIMATE</span><span class="r">Rec. No: ${esc(patientId)} &nbsp;&middot;&nbsp; Date: ${esc(date)}</span></div>
 <div class="pi">
 <div class="c"><div class="r"><b>Name</b> : ${esc(name)}</div><div class="r"><b>Patient ID</b> : ${esc(patientId)}</div><div class="r"><b>Age / Sex</b> : ${esc(ageSex)}</div></div>
-<div class="c"><div class="r"><b>Mobile</b> : ${esc(mobile)}</div><div class="r"><b>Branch</b> : ${esc(b.displayName)}</div><div class="r"><b>Address</b> : <span style="display:inline-block;vertical-align:top">${addr2(address.uppercase())}</span></div></div>
+<div class="c"><div class="r"><b>Mobile</b> : ${esc(mobile)}</div><div class="r"><b>Branch</b> : ${esc(b.displayName)}</div><div class="r"><b>Address</b> : <span style="display:inline-block;vertical-align:top">${addr2(address)}</span></div></div>
 </div>
 <div class="wrap">
 $findingBlock

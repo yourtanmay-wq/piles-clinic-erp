@@ -983,7 +983,8 @@ class DoctorCheckupActivity : AppCompatActivity() {
     // বসে, তাই ১ম লাইনে গ্রাম/পোস্ট, ২য় লাইনে থানা/জেলা। চিহ্ন না পেলে ঠিকানা
     // আগের মতোই এক লাইনে থাকে (কিছু ভাঙে না)। ⛔ সেভ-হওয়া ঠিকানার আসল মান
     // বদলায় না — শুধু পর্দায় দেখানোর সময় ভাঙা হয়।
-    private fun formatAddressTwoLines(addr: String): String {
+    private fun formatAddressTwoLines(addrIn: String): String {
+        val addr = addrIn.uppercase(java.util.Locale.US)   // 🔠🔒 V1009 (০৩.০৯.২০২৬, TK-নির্দেশ) — শুধু দেখানোর সময় বড় হাতে; ডেটাবেসে কিছু বদলায় না।
         val markers = listOf("PS:", "P.S", "P/S", "Thana", "থানা", "Police Station")
         var idx = -1
         for (m in markers) {

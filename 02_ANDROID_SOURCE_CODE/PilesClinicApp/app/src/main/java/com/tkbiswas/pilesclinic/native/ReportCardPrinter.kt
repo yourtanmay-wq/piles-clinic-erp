@@ -125,7 +125,8 @@ object ReportCardPrinter {
     // ১ম লাইন গ্রাম+পোস্ট, ২য় লাইন থানা+জেলা। চিহ্ন না পেলে এক লাইনেই থাকে।
     // CheckupA4Report.addrTwoLines/formatAddressTwoLines-এর হুবহু একই নিয়ম।
     // সেভ-হওয়া ঠিকানা বদলায় না — শুধু ছাপার সময় ভাঙা।
-    private fun addrTwoLines(raw: String): String {
+    private fun addrTwoLines(rawIn: String): String {
+        val raw = rawIn.uppercase(java.util.Locale.US)   // 🔠🔒 V1009 (০৩.০৯.২০২৬, TK-নির্দেশ: "সমস্ত জায়গায় ক্যাপিটাল লেটারই করবেন") — শুধু **দেখানোর** সময় বড় হাতে; ডেটাবেসে যা লেখা আছে তা এক অক্ষরও বদলায় না।
         val markers = listOf("PS:", "P.S", "P/S", "Thana", "থানা", "Police Station")
         var idx = -1
         for (m in markers) { val i = raw.indexOf(m, ignoreCase = true); if (i > 0 && (idx == -1 || i < idx)) idx = i }
