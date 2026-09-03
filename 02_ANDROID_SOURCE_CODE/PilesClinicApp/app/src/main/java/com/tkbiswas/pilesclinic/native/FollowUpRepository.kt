@@ -3158,6 +3158,24 @@ class FollowUpRepository(private val context: Context? = null) {
             .put("callCount", newCount)
             .put("lastCallDate", today)
             .put("updatedAt", isoNow())
+        /* 📞🔒 V998 (০৩.০৯.২০২৬, TK-রিপোর্ট ছবিসহ — Susmita Das · MD RAJ):
+           *"NEXT CALL, LAST CALL-এর আগের তারিখ, তাই চিরকাল Overdue"*।
+
+           **আসল কারণ (কোড ধরে, আন্দাজ নয়):** ডায়ালার থেকে কল হলে
+           `DialerRepository.saveCallRemark()` এই ফাংশনটা ডাকে — এটা কল গোনে ও
+           `lastCallDate` আজকের করে, **কিন্তু `nextFollow` কখনো ছোঁয় না**।
+           স্টাফ পরের কলের তারিখ বেছে দিলে তবেই V873-এর পথে সেটা বসে; না
+           দিলে পুরনো তারিখটাই থেকে যায় ⇒ সারিটা চিরকাল "Overdue"।
+
+           **এখন:** তারিখটা **ফাঁকা বা আজকের আগের** হলেই আজকের দিন বসে —
+           অর্থাৎ সারিটা "আজকের কল"-এ ফেরে, পুরনো তারিখে আটকে থাকে না।
+           ⛔ **ভবিষ্যতের তারিখ কখনো ছোঁয়া হয় না** — স্টাফের বেছে দেওয়া
+              পরের তারিখ অক্ষত।
+           ⛔ স্টাফ নিজে তারিখ বাছলে সেটাই শেষ কথা: `saveCallRemark()`-এ
+              `updateNextFollow()` এই ফাংশনের **পরে** চলে, তাই সে-ই জেতে।
+           ⛔ সারি তালিকা থেকে হারায় না — "বকেয়া" থেকে "আজকের"-এ সরে আসে। */
+        val curNext = if (row.isNull("nextFollow")) "" else row.optString("nextFollow", "")
+        if (curNext.isBlank() || curNext < today) fields.put("nextFollow", today)
         rememberEditOnThisPhone(id, fields, row)
         val ok = SupabaseClient.updateById("followups", id, fields)
         if (!ok) queueFieldUpdate(id, fields)
