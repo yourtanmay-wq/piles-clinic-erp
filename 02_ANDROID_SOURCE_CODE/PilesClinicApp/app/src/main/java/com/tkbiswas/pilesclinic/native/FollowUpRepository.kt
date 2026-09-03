@@ -242,6 +242,43 @@ class FollowUpRepository(private val context: Context? = null) {
             }
             return "or=($encParts,branch.is.null)"
         }
+        /**
+         * 📦🔒 V999 (০৩.০৯.২০২৬, TK-অনুমোদিত, মেপে নেওয়া) — **তালিকার মূল পড়াটা
+         * এখন শুধু নিজের ব্রাঞ্চের সারি চায়।**
+         *
+         * **কেন (মাপা তথ্য, আন্দাজ নয়):** Supabase-এর লগে ২৪ ঘণ্টায় `followups`
+         * একাই ১৩,৫৮৯ বার ডাকা হয় — সব ডাকের ৪০%, আর সবগুলোই ফোনের অ্যাপ থেকে।
+         * অথচ প্রতিবার **পাঁচ ব্রাঞ্চের সব সারিই** নামত, দেখানো হত শুধু নিজের
+         * ব্রাঞ্চেরটা (কোচবিহার ৪৮২ · কিষানগঞ্জ ৪৩০ · জলপাইগুড়ি ৩৫৫ ·
+         * ফালাকাটা ৪৬ · বীরপাড়া ৬ — মোট ১৩১৯, ব্রাঞ্চ-ফাঁকা একটাও নেই)।
+         *
+         * **কেন নিরাপদ:** ফেরত আসা প্রতিটা সারি এমনিতেই `branchAllows()`-এর
+         * ছাঁকনি পার হয় — অর্থাৎ যেগুলো এখানে বাদ পড়বে, সেগুলো পর্দায় আগেও
+         * উঠত না। ছাঁকনিতে তিনটেই ধরা আছে: নিজের ব্রাঞ্চ · রোগীর কোডের
+         * শুরুর তিন অক্ষর (`branchAllows`-এর দ্বিতীয় নিয়ম) · ব্রাঞ্চ ফাঁকা।
+         * ⛔ মাস্টার/All-branch হলে ছাঁকনি বসেই না — আগের মতোই সব নামে।
+         * ⛔ ছাঁকা পড়া ব্যর্থ হলে **হুবহু আগের পুরো পড়াটাই** চলে (নিচে দেখুন)।
+         * ⛔ ইচ্ছে করেই **শুধু তালিকার মূল পড়াটায়** বসানো হলো। ধাপ-মেলানোর
+         *    বাকি পড়াগুলো (`preHigher`, `preTreatmentStage` ইত্যাদি) ছোঁয়া হয়নি —
+         *    ওগুলো "এই রোগী কি অন্য ধাপে চলে গেছে?" যাচাই করে, আর সেই সারি
+         *    অন্য ব্রাঞ্চে থাকতে পারে; ছেঁকে দিলে একই নাম দু'বার দেখাত।
+         */
+        private fun followupBranchScope(branchFilter: String?): String {
+            val b = branchFilter?.trim() ?: return ""
+            if (b.isEmpty() || b.equals("All", ignoreCase = true)) return ""
+            val parts = b.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+            if (parts.isEmpty()) return ""
+            val clauses = ArrayList<String>()
+            for (p in parts) {
+                val enc = try { java.net.URLEncoder.encode(p, "UTF-8") } catch (_: Throwable) { p }
+                clauses.add("branch.eq.$enc")
+                val code = try { PatientIdGenerator.branchCode(p) } catch (_: Throwable) { "" }
+                if (code.isNotBlank()) clauses.add("patientId.like.$code-*")
+            }
+            clauses.add("branch.is.null")
+            return "&or=(" + clauses.joinToString(",") + ")"
+        }
+
         private fun branchKeyPart(branchFilter: String?): String =
             branchFilter?.trim()?.takeIf { it.isNotEmpty() && !it.equals("All", ignoreCase = true) } ?: "all"
 
@@ -1064,10 +1101,15 @@ class FollowUpRepository(private val context: Context? = null) {
         runBlocking {
             val jobs = mutableListOf<Deferred<Unit>>()
             jobs += async(Dispatchers.IO) {
-                preCloud = if (preCloudOverride != null) preCloudOverride else
-                    CloudReadCache.get("fu:stage:$stage") {
-                        slimFollowups("stage=eq.$stage&status=not.in.(Cancelled,Incomplete,Rejected,Closed)")
+                preCloud = if (preCloudOverride != null) preCloudOverride else {
+                    val base = "stage=eq.$stage&status=not.in.(Cancelled,Incomplete,Rejected,Closed)"
+                    val scope = followupBranchScope(branchFilter)   // 📦 V999
+                    CloudReadCache.get("fu:stage:$stage:" + branchKeyPart(branchFilter)) {
+                        // ছাঁকা পড়া আগে; ব্যর্থ হলে হুবহু আগের পুরো পড়া
+                        (if (scope.isEmpty()) null else slimFollowups(base + scope))
+                            ?: slimFollowups(base)
                     } ?: JSONArray()
+                }
             }
             if (higherStagesPre != null) {
                 jobs += async(Dispatchers.IO) {
