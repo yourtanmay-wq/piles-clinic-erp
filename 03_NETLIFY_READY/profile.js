@@ -875,6 +875,10 @@
      ══════════════════════════════════════════════════════════════════════ */
   var SAL_PAT_CACHE = {};     /* patients.id → {name, mobile} */
   var SAL_LAST_PAYS = [];     /* শেষবার যে সারিগুলো আঁকা হয়েছে */
+  /* 🐞🔒 V1029 — যাচাইয়ে ধরা: চাপ দিলে পপ-আপ উঠত না, কারণ সারিটা
+     `SAL_LAST_PAYS` থেকে খুঁজে পাওয়া যেত না। এখন যে সারিটা আঁকা হচ্ছে ঠিক
+     সেখানেই তার নিজের নকল রেখে দেওয়া হয় — খুঁজে না পাওয়ার পথ আর নেই। */
+  var SAL_PAY_BY_ID = {};
 
   /* 🐞🔒 V1029 — সূত্র (`src_key`) ফাঁকা হলে কারণের লেখা থেকেই রোগীর কোড। */
   function salExtraPatientCode(x){
@@ -929,7 +933,8 @@
      নিচে "Open History" (TK-এর বাছা পথ: আগে দেখে নেওয়া, তারপর যাওয়া)। */
   function salExtraWhy(payId){
     try{
-      var x=(SAL_LAST_PAYS||[]).find(function(a){return String(a.id)===String(payId)});
+      var x=SAL_PAY_BY_ID[String(payId)] ||
+              (SAL_LAST_PAYS||[]).filter(function(a){return String(a.id)===String(payId)})[0];
       if(!x)return;
       var pid=salExtraPatientId(x);
       var c=SAL_PAT_CACHE[pid]||{name:'',mobile:'',timeType:''};
@@ -966,7 +971,7 @@
         : '';
       modal('<h2>Extra income - why?</h2><div class="card">'+rows+'</div>'
            +'<div class="actions">'+go+'<button class="ghost" onclick="closeModal()">Close</button></div>');
-    }catch(e){}
+    }catch(e){ try{ console.warn('salExtraWhy', e && e.message); }catch(_){} }
   }
   window["salExtraWhy"]=salExtraWhy;
 
@@ -1093,6 +1098,7 @@
         detail = detail ? (mark + '  ·  ' + detail) : mark;
       }
       if (vNm) detail = detail ? (detail + '  ·  ' + vNm) : vNm;
+      if (isExtra) { try { SAL_PAY_BY_ID[String(x.id||'')] = x; } catch(e){} }
       var vClick = vPid ? (' onclick="salExtraWhy(\''+m.esc(String(x.id||''))+'\')" style="cursor:pointer"') : '';
       return '<div class="pfStmtEntry'+(isDue?' isDue':'')+'"'+vClick+'>' +
         '<span class="pfStmtAccent"></span>' +
