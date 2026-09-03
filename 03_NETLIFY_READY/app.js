@@ -2472,6 +2472,100 @@ window["globalCapsuleSearchBar"]=globalCapsuleSearchBar;
 /* সাইডবার = web menu()-এর হুবহু একই ফিচার-তালিকা (যেটা অ্যান্ড্রয়েডের
    Dashboard/Menu থেকে নেওয়া) — তাই ডেস্কটপেও সব ফিচার এক জায়গায়, অ্যান্ড্রয়েডের
    মতোই। শুধু চেহারা আলাদা; কোনো ফাংশন/লজিক বদলায়নি (আসল ফাংশনই ডাকে)। */
+/* 🖥️🆕 V1026 (TK-নির্দেশ ০৩.০৯.২০২৬ — *"পাশে যদি জাগা থাকে যে কোন জিনিস ডান দিক
+   এবং বাদিক করে রাখুন"*)। শুধু কম্পিউটারে (≥1200px + hasDeskNav) পর্দার বাক্সগুলো
+   দুই কলামে সাজানো হয়। বাক্সগুলো **সরানো** হয় (appendChild), নতুন করে আঁকা হয় না —
+   তাই প্রতিটা id · onclick · ইনপুটের মান অবিকল আগের মতোই থাকে। ফোনে কিচ্ছু হয় না। */
+function wlv1DeskTwoCol(leftCount, tailCount){
+  try{
+    if(!wlv1DeskWide()) return;
+    var pg=document.querySelector('.wrap:not(.publicWrap) .page'); if(!pg) return;
+    if(pg.querySelector('.wlv1TwoCol')) return;
+    var kids=[].slice.call(pg.children).filter(function(k){
+      return k.className.indexOf('globalCapsuleWrap')<0;
+    });
+    tailCount=tailCount||0;
+    var body=kids.slice(0, kids.length-tailCount), tail=kids.slice(kids.length-tailCount);
+    if(body.length<2) return;
+    var box=document.createElement('div'); box.className='wlv1TwoCol';
+    var L=document.createElement('div'); L.className='wlv1TcL';
+    var R=document.createElement('div'); R.className='wlv1TcR';
+    box.appendChild(L); box.appendChild(R); pg.appendChild(box);
+    body.forEach(function(k,i){ (i<leftCount?L:R).appendChild(k); });
+    tail.forEach(function(k){ pg.appendChild(k); });
+  }catch(e){}
+}
+window["wlv1DeskTwoCol"]=wlv1DeskTwoCol;
+/* একই নিয়মে: প্রথম কয়েকটা বাক্স পুরো চওড়ায়, বাকিগুলো কয়েক কলামের ছকে। */
+function wlv1DeskCardGrid(fromIdx, cls){
+  try{
+    if(!wlv1DeskWide()) return;
+    var pg=document.querySelector('.wrap:not(.publicWrap) .page'); if(!pg) return;
+    if(pg.querySelector('.'+cls)) return;
+    var kids=[].slice.call(pg.children).filter(function(k){
+      return k.className.indexOf('globalCapsuleWrap')<0;
+    });
+    if(kids.length<=fromIdx+1) return;
+    var g=document.createElement('div'); g.className=cls; pg.appendChild(g);
+    kids.slice(fromIdx).forEach(function(k){ g.appendChild(k); });
+  }catch(e){}
+}
+window["wlv1DeskCardGrid"]=wlv1DeskCardGrid;
+/* Print Center — দুটো সারিই পুরো চওড়ায়: উপরে ৩টা, নিচে ৫টা (TK-এর মকআপ)। */
+function wlv1DeskPrint(){
+  try{
+    var pg=document.querySelector('.wrap:not(.publicWrap) .page'); if(!pg) return;
+    var gs=pg.querySelectorAll('.printMenuGrid');
+    if(gs[0]) gs[0].classList.add('wlv1Pg1');
+    if(gs[1]) gs[1].classList.add('wlv1Pg2');
+  }catch(e){}
+}
+window["wlv1DeskPrint"]=wlv1DeskPrint;
+/* Reports — উপরে ৪টা সংখ্যার কার্ড পুরো চওড়ায়, তার নিচে Conversion (বাঁয়ে) ও
+   এই মাস বনাম গত মাস (ডানে) পাশাপাশি, স্টাফের কার্ডগুলো এক ছকে। */
+function wlv1DeskReports(){
+  try{
+    var pg=document.querySelector('.wrap:not(.publicWrap) .page'); if(!pg) return;
+    if(!pg.querySelector('.wlv1RepPair')){
+      var conv=pg.querySelector('.reportConversion');
+      if(conv && conv.parentNode===pg){
+        var t1=conv.nextElementSibling, mc=t1?t1.nextElementSibling:null;
+        var box=document.createElement('div'); box.className='wlv1TwoCol wlv1RepPair';
+        var L=document.createElement('div'); L.className='wlv1TcL';
+        var R=document.createElement('div'); R.className='wlv1TcR';
+        box.appendChild(L); box.appendChild(R);
+        pg.insertBefore(box,conv);
+        L.appendChild(conv); if(mc)R.appendChild(mc);
+        /* মকআপের মতো শিরোনামটা কার্ডের ভিতরেই, যাতে দুই কার্ড সমান উচ্চতায় শুরু হয় */
+        if(t1){ if(mc) mc.insertBefore(t1,mc.firstChild); else R.appendChild(t1); }
+      }
+    }
+    if(!pg.querySelector('.wlv1StaffGrid')){
+      var cards=[].slice.call(pg.children).filter(function(k){
+        return k.className.indexOf('reportStaffCard')>=0;
+      });
+      if(cards.length){
+        var g=document.createElement('div'); g.className='wlv1StaffGrid';
+        pg.insertBefore(g,cards[0]);
+        cards.forEach(function(c){ g.appendChild(c); });
+      }
+    }
+  }catch(e){}
+}
+window["wlv1DeskReports"]=wlv1DeskReports;
+function wlv1DeskAutoSplit(title){
+  try{
+    if(!wlv1DeskWide()) return;
+    var t=String(title||'');
+    if(t==='Print Center')        return wlv1DeskPrint();
+    if(t==='Backup Center')       return wlv1DeskTwoCol(1,0);
+    if(t==='App Settings')        return wlv1DeskTwoCol(1,2);
+    if(t.indexOf('Briefing')===0) return wlv1DeskTwoCol(1,0);
+    if(t==='Reports')             return wlv1DeskReports();
+    if(t==='Password Center')     return wlv1DeskCardGrid(1,'wlv1PwGrid');
+  }catch(e){}
+}
+window["wlv1DeskAutoSplit"]=wlv1DeskAutoSplit;
 function wlv1DeskNav(){return [
  ["🏠","Dashboard","dashboard()",["master","staff","doctor","field"]],
  ["🩺","Doctor Queue","doctorQueue()",["master","doctor","staff"]],
@@ -2613,7 +2707,7 @@ function page(title,body,hideSearch){if(!isFollowupTitle(title)){resetFollowDate
     __topExtra=`<div class="wlv1TopPayBar">${__payBrPick}${__payNav}<div class="wlv1DateBox wlv1TopDateBox"><span id="wlv1PayDateShow">${esc(wlv1Dot(__payD))}</span><input type="date" max="${today()}" value="${__payD}" onchange="wlv1PayDate=this.value;paymentHome()"></div></div>`;
   }
   let __titleCls=(title==='Medicine Payment')?' wlv1HideDesk':'';
-  app().innerHTML=`<div class="wrap ${esc(user?.role||'')}"><div class="topbar"><button class="ghost" onclick="goBackOnePage()">←</button><b class="${__titleCls}">${title}</b>${__topExtra}<button class="ghost" onclick="menu()">☰</button></div><div class="page">${__searchBar}${body}</div>${bottomNav()}</div>`;try{wlv1EnsureDesktopChrome(title)}catch(e){}try{wlv1HeaderPick()}catch(e){}try{wlv1AutoDateBoxes(document)}catch(e){}/* ⌨️ V757 — পর্দার ঘরগুলোতেও ব্রাউজারের সাজেশন বন্ধ (পাসওয়ার্ড ও লগইনের ঘর বাদ)। */try{wlv1NoSuggest(document)}catch(e){}}
+  app().innerHTML=`<div class="wrap ${esc(user?.role||'')}"><div class="topbar"><button class="ghost" onclick="goBackOnePage()">←</button><b class="${__titleCls}">${title}</b>${__topExtra}<button class="ghost" onclick="menu()">☰</button></div><div class="page">${__searchBar}${body}</div>${bottomNav()}</div>`;try{wlv1EnsureDesktopChrome(title)}catch(e){}try{wlv1HeaderPick()}catch(e){}try{wlv1DeskAutoSplit(title)}catch(e){}try{wlv1AutoDateBoxes(document)}catch(e){}/* ⌨️ V757 — পর্দার ঘরগুলোতেও ব্রাউজারের সাজেশন বন্ধ (পাসওয়ার্ড ও লগইনের ঘর বাদ)। */try{wlv1NoSuggest(document)}catch(e){}}
 function goBackOnePage(){
   /* 🔴🔒 V917 (৩১.০৮.২০২৬, TK: *"পেমেন্ট থেকে ব্যাক করলে এই অপশনটা কেন আসবে"*)
      — ব্যাক চাপলে **আগের পাতার জমানো HTML** আবার বসানো হয়। কিন্তু আগের পাতাটা
@@ -18676,7 +18770,7 @@ window["v272PaymentOptions"]=v272PaymentOptions;
     const oldPasswordCenterV272=window.passwordCenter||passwordCenter;
     window.passwordCenter=function(){
       oldPasswordCenterV272();
-      setTimeout(()=>{try{if(isMaster()){let main=document.querySelector('main')||app();let div=document.createElement('div');div.className='card';div.innerHTML='<b>Master Admin Security Question</b><p class="mut">Used only for Master Admin Forgot Password.</p><div class="actions"><button onclick="setupMasterSecurityQuestion()">Setup / Change Question</button></div>';main.prepend(div)}}catch(_e){}},50);
+      setTimeout(()=>{try{if(isMaster()){let pgEl=document.querySelector('.wrap:not(.publicWrap) .page');let main=document.querySelector('main')||app();let div=document.createElement('div');div.className='card wlv1SecQCard';div.innerHTML='<b>Master Admin Security Question</b><p class="mut">Used only for Master Admin Forgot Password.</p><div class="actions"><button onclick="setupMasterSecurityQuestion()">Setup / Change Question</button></div>';if(pgEl&&window.wlv1DeskWide&&wlv1DeskWide()){var intro=pgEl.querySelector('.card');if(intro&&window.wlv1DeskWide&&wlv1DeskWide()&&!pgEl.querySelector('.wlv1PwTop')){var pr=document.createElement('div');pr.className='wlv1TwoCol wlv1PwTop';var l=document.createElement('div');l.className='wlv1TcL';var r=document.createElement('div');r.className='wlv1TcR';pr.appendChild(l);pr.appendChild(r);pgEl.insertBefore(pr,intro);l.appendChild(intro);r.appendChild(div);}else if(intro){pgEl.insertBefore(div,intro.nextSibling);}else{pgEl.appendChild(div);}}else{main.prepend(div)}}}catch(_e){}},50);
     };
 
   }catch(e){console.warn('V272 suspicion cleanup skipped',e)}
