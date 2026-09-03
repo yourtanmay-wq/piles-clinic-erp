@@ -177,6 +177,11 @@
            ⛔ অন্য কারো কার্ডে ওঠে না; বাকি বোতাম অপরিবর্তিত। */
         (WLV1_FIELD_STAFF_CODES.indexOf(String(p.person_code||'').toUpperCase()) >= 0
           ? '<button class="small ghost pfBtn" onclick="profFieldVisit(\'' + m.esc(p.person_code) + '\')">Field Visit</button>' : '') +
+        /* 💰🔒 V1029 (TK-নির্দেশ: *"salary সহ যে পাঁচটা বটম আছে সেখানেই এক্সট্রা
+           ইনকামটা রাখতে বলা হয়েছিল"*) — এই সারিতেই বোতাম; চাপলে সেই স্টাফের
+           বেতন-পর্দা খোলে, যেখানে Extra Income-এর বাক্সটাই আছে।
+           ⛔ টাকার কোনো অঙ্ক/নিয়ম ছোঁয়া হয়নি — শুধু পৌঁছনোর পথ। */
+        '<button class="small ghost pfBtn" onclick="profSalary(\'' + m.esc(p.person_code) + '\')">Extra Income</button>' +
         '<button class="small ghost pfBtn pfDanger" onclick="profSuspend(\'' + m.esc(p.person_code) + '\')">Suspend</button>' +
         '<button class="small ghost pfBtn pfDanger" onclick="profRemove(\'' + m.esc(p.person_code) + '\')">Remove</button>' +
         '</div></div>';
@@ -671,6 +676,8 @@
     return d+'  ·  '+h12+'.'+mm+' '+ap;
   }
   var UNX_NOT_TREATMENT = ['visit_fee','attendance_mark','bill_edit','chamber_expected','refund'];
+  /* 💰 V1029 — রেজিস্ট্রেশনের ফি যে যে নামে জমা হয় (SQL-এর হুবহু তালিকা)। */
+  var UNX_FEE_TYPES = ['visit_fee','visitfee','registration'];
 
   async function profUnexpected(code){
     var m = window.MOD;
@@ -703,7 +710,10 @@
       var mm=unxDigits(p.mobile); if(mm.length!==10) return;
       var t=String(p.payType||'').toLowerCase();
       var at=String(p.createdAt||p.date||''); if(!at) return;
-      if(t==='visit_fee'){ if(!firstVisit[mm]||at<firstVisit[mm]) firstVisit[mm]=at }
+      /* 🐞🔒 V1029 — টাকা যে নিয়মে দেওয়া হয় সেখানে রেজিস্ট্রেশনের ফি তিন
+         নামে ধরা হয় (visit_fee · visitfee · registration); এখানে শুধু
+         প্রথমটাই দেখা হত, তাই বেতনে বাকি দেখালেও এখানে ₹০ উঠত। */
+      if(UNX_FEE_TYPES.indexOf(t)>=0){ if(!firstVisit[mm]||at<firstVisit[mm]) firstVisit[mm]=at }
       else if(UNX_NOT_TREATMENT.indexOf(t)<0 && Number(p.amount||0)>0){ if(!firstTreat[mm]||at<firstTreat[mm]) firstTreat[mm]=at }
     });
 
@@ -728,7 +738,8 @@
       if(r.stage==='treatment'){ line='✓ Treatment started  ·  '+unxDateTime(r.at); ink='#0B5B2F'; fill='#EAF7F0'; }
       else if(r.stage==='visit'){ line='⌛ Visit given  ·  '+unxDateTime(r.at); ink='#8A5A00'; fill='#FFF6E6'; }
       else { line='— Not come to the branch yet'; ink='#5B6B81'; fill='#F3F5F7'; }
-      body+='<div class="card"><div style="display:flex;align-items:baseline;gap:10px">'+
+      /* 👆 V1029 — কার্ডে চাপ দিলে ওই রোগীর পুরো ইতিহাস খোলে (ফোনের হুবহু)। */
+      body+='<div class="card" style="cursor:pointer" onclick="wlv1FullJourney(\''+m.esc(r.mobile)+'\')"><div style="display:flex;align-items:baseline;gap:10px">'+
         '<b style="font-size:15px">'+m.esc(r.name)+'</b>'+
         '<span style="color:#1667D8;flex:1">'+m.esc(r.mobile)+'</span>'+
         '<span class="mut">'+m.esc(r.branch)+'</span></div>'+
@@ -865,14 +876,32 @@
   var SAL_PAT_CACHE = {};     /* patients.id → {name, mobile} */
   var SAL_LAST_PAYS = [];     /* শেষবার যে সারিগুলো আঁকা হয়েছে */
 
+  /* 🐞🔒 V1029 — সূত্র (`src_key`) ফাঁকা হলে কারণের লেখা থেকেই রোগীর কোড। */
+  function salExtraPatientCode(x){
+    try{
+      var why=String((x&&x.extra_reason)||'').trim(); if(!why)return '';
+      var parts=why.split('·'), i, t;
+      for(i=0;i<parts.length;i++){
+        t=parts[i].trim();
+        if(/^[A-Za-z]{2,4}-\d{6,8}-\d{2,4}$/.test(t)) return t;
+      }
+      return '';
+    }catch(e){ return ''; }
+  }
   function salExtraPatientId(x){
     try{
       var k=String((x&&x.src_key)||'').trim();
-      if(k.indexOf('INC:')!==0)return '';
-      var rest=k.slice(4);
-      var a=rest.indexOf(':'), b=rest.lastIndexOf(':');
-      if(a<0||b<=a)return '';
-      return rest.slice(a+1,b).trim();
+      if(k.indexOf('INC:')===0){
+        var rest=k.slice(4);
+        var a=rest.indexOf(':'), b=rest.lastIndexOf(':');
+        if(a>=0&&b>a) return rest.slice(a+1,b).trim();
+      }
+      /* 🐞🔒 V1029 — সূত্র ফাঁকা (হাতে বসানো সারি): কারণের লেখার কোড ধরে
+         জমা তালিকা থেকেই রোগীটা বার করা হয়, তাই চাপ দিলে আর কিছু-না-হওয়া নয়।
+         ⛔ নতুন কোনো cloud-read নেই — কম্পিউটারে জমা তালিকা থেকেই। */
+      var cd=salExtraPatientCode(x); if(!cd) return '';
+      var f=(load('patients')||[]).filter(function(r){return String((r&&r.patientId)||'')===cd})[0];
+      return f?String(f.id||''):'';
     }catch(e){ return ''; }
   }
 

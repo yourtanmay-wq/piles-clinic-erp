@@ -37,8 +37,14 @@ object UnexpectedIncentive {
     /* ⛔ যে ধরনের সারিগুলো "চিকিৎসার টাকা" নয় — Chamber ও Payment পর্দার
        হুবহু একই তালিকা, তাই কোথাও দুরকম হিসাব হতে পারে না। */
     private val NOT_TREATMENT = setOf(
-        "visit_fee", "attendance_mark", "bill_edit", "chamber_expected", "refund"
+        "visit_fee", "visitfee", "registration",
+        "attendance_mark", "bill_edit", "chamber_expected", "refund"
     )
+
+    /* 💰 V1029 — রেজিস্ট্রেশনের ফি যে যে নামে জমা হতে পারে, হুবহু
+       `hr.incentive_wanted()`-এর তালিকা। দুই জায়গায় এক নিয়ম, তাই বেতনের
+       অঙ্কের সঙ্গে এই পর্দা আর কখনো আলাদা কথা বলবে না। */
+    private val FEE_TYPES = setOf("visit_fee", "visitfee", "registration")
 
     private fun digits(v: String) = v.filter { it.isDigit() }.takeLast(10)
 
@@ -86,7 +92,14 @@ object UnexpectedIncentive {
             val amt = p.optDouble("amount", 0.0)
             val at = p.s("createdAt").ifBlank { p.s("date") }
             if (at.isBlank()) continue
-            if (t == "visit_fee") {
+            /* 🐞🔒 V1029 (০৩.০৯.২০২৬, TK-রিপোর্ট: বেতনে ₹৮০০ বাকি, অথচ এই
+               পর্দায় সবার ₹০ ও "Not come to the branch yet")। কারণ (যাচাই করা):
+               টাকা যে নিয়মে দেওয়া হয় (`hr.incentive_wanted()`), সেখানে
+               রেজিস্ট্রেশনের ফি ধরা হয় **তিন রকম নামে** —
+               `visit_fee` · `visitfee` · `registration`। এই পর্দা শুধু প্রথমটাই
+               দেখত, তাই `registration` নামে টাকা নেওয়া রোগীরা "আসেনি" দেখাত।
+               ⇒ এখন তিনটেই ধরা হয়, ঠিক ওই নিয়মেরই মতো। */
+            if (t in FEE_TYPES) {
                 val old = firstVisit[m]
                 if (old == null || at < old) firstVisit[m] = at
             } else if (t !in NOT_TREATMENT && amt > 0.0) {

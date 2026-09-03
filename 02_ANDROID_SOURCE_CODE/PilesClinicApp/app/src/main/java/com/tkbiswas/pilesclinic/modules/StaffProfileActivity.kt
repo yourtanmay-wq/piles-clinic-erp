@@ -741,6 +741,13 @@ class StaffProfileActivity : AppCompatActivity() {
             restore.layoutParams = rowBtnParams(true, true)
             row2.addView(restore)
         } else {
+            /* 💰🔒 V1029 (০৩.০৯.২০২৬, TK-নির্দেশ: *"salary সহ যে পাঁচটা বটম আছে
+               সেখানেই এক্সট্রা ইনকামটা রাখতে বলা হয়েছিল"*) — এতদিন এক্সট্রা ইনকাম
+               শুধু বেতন-পর্দার **ভিতরে** ছিল, কার্ডে শুধু লেখার একটা লাইন (V961)।
+               এখন এই সারিতেই বোতাম — চাপলে সোজা সেই স্টাফের এক্সট্রা ইনকামে।
+               ⛔ V978-এর Field Visit-এর মতোই একই ধরন; বাকি বোতাম অপরিবর্তিত।
+               ⛔ টাকার কোনো অঙ্ক/নিয়ম ছোঁয়া হয়নি — শুধু পৌঁছনোর পথ। */
+            row2.addView(smallBtn("Extra Income", false) { salaryExtra(pc) })
             // 🔵🔒 B618 (11.08.2026, TK-নির্দেশ): master স্টাফকে কয়েকদিন Suspend করতে
             // পারবেন — সাসপেন্ড থাকাকালীন সে লগইন করতে পারবে না (LoginActivity গেট)।
             // ⛔ শুধু স্টাফ-তালিকায় (এই পর্দা master-only, role_kind=staff ফিল্টার করা)।
@@ -1205,6 +1212,14 @@ class StaffProfileActivity : AppCompatActivity() {
     // হিসাব (আন্দাজ নয়): প্রতিটা পেমেন্ট "কোন মাসের" = `for_month` থাকলে সেটা, নইলে
     //    `paid_on`-এর মাস (তাই পুরনো ট্যাগ-বিহীন পেমেন্টও ধরা পড়ে, TK: লাস্ট মাস পর্যন্ত
     //    সবার দেওয়া আছে)। "Paid up to" = পেমেন্টগুলোর সবচেয়ে সাম্প্রতিক ঐ মাস।
+    /* 💰 V1029 — `openExtra=true` হলে বেতন-পর্দা খোলার সঙ্গে সঙ্গেই
+       এক্সট্রা ইনকামের তালিকাটা দেখানো হয় (কার্ডের নতুন বোতামের জন্য)।
+       ⛔ ডিফল্ট `false` — পুরনো সব ডাক হুবহু আগের মতোই চলে। */
+    /* 💰 V1029 — কার্ডের "Extra Income" বোতামের জন্য: বেতন-পর্দা খুলে
+       সঙ্গে সঙ্গেই এক্সট্রা ইনকামের তালিকাটা দেখায়। */
+    private var openExtraOnce = false
+    private fun salaryExtra(code: String) { openExtraOnce = true; salary(code) }
+
     private fun salary(code: String) {
         backAction = { renderList() }
         val col = ModuleUi.screen(this, "Salary — $code")
@@ -1534,6 +1549,8 @@ class StaffProfileActivity : AppCompatActivity() {
         extraBox.addView(salOutlineButton("Extra Income History (" + extraCount + ")", "#B45309", "#E0A800") {
             showAllPayments(code, pays, "EXTRA")
         })
+        // 💰 V1029 — কার্ডের "Extra Income" বোতাম থেকে এলে তালিকাটা নিজেই খোলে
+        if (openExtraOnce) { openExtraOnce = false; extraBox.post { try { showAllPayments(code, pays, "EXTRA") } catch (_: Throwable) {} } }
         /* ⏰🔒 V990 (০৩.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — TK: *"তারা যদি নাই
            জানতে পারে যে সেই পেশেন্টটা ট্রিটমেন্ট চালু করেছে কিনা, তাহলে তারা
            হিসাবটা পাবে কি করে"*। এই বোতামে স্টাফ নিজের অসময়ের এনকোয়ারিগুলো ও
@@ -3015,6 +3032,25 @@ class StaffProfileActivity : AppCompatActivity() {
      * ⛔ হাতে বসানো Extra (`src_key` ফাঁকা) হলে ফাঁকা ফেরে — তখন কার্ডে চাপ
      *    দিলে কিছুই হয় না, আগের মতোই।
      */
+    /* 🐞🔒 V1029 (০৩.০৯.২০২৬, TK-রিপোর্ট: *"কিসের জন্য পেল সেখানে ক্লিক করলে
+       কোন কাজই হয় না"*) — কারণ (যাচাই করা): চাপার ব্যবস্থাটা কেবল তখনই বসত যখন
+       সারিতে রোগীর সূত্র (`src_key`) লেখা থাকে। যে সারিগুলো হাতে ডেটাবেসে বসানো
+       হয়েছিল, তাদের ওই ঘরটা ফাঁকা — তাই চাপ দিলে কিছুই হত না।
+       ⇒ এখন ঘরটা ফাঁকা হলে **কারণের লেখা থেকেই রোগীর কোড** নেওয়া হয়
+         (`Registration · KNE-22082026-001` → `KNE-22082026-001`), আর সেই কোড
+         দিয়ে রোগীটা খুঁজে নিয়ে চাপার ব্যবস্থা বসে।
+       ⛔ আগের পথটা এক অক্ষরও বদলায়নি — সূত্র থাকলে আগের মতোই সরাসরি চলে। */
+    private fun extraPatientCodeFromReason(p: JSONObject): String {
+        val why = ns(p, "extra_reason").trim()
+        if (why.isBlank()) return ""
+        for (raw in why.split("·")) {
+            val t = raw.trim()
+            // রোগীর কোড: BRANCH-DDMMYYYY-NNN  (যেমন KNE-22082026-001)
+            if (Regex("^[A-Za-z]{2,4}-\\d{6,8}-\\d{2,4}$").matches(t)) return t
+        }
+        return ""
+    }
+
     private fun extraPatientId(p: JSONObject): String {
         val key = ns(p, "src_key").trim()
         if (!key.startsWith("INC:")) return ""
@@ -3452,6 +3488,8 @@ class StaffProfileActivity : AppCompatActivity() {
 
         // 🔴 V511 — কোন সারিতে কোন রোগী; নাম এলে ঐ লাইনগুলোই হালনাগাদ হয়।
         val extraRows = mutableListOf<Triple<String, TextView?, JSONObject>>()
+        // 🐞 V1029 — যাদের সূত্র ফাঁকা, শুধু রোগীর কোড আছে
+        val pendingCodeRows = mutableListOf<Triple<String, TextView?, Pair<JSONObject, LinearLayout>>>()
 
         // ── Entry cards. Fixed MODE + DATE columns = one straight line. ────
         for (i in 0 until shownPays.length()) {          // 🟣 V961
@@ -3557,6 +3595,10 @@ class StaffProfileActivity : AppCompatActivity() {
                 card.isClickable = true
                 card.isFocusable = true
                 card.setOnClickListener { showExtraPatientPopup(p, pid) }
+            } else if (isExtra) {
+                // 🐞 V1029 — সূত্র ফাঁকা: কোড দিয়ে পরে জোড়া লাগানো হবে
+                val cd = extraPatientCodeFromReason(p)
+                if (cd.isNotBlank()) pendingCodeRows.add(Triple(cd, detailView, Pair(p, card)))
             }
             col.addView(card)
         }
@@ -3564,6 +3606,48 @@ class StaffProfileActivity : AppCompatActivity() {
         // 🔴 V511 — সব সারি আঁকা হয়ে গেছে; এবার রোগীর নামগুলো এনে বসানো হয়
         //   (একটাই ছোট পড়া, ব্যর্থ হলে আগের মতোই শুধু কোড থাকে)।
         fillExtraPatientNames(extraRows)
+
+        /* 🐞🔒 V1029 — যে সারিগুলোর সূত্র ফাঁকা, তাদের রোগীর কোড দিয়ে একবারেই
+           রোগীগুলো খুঁজে নেওয়া হয়; পাওয়া গেলে চাপার ব্যবস্থা বসে ও নামও আসে।
+           ⛔ একটাই ছোট পড়া, শুধু দরকার হলে; ব্যর্থ হলে আগের মতোই কিছু বদলায় না। */
+        if (pendingCodeRows.isNotEmpty()) {
+            val codes = pendingCodeRows.map { it.first }.distinct()
+            Thread {
+                val found = try {
+                    val list = codes.joinToString(",") { java.net.URLEncoder.encode(it, "UTF-8") }
+                    com.tkbiswas.pilesclinic.native.SupabaseClient.fetchListSlimOrNull(
+                        "patients", "patientId=in.($list)", 500, "id,patientId,name,mobile,timeType",
+                        order = "id.asc"
+                    )
+                } catch (_: Throwable) { null }
+                val byCode = HashMap<String, String>()
+                if (found != null) {
+                    for (i in 0 until found.length()) {
+                        val r = found.optJSONObject(i) ?: continue
+                        val cd = ns(r, "patientId").trim()
+                        val id = ns(r, "id").trim()
+                        if (cd.isBlank() || id.isBlank()) continue
+                        byCode[cd] = id
+                        extraPatientCache[id] = Pair(ns(r, "name").trim(), ns(r, "mobile").trim())
+                        extraPatientTiming[id] = ns(r, "timeType").trim()
+                    }
+                }
+                runOnUiThread {
+                    if (isFinishing || isDestroyed) return@runOnUiThread
+                    val ready = mutableListOf<Triple<String, TextView?, JSONObject>>()
+                    for ((cd, view, pair) in pendingCodeRows) {
+                        val id = byCode[cd] ?: continue
+                        val row = pair.first
+                        val card = pair.second
+                        card.isClickable = true
+                        card.isFocusable = true
+                        card.setOnClickListener { showExtraPatientPopup(row, id) }
+                        ready.add(Triple(id, view, row))
+                    }
+                    if (ready.isNotEmpty()) fillExtraPatientNames(ready)
+                }
+            }.start()
+        }
 
         // ── Footer summary ──────────────────────────────────────────────────
         val footer = LinearLayout(this).apply {

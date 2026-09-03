@@ -1,5 +1,6 @@
 package com.tkbiswas.pilesclinic.native
 
+import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -110,6 +111,20 @@ class UnexpectedEnquiryActivity : AppCompatActivity() {
         for (r in rows) listBox.addView(cardFor(r))
     }
 
+    /* 👆 V1029 — কার্ডে চাপ দিলে ওই রোগীর পুরো ইতিহাস।
+       ⛔ `GlobalSearchActivity.openTimeline()`-এর হুবহু একই ডাক (একই package)। */
+    private fun openTimeline(v: View, mobile: String) {
+        val d = mobile.filter { it.isDigit() }.takeLast(10)
+        if (d.length != 10) return
+        try {
+            val ctx: android.content.Context = v.context
+            val i = Intent(ctx, PatientTimelineActivity::class.java)
+            i.putExtra("mobile", d)
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            ctx.startActivity(i)
+        } catch (_: Throwable) { }
+    }
+
     private fun cardFor(r: UnexpectedIncentive.Row): View {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -156,6 +171,15 @@ class UnexpectedEnquiryActivity : AppCompatActivity() {
                 "#8A5A00", "#FFF6E6")
             else -> Triple("— Not come to the branch yet", "#5B6B81", "#F3F5F7")
         }
+        /* 👆🔒 V1029 (০৩.০৯.২০২৬, TK-রিপোর্ট: *"এখানে চাপ দিলেও কিছু কাজই হয় না"*)
+           — সত্যিই কার্ডে চাপার কোনো ব্যবস্থাই ছিল না। এখন চাপলে ওই রোগীর পুরো
+           ইতিহাস (Patient Timeline) খোলে, তাই স্টাফ দেখেই বুঝতে পারেন কেন এখনো
+           টাকা হয়নি বা কোন ধাপে আটকে আছে।
+           ⛔ টাকার কোনো অঙ্ক এখান থেকে বদলায় না — শুধু দেখা। */
+        card.isClickable = true
+        card.isFocusable = true
+        card.isFocusable = true
+        card.setOnClickListener { v -> openTimeline(v, r.mobile) }
         card.addView(LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
