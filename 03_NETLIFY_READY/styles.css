@@ -6983,3 +6983,41 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
    (ফোনেও হুবহু একই)। 📜 বোতামের একই মাপ, শুধু বেগুনি পরিবার। */
 .dnHistBtn.dnEstBtn{border-color:#C7B6F5;background:#F1ECFE;color:#4C1D95;margin-right:6px}
 .dnHistBtn.dnEstBtn:hover{background:#E4DBFB}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   💊🔒 V1007 (০৩.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — Cost Estimate-এর
+   "Add Medicine" / "Add Other" পপ-আপ। TK: *"এগুলো যেন আমি আলাদাভাবে যোগ
+   করতে পারি"* · *"এই পপ-আপগুলো আরো প্রফেশনাল বানাতে হবে"*।
+   ⛔ সবই নতুন ক্লাস — পুরনো কোনো ক্লাস ছোঁয়া হয়নি, তাই অন্য কোনো পর্দা
+      এক চুলও বদলায়নি।
+   ═══════════════════════════════════════════════════════════════════ */
+.estPick{margin-top:2px}
+/* 📏 V1007 — TK: *"বক্সের উচ্চতা এত বেশি থাকবে না, লেখাগুলো বক্সের একদম
+   মধ্যবর্তী স্থানে থাকতে হবে"*। সাঝা `.input` নিয়মটা ৫০px জোর করে বসায়
+   (!important), তাই এখানে শুধু এই পপ-আপের ঘরগুলোর জন্য ৩৬px।
+   ⛔ সাঝা নিয়মটা ছোঁয়া হয়নি — অন্য কোনো পর্দা বদলায়নি।
+   ⛔ এক-লাইনের input-এ উচ্চতা বসালে লেখা নিজে থেকেই ঠিক মাঝখানে বসে। */
+.estPickSearch{margin:0 0 10px!important;height:36px!important;min-height:36px!important;
+  padding:0 12px!important;font-size:13px!important}
+.estPickList{max-height:46vh;overflow-y:auto;border:1px solid #E3E9EF;border-radius:12px;background:#fff}
+.estPickRow{display:flex;align-items:center;gap:10px;width:100%;border:0;background:#fff;
+  padding:8px 12px;border-bottom:1px solid #EEF2F6;cursor:pointer;text-align:left}
+.estPickRow:last-child{border-bottom:0}
+.estPickRow:hover{background:#F4F9F6}
+.estPickName{flex:1;min-width:0;font-size:13.5px;font-weight:600;color:#101828;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.estPickRate{flex:0 0 auto;font-size:12.5px;font-weight:700;color:#0B6E33;
+  background:#E9F6EE;border-radius:999px;padding:3px 10px;font-variant-numeric:tabular-nums}
+.estPickNone{padding:14px 12px;font-size:12.5px;color:#7A8794;text-align:center}
+.estPickSep{height:1px;background:#E7EDF3;margin:14px 0 12px}
+.estPickNewRow{display:flex;gap:8px}
+.estPickNewRow .input{height:36px!important;min-height:36px!important;
+  padding:0 10px!important;font-size:13px!important;margin:0!important}
+.estPickNewName{flex:1 1 auto;min-width:0}
+/* 📐 V1007 — TK: *"rate and quantity … বক্সের মধ্যবর্তী স্থানে রাখুন,
+   একদম ডানদিকে কেন চলে গেল"* ⇒ ডানঘেঁষা নয়, ঠিক মাঝখানে। */
+.estPickNewNum{flex:0 0 74px;text-align:center}
+.estPickNewBtn{margin-top:10px;width:100%;height:38px;border:0;border-radius:12px;
+  background:#0B7A34;color:#fff;font-size:13.5px;font-weight:700;cursor:pointer}
+.estPickNewBtn:hover{background:#0A6A2D}

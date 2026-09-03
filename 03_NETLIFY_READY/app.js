@@ -26625,13 +26625,71 @@ function wlv1EstTreatAdd(){
     rate:rate,qty:qty,struck:false});
   wlv1EstRender();
 }
+/* 💊🔒 V1007 (০৩.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — TK: *"Add Medicine ·
+   Add Other — এগুলো যেন আমি আলাদাভাবে যোগ করতে পারি"* · *"এই পপ-আপগুলো আরো
+   প্রফেশনাল বানাতে হবে"*।
+   · আগে শুধু দর-তালিকার জিনিসই বাছা যেত; তালিকার বাইরের কিছু যোগ করার
+     কোনো উপায়ই ছিল না। এখন নিচে **নিজের নাম · দর · সংখ্যা** লিখে যোগ করা যায়।
+   · উপরে একটা খোঁজার ঘর — তালিকা বড় হলে টাইপ করলেই ছেঁকে দেখায়।
+   · সারিগুলো এখন সাদা কার্ডের বদলে হালকা দাগে আলাদা, দর ডানদিকে সবুজ পিলে।
+   ⛔ বাছার নিয়ম (V986 — একই জিনিস আবার বাছলে নতুন লাইন নয়, সংখ্যা বাড়ে)
+      এক অক্ষরও বদলায়নি; নতুন জিনিসেও ঠিক সেই নিয়মই খাটে।
+   ⛔ ফোনের যমজ: `EstimateDialog.addFromGroup()`। */
 function wlv1EstAddGroup(g){
   var items=wlv1EstPrices().filter(function(p){return p.group===g});
-  if(!items.length){ toast('Price list is empty for '+g); return }
-  modal('<h2>➕ Add '+esc(g)+'</h2>'+items.map(function(p,i){
-    return '<div class="card" style="cursor:pointer" onclick="wlv1EstAddPick(\''+esc(g)+'\','+i+')"><b>'+esc(p.name)+'</b><span style="float:right">'+wlv1EstShort(p.rate)+'</span></div>';
-  }).join('')+'<div class="actions"><button class="ghost" onclick="wlv1EstRender()">Cancel</button></div>');
+  modal('<h2>➕ Add '+esc(g)+'</h2>'
+    +'<div class="estPick">'
+    + (items.length
+        ? '<input id="estPickSearch" class="input estPickSearch" placeholder="Search '+esc(g).toLowerCase()+'…" oninput="wlv1EstPickFilter(this.value)">'
+          +'<div id="estPickList" class="estPickList">'+items.map(function(p,i){
+              return '<button type="button" class="estPickRow" data-name="'+esc(String(p.name).toLowerCase())+'" onclick="wlv1EstAddPick(\''+esc(g)+'\','+i+')">'
+                +'<span class="estPickName">'+esc(p.name)+'</span>'
+                +'<span class="estPickRate">'+wlv1EstShort(p.rate)+'</span></button>';
+            }).join('')+'</div>'
+          +'<div id="estPickNone" class="estPickNone hidden">No match in the price list.</div>'
+        : '<div class="estPickNone">Price list is empty for '+esc(g)+'.</div>')
+    /* 🚫 V1007 — TK: *"not in the list add your own — এই ধরনের ডেমি লেখা
+       থাকবে না"* ⇒ শিরোনাম ও ছোট লেবেলগুলো তুলে দেওয়া হলো; ঘরের ভিতরের
+       হালকা লেখাই (Name · Rate · Qty) যথেষ্ট। Qty ফাঁকা রাখলে ১ ধরা হয়। */
+    +'<div class="estPickSep"></div>'
+    +'<div class="estPickNewRow">'
+      +'<input id="estNewName" class="input estPickNewName" placeholder="Name">'
+      +'<input id="estNewRate" class="input estPickNewNum" inputmode="decimal" placeholder="Rate">'
+      +'<input id="estNewQty" class="input estPickNewNum" inputmode="decimal" placeholder="Qty">'
+    +'</div>'
+    +'<button type="button" class="estPickNewBtn" onclick="wlv1EstAddCustom(\''+esc(g)+'\')">➕ Add to estimate</button>'
+    +'</div>'
+    +'<div class="actions"><button class="ghost" onclick="wlv1EstRender()">Cancel</button></div>');
 }
+/** খোঁজার ঘরে লেখা অনুযায়ী তালিকা ছেঁকে দেখানো (কিছুই সেভ হয় না)। */
+function wlv1EstPickFilter(q){
+  var t=String(q||'').trim().toLowerCase(), box=document.getElementById('estPickList'); if(!box)return;
+  var rows=box.querySelectorAll('.estPickRow'), shown=0;
+  for(var i=0;i<rows.length;i++){
+    var hit=!t||String(rows[i].getAttribute('data-name')||'').indexOf(t)>=0;
+    rows[i].style.display=hit?'':'none'; if(hit)shown++;
+  }
+  var none=document.getElementById('estPickNone');
+  if(none) none.classList.toggle('hidden', shown>0);
+}
+window["wlv1EstPickFilter"]=wlv1EstPickFilter;
+/** তালিকার বাইরের নিজের জিনিস — নাম · দর · সংখ্যা। */
+function wlv1EstAddCustom(g){
+  var nm=String(document.getElementById('estNewName')?.value||'').trim();
+  var rt=Number(String(document.getElementById('estNewRate')?.value||'').replace(/[^0-9.]/g,''))||0;
+  var qt=Number(String(document.getElementById('estNewQty')?.value||'').replace(/[^0-9.]/g,''))||0;
+  if(!nm){ toast('Please write the name'); return }
+  if(rt<=0){ toast('Please write the rate'); return }
+  if(qt<=0) qt=1;
+  var same=wlv1EstSheet.lines.filter(function(l){
+    return String(l.name||'').toLowerCase()===nm.toLowerCase()
+      && !l.measure && !l.position && Number(l.rate||0)===rt && !l.struck;
+  })[0];
+  if(same) same.qty=Number(same.qty||0)+qt;
+  else wlv1EstSheet.lines.push({name:nm,measure:'',position:'',rate:rt,qty:qt,struck:false});
+  wlv1EstRender();
+}
+window["wlv1EstAddCustom"]=wlv1EstAddCustom;
 function wlv1EstAddPick(g,i){
   var items=wlv1EstPrices().filter(function(p){return p.group===g});
   var p=items[i]; if(!p)return;

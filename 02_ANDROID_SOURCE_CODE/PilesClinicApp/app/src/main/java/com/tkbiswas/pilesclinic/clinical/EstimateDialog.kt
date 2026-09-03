@@ -630,7 +630,20 @@ object EstimateDialog {
     fun pickOther(activity: Activity, sheet: EstimateModel.Sheet, redraw: () -> Unit) =
         addFromGroup(activity, sheet, EstimatePrices.G_OTHER, redraw)
 
-    /** ওষুধ বা অন্যান্য — তালিকা থেকে বেছে দর ও সংখ্যা। */
+    /** ওষুধ বা অন্যান্য — তালিকা থেকে বাছা, নয়তো নিজের জিনিস যোগ করা।
+     *
+     * 💊🔒 V1007 (০৩.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — TK: *"Add Medicine ·
+     * Add Other — এগুলো যেন আমি আলাদাভাবে যোগ করতে পারি"* · *"এই পপ-আপগুলো
+     * আরো প্রফেশনাল বানাতে হবে"*।
+     *  · আগে শুধু `setItems()`-এর সাদামাটা তালিকা ছিল — **তালিকার বাইরের কিছু
+     *    যোগ করার কোনো উপায়ই ছিল না**। এখন নিচে নাম · দর · সংখ্যা লিখে যোগ
+     *    করা যায়।
+     *  · উপরে খোঁজার ঘর — তালিকা বড় হলে টাইপ করলেই ছেঁকে দেখায়।
+     *  · সারিগুলোর দর ডানদিকে সবুজ পিলে, মাঝে হালকা দাগ।
+     * ⛔ V986-এর নিয়ম (একই জিনিস আবার বাছলে নতুন লাইন নয়, সংখ্যা বাড়ে)
+     *    এক অক্ষরও বদলায়নি; নিজের লেখা জিনিসেও ঠিক সেই নিয়মই খাটে।
+     * ⛔ কম্পিউটারের যমজ: `app.js` → `wlv1EstAddGroup()`।
+     */
     private fun addFromGroup(
         activity: Activity,
         sheet: EstimateModel.Sheet,
@@ -638,30 +651,211 @@ object EstimateDialog {
         redraw: () -> Unit
     ) {
         val items = EstimatePrices.inGroup(activity, group)
-        if (items.isEmpty()) {
-            android.widget.Toast.makeText(activity, "Price list is empty for $group", android.widget.Toast.LENGTH_SHORT).show()
-            return
-        }
-        val names = items.map { it.name + "   ·   " + EstimateModel.moneyShort(it.rate) }.toTypedArray()
-        val dlg = AlertDialog.Builder(activity)
-            .setCustomTitle(PremiumAlert.header(activity, "➕ Add $group"))
-            .setItems(names) { _, which ->
-                val chosenItem = items[which]
-                /* 🔢🔒 V986 (০২.০৯.২০২৬, TK-রিপোর্ট ছবিসহ — কাগজে "Dressing Cost"
-                   তিনবার, "Nursing Charges" পাঁচবার আলাদা লাইনে বসেছিল)।
-                   ⇒ একই জিনিস আবার বাছলে নতুন লাইন নয়, **সংখ্যাটাই বাড়ে**।
-                   ⛔ দর হাতে বদলানো লাইন আলাদাই থাকে (নইলে বদলানো দর হারাত)। */
-                val same = sheet.lines.firstOrNull {
-                    it.name.equals(chosenItem.name, ignoreCase = true) &&
-                        it.measure.isBlank() && it.position.isBlank() &&
-                        it.rate == chosenItem.rate && !it.struck
-                }
-                if (same != null) same.qty += 1.0
-                else sheet.lines.add(EstimateModel.Line(name = chosenItem.name, rate = chosenItem.rate, qty = 1.0))
-                redraw()
+
+        /** একই নাম · দর হলে নতুন লাইন নয়, সংখ্যাই বাড়ে (V986-এর নিয়ম)। */
+        fun addLine(name: String, rate: Double, qty: Double) {
+            val same = sheet.lines.firstOrNull {
+                it.name.equals(name, ignoreCase = true) &&
+                    it.measure.isBlank() && it.position.isBlank() &&
+                    it.rate == rate && !it.struck
             }
+            if (same != null) same.qty += qty
+            else sheet.lines.add(EstimateModel.Line(name = name, rate = rate, qty = qty))
+        }
+
+        val root = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(activity, 16), dp(activity, 12), dp(activity, 16), dp(activity, 4))
+        }
+
+        val listCol = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+        val rowViews = ArrayList<Pair<View, String>>()
+
+        val empty = TextView(activity).apply {
+            text = "No match in the price list."
+            textSize = 12.5f
+            gravity = Gravity.CENTER
+            setTextColor(Color.parseColor(MUT))
+            setPadding(0, dp(activity, 14), 0, dp(activity, 14))
+            visibility = View.GONE
+        }
+
+        if (items.isNotEmpty()) {
+            val search = EditText(activity).apply {
+                hint = "Search " + group.lowercase() + "…"
+                textSize = 13f
+                setTextColor(Color.parseColor(INK))
+                setHintTextColor(Color.parseColor(MUT))
+                inputType = InputType.TYPE_CLASS_TEXT
+                background = box(activity, "#F8FBFE", "#D6E1EE", 10)
+                /* 📏 V1007 — TK: *"বক্সের উচ্চতা এত বেশি থাকবে না, লেখাগুলো
+                   বক্সের একদম মধ্যবর্তী স্থানে থাকতে হবে"* ⇒ উচ্চতা ৩৬dp,
+                   উপর-নিচের প্যাডিং শূন্য, আর লেখা ঠিক মাঝখানে। */
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(activity, 11), 0, dp(activity, 11), 0)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, dp(activity, 36)
+                ).apply { bottomMargin = dp(activity, 10) }
+            }
+            root.addView(search)
+
+            listCol.background = box(activity, "#FFFFFF", "#E3E9EF", 12)
+            for ((idx, it) in items.withIndex()) {
+                val row = LinearLayout(activity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    isClickable = true
+                    setPadding(dp(activity, 12), dp(activity, 8), dp(activity, 12), dp(activity, 8))   // 📏 V1007
+                }
+                row.addView(TextView(activity).apply {
+                    text = it.name
+                    textSize = 13.5f
+                    maxLines = 1
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                    setTypeface(typeface, Typeface.BOLD)
+                    setTextColor(Color.parseColor(INK))
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                })
+                row.addView(TextView(activity).apply {
+                    text = EstimateModel.moneyShort(it.rate)
+                    textSize = 12.5f
+                    setTypeface(typeface, Typeface.BOLD)
+                    setTextColor(Color.parseColor("#0B6E33"))
+                    background = box(activity, "#E9F6EE", "#E9F6EE", 12)
+                    setPadding(dp(activity, 10), dp(activity, 3), dp(activity, 10), dp(activity, 3))
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply { marginStart = dp(activity, 10) }
+                })
+                listCol.addView(row)
+                rowViews.add(row to it.name.lowercase())
+                if (idx < items.size - 1) {
+                    listCol.addView(View(activity).apply {
+                        setBackgroundColor(Color.parseColor("#EEF2F6"))
+                        layoutParams = LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.MATCH_PARENT, dp(activity, 1))
+                    })
+                }
+            }
+            root.addView(listCol)
+            root.addView(empty)
+
+            search.addTextChangedListener(object : android.text.TextWatcher {
+                override fun afterTextChanged(s: android.text.Editable?) {
+                    val q = (s?.toString() ?: "").trim().lowercase()
+                    var shown = 0
+                    for ((v, name) in rowViews) {
+                        val hit = q.isEmpty() || name.contains(q)
+                        v.visibility = if (hit) View.VISIBLE else View.GONE
+                        if (hit) shown += 1
+                    }
+                    listCol.visibility = if (shown > 0) View.VISIBLE else View.GONE
+                    empty.visibility = if (shown > 0) View.GONE else View.VISIBLE
+                }
+                override fun beforeTextChanged(t: CharSequence?, a: Int, b: Int, c: Int) {}
+                override fun onTextChanged(t: CharSequence?, a: Int, b: Int, c: Int) {}
+            })
+        } else {
+            root.addView(TextView(activity).apply {
+                text = "Price list is empty for " + group + "."
+                textSize = 12.5f
+                gravity = Gravity.CENTER
+                setTextColor(Color.parseColor(MUT))
+                setPadding(0, dp(activity, 12), 0, dp(activity, 12))
+            })
+        }
+
+        /* 🚫 V1007 — TK: *"not in the list add your own — এই ধরনের ডেমি লেখা
+           থাকবে না"* ⇒ শিরোনাম ও ছোট লেবেলগুলো তুলে দেওয়া হলো; শুধু একটা
+           হালকা দাগ, আর ঘরের ভিতরের লেখাই (Name · Rate · Qty) যথেষ্ট।
+           Qty ফাঁকা রাখলে ১ ধরা হয় (নিচের `if (qt <= 0.0) qt = 1.0`)। */
+        root.addView(View(activity).apply {
+            setBackgroundColor(Color.parseColor("#E7EDF3"))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(activity, 1)
+            ).apply { topMargin = dp(activity, 14); bottomMargin = dp(activity, 12) }
+        })
+
+        val nameField = EditText(activity).apply {
+            hint = "Name"
+            textSize = 13f
+            setTextColor(Color.parseColor(INK))
+            setHintTextColor(Color.parseColor(MUT))
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS
+            background = box(activity, "#F8FBFE", "#D6E1EE", 9)
+            gravity = Gravity.CENTER_VERTICAL   // 📏 V1007
+            setPadding(dp(activity, 9), 0, dp(activity, 9), 0)
+            layoutParams = LinearLayout.LayoutParams(0, dp(activity, 36), 1f)
+        }
+        val rateField = numberField(activity, "").apply {
+            hint = "Rate"
+            setHintTextColor(Color.parseColor(MUT))
+            gravity = Gravity.CENTER   // 📐 V1007 — লেখা ঘরের ঠিক মাঝখানে
+            setPadding(dp(activity, 9), 0, dp(activity, 9), 0)
+            layoutParams = LinearLayout.LayoutParams(dp(activity, 74), dp(activity, 36))
+                .apply { marginStart = dp(activity, 8) }
+        }
+        val qtyField = numberField(activity, "").apply {
+            hint = "Qty"
+            setHintTextColor(Color.parseColor(MUT))
+            gravity = Gravity.CENTER   // 📐 V1007 — লেখা ঘরের ঠিক মাঝখানে
+            setPadding(dp(activity, 9), 0, dp(activity, 9), 0)
+            layoutParams = LinearLayout.LayoutParams(dp(activity, 60), dp(activity, 36))
+                .apply { marginStart = dp(activity, 8) }
+        }
+        root.addView(LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(nameField); addView(rateField); addView(qtyField)
+        })
+
+        val addBtn = TextView(activity).apply {
+            text = "＋  Add to estimate"
+            textSize = 13.5f
+            gravity = Gravity.CENTER
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            background = box(activity, "#0B7A34", "#0B7A34", 12)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(activity, 38)
+            ).apply { topMargin = dp(activity, 10) }
+        }
+        root.addView(addBtn)
+
+        val scroll = ScrollView(activity).apply { addView(root) }
+        val dlg = AlertDialog.Builder(activity)
+            .setCustomTitle(PremiumAlert.header(activity, "➕ Add " + group))
+            .setView(scroll)
             .setNegativeButton("Cancel", null)
             .create()
+
+        for ((v, _) in rowViews) {
+            val idx = rowViews.indexOfFirst { it.first === v }
+            v.setOnClickListener {
+                val chosen = items[idx]
+                addLine(chosen.name, chosen.rate, 1.0)
+                try { dlg.dismiss() } catch (_: Throwable) { }
+                redraw()
+            }
+        }
+        addBtn.setOnClickListener {
+            val nm = nameField.text.toString().trim()
+            val rt = rateField.text.toString().trim().toDoubleOrNull() ?: 0.0
+            var qt = qtyField.text.toString().trim().toDoubleOrNull() ?: 0.0
+            if (nm.isBlank()) {
+                android.widget.Toast.makeText(activity, "Please write the name", android.widget.Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            if (rt <= 0.0) {
+                android.widget.Toast.makeText(activity, "Please write the rate", android.widget.Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            if (qt <= 0.0) qt = 1.0
+            addLine(nm, rt, qt)
+            try { dlg.dismiss() } catch (_: Throwable) { }
+            redraw()
+        }
+
         dlg.show()
         try { PremiumAlert.paint(dlg) } catch (_: Throwable) { }
     }
