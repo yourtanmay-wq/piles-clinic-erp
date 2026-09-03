@@ -79,7 +79,7 @@ object SupabaseClient {
      * rows, same order, same figures. Screens that DO show a photo (patient
      * photo, timeline) keep asking for it as before.
      */
-    const val PATIENT_COLS_NO_PHOTO = "address,age,bill,branch,complaint,completeApprovedBy,completeRequestedBy,createdAt,createdBy,date,decision,diagnosis,discount,disease,doctorAdvice,doctorComplete,doctorFullNote,id,medicalHistory,mobile,name,occupation,patientId,previousCost,previousResult,previousTreatment,queue,refBy,refDoctor,refDoctorMobile,refundRestoredBy,registeredBy,registrationDate,sex,sinceWhen,stage,timeType,treatmentDuration,updatedAt,visitDate"
+    const val PATIENT_COLS_NO_PHOTO = "address,age,bill,branch,complaint,completeApprovedBy,completeRequestedBy,createdAt,createdBy,date,decision,diagnosis,discount,disease,doctorAdvice,doctorComplete,doctorFullNote,id,medicalHistory,mobile,name,occupation,patientId,previousCost,previousResult,previousTreatment,queue,queuedAt,refBy,refDoctor,refDoctorMobile,refundRestoredBy,registeredBy,registrationDate,sex,sinceWhen,stage,timeType,treatmentDuration,updatedAt,visitDate"
 
     // 🔒 সংশোধন (29.07.2026 দুপুর, খাতার সারি B105): এই তালিকাটা বানানো হয়েছিল
     // `PILES_CLINIC_DB_SETUP.sql` দেখে, আর ওই ফাইলটা **আসল ডেটাবেসের চেয়ে পুরনো**
@@ -259,7 +259,7 @@ object SupabaseClient {
      *     (২) যাচাই করে দেখা গেছে এই ১২টা জায়গার একটাও ওটা পড়ে না —
      *         একমাত্র PatientTimelineActivity নিজে আলাদা করে `id,editHistory`
      *         টানে, তাই কোনো কাজ নষ্ট হয়নি। */
-    const val PATIENT_NO_PHOTO_COLS = "id,address,age,altMobile,bill,branch,complaint,completeApprovedBy,completeRequestedBy,createdAt,createdBy,date,decision,diagnosis,discount,disease,doctorAdvice,doctorComplete,doctorFullNote,medicalHistory,mobile,name,occupation,patientId,previousCost,previousResult,previousTreatment,queue,refBy,refDoctor,refDoctorMobile,refundRestoredBy,registeredBy,registrationDate,sex,sinceWhen,stage,timeType,treatmentDuration,updatedAt,visitDate"
+    const val PATIENT_NO_PHOTO_COLS = "id,address,age,altMobile,bill,branch,complaint,completeApprovedBy,completeRequestedBy,createdAt,createdBy,date,decision,diagnosis,discount,disease,doctorAdvice,doctorComplete,doctorFullNote,medicalHistory,mobile,name,occupation,patientId,previousCost,previousResult,previousTreatment,queue,queuedAt,refBy,refDoctor,refDoctorMobile,refundRestoredBy,registeredBy,registrationDate,sex,sinceWhen,stage,timeType,treatmentDuration,updatedAt,visitDate"
 
     /** 🔴🔒 V794 — Follow-up সারিতে `photo` ও `history` দুটোই ভারী
      *  (`SafeWideColumns`)। যেসব জায়গায় শুধু id/মিল দেখা হয়, সেখানে এই

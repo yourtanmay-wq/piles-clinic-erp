@@ -157,9 +157,25 @@ object DoctorQueueModel {
           আর এখানে মনে করাবে না — TK জেনেই সিদ্ধান্ত নিয়েছেন। */
     const val QUEUE_STALE_DAYS = 0
 
-    /** সারিটা শেষ কবে ছোঁয়া হয়েছিল — না বোঝা গেলে `null`। */
+    /* 📅🔒 V1013 (০৩.০৯.২০২৬, TK-রিপোর্ট ছবিসহ: *"এত পেশেন্ট তো আজকে আসে
+       নাই, এনারা এসেছিল গতকাল — তাহলে আজকে PENDING TODAY-তে কেন?"*)।
+
+       **আসল কারণ (কোড ধরে প্রমাণিত, আন্দাজ নয়):** নিচের তালিকায় **সবার
+       আগে `updatedAt`** ছিল — অর্থাৎ "রোগী কবে এসেছেন" নয়, "সারিটা শেষ কবে
+       **লেখা** হয়েছে"। রোগীর সারি অন্য যে কোনো কারণে ছোঁয়া হলেই
+       (নাম শোধরানো · বিল · সিঙ্ক · self-heal) `updatedAt` আজকের হয়ে যেত,
+       আর ফেব্রুয়ারি-এপ্রিলের পুরনো রোগীও "PENDING TODAY"-তে ফিরে আসতেন।
+
+       **সমাধান (TK-এর বাছাই "খ"):** নতুন একটা নিজস্ব ঘর `queuedAt` — রোগীকে
+       তালিকায় তোলার দিনটাই ওখানে বসে (রেজিস্ট্রেশনে ও ফিরে এলে)। এখন সেটাই
+       আগে দেখা হয়।
+       ⛔ ঘরটা ফাঁকা থাকলে (পুরনো সারি, বা SQL এখনো চালানো হয়নি) **আগের
+          হুবহু নিয়মই** চলে — তাই কেউ হঠাৎ হারিয়ে যান না।
+       ⛔ পুরনো কোনো ঘর (`visitDate` · `registrationDate`) ছোঁয়া হয়নি, তাই
+          কাগজে/কার্ডে তারিখ এক অক্ষরও বদলায়নি। */
+    /** রোগী কবে তালিকায় উঠেছিলেন — না বোঝা গেলে `null`। */
     private fun ageDaysOrNull(row: JSONObject): Long? {
-        val raw = listOf("updatedAt", "visitDate", "registrationDate", "createdAt")
+        val raw = listOf("queuedAt", "updatedAt", "visitDate", "registrationDate", "createdAt")
             .map { row.s(it) }.firstOrNull { it.length >= 10 } ?: return null
         return try {
             val d = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)

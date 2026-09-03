@@ -9222,7 +9222,7 @@ window["savePatient"]=savePatient;
 
 function forceVisitQueueEntry(p,regDate){
  if(!p||!p.id)return p;
- let patch={...p,stage:'Doctor Queue',queue:true,doctorComplete:false,visitDate:regDate||p.visitDate||p.registrationDate||p.date||today(),registrationDate:regDate||p.registrationDate||p.date||today(),updatedAt:new Date().toISOString()};
+ let patch={...p,stage:'Doctor Queue',queue:true,doctorComplete:false,queuedAt:today(),visitDate:regDate||p.visitDate||p.registrationDate||p.date||today(),registrationDate:regDate||p.registrationDate||p.date||today(),updatedAt:new Date().toISOString()};
  let ps=load('patients');
  let i=ps.findIndex(x=>x.id===patch.id||mob(x.mobile)===mob(p.mobile)&&x.patientId===p.patientId);
  if(i>-1)ps[i]={...ps[i],...patch}; else ps.unshift(patch);
@@ -9246,7 +9246,7 @@ function visitQueueRows(){
  var WLV1_Q_STALE_DAYS=0;
  var wlv1QFresh=function(x){
    try{
-     var raw=[x.updatedAt,x.visitDate,x.registrationDate,x.createdAt]
+     var raw=[x.queuedAt,x.updatedAt,x.visitDate,x.registrationDate,x.createdAt]   /* 📅 V1013 — তালিকায় ওঠার দিনটাই আগে (আগে `updatedAt` আগে ছিল, তাই সারি ছোঁয়া হলেই পুরনো রোগী ফিরে আসতেন) */
        .map(function(v){return String(v||'')}).filter(function(v){return v.length>=10})[0];
      if(!raw)return true;
      var t=new Date(raw.slice(0,10)+'T00:00:00').getTime();
@@ -9262,7 +9262,7 @@ function visitQueueRows(){
     ⛔ বাকিদের নিয়ম হুবহু আগের মতোই। ফোনের `isInQueue()`-এর যমজ। */
  var wlv1QDoneToday=function(x){
    try{
-     var raw=[x.updatedAt,x.visitDate,x.registrationDate,x.createdAt]
+     var raw=[x.queuedAt,x.updatedAt,x.visitDate,x.registrationDate,x.createdAt]   /* 📅 V1013 — তালিকায় ওঠার দিনটাই আগে (আগে `updatedAt` আগে ছিল, তাই সারি ছোঁয়া হলেই পুরনো রোগী ফিরে আসতেন) */
        .map(function(v){return String(v||'')}).filter(function(v){return v.length>=10})[0];
      if(!raw)return false;
      var t=new Date(raw.slice(0,10)+'T00:00:00').getTime();
@@ -18210,7 +18210,7 @@ window["v272FindPatient"]=v272FindPatient;
       p={
         id:patRowId(mm),patientId:patientId(br,dt),date:dt,registrationDate:x.registrationDate||dt,visitDate:dt,
         name:x.name||normMob(mm),mobile:normMob(mm),branch:br,age:x.age||'',sex:x.sex||'',address:x.address||'',disease:x.disease||'',complaint:x.lastRemark||'',photo:x.photo||'',
-        createdBy:x.createdBy||user?.mobile||'',registeredBy:x.createdBy||user?.mobile||'',stage:'Doctor Queue',queue:true,doctorComplete:false,bill:Number(x.bill||0),createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),
+        createdBy:x.createdBy||user?.mobile||'',registeredBy:x.createdBy||user?.mobile||'',stage:'Doctor Queue',queue:true,doctorComplete:false,queuedAt:today(),bill:Number(x.bill||0),createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),
         history:[{date:today(),type:'Auto Repair',staff:user?.mobile||'',note:'Patient record recreated from Visit follow-up for Advance workflow'}]
       };
       let ps=load('patients');ps.unshift(p);save('patients',ps);try{directCloudUpsertRow('patients',p)}catch(_e){markPendingCloud('patients')}
@@ -18297,7 +18297,7 @@ window["v273NormalizePaymentSelects"]=v273NormalizePaymentSelects;;setTimeout(v2
       let p=ps.find(p=>p.id===x.patientDbId||p.id===x.refId||p.id===x.convertedPatientId||mob(p.mobile)===mm);
       if(p)return p;
       let br=x.branch||user?.branch||C.defaultBranch||'Kishanganj', dt=x.visitDate||x.registrationDate||x.date||today();
-      p={id:patRowId(mm),patientId:patientId(br,dt),date:dt,registrationDate:x.registrationDate||dt,visitDate:dt,name:x.name||normMob(mm),mobile:normMob(mm),branch:br,age:x.age||'',sex:x.sex||'',address:x.address||'',disease:x.disease||'',complaint:x.lastRemark||'',photo:x.photo||'',stage:'Visit',queue:true,doctorComplete:false,bill:Number(x.bill||0),createdBy:x.createdBy||user?.mobile||'',registeredBy:x.createdBy||user?.mobile||'',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),history:[{date:today(),type:'Auto Repair',staff:user?.mobile||'',note:'Repaired Visit patient link for Advance'}]};
+      p={id:patRowId(mm),patientId:patientId(br,dt),date:dt,registrationDate:x.registrationDate||dt,visitDate:dt,name:x.name||normMob(mm),mobile:normMob(mm),branch:br,age:x.age||'',sex:x.sex||'',address:x.address||'',disease:x.disease||'',complaint:x.lastRemark||'',photo:x.photo||'',stage:'Visit',queue:true,doctorComplete:false,queuedAt:today(),bill:Number(x.bill||0),createdBy:x.createdBy||user?.mobile||'',registeredBy:x.createdBy||user?.mobile||'',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),history:[{date:today(),type:'Auto Repair',staff:user?.mobile||'',note:'Repaired Visit patient link for Advance'}]};
       ps.unshift(p);save('patients',ps);try{directCloudUpsertRow('patients',p)}catch(_e){}
       let fs=load('followups'),i=fs.findIndex(f=>f.id===x.id);
       if(i>-1){fs[i]={...fs[i],refId:p.id,patientDbId:p.id,convertedPatientId:p.id,mobile:p.mobile,branch:p.branch,name:p.name,updatedAt:new Date().toISOString()};save('followups',fs);try{directCloudUpsertRow('followups',fs[i])}catch(_e){}}
@@ -18466,7 +18466,7 @@ window["frDuplicateModal"]=frDuplicateModal;
     function frFindOrCreatePatientForVisit(x){
       let mm=frMobile(x.mobile), ps=frArr('patients');let p=ps.find(a=>a.id===x.patientDbId||a.id===x.refId||frMobile(a.mobile)===mm); if(p)return p;
       let br=x.branch||user?.branch||'KNE', dt=x.visitDate||x.registrationDate||x.date||today();
-      p={id:patRowId(mm),patientId:patientId(br,dt),date:dt,registrationDate:dt,visitDate:dt,name:x.name||frNorm(mm),mobile:frNorm(mm),branch:br,age:x.age||'',sex:x.sex||'',address:x.address||'',disease:x.disease||'',complaint:x.lastRemark||x.remarks||'',photo:x.photo||'',stage:'Doctor Queue',queue:true,doctorComplete:false,bill:Number(x.bill||0),createdBy:x.createdBy||user?.mobile||'',registeredBy:x.createdBy||user?.mobile||'',createdAt:frNow(),updatedAt:frNow(),history:[{date:today(),type:'Auto Repair',staff:user?.mobile||'',note:'Created from Visit follow-up for Advance'}]};
+      p={id:patRowId(mm),patientId:patientId(br,dt),date:dt,registrationDate:dt,visitDate:dt,name:x.name||frNorm(mm),mobile:frNorm(mm),branch:br,age:x.age||'',sex:x.sex||'',address:x.address||'',disease:x.disease||'',complaint:x.lastRemark||x.remarks||'',photo:x.photo||'',stage:'Doctor Queue',queue:true,doctorComplete:false,bill:Number(x.bill||0),createdBy:x.createdBy||user?.mobile||'',registeredBy:x.createdBy||user?.mobile||'',queuedAt:today(),createdAt:frNow(),updatedAt:frNow(),history:[{date:today(),type:'Auto Repair',staff:user?.mobile||'',note:'Created from Visit follow-up for Advance'}]};
       ps.unshift(p);save('patients',ps);try{directCloudUpsertRow('patients',p)}catch(_e){};return p;
     }
 window["frFindOrCreatePatientForVisit"]=frFindOrCreatePatientForVisit;
@@ -18659,7 +18659,7 @@ window["dupPopup"]=dupPopup;
     const oldSavePatient=window.savePatient||savePatient; window.savePatient=async function(evt){let mm=m(document.getElementById('pMob')?.value||'');let r=await oldSavePatient(evt);setTimeout(()=>{try{let p=ar('patients').find(x=>m(x.mobile)===mm);if(p)v279EnsureVisit(mm,p)}catch(e){console.warn('V279 visit ensure failed',e)}},500);return r}; try{savePatient=window.savePatient}catch(_e){}
 
     function patientForVisit(x){let mm=m(x?.mobile||'');let id=String(x?.patientDbId||x?.refId||x?.convertedPatientId||'');return ar('patients').find(p=>p.id===id||p.patientId===id||m(p.mobile)===mm)||null}
-    function createPatientFromVisit(x){let dt=x.visitDate||x.registrationDate||x.date||today(),br=x.branch||user?.branch||'';let p={id:x.refId&&String(x.refId).startsWith('pat_')?x.refId:patRowId(x.mobile),patientId:x.patientId||patientId(br,dt),date:dt,registrationDate:x.registrationDate||dt,visitDate:x.visitDate||dt,name:x.name||nm(x.mobile),mobile:nm(x.mobile),branch:br,disease:x.disease||'',address:x.address||'',photo:x.photo||'',complaint:x.lastRemark||'',stage:'Doctor Queue',queue:true,doctorComplete:false,bill:0,createdBy:x.createdBy||user?.mobile||'',registeredBy:x.createdBy||user?.mobile||'',createdAt:now(),updatedAt:now()};sv('patients',[p,...ar('patients').filter(a=>a.id!==p.id)]);let fs=ar('followups').map(f=>f.id===x.id||m(f.mobile)===m(x.mobile)?{...f,refId:p.id,patientDbId:p.id,convertedPatientId:p.id,updatedAt:now()}:f);sv('followups',fs);pushCloud([{table:'patients',row:p},...fs.filter(f=>m(f.mobile)===m(p.mobile)).map(row=>({table:'followups',row}))]);return p}
+    function createPatientFromVisit(x){let dt=x.visitDate||x.registrationDate||x.date||today(),br=x.branch||user?.branch||'';let p={id:x.refId&&String(x.refId).startsWith('pat_')?x.refId:patRowId(x.mobile),patientId:x.patientId||patientId(br,dt),date:dt,registrationDate:x.registrationDate||dt,visitDate:x.visitDate||dt,name:x.name||nm(x.mobile),mobile:nm(x.mobile),branch:br,disease:x.disease||'',address:x.address||'',photo:x.photo||'',complaint:x.lastRemark||'',stage:'Doctor Queue',queue:true,doctorComplete:false,queuedAt:today(),bill:0,createdBy:x.createdBy||user?.mobile||'',registeredBy:x.createdBy||user?.mobile||'',createdAt:now(),updatedAt:now()};sv('patients',[p,...ar('patients').filter(a=>a.id!==p.id)]);let fs=ar('followups').map(f=>f.id===x.id||m(f.mobile)===m(x.mobile)?{...f,refId:p.id,patientDbId:p.id,convertedPatientId:p.id,updatedAt:now()}:f);sv('followups',fs);pushCloud([{table:'patients',row:p},...fs.filter(f=>m(f.mobile)===m(p.mobile)).map(row=>({table:'followups',row}))]);return p}
 window["createPatientFromVisit"]=createPatientFromVisit;
     window.openRealFollowCalendar=window.finalOpenMonthCalendar; window.openFollowCalendar=window.finalOpenMonthCalendar;
 
@@ -18841,7 +18841,7 @@ window["ensureVisit"]=ensureVisit;
 
     function patientForVisit(x){let m=mm(x?.mobile||''),id=String(x?.patientDbId||x?.refId||x?.convertedPatientId||'');return arr('patients').find(p=>p.id===id||p.patientId===id||mm(p.mobile)===m)||null;}
     if(typeof window.patientForVisit!=='function')window.patientForVisit=patientForVisit;
-    function makePatient(x){let dt=x.visitDate||x.registrationDate||x.date||todaySafe(),br=x.branch||user?.branch||'';let p={id:patRowId(x&&x.mobile),patientId:(typeof patientId==='function'?patientId(br,dt):('PAT-'+Date.now())),date:dt,registrationDate:dt,visitDate:dt,name:x.name||shownMob(x.mobile),mobile:shownMob(x.mobile),branch:br,disease:x.disease||'',address:x.address||'',photo:x.photo||'',stage:'Doctor Queue',queue:true,doctorComplete:false,bill:0,createdBy:x.createdBy||user?.mobile||'',registeredBy:x.registeredBy||user?.mobile||'',createdAt:isoNow(),updatedAt:isoNow()};put('patients',[p,...arr('patients')]);let fs=arr('followups').map(f=>f.id===x.id||mm(f.mobile)===mm(x.mobile)?{...f,refId:p.id,patientDbId:p.id,convertedPatientId:p.id,updatedAt:isoNow()}:f);put('followups',fs);try{directCloudUpsertRow('patients',p)}catch(e){} return p;}
+    function makePatient(x){let dt=x.visitDate||x.registrationDate||x.date||todaySafe(),br=x.branch||user?.branch||'';let p={id:patRowId(x&&x.mobile),patientId:(typeof patientId==='function'?patientId(br,dt):('PAT-'+Date.now())),date:dt,registrationDate:dt,visitDate:dt,name:x.name||shownMob(x.mobile),mobile:shownMob(x.mobile),branch:br,disease:x.disease||'',address:x.address||'',photo:x.photo||'',stage:'Doctor Queue',queue:true,doctorComplete:false,queuedAt:isoNow().slice(0,10),bill:0,createdBy:x.createdBy||user?.mobile||'',registeredBy:x.registeredBy||user?.mobile||'',createdAt:isoNow(),updatedAt:isoNow()};put('patients',[p,...arr('patients')]);let fs=arr('followups').map(f=>f.id===x.id||mm(f.mobile)===mm(x.mobile)?{...f,refId:p.id,patientDbId:p.id,convertedPatientId:p.id,updatedAt:isoNow()}:f);put('followups',fs);try{directCloudUpsertRow('patients',p)}catch(e){} return p;}
     if(typeof window.makePatient!=='function')window.makePatient=makePatient;
 window["makePatient"]=makePatient;
     window.openRealFollowCalendar=window.finalOpenMonthCalendar; window.openFollowCalendar=window.finalOpenMonthCalendar;
@@ -20295,7 +20295,7 @@ function wlv1NvpReopenQueue(mobile){
     var did=false;
     load('patients').filter(function(x){return mob(x.mobile)===d}).forEach(function(x){
       if(!wlv1Flag(x.doctorComplete))return;          // ইতিমধ্যেই তালিকায় আছেন
-      try{ upd('patients',x.id,{stage:'Doctor Queue',queue:true,doctorComplete:false}); did=true; }catch(_e){}
+      try{ upd('patients',x.id,{stage:'Doctor Queue',queue:true,doctorComplete:false,queuedAt:today()}); did=true; }catch(_e){}
     });
     seen.push(d);
     /* পুরনো দিনের চাবি জমতে দেওয়া হয় না — আজকেরটাই রাখা হয়। */

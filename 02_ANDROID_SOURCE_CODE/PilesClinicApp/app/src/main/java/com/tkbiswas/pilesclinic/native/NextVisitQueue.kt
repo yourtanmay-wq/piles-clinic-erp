@@ -86,6 +86,12 @@ object NextVisitQueue {
                         .put("queue", true)
                         .put("stage", "Doctor Queue")
                         .put("doctorComplete", false)
+                        /* 📅 V1013 — আজ তালিকায় উঠলেন, সেই দিনটাই এখানে বসে।
+                           আগে এই দিনটা আলাদা করে জানার উপায় ছিল না, তাই
+                           `updatedAt` দেখতে হত — আর তাতেই পুরনো রোগীরা
+                           ফিরে আসতেন। */
+                        .put("queuedAt", java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+                            .format(java.util.Date()))
                         .put("updatedAt", isoNow())
                     val ok = SupabaseClient.updateById("patients", id, fields)
                     if (!ok && appCtx != null) {

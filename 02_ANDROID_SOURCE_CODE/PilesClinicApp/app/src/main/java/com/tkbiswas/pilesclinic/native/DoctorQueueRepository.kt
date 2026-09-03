@@ -195,9 +195,9 @@ class DoctorQueueRepository(private val context: Context? = null) {
         //   ছবি এখন শুধু তখনই নামে যখন কেউ **সত্যিই Doctor Queue স্ক্রিন খোলে** (includePhoto=
         //   true দিলে) — তবে Doctor Queue screen এখন default slim path ব্যবহার করে; কার্ডের ছবি cache/missing-id batch থেকে পূরণ হয়।
         val cols = if (includePhoto)
-            "id,name,mobile,branch,disease,patientId,photo,queue,stage,doctorComplete,createdBy,registeredBy,createdAt,updatedAt,bill,registrationDate"
+            "id,name,mobile,branch,disease,patientId,photo,queue,stage,doctorComplete,createdBy,registeredBy,createdAt,updatedAt,bill,registrationDate,queuedAt"
         else
-            "id,name,mobile,branch,disease,patientId,queue,stage,doctorComplete,createdBy,registeredBy,createdAt,updatedAt,bill,registrationDate"
+            "id,name,mobile,branch,disease,patientId,queue,stage,doctorComplete,createdBy,registeredBy,createdAt,updatedAt,bill,registrationDate,queuedAt"
         val rowsRaw = SupabaseClient.fetchListSlimOrNull("patients", filter, 5000, cols)
         if (rowsRaw == null) loadCachedQueue(branchFilter)?.let { return it }
         val rows = rowsRaw ?: JSONArray()
@@ -608,9 +608,9 @@ class DoctorQueueRepository(private val context: Context? = null) {
         val sinceEnc = try { java.net.URLEncoder.encode(since, "UTF-8") } catch (_: Throwable) { since }
         val filter = "updatedAt=gt.$sinceEnc$branchPart"
         val cols = if (includePhoto)
-            "id,name,mobile,branch,disease,patientId,photo,queue,stage,doctorComplete,createdBy,registeredBy,createdAt,updatedAt,bill,registrationDate"
+            "id,name,mobile,branch,disease,patientId,photo,queue,stage,doctorComplete,createdBy,registeredBy,createdAt,updatedAt,bill,registrationDate,queuedAt"
         else
-            "id,name,mobile,branch,disease,patientId,queue,stage,doctorComplete,createdBy,registeredBy,createdAt,updatedAt,bill,registrationDate"
+            "id,name,mobile,branch,disease,patientId,queue,stage,doctorComplete,createdBy,registeredBy,createdAt,updatedAt,bill,registrationDate,queuedAt"
 
         val delta = try {
             SupabaseClient.fetchListSlimOrNull("patients", filter, 2000, cols)

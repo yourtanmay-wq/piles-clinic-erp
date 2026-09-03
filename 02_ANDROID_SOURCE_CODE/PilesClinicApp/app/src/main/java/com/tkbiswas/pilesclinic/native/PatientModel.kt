@@ -240,6 +240,11 @@ object PatientModel {
                     row.put("stage", "Doctor Queue")
                        .put("queue", true)
                        .put("doctorComplete", false)
+                       /* 📅 V1013 — আজ তালিকায় উঠলেন, সেই দিনটাই এখানে বসে
+                          (CHECK-UP Queue এখন এই ঘরটাই দেখে, `updatedAt` নয়)। */
+                       .put("queuedAt", draft.date.ifBlank {
+                           java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+                       })
                        .put("bill", 0)
                 }
             }

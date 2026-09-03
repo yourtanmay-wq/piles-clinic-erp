@@ -78,7 +78,7 @@ class FollowUpRepository(private val context: Context? = null) {
         // ডেটা কম নামে। যাচাই: এই ৫টা ঘর FollowUp-এর কোনো ফাইলে পড়া হয় না
         // (আগের ছবি-বাদের মতোই নিরাপদ কৌশল)। বাদ: doctorFullNote · doctorAdvice ·
         // medicalHistory · previousTreatment · previousResult।
-        private const val PATIENT_COLS = "address,age,bill,branch,complaint,completeApprovedBy,completeRequestedBy,createdAt,createdBy,date,decision,diagnosis,discount,disease,doctorComplete,id,mobile,name,occupation,patientId,previousCost,queue,refBy,refDoctor,refDoctorMobile,refundRestoredBy,registeredBy,registrationDate,sex,sinceWhen,stage,timeType,treatmentDuration,updatedAt,visitDate"
+        private const val PATIENT_COLS = "address,age,bill,branch,complaint,completeApprovedBy,completeRequestedBy,createdAt,createdBy,date,decision,diagnosis,discount,disease,doctorComplete,id,mobile,name,occupation,patientId,previousCost,queue,queuedAt,refBy,refDoctor,refDoctorMobile,refundRestoredBy,registeredBy,registrationDate,sex,sinceWhen,stage,timeType,treatmentDuration,updatedAt,visitDate"
 
         /**
          * Narrowed read, with a one-time full-row safety net.

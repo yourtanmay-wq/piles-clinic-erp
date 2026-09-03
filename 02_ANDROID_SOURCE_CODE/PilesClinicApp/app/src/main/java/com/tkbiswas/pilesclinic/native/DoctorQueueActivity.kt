@@ -183,6 +183,15 @@ class DoctorQueueActivity : AppCompatActivity() {
             override fun beforeTextChanged(t: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun onTextChanged(t: CharSequence?, a: Int, b: Int, c: Int) {}
         })
+        /* 🔍 V1013 — কীবোর্ডের Search চাপলে সব রোগীর মধ্যে খোঁজার পর্দা। */
+        binding.etQueueSearch.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH ||
+                actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE) {
+                try { startActivity(android.content.Intent(this, GlobalSearchActivity::class.java)) }
+                catch (_: Throwable) { }
+                true
+            } else false
+        }
         setupBranchPicker()   // খাতার সারি B42 — শুধু মাস্টারের পর্দায় দেখা যায়
 
         skipNextResumeLoad = true   // 🟢 B659: onCreate-এর পরেই আসা onResume-এ আর দ্বিতীয়বার টানা হবে না
@@ -468,8 +477,15 @@ class DoctorQueueActivity : AppCompatActivity() {
             rows.add(QueueRow.Header("$arrow DONE TODAY (${doneShown.size})", collapsible = true))
             if (open) doneShown.forEach { rows.add(QueueRow.Item(it)) }
         }
+        /* 🔍🔒 V1013 (০৩.০৯.২০২৬, TK-রিপোর্ট: *"উপরে সার্চ করলে কোন পেশেন্ট
+           সংখ্যা আসে না কেন?"*) — **কারণ:** এই ঘরটা শুধু **আজকের তালিকার
+           ভিতরেই** খোঁজে; তালিকার বাইরের রোগী এখানে কোনোদিন আসতেন না, অথচ
+           লেখা ছিল শুধু "No patient found" — কেন পাওয়া গেল না তা বোঝাই যেত না।
+           ⇒ এখন লেখাটা স্পষ্ট, আর কীবোর্ডের Search চাপলে **সব রোগীর মধ্যে**
+             খোঁজার পর্দাটা খুলে যায়।
+           ⛔ নতুন কোনো ক্লাউড-পড়া যোগ হয়নি — খোঁজার পর্দা নিজের নিয়মেই চলে। */
         if (queueSearch.isNotBlank() && pendingShown.isEmpty() && doneShown.isEmpty()) {
-            rows.add(QueueRow.Header("No patient found"))
+            rows.add(QueueRow.Header("Not in today's queue — press Search on the keyboard to look in all patients"))
         }
         // 🔒 V217 (§B216, Master Fix Order §14, item 7 "CHECK-UP থেকে Back
         // দিলে একই জায়গায় ফিরবে"): CHECK-UP থেকে ফিরে এলে `onResume()`
