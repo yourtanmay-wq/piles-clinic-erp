@@ -13949,7 +13949,13 @@ function patientPayRows(rows){
 window["patientPayRows"]=patientPayRows;
 function patientPaymentHome(){
  let rows=load('patients').filter(p=>isMaster()||user?.branch==='All'||sameBranch(p.branch,user?.branch));
- page('Patient Treatment Payment',`<input class="input" placeholder="Search patient by name / mobile" oninput="filterPatientPay(this.value)"><div id="payList">${patientPayRows(rows)}</div>`,true);
+ /* 💳 V1020 (TK-নির্দেশ, ০৩.০৯.২০২৬) — চওড়া কম্পিউটার-পর্দায় খোঁজার ঘরের
+    পাশে মোট রোগীর সংখ্যা দেখানো হয়। ⛔ ফোনে হুবহু আগের মতোই শুধু ঘরটাই। */
+ const __deskPP = (typeof wlv1DeskWide==='function') ? wlv1DeskWide() : false;
+ const __ppBar = __deskPP
+   ? `<div class="payTblBar"><input class="input" placeholder="Search patient by name / mobile" oninput="filterPatientPay(this.value)"><span class="payTblCount">${rows.length} patients</span></div>`
+   : `<input class="input" placeholder="Search patient by name / mobile" oninput="filterPatientPay(this.value)">`;
+ page('Patient Treatment Payment',`${__ppBar}<div id="payList">${patientPayRows(rows)}</div>`,true);
 }
 window["patientPaymentHome"]=patientPaymentHome;
 

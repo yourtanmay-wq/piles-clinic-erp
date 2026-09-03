@@ -7282,3 +7282,101 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
   body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .wlv1PayBoxTap:hover{
     outline:2px solid rgba(255,255,255,.55);outline-offset:-2px}
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   💳 V1020 — কম্পিউটারে **Patient Treatment Payment**, TK-এর পাঠানো
+   অ্যান্ড্রয়েড পর্দার হুবহু সাজে (নাম নীল লিঙ্ক · আইডি ধূসর পিল · 📞 নম্বর ·
+   BILL/PAID/DUE তিনটে রঙিন ঘর · একই রঙের বোতাম) — শুধু চওড়া পর্দার জন্য
+   পাশাপাশি সাজানো, তাই এক পর্দায় অনেক রোগী ধরে।
+   ⛔ শুধু ≥1200px কম্পিউটার-পর্দায়; ফোনে আগের কার্ডই অক্ষত।
+   ═══════════════════════════════════════════════════════════════════ */
+@media (min-width:1200px){
+  body.hasDeskNav .wrap:not(.publicWrap) .page:has(#payList){
+    max-width:100%!important;padding:12px 16px 8px!important}
+  body.hasDeskNav .wrap:not(.publicWrap) #payList{
+    display:block!important;grid-template-columns:none!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .payTblBar{
+    display:flex;align-items:center;gap:14px;margin:0 0 12px}
+  body.hasDeskNav .wrap:not(.publicWrap) .payTblBar>.input{
+    flex:0 0 420px;max-width:420px;margin:0;min-height:40px;height:40px;border-radius:10px}
+  body.hasDeskNav .wrap:not(.publicWrap) .payTblCount{
+    font-size:11.5px;font-weight:700;color:#7E8DA2;letter-spacing:.3px}
+
+  /* ── এক রোগী = এক কার্ড, ফোনের সাজেই ─────────────────────────── */
+  body.hasDeskNav .wrap:not(.publicWrap) .card.payCard{
+    display:grid!important;
+    grid-template-columns:minmax(260px,1fr) 150px 150px 150px 30px 380px;
+    align-items:center;column-gap:0;row-gap:0;
+    margin:0 0 10px!important;padding:12px 16px!important;border-radius:14px;
+    background:#fff!important;border:1px solid #E7EEF6!important;
+    box-shadow:0 1px 3px rgba(16,34,58,.06)!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.payCard:hover{border-color:#CFE0F5!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.payCard>.row{display:contents}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.payCard>.row>div:first-child{
+    grid-column:1;grid-row:1;min-width:0;padding-right:16px}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.payCard>.row>div:first-child b{
+    display:block;font-size:16px;font-weight:600;color:#1067D8!important;
+    text-decoration:underline;text-underline-offset:3px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.payCard>.row>div:first-child br{display:none}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.payCard>.row>div:first-child .mut{
+    display:block;margin-top:5px;font-size:12.5px;color:#5B6B80;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.payCard .payCircle{display:none!important}
+
+  /* ── BILL · PAID · DUE — ফোনের সেই তিনটে ঘর ──────────────────── */
+  body.hasDeskNav .wrap:not(.publicWrap) .card.payCard .payColorStats{display:contents}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.payCard .payColorStats>div{
+    grid-row:1;margin:0;padding:9px 12px;text-align:left;
+    border:1px solid #EAF0F7;border-right:0;background-image:none!important;
+    box-shadow:none!important;min-width:0}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.payCard .payColorStats>div:nth-child(1){
+    grid-column:2;background:#F5F8FF!important;border-radius:10px 0 0 10px}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.payCard .payColorStats>div:nth-child(2){
+    grid-column:3;background:#F3FBF6!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.payCard .payColorStats>div:nth-child(3){
+    grid-column:4;background:#FEF5F4!important;border-right:1px solid #EAF0F7;
+    border-radius:0 10px 10px 0}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.payCard .payColorStats>div:nth-child(4){display:none!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.payCard .payColorStats small{
+    display:block;font-size:10.5px;font-weight:600;letter-spacing:.8px;
+    text-transform:uppercase;color:#8A97AB!important;margin-bottom:3px}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.payCard .payColorStats b{
+    font-size:19px!important;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.payCard .payColorStats>div:nth-child(1) b{color:#1067D8!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.payCard .payColorStats>div:nth-child(2) b{color:#16A36D!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.payCard .payColorStats>div:nth-child(3) b{color:#B42318!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.payCard .progress{display:none!important}
+
+  /* ── বোতাম — ফোনের সেই রং ও গড়ন ─────────────────────────────── */
+  body.hasDeskNav .wrap:not(.publicWrap) .card.payCard .actions{
+    grid-column:6;grid-row:1;margin:0;display:flex;gap:8px;justify-content:flex-end;flex-wrap:nowrap}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.payCard .actions button{
+    min-height:40px!important;height:40px!important;padding:0 14px!important;
+    font-size:12px!important;font-weight:600;border-radius:10px!important;
+    margin:0!important;white-space:nowrap;box-shadow:none!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.payCard .actions button:nth-child(1){
+    background:#0B7A34!important;color:#fff!important;border:0!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.payCard .actions button:nth-child(2){
+    background:#1067D8!important;color:#fff!important;border:0!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.payCard .actions button:nth-child(3),
+  body.hasDeskNav .wrap:not(.publicWrap) .card.payCard .actions button:nth-child(4){
+    background:#fff!important;color:#0F3D6B!important;border:1.5px solid #0B7A34!important}
+}
+
+@media (min-width:1200px){
+  /* 💳 V1020 — চার বোতামের আসল মাপ ধরে কলাম বসানো, তাই DUE ঘরের সঙ্গে
+     আর ঠোকাঠুকি হয় না; মোবাইল নম্বরও পুরো দেখা যায়। */
+  body.hasDeskNav .wrap:not(.publicWrap) .card.payCard{
+    grid-template-columns:minmax(230px,1fr) 132px 132px 132px 20px 458px!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.payCard .payColorStats b{font-size:17px!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.payCard .actions button{
+    padding:0 12px!important;font-size:11.5px!important}
+}
+
+@media (min-width:1200px){
+  /* 💳 V1020 — আইডি ও মোবাইল নম্বর যেন পুরো দেখা যায় */
+  body.hasDeskNav .wrap:not(.publicWrap) .card.payCard{
+    grid-template-columns:minmax(268px,1fr) 130px 130px 130px 18px 444px!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .card.payCard>.row>div:first-child .mut{font-size:12px}
+}
