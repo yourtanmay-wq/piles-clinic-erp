@@ -3445,6 +3445,43 @@ Thread {
             })
         }
 
+        /* 💰🔒 V1025 (TK-নির্দেশ ০৩.০৯.২০২৬, ছবিসহ): *"Money Handover — এটা
+           চেম্বার বন্ধ করার সময় Staff-এর সামনে আসতে হবে, অন্যথায় বোঝা যাচ্ছে
+           না। এই ফটোতে নিচে ডান দিকে বসিয়ে দিন।"*
+           তাই REVIEW তালিকার **একদম নিচে, ডান দিকে** একটা বোতাম বসল।
+           ⛔ "✅ Confirm Close"-এ এক অক্ষরও হাত পড়েনি — এটা শুধু নতুন একটা
+              বোতাম, চাপলে Money Handover পর্দা খোলে। চেম্বার বন্ধ হয় না,
+              কোনো টাকা সেভ বা বদল হয় না। ⛔ যে কোনো গোলমালে নিঃশব্দে বাদ,
+              তাই পুরনো কাজ কখনো ভাঙে না। */
+        try {
+            val mhRow = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.END
+                setPadding(dp(12), dp(10), dp(12), dp(4))
+            }
+            val mhBtn = android.widget.Button(this).apply {
+                text = "\uD83D\uDCB0  Money Handover"
+                textSize = 13f
+                isAllCaps = false
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#8A5A00"))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(10).toFloat()
+                    setColor(android.graphics.Color.parseColor("#FFFBF0"))
+                    setStroke(dp(2), android.graphics.Color.parseColor("#B8860B"))
+                }
+                setPadding(dp(16), dp(8), dp(16), dp(8))
+                setOnClickListener {
+                    try {
+                        startActivity(android.content.Intent(
+                            this@ChamberAttendanceActivity, MoneyHandoverActivity::class.java))
+                    } catch (_: Throwable) { }
+                }
+            }
+            mhRow.addView(mhBtn)
+            list.addView(mhRow)
+        } catch (_: Throwable) { }
+
         UppercaseInputUtil.applyToAll(list)  // TK-REQUESTED GLOBAL RULE (2026-07-24): English text auto-CAPITAL, Password fields excluded automatically
         val dialog = AlertDialog.Builder(this)
             .setView(android.widget.ScrollView(this).apply { addView(list) })

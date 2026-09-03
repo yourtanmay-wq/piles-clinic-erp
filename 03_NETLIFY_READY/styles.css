@@ -7913,3 +7913,30 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
     margin-top:18px;padding:11px 13px;border-radius:9px;background:#F1FAF3;
     font-size:12px;color:#0B5B2F;font-weight:600}
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   🖥️ V1025 — TK-নির্দেশ (০৩.০৯.২০২৬): *"ডেক্সটপে যেগুলো পাশাপাশি রাখা
+   যাবে সেগুলো পাশাপাশি রাখুন"* · *"আর বাকিগুলি শুরু করে দাও"*।
+   বাকি পর্দাগুলোতেও (Doctor Queue · Follow-up · Draft · Search ·
+   Money Handover · Print …) পাতার **১০০০px সীমাটা খোলা** হলো, তাই
+   দুই ধারে ১ ইঞ্চি ফাঁকা রেখেও পুরো চওড়া কাজে লাগে — কার্ডগুলো
+   পাশাপাশি বসে (২ কলামের নিয়ম আগে থেকেই আছে)।
+   ⛔ শুধু ≥1200px; ফোনে একটুও পড়ে না।
+   ═══════════════════════════════════════════════════════════════════ */
+@media (min-width:1200px){
+  body.hasDeskNav .wrap:not(.publicWrap) .page{max-width:100%!important}
+  /* উপরের খোঁজার ঘর ও ছাঁকনির সারিগুলোও পুরো চওড়ায় */
+  body.hasDeskNav .wrap:not(.publicWrap) .page>.wlv1Search,
+  body.hasDeskNav .wrap:not(.publicWrap) .page>.card,
+  body.hasDeskNav .wrap:not(.publicWrap) .page>.actions,
+  body.hasDeskNav .wrap:not(.publicWrap) .page>.wlv1FuTabs,
+  body.hasDeskNav .wrap:not(.publicWrap) .page>.wlv1FuChips{max-width:none}
+}
+
+/* 💰 V1025 — REVIEW পর্দার নিচে ডান দিকে Money Handover বোতাম (ফোন ও
+   কম্পিউটার দুটোতেই)। Confirm Close সবচেয়ে বড় ও ভরাট থাকে, তাই ভুল করে
+   চাপার ঝুঁকি নেই। */
+.wlv1CbActions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.wlv1CbActions>button{margin:0}
+.wlv1CbMh{margin-left:auto!important;border:1.5px solid #B8860B!important;
+  color:#8A5A00!important;background:#FFFBF0!important;font-weight:800}

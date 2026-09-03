@@ -22677,8 +22677,15 @@ function wlv1CloseReview(rows){
   modal(`<h2>REVIEW — ${__arrivedN} arrived</h2>
     <div class="wlv1CbRevSum"><div><span>Fees</span><b>${rs(__fT)}</b></div><div><span>Cash</span><b class="c">${rs(__cT)}</b></div><div><span>Online</span><b class="o">${rs(__oT)}</b></div>${__rT>0?`<div><span>Refund</span><b style="color:#C0392B">− ${rs(__rT)}</b></div>`:''}<div class="tot"><span>TOTAL</span><b>${rs(__gT)}</b></div>${__msT>0?`<div class="msLine"><span>Medicine</span><b style="color:#5B6B81">${rs(__msT)}</b></div><div class="wlv1CbMsNote">Medicine &amp; Saline sales &mdash; not counted in TOTAL</div>`:''}</div>
     <div class="wlv1CbRevWrap">${list}</div>
-    <div class="actions"><button class="ghost" onclick="closeModal()">Back</button>
-    <button onclick="wlv1ConfirmChamberClose()">&#9989; Confirm Close</button></div>`);
+    <div class="actions wlv1CbActions"><button class="ghost" onclick="closeModal()">Back</button>
+    <button onclick="wlv1ConfirmChamberClose()">&#9989; Confirm Close</button>
+    <!-- 💰🔒 V1025 (TK-নির্দেশ ০৩.০৯.২০২৬: *"Money Handover — এটা চেম্বার বন্ধ
+         করার সময় Staff-এর সামনে আসতে হবে, অন্যথায় বোঝা যাচ্ছে না; এই ফটোতে
+         নিচে ডান দিকে বসিয়ে দিন"*)।
+         ⛔ Confirm Close-এ এক অক্ষরও হাত পড়েনি — এটা শুধু **নতুন একটা
+            বোতাম**, পাশে বসে। ⛔ চাপলে REVIEW বন্ধ হয়ে Money Handover পর্দা
+            খোলে; চেম্বার বন্ধ হয় না, কোনো টাকা সেভ হয় না। -->
+    <button class="ghost wlv1CbMh" onclick="closeModal();wlv1MoneyHandover()">&#128176; Money Handover</button></div>`);
 
   /* 🔴🔒 V426/V427 (TK-নির্দেশ ১৭.০৮.২০২৬) — RMP কমিশন ও "আজ কত দিলাম"।
      ⛔ হিসাব পুরোটাই সার্ভারে (`fin.rmp_day_commission` · `fin.rmp_day_paid`) —
