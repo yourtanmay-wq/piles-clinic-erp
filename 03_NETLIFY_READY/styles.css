@@ -2968,7 +2968,11 @@ table.dhxHistTable{width:100%;border-collapse:collapse;font-size:12px;margin-top
    মোড়ক (wrapper) যোগ হয়েছে — ভিতরের প্রতিটা id/input/button/onclick এক
    অক্ষরও বদলায়নি, তাই saveEnq()/সব ফাংশন আগের মতোই কাজ করবে। */
 @media (min-width:900px){
-  body.hasDeskNav .wrap:not(.publicWrap) .enquiryCard{max-width:900px;display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+  /* 🖥️🔒 V1015 (০৩.০৯.২০২৬, TK-নির্দেশ: "ডান সাইড এবং বাঁ সাইড উচ্চতা একই
+   সমানের হতে হবে") — আগে `align-items:start` ছিল, তাই প্রতিটা কার্ড নিজের
+   লেখার সমান উঁচু হত আর ডানদিকেরটা খাটো দেখাত। `stretch`-এ দুটোই লম্বাটার
+   সমান হয়। ⛔ শুধু ≥900px কম্পিউটার-পর্দায় — ফোনে এই নিয়মই চলে না। */
+body.hasDeskNav .wrap:not(.publicWrap) .enquiryCard{max-width:900px;display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:stretch}
   body.hasDeskNav .wrap:not(.publicWrap) .enquiryCard>.regSection{margin:0;background:#fff;border:1px solid #eef2f6;border-radius:14px;padding:14px;box-shadow:0 4px 14px rgba(16,34,58,.05)}
   body.hasDeskNav .wrap:not(.publicWrap) .enquiryCard>button{grid-column:1 / -1;max-width:420px;margin:6px auto 0}
 }
