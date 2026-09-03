@@ -635,10 +635,18 @@ class RegistrationActivity : AppCompatActivity() {
                 val idx = branchItems.indexOf(branch)
                 if (idx >= 0) binding.spBranch.setSelection(idx)
             }
+            /* 🩺🔒 V1000 (০৩.০৯.২০২৬) — Enquiry-তে এখন একাধিক রোগ বাছা যায়
+               (TK: "একই লোকের তো দুই রকমের রোগ থাকতেই পারে"), আর একাধিক হলে
+               ঘরটায় ", " দিয়ে জোড়া লেখা থাকে। আগে হুবহু এক নামে মেলানো হত,
+               তাই "Piles, Fissure" এলে একটাও টিক বসত না — রোগের নামটাই
+               হারিয়ে যেত। এখন কমা দিয়ে ভেঙে প্রতিটা নামে টিক বসে।
+               ⛔ একটামাত্র রোগ হলে আচরণ হুবহু আগের মতোই। */
             val disease = enq.s("disease")
             if (disease.isNotBlank()) {
-                val cb = diseaseChecks.firstOrNull { it.text.toString().equals(disease, ignoreCase = true) }
-                if (cb != null && !cb.isChecked) cb.isChecked = true
+                disease.split(",").map { it.trim() }.filter { it.isNotEmpty() }.forEach { one ->
+                    val cb = diseaseChecks.firstOrNull { it.text.toString().equals(one, ignoreCase = true) }
+                    if (cb != null && !cb.isChecked) cb.isChecked = true
+                }
             }
             // TK-REQUESTED ADDITION (2026-07-24): Registration Timing
             // auto-fills from the source Enquiry's own Official/Unexpected

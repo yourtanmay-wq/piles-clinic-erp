@@ -191,7 +191,19 @@ class EnquiryActivity : AppCompatActivity() {
 
     private var receivedByMobiles: List<String> = emptyList()
 
-    private var selectedDisease = ""
+    /* 🩺🔒 V1000 (০৩.০৯.২০২৬, TK-নির্দেশ: "এখানে একাধিক রোগ চুজ করা যায় না —
+       একই লোকের তো দুই রকমের রোগ থাকতেই পারে") — আগে একটাই রোগ বাছা যেত।
+       এখন যতগুলো দরকার বাছা যায়; আবার চাপলে বাছাই উঠে যায়।
+       ⛔ সেভে যা যায় সেটা আগের মতোই একটাই লেখা — একাধিক হলে ", " দিয়ে
+          জোড়া (রেজিস্ট্রেশনের `diagnosis` ঘরে বহুদিন ধরে এই নিয়মই চলে,
+          PatientModel.kt-এ `diseases.joinToString(", ")`)। তাই ডেটাবেসে
+          নতুন কোনো ঘর লাগেনি। */
+    private val selectedDiseaseSet = LinkedHashSet<String>()
+
+    /** বাছা রোগগুলো — সবসময় বোতামের নিজের ক্রমেই, ", " দিয়ে জোড়া। */
+    private val selectedDisease: String
+        get() = diseaseValues.filter { it.isNotEmpty() && selectedDiseaseSet.contains(it) }.joinToString(", ")
+
 
     private fun setupDiseaseButtons() {
         val map = listOf(
@@ -208,19 +220,21 @@ class EnquiryActivity : AppCompatActivity() {
         // 6 disease buttons was the app's dark-navy theme color, which TK does
         // not want here. Default/unselected is now grey; tapping a button turns
         // it green (see selectDisease below). Nothing else on this form changed.
-        val grey = android.graphics.Color.parseColor("#9AA5B1")
-        map.forEach { (btn, _) ->
-            btn.backgroundTintList = android.content.res.ColorStateList.valueOf(grey)
-            btn.setTextColor(android.graphics.Color.WHITE)
-        }
+        // 🩺 V1000 — এক জায়গা থেকেই রং বসে, তাই বাছা থাকলে সবুজই থাকে।
+        paintDiseaseButtons(map)
     }
 
     private fun selectDisease(value: String, map: List<Pair<android.widget.Button, String>>) {
-        selectedDisease = value
+        // 🩺 V1000 — চাপলে যোগ, আবার চাপলে বাদ (একাধিক রোগ বাছা যায়)।
+        if (!selectedDiseaseSet.remove(value)) selectedDiseaseSet.add(value)
+        paintDiseaseButtons(map)
+    }
+
+    private fun paintDiseaseButtons(map: List<Pair<android.widget.Button, String>>) {
         val green = android.graphics.Color.parseColor("#16A36D")
         val grey = android.graphics.Color.parseColor("#9AA5B1")
         map.forEach { (btn, v) ->
-            val on = v == value
+            val on = selectedDiseaseSet.contains(v)
             btn.backgroundTintList = android.content.res.ColorStateList.valueOf(if (on) green else grey)
             btn.setTextColor(android.graphics.Color.WHITE)
         }
@@ -813,8 +827,8 @@ val disease = selectedDisease
         binding.tvDate.text = displayDate(selectedDate)
         selectedNextFollow = ""
         binding.tvNextFollow.text = "Tap to select (optional)"
+        selectedDiseaseSet.clear()
         setupDiseaseButtons()
-        selectedDisease = ""
         setupTimingButtons()
         binding.etMobile.requestFocus()
     }

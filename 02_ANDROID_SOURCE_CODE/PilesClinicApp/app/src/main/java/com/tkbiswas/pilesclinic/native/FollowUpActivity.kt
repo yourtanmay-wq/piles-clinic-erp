@@ -3752,7 +3752,14 @@ class FollowUpActivity : AppCompatActivity() {
 
     private fun showEditDialog(item: FollowUpItem) {
         val branches = listOf("Kishanganj", "Jalpaiguri", "Cooch Behar", "Falakata", "Birpara")
-        val diseases = listOf("Piles", "Fissure", "Fistula", "Hydrocele", "Gupt Rog", "Other")
+        /* 🩺🔒 V1000 (০৩.০৯.২০২৬) — Enquiry-তে এখন একাধিক রোগ বাছা যায়, তাই
+           ঘরটায় "Piles, Fissure"-এর মতো জোড়া লেখাও থাকতে পারে। আগে এই
+           তালিকায় না মিললে স্পিনার নিঃশব্দে প্রথমটা ("Piles") দেখাত এবং
+           সেভ করলেই আসল লেখাটা মুছে যেত। এখন যা আছে সেটাই তালিকার শুরুতে
+           বসে, তাই কিছু না ছুঁলে কিছুই বদলায় না। */
+        val baseDiseases = listOf("Piles", "Fissure", "Fistula", "Hydrocele", "Gupt Rog", "Other")
+        val diseases = if (item.disease.isNotBlank() && !baseDiseases.contains(item.disease))
+            listOf(item.disease) + baseDiseases else baseDiseases
         val pad = (16 * resources.displayMetrics.density).toInt()
         val container = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.VERTICAL

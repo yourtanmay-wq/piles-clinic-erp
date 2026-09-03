@@ -421,7 +421,15 @@ class PatientTimelineActivity : AppCompatActivity() {
             adapter = android.widget.ArrayAdapter(this@PatientTimelineActivity, android.R.layout.simple_spinner_dropdown_item, branchOptions)
             val bi = branchOptions.indexOfFirst { it.equals(currentBranch, ignoreCase = true) }; if (bi >= 0) setSelection(bi)
         }
-        val diseaseOptions = listOf("Piles", "Fissure", "Fistula", "Hydrocele", "Gupt Rog", "Other")
+        /* 🩺🔒 V1000 (০৩.০৯.২০২৬) — একজন রোগীর একাধিক রোগ থাকতে পারে
+           (রেজিস্ট্রেশনে বহুদিন ধরেই টিক দিয়ে একাধিক বাছা যায়, ঘরে ", "
+           দিয়ে জোড়া বসে)। আগে তালিকায় না মিললে স্পিনার নিঃশব্দে "Piles"
+           দেখাত, আর সেভ করলেই জোড়া লেখাটা মুছে যেত। এখন যা আছে সেটাই
+           তালিকার শুরুতে বসে — কিছু না ছুঁলে কিছুই বদলায় না। */
+        val baseDiseaseOptions = listOf("Piles", "Fissure", "Fistula", "Hydrocele", "Gupt Rog", "Other")
+        val diseaseOptions = if (currentDisease.isNotBlank() &&
+            baseDiseaseOptions.none { it.equals(currentDisease, ignoreCase = true) })
+            listOf(currentDisease) + baseDiseaseOptions else baseDiseaseOptions
         val diseaseLabel = android.widget.TextView(this).apply { text = "Disease"; textSize = 11.5f; setPadding(0, dp(14), 0, dp(2)) }
         val diseaseSpinner = android.widget.Spinner(this).apply {
             adapter = android.widget.ArrayAdapter(this@PatientTimelineActivity, android.R.layout.simple_spinner_dropdown_item, diseaseOptions)

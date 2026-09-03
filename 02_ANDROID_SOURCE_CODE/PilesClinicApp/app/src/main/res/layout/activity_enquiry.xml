@@ -103,17 +103,25 @@
                     android:hint="Patient name" />
 
                 <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="🩺 Disease *" />
+                <!-- 📏🔒 V1000 (০৩.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ:
+                     "রোগের নামের বক্সগুলো এক সমান করতে হবে") — ছয়টা বাক্সই
+                     আগে থেকেই ৩১৮×১২৬ px, কিন্তু GridLayout লেখার baseline
+                     মিলিয়ে বসায় বলে "Other" বাক্সটা ২৩ px উপরে উঠে যেত।
+                     `fill` গ্র্যাভিটি দিলে baseline নয়, ঘরটাই পুরো ভরে —
+                     তাই ছয়টা বাক্স এক সারিতে বসে। লেখার মাপও এক রাখতে
+                     autoSize-এর সীমা ১০–১২sp (আগে ৯–১৪sp, তাই "Hydrocele"
+                     ছোট হরফে দেখাত)। ⛔ id · কাজ · রং কিছুই বদলায়নি। -->
                 <GridLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:columnCount="3"
                     android:layout_marginTop="6dp">
-                    <Button android:id="@+id/btnDisPiles" android:layout_width="0dp" android:layout_height="48dp" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="3dp" android:padding="2dp" android:textAllCaps="false" android:maxLines="1" app:autoSizeTextType="uniform" app:autoSizeMinTextSize="9sp" app:autoSizeMaxTextSize="14sp" android:text="🩸 Piles" />
-                    <Button android:id="@+id/btnDisFissure" android:layout_width="0dp" android:layout_height="48dp" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="3dp" android:padding="2dp" android:textAllCaps="false" android:maxLines="1" app:autoSizeTextType="uniform" app:autoSizeMinTextSize="9sp" app:autoSizeMaxTextSize="14sp" android:text="✂️ Fissure" />
-                    <Button android:id="@+id/btnDisFistula" android:layout_width="0dp" android:layout_height="48dp" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="3dp" android:padding="2dp" android:textAllCaps="false" android:maxLines="1" app:autoSizeTextType="uniform" app:autoSizeMinTextSize="9sp" app:autoSizeMaxTextSize="14sp" android:text="🔄 Fistula" />
-                    <Button android:id="@+id/btnDisHydrocele" android:layout_width="0dp" android:layout_height="48dp" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="3dp" android:padding="2dp" android:textAllCaps="false" android:maxLines="1" app:autoSizeTextType="uniform" app:autoSizeMinTextSize="9sp" app:autoSizeMaxTextSize="14sp" android:text="💧 Hydrocele" />
-                    <Button android:id="@+id/btnDisGupt" android:layout_width="0dp" android:layout_height="48dp" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="3dp" android:padding="2dp" android:textAllCaps="false" android:maxLines="1" app:autoSizeTextType="uniform" app:autoSizeMinTextSize="9sp" app:autoSizeMaxTextSize="14sp" android:text="🛡️ Gupt Rog" />
-                    <Button android:id="@+id/btnDisOther" android:layout_width="0dp" android:layout_height="48dp" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="3dp" android:padding="2dp" android:textAllCaps="false" android:maxLines="1" app:autoSizeTextType="uniform" app:autoSizeMinTextSize="9sp" app:autoSizeMaxTextSize="14sp" android:text="📋 Other" />
+                    <Button android:id="@+id/btnDisPiles" android:layout_width="0dp" android:layout_height="48dp" android:layout_columnWeight="1" android:layout_gravity="fill" android:layout_margin="3dp" android:padding="2dp" android:textAllCaps="false" android:maxLines="1" app:autoSizeTextType="uniform" app:autoSizeMinTextSize="10sp" app:autoSizeMaxTextSize="12sp" android:text="🩸 Piles" />
+                    <Button android:id="@+id/btnDisFissure" android:layout_width="0dp" android:layout_height="48dp" android:layout_columnWeight="1" android:layout_gravity="fill" android:layout_margin="3dp" android:padding="2dp" android:textAllCaps="false" android:maxLines="1" app:autoSizeTextType="uniform" app:autoSizeMinTextSize="10sp" app:autoSizeMaxTextSize="12sp" android:text="✂️ Fissure" />
+                    <Button android:id="@+id/btnDisFistula" android:layout_width="0dp" android:layout_height="48dp" android:layout_columnWeight="1" android:layout_gravity="fill" android:layout_margin="3dp" android:padding="2dp" android:textAllCaps="false" android:maxLines="1" app:autoSizeTextType="uniform" app:autoSizeMinTextSize="10sp" app:autoSizeMaxTextSize="12sp" android:text="🔄 Fistula" />
+                    <Button android:id="@+id/btnDisHydrocele" android:layout_width="0dp" android:layout_height="48dp" android:layout_columnWeight="1" android:layout_gravity="fill" android:layout_margin="3dp" android:padding="2dp" android:textAllCaps="false" android:maxLines="1" app:autoSizeTextType="uniform" app:autoSizeMinTextSize="10sp" app:autoSizeMaxTextSize="12sp" android:text="💧 Hydrocele" />
+                    <Button android:id="@+id/btnDisGupt" android:layout_width="0dp" android:layout_height="48dp" android:layout_columnWeight="1" android:layout_gravity="fill" android:layout_margin="3dp" android:padding="2dp" android:textAllCaps="false" android:maxLines="1" app:autoSizeTextType="uniform" app:autoSizeMinTextSize="10sp" app:autoSizeMaxTextSize="12sp" android:text="🛡️ Gupt Rog" />
+                    <Button android:id="@+id/btnDisOther" android:layout_width="0dp" android:layout_height="48dp" android:layout_columnWeight="1" android:layout_gravity="fill" android:layout_margin="3dp" android:padding="2dp" android:textAllCaps="false" android:maxLines="1" app:autoSizeTextType="uniform" app:autoSizeMinTextSize="10sp" app:autoSizeMaxTextSize="12sp" android:text="📋 Other" />
                 </GridLayout>
 
                 <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="📍 Address" />
@@ -146,25 +154,44 @@
                     android:popupBackground="@color/white" />
 
                 <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="⏱️ Call Timing" />
+                <!-- 📏🔒 V1000 (০৩.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ:
+                     "Official Time · Unexpected Time — এই বক্সগুলো এক সমান
+                     করতে হবে") — আগে দুটোই wrap_content ছিল, তাই "Unexpected
+                     Time" দু লাইনে ভেঙে বাক্সটা উঁচু হয়ে যেত (মাপা: ১২৬ px
+                     বনাম ১৫৪ px) আর baseline মিলিয়ে বসায় উপরের ধারও আলাদা
+                     হত। এখন দুটোরই উচ্চতা ৪৮dp, লেখা এক লাইনে, আর
+                     baselineAligned বন্ধ — তাই বাক্স দুটো হুবহু এক সমান।
+                     ⛔ id · কাজ · রং কিছুই বদলায়নি। -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
+                    android:baselineAligned="false"
                     android:layout_marginTop="6dp">
                     <Button
                         android:id="@+id/btnTimingOfficial"
                         android:layout_width="0dp"
-                        android:layout_height="wrap_content"
+                        android:layout_height="48dp"
                         android:layout_weight="1"
                         android:layout_marginEnd="6dp"
+                        android:padding="2dp"
                         android:textAllCaps="false"
+                        android:maxLines="1"
+                        app:autoSizeTextType="uniform"
+                        app:autoSizeMinTextSize="10sp"
+                        app:autoSizeMaxTextSize="14sp"
                         android:text="Official Time" />
                     <Button
                         android:id="@+id/btnTimingUnexpected"
                         android:layout_width="0dp"
-                        android:layout_height="wrap_content"
+                        android:layout_height="48dp"
                         android:layout_weight="1"
+                        android:padding="2dp"
                         android:textAllCaps="false"
+                        android:maxLines="1"
+                        app:autoSizeTextType="uniform"
+                        app:autoSizeMinTextSize="10sp"
+                        app:autoSizeMaxTextSize="14sp"
                         android:text="Unexpected Time" />
                 </LinearLayout>
 
