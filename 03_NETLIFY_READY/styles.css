@@ -7131,3 +7131,154 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
     letter-spacing:.4px;padding:0 12px!important;border-radius:8px!important;margin:0!important;
     box-shadow:none!important}
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   💰 V1019 — কম্পিউটারে PAYMENT ও Patient Treatment Payment।
+   TK-নির্দেশ (০৩.০৯.২০২৬): *"পাশাপাশি রাখুন, যত পারেন স্ক্রল যেন করা না
+   লাগে"* · *"পেমেন্টে ঢুকলে কোন প্রফেশনাল লুক নেই"* ·
+   *"কালেকশন ও কালেকশন হিস্টরি হেডারে আছে, আবার এদিকে রাখার কি দরকার"*।
+   ⛔ সবটাই ≥1200px কম্পিউটার-পর্দায় — ফোনে একটুও পড়ে না।
+   ═══════════════════════════════════════════════════════════════════ */
+@media (min-width:1200px){
+  /* ── পাতা পুরো চওড়া ─────────────────────────────────────────── */
+  body.hasDeskNav .wrap:not(.publicWrap) .page:has(.paymentPro.wlv1Pay),
+  body.hasDeskNav .wrap:not(.publicWrap) .page:has(#payList){
+    max-width:100%!important;padding:12px 16px 8px!important}
+
+  /* ── উপরে হিসাব, তার নিচে বোতামের সারি, তারপর পুরো চওড়া তালিকা ── */
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay{
+    max-width:none!important;width:100%;display:flex;flex-direction:column;gap:10px}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>*{margin:0!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .wlv1PayBoxes{
+    display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  /* বোতামগুলো এক লাইনে: তারিখ · Patient · Medicine · Cash · Online */
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.wlv1CollPick{
+    order:2;display:flex}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.wlv1CollPick input{
+    width:190px;max-width:190px}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.wlv1PaySum{order:1}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.wlv1PayBtns{order:3}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.wlv1PayExtra{order:4}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.payListBox{order:5}
+  /* তারিখ + দুই বড় বোতাম + Cash/Online — একটাই সারি */
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.wlv1CollPick,
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.wlv1PayBtns,
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.wlv1PayExtra{
+    display:flex;gap:10px;align-items:center;flex-wrap:nowrap}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.wlv1PayBtns>button{
+    min-height:44px;font-size:13px;border-radius:11px;padding:0 22px;flex:0 0 auto}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.wlv1PayExtra>.ghost{
+    min-height:40px;border-radius:11px;padding:0 22px}
+  /* TK: Monthly ও History হেডারেই আছে — তাই ভিতরের নকল দুটো লুকোনো */
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.wlv1PayExtra>.wlv1PayWide{display:none}
+
+  /* ── আজকের কালেকশনের সারি — সব এক লাইনে, পুরো চওড়ায় ─────────── */
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payListRow2{
+    display:grid!important;
+    grid-template-columns:34px minmax(180px,1.1fr) 160px 190px minmax(200px,1.4fr) 150px;
+    align-items:center;gap:12px;padding:7px 12px!important;margin:0 0 6px!important;
+    border:1px solid #E7EEF6;border-radius:10px;background:#fff;overflow:hidden}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payPerson2{display:contents}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payNameRow{
+    grid-column:2;display:flex;align-items:center;gap:6px;min-width:0}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .paySerialTag{
+    grid-column:1;width:24px;height:24px;font-size:11px;justify-self:center}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payNameRow b{
+    font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payMob2{
+    grid-column:3;font-size:12px;margin:0!important;white-space:nowrap}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payIdRow2{
+    grid-column:4;font-size:11.5px;margin:0!important;white-space:nowrap}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payAddr{
+    grid-column:5;font-size:11px;margin:0!important;line-height:1.3;color:#64748B;min-width:0}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payAmount2{
+    grid-column:6;margin:0!important;padding:6px 10px!important;border-radius:9px;
+    text-align:right;width:100%;box-sizing:border-box}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payAmount2 b{font-size:14px}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payAmount2 em{font-size:9.5px}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payTime2{font-size:9.5px}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payDisChip,
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payRmpChip,
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payTimeChip{
+    font-size:9px;padding:2px 6px;flex:0 0 auto}
+}
+
+@media (min-width:1200px){
+  /* 💰 V1019 (সংশোধিত) — তারিখ · দুই বড় বোতাম · Cash · Online সব **একটাই সারিতে**,
+     তাই তিন সারির জায়গা বাঁচে আর তালিকায় বেশি রোগী দেখা যায়। */
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay{
+    display:grid!important;grid-template-columns:auto auto 1fr;
+    grid-template-rows:auto auto 1fr;gap:10px 12px;align-items:center}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.wlv1PaySum{
+    grid-column:1 / -1;grid-row:1}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.wlv1CollPick{
+    grid-column:1;grid-row:2}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.wlv1PayBtns{
+    grid-column:2;grid-row:2}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.wlv1PayExtra{
+    grid-column:3;grid-row:2;justify-content:flex-start}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.wlv1PayExtra>.ghost{
+    flex:0 0 auto;padding:0 26px}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.payListBox{
+    grid-column:1 / -1;grid-row:3;align-self:start}
+  /* সারিগুলো আরও ঘন — এক পর্দায় বেশি রোগী */
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payListRow2{
+    padding:5px 12px!important;margin:0 0 5px!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payAddr{
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payAmount2{
+    padding:5px 10px!important;display:flex;align-items:baseline;
+    justify-content:flex-end;gap:6px;flex-wrap:wrap}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payAmount2 b{margin:0}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payAmount2 em{margin:0}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payTime2{
+    width:100%;text-align:right;margin:0}
+}
+
+@media (min-width:1200px){
+  /* 💰 V1019 (TK-সংশোধন ২): তারিখ হেডারেই আছে — ভিতরের নকলটা বাদ।
+     PATIENT PAYMENT ও MEDICINE PAYMENT ফোনের মতোই **সবার উপরে**।
+     রোগীর নাম বড় ও গাঢ়, যাতে এক নজরেই চোখে পড়ে। */
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay{
+    grid-template-columns:auto 1fr;grid-template-rows:auto auto 1fr}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.wlv1CollPick{display:none!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.wlv1PayBtns{
+    grid-column:1;grid-row:1}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.wlv1PayExtra{
+    grid-column:2;grid-row:1;justify-content:flex-end}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.wlv1PaySum{
+    grid-column:1 / -1;grid-row:2}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.payListBox{
+    grid-column:1 / -1;grid-row:3}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payNameRow b{
+    font-size:15px!important;font-weight:800;color:#10223A!important;text-decoration:none}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payListRow2{
+    grid-template-columns:34px minmax(210px,1.2fr) 160px 190px minmax(190px,1.3fr) 150px}
+}
+
+/* 💰 V1019 — হেডারের Cash/Online শুধু চওড়া কম্পিউটার-পর্দায়; ফোনে লুকোনো
+   (ফোনে ওগুলো আগের মতোই পর্দার ভিতরে আছে, কিছুই হারায়নি)। */
+.wlv1DeskOnlyBtn{display:none}
+@media (min-width:1200px){
+  body.hasDeskNav .wlv1DeskOnlyBtn{display:inline-flex}
+  /* ভিতরের নকল Cash/Online কম্পিউটারে আর দেখানো হয় না */
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.wlv1PayExtra{display:none!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay{grid-template-columns:1fr}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.wlv1PayBtns{grid-column:1;grid-row:1}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.wlv1PaySum{grid-column:1;grid-row:2}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.payListBox{grid-column:1;grid-row:3}
+}
+
+@media (min-width:1200px){
+  /* 💰 V1019 — খোঁজার ঘর দুই বোতামের ডানে, আর Cash/Online বাক্স দুটোই এখন
+     ছাঁকনি (চাপলে ওই দিনের ক্যাশ/অনলাইন তালিকা খোলে)। */
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.wlv1PayBtns{
+    display:flex;gap:10px;align-items:center;flex-wrap:nowrap}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.wlv1PayBtns>#payListSearch{
+    flex:1 1 auto;min-height:44px;height:44px;margin:0;border-radius:11px}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.wlv1PayBtns>.ghost{
+    flex:0 0 auto;min-height:44px;height:44px;border-radius:11px;padding:0 16px}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .wlv1PayBoxTap{cursor:pointer}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .wlv1PayBoxTap:hover{
+    outline:2px solid rgba(255,255,255,.55);outline-offset:-2px}
+}
