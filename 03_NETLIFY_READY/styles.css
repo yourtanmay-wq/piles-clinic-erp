@@ -8149,3 +8149,7 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
 .wlv1SAct.wlv1SMedDue b{color:#fff!important}
 .wlv1SAct.wlv1SNoDue b{color:#8B98A9!important}
 .wlv1SAct.wlv1SNoDue{cursor:default}
+
+/* 🐞 V1031 — "Salary Due" সারিতে লেখা ও বোতামের মাঝে সত্যিকারের ফাঁক */
+.pfDueLine{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-top:6px}
+.pfDueLine .tiny{margin-top:0}

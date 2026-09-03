@@ -127,8 +127,12 @@
       dueRows.map(function (d) { return '<div style="padding:8px 0;border-top:1px solid #f0e2c0"><b>' + m.esc(d.name) + '</b> · ' + m.esc(d.branch) +
         /* 🔴 V430 — ফোনের লেখা: "Salary day 5 · due this month · ₹5,000"
            (BriefingActivity.kt:945-976)। ওয়েবের পুরনো লেখাটা নির্দেশ-ধাঁচের ছিল। */
-        '<br><span class="tiny mut">Salary day ' + m.esc(d.sd || '-') + ' · due this month · ' + m.money(d.amt) + '</span> ' +
-        '<button class="small" onclick="profSalary(\'' + m.esc(d.code) + '\')">➕ Pay Salary</button></div>'; }).join('') + '</div>') : '';
+        /* 🐞🔒 V1031 (TK-রিপোর্ট: *"একটা একটার গায় ঘেসে যাচ্ছে"*) — লেখাটা আর
+           বোতামটা পাশাপাশি বসত মাত্র একটা ফাঁকা-অক্ষরের দূরত্বে, তাই ₹8,000-এর
+           গায়ে "Pay Salary" লেগে থাকত। এখন নিজের সারিতে, মাঝে সত্যিকারের ফাঁক,
+           আর জায়গা না হলে বোতামটা নিচে নামে। ⛔ লেখা/কাজ কিছুই বদলায়নি। */
+        '<div class="pfDueLine"><span class="tiny mut">Salary day ' + m.esc(d.sd || '-') + ' · due this month · ' + m.money(d.amt) + '</span>' +
+        '<button class="small" onclick="profSalary(\'' + m.esc(d.code) + '\')">➕ Pay Salary</button></div></div>'; }).join('') + '</div>') : '';
     /* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬: "সব কিছু Android এর মত হোক") — কর্মীর
        কার্ডটা হুবহু ফোনের মতো করা হলো (StaffProfileActivity.kt:251-327):
          · প্রথম লাইনে **নাম** (মোটা) আর পাশে **পদবির রঙিন চিপ**
