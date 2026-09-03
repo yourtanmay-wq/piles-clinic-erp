@@ -597,6 +597,28 @@ class RegistrationActivity : AppCompatActivity() {
                 startActivity(android.content.Intent(this@RegistrationActivity, PatientTimelineActivity::class.java).putExtra("mobile", digits))
             }
             view.findViewById<android.widget.TextView>(com.tkbiswas.pilesclinic.R.id.btnDupClose).setOnClickListener { dialog.dismiss() }
+            /* 👥🔒 V1011 (০৩.০৯.২০২৬, TK-রিপোর্ট: *"একই নাম্বার দিয়ে দ্বিতীয়
+               পেশেন্টের রেজিস্ট্রেশন করা সম্ভব হচ্ছে না"* — ফোনেও)।
+               **কোড পড়ে যা পাওয়া গেল:** নম্বরটা লেখামাত্রই এই পপ-আপটা আসে,
+               আর এতে বোতাম ছিল মাত্র দুটো — **View Existing** ও **Close**।
+               "Different Patient — Same Mobile" বাছাইটা আছে **সেভ চাপার পরের**
+               পপ-আপে; কিন্তু স্টাফ এখানেই *"এই নম্বর তো আগেই আছে"* দেখে থেমে
+               যান, ফর্মটাই আর ভরেন না — তাই দ্বিতীয় রোগী কখনো তৈরি হয় না।
+               ⇒ এখন এই প্রথম পপ-আপেই তৃতীয় বোতামটা থাকে; চাপলে পপ-আপ বন্ধ হয়
+                 আর স্টাফ জানেন ফর্ম ভরে Save চাপলেই আলাদা রোগী হিসেবে বাছা যাবে।
+               ⛔ এখানে কিছুই সেভ হয় না, কোনো সিদ্ধান্তও জমা হয় না — আসল বাছাই
+                  আগের মতোই সেভের পপ-আপে (V516), এক অক্ষরও বদলায়নি। */
+            val btnDiffHint: android.widget.TextView =
+                view.findViewById(com.tkbiswas.pilesclinic.R.id.btnDupDifferent)
+            btnDiffHint.visibility = android.view.View.VISIBLE
+            btnDiffHint.setOnClickListener {
+                dialog.dismiss()
+                android.widget.Toast.makeText(
+                    this@RegistrationActivity,
+                    "Fill the form and press Save, then choose \"Different Patient\".",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+            }
             dialog.show()
             try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
         }

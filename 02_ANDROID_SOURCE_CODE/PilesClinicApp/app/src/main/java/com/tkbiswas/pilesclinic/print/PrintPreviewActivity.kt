@@ -118,8 +118,27 @@ class PrintPreviewActivity : AppCompatActivity() {
                 wvPreview.settings.setSupportZoom(true)
                 wvPreview.settings.builtInZoomControls = true
                 wvPreview.settings.displayZoomControls = false
+                /* 🖼️🔒 V1012 (০৩.০৯.২০২৬, TK-নির্দেশ: *"প্রিন্ট করার সময় যেটা
+                   প্রিন্ট করব আমার ডিসপ্লেতে সেটুকুই দেখাবে"*)।
+                   **আসল কারণ (কোড পড়ে):** ছাপার HTML-এ কোনো `viewport` লেখা
+                   নেই — ওটা দরকারও নেই, কারণ ছাপার সময় কাগজের মাপই (A4)
+                   বিবেচ্য। কিন্তু WebView-এ **পর্দায়** দেখাতে গেলে viewport
+                   ছাড়া সে নিজের ডিফল্ট প্রস্থ ধরে নেয়, তাই V954-এর
+                   `loadWithOverviewMode`/`useWideViewPort` কিছুই এঁটে দেখাতে
+                   পারত না — ফলে শুধু লোগোর বিশাল টুকরো দেখাত।
+                   ⇒ এখন **শুধু পর্দায় দেখানোর কপিটাতে** A4-এর প্রস্থ
+                     (৭৯৪ px = ২১০mm @96dpi) viewport হিসেবে বসানো হয়, তাই
+                     পুরো কাগজটা এঁটে দেখায় — যা ছাপবে ঠিক তাই।
+                   ⛔ **ছাপার HTML এক অক্ষরও বদলায়নি** — নিচের ছাপা/শেয়ার
+                      দুটোই আগের হুবহু একই `PrescriptionHtml.build()` ব্যবহার
+                      করে; এই viewport লাইনটা শুধু এই প্রিভিউ-কপিতে। */
                 val previewHtml = com.tkbiswas.pilesclinic.print.PrescriptionHtml.build(this, model)
-                wvPreview.loadDataWithBaseURL("file:///android_asset/", previewHtml, "text/html", "UTF-8", null)
+                val previewFitted = if (previewHtml.contains("name=\"viewport\"", ignoreCase = true)) previewHtml
+                    else previewHtml.replaceFirst(
+                        "<head>",
+                        "<head><meta name=\"viewport\" content=\"width=794, initial-scale=1\">",
+                        ignoreCase = true)
+                wvPreview.loadDataWithBaseURL("file:///android_asset/", previewFitted, "text/html", "UTF-8", null)
                 /* 🔵 V954 — WebView এখন আলাদা কার্ডে, পুরো জায়গা জুড়ে; তাই ছবির
                    ScrollView-টা লুকিয়ে দেওয়া হয় (নইলে দুটো একসাথে জায়গা নিত)। */
                 findViewById<android.view.View>(R.id.cardRxPreview).visibility = android.view.View.VISIBLE
