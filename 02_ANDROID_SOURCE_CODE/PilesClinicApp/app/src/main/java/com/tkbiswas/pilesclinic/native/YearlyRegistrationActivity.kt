@@ -60,19 +60,24 @@ class YearlyRegistrationActivity : AppCompatActivity() {
     private fun daySeqOf(e: DraftEntry): Int =
         e.patientId.substringAfterLast('-', "").filter { it.isDigit() }.toIntOrNull() ?: 0
 
-    /** তারিখ ⇢ ওই দিনের ক্রম ⇢ নাম — নতুন সবার উপরে (পর্দার চেনা ক্রম)। */
+    /* 📜🔒 V1003 (০৩.০৯.২০২৬, TK-নির্দেশ) — TK: *"মোবাইল ডিসপ্লের প্রথমে
+       থাকবে এক নাম্বার। স্ক্রোল করতে করতে পরবর্তী নাম্বারের দিকে যাব"*।
+       ⇒ তালিকা এখন **পুরনো থেকে নতুন** (আগে ছিল নতুন সবার উপরে)।
+       তাই একদম উপরে বছরের প্রথম রোগী = ১, নিচে নামলে নম্বর বাড়ে।
+       ⛔ গোনা · মাসের টেবিল · Remove/Undo — কিছুই এতে বদলায় না। */
+    /** তারিখ ⇢ ওই দিনের ক্রম ⇢ নাম — পুরনো সবার উপরে। */
     private fun sortForScreen() {
         rows.sortWith(
-            compareByDescending<DraftEntry> { it.recordDate }
-                .thenByDescending { daySeqOf(it) }
+            compareBy<DraftEntry> { it.recordDate }
+                .thenBy { daySeqOf(it) }
                 .thenBy { it.name })
     }
 
-    /** গোনা-হওয়া সারিগুলোকে পুরনো থেকে নতুন ধরে ১, ২, ৩ … বসায়। */
+    /** গোনা-হওয়া সারিগুলোকে উপর থেকে নিচে ১, ২, ৩ … বসায়। */
     private fun rebuildSerials() {
         serialOf.clear()
         var n = 0
-        for (e in rows.asReversed()) {
+        for (e in rows) {
             if (e.extra == YearlyRegistration.SKIP_MARK) continue
             n += 1
             serialOf[e.id] = n
@@ -397,7 +402,9 @@ class YearlyRegistrationActivity : AppCompatActivity() {
                 setColor(android.graphics.Color.parseColor(if (on) "#0B7A34" else "#FFFFFF"))
                 setStroke(px(2), android.graphics.Color.parseColor(if (on) "#0B7A34" else "#B7C3D1"))
             }
-            layoutParams = LinearLayout.LayoutParams(px(19), px(19)).apply { marginEnd = px(10) }
+            // 📏 V1003 — TK: "টিক মারার বক্সের থেকে এতটা ব্যবধানে শুরু হয়েছে কেন
+            //   সিরিয়াল নাম্বার" ⇒ ফাঁকটা ১০ → ৪dp (ওয়েবেও হুবহু একই)।
+            layoutParams = LinearLayout.LayoutParams(px(19), px(19)).apply { marginEnd = px(4) }
             setOnClickListener {
                 if (!picked.remove(e.id)) picked.add(e.id)
                 render()
@@ -414,8 +421,8 @@ class YearlyRegistrationActivity : AppCompatActivity() {
             gravity = Gravity.END or Gravity.CENTER_VERTICAL
             setTextColor(android.graphics.Color.parseColor("#7A8794"))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
-            layoutParams = LinearLayout.LayoutParams(px(30), LinearLayout.LayoutParams.WRAP_CONTENT)
-                .apply { marginEnd = px(9) }
+            layoutParams = LinearLayout.LayoutParams(px(22), LinearLayout.LayoutParams.WRAP_CONTENT)
+                .apply { marginEnd = px(6) }
         })
 
         val texts = LinearLayout(this).apply {
@@ -473,15 +480,19 @@ class YearlyRegistrationActivity : AppCompatActivity() {
                বোতামের শব্দ Skip → Remove। ⛔ কাজ এক অক্ষরও বদলায়নি — এখনো
                শুধু বছরের গোনা থেকে বাদ, রোগী/টাকা/Follow-up কিচ্ছু মোছে না,
                আর Undo-ও আগের মতোই আছে। */
+            /* 📏🔒 V1003 (০৩.০৯.২০২৬, TK-নির্দেশ: "remove এত বড় করার দরকার
+               নেই তো, কারণ কোন পেশেন্টের নাম যদি বড় হয় তাহলে তো নাম ব্রেক হয়ে
+               যেতে পারে") — বোতামটা ছোট হলো, তাই নামের জন্য জায়গা বাড়ল
+               (ওয়েবেও হুবহু একই)। ⛔ লেখা · রং · কাজ কিছুই বদলায়নি। */
             text = if (skipped) "Undo" else "Remove"
-            textSize = 12.5f
+            textSize = 11f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(android.graphics.Color.parseColor(if (skipped) "#0B6E33" else "#B3261E"))
             background = android.graphics.drawable.GradientDrawable().apply {
                 cornerRadius = 8f * d()
                 setColor(android.graphics.Color.parseColor(if (skipped) "#E9F6EE" else "#FDECEA"))
             }
-            setPadding(px(14), px(7), px(14), px(7))
+            setPadding(px(9), px(5), px(9), px(5))
             // 🆕 V852 — TK: *"Skip করলে যেন বাধা দেয়, warning দেখাতে হবে
             //    are you sure — yes / no"*। ⛔ Undo-তে বাধা নেই (ওটা ফেরানো)।
             setOnClickListener {

@@ -7368,7 +7368,7 @@ function wlv1YrDaySeq(x){ var t=String((x&&x.__code)||'').split('-').pop()||'';
   var n=parseInt(t.replace(/\D/g,''),10); return isNaN(n)?0:n; }
 window["wlv1YrDaySeq"]=wlv1YrDaySeq;
 function wlv1YrSerials(rows){ var m={},n=0;
-  for(var i=rows.length-1;i>=0;i--){ var x=rows[i]; if(x.__skip) continue; n++; m[String(x.id)]=n; }
+  for(var i=0;i<rows.length;i++){ var x=rows[i]; if(x.__skip) continue; n++; m[String(x.id)]=n; }
   return m; }
 window["wlv1YrSerials"]=wlv1YrSerials;
 function wlv1YrScreen(rows, branchLabel){
@@ -7712,8 +7712,9 @@ let map={received:['My Enquiry',received,'📥','All branch','enq'],
    /* 🔢🔒 V1001 (০৩.০৯.২০২৬, TK-নির্দেশ, ফোনের হুবহু যমজ) — একই তারিখের
       ভিতরে "সময়" আসে রোগীর নিজের কোড থেকে: `KNE-02092026-003`-এর শেষ
       সংখ্যাটাই ওই দিনের ক্রম। তাই সাজানো হয় তারিখ ⇢ ওই দিনের ক্রম ⇢ নাম,
-      নতুন সবার উপরে — তাহলে সিরিয়াল নাম্বারগুলোও পরপর নামে। */
-   })).sort((a,b)=>(b.__reg||'').localeCompare(a.__reg||'')||(wlv1YrDaySeq(b)-wlv1YrDaySeq(a))||String(a.name||'').localeCompare(String(b.name||'')));
+      পুরনো সবার উপরে (V1003, TK: *"মোবাইল ডিসপ্লের প্রথমে থাকবে এক নাম্বার,
+      স্ক্রোল করতে করতে পরবর্তী নাম্বারের দিকে যাব"*)। */
+   })).sort((a,b)=>(a.__reg||'').localeCompare(b.__reg||'')||(wlv1YrDaySeq(a)-wlv1YrDaySeq(b))||String(a.name||'').localeCompare(String(b.name||'')));
  }
  if(tab==='yearlyreg'){
    if(!isMaster()) return draffHome('home');
