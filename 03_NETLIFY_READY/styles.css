@@ -7025,3 +7025,109 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
 .estPickNewBtn{margin-top:10px;width:100%;height:38px;border:0;border-radius:12px;
   background:#0B7A34;color:#fff;font-size:13.5px;font-weight:700;cursor:pointer}
 .estPickNewBtn:hover{background:#0A6A2D}
+/* ═══════════════════════════════════════════════════════════════════
+   🖥️🔒 V1016 — কম্পিউটারে Patient Registration, TK-নির্দেশে নতুন সাজ
+   (০৩.০৯.২০২৬): এক পর্দায় সব · সার্চ নেই · ব্রাঞ্চ হেডারে · পেশাদার চেহারা।
+   ⛔ সবটাই `min-width:1200px` + `body.hasDeskNav` — ফোনে একটুও পড়ে না।
+   ═══════════════════════════════════════════════════════════════════ */
+@media (min-width:1200px){
+  /* ── হেডারে ব্রাঞ্চ ─────────────────────────────────────────────── */
+  body.hasDeskNav .wrap:not(.publicWrap) #wlv1RegTopSlot{
+    flex:0 0 auto;margin:0 12px 0 0;display:flex;align-items:center}
+  body.hasDeskNav .wrap:not(.publicWrap) #wlv1RegTopSlot .regTopBranch{margin:0}
+  body.hasDeskNav .wrap:not(.publicWrap) #wlv1RegTopSlot .input{
+    width:220px;min-height:36px!important;height:36px!important;line-height:1.2!important;
+    padding:0 30px 0 12px!important;margin:0!important;font-size:12.5px!important;
+    font-weight:700;color:#123258;border:1px solid #D9E3EF!important;border-radius:8px!important;
+    background:#fff!important;box-shadow:none!important}
+
+  /* ── পাতা ও গ্রিড ──────────────────────────────────────────────── */
+  body.hasDeskNav .wrap:not(.publicWrap) .page:has(.regForm.wlv1Form){
+    max-width:100%!important;padding:10px 16px 8px!important;background:#F4F7FB}
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form{
+    display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr));
+    gap:12px;align-items:stretch}
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form>.regTopBranch{display:none}
+
+  /* ── কার্ড ─────────────────────────────────────────────────────── */
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form>.regSection{
+    margin:0!important;padding:11px 13px 12px!important;border-radius:12px;
+    background:#fff;border:1px solid #E4EBF3;box-shadow:0 1px 2px rgba(16,34,58,.04)}
+  /* প্রতিটা কার্ডের শিরোনাম — বাঁয়ে সরু নীল দাগ, নিচে হালকা রেখা */
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form>.regSection>.regSecHead,
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form>.regSection::before{
+    display:block;margin:0 0 9px!important;padding:0 0 7px 10px!important;
+    border-bottom:1px solid #EDF1F6;border-left:3px solid #1067D8;
+    background:none!important;color:#12325A!important;border-radius:0!important;
+    font-size:11px!important;font-weight:800;letter-spacing:.7px;text-transform:uppercase}
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form>.regSection:nth-of-type(1)::before{content:"Patient Details"}
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form>.regSection:nth-of-type(6)::before{content:"Referral"}
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form>.regSection:nth-of-type(7)::before{content:"Registration Fee"}
+
+  /* ── কোথায় কোন কার্ড ───────────────────────────────────────────── */
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form>.regSection:nth-of-type(1){grid-column:1;grid-row:1}
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form>.regSection:nth-of-type(2){grid-column:1;grid-row:2}
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form>.regSection:nth-of-type(3){grid-column:2;grid-row:1}
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form>.regSection:nth-of-type(4){grid-column:2;grid-row:2}
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form>.regSection:nth-of-type(5){grid-column:3;grid-row:1}
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form>.regSection:nth-of-type(6){grid-column:3;grid-row:2}
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form>.regSection:nth-of-type(7){grid-column:4;grid-row:1 / span 2}
+  /* নিচে ডানদিকে একটাই কাজের বোতাম — ফর্মের শেষ ধাপ */
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form>.fullSave{
+    grid-column:1 / -1;grid-row:3;justify-self:end;width:300px;height:42px!important;
+    margin:0!important;font-size:14px!important;font-weight:800;letter-spacing:.3px;
+    border-radius:10px!important;box-shadow:0 6px 16px rgba(11,122,52,.22)!important}
+
+  /* ── রোগীর তথ্য ও ঠিকানা — ঘর দুই ভাগে ────────────────────────── */
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form>.regSection:nth-of-type(1),
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form>.regSection:nth-of-type(2){
+    columns:2;column-gap:12px}
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form>.regSection:nth-of-type(1)::before,
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form>.regSection:nth-of-type(2)>.regSecHead,
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form>.regSection:nth-of-type(1)>.regTwo,
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form>.regSection:nth-of-type(1)>.wlv1PickRow{
+    column-span:all}
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form>.regSection:nth-of-type(1)>*,
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form>.regSection:nth-of-type(2)>*{
+    break-inside:avoid;-webkit-column-break-inside:avoid}
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form>.regSection:nth-of-type(1)>label,
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form>.regSection:nth-of-type(2)>label{
+    break-after:avoid;-webkit-column-break-after:avoid}
+
+  /* ── ঘর ও লেখা ─────────────────────────────────────────────────── */
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form label:not(.wlv1Chip2){
+    display:block;margin:0 0 4px!important;font-size:10px!important;font-weight:700;
+    color:#7E8DA2;letter-spacing:.5px;text-transform:uppercase;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form .input,
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form select,
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form textarea{
+    min-height:34px!important;height:34px!important;padding:6px 10px!important;
+    font-size:12.5px!important;color:#12325A;margin:0 0 8px!important;
+    border:1px solid #DCE5EF!important;border-radius:8px!important;
+    background:#FBFCFE!important;box-shadow:none!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form textarea{
+    height:40px!important;min-height:40px!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form .input:focus,
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form select:focus,
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form textarea:focus{
+    border-color:#1067D8!important;background:#fff!important;
+    box-shadow:0 0 0 3px rgba(16,103,216,.10)!important;outline:none}
+
+  /* ── টিক-চিপ: সাদা, পাতলা বর্ডার; বাছলে নীল ──────────────────── */
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form .wlv1ChipRow{gap:7px;margin:0 0 4px}
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form .wlv1Chip2{
+    background:#fff!important;color:#41556B!important;border:1px solid #DCE5EF!important;
+    font-size:10.5px!important;font-weight:700;padding:5px 10px!important;
+    border-radius:8px!important;letter-spacing:.3px}
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form .wlv1Chip2.on{
+    background:#EAF2FE!important;color:#0B4FA8!important;border-color:#1067D8!important}
+
+  /* ── ছোট বোতামগুলো (MALE/FEMALE/OTHER · CASH/ONLINE) ──────────── */
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form .wlv1PickRow{gap:7px;margin:2px 0 8px}
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form .wlv1Pick,
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form button:not(.fullSave){
+    min-height:33px!important;height:33px!important;font-size:11px!important;font-weight:700;
+    letter-spacing:.4px;padding:0 12px!important;border-radius:8px!important;margin:0!important;
+    box-shadow:none!important}
+}
