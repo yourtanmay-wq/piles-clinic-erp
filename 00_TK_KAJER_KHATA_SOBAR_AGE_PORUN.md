@@ -18087,3 +18087,36 @@ Registration ৮৩৬px হয়ে যাচ্ছিল (Save কাটা �
    TK জেনেই *"থাক"* বলেছেন।
 
 **ভার্সন:** ১০.২৩ (V1023) · তিনটে পাহারা পাশ।
+
+---
+
+## 📞 ০৩.০৯.২০২৬ · রাত — **কম্পিউটারে New Enquiry-র নতুন সাজ** (V1024)
+
+**TK-এর কথা:** নিজের বানানো নকশার ছবি ("All Branch Enquiry") পাঠিয়ে সেটার
+মতো চাওয়া — Registration-এর (V1023) মতোই।
+
+### ✅ যা হলো (`enquiryFormDesk()` — শুধু ≥1200px কম্পিউটার-পর্দায়)
+· উপরে breadcrumb *Enquiry / New Enquiry*, শিরোনাম **All Branch Enquiry**,
+  নিচে এক লাইনের বর্ণনা।
+· বাঁয়ে বড় সাদা কার্ডে **তিনটে ভাগ** সবুজ আইকনসহ: 👤 Contact & Branch ·
+  📋 Enquiry Details · 💬 Remarks।
+· মোবাইলের ঘরের সঙ্গে **+91** জোড়া, নিচে *"Duplicate number will be checked
+  automatically."*
+· ডানে **Enquiry Overview** — New Enquiry ব্যাজ · Call Received By ·
+  *After saving*-এর ধাপ (বাছা ব্রাঞ্চ → Follow-up → Enquiry, ব্রাঞ্চের নামটা
+  বাছার সঙ্গে সঙ্গে বসে) · 🔒 লেখা · সবুজ **Save Enquiry** · নিচে
+  *"You will be redirected after saving."*
+· V1023-এর সাজের ঘরগুলোই (rdMain · rdSide · rdSecHead · rdF · rdSeg)
+  পুনর্ব্যবহার — তাই Registration ও Enquiry দেখতে একই পরিবারের।
+
+### ⚠️ সততার সাথে
+· ছবির **"Call Received Status"** ঘরটা অ্যাপে নেই — বসানো হয়নি (TK-এর নিয়ম:
+  বাড়তি কিছু যোগ নয়)।
+· আমাদের **Next Follow-up Date** ও **Call Received By** ছবিতে ছিল না, কিন্তু
+  অ্যাপে দরকার (Next Follow-up বাধ্যতামূলক) — তাই রাখা হলো।
+· ঘরের সব `id` অপরিবর্তিত, তাই `saveEnq()` এক অক্ষরও বদলায়নি।
+
+⛔ **ফোন অক্ষত — প্রমাণ:** ৪৩০px ফোন-মাপে Enquiry-র ছবি পুরনো ও নতুনে
+   **পিক্সেলে-পিক্সেলে হুবহু এক**।
+
+**ভার্সন:** ১০.২৪ (V1024) · তিনটে পাহারা পাশ।

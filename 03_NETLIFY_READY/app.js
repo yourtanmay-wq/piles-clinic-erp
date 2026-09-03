@@ -5662,7 +5662,101 @@ window["wlv1AutoTiming"]=wlv1AutoTiming;
    শুরুতে এক লাইন রাখলেও লম্বা ঠিকানা পুরো লেখা যায়। */
 function wlv1AutoGrow(el){ try{ el.style.height='auto'; el.style.height=(el.scrollHeight)+'px' }catch(e){} }
 window["wlv1AutoGrow"]=wlv1AutoGrow;
-function enquiryForm(){page('New Enquiry',`<div class="card enquiryCard wlv1Form"><div class="regSection"><label class="enqLabel"><span class="enqIco">📞</span>Mobile <b class="wlv1Star">*</b></label><input id="eMob" class="input enqInput" inputmode="tel" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" placeholder="Enter Mobile Number"><span id="eMobPrefix" class="mobPrefixBadge hidden">+91</span><div id="eMobDupBox"></div><label class="enqLabel"><span class="enqIco">👤</span>Name</label><input id="eName" class="input enqInput" oninput="wlv1Caps(this)"><label class="enqLabel"><span class="enqIco">⏰</span>Date</label><div class="wlv1DateBox input enqInput"><span id="eDateShow">${wlv1Dot(today())}</span><input id="eDate" type="date" value="${today()}" max="${today()}" oninput="wlv1ShowDate('eDate','eDateShow')"></div><label class="enqLabel"><span class="enqIco">🏥</span>Branch <b class="wlv1Star">*</b></label><select id="eBranch" class="input enqInput"><option value="" hidden selected>Select Branch</option>${branchOptions('')}</select><label class="enqLabel"><span class="enqIco">🩺</span>Disease <b class="wlv1Star">*</b></label><div id="eDisRow" class="wlv1PickRow" data-wlv1group="dis"><button type="button" class="wlv1Pick" data-val="Piles" onclick="wlv1PickMany('dis','Piles','eDis')">🩸 Piles</button><button type="button" class="wlv1Pick" data-val="Fissure" onclick="wlv1PickMany('dis','Fissure','eDis')">✂️ Fissure</button><button type="button" class="wlv1Pick" data-val="Fistula" onclick="wlv1PickMany('dis','Fistula','eDis')">🔄 Fistula</button><button type="button" class="wlv1Pick" data-val="Hydrocele" onclick="wlv1PickMany('dis','Hydrocele','eDis')">💧 Hydrocele</button><button type="button" class="wlv1Pick" data-val="Gupt Rog" onclick="wlv1PickMany('dis','Gupt Rog','eDis')">🛡️ Gupt Rog</button><button type="button" class="wlv1Pick" data-val="Other" onclick="wlv1PickMany('dis','Other','eDis')">📋 Other</button></div><input id="eDis" type="hidden" value=""></div><div class="regSection"><label class="enqLabel"><span class="enqIco">📍</span>Address</label><textarea id="eAddr" class="enqInput" rows="1" oninput="wlv1Caps(this);wlv1AutoGrow(this)"></textarea><label class="enqLabel"><span class="enqIco">📝</span>Remarks <b class="wlv1Star">*</b></label><textarea id="eRem" class="enqInput" rows="1" oninput="wlv1Caps(this);wlv1AutoGrow(this)"></textarea><label class="enqLabel"><span class="enqIco">🎧</span>Call Received By</label><div id="eStaffDisplay" class="input enqInput" style="cursor:pointer" onclick="eStaffTripleTap()">${esc(codeName(user.mobile))}</div><select id="eStaff" class="input enqInput hidden" style="display:none">${callReceivedOptions(user.mobile)}</select><label class="enqLabel"><span class="enqIco">⏱️</span>Call Timing</label><div class="wlv1PickRow wlv1Pick2" data-wlv1group="time"><button type="button" class="wlv1Pick on" data-val="Official Time" onclick="wlv1PickOne('time','Official Time','eTime')">Official Time</button><button type="button" class="wlv1Pick" data-val="Unexpected Time" onclick="wlv1AskUnexpected()">Unexpected Time</button></div><input id="eTime" type="hidden" value="Official Time"><label class="enqLabel"><span class="enqIco">⏰</span>Next Follow-up Date <b class="wlv1Star">*</b></label><div id="eNextBox" class="wlv1DateBox input enqInput"><span id="eNextShow">Tap to select (optional)</span><input id="eNext" type="date" min="${today()}" oninput="wlv1ShowDate('eNext','eNextShow')"></div></div><button onclick="saveEnq()">Save Enquiry</button></div>`,wlv1DeskWide());setTimeout(function(){try{wlv1PhTint('eBranch')}catch(e){}},0) }
+/* 📞🔒 V1024 (TK-নির্দেশ ০৩.০৯.২০২৬, তাঁর পাঠানো নকশার ছবি ধরে) —
+   চওড়া কম্পিউটার-পর্দায় New Enquiry-র নতুন সাজ: বাঁয়ে বড় সাদা কার্ডে
+   তিনটে ভাগ (Contact & Branch · Enquiry Details · Remarks), ডানে
+   Enquiry Overview-র পাশ-কার্ড ও সবুজ Save Enquiry।
+   ⛔ **প্রতিটা ঘরের `id` হুবহু আগেরটাই** (eMob · eDate · eBranch · eName ·
+      eDis · eAddr · eRem · eStaff · eTime · eNext) ও সব `onclick`
+      অপরিবর্তিত — তাই `saveEnq()` আগের মতোই কাজ করে।
+   ⛔ ফোনে এই ফাংশনটা ডাকাই হয় না; সেখানে আগের ফর্মই অক্ষত।
+   ⚠️ সততার সাথে: ছবির **"Call Received Status"** ঘরটা অ্যাপে নেই, তাই
+      বসানো হয়নি (TK-এর নিয়ম — বাড়তি কিছু যোগ নয়)। আর আমাদের ফর্মের
+      **Next Follow-up Date** ছবিতে ছিল না, কিন্তু অ্যাপে বাধ্যতামূলক —
+      তাই সেটা রাখা হলো। */
+function enquiryFormDesk(){
+ var lbl=function(t,req){return '<label>'+t+(req?' <b class="rdStar">*</b>':'')+'</label>'};
+ var body=''
+ +'<div class="rdTop">'
+   +'<div class="rdCrumb">Enquiry / New Enquiry</div>'
+   +'<h1 class="rdTitle">All Branch Enquiry</h1>'
+   +'<div class="rdSub">Create and route a new enquiry to the selected branch</div>'
+ +'</div>'
+ +'<div class="rdBody">'
+ +'<div class="card rdMain eqMain">'
+   +'<div class="rdSecHead"><span class="rdIco">👤</span>Contact &amp; Branch</div>'
+   +'<div class="rdGrid2">'
+     +'<div class="rdF">'+lbl('Enquiry Date',1)+'<div class="wlv1DateBox input"><span id="eDateShow">'+wlv1Dot(today())+'</span><input id="eDate" type="date" value="'+today()+'" max="'+today()+'" oninput="wlv1ShowDate(\'eDate\',\'eDateShow\')"></div></div>'
+     +'<div class="rdF">'+lbl('Branch',1)+'<select id="eBranch" class="input" onchange="eqSummary()"><option value="" hidden selected>Select Branch</option>'+branchOptions('')+'</select></div>'
+     +'<div class="rdF">'+lbl('Patient Name',0)+'<input id="eName" class="input" placeholder="Enter patient name" oninput="wlv1Caps(this);eqSummary()"></div>'
+     +'<div class="rdF">'+lbl('Mobile Number',1)+'<div class="eqMobWrap"><span class="eqMobPre">+91</span><input id="eMob" class="input" inputmode="tel" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" placeholder="Enter mobile number" oninput="eqSummary()"></div><span id="eMobPrefix" class="mobPrefixBadge hidden">+91</span><div class="rdHint">Duplicate number will be checked automatically.</div><div id="eMobDupBox"></div></div>'
+   +'</div>'
+   +'<div class="rdF">'+lbl('Short Address',0)+'<textarea id="eAddr" class="input" rows="1" placeholder="Enter village, town or locality" oninput="wlv1Caps(this);wlv1AutoGrow(this)"></textarea></div>'
+
+   +'<div class="rdSecHead"><span class="rdIco">📋</span>Enquiry Details</div>'
+   +'<div class="rdF">'+lbl('Disease',1)
+     +'<div id="eDisRow" class="wlv1PickRow rdChips eqDisRow" data-wlv1group="dis">'
+       +'<button type="button" class="wlv1Pick" data-val="Piles" onclick="wlv1PickMany(\'dis\',\'Piles\',\'eDis\')">PILES</button>'
+       +'<button type="button" class="wlv1Pick" data-val="Fissure" onclick="wlv1PickMany(\'dis\',\'Fissure\',\'eDis\')">FISSURE</button>'
+       +'<button type="button" class="wlv1Pick" data-val="Fistula" onclick="wlv1PickMany(\'dis\',\'Fistula\',\'eDis\')">FISTULA</button>'
+       +'<button type="button" class="wlv1Pick" data-val="Hydrocele" onclick="wlv1PickMany(\'dis\',\'Hydrocele\',\'eDis\')">HYDROCELE</button>'
+       +'<button type="button" class="wlv1Pick" data-val="Gupt Rog" onclick="wlv1PickMany(\'dis\',\'Gupt Rog\',\'eDis\')">GUPT ROG</button>'
+       +'<button type="button" class="wlv1Pick" data-val="Other" onclick="wlv1PickMany(\'dis\',\'Other\',\'eDis\')">OTHER</button>'
+     +'</div><input id="eDis" type="hidden" value=""></div>'
+   +'<div class="rdGrid2">'
+     +'<div class="rdF">'+lbl('Enquiry Time',1)
+       +'<div class="wlv1PickRow wlv1Pick2 rdSeg" data-wlv1group="time">'
+         +'<button type="button" class="wlv1Pick on" data-val="Official Time" onclick="wlv1PickOne(\'time\',\'Official Time\',\'eTime\')">OFFICIAL TIME</button>'
+         +'<button type="button" class="wlv1Pick" data-val="Unexpected Time" onclick="wlv1AskUnexpected()">UNEXPECTED TIME</button>'
+       +'</div><input id="eTime" type="hidden" value="Official Time"></div>'
+     +'<div class="rdF">'+lbl('Next Follow-up Date',1)
+       +'<div id="eNextBox" class="wlv1DateBox input"><span id="eNextShow">Tap to select</span><input id="eNext" type="date" min="'+today()+'" oninput="wlv1ShowDate(\'eNext\',\'eNextShow\')"></div></div>'
+   +'</div>'
+   +'<div class="rdF">'+lbl('Call Received By',0)
+     +'<div id="eStaffDisplay" class="input eqStaffBox" onclick="eStaffTripleTap()">'+esc(codeName(user.mobile))+'</div>'
+     +'<select id="eStaff" class="input hidden" style="display:none">'+callReceivedOptions(user.mobile)+'</select></div>'
+
+   +'<div class="rdSecHead"><span class="rdIco">💬</span>Remarks</div>'
+   +'<div class="rdF">'+lbl('Remarks',1)
+     +'<textarea id="eRem" class="input eqRem" rows="3" placeholder="Write the caller\'s concern or enquiry details" oninput="wlv1Caps(this);eqSummary()"></textarea></div>'
+ +'</div>'
+
+ +'<div class="rdSide">'
+   +'<div class="card rdSideCard">'
+     +'<div class="rdSideHead">Enquiry Overview</div>'
+     +'<div class="rdNP"><div class="rdNPBadge eqBadge">🏥</div><div><b class="eqNew">New Enquiry</b></div></div>'
+     +'<div class="eqLbl">Call Received By</div>'
+     +'<div class="eqVal" id="eqStaffShow">'+esc(codeName(user.mobile))+' · Auto from login</div>'
+     +'<div class="eqRule"></div>'
+     +'<div class="eqLbl">After saving</div>'
+     +'<div class="eqFlow"><span class="eqFlowIco">🏥</span><b id="eqBranchShow">Selected Branch</b></div>'
+     +'<div class="eqArrow">↓</div>'
+     +'<div class="eqFlow"><span class="eqFlowIco">📋</span><b>Follow-up → Enquiry</b></div>'
+     +'<div class="eqSecure">🔒 Enquiry details are securely stored.</div>'
+     +'<button class="fullSave rdSave" onclick="saveEnq()">💾  Save Enquiry</button>'
+     +'<div class="rdSecure">You will be redirected after saving.</div>'
+   +'</div>'
+ +'</div>'
+ +'</div>';
+ page('New Enquiry', body, true);
+ setTimeout(function(){try{wlv1PhTint('eBranch')}catch(e){}try{eqSummary()}catch(e){}},0);
+}
+window["enquiryFormDesk"]=enquiryFormDesk;
+
+/* 📞 V1024 — ডান পাশের Overview-তে বাছা ব্রাঞ্চের নামটা দেখায়।
+   ⛔ কোনো তথ্য বদলায় না, শুধু দেখায়। */
+function eqSummary(){
+ try{
+  var b=document.getElementById('eBranch'), out=document.getElementById('eqBranchShow');
+  if(out) out.textContent=(b&&b.value)?b.value:'Selected Branch';
+ }catch(e){}
+}
+window["eqSummary"]=eqSummary;
+
+function enquiryForm(){
+ /* 📞 V1024 — চওড়া কম্পিউটার-পর্দায় নতুন সাজ; ফোনে আগের ফর্মই। */
+ if(typeof wlv1DeskWide==='function' && wlv1DeskWide()){ return enquiryFormDesk() }
+ page('New Enquiry',`<div class="card enquiryCard wlv1Form"><div class="regSection"><label class="enqLabel"><span class="enqIco">📞</span>Mobile <b class="wlv1Star">*</b></label><input id="eMob" class="input enqInput" inputmode="tel" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" placeholder="Enter Mobile Number"><span id="eMobPrefix" class="mobPrefixBadge hidden">+91</span><div id="eMobDupBox"></div><label class="enqLabel"><span class="enqIco">👤</span>Name</label><input id="eName" class="input enqInput" oninput="wlv1Caps(this)"><label class="enqLabel"><span class="enqIco">⏰</span>Date</label><div class="wlv1DateBox input enqInput"><span id="eDateShow">${wlv1Dot(today())}</span><input id="eDate" type="date" value="${today()}" max="${today()}" oninput="wlv1ShowDate('eDate','eDateShow')"></div><label class="enqLabel"><span class="enqIco">🏥</span>Branch <b class="wlv1Star">*</b></label><select id="eBranch" class="input enqInput"><option value="" hidden selected>Select Branch</option>${branchOptions('')}</select><label class="enqLabel"><span class="enqIco">🩺</span>Disease <b class="wlv1Star">*</b></label><div id="eDisRow" class="wlv1PickRow" data-wlv1group="dis"><button type="button" class="wlv1Pick" data-val="Piles" onclick="wlv1PickMany('dis','Piles','eDis')">🩸 Piles</button><button type="button" class="wlv1Pick" data-val="Fissure" onclick="wlv1PickMany('dis','Fissure','eDis')">✂️ Fissure</button><button type="button" class="wlv1Pick" data-val="Fistula" onclick="wlv1PickMany('dis','Fistula','eDis')">🔄 Fistula</button><button type="button" class="wlv1Pick" data-val="Hydrocele" onclick="wlv1PickMany('dis','Hydrocele','eDis')">💧 Hydrocele</button><button type="button" class="wlv1Pick" data-val="Gupt Rog" onclick="wlv1PickMany('dis','Gupt Rog','eDis')">🛡️ Gupt Rog</button><button type="button" class="wlv1Pick" data-val="Other" onclick="wlv1PickMany('dis','Other','eDis')">📋 Other</button></div><input id="eDis" type="hidden" value=""></div><div class="regSection"><label class="enqLabel"><span class="enqIco">📍</span>Address</label><textarea id="eAddr" class="enqInput" rows="1" oninput="wlv1Caps(this);wlv1AutoGrow(this)"></textarea><label class="enqLabel"><span class="enqIco">📝</span>Remarks <b class="wlv1Star">*</b></label><textarea id="eRem" class="enqInput" rows="1" oninput="wlv1Caps(this);wlv1AutoGrow(this)"></textarea><label class="enqLabel"><span class="enqIco">🎧</span>Call Received By</label><div id="eStaffDisplay" class="input enqInput" style="cursor:pointer" onclick="eStaffTripleTap()">${esc(codeName(user.mobile))}</div><select id="eStaff" class="input enqInput hidden" style="display:none">${callReceivedOptions(user.mobile)}</select><label class="enqLabel"><span class="enqIco">⏱️</span>Call Timing</label><div class="wlv1PickRow wlv1Pick2" data-wlv1group="time"><button type="button" class="wlv1Pick on" data-val="Official Time" onclick="wlv1PickOne('time','Official Time','eTime')">Official Time</button><button type="button" class="wlv1Pick" data-val="Unexpected Time" onclick="wlv1AskUnexpected()">Unexpected Time</button></div><input id="eTime" type="hidden" value="Official Time"><label class="enqLabel"><span class="enqIco">⏰</span>Next Follow-up Date <b class="wlv1Star">*</b></label><div id="eNextBox" class="wlv1DateBox input enqInput"><span id="eNextShow">Tap to select (optional)</span><input id="eNext" type="date" min="${today()}" oninput="wlv1ShowDate('eNext','eNextShow')"></div></div><button onclick="saveEnq()">Save Enquiry</button></div>`,wlv1DeskWide());setTimeout(function(){try{wlv1PhTint('eBranch')}catch(e){}},0) }
 window["enquiryForm"]=enquiryForm;
 async function initCloudClientOnly(){
  // V221 real save fix: create Supabase client without doing an immediate pull/reset.
