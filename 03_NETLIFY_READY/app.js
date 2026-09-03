@@ -2192,7 +2192,27 @@ window["toast"]=toast;function modal(html){
         }
       }catch(e){}
     }
-window.modal=modal;function closeModal(){$('#modalRoot').innerHTML=''}
+window.modal=modal;
+/* ⚠️🔒 V1022 — অ্যাপের নিজের "are you sure" বাক্স (Yes / No)।
+   ব্রাউজারের confirm()-এর বদলে, যাতে চেহারা অ্যাপের সঙ্গে মেলে।
+   ⛔ Promise ফেরত দেয়: Yes ⇒ true, No / বাইরে চাপ ⇒ false। */
+function wlv1AreYouSure(title, detail){
+  return new Promise(function(res){
+    try{
+      var host=document.createElement('div'); host.className='wlv1SureWrap';
+      host.innerHTML='<div class="wlv1SureCard"><div class="wlv1SureHead">\u26A0\uFE0F '+esc(title||'Are you sure?')+'</div>'+
+        (detail?'<div class="wlv1SureBody">'+esc(detail)+'</div>':'')+
+        '<div class="wlv1SureBtns"><button class="wlv1SureNo">No</button><button class="wlv1SureYes">Yes</button></div></div>';
+      var done=function(v){ try{host.remove()}catch(e){} res(v) };
+      host.querySelector('.wlv1SureYes').onclick=function(){done(true)};
+      host.querySelector('.wlv1SureNo').onclick=function(){done(false)};
+      host.onclick=function(e){ if(e.target===host) done(false) };
+      document.body.appendChild(host);
+      try{host.querySelector('.wlv1SureNo').focus()}catch(e){}
+    }catch(e){ res(false) }
+  });
+}
+window["wlv1AreYouSure"]=wlv1AreYouSure;function closeModal(){$('#modalRoot').innerHTML=''}
 window["closeModal"]=closeModal;
 function isMaster(){return user?.role==='master'}
 // 🔴🔴🔒 V461 (TK-নির্দেশ ১৮.০৮.২০২৬, Android-এ V456 হিসেবে করা হয়েছিল —
@@ -16055,7 +16075,7 @@ function doctorVisit(filter='home'){
     থাকতে হবে") — কার্ডগুলো একটা মোড়কে। কম্পিউটারে (≥900px) পাশাপাশি দুটো
     (styles.css), ফোনে মোড়কটার কোনো নিয়ম নেই তাই আগের মতোই একটার নিচে একটা।
     ⛔ কার্ডের ভিতরের কিছুই বদলায়নি — শুধু বসার জায়গা। */
- if(filter!=='home'||q){body+=`<div class="sectionTitle">${esc(title)}</div>`+(filtered.length?`<div class="dvCardGrid">${filtered.map(doctorVisitCard).join('')}</div>`:'<div class="card mut">No doctor/RMP contact history</div>')}
+ if(filter!=='home'||q){body+=`<div class="sectionTitle">${esc(title)}</div>`+(filtered.length?`<div class="dvCardGrid">${filtered.map((typeof wlv1DeskWide==='function'&&wlv1DeskWide())?doctorVisitCardDesk:doctorVisitCard).join('')}</div>`:'<div class="card mut">No doctor/RMP contact history</div>')}
  page('Doctor Visit / RMP',body,true);setTimeout(wlv1RefreshRmpCardCounts,0)
  // 🖥️🔧 TK-নির্দেশে (১৫.০৮.২০২৬, Android XML যাচাই করে): activity_doctorvisit.xml-এ
  // branchPicker হেডারেই ছোট পিল হিসেবে থাকে — ওয়েবে আগে বড় আলাদা ড্রপডাউন
@@ -16067,6 +16087,15 @@ function doctorVisit(filter='home'){
        var slot=document.getElementById('wlv1RmpTopSlot');
        var bw=document.getElementById('rmpBranchWrap');
        if(slot&&bw)slot.appendChild(bw);
+       /* ➕🔒 V1022 (TK-নির্দেশ ০৩.০৯.২০২৬: *"Add Rmp + search হেডারে রাখুন"*) —
+          চওড়া কম্পিউটার-পর্দায় খোঁজার ঘর ও Add বোতামটাও হেডারে সরে যায়, তাই
+          তালিকার জন্য একটা গোটা সারি জায়গা বাঁচে।
+          ⛔ **একই এলিমেন্ট** সরানো হয় (নকল নয়) — তাই খোঁজা ও Add আগের মতোই চলে।
+          ⛔ ফোনে কিছুই সরে না। */
+       if(window.innerWidth>=1200){
+         var sr=document.querySelector('.dvSearchRow');
+         if(slot&&sr)slot.insertBefore(sr, slot.firstChild);
+       }
      }
    }catch(e){}
  },0);
@@ -16361,6 +16390,54 @@ function wlv1CallLateDays(x){
  }catch(_e){return 0}
 }
 window["wlv1CallLateDays"]=wlv1CallLateDays;
+/* 👨‍⚕️🔒 V1022 (TK-নির্দেশ ০৩.০৯.২০২৬: *"মোবাইলের অনুকরণে ডিজাইন প্রুফ বানান"*,
+   সঙ্গে TK-এর পাঠানো Android পর্দার ছবি) — চওড়া কম্পিউটার-পর্দায় ডাক্তারের
+   কার্ডটা **ফোনের হুবহু গড়নে**: লাল ঘরে ক্রম-নম্বর · বড় নাম · ডানে "N calls" ·
+   📞 নম্বর · নীল ব্রাঞ্চ-চিপ ও সবুজ 📍এলাকা-চিপ · সবুজ ডটেড ঘরে LAST CALL /
+   NEXT CALL / কত দিন দেরি / শেষ মন্তব্য · তারপর "👥 কত রোগী · 💰 আয়" লাইন ·
+   শেষে রঙিন বোতামগুলো।
+   ⛔ প্রতিটা বোতামের কাজ (onclick) হুবহু আগেরটাই — একটাও বাদ যায়নি।
+   ⛔ ফোনে এই ফাংশনটা ডাকাই হয় না, সেখানে আগের কার্ডই অক্ষত। */
+function doctorVisitCardDesk(x, i){
+ var refs=doctorReferralPatients(x), last=doctorLastCall(x), due=doctorDue(x), inc=doctorReferralTotals([x]);
+ var callLate=wlv1CallOverdue(x), lateDays=callLate?wlv1CallLateDays(x):0;
+ var refCount=(__wlv1RmpCardCounts&&Object.prototype.hasOwnProperty.call(__wlv1RmpCardCounts,x.id))?__wlv1RmpCardCounts[x.id]:refs.length;
+ var calls=Array.isArray(x.callHistory)?x.callHistory.length:0;
+ var lastRemark=x.remarks||'';
+ var lastTxt=last?('LAST CALL '+esc(fmtDate(last)||last)):'LAST CALL —';
+ var nextTxt=x.nextCallDate?('NEXT CALL '+esc(fmtDate(x.nextCallDate)||x.nextCallDate)):'NEXT CALL —';
+ var incTxt=(inc.paid>0||inc.due>0)?(money(inc.paid)+(inc.due>0?' / '+money(inc.due)+' due':'')):'₹0';
+ /* ফোনের কার্ডে এই লাইনটা তখনই থাকে যখন সত্যিই রেফার/আয় আছে */
+ var showRef=(refCount>0)||(inc.paid>0)||(inc.due>0);
+ return '<div class="card dvAndCard">'
+  +'<div class="dvAndTop"><span class="dvAndNo">'+((i||0)+1)+'</span>'
+    +'<b class="dvAndName">'+esc(x.name||normMob(x.mobile))+'</b>'
+    +'<span class="dvAndCalls">📞 '+calls+' call'+(calls===1?'':'s')+'</span>'
+    +(isMaster()?'<button class="dvAndDel" title="Delete" aria-label="Delete" onclick="wlv1DeleteDoctor(\''+x.id+'\')">🗑️</button>':'')
+  +'</div>'
+  +'<div class="dvAndPhone">📞 '+esc(normMob(x.mobile))+'</div>'
+  +'<div class="dvAndChips"><span class="dvAndBr">'+esc(String(x.branch||'').toUpperCase())+'</span>'
+    +(x.area?'<span class="dvAndArea">📍 '+esc(String(x.area).toUpperCase())+'</span>':'')+'</div>'
+  +'<div class="dvAndBox">'
+    +'<div class="dvAndCallLine">'+lastTxt+'  ·  <span class="dvAndNext">'+nextTxt+'</span></div>'
+    +(callLate?'<div class="dvAndLate">⚠️ '+(lateDays>0?(lateDays+' DAY'+(lateDays===1?'':'S')+' LATE'):'CALL OVERDUE')+'</div>':'')
+    +'<div class="dvAndRule"></div>'
+    +'<div class="dvAndRemark">'+esc(String(lastRemark||'—').toUpperCase())+'</div>'
+  +'</div>'
+  +(showRef?'<div class="dvAndRef">👥 <b data-rmp-ref-count="'+esc(x.id||'')+'">'+refCount+'</b> PATIENTS REFERRED  ·  💰 '+incTxt+' INCOME</div>':'')
+  +'<div class="dvAndBtns">'
+    +'<button class="dvpBtn dvpCall" title="Call" aria-label="Call" onclick="contact(\''+x.mobile+'\',\'call\')">📞</button>'
+    +'<button class="dvpBtn dvpWa" title="WhatsApp" aria-label="WhatsApp" onclick="contact(\''+x.mobile+'\',\'wa\')">💬</button>'
+    +'<button class="dvpBtn dvpView" title="View" aria-label="View" onclick="viewDoctorVisit(\''+x.id+'\')">👁</button>'
+    +'<button class="dvpBtn dvpRemarks" title="Log Call / Remarks" aria-label="Log Call" onclick="openDoctorCallForm(\''+x.id+'\')">➡️</button>'
+    /* TK-নির্দেশ: ফোনের মতো **চারটেই** বোতাম। 💰 Referral Income ও
+       📩 Send Message কার্ড থেকে সরানো হলো, কিন্তু হারায়নি — দুটোই
+       👁 View-এর ভিতরেই আছে (নিচে `viewDoctorVisit`)। */
+  +'</div>'
+ +'</div>';
+}
+window["doctorVisitCardDesk"]=doctorVisitCardDesk;
+
 function doctorVisitCard(x){
  let refs=doctorReferralPatients(x),last=doctorLastCall(x),due=doctorDue(x),inc=doctorReferralTotals([x]);
  let callLate=wlv1CallOverdue(x),lateDays=callLate?wlv1CallLateDays(x):0;
@@ -16550,7 +16627,7 @@ window["wlv1FuHoldEat"]=wlv1FuHoldEat;
 function viewDoctorVisit(id){
  let x=load('doctor_visits').find(a=>a.id===id);if(!x)return;
  let refs=doctorReferralPatients(x),calls=Array.isArray(x.callHistory)?x.callHistory:[],inc=doctorReferralTotals([x]);
- modal(`<h2>Doctor/RMP Details</h2>${contactBranchNotice(x)}<div class="card"><b>${esc(x.name)}</b><br>${esc(normMob(x.mobile))}<br>Branch: ${esc(x.branch||'-')}<br>Area: ${esc(x.area||'-')}<br>Last Call: ${esc(doctorLastCall(x)||'-')}<br>Next Call: ${esc(x.nextCallDate||'-')}<br>Total Referred Patients: ${refs.length}<br>Referral Paid: <b id="wlv1RmpPaidTotal">${money(inc.paid)}</b> · Due: <b>${money(inc.due)}</b><p>${esc(x.remarks||'')}</p><div class="actions"><button class="small ghost" onclick="contact('${x.mobile}','call')">Call</button><button class="small ghost" onclick="contact('${x.mobile}','wa')">WhatsApp</button><button class="small" onclick="openDoctorCallForm('${x.id}')">Remarks</button>${calls.length?`<button class="small ghost" onclick="editLastCallNote('${x.id}')">🩹 Fix Last Note</button>`:''}</div>${wlv1DocMsgBar(x.id)}</div><div class="sectionTitle">Call / Remarks Timeline</div>${calls.map(c=>`<div class="card"><b>${esc(c.date||'-')}</b><p>${esc(c.note||'-')}</p><span class="tiny">Next: ${esc(c.nextCallDate||'-')}</span></div>`).join('')||'<div class="card mut">No call history yet</div>'}<div class="sectionTitle">Referral Income History</div>${referralIncomeHtml(x)}<div class="sectionTitle">Referral Patient History</div><div id="wlv1RmpViewAllRows">${refs.map(p=>wlv1RmpPatientCard(p,false)).join('')||'<div class="card mut">No referred patient found</div>'}</div>`);setTimeout(()=>{wlv1RefreshRmpViewAll(id);wlv1RefreshRmpPaidTotal(id,inc.paid)},0)
+ modal(`<h2>Doctor/RMP Details</h2>${contactBranchNotice(x)}<div class="card"><b>${esc(x.name)}</b><br>${esc(normMob(x.mobile))}<br>Branch: ${esc(x.branch||'-')}<br>Area: ${esc(x.area||'-')}<br>Last Call: ${esc(doctorLastCall(x)||'-')}<br>Next Call: ${esc(x.nextCallDate||'-')}<br>Total Referred Patients: ${refs.length}<br>Referral Paid: <b id="wlv1RmpPaidTotal">${money(inc.paid)}</b> · Due: <b>${money(inc.due)}</b><p>${esc(x.remarks||'')}</p><div class="actions"><button class="small ghost" onclick="contact('${x.mobile}','call')">Call</button><button class="small ghost" onclick="contact('${x.mobile}','wa')">WhatsApp</button><button class="small" onclick="openDoctorCallForm('${x.id}')">Remarks</button><button class="small ghost" onclick="openWebRmpCommission('${x.id}')">💰 Referral Income</button>${calls.length?`<button class="small ghost" onclick="editLastCallNote('${x.id}')">🩹 Fix Last Note</button>`:''}</div>${wlv1DocMsgBar(x.id)}</div><div class="sectionTitle">Call / Remarks Timeline</div>${calls.map(c=>`<div class="card"><b>${esc(c.date||'-')}</b><p>${esc(c.note||'-')}</p><span class="tiny">Next: ${esc(c.nextCallDate||'-')}</span></div>`).join('')||'<div class="card mut">No call history yet</div>'}<div class="sectionTitle">Referral Income History</div>${referralIncomeHtml(x)}<div class="sectionTitle">Referral Patient History</div><div id="wlv1RmpViewAllRows">${refs.map(p=>wlv1RmpPatientCard(p,false)).join('')||'<div class="card mut">No referred patient found</div>'}</div>`);setTimeout(()=>{wlv1RefreshRmpViewAll(id);wlv1RefreshRmpPaidTotal(id,inc.paid)},0)
 }
 window["viewDoctorVisit"]=viewDoctorVisit;
 async function wlv1RefreshRmpPaidTotal(id,legacyPaid){
@@ -19918,7 +19995,11 @@ async function wlv1DeleteDoctor(id){
   var a=load('doctor_visits')||[];var i=a.findIndex(function(x){return String(x.id)===String(id);});
   if(i<0)return toast('Record not found');
   var rec=a[i];
-  if(!confirm('Delete this doctor / RMP?\n\n'+(rec.name||rec.mobile||'')+'\n\nTrash-এ যাবে (পরে Restore করা যাবে)।'))return;
+  /* ⚠️🔒 V1022 (TK-নির্দেশ: *"ডিলিট করতে হলে Warning আসবে — are you sure Yes/No"*)
+     আগে ব্রাউজারের নিজের ধূসর confirm-বাক্স উঠত, অ্যাপের সাজের সঙ্গে মিলত না।
+     এখন অ্যাপের নিজের সতর্ক-বাক্স, Yes / No দুটো বোতাম নিয়ে।
+     ⛔ উত্তর "No" হলে আগের মতোই কিছুই হয় না। */
+  if(!(await wlv1AreYouSure('Delete this Doctor / RMP?', (rec.name||rec.mobile||'')+' will move to Trash. You can restore it later.')))return;
   var tr={id:wlv1TrashIdFor('doctor_visits',id),table:'doctor_visits',record:rec,deletedAt:new Date().toISOString(),deletedBy:user.mobile};
   add('trash',tr);
   var okT=false;try{okT=await directCloudUpsertRow('trash',tr);}catch(e){okT=false;}

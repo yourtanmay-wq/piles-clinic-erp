@@ -7043,7 +7043,7 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
 
   /* ── পাতা ও গ্রিড ──────────────────────────────────────────────── */
   body.hasDeskNav .wrap:not(.publicWrap) .page:has(.regForm.wlv1Form){
-    max-width:100%!important;padding:10px 16px 8px!important;background:#F4F7FB}
+    max-width:100%!important;padding:12px 96px 8px!important;background:#F4F7FB}
   body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form{
     display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr));
     gap:12px;align-items:stretch}
@@ -7143,7 +7143,7 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
   /* ── পাতা পুরো চওড়া ─────────────────────────────────────────── */
   body.hasDeskNav .wrap:not(.publicWrap) .page:has(.paymentPro.wlv1Pay),
   body.hasDeskNav .wrap:not(.publicWrap) .page:has(#payList){
-    max-width:100%!important;padding:12px 16px 8px!important}
+    max-width:100%!important;padding:12px 96px 8px!important}
 
   /* ── উপরে হিসাব, তার নিচে বোতামের সারি, তারপর পুরো চওড়া তালিকা ── */
   body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay{
@@ -7292,7 +7292,7 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
    ═══════════════════════════════════════════════════════════════════ */
 @media (min-width:1200px){
   body.hasDeskNav .wrap:not(.publicWrap) .page:has(#payList){
-    max-width:100%!important;padding:12px 16px 8px!important}
+    max-width:100%!important;padding:12px 96px 8px!important}
   body.hasDeskNav .wrap:not(.publicWrap) #payList{
     display:block!important;grid-template-columns:none!important}
   body.hasDeskNav .wrap:not(.publicWrap) .payTblBar{
@@ -7389,7 +7389,7 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
    ═══════════════════════════════════════════════════════════════════ */
 @media (min-width:1200px){
   body.hasDeskNav .wrap:not(.publicWrap) .page:has(.card.medForm){
-    max-width:100%!important;padding:12px 16px 8px!important;
+    max-width:100%!important;padding:12px 96px 8px!important;
     display:grid;grid-template-columns:600px minmax(0,1fr);gap:14px;align-items:start}
   body.hasDeskNav .wrap:not(.publicWrap) .page:has(.card.medForm)>.card{margin:0!important}
   /* ঘরগুলো ছোট — কম্পিউটারে মাউস দিয়ে লেখা হয় */
@@ -7455,4 +7455,171 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
     display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
   body.hasDeskNav .wrap:not(.publicWrap) .card.medForm .medBtnRow>.medBtn{
     width:100%;padding:0 8px!important;flex:none}
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   👨‍⚕️ V1022 — কম্পিউটারে Doctor Visit / RMP। TK-এর পাঠানো **Android
+   কার্ডের ছবি ধরে ধরে** মেলানো: সাদা গোল কার্ড · লাল ঘরে ক্রম · বড় নাম ·
+   ডানে "N calls" ও ছোট 🗑️ · 📞 নম্বর · গোল নীল ও সবুজ চিপ · সবুজ ডটেড
+   বাক্সে LAST/NEXT CALL (NEXT লাল) · কত দিন দেরি · রেখা · মন্তব্য ·
+   রেফার-আয়ের লাইন (থাকলে তবেই) · নিচে বড় রঙিন বোতাম।
+   ⛔ শুধু ≥1200px, আর কম্পিউটারে **দুটো কার্ড পাশাপাশি**; ফোনে অক্ষত।
+   ═══════════════════════════════════════════════════════════════════ */
+@media (min-width:1200px){
+  body.hasDeskNav .wrap:not(.publicWrap) .page:has(.dvCardGrid){
+    max-width:100%!important;padding:12px 96px 8px!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvCardGrid{
+    display:grid!important;grid-template-columns:1fr 1fr!important;gap:14px;align-items:start}
+
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndCard{
+    display:block;background:#fff;border:0;border-radius:20px;
+    box-shadow:0 4px 16px rgba(16,34,58,.10);margin:0;padding:16px 18px}
+
+  /* উপরের সারি */
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndTop{display:flex;align-items:center;gap:12px;min-width:0}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndNo{
+    flex:0 0 auto;width:40px;height:40px;border-radius:11px;background:#D92D20;color:#fff;
+    font-size:19px;font-weight:700;display:grid;place-items:center}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndName{
+    font-size:23px;font-weight:400;color:#10223A;letter-spacing:.2px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndCalls{
+    margin-left:auto;flex:0 0 auto;font-size:14.5px;color:#6B7A8D;font-weight:400}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndDel{
+    flex:0 0 auto;width:32px;height:32px;padding:0;border:0;background:transparent;
+    font-size:15px;cursor:pointer;border-radius:8px;box-shadow:none}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndDel:hover{background:#FDECEA}
+
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndPhone{
+    margin-top:8px;font-size:19px;color:#8A97AB;letter-spacing:.3px}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndChips{display:flex;gap:10px;margin-top:11px;flex-wrap:wrap}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndBr{
+    background:#1067D8;color:#fff;font-size:13px;font-weight:400;padding:7px 18px;border-radius:999px}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndArea{
+    background:#16A36D;color:#fff;font-size:13px;font-weight:400;padding:7px 18px;border-radius:999px}
+
+  /* সবুজ ডটেড বাক্স */
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndBox{
+    background:#F2FBF5;border:2px dashed #7FD3A2;border-radius:16px;
+    padding:12px 15px;margin-top:14px}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndCallLine{
+    font-size:14px;color:#41556B;letter-spacing:.2px}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndNext{color:#D92D20}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndLate{
+    font-size:14px;color:#D92D20;margin-top:3px}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndRule{height:1px;background:#D8E9DF;margin:10px 0}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndRemark{
+    font-size:15.5px;color:#1B2C42;line-height:1.4}
+
+  /* রেফার ও আয় */
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndRef{
+    margin-top:12px;font-size:13.5px;font-weight:700;color:#0B5B2F;letter-spacing:.2px}
+
+  /* নিচের বোতাম — ফোনের মতো বড় ও রঙিন */
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndBtns{display:flex;gap:10px;margin-top:14px}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndBtns>.dvpBtn{
+    flex:1 1 0;min-width:0;height:50px!important;min-height:50px!important;padding:0!important;
+    font-size:19px!important;border-radius:12px!important;margin:0!important;
+    display:grid;place-items:center;box-shadow:none!important;border:0!important;color:#fff!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndBtns .dvpCall{background:#0F8A32!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndBtns .dvpWa{background:#0F8A32!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndBtns .dvpView{background:#2B7FFF!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndBtns .dvpRemarks{
+    background:linear-gradient(135deg,#8B2FE0,#6D28D9)!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndBtns .dvpInc{background:#1D4ED8!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndBtns .dvpMsg{background:#A16207!important}
+
+  /* ➕ হেডারে Add Doctor/RMP ও খোঁজার ঘর */
+  body.hasDeskNav .wrap:not(.publicWrap) #wlv1RmpTopSlot{
+    flex:1 1 auto;display:flex;align-items:center;gap:10px;margin:0 12px;justify-content:flex-end}
+  body.hasDeskNav .wrap:not(.publicWrap) #wlv1RmpTopSlot .dvSearchRow{
+    display:flex;align-items:center;gap:10px;margin:0;flex:1 1 auto;max-width:560px}
+  body.hasDeskNav .wrap:not(.publicWrap) #wlv1RmpTopSlot .dvSearchRow .input{
+    flex:1 1 auto;min-height:36px!important;height:36px!important;margin:0!important;
+    font-size:12.5px!important;border-radius:9px!important}
+  body.hasDeskNav .wrap:not(.publicWrap) #wlv1RmpTopSlot .dvAddBtn{
+    flex:0 0 auto;min-height:36px!important;height:36px!important;margin:0!important;
+    font-size:12px!important;border-radius:9px!important;white-space:nowrap}
+  body.hasDeskNav .wrap:not(.publicWrap) #wlv1RmpTopSlot #rmpBranchWrap{margin:0;flex:0 0 auto}
+  body.hasDeskNav .wrap:not(.publicWrap) #wlv1RmpTopSlot #rmpBranchWrap .input{
+    width:180px;min-height:36px!important;height:36px!important;margin:0!important;
+    font-size:12.5px!important;border-radius:9px!important}
+}
+
+@media (min-width:1200px){
+  /* 👨‍⚕️ V1022 (TK: "কার্ড ২টা তো পুরো ডিসপ্লে জুড়ে গেল, আরো একটু ছোট করুন")
+     — গড়ন ও রং হুবহু ফোনেরই, শুধু মাপটা কম্পিউটারের জন্য ছোট করা হলো,
+     তাই এক পর্দায় বেশি ডাক্তার ধরে। */
+  body.hasDeskNav .wrap:not(.publicWrap) .dvCardGrid{gap:10px!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndCard{padding:11px 13px;border-radius:15px}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndTop{gap:9px}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndNo{width:29px;height:29px;border-radius:8px;font-size:14px}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndName{font-size:17px}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndCalls{font-size:11.5px}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndDel{width:26px;height:26px;font-size:13px}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndPhone{margin-top:5px;font-size:14px}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndChips{gap:7px;margin-top:7px}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndBr,
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndArea{font-size:10.5px;padding:4px 12px}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndBox{
+    padding:8px 11px;margin-top:9px;border-radius:12px;border-width:1.5px}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndCallLine,
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndLate{font-size:11.5px}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndRule{margin:7px 0}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndRemark{font-size:12.5px}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndRef{margin-top:8px;font-size:11.5px}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndBtns{gap:7px;margin-top:9px}
+  body.hasDeskNav .wrap:not(.publicWrap) .dvAndBtns>.dvpBtn{
+    height:36px!important;min-height:36px!important;font-size:15px!important;border-radius:9px!important}
+}
+
+@media (min-width:1200px){
+  /* 👨‍⚕️ V1022 (TK: "ছোট হয়েছে বুঝতে পারলাম না") — শুধু লেখা ছোট করলে
+     বোঝা যায় না, কারণ কার্ডটা তখনও অর্ধেক পর্দা চওড়া। এখন কার্ডের
+     **চওড়াই** ফোনের কার্ডের মতো (~৩৭০px), তাই পর্দায় **তিনটে** কার্ড
+     পাশাপাশি বসে — ছোট হওয়াটা চোখেই পড়ে। */
+  body.hasDeskNav .wrap:not(.publicWrap) .dvCardGrid{
+    grid-template-columns:repeat(auto-fill,minmax(340px,1fr))!important;gap:12px!important}
+}
+
+@media (min-width:1200px){
+  /* 📐 V1022 (TK: "ডিসপ্লের শুরু এবং শেষে ১ ইঞ্চি মতন মার্জিন রাখুন") —
+     দুই ধারে ~১ ইঞ্চি (৯৬px) ফাঁকা জায়গা, তাই কার্ডগুলো ধারে গিয়ে ঠেকে না। */
+  body.hasDeskNav .wrap:not(.publicWrap) .page:has(.dvCardGrid){
+    padding:12px 96px 8px!important}
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   📐 V1022 — TK-নির্দেশ (০৩.০৯.২০২৬): *"ডিসপ্লের শুরু এবং শেষে ১ ইঞ্চি
+   মতন মার্জিন বা ফাঁকা জায়গা রাখুন"* · *"সব পর্দায় রাখুন"*।
+   ⇒ কম্পিউটারের **প্রতিটা** পর্দায় দুই ধারে ~১ ইঞ্চি (৯৬px) ফাঁকা।
+   ⛔ শুধু ≥1200px; ফোনে একটুও পড়ে না।
+   ═══════════════════════════════════════════════════════════════════ */
+@media (min-width:1200px){
+  body.hasDeskNav .wrap:not(.publicWrap) .page{
+    padding-left:96px!important;padding-right:96px!important}
+}
+
+@media (min-width:1200px){
+  /* 📐 V1022 — ১ ইঞ্চি মার্জিনে চওড়া কমে যাওয়ায় Registration সামান্য লম্বা
+     হয়ে যাচ্ছিল (৮৩৬px), Save বোতাম কাটা পড়ত। ঘরগুলোর ফাঁক একটু কমিয়ে
+     আবার এক পর্দাতেই আনা হলো। ⛔ কোনো ঘর/বোতাম বাদ যায়নি। */
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form>.regSection{
+    padding:9px 11px 10px!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form .input,
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form select{margin:0 0 6px!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form textarea{margin:0 0 6px!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form>.regSection>.regSecHead,
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form>.regSection::before{
+    margin:0 0 7px!important;padding:0 0 6px 10px!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form .wlv1PickRow{margin:2px 0 6px}
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form>.fullSave{height:40px!important}
+}
+
+@media (min-width:1200px){
+  /* 📐 V1022 — আর একটু ঘন, যাতে Save বোতামসহ পুরোটাই এক পর্দায় ধরে */
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form{gap:10px!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form label:not(.wlv1Chip2){margin:0 0 3px!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .regForm.wlv1Form .wlv1ChipRow{gap:6px;margin:0 0 3px}
+  body.hasDeskNav .wrap:not(.publicWrap) .page:has(.regForm.wlv1Form){padding-bottom:4px!important}
 }
