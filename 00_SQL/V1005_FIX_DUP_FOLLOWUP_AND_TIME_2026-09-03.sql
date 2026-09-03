@@ -84,7 +84,9 @@ ghost as (
   where g.rn > 1
     and case when jsonb_typeof(g.history::jsonb) = 'array'
              then jsonb_array_length(g.history::jsonb) else 0 end <= 1
-    and coalesce(g."callCount", 0) <= 1
+    -- ⚠️ `callCount` ঘরটা লেখা (text) হিসেবে রাখা আছে — সংখ্যা নয়।
+    --    তাই শুধু অঙ্কগুলো নিয়ে তবেই তুলনা (ফাঁকা/অক্ষর থাকলেও ভাঙে না)।
+    and coalesce(nullif(regexp_replace(coalesce(g."callCount"::text,''), '\D', '', 'g'), ''), '0')::bigint <= 1
     and coalesce(g."convertedPatientId",'') = ''
     and coalesce(g.status,'Active') = 'Active'
 ),
