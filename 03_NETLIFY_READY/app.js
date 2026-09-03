@@ -8949,7 +8949,12 @@ async function savePatient(evt){
   /* 🔴🔒 V516 — বাছাইটা **এক বারের জন্য**। পড়ার সঙ্গে সঙ্গেই মুছে ফেলা হয়,
      নইলে পরের রেজিস্ট্রেশনে (একই নম্বরে) পুরোনো বাছাই রয়ে গিয়ে **একই আইডি
      আবার** ব্যবহার হত — আর তাতে সদ্য তৈরি রোগীই চাপা পড়ে যেতেন। */
-  window.__regDiffPatient=null;
+  /* 🔴🔒 V1010 (০৩.০৯.২০২৬, TK-রিপোর্ট: *"একই নাম্বার দিয়ে দ্বিতীয় পেশেন্টের
+     রেজিস্ট্রেশন করা সম্ভব হচ্ছে না"*) — **আসল কারণ, কোড ধরে:** বাছাইটা এখানেই
+     মুছে ফেলা হত, অথচ নিচে দুটো জায়গায় সেভ **থেমে ফিরে যেতে** পারত। ফিরে
+     গেলে বাছাইটাও হারিয়ে যেত, তাই স্টাফ যতবারই "Different Patient" চাপুন,
+     প্রতিবার একই পপ-আপেই আটকে থাকতেন — দ্বিতীয় রোগী কখনো তৈরি হত না।
+     ⇒ এখন বাছাইটা মোছা হয় **সব ফিরে-যাওয়ার পরে**, আসল সেভ শুরুর ঠিক আগে। */
   if(__regDiff) patientDup=null;
   let enquirySource=load('enquiries').find(x=>mob(x.mobile)===m);
   let enquiryFollow=sourceFollow||(load('followups').find(x=>mob(x.mobile)===m&&x.stage==='Inquiry')||null);
@@ -8959,7 +8964,11 @@ async function savePatient(evt){
   let isEnquiryConversion=!!(enquirySource||enquiryFollow);
   // V232 Priority Fix: if staff manually types a mobile that already exists as Enquiry, show duplicate popup first.
   // If registration was opened through Registration/View Details, sourceFollowId/sourceRefId permits conversion.
-  if(isEnquiryConversion && !sourceFollowId && !sourceRefId){ duplicatePopup(enquirySource||enquiryFollow); return; }
+  /* 🔴🔒 V1010 — **যে লাইনটা কাজটা আটকে রাখত।** এই নম্বরে আগে একটা এনকোয়ারি
+     বা Inquiry-সারি থাকলেই (প্রথম রোগীর সূত্রে প্রায় সবসময়ই থাকে) সেভ এখানে
+     থেমে যেত — স্টাফ "Different Patient" বেছে নেওয়ার পরেও। এখন স্পষ্ট বাছাই
+     থাকলে এই বাধাটা আর লাগে না। ⛔ বাছাই না থাকলে হুবহু আগের আচরণ। */
+  if(isEnquiryConversion && !__regDiff && !sourceFollowId && !sourceRefId){ duplicatePopup(enquirySource||enquiryFollow); return; }
   // 🔒🔒 B601 (10.08.2026, TK-অনুমোদিত প্রুফ · ফোনের হুবহু মিল): active patient
   // নেই, enquiry-conversion-ও নয় — কিন্তু নম্বরটা আগে Reject/Incomplete/Cancelled
   // হয়ে থাকলে Warning (View · Continue · Cancel)। Continue = নতুন রেজিস্ট্রেশন
@@ -8990,6 +8999,7 @@ async function savePatient(evt){
     return;
   }
   window.__regDupAsk='';
+  window.__regDiffPatient=null;   /* 🔴 V1010 — এখানেই বাছাইটা খরচ হয় (সব বাধা পেরোনোর পরে) */
   let updatingExistingPatient=false;
   if(patientDup){
    updatingExistingPatient=true;
@@ -9156,6 +9166,17 @@ async function savePatient(evt){
    // V175: Visit section entry is mandatory after Registration Save.
    // This creates/updates the Patient/Visit follow-up row while the main patient remains in Doctor Queue.
    ensureFollow({...p,refId:p.id,stage:'Patient',visitDate:regDate,registrationDate:regDate},'Patient','', 'Registered patient / Visit created');
+   /* 🔴🔒 V1010 — "Different Patient" হলে **অন্যজনের** এনকোয়ারি/Inquiry-সারি
+      ছোঁয়া যাবে না; নিচের সবটা মোবাইল ধরে চলে বলে ওগুলো বন্ধ করে দিত।
+      ফোনে এই পাহারা আগে থেকেই আছে (`RegistrationRepository`-তে
+      `if (forceNewPatientRowId.isBlank()) localStore.closeInquiry(...)`) —
+      কম্পিউটারেই বাদ পড়েছিল। এখন শুধু নতুন রোগীর নিজের সারিতেই লেখা হয়। */
+   if(__regDiff){
+     let fsd=load('followups').map(f=>(String(f.refId||'')===String(p.id)&&String(f.stage||'')==='Patient')
+       ?{...f,history:[...(f.history||[]),regHist]}:f);
+     save('followups',fsd);
+     try{forceCloudVisibleRows(fsd.filter(f=>String(f.refId||'')===String(p.id)).map(row=>({table:'followups',row})));repairBranchWorkflowRows()}catch(_e){}
+   } else {
    closeEnquiryAfterRegistration(m,p);
    let fs=load('followups').map(f=>{
     if(mob(f.mobile)===m&&f.stage==='Inquiry')return {...f,previousStage:f.previousStage||'Inquiry',stage:'Registered',status:'Closed',nextFollow:'',lastRemark:'Converted to Patient Registration',convertedPatientId:p.id,convertedAt:f.convertedAt||new Date().toISOString(),updatedAt:new Date().toISOString(),history:[...(f.history||[]),regHist]};
@@ -9166,11 +9187,12 @@ async function savePatient(evt){
    let es=load('enquiries').map(e=>mob(e.mobile)===m?{...e,status:'Registered',stage:'Registered',convertedPatientId:p.id,convertedAt:new Date().toISOString(),updatedAt:new Date().toISOString()}:e);
    save('enquiries',es);
    try{forceCloudVisibleRows([...es.filter(e=>mob(e.mobile)===m).map(row=>({table:'enquiries',row})),...fs.filter(f=>mob(f.mobile)===m).map(row=>({table:'followups',row}))]);repairBranchWorkflowRows()}catch(_e){}
+   }
   }catch(e){console.warn('Inquiry conversion close skipped',e)}
 
   // V176 final selective fix: Registration Save must directly open Visit / Doctor Queue.
   // Patient row is kept only as the queue data source; the user must see the number in Visit/Doctor Check-up immediately.
-  try{p=forceVisitQueueEntry(p,regDate);closeEnquiryAfterRegistration(m,p)}catch(e){console.warn('Queue verification skipped',e)}
+  try{p=forceVisitQueueEntry(p,regDate);if(!__regDiff)closeEnquiryAfterRegistration(m,p)}catch(e){console.warn('Queue verification skipped',e)}   /* 🔴 V1010 — আলাদা রোগীর সেভে অন্যজনের এনকোয়ারি বন্ধ হবে না */
   try{
    try{forceCloudVisibleRows([{table:'patients',row:p},...load('followups').filter(f=>mob(f.mobile)===m).map(row=>({table:'followups',row}))]);repairBranchWorkflowRows()}catch(_e){}
    directCloudUpsertRow('patients',p);
