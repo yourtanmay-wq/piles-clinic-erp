@@ -18,6 +18,28 @@ object EstimateHtmlPrint {
     private fun esc(s: String): String =
         s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
+    /* 🏠🔒 V1008 (০৩.০৯.২০২৬, TK-নির্দেশ) — TK: *"গ্রাম পোস্ট এক লাইনে থাকবে,
+       থানা এবং জেলা আরেক লাইনে থাকবে"*। এস্টিমেটের কাগজে ঠিকানা এক লাইনেই
+       বসত, তাই লম্বা ঠিকানা যেখানে খুশি ভেঙে যেত।
+       প্রকল্পে এই নিয়মটা **আগে থেকেই আছে ও প্রমাণিত** — রেজিস্ট্রেশন ·
+       ইনভেস্টিগেশন · ডায়েট চার্ট · চেকআপ রিপোর্টের কাগজে (`addr2` /
+       `addrTwoLines`)। শুধু এই একটা কাগজেই বসানো বাকি ছিল।
+       ⛔ থানার চিহ্ন না পেলে আগের মতোই এক লাইনে থাকে। */
+    /* 🔠 V1008 — TK: *"VILL capital লেটার হবে"* ⇒ এস্টিমেটের কাগজে পুরো
+       ঠিকানাটাই বড় হাতের অক্ষরে (নাম ও ব্রাঞ্চ এই কাগজে আগে থেকেই বড় হাতে)। */
+    private fun addr2(a: String): String {
+        if (a.isBlank()) return "-"
+        val u = a.uppercase()
+        val markers = listOf("PS:", "P.S", "P/S", "THANA", "POLICE STATION")
+        var idx = -1
+        for (m in markers) { val k = u.indexOf(m); if (k > 0 && (idx == -1 || k < idx)) idx = k }
+        if (idx <= 0) return esc(a)
+        val first = a.substring(0, idx).trimEnd(',', ' ').trim()
+        val second = a.substring(idx).trim()
+        if (first.isBlank() || second.isBlank()) return esc(a)
+        return esc(first) + "<br>" + esc(second)
+    }
+
     fun build(
         sheet: EstimateModel.Sheet,
         branch: String,
@@ -141,7 +163,7 @@ a{color:inherit;text-decoration:none;}
 <div class="tb"><span class="t">TREATMENT COST ESTIMATE</span><span class="r">Rec. No: ${esc(patientId)} &nbsp;&middot;&nbsp; Date: ${esc(date)}</span></div>
 <div class="pi">
 <div class="c"><div class="r"><b>Name</b> : ${esc(name)}</div><div class="r"><b>Patient ID</b> : ${esc(patientId)}</div><div class="r"><b>Age / Sex</b> : ${esc(ageSex)}</div></div>
-<div class="c"><div class="r"><b>Mobile</b> : ${esc(mobile)}</div><div class="r"><b>Branch</b> : ${esc(b.displayName)}</div><div class="r"><b>Address</b> : ${esc(address)}</div></div>
+<div class="c"><div class="r"><b>Mobile</b> : ${esc(mobile)}</div><div class="r"><b>Branch</b> : ${esc(b.displayName)}</div><div class="r"><b>Address</b> : <span style="display:inline-block;vertical-align:top">${addr2(address.uppercase())}</span></div></div>
 </div>
 <div class="wrap">
 $findingBlock

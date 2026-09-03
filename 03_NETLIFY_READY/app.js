@@ -26832,7 +26832,7 @@ function wlv1EstPaperHtml(editable){
    +'<div class="pi"><div class="c"><div class="r"><b>Name</b> : '+esc(p.name||'-')+'</div>'
    +'<div class="r"><b>Patient ID</b> : '+esc(p.patientId||'-')+'</div><div class="r"><b>Age / Sex</b> : '+esc(ageSex)+'</div></div>'
    +'<div class="c"><div class="r"><b>Mobile</b> : '+esc(normMob(p.mobile||''))+'</div>'
-   +'<div class="r"><b>Branch</b> : '+esc(br)+'</div><div class="r"><b>Address</b> : '+esc(p.address||'-')+'</div></div></div>'
+   +'<div class="r"><b>Branch</b> : '+esc(br)+'</div><div class="r"><b>Address</b> : <span style="display:inline-block;vertical-align:top">'+wlv1AddrTwo(String(p.address||'-').toUpperCase())+'</span></div></div></div>'   /* 🏠 V1008 — গ্রাম+পোস্ট এক লাইনে, থানা+জেলা পরের লাইনে (ফোনের হুবহু যমজ) */
    +'<div class="wrap"><div class="sec"><div class="sh">COST BREAKDOWN</div>'
    +'<table><thead><tr><th>Treatment / Item</th><th>Position</th><th class="r">Rate (&#8377;)</th><th class="r">Qty</th><th class="r">Total (&#8377;)</th></tr></thead>'
    +'<tbody>'+rows+'</tbody></table></div>'
