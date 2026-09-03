@@ -831,6 +831,9 @@ function queueCloudTableSave(t,rows){
 }
 window["queueCloudTableSave"]=queueCloudTableSave;
 const save=(t,d,opts={})=>{
+ /* 💊 V1028 — products বদলালে Search-এর বাকির জমানো হিসাব ফেলে দেওয়া হয়,
+    তাই কখনো পুরনো অঙ্ক দেখাতে পারে না। */
+ if(t==='products'){try{window.__wlv1DueCache=null}catch(_e){}}
  let rows=cleanRows(normalizeTableRows(t,Array.isArray(d)?d:[]));
  /* 🔵 V405: আসল সেভ (skipCloud নয়) হলে **কোন কোন সারি বদলাল** সেটা এখানেই
     ধরা হয় — RAM_STORE বদলানোর ঠিক আগে, পুরনোটার সঙ্গে মিলিয়ে।
@@ -2575,7 +2578,7 @@ function wlv1DeskAutoSplit(title){
     var t=String(title||'');
     if(t==='Chamber Close')       return wlv1DeskRowGrid('wlv1UncRow','wlv1UncGrid');
     if(t==='Expected Tomorrow')   return wlv1DeskRowGrid('wlv1EtRow','wlv1EtGrid');
-    if(t==='Print Center')        return wlv1DeskPrint();
+    if(t==='Print Center'||t==='Print') return wlv1DeskPrint();
     if(t==='Backup Center')       return wlv1DeskTwoCol(1,0);
     if(t==='App Settings')        return wlv1DeskTwoCol(1,2);
     if(t.indexOf('Briefing')===0) return wlv1DeskTwoCol(1,0);
@@ -18788,7 +18791,7 @@ window["v272PaymentOptions"]=v272PaymentOptions;
     const oldPasswordCenterV272=window.passwordCenter||passwordCenter;
     window.passwordCenter=function(){
       oldPasswordCenterV272();
-      setTimeout(()=>{try{if(isMaster()){let pgEl=document.querySelector('.wrap:not(.publicWrap) .page');let main=document.querySelector('main')||app();let div=document.createElement('div');div.className='card wlv1SecQCard';div.innerHTML='<b>Master Admin Security Question</b><p class="mut">Used only for Master Admin Forgot Password.</p><div class="actions"><button onclick="setupMasterSecurityQuestion()">Setup / Change Question</button></div>';if(pgEl&&window.wlv1DeskWide&&wlv1DeskWide()){var intro=pgEl.querySelector('.card');if(intro&&window.wlv1DeskWide&&wlv1DeskWide()&&!pgEl.querySelector('.wlv1PwTop')){var pr=document.createElement('div');pr.className='wlv1TwoCol wlv1PwTop';var l=document.createElement('div');l.className='wlv1TcL';var r=document.createElement('div');r.className='wlv1TcR';pr.appendChild(l);pr.appendChild(r);pgEl.insertBefore(pr,intro);l.appendChild(intro);r.appendChild(div);}else if(intro){pgEl.insertBefore(div,intro.nextSibling);}else{pgEl.appendChild(div);}}else{main.prepend(div)}}}catch(_e){}},50);
+      setTimeout(()=>{try{if(isMaster()){let pgEl=document.querySelector('.wrap:not(.publicWrap) .page');/* 🐞🔒 V1028 — একই পর্দা আবার আঁকা হলে (Save Password · পরপর দুবার খোলা) এই বাক্সটা দ্বিতীয়বার বসে যেত। এখন একটা থাকলে আর বসে না। */if(document.querySelector('.wlv1SecQCard'))return;let main=document.querySelector('main')||app();let div=document.createElement('div');div.className='card wlv1SecQCard';div.innerHTML='<b>Master Admin Security Question</b><p class="mut">Used only for Master Admin Forgot Password.</p><div class="actions"><button onclick="setupMasterSecurityQuestion()">Setup / Change Question</button></div>';if(pgEl&&window.wlv1DeskWide&&wlv1DeskWide()){var intro=pgEl.querySelector('.card');if(intro&&window.wlv1DeskWide&&wlv1DeskWide()&&!pgEl.querySelector('.wlv1PwTop')){var pr=document.createElement('div');pr.className='wlv1TwoCol wlv1PwTop';var l=document.createElement('div');l.className='wlv1TcL';var r=document.createElement('div');r.className='wlv1TcR';pr.appendChild(l);pr.appendChild(r);pgEl.insertBefore(pr,intro);l.appendChild(intro);r.appendChild(div);}else if(intro){pgEl.insertBefore(div,intro.nextSibling);}else{pgEl.appendChild(div);}}else{main.prepend(div)}}}catch(_e){}},50);
     };
 
   }catch(e){console.warn('V272 suspicion cleanup skipped',e)}
@@ -21034,16 +21037,33 @@ window["wlv1SearchPrint"]=wlv1SearchPrint;
       পর্দা যেটা ব্যবহার করে) — তাই দুই জায়গায় কখনো দুরকম হিসাব হতে পারে না।
    ⚡ **একটাও নতুন ক্লাউড-অনুরোধ যায় না** — `products` এমনিতেই কম্পিউটারে জমা থাকে।
    ⛔ বাকি আটটা বোতামের কাজ · ঠিকানা · রং এক অক্ষরও বদলায়নি। */
+/* 🐞🔒 V1028 — যাচাইয়ে ধরা: প্রথম লেখায় প্রতিটা কার্ডের জন্য আলাদা করে গোটা
+   `products` পড়া হত। ৩০০০ সারি ও ৬০০ ফলে খোঁজার পর্দা আঁকতে **৩.২৫ সেকেন্ড**
+   লাগছিল (TK-এর পুরনো অভিযোগ "স্লো হয়ে যায়")। এখন মোবাইল→বাকির ছকটা
+   **একবারই** বানানো হয়, তারপর সবাই সেটাই দেখে।
+   🔒 বাসি হওয়ার পথ নেই — `products` সেভ হলেই ছকটা ফেলে দেওয়া হয় (save()-এ),
+      আর তার উপরেও ৩ সেকেন্ডের বেশি পুরনো ছক ব্যবহার হয় না। */
+function wlv1DueMap(){
+  try{
+    var c=window.__wlv1DueCache;
+    if(c && (Date.now()-c.at)<3000) return c.map;
+    var rows=load('products')||[], map=medSettledMap(), out={};
+    rows.forEach(function(x){
+      var k=String((x&&x.mobile)||'').replace(/\D/g,'').slice(-10);
+      if(k.length!==10) return;
+      var d=medNetDue(x,map);
+      if(d>0) out[k]=(out[k]||0)+d;
+    });
+    window.__wlv1DueCache={at:Date.now(),map:out};
+    return out;
+  }catch(e){ return {} }
+}
+window["wlv1DueMap"]=wlv1DueMap;
 function wlv1MedDueOf(mobile){
   try{
     var key=String(mobile||'').replace(/\D/g,'').slice(-10);
     if(key.length!==10) return 0;
-    var map=medSettledMap(), tot=0;
-    (load('products')||[]).forEach(function(x){
-      if(String((x&&x.mobile)||'').replace(/\D/g,'').slice(-10)!==key) return;
-      tot+=medNetDue(x,map);
-    });
-    return tot;
+    return Number(wlv1DueMap()[key]||0);
   }catch(e){ return 0 }
 }
 window["wlv1MedDueOf"]=wlv1MedDueOf;
@@ -21055,9 +21075,34 @@ function wlv1MedDueOpen(mobile){
     medicinePaymentHome();
     setTimeout(function(){
       try{
-        var el=document.getElementById('medSearch');
-        if(el) el.value=q;
-        __medQ=q; medRenderHistory();
+        /* ফোনের হুবহু (MedicinePaymentActivity.kt:354-361): খোঁজায় মোবাইল ·
+           "Due Only" চালু · History খোলা — নইলে কিছুই দেখা যেত না। */
+        var el=document.getElementById('medSearch'); if(el) el.value=q;
+        __medQ=q; __medDueOnly=true;
+        /* 🐞 যাচাইয়ে ধরা (V1028): উপরের ব্রাঞ্চ-ঘরে অন্য ব্রাঞ্চ বাছা থাকলে
+           এই রোগীর বাকির সারিটা ঢাকা পড়ে যেত — চাপলে খালি পর্দা দেখাত।
+           তাই ঘরটায় বাকির নিজের ব্রাঞ্চ বসে (একাধিক ব্রাঞ্চ হলে "All")।
+           ⛔ এটা শুধু এই পর্দার ঘরের মান — মনে-রাখা ব্রাঞ্চ (V398) বদলায় না। */
+        var br='', many=false, map=medSettledMap();
+        (load('products')||[]).forEach(function(x){
+          if(String((x&&x.mobile)||'').replace(/\D/g,'').slice(-10)!==q) return;
+          if(medNetDue(x,map)<=0) return;
+          var xb=String((x&&x.branch)||''); if(!xb) return;
+          if(!br) br=xb; else if(!sameBranch(br,xb)) many=true;
+        });
+        var sel=document.getElementById('medBranch');
+        if(sel){
+          var want=many?'All':br, i;
+          if(want) for(i=0;i<sel.options.length;i++){
+            if(sel.options[i].value===want||sameBranch(sel.options[i].value,want)){ sel.value=sel.options[i].value; break; }
+          }
+        }
+        var body=document.getElementById('medHistBody'), head=document.getElementById('medHistHead');
+        if(body && body.style.display==='none'){
+          body.style.display='';
+          if(head) head.innerHTML='\u25BC&nbsp; Medicine / Saline History';
+        }
+        medRenderHistory();
       }catch(e){}
     },60);
   }catch(e){}
