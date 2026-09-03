@@ -72,8 +72,20 @@ object EnquiryModel {
                 .put("remark", enquiryRow.getString("remarks"))
                 .put("staff", staffName)
         )
+        /* 🔗🔒 V1005 (০৩.০৯.২০২৬, TK-নির্দেশ · প্রমাণসহ ধরা) — আগে এখানে
+           **এলোমেলো** id বসত (`fu_<uuid>`), কিন্তু কম্পিউটারের self-heal একই
+           এনকোয়ারির জন্য **নির্দিষ্ট** id বানায় (`fu_inq_<enquiry id>`,
+           `app.js` B626)। দুটো id কখনো মিলত না, তাই কম্পিউটারের কপিতে ফোনের
+           সারিটা না পৌঁছালে সে **দ্বিতীয় একটা সারি** বানিয়ে ফেলত —
+           HABIBOR RAHAMAN-এর ক্ষেত্রে ঠিক সেটাই হয়েছিল (৩০.০৮ রাত ৮:০১-এ
+           ফোনের সারি, ৩১.০৮-এ কম্পিউটারের আরেকটা সারি)।
+           এখন ফোনও **হুবহু একই নিয়মে** id বানায়, তাই দুটো যন্ত্র একই সারিতেই
+           মেলে — আর ডুপ্লিকেট হয় না।
+           ⛔ id-টা এখনো "fu_" দিয়েই শুরু, তাই পুরনো কোনো নিয়ম ভাঙে না।
+           ⛔ এনকোয়ারির id এইমাত্র তৈরি হয়েছে, তাই এই id কখনো আগে থেকে
+              থাকতে পারে না — সেভ আটকানোর ঝুঁকি নেই। */
         return JSONObject()
-            .put("id", "fu_" + UUID.randomUUID().toString().replace("-", ""))
+            .put("id", "fu_inq_" + enquiryRow.getString("id"))
             .put("refId", enquiryRow.getString("id"))
             .put("mobile", enquiryRow.getString("mobile"))
             .put("name", enquiryRow.getString("name"))

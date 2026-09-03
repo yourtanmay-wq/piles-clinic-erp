@@ -169,7 +169,9 @@ class AppointmentActivity : AppCompatActivity() {
                     // দেখাত (ওয়েবের একই ফিচারে (app.js, ensureFollow()) আগে থেকেই ১
                     // বসে — এখানে শুধু বাদ পড়ে গিয়েছিল)।
                     val fu = JSONObject()
-                        .put("id", "fu_" + UUID.randomUUID().toString().replace("-", ""))
+                        /* 🔗 V1005 — এনকোয়ারির সারির মতোই নির্দিষ্ট id, তাই
+                           কম্পিউটারের self-heal আর দ্বিতীয় সারি বানায় না। */
+                        .put("id", "fu_inq_" + row.getString("id"))
                         .put("refId", row.getString("id"))
                         .put("name", name).put("mobile", "+91$digits").put("branch", branch)
                         .put("stage", "Inquiry").put("status", "Active")

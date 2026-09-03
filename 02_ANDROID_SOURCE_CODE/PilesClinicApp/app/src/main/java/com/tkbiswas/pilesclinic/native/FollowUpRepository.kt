@@ -1666,7 +1666,11 @@ class FollowUpRepository(private val context: Context? = null) {
                         fbHistory.put(
                             JSONObject()
                                 .put("date", row.s("date"))
-                                .put("time", isoNow())   /* ⏰ V827 — সময়ও জমা হয় (TK: "LAST CALL তারিখের পরে যেন Time থাকে")। */
+                                /* ⏰🔒 V1005 (০৩.০৯.২০২৬) — আগে এখানে `isoNow()` বসত,
+                                   অর্থাৎ **পর্দা খোলার মুহূর্তটাই** পুরনো কলের সময়
+                                   হিসেবে দেখাত। এখন এনকোয়ারির নিজের সময়টাই বসে;
+                                   না থাকলে তবেই এখনকার সময়। */
+                                .put("time", row.s("createdAt").ifBlank { isoNow() })
                                 .put("remark", row.s("remarks"))
                                 .put("staff", row.s("receivedBy").ifBlank { row.s("createdBy") })
                         )
@@ -1719,7 +1723,9 @@ class FollowUpRepository(private val context: Context? = null) {
                     } catch (_: Throwable) { null }
                     if (alreadyExists == null || alreadyExists.length() > 0) continue
                     val healRow = JSONObject()
-                        .put("id", "fu_" + java.util.UUID.randomUUID().toString().replace("-", ""))
+                        /* 🔗 V1005 — ফোন ও কম্পিউটার একই id বানায়
+                           (`fu_inq_<enquiry id>`), তাই ডুপ্লিকেট সারি হয় না। */
+                        .put("id", "fu_inq_" + row.s("id"))
                         .put("refId", row.s("id"))
                         .put("mobile", row.s("mobile"))
                         .put("name", row.s("name"))
@@ -2220,7 +2226,9 @@ class FollowUpRepository(private val context: Context? = null) {
                         } catch (_: Throwable) { null }
                         if (alreadyExistsV != null && alreadyExistsV.length() == 0) {
                         val healRow = JSONObject()
-                            .put("id", "fu_" + java.util.UUID.randomUUID().toString().replace("-", ""))
+                            /* 🔗 V1005 — কম্পিউটারের self-heal-এর হুবহু একই id,
+                               তাই দুই যন্ত্রে দুটো সারি হয় না। */
+                            .put("id", "fu_pat_" + p.s("id"))
                             .put("refId", p.s("id"))
                             .put("patientId", p.s("patientId"))
                             .put("mobile", p.s("mobile"))

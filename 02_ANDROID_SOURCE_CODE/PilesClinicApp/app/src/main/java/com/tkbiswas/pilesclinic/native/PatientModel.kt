@@ -291,7 +291,12 @@ object PatientModel {
                 .put("staff", staffMobile)
         )
         val out = JSONObject()
-            .put("id", if (reuse) existingFollowUpRowId else "fu_" + UUID.randomUUID().toString().replace("-", ""))
+            /* 🔗🔒 V1005 (০৩.০৯.২০২৬) — নতুন সারির id এখন **নির্দিষ্ট**
+               (`fu_pat_<patient row id>`) — কম্পিউটারের self-heal ঠিক এই
+               নিয়মেই বানায় (`app.js`, B626)। আগে এলোমেলো id বসত, তাই দুই
+               যন্ত্র দুটো আলাদা সারি বানিয়ে ফেলতে পারত।
+               ⛔ পুরনো সারি থাকলে আগের মতোই তার নিজের id-ই থাকে। */
+            .put("id", if (reuse) existingFollowUpRowId else "fu_pat_" + patientRow.getString("id"))
             .put("refId", patientRow.getString("id"))
             .put("patientId", patientRow.getString("patientId"))
             .put("mobile", patientRow.getString("mobile"))
