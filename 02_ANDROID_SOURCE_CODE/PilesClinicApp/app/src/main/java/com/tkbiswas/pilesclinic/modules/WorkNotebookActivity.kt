@@ -2080,7 +2080,14 @@ class WorkNotebookActivity : AppCompatActivity() {
         val pend = WnNotebookQueue.pending(this)
         if (pend.isEmpty()) return
         if (!ModuleAuth.isSignedIn) { try { ModuleAuth.signInCurrentSession(this) } catch (_: Throwable) { } }
+        /* 🔎🔒 V1006 (০৩.০৯.২০২৬) — জমে থাকা মার্ক অনেকগুলো হলে এই অংশটাই
+           মিনিটখানেক নিতে পারে। আগে পর্দায় কিছুই বোঝা যেত না; এখন কত নম্বরটা
+           চলছে সেটা "Opening…" পর্দাতেই দেখা যায়।
+           ⛔ কাজের ক্রম · সেভ · থ্রেড কিছুই বদলায়নি — শুধু একটা লেখা। */
+        var i = 0
         for (r in pend) {
+            i += 1
+            OpenTrace.step(this, "7. saving pending marks  ($i/${pend.size})")
             if (writeNotebookRow(r)) WnNotebookQueue.remove(this, r)
         }
     }

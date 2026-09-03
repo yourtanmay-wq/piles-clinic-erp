@@ -224,6 +224,9 @@ object ModuleUi {
         val t0 = android.os.SystemClock.elapsedRealtime()
         fun secsSoFar(): String = "%.1f".format((android.os.SystemClock.elapsedRealtime() - t0) / 1000.0)
         val tick = android.os.Handler(android.os.Looper.getMainLooper())
+        /* 🔴 V1006 — অস্থায়ী লেখাটার হাতল বাইরেও দরকার: পর্দা সত্যিই আঁকা
+           হয়ে গেছে কিনা এটা দিয়েই বোঝা যায় (তখন এটা আর পর্দায় থাকে না)। */
+        var waitView: android.widget.TextView? = null
         try {
             /* 🔎🔒 V932 — গতবার যদি খোলা শেষ না হয়ে থাকে, উপরে সেই ধাপটা
                দেখানো হয় — TK যেন ছবি তুলে পাঠাতে পারেন। */
@@ -236,10 +239,16 @@ object ModuleUi {
                 setPadding(48, 220, 48, 48)
             }
             activity.setContentView(wait)
+            waitView = wait
             val ticker = object : Runnable {
                 override fun run() {
                     try {
                         if (activity.isFinishing) return
+                        /* 🔴 V1006 — আসল পর্দা এঁকে গেলে গোনা নিজে থেকেই থামে। */
+                        if (!wait.isAttachedToWindow) {
+                            try { OpenTrace.onStep = null } catch (_: Throwable) { }
+                            return
+                        }
                         /* ⛔ ধাপের নামটাও দেখানো হয় — জমে গেলে **শেষ ধাপটাই
                            পর্দায় থেকে যাবে**, তখন ঠিক জায়গাটা ধরা যাবে। */
                         wait.text = prevLine + "Opening…\n\nPlease wait a moment.\n\n" +
@@ -265,15 +274,57 @@ object ModuleUi {
         Thread {
             val err = ModuleAuth.signInCurrentSession(activity.applicationContext)
             activity.runOnUiThread {
-                try { tick.removeCallbacksAndMessages(null) } catch (_: Throwable) { }
-                try { OpenTrace.onStep = null } catch (_: Throwable) { }
                 if (err == null) {
+                    /* 🔴🔒 V1006 (০৩.০৯.২০২৬, TK-নির্দেশ — খাতার সারি ৭ শেষ করা)
+                       **আসল কারণ (কোড ধরে, আন্দাজ নয়):** লগইন সফল হওয়ার সাথে
+                       সাথেই এখানে সেকেন্ড-গোনা **থামিয়ে** দেওয়া হত এবং ধাপের
+                       লেখাও বন্ধ করে দেওয়া হত। তারপর `onReady()` যে কাজটা শুরু
+                       করে (নোটবুকে: জমে-থাকা মার্ক ক্লাউডে বসানো, তারপর আজকের
+                       দিন আনা) সেটা শেষ না হওয়া পর্যন্ত পর্দায় **পুরনো
+                       "Opening…" লেখাটাই** দাঁড়িয়ে থাকত — সেকেন্ড বাড়ত না,
+                       কোনো ভুল-বার্তাও ছিল না (২৫ সেকেন্ডের সময়সীমা শুধু
+                       লগইনের জন্য, তার পরের অংশে কোনো সময়সীমাই ছিল না)।
+                       ⇒ TK-এর দেখা ছবিটার তিনটে লক্ষণই এতে মেলে: সেকেন্ড নেই ·
+                         "Could not open" আসেনি · পর্দা বদলায় না।
+
+                       **সমাধান:** লগইনের পরেও গোনা ও ধাপের লেখা **চলতে থাকে**,
+                       আর পর্দা সত্যিই আঁকা হলে (এই অস্থায়ী লেখাটা যখন আর
+                       পর্দায় থাকে না) নিজে থেকেই থেমে যায়। তার উপরে একটা
+                       **৪৫ সেকেন্ডের পাহারা** — এতক্ষণেও না খুললে "Could not
+                       open" বার্তা আসে (Try again / Back), তাই কেউ আর চিরকাল
+                       আটকে থাকবেন না।
+                       ⛔ সফল ও দ্রুত পথে এক অক্ষরও বদলায়নি — পর্দা আঁকা হলেই
+                          গোনা থেমে যায়, আর পাহারাটাও কিছু করে না। */
                     OpenTrace.step(activity, "6. opening the screen")
                     toast(activity, "Opened in " + secsSoFar() + " s")
+                    val stopWatch = Runnable {
+                        try { tick.removeCallbacksAndMessages(null) } catch (_: Throwable) { }
+                        try { OpenTrace.onStep = null } catch (_: Throwable) { }
+                    }
+                    tick.postDelayed({
+                        try {
+                            if (activity.isFinishing) { stopWatch.run(); return@postDelayed }
+                            if (waitView?.isAttachedToWindow != true) { stopWatch.run(); return@postDelayed }
+                            stopWatch.run()
+                            AlertDialog.Builder(activity)
+                                .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(activity, "Could not open"))
+                                .setMessage("Still opening after " + secsSoFar() + " s.\n\nStep:  " + OpenTrace.current() +
+                                    "\n\nPlease check the internet and try again.")
+                                .setPositiveButton("Try again") { d, _ ->
+                                    try { d.dismiss() } catch (_: Throwable) { }
+                                    ensureSignedIn(activity, prefillCode, onReady)
+                                }
+                                .setNegativeButton("Back") { _, _ -> activity.finish() }
+                                .setCancelable(false)
+                                .show().also { try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) { } }
+                        } catch (_: Throwable) { }
+                    }, 45000L)
                     onReady()
                     OpenTrace.done(activity)
                 }
                 else {
+                    try { tick.removeCallbacksAndMessages(null) } catch (_: Throwable) { }
+                    try { OpenTrace.onStep = null } catch (_: Throwable) { }
                     /* 🔴🔒 V808 (২৮.০৮.২০২৬) — TK: "staff Profile খুলছে না তো"।
                        আগে একটাই বোতাম ছিল ("Back") — অর্থাৎ নেট এক সেকেন্ডের জন্য
                        খারাপ হলেও পর্দা থেকে বেরিয়ে গিয়ে আবার সব শুরু করতে হত।
