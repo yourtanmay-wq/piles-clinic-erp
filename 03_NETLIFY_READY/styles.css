@@ -8096,3 +8096,52 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
     padding:16px 16px;text-align:left;line-height:1.5;
   }
 }
+
+/* ═══ V1027 (03.09.2026) — বাকি ডেস্কটপ পর্দাগুলোও ডান-বাঁ (≥1200px only) ═══
+   TK: "বাকি পর্দাগুলোর ডিজাইনও এভাবে করুন"।
+   ⛔ ফোন/ট্যাব (<1200px) ও Android অ্যাপ এই ব্লকে ঢোকেই না — সম্পূর্ণ অক্ষত। */
+@media (min-width:1200px){
+  /* Dashboard — Today Collection ব্যানার আর তিন ভাগের এক ভাগ নয়, পুরো চওড়ায়
+     (নিচের টালির সারির সঙ্গে দুই ধার মিলে যায়) */
+  body.hasDeskNav .wrap:not(.publicWrap) .page>.grid.stat:has(>:only-child){max-width:none}
+  body.hasDeskNav .wrap:not(.publicWrap) .page>.grid.stat>:only-child{grid-column:1/-1}
+  /* ড্যাশবোর্ডের টাইলে লম্বা নাম (Income & Expense) আইকনের উপরে উঠে যেত —
+     এখন ঘরের ভিতরেই দুই লাইনে ভাঙে, আইকনে ঘেঁষে না */
+  body.hasDeskNav .wrap:not(.publicWrap) .compactDashGrid .module{
+    grid-template-columns:auto minmax(0,1fr) auto!important;column-gap:10px!important;
+  }
+  body.hasDeskNav .wrap:not(.publicWrap) .compactDashGrid .module .wlv1TileLabel,
+  body.hasDeskNav .wrap:not(.publicWrap) .compactDashGrid .module>b{
+    min-width:0!important;overflow-wrap:anywhere!important;
+  }
+
+  /* Draft — বাঁয়ে ENQUIRY, ডানে PATIENT */
+  body.hasDeskNav .wrap:not(.publicWrap) .drWrap{
+    display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+    column-gap:20px;align-items:start;
+  }
+  body.hasDeskNav .wrap:not(.publicWrap) .drWrap>:nth-child(1){grid-column:1;grid-row:1}
+  body.hasDeskNav .wrap:not(.publicWrap) .drWrap>:nth-child(2){grid-column:1;grid-row:2}
+  body.hasDeskNav .wrap:not(.publicWrap) .drWrap>:nth-child(3){grid-column:2;grid-row:1}
+  body.hasDeskNav .wrap:not(.publicWrap) .drWrap>:nth-child(4){grid-column:2;grid-row:2}
+  body.hasDeskNav .wrap:not(.publicWrap) .drWrap>.drSecHead{margin-top:0}
+
+  /* Chamber Close — দিনের সারিগুলো দুই কলামে */
+  body.hasDeskNav .wrap:not(.publicWrap) .wlv1UncGrid{
+    display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start;
+  }
+  body.hasDeskNav .wrap:not(.publicWrap) .wlv1UncGrid>.wlv1UncRow{margin:0}
+
+  /* Expected Tomorrow — রোগীর সারিগুলো দুই কলামে */
+  body.hasDeskNav .wrap:not(.publicWrap) .wlv1EtGrid{
+    display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start;
+  }
+  body.hasDeskNav .wrap:not(.publicWrap) .wlv1EtGrid>.wlv1EtRow{margin:0}
+}
+
+/* 💊 V1027 — Search কার্ডে মেডিসিনের বাকির ঘর (ফোনের হুবহু রং):
+   বাকি থাকলে লাল, না থাকলে ধূসর লেখা। ফোন-ওয়েব-কম্পিউটার তিনটেতেই এক। */
+.wlv1SAct.wlv1SMedDue{background:#B42318!important;color:#fff!important}
+.wlv1SAct.wlv1SMedDue b{color:#fff!important}
+.wlv1SAct.wlv1SNoDue b{color:#8B98A9!important}
+.wlv1SAct.wlv1SNoDue{cursor:default}

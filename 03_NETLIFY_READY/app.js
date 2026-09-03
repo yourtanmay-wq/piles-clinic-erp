@@ -2553,10 +2553,28 @@ function wlv1DeskReports(){
   }catch(e){}
 }
 window["wlv1DeskReports"]=wlv1DeskReports;
+/* একই ধরনের কার্ডের লম্বা তালিকাকে কয়েক কলামে বসায় (Chamber Close · Expected
+   Tomorrow)। কার্ড সরানো হয়, নতুন করে আঁকা হয় না — id/onclick অক্ষত। */
+function wlv1DeskRowGrid(rowCls, gridCls){
+  try{
+    var pg=document.querySelector('.wrap:not(.publicWrap) .page'); if(!pg) return;
+    if(pg.querySelector('.'+gridCls)) return;
+    var rows=[].slice.call(pg.children).filter(function(k){
+      return k.className.indexOf(rowCls)>=0;
+    });
+    if(rows.length<2) return;
+    var g=document.createElement('div'); g.className=gridCls;
+    pg.insertBefore(g,rows[0]);
+    rows.forEach(function(r){ g.appendChild(r); });
+  }catch(e){}
+}
+window["wlv1DeskRowGrid"]=wlv1DeskRowGrid;
 function wlv1DeskAutoSplit(title){
   try{
     if(!wlv1DeskWide()) return;
     var t=String(title||'');
+    if(t==='Chamber Close')       return wlv1DeskRowGrid('wlv1UncRow','wlv1UncGrid');
+    if(t==='Expected Tomorrow')   return wlv1DeskRowGrid('wlv1EtRow','wlv1EtGrid');
     if(t==='Print Center')        return wlv1DeskPrint();
     if(t==='Backup Center')       return wlv1DeskTwoCol(1,0);
     if(t==='App Settings')        return wlv1DeskTwoCol(1,2);
@@ -21009,6 +21027,42 @@ function wlv1SearchPrint(mobile){
 }
 window["wlv1SearchPrint"]=wlv1SearchPrint;
 
+/* 💊🔒 V1027 (TK-নির্দেশ ০৩.০৯.২০২৬ — *"Home Search ভালো করে দেখুন · medicine due
+   নেই"*, সঙ্গে ফোনের ছবি)। ফোনের Search কার্ডে Print-এর পাশে মেডিসিনের বাকির ঘরটা
+   আছে (`GlobalSearchActivity.kt:837-853`), কম্পিউটারে/ওয়েবে ছিল না।
+   🔒 অঙ্কটা **ওয়েবের নিজের প্রমাণিত `medNetDue()`** দিয়েই কষা হয় (Medicine
+      পর্দা যেটা ব্যবহার করে) — তাই দুই জায়গায় কখনো দুরকম হিসাব হতে পারে না।
+   ⚡ **একটাও নতুন ক্লাউড-অনুরোধ যায় না** — `products` এমনিতেই কম্পিউটারে জমা থাকে।
+   ⛔ বাকি আটটা বোতামের কাজ · ঠিকানা · রং এক অক্ষরও বদলায়নি। */
+function wlv1MedDueOf(mobile){
+  try{
+    var key=String(mobile||'').replace(/\D/g,'').slice(-10);
+    if(key.length!==10) return 0;
+    var map=medSettledMap(), tot=0;
+    (load('products')||[]).forEach(function(x){
+      if(String((x&&x.mobile)||'').replace(/\D/g,'').slice(-10)!==key) return;
+      tot+=medNetDue(x,map);
+    });
+    return tot;
+  }catch(e){ return 0 }
+}
+window["wlv1MedDueOf"]=wlv1MedDueOf;
+/* বাকি থাকলে চাপলে Medicine পর্দা খোলে, ওই মোবাইলটাই খোঁজায় বসানো —
+   ফোনের `openMedicineForDue()`-এর হুবহু (prefill_search)। */
+function wlv1MedDueOpen(mobile){
+  try{
+    var q=String(mobile||'').replace(/\D/g,'').slice(-10);
+    medicinePaymentHome();
+    setTimeout(function(){
+      try{
+        var el=document.getElementById('medSearch');
+        if(el) el.value=q;
+        __medQ=q; medRenderHistory();
+      }catch(e){}
+    },60);
+  }catch(e){}
+}
+window["wlv1MedDueOpen"]=wlv1MedDueOpen;
 function wlv1SearchCard(r){
   const nm = String(r.name||'').trim() || normMob(r.mobile);
   const initials = nm.split(/\s+/).map(a=>a[0]).join('').slice(0,2).toUpperCase() || 'PC';
@@ -21027,8 +21081,13 @@ function wlv1SearchCard(r){
       ${act('\u{1F9ED}','Full Journey',true,`wlv1FullJourney('${m}')`)}
       ${act('\u{1F4CB}','Report Card',true,`wlv1ReportCard('${m}')`)}
       ${act('\u{1F4DA}','Clinical History',false,`wlv1ClinicalHistory('${m}')`)}
-      ${/* 🖨️ V827 — চারটে ছাপার বোতাম এখন একটাই, পুরো চওড়া জুড়ে */''}
-      <button class="wlv1SAct wlv1SFull" onclick="wlv1SearchPrint('${m}')"><span>\u{1F5A8}\uFE0F</span><b>Print</b></button>
+      ${/* 🖨️ V827 — চারটে ছাপার বোতাম এখন একটাই।
+            💊 V1027 — ফোনের মতো Print অর্ধেক, পাশে মেডিসিনের বাকি। */''}
+      <button class="wlv1SAct" onclick="wlv1SearchPrint('${m}')"><span>\u{1F5A8}\uFE0F</span><b>Print</b></button>
+      ${(function(){var __d=wlv1MedDueOf(r.mobile);
+        return __d>0
+          ? `<button class="wlv1SAct wlv1SMedDue" onclick="wlv1MedDueOpen('${m}')"><span>\u{1F48A}</span><b>Med. Due ${esc(money(__d))}</b></button>`
+          : `<button class="wlv1SAct wlv1SNoDue" type="button" onclick="return false"><span>\u{1F48A}</span><b>No med. due</b></button>`;})()}
       ${/* 📝 V827 — TK-নির্দেশ: Remarks ও Mark Arrived পাশাপাশি */''}
       ${act('\u{1F5D2}\uFE0F','Write Remark',true,`wlv1SearchRemark('${m}')`)}
       ${/* ⛔ V827 — TK-এর অনুমতি নিয়ে লেখাটা ছোট (অর্ধেক জায়গায় কাটার ভয় নেই)।
