@@ -21797,11 +21797,13 @@ async function wlv1LoadApprovals(){
       return (!error && Array.isArray(data)) ? data : [];
     }catch(e){ return []; }
   };
-  const [back, edit, refedit] = await Promise.all([
+  /* ⏱️🔒 V1017 — একই সময়সীমা (উপরের টীকা দেখুন)। */
+  const [back, edit, refedit] = await wlv1CloudRace(Promise.all([
     grab('payment_backdate_requests'),
     grab('payment_edit_requests'),
     grab('referral_edit_requests')
-  ]);
+  ]),12000,null)||[null,null,null];
+  if(back===null){ box.innerHTML='<div class="card mut">Could not load — the internet did not answer.</div>'; return; }
   let html = '';
   if(back.length){
     html += '<details><summary class="sectionTitle">Backdate Payment Requests ('+back.length+')</summary>' + back.map(r=>`
@@ -22527,21 +22529,47 @@ async function wlv1MhMarkPending(branch,date,total,byName){
   }catch(e){ return false }
 }
 
+/* ⏱️🔒 V1017 (০৩.০৯.২০২৬, TK-রিপোর্ট ছবিসহ — Money Handover "Loading…"-এ
+   আটকে ছিল)। **আসল কারণ (কোড ধরে):** ক্লাউডের উত্তরের জন্য এখানে কোনো
+   সময়সীমা ছিল না — নেট আটকে গেলে `await` চিরকাল অপেক্ষা করত, আর পর্দায়
+   "Loading…" লেখাটাই থেকে যেত। কোনো ভুল বার্তাও আসত না।
+   এখন ১২ সেকেন্ডের সীমা; সময় পেরোলে সৎ বার্তা ও "Try again" দেখা যায়।
+   ⛔ নেট ভালো থাকলে আগের মতোই — উত্তর এলেই সঙ্গে সঙ্গে দেখায়, এক মিলিসেকেন্ড
+      দেরি হয় না (`Promise.race` শুধু যেটা আগে শেষ হয় সেটাই নেয়)।
+   ⛔ একই দোষ আরও দুই জায়গায় ছিল (Approvals ও Backdate Permission) —
+      খাতার নিয়ম ৭ মেনে তিনটেই একসাথে সারানো হলো। */
+function wlv1CloudRace(work, ms, onTimeout){
+  var limit = Number(ms||12000);
+  return Promise.race([
+    Promise.resolve(work).catch(function(){ return onTimeout }),
+    new Promise(function(res){ setTimeout(function(){ res(onTimeout) }, limit) })
+  ]);
+}
+window["wlv1CloudRace"]=wlv1CloudRace;
+
 async function wlv1MhDays(branch){
   try{
-    var ok=await initCloudClientOnly(); if(!ok||!sb) return [];
+    var ok=await wlv1CloudRace(initCloudClientOnly(),12000,false); if(!ok||!sb) return {timedOut:true,rows:[]};
     var q=sb.from('chamber_close').select('*').limit(120);
     if(branch && branch!=='All') q=q.eq('branch',String(branch).trim().toUpperCase());
-    var res=await q; if(res.error||!Array.isArray(res.data)) return [];
-    return res.data.slice().sort(function(a,b){ return String(b.date||'')<String(a.date||'')?-1:1 });
-  }catch(e){ return [] }
+    var res=await wlv1CloudRace(q,12000,null);
+    if(!res) return {timedOut:true,rows:[]};
+    if(res.error||!Array.isArray(res.data)) return {timedOut:false,rows:[]};
+    return {timedOut:false,rows:res.data.slice().sort(function(a,b){ return String(b.date||'')<String(a.date||'')?-1:1 })};
+  }catch(e){ return {timedOut:true,rows:[]} }
 }
 
 /** 💰 MONEY HANDOVER — কোন দিনের টাকা কে বুঝে নিলেন, পুরো ইতিহাস। */
 async function wlv1MoneyHandover(){
   var br = isMaster() ? (wlv1BranchGet()||'All') : String((user&&user.branch)||'');
   page('MONEY HANDOVER','<div class="card mut">Loading…</div>',true);
-  var rows=await wlv1MhDays(br);
+  var got=await wlv1MhDays(br);
+  var rows=(got&&got.rows)||[];
+  if(got&&got.timedOut){
+    page('MONEY HANDOVER','<div class="card mut">Could not load — the internet did not answer.'
+      +'<div class="actions"><button onclick="wlv1MoneyHandover()">Try again</button></div></div>',true);
+    return;
+  }
   var pend=rows.filter(function(r){ var s=String(r.handoverStatus||''); return !s||s==='pending' })
                .reduce(function(n,r){ return n+Number(r.grandTotal||0) },0);
   var body='<div class="card" style="background:#8A1810;color:#fff;display:flex;justify-content:space-between;font-weight:800">'
@@ -23550,9 +23578,11 @@ window["wlv1BpgScreen"]=wlv1BpgScreen;
 async function wlv1BpgLoad(){
   var box=$id('bpgList'); if(!box) return;
   try{
-    var ok=await initCloudClientOnly(); if(!ok||!sb){ box.innerHTML='<div class="card mut">No internet — could not load.</div>'; return }
-    var r=await sb.from('backdate_payment_grants').select('*')
-      .eq('active',true).gte('endDate',today()).order('grantedAt',{ascending:false}).limit(100);
+    /* ⏱️🔒 V1017 — একই সময়সীমা (উপরের টীকা দেখুন)। */
+    var ok=await wlv1CloudRace(initCloudClientOnly(),12000,false); if(!ok||!sb){ box.innerHTML='<div class="card mut">No internet — could not load.</div>'; return }
+    var r=await wlv1CloudRace(sb.from('backdate_payment_grants').select('*')
+      .eq('active',true).gte('endDate',today()).order('grantedAt',{ascending:false}).limit(100),12000,null);
+    if(!r){ box.innerHTML='<div class="card mut">Could not load — the internet did not answer.</div>'; return }
     if(r&&r.error){ box.innerHTML='<div class="card mut">Could not load — please try again.</div>'; return }
     var rows=(r&&r.data)||[];
     if(!rows.length){ box.innerHTML='<div class="card mut">No active permission right now.</div>'; return }
