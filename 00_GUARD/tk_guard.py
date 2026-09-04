@@ -1888,6 +1888,9 @@ _WEBVIEW_ALLOWED = {
     "native/PaymentActivity.kt":         (1, "ছাপা — Treatment receipt"),
     "native/ReportCardPrinter.kt":       (1, "পর্দার বাইরে, আসল ছাপার মাপে"),
     "print/DietChartHtmlPrint.kt":       (1, "ছাপা"),
+    # 🧾 V1055 (০৪.০৯.২০২৬) — TK-কে জানিয়ে যোগ করা হলো। এটা **ছাপার** ফাইল
+    #    (DietChartHtmlPrint-এর হুবহু একই পথ), পপ-আপে বসে না, তাই কম্পনের ফাঁদ নেই।
+    "print/SalaryStatementHtmlPrint.kt": (1, "ছাপা"),
     "print/InvestigationHtmlPrint.kt":   (1, "ছাপা"),
     "print/PrescriptionHtmlPrint.kt":    (1, "ছাপা"),
     "print/PrescriptionWhatsAppShare.kt":(1, "WhatsApp-এ PDF"),

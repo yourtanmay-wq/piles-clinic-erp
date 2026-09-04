@@ -1505,6 +1505,10 @@ class StaffProfileActivity : AppCompatActivity() {
             showAllPayments(code, pays, "SALARY")
         }
         box.addView(if (btnAddSalary != null) salPairRow(btnAddSalary, btnHistory) else salPairRow(btnHistory, null))
+        /* 🧾 V1055 (TK-নির্দেশ) — তারিখ থেকে তারিখ স্টেটমেন্ট */
+        box.addView(salOutlineButton("🧾 Statement (date to date)", "#0A5C33", "#0A5C33") {
+            statement(code, pays)
+        })
         /* 🗑️🔒 V1051 (TK-নির্দেশ, ০৪.০৯.২০২৬: *"Add salary আর Pay September 2026
            salary — ২টা একই জিনিস, তাহলে এটা বাদ দিন"*) — TK ঠিক বলেছেন: "Add
            Salary" দিয়ে **যেকোনো মাসের** বেতন দেওয়া যায়, তাই এই বোতামটা বাড়তি।
@@ -2301,6 +2305,165 @@ class StaffProfileActivity : AppCompatActivity() {
         (col.parent as? android.widget.ScrollView)?.isFillViewport = true
         col.addView(android.view.View(this).apply {
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
+        })
+        col.addView(ModuleUi.button(this, "Back") { salary(code) })
+    }
+
+
+    /* 🧾🔒 V1055 (TK-নির্দেশ ০৪.০৯.২০২৬) — **তারিখ-থেকে-তারিখ স্টেটমেন্ট**,
+       কম্পিউটারের V1052–V1054-এর হুবহু যমজ (নিয়ম ৬.৬)।
+       ⛔ **নতুন কোনো হিসাব বানানো হয়নি** — যে সারিগুলো এমনিতেই আনা হয়েছে
+          সেগুলোই `paid_on` ধরে ছেঁকে মাস ধরে যোগ করা হয়, তাই এই পাতার সংখ্যা
+          আর অন্য পর্দার সংখ্যা কখনো আলাদা হবে না (নিয়ম ৭ক-এর ২)।
+       ⛔ তারিখ-ফাঁকা সারি চুপচাপ হারায় না — কতগুলো বাদ পড়ল নিচে লেখা থাকে।
+       ⛔ মাসের লেখা `Sep-26` ধাঁচে — TK নিজে তালিকা দিয়েছেন। */
+    private var stFrom: String = ""
+    private var stTo: String = ""
+
+    /* 📅 V1055 — "From / To" এক-একটা সারি; চাপ দিলে ফোনের নিজের ক্যালেন্ডার খোলে
+       (প্রকল্পে আগে থেকেই এই প্রমাণিত পথ — `perfHeader`-এ একই DatePickerDialog)। */
+    private fun dateRow(label: String, value: String, onPick: (String) -> Unit): LinearLayout {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dp(2), dp(6), dp(2), dp(6))
+        }
+        row.addView(TextView(this).apply {
+            text = label; textSize = 13.5f
+            setTextColor(android.graphics.Color.parseColor("#5B6B81"))
+            layoutParams = LinearLayout.LayoutParams(dp(64), LinearLayout.LayoutParams.WRAP_CONTENT)
+        })
+        row.addView(TextView(this).apply {
+            text = dmy(value); textSize = 14.5f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#0F5132"))
+            setPadding(dp(12), dp(9), dp(12), dp(9))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(10).toFloat()
+                setColor(android.graphics.Color.WHITE)
+                setStroke(dp(1), android.graphics.Color.parseColor("#DDE5EC"))
+            }
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            setOnClickListener {
+                val cal = java.util.Calendar.getInstance(TimeZone.getTimeZone("Asia/Kolkata"))
+                try {
+                    val q = value.split("-")
+                    cal.set(q[0].toInt(), q[1].toInt() - 1, q[2].toInt())
+                } catch (_: Throwable) { }
+                android.app.DatePickerDialog(this@StaffProfileActivity, { _, y, mth, day ->
+                    onPick(String.format(Locale.US, "%04d-%02d-%02d", y, mth + 1, day))
+                }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH),
+                   cal.get(java.util.Calendar.DAY_OF_MONTH)).show()
+            }
+        })
+        return row
+    }
+
+    private fun stMonthLabel(ym: String): String {
+        val N = listOf("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
+        return try {
+            val q = ym.split("-")
+            (N.getOrNull(q[1].toInt() - 1) ?: q[1]) + "-" + q[0].takeLast(2)
+        } catch (_: Throwable) { ym }
+    }
+
+    private fun statement(code: String, pays: JSONArray) {
+        backAction = { salary(code) }
+        if (stTo.isBlank()) stTo = todayIso()
+        if (stFrom.isBlank()) {
+            stFrom = try {
+                val c = java.util.Calendar.getInstance(TimeZone.getTimeZone("Asia/Kolkata"))
+                c.add(java.util.Calendar.MONTH, -11); c.set(java.util.Calendar.DAY_OF_MONTH, 1)
+                String.format(Locale.US, "%04d-%02d-%02d",
+                    c.get(java.util.Calendar.YEAR), c.get(java.util.Calendar.MONTH) + 1, 1)
+            } catch (_: Throwable) { todayIso() }
+        }
+        val col = ModuleUi.screen(this, "Statement — $code")
+
+        val pick = ModuleUi.card(this)
+        col.addView(pick)
+        pick.addView(dateRow("From", stFrom) { v -> stFrom = v; statement(code, pays) })
+        pick.addView(dateRow("To", stTo) { v -> stTo = v; statement(code, pays) })
+
+        // ── মাস ধরে যোগ ──
+        val sal = HashMap<String, Double>(); val exP = HashMap<String, Double>()
+        val exD = HashMap<String, Double>(); var noDate = 0
+        for (i in 0 until pays.length()) {
+            val r = pays.optJSONObject(i) ?: continue
+            val d = ns(r, "paid_on").take(10)
+            if (d.isBlank()) { noDate++; continue }
+            if (d < stFrom || d > stTo) continue
+            val ym = d.take(7)
+            val amt = r.optDouble("amount", 0.0)
+            if (payKind(r) == "EXTRA") {
+                if (payStatus(r) == "DUE") exD[ym] = (exD[ym] ?: 0.0) + amt
+                else exP[ym] = (exP[ym] ?: 0.0) + amt
+            } else sal[ym] = (sal[ym] ?: 0.0) + amt
+        }
+        val yms = (sal.keys + exP.keys + exD.keys).distinct().sorted()
+
+        val sheet = ModuleUi.card(this)
+        col.addView(sheet)
+        sheet.addView(TextView(this).apply {
+            text = "SALARY & EXTRA INCOME STATEMENT"
+            textSize = 14f; gravity = android.view.Gravity.CENTER
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#0F5132"))
+        })
+        sheet.addView(TextView(this).apply {
+            text = code + "  ·  " + dmy(stFrom) + "  to  " + dmy(stTo)
+            textSize = 11.5f; gravity = android.view.Gravity.CENTER
+            setTextColor(android.graphics.Color.parseColor("#5B6B81"))
+            setPadding(0, dp(3), 0, dp(10))
+        })
+
+        fun cell(t: String, w: Float, hex: String, bold: Boolean, right: Boolean): TextView =
+            TextView(this).apply {
+                text = t; textSize = 11.5f; maxLines = 1
+                if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor(hex))
+                gravity = if (right) android.view.Gravity.END else android.view.Gravity.START
+                setPadding(dp(3), dp(6), dp(3), dp(6))
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, w)
+            }
+        fun tableRow(a: String, b: String, c: String, d: String, e: String,
+                     head: Boolean = false, foot: Boolean = false, dueRed: Boolean = false): LinearLayout =
+            LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                if (head) setBackgroundColor(android.graphics.Color.parseColor("#0B4F2A"))
+                else if (foot) setBackgroundColor(android.graphics.Color.parseColor("#F4F9F6"))
+                val ink = if (head) "#FFFFFF" else "#1C2A33"
+                addView(cell(a, 1.15f, ink, head || foot, false))
+                addView(cell(b, 1f, ink, head || foot, true))
+                addView(cell(c, 0.95f, ink, head || foot, true))
+                addView(cell(d, 0.9f, if (!head && dueRed) "#C62828" else ink, head || foot || dueRed, true))
+                addView(cell(e, 1.05f, ink, true, true))
+            }
+
+        sheet.addView(tableRow("Month", "Salary", "Extra", "Due", "Total", head = true))
+        var tS = 0.0; var tP = 0.0; var tD = 0.0
+        val printRows = ArrayList<com.tkbiswas.pilesclinic.print.SalaryStatementHtmlPrint.Row>()
+        for (ym in yms) {
+            val a = sal[ym] ?: 0.0; val b = exP[ym] ?: 0.0; val c = exD[ym] ?: 0.0
+            tS += a; tP += b; tD += c
+            printRows.add(com.tkbiswas.pilesclinic.print.SalaryStatementHtmlPrint.Row(
+                stMonthLabel(ym), a, b, c))
+            sheet.addView(tableRow(stMonthLabel(ym), money(a), money(b), money(c), money(a + b),
+                dueRed = c > 0.0))
+        }
+        if (yms.isEmpty()) sheet.addView(ModuleUi.body(this, "No payments in this period."))
+        sheet.addView(tableRow("TOTAL", money(tS), money(tP), money(tD), money(tS + tP),
+            foot = true, dueRed = tD > 0.0))
+        if (noDate > 0) sheet.addView(TextView(this).apply {
+            text = "$noDate entry(ies) have no date and are not counted here."
+            textSize = 10.5f
+            setTextColor(android.graphics.Color.parseColor("#8B98A9"))
+            setPadding(0, dp(8), 0, 0)
+        })
+
+        col.addView(ModuleUi.button(this, "🖨 Print / PDF") {
+            com.tkbiswas.pilesclinic.print.SalaryStatementHtmlPrint.print(
+                this, code, dmy(stFrom), dmy(stTo), printRows)
         })
         col.addView(ModuleUi.button(this, "Back") { salary(code) })
     }
