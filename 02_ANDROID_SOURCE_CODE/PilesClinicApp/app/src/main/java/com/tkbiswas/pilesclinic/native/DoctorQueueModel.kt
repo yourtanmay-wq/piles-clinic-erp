@@ -175,7 +175,21 @@ object DoctorQueueModel {
           কাগজে/কার্ডে তারিখ এক অক্ষরও বদলায়নি। */
     /** রোগী কবে তালিকায় উঠেছিলেন — না বোঝা গেলে `null`। */
     private fun ageDaysOrNull(row: JSONObject): Long? {
-        val raw = listOf("queuedAt", "updatedAt", "visitDate", "registrationDate", "createdAt")
+        /* 🔴🔴🔒 V1072 (০৪.০৯.২০২৬ — TK আবার একই সমস্যা দেখালেন, ছবিসহ:
+           *"কিশানগঞ্জে এত পেশেন্ট আজকে আসে নাই, তাহলে এরকম কেন"*)।
+           **V1013 কেন কাজ করেনি (আমার ব্যর্থতা):** নতুন ঘর `queuedAt` বানানো
+           হয়েছিল ঠিকই, কিন্তু ঘরটা **ফাঁকা হলে কোড আবার `updatedAt`-এ ফিরে
+           যেত** — অর্থাৎ ঠিক সেই দোষটাই, যেটা সারাতে V1013 করা হয়েছিল।
+           পুরনো সারিতে (SQL যেগুলো ছোঁয়নি) `queuedAt` ফাঁকা, আর সারিটা অন্য
+           যে কোনো কারণে ছোঁয়া হলেই (নাম শোধরানো · বিল · সিঙ্ক · self-heal)
+           `updatedAt` আজকের হয়ে যেত ⇒ এপ্রিলের রোগীও "PENDING TODAY"-তে।
+           TK-এর ছবিতে ঠিক তাই — KNE-27042026-001/002/003, রেজিস্ট্রেশন ২৭.০৪।
+           ⇒ **`updatedAt` তালিকা থেকে বাদ।** এখন `queuedAt` না থাকলে রোগীর
+             **নিজের তারিখগুলো** দেখা হয় (`visitDate` · `registrationDate` ·
+             `createdAt`) — এগুলো সারি ছোঁয়ালে নড়ে না, তাই তারিখ সত্যি থাকে।
+           ⛔ আজ যাঁরা সত্যিই লাইনে উঠেছেন তাঁদের `queuedAt` আজকেরই বসে
+              (রেজিস্ট্রেশন · NEXT VISIT · আজ টাকা জমা) — তাই কেউ হারাবেন না। */
+        val raw = listOf("queuedAt", "visitDate", "registrationDate", "createdAt")
             .map { row.s(it) }.firstOrNull { it.length >= 10 } ?: return null
         return try {
             val d = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)

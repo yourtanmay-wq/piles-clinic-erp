@@ -9770,7 +9770,10 @@ function visitQueueRows(){
  var WLV1_Q_STALE_DAYS=0;
  var wlv1QFresh=function(x){
    try{
-     var raw=[x.queuedAt,x.updatedAt,x.visitDate,x.registrationDate,x.createdAt]   /* 📅 V1013 — তালিকায় ওঠার দিনটাই আগে (আগে `updatedAt` আগে ছিল, তাই সারি ছোঁয়া হলেই পুরনো রোগী ফিরে আসতেন) */
+     /* 🔴🔴 V1072 — `updatedAt` বাদ (ফোনের `ageDaysOrNull()`-এর হুবহু একই নিয়ম)।
+        ঘরটা ফাঁকা হলে আগে `updatedAt`-এ ফিরে যেত, অথচ সারি ছোঁয়ালেই ওটা
+        আজকের হয়ে যায় ⇒ পুরনো রোগীও "আজকের" হয়ে যেতেন। */
+     var raw=[x.queuedAt,x.visitDate,x.registrationDate,x.createdAt]   /* 📅 V1013 — তালিকায় ওঠার দিনটাই আগে (আগে `updatedAt` আগে ছিল, তাই সারি ছোঁয়া হলেই পুরনো রোগী ফিরে আসতেন) */
        .map(function(v){return String(v||'')}).filter(function(v){return v.length>=10})[0];
      if(!raw)return true;
      var t=new Date(raw.slice(0,10)+'T00:00:00').getTime();

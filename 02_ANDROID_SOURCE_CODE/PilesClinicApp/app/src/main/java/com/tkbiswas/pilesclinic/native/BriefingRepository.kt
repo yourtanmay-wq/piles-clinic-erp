@@ -50,12 +50,21 @@ class BriefingRepository {
               `CloudReadCache`-এর নিয়ম ("খালি ফল কখনো জমা হয় না") অটুট। */
         val cached = try {
             CloudReadCache.get("briefings:all") {
-                val r = SupabaseClient.fetchListGuarded("briefings", null, 5000)
+                val r = SupabaseClient.fetchListGuarded("briefings", BRIEF_FILTER, 5000)
                 if (r.length() == 0) null else r
             }
         } catch (_: Throwable) { null }
-        return cached ?: SupabaseClient.fetchListGuarded("briefings", null, 5000)
+        return cached ?: SupabaseClient.fetchListGuarded("briefings", BRIEF_FILTER, 5000)
     }
+
+    /* 🌿🔒 V1072 (০৪.০৯.২০২৬, TK-অনুমতি — Egress কমানো) — মুছে ফেলা নোটিশ
+       আগে **নামত, তারপর ফোনেই বাদ** যেত (`BriefingModel:154,208`)। এখন
+       সার্ভারেই বাদ যায়, তাই ওগুলোর জন্য এক বাইটও খরচ হয় না।
+       ⛔ পর্দায় কিছুই বদলায় না — ওই সারিগুলো আগেও দেখা যেত না।
+       ⛔ ঘরটা ফাঁকা (`is.null`) হলেও ধরা পড়ে, তাই পুরনো সারি হারায় না। */
+    /* ⛔ **দুটোই ধরা হয়** — ঘরটা NULL, আর কোথাও ফাঁকা লেখা (`''`) থাকলেও।
+       একটামাত্র রূপ ধরলে ফাঁকা-লেখা কোনো সারি চুপচাপ হারিয়ে যেত। */
+    private val BRIEF_FILTER = "or=(deletedAt.is.null,deletedAt.eq.)"
 
     /**
      * 🟢🔒 V997 (০৩.০৯.২০২৬, TK-নির্দেশ — Egress তালিকার ১ নম্বর) —
