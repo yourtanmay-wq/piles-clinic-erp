@@ -21046,7 +21046,12 @@ function wlv1SearchRemarkSave(mobile){
   const i=f?rows.findIndex(x=>String(x.id)===String(f.id)):-1;
   if(i<0) return toast('No follow-up record for this number yet — remark not saved');
   const now=new Date().toISOString();
-  rows[i]={...rows[i], lastRemark:txt, lastRemarkAt:now, updatedAt:now,
+  /* 📞🔴 V1066 — V1065-এর তৃতীয় দরজা (নিজে খুঁজে পাওয়া): এখানেও `lastCallDate`
+     আজকের হত কিন্তু `nextFollow` পুরনোই থাকত ⇒ পরের কল, শেষ কলের আগে।
+     ⛔ ফোনের `stampCallDate` পথের হুবহু একই নিয়ম; ভবিষ্যতের তারিখ ছোঁয়া হয় না। */
+  const __nf=String(rows[i].nextFollow||'').trim();
+  const __nfFix=(!__nf||__nf<today())?{nextFollow:today()}:{};
+  rows[i]={...rows[i], ...__nfFix, lastRemark:txt, lastRemarkAt:now, updatedAt:now,
     /* ⛔ শুধু তারিখ — `callCount` ইচ্ছাকৃতভাবে ছোঁয়া হয় না (TK-অনুমোদিত)। */
     lastCallDate: today(),
     history:[...(rows[i].history||[]),
