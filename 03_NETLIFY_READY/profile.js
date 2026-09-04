@@ -956,7 +956,12 @@
   function salCleanWhy(t){
     try{
       var s=String(t||'');
-      return s.replace(/Manually approved by TK/gi,'Added by hand');
+      /* 🔴 V1043 (TK: *"auto unexpected লেখা আছে এক জায়গায় আবার লেখা added by hand"*)
+         — TK ঠিক ধরেছেন, দুটো এক লাইনে এসে উল্টো মানে দিচ্ছিল। তাই লেখাটা আর
+         বদলানো নয়, **একদম তুলে** দেওয়া হয় — সারিটা অ্যাপের নিজের সারির মতোই। */
+      s = s.replace(/\s*[·|-]\s*Manually approved by TK\s*/gi, ' ');
+      s = s.replace(/\s*Manually approved by TK\s*/gi, ' ');
+      return s.replace(/\s{2,}/g,' ').replace(/^[\s·]+|[\s·]+$/g,'');
     }catch(e){ return String(t||''); }
   }
   window.salCleanWhy = salCleanWhy;

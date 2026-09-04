@@ -3078,8 +3078,18 @@ class StaffProfileActivity : AppCompatActivity() {
           শুধু **দেখানোর সময়** লেখাটা পরিষ্কার করা হয়।
        ⛔ কোড-খোঁজা (`extraPatientCodeFromReason`) মূল লেখাটাই পড়ে, তাই রোগী
           চেনার কাজে এটার কোনো প্রভাব নেই। */
+    /* 🔴 V1043 (TK: *"auto unexpected লেখা আছে এক জায়গায় আবার লেখা added by hand"*)
+       — TK ঠিক ধরেছেন: `⏰ AUTO UNEXPECTED · … · Added by hand` এক লাইনে দুটো
+       উল্টো কথা হয়ে যাচ্ছিল (একটা বলে সময়টা অ্যাপ নিজে বুঝেছে, আরেকটা বলে
+       হাতে বসানো)। তাই লেখাটা আর বদলে নয়, **একদম তুলে** দেওয়া হয় — সারিটা
+       তখন অ্যাপের নিজের সারির মতোই দেখায়। */
     private fun cleanWhy(text: String): String =
-        text.replace("Manually approved by TK", "Added by hand", ignoreCase = true)
+        text.replace(Regex("\\s*[·|-]\\s*Manually approved by TK\\s*", RegexOption.IGNORE_CASE), " ")
+            .replace(Regex("\\s*Manually approved by TK\\s*", RegexOption.IGNORE_CASE), " ")
+            .replace(Regex("\\s{2,}"), " ")
+            .trim()
+            .trim('·')
+            .trim()
 
     private fun extraPatientCodeFromReason(p: JSONObject): String {
         val why = ns(p, "extra_reason").trim()
