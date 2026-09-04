@@ -27214,7 +27214,10 @@ function wlv1EstLoad(){
       discount:Number(o.discount||0),discountPct:!!o.discountPct,finding:String(o.finding||'')};
   }catch(e){ wlv1EstSheet={lines:[],discount:0,discountPct:false,finding:''} }
 }
-function wlv1EstSubtotal(){ return wlv1EstSheet.lines.filter(function(l){return !l.struck}).reduce(function(n,l){return n+Number(l.rate||0)*Number(l.qty||0)},0) }
+/* 💰🔴🔒 V1062 (TK-নির্দেশ) — Subtotal এখন **সব লাইনের পুরো দাম** (কাটা লাইনসুদ্ধ),
+   ছাড় একবারই বাদ যায়। আগে কাটা লাইন বাদ **আর** ছাড়ও বাদ হত ⇒ একই ছাড় দুবার।
+   ⛔ ফোনের `EstimateModel.Sheet.subtotal`-এর হুবহু একই নিয়ম (নিয়ম ৬.৬)। */
+function wlv1EstSubtotal(){ return wlv1EstSheet.lines.reduce(function(n,l){return n+Number(l.rate||0)*Number(l.qty||0)},0) }
 /* 💰🔒 V980 (০২.০৯.২০২৬, TK-নির্দেশ) — *"ডিসকাউন্ট আমি চাইলে ফিক্সড এমাউন্ট
    দিতে পারি, আমি চাইলে পার্সেন্টেজ হিসাবেও দিতে পারি"*। ফোনের হুবহু জোড়া। */
 function wlv1EstDiscAmt(){

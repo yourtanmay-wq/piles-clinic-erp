@@ -70,8 +70,18 @@ object EstimateModel {
         var discountPct: Boolean = false,
         var finding: String = ""
     ) {
-        /** কাটা লাইন বাদ দিয়ে যোগ (TK-এর নিয়ম)। */
-        val subtotal: Double get() = lines.filter { !it.struck }.sumOf { it.total }
+        /* 💰🔴🔒 V1062 (০৪.০৯.২০২৬, TK-নির্দেশ ছবিসহ: *"আমি চাইছিলাম Sub Total-এ
+           without discount amount বসবে। তাহলে এক্ষেত্রে Sub Total হয় ₹17,038,
+           এটা থেকে ₹2,350 বিয়োগ হয়ে Payable Amount ₹14,688 হবে"*)।
+           🔴 **এটা শুধু সাজ ছিল না, টাকার ভুল ছিল** — কাটা লাইনগুলো Subtotal-এ
+              ধরাই হত না, অথচ নিচে **আবার** ছাড় বিয়োগ হত ⇒ একই ছাড় **দুবার**,
+              কাগজে Net Payable ঠিক ওই ছাড়ের পরিমাণ কম ছাপা হত (TK-এর কাগজে
+              ₹১২,৩৩৮ — আসলে হওয়ার কথা ₹১৪,৬৮৮)।
+           ⇒ এখন Subtotal = **সব লাইনের পুরো দাম** (কাটা লাইনসুদ্ধ), আর ছাড়
+             একবারই বাদ যায়। কাটা দাগ আগের মতোই থাকে — সেটা শুধু দেখানোর।
+           ⚠️ ফল: কোনো লাইন কাটা হলেও তার দাম যোগ হবে; টাকা কমাতে হলে
+              **Discount ঘরে অঙ্কটা লিখতে হবে** — TK-এর বলা নিয়মই। */
+        val subtotal: Double get() = lines.sumOf { it.total }
 
         /** শতাংশ হলে Subtotal-এর উপর হিসাব; কখনো Subtotal-এর বেশি নয়। */
         val discountAmount: Double get() =
