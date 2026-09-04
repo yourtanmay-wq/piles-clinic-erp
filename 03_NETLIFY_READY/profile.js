@@ -181,7 +181,10 @@
           + m.esc(String(salTxt).replace(/\s*\(day\s*([^)]*)\)/, '  \u2022  Salary day: $1'))
           + '</div></div>' +
         /* 🎨 V1057 — TK-এর ছবির ⋮; চাপলে কার্ডে চাপ দিলে যা হয় ঠিক তাই। */
-        '<button class="pfMore" title="View" onclick="profEdit(\'' + m.esc(p.person_code) + '\')">\u22EE</button>' +
+        /* ⋮🔒 V1058 (TK-নির্দেশ) — ⋮-এ Suspend · Remove (ও View); কার্ডে থাকে শুধু
+           Salary · Performance · Extra Income। ⛔ ফোনে এই মেনুতে **Fix Attendance**-ও
+           আছে; কম্পিউটারে ওই পর্দাটা কোনোদিনই ছিল না, তাই এখানে নেই — সৎভাবে বলা। */
+        '<button class="pfMore" title="More" onclick="event.stopPropagation();profDots(\'' + m.esc(p.person_code) + '\',\'' + m.esc(String(p.full_name||'')) + '\')">\u22EE</button>' +
         '<div class="pfStaffBtns">' +
         '<button class="small pfBtn pfBtnFill" onclick="profSalary(\'' + m.esc(p.person_code) + '\')">Salary</button>' +
         '<button class="small ghost pfBtn" onclick="staffPerformanceOne(\'' + m.esc(p.person_code) + '\')">Performance</button>' +
@@ -195,8 +198,6 @@
            বেতন-পর্দা খোলে, যেখানে Extra Income-এর বাক্সটাই আছে।
            ⛔ টাকার কোনো অঙ্ক/নিয়ম ছোঁয়া হয়নি — শুধু পৌঁছনোর পথ। */
         '<button class="small ghost pfBtn" onclick="profSalary(\'' + m.esc(p.person_code) + '\')">Extra Income</button>' +
-        '<button class="small ghost pfBtn pfDanger" onclick="profSuspend(\'' + m.esc(p.person_code) + '\')">Suspend</button>' +
-        '<button class="small ghost pfBtn pfDanger" onclick="profRemove(\'' + m.esc(p.person_code) + '\')">Remove</button>' +
         '</div></div>';
     }).join('');
     // ⛔ V404: আগের `... || 'No profiles.'` লেখাটা এখানেই রাখা হলো, কিন্তু শুধু
@@ -1677,6 +1678,18 @@
     profStatement(code, f, t);
   }
   window.profStatementGo = profStatementGo;
+
+  /* ⋮🔒 V1058 (TK: *"এই থ্রি ডটে চাপ দিলে … আসবে এবং সেটা কার্যকারী হতে হবে"*)
+     — তিনটেই আসল কাজ করে, প্রকল্পের সেই একই ফাংশনগুলোই ডাকা হয়। */
+  function profDots(code, name){
+    var m = window.MOD;
+    modal('<h2>' + m.esc(name || code) + '</h2><div class="card pfDotsMenu">'
+      + '<button class="ghost" onclick="closeModal();profEdit(\'' + m.esc(code) + '\')">View profile</button>'
+      + '<button class="ghost pfDanger" onclick="closeModal();profSuspend(\'' + m.esc(code) + '\')">Suspend</button>'
+      + '<button class="ghost pfDanger" onclick="closeModal();profRemove(\'' + m.esc(code) + '\')">Remove</button>'
+      + '</div><div class="actions"><button class="ghost" onclick="closeModal()">Close</button></div>');
+  }
+  window.profDots = profDots;
 
   window.profSalary = profSalary;
   window.profSalaryCfgSave = profSalaryCfgSave;

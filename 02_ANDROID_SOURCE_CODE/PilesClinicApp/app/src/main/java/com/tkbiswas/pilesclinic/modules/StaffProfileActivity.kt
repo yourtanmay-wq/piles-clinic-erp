@@ -592,6 +592,31 @@ class StaffProfileActivity : AppCompatActivity() {
        দেখাত)। এখন card উপরে-নিচে (তথ্য পুরো চওড়া জুড়ে, তার নিচে বোতাম দুই
        সারিতে পাশাপাশি — View·Salary·Performance / Suspend·Remove)।
        ⛔ কোনো বোতামের কাজ/রং/লেবেল বদলায়নি — শুধু জায়গা। */
+    /* ⋮🔒 V1058 (TK-নির্দেশ: *"এই থ্রি ডটে চাপ দিলে fix attendance, suspend,
+       remove আসবে এবং সেটা কার্যকারী হতে হবে"*) — তিনটেই **আসল কাজ** করে,
+       আগের সেই একই ফাংশনগুলোই ডাকা হয়; নতুন কিছু বানানো হয়নি।
+       ⛔ বাদ-দেওয়া স্টাফের কার্ডে শুধু Restore — আগের নিয়মই।
+       ⛔ Master ছাড়া Fix Attendance আসে না (আগেও আসত না)। */
+    private fun staffDotsMenu(pc: String, fullName: String, mobile: String, isRemoved: Boolean, onView: () -> Unit) {
+        val labels = ArrayList<String>()
+        val acts = ArrayList<() -> Unit>()
+        labels.add("View profile"); acts.add { onView() }   // কার্ডে চাপ দিলে যা হয়, ঠিক তাই
+        if (isRemoved) {
+            labels.add("Restore"); acts.add { restoreStaffDialog(pc, fullName) }
+        } else {
+            if (ModuleAuth.isMaster) {
+                labels.add("Fix Attendance"); acts.add { fixAttendanceDialog(pc, fullName, mobile) }
+            }
+            labels.add("Suspend"); acts.add { suspendStaffDialog(pc, fullName) }
+            labels.add("Remove");  acts.add { removeStaffDialog(pc, fullName) }
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, fullName))
+            .setItems(labels.toTypedArray()) { _, which -> acts.getOrNull(which)?.invoke() }
+            .setNegativeButton("Close", null)
+            .show().also { try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) { } }
+    }
+
     private fun staffCard(
         pc: String, desig: String, roleKind: String, branch: String, fullName: String,
         mobile: String, salaryText: String, onView: () -> Unit, onSalary: () -> Unit,
@@ -753,6 +778,8 @@ class StaffProfileActivity : AppCompatActivity() {
         card.isFocusable = true
         card.setOnClickListener { onView() }
         row1Btns.add(smallBtn("Salary", true, R.drawable.ic_sp_wallet, onSalary))
+        // 💰 V1058 — TK: "salary performance extra income এই তিনটাই পাশাপাশি"
+        row1Btns.add(smallBtn("Extra Income", false, R.drawable.ic_sp_hand_rupee) { salaryExtra(pc) })
         // 🏆 V419: এই একজনের পুরো হিসাব (Master ছাড়া বোতামটাই আসে না)।
         if (ModuleAuth.isMaster) row1Btns.add(smallBtn("Performance", false, R.drawable.ic_sp_chart) { performanceOne(pc, "") })
         // 🔴🔴🔒 V477 (20.08.2026, TK-জরুরি নির্দেশ — "সমস্ত স্টাফের একই সমস্যা,
@@ -763,7 +790,10 @@ class StaffProfileActivity : AppCompatActivity() {
         // স্টাফের আজকের IN/OUT TIME সরাসরি বসানোর/ঠিক করার সুযোগ।
         // ⛔ স্টাফের নিজের Work Notebook স্ক্রিন/নিয়ম এক অক্ষরও বদলায়নি —
         //    এটা সম্পূর্ণ নতুন, আলাদা Master-only পথ, একই টেবিলে লেখে।
-        if (ModuleAuth.isMaster) row1Btns.add(smallBtn("Fix Attendance", false, R.drawable.ic_sp_calendar_check) { fixAttendanceDialog(pc, fullName, mobile) })
+        /* 🎨🔒 V1058 (TK-নির্দেশ ০৪.০৯.২০২৬: *"এই থ্রি ডটে চাপ দিলে fix attendance,
+           suspend, remove আসবে… salary performance extra income এই তিনটাই কার্ডে
+           পাশাপাশি থাকবে"*) — Fix Attendance এখন কার্ডে নয়, ⋮ মেনুতে।
+           ⛔ কাজটা এক অক্ষরও বদলায়নি — একই `fixAttendanceDialog()` ডাকা হয়। */
         /* 🏍️🔒 V978 (০২.০৯.২০২৬, TK-নির্দেশ: *"হ্যাঁ, ওই সারিতেই বসিয়ে দিন"*) —
            বাইরে ঘোরা স্টাফের (এখন শুধু RUPAM) কার্ডেই **Field Visit** বোতাম,
            এই একই সারিতে। আগে এটা Salary পর্দার ভিতরে ছিল, TK খুঁজে পাচ্ছিলেন না।
@@ -792,18 +822,14 @@ class StaffProfileActivity : AppCompatActivity() {
                এখন এই সারিতেই বোতাম — চাপলে সোজা সেই স্টাফের এক্সট্রা ইনকামে।
                ⛔ V978-এর Field Visit-এর মতোই একই ধরন; বাকি বোতাম অপরিবর্তিত।
                ⛔ টাকার কোনো অঙ্ক/নিয়ম ছোঁয়া হয়নি — শুধু পৌঁছনোর পথ। */
-            row2.addView(smallBtn("Extra Income", false, R.drawable.ic_sp_hand_rupee) { salaryExtra(pc) })
+
             // 🔵🔒 B618 (11.08.2026, TK-নির্দেশ): master স্টাফকে কয়েকদিন Suspend করতে
             // পারবেন — সাসপেন্ড থাকাকালীন সে লগইন করতে পারবে না (LoginActivity গেট)।
             // ⛔ শুধু স্টাফ-তালিকায় (এই পর্দা master-only, role_kind=staff ফিল্টার করা)।
-            val suspend = dangerBtn("Suspend", R.drawable.ic_sp_pause) { suspendStaffDialog(pc, fullName) }
-            suspend.layoutParams = rowBtnParams(true, false)
-            row2.addView(suspend)
+
             // 🔴 V404 (16.08.2026, TK-নির্দেশ "কর্মী বাদ দিন বোতাম বসান"):
             //    আগে অ্যাপে বাদ দেওয়ার কোনো পথই ছিল না — শুধু Suspend ছিল।
-            val remove = dangerBtn("Remove", R.drawable.ic_sp_trash) { removeStaffDialog(pc, fullName) }
-            remove.layoutParams = rowBtnParams(false, true)
-            row2.addView(remove)
+
         }
         info.addView(row2)
         /* 🎨 V1057 — গোল ব্যাজ · তথ্য · ⋮ এক সারিতে; ⋮ চাপলে কার্ডে চাপ দিলে যা
@@ -813,7 +839,7 @@ class StaffProfileActivity : AppCompatActivity() {
             setImageResource(R.drawable.ic_sp_more)
             layoutParams = LinearLayout.LayoutParams(dp(22), dp(22)).apply { marginStart = dp(6) }
             isClickable = true; isFocusable = true
-            setOnClickListener { onView() }
+            setOnClickListener { staffDotsMenu(pc, fullName, mobile, isRemoved, onView) }   // ⋮ V1058
         })
         card.addView(headRow)
         return card

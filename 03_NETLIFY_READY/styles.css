@@ -8239,3 +8239,7 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
   font-size:19px;line-height:1;cursor:pointer;padding:2px 6px}
 .pfSal{font-weight:700;font-size:12.5px}
 .anModPf .pfStaffBtns .pfBtn{padding:10px 10px;font-size:11.5px}
+
+/* ⋮🔒 V1058 — কার্ডের ⋮ মেনু */
+.pfDotsMenu{display:flex;flex-direction:column;gap:8px}
+.pfDotsMenu button{width:100%;text-align:left;padding:12px 14px;font-weight:700}
