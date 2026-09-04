@@ -26,6 +26,8 @@ import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
+// 🅰️ V1057 — কার্ডের ছয়টা আইকনের জন্য (নিয়ম ৯.৩৮ মেনে খালি লাইনে)
+import com.tkbiswas.pilesclinic.R
 
 class StaffProfileActivity : AppCompatActivity() {
 
@@ -601,9 +603,36 @@ class StaffProfileActivity : AppCompatActivity() {
         val card = ModuleUi.card(this).apply {
             orientation = LinearLayout.VERTICAL
         }
+        /* 🎨🔒 V1057 (০৪.০৯.২০২৬ — **TK-এর নিজের পাঠানো ছবি হুবহু**) — TK: *"অ্যান্ড্রয়েড
+           ফোনে চেহারা এরকম বানান… যা ফটো পাঠিয়েছে হুবহু একই বানাবেন"*।
+           ⇒ বাঁয়ে নামের আদ্যক্ষরের গোল ব্যাজ, ডানে ⋮ (কার্ডের View-ই খোলে),
+             বেতনের লাইনে `•` বিভাজক ও "Salary day:", আর ছয়টা বোতামেই আইকন।
+           ⛔ **কোনো বোতাম যোগ/বাদ/অদলবদল হয়নি** — ছবির মতোই ৩+৩; আগের সেশনে
+              ওয়েবে যে "danger row" করেছিলাম সেটাও ফিরিয়ে নেওয়া হলো, কারণ
+              TK-এর ছবিতে ওরকম নেই।
+           ⛔ কোনো বোতামের কাজ এক অক্ষরও বদলায়নি। */
+        val headRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        }
+        val initials = fullName.trim().split(Regex("\\s+"))
+            .filter { it.isNotBlank() }.take(2).map { it.first().uppercaseChar() }
+            .joinToString("").ifBlank { "?" }
+        headRow.addView(TextView(this).apply {
+            text = initials; textSize = 15f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            gravity = android.view.Gravity.CENTER
+            setTextColor(android.graphics.Color.parseColor("#3E7C5B"))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.OVAL
+                setColor(android.graphics.Color.parseColor("#DCEFE3"))
+            }
+            layoutParams = LinearLayout.LayoutParams(dp(44), dp(44)).apply { marginEnd = dp(11) }
+        })
         val info = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
         val topRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
         topRow.addView(TextView(this).apply {
@@ -642,9 +671,12 @@ class StaffProfileActivity : AppCompatActivity() {
             setPadding(0, dp(2), 0, 0)
         })
         info.addView(TextView(this).apply {
-            text = salaryText; textSize = 10.5f
+            // 🎨 V1057 — TK-এর ছবির মতো: "Salary: ₹8,000  •  Salary day: 3"
+            text = salaryText.replace(Regex("\\s*\\(day\\s*([^)]*)\\)"), "  \u2022  Salary day: $1")
+            textSize = 12f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(android.graphics.Color.parseColor(if (salaryText.startsWith("Salary: disabled")) "#A7B0AB" else "#0B8A3E"))
-            setPadding(0, dp(3), 0, if (extraText.isBlank()) dp(8) else dp(2))   // 🟣 V961
+            setPadding(0, dp(5), 0, if (extraText.isBlank()) dp(10) else dp(2))
         })
         if (extraText.isNotBlank()) {   // 🟣 V961
             info.addView(TextView(this).apply {
@@ -668,11 +700,20 @@ class StaffProfileActivity : AppCompatActivity() {
                 marginStart = if (first) 0 else dp(4)
                 marginEnd = if (last) 0 else dp(4)
             }
-        fun smallBtn(text: String, filled: Boolean, onClick: () -> Unit) = TextView(this).apply {
+        fun smallBtn(text: String, filled: Boolean, icon: Int = 0, onClick: () -> Unit) = TextView(this).apply {
             this.text = text; textSize = 11.5f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             gravity = android.view.Gravity.CENTER
-            setPadding(dp(6), dp(9), dp(6), dp(9))
+            /* 🎨 V1057 — লেখার বাঁয়ে আইকন (TK-এর ছবির মতো)। ⛔ আইকন না দিলে
+               বোতামটা আগের মতোই শুধু লেখা — অন্য কোথাও কিছু ভাঙে না। */
+            if (icon != 0) {
+                setCompoundDrawablesRelativeWithIntrinsicBounds(icon, 0, 0, 0)
+                compoundDrawablePadding = dp(6)
+                // ভরাট বোতামে আইকনটাও সাদা, নইলে সবুজের উপর সবুজ মিলিয়ে যেত
+                if (filled) androidx.core.widget.TextViewCompat.setCompoundDrawableTintList(
+                    this, android.content.res.ColorStateList.valueOf(android.graphics.Color.WHITE))
+            }
+            setPadding(dp(6), dp(11), dp(6), dp(11))
             setTextColor(android.graphics.Color.parseColor(if (filled) "#FFFFFF" else "#0B4F2A"))
             background = android.graphics.drawable.GradientDrawable().apply {
                 cornerRadius = dp(9).toFloat()
@@ -683,11 +724,15 @@ class StaffProfileActivity : AppCompatActivity() {
             setOnClickListener { onClick() }
         }
         // 🔴 V404: লাল বোতাম বানানোর একটাই জায়গা (Suspend ও Remove একই চেহারার)।
-        fun dangerBtn(label: String, onClick: () -> Unit) = TextView(this).apply {
+        fun dangerBtn(label: String, icon: Int = 0, onClick: () -> Unit) = TextView(this).apply {
             text = label; textSize = 11.5f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             gravity = android.view.Gravity.CENTER
-            setPadding(dp(6), dp(9), dp(6), dp(9))
+            if (icon != 0) {
+                setCompoundDrawablesRelativeWithIntrinsicBounds(icon, 0, 0, 0)
+                compoundDrawablePadding = dp(6)
+            }
+            setPadding(dp(6), dp(11), dp(6), dp(11))
             setTextColor(android.graphics.Color.parseColor("#B0392B"))
             background = android.graphics.drawable.GradientDrawable().apply {
                 cornerRadius = dp(9).toFloat()
@@ -707,9 +752,9 @@ class StaffProfileActivity : AppCompatActivity() {
         card.isClickable = true
         card.isFocusable = true
         card.setOnClickListener { onView() }
-        row1Btns.add(smallBtn("Salary", true, onSalary))
+        row1Btns.add(smallBtn("Salary", true, R.drawable.ic_sp_wallet, onSalary))
         // 🏆 V419: এই একজনের পুরো হিসাব (Master ছাড়া বোতামটাই আসে না)।
-        if (ModuleAuth.isMaster) row1Btns.add(smallBtn("Performance", false) { performanceOne(pc, "") })
+        if (ModuleAuth.isMaster) row1Btns.add(smallBtn("Performance", false, R.drawable.ic_sp_chart) { performanceOne(pc, "") })
         // 🔴🔴🔒 V477 (20.08.2026, TK-জরুরি নির্দেশ — "সমস্ত স্টাফের একই সমস্যা,
         // OUT TIME দেখাচ্ছে না") — আসল কারণ (যাচাই করা): আজ সকালে JWT/reAuth
         // বাগ (V465-এ ঠিক করা) থাকাকালীন যাদের IN TIME নিঃশব্দে ক্লাউডে সেভ
@@ -718,7 +763,7 @@ class StaffProfileActivity : AppCompatActivity() {
         // স্টাফের আজকের IN/OUT TIME সরাসরি বসানোর/ঠিক করার সুযোগ।
         // ⛔ স্টাফের নিজের Work Notebook স্ক্রিন/নিয়ম এক অক্ষরও বদলায়নি —
         //    এটা সম্পূর্ণ নতুন, আলাদা Master-only পথ, একই টেবিলে লেখে।
-        if (ModuleAuth.isMaster) row1Btns.add(smallBtn("Fix Attendance", false) { fixAttendanceDialog(pc, fullName, mobile) })
+        if (ModuleAuth.isMaster) row1Btns.add(smallBtn("Fix Attendance", false, R.drawable.ic_sp_calendar_check) { fixAttendanceDialog(pc, fullName, mobile) })
         /* 🏍️🔒 V978 (০২.০৯.২০২৬, TK-নির্দেশ: *"হ্যাঁ, ওই সারিতেই বসিয়ে দিন"*) —
            বাইরে ঘোরা স্টাফের (এখন শুধু RUPAM) কার্ডেই **Field Visit** বোতাম,
            এই একই সারিতে। আগে এটা Salary পর্দার ভিতরে ছিল, TK খুঁজে পাচ্ছিলেন না।
@@ -747,21 +792,30 @@ class StaffProfileActivity : AppCompatActivity() {
                এখন এই সারিতেই বোতাম — চাপলে সোজা সেই স্টাফের এক্সট্রা ইনকামে।
                ⛔ V978-এর Field Visit-এর মতোই একই ধরন; বাকি বোতাম অপরিবর্তিত।
                ⛔ টাকার কোনো অঙ্ক/নিয়ম ছোঁয়া হয়নি — শুধু পৌঁছনোর পথ। */
-            row2.addView(smallBtn("Extra Income", false) { salaryExtra(pc) })
+            row2.addView(smallBtn("Extra Income", false, R.drawable.ic_sp_hand_rupee) { salaryExtra(pc) })
             // 🔵🔒 B618 (11.08.2026, TK-নির্দেশ): master স্টাফকে কয়েকদিন Suspend করতে
             // পারবেন — সাসপেন্ড থাকাকালীন সে লগইন করতে পারবে না (LoginActivity গেট)।
             // ⛔ শুধু স্টাফ-তালিকায় (এই পর্দা master-only, role_kind=staff ফিল্টার করা)।
-            val suspend = dangerBtn("Suspend") { suspendStaffDialog(pc, fullName) }
+            val suspend = dangerBtn("Suspend", R.drawable.ic_sp_pause) { suspendStaffDialog(pc, fullName) }
             suspend.layoutParams = rowBtnParams(true, false)
             row2.addView(suspend)
             // 🔴 V404 (16.08.2026, TK-নির্দেশ "কর্মী বাদ দিন বোতাম বসান"):
             //    আগে অ্যাপে বাদ দেওয়ার কোনো পথই ছিল না — শুধু Suspend ছিল।
-            val remove = dangerBtn("Remove") { removeStaffDialog(pc, fullName) }
+            val remove = dangerBtn("Remove", R.drawable.ic_sp_trash) { removeStaffDialog(pc, fullName) }
             remove.layoutParams = rowBtnParams(false, true)
             row2.addView(remove)
         }
         info.addView(row2)
-        card.addView(info)
+        /* 🎨 V1057 — গোল ব্যাজ · তথ্য · ⋮ এক সারিতে; ⋮ চাপলে কার্ডে চাপ দিলে যা
+           হয় ঠিক তাই (View) — নতুন কোনো কাজ বানানো হয়নি। */
+        headRow.addView(info)
+        headRow.addView(android.widget.ImageView(this).apply {
+            setImageResource(R.drawable.ic_sp_more)
+            layoutParams = LinearLayout.LayoutParams(dp(22), dp(22)).apply { marginStart = dp(6) }
+            isClickable = true; isFocusable = true
+            setOnClickListener { onView() }
+        })
+        card.addView(headRow)
         return card
     }
 

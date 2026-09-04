@@ -168,11 +168,20 @@
             নিজেই দেখে নেয় চাপটা কোনো বোতামের উপরে পড়েছে কি না। */
       return '<div class="card pfStaffCard" style="cursor:pointer"' +
         ' onclick="pfCardTap(event,\'' + m.esc(p.person_code) + '\')">' +
+        /* 🎨 V1057 — TK-এর ছবির মতো নামের আদ্যক্ষরের গোল ব্যাজ। */
+        '<div class="pfAvatar">' + m.esc(
+          String(p.full_name || '?').trim().split(/\s+/).filter(Boolean)
+            .slice(0,2).map(function(w){return w[0].toUpperCase()}).join('') || '?'
+        ) + '</div>' +
         '<div class="pfStaffInfo">' +
         '<div class="pfNameRow"><b class="pfName">' + m.esc(p.full_name || '(name not set)') + '</b>' +
         '<span class="pfPill' + (isDoc ? ' pfPillDoc' : '') + '">' + m.esc(desig) + '</span></div>' +
         '<div class="pfMeta">' + m.esc(p.person_code) + ' · ' + m.esc(p.branch || '') + ' · ' + m.esc(m.fullMobile(p.link_mobile)) + '</div>' +
-        '<div class="pfSal' + (salOn ? '' : ' pfSalOff') + '">' + m.esc(salTxt) + '</div></div>' +
+        '<div class="pfSal' + (salOn ? '' : ' pfSalOff') + '">'
+          + m.esc(String(salTxt).replace(/\s*\(day\s*([^)]*)\)/, '  \u2022  Salary day: $1'))
+          + '</div></div>' +
+        /* 🎨 V1057 — TK-এর ছবির ⋮; চাপলে কার্ডে চাপ দিলে যা হয় ঠিক তাই। */
+        '<button class="pfMore" title="View" onclick="profEdit(\'' + m.esc(p.person_code) + '\')">\u22EE</button>' +
         '<div class="pfStaffBtns">' +
         '<button class="small pfBtn pfBtnFill" onclick="profSalary(\'' + m.esc(p.person_code) + '\')">Salary</button>' +
         '<button class="small ghost pfBtn" onclick="staffPerformanceOne(\'' + m.esc(p.person_code) + '\')">Performance</button>' +
@@ -186,13 +195,6 @@
            বেতন-পর্দা খোলে, যেখানে Extra Income-এর বাক্সটাই আছে।
            ⛔ টাকার কোনো অঙ্ক/নিয়ম ছোঁয়া হয়নি — শুধু পৌঁছনোর পথ। */
         '<button class="small ghost pfBtn" onclick="profSalary(\'' + m.esc(p.person_code) + '\')">Extra Income</button>' +
-        '</div>' +
-        /* 🎨🔒 V1056 (TK: *"চেহারাটা দেখুন"* — একজন স্টাফেই প্রায় অর্ধেক পর্দা
-           চলে যাচ্ছিল, আর Suspend·Remove বাকিগুলোর মতোই বড় ছিল)।
-           ⇒ রোজের কাজের বোতামগুলো উপরে, আর **বিপজ্জনক দুটো নিচে আলাদা সরু
-             সারিতে, ছোট করে, ডান দিকে** — ভুল করে চাপ পড়ার ভয় কমে।
-           ⛔ একটাও বোতাম লুকোনো হয়নি, কোনো কাজ বদলায়নি — শুধু জায়গা ও মাপ। */
-        '<div class="pfDangerRow">' +
         '<button class="small ghost pfBtn pfDanger" onclick="profSuspend(\'' + m.esc(p.person_code) + '\')">Suspend</button>' +
         '<button class="small ghost pfBtn pfDanger" onclick="profRemove(\'' + m.esc(p.person_code) + '\')">Remove</button>' +
         '</div></div>';
