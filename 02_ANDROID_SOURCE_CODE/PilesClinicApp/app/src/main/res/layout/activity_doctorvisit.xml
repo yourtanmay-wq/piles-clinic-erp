@@ -231,7 +231,7 @@
         android:layout_height="wrap_content"
         android:layout_marginEnd="5dp"
         android:background="@drawable/bg_rmp_performance_btn"
-        android:text="🏆 RMP Performance Report"
+        android:text="🏆 RMP Performance"
         android:textColor="@color/white"
         android:textStyle="bold"
         android:textSize="13sp"

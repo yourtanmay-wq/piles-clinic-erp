@@ -16498,7 +16498,7 @@ function doctorVisit(filter='home'){
  // রাখা হলো (নিচে) — এটুকুই ডেস্কটপের নিজস্ব মানানসই বদল, বাকি সব হুবহু।
  let stats=`<div class="doctorStats iconOnlyStats labeledDoctorStats dvStatsRow4">${cards.map(x=>`<button class="doctorKpi iconOnlyDoctor ${x[0]}" title="${esc(x[4])}" aria-label="${esc(x[4])}" onclick="${x[3]}"><span>${x[1]}</span>${x[2]!==''?`<b>${x[2]}</b>`:''}<small>${esc(x[4])}</small></button>`).join('')}</div>`;
  let addDoctorHtml=`<button class="small ghost dvAddBtn" onclick="openDoctorAddForm()">➕ Add Doctor/RMP</button>`;
- let rmpPerfHtml=isMaster()?`<button class="dvRmpPerfBanner" onclick="rmpPerformanceReport()">🏆 RMP Performance Report</button>`:'';
+ let rmpPerfHtml=isMaster()?`<button class="dvRmpPerfBanner" onclick="rmpPerformanceReport()">🏆 RMP Performance</button>`:'';
  /* 🟢🔒 B685 (15.08.2026, TK-অনুমোদিত · Android-হুবহু): ফোনের নতুন
     btnRmpDueList বোতামের ঠিক একই জায়গায় (🏆 ব্যানারের নিচে), একই
     পূর্ণ-চওড়া ব্যানার-ধাঁচে। ⛔ Master + Staff (ডাক্তারের role ভিতরে
@@ -16628,7 +16628,7 @@ async function rmpPerformanceReport(branch){
   else wlv1BranchSet(branch);
   let selected=String(branch||'All');
   let opts=['All'].concat((C.branches||[]).map(x=>x.name)).filter((x,i,a)=>x&&a.indexOf(x)===i).map(x=>`<option${x===selected?' selected':''}>${esc(x)}</option>`).join('');
-  page('RMP Performance Report',`<div class="rmpPerfTop"><label>Branch</label><select class="input" onchange="rmpPerformanceReport(this.value)">${opts}</select></div><div id="rmpPerfRows"><div class="card mut">Loading report…</div></div>`);
+  page('RMP Performance',`<div class="rmpPerfTop"><label>Branch</label><select class="input" onchange="rmpPerformanceReport(this.value)">${opts}</select></div><div id="rmpPerfRows"><div class="card mut">Loading report…</div></div>`);
   let allDoctors=doctorBranchListRows(''),rows=selected==='All'?allDoctors:allDoctors.filter(d=>sameBranch(d.branch,selected))   /* 🔴 V436: ব্রাঞ্চ মেলানো ফোনের মতো সহনশীল */;
   let thisYm=today().slice(0,7);
   let server=(typeof window.webRmpPerformance==='function')?await window.webRmpPerformance(selected):null;
