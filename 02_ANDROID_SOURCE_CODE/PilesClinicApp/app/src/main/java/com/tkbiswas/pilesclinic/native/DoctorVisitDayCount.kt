@@ -2,7 +2,6 @@ package com.tkbiswas.pilesclinic.native
 
 import java.text.SimpleDateFormat
 import java.util.Locale
-import java.util.TimeZone
 
 /**
  * 👨‍⚕️🔒 V1032 (০৪.০৯.২০২৬, TK-নির্দেশ) — **আজ কতজন ডাক্তারের কাছে যাওয়া হলো,
@@ -26,9 +25,12 @@ import java.util.TimeZone
  */
 object DoctorVisitDayCount {
 
-    private fun todayIso(): String = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
-        timeZone = TimeZone.getTimeZone("Asia/Kolkata")
-    }.format(java.util.Date())
+    /* 🔒 তারিখটা **যে নিয়মে লেখা হয় ঠিক সেই নিয়মেই** পড়া হয়
+       (`DoctorVisitModel.today()` — ফোনের নিজের অঞ্চল, আলাদা কোনো TimeZone
+       বসানো নেই)। দুই জায়গায় দুরকম নিয়ম হলে ফোনের ঘড়ি একটু এদিক-ওদিক
+       থাকলেই গোনা শূন্য দেখাত। */
+    private fun todayIso(): String =
+        SimpleDateFormat("yyyy-MM-dd", Locale.US).format(java.util.Date())
 
     private fun tenDigits(v: String?): String =
         v.orEmpty().filter { it.isDigit() }.takeLast(10)

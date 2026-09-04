@@ -496,6 +496,10 @@ class WorkNotebookActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        /* 👨‍⚕️ V1032 — পর্দায় ফিরলেই আজকের ডাক্তার-ভিজিটের গোনা নতুন করে
+           (RMP পর্দা থেকে ফিরলে সঙ্গে সঙ্গে সংখ্যাটা মিলে যায়)। পিছনের
+           থ্রেডে চলে, তাই পর্দা এক মুহূর্তও আটকায় না। */
+        loadDocVisitToday()
         val kind = waAskKind
         waAskKind = ""
         if (kind.isBlank() || isWaSent(kind)) return
@@ -767,6 +771,7 @@ class WorkNotebookActivity : AppCompatActivity() {
                                                 .append("\nApp Calls: ").append(callTxt(s, "appCalls"))
                                                 .append("\nOutside Calls: ").append(callTxt(s, "outsideCalls"))
                                                 .append("\nTotal call : ").append(callTxt(s, "totalCalls"))
+                                                .append(docVisitLine())
                                             val notesTxt = ns(day, "day_note").trim()
                                             if (notesTxt.isNotBlank()) text.append("\n\nNotes: \n").append(notesTxt)
                                             submit("daily", todayIso(), s, text.toString())
@@ -1353,19 +1358,6 @@ class WorkNotebookActivity : AppCompatActivity() {
      *  ⛔ `check_out` বা জমা-দেওয়া রিপোর্ট আবার লেখা হয় না — শুধু পাঠানো। */
     private fun resendDailyReportWhatsApp() {
         if (ns(day, "check_out").isBlank()) return
-        /* 👨‍⚕️ V1032 — গোনাটা নেট থেকে আসে, তাই আলাদা থ্রেডে; উত্তর না এলে
-           `-1` থাকে আর রিপোর্টে লাইনটা ওঠে না। রিপোর্ট পাঠানো কখনো এর
-           জন্য আটকায় না (নিচের fetchStats আগের মতোই নিজের পথে চলে)। */
-        var docVisitToday = -1
-        try {
-            val meMob = mobile
-            val t = Thread {
-                docVisitToday = try {
-                    com.tkbiswas.pilesclinic.native.DoctorVisitDayCount.todayCount(meMob)
-                } catch (_: Throwable) { -1 }
-            }
-            t.start(); t.join(4000L)
-        } catch (_: Throwable) { }
         fetchStats("day", todayIso()) { s ->
             runOnUiThread {
                 val text = StringBuilder()
@@ -1379,12 +1371,12 @@ class WorkNotebookActivity : AppCompatActivity() {
                     .append("\nApp Calls: ").append(callTxt(s, "appCalls"))
                     .append("\nOutside Calls: ").append(callTxt(s, "outsideCalls"))
                     .append("\nTotal call : ").append(callTxt(s, "totalCalls"))
+                    .append(docVisitLine())
                 /* 👨‍⚕️🔒 V1032 (TK-নির্দেশ: *"কতজন ডাক্তারের কাছে ভিজিট করেছে
                    তাকে ম্যানুয়ালি এন্ট্রি করতে হয়েছে"*) — এখন নিজে থেকে গোনা হয়।
                    ⛔ লাইনটা **শুধু তখনই** বসে যখন আজ অন্তত একজনের কাছে যাওয়া
                       হয়েছে; নইলে রিপোর্ট হুবহু আগের মতোই থাকে। ⛔ কোনো পুরনো
                       সংখ্যা/লাইন ছোঁয়া হয়নি; পড়া ব্যর্থ হলেও কিছু বদলায় না। */
-                if (docVisitToday > 0) text.append("\nDoctor Visit: ").append(docVisitToday)
                 val notesTxt = ns(day, "day_note").trim()
                 if (notesTxt.isNotBlank()) text.append("\n\nNotes: \n").append(notesTxt)
                 waAskKind = "out"   // 🔴 V433 — ফিরে এলে একবার জিজ্ঞাসা: পাঠানো হয়েছে?
@@ -1621,6 +1613,7 @@ class WorkNotebookActivity : AppCompatActivity() {
                                 .append("\nApp Calls: ").append(callTxt(s, "appCalls"))
                                 .append("\nOutside Calls: ").append(callTxt(s, "outsideCalls"))
                                 .append("\nTotal call : ").append(callTxt(s, "totalCalls"))
+                                .append(docVisitLine())
                             val notesTxt = notesField.text.toString().trim()
                             if (notesTxt.isNotBlank()) text.append("\n\nNotes: \n").append(notesTxt)
                             submit("daily", todayIso(), s, text.toString())
@@ -2322,6 +2315,36 @@ class WorkNotebookActivity : AppCompatActivity() {
     // খোলার নির্ভরযোগ্যতা।
     private fun numericField(hint: String): EditText = ModuleUi.numberInput(this, hint)
 
+    /* 👨‍⚕️🔒 V1032 (০৪.০৯.২০২৬, TK-নির্দেশ: *"কতজন ডাক্তারের কাছে ভিজিট করেছে
+       তাকে ম্যানুয়ালি এন্ট্রি করতে হয়েছে"*) — আজকের ডাক্তার-ভিজিট নিজে থেকে গোনা।
+
+       🔒 **নিজের যাচাইয়ে ধরা দুটো দোষ, তাই এই ধরনটাই নেওয়া হলো:**
+       ১) প্রথমে গোনাটা রিপোর্ট পাঠানোর ঠিক আগে **মূল থ্রেডে** করা হয়েছিল —
+          নেট ধীর হলে পর্দা ৪ সেকেন্ড আটকে থাকত (TK: *"স্লো হয়ে যায়"*)।
+       ২) দিনের রিপোর্ট **পাঁচ জায়গায়** তৈরি হয়; একটাতে বসালে বাকি পথে
+          লাইনটা উঠত না — TK কখনো দেখতেন, কখনো না।
+       ⇒ এখন পর্দা খোলার সময় **একবারই**, পিছনের থ্রেডে গোনা হয় ও এখানে জমা
+         থাকে; প্রতিটা রিপোর্ট শুধু এই সংখ্যাটাই পড়ে। কোথাও অপেক্ষা নেই।
+       ⛔ উত্তর না এলে `-1` থাকে ⇒ লাইনটা ওঠেই না, রিপোর্ট হুবহু আগের মতোই। */
+    @Volatile private var docVisitToday = -1
+
+    private fun loadDocVisitToday() {
+        try {
+            val meMob = mobile
+            Thread {
+                val n = try {
+                    com.tkbiswas.pilesclinic.native.DoctorVisitDayCount.todayCount(meMob)
+                } catch (_: Throwable) { -1 }
+                docVisitToday = n
+            }.start()
+        } catch (_: Throwable) { }
+    }
+
+    /** রিপোর্টে বসানোর লাইন — গোনা না হলে (বা শূন্য হলে) ফাঁকা। */
+    private fun docVisitLine(): String =
+        if (docVisitToday > 0) "\nDoctor Visit: " + docVisitToday else ""
+
+
     /* 🏍️🔒 V968 (০২.০৯.২০২৬, TK-নির্দেশ) — **ফিল্ড ভিজিট (শুধু RUPAM)।**
        TK: *"শুধু বাইরে ঘোরা স্টাফদের জন্য"* · *"RUPAM নিজে চাপবে"*।
        ⛔ অন্য কোনো স্টাফের পর্দায় এই বোতাম বা কার্ড একটুও ওঠে না — নিচের
@@ -2797,6 +2820,7 @@ class WorkNotebookActivity : AppCompatActivity() {
                         .append("\nApp Calls: ").append(callTxt(s, "appCalls"))
                         .append("\nOutside Calls: ").append(callTxt(s, "outsideCalls"))
                         .append("\nTotal call : ").append(callTxt(s, "totalCalls"))
+                        .append(docVisitLine())
                     val notesTxt = notesField.text.toString().trim()
                     if (notesTxt.isNotBlank()) text.append("\n\nNotes: \n").append(notesTxt)
                     val finalText = text.toString()
