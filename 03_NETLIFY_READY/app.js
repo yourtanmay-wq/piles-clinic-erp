@@ -27327,7 +27327,23 @@ function wlv1EstLineSave(i){
   closeModal(); wlv1EstRender();
 }
 function wlv1EstLineDrop(i){ wlv1EstSheet.lines.splice(i,1); closeModal(); wlv1EstRender() }
-function wlv1EstStrike2(i){ var l=wlv1EstSheet.lines[i]; if(l) l.struck=!l.struck; closeModal(); wlv1EstRender() }
+/* 💰🔒 V1063 (TK-নির্দেশ: *"কাটলেই টাকাটা নিজে থেকে Discount-এ বসে যাক"*) —
+   লাইন কাটলে/ফেরালে ছাড়ের **ঘরের অঙ্কটাই** বদলায়, তাই TK চোখে দেখতে পান কত
+   ছাড় হলো, আর টাকা **একবারই** বাদ যায়।
+   ⛔ শতাংশে থাকলে আগে ওই শতাংশটা টাকায় বদলে নেওয়া হয় (অঙ্ক এক থাকে), তারপর যোগ।
+   ⛔ ফোনের `Sheet.onStrikeToggled()`-এর হুবহু একই নিয়ম (নিয়ম ৬.৬)। */
+function wlv1EstStruckSync(l, nowStruck){
+  try{
+    if(wlv1EstSheet.discountPct){
+      var sub=wlv1EstSubtotal();
+      wlv1EstSheet.discount = Math.max(0, Math.min(sub*Number(wlv1EstSheet.discount||0)/100, sub));
+      wlv1EstSheet.discountPct = false;
+    }
+    var amt = Number(l.rate||0)*Number(l.qty||0);
+    wlv1EstSheet.discount = Math.max(0, Number(wlv1EstSheet.discount||0) + (nowStruck ? amt : -amt));
+  }catch(e){}
+}
+function wlv1EstStrike2(i){ var l=wlv1EstSheet.lines[i]; if(l){ l.struck=!l.struck; wlv1EstStruckSync(l,l.struck); } closeModal(); wlv1EstRender() }
 function wlv1EstDiscountBox(){
   modal('<h2>&#128184; Discount</h2><div class="card">'
     +'<div class="tiny mut">DISCOUNT</div>'
@@ -27369,7 +27385,7 @@ function wlv1EstEdit(i,key,v){ var l=wlv1EstSheet.lines[i]; if(!l)return; l[key]
   try{ var sb=$('#wlv1EstSub'); if(sb) sb.textContent=wlv1EstShort(wlv1EstSubtotal()) }catch(e){}
   try{ var lt=$('#wlv1EstLineTot'+i); if(lt) lt.textContent=wlv1EstShort(Number(l.rate||0)*Number(l.qty||0)) }catch(e){} }
 function wlv1EstDiscount(v){ wlv1EstSheet.discount=wlv1EstNum(v); try{ $('#wlv1EstNet').textContent=wlv1EstShort(wlv1EstNet()) }catch(e){} }
-function wlv1EstStrike(i){ var l=wlv1EstSheet.lines[i]; if(!l)return; l.struck=!l.struck; wlv1EstRender() }
+function wlv1EstStrike(i){ var l=wlv1EstSheet.lines[i]; if(!l)return; l.struck=!l.struck; wlv1EstStruckSync(l,l.struck); wlv1EstRender() }
 function wlv1EstDrop(i){ wlv1EstSheet.lines.splice(i,1); wlv1EstRender() }
 function wlv1EstSave(){ wlv1EstStore();
   try{ if(wlv1EstSheet.lines.length){ var b=$('#dnEstimatedCost'); if(b) b.value=wlv1EstShort(wlv1EstNet()) } }catch(e){}

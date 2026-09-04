@@ -298,7 +298,12 @@ object EstimateDialog {
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(Color.parseColor(if (line.struck) "#0B7A4B" else RED))
             setPadding(dp(activity, 10), 0, dp(activity, 8), 0)
-            setOnClickListener { line.struck = !line.struck; redraw() }
+            setOnClickListener {
+                // 💰 V1063 — কাটলেই টাকাটা ছাড়ের ঘরে বসে যায় (TK-নির্দেশ)
+                line.struck = !line.struck
+                sheet.onStrikeToggled(line, line.struck)
+                redraw()
+            }
         })
         top.addView(TextView(activity).apply {
             text = "🗑"

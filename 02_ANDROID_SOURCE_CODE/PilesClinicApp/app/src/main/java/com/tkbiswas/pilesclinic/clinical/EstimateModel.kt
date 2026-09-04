@@ -89,6 +89,20 @@ object EstimateModel {
             else discount.coerceIn(0.0, subtotal)
 
         val netPayable: Double get() = (subtotal - discountAmount).coerceAtLeast(0.0)
+
+        /* 💰🔒 V1063 (০৪.০৯.২০২৬, TK-নির্দেশ: *"কাটলেই টাকাটা নিজে থেকে
+           Discount-এ বসে যাক"*) — লাইন কাটলে/ফেরালে ছাড়ের **ঘরের অঙ্কটাই**
+           বদলায়, তাই TK চোখে দেখতে পান কত ছাড় হলো, আর টাকা **একবারই** বাদ যায়।
+           ⛔ শতাংশে থাকলে আগে ওই শতাংশটা টাকায় বদলে নেওয়া হয় (অঙ্ক এক থাকে),
+              তারপর যোগ — নইলে টাকা ও শতাংশ মিশে ভুল হত।
+           ⛔ ছাড় কখনো ঋণাত্মক হয় না; ফেরালে ঠিক ওই অঙ্কটুকুই কমে। */
+        fun onStrikeToggled(line: Line, nowStruck: Boolean) {
+            if (discountPct) {
+                discount = (subtotal * discount / 100.0).coerceIn(0.0, subtotal)
+                discountPct = false
+            }
+            discount = (discount + (if (nowStruck) line.total else -line.total)).coerceAtLeast(0.0)
+        }
         val isEmpty: Boolean get() = lines.isEmpty()
 
         fun toJson(): JSONObject {
