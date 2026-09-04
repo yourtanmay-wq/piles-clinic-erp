@@ -204,17 +204,9 @@ class DoctorVisitActivity : AppCompatActivity() {
         // আগে ছিল "today" (নেক্সট কল আজ), এখন expectedPatientDate সেট করা
         // ডাক্তারদের তালিকা দেখায়।
         binding.statToday.setOnClickListener { currentFilter = "expected"; renderList() }
-        // 🔒 V233 (TK verified live-date fix, 01.08.2026): "EXPECTED" কার্ডের আগের
-        // একলা "⏰" ইমোজি কিছু Android emoji-ফন্টে fixed "Jul 17" এঁকে দেখাত।
-        // এখন Follow-up পর্দার হুবহু একই কোডে ২-লাইনের live badge-এ আজকের
-        // (device-local = IST) মাস ও দিন বসে — উদাহরণ: "Aug"/"1"। পর্দা খোলার
-        // সময়েই বসে, তাই তারিখ প্রতিদিন নিজে থেকে ঠিক থাকে।
-        // ⛔ শুধু date display; EXPECTED count/filter/click কিছুই বদলায়নি।
-        run {
-            val cal = java.util.Calendar.getInstance()
-            binding.tvDvCalMonth.text = java.text.SimpleDateFormat("MMM", java.util.Locale.ENGLISH).format(cal.time)
-            binding.tvDvCalDay.text = cal.get(java.util.Calendar.DAY_OF_MONTH).toString()
-        }
+        // 🎨🔒 V1074 (০৪.০৯.২০২৬, TK: "Sep4 এর কোন কাজ নেই, সরিয়ে দিন") —
+        // EXPECTED বাক্সের তারিখ-ব্যাজ (V233) লেআউট থেকে বাদ, তাই এখানে
+        // আর কিছু বসানোর নেই। EXPECTED-এর গোনা/ফিল্টার/ক্লিক অপরিবর্তিত।
         binding.etSearch.addTextChangedListener { text ->
             searchQuery = text?.toString() ?: ""
             renderList()

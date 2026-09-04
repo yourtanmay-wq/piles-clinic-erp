@@ -112,42 +112,12 @@
             android:elevation="2dp"
             android:clickable="true"
             android:focusable="true">
-            <!-- 🔒 V233 (TK verified live-date fix, 01.08.2026): আগে এখানে একলা
-                 "⏰" ইমোজি ছিল — কিছু Android emoji-ফন্ট ওই ইমোজির ভিতরে fixed
-                 "Jul 17" এঁকে দেখাত (আসল তারিখ নয়, ইমোজির artwork)। এখন Follow-up/
-                 Chamber পর্দার হুবহু একই ২-লাইনের live calendar badge — আজকের IST
-                 মাস ও দিন DoctorVisitActivity.onCreate-এ বসে। ⛔ calendar-style
-                 design/জায়গা/মাপ এক; শুধু ভিতরের তারিখ live। EXPECTED count/click
-                 কিছুই বদলায়নি। -->
-            <LinearLayout
-                android:layout_width="22dp"
-                android:layout_height="26dp"
-                android:orientation="vertical">
-                <TextView
-                    android:id="@+id/tvDvCalMonth"
-                    android:layout_width="match_parent"
-                    android:layout_height="0dp"
-                    android:layout_weight="1"
-                    android:background="@drawable/bg_cal_badge_top"
-                    android:gravity="center"
-                    android:includeFontPadding="false"
-                    android:text="Aug"
-                    android:textColor="@color/white"
-                    android:textSize="7.5sp"
-                    android:textStyle="bold" />
-                <TextView
-                    android:id="@+id/tvDvCalDay"
-                    android:layout_width="match_parent"
-                    android:layout_height="0dp"
-                    android:layout_weight="2"
-                    android:background="@drawable/bg_cal_badge_bottom"
-                    android:gravity="center"
-                    android:includeFontPadding="false"
-                    android:text="1"
-                    android:textColor="@color/brand_navy"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
+            <!-- 🎨🔒 V1074 (০৪.০৯.২০২৬, TK: *"Sep4 এর কোন কাজ নেই, সরিয়ে দিন"*) —
+                 V233-এর ২-লাইনের তারিখ-ব্যাজ এখান থেকে **বাদ**। TK-এর আগের
+                 নির্দেশে (V1073) বাকি তিনটে বাক্সের ছবি সরানো হয়েছিল, এটাও
+                 তার সঙ্গেই গেল — চারটে বাক্স এখন সমান উচ্চতার।
+                 ⛔ EXPECTED-এর সংখ্যা · ফিল্টার · চাপলে কী হয় — কিছুই বদলায়নি,
+                    আর `bg_cal_badge_top/bottom` অন্য পর্দায় আগের মতোই চলছে। -->
             <TextView android:id="@+id/tvTodayCount" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="0" android:textStyle="bold" android:textSize="15sp" android:textColor="#BE185D" />
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="EXPECTED" android:textSize="9.5sp" android:textStyle="bold" android:textColor="#BE185D" />
         </LinearLayout>
