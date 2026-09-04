@@ -27206,13 +27206,36 @@ function wlv1EstNum(v){ var c=String(v==null?'':v).replace(/[^0-9.]/g,''); var n
 function wlv1EstMoney(v){ return Number(v||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}) }
 function wlv1EstShort(v){ v=Number(v||0); return (v===Math.floor(v))?v.toLocaleString('en-IN'):v.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}) }
 
-var wlv1EstSheet={lines:[],discount:0,discountPct:false,finding:''};
+var wlv1EstSheet={lines:[],discount:0,discountPct:false,finding:'',strikeInDiscount:true};
 function wlv1EstLoad(){
-  try{ var raw=window.__wlv1EstJson||''; if(!raw){ wlv1EstSheet={lines:[],discount:0,discountPct:false,finding:''}; return }
+  try{ var raw=window.__wlv1EstJson||''; if(!raw){ wlv1EstSheet={lines:[],discount:0,discountPct:false,finding:'',strikeInDiscount:true}; return }
     var o=JSON.parse(raw);
     wlv1EstSheet={lines:(o.lines||[]).map(function(l){return{name:l.name||'',measure:l.measure||'',position:l.position||'',rate:Number(l.rate||0),qty:Number(l.qty||1),struck:!!l.struck}}),
-      discount:Number(o.discount||0),discountPct:!!o.discountPct,finding:String(o.finding||'')};
-  }catch(e){ wlv1EstSheet={lines:[],discount:0,discountPct:false,finding:''} }
+      discount:Number(o.discount||0),discountPct:!!o.discountPct,finding:String(o.finding||''),
+      strikeInDiscount:!!o.strikeInDiscount};
+    /* 💰🔴🔒 V1064 — **পুরনো সেভ করা এস্টিমেটের টাকা যেন এক পয়সাও না বদলায়।**
+       পুরনো নিয়মে কাটা লাইনের টাকা নিজে থেকেই বাদ যেত, তাই তখন Discount ঘরে
+       কিছু লেখা না-ও থাকতে পারে; V1062-এর পরে ওই কাগজ খুললে Net Payable
+       বেড়ে যেত। ⇒ চিহ্নটা না থাকলে (পুরনো কাগজ) কাটা লাইনের টাকা **একবার**
+       ছাড়ে যোগ করে নেওয়া হয়, তাই অঙ্ক হুবহু আগের মতোই থাকে।
+       ⛔ ফোনের `EstimateModel.parse()`-এর হুবহু একই নিয়ম (নিয়ম ৬.৬)। */
+    if(!wlv1EstSheet.strikeInDiscount){
+      var st=wlv1EstSheet.lines.filter(function(l){return l.struck})
+        .reduce(function(n,l){return n+Number(l.rate||0)*Number(l.qty||0)},0);
+      if(st>0){
+        if(wlv1EstSheet.discountPct){
+          /* 🔴 V1064খ — পুরনো নিয়মে শতাংশটা **কাটা-বাদ-দেওয়া** যোগফলের উপর
+             কষা হত; পুরনো অঙ্ক ফেরাতে ওই ভিত্তিই নিতে হবে। */
+          var base=wlv1EstSheet.lines.filter(function(l){return !l.struck})
+            .reduce(function(n,l){return n+Number(l.rate||0)*Number(l.qty||0)},0);
+          wlv1EstSheet.discount=Math.max(0,Math.min(base*Number(wlv1EstSheet.discount||0)/100,base));
+          wlv1EstSheet.discountPct=false;
+        }
+        wlv1EstSheet.discount=Math.max(0,Number(wlv1EstSheet.discount||0)+st);
+      }
+      wlv1EstSheet.strikeInDiscount=true;
+    }
+  }catch(e){ wlv1EstSheet={lines:[],discount:0,discountPct:false,finding:'',strikeInDiscount:true} }
 }
 /* 💰🔴🔒 V1062 (TK-নির্দেশ) — Subtotal এখন **সব লাইনের পুরো দাম** (কাটা লাইনসুদ্ধ),
    ছাড় একবারই বাদ যায়। আগে কাটা লাইন বাদ **আর** ছাড়ও বাদ হত ⇒ একই ছাড় দুবার।

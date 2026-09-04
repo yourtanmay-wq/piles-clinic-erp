@@ -112,6 +112,9 @@ object EstimateModel {
                 .put("lines", arr)
                 .put("discount", discount)
                 .put("discountPct", discountPct)
+                /* 🔒 V1064 — এই কাগজটা **নতুন নিয়মে** তৈরি, তাই খোলার সময় আর
+                   পুরনো-হিসাব-মেলানো লাগবে না (নিচের `parse()` দেখুন)। */
+                .put("strikeInDiscount", true)
                 .put("finding", finding)
         }
     }
@@ -135,6 +138,32 @@ object EstimateModel {
             s.discount = o.optDouble("discount", 0.0)
             s.discountPct = o.optBoolean("discountPct", false)
             s.finding = o.optString("finding", "")
+            /* 💰🔴🔒 V1064 (০৪.০৯.২০২৬ — নিজে যাচাই করতে গিয়ে ধরা) — **পুরনো
+               সেভ করা এস্টিমেটের টাকা যেন এক পয়সাও না বদলায়।**
+               পুরনো নিয়মে কাটা লাইনের টাকা **নিজে থেকেই** বাদ যেত, তাই তখন
+               Discount ঘরে কিছু লেখা না-ও থাকতে পারে। V1062-এর পরে ওই কাগজ
+               খুললে Subtotal-এ কাটা লাইনও ধরা হত, অথচ ছাড় বাড়ত না ⇒ **রোগীর
+               পুরনো কাগজের Net Payable বেড়ে যেত** — এটা হতে দেওয়া যায় না।
+               ⇒ যে কাগজে `strikeInDiscount` চিহ্নটা **নেই** (মানে পুরনো নিয়মে
+                 তৈরি), সেটায় খোলার সময় কাটা লাইনগুলোর টাকা **একবার** ছাড়ে
+                 যোগ করে নেওয়া হয়। ফল: Net Payable **হুবহু আগের মতোই**।
+               ⛔ শতাংশে থাকলে আগে টাকায় বদলে নেওয়া হয় (অঙ্ক এক থাকে)।
+               ⛔ নতুন কাগজে চিহ্নটা থাকে, তাই দুবার যোগ হওয়ার পথ নেই। */
+            if (!o.optBoolean("strikeInDiscount", false)) {
+                val struckTotal = s.lines.filter { it.struck }.sumOf { it.total }
+                if (struckTotal > 0.0) {
+                    if (s.discountPct) {
+                        /* 🔴 V1064খ (নিজে চালিয়ে ধরা) — পুরনো নিয়মে শতাংশটা
+                           **কাটা-বাদ-দেওয়া** যোগফলের উপর কষা হত, পুরো দামের
+                           উপর নয়। তাই পুরনো অঙ্ক ফেরাতে হলে ওই ভিত্তিটাই
+                           নিতে হবে — নইলে ছাড় বেশি হয়ে টাকা কমে যেত। */
+                        val base = s.lines.filter { !it.struck }.sumOf { it.total }
+                        s.discount = (base * s.discount / 100.0).coerceIn(0.0, base)
+                        s.discountPct = false
+                    }
+                    s.discount = (s.discount + struckTotal).coerceAtLeast(0.0)
+                }
+            }
         } catch (_: Throwable) { }
         return s
     }
