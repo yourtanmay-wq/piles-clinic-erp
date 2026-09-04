@@ -16479,10 +16479,13 @@ function doctorVisit(filter='home'){
  let todayRows=doctorSortList(base.filter(x=>String(x.nextCallDate||'').slice(0,10)===today()));
  let overdueRows=doctorSortList(base.filter(x=>{const d=String(x.nextCallDate||'').slice(0,10);return !!d&&d<today()}));
  let cards=[];
- cards.push(['expected','🤞',expectedRows.length,'doctorVisit(\'expected\')','EXPECTED']);
- cards.push(['pending','⏳',overdueRows.length,'doctorVisit(\'pending\')','PENDING']);
- cards.push(['called','📈',calledRows.length,'doctorVisit(\'called\')','CALLED']);
- cards.push(['all','👨‍⚕️',allRows.length,'doctorVisit(\'all\')','ALL RMP']);
+ /* 🎨🔒 V1073 (TK-নির্দেশ: *"এই আইকনগুলো সরিয়ে দিন, বক্সের উচ্চতা কম করুন"*)
+    — চারটে বাক্স থেকে আইকন তোলা হলো, ফোনের হুবহু একই বদল (নিয়ম ৬.৬)।
+    ⛔ গোনা · ফিল্টার · চাপার কাজ কিছুই বদলায়নি — শুধু আইকনের জায়গাটুকু। */
+ cards.push(['expected','',expectedRows.length,'doctorVisit(\'expected\')','EXPECTED']);
+ cards.push(['pending','',overdueRows.length,'doctorVisit(\'pending\')','PENDING']);
+ cards.push(['called','',calledRows.length,'doctorVisit(\'called\')','CALLED']);
+ cards.push(['all','',allRows.length,'doctorVisit(\'all\')','ALL RMP']);
  // 🔴🔧 TK-ধরা ভুল সংশোধন (১৫.০৮.২০২৬, activity_doctorvisit.xml যাচাই করে):
  // Android-এ শুধু এই ৪টাই সমান বক্স, এক সারিতে (statToday/statPending/
  // statCalled/statAll — খাতার সারি B193)। "Add Doctor/RMP" আসলে হেডারের
