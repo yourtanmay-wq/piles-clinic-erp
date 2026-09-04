@@ -8199,3 +8199,33 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
 /* 💰🔒 V1048 — যে ধাপের জন্য টাকা, তার পাশেই অঙ্কটা। */
 .pfXEarn{margin-left:8px;font-style:normal;font-weight:800;color:#C62828;font-size:12px}
 .pfXStep.isEarn b{color:#0F5132}
+
+/* 🧾🔒 V1052 — তারিখ-থেকে-তারিখ স্টেটমেন্ট (ছাপার জন্যও)। */
+.pfStmRange .actions{margin-top:10px}
+.pfStmSheet{padding:18px}
+.pfStmTitle{font-weight:800;font-size:15px;color:#0F5132;letter-spacing:.4px;text-align:center}
+.pfStmSub{text-align:center;color:#5B6B81;font-size:12.5px;margin-top:3px}
+.pfStmTable{width:100%;border-collapse:collapse;margin-top:14px;font-size:13px}
+.pfStmTable th{background:#0B4F2A;color:#fff;font-weight:700;padding:8px 9px;text-align:left;font-size:12px}
+.pfStmTable td{padding:8px 9px;border-bottom:1px solid #EDF1F5}
+.pfStmTable .num{text-align:right;white-space:nowrap}
+.pfStmTable .due{color:#C62828;font-weight:700}
+.pfStmTable tfoot td{border-top:2px solid #0B4F2A;border-bottom:0;font-weight:800;background:#F4F9F6}
+.pfStmNote{margin-top:10px;font-size:11.5px;color:#8B98A9}
+@media print{.noPrint{display:none!important}.pfStmSheet{border:0;box-shadow:none}}
+
+/* 🔴🔒 V1053 (TK: *"একদম ডান দিকের লেখা কেটে গেল কেন"*) — সরু পর্দায় ৫টা কলাম
+   আঁটে না। ⇒ টেবিলটা নিজের ভিতরে পাশে সরানো যায় (পাতা নড়ে না), লেখা ছোট হয়,
+   আর টাকার ঘর কখনো ভাঙে না। ⛔ ছাপার সময় পুরোটাই এক পাতায় বসে। */
+.pfStmScroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.pfStmTable td:first-child,.pfStmTable th:first-child{white-space:nowrap}
+/* সরু পর্দায় পাঁচটা কলামই এক পর্দাতে আঁটে — পাশে সরাতে হয় না */
+@media(max-width:520px){
+  .pfStmSheet{padding:13px 7px}
+  .pfStmTable{font-size:10.6px}
+  .pfStmTable th{padding:6px 3px;font-size:9.4px;letter-spacing:0}
+  .pfStmTable td{padding:6px 3px}
+  .pfStmTitle{font-size:13px}
+  .pfStmSub{font-size:11px}
+}
+@media print{.pfStmScroll{overflow:visible}.pfStmTable{min-width:0;font-size:12px}}

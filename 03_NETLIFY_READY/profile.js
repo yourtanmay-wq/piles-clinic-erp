@@ -618,6 +618,8 @@
         salPairBtn('Add Extra', '#B45309', '#E0A800', 'profExtraIncome(\'' + m.esc(code) + '\')') +
         (extraDue>0 ? salPairBtn('Pay ' + m.money(extraDue), '#0A5C33', '#0A5C33', 'profPayExtraDue(\'' + m.esc(code) + '\')') : '') +
       '</div>' +
+      /* 🧾 V1052 — তারিখ থেকে তারিখ স্টেটমেন্ট (TK-নির্দেশ) */
+      '<div style="margin-top:8px"><button class="ghost" style="width:100%" onclick="profStatement(\'' + m.esc(code) + '\')">🧾 Statement (date to date)</button></div>' +
       /* ⏰🔒 V990 (০৩.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — TK: *"তারা যদি নাই
          জানতে পারে যে সেই পেশেন্টটা ট্রিটমেন্ট চালু করেছে কিনা, তাহলে তারা
          হিসাবটা পাবে কি করে"*। ফোনের হুবহু জোড়া বোতাম।
@@ -1586,6 +1588,80 @@
   window.myAttendanceSheet = myAttendanceSheet;   // 🗓️ V509
   window.profEdit = profEdit;
   window.profSave = profSave;
+
+  /* 🧾🔒 V1052 (TK-নির্দেশ ০৪.০৯.২০২৬: *"বছরের শেষে যেন আমি স্টেটমেন্ট তুলতে পারি
+     … স্টাফ কোন মাসে কত স্যালারি পেয়েছে এক্সট্রা ইনকাম কত পেয়েছে … পিডিএফ ফরমে"*
+     এবং *"শুধু সারা বছর কেন, আমি যতদিন থেকে যতদিন খুশি … ব্যাংকের স্টেটমেন্টের
+     মতো তারিখ থেকে তারিখ"*) — **তারিখ-থেকে-তারিখ স্টেটমেন্ট**।
+     ⛔ কোনো নতুন হিসাব বানানো হয়নি — যে সারিগুলো এখন দেখানো হয় সেগুলোই তারিখ
+        দিয়ে ছেঁকে মাস ধরে যোগ করা হয়। তাই এই পাতার সংখ্যা আর অন্য পর্দার সংখ্যা
+        কখনো আলাদা হবে না (নিয়ম ৭ক-এর ২)।
+     ⛔ টাকার তারিখ ধরা হয় `paid_on`; ফাঁকা হলে সারিটা বাদ যায় না, "No date"-এ বসে।
+     ⛔ PDF আলাদা করে বানানো হয়নি — Print চাপলে ব্রাউজারের "Save as PDF"-ই
+        যথেষ্ট (প্রকল্পের বাকি প্রিন্টও ঠিক এই পথেই যায়)। */
+  function salYmd(v){ return String(v||'').slice(0,10); }
+  function salMonthName(ym){
+    var N=['January','February','March','April','May','June','July','August','September','October','November','December'];
+    try{ var q=String(ym||'').split('-'); return (N[Number(q[1])-1]||q[1])+' '+q[0]; }catch(e){ return String(ym||''); }
+  }
+  async function profStatement(code, from, to){
+    var m = window.MOD, client = await sb();
+    var rows = ((await client.schema('hr').from('salary_payments').select('*').eq('person_code', code)).data) || [];
+    var today = m.todayIST();
+    if (!from) { var d = new Date(today); d.setMonth(d.getMonth()-11); d.setDate(1);
+                 from = d.toISOString().slice(0,10); }
+    if (!to) to = today;
+    var inRange = rows.filter(function(x){
+      var d = salYmd(x.paid_on); return d && d >= from && d <= to; });
+    var noDate = rows.filter(function(x){ return !salYmd(x.paid_on); });
+
+    var byMonth = {};
+    inRange.forEach(function(x){
+      var ym = salYmd(x.paid_on).slice(0,7);
+      var b = byMonth[ym] || (byMonth[ym] = {sal:0, exPaid:0, exDue:0});
+      if (salIsExtra(x)) { if (salIsDue(x)) b.exDue += Number(x.amount||0); else b.exPaid += Number(x.amount||0); }
+      else b.sal += Number(x.amount||0);
+    });
+    var yms = Object.keys(byMonth).sort();
+    var tS=0, tP=0, tD=0;
+    var body = yms.map(function(ym){
+      var b = byMonth[ym]; tS+=b.sal; tP+=b.exPaid; tD+=b.exDue;
+      return '<tr><td>'+m.esc(salMonthName(ym))+'</td><td class="num">'+m.money(b.sal)+'</td>'
+           + '<td class="num">'+m.money(b.exPaid)+'</td>'
+           + '<td class="num'+(b.exDue>0?' due':'')+'">'+m.money(b.exDue)+'</td>'
+           + '<td class="num"><b>'+m.money(b.sal+b.exPaid)+'</b></td></tr>';
+    }).join('');
+    if (!yms.length) body = '<tr><td colspan="5" class="mut">No payments in this period.</td></tr>';
+
+    document.getElementById('app').innerHTML =
+      '<div class="wrap anMod anModPf"><div class="topbar noPrint"><b>Statement — '+m.esc(code)+'</b>'
+      + '<button class="ghost" onclick="profSalary(\''+m.esc(code)+'\')">Back</button></div>'
+      + '<div class="page"><div class="card noPrint pfStmRange">'
+      +   '<label>From</label><input id="stFrom" class="input" type="date" value="'+m.esc(from)+'">'
+      +   '<label>To</label><input id="stTo" class="input" type="date" value="'+m.esc(to)+'">'
+      +   '<div class="actions"><button onclick="profStatementGo(\''+m.esc(code)+'\')">Show</button>'
+      +   '<button class="ghost" onclick="window.print()">🖨 Print / PDF</button></div></div>'
+      + '<div class="card pfStmSheet">'
+      +   '<div class="pfStmTitle">SALARY &amp; EXTRA INCOME STATEMENT</div>'
+      +   '<div class="pfStmSub">'+m.esc(code)+'  ·  '+m.esc(salDmy(from))+'  to  '+m.esc(salDmy(to))+'</div>'
+      +   '<div class="pfStmScroll"><table class="pfStmTable"><thead><tr><th>Month</th><th class="num">Salary</th>'
+      +     '<th class="num">Extra</th><th class="num">Due</th><th class="num">Total</th></tr></thead>'
+      +   '<tbody>'+body+'</tbody>'
+      +   '<tfoot><tr><td>TOTAL</td><td class="num">'+m.money(tS)+'</td><td class="num">'+m.money(tP)+'</td>'
+      +     '<td class="num'+(tD>0?' due':'')+'">'+m.money(tD)+'</td><td class="num"><b>'+m.money(tS+tP)+'</b></td></tr></tfoot>'
+      +   '</table></div>'
+      +   (noDate.length ? '<div class="pfStmNote">'+noDate.length+' entry(ies) have no date and are not counted here.</div>' : '')
+      + '</div></div></div>';
+  }
+  window.profStatement = profStatement;
+  function profStatementGo(code){
+    var f=(document.getElementById('stFrom')||{}).value||'';
+    var t=(document.getElementById('stTo')||{}).value||'';
+    if (f && t && f > t) { try{ toast('From date is after To date'); }catch(e){} return; }
+    profStatement(code, f, t);
+  }
+  window.profStatementGo = profStatementGo;
+
   window.profSalary = profSalary;
   window.profSalaryCfgSave = profSalaryCfgSave;
   window.profSalaryPay = profSalaryPay;
