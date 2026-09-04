@@ -16922,13 +16922,14 @@ function dAddAltRow(){ let box=$('#dAltBox'); if(!box)return; let i=++dAltSeq; l
 window["dAddAltRow"]=dAddAltRow;
 function openDoctorAddForm(){
  doctorBranchTapCount=0;dAltSeq=0;
- modal(`<h2>Add Doctor/RMP</h2><div class="card"><label>Mobile <span class="req">*</span></label><input id="dm" class="input" inputmode="numeric" autocomplete="off" placeholder="10 digit mobile" oninput="dDupCheck('dm','dmStatus')"><div id="dmStatus" class="tiny" style="font-weight:700"></div><div id="dAltBox"></div><a class="tiny" style="color:#166534;font-weight:700;display:inline-block;margin-top:6px;cursor:pointer" onclick="dAddAltRow()">＋ Add another number</a><label>Doctor Name <span class="req">*</span></label><input id="dn" class="input"><label>Branch <span class="req">*</span></label>${doctorBranchFieldHtml('d',user?.branch)}<label>Area / Address</label><input id="da" class="input"><label>Remarks <span class="req">*</span></label><textarea id="dr" placeholder="Call/visit discussion"></textarea><label>Next Call Date</label><input id="dNext" type="date" min="${today()}" class="input" placeholder="Auto 30 days if blank"><div class="tiny mut">Next Call Date blank থাকলে auto ${doctorDefaultNextDate()} set হবে.</div><button onclick="saveVisit()">Save Doctor/RMP</button></div>`)
+ modal(`<h2>Add Doctor/RMP</h2><div class="card"><label>Mobile <span class="req">*</span></label><input id="dm" class="input" inputmode="numeric" autocomplete="off" placeholder="10 digit mobile" oninput="dDupCheck('dm','dmStatus')"><div id="dmStatus" class="tiny" style="font-weight:700"></div><div id="dAltBox"></div><a class="tiny" style="color:#166534;font-weight:700;display:inline-block;margin-top:6px;cursor:pointer" onclick="dAddAltRow()">＋ Add another number</a><label>Doctor Name <span class="req">*</span></label><input id="dn" class="input"><label>Branch <span class="req">*</span></label>${doctorBranchFieldHtml('d',user?.branch)}<label>Area / Address</label><input id="da" class="input"><label>Remarks</label><textarea id="dr" placeholder="Call/visit discussion"></textarea><label>Next Call Date</label><input id="dNext" type="date" min="${today()}" class="input" placeholder="Auto 30 days if blank"><div class="tiny mut">Next Call Date blank থাকলে auto ${doctorDefaultNextDate()} set হবে.</div><button onclick="saveVisit()">Save Doctor/RMP</button></div>`)
 }
 window["openDoctorAddForm"]=openDoctorAddForm;
 function saveVisit(){
  let m=mob($('#dm').value);
  let br=doctorFormBranch('d'),rem=($('#dr')?.value||'').trim(),next=$('#dNext')?.value||doctorDefaultNextDate();
- if(!$('#dn').value||!valid(m)||!br||!rem)return toast('Doctor name, mobile, branch and remarks mandatory');
+ /* 💬 V1033 — TK: Remarks আর বাধ্যতামূলক নয়। */
+ if(!$('#dn').value||!valid(m)||!br)return toast('Doctor name, mobile and branch mandatory');
  if(next<today())return toast('Past date not allowed');
  /* 🔴🔒 V940 — একই ব্রাঞ্চে থাকলে আগের মতোই আটকায়; শুধু অন্য ব্রাঞ্চে থাকলে
     জিজ্ঞাসা করে (TK: "যদি এক স্টাফ চায় তাহলে করতে পারবে")। */
@@ -17083,13 +17084,19 @@ window["saveReferralIncome"]=saveReferralIncome;
 function editDoctorVisit(id){
  let x=load('doctor_visits').find(a=>a.id===id);if(!x)return;
  doctorEditBranchTapCount=0;
- modal(`<h2>Edit Doctor/RMP</h2><div class="card"><label>Mobile Number <span class="req">*</span></label><input id="edm" class="input" inputmode="numeric" autocomplete="off" value="${esc(normMob(x.mobile||''))}"><label>Doctor / RMP Name <span class="req">*</span></label><input id="edn" class="input" value="${esc(x.name||'')}"><label>Branch <span class="req">*</span></label>${doctorBranchFieldHtml('ed',x.branch||user?.branch)}<label>Other numbers (comma separated)</label><input id="edAlt" class="input" inputmode="numeric" autocomplete="off" value="${esc(x.altMobiles||'')}" placeholder="একই ডাক্তারের বাড়তি নম্বর"><label>Area / Address</label><input id="eda" class="input" value="${esc(x.area||'')}"><label>Next Call Date</label><input id="edNext" type="date" min="${today()}" class="input" value="${esc(x.nextCallDate||'')}"><label>Remarks <span class="req">*</span></label><textarea id="edr">${esc(x.remarks||'')}</textarea><button onclick="updateDoctorVisit('${id}')">Save Changes</button></div>`)
+ /* 🩺🔒 V1033 (০৪.০৯.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ) — *"আরএমপির নাম প্রথমে
+   রাখবেন"* · *"মোবাইল নাম্বার দুটো এক জায়গায় রাখুন"* · *"রিমার্কস বাধ্যতামূলক
+   থাকবে না"* · *"eg সহ ডেমো নাম্বার থাকবে না"*। ফোনের হুবহু একই ক্রম।
+   ⛔ একটাও ঘর বাদ যায়নি, সেভের নিয়মও এক অক্ষরও বদলায়নি — শুধু ক্রম ও Remarks-এর
+      বাধ্যবাধকতা। */
+modal(`<h2>Edit Doctor/RMP</h2><div class="card"><label>Doctor / RMP Name <span class="req">*</span></label><input id="edn" class="input" value="${esc(x.name||'')}"><label>Mobile Number <span class="req">*</span></label><input id="edm" class="input" inputmode="numeric" autocomplete="off" value="${esc(normMob(x.mobile||''))}"><label>Other numbers (comma separated)</label><input id="edAlt" class="input" inputmode="numeric" autocomplete="off" value="${esc(x.altMobiles||'')}"><label>Branch <span class="req">*</span></label>${doctorBranchFieldHtml('ed',x.branch||user?.branch)}<label>Area / Address</label><input id="eda" class="input" value="${esc(x.area||'')}"><label>Next Call Date</label><input id="edNext" type="date" min="${today()}" class="input" value="${esc(x.nextCallDate||'')}"><label>Remarks</label><textarea id="edr">${esc(x.remarks||'')}</textarea><button onclick="updateDoctorVisit('${id}')">Save Changes</button></div>`)
 }
 window["editDoctorVisit"]=editDoctorVisit;
 function updateDoctorVisit(id){
  let m=mob($('#edm').value);
  let br=doctorFormBranch('ed'),rem=($('#edr')?.value||'').trim(),next=$('#edNext')?.value||doctorDefaultNextDate();
- if(!$('#edn').value||!valid(m)||!br||!rem)return toast('Doctor/RMP name, mobile, branch and remarks mandatory');
+ /* 💬 V1033 — TK: Remarks আর বাধ্যতামূলক নয় (নাম · মোবাইল · ব্রাঞ্চ আগের মতোই)। */
+ if(!$('#edn').value||!valid(m)||!br)return toast('Doctor/RMP name, mobile and branch mandatory');
  if(next<today())return toast('Past date not allowed');
  /* 🔴🔒 V940 — এডিটেও একই নিয়ম: **একই ব্রাঞ্চে** অন্য কারো নামে ওই নম্বর থাকলে
     আটকায়; অন্য ব্রাঞ্চে থাকলে আর আটকায় না (সেটাই এখন বৈধ)। */

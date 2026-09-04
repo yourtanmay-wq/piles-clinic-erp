@@ -822,19 +822,31 @@ class DoctorVisitActivity : AppCompatActivity() {
         /* 🟢 V944 (01.09.2026, TK-নির্দেশ "Edit ফর্মেও মিলিয়ে দিন") — Add ফর্মের
            মতোই এখানেও **মোবাইল ঘরটা সবার আগে**, তারপর নাম।
            ⛔ কোনো ঘর বাদ যায়নি, সেভের নিয়ম এক অক্ষরও বদলায়নি — শুধু বসার ক্রম। */
-        container.addView(fieldLabel("📱", "Mobile *", 0))
+        /* 🩺🔒 V1033 (০৪.০৯.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ) —
+           TK: *"আরএমপির নাম প্রথমে রাখবেন"* · *"মোবাইল নাম্বার দুটো এক জায়গায়
+           রাখুন"* · *"বক্সের উচ্চতা একটু ছোট করুন"* · *"eg সহ ডেমো নাম্বার
+           থাকবে না"* · *"ডিলিট বটম এখানে রাখবেন না, ক্লোজ রাখুন"*।
+           ⇒ ক্রম: নাম → মোবাইল → বাড়তি নম্বর → ব্রাঞ্চ → এলাকা → রিমার্কস।
+           ⛔ একটাও ঘর বাদ যায়নি; সেভের নিয়ম · যাচাই · কোন ঘরে কী জমা হয় —
+              এক অক্ষরও বদলায়নি। শুধু বসার ক্রম, উচ্চতা ও লেখার রং। */
+        container.addView(fieldLabel("🧑‍⚕️", "Doctor Name *", 0))
+        val name = EditText(this).apply { setText(item.name); hint = "Doctor Name" }
+        styleInputCompact(name); clearErrorOnEdit(name); container.addView(name)
+
+        container.addView(fieldLabel("📱", "Mobile *", 7))
         val mobile = EditText(this).apply { hint = "Mobile (10-digit)" }
-        styleInput(mobile)
+        styleInputCompact(mobile)
         MobileInput.attach(mobile)
         mobile.setText(MobileInput.digits(item.mobile))
         clearErrorOnEdit(mobile)
         container.addView(mobile)
 
-        container.addView(fieldLabel("🧑‍⚕️", "Doctor Name *"))
-        val name = EditText(this).apply { setText(item.name); hint = "Doctor Name" }
-        styleInput(name); clearErrorOnEdit(name); container.addView(name)
+        // 🟢 B630 — একই ডাক্তারের বাড়তি নম্বর; এখন মূল নম্বরের ঠিক নিচেই (TK)।
+        container.addView(fieldLabel("📱", "Other number (optional)", 7, "#5B6B81"))
+        val altEdit = EditText(this).apply { setText(item.altMobiles) }
+        styleInputCompact(altEdit); container.addView(altEdit)
 
-        container.addView(fieldLabel("🏥", "Branch *"))
+        container.addView(fieldLabel("🏥", "Branch *", 7))
         val branch = Spinner(this).apply {
             adapter = ArrayAdapter(this@DoctorVisitActivity, android.R.layout.simple_spinner_dropdown_item, branches)
             setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
@@ -842,28 +854,20 @@ class DoctorVisitActivity : AppCompatActivity() {
         }
         container.addView(branch)
 
-        container.addView(fieldLabel("📍", "Area / Address"))
+        container.addView(fieldLabel("📍", "Area / Address", 7, "#5B6B81"))
         val area = EditText(this).apply { setText(item.area); hint = "Area / Address" }
-        styleInput(area); container.addView(area)
+        styleInputCompact(area); container.addView(area)
 
-        container.addView(fieldLabel("📝", "Remarks"))
+        container.addView(fieldLabel("📝", "Remarks", 7, "#5B6B81"))
         val remarks = EditText(this).apply { setText(item.remarks); hint = "Remarks" }
-        styleInput(remarks); clearErrorOnEdit(remarks); container.addView(remarks)
+        styleInputCompact(remarks); clearErrorOnEdit(remarks); container.addView(remarks)
 
-        // 🟢 B630 (11.08.2026, TK-নির্দেশ): একই ডাক্তারের বাড়তি নম্বর — বিদ্যমান ডাক্তারেও
-        //   যোগ/এডিট করা যায় (কমা দিয়ে আলাদা)। ⛔ মূল Mobile অটুট; শুধু বাড়তি নম্বর।
-        container.addView(fieldLabel("📱", "Other numbers (comma separated, optional)"))
-        val altEdit = EditText(this).apply { setText(item.altMobiles); hint = "e.g. 9800000000, 9811111111" }
-        styleInput(altEdit); container.addView(altEdit)
-
-        val u = NativeSession.current(this)
-        val canDelete = u != null && (u.role == "master" || u.role == "staff" || u.role == "field")
-        if (canDelete) {
-            parts.actionRow.addView(pillButton("🗑 Delete", "#FBECEC", android.graphics.Color.parseColor("#C0392B")).apply {
-                setOnClickListener { parts.dialog.dismiss(); confirmDeleteDoctor(item) }
-            })
-        }
-        parts.actionRow.addView(pillButton("Cancel", "#E5E8EC", android.graphics.Color.parseColor("#145A32")).apply {
+        /* 🗑️🔒 V1033 — TK: *"ডিলিট বটম এখানে রাখবেন না, এখানে ক্লোজ রাখুন"*।
+           ⛔ মোছার ক্ষমতা হারায়নি — কার্ডের নিজের ডিলিট (`onDeleteTap`) ও
+              পুরো-পর্দার তালিকার ডিলিট আগের মতোই আছে, একই
+              `confirmDeleteDoctor()` ডাকে। শুধু এই পপ-আপ থেকে সরানো হলো,
+              যাতে ভুল করে চাপ পড়ার ভয় না থাকে। */
+        parts.actionRow.addView(pillButton("Close", "#E5E8EC", android.graphics.Color.parseColor("#145A32")).apply {
             setOnClickListener { parts.dialog.dismiss() }
         })
         parts.actionRow.addView(pillButton("💾 Save", "#0C9E33").apply {
@@ -1636,13 +1640,16 @@ class DoctorVisitActivity : AppCompatActivity() {
     /** Small colored icon+label field header, reused across the premium
      *  dialogs below (e.g. "👨‍⚕️ Doctor Name") instead of a plain textSize-only
      *  label — look-only change, the field it labels is unchanged. */
-    private fun fieldLabel(icon: String, text: String, marginTopDp: Int = 10): TextView {
+    /* 🩺🔒 V1033 (০৪.০৯.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ) — যে ঘরগুলো
+       বাধ্যতামূলক **নয়** সেগুলোর লেখা আর লাল নয়, তাই আর জোরের মতো দেখায় না।
+       ⛔ ডিফল্ট রং আগেরটাই — যেখানে বলা হয়নি সেখানে এক অক্ষরও বদলায়নি। */
+    private fun fieldLabel(icon: String, text: String, marginTopDp: Int = 10, colorHex: String = "#B42318"): TextView {
         val d = resources.displayMetrics.density
         return TextView(this).apply {
             this.text = "$icon  $text"
             textSize = 12.5f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setTextColor(android.graphics.Color.parseColor("#B42318"))
+            setTextColor(android.graphics.Color.parseColor(colorHex))
             // 🟢 V942 (01.09.2026, TK): ঘরগুলো উচ্চতায় ছোট — লেখার আকার/রং অটুট।
             setPadding(0, (marginTopDp * d).toInt(), 0, (3 * d).toInt())
         }
@@ -1654,6 +1661,18 @@ class DoctorVisitActivity : AppCompatActivity() {
         val padH = (14 * d).toInt(); val pad = (7 * d).toInt()
         v.setPadding(padH, pad, padH, pad)
         v.setTextColor(android.graphics.Color.parseColor("#10223A"))
+    }
+
+    /* 📏🔒 V1033 (TK-নির্দেশ: *"বক্সের উচ্চতা একটু ছোট করুন"*) — ঘরটা নিচু করা।
+       ⛔ শুধু যে পপ-আপে ডাকা হয় সেখানেই; বাকি সব পপ-আপ `styleInput()`-ই ব্যবহার
+          করে, তাই তাদের চেহারা এক অক্ষরও বদলায়নি।
+       ⛔ লেখার আকার · রং · ব্যাকগ্রাউন্ড অটুট — শুধু উপর-নিচের ফাঁক ও উচ্চতা। */
+    private fun styleInputCompact(v: EditText) {
+        val d = resources.displayMetrics.density
+        styleInput(v)
+        val padH = (14 * d).toInt(); val pad = (4 * d).toInt()
+        v.setPadding(padH, pad, padH, pad)
+        v.minHeight = (40 * d).toInt()
     }
 
     /** TK-DECISION (2026-07-22): mark the exact field the user got wrong with a
@@ -1805,7 +1824,10 @@ class DoctorVisitActivity : AppCompatActivity() {
         styleInput(areaInput)
         container.addView(areaInput)
 
-        container.addView(fieldLabel("📝", "Remarks (call/visit discussion) *"))
+        /* 💬🔒 V1033 (TK-নির্দেশ: *"Add ফর্মেও Remarks বাধ্যতামূলক রাখবেন না"*)
+           — তারা-চিহ্ন ও লাল রং দুটোই গেল, নিচের যাচাইটাও তুলে দেওয়া হলো।
+           ⛔ ঘরটা আছেই, লেখা থাকলে আগের মতোই হুবহু একইভাবে জমা হয়। */
+        container.addView(fieldLabel("📝", "Remarks (call/visit discussion)", 10, "#5B6B81"))
         val remarkInput = EditText(this).apply { hint = "Remarks" }
         styleInput(remarkInput)
         clearErrorOnEdit(remarkInput)
@@ -1854,7 +1876,7 @@ class DoctorVisitActivity : AppCompatActivity() {
             if (name.isBlank()) bad(nameInput, "Doctor Name দিন")
             if (mobile.length != 10) bad(mobileInput, "সঠিক 10 ডিজিট মোবাইল দিন")
             if (branch.isBlank()) bad(branchSpinner, "Branch বাছুন")
-            if (remark.isBlank()) bad(remarkInput, "Remarks দিন")
+            // 💬 V1033 — TK-নির্দেশে Remarks আর বাধ্যতামূলক নয়।
             if (firstMsg != null) {
                 Toast.makeText(this@DoctorVisitActivity, firstMsg, Toast.LENGTH_SHORT).show()
                 (firstBad as? EditText)?.requestFocus()
