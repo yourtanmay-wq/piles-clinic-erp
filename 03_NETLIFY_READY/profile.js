@@ -927,7 +927,7 @@
       if(rows && rows.length){
         /* 🔵🔒 V521: `timeType`-ও জমা রাখা হয় — এটাই বলে দেয় টাকাটা কেন পাওনা।
            ⛔ নতুন কোনো cloud-read নয়; এটা ফোনের/ব্রাউজারের জমা তালিকা থেকেই। */
-        rows.forEach(function(r){ SAL_PAT_CACHE[String(r.id)]={name:String(r.name||''),mobile:String(r.mobile||''),timeType:String(r.timeType||'')}; });
+        rows.forEach(function(r){ SAL_PAT_CACHE[String(r.id)]={name:String(r.name||''),mobile:String(r.mobile||''),timeType:String(r.timeType||''),timeSource:String(r.timeSource||'')}; });
       }
       if(typeof redraw==='function' && rows && rows.length) redraw();
     }catch(e){}
@@ -940,6 +940,19 @@
      ⛔ ডেটাবেসের একটা অক্ষরও বদলানো হয় না (TK-কে কোনো SQL চালাতে হবে না) —
         শুধু **দেখানোর সময়** লেখাটা পরিষ্কার করা হয়।
      ⛔ অন্য কোনো লেখা ছোঁয়া হয় না; নিজে টাইপ করা কারণ আগের মতোই থাকে। */
+  /* 🕐🔒 V1042 (TK-নির্দেশ) — সময়ের ব্যাজ। কলটা চেম্বারের ফোনে এলে অ্যাপ
+     কল-তালিকা দেখে নিজেই বোঝে ⇒ **AUTO UNEXPECTED**। স্টাফের নিজের ফোনে
+     এলে অ্যাপ কিছুই জানে না, স্টাফ হাতে বেছে দেন ⇒ **UNEXPECTED (BY HAND)**।
+     ⛔ পুরনো সারিতে ঘরটা ফাঁকা — সেখানে ব্যাজ হুবহু আগের মতোই থাকে। */
+  function salTimeBadge(tt, src){
+    var t=String(tt||'').trim(), sc=String(src||'').trim().toLowerCase();
+    if(!/^unexpected time$/i.test(t)) return t?('🕐 '+t.toUpperCase()):'';
+    if(sc==='auto') return '⏰ AUTO UNEXPECTED';
+    if(sc==='hand') return '✍️ UNEXPECTED (BY HAND)';
+    return '⏰ UNEXPECTED';
+  }
+  window.salTimeBadge = salTimeBadge;
+
   function salCleanWhy(t){
     try{
       var s=String(t||'');
@@ -969,7 +982,7 @@
       var rows=''
         + (c.name?  '<div class="pfStmtWhyRow"><span>Patient</span><b>'+m.esc(c.name)+'</b></div>':'')
         + (c.mobile?'<div class="pfStmtWhyRow"><span>Mobile</span><b>'+m.esc(c.mobile)+'</b></div>':'')
-        + (tt? '<div class="pfStmtWhyRow"><span>Timing</span><b>'+(isUnexp?'⏰ UNEXPECTED TIME':'🕐 '+m.esc(tt.toUpperCase()))+'</b></div>':'')
+        + (tt? '<div class="pfStmtWhyRow"><span>Timing</span><b>'+m.esc(salTimeBadge(tt, c&&c.timeSource))+'</b></div>':'')
         + '<div class="pfStmtWhyRow"><span>For</span><b>'+m.esc(salCleanWhy(String(x.extra_reason||'-')))+'</b></div>'
         + (stepTxt? '<div class="pfStmtWhyRow"><span>Step</span><b>'+m.esc(stepTxt)+'</b></div>':'')
         + '<div class="pfStmtWhyRow"><span>Amount</span><b>'+m.money(x.amount)+'</b></div>'
@@ -1113,7 +1126,7 @@
          টাকাটা অসময়ের এনকোয়ারির জন্য। ⛔ ঘরটা ফাঁকা হলে আগের মতোই কিছু নয়। */
       var vTt  = vPid ? String((SAL_PAT_CACHE[vPid] && SAL_PAT_CACHE[vPid].timeType) || '') : '';
       if (vTt) {
-        var mark = /^unexpected time$/i.test(vTt) ? '⏰ UNEXPECTED' : '🕐 ' + vTt.toUpperCase();
+        var mark = salTimeBadge(vTt, (vPid && SAL_PAT_CACHE[vPid]) ? SAL_PAT_CACHE[vPid].timeSource : '');
         detail = detail ? (mark + '  ·  ' + detail) : mark;
       }
       if (vNm) detail = detail ? (detail + '  ·  ' + vNm) : vNm;

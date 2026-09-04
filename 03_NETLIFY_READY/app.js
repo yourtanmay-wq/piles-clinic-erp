@@ -1963,8 +1963,8 @@ let rtWired=false;
 // তাই এখানকার আসল Egress-খরচ এমনিতেই কম — তাই এই টেবিল যেমন ছিল তেমনই
 // (select='*') রাখা হলো।
 const RT_NO_PHOTO_COLS={
- followups:'address,age,branch,callCount,convertedPatientId,createdAt,createdBy,date,disease,history,id,lastCallDate,lastRemark,mobile,name,nextFollow,patientId,refId,registrationDate,sex,stage,status,timeType,updatedAt,visitDate',
- patients:'address,age,bill,branch,complaint,completeApprovedBy,completeRequestedBy,createdAt,createdBy,date,decision,diagnosis,discount,billBeforeDiscount,discountReason,discountBy,discountAt,disease,doctorAdvice,doctorComplete,doctorFullNote,id,medicalHistory,mobile,name,occupation,patientId,previousCost,previousResult,previousTreatment,queue,refBy,refDoctor,refDoctorMobile,refundRestoredBy,registeredBy,registrationDate,sex,sinceWhen,stage,timeType,treatmentDuration,updatedAt,visitDate',
+ followups:'address,age,branch,callCount,convertedPatientId,createdAt,createdBy,date,disease,history,id,lastCallDate,lastRemark,mobile,name,nextFollow,patientId,refId,registrationDate,sex,stage,status,timeType,timeSource,updatedAt,visitDate',
+ patients:'address,age,bill,branch,complaint,completeApprovedBy,completeRequestedBy,createdAt,createdBy,date,decision,diagnosis,discount,billBeforeDiscount,discountReason,discountBy,discountAt,disease,doctorAdvice,doctorComplete,doctorFullNote,id,medicalHistory,mobile,name,occupation,patientId,previousCost,previousResult,previousTreatment,queue,refBy,refDoctor,refDoctorMobile,refundRestoredBy,registeredBy,registrationDate,sex,sinceWhen,stage,timeType,timeSource,treatmentDuration,updatedAt,visitDate',
  medical:'id,patientId,type,date,selected,days,details,nextFollow,diagnosis,decision,doctorFullNote,name,mobile,branch,createdBy,createdAt,updatedAt'
 };
 function wireRealtime(){
@@ -6041,7 +6041,12 @@ function saveEnq(){
   let now=new Date().toISOString();
   let e={
    id:uid('enq'),date,branch:br,name,mobile:normMob(m),disease,address,remarks:rem,nextFollow:next,
-   timeType,receivedBy,stage:'Inquiry',status:'Active',callCount:0,
+   timeType,
+   /* 🕐🔒 V1042 (TK-নির্দেশ) — কম্পিউটারে কল-তালিকা পড়ার কোনো উপায়ই নেই,
+      তাই এখানে সময়টা **সবসময় হাতে বাছা** ("hand")। ফোনে কলটা চেম্বারের
+      ফোনে এলে অ্যাপ নিজে বুঝে নেয় ⇒ ওখানে "auto" বসে। */
+   timeSource:'hand',
+   receivedBy,stage:'Inquiry',status:'Active',callCount:0,
    createdBy:user.mobile,createdAt:now,updatedAt:now
   };
 

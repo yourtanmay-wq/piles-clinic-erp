@@ -269,9 +269,19 @@ class EnquiryActivity : AppCompatActivity() {
     /** কল-তালিকায় ওই নম্বরের প্রথম কল পাওয়া গেছে কি না (পেলে তার সময়)। */
     private var branchCallMs: Long? = null
 
+    /* 🕐🔒 V1042 (TK-নির্দেশ) — সময়টা **অ্যাপ নিজে** কল-তালিকা থেকে বুঝেছে কিনা।
+       কলটা চেম্বারের ফোনে এলে কল-তালিকায় পাওয়া যায় ⇒ auto। স্টাফের নিজের
+       ফোনে এলে অ্যাপ কিছুই জানে না, স্টাফ হাতে বেছে দেন ⇒ hand।
+       ⛔ অ্যাপ বুঝে দেওয়ার পরেও স্টাফ বোতাম চেপে বদলালে সেটা আর auto নয়। */
+    private var timingIsAuto = false
+
     private fun setupTimingButtons() {
-        binding.btnTimingOfficial.setOnClickListener { selectTiming("Official Time") }
+        binding.btnTimingOfficial.setOnClickListener {
+            timingIsAuto = false                       // 🕐 V1042 — স্টাফ নিজে বাছলেন
+            selectTiming("Official Time")
+        }
         binding.btnTimingUnexpected.setOnClickListener {
+            timingIsAuto = false                       // 🕐 V1042 — স্টাফ নিজে বাছলেন
             // কল পাওয়া যায়নি ⇒ স্টাফের নিজের বাছাই ⇒ আগে সতর্কতা, তারপর বাছাই
             if (branchCallMs == null) confirmUnexpected() else selectTiming("Unexpected Time")
         }
@@ -281,6 +291,7 @@ class EnquiryActivity : AppCompatActivity() {
     /** কল-তালিকার ফল অনুযায়ী বোতাম দুটো সাজায়। */
     private fun applyTimingFromCall(callMs: Long?) {
         branchCallMs = callMs
+        timingIsAuto = callMs != null                  // 🕐 V1042
         if (callMs == null) {
             binding.btnTimingUnexpected.visibility = View.VISIBLE
             selectTiming("Official Time")
@@ -764,6 +775,7 @@ val disease = selectedDisease
             remarks = remarks,
             nextFollow = selectedNextFollow,
             timeType = timing,
+            timeSource = if (timingIsAuto) "auto" else "hand",   // 🕐 V1042
             receivedByMobile = receivedByMobiles.getOrNull(binding.spReceivedBy.selectedItemPosition) ?: user.mobile
         )
         setLoading(true)

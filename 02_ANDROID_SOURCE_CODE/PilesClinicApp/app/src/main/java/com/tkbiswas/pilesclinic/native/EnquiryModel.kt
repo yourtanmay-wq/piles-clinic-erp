@@ -26,6 +26,11 @@ data class EnquiryDraft(
     val remarks: String,
     val nextFollow: String,
     val timeType: String,
+    /* 🕐🔒 V1042 (TK-নির্দেশ) — সময়টা অ্যাপ **নিজে** কল-তালিকা দেখে বুঝেছে
+       ("auto"), না স্টাফ **হাতে** বেছে দিয়েছে ("hand")। কলটা চেম্বারের ফোনে
+       এলে অ্যাপ জানতে পারে; স্টাফের নিজের ফোনে এলে জানার উপায়ই নেই।
+       ⛔ ফাঁকা থাকলে আগের মতোই — পুরনো সারিতে কিছু বসানো হয়নি। */
+    val timeSource: String = "",
     val receivedByMobile: String
 )
 
@@ -51,6 +56,7 @@ object EnquiryModel {
             .put("remarks", draft.remarks)
             .put("nextFollow", draft.nextFollow)
             .put("timeType", draft.timeType)
+            .put("timeSource", draft.timeSource)   // 🕐 V1042
             .put("receivedBy", draft.receivedByMobile)
             .put("stage", "Inquiry")
             .put("status", "Active")
@@ -103,6 +109,7 @@ object EnquiryModel {
             // card can show a small time-type badge without re-joining the
             // enquiries table. Copied from the enquiry row; blank if absent.
             .put("timeType", enquiryRow.s("timeType"))
+            .put("timeSource", enquiryRow.s("timeSource"))   // 🕐 V1042
             // 🔴🔴 TK-REPORTED (31.07.2026 — "Enquiry card-এ Wifi Signal কাজ
             // করছে না, কারণ Enquiry Form Save হওয়ার সাথে সাথেই তো একটা
             // signal হতে হতো, কারণ কল এসেছে সেজন্যই তো Form টা Save করা

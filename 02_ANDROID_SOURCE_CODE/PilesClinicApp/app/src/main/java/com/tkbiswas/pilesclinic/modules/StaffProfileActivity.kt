@@ -3135,6 +3135,22 @@ class StaffProfileActivity : AppCompatActivity() {
      *    এক পয়সাও বদলায় না — এটা শুধু **দেখানোর** কাজ।
      */
     private val extraPatientTiming = HashMap<String, String>()               // id → timeType
+    /* 🕐🔒 V1042 — id → timeSource ("auto" = অ্যাপ কল-তালিকা দেখে নিজে বুঝেছে,
+       "hand" = স্টাফ হাতে বেছেছেন, ফাঁকা = পুরনো সারি, জানা নেই)। */
+    private val extraPatientSrc = HashMap<String, String>()
+
+    /* 🕐🔒 V1042 (TK-নির্দেশ) — সময়ের ব্যাজ এক জায়গায়, তাই সব পর্দায় এক লেখা।
+       ⛔ ঘরটা ফাঁকা হলে ব্যাজ হুবহু আগের মতোই থাকে। */
+    private fun timeBadge(timing: String, src: String, longForm: Boolean = false): String {
+        val t = timing.trim()
+        if (!t.equals("Unexpected Time", ignoreCase = true))
+            return if (t.isBlank()) "" else "\uD83D\uDD50 " + t.uppercase()
+        return when (src.trim().lowercase()) {
+            "auto" -> "\u23F0 AUTO UNEXPECTED" + (if (longForm) " TIME" else "")
+            "hand" -> "\u270D\uFE0F UNEXPECTED (BY HAND)"
+            else   -> "\u23F0 UNEXPECTED" + (if (longForm) " TIME" else "")
+        }
+    }
 
     /* 👤🔒 V1040 — `nameOnly = true` হলে লাইনে শুধু **👤 নাম · মোবাইল** বসে
        (Pay Extra Income পর্দার জন্য, যেখানে কারণটা উপরের লাইনেই আছে)।
@@ -3167,10 +3183,7 @@ class StaffProfileActivity : AppCompatActivity() {
                 }
                 if (nm.isBlank() && tt.isBlank()) continue          // এখনো কিছুই আসেনি
                 val parts = mutableListOf<String>()
-                if (tt.isNotBlank()) parts.add(
-                    if (tt.equals("Unexpected Time", ignoreCase = true)) "⏰ UNEXPECTED"
-                    else "🕐 " + tt.uppercase()
-                )
+                if (tt.isNotBlank()) parts.add(timeBadge(tt, extraPatientSrc[pid].orEmpty()))   // 🕐 V1042
                 if (why.isNotBlank()) parts.add(why)
                 // ⛔ হাতে-লেখা মন্তব্য থাকলে সেটাও যেন হারিয়ে না যায় (আগের লাইনে ছিল)
                 ns(row, "remark").trim().takeIf { it.isNotBlank() }?.let { parts.add(it) }
@@ -3184,7 +3197,7 @@ class StaffProfileActivity : AppCompatActivity() {
             try {
                 val list = need.joinToString(",") { java.net.URLEncoder.encode(it, "UTF-8") }
                 val rows2 = com.tkbiswas.pilesclinic.native.SupabaseClient.fetchListSlimOrNull(
-                    "patients", "id=in.($list)", 500, "id,name,mobile,timeType", order = "id.asc"
+                    "patients", "id=in.($list)", 500, "id,name,mobile,timeType,timeSource", order = "id.asc"
                 )
                 if (rows2 != null) {
                     for (i in 0 until rows2.length()) {
@@ -3192,6 +3205,7 @@ class StaffProfileActivity : AppCompatActivity() {
                         val id = o.optString("id", "")
                         if (id.isBlank()) continue
                         extraPatientTiming[id] = o.optString("timeType", "").trim()
+                        extraPatientSrc[id] = o.optString("timeSource", "").trim()   // 🕐 V1042
                         extraPatientCache[id] = Pair(
                             o.optString("name", "").trim(),
                             o.optString("mobile", "").trim()
@@ -3234,11 +3248,12 @@ class StaffProfileActivity : AppCompatActivity() {
             try {
                 val enc = java.net.URLEncoder.encode(pid, "UTF-8")
                 val rows = com.tkbiswas.pilesclinic.native.SupabaseClient.fetchListSlimOrNull(
-                    "patients", "id=eq.$enc", 1, "id,name,mobile,timeType", order = "id.asc")
+                    "patients", "id=eq.$enc", 1, "id,name,mobile,timeType,timeSource", order = "id.asc")
                 val o = if (rows != null && rows.length() > 0) rows.optJSONObject(0) else null
                 if (o != null) {
                     m = o.optString("mobile", "").trim()
                     extraPatientTiming[pid] = o.optString("timeType", "").trim()
+                    extraPatientSrc[pid] = o.optString("timeSource", "").trim()      // 🕐 V1042
                     extraPatientCache[pid] = Pair(o.optString("name", "").trim(), m)
                 }
             } catch (_: Throwable) { }
@@ -3277,7 +3292,7 @@ class StaffProfileActivity : AppCompatActivity() {
         if (mob.isNotBlank()) sb.append("Mobile:  ").append(mob).append("\n\n")
         // ⏰ সবচেয়ে জরুরি লাইন — এটাই না থাকায় TK কিছু বুঝতে পারতেন না
         if (timing.isNotBlank()) {
-            val shown = if (isUnexpected) "⏰ UNEXPECTED TIME" else "🕐 " + timing.uppercase()
+            val shown = timeBadge(timing, extraPatientSrc[pid].orEmpty(), longForm = true)   // 🕐 V1042
             sb.append("Timing:  ").append(shown).append("\n\n")
         }
         if (why.isNotBlank()) sb.append("For:  ").append(why).append("\n\n")
@@ -3685,6 +3700,7 @@ class StaffProfileActivity : AppCompatActivity() {
                         byCode[cd] = id
                         extraPatientCache[id] = Pair(ns(r, "name").trim(), ns(r, "mobile").trim())
                         extraPatientTiming[id] = ns(r, "timeType").trim()
+                        extraPatientSrc[id] = ns(r, "timeSource").trim()             // 🕐 V1042
                     }
                 }
                 runOnUiThread {
