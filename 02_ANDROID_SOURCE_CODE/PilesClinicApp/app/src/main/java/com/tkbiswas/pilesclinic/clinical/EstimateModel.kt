@@ -39,13 +39,18 @@ object EstimateModel {
         var position: String = "",
         var rate: Double = 0.0,
         var qty: Double = 1.0,
-        var struck: Boolean = false
+        var struck: Boolean = false,
+        /* 🔒 V1068 — কাটার সময় ছাড়ে **ঠিক কত টাকা** যোগ হয়েছিল। ফেরানোর সময়
+           ঠিক ততটুকুই কমে, তাই মাঝখানে দাম/সংখ্যা বদলে গেলেও ছাড়ে ভুল টাকা
+           পড়ে থাকে না (নিজে যাচাই করতে গিয়ে ধরা)। */
+        var struckAmt: Double = 0.0
     ) {
         val total: Double get() = rate * qty
 
         fun toJson(): JSONObject = JSONObject()
             .put("name", name).put("measure", measure).put("position", position)
             .put("rate", rate).put("qty", qty).put("struck", struck)
+            .put("struckAmt", struckAmt)
     }
 
     /* ⛔ ইচ্ছে করে `companion object`-এ নয় — প্রকল্পের পাহারা [৯.১০] ক্লাসের
@@ -56,7 +61,8 @@ object EstimateModel {
         position = o.optString("position", ""),
         rate = o.optDouble("rate", 0.0),
         qty = o.optDouble("qty", 1.0),
-        struck = o.optBoolean("struck", false)
+        struck = o.optBoolean("struck", false),
+        struckAmt = o.optDouble("struckAmt", 0.0)   // 🔒 V1068
     )
 
     /** একটা রোগীর পুরো এস্টিমেট। */
@@ -101,7 +107,16 @@ object EstimateModel {
                 discount = (subtotal * discount / 100.0).coerceIn(0.0, subtotal)
                 discountPct = false
             }
-            discount = (discount + (if (nowStruck) line.total else -line.total)).coerceAtLeast(0.0)
+            /* 🔒 V1068 — যোগ হয় **এখনকার** দাম, আর কমে **যা যোগ হয়েছিল ঠিক
+               সেটুকুই** — মাঝে দাম বদলালেও ছাড়ে বাড়তি টাকা থেকে যায় না। */
+            if (nowStruck) {
+                line.struckAmt = line.total
+                discount = (discount + line.struckAmt).coerceAtLeast(0.0)
+            } else {
+                val back = if (line.struckAmt > 0.0) line.struckAmt else line.total
+                line.struckAmt = 0.0
+                discount = (discount - back).coerceAtLeast(0.0)
+            }
         }
         val isEmpty: Boolean get() = lines.isEmpty()
 

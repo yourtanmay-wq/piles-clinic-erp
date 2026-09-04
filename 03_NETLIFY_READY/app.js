@@ -1397,8 +1397,12 @@ async function wlv1FetchPaged(ct,sel,sinceIso,noStamp){
   for(var i=0;i<WLV1_PAGE_GUARD;i++){
     var q=sb.from(ct).select(sel);
     if(sinceIso&&!noStamp) q=q.gt('updatedAt',sinceIso);
+    /* 🔒 V1067 (খুঁটিয়ে দেখতে গিয়ে পাওয়া) — `updatedAt` এক হলে পাতার সীমানায়
+       সারি **এড়িয়ে যেতে পারত** (একই সেকেন্ডে সেভ হওয়া দুটো সারি)। তাই দ্বিতীয়
+       ক্রম হিসেবে `id` — অনন্য, তাই ক্রম সবসময় একই থাকে।
+       ⛔ delta-র `since` নিয়ম, পাতার মাপ, সুরক্ষা — কিছুই বদলায়নি। */
     q=noStamp ? q.order('id',{ascending:true})
-              : q.order('updatedAt',{ascending:true,nullsFirst:true});
+              : q.order('updatedAt',{ascending:true,nullsFirst:true}).order('id',{ascending:true});
     var r=await q.range(from,from+WLV1_PAGE-1);
     if(r&&r.error) return {error:r.error,rows:out};
     var d=(r&&Array.isArray(r.data))?r.data:[];
@@ -27221,7 +27225,7 @@ var wlv1EstSheet={lines:[],discount:0,discountPct:false,finding:'',strikeInDisco
 function wlv1EstLoad(){
   try{ var raw=window.__wlv1EstJson||''; if(!raw){ wlv1EstSheet={lines:[],discount:0,discountPct:false,finding:'',strikeInDiscount:true}; return }
     var o=JSON.parse(raw);
-    wlv1EstSheet={lines:(o.lines||[]).map(function(l){return{name:l.name||'',measure:l.measure||'',position:l.position||'',rate:Number(l.rate||0),qty:Number(l.qty||1),struck:!!l.struck}}),
+    wlv1EstSheet={lines:(o.lines||[]).map(function(l){return{name:l.name||'',measure:l.measure||'',position:l.position||'',rate:Number(l.rate||0),qty:Number(l.qty||1),struck:!!l.struck,struckAmt:Number(l.struckAmt||0)}}),   /* 🔒 V1068 */
       discount:Number(o.discount||0),discountPct:!!o.discountPct,finding:String(o.finding||''),
       strikeInDiscount:!!o.strikeInDiscount};
     /* 💰🔴🔒 V1064 — **পুরনো সেভ করা এস্টিমেটের টাকা যেন এক পয়সাও না বদলায়।**
@@ -27373,8 +27377,12 @@ function wlv1EstStruckSync(l, nowStruck){
       wlv1EstSheet.discount = Math.max(0, Math.min(sub*Number(wlv1EstSheet.discount||0)/100, sub));
       wlv1EstSheet.discountPct = false;
     }
+    /* 🔒 V1068 — যোগ হয় **এখনকার** দাম, আর কমে **যা যোগ হয়েছিল ঠিক সেটুকুই**
+       (`struckAmt`) — মাঝে দাম/সংখ্যা বদলালেও ছাড়ে বাড়তি টাকা থেকে যায় না। */
     var amt = Number(l.rate||0)*Number(l.qty||0);
-    wlv1EstSheet.discount = Math.max(0, Number(wlv1EstSheet.discount||0) + (nowStruck ? amt : -amt));
+    if(nowStruck){ l.struckAmt = amt; wlv1EstSheet.discount = Math.max(0, Number(wlv1EstSheet.discount||0) + amt); }
+    else { var back = Number(l.struckAmt||0) > 0 ? Number(l.struckAmt) : amt; l.struckAmt = 0;
+           wlv1EstSheet.discount = Math.max(0, Number(wlv1EstSheet.discount||0) - back); }
   }catch(e){}
 }
 function wlv1EstStrike2(i){ var l=wlv1EstSheet.lines[i]; if(l){ l.struck=!l.struck; wlv1EstStruckSync(l,l.struck); } closeModal(); wlv1EstRender() }

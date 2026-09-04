@@ -2315,8 +2315,30 @@ class DoctorVisitActivity : AppCompatActivity() {
                             ReferredPatient(p.referralDate, p.name, p.mobile, p.bill, p.paid, p.patientCode, p.disease)
                         }
                     } else {
-                        val patsDeferred = async { SupabaseClient.fetchListSlimOrNull("patients", null, 5000, "id,name,mobile,bill,branch,refBy,refDoctorMobile,registrationDate,date,disease,diagnosis,updatedAt") }
-                        val paysDeferred = async { SupabaseClient.fetchListSlimOrNull("payments", null, 5000, "id,mobile,amount,payType,refundApprovalStatus,updatedAt") }
+                        /* 🔴🔒 V1067 (০৪.০৯.২০২৬ — পুরো প্রজেক্ট খুঁটিয়ে দেখতে গিয়ে পাওয়া,
+                           **V1060-এর হুবহু একই ধরনের দোষ**) — এখানে সব রোগী ও সব পেমেন্ট
+                           `limit 5000`, ক্রম `updatedAt.desc` মানে **নতুন ৫০০০টা** আনা হত।
+                           ক্লিনিক বড় হয়ে ৫০০০ ছাড়াতেই সবচেয়ে **পুরনো টাকাগুলো ছাঁটা** পড়ত ⇒
+                           ঐ রোগীর "দেওয়া" কম দেখাত ⇒ **"বাকি" বেশি দেখাত**। রেফার-করা
+                           ডাক্তারের তালিকায় টাকার অঙ্ক ভুল হত।
+                           ⇒ এখন **পাতা ধরে ধরে সবটা** আনা হয়, ক্রম `id.asc` (অনন্য, তাই
+                             পাতার মাঝে সারি এড়িয়ে যায় না), আর কোনো পাতা না এলে `null`
+                             (আধা-হিসাব নয়) — নিচের `?: throw` আগের মতোই ধরে নেয়।
+                           ⛔ টাকার গোনার নিয়ম এক অক্ষরও বদলায়নি। */
+                        fun allPages(table: String, cols: String): org.json.JSONArray? {
+                            val out = org.json.JSONArray(); var off = 0; val page = 1000
+                            while (true) {
+                                val part = SupabaseClient.fetchListSlimOrNull(
+                                    table, null, page, cols, order = "id.asc", offset = off) ?: return null
+                                for (k in 0 until part.length()) out.put(part.get(k))
+                                if (part.length() < page) break
+                                off += page
+                                if (off >= 200000) break
+                            }
+                            return out
+                        }
+                        val patsDeferred = async { allPages("patients", "id,name,mobile,bill,branch,refBy,refDoctorMobile,registrationDate,date,disease,diagnosis,updatedAt") }
+                        val paysDeferred = async { allPages("payments", "id,mobile,amount,payType,refundApprovalStatus,updatedAt") }
                         val pats = patsDeferred.await() ?: throw IllegalStateException("patients refresh failed")
                         val pays = paysDeferred.await() ?: throw IllegalStateException("payments refresh failed")
                         val paidByMobile = HashMap<String, Double>()
