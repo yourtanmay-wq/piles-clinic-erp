@@ -858,6 +858,13 @@ class DoctorVisitActivity : AppCompatActivity() {
         val area = EditText(this).apply { setText(item.area); hint = "Area / Address" }
         styleInputCompact(area); container.addView(area)
 
+        /* 🚓🔒 V1034 (০৪.০৯.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ) — ডাক্তার কোন
+           থানার অধীনে। ঠিকানার ঠিক নিচেই, বাধ্যতামূলক নয়।
+           ⛔ লেখাটা ইংরেজিতেই (TK-নির্দেশ: বাংলা থাকবে না)। */
+        container.addView(fieldLabel("🚓", "Police Station", 7, "#5B6B81"))
+        val police = EditText(this).apply { setText(item.policeStation); hint = "Police Station" }
+        styleInputCompact(police); container.addView(police)
+
         container.addView(fieldLabel("📝", "Remarks", 7, "#5B6B81"))
         val remarks = EditText(this).apply { setText(item.remarks); hint = "Remarks" }
         styleInputCompact(remarks); clearErrorOnEdit(remarks); container.addView(remarks)
@@ -897,6 +904,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                     .put("mobile", mob)
                     .put("branch", br)
                     .put("area", area.text.toString().trim())
+                    .put("policeStation", police.text.toString().trim())   // 🚓 V1034
                     .put("remarks", rm)
                 // 🔴🔴🔒 V458 (TK-নির্দেশ ১৯.০৮.২০২৬: "কোন স্টাফ কল করেছিল কবে —
                 // সততার সাথে যেন বোঝা যায়")। এই পপ-আপের Remarks ঘরটা সরাসরি লেখে —
@@ -1824,6 +1832,13 @@ class DoctorVisitActivity : AppCompatActivity() {
         styleInput(areaInput)
         container.addView(areaInput)
 
+        /* 🚓🔒 V1034 (TK-নির্দেশ) — ডাক্তার কোন থানার অধীনে; Edit ফর্মের হুবহু
+           একই ঘর, একই জায়গায় (ঠিকানার নিচে)। বাধ্যতামূলক নয়। */
+        container.addView(fieldLabel("🚓", "Police Station"))
+        val policeInput = EditText(this).apply { hint = "Police Station" }
+        styleInput(policeInput)
+        container.addView(policeInput)
+
         /* 💬🔒 V1033 (TK-নির্দেশ: *"Add ফর্মেও Remarks বাধ্যতামূলক রাখবেন না"*)
            — তারা-চিহ্ন ও লাল রং দুটোই গেল, নিচের যাচাইটাও তুলে দেওয়া হলো।
            ⛔ ঘরটা আছেই, লেখা থাকলে আগের মতোই হুবহু একইভাবে জমা হয়। */
@@ -1939,7 +1954,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                 }
                 val altCsv = extras.joinToString(",") { "+91$it" }
                 val ok = withContext(Dispatchers.IO) {
-                    repository.addNewDoctor(name, mobile, branch, areaInput.text.toString().trim(), remark, nextDate, user.mobile, this@DoctorVisitActivity, altCsv)
+                    repository.addNewDoctor(name, mobile, branch, areaInput.text.toString().trim(), remark, nextDate, user.mobile, this@DoctorVisitActivity, altCsv, policeInput.text.toString().trim())
                 }
                 // 🔒 (03.08.2026, খাতার সারি B190/B373, TK-অনুমোদনে) — আসল কারণ:
                 // addNewDoctor() ব্যর্থ হলেও (ok=false) MyPhoneWrites.remember()

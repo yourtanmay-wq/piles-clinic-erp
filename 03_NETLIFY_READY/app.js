@@ -951,12 +951,12 @@ const CLOUD_SAFE_COLS={
   'previousStage','convertedAt','lastRemarkAt'],
  medical:['id','patientId','type','date','selected','days','details','nextFollow','diagnosis','decision','doctorFullNote','name','mobile','branch','createdBy','createdAt','updatedAt'],
  products:['id','kind','product','customer','mobile','qty','price','bill','total','deposit','due','mode','remarks','date','branch','receivedBy','createdBy','createdAt','updatedAt'],
- doctor_visits:['id','name','mobile','altMobiles','area','remarks','date','branch','lastCallDate','nextCallDate','expectedPatientDate','callStatus','status','callHistory','referralPayments','referralPaid','referralDue','createdBy','createdAt','updatedAt',
+ doctor_visits:['id','name','mobile','altMobiles','area','remarks','date','branch','lastCallDate','nextCallDate','expectedPatientDate','policeStation','callStatus','status','callHistory','referralPayments','referralPaid','referralDue','createdBy','createdAt','updatedAt',
   /* 🔴🔒 V919 — RMP-র রিমার্ক কে/কখন বদলেছেন, আর মোছার অনুরোধ —
      ওয়েব এগুলো দেখায় ও বসায়, কিন্তু পাঠানোর আগে কেটে যেত। */
   'remarksEditedBy','remarksEditedAt','deleteRequestedBy','deleteRequestedAt'],
- doctor_visits:['id','name','mobile','altMobiles','area','remarks','date','branch','lastCallDate','nextCallDate','expectedPatientDate','callStatus','status','callHistory','referralPayments','referralPaid','referralDue','createdBy','createdAt','updatedAt'],
- doctor_visits:['id','name','mobile','altMobiles','area','remarks','date','branch','lastCallDate','nextCallDate','expectedPatientDate','callStatus','status','callHistory','referralPayments','referralPaid','referralDue','createdBy','createdAt','updatedAt'],
+ doctor_visits:['id','name','mobile','altMobiles','area','remarks','date','branch','lastCallDate','nextCallDate','expectedPatientDate','policeStation','callStatus','status','callHistory','referralPayments','referralPaid','referralDue','createdBy','createdAt','updatedAt'],
+ doctor_visits:['id','name','mobile','altMobiles','area','remarks','date','branch','lastCallDate','nextCallDate','expectedPatientDate','policeStation','callStatus','status','callHistory','referralPayments','referralPaid','referralDue','createdBy','createdAt','updatedAt'],
  briefings:['id','date','title','message','targets','seen','replies','hiddenFor','deletedAt','deletedBy','branch','createdBy','createdAt','updatedAt'],
  trash:['id','table','record','deletedAt','deletedBy'],
  /* 🔵🔒 V440 (19.08.2026, TK-অনুমোদিত — Database size ফিক্স):
@@ -16776,7 +16776,7 @@ function doctorVisitCardDesk(x, i){
   +'</div>'
   +'<div class="dvAndPhone">📞 '+esc(normMob(x.mobile))+'</div>'
   +'<div class="dvAndChips"><span class="dvAndBr">'+esc(String(x.branch||'').toUpperCase())+'</span>'
-    +(x.area?'<span class="dvAndArea">📍 '+esc(String(x.area).toUpperCase())+'</span>':'')+'</div>'
+    +((x.area||x.policeStation)?'<span class="dvAndArea">📍 '+esc([String(x.area||'').toUpperCase(),(x.policeStation?'PS · '+String(x.policeStation).toUpperCase():'')].filter(Boolean).join('  ·  '))+'</span>':'')+'</div>'
   +'<div class="dvAndBox">'
     +'<div class="dvAndCallLine">'+lastTxt+'  ·  <span class="dvAndNext">'+nextTxt+'</span></div>'
     +(callLate?'<div class="dvAndLate">⚠️ '+(lateDays>0?(lateDays+' DAY'+(lateDays===1?'':'S')+' LATE'):'CALL OVERDUE')+'</div>':'')
@@ -16922,7 +16922,7 @@ function dAddAltRow(){ let box=$('#dAltBox'); if(!box)return; let i=++dAltSeq; l
 window["dAddAltRow"]=dAddAltRow;
 function openDoctorAddForm(){
  doctorBranchTapCount=0;dAltSeq=0;
- modal(`<h2>Add Doctor/RMP</h2><div class="card"><label>Mobile <span class="req">*</span></label><input id="dm" class="input" inputmode="numeric" autocomplete="off" placeholder="10 digit mobile" oninput="dDupCheck('dm','dmStatus')"><div id="dmStatus" class="tiny" style="font-weight:700"></div><div id="dAltBox"></div><a class="tiny" style="color:#166534;font-weight:700;display:inline-block;margin-top:6px;cursor:pointer" onclick="dAddAltRow()">＋ Add another number</a><label>Doctor Name <span class="req">*</span></label><input id="dn" class="input"><label>Branch <span class="req">*</span></label>${doctorBranchFieldHtml('d',user?.branch)}<label>Area / Address</label><input id="da" class="input"><label>Remarks</label><textarea id="dr" placeholder="Call/visit discussion"></textarea><label>Next Call Date</label><input id="dNext" type="date" min="${today()}" class="input" placeholder="Auto 30 days if blank"><div class="tiny mut">Next Call Date blank থাকলে auto ${doctorDefaultNextDate()} set হবে.</div><button onclick="saveVisit()">Save Doctor/RMP</button></div>`)
+ modal(`<h2>Add Doctor/RMP</h2><div class="card"><label>Mobile <span class="req">*</span></label><input id="dm" class="input" inputmode="numeric" autocomplete="off" placeholder="10 digit mobile" oninput="dDupCheck('dm','dmStatus')"><div id="dmStatus" class="tiny" style="font-weight:700"></div><div id="dAltBox"></div><a class="tiny" style="color:#166534;font-weight:700;display:inline-block;margin-top:6px;cursor:pointer" onclick="dAddAltRow()">＋ Add another number</a><label>Doctor Name <span class="req">*</span></label><input id="dn" class="input"><label>Branch <span class="req">*</span></label>${doctorBranchFieldHtml('d',user?.branch)}<label>Area / Address</label><input id="da" class="input"><label>Police Station</label><input id="dPs" class="input"><label>Remarks</label><textarea id="dr" placeholder="Call/visit discussion"></textarea><label>Next Call Date</label><input id="dNext" type="date" min="${today()}" class="input" placeholder="Auto 30 days if blank"><div class="tiny mut">Next Call Date blank থাকলে auto ${doctorDefaultNextDate()} set হবে.</div><button onclick="saveVisit()">Save Doctor/RMP</button></div>`)
 }
 window["openDoctorAddForm"]=openDoctorAddForm;
 function saveVisit(){
@@ -16949,7 +16949,7 @@ function saveVisit(){
  for(let e of extras){ if(seen[e.ten]){continue;} let hit=load('doctor_visits').find(x=>dHasNumber(x,e.ten)); if(hit)return toast('বাড়তি নম্বর আগে সেভ আছে: '+(hit.name||'')); seen[e.ten]=1;alt.push(e.ten); }
  let altCsv=alt.map(d=>normMob(d)).join(',');
  let now=new Date().toISOString();
- let rec={id:uid('dv'),name:$('#dn').value,mobile:normMob(m),area:$('#da')?.value||'',remarks:rem,date:today(),branch:br,lastCallDate:'',nextCallDate:next,callHistory:[],referralPayments:[],referralPaid:0,referralDue:0,callStatus:'Pending',status:'Active',createdBy:user.mobile,createdAt:now,updatedAt:now};
+ let rec={id:uid('dv'),name:$('#dn').value,mobile:normMob(m),area:$('#da')?.value||'',policeStation:$('#dPs')?.value||'',remarks:rem,date:today(),branch:br,lastCallDate:'',nextCallDate:next,callHistory:[],referralPayments:[],referralPaid:0,referralDue:0,callStatus:'Pending',status:'Active',createdBy:user.mobile,createdAt:now,updatedAt:now};
  if(altCsv)rec.altMobiles=altCsv;
  add('doctor_visits',rec);
  toast('Doctor/RMP saved');closeModal();doctorVisit('all')
@@ -17089,7 +17089,7 @@ function editDoctorVisit(id){
    থাকবে না"* · *"eg সহ ডেমো নাম্বার থাকবে না"*। ফোনের হুবহু একই ক্রম।
    ⛔ একটাও ঘর বাদ যায়নি, সেভের নিয়মও এক অক্ষরও বদলায়নি — শুধু ক্রম ও Remarks-এর
       বাধ্যবাধকতা। */
-modal(`<h2>Edit Doctor/RMP</h2><div class="card"><label>Doctor / RMP Name <span class="req">*</span></label><input id="edn" class="input" value="${esc(x.name||'')}"><label>Mobile Number <span class="req">*</span></label><input id="edm" class="input" inputmode="numeric" autocomplete="off" value="${esc(normMob(x.mobile||''))}"><label>Other numbers (comma separated)</label><input id="edAlt" class="input" inputmode="numeric" autocomplete="off" value="${esc(x.altMobiles||'')}"><label>Branch <span class="req">*</span></label>${doctorBranchFieldHtml('ed',x.branch||user?.branch)}<label>Area / Address</label><input id="eda" class="input" value="${esc(x.area||'')}"><label>Next Call Date</label><input id="edNext" type="date" min="${today()}" class="input" value="${esc(x.nextCallDate||'')}"><label>Remarks</label><textarea id="edr">${esc(x.remarks||'')}</textarea><button onclick="updateDoctorVisit('${id}')">Save Changes</button></div>`)
+modal(`<h2>Edit Doctor/RMP</h2><div class="card"><label>Doctor / RMP Name <span class="req">*</span></label><input id="edn" class="input" value="${esc(x.name||'')}"><label>Mobile Number <span class="req">*</span></label><input id="edm" class="input" inputmode="numeric" autocomplete="off" value="${esc(normMob(x.mobile||''))}"><label>Other numbers (comma separated)</label><input id="edAlt" class="input" inputmode="numeric" autocomplete="off" value="${esc(x.altMobiles||'')}"><label>Branch <span class="req">*</span></label>${doctorBranchFieldHtml('ed',x.branch||user?.branch)}<label>Area / Address</label><input id="eda" class="input" value="${esc(x.area||'')}"><label>Police Station</label><input id="edPs" class="input" value="${esc(x.policeStation||'')}"><label>Next Call Date</label><input id="edNext" type="date" min="${today()}" class="input" value="${esc(x.nextCallDate||'')}"><label>Remarks</label><textarea id="edr">${esc(x.remarks||'')}</textarea><button onclick="updateDoctorVisit('${id}')">Save Changes</button></div>`)
 }
 window["editDoctorVisit"]=editDoctorVisit;
 function updateDoctorVisit(id){
@@ -17118,7 +17118,7 @@ function updateDoctorVisit(id){
  // রিমার্ক সত্যিই বদলালে কে/কবে নীরবে জমা থাকে। callCount/callHistory
  // কিছুই ছোঁয়া হয় না।
  let orig=load('doctor_visits').find(x=>x.id===id);
- let patch={name:$('#edn').value,mobile:normMob(m),branch:br,area:$('#eda').value,nextCallDate:next,remarks:rem,altMobiles:altCsv,updatedAt:new Date().toISOString()};
+ let patch={name:$('#edn').value,mobile:normMob(m),branch:br,area:$('#eda').value,policeStation:($('#edPs')?.value||''),nextCallDate:next,remarks:rem,altMobiles:altCsv,updatedAt:new Date().toISOString()};
  if(orig&&rem!==(orig.remarks||'').trim()){ patch.remarksEditedBy=user?.mobile||''; patch.remarksEditedAt=new Date().toISOString(); }
  upd('doctor_visits',id,patch);
  toast('Doctor/RMP updated');closeModal();doctorVisit('all')

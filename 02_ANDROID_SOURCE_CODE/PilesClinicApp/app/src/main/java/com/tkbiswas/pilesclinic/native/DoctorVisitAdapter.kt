@@ -104,11 +104,21 @@ class DoctorVisitAdapter(
         // plain line). Shown in UPPERCASE per TK. Area tag hides itself when
         // there's no area, so a doctor with no area doesn't get an empty tag.
         b.tvBranch.text = item.branch.ifBlank { "-" }.uppercase()
-        if (item.area.isBlank()) {
+        /* 🚓🔒 V1034 (০৪.০৯.২০২৬, TK-নির্দেশ) — ঠিকানার সঙ্গেই থানাটাও, একই
+           ট্যাগে (`PS ·` লিখে), তাই কার্ডে নতুন কোনো সারি বাড়ে না।
+           ⛔ থানা না লেখা থাকলে ট্যাগটা হুবহু আগের মতোই — শুধু ঠিকানা।
+           ⛔ ঠিকানা না থাকলেও থানাটা থাকলে ট্যাগটা দেখায়, নইলে আগের মতোই লুকায়। */
+        val psTxt = item.policeStation.trim()
+        val areaTxt = item.area.trim()
+        if (areaTxt.isBlank() && psTxt.isBlank()) {
             b.tvAreaTag.visibility = android.view.View.GONE
         } else {
             b.tvAreaTag.visibility = android.view.View.VISIBLE
-            b.tvAreaTag.text = "📍 ${item.area.uppercase()}"
+            b.tvAreaTag.text = when {
+                areaTxt.isBlank() -> "📍 PS · ${psTxt.uppercase()}"
+                psTxt.isBlank() -> "📍 ${areaTxt.uppercase()}"
+                else -> "📍 ${areaTxt.uppercase()}  ·  PS · ${psTxt.uppercase()}"
+            }
         }
         // TK-APPROVED (2026-07-25, via photo proof): "LAST REMARK:" label
         // removed -- the box's own light-green color (bg_remark_dashed)

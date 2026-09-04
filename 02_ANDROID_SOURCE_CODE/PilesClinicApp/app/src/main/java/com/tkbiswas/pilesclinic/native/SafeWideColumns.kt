@@ -86,7 +86,7 @@ object SafeWideColumns {
         "followups" to "id,address,age,branch,callCount,convertedPatientId,createdAt,createdBy,date,disease,history,lastCallDate,lastRemark,lastRemarkAt,mobile,name,nextFollow,patientId,photo,previousStage,refId,registrationDate,sex,stage,status,timeType,updatedAt,visitDate",
         "payments" to "id,amount,backdateApprovedBy,backdateRequestedBy,branch,cashAmount,createdAt,createdBy,dailyEvents,date,editApprovedBy,editedAt,editedBy,editHistory,editRequestedBy,mobile,mode,name,onlineAmount,patientCode,patientId,payLabel,paymentLabel,payType,progress,receivedBy,refundApprovalStatus,refundApprovedBy,refundOfPaymentId,refundReason,refundRequestedBy,remarks,updatedAt",
         "medical" to "id,branch,createdAt,createdBy,date,days,decision,details,diagnosis,doctorFullNote,mobile,name,nextFollow,patientId,photos,selected,type,updatedAt",
-        "doctor_visits" to "id,altMobiles,area,branch,callHistory,callStatus,createdAt,createdBy,date,expectedPatientDate,lastCallDate,mobile,name,nextCallDate,referralDue,referralPaid,referralPayments,remarks,remarksEditedBy,status,updatedAt"
+        "doctor_visits" to "id,altMobiles,area,branch,callHistory,callStatus,createdAt,createdBy,date,expectedPatientDate,lastCallDate,mobile,name,nextCallDate,policeStation,referralDue,referralPaid,referralPayments,remarks,remarksEditedBy,status,updatedAt"
     )
 
     private val HEAVY: Map<String, List<String>> = mapOf(

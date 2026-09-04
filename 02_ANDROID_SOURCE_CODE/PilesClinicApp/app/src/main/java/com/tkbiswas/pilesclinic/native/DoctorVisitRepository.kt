@@ -222,8 +222,9 @@ class DoctorVisitRepository {
     // anyone sees at the moment of saving -- it only notes the new doctor down
     // (MyPhoneWrites) so the Doctor/RMP list shows it even while the cloud copy
     // is still on its way. The save itself is exactly as it always was.
-    fun addNewDoctor(name: String, mobileDigitsOnly: String, branch: String, area: String, remarks: String, nextCallDate: String, staffMobile: String, context: android.content.Context? = null, altMobiles: String = ""): Boolean {
-        val row = DoctorVisitModel.buildNewDoctorRow(name, mobileDigitsOnly, branch, area, remarks, nextCallDate, staffMobile, altMobiles)
+    fun addNewDoctor(name: String, mobileDigitsOnly: String, branch: String, area: String, remarks: String, nextCallDate: String, staffMobile: String, context: android.content.Context? = null, altMobiles: String = "", policeStation: String = ""): Boolean {
+        // 🚓 V1034 — থানা (ডিফল্ট ফাঁকা, তাই পুরনো ডাক আগের মতোই চলে)।
+        val row = DoctorVisitModel.buildNewDoctorRow(name, mobileDigitsOnly, branch, area, remarks, nextCallDate, staffMobile, altMobiles, policeStation)
         val ok = SupabaseClient.upsert("doctor_visits", row)
         try { MyPhoneWrites.remember(context, "doctor_visits", row.optString("id"), row) } catch (_: Throwable) { }
         return ok
