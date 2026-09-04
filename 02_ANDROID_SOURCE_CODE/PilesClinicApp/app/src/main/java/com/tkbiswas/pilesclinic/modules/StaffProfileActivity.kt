@@ -3176,6 +3176,13 @@ class StaffProfileActivity : AppCompatActivity() {
     private val extraPatientReg = HashMap<String, String>()   // id → registration createdAt
     private val extraPatientEnq = HashMap<String, String>()   // id → enquiry createdAt
     private val extraPatientTrt = HashMap<String, String>()   // id → treatment payment createdAt
+    /* 💰 V1050 — রোগী ধরে ধরে টাকার যোগ: [০]=Registration, [১]=Treatment, [২]=অন্য।
+       ⛔ **Total সবসময় এই তিনটের যোগফলই** — উপরে দেখানো অঙ্ক আর নিচের Total
+          কখনো আলাদা হবে না (কম্পিউটারে ঠিক এই নিয়মই, নিয়ম ৬.৬)। */
+    private val xGroupSums = HashMap<String, DoubleArray>()
+    private val xStepBoxes = mutableListOf<Pair<String, LinearLayout>>()
+    private val xGroupDue = HashMap<String, Boolean>()      // 💰 V1050 — কিছু বাকি আছে কি
+    private val xGroupState = HashMap<String, String>()     // DUE · PAID · PART DUE
 
     /** `2026-08-22T21:14:00Z` → `22.08.2026  9:14 PM` (সময় না থাকলে শুধু তারিখ)। */
     private fun whenText(iso: String): String {
@@ -3229,6 +3236,37 @@ class StaffProfileActivity : AppCompatActivity() {
                 v.isClickable = true
                 v.setOnClickListener { openPatientHistory(pid, mb) }
             }
+            /* 📅 V1050 — ধাপগুলোর তারিখ · সময় · অঙ্ক। */
+            for ((pid, box) in xStepBoxes) {
+                box.removeAllViews()
+                val sums = xGroupSums[pid] ?: doubleArrayOf(0.0, 0.0, 0.0)
+                /* ⛔ `tv()` তালিকা-আঁকার ভিতরের নিজস্ব সহায়ক, এখান থেকে পাওয়া যায় না
+                   (পাহারা ধরিয়ে দিল) — তাই এখানে সোজা TextView বানানো হয়। */
+                fun cell(text: String, size: Float, hex: String, widthDp: Int): TextView =
+                    TextView(this).apply {
+                        this.text = text
+                        textSize = size
+                        setTypeface(typeface, android.graphics.Typeface.BOLD)
+                        setTextColor(android.graphics.Color.parseColor(hex))
+                        if (widthDp > 0) layoutParams =
+                            LinearLayout.LayoutParams(dp(widthDp), LinearLayout.LayoutParams.WRAP_CONTENT)
+                    }
+                fun stepRow(label: String, whenIso: String, amt: Double) {
+                    if (whenIso.isBlank() && amt <= 0.0) return
+                    val row = LinearLayout(this).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                        setPadding(dp(13), dp(2), dp(2), dp(2))
+                    }
+                    row.addView(cell(label, 11.8f, "#8B98A9", 104))
+                    row.addView(cell(whenText(whenIso).ifBlank { "\u2014" }, 11.8f, "#33404F", 0))
+                    if (amt > 0.0) row.addView(cell("   " + money(amt), 12f, "#C62828", 0))
+                    box.addView(row)
+                }
+                stepRow("Enquiry", extraPatientEnq[pid].orEmpty(), 0.0)
+                stepRow("Registration", extraPatientReg[pid].orEmpty(), sums[0])
+                stepRow("Treatment paid", extraPatientTrt[pid].orEmpty(), sums[1])
+                if (sums[2] > 0.0) stepRow("Other", "", sums[2])
+            }
             val shownSeparately = nameViews.map { it.first }.toSet()   // 👤 V1044
             for ((pid, view, row) in rows) {
                 if (view == null) continue
@@ -3264,7 +3302,7 @@ class StaffProfileActivity : AppCompatActivity() {
             try {
                 val list = need.joinToString(",") { java.net.URLEncoder.encode(it, "UTF-8") }
                 val rows2 = com.tkbiswas.pilesclinic.native.SupabaseClient.fetchListSlimOrNull(
-                    "patients", "id=in.($list)", 500, "id,name,mobile,timeType,timeSource,disease", order = "id.asc"
+                    "patients", "id=in.($list)", 500, "id,name,mobile,timeType,timeSource,disease,createdAt", order = "id.asc"
                 )
                 if (rows2 != null) {
                     for (i in 0 until rows2.length()) {
@@ -3274,10 +3312,56 @@ class StaffProfileActivity : AppCompatActivity() {
                         extraPatientTiming[id] = o.optString("timeType", "").trim()
                         extraPatientSrc[id] = o.optString("timeSource", "").trim()   // 🕐 V1042
                         extraPatientDisease[id] = o.optString("disease", "").trim()   // 🩺 V1045
+                        extraPatientReg[id] = o.optString("createdAt", "").trim()     // 📅 V1050
                         extraPatientCache[id] = Pair(
                             o.optString("name", "").trim(),
                             o.optString("mobile", "").trim()
                         )
+                    }
+                }
+            } catch (_: Throwable) { }
+            /* 📅🔒 V1050 (TK ডেমো-"ক" পাশ) — এনকোয়ারির সময় ও ট্রিটমেন্টের টাকার
+               সময়। দুটোই **একবারেই** আনা হয় (`in.(…)`), প্রতি সারিতে নয়।
+               ⛔ ব্যর্থ হলে কিছুই ভাঙে না — ঐ লাইনটা শুধু বসে না।
+               ⛔ ট্রিটমেন্টের শর্ত V418-এর SQL-এর সাথে হুবহু এক
+                  (`payType='treatment'` ও অঙ্ক > ০), তাই টাকার নিয়ম আর পর্দার
+                  লেখা কখনো আলাদা হবে না। */
+            try {
+                val mobs = ids.mapNotNull { extraPatientCache[it]?.second?.trim() }
+                    .filter { it.length >= 10 }.distinct()
+                if (mobs.isNotEmpty()) {
+                    val inList = mobs.joinToString(",") { java.net.URLEncoder.encode("+91" + it.takeLast(10), "UTF-8") }
+                    val eq = com.tkbiswas.pilesclinic.native.SupabaseClient.fetchListSlimOrNull(
+                        "enquiries", "mobile=in.($inList)", 500, "id,mobile,date,createdAt", order = "createdAt.asc")
+                    if (eq != null) {
+                        for (i in 0 until eq.length()) {
+                            val o = eq.optJSONObject(i) ?: continue
+                            val m10 = o.optString("mobile", "").filter { it.isDigit() }.takeLast(10)
+                            if (m10.length != 10) continue
+                            val pid2 = ids.firstOrNull {
+                                extraPatientCache[it]?.second.orEmpty().filter { c -> c.isDigit() }.takeLast(10) == m10
+                            } ?: continue
+                            // সবচেয়ে পুরনোটাই প্রথম কল — তালিকা createdAt.asc, তাই একবারই বসে
+                            if (extraPatientEnq[pid2].isNullOrBlank())
+                                extraPatientEnq[pid2] = o.optString("createdAt", "").ifBlank { o.optString("date", "") }.trim()
+                        }
+                    }
+                }
+            } catch (_: Throwable) { }
+            try {
+                val inIds = ids.joinToString(",") { java.net.URLEncoder.encode(it, "UTF-8") }
+                val py = com.tkbiswas.pilesclinic.native.SupabaseClient.fetchListSlimOrNull(
+                    "payments", "patientId=in.($inIds)&payType=eq.treatment", 500,
+                    "id,patientId,amount,date,createdAt", order = "createdAt.asc")
+                if (py != null) {
+                    for (i in 0 until py.length()) {
+                        val o = py.optJSONObject(i) ?: continue
+                        val pid2 = o.optString("patientId", "").trim()
+                        if (pid2.isBlank()) continue
+                        val amt = o.optString("amount", "").filter { it.isDigit() || it == '.' }.toDoubleOrNull() ?: 0.0
+                        if (amt <= 0.0) continue
+                        if (extraPatientTrt[pid2].isNullOrBlank())
+                            extraPatientTrt[pid2] = o.optString("createdAt", "").ifBlank { o.optString("date", "") }.trim()
                     }
                 }
             } catch (_: Throwable) { }
@@ -3316,13 +3400,14 @@ class StaffProfileActivity : AppCompatActivity() {
             try {
                 val enc = java.net.URLEncoder.encode(pid, "UTF-8")
                 val rows = com.tkbiswas.pilesclinic.native.SupabaseClient.fetchListSlimOrNull(
-                    "patients", "id=eq.$enc", 1, "id,name,mobile,timeType,timeSource,disease", order = "id.asc")
+                    "patients", "id=eq.$enc", 1, "id,name,mobile,timeType,timeSource,disease,createdAt", order = "id.asc")
                 val o = if (rows != null && rows.length() > 0) rows.optJSONObject(0) else null
                 if (o != null) {
                     m = o.optString("mobile", "").trim()
                     extraPatientTiming[pid] = o.optString("timeType", "").trim()
                     extraPatientSrc[pid] = o.optString("timeSource", "").trim()      // 🕐 V1042
                     extraPatientDisease[pid] = o.optString("disease", "").trim()     // 🩺 V1045
+                    extraPatientReg[pid] = o.optString("createdAt", "").trim()       // 📅 V1050
                     extraPatientCache[pid] = Pair(o.optString("name", "").trim(), m)
                 }
             } catch (_: Throwable) { }
@@ -3626,6 +3711,38 @@ class StaffProfileActivity : AppCompatActivity() {
         }
 
         // 🔴 V511 — কোন সারিতে কোন রোগী; নাম এলে ঐ লাইনগুলোই হালনাগাদ হয়।
+        /* 💰🔒 V1050 (TK ডেমো-"ক") — আঁকার **আগেই** রোগী ধরে ধরে টাকার যোগ।
+           ⛔ ধাপ চেনা হয় `extra_reason`-এর প্রথম শব্দ থেকে — V418-এর SQL ওখানে
+              `Registration` বা `Treatment` লেখে, তাই দুই জায়গার নিয়ম মেলে।
+           ⛔ এক ধাপে একাধিক সারি থাকলে সেগুলো **যোগ** হয়, তাই Total আর উপরের
+              অঙ্ক কখনো আলাদা হবে না (কম্পিউটারে ধরা দোষটা এখানেও ঠিক)। */
+        xStepBoxes.clear(); xGroupSums.clear(); xGroupDue.clear(); xGroupState.clear()
+        run {
+            val seenCount = HashMap<String, Int>()
+            val dueCount = HashMap<String, Int>()
+            for (k in 0 until shownPays.length()) {
+                val q = shownPays.optJSONObject(k) ?: continue
+                if (payKind(q) != "EXTRA") continue
+                val qp = extraPatientId(q); if (qp.isBlank()) continue
+                val amt = q.optDouble("amount", 0.0)
+                val head = cleanWhy(ns(q, "extra_reason")).trim().substringBefore("·").trim().lowercase()
+                val arr = xGroupSums.getOrPut(qp) { doubleArrayOf(0.0, 0.0, 0.0) }
+                when {
+                    head.startsWith("registration") -> arr[0] += amt
+                    head.startsWith("treatment") -> arr[1] += amt
+                    else -> arr[2] += amt
+                }
+                seenCount[qp] = (seenCount[qp] ?: 0) + 1
+                if (payStatus(q) == "DUE") dueCount[qp] = (dueCount[qp] ?: 0) + 1
+            }
+            for ((qp, n) in seenCount) {
+                val d = dueCount[qp] ?: 0
+                xGroupDue[qp] = d > 0
+                xGroupState[qp] = if (d == 0) "PAID" else if (d == n) "DUE" else "PART DUE"
+            }
+        }
+        // 🧾 V1050 — একই রোগীর বাক্স একবারই আঁকা হয়
+        val xDrawn = HashSet<String>()
         val extraRows = mutableListOf<Triple<String, TextView?, JSONObject>>()
         val extraNameViews = mutableListOf<Pair<String, TextView>>()   // 👤 V1044
         // 🐞 V1029 — যাদের সূত্র ফাঁকা, শুধু রোগীর কোড আছে
@@ -3634,6 +3751,11 @@ class StaffProfileActivity : AppCompatActivity() {
         // ── Entry cards. Fixed MODE + DATE columns = one straight line. ────
         for (i in 0 until shownPays.length()) {          // 🟣 V961
             val p = shownPays.getJSONObject(i)
+            // 🧾 V1050 — এই রোগীর বাক্স আগেই আঁকা হয়েছে
+            if (payKind(p) == "EXTRA") {
+                val dupPid = extraPatientId(p)
+                if (dupPid.isNotBlank()) { if (!xDrawn.add(dupPid)) continue }
+            }
             val isExtra = payKind(p) == "EXTRA"
             val isDue = isExtra && payStatus(p) == "DUE"
             val amountText = money(p.optDouble("amount", 0.0))
@@ -3732,7 +3854,31 @@ class StaffProfileActivity : AppCompatActivity() {
                 }
                 card.addView(detailView)
             }
-            if (isExtra) card.addView(top)   // 🧾 V1046 — টাকা সবার শেষে
+            /* 🧾🔒 V1050 (TK ডেমো-"ক" পাশ, ০৪.০৯.২০২৬) — **এক রোগী = এক বাক্স**।
+               ধাপগুলো তারিখ-সময় সহ, যে ধাপের জন্য টাকা তার পাশেই অঙ্ক, নিচে Total।
+               ⛔ রোগী চেনা না গেলে সারিটা আগের মতোই একা আঁকা হয় (নিচের `else`)।
+               ⛔ উপরের Summary ও footer ছোঁয়া হয়নি — টাকার হিসাব অপরিবর্তিত। */
+            val gPid = if (isExtra) extraPatientId(p) else ""
+            if (isExtra && gPid.isNotBlank()) {
+                val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+                card.addView(box)
+                xStepBoxes.add(Pair(gPid, box))
+                val mineTot = xGroupSums[gPid]?.sum() ?: p.optDouble("amount", 0.0)
+                val foot = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = android.view.Gravity.CENTER_VERTICAL
+                    setPadding(dp(13), dp(8), dp(2), dp(2))
+                }
+                foot.addView(tv("Total " + money(mineTot), 15f,
+                    if (xGroupDue[gPid] == true) android.graphics.Color.parseColor("#C62828")
+                    else android.graphics.Color.parseColor("#0A7C3F"), bold = true))
+                val statePill = pill(xGroupState[gPid] ?: modeText,
+                    if (xGroupDue[gPid] == true) "DUE" else "PAID")
+                foot.addView(statePill, LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { leftMargin = dp(9) })
+                card.addView(foot)
+            } else if (isExtra) card.addView(top)   // 🧾 V1046 — টাকা সবার শেষে
             /* 🔴🔴🔒 V511 (২১.০৮.২০২৬, TK-নির্দেশ) — **কোন রোগীর জন্য এই টাকা।**
                TK-এর কথা: *"staff কিসের জন্য পেমেন্ট পাবে আমি কেন বুঝতে পারছি না।
                যেখানে ডিউ লেখা রয়েছে সেখানে চাপ দিলে যেন আমি বুঝতে পারি, এটা কোন
@@ -3789,6 +3935,7 @@ class StaffProfileActivity : AppCompatActivity() {
                         extraPatientTiming[id] = ns(r, "timeType").trim()
                         extraPatientSrc[id] = ns(r, "timeSource").trim()             // 🕐 V1042
                         extraPatientDisease[id] = ns(r, "disease").trim()            // 🩺 V1045
+                        extraPatientReg[id] = ns(r, "createdAt").trim()              // 📅 V1050
                     }
                 }
                 runOnUiThread {
