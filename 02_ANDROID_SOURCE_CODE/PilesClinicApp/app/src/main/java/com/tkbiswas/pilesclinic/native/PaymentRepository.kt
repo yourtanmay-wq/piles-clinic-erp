@@ -2100,9 +2100,17 @@ class PaymentRepository(private val context: Context? = null) {
             var offset = 0
             val page = 1000
             while (true) {
+                /* 🔒 V1060খ (নিজে যাচাই করে ধরা, দুটো আসল ঝুঁকি):
+                   ① ক্রম **`id.asc`** — `updatedAt` একই/ফাঁকা হতে পারে, তাই ওটা
+                      দিয়ে পাতা করলে পড়ার মাঝে সারি **এড়িয়ে যেতে পারত**; একটা
+                      ফি-র সারি এড়ালেই ওই রোগী ভুল করে তালিকায় উঠত। `id`
+                      অনন্য, তাই পাতাগুলো সবসময় একই ক্রমে আসে।
+                   ② **যেকোনো** পাতা না এলে আধা-তালিকা নয়, `null` — অর্থাৎ
+                      "জানি না"। আধা-তালিকা দিলে বাকি রোগীদের ফি "নেই" মনে হত।
+                      পুরনো আচরণই: না জানলে তালিকা ফাঁকা, ভুল নাম ওঠে না। */
                 val part = SupabaseClient.fetchListSlimOrNull(
-                    table, filter, page, cols, order = "updatedAt.desc.nullslast", offset = offset
-                ) ?: return if (offset == 0) null else out   // প্রথম পাতাই না এলে আগের মতোই "জানি না"
+                    table, filter, page, cols, order = "id.asc", offset = offset
+                ) ?: return null
                 for (i in 0 until part.length()) out.put(part.get(i))
                 if (part.length() < page) break
                 offset += page
