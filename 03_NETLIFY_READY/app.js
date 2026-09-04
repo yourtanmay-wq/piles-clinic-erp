@@ -16918,6 +16918,20 @@ function dDupCheck(inpId,statusId){
 }
 window["dDupCheck"]=dDupCheck;
 let dAltSeq=0;
+/* 🔢🔒 V1035 (০৪.০৯.২০২৬, TK: *"other number comma separated কেন?"*) —
+   Edit ফর্মেও Add ফর্মের মতোই আলাদা ঘর ও "＋ Add another number", তাই আর কমা
+   টাইপ করতে হয় না। ফোনের Add ফর্মের ধাঁচ হুবহু।
+   ⛔ ডেটাবেসে যা জমা হয় (`altMobiles` — কমা-আলাদা CSV) এক অক্ষরও বদলায়নি;
+      শুধু লেখার পথটা সহজ হলো। */
+let edAltSeq=0;
+function edAddAltRow(val){
+  let box=$('#edAltBox'); if(!box)return;
+  let i=++edAltSeq; let div=document.createElement('div');
+  div.className='altrow'; div.style.marginTop='6px';
+  div.innerHTML='<div style="display:flex;gap:8px;align-items:center"><input id="edAlt'+i+'" class="input altnum" inputmode="numeric" autocomplete="off" placeholder="Another number (10 digit)" value="'+esc(val||'')+'" oninput="dDupCheck(\'edAlt'+i+'\',\'edAltS'+i+'\')" style="flex:1"><button type="button" class="ghost small" onclick="this.closest(\'.altrow\').remove()">✕</button></div><div id="edAltS'+i+'" class="tiny" style="font-weight:700"></div>';
+  box.appendChild(div);
+}
+window["edAddAltRow"]=edAddAltRow;
 function dAddAltRow(){ let box=$('#dAltBox'); if(!box)return; let i=++dAltSeq; let div=document.createElement('div'); div.className='altrow'; div.style.marginTop='6px'; div.innerHTML='<div style="display:flex;gap:8px;align-items:center"><input id="dAlt'+i+'" class="input altnum" inputmode="numeric" autocomplete="off" placeholder="Another number (10 digit)" oninput="dDupCheck(\'dAlt'+i+'\',\'dAltS'+i+'\')" style="flex:1"><button type="button" class="ghost small" onclick="this.closest(\'.altrow\').remove()">✕</button></div><div id="dAltS'+i+'" class="tiny" style="font-weight:700"></div>'; box.appendChild(div); }
 window["dAddAltRow"]=dAddAltRow;
 function openDoctorAddForm(){
@@ -17089,15 +17103,25 @@ function editDoctorVisit(id){
    থাকবে না"* · *"eg সহ ডেমো নাম্বার থাকবে না"*। ফোনের হুবহু একই ক্রম।
    ⛔ একটাও ঘর বাদ যায়নি, সেভের নিয়মও এক অক্ষরও বদলায়নি — শুধু ক্রম ও Remarks-এর
       বাধ্যবাধকতা। */
-modal(`<h2>Edit Doctor/RMP</h2><div class="card"><label>Doctor / RMP Name <span class="req">*</span></label><input id="edn" class="input" value="${esc(x.name||'')}"><label>Mobile Number <span class="req">*</span></label><input id="edm" class="input" inputmode="numeric" autocomplete="off" value="${esc(normMob(x.mobile||''))}"><label>Other numbers (comma separated)</label><input id="edAlt" class="input" inputmode="numeric" autocomplete="off" value="${esc(x.altMobiles||'')}"><label>Branch <span class="req">*</span></label>${doctorBranchFieldHtml('ed',x.branch||user?.branch)}<label>Area / Address</label><input id="eda" class="input" value="${esc(x.area||'')}"><label>Police Station</label><input id="edPs" class="input" value="${esc(x.policeStation||'')}"><label>Next Call Date</label><input id="edNext" type="date" min="${today()}" class="input" value="${esc(x.nextCallDate||'')}"><label>Remarks</label><textarea id="edr">${esc(x.remarks||'')}</textarea><button onclick="updateDoctorVisit('${id}')">Save Changes</button></div>`)
+modal(`<h2>Edit Doctor/RMP</h2><div class="card"><label>Doctor / RMP Name <span class="req">*</span></label><input id="edn" class="input" value="${esc(x.name||'')}"><label>Mobile Number <span class="req">*</span></label><input id="edm" class="input" inputmode="numeric" autocomplete="off" value="${esc(normMob(x.mobile||''))}"><label>Other number (optional)</label><div id="edAltBox"></div><a class="tiny" style="color:#166534;font-weight:700;display:inline-block;margin-top:6px;cursor:pointer" onclick="edAddAltRow()">＋ Add another number</a><label>Branch <span class="req">*</span></label>${doctorBranchFieldHtml('ed',x.branch||user?.branch)}<label>Area / Address</label><input id="eda" class="input" value="${esc(x.area||'')}"><label>Police Station</label><input id="edPs" class="input" value="${esc(x.policeStation||'')}"><label>Remarks</label><textarea id="edr">${esc(x.remarks||'')}</textarea><button onclick="updateDoctorVisit('${id}')">Save Changes</button></div>`)
+ /* 🔢 V1035 — আগে জমা থাকা বাড়তি নম্বরগুলো নিজের নিজের ঘরে বসে; একটাও না
+    থাকলে একটা ফাঁকা ঘর, যাতে সঙ্গে সঙ্গে লেখা যায়। */
+ try{
+   edAltSeq=0;
+   let __old=String(x.altMobiles||'').split(',').map(v=>mob(v)).filter(t=>t&&t.length===10);
+   if(__old.length) __old.forEach(t=>edAddAltRow(t)); else edAddAltRow('');
+ }catch(e){}
 }
 window["editDoctorVisit"]=editDoctorVisit;
 function updateDoctorVisit(id){
  let m=mob($('#edm').value);
- let br=doctorFormBranch('ed'),rem=($('#edr')?.value||'').trim(),next=$('#edNext')?.value||doctorDefaultNextDate();
+ /* ⏰🔒 V1035 (TK: *"next Call Date কেন?"*) — এই ফর্মে তারিখের ঘরটা আর নেই
+    (ফোনের Edit-এও নেই)। **আগে যা বসানো ছিল সেটাই অটুট থাকে** — আগে ঘরটা ফাঁকা
+    রাখলে চুপচাপ ৩০ দিন পরের তারিখ বসে যেত, সেই ফাঁদটাও এতে বন্ধ হলো।
+    ⛔ Add ফর্মে তারিখের ঘরটা আগের মতোই আছে (দুই জায়গাতেই)। */
+ let br=doctorFormBranch('ed'),rem=($('#edr')?.value||'').trim();
  /* 💬 V1033 — TK: Remarks আর বাধ্যতামূলক নয় (নাম · মোবাইল · ব্রাঞ্চ আগের মতোই)। */
  if(!$('#edn').value||!valid(m)||!br)return toast('Doctor/RMP name, mobile and branch mandatory');
- if(next<today())return toast('Past date not allowed');
  /* 🔴🔒 V940 — এডিটেও একই নিয়ম: **একই ব্রাঞ্চে** অন্য কারো নামে ওই নম্বর থাকলে
     আটকায়; অন্য ব্রাঞ্চে থাকলে আর আটকায় না (সেটাই এখন বৈধ)। */
  let __dup=(load('doctor_visits')||[]).find(function(x){
@@ -17108,7 +17132,8 @@ function updateDoctorVisit(id){
  });
  if(__dup)return toast('এই ব্রাঞ্চে এই নম্বর আগেই আছে — '+String(__dup.name||''));
  // B630: Other numbers (comma separated) — ১০-ডিজিট + প্রাইমারি বাদ + ডুপ্লিকেট-চেক
- let raw=($('#edAlt')?.value||'').split(',').map(s=>mob(s)).filter(Boolean);
+ let raw=[];
+ (document.querySelectorAll('#edAltBox input.altnum')||[]).forEach(function(inp){ let t=mob(inp.value); if(t) raw.push(t); });
  let seen={};seen[m]=1;let alt=[];
  for(let t of raw){ if(t.length!==10)return toast('বাড়তি নম্বর 10 ডিজিট হতে হবে'); if(seen[t])continue; let hit=load('doctor_visits').find(x=>x.id!==id&&dHasNumber(x,t)); if(hit)return toast('বাড়তি নম্বর অন্য ডাক্তারে আছে: '+(hit.name||'')); seen[t]=1;alt.push(t); }
  let altCsv=alt.map(d=>normMob(d)).join(',');
@@ -17118,7 +17143,7 @@ function updateDoctorVisit(id){
  // রিমার্ক সত্যিই বদলালে কে/কবে নীরবে জমা থাকে। callCount/callHistory
  // কিছুই ছোঁয়া হয় না।
  let orig=load('doctor_visits').find(x=>x.id===id);
- let patch={name:$('#edn').value,mobile:normMob(m),branch:br,area:$('#eda').value,policeStation:($('#edPs')?.value||''),nextCallDate:next,remarks:rem,altMobiles:altCsv,updatedAt:new Date().toISOString()};
+ let patch={name:$('#edn').value,mobile:normMob(m),branch:br,area:$('#eda').value,policeStation:($('#edPs')?.value||''),remarks:rem,altMobiles:altCsv,updatedAt:new Date().toISOString()};
  if(orig&&rem!==(orig.remarks||'').trim()){ patch.remarksEditedBy=user?.mobile||''; patch.remarksEditedAt=new Date().toISOString(); }
  upd('doctor_visits',id,patch);
  toast('Doctor/RMP updated');closeModal();doctorVisit('all')
