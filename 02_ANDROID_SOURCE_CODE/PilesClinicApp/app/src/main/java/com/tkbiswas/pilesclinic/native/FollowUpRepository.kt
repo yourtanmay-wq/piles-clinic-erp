@@ -2842,6 +2842,26 @@ class FollowUpRepository(private val context: Context? = null) {
         if (stampCallDate && !incrementCall && remark.isNotBlank() && haveRow) {
             fields.put("lastCallDate", FollowUpModel.today())
         }
+        /* 📞🔴🔒 V1065 (০৪.০৯.২০২৬) — **V998-এর বাকি দরজাটা।**
+           TK ছবি দিয়ে বললেন *"এই সমস্যার কথা এর আগে কি আপনাকে বলা হয় নাই"* —
+           হ্যাঁ, বলা হয়েছিল (তালিকার সারি ৯১ · V998, আর তার আগে সারি B214)।
+           **আমার ব্যর্থতা:** V998-এ শুধু **ডায়ালারের** পথটা সেরেছিলাম, কিন্তু
+           রিমার্ক/টাকার এই পথেও হুবহু একই ফাঁক ছিল — `lastCallDate` আজকের
+           হয়ে যেত, অথচ `nextFollow` পুরনোই থাকত ⇒ **পরের কল, শেষ কলের আগে**,
+           সারিটা চিরকাল "Overdue" (TK-এর ছবিতে NOOR ALAM: শেষ কল ০১.০৯,
+           পরের কল ০২.০৮ — লেখা ছিল *"Treatment payment / Advance received"*,
+           অর্থাৎ কল নয়, টাকার পথ)।
+           ⇒ এখন তারিখ বসার সাথে সাথেই `nextFollow` **ফাঁকা বা আজকের আগের হলে**
+             আজকের দিন বসে — V998-এর হুবহু একই নিয়ম।
+           ⛔ **ভবিষ্যতের তারিখ কখনো ছোঁয়া হয় না।**
+           ⛔ স্টাফ নিজে তারিখ বাছলে সেটাই জেতে (`nextFollow` আগেই বসানো থাকলে
+              এখানে আর কিছু করা হয় না)।
+           ⛔ সারি তালিকা থেকে হারায় না — "বকেয়া" থেকে "আজকের"-এ সরে আসে। */
+        if (fields.has("lastCallDate") && !fields.has("nextFollow") && haveRow) {
+            val todayStr = FollowUpModel.today()
+            val nf = if (row.isNull("nextFollow")) "" else row.optString("nextFollow", "").trim()
+            if (nf.isBlank() || nf < todayStr) fields.put("nextFollow", todayStr)
+        }
         rememberEditOnThisPhone(id, fields, row)
         // TK-REPORTED BUG FIX (2026-07-16): if this cloud write fails, queue
         // it for a silent retry (BottomNav.wire()) instead of losing it --

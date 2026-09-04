@@ -7053,7 +7053,13 @@ function updateFollowAction(id,patch,historyItem,redirectStage){let rows=load('f
    তখনও Nill-ই থেকে যেত। এখন Math.max(1,...) — সক্রিয় Inquiry-এন্ট্রির
    সিগন্যাল কখনো একদম শূন্য দেখাবে না (B215/B377-এর একই নিয়ম মেনে)।
    ⛔ ভিন্ন-দিনের বৃদ্ধির শাখা (Math.min(5,...+1)) অপরিবর্তিত। */
-let inc=(x.stage==='Inquiry'?(x.lastCallDate===today()?Math.max(1,Number(x.callCount||0)):Math.min(5,Number(x.callCount||0)+1)):Number(x.callCount||0));rows[i]={...x,...patch,callCount:inc,lastCallDate:today(),updatedAt:new Date().toISOString(),history:[...(x.history||[]),historyItem]};save('followups',rows);closeModal();followup(redirectStage||x.stage)}
+let inc=(x.stage==='Inquiry'?(x.lastCallDate===today()?Math.max(1,Number(x.callCount||0)):Math.min(5,Number(x.callCount||0)+1)):Number(x.callCount||0));/* 📞🔴🔒 V1065 — ফোনের হুবহু একই নিয়ম (নিয়ম ৬.৬): তারিখ বসার সাথে সাথেই
+   `nextFollow` **ফাঁকা বা আজকের আগের হলে** আজকের দিন বসে, নইলে সারিটা
+   চিরকাল "Overdue" থাকত (পরের কল, শেষ কলের আগে)।
+   ⛔ ভবিষ্যতের তারিখ কখনো ছোঁয়া হয় না; স্টাফের বাছা তারিখ (patch) জেতে। */
+let __nf=String((patch&&patch.nextFollow)||x.nextFollow||'').trim();
+let __nfFix=(patch&&patch.nextFollow)?{}:((!__nf||__nf<today())?{nextFollow:today()}:{});
+rows[i]={...x,...patch,...__nfFix,callCount:inc,lastCallDate:today(),updatedAt:new Date().toISOString(),history:[...(x.history||[]),historyItem]};save('followups',rows);closeModal();followup(redirectStage||x.stage)}
 window["updateFollowAction"]=updateFollowAction;
 /* 🟢🔒 V926 — গোনা ও তালিকা এখন ফোনের নিয়মে (আজ + বকেয়া)।
    ⛔ Inquiry-র দৃশ্যমানতার পুরনো ছাঁকনি (`isInquiryVisibleRow`) অটুট। */
