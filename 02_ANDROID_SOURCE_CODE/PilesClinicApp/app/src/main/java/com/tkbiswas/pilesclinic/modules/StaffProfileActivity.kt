@@ -3219,10 +3219,15 @@ class StaffProfileActivity : AppCompatActivity() {
                 }
                 if (nm.isBlank() && tt.isBlank()) continue          // এখনো কিছুই আসেনি
                 val parts = mutableListOf<String>()
-                if (tt.isNotBlank()) parts.add(timeBadge(tt, extraPatientSrc[pid].orEmpty()))   // 🕐 V1042
+                /* 🧾 V1046 (TK: *"Registration  UNEXPECTED"*) — নাম যখন নিজের
+                   সারিতে বসে, তখন এই লাইনে আগে **কী কারণে**, তারপর সময়ের ব্যাজ।
+                   ⛔ বাকি সব জায়গায় ক্রমটা আগের মতোই (ব্যাজ আগে)। */
+                val newOrder = pid in shownSeparately
+                if (!newOrder && tt.isNotBlank()) parts.add(timeBadge(tt, extraPatientSrc[pid].orEmpty()))
                 if (why.isNotBlank()) parts.add(why)
                 // ⛔ হাতে-লেখা মন্তব্য থাকলে সেটাও যেন হারিয়ে না যায় (আগের লাইনে ছিল)
                 ns(row, "remark").trim().takeIf { it.isNotBlank() }?.let { parts.add(it) }
+                if (newOrder && tt.isNotBlank()) parts.add(timeBadge(tt, extraPatientSrc[pid].orEmpty()))
                 if (nm.isNotBlank() && pid !in shownSeparately) parts.add(nm)   // 👤 V1044
                 val line = parts.joinToString("  ·  ")
                 if (line.isNotBlank() && view.text?.toString() != line) view.text = line
@@ -3670,7 +3675,11 @@ class StaffProfileActivity : AppCompatActivity() {
                 layoutParams = LinearLayout.LayoutParams(dp(86), LinearLayout.LayoutParams.WRAP_CONTENT)
                 maxLines = 1
             })
-            card.addView(top)
+            /* 🧾🔒 V1046 (TK-নির্দেশ: *"আগে নাম, মোবাইল, রোগ · তারপর এর লাইনে
+               Registration UNEXPECTED · তারপর কত টাকা পাবে"*) — Extra সারিতে
+               টাকার সারিটা (`top`) এখন **সবার শেষে** বসে, তাই নিচেই নামানো হলো।
+               ⛔ স্যালারির সারি হুবহু আগের মতোই — সেখানে এখনই বসে। */
+            if (!isExtra) card.addView(top)
 
             val detail = when {
                 isExtra && why.isNotBlank() -> why + (ns(p, "remark").takeIf { it.isNotBlank() }?.let { " · $it" } ?: "")
@@ -3697,6 +3706,7 @@ class StaffProfileActivity : AppCompatActivity() {
                 }
                 card.addView(detailView)
             }
+            if (isExtra) card.addView(top)   // 🧾 V1046 — টাকা সবার শেষে
             /* 🔴🔴🔒 V511 (২১.০৮.২০২৬, TK-নির্দেশ) — **কোন রোগীর জন্য এই টাকা।**
                TK-এর কথা: *"staff কিসের জন্য পেমেন্ট পাবে আমি কেন বুঝতে পারছি না।
                যেখানে ডিউ লেখা রয়েছে সেখানে চাপ দিলে যেন আমি বুঝতে পারি, এটা কোন

@@ -8179,3 +8179,13 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
 /* 👤🔒 V1045 — নামের সারিতে নাম · মোবাইল · রোগ; চাপ দিলে রোগীর ডিটেলস। */
 .pfStmtWho{cursor:pointer}
 .pfStmtWhoSub{margin-left:10px;font-weight:600;color:#5B6B81;font-size:12px}
+
+/* 🧾🔒 V1046 (TK-নির্দেশ) — Extra সারির ক্রম: নাম·মোবাইল·রোগ → কারণ → টাকা। */
+.pfXCard{display:block;padding:11px 12px}
+.pfXWho{font-weight:800;color:#0F5132;font-size:13.5px;cursor:pointer;line-height:1.45}
+.pfXSub{margin-left:10px;font-weight:600;color:#5B6B81;font-size:12px}
+.pfXWhy{margin-top:4px;color:#5B6B81;font-size:11.5px;line-height:1.4}
+.pfXFoot{margin-top:7px;padding-top:7px;border-top:1px solid #EDF1F5;display:flex;align-items:center;gap:9px}
+.pfXAmt{font-size:16px;color:#0A7C3F}
+.pfStmtEntry.isDue .pfXAmt{color:#C62828}
+.pfXDate{margin-left:auto;color:#8B98A9;font-size:11.7px;white-space:nowrap}

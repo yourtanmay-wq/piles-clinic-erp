@@ -1145,7 +1145,9 @@
       var vTt  = vPid ? String((SAL_PAT_CACHE[vPid] && SAL_PAT_CACHE[vPid].timeType) || '') : '';
       if (vTt) {
         var mark = salTimeBadge(vTt, (vPid && SAL_PAT_CACHE[vPid]) ? SAL_PAT_CACHE[vPid].timeSource : '');
-        detail = detail ? (mark + '  ·  ' + detail) : mark;
+        /* 🧾 V1046 (TK: *"Registration  UNEXPECTED"* — এই ক্রমেই) — Extra সারিতে
+           আগে কী কারণে, তারপর সময়ের ব্যাজ। ⛔ স্যালারির সারিতে আগের ক্রমই। */
+        detail = detail ? (isExtra ? (detail + '  ·  ' + mark) : (mark + '  ·  ' + detail)) : mark;
       }
       /* 👤🔒 V1044 (TK: *"আমার মনে হয় পেশেন্ট এর নাম দরকার এখানে"*) — নামটা
          এতদিন লাইনের একদম শেষে কোডের পরে বসত, চোখেই পড়ত না। এখন **নিজের
@@ -1153,16 +1155,35 @@
          আগের মতোই নিচে থাকে। ⛔ নাম না জানা থাকলে আগের মতোই কিছুই বসে না। */
       if (isExtra) { try { SAL_PAY_BY_ID[String(x.id||'')] = x; } catch(e){} }
       var vClick = vPid ? (' onclick="salExtraWhy(\''+m.esc(String(x.id||''))+'\')" style="cursor:pointer"') : '';
+
+      /* 🧾🔒 V1046 (TK-নির্দেশ: *"আগে নাম, মোবাইল, রোগ · তারপর এর লাইনে
+         Registration UNEXPECTED · তারপর কত টাকা পাবে"*) — Extra সারিটা এখন
+         ঠিক এই ক্রমেই সাজে। ⛔ স্যালারির সারি এক অক্ষরও বদলায়নি — সেটা
+         আগের গ্রিডেই আঁকা হয়, নিচের `else`-এ। */
+      if (isExtra) {
+        var whoRow = vNm
+          ? ('<div class="pfXWho"'+(vMob?' onclick="event.stopPropagation();salOpenPatient(\''+m.esc(vMob)+'\')"':'')+'>'
+             +'\uD83D\uDC64 '+m.esc(vNm)
+             +(vMob?'<span class="pfXSub">\uD83D\uDCDE '+m.esc(vMob)+'</span>':'')
+             +(vDis?'<span class="pfXSub">\uD83E\uDE7A '+m.esc(vDis)+'</span>':'')
+             +'</div>')
+          : '';
+        return '<div class="pfStmtEntry pfXCard'+(isDue?' isDue':'')+'"'+vClick+'>' +
+          whoRow +
+          (detail ? ('<div class="pfXWhy">'+m.esc(detail)+'</div>') : '') +
+          '<div class="pfXFoot">' +
+            '<b class="pfXAmt">'+m.money(x.amount)+'</b>' +
+            '<span class="pfStmtBadge'+modeCls+'">'+m.esc(mode)+'</span>' +
+            '<span class="pfXDate">'+m.esc(salDmy(x.paid_on))+'</span>' +
+          '</div>' +
+        '</div>';
+      }
+
       return '<div class="pfStmtEntry'+(isDue?' isDue':'')+'"'+vClick+'>' +
         '<span class="pfStmtAccent"></span>' +
         '<div class="pfStmtMain"><b>'+m.esc(title)+'</b><span>'+m.money(x.amount)+'</span></div>' +
         '<div class="pfStmtMode"><span class="pfStmtBadge'+modeCls+'">'+m.esc(mode)+'</span></div>' +
         '<div class="pfStmtDate">'+m.esc(salDmy(x.paid_on))+'</div>' +
-        (vNm ? ('<div class="pfStmtWho"'+(vMob?' onclick="event.stopPropagation();salOpenPatient(\''+m.esc(vMob)+'\')"':'')+'>'
-                 +'\uD83D\uDC64 '+m.esc(vNm)
-                 +(vMob?'<span class="pfStmtWhoSub">\uD83D\uDCDE '+m.esc(vMob)+'</span>':'')
-                 +(vDis?'<span class="pfStmtWhoSub">\uD83E\uDE7A '+m.esc(vDis)+'</span>':'')
-                 +'</div>') : '') +
         (detail ? ('<div class="pfStmtDetail">'+m.esc(detail)+'</div>') : '') +
       '</div>';
     }).join('');
