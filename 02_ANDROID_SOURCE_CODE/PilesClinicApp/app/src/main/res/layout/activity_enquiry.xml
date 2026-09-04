@@ -138,6 +138,41 @@
                     android:inputType="textMultiLine|textCapSentences"
                     android:minLines="1" />
 
+                <!-- 🩺🔒 V1070 (০৪.০৯.২০২৬, TK-নির্দেশ) — কোন RMP রোগী পাঠিয়েছেন।
+                     রোগী না এলে রেজিস্ট্রেশনই হয় না, তাই এতদিন তথ্যটা কোথাও
+                     থাকত না ⇒ পরে রেফারেল টাকা নিয়ে দ্বন্দ্ব হত।
+                     ⛔ Registration-এর হুবহু একই ঘর ও একই তালিকা।
+                     ⛔ **বাধ্যতামূলক নয়** — লেবেলে `*` নেই, না ভরলেও সেভ হয়। -->
+                <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="🩺 Referred By" />
+                <Spinner
+                    android:id="@+id/spEnqRefBy"
+                    style="@style/RegFieldInput"
+                    android:popupBackground="@color/white" />
+                <LinearLayout
+                    android:id="@+id/llEnqRefDoctor"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone"
+                    android:layout_marginTop="10dp"
+                    android:padding="12dp"
+                    android:background="@drawable/bg_reveal_panel">
+                    <TextView style="@style/FieldLabel" android:layout_marginTop="0dp" android:text="Doctor / RMP Name" />
+                    <EditText
+                        android:id="@+id/etEnqRefDoctorName"
+                        style="@style/RegFieldInput"
+                        android:hint="Doctor / RMP name"
+                        android:inputType="textPersonName"
+                        android:maxLines="1" />
+                    <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="Doctor Mobile" />
+                    <EditText
+                        android:id="@+id/etEnqRefDoctorMobile"
+                        style="@style/RegFieldInput"
+                        android:hint="Doctor mobile"
+                        android:inputType="phone"
+                        android:maxLines="1" />
+                </LinearLayout>
+
                 <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="📝 Remarks *" />
                 <EditText
                     android:id="@+id/etRemarks"

@@ -9057,6 +9057,27 @@ window["convertReg"]=convertReg;
    ফোনের V895-এর হুবহু একই নিয়ম ওয়েবেও। সবুজ "Select Saved RMP / Doctor"
    বোতামটা আর বসানো হয় না; নাম / এলাকা / মোবাইল টাইপ করতে করতেই নিচে সাজেশন নামে।
    ⛔ তালিকা আগের মতোই ব্রাউজারে জমা থাকা ঘর থেকে আসে — ইন্টারনেট-খরচ বাড়ে না। */
+/* 🩺🔒 V1070 (TK-নির্দেশ) — এনকোয়ারিতে লেখা "কে পাঠিয়েছেন" রেজিস্ট্রেশনের
+   ফর্মে নিজে থেকে বসিয়ে দেওয়া, তাই RMP-র নাম আর হাতে লিখতে হয় না এবং দুই
+   জায়গায় দুরকম হওয়ার ভয় নেই।
+   ⛔ এনকোয়ারিতে ফাঁকা থাকলে কিছুই বদলায় না; স্টাফ পরে বদলাতে পারবেন। */
+function wlv1RefByPrefill(){
+  try{
+    var v=String((($('#pRefPrefill')||{}).value)||'').trim(); if(!v) return;
+    var sel=$('#pRef'); if(!sel) return;
+    for(var i=0;i<sel.options.length;i++){
+      if(sel.options[i].text.toLowerCase()===v.toLowerCase()){ sel.selectedIndex=i; break; }
+    }
+    wlv1RefByChanged();
+    if(v.toLowerCase()==='dr. visit'){
+      var n=String((($('#pRefDocPrefill')||{}).value)||'').trim();
+      var mo=String((($('#pRefMobPrefill')||{}).value)||'').trim();
+      if(n && $('#pRefDocName')) $('#pRefDocName').value=n;
+      if(mo && $('#pRefDocMobile')) $('#pRefDocMobile').value=mo;
+    }
+  }catch(e){}
+}
+window["wlv1RefByPrefill"]=wlv1RefByPrefill;
 function wlv1RefByChanged(){ const v=($('#pRef')||{}).value||''; const box=$('#llRefDoctor'); if(box){box.classList.toggle('hidden', v!=='Dr. Visit');let old=$('#wlv1PickSavedRmp');if(old&&old.parentNode)old.parentNode.removeChild(old);if(v!=='Dr. Visit')wlv1RmpSugHide();} }
 window["wlv1RefByChanged"]=wlv1RefByChanged;
 /* V324 owner-approved: Registration RMP search uses only doctor_visits already
@@ -9229,6 +9250,9 @@ function registrationDesk(pref){
    +'<input id="pAddr" type="hidden" value="'+esc(addr)+'">'
    +'<input id="pEnqOrigin" type="hidden" value="'+esc(pref.mobile||'')+'">'
    +'<input id="pRegTiming" type="hidden" value="'+(pref.timeType==='Unexpected Time'?'Unexpected Time':'Official Time')+'">'
+   +'<input id="pRefPrefill" type="hidden" value="'+esc(String(pref.refBy||''))+'">'
+   +'<input id="pRefDocPrefill" type="hidden" value="'+esc(String(pref.refDoctor||''))+'">'
+   +'<input id="pRefMobPrefill" type="hidden" value="'+esc(String(pref.refDoctorMobile||''))+'">'
 
    +'<div class="rdSecHead"><span class="rdIco">👤</span>Personal Information</div>'
    +'<div class="rdGrid3">'
@@ -9284,6 +9308,8 @@ function registrationDesk(pref){
    +'<div class="rdF">'+lbl('Other Treatment History',0)
      +'<textarea id="pPrevTreatment" class="input" placeholder="Enter other treatment history" oninput="wlv1Caps(this)"></textarea></div>'
    +'<div class="rdF rdRefBy">'+lbl('Referred By',1)
+     /* 🩺 V1070 — এনকোয়ারিতে লেখা "কে পাঠিয়েছেন" এখানেও নিজে থেকে বসে যায়।
+        ⛔ এনকোয়ারিতে ফাঁকা থাকলে আগের মতোই Self; স্টাফ পরে বদলাতে পারবেন। */
      +'<select id="pRef" class="input" onchange="wlv1RefByChanged()"><option>Self</option><option>Online</option><option>Offline</option><option>Dr. Visit</option><option>Old Patient</option><option>Others</option></select>'
      +'<div id="llRefDoctor" class="hidden">'+lbl('Doctor / RMP Name',0)+'<input id="pRefDocName" class="input" placeholder="Doctor / RMP name" autocomplete="off" oninput="wlv1Caps(this);wlv1RmpSuggest(this.value)"><div id="wlv1RmpSug" class="wlv1RmpSug hidden"></div>'+lbl('Doctor Mobile',0)+'<input id="pRefDocMobile" class="input" inputmode="tel" maxlength="10" placeholder="Doctor mobile" autocomplete="off" oninput="wlv1RmpSuggest(this.value)"></div>'
    +'</div>'
@@ -9314,6 +9340,7 @@ function registrationDesk(pref){
  +'</div>'
  +'</div>';
  page('Patient Registration', body, true);
+ try{ wlv1RefByPrefill() }catch(e){}   /* 🩺 V1070 */
  try{ wlv1RegBranchToHeader() }catch(e){}
  setTimeout(function(){try{wlv1BranchLock('pBranch')}catch(e){}try{wlv1PhTint('pBranch');wlv1PhTint('pOcc')}catch(e){}try{rdSummary()}catch(e){}},0);
 }

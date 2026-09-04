@@ -31,6 +31,12 @@ data class EnquiryDraft(
        এলে অ্যাপ জানতে পারে; স্টাফের নিজের ফোনে এলে জানার উপায়ই নেই।
        ⛔ ফাঁকা থাকলে আগের মতোই — পুরনো সারিতে কিছু বসানো হয়নি। */
     val timeSource: String = "",
+    /* 🩺🔒 V1070 (TK-নির্দেশ) — কোন RMP রোগী পাঠিয়েছেন। Registration-এর হুবহু
+       একই ঘর, তাই পরে রেজিস্ট্রেশনে মানটা নিজে থেকেই যেতে পারে।
+       ⛔ ফাঁকা হলে আগের মতোই — কোনো ঘর বাধ্যতামূলক নয়। */
+    val refBy: String = "",
+    val refDoctor: String = "",
+    val refDoctorMobile: String = "",
     val receivedByMobile: String
 )
 
@@ -57,6 +63,9 @@ object EnquiryModel {
             .put("nextFollow", draft.nextFollow)
             .put("timeType", draft.timeType)
             .put("timeSource", draft.timeSource)   // 🕐 V1042
+            .put("refBy", draft.refBy)                       // 🩺 V1070
+            .put("refDoctor", draft.refDoctor)
+            .put("refDoctorMobile", draft.refDoctorMobile)
             .put("receivedBy", draft.receivedByMobile)
             .put("stage", "Inquiry")
             .put("status", "Active")

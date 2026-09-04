@@ -71,6 +71,8 @@ class EnquiryActivity : AppCompatActivity() {
     private val diseases = listOf("Choose Disease", "🩸 Piles", "✂️ Fissure", "🔄 Fistula", "💧 Hydrocele", "🛡️ Gupt Rog", "📋 Other")
     private val diseaseValues = listOf("", "Piles", "Fissure", "Fistula", "Hydrocele", "Gupt Rog", "Other")
     private val timings = listOf("Official Time", "Unexpected Time")
+    /* 🩺 V1070 — Registration-এর হুবহু একই তালিকা (`RegistrationActivity.refByOptions`) */
+    private val enqRefByOptions = listOf("Self", "Online", "Offline", "Dr. Visit", "Old Patient", "Others")
 
     private var selectedDate: String = EnquiryModel.today()
     private var selectedNextFollow: String = ""
@@ -128,6 +130,7 @@ class EnquiryActivity : AppCompatActivity() {
         // active, deliberate choice, every single time. 3-tap lock removed
         // for Branch only; "Call Received By" lock below is untouched.
         SpinnerLock.attach(binding.spReceivedBy, "Call Received By")
+        setupEnqRefBy()   // 🩺 V1070
         setupTimingButtons()
         setupDiseaseButtons()
         binding.tvDate.text = displayDate(selectedDate)
@@ -274,6 +277,26 @@ class EnquiryActivity : AppCompatActivity() {
        ফোনে এলে অ্যাপ কিছুই জানে না, স্টাফ হাতে বেছে দেন ⇒ hand।
        ⛔ অ্যাপ বুঝে দেওয়ার পরেও স্টাফ বোতাম চেপে বদলালে সেটা আর auto নয়। */
     private var timingIsAuto = false
+
+    /* 🩺🔒 V1070 (TK-নির্দেশ) — "Dr. Visit" বাছলে তবেই ডাক্তারের নাম ও নম্বরের
+       ঘর দেখা যায় (Registration-এর হুবহু একই আচরণ)।
+       ⛔ কোনো ঘর বাধ্যতামূলক নয়; অন্য কিছু বাছলে ঘর দুটো ফাঁকা করে লুকিয়ে যায়। */
+    private fun setupEnqRefBy() {
+        binding.spEnqRefBy.adapter = ArrayAdapter(
+            this, android.R.layout.simple_spinner_dropdown_item, enqRefByOptions)
+        binding.spEnqRefBy.onItemSelectedListener =
+            object : android.widget.AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(p: android.widget.AdapterView<*>?, v: View?, pos: Int, id: Long) {
+                    val show = enqRefByOptions.getOrNull(pos) == "Dr. Visit"
+                    binding.llEnqRefDoctor.visibility = if (show) View.VISIBLE else View.GONE
+                    if (!show) {
+                        binding.etEnqRefDoctorName.setText("")
+                        binding.etEnqRefDoctorMobile.setText("")
+                    }
+                }
+                override fun onNothingSelected(p: android.widget.AdapterView<*>?) {}
+            }
+    }
 
     private fun setupTimingButtons() {
         binding.btnTimingOfficial.setOnClickListener {
@@ -776,6 +799,12 @@ val disease = selectedDisease
             nextFollow = selectedNextFollow,
             timeType = timing,
             timeSource = if (timingIsAuto) "auto" else "hand",   // 🕐 V1042
+            // 🩺 V1070 — কে পাঠিয়েছেন (Dr. Visit ছাড়া নাম-নম্বর ফাঁকাই যায়)
+            refBy = binding.spEnqRefBy.selectedItem?.toString() ?: "Self",
+            refDoctor = if (binding.spEnqRefBy.selectedItem?.toString() == "Dr. Visit")
+                binding.etEnqRefDoctorName.text.toString().trim() else "",
+            refDoctorMobile = if (binding.spEnqRefBy.selectedItem?.toString() == "Dr. Visit")
+                binding.etEnqRefDoctorMobile.text.toString().filter { it.isDigit() }.takeLast(10) else "",
             receivedByMobile = receivedByMobiles.getOrNull(binding.spReceivedBy.selectedItemPosition) ?: user.mobile
         )
         setLoading(true)

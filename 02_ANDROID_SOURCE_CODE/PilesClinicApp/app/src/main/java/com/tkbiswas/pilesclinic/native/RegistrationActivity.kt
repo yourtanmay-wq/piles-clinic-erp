@@ -684,6 +684,23 @@ class RegistrationActivity : AppCompatActivity() {
                 binding.btnRegTimingUnexpected.visibility = android.view.View.VISIBLE
                 selectRegTiming("Unexpected Time")
             }
+            /* 🩺🔒 V1070 (TK-নির্দেশ) — এনকোয়ারিতে লেখা "কে পাঠিয়েছেন" এখানেও
+               নিজে থেকে বসে যায়, তাই রোগী এলে RMP-র নামটা আর হাতে লিখতে হয় না
+               এবং দুই জায়গায় দুরকম হওয়ার ভয় থাকে না।
+               ⛔ এনকোয়ারিতে ঘরটা ফাঁকা থাকলে এখানে কিছুই বদলায় না (আগের মতোই)।
+               ⛔ স্টাফ এখানে পরে বদলাতে পারবেন — কিছু লক করা হয়নি। */
+            val eRefBy = enq.s("refBy").trim()
+            if (eRefBy.isNotBlank()) {
+                val at = refByOptions.indexOfFirst { it.equals(eRefBy, ignoreCase = true) }
+                if (at >= 0) binding.spRefBy.setSelection(at)
+                if (eRefBy.equals("Dr. Visit", ignoreCase = true)) {
+                    binding.llRefDoctor.visibility = android.view.View.VISIBLE
+                    enq.s("refDoctor").trim().takeIf { it.isNotBlank() }
+                        ?.let { binding.etRefDoctorName.setText(it) }
+                    enq.s("refDoctorMobile").trim().takeIf { it.isNotBlank() }
+                        ?.let { binding.etRefDoctorMobile.setText(it) }
+                }
+            }
             android.widget.Toast.makeText(this@RegistrationActivity, "Details filled from Enquiry", android.widget.Toast.LENGTH_SHORT).show()
         }
     }
