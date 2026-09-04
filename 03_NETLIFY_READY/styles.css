@@ -8189,3 +8189,9 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
 .pfXAmt{font-size:16px;color:#0A7C3F}
 .pfStmtEntry.isDue .pfXAmt{color:#C62828}
 .pfXDate{margin-left:auto;color:#8B98A9;font-size:11.7px;white-space:nowrap}
+
+/* 📅🔒 V1047 — Extra সারিতে তিনটে ধাপের তারিখ ও সময়। */
+.pfXSteps{margin-top:6px;display:grid;gap:3px}
+.pfXStep{display:flex;align-items:baseline;gap:8px;font-size:11.8px}
+.pfXStep span{min-width:104px;color:#8B98A9;font-weight:700;letter-spacing:.2px}
+.pfXStep b{color:#33404F;font-weight:700}

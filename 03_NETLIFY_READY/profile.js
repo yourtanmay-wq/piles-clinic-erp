@@ -944,6 +944,52 @@
      কল-তালিকা দেখে নিজেই বোঝে ⇒ **AUTO UNEXPECTED**। স্টাফের নিজের ফোনে
      এলে অ্যাপ কিছুই জানে না, স্টাফ হাতে বেছে দেন ⇒ **UNEXPECTED (BY HAND)**।
      ⛔ পুরনো সারিতে ঘরটা ফাঁকা — সেখানে ব্যাজ হুবহু আগের মতোই থাকে। */
+  /* 📅🔒 V1047 (TK-নির্দেশ: *"patient ID লাগবে না · কোন তারিখে কোন সময় Enquiry
+     করা হয়েছে · কত তারিখে কোন সময় Registration হয়েছে · ট্রিটমেন্টের জন্য টাকা
+     জমা করলে কত তারিখে কোন সময়"*) — তিনটে ধাপের তারিখ ও সময়।
+     ⛔ সবই আগে থেকেই জমা আছে: এনকোয়ারির সময় `enquiries.createdAt`, রেজিস্ট্রেশনের
+        `patients.createdAt`, আর ট্রিটমেন্টের টাকা `payments`-এ `payType='treatment'`
+        (V418-এর SQL ঠিক এই শর্তেই ₹৪০০ দেয়, তাই দুই জায়গার নিয়ম মেলে)।
+     ⛔ নতুন কোনো cloud-read নেই — ব্রাউজারের জমা তালিকা থেকেই।
+     ⛔ যেটা পাওয়া যায়নি সেই লাইনটা বসেই না, আন্দাজে কিছু লেখা হয় না। */
+  function salWhenText(iso){
+    try{
+      var t=String(iso||'').trim(); if(!t) return '';
+      var mm=/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(t);
+      if(mm) return mm[3]+'.'+mm[2]+'.'+mm[1]+'  '+salClock(mm[4],mm[5]);
+      var d=/^(\d{4})-(\d{2})-(\d{2})/.exec(t);
+      return d ? (d[3]+'.'+d[2]+'.'+d[1]) : '';
+    }catch(e){ return ''; }
+  }
+  function salClock(hh,mi){
+    var h=Number(hh), ap=h<12?'AM':'PM', h12=h%12; if(h12===0) h12=12;
+    return h12+':'+mi+' '+ap;
+  }
+  /** ঐ রোগীর তিনটে ধাপ — এনকোয়ারি · রেজিস্ট্রেশন · ট্রিটমেন্টের টাকা। */
+  function salSteps(pid){
+    var out={enq:'',reg:'',trt:''};
+    try{
+      var pt=(load('patients')||[]).filter(function(r){return String(r.id)===String(pid)})[0];
+      if(!pt) return out;
+      out.reg = salWhenText(pt.createdAt || pt.registrationDate || pt.date || '');
+      var mob=String(pt.mobile||'').replace(/\D/g,'').slice(-10);
+      if(mob){
+        var eq=(load('enquiries')||[]).filter(function(r){
+          return String(r.mobile||'').replace(/\D/g,'').slice(-10)===mob; });
+        eq.sort(function(a,b){ return String(a.createdAt||a.date||'') < String(b.createdAt||b.date||'') ? -1 : 1; });
+        if(eq[0]) out.enq = salWhenText(eq[0].createdAt || eq[0].date || '');
+      }
+      var py=(load('payments')||[]).filter(function(r){
+        return String(r.patientId||'')===String(pid)
+          && /^treatment$/i.test(String(r.payType||''))
+          && Number(String(r.amount||'').replace(/[^0-9.]/g,'')||0) > 0; });
+      py.sort(function(a,b){ return String(a.createdAt||a.date||'') < String(b.createdAt||b.date||'') ? -1 : 1; });
+      if(py[0]) out.trt = salWhenText(py[0].createdAt || py[0].date || '');
+    }catch(e){}
+    return out;
+  }
+  window.salSteps = salSteps;
+
   /* 👤🔒 V1045 — নামের সারিতে চাপ ⇒ ঐ রোগীর পুরো ডিটেলস (প্রকল্পের প্রমাণিত
      `summaryByMobile`)। ⛔ সারির নিজের চাপ (ছোট পপ-আপ) আগের মতোই আছে —
      এখানে `event.stopPropagation()` করা হয় বলে দুটো একসাথে খোলে না। */
@@ -1148,6 +1194,12 @@
         /* 🧾 V1046 (TK: *"Registration  UNEXPECTED"* — এই ক্রমেই) — Extra সারিতে
            আগে কী কারণে, তারপর সময়ের ব্যাজ। ⛔ স্যালারির সারিতে আগের ক্রমই। */
         detail = detail ? (isExtra ? (detail + '  ·  ' + mark) : (mark + '  ·  ' + detail)) : mark;
+        /* 🧾 V1047 (TK: *"patient ID লাগবে না"*) — Extra সারিতে রোগীর কোডটা আর
+           দেখানো হয় না (নাম-মোবাইল-রোগ তো উপরেই আছে)। ⛔ ডেটাবেসে কোডটা
+           আগের মতোই থাকে, রোগী খোঁজার কাজেও ওটাই ব্যবহার হয়। */
+        if (isExtra) detail = detail.replace(/\s*·\s*[A-Za-z]{2,4}-\d{6,8}-\d{2,4}\s*/g, '  ·  ')
+                                     .replace(/\s{2,}·\s{2,}·\s{2,}/g, '  ·  ')
+                                     .replace(/^[\s·]+|[\s·]+$/g, '');
       }
       /* 👤🔒 V1044 (TK: *"আমার মনে হয় পেশেন্ট এর নাম দরকার এখানে"*) — নামটা
          এতদিন লাইনের একদম শেষে কোডের পরে বসত, চোখেই পড়ত না। এখন **নিজের
@@ -1171,6 +1223,14 @@
         return '<div class="pfStmtEntry pfXCard'+(isDue?' isDue':'')+'"'+vClick+'>' +
           whoRow +
           (detail ? ('<div class="pfXWhy">'+m.esc(detail)+'</div>') : '') +
+          (function(){
+            var st = vPid ? salSteps(vPid) : {enq:'',reg:'',trt:''};
+            var rows = '';
+            if (st.enq) rows += '<div class="pfXStep"><span>Enquiry</span><b>'+m.esc(st.enq)+'</b></div>';
+            if (st.reg) rows += '<div class="pfXStep"><span>Registration</span><b>'+m.esc(st.reg)+'</b></div>';
+            if (st.trt) rows += '<div class="pfXStep"><span>Treatment paid</span><b>'+m.esc(st.trt)+'</b></div>';
+            return rows ? ('<div class="pfXSteps">'+rows+'</div>') : '';
+          })() +
           '<div class="pfXFoot">' +
             '<b class="pfXAmt">'+m.money(x.amount)+'</b>' +
             '<span class="pfStmtBadge'+modeCls+'">'+m.esc(mode)+'</span>' +
