@@ -88,17 +88,27 @@ object MoneyHandoverCard {
         body.addView(LinearLayout(activity).apply {
             orientation = LinearLayout.HORIZONTAL
             addView(TextView(activity).apply {
-                text = "TOTAL"; textSize = 14f
+                text = "CASH TO HAND OVER"; textSize = 14f
                 setTypeface(typeface, Typeface.BOLD)
                 setTextColor(Color.parseColor("#0F5132"))
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             })
             addView(TextView(activity).apply {
-                text = MoneyHandover.money(total); textSize = 15f
+                text = MoneyHandover.money(cash); textSize = 15f   // 💵 V1038 — শুধু ক্যাশ
                 setTypeface(typeface, Typeface.BOLD)
                 setTextColor(Color.parseColor("#0F5132"))
             })
         })
+
+        // 💵 V1038 — অনলাইনের টাকা মালিকের কাছে সরাসরি যায়, তাই শুধু জানানো হয়, যোগ হয় না।
+        if (online > 0.0) {
+            body.addView(TextView(activity).apply {
+                text = "Online " + MoneyHandover.money(online) + " — came to you directly"
+                textSize = 11f
+                setTextColor(Color.parseColor("#8B98A9"))
+                setPadding(0, dp(activity, 4), 0, 0)
+            })
+        }
 
         body.addView(TextView(activity).apply {
             text = "RECEIVED BY"
@@ -233,7 +243,7 @@ object MoneyHandoverCard {
                 val role = StaffDirectory.findAccount(who.mobile)?.role ?: "doctor"
                 val v = MoneyHandover.verifyPassword(who.mobile, role, typed)
                 val ok = v == MoneyHandover.Verify.OK &&
-                    MoneyHandover.saveHandover(activity, branch, date, total, who, true, myName)
+                    MoneyHandover.saveHandover(activity, branch, date, cash, who, true, myName)   // 💵 V1038
                 activity.runOnUiThread {
                     lock(false)
                     when {
@@ -242,7 +252,7 @@ object MoneyHandoverCard {
                         v == MoneyHandover.Verify.WRONG ->
                             Toast.makeText(activity, "Wrong password", Toast.LENGTH_LONG).show()
                         ok -> finishCard("✓  " + who.name + "  ·  " +
-                            MoneyHandover.money(total) + "  ·  handed over", "#0B5B2F")
+                            MoneyHandover.money(cash) + "  ·  handed over", "#0B5B2F")
                         else -> Toast.makeText(activity, "Could not save — please try again", Toast.LENGTH_LONG).show()
                     }
                 }
@@ -252,7 +262,7 @@ object MoneyHandoverCard {
         later.setOnClickListener {
             lock(true)
             Thread {
-                val ok = MoneyHandover.markPending(activity, branch, date, total, myName)
+                val ok = MoneyHandover.markPending(activity, branch, date, cash, myName)   // 💵 V1038
                 activity.runOnUiThread {
                     lock(false)
                     if (ok) finishCard("⚠️  Money is still with you — the master has been informed", "#8A1810")

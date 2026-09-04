@@ -23284,10 +23284,10 @@ async function wlv1MhDoHandOver(){
 window["wlv1MhDoHandOver"]=wlv1MhDoHandOver;
 
 /** 💰 V984 — চেম্বার বন্ধ হওয়ার ঠিক পরে: কে টাকা বুঝে নিলেন। */
-function wlv1MhAskAtClose(branch,date,total){
+function wlv1MhAskAtClose(branch,date,total,online){
   var list=wlv1MhReceivers(branch);
   window.__wlv1MhList=list;
-  window.__wlv1MhPick={branch:branch,date:date,grandTotal:total};
+  window.__wlv1MhPick={branch:branch,date:date,cashTotal:total};   /* 💵 V1038 */
   if(!list.length){ if(confirm('Print chamber register now?'))wlv1ChamberRegisterPrint();else chamberAttendance(); return; }
   var opts=list.map(function(x,k){
     return '<label style="display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid #EDF1F5">'
@@ -23295,8 +23295,12 @@ function wlv1MhAskAtClose(branch,date,total){
       +'<b style="flex:1">'+esc(x.name)+'</b><span class="mut">'+x.role+'</span></label>';
   }).join('');
   modal('<h2>💰 MONEY HANDOVER</h2>'
-    +'<div class="card" style="display:flex;justify-content:space-between;font-weight:800;color:#0F5132">'
-    +'<span>TOTAL</span><span>'+wlv1MhMoney(total)+'</span></div>'
+    +'<div class="card" style="font-weight:800;color:#0F5132">'
+    +'<div style="display:flex;justify-content:space-between">'
+    +'<span>CASH TO HAND OVER</span><span>'+wlv1MhMoney(total)+'</span></div>'
+    +(Number(online||0)>0
+      ? '<div class="tiny mut" style="font-weight:600;margin-top:4px">Online '+wlv1MhMoney(online)+' — came to you directly</div>' : '')
+    +'</div>'
     +'<div class="card"><div class="tiny mut">RECEIVED BY</div>'+opts+'</div>'
     +'<div class="card"><div class="tiny mut">PASSWORD OF THE PERSON RECEIVING</div>'
     +'<input id="wlv1MhPw2" class="input" type="password" autocapitalize="off" autocorrect="off" spellcheck="false" data-nocaps="1"></div>'
@@ -23325,7 +23329,7 @@ window["wlv1MhCloseHandOver"]=wlv1MhCloseHandOver;
 async function wlv1MhNotYet(){
   var r=window.__wlv1MhPick; if(!r) return;
   var byName=(user&&(user.name||user.mobile))||'';
-  var ok=await wlv1MhMarkPending(r.branch, r.date, Number(r.grandTotal||0), byName);
+  var ok=await wlv1MhMarkPending(r.branch, r.date, Number(r.cashTotal||0), byName);   /* 💵 V1038 */
   if(!ok) return toast('Could not save — please try again');
   closeModal(); toast('Master has been informed — the money is still with you');
   if(confirm('Print chamber register now?'))wlv1ChamberRegisterPrint();else chamberAttendance();
@@ -23386,7 +23390,7 @@ async function wlv1ConfirmChamberClose(){
   try{
     var t=window.__wlv1MhTot||{fees:0,cash:0,online:0,refund:0,grand:0};
     await wlv1MhSaveTotals(br, wlv1ChamberDate, t.fees, t.cash, t.online, t.refund, t.grand);
-    wlv1MhAskAtClose(br, wlv1ChamberDate, t.grand);
+    wlv1MhAskAtClose(br, wlv1ChamberDate, t.cash, t.online);   /* 💵 V1038 — শুধু ক্যাশ */
     return;
   }catch(e){}
   if(confirm('Print chamber register now?'))wlv1ChamberRegisterPrint();else chamberAttendance();
