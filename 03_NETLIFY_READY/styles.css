@@ -8161,3 +8161,14 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
   }
   body.hasDeskNav .wrap:not(.publicWrap) .wlv1MhGrid>.wlv1MhRow{margin:0}
 }
+
+/* 👤🔒 V1040 — Pay Extra Income: প্রতিটা সারিতে রোগীর নাম, চাপ দিলে History। */
+.pfPayLine{padding:9px 2px;border-bottom:1px solid #EDF1F5;border-radius:10px}
+.pfPayLine:last-of-type{border-bottom:0}
+.pfPayTop{display:flex;gap:10px;align-items:baseline}
+.pfPayTop b{color:#B42318;min-width:62px}
+.pfPayTop span{color:#5B6B81;font-size:13px}
+.pfPayWho{margin-top:3px;font-weight:700;color:#0F5132;font-size:13px}
+.pfPayGo{margin-top:2px;font-size:11px;color:#8B98A9}
+.pfPayTap{cursor:pointer}
+.pfPayTap:hover{background:#F4F9F6}

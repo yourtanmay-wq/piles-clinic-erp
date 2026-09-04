@@ -2246,9 +2246,39 @@ class StaffProfileActivity : AppCompatActivity() {
         val box = ModuleUi.card(this)
         col.addView(box)
         box.addView(salaryStatusRow("Total to pay now", money(dueSum), "#B42318"))
+        /* 👤🔒 V1040 (TK: *"extra income আমি কোন পেশেন্ট এর জন্য দিচ্ছি সেটা বুঝতেই
+           তো পারছি না"* → *"ওখানে চাপ দিলে পেশেন্টের ভিউ ওয়াল খুলতে হবে"*)।
+           ⇒ প্রতিটা সারিতে এখন রোগীর নাম, আর সারিতে চাপ দিলে ঐ রোগীর পুরো
+             History খোলে — Extra Income History-র হুবহু একই পথ (`openPatientHistory`)।
+           ⛔ নাম আনা হয় ইতিমধ্যেই বানানো `fillExtraPatientNames` দিয়েই, নতুন
+             কোনো আলাদা পড়া নয়। নাম না এলে আগের মতোই শুধু কারণ দেখায়। */
+        val payRows = ArrayList<Triple<String, TextView?, JSONObject>>()
         for (p in dueRows) {
-            box.addView(ModuleUi.body(this, money(p.optDouble("amount", 0.0)) + "  ·  " + ns(p, "extra_reason")))
+            val line = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(2), dp(7), dp(2), dp(7))
+            }
+            line.addView(ModuleUi.body(this, money(p.optDouble("amount", 0.0)) + "  ·  " + ns(p, "extra_reason")))
+            val whoView = TextView(this).apply {
+                textSize = 13f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#0F5132"))
+                setPadding(0, dp(2), 0, 0)
+                visibility = android.view.View.GONE
+            }
+            line.addView(whoView)
+            val pid = extraPatientId(p)
+            if (pid.isNotBlank()) {
+                payRows.add(Triple(pid, whoView, p))
+                line.isClickable = true
+                line.isFocusable = true
+                line.setOnClickListener {
+                    openPatientHistory(pid, extraPatientCache[pid]?.second.orEmpty())
+                }
+            }
+            box.addView(line)
         }
+        if (payRows.isNotEmpty()) fillExtraPatientNames(payRows, nameOnly = true)
         val md = spinner(listOf("Cash", "Online"))
         col.addView(ModuleUi.label(this, "Mode")); col.addView(md)
         col.addView(ModuleUi.button(this, "✅ Mark as Paid") {
@@ -3095,7 +3125,13 @@ class StaffProfileActivity : AppCompatActivity() {
      */
     private val extraPatientTiming = HashMap<String, String>()               // id → timeType
 
-    private fun fillExtraPatientNames(rows: List<Triple<String, TextView?, JSONObject>>) {
+    /* 👤🔒 V1040 — `nameOnly = true` হলে লাইনে শুধু **👤 নাম · মোবাইল** বসে
+       (Pay Extra Income পর্দার জন্য, যেখানে কারণটা উপরের লাইনেই আছে)।
+       ⛔ default `false`, তাই Extra Income History-র লাইন এক অক্ষরও বদলায়নি। */
+    private fun fillExtraPatientNames(
+        rows: List<Triple<String, TextView?, JSONObject>>,
+        nameOnly: Boolean = false
+    ) {
         if (rows.isEmpty()) return
         val ids = rows.map { it.first }.filter { it.isNotBlank() }.distinct()
         val need = ids.filter { !extraPatientCache.containsKey(it) }
@@ -3110,6 +3146,14 @@ class StaffProfileActivity : AppCompatActivity() {
                 val nm = extraPatientCache[pid]?.first.orEmpty().trim()
                 val tt = extraPatientTiming[pid].orEmpty().trim()
                 val why = ns(row, "extra_reason").trim()
+                if (nameOnly) {
+                    if (nm.isBlank()) continue
+                    val mb = extraPatientCache[pid]?.second.orEmpty().trim()
+                    val one = "\uD83D\uDC64 " + nm + (if (mb.isNotBlank()) "  \u00B7  " + mb else "")
+                    if (view.text?.toString() != one) view.text = one
+                    view.visibility = android.view.View.VISIBLE
+                    continue
+                }
                 if (nm.isBlank() && tt.isBlank()) continue          // এখনো কিছুই আসেনি
                 val parts = mutableListOf<String>()
                 if (tt.isNotBlank()) parts.add(

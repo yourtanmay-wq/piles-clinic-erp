@@ -1207,15 +1207,55 @@
     var due = rows.filter(salIsDue);
     if (!due.length) { try { toast('Nothing due'); } catch (e) {} return; }
     var sum = due.reduce(function (a, x) { return a + Number(x.amount || 0); }, 0);
-    document.getElementById('app').innerHTML = '<div class="wrap anMod anModPf"><div class="topbar"><b>Pay Extra Income — ' + m.esc(code) + '</b>' +
-      '<button class="ghost" onclick="profSalary(\'' + m.esc(code) + '\')">Back</button></div><div class="page">' +
-      '<div class="card"><div class="pfTotRow"><span>Total to pay now</span><b style="color:#B42318">' + m.money(sum) + '</b></div>' +
-      due.map(function (x) { return '<div class="pfPayLine">' + m.money(x.amount) + '  ·  ' + m.esc(x.extra_reason || '') + '</div>'; }).join('') +
-      '<label>Mode</label><select id="exdMode" class="input"><option>Cash</option><option>Online</option></select>' +
-      '<div class="actions"><button class="ghost" onclick="profSalary(\'' + m.esc(code) + '\')">Cancel</button>' +
-      '<button onclick="profPayExtraDueSave(\'' + m.esc(code) + '\')">✅ Mark as Paid</button></div></div>' +
-      '</div></div>';
+    /* 👤🔒 V1040 (TK: "extra income আমি কোন পেশেন্ট এর জন্য দিচ্ছি সেটা বুঝতেই তো
+       পারছি না" → "ওখানে চাপ দিলে পেশেন্টের ভিউ ওয়াল খুলতে হবে")।
+       ⇒ প্রতিটা সারিতে রোগীর নাম ও মোবাইল, আর সারিতে চাপ দিলে ঐ রোগীর পুরো
+         History খোলে — ফোনের হুবহু একই আচরণ (নিয়ম ৬.৬)।
+       ⛔ নতুন কোনো cloud-read নেই; নাম জমা তালিকা থেকেই আসে। নাম আসতে দেরি হলে
+         কোডটাই দেখায়, এসে গেলে নিজে থেকেই বসে যায়। */
+    due.forEach(function (x) { try { SAL_PAY_BY_ID[String(x.id || '')] = x; } catch (e) {} });
+    function whoOf(x) {
+      var pid = salExtraPatientId(x), c = pid ? (SAL_PAT_CACHE[pid] || null) : null;
+      return {
+        name: c ? String(c.name || '').trim() : '',
+        mobile: c ? String(c.mobile || '').trim() : '',
+        code: salExtraPatientCode(x)
+      };
+    }
+    function draw() {
+      document.getElementById('app').innerHTML = '<div class="wrap anMod anModPf"><div class="topbar"><b>Pay Extra Income — ' + m.esc(code) + '</b>' +
+        '<button class="ghost" onclick="profSalary(\'' + m.esc(code) + '\')">Back</button></div><div class="page">' +
+        '<div class="card"><div class="pfTotRow"><span>Total to pay now</span><b style="color:#B42318">' + m.money(sum) + '</b></div>' +
+        due.map(function (x) {
+          var w = whoOf(x);
+          var who = w.name
+            ? '<div class="pfPayWho">👤 ' + m.esc(w.name) + (w.mobile ? '  ·  ' + m.esc(w.mobile) : '') + '</div>'
+            : (w.code ? '<div class="pfPayWho">👤 ' + m.esc(w.code) + '</div>' : '');
+          var tap = w.mobile ? ' pfPayTap" onclick="profPayExtraOpen(\'' + m.esc(String(x.id || '')) + '\')' : '';
+          return '<div class="pfPayLine' + tap + '"><div class="pfPayTop"><b>' + m.money(x.amount) + '</b>' +
+                 '<span>' + m.esc(x.extra_reason || '') + '</span></div>' + who +
+                 (w.mobile ? '<div class="pfPayGo">Tap to open this patient</div>' : '') + '</div>';
+        }).join('') +
+        '<label>Mode</label><select id="exdMode" class="input"><option>Cash</option><option>Online</option></select>' +
+        '<div class="actions"><button class="ghost" onclick="profSalary(\'' + m.esc(code) + '\')">Cancel</button>' +
+        '<button onclick="profPayExtraDueSave(\'' + m.esc(code) + '\')">✅ Mark as Paid</button></div></div>' +
+        '</div></div>';
+    }
+    draw();
+    try { salFillPatientNames(due, draw); } catch (e) {}
   }
+  /* সারিতে চাপ — ঐ রোগীর পুরো History (প্রকল্পের প্রমাণিত `summaryByMobile`)। */
+  function profPayExtraOpen(payId) {
+    try {
+      var x = SAL_PAY_BY_ID[String(payId)];
+      if (!x) return;
+      var pid = salExtraPatientId(x), c = pid ? (SAL_PAT_CACHE[pid] || null) : null;
+      var mob = c ? String(c.mobile || '').trim() : '';
+      if (!mob) { try { toast('Patient mobile not found'); } catch (e) {} return; }
+      summaryByMobile(mob);
+    } catch (e) {}
+  }
+  window.profPayExtraOpen = profPayExtraOpen;
   window.profPayExtraDue = profPayExtraDue;
   async function profPayExtraDueSave(code) {
     var m = window.MOD, client = await sb();
