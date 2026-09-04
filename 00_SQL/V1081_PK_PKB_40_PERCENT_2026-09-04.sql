@@ -6,8 +6,14 @@
 --       ভবিষ্যতে যেন এটা কার্যকরী হয়… এটা একটা লাইভ ক্লিনিক"*
 --
 -- ⛔ ০১.০৯-এর আগে জমা হওয়া টাকায় **পুরনো হারই** থাকবে — এক পয়সাও নড়বে না।
---    ০১.০৯ ও তার পরের জমায় ৪০%। ব্যবস্থাটা V941-এর **হুবহু প্রমাণিত** পথ
+--    ০১.০৯ ও তার পরের জমায় নতুন হার। ব্যবস্থাটা V941-এর **হুবহু প্রমাণিত** পথ
 --    (`prev_mode`/`prev_value`/`rate_changed_on`) — নতুন নিয়ম বানানো হয়নি।
+--
+-- 🔵 TK-এর স্পষ্ট নিয়ম (০৪.০৯, সংশোধিত): **৪০% হলো ছাদ, সবার জন্য এক হার নয়।**
+--    · হার ৪০%-এর **বেশি** ছিল (যেমন ৫০%)  ⇒ ০১.০৯ থেকে **৪০%**
+--    · হার ৪০% বা তার **কম** ছিল           ⇒ **অপরিবর্তিত**, কিছুই বদলায় না
+--    ⛔ কারো হার এতে **বাড়ে না** — শুধু বেশি হারগুলো নামে।
+--    ⛔ AMOUNT (সরাসরি টাকা) ধরনের কোনো সারি ছোঁয়া হয় না — ওটা শতাংশ নয়।
 --
 -- 🔴 গভীরে যাচাই করতে গিয়ে পাওয়া আসল গোলমাল (ধাপ ৩–৪-এ সারানো):
 --    Chamber Review-র "আজকের RMP কমিশন" (`rmp_day_commission`, V426) নিজের
@@ -124,7 +130,7 @@ update fin.rmp_patient_commissions c
        rmp_name         = coalesce(nullif(d.name,''),'PKB'),
        rmp_mobile       = coalesce(d.mobile,''),
        commission_mode  = 'PERCENT',
-       commission_value = 50,
+       commission_value = 50,   -- PKB-র পুরনো হার; ধাপ ৪-এ ছাদ ধরে ৪০% হবে
        prev_mode = null, prev_value = null, rate_changed_on = null,
        set_by = 'V1081_TK_CORRECTION',
        updated_at = now()
@@ -142,6 +148,7 @@ select 'RMP_CORRECTED_WRONG_LINK', c.id::text, null, to_jsonb(c),
 
 -- ── ধাপ ৪: PK ও PKB-র **সব** রোগীর হার ০১.০৯.২০২৬ থেকে ৪০% ───────────────
 --    ⛔ `coalesce` ব্যবহার করায় আগে একবার হার বদলানো থাকলে সেটা নষ্ট হয় না।
+--    ⛔ **৪০% ছাদ** — ৪০% বা তার কম হারের কোনো সারি ছোঁয়াই হয় না।
 --    ⛔ PK ও PKB-র id খাতার সারি B636-এ যাচাই করা; সঙ্গে PKB-র নম্বরও ধরা হলো।
 update fin.rmp_patient_commissions c
    set prev_mode        = coalesce(c.prev_mode, c.commission_mode),
@@ -150,22 +157,45 @@ update fin.rmp_patient_commissions c
        commission_mode  = 'PERCENT',
        commission_value = 40,
        updated_at = now()
- where c.rmp_id in (
+ -- 🔵 ৪০% ছাদ: শুধু যাঁদের শতাংশ ৪০-এর বেশি, তাঁরাই নামবেন
+ where c.commission_mode = 'PERCENT'
+   and c.commission_value > 40
+   and c.rmp_id in (
    select d.id from public.doctor_visits d
     where d.id in ('dv_41df54bdeee64a4b9c8c07f3124c5484',
                    'dv_91f6cdf6cff84218b82a0bbc74021b9e')
        or right(regexp_replace(coalesce(d.mobile,''),'[^0-9]','','g'),10) = '9242009205');
 
--- ── ধাপ ৫: নতুন রোগীর ডিফল্টও ৪০% (০১.০৯ থেকে) ───────────────────────────
-insert into fin.rmp_commission_defaults(rmp_id, rmp_name, rmp_mobile, commission_mode, commission_value, updated_by)
-select d.id, coalesce(d.name,''), coalesce(d.mobile,''), 'PERCENT', 40, 'V1081'
-  from public.doctor_visits d
- where d.id in ('dv_41df54bdeee64a4b9c8c07f3124c5484',
-                'dv_91f6cdf6cff84218b82a0bbc74021b9e')
-    or right(regexp_replace(coalesce(d.mobile,''),'[^0-9]','','g'),10) = '9242009205'
-on conflict (rmp_id) do update
-  set commission_mode = 'PERCENT', commission_value = 40,
-      effective_from = date '2026-09-01', updated_by = 'V1081', updated_at = now();
+-- ── ধাপ ৫: নতুন রোগীর ডিফল্টও ৪০% — তবে **শুধু নামানো, কখনো বাড়ানো নয়** ──
+--    ⛔ যে RMP-র ডিফল্ট ৪০%-এর বেশি (যেমন ৫০%), শুধু তাঁরটাই ৪০% হবে।
+--    ⛔ ডিফল্ট **নেই** এমন RMP-তে নতুন সারি বসানো হয় না — নইলে V488-এর
+--       স্বয়ংক্রিয় ১০% থেকে ৪০%-এ **বেড়ে** যেত, যেটা TK-এর নিয়মের উল্টো।
+update fin.rmp_commission_defaults f
+   set commission_mode = 'PERCENT',
+       commission_value = 40,
+       effective_from = date '2026-09-01',
+       updated_by = 'V1081',
+       updated_at = now()
+ where f.commission_mode = 'PERCENT'
+   and f.commission_value > 40
+   and f.rmp_id in (
+     select d.id from public.doctor_visits d
+      where d.id in ('dv_41df54bdeee64a4b9c8c07f3124c5484',
+                     'dv_91f6cdf6cff84218b82a0bbc74021b9e')
+         or right(regexp_replace(coalesce(d.mobile,''),'[^0-9]','','g'),10) = '9242009205');
+
+-- ── ধাপ ৫ক: ব্রাঞ্চ-নির্দিষ্ট হারেও একই ছাদ (থাকলে) ───────────────────────
+update fin.rmp_commission_branch_defaults f
+   set commission_mode = 'PERCENT',
+       commission_value = 40,
+       updated_at = now()
+ where f.commission_mode = 'PERCENT'
+   and f.commission_value > 40
+   and f.rmp_id in (
+     select d.id from public.doctor_visits d
+      where d.id in ('dv_41df54bdeee64a4b9c8c07f3124c5484',
+                     'dv_91f6cdf6cff84218b82a0bbc74021b9e')
+         or right(regexp_replace(coalesce(d.mobile,''),'[^0-9]','','g'),10) = '9242009205');
 
 notify pgrst, 'reload schema';
 
