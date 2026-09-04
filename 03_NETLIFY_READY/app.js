@@ -17832,7 +17832,7 @@ window["wlv1InvOpenFixed"]=wlv1InvOpenFixed;
 function wlv1InvChecklistModal(title,names){
   window.__wlv1InvDlgChecked=new Set(names);
   const rows=names.map(n=>`<label class="wlv1InvItem on" data-wlv1invdlg="${esc(n)}"><input type="checkbox" checked onchange="wlv1InvDlgToggle(this)"><span>${esc(n)}</span></label>`).join('');
-  modal(`<h2>${esc(title)}</h2><div class="card mut" style="font-size:12.5px">Untick anything you don't need this time, or type more tests below.</div><div id="wlv1InvDlgList">${rows}</div><label>Add more (comma separated)</label><input id="wlv1InvDlgExtra" class="input" placeholder="Type extra test names" oninput="wlv1Caps(this)"><div class="actions"><button onclick="wlv1InvDlgApply()">Apply</button><button class="ghost" onclick="wlv1InvDlgCancel()">Cancel</button></div>`);
+  modal(`<h2>${esc(title)}</h2><div class="card mut" style="font-size:12.5px">Untick anything you don't need this time, or type more tests below.</div><div id="wlv1InvDlgList">${rows}</div><label>Add more</label><input id="wlv1InvDlgExtra" class="input" placeholder="Type extra test names" oninput="wlv1Caps(this)"><div class="actions"><button onclick="wlv1InvDlgApply()">Apply</button><button class="ghost" onclick="wlv1InvDlgCancel()">Cancel</button></div>`);
 }
 window["wlv1InvChecklistModal"]=wlv1InvChecklistModal;
 function wlv1InvDlgToggle(cb){
