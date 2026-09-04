@@ -933,6 +933,21 @@
     }catch(e){}
   }
 
+  /* 🧹🔒 V1041 (TK: *"Manually approved by TK এর মানেটা আগে আমাকে একটু বোঝান তো"*)।
+     ⚠️ **দোষ আমার** — ওই লেখাটা আমারই দেওয়া SQL থেকে ডেটাবেসে বসেছিল, TK-এর
+     কাছে ওটার কোনো মানে ছিল না। ⇒ পর্দায় দেখানোর সময় ওটা সোজা ইংরেজিতে
+     বদলে যায়: `Added by hand`।
+     ⛔ ডেটাবেসের একটা অক্ষরও বদলানো হয় না (TK-কে কোনো SQL চালাতে হবে না) —
+        শুধু **দেখানোর সময়** লেখাটা পরিষ্কার করা হয়।
+     ⛔ অন্য কোনো লেখা ছোঁয়া হয় না; নিজে টাইপ করা কারণ আগের মতোই থাকে। */
+  function salCleanWhy(t){
+    try{
+      var s=String(t||'');
+      return s.replace(/Manually approved by TK/gi,'Added by hand');
+    }catch(e){ return String(t||''); }
+  }
+  window.salCleanWhy = salCleanWhy;
+
   /* চাপ দিলে ছোট পপ-আপ — নাম · মোবাইল · কেন · কত · কবে · অবস্থা,
      নিচে "Open History" (TK-এর বাছা পথ: আগে দেখে নেওয়া, তারপর যাওয়া)। */
   function salExtraWhy(payId){
@@ -955,7 +970,7 @@
         + (c.name?  '<div class="pfStmtWhyRow"><span>Patient</span><b>'+m.esc(c.name)+'</b></div>':'')
         + (c.mobile?'<div class="pfStmtWhyRow"><span>Mobile</span><b>'+m.esc(c.mobile)+'</b></div>':'')
         + (tt? '<div class="pfStmtWhyRow"><span>Timing</span><b>'+(isUnexp?'⏰ UNEXPECTED TIME':'🕐 '+m.esc(tt.toUpperCase()))+'</b></div>':'')
-        + '<div class="pfStmtWhyRow"><span>For</span><b>'+m.esc(String(x.extra_reason||'-'))+'</b></div>'
+        + '<div class="pfStmtWhyRow"><span>For</span><b>'+m.esc(salCleanWhy(String(x.extra_reason||'-')))+'</b></div>'
         + (stepTxt? '<div class="pfStmtWhyRow"><span>Step</span><b>'+m.esc(stepTxt)+'</b></div>':'')
         + '<div class="pfStmtWhyRow"><span>Amount</span><b>'+m.money(x.amount)+'</b></div>'
         + '<div class="pfStmtWhyRow"><span>Date</span><b>'+m.esc(salDmy(x.paid_on))+'</b></div>'
@@ -1083,7 +1098,7 @@
       var isExtra = salIsExtra(x), isDue = salIsDue(x);
       var ym = String(x.for_month || String(x.paid_on || '').slice(0, 7));
       var title = isExtra ? 'Extra' : monthLabel(ym);
-      var why = isExtra ? String(x.extra_reason || '') : String(x.remark || '');
+      var why = isExtra ? salCleanWhy(String(x.extra_reason || '')) : String(x.remark || '');
       var mode = isDue ? 'DUE' : String(x.mode || '—');
       var modeCls = isDue ? ' due' : (/^(cash|online)$/i.test(mode) ? ' paid' : ' hist');
       var detail = why;
@@ -1233,7 +1248,7 @@
             : (w.code ? '<div class="pfPayWho">👤 ' + m.esc(w.code) + '</div>' : '');
           var tap = w.mobile ? ' pfPayTap" onclick="profPayExtraOpen(\'' + m.esc(String(x.id || '')) + '\')' : '';
           return '<div class="pfPayLine' + tap + '"><div class="pfPayTop"><b>' + m.money(x.amount) + '</b>' +
-                 '<span>' + m.esc(x.extra_reason || '') + '</span></div>' + who +
+                 '<span>' + m.esc(salCleanWhy(x.extra_reason || '')) + '</span></div>' + who +
                  (w.mobile ? '<div class="pfPayGo">Tap to open this patient</div>' : '') + '</div>';
         }).join('') +
         '<label>Mode</label><select id="exdMode" class="input"><option>Cash</option><option>Online</option></select>' +

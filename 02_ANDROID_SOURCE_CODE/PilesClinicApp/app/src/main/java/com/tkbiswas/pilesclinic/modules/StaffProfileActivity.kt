@@ -2258,7 +2258,7 @@ class StaffProfileActivity : AppCompatActivity() {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(2), dp(7), dp(2), dp(7))
             }
-            line.addView(ModuleUi.body(this, money(p.optDouble("amount", 0.0)) + "  ·  " + ns(p, "extra_reason")))
+            line.addView(ModuleUi.body(this, money(p.optDouble("amount", 0.0)) + "  ·  " + cleanWhy(ns(p, "extra_reason"))))
             val whoView = TextView(this).apply {
                 textSize = 13f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
@@ -3070,6 +3070,17 @@ class StaffProfileActivity : AppCompatActivity() {
          (`Registration · KNE-22082026-001` → `KNE-22082026-001`), আর সেই কোড
          দিয়ে রোগীটা খুঁজে নিয়ে চাপার ব্যবস্থা বসে।
        ⛔ আগের পথটা এক অক্ষরও বদলায়নি — সূত্র থাকলে আগের মতোই সরাসরি চলে। */
+    /* 🧹🔒 V1041 (TK: *"Manually approved by TK এর মানেটা আগে আমাকে একটু বোঝান তো"*)।
+       ⚠️ **দোষ আমার** — ওই লেখাটা আমারই দেওয়া SQL থেকে ডেটাবেসে বসেছিল, TK-এর
+       কাছে ওটার কোনো মানে ছিল না। ⇒ পর্দায় দেখানোর সময় ওটা সোজা ইংরেজিতে
+       বদলে যায়: `Added by hand`।
+       ⛔ ডেটাবেসের একটা অক্ষরও বদলানো হয় না (TK-কে কোনো SQL চালাতে হবে না) —
+          শুধু **দেখানোর সময়** লেখাটা পরিষ্কার করা হয়।
+       ⛔ কোড-খোঁজা (`extraPatientCodeFromReason`) মূল লেখাটাই পড়ে, তাই রোগী
+          চেনার কাজে এটার কোনো প্রভাব নেই। */
+    private fun cleanWhy(text: String): String =
+        text.replace("Manually approved by TK", "Added by hand", ignoreCase = true)
+
     private fun extraPatientCodeFromReason(p: JSONObject): String {
         val why = ns(p, "extra_reason").trim()
         if (why.isBlank()) return ""
@@ -3145,7 +3156,7 @@ class StaffProfileActivity : AppCompatActivity() {
                 if (view == null) continue
                 val nm = extraPatientCache[pid]?.first.orEmpty().trim()
                 val tt = extraPatientTiming[pid].orEmpty().trim()
-                val why = ns(row, "extra_reason").trim()
+                val why = cleanWhy(ns(row, "extra_reason").trim())
                 if (nameOnly) {
                     if (nm.isBlank()) continue
                     val mb = extraPatientCache[pid]?.second.orEmpty().trim()
@@ -3240,7 +3251,7 @@ class StaffProfileActivity : AppCompatActivity() {
         val cached = extraPatientCache[pid]
         val name = cached?.first ?: ""
         val mob = cached?.second ?: ""
-        val why = ns(p, "extra_reason")
+        val why = cleanWhy(ns(p, "extra_reason"))
         val amt = money(p.optDouble("amount", 0.0))
         val on = dmy(ns(p, "paid_on"))
         val status = if (payStatus(p) == "DUE") "DUE (not paid yet)" else "PAID"
@@ -3549,7 +3560,7 @@ class StaffProfileActivity : AppCompatActivity() {
             }
             val dateText = dmy(ns(p, "paid_on"))
             val leftTitle = if (isExtra) "Extra" else salaryMonthLabel(salaryPayMonth(p))
-            val why = if (isExtra) ns(p, "extra_reason") else ns(p, "remark")
+            val why = if (isExtra) cleanWhy(ns(p, "extra_reason")) else ns(p, "remark")
 
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
