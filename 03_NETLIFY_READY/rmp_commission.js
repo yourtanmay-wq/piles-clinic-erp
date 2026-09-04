@@ -356,6 +356,15 @@
     try { return (await smallRpc('rmp_day_commission', { p_branch: branch, p_date: date })) || []; }
     catch (_) { return []; }
   };
+  /* 🔴🔒 V1078 (০৪.০৯.২০২৬, TK: *"হ্যাঁ করুন, তবে সাবধানে"*) — রোগীর ঘরে RMP-র
+     নাম লেখা আছে অথচ কমিশন বাঁধা নেই, তাদের **নিজে থেকে** ওই RMP-র বাঁধা হারে
+     জুড়ে দেওয়া। সব হিসাব সার্ভারেই (`fin.rmp_autolink_refdoctor`), তাই ফোনের
+     সঙ্গে হুবহু এক নিয়ম, আর আগে থেকে বাঁধা কমিশন কখনো বদলায় না।
+     ⛔ ব্যর্থ হলে খালি তালিকা — Review আগের মতোই চলে, কিছু ভাঙে না। */
+  window.wlv1RmpAutolink = async function (branch) {
+    try { return (await smallRpc('rmp_autolink_refdoctor', { p_branch: branch, p_dry_run: false })) || []; }
+    catch (_) { return []; }
+  };
   window.wlv1RmpDayPaid = async function (branch, date) {
     try { return (await smallRpc('rmp_day_paid', { p_branch: branch, p_date: date })) || []; }
     catch (_) { return []; }

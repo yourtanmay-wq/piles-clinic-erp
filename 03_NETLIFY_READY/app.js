@@ -23025,6 +23025,15 @@ function wlv1CloseReview(rows){
       if(!br || br==='All') return;
       if(typeof window.wlv1RmpDayCommission!=='function') return;
       var dt = String(wlv1ChamberDate||'').slice(0,10);
+      /* 🔴🔒 V1078 — কমিশন গোনার ঠিক আগে একবার নিজে থেকে জোড়া লাগানো
+         (ফোনের ChamberAttendanceActivity-র হুবহু একই জায়গা ও একই ক্রম)।
+         ⛔ আগে থেকে বাঁধা কমিশন কখনো বদলায় না; হার বসানো না থাকলে বা একই
+            নামে একাধিক RMP মিললে জোড়া হয় না — নিচে হলুদ লাইনে জানানো হয়। */
+      var autoRows = (typeof window.wlv1RmpAutolink==='function')
+        ? (await window.wlv1RmpAutolink(br)) : [];
+      var autoLinked = (autoRows||[]).filter(function(x){ return x.action==='LINKED'; }).length;
+      var autoNeedsTk = (autoRows||[]).filter(function(x){
+        return x.action==='NO_RATE' || x.action==='AMBIGUOUS'; }).length;
       var comm = await window.wlv1RmpDayCommission(br, dt);
       var paid = await window.wlv1RmpDayPaid(br, dt);
       comm = (comm||[]).filter(function(x){ return Number(x.commission_today||0) > 0; });
@@ -23042,6 +23051,14 @@ function wlv1CloseReview(rows){
       })();
       var box = document.querySelector('.wlv1CbRevSum'); if(!box) return;
       var html='';
+      /* 🔴🔒 V1078 — জোড়া লাগানোর ফল, TK-এর চোখের সামনে (ফোনের হুবহু একই লেখা)।
+         ⛔ শুধু খবর — একটাও টাকার অঙ্ক এতে বদলায় না। */
+      if(autoLinked>0 || autoNeedsTk>0){
+        html += '<div style="font-size:10.5px;color:#8A5A00;padding:3px 0 1px">' +
+          (autoLinked>0 ? 'Auto-linked '+autoLinked+' patient(s) to their RMP.&nbsp; ' : '') +
+          (autoNeedsTk>0 ? autoNeedsTk+' more need your attention - RMP rate not set, or the name matches more than one RMP.' : '') +
+          '</div>';
+      }
       if(comm.length){
         // 🔴🔒 V484 (20.08.2026, Android V473-এর সাথে ওয়েব মেলাতে — TK-নির্দেশ
         // "Android ও ওয়েব দুটোতেই মিলিয়ে দেখুন") — RMP Commission-এর প্রতি-লাইন

@@ -3017,6 +3017,9 @@ Thread {
     /** 🔴 V426: Review পর্দায় দেখানো আজকের মোট RMP কমিশন — ছাপা কাগজেও এই একই
      *  সংখ্যাটাই যায়। কমিশন না এলে ০, তখন কাগজ আগের মতোই। */
     private var cbDayCommissionTotal: Double = 0.0
+    // 🔴 V1078 — এই দুটো শুধু Review-এর হলুদ লাইনটার জন্য (টাকার হিসাবে নয়)।
+    private var cbAutoLinked = 0
+    private var cbAutoNeedsTk = 0
 
     /* 💰🔒 V984 (০২.০৯.২০২৬, TK-নির্দেশ) — Review পর্দায় যে অঙ্কগুলো দেখানো
        হলো, রেজিস্টারের পর্দাতেও **হুবহু সেগুলোই** যায় (আবার আলাদা করে হিসাব
@@ -3219,6 +3222,19 @@ Thread {
                     textSize = 10.5f
                     setTextColor(android.graphics.Color.parseColor("#8A94A6"))
                     setPadding(dp(70), 0, 0, dp(2))
+                })
+            }
+            /* 🔴🔒 V1078 — নিজে থেকে জোড়া লাগানোর ফল, TK-এর চোখের সামনে।
+               ⛔ শুধু খবর — একটাও টাকার অঙ্ক এতে বদলায় না। */
+            if (cbAutoLinked > 0 || cbAutoNeedsTk > 0) {
+                cbSumBox.addView(android.widget.TextView(this).apply {
+                    text = (if (cbAutoLinked > 0) "Auto-linked $cbAutoLinked patient(s) to their RMP.  " else "") +
+                        (if (cbAutoNeedsTk > 0)
+                            "$cbAutoNeedsTk more need your attention - RMP rate not set, or the name matches more than one RMP."
+                         else "")
+                    textSize = 10.5f
+                    setTextColor(android.graphics.Color.parseColor("#8A5A00"))
+                    setPadding(0, dp(3), 0, dp(1))
                 })
             }
             val withComm = comm.filter { it.commissionToday > 0.0 }
@@ -3550,6 +3566,21 @@ Thread {
                                     .signInCurrentSession(applicationContext)
                         } catch (_: Throwable) { }
                     }
+                    /* 🔴🔒 V1078 (০৪.০৯.২০২৬, TK: *"হ্যাঁ করুন, তবে সাবধানে"*) —
+                       কমিশন গোনার **ঠিক আগে** একবার নিজে থেকে জোড়া লাগানো:
+                       যে রোগীর ঘরে RMP-র নাম লেখা আছে অথচ কমিশন বাঁধা নেই,
+                       তাকে ওই RMP-র বাঁধা হারে জুড়ে দেয় (সার্ভারেই)।
+                       ⛔ আগে থেকে বাঁধা কোনো কমিশন কখনো বদলায় না।
+                       ⛔ RMP-র হার বসানো না থাকলে বা একই নামে একাধিক RMP মিললে
+                          জোড়া হয় না — নিচে হলুদ লাইনে TK-কে জানানো হয়।
+                       ⛔ ব্যর্থ হলে নিঃশব্দে বাদ; Review আগের মতোই চলে। */
+                    val autoRes = withContext(Dispatchers.IO) {
+                        try { RmpCommissionRepository.autolinkRefDoctor(cbBranch, dryRun = false) }
+                        catch (_: Throwable) { null }
+                    }
+                    cbAutoLinked = autoRes?.value.orEmpty().count { it.action == "LINKED" }
+                    cbAutoNeedsTk = autoRes?.value.orEmpty().count {
+                        it.action == "NO_RATE" || it.action == "AMBIGUOUS" }
                     val res = withContext(Dispatchers.IO) {
                         try { RmpCommissionRepository.dayCommission(cbBranch, selectedDate) }
                         catch (_: Throwable) { null }

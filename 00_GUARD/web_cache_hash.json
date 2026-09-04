@@ -8,15 +8,15 @@
     "sha": "55264bd05328d116879b0b22d202bfe154720c65aeb5b91fc0cdfc0f067b907e"
   },
   "app.js": {
-    "v": "v1074",
-    "sha": "4d86b7ed74759d4eb37a110454e912a527e2fd3f595bbf98ed60f9537962e645"
+    "v": "v1078",
+    "sha": "bd42eaf1a58460601bfc5069209ee9e655b27d3de6937edabd635c98440af868"
   },
   "module_core.js": {
     "v": "v913",
     "sha": "1a1cca88a368cfd695e22f5e847c133d0fc6162289011c5cb5dc5bd910625dda"
   },
   "profile.js": {
-    "v": "v1077",
+    "v": "v1078",
     "sha": "051baf8667ea41fcf5be4f6de8466014078aad8e430a1464cd010d0fb04d72b2"
   },
   "notebook.js": {
@@ -32,7 +32,7 @@
     "sha": "764a574949413d96a31648c3b64985bb760c4f9f0375cc420ed1325302a44b55"
   },
   "rmp_commission.js": {
-    "v": "v466",
-    "sha": "63f524896002917811c25f36d5c70c2c469b4034dc34e1154281baf69f197b75"
+    "v": "v1078",
+    "sha": "7cbdb4785f7609f4cca36d2718c74b82bf95a3cf06e97aedd3b6a742b76a4b95"
   }
 }

@@ -100,6 +100,39 @@ object RmpCommissionRepository {
         val commissionPaid: Double, val advancePaid: Double, val totalPaid: Double
     )
 
+    /* 🔴🔒 V1078 (০৪.০৯.২০২৬, TK: *"হ্যাঁ করুন, তবে সাবধানে"*) — রোগীর ঘরে
+       RMP-র নাম লেখা আছে অথচ কমিশন বাঁধা নেই, এমন রোগীদের **নিজে থেকে**
+       ওই RMP-র বাঁধা হারে জুড়ে দেওয়া।
+       🔴 যে দোষটা এতে সারে: পুরনো মেলানোর নিয়ম রোগীর `refBy` ঘরটাকে RMP-র
+          নামের সঙ্গে মেলাত, কিন্তু আজকের অ্যাপে ওই ঘরে থাকে শুধু ধরন
+          ("Dr. Visit") — নামটা থাকে `refDoctor`-এ। তাই নাম লিখে নম্বর না
+          লিখলে রোগীটা কমিশনের হিসাব থেকে চুপচাপ বাদ পড়ত (TK-এর BULAN ROY)।
+       ⛔ সব হিসাব সার্ভারেই (`fin.rmp_autolink_refdoctor`) — ফোন ও কম্পিউটারে
+          এক নিয়ম, আর আগে থেকে বাঁধা কোনো কমিশন কখনো বদলায় না (শুধু নতুন জোড়া)।
+       ⛔ ব্যর্থ হলে খালি তালিকা ফেরে — ডাকা পর্দা আগের মতোই চলে, কিছু ভাঙে না। */
+    data class AutoLinkRow(
+        val patientRowId: String, val patientCode: String,
+        val patientName: String, val rmpName: String, val action: String
+    )
+
+    fun autolinkRefDoctor(branch: String, dryRun: Boolean = false): RepoResult<List<AutoLinkRow>> {
+        val rpc = ModuleAuth.rpc("fin", "rmp_autolink_refdoctor",
+            JSONObject().put("p_branch", branch).put("p_dry_run", dryRun))
+        if (!rpc.ok) return RepoResult(false, emptyList(), rpc.message)
+        return try {
+            val rows = JSONArray(rpc.body)
+            val out = ArrayList<AutoLinkRow>(rows.length())
+            for (i in 0 until rows.length()) {
+                val x = rows.optJSONObject(i) ?: continue
+                out.add(AutoLinkRow(
+                    x.optString("patient_row_id", ""), x.optString("patient_code", ""),
+                    x.optString("patient_name", ""), x.optString("rmp_name", ""),
+                    x.optString("action", "")))
+            }
+            RepoResult(true, out)
+        } catch (_: Exception) { RepoResult(false, emptyList(), "Invalid RMP auto-link result") }
+    }
+
     fun dayPaid(branch: String, date: String): RepoResult<List<DayPaidRow>> {
         val rpc = ModuleAuth.rpc("fin", "rmp_day_paid",
             JSONObject().put("p_branch", branch).put("p_date", date))
