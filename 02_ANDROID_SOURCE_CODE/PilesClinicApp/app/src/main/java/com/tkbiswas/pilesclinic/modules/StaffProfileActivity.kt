@@ -3167,6 +3167,32 @@ class StaffProfileActivity : AppCompatActivity() {
     /* 👤🔒 V1040 — `nameOnly = true` হলে লাইনে শুধু **👤 নাম · মোবাইল** বসে
        (Pay Extra Income পর্দার জন্য, যেখানে কারণটা উপরের লাইনেই আছে)।
        ⛔ default `false`, তাই Extra Income History-র লাইন এক অক্ষরও বদলায়নি। */
+    /* 📅🔒 V1049 (TK ডেমো-"ক" পাশ করেছেন, ০৪.০৯.২০২৬) — রোগীর তিনটে ধাপের
+       তারিখ ও সময়: এনকোয়ারি · রেজিস্ট্রেশন · ট্রিটমেন্টের টাকা।
+       ⛔ রেজিস্ট্রেশনের সময় `patients.createdAt` — সেটা আগের পড়াতেই চলে আসে।
+          এনকোয়ারি ও ট্রিটমেন্টের টাকার জন্য **দুটো ছোট পড়া** লাগে, তাই সেগুলো
+          একবারেই (`id=in.(…)`) আনা হয়, প্রতি সারিতে নয়।
+       ⛔ ব্যর্থ হলে কিছুই ভাঙে না — ঐ লাইনটা শুধু বসে না। */
+    private val extraPatientReg = HashMap<String, String>()   // id → registration createdAt
+    private val extraPatientEnq = HashMap<String, String>()   // id → enquiry createdAt
+    private val extraPatientTrt = HashMap<String, String>()   // id → treatment payment createdAt
+
+    /** `2026-08-22T21:14:00Z` → `22.08.2026  9:14 PM` (সময় না থাকলে শুধু তারিখ)। */
+    private fun whenText(iso: String): String {
+        val t = iso.trim()
+        if (t.length < 10) return ""
+        val d = t.substring(0, 10).split("-")
+        if (d.size != 3) return ""
+        val date = d[2] + "." + d[1] + "." + d[0]
+        if (t.length < 16) return date
+        val hh = t.substring(11, 13).toIntOrNull() ?: return date
+        val mi = t.substring(14, 16)
+        val ap = if (hh < 12) "AM" else "PM"
+        var h12 = hh % 12
+        if (h12 == 0) h12 = 12
+        return date + "  " + h12 + ":" + mi + " " + ap
+    }
+
     /* 👤🔒 V1044 (TK: *"আমার মনে হয় পেশেন্ট এর নাম দরকার এখানে"*) — `nameViews`
        দিলে রোগীর নাম **নিজের আলাদা সারিতে** বসে, আর তখন নিচের লাইনে নামটা আর
        দ্বিতীয়বার জুড়ে দেওয়া হয় না। ⛔ না দিলে আচরণ হুবহু আগের মতোই। */

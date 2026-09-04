@@ -1166,6 +1166,8 @@
        ক্লাউড-অনুরোধ নেই)। পাওয়া গেলে লাইনে নামটা বসে। */
     try{ salFillPatientNames(pays); }catch(e){}
     var head = '<div class="pfStmtListHead"><b>All Entries ('+pays.length+')</b><span>Most recent</span></div>';
+    /* 🧾 V1049 — এক রোগীর বাক্স একবারই আঁকা হয় (প্রতিবার নতুন করে শুরু)। */
+    var SAL_SEEN_PID = {};
     var lines = pays.map(function (x) {
       var isExtra = salIsExtra(x), isDue = salIsDue(x);
       var ym = String(x.for_month || String(x.paid_on || '').slice(0, 7));
@@ -1189,8 +1191,9 @@
       /* 🔵🔒 V521: লাইনের **সামনে** Timing চিহ্ন — পপ-আপ না খুলেও TK বুঝবেন
          টাকাটা অসময়ের এনকোয়ারির জন্য। ⛔ ঘরটা ফাঁকা হলে আগের মতোই কিছু নয়। */
       var vTt  = vPid ? String((SAL_PAT_CACHE[vPid] && SAL_PAT_CACHE[vPid].timeType) || '') : '';
+      var mark = '';
       if (vTt) {
-        var mark = salTimeBadge(vTt, (vPid && SAL_PAT_CACHE[vPid]) ? SAL_PAT_CACHE[vPid].timeSource : '');
+        mark = salTimeBadge(vTt, (vPid && SAL_PAT_CACHE[vPid]) ? SAL_PAT_CACHE[vPid].timeSource : '');
         /* 🧾 V1046 (TK: *"Registration  UNEXPECTED"* — এই ক্রমেই) — Extra সারিতে
            আগে কী কারণে, তারপর সময়ের ব্যাজ। ⛔ স্যালারির সারিতে আগের ক্রমই। */
         detail = detail ? (isExtra ? (detail + '  ·  ' + mark) : (mark + '  ·  ' + detail)) : mark;
@@ -1214,7 +1217,48 @@
          Registration UNEXPECTED · তারপর কত টাকা পাবে"*) — Extra সারিটা এখন
          ঠিক এই ক্রমেই সাজে। ⛔ স্যালারির সারি এক অক্ষরও বদলায়নি — সেটা
          আগের গ্রিডেই আঁকা হয়, নিচের `else`-এ। */
-      if (isExtra) {
+      /* 🧾🔒 V1049 (TK ডেমো-"ক" পাশ করেছেন, ০৪.০৯.২০২৬) — **এক রোগী = এক বাক্স**।
+         উপরে নাম·মোবাইল·রোগ, তারপর সময়ের ব্যাজ, তারপর ধাপগুলো তারিখ-সময় সহ আর
+         যে ধাপের জন্য টাকা তার পাশেই অঙ্ক, সবার নিচে **Total**।
+         ⛔ **Total সবসময় উপরে দেখানো অঙ্কগুলোর যোগফলই** — ডেমোতে একই রোগীর দুটো
+            Registration সারি থাকায় "Total ₹২০০" কিন্তু পাশে ₹১০০ দেখাচ্ছিল; সেটা
+            নিজে ধরে ঠিক করা হলো, এখন এক ধাপের সব সারি যোগ হয়ে একটাই অঙ্ক বসে।
+         ⛔ যে সারির ধাপ Registration/Treatment কোনোটাই নয় (হাতে লেখা কারণ), সেটাও
+            নিজের লাইনে দেখানো হয় — নইলে Total-এ থাকত কিন্তু চোখে পড়ত না।
+         ⛔ রোগী চেনা না গেলে সারিটা **আগের মতোই একা** আঁকা হয় (নিচে), কিছু হারায় না।
+         ⛔ উপরের Summary ও নিচের footer-এর সংখ্যাগুলো ছোঁয়া হয়নি — সেগুলো গোটা
+            তালিকা থেকেই গোনা হয়, তাই টাকার হিসাব এক অক্ষরও বদলায়নি। */
+      if (isExtra && vPid) {
+        if (SAL_SEEN_PID[vPid]) return '';                 // একই রোগীর বাকি সারি
+        SAL_SEEN_PID[vPid] = 1;
+        var mine = pays.filter(function(q){
+          return salIsExtra(q) && salExtraPatientId(q) === vPid; });
+        function sumOf(re){
+          return mine.filter(function(q){ return re.test(String(q.extra_reason||'').trim()); })
+                     .reduce(function(a,q){ return a + Number(q.amount||0); }, 0);
+        }
+        var regAmt = sumOf(/^registration/i), trtAmt = sumOf(/^treatment/i);
+        var others = mine.filter(function(q){
+          var r=String(q.extra_reason||'').trim();
+          return !/^registration/i.test(r) && !/^treatment/i.test(r); });
+        var tot = mine.reduce(function(a,q){ return a + Number(q.amount||0); }, 0);
+        var dueN = mine.filter(function(q){ return salIsDue(q); }).length;
+        var payState = dueN === 0 ? 'PAID' : (dueN === mine.length ? 'DUE' : 'PART DUE');
+        var stateCls = dueN === 0 ? ' paid' : ' due';
+
+        var st = salSteps(vPid);
+        function amtTag(v){ return v > 0 ? '<em class="pfXEarn">'+m.money(v)+'</em>' : ''; }
+        var steps = '';
+        if (st.enq) steps += '<div class="pfXStep"><span>Enquiry</span><b>'+m.esc(st.enq)+'</b></div>';
+        if (st.reg || regAmt > 0)
+          steps += '<div class="pfXStep"><span>Registration</span><b>'+m.esc(st.reg||'—')+'</b>'+amtTag(regAmt)+'</div>';
+        if (st.trt || trtAmt > 0)
+          steps += '<div class="pfXStep"><span>Treatment paid</span><b>'+m.esc(st.trt||'—')+'</b>'+amtTag(trtAmt)+'</div>';
+        others.forEach(function(q){
+          steps += '<div class="pfXStep"><span>Other</span><b>'+m.esc(salCleanWhy(String(q.extra_reason||'-')))+'</b>'
+                 + amtTag(Number(q.amount||0)) + '</div>';
+        });
+
         var whoRow = vNm
           ? ('<div class="pfXWho"'+(vMob?' onclick="event.stopPropagation();salOpenPatient(\''+m.esc(vMob)+'\')"':'')+'>'
              +'\uD83D\uDC64 '+m.esc(vNm)
@@ -1222,30 +1266,12 @@
              +(vDis?'<span class="pfXSub">\uD83E\uDE7A '+m.esc(vDis)+'</span>':'')
              +'</div>')
           : '';
-        return '<div class="pfStmtEntry pfXCard'+(isDue?' isDue':'')+'"'+vClick+'>' +
+        return '<div class="pfStmtEntry pfXCard'+(dueN?' isDue':'')+'"'+vClick+'>' +
           whoRow +
-          (detail ? ('<div class="pfXWhy">'+m.esc(detail)+'</div>') : '') +
-          (function(){
-            var st = vPid ? salSteps(vPid) : {enq:'',reg:'',trt:''};
-            /* 💰 V1048 — কোন ধাপের জন্য এই টাকা, সেই ধাপের পাশেই অঙ্কটা।
-               ধাপটা আসে `extra_reason`-এর প্রথম শব্দ থেকে (V418-এর SQL ওখানে
-               `Registration` বা `Treatment` লেখে)। ⛔ চেনা না গেলে কোথাও
-               কিছু বসে না — আগের মতোই শুধু তারিখগুলো থাকে। */
-            var stg = String(why||'').split('·')[0].trim().toLowerCase();
-            /* 💰 V1048খ — অঙ্কটা নিচে একবারই থাকে (TK-এর বলা ক্রম), তাই এখানে
-               শুধু চিহ্ন — কোন ধাপের জন্য টাকাটা সেটাই বোঝায়। */
-            var earn = '<em class="pfXEarn">\uD83D\uDCB0 this one</em>';
-            var rows = '';
-            if (st.enq) rows += '<div class="pfXStep"><span>Enquiry</span><b>'+m.esc(st.enq)+'</b></div>';
-            if (st.reg) rows += '<div class="pfXStep'+(stg==='registration'?' isEarn':'')+'"><span>Registration</span><b>'+m.esc(st.reg)+'</b>'+(stg==='registration'?earn:'')+'</div>';
-            if (st.trt) rows += '<div class="pfXStep'+(stg==='treatment'?' isEarn':'')+'"><span>Treatment paid</span><b>'+m.esc(st.trt)+'</b>'+(stg==='treatment'?earn:'')+'</div>';
-            return rows ? ('<div class="pfXSteps">'+rows+'</div>') : '';
-          })() +
-          '<div class="pfXFoot">' +
-            '<b class="pfXAmt">'+m.money(x.amount)+'</b>' +
-            '<span class="pfStmtBadge'+modeCls+'">'+m.esc(mode)+'</span>' +
-            '<span class="pfXDate">'+m.esc(salDmy(x.paid_on))+'</span>' +
-          '</div>' +
+          (mark ? ('<div class="pfXWhy">'+m.esc(mark)+'</div>') : '') +
+          (steps ? ('<div class="pfXSteps">'+steps+'</div>') : '') +
+          '<div class="pfXFoot"><b class="pfXAmt">Total '+m.money(tot)+'</b>' +
+            '<span class="pfStmtBadge'+stateCls+'">'+payState+'</span></div>' +
         '</div>';
       }
 
