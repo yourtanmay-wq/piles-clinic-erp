@@ -1600,9 +1600,16 @@
      ⛔ PDF আলাদা করে বানানো হয়নি — Print চাপলে ব্রাউজারের "Save as PDF"-ই
         যথেষ্ট (প্রকল্পের বাকি প্রিন্টও ঠিক এই পথেই যায়)। */
   function salYmd(v){ return String(v||'').slice(0,10); }
+  /* 🧾🔒 V1054 (TK-নির্দেশ ০৪.০৯.২০২৬: *"September 2026 কে Sep 26 করুন"* —
+     TK নিজেই তালিকা দিয়েছেন: Jan-26 · Feb-26 … Dec-26)। সরু পর্দায় মাসের ঘরটা
+     আর দু'লাইনে ভাঙে না, তাই সারিগুলোও এক উচ্চতার হয়।
+     ⛔ শুধু এই স্টেটমেন্টের টেবিলে — অন্য পর্দার মাসের লেখা ছোঁয়া হয়নি। */
   function salMonthName(ym){
-    var N=['January','February','March','April','May','June','July','August','September','October','November','December'];
-    try{ var q=String(ym||'').split('-'); return (N[Number(q[1])-1]||q[1])+' '+q[0]; }catch(e){ return String(ym||''); }
+    var N=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    try{
+      var q=String(ym||'').split('-');
+      return (N[Number(q[1])-1]||q[1])+'-'+String(q[0]).slice(-2);
+    }catch(e){ return String(ym||''); }
   }
   async function profStatement(code, from, to){
     var m = window.MOD, client = await sb();
