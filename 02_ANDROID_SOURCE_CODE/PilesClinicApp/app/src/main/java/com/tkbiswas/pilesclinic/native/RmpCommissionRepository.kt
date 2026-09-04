@@ -68,7 +68,10 @@ object RmpCommissionRepository {
     data class DayCommissionRow(
         val patientRowId: String, val patientMobile: String, val patientCode: String,
         val patientName: String, val rmpId: String, val rmpName: String,
-        val rmpMobile: String, val paidToday: Double, val commissionToday: Double
+        val rmpMobile: String, val paidToday: Double, val commissionToday: Double,
+        /** 🔵 V1083 — রোগীর মোট বিল (পপ-আপে দেখানোর জন্য)। পুরনো সার্ভারে
+         *  ঘরটা না থাকলে ০ থাকে, তাতে কিছু ভাঙে না। */
+        val finalBill: Double = 0.0
     )
 
     fun dayCommission(branch: String, date: String): RepoResult<List<DayCommissionRow>> {
@@ -85,7 +88,8 @@ object RmpCommissionRepository {
                     x.optString("patient_code", ""), x.optString("patient_name", ""),
                     x.optString("rmp_id", ""), x.optString("rmp_name", ""),
                     x.optString("rmp_mobile", ""),
-                    x.optDouble("paid_today", 0.0), x.optDouble("commission_today", 0.0)))
+                    x.optDouble("paid_today", 0.0), x.optDouble("commission_today", 0.0),
+                    x.optDouble("final_bill", 0.0)))
             }
             RepoResult(true, out)
         } catch (_: Exception) { RepoResult(false, emptyList(), "Invalid RMP day commission result") }

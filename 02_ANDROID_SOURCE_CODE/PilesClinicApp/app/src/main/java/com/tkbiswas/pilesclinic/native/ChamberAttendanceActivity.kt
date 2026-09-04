@@ -3018,6 +3018,105 @@ Thread {
      *  সংখ্যাটাই যায়। কমিশন না এলে ০, তখন কাগজ আগের মতোই। */
     private var cbDayCommissionTotal: Double = 0.0
     // 🔴 V1078 — এই দুটো শুধু Review-এর হলুদ লাইনটার জন্য (টাকার হিসাবে নয়)।
+
+    /* 🔵🔒 V1083 (০৪.০৯.২০২৬, TK-এর পাশ-করা ফটো-প্রুফ) — এক RMP-র আজকের
+       রোগীরা: নাম · মোট বিল · আজ কত জমা · তার জন্য কত কমিশন, নিচে মোট।
+       ⛔ শুধু দেখা — একটাও সারি লেখা/বদলানো হয় না, কোনো নতুন cloud-কলও নয়। */
+    private fun cbShowRmpPatients(
+        rmpName: String,
+        rows: List<RmpCommissionRepository.DayCommissionRow>
+    ) {
+        try {
+            // ⛔ এই পর্দায় `dp` প্রতিটা ফাংশনের ভিতরেই আলাদা করে লেখা হয়
+            //    (ক্লাস-স্তরে নেই) — তাই এখানেও একই ধরনে।
+            val d = resources.displayMetrics.density
+            fun dp(v: Int) = (v * d).toInt()
+            fun money(v: Double) = "₹" + "%,.2f".format(v)
+            // তারিখ "yyyy-MM-dd" → "dd.MM.yyyy" (এই পর্দায় আলাদা ফাংশন নেই)
+            val dateText = try {
+                val q = selectedDate.take(10).split("-")
+                if (q.size == 3) q[2] + "." + q[1] + "." + q[0] else selectedDate.take(10)
+            } catch (_: Throwable) { selectedDate.take(10) }
+            val col = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+                setPadding(dp(16), dp(8), dp(16), dp(4))
+            }
+            col.addView(android.widget.TextView(this).apply {
+                text = rows.size.toString() +
+                    (if (rows.size == 1) " patient" else " patients") + "  ·  " + dateText
+                textSize = 11.5f
+                setTextColor(android.graphics.Color.parseColor("#8B98A9"))
+                setPadding(0, 0, 0, dp(6))
+            })
+            for (r in rows.sortedByDescending { it.commissionToday }) {
+                col.addView(android.widget.TextView(this).apply {
+                    text = r.patientName.ifBlank { r.patientMobile }.uppercase(java.util.Locale.US)
+                    textSize = 13.5f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.parseColor("#10223A"))
+                    setPadding(0, dp(8), 0, 0)
+                })
+                col.addView(android.widget.TextView(this).apply {
+                    text = listOf(r.patientMobile, r.patientCode).filter { it.isNotBlank() }
+                        .joinToString("  ·  ")
+                    textSize = 11f
+                    setTextColor(android.graphics.Color.parseColor("#8B98A9"))
+                })
+                val g = android.widget.LinearLayout(this).apply {
+                    orientation = android.widget.LinearLayout.HORIZONTAL
+                    setPadding(0, dp(6), 0, dp(6))
+                }
+                fun cell(cap: String, v: String, warm: Boolean): android.widget.LinearLayout {
+                    val b = android.widget.LinearLayout(this@ChamberAttendanceActivity).apply {
+                        orientation = android.widget.LinearLayout.VERTICAL
+                        gravity = android.view.Gravity.CENTER
+                        setPadding(dp(4), dp(6), dp(4), dp(6))
+                        background = android.graphics.drawable.GradientDrawable().apply {
+                            cornerRadius = dp(8).toFloat()
+                            setColor(android.graphics.Color.parseColor(if (warm) "#FDECEA" else "#F5F8FB"))
+                            setStroke(dp(1), android.graphics.Color.parseColor(if (warm) "#F3C9C4" else "#E2EAF2"))
+                        }
+                        layoutParams = android.widget.LinearLayout.LayoutParams(
+                            0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f
+                        ).apply { rightMargin = dp(6) }
+                    }
+                    b.addView(android.widget.TextView(this@ChamberAttendanceActivity).apply {
+                        text = cap; textSize = 9.5f
+                        gravity = android.view.Gravity.CENTER
+                        setTextColor(android.graphics.Color.parseColor("#6B7A8D"))
+                    })
+                    b.addView(android.widget.TextView(this@ChamberAttendanceActivity).apply {
+                        text = v; textSize = 12.5f
+                        gravity = android.view.Gravity.CENTER
+                        setTypeface(typeface, android.graphics.Typeface.BOLD)
+                        setTextColor(android.graphics.Color.parseColor(if (warm) "#B42318" else "#10223A"))
+                        setPadding(0, dp(2), 0, 0)
+                    })
+                    return b
+                }
+                // ⛔ বিল ০ হলে "—" দেখায়, ভুল করে ₹0 নয়
+                g.addView(cell("Bill", if (r.finalBill > 0.0) money(r.finalBill) else "\u2014", false))
+                g.addView(cell("Paid today", money(r.paidToday), false))
+                g.addView(cell("Commission", money(r.commissionToday), true))
+                col.addView(g)
+            }
+            col.addView(android.widget.TextView(this).apply {
+                text = "Total for " + rmpName + " today   " + money(rows.sumOf { it.commissionToday })
+                textSize = 13.5f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#B42318"))
+                setPadding(0, dp(8), 0, dp(2))
+            })
+            val sv = android.widget.ScrollView(this).apply { addView(col) }
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(rmpName)
+                .setView(sv)
+                .setPositiveButton("Close", null)
+                // ⛔ প্রকল্পের নিয়ম [৯.৩০] — প্রতিটা পপ-আপে সাজেশন-পাহারা
+                .show().also { PremiumAlert.paint(it) }
+        } catch (_: Throwable) { }
+    }
+
     private var cbAutoLinked = 0
     private var cbAutoNeedsTk = 0
 
@@ -3260,11 +3359,19 @@ Thread {
                                 0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                         })
                         addView(android.widget.TextView(this@ChamberAttendanceActivity).apply {
-                            text = "₹" + "%,.2f".format(amt)
+                            text = "₹" + "%,.2f".format(amt) + "  ›"
                             textSize = 12.5f
                             setTextColor(android.graphics.Color.parseColor("#B42318"))
                         })
                         setPadding(0, dp(2), 0, dp(2))
+                        /* 🔵🔒 V1083 (০৪.০৯.২০২৬, TK-এর পাশ-করা ফটো-প্রুফ) — TK:
+                           *"নামের উপরে চাপ দিলে যেন বোঝা যায় এটা কোন পেশেন্টের
+                           জন্য, কত বিল ছিল, আজ কত জমা করেছে, কত টাকা দেওয়া হচ্ছে"*।
+                           ⛔ নতুন কোনো ডাক বা হিসাব নয় — এই একই `rows` থেকেই
+                              সব দেখানো হয়, তাই সংখ্যা উপরের লাইনের সঙ্গে
+                              সবসময় মিলবে (দুই জায়গায় দুরকম হতে পারে না)। */
+                        isClickable = true
+                        setOnClickListener { cbShowRmpPatients(nm, rows) }
                     })
                 }
                 /* 🔴🔒 V562 (TK, ২২.০৮.২০২৬): *"আপাতত কমিশনটা লাল কালারের আলাদা

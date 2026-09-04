@@ -34,13 +34,21 @@ def vnum(path):
     return int(m.group(1)) if m else 0
 
 def bodies(text):
-    """ফাইলের প্রতিটা `create or replace function fin.X` -> তার শরীর।"""
+    """ফাইলের প্রতিটা `create or replace function fin.X` -> **শুধু তার শরীর**।
+
+    ⚠️ শরীরটা `$$;`-এ শেষ হয় — এর পরের আলাদা statement-গুলো ওই ফাংশনের অংশ
+    নয়। আগে পুরো বাকি অংশটা ধরা হত, তাই একই ফাইলের অন্য কোনো UPDATE-এ থাকা
+    শব্দ ভুল করে ফাংশনের ভিতরের বলে গোনা হত (মিথ্যা সতর্কতা)।
+    """
     out = {}
     parts = re.split(r"(?=create or replace function\s+fin\.)", text)
     for p in parts:
         m = re.match(r"create or replace function\s+(fin\.\w+)", p)
-        if m:
-            out.setdefault(m.group(1), []).append(p)
+        if not m:
+            continue
+        end = p.find("$$;")
+        body = p[: end + 3] if end != -1 else p
+        out.setdefault(m.group(1), []).append(body)
     return out
 
 seen = {}   # fn -> list of (vnum, filename, body)

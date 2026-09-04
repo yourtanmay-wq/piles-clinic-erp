@@ -2200,6 +2200,56 @@ window["toast"]=toast;function modal(html){
       }catch(e){}
     }
 window.modal=modal;
+/* 🔵🔒 V1083 (০৪.০৯.২০২৬, TK-এর পাশ-করা ফটো-প্রুফ) — Chamber Review-র RMP
+   COMMISSION লাইনে চাপ দিলে ওই RMP-র আজকের রোগীরা: নাম · মোট বিল · আজ কত
+   জমা · তার জন্য কত কমিশন, নিচে ওই দিনের মোট।
+   ⛔ শুধু দেখা — কোনো নতুন cloud-কল নয়, উপরের লাইনের একই তথ্য থেকেই,
+      তাই সংখ্যা কখনো আলাদা হতে পারে না। ফোনের পপ-আপের হুবহু একই লেখা। */
+function wlv1RmpDayPatients(name){
+  try{
+    var all = (window.__wlv1CommByRmp||{})[name] || [];
+    if(!all.length) return;
+    var rs2=function(v){ return '₹'+Number(v||0).toLocaleString('en-IN',
+      {minimumFractionDigits:2,maximumFractionDigits:2}); };
+    var rs0=function(v){ return '₹'+Number(v||0).toLocaleString('en-IN',
+      {minimumFractionDigits:0,maximumFractionDigits:0}); };
+    var dt=String(wlv1ChamberDate||'').slice(0,10).split('-');
+    var dts=(dt.length===3)?(dt[2]+'.'+dt[1]+'.'+dt[0]):'';
+    var tot=0, body='';
+    all.slice().sort(function(a,b){
+      return Number(b.commission_today||0)-Number(a.commission_today||0); })
+    .forEach(function(x){
+      tot += Number(x.commission_today||0);
+      var bill=Number(x.final_bill||0);
+      body += '<div style="border-bottom:1px solid #EEF2F6;padding:9px 0">'+
+        '<div style="font-size:13.5px;font-weight:700;color:#10223A">'+
+          esc(String(x.patient_name||x.patient_mobile||'').toUpperCase())+'</div>'+
+        '<div style="font-size:11px;color:#8B98A9;margin-top:1px">'+
+          esc([x.patient_mobile,x.patient_code].filter(Boolean).join('  ·  '))+'</div>'+
+        '<div style="display:flex;gap:6px;margin-top:7px">'+
+          wlv1RmpCell('Bill', bill>0?rs0(bill):'&mdash;', false)+
+          wlv1RmpCell('Paid today', rs0(x.paid_today), false)+
+          wlv1RmpCell('Commission', rs2(x.commission_today), true)+
+        '</div></div>';
+    });
+    modal('<h2 class="anRmp">'+esc(name)+'</h2><div class="card">'+
+      '<div style="font-size:11.5px;color:#8B98A9;padding-bottom:4px">'+
+        all.length+(all.length===1?' patient':' patients')+'  ·  '+esc(dts)+'</div>'+
+      body+
+      '<div style="display:flex;justify-content:space-between;font-size:13.5px;'+
+        'font-weight:700;color:#B42318;padding-top:9px">'+
+        '<span>Total for '+esc(name)+' today</span><span>'+rs2(tot)+'</span></div>'+
+      '<div class="actions"><button class="ghost" onclick="closeModal()">Close</button></div>'+
+      '</div>');
+  }catch(_e){}
+}
+function wlv1RmpCell(cap,val,warm){
+  return '<div style="flex:1;min-width:0;text-align:center;border-radius:8px;padding:6px 4px;'+
+    'background:'+(warm?'#FDECEA':'#F5F8FB')+';border:1px solid '+(warm?'#F3C9C4':'#E2EAF2')+'">'+
+    '<span style="display:block;font-size:9.5px;color:#6B7A8D">'+cap+'</span>'+
+    '<b style="display:block;font-size:12.5px;margin-top:2px;color:'+(warm?'#B42318':'#10223A')+'">'+val+'</b></div>';
+}
+window.wlv1RmpDayPatients=wlv1RmpDayPatients;
 /* ⚠️🔒 V1022 — অ্যাপের নিজের "are you sure" বাক্স (Yes / No)।
    ব্রাউজারের confirm()-এর বদলে, যাতে চেহারা অ্যাপের সঙ্গে মেলে।
    ⛔ Promise ফেরত দেয়: Yes ⇒ true, No / বাইরে চাপ ⇒ false। */
@@ -23071,8 +23121,17 @@ function wlv1CloseReview(rows){
           var k=String(x.rmp_name||x.rmp_id||''); if(!byRmp[k]) byRmp[k]={n:0,a:0};
           byRmp[k].n++; byRmp[k].a+=Number(x.commission_today||0); });
         html += '<div class="cbRevHead cbRevRed">RMP COMMISSION</div>';
+        /* 🔵🔒 V1083 (০৪.০৯.২০২৬, TK-এর পাশ-করা ফটো-প্রুফ) — নামে চাপ দিলে ওই
+           RMP-র আজকের রোগীরা: নাম · মোট বিল · আজ কত জমা · কত কমিশন।
+           ⛔ নতুন কোনো ডাক বা হিসাব নয় — এই একই `comm` থেকেই, তাই সংখ্যা
+              উপরের লাইনের সঙ্গে সবসময় মিলবে। ফোনের সঙ্গেও হুবহু এক। */
+        window.__wlv1CommByRmp = {};
+        comm.forEach(function(x){
+          var k=String(x.rmp_name||x.rmp_id||'');
+          (window.__wlv1CommByRmp[k]=window.__wlv1CommByRmp[k]||[]).push(x); });
         Object.keys(byRmp).forEach(function(k){
-          html += '<div><span>'+esc(k)+' ('+byRmp[k].n+')</span><b class="r">'+rs2(byRmp[k].a)+'</b></div>'; });
+          html += '<div style="cursor:pointer" onclick="wlv1RmpDayPatients('+JSON.stringify(k).replace(/"/g,'&quot;')+')">' +
+                  '<span>'+esc(k)+' ('+byRmp[k].n+')</span><b class="r">'+rs2(byRmp[k].a)+'&nbsp;&rsaquo;</b></div>'; });
         /* 🔴🔒 V562 (TK, ২২.০৮.২০২৬): *"আপাতত কমিশনটা লাল কালারের আলাদা জায়গায়
            রাখুন · যদি আমরা দিয়ে থাকি তবেই আমরা আমাদের মতন মাইনাস করে নেব"*
            ⇒ আগে TOTAL থেকে কমিশন বাদ দিয়ে "NET TOTAL" দেখানো হত। ওটা **দিতে
