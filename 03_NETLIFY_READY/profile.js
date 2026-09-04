@@ -186,6 +186,13 @@
            বেতন-পর্দা খোলে, যেখানে Extra Income-এর বাক্সটাই আছে।
            ⛔ টাকার কোনো অঙ্ক/নিয়ম ছোঁয়া হয়নি — শুধু পৌঁছনোর পথ। */
         '<button class="small ghost pfBtn" onclick="profSalary(\'' + m.esc(p.person_code) + '\')">Extra Income</button>' +
+        '</div>' +
+        /* 🎨🔒 V1056 (TK: *"চেহারাটা দেখুন"* — একজন স্টাফেই প্রায় অর্ধেক পর্দা
+           চলে যাচ্ছিল, আর Suspend·Remove বাকিগুলোর মতোই বড় ছিল)।
+           ⇒ রোজের কাজের বোতামগুলো উপরে, আর **বিপজ্জনক দুটো নিচে আলাদা সরু
+             সারিতে, ছোট করে, ডান দিকে** — ভুল করে চাপ পড়ার ভয় কমে।
+           ⛔ একটাও বোতাম লুকোনো হয়নি, কোনো কাজ বদলায়নি — শুধু জায়গা ও মাপ। */
+        '<div class="pfDangerRow">' +
         '<button class="small ghost pfBtn pfDanger" onclick="profSuspend(\'' + m.esc(p.person_code) + '\')">Suspend</button>' +
         '<button class="small ghost pfBtn pfDanger" onclick="profRemove(\'' + m.esc(p.person_code) + '\')">Remove</button>' +
         '</div></div>';

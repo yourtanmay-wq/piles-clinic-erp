@@ -8229,3 +8229,8 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
   .pfStmSub{font-size:11px}
 }
 @media print{.pfStmScroll{overflow:visible}.pfStmTable{min-width:0;font-size:12px}}
+
+/* 🎨🔒 V1056 — স্টাফ কার্ড ছোট; বিপজ্জনক বোতাম দুটো আলাদা সরু সারিতে। */
+.pfDangerRow{display:flex;justify-content:flex-end;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid #EDF1F5}
+.pfDangerRow .pfBtn{font-size:10.5px;padding:5px 12px;border-radius:8px;font-weight:700}
+.anModPf .pfStaffBtns .pfBtn{padding:6px 11px}
