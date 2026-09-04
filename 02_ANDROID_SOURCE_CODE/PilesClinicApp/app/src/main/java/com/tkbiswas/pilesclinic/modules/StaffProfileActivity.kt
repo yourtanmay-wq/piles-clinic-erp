@@ -3165,12 +3165,17 @@ class StaffProfileActivity : AppCompatActivity() {
     /* 👤🔒 V1040 — `nameOnly = true` হলে লাইনে শুধু **👤 নাম · মোবাইল** বসে
        (Pay Extra Income পর্দার জন্য, যেখানে কারণটা উপরের লাইনেই আছে)।
        ⛔ default `false`, তাই Extra Income History-র লাইন এক অক্ষরও বদলায়নি। */
+    /* 👤🔒 V1044 (TK: *"আমার মনে হয় পেশেন্ট এর নাম দরকার এখানে"*) — `nameViews`
+       দিলে রোগীর নাম **নিজের আলাদা সারিতে** বসে, আর তখন নিচের লাইনে নামটা আর
+       দ্বিতীয়বার জুড়ে দেওয়া হয় না। ⛔ না দিলে আচরণ হুবহু আগের মতোই। */
     private fun fillExtraPatientNames(
         rows: List<Triple<String, TextView?, JSONObject>>,
-        nameOnly: Boolean = false
+        nameOnly: Boolean = false,
+        nameViews: List<Pair<String, TextView>> = emptyList()
     ) {
-        if (rows.isEmpty()) return
-        val ids = rows.map { it.first }.filter { it.isNotBlank() }.distinct()
+        if (rows.isEmpty() && nameViews.isEmpty()) return
+        val ids = (rows.map { it.first } + nameViews.map { it.first })
+            .filter { it.isNotBlank() }.distinct()
         val need = ids.filter { !extraPatientCache.containsKey(it) }
         /* 🔵🔒 V521 (২২.০৮.২০২৬, TK-নির্দেশ): লাইনটা এখন **প্রতিবার নতুন করে
            বানানো হয়** (আগে শেষে জুড়ে দেওয়া হত)। কারণ এখন সামনে ⏰ চিহ্নও বসে,
@@ -3178,6 +3183,15 @@ class StaffProfileActivity : AppCompatActivity() {
            ফল: `⏰ UNEXPECTED  ·  Registration · COB-…  ·  NUR ALAM MIYA`
            ⛔ তথ্য সবই আগে থেকেই আনা — নতুন কোনো cloud-read নেই। */
         fun paint() {
+            // 👤 V1044 — নাম নিজের সারিতে
+            for ((pid, v) in nameViews) {
+                val nm = extraPatientCache[pid]?.first.orEmpty().trim()
+                if (nm.isBlank()) continue
+                val one = "\uD83D\uDC64 " + nm
+                if (v.text?.toString() != one) v.text = one
+                v.visibility = android.view.View.VISIBLE
+            }
+            val shownSeparately = nameViews.map { it.first }.toSet()   // 👤 V1044
             for ((pid, view, row) in rows) {
                 if (view == null) continue
                 val nm = extraPatientCache[pid]?.first.orEmpty().trim()
@@ -3197,7 +3211,7 @@ class StaffProfileActivity : AppCompatActivity() {
                 if (why.isNotBlank()) parts.add(why)
                 // ⛔ হাতে-লেখা মন্তব্য থাকলে সেটাও যেন হারিয়ে না যায় (আগের লাইনে ছিল)
                 ns(row, "remark").trim().takeIf { it.isNotBlank() }?.let { parts.add(it) }
-                if (nm.isNotBlank()) parts.add(nm)
+                if (nm.isNotBlank() && pid !in shownSeparately) parts.add(nm)   // 👤 V1044
                 val line = parts.joinToString("  ·  ")
                 if (line.isNotBlank() && view.text?.toString() != line) view.text = line
             }
@@ -3568,6 +3582,7 @@ class StaffProfileActivity : AppCompatActivity() {
 
         // 🔴 V511 — কোন সারিতে কোন রোগী; নাম এলে ঐ লাইনগুলোই হালনাগাদ হয়।
         val extraRows = mutableListOf<Triple<String, TextView?, JSONObject>>()
+        val extraNameViews = mutableListOf<Pair<String, TextView>>()   // 👤 V1044
         // 🐞 V1029 — যাদের সূত্র ফাঁকা, শুধু রোগীর কোড আছে
         val pendingCodeRows = mutableListOf<Triple<String, TextView?, Pair<JSONObject, LinearLayout>>>()
 
@@ -3649,6 +3664,17 @@ class StaffProfileActivity : AppCompatActivity() {
                 !isExtra && modeText.equals("HISTORICAL", true) -> "Salary paid - confirmed by Master"
                 else -> ""
             }
+            /* 👤🔒 V1044 (TK-নির্দেশ) — রোগীর নাম এতদিন লাইনের একদম শেষে কোডের
+               পরে বসত, চোখেই পড়ত না। এখন নিজের সারিতে, মোটা সবুজ লেখায়।
+               ⛔ নাম না জানা গেলে সারিটা দেখাই যায় না (আগের মতোই)। */
+            var nameView: TextView? = null
+            if (isExtra) {
+                nameView = tv("", 13.5f, android.graphics.Color.parseColor("#0F5132"), bold = true).apply {
+                    setPadding(dp(13), dp(5), dp(2), 0)
+                    visibility = android.view.View.GONE
+                }
+                card.addView(nameView)
+            }
             var detailView: TextView? = null
             if (detail.isNotBlank()) {
                 detailView = tv(detail, 10.8f, muted).apply {
@@ -3672,6 +3698,7 @@ class StaffProfileActivity : AppCompatActivity() {
             val pid = extraPatientId(p)
             if (isExtra && pid.isNotBlank()) {
                 extraRows.add(Triple(pid, detailView, p))
+                nameView?.let { extraNameViews.add(Pair(pid, it)) }   // 👤 V1044
                 card.isClickable = true
                 card.isFocusable = true
                 card.setOnClickListener { showExtraPatientPopup(p, pid) }
@@ -3685,7 +3712,7 @@ class StaffProfileActivity : AppCompatActivity() {
 
         // 🔴 V511 — সব সারি আঁকা হয়ে গেছে; এবার রোগীর নামগুলো এনে বসানো হয়
         //   (একটাই ছোট পড়া, ব্যর্থ হলে আগের মতোই শুধু কোড থাকে)।
-        fillExtraPatientNames(extraRows)
+        fillExtraPatientNames(extraRows, nameViews = extraNameViews)   // 👤 V1044
 
         /* 🐞🔒 V1029 — যে সারিগুলোর সূত্র ফাঁকা, তাদের রোগীর কোড দিয়ে একবারেই
            রোগীগুলো খুঁজে নেওয়া হয়; পাওয়া গেলে চাপার ব্যবস্থা বসে ও নামও আসে।

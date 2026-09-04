@@ -1134,7 +1134,10 @@
         var mark = salTimeBadge(vTt, (vPid && SAL_PAT_CACHE[vPid]) ? SAL_PAT_CACHE[vPid].timeSource : '');
         detail = detail ? (mark + '  ·  ' + detail) : mark;
       }
-      if (vNm) detail = detail ? (detail + '  ·  ' + vNm) : vNm;
+      /* 👤🔒 V1044 (TK: *"আমার মনে হয় পেশেন্ট এর নাম দরকার এখানে"*) — নামটা
+         এতদিন লাইনের একদম শেষে কোডের পরে বসত, চোখেই পড়ত না। এখন **নিজের
+         সারিতে, মোটা করে** — বাকি লেখাটা (সময়ের ব্যাজ · কী কারণে · কোড)
+         আগের মতোই নিচে থাকে। ⛔ নাম না জানা থাকলে আগের মতোই কিছুই বসে না। */
       if (isExtra) { try { SAL_PAY_BY_ID[String(x.id||'')] = x; } catch(e){} }
       var vClick = vPid ? (' onclick="salExtraWhy(\''+m.esc(String(x.id||''))+'\')" style="cursor:pointer"') : '';
       return '<div class="pfStmtEntry'+(isDue?' isDue':'')+'"'+vClick+'>' +
@@ -1142,6 +1145,7 @@
         '<div class="pfStmtMain"><b>'+m.esc(title)+'</b><span>'+m.money(x.amount)+'</span></div>' +
         '<div class="pfStmtMode"><span class="pfStmtBadge'+modeCls+'">'+m.esc(mode)+'</span></div>' +
         '<div class="pfStmtDate">'+m.esc(salDmy(x.paid_on))+'</div>' +
+        (vNm ? ('<div class="pfStmtWho">\uD83D\uDC64 '+m.esc(vNm)+'</div>') : '') +
         (detail ? ('<div class="pfStmtDetail">'+m.esc(detail)+'</div>') : '') +
       '</div>';
     }).join('');

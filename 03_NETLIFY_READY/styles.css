@@ -8172,3 +8172,6 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
 .pfPayGo{margin-top:2px;font-size:11px;color:#8B98A9}
 .pfPayTap{cursor:pointer}
 .pfPayTap:hover{background:#F4F9F6}
+
+/* 👤🔒 V1044 — Salary Statement-এর সারিতে রোগীর নাম নিজের লাইনে, মোটা করে। */
+.pfStmtWho{grid-column:1/-1;margin-top:5px;font-weight:800;color:#0F5132;font-size:13.5px;letter-spacing:.2px}
