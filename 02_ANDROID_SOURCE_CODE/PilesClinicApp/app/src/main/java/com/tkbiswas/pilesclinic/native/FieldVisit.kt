@@ -93,6 +93,9 @@ object FieldVisit {
     fun distanceMeters(context: Context): Double =
         java.lang.Double.longBitsToDouble(prefs(context).getLong("dist_m", 0L))
     fun lastSeenAt(context: Context): Long = prefs(context).getLong("seen_at", 0L)
+    /** ⚠️ V1032 — আজ একটাও অবস্থান পাওয়া গেছে কি না। না পেলে কিলোমিটার
+     *  গোনাই শুরু হয় না, তাই স্টাফের পর্দায় লাল সতর্কতা দেখাতে এটা লাগে। */
+    fun hasFix(context: Context): Boolean = prefs(context).getBoolean("has_fix", false)
     fun lastLat(context: Context): Double =
         java.lang.Double.longBitsToDouble(prefs(context).getLong("last_lat", 0L))
     fun lastLng(context: Context): Double =

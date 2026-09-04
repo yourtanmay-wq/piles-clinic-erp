@@ -1353,6 +1353,19 @@ class WorkNotebookActivity : AppCompatActivity() {
      *  ⛔ `check_out` বা জমা-দেওয়া রিপোর্ট আবার লেখা হয় না — শুধু পাঠানো। */
     private fun resendDailyReportWhatsApp() {
         if (ns(day, "check_out").isBlank()) return
+        /* 👨‍⚕️ V1032 — গোনাটা নেট থেকে আসে, তাই আলাদা থ্রেডে; উত্তর না এলে
+           `-1` থাকে আর রিপোর্টে লাইনটা ওঠে না। রিপোর্ট পাঠানো কখনো এর
+           জন্য আটকায় না (নিচের fetchStats আগের মতোই নিজের পথে চলে)। */
+        var docVisitToday = -1
+        try {
+            val meMob = mobile
+            val t = Thread {
+                docVisitToday = try {
+                    com.tkbiswas.pilesclinic.native.DoctorVisitDayCount.todayCount(meMob)
+                } catch (_: Throwable) { -1 }
+            }
+            t.start(); t.join(4000L)
+        } catch (_: Throwable) { }
         fetchStats("day", todayIso()) { s ->
             runOnUiThread {
                 val text = StringBuilder()
@@ -1366,6 +1379,12 @@ class WorkNotebookActivity : AppCompatActivity() {
                     .append("\nApp Calls: ").append(callTxt(s, "appCalls"))
                     .append("\nOutside Calls: ").append(callTxt(s, "outsideCalls"))
                     .append("\nTotal call : ").append(callTxt(s, "totalCalls"))
+                /* 👨‍⚕️🔒 V1032 (TK-নির্দেশ: *"কতজন ডাক্তারের কাছে ভিজিট করেছে
+                   তাকে ম্যানুয়ালি এন্ট্রি করতে হয়েছে"*) — এখন নিজে থেকে গোনা হয়।
+                   ⛔ লাইনটা **শুধু তখনই** বসে যখন আজ অন্তত একজনের কাছে যাওয়া
+                      হয়েছে; নইলে রিপোর্ট হুবহু আগের মতোই থাকে। ⛔ কোনো পুরনো
+                      সংখ্যা/লাইন ছোঁয়া হয়নি; পড়া ব্যর্থ হলেও কিছু বদলায় না। */
+                if (docVisitToday > 0) text.append("\nDoctor Visit: ").append(docVisitToday)
                 val notesTxt = ns(day, "day_note").trim()
                 if (notesTxt.isNotBlank()) text.append("\n\nNotes: \n").append(notesTxt)
                 waAskKind = "out"   // 🔴 V433 — ফিরে এলে একবার জিজ্ঞাসা: পাঠানো হয়েছে?
@@ -2363,9 +2382,38 @@ class WorkNotebookActivity : AppCompatActivity() {
             setTextColor(android.graphics.Color.parseColor("#0E6E8C"))
         })
         val started = fv.startedAt(this)
+        /* ⚠️🔒 V1032 (০৪.০৯.২০২৬, TK-রিপোর্ট: রুপম সারাদিন ঘুরেছেন অথচ
+           Field Visit Tracking ফাঁকা, কিলোমিটারও নেই)। **আসল কারণ (যাচাই
+           করা):** ফোন একটাও অবস্থান না দিলে দূরত্ব গোনাই শুরু হয় না — অথচ
+           এই লাইনটা সবসময় "Location on" লিখত, তাই স্টাফ ভাবতেন সব ঠিক আছে।
+           ⇒ এখন অবস্থান না এলে **লাল সতর্কতা** ওঠে, স্টাফ সঙ্গে সঙ্গে বুঝবেন।
+           ⛔ হাজিরা · গোনা · সেভ — কিছুই ছোঁয়া হয়নি, শুধু সত্যি কথাটা দেখানো। */
+        val gotFix = fv.hasFix(this)
         form.addView(ModuleUi.body(this,
             "Hours " + fv.hoursText(started, System.currentTimeMillis()) +
-                "   ·   Distance " + fv.kmText(fv.distanceMeters(this)) + "   ·   Location on"))
+                "   ·   Distance " + fv.kmText(fv.distanceMeters(this)) +
+                (if (gotFix) "   ·   Location on" else "")))
+        if (!gotFix) {
+            form.addView(TextView(this).apply {
+                text = "\u26A0\uFE0F LOCATION NOT WORKING - km is NOT being counted.\n" +
+                    "Turn ON Location (GPS) and allow it for this app, then open this screen again."
+                textSize = 12.5f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#B42318"))
+                setPadding(
+                    ModuleUi.dp(this@WorkNotebookActivity, 10), ModuleUi.dp(this@WorkNotebookActivity, 8),
+                    ModuleUi.dp(this@WorkNotebookActivity, 10), ModuleUi.dp(this@WorkNotebookActivity, 8)
+                )
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = ModuleUi.dp(this@WorkNotebookActivity, 10).toFloat()
+                    setColor(android.graphics.Color.parseColor("#FDECEA"))
+                    setStroke(ModuleUi.dp(this@WorkNotebookActivity, 1), android.graphics.Color.parseColor("#F2C6C0"))
+                }
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { topMargin = ModuleUi.dp(this@WorkNotebookActivity, 6) }
+            })
+        }
         form.addView(ModuleUi.buttonSoft(this, "RMP Doctors - mark visits") {
             startActivity(android.content.Intent(this, FieldVisitActivity::class.java))
         }.apply {
