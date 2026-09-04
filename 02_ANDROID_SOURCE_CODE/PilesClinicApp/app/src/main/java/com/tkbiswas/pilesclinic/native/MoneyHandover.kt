@@ -228,8 +228,8 @@ object MoneyHandover {
                 BriefingRepository().post(
                     context,
                     "Money handover confirmed",
-                    day.branch + " · " + dotDate(day.date) + " · " + money(day.total) +
-                        " received by " + byName,
+                    day.branch + " · " + dotDate(day.date) + " · " + money(day.cash) +
+                        " received by " + byName,   // 💵 V1039 — শুধু ক্যাশ
                     "branch", day.branch, "staff", "", ""
                 )
             } catch (_: Throwable) { }
@@ -255,7 +255,7 @@ object MoneyHandover {
     /** কাগজে ছাপার এক লাইন — TK: *"স্টাফ প্রমাণ পাবে কি করে"*। */
     fun paperLine(day: Day): String = when {
         day.status == "received" || day.status == "waiting" ->
-            "Handed over to " + day.receiverName + " · " + money(day.total) +
+            "Handed over to " + day.receiverName + " · " + money(day.cash) +   // 💵 V1039 — শুধু ক্যাশ
                 " · " + dotDate(day.date) + " " + timeOf(day.receivedAt)
         day.status == "pending" -> "Money not handed over — still with " + day.closedByName
         else -> ""
