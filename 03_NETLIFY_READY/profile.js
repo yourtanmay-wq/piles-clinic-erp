@@ -584,20 +584,12 @@
       '<div id="phBox" style="display:none;margin-top:12px">' + salaryTable(pays) + '</div>' +
       '</div>';
 
-    /* এই মাসের বেতন দেওয়ার ছোট ফর্ম — আগের মতোই, শুধু বাক্স ১-এর নিচে */
-    var payHtml = (active && due>0) ?
-      /* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬) — ফোনে শিরোনামে **কত টাকা** তাও লেখা
-         থাকে ("Pay August 2026 Salary (₹5,000)"), আর নিচে একটা Cancel বোতামও
-         থাকে (StaffProfileActivity.kt:921-923, 1422-1437)। ওয়েবে অঙ্কটা
-         ছিল না, ফেরার বোতামও ছিল না। */
-      ('<div class="card"><h3>Pay '+monthLabel(cur)+' Salary ('+m.money(due)+')</h3>' +
-       '<label>Amount</label><input id="spAmt" class="input" type="number" value="'+due+'">' +
-       '<input id="spDate" type="hidden" value="'+m.todayIST()+'">' +
-       '<label>Mode</label><select id="spMode" class="input"><option>Cash</option><option>Online</option></select>' +
-       '<input id="spRem" type="hidden" value="">' +
-       '<div class="actions"><button class="ghost" onclick="profSalary(\''+m.esc(code)+'\')">Cancel</button>'+
-       '<button onclick="profSalaryPay(\''+m.esc(code)+'\')">Add Payment</button></div></div>')
-      : '';
+    
+    /* 🗑️🔒 V1051 (TK-নির্দেশ, ০৪.০৯.২০২৬: *"Add salary আর Pay September 2026
+       salary — ২টা একই জিনিস, তাহলে এটা বাদ দিন"*) — "Add Salary" দিয়েই যেকোনো
+       মাসের বেতন দেওয়া যায়, তাই এই ফর্মটা বাড়তি ছিল। ফোনেও একই সাথে তোলা হলো।
+       ⛔ `profSalaryPay()` মোছা হয়নি — টাকার হিসাব ছোঁয়া হয়নি। */
+    var payHtml = '';
 
     /* বাক্স ২ — Extra Income। ⛔ "Pay" বোতাম কেবল বাকি থাকলেই আসে; না থাকলে
        "Add Extra" নিজেই পুরো লাইন নেয় (ফাঁকা বাক্স বসে না)। */

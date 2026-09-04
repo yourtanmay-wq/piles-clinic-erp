@@ -1505,11 +1505,11 @@ class StaffProfileActivity : AppCompatActivity() {
             showAllPayments(code, pays, "SALARY")
         }
         box.addView(if (btnAddSalary != null) salPairRow(btnAddSalary, btnHistory) else salPairRow(btnHistory, null))
-        if (active && due > 0.0) {
-            box.addView(ModuleUi.button(this, "Pay " + salaryMonthLabel(cur) + " Salary (" + money(due) + ")") {
-                payForMonth(code, cur, due)
-            })
-        }
+        /* 🗑️🔒 V1051 (TK-নির্দেশ, ০৪.০৯.২০২৬: *"Add salary আর Pay September 2026
+           salary — ২টা একই জিনিস, তাহলে এটা বাদ দিন"*) — TK ঠিক বলেছেন: "Add
+           Salary" দিয়ে **যেকোনো মাসের** বেতন দেওয়া যায়, তাই এই বোতামটা বাড়তি।
+           ⛔ `payForMonth()` মোছা হয়নি — অন্য জায়গা থেকে ওটা ব্যবহার হয়;
+              শুধু এই বোতামটা তোলা হলো, টাকার কোনো হিসাব বদলায়নি। */
 
         // ───────── বাক্স ২ ও ৩ · আলাদা সাদা কার্ডে (মডেল ৩) ─────────
         // ⛔ আগের কার্ডগুলো tag দিয়ে চিনে সরিয়ে তবেই নতুন বসে ⇒ বারবার আঁকলেও
