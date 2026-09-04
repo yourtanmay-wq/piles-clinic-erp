@@ -641,20 +641,9 @@ class StaffProfileActivity : AppCompatActivity() {
             gravity = android.view.Gravity.CENTER_VERTICAL
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         }
-        val initials = fullName.trim().split(Regex("\\s+"))
-            .filter { it.isNotBlank() }.take(2).map { it.first().uppercaseChar() }
-            .joinToString("").ifBlank { "?" }
-        headRow.addView(TextView(this).apply {
-            text = initials; textSize = 15f
-            setTypeface(typeface, android.graphics.Typeface.BOLD)
-            gravity = android.view.Gravity.CENTER
-            setTextColor(android.graphics.Color.parseColor("#3E7C5B"))
-            background = android.graphics.drawable.GradientDrawable().apply {
-                shape = android.graphics.drawable.GradientDrawable.OVAL
-                setColor(android.graphics.Color.parseColor("#DCEFE3"))
-            }
-            layoutParams = LinearLayout.LayoutParams(dp(44), dp(44)).apply { marginEnd = dp(11) }
-        })
+        /* 🗑️🔒 V1059 (TK-নির্দেশ ০৪.০৯.২০২৬: *"নামের short থাকবে না, মানে
+           LAXMI GUPTA (LG)"*) — V1057-এর গোল আদ্যক্ষর-ব্যাজটা তুলে দেওয়া হলো।
+           ⛔ বাকি সব (⋮ · বেতনের লাইন · তিনটে বোতাম) আগের মতোই। */
         val info = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)

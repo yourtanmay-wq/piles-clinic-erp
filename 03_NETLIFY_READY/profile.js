@@ -168,11 +168,7 @@
             নিজেই দেখে নেয় চাপটা কোনো বোতামের উপরে পড়েছে কি না। */
       return '<div class="card pfStaffCard" style="cursor:pointer"' +
         ' onclick="pfCardTap(event,\'' + m.esc(p.person_code) + '\')">' +
-        /* 🎨 V1057 — TK-এর ছবির মতো নামের আদ্যক্ষরের গোল ব্যাজ। */
-        '<div class="pfAvatar">' + m.esc(
-          String(p.full_name || '?').trim().split(/\s+/).filter(Boolean)
-            .slice(0,2).map(function(w){return w[0].toUpperCase()}).join('') || '?'
-        ) + '</div>' +
+        /* 🗑️ V1059 (TK: *"নামের short থাকবে না"*) — গোল আদ্যক্ষর-ব্যাজটা তোলা হলো। */
         '<div class="pfStaffInfo">' +
         '<div class="pfNameRow"><b class="pfName">' + m.esc(p.full_name || '(name not set)') + '</b>' +
         '<span class="pfPill' + (isDoc ? ' pfPillDoc' : '') + '">' + m.esc(desig) + '</span></div>' +
