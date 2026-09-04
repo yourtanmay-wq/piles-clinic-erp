@@ -927,7 +927,7 @@
       if(rows && rows.length){
         /* 🔵🔒 V521: `timeType`-ও জমা রাখা হয় — এটাই বলে দেয় টাকাটা কেন পাওনা।
            ⛔ নতুন কোনো cloud-read নয়; এটা ফোনের/ব্রাউজারের জমা তালিকা থেকেই। */
-        rows.forEach(function(r){ SAL_PAT_CACHE[String(r.id)]={name:String(r.name||''),mobile:String(r.mobile||''),timeType:String(r.timeType||''),timeSource:String(r.timeSource||'')}; });
+        rows.forEach(function(r){ SAL_PAT_CACHE[String(r.id)]={name:String(r.name||''),mobile:String(r.mobile||''),timeType:String(r.timeType||''),timeSource:String(r.timeSource||''),disease:String(r.disease||r.diagnosis||'')}; });
       }
       if(typeof redraw==='function' && rows && rows.length) redraw();
     }catch(e){}
@@ -944,6 +944,14 @@
      কল-তালিকা দেখে নিজেই বোঝে ⇒ **AUTO UNEXPECTED**। স্টাফের নিজের ফোনে
      এলে অ্যাপ কিছুই জানে না, স্টাফ হাতে বেছে দেন ⇒ **UNEXPECTED (BY HAND)**।
      ⛔ পুরনো সারিতে ঘরটা ফাঁকা — সেখানে ব্যাজ হুবহু আগের মতোই থাকে। */
+  /* 👤🔒 V1045 — নামের সারিতে চাপ ⇒ ঐ রোগীর পুরো ডিটেলস (প্রকল্পের প্রমাণিত
+     `summaryByMobile`)। ⛔ সারির নিজের চাপ (ছোট পপ-আপ) আগের মতোই আছে —
+     এখানে `event.stopPropagation()` করা হয় বলে দুটো একসাথে খোলে না। */
+  function salOpenPatient(mob){
+    try{ if(!mob) return; summaryByMobile(String(mob)); }catch(e){}
+  }
+  window.salOpenPatient = salOpenPatient;
+
   function salTimeBadge(tt, src){
     var t=String(tt||'').trim(), sc=String(src||'').trim().toLowerCase();
     if(!/^unexpected time$/i.test(t)) return t?('🕐 '+t.toUpperCase()):'';
@@ -1127,6 +1135,11 @@
          ⛔ ফোনের `StaffProfileActivity`-র হুবহু একই নিয়ম। */
       var vPid = isExtra ? salExtraPatientId(x) : '';
       var vNm  = vPid ? (SAL_PAT_CACHE[vPid] && SAL_PAT_CACHE[vPid].name) : '';
+      /* 👤🔒 V1045 (TK: *"নাম মোবাইল নাম্বার এবং রোগের নাম থাকবে · নামের উপর চাপ
+         দিলে যেন পেশেন্ট ডিটেলস ওপেন হয়"*) — নামের সারিতে এখন তিনটেই।
+         ⛔ যেটা জানা নেই সেটা বসেই না (আগের মতোই), আন্দাজে কিছু লেখা হয় না। */
+      var vMob = vPid ? String((SAL_PAT_CACHE[vPid] && SAL_PAT_CACHE[vPid].mobile) || '') : '';
+      var vDis = vPid ? String((SAL_PAT_CACHE[vPid] && SAL_PAT_CACHE[vPid].disease) || '') : '';
       /* 🔵🔒 V521: লাইনের **সামনে** Timing চিহ্ন — পপ-আপ না খুলেও TK বুঝবেন
          টাকাটা অসময়ের এনকোয়ারির জন্য। ⛔ ঘরটা ফাঁকা হলে আগের মতোই কিছু নয়। */
       var vTt  = vPid ? String((SAL_PAT_CACHE[vPid] && SAL_PAT_CACHE[vPid].timeType) || '') : '';
@@ -1145,7 +1158,11 @@
         '<div class="pfStmtMain"><b>'+m.esc(title)+'</b><span>'+m.money(x.amount)+'</span></div>' +
         '<div class="pfStmtMode"><span class="pfStmtBadge'+modeCls+'">'+m.esc(mode)+'</span></div>' +
         '<div class="pfStmtDate">'+m.esc(salDmy(x.paid_on))+'</div>' +
-        (vNm ? ('<div class="pfStmtWho">\uD83D\uDC64 '+m.esc(vNm)+'</div>') : '') +
+        (vNm ? ('<div class="pfStmtWho"'+(vMob?' onclick="event.stopPropagation();salOpenPatient(\''+m.esc(vMob)+'\')"':'')+'>'
+                 +'\uD83D\uDC64 '+m.esc(vNm)
+                 +(vMob?'<span class="pfStmtWhoSub">\uD83D\uDCDE '+m.esc(vMob)+'</span>':'')
+                 +(vDis?'<span class="pfStmtWhoSub">\uD83E\uDE7A '+m.esc(vDis)+'</span>':'')
+                 +'</div>') : '') +
         (detail ? ('<div class="pfStmtDetail">'+m.esc(detail)+'</div>') : '') +
       '</div>';
     }).join('');

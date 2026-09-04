@@ -3148,6 +3148,8 @@ class StaffProfileActivity : AppCompatActivity() {
     /* 🕐🔒 V1042 — id → timeSource ("auto" = অ্যাপ কল-তালিকা দেখে নিজে বুঝেছে,
        "hand" = স্টাফ হাতে বেছেছেন, ফাঁকা = পুরনো সারি, জানা নেই)। */
     private val extraPatientSrc = HashMap<String, String>()
+    /* 🩺🔒 V1045 (TK: *"নাম মোবাইল নাম্বার এবং রোগের নাম থাকবে"*) — id → রোগ। */
+    private val extraPatientDisease = HashMap<String, String>()
 
     /* 🕐🔒 V1042 (TK-নির্দেশ) — সময়ের ব্যাজ এক জায়গায়, তাই সব পর্দায় এক লেখা।
        ⛔ ঘরটা ফাঁকা হলে ব্যাজ হুবহু আগের মতোই থাকে। */
@@ -3187,9 +3189,19 @@ class StaffProfileActivity : AppCompatActivity() {
             for ((pid, v) in nameViews) {
                 val nm = extraPatientCache[pid]?.first.orEmpty().trim()
                 if (nm.isBlank()) continue
-                val one = "\uD83D\uDC64 " + nm
+                /* 🩺🔒 V1045 (TK-নির্দেশ) — নাম · মোবাইল · রোগ একসাথে।
+                   ⛔ যেটা জানা নেই সেটা বসেই না, আন্দাজে কিছু লেখা হয় না। */
+                val mb = extraPatientCache[pid]?.second.orEmpty().trim()
+                val ds = extraPatientDisease[pid].orEmpty().trim()
+                val one = "\uD83D\uDC64 " + nm +
+                    (if (mb.isNotBlank()) "   \uD83D\uDCDE " + mb else "") +
+                    (if (ds.isNotBlank()) "   \uD83E\uDE7A " + ds else "")
                 if (v.text?.toString() != one) v.text = one
                 v.visibility = android.view.View.VISIBLE
+                /* 👤 V1045 — নামের সারিতে চাপ ⇒ ঐ রোগীর পুরো ডিটেলস।
+                   ⛔ কার্ডের নিজের চাপ (ছোট পপ-আপ) আগের মতোই আছে। */
+                v.isClickable = true
+                v.setOnClickListener { openPatientHistory(pid, mb) }
             }
             val shownSeparately = nameViews.map { it.first }.toSet()   // 👤 V1044
             for ((pid, view, row) in rows) {
@@ -3221,7 +3233,7 @@ class StaffProfileActivity : AppCompatActivity() {
             try {
                 val list = need.joinToString(",") { java.net.URLEncoder.encode(it, "UTF-8") }
                 val rows2 = com.tkbiswas.pilesclinic.native.SupabaseClient.fetchListSlimOrNull(
-                    "patients", "id=in.($list)", 500, "id,name,mobile,timeType,timeSource", order = "id.asc"
+                    "patients", "id=in.($list)", 500, "id,name,mobile,timeType,timeSource,disease", order = "id.asc"
                 )
                 if (rows2 != null) {
                     for (i in 0 until rows2.length()) {
@@ -3230,6 +3242,7 @@ class StaffProfileActivity : AppCompatActivity() {
                         if (id.isBlank()) continue
                         extraPatientTiming[id] = o.optString("timeType", "").trim()
                         extraPatientSrc[id] = o.optString("timeSource", "").trim()   // 🕐 V1042
+                        extraPatientDisease[id] = o.optString("disease", "").trim()   // 🩺 V1045
                         extraPatientCache[id] = Pair(
                             o.optString("name", "").trim(),
                             o.optString("mobile", "").trim()
@@ -3272,12 +3285,13 @@ class StaffProfileActivity : AppCompatActivity() {
             try {
                 val enc = java.net.URLEncoder.encode(pid, "UTF-8")
                 val rows = com.tkbiswas.pilesclinic.native.SupabaseClient.fetchListSlimOrNull(
-                    "patients", "id=eq.$enc", 1, "id,name,mobile,timeType,timeSource", order = "id.asc")
+                    "patients", "id=eq.$enc", 1, "id,name,mobile,timeType,timeSource,disease", order = "id.asc")
                 val o = if (rows != null && rows.length() > 0) rows.optJSONObject(0) else null
                 if (o != null) {
                     m = o.optString("mobile", "").trim()
                     extraPatientTiming[pid] = o.optString("timeType", "").trim()
                     extraPatientSrc[pid] = o.optString("timeSource", "").trim()      // 🕐 V1042
+                    extraPatientDisease[pid] = o.optString("disease", "").trim()     // 🩺 V1045
                     extraPatientCache[pid] = Pair(o.optString("name", "").trim(), m)
                 }
             } catch (_: Throwable) { }
@@ -3738,6 +3752,7 @@ class StaffProfileActivity : AppCompatActivity() {
                         extraPatientCache[id] = Pair(ns(r, "name").trim(), ns(r, "mobile").trim())
                         extraPatientTiming[id] = ns(r, "timeType").trim()
                         extraPatientSrc[id] = ns(r, "timeSource").trim()             // 🕐 V1042
+                        extraPatientDisease[id] = ns(r, "disease").trim()            // 🩺 V1045
                     }
                 }
                 runOnUiThread {
