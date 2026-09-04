@@ -783,6 +783,21 @@
       if (!byDate[d]) byDate[d] = [];
       byDate[d].push(x);
     });
+    /* 🔴🔒 V1076 (০৪.০৯.২০২৬, TK: *"Rupam যে আজ ডাক্তার রেফারে গেল, কই আমি
+       দেখতে পাচ্ছি না"* — খাতার সারি ১৩৯ ও ১৭৭, দুবার বলা)।
+       আগে দিনের তালিকা বানানো হত **শুধু GPS-এর সারি থেকে**; ডাক্তারের সারি
+       আনা হত ঠিকই, কিন্তু GPS-সারি না থাকলে দিনটাই উঠত না, তাই ওগুলো ফেলে
+       দেওয়া হত। ⇒ এখন দুটো মিলিয়ে তালিকা — ফোনের সঙ্গে হুবহু এক নিয়ম। */
+    var dayByDate = {};
+    days.forEach(function (r) {
+      var d = String(r.work_date || '').slice(0, 10);
+      if (d && !dayByDate[d]) dayByDate[d] = r;
+    });
+    Object.keys(byDate).forEach(function (d) {
+      if (d && !dayByDate[d]) dayByDate[d] = { work_date: d };
+    });
+    days = Object.keys(dayByDate).sort().reverse().slice(0, 30).map(function (d) { return dayByDate[d] });
+
     var body = '';
     if (!days.length) body = '<div class="card mut">No field visit recorded yet.</div>';
     days.forEach(function (r) {
@@ -790,8 +805,12 @@
       var ended = String(r.ended_at || '');
       var auto = !!r.auto_closed;
       var today = new Date().toISOString().slice(0, 10);
-      var status = (!ended && date === today) ? 'RUNNING' : (!ended ? 'NOT CLOSED' : (auto ? 'AUTO CLOSED' : 'COMPLETE'));
-      var colour = status === 'NOT CLOSED' ? '#B42318' : (status === 'AUTO CLOSED' ? '#8A5A00' : '#0B7A4B');
+      /* ⛔ V1076 — GPS-সারি নেই এমন দিন ভুল করে লাল "NOT CLOSED" দেখানো যাবে না। */
+      var noGps = !String(r.started_at || '') && !ended;
+      var status = noGps ? 'NO GPS'
+        : ((!ended && date === today) ? 'RUNNING' : (!ended ? 'NOT CLOSED' : (auto ? 'AUTO CLOSED' : 'COMPLETE')));
+      var colour = status === 'NOT CLOSED' ? '#B42318'
+        : ((status === 'AUTO CLOSED' || status === 'NO GPS') ? '#8A5A00' : '#0B7A4B');
       var km = (Number(r.distance_m || 0) / 1000).toFixed(1) + ' km';
       var hrs = wlv1FvHours(r.started_at, r.ended_at);
       var docs = (byDate[date] || []).length;
@@ -806,6 +825,7 @@
         '<div class="tiny mut" style="margin-top:6px">Hours ' + m.esc(hrs) + '  ·  Distance ' + m.esc(km) +
         '  ·  Doctors ' + docs + '</div>' +
         (auto ? '<div class="tiny mut">OUT TIME not marked - closed by app at 12:00 AM</div>' : '') +
+        (noGps ? '<div class="tiny mut">Location was off on the phone - only the doctor visits were recorded</div>' : '') +
         (r.last_seen_at ? '<div class="tiny mut">Last seen ' + m.esc(wlv1FvTime(r.last_seen_at)) +
           '  ·  accuracy ±' + (r.last_acc_m || 0) + ' m</div>' : '') +
         (map ? '<div style="margin-top:8px">' + map + '</div>' : '') +

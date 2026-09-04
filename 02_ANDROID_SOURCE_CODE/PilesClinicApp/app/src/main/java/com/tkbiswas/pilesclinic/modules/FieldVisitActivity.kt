@@ -71,7 +71,7 @@ class FieldVisitActivity : AppCompatActivity() {
             val d = if (ownerMode) JSONArray() else readDoctors()
             val dv = readVisits(today())
             val month = readVisits(monthKey())
-            val days = if (ownerMode) readDays() else JSONArray()
+            val days = if (ownerMode) mergeOwnerDays(readDays(), readOwnerVisits()) else JSONArray()
             runOnUiThread {
                 docs = d
                 doneToday = HashSet()
@@ -113,6 +113,53 @@ class FieldVisitActivity : AppCompatActivity() {
         ModuleAuth.getRows("wn", "field_visit_days",
             "select=*&staff_code=eq." + Uri.encode(staffCode) + "&order=work_date.desc&limit=30")
     } catch (_: Throwable) { JSONArray() }
+
+    /* 🔴🔒 V1076 (০৪.০৯.২০২৬, TK: *"Rupam যে আজ ডাক্তার রেফারে গেল, কই আমি
+       দেখতে পাচ্ছি না"* — খাতার সারি ১৩৯ ও ১৭৭, দুবার বলা)।
+       এতদিন এই পর্দার দিনের তালিকা বানানো হত **শুধু GPS-এর সারি থেকে**
+       (`field_visit_days`)। স্টাফের MARK VISIT করা ডাক্তারগুলো আলাদা ঘরে
+       (`doctor_visits`) জমা হয়, তাই GPS-সারি না থাকলে ১৫টা ভিজিট থাকলেও
+       দিনটাই উঠত না — TK দেখতেন "No field visit recorded yet"।
+       ⇒ এখন দুটো ঘরই পড়া হয় আর দিন ধরে **মেলানো** হয়, তাই ডাক্তার মার্ক
+          করা কোনো দিন আর হারাতে পারে না।
+       ⛔ GPS-সারি থাকলে আগের কার্ডটা হুবহু আগের মতোই — ঘণ্টা · দূরত্ব ·
+          অবস্থা · Google Maps কিছুই বদলায়নি, শুধু "Doctors N" লাইনটা যোগ। */
+    private fun readOwnerVisits(): JSONArray = try {
+        ModuleAuth.getRows("wn", "doctor_visits",
+            "select=work_date,doctor_name,visited_at&staff_code=eq." + Uri.encode(staffCode) +
+                "&order=visited_at.desc&limit=500")
+    } catch (_: Throwable) { JSONArray() }
+
+    /** দিন ধরে ডাক্তারের সংখ্যা — কার্ডে দেখানোর জন্য। */
+    private var docsPerDay = HashMap<String, Int>()
+
+    /**
+     * GPS-এর দিন + ডাক্তার-মার্ক করা দিন — দুটো মিলিয়ে একটাই তালিকা,
+     * নতুন তারিখ আগে। GPS-সারি না থাকা দিনের জন্য শুধু `work_date` বসানো
+     * একটা সারি বানানো হয়; কার্ড আঁকার কোড ফাঁকা ঘরগুলো আগে থেকেই সামলায়
+     * (ঘণ্টা "-", দূরত্ব 0.0 km, ম্যাপের বোতাম ওঠে না)।
+     */
+    private fun mergeOwnerDays(days: JSONArray, visits: JSONArray): JSONArray {
+        docsPerDay = HashMap()
+        for (i in 0 until visits.length()) {
+            val d = (visits.optJSONObject(i) ?: continue).optString("work_date", "").take(10)
+            if (d.isNotBlank()) docsPerDay[d] = (docsPerDay[d] ?: 0) + 1
+        }
+        val seen = HashSet<String>()
+        val byDate = HashMap<String, org.json.JSONObject>()
+        for (i in 0 until days.length()) {
+            val r = days.optJSONObject(i) ?: continue
+            val d = r.optString("work_date", "").take(10)
+            if (d.isBlank() || !seen.add(d)) continue
+            byDate[d] = r
+        }
+        for (d in docsPerDay.keys) {
+            if (seen.add(d)) byDate[d] = org.json.JSONObject().put("work_date", d)
+        }
+        val out = JSONArray()
+        for (d in seen.sortedDescending().take(30)) byDate[d]?.let { out.put(it) }
+        return out
+    }
 
     private fun nextMonth(key: String): String = try {
         val y = key.substring(0, 4).toInt(); val m = key.substring(5, 7).toInt()
@@ -240,7 +287,11 @@ class FieldVisitActivity : AppCompatActivity() {
             val auto = r.optBoolean("auto_closed", false)
             val meters = r.optDouble("distance_m", 0.0)
             val card = ModuleUi.card(this)
+            /* ⛔ V1076 — GPS-সারি নেই এমন দিন (শুধু ডাক্তার মার্ক করা) ভুল করে
+               "NOT CLOSED" (লাল) দেখানো যাবে না; সেখানে GPS-ই চলেনি। */
+            val noGps = started.isBlank() && ended.isBlank()
             val status = when {
+                noGps -> "NO GPS"
                 ended.isBlank() && date == today() -> "RUNNING"
                 ended.isBlank() -> "NOT CLOSED"
                 auto -> "AUTO CLOSED"
@@ -249,6 +300,7 @@ class FieldVisitActivity : AppCompatActivity() {
             val colour = when (status) {
                 "RUNNING" -> "#0B7A4B"
                 "AUTO CLOSED" -> "#8A5A00"
+                "NO GPS" -> "#8A5A00"
                 "NOT CLOSED" -> "#B42318"
                 else -> "#0B7A4B"
             }
@@ -260,8 +312,11 @@ class FieldVisitActivity : AppCompatActivity() {
             })
             val hrs = hoursBetween(started, ended)
             card.addView(ModuleUi.body(this,
-                "Hours " + hrs + "   ·   Distance " + FieldVisit.kmText(meters)))
+                "Hours " + hrs + "   ·   Distance " + FieldVisit.kmText(meters) +
+                    "   ·   Doctors " + (docsPerDay[date] ?: 0)))
             if (auto) card.addView(ModuleUi.body(this, "OUT TIME not marked - closed by app at 12:00 AM"))
+            if (noGps) card.addView(ModuleUi.body(this,
+                "Location was off on the phone - only the doctor visits were recorded"))
             val lat = r.optDouble("last_lat", Double.NaN)
             val lng = r.optDouble("last_lng", Double.NaN)
             if (!lat.isNaN() && !lng.isNaN() && (lat != 0.0 || lng != 0.0)) {

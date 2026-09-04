@@ -1312,6 +1312,19 @@ class WorkNotebookActivity : AppCompatActivity() {
             if (fv.isFieldStaff(this) && !fv.isRunning(this)) {
                 fv.startDay(this, staffCode.ifBlank { mobile }, branch)
                 com.tkbiswas.pilesclinic.native.FieldVisitControl.start(this)
+                /* 🔴🔒 V1076 (০৪.০৯.২০২৬, TK-নির্দেশ: *"In time চাপলেই যেন কাজ হয়"*)
+                   — এতদিন `startDay()` দিনের সারিটা **শুধু ফোনের ভিতরে** বসাত;
+                   সার্ভারে সারিটা লিখত GPS-সেবা, চালু হওয়ার ৩ মিনিট পর। Location
+                   অনুমতি না থাকলে Android ওই সেবাটাই চালাতে দেয় না ⇒ সার্ভারে
+                   একটাও সারি যেত না ⇒ TK-এর Field Visit Tracking ফাঁকা থাকত
+                   (খাতার সারি ১৩৯ ও ১৭৭ — TK দুবার বলেছেন)।
+                   ⇒ এখন IN TIME চাপার সঙ্গে সঙ্গেই সার্ভারে সারিটা বসে।
+                   ⛔ ব্যাকগ্রাউন্ডে, তাই IN TIME সেভ হওয়া এর জন্য থমকায় না;
+                      নেট না থাকলে নিঃশব্দে বাদ, GPS-সেবা পরে আবার লিখবে।
+                   ⛔ `upsert` (staff_code + work_date) — একই দিনে দুবার চাপলেও
+                      দ্বিতীয় সারি তৈরি হয় না, পুরনোটাই হালনাগাদ হয়। */
+                val fvCtx = applicationContext
+                Thread { try { fv.push(fvCtx, ended = false, auto = false) } catch (_: Throwable) { } }.start()
             }
         } catch (_: Throwable) { }
         try {
