@@ -8153,3 +8153,11 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
 /* 🐞 V1031 — "Salary Due" সারিতে লেখা ও বোতামের মাঝে সত্যিকারের ফাঁক */
 .pfDueLine{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-top:6px}
 .pfDueLine .tiny{margin-top:0}
+
+/* 💰 V1037 — Money Handover-এর দিনগুলো কম্পিউটারে দুই কলামে (TK-প্রুফ পাশ) */
+@media (min-width:1200px){
+  body.hasDeskNav .wrap:not(.publicWrap) .wlv1MhGrid{
+    display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start;
+  }
+  body.hasDeskNav .wrap:not(.publicWrap) .wlv1MhGrid>.wlv1MhRow{margin:0}
+}

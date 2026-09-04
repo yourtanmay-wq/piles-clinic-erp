@@ -2576,6 +2576,7 @@ function wlv1DeskAutoSplit(title){
   try{
     if(!wlv1DeskWide()) return;
     var t=String(title||'');
+    if(t==='MONEY HANDOVER')     return wlv1DeskRowGrid('wlv1MhRow','wlv1MhGrid');
     if(t==='Chamber Close')       return wlv1DeskRowGrid('wlv1UncRow','wlv1UncGrid');
     if(t==='Expected Tomorrow')   return wlv1DeskRowGrid('wlv1EtRow','wlv1EtGrid');
     if(t==='Print Center'||t==='Print') return wlv1DeskPrint();
@@ -23211,8 +23212,13 @@ async function wlv1MoneyHandover(){
       +'<div class="actions"><button onclick="wlv1MoneyHandover()">Try again</button></div></div>',true);
     return;
   }
+  /* 💵🔒 V1037 (০৪.০৯.২০২৬, TK-নির্দেশ) — TK: *"অনলাইনে টাকা ডাইরেক্ট আমাদের
+     কাছে চলে আসে, শুধু ক্যাশ টাকা স্টাফরা আমাদেরকে বুঝিয়ে দেয়"*।
+     ⇒ বুঝিয়ে দেওয়ার অঙ্ক এখন **শুধু ক্যাশ** (`cashTotal`), দিনের মোট নয়।
+     ⛔ চেম্বার-ক্লোজে যা জমা হয় (ফি · ক্যাশ · অনলাইন · মোট) এক অক্ষরও বদলায়নি;
+        শুধু এই পর্দা কোন অঙ্কটা দেখায় ও কোনটা হাতে বুঝিয়ে দেওয়া হয়। */
   var pend=rows.filter(function(r){ var s=String(r.handoverStatus||''); return !s||s==='pending' })
-               .reduce(function(n,r){ return n+Number(r.grandTotal||0) },0);
+               .reduce(function(n,r){ return n+Number(r.cashTotal||0) },0);
   var body='<div class="card" style="background:#8A1810;color:#fff;display:flex;justify-content:space-between;font-weight:800">'
     +'<span>STILL WITH YOU</span><span>'+wlv1MhMoney(pend)+'</span></div>';
   if(!rows.length) body+='<div class="card mut">No closed chamber found yet.</div>';
@@ -23222,10 +23228,14 @@ async function wlv1MoneyHandover(){
     if(st==='received'){ line='✓ <b>'+esc(String(r.receivedByName||''))+'</b>'+(tm?'  ·  '+tm:''); ink='#0B5B2F'; fill='#EAF7F0'; }
     else if(st==='waiting'){ line='⌛ <b>'+esc(String(r.receivedByName||''))+'</b>'+(tm?'  ·  '+tm:'')+' — waiting'; ink='#8A5A00'; fill='#FFF6E6'; }
     else { line='⚠️ Money is still with you — nobody has received it'; ink='#8A1810'; fill='#FDEDEC'; }
-    body+='<div class="card"><div style="display:flex;align-items:baseline;gap:10px">'
+    body+='<div class="card wlv1MhRow"><div style="display:flex;align-items:baseline;gap:10px">'
       +'<b style="font-size:15px">'+esc(wlv1Dot(String(r.date||'')))+'</b>'
       +'<span class="mut" style="flex:1">'+esc(String(r.branch||''))+'</span>'
-      +'<b style="color:#0F5132;font-size:16px">'+wlv1MhMoney(r.grandTotal)+'</b></div>'
+      +'<b style="color:#0F5132;font-size:16px">'+wlv1MhMoney(r.cashTotal)+'</b></div>'
+      /* অনলাইনটা লুকানো হয় না — না দেখালে দিনের মোটের সঙ্গে মিলবে না ভেবে
+         বিভ্রান্তি হত। শুধু জানানো, বুঝিয়ে দেওয়ার অঙ্কে যায় না। */
+      +(Number(r.onlineTotal||0)>0
+        ? '<div class="tiny mut" style="margin-top:4px">Online '+wlv1MhMoney(r.onlineTotal)+' — came to you directly</div>' : '')
       +'<div style="margin-top:8px;border-radius:8px;padding:9px 12px;color:'+ink+';background:'+fill+'">'+line+'</div>';
     if(!st||st==='pending'){
       body+='<div class="actions"><button onclick="wlv1MhHandOver('+i+')">💰 HAND OVER NOW</button></div>';
@@ -23244,7 +23254,7 @@ function wlv1MhHandOver(i){
   window.__wlv1MhPick=r;
   var opts=list.map(function(x,k){ return '<button class="ghost" style="width:100%;margin:4px 0" onclick="wlv1MhAskPw('+k+')">'+esc(x.name)+'  ·  '+x.role+'</button>' }).join('');
   window.__wlv1MhList=list;
-  modal('<h2>💰 Hand over '+wlv1MhMoney(r.grandTotal)+'</h2><div class="card">'+opts+'</div>'
+  modal('<h2>💰 Hand over '+wlv1MhMoney(r.cashTotal)+'</h2><div class="card">'+opts+'</div>'
     +'<div class="actions"><button class="ghost" onclick="closeModal()">Cancel</button></div>');
 }
 window["wlv1MhHandOver"]=wlv1MhHandOver;
@@ -23267,7 +23277,7 @@ async function wlv1MhDoHandOver(){
   if(v==='NO_NETWORK') return toast('Network problem — could not verify. Please try again.');
   if(v!=='OK') return toast('Wrong password');
   var byName=(user&&(user.name||user.mobile))||'';
-  var ok=await wlv1MhSaveHandover(String(r.branch||''), String(r.date||''), Number(r.grandTotal||0), who, byName);
+  var ok=await wlv1MhSaveHandover(String(r.branch||''), String(r.date||''), Number(r.cashTotal||0), who, byName);   /* 💵 V1037 */
   if(!ok) return toast('Could not save — please try again');
   closeModal(); toast('Handed over to '+who.name); wlv1MoneyHandover();
 }
@@ -23305,7 +23315,7 @@ async function wlv1MhCloseHandOver(){
   if(v==='NO_NETWORK') return toast('Network problem — could not verify. Please try again.');
   if(v!=='OK') return toast('Wrong password');
   var byName=(user&&(user.name||user.mobile))||'';
-  var ok=await wlv1MhSaveHandover(r.branch, r.date, Number(r.grandTotal||0), who, byName);
+  var ok=await wlv1MhSaveHandover(r.branch, r.date, Number(r.cashTotal||0), who, byName);   /* 💵 V1037 */
   if(!ok) return toast('Could not save — please try again');
   closeModal(); toast('Handed over to '+who.name);
   if(confirm('Print chamber register now?'))wlv1ChamberRegisterPrint();else chamberAttendance();

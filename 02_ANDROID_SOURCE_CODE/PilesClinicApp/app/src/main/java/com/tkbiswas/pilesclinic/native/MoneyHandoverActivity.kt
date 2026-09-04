@@ -108,7 +108,12 @@ class MoneyHandoverActivity : AppCompatActivity() {
 
     private fun render() {
         listBox.removeAllViews()
-        val pending = days.filter { it.stillWithStaff }.sumOf { it.total }
+        /* 💵🔒 V1037 (০৪.০৯.২০২৬, TK-নির্দেশ) — TK: *"অনলাইনে টাকা ডাইরেক্ট আমাদের
+           কাছে চলে আসে, শুধু ক্যাশ টাকা স্টাফরা আমাদেরকে বুঝিয়ে দেয়"*।
+           ⇒ হাতে বুঝিয়ে দেওয়ার অঙ্ক এখন **শুধু ক্যাশ** (`cashTotal`), দিনের মোট নয়।
+           ⛔ দিনের মোট · ফি · অনলাইন — একটাও হিসাব বদলায়নি, চেম্বার-ক্লোজে যা জমা হয়
+              হুবহু তাই থাকে; শুধু এই পর্দা কোন অঙ্কটা দেখায় ও কোনটা "বুঝিয়ে দেওয়া" হয়। */
+        val pending = days.filter { it.stillWithStaff }.sumOf { it.cash }
         sumBar.text = "STILL WITH YOU        " + MoneyHandover.money(pending)
         sumBar.visibility = if (days.isEmpty()) View.GONE else View.VISIBLE
         if (days.isEmpty()) {
@@ -147,7 +152,7 @@ class MoneyHandoverActivity : AppCompatActivity() {
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             })
             addView(TextView(this@MoneyHandoverActivity).apply {
-                text = MoneyHandover.money(d.total); textSize = 15f
+                text = MoneyHandover.money(d.cash); textSize = 15f   // 💵 V1037 — শুধু ক্যাশ
                 setTypeface(typeface, Typeface.BOLD)
                 setTextColor(Color.parseColor("#0F5132"))
             })
@@ -219,7 +224,7 @@ class MoneyHandoverActivity : AppCompatActivity() {
         }
         val names = receivers.map { it.name + "   ·   " + it.role }.toTypedArray()
         AlertDialog.Builder(this)
-            .setCustomTitle(PremiumAlert.header(this, "💰 Hand over " + MoneyHandover.money(d.total)))
+            .setCustomTitle(PremiumAlert.header(this, "💰 Hand over " + MoneyHandover.money(d.cash)))   // 💵 V1037
             .setItems(names) { _, which -> askPassword(d, receivers[which]) }
             .setNegativeButton("Cancel", null)
             .create().also { it.show(); try { PremiumAlert.paint(it) } catch (_: Throwable) { } }
@@ -255,7 +260,7 @@ class MoneyHandoverActivity : AppCompatActivity() {
             val role = StaffDirectory.findAccount(who.mobile)?.role ?: "doctor"
             val v = MoneyHandover.verifyPassword(who.mobile, role, typed)
             val ok = v == MoneyHandover.Verify.OK &&
-                MoneyHandover.saveHandover(this, d.branch, d.date, d.total, who, true, myName)
+                MoneyHandover.saveHandover(this, d.branch, d.date, d.cash, who, true, myName)   // 💵 V1037
             runOnUiThread {
                 when {
                     v == MoneyHandover.Verify.NO_NETWORK ->
@@ -287,7 +292,7 @@ class MoneyHandoverActivity : AppCompatActivity() {
             addView(field)
         }
         AlertDialog.Builder(this)
-            .setCustomTitle(PremiumAlert.header(this, "✅ " + MoneyHandover.money(d.total)))
+            .setCustomTitle(PremiumAlert.header(this, "✅ " + MoneyHandover.money(d.cash)))   // 💵 V1037
             .setView(body)
             .setPositiveButton("I received this money") { _, _ ->
                 val typed = field.text?.toString().orEmpty()
