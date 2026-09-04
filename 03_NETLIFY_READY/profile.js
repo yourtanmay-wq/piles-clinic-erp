@@ -1873,6 +1873,13 @@
           perfTile('Enquiry', perfNum(x.enquiry_count)) +
           perfTile('Regist.', reg) +
           perfTile('Treat.', trt) +
+          /* 🟠🔒 V1077 (০৪.০৯.২০২৬, TK-এর পাশ-করা ফটো-প্রুফ) — TK: *"আজকের
+             সারাদিনে কে কতগুলো RMP-র নাম এন্ট্রি করল সেটাও যেন বোঝা যায়,
+             বিশেষ করে নতুন নাম"*। ⛔ নতুন গোনা বানানো হয়নি — `hr.staff_performance`-এর
+             আগে থেকে থাকা `rmp_added` (ওই সময়ে ওই স্টাফের `createdBy`-তে বসানো
+             নতুন `doctor_visits` সারি)। ভিতরের পর্দার "RMP added"-এ ঠিক এই
+             সংখ্যাটাই ওঠে, তাই দুই পর্দায় দুরকম উত্তর হবে না। ফোনের সঙ্গেও এক। */
+          perfTile('New RMP', perfNum(x.rmp_added), true) +
           perfTile('Collected', m.money(money)) +
         '</div></div>';
     }).join('');
@@ -1896,10 +1903,15 @@
     return phvChip('V' + v, '#0A5C33', '#E9F7EE');
   }
 
-  function perfTile(cap, val) {
-    return '<div style="flex:1;min-width:0;background:#F2FBF5;border:1px solid #D8ECDF;border-radius:10px;padding:8px 4px;text-align:center">' +
-      '<span style="display:block;font-size:10.5px;color:#3B5A49">' + cap + '</span>' +
-      '<b style="display:block;font-size:14px;color:#0A5C33;margin-top:2px">' + val + '</b></div>';
+  /* 🟠 V1077 — `warm` শুধু "New RMP" ঘরের জন্য (হলুদ), ফোনের হুবহু একই রং।
+     ডিফল্ট মিথ্যা, তাই পুরনো চারটে ডাক আগের মতোই সবুজ। */
+  function perfTile(cap, val, warm) {
+    var fill = warm ? '#FFF4E5' : '#F2FBF5', edge = warm ? '#F3D9AE' : '#D8ECDF';
+    var capCol = warm ? '#8A5A00' : '#3B5A49', valCol = warm ? '#B45309' : '#0A5C33';
+    return '<div style="flex:1;min-width:0;background:' + fill + ';border:1px solid ' + edge +
+      ';border-radius:10px;padding:8px 3px;text-align:center">' +
+      '<span style="display:block;font-size:10px;color:' + capCol + ';white-space:nowrap">' + cap + '</span>' +
+      '<b style="display:block;font-size:13.5px;color:' + valCol + ';margin-top:2px;white-space:nowrap">' + val + '</b></div>';
   }
 
   /* 🔴 V452 (19.08.2026, TK-অনুমোদিত): Android-এর মতো Web Staff Performance-এও

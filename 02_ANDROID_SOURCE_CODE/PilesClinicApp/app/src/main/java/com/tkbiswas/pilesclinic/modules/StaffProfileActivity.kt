@@ -2032,6 +2032,17 @@ class StaffProfileActivity : AppCompatActivity() {
                     tiles.addView(perfTile("Enquiry", perfInt(x, "enquiry_count").toString(), false))
                     tiles.addView(perfTile("Regist.", perfInt(x, "registration_count").toString(), false))
                     tiles.addView(perfTile("Treat.", perfInt(x, "treatment_count").toString(), false))
+                    /* 🟠🔒 V1077 (০৪.০৯.২০২৬, TK-এর পাশ-করা ফটো-প্রুফ) — TK:
+                       *"আজকের সারাদিনে কে কতগুলো RMP-র নাম এন্ট্রি করল সেটাও যেন
+                       বোঝা যায়, বিশেষ করে নতুন নাম"*।
+                       ⛔ নতুন কোনো গোনা বানানো হয়নি — `hr.staff_performance`-এর
+                          **আগে থেকে থাকা** `rmp_added` ঘরটাই দেখানো হচ্ছে; ওটা
+                          গোনে ওই সময়ে ওই স্টাফের `createdBy`-তে বসানো নতুন
+                          `doctor_visits` সারি। ভিতরের পর্দায় "RMP added"-এ
+                          ঠিক এই সংখ্যাটাই আগে থেকেই দেখানো হয়, তাই দুই পর্দায়
+                          কখনো দুরকম উত্তর হবে না।
+                       ⛔ SQL লাগেনি · বাকি চারটে ঘরের সংখ্যা/রং এক অক্ষরও বদলায়নি। */
+                    tiles.addView(perfTile("New RMP", perfInt(x, "rmp_added").toString(), false, warm = true))
                     tiles.addView(perfTile("Collected",
                         money(perfDbl(x, "cash_collected") + perfDbl(x, "online_collected")), true))
                     card.addView(tiles)
@@ -2045,29 +2056,37 @@ class StaffProfileActivity : AppCompatActivity() {
     }
 
     /** তালিকার ছোট বাক্স — Salary পর্দার টাইলের মতোই। */
-    private fun perfTile(caption: String, value: String, last: Boolean): LinearLayout {
+    /* 🟠 V1077 — `warm` শুধু নতুন "New RMP" ঘরের জন্য (হলুদ), TK-এর পাশ-করা
+       ফটোর হুবহু রং। ডিফল্ট false, তাই পুরনো চারটে ডাক আগের মতোই সবুজ। */
+    private fun perfTile(caption: String, value: String, last: Boolean, warm: Boolean = false): LinearLayout {
+        val fill = if (warm) "#FFF4E5" else "#F2FBF5"
+        val edge = if (warm) "#F3D9AE" else "#D8ECDF"
+        val capCol = if (warm) "#8A5A00" else "#5B6B81"
+        val valCol = if (warm) "#B45309" else "#0A5C33"
         val t = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = android.view.Gravity.CENTER
-            setPadding(dp(4), dp(8), dp(4), dp(8))
+            setPadding(dp(3), dp(8), dp(3), dp(8))
             background = android.graphics.drawable.GradientDrawable().apply {
                 cornerRadius = dp(10).toFloat()
-                setColor(android.graphics.Color.parseColor("#F2FBF5"))
-                setStroke(dp(1), android.graphics.Color.parseColor("#D8ECDF"))
+                setColor(android.graphics.Color.parseColor(fill))
+                setStroke(dp(1), android.graphics.Color.parseColor(edge))
             }
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                .apply { if (!last) rightMargin = dp(7) }
+                .apply { if (!last) rightMargin = dp(6) }
         }
         t.addView(TextView(this@StaffProfileActivity).apply {
-            text = caption; textSize = 10.5f
+            text = caption; textSize = 10f
             gravity = android.view.Gravity.CENTER
-            setTextColor(android.graphics.Color.parseColor("#5B6B81"))
+            maxLines = 1
+            setTextColor(android.graphics.Color.parseColor(capCol))
         })
         t.addView(TextView(this@StaffProfileActivity).apply {
-            text = value; textSize = 14f
+            text = value; textSize = 13.5f
             gravity = android.view.Gravity.CENTER
+            maxLines = 1
             setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setTextColor(android.graphics.Color.parseColor("#0A5C33"))
+            setTextColor(android.graphics.Color.parseColor(valCol))
             setPadding(0, dp(2), 0, 0)
         })
         return t
