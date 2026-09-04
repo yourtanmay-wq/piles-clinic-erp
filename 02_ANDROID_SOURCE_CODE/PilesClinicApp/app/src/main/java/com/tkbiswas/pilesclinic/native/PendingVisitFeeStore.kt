@@ -68,7 +68,13 @@ object PendingVisitFeeStore {
         for (filter in lookups) {
             val rows = try {
                 SupabaseClient.fetchListOrNull(
-                    "payments", "$filter&payType=eq.visit_fee", 1, select = "id"
+                    /* 🏷️🔒 V1060 (০৪.০৯.২০২৬) — নিয়ম ৭: একই দোষ এখানেও ছিল।
+                       ফি খোঁজা হত শুধু `visit_fee` নামে, অথচ টাকার SQL
+                       (V418) ও কম্পিউটার `visitfee` · `registration`-ও ধরে।
+                       ⛔ এর ফল আরও খারাপ হত — ফি **আগেই নেওয়া থাকলেও** খুঁজে
+                          পাওয়া যেত না, তাই সারিটা বসে গিয়ে **একই ফি দুবার**
+                          উঠতে পারত। এখন তিনটে নামই দেখা হয়। */
+                    "payments", "$filter&payType=in.(visit_fee,visitfee,registration)", 1, select = "id"
                 )
             } catch (_: Throwable) { null } ?: continue
             sawAnswer = true

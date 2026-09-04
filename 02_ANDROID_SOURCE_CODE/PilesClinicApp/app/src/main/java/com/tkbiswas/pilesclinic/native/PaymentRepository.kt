@@ -2073,12 +2073,49 @@ class PaymentRepository(private val context: Context? = null) {
         // ⛔ THE ANSWER CANNOT CHANGE: the comparison below is left word for
         // word, and a failed narrowed read falls back to every column by
         // itself, so this list can never come out wrongly long or short.
-        val patients = SupabaseClient.fetchListSlimOrNull(
-            "patients", null, 5000,
+        /* 🔴🔴🔒 V1060 (০৪.০৯.২০২৬) — **এই তালিকার আসল গোড়া, অবশেষে।**
+           TK: *"খাতায় ভালো করে দেখুন তো এই সমস্যার কথা কতবার আপনাকে বলা হয়েছে"* —
+           খাতা মিলিয়ে দেখা গেল **পাঁচবার** (V147 · V151 · V154 · V901 · V958)।
+           আগের প্রতিটা সমাধান ছিল **লেখার দিকে** (ফি-র সারিটা যেন তৈরি হয়);
+           কিন্তু দোষটা ছিল **পড়ার দিকে**, তাই বারবার ফিরে এসেছে। দুটো দোষ:
+
+           ① 🔢 **৫০০০-এর ছাঁট।** ফি-র সারি আনা হত `limit 5000`, আর ক্রম
+              `updatedAt.desc` — অর্থাৎ **নতুন ৫০০০টা**। ক্লিনিক বড় হয়ে ৫০০০
+              ছাড়াতেই সবচেয়ে **পুরনো** ফি-গুলো ছাঁটা পড়ত, তাই ওই পুরনো
+              রোগীদেরই "ফি নেই" মনে হত। TK-এর ছবিতে ঠিক তাই — ৩০.০৩.২০২৬ ও
+              ২৭.০৪.২০২৬-এ রেজিস্টার হওয়া দুজন, তালিকার সবচেয়ে পুরনো।
+              ⇒ এখন **পাতা ধরে ধরে সবটা** আনা হয়, একটাও বাদ যায় না।
+
+           ② 🏷️ **নামের বানান।** এখানে গোনা হত শুধু `visit_fee`, অথচ টাকার SQL
+              (V418-এর `incentive_wanted()`) ধরে **তিনটে** — `visit_fee` ·
+              `visitfee` · `registration`; কম্পিউটারের যাচাইও (app.js) দুটো ধরে।
+              অর্থাৎ এক জিনিসের নিয়ম দুই জায়গায় দুরকম (নিয়ম ৭ক-এর ২)।
+              ⇒ এখন তিনটেই ধরা হয়, ঠিক SQL-এর মতো।
+
+           ⛔ গোনার বাকি নিয়ম এক অক্ষরও বদলায়নি — মোবাইল ধরে এক করা, "যে কোনো
+              একটা সারিতে ফি থাকলেই হয়েছে" — সবই আগের মতোই।
+           ⛔ পড়া ব্যর্থ হলে আগের মতোই ফাঁকা তালিকা ফেরে (ভুল করে লম্বা নয়)। */
+        fun fetchAllPages(table: String, filter: String?, cols: String): org.json.JSONArray? {
+            val out = org.json.JSONArray()
+            var offset = 0
+            val page = 1000
+            while (true) {
+                val part = SupabaseClient.fetchListSlimOrNull(
+                    table, filter, page, cols, order = "updatedAt.desc.nullslast", offset = offset
+                ) ?: return if (offset == 0) null else out   // প্রথম পাতাই না এলে আগের মতোই "জানি না"
+                for (i in 0 until part.length()) out.put(part.get(i))
+                if (part.length() < page) break
+                offset += page
+                if (offset >= 200000) break                  // অসীম লুপের বিরুদ্ধে পাহারা
+            }
+            return out
+        }
+        val patients = fetchAllPages(
+            "patients", null,
             "id,name,mobile,branch,patientId,bill,registrationDate,date,updatedAt"   // bill দরকার — কোন সারিটা আসল সেটা বাছতে
         ) ?: return emptyList()
-        val feePayments = SupabaseClient.fetchListSlimOrNull(
-            "payments", "payType=eq.visit_fee", 5000, "id,patientId,updatedAt"
+        val feePayments = fetchAllPages(
+            "payments", "payType=in.(visit_fee,visitfee,registration)", "id,patientId,updatedAt"
         ) ?: return emptyList()
         val patientIdsWithFee = HashSet<String>()
         for (i in 0 until feePayments.length()) {
