@@ -1197,9 +1197,11 @@
         /* 🧾 V1047 (TK: *"patient ID লাগবে না"*) — Extra সারিতে রোগীর কোডটা আর
            দেখানো হয় না (নাম-মোবাইল-রোগ তো উপরেই আছে)। ⛔ ডেটাবেসে কোডটা
            আগের মতোই থাকে, রোগী খোঁজার কাজেও ওটাই ব্যবহার হয়। */
-        if (isExtra) detail = detail.replace(/\s*·\s*[A-Za-z]{2,4}-\d{6,8}-\d{2,4}\s*/g, '  ·  ')
-                                     .replace(/\s{2,}·\s{2,}·\s{2,}/g, '  ·  ')
-                                     .replace(/^[\s·]+|[\s·]+$/g, '');
+        /* 🧾 V1048 (TK: *"unexpected এর আগে আবার রেজিস্ট্রেশন কেন থাকবে?"*) —
+           TK ঠিক ধরেছেন: ধাপের নামটা নিচের তালিকাতেই আছে, তাই উপরে দুবার হত।
+           ⇒ Extra সারিতে এই লাইনে এখন **শুধু সময়ের ব্যাজ**; কোন ধাপের জন্য
+             টাকাটা, সেটা নিচে ঐ ধাপের পাশেই `→ ₹১০০` হয়ে বসে। */
+        if (isExtra) detail = mark;
       }
       /* 👤🔒 V1044 (TK: *"আমার মনে হয় পেশেন্ট এর নাম দরকার এখানে"*) — নামটা
          এতদিন লাইনের একদম শেষে কোডের পরে বসত, চোখেই পড়ত না। এখন **নিজের
@@ -1225,10 +1227,18 @@
           (detail ? ('<div class="pfXWhy">'+m.esc(detail)+'</div>') : '') +
           (function(){
             var st = vPid ? salSteps(vPid) : {enq:'',reg:'',trt:''};
+            /* 💰 V1048 — কোন ধাপের জন্য এই টাকা, সেই ধাপের পাশেই অঙ্কটা।
+               ধাপটা আসে `extra_reason`-এর প্রথম শব্দ থেকে (V418-এর SQL ওখানে
+               `Registration` বা `Treatment` লেখে)। ⛔ চেনা না গেলে কোথাও
+               কিছু বসে না — আগের মতোই শুধু তারিখগুলো থাকে। */
+            var stg = String(why||'').split('·')[0].trim().toLowerCase();
+            /* 💰 V1048খ — অঙ্কটা নিচে একবারই থাকে (TK-এর বলা ক্রম), তাই এখানে
+               শুধু চিহ্ন — কোন ধাপের জন্য টাকাটা সেটাই বোঝায়। */
+            var earn = '<em class="pfXEarn">\uD83D\uDCB0 this one</em>';
             var rows = '';
             if (st.enq) rows += '<div class="pfXStep"><span>Enquiry</span><b>'+m.esc(st.enq)+'</b></div>';
-            if (st.reg) rows += '<div class="pfXStep"><span>Registration</span><b>'+m.esc(st.reg)+'</b></div>';
-            if (st.trt) rows += '<div class="pfXStep"><span>Treatment paid</span><b>'+m.esc(st.trt)+'</b></div>';
+            if (st.reg) rows += '<div class="pfXStep'+(stg==='registration'?' isEarn':'')+'"><span>Registration</span><b>'+m.esc(st.reg)+'</b>'+(stg==='registration'?earn:'')+'</div>';
+            if (st.trt) rows += '<div class="pfXStep'+(stg==='treatment'?' isEarn':'')+'"><span>Treatment paid</span><b>'+m.esc(st.trt)+'</b>'+(stg==='treatment'?earn:'')+'</div>';
             return rows ? ('<div class="pfXSteps">'+rows+'</div>') : '';
           })() +
           '<div class="pfXFoot">' +

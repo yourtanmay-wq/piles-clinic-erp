@@ -1,7 +1,7 @@
 {
   "styles.css": {
-    "v": "v1047",
-    "sha": "abb61596b75791deced09bbb1a4c44fbb9e91af83e518532c6f31f9dea52994f"
+    "v": "v1048",
+    "sha": "6d61d0ce57a135dd8bb87af35c6b9bbf5fc469e19cfde62ab9e28519381e2f48"
   },
   "config.js": {
     "v": "v834",
@@ -16,8 +16,8 @@
     "sha": "1a1cca88a368cfd695e22f5e847c133d0fc6162289011c5cb5dc5bd910625dda"
   },
   "profile.js": {
-    "v": "v1047",
-    "sha": "56c7461d521a0889ee6189bc9ee7ce61dddf0044c2859613ea9174275cb76b48"
+    "v": "v1048",
+    "sha": "e9dd80e9c05469530d52f03429ba2fb8ffa1729b5baea2c99afe9d67d9cd55f6"
   },
   "notebook.js": {
     "v": "v1032",
