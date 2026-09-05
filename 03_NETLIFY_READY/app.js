@@ -5592,6 +5592,38 @@ function wlv1PhTint(id){var el=document.getElementById(id);if(!el)return;var set
 window["wlv1PhTint"]=wlv1PhTint;
 function branchOptions(sel=''){return C.branches.map(b=>`<option ${sel===b.name?'selected':''}>${b.name}</option>`).join('')}
 window["branchOptions"]=branchOptions;
+/* ═══════════════════════════════════════════════════════════════════════
+   🔴🔒 V1110 (০৫.০৯.২০২৬, TK-এর স্থায়ী নিয়ম — KASHAB MANDAL-এর ঘটনার পরে):
+   *"যে স্টাফ যে ব্রাঞ্চের, শুধুমাত্র সেই ব্রাঞ্চের পেশেন্টের রেজিস্ট্রেশন করতে
+   পারবে।"* · *"ইনকোয়ারি যে কোন ব্রাঞ্চের হতেই পারে, সেটা কোন ব্যাপারই না।
+   **রেজিস্ট্রেশন কোন ব্রাঞ্চে হলো সেটাই ম্যাটার করে** … জলপাইগুড়ির স্টাফ যখন
+   রেজিস্ট্রেশন করেছে, জলপাইগুড়ির চেম্বারে এসেছে পেশেন্ট — তাই অটোমেটিক
+   জলপাইগুড়ি হতে হবে, এবং টাকা পয়সা সমস্ত হিসাব জলপাইগুড়ির নামেই হবে।"*
+
+   🔴 আগে কী হত: রেজিস্ট্রেশন ফর্ম **এনকোয়ারির ব্রাঞ্চটাকেই** আগে বসাত
+      (`pref.branch || user.branch`) — স্টাফের নিজের ব্রাঞ্চ চাপা পড়ে যেত।
+      ঠিক এভাবেই কোচবিহারের এনকোয়ারি থাকা রোগীর আইডি `COB-…` হয়ে গিয়েছিল।
+   ⇒ এখন স্টাফ/ডাক্তারের জন্য ব্রাঞ্চ **সবসময় তাঁর নিজেরটাই**, আর তালিকায়
+     ওই একটাই নাম থাকে ⇒ ভুল করেও অন্য ব্রাঞ্চ বাছা যায় না।
+   ⛔ মাস্টার ও Field Officer আগের মতোই নিজে বেছে নেবেন।
+   ⛔ এনকোয়ারি থেকে নাম · রোগ · ঠিকানা · সময় — বাকি সব আগের মতোই আসে।
+   ═══════════════════════════════════════════════════════════════════════ */
+function wlv1RegOwnBranch(){
+  try{
+    var r=String((user&&user.role)||'');
+    if(r!=='staff'&&r!=='doctor') return '';
+    var b=String((user&&user.branch)||'').trim();
+    return (b&&b!=='All')?b:'';
+  }catch(e){ return '' }
+}
+window["wlv1RegOwnBranch"]=wlv1RegOwnBranch;
+function wlv1RegBranchSelect(fallback){
+  var own=wlv1RegOwnBranch();
+  if(own) return '<option selected>'+esc(own)+'</option>';   /* একটাই নাম — বদলানোর সুযোগ নেই */
+  var b=String(fallback||'');
+  return (b==='All'||!b) ? ('<option value="" hidden>Select Branch</option>'+branchOptions('')) : branchOptions(b);
+}
+window["wlv1RegBranchSelect"]=wlv1RegBranchSelect;
 function allUsers(){let u=C.users||{};return Array.isArray(u)?u:Object.entries(u).flatMap(([role,list])=>(list||[]).map(x=>({...x,role})))}
 window["allUsers"]=allUsers;
 function staffOptions(sel=''){let users=allUsers();let list=users.filter(u=>u.role==='staff'&&(isMaster()||u.branch===user.branch||user.branch==='All'));if(!list.length&&user)list=[user];let seen=new Set();list=list.filter(u=>{let k=mob(u.mobile||u.name);if(!k||seen.has(k))return false;seen.add(k);return true});return list.map(u=>`<option value="${esc(u.mobile||u.name)}" ${String(sel||user?.mobile)==String(u.mobile)?'selected':''}>${esc(u.name||u.mobile)} - ${esc(mob(u.mobile))} (${esc(u.branch||'')})</option>`).join('')}
@@ -9329,7 +9361,7 @@ window["wlv1BranchLock"]=wlv1BranchLock;
 function registrationDesk(pref){
  pref=pref||{};
  var wlv1OwnBr=(user&&(user.role==='staff'||user.role==='doctor'));
- var br=pref.branch||(wlv1OwnBr?user.branch:'');
+ var br=wlv1RegOwnBranch()||pref.branch||(wlv1OwnBr?user.branch:'');   /* 🔴 V1110 — নিজের ব্রাঞ্চ সবার আগে */
  var addr=pref.address||'';
  var lbl=function(t,req){return '<label>'+t+(req?' <b class="rdStar">*</b>':'')+'</label>'};
  var chip=function(nm,v,txt){return '<label class="rdChip"><input type="checkbox" name="'+nm+'" value="'+esc(v)+'" onchange="this.parentNode.classList.toggle(\'on\',this.checked);rdSummary()"><span>'+esc(txt)+'</span></label>'};
@@ -9343,7 +9375,7 @@ function registrationDesk(pref){
    +'<i></i><div class="rdStep" id="rdStep3"><span>3</span>Fee &amp; Confirm</div></div>'
  +'<div class="rdBody">'
  +'<div class="card rdMain">'
-   +'<div class="regTopBranch"><select id="pBranch" class="input">'+((br==='All'||!br)?('<option value="" hidden>Select Branch</option>'+branchOptions('')):branchOptions(br))+'</select></div>'
+   +'<div class="regTopBranch"><select id="pBranch" class="input">'+wlv1RegBranchSelect(br)+'</select></div>'   /* 🔴 V1110 */
    +'<input id="pSourceFollowId" type="hidden" value="'+esc(pref.id||'')+'">'
    +'<input id="pSourceRefId" type="hidden" value="'+esc(pref.refId||'')+'">'
    +'<input id="pAddr" type="hidden" value="'+esc(addr)+'">'
@@ -9469,7 +9501,7 @@ window["rdSummary"]=rdSummary;
 function registration(pref={}){
  /* 🧾 V1023 — চওড়া কম্পিউটার-পর্দায় নতুন সাজ; ফোনে আগের ফর্মই। */
  if(typeof wlv1DeskWide==='function' && wlv1DeskWide()){ return registrationDesk(pref) }
- let wlv1OwnBr=(user&&(user.role==='staff'||user.role==='doctor'));let br=pref.branch||(wlv1OwnBr?user.branch:'');let addr=pref.address||'';page('Patient Registration',`<div class="regForm premiumReg wlv1Form"><div class="regTopBranch"><select id="pBranch" class="input">${(br==='All'||!br)?('<option value="" hidden>Select Branch</option>'+branchOptions('')):branchOptions(br)}</select></div><input id="pSourceFollowId" type="hidden" value="${esc(pref.id||'')}"><input id="pSourceRefId" type="hidden" value="${esc(pref.refId||'')}"><input id="pAddr" type="hidden" value="${esc(addr)}"><div class="regSection"><label>Mobile <b class="wlv1Star">*</b></label><input id="pMob" class="input" value="${esc(pref.mobile||'')}" inputmode="tel" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" placeholder="Enter mobile number" onblur="regMobileDupCheck(this.value)"><span id="pMobPrefix" class="mobPrefixBadge hidden">+91</span><div id="pMobDupBox"></div><input id="pEnqOrigin" type="hidden" value="${esc(pref.mobile||'')}"><!-- 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬) — ফোনের ফর্মে ক্রম: মোবাইল → First
+ let wlv1OwnBr=(user&&(user.role==='staff'||user.role==='doctor'));let br=wlv1RegOwnBranch()||pref.branch||(wlv1OwnBr?user.branch:'');   /* 🔴 V1110 — নিজের ব্রাঞ্চ সবার আগে */let addr=pref.address||'';page('Patient Registration',`<div class="regForm premiumReg wlv1Form"><div class="regTopBranch"><select id="pBranch" class="input">${wlv1RegBranchSelect(br)}</select></div><input id="pSourceFollowId" type="hidden" value="${esc(pref.id||'')}"><input id="pSourceRefId" type="hidden" value="${esc(pref.refId||'')}"><input id="pAddr" type="hidden" value="${esc(addr)}"><div class="regSection"><label>Mobile <b class="wlv1Star">*</b></label><input id="pMob" class="input" value="${esc(pref.mobile||'')}" inputmode="tel" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" placeholder="Enter mobile number" onblur="regMobileDupCheck(this.value)"><span id="pMobPrefix" class="mobPrefixBadge hidden">+91</span><div id="pMobDupBox"></div><input id="pEnqOrigin" type="hidden" value="${esc(pref.mobile||'')}"><!-- 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬) — ফোনের ফর্মে ক্রম: মোবাইল → First
      Visit Date → Alternate/Enquiry Mobile → রোগীর নাম
      (res/layout/activity_registration.xml:60-73)। ওয়েবে দুটো উল্টো ছিল।
      ⛔ ঘরের নাম (id) ও সেভের নিয়ম একটুও বদলায়নি। --><label>First Visit Date</label><div class="wlv1DateBox input"><span id="pDateShow">${wlv1Dot(today())}</span><input id="pDate" type="date" value="${today()}" max="${today()}" oninput="wlv1ShowDate('pDate','pDateShow')"></div><label>Alternate / Enquiry Mobile</label><input id="pAltMob" class="input" value="" inputmode="tel" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" onblur="regAltMobileDupCheck(this.value)"><div id="pAltMobDupBox"></div><label>Patient Name <b class="wlv1Star">*</b></label><input id="pName" class="input" value="${esc(pref.name||'')}" placeholder="Patient name" oninput="wlv1Caps(this)"><div class="regTwo"><div><label>Occupation</label><select id="pOcc" class="input"><option value="" hidden>Choose Occupation</option><option>Farmer</option><option>Housewife</option><option>Business</option><option>Service</option><option>Student</option><option>Labour</option><option>Retired</option><option>Others</option></select></div><div><label>Age</label><input id="pAge" class="input" inputmode="numeric" maxlength="3" placeholder="Age"></div></div><div class="wlv1PickRow wlv1TopGap" data-wlv1group="sex"><button type="button" class="wlv1Pick on" data-val="Male" onclick="wlv1PickOne('sex','Male','pSex')">Male</button><button type="button" class="wlv1Pick" data-val="Female" onclick="wlv1PickOne('sex','Female','pSex')">Female</button><button type="button" class="wlv1Pick" data-val="Other" onclick="wlv1PickOne('sex','Other','pSex')">Other</button></div><input id="pSex" type="hidden" value="Male"></div><div class="regSection"><div class="regSecHead">Address</div><label>Village</label><input id="pVill" class="input" oninput="wlv1Caps(this)"><label>PO</label><input id="pPO" class="input" oninput="wlv1Caps(this)"><label>PS</label><input id="pPS" class="input" oninput="wlv1Caps(this)"><label>District</label><input id="pDist" class="input" oninput="wlv1Caps(this)"><label>PIN Code</label><input id="pPin" class="input" inputmode="numeric" maxlength="6"></div><div class="regSection"><div class="regSecHead">Disease</div><div class="wlv1ChipRow"><label class="wlv1Chip2"><input type="checkbox" name="diag" value="Piles" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Piles</span></label><label class="wlv1Chip2"><input type="checkbox" name="diag" value="Fissure" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Fissure</span></label><label class="wlv1Chip2"><input type="checkbox" name="diag" value="Fistula" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Fistula</span></label><label class="wlv1Chip2"><input type="checkbox" name="diag" value="Hydrocele" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Hydrocele</span></label><label class="wlv1Chip2"><input type="checkbox" name="diag" value="Gupt Rog" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Gupt Rog</span></label><label class="wlv1Chip2"><input type="checkbox" name="diag" value="Other" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Other</span></label></div></div><div class="regSection"><div class="regSecHead">Symptoms</div><div class="wlv1ChipRow"><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Pain" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Pain</span></label><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Itching" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Itching</span></label><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Burning" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Burning</span></label><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Bleeding" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Bleeding</span></label><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Pus Discharge" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Pus Discharge</span></label><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Fluid Discharge" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Fluid Discharge</span></label><label class="wlv1Chip2"><input type="checkbox" name="symp" value="Prolapsed Lump" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Massa Bara Hua</span></label></div><textarea id="pComp" class="input wlv1TopGap" placeholder="পেশেন্ট এসে আরো কি কি সমস্যার কথা বললেন" oninput="wlv1Caps(this)"></textarea><label>Duration of Problem</label><div class="regTwo"><input id="pDuration" class="input" inputmode="numeric"><select id="pDurationUnit" class="input"><option>Days</option><option>Months</option><option>Years</option></select></div></div><div class="regSection"><div class="regSecHead">Previous Treatment History</div><div class="wlv1ChipRow"><label class="wlv1Chip2"><input type="checkbox" name="medHist" value="Previous Medication" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Previous Medication</span></label><label class="wlv1Chip2"><input type="checkbox" name="medHist" value="Previous Medical Treatment" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Previous Doctor Treatment</span></label><label class="wlv1Chip2"><input type="checkbox" name="medHist" value="Previous Surgical History" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Previous Operation History</span></label><label class="wlv1Chip2"><input type="checkbox" name="medHist" value="Previous Ayurvedic/Herbal Treatment" onchange="this.parentNode.classList.toggle('on',this.checked)"><span>Previous Ayurvedic/Herbal Treatment</span></label></div><label>Other Treatment History (Optional)</label><textarea id="pPrevTreatment" class="input" placeholder="Write any other previous treatment" oninput="wlv1Caps(this)"></textarea></div><div class="regSection"><label>Referred By</label><select id="pRef" class="input" onchange="wlv1RefByChanged()"><option>Self</option><option>Online</option><option>Offline</option><option>Dr. Visit</option><option>Old Patient</option><option>Others</option></select><div id="llRefDoctor" class="hidden"><label>Doctor / RMP Name</label><input id="pRefDocName" class="input" placeholder="Doctor / RMP name" autocomplete="off" oninput="wlv1Caps(this);wlv1RmpSuggest(this.value)"><div id="wlv1RmpSug" class="wlv1RmpSug hidden"></div><label>Doctor Mobile</label><input id="pRefDocMobile" class="input" inputmode="tel" maxlength="10" placeholder="Doctor mobile" autocomplete="off" oninput="wlv1RmpSuggest(this.value)"></div><input id="pRegTiming" type="hidden" value="${pref.timeType==='Unexpected Time'?'Unexpected Time':'Official Time'}"></div><div class="regSection"><label>Fee Amount <b class="wlv1Star">*</b></label><input id="regFee" class="input" inputmode="numeric" placeholder="Enter Registration Fee"><div class="wlv1PickRow wlv1Pick2 wlv1TopGap" data-wlv1group="paymode"><button type="button" class="wlv1Pick on" data-val="CASH" onclick="wlv1PickOne('paymode','CASH','regMode')">CASH</button><button type="button" class="wlv1Pick" data-val="ONLINE" onclick="wlv1PickOne('paymode','ONLINE','regMode')">ONLINE</button></div><input id="regMode" type="hidden" value="CASH">${pref.photo?`<img class="patientPhoto" src="${pref.photo}">`:''}${patientPhotoInputs('pPhoto')}</div><button class="fullSave" onclick="savePatient(event)">✓  Save Patient</button></div>`,wlv1DeskWide());try{wlv1RegBranchToHeader()}catch(e){}setTimeout(function(){try{wlv1BranchLock('pBranch')}catch(e){}try{wlv1PhTint('pBranch');wlv1PhTint('pOcc')}catch(e){}},0)}
@@ -9559,6 +9591,13 @@ async function savePatient(evt){
   /* 🛡️ V863 — এনকোয়ারির হুবহু একই পাহারা (ফোনেও একই)। */
   if(!wlv1OwnNumberOk(m)){ if(btn){btn.disabled=false;btn.textContent='Save'} return }
   if(!br){focusFieldFail('pBranch','Branch mandatory');return}
+  /* 🔴🔒 V1110 (TK-এর স্থায়ী নিয়ম) — শেষ পাহারা: স্টাফ/ডাক্তার নিজের ব্রাঞ্চ
+     ছাড়া অন্য কোনো ব্রাঞ্চে রেজিস্ট্রেশন করতে পারবেন না। ⛔ তালিকাতেই আর অন্য
+     ব্রাঞ্চ নেই, তবু নিয়মটা এখানেও — নইলে ভবিষ্যতে অন্য পথে ফাঁকটা ফিরত। */
+  var __ownBr=wlv1RegOwnBranch();
+  if(__ownBr && String(br).trim().toLowerCase()!==__ownBr.toLowerCase()){
+    focusFieldFail('pBranch','You can register only '+__ownBr+' patients'); return;
+  }
   if(!(regFee>0)){focusFieldFail('regFee','Registration Fee mandatory');return}
   // V167 workflow correction: enquiry duplicate is a conversion path, not a registration block.
   let sourceFollowId=$('#pSourceFollowId')?.value||'';

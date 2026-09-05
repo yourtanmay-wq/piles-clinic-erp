@@ -202,7 +202,63 @@ class RegistrationRepository(private val context: Context) {
         }
         val existingRowIdSafe = effectiveRowId
         val existingPatientIdSafe = effectivePatientId
-        val patientId = existingPatientIdSafe.ifBlank { PatientIdGenerator.generate(draft.branch, draft.date, context) }
+        /* ═══════════════════════════════════════════════════════════════
+           🔴🔒 V1110 (০৫.০৯.২০২৬, TK-রিপোর্ট — KASHAB MANDAL,
+           COB-05092026-001 অথচ branch = Jalpaiguri)।
+
+           ─── 🔴 আসল কারণ (TK-এর CSV + কোড, মেপে পাওয়া) ────────────────
+           সারিটা আগে থেকে থাকলে এখানে **পুরনো আইডিটাই রেখে দেওয়া হত**
+           (`existingPatientIdSafe`), আর **ব্রাঞ্চ বদলেছে কিনা কখনো দেখা হত না**।
+           ⇒ প্রথমবার ভুল করে Cooch Behar-এ সেভ হয়ে `COB-…` আইডি বসেছিল;
+             পরে ব্রাঞ্চ ঠিক করে (Jalpaiguri) আবার সেভ হয়েছে, কিন্তু আইডিটা
+             চিরকালের মতো `COB-` থেকে গেছে।
+
+           ─── এখন কী হয় (TK-এর স্থায়ী নিয়ম) ─────────────────────────────
+           TK: *"রেজিস্ট্রেশন কোন ব্রাঞ্চে হলো সেটাই ম্যাটার করে … টাকা পয়সা
+           সমস্ত হিসাব সেই ব্রাঞ্চের নামেই হবে"*।
+           ⇒ পুরনো আইডির ব্রাঞ্চ-সংকেত যদি **আজ যে ব্রাঞ্চে রেজিস্ট্রেশন হচ্ছে**
+             তার সঙ্গে না মেলে, তাহলে ঠিক ব্রাঞ্চের নতুন আইডি বসে।
+
+           ⛔ **শুধু তখনই, যখন আইডির তারিখটাও আজকেরই** — অর্থাৎ ভুলটা আজই
+              হয়েছে। পুরনো দিনের আইডি (রোগীর হাতে ছাপা কাগজ আছে) **কখনো**
+              বদলানো হয় না, নইলে পুরনো রসিদের সঙ্গে মিলত না।
+           ⛔ আইডি বদলালে টাকার সারির `patientCode`-ও একই সঙ্গে ঠিক করা হয়
+              (নিচে), তাই দুই জায়গায় দুরকম আইডি থেকে যেতে পারে না।
+           ⛔ নতুন আইডি বানাতে না পারলে (নেট নেই) পুরনোটাই থাকে — কিছুই ভাঙে না।
+           ═══════════════════════════════════════════════════════════════ */
+        val keptId = existingPatientIdSafe
+        val wantCode = PatientIdGenerator.branchCode(draft.branch)
+        val keptCode = keptId.substringBefore("-", "")
+        val keptDate = keptId.split("-").getOrNull(1).orEmpty()
+        val todayCode = PatientIdGenerator.dateCode(draft.date)
+        val mustRecode = keptId.isNotBlank() && keptCode.isNotBlank() &&
+            !keptCode.equals(wantCode, ignoreCase = true) && keptDate == todayCode
+        val recodedId = if (mustRecode)
+            (try { PatientIdGenerator.generate(draft.branch, draft.date, context) } catch (_: Throwable) { "" })
+        else ""
+        val patientId = when {
+            recodedId.isNotBlank() -> recodedId
+            keptId.isNotBlank()    -> keptId
+            else -> PatientIdGenerator.generate(draft.branch, draft.date, context)
+        }
+        /* 🔴 V1110 — আইডি বদলে থাকলে ওই রোগীর টাকার সারিগুলোর `patientCode`-ও
+           ঠিক করে দেওয়া হয়। ⛔ টাকার অঙ্ক · তারিখ · ব্রাঞ্চ কিছুই ছোঁয়া হয় না,
+           শুধু মানুষের-পড়ার আইডির ঘরটা। ⛔ ব্যর্থ হলে চুপচাপ — সেভ আটকায় না। */
+        if (recodedId.isNotBlank() && keptId.isNotBlank() && effectiveRowId.isNotBlank()) {
+            try {
+                Thread {
+                    try {
+                        val rows = SupabaseClient.fetchListSlimOrNull(
+                            "payments", "patientId=eq.$effectiveRowId&patientCode=eq.$keptId", 100, "id")
+                        if (rows != null) for (i in 0 until rows.length()) {
+                            val rid = rows.optJSONObject(i)?.s("id").orEmpty()
+                            if (rid.isNotBlank()) SupabaseClient.updateById(
+                                "payments", rid, org.json.JSONObject().put("patientCode", recodedId))
+                        }
+                    } catch (_: Throwable) { }
+                }.start()
+            } catch (_: Throwable) { }
+        }
         /* 🔵🔒 V516: সারির আইডি —
              · রোজকার সেভ ⇒ `existingRowIdSafe` (ফাঁকা হলে ভিতরে `stableRowId`) — আগের মতোই
              · "Different Patient" ⇒ স্টাফের বাছাইয়ে তৈরি নতুন অনন্য আইডি

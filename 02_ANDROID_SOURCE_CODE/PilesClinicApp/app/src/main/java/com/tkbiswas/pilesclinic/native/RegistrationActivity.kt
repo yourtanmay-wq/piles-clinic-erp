@@ -652,11 +652,22 @@ class RegistrationActivity : AppCompatActivity() {
             if (binding.etName.text.isNullOrBlank()) {
                 binding.etName.setText(enq.s("name"))
             }
-            val branch = enq.s("branch")
-            if (branch.isNotBlank()) {
-                val idx = branchItems.indexOf(branch)
-                if (idx >= 0) binding.spBranch.setSelection(idx)
-            }
+            /* ═══════════════════════════════════════════════════════════
+               🔴🔒 V1110 (০৫.০৯.২০২৬, TK-এর স্থায়ী নিয়ম — KASHAB MANDAL-এর
+               ঘটনার পরে): *"ইনকোয়ারি যে কোন ব্রাঞ্চের হতেই পারে, সেটা কোন
+               ব্যাপারই না। **রেজিস্ট্রেশন কোন ব্রাঞ্চে হলো সেটাই ম্যাটার করে**।
+               … জলপাইগুড়ির স্টাফ যখন রেজিস্ট্রেশন করেছে, জলপাইগুড়ির চেম্বারে
+               এসেছে পেশেন্ট — তাই অটোমেটিক জলপাইগুড়ি হতে হবে, এবং টাকা পয়সা
+               সমস্ত হিসাব জলপাইগুড়ির নামেই হবে।"*
+
+               🔴 আগে এখানে **এনকোয়ারির ব্রাঞ্চটা জোর করে বসিয়ে দেওয়া হত** —
+                  স্টাফের নিজের ব্রাঞ্চ মুছে দিয়ে, চুপচাপ, ৩-বার-চাপার তালাও
+                  না খুলিয়ে। ঠিক এই কারণেই কোচবিহারের পুরনো এনকোয়ারি থাকা
+                  রোগীর আইডি `COB-…` হয়ে গিয়েছিল।
+               ⇒ লাইনটা তুলে দেওয়া হলো। ব্রাঞ্চ এখন **সবসময় রেজিস্ট্রেশন করা
+                 স্টাফের নিজের ব্রাঞ্চ** (নিচের setupSpinners + সেভের পাহারা)।
+               ⛔ এনকোয়ারি থেকে নাম · রোগ · ঠিকানা · সময় — বাকি সব আগের মতোই আসে।
+               ═══════════════════════════════════════════════════════════ */
             /* 🩺🔒 V1000 (০৩.০৯.২০২৬) — Enquiry-তে এখন একাধিক রোগ বাছা যায়
                (TK: "একই লোকের তো দুই রকমের রোগ থাকতেই পারে"), আর একাধিক হলে
                ঘরটায় ", " দিয়ে জোড়া লেখা থাকে। আগে হুবহু এক নামে মেলানো হত,
@@ -944,7 +955,18 @@ class RegistrationActivity : AppCompatActivity() {
 
     private fun setupSpinners(user: NativeUser) {
         val ownBranchUser = user.role == "staff" || user.role == "doctor"
-        branchItems = if (ownBranchUser) branches else listOf(SELECT_BRANCH) + branches
+        /* 🔴🔒 V1110 (TK-এর স্থায়ী নিয়ম, ০৫.০৯.২০২৬): *"যে স্টাফ যে ব্রাঞ্চের,
+           শুধুমাত্র সেই ব্রাঞ্চের পেশেন্টের রেজিস্ট্রেশন করতে পারবে।"*
+           ⇒ স্টাফ/ডাক্তারের তালিকায় এখন **নিজের ব্রাঞ্চটা ছাড়া আর কিছুই নেই**,
+             তাই ভুল করেও অন্য ব্রাঞ্চ বাছা যায় না (৩ বার চেপেও নয়)।
+           ⛔ মাস্টার ও Field Officer আগের মতোই নিজে বেছে নেবেন।
+           ⛔ ব্রাঞ্চ "All" হলে (কোনো স্টাফের তা-ই থাকতে পারে) আগের তালিকাই থাকে। */
+        val lockedOwnBranch = ownBranchUser && user.branch.isNotBlank() && user.branch != "All"
+        branchItems = when {
+            lockedOwnBranch -> listOf(user.branch)
+            ownBranchUser   -> branches
+            else            -> listOf(SELECT_BRANCH) + branches
+        }
         binding.spBranch.adapter = capsAdapter(
             branchItems,
             hideFirstInList = !ownBranchUser,
@@ -974,7 +996,8 @@ class RegistrationActivity : AppCompatActivity() {
             binding.spBranch,
             "SELECT BRANCH",
             hidePlaceholder = !ownBranchUser,
-            tapsToUnlock = if (ownBranchUser) 3 else 1,
+            // 🔴 V1110 — নিজের ব্রাঞ্চে বাঁধা থাকলে খোলার কিছু নেই (একটাই নাম)।
+            tapsToUnlock = if (ownBranchUser && !lockedOwnBranch) 3 else 1,
             lockLabel = "Branch"
         )
         SpinnerPicker.attach(binding.spOccupation, "CHOOSE OCCUPATION", hidePlaceholder = true)
@@ -1073,6 +1096,19 @@ class RegistrationActivity : AppCompatActivity() {
         if (name.isBlank()) { focusError(binding.etName, "Patient name mandatory"); return }
         if (mobile.length != 10) { focusError(binding.etMobile, "Valid mobile number mandatory"); return }
         if (branch.isBlank() || branch == SELECT_BRANCH) { focusError(binding.spBranch, "Branch mandatory"); return }
+        /* 🔴🔒 V1110 (TK-এর স্থায়ী নিয়ম) — শেষ পাহারা: স্টাফ/ডাক্তার নিজের
+           ব্রাঞ্চ ছাড়া অন্য কোনো ব্রাঞ্চে রেজিস্ট্রেশন করতে পারবেন না।
+           ⛔ উপরের তালিকাতেই আর অন্য ব্রাঞ্চ নেই, তবু নিয়মটা **এখানেও** থাকা
+              দরকার — নইলে ভবিষ্যতে অন্য কোনো পথ এই পর্দা ব্যবহার করলে ফাঁকটা
+              আবার ফিরে আসবে (ঠিক এভাবেই খাতার সারি B98-এর পরেও একটা জায়গা
+              বাদ পড়ে গিয়েছিল)।
+           ⛔ মাস্টার ও Field Officer অপরিবর্তিত। */
+        if ((user.role == "staff" || user.role == "doctor") &&
+            user.branch.isNotBlank() && user.branch != "All" &&
+            !branch.equals(user.branch, ignoreCase = true)) {
+            focusError(binding.spBranch, "You can register only ${user.branch} patients")
+            return
+        }
         if (!(fee > 0)) { focusError(binding.etFee, "Registration Fee mandatory"); return }
         // 🔒 TK-ORDER (30.07.2026): "Registration Form-এ রোগের নাম বাধ্যতামূলক
         // করে দিন।" আগে Disease-এ একটাও চিপ না বাছলেও Save হয়ে যেত। এখন
