@@ -3061,33 +3061,29 @@ class PatientTimelineActivity : AppCompatActivity() {
         val box = binding.enquiryHistoryContainer
         box.removeAllViews()
 
-        // TK-DECISION (2026-07-24): default view is filtered to the CURRENT
-        // stage's own slice of the history now (supersedes the 2026-07-23
-        // "covers EVERY stage, no filtering" note below, which is now only
-        // true for Patient/Treatment stage and the Full Journey button):
-        //  - Enquiry card: naturally only has pre-Registration entries
-        //    anyway (nothing to filter).
-        //  - Visit card (followupStage == "Patient"): keeps ONLY the
-        //    Registration entry onward -- drops the earlier Enquiry-phase
-        //    calls, unless forceFullJourney (opened via the "🧭 Full
-        //    Journey" button) asks for everything.
-        //  - Patient/Treatment card (any later stage): shows everything --
-        //    it is the last stage, so "this stage's history" already means
-        //    the complete A-to-Z journey; nothing to exclude.
-        val isVisitStageForFilter = data.followupStage.equals("Patient", ignoreCase = true)
-        val list = if (forceFullJourney || !isVisitStageForFilter) {
-            data.entries
-        } else {
-            val chronologicalAll = data.entries.sortedBy { it.visitNo }
-            var registrationSeen = false
-            val kept = mutableListOf<TimelineEntry>()
-            for (e in chronologicalAll) {
-                val t = e.title.lowercase()
-                if (t.contains("registration") || t.contains("visit")) registrationSeen = true
-                if (registrationSeen) kept.add(e)
-            }
-            kept.sortedByDescending { it.visitNo }
-        }
+        /* 🟢🔒 V1118 (০৫.০৯.২০২৬, TK-নির্দেশ "হ্যাঁ করুন, সাবধানে") —
+           TK: *"কোন পেশেন্টের এনকোয়ারি ডিটেইলস দেখাচ্ছে না কেন? শুধুমাত্র রেজিস্ট্রেশন
+           থেকে শুরু হয়েছে কেন? রেজিস্ট্রেশনের আগে অনেকবার কল করা হয়েছে, সেগুলোর
+           হিস্টোরি কেন নেই? আগে তো দেখাতো"*
+
+           🔴 **কারণ (কোডে মেপে পাওয়া):** ২৪.০৭.২০২৬-এ এখানে একটা ছাঁকনি বসেছিল —
+           Visit কার্ডে (stage `Patient`) Registration-এর আগের সব সারি বাদ যেত। ছাঁকনি
+           খোলার একমাত্র চাবি ছিল "Full Journey" বোতাম, কিন্তু **ঠিক ওই একই দিনে**
+           Visit ও Enquiry কার্ড থেকে বোতামটাও তুলে দেওয়া হয়েছিল ⇒ ছাঁকনি রয়ে গেল,
+           খোলার পথটা রইল না। ⇒ **ছাঁকনিটা তুলে দেওয়া হলো** — এখন প্রতিটা কার্ডে
+           (Enquiry · Visit · Patient/Treatment) পুরো A-to-Z হিস্ট্রি দেখায়, ঠিক যেমন
+           **ওয়েবে আগে থেকেই দেখাত** (ওখানে এই ছাঁকনি কখনো বসানোই হয়নি) — দুই পর্দা এখন এক।
+
+           ⛔ ডেটায় এক অক্ষরও হাত দেওয়া হয়নি — `PatientTimelineRepository` আগেও প্রতিটা
+           `followups` সারির `history` পড়ত, এখনও পড়ে। শুধু দেখানোর ছাঁকনিটা গেল।
+           ⛔ কোনো বাড়তি ক্লাউড-কল নেই (Supabase free-plan নিরাপদ) — এই সারিগুলো আগেই
+           `data.entries`-এ এসে বসে আছে, শুধু পর্দায় আসত না।
+           ⛔ উপরের গোনার পট্টি (Enquiry Calls / Visit Calls / Payments) এই একই `list` থেকেই
+           গোনে (২৪.০৭-এর TK-সিদ্ধান্ত), তাই পট্টিতে এখন "Enquiry Calls"-ও ঠিক দেখাবে —
+           পর্দার সংখ্যা আর তালিকা একই রইল।
+           ⛔ `forceFullJourney` পতাকাটা তোলা হয়নি — Treatment Summary কার্ড ও Doctor Queue-এর
+           "Journey" বোতাম আগের মতোই চলে। */
+        val list = data.entries
 
         // 🔴 TK-নির্দেশ (04.08.2026, আলোচনার পরে -- CHECK-UP Queue-এর
         // "📜 History" বোতাম, TK একমত): প্রথমবার আসা রোগীর (আগে কখনো
