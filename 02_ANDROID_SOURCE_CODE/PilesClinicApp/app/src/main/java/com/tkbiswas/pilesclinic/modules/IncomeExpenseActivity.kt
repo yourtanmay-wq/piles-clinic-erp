@@ -373,6 +373,19 @@ class IncomeExpenseActivity : AppCompatActivity() {
             for (row in rows) {
                 val d = row.date.take(10)
                 if (d.length != 10 || d < AUTO_INCOME_FROM) continue
+                /* 🔴🔒 V1100 (০৫.০৯.২০২৬, TK-নির্দেশ: *"পুরনো তারিখের কোনো পেমেন্ট
+                   যদি খাতায় ওঠে, সেগুলি যেন আয়-ব্যয়ের খাতায় কোনো প্রভাব না ফেলে"*)
+                   — স্টাফ প্রতিনিয়ত পুরনো রোগীর নাম · নম্বর · **পুরনো টাকা** অ্যাপে
+                   তুলছেন। ওই টাকা ক্লিনিকে অনেক আগেই এসেছে, আজকের আয় নয়।
+                   ⇒ টাকার **তারিখ** যদি সেটা **অ্যাপে তোলার দিনের আগের** হয়,
+                     সেটা পুরনো টাকা তোলা — খাতায় ধরা হবে না।
+                   ⛔ আজকের/পরের দিনের সাধারণ পেমেন্ট আগের মতোই ধরা হয়।
+                   ⛔ তোলার দিনটা জানা না গেলে (পুরনো সারিতে ঘরটা ফাঁকা) কিছুই
+                      বাদ যায় না — পুরনো নিরাপদ আচরণই চলে।
+                   ⛔ Payment/Collection পর্দার সংখ্যা এতে বদলায় না — এই ছাঁকনি
+                      শুধু আয়-ব্যয়ের খাতার নিজে-বসা আয়ের জন্য। */
+                val enteredOn = row.paidAt.take(10)
+                if (enteredOn.length == 10 && d < enteredOn) continue
                 if (isRefunded(row.mobile)) continue
                 val cur = out[d] ?: Pair(0.0, 0.0)
                 out[d] = Pair(cur.first + row.cashAmount, cur.second + row.onlineAmount)

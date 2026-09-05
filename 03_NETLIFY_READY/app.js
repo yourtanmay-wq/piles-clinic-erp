@@ -3515,8 +3515,19 @@ function wlv1AutoIncomeForDay(dateISO,branch){
     if(d.length!==10 || d<WLV1_AUTO_INCOME_FROM) return null;
     var all=(typeof branch==='string' && branch && branch!=='__all' && branch!=='All Branches' && branch!=='All');
     function inBr(x){ return !all || String(x&&x.branch||'')===String(branch) }
+    /* \u{1F534}\u{1F512} V1100 (\u09e6\u09eb.\u09e6\u09ef.\u09e8\u09e6\u09e8\u09ec, TK-\u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6) \u2014 \u09aa\u09c1\u09b0\u09a8\u09cb \u09a4\u09be\u09b0\u09bf\u0996\u09c7\u09b0
+       \u099f\u09be\u0995\u09be \u09aa\u09b0\u09c7 \u0985\u09cd\u09af\u09be\u09aa\u09c7 \u09a4\u09c1\u09b2\u09b2\u09c7 \u09b8\u09c7\u099f\u09be \u0986\u09df-\u09ac\u09cd\u09af\u09df\u09c7\u09b0 \u0996\u09be\u09a4\u09be\u09df \u09a7\u09b0\u09be \u09b9\u09ac\u09c7 \u09a8\u09be
+       (\u099f\u09be\u0995\u09be\u09b0 \u09a4\u09be\u09b0\u09bf\u0996 < \u09a4\u09cb\u09b2\u09be\u09b0 \u09a6\u09bf\u09a8)\u0964 \u09ab\u09cb\u09a8\u09c7\u09b0 `IncomeExpenseActivity`-\u098f\u09b0 \u09b9\u09c1\u09ac\u09b9\u09c1 \u098f\u0995\u0987 \u09a8\u09bf\u09df\u09ae\u0964
+       \u26d4 \u09a4\u09cb\u09b2\u09be\u09b0 \u09a6\u09bf\u09a8 \u099c\u09be\u09a8\u09be \u09a8\u09be \u0997\u09c7\u09b2\u09c7 \u0995\u09bf\u099b\u09c1\u0987 \u09ac\u09be\u09a6 \u09af\u09be\u09df \u09a8\u09be \u00b7 Payment \u09aa\u09b0\u09cd\u09a6\u09be \u0985\u099f\u09c1\u099f\u0964 */
+    function wlv1EnteredDay(x){
+      var t=String((x&&(x.paidAt||x.createdAt))||'').slice(0,10);
+      return /^\d{4}-\d{2}-\d{2}$/.test(t)?t:'';
+    }
     var rows=collectionRows().filter(function(x){
-      return String(x&&x.date||'').slice(0,10)===d && inBr(x);
+      if(!(String(x&&x.date||'').slice(0,10)===d && inBr(x))) return false;
+      var ed=wlv1EnteredDay(x);
+      if(ed && d<ed) return false;
+      return true;
     });
     var cash=0, online=0;
     rows.forEach(function(x){
