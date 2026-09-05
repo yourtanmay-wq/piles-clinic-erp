@@ -374,6 +374,30 @@ class RegistrationRepository(private val context: Context) {
                     localStore.upsertFollowUp(visitFollowUpRow, "SYNCED")
                     localStore.upsertPatient(patientRow, "SYNCED")
                 }
+                /* ═══════════════════════════════════════════════════════════
+                   🔴🔒 V1101 (০৫.০৯.২০২৬) — TK: *"রেজিস্ট্রেশন নেওয়ার সময়
+                   ভিজিট ফি বাধ্যতামূলক, তাহলে আমার কাছে Visit Fee Missing
+                   নোটিফিকেশন আসবেই বা কেন"* — কথাটা ঠিক। সারানোর কাজটা
+                   মালিকের নয়, **অ্যাপের**।
+
+                   ⇒ সেভের পরে অ্যাপ নিজেই মিলিয়ে দেখে ফি-র সারিটা সত্যিই
+                     ক্লাউডে বসেছে কিনা। না বসলে সারিটা জমা-ঘরে (PendingVisitFeeStore)
+                     রেখে দেওয়া হয় — লাইন ফিরলে নিজে থেকেই বসে যায়।
+
+                   ⛔ **দুবার কাটার পথ নেই:** বসানোর ঠিক আগে প্রতিবার আবার
+                      যাচাই হয়; আগে থেকে ফি থাকলে সারিটা চুপচাপ বাদ যায়।
+                      সারির আইডিও একটাই, তাই একই আইডিতেই বসে (upsert)।
+                   ⛔ যাচাই করা না গেলে (নেট নেই) সারিটা জমাই থাকে — হারায় না।
+                   ⛔ টাকার অঙ্ক কখনো আন্দাজে বানানো হয় না — স্টাফের লেখা
+                      অঙ্কটাই, সেভের মুহূর্তের সেই একই সারি।
+                   ═══════════════════════════════════════════════════════════ */
+                if (paymentRow != null) try {
+                    val pid = patientRow.s("id")
+                    val code = patientRow.s("patientId")
+                    if (PendingVisitFeeStore.visitFeeStatus(pid, code) != PendingVisitFeeStore.FEE_TAKEN) {
+                        PendingVisitFeeStore.hold(context, paymentRow)
+                    }
+                } catch (_: Throwable) { }
             } catch (_: Throwable) { }
         }.start()
         return patientId
