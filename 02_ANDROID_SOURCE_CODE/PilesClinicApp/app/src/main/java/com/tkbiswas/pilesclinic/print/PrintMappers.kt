@@ -81,6 +81,9 @@ object PrintMappers {
             it.frequency.ifBlank { com.tkbiswas.pilesclinic.clinical.ClinicalRepository.rxWhenFor(it.name) }.ifBlank { "-" }
         }
         val rxDuration = if (medicines.isEmpty()) null else medicines.map { it.duration.ifBlank { "-" } }
+        /* 💊🔒 V723 — ডাক্তারের লেখা Instruction (যেমন "WITH LUKEWARM WATER")
+           এখন ছাপাতেও যায়; নামের নিচে ছোট হরফে বসে। ⛔ ফাঁকা হলে কিছুই বসে না। */
+        val rxInstructions = if (medicines.isEmpty()) null else medicines.map { it.instructions.trim() }
         return PrintDocumentModel(
             documentTitle = "Prescription",
             branchName = RoleSession.currentPatientBranch,
@@ -92,7 +95,7 @@ object PrintMappers {
             // TK FIX (2026-07-15): section heading was "Rx" while the PDF already
             // draws a large "℞" rx-symbol at the same spot -> looked like "Rx" printed
             // twice. Heading removed; the ℞ symbol alone marks the medicine list.
-            sections = listOf(PrintSection(null, lines, rxTypes, rxNames, rxDosage, rxFrequency, rxDuration)),
+            sections = listOf(PrintSection(null, lines, rxTypes, rxNames, rxDosage, rxFrequency, rxDuration, rxInstructions)),   // 💊 V723
             qrPayload = "PILESCLINIC|RX|${RoleSession.currentPatientId}|${System.currentTimeMillis()}",
             patientAddress = RoleSession.currentPatientAddress,
             patientAgeSex = patientAgeSex(),
@@ -105,7 +108,9 @@ object PrintMappers {
         )
     }
 
-    fun medicineSlip(): PrintDocumentModel {
+    /** 🖨️🔒 V833 — `context` **ঐচ্ছিক** (ডিফল্ট null) ⇒ পুরনো কোনো ডাক ভাঙে না;
+     *  না দিলে বাঁ কলাম আগের মতোই ফাঁকা যায়। */
+    fun medicineSlip(context: android.content.Context? = null): PrintDocumentModel {
         val medicines = ClinicalRepository.currentSlip
         val lines = if (medicines.isEmpty()) {
             listOf("No medicines in the current slip.")
@@ -129,6 +134,9 @@ object PrintMappers {
             it.frequency.ifBlank { com.tkbiswas.pilesclinic.clinical.ClinicalRepository.rxWhenFor(it.name) }.ifBlank { "-" }
         }
         val rxDuration = if (medicines.isEmpty()) null else medicines.map { it.duration.ifBlank { "-" } }
+        /* 💊🔒 V723 — ডাক্তারের লেখা Instruction (যেমন "WITH LUKEWARM WATER")
+           এখন ছাপাতেও যায়; নামের নিচে ছোট হরফে বসে। ⛔ ফাঁকা হলে কিছুই বসে না। */
+        val rxInstructions = if (medicines.isEmpty()) null else medicines.map { it.instructions.trim() }
         return PrintDocumentModel(
             documentTitle = "Medicine Slip",
             branchName = RoleSession.currentPatientBranch,
@@ -137,12 +145,20 @@ object PrintMappers {
             // কোডটাই (থাকলে) — QR-এ raw আইডিই থাকছে (কিছু ভাঙে না)।
             patientId = RoleSession.displayId(),
             dateLabel = now(),
-            sections = listOf(PrintSection(null, lines, rxTypes, rxNames, rxDosage, rxFrequency, rxDuration)),
+            sections = listOf(PrintSection(null, lines, rxTypes, rxNames, rxDosage, rxFrequency, rxDuration, rxInstructions)),   // 💊 V723
             qrPayload = "PILESCLINIC|SLIP|${RoleSession.currentPatientId}|${System.currentTimeMillis()}",
             footerNote = "Please follow dosage exactly as advised by the doctor.",
             patientAddress = RoleSession.currentPatientAddress,
             patientAgeSex = patientAgeSex(),
             patientDisease = RoleSession.currentPatientDisease,
+            /* 🖨️🔒 V833 (TK-নির্দেশ) — Medicine Slip-এও এখন বাঁ কলামে
+               DISEASE · SYMPTOMS · DURATION · CHIEF COMPLAINT, ঠিক
+               Prescription-এর মতোই। ⛔ ঘরগুলোর তথ্য **আগে থেকেই জমা**
+               (ডাক্তারের চেক-আপ থেকে `syncFromCloud`), তাই নতুন কোনো
+               ক্লাউড-পড়া লাগেনি — Egress বাড়ে না। */
+            complaintHistory = if (context != null)
+                com.tkbiswas.pilesclinic.clinical.PrescriptionOptionsStore.printLinesForSlip(context)
+            else emptyList(),
             patientMobile = RoleSession.currentPatientMobile
         )
     }

@@ -181,18 +181,18 @@
             android:id="@+id/btnCall"
             android:layout_width="0dp"
             android:layout_weight="1"
-            android:layout_height="38dp"
+            android:layout_height="46dp"
             android:layout_marginEnd="6dp"
             android:background="@drawable/bg_btn_navy"
             app:backgroundTint="#7A3FF2"
             android:textColor="@color/white"
             android:textStyle="bold"
             android:textAllCaps="false"
-            android:singleLine="true"
-            android:ellipsize="end"
-            android:textSize="12.5sp"
+            android:gravity="center"
+            android:lineSpacingExtra="-2sp"
+            android:textSize="11sp"
             android:paddingHorizontal="2dp"
-            android:text="History" />
+            android:text="Checkup\nHistory" />
 
         <!-- TK-REQUESTED (2026-07-22): was "💬 WhatsApp" — replaced with
              Report Card (same teal used for that action inside Take
@@ -202,7 +202,7 @@
             android:id="@+id/btnWhatsApp"
             android:layout_width="0dp"
             android:layout_weight="1"
-            android:layout_height="38dp"
+            android:layout_height="46dp"
             android:layout_marginEnd="6dp"
             android:background="@drawable/bg_btn_navy"
             app:backgroundTint="#0E7C7B"
@@ -219,7 +219,7 @@
             android:id="@+id/btnPayment"
             android:layout_width="0dp"
             android:layout_weight="1"
-            android:layout_height="38dp"
+            android:layout_height="46dp"
             android:layout_marginEnd="6dp"
             android:background="@drawable/bg_btn_green"
             app:backgroundTint="#C98A1E"
@@ -240,7 +240,7 @@
             android:id="@+id/btnTakeAction"
             android:layout_width="0dp"
             android:layout_weight="1"
-            android:layout_height="38dp"
+            android:layout_height="46dp"
             android:background="@drawable/bg_btn_navy"
             app:backgroundTint="#10223A"
             android:textColor="@color/white"
@@ -300,12 +300,30 @@
             android:layout_width="0dp"
             android:layout_weight="1"
             android:layout_height="wrap_content"
+            android:layout_marginEnd="6dp"
             android:orientation="vertical"
             android:gravity="center"
             android:background="@drawable/bg_summary_chip"
             android:paddingVertical="8dp">
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Due" android:textSize="8.5sp" android:textColor="#8A97AB" />
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:id="@+id/tvChipDue" android:text="—" android:textStyle="bold" android:textSize="12.5sp" android:textColor="#B42318" android:layout_marginTop="2dp" />
+        </LinearLayout>
+
+        <!-- 🏷️ TK-APPROVED (03.09.2026): the Discount box. Same "a box whose
+             amount is zero is not shown at all" rule as the three above.
+             When no discount was ever given this box is GONE and the other
+             three sit exactly as they always did. -->
+        <LinearLayout
+            android:id="@+id/boxDiscount"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:background="@drawable/bg_summary_chip"
+            android:paddingVertical="8dp">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Discount" android:textSize="8.5sp" android:textColor="#8A97AB" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:id="@+id/tvChipDiscount" android:text="—" android:textStyle="bold" android:textSize="12.5sp" android:textColor="#0B7A34" android:layout_marginTop="2dp" />
         </LinearLayout>
     </LinearLayout>
 

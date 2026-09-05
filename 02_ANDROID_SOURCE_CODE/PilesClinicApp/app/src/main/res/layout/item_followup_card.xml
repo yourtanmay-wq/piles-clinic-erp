@@ -12,7 +12,18 @@
   Middle text is nudged slightly right (main marginStart) so it sits between
   the photo and the right slot. Patient ID never breaks (single line).
 -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <!-- 🟢🔒 V694 (২৬.০৮.২০২৬, TK-নির্দেশ ছবিসহ — "followup Card এ যেমন চেহারা
+         ঠিক তেমন করে দিন") — V648-এর লাল সিরিয়াল ব্যাজটা এখানে FrameLayout-এর
+         **প্রথম** সন্তান হিসেবে ভাসিয়ে রাখা ছিল, আর তার পরেই আসত কার্ডের
+         নিরেট সাদা ব্যাকগ্রাউন্ড — তাই ব্যাজটা **কার্ডের নিচে চাপা পড়ে যেত,
+         পর্দায় কোনোদিন দেখাই যায়নি**। এখন সেটা নামের ঠিক বাঁ পাশে বসানো
+         হলো (নিচে `llNameRow`), হুবহু আসল Follow-up কার্ডের মতো। -->
+
+    <LinearLayout
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
@@ -44,10 +55,17 @@
                 android:orientation="vertical"
                 android:gravity="center">
 
+                <!-- 🎨🔒 V882 (৩০.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত):
+                     TK: *"Wi-Fi signal তার নিচে তারিখটা কেটে গেল কেন — ওয়াইফাই
+                     সিগনাল সামান্য একটু উপরে তুলুন বা সাইজে ছোট করুন"*।
+                     বাঁ দিকের কলামটা ডান দিকের চেয়ে লম্বা হয়ে যেত, তাই নিচের
+                     তারিখটা কেটে যেত। সিগন্যালের উচ্চতা ৪০dp → ৩৪dp আর নিচের
+                     ফাঁক ৭dp → ৩dp — মোট ১০dp জায়গা খালি হলো, তারিখ পুরো বসে।
+                     ⛔ কার্ডের আর কিছুই বদলায়নি — লেখা · রং · মাপ সব একই। -->
                 <ImageView
                     android:id="@+id/ivWifiSignal"
                     android:layout_width="48dp"
-                    android:layout_height="40dp"
+                    android:layout_height="34dp"
                     android:contentDescription="Enquiry calls: 0 of 5"
                     android:scaleType="fitCenter"
                     android:src="@drawable/ic_wifi_calls_0" />
@@ -56,7 +74,7 @@
                     android:id="@+id/tvSignalLabel"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="7dp"
+                    android:layout_marginTop="3dp"
                     android:text="Enquiry"
                     android:textSize="8.5sp"
                     android:textStyle="bold"
@@ -99,14 +117,18 @@
                 android:gravity="center"
                 android:visibility="gone">
 
+                <!-- 🟢🔒🔒 V649 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবিসহ — "Follow-up
+                     সেকশনের মতনই চেহারা হতে হবে") — আসল Follow-up কার্ডে
+                     কোনো ছবি/অ্যাভাটার-বাক্সই নেই (TK-এর নিজের ছবিতে
+                     নিশ্চিত)। ছবি ইচ্ছাকৃতভাবে আনা হয় না (ফ্রি-প্ল্যানে
+                     এগ্রেস বাঁচাতে, TK-অনুমোদিত), তাই একটা ফাঁকা ধূসর
+                     "মানুষ-আইকন" বাক্স দেখানো বিভ্রান্তিকর ও আসল কার্ডের
+                     সাথে না-মেলা — তাই পুরোপুরি সরানো হলো। -->
                 <TextView
                     android:id="@+id/tvAvatar"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
-                    android:gravity="center"
-                    android:background="@drawable/bg_avatar_square"
-                    android:text="👤"
-                    android:textSize="23sp" />
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:visibility="gone" />
 
                 <TextView
                     android:id="@+id/tvVisitedPill"
@@ -155,27 +177,62 @@
                     android:layout_weight="1"
                     android:orientation="vertical">
 
-                    <TextView
-                        android:id="@+id/tvName"
+                    <!-- 🟢🔒 V694 — আসল কার্ডের `nameRow`-এর হুবহু নকল:
+                         লাল সিরিয়াল ব্যাজ, ৯dp ফাঁক, তারপর নাম+মোবাইলের
+                         নিজের কলাম (দুটোরই বাঁ প্রান্ত এক জায়গায়)।
+                         মাপও আসল কার্ডের মতো — নাম 16sp, মোবাইল 12.5sp। -->
+                    <LinearLayout
+                        android:id="@+id/llNameRow"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="👤 Patient Name"
-                        android:textSize="15sp"
-                        android:textStyle="bold"
-                        android:maxLines="1"
-                        android:ellipsize="end"
-                        android:textColor="#10223A" />
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
 
-                    <TextView
-                        android:id="@+id/tvMobile"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:text="📞 9999999999"
-                        android:maxLines="1"
-                        android:ellipsize="end"
-                        android:textSize="12sp"
-                        android:textColor="#5B6B81" />
+                        <TextView
+                            android:id="@+id/tvFuSerial"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="9dp"
+                            android:minWidth="24dp"
+                            android:gravity="center"
+                            android:background="@drawable/bg_serial_red"
+                            android:paddingHorizontal="6dp"
+                            android:paddingVertical="3dp"
+                            android:text="1"
+                            android:maxLines="1"
+                            android:textColor="#FFFFFF"
+                            android:textStyle="bold"
+                            android:textSize="11sp" />
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:id="@+id/tvName"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Patient Name"
+                                android:textSize="16sp"
+                                android:textStyle="bold"
+                                android:maxLines="1"
+                                android:ellipsize="end"
+                                android:textColor="#10223A" />
+
+                            <TextView
+                                android:id="@+id/tvMobile"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="3dp"
+                                android:text="📞 9999999999"
+                                android:maxLines="1"
+                                android:ellipsize="end"
+                                android:textSize="12.5sp"
+                                android:textColor="#5B6B81" />
+                        </LinearLayout>
+                    </LinearLayout>
 
                     <LinearLayout
                         android:layout_width="wrap_content"
@@ -222,6 +279,45 @@
                             android:textStyle="bold"
                             android:textColor="@color/white" />
                     </LinearLayout>
+
+                    <!-- 🟢🔒 V694 — Visit/Patient কার্ডে VISITED/PATIENT পিল ও
+                         রোগীর আইডি এখন এখানে, ট্যাগের ঠিক নিচে নিজের সারিতে —
+                         হুবহু আসল Follow-up কার্ডের `idRow`-এর মতো। আগে এগুলো
+                         বাঁদিকের ৬২dp কলামে বসত, তাই নাম-মোবাইল ডানে সরে গিয়ে
+                         পর্দাটা আসল কার্ডের চেয়ে আলাদা দেখাত। Enquiry-তে এই
+                         সারি থাকে না (আসল কার্ডেও নেই)। -->
+                    <LinearLayout
+                        android:id="@+id/llIdRow"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:visibility="gone">
+
+                        <TextView
+                            android:id="@+id/tvStatusPill"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:background="@drawable/bg_visited_pill"
+                            android:paddingHorizontal="9dp"
+                            android:paddingVertical="3dp"
+                            android:text="PATIENT"
+                            android:textSize="10sp"
+                            android:textStyle="bold"
+                            android:textColor="#FFFFFF" />
+
+                        <TextView
+                            android:id="@+id/tvIdOnRow"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:maxLines="1"
+                            android:text="FLK-00000000-000"
+                            android:textSize="10sp"
+                            android:textStyle="bold"
+                            android:textColor="#10223A" />
+                    </LinearLayout>
                 </LinearLayout>
 
                 <!-- Right slot: badge / Visit-Advance / Prescription+ring -->
@@ -267,54 +363,91 @@
                         android:gravity="center_horizontal"
                         android:visibility="gone">
 
+                        <!-- 🔴🔒 V683 (২৫.০৮.২০২৬, TK-লাইভ-টেস্ট রিপোর্ট, ছবি
+                             মিলিয়ে যাচাই — "ফলোআপ কার্ডের থেকে এগুলো কেন
+                             আলাদা") — আসল কারণ: এই আলাদা FollowUpAdapter-এর
+                             XML সবসময় FollowUpActivity.buildFollowCard()-এর
+                             থেকে আলাদা টেমপ্লেট ছিল (V648/V649-এ আংশিক
+                             মেলানো হয়েছিল, ring/Bill-Due-pill/uppercase বাদ
+                             থেকে গিয়েছিল)। এখন হুবহু আসল কার্ডের মতোই:
+                             PRESCRIPTION বড় হাতের অক্ষরে + bg_chip_blue। -->
                         <TextView
                             android:id="@+id/tvPrescription"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:background="@drawable/bg_chip_blue"
-                            android:paddingHorizontal="6dp"
-                            android:paddingVertical="2dp"
-                            android:text="Prescription"
-                            android:textSize="9sp"
+                            android:paddingHorizontal="8dp"
+                            android:paddingVertical="3dp"
+                            android:text="PRESCRIPTION"
+                            android:textSize="9.5sp"
                             android:textStyle="bold"
                             android:textColor="#1067D8" />
 
-                        <TextView
-                            android:id="@+id/tvPayPct"
+                        <!-- V683 — সলিড চাকতির বদলে আসল কার্ডের PaymentRingView
+                             (প্রমাণিত, ঝুঁকিহীন — শুধু এখানেও বসানো হলো)। -->
+                        <com.tkbiswas.pilesclinic.ui.PaymentRingView
+                            android:id="@+id/paymentRing"
                             android:layout_width="46dp"
                             android:layout_height="46dp"
-                            android:layout_marginTop="4dp"
-                            android:gravity="center"
-                            android:background="@drawable/bg_circle_gradient"
-                            android:text="0%"
-                            android:textStyle="bold"
-                            android:textSize="11sp"
-                            android:textColor="@color/white" />
+                            android:layout_marginTop="6dp" />
 
-                        <TextView
-                            android:id="@+id/tvBillDue"
+                        <!-- V683 — আসল কার্ডের মতো আলাদা রঙিন Bill/Due পিল
+                             (আগে একটাই প্লেইন "0 / 0" লেখা ছিল)। -->
+                        <LinearLayout
+                            android:id="@+id/llBillDue"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="3dp"
-                            android:gravity="center"
-                            android:text="0 / 0"
-                            android:textSize="8.5sp"
-                            android:textStyle="bold"
-                            android:textColor="#475467" />
+                            android:orientation="horizontal"
+                            android:layout_marginTop="4dp"
+                            android:gravity="center">
+
+                            <TextView
+                                android:id="@+id/tvBillPill"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:gravity="center"
+                                android:paddingHorizontal="5dp"
+                                android:paddingVertical="3dp"
+                                android:text="Bill\n₹0"
+                                android:textSize="8.3sp"
+                                android:textStyle="bold"
+                                android:textColor="#0B8F3C"
+                                android:background="@drawable/bg_pill_bill_green" />
+
+                            <TextView
+                                android:id="@+id/tvDuePill"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="4dp"
+                                android:gravity="center"
+                                android:paddingHorizontal="5dp"
+                                android:paddingVertical="3dp"
+                                android:text="Due\n₹0"
+                                android:textSize="8.3sp"
+                                android:textStyle="bold"
+                                android:textColor="#D92D20"
+                                android:background="@drawable/bg_pill_due_red" />
+                        </LinearLayout>
+
+                        <!-- V683 — পুরনো tvBillDue আর দেখানো হয় না (উপরের দুই
+                             পিল দিয়ে বদলানো হলো), কিন্তু id মোছা হয়নি — কোনো
+                             পুরনো কোড এই id খুঁজলে যেন ক্র্যাশ না করে। -->
+                        <TextView
+                            android:id="@+id/tvBillDue"
+                            android:layout_width="0dp"
+                            android:layout_height="0dp"
+                            android:visibility="gone" />
                     </LinearLayout>
                 </LinearLayout>
             </LinearLayout>
 
-            <TextView
-                android:id="@+id/tvNextFollow"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:singleLine="true"
-                android:ellipsize="end"
-                android:text=""
-                android:textSize="12sp"
-                android:textColor="#344054" />
+            <!-- 🟢🔒🔒 V649 (২৫.০৮.২০২৬, TK-নির্দেশ — "আরো ভালোভাবে যাচাই
+                 করুন গভীরে গিয়ে") — আসল Follow-up কার্ডে "LAST CALL...
+                 NEXT CALL..." লাইনটা রিমার্ক-বাক্সের **ভেতরে**, উপরে থাকে —
+                 এই আলাদা FollowUpAdapter-এ এই লাইনটা কখনো ছিলই না (শুধু
+                 নিচের ফাঁকা "Next Follow-up" লাইন ছিল, ভুল জায়গায়/ভুল
+                 লেখায়)। এখন সেই ঘরটাই বাদ, নিচের রিমার্ক-বাক্সের ভেতরেই
+                 সঠিক জায়গায় বসানো হলো। -->
 
         </LinearLayout>
     </LinearLayout>
@@ -326,73 +459,120 @@
          the full width exactly like the button row (this is how the RMP /
          Dr. Visit card already looks). Same id, same colours, same text,
          same triple.tap edit . only its width/position changed. -->
-    <TextView
-        android:id="@+id/tvRemark"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:orientation="vertical"
         android:layout_marginTop="6dp"
         android:background="@drawable/bg_remark_dashed"
-        android:padding="7dp"
-        android:text="—"
-        android:textSize="11.5sp"
-        android:textColor="#10223A" />
+        android:padding="7dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/tvLastCall"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="LAST CALL —"
+                android:textSize="10.5sp"
+                android:textStyle="bold"
+                android:textColor="#344054" />
+
+            <TextView
+                android:id="@+id/tvNextFollow"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="NEXT CALL —"
+                android:textSize="10.5sp"
+                android:textStyle="bold"
+                android:textColor="#344054" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginVertical="4dp"
+            android:background="#D8E4F2" />
+
+        <TextView
+            android:id="@+id/tvRemark"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="—"
+            android:textSize="11.5sp"
+            android:textColor="#10223A" />
+    </LinearLayout>
 
     <!-- BOTTOM ROW: 4 buttons, FULL WIDTH -->
+    <!-- 🟢🔒🔒 V648 (২৫.০৮.২০২৬, TK-রিপোর্ট, ছবিসহ — "Navy blue কালার হবে না")
+         — **আসল কারণ (কোড ধরে যাচাই):** এই চারটে `<Button>` উইজেট (নিচে,
+         আগে) অ্যাপের থিমের `colorPrimary` (#0F2748 — গাঢ় নেভি নীল) দিয়ে
+         স্বয়ংক্রিয়ভাবে রং হয়ে যাচ্ছিল (Material থিমের ডিফল্ট বোতাম-স্টাইল
+         `android:background`-এর নিজের সবুজ/নীল/বেগুনি রং ঢেকে দিচ্ছিল) —
+         `item_draft_card.xml`-এর প্রমাণিতভাবে-কাজ-করা একই বোতাম-সারি
+         `<TextView>` ব্যবহার করে (Button না), যেটা এই থিম-ওভাররাইডের
+         শিকার হয় না। এখানেও ঠিক সেই একই, প্রমাণিত প্যাটার্নে বদলানো হলো —
+         রং/আইকন/আকার এক অক্ষরও বদলায়নি, শুধু widget-এর ধরন। ⛔ ক্লিক-লজিক
+         (FollowUpAdapter.kt-এর setOnClickListener) TextView-তেও হুবহু
+         একইভাবে কাজ করে, কিছু ভাঙে না। -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="7dp"
         android:orientation="horizontal">
 
-        <Button
+        <TextView
             android:id="@+id/btnCall"
             android:layout_width="0dp"
             android:layout_height="32dp"
             android:layout_weight="1"
             android:layout_marginEnd="5dp"
+            android:gravity="center"
             android:background="@drawable/bg_action_call"
             android:text="📞"
             android:textSize="14sp"
-            android:padding="0dp"
-            android:insetTop="0dp"
-            android:insetBottom="0dp" />
+            android:textColor="#FFFFFF" />
 
-        <Button
+        <TextView
             android:id="@+id/btnWhatsApp"
             android:layout_width="0dp"
             android:layout_height="32dp"
             android:layout_weight="1"
             android:layout_marginEnd="5dp"
+            android:gravity="center"
             android:background="@drawable/bg_action_whatsapp"
             android:text="💬"
             android:textSize="14sp"
-            android:padding="0dp"
-            android:insetTop="0dp"
-            android:insetBottom="0dp" />
+            android:textColor="#FFFFFF" />
 
-        <Button
+        <TextView
             android:id="@+id/btnRemark"
             android:layout_width="0dp"
             android:layout_height="32dp"
             android:layout_weight="1"
             android:layout_marginEnd="5dp"
+            android:gravity="center"
             android:background="@drawable/bg_action_view"
             android:text="👁"
             android:textSize="14sp"
-            android:padding="0dp"
-            android:insetTop="0dp"
-            android:insetBottom="0dp" />
+            android:textColor="#FFFFFF" />
 
-        <Button
+        <!-- V683 — আসল কার্ডে তীর-বোতাম বেগুনি না, নীল (bg_action_view, eye
+             বোতামের মতোই একই রং)। -->
+        <TextView
             android:id="@+id/btnNextFollow"
             android:layout_width="0dp"
             android:layout_height="32dp"
             android:layout_weight="1"
-            android:background="@drawable/bg_action_next"
+            android:gravity="center"
+            android:background="@drawable/bg_action_view"
             android:text="➜"
             android:textSize="14sp"
-            android:padding="0dp"
-            android:insetTop="0dp"
-            android:insetBottom="0dp" />
+            android:textColor="#FFFFFF" />
     </LinearLayout>
-</LinearLayout>
+    </LinearLayout>
+</FrameLayout>

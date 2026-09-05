@@ -1,7 +1,5 @@
 package com.tkbiswas.pilesclinic.native
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -58,6 +56,7 @@ class DialerActivity : AppCompatActivity() {
     private var contactsQuery = ""
     private var lastCallRows: List<BranchSimHelper.CallLogRow> = emptyList()
     private var lastMatches: Map<String, DialerRepository.MatchedContact> = emptyMap()
+    private var lastRemarks: Map<String, String> = emptyMap()   // 🟢🔒 V605
     private var lastContacts: List<FollowUpItem> = emptyList()
     private var lastAddressTags: Map<String, String> = emptyMap()
 
@@ -191,9 +190,6 @@ class DialerActivity : AppCompatActivity() {
     // হচ্ছে..." দেখানো হয়, নতুন তালিকা এলে সেটাই বসে।
     private fun switchTab(tab: String) {
         currentTab = tab
-        listContainer.removeAllViews()
-        tvEmpty.visibility = View.VISIBLE
-        tvEmpty.text = "Loading..."
         val activeColor = "#0B2B59"
         val inactiveColor = "#6B7280"
         tabAll.setTextColor(android.graphics.Color.parseColor(if (tab == "all") "#FFFFFF" else inactiveColor))
@@ -211,6 +207,39 @@ class DialerActivity : AppCompatActivity() {
             keypadSheet.visibility = View.GONE
             fabKeypad.visibility = View.VISIBLE
         }
+        // 🟢🔒 V604 (২৪.০৮.২০২৬, TK-নির্দেশ — "ট্যাব বদলালে ডেটা সাথে সাথে
+        // আসতে হবে, তবে ভুল ডেটা যেন না থাকে, লোডিং সময় না লাগে")।
+        //
+        // B490 (06.08.2026)-এ এই একই কারণে সবসময় তালিকা মুছে "Loading..."
+        // দেখানো হতো — তখনকার আসল সমস্যা ছিল **ভুল ট্যাবের ডেটা** দেখা
+        // যাওয়া (All-এর তালিকা এক মুহূর্তের জন্য Missed-এ দেখাত)।
+        //
+        // এখন যাচাই করে ধরা পড়ল: All ও Missed **একই** ডেটা (`lastCallRows`)
+        // থেকে শুধু আলাদাভাবে ছাঁকা হয় — তাই নতুন করে টানার দরকারই নেই,
+        // `renderCallLog()` সবসময় `currentTab` অনুযায়ী সঠিক ছাঁকনি দেয়,
+        // ভুল ট্যাবের ডেটা দেখানোর কোনো পথ নেই। আর Contacts ট্যাবের নিজস্ব
+        // তাৎক্ষণিক ক্যাশ (B502, `lastContacts`) আগে থেকেই আছে।
+        //
+        // ⇒ যে তথ্য এই মুহূর্তেই মজুত আছে (এই সেশনে অন্তত একবার লোড হয়ে
+        // গেছে), সেটা **সঙ্গে সঙ্গে, সঠিক ট্যাবের জন্যই** দেখানো হয় —
+        // "Loading..." শুধু তখনই দেখা যাবে যখন সেই নির্দিষ্ট ট্যাব এই
+        // সেশনে এখনো একবারও লোড হয়নি (যেমন অ্যাপ খোলার পরে প্রথমবার)।
+        // পিছনে গিয়ে হালনাগাদ টানাও আগের মতোই চলে (`refreshCurrentTab()`),
+        // তাই ডেটা কখনো বাসি থেকে যায় না।
+        val alreadyHaveCallLog = lastCallRows.isNotEmpty()
+        val alreadyHaveContacts = lastContacts.isNotEmpty()
+        val instant = when (tab) {
+            "all", "missed" -> alreadyHaveCallLog
+            "contacts" -> alreadyHaveContacts
+            else -> false
+        }
+        if (instant) {
+            renderCurrentTab()
+        } else {
+            listContainer.removeAllViews()
+            tvEmpty.visibility = View.VISIBLE
+            tvEmpty.text = "Loading..."
+        }
         refreshCurrentTab()
     }
 
@@ -226,7 +255,7 @@ class DialerActivity : AppCompatActivity() {
     private fun maybeAskWhichSimIsBranch(then: () -> Unit) {
         if (BranchSimHelper.hasGenuinelyChosenSim(this)) { then(); return } // 🔴🔒 B509
         if (BranchSimHelper.hasChamberAnswer(this)) {
-            if (!BranchSimHelper.hasChamberNumber(this)) { then(); return } // "না" — কল লিস্ট এমনিতেই ফাঁকা থাকবে
+            if (!BranchSimHelper.hasChamberNumber(this)) { then(); return } // "No" — কল লিস্ট এমনিতেই ফাঁকা থাকবে
             askWhichSimSlot(then)
             return
         }
@@ -247,7 +276,7 @@ class DialerActivity : AppCompatActivity() {
                 BranchSimHelper.saveHasChamberNumber(this, true)
                 askWhichSimSlot(then)
             }
-            .setNegativeButton(NoBengali.s("না")) { _, _ ->
+            .setNegativeButton(NoBengali.s("No")) { _, _ ->
                 BranchSimHelper.saveHasChamberNumber(this, false)
                 then()
             }
@@ -319,8 +348,10 @@ class DialerActivity : AppCompatActivity() {
             val rows = withContext(Dispatchers.IO) { BranchSimHelper.fetchTodayCallLog(this@DialerActivity) }
             val numbers = rows.map { it.number }
             val matches = withContext(Dispatchers.IO) { DialerRepository.matchNumbersBatch(numbers) }
+            val remarks = withContext(Dispatchers.IO) { DialerRepository.fetchLatestRemarksBatch(numbers) }   // 🟢🔒 V605
             lastCallRows = rows
             lastMatches = matches
+            lastRemarks = remarks
             renderCurrentTab()
         }
     }
@@ -430,6 +461,23 @@ class DialerActivity : AppCompatActivity() {
             }
             infoCol.addView(tagLine)
         }
+        // 🟢🔒 V605 (২৪.০৮.২০২৬, TK-নির্দেশ, ছবি-প্রুফ পাশ) — এই নম্বরের
+        // সাম্প্রতিক রিমার্কস থাকলে সারির নিচে ছোট করে (হলুদ ব্যাকগ্রাউন্ড)।
+        val remarkText = lastRemarks[digits]
+        if (!remarkText.isNullOrBlank()) {
+            infoCol.addView(TextView(this).apply {
+                text = "📝 " + remarkText
+                textSize = 10f
+                setTextColor(android.graphics.Color.parseColor("#8A6A00"))
+                setPadding(dpx(6), dpx(2), dpx(6), dpx(2))
+                setBackgroundColor(android.graphics.Color.parseColor("#FFF6E6"))
+                maxLines = 2
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                lp.topMargin = dpx(4)
+                layoutParams = lp
+            })
+        }
         outer.addView(infoCol)
 
         val timeView = TextView(this).apply {
@@ -440,7 +488,15 @@ class DialerActivity : AppCompatActivity() {
         outer.addView(timeView)
 
         outer.setOnLongClickListener { showCallLongPressMenu(digits, matched); true }
-        outer.setOnClickListener { CallChooser.open(this, digits); DialerRepository.logDialedCall(this, digits, user.mobile, user.name, user.branch) }
+        outer.setOnClickListener {
+            CallChooser.open(this, digits)
+            DialerRepository.logDialedCall(this, digits, user.mobile, user.name, user.branch)
+            // 🟢🔒 V605 (২৪.০৮.২০২৬, TK-নির্দেশ ৩ — "কল চলাকালীন ও কল
+            // শেষে দুটোতেই, Outgoing-ও") — অ্যাপের নিজের Call বোতাম থেকে
+            // ডায়াল করার মুহূর্তেই নম্বর জানা থাকে, তাই এখানেই শুরু করা
+            // হলো — নতুন করে ব্রডকাস্ট/মেলানোর অপেক্ষা করতে হয় না।
+            CallNotifyManager.notifyOutgoingDialed(this, digits, matched)
+        }
         return outer
     }
 
@@ -468,6 +524,9 @@ class DialerActivity : AppCompatActivity() {
         } else {
             options.add("➕ New Enquiry")
         }
+        // 🟢🔒 V605 (২৪.০৮.২০২৬, TK-নির্দেশ, ছবি-প্রুফ পাশ) — কল-লগের এই
+        // একই মেনুতে রিমার্কস লেখা/বদলানো — Incoming/Outgoing দুটোতেই।
+        options.add("📝 Add / Edit Remark")
         AlertDialog.Builder(this)
             // 🎨 TK-APPROVED (2026-08-06): রঙিন হেডার + paint (দাগ)। অপশন/লজিক অপরিবর্তিত।
             .setCustomTitle(PremiumAlert.header(this, "📞 Number Options"))
@@ -477,14 +536,25 @@ class DialerActivity : AppCompatActivity() {
                     "💬 Send Message" -> openWhatsApp(digits)
                     "👤 View Record" -> startActivity(Intent(this, PatientTimelineActivity::class.java).putExtra("mobile", digits))
                     "➕ New Enquiry" -> startActivity(Intent(this, EnquiryActivity::class.java).putExtra("prefillMobile", digits))
+                    "📝 Add / Edit Remark" -> {
+                        val existing = try { DialerRepository.fetchLatestRemark(digits) } catch (_: Throwable) { "" }
+                        startActivity(
+                            Intent(this, CallRemarkActivity::class.java)
+                                .putExtra("mobile", digits)
+                                .putExtra("direction", "incoming")   // কল-লগ থেকে দুই দিকেরই হতে পারে; নির্দিষ্ট না জানা থাকলে ডিফল্ট
+                                .putExtra("patientId", matched?.patientId.orEmpty())
+                                .putExtra("patientName", matched?.name.orEmpty())
+                                .putExtra("branch", matched?.branch.orEmpty())
+                                .putExtra("existingRemark", existing)
+                        )
+                    }
                 }
             }
             .show().also { try { PremiumAlert.paint(it) } catch (_: Throwable) { } }
     }
 
     private fun copyNumber(digits: String) {
-        val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        cm.setPrimaryClip(ClipData.newPlainText("mobile", digits))
+        com.tkbiswas.pilesclinic.native.Clip.copy(this, "mobile", digits)   // 🤫 V772
         Toast.makeText(this, "Number copied", Toast.LENGTH_SHORT).show()
     }
 
@@ -581,7 +651,16 @@ class DialerActivity : AppCompatActivity() {
             imageTintList = android.content.res.ColorStateList.valueOf(android.graphics.Color.WHITE)
         }
         callIcon.addView(callGlyph)
-        callIcon.setOnClickListener { CallChooser.open(this, digits); DialerRepository.logDialedCall(this, digits, user.mobile, user.name, user.branch) }
+        callIcon.setOnClickListener {
+            CallChooser.open(this, digits)
+            DialerRepository.logDialedCall(this, digits, user.mobile, user.name, user.branch)
+            // 🟢🔒 V605 — Contacts ট্যাব থেকে কল করলেও একই নোটিফিকেশন।
+            val matched = DialerRepository.MatchedContact(
+                id = item.id, name = item.name, mobile = digits, branch = item.branch,
+                disease = item.disease, stage = item.stage, patientId = item.patientId, address = item.address
+            )
+            CallNotifyManager.notifyOutgoingDialed(this, digits, matched)
+        }
         outer.addView(callIcon)
 
         // ট্যাগ বসানোর পরে (layout হওয়ার পরে) শেষবার সাইজ জানা যায় —
@@ -734,6 +813,14 @@ class DialerActivity : AppCompatActivity() {
             }
             CallChooser.open(this, digits)
             DialerRepository.logDialedCall(this, digits, user.mobile, user.name, user.branch)
+            // 🟢🔒 V605 — কিপ্যাড থেকে হাতে নম্বর টাইপ করে কল করলেও একই
+            // নোটিফিকেশন; এই নম্বরটা আগে থেকে মেলানো ছিল না, তাই এখানেই
+            // (হালকা, ছোট ১-নম্বরের) মেলানো হচ্ছে — CallNotifyManager
+            // নিজেই ব্যাকগ্রাউন্ডে সেটা করে (onRinging-এর মতোই প্যাটার্ন)।
+            Thread {
+                val m = try { DialerRepository.matchNumbersBatch(listOf(digits))[digits] } catch (_: Throwable) { null }
+                runOnUiThread { CallNotifyManager.notifyOutgoingDialed(this, digits, m) }
+            }.start()
             keypadSheet.visibility = View.GONE
             fabKeypad.visibility = View.VISIBLE
             keypadInput.postDelayed({ refreshCurrentTab() }, 3000)

@@ -1,5 +1,7 @@
 package com.tkbiswas.pilesclinic.native
 
+import com.tkbiswas.pilesclinic.ui.PaymentRingView
+
 import android.app.DatePickerDialog
 import android.content.ActivityNotFoundException
 import android.content.Intent
@@ -61,6 +63,29 @@ class FollowUpActivity : AppCompatActivity() {
      *  ⛔ যে কোনো ট্যাবে চাপ দিলেই `false` হয়ে আগের আচরণ ফিরে আসে। */
     private var todayAllSections = false
 
+    /* ═══════════════════════════════════════════════════════════════════════
+       🟣🔒🔁 V710 (২৬.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত)
+
+       TK: *"staff রা বিভ্রান্ত হয়ে যাচ্ছে — Enquiry এর মধ্যে patient কেন
+       দেখাচ্ছে"* → *"ওখান থেকে আসলে Enquiry Visit Patient, তা ছাড়া নিচের
+       ফিল্টারগুলিও যদি না রাখা হয় তাহলে ভালো হয়"*।
+
+       **কারণ:** ড্যাশবোর্ডের "N calls pending" ব্যানার থেকে এলে অ্যাপ
+       ইচ্ছে করেই **তিন সেকশন একসাথে** দেখায় (TK-এর ২৯.০৭.২০২৬-এর নির্দেশ,
+       খাতার সারি B90)। কিন্তু উপরে "Enquiry" ট্যাবটা সবুজ হয়েই থাকত, তাই
+       স্টাফ ভাবতেন এটা শুধু Enquiry-র তালিকা।
+
+       ⇒ ওই মোডে ট্যাবের সারি ও ফিল্টারের সারি **লুকানো** হয়, জায়গায় একটাই
+         পরিষ্কার বেগুনি লাইন।
+
+       🔁🔁 **TK পরে পছন্দ না করলে এক লাইনেই ফেরানো যাবে:**
+            নিচের `HIDE_TABS_IN_CALL_LIST`-কে `false` করে দিলেই V709-এর
+            হুবহু আগের চেহারা ফিরে আসে (ট্যাব ও ফিল্টার আবার দেখা যাবে)।
+            আর কোথাও কিছু বদলাতে হবে না — বাকি সব কোড এই একটা মান দেখেই চলে।
+       ⛔ তালিকার তথ্য · কার্ড · Remark · বোতাম · সেভ — কিছুই এতে বদলায় না।
+       ═══════════════════════════════════════════════════════════════════════ */
+    private val HIDE_TABS_IN_CALL_LIST = true
+
     /**
      * 🔴🔴🔒 V511 (২১.০৮.২০২৬, TK লাইভ টেস্টে ধরেছেন — ব্যানারে ৭, ভিতরে ৮)।
      *
@@ -88,6 +113,12 @@ class FollowUpActivity : AppCompatActivity() {
      *    তাই ট্যাবের যোগফল আর ব্যানারের সংখ্যা কখনো আলাদা হতে পারে না।
      */
     private var bannerCallsOnly = false
+    /* 🟢🔒 V692 (২৬.০৮.২০২৬, TK-নির্দেশ) — Briefing-এর ⚠️ Overdue Follow-up
+       Alert-এর "View" থেকে এলে তালিকায় **শুধু ৩+ দিন দেরি হওয়া** কলগুলোই।
+       TK-এর বাছা: নোটিশে যত জন লেখা, ঠিক তত জন — ব্রাঞ্চের সব Overdue নয়।
+       ⛔ `bannerCallsOnly`-র হুবহু একই ধাঁচ: উপরের কোনো চিপে নিজে চাপ দিলেই
+          এই মোড বন্ধ, স্বাভাবিক Overdue ফিরে আসে। */
+    private var overdue3PlusOnly = false
     // TK-REPORTED BUG FIX (2026-07-25, same root cause found and fixed in
     // ChamberAttendanceActivity today -- editing something briefly showed
     // correctly then silently reverted): the existing "stage != currentStage"
@@ -237,7 +268,13 @@ class FollowUpActivity : AppCompatActivity() {
             user = session
 
             // Safe here: the Activity is attached, so intent is available.
-            dateFilter = if (intent.getBooleanExtra("todayOnly", false)) "Today" else "All"
+            // 🟢🔒 V692 — Overdue সতর্কতার View থেকে এলে সোজা Overdue ছাঁকনিতে।
+            overdue3PlusOnly = intent.getBooleanExtra("overdue3Plus", false)
+            dateFilter = when {
+                intent.getBooleanExtra("todayOnly", false) -> "Today"
+                overdue3PlusOnly -> "Overdue"
+                else -> "All"
+            }
             // 🔒 খাতার সারি B90 (TK, 29.07.2026 বিকেল ৩.১০): ড্যাশবোর্ডের
             // "N calls pending today" বোতামে চাপ দিলে **তিন সেকশনের আজকের সবাই
             // এক তালিকায়** দেখাবে — Enquiry · Visit · Patient একসাথে।
@@ -245,7 +282,10 @@ class FollowUpActivity : AppCompatActivity() {
             // এনকোয়ারি হোক ভিজিট হোক বা পেশেন্ট হোক।"*
             // ⛔ উপরের কোনো ট্যাবে চাপ দিলেই এই মোড বন্ধ হয়ে আগের স্বাভাবিক
             //    আচরণ ফিরে আসে — রোজকার ব্যবহারে কিছুই বদলায়নি।
-            todayAllSections = intent.getBooleanExtra("todayOnly", false)
+            // 🟢🔒 V692 — Overdue সতর্কতাতেও তিন সেকশন একসাথে। কারণ
+            //   DashboardActivity ওই "৯ জন" গোনে Enquiry · Visit · Patient
+            //   তিনটে মিলিয়ে; এক ট্যাবে দেখালে TK কম দেখতেন, সংখ্যা মিলত না।
+            todayAllSections = intent.getBooleanExtra("todayOnly", false) || overdue3PlusOnly
             // 🔴 V511 (উপরের বড় নোট দ্রষ্টব্য) — ব্যানার থেকে এলে তালিকায় শুধু
             //    "আজ কল করার কথা" যাঁদের, তাঁরাই।
             bannerCallsOnly = intent.getBooleanExtra("todayOnly", false)
@@ -312,6 +352,7 @@ class FollowUpActivity : AppCompatActivity() {
             // 🔵 TK (10.08.2026): সাধারণভাবে Enquiry দিয়েই শুরু; কিন্তু "কাল আসার
             // কথা" থেকে এলে ওই ব্যক্তি যে সেকশনে আছেন সেটা দিয়েই শুরু হয় — ক্যাশ
             // থেকে জানা গেলে সঙ্গে সঙ্গে, না জানলে তাজা তালিকা এলে ঠিক সেকশনে সরে।
+            applyCallListChrome()   // 🟣 V710 — ব্যানার-মোড হলে ট্যাব ও ফিল্টার লুকায়
             val startStage = initialFocusStage()
             /* 🔵 V523: শর্তে `pendingFocusCardMobile` আর দরকার নেই — আগে
                ওটা ফাঁকা থাকলে `initialFocusStage()` **সবসময়** "Inquiry"
@@ -341,13 +382,22 @@ class FollowUpActivity : AppCompatActivity() {
     }
 
     private fun setupDateFilterButtons() {
-        btns.forEach { (b, v) -> b.setOnClickListener { dateFilter = v; paintDateFilterButtons(); paintTabCounts(); applySearch() } }
+        // 🟢🔒 V692 — উপরের চিপে স্টাফ নিজে চাপ দিলেই "৩+ দিন" মোড বন্ধ,
+        //   স্বাভাবিক ছাঁকনি ফিরে আসে (`todayAllSections`-এর মতোই আচরণ)।
+        btns.forEach { (b, v) -> b.setOnClickListener { overdue3PlusOnly = false; dateFilter = v; paintDateFilterButtons(); paintTabCounts(); applySearch() } }
         binding.fCustom.setOnClickListener { pickCustomDateRange { paintDateFilterButtons() } }
         // 🔒 TK-APPROVED (29.07.2026, ফটো-প্রুফে পাশ · খাতার সারি B68):
         // TK: *"ফিল্টার by সিরিয়াল নাম্বার... সেখানে চাপ দিলে এক নম্বর থেকে
         // সমস্ত পেশেন্টের ডিটেলস দেখা যাবে।"* — তারিখের কোনো ছাঁকনি ছাড়াই
         // ওই ভাগের সবাই, ১ নম্বর থেকে পরপর।
         binding.fSerial.setOnClickListener { dateFilter = "Serial"; paintDateFilterButtons(); paintTabCounts(); applySearch() }
+        // 🟢🔒 V646 (২৫.০৮.২০২৬, TK-নির্দেশ) — বাকি চিপগুলোর হুবহু একই ধাঁচ।
+        binding.fUnexpected.setOnClickListener { dateFilter = "Unexpected"; paintDateFilterButtons(); paintTabCounts(); applySearch() }
+        // 🟢🔒 V646 (২৫.০৮.২০২৬, TK-নির্দেশ — "২ যায়গায়ই থাকবে, Unexpected
+        // Time-এর মতন") — বাকি চিপগুলোর হুবহু একই ধাঁচ।
+        binding.fRunning.setOnClickListener { dateFilter = "Running"; paintDateFilterButtons(); paintTabCounts(); applySearch() }
+        binding.fIncompletePatient.setOnClickListener { dateFilter = "Incomplete"; paintDateFilterButtons(); paintTabCounts(); applySearch() }
+        binding.fCompletePatient.setOnClickListener { dateFilter = "Complete"; paintDateFilterButtons(); paintTabCounts(); applySearch() }
         // 🔒 TK-APPROVED (29.07.2026, ফটো-প্রুফে পাশ · খাতার সারি B69)
         binding.fSheet.setOnClickListener { downloadSheet() }
         // 🔒 খাতার সারি B69: এটা ছাঁকনি নয়, একটা কাজ — তাই বাকি চিপের নীল রঙে না
@@ -377,7 +427,8 @@ class FollowUpActivity : AppCompatActivity() {
     private fun paintDateFilterButtons() {
         val blue = android.graphics.Color.parseColor("#1167D8")
         val light = android.graphics.Color.parseColor("#E8F2FF")
-        (btns + (binding.fCustom to "Custom") + (binding.fSerial to "Serial")).forEach { (b, v) ->
+        (btns + (binding.fCustom to "Custom") + (binding.fSerial to "Serial") + (binding.fUnexpected to "Unexpected") +
+            (binding.fRunning to "Running") + (binding.fIncompletePatient to "Incomplete") + (binding.fCompletePatient to "Complete")).forEach { (b, v) ->
             val on = v == dateFilter
             b.backgroundTintList = android.content.res.ColorStateList.valueOf(if (on) blue else light)
             b.setTextColor(if (on) android.graphics.Color.WHITE else blue)
@@ -505,12 +556,32 @@ class FollowUpActivity : AppCompatActivity() {
         }
     }
 
+    /** 🟣🔒🔁 V710 — ব্যানার থেকে আসা "আজকের কল" তালিকায় ট্যাব ও ফিল্টারের
+     *  সারি লুকিয়ে একটাই পরিষ্কার লাইন দেখায়; অন্য সব ক্ষেত্রে হুবহু আগের চেহারা।
+     *  ⛔ শুধু **দেখা/লুকানো** — কোনো তথ্য, ছাঁকনি বা সেভ এতে বদলায় না।
+     *  ⛔ `HIDE_TABS_IN_CALL_LIST = false` করলেই পুরোটা আগের মতো (উপরে দেখুন)। */
+    private fun applyCallListChrome() {
+        try {
+            val hide = HIDE_TABS_IN_CALL_LIST && todayAllSections
+            binding.tabRow.visibility = if (hide) View.GONE else View.VISIBLE
+            binding.filterRow.visibility = if (hide) View.GONE else View.VISIBLE
+            binding.tvAllSectionsHead.visibility = if (hide) View.VISIBLE else View.GONE
+            if (hide) {
+                // ⛔ লেখাটা ইংরেজি-বাংলা মেশানো নয় — বাংলা-বন্ধ স্টাফের ফোনেও
+                //    যাতে হুবহু একই দেখায়, তাই পুরোটা ইংরেজি।
+                val what = if (overdue3PlusOnly) "OVERDUE CALLS" else "TODAY'S CALLS"
+                binding.tvAllSectionsHead.text = "\uD83D\uDCDE  $what  -  Enquiry . Visit . Patient"
+            }
+        } catch (_: Throwable) { /* চেহারার কাজ — ব্যর্থ হলেও তালিকা আগের মতোই চলে */ }
+    }
+
     private fun switchTab(stage: String) {
         // 🔒 খাতার সারি B90: মিশ্র মোডে থাকলে **একই ট্যাবে** চাপ দিলেও মোডটা
         // বন্ধ হয়ে স্বাভাবিক তালিকায় ফিরতে হবে — তাই পুরনো "একই ট্যাব হলে কিছু
         // কোরো না" নিয়মটা শুধু মিশ্র মোড বন্ধ থাকলেই খাটে।
         if (stage == currentStage && !todayAllSections) return
         todayAllSections = false
+        applyCallListChrome()   // 🟣 V710 — ট্যাবে চাপ দিলে সারি দুটো আবার ফিরে আসে
         listOf(binding.tabEnquiry, binding.tabVisit, binding.tabPatient).forEach {
             it.setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_tab_inactive)
             it.setTextColor(getColor(com.tkbiswas.pilesclinic.R.color.clinic_text_primary))
@@ -967,7 +1038,16 @@ class FollowUpActivity : AppCompatActivity() {
                   (নিচের `else` শাখা) — সেটা এক অক্ষরও বদলায়নি। */
             "Today" -> if (bannerCallsOnly) items.filter { it.nextFollow.isNotBlank() && it.nextFollow <= today }
                        else items.filter { it.nextFollow == today || it.recordDate == today }
-            "Overdue" -> items.filter { it.nextFollow.isNotBlank() && it.nextFollow < today }
+            /* 🟢🔒 V692 — সাধারণ Overdue আগের মতোই। শুধু Briefing-এর ⚠️ Overdue
+               Follow-up Alert-এর View থেকে এলে **৩+ দিন** পেরোনোগুলোই —
+               DashboardActivity যে হিসাবে নোটিশের সংখ্যাটা বানায়
+               (`nextFollow <= threeDaysAgo`), হুবহু সেই একই হিসাব, যাতে
+               নোটিশের সংখ্যা আর এই তালিকা কখনো আলাদা না হয়। */
+            "Overdue" -> if (overdue3PlusOnly) {
+                val threeDaysAgo = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+                    .format(java.util.Date(System.currentTimeMillis() - 3L * 24 * 60 * 60 * 1000))
+                items.filter { it.nextFollow.isNotBlank() && it.nextFollow <= threeDaysAgo }
+            } else items.filter { it.nextFollow.isNotBlank() && it.nextFollow < today }
             "This Week" -> {
                 val cal = java.util.Calendar.getInstance()
                 cal.set(java.util.Calendar.DAY_OF_WEEK, cal.firstDayOfWeek)
@@ -988,6 +1068,33 @@ class FollowUpActivity : AppCompatActivity() {
             // 🔒 খাতার সারি B68: সিরিয়ালে তারিখের কোনো বাছাই নেই — ওই ভাগের
             // **সবাই** থাকবে, শুধু সাজানোর ক্রমটা নিচে বদলায়।
             "Serial" -> items
+            // 🟢🔒 V646 (২৫.০৮.২০২৬, TK-নির্দেশ) — Draft-এর "Unexpected Time
+            // Calls"-এর সাথে মেলানো একই ছাঁকনি: শুধু timeType="Unexpected
+            // Time" রেকর্ড। Enquiry ট্যাবেই কার্যকর (item.timeType Enquiry-
+            // stage-এর জন্যই বসে); অন্য ট্যাবে ফাঁকা থাকায় এমনিতেই কিছু
+            // দেখাবে না। ⛔ নতুন কোনো Supabase কল নেই — client-side ফিল্টার।
+            "Unexpected" -> items.filter { it.timeType.equals("Unexpected Time", ignoreCase = true) }
+            // 🟢🔒 V646 (২৫.০৮.২০২৬, TK-নির্দেশ — "২ যায়গায়ই থাকবে") — Patient
+            // ট্যাব (stage="Treatment") ইতিমধ্যেই শুধু Treatment-stage রো
+            // দেখায়, তাই এখানে stage আলাদা করে ছাঁকতে হয় না। নিয়ম Draft-এর
+            // V644/V645-এর সাথে হুবহু মেলানো (ফ্রি-প্ল্যান-নিরাপদ, client-side)।
+            "Complete" -> items.filter { it.bill > 0.0 && (it.bill - it.paid) <= 0.0 }
+            "Incomplete" -> items.filter {
+                val ageDays = try {
+                    val d = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(it.recordDate.take(10))
+                    if (d == null) 0 else ((java.util.Date().time - d.time) / (24 * 60 * 60 * 1000L)).toInt().coerceAtLeast(0)
+                } catch (_: Throwable) { 0 }
+                it.paid <= 0.0 && ageDays >= 60
+            }
+            "Running" -> items.filter {
+                val complete = it.bill > 0.0 && (it.bill - it.paid) <= 0.0
+                val ageDays = try {
+                    val d = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(it.recordDate.take(10))
+                    if (d == null) 0 else ((java.util.Date().time - d.time) / (24 * 60 * 60 * 1000L)).toInt().coerceAtLeast(0)
+                } catch (_: Throwable) { 0 }
+                val incomplete = it.paid <= 0.0 && ageDays >= 60
+                !complete && !incomplete
+            }
             else -> items
         }
     }
@@ -1331,7 +1438,10 @@ class FollowUpActivity : AppCompatActivity() {
                 .append(i.lastRemark).append('|').append(i.stage).append('|')
                 .append(i.paid).append('|').append(i.bill).append('|')
                 .append(i.callCount).append('|')
-                .append(i.lastCallDate).append('|').append(i.lastCallBy).append(';')
+                .append(i.lastCallDate).append('|').append(i.lastCallBy).append('|')
+                // 🆕 V851 — এই দুটোও কার্ডে দেখা যায়, তাই চিহ্নে থাকতেই হবে;
+                //    নইলে বদলালেও তালিকা নতুন করে আঁকত না।
+                .append(i.regDate).append('|').append(i.regBy).append(';')
         }
         return sb.toString()
     }
@@ -1501,12 +1611,17 @@ class FollowUpActivity : AppCompatActivity() {
                 setImageResource(wifiDrawable)
                 contentDescription = "Enquiry calls: $n of 5"
                 scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
-                layoutParams = android.widget.LinearLayout.LayoutParams(dpx(48), dpx(40))
+                /* 🎨🔒 V882 (৩০.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত):
+                   TK: *"Wi-Fi signal তার নিচে তারিখটা কেটে গেল কেন — সিগনাল
+                   সামান্য উপরে তুলুন বা সাইজে ছোট করুন"*। উচ্চতা ৪০ → ৩৪dp,
+                   নিচের ফাঁক ৭ → ৩dp ⇒ ১০dp জায়গা খালি, তারিখ পুরো বসে।
+                   ⛔ Draft কার্ডেও (item_followup_card.xml) হুবহু একই বদল। */
+                layoutParams = android.widget.LinearLayout.LayoutParams(dpx(48), dpx(34))
             }
             left.addView(wifi)
             TripleTapEdit.attach(wifi) { entryActionMenu(item) }
             val status = tv("Enquiry", 10f, "#1067D8", true).apply {   // V229: section name slightly bigger (readability)
-                val p = android.widget.LinearLayout.LayoutParams(WRAP, WRAP); p.topMargin = dpx(7); layoutParams = p
+                val p = android.widget.LinearLayout.LayoutParams(WRAP, WRAP); p.topMargin = dpx(3); layoutParams = p   // 🎨 V882
             }
             left.addView(status)
             TripleTapEdit.attach(status) { entryActionMenu(item) }
@@ -1653,6 +1768,17 @@ class FollowUpActivity : AppCompatActivity() {
         }
         nameCol.addView(nameView)
         TripleTapEdit.attach(nameView) { showEditDialog(item) }
+        /* 📋🔒 V827 (২৯.০৮.২০২৬, TK-নির্দেশ, ছবিসহ) — নামের উপরে **লম্বা চাপ**
+           দিলে নামটা কপি হয়। ⛔ কপি হয় **শুধু নামটাই** — সামনের 👤 চিহ্ন বা
+           ক্রমিক সংখ্যা নয়। এক-চাপ ও তিন-চাপে-এডিট এক অক্ষরও বদলায়নি
+           (লম্বা চাপে Android কখনো `onClick` ডাকে না)।
+           ⛔ কপি করা হয় প্রজেক্টের একটাই প্রমাণিত পথ `Clip` দিয়ে (পাহারা ৯.২৯),
+              তাই কীবোর্ডের সাজেশনে নামটা জমে থাকবে না — FollowUpAdapter-এ
+              নম্বর কপির হুবহু একই ব্যবস্থা। */
+        nameView.setOnLongClickListener {
+            if (item.name.isBlank()) false
+            else { Clip.copyWithToast(it.context, "Name", item.name.trim()); true }
+        }
 
         val mobileView = tv("\uD83D\uDCDE " + formatMobileForDisplay(item.mobile), 12.5f, "#5B6B81").apply {
             maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
@@ -1660,6 +1786,13 @@ class FollowUpActivity : AppCompatActivity() {
         }
         nameCol.addView(mobileView)
         TripleTapEdit.attach(mobileView) { showEditDialog(item) }
+        /* 📋🔒 V827 — নম্বরের উপরে লম্বা চাপ দিলে নম্বরটা কপি হয়।
+           ⛔ 📞 চিহ্নটা বাদ দিয়ে **পর্দায় যেমন দেখাচ্ছে ঠিক সেই নম্বরটাই**
+              (যেমন +919382292755) কপি হয়। */
+        mobileView.setOnLongClickListener {
+            if (item.mobile.isBlank()) false
+            else { Clip.copyWithToast(it.context, "Mobile", formatMobileForDisplay(item.mobile)); true }
+        }
         nameRow.addView(nameCol)
         info.addView(nameRow)
         // 🔒🔒 খাতার সারি B184 (TK, 30.07.2026 বিকেল ৪.৫০ — ফটো-প্রুফে ফাইনাল):
@@ -1702,8 +1835,12 @@ class FollowUpActivity : AppCompatActivity() {
 
         // 🔒 খাতার সারি B184: `ellipsize` তুলে দেওয়া হলো — ট্যাগ আর কখনো
         //    "…" দিয়ে কাটবে না; জায়গা না কুলোলে নিচের লাইনে নামবে।
-        fun pill(text: String): android.widget.TextView = tv(text, 10.5f, "#FFFFFF", true).apply {
-            setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_tag_branch)
+        /* 🟣🔒 V707 (২৬.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত):
+           *"ব্রাঞ্চ+রোগের নাম একই কালার হবে · ঠিকানা+Unexpected+RMP অন্য কালার হবে"*।
+           ⛔ ডিফল্ট আগের নীল (`bg_tag_branch`), তাই ব্রাঞ্চ ও রোগের ট্যাগ
+              এক অক্ষরও বদলায়নি — শুধু দ্বিতীয় সারিটা বেগুনি চায়। */
+        fun pill(text: String, bgRes: Int = com.tkbiswas.pilesclinic.R.drawable.bg_tag_branch): android.widget.TextView = tv(text, 10.5f, "#FFFFFF", true).apply {
+            setBackgroundResource(bgRes)
             setPadding(dpx(7), dpx(4), dpx(7), dpx(4))
             maxLines = 1
             ellipsize = null
@@ -1726,7 +1863,7 @@ class FollowUpActivity : AppCompatActivity() {
         var addressView: android.widget.TextView? = null
         if (addressLabel.isNotBlank()) {
             tags.addView(sep())
-            val av = pill(addressLabel)
+            val av = pill(addressLabel, com.tkbiswas.pilesclinic.R.drawable.bg_tag_extra_purple)
             tags.addView(av)
             // 🔒 খাতার সারি B172: এখানে শুধু **এক ট্যাপ** — পুরো ফর্ম খোলে না,
             // শুধু এই ট্যাগটাই আলাদাভাবে বদলানোর ছোট পপ-আপ খোলে (TK-এর
@@ -1739,11 +1876,22 @@ class FollowUpActivity : AppCompatActivity() {
         var extraView: android.widget.TextView? = null
         if (extraLabel.isNotBlank()) {
             tags.addView(sep())
-            extraView = pill(extraLabel)
+            extraView = pill(extraLabel, com.tkbiswas.pilesclinic.R.drawable.bg_tag_extra_purple)
             tags.addView(extraView)
         }
         tagsWrap.addView(tags)
-        info.addView(tagsWrap)
+        /* 🟣🔒 V707 — TK-রিপোর্ট (ছবিসহ): *"BAPPA এনার tag উপর নিচে কেন"*।
+           **আসল কারণ:** ট্যাগগুলো বসত `info`-র ভিতরে, আর `info` হলো ডান
+           দিকের ব্যাজ/রিং-এর **পাশের সরু কলাম** (top → info, weight=1)।
+           ব্যাজের **নিচের** ফাঁকা জায়গাটা তাই ট্যাগ ব্যবহার করতেই পারত না —
+           BAPPA-র দুটো ট্যাগ কয়েক পিক্সেলের জন্য না কুলিয়ে আলাদা লাইনে নামত।
+           ⇒ **Enquiry কার্ডে** ট্যাগের সারিটা এখন `main`-এ বসে (নিচে দেখুন),
+             অর্থাৎ কার্ডের পুরো চওড়া পায়।
+           ⛔ Visit/Patient কার্ডে **হাত দেওয়া হয়নি** — ওখানে ডান দিকে
+              ADVANCE HERE · TEST HERE · PRESCRIPTION · টাকার রিং লম্বা করে
+              বসে, ট্যাগ নিচে নামালে চেহারা বদলে যেত (TK অনুমোদন দেননি)।
+              ওখানে আগের জায়গাতেই, শুধু রং ও দল-ভাগ নতুন। */
+        if (!isInquiry) info.addView(tagsWrap)
 
         // 🔒 খাতার সারি B184: লেআউট হয়ে যাওয়ার ঠিক পরেই (আসল প্রস্থ তখনই জানা
         // যায়) ট্যাগগুলো এক বা একাধিক সারিতে সাজানো হয় — কেউ কাটে না, কেউ
@@ -1760,10 +1908,19 @@ class FollowUpActivity : AppCompatActivity() {
         // বেশি অপেক্ষা করে, ততক্ষণে width স্থির/চূড়ান্ত হয়ে যায়। ⛔ বাকি সব
         // যুক্তি (`layoutTagsInRows`, একবারই চলা, স্ক্রলে বাড়তি ভার না থাকা)
         // এক অক্ষরও বদলায়নি — শুধু এক ফ্রেম (~১৬ms, চোখে ধরা পড়ে না) দেরি।
-        val pillViews = listOfNotNull(branchView, diseaseView, addressView, extraView)
+        /* 🟣🔒 V707 (TK-নির্দেশ): ট্যাগ এখন **দুটো দল** —
+             দল ১ = ব্রাঞ্চ + রোগ (নীল)      → সবসময় নিজের সারিতে
+             দল ২ = ঠিকানা + Unexpected/RMP (বেগুনি) → সবসময় নিজের সারিতে
+           ⛔ কোনো দলের দুটো ট্যাগ যদি সত্যিই জায়গায় না কুলোয় (খুব লম্বা নাম),
+              তখন আগের নিয়মেই সে নিচের লাইনে নামে — কেউ কাটে না, কেউ কার্ডের
+              বাইরে বেরোয় না (খাতার সারি B184-এর প্রতিশ্রুতি অক্ষত)। */
+        val pillGroups = listOf(
+            listOfNotNull(branchView, diseaseView),
+            listOfNotNull(addressView, extraView)
+        ).filter { it.isNotEmpty() }
         tagsWrap.post {
             tagsWrap.post {
-                try { layoutTagsInRows(tagsWrap, pillViews) } catch (_: Throwable) { }
+                try { layoutTagsInRows(tagsWrap, pillGroups) } catch (_: Throwable) { }
             }
         }
 
@@ -1774,6 +1931,14 @@ class FollowUpActivity : AppCompatActivity() {
         // branch/disease tags, so no information is lost. Same pill colour,
         // same pill shape, same Patient ID text. The Enquiry card never had
         // them and is not touched.
+        /* 📵🔒 V718 (২৬.০৮.২০২৬, TK-নির্দেশ — লাইভে ধরা):
+           V711-এ কার্ডে "📵 কল বন্ধ" লেখাটা বসানো হয়েছিল, শর্ত ছিল
+           "পরের তারিখ ফাঁকা + আগে কল হয়েছে"। **সেটা ভুল ছিল** — যে রোগীর
+           পরের তারিখটা এখনো বসানোই হয়নি, তাঁর কার্ডেও লেখাটা উঠত
+           (TK-এর ছবি: MOKIM · MUZAFFAR HUSSAIN)।
+           TK-এর সিদ্ধান্ত: *"সিস্টেমে ওটা দেখানোরও দরকার নেই, লুকিয়ে থাকলেও
+           চলবে"* ⇒ **লেখাটা পুরোপুরি তুলে দেওয়া হলো**।
+           ⛔ কোনো তথ্য · হিসাব · ছাঁকনি · অন্য কোনো ব্যাজ ছোঁয়া হয়নি। */
         if (!isInquiry) {
             val idRow = ll(android.widget.LinearLayout.HORIZONTAL).apply {
                 gravity = android.view.Gravity.CENTER_VERTICAL
@@ -1915,6 +2080,8 @@ class FollowUpActivity : AppCompatActivity() {
         }
         top.addView(right)
         main.addView(top)
+        // 🟣🔒 V707 — Enquiry কার্ডে ট্যাগ পুরো চওড়া পায় (উপরের কারণ দেখুন)।
+        if (isInquiry) main.addView(tagsWrap)
 
         // ---------- Status line (TK APPROVED 2026-07-28, proof 6) ----------
         // ONE line, running from the left edge of the card to the right edge:
@@ -1943,6 +2110,12 @@ class FollowUpActivity : AppCompatActivity() {
         // ⛔ এটা **তিন রকম কার্ডেই** (Enquiry · Visit · Patient) একসঙ্গে হয়,
         //    কারণ কার্ড তৈরির এই কোডটাই তিন সেকশন ব্যবহার করে।
         var statusRowForBox: android.widget.LinearLayout? = null
+        /* 🟢🔒 V874 (৩০.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত):
+           রেজিস্টার হওয়া কার্ডে REGISTERED-এর লাইনটা আগের মতোই থাকে (TK-এর
+           পুরোনো লক করা নিয়ম), আর তার **ঠিক নিচে** LAST CALL-এর তারিখ · সময় ·
+           কে করেছিল — একটা নতুন লাইনে।
+           ⛔ TK: *"NEXT CALL এ time থাকবে না"* ⇒ NEXT CALL-এ শুধু তারিখই। */
+        var lastCallLineForBox: android.widget.TextView? = null
         run {
             val statusRow = ll(android.widget.LinearLayout.HORIZONTAL).apply {
                 gravity = android.view.Gravity.CENTER_VERTICAL
@@ -1959,8 +2132,26 @@ class FollowUpActivity : AppCompatActivity() {
             // স্টাফের কোডটা **আলাদা হালকা সোনালি রঙে**।
             // ⛔ লাল ইচ্ছে করেই নেওয়া হয়নি — এই অ্যাপে লাল মানে Overdue/সতর্কতা,
             // স্টাফের নামেও লাল দিলে দুটো গুলিয়ে যেত।
-            val whoRaw = item.lastCallBy.trim()
-            val lastText = if (item.lastCallDate.isNotBlank()) {
+            /* 🆕🔒 V851 (৩০.০৮.২০২৬, TK-অনুমোদিত) — TK: "যেগুলো এনকোয়ারি কার্ড
+               সেগুলোতে লাস্ট কল থাকবে; যেগুলো রেজিস্ট্রেশন করা হয়েছে সেখানে
+               লিখতে হবে কত তারিখে রেজিস্ট্রেশন হয়েছে এবং কে করেছিল"।
+               V850-এ Draft-এর কার্ডে বসেছে, এখানেও একই নিয়ম (খাতার নিয়ম ৬.২)।
+               ⛔ `regDate` ফাঁকা (নিছক এনকোয়ারি) হলে নিচের সবটা **হুবহু আগের
+                  মতোই** চলে — এনকোয়ারি কার্ড এক অক্ষরও বদলায়নি। */
+            /* 🔒 V931 (৩১.০৮.২০২৬, TK ডেমো প্রুফ দেখে "হ্যাঁ পাশ, দুটোই বসিয়ে দিন") —
+               TK: *"Registered এর তারিখ এবং কে করেছে এখানে থাকবে না — View All
+               এ ক্লিক করলে দেখা যায় শুধুমাত্র সেটাই থাকবে"*।
+               ⚠️ ৩০.০৮.২০২৬-এ TK এই লাইনটা *"যা আছে তাই থাকবে"* বলে বন্ধ
+                  করেছিলেন; ৩১.০৮-এ তিনি নিজে উল্টো নির্দেশ দিয়েছেন।
+               ⛔ তথ্য কোথাও মোছা হয়নি — View All-এ দুটোই আগের মতোই আছে।
+               ⇒ `isReg` এখন সবসময় false, তাই কার্ডে শুধু LAST CALL-এর লাইন।
+                 (নামটা রাখা হলো, নিচের `whoRaw` ওই একই ধারায় চলে।) */
+            val isReg = false
+            val whoRaw = if (isReg) item.regBy.trim() else item.lastCallBy.trim()
+            val lastText = if (isReg) {
+                if (whoRaw.isNotBlank()) "REGISTERED ${FollowUpModel.displayDate(item.regDate)} ($whoRaw)"
+                else "REGISTERED ${FollowUpModel.displayDate(item.regDate)}"
+            } else if (item.lastCallDate.isNotBlank()) {
                 /* 🔵🔒 V543 (২২.০৮.২০২৬, TK-নির্দেশ): *"শুধুমাত্র RMP সেকশনে নয়,
                    Follow-up সেকশনেও একই নিয়ম থাকবে"* — LAST CALL-এ তারিখের
                    সাথে সময়, তারপর স্টাফের নাম। NEXT CALL-এ সময় নয়।
@@ -1998,7 +2189,7 @@ class FollowUpActivity : AppCompatActivity() {
             }
 
             // স্টাফের কোডের অংশটুকু আলাদা রঙে — বাকি লেখা আগের রঙেই।
-            val lastStyled: CharSequence = if (whoRaw.isNotBlank() && item.lastCallDate.isNotBlank()) {
+            val lastStyled: CharSequence = if (whoRaw.isNotBlank() && (isReg || item.lastCallDate.isNotBlank())) {
                 val open = lastText.lastIndexOf("(")
                 if (open >= 0) android.text.SpannableString(lastText).apply {
                     setSpan(
@@ -2035,6 +2226,33 @@ class FollowUpActivity : AppCompatActivity() {
             statusRow.addView(rightText)
 
             statusRowForBox = statusRow
+
+            /* 🟢🔒 V874 — শুধু রেজিস্টার হওয়া কার্ডে, আর কল হয়ে থাকলে।
+               ⛔ এনকোয়ারি কার্ডে LAST CALL উপরের লাইনেই থাকে (আগের মতোই),
+                  তাই সেখানে এই দ্বিতীয় লাইনটা বসে না — একই কথা দু'বার নয়। */
+            if (isReg && item.lastCallDate.isNotBlank()) {
+                val lcWho = item.lastCallBy.trim()
+                val lcText = if (lcWho.isNotBlank()) "LAST CALL ${fuLastWhen(item)} ($lcWho)"
+                             else "LAST CALL ${fuLastWhen(item)}"
+                val lcStyled: CharSequence = if (lcWho.isNotBlank()) {
+                    val open = lcText.lastIndexOf("(")
+                    if (open >= 0) android.text.SpannableString(lcText).apply {
+                        setSpan(
+                            android.text.style.ForegroundColorSpan(android.graphics.Color.parseColor("#B8860B")),
+                            open, lcText.length,
+                            android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                        )
+                    } else lcText
+                } else lcText
+                lastCallLineForBox = tv(lcStyled, 8f, "#344054", true).apply {
+                    maxLines = 2
+                    ellipsize = null
+                    gravity = android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
+                    val p = android.widget.LinearLayout.LayoutParams(MATCH, WRAP)
+                    p.topMargin = dpx(3)
+                    layoutParams = p
+                }
+            }
         }
 
         // Last Remark box (dashed, light green) — tap to edit remark
@@ -2085,6 +2303,7 @@ class FollowUpActivity : AppCompatActivity() {
             setPadding(dpx(10), dpx(7), dpx(10), dpx(8))
             val p = android.widget.LinearLayout.LayoutParams(MATCH, WRAP); p.topMargin = dpx(6); layoutParams = p
             statusRowForBox?.let { addView(it) }
+            lastCallLineForBox?.let { addView(it) }   // 🟢 V874
             // পাতলা লম্বা দাগ — বাক্সের এক প্রান্ত থেকে আরেক প্রান্ত পর্যন্ত।
             addView(android.view.View(this@FollowUpActivity).apply {
                 setBackgroundColor(android.graphics.Color.parseColor("#A8D8BC"))
@@ -2172,13 +2391,16 @@ class FollowUpActivity : AppCompatActivity() {
      *    (ট্রিপল-ট্যাপ এডিট · ঠিকানা-ট্যাগে এক-ট্যাপ) হুবহু অক্ষত — ভিউগুলোই
      *    সরানো হয়, নতুন করে বানানো হয় না, তাই তাদের লিসেনারও সঙ্গে যায়।
      */
+    /* 🟣🔒 V707 — এখন **দল ধরে** সাজায়: প্রতিটা দল নিজের সারিতে শুরু হয়।
+       ⛔ একই দলের ভিতরে জায়গা মাপার হিসাব এক অক্ষরও বদলায়নি — না কুলোলে
+          আগের মতোই নিচের লাইনে নামে। */
     private fun layoutTagsInRows(
         wrap: android.widget.LinearLayout,
-        pills: List<android.widget.TextView>
+        groups: List<List<android.widget.TextView>>
     ) {
         val WRAPC = android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
         val avail = wrap.width - wrap.paddingLeft - wrap.paddingRight
-        if (avail <= 0 || pills.isEmpty()) return
+        if (avail <= 0 || groups.isEmpty()) return
 
         fun newRow(): android.widget.LinearLayout {
             val r = android.widget.LinearLayout(this)
@@ -2219,7 +2441,10 @@ class FollowUpActivity : AppCompatActivity() {
 
         var row = newRow()
         var used = 0
-        for (p in pills) {
+        for ((gi, group) in groups.withIndex()) {
+        // 🟣 V707 — নতুন দল মানে নতুন সারি (আগের সারিতে জায়গা থাকলেও)।
+        if (gi > 0 && row.childCount > 0) { wrap.addView(row); row = newRow(); used = 0 }
+        for (p in group) {
             (p.parent as? android.view.ViewGroup)?.removeView(p)
             p.maxLines = 1
             p.ellipsize = null
@@ -2238,6 +2463,7 @@ class FollowUpActivity : AppCompatActivity() {
             }
             if (row.childCount > 0) { row.addView(newSep()); used += sepW }
             row.addView(p); used += w
+        }
         }
         wrap.addView(row)
         wrap.requestLayout()
@@ -2275,7 +2501,7 @@ class FollowUpActivity : AppCompatActivity() {
         container.addView(info)
         if (item.address.isNotBlank()) {
             container.addView(android.widget.TextView(this).apply {
-                text = "Full address: " + item.address
+                text = "Full address: " + item.address.uppercase(java.util.Locale.US)   // 🔠🔒 V1009 (০৩.০৯.২০২৬, TK-নির্দেশ) — শুধু দেখানোর সময় বড় হাতে; ডেটাবেসে কিছু বদলায় না।
                 setTextColor(android.graphics.Color.parseColor("#5B6B81"))
                 textSize = 12.5f
                 setPadding(0, dpx(4), 0, dpx(12))
@@ -2337,7 +2563,7 @@ class FollowUpActivity : AppCompatActivity() {
                         this@FollowUpActivity,
                         if (ok) "Address tag saved" else "Saved on this phone — will sync when network is back",
                         android.widget.Toast.LENGTH_SHORT
-                    ).show()
+                    ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                     // ⛔ ব্যর্থ হলেও পর্দায় সঙ্গে সঙ্গে দেখানো হয় (TK-এর লক করা
                     // নিয়ম — "আমার ফোনে যা করলাম তা সাথে সাথে দেখাবে")। ব্যর্থ
                     // লেখাটা `SupabaseClient.upsert()`-এর নিজের নিয়মেই
@@ -2385,13 +2611,63 @@ class FollowUpActivity : AppCompatActivity() {
                         this, item.branch, NoBengali.s("পরের ফোন কবে?"),
                         chamberOnly = false, initialIso = defaultIso, mandatory = mandatory
                     ) { iso -> saveNextFollowDate(item, iso, markExpected = false) }
-                }
+                },
+                /* 📵🔒 V718 (TK-নির্দেশ) — **Enquiry-তে এই বোতাম আর নেই।**
+                   TK: *"enquiry visit এই সমস্ত ক্ষেত্রে হবে না, কারণ সেই ক্ষেত্রে
+                   একটা নিয়ম অলরেডি করাই আছে — পাঁচ বার ফোন কল করার পরে
+                   অটোমেটিক রিজেক্ট হয়ে যায়।"*
+                   ⛔ আসবে / শুধু ফোন করব — দুটো বোতামই আগের মতোই অক্ষত। */
             )
         } else {
+            /* 📵🔒 V711 — Visit/Patient কার্ডে বাছাইয়ের পর্দা নেই (এক চাপেই
+               ক্যালেন্ডার খোলে, TK-এর পুরোনো নিয়ম)। তাই ওই এক চাপ বাঁচিয়ে
+               রেখে বোতামটা **ক্যালেন্ডারের নিচেই** বসে — কোনো বাড়তি ধাপ নেই।
+               ⛔ ক্যালেন্ডার · তারিখ বাছা · Set · Cancel — কিছুই বদলায়নি। */
+            /* 📵🔒 V718 (২৬.০৮.২০২৬, TK-নির্দেশ) — **শুধু "Patient" ট্যাবের
+               কার্ডেই** (অর্থাৎ যাঁরা সত্যিই ট্রিটমেন্ট করাচ্ছেন) এই বোতামটা।
+               TK: *"শুধুমাত্র পেশেন্ট ট্যাগ লাগানো থাকলে … তাদের ক্ষেত্রে
+               পরবর্তীতে ফোন কল না করলেও চলবে।"*
+               ⛔ কোডে যাচাই করা: "Patient" ট্যাব = `stage "Treatment"`
+                  (`binding.tabPatient.setOnClickListener { switchTab("Treatment") }`),
+                  আর "Visit" ট্যাব = `stage "Patient"` — নাম দুটো উল্টো, তাই
+                  আন্দাজে নয়, কোড ধরে মিলিয়ে নেওয়া হয়েছে।
+               ⛔ Visit কার্ডে বোতামটা আর আসবে না; ক্যালেন্ডার · তারিখ বাছা ·
+                  Set · Cancel — কিছুই বদলায়নি। */
             ChamberCalendarDialog.show(
                 this, item.branch, NoBengali.s("পরের আসার দিন"),
-                chamberOnly = false, initialIso = defaultIso, mandatory = mandatory
+                chamberOnly = false, initialIso = defaultIso, mandatory = mandatory,
+                onNoMoreCalls = if (item.stage == "Treatment") ({ saveNoMoreCalls(item) }) else null
             ) { iso -> saveNextFollowDate(item, iso, markExpected = true) }
+        }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       📵🔒 V711 (২৬.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত)
+
+       TK: *"কোন পেশেন্ট যখন কন্টিনিউ পেশেন্ট অথবা কন্টিনিউ ট্রিটমেন্ট করাচ্ছে,
+       তাদেরকে আর ফোন না করলেও চলে — সেটার ব্যবস্থা কীভাবে করা যায়"*।
+
+       ⛔ **নতুন কোনো কলাম বা SQL লাগেনি** — অ্যাপে নিয়মটা **আগে থেকেই আছে**:
+          পরের কলের তারিখ (`nextFollow`) ফাঁকা থাকলে ড্যাশবোর্ডের ব্যানার ও
+          Overdue — দুটোর কোনোটাই তাঁকে গোনে না
+          (`DashboardActivity.isDue`: `nextFollow.isNotBlank() && ...`)।
+          তাই এখানে শুধু তারিখটা **ফাঁকা করে দেওয়া হয়** — Supabase-এ খরচ
+          এক পয়সাও বাড়ে না।
+       ⛔ রোগীর কোনো তথ্য মোছা হয় না · টাকার হিসাবে হাত পড়ে না ·
+          পুরোনো Remark/ইতিহাস সব অক্ষত।
+       ⛔ ফেরানো সহজ: ➜ বোতামে চেপে আবার একটা তারিখ দিলেই তিনি আগের মতোই
+          কল-তালিকায় ফিরে আসবেন।
+       ═══════════════════════════════════════════════════════════════════════ */
+    private fun saveNoMoreCalls(item: FollowUpItem) {
+        android.widget.Toast.makeText(
+            this, NoBengali.s("ঠিক আছে — এঁকে আর কল-তালিকায় দেখাবে না"),
+            android.widget.Toast.LENGTH_SHORT
+        ).show()
+        BackgroundWork.run {
+            val ok = try { repository.updateNextFollow(resolveFollowUpId(item), "") } catch (_: Throwable) { false }
+            if (ok && !isFinishing && !isDestroyed) {
+                runOnUiThread { if (!isFinishing && !isDestroyed) loadTab(currentStage) }
+            }
         }
     }
 
@@ -2428,7 +2704,13 @@ class FollowUpActivity : AppCompatActivity() {
 
     /** Two-choice card for an Enquiry follow-up: আসবে (চেম্বারে) vs শুধু ফোন করব.
      *  Non-dismissable in the mandatory (post-remark) flow. */
-    private fun showComeOrCallChooser(mandatory: Boolean, onCome: () -> Unit, onCallOnly: () -> Unit) {
+    private fun showComeOrCallChooser(
+        mandatory: Boolean,
+        onCome: () -> Unit,
+        onCallOnly: () -> Unit,
+        // 📵 V711 — ডিফল্ট null, তাই পুরোনো কোনো ডাক ভাঙে না।
+        onNoMoreCalls: (() -> Unit)? = null
+    ) {
         val d = android.app.Dialog(this)
         d.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
         d.setCancelable(!mandatory)
@@ -2479,11 +2761,21 @@ class FollowUpActivity : AppCompatActivity() {
         // 🔒 B604 (TK-নির্দেশ): বিভ্রান্তিকর ⏰ (কিছু ফন্টে "Jul 17" আঁকে) বাদ।
         bigBtn(NoBengali.s("আসবে (চেম্বারে)"), NoBengali.s("চেম্বার-দিন বাছুন → একদিন আগে ফোন-রিমাইন্ডার"), true) { onCome() }
         bigBtn(NoBengali.s("📞 শুধু ফোন করব"), NoBengali.s("যেকোনো দিন → ওইদিনই ফোনের তারিখ"), false) { onCallOnly() }
+        /* 📵🔒 V711 — তৃতীয় বোতাম (TK-এর অনুমোদিত ডেমো অনুযায়ী)। উপরের দুটো
+           বোতাম **এক অক্ষরও বদলায়নি**। */
+        if (onNoMoreCalls != null) {
+            bigBtn(
+                NoBengali.s("📵 আর কল লাগবে না"),
+                NoBengali.s("চিকিৎসা চলছে — কল-তালিকা ও ব্যানার থেকে সরে যাবে"),
+                false
+            ) { onNoMoreCalls.invoke() }
+        }
         d.setContentView(root)
         d.window?.setBackgroundDrawableResource(android.R.color.transparent)
         d.window?.setLayout((resources.displayMetrics.widthPixels * 0.9f).toInt(), android.view.ViewGroup.LayoutParams.WRAP_CONTENT)
         try { NoBengali.installDialog(d) } catch (_: Throwable) {}
         d.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(d) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     private fun pickNextFollow(item: FollowUpItem) {
@@ -2508,6 +2800,7 @@ class FollowUpActivity : AppCompatActivity() {
                 if (d != null) cal.time = d
             }
         } catch (_: Exception) {}
+        /* 🔴 V843 — নিচে `.apply { datePicker.minDate = ... }` দেখুন */
         DatePickerDialog(this, { _, y, m, day ->
             val iso = String.format(java.util.Locale.US, "%04d-%02d-%02d", y, m + 1, day)
             lifecycleScope.launch {
@@ -2537,13 +2830,20 @@ class FollowUpActivity : AppCompatActivity() {
                 ).show()
                 if (ok) loadTab(currentStage)
             }
-        }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH), cal.get(java.util.Calendar.DAY_OF_MONTH)).show()
+        }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH), cal.get(java.util.Calendar.DAY_OF_MONTH)).apply {
+            /* 🔴🔒 V843 (২৯.০৮.২০২৬, নিয়ম ৭ — একটা দোষ পেলে পুরো প্রজেক্টে):
+               **পরের** তারিখ বাছার ঘরে অতীতের তারিখ বাছা যেত। V671-এর
+               প্রমাণিত একই লাইন বসানো হলো।
+               ⛔ অতীতের তারিখ শুধু ধূসর হয় — জমা থাকা পুরনো তারিখ মোছে না। */
+            datePicker.minDate = System.currentTimeMillis() - 1000L
+        }.show()
         ---- end old pickNextFollow body ---- */
     }
-    /** 🔵 V543: `31.12.2026 : 12.30 PM` — সময় না থাকলে শুধু তারিখ। */
+    /** 🔵 V543: `31.12.2026 : 12.30 PM` — সময় না থাকলে শুধু তারিখ।
+     *  ⏰ V835: সময়ের ধাঁচ `3:15 PM` → `3.15 PM` (TK-নির্দেশ, ২৯.০৮.২০২৬)। */
     private fun fuLastWhen(item: FollowUpItem): String {
         val d = FollowUpModel.displayDate(item.lastCallDate)
-        val t = PaymentModel.displayTime12(item.lastCallTime)
+        val t = PaymentModel.displayTime12Dot(item.lastCallTime)   /* ⏰ V835 — 3.15 PM */
         return if (t.isNotBlank()) "$d : $t" else d
     }
 
@@ -2783,10 +3083,15 @@ class FollowUpActivity : AppCompatActivity() {
                     // 🔒 খাতার সারি B52 (TK, 28.07.2026 রাত): আজ এই রোগীর নামে
                     // ইতিমধ্যে টাকা নেওয়া হয়ে থাকলে আগে একবার জিজ্ঞাসা। আজ কিছু
                     // নেওয়া না হলে কোনো পপ-আপ আসে না — সেভ হুবহু আগের মতোই।
-                    PaymentDayGuard.confirmIfAlreadyPaidToday(
+                    /* 🔴 V1106 (TK-নির্দেশ) — সেভ চাপার মুহূর্তে ক্লাউডেও
+                       একবার দেখা হয়, তাই অন্য ফোনে নেওয়া একই অঙ্কের টাকাও
+                       ধরা পড়ে। ⛔ কিছুই আটকানো হয় না — শুধু প্রশ্ন। */
+                    PaymentDayGuard.confirmBeforeSave(
                         this@FollowUpActivity,
+                        pr,
+                        patientNow,
+                        amount,
                         pr.paidOnDateFor(patientNow.id),
-                        patientNow.name,
                         pr.nextLabelFor(patientNow.id)
                     ) {
                     advSaving = true
@@ -2818,6 +3123,7 @@ class FollowUpActivity : AppCompatActivity() {
                 }
             }
             dialog.show()
+            try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
 
             // রোগীর আসল সারি পিছনে আনা হয়; এলে নাম/ব্রাঞ্চ/বিল ঠিক হয়ে যায় ও
             // Save কাজ করতে শুরু করে। স্টাফ ততক্ষণ টাকার ঘরে টাইপ করতে পারেন।
@@ -2902,7 +3208,7 @@ class FollowUpActivity : AppCompatActivity() {
                 "🆔 ${item.patientId.ifBlank { "—" }}  ·  📞 $digits"
             val addressView = view.findViewById<android.widget.TextView>(com.tkbiswas.pilesclinic.R.id.tvNthAddress)
             if (item.address.isNotBlank()) {
-                addressView.text = "📍 ${item.address}"
+                addressView.text = "📍 " + item.address.uppercase(java.util.Locale.US)   // 🔠🔒 V1009 (০৩.০৯.২০২৬, TK-নির্দেশ) — শুধু দেখানোর সময় বড় হাতে; ডেটাবেসে কিছু বদলায় না।
                 addressView.visibility = View.VISIBLE
             } else addressView.visibility = View.GONE
 
@@ -3036,7 +3342,7 @@ class FollowUpActivity : AppCompatActivity() {
                         this@FollowUpActivity,
                         "This patient's Bill has not been created yet — please create the Bill first",
                         Toast.LENGTH_LONG
-                    ).show()
+                    ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                     etTotal.requestFocus()
                 }
                 else if (!MoneyBranchGuard.canTakeMoney(this@FollowUpActivity, patientNow.branch, patientNow.patientId)) {
@@ -3047,10 +3353,15 @@ class FollowUpActivity : AppCompatActivity() {
                 else {
                     // 🔒 খাতার সারি B52 (TK, 28.07.2026 রাত): আজ এই রোগীর নামে
                     // ইতিমধ্যে টাকা নেওয়া হয়ে থাকলে আগে একবার জিজ্ঞাসা।
-                    PaymentDayGuard.confirmIfAlreadyPaidToday(
+                    /* 🔴 V1106 (TK-নির্দেশ) — সেভ চাপার মুহূর্তে ক্লাউডেও
+                       একবার দেখা হয়, তাই অন্য ফোনে নেওয়া একই অঙ্কের টাকাও
+                       ধরা পড়ে। ⛔ কিছুই আটকানো হয় না — শুধু প্রশ্ন। */
+                    PaymentDayGuard.confirmBeforeSave(
                         this@FollowUpActivity,
+                        pr,
+                        patientNow,
+                        amount,
                         pr.paidOnDateFor(patientNow.id),
-                        patientNow.name,
                         pr.nextLabelFor(patientNow.id)
                     ) {
                     nthSaving = true
@@ -3087,6 +3398,7 @@ class FollowUpActivity : AppCompatActivity() {
                 }
             }
             dialog.show()
+            try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
 
             // আসল সারি পিছনে আনা হয়; এলে নাম · Patient ID · বিল · জমা · বকেয়া ·
             // "কততম পেমেন্ট" সব ঠিক হয়ে যায় এবং Save কাজ করতে শুরু করে।
@@ -3298,6 +3610,7 @@ class FollowUpActivity : AppCompatActivity() {
             dlg.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
             close.setOnClickListener { dlg.dismiss() }
             dlg.show()
+            try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dlg) } catch (_: Throwable) { }   // 🤫 V774
         }
     }
 
@@ -3387,7 +3700,7 @@ class FollowUpActivity : AppCompatActivity() {
                         this@FollowUpActivity,
                         if (ok) "Payment updated" else "Failed — check connection",
                         Toast.LENGTH_SHORT
-                    ).show()
+                    ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                     if (ok) onSuccess()
                 }
             }
@@ -3449,7 +3762,14 @@ class FollowUpActivity : AppCompatActivity() {
 
     private fun showEditDialog(item: FollowUpItem) {
         val branches = listOf("Kishanganj", "Jalpaiguri", "Cooch Behar", "Falakata", "Birpara")
-        val diseases = listOf("Piles", "Fissure", "Fistula", "Hydrocele", "Gupt Rog", "Other")
+        /* 🩺🔒 V1000 (০৩.০৯.২০২৬) — Enquiry-তে এখন একাধিক রোগ বাছা যায়, তাই
+           ঘরটায় "Piles, Fissure"-এর মতো জোড়া লেখাও থাকতে পারে। আগে এই
+           তালিকায় না মিললে স্পিনার নিঃশব্দে প্রথমটা ("Piles") দেখাত এবং
+           সেভ করলেই আসল লেখাটা মুছে যেত। এখন যা আছে সেটাই তালিকার শুরুতে
+           বসে, তাই কিছু না ছুঁলে কিছুই বদলায় না। */
+        val baseDiseases = listOf("Piles", "Fissure", "Fistula", "Hydrocele", "Gupt Rog", "Other")
+        val diseases = if (item.disease.isNotBlank() && !baseDiseases.contains(item.disease))
+            listOf(item.disease) + baseDiseases else baseDiseases
         val pad = (16 * resources.displayMetrics.density).toInt()
         val container = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.VERTICAL
@@ -3596,7 +3916,7 @@ class FollowUpActivity : AppCompatActivity() {
                         this@FollowUpActivity,
                         if (ok) "Record updated" else "Failed — check connection",
                         android.widget.Toast.LENGTH_SHORT
-                    ).show()
+                    ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                     if (ok) loadTab(currentStage)
                 }
             }
@@ -3608,6 +3928,7 @@ class FollowUpActivity : AppCompatActivity() {
             dialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.setTextColor(green)
         }
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     private fun saveRecordEdit(
@@ -3652,7 +3973,11 @@ class FollowUpActivity : AppCompatActivity() {
             var fOk = SupabaseClient.updateById("followups", item.id, fields)
             try {
                 val oldMobileForLookup = item.mobile.filter { it.isDigit() }.takeLast(10)
-                val realFollowUps = SupabaseClient.fetchList("followups", "mobile=like.*$oldMobileForLookup&stage=eq.${item.stage}", 20)
+                /* 🔴🔒 V794 — এখানেও সারি থেকে শুধু `id` নেওয়া হয় (যাচাই করা), তাই
+                   ছবি/ইতিহাস ছাড়া ছোট্ট তালিকা। */
+                val realFollowUps = SupabaseClient.fetchListSlim("followups",
+                    "mobile=like.*$oldMobileForLookup&stage=eq.${item.stage}", 20,
+                    SupabaseClient.FOLLOWUP_ID_COLS)
                 for (i in 0 until realFollowUps.length()) {
                     val realId = realFollowUps.getJSONObject(i).optString("id")
                     if (realId.isBlank() || realId == item.id) continue
@@ -3950,7 +4275,12 @@ class FollowUpActivity : AppCompatActivity() {
             // No escape without picking a date -- hide the built-in Cancel button.
             picker.getButton(AlertDialog.BUTTON_NEGATIVE)?.visibility = View.GONE
         }
+        /* 🔴🔒 V843 (২৯.০৮.২০২৬, নিয়ম ৭) — বাধ্যতামূলক Next Follow-up-এও
+           অতীতের তারিখ বাছা যেত। V671-এর প্রমাণিত একই লাইন।
+           ⛔ জমা থাকা পুরনো তারিখ মোছে না, শুধু নতুন বাছা আটকায়। */
+        try { picker.datePicker.minDate = System.currentTimeMillis() - 1000L } catch (_: Throwable) { }
         picker.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(picker) } catch (_: Throwable) { }   // 🤫 V774
         ---- end old mandatory body ---- */
     }
 
@@ -4268,7 +4598,7 @@ class FollowUpActivity : AppCompatActivity() {
                         this@FollowUpActivity,
                         if (ok) (if (which == 0) "Continued" else "Entry cancelled") else "Failed — check connection",
                         Toast.LENGTH_SHORT
-                    ).show()
+                    ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                     if (ok) loadTab(currentStage)
                 }
             }
@@ -4484,6 +4814,7 @@ class FollowUpActivity : AppCompatActivity() {
         body.addView(close)
 
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     private fun showNextFollowPicker(item: FollowUpItem) {

@@ -35,7 +35,15 @@ object RmpCommissionRepository {
     )
     data class AdvancePayment(
         val id: String, val paidOn: String, val amount: Double, val allocated: Double,
-        val legacyCovered: Double, val mode: String, val referenceNo: String
+        val legacyCovered: Double, val mode: String, val referenceNo: String,
+        /**
+         * 🟢🔒🔒 V661 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবি-প্রুফ পাশ — "তারিখ এবং সময়
+         * লাগবে") — `recorded_at` ঘরটা টেবিলে **আগে থেকেই** ছিল (নিচের
+         * `order=paid_on.desc,recorded_at.desc`-এই প্রমাণিত — শুধু sort-এর
+         * জন্য পড়া হচ্ছিল, দেখানো হচ্ছিল না)। তাই কোনো নতুন SQL/কলাম লাগেনি —
+         * শুধু এই একই ঘরটা এখন `select`-এও যোগ করে display-এ আনা হলো।
+         */
+        val recordedAt: String = ""
     ) { val available: Double get() = amount - allocated }
     data class LegacyViewAllPatient(
         val id: String, val patientCode: String, val name: String, val mobile: String,
@@ -60,7 +68,10 @@ object RmpCommissionRepository {
     data class DayCommissionRow(
         val patientRowId: String, val patientMobile: String, val patientCode: String,
         val patientName: String, val rmpId: String, val rmpName: String,
-        val rmpMobile: String, val paidToday: Double, val commissionToday: Double
+        val rmpMobile: String, val paidToday: Double, val commissionToday: Double,
+        /** 🔵 V1083 — রোগীর মোট বিল (পপ-আপে দেখানোর জন্য)। পুরনো সার্ভারে
+         *  ঘরটা না থাকলে ০ থাকে, তাতে কিছু ভাঙে না। */
+        val finalBill: Double = 0.0
     )
 
     fun dayCommission(branch: String, date: String): RepoResult<List<DayCommissionRow>> {
@@ -77,7 +88,8 @@ object RmpCommissionRepository {
                     x.optString("patient_code", ""), x.optString("patient_name", ""),
                     x.optString("rmp_id", ""), x.optString("rmp_name", ""),
                     x.optString("rmp_mobile", ""),
-                    x.optDouble("paid_today", 0.0), x.optDouble("commission_today", 0.0)))
+                    x.optDouble("paid_today", 0.0), x.optDouble("commission_today", 0.0),
+                    x.optDouble("final_bill", 0.0)))
             }
             RepoResult(true, out)
         } catch (_: Exception) { RepoResult(false, emptyList(), "Invalid RMP day commission result") }
@@ -91,6 +103,39 @@ object RmpCommissionRepository {
         val rmpId: String, val rmpName: String,
         val commissionPaid: Double, val advancePaid: Double, val totalPaid: Double
     )
+
+    /* 🔴🔒 V1078 (০৪.০৯.২০২৬, TK: *"হ্যাঁ করুন, তবে সাবধানে"*) — রোগীর ঘরে
+       RMP-র নাম লেখা আছে অথচ কমিশন বাঁধা নেই, এমন রোগীদের **নিজে থেকে**
+       ওই RMP-র বাঁধা হারে জুড়ে দেওয়া।
+       🔴 যে দোষটা এতে সারে: পুরনো মেলানোর নিয়ম রোগীর `refBy` ঘরটাকে RMP-র
+          নামের সঙ্গে মেলাত, কিন্তু আজকের অ্যাপে ওই ঘরে থাকে শুধু ধরন
+          ("Dr. Visit") — নামটা থাকে `refDoctor`-এ। তাই নাম লিখে নম্বর না
+          লিখলে রোগীটা কমিশনের হিসাব থেকে চুপচাপ বাদ পড়ত (TK-এর BULAN ROY)।
+       ⛔ সব হিসাব সার্ভারেই (`fin.rmp_autolink_refdoctor`) — ফোন ও কম্পিউটারে
+          এক নিয়ম, আর আগে থেকে বাঁধা কোনো কমিশন কখনো বদলায় না (শুধু নতুন জোড়া)।
+       ⛔ ব্যর্থ হলে খালি তালিকা ফেরে — ডাকা পর্দা আগের মতোই চলে, কিছু ভাঙে না। */
+    data class AutoLinkRow(
+        val patientRowId: String, val patientCode: String,
+        val patientName: String, val rmpName: String, val action: String
+    )
+
+    fun autolinkRefDoctor(branch: String, dryRun: Boolean = false): RepoResult<List<AutoLinkRow>> {
+        val rpc = ModuleAuth.rpc("fin", "rmp_autolink_refdoctor",
+            JSONObject().put("p_branch", branch).put("p_dry_run", dryRun))
+        if (!rpc.ok) return RepoResult(false, emptyList(), rpc.message)
+        return try {
+            val rows = JSONArray(rpc.body)
+            val out = ArrayList<AutoLinkRow>(rows.length())
+            for (i in 0 until rows.length()) {
+                val x = rows.optJSONObject(i) ?: continue
+                out.add(AutoLinkRow(
+                    x.optString("patient_row_id", ""), x.optString("patient_code", ""),
+                    x.optString("patient_name", ""), x.optString("rmp_name", ""),
+                    x.optString("action", "")))
+            }
+            RepoResult(true, out)
+        } catch (_: Exception) { RepoResult(false, emptyList(), "Invalid RMP auto-link result") }
+    }
 
     fun dayPaid(branch: String, date: String): RepoResult<List<DayPaidRow>> {
         val rpc = ModuleAuth.rpc("fin", "rmp_day_paid",
@@ -231,13 +276,14 @@ object RmpCommissionRepository {
 
     fun advancePayments(rmpId: String): RepoResult<List<AdvancePayment>> {
         val got = ModuleAuth.getRowsChecked("fin", "rmp_advance_payments",
-            "select=id,paid_on,amount,allocated_amount,legacy_covered_amount,mode,reference_no&rmp_id=eq.${enc(rmpId)}&order=paid_on.desc,recorded_at.desc&limit=200")
+            "select=id,paid_on,amount,allocated_amount,legacy_covered_amount,mode,reference_no,recorded_at&rmp_id=eq.${enc(rmpId)}&order=paid_on.desc,recorded_at.desc&limit=200")
         if (!got.ok) return RepoResult(false, message = "Could not load RMP advance payments")
         val out = mutableListOf<AdvancePayment>()
         for (i in 0 until got.rows.length()) {
             val x = got.rows.getJSONObject(i)
             out.add(AdvancePayment(x.optString("id"), x.optString("paid_on"), x.optDouble("amount"),
-                x.optDouble("allocated_amount"), x.optDouble("legacy_covered_amount"), x.optString("mode"), x.optString("reference_no")))
+                x.optDouble("allocated_amount"), x.optDouble("legacy_covered_amount"), x.optString("mode"), x.optString("reference_no"),
+                x.optString("recorded_at")))
         }
         return RepoResult(true, out)
     }
@@ -318,7 +364,7 @@ object RmpCommissionRepository {
                 out.add(LegacyViewAllPatient(id, row.optString("patient_code", ""),
                     row.optString("patient_name", ""), row.optString("patient_mobile", ""),
                     row.optString("referral_date", ""), bill, paid,
-                    row.optString("disease", "").ifBlank { row.optString("diagnosis", "") }))
+                    row.s("disease").ifBlank { row.s("diagnosis") }))   // 🔴 V819 — `optString` SQL NULL-এ আক্ষরিক "null" ফেরায় (V696/V812-এর ফাঁদ); `s()` সেটা ফাঁকা ধরে
             }
             RepoResult(true, out)
         } catch (_: Exception) { RepoResult(false, message = "Invalid RMP View All result") }

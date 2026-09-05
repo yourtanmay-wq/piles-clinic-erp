@@ -47,6 +47,14 @@ object NativeSession {
         // সঙ্গে সঙ্গে মুছে যায় ও নতুন পরিচয় বসে, তাই আগের জনের তালিকা
         // কখনো নতুন জনের পর্দায় আসতে পারে না।
         try { CloudReadDedupe.setSession(user.mobile) } catch (_: Throwable) { }
+        // 🟢🔒 V601 (২৪.০৮.২০২৬) — সদ্য পাসওয়ার্ড দিয়ে ঢুকলেন মানেই পরিচয়
+        // প্রমাণিত হলো, তাই ২৪-ঘণ্টার ঘড়ি এখান থেকেই শুরু — লগইনের পরপরই
+        // আবার আঙুল চাইবে না।
+        try { AppLock.recordLoginUnlock(context) } catch (_: Throwable) { }
+        /* 📱🔒 V889 (৩০.০৮.২০২৬, TK-নির্দেশ) — *"কোন ফোনে কে লগইন জমা
+           রাখুন"*। শুধু লগইনের সময় একটাই সারি বসে (deviceId-ই আইডি), তাই
+           Egress প্রায় শূন্য। ব্যর্থ হলেও লগইন কখনো আটকায় না। */
+        try { DeviceLoginLog.record(context, user.mobile, user.name, user.branch, user.role) } catch (_: Throwable) { }
     }
 
     fun current(context: Context): NativeUser? {
@@ -74,6 +82,9 @@ object NativeSession {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().clear().apply()
         // 🔐🔒 V494 (TK-যাচাই ২): লগআউট — সব জমানো cloud-পড়া মুছে যায়।
         try { CloudReadDedupe.setSession(null) } catch (_: Throwable) { }
+        /* 🔴🔒 V721 — লগ-আউটে রোগীর জমানো প্রসঙ্গও মুছে যায়, যাতে অন্য কেউ
+           লগইন করলে আগের রোগীর নাম/ব্রাঞ্চ কিছুতেই ফিরে না আসে। */
+        try { com.tkbiswas.pilesclinic.clinical.RoleSession.clearPersisted() } catch (_: Throwable) { }
     }
 
     /** Builds the same {mobile,name,branch,role} JSON shape app.js's own login()

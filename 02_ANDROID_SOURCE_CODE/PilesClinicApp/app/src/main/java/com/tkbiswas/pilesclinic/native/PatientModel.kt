@@ -132,7 +132,29 @@ object PatientModel {
     }
 
     /** Builds the "patients" row, matching savePatient()'s field-for-field. */
-    fun buildPatientRow(draft: RegistrationDraft, patientId: String, createdByMobile: String, existingRowId: String = ""): JSONObject {
+    /* 🔴🔒🔒 V868 (৩০.০৮.২০২৬, TK-রিপোর্ট ছবিসহ — RAJA MANDAL কার্ড):
+       *"ওই স্টাফ নিজে ফরম ফিলাপ করেছিল, তখন দেখিয়েছিল তার আইডি —
+       কিন্তু ভবিষ্যতে কেন বদলে গেল?"*
+
+       **আসল দোষ (কোড ধরে যাচাই করা, আন্দাজ নয়):** রোগীর সারি **আবার সেভ**
+       হলে (Update Existing · টাইপো সংশোধন) এই ফাংশনটা `createdBy`,
+       `registeredBy` ও `createdAt`-এ **যে তখন লগইন আছে তার নম্বর ও এখনকার
+       সময়** বসিয়ে দিত — আসল রেজিস্ট্রারের নাম ও আসল সময় মুছে যেত।
+
+       **এখন:** সারিটা আগে থেকে থাকলে ওই তিনটে ঘরে **পুরোনো মানই** ফিরে বসে
+       (`keep…` তিনটে)। ফাঁকা পাঠালে আগের মতোই এখনকার লগইন/সময় বসে, তাই
+       **নতুন রেজিস্ট্রেশন এক অক্ষরও বদলায়নি**।
+       ⛔ বাকি প্রতিটা ঘর হুবহু আগের মতোই। */
+    fun buildPatientRow(
+        draft: RegistrationDraft,
+        patientId: String,
+        createdByMobile: String,
+        existingRowId: String = "",
+        keepCreatedBy: String = "",
+        keepRegisteredBy: String = "",
+        keepCreatedAt: String = "",
+        isExistingRow: Boolean = false
+    ): JSONObject {
         val now = isoNow()
         val diagnosis = draft.diseases.joinToString(", ")
         val symptomsJoined = draft.symptoms.joinToString(", ")
@@ -193,19 +215,39 @@ object PatientModel {
             // জিনিস) ছোঁয়া হয়নি, শুধু নতুন এই একটা কলাম।
             .put("previousTreatment", draft.prevTreatmentNote)
             .put("photo", draft.photo)
-            .put("createdBy", createdByMobile)
-            .put("registeredBy", createdByMobile)
-            .put("stage", "Doctor Queue")
-            .put("queue", true)
-            .put("doctorComplete", false)
-            .put("bill", 0)
+            .put("createdBy", keepCreatedBy.ifBlank { createdByMobile })
+            .put("registeredBy", keepRegisteredBy.ifBlank { createdByMobile })
             // TK-REQUESTED ADDITION (2026-07-24): same Official/Unexpected
             // Time concept Enquiry already has -- threaded through
             // patientRow the same way disease/address/age/sex already are,
             // so buildVisitFollowUpRow below can read it back.
             .put("timeType", draft.timeType)
-            .put("createdAt", now)
+            .put("createdAt", keepCreatedAt.ifBlank { now })
             .put("updatedAt", now)
+            .also { row ->
+                /* 🔴🔒🔒 V872 (৩০.০৮.২০২৬, TK-অনুমোদিত — *"লাইনে ফেরা বন্ধ
+                   করে দিন"*): এই চারটে ঘর আগে **সব সময়** পাঠানো হতো। তাই
+                   পুরোনো রোগীর তথ্য দ্বিতীয়বার সেভ করলেই (নামের বানান ঠিক
+                   করা · Update Existing) —
+                     · চেকআপ হয়ে যাওয়া রোগী আবার **ডাক্তারের লাইনে** ফিরত
+                       (`stage`/`queue`/`doctorComplete`),
+                     · আর তাঁর **বিলটা ০ হয়ে যেত** (`bill`)।
+                   **এখন:** চারটেই শুধু **নতুন রোগীর সারিতে** বসে। পুরোনো সারিতে
+                   ঘরগুলো পাঠানোই হয় না ⇒ ক্লাউডে ও ফোনে দুটোতেই অপরিবর্তিত
+                   থাকে। ⛔ নতুন রেজিস্ট্রেশনে আচরণ এক অক্ষরও বদলায়নি
+                   ("Different Patient"-ও নতুনই, তাই সেখানেও আগের মতোই)। */
+                if (!isExistingRow) {
+                    row.put("stage", "Doctor Queue")
+                       .put("queue", true)
+                       .put("doctorComplete", false)
+                       /* 📅 V1013 — আজ তালিকায় উঠলেন, সেই দিনটাই এখানে বসে
+                          (CHECK-UP Queue এখন এই ঘরটাই দেখে, `updatedAt` নয়)। */
+                       .put("queuedAt", draft.date.ifBlank {
+                           java.text.SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+                       })
+                       .put("bill", 0)
+                }
+            }
     }
 
     /** Builds the matching "followups" row (stage=Patient), matching
@@ -233,10 +275,15 @@ object PatientModel {
      * ⛔ পুরোনো সারি না পেলে (নতুন রোগী · নেট নেই) আগের হুবহু আচরণ — নতুন আইডি
      *    ও "Registered patient / Visit created" লেখা।
      */
+    /* 🔴🔒 V868 — উপরের একই দোষ এখানেও ছিল: Follow-up (Visit) সারি
+       আবার লেখা হলে `createdBy`/`createdAt`-এ নতুন লগইনের নাম ও সময় বসত।
+       এখন পুরোনো সারি হলে পুরোনো মানই থাকে। */
     fun buildVisitFollowUpRow(
         patientRow: JSONObject,
         staffMobile: String,
-        existingFollowUpRowId: String = ""
+        existingFollowUpRowId: String = "",
+        keepCreatedBy: String = "",
+        keepCreatedAt: String = ""
     ): JSONObject {
         val now = isoNow()
         val visitDate = patientRow.getString("visitDate")
@@ -244,11 +291,17 @@ object PatientModel {
         val history = JSONArray().put(
             JSONObject()
                 .put("date", patientRow.getString("date"))
+                .put("time", isoNow())   /* ⏰ V827 — সময়ও জমা হয় (TK: "LAST CALL তারিখের পরে যেন Time থাকে")। */
                 .put("remark", "Registered patient / Visit created")
                 .put("staff", staffMobile)
         )
         val out = JSONObject()
-            .put("id", if (reuse) existingFollowUpRowId else "fu_" + UUID.randomUUID().toString().replace("-", ""))
+            /* 🔗🔒 V1005 (০৩.০৯.২০২৬) — নতুন সারির id এখন **নির্দিষ্ট**
+               (`fu_pat_<patient row id>`) — কম্পিউটারের self-heal ঠিক এই
+               নিয়মেই বানায় (`app.js`, B626)। আগে এলোমেলো id বসত, তাই দুই
+               যন্ত্র দুটো আলাদা সারি বানিয়ে ফেলতে পারত।
+               ⛔ পুরনো সারি থাকলে আগের মতোই তার নিজের id-ই থাকে। */
+            .put("id", if (reuse) existingFollowUpRowId else "fu_pat_" + patientRow.getString("id"))
             .put("refId", patientRow.getString("id"))
             .put("patientId", patientRow.getString("patientId"))
             .put("mobile", patientRow.getString("mobile"))
@@ -258,22 +311,40 @@ object PatientModel {
             .put("address", patientRow.getString("address"))
             .put("age", patientRow.s("age"))
             .put("sex", patientRow.s("sex"))
-            .put("stage", "Patient")
-            .put("date", visitDate)
             .put("registrationDate", patientRow.getString("registrationDate"))
             .put("visitDate", visitDate)
-            .put("nextFollow", "")
-            .put("status", "Active")
             // TK-REQUESTED ADDITION (2026-07-24): same Official/Unexpected
             // Time badge concept the Enquiry-created followups row already
             // carries -- read back from patientRow (set in buildPatientRow
             // above). optString default keeps this safe even for any
             // existing/older patientRow that doesn't have it.
             .put("timeType", patientRow.s("timeType").ifBlank { "Official Time" })
-            .put("createdBy", staffMobile)
-            .put("createdAt", now)
+            .put("createdBy", keepCreatedBy.ifBlank { staffMobile })
+            .put("createdAt", keepCreatedAt.ifBlank { now })
             .put("updatedAt", now)
         if (!reuse) {
+            /* 🔴🔒🔒 V871 (৩০.০৮.২০২৬, TK-রিপোর্ট ছবিসহ — SHAMOL ROY):
+               *"ইনি একজন পেশেন্ট, আগে দুই-একবার পেমেন্ট করেছে, তারপরও এখানে
+               কেন তাকে ভিজিট কাটে দেখাচ্ছে"*
+
+               **আসল দোষ (কোড ধরে যাচাই করা):** নিচের চারটে ঘর আগে **সব
+               সময়** পাঠানো হতো — পুরোনো সারিতেও। তাই রোগীর তথ্য দ্বিতীয়বার
+               সেভ হলেই —
+                 · `stage` "Treatment" থেকে জোর করে "Patient" হয়ে যেত
+                   ⇒ কার্ডে PATIENT-এর বদলে **VISITED** দেখাত, বিল/বকেয়া
+                   উধাও, আর ADVANCE বোতাম ফিরে আসত,
+                 · `nextFollow` (পরের কলের তারিখ) **মুছে** যেত,
+                 · `status` জোর করে "Active" — বন্ধ করা সারিও ফিরে আসত,
+                 · `date` আজকের তারিখে লাফিয়ে যেত।
+
+               **এখন:** চারটেই শুধু **নতুন সারিতে** বসে। পুরোনো সারিতে ঘরগুলো
+               পাঠানোই হয় না ⇒ ক্লাউডে ও স্থানীয় স্টোরে দুটোতেই অপরিবর্তিত
+               থাকে (`history`/`lastRemark`-এর ক্ষেত্রে V399-এ প্রমাণিত একই
+               নিয়ম)। ⛔ নতুন রেজিস্ট্রেশনে আচরণ এক অক্ষরও বদলায়নি। */
+            out.put("stage", "Patient")
+            out.put("date", visitDate)
+            out.put("nextFollow", "")
+            out.put("status", "Active")
             /* নতুন সারি — আগের মতোই ইতিহাস, লেখা ও গণনা বসে। */
             out.put("history", history)
             out.put("lastRemark", "Registered patient / Visit created")

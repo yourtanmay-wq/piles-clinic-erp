@@ -57,9 +57,9 @@ class DoctorQueueActivity : AppCompatActivity() {
     //   ⛔ চেকআপ থেকে ফেরা/অন্য অ্যাপ থেকে ফেরার রিফ্রেশ আগের মতোই হয়।
     private var skipNextResumeLoad = false
 
-    private var overdueExpanded = false
-    private var lastTodayItems = listOf<QueuePatient>()
-    private var lastOverdueItems = listOf<QueuePatient>()
+    private var doneExpanded = false
+    private var lastPendingItems = listOf<QueuePatient>()
+    private var lastDoneItems = listOf<QueuePatient>()
 
     // 🔔 খাতার সারি B151 (TK, 30.07.2026) — নিজে থেকে নতুন হওয়ার ব্যবস্থা।
     // ⛔ নিয়ম ও সময় দুটোই `LiveRefresh`-এ, তাই চার পর্দায় চার নিয়ম হতে পারে না।
@@ -67,6 +67,19 @@ class DoctorQueueActivity : AppCompatActivity() {
     private var autoScreenFocused = true
     private var autoBusy = false
     private val autoWatch = LiveRefresh.Watch("patients")
+
+    /* 🔍🔒 V972 (০২.০৯.২০২৬, TK-নির্দেশ) — *"এখানে patient Search করার মত
+       অপশন থাকতে হবে"*। শুধু পর্দায় ছাঁকা হয় — ক্লাউডে একটাও নতুন অনুরোধ
+       যায় না, তাই ফ্রি প্ল্যানে বাড়তি চাপ নেই।
+       ⛔ তালিকা আনা · সাজানো · Today/Overdue ভাগ — কিছুই বদলায়নি। */
+    private var queueSearch = ""
+    /* 🔍🔒 V1108 — আজকের লাইনের বাইরে পাওয়া রোগীরা। ⛔ শুধু দেখানোর জন্য;
+       আসল তালিকা (`lastPendingItems`/`lastDoneItems`) ছোঁয়া হয় না। */
+    private var wideResults: List<QueuePatient> = emptyList()
+    private var wideForQuery = ""       // কোন লেখার ফল — একই লেখায় আবার অনুরোধ যায় না
+    private var wideSearching = false
+    private val wideHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var wideTask: Runnable? = null
     private val autoTick = object : Runnable {
         override fun run() {
             try { autoCheckForChanges() } catch (_: Throwable) { }
@@ -94,7 +107,15 @@ class DoctorQueueActivity : AppCompatActivity() {
 
         adapter = DoctorQueueAdapter(
             this, emptyList<QueueRow>(),
-            onCheckup = { openClinical(it, asDoctor = user.role == "doctor", autoOpen = "CHECKUP") },
+            /* 🩺🔒 V839 (২৯.০৮.২০২৬, TK-নির্দেশ: *"আগে মনে করিয়ে দেয়"*) —
+               Check-up চাপলে **ফর্ম খোলার আগে** গত বারের প্ল্যান দেখানো হয়।
+               ⛔ প্ল্যান না থাকলে পপ-আপ আসেই না — সরাসরি আগের মতোই খোলে।
+               ⛔ দিনে **একবারই** (নিচে `nvpReminderShown` দেখুন)। */
+            onCheckup = { p ->
+                showNvpReminderThen(p) {
+                    openClinical(p, asDoctor = user.role == "doctor", autoOpen = "CHECKUP")
+                }
+            },
             // 🔴 TK-নির্দেশ (04.08.2026, আলোচনার পরে — অপশন ১ বেছেছেন):
             // "Journey" বোতাম এখন সরাসরি পূর্ণ চিকিৎসা-ইতিহাস (Full Journey)
             // খোলে -- প্রথম আসার দিনের অভিযোগ থেকে শুরু করে checkup ·
@@ -127,7 +148,7 @@ class DoctorQueueActivity : AppCompatActivity() {
                     .putExtra("patientRowId", p.id)
                     .putExtra("patientCode", p.patientId))
             },
-            onHeaderTap = { overdueExpanded = !overdueExpanded; renderRows() }
+            onHeaderTap = { doneExpanded = !doneExpanded; renderRows() }
         )
         binding.recyclerView.layoutManager = LinearLayoutManager(this)
         binding.recyclerView.adapter = adapter
@@ -147,7 +168,41 @@ class DoctorQueueActivity : AppCompatActivity() {
         }
 
         binding.btnBack.setOnClickListener { finish() }
-        binding.btnRefresh.setOnClickListener { loadQueue(withPhotos = false) }
+        /* 🔄🔒 V972 (TK-রিপোর্ট ছবিসহ: *"উপরে ডান দিকে Refreshing icon কোন কাজ
+           করে না"*) — **আসল কারণ (যাচাই করা):** বোতামটা কাজ করত, তালিকা নতুন
+           করে আনত; কিন্তু জমানো তালিকা সঙ্গে সঙ্গে আঁকা হয় বলে **চোখে কোনো
+           বদল দেখা যেত না** ⇒ মনে হত কিছুই হয়নি। এখন চাপলে ছোট একটা বার্তা।
+           ⛔ স্পিনার ঘোরানো হয়নি (TK-এর পুরনো নির্দেশ), তালিকা আনার পথও একই। */
+        binding.btnRefresh.setOnClickListener {
+            loadQueue(withPhotos = false)
+            /* ✅ V983 — "কতজন অপেক্ষায়" গোনায় **হয়ে যাওয়া** রোগী ধরা হয় না। */
+            val waiting = lastPendingItems.size
+            android.widget.Toast.makeText(
+                this, "Queue refreshed  ·  $waiting waiting", android.widget.Toast.LENGTH_SHORT
+            ).show()
+        }
+        // 🔍 V972 — লেখামাত্র তালিকা ছাঁকে (নতুন কোনো ক্লাউড-অনুরোধ নেই)।
+        binding.etQueueSearch.addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(s: android.text.Editable?) {
+                queueSearch = s?.toString().orEmpty().trim().lowercase()
+                renderRows()
+                /* 🔍🔒 V1108 (TK-নির্দেশ: *"সার্চ বক্সে নাম টাইপ করলেই চলে আসতে
+                   হবে"*) — লেখা থামার পরেই আজকের লাইনের **বাইরের** রোগীও
+                   নিজে থেকে উঠে আসে। ⛔ ৩ অক্ষরের কম হলে একটাও অনুরোধ যায় না। */
+                scheduleWideSearch()
+            }
+            override fun beforeTextChanged(t: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(t: CharSequence?, a: Int, b: Int, c: Int) {}
+        })
+        /* 🔍 V1013 → 🔵 V1107 — কীবোর্ডের Search চাপলেও **টাইপ করা নামটা সঙ্গে
+           যায়** (আগে যেত না, তাই নতুন পর্দায় আবার লিখতে হত)। */
+        binding.etQueueSearch.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH ||
+                actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE) {
+                openAllPatientSearch()
+                true
+            } else false
+        }
         setupBranchPicker()   // খাতার সারি B42 — শুধু মাস্টারের পর্দায় দেখা যায়
 
         skipNextResumeLoad = true   // 🟢 B659: onCreate-এর পরেই আসা onResume-এ আর দ্বিতীয়বার টানা হবে না
@@ -319,8 +374,8 @@ class DoctorQueueActivity : AppCompatActivity() {
             binding.recyclerView.visibility = View.GONE
             binding.tvEmpty.text = BranchFilterStore.ASK_TEXT
             binding.tvEmpty.visibility = View.VISIBLE
-            lastTodayItems = emptyList()
-            lastOverdueItems = emptyList()
+            lastPendingItems = emptyList()
+            lastDoneItems = emptyList()
             return
         }
         val cached = repository.loadCachedQueue(shownBranch())   // খাতার সারি B42
@@ -331,8 +386,8 @@ class DoctorQueueActivity : AppCompatActivity() {
             binding.tvEmpty.visibility = View.GONE
             binding.progressLoad.visibility = View.GONE
             binding.recyclerView.visibility = View.VISIBLE
-            lastTodayItems = cached!!.filter { DoctorQueueModel.isToday(it) }
-            lastOverdueItems = cached.filter { !DoctorQueueModel.isToday(it) }
+            lastPendingItems = cached!!.filter { !it.done }
+            lastDoneItems = cached.filter { it.done }
             renderRows()
         } else {
             binding.progressLoad.visibility = View.GONE  // TK-REQUESTED (2026-07-20): spinner must NEVER spin anywhere; cache-first shows old data instantly, content appears when ready.
@@ -373,8 +428,8 @@ class DoctorQueueActivity : AppCompatActivity() {
                 binding.tvEmpty.text = "No Patient In Queue"
                 binding.tvEmpty.visibility = View.VISIBLE
                 binding.recyclerView.visibility = View.GONE
-                lastTodayItems = emptyList()
-                lastOverdueItems = emptyList()
+                lastPendingItems = emptyList()
+                lastDoneItems = emptyList()
             } else {
                 binding.progressLoad.visibility = View.GONE
                 binding.recyclerView.visibility = View.VISIBLE
@@ -383,8 +438,14 @@ class DoctorQueueActivity : AppCompatActivity() {
                 // day-old still-pending patient doesn't look mixed in with
                 // today's queue. Sort order within each section (newest
                 // first) from the repository is preserved -- only grouped.
-                lastTodayItems = items.filter { DoctorQueueModel.isToday(it) }
-                lastOverdueItems = items.filter { !DoctorQueueModel.isToday(it) }
+                /* ✅🔒 V983 (০২.০৯.২০২৬, TK-নির্দেশ) — *"Pending / Overdue
+                   থাকবে না… এসেছে তাদের গুলোই থাকবে; যাদের চেকআপ অলরেডি হয়ে
+                   গেছে তাদেরকেও এখানে শো করতে হবে… ওভারডিউর বদলে আজকে এখনো
+                   বাকি, বা হয়ে গেছে"*।
+                   ⇒ ভাগ এখন **রেজিস্ট্রেশনের তারিখ দিয়ে নয়**, চেকআপ হয়েছে
+                     কিনা তাই দিয়ে। দুটো ভাগই শুধু আজকের — রাত ১২টায় খালি। */
+                lastPendingItems = items.filter { !it.done }
+                lastDoneItems = items.filter { it.done }
                 renderRows()
             }
         }
@@ -393,16 +454,126 @@ class DoctorQueueActivity : AppCompatActivity() {
     // TK-REQUESTED (2026-07-20, follow-up): "Today" is always shown open.
     // "Pending / Overdue" starts collapsed (header only, arrow ▶) and its
     // patient cards only appear after tapping the header (arrow ▼).
+    /** 🔍 V972 — নাম · মোবাইল · রোগীর আইডি, তিনটের যেকোনোটায় মিললেই। */
+    /* 🔴 V975 বিল্ড-ফিক্স (০২.০৯.২০২৬, TK-এর Android Studio-র ছবি) — আগে টাইপটা
+       object-এর নাম দিয়ে লেখা হয়েছিল, অথচ `QueuePatient` **আলাদা** ক্লাস
+       (মডেল-ফাইলের ২৪ নম্বর লাইনে, object-এর বাইরে) ⇒ বিল্ডে
+       "Unresolved reference: QueuePatient"। এই ফাইলের বাকি সব জায়গায়
+       (৬১ · ৬২ · ৫১২ · ৫৪৩ লাইন) সবসময় শুধু `QueuePatient`-ই লেখা ছিল।
+       ⇒ একই ধরনের ভুল আর যেন পার না হয়, তাই পাহারায় নতুন নিয়ম [৯.৪১]। */
+    private fun matchesSearch(p: QueuePatient): Boolean {
+        if (queueSearch.isBlank()) return true
+        val digits = queueSearch.filter { it.isDigit() }
+        return p.name.lowercase().contains(queueSearch) ||
+            p.patientId.lowercase().contains(queueSearch) ||
+            (digits.isNotEmpty() && p.mobile.filter { it.isDigit() }.contains(digits))
+    }
+
+    /** 🔍🔒 V1108 — লেখা থামার ৪৫০ মিলিসেকেন্ড পরে একবারই খোঁজা হয়।
+     *  ⛔ প্রতিটা অক্ষরে অনুরোধ যায় **না** — টাইপ থামলে তবেই একবার।
+     *  ⛔ ৩ অক্ষরের কম · একই লেখা আগে খোঁজা হয়ে থাকলে · অথবা আজকের লাইনেই
+     *     রোগী পাওয়া গেলে — কোনো অনুরোধই যায় না। */
+    private fun scheduleWideSearch() {
+        wideTask?.let { wideHandler.removeCallbacks(it) }
+        val q = queueSearch
+        if (q.length < 3) {
+            if (wideResults.isNotEmpty() || wideForQuery.isNotBlank()) {
+                wideResults = emptyList(); wideForQuery = ""; renderRows()
+            }
+            return
+        }
+        if (q == wideForQuery) return
+        // আজকের লাইনেই পাওয়া গেলে ক্লাউডে যাওয়ার দরকার নেই।
+        if (lastPendingItems.any { matchesSearch(it) } || lastDoneItems.any { matchesSearch(it) }) return
+        val task = Runnable {
+            if (isFinishing || isDestroyed) return@Runnable
+            if (queueSearch != q) return@Runnable
+            wideSearching = true
+            renderRows()
+            lifecycleScope.launch {
+                val found = withContext(Dispatchers.IO) {
+                    try { repository.searchAllPatients(q, shownBranch()) } catch (_: Throwable) { emptyList() }
+                }
+                wideSearching = false
+                if (isFinishing || isDestroyed) return@launch
+                if (queueSearch != q) return@launch
+                wideForQuery = q
+                wideResults = found
+                renderRows()
+            }
+        }
+        wideTask = task
+        wideHandler.postDelayed(task, 450L)
+    }
+
+    /** 🔍🔒 V1107 — টাইপ করা নামটা নিয়ে "সব রোগীর মধ্যে খোঁজা" পর্দা।
+     *  ⛔ পর্দাটা নিজের চেনা নিয়মেই খোঁজে — এখানে নতুন কোনো ক্লাউড-পড়া নেই। */
+    private fun openAllPatientSearch() {
+        val q = binding.etQueueSearch.text?.toString().orEmpty().trim()
+        try {
+            GlobalSearchActivity.pendingQuery = q
+            startActivity(android.content.Intent(this, GlobalSearchActivity::class.java))
+        } catch (_: Throwable) { }
+    }
+
     private fun renderRows() {
         val rows = mutableListOf<QueueRow>()
-        if (lastTodayItems.isNotEmpty()) {
-            rows.add(QueueRow.Header("Today (${lastTodayItems.size})"))
-            lastTodayItems.forEach { rows.add(QueueRow.Item(it)) }
+        // 🔍 V972 — খোঁজার লেখা থাকলে ছেঁকে নেওয়া তালিকাই দেখানো হয়; ফাঁকা
+        //    থাকলে সব আগের মতোই। ⛔ জমানো আসল তালিকা ছোঁয়া হয় না।
+        val pendingShown = lastPendingItems.filter { matchesSearch(it) }
+        val doneShown = lastDoneItems.filter { matchesSearch(it) }
+        if (pendingShown.isNotEmpty()) {
+            rows.add(QueueRow.Header("PENDING TODAY (${pendingShown.size})"))
+            pendingShown.forEach { rows.add(QueueRow.Item(it)) }
         }
-        if (lastOverdueItems.isNotEmpty()) {
-            val arrow = if (overdueExpanded) "▼" else "▶"
-            rows.add(QueueRow.Header("$arrow Pending / Overdue (${lastOverdueItems.size})", collapsible = true))
-            if (overdueExpanded) lastOverdueItems.forEach { rows.add(QueueRow.Item(it)) }
+        if (doneShown.isNotEmpty()) {
+            /* ✅ V983 — TK: *"DONE TODAY পর্দা ওপেন থাকবে না"* ⇒ গুটানো থাকে,
+               শিরোনামে চাপ দিলে খোলে।
+               🔍 V972 — খোঁজার সময় গুটানো থাকলে ফল দেখা যেত না, তাই তখন খোলাই থাকে। */
+            val open = doneExpanded || queueSearch.isNotBlank()
+            val arrow = if (open) "▼" else "▶"
+            rows.add(QueueRow.Header("$arrow DONE TODAY (${doneShown.size})", collapsible = true))
+            if (open) doneShown.forEach { rows.add(QueueRow.Item(it)) }
+        }
+        /* 🔍🔒 V1013 (০৩.০৯.২০২৬, TK-রিপোর্ট: *"উপরে সার্চ করলে কোন পেশেন্ট
+           সংখ্যা আসে না কেন?"*) — **কারণ:** এই ঘরটা শুধু **আজকের তালিকার
+           ভিতরেই** খোঁজে; তালিকার বাইরের রোগী এখানে কোনোদিন আসতেন না, অথচ
+           লেখা ছিল শুধু "No patient found" — কেন পাওয়া গেল না তা বোঝাই যেত না।
+           ⇒ এখন লেখাটা স্পষ্ট, আর কীবোর্ডের Search চাপলে **সব রোগীর মধ্যে**
+             খোঁজার পর্দাটা খুলে যায়।
+           ⛔ নতুন কোনো ক্লাউড-পড়া যোগ হয়নি — খোঁজার পর্দা নিজের নিয়মেই চলে। */
+        /* 🔍🔒 V1107 (০৫.০৯.২০২৬, TK-রিপোর্ট ছবিসহ — DIPANKAR, Jalpaiguri:
+           *"এখানে সার্চ করলে পেসেন্ট আসে না তো"*)।
+           🔴 **এটা TK দ্বিতীয়বার বলেছেন — আমার আগের কাজটা (V1013) আধখানা ছিল।**
+              তখন শুধু লেখাটা বদলেছিলাম ("press Search on the keyboard"), কিন্তু
+              ① ঘরটায় `imeOptions` বসাইনি ⇒ কীবোর্ডে **Search বোতামটাই দেখা যেত না**
+              ② চাপলেও টাইপ করা নামটা সঙ্গে যেত না ⇒ নতুন পর্দায় আবার লিখতে হত।
+           ⇒ এখন লেখাটাই একটা **নীল বোতাম** — একবার চাপলেই এই নামটা নিয়ে সব
+             রোগীর মধ্যে খোঁজার পর্দা খুলে যায়, আর কিছু টাইপ করতে হয় না।
+           ⛔ নতুন কোনো ক্লাউড-পড়া **এই পর্দায় যোগ হয়নি** — খোঁজা তখনই হয় যখন
+              স্টাফ নিজে বোতামটা চাপেন (Egress অপরিবর্তিত)। */
+        /* 🔍🔒 V1108 (TK-নির্দেশ: *"সার্চ বক্সে নাম টাইপ করলেই চলে আসতে হবে"*) —
+           আজকের লাইনে না পেলে **নিজে থেকেই** সব রোগীর মধ্যে খোঁজা হয়ে যায়,
+           আর ফল এখানেই কার্ড হয়ে বসে — কোনো বোতাম চাপতে হয় না।
+           ⛔ কার্ডগুলো হুবহু আগের কার্ড (একই adapter), তাই Check-up · History ·
+              Action · Report সব বোতাম আগের মতোই কাজ করে।
+           ⛔ ৩ অক্ষরের কম লিখলে খোঁজাই হয় না, তাই অকারণে কিছু দেখায় না। */
+        if (queueSearch.isNotBlank() && pendingShown.isEmpty() && doneShown.isEmpty()) {
+            val typed = binding.etQueueSearch.text?.toString().orEmpty().trim()
+            when {
+                queueSearch.length < 3 ->
+                    rows.add(QueueRow.Header("NOT IN TODAY'S QUEUE — TYPE 3 LETTERS TO SEARCH ALL"))
+                wideSearching ->
+                    rows.add(QueueRow.Header("🔍  SEARCHING ALL PATIENTS…"))
+                wideResults.isNotEmpty() -> {
+                    rows.add(QueueRow.Header("🔍  ALL PATIENTS (${wideResults.size})"))
+                    wideResults.forEach { rows.add(QueueRow.Item(it)) }
+                }
+                wideForQuery == queueSearch ->
+                    rows.add(QueueRow.Header("NO PATIENT NAMED \"${typed.uppercase()}\""))
+                else ->
+                    rows.add(QueueRow.Header("NOT IN TODAY'S QUEUE"))
+            }
         }
         // 🔒 V217 (§B216, Master Fix Order §14, item 7 "CHECK-UP থেকে Back
         // দিলে একই জায়গায় ফিরবে"): CHECK-UP থেকে ফিরে এলে `onResume()`
@@ -434,6 +605,60 @@ class DoctorQueueActivity : AppCompatActivity() {
     // jump to the sub-screen) so RoleSession.applyFrom() runs first with
     // THIS patient's extras -- skipping that hub would risk the clinical
     // screen showing a stale/previous patient's data.
+    // ═══════════════════════════════════════════════════════════════════
+    // 🩺🔒 V839 — "গত বারের প্ল্যান" মনে করিয়ে দেওয়ার পপ-আপ
+    // TK-নির্দেশ (২৯.০৮.২০২৬, ফটো-প্রুফ দেখিয়ে অনুমোদিত):
+    //   *"এটা পরের দিন যখন পেশেন্ট আসবে তখন যেন আগে মনে করিয়ে দেয়।"*
+    // ⛔ কোনো বাড়তি ক্লাউড-অনুরোধ নেই — লেখাটা তালিকার সঙ্গেই এসে গেছে।
+    // ⛔ পপ-আপ বন্ধ/OK — দুই পথেই চেকআপ পর্দা আগের মতোই খোলে; কখনো আটকায় না।
+    // ═══════════════════════════════════════════════════════════════════
+
+    /** দিনে একবারের পাহারা — একই রোগীর জন্য আজ আগে দেখানো হয়েছে কি না। */
+    private fun nvpAlreadyShownToday(patientId: String): Boolean {
+        return try {
+            val sp = getSharedPreferences("nvp_reminder", MODE_PRIVATE)
+            val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+                .format(java.util.Date())
+            val seen = sp.getStringSet("shown_" + today, emptySet()) ?: emptySet()
+            if (seen.contains(patientId)) return true
+            val updated = HashSet(seen); updated.add(patientId)
+            /* পুরনো দিনের চাবি জমতে দেওয়া হয় না — আজকেরটা লিখে বাকিগুলো মোছা। */
+            sp.edit().clear().putStringSet("shown_" + today, updated).apply()
+            false
+        } catch (_: Throwable) { false }
+    }
+
+    private fun showNvpReminderThen(p: QueuePatient, go: () -> Unit) {
+        val hasPlan = p.nvpLine.isNotBlank() || p.nvpItems.isNotEmpty() ||
+            p.nvpMedicine.isNotBlank() || p.nvpNote.isNotBlank()
+        val key = p.patientId.ifBlank { p.id }
+        if (!hasPlan || key.isBlank() || nvpAlreadyShownToday(key)) { go(); return }
+
+        val badge = com.tkbiswas.pilesclinic.clinical.NextVisitPlan.oldOrNew(p.registrationDate)
+        val labels = com.tkbiswas.pilesclinic.clinical.NextVisitPlan.OPTIONS
+            .filter { p.nvpItems.contains(it.key) }.map { it.label }
+        val body = StringBuilder()
+        val whenBy = listOfNotNull(p.nvpWhen.ifBlank { null }, p.nvpBy.ifBlank { null })
+            .joinToString(" · ")
+        if (whenBy.isNotBlank()) body.append(whenBy).append("\n\n")
+        if (labels.isEmpty()) body.append("• ").append(p.nvpLine).append("\n")
+        else for (l in labels) body.append("• ").append(l).append("\n")
+        if (p.nvpMedicine.isNotBlank()) body.append("\nMedicine: ").append(p.nvpMedicine).append("\n")
+        if (p.nvpNote.isNotBlank()) body.append("\n").append(p.nvpNote).append("\n")
+
+        val title = p.name.ifBlank { "Patient" } +
+            (if (badge.isNotBlank()) "  ($badge)" else "") + " — Last plan"
+        try {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(title)
+                .setMessage(body.toString().trim())
+                .setPositiveButton("OK") { _, _ -> go() }
+                .setOnCancelListener { go() }
+                .show()
+                .also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }
+        } catch (_: Throwable) { go() }   // পপ-আপ ব্যর্থ হলেও পর্দা কখনো আটকাবে না
+    }
+
     private fun openClinical(patient: QueuePatient, asDoctor: Boolean, autoOpen: String? = null) {
         // 🔒🔒 খাতার সারি B179 (TK, 30.07.2026 — TK-এর স্পষ্ট অনুমতি: "জায়গাতেও
         // ঠিক করতে চাই")। `QueuePatient`-এ address/age/sex নেই, তাই এখানে

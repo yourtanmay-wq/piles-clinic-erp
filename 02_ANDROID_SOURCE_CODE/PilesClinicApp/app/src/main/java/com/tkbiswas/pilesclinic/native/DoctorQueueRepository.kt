@@ -36,6 +36,59 @@ class DoctorQueueRepository(private val context: Context? = null) {
     // background, same pattern as the app's other silent-refresh screens.
     // This is a read-only display cache -- it never affects what gets
     // fetched/filtered/saved; fetchQueue() below is completely unchanged.
+    /* ═══════════════════════════════════════════════════════════════
+       🔍🔒 V1108 (০৫.০৯.২০২৬, TK-নির্দেশ: *"সার্চ বক্সে নাম টাইপ করলেই চলে
+       আসতে হবে"*) — আজকের লাইনে না থাকলেও রোগী **নিজে থেকেই** উঠে আসে।
+
+       🔴 আগে কী হত: এই ঘরটা শুধু **আজকের তালিকার ভিতরেই** ছাঁকত, তাই
+          তালিকার বাইরের রোগী কোনোদিন আসতেন না (TK দুবার বলেছেন — সারি
+          ১৭৯ · ২১০)।
+
+       ⛔ **Egress (ফ্রি প্ল্যান) — প্রকল্পের আগে থেকেই TK-অনুমোদিত সেই একই
+          সস্তা পথ** (`ChamberAttendanceRepository.searchPatients`-এর হুবহু
+          নিয়ম): ছাঁকাটা **সার্ভারেই** হয় (`ilike`), তাই পুরো টেবিল নামে না —
+          শুধু মিলে যাওয়া কয়েকটা সারি, আর তাও মাত্র ৭টা দরকারি ঘর।
+       ⛔ **অন্তত ৩ অক্ষর** না লিখলে একটাও অনুরোধ যায় না।
+       ⛔ ডাক্তার/স্টাফের বাছা ব্রাঞ্চের বাইরে খোঁজা হয় না (পর্দার নিজের নিয়ম)।
+       ⛔ নেট খারাপ হলে চুপচাপ ফাঁকা তালিকা — পর্দা আগের মতোই চলে।
+       ═══════════════════════════════════════════════════════════════ */
+    fun searchAllPatients(query: String, branchFilter: String?): List<QueuePatient> {
+        val q = query.trim()
+        if (q.length < 3) return emptyList()
+        return try {
+            val pattern = java.net.URLEncoder.encode("*$q*", "UTF-8")
+            val orFilter = "or=(name.ilike.$pattern,mobile.ilike.$pattern,patientId.ilike.$pattern)"
+            val allBranch = branchFilter.isNullOrBlank() || branchFilter == "All"
+            val filter = if (allBranch) orFilter
+                else "branch=eq.${java.net.URLEncoder.encode(branchFilter, "UTF-8")}&$orFilter"
+            val rows = SupabaseClient.fetchListSlim(
+                "patients", filter, 25,
+                "id,name,mobile,patientId,branch,disease,registrationDate"
+            )
+            val out = ArrayList<QueuePatient>()
+            for (i in 0 until rows.length()) {
+                val p = rows.optJSONObject(i) ?: continue
+                val id = p.s("id").trim()
+                if (id.isBlank()) continue
+                out.add(
+                    QueuePatient(
+                        id = id,
+                        patientId = p.s("patientId"),
+                        name = p.s("name"),
+                        mobile = p.s("mobile"),
+                        disease = p.s("disease"),
+                        branch = p.s("branch"),
+                        photo = "",
+                        updatedAt = "",
+                        createdAt = "",
+                        registrationDate = p.s("registrationDate")
+                    )
+                )
+            }
+            out
+        } catch (_: Throwable) { emptyList() }   // নেট খারাপ হলে পর্দা আগের মতোই চলে
+    }
+
     fun loadCachedQueue(branchFilter: String?): List<QueuePatient>? {
         val ctx = context ?: return null
         val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -118,6 +171,17 @@ class DoctorQueueRepository(private val context: Context? = null) {
                         .put("mobile", q.mobile).put("disease", q.disease).put("branch", q.branch)
                         .put("photo", photo).put("updatedAt", q.updatedAt).put("createdAt", q.createdAt)
                         .put("bill", q.bill)
+                        /* 🩺🔒 V839 — নেট না থাকলেও কার্ডে ট্যাগ ও OLD/NEW যেন
+                           থাকে, তাই জমানো তালিকাতেও ঘরগুলো লেখা হয়।
+                           ⛔ এটা শুধু ফোনের ভিতরের জমা — ক্লাউডে কিছু যায় না,
+                              Egress-এ কোনো প্রভাব নেই। */
+                        .put("registrationDate", q.registrationDate)
+                        .put("nvpLine", q.nvpLine).put("nvpWhen", q.nvpWhen)
+                        .put("nvpBy", q.nvpBy).put("nvpMedicine", q.nvpMedicine)
+                        .put("nvpNote", q.nvpNote)
+                        .put("nvpItems", q.nvpItems.joinToString(","))
+                        /* ✅ V983 — "হয়ে গেছে" ভাগটা নেট ছাড়াও ঠিক থাকে। */
+                        .put("done", q.done)
                         // queue/doctorComplete/stage aren't needed back -- isInQueue() isn't
                         // re-applied to cached data, it's only used for the raw fetch above.
                 )
@@ -184,9 +248,9 @@ class DoctorQueueRepository(private val context: Context? = null) {
         //   ছবি এখন শুধু তখনই নামে যখন কেউ **সত্যিই Doctor Queue স্ক্রিন খোলে** (includePhoto=
         //   true দিলে) — তবে Doctor Queue screen এখন default slim path ব্যবহার করে; কার্ডের ছবি cache/missing-id batch থেকে পূরণ হয়।
         val cols = if (includePhoto)
-            "id,name,mobile,branch,disease,patientId,photo,queue,stage,doctorComplete,createdBy,registeredBy,createdAt,updatedAt,bill"
+            "id,name,mobile,branch,disease,patientId,photo,queue,stage,doctorComplete,createdBy,registeredBy,createdAt,updatedAt,bill,registrationDate,queuedAt"
         else
-            "id,name,mobile,branch,disease,patientId,queue,stage,doctorComplete,createdBy,registeredBy,createdAt,updatedAt,bill"
+            "id,name,mobile,branch,disease,patientId,queue,stage,doctorComplete,createdBy,registeredBy,createdAt,updatedAt,bill,registrationDate,queuedAt"
         val rowsRaw = SupabaseClient.fetchListSlimOrNull("patients", filter, 5000, cols)
         if (rowsRaw == null) loadCachedQueue(branchFilter)?.let { return it }
         val rows = rowsRaw ?: JSONArray()
@@ -254,9 +318,214 @@ class DoctorQueueRepository(private val context: Context? = null) {
         //   রাখা হত, ফেরত-দেওয়া তালিকায় নয় — তাই ৩০ সেকেন্ডের অটো-রিফ্রেশ হলেই কার্ড
         //   থেকে ছবি উধাও হয়ে যেত (DoctorQueueAdapter ফাঁকা ছবি পেলে setImageDrawable(null))।
         //   ⛔ ছবিসহ টানার পথ (includePhoto=true) এক অক্ষরও বদলায়নি।
-        val result = if (includePhoto) result0 else fillPhotosFromCache(branchFilter, result0)
+        val result1 = if (includePhoto) result0 else fillPhotosFromCache(branchFilter, result0)
+        val result2 = fillNextVisitPlans(result1)   // 🩺 V839
+        /* 🩺🔒 V951 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ): TK — *"OLD পেশেন্ট যারা
+           ট্রিটমেন্ট করার জন্য টাকা জমা করেছে তাদেরকে কেন দেখাচ্ছে না?"*
+           যাচাই করে দেখা গেছে লাইনে ঢোকার নিয়মে **শুধু** নতুন রেজিস্ট্রেশন ও
+           NEXT VISIT PLAN ছিল — টাকা জমা দিলে কেউ লাইনে ঢুকত না। এখন ঢুকবে। */
+        val result = addTodaysTreatmentPayers(branchFilter, merged, result2)
         saveCachedQueue(branchFilter, result, includePhoto)
         return result
+    }
+
+    /**
+     * 🩺🔒 V951 — আজ **ট্রিটমেন্টের টাকা** জমা দেওয়া রোগীদের লাইনে আনা, আর
+     * কার্ডের জন্য কত তম ভিজিট · আজ জমা · মোট জমা · গত ট্রিটমেন্ট বসানো।
+     *
+     * ### Egress — কেন এভাবে (আন্দাজে নয়, V839-এর প্রমাণিত ধাঁচেই)
+     * প্রথমে **একটাই ছোট অনুরোধ**: আজকের তারিখের (ও এই ব্রাঞ্চের) পেমেন্ট সারি।
+     * তাতে যে ক'জন পাওয়া যায় (সাধারণত ৫–২০ জন) **শুধু তাঁদের** জন্য দ্বিতীয়
+     * অনুরোধ — `patientId=in.(…)`। সব রোগীর টাকা কখনো নামানো হয় না।
+     *
+     * ⛔ কেউ ব্যর্থ হলে (null) আগের তালিকাটাই হুবহু ফেরে — লাইন কখনো ফাঁকা হয় না।
+     * ⛔ ইতিমধ্যে লাইনে থাকা রোগীর কার্ডও টাকার তথ্য পায়, কিন্তু **দুবার বসে না**।
+     * ⛔ চেকআপ হয়ে যাওয়া (doctorComplete) রোগী আগের মতোই বাদ।
+     */
+    private fun addTodaysTreatmentPayers(
+        branchFilter: String?,
+        patientRows: JSONArray,
+        current: List<QueuePatient>
+    ): List<QueuePatient> {
+        return try {
+            val today = FollowUpModel.today()
+            val brPart = if (branchFilter != null && branchFilter != "All")
+                "&branch=eq." + java.net.URLEncoder.encode(branchFilter, "UTF-8") else ""
+            val todayPays = SupabaseClient.fetchListSlimOrNull(
+                "payments", "date=eq.$today$brPart", 2000,
+                "id,patientId,mobile,amount,payType,date"
+            ) ?: return current
+
+            /* আজ কে কত **চিকিৎসার** টাকা দিলেন (ফি/হাজিরা/বিল-এডিট বাদ — চেম্বার
+               বোর্ডের হুবহু একই তালিকা)। */
+            fun isMoneyRow(t: String) =
+                t != "bill_edit" && t != "chamber_expected" && t != "attendance_mark" &&
+                t != "visit_fee" && t != "refund"
+            val paidTodayBy = HashMap<String, Double>()
+            for (i in 0 until todayPays.length()) {
+                val p = todayPays.optJSONObject(i) ?: continue
+                val t = p.optString("payType", "").lowercase()
+                if (!isMoneyRow(t)) continue
+                val amt = p.optDouble("amount", 0.0)
+                if (amt <= 0.0) continue
+                val owner = p.optString("patientId", "").trim()
+                if (owner.isBlank()) continue
+                paidTodayBy[owner] = (paidTodayBy[owner] ?: 0.0) + amt
+            }
+            if (paidTodayBy.isEmpty()) return current
+
+            /* ওই ক'জনের **সব** টাকার সারি — মোট জমা, ভিজিট গোনা ও গত ট্রিটমেন্টের
+               জন্য। একটাই অনুরোধ, ২০০ করে ভাগে (URL যেন লম্বা না হয়)। */
+            val ids = paidTodayBy.keys.toList()
+            val allPays = JSONArray()
+            var readOk = true
+            for (i in ids.indices step 200) {
+                val part = ids.subList(i, minOf(i + 200, ids.size))
+                val inList = part.joinToString(",") { "\"" + it.replace("\"", "") + "\"" }
+                val got = SupabaseClient.fetchListSlimOrNull(
+                    "payments", "patientId=in.($inList)", 5000,
+                    "patientId,amount,payType,date,progress,createdAt"
+                )
+                if (got == null) { readOk = false; break }
+                for (j in 0 until got.length()) allPays.put(got.getJSONObject(j))
+            }
+            if (!readOk) return current
+
+            val paidTotalBy = HashMap<String, Double>()
+            val visitDaysBy = HashMap<String, HashSet<String>>()
+            val lastTreatBy = HashMap<String, Pair<String, String>>()   // id → (তারিখ, লেখা)
+            val lastTreatTimeBy = HashMap<String, String>()              // id → সময় ("3.42 PM")
+            for (i in 0 until allPays.length()) {
+                val p = allPays.optJSONObject(i) ?: continue
+                val owner = p.optString("patientId", "").trim()
+                if (owner.isBlank()) continue
+                val t = p.optString("payType", "").lowercase()
+                val d = p.optString("date", "").take(10)
+                if (isMoneyRow(t)) {
+                    val amt = p.optDouble("amount", 0.0)
+                    if (amt > 0.0) {
+                        paidTotalBy[owner] = (paidTotalBy[owner] ?: 0.0) + amt
+                    }
+                }
+                /* 🔢🔒 V976 (০২.০৯.২০২৬, TK-নির্দেশ) — *"চেম্বারে যতবার এসেছেন সব দিন
+                   গুনবে; যেদিন ভিজিট ফি দিল সেটা প্রথম দিন"*।
+                   ⇒ আগে শুধু **চিকিৎসার** টাকার দিন গোনা হত, তাই যাঁর প্রথম দিনে
+                     শুধু ভিজিট ফি ছিল তাঁর একটা দিন বাদ পড়ত (TK-এর ছবিতে MERAJ
+                     "1st Visit" দেখাচ্ছিল, হওয়ার কথা ছিল ২য়)।
+                   ⛔ টাকার যোগ (`paidTotalBy`) আগের নিয়মেই — ভিজিট ফি সেখানে
+                      ঢোকে না, তাই একটা পয়সাও এদিক-ওদিক হয়নি; শুধু **দিন গোনা**
+                      বদলেছে। */
+                val countsAsVisit = t == "visit_fee" || isMoneyRow(t)
+                if (countsAsVisit && d.length == 10 && p.optDouble("amount", 0.0) > 0.0) {
+                    visitDaysBy.getOrPut(owner) { HashSet() }.add(d)
+                }
+                /* গত ট্রিটমেন্ট = **আজকের আগের** সবচেয়ে নতুন দিনের চেম্বার-নোট।
+                   🔴🔒 V976 (TK-রিপোর্ট ছবিসহ) — ক্লাউডে ঘরটা খালি থাকলে
+                   `optString` **"null" লেখাটাই** ফেরত দিত, আর সেটাই কার্ডে
+                   উঠত (TK-এর ছবিতে MERAJ-এর কার্ডে লাল "null")। এখন প্রকল্পের
+                   নিজের `s()` দিয়ে পড়া হয় — খালি মানে খালিই।
+                   ⛔ TK-নির্দেশ: *"লুকাতে হবে না, ব্লাংক থাকবে"* ⇒ তারিখের
+                      বাক্সটা থাকে, শুধু নিচের লাইনটা ফাঁকা। */
+                val prog = p.s("progress").trim()
+                if (d.length == 10 && d < today) {
+                    val prev = lastTreatBy[owner]
+                    if (prev == null || d > prev.first) {
+                        lastTreatBy[owner] = d to prog
+                        // 🕐 V976 (TK-নির্দেশ: *"last treatment date and time লাগবে"*)
+                        lastTreatTimeBy[owner] = PaymentModel.displayTime12(p.s("createdAt"))
+                    }
+                }
+            }
+
+            /* রোগীর সারিগুলো id ধরে হাতের কাছে (নাম/ছবি/বিল বসানোর জন্য)। */
+            val byId = HashMap<String, org.json.JSONObject>()
+            for (i in 0 until patientRows.length()) {
+                val r = patientRows.optJSONObject(i) ?: continue
+                val rid = r.optString("id", "")
+                if (rid.isNotBlank()) byId[rid] = r
+            }
+
+            /* 💰🔒 V976 (০২.০৯.২০২৬, TK-নির্দেশ) — *"সমস্ত পেশেন্টের ক্ষেত্রে
+               দেখাবে"*। আগে **আজ টাকা না দিলে** এই ঘরগুলো একটাও বসত না
+               (`?: return q`), তাই বিল · বাকি · ভিজিট-সংখ্যা · গত ট্রিটমেন্ট
+               শুধু একজন-দুজনের কার্ডেই দেখা যেত। এখন সবার কার্ডেই বসে;
+               আজ টাকা না দিলে "আজ জমা" ₹০। ⛔ টাকার হিসাব এক পয়সাও বদলায়নি। */
+            fun decorate(q: QueuePatient): QueuePatient = q.copy(
+                visitNo = visitDaysBy[q.id]?.size ?: 0,
+                paidToday = paidTodayBy[q.id] ?: 0.0,
+                paidTotal = paidTotalBy[q.id] ?: 0.0,
+                lastTreatmentDate = lastTreatBy[q.id]?.first ?: "",
+                lastTreatment = lastTreatBy[q.id]?.second ?: "",
+                lastTreatmentTime = lastTreatTimeBy[q.id] ?: ""
+            )
+
+            val out = current.map { decorate(it) }.toMutableList()
+            val already = HashSet(out.map { it.id })
+            val seenMobiles = HashSet(out.map { it.mobile.filter { c -> c.isDigit() }.takeLast(10) })
+            for (pid in ids) {
+                if (pid in already) continue
+                val row = byId[pid] ?: continue
+                /* ✅🔒 V983 (TK-নির্দেশ) — চেকআপ হয়ে যাওয়া রোগীও আজকের দিনটুকু
+                   তালিকায় থাকেন ("DONE TODAY" ভাগে)। কে থাকবেন সেটা এখন
+                   একটাই জায়গা ঠিক করে — `DoctorQueueModel.isInQueue()`। */
+                if (!DoctorQueueModel.isInQueue(row)) continue
+                val mob = row.s("mobile").filter { it.isDigit() }.takeLast(10)
+                if (mob.length == 10 && !seenMobiles.add(mob)) continue // এক মোবাইল = এক কার্ড
+                out.add(decorate(DoctorQueueModel.parse(row)))
+            }
+            out
+        } catch (_: Throwable) { current }
+    }
+
+    /**
+     * 🩺🔒 V839 (২৯.০৮.২০২৬, TK-নির্দেশ) — কার্ডে দেখানোর জন্য প্রতিটা
+     * সারিতে **শেষ NEXT VISIT PLAN**-টা বসানো।
+     *
+     * ### 🚨 Egress — কেন এভাবে, আন্দাজে নয়
+     * উপরের বড় পড়াটা **ব্রাঞ্চের সব রোগীর** সারি টানে (৫০০০ পর্যন্ত)।
+     * সেখানে `nextVisitPlan` ঘরটা যোগ করলে **প্রত্যেক রোগীর পুরো
+     * প্ল্যান-তালিকা** নামত — দিনে বহুবার, প্রতিটা ফোনে। সেটা করা হয়নি।
+     *
+     * বদলে: **ছাঁকনির পরে** যে ক'জন সত্যিই আজ তালিকায় আছেন (সাধারণত ৫–৩০ জন)
+     * **শুধু তাঁদের** জন্য একটাই ছোট অনুরোধ — `id=in.(…)&select=id,nextVisitPlan`।
+     * প্রকল্পের আগে থেকে থাকা প্রমাণিত ধাঁচ (`DraftRepository`/`ReportsActivity`-র
+     * মতো একবারে-সবগুলো পড়া)।
+     *
+     * ⛔ ব্যর্থ হলে (নেট নেই / ঘরটা এখনো নেই) **তালিকা হুবহু আগের মতোই** ফেরে —
+     *    ট্যাগ দেখায় না, কিছুই ভাঙে না।
+     * ⛔ একসাথে সর্বোচ্চ ৬০টা id (URL খুব লম্বা হওয়া এড়াতে — `MAX_BATCH`-এর
+     *    হুবহু একই সীমা)।
+     */
+    private fun fillNextVisitPlans(list: List<QueuePatient>): List<QueuePatient> {
+        if (list.isEmpty()) return list
+        return try {
+            val ids = list.map { it.id }.filter { it.isNotBlank() }.distinct().take(60)
+            if (ids.isEmpty()) return list
+            val filter = "id=in.(" + ids.joinToString(",") { java.net.URLEncoder.encode(it, "UTF-8") } + ")"
+            val rows = SupabaseClient.fetchListSlimOrNull(
+                "patients", filter, ids.size,
+                "id," + com.tkbiswas.pilesclinic.clinical.NextVisitPlan.FIELD
+            ) ?: return list
+            val byId = HashMap<String, com.tkbiswas.pilesclinic.clinical.NextVisitPlan.Entry>()
+            for (i in 0 until rows.length()) {
+                val r = rows.optJSONObject(i) ?: continue
+                val rid = r.optString("id")
+                if (rid.isBlank()) continue
+                com.tkbiswas.pilesclinic.clinical.NextVisitPlan.latest(r)?.let { byId[rid] = it }
+            }
+            if (byId.isEmpty()) return list
+            list.map { q ->
+                val e = byId[q.id] ?: return@map q
+                q.copy(
+                    nvpLine = e.shortLine(),
+                    nvpWhen = if (e.at.length >= 10) FollowUpModel.displayDate(e.at.take(10)) else "",
+                    nvpBy = e.byName,
+                    nvpItems = e.items,        // 🩺 V839 — পপ-আপের জন্য, একই পড়া
+                    nvpMedicine = e.medicine,
+                    nvpNote = e.note
+                )
+            }
+        } catch (_: Throwable) { list }
     }
 
     /**
@@ -392,9 +661,9 @@ class DoctorQueueRepository(private val context: Context? = null) {
         val sinceEnc = try { java.net.URLEncoder.encode(since, "UTF-8") } catch (_: Throwable) { since }
         val filter = "updatedAt=gt.$sinceEnc$branchPart"
         val cols = if (includePhoto)
-            "id,name,mobile,branch,disease,patientId,photo,queue,stage,doctorComplete,createdBy,registeredBy,createdAt,updatedAt,bill"
+            "id,name,mobile,branch,disease,patientId,photo,queue,stage,doctorComplete,createdBy,registeredBy,createdAt,updatedAt,bill,registrationDate,queuedAt"
         else
-            "id,name,mobile,branch,disease,patientId,queue,stage,doctorComplete,createdBy,registeredBy,createdAt,updatedAt,bill"
+            "id,name,mobile,branch,disease,patientId,queue,stage,doctorComplete,createdBy,registeredBy,createdAt,updatedAt,bill,registrationDate,queuedAt"
 
         val delta = try {
             SupabaseClient.fetchListSlimOrNull("patients", filter, 2000, cols)

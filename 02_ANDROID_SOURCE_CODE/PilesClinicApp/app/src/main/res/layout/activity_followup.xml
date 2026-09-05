@@ -105,7 +105,13 @@
          so the whole top of the screen is much shorter. Same three ids,
          same taps, same counts . only the shape/order changed. -->
 
+    <!-- 🟣🔒 V710 (২৬.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত) — id দুটো
+         (`tabRow` · `filterRow`) **নতুন যোগ করা হলো**, শুধু যাতে ড্যাশবোর্ডের
+         "N calls pending" ব্যানার থেকে এলে সারি দুটো লুকানো যায়।
+         ⛔ ভিতরের একটাও ঘর/বোতাম/মাপ/রং বদলায়নি — Follow-up আলাদা করে খুললে
+            সব হুবহু আগের মতোই। -->
     <LinearLayout
+        android:id="@+id/tabRow"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
@@ -154,6 +160,7 @@
 
 
     <HorizontalScrollView
+        android:id="@+id/filterRow"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
@@ -178,13 +185,43 @@
                  দিলে এক নম্বর থেকে সমস্ত পেশেন্টের ডিটেলস দেখা যাবে।"*
                  বাকি চিপগুলোর হুবহু একই মাপ ও ধাঁচ — নতুন কোনো ডিজাইন নয়। -->
             <Button android:id="@+id/fSerial" android:layout_width="wrap_content" android:layout_marginEnd="4dp" android:layout_height="32dp" android:textAllCaps="false" android:minWidth="0dp" android:textSize="11.5sp" android:paddingHorizontal="12dp" android:insetTop="0dp" android:insetBottom="0dp" android:text="🔢 Serial No." />
+            <!-- 🟢🔒 V646 (২৫.০৮.২০২৬, TK-নির্দেশ) — Enquiry ট্যাবে "Unexpected
+                 Time" ফিল্টার-চিপ, বাকিগুলোর হুবহু একই মাপ/ধাঁচ। Draft-এর
+                 "Unexpected Time Calls" যে একই followups সারি থেকে আসে, এই
+                 চিপ চাপলে ঠিক সেই একই সারিগুলো এখানেই দেখা যাবে (client-side
+                 ফিল্টার, নতুন কোনো Supabase কল লাগে না)। -->
+            <Button android:id="@+id/fUnexpected" android:layout_width="wrap_content" android:layout_marginEnd="4dp" android:layout_height="32dp" android:textAllCaps="false" android:minWidth="0dp" android:textSize="11.5sp" android:paddingHorizontal="12dp" android:insetTop="0dp" android:insetBottom="0dp" android:text="🌙 Unexpected Time" />
             <!-- 🔒 TK-APPROVED (29.07.2026, ফটো-প্রুফে পাশ · খাতার সারি B69):
                  TK: *"সিরিয়াল নাম্বারের পাশে আরো একটা জিনিস রাখতে হবে — গুগল সিট,
                  অর্থাৎ আমি ডাউনলোড করলে যেন গুগল সিটে দেখতে পাই।"*
                  চাপ দিলে পর্দায় তখন যা দেখা যাচ্ছে ঠিক সেটাই CSV হয়ে নামে। -->
+            <!-- 🟢🔒 V646 (২৫.০৮.২০২৬, TK-নির্দেশ — "২ যায়গায়ই থাকবে, Unexpected
+                 Time-এর মতন") — Patient ট্যাবের জন্য (stage="Treatment")
+                 Running/Incomplete/Complete ফিল্টার-চিপ — Draft-এর একই
+                 নিয়মে (V644/V645), client-side, নতুন Supabase কল নেই। -->
+            <Button android:id="@+id/fRunning" android:layout_width="wrap_content" android:layout_marginEnd="4dp" android:layout_height="32dp" android:textAllCaps="false" android:minWidth="0dp" android:textSize="11.5sp" android:paddingHorizontal="12dp" android:insetTop="0dp" android:insetBottom="0dp" android:text="🏃 Running" />
+            <Button android:id="@+id/fIncompletePatient" android:layout_width="wrap_content" android:layout_marginEnd="4dp" android:layout_height="32dp" android:textAllCaps="false" android:minWidth="0dp" android:textSize="11.5sp" android:paddingHorizontal="12dp" android:insetTop="0dp" android:insetBottom="0dp" android:text="⏳ Incomplete" />
+            <Button android:id="@+id/fCompletePatient" android:layout_width="wrap_content" android:layout_marginEnd="4dp" android:layout_height="32dp" android:textAllCaps="false" android:minWidth="0dp" android:textSize="11.5sp" android:paddingHorizontal="12dp" android:insetTop="0dp" android:insetBottom="0dp" android:text="✅ Complete" />
             <Button android:id="@+id/fSheet" android:layout_width="wrap_content" android:layout_height="32dp" android:textAllCaps="false" android:minWidth="0dp" android:textSize="11.5sp" android:paddingHorizontal="12dp" android:insetTop="0dp" android:insetBottom="0dp" android:text="⬇ Sheet" />
         </LinearLayout>
     </HorizontalScrollView>
+
+    <!-- 🟣🔒 V710 — ব্যানার থেকে এলে ট্যাব ও ফিল্টারের জায়গায় **একটাই পরিষ্কার
+         লাইন**, যাতে স্টাফ বুঝতে পারেন এটা তিন সেকশন মেশানো কল-তালিকা।
+         ⛔ ডিফল্ট `gone` — স্বাভাবিক Follow-up-এ এটা কখনো দেখা যায় না। -->
+    <TextView
+        android:id="@+id/tvAllSectionsHead"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="10dp"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/bg_all_sections_head"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="10dp"
+        android:textColor="#FFFFFF"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
 
     <ProgressBar
         android:id="@+id/progressLoad"

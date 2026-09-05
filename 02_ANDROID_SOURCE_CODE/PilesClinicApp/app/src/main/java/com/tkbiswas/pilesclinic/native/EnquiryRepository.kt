@@ -288,6 +288,7 @@ class EnquiryRepository(private val context: Context) {
             history.put(
                 JSONObject()
                     .put("date", today)
+                    .put("time", isoNow())   /* ⏰ V827 — সময়ও জমা হয় (TK: "LAST CALL তারিখের পরে যেন Time থাকে")। */
                     .put("remark", "Restored & moved to $newBranch (Enquiry form)")
                     .put("staff", staffName)
                     .put("status", "Active")

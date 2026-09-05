@@ -96,7 +96,13 @@ data class FollowUpItem(
      * ⛔ ডিফল্ট ফাঁকা — তাই এই ক্লাস তৈরি করা পুরোনো কোনো জায়গা বদলাতে
      *    হয়নি, আর ফাঁকা থাকলে আচরণ **হুবহু আগের মতোই** (মোবাইল ধরে)।
      */
-    val refId: String = ""
+    val refId: String = "",
+    /* 🆕🔒 V850 (৩০.০৮.২০২৬, TK-অনুমোদিত ডেমো প্রুফ) — TK: "যেগুলো রেজিস্ট্রেশন
+       করা হয়েছে সেখানে লিখতে হবে কত তারিখে রেজিস্ট্রেশন হয়েছে এবং কে
+       রেজিস্ট্রেশন করেছিল"। ⛔ ডিফল্ট ফাঁকা ⇒ যে পর্দা এই দুটো ঘর ভরে না
+       (Follow-up · Trash-প্রিভিউ) সেখানে কার্ড **হুবহু আগের মতোই** থাকে। */
+    val regDate: String = "",
+    val regBy: String = ""
 )
 
 object FollowUpModel {
@@ -142,23 +148,47 @@ object FollowUpModel {
         // ⛔ ডেটাবেসে কিছুই লেখা হয় না — শুধু দেখানোর সময় হিসাব।
         lastCallDate = s(row, "lastCallDate").ifBlank { lastCallDateFromHistory(row) },
         lastCallBy = lastStaffFromHistory(row),
-        lastCallTime = lastCallTimeFromHistory(row),   // 🔵 V543
+        // ⏰🔒 V931 — সময় এখন **ঠিক ওই তারিখের** সারি থেকে (উপরের বড় টীকা দেখুন)
+        lastCallTime = lastCallTimeFromHistory(row, s(row, "lastCallDate").ifBlank { lastCallDateFromHistory(row) }),
         refDoctor = s(row, "refDoctor")
     )
 
     /** `history`-র শেষ এন্ট্রির তারিখ (না পেলে ফাঁকা)। */
     /** 🔵 V543: শেষ কলের সময় — `history`-র সবচেয়ে নতুন সারির `time` থেকে।
      *  ⛔ না পেলে ফাঁকা ⇒ কার্ডে আগের মতোই শুধু তারিখ। */
-    private fun lastCallTimeFromHistory(row: JSONObject): String = try {
+    /* ⏰🔒 V931 (৩১.০৮.২০২৬, TK ডেমো প্রুফ দেখে "হ্যাঁ পাশ, দুটোই বসিয়ে দিন") —
+       TK-এর প্রশ্ন: *"LAST CALL এর তারিখ এবং সময় নেই কেন?"*
+       **আসল কারণ (কোড ধরে যাচাই):** তারিখ আসত `lastCallDate` ঘর থেকে, কিন্তু
+       সময় আসত `history`-র **সবচেয়ে নতুন** সারি থেকে — দুটো আলাদা জায়গা।
+       তাই (ক) ওই তারিখের সারিতে সময় থাকলেও দেখাত না, আর (খ) অন্য দিনের সময়
+       ভুল করে ওই তারিখের পাশে বসে যেত।
+       ⇒ এখন সময়টা **ঠিক ওই তারিখের** সারি থেকেই নেওয়া হয়; কল করার পরে বসা
+         সময়হীন সারি ("Next follow-up date updated") থাকলেও ওই দিনের আসল কলের
+         সময়টা হারায় না।
+       ⛔ ওই দিনে সময় কোথাও জমা না থাকলে ফাঁকা — বানিয়ে কিছু দেখানো হয় না।
+       ⛔ তারিখ ফাঁকা হলে আগের মতোই সবচেয়ে নতুন সারির সময়।
+       ⛔ ওয়েবের `wlv1LastCallTime()`-এর হুবহু যমজ (নিয়ম ৬.৬)। */
+    private fun lastCallTimeFromHistory(row: JSONObject, forDate: String = ""): String = try {
         val arr = row.optJSONArray("history")
         if (arr == null || arr.length() == 0) "" else {
+            val want = forDate.trim().take(10)
             var found = ""
-            for (i in arr.length() - 1 downTo 0) {
-                val entry = arr.optJSONObject(i) ?: continue
-                val d = if (entry.isNull("date")) "" else entry.optString("date", "")
-                if (d.isNotBlank()) {
-                    found = if (entry.isNull("time")) "" else entry.optString("time", "")
-                    break
+            if (want.isNotBlank()) {
+                for (i in arr.length() - 1 downTo 0) {
+                    val entry = arr.optJSONObject(i) ?: continue
+                    val d = if (entry.isNull("date")) "" else entry.optString("date", "")
+                    if (d.trim().take(10) != want) continue
+                    val t = if (entry.isNull("time")) "" else entry.optString("time", "").trim()
+                    if (t.isNotBlank()) { found = t; break }
+                }
+            } else {
+                for (i in arr.length() - 1 downTo 0) {
+                    val entry = arr.optJSONObject(i) ?: continue
+                    val d = if (entry.isNull("date")) "" else entry.optString("date", "")
+                    if (d.isNotBlank()) {
+                        found = if (entry.isNull("time")) "" else entry.optString("time", "")
+                        break
+                    }
                 }
             }
             found

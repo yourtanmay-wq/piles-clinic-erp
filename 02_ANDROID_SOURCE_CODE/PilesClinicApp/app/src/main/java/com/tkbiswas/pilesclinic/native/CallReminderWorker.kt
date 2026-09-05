@@ -132,28 +132,45 @@ class CallReminderWorker(
                 "  (" + FollowUpModel.displayDate(f.nextFollow) + ")" else ""
             "• " + f.name.ifBlank { f.mobile } + late
         }
-        val extra = (count - 5).let { if (it > 0) "\n+$it more" else "" }
+        val extra = (count - 5).let { if (it > 0) "\n+$it" + NoBengali.s(" টা আরও আছে") else "" }
         val bigText = shown + extra
 
         // TK APPROVED (2026-07-16): the lock screen must NOT show patient
         // names (privacy) -- only this count-only "public" version shows
         // there. The full version (names, built below) only appears once
         // the phone is unlocked and the notification shade is open.
+        // 🟢🔒 V606 (২৪.০৮.২০২৬, TK-নির্দেশ — "নোটিফিকেশন যেন স্টাফরা ভালো
+        // করে বুঝতে পারে") — লেখা এখন বাংলায় (NoBengali.s() স্বয়ংক্রিয়ভাবে
+        // ইংরেজিতে রাখে শুধু KNE-KISHAN5-এর ফোনে)। সংখ্যা/সময়/নিয়ম এক
+        // অক্ষরও বদলায়নি — শুধু ভাষা। ⛔ প্রতিটা স্থির (static) বাংলা
+        // অংশ আলাদাভাবে NoBengali.s()-এ মোড়া, আর সংখ্যা/নাম মাঝে জোড়া —
+        // এতে NoBengali-এর অনুবাদ-অভিধান নিশ্চিতভাবে মিলবে (আন্দাজে বড়
+        // একটা বাক্যের ভিতরে সংখ্যা বসিয়ে মিলানোর ঝুঁকি নেওয়া হয়নি)।
         val publicVersion = NotificationCompat.Builder(ctx, channel)
             .setSmallIcon(R.drawable.ic_notif_bell)
             .setColor(android.graphics.Color.parseColor("#0B3B73"))
-            .setContentTitle(if (overdue > 0) "📞 Pending Calls" else "📞 Today's Pending Calls")
-            .setContentText(if (overdue > 0) "$count calls pending — $overdue overdue. Tap to view."
-                            else "$count calls pending today — tap to view.")
+            .setContentTitle(if (overdue > 0) NoBengali.s("📞 বকেয়া কল আছে") else NoBengali.s("📞 আজকের কল বাকি"))
+            .setContentText(
+                if (overdue > 0)
+                    "$count" + NoBengali.s(" টা কল বাকি — ") + "$overdue" + NoBengali.s(" টা পুরনো। দেখতে চাপুন।")
+                else
+                    "$count" + NoBengali.s(" টা কল আজ বাকি — দেখতে চাপুন।")
+            )
             .build()
 
         val n = NotificationCompat.Builder(ctx, channel)
             // 🎨 TK-APPROVED (2026-08-06): clean bell icon + brand accent (BigText already present).
             .setSmallIcon(R.drawable.ic_notif_bell)
             .setColor(android.graphics.Color.parseColor("#0B3B73"))
-            .setContentTitle(if (overdue > 0) "📞 Pending Calls ($count · $overdue overdue)"
-                             else "📞 Today's Pending Calls ($count)")
-            .setContentText("Tap to view — " + due.take(2).joinToString(", ") { it.name.ifBlank { it.mobile } } + if (count > 2) "…" else "")
+            .setContentTitle(
+                if (overdue > 0)
+                    NoBengali.s("📞 বকেয়া কল (") + "$count" + NoBengali.s(" টা · ") + "$overdue" + NoBengali.s(" টা পুরনো)")
+                else
+                    NoBengali.s("📞 আজকের বাকি কল (") + "$count" + NoBengali.s(" টা)")
+            )
+            .setContentText(
+                NoBengali.s("দেখতে চাপুন — ") + due.take(2).joinToString(", ") { it.name.ifBlank { it.mobile } } + if (count > 2) "…" else ""
+            )
             .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)

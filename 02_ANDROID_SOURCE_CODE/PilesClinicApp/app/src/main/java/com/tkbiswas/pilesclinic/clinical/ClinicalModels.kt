@@ -29,7 +29,14 @@ data class InvestigationEntry(
     var name: String = "",
     var isSelected: Boolean = false,
     var isDoctorApproved: Boolean = false,
-    val isCustom: Boolean = false
+    val isCustom: Boolean = false,
+    // 🟢🔒 V624 (২৪.০৮.২০২৬, TK-নির্দেশ) — কোন ক্যাটাগরি-পর্দা থেকে টাইপ করে
+    // যোগ করা হয়েছিল, তা মনে রাখা (শুধু isCustom=true হলে ব্যবহৃত)। এই
+    // ক্যাটাগরি-পর্দায় আবার এলে নিজের যোগ করা টেস্টটাই যেন দেখা যায় — অন্য
+    // কোনো ক্যাটাগরির নিচে ভুল করে না বসে। ⛔ পুরনো কোনো কল-সাইট ভাঙে না
+    // (ডিফল্ট ""), Save/Share/Print শুধু isSelected দেখেই কাজ করে — এই ঘরটার
+    // উপর নির্ভর করে না।
+    var customCategory: String = ""
 )
 
 /** One diet-chart guideline line (either "Allowed" or "Avoid" category). */
@@ -87,6 +94,9 @@ data class CheckupRecord(
        "কতদিন সময় চাওয়া হল?" ("15 Days" ধরনে, রেজিস্ট্রেশনের মতোই)।
        ⛔ নতুন কলাম/SQL লাগেনি। */
     var probableDisease: String = "",
+    /* 🔵🔒 V947 — ডাক্তারের মন্তব্য (শুধু স্টাফের কল-পর্দার Last Remark-এ যায়;
+       চেম্বার বোর্ড/Report Card-এ কখনো নয়)। */
+    var doctorRemark: String = "",
     var timeAsked: String = "",
     /* 🔵🔒 V558 (TK-অনুমোদিত): কাগজের হাতে-আঁকা ছবির জায়গায় "রোগের ছবি" —
        ডাক্তার ২৫টা ছবির যেটা খুশি বেছে তার উপরেই ফোলা/নালী দেখান, আর
@@ -115,6 +125,10 @@ data class CheckupRecord(
     var counselling: String = "",
     // 4. Estimate & Decision (merged, TK-নির্দেশ 04.08.2026)
     var estimatedCost: String = "",
+    /* 💰🔒 V971 (TK-অনুমোদিত) — এস্টিমেটের ভাঙা হিসাব, JSON লেখা হিসেবে।
+       ⛔ চেকআপের **আগে থেকেই থাকা** নোট-JSON-এর ভিতরেই যায় ⇒ নতুন কলাম/SQL নেই।
+       ⛔ ফাঁকা থাকলে সব আগের মতোই — পুরনো চেকআপে কিছু ভাঙে না। */
+    var estimateJson: String = "",
     var recoveryTime: String = "",
     var advanceDiscussed: String = "",
     var patientDecision: String = "",
@@ -127,6 +141,69 @@ data class CheckupRecord(
     var savedAt: Long = 0L,
     var savedByRole: UserRole = UserRole.DOCTOR
 )
+
+// 🟢🔒 V676 (২৫.০৮.২০২৬, TK-নির্দেশ — "আজকের Doctor Checkup সম্পূর্ণ এডিট
+// করতে পারব")। ⛔ ঝুঁকিহীন: `details`-এর টেক্সট-ব্লব রিভার্স-পার্স করার
+// বদলে (TK-এর নিজের ঝুঁকি-সতর্কতা, খাতার সারি — "ভুল রিভার্স-পার্স হলে
+// ডাক্তারের লেখা তথ্য হারাতে/এলোমেলো হতে পারে") — প্রতিটা ঘর এখানে **সরাসরি,
+// এক এক করে হাতে** JSON-এ লেখা/পড়া হয়, কোনো অনুমান/regex/স্প্লিট নেই। তাই
+// একটাই ঝুঁকি: নতুন কোনো ঘর `CheckupRecord`-এ যোগ হলে এই দুটো ফাংশনেও
+// যোগ করতে হবে (নইলে সেই একটা ঘর শুধু এডিটে ফাঁকা আসবে, বাকি সব ঠিক থাকবে)।
+fun CheckupRecord.toJsonString(): String {
+    val o = org.json.JSONObject()
+    o.put("complaint", complaint).put("duration", duration).put("acuteChronic", acuteChronic)
+        .put("occupation", occupation).put("prevTreatment", prevTreatment).put("prevResult", prevResult)
+        .put("prevCost", prevCost).put("treatmentDuration", treatmentDuration)
+        .put("visual", visual).put("visualOther", visualOther).put("dre", dre).put("dreOther", dreOther)
+        .put("grade", grade).put("proctoscopy", proctoscopy).put("patientSaid", patientSaid)
+        .put("symptomHistory", symptomHistory).put("historyDetail", historyDetail).put("lifestyle", lifestyle)
+        .put("probableDisease", probableDisease).put("doctorRemark", doctorRemark).put("timeAsked", timeAsked).put("anatomy", anatomy)
+        .put("onProbing", onProbing).put("investigation", investigation).put("otherFindings", otherFindings)
+        .put("treatmentPlan", treatmentPlan).put("amtPerPiles", amtPerPiles)
+        .put("amtFistulaPerInch", amtFistulaPerInch).put("amtKsharSutra", amtKsharSutra)
+        .put("counselling", counselling).put("estimatedCost", estimatedCost)
+        .put("estimate", estimateJson).put("recoveryTime", recoveryTime)
+        .put("advanceDiscussed", advanceDiscussed).put("patientDecision", patientDecision)
+        .put("decisionRemark", decisionRemark).put("beforePhoto", beforePhoto).put("duringPhoto", duringPhoto)
+        .put("afterPhoto", afterPhoto).put("documents", documents)
+    return o.toString()
+}
+
+/** null হলে বোঝা যায় এই সারিটা পুরনো (blob-only) — caller তখন এডিট নয়, শুধু
+ *  আগের মতো A4 রিপোর্ট-দেখা পথে যাবে (⛔ কোনো ডেটা হারানোর ঝুঁকি নেই)। */
+fun checkupRecordFromJsonStringOrNull(json: String): CheckupRecord? {
+    if (json.isBlank()) return null
+    return try {
+        val o = org.json.JSONObject(json)
+        // এই key-টাই নিশ্চিত করে এটা সত্যিই আমাদের structured JSON, অন্য কোনো
+        // পুরনো "selected" টেক্সট (Prescription/Diet-এর মতো, যদি ভুলবশত এখানে
+        // চলে আসে) নয়।
+        if (!o.has("complaint")) return null
+        CheckupRecord(
+            complaint = o.optString("complaint"), duration = o.optString("duration"),
+            acuteChronic = o.optString("acuteChronic"), occupation = o.optString("occupation"),
+            prevTreatment = o.optString("prevTreatment"), prevResult = o.optString("prevResult"),
+            prevCost = o.optString("prevCost"), treatmentDuration = o.optString("treatmentDuration"),
+            visual = o.optString("visual"), visualOther = o.optString("visualOther"),
+            dre = o.optString("dre"), dreOther = o.optString("dreOther"), grade = o.optString("grade"),
+            proctoscopy = o.optString("proctoscopy"), patientSaid = o.optString("patientSaid"),
+            symptomHistory = o.optString("symptomHistory"), historyDetail = o.optString("historyDetail"),
+            lifestyle = o.optString("lifestyle"), probableDisease = o.optString("probableDisease"),
+            timeAsked = o.optString("timeAsked"), anatomy = o.optString("anatomy"),
+            onProbing = o.optString("onProbing"), investigation = o.optString("investigation"),
+            otherFindings = o.optString("otherFindings"), treatmentPlan = o.optString("treatmentPlan"),
+            amtPerPiles = o.optString("amtPerPiles").ifBlank { "8000" },
+            amtFistulaPerInch = o.optString("amtFistulaPerInch").ifBlank { "11000" },
+            amtKsharSutra = o.optString("amtKsharSutra").ifBlank { "6000" },
+            counselling = o.optString("counselling"), estimatedCost = o.optString("estimatedCost"),
+            estimateJson = o.optString("estimate"),
+            recoveryTime = o.optString("recoveryTime"), advanceDiscussed = o.optString("advanceDiscussed"),
+            patientDecision = o.optString("patientDecision"), decisionRemark = o.optString("decisionRemark"),
+            beforePhoto = o.optString("beforePhoto"), duringPhoto = o.optString("duringPhoto"),
+            afterPhoto = o.optString("afterPhoto"), documents = o.optString("documents")
+        )
+    } catch (_: Throwable) { null }
+}
 
 /** One entry in the patient's clinical timeline / history view. */
 data class ClinicalVisit(

@@ -26,6 +26,17 @@ data class EnquiryDraft(
     val remarks: String,
     val nextFollow: String,
     val timeType: String,
+    /* 🕐🔒 V1042 (TK-নির্দেশ) — সময়টা অ্যাপ **নিজে** কল-তালিকা দেখে বুঝেছে
+       ("auto"), না স্টাফ **হাতে** বেছে দিয়েছে ("hand")। কলটা চেম্বারের ফোনে
+       এলে অ্যাপ জানতে পারে; স্টাফের নিজের ফোনে এলে জানার উপায়ই নেই।
+       ⛔ ফাঁকা থাকলে আগের মতোই — পুরনো সারিতে কিছু বসানো হয়নি। */
+    val timeSource: String = "",
+    /* 🩺🔒 V1070 (TK-নির্দেশ) — কোন RMP রোগী পাঠিয়েছেন। Registration-এর হুবহু
+       একই ঘর, তাই পরে রেজিস্ট্রেশনে মানটা নিজে থেকেই যেতে পারে।
+       ⛔ ফাঁকা হলে আগের মতোই — কোনো ঘর বাধ্যতামূলক নয়। */
+    val refBy: String = "",
+    val refDoctor: String = "",
+    val refDoctorMobile: String = "",
     val receivedByMobile: String
 )
 
@@ -51,6 +62,10 @@ object EnquiryModel {
             .put("remarks", draft.remarks)
             .put("nextFollow", draft.nextFollow)
             .put("timeType", draft.timeType)
+            .put("timeSource", draft.timeSource)   // 🕐 V1042
+            .put("refBy", draft.refBy)                       // 🩺 V1070
+            .put("refDoctor", draft.refDoctor)
+            .put("refDoctorMobile", draft.refDoctorMobile)
             .put("receivedBy", draft.receivedByMobile)
             .put("stage", "Inquiry")
             .put("status", "Active")
@@ -68,11 +83,24 @@ object EnquiryModel {
         val history = org.json.JSONArray().put(
             JSONObject()
                 .put("date", enquiryRow.getString("date"))
+                .put("time", isoNow())   /* ⏰ V827 — সময়ও জমা হয় (TK: "LAST CALL তারিখের পরে যেন Time থাকে")। */
                 .put("remark", enquiryRow.getString("remarks"))
                 .put("staff", staffName)
         )
+        /* 🔗🔒 V1005 (০৩.০৯.২০২৬, TK-নির্দেশ · প্রমাণসহ ধরা) — আগে এখানে
+           **এলোমেলো** id বসত (`fu_<uuid>`), কিন্তু কম্পিউটারের self-heal একই
+           এনকোয়ারির জন্য **নির্দিষ্ট** id বানায় (`fu_inq_<enquiry id>`,
+           `app.js` B626)। দুটো id কখনো মিলত না, তাই কম্পিউটারের কপিতে ফোনের
+           সারিটা না পৌঁছালে সে **দ্বিতীয় একটা সারি** বানিয়ে ফেলত —
+           HABIBOR RAHAMAN-এর ক্ষেত্রে ঠিক সেটাই হয়েছিল (৩০.০৮ রাত ৮:০১-এ
+           ফোনের সারি, ৩১.০৮-এ কম্পিউটারের আরেকটা সারি)।
+           এখন ফোনও **হুবহু একই নিয়মে** id বানায়, তাই দুটো যন্ত্র একই সারিতেই
+           মেলে — আর ডুপ্লিকেট হয় না।
+           ⛔ id-টা এখনো "fu_" দিয়েই শুরু, তাই পুরনো কোনো নিয়ম ভাঙে না।
+           ⛔ এনকোয়ারির id এইমাত্র তৈরি হয়েছে, তাই এই id কখনো আগে থেকে
+              থাকতে পারে না — সেভ আটকানোর ঝুঁকি নেই। */
         return JSONObject()
-            .put("id", "fu_" + UUID.randomUUID().toString().replace("-", ""))
+            .put("id", "fu_inq_" + enquiryRow.getString("id"))
             .put("refId", enquiryRow.getString("id"))
             .put("mobile", enquiryRow.getString("mobile"))
             .put("name", enquiryRow.getString("name"))
@@ -90,6 +118,7 @@ object EnquiryModel {
             // card can show a small time-type badge without re-joining the
             // enquiries table. Copied from the enquiry row; blank if absent.
             .put("timeType", enquiryRow.s("timeType"))
+            .put("timeSource", enquiryRow.s("timeSource"))   // 🕐 V1042
             // 🔴🔴 TK-REPORTED (31.07.2026 — "Enquiry card-এ Wifi Signal কাজ
             // করছে না, কারণ Enquiry Form Save হওয়ার সাথে সাথেই তো একটা
             // signal হতে হতো, কারণ কল এসেছে সেজন্যই তো Form টা Save করা

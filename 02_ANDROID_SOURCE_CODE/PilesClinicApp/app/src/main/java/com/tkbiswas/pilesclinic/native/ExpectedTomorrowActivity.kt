@@ -27,7 +27,7 @@ import java.util.Locale
  */
 // 🔴🔒 V475 (20.08.2026, TK-অনুমোদিত ফটো-প্রুফ) — name/mobile-এর সাথে এখন
 // রোগ/ঠিকানা/Remark-ও (থাকলে) বহন করে, কল করার আগে দেখা যায়।
-data class ExpectedItem(val name: String, val mobile: String, val disease: String = "", val address: String = "", val remark: String = "")
+data class ExpectedItem(val name: String, val mobile: String, val disease: String = "", val address: String = "", val remark: String = "", val lastCallDate: String = "")
 
 class ExpectedTomorrowActivity : AppCompatActivity() {
 
@@ -51,7 +51,12 @@ class ExpectedTomorrowActivity : AppCompatActivity() {
             setBackgroundColor(Color.parseColor("#0F766E"))
             setPadding(dp(14), dp(14), dp(14), dp(14))
             addView(TextView(this@ExpectedTomorrowActivity).apply {
-                text = "←  কাল আসার কথা"
+                // 🔴🔒 V609 (২৪.০৮.২০২৬, TK-এর প্রশ্নে ধরা পড়া — "Kishanganj
+                // Staff-এর ফোনে বাংলা আছে কি?") — এই লেখাটা কখনো NoBengali
+                // দিয়ে সুরক্ষিত ছিল না, তাই KNE-KISHAN5-এর ফোনে কাঁচা বাংলাই
+                // দেখাত (অনুবাদ অভিধানে থাকা সত্ত্বেও, কারণ কখনো ব্যবহারই
+                // হয়নি — এই একই পর্দায় sweep() কখনো ডাকা হয়নি)।
+                text = "←  " + NoBengali.s("কাল আসার কথা")
                 textSize = 16f
                 setTypeface(typeface, Typeface.BOLD)
                 setTextColor(Color.WHITE)
@@ -90,7 +95,16 @@ class ExpectedTomorrowActivity : AppCompatActivity() {
         val tomorrow = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, 1) }
         val key = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(tomorrow.time)
         val human = SimpleDateFormat("EEE dd.MM", Locale.US).format(tomorrow.time)
-        val myBranch = BranchCatalog.byName(user.branch)
+        /* 🟢🔒🔒 V635 (২৪.০৮.২০২৬, TK-রিপোর্ট, ছবিসহ — "ব্রাঞ্চ সিলেক্ট করা
+         * আছে জলপাইগুড়ি, কিন্তু 'আসার কথা'-তে চাপ দিলে কিষানগঞ্জের এনকোয়ারি
+         * কেন?") — **আসল কারণ:** এই পর্দা সবসময় `user.branch` (লগইনের
+         * নিজের ব্রাঞ্চ) ব্যবহার করত — Chamber Date পর্দায় Master যে
+         * ব্রাঞ্চে সুইচ করেছেন সেটা কখনো জানতই না। এখন `ChamberAttendanceActivity`
+         * সেই বাছা ব্রাঞ্চটা `branchOverride` এক্সট্রা দিয়ে পাঠায়; থাকলে
+         * সেটাই ব্যবহার হয়, না থাকলে (অন্য কোনো পথ থেকে এই পর্দা খোলা হলে)
+         * আগের মতোই `user.branch`-এ ফিরে যায় — কোনো পুরনো ব্যবহার ভাঙে না। */
+        val branchOverride = intent.getStringExtra("branchOverride").orEmpty()
+        val myBranch = BranchCatalog.byName(branchOverride.ifBlank { user.branch })
         val myBranchId = myBranch.id
         val branchName = myBranch.displayName
         // 🔵🔒 (09.08.2026, TK-নির্দেশ "লোডিং দেরি ঠিক করুন" — AppointmentActivity-র
@@ -132,7 +146,11 @@ class ExpectedTomorrowActivity : AppCompatActivity() {
                 try {
                     val fuRows = SupabaseClient.fetchListOrNull(
                         "followups", "branch=eq.${java.net.URLEncoder.encode(myBranch.displayName, "UTF-8")}", 2000,
-                        select = "mobile,disease,address,lastRemark,updatedAt"
+                        // 🟢🔒 V608 (২৪.০৮.২০২৬, TK-নির্দেশ) — শুধু "Last Call"-এর
+                        // তারিখটা (হালকা text ঘর) — "কে করেছিলেন" অংশ বাদ,
+                        // কারণ সেটার জন্য ভারী `history` ঘরও টানতে হতো (TK-কে
+                        // জানানো হয়েছিল, TK বলেছেন "ডেটা টানলে বাদ দিন")।
+                        select = "mobile,disease,address,lastRemark,updatedAt,lastCallDate"
                     )
                     if (fuRows != null) {
                         val byMobile = HashMap<String, org.json.JSONObject>()
@@ -148,11 +166,12 @@ class ExpectedTomorrowActivity : AppCompatActivity() {
                         for (idx in items.indices) {
                             val m = items[idx].mobile.filter { it.isDigit() }.takeLast(10)
                             val fr = byMobile[m] ?: continue
-                            val remark = fr.optString("lastRemark", "")
+                            val remark = fr.s("lastRemark")   // 🔴🔒 V696
                             items[idx] = items[idx].copy(
                                 disease = fr.optString("disease", ""),
                                 address = fr.optString("address", ""),
-                                remark = if (remark.isNotBlank() && !isKnownAutoRemark(remark)) remark else ""
+                                remark = if (remark.isNotBlank() && !isKnownAutoRemark(remark)) remark else "",
+                                lastCallDate = fr.optString("lastCallDate", "")
                             )
                         }
                     }
@@ -194,6 +213,14 @@ class ExpectedTomorrowActivity : AppCompatActivity() {
                 listHolder, items.joinToString("|") { it.toString() })) return
         listHolder.removeAllViews()
         for (it in items) addRow(it, human)
+        // 🔴🔒 V609 (২৪.০৮.২০২৬, TK-এর প্রশ্নে ধরা পড়া) — এই পর্দা RecyclerView
+        // adapter না (সরাসরি addView), তাই বাকি সব তালিকার পর্দার (FollowUp/
+        // Chamber/Draft ইত্যাদি Adapter-এ যেমন প্রতিটা সারির পরে sweep() ডাকা
+        // হয়) সেই একই সুরক্ষা এখানে ছিল না — "আসবেন" শব্দটা (নিচে,
+        // মোবাইল-লাইনে) KNE-KISHAN5-এর ফোনে কাঁচা বাংলাই দেখাচ্ছিল। এখন পুরো
+        // তালিকা আঁকা শেষে একবারে sweep — ভবিষ্যতে কেউ নতুন বাংলা যোগ করলেও
+        // (ভুলে NoBengali.s() না বসালেও) এই পর্দায় আর কখনো বাংলা দেখা যাবে না।
+        try { NoBengali.sweep(listHolder) } catch (_: Throwable) { }
     }
 
     private fun expCachePrefs() = getSharedPreferences("expected_tomorrow_cache", MODE_PRIVATE)
@@ -206,7 +233,8 @@ class ExpectedTomorrowActivity : AppCompatActivity() {
                 val o = arr.getJSONObject(i)
                 list.add(ExpectedItem(
                     o.optString("name", ""), o.optString("mobile", ""),
-                    o.optString("disease", ""), o.optString("address", ""), o.optString("remark", "")
+                    o.s("disease"), o.s("address"), o.s("remark"),   // 🔴🔒 V696
+                    o.optString("lastCallDate", "")
                 ))
             }
             list
@@ -218,6 +246,7 @@ class ExpectedTomorrowActivity : AppCompatActivity() {
             for (it in items) arr.put(
                 org.json.JSONObject().put("name", it.name).put("mobile", it.mobile)
                     .put("disease", it.disease).put("address", it.address).put("remark", it.remark)
+                    .put("lastCallDate", it.lastCallDate)
             )
             expCachePrefs().edit().putString(cacheKey, arr.toString()).apply()
         } catch (_: Throwable) { }
@@ -241,8 +270,13 @@ class ExpectedTomorrowActivity : AppCompatActivity() {
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setBackgroundColor(Color.WHITE)
-            setPadding(dp(14), dp(12), dp(14), dp(12))
+            // 🟢🔒 V608 (২৪.০৮.২০২৬, TK-নির্দেশ, ছবি-প্রুফ পাশ) — Follow-up
+            // কার্ডের একই বাইরের খোলস (গোল কোণা + বাঁদিকে নীল ডোরা + হালকা
+            // বর্ডার) — "স্টাফরা বিভ্রান্ত হচ্ছে, সব জায়গায় একই ডিজাইন
+            // থাকতে হবে"। ⛔ ভেতরের কিছু (নাম/নম্বর/রোগ/ঠিকানা/Remark/Call)
+            // এক অক্ষরও বদলায়নি, শুধু বাইরের background।
+            setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_follow_card)
+            setPadding(dp(12), dp(12), dp(12), dp(12))
             val lp = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
             )
@@ -258,31 +292,34 @@ class ExpectedTomorrowActivity : AppCompatActivity() {
         card.addView(LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-            // 🔵 TK (10.08.2026): এই কার্ডে শুধু নাম+নম্বর থাকে, তাই ইনি Enquiry
-            // না Visit না Patient বোঝা যায় না। নামের/নম্বরের অংশে চাপ দিলে সোজা
-            // Follow-Up-এর ঠিক ওই সেকশনে গিয়ে কার্ডটা হাইলাইট হয় (📞 বোতাম আলাদা,
-            // তাই ফোন করার আচরণ অক্ষত)।
-            isClickable = true; isFocusable = true
-            setOnClickListener {
-                try {
-                    startActivity(
-                        android.content.Intent(this@ExpectedTomorrowActivity, FollowUpActivity::class.java)
-                            .putExtra("focusCardMobile", mobile)
-                    )
-                } catch (_: Throwable) { }
-            }
+            // 🟢🔒 V608 (২৪.০৮.২০২৬, TK-স্পষ্ট নির্দেশ) — আগে পুরো
+            // নাম+নম্বর অংশে চাপ দিলে Follow-Up-এ গিয়ে কার্ড হাইলাইট হতো।
+            // এখন সেটার বদলে: নামে চাপ → সরাসরি View History (Patient
+            // Timeline), নম্বরে চাপ → সরাসরি কল (নিচের 📞 Call বোতামের
+            // হুবহু একই আচরণ পুনর্ব্যবহার)। লং-প্রেস কপি (V474) দুটোতেই অক্ষত।
             if (hasName) {
                 addView(TextView(this@ExpectedTomorrowActivity).apply {
                     text = name
                     textSize = 15f
                     setTypeface(typeface, Typeface.BOLD)
                     setTextColor(Color.parseColor("#101828"))
+                    isClickable = true; isFocusable = true
+                    setOnClickListener {
+                        try {
+                            val digits = mobile.filter { it.isDigit() }.takeLast(10)
+                            val intent = android.content.Intent(this@ExpectedTomorrowActivity, PatientTimelineActivity::class.java)
+                            intent.putExtra("mobile", digits)
+                            intent.putExtra("preName", name)
+                            intent.putExtra("preDisease", item.disease)
+                            intent.putExtra("preAddress", item.address)
+                            startActivity(intent)
+                        } catch (_: Throwable) { }
+                    }
                     // 🔴🔒 V474 (TK-নির্দেশ) — নাম-এর উপর long-press করলে কপি হবে।
                     isLongClickable = true
                     setOnLongClickListener {
                         try {
-                            val cm = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                            cm.setPrimaryClip(android.content.ClipData.newPlainText("patient name", name))
+                            com.tkbiswas.pilesclinic.native.Clip.copy(this@ExpectedTomorrowActivity, "patient name", name)   // 🤫 V772
                             android.widget.Toast.makeText(this@ExpectedTomorrowActivity, NoBengali.s("নাম কপি হয়েছে"), android.widget.Toast.LENGTH_SHORT).show()
                         } catch (_: Throwable) { }
                         true
@@ -295,12 +332,21 @@ class ExpectedTomorrowActivity : AppCompatActivity() {
                 setTypeface(typeface, if (hasName) Typeface.NORMAL else Typeface.BOLD)
                 setTextColor(Color.parseColor(if (hasName) "#475467" else "#101828"))
                 setPadding(0, dp(2), 0, 0)
+                isClickable = true; isFocusable = true
+                setOnClickListener {
+                    // 🟢🔒 V608 — Call বোতামের (নিচে) হুবহু একই কল-করার পথ,
+                    // যাতে দুই জায়গার আচরণ কখনো আলাদা না হয়।
+                    try {
+                        CallChooser.open(this@ExpectedTomorrowActivity, formatMobile(mobile))
+                    } catch (_: Throwable) {
+                        try { startActivity(android.content.Intent(android.content.Intent.ACTION_DIAL, Uri.parse("tel:${formatMobile(mobile)}"))) } catch (_: Throwable) { }
+                    }
+                }
                 // 🔴🔒 V474 (TK-নির্দেশ) — মোবাইল নম্বরের উপর long-press করলে কপি হবে।
                 isLongClickable = true
                 setOnLongClickListener {
                     try {
-                        val cm = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                        cm.setPrimaryClip(android.content.ClipData.newPlainText("mobile", formatMobile(mobile)))
+                        com.tkbiswas.pilesclinic.native.Clip.copy(this@ExpectedTomorrowActivity, "mobile", formatMobile(mobile))   // 🤫 V772
                         android.widget.Toast.makeText(this@ExpectedTomorrowActivity, NoBengali.s("নম্বর কপি হয়েছে"), android.widget.Toast.LENGTH_SHORT).show()
                     } catch (_: Throwable) { }
                     true
@@ -329,6 +375,24 @@ class ExpectedTomorrowActivity : AppCompatActivity() {
                     setTextColor(Color.parseColor("#0C6B3D"))
                     setBackgroundColor(Color.parseColor("#EAFAF1"))
                     setPadding(dp(6), dp(3), dp(6), dp(3))
+                    val mlp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                    mlp.topMargin = dp(5)
+                    layoutParams = mlp
+                })
+            }
+            // 🟢🔒 V608 (২৪.০৮.২০২৬, TK-নির্দেশ, ছবি-প্রুফ পাশ) — শুধু
+            // তারিখ (কে করেছিলেন তা বাদ, TK-এর নির্দেশে ডেটা-সাশ্রয়ে)।
+            if (item.lastCallDate.isNotBlank()) {
+                addView(TextView(this@ExpectedTomorrowActivity).apply {
+                    text = "📞 Last call: " + FollowUpModel.displayDate(item.lastCallDate)
+                    textSize = 11.5f
+                    setTextColor(Color.parseColor("#0C6B3D"))
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        setColor(Color.parseColor("#EAF7EF"))
+                        cornerRadius = dp(6).toFloat()
+                        setStroke(dp(1), Color.parseColor("#B7E4C7"))
+                    }
+                    setPadding(dp(8), dp(4), dp(8), dp(4))
                     val mlp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
                     mlp.topMargin = dp(5)
                     layoutParams = mlp

@@ -41,6 +41,92 @@ import androidx.appcompat.app.AppCompatActivity
  */
 object AppLock {
 
+    /* 🟢🔒 V601 (২৪.০৮.২০২৬, TK-স্পষ্ট নির্দেশ) — **২৪ ঘণ্টায় একবার তালা,
+       V527-এর সিদ্ধান্তের আংশিক সংশোধন।**
+
+       V527-এ (২২.০৮.২০২৬) TK বলেছিলেন "বারবার Fingerprint আসবে না... বাকি
+       কখনো যেন ফিঙ্গারপ্রিন্ট চায় না" — তখন অ্যাপ-খোলার তালা সম্পূর্ণ বন্ধ
+       করা হয়েছিল (নিচের guard()/onAppBackgrounded() আর ডাকা হয় না)।
+
+       আজ (২৪.০৮.২০২৬) TK নতুন নির্দেশ দিয়েছেন: *"২৪ ঘণ্টা একবার ফিঙ্গারপ্রিন্ট
+       চাইবে"* — V527-এর নিয়মের **আংশিক** সংশোধন, নিচের পুরনো ১৫-মিনিট-গ্রেস
+       ব্যবস্থাটা ফেরানো হয়নি (সেটা অন্য জিনিস — বারবার ব্যাকগ্রাউন্ড হলে),
+       বরং সম্পূর্ণ নতুন, সরল একটা টাইমার:
+
+         · শেষ সফল আনলকের সময় ফোনের SharedPreferences-এ জমা থাকে (process
+           বা ফোন রিস্টার্ট হলেও টেকে — TK "দিনে একবার" বলেছেন, প্রতি
+           app-open-এ নয়)।
+         · ২৪ ঘণ্টা না পেরোলে **কিছুই দেখায় না** — TK-এর "বারবার না" নিয়মটা
+           এখনো মানা হচ্ছে।
+         · ২৪ ঘণ্টা পেরোলে ঠিক একবার — আঙুল অথবা ফোনের পাসওয়ার্ড (V499-এর
+           প্রমাণিত `BiometricGate` পুনর্ব্যবহার, নতুন কিছু বানানো হয়নি)।
+         · সফল হলে সময়টা আবার নতুন করে বসে — পরের ২৪ ঘণ্টা শুরু।
+         · স্ক্রিন-লকই নেই এমন ফোনে (V499-এর একই নিয়ম) আটকানো হয় না —
+           জানিয়ে দিয়ে অ্যাপ খোলে, নইলে চিরতরে বাইরে থেকে যেতেন।
+         · Master-সহ **সবার জন্য একই** (V499-এর মূল নিয়ম অক্ষত)।
+       ⛔ পুরনো `guard()`/`onAppBackgrounded()`/১৫-মিনিট-গ্রেস কিছুই বদলায়নি,
+          এখনো ডাকা হয় না — এটা সম্পূর্ণ আলাদা, নতুন পথ। */
+    private const val DAILY_PREFS = "piles_clinic_app_lock_daily"
+    private const val KEY_LAST_UNLOCK = "lastUnlockAt"
+    private const val DAILY_MS = 24L * 60L * 60L * 1000L
+
+    @Volatile private var dailyAsking = false
+
+    /** ফোনে জমানো শেষ সফল আনলকের সময় (epoch ms), না থাকলে ০। */
+    private fun lastUnlockAt(context: android.content.Context): Long =
+        context.getSharedPreferences(DAILY_PREFS, android.content.Context.MODE_PRIVATE).getLong(KEY_LAST_UNLOCK, 0L)
+
+    private fun markUnlockedNow(context: android.content.Context) {
+        context.getSharedPreferences(DAILY_PREFS, android.content.Context.MODE_PRIVATE).edit()
+            .putLong(KEY_LAST_UNLOCK, System.currentTimeMillis()).apply()
+    }
+
+    /** সদ্য মোবাইল+পাসওয়ার্ড দিয়ে লগইন করলে ২৪-ঘণ্টার ঘড়ি সেই মুহূর্ত থেকেই
+     *  শুরু হয় — নইলে লগইনের সাথে সাথেই আবার আঙুল চাইত, যেটা TK-এর
+     *  "বারবার না" নিয়মের বিরুদ্ধে যেত। `NativeSession.save()` থেকে ডাকা হয়। */
+    fun recordLoginUnlock(context: android.content.Context) {
+        try { markUnlockedNow(context) } catch (_: Throwable) { }
+    }
+
+    /** লগআউটের সময় — পরের জনের জন্য অবশ্যই আবার চাইবে (V521-এর reset()-এর
+     *  মতোই যুক্তি, কিন্তু এই আলাদা দৈনিক-টাইমারের জন্য)। */
+    fun resetDaily(context: android.content.Context) {
+        try {
+            context.getSharedPreferences(DAILY_PREFS, android.content.Context.MODE_PRIVATE).edit()
+                .putLong(KEY_LAST_UNLOCK, 0L).apply()
+        } catch (_: Throwable) { }
+    }
+
+    /** ২৪ ঘণ্টা পেরিয়ে থাকলে ঠিক একবার আঙুল/পাসওয়ার্ড চায়; নইলে চুপচাপ ফেরে। */
+    fun guardDaily(activity: Activity, user: NativeUser?) {
+        if (user == null) return
+        val act = activity as? AppCompatActivity ?: return
+        if (dailyAsking) return
+        val last = lastUnlockAt(act)
+        val now = System.currentTimeMillis()
+        if (last > 0L && now - last < DAILY_MS) return   // এখনো ২৪ ঘণ্টা হয়নি
+
+        val ready = BiometricGate.unlockAvailability(act)
+        if (ready != BiometricGate.Reason.SUCCESS) {
+            // ফোনে চাওয়ার মতো কিছুই নেই — V499-এর একই নিয়ম, আটকানো হয় না।
+            markUnlockedNow(act)
+            return
+        }
+
+        dailyAsking = true
+        BiometricGate.promptUnlock(
+            act,
+            "Unlock App",
+            "Once a day — use your fingerprint, or your phone password"
+        ) { res ->
+            dailyAsking = false
+            if (res.ok) markUnlockedNow(act)
+            // ⛔ ব্যর্থ/বাতিল হলে জোর করা হয় না (V499-এর মতো "Close App" আটকানো
+            //    এখানে বসানো হয়নি) — পরের বার অ্যাপ সামনে এলে আবার চাইবে,
+            //    কিন্তু TK-এর "বারবার না" নিয়ম মেনে সঙ্গে সঙ্গেই না।
+        }
+    }
+
     @Volatile private var locked = true          // অ্যাপ চালু হলে প্রথমেই তালা
     @Volatile private var asking = false
     @Volatile private var warnedThisRun = false

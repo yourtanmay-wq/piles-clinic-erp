@@ -63,6 +63,11 @@ for p in walk(RES, ('.xml',)):
         have['drawable'].add(stem)
     if kind == 'mipmap':
         have['mipmap'].add(stem)
+    # 🔵🔒 V946 (০১.০৯.২০২৬ — নিজের অডিটে ধরা): `res/color/xxx.xml` (রং-সিলেক্টর)
+    #    গোনা হত না, তাই `R.color.chip_bg_selector` "নেই" বলে ভুল FAIL দিত।
+    #    Android-এ এগুলো সম্পূর্ণ বৈধ রং-রিসোর্স। ⛔ শুধু যোগ, কিছু বাদ যায়নি।
+    if kind == 'color':
+        have['color'].add(stem)
     txt = read(p)
     # layout/menu-র ভিতরের সব `@+id/...`
     for m in re.finditer(r'@\+id/([A-Za-z_][A-Za-z0-9_]*)', txt):
@@ -85,12 +90,54 @@ for p in walk(RES, ('.png', '.jpg', '.jpeg', '.webp', '.gif', '.9.png', '.mp3', 
     have[kind].add(stem)
 
 # ── কোড যা চায় ─────────────────────────────────────────────────────────
+def strip_comments_keep_lines(src):
+    """কমেন্ট মুছে দেয়, কিন্তু **লাইন-সংখ্যা অটুট রাখে** (নিউলাইন রেখে দেয়),
+    যাতে ভুল ধরা পড়লে লাইন নম্বরটা সত্যি থাকে।
+
+    🔴 কেন দরকার (২৭.০৮.২০২৬-এ ধরা): `DoctorCheckupActivity.kt`-এ V600-এর
+    ব্যাখ্যা-কমেন্টে `R.id.etHistoryNote` লেখা ছিল — আসল কোডে নয়। এই যন্ত্র
+    কমেন্টও পড়ত, তাই **সবসময় FAIL** দেখাত ⇒ যন্ত্রটাই অকেজো হয়ে পড়েছিল,
+    আর সত্যিকারের কোনো ভুল ধরা পড়লেও আলাদা করা যেত না।
+    ⛔ স্ট্রিং-এর ভিতরের `//` যেন কমেন্ট না ধরা হয়, সেটাও দেখা হয়।
+    """
+    out = []
+    i, n = 0, len(src)
+    while i < n:
+        c = src[i]
+        if c == '"':                      # স্ট্রিং — হুবহু রেখে দিই
+            out.append(c); i += 1
+            while i < n:
+                if src[i] == '\\' and i + 1 < n:
+                    out.append(src[i]); out.append(src[i + 1]); i += 2; continue
+                out.append(src[i])
+                if src[i] == '"' or src[i] == '\n':
+                    i += 1; break
+                i += 1
+            continue
+        if c == '/' and i + 1 < n and src[i + 1] == '/':
+            while i < n and src[i] != '\n':
+                i += 1
+            continue
+        if c == '/' and i + 1 < n and src[i + 1] == '*':
+            i += 2
+            while i + 1 < n and not (src[i] == '*' and src[i + 1] == '/'):
+                if src[i] == '\n':
+                    out.append('\n')
+                i += 1
+            i += 2
+            continue
+        out.append(c); i += 1
+    return ''.join(out)
+
+
 BAD = []
 KINDS = ('id', 'layout', 'drawable', 'mipmap', 'menu', 'string', 'color',
          'style', 'dimen', 'array', 'raw', 'anim', 'font', 'integer', 'bool')
 
 for p in walk(SRC, ('.kt', '.java')):
-    txt = read(p)
+    # ⛔ কমেন্ট বাদ দিয়ে তবেই খোঁজা — নইলে ব্যাখ্যা-কমেন্টে লেখা `R.id.…`-ও
+    #    ভুল বলে ধরা পড়ত (আসল ঘটনা: V600-এর কমেন্ট, ২২.০৮.২০২৬ থেকে)।
+    txt = strip_comments_keep_lines(read(p))
     # `android.R.id.x` বাদ — ওটা সিস্টেমের
     for m in re.finditer(r'(?<![\w.])(android\.)?R\.(\w+)\.([A-Za-z_][A-Za-z0-9_]*)', txt):
         if m.group(1):        # android.R.* — সিস্টেমের, বাদ

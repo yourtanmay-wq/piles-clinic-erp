@@ -71,6 +71,8 @@ class EnquiryActivity : AppCompatActivity() {
     private val diseases = listOf("Choose Disease", "🩸 Piles", "✂️ Fissure", "🔄 Fistula", "💧 Hydrocele", "🛡️ Gupt Rog", "📋 Other")
     private val diseaseValues = listOf("", "Piles", "Fissure", "Fistula", "Hydrocele", "Gupt Rog", "Other")
     private val timings = listOf("Official Time", "Unexpected Time")
+    /* 🩺 V1070 — Registration-এর হুবহু একই তালিকা (`RegistrationActivity.refByOptions`) */
+    private val enqRefByOptions = listOf("Self", "Online", "Offline", "Dr. Visit", "Old Patient", "Others")
 
     private var selectedDate: String = EnquiryModel.today()
     private var selectedNextFollow: String = ""
@@ -96,6 +98,7 @@ class EnquiryActivity : AppCompatActivity() {
                 if (digits.length != 10) { binding.tvDupWarning.visibility = View.GONE; lastDupChecked = ""; return }
                 if (digits == lastDupChecked) return
                 lastDupChecked = digits
+                refreshTimingForMobile(digits)   // ☎️ V963
                 lifecycleScope.launch {
                     val dup = withContext(Dispatchers.IO) { repository.checkDuplicate(StaffDirectory.normalizeMobile(digits)) }
                     binding.tvDupWarning.visibility = View.GONE
@@ -127,6 +130,8 @@ class EnquiryActivity : AppCompatActivity() {
         // active, deliberate choice, every single time. 3-tap lock removed
         // for Branch only; "Call Received By" lock below is untouched.
         SpinnerLock.attach(binding.spReceivedBy, "Call Received By")
+        setupEnqRefBy()   // 🩺 V1070
+        wireEnqRmpSuggest(user)   // 🩺 V1095 — টাইপ করতে করতে RMP সাজেশন
         setupTimingButtons()
         setupDiseaseButtons()
         binding.tvDate.text = displayDate(selectedDate)
@@ -190,7 +195,19 @@ class EnquiryActivity : AppCompatActivity() {
 
     private var receivedByMobiles: List<String> = emptyList()
 
-    private var selectedDisease = ""
+    /* 🩺🔒 V1000 (০৩.০৯.২০২৬, TK-নির্দেশ: "এখানে একাধিক রোগ চুজ করা যায় না —
+       একই লোকের তো দুই রকমের রোগ থাকতেই পারে") — আগে একটাই রোগ বাছা যেত।
+       এখন যতগুলো দরকার বাছা যায়; আবার চাপলে বাছাই উঠে যায়।
+       ⛔ সেভে যা যায় সেটা আগের মতোই একটাই লেখা — একাধিক হলে ", " দিয়ে
+          জোড়া (রেজিস্ট্রেশনের `diagnosis` ঘরে বহুদিন ধরে এই নিয়মই চলে,
+          PatientModel.kt-এ `diseases.joinToString(", ")`)। তাই ডেটাবেসে
+          নতুন কোনো ঘর লাগেনি। */
+    private val selectedDiseaseSet = LinkedHashSet<String>()
+
+    /** বাছা রোগগুলো — সবসময় বোতামের নিজের ক্রমেই, ", " দিয়ে জোড়া। */
+    private val selectedDisease: String
+        get() = diseaseValues.filter { it.isNotEmpty() && selectedDiseaseSet.contains(it) }.joinToString(", ")
+
 
     private fun setupDiseaseButtons() {
         val map = listOf(
@@ -207,19 +224,21 @@ class EnquiryActivity : AppCompatActivity() {
         // 6 disease buttons was the app's dark-navy theme color, which TK does
         // not want here. Default/unselected is now grey; tapping a button turns
         // it green (see selectDisease below). Nothing else on this form changed.
-        val grey = android.graphics.Color.parseColor("#9AA5B1")
-        map.forEach { (btn, _) ->
-            btn.backgroundTintList = android.content.res.ColorStateList.valueOf(grey)
-            btn.setTextColor(android.graphics.Color.WHITE)
-        }
+        // 🩺 V1000 — এক জায়গা থেকেই রং বসে, তাই বাছা থাকলে সবুজই থাকে।
+        paintDiseaseButtons(map)
     }
 
     private fun selectDisease(value: String, map: List<Pair<android.widget.Button, String>>) {
-        selectedDisease = value
+        // 🩺 V1000 — চাপলে যোগ, আবার চাপলে বাদ (একাধিক রোগ বাছা যায়)।
+        if (!selectedDiseaseSet.remove(value)) selectedDiseaseSet.add(value)
+        paintDiseaseButtons(map)
+    }
+
+    private fun paintDiseaseButtons(map: List<Pair<android.widget.Button, String>>) {
         val green = android.graphics.Color.parseColor("#16A36D")
         val grey = android.graphics.Color.parseColor("#9AA5B1")
         map.forEach { (btn, v) ->
-            val on = v == value
+            val on = selectedDiseaseSet.contains(v)
             btn.backgroundTintList = android.content.res.ColorStateList.valueOf(if (on) green else grey)
             btn.setTextColor(android.graphics.Color.WHITE)
         }
@@ -227,10 +246,229 @@ class EnquiryActivity : AppCompatActivity() {
 
     private var selectedTiming = "Official Time"
 
+    /* ☎️🕘🔒 V963 (০১.০৯.২০২৬, TK-এর লক করা নিয়ম, ফটো-প্রুফ পাশ) —
+       TK-এর নিয়ম হুবহু:
+         · ভারতীয় সময়ে সকাল ৯.০০ – সন্ধ্যা ৬.০০ = Official, বাইরে = Unexpected
+         · নম্বর লেখামাত্রই অ্যাপ **ব্রাঞ্চের ফোনের কল-তালিকায়** ওই নম্বরের
+           **প্রথম কল** খোঁজে (গত ৩ দিনের মধ্যে)
+         · কল পাওয়া গেল ও সেটা **অফিসিয়াল** সময়ের ⇒ Unexpected বোতামটা
+           **লুকিয়ে যায়** — স্টাফ চাইলেও বাছতে পারবে না
+         · কল পাওয়া গেল ও সেটা **অসময়ের** ⇒ দুটো বোতামই থাকে, Unexpected
+           বাছা থাকে (TK: *"অ্যাপ তো অনেক সময় ভুল করতেই পারে"*)
+         · কল পাওয়া গেল না ⇒ দুটোই থাকে, Official বাছা; Unexpected চাপলে
+           Unexpected চাপলে শুধু একটা "Are you sure? Yes/No" সতর্কতা (V966·V967)
+       ⛔ ক্লাউডে একটাও অনুরোধ নেই — ফোনের নিজের কল-তালিকা থেকেই।
+       ⛔ V962-এর "কোনো বোতামই চাপা যাবে না" নিয়মটা TK-এর নতুন নির্দেশে
+          তুলে নেওয়া হলো। */
+    private fun timingOf(whenMs: Long): String {
+        val c = Calendar.getInstance(java.util.TimeZone.getTimeZone("Asia/Kolkata"))
+        c.timeInMillis = whenMs
+        val mins = c.get(Calendar.HOUR_OF_DAY) * 60 + c.get(Calendar.MINUTE)
+        // সকাল ৯.০০ (৫৪০) থেকে সন্ধ্যা ৬.০০ (১০৮০) পর্যন্ত — দুটোই ধরা
+        return if (mins in 540..1080) "Official Time" else "Unexpected Time"
+    }
+
+    private fun autoTimingNow(): String = timingOf(System.currentTimeMillis())
+
+    /** কল-তালিকায় ওই নম্বরের প্রথম কল পাওয়া গেছে কি না (পেলে তার সময়)। */
+    private var branchCallMs: Long? = null
+
+    /* 🕐🔒 V1042 (TK-নির্দেশ) — সময়টা **অ্যাপ নিজে** কল-তালিকা থেকে বুঝেছে কিনা।
+       কলটা চেম্বারের ফোনে এলে কল-তালিকায় পাওয়া যায় ⇒ auto। স্টাফের নিজের
+       ফোনে এলে অ্যাপ কিছুই জানে না, স্টাফ হাতে বেছে দেন ⇒ hand।
+       ⛔ অ্যাপ বুঝে দেওয়ার পরেও স্টাফ বোতাম চেপে বদলালে সেটা আর auto নয়। */
+    private var timingIsAuto = false
+
+    /* 🩺🔒 V1070 (TK-নির্দেশ) — "Dr. Visit" বাছলে তবেই ডাক্তারের নাম ও নম্বরের
+       ঘর দেখা যায় (Registration-এর হুবহু একই আচরণ)।
+       ⛔ কোনো ঘর বাধ্যতামূলক নয়; অন্য কিছু বাছলে ঘর দুটো ফাঁকা করে লুকিয়ে যায়। */
+    private fun setupEnqRefBy() {
+        binding.spEnqRefBy.adapter = ArrayAdapter(
+            this, android.R.layout.simple_spinner_dropdown_item, enqRefByOptions)
+        binding.spEnqRefBy.onItemSelectedListener =
+            object : android.widget.AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(p: android.widget.AdapterView<*>?, v: View?, pos: Int, id: Long) {
+                    val show = enqRefByOptions.getOrNull(pos) == "Dr. Visit"
+                    binding.llEnqRefDoctor.visibility = if (show) View.VISIBLE else View.GONE
+                    if (!show) {
+                        binding.etEnqRefDoctorName.setText("")
+                        binding.etEnqRefDoctorMobile.setText("")
+                    }
+                }
+                override fun onNothingSelected(p: android.widget.AdapterView<*>?) {}
+            }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       🩺🔒 V1095 (০৫.০৯.২০২৬) — TK: *"All Branch Enquiry Form-এ RMP-র নাম
+       সাজেশন কেন দেখাচ্ছে না"*
+
+       🔴 **আমারই বাদ পড়া:** V1070-এ এই ফর্মে "Doctor / RMP Name" ও "Doctor
+       Mobile" ঘর দুটো বসিয়েছিলাম, কিন্তু Registration-এর **টাইপ করতে করতে
+       সাজেশন** (V895) এখানে বসাতে ভুলে গিয়েছিলাম — তাই "PK" লিখলেও কিছু নামত না।
+
+       ⛔ তালিকাটা `RmpPicker.cachedRmpChoices` থেকেই আসে — অর্থাৎ **ফোনে আগে
+          থেকে জমানো ঘর**; নতুন কোনো ইন্টারনেট-ডাক নেই, Egress-এ এক বাইটও বাড়ে না।
+       ⛔ `RegistrationActivity`-তে এক অক্ষরও হাত দেওয়া হয়নি — চালু পর্দাটা যেন
+          কোনোভাবেই না ভাঙে।
+       ⛔ নাম বা নম্বর — যেটাতেই লিখুন, দুটোতেই কাজ করে (Registration-এর মতোই)।
+       ⛔ দুই অক্ষরের কম লিখলে তালিকা ওঠে না; কিছু না মিললে চুপচাপ লুকিয়ে থাকে।
+       ═══════════════════════════════════════════════════════════════ */
+    private var enqRmpMuted = false
+
+    private fun wireEnqRmpSuggest(user: NativeUser) {
+        val watcher = object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
+            override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {
+                if (!enqRmpMuted) showEnqRmpSuggest(user, s?.toString().orEmpty())
+            }
+            override fun afterTextChanged(s: android.text.Editable?) {}
+        }
+        binding.etEnqRefDoctorName.addTextChangedListener(watcher)
+        binding.etEnqRefDoctorMobile.addTextChangedListener(watcher)
+    }
+
+    private fun dpEnq(v: Int): Int = (v * resources.displayMetrics.density).toInt()
+
+    private fun showEnqRmpSuggest(user: NativeUser, typed: String) {
+        val box = binding.llEnqRmpSuggest
+        val q = typed.trim().lowercase(Locale.US)
+        if (q.length < 2) { box.removeAllViews(); box.visibility = View.GONE; return }
+        val hits = try { RmpPicker.cachedRmpChoices(this, user) } catch (_: Throwable) { emptyList() }
+            .filter { it.searchText().contains(q) }.take(6)
+        box.removeAllViews()
+        if (hits.isEmpty()) { box.visibility = View.GONE; return }
+        box.visibility = View.VISIBLE
+        box.addView(android.widget.TextView(this).apply {
+            text = if (hits.size == 1) "1 saved RMP found" else "${hits.size} saved RMP found"
+            textSize = 10.5f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#118452"))
+            setPadding(dpEnq(10), dpEnq(7), dpEnq(10), dpEnq(5))
+        })
+        for ((i, item) in hits.withIndex()) {
+            if (i > 0) box.addView(View(this).apply {
+                setBackgroundColor(android.graphics.Color.parseColor("#EDF2F8"))
+                layoutParams = android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT, dpEnq(1))
+            })
+            box.addView(enqRmpRow(item))
+        }
+    }
+
+    private fun enqRmpRow(item: RmpPicker.RmpChoice): View {
+        val row = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dpEnq(10), dpEnq(8), dpEnq(10), dpEnq(8))
+            isClickable = true
+        }
+        row.addView(View(this).apply {
+            setBackgroundColor(android.graphics.Color.parseColor("#118452"))
+            layoutParams = android.widget.LinearLayout.LayoutParams(dpEnq(3), dpEnq(30))
+                .apply { marginEnd = dpEnq(9) }
+        })
+        val texts = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        texts.addView(android.widget.TextView(this).apply {
+            text = item.name.trim().uppercase()
+            textSize = 13.5f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#17312A"))
+            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+        })
+        val line2 = listOf(item.mobile, item.area.trim().uppercase())
+            .filter { it.isNotBlank() }.joinToString(" · ")
+        if (line2.isNotBlank()) texts.addView(android.widget.TextView(this).apply {
+            text = line2; textSize = 11f
+            setTextColor(android.graphics.Color.parseColor("#60766D"))
+            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+        })
+        row.addView(texts)
+        if (item.branch.isNotBlank()) row.addView(android.widget.TextView(this).apply {
+            text = item.branch
+            textSize = 10f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#15549B"))
+            setPadding(dpEnq(9), dpEnq(3), dpEnq(9), dpEnq(3))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dpEnq(12).toFloat()
+                setColor(android.graphics.Color.parseColor("#E8F2FF"))
+            }
+        })
+        row.setOnClickListener {
+            enqRmpMuted = true
+            try {
+                binding.etEnqRefDoctorName.setText(item.name.trim().uppercase())
+                binding.etEnqRefDoctorMobile.setText(item.mobile)
+            } finally { enqRmpMuted = false }
+            binding.llEnqRmpSuggest.removeAllViews()
+            binding.llEnqRmpSuggest.visibility = View.GONE
+        }
+        return row
+    }
+
     private fun setupTimingButtons() {
-        binding.btnTimingOfficial.setOnClickListener { selectTiming("Official Time") }
-        binding.btnTimingUnexpected.setOnClickListener { selectTiming("Unexpected Time") }
-        selectTiming("Official Time")
+        binding.btnTimingOfficial.setOnClickListener {
+            timingIsAuto = false                       // 🕐 V1042 — স্টাফ নিজে বাছলেন
+            selectTiming("Official Time")
+        }
+        binding.btnTimingUnexpected.setOnClickListener {
+            timingIsAuto = false                       // 🕐 V1042 — স্টাফ নিজে বাছলেন
+            // কল পাওয়া যায়নি ⇒ স্টাফের নিজের বাছাই ⇒ আগে সতর্কতা, তারপর বাছাই
+            if (branchCallMs == null) confirmUnexpected() else selectTiming("Unexpected Time")
+        }
+        applyTimingFromCall(null)
+    }
+
+    /** কল-তালিকার ফল অনুযায়ী বোতাম দুটো সাজায়। */
+    private fun applyTimingFromCall(callMs: Long?) {
+        branchCallMs = callMs
+        timingIsAuto = callMs != null                  // 🕐 V1042
+        if (callMs == null) {
+            binding.btnTimingUnexpected.visibility = View.VISIBLE
+            selectTiming("Official Time")
+            return
+        }
+        val fromCall = timingOf(callMs)
+        if (fromCall == "Official Time") {
+            // অফিসিয়াল সময়ের কল ⇒ Unexpected বাছার সুযোগই থাকবে না
+            binding.btnTimingUnexpected.visibility = View.GONE
+            selectTiming("Official Time")
+        } else {
+            binding.btnTimingUnexpected.visibility = View.VISIBLE
+            selectTiming("Unexpected Time")
+        }
+    }
+
+    /** নম্বর লেখা হলে ব্রাঞ্চের কল-তালিকায় প্রথম কলটা খুঁজে বোতাম সাজানো। */
+    private fun refreshTimingForMobile(digits: String) {
+        lifecycleScope.launch {
+            val ms = withContext(Dispatchers.IO) {
+                try { BranchSimHelper.firstCallTimeMs(this@EnquiryActivity, digits) }
+                catch (_: Throwable) { null }
+            }
+            if (!isFinishing && !isDestroyed) applyTimingFromCall(ms)
+        }
+    }
+
+    /* ⚠️🔒 V966 (০২.০৯.২০২৬, TK-এর স্পষ্ট নির্দেশ) — *"এই সতর্কবার্তা লাগবে না,
+       শুধুমাত্র ওয়ার্নিং PopUp আসুক — Are You Sure Yes/No"*। তাই V963/V965-এর
+       বড় ফ্ল্যাশ বার্তাটা পুরো তুলে দেওয়া হলো; এখন শুধু একটা সাধারণ নিশ্চিতকরণ।
+       ⛔ কোথাও কিছু পাঠানো হয় না — Yes চাপলে তবেই Unexpected Time বসে। */
+    private fun confirmUnexpected() {
+        try {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setCustomTitle(PremiumAlert.header(this, "⚠️ Are you sure?"))
+                .setMessage("Mark this call as UNEXPECTED TIME?")
+                .setPositiveButton("Yes") { _, _ -> selectTiming("Unexpected Time") }
+                .setNegativeButton("No") { d, _ -> try { d.dismiss() } catch (_: Throwable) { } }
+                .setCancelable(false)
+                .show().also { try { PremiumAlert.paint(it) } catch (_: Throwable) { } }
+        } catch (_: Throwable) { selectTiming("Unexpected Time") }
     }
 
     private fun selectTiming(value: String) {
@@ -288,6 +526,8 @@ class EnquiryActivity : AppCompatActivity() {
 val disease = selectedDisease
         val address = binding.etAddress.text.toString().trim()
         val remarks = binding.etRemarks.text.toString().trim()
+        // ☎️ V963 — বোতামে যা দেখাচ্ছে সেটাই; কল পাওয়া গেলে অ্যাপ আগেই বসিয়ে
+        //   রেখেছে, না পেলে স্টাফের বাছাই (Unexpected হলে ফ্ল্যাশ বার্তা দেখানো হয়েছে)।
         val timing = selectedTiming
 
         // Same validation order as saveEnq(); on failure, jump to that field.
@@ -297,6 +537,18 @@ val disease = selectedDisease
         if (remarks.isBlank()) { focusError(binding.etRemarks, "Remarks mandatory"); return }
         if (selectedNextFollow.isBlank()) { focusError(binding.tvNextFollow, "Next Follow-up Call date mandatory"); return }
 
+        /* 🛡️🔒 V863 (৩০.০৮.২০২৬, TK-অনুমোদিত) — নম্বরটা আমাদের নিজেদের কারো
+           (স্টাফ · ক্লিনিক · ডাক্তার) হলে সেভের আগে একবার সতর্কবার্তা।
+           ⛔ আমাদের নম্বর না হলে **এক মুহূর্তও দেরি নয়** — নিচের সবটা হুবহু
+              আগের মতোই চলে। ⛔ আটকায় না, শুধু জিজ্ঞেস করে (আসল রোগীও
+              স্টাফ/ডাক্তারের নম্বর দিতে পারেন — যাচাই করে দেখা)। */
+        OwnNumberGuard.confirmIfOwn(this, mobile) { continueSave(user, mobile, branch, name, disease, address, remarks, timing) }
+    }
+
+    private fun continueSave(
+        user: NativeUser, mobile: String, branch: String, name: String,
+        disease: String, address: String, remarks: String, timing: String
+    ) {
         setLoading(true)
         lifecycleScope.launch {
             try {
@@ -372,6 +624,7 @@ val disease = selectedDisease
         }
         view.findViewById<android.widget.TextView>(com.tkbiswas.pilesclinic.R.id.btnDupClose).setOnClickListener { dialog.dismiss() }
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
         // 🔒 খাতার সারি B181 (TK, 30.07.2026): এই পপ-আপে এখন সরাসরি বাংলা লেখা
         // পাওয়া যায়নি, তবু ধারাবাহিকতার জন্য পাহারা বসানো হলো (ভবিষ্যতে কেউ
         // বাংলা যোগ করলেও যেন আটকায়)।
@@ -658,6 +911,13 @@ val disease = selectedDisease
             remarks = remarks,
             nextFollow = selectedNextFollow,
             timeType = timing,
+            timeSource = if (timingIsAuto) "auto" else "hand",   // 🕐 V1042
+            // 🩺 V1070 — কে পাঠিয়েছেন (Dr. Visit ছাড়া নাম-নম্বর ফাঁকাই যায়)
+            refBy = binding.spEnqRefBy.selectedItem?.toString() ?: "Self",
+            refDoctor = if (binding.spEnqRefBy.selectedItem?.toString() == "Dr. Visit")
+                binding.etEnqRefDoctorName.text.toString().trim() else "",
+            refDoctorMobile = if (binding.spEnqRefBy.selectedItem?.toString() == "Dr. Visit")
+                binding.etEnqRefDoctorMobile.text.toString().filter { it.isDigit() }.takeLast(10) else "",
             receivedByMobile = receivedByMobiles.getOrNull(binding.spReceivedBy.selectedItemPosition) ?: user.mobile
         )
         setLoading(true)
@@ -674,7 +934,7 @@ val disease = selectedDisease
                     this@EnquiryActivity,
                     if (savedOnline) "Enquiry saved" else "Saved — will sync when online",
                     android.widget.Toast.LENGTH_LONG
-                ).show()
+                ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                 // 🔒 ENQUIRY_WHATSAPP_MESSAGE_FINAL_LOCK_2026-07-31_0950_IST —
                 // পুরনো তিন-ভাষা-একসাথে ENQUIRY বার্তার বদলে এখন আগে ভাষা
                 // বাছাই (বাংলা/হিন্দি/English), তারপর সেই ভাষার লকড টেমপ্লেট।
@@ -721,8 +981,8 @@ val disease = selectedDisease
         binding.tvDate.text = displayDate(selectedDate)
         selectedNextFollow = ""
         binding.tvNextFollow.text = "Tap to select (optional)"
+        selectedDiseaseSet.clear()
         setupDiseaseButtons()
-        selectedDisease = ""
         setupTimingButtons()
         binding.etMobile.requestFocus()
     }

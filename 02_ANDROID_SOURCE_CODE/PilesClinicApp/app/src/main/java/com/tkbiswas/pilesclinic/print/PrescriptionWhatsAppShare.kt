@@ -73,6 +73,29 @@ object PrescriptionWhatsAppShare {
     @Suppress("StaticFieldLeak")
     private var keepAlive: WebView? = null
 
+    /**
+     * 🟢🔒🔒 V639 (২৪.০৮.২০২৬, TK-রিপোর্ট, ছবিসহ — "Preparing PDF... এটা কি
+     * হচ্ছে? Share তো হচ্ছেই না") — **আসল কারণ:** এই WebView-টা তৈরি করেই
+     * সরাসরি measure()/layout() (হাতে-করা) ডাকা হত, কিন্তু কখনো পর্দার
+     * আসল View-কাঠামোয় (window) যুক্তই করা হত না। কিছু ফোনের (বিশেষত
+     * Xiaomi/MIUI-এর মতো কাস্টম WebView, এই ফাইলেরই উপরের মন্তব্যে আগে থেকে
+     * স্বীকৃত সীমাবদ্ধতা) নিজস্ব WebView রেন্ডারার এমন "window-এ কখনো যুক্ত
+     * হয়নি" WebView-এর onPageFinished/জাভাস্ক্রিপ্ট/আঁকা নির্ভরযোগ্যভাবে
+     * চালায় না — তাই "Preparing PDF…" টোস্ট দেখানোর পরে কিছুই এগোত না, কোনো
+     * error-ও আসত না (পুরো কাজটাই নিঃশব্দে থেমে যেত)।
+     * **সমাধান:** WebView-টা এখন সত্যিই পর্দার (activity-র android.R.id.content)
+     * সাথে যুক্ত থাকে — আকারে ১×১ পিক্সেল ও অদৃশ্য (INVISIBLE), তাই চোখে
+     * কখনো দেখা যায় না, কিন্তু ফোনের আসল রেন্ডারিং-পথ দিয়েই চলে। কাজ শেষ
+     * হলে (সফল/ব্যর্থ দুটোতেই) সাথে সাথে সরিয়ে ফেলা হয়।
+     */
+    private fun detachKeepAlive() {
+        try {
+            val wv = keepAlive
+            (wv?.parent as? android.view.ViewGroup)?.removeView(wv)
+        } catch (_: Throwable) { }
+        keepAlive = null
+    }
+
     // 🔴 V501: আগে এই তিনটে তথ্য `PrintDocumentModel`-এর ভিতর থেকে নেওয়া হতো।
     //    এখন যেকোনো HTML চলে বলে আলাদা করে রাখা হয় (একবারে একটাই শেয়ার চলে,
     //    তাই এতে গোলমালের সুযোগ নেই — WebView-ও একটাই `keepAlive`)।
@@ -113,14 +136,96 @@ object PrescriptionWhatsAppShare {
         allowPrint: Boolean = false
     ) {
         Toast.makeText(activity, "Preparing PDF…", Toast.LENGTH_SHORT).show()
+        renderWidthPx = A4_WIDTH_PX   // 🔴🔒 V701 — আগের কাগজের মাপ যেন থেকে না যায়
         docTitle = documentTitle
         docPatient = patientName
         wantPrint = allowPrint
+
+        /* ═══════════════════════════════════════════════════════════════════
+           🔴🔴🔒 V795 (২৮.০৮.২০২৬, TK-রিপোর্ট ছবিসহ — *"প্রেসক্রিপশন যখন
+           হোয়াটসঅ্যাপে শেয়ার করতে যাই, ঘোড়ার ডিম এসেছে"*: PDF-এ শুধু বিশাল
+           লোগো, ৪ পাতা)।
+
+           ─── আসল কারণ (কোড ধরে প্রমাণিত, আন্দাজ নয়) ─────────────────────
+           V698-এ ঠিক এই দোষটাই সারানো হয়েছিল — কিন্তু **শর্ত দিয়ে**: পাতার
+           `<meta viewport>`-এ যদি একটা **সংখ্যা** থাকে (`width=794`) তবেই
+           `useWideViewPort` চালু হয়। Check-up-এর কাগজে সংখ্যা আছে, তাই
+           ওটা সেরে গিয়েছিল।
+           কিন্তু **Prescription ও Medicine Slip**-এর টেমপ্লেট
+           (`assets/www/rx_print.html` লাইন ৩) লেখা `width=device-width` —
+           কোনো সংখ্যা নেই। তাই শর্তটা মেলে না, wide-viewport চালুই হয় না,
+           আর ফোনের ঘনত্ব ধরে CSS চওড়া দাঁড়ায় ৭৯৪ ÷ ৩ ≈ ২৬৫px ⇒ ৭৮px-এর
+           লোগোই পাতার তিন ভাগের এক ভাগ জুড়ে বসে, উচ্চতার মাপ ভুল হয়,
+           বাড়তি পাতা তৈরি হয় — TK-এর ছবিতে ঠিক এটাই।
+           ⚠️ V698-এর মন্তব্যে আমি নিজেই লিখেছিলাম *"Prescription-এ এক অক্ষরও
+              বদলায়নি"* — সেটাই ছিল ফাঁক। তখন ওটাকে নিরাপত্তা ভেবেছিলাম।
+
+           ─── সমাধান ─────────────────────────────────────────────────────
+           **শুধু এই PDF বানানোর জন্য** পাতার viewport-টা A4-এর সংখ্যায়
+           বদলে নেওয়া হয়। তাতে V698/V701-এর ইতিমধ্যে-প্রমাণিত পথটাই চালু
+           হয়, আর কাগজ হুবহু A4 মাপে সাজে।
+           ⛔ আসল টেমপ্লেট ফাইল **ছোঁয়া হয়নি** — বদলটা শুধু মেমরির এই কপিতে।
+           ⛔ ছাপার পথ (PrintManager · `PdfPrintDocumentAdapter`) সম্পূর্ণ
+              আলাদা, সেখানে হাত পড়েনি — তাই প্রিন্ট আগের মতোই।
+           ═══════════════════════════════════════════════════════════════ */
+        val htmlForPdf = try {
+            if (Regex("name=[\"']viewport[\"'][^>]*content=[\"'][^\"']*width\\s*=\\s*\\d{3,4}",
+                    RegexOption.IGNORE_CASE).containsMatchIn(html)) html
+            else Regex("<meta[^>]*name=[\"']viewport[\"'][^>]*>", RegexOption.IGNORE_CASE)
+                .replace(html, "<meta name=\"viewport\" content=\"width=$A4_WIDTH_PX\">")
+        } catch (_: Throwable) { html }
 
         val wv = WebView(activity)
         // ⚠️ JavaScript শুধু পাতার **উচ্চতা মাপার** জন্য। টেমপ্লেটে নিজের কোনো
         //    স্ক্রিপ্ট নেই ও বাইরের কিছু লোড হয় না, তাই এতে ঝুঁকি নেই।
         wv.settings.javaScriptEnabled = true
+        /* 🔴🔒🔒 V698 (২৬.০৮.২০২৬, TK-রিপোর্ট, ৩টে ছবিসহ — "কাজ হচ্ছে না";
+           Check-up History → Send on WhatsApp-এর PDF-এ লেখা সরু কলামে, লোগো
+           বিশাল হয়ে কাটা, পাতাগুলো প্রায় ফাঁকা)।
+
+           **আসল কারণ (কোড ধরে, আন্দাজ নয়):** এই WebView-টা হাতে করে ৭৯৪
+           **ডিভাইস-পিক্সেল** চওড়ায় বসানো হয় (`layoutAt`)। কিন্তু
+           `useWideViewPort` চালু না থাকায় WebView পাতার `<meta name=
+           "viewport" content="width=794">` লাইনটা **পড়েই না** — তখন CSS-এর
+           চওড়া হয় ৭৯৪ ÷ ফোনের ঘনত্ব, অর্থাৎ ৩x ফোনে মাত্র ~২৬৫ CSS px।
+           ফলে A4-এর জন্য লেখা কাগজটা ২৬৫px-এর সরু কলামে সাজে, আর ৭৮px-এর
+           লোগো ওই চওড়ার প্রায় এক-তৃতীয়াংশ জুড়ে বসে — TK-এর ছবিতে ঠিক
+           এটাই। উচ্চতার মাপও (`scrollHeight`) তখন ভুল হয়, তাই বাড়তি
+           ফাঁকা পাতা তৈরি হয়।
+
+           **সমাধান:** পাতা নিজে যদি একটা নির্দিষ্ট চওড়া চায় (viewport-এ
+           `width=<সংখ্যা>`), তবেই wide-viewport চালু — তখন CSS চওড়া হয়
+           ঠিক ৭৯৪, আর ১ CSS px = ১ ডিভাইস px, অর্থাৎ হুবহু A4।
+
+           ⛔ **Prescription ও Medicine Slip-এ এক অক্ষরও বদলায়নি** — ওদের
+              টেমপ্লেটে (`www/rx_print.html`) লেখা আছে `width=device-width`,
+              কোনো নির্দিষ্ট সংখ্যা নয়, তাই নিচের শর্তটা ওদের ক্ষেত্রে মেলে
+              না ও আগের আচরণই বহাল থাকে। */
+        try {
+            val wantWidth = Regex(
+                "name=[\"']viewport[\"'][^>]*content=[\"'][^\"']*width\\s*=\\s*(\\d{3,4})",
+                RegexOption.IGNORE_CASE
+            ).find(htmlForPdf)?.groupValues?.getOrNull(1)?.toIntOrNull()
+            if (wantWidth != null && wantWidth >= 300) {
+                wv.settings.useWideViewPort = true
+                /* 🔴🔒🔒 V701 (২৬.০৮.২০২৬, TK-এর ৪টে ছবিতে ধরা — PDF-এ লোগো
+                   বিশাল, "TK BISW…" ও "DOCTOR CHECK-UP RE…" ডানদিকে **কেটে
+                   গেছে**)। **আসল কারণ — V698-এ আমারই ভুল লাইন:** এখানে
+                   `loadWithOverviewMode = false` লেখা ছিল।
+
+                   `useWideViewPort` চালু করায় পাতা ঠিকই ৭৯৪ **CSS**-পিক্সেলে
+                   সাজে — কিন্তু overview বন্ধ থাকায় WebView সেটাকে পর্দার
+                   মাপে **ছোট করে না**, ফোনের ঘনত্ব ধরে আঁকে। ৩x ফোনে
+                   ৭৯৪ CSS px = **২৩৮২ ডিভাইস px** চওড়া, অথচ আমরা আঁকি মাত্র
+                   ৭৯৪ px-এ ⇒ **ডান দিকের দুই-তৃতীয়াংশ কেটে যায়**।
+                   V698-এর আগে ছিল উল্টো দোষ (সব ছোট, সরু কলাম); আমি এক
+                   দোষ সারিয়ে আরেকটা বানিয়েছি।
+
+                   ⇒ `true` করলে WebView ৭৯৪ CSS px-কে ঠিক ৭৯৪ ডিভাইস px-এ
+                     বসায় (১ CSS px = ১ px) — এটাই আসল A4। */
+                wv.settings.loadWithOverviewMode = true
+            }
+        } catch (_: Throwable) { /* ব্যর্থ হলে আগের আচরণই — কিছু ভাঙে না */ }
         wv.setBackgroundColor(Color.WHITE)
         wv.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) {
@@ -128,29 +233,95 @@ object PrescriptionWhatsAppShare {
             }
         }
         keepAlive = wv
+        // 🟢🔒 V639 — WebView-টা সত্যিই পর্দার সাথে যুক্ত থাকে (১×১ পিক্সেল,
+        // অদৃশ্য) — নইলে কিছু ফোনে (MIUI-এর মতো) onPageFinished/আঁকা
+        // নির্ভরযোগ্যভাবে চলে না। ব্যর্থ হলেও (যেমন content root না পাওয়া
+        // গেলে) আগের মতোই detached ভাবে চলার চেষ্টা করে — কিছু ভাঙে না।
+        try {
+            val root = activity.findViewById<android.view.ViewGroup>(android.R.id.content)
+            wv.visibility = View.INVISIBLE
+            root.addView(wv, android.view.ViewGroup.LayoutParams(1, 1))
+        } catch (_: Throwable) { }
         layoutAt(wv, A4_HEIGHT_PX)
         // baseURL = file:///android_asset/  → লোগোর ছবি রিজলভ হয় (ছাপার পথের মতোই)।
-        wv.loadDataWithBaseURL("file:///android_asset/", html, "text/html", "UTF-8", null)
+        wv.loadDataWithBaseURL("file:///android_asset/", htmlForPdf, "text/html", "UTF-8", null)
     }
 
-    /** WebView-কে A4-এর চওড়ায় বসানো, যাতে CSS ঠিক ছাপার মতোই সাজে। */
+    /* 🔴🔒 V701 — কাগজের আসল চওড়া। সাধারণত A4 (৭৯৪), কিন্তু কোনো ফোনে
+       WebView যদি পাতাটা এর চেয়ে চওড়া করে সাজায়, তখন সেই চওড়াটাই ধরা হয় —
+       নইলে ডান দিকটা কেটে যেত (TK-এর ছবির দোষ)। */
+    private var renderWidthPx = A4_WIDTH_PX
+
+    /** WebView-কে কাগজের চওড়ায় বসানো, যাতে CSS ঠিক ছাপার মতোই সাজে। */
     private fun layoutAt(view: WebView, heightPx: Int) {
         val h = max(heightPx, A4_HEIGHT_PX)
+        val w = max(renderWidthPx, A4_WIDTH_PX)
         view.measure(
-            View.MeasureSpec.makeMeasureSpec(A4_WIDTH_PX, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY),
             View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY)
         )
-        view.layout(0, 0, A4_WIDTH_PX, h)
+        view.layout(0, 0, w, h)
     }
 
     private fun measureThenBuild(activity: Activity, view: WebView) {
         try {
-            view.evaluateJavascript("document.body.scrollHeight") { value ->
-                val measured = value?.trim()?.trim('"')?.toFloatOrNull()?.toInt() ?: A4_HEIGHT_PX
-                val total = max(measured, A4_HEIGHT_PX)
-                layoutAt(view, total)
+            /* 🔴🔒 V701 (TK-এর ৪টে ছবিতে ধরা — PDF-এর ডান দিক কেটে যাচ্ছিল) —
+               এখন **চওড়া ও উচ্চতা দুটোই** মাপা হয়। আগে শুধু উচ্চতা মাপা হত আর
+               চওড়া ধরে নেওয়া হত ৭৯৪; পাতা তার চেয়ে চওড়া হয়ে গেলে বাকিটা
+               চুপচাপ কেটে যেত। এখন যা মাপা যায় তাই বসে, আর নিচে সেই মাপ ধরেই
+               A4-তে ছোট করা হয় — তাই **কোনো ফোনেই আর কাটা পড়বে না**।
+               ⛔ মাপা না গেলে আগের মতোই ৭৯৪ ধরা হয় (আচরণ বদলায় না)। */
+            /* 🔴🔒🔒 V702 (২৬.০৮.২০২৬, TK: *"আপনি সঠিকভাবে কাজটা করুন, আমি এত
+               বারবার বিল্ড করতে পারবো না"*) — **আর ধরে নেওয়া নয়, মেপে নেওয়া।**
+
+               আগের দুটো চেষ্টা (V698 · V701) ব্যর্থ হয়েছে কারণ দুবারই আমি
+               **ধরে নিয়েছিলাম** WebView পাতাটা কত বড় করে আঁকবে। কখনো সেটা
+               ৩ গুণ বড় করেছে (ডান দিক কেটে গেছে), কখনো ছোট (সরু কলাম)।
+
+               এখন কিছুই ধরে নেওয়া হয় না — **WebView নিজে কত বড় করে আঁকছে,
+               সেটাই মেপে নেওয়া হয়:**
+
+                   বড় করার মাপ (scale) = ঘরের চওড়া (device px) ÷ window.innerWidth (CSS px)
+
+               `window.innerWidth` = WebView পাতাটাকে যত CSS-পিক্সেল চওড়া
+               ধরে সাজিয়েছে। ঘরের চওড়া আমরা নিজেরাই বসিয়েছি। দুটো ভাগ করলেই
+               আসল scale — WebView যা-ই করুক, সংখ্যাটা সত্যি।
+
+               তারপর কাগজের আসল মাপ = পাতার CSS মাপ × সেই scale — আর ওই
+               মাপেই ছবি তোলা ও A4-এ বসানো হয়।
+               ⇒ **কোনো ফোনে, কোনো ঘনত্বে আর কাটা পড়তে পারে না।**
+               ⛔ মাপা না গেলে (বিরল) আগের A4-এর হিসাবই চলে, কিছু ভাঙে না। */
+            view.evaluateJavascript(
+                "(function(){var d=document.documentElement,b=document.body;" +
+                "var w=Math.max(b.scrollWidth,d.scrollWidth,b.offsetWidth,d.offsetWidth);" +
+                "var h=Math.max(b.scrollHeight,d.scrollHeight,b.offsetHeight,d.offsetHeight);" +
+                "return w+'x'+h+'x'+(window.innerWidth||0)})()"
+            ) { value ->
+                val raw = value?.trim()?.trim('"').orEmpty()
+                val parts = raw.split("x")
+                val wCss = parts.getOrNull(0)?.toFloatOrNull() ?: A4_WIDTH_PX.toFloat()
+                val hCss = parts.getOrNull(1)?.toFloatOrNull() ?: A4_HEIGHT_PX.toFloat()
+                val innerW = parts.getOrNull(2)?.toFloatOrNull() ?: 0f
+
+                // ── WebView সত্যিই কত বড় করে আঁকছে ──
+                /* ⚠️ ঘরটা পর্দার সাথে যুক্ত (V639), তাই মাঝেমধ্যে বাইরের
+                   লেআউট ওটাকে ছোট করে দিতে পারে। তখন মাপা scale মিথ্যে হত।
+                   ⇒ ঘরটা অস্বাভাবিক ছোট হলে মাপায় ভরসা করা হয় না, আগের
+                     A4-এর সোজা হিসাবেই ফেরত যাওয়া হয়। */
+                val viewW = view.width
+                val trustView = viewW >= A4_WIDTH_PX / 2
+                val scale = if (trustView && innerW > 1f) viewW / innerW else 1f
+                // অসম্ভব মান এলে ভরসা করা হয় না (০.১× – ৮× এর বাইরে)।
+                val safeScale = if (scale in 0.1f..8f) scale else 1f
+
+                val contentW = max((wCss * safeScale).toInt(), A4_WIDTH_PX)
+                val contentH = max((hCss * safeScale).toInt(), A4_HEIGHT_PX)
+                renderWidthPx =
+                    if (trustView && contentW <= A4_WIDTH_PX * 6) contentW else A4_WIDTH_PX
+
+                layoutAt(view, contentH)
                 // আঁকার আগে একটু সময় — ছবি ও ফন্ট বসে যেতে দিন।
-                view.postDelayed({ buildPdfThenShare(activity, view, total) }, 250L)
+                view.postDelayed({ buildPdfThenShare(activity, view, contentH) }, 250L)
             }
         } catch (_: Throwable) {
             layoutAt(view, A4_HEIGHT_PX)
@@ -169,13 +340,44 @@ object PrescriptionWhatsAppShare {
             // নাম আলাদা রাখা হয়, যাতে পুরনো ফাইল ভুল করে WhatsApp-এ না যায়।
             outFile = File(dir, "${safeTitle}_${safeName}_${System.currentTimeMillis()}.pdf")
         } catch (e: Throwable) {
-            keepAlive = null; fail(activity, "Could not create the file: ${e.message}"); return
+            detachKeepAlive(); fail(activity, "Could not create the file: ${e.message}"); return
         }
 
         val document = PdfDocument()
         var built = false
         try {
-            val scale = A4_WIDTH_PT.toFloat() / A4_WIDTH_PX.toFloat()
+            /* 🔴🔒 V701 — উপরে যে চওড়ায় সত্যিই সাজানো হয়েছে, সেই চওড়াটাকেই
+               A4-এর ৫৯৫ পয়েন্টে বসানো হয়। আগে সবসময় ৭৯৪ ধরা হত, তাই পাতা
+               চওড়া হলে ডান দিক কেটে যেত। */
+            /* 🔴🔴🔒 V981 (০২.০৯.২০২৬, TK-রিপোর্ট ছবিসহ — *"প্রিন্ট আউটে
+               তো কিছুই আসলো না"*: Estimate-এর PDF ও প্রিন্ট **সম্পূর্ণ ফাঁকা**)।
+
+               ─── আসল কারণ (কোড ধরে প্রমাণিত, আন্দাজ নয়) ─────────────────
+               মাপার ঘরটা (WebView) V639 থেকে পর্দার সাথে **১×১ পিক্সেল**
+               LayoutParams নিয়ে যুক্ত থাকে। আমরা নিজেরা ওটাকে হাতে করে
+               `layoutAt()` দিয়ে A4 মাপে বসাই — কিন্তু সেটা শুধু ওই মুহূর্তের
+               জন্য। এর পর অ্যাক্টিভিটির উইন্ডোতে **একটাও লেআউট-পাস** চললেই
+               Android ঘরটাকে তার নিজের LayoutParams অনুযায়ী আবার **১×১**
+               করে দেয়। তখন নিচের `view.draw(canvas)` এক পিক্সেলের ঘর আঁকে
+               ⇒ **পুরো সাদা পাতা**।
+
+               Estimate-এ ঠিক সেটাই ঘটছিল: "Print / Share" চাপলে আগে
+               `onDone()` চলে, যা Estimated Cost ঘরে `setText()` করে —
+               তাতেই অ্যাক্টিভিটির লেআউট-পাস চাপা পড়ে থাকে; তারপর পপ-আপটাও
+               বন্ধ হয়। ওই ২৫০ms-এর ভিতরেই পাস চলে ও ঘরটা ১×১ হয়ে যায়।
+               Check-up-এর শেয়ারে আগে কোনো `setText()` নেই, পপ-আপ আগেই বন্ধ
+               হয় — তাই ওটা এত দিন ঠিক চলেছে।
+
+               ─── সমাধান ─────────────────────────────────────────────────
+               আঁকার **ঠিক আগের মুহূর্তে** ঘরটাকে আবার কাগজের মাপে বসানো
+               হয়। মাঝখানে কে কী লেআউট চালাল তাতে আর কিছু যায় আসে না।
+               ⛔ কোনো টেমপ্লেট · মাপার হিসাব · শেয়ার/প্রিন্টের পথ বদলায়নি —
+                  শুধু একটা লাইন আগে সরানো হলো, তাই সব পুরনো কাগজ (Check-up ·
+                  Prescription · Diet · Investigation) হুবহু আগের মতোই থাকে। */
+            layoutAt(view, totalHeightPx)
+
+            val drawWidthPx = max(renderWidthPx, A4_WIDTH_PX)
+            val scale = A4_WIDTH_PT.toFloat() / drawWidthPx.toFloat()
             val pageHeightPx = A4_HEIGHT_PT / scale           // এক পাতায় কত px ধরে
             val pageCount = max(1, ceil(totalHeightPx / pageHeightPx).toInt())
             for (i in 0 until pageCount) {
@@ -198,7 +400,7 @@ object PrescriptionWhatsAppShare {
             fail(activity, "Could not build the PDF: ${e.message}")
         } finally {
             try { document.close() } catch (_: Throwable) { }
-            keepAlive = null
+            detachKeepAlive()
         }
         if (!built) return
 
@@ -248,7 +450,7 @@ object PrescriptionWhatsAppShare {
                     }
                 }
                 .setNegativeButton("Cancel", null)
-                .show()
+                .show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
         } catch (e: Throwable) {
             fail(activity, "Could not show the WhatsApp choice: ${e.message}")
         }
@@ -275,7 +477,7 @@ object PrescriptionWhatsAppShare {
     }
 
     private fun fail(activity: Activity, message: String) {
-        keepAlive = null
+        detachKeepAlive()
         try { Toast.makeText(activity, message, Toast.LENGTH_LONG).show() } catch (_: Throwable) { }
     }
 }

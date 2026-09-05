@@ -29,11 +29,25 @@ import org.json.JSONObject
  */
 class GlobalSearchActivity : AppCompatActivity() {
 
+    /* 🔍🔒 V1107 (০৫.০৯.২০২৬, TK-রিপোর্ট) — অন্য পর্দা থেকে **টাইপ করা নামটা
+       সঙ্গে পাঠানো যায়**, তখন এই পর্দা খুলেই নিজে থেকে খুঁজে ফেলে।
+       ⛔ কেউ না পাঠালে (মেনু/নিচের বার থেকে খোলা) আচরণ হুবহু আগের মতোই —
+          ফাঁকা ঘর, "Type a name or mobile number to search."।
+       ⛔ Intent-এর extra ব্যবহার করা হয়নি — এই প্রকল্পের পাহারাদার
+          (`verify_kotlin_compile`) androidx চেনে না বলে `intent` লিখলেই
+          মিথ্যা "unresolved reference" দেখায় (নিজে চালিয়ে ধরা পড়েছে)।
+          তাই `RoleSession`-এর মতোই একটা ছোট স্থির ঘর — **একবার পড়া হলেই
+          মুছে যায়**, তাই পরে পর্দাটা আবার খুললে পুরনো লেখা ফিরে আসে না। */
+    companion object { @Volatile @JvmStatic var pendingQuery: String = "" }
+
     private lateinit var progressLoad: ProgressBar
     private lateinit var tvEmpty: TextView
     private lateinit var recycler: RecyclerView
     private val results = mutableListOf<SearchHit>()
     private lateinit var adapter: SearchAdapter
+
+    /* 💊 V985 — মোবাইল → মেডিসিনের বাকি (এই পর্দার নিজের ছোট তালিকা)। */
+    private val medDue = HashMap<String, Double>()
     private var searchJob: Job? = null
 
     // 🆔 TK-এর নিয়ম (28.07.2026): নাম ও মোবাইলের সঙ্গে Patient ID-ও দেখাতে হবে।
@@ -76,7 +90,12 @@ class GlobalSearchActivity : AppCompatActivity() {
             onMedicineSlip = { hit -> openClinicalDoc(hit, com.tkbiswas.pilesclinic.clinical.MedicineSlipActivity::class.java) },
             onBloodTest = { hit -> openClinicalDoc(hit, com.tkbiswas.pilesclinic.clinical.InvestigationAdviceActivity::class.java) },
             onDietChart = { hit -> openClinicalDoc(hit, com.tkbiswas.pilesclinic.clinical.DietChartActivity::class.java) },
-            onMarkArrived = { hit -> markArrivedHit(hit) }
+            onMarkArrived = { hit -> markArrivedHit(hit) },
+            onRemark = { hit -> writeRemarkForHit(hit) },   // 📝 V827
+            onPrint = { hit -> showPrintPicker(hit) },      // 🖨️ V827
+            /* 💊 V985 — বাকির অঙ্ক (একবারই আনা, তাই বারবার নেট-কল হয় না)। */
+            dueOf = { mobile -> medDue[mobile.filter { c -> c.isDigit() }.takeLast(10)] ?: 0.0 },
+            onCollectDue = { hit -> openMedicineForDue(hit) }
         )
         recycler.adapter = adapter
 
@@ -94,6 +113,17 @@ class GlobalSearchActivity : AppCompatActivity() {
                 }
             }
         })
+        /* 🔍 V1107 — পাঠানো নামটা বসিয়ে দিলেই উপরের TextWatcher নিজেই
+           খোঁজাটা চালায়; নতুন কোনো আলাদা পথ বানানো হয়নি, তাই ফলাফল ও
+           নিয়ম হুবহু হাতে টাইপ করার মতোই। */
+        try {
+            val passed = pendingQuery.trim()
+            pendingQuery = ""
+            if (passed.isNotBlank()) {
+                etQuery.setText(passed)
+                etQuery.setSelection(etQuery.text?.length ?: 0)
+            }
+        } catch (_: Throwable) { }
     }
 
     private fun runSearch(q: String) {
@@ -292,6 +322,18 @@ class GlobalSearchActivity : AppCompatActivity() {
             results.clear()
             results.addAll(hits)
             adapter.notifyDataSetChanged()
+            /* 💊🔒 V985 — মেডিসিনের বাকি: খোঁজার **সব নম্বর একসাথে**, একটাই
+               ছোট অনুরোধে (মাত্র ৫টা ঘর)। ⛔ ব্যর্থ হলে চুপচাপ কিছুই দেখায় না —
+               কার্ড হুবহু আগের মতোই, কোথাও কিছু আটকায় না। */
+            if (hits.isNotEmpty()) lifecycleScope.launch {
+                val map = withContext(Dispatchers.IO) {
+                    try { MedicineDue.dueByMobile(hits.map { it.mobile }) } catch (_: Throwable) { emptyMap() }
+                }
+                if (map.isNotEmpty()) {
+                    medDue.clear(); medDue.putAll(map)
+                    adapter.notifyDataSetChanged()
+                }
+            }
             tvEmpty.visibility = if (hits.isEmpty()) View.VISIBLE else View.GONE
             if (hits.isEmpty()) tvEmpty.text = "No match found."
         }
@@ -334,6 +376,160 @@ class GlobalSearchActivity : AppCompatActivity() {
             .show().also { PremiumAlert.paint(it) }
     }
 
+    /* ════════════════════════════════════════════════════════════════════
+       📝🔒🔒 V827 (২৯.০৮.২০২৬, TK-নির্দেশ, ছবিসহ)
+
+       *"মনে করুন কিশনগঞ্জের স্টাফ কল রিসিভ করেছিল, কিন্তু কলটা অটোমেটিক
+        জলপাইগুড়ির কোনো এনকোয়ারি ছিল — কিশনগঞ্জের স্টাফ কোনো রিমার্ক লিখতে
+        পারে না। … আমি চাইছি এখানে নাম্বার সার্চ করলে যে staff কলটা রিসিভ
+        করেছে সে যেন রিমার্কটা লিখে দিতে পারে, তাতে জলপাইগুড়ির স্টাফের
+        সুবিধা হবে বুঝতে যে লাস্ট কে কথা বলেছিল। … রিমার্কটা ফলোআপ কার্ডে
+        যেখানে রিমার্ক লেখা হয় সেখানে অটোমেটিক চলে যেতে হবে।"*
+
+       ⛔ লেখাটা যায় প্রজেক্টের **একটাই প্রমাণিত পথে** — `FollowUpRepository.
+          updateRemark()` (Chamber · Dialer · Appointment · Follow-up সবাই
+          এটাই ব্যবহার করে)। নতুন কোনো লেখার নিয়ম বানানো হয়নি।
+       ⛔ TK-অনুমোদিত **তৃতীয় পথ**: `LAST CALL`-এর তারিখ আজকের হয় ও স্টাফের
+          নাম বসে, কিন্তু **কল-গোনা বাড়ে না** — তাই "৫ কলের পর বাতিল"
+          নিয়মে এক অক্ষরও প্রভাব পড়ে না।
+       ⛔ **নতুন কোনো রেকর্ড তৈরি হয় না।** ওই নম্বরের Follow-up সারি না
+          থাকলে পরিষ্কার বার্তা দিয়ে থেমে যায়।
+       ⛔ Search পর্দা আগে থেকেই **সব ব্রাঞ্চ** দেখায় (এই অ্যাপের একমাত্র
+          ইচ্ছাকৃত "সব দেখা" জায়গা — উপরে `canSee()`-তে লেখা আছে), তাই
+          অন্য ব্রাঞ্চের সারিতে লেখাটা এই পর্দার নিজের নিয়মের সাথেই মেলে।
+       ⛔ Egress: একটা সরু পড়া (কয়েকটা ঘর) + একটা লেখা। নগণ্য।
+       ════════════════════════════════════════════════════════════════════ */
+    private fun writeRemarkForHit(hit: SearchHit) {
+        val digits = hit.mobile.filter { it.isDigit() }.takeLast(10)
+        if (digits.length != 10) {
+            android.widget.Toast.makeText(this, "No valid 10-digit mobile", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        val user = NativeSession.current(this) ?: return
+        lifecycleScope.launch {
+            val row = withContext(Dispatchers.IO) { findLiveFollowUpRow(digits) }
+            if (isFinishing || isDestroyed) return@launch
+            if (row == null) {
+                android.widget.Toast.makeText(
+                    this@GlobalSearchActivity,
+                    "No follow-up record for this number yet — remark not saved",
+                    android.widget.Toast.LENGTH_LONG).show()
+                return@launch
+            }
+            showRemarkDialog(hit, row, user)
+        }
+    }
+
+    /**
+     * ওই নম্বরের **চলতি** Follow-up সারিটা বার করা।
+     * ⛔ বাছার নিয়ম প্রজেক্টের হুবহু একই (V638/V646): আগে স্টেজ-অগ্রাধিকার
+     *    (Treatment > Patient > Inquiry), সমান হলে সবচেয়ে সাম্প্রতিক
+     *    `updatedAt`. নতুন কোনো নিয়ম বানানো হয়নি।
+     * ⛔ `findByMobileOrNull` প্রজেক্টের প্রমাণিত, ৪০+ জায়গায় ব্যবহৃত পথ —
+     *    শেষ ১০ অঙ্ক মেলায়, তাই ওয়েব ("9046…") ও ফোন ("+919046…") দুই
+     *    ধাঁচের সারিই ধরা পড়ে।
+     */
+    private fun findLiveFollowUpRow(digits: String): org.json.JSONObject? {
+        val arr = SupabaseClient.findByMobileOrNull(
+            "followups", "+91$digits",
+            "id,mobile,name,branch,stage,status,lastRemark,lastCallDate,updatedAt", 20) ?: return null
+        fun pr(st: String) = when (st) {
+            "Treatment" -> 3
+            "Patient" -> 2
+            "Inquiry" -> 1
+            else -> 0
+        }
+        var best: org.json.JSONObject? = null
+        for (i in 0 until arr.length()) {
+            val r = arr.optJSONObject(i) ?: continue
+            val b = best
+            if (b == null) { best = r; continue }
+            val pn = pr(r.s("stage"))
+            val pb = pr(b.s("stage"))
+            if (pn > pb || (pn == pb && r.s("updatedAt") > b.s("updatedAt"))) best = r
+        }
+        return best
+    }
+
+    private fun showRemarkDialog(hit: SearchHit, row: org.json.JSONObject, user: NativeUser) {
+        val d = resources.displayMetrics.density
+        fun px(v: Int) = (v * d).toInt()
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(px(18), px(6), px(18), px(2))
+        }
+        val who = listOf(
+            row.s("name").ifBlank { hit.name }.ifBlank { "UNKNOWN" },
+            row.s("branch").ifBlank { hit.branch },
+            row.s("stage")
+        ).filter { it.isNotBlank() }.joinToString("  ·  ")
+        box.addView(android.widget.TextView(this).apply {
+            text = who
+            textSize = 12.5f
+            setTextColor(android.graphics.Color.parseColor("#5B6B81"))
+        })
+        val old = row.s("lastRemark")
+        if (old.isNotBlank()) {
+            box.addView(android.widget.TextView(this).apply {
+                text = "Last remark: $old"
+                textSize = 12f
+                setTextColor(android.graphics.Color.parseColor("#9AA6B4"))
+                setPadding(0, px(4), 0, 0)
+            })
+        }
+        val input = android.widget.EditText(this).apply {
+            hint = "What did the caller say?"
+            setSingleLine(false)
+            minLines = 2
+            maxLines = 5
+            textSize = 14f
+            val p = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            p.topMargin = px(8)
+            layoutParams = p
+        }
+        box.addView(input)
+        // প্রজেক্টের স্থায়ী নিয়ম (২৪.০৭.২০২৬): ইংরেজি লেখা নিজে থেকে বড় হাতের।
+        try { UppercaseInputUtil.applyToAll(box) } catch (_: Throwable) { }
+
+        val id = row.s("id")
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(PremiumAlert.header(this, "Write Remark"))
+            .setView(box)
+            .setPositiveButton("Save", null)
+            .setNegativeButton("Cancel", null)
+            .create().also { dlg ->
+                dlg.setOnShowListener {
+                    dlg.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                        val text = input.text.toString().trim()
+                        /* 🔒 খাতার সারি B54-এর একই পাহারা: ফাঁকা লেখায় আগের
+                           রিমার্ক কখনো মুছবে না — তাই এখানেই আটকে দেওয়া হয়। */
+                        if (text.isBlank()) {
+                            android.widget.Toast.makeText(this, "Please write the remark first", android.widget.Toast.LENGTH_SHORT).show()
+                            return@setOnClickListener
+                        }
+                        dlg.dismiss()
+                        val staffName = user.name.ifBlank { user.mobile }
+                        lifecycleScope.launch {
+                            val ok = withContext(Dispatchers.IO) {
+                                try {
+                                    FollowUpRepository(this@GlobalSearchActivity)
+                                        .updateRemark(id, text, staffName, incrementCall = false, stampCallDate = true)
+                                } catch (_: Throwable) { false }
+                            }
+                            if (isFinishing || isDestroyed) return@launch
+                            android.widget.Toast.makeText(
+                                this@GlobalSearchActivity,
+                                if (ok) "Remark saved to Follow-up" else "Could not save — check connection and try again",
+                                android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+                dlg.show()
+                PremiumAlert.paint(dlg)
+            }
+    }
+
     private fun callHit(mobile: String) {
         val digits = mobile.filter { it.isDigit() }.takeLast(10)
         try {
@@ -362,6 +558,68 @@ class GlobalSearchActivity : AppCompatActivity() {
                 .putExtra("patientRowId", rowId)
                 .putExtra("patientCode", patientCode)
         )
+    }
+
+    /**
+     * 🖨️🔒 V827 (২৯.০৮.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — একটাই "Print" বোতাম,
+     * ভিতরে সেই চারটেই।
+     *
+     * ⛔ প্রতিটা সারি ঠিক আগের ফাংশনটাই ডাকে (`openClinicalDoc(...)`) —
+     *    কোন পর্দা খুলবে · কী তথ্য যাবে · কে ছাপতে পারবে, কিচ্ছু বদলায়নি।
+     * ⛔ ক্রমও আগের মতোই: Prescription → Medicine Slip → Blood Test → Diet Chart।
+     */
+    /** 💊 V985 — বাকি নেওয়ার জন্য সোজা Medicine পর্দায়, ওই রোগীর নম্বর বসানো। */
+    private fun openMedicineForDue(hit: SearchHit) {
+        try {
+            startActivity(
+                Intent(this, MedicinePaymentActivity::class.java)
+                    .putExtra("prefill_search", hit.mobile.filter { it.isDigit() }.takeLast(10))
+            )
+        } catch (_: Throwable) { }
+    }
+
+    private fun showPrintPicker(hit: SearchHit) {
+        val d = resources.displayMetrics.density
+        fun px(v: Int) = (v * d).toInt()
+        val col = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, px(4), 0, px(4))
+        }
+        fun rowItem(icon: String, label: String, open: () -> Unit): View {
+            val r = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(px(22), px(15), px(22), px(15))
+                isClickable = true
+                isFocusable = true
+            }
+            r.addView(TextView(this).apply {
+                text = icon
+                textSize = 17f
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT).also { it.marginEnd = px(14) }
+            })
+            r.addView(TextView(this).apply {
+                text = label
+                textSize = 15f
+                setTextColor(android.graphics.Color.parseColor("#101828"))
+            })
+            r.setOnClickListener { open() }
+            return r
+        }
+        lateinit var dlg: androidx.appcompat.app.AlertDialog
+        col.addView(rowItem("📝", "Prescription") { dlg.dismiss(); openClinicalDoc(hit, com.tkbiswas.pilesclinic.clinical.PrescriptionActivity::class.java) })
+        col.addView(rowItem("💊", "Medicine Slip") { dlg.dismiss(); openClinicalDoc(hit, com.tkbiswas.pilesclinic.clinical.MedicineSlipActivity::class.java) })
+        col.addView(rowItem("🩸", "Blood Test") { dlg.dismiss(); openClinicalDoc(hit, com.tkbiswas.pilesclinic.clinical.InvestigationAdviceActivity::class.java) })
+        col.addView(rowItem("🥗", "Diet Chart") { dlg.dismiss(); openClinicalDoc(hit, com.tkbiswas.pilesclinic.clinical.DietChartActivity::class.java) })
+        dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(PremiumAlert.header(this, "Print"))
+            .setView(col)
+            .setNegativeButton("Cancel", null)
+            .create()
+        dlg.show()
+        PremiumAlert.paint(dlg)
     }
 
     // TK APPROVED (2026-07-15): Search result card redesigned -- the four
@@ -406,7 +664,17 @@ class GlobalSearchActivity : AppCompatActivity() {
         val onDietChart: (SearchHit) -> Unit,
         // TK-REQUESTED (2026-07-20): mark a searched patient Arrived into
         // today's Chamber Attendance directly from Search.
-        val onMarkArrived: (SearchHit) -> Unit
+        val onMarkArrived: (SearchHit) -> Unit,
+        /* 📝🔒 V827 (২৯.০৮.২০২৬, TK-নির্দেশ) — অন্য ব্রাঞ্চের কল ধরা স্টাফও
+           যেন এখান থেকে রিমার্ক লিখতে পারেন। */
+        val onRemark: (SearchHit) -> Unit,
+        /* 🖨️🔒 V827 — চারটে ছাপার পর্দা এখন একটাই "Print" বোতামের ভিতরে। */
+        val onPrint: (SearchHit) -> Unit,
+        /* 💊🔒 V985 (TK-নির্দেশ: *"মেডিসিন বা স্যালাইনের টাকা বাকি থাকলে তো
+           দেখার কোনো উপায় নেই"*) — মোবাইল ধরে বাকির অঙ্ক; ফাঁকা থাকলে
+           কার্ড হুবহু আগের মতোই দেখায়। */
+        val dueOf: (String) -> Double,
+        val onCollectDue: (SearchHit) -> Unit
     ) : RecyclerView.Adapter<SearchAdapter.VH>() {
         // TK APPROVED (2026-07-15): premium dual-green search result card --
         // navy replaced with green (per TK's request), avatar + name/mobile in
@@ -486,6 +754,11 @@ class GlobalSearchActivity : AppCompatActivity() {
             }
             nameCol.addView(tvName); nameCol.addView(tvMeta); nameCol.addView(tvTag)
             header.addView(nameCol, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            /* 🧭🔒 V985 (TK-নির্দেশ: *"হেডারে চাপ দিলে যেন ভিউ অল পর্দা ওপেন হয়"*)
+               — পুরো সবুজ হেডারে চাপ দিলেই রোগীর সব কিছু (Full Journey)।
+               ⛔ নিচের "Full Journey" বোতামটা আগের মতোই থাকছে — একই পর্দা,
+                  দুটো পথ; কোনো বোতাম সরানো হয়নি। */
+            header.isClickable = true; header.isFocusable = true
             root.addView(header)
 
             val grid = LinearLayout(ctx).apply {
@@ -506,7 +779,11 @@ class GlobalSearchActivity : AppCompatActivity() {
             fun dp(v: Int) = (v * dens).toInt()
 
             holder.avatar.text = if (h.type == "Patient") "🧑‍⚕️" else "📞"
-            holder.tvName.text = h.name.ifBlank { "(no name)" }
+            /* 🩺🔒 V985 (TK-নির্দেশ: *"নামের পাশে কোন রোগের জন্য সে এসেছিল সেটাও
+               লেখা থাকবে"*) — রোগ জানা না থাকলে শুধু নামই বসে, কিছু বদলায় না। */
+            holder.tvName.text = h.name.ifBlank { "(no name)" } +
+                (if (h.disease.isBlank()) "" else "   •   " + h.disease)
+            holder.root.getChildAt(0)?.setOnClickListener { onFullJourney(h) }
             holder.tvMeta.text = PatientIdText.mobileWithId(h.mobile, h.patientId) + " · " + h.branch
             holder.tvTag.text = h.type.uppercase()
 
@@ -568,21 +845,51 @@ class GlobalSearchActivity : AppCompatActivity() {
                 Triple("💳", "Payment", true) to { onPayment(h) },
                 Triple("🧭", "Full Journey", true) to { onFullJourney(h) }
             )
-            addPairRow(
-                Triple("📝", "Prescription", false) to { onPrescription(h) },
-                Triple("💊", "Medicine Slip", false) to { onMedicineSlip(h) }
-            )
-            addPairRow(
-                Triple("🩸", "Blood Test", false) to { onBloodTest(h) },
-                Triple("🥗", "Diet Chart", false) to { onDietChart(h) }
-            )
-            // TK-REQUESTED (2026-07-20): Mark Arrived from Search -- one
-            // full-width row so it stands out from the paired actions above.
+            /* 🖨️🔒 V827 (২৯.০৮.২০২৬, TK-নির্দেশ: *"Prescription · Medicine Slip ·
+               Blood Test · Diet Chart — এগুলো আলাদা আলাদা থাকবে না, একটার
+               মধ্যেই থাকবে, যার নাম হবে প্রিন্ট"*)।
+               ⛔ চারটে পর্দার কাজ · ঠিকানা · তথ্য এক অক্ষরও বদলায়নি — ওই
+                  একই `onPrescription/onMedicineSlip/onBloodTest/onDietChart`
+                  ডাকা হয়, শুধু এখন একটা তালিকা থেকে বাছতে হয়।
+               ⛔ কার্ডটা ছোট হলো, তাই সব বোতাম এক পর্দাতেই ধরে। */
+            /* 💊🔒 V985 (TK-নির্দেশ: *"Print কে ছোট করুন, তার পাশে একই সাইজের
+               বক্স বানিয়ে দিন"*) — Print এখন অর্ধেক, পাশে মেডিসিনের বাকি।
+               বাকি থাকলে লাল ও চাপলে টাকা নেওয়ার বাক্স; না থাকলে ধূসর ও
+               চাপলে কিছুই হয় না। ⛔ Print-এর কাজ এক অক্ষরও বদলায়নি। */
             run {
+                val due = dueOf(h.mobile)
                 val row = newRow()
-                row.addView(actionButton("🏥", "Mark Arrived (এসেছেন)", true) { onMarkArrived(h) })
+                row.addView(actionButton("🖨️", "Print", false) { onPrint(h) })
+                if (due > 0.0) {
+                    val b = actionButton("💊", "Med. Due ₹" + "%,.0f".format(due), false) { onCollectDue(h) }
+                    b.background = android.graphics.drawable.GradientDrawable().apply {
+                        cornerRadius = dp(12).toFloat()
+                        setColor(android.graphics.Color.parseColor("#B42318"))
+                    }
+                    (b.getChildAt(1) as? TextView)?.setTextColor(android.graphics.Color.WHITE)
+                    row.addView(b)
+                } else {
+                    val b = actionButton("💊", "No med. due", false) { }
+                    (b.getChildAt(1) as? TextView)?.setTextColor(android.graphics.Color.parseColor("#8B98A9"))
+                    row.addView(b)
+                }
                 holder.grid.addView(row)
             }
+            /* 📝🔒 V827 (২৯.০৮.২০২৬, TK-নির্দেশ: *"Remarks & Mark Arrived
+               পাশাপাশি রাখুন"*) — সবচেয়ে নিচের সারিতে দুটো একসাথে।
+               ⛔ Mark Arrived-এর আইকন · রং · কাজ এক অক্ষরও বদলায়নি, শুধু আগে
+                  পুরো চওড়া সারিতে একা বসত, এখন অর্ধেক জায়গায়।
+               ⛔ **লেখাটা ছোট করা হলো — TK-এর অনুমতি নিয়ে** (২৯.০৮.২০২৬):
+                  অর্ধেক জায়গায় "Mark Arrived (এসেছেন)" কোনোমতে ধরত, ছোট
+                  পর্দায় বা ফোনের লেখার সাইজ বড় থাকলে শেষটা "…" হয়ে কেটে
+                  যেত। এখন শুধু "Mark Arrived" — কখনো কাটবে না।
+                  ⛔ এটা **শুধু এই Search কার্ডেই**; Follow-up ও Patient
+                     Timeline-এর পপ-আপে লেখাটা আগের মতোই পুরো আছে (সেখানে
+                     পুরো চওড়া জায়গা, কাটার ভয় নেই — ছোঁয়া হয়নি)। */
+            addPairRow(
+                Triple("🗒️", "Write Remark", true) to { onRemark(h) },
+                Triple("🏥", "Mark Arrived", true) to { onMarkArrived(h) }
+            )
         }
     }
 }

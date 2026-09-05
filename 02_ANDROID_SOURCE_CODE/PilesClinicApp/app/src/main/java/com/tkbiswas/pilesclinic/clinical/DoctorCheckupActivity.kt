@@ -11,9 +11,12 @@ import android.widget.LinearLayout
 import android.widget.Spinner
 import android.widget.ScrollView
 import android.widget.TextView
+import java.text.SimpleDateFormat
+import java.util.Locale
 import android.widget.Toast
 import android.widget.ViewFlipper
 import com.tkbiswas.pilesclinic.native.s
+import com.tkbiswas.pilesclinic.native.NoBengali
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
@@ -39,6 +42,17 @@ import com.tkbiswas.pilesclinic.native.UppercaseInputUtil
  */
 class DoctorCheckupActivity : AppCompatActivity() {
 
+    // 🟢🔒 V676 (২৫.০৮.২০২৬, TK-নির্দেশ) — আজকের নিজের Doctor Checkup এডিট
+    // করার প্রবেশদ্বার। PatientTimelineActivity এই দুটো extra পাঠালে Save
+    // চাপলে নতুন সারি না বানিয়ে ঠিক এই id-তেই upsert হয় (নিচে populate() +
+    // Save-এ ব্যবহার হয়)। ⛔ ফাঁকা থাকলে (স্বাভাবিক নতুন Checkup) আচরণ
+    // অবিকল আগের মতোই।
+    companion object {
+        const val EXTRA_EDIT_MEDICAL_ID = "edit_medical_id"
+        const val EXTRA_EDIT_MEDICAL_JSON = "edit_medical_json"
+    }
+    private var editingMedicalId: String = ""
+
     private lateinit var etComplaint: EditText
     private lateinit var etDuration: EditText
     // V455 (TK-নির্দেশ ১৮.০৮.২০২৬): spAcuteChronic ঘর বাদ (UI থেকে সরানো)।
@@ -61,6 +75,9 @@ class DoctorCheckupActivity : AppCompatActivity() {
     private lateinit var cbTxInjection: CheckBox
     private lateinit var etCounselling: EditText
     private lateinit var etEstimatedCost: EditText
+    /* 💰🔒 V971 (০২.০৯.২০২৬, TK-অনুমোদিত) — এস্টিমেটের ভাঙা হিসাব। ফাঁকা
+       থাকলে পর্দা হুবহু আগের মতোই চলে (পুরনো চেকআপে কিচ্ছু ভাঙে না)। */
+    private var estimateSheet: EstimateModel.Sheet = EstimateModel.Sheet()
     /* 🟢🔒 V589 (২৩.০৮.২০২৬, TK-নির্দেশ) — "Estimated Recovery Time" ঘরটা পর্দা
        থেকে উঠে গেছে (একই কথা ভাগ ৩-এ আছে)। কিন্তু **পুরনো রোগীর সেভ করা লেখা
        যেন কোনোভাবেই মুছে না যায়** — তাই রেকর্ড খোলার সময় ওখানে যা ছিল তা এই
@@ -163,10 +180,26 @@ class DoctorCheckupActivity : AppCompatActivity() {
         "Choose Occupation", "Farmer", "Housewife", "Business", "Service", "Student", "Labour", "Retired", "Others"
     )
 
+    /* 🔴🔒 V786 (২৮.০৮.২০২৬, TK-রিপোর্ট: হেডারে "Patient / - / -") —
+       ফোনে কল এলে বা মেমরি কম পড়লে Android অ্যাপের প্রসেস বন্ধ করে দেয়;
+       পরে এই পর্দাটা আবার খোলে, কিন্তু মেমরির `RoleSession` ততক্ষণে ফাঁকা।
+       তাই রোগীর পরিচয় এই পর্দার নিজের Bundle-এও রাখা হয় — Bundle প্রসেস
+       মরলেও বাঁচে, আর V721-এর ৩০ মিনিটের সীমাও এতে লাগে না।
+       ⛔ মেমরিতে রোগী থাকলে `restoreFrom()` কিচ্ছু করে না (RoleSession.kt)। */
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        RoleSession.saveTo(outState)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        RoleSession.restoreFrom(savedInstanceState)   // 🔴🔒 V786 — কল/মেমরির কারণে হারানো রোগী ফেরানো
         setContentView(R.layout.activity_doctor_checkup)
         UppercaseInputUtil.applyToAll(window.decorView.findViewById(android.R.id.content))  // TK-REQUESTED GLOBAL RULE (2026-07-24): English text auto-CAPITAL, Password fields excluded automatically
+
+        // 🟢🔒 V676 — এই পর্দা এডিট-মোডে খোলা হয়েছে কিনা তা এখানেই ধরা হয়,
+        // নিচে ফর্ম বসানোর পরে এই ঘরটাই populate()/Save-কে জানায়।
+        editingMedicalId = intent.getStringExtra(EXTRA_EDIT_MEDICAL_ID).orEmpty()
 
         // 🔴🎨🔒 TK-নির্দেশ (06.08.2026): টুলবার/হেডার সম্পূর্ণ বাদ (XML
         // থেকেও সরানো হয়েছে) — তাই এই তিন লাইন (toolbar খোঁজা/
@@ -210,8 +243,10 @@ class DoctorCheckupActivity : AppCompatActivity() {
         cbTxInjection.tag = "Injection (Vaccination) Treatment"
         etCounselling = findViewById(R.id.etCounselling)
         etEstimatedCost = findViewById(R.id.etEstimatedCost)
+        wireEstimateBuilder()   // 💰 V971
         // 🟢 V589: etRecoveryTime findViewById বাদ (ঘরটাই আর নেই)।
         // V455 (18.08.2026): spPatientDecision · etDecisionRemark · etDocuments findViewById বাদ।
+        wireDoctorReminder()   // 🟢🔒 V656 — Doctor Note & Reminder
 
         bindPatientHeader()
 
@@ -227,6 +262,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         buildHistoryDetailRows()   // 🔵 V555
         buildLifestyleRows()       // 🔵 V556
         wireLifeFold()             // 🔵 V578 — চাপ দিলে ভাগ ৪ খোলে
+        wirePhotoFold()            // 🟢 V600 — চাপ দিলে ভাগ ৫ (Photo & Video) খোলে
         buildAnatomyBoard()        // 🔵 V558 — রোগের ছবি
         /* 🔵 V573 — ছবির তালিকাটা (যোগ/বিয়োগ) পিছনে একবার এনে নেওয়া।
            ⛔ ১৫ মিনিটে একবারের বেশি নয়, আর না এলেও কিছু আটকায় না —
@@ -243,6 +279,14 @@ class DoctorCheckupActivity : AppCompatActivity() {
         buildChecks(findViewById(R.id.visualGroup), visualOptions, visualChecks, visualIcons, "#D64545", visualBn)
         /* 🔵 V539: Internal Piles-এ চাপ দিলেই Grade বাছার তালিকা। ⛔ বাকি
            চেকবক্সগুলো এক অক্ষরও বদলায়নি। */
+        wireClinicalFold()   // 🟢 V703 — ধাপ ২ বন্ধ অবস্থায় শুরু হয়
+        wireTtdFold()        // 🔴 V938 — TODAY'S TREATMENT DONE (NEXT PLAN-এর ঠিক উপরে)
+        wireNvpFold()        // 🟢 V866 — NEXT VISIT PLAN বন্ধ অবস্থায় শুরু হয়
+        wireMainFolds()      // 🟢 V886 — ধাপ ১ · ৩ · ৪-ও বন্ধ অবস্থায় শুরু হয়
+        /* 🟢 V1119 — ভরা-ও-বন্ধ ধাপগুলোর জন্য নিচের একটাই "SAVED" বাক্স।
+           ⛔ `post`-এ, যাতে পর্দার সব অংশ বসে যাওয়ার পরেই সাজানোটা হয়। */
+        wireSavedGroup()
+        findViewById<android.view.View>(R.id.secSavedGroup)?.post { refreshSavedGroup() }
         internalPilesBox()?.setOnClickListener { askInternalGrade() }
         /* 🔵 V540: Grade বাছা হলে চেকবক্স নিজে থেকেই টিক পড়ে ও পাশে Grade দেখায়।
            ⛔ শোনার কাজটা **একবারই** বসে (পপ-আপ খোলার সময় বারবার নয়)। */
@@ -286,9 +330,13 @@ class DoctorCheckupActivity : AppCompatActivity() {
         //    ⛔ বাছাইয়ের তালিকা · মান · সেভ — কিছুই বদলায়নি।
         /* 🔵 V557: রোগের তালিকা রেজিস্ট্রেশনের হুবহু একই, আর সময়ের একক
            সেই একই তিনটে — দুটোই প্রজেক্টের নিজের প্রিমিয়াম পিকারে খোলে। */
-        val spDisease = findViewById<android.widget.Spinner>(R.id.spProbableDisease)
-        spDisease.adapter = ArrayAdapter(this, R.layout.item_docnote_spinner, CounselModel.DISEASES)
-        SpinnerPicker.attach(spDisease, "সম্ভাব্য কি রোগ?", hidePlaceholder = true)
+        /* 🔵🔒 V946 (০১.০৯.২০২৬, TK-নির্দেশ — "এই রোগীর PILES ও FISTULA দুটো রোগই
+           আছে, কিন্তু চুস করা যাচ্ছে না কেন?", ফটো-প্রুফ পাশ করা): আগে এক-বাছাইয়ের
+           Spinner ছিল, তাই একটার বেশি রোগ নেওয়া যেত না। এখন রেজিস্ট্রেশনের হুবহু
+           একই চিপ (`RegistrationActivity.makeChip`-এর ধাঁচ ও একই রং-সিলেক্টর)।
+           ⛔ রোগের তালিকা এক অক্ষরও বদলায়নি · সেভের ঘর আগের মতোই লেখা-ধরনের,
+              একাধিক হলে "Piles, Fistula" এভাবে কমা দিয়ে বসে (রেজিস্ট্রেশনের মতোই)। */
+        buildDiseaseChips()
         val spTimeUnit = findViewById<android.widget.Spinner>(R.id.spTimeAskedUnit)
         spTimeUnit.adapter = ArrayAdapter(this, R.layout.item_docnote_spinner, CounselModel.UNITS)
         SpinnerPicker.attach(spTimeUnit, "কতদিন সময় চাওয়া হল?")
@@ -326,8 +374,31 @@ class DoctorCheckupActivity : AppCompatActivity() {
         }
 
         btnSave.setOnClickListener {
+            /* 🔴🔒 V786 — রোগী চেনা না গেলে (কল/মেমরির কারণে প্রসেস মরে পর্দা
+               আবার খোলা) এখানেই থেমে যায়। আগে ফাঁকা আইডিতেও সেভ হয়ে যেত আর
+               "saved" লেখা উঠত — ডাক্তারের লেখা চুপচাপ হারাত। */
+            if (RoleSession.blockIfNoPatient(this)) return@setOnClickListener
             val record = collect()
+            // 🟢🔒 V656 — মূল থ্রেডেই (View স্পর্শ করা নিরাপদ) ধরে রাখা হলো,
+            // নিচের ব্যাকগ্রাউন্ড-সেভে ব্যবহারের জন্য (View off-thread ছুঁলে
+            // ক্র্যাশ হতো)।
+            val reminderNoteNow = findViewById<android.widget.EditText>(R.id.etDoctorReminderNote).text?.toString().orEmpty().trim()
+            val reminderDateNow = doctorReminderDateIso
+            val reminderForNow = doctorReminderForMobile   // 🩺 V1109
+            // 🟢🔒 V671 — সময়ও একই মূল-থ্রেডেই ধরে রাখা হলো।
+            val reminderTimeNow = doctorReminderTimeStr
             PrescriptionOptionsStore.captureCheckup(applicationContext, record)
+            /* 🩺 V839 — View মূল থ্রেডেই পড়া হয় (V656-এর প্রমাণিত নিয়ম),
+               নিচের ব্যাকগ্রাউন্ড-সেভ শুধু জমা মানটা ব্যবহার করে। */
+            pendingNvp = try { collectNextVisitPlan() } catch (_: Throwable) { null }
+            /* 🔴🔒 V938 — View মূল থ্রেডেই পড়া হয় (উপরের V839-এর একই নিয়ম);
+               নিচের ব্যাকগ্রাউন্ড-কাজ শুধু জমা লেখাটাই ব্যবহার করে। */
+            val ttdNow = try { collectTodayTreatment() } catch (_: Throwable) { "" }
+            /* 🔵🔒 V947 — ডাক্তারের মন্তব্যও মূল থ্রেডেই পড়া হয় (উপরের একই নিয়ম)। */
+            val docRemarkNow = try {
+                findViewById<android.widget.EditText>(R.id.etDoctorRemark).text?.toString()?.trim().orEmpty()
+            } catch (_: Throwable) { "" }
+            val ttdMobile = RoleSession.currentPatientMobile
             // 🔴 B437 — আগে এখানে `ClinicalRepository.lastCheckup = record`
             // বসত, যেটাই উপরের ক্রস-রোগী বাগের উৎস ছিল। যেহেতু এখন কেউ এই
             // ভ্যারিয়েবলটা পড়েই না (populate() ডাক সরানো হয়েছে), এই লাইনটাও
@@ -379,8 +450,14 @@ class DoctorCheckupActivity : AppCompatActivity() {
             lastSavedCost = record.estimatedCost
             // 🔵 V559: এই রোগীর যে লেখাটা রোগীর সারিতে বসবে
             pendingNote = record
+            // 🟢🔒 V676 — structured JSON `selected` ঘরে (আগে ফাঁকা যেত), যাতে
+            // আজকের এই সারিটা পরে আবার এডিট করা যায়। `editingMedicalId`
+            // থাকলে (এই পর্দা এডিট-মোডে খোলা হয়েছিল) সেই একই id-তেই বসে —
+            // নতুন সারি বানানো হয় না।
+            val selectedJson = record.toJsonString()
+            val editId = editingMedicalId
             com.tkbiswas.pilesclinic.native.BackgroundWork.run {
-                ClinicalCloudRepository.saveMedical(appCtx, pid, pname, "Doctor Checkup", "", details, createdBy, photosStr)
+                ClinicalCloudRepository.saveMedical(appCtx, pid, pname, "Doctor Checkup", selectedJson, details, createdBy, photosStr, editId)
                 // 🔴 TK-নির্দেশ (04.08.2026): আগে শুধু "Agree for Treatment"
                 // বাছলেই doctorComplete=true হত — বাকি পাঁচটা সিদ্ধান্তে
                 // (Not Agree/Will Think/Family Discussion/Financial Problem/
@@ -389,9 +466,23 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 // হয় — Save-এর সাথে সাথেই doctorComplete=true, Queue থেকে সরে
                 // যায়। Best-effort; কখনো checkup সেভ আটকায় না।
                 markDoctorComplete(pid)
+                /* 🔴🔴🔒 V938 (TK-নির্দেশ) — ডাক্তার আজ যা করেছেন সেটা এখন
+                   **নিজে থেকেই** চেম্বার Date-এর Treatment Progress-এ বসে যায়
+                   (ও Report Card-এ), ঠিক যেভাবে চেম্বার থেকে লিখলে বসত।
+                   ⛔ কিছু না বাছলে একটা অক্ষরও লেখা হয় না — পুরনো Progress অক্ষত।
+                   ⛔ ব্যর্থ হলেও চেকআপ সেভ কখনো আটকায় না (ভিতরে try-catch)। */
+                try {
+                    com.tkbiswas.pilesclinic.native.TodayTreatmentSync.push(
+                        appCtx, ttdMobile, pid, ttdNow, byName, doctorRemark = docRemarkNow
+                    )
+                } catch (_: Throwable) { }
                 // 🔒 কাজ শেষ — সাথে সাথেই মুছে ফেলা হয়, যাতে পরের রোগীর
                 // ঘরে আগেরজনের লেখা বসার কোনো পথ না থাকে (B437-এর শিক্ষা)।
                 pendingNote = null
+                /* 🩺🔒 V839 — একই কারণে প্ল্যানটাও সাথে সাথে মুছে ফেলা হয়
+                   (B437-এর নিয়ম): নইলে এই পর্দা খোলা রেখে অন্য রোগীর
+                   চেকআপে গেলে **আগের রোগীর প্ল্যান** চুপচাপ বসে যেতে পারত। */
+                pendingNvp = null
                 // 🔔 TK-নির্দেশ (04.08.2026): "Agree for Treatment" ছাড়া অন্য
                 // যেকোনো সিদ্ধান্তে সেই রোগীর ব্রাঞ্চের স্টাফের ঘন্টায় নোটিশ
                 // যাবে (কে ফলো-আপ করবেন বোঝার জন্য)। ⛔ "Agree for
@@ -415,6 +506,36 @@ class DoctorCheckupActivity : AppCompatActivity() {
                         SupabaseClient.updateById(
                             "patients", pid,
                             org.json.JSONObject().put("disease", record.probableDisease)
+                        )
+                        /* 🔵🔒 V722 (২৭.০৮.২০২৬, ডা. কে. এইচ. মণ্ডলের রিপোর্ট) —
+                           ডেটাবেসে লেখা হলেও **এই ফোনের মেমরিতে পুরোনো নামটাই**
+                           থেকে যেত, আর প্রেসক্রিপশন ছাপা হয় ঠিক ওখান থেকেই
+                           (`PrescriptionOptionsStore.printLines()` → `RoleSession
+                           .currentPatientDisease`) ও এই পর্দার A4-ও `patDisease`
+                           থেকে। তাই সেভ করেই ছাপলে **পুরোনো রোগ** ছাপত।
+                           ⇒ এখন দুটোই সঙ্গে সঙ্গে হালনাগাদ হয়।
+                           ⛔ নেট খারাপ থাকলেও ডাক্তার যা ঠিক করেছেন কাগজে তাই
+                              যাবে (ক্লাউডে পরে গেলেও কাগজ ভুল হবে না)।
+                           ⛔ শুধু রোগের নাম; আর কিছু ছোঁয়া হয়নি। */
+                        patDisease = record.probableDisease
+                        RoleSession.updateDisease(record.probableDisease)
+                    }
+                } catch (_: Throwable) { }
+                // 🟢🔒🔒 V656 (২৫.০৮.২০২৬, TK-নির্দেশ — Doctor Note & Reminder)
+                // — নোট/তারিখ যদি বদলে থাকে, সেভ হয়। ⛔ দুটোই ফাঁকা হলে
+                // (ডাক্তার এই বাক্সে কিছুই লেখেননি) কোনো বাড়তি Supabase কল
+                // হয় না — এটাই বেশিরভাগ চেকআপের স্বাভাবিক অবস্থা।
+                try {
+                    if (reminderNoteNow.isNotBlank() || reminderDateNow.isNotBlank() || reminderTimeNow.isNotBlank()) {
+                        SupabaseClient.updateById(
+                            "patients", pid,
+                            org.json.JSONObject()
+                                .put("doctorReminderNote", reminderNoteNow)
+                                .put("doctorReminderDate", reminderDateNow)
+                                .put("doctorReminderFor", reminderForNow)   // 🩺 V1109
+                                // 🟢🔒 V671 (২৫.০৮.২০২৬, TK-নির্দেশ) — সময়ও সেভ হয়,
+                                // নইলে "ঠিক সময়ে" মনে করানো সম্ভব না।
+                                .put("doctorReminderTime", reminderTimeNow)
                         )
                     }
                 } catch (_: Throwable) { }
@@ -499,6 +620,30 @@ class DoctorCheckupActivity : AppCompatActivity() {
             setColor(android.graphics.Color.parseColor(if (green) "#12805C" else "#DFE5EC"))
         }
 
+    /* 🎨🔒 V897 (৩১.০৮.২০২৬, TK-অনুমোদিত ডেমো প্রুফ) — ধাপের বৃত্তের তিন
+       অবস্থা: **হয়ে গেছে** (ভরাট সবুজ) · **এখন এখানে** (ভরাট সবুজ, চারপাশে
+       হালকা সবুজ বলয়) · **এখনো বাকি** (সাদা, ধূসর পাড়)। ⛔ পুরোনো
+       `stepCircleBg()` অক্ষত — লক-হয়ে-যাওয়া পর্দা ওটাই ব্যবহার করে। */
+    private fun stepDotBg(done: Boolean, current: Boolean): android.graphics.drawable.GradientDrawable =
+        android.graphics.drawable.GradientDrawable().apply {
+            shape = android.graphics.drawable.GradientDrawable.OVAL
+            when {
+                current -> {
+                    setColor(android.graphics.Color.parseColor("#12805C"))
+                    setStroke(dp(4), android.graphics.Color.parseColor("#CFE9DD"))
+                }
+                done -> setColor(android.graphics.Color.parseColor("#12805C"))
+                else -> {
+                    setColor(android.graphics.Color.WHITE)
+                    setStroke(dp(2), android.graphics.Color.parseColor("#DDE5EE"))
+                }
+            }
+        }
+
+    /** ধাপের বৃত্তগুলোর মাঝের সরু রেখা — বাঁ দিকেরটা ও ডান দিকেরটা আলাদা। */
+    private var stepLineLeft = mutableListOf<android.view.View>()
+    private var stepLineRight = mutableListOf<android.view.View>()
+
     private fun wireSteps() {
         val bar = findViewById<LinearLayout>(R.id.stepBar)
         // 🎨🔒 (07.08.2026, প্রুফ-চেহারা, TK-অনুমোদিত) — আগে প্রতিটা চিপ ছিল
@@ -512,6 +657,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         //       setOnClickListener { showStep(i) } }
         //     bar.addView(chip); stepChips.add(chip) }
         bar.removeAllViews(); stepChips.clear(); stepChipLabels.clear()
+        stepLineLeft.clear(); stepLineRight.clear()
         stepShort.forEachIndexed { i, short ->
             val cell = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -522,24 +668,42 @@ class DoctorCheckupActivity : AppCompatActivity() {
             }
             val circle = TextView(this).apply {
                 text = (i + 1).toString()
-                textSize = 11.5f
+                textSize = 12f
                 gravity = android.view.Gravity.CENTER
                 setTextColor(android.graphics.Color.parseColor("#9AA6B4"))
-                background = stepCircleBg(false)
-                val s = dp(24)
+                background = stepDotBg(done = false, current = false)
+                val s = dp(26)
                 layoutParams = LinearLayout.LayoutParams(s, s)
             }
+            /* 🎨 V897 — বৃত্তের দু'পাশে সরু রেখা, তাই পাঁচটা ধাপ একটা সরু
+               পথে জোড়া দেখায় (TK-অনুমোদিত প্রুফ)। প্রথমটার বাঁ দিকের ও শেষেরটার
+               ডান দিকের রেখা অদৃশ্য থাকে। */
+            fun line(visible: Boolean): android.view.View = android.view.View(this).apply {
+                layoutParams = LinearLayout.LayoutParams(0, dp(3), 1f)
+                setBackgroundColor(android.graphics.Color.parseColor("#E4EAF1"))
+                visibility = if (visible) android.view.View.VISIBLE else android.view.View.INVISIBLE
+            }
+            val lLine = line(i > 0)
+            val rLine = line(i < stepShort.size - 1)
+            val top = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            }
+            top.addView(lLine); top.addView(circle); top.addView(rLine)
             val lbl = TextView(this).apply {
                 text = short
-                textSize = 8.5f
+                textSize = 9f
                 gravity = android.view.Gravity.CENTER
                 maxLines = 1
-                setTextColor(android.graphics.Color.parseColor("#9AA6B4"))
-                setPadding(0, dp(3), 0, 0)
+                setTextColor(android.graphics.Color.parseColor("#8A97A6"))
+                setPadding(0, dp(4), 0, 0)
             }
-            cell.addView(circle); cell.addView(lbl)
+            cell.addView(top); cell.addView(lbl)
             bar.addView(cell)
             stepChips.add(circle); stepChipLabels.add(lbl)
+            stepLineLeft.add(lLine); stepLineRight.add(rLine)
         }
         // 🔴 (07.08.2026, scroll_A মকআপ) — এক-পেজ স্ক্রলে "Next" ধাপ নেই;
         // btnNext লুকানো, btnBack এখন পর্দা থেকে বেরোয় (finish)। রোগীর পূর্ণ
@@ -598,23 +762,224 @@ class DoctorCheckupActivity : AppCompatActivity() {
     private val sectionIds = intArrayOf(
         R.id.secHistory, R.id.secClinical, R.id.secCounsel, R.id.secEstimate, R.id.secPhoto
     )
+    /**
+     * 🎓🔒 V783 — **রোগীকে বোঝানোর পর্দা।** পাইলস · ফিশার · ফিস্টুলা —
+     * তিনটে বোতাম সবসময় থাকে, ইচ্ছেমতো বদলানো যায় (একই রোগীর তিন রোগ
+     * থাকলেও একটার পর একটা দেখানো যাবে — TK-এর শর্ত)।
+     *
+     * ⛔ **কিচ্ছু সেভ হয় না** — কোনো ডেটাবেস-কল নেই, প্রিন্ট নেই, A4 নেই।
+     * ⛔ ডাক্তারের আঁকা ছবি ছোঁয়া হয় না — আলাদা View, আলাদা পর্দা।
+     * ⛔ পুরোটা try/catch-এ; এখানে কিছু ভুল হলেও Check-up পর্দা ভাঙে না।
+     */
+    private fun openKsharTeach() {
+        try {
+            val d = symDp(1)
+            val view = KsharTeachView(this)
+            val root = android.widget.FrameLayout(this).apply {
+                setBackgroundColor(android.graphics.Color.parseColor("#08111C"))
+            }
+            root.addView(view, android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT))
+
+            val dlg = android.app.Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+
+            // ── নিচের প্যানেল: রোগ বাছাই + ধাপের লেখা + বোতাম ──
+            val panel = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+                setPadding(symDp(10), symDp(9), symDp(10), symDp(11))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = symDp(18).toFloat()
+                    setColor(android.graphics.Color.parseColor("#D908111C"))
+                    setStroke(symDp(1), android.graphics.Color.parseColor("#40FFFFFF"))
+                }
+                layoutParams = android.widget.FrameLayout.LayoutParams(
+                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                    android.view.Gravity.BOTTOM).apply { setMargins(symDp(10), 0, symDp(10), symDp(10)) }
+            }
+
+            val chipRow = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                setPadding(0, 0, 0, symDp(8))
+            }
+            val chips = ArrayList<TextView>()
+            /* 🔤🔒 V787 (TK-নির্দেশ ২৮.০৮.২০২৬: *"রোগের নাম ইংরেজিতে রাখুন"*) —
+               তিনটে রোগের নাম প্রজেক্টের বাকি জায়গার মতোই ইংরেজিতে
+               (Registration/Enquiry-তে যেমন Piles · Fissure · Fistula)।
+               ⛔ ধাপের ব্যাখ্যা আগের মতোই বাংলা — ওটা রোগীর জন্য। */
+            val names = listOf("\uD83E\uDE78 Piles", "✂️ Fissure", "\uD83D\uDD04 Fistula")
+
+            val hint = TextView(this).apply {
+                text = NoBengali.s("👆 ছবিতে ছুঁয়ে নিশানার জায়গা সরাতে পারেন")
+                textSize = 11.5f
+                setTextColor(android.graphics.Color.parseColor("#9FB6C8"))
+                setPadding(symDp(2), 0, 0, symDp(6))
+            }
+            val cap = TextView(this).apply {
+                textSize = 13.5f
+                setTextColor(android.graphics.Color.WHITE)
+                layoutParams = android.widget.LinearLayout.LayoutParams(
+                    0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            }
+            fun btn(label: String, wide: Boolean): TextView = TextView(this).apply {
+                text = label; textSize = 13.5f
+                gravity = android.view.Gravity.CENTER
+                setTextColor(android.graphics.Color.WHITE)
+                setPadding(symDp(12), symDp(9), symDp(12), symDp(9))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = symDp(9).toFloat()
+                    setColor(android.graphics.Color.parseColor("#1F6D4A"))
+                }
+                layoutParams = android.widget.LinearLayout.LayoutParams(
+                    if (wide) 0 else android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                    if (wide) 1f else 0f).apply { setMargins(symDp(4), 0, symDp(4), 0) }
+            }
+            val bPrev = btn("◀", false)
+            val bNext = btn("পরের ধাপ ▶", true)
+            val bClose = btn("✕", false)
+
+            var anim: android.animation.ValueAnimator? = null
+            fun run() {
+                anim?.cancel()
+                view.t = 0f; view.invalidate()
+                val a = android.animation.ValueAnimator.ofFloat(0f, 1f)
+                a.duration = 1100L
+                a.addUpdateListener { v -> view.t = v.animatedValue as Float; view.invalidate() }
+                anim = a; a.start()
+            }
+            fun paint() {
+                cap.text = KsharTeachView.caption(view.disease, view.step)
+                bPrev.visibility = if (view.step > 0) android.view.View.VISIBLE else android.view.View.GONE
+                bNext.visibility = if (view.step < KsharTeachView.stepCount(view.disease) - 1)
+                    android.view.View.VISIBLE else android.view.View.GONE
+                chips.forEachIndexed { i, ch ->
+                    val on = i == view.disease
+                    ch.background = android.graphics.drawable.GradientDrawable().apply {
+                        cornerRadius = symDp(10).toFloat()
+                        setColor(android.graphics.Color.parseColor(if (on) "#1F6D4A" else "#2216222E"))
+                        setStroke(symDp(1), android.graphics.Color.parseColor(if (on) "#2E9366" else "#553B4A5A"))
+                    }
+                    ch.setTextColor(android.graphics.Color.parseColor(if (on) "#FFFFFF" else "#B9C6D4"))
+                }
+            }
+            /* 🖼️🔒 V783 — **ভিত্তি-ছবি বাছাই** (TK-এর বাছাই: "১ অথবা ২")।
+               ⛔ ছবি বদলালে নিশানার জায়গা ওই ছবির স্বাভাবিক জায়গায় ফেরে,
+                  তাই কখনো ভুল জায়গায় বসে থাকে না। */
+            val picRow = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                setPadding(0, 0, 0, symDp(7))
+            }
+            val pics = ArrayList<TextView>()
+            fun paintPics() {
+                pics.forEachIndexed { i, ch ->
+                    val on = i == view.base
+                    ch.background = android.graphics.drawable.GradientDrawable().apply {
+                        cornerRadius = symDp(9).toFloat()
+                        setColor(android.graphics.Color.parseColor(if (on) "#1A4E7A" else "#2216222E"))
+                        setStroke(symDp(1), android.graphics.Color.parseColor(if (on) "#3B84C4" else "#553B4A5A"))
+                    }
+                    ch.setTextColor(android.graphics.Color.parseColor(if (on) "#FFFFFF" else "#B9C6D4"))
+                }
+            }
+            listOf("\uD83D\uDDBC ছবি 1 · সামনে", "\uD83D\uDDBC ছবি 2 · পাশ").forEachIndexed { i, nm ->
+                val ch = TextView(this).apply {
+                    text = nm; textSize = 12.5f
+                    gravity = android.view.Gravity.CENTER
+                    setPadding(symDp(6), symDp(8), symDp(6), symDp(8))
+                    isClickable = true; isFocusable = true
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                        .apply { setMargins(symDp(3), 0, symDp(3), 0) }
+                    setOnClickListener { view.base = i; paintPics(); run() }
+                }
+                pics.add(ch); picRow.addView(ch)
+            }
+
+            names.forEachIndexed { i, nm ->
+                val ch = TextView(this).apply {
+                    text = nm; textSize = 13f
+                    gravity = android.view.Gravity.CENTER
+                    setPadding(symDp(6), symDp(9), symDp(6), symDp(9))
+                    isClickable = true; isFocusable = true
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                        .apply { setMargins(symDp(3), 0, symDp(3), 0) }
+                    setOnClickListener {
+                        view.disease = i; view.step = 0; paint(); run()
+                    }
+                }
+                chips.add(ch); chipRow.addView(ch)
+            }
+            bPrev.setOnClickListener { if (view.step > 0) { view.step--; paint(); run() } }
+            bNext.setOnClickListener {
+                if (view.step < KsharTeachView.stepCount(view.disease) - 1) { view.step++; paint(); run() }
+            }
+            bClose.setOnClickListener { anim?.cancel(); dlg.dismiss() }
+
+            val row = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+            }
+            row.addView(cap); row.addView(bPrev); row.addView(bNext); row.addView(bClose)
+            panel.addView(picRow); panel.addView(chipRow); panel.addView(hint); panel.addView(row)
+            root.addView(panel)
+            dlg.setOnDismissListener { anim?.cancel() }
+            dlg.setContentView(root)
+            paint(); paintPics()
+            dlg.show()
+            try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dlg) } catch (_: Throwable) { }
+            run()
+        } catch (e: Throwable) {
+            Toast.makeText(this, NoBengali.s("পর্দাটা খোলা গেল না — আবার চেষ্টা করুন"), Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private fun showStep(i: Int) {
         currentStep = i
         val scroll = findViewById<ScrollView>(R.id.stepScroll)
         val target = findViewById<android.view.View>(sectionIds.getOrElse(i) { R.id.secHistory })
-        if (target != null) scroll.post { scroll.smoothScrollTo(0, target.top) }
+        /* 🎨🔒 V776 (২৮.০৮.২০২৬, TK-অনুমোদিত ডিজাইন B) — ধাপ ১-এ স্ক্রল
+           **একদম উপরে** নেওয়া হয়, `secHistory`-তে নয়। কারণ V776-এ রোগীর
+           কার্ড ও ৫টা ধাপ-চিপ দুটোই এখন স্ক্রলের ভিতরে, `secHistory`-র
+           **উপরে** বসে — আগের নিয়মে স্ক্রল করলে ওই দুটোই পর্দার বাইরে
+           চলে যেত, অর্থাৎ TK যা চেয়েছেন (হেডার উপরে, নিচে ১-৫) সেটাই
+           দেখা যেত না।
+           ⛔ ধাপ ২-৫ আগের মতোই নিজের সেকশনে যায় — এক অক্ষরও বদলায়নি। */
+        // 🟢 V1119 — ধাপটা যদি নিচের "SAVED" বাক্সের ভিতরে থাকে, চিপে চাপলে
+        // বাক্সটা নিজে থেকেই খুলে যায়; নইলে চিপ চেপে কিছুই দেখা যেত না।
+        if (target != null) openSavedGroupIfHolding(target)
+        if (target != null) scroll.post {
+            scroll.smoothScrollTo(0, if (i == 0) 0 else yInScroll(target))   // 🟢 V1119
+        }
         // 🎨 (07.08.2026, প্রুফ-চেহারা) — নম্বর-বৃত্ত: চলতি ধাপ সবুজ+সাদা নম্বর,
         // বাকিগুলো ধূসর। নিচের লেবেলও সেই অনুযায়ী রঙ। (আগে বড় পিলে
         // bg_chip_seg_on_green / bg_chip_seg ব্যবহার হতো।)
+        /* 🎨🔒 V897 — আগের ধাপগুলো সবুজ (হয়ে গেছে), চলতি ধাপ সবুজ+বলয়,
+           পরেরগুলো সাদা-ধূসর; মাঝের রেখাও সেই অনুযায়ী রং বদলায়। */
         stepChips.forEachIndexed { idx, circle ->
             val active = idx == i
-            circle.background = stepCircleBg(active)
+            val done = idx < i
+            circle.background = stepDotBg(done = done, current = active)
             circle.text = (idx + 1).toString()
-            circle.setTextColor(if (active) android.graphics.Color.WHITE else android.graphics.Color.parseColor("#9AA6B4"))
-            circle.setTypeface(null, if (active) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
+            circle.setTextColor(
+                if (active || done) android.graphics.Color.WHITE
+                else android.graphics.Color.parseColor("#9AA6B4"))
+            circle.setTypeface(null, android.graphics.Typeface.BOLD)
             stepChipLabels.getOrNull(idx)?.setTextColor(
-                if (active) android.graphics.Color.parseColor("#0F766E") else android.graphics.Color.parseColor("#9AA6B4")
+                when {
+                    active -> android.graphics.Color.parseColor("#0E6B4E")
+                    done -> android.graphics.Color.parseColor("#5B7F72")
+                    else -> android.graphics.Color.parseColor("#8A97A6")
+                }
             )
+            stepChipLabels.getOrNull(idx)?.setTypeface(
+                null, if (active) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
+            val doneCol = android.graphics.Color.parseColor("#12805C")
+            val restCol = android.graphics.Color.parseColor("#E4EAF1")
+            stepLineLeft.getOrNull(idx)?.setBackgroundColor(if (idx <= i) doneCol else restCol)
+            stepLineRight.getOrNull(idx)?.setBackgroundColor(if (idx < i) doneCol else restCol)
         }
         // (এক-পেজ স্ক্রলে btnBack/btnNext isEnabled + smoothScrollTo(0,0)
         //  আর দরকার নেই — স্ক্রল উপরে target.top-এ হয়।)
@@ -627,7 +992,8 @@ class DoctorCheckupActivity : AppCompatActivity() {
     // বসে, তাই ১ম লাইনে গ্রাম/পোস্ট, ২য় লাইনে থানা/জেলা। চিহ্ন না পেলে ঠিকানা
     // আগের মতোই এক লাইনে থাকে (কিছু ভাঙে না)। ⛔ সেভ-হওয়া ঠিকানার আসল মান
     // বদলায় না — শুধু পর্দায় দেখানোর সময় ভাঙা হয়।
-    private fun formatAddressTwoLines(addr: String): String {
+    private fun formatAddressTwoLines(addrIn: String): String {
+        val addr = addrIn.uppercase(java.util.Locale.US)   // 🔠🔒 V1009 (০৩.০৯.২০২৬, TK-নির্দেশ) — শুধু দেখানোর সময় বড় হাতে; ডেটাবেসে কিছু বদলায় না।
         val markers = listOf("PS:", "P.S", "P/S", "Thana", "থানা", "Police Station")
         var idx = -1
         for (m in markers) {
@@ -641,8 +1007,333 @@ class DoctorCheckupActivity : AppCompatActivity() {
         return "$first\n$second"
     }
 
+    /**
+     * 🟢🔒🔒 V656 (২৫.০৮.২০২৬, TK-নির্দেশ, তিনটে প্রশ্ন করে নিশ্চিত হয়ে) —
+     * "Doctor Note & Reminder" — ডাক্তার এখানে ভবিষ্যতের একটা কাজ/ওষুধের
+     * কথা লিখে একটা তারিখ বাছেন; সেই তারিখের **আগের দিন সন্ধ্যা ৬টায়**
+     * শুধু এই ডাক্তারকেই একটা মনে-করানো নোটিফিকেশন যায়
+     * (`DoctorReminderWorker` — ঠিক `ExpectedTomorrowReminderWorker`-এর
+     * প্রমাণিত একই ছাঁচে বানানো)।
+     * ⛔ তারিখ আজকের আগের কখনো বাছা যাবে না (past-date guard, minDate)।
+     */
+    /**
+     * 🟢🔒🔒 V671 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবি-প্রুফ পাশ — "ফর্ম আকারে থাকবে
+     * না, একটা আইকন থাকবে... তারিখ বাছলে ক্যালেন্ডার, সময় বাছলে ঘড়ি, কোনোটাই
+     * বাধ্যতামূলক নয়") — 🩺 আইকনে চাপলে `secDoctorReminder` কার্ডটাই
+     * (XML-এ GONE হয়ে বসে থাকে) সাময়িকভাবে তার আসল জায়গা থেকে সরিয়ে একটা
+     * পপ-আপে দেখানো হয়, বন্ধ করলে **ঠিক আগের জায়গায়** ফিরিয়ে দেওয়া হয়
+     * (কোনো view তৈরি/মোছা হয় না — id/hint/সেভ-লজিক এক অক্ষরও বদলায়নি)।
+     */
+    private fun wireDoctorReminder() {
+        val card = findViewById<androidx.cardview.widget.CardView>(R.id.secDoctorReminder)
+        val originalParent = card.parent as android.view.ViewGroup
+        val originalIndex = originalParent.indexOfChild(card)
+        val btn = findViewById<TextView>(R.id.btnDoctorReminder)
+        val dot = findViewById<android.view.View>(R.id.dotDoctorReminder)
+
+        val tv = findViewById<TextView>(R.id.tvDoctorReminderDate)
+        val tvTime = findViewById<TextView>(R.id.tvDoctorReminderTime)
+        /* 🔴🔒 V700 — আইকনটা এখন লেখার পাশে নিজের ঘরে, তাই চাপ ধরার কাজটা
+           **বাইরের বাক্সটা** করে (নইলে আইকনের উপরে চাপ দিলে কিছুই হত না)।
+           লেখা বদলানো আগের মতোই `tv`/`tvTime`-এ। */
+        val dateBox = findViewById<android.view.View>(R.id.boxDoctorReminderDate)
+        val timeBox = findViewById<android.view.View>(R.id.boxDoctorReminderTime)
+        /* 🩺🔒 V1109 (TK-নির্দেশ) — কোন ডাক্তারকে মনে করাবে, সেটা এখানেই বাছা যায়।
+           ⛔ তালিকা প্রকল্পের নিজের `StaffDirectory` থেকেই — নতুন কোনো টেবিল বা
+              ক্লাউড-পড়া লাগেনি।
+           ⛔ প্রথমে এই রোগীর ব্রাঞ্চের ডাক্তাররা, তারপর বাকিরা — বাছতে সুবিধা হয়।
+           ⛔ সবার উপরে "সব ডাক্তার" — কেউ নির্দিষ্ট করতে না চাইলে আগের আচরণই। */
+        val whoBox = findViewById<android.view.View>(R.id.boxDoctorReminderWho)
+        val tvWho = findViewById<TextView>(R.id.tvDoctorReminderWho)
+        whoBox?.setOnClickListener {
+            val docs = doctorChoices()
+            val labels = (listOf(NoBengali.s("সব ডাক্তার")) + docs.map { it.first }).toTypedArray()
+            val mobiles = listOf("") + docs.map { it.second }
+            val current = mobiles.indexOf(doctorReminderForMobile).let { if (it < 0) 0 else it }
+            val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+                .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, NoBengali.s("কোন ডাক্তারকে মনে করাবে?")))
+                .setSingleChoiceItems(labels, current) { d, which ->
+                    doctorReminderForMobile = mobiles[which]
+                    paintReminderWho(tvWho)
+                    d.dismiss()
+                }
+                .setNegativeButton(NoBengali.s("বাতিল"), null)
+                .create()
+            dlg.show()
+            try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(dlg) } catch (_: Throwable) { }
+        }
+        paintReminderWho(tvWho)
+        dateBox.setOnClickListener {
+            val cal = java.util.Calendar.getInstance()
+            if (doctorReminderDateIso.isNotBlank()) {
+                try {
+                    val parts = doctorReminderDateIso.split("-").map { it.toInt() }
+                    cal.set(parts[0], parts[1] - 1, parts[2])
+                } catch (_: Throwable) { }
+            }
+            android.app.DatePickerDialog(
+                this, com.tkbiswas.pilesclinic.R.style.PilesDatePicker,
+                { _, y, m, d ->
+                    val picked = java.util.Calendar.getInstance().apply { set(y, m, d) }
+                    doctorReminderDateIso = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(picked.time)
+                    tv.text = displayDateForReminder(doctorReminderDateIso)
+                    tv.setTextColor(android.graphics.Color.parseColor("#101828"))
+                },
+                cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH), cal.get(java.util.Calendar.DAY_OF_MONTH)
+            ).apply {
+                // ⛔ অতীতের তারিখ বাছা যাবে না — রিমাইন্ডার সবসময় ভবিষ্যতের জন্য।
+                datePicker.minDate = System.currentTimeMillis() - 1000L
+            }.show()
+        }
+        // 🟢🔒 V671 — নতুন সময়-বাছাই (ঘড়ি), তারিখের একই প্যাটার্নে।
+        // ⛔ TK-নিয়ম: "কোনোটাই বাধ্যতামূলক নয়" — তাই কোনো ভ্যালিডেশন নেই।
+        timeBox.setOnClickListener {
+            val cal = java.util.Calendar.getInstance()
+            if (doctorReminderTimeStr.isNotBlank()) {
+                try {
+                    val parts = doctorReminderTimeStr.split(":").map { it.toInt() }
+                    cal.set(java.util.Calendar.HOUR_OF_DAY, parts[0]); cal.set(java.util.Calendar.MINUTE, parts[1])
+                } catch (_: Throwable) { }
+            }
+            android.app.TimePickerDialog(
+                this,
+                { _, h, min ->
+                    doctorReminderTimeStr = "%02d:%02d".format(h, min)
+                    tvTime.text = displayTimeForReminder(doctorReminderTimeStr)
+                    tvTime.setTextColor(android.graphics.Color.parseColor("#101828"))
+                },
+                cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE), false
+            ).show()
+        }
+
+        fun refreshDot() {
+            dot.visibility = if (findViewById<android.widget.EditText>(R.id.etDoctorReminderNote).text?.toString()
+                    ?.trim().orEmpty().isNotBlank()) android.view.View.VISIBLE else android.view.View.GONE
+        }
+        refreshDot()
+
+        /* 🟢🔒 V699 (২৬.০৮.২০২৬, TK-নির্দেশ — "এই pop up কে প্রফেশনাল বানিয়ে
+           দিন"; ডেমো ছবি দেখিয়ে TK **"1 করুন"** বলেছেন) —
+
+           ① পপ-আপে এখন অ্যাপের নিজের **সবুজ হেডার** (`PremiumAlert.header`,
+              প্রজেক্টের ৬০+ পপ-আপে ব্যবহৃত লক করা চেহারা)। হেডারেই নাম
+              লেখা থাকে বলে কার্ডের ভিতরের 🩺-শিরোনামের সারিটা পপ-আপে
+              লুকানো হয়, বন্ধ করলে **আবার দেখানো হয়** (কার্ডটা তো নিজের
+              জায়গায় ফিরে যায়, সেখানে ওই শিরোনাম দরকার)।
+
+           ② নিজের **💾 Save** বোতাম। TK-এর প্রশ্ন ছিল *"save না করলে কাজ
+              হবে কি করে"* — ঠিক কথা: এতদিন লেখাটা শুধু নিচের মূল SAVE
+              চাপলেই জমত, কেউ লিখে Close করে বেরিয়ে গেলে **হারিয়ে যেত**।
+              ⛔ নতুন কোনো সেভ-নিয়ম বানানো হয়নি — মূল Save যে তিনটে ঘরে
+                 (`doctorReminderNote/Date/Time`) যে ভাবে লেখে, হুবহু সেই
+                 একই `SupabaseClient.updateById("patients", …)`। তাই দুই
+                 পথে একই মানই বসে, গোলমালের সুযোগ নেই।
+           ⛔ V671-এর নিয়ম অক্ষত: কার্ডটা সরিয়ে এনে দেখানো হয় ও বন্ধ করলে
+              **ঠিক আগের জায়গায়** ফিরিয়ে দেওয়া হয়; কোনো view তৈরি/মোছা নয়। */
+        btn.setOnClickListener {
+            originalParent.removeView(card)
+            card.visibility = android.view.View.VISIBLE
+            /* 🔴🔒 V700 (২৬.০৮.২০২৬, TK-এর ছবিতে ধরা — শিরোনাম দুবার দেখাচ্ছিল)।
+               **আসল কারণ:** ঠিক উপরের লাইনে কার্ডটা পর্দা থেকে **খুলে নেওয়া
+               হয়** (`removeView`), তার পরে `findViewById(...)` ডাকলে
+               Activity-র গাছে ওই ঘরগুলো আর **থাকেই না** — তাই `null` ফিরত,
+               আর শিরোনামটা কখনো লুকাত না। ⇒ এখন কার্ডের নিজের ভিতরেই খোঁজা
+               হয় (`card.findViewById`)। */
+            val headRow1 = card.findViewById<TextView?>(R.id.tvDoctorReminderHeading)
+            val headRow2 = card.findViewById<TextView?>(R.id.tvDoctorReminderHeadingText)
+            headRow1?.visibility = android.view.View.GONE
+            headRow2?.visibility = android.view.View.GONE
+            v952PaintSavedStrip(card)   // 🟢 V952 — পপ-আপেও সেভ-অবস্থা দেখা যায়
+            val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+                .setCustomTitle(
+                    com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "🩺 Doctor Note & Reminder")
+                )
+                .setView(card)
+                /* 🟢🔒 V952 — আগে কিছু সেভ থাকলে বোতামের লেখা UPDATE (TK-এর প্রুফ)। */
+                .setPositiveButton(
+                    if (v952SavedNote.isNotBlank()) "\uD83D\uDCBE Update" else "\uD83D\uDCBE Save"
+                ) { _, _ -> v952SaveOrWarn(card) }
+                .setNegativeButton("Close", null)
+                .create()
+            dlg.setOnDismissListener {
+                card.visibility = android.view.View.GONE
+                headRow1?.visibility = android.view.View.VISIBLE
+                headRow2?.visibility = android.view.View.VISIBLE
+                (card.parent as? android.view.ViewGroup)?.removeView(card)
+                originalParent.addView(card, originalIndex.coerceIn(0, originalParent.childCount))
+                refreshDot()
+            }
+            dlg.show()
+            try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(dlg) } catch (_: Throwable) { }
+        }
+    }
+
+    /**
+     * 🟢🔒 V699 — পপ-আপের 💾 Save। মূল SAVE-এর হুবহু একই তিনটে ঘর, একই
+     * লেখার পথ (`SupabaseClient.updateById("patients", …)`), তাই দুই পথে
+     * কখনো আলাদা মান বসতে পারে না।
+     * ⛔ চেক-আপের বাকি কিছুই এখানে সেভ হয় না — শুধু এই তিনটে ঘর।
+     * ⛔ রোগীর id না জানা গেলে কিছুই লেখা হয় না (ভুল সারিতে লেখার ঝুঁকি নেই)।
+     */
+    /* ══ 🟢🔒 V952 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) ════════════════════
+       TK: *"একই জিনিস দুবার সেভ হলে তাতেও কোন ওয়ার্নিং আসলো না · একবার সেভ
+       হওয়ার পরে বোঝার ক্ষমতা নেই কোন কিছু সেভ হয়ে আছে কিনা।"*
+         (ক) কী সেভ আছে — সবুজ পট্টিতে পর্দাতেই দেখায়
+         (খ) **হুবহু একই** নোট+তারিখ+সময় আবার সেভ করলে জিজ্ঞাসা করে
+       ⛔ নতুন/বদলানো রিমাইন্ডারে আগের মতোই সরাসরি সেভ — একটাও বাড়তি চাপ নয়।
+       ⛔ সেভের পথ (`saveDoctorReminderNow`) এক অক্ষরও বদলায়নি। */
+    private var v952SavedNote: String = ""
+    private var v952SavedDate: String = ""
+    private var v952SavedTime: String = ""
+
+    private fun v952PaintSavedStrip(card: android.view.View?) {
+        try {
+            val root: android.view.View = card ?: findViewById(R.id.secDoctorReminder)
+            val tv: TextView = root.findViewById(R.id.tvDoctorReminderSaved) ?: return
+            if (v952SavedNote.isBlank() && v952SavedDate.isBlank() && v952SavedTime.isBlank()) {
+                tv.visibility = android.view.View.GONE
+                return
+            }
+            val bits = listOfNotNull(
+                v952SavedNote.ifBlank { null },
+                v952SavedDate.ifBlank { null }?.let { displayDateForReminder(it) },
+                v952SavedTime.ifBlank { null }?.let { displayTimeForReminder(it) }
+            ).joinToString(" · ")
+            tv.text = NoBengali.s("✓ আগেই সেভ করা আছে") + "\n" + bits
+            tv.visibility = android.view.View.VISIBLE
+        } catch (_: Throwable) { }
+    }
+
+    /** সেভের ঠিক আগে — হুবহু একই হলে জিজ্ঞাসা, নইলে আগের মতোই সোজা সেভ। */
+    private fun v952SaveOrWarn(card: android.view.View) {
+        val noteBox = card.findViewById<android.widget.EditText?>(R.id.etDoctorReminderNote)
+        val note = noteBox?.text?.toString().orEmpty().trim()
+        val same = note == v952SavedNote &&
+            doctorReminderDateIso.trim() == v952SavedDate &&
+            doctorReminderTimeStr.trim() == v952SavedTime &&
+            (v952SavedNote.isNotBlank() || v952SavedDate.isNotBlank() || v952SavedTime.isNotBlank())
+        if (!same) { saveDoctorReminderNow(card); return }
+        val bits = listOfNotNull(
+            v952SavedNote.ifBlank { null },
+            v952SavedDate.ifBlank { null }?.let { displayDateForReminder(it) },
+            v952SavedTime.ifBlank { null }?.let { displayTimeForReminder(it) }
+        ).joinToString(" · ")
+        val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "⚠ Already saved"))
+            .setMessage(NoBengali.s("এই রোগীর জন্য হুবহু একই রিমাইন্ডার আগেই সেভ করা আছে। আবার সেভ করতে চান?") + "\n\n" + bits)
+            .setPositiveButton(NoBengali.s("হ্যাঁ")) { _, _ -> saveDoctorReminderNow(card) }
+            .setNegativeButton(NoBengali.s("না"), null)
+            .create()
+        dlg.show()
+        try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(dlg) } catch (_: Throwable) { }
+    }
+
+    private fun saveDoctorReminderNow(card: android.view.View) {
+        /* 🔴🔒 V700 — একই ফাঁদ, আরও মারাত্মক জায়গায়: পপ-আপ খোলা থাকা মানে
+           কার্ডটা Activity-র গাছ থেকে খোলা। তখন `findViewById(...)` **null**
+           ফেরাত, আর Save চাপলে অ্যাপ **বন্ধ হয়ে যেত (crash)**। এখন কার্ডের
+           নিজের ভিতর থেকেই নেওয়া হয়। */
+        val noteBox = card.findViewById<android.widget.EditText?>(R.id.etDoctorReminderNote)
+        if (noteBox == null) {
+            Toast.makeText(this, NoBengali.s("সেভ হয়নি — নিচের SAVE চাপুন"), Toast.LENGTH_LONG).show()
+            return
+        }
+        val note = noteBox.text?.toString().orEmpty().trim()
+        val dateIso = doctorReminderDateIso
+        val timeStr = doctorReminderTimeStr
+        if (note.isBlank() && dateIso.isBlank() && timeStr.isBlank()) {
+            Toast.makeText(this, NoBengali.s("কিছু লেখা বা বাছা হয়নি"), Toast.LENGTH_SHORT).show()
+            return
+        }
+        val pid = RoleSession.currentPatientId
+        if (pid.isBlank()) {
+            Toast.makeText(this, NoBengali.s("রোগী পাওয়া যায়নি — নিচের SAVE চাপুন"), Toast.LENGTH_LONG).show()
+            return
+        }
+        Thread {
+            val ok = try {
+                SupabaseClient.updateById(
+                    "patients", pid,
+                    org.json.JSONObject()
+                        .put("doctorReminderNote", note)
+                        .put("doctorReminderDate", dateIso)
+                        .put("doctorReminderTime", timeStr)
+                        /* 🩺 V1109 (TK-নির্দেশ) — কোন ডাক্তারের ফোনে বাজবে।
+                           ⛔ ফাঁকা = সব ডাক্তার (পুরনো আচরণ, কিছুই হারায় না)। */
+                        .put("doctorReminderFor", doctorReminderForMobile)
+                )
+            } catch (_: Throwable) { false }
+            runOnUiThread {
+                Toast.makeText(
+                    this,
+                    if (ok) NoBengali.s("মনে করানোর নোট সেভ হয়েছে") else NoBengali.s("সেভ হয়নি — নিচের SAVE চাপুন"),
+                    Toast.LENGTH_SHORT
+                ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
+            }
+        }.start()
+    }
+
+    /** 🩺🔒 V1109 — ডাক্তারদের তালিকা: এই রোগীর ব্রাঞ্চেরটা আগে, তারপর বাকিরা।
+     *  ⛔ প্রকল্পের নিজের `StaffDirectory` থেকেই — নতুন টেবিল/ক্লাউড-পড়া নেই।
+     *
+     *  🔴🔒 V1120 (০৫.০৯.২০২৬ — TK-এর Studio-তে বিল্ড ভেঙেছিল, তাঁর ছবি থেকে ধরা):
+     *  আগে এই ফাংশনটা **নাম বলে দিত** `List<...pilesclinic.native.StaffAccount>`।
+     *  বিল্ডের সময় kapt প্রতিটা Kotlin ক্লাসের একটা **Java নকল** (stub) বানায়, আর
+     *  Java-তে **`native` একটা সংরক্ষিত শব্দ** — তাই নকল ফাইলে ওই নামটা লিখতেই
+     *  `<identifier> expected` · `illegal start of type` (মোট ৫টা ভুল) হয়ে বিল্ড
+     *  থেমে যেত। ⇒ এখন ঘোষণায় ওই প্যাকেজের নাম আর নেই — শুধু **নাম ও নম্বরের জোড়া**
+     *  ফেরে (ডাকার জায়গায় ঠিক এই দুটোই লাগত)।
+     *  ⛔ ফাংশনের **ভিতরে** ওই নাম থাকলে কোনো সমস্যা নেই — kapt শরীরটা ফেলে দেয়;
+     *     সমস্যা শুধু **ঘোষণায়** (return/parameter/property-র ধরন)। প্রকল্পের আর
+     *     কোথাও এমন নেই — পুরোটা খুঁজে দেখা হয়েছে, আর পাহারাদারে নিয়ম [৯.৪৪] বসানো হলো।
+     *  ⛔ তালিকা · ক্রম · আচরণ এক অক্ষরও বদলায়নি। */
+    private fun doctorChoices(): List<Pair<String, String>> {
+        val all = try {
+            com.tkbiswas.pilesclinic.native.StaffDirectory.allAccounts()
+                .filter { it.role == "doctor" }
+        } catch (_: Throwable) { emptyList() }
+        val br = RoleSession.currentPatientBranch.trim()
+        val ordered = if (br.isBlank()) all
+            else all.sortedByDescending { it.branch.equals(br, ignoreCase = true) }
+        return ordered.map { it.name to it.mobile }
+    }
+
+    /** 🩺 V1109 — বাছা ডাক্তারের নাম ঘরে বসানো। ⛔ ফাঁকা হলে আগের ধূসর লেখা। */
+    private fun paintReminderWho(tv: TextView?) {
+        if (tv == null) return
+        if (doctorReminderForMobile.isBlank()) {
+            tv.text = NoBengali.s("সব ডাক্তার")
+            tv.setTextColor(android.graphics.Color.parseColor("#8A93A0"))
+            return
+        }
+        val nm = try {
+            com.tkbiswas.pilesclinic.native.StaffDirectory.findAccount(doctorReminderForMobile)?.name
+        } catch (_: Throwable) { null }
+        tv.text = nm ?: doctorReminderForMobile
+        tv.setTextColor(android.graphics.Color.parseColor("#101828"))
+    }
+
+    private fun displayDateForReminder(iso: String): String = try {
+        val d = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(iso)
+        java.text.SimpleDateFormat("dd.MM.yyyy", java.util.Locale.US).format(d!!)
+    } catch (_: Throwable) { iso }
+
+    // 🟢🔒 V671 — সময়ের ফরম্যাট (h.mm a — প্রজেক্টের 12-ঘণ্টা AM/PM নিয়ম)।
+    private fun displayTimeForReminder(hhmm: String): String = try {
+        val parts = hhmm.split(":").map { it.toInt() }
+        val cal = java.util.Calendar.getInstance().apply { set(java.util.Calendar.HOUR_OF_DAY, parts[0]); set(java.util.Calendar.MINUTE, parts[1]) }
+        java.text.SimpleDateFormat("h.mm a", java.util.Locale.US).format(cal.time)
+    } catch (_: Throwable) { hhmm }
+
     private fun bindPatientHeader() {
-        val name = RoleSession.currentPatientName.ifBlank { "Patient" }
+        /* 🔴🔒 V786 (২৮.০৮.২০২৬, TK-এর ফটো: নাম "Patient", ID "-") — রোগী
+           চেনা না গেলে আগে চুপচাপ "Patient / - / -" দেখাত, ডাক্তার বুঝতেই
+           পারতেন না যে পর্দাটা রোগী হারিয়ে ফেলেছে। এখন হেডারেই স্পষ্ট
+           সতর্কতা ওঠে (Save-ও বন্ধ — উপরে btnSave দেখুন)।
+           ⛔ কার্ডের নকশা/মাপ/রং কিচ্ছু বদলায়নি — শুধু লেখাটা। */
+        val noPatient = RoleSession.currentPatientId.isBlank()
+        val name = if (noPatient) "\u26A0\uFE0F Patient not loaded"
+                   else RoleSession.currentPatientName.ifBlank { "Patient" }
         // 🔒 খাতার সারি B175 (TK, 30.07.2026): "Reg ID:"-এ raw আইডি (pat_...)
         // দেখাত। এখন `displayId()` — মানুষ-পড়া-যায় কোড থাকলে সেটাই দেখাবে।
         // ⛔ নিচের ক্লাউড-খোঁজাও অক্ষত থাকল — ওটা আগে থেকেই মানুষ-পড়া-যায়
@@ -674,8 +1365,20 @@ class DoctorCheckupActivity : AppCompatActivity() {
             val p = withContext(Dispatchers.IO) {
                 try {
                     val enc = java.net.URLEncoder.encode(pid, "UTF-8")
-                    var rows = SupabaseClient.fetchList("patients", "patientId=eq.$enc")
-                    if (rows.length() == 0) rows = SupabaseClient.fetchList("patients", "id=eq.$enc")
+                    /* 🔴🔒 V794 — সারিটা **ছবি ছাড়া** পড়া হয়; ছবিটা নিচে
+                       `PatientPhotoCache` থেকে আসে (জমা থাকলে বিনা খরচে,
+                       নইলে শুধু ওই এক সারির `id,photo`)। ⛔ হেডারের ছবি,
+                       A4 কাগজের ছবি ও ৩-চাপে ঘোরানো — তিনটেই অটুট। */
+                    /* 🩺🔒 V839 — নিজের ঘরটাও চাওয়া হয় (`nextVisitPlan`)।
+                       ⛔ শেয়ার করা `PATIENT_NO_PHOTO_COLS` **ছোঁয়া হয়নি** —
+                          ওটা প্রকল্পের ১৩টা জায়গায় চলে, তার একটায় ৫০০ সারি
+                          পড়া হয়; ওখানে ঘরটা যোগ করলে অকারণে Egress বাড়ত।
+                          এখানে সারি মাত্র **একটাই**, তাই খরচ নগণ্য। */
+                    val colsWithPlan = SupabaseClient.PATIENT_NO_PHOTO_COLS + ",${NextVisitPlan.FIELD}"
+                    var rows = SupabaseClient.fetchListSlim("patients", "patientId=eq.$enc", 1,
+                        colsWithPlan)
+                    if (rows.length() == 0) rows = SupabaseClient.fetchListSlim("patients",
+                        "id=eq.$enc", 1, colsWithPlan)
                     if (rows.length() > 0) rows.getJSONObject(0) else null
                 } catch (_: Exception) { null }
             } ?: return@launch
@@ -684,9 +1387,45 @@ class DoctorCheckupActivity : AppCompatActivity() {
             val sex = p.s("sex")
             val disease = p.s("disease")
             val address = p.s("address")
-            val photo = p.s("photo")
+            /* 🔴🔒 V794 — ছবিটা আর সারির সঙ্গে নামে না; জমা থাকলে ফোন থেকেই,
+               নইলে একবারই ক্লাউড থেকে (শুধু `id,photo`)। ⛔ ছবি হারায় না। */
+            val photo = com.tkbiswas.pilesclinic.native.PatientPhotoCache.photoFor(
+                applicationContext, p.s("id").ifBlank { pid }, p.s("updatedAt"))
             // 🆕 (07.08.2026) — A4 রিপোর্টের জন্য একই তথ্য মনে রাখা (কোনো নতুন কল নয়)।
             patMobile = mobile; patAge = age; patSex = sex; patDisease = disease; patAddress = address; patPhoto = photo
+            // 🟢🔒 V656 (২৫.০৮.২০২৬, TK-নির্দেশ) — আগে থেকে বসানো Doctor Note &
+            // Reminder থাকলে, ফর্ম আবার খুললে সেটা যেন মুছে না যায় — সেভ করা
+            // মান এখানেই ফিরিয়ে বসানো হচ্ছে।
+            val savedReminderNote = p.s("doctorReminderNote")
+            val savedReminderDate = p.s("doctorReminderDate")
+            // 🟢🔒 V671 — সময়ও একইভাবে ফিরিয়ে বসানো হয়।
+            val savedReminderTime = p.s("doctorReminderTime")
+            /* 🩺 V1109 — বাছা ডাক্তারও ফিরিয়ে বসানো হয়। ⛔ ঘরটা না থাকলে
+               (SQL এখনো চালানো হয়নি) ফাঁকাই আসে ⇒ আচরণ হুবহু আগের মতোই। */
+            doctorReminderForMobile = p.s("doctorReminderFor").trim()
+            paintReminderWho(findViewById(R.id.tvDoctorReminderWho))
+            findViewById<android.widget.EditText>(R.id.etDoctorReminderNote).setText(savedReminderNote)
+            if (savedReminderDate.isNotBlank()) {
+                doctorReminderDateIso = savedReminderDate
+                val tv = findViewById<TextView>(R.id.tvDoctorReminderDate)
+                tv.text = displayDateForReminder(savedReminderDate)
+                tv.setTextColor(android.graphics.Color.parseColor("#101828"))
+            }
+            if (savedReminderTime.isNotBlank()) {
+                doctorReminderTimeStr = savedReminderTime
+                val tvT = findViewById<TextView>(R.id.tvDoctorReminderTime)
+                tvT.text = displayTimeForReminder(savedReminderTime)
+                tvT.setTextColor(android.graphics.Color.parseColor("#101828"))
+            }
+            findViewById<android.view.View>(R.id.dotDoctorReminder).visibility =
+                if (savedReminderNote.trim().isNotBlank()) android.view.View.VISIBLE else android.view.View.GONE
+            /* 🟢🔒 V952 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — কী সেভ আছে সেটা
+               মনে রাখা হয়, যাতে (ক) পর্দায় দেখানো যায়, (খ) হুবহু একই জিনিস আবার
+               সেভ করলে সতর্ক করা যায়। ⛔ কোনো ঘরের মান বদলানো হয় না। */
+            v952SavedNote = savedReminderNote.trim()
+            v952SavedDate = savedReminderDate.trim()
+            v952SavedTime = savedReminderTime.trim()
+            v952PaintSavedStrip(null)
             val tvMobile = findViewById<TextView>(R.id.tvPatientMobile)
             tvMobile.text = mobile.ifBlank { "—" }
             findViewById<TextView>(R.id.tvPatientMobileMini).text = mobile.ifBlank { "—" }
@@ -704,6 +1443,10 @@ class DoctorCheckupActivity : AppCompatActivity() {
             findViewById<TextView>(R.id.btnPatientHistory).setOnClickListener {
                 openCheckupHistory()
             }
+            /* 🩺🔒 V839 — NEXT VISIT PLAN অংশটা চালু করা।
+               ⛔ সারিটা **এইমাত্র এই রোগীরই** id দিয়ে আনা হয়েছে (উপরে
+                  `patientId=eq.$enc`), তাই B437-এর ক্রস-রোগী ফাঁদ এখানে নেই। */
+            setupNextVisitPlan(p)
             /* 🔵🔒 V559 (২২.০৮.২০২৬, TK-অনুমোদিত: *"হ্যাঁ"*) — আগে সেভ করা
                চেকআপ ফর্মে ফিরিয়ে আনা।
 
@@ -734,6 +1477,22 @@ class DoctorCheckupActivity : AppCompatActivity() {
                     populate(CheckupNoteJson.fromMap(jsonToMap(noteObj)))
                 }
             } catch (_: Throwable) { }
+            // 🟢🔒 V676 — আজকের নিজের Checkup এডিট করতে খোলা হলে, উপরের
+            // ড্রাফট-রিস্টোরের ঠিক পরেই সেই সেভ-করা মান দিয়ে ফর্ম ভরে দেওয়া
+            // হয় (ড্রাফটের চেয়ে অগ্রাধিকার — এটাই আসল সেভ-করা সারি)।
+            if (editingMedicalId.isNotBlank()) {
+                val editJson = intent.getStringExtra(EXTRA_EDIT_MEDICAL_JSON).orEmpty()
+                val record = checkupRecordFromJsonStringOrNull(editJson)
+                if (record != null) {
+                    restoredOnce = true
+                    populate(record)
+                } else {
+                    // ⛔ JSON না মিললে (কখনো ঘটার কথা না, তবু নিরাপদ থাকতে)
+                    // edit-mode বন্ধ — Save তখন আগের মতোই নতুন সারি বানাবে,
+                    // কোনো ডেটা এলোমেলো/হারানোর ঝুঁকি নেই।
+                    editingMedicalId = ""
+                }
+            }
 
             val branchDisease = listOf(branch, disease).filter { it.isNotBlank() }.joinToString(" - ")
             if (branchDisease.isNotBlank()) findViewById<TextView>(R.id.tvPatientBranchDisease).text = branchDisease
@@ -914,17 +1673,20 @@ class DoctorCheckupActivity : AppCompatActivity() {
      */
     private fun addAnatomyPicture(dataUrl: String) {
         val input = android.widget.EditText(this).apply {
-            setText("নিজের তোলা ছবি")
+            // 🔴🔒 V610 (২৪.০৮.২০২৬, TK-নির্দেশ — গভীর যাচাই) — EditText-এর
+            // ভিতরের লেখা কখনো sweep() ছোঁয় না (উপরের নিয়ম, রোগীর আসল
+            // বাংলা ডেটা নষ্ট হওয়া এড়াতে), তাই এখানে হাতেই মোড়া হলো।
+            setText(NoBengali.s("নিজের তোলা ছবি"))
             setSelection(text.length)
             inputType = android.text.InputType.TYPE_CLASS_TEXT
             setPadding(symDp(14), symDp(10), symDp(14), symDp(10))
         }
         android.app.AlertDialog.Builder(this)
-            .setTitle("ছবির নাম")
+            .setTitle(NoBengali.s("Picture name"))   /* 🔤 V728 */
             .setView(input)
             .setNegativeButton("Cancel", null)
             .setPositiveButton("Add") { _, _ ->
-                val label = input.text?.toString()?.trim().orEmpty().ifBlank { "নিজের তোলা ছবি" }
+                val label = input.text?.toString()?.trim().orEmpty().ifBlank { NoBengali.s("নিজের তোলা ছবি") }
                 val row = AnatomyPictureRepository.newPhotoRow(label, dataUrl, currentUserMobile())
                 AnatomyPictureRepository.saveLocal(this, row)
                 BackgroundWork.run { AnatomyPictureRepository.pushCloud(row) }
@@ -936,9 +1698,9 @@ class DoctorCheckupActivity : AppCompatActivity() {
                     view.setPictureBitmap(key, PhotoUtils.decodeDataUrl(dataUrl))
                     paintAnatomyThumbs(key)
                 }
-                Toast.makeText(this, NoBengali.s("ছবি যোগ হলো"), Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Photo added", Toast.LENGTH_SHORT).show()
             }
-            .show()
+            .show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
     }
 
     /** কে যোগ করলেন — শুধু হিসাব রাখার জন্য, কোনো নিয়মে লাগে না।
@@ -1084,8 +1846,12 @@ class DoctorCheckupActivity : AppCompatActivity() {
         if (patientKey.isBlank()) return
         try {
             val enc = java.net.URLEncoder.encode(patientKey, "UTF-8")
-            var rows = SupabaseClient.fetchList("patients", "patientId=eq.$enc")
-            if (rows.length() == 0) rows = SupabaseClient.fetchList("patients", "id=eq.$enc")
+            // 🔴🔒 V794 — এখানে ছবি লাগে না (markDoctorComplete), তাই ছবি ছাড়া
+            /* 🩺 V839 — পুরনো প্ল্যান-তালিকাটাও পড়া হয়, যাতে নতুনটা **যোগ**
+               করা যায় (কখনো উপরে বসানো নয়)। একই সারি, বাড়তি অনুরোধ নেই। */
+            val colsSave = SupabaseClient.PATIENT_NO_PHOTO_COLS + ",${NextVisitPlan.FIELD}"
+            var rows = SupabaseClient.fetchListSlim("patients", "patientId=eq.$enc", 1, colsSave)
+            if (rows.length() == 0) rows = SupabaseClient.fetchListSlim("patients", "id=eq.$enc", 1, colsSave)
             if (rows.length() == 0) return
             val id = rows.getJSONObject(0).optString("id")
             if (id.isBlank()) return
@@ -1103,6 +1869,16 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 val rec = pendingNote
                 if (rec != null) body.put("doctorFullNote",
                     mapToJson(CheckupNoteJson.merge(jsonToMap(oldNote), rec)))
+                /* 🩺🔒 V839 — NEXT VISIT PLAN **একই কলেই** বসে, বাড়তি কোনো
+                   নেটওয়ার্ক অনুরোধ নয়।
+                   ⛔ পুরনো তালিকা হুবহু রেখে নতুন সারিটা **শেষে যোগ** হয়
+                      (`NextVisitPlan.appended`) — একটাও পুরনো প্ল্যান মোছে না।
+                   ⛔ ডাক্তার কিছুই না বাছলে (`isEmpty`) ঘরটা **ছোঁয়াই হয় না** —
+                      তখন আগের প্ল্যান আগের মতোই থেকে যায়। */
+                val plan = pendingNvp
+                if (plan != null && !plan.isEmpty) {
+                    body.put(NextVisitPlan.FIELD, NextVisitPlan.appended(row0, plan))
+                }
             } catch (_: Throwable) { }
             SupabaseClient.updateById("patients", id, body)
         } catch (_: Exception) {
@@ -1120,8 +1896,9 @@ class DoctorCheckupActivity : AppCompatActivity() {
         symptomHistory = collectSymptomHistory(),   // 🔵 V554
         historyDetail = collectHistoryDetail(),     // 🔵 V555
         lifestyle = collectLifestyle(),             // 🔵 V556
-        probableDisease = CounselModel.DISEASES.getOrElse(   // 🔵 V557
-            findViewById<android.widget.Spinner>(R.id.spProbableDisease).selectedItemPosition) { CounselModel.PICK_NONE },
+        probableDisease = collectProbableDisease(),   // 🔵 V557 · V946 (একাধিক রোগ)
+        doctorRemark = findViewById<android.widget.EditText>(R.id.etDoctorRemark)
+            .text?.toString()?.trim().orEmpty(),   // 🔵 V947
         timeAsked = CounselModel.timeAsked(
             findViewById<android.widget.EditText>(R.id.etTimeAsked).text?.toString().orEmpty(),
             CounselModel.UNITS.getOrElse(findViewById<android.widget.Spinner>(R.id.spTimeAskedUnit).selectedItemPosition) { "Days" }),
@@ -1141,6 +1918,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         amtKsharSutra = etAmtKsharSutra.text?.toString().orEmpty(),
         counselling = etCounselling.text?.toString().orEmpty(),
         estimatedCost = etEstimatedCost.text?.toString().orEmpty(),
+        estimateJson = if (estimateSheet.isEmpty) "" else estimateSheet.toJson().toString(),   // 💰 V971
         recoveryTime = keptRecoveryTime,   // 🟢 V589: পুরনো লেখা হুবহু ফিরে বসে, মুছে যায় না
         // 🔵 B622 (11.08.2026): "Advance Payment to be Done" ঘর বাদ — মডেলের ডিফল্ট "" থাকে।
         // V455 (18.08.2026): patientDecision · decisionRemark ঘর বাদ — মডেলের ডিফল্ট "" থাকে।
@@ -1170,8 +1948,11 @@ class DoctorCheckupActivity : AppCompatActivity() {
         applyHistoryDetail(r.historyDetail)     // 🔵 V555
         applyLifestyle(r.lifestyle)             // 🔵 V556
         // 🔵 V557
-        val di = CounselModel.DISEASES.indexOf(r.probableDisease)
-        findViewById<android.widget.Spinner>(R.id.spProbableDisease).setSelection(if (di >= 0) di else 0)
+        applyProbableDisease(r.probableDisease)   // 🔵 V946
+        findViewById<android.widget.EditText>(R.id.etDoctorRemark).setText(r.doctorRemark)   // 🔵 V947
+        /* 📝 V996 — ভাঁজ বন্ধ থাকে, তাই ভিতরে লেখা আছে কি না সেটা মাথার
+           সবুজ ব্যাজেই জানা যায় (বাকি ভাঁজগুলোর হুবহু একই নিয়ম)। */
+        setFoldCount("drem", if (r.doctorRemark.isNotBlank()) 1 else 0)
         val (tAmt, tUnit) = CounselModel.splitTimeAsked(r.timeAsked)
         findViewById<android.widget.EditText>(R.id.etTimeAsked).setText(tAmt)
         val ui = CounselModel.UNITS.indexOf(tUnit)
@@ -1190,6 +1971,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         findViewById<android.widget.EditText>(R.id.etProctoscopy).setText(r.proctoscopy)   // 🔵 V539
         refreshInternalGradeLabel()   // 🔵 V539: Internal Piles-এর পাশে Grade দেখানো
         etOnProbing.setText(r.onProbing)
+        refreshClinicalFold()   // 🟢 V703 — পুরোনো রেকর্ড খুললেও ব্যাজের সংখ্যা ঠিক থাকে
         val inv = r.investigation.split(", ").map { it.trim() }
         investigationChecks.forEach { it.isChecked = inv.contains((it.tag as? String) ?: it.text.toString()) }
         val tx = r.treatmentPlan.split(", ").map { it.trim() }
@@ -1205,6 +1987,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         if (r.amtKsharSutra.isNotBlank()) etAmtKsharSutra.setText(r.amtKsharSutra)
         etCounselling.setText(r.counselling)
         etEstimatedCost.setText(r.estimatedCost)
+        estimateSheet = EstimateModel.parse(r.estimateJson)   // 💰 V971
         keptRecoveryTime = r.recoveryTime   // 🟢 V589: দেখানো হয় না, কিন্তু হারায়ও না
         // 🔵 B622: "Advance Payment to be Done" ঘর বাদ।
         // V455 (18.08.2026): patientDecision/decisionRemark/documents populate বাদ (ঘর নেই)।
@@ -1214,6 +1997,9 @@ class DoctorCheckupActivity : AppCompatActivity() {
         if (r.beforePhoto.isNotBlank()) showThumb(ivBeforePhoto, r.beforePhoto)
         if (r.duringPhoto.isNotBlank()) showThumb(ivDuringPhoto, r.duringPhoto)
         if (r.afterPhoto.isNotBlank()) showThumb(ivAfterPhoto, r.afterPhoto)
+        /* 🟢 V1119 — পুরনো রেকর্ড খুলে বসার পর ভরা ধাপগুলো সঙ্গে সঙ্গেই
+           নিচের "SAVED" বাক্সে নেমে যায় (সবগুলো ভাঁজ শুরুতে বন্ধই থাকে)। */
+        findViewById<android.view.View>(R.id.secSavedGroup)?.post { refreshSavedGroup() }
     }
 
     /**
@@ -1287,7 +2073,8 @@ class DoctorCheckupActivity : AppCompatActivity() {
     /** মাথায় চাপ দিলে শরীরটা খোলে/বন্ধ হয়। শুরুতে বন্ধ। */
     private fun attachFold(key: String, head: android.view.View?,
                            num: TextView?, chev: TextView?,
-                           body: android.view.View?) {
+                           body: android.view.View?,
+                           onToggle: (() -> Unit)? = null) {
         if (head == null || num == null || chev == null || body == null) return
         body.visibility = android.view.View.GONE
         chev.text = "\u2304"
@@ -1296,6 +2083,14 @@ class DoctorCheckupActivity : AppCompatActivity() {
             val open = body.visibility != android.view.View.VISIBLE
             body.visibility = if (open) android.view.View.VISIBLE else android.view.View.GONE
             chev.text = if (open) "\u2303" else "\u2304"
+            /* 🟢🔒 V703 — বন্ধ করার মুহূর্তে মাথার সংখ্যাটা নতুন করে বসানোর
+               সুযোগ। ⛔ ডিফল্ট null, তাই আগের তিনটে ভাঁজ (sym/life/photo) এক
+               অক্ষরও বদলায়নি — Kotlin-এর default argument। */
+            onToggle?.invoke()
+            /* 🟢 V1119 — ভাঁজ বন্ধ করলেই ভরা ধাপটা নিচের "SAVED" বাক্সে নেমে
+               যায়, খুললেই আবার উপরে ফেরে। ⛔ `post` — চাপাচাপির হিসাব শেষ
+               হওয়ার পরে তবেই কার্ডটা সরানো হয়। */
+            head.post { refreshSavedGroup() }
         }
     }
 
@@ -1487,6 +2282,357 @@ class DoctorCheckupActivity : AppCompatActivity() {
         refreshSymptomFold()
     }
 
+    /** 🟢 V600 (২৩.০৮.২০২৬, TK-নির্দেশ) — Photo & Video হেডারে চাপ দিলে
+        তিনটে ছবির সারি খোলে। সংখ্যার ব্যাজ (photoFoldNum) ব্যবহার হয় না,
+        তাই কখনো ডাকা হয় না — বরাবরই লুকানো থাকে (XML-এ ডিফল্ট gone)। */
+    private fun wirePhotoFold() {
+        attachFold(
+            "photo",
+            findViewById<android.widget.LinearLayout>(R.id.photoFoldHead),
+            findViewById<TextView>(R.id.photoFoldNum),
+            findViewById<TextView>(R.id.photoFoldChev),
+            findViewById<android.widget.LinearLayout>(R.id.photoFoldBody)
+        )
+    }
+
+    /* 🟢🔒 V703 (২৬.০৮.২০২৬, TK-নির্দেশ ডেমো-প্রুফে অনুমোদিত):
+       *"এখানেও Form টা ওপেন থাকবে না"* — ধাপ ২ (Clinical পরীক্ষা) এখন
+       ভাগ ১-এর মতোই **বন্ধ অবস্থায়** শুরু হয়, মাথায় চাপ দিলে খোলে।
+       ⛔ TK স্পষ্ট বলেছেন *"শুধুমাত্র যেটা বলা হলো সেটা করুন"* ⇒ ধাপ ৩·৪·৫
+          ছোঁয়া হয়নি, আর ধাপ ২-এর ভিতরের একটাও ঘর/টিক/সেভ বদলায়নি —
+          XML-এ শুধু একটা মোড়ক (`clinicalFoldBody`) যোগ হয়েছে।
+       ⛔ নতুন কোনো ভাঁজ-ব্যবস্থা বানানো হয়নি — চালু `attachFold`-ই ব্যবহার। */
+    private fun wireClinicalFold() {
+        attachFold(
+            "clin",
+            findViewById<android.widget.LinearLayout>(R.id.clinicalFoldHead),
+            findViewById<TextView>(R.id.clinicalFoldNum),
+            findViewById<TextView>(R.id.clinicalFoldChev),
+            findViewById<android.widget.LinearLayout>(R.id.clinicalFoldBody)
+        ) { refreshClinicalFold() }
+        refreshClinicalFold()
+    }
+
+    /* 🟢🔒 V866 (৩০.০৮.২০২৬, TK-নির্দেশ ডেমো-প্রুফে অনুমোদিত):
+       *"next visit plan — এই ফর্মটা ওপেন থাকবে না"* — ধাপ ২ (V703) ও ধাপ ৫
+       (V600)-এর হুবহু একই ব্যবস্থা: শুরুতে বন্ধ, মাথায় চাপ দিলে খোলে।
+       ⛔ নতুন কোনো ভাঁজ-ব্যবস্থা বানানো হয়নি — চালু `attachFold`-ই।
+       ⛔ NEXT VISIT PLAN-এর ভিতরের একটাও ঘর · টিক · তারিখ · সেভ বদলায়নি। */
+    /* 🔴🔒 V938 — TODAY'S TREATMENT DONE-এর ভাঁজ। NEXT VISIT PLAN-এর হুবহু
+       একই `attachFold` — নতুন কোনো ভাঁজ-ব্যবস্থা বানানো হয়নি। */
+    private fun ttdBoxes(): List<CheckBox> = listOf(
+        findViewById(R.id.cbTtd1), findViewById(R.id.cbTtd2), findViewById(R.id.cbTtd3),
+        findViewById(R.id.cbTtd4), findViewById(R.id.cbTtd5), findViewById(R.id.cbTtd6),
+        findViewById(R.id.cbTtd7), findViewById(R.id.cbTtd8), findViewById(R.id.cbTtd9),
+        findViewById(R.id.cbTtd10)
+    )
+
+    private fun refreshTtdFold() {
+        var n = 0
+        for (cb in ttdBoxes()) if (cb.isChecked) n++
+        setFoldCount("ttd", n)
+    }
+
+    private fun wireTtdFold() {
+        attachFold(
+            "ttd",
+            findViewById<android.widget.LinearLayout>(R.id.ttdFoldHead),
+            findViewById<TextView>(R.id.ttdFoldNum),
+            findViewById<TextView>(R.id.ttdFoldChev),
+            findViewById<android.widget.LinearLayout>(R.id.ttdFoldBody)
+        ) { refreshTtdFold() }
+        for (cb in ttdBoxes()) cb.setOnCheckedChangeListener { _, _ -> refreshTtdFold() }
+        refreshTtdFold()
+    }
+
+    /* ══ 🔵🔒 V946 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — "সম্ভাব্য কি রোগ?"
+       একাধিক বাছা যাবে ══════════════════════════════════════════════════════
+       রেজিস্ট্রেশনের (`RegistrationActivity`) হুবহু একই চিপ ও একই রং-সিলেক্টর,
+       তাই দুই পর্দা দেখতে এক রকম।
+       ⛔ তালিকাটা `CounselModel.DISEASES`-ই — শুধু "বাছেননি" ঘরটা চিপে থাকে না
+          (চিপে কিছু না বাছলেই সেটা "বাছেননি")।
+       ⛔ সেভ/পড়া আগের মতোই একটাই লেখা-ঘরে — একাধিক হলে ", " দিয়ে জোড়া। */
+    private val v946DiseaseChips = ArrayList<com.google.android.material.chip.Chip>()
+
+    private fun v946DiseaseOptions(): List<String> =
+        CounselModel.DISEASES.filter { it != CounselModel.PICK_NONE }
+
+    private fun buildDiseaseChips() {
+        val group = findViewById<com.google.android.material.chip.ChipGroup>(R.id.cgProbableDisease) ?: return
+        group.removeAllViews()
+        v946DiseaseChips.clear()
+        v946DiseaseOptions().forEach { label ->
+            val chip = com.google.android.material.chip.Chip(this).apply {
+                text = label
+                isCheckable = true
+                isCloseIconVisible = false
+                chipBackgroundColor = androidx.core.content.ContextCompat
+                    .getColorStateList(this@DoctorCheckupActivity, R.color.chip_bg_selector)
+                setTextColor(androidx.core.content.ContextCompat
+                    .getColorStateList(this@DoctorCheckupActivity, R.color.chip_text_selector))
+                checkedIconTint = android.content.res.ColorStateList.valueOf(android.graphics.Color.WHITE)
+            }
+            v946DiseaseChips.add(chip)
+            group.addView(chip)
+        }
+    }
+
+    /** ডাক্তার যা যা বেছেছেন — ", " দিয়ে জোড়া। কিছু না বাছলে "বাছেননি"। */
+    private fun collectProbableDisease(): String {
+        val picked = v946DiseaseChips.filter { it.isChecked }.map { it.text.toString() }
+        return if (picked.isEmpty()) CounselModel.PICK_NONE else picked.joinToString(", ")
+    }
+
+    /** আগে সেভ করা লেখা ফিরিয়ে বসানো — পুরনো একটামাত্র রোগও ঠিক বসে। */
+    private fun applyProbableDisease(saved: String) {
+        val want = saved.split(",").map { it.trim() }.filter { it.isNotBlank() }.toSet()
+        v946DiseaseChips.forEach { chip -> chip.isChecked = want.contains(chip.text.toString()) }
+    }
+
+    /** 🔴🔒 V938 — ডাক্তার আজ যা বেছেছেন, চেম্বারের লেখার হুবহু একই ধাঁচে
+     *  (" · " দিয়ে জোড়া, ঠিক `TreatmentQuickNotes`-এর লেখাগুলোই)।
+     *  ⛔ কিছু না বাছলে ফাঁকা ফেরে ⇒ চেম্বারের পুরনো লেখা ছোঁয়াই হয় না। */
+    private fun collectTodayTreatment(): String {
+        val parts = ArrayList<String>()
+        for (cb in ttdBoxes()) if (cb.isChecked) parts.add(cb.text.toString().trim())
+        val other = findViewById<android.widget.EditText>(R.id.etTtdOther).text?.toString()?.trim().orEmpty()
+        if (other.isNotBlank()) parts.add(other)
+        return parts.joinToString(" · ")
+    }
+
+    private fun wireNvpFold() {
+        attachFold(
+            "nvp",
+            findViewById<android.widget.LinearLayout>(R.id.nvpFoldHead),
+            findViewById<TextView>(R.id.nvpFoldNum),
+            findViewById<TextView>(R.id.nvpFoldChev),
+            findViewById<android.widget.LinearLayout>(R.id.nvpFoldBody)
+        ) { refreshNvpFold() }
+        refreshNvpFold()
+    }
+
+    /* 🟢🔒🔒 V886 (৩০.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত):
+       TK: *"মেইন পয়েন্টগুলো ফর্ম খোলা থাকবে না"* — তিনি নিজে নিশ্চিত করেছেন
+       *"নামের উপরে চাপ দিলে ফর্ম ওপেন হবে তো"* ⇒ হ্যাঁ, ঠিক ধাপ ২ ও ধাপ ৫-এর
+       মতোই।
+       ⇒ ধাপ ১ (History & Previous) · ধাপ ৩ (Counsel) · ধাপ ৪ (Probable Disease
+         and Time Asked) এখন **বন্ধ অবস্থায়** শুরু হয়।
+       ⛔ নতুন কোনো ভাঁজ-ব্যবস্থা বানানো হয়নি — চালু `attachFold`-ই।
+       ⛔ ভিতরের একটাও ঘর · টিক · তারিখ · সেভ বদলায়নি — শুধু মোড়ক ও চ্যাভরন।
+       ⛔ ধাপ ১-এর ভিতরের পুরোনো ছোট ভাঁজগুলো (symptom/life) আগের মতোই কাজ করে। */
+    private fun wireMainFolds() {
+        /* 📝🔒 V996 (০৩.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — DOCTOR'S REMARK
+           ("drem") এই তালিকায় যোগ হলো, তাই সেটাও বাকিগুলোর মতোই **বন্ধ
+           অবস্থায় শুরু হয়**। ⛔ ভাঁজের নিয়ম এক অক্ষরও বদলায়নি। */
+        for (key in listOf("hist", "couns", "estm", "drem")) {
+            val head = resources.getIdentifier("${key}FoldHead", "id", packageName)
+            val num = resources.getIdentifier("${key}FoldNum", "id", packageName)
+            val chev = resources.getIdentifier("${key}FoldChev", "id", packageName)
+            val body = resources.getIdentifier("${key}FoldBody", "id", packageName)
+            if (head == 0 || num == 0 || chev == 0 || body == 0) continue
+            attachFold(
+                key,
+                findViewById<android.widget.LinearLayout>(head),
+                findViewById<TextView>(num),
+                findViewById<TextView>(chev),
+                findViewById<android.widget.LinearLayout>(body)
+            )
+        }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       🟢🔒 V1119 (০৫.০৯.২০২৬) — **ভরা ধাপগুলো নিচে একটাই "SAVED" বাক্সে**
+       TK-এর নির্দেশ (ফটো-প্রুফ দেখে *"পাশ, বসিয়ে দিন"*):
+       *"যেগুলো সেভ হয়ে যাবে সেগুলো নিচে থাকবে, কিন্তু সবগুলো একটার মধ্যে
+       থাকবে — যেখানে চাপ দিলে তখন সেগুলো ওপেন হবে"*
+
+       নিয়ম (মেপে বসানো, আন্দাজ নয়):
+       ① একটা ধাপ নিচে নামে **শুধু তখনই** যখন সেটা (ক) ভরা **এবং** (খ) বন্ধ।
+          ⛔ খোলা ধাপ কখনোই সরে না — ডাক্তার লেখার মাঝপথে পর্দা লাফাবে না।
+       ② ফাঁকা হয়ে গেলে ধাপটা **নিজের পুরনো জায়গায় ফিরে যায়** (ক্রম অটুট,
+          কারণ ৮টা কার্ডই পাশাপাশি ভাই আর SAVED বাক্সটা সবার শেষে)।
+       ③ নিচে নামলে কার্ডটা **ফিকে** (alpha 0.55) — কিন্তু ভিতরের একটাও ঘর ·
+          বোতাম · টিক অকেজো হয় না; চাপ দিলে আগের মতোই খোলে ও লেখা যায়।
+
+       ⛔ **কোনো ডেটা/সেভ/ক্লাউড কোড ছোঁয়া হয়নি** — কার্ডগুলো শুধু গাছের এক
+          ডাল থেকে আরেক ডালে যায়; `findViewById` পুরো পর্দা জুড়ে খোঁজে, তাই
+          `collect()` · `lockSection` · ছবি — সবই আগের মতোই কাজ করে।
+       ⛔ `secDoctorReminder` (ডাক্তারের নিজের নোট) এই তালিকায় নেই — ওটা
+          আলাদা মোড়কে থাকে, ছোঁয়া হয়নি।
+       ⚠️ কার্ড সরানোর কাজটা `post {}`-এর ভিতরে, কারণ চাপাচাপির (click) হিসাব
+          শেষ হওয়ার আগেই কার্ডটাকে গাছ থেকে তুলে নিলে ঝুঁকি থাকে।
+       ═══════════════════════════════════════════════════════════════════ */
+    private val savedGroupIds = intArrayOf(
+        R.id.secHistory, R.id.secClinical, R.id.secCounsel, R.id.secEstimate,
+        R.id.secDocRemark, R.id.secTodayTreat, R.id.secNextVisitPlan, R.id.secPhoto
+    )
+    private var savedGroupOpen = false
+    private var savedGroupBusy = false
+
+    /** ভিতরে কিছু ভরা আছে কি না — ঘর · টিক · তালিকা · চিপ সব মিলিয়ে। */
+    private fun sectionHasContent(v: android.view.View): Boolean {
+        when (v) {
+            is android.widget.EditText ->
+                if (v.text?.toString()?.isNotBlank() == true) return true
+            is android.widget.CompoundButton ->
+                if (v.isChecked) return true
+            is android.widget.Spinner ->
+                if (v.selectedItemPosition > 0) return true
+            is TextView -> {
+                if (v.getTag(R.id.historyDetailGroup) == true) return true
+                val sev = v.getTag(R.id.symptomGroup) as? String
+                if (!sev.isNullOrBlank()) return true
+            }
+        }
+        if (v is android.view.ViewGroup) {
+            for (i in 0 until v.childCount) if (sectionHasContent(v.getChildAt(i))) return true
+        }
+        return false
+    }
+
+    /** ধাপটা কি ভরা? (ছবির ধাপে ছবিগুলোও গোনা হয় — ওগুলো কোনো ঘরে থাকে না।) */
+    private fun sectionFilled(card: android.view.View): Boolean {
+        if (card.id == R.id.secPhoto &&
+            (beforePhotoData.isNotBlank() || duringPhotoData.isNotBlank() || afterPhotoData.isNotBlank())
+        ) return true
+        return sectionHasContent(card)
+    }
+
+    /** ধাপটা কি এই মুহূর্তে বন্ধ? (ভাঁজের শরীরটা দেখা না গেলে বন্ধ।) */
+    private fun sectionClosed(card: android.view.View): Boolean {
+        val bodyId = when (card.id) {
+            R.id.secHistory -> R.id.histFoldBody
+            R.id.secClinical -> R.id.clinicalFoldBody
+            R.id.secCounsel -> R.id.counsFoldBody
+            R.id.secEstimate -> R.id.estmFoldBody
+            R.id.secDocRemark -> R.id.dremFoldBody
+            R.id.secTodayTreat -> R.id.ttdFoldBody
+            R.id.secNextVisitPlan -> R.id.nvpFoldBody
+            R.id.secPhoto -> R.id.photoFoldBody
+            else -> return false
+        }
+        return findViewById<android.view.View>(bodyId)?.visibility != android.view.View.VISIBLE
+    }
+
+    private fun wireSavedGroup() {
+        val head = findViewById<android.view.View>(R.id.savedGroupHead) ?: return
+        val body = findViewById<android.view.View>(R.id.savedGroupBody) ?: return
+        val chev = findViewById<TextView>(R.id.savedGroupChev) ?: return
+        body.visibility = android.view.View.GONE
+        chev.text = "⌄"
+        head.setOnClickListener {
+            savedGroupOpen = !savedGroupOpen
+            body.visibility = if (savedGroupOpen) android.view.View.VISIBLE else android.view.View.GONE
+            chev.text = if (savedGroupOpen) "⌃" else "⌄"
+        }
+    }
+
+    /** ভরা-ও-বন্ধ ধাপগুলো নিচের বাক্সে নামায়, বাকিগুলো উপরে ফেরায়। */
+    private fun refreshSavedGroup() {
+        if (savedGroupBusy) return
+        try {
+            val group = findViewById<android.view.View>(R.id.secSavedGroup) ?: return
+            val body = findViewById<android.view.ViewGroup>(R.id.savedGroupBody) ?: return
+            val host = group.parent as? android.view.ViewGroup ?: return
+            savedGroupBusy = true
+
+            var down = 0
+            for (id in savedGroupIds) {
+                val card = findViewById<android.view.View>(id) ?: continue
+                val isDown = card.parent === body
+                val closed = sectionClosed(card)
+                /* 🔴 নিয়মটা মেপে বসানো: একটা ধাপ **নামে** যখন সে ভরা ও বন্ধ;
+                   কিন্তু একবার নেমে গেলে খুললেও **ওখানেই খোলে** (লাফিয়ে উপরে
+                   উঠে যায় না — TK-এর প্রুফে ঠিক এটাই দেখানো হয়েছে)। উপরে ফেরে
+                   একমাত্র তখনই, যখন ভিতরটা আবার ফাঁকা হয়ে যায়। */
+                val goesDown = sectionFilled(card) && (closed || isDown)
+                if (goesDown && !isDown) {
+                    (card.parent as? android.view.ViewGroup)?.removeView(card)
+                    body.addView(card)
+                } else if (!goesDown && isDown) {
+                    body.removeView(card)
+                    // ⛔ ঠিক নিজের ক্রমে ফেরে: এর পরের যে ধাপটা এখনো উপরে আছে
+                    //    তার ঠিক আগে; কেউ না থাকলে SAVED বাক্সটার ঠিক আগে।
+                    var at = host.indexOfChild(group)
+                    var after = false
+                    for (nid in savedGroupIds) {
+                        if (nid == id) { after = true; continue }
+                        if (!after) continue
+                        val nxt = findViewById<android.view.View>(nid) ?: continue
+                        val idx = host.indexOfChild(nxt)
+                        if (idx >= 0) { at = idx; break }
+                    }
+                    host.addView(card, at)
+                }
+                // ⛔ নিচে থাকলেও **খোলা অবস্থায় ফিকে নয়** — লেখার সময় ঝাপসা
+                //    পর্দায় ডাক্তার কাজ করতে পারবেন না।
+                card.alpha = if (goesDown && closed) 0.55f else 1.0f
+                if (goesDown) down++
+            }
+
+            findViewById<TextView>(R.id.savedGroupNum)?.text = down.toString()
+            group.visibility = if (down > 0) android.view.View.VISIBLE else android.view.View.GONE
+            if (down == 0) {
+                savedGroupOpen = false
+                body.visibility = android.view.View.GONE
+                findViewById<TextView>(R.id.savedGroupChev)?.text = "⌄"
+            }
+        } catch (_: Throwable) {
+            // ⛔ এখানে কিছু ভুল হলেও চেকআপ পর্দা ভাঙে না — সাজানোটা শুধু দেখার জিনিস।
+        } finally {
+            savedGroupBusy = false
+        }
+    }
+
+    /** ধাপটা নিচের "SAVED" বাক্সের ভিতরে থাকলে বাক্সটা খুলে দেয়। */
+    private fun openSavedGroupIfHolding(target: android.view.View) {
+        try {
+            val body = findViewById<android.view.ViewGroup>(R.id.savedGroupBody) ?: return
+            if (target.parent !== body) return
+            savedGroupOpen = true
+            body.visibility = android.view.View.VISIBLE
+            findViewById<TextView>(R.id.savedGroupChev)?.text = "⌃"
+        } catch (_: Throwable) { }
+    }
+
+    /** ScrollView-এর ভিতরে কোনো View আসলে কত নিচে — নিজের বাবার সাপেক্ষে নয়।
+     *  🔴 V1119-এ দরকার হলো: ধাপের কার্ড এখন SAVED বাক্সের ভিতরেও থাকতে পারে,
+     *  তখন `card.top` ওই বাক্সের সাপেক্ষে — পুরনো হিসাবে স্ক্রল ভুল জায়গায় যেত। */
+    private fun yInScroll(v: android.view.View): Int {
+        var y = 0
+        var cur: android.view.View = v
+        while (true) {
+            y += cur.top
+            val p = cur.parent as? android.view.View ?: break
+            if (p.id == R.id.stepScroll) break
+            cur = p
+        }
+        return y
+    }
+
+
+    /** বন্ধ অবস্থাতেও ভিতরে কতগুলো টিক পড়েছে সেটা মাথার সবুজ ব্যাজে দেখানো। */
+    private fun refreshNvpFold() {
+        var n = 0
+        for ((_, cb) in nvpBoxes()) if (cb.isChecked) n++
+        setFoldCount("nvp", n)
+    }
+
+    /** বন্ধ অবস্থাতেও ধাপ ২-এ কতগুলো ভরা আছে সেটা মাথার ব্যাজে দেখানো।
+     *  ⛔ চেকবক্সে নতুন শোনার-কাজ (listener) বসানো হয়নি — `buildChecks`-এর
+     *     নিজের `setOnCheckedChangeListener` (পিলের রং) তাহলে মুছে যেত।
+     *     তাই সংখ্যাটা বসে: শুরুতে · পুরোনো রেকর্ড খোলার পরে · আর ভাঁজ
+     *     খোলা-বন্ধ করার সময় (ব্যাজ তো বন্ধ অবস্থাতেই দেখা যায়)। */
+    private fun refreshClinicalFold() {
+        var n = 0
+        n += visualChecks.count { it.isChecked }
+        n += dreChecks.count { it.isChecked }
+        if (findViewById<android.widget.EditText>(R.id.etDreOther)?.text?.toString()?.isNotBlank() == true) n++
+        if (findViewById<android.widget.EditText>(R.id.etProctoscopy)?.text?.toString()?.isNotBlank() == true) n++
+        if (findViewById<android.widget.EditText>(R.id.etOnProbing)?.text?.toString()?.isNotBlank() == true) n++
+        setFoldCount("clin", n)
+    }
+
     /* ═══════════════════════════════════════════════════════════════════
        🔵🔒 V555 (২২.০৮.২০২৬, TK-অনুমোদিত ডেমো) — কাগজের **ভাগ ৩**: চারটে "ইতিহাস"।
        TK-এর নির্দেশ হুবহু: **টিকের জিনিস পাশাপাশি চিপ**, **লেখার জিনিস বক্স**,
@@ -1526,6 +2672,15 @@ class DoctorCheckupActivity : AppCompatActivity() {
                দিলে তখনই ফর্মগুলো ওপেন হবে"*। দলের নামটাই এখন মাথা, ডান দিকে
                কতগুলো বাছা হয়েছে তার সবুজ ব্যাজ আর `⌄` চিহ্ন। */
             val foldKey = "hist" + gi
+            /* 🟢🔒🔒 V653 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবিসহ — "চাপ দিলে ফর্মটা
+               খোলে এটা এখন বোঝাই যাচ্ছে না, লেখার ডান পাশে থাকবে, আরো
+               উজ্জ্বল") — **আসল কারণ:** শিরোনাম-লেখার `layout_weight=1`
+               ছিল — তাই লেখা যতই ছোট হোক, বাকি পুরো জায়গা তার নিজের হয়ে
+               যেত, আর ⌄ চিহ্নটা পর্দার একদম ডান কিনারায় গিয়ে বসত —
+               লেখা আর চিহ্নের মধ্যে বিশাল ফাঁকা জায়গা। **সমাধান:** weight
+               সরানো হলো (শিরোনাম এখন নিজের লেখার মাপেই থাকে), তাই ⌄
+               এখন লেখার ঠিক পরেই বসে। রংও ধূসর থেকে গাঢ় সবুজ করা হলো
+               (আরও স্পষ্ট বোঝা যায় এটা চাপার জিনিস)। */
             val head = android.widget.LinearLayout(this).apply {
                 orientation = android.widget.LinearLayout.HORIZONTAL
                 gravity = android.view.Gravity.CENTER_VERTICAL
@@ -1535,11 +2690,12 @@ class DoctorCheckupActivity : AppCompatActivity() {
             }
             head.addView(TextView(this).apply {
                 text = group.title
-                textSize = 13.5f
+                textSize = 15f   // 🎨 V897 — TK: "ফন্টের সাইজ সামান্য বড় করতে হবে"
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setTextColor(android.graphics.Color.parseColor("#0B2B59"))
                 layoutParams = android.widget.LinearLayout.LayoutParams(
-                    0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
             })
             val num = TextView(this).apply {
                 textSize = 11.5f
@@ -1548,19 +2704,33 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 setBackgroundResource(R.drawable.bg_fold_count_chip)
                 setPadding(symDp(9), symDp(2), symDp(9), symDp(2))
                 visibility = android.view.View.GONE
-            }
-            head.addView(num)
-            val chev = TextView(this).apply {
-                text = "\u2304"
-                textSize = 15f
-                setTextColor(android.graphics.Color.parseColor("#5B6B81"))
                 val lp = android.widget.LinearLayout.LayoutParams(
                     android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
                     android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
                 lp.marginStart = symDp(8)
                 layoutParams = lp
             }
+            head.addView(num)
+            val chev = TextView(this).apply {
+                text = "\u2304"
+                textSize = 15f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.WHITE)
+                gravity = android.view.Gravity.CENTER
+                setBackgroundResource(R.drawable.bg_fold_chevron)
+                val lp = android.widget.LinearLayout.LayoutParams(symDp(24), symDp(24))
+                lp.marginStart = symDp(8)
+                layoutParams = lp
+            }
             head.addView(chev)
+            // 🟢🔒 V653 — চিহ্নের পরে একটা নমনীয় (weight=1) ফাঁকা জায়গা,
+            // যাতে পুরো গুচ্ছটা (লেখা+ব্যাজ+চিহ্ন) বাঁ দিকে জড়ো থাকে আর
+            // সারিটা তবুও সম্পূর্ণ চওড়া জুড়ে চাপার-যোগ্য থাকে (মাঝের ফাঁকা
+            // জায়গায় চাপলেও খোলে/বন্ধ হয়)।
+            head.addView(android.view.View(this).apply {
+                layoutParams = android.widget.LinearLayout.LayoutParams(
+                    0, android.widget.LinearLayout.LayoutParams.MATCH_PARENT, 1f)
+            })
             box.addView(head)
 
             val body = android.widget.LinearLayout(this).apply {
@@ -1577,7 +2747,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
             for (q in group.questions) {
                 if (q.label.isNotBlank()) body.addView(TextView(this).apply {
                     text = q.label
-                    textSize = 11.5f
+                    textSize = 13f
                     setTypeface(typeface, android.graphics.Typeface.BOLD)
                     setTextColor(android.graphics.Color.parseColor("#5B6B81"))
                     setPadding(0, symDp(5), 0, symDp(3))
@@ -1597,7 +2767,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
                     for ((i, opt) in rowOptions.withIndex()) {
                         val chip = TextView(this).apply {
                             text = opt
-                            textSize = 12f
+                            textSize = 13f
                             gravity = android.view.Gravity.CENTER
                             setPadding(symDp(10), symDp(6), symDp(10), symDp(6))
                             isClickable = true
@@ -1660,6 +2830,43 @@ class DoctorCheckupActivity : AppCompatActivity() {
         resources.getIdentifier(key, "drawable", packageName)
     } catch (_: Throwable) { 0 }
 
+    /* 🔵🔒 V600 (২৩.০৮.২০২৬) — বাক্সের চওড়া অনুযায়ী উচ্চতা ছবির নিজের
+       অনুপাতে বসায়। চওড়া এখনো মাপা না হলে (পর্দা প্রথমবার আঁকার সময়)
+       ViewTreeObserver দিয়ে একবার অপেক্ষা করে, তারপর মাপে। */
+    private fun fitAnatomyHolderToImage(holder: android.widget.FrameLayout, bmp: android.graphics.Bitmap?) {
+        if (bmp == null || bmp.width <= 0 || bmp.height <= 0) return
+        val minH = symDp(220)
+        val maxH = symDp(700)
+        fun apply() {
+            val w = holder.width
+            if (w <= 0) return
+            var h = (w.toFloat() * bmp.height / bmp.width).toInt()
+            if (h < minH) h = minH
+            if (h > maxH) h = maxH
+            val lp = holder.layoutParams ?: return
+            if (lp.height == h) return
+            lp.height = h
+            holder.layoutParams = lp
+        }
+        if (holder.width > 0) {
+            apply()
+        } else {
+            /* 🟢🔒 V704 — আগে প্রথমবার layout হলেই শোনাটা খুলে নেওয়া হত। ধাপ ৫-এ
+               আসার পরে বাক্সটা শুরুতে **বন্ধ ভাঁজের ভিতরে** থাকে, তাই তখন চওড়া
+               ০-ই থাকে — একবার শুনেই খুলে নিলে পরে ভাঁজ খুললেও উচ্চতা আর বসত না
+               (ছবি বিকৃত দেখাত)। ⇒ এখন চওড়া সত্যিই মাপা না হওয়া পর্যন্ত শোনা
+               চালু থাকে, মাপা হলেই একবার বসিয়ে নিজে থেকে খুলে যায়।
+               ⛔ মাপার হিসাব (`apply`) এক অক্ষরও বদলায়নি। */
+            holder.viewTreeObserver.addOnGlobalLayoutListener(object : android.view.ViewTreeObserver.OnGlobalLayoutListener {
+                override fun onGlobalLayout() {
+                    if (holder.width <= 0) return
+                    holder.viewTreeObserver.removeOnGlobalLayoutListener(this)
+                    apply()
+                }
+            })
+        }
+    }
+
     private fun buildAnatomyBoard() {
         val holder = findViewById<android.widget.FrameLayout>(R.id.anatomyHolder) ?: return
         val strip = findViewById<android.widget.LinearLayout>(R.id.anatomyStrip) ?: return
@@ -1676,6 +2883,27 @@ class DoctorCheckupActivity : AppCompatActivity() {
             Toast.makeText(this, NoBengali.s("কেন্দ্র বসানো হলো — এবার চিহ্ন দিলেই ঘড়ির সময় নিজে বসবে"),
                 Toast.LENGTH_SHORT).show()
         }
+        /* 🟢🔒 V626 (২৪.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ অনুমোদিত) — "ফোলান"
+           ছবির ভুল জায়গায় (মলদ্বারের কেন্দ্র থেকে দূরে) চাপা হলে একটা মনে
+           করিয়ে দেওয়া বার্তা — কেন্দ্র না জানা থাকলে আগে সেটা ঠিক করতে বলা,
+           জানা থাকলে কাছাকাছি চাপতে বলা। */
+        view.onBulgeBlocked = {
+            val msg = if (view.clockCentre == null)
+                "আগে ⊕ কেন্দ্র দিয়ে পায়ুপথের মাঝখানে একবার ছুঁয়ে দিন — তবেই ফোলান কাজ করবে"
+            else
+                "শুধু মলদ্বারের কাছেই ফোলানো যায় — এখানে নয়"
+            Toast.makeText(this, NoBengali.s(msg), Toast.LENGTH_SHORT).show()
+        }
+        /* 🔵🔒 V600 (২৩.০৮.২০২৬, TK-অনুমোদিত "Option 1", ছবি-প্রুফ পাশ) —
+           TK: "মোবাইল ডিসপ্লে ডানে এবং দুদিকেই জায়গা আছে, তাহলে ফটোটা এত
+           চাপা কেন?" — কারণ বাক্সের উচ্চতা fixed ৩০০dp ছিল, লম্বা ছবির
+           (যেমন anat26, 408×628) দুই পাশে ফাঁকা থেকে যেত।
+           এখন ছবি বসা/বদলানো মাত্রই বাক্সের উচ্চতা সেই ছবির **নিজের
+           অনুপাতে** বসানো হয় — তাই কোনো ছবিতেই দুই পাশ ফাঁকা থাকে না,
+           ছবিও বেঁকায় না (Option 2-এর মতো নয়)। প্রতিটা ছবির অনুপাত আলাদা
+           হতে পারে বলে ৩৮০dp–৭০০dp-এর মধ্যে বাঁধা — কোনো অস্বাভাবিক লম্বা
+           ছবি এলেও পর্দা অসীম লম্বা হয়ে যাবে না। */
+        view.onBaseImageSet = { bmp -> fitAnatomyHolderToImage(holder, bmp) }
         holder.removeAllViews()
         holder.addView(view, android.widget.FrameLayout.LayoutParams(
             android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
@@ -1718,6 +2946,9 @@ class DoctorCheckupActivity : AppCompatActivity() {
         AnatomyView.Tool.ARROW -> "তীর — যেদিকে দেখাবেন সেদিকে টানুন"
         AnatomyView.Tool.ERASE -> "মুছুন — যে দাগটা তুলবেন তার উপরে ছুঁয়ে দিন"
         AnatomyView.Tool.PEN   -> "কলম — আঙুল দিয়ে লিখুন"
+        /* 🔴🔒 V793 (TK: *"ফিসারের দাগটা যেন আমি বেকা আঁকতে পারি … আঙুল
+           দিয়ে যেখানে ঘষা দিব সেখানে যেন দাগ হয়ে যায়"*) */
+        AnatomyView.Tool.FISSURE -> "ফাটল — ফাটল যে বরাবর, সেই বরাবর আঙুল টানুন"
         /* 🔵 V585 (TK-নির্দেশ) — নতুন হাতিয়ার */
         AnatomyView.Tool.CENTRE -> "কেন্দ্র — পায়ুপথের ঠিক মাঝখানে একবার ছুঁয়ে দিন"
     }
@@ -1794,10 +3025,15 @@ class DoctorCheckupActivity : AppCompatActivity() {
            ⛔ `Tool.ARROW` ও তীর আঁকার কোড **মোছা হয়নি** — পুরোনো কোনো ছবিতে
               তীর আঁকা থাকলে সেটা আগের মতোই দেখা যায়, হারায় না। শুধু নতুন করে
               তীর আঁকার বোতামটা আর নেই। */
+        // 🟢🔒🔒 V673 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবি-প্রুফ পাশ — "প্রথমটা থাকবে
+        // পাইলসের মাংস ফোলানোর জন্য, দ্বিতীয়টা ফিস্টুলার নালি দেখানোর জন্য,
+        // তারপরে যেগুলো ছিল পরপর থাকবে") — ক্রম বদলাল: ফোলান প্রথমে, নালী
+        // দ্বিতীয়, তারপর বাকিগুলো (চিহ্ন/গোল/মুছুন) আগের সেই ক্রমেই।
         val toolList = listOf(
-            Triple("pile",  "চিহ্ন",  AnatomyView.Tool.PILE),
-            Triple("tract", "নালী",   AnatomyView.Tool.TRACT),
             Triple("bulge", "ফোলান", AnatomyView.Tool.BULGE),
+            Triple("tract", "নালী",   AnatomyView.Tool.TRACT),
+            Triple("fis",   "ফাটল",   AnatomyView.Tool.FISSURE),   // 🔴 V793
+            Triple("pile",  "চিহ্ন",  AnatomyView.Tool.PILE),
             Triple("ring",  "গোল",    AnatomyView.Tool.RING),
             Triple("erase", "মুছুন",  AnatomyView.Tool.ERASE),
             /* 🔵 V585 (২৩.০৮.২০২৬, TK-অনুমোদিত ডেমো-প্রুফের পরে) — "কেন্দ্র"।
@@ -1836,10 +3072,11 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 Toast.makeText(this@DoctorCheckupActivity, NoBengali.s("মোছার মত কিছু নেই"), Toast.LENGTH_SHORT).show()
             } else {
                 android.app.AlertDialog.Builder(this@DoctorCheckupActivity)
-                    .setMessage("ছবির সব দাগ মুছে যাবে। মুছব?")
+                    .setMessage("All marks on the picture will be erased. Erase?")   /* 🔤 V728 */
                     .setNegativeButton("No", null)
                     .setPositiveButton("Yes") { _, _ -> view.clearMarks() }
-                    .show()
+                    // 🔴🔒 V610 (২৪.০৮.২০২৬) — V512-এর একই প্রমাণিত পথ।
+                    .show().also { com.tkbiswas.pilesclinic.native.NoBengali.installDialog(it); com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) }   // 🤫 V774
             }
         }
         if (!full) {
@@ -1880,7 +3117,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
 
         // ＋ ছবি যোগ — ক্যামেরা বা গ্যালারি
         strip.addView(TextView(this).apply {
-            text = "＋\nছবি যোগ"
+            text = "+\nAdd Photo"
             textSize = 10.5f
             gravity = android.view.Gravity.CENTER
             setTextColor(android.graphics.Color.parseColor("#0B4F2A"))
@@ -1902,7 +3139,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         val dropped = AnatomyPictureRepository.hiddenRows(this)
         if (dropped.isNotEmpty()) {
             strip.addView(TextView(this).apply {
-                text = "♻\nফেরান " + dropped.size
+                text = "♻\nRestore " + dropped.size
                 textSize = 10.5f
                 gravity = android.view.Gravity.CENTER
                 setTextColor(android.graphics.Color.parseColor("#7A4A00"))
@@ -1914,7 +3151,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 val lp = android.widget.LinearLayout.LayoutParams(symDp(62), symDp(62))
                 lp.setMargins(0, 0, symDp(6), 0)
                 layoutParams = lp
-                contentDescription = "সরানো ছবি ফেরান"
+                contentDescription = "Restore removed photo"
                 setOnClickListener { askRestorePicture(dropped, strip, view) }
             })
         }
@@ -1972,7 +3209,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
     private fun askDropPicture(pic: AnatomyModel.Picture,
                                strip: android.widget.LinearLayout, view: AnatomyView) {
         android.app.AlertDialog.Builder(this)
-            .setMessage("\"" + pic.label + "\" ছবিটা তালিকা থেকে সরাব?\n\n" +
+            .setMessage("\"" + pic.label + "\" — remove this picture from the list?\n\n" +
                         "ছবিটা মুছে যাবে না — পুরোনো চেক-আপে এর উপরে আঁকা থাকলে সেটা আগের মতোই দেখা যাবে।")
             .setNegativeButton("No", null)
             .setPositiveButton("Yes") { _, _ ->
@@ -1984,7 +3221,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 buildAnatomyStrip(strip, view)
                 Toast.makeText(this, NoBengali.s("তালিকা থেকে সরানো হলো"), Toast.LENGTH_SHORT).show()
             }
-            .show()
+            .show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
     }
 
     /**
@@ -2010,24 +3247,24 @@ class DoctorCheckupActivity : AppCompatActivity() {
             if (r.picKey.isBlank()) "📷 " + nm else "🖼 " + nm
         }
         android.app.AlertDialog.Builder(this)
-            .setTitle(NoBengali.s("সরানো ছবি ফেরান"))
+            .setTitle("Restore removed photo")
             .setItems(names.map { NoBengali.s(it) }.toTypedArray()) { d, which ->
                 d.dismiss()
                 doRestorePicture(dropped[which], strip, view)
             }
             .setNegativeButton("← Back", null)
-            .show()
+            .show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
     }
 
     private fun doRestorePicture(row: AnatomyModel.PicRow,
                                  strip: android.widget.LinearLayout, view: AnatomyView) {
-        Toast.makeText(this, NoBengali.s("ফেরানো হচ্ছে…"), Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Restoring…", Toast.LENGTH_SHORT).show()
         BackgroundWork.run {
             val fixed = try { AnatomyPictureRepository.restoreRow(this, row.id) } catch (_: Throwable) { null }
             if (fixed == null) {
                 runOnUiThread {
-                    Toast.makeText(this, NoBengali.s(
-                        "ফেরানো গেল না — ইন্টারনেট দেখে আবার চেষ্টা করুন"), Toast.LENGTH_LONG).show()
+                    Toast.makeText(this,
+                        "Could not restore — check internet and try again", Toast.LENGTH_LONG).show()
                 }
             } else {
                 AnatomyPictureRepository.saveLocal(this, fixed)
@@ -2073,6 +3310,15 @@ class DoctorCheckupActivity : AppCompatActivity() {
         big.load(small.save()) { key -> anatomyResId(key) }
         big.tool = small.tool
         big.pileLabel = small.pileLabel
+        /* 🟢🔒 V626 — পুরো পর্দাতেও একই "ফোলান" জায়গা-পাহারা ও বার্তা,
+           ছোট বোর্ডের `view.onBulgeBlocked`-এর হুবহু একই লজিক। */
+        big.onBulgeBlocked = {
+            val msg = if (big.clockCentre == null)
+                "আগে ⊕ কেন্দ্র দিয়ে পায়ুপথের মাঝখানে একবার ছুঁয়ে দিন — তবেই ফোলান কাজ করবে"
+            else
+                "শুধু মলদ্বারের কাছেই ফোলানো যায় — এখানে নয়"
+            Toast.makeText(this, NoBengali.s(msg), Toast.LENGTH_SHORT).show()
+        }
 
         val root = android.widget.FrameLayout(this).apply {
             setBackgroundColor(android.graphics.Color.parseColor("#08111C"))
@@ -2170,12 +3416,50 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 android.view.Gravity.BOTTOM).apply { setMargins(symDp(10), 0, symDp(10), symDp(10)) }
         }
         val ksCap = TextView(this).apply {
-            text = "যে ফোলা বা নালীতে ক্ষারসূত্র দেখাবেন, সেটা ছুঁয়ে দিন"
+            text = NoBengali.s("যে ফোলা বা নালীতে ক্ষারসূত্র দেখাবেন, সেটা ছুঁয়ে দিন")
             textSize = 15f
             setTextColor(android.graphics.Color.WHITE)
             gravity = android.view.Gravity.CENTER
             setPadding(0, 0, 0, symDp(9))
         }
+        /* ═══ 🔴🔒 V793 (২৮.০৮.২০২৬, TK-নির্দেশ ও ডেমো-প্রুফ অনুমোদনের পরে) ═══
+           TK: *"সেই রোগীর চিকিৎসা না করলে সমস্যাটা কত বাড়তে পারে সেটা যেন
+           বোঝাতে পারি, এবং চিকিৎসা কিভাবে করি সেটা ধাপে ধাপে বোঝাতে পারি"*
+           ⇒ **কী বোঝাবেন** — ⚠️ না সারালে · 🩺 চিকিৎসা।
+           ⛔ পুরোনো ধাপগুলো (চিকিৎসা) এক অক্ষরও বদলায়নি; "না সারালে" নতুন। */
+        val ksModeRow = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            setPadding(0, 0, 0, symDp(8))
+        }
+        fun ksChip(label: String): TextView = TextView(this).apply {
+            text = NoBengali.s(label); textSize = 13.5f
+            gravity = android.view.Gravity.CENTER
+            setPadding(symDp(6), symDp(9), symDp(6), symDp(9))
+            isClickable = true; isFocusable = true
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                .apply { setMargins(symDp(3), 0, symDp(3), 0) }
+        }
+        val ksChipWorse = ksChip("⚠️ না সারালে")
+        val ksChipCure  = ksChip("🩺 চিকিৎসা")
+        ksModeRow.addView(ksChipWorse); ksModeRow.addView(ksChipCure)
+        ksBox.addView(ksModeRow)
+
+        /* 🔴🔒 V793 — TK: *"কোন কোন পেশেন্টের তো চার সপ্তাহেও ঠিক হয়ে যেতে
+           পারে"* ⇒ ফিস্টুলায় কত সপ্তাহে সারবে সেটা ➖ ➕ দিয়ে ডাক্তার বসান;
+           সুতোর গোল তত ধাপে ছোট হয়ে আসে। ⛔ অন্য রোগে সারিটা লুকানো থাকে। */
+        val ksWeekRow = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER
+            setPadding(0, 0, 0, symDp(8))
+            visibility = android.view.View.GONE
+        }
+        val ksWkMinus = ksChip("➖")
+        val ksWkText  = ksChip("সপ্তাহ : 4")
+        val ksWkPlus  = ksChip("➕")
+        ksWeekRow.addView(ksWkMinus); ksWeekRow.addView(ksWkText); ksWeekRow.addView(ksWkPlus)
+        ksBox.addView(ksWeekRow)
+
         ksBox.addView(ksCap)
         val ksRow = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.HORIZONTAL
@@ -2200,29 +3484,70 @@ class DoctorCheckupActivity : AppCompatActivity() {
         val ksPrev = ksBtn("◀ আগের")
         val ksNext = ksBtn("পরের ধাপ ▶", wide = true)
         val ksInj  = ksBtn("💉")
+        /* 🔵🔒 V898 (TK-অনুমোদিত প্রুফ) — বাক্সটা ছোট করে রাখার বোতাম। ছোট
+           অবস্থায় শুধু ধাপের নাম ও "পরের ধাপ" থাকে, তাই ছবি ঢাকা পড়ে না;
+           ⌃ চাপলে না সারালে · চিকিৎসা · সপ্তাহ · আগের · 💉 আবার ফিরে আসে। */
+        val ksMore = ksBtn("⌃")
         val ksEnd  = ksBtn("✕")
-        ksRow.addView(ksPrev); ksRow.addView(ksNext); ksRow.addView(ksInj); ksRow.addView(ksEnd)
+        ksRow.addView(ksPrev); ksRow.addView(ksNext); ksRow.addView(ksInj)
+        ksRow.addView(ksMore); ksRow.addView(ksEnd)
         ksBox.addView(ksRow)
         root.addView(ksBox)
 
         var ksWithInjection = true
         var ksSteps: List<Int> = emptyList()
         var ksAt = 0
+        var ksWorse = false                       // 🔴 V793 — "না সারালে" মোড
+        /* 🔵 V898 — নিচের বাক্স বড় (সব বোতাম) না ছোট (শুধু ধাপের নাম +
+           "পরের ধাপ")। ছোট রাখলে ছবি ঢাকা পড়ে না — TK-অনুমোদিত প্রুফ। */
+        var ksFull = false
+        var ksKind = ""                           // 🔴 V793 — বাছা চিহ্নের ধরন
         var ksAnim: android.animation.ValueAnimator? = null
 
+        /** 🔴 V793 — কোন মোডটা চালু, চিপের রঙে সেটাই দেখা যায়। */
+        fun ksPaintChips() {
+            for ((i, ch) in listOf(ksChipWorse, ksChipCure).withIndex()) {
+                val on = (i == 0) == ksWorse
+                ch.background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = symDp(10).toFloat()
+                    setColor(android.graphics.Color.parseColor(
+                        if (!on) "#2216222E" else if (i == 0) "#8A3A2E" else "#1F6D4A"))
+                    setStroke(symDp(1), android.graphics.Color.parseColor(
+                        if (!on) "#553B4A5A" else if (i == 0) "#C4564A" else "#2E9366"))
+                }
+                ch.setTextColor(android.graphics.Color.parseColor(if (on) "#FFFFFF" else "#B9C6D4"))
+            }
+            for (ch in listOf(ksWkMinus, ksWkText, ksWkPlus)) {
+                ch.background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = symDp(9).toFloat()
+                    setColor(android.graphics.Color.parseColor("#1A4E7A"))
+                }
+                ch.setTextColor(android.graphics.Color.WHITE)
+            }
+        }
         fun ksPaint() {
             if (ksSteps.isEmpty()) {
-                ksCap.text = "যে ফোলা বা নালীতে ক্ষারসূত্র দেখাবেন, সেটা ছুঁয়ে দিন"
+                ksCap.text = NoBengali.s("যে ফোলা বা নালীতে ক্ষারসূত্র দেখাবেন, সেটা ছুঁয়ে দিন")
                 ksPrev.visibility = android.view.View.GONE
                 ksNext.visibility = android.view.View.GONE
                 ksInj.visibility = android.view.View.GONE
                 return
             }
-            ksCap.text = KsharSutraAnim.caption(ksSteps[ksAt])
-            ksPrev.visibility = if (ksAt > 0) android.view.View.VISIBLE else android.view.View.GONE
+            // 🔴 V793 — নতুন ধাপগুলোর লেখা (পুরোনোগুলোর লেখা অবিকল একই থাকে)
+            ksCap.text = NoBengali.s(KsharSutraAnim.caption2(ksSteps[ksAt], ksKind, big.ksWeeks))
+            ksPrev.visibility = if (ksFull && ksAt > 0) android.view.View.VISIBLE else android.view.View.GONE   // 🔵 V898
             ksNext.visibility = if (ksAt < ksSteps.size - 1) android.view.View.VISIBLE else android.view.View.GONE
-            ksInj.visibility = android.view.View.VISIBLE
+            // ইনজেকশনের বোতাম শুধু মাংসের চিকিৎসায়
+            val injUse = !ksWorse && (ksKind == AnatomyModel.KIND_BULGE || ksKind == AnatomyModel.KIND_PILE)
+            ksInj.visibility = if (ksFull && injUse) android.view.View.VISIBLE else android.view.View.GONE   // 🔵 V898
             ksInj.alpha = if (ksWithInjection) 1f else 0.45f
+            // সপ্তাহের সারি শুধু ফিস্টুলার চিকিৎসায়
+            ksWeekRow.visibility =
+                if (ksFull && !ksWorse && ksKind == AnatomyModel.KIND_TRACT) android.view.View.VISIBLE   // 🔵 V898
+                else android.view.View.GONE
+            ksModeRow.visibility = if (ksFull) android.view.View.VISIBLE else android.view.View.GONE   // 🔵 V898
+            ksWkText.text = NoBengali.s("সপ্তাহ : ${big.ksWeeks}")
+            ksPaintChips()
         }
         /** ধাপটা নরম করে চালানো — ০ থেকে ১। */
         fun ksRun(step: Int) {
@@ -2232,7 +3557,9 @@ class DoctorCheckupActivity : AppCompatActivity() {
             big.invalidate()
             val a = android.animation.ValueAnimator.ofFloat(0f, 1f)
             a.duration = if (step == KsharSutraAnim.LUMP_DRAWN ||
-                             step == KsharSutraAnim.TRACT_DRAWN) 1L else 1100L
+                             step == KsharSutraAnim.TRACT_DRAWN ||
+                             step == KsharSutraAnim.FIS_DRAWN ||
+                             step == KsharSutraAnim.WORSE_1) 1L else 1100L
             a.addUpdateListener { v -> big.ksT = v.animatedValue as Float; big.invalidate() }
             ksAnim = a
             a.start()
@@ -2245,10 +3572,11 @@ class DoctorCheckupActivity : AppCompatActivity() {
         }
         fun ksSelect(index: Int) {
             val m = AnatomyModel.parse(big.save()).marks.getOrNull(index) ?: return
-            ksSteps = KsharSutraAnim.stepsFor(m.kind, ksWithInjection)
+            ksKind = m.kind                                     // 🔴 V793
+            ksSteps = KsharSutraAnim.stepsFor2(m.kind, ksWithInjection, ksWorse, big.ksWeeks)
             if (ksSteps.isEmpty()) {
                 Toast.makeText(this@DoctorCheckupActivity,
-                    NoBengali.s("এখানে ক্ষারসূত্র দেখানো যায় না — ফোলা বা নালী ছুঁয়ে দিন"),
+                    NoBengali.s("এখানে ধাপ দেখানো যায় না — ফোলা · ফাটল · নালী ছুঁয়ে দিন"),
                     Toast.LENGTH_SHORT).show()
                 return
             }
@@ -2266,6 +3594,22 @@ class DoctorCheckupActivity : AppCompatActivity() {
         /* 🟢 V589 — ডাক্তার ছুঁয়ে জায়গা দেখালে ওই ধাপটা তখনই আবার চলে,
            তাই সুচ/সুতো নতুন জায়গায় যেতে দেখা যায়। */
         big.onKsSpot = { if (ksSteps.isNotEmpty()) ksRun(ksSteps[ksAt]) }
+        /* 🔴🔒 V793 — মোড বদলালে ওই রোগের ওই তালিকাটাই আবার প্রথম থেকে চলে।
+           ⛔ ডাক্তারের আঁকা দাগ কিচ্ছু বদলায় না — শুধু কোন ধাপগুলো দেখানো হবে। */
+        ksChipWorse.setOnClickListener {
+            if (!ksWorse) { ksWorse = true; if (big.ksIndex >= 0) ksSelect(big.ksIndex) else ksPaint() }
+        }
+        ksChipCure.setOnClickListener {
+            if (ksWorse) { ksWorse = false; if (big.ksIndex >= 0) ksSelect(big.ksIndex) else ksPaint() }
+        }
+        ksWkMinus.setOnClickListener {
+            big.ksWeeks = KsharSutraAnim.clampWeeks(big.ksWeeks - 1)
+            if (big.ksIndex >= 0) ksSelect(big.ksIndex) else ksPaint()
+        }
+        ksWkPlus.setOnClickListener {
+            big.ksWeeks = KsharSutraAnim.clampWeeks(big.ksWeeks + 1)
+            if (big.ksIndex >= 0) ksSelect(big.ksIndex) else ksPaint()
+        }
         ksNext.setOnClickListener { ksGo(ksAt + 1) }
         ksPrev.setOnClickListener { ksGo(ksAt - 1) }
         ksInj.setOnClickListener {
@@ -2280,19 +3624,58 @@ class DoctorCheckupActivity : AppCompatActivity() {
             ksAnim?.cancel(); ksAnim = null
             big.ksOn = false; big.ksIndex = -1; big.ksStep = 0; big.ksT = 0f
             ksSteps = emptyList(); ksAt = 0
+            ksWorse = false; ksKind = ""          // 🔴 V793
             ksBox.visibility = android.view.View.GONE
             bar.visibility = android.view.View.VISIBLE
+            topRow.visibility = android.view.View.VISIBLE   // 🔵 V898
+            big.ksDrawAllowed = false                       // 🔵 V898
+            big.fillScreen = true                           // 🔵 V898 — আগের চেহারায়
+            big.resetZoom()
             big.invalidate()
         }
         ksEnd.setOnClickListener { ksStop() }
+
+        /* ═══ 🔵🔒🔒 V898 (৩১.০৮.২০২৬, TK ডেমো প্রুফ দেখে "হ্যাঁ পাশ") ═══
+           TK: *"ফিস্টুলার চিকিৎসা কীভাবে হয় দেখতে পারছি না, ফটো ঢেকে যাচ্ছে"* ·
+           *"ফটোটাই মনে হয় বেশি বড় করে ফেলেছেন"* ·
+           *"ফটোতে একবার চাপ দিলে যেন শুধু ফটোটাই থাকে … আবার চাপ দিলে
+           পরের ধাপ · ইনজেকশন এগুলো ফিরে আসে"* · *"হাইড হলেও যেন ছবি আঁকা যায়"*।
+
+           তিনটে কাজ:
+             ১) ধাপ দেখানোর সময় ছবিটা **পর্দা-ভরা** না রেখে **পুরোটা** দেখানো হয়
+                (`fillScreen=false`) — তাই নিচের নালী/সুতো আর কাটা যায় না;
+             ২) ছবির ফাঁকা জায়গায় **এক টোকা** — উপরের গোল বোতাম ও নিচের বাক্স
+                লুকিয়ে যায়, আবার টোকায় ফিরে আসে;
+             ৩) লুকানো অবস্থায় আঙুল টানলে **আঁকা যায়** (AnatomyView-এ V898)।
+           ⛔ ধাপের হিসাব · অ্যানিমেশন · সেভ — কিচ্ছু ছোঁয়া হয়নি, শুধু দেখানো। */
+        var ksHidden = false
+        fun ksSetChrome(show: Boolean) {
+            ksHidden = !show
+            val vis = if (show) android.view.View.VISIBLE else android.view.View.GONE
+            topRow.visibility = vis
+            ksBox.visibility = if (big.ksOn) vis else android.view.View.GONE
+            if (!big.ksOn) bar.visibility = vis
+            big.ksDrawAllowed = !show          // লুকানো থাকলে আঁকা যাবে
+            big.invalidate()
+        }
+        big.onKsBlankTap = { ksSetChrome(ksHidden) }
+
+        // 🔵 V898 — ⌃ / ⌄ চাপলে বাক্স বড় বা ছোট।
+        ksMore.setOnClickListener {
+            ksFull = !ksFull
+            ksMore.text = if (ksFull) "⌄" else "⌃"
+            ksPaint()
+        }
+        ksMore.text = "⌃"
 
         val btnKs = roundBtn("🧵").apply {
             setOnClickListener {
                 if (big.ksOn) { ksStop(); return@setOnClickListener }
                 if (AnatomyModel.parse(big.save()).marks.none {
-                        it.kind == AnatomyModel.KIND_BULGE || it.kind == AnatomyModel.KIND_TRACT }) {
+                        it.kind == AnatomyModel.KIND_BULGE || it.kind == AnatomyModel.KIND_TRACT ||
+                        it.kind == AnatomyModel.KIND_FISSURE }) {          // 🔴 V793 — ফাটলও
                     Toast.makeText(this@DoctorCheckupActivity,
-                        NoBengali.s("আগে ছবিতে ফোলা বা নালী আঁকুন — তারপর ক্ষারসূত্র দেখানো যাবে"),
+                        NoBengali.s("আগে ছবিতে ফোলা · ফাটল বা নালী আঁকুন — তারপর ধাপ দেখানো যাবে"),
                         Toast.LENGTH_LONG).show()
                     return@setOnClickListener
                 }
@@ -2300,11 +3683,28 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 ksSteps = emptyList(); ksAt = 0
                 bar.visibility = android.view.View.GONE
                 ksBox.visibility = android.view.View.VISIBLE
+                /* 🔵🔒 V898 — TK: *"ফটোটাই বেশি বড় করে ফেলেছেন"*। ধাপ দেখানোর
+                   সময় ছবিটা পর্দা-ভরা নয়, **পুরোটা** দেখানো হয় — তাই নিচের
+                   নালী ও সুতো আর কাটা পড়ে না। বন্ধ করলে আগের মতোই ফিরে যায়। */
+                big.fillScreen = false
+                big.resetZoom()
                 ksPaint()
                 big.invalidate()
             }
         }
         topRow.addView(btnKs, 2)
+
+        /* 🎓🔒 V783 (২৮.০৮.২০২৬, TK-নির্দেশ ও ডেমো-ফটো অনুমোদনের পরে) —
+           **রোগীকে বোঝানোর পর্দা: পাইলস · ফিশার · ফিস্টুলা।**
+           TK: *"আমি যেন বেছে নিতে পারি — যে রোগীর যে সমস্যা সেই অনুসারে যেন
+           বোঝাতে পারি"* · *"এটা লিখে রাখার কিছু নেই"* · *"একই পেশেন্টের তিন
+           রকম রোগও তো থাকতে পারে"*।
+           ⛔ **কিচ্ছু সেভ হয় না** — ডেটাবেস · প্রিন্ট · A4 কোথাও যায় না।
+           ⛔ ডাক্তারের নিজের আঁকা ছবি এক বিন্দুও ছোঁয়া হয় না — এটা সম্পূর্ণ
+              আলাদা একটা পর্দা, আলাদা View (`KsharTeachView`)।
+           ⛔ পুরনো 🧵 (নিজের আঁকা ছবির উপরে অ্যানিমেশন) আগের মতোই আছে। */
+        val btnTeach = roundBtn("🎓").apply { setOnClickListener { openKsharTeach() } }
+        topRow.addView(btnTeach, 3)
 
         /* বন্ধ করার সময় বড় বোর্ডে যা আঁকা হয়েছে সেটাই ছোট বোর্ডে ফেরত যায়।
            ⛔ লেখাটা (`note`) ছোট বোর্ডেরটাই থাকে — বড় পর্দায় লেখার ঘর নেই,
@@ -2320,6 +3720,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         }
         dialog.setContentView(root)
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
 
@@ -2354,14 +3755,16 @@ class DoctorCheckupActivity : AppCompatActivity() {
         val view = target ?: anatomyView ?: return
         val all = listOf("নাম ছাড়াই") + (1..12).map { "${it}টা" }
         android.app.AlertDialog.Builder(this)
-            .setTitle("ঘড়ির কাঁটা অনুযায়ী জায়গা")
+            .setTitle("Clock position")   /* 🔤 V728 */
             .setItems(all.toTypedArray()) { d, which ->
                 view.pileLabel = if (which == 0) "" else all[which]
                 d.dismiss()
             }
             .setNegativeButton("← Back") { d, _ -> d.dismiss() }
             .setCancelable(true)
-            .show()
+            // 🔴🔒 V610 (২৪.০৮.২০২৬) — V512-এর একই প্রমাণিত পথ; এই dialog-এ
+            // .setItems()-এর তালিকাও (নাম ছাড়াই/১টা/২টা…) বাংলা ছিল, একবারেই ঢেকে যায়।
+            .show().also { com.tkbiswas.pilesclinic.native.NoBengali.installDialog(it); com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) }   // 🤫 V774
     }
 
     /** শেষবার যা জমা ছিল — পর্দা তৈরি না থাকলে এটাই ফেরত যায়, নইলে
@@ -2370,6 +3773,24 @@ class DoctorCheckupActivity : AppCompatActivity() {
         রোগীর সারিতে বসায়। ⛔ এক রোগীর সেভ শেষ হলেই মুছে ফেলা হয়, যাতে
         পরের রোগীর ঘরে আগেরজনের তথ্য বসার পথ না থাকে (B437-এর শিক্ষা)। */
     @Volatile private var pendingNote: CheckupRecord? = null
+    /** 🩺 V839 — সেভের সময় ব্যাকগ্রাউন্ড থ্রেডে পাঠানোর জন্য, মূল থ্রেডেই
+     *  ধরে রাখা প্ল্যানটা (View off-thread ছোঁয়া নিরাপদ নয় — V656-এর নিয়ম)। */
+    @Volatile private var pendingNvp: NextVisitPlan.Entry? = null
+
+    // 🟢🔒 V656 (২৫.০৮.২০২৬, TK-নির্দেশ — Doctor Note & Reminder) — বাছা
+    // তারিখটা (ISO, yyyy-MM-dd) এখানে ধরে রাখা হয়; TextView-তে শুধু দেখানোর
+    // লেখা থাকে। ⛔ RegistrationActivity.kt-এর selectedDate-এর একই প্যাটার্ন।
+    private var doctorReminderDateIso: String = ""
+    // 🟢🔒 V671 (২৫.০৮.২০২৬, TK-নির্দেশ) — সময়ও লাগবে, নইলে নোটিফিকেশন
+    // ঠিক সময়ে বাজবে কীভাবে জানা যায় না। ফরম্যাট "HH:mm" (24-ঘণ্টা)।
+    private var doctorReminderTimeStr: String = ""
+    /* 🩺🔒 V1109 (০৫.০৯.২০২৬, TK-নির্দেশ: *"কোন ডাক্তারকে মনে করিয়ে দিতে হবে
+       সেই ডাক্তারের নাম যেন চুস করা যায়, এবং এটা যেন কার্যকরী হয়"*) —
+       বাছা ডাক্তারের **মোবাইল নম্বর** এখানে থাকে (নাম নয় — নাম বদলাতে পারে,
+       নম্বরই আসল পরিচয়, প্রকল্পের সব জায়গার একই নিয়ম)।
+       ⛔ ফাঁকা মানে **সব ডাক্তার** — পুরনো সেভ করা রিমাইন্ডারে ঠিক তাই থাকে,
+          তাই আগের কিছুই হারায় না। */
+    private var doctorReminderForMobile: String = ""
 
     /** পর্দা খোলার পর একবারই ফর্ম ভরানো হয়। */
     private var restoredOnce: Boolean = false
@@ -2448,7 +3869,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         for (q in LifestyleModel.QUESTIONS) {
             box.addView(TextView(this).apply {
                 text = q.label
-                textSize = 12f
+                textSize = 13f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setTextColor(android.graphics.Color.parseColor("#5B6B81"))
                 setPadding(0, symDp(8), 0, symDp(3))
@@ -2467,7 +3888,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 for ((i, opt) in rowOptions.withIndex()) {
                     val chip = TextView(this).apply {
                         text = opt
-                        textSize = 12f
+                        textSize = 13f
                         gravity = android.view.Gravity.CENTER
                         setPadding(symDp(10), symDp(6), symDp(10), symDp(6))
                         isClickable = true
@@ -2478,7 +3899,18 @@ class DoctorCheckupActivity : AppCompatActivity() {
                         layoutParams = lp
                     }
                     chip.setOnClickListener {
-                        chip.setTag(R.id.historyDetailGroup, chip.getTag(R.id.historyDetailGroup) != true)
+                        if (q.singleSelect) {
+                            // 🔴 V600 — শুধু একটাই বাছা থাকবে; একই চিপে আবার
+                            // চাপ দিলে বাছাই উঠে যায় (severity-চিপের মতোই)।
+                            val wasOn = chip.getTag(R.id.historyDetailGroup) == true
+                            for (c in chips) {
+                                c.setTag(R.id.historyDetailGroup, false)
+                                paintHistoryChip(c)
+                            }
+                            chip.setTag(R.id.historyDetailGroup, !wasOn)
+                        } else {
+                            chip.setTag(R.id.historyDetailGroup, chip.getTag(R.id.historyDetailGroup) != true)
+                        }
                         paintHistoryChip(chip)
                         refreshLifeFold()   // 🔵 V578 — মাথার সংখ্যা সঙ্গে সঙ্গে
                     }
@@ -2543,7 +3975,14 @@ class DoctorCheckupActivity : AppCompatActivity() {
             picked[field] = chips.filter { it.getTag(R.id.historyDetailGroup) == true }
                 .map { (it.tag as? String).orEmpty() }
         }
-        val note = findViewById<android.widget.EditText>(R.id.etHistoryNote)?.text?.toString().orEmpty()
+        // 🟢🔒 V600 (২৩.০৮.২০২৬, TK-নির্দেশ): "এই ইতিহাস নিয়ে আর কিছু থাকলে
+        // লিখুন" বাক্সটা (etHistoryNote) XML থেকে সম্পূর্ণ সরানো হয়েছিল,
+        // কিন্তু এই লাইনে R.id.etHistoryNote রয়েই গিয়েছিল — তাই বিল্ড
+        // "Unresolved reference" দিয়ে আটকাচ্ছিল (TK ধরিয়ে দিয়েছেন)। বাক্স
+        // নেই মানে নতুন নোট নেই — তাই এখন সবসময় খালি স্ট্রিং।
+        // ⛔ পুরনো রেকর্ডের নোট এখনো হারায়নি — HistoryDetailModel.parse()
+        //    আগের মতোই সেটা পড়ে/জানে, শুধু নতুন করে টাইপ করার বাক্স নেই।
+        val note = ""
         return HistoryDetailModel.format(picked, note)
     }
 
@@ -2556,7 +3995,10 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 paintHistoryChip(chip)
             }
         }
-        findViewById<android.widget.EditText>(R.id.etHistoryNote)?.setText(note)
+        // 🟢🔒 V600 — উপরের একই কারণে; `note` পরিবর্তনশীলটা এখন কোথাও
+        // দেখানো হয় না (বাক্স নেই), কিন্তু ভেরিয়েবলটা ব্যবহৃত থাকল যাতে
+        // destructuring warning না আসে এবং ভবিষ্যতে দরকার হলে সহজেই ফেরানো যায়।
+        note.let { }
         refreshHistoryFolds()   // 🔵 V574 — পুরোনো রেকর্ড খুললেও সংখ্যা ঠিক থাকে
     }
 
@@ -2785,6 +4227,13 @@ class DoctorCheckupActivity : AppCompatActivity() {
 
         // Estimate & Decision — সেভের পর লুকানো।
         findViewById<android.view.View>(R.id.secEstimate).visibility = android.view.View.GONE
+        /* 🧮🔒 V995 — "🧮 Build" আইকনটা এখন হেডারে, Counsel-এর ভিতরে নয়। আগে
+           সেভের পর Counsel সারাংশে বদলে যেত বলে বোতামটা নিজে থেকেই হারিয়ে
+           যেত; সেই আচরণ হুবহু রাখতে এখানে আইকনটাও লুকানো হয়। */
+        findViewById<android.view.View>(R.id.btnBuildEstimate)?.visibility = android.view.View.GONE
+        /* 🧮 V1105 — ঘরের পাশের নতুন আইকনটাও ঠিক একই সময়ে লুকায়, নইলে সেভের
+           পরেও একটা বোতাম থেকে যেত (হেডারেরটা লুকিয়ে যেত, এটা নয়)। */
+        findViewById<android.view.View>(R.id.btnBuildEstimateInline)?.visibility = android.view.View.GONE
 
         // Photo — ছবি থাকে, শুধু ক্যামেরা-বোতাম + Quick Actions লুকানো।
         findViewById<android.view.View>(R.id.btnBeforePhoto).visibility = android.view.View.GONE
@@ -2799,7 +4248,9 @@ class DoctorCheckupActivity : AppCompatActivity() {
         // 🎨 (07.08.2026, প্রুফ-চেহারা) — সব ধাপ সম্পন্ন: প্রতিটা নম্বর-বৃত্ত এখন
         // সবুজ ✓। (আগে: chip.text = "✓ " + stepTitles[idx].substringAfter(" "))
         stepChips.forEachIndexed { idx, circle ->
-            circle.background = stepCircleBg(true)
+            circle.background = stepDotBg(done = true, current = false)   // 🎨 V897
+            stepLineLeft.getOrNull(idx)?.setBackgroundColor(android.graphics.Color.parseColor("#12805C"))
+            stepLineRight.getOrNull(idx)?.setBackgroundColor(android.graphics.Color.parseColor("#12805C"))
             circle.text = "✓"
             circle.setTextColor(android.graphics.Color.WHITE)
             circle.setTypeface(null, android.graphics.Typeface.BOLD)
@@ -2828,8 +4279,9 @@ class DoctorCheckupActivity : AppCompatActivity() {
         if (card.childCount > 1) card.removeViewAt(1)
         card.getChildAt(0).visibility = android.view.View.VISIBLE
         lockedFooter(false)  // show Back|Save so a re-edit can be re-saved
+        openSavedGroupIfHolding(card)   // 🟢 V1119
         findViewById<ScrollView>(R.id.stepScroll).post {
-            findViewById<ScrollView>(R.id.stepScroll).smoothScrollTo(0, card.top)
+            findViewById<ScrollView>(R.id.stepScroll).smoothScrollTo(0, yInScroll(card))   // 🟢 V1119
         }
     }
 
@@ -2858,7 +4310,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         wv.settings.builtInZoomControls = true
         wv.settings.displayZoomControls = false
         wv.loadDataWithBaseURL("file:///android_asset/", html, "text/html", "UTF-8", null)
-        findViewById<android.view.View>(R.id.stepBar).visibility = android.view.View.GONE
+        findViewById<android.view.View>(R.id.stepBarWrap).visibility = android.view.View.GONE   // 🎨 V897
         findViewById<android.view.View>(R.id.stepScroll).visibility = android.view.View.GONE
         findViewById<android.view.View>(R.id.patientDetailsFull).visibility = android.view.View.GONE
         wv.visibility = android.view.View.VISIBLE
@@ -2874,7 +4326,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
 
     private fun showEditForm() {
         findViewById<android.view.View>(R.id.savedA4View).visibility = android.view.View.GONE
-        findViewById<android.view.View>(R.id.stepBar).visibility = android.view.View.VISIBLE
+        findViewById<android.view.View>(R.id.stepBarWrap).visibility = android.view.View.VISIBLE   // 🎨 V897
         findViewById<android.view.View>(R.id.stepScroll).visibility = android.view.View.VISIBLE
         findViewById<android.view.View>(R.id.patientDetailsFull).visibility = android.view.View.VISIBLE
         fun vis(b: Boolean) = if (b) android.view.View.VISIBLE else android.view.View.GONE
@@ -3117,10 +4569,29 @@ class DoctorCheckupActivity : AppCompatActivity() {
             if (raw.trimStart().startsWith("{")) org.json.JSONObject(raw) else null
         } catch (_: Throwable) { null }
 
-    /** কোন ভাষায় শেষবার দেখা হয়েছিল — পরের বার সেটাই আগে থেকে বাছা থাকে। */
-    private fun a4Lang(): String =
-        getSharedPreferences("v584_a4", MODE_PRIVATE).getString("lang", CheckupA4Lang.BN)
+    /** কোন ভাষায় শেষবার দেখা হয়েছিল — পরের বার সেটাই আগে থেকে বাছা থাকে।
+     *
+     * 🟢🔒🔒 V643 (২৪.০৮.২০২৬, TK-রিপোর্ট — "কিশানগঞ্জের স্টাফের মোবাইলে
+     * এখনো বাংলা কেন দেখাচ্ছে") — **আসল কারণ (কোড ধরে যাচাই, গভীরে গিয়ে
+     * খোঁজা):** এই A4 রিপোর্ট (Doctor Check-up History) WebView-এ আঁকা হয়
+     * — `NoBengali.sweep()` শুধু ফোনের নিজস্ব View-গাছ (TextView ইত্যাদি)
+     * ঘুরে বাংলা মোছে, WebView-এর ভেতরের HTML কখনো ছুঁতে পারে না। এই
+     * রিপোর্টের নিজস্ব দ্বি-ভাষা টগল (V584, TK-অনুমোদিত, বাংলা/English)
+     * সম্পূর্ণ **স্বাধীন** — ডিফল্টই ছিল বাংলা (`CheckupA4Lang.BN`), আর
+     * Kishanganj-এর বাংলা-বন্ধ নিয়মের সাথে কখনো জোড়াই হয়নি। ফলে
+     * Kishanganj-এর যেকোনো স্টাফ এই পর্দায় ঢুকলে ডিফল্ট বাংলাই পেতেন,
+     * আর ইচ্ছে করলে "বাংলা" বোতাম চেপে বাংলাও বেছে নিতে পারতেন — কোনো
+     * বাধা ছিল না।
+     * **সমাধান:** Kishanganj-এর বাংলা-বন্ধ স্টাফের জন্য ভাষা সবসময়
+     * জোর করে English — জমানো পছন্দ/ডিফল্ট কিছুই আর ধরা হয় না। ⛔ অন্য
+     * সব স্টাফের জন্য আগের দুই-ভাষা সুবিধা (TK-অনুমোদিত V584) এক অক্ষরও
+     * বদলায়নি।
+     */
+    private fun a4Lang(): String {
+        if (NoBengali.active()) return CheckupA4Lang.EN
+        return getSharedPreferences("v584_a4", MODE_PRIVATE).getString("lang", CheckupA4Lang.BN)
             ?: CheckupA4Lang.BN
+    }
 
     private fun setA4Lang(v: String) {
         try { getSharedPreferences("v584_a4", MODE_PRIVATE).edit().putString("lang", v).apply() }
@@ -3139,6 +4610,92 @@ class DoctorCheckupActivity : AppCompatActivity() {
         return try { CheckupNoteJson.fromMap(jsonToMap(obj)) } catch (_: Throwable) { null }
     }
 
+    // ═══════════════════════════════════════════════════════════════════
+    // 🩺🔒 V839 — NEXT VISIT PLAN · পরের বার এই রোগীর কী হবে
+    // TK-নির্দেশ (২৯.০৮.২০২৬, ফটো-প্রুফ দেখিয়ে অনুমোদিত)।
+    // ⛔ চেকআপের আর কোনো ঘর · Treatment Plan · খরচ · ছাপার কাগজ — কিছুই
+    //    ছোঁয়া হয়নি। এই অংশটা সম্পূর্ণ আলাদা, নিজের ঘরে (`nextVisitPlan`) লেখে।
+    // ═══════════════════════════════════════════════════════════════════
+
+    /** ৯টা চেকবক্স — XML-এর id-র সাথে `NextVisitPlan.OPTIONS`-এর চাবি মেলানো। */
+    private fun nvpBoxes(): List<Pair<String, android.widget.CheckBox>> =
+        NextVisitPlan.OPTIONS.mapNotNull { opt ->
+            val idName = "cbNvp" + opt.key.replaceFirstChar { it.uppercase() }
+            val id = resources.getIdentifier(idName, "id", packageName)
+            if (id == 0) null else findViewById<android.widget.CheckBox>(id)?.let { opt.key to it }
+        }
+
+    private var nvpDateIso: String = ""
+
+    private fun setupNextVisitPlan(row: org.json.JSONObject) {
+        val boxes = nvpBoxes()
+        val medRow = findViewById<android.view.View>(R.id.rowNvpMedicine)
+        val etMed = findViewById<android.widget.EditText>(R.id.etNvpMedicine)
+        val etNote = findViewById<android.widget.EditText>(R.id.etNvpNote)
+        val tvDate = findViewById<TextView>(R.id.tvNvpDate)
+        val tvBy = findViewById<TextView>(R.id.tvNvpBy)
+
+        /* ঔষধ বাছলে তবেই "কোন ঔষধ" ঘরটা দেখায় — না বাছলে লুকানো। */
+        fun syncMedicineRow() {
+            val on = boxes.firstOrNull { it.first == NextVisitPlan.KEY_MEDICINE }?.second?.isChecked == true
+            medRow.visibility = if (on) android.view.View.VISIBLE else android.view.View.GONE
+        }
+        for ((_, cb) in boxes) cb.setOnCheckedChangeListener { _, _ -> syncMedicineRow(); refreshNvpFold() }
+        syncMedicineRow()
+        refreshNvpFold()
+
+        /* তারিখ — বাধ্যতামূলক নয় (TK-নির্দেশ)। অতীতের তারিখ বাছা যায় না। */
+        tvDate.setOnClickListener {
+            val cal = java.util.Calendar.getInstance()
+            if (nvpDateIso.isNotBlank()) try {
+                val q = nvpDateIso.split("-").map { it.toInt() }
+                cal.set(q[0], q[1] - 1, q[2])
+            } catch (_: Throwable) { }
+            android.app.DatePickerDialog(
+                this, com.tkbiswas.pilesclinic.R.style.PilesDatePicker,
+                { _, y, m, d ->
+                    nvpDateIso = String.format(java.util.Locale.US, "%04d-%02d-%02d", y, m + 1, d)
+                    tvDate.text = com.tkbiswas.pilesclinic.native.FollowUpModel.displayDate(nvpDateIso)
+                    tvDate.setTextColor(android.graphics.Color.parseColor("#101828"))
+                },
+                cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH),
+                cal.get(java.util.Calendar.DAY_OF_MONTH)
+            ).apply { datePicker.minDate = System.currentTimeMillis() - 1000L }.show()
+        }
+
+        /* গত বারের প্ল্যান — শুধু **দেখানোর** জন্য, ফর্মে ভরা হয় না।
+           ⛔ B437-এর নিয়ম: আগের লেখা কখনো সম্পাদনাযোগ্য ঘরে বসে না। */
+        val last = NextVisitPlan.latest(row)
+        if (last != null) {
+            val whenTxt = if (last.at.length >= 10) com.tkbiswas.pilesclinic.native.FollowUpModel.displayDate(last.at.take(10)) else ""
+            tvBy.text = "Last plan · " + last.shortLine() +
+                (if (whenTxt.isNotBlank()) "  ($whenTxt" else "") +
+                (if (last.byName.isNotBlank()) (if (whenTxt.isNotBlank()) " · " else "  (") + last.byName else "") +
+                (if (whenTxt.isNotBlank() || last.byName.isNotBlank()) ")" else "")
+            tvBy.visibility = android.view.View.VISIBLE
+        } else {
+            tvBy.visibility = android.view.View.GONE
+        }
+    }
+
+    /** পর্দা থেকে আজকের প্ল্যানটা তোলা — **মূল থ্রেডেই** ডাকতে হবে। */
+    private fun collectNextVisitPlan(): NextVisitPlan.Entry {
+        val boxes = nvpBoxes()
+        val items = boxes.filter { it.second.isChecked }.map { it.first }
+        val med = findViewById<android.widget.EditText>(R.id.etNvpMedicine).text?.toString().orEmpty().trim()
+        val note = findViewById<android.widget.EditText>(R.id.etNvpNote).text?.toString().orEmpty().trim()
+        val user = com.tkbiswas.pilesclinic.native.NativeSession.current(this)
+        return NextVisitPlan.Entry(
+            date = nvpDateIso,
+            items = items,
+            /* ঔষধ না বাছলে লেখাটা জমা হয় না — ভুল তথ্য জমার সুযোগ নেই। */
+            medicine = if (items.contains(NextVisitPlan.KEY_MEDICINE)) med else "",
+            note = note,
+            byName = user?.name.orEmpty(),
+            byMobile = user?.mobile.orEmpty()
+        )
+    }
+
     private fun openCheckupHistory() {
         val rec = completedCheckup()
         if (rec == null) {
@@ -3151,7 +4708,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
                     "WhatsApp-এ পাঠানো যাবে।"
                 )
                 .setPositiveButton("OK", null)
-                .show()
+                .show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
             return
         }
         showCheckupHistoryDialog(rec)
@@ -3190,6 +4747,10 @@ class DoctorCheckupActivity : AppCompatActivity() {
             }
         }
         for ((key, label) in listOf(CheckupA4Lang.BN to "বাংলা", CheckupA4Lang.EN to "English")) {
+            // 🟢🔒 V643 — বাংলা-বন্ধ (Kishanganj) স্টাফের সামনে "বাংলা"
+            // বোতামটাই দেখানো হয় না, তাই ইচ্ছে করেও বাংলা বেছে নিতে
+            // পারবেন না। বাকি সব স্টাফের জন্য দুই-ভাষা বোতামই থাকে।
+            if (key == CheckupA4Lang.BN && NoBengali.active()) continue
             val tv = TextView(this).apply {
                 text = label
                 textSize = 14f
@@ -3205,7 +4766,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         paintSeg()
         root.addView(seg)
         root.addView(TextView(this).apply {
-            text = "রিপোর্ট কোন ভাষায় বেরোবে — চাপ দিয়ে বদলান"
+            text = NoBengali.s("রিপোর্ট কোন ভাষায় বেরোবে — চাপ দিয়ে বদলান")
             textSize = 10.5f
             gravity = android.view.Gravity.CENTER
             setTextColor(android.graphics.Color.parseColor("#8A949E"))
@@ -3247,6 +4808,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
             }
         }
         dlg.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dlg) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     /** View — পুরো পর্দা জুড়ে A4 রিপোর্ট, উপরে Back। */
@@ -3276,6 +4838,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
             dlg.setContentView(box)
             bar.setOnClickListener { try { dlg.dismiss() } catch (_: Throwable) { } }
             dlg.show()
+            try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dlg) } catch (_: Throwable) { }   // 🤫 V774
         } catch (e: Throwable) {
             Toast.makeText(this, "View not available: ${e.message}", Toast.LENGTH_LONG).show()
         }
@@ -3327,6 +4890,84 @@ class DoctorCheckupActivity : AppCompatActivity() {
             wv.loadDataWithBaseURL("file:///android_asset/", html, "text/html", "UTF-8", null)
         } catch (_: Throwable) {
             Toast.makeText(this, "Print not available", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       💰🔒 V971 (০২.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ ও PDF নমুনা) —
+       **এস্টিমেট বানানোর বোতাম।**
+
+       TK: *"আমরা হাতে একটা অ্যামাউন্ট করি, আমি চাইছি তার পাশে একটা অপশন
+       থাকুক, যে অপশনটা ক্লিক করলে একটা পপ-আপ খুলবে"*।
+
+       ⛔ Estimated Cost ঘরটার id · সেভ-লজিক · A4 রিপোর্ট · মাস্টারের কাছে
+          যাওয়া "খরচ বদলেছে" বার্তা — কিছুই বদলায়নি। পপ-আপ শুধু ওই ঘরে
+          **Net Payable** বসিয়ে দেয়, বাকি সব আগের পথেই চলে।
+       ⛔ ব্যর্থ হলেও (কোনো কারণে) চেকআপ একটুও আটকায় না।
+       ═══════════════════════════════════════════════════════════════════ */
+    /** 🖥️ V982 — কাগজের পর্দা থেকে ফেরার সংকেত। */
+    private val REQ_ESTIMATE_PAPER = 9821
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQ_ESTIMATE_PAPER || resultCode != RESULT_OK) return
+        try {
+            val sheet = EstimateModel.parse(data?.getStringExtra(EstimatePaperActivity.RESULT_SHEET))
+            estimateSheet = sheet
+            if (!sheet.isEmpty) etEstimatedCost.setText(EstimateModel.moneyShort(sheet.netPayable))
+        } catch (_: Throwable) { }
+    }
+
+    private fun wireEstimateBuilder() {
+        try {
+            /* 🧮🔒 V1105 (TK-রিপোর্ট) — হেডারের গোল আইকন **আর** Estimated Cost
+               ঘরের পাশের আইকন, দুটোতেই হুবহু একই কাজ। একটাই লিসেনার লিখে দুটোতে
+               বসানো হয়েছে, তাই ভবিষ্যতে একটা বদলে অন্যটা আলাদা হয়ে যেতে পারে না। */
+            val openEstimate = android.view.View.OnClickListener {
+                /* 🖥️🔒 V982 (TK-নির্দেশ: *"তাহলে ফুল স্ক্রিন পর্দা খুলবে, আলাদা
+                   পপ-আপ লাগবে না, zoom করা যাবে"*) — এখন পপ-আপের বদলে
+                   **কাগজের ফুল-স্ক্রিন পর্দা**। পুরনো পপ-আপের বাছাই-বাক্সগুলোই
+                   ওখানে ব্যবহার হয়, তাই দর/গ্রেড/পজিশনের নিয়ম একটুও বদলায়নি। */
+                startActivityForResult(
+                    android.content.Intent(this, EstimatePaperActivity::class.java)
+                        .putExtra(EstimatePaperActivity.EXTRA_SHEET, estimateSheet.toJson().toString()),
+                    REQ_ESTIMATE_PAPER
+                )
+            }
+            findViewById<TextView>(R.id.btnBuildEstimate)?.setOnClickListener(openEstimate)
+            findViewById<TextView>(R.id.btnBuildEstimateInline)?.setOnClickListener(openEstimate)
+        } catch (_: Throwable) { }
+    }
+
+    /** কাগজ — প্রকল্পের প্রমাণিত পথেই (PDF · WhatsApp · Print একসাথে)। */
+    private fun shareEstimatePaper(sheet: EstimateModel.Sheet) {
+        try {
+            if (sheet.isEmpty) {
+                Toast.makeText(this, "Add at least one item first", Toast.LENGTH_SHORT).show()
+                return
+            }
+            val age = RoleSession.currentPatientAge
+            val sex = RoleSession.currentPatientSex
+            val ageSex = listOf(age, sex).filter { it.isNotBlank() }.joinToString(" / ").ifBlank { "-" }
+            val html = EstimateHtmlPrint.build(
+                sheet = sheet,
+                branch = RoleSession.currentPatientBranch,
+                name = RoleSession.currentPatientName.ifBlank { "-" },
+                patientId = RoleSession.currentPatientDisplayId.ifBlank { RoleSession.currentPatientId },
+                ageSex = ageSex,
+                mobile = RoleSession.currentPatientMobile.ifBlank { "-" },
+                address = RoleSession.currentPatientAddress.ifBlank { "-" },
+                date = SimpleDateFormat("dd.MM.yyyy", Locale.US).format(java.util.Date())
+            )
+            com.tkbiswas.pilesclinic.print.PrescriptionWhatsAppShare.shareHtml(
+                activity = this,
+                html = html,
+                documentTitle = "Estimate",
+                patientName = RoleSession.currentPatientName,
+                allowPrint = true
+            )
+        } catch (e: Throwable) {
+            Toast.makeText(this, "Share not available: " + e.message, Toast.LENGTH_LONG).show()
         }
     }
 }

@@ -1,6 +1,11 @@
 package com.tkbiswas.pilesclinic.native
 
 import android.content.Context
+import android.graphics.Color
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.method.LinkMovementMethod
+import android.text.style.ClickableSpan
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -29,6 +34,9 @@ class BriefingAdapter(
      *  "View" বোতাম: ওই নম্বরের রোগীর পাতা খোলে। ডিফল্ট ফাঁকা, তাই পুরনো
      *  কোনো caller ভাঙে না। */
     private val onViewRecord: (Briefing, String) -> Unit = { _, _ -> },
+    /* 🟢🔒 V692 (TK, ২৬.০৮.২০২৬) — ⚠️ Overdue Follow-up Alert-এর "View"।
+       ডিফল্ট ফাঁকা, তাই এই অ্যাডাপ্টারের পুরনো ব্যবহারকারীরা অক্ষত। */
+    private val onViewOverdue: (Briefing) -> Unit = { },
     private val isMaster: Boolean = false,
     /** 🆕 TK-নির্দেশ (07.08.2026) — একসাথে অনেক অনুমোদন: কোনো কার্ড বাছাই/
      *  বাছাই-বাতিল হলে Activity-কে জানায় (নিচের "একসাথে অনুমোদন" বার দেখাতে)।
@@ -91,6 +99,49 @@ class BriefingAdapter(
 
     override fun getItemCount(): Int = items.size
 
+    /**
+     * V689: "Seen by N"-কে TextView-এর সাধারণ click-এর উপর নির্ভর না রেখে
+     * লেখাটির ওই অংশকেই আসল clickable span করা হয়েছে। কিছু কার্ডে message-এর
+     * LinkMovementMethod/RecyclerView touch handling-এর কারণে আগের listener
+     * বাস্তবে tap পেত না, যদিও সংখ্যা ঠিক দেখা যেত।
+     */
+    private fun bindSeenBy(view: android.widget.TextView, prefix: String, item: Briefing) {
+        val label = "Seen by ${item.seenCount}"
+        val fullText = prefix + label
+        val text = SpannableString(fullText)
+        val openSeenList = {
+            // বর্তমান model-list ছাড়াও raw row থেকে আবার পড়া—পুরনো/মিশ্র
+            // notice card হলেও নামের তালিকা ফাঁকা হয়ে tap নষ্ট হবে না।
+            val rawSeen = item.raw.optJSONArray("seen")
+            val mobiles = if (item.seenBy.isNotEmpty()) item.seenBy else
+                (0 until (rawSeen?.length() ?: 0))
+                    .map { rawSeen?.optString(it, "").orEmpty() }
+                    .filter { it.isNotBlank() }
+            val names = mobiles.map { mobile ->
+                StaffDirectory.findAccount(mobile)?.name ?: mobile
+            }.distinct()
+            androidx.appcompat.app.AlertDialog.Builder(context)
+                .setCustomTitle(PremiumAlert.header(context, "Seen by (${names.size})"))
+                .setItems(names.toTypedArray(), null)
+                .setPositiveButton("Close", null)
+                .show().also { dialog -> PremiumAlert.paint(dialog) }
+        }
+        val start = fullText.indexOf(label)
+        text.setSpan(object : ClickableSpan() {
+            override fun onClick(widget: View) { openSeenList() }
+            override fun updateDrawState(ds: android.text.TextPaint) {
+                ds.color = Color.parseColor("#1976B9")
+                ds.isUnderlineText = true
+            }
+        }, start, start + label.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        view.text = text
+        view.movementMethod = LinkMovementMethod.getInstance()
+        view.highlightColor = Color.TRANSPARENT
+        view.isClickable = true
+        // পুরো লাইন চাপলেও একই ফল—সাধারণ ব্যবহারকারীর জন্য tap target বড় থাকে।
+        view.setOnClickListener { openSeenList() }
+    }
+
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val item = items[position]
         val b = holder.binding
@@ -133,7 +184,11 @@ class BriefingAdapter(
         b.tvMessage.text = buildClickableMessage(item.message)
         b.tvMessage.movementMethod = android.text.method.LinkMovementMethod.getInstance()
         b.tvMessage.highlightColor = android.graphics.Color.TRANSPARENT
-        b.tvTargets.text = "${item.targetsSummary} · Seen by ${item.seenCount}"
+        bindSeenBy(b.tvTargets, "${item.targetsSummary} · ", item)
+        // 🔴🔒 V682 (২৫.০৮.২০২৬, TK-লাইভ-টেস্ট রিপোর্ট — "Seen by 1-এ চাপ
+        // দিলে কে দেখেছে বোঝা যায় না") — এখন চাপলে নামের তালিকা দেখায়
+        // (স্টাফ কোড → নাম, প্রমাণিত StaffDirectory.findAccount())। ⛔
+        // ফাঁকা থাকলে চাপে কিছুই হয় না, বাকি সব আগের মতোই।
         // 🔴 V433 (TK): "Role: master · Seen by 0 — এর মানে কি?" — সাধারণ
         // তথ্য-কার্ডে লাইনটার কোনো কাজ নেই, তাই লুকানো। বাকি নোটিশে আগের মতোই।
         b.tvTargets.visibility = if (isPlainInfo) View.GONE else View.VISIBLE
@@ -160,7 +215,55 @@ class BriefingAdapter(
             b.tvAvatar.text = ((nm ?: staffCode).firstOrNull { it.isLetterOrDigit() }?.uppercaseChar() ?: 'S').toString()
             // কম্প্যাক্ট: Staff/Branch এখন হাইলাইটেই আছে, তাই বার্তায় শুধু সময়টুকু।
             val t = extractField(item.message, "Time")
-            if (t != null) b.tvMessage.text = "🕐 $t"
+            if (t != null) b.tvMessage.text = t
+        }
+
+        // 🟢🔒 V641 (২৪.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ — "ব্রাঞ্চ দুই
+        // জায়গায় কেন? এক লাইনে রাখলেই জায়গা কমে") — Delete/Refund/Reopen-
+        // ধরনের গঠিত অনুরোধ-নোটিশে ব্রাঞ্চ + অনুরোধকারীর কোড এক লাইনে
+        // (হেডারেই), তাই বার্তায় আর আলাদা "Name :"/"Branch :"/"Requested
+        // by :" সারি লাগে না (Name শিরোনামেই আছে) — ডুপ্লিকেট বাদ দিয়ে
+        // বার্তাটা ছোট হয়।
+        // ⛔ শুধু **দেখানো** টেক্সট বদলায় — item.message (ডেটাবেসে সেভ করা
+        //    আসল লেখা, Reply/cloud sync-এ যা ব্যবহার হয়) এক অক্ষরও বদলায় না।
+        // ⛔ এই গঠন (Requested by :) নেই এমন বার্তায় (সাধারণ Briefing/
+        //    auto-notice/Staff IN-OUT) একচুলও প্রভাব পড়ে না।
+        val requestedBy = extractField(item.message, "Requested by")
+        if (requestedBy != null) {
+            val brOnly = item.branch.ifBlank { extractField(item.message, "Branch").orEmpty() }
+            b.tvWho.text = if (brOnly.isNotBlank()) "$brOnly · $requestedBy" else requestedBy
+            b.tvAvatar.text = (brOnly.trim().ifEmpty { requestedBy }
+                .firstOrNull { it.isLetterOrDigit() }?.uppercaseChar() ?: 'N').toString()
+            val trimmed = item.message.lines().filterNot { line ->
+                val l = line.trim()
+                l.startsWith("Name :", true) || l.startsWith("Branch :", true) ||
+                    l.startsWith("Requested by :", true) ||
+                    (l.endsWith("permission request", true) && !l.contains(":")) ||
+                    // 🟢🔒 V641 (২৪.০৮.২০২৬, TK-রিপোর্ট, ছবিসহ — "এটা দেখে কি
+                    // প্রফেশনাল লুক মনে হচ্ছে?" → "না") — আসল কারণ: "Master:
+                    // রেকর্ডটা খুলে Take Action → Delete চাপুন" এই নির্দেশটা
+                    // পুরনো, ম্যানুয়াল একটা ফ্লো বোঝাত। "✔ Approve" বোতাম
+                    // এখন **এক-চাপেই** সরাসরি ডিলিট করে দেয় (নিচেই
+                    // `onApproveDelete(item)` ডাকা হয়) — তাই এই লাইনটা
+                    // এখন সত্যিই অপ্রয়োজনীয়/বিভ্রান্তিকর, শুধু "Take
+                    // Action"-ধরনের ম্যানুয়াল-নির্দেশের লাইনগুলোই বাদ
+                    // (Reopen-এর মতো তথ্য-জানানো Master-নোট অক্ষত থাকে)।
+                    (l.contains("Take Action", true) && l.contains("Master", true))
+            }.joinToString("\n").trim()
+            b.tvMessage.text = buildClickableMessage(trimmed)
+            val dens = holder.itemView.resources.displayMetrics.density
+            val pad = (8 * dens).toInt()
+            b.tvMessage.setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_brief_infobox)
+            b.tvMessage.setPadding(pad, pad, pad, pad)
+            // 🟢🔒 V641 (২৪.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ) — এই
+            // ধরনের গঠিত অনুরোধ-নোটিশে "Role: master" অংশটা বাদ (কে
+            // পাঠিয়েছেন সেটা হেডারেই আছে) — শুধু "Seen by X" থাকে।
+            bindSeenBy(b.tvTargets, "", item)
+        } else {
+            // 🔒 RecyclerView রিসাইকেল-নিরাপদ: আগের কার্ডে বসানো বক্স-
+            // ব্যাকগ্রাউন্ড/প্যাডিং যেন সাধারণ নোটিশে ভুল করে থেকে না যায়।
+            b.tvMessage.background = null
+            b.tvMessage.setPadding(0, 0, 0, 0)
         }
         val titleLc = item.title.lowercase()
         val urgent = listOf("request", "refund", "reopen", "urgent").any { titleLc.contains(it) }
@@ -171,6 +274,12 @@ class BriefingAdapter(
         // নেভি ছিল)। ⛔ শুধু রঙ — কোনো লজিক/ডেটা বদলায়নি।
         val redLine = android.graphics.Color.parseColor("#C0392B")
         val greenLine = android.graphics.Color.parseColor("#0F7A43")
+        /* 🎨🔒 V829 (২৯.০৮.২০২৬, TK-অনুমোদিত) — এই দাগটা XML-এ `<Button>`, আর
+           অ্যাপের থিমে সেটা MaterialButton হয়ে যায় ⇒ নিচের `setBackgroundColor`
+           (লাল/সবুজ) চুপচাপ ফেলে দিয়ে থিমের গাঢ় নীল বসত। `backgroundTintList`
+           খালি করলে তবেই আসল রংটা ফোনে দেখা যায় (পাহারা ৯.৩২)।
+           ⛔ শুধু চেহারা — নোটিশের লজিক/তথ্য কিচ্ছু বদলায়নি। */
+        b.priorityBar.backgroundTintList = null
         if (urgent) {
             b.priorityBar.setBackgroundColor(redLine)
             b.tvChip.text = "URGENT"
@@ -178,6 +287,10 @@ class BriefingAdapter(
             b.tvChip.setTextColor(android.graphics.Color.parseColor("#B91C1C"))
             b.tvAvatar.backgroundTintList = android.content.res.ColorStateList.valueOf(redLine)
             b.tvTitle.setTextColor(android.graphics.Color.parseColor("#8E2A20"))
+            // 🟢🔒 V641 (২৪.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ — কমপ্যাক্ট
+            // ডিজাইন) — শিরোনাম এখন ছোট রঙিন পিল (chip), আগের মতো পুরো-
+            // চওড়া প্লেইন টেক্সট নয়। ⛔ শুধু দেখানোর সাজ — id/লজিক অক্ষত।
+            b.tvTitle.setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_brief_title_urgent)
         } else {
             b.priorityBar.setBackgroundColor(greenLine)
             b.tvChip.text = "NOTICE"
@@ -185,6 +298,7 @@ class BriefingAdapter(
             b.tvChip.setTextColor(android.graphics.Color.parseColor("#166534"))
             b.tvAvatar.backgroundTintList = android.content.res.ColorStateList.valueOf(greenLine)
             b.tvTitle.setTextColor(android.graphics.Color.parseColor("#14361F"))
+            b.tvTitle.setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_brief_title_normal)
         }
         // 🔴 V433 (TK): "এটা একটা সাধারণ জিনিস, তাহলে এটা নোটিশ কেন হবে" —
         // তথ্য-কার্ডে NOTICE চিপটা তুলে দেওয়া হলো। রং/বার আগের মতোই সবুজ।
@@ -207,7 +321,9 @@ class BriefingAdapter(
         // 🔒 খাতার সারি B100: শুধু **মাস্টার** ও শুধু **ডিলিটের অনুরোধ** নোটিশে
         // "Approve & Delete" দেখা যায়। বাকি সব নোটিশে বোতামটা লুকানো থাকে,
         // তাই পুরনো কার্ডের চেহারা এক চুলও বদলায়নি।
-        val isDeleteRequest = item.title.contains("Delete request", ignoreCase = true)
+        // 🔴🔒 V697 — "Reply on: …" নামের কার্ড রিপ্লাই, অনুরোধ নয় (নিচে দেখুন)।
+        val isReplyNotice = BriefingModel.isReplyNotice(item.title)
+        val isDeleteRequest = !isReplyNotice && item.title.contains("Delete request", ignoreCase = true)
         if (isMaster && isDeleteRequest) {
             b.btnApproveDelete.visibility = View.VISIBLE
             b.btnApproveDelete.text = "\u2714 Approve"      // 🔴 এক-লাইনে আঁটাতে ছোট লেখা (আগে "Approve & Delete"); কাজ একই
@@ -227,7 +343,7 @@ class BriefingAdapter(
         // ⛔ RecyclerView-এর View রিসাইকেল হয় বলে দুটো শাখাতেই (Delete/Refund)
         //    টেক্সট আলাদা করে বসাতে হয়েছে — নইলে স্ক্রল করার সময় ভুল লেখা
         //    রয়ে যেতে পারত (একটা কার্ডের বোতাম অন্য কার্ডে "ভুতুড়ে" দেখাত)।
-        val isRefundRequest = item.title.contains("Refund request", ignoreCase = true)
+        val isRefundRequest = !isReplyNotice && item.title.contains("Refund request", ignoreCase = true)
         if (isMaster && isRefundRequest) {
             b.btnApproveDelete.visibility = View.VISIBLE
             b.btnApproveDelete.text = "\u2714 Refund"       // আগে "Approve / Reject Refund" — চাপলে সেই একই Approve/Reject পপ-আপই খোলে
@@ -238,7 +354,7 @@ class BriefingAdapter(
         // Approve/Reject। ⛔ একই শেয়ার্ড বোতাম (Delete/Refund-এর প্যাটার্নেই),
         // তাই RecyclerView রিসাইকেল হলেও ভুতুড়ে লেখা থাকার ঝুঁকি নেই — প্রতিটা
         // শাখাই নিজের লেখা/ক্লিক আবার বসায়।
-        val isReopenRequest = item.title.contains("Chamber reopen request", ignoreCase = true)
+        val isReopenRequest = !isReplyNotice && item.title.contains("Chamber reopen request", ignoreCase = true)
         if (isMaster && isReopenRequest) {
             b.btnApproveDelete.visibility = View.VISIBLE
             b.btnApproveDelete.text = "\u2714 Reopen"       // আগে "Approve / Reject Reopen" — চাপলে সেই একই পপ-আপই খোলে
@@ -271,8 +387,11 @@ class BriefingAdapter(
         //   ⇒ স্বয়ংক্রিয় তিন নোটিশে (New Enquiry · New Registration ·
         //     Advance Received) **Reply নেই** — View · Seen · Delete থাকে।
         //   ⛔ হাতে লেখা Briefing ও অনুমোদনের নোটিশে Reply আগের মতোই আছে।
+        // 🟢🔒 V692 (২৬.০৮.২০২৬, TK): *"Overdue Call Alert এ Reply কেন আসবে,
+        //   সেখানে View থাকতে হবে"* — ⚠️ Overdue Follow-up Alert-এও Reply নেই।
         b.btnReply.visibility =
-            if (isPlainInfo || isAutoNotice(item)) View.GONE else View.VISIBLE
+            if (isPlainInfo || isAutoNotice(item) || BriefingModel.isOverdueAlert(item.title))
+                View.GONE else View.VISIBLE
         b.btnDelete.setOnClickListener { onDelete(item) }
 
         /* 🔴🔒 V501 (TK-নির্দেশ) — "View" বোতাম।
@@ -281,7 +400,14 @@ class BriefingAdapter(
            ⛔ নম্বর খোঁজা হয় ঠিক সেই একই নিয়মে যেটা দিয়ে নম্বরটা এতদিন
               ক্লিকযোগ্য করা হচ্ছে (`buildClickableMessage`) — নতুন কিছু নয়। */
         val mobileInNotice = firstMobileIn(item.message)
-        if (mobileInNotice != null) {
+        // 🟢🔒 V692 — Overdue সতর্কতায় কোনো একটা নম্বর থাকে না (ব্রাঞ্চ ধরে
+        //   গোনা), তাই নম্বর না থাকলেও View দেখাতে হবে। চাপলে ওই ব্রাঞ্চের
+        //   **৩+ দিন দেরি হওয়া** কলগুলোই খোলে — নোটিশে যত জন লেখা, ঠিক তত জন।
+        val overdueAlert = BriefingModel.isOverdueAlert(item.title)
+        if (overdueAlert) {
+            b.btnViewRecord.visibility = View.VISIBLE
+            b.btnViewRecord.setOnClickListener { onViewOverdue(item) }
+        } else if (mobileInNotice != null) {
             b.btnViewRecord.visibility = View.VISIBLE
             // 🔴 V511: নোটিশটাও পাঠানো হয় — কারণ গন্তব্য নোটিশের **ধরন**
             //    অনুযায়ী বদলায় (Enquiry/Registration → Follow-up-এর ঠিক
@@ -292,6 +418,50 @@ class BriefingAdapter(
             b.btnViewRecord.setOnClickListener(null)
         }
     
+        /* ═══════════════════════════════════════════════════════════════
+           🎨🔒 V1102 (০৫.০৯.২০২৬) — TK নিজের নকশার ছবি পাঠিয়ে বললেন
+           *"এইরকম করুন"*: রোগের পিল · রোগীর নাম বড় করে · পাশে নম্বর ·
+           নিচে Patient ID · নিচে ভরাট **View** ও হালকা দ্বিতীয় বোতাম।
+           TK নিশ্চিত করেছেন দ্বিতীয় বোতামের কাজ **আগের মতোই — মুছে যাবে**,
+           তাই `btnDelete`-এর id ও কাজ এক অক্ষরও বদলায়নি (শুধু চেহারা)।
+
+           ⛔ শুধু অ্যাপের **নিজের তিন নোটিশে** (New Enquiry · New Registration ·
+              Advance Received) চলে, আর তখনই — যখন লেখাটা চেনা ধাঁচে আছে
+              (নাম - নম্বর - আইডি - রোগ - ব্রাঞ্চ)। না মিললে **হুবহু আগের কার্ডই**
+              দেখা যায়, একটা লাইনও হারায় না।
+           ⛔ হাতে লেখা Briefing · অনুমোদন · Overdue Alert — কিচ্ছু বদলায়নি।
+           ⛔ নম্বরে চাপলে আগের মতোই কল যায়।
+           ═══════════════════════════════════════════════════════════════ */
+        run {
+            var rich = false
+            try {
+                if (isAutoNotice(item)) {
+                    val parts = item.message.split(" - ").map { it.trim() }.filter { it.isNotEmpty() }
+                    val digitsOf = { t: String -> t.filter { c -> c.isDigit() } }
+                    if (parts.size >= 4 && digitsOf(parts[1]).length >= 10) {
+                        b.tvPatientName.text = parts[0]
+                        b.tvPatientPhone.text = parts[1]
+                        b.tvPatientId.text = "Patient ID   " + parts[2]
+                        val dis = parts.getOrNull(3).orEmpty()
+                        b.tvChipDisease.text = dis
+                        b.tvChipDisease.visibility = if (dis.isNotBlank()) View.VISIBLE else View.GONE
+                        b.rowPatient.visibility = View.VISIBLE
+                        b.tvPatientId.visibility = View.VISIBLE
+                        b.tvMessage.visibility = View.GONE
+                        val dg = digitsOf(parts[1]).takeLast(10)
+                        b.tvPatientPhone.setOnClickListener { if (dg.length == 10) onCallNumber(dg) }
+                        rich = true
+                    }
+                }
+            } catch (_: Throwable) { rich = false }
+            if (!rich) {
+                b.rowPatient.visibility = View.GONE
+                b.tvPatientId.visibility = View.GONE
+                b.tvChipDisease.visibility = View.GONE
+                b.tvMessage.visibility = View.VISIBLE
+            }
+        }
+
         // 🔴🔒 V449 — একই ফিক্স (দেখুন FollowUpAdapter.kt-এর মন্তব্য): তালিকার
         // সারির বাংলা যাতে বাংলা-বন্ধ স্টাফের ফোনে কখনো না দেখা যায়।
         try { NoBengali.sweep(holder.itemView) } catch (_: Throwable) { }

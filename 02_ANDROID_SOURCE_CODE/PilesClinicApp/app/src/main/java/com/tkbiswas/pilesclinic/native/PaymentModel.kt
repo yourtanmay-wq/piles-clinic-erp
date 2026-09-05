@@ -190,6 +190,44 @@ object PaymentModel {
     private fun isoNow(): String =
         SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).format(Date())
 
+    /* 🕒🔒 V1106 (০৫.০৯.২০২৬, TK-নির্দেশ — SADDAM-এর একই দিনে দুবার
+       পেমেন্ট): *"তারিখের পাশে সময় রাখতে হবে সমস্ত জায়গায়, তাহলে বোঝা যাবে যে
+       অরিজিনাল না ডুপ্লিকেট"*।
+
+       ⛔ **সময়টা যেভাবে জমা আছে ঠিক সেভাবেই পড়া হয়** — একটাও ঘণ্টা এদিক-ওদিক
+          করা হয় না। কারণ উপরের `isoNow()` ফোনের **নিজের ঘড়ির** সময় লিখে শেষে
+          শুধু `Z` অক্ষরটা বসায় (TK-এর লক করা নিয়ম, ছোঁয়া বারণ)। তাই ওটাকে
+          UTC ধরে হিসাব করলে সময় **৫ ঘণ্টা ৩০ মিনিট এগিয়ে** দেখাত।
+          🔴 ঠিক এই ভুলটাই মিশ্র পেমেন্টের ভাঙা-দেখার পপ-আপে ছিল — এখানেই সারানো।
+       ⛔ ধাঁচ `5:40 PM` — Payment Collection কার্ডে (B612) **আগে থেকেই** এই ধাঁচেই
+          সময় দেখাচ্ছে, তাই নতুন কোনো তৃতীয় ধাঁচ বানানো হয়নি; দুই পর্দায় দুরকম
+          সময় দেখানোর ঝুঁকিটাই সবচেয়ে বড়। AM/PM বড় হাতে (TK-এর নিয়ম B76)।
+       ⛔ সময় জানা না গেলে ফাঁকা ফেরে ⇒ ডাকনেওয়ালা শুধু তারিখটুকুই দেখায়,
+          কখনো ভুল বা আন্দাজি সময় নয়। */
+    fun clockOf(isoRaw: String?): String {
+        val t = (isoRaw ?: "").trim()
+        if (t.length < 16 || t[10] != 'T') return ""
+        val hh = t.substring(11, 13).toIntOrNull() ?: return ""
+        val mi = t.substring(14, 16)
+        if (mi.toIntOrNull() == null) return ""
+        val ap = if (hh < 12) "AM" else "PM"
+        var h12 = hh % 12
+        if (h12 == 0) h12 = 12
+        return "$h12:$mi $ap"
+    }
+
+    /** 🕒 V1106 — টাকার সারির "তারিখ + সময়"।
+     *  ⛔ সময়টা **শুধু তখনই** জোড়া হয় যখন সেটা ওই তারিখেরই — নইলে ব্যাকডেট করা
+     *     পেমেন্টে পুরনো তারিখের পাশে **আজকের** সময় বসে যেত, যা সম্পূর্ণ ভুল বার্তা।
+     *  ⛔ সময় না থাকলে/না মিললে হুবহু আগের মতোই শুধু তারিখ। */
+    fun dayAndClock(dateRaw: String?, isoRaw: String?): String {
+        val day = DateUtil.display(dateRaw)
+        val d10 = (dateRaw ?: "").take(10)
+        val i10 = (isoRaw ?: "").take(10)
+        val clock = if (d10.isNotBlank() && d10 == i10) clockOf(isoRaw) else ""
+        return if (clock.isBlank()) day else "$day  $clock"
+    }
+
     fun normalizeMode(mode: String): String =
         if (mode.trim().uppercase().contains("UPI") || mode.trim().uppercase().contains("ONLINE")) "ONLINE" else "CASH"
 
@@ -495,6 +533,10 @@ object PaymentModel {
 
     fun displayTime12(iso: String): String {
         if (iso.isBlank()) return ""
+        /* 🕒 V1106 — এখন প্রথমেই একই একটাই নিয়ম (`clockOf`) দেখে, তাই Payment
+           Collection কার্ড আর টাকার তালিকা কখনো দুরকম সময় দেখাতে পারে না।
+           ⛔ না পড়তে পারলে হুবহু আগের দুটো পথই আগের মতো চলে — কিছু হারায়নি। */
+        clockOf(iso).let { if (it.isNotBlank()) return it }
         return try {
             val parsed = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).parse(iso)
             SimpleDateFormat("h:mm a", Locale.US).format(parsed!!)
@@ -507,6 +549,19 @@ object PaymentModel {
             } catch (_: Exception) { "" }
         }
     }
+
+    /** ⏰🔒 V835 (২৯.০৮.২০২৬, TK-নির্দেশ — *"LAST CALL 31/12/2026 : 3.15 PM"*):
+     *  ঠিক উপরের `displayTime12()`-এরই লেখা, শুধু ঘণ্টা-মিনিটের মাঝে `:`-র
+     *  বদলে `.` — অর্থাৎ `3:15 PM` → `3.15 PM`।
+     *  ⛔ কেন আলাদা ফাংশন: `displayTime12()` অ্যাপের ২০ জায়গায় চলে (রসিদ ·
+     *     পেমেন্ট · টাইমলাইন)। ওটায় হাত দিলে সব জায়গা বদলে যেত — তাই ছোঁয়া
+     *     হয়নি। এটা **শুধু LAST CALL লাইনে** ব্যবহার হয়।
+     *  ⛔ ধাঁচটা নতুন নয় — প্রজেক্টে `h.mm a` আগে থেকেই চলে
+     *     (DoctorCheckupActivity V671 · PatientTimelineActivity · ওয়েবের
+     *     `wlv1Ampm`), আর V543-এর নিজের নোটেই লেখা ছিল `12.30 PM`।
+     *  ⛔ ফাঁকা ভিতরে = ফাঁকা বাইরে; `h:mm a`-তে একটাই `:` থাকে, তাই
+     *     AM/PM বা অন্য কিছু নষ্ট হওয়ার সুযোগ নেই। */
+    fun displayTime12Dot(iso: String): String = displayTime12(iso).replace(":", ".")
 
     // TK-REPORTED BUG FIX (2026-07-25): shared with PatientTimelineRepository
     // so it can recompute the true ordinal (Advance/2nd/3rd...) fresh from
@@ -755,6 +810,58 @@ object PaymentModel {
             .put("amount", 0.0)
             .put("mode", "CASH")
             .put("remarks", "Marked Arrived (Chamber Attendance)")
+            .put("receivedBy", staffMobile)
+            .put("createdBy", staffMobile)
+            .put("createdAt", now)
+            .put("updatedAt", now)
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       📝🔒 V1116 (০৫.০৯.২০২৬, TK-রিপোর্ট, অনুমোদিত): *"চেম্বার বন্ধ করে
+       তারপর যদি পুনরায় আবার চেম্বার খোলা হয়, সেই ক্ষেত্রে অনেক ট্রিটমেন্ট
+       প্রগ্রেসের ঘর খালি দেখায়।"*
+
+       ─── 🔴 আসল কারণ (কোড ধরে মেপে পাওয়া) ─────────────────────────────
+       চেম্বারের Treatment Progress জমা হয় **ওই দিনের টাকার সারির `progress`
+       ঘরে** (V687-এ প্রমাণিত, V938-এ ডাক্তারের পথও একই)। ⇒ যে রোগী এসেছেন,
+       চিকিৎসা হয়েছে, কিন্তু **ওই দিনে এক টাকাও দেননি**, তাঁর একটাও টাকার
+       সারি নেই — তাই লেখাটা **রাখার জায়গাই নেই**। বোর্ড খোলা থাকতে পর্দায়
+       দেখায়, বন্ধ করে আবার খুললেই ফাঁকা।
+       ⛔ `followups.history` থেকে ফিরিয়ে আনার ব্যবস্থাটা **শুধু পুরনো তারিখে**
+          চলে, তাই একই দিনে বন্ধ-খোলায় কাজে লাগে না।
+
+       ─── সমাধান ─────────────────────────────────────────────────────────
+       তখন ওই দিনের জন্য একটা **শূন্য টাকার সারি** বসে, শুধু লেখাটা ধরে রাখতে।
+       ⛔ ধরন `attendance_mark` — প্রকল্পে **আগে থেকেই থাকা** সেই একই শূন্য-সারি
+          (V.. "Marked Arrived"), যেটা কোনো Fees/Payment যোগফলে **কখনো ধরা হয় না**
+          আর টাকার তালিকাতেও দেখানো হয় না (V549)। ⇒ নতুন কোনো ধরন বানানো হয়নি,
+          তাই কোনো হিসাব বা তালিকা বদলায় না।
+       ⛔ আইডি **তারিখ+নম্বর ধরে স্থির** (`prog_<নম্বর>_<তারিখ>`) — তাই একই দিনে
+          বারবার লিখলেও **একটাই সারি** হয়, কখনো দ্বিতীয় সারি বসে না।
+       ⛔ রোগী সত্যিই এসেছিলেন বলেই সারিটা বসে, তাই "arrived" চিহ্নেও কোনো
+          মিথ্যে যোগ হয় না।
+       ═══════════════════════════════════════════════════════════════════ */
+    fun buildProgressHolderRow(
+        mobile: String, name: String, branch: String, patientRowId: String,
+        dateKey: String, progress: String, staffMobile: String
+    ): JSONObject {
+        val now = isoNow()
+        val d10 = mobile.filter { it.isDigit() }.takeLast(10)
+        val day = dateKey.ifBlank { today() }
+        return JSONObject()
+            .put("id", "prog_" + d10 + "_" + day.replace("-", ""))
+            .put("payType", "attendance_mark")
+            .put("payLabel", "Marked Arrived")
+            .put("paymentLabel", "Marked Arrived")
+            .put("patientId", patientRowId)
+            .put("mobile", mobile)
+            .put("branch", branch)
+            .put("name", name)
+            .put("date", day)
+            .put("amount", 0.0)
+            .put("mode", "CASH")
+            .put("remarks", "Marked Arrived (Chamber Attendance)")
+            .put("progress", progress)
             .put("receivedBy", staffMobile)
             .put("createdBy", staffMobile)
             .put("createdAt", now)

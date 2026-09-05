@@ -108,7 +108,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                 .setItems(labels) { _, which -> finishWith(people.getOrNull(which)) }
                 .setNegativeButton("Cancel") { _, _ -> finishWith(null) }
                 .setOnCancelListener { finishWith(null) }
-                .show()
+                .show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
         }
     private lateinit var repository: DoctorVisitRepository
     private lateinit var adapter: DoctorVisitAdapter
@@ -204,17 +204,9 @@ class DoctorVisitActivity : AppCompatActivity() {
         // আগে ছিল "today" (নেক্সট কল আজ), এখন expectedPatientDate সেট করা
         // ডাক্তারদের তালিকা দেখায়।
         binding.statToday.setOnClickListener { currentFilter = "expected"; renderList() }
-        // 🔒 V233 (TK verified live-date fix, 01.08.2026): "EXPECTED" কার্ডের আগের
-        // একলা "⏰" ইমোজি কিছু Android emoji-ফন্টে fixed "Jul 17" এঁকে দেখাত।
-        // এখন Follow-up পর্দার হুবহু একই কোডে ২-লাইনের live badge-এ আজকের
-        // (device-local = IST) মাস ও দিন বসে — উদাহরণ: "Aug"/"1"। পর্দা খোলার
-        // সময়েই বসে, তাই তারিখ প্রতিদিন নিজে থেকে ঠিক থাকে।
-        // ⛔ শুধু date display; EXPECTED count/filter/click কিছুই বদলায়নি।
-        run {
-            val cal = java.util.Calendar.getInstance()
-            binding.tvDvCalMonth.text = java.text.SimpleDateFormat("MMM", java.util.Locale.ENGLISH).format(cal.time)
-            binding.tvDvCalDay.text = cal.get(java.util.Calendar.DAY_OF_MONTH).toString()
-        }
+        // 🎨🔒 V1074 (০৪.০৯.২০২৬, TK: "Sep4 এর কোন কাজ নেই, সরিয়ে দিন") —
+        // EXPECTED বাক্সের তারিখ-ব্যাজ (V233) লেআউট থেকে বাদ, তাই এখানে
+        // আর কিছু বসানোর নেই। EXPECTED-এর গোনা/ফিল্টার/ক্লিক অপরিবর্তিত।
         binding.etSearch.addTextChangedListener { text ->
             searchQuery = text?.toString() ?: ""
             renderList()
@@ -381,6 +373,25 @@ class DoctorVisitActivity : AppCompatActivity() {
     }
 
     private var allItems: List<DoctorVisitItem> = emptyList()
+
+    /* 🔴🔴🔒 V940 (০১.০৯.২০২৬, TK-অনুমোদিত) — একই নম্বর এখন একাধিক ব্রাঞ্চে
+       আলাদা RMP হিসেবে থাকতে পারে। আগে "কোন কোন রোগী পাঠিয়েছেন" তালিকা শুধু
+       **নম্বর/নাম** ধরে মেলাত, তাই দুই ব্রাঞ্চের দুটো কার্ডেই **একই রোগীরা**
+       দেখাত — কমিশনও দুবার গোনা হয়ে যেতে পারত।
+       ⇒ নিয়ম: রোগী যাবেন **তাঁর নিজের ব্রাঞ্চের** সারিতে; ওই নম্বরে ওই
+         ব্রাঞ্চে কোনো সারি না থাকলে **আগের মতোই** একমাত্র সারিতেই থাকবেন।
+       ⛔ ওই নম্বরে একটাই সারি থাকলে (আজকের ৯৯%) আচরণ এক অক্ষরও বদলায় না। */
+    private fun v940Belongs(patientBranch: String, docBranch: String, docMobile10: String): Boolean {
+        if (docMobile10.length != 10) return true
+        val branches = allItems
+            .filter { it.mobile.filter { c -> c.isDigit() }.takeLast(10) == docMobile10 }
+            .map { it.branch.trim() }.filter { it.isNotBlank() }.distinct()
+        if (branches.size <= 1) return true
+        val pb = patientBranch.trim()
+        if (pb.isBlank()) return true
+        if (branches.none { it.equals(pb, ignoreCase = true) }) return true
+        return docBranch.trim().equals(pb, ignoreCase = true)
+    }
     private var currentFilter: String = "all"
     private var searchQuery: String = ""
     private var branchFilter: String = ""
@@ -752,6 +763,7 @@ class DoctorVisitActivity : AppCompatActivity() {
         })
         UppercaseInputUtil.applyToAll(root)
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     // 🔒 TK-ORDER (30.07.2026 রাত, খাতার সারি B205 — TK: "স্টাফ তো ভুল করে
@@ -799,19 +811,34 @@ class DoctorVisitActivity : AppCompatActivity() {
         val parts = premiumDialogShell("🩺", "Edit Doctor / RMP")
         val container = parts.body
 
+        /* 🟢 V944 (01.09.2026, TK-নির্দেশ "Edit ফর্মেও মিলিয়ে দিন") — Add ফর্মের
+           মতোই এখানেও **মোবাইল ঘরটা সবার আগে**, তারপর নাম।
+           ⛔ কোনো ঘর বাদ যায়নি, সেভের নিয়ম এক অক্ষরও বদলায়নি — শুধু বসার ক্রম। */
+        /* 🩺🔒 V1033 (০৪.০৯.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ) —
+           TK: *"আরএমপির নাম প্রথমে রাখবেন"* · *"মোবাইল নাম্বার দুটো এক জায়গায়
+           রাখুন"* · *"বক্সের উচ্চতা একটু ছোট করুন"* · *"eg সহ ডেমো নাম্বার
+           থাকবে না"* · *"ডিলিট বটম এখানে রাখবেন না, ক্লোজ রাখুন"*।
+           ⇒ ক্রম: নাম → মোবাইল → বাড়তি নম্বর → ব্রাঞ্চ → এলাকা → রিমার্কস।
+           ⛔ একটাও ঘর বাদ যায়নি; সেভের নিয়ম · যাচাই · কোন ঘরে কী জমা হয় —
+              এক অক্ষরও বদলায়নি। শুধু বসার ক্রম, উচ্চতা ও লেখার রং। */
         container.addView(fieldLabel("🧑‍⚕️", "Doctor Name *", 0))
         val name = EditText(this).apply { setText(item.name); hint = "Doctor Name" }
-        styleInput(name); clearErrorOnEdit(name); container.addView(name)
+        styleInputCompact(name); clearErrorOnEdit(name); container.addView(name)
 
-        container.addView(fieldLabel("📱", "Mobile *"))
+        container.addView(fieldLabel("📱", "Mobile *", 7))
         val mobile = EditText(this).apply { hint = "Mobile (10-digit)" }
-        styleInput(mobile)
+        styleInputCompact(mobile)
         MobileInput.attach(mobile)
         mobile.setText(MobileInput.digits(item.mobile))
         clearErrorOnEdit(mobile)
         container.addView(mobile)
 
-        container.addView(fieldLabel("🏥", "Branch *"))
+        // 🟢 B630 — একই ডাক্তারের বাড়তি নম্বর; এখন মূল নম্বরের ঠিক নিচেই (TK)।
+        container.addView(fieldLabel("📱", "Other number (optional)", 7, "#5B6B81"))
+        val altEdit = EditText(this).apply { setText(item.altMobiles) }
+        styleInputCompact(altEdit); container.addView(altEdit)
+
+        container.addView(fieldLabel("🏥", "Branch *", 7))
         val branch = Spinner(this).apply {
             adapter = ArrayAdapter(this@DoctorVisitActivity, android.R.layout.simple_spinner_dropdown_item, branches)
             setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
@@ -819,28 +846,27 @@ class DoctorVisitActivity : AppCompatActivity() {
         }
         container.addView(branch)
 
-        container.addView(fieldLabel("📍", "Area / Address"))
+        container.addView(fieldLabel("📍", "Area / Address", 7, "#5B6B81"))
         val area = EditText(this).apply { setText(item.area); hint = "Area / Address" }
-        styleInput(area); container.addView(area)
+        styleInputCompact(area); container.addView(area)
 
-        container.addView(fieldLabel("📝", "Remarks"))
+        /* 🚓🔒 V1034 (০৪.০৯.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ) — ডাক্তার কোন
+           থানার অধীনে। ঠিকানার ঠিক নিচেই, বাধ্যতামূলক নয়।
+           ⛔ লেখাটা ইংরেজিতেই (TK-নির্দেশ: বাংলা থাকবে না)। */
+        container.addView(fieldLabel("🚓", "Police Station", 7, "#5B6B81"))
+        val police = EditText(this).apply { setText(item.policeStation); hint = "Police Station" }
+        styleInputCompact(police); container.addView(police)
+
+        container.addView(fieldLabel("📝", "Remarks", 7, "#5B6B81"))
         val remarks = EditText(this).apply { setText(item.remarks); hint = "Remarks" }
-        styleInput(remarks); clearErrorOnEdit(remarks); container.addView(remarks)
+        styleInputCompact(remarks); clearErrorOnEdit(remarks); container.addView(remarks)
 
-        // 🟢 B630 (11.08.2026, TK-নির্দেশ): একই ডাক্তারের বাড়তি নম্বর — বিদ্যমান ডাক্তারেও
-        //   যোগ/এডিট করা যায় (কমা দিয়ে আলাদা)। ⛔ মূল Mobile অটুট; শুধু বাড়তি নম্বর।
-        container.addView(fieldLabel("📱", "Other numbers (comma separated, optional)"))
-        val altEdit = EditText(this).apply { setText(item.altMobiles); hint = "e.g. 9800000000, 9811111111" }
-        styleInput(altEdit); container.addView(altEdit)
-
-        val u = NativeSession.current(this)
-        val canDelete = u != null && (u.role == "master" || u.role == "staff" || u.role == "field")
-        if (canDelete) {
-            parts.actionRow.addView(pillButton("🗑 Delete", "#FBECEC", android.graphics.Color.parseColor("#C0392B")).apply {
-                setOnClickListener { parts.dialog.dismiss(); confirmDeleteDoctor(item) }
-            })
-        }
-        parts.actionRow.addView(pillButton("Cancel", "#E5E8EC", android.graphics.Color.parseColor("#145A32")).apply {
+        /* 🗑️🔒 V1033 — TK: *"ডিলিট বটম এখানে রাখবেন না, এখানে ক্লোজ রাখুন"*।
+           ⛔ মোছার ক্ষমতা হারায়নি — কার্ডের নিজের ডিলিট (`onDeleteTap`) ও
+              পুরো-পর্দার তালিকার ডিলিট আগের মতোই আছে, একই
+              `confirmDeleteDoctor()` ডাকে। শুধু এই পপ-আপ থেকে সরানো হলো,
+              যাতে ভুল করে চাপ পড়ার ভয় না থাকে। */
+        parts.actionRow.addView(pillButton("Close", "#E5E8EC", android.graphics.Color.parseColor("#145A32")).apply {
             setOnClickListener { parts.dialog.dismiss() }
         })
         parts.actionRow.addView(pillButton("💾 Save", "#0C9E33").apply {
@@ -870,6 +896,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                     .put("mobile", mob)
                     .put("branch", br)
                     .put("area", area.text.toString().trim())
+                    .put("policeStation", police.text.toString().trim())   // 🚓 V1034
                     .put("remarks", rm)
                 // 🔴🔴🔒 V458 (TK-নির্দেশ ১৯.০৮.২০২৬: "কোন স্টাফ কল করেছিল কবে —
                 // সততার সাথে যেন বোঝা যায়")। এই পপ-আপের Remarks ঘরটা সরাসরি লেখে —
@@ -887,14 +914,40 @@ class DoctorVisitActivity : AppCompatActivity() {
                 // 🟢 B630: altMobiles তখনই লেখা হয় যখন কিছু আছে বা আগে ছিল (মুছতে) —
                 //   নইলে নয়, যাতে SQL কলাম না থাকলেও সাধারণ এডিট ব্যর্থ না হয়।
                 if (altCsv.isNotBlank() || item.altMobiles.isNotBlank()) fields.put("altMobiles", altCsv)
+                /* 🔴🔴🔒 V992 (০৩.০৯.২০২৬, TK-রিপোর্ট ছবিসহ — *"নাম এডিট করে সেভ
+                   করলাম… কিন্তু কই সেভ হলো না তো, এই পুরানোটাই দেখাচ্ছে"*)।
+
+                   **আসল কারণ (কোড ধরে প্রমাণিত, আন্দাজ নয়):** সেভটা ক্লাউডে
+                   ঠিকই যেত, কিন্তু এই PATCH-এ `updatedAt` ঘরটা ছিল না — তাই
+                   সারির সময়-চিহ্ন পুরনোই থেকে যেত। তালিকা নামানোর সময়
+                   (`fetchListRawSmartOrNull`) সার্ভারের সবচেয়ে নতুন
+                   `updatedAt` আর ফোনে জমা থাকা `updatedAt` মিলিয়ে দেখে —
+                   দুটো এক হওয়ায় "কিছুই বদলায়নি" ধরে **জমানো পুরনো তালিকাটাই**
+                   ফেরত দিত। তাই পর্দায় পুরনো নামটাই থেকে যেত, শুধু এই ফোনে নয়,
+                   **সব ফোনেই**।
+
+                   **সমাধান:** বদলের সাথে সময়-চিহ্নটাও বসে — প্রকল্পের বাকি
+                   সব লেখার হুবহু একই নিয়মে। তখন সার্ভারের চিহ্ন নতুন হয়,
+                   আর নতুন নামটা সব ফোনে নেমে আসে।
+                   ⛔ কোন ঘরে কী লেখা হয় তার আর কিছুই বদলায়নি। */
+                fields.put("updatedAt", java.text.SimpleDateFormat(
+                    "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US
+                ).format(java.util.Date()))
                 lifecycleScope.launch {
                     val ok = withContext(Dispatchers.IO) { SupabaseClient.updateById("doctor_visits", item.id, fields) }
                     Toast.makeText(this@DoctorVisitActivity, if (ok) "Updated" else "Failed — check connection", Toast.LENGTH_SHORT).show()
-                    if (ok) { parts.dialog.dismiss(); loadList() }
+                    if (ok) {
+                        /* 🔴 V992 — এই ফোনের জমানো তালিকাটাও ফেলে দেওয়া হয়, যাতে
+                           সাথে সাথেই নতুন নামটা দেখা যায় (নেট থাকলে)। ⛔ তথ্য
+                           কোথাও মোছে না — শুধু জমানো কপি, পরের বারেই আবার বসে। */
+                        try { dvCachePrefs().edit().remove(dvCacheKey()).apply() } catch (_: Throwable) { }
+                        parts.dialog.dismiss(); loadList()
+                    }
                 }
             }
         })
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     // TK-REQUESTED CHANGE (2026-07-23): Doctor/RMP delete now needs Admin
@@ -940,8 +993,8 @@ class DoctorVisitActivity : AppCompatActivity() {
                 .show().also { PremiumAlert.paint(it) }
         } else {
             androidx.appcompat.app.AlertDialog.Builder(this)
-                .setCustomTitle(PremiumAlert.header(this, "Delete request পাঠাবেন?"))
-                .setMessage(NoBengali.s("${item.name.ifBlank { item.mobile }}\n\nAdmin অনুমোদন দিলে তবেই ডিলিট হবে — এখনই কিছু মুছবে না।"))
+                .setCustomTitle(PremiumAlert.header(this, "Send the Delete request?"))
+                .setMessage(NoBengali.s("Nothing is deleted now — it is deleted only after Admin approves."))
                 .setPositiveButton("Send Request") { _, _ ->
                     lifecycleScope.launch {
                         val ok = withContext(Dispatchers.IO) { repository.requestDelete(item.id, user.mobile) }
@@ -959,7 +1012,7 @@ class DoctorVisitActivity : AppCompatActivity() {
         val requesterName = StaffDirectory.findAccount(item.deleteRequestedBy)?.name ?: item.deleteRequestedBy
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setCustomTitle(PremiumAlert.header(this, "Approve Delete?"))
-            .setMessage(NoBengali.s("${item.name.ifBlank { item.mobile }}\nRequested by: $requesterName\n\nআসলেই ডিলিট হবে (Trash Bin-এ যাবে)।"))
+            .setMessage(NoBengali.s("It will really be deleted (goes to the Trash Bin)."))
             .setPositiveButton("Approve") { _, _ ->
                 lifecycleScope.launch {
                     val ok = withContext(Dispatchers.IO) { repository.approveDelete(item.raw, user.mobile, this@DoctorVisitActivity) }
@@ -1017,10 +1070,22 @@ class DoctorVisitActivity : AppCompatActivity() {
      *  doctor this phone added for another branch could otherwise appear in
      *  this branch's list. This applies exactly the same branch rule the
      *  cloud query itself uses, so nothing can cross branches. Master /
-     *  "All" sees everything, as always. */
+     *  "All" sees everything, as always.
+     *
+     *  🟢🔒🔒 V635 (২৪.০৮.২০২৬, TK-নির্দেশ — "এই ধরনের সমস্যা আর কোথায়
+     *  আছে, গভীরে গিয়ে যাচাই করুন") — Chamber Attendance-এর "কাল আসার
+     *  কথা"-র ঠিক একই বাগের ধরন এখানেও ছিল: উপরের `raw` তোলা হয় সঠিক
+     *  ব্রাঞ্চ দিয়ে (`activeDoctorBranch()` — এই স্ক্রিনের নিজের
+     *  ব্রাঞ্চ-পিকার/`branchFilter` মেনে চলে), কিন্তু তারপর এই ফাংশন
+     *  সেই একই তালিকা আবার **`user.branch`** (লগইনের নিজের ব্রাঞ্চ) দিয়ে
+     *  দ্বিতীয়বার ছেঁকে ফেলত। Master-এর নিজের `branch` সাধারণত "All"
+     *  থাকে বলে এটা এতদিন প্রকাশ পায়নি — কিন্তু নির্দিষ্ট-ব্রাঞ্চের কোনো
+     *  Master/অংশীদার-ধরনের অ্যাকাউন্ট অন্য ব্রাঞ্চে সুইচ করলে RMP-তালিকা
+     *  ভুলভাবে ফাঁকা/কম দেখাতে পারত। এখন `activeDoctorBranch()`-ই
+     *  ব্যবহার হয় — ঠিক যে ব্রাঞ্চ দিয়ে `raw` আনা হয়েছিল, তার সাথেই মেলে। */
     private fun myDoctorRows(rows: org.json.JSONArray): org.json.JSONArray {
         val merged = MyPhoneWrites.overlay(this, "doctor_visits", rows)
-        val branch = user.branch
+        val branch = activeDoctorBranch().orEmpty()
         if (branch.isBlank() || branch == "All") return merged
         val out = org.json.JSONArray()
         for (i in 0 until merged.length()) {
@@ -1236,7 +1301,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                         //    থাকলে সারিটা আগের মতোই রাখা হয়, কোনো সারি হারায় না।
                         val myBranch = user.branch
                         val patients = SupabaseClient.fetchListSlim("patients", null, 5000, "id,refBy,refDoctorMobile,branch,updatedAt")
-                        val patientRefs = ArrayList<Pair<String, String>>(patients.length())
+                        val patientRefs = ArrayList<Triple<String, String, String>>(patients.length())
                         for (i in 0 until patients.length()) {
                             val pat = patients.optJSONObject(i) ?: continue
                             if (myBranch.isNotBlank() && myBranch != "All") {
@@ -1245,13 +1310,16 @@ class DoctorVisitActivity : AppCompatActivity() {
                             }
                             val refBy = pat.s("refBy").trim().lowercase()
                             val refMob = pat.s("refDoctorMobile").filter { it.isDigit() }.takeLast(10)
-                            if (refBy.isNotBlank() || refMob.isNotBlank()) patientRefs.add(refBy to refMob)
+                            // 🔴🔒 V940 — রোগীর ব্রাঞ্চটাও সঙ্গে রাখা হয়, নিচের গোনায় লাগে।
+                            if (refBy.isNotBlank() || refMob.isNotBlank())
+                                patientRefs.add(Triple(refBy, refMob, pat.s("branch")))
                         }
                         items.map { doc ->
                             val docName = doc.name.trim().lowercase()
                             val docMobile = doc.mobile.filter { it.isDigit() }.takeLast(10)
                             val oldCount = patientRefs.count { r ->
-                                (r.first.isNotBlank() && r.first == docName) || (r.second.isNotBlank() && r.second == docMobile)
+                                ((r.first.isNotBlank() && r.first == docName) || (r.second.isNotBlank() && r.second == docMobile)) &&
+                                    v940Belongs(r.third, doc.branch, docMobile)   // 🔴🔒 V940
                             }
                             // If the server result is valid, retain it for every cloud RMP
                             // and use the old count only for a not-yet-cloud local overlay.
@@ -1372,21 +1440,39 @@ class DoctorVisitActivity : AppCompatActivity() {
     // বার্তার (`PatientMessage.presentSendBox()`) ঠিক একই "আগে পাঠানো
     // হয়েছে কিনা" যাচাই এখানেও — একই শেয়ার্ড `MessageSentLog` টেবিল/
     // ফাংশন ব্যবহার করে (নতুন কিছু বানানো হয়নি, পুনর্ব্যবহার)।
+    /* 🔴🔒 V732 (২৭.০৮.২০২৬, TK-অনুমোদিত) — **পর্দায় দেখানো নমুনা**।
+       TK: *"ওই বাক্সের দেখানো লেখাটা ঠিক করে দিন, তবে খুব সাবধানে।"*
+       বাংলা-বন্ধ ফোনে (কিশানগঞ্জ স্টাফ) বাংলা নমুনা পর্দায় ভেঙে যেত
+       ("Piles (Piles), Fissure (Fissure)…")। এখন ওই ফোনে **সম্পূর্ণ ইংরেজি
+       নমুনা** দেখানো হয় — রোগীর বার্তার পর্দায় V503-এ TK যেটা অনুমোদন
+       করেছিলেন, **হুবহু সেই নিয়ম**।
+       ⛔ ডাক্তারের কাছে যে বার্তা যায় (`text`) **এক অক্ষরও বদলায় না** —
+          স্টাফ যে ভাষা বাছবেন ডাক্তার সেই ভাষাতেই পাবেন।
+       ⛔ `previewEn` না দিলে বা বানাতে না পারলে আগের মতোই `text` দেখায়। */
     private fun sendDoctorMessage(mobile: String, doctorName: String, text: String, logKind: String = "") {
+        // 🔒 এই লাইনটা পাহারাদারে **লক করা** (B154/B156) — তাই এক অক্ষরও
+        //    বদলানো হয়নি। V732-এর নতুন কাজটা নিচের **একই নামের**
+        //    পাঁচ-ঘরের রূপে (overload) — তাই লক করা লেখাটাও অক্ষত।
+        sendDoctorMessage(mobile, doctorName, text, logKind, null)
+    }
+
+    private fun sendDoctorMessage(
+        mobile: String, doctorName: String, text: String, logKind: String, previewEn: String?
+    ) {
         val digits = mobile.filter { it.isDigit() }.takeLast(10)
         if (digits.length != 10) {
             Toast.makeText(this, "This doctor has no valid 10-digit mobile number", Toast.LENGTH_LONG).show()
             return
         }
         if (logKind.isBlank()) {
-            buildAndShowDoctorSendBox(digits, doctorName, text, logKind, null)
+            buildAndShowDoctorSendBox(digits, doctorName, text, logKind, null, previewEn)
             return
         }
         BackgroundWork.run {
             val prior = try { MessageSentLog.checkPrior(digits, logKind, recipientType = "doctor") } catch (_: Throwable) { null }
             try {
                 if (!isFinishing && !isDestroyed) {
-                    runOnUiThread { buildAndShowDoctorSendBox(digits, doctorName, text, logKind, prior) }
+                    runOnUiThread { buildAndShowDoctorSendBox(digits, doctorName, text, logKind, prior, previewEn) }
                 }
             } catch (_: Throwable) { }
         }
@@ -1394,7 +1480,8 @@ class DoctorVisitActivity : AppCompatActivity() {
 
     private fun buildAndShowDoctorSendBox(
         digits: String, doctorName: String, text: String, logKind: String,
-        prior: MessageSentLog.PriorSend?
+        prior: MessageSentLog.PriorSend?,
+        previewEn: String? = null          // 🔴 V732 — শুধু পর্দায় দেখানোর জন্য
     ) {
         // 🔒 TK-APPROVED (30.07.2026 দুপুর ৩.১০, ফটো-প্রুফে "ওকে পছন্দ হয়েছে"
         //    · খাতার সারি B163): রোগীর বার্তার পপ-আপের **হুবহু একই প্রফেশনাল
@@ -1431,7 +1518,11 @@ class DoctorVisitActivity : AppCompatActivity() {
             })
         }
         parts.body.addView(TextView(this).apply {
-            this.text = text
+            // 🔴🔒 V732 — বাংলা-বন্ধ ফোনে ভাঙা বাংলার বদলে ইংরেজি নমুনা।
+            //    ⛔ পাঠানো বার্তা এতে বদলায় না (নিচে `text` সরাসরি যায়)।
+            this.text = try {
+                if (NoBengali.active() && previewEn != null) previewEn else text
+            } catch (_: Throwable) { text }
             textSize = 12.5f
             setTextColor(android.graphics.Color.parseColor("#1E2A3A"))
             setPadding((14 * d).toInt(), (12 * d).toInt(), (14 * d).toInt(), (12 * d).toInt())
@@ -1488,6 +1579,7 @@ class DoctorVisitActivity : AppCompatActivity() {
             setOnClickListener { parts.dialog.dismiss() }
         })
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     /** TK APPROVED (2026-07-16): premium dialog shell (navy header + rounded
@@ -1548,23 +1640,39 @@ class DoctorVisitActivity : AppCompatActivity() {
     /** Small colored icon+label field header, reused across the premium
      *  dialogs below (e.g. "👨‍⚕️ Doctor Name") instead of a plain textSize-only
      *  label — look-only change, the field it labels is unchanged. */
-    private fun fieldLabel(icon: String, text: String, marginTopDp: Int = 16): TextView {
+    /* 🩺🔒 V1033 (০৪.০৯.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ) — যে ঘরগুলো
+       বাধ্যতামূলক **নয়** সেগুলোর লেখা আর লাল নয়, তাই আর জোরের মতো দেখায় না।
+       ⛔ ডিফল্ট রং আগেরটাই — যেখানে বলা হয়নি সেখানে এক অক্ষরও বদলায়নি। */
+    private fun fieldLabel(icon: String, text: String, marginTopDp: Int = 10, colorHex: String = "#B42318"): TextView {
         val d = resources.displayMetrics.density
         return TextView(this).apply {
             this.text = "$icon  $text"
             textSize = 12.5f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setTextColor(android.graphics.Color.parseColor("#B42318"))
-            setPadding(0, (marginTopDp * d).toInt(), 0, (4 * d).toInt())
+            setTextColor(android.graphics.Color.parseColor(colorHex))
+            // 🟢 V942 (01.09.2026, TK): ঘরগুলো উচ্চতায় ছোট — লেখার আকার/রং অটুট।
+            setPadding(0, (marginTopDp * d).toInt(), 0, (3 * d).toInt())
         }
     }
 
     private fun styleInput(v: EditText) {
         val d = resources.displayMetrics.density
         v.setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
-        val padH = (14 * d).toInt(); val pad = (12 * d).toInt()
+        val padH = (14 * d).toInt(); val pad = (7 * d).toInt()
         v.setPadding(padH, pad, padH, pad)
         v.setTextColor(android.graphics.Color.parseColor("#10223A"))
+    }
+
+    /* 📏🔒 V1033 (TK-নির্দেশ: *"বক্সের উচ্চতা একটু ছোট করুন"*) — ঘরটা নিচু করা।
+       ⛔ শুধু যে পপ-আপে ডাকা হয় সেখানেই; বাকি সব পপ-আপ `styleInput()`-ই ব্যবহার
+          করে, তাই তাদের চেহারা এক অক্ষরও বদলায়নি।
+       ⛔ লেখার আকার · রং · ব্যাকগ্রাউন্ড অটুট — শুধু উপর-নিচের ফাঁক ও উচ্চতা। */
+    private fun styleInputCompact(v: EditText) {
+        val d = resources.displayMetrics.density
+        styleInput(v)
+        val padH = (14 * d).toInt(); val pad = (4 * d).toInt()
+        v.setPadding(padH, pad, padH, pad)
+        v.minHeight = (40 * d).toInt()
     }
 
     /** TK-DECISION (2026-07-22): mark the exact field the user got wrong with a
@@ -1572,7 +1680,7 @@ class DoctorVisitActivity : AppCompatActivity() {
      *  to the normal style the moment the user edits that field. */
     private fun setFieldError(v: View) {
         val d = resources.displayMetrics.density
-        val padH = (14 * d).toInt(); val pad = (12 * d).toInt()
+        val padH = (14 * d).toInt(); val pad = (7 * d).toInt()
         v.background = android.graphics.drawable.GradientDrawable().apply {
             cornerRadius = 12f * d
             setColor(android.graphics.Color.parseColor("#FFF4F4"))
@@ -1620,13 +1728,14 @@ class DoctorVisitActivity : AppCompatActivity() {
         val parts = premiumDialogShell("🧑‍⚕️", "Add Doctor/RMP")
         val container = parts.body
 
-        container.addView(fieldLabel("🧑‍⚕️", "Doctor Name *", 0))
+        /* 🟢 V942 (01.09.2026, TK-নির্দেশ "আগে মোবাইল নাম্বার রাখুন") — মোবাইল ঘরটা
+           সবার উপরে, তারপর নাম — নম্বর লিখলেই "সেভ আছে কি না" আগে দেখা যায়।
+           ⛔ কোনো ঘর বাদ যায়নি, সেভের নিয়ম এক অক্ষরও বদলায়নি — শুধু বসার ক্রম। */
         val nameInput = EditText(this).apply { hint = "Doctor Name" }
         styleInput(nameInput)
         clearErrorOnEdit(nameInput)
-        container.addView(nameInput)
 
-        container.addView(fieldLabel("📱", "Mobile *"))
+        container.addView(fieldLabel("📱", "Mobile *", 0))
         val mobileInput = EditText(this).apply { hint = "Mobile (10-digit)" }
         styleInput(mobileInput)
         // TK-DECISION (2026-07-22): standard phone field -- MobileInput enforces
@@ -1692,9 +1801,12 @@ class DoctorVisitActivity : AppCompatActivity() {
             text = "＋ Add another number"
             textSize = 13.5f; setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(android.graphics.Color.parseColor("#166534"))
-            setPadding(0, (8 * resources.displayMetrics.density).toInt(), 0, (2 * resources.displayMetrics.density).toInt())
+            setPadding(0, (6 * resources.displayMetrics.density).toInt(), 0, (2 * resources.displayMetrics.density).toInt())
             setOnClickListener { addAltNumberRow() }
         })
+
+        container.addView(fieldLabel("🧑‍⚕️", "Doctor Name *"))
+        container.addView(nameInput)
 
         container.addView(fieldLabel("🏥", "Branch *"))
         val branchSpinner = Spinner(this).apply {
@@ -1712,7 +1824,17 @@ class DoctorVisitActivity : AppCompatActivity() {
         styleInput(areaInput)
         container.addView(areaInput)
 
-        container.addView(fieldLabel("📝", "Remarks (call/visit discussion) *"))
+        /* 🚓🔒 V1034 (TK-নির্দেশ) — ডাক্তার কোন থানার অধীনে; Edit ফর্মের হুবহু
+           একই ঘর, একই জায়গায় (ঠিকানার নিচে)। বাধ্যতামূলক নয়। */
+        container.addView(fieldLabel("🚓", "Police Station"))
+        val policeInput = EditText(this).apply { hint = "Police Station" }
+        styleInput(policeInput)
+        container.addView(policeInput)
+
+        /* 💬🔒 V1033 (TK-নির্দেশ: *"Add ফর্মেও Remarks বাধ্যতামূলক রাখবেন না"*)
+           — তারা-চিহ্ন ও লাল রং দুটোই গেল, নিচের যাচাইটাও তুলে দেওয়া হলো।
+           ⛔ ঘরটা আছেই, লেখা থাকলে আগের মতোই হুবহু একইভাবে জমা হয়। */
+        container.addView(fieldLabel("📝", "Remarks (call/visit discussion)", 10, "#5B6B81"))
         val remarkInput = EditText(this).apply { hint = "Remarks" }
         styleInput(remarkInput)
         clearErrorOnEdit(remarkInput)
@@ -1761,7 +1883,7 @@ class DoctorVisitActivity : AppCompatActivity() {
             if (name.isBlank()) bad(nameInput, "Doctor Name দিন")
             if (mobile.length != 10) bad(mobileInput, "সঠিক 10 ডিজিট মোবাইল দিন")
             if (branch.isBlank()) bad(branchSpinner, "Branch বাছুন")
-            if (remark.isBlank()) bad(remarkInput, "Remarks দিন")
+            // 💬 V1033 — TK-নির্দেশে Remarks আর বাধ্যতামূলক নয়।
             if (firstMsg != null) {
                 Toast.makeText(this@DoctorVisitActivity, firstMsg, Toast.LENGTH_SHORT).show()
                 (firstBad as? EditText)?.requestFocus()
@@ -1786,19 +1908,45 @@ class DoctorVisitActivity : AppCompatActivity() {
                 // কিছুই বদলায় না।
                 // 🟢 B630 (ক.১): প্রাইমারি + প্রতিটা বাড়তি নম্বর — কোনোটা আগে সেভ থাকলে Save আটকাবে।
                 val allNums = ArrayList<String>().apply { add(mobile); addAll(extras) }
-                var dupNum = ""; var dupName = ""
+                /* 🔴🔴🔒 V940 (০১.০৯.২০২৬, TK-নির্দেশ, অনুমতি নিয়ে) — *"ওই নাম্বার
+                   যদি এই ব্রাঞ্চের জন্য না হয়ে থাকে তাহলে যেন ওভাররাইড করতে
+                   পারে ... যদি এক স্টাফ চায় তাহলে করতে পারবে"*।
+                   ⇒ **একই ব্রাঞ্চে** থাকলে আগের মতোই আটকায়; শুধু **অন্য
+                     ব্রাঞ্চে** থাকলে জিজ্ঞাসা করে, স্টাফ Yes দিলে সেভ হয়।
+                   ⛔ যাচাই হয় **ফর্মে বাছা ব্রাঞ্চ** ধরে (TK-কে জানিয়ে নেওয়া)। */
+                var dupNum = ""; var dupName = ""; var dupBranch = ""; var dupSame = false
                 for (num in allNums) {
-                    val d = withContext(Dispatchers.IO) { repository.checkDuplicate(num, allItems) }
-                    if (d.found) { dupNum = num; dupName = d.name; break }
+                    val d = withContext(Dispatchers.IO) { repository.checkDuplicate(num, allItems, branch) }
+                    if (d.found) {
+                        dupNum = num; dupName = d.name; dupBranch = d.branch
+                        dupSame = d.branch.isBlank() || d.branch.equals(branch, ignoreCase = true)
+                        if (dupSame) break
+                    }
                 }
-                if (dupNum.isNotEmpty()) {
-                    Toast.makeText(this@DoctorVisitActivity, "Already saved: $dupName ($dupNum)", Toast.LENGTH_LONG).show()
+                if (dupNum.isNotEmpty() && dupSame) {
+                    Toast.makeText(this@DoctorVisitActivity, "Already saved in $branch: $dupName ($dupNum)", Toast.LENGTH_LONG).show()
                     saveDoctorBtn.isEnabled = true
                     return@launch
                 }
+                if (dupNum.isNotEmpty() && !dupSame) {
+                    val goOn = kotlinx.coroutines.CompletableDeferred<Boolean>()
+                    androidx.appcompat.app.AlertDialog.Builder(this@DoctorVisitActivity)
+                        .setCustomTitle(PremiumAlert.header(this@DoctorVisitActivity, "Same number, another branch"))
+                        // ⛔ লেখাটা স্থির রাখা হলো (নাম/ব্রাঞ্চ পরে জোড়া হয়), নইলে
+                        //    বাংলা-বন্ধ স্টাফের জন্য অনুবাদ মেলানো যেত না (পাহারা ৯.১৪)।
+                        .setMessage(
+                            NoBengali.s("এই নম্বর অন্য ব্রাঞ্চের জন্য আগেই সেভ করা আছে। এই ব্রাঞ্চের জন্যও আলাদাভাবে সেভ করতে চান?") +
+                            "\n\n" + dupBranch + " · " + dupName + " · " + dupNum + "\n➜ " + branch
+                        )
+                        .setPositiveButton(NoBengali.s("Yes")) { _, _ -> goOn.complete(true) }
+                        .setNegativeButton(NoBengali.s("No")) { _, _ -> goOn.complete(false) }
+                        .setOnCancelListener { goOn.complete(false) }
+                        .show().also { PremiumAlert.paint(it) }
+                    if (!goOn.await()) { saveDoctorBtn.isEnabled = true; return@launch }
+                }
                 val altCsv = extras.joinToString(",") { "+91$it" }
                 val ok = withContext(Dispatchers.IO) {
-                    repository.addNewDoctor(name, mobile, branch, areaInput.text.toString().trim(), remark, nextDate, user.mobile, this@DoctorVisitActivity, altCsv)
+                    repository.addNewDoctor(name, mobile, branch, areaInput.text.toString().trim(), remark, nextDate, user.mobile, this@DoctorVisitActivity, altCsv, policeInput.text.toString().trim())
                 }
                 // 🔒 (03.08.2026, খাতার সারি B190/B373, TK-অনুমোদনে) — আসল কারণ:
                 // addNewDoctor() ব্যর্থ হলেও (ok=false) MyPhoneWrites.remember()
@@ -1824,6 +1972,7 @@ class DoctorVisitActivity : AppCompatActivity() {
         }
         parts.actionRow.addView(saveDoctorBtn)
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     private fun showLogCallDialog(item: DoctorVisitItem) {
@@ -2029,6 +2178,7 @@ class DoctorVisitActivity : AppCompatActivity() {
         }
         parts.actionRow.addView(saveCallBtn)
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     /**
@@ -2157,8 +2307,30 @@ class DoctorVisitActivity : AppCompatActivity() {
                             ReferredPatient(p.referralDate, p.name, p.mobile, p.bill, p.paid, p.patientCode, p.disease)
                         }
                     } else {
-                        val patsDeferred = async { SupabaseClient.fetchListSlimOrNull("patients", null, 5000, "id,name,mobile,bill,branch,refBy,refDoctorMobile,registrationDate,date,disease,diagnosis,updatedAt") }
-                        val paysDeferred = async { SupabaseClient.fetchListSlimOrNull("payments", null, 5000, "id,mobile,amount,payType,refundApprovalStatus,updatedAt") }
+                        /* 🔴🔒 V1067 (০৪.০৯.২০২৬ — পুরো প্রজেক্ট খুঁটিয়ে দেখতে গিয়ে পাওয়া,
+                           **V1060-এর হুবহু একই ধরনের দোষ**) — এখানে সব রোগী ও সব পেমেন্ট
+                           `limit 5000`, ক্রম `updatedAt.desc` মানে **নতুন ৫০০০টা** আনা হত।
+                           ক্লিনিক বড় হয়ে ৫০০০ ছাড়াতেই সবচেয়ে **পুরনো টাকাগুলো ছাঁটা** পড়ত ⇒
+                           ঐ রোগীর "দেওয়া" কম দেখাত ⇒ **"বাকি" বেশি দেখাত**। রেফার-করা
+                           ডাক্তারের তালিকায় টাকার অঙ্ক ভুল হত।
+                           ⇒ এখন **পাতা ধরে ধরে সবটা** আনা হয়, ক্রম `id.asc` (অনন্য, তাই
+                             পাতার মাঝে সারি এড়িয়ে যায় না), আর কোনো পাতা না এলে `null`
+                             (আধা-হিসাব নয়) — নিচের `?: throw` আগের মতোই ধরে নেয়।
+                           ⛔ টাকার গোনার নিয়ম এক অক্ষরও বদলায়নি। */
+                        fun allPages(table: String, cols: String): org.json.JSONArray? {
+                            val out = org.json.JSONArray(); var off = 0; val page = 1000
+                            while (true) {
+                                val part = SupabaseClient.fetchListSlimOrNull(
+                                    table, null, page, cols, order = "id.asc", offset = off) ?: return null
+                                for (k in 0 until part.length()) out.put(part.get(k))
+                                if (part.length() < page) break
+                                off += page
+                                if (off >= 200000) break
+                            }
+                            return out
+                        }
+                        val patsDeferred = async { allPages("patients", "id,name,mobile,bill,branch,refBy,refDoctorMobile,registrationDate,date,disease,diagnosis,updatedAt") }
+                        val paysDeferred = async { allPages("payments", "id,mobile,amount,payType,refundApprovalStatus,updatedAt") }
                         val pats = patsDeferred.await() ?: throw IllegalStateException("patients refresh failed")
                         val pays = paysDeferred.await() ?: throw IllegalStateException("payments refresh failed")
                         val paidByMobile = HashMap<String, Double>()
@@ -2188,6 +2360,8 @@ class DoctorVisitActivity : AppCompatActivity() {
                             val refMob = pat.s("refDoctorMobile").filter { it.isDigit() }.takeLast(10)
                             val hit = (refBy.isNotBlank() && refBy == docName) || (refMob.isNotBlank() && refMob == docMobile)
                             if (!hit) continue
+                            // 🔴🔒 V940 — একই নম্বরে একাধিক ব্রাঞ্চের সারি থাকলে রোগী তাঁর নিজের ব্রাঞ্চেরটিতেই।
+                            if (!v940Belongs(pat.s("branch"), item.branch, docMobile)) continue
                             val m = pat.s("mobile").filter { it.isDigit() }.takeLast(10)
                             val regDate = pat.s("registrationDate").ifBlank { pat.s("date") }
                             old.add(ReferredPatient(regDate, pat.s("name"), m, pat.optDouble("bill", 0.0), paidByMobile[m] ?: 0.0, pat.s("patientId"), pat.s("disease").ifBlank { pat.s("diagnosis") }))
@@ -2527,6 +2701,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                         setOnClickListener { parts.dialog.dismiss() }
                     })
                     parts.dialog.show()
+                    try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
                 }
 
                 /** বার্তা ৩-এর তিনটে ঘর স্টাফ নিজে বেছে দেন — অ্যাপ আন্দাজে
@@ -2555,7 +2730,13 @@ class DoctorVisitActivity : AppCompatActivity() {
                             //    বাংলায় বসে যেত (খাতার সারি B93-এর গ্লোবাল রুল)।
                             nextDate = String.format(Locale.US, "%02d.%02d.%04d", d, m + 1, y)
                             btnDate.text = nextDate
-                        }, c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH)).show()
+                        }, c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH)).apply {
+            /* 🔴🔒 V843 (২৯.০৮.২০২৬, নিয়ম ৭ — একটা দোষ পেলে পুরো প্রজেক্টে):
+               **পরের** তারিখ বাছার ঘরে অতীতের তারিখ বাছা যেত। V671-এর
+               প্রমাণিত একই লাইন বসানো হলো।
+               ⛔ অতীতের তারিখ শুধু ধূসর হয় — জমা থাকা পুরনো তারিখ মোছে না। */
+            datePicker.minDate = System.currentTimeMillis() - 1000L
+        }.show()
                     }
                     parts.body.addView(btnDate)
 
@@ -2570,13 +2751,22 @@ class DoctorVisitActivity : AppCompatActivity() {
                                 p.name, p.patientId, FollowUpModel.displayDate(p.rawDate),
                                 spTreat.selectedItemPosition == 0, spBlood.selectedItemPosition == 0, nextTxt, lang
                             )
+                            // 🔴 V732 — শুধু পর্দায় দেখানোর ইংরেজি নমুনা (পাঠানো লেখা উপরেরটাই)
+                            val previewEn = try {
+                                DoctorMessage.details(
+                                    item.branch, item.name, item.area,
+                                    p.name, p.patientId, FollowUpModel.displayDate(p.rawDate),
+                                    spTreat.selectedItemPosition == 0, spBlood.selectedItemPosition == 0, nextTxt, "en"
+                                )
+                            } catch (_: Throwable) { null }
                             // 🔒 খাতার সারি B185 — এই পর্দাটাও আগে পুরো বন্ধ, তারপর
                             //    বার্তা পাঠানোর পর্দা (একই কারণ)।
                             parts.dialog.dismiss()
-                            afterUi { sendDoctorMessage(item.mobile, item.name, text, logKind = "DOCTOR_DETAILS") }
+                            afterUi { sendDoctorMessage(item.mobile, item.name, text, "DOCTOR_DETAILS", previewEn) }
                         }
                     })
                     parts.dialog.show()
+                    try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
                 }
 
                 /** 🔗 পুরনো (মোবাইলহীন) রেফারেল ইনকামের সারিটা আসল রোগীর সঙ্গে
@@ -2667,6 +2857,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                         }
                     })
                     parts.dialog.show()
+                    try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
                 }
 
                 /** 👥 TK-ORDER (30.07.2026 সকাল ৮.৪৫ · খাতার সারি B156):
@@ -2770,8 +2961,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                             }
                             fun copyOnLongPress(view: TextView, value: String, label: String) {
                                 view.setOnLongClickListener {
-                                    val clipboard = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText(label, value))
+                                    com.tkbiswas.pilesclinic.native.Clip.copy(this@DoctorVisitActivity, label, value)   // 🤫 V772
                                     Toast.makeText(this@DoctorVisitActivity, "$label copied", Toast.LENGTH_SHORT).show()
                                     true
                                 }
@@ -2913,6 +3103,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                     listDialog = AlertDialog.Builder(this@DoctorVisitActivity).setView(listRoot).create()
                     listDialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
                     listDialog.show()
+                    try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(listDialog) } catch (_: Throwable) { }   // 🤫 V774
                     forceDialogFullScreen(listDialog, listRoot)
                 }
 
@@ -2974,7 +3165,9 @@ class DoctorVisitActivity : AppCompatActivity() {
                                 2 -> { fsDialog.dismiss(); showLogCallDialog(item) }
                                 3 -> { menuDlg.dismiss(); editLastCallNote(item) }
                                 4 -> withIntroLanguage { lang ->
-                                    sendDoctorMessage(item.mobile, item.name, DoctorMessage.intro(item.branch, item.name, item.area, lang), logKind = "DOCTOR_INTRO")
+                                    // 🔴 V732 — পর্দায় দেখানোর ইংরেজি নমুনা; পাঠানো বার্তা `lang`-এই
+                                    val __pvEn = try { DoctorMessage.intro(item.branch, item.name, item.area, "en") } catch (_: Throwable) { null }
+                                    sendDoctorMessage(item.mobile, item.name, DoctorMessage.intro(item.branch, item.name, item.area, lang), "DOCTOR_INTRO", __pvEn)
                                 }
                                 // 🔒 খাতার সারি B185 (TK, 30.07.2026 বিকেল ৫.০০): বার্তা
                                 //    ২·৩·৪-এ পপ-আপ তিন ধাপে খোলে, তাই মেনুটা **আগে
@@ -2987,13 +3180,20 @@ class DoctorVisitActivity : AppCompatActivity() {
                                 // দেওয়া হতো, তাই ভাষা যাই বাছুন বার্তা সবসময় বাংলাই যেত।
                                 5 -> { menuDlg.dismiss(); afterUi { withLanguage { lang ->
                                     pickReferredPatient { p ->
+                                        // 🔴 V732 — পর্দায় দেখানোর ইংরেজি নমুনা
+                                        val __pvEn = try {
+                                            DoctorMessage.arrived(
+                                                item.branch, item.name, item.area,
+                                                p.name, p.patientId, FollowUpModel.displayDate(p.rawDate), "en"
+                                            )
+                                        } catch (_: Throwable) { null }
                                         sendDoctorMessage(
                                             item.mobile, item.name,
                                             DoctorMessage.arrived(
                                                 item.branch, item.name, item.area,
                                                 p.name, p.patientId, FollowUpModel.displayDate(p.rawDate), lang
                                             ),
-                                            logKind = "DOCTOR_ARRIVED"
+                                            "DOCTOR_ARRIVED", __pvEn
                                         )
                                     }
                                 } } }
@@ -3008,6 +3208,15 @@ class DoctorVisitActivity : AppCompatActivity() {
                                         val match = data.refIncome
                                             .filter { it.mobile == p.mobile && it.status.equals("Paid", true) }
                                             .maxByOrNull { it.rawDate }
+                                        // 🔴 V732 — পর্দায় দেখানোর ইংরেজি নমুনা
+                                        val __pvEn = try {
+                                            DoctorMessage.referralPaid(
+                                                item.branch, item.name, item.area,
+                                                p.name, p.patientId, FollowUpModel.displayDate(p.rawDate),
+                                                match?.amount ?: 0.0, match?.date ?: "",
+                                                match?.mode ?: "", match?.referenceNo ?: "", "en"
+                                            )
+                                        } catch (_: Throwable) { null }
                                         sendDoctorMessage(
                                             item.mobile, item.name,
                                             DoctorMessage.referralPaid(
@@ -3016,7 +3225,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                                                 match?.amount ?: 0.0, match?.date ?: "",
                                                 match?.mode ?: "", match?.referenceNo ?: "", lang
                                             ),
-                                            logKind = "DOCTOR_REFERRAL_PAID"
+                                            "DOCTOR_REFERRAL_PAID", __pvEn
                                         )
                                     }
                                 } } }
@@ -3311,6 +3520,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                 fsDialog = AlertDialog.Builder(this@DoctorVisitActivity).setView(root).create()
                 fsDialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
                 fsDialog.show()
+                try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(fsDialog) } catch (_: Throwable) { }   // 🤫 V774
                 // 🔒 TK-ORDER (30.07.2026 · খাতার সারি B156, **দ্বিতীয়বার বলতে
                 // হয়েছে**): শুধু window MATCH_PARENT করলে হয় না — AlertDialog-এর
                 // নিজের কনটেইনারগুলো WRAP_CONTENT, তাই পর্দা অর্ধেক আসত।
@@ -3667,6 +3877,7 @@ class DoctorVisitActivity : AppCompatActivity() {
             .sortedByDescending { it.second.second }
         render(rows)
         fsDialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(fsDialog) } catch (_: Throwable) { }   // 🤫 V774
         forceDialogFullScreen(fsDialog, root)
 
         // ধাপ ২ — শুধু এই তালিকার (সর্বোচ্চ ২৫) RMP-র সংখ্যা ক্লাউডে মিলিয়ে
@@ -3951,6 +4162,7 @@ class DoctorVisitActivity : AppCompatActivity() {
         }
 
         fsDialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(fsDialog) } catch (_: Throwable) { }   // 🤫 V774
         forceDialogFullScreen(fsDialog, root)
         loadAndRender()
     }
@@ -4008,6 +4220,8 @@ class DoctorVisitActivity : AppCompatActivity() {
                         val refMob = pat.s("refDoctorMobile").filter { it.isDigit() }.takeLast(10)
                         val hit = (refBy.isNotBlank() && refBy == docName) || (refMob.isNotBlank() && refMob == docMobile)
                         if (!hit) continue
+                        // 🔴🔒 V940 — একই নম্বরে একাধিক ব্রাঞ্চ থাকলে রোগী তাঁর নিজের ব্রাঞ্চেরটিতেই।
+                        if (!v940Belongs(pat.s("branch"), item.branch, docMobile)) continue
                         val m = pat.s("mobile").filter { it.isDigit() }.takeLast(10)
                         val bill = pat.optDouble("bill", 0.0)
                         val paid = paidByMobile[m] ?: 0.0
@@ -4082,7 +4296,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                         submitReferralChange(item, entryId, patient, patientMobile, entryDate, curAmount, curStatus, curAmount, curStatus, isDelete = true, isMaster = isMaster, sameDay = sameDay, u = u)
                     }
                     .setNegativeButton("Cancel", null)
-                    .show()
+                    .show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
             }
         })
         parts.actionRow.addView(pillButton("Cancel", "#E5E8EC", android.graphics.Color.parseColor("#145A32")).apply {
@@ -4100,6 +4314,7 @@ class DoctorVisitActivity : AppCompatActivity() {
         // V377: this was the missing final step. The dialog shell and all
         // Edit/Delete controls were built correctly but never displayed.
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     /** 🟢 B628: এডিট/ডিলিট প্রয়োগ — মাস্টার/একই-দিন সরাসরি; নইলে মাস্টারকে অনুরোধ। */
@@ -4177,21 +4392,100 @@ class DoctorVisitActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * 🟢🔒🔒 V661 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবি-প্রুফ পাশ — "Google sheets এর
+     * মত থাকতে হবে... তারিখ এবং সময় লাগবে") — আগে সাদামাটা bullet-list
+     * (`AlertDialog.setItems`) ছিল, এখন IncomeExpenseActivity-র প্রমাণিত
+     * "Google Sheet" বক্স-টেবিল ছাঁচেই (হেডার সবুজ, বর্ডার-করা কোষ) —
+     * Date · Time · Amount · Mode চারটে কলাম।
+     * ⛔ সারিতে চাপলে (available থাকলে) আগের মতোই `showRmpAdvancePatientPicker`
+     *    খোলে — adjust করার ক্ষমতা/অনুমতি এক অক্ষরও বদলায়নি, শুধু দেখানোর ধরন।
+     */
     private fun showRmpAdvancePayments(item: DoctorVisitItem) {
         lifecycleScope.launch {
             val got = withContext(Dispatchers.IO) { RmpCommissionRepository.advancePayments(item.id) }
             if (!got.ok) { Toast.makeText(this@DoctorVisitActivity, got.message, Toast.LENGTH_LONG).show(); return@launch }
             val rows = got.value ?: emptyList()
-            val availableRows = rows.filter { it.available > 0.001 }
             val total = rows.sumOf { it.amount }; val allocated = rows.sumOf { it.allocated }; val available = total - allocated
-            val labels = mutableListOf("Paid: ₹${"%,.2f".format(total)}  ·  Adjusted: ₹${"%,.2f".format(allocated)}  ·  Available: ₹${"%,.2f".format(available)}")
-            labels.addAll(availableRows.map { "${FollowUpModel.displayDate(it.paidOn)} · ₹${"%,.2f".format(it.available)} available · ${it.mode}" })
+
+            val dpx = { v: Int -> (v * resources.displayMetrics.density).toInt() }
+            fun boxCell(text: String, weight: Float, bg: String, fg: String, bold: Boolean): TextView =
+                TextView(this@DoctorVisitActivity).apply {
+                    this.text = text; textSize = 11.5f
+                    setTextColor(android.graphics.Color.parseColor(fg))
+                    if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    gravity = android.view.Gravity.CENTER
+                    setPadding(dpx(6), dpx(8), dpx(6), dpx(8))
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, weight)
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        setColor(android.graphics.Color.parseColor(bg))
+                        setStroke(dpx(1), android.graphics.Color.parseColor("#D9E2EC"))
+                    }
+                }
+
+            val table = LinearLayout(this@DoctorVisitActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            }
+            // হেডার
+            table.addView(LinearLayout(this@DoctorVisitActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                addView(boxCell("Date", 1.1f, "#0A7C3F", "#FFFFFF", true))
+                addView(boxCell("Time", 0.9f, "#0A7C3F", "#FFFFFF", true))
+                addView(boxCell("Amount", 1f, "#0A7C3F", "#FFFFFF", true))
+                addView(boxCell("Mode", 0.8f, "#0A7C3F", "#FFFFFF", true))
+            })
+            // ডেটা সারি
+            for ((idx, r) in rows.withIndex()) {
+                val bg = if (idx % 2 == 0) "#FFFFFF" else "#F7FBF8"
+                // 🟢🔒 V661 — recorded_at থেকে সময়টুকু বার করা (আগে থেকেই
+                // ছিল, শুধু sort-এর জন্য ব্যবহার হতো, এখন দেখানোও হয়)।
+                val timeTxt = try {
+                    val d = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
+                        .parse(r.recordedAt.take(19))
+                    java.text.SimpleDateFormat("h:mm a", java.util.Locale.US).format(d!!)
+                } catch (_: Throwable) { "—" }
+                val row = LinearLayout(this@DoctorVisitActivity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    if (r.available > 0.001) {
+                        isClickable = true; isFocusable = true
+                        setOnClickListener { showRmpAdvancePatientPicker(item, r) }
+                    }
+                }
+                row.addView(boxCell(FollowUpModel.displayDate(r.paidOn), 1.1f, bg, "#41506A", false))
+                row.addView(boxCell(timeTxt, 0.9f, bg, "#41506A", false))
+                row.addView(boxCell("₹${"%,.0f".format(r.available)}", 1f, bg, "#0A5C33", true))
+                row.addView(boxCell(r.mode, 0.8f, bg, "#41506A", false))
+                table.addView(row)
+            }
+            if (rows.isEmpty()) table.addView(TextView(this@DoctorVisitActivity).apply {
+                text = "No advance payment yet."; textSize = 12f; setPadding(dpx(8), dpx(10), dpx(8), dpx(10))
+                setTextColor(android.graphics.Color.parseColor("#667085"))
+            })
+
+            val summary = TextView(this@DoctorVisitActivity).apply {
+                text = "Paid ₹${"%,.0f".format(total)}   ·   Adjusted ₹${"%,.0f".format(allocated)}   ·   Available ₹${"%,.0f".format(available)}"
+                textSize = 12.5f; setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#0A5C33"))
+                setPadding(dpx(10), dpx(9), dpx(10), dpx(9))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(android.graphics.Color.parseColor("#EAF6EE")); cornerRadius = dpx(10).toFloat()
+                }
+            }
+            val outer = LinearLayout(this@DoctorVisitActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dpx(14), dpx(10), dpx(14), dpx(4))
+                addView(summary)
+                addView(android.view.View(this@DoctorVisitActivity).apply {
+                    layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpx(10))
+                })
+                addView(table)
+            }
+            val scroll = android.widget.ScrollView(this@DoctorVisitActivity).apply { addView(outer) }
+
             AlertDialog.Builder(this@DoctorVisitActivity)
                 .setCustomTitle(PremiumAlert.header(this@DoctorVisitActivity, "Advance Payment — ${item.name}"))
-                .setItems(labels.toTypedArray()) { _, which ->
-                    if (which > 0) showRmpAdvancePatientPicker(item, availableRows[which - 1])
-                    else if (availableRows.isEmpty()) Toast.makeText(this@DoctorVisitActivity, "No unallocated payment", Toast.LENGTH_SHORT).show()
-                }
+                .setView(scroll)
                 .setNegativeButton("Close", null).show().also { PremiumAlert.paint(it) }
         }
     }
@@ -4419,7 +4713,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                         .show().also { PremiumAlert.paint(it) }
                     else AlertDialog.Builder(this@DoctorVisitActivity)
                         .setCustomTitle(PremiumAlert.header(this@DoctorVisitActivity, "Payment is higher than Ref. Due"))
-                        .setMessage("Ref. Due: ₹${"%,.2f".format(due)}\nPayment: ₹${"%,.2f".format(pay)}\nMore: ₹${"%,.2f".format(pay - due)}\n\nএই বাড়তি টাকা শুধু Master অনুমোদন করতে পারেন।")
+                        .setMessage("Ref. Due: ₹${"%,.2f".format(due)}\nPayment: ₹${"%,.2f".format(pay)}\nMore: ₹${"%,.2f".format(pay - due)}\n\nOnly Master can approve this extra amount.")   /* 🔤 V726 */
                         .setPositiveButton("Close", null)
                         .show().also { PremiumAlert.paint(it) }
                 }
@@ -4427,6 +4721,7 @@ class DoctorVisitActivity : AppCompatActivity() {
             }
         })
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     private fun showRmpApprovalRequests(returnItem: DoctorVisitItem) {
@@ -4599,6 +4894,7 @@ class DoctorVisitActivity : AppCompatActivity() {
             }
         })
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     private fun showPatientCommission(item: DoctorVisitItem) {
@@ -4712,6 +5008,7 @@ class DoctorVisitActivity : AppCompatActivity() {
             }
         })
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     private fun showCommissionPayment(patient: PatientPhotoRepository.PatientRef, expectedRmpId: String) {
@@ -4722,7 +5019,7 @@ class DoctorVisitActivity : AppCompatActivity() {
             setTextColor(android.graphics.Color.parseColor("#145A32"))
         }
         body.addView(summaryText)
-        body.addView(fieldLabel("📅", "Payment Date"))
+        body.addView(fieldLabel("🧾", "Payment Date"))
         var paidOn = DoctorVisitModel.today()
         val dateValue = TextView(this).apply {
             text = FollowUpModel.displayDate(paidOn)
@@ -4833,6 +5130,7 @@ class DoctorVisitActivity : AppCompatActivity() {
             }
         })
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     private fun showCommissionPaymentHistory(patient: PatientPhotoRepository.PatientRef) {
@@ -4945,6 +5243,7 @@ class DoctorVisitActivity : AppCompatActivity() {
             }
         })
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     /** WebView parity (saveReferralIncome): records a referral commission entry
@@ -5088,6 +5387,7 @@ class DoctorVisitActivity : AppCompatActivity() {
             }
         })
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     private data class Quad(val a: String, val b: Double, val c: Double, val d: Int)

@@ -39,8 +39,20 @@ class PrintCenterActivity : AppCompatActivity() {
     // read from this, so they are only valid while a patient session is active.
     private val clinicalRepo = ClinicalRepository
 
+    /* 🔴🔒 V786 (২৮.০৮.২০২৬, TK-রিপোর্ট: হেডারে "Patient / - / -") —
+       ফোনে কল এলে বা মেমরি কম পড়লে Android অ্যাপের প্রসেস বন্ধ করে দেয়;
+       পরে এই পর্দাটা আবার খোলে, কিন্তু মেমরির `RoleSession` ততক্ষণে ফাঁকা।
+       তাই রোগীর পরিচয় এই পর্দার নিজের Bundle-এও রাখা হয় — Bundle প্রসেস
+       মরলেও বাঁচে, আর V721-এর ৩০ মিনিটের সীমাও এতে লাগে না।
+       ⛔ মেমরিতে রোগী থাকলে `restoreFrom()` কিচ্ছু করে না (RoleSession.kt)। */
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        com.tkbiswas.pilesclinic.clinical.RoleSession.saveTo(outState)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        com.tkbiswas.pilesclinic.clinical.RoleSession.restoreFrom(savedInstanceState)   // 🔴🔒 V786 — কল/মেমরির কারণে হারানো রোগী ফেরানো
         setContentView(R.layout.activity_print_center)
         UppercaseInputUtil.applyToAll(window.decorView.findViewById(android.R.id.content))  // TK-REQUESTED GLOBAL RULE (2026-07-24): English text auto-CAPITAL, Password fields excluded automatically
         BottomNav.wire(this)
@@ -108,7 +120,7 @@ class PrintCenterActivity : AppCompatActivity() {
         }
         findViewById<CardView>(R.id.cardMedicineSlip).setOnClickListener {
             if (hasActiveClinicalPatient() && clinicalRepo.currentSlip.isNotEmpty()) {
-                PrintDataHolder.pendingModel = PrintMappers.medicineSlip()
+                PrintDataHolder.pendingModel = PrintMappers.medicineSlip(this)
                 openPreview()
             } else {
                 showClinicalPrintFromMobile("Medicine Slip")
@@ -350,6 +362,7 @@ class PrintCenterActivity : AppCompatActivity() {
             }
         }
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     /** TK APPROVED (2026-07-15): patient snapshot collected on every Direct /
@@ -626,6 +639,7 @@ class PrintCenterActivity : AppCompatActivity() {
             primary.setOnClickListener { if (onPrimary()) dialog.dismiss() }
         }
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     /** No patient found (or nothing saved yet) for this mobile -- instead of a
@@ -736,6 +750,7 @@ class PrintCenterActivity : AppCompatActivity() {
             }
         }
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     /**
@@ -1002,6 +1017,8 @@ class PrintCenterActivity : AppCompatActivity() {
             val rxDosage = walkInMeds.map { it.dosage.ifBlank { "-" } }
             val rxFrequency = walkInMeds.map { it.frequency.ifBlank { "-" } }
             val rxDuration = walkInMeds.map { it.duration.ifBlank { "-" } }
+            // 💊 V723 — Walk-in কাগজেও Instruction নামের নিচে ছাপবে।
+            val rxInstructions = walkInMeds.map { it.instructions.trim() }
             val today = java.text.SimpleDateFormat("dd.MM.yyyy", java.util.Locale.US).format(java.util.Date())
             val ageSex = listOf(wf.age.text.toString().trim(), wf.sex.text.toString().trim()).filter { it.isNotBlank() }.joinToString(" / ")
             PrintDataHolder.pendingModel = PrintDocumentModel(
@@ -1012,7 +1029,7 @@ class PrintCenterActivity : AppCompatActivity() {
                 dateLabel = today,
                 // TK FIX (2026-07-15): removed literal "Rx" heading (Prescription
                 // already shows the ℞ symbol -- was printing "Rx" twice).
-                sections = listOf(PrintSection(if (isPrescription) null else "Medicines", lines, rxTypes, rxNames, rxDosage, rxFrequency, rxDuration)),
+                sections = listOf(PrintSection(if (isPrescription) null else "Medicines", lines, rxTypes, rxNames, rxDosage, rxFrequency, rxDuration, rxInstructions)),   // 💊 V723
                 qrPayload = null,
                 footerNote = "Walk-in print — no registration on file." +
                     (if (mobileDigits.length == 10) " Mobile: $mobileDigits" else ""),
@@ -1049,7 +1066,9 @@ class PrintCenterActivity : AppCompatActivity() {
                     pid.isNotBlank() -> "patientId=eq.$pid"
                     else -> "patientId=eq.$puuid"
                 }
-                val meds = SupabaseClient.fetchList("medical", medFilter)
+                // 🔴🔒 V794 — ছবি ছাড়া; সীমাও বসানো হলো (আগে সীমাই ছিল না)
+                val meds = SupabaseClient.fetchListSlim("medical", medFilter, 500,
+                        SupabaseClient.MEDICAL_COLS)
                 var latest: org.json.JSONObject? = null
                 for (i in 0 until meds.length()) {
                     val row = meds.getJSONObject(i)
@@ -1166,7 +1185,7 @@ class PrintCenterActivity : AppCompatActivity() {
                     this@PrintCenterActivity,
                     "No patient found for this mobile. Check the number or connection.",
                     Toast.LENGTH_LONG
-                ).show()
+                ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                 return@launch
             }
             // 🔒 B601 (TK-নির্দেশ, প্রুফ-হুবহু, 10.08.2026): নেটিভ structured প্রিন্টের বদলে
@@ -1291,7 +1310,7 @@ class PrintCenterActivity : AppCompatActivity() {
                     this@PrintCenterActivity,
                     "No payment found for this mobile. Check the number or connection.",
                     Toast.LENGTH_LONG
-                ).show()
+                ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                 return@launch
             }
             PrintDataHolder.pendingModel = PrintMappersCloud.paymentReceipt(payment)
@@ -1325,7 +1344,7 @@ class PrintCenterActivity : AppCompatActivity() {
                             this@PrintCenterActivity,
                             "No patient found for this mobile. Check the number or connection.",
                             Toast.LENGTH_LONG
-                        ).show()
+                        ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                         return@launch
                     }
                     PrintDataHolder.pendingModel = PrintMappersCloud.doctorVisitPrint(patient)
@@ -1751,7 +1770,7 @@ class PrintCenterActivity : AppCompatActivity() {
             .setItems(labels) { _, which -> finishWith(people.getOrNull(which)) }
             .setNegativeButton("Cancel") { _, _ -> finishWith(null) }
             .setOnCancelListener { finishWith(null) }
-            .show()
+            .show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
     }
 
     private fun myBranchOnly(rows: org.json.JSONArray): org.json.JSONArray {

@@ -213,7 +213,7 @@
   function finToday() { return window.MOD.todayIST(); }
   function finIsToday(d) { return String(d || '') === finToday(); }
   function finSlash(iso) {
-    try { var p = String(iso || '').split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso; }
+    try { var p = String(iso || '').split('-'); return p.length === 3 ? p[2] + '.' + p[1] + '.' + p[0] : iso; }
     catch (e) { return iso; }
   }
   /** পুরনো তারিখে কিছু করতে গেলে — কারণ চেয়ে মাস্টারের কাছে অনুরোধ পাঠায়।
@@ -305,15 +305,21 @@
          (IncomeExpenseActivity.kt:1194, 251, 1326, 2614)। ⛔ ফোনে এগুলো
          বাংলাতেই আছে ও TK-এর অনুমোদিত — তাই ওয়েবেও সেই একই লেখা। */
       '<b style="color:#0A5C33">💵 টাকার হিসাব</b>' +
-      '<span style="display:flex;gap:8px;align-items:center">' +
+      /* 🟢🔒 V920 (৩১.০৮.২০২৬, TK ডেমো প্রুফ দেখে "হ্যাঁ পাশ, বসিয়ে দিন") —
+         TK: *"ব্রাঞ্চ সিলেক্ট উপরে হেডারে ডান পাশে, ক্যালেন্ডারের বাঁ পাশে"*।
+         নিচের আলাদা সারিটা উঠে গেল, তাই টেবিল আরও উপরে ওঠে — বড় পর্দায়
+         স্ক্রল না করেই সব দেখা যায়। ⛔ বাছাইয়ের কাজ ও নিয়ম অপরিবর্তিত। */
+      '<span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">' +
+      branchSel +
       '<span onclick="finPickDay()" style="cursor:pointer">' + liveCal + '</span>' +
       '<button class="ghost" onclick="dashboard()">Home</button></span></div><div class="page">' +
-      '<div style="margin:0 0 9px">' + branchSel + '</div>' +
       '<div id="finToday" class="card" style="padding:14px">Loading...</div>' +
-      '<div style="display:flex;gap:10px;margin:2px 0 8px">' +
-        finBox('', 'আয়', 'finAddCollection()', true, '#0A7C3F,#1F9D57', '#fff') +
-        finBox('', 'ব্যয়', 'finAddExpense()', true, '#C0271B,#E0574C', '#fff') +
-      '</div>' +
+      /* 🟢🔒 V630 (২৪.০৮.২০২৬, TK-নির্দেশ) — "আয় এবং ব্যয় এটা দুই রকম ভাবে
+         আলাদা কলম থাকবে না।" আলাদা "Add Collection"/"Add Expense" বোতাম দুটো
+         সরানো হলো — এখন "পুরো খাতা" (Sheet)-ই একমাত্র পথ: Cash/Online ঘরে
+         ৩-চাপে বা খালি খরচ ঘরে চাপ দিয়েই টাকা ঢোকানো যায়। ⛔ `finAddCollection`/
+         `finAddExpense` ফাংশন মোছা হয়নি — `finAddExpense` এখনো Sheet-এর খালি
+         খরচ-ঘর থেকে ডাকা হয়। */
       /* 🔵 V406 (16.08.2026) — V401-এর নিয়ম ওয়েবেও (আগে শুধু ফোনে ছিল)।
          TK-লক করা ছক: **staff টাকার খাতা ও মাসের হিসাব দেখতেই পাবে না**;
          doctor দেখবে কিন্তু বদলাতে পারবে না; master সব।
@@ -326,25 +332,27 @@
          ছিল, ফলে স্টাফ `finDailyLedger()`-এ পৌঁছানোরই কোনো পথ পেতেন না
          (ফাংশনটা আছে, কিন্তু কোনো বোতাম ছিল না)।
          ⛔ master/doctor-এর জন্য আগের দুটো ঘরই অপরিবর্তিত। */
+      /* 🟢🔒 V920 — বোতামগুলো এখন **একটাই সারিতে** (আগে প্রতিটা আলাদা সারিতে
+         পুরো চওড়া জুড়ে বসত, তাই বড় পর্দায় চারটে সারি জায়গা খেয়ে টেবিলকে
+         নিচে ঠেলে দিত)। ছোট পর্দায় `flex-wrap` নিজে থেকেই আগের মতো একটার
+         নিচে একটা সাজায় (`.finTileRow` — styles.css)।
+         ⛔ কোন বোতাম কার জন্য, কী কাজ করে — কিছুই বদলায়নি। */
+      '<div class="finTileRow">' +
       (finIsStaffOnly() ?
-       '<div style="display:flex;gap:10px;margin:0 0 10px">' +
-        finBox('', "Today's Entries", 'finDailyLedger()', false, '', '#0A5C33') +
-       '</div>' :
-       '<div style="display:flex;gap:10px;margin:0 0 10px">' +
+        finBox('', "Today's Entries", 'finDailyLedger()', false, '', '#0A5C33') :
         finBox('', 'এই মাসের হিসাব', 'finMonthly()', false, '', '#0A5C33') +
-        finBox('', 'পুরো খাতা', 'finLedgerSheet()', false, '', '#0A5C33') +
-       '</div>') +
+        finBox('', 'পুরো খাতা', 'finLedgerSheet()', false, '', '#0A5C33')) +
+      /* 🟢🔒 V629 (২৪.০৮.২০২৬, TK-নির্দেশ) — "ব্যাংকে যেমন স্টেটমেন্ট বের করা
+         যায়, আমার অ্যাপেও সেরকম চাই।" Ledger Sheet/Monthly-র মতোই বিধিনিষেধ
+         (staff-only দেখবেন না)। */
+      (!finIsStaffOnly() ? finBox('📄', 'Statement', 'finStatement()', false, '', '#0A5C33') : '') +
       /* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬) — ফোনে এই সারিতে **আগে "🤝 অংশীদারি ভাগ",
          তারপর "Entry Permission"** (IncomeExpenseActivity.kt:1468-1478), আর
          Entry Permission-এ কোনো চাবি-আইকন নেই। ওয়েবে ক্রম উল্টো ছিল ও
          🔑 আইকন বসানো ছিল। ⛔ বোতামের কাজ ও অনুমতির নিয়ম অপরিবর্তিত। */
-      '<div style="display:flex;gap:10px;margin:0 0 10px">' +
-        finBox('🤝', 'অংশীদারি ভাগ', 'finPartners()', false, '', '#0A5C33') +
+      finBox('🤝', 'অংশীদারি ভাগ', 'finPartners()', false, '', '#0A5C33') +
+      (finIsMaster() ? finBox('', 'Entry Permission', 'finEntryPermission()', false, '', '#6A5320') : '') +
       '</div>' +
-      (finIsMaster() ?
-       '<div style="display:flex;gap:10px;margin:0 0 10px">' +
-        finBox('', 'Entry Permission', 'finEntryPermission()', false, '', '#6A5320') +
-       '</div>' : '') +
       '<div id="finBody"></div></div></div>';
     finLoadToday();
   }
@@ -383,11 +391,33 @@
         '<div style="flex:1;text-align:right;font-size:11px;font-weight:800;color:#6A7D72">Cash</div>' +
         '<div style="flex:1;text-align:right;font-size:11px;font-weight:800;color:#6A7D72">Online</div>' +
         '<div style="flex:1.05;text-align:right;font-size:11px;font-weight:800;color:#6A7D72">মোট</div></div>' +
-      drow('আয়', '#0A7C3F', incCash, incOnline, incTot, '#12704A', '#0A7C3F', 'border-bottom:1px solid #F1F5F2;background:#fff') +
-      drow('ব্যয়', '#B42318', exCash, exOnline, exTot, '#B0392B', '#B42318', 'background:#fff') +
+      drow('আয়', '#0A7C3F', '<span onclick="finTodayIncomeEditor(\'cash\')" style="display:block;cursor:pointer">'+incCash+'</span>', '<span onclick="finTodayIncomeEditor(\'online\')" style="display:block;cursor:pointer">'+incOnline+'</span>', incTot, '#12704A', '#0A7C3F', 'border-bottom:1px solid #F1F5F2;background:#fff') +
+      drow('<span onclick="finAddExpense(window.MOD.todayIST(),finHomeBranch)" style="display:block;cursor:pointer">ব্যয়</span>', '#B42318', exCash, exOnline, exTot, '#B0392B', '#B42318', 'background:#fff') +
       drow('অবশিষ্ট', '#FFFFFF', reCash, reOnline, reTot, '#DBE9FF', '#FFFFFF', 'background:linear-gradient(90deg,#0B2B59,#155EAE)') +
       '</div>';
   }
+
+  async function finTodayIncomeEditor(field) {
+    var m = window.MOD, br = finHomeBranch;
+    if (!br || br === 'All Branches') { finToast('আগে একটি Branch বাছুন'); return; }
+    var label = field === 'online' ? 'Online' : 'Cash', date = m.todayIST();
+    var value = prompt(label + ' — ' + date, '');
+    if (value === null) return;
+    var amount = Number(String(value).replace(/,/g, ''));
+    if (!isFinite(amount) || amount < 0) { finToast('সঠিক Amount লিখুন'); return; }
+    var client = await sb(), res;
+    try { res = await client.schema('fin').from('collections').select('*').eq('entry_date', date).eq('branch', br).eq('ignored', false).order('created_at', {ascending:true}); }
+    catch (e) { finToast('লোড করা গেল না'); return; }
+    if (res && res.error) { finToast('লোড করা গেল না'); return; }
+    var rows = (res && res.data) || [], target = rows[0], other = rows.slice(1).reduce(function(s,x){return s+Number(x[field]||0);},0);
+    if (amount < other) { finToast('অন্য এন্ট্রিতে ইতিমধ্যে ' + m.money(other) + ' আছে—পুরো খাতা থেকে ঠিক করুন'); return; }
+    var row = target ? Object.assign({}, target) : {id:m.uuid(),entry_date:date,branch:br,cash:0,online:0,expense_notes:'',expense_total:0,created_by:finCreatedBy()};
+    row[field] = amount - other;
+    var saved = await m.save('fin','collections',row);
+    if (saved && saved.error) { finToast('Save হয়নি'); return; }
+    finToast('Saved'); finLoadToday();
+  }
+  window.finTodayIncomeEditor = finTodayIncomeEditor;
 
   // পর্দা খুললেই আজকের Collection/Expense একবার টেনে "আজকের হিসাব" কার্ডে বসায়
   // (আগে Daily Ledger-এ চাপ দিলে ঠিক এই একটাই কল হতো — বাড়তি কিছু নয়)।
@@ -544,16 +574,20 @@
     var finLockBr = finLockedBranch();   // 🔵 B617: ডাক্তার হলে ব্রাঞ্চ লক
     /* 🟢🔒 V398: মনে-রাখা ব্রাঞ্চ আগে থেকেই বসানো থাকে — বারবার বাছতে হয় না। */
     var __lsCur = finCurBranch();
+    /* 🟢🔒 V628 (২৪.০৮.২০২৬, TK-নির্দেশ, স্পষ্ট) — "ওটা তো হিসাবের খাতা...
+       প্রতিটা ব্রাঞ্চের হিসাব থাকবে আলাদা, সমস্ত ব্রাঞ্চ একসাথে দেখানো যাবে
+       না"। "All Branches" অপশন বাদ — সবসময় একটা নির্দিষ্ট ব্রাঞ্চ বাছতে হবে।
+       পুরনো মনে-রাখা মান "All Branches" হলে এখানে ফাঁকা (বাছাই করতে বলা) ধরা হয়। */
     var brOpts = finLockBr ? branchOptions(finLockBr)
-      : ((__lsCur ? '' : '<option value="" selected>Select Branch</option>')
-         + '<option value="All Branches"' + (__lsCur === 'All Branches' ? ' selected' : '') + '>All Branches</option>'
-         + branchOptions(__lsCur === 'All Branches' ? '' : __lsCur));
+      : ((!__lsCur || __lsCur === 'All Branches') ? '<option value="" selected>Select Branch</option>' + branchOptions('')
+         : branchOptions(__lsCur));
+    var monthName = new Date(Number(month.slice(0,4)), Number(month.slice(5,7))-1, 1).toLocaleString('en-US',{month:'long',year:'numeric'});
     document.getElementById('finBody').innerHTML =
-      '<div class="card"><h2>📒 টাকার খাতা</h2>' +
-      '<label>Month</label><input id="lsMonth" class="input" type="month" value="' + month + '">' +
-      '<label>Branch</label><select id="lsBranchSel"' + (finLockBr ? ' disabled' : '') + ' class="input">' + brOpts + '</select>' +
-      '<div class="actions"><button onclick="finLedgerLoad()">Show</button></div>' +
-      '<div id="lsOut" class="mut">Loading...</div></div>';
+      '<div class="card" style="padding:10px 12px 68px"><div style="font-size:18px;font-weight:700;margin:0 0 8px">' + monthName + '</div>' +
+      '<input id="lsMonth" type="hidden" value="' + month + '"><select id="lsBranchSel" style="display:none">' + brOpts + '</select>' +
+      '<div id="lsOut" class="mut">Loading...</div>' +
+      '<div style="position:fixed;left:0;right:0;bottom:0;z-index:20;background:#fff;padding:7px 14px;display:flex;gap:10px;border-top:1px solid #ddd">' +
+      '<button class="ghost" style="flex:1;padding:9px" onclick="incomeExpense()">Back</button><button style="flex:1;padding:9px" onclick="finLedgerLoad()">Show</button></div></div>';
     finLedgerLoad();
   }
 
@@ -569,6 +603,71 @@ function finRowTap(id) {
     __finRowTap.n++; __finRowTap.t = now;
     if (__finRowTap.n >= 3) { __finRowTap.n = 0; finLedgerRowEdit(id); }
   }
+
+  /* =====================================================================
+     🟢🔒 V630 (২৪.০৮.২০২৬, TK-নির্দেশ) — Sheet-এর Cash/Online ঘরে নিজস্ব
+     ৩-চাপ, শুধু সেই একটা সংখ্যার জন্য ছোট quick-editor — পুরো সারির ফর্ম
+     (Date/Branch/Cash/Online/Expense) খোলার দরকার নেই। ফোনের
+     `IncomeExpenseActivity.quickFieldEditor()`-এর হুবহু যমজ।
+     ⛔ একই পুরনো-তারিখ অনুমতি-নিয়ম (finIsMaster/finAskApproval) অক্ষত।
+     ===================================================================== */
+  var __finFieldTap = { id: null, field: null, n: 0, t: 0 };
+  function finFieldTap(id, field) {
+    var now = Date.now();
+    if (__finFieldTap.id !== id || __finFieldTap.field !== field || (now - __finFieldTap.t) > 1200) {
+      __finFieldTap = { id: id, field: field, n: 0, t: 0 };
+    }
+    __finFieldTap.n++; __finFieldTap.t = now;
+    if (__finFieldTap.n >= 3) { __finFieldTap.n = 0; finQuickFieldEditor(id, field); }
+  }
+  window.finFieldTap = finFieldTap;
+
+  function finQuickFieldEditor(id, field) {
+    var m = window.MOD;
+    var row = (window.__finRowMap || {})[id] || {};
+    var label = field === 'cash' ? 'Cash' : 'Online';
+    var current = Number(row[field] || 0);
+    var esc = m.esc;
+    var ov = document.createElement('div');
+    ov.id = 'v630FieldOverlay';
+    ov.setAttribute('style', 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px');
+    ov.innerHTML = '<div style="background:#fff;border-radius:16px;max-width:380px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.3)">' +
+      '<div style="background:#0B4F2A;color:#fff;padding:14px 18px;font-size:16px;font-weight:700;border-radius:16px 16px 0 0">' + label + ' — ' + esc(finSlash(row.entry_date || '')) + '</div>' +
+      '<div style="padding:16px 18px"><input id="v630FieldAmt" class="input" type="number" value="' + (current > 0 ? current : '') + '" placeholder="Amount"></div>' +
+      '<div style="padding:0 18px 16px;display:flex;gap:8px">' +
+      '<button type="button" id="v630FieldCancel" class="ghost" style="flex:1">Cancel</button>' +
+      '<button type="button" id="v630FieldSave" style="flex:1;background:#0A7C3F;color:#fff;border:none;border-radius:12px;padding:11px;font-size:15px;font-weight:700;cursor:pointer">Save</button>' +
+      '</div></div>';
+    document.body.appendChild(ov);
+    function closeOv() { try { ov.remove(); } catch (e) { } }
+    ov.addEventListener('click', function (ev) { if (ev.target === ov) closeOv(); });
+    var cancelBtn = ov.querySelector('#v630FieldCancel'); if (cancelBtn) cancelBtn.addEventListener('click', closeOv);
+    var saveBtn = ov.querySelector('#v630FieldSave');
+    if (saveBtn) saveBtn.addEventListener('click', async function () {
+      var v = Number((document.getElementById('v630FieldAmt') || {}).value || 0);
+      var newRow = {
+        id: row.id || m.uuid(),
+        entry_date: row.entry_date || m.todayIST(),
+        branch: row.branch || finCurBranch(),
+        cash: field === 'cash' ? v : Number(row.cash || 0),
+        online: field === 'online' ? v : Number(row.online || 0),
+        expense_notes: row.expense_notes || '',
+        expense_total: (row.expense_total != null && row.expense_total >= 0) ? row.expense_total : finSumNumbers(row.expense_notes || ''),
+        created_by: finCreatedBy()
+      };
+      if (!finIsMaster() && !finIsToday(newRow.entry_date)) {
+        closeOv();
+        await finAskApproval(row.id ? 'EDIT_COLLECTION' : 'ADD_COLLECTION', newRow.branch, newRow.entry_date, row.id || null,
+          { cash: newRow.cash, online: newRow.online });
+        finLedgerLoad();
+        return;
+      }
+      closeOv();
+      await m.save('fin', 'collections', newRow);
+      finLedgerLoad();
+    });
+  }
+  window.finQuickFieldEditor = finQuickFieldEditor;
 
   async function finLedgerLoad() {
     var m = window.MOD, client = await sb();
@@ -628,7 +727,46 @@ function finRowTap(id) {
       Object.keys(v399ExpByDate).forEach(function (d) {
         if (!seen[d] && v399ExpByDate[d] > 0) rows.push({ entry_date: d, cash: 0, online: 0, expense_notes: '', __v399ExpenseOnly: 1 });
       });
+      /* 🟢🔒 V630 (২৪.০৮.২০২৬, TK-নির্দেশ) — চলতি মাস দেখলে, আজকের সারি সবসময়
+         সবার নিচে (এখনো কোনো এন্ট্রি না থাকলেও) — নতুন দিন শুরু করতে আলাদা
+         "আয়" পর্দায় যেতে হবে না, এই খালি সারিতেই সরাসরি Cash/Online বসানো
+         যায় (৩-চাপে quick-edit)। ⛔ ফোনের `IncomeExpenseActivity.
+         loadSheet()`-এর হুবহু একই নিয়ম। */
+      var todayNow = m.todayIST();
+      if (month === todayNow.slice(0, 7) && !seen[todayNow]) {
+        rows.push({ entry_date: todayNow, cash: 0, online: 0, expense_notes: '', branch: branchSel });
+      }
+      /* 🟢🔒 V927 — অটো-আয়ের দিনগুলোও খাতায় দেখাতে হবে, নইলে যে দিনে কেউ
+         হাতে কিছু লেখেনি সেই দিনটা খাতায় আসতই না। ⛔ ০১/০৯/২০২৬-এর আগে নয়,
+         আর হাতে লেখা সারি থাকলে সেটাই থাকে। */
+      try {
+        if (typeof window.wlv1AutoIncomeForMonth === 'function') {
+          var __am2 = window.wlv1AutoIncomeForMonth(month, branchSel) || {};
+          Object.keys(__am2).forEach(function (d) {
+            if (seen[d]) return;
+            rows.push({ entry_date: d, cash: 0, online: 0, expense_notes: '', branch: branchSel, __v927Auto: 1 });
+            seen[d] = 1;
+          });
+        }
+      } catch (e) { }
       rows.sort(function (a2, b2) { return String(a2.entry_date || '') < String(b2.entry_date || '') ? -1 : 1; });
+    } catch (e) { }
+    /* 🟢🔒 V927 — খাতার সারিতে অটো-আয় বসানো। ⛔ যে সারিতে ক্লাউডের আসল id
+       আছে (মানে কেউ হাতে লিখেছেন) সেটা কখনো ছোঁয়া হয় না। */
+    var v927Auto = {};
+    var v927ShowTag = false;
+    try { v927ShowTag = (typeof window.isMaster === 'function') && window.isMaster(); } catch (e) { v927ShowTag = false; }
+    try {
+      if (typeof window.wlv1AutoIncomeForDay === 'function') {
+        rows.forEach(function (r) {
+          var d = String(r.entry_date || '');
+          if (!d || r.id) return;                                  // হাতে লেখা সারি → ছোঁয়া হবে না
+          if (Number(r.cash || 0) !== 0 || Number(r.online || 0) !== 0) return;
+          var v = window.wlv1AutoIncomeForDay(d, branchSel);
+          if (!v || (!v.cash && !v.online)) return;
+          r.cash = v.cash; r.online = v.online; v927Auto[d] = 1;
+        });
+      }
     } catch (e) { }
     // 🔵 আগের বাকি (Previous Balance) = এই মাসের আগের সব দিনের (একই ব্রাঞ্চের)
     // নগদ+অনলাইন − খরচ। শুধু দরকারি ৪টা কলাম টানা (egress কম)। ফোনের হুবহু হিসাব।
@@ -664,11 +802,23 @@ function finRowTap(id) {
       var expSum = ((row.expense_total != null && row.expense_total >= 0) ? Number(row.expense_total) : finSumNumbers(note))
         + Number(v399ExpByDate[String(row.entry_date || '')] || 0);
       cashTot += cash; onlineTot += online; expTot += expSum;
-      var dp = String(row.entry_date).split('-'); var dotted = dp[2] + '/' + dp[1] + '/' + dp[0];
+      var dp = String(row.entry_date).split('-'); var dotted = dp[2] + '.' + dp[1] + '.' + dp[0];
+      /* 🟢🔒 V927 — ট্যাগ শুধু মাস্টারের পর্দায় (TK: "অটো না হাতে ঠিক করা এটা
+         মাস্টার ছাড়া কেউ দেখতে পাবে না")। `dotted` নিজে অপরিবর্তিত, তাই
+         খরচের পপ-আপের শিরোনামে ট্যাগ যায় না। */
+      var dottedCell = dotted;
+      if (v927ShowTag && String(row.entry_date || '') >= (window.WLV1_AUTO_INCOME_FROM || '2026-09-01')) {
+        if (v927Auto[String(row.entry_date || '')]) dottedCell += '<span style="display:inline-block;margin-left:6px;background:#EAF6EE;color:#0B8A3E;border:1px solid #CFE9D8;border-radius:6px;padding:1px 5px;font-size:8.5px;font-weight:800;vertical-align:middle">AUTO</span>';
+        else if (row.id) dottedCell += '<span style="display:inline-block;margin-left:6px;background:#EAF2FE;color:#0B4FA8;border:1px solid #C9DDF7;border-radius:6px;padding:1px 5px;font-size:8.5px;font-weight:800;vertical-align:middle">হাতে ঠিক করা</span>';
+      }
       /* 🔒 V399: শুধু-খরচের দিনে ক্লাউডে collection সারি নেই — তাই আলাদা একটা কী,
          আর ৩-চাপে এডিট খোলে না (নিচে দেখুন)। */
       var v399Only = !!row.__v399ExpenseOnly;
       var rid = m.esc(row.id || ('v399exp_' + String(row.entry_date || '')));
+      // 🟢🔒 V630 (২৪.০৮.২০২৬) — কাঁচা row-টা মনে রাখা, যাতে finQuickFieldEditor
+      // Cash/Online বদলানোর সময় বাকি ঘর (branch/expense_notes ইত্যাদি) না হারায়।
+      window.__finRowMap = window.__finRowMap || {};
+      if (!v399Only) window.__finRowMap[row.id || rid] = row;
       var expCell;
       if (expSum > 0 || note) {
         window.__finExpMap[row.id || ('v399exp_' + String(row.entry_date || ''))] = {
@@ -680,17 +830,31 @@ function finRowTap(id) {
         };
         expCell = '<td onclick="event.stopPropagation();finExpenseBreakdown(\'' + rid + '\')" style="padding:6px;text-align:right;color:#B42318;font-weight:700;cursor:pointer;border:1px solid #CFE9D8">' +
           (expSum > 0 ? m.money(expSum).replace('₹', '') : '-') + '</td>';
-      } else {
+      } else if (v399Only) {
         expCell = '<td style="padding:6px;text-align:right;color:#B42318;border:1px solid #CFE9D8">-</td>';
+      } else {
+        // 🟢🔒 V630 (TK-নির্দেশ, "হ্যাঁ চাই") — খালি খরচ ঘরে (single) চাপলে নতুন
+        // খরচ যোগ করার ফর্ম খোলে (date/branch প্রি-ফিল) — কিছু ওভাররাইট হয় না
+        // (নতুন যোগ), তাই এখানে ৩-চাপের দরকার নেই।
+        expCell = '<td onclick="event.stopPropagation();finAddExpense(\'' + m.esc(String(row.entry_date || '')) + '\',\'' + m.esc(String(row.branch || branchSel)) + '\')" style="padding:6px;text-align:right;color:#B42318;cursor:pointer;border:1px solid #CFE9D8">-</td>';
       }
+      // 🟢🔒 V630 — Cash/Online ঘরে নিজস্ব ৩-চাপ (event.stopPropagation() দিয়ে
+      // সারির নিজের finRowTap-এ পৌঁছাতে দেয় না), শুধু সেই একটা সংখ্যার জন্য
+      // ছোট quick-editor। শুধু-খরচের সারিতে (v399Only) এটা চালু হয় না —
+      // ক্লাউডে ওই সারির কোনো collections id-ই নেই।
+      var cashCell = v399Only
+        ? '<td style="padding:6px;text-align:right;color:#0A7C3F;border:1px solid #CFE9D8">-</td>'
+        : '<td onclick="event.stopPropagation();finFieldTap(\'' + (row.id || rid) + '\',\'cash\')" style="padding:6px;text-align:right;color:#0A7C3F;cursor:pointer;border:1px solid #CFE9D8">' + m.money(cash).replace('₹', '') + '</td>';
+      var onlineCell = v399Only
+        ? '<td style="padding:6px;text-align:right;color:#0A7C3F;border:1px solid #CFE9D8">-</td>'
+        : '<td onclick="event.stopPropagation();finFieldTap(\'' + (row.id || rid) + '\',\'online\')" style="padding:6px;text-align:right;color:#0A7C3F;cursor:pointer;border:1px solid #CFE9D8">' + m.money(online).replace('₹', '') + '</td>';
       return '<tr style="cursor:pointer;user-select:none;-webkit-user-select:none"' +
         /* 🔴 V437 #19 (নিজের অডিটে ধরা) — ফোনে শুধু-খরচের দিনে চাপলে একটা
            বার্তা ওঠে ("এই দিনে শুধু খরচ আছে — Add Expense পর্দা থেকে দেখুন");
            ওয়েবে চাপ **নিঃশব্দে হারিয়ে যেত**, কেউ বুঝতেন না কেন কিছু হচ্ছে না। */
         (v399Only ? ' onclick="finExpenseOnlyNote()"' : ' onclick="finRowTap(\'' + rid + '\')"') + '>' +
-        '<td style="padding:6px;font-weight:700;border:1px solid #CFE9D8">' + dotted + '</td>' +
-        '<td style="padding:6px;text-align:right;color:#0A7C3F;border:1px solid #CFE9D8">' + m.money(cash).replace('₹', '') + '</td>' +
-        '<td style="padding:6px;text-align:right;color:#0A7C3F;border:1px solid #CFE9D8">' + m.money(online).replace('₹', '') + '</td>' +
+        '<td style="padding:6px;font-weight:700;border:1px solid #CFE9D8">' + dottedCell + '</td>' +
+        cashCell + onlineCell +
         expCell + '</tr>';
     }).join('');
     var headHtml = '<tr style="background:#0A7C3F;color:#fff">' +
@@ -781,6 +945,17 @@ function finRowTap(id) {
     h += '<div style="border-top:1px dashed #E2B3AD;margin-top:6px;padding-top:10px;display:flex;font-weight:700;color:#B42318;font-size:16.5px">' +
       '<span style="flex:1">মোট খরচ</span><span>' + m.money(Number(info.total || 0)) + '</span></div>';
 
+    /* 🟢🔒 V628 (২৪.০৮.২০২৬, TK-নির্দেশ) — Monthly Summary থেকে এখানে এলে
+       (info.editRowId থাকলে) আর Master হলে — সরাসরি ওই দিনের Ledger এডিটর
+       খোলার বোতাম। ⛔ নতুন কোনো এডিট-লজিক নয় — Ledger Sheet-এর নিজের
+       `finLedgerRowEdit()` পুনর্ব্যবহার হচ্ছে। ব্রাঞ্চ এখন সবসময় নির্দিষ্ট
+       (V628-এর "All Branches" অপসারণ) বলে কোন সারি এডিট হবে তা নিয়ে কোনো
+       দ্বিধা নেই। */
+    if (info.editRowId && finIsMaster()) {
+      h += '<button type="button" id="v400ExpEdit" style="width:100%;margin-top:12px;background:#0B4F2A;color:#fff;border:none;' +
+        'border-radius:10px;padding:12px;font-size:14.5px;font-weight:700;cursor:pointer">✏️ Edit This Day</button>';
+    }
+
     var ov = document.createElement('div');
     ov.id = 'v400ExpOverlay';
     ov.setAttribute('style', 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99999;display:flex;align-items:center;justify-content:center;padding:16px');
@@ -795,6 +970,12 @@ function finRowTap(id) {
     ov.addEventListener('click', function (ev) { if (ev.target === ov) closeOv(); });
     var okBtn = ov.querySelector('#v400ExpOk');
     if (okBtn) okBtn.addEventListener('click', closeOv);
+    // 🟢🔒 V628 — "✏️ Edit This Day" — পপ-আপ বন্ধ করে সরাসরি Ledger এডিটর।
+    var editBtn = ov.querySelector('#v400ExpEdit');
+    if (editBtn) editBtn.addEventListener('click', function () {
+      closeOv();
+      finLedgerRowEdit(info.editRowId);
+    });
     Array.prototype.forEach.call(ov.querySelectorAll('.v400ExpLine'), function (el) {
       el.addEventListener('click', function () {
         var eid = el.getAttribute('data-id');
@@ -901,6 +1082,35 @@ function finRowTap(id) {
     var m = window.MOD, client = await sb();
     var row = null;
     if (id) { try { row = (await client.schema('fin').from('collections').select('*').eq('id', id).maybeSingle()).data; } catch (e) {} }
+    /* 🔴🔒 V928 (৩১.০৮.২০২৬, নিজের যাচাইয়ে ধরা পড়া দোষ) — **ভুল তারিখ খুলত।**
+       খাতায় যে দিনে ক্লাউডে কোনো সারি নেই (শুধু খরচের দিন · আজকের খালি সারি ·
+       V927-এর অটো-আয়ের দিন), সেখানে id হয় `v399exp_<তারিখ>`। ক্লাউডে ওই id
+       পাওয়া যায় না বলে নিচের fallback-টা **সবসময় আজকের তারিখ** বসিয়ে দিত —
+       ফলে ০১/০৯-এর সারিতে ৩-চাপ দিলে ফর্মে আজকের তারিখ উঠত, আর Save করলে ভুল
+       দিনে হিসাব বসত। এখন id-র ভিতরের তারিখটাই ধরা হয়।
+       ⛔ আগে যেখানে id সত্যিই ক্লাউডের (হাতে লেখা সারি), সেখানে কিছুই বদলায়নি।
+       ⛔ V927-এর অটো-আয়ের দিন হলে Cash/Online-ও আগে থেকে ভরা থাকে, যাতে TK
+          শুধু দরকারি সংখ্যাটা বদলে Save করতে পারেন। */
+    var v928Date = '', v928Branch = '';
+    try {
+      var mm = String(id || '').match(/^v399exp_(\d{4}-\d{2}-\d{2})$/);
+      if (mm) {
+        v928Date = mm[1];
+        try { v928Branch = finLockedBranch() || finGlobalBranch() || ''; } catch (e) { v928Branch = ''; }
+      }
+    } catch (e) {}
+    if (!row && v928Date) {
+      var v928Auto = null;
+      try {
+        if (typeof window.wlv1AutoIncomeForDay === 'function')
+          v928Auto = window.wlv1AutoIncomeForDay(v928Date, v928Branch || null);
+      } catch (e) { v928Auto = null; }
+      var v928Br = (v928Branch && v928Branch !== 'All Branches') ? v928Branch : (branches()[0] || '');
+      row = { entry_date: v928Date, branch: v928Br,
+              cash: (v928Auto ? Number(v928Auto.cash || 0) : 0),
+              online: (v928Auto ? Number(v928Auto.online || 0) : 0),
+              expense_notes: '' };
+    }
     row = row || { entry_date: m.todayIST(), branch: branches()[0], cash: 0, online: 0, expense_notes: '' };
     document.getElementById('finBody').innerHTML = '<div class="card"><h2>Ledger Entry</h2>' +
       /* 🖥️🔵 B677 (১৫.০৮.২০২৬, TK-নির্দেশ): *"এটা তো ডেক্সটপের ভিউ — তাহলে সবগুলো
@@ -1080,27 +1290,30 @@ function finRowTap(id) {
 
   // 🔵🔒 (09.08.2026, TK-প্রুফ অনুমোদিত — ফোনের সাথে এক): উপরে লাল হেডার (←+শিরোনাম বাঁয়ে, ডানে
   // ব্রাঞ্চ-চিপ 🏥 Select + ↻)। ফর্মে Branch/Note ঘর নেই। ব্রাঞ্চ ও Category প্রতিবার বাছতে হবে।
-  async function finAddExpense() {
+  async function finAddExpense(prefillDate, prefillBranch) {
     var m = window.MOD;
     var finLockBr = finLockedBranch();   // 🔵 B617: ডাক্তার হলে নিজের ব্রাঞ্চ প্রি-সেট + লক
-    var brOpts = finLockBr ? branchOptions(finLockBr) : ('<option value="">🏥 Select</option>' + branchOptions(''));
+    // 🟢🔒 V630 (২৪.০৮.২০২৬) — Sheet-এর খালি খরচ-ঘর থেকে এলে date/branch প্রি-ফিল।
+    var fixedBr = finLockBr || prefillBranch || '';
+    var brOpts = fixedBr ? branchOptions(fixedBr) : ('<option value="">🏥 Select</option>' + branchOptions(''));
     var catOpts = '<option value="">Select…</option>' +
       CATS.map(function (c) { return '<option value="' + c.replace(/"/g, '&quot;') + '">' + c + '</option>'; }).join('');
+    var backFn = prefillDate ? "finLedgerSheet()" : "finDailyLedger()";
     var html =
       '<div style="background:linear-gradient(90deg,#7A1212,#C0271B);color:#fff;border-radius:14px;padding:11px 14px;display:flex;align-items:center;gap:10px;margin-bottom:12px">' +
-        '<span onclick="finDailyLedger()" style="cursor:pointer;font-weight:800;font-size:17px;flex:1">←  Add Expense</span>' +
-        '<select id="eBranchSel"' + (finLockBr ? ' disabled' : '') + ' style="width:auto;margin:0;padding:6px 8px;border-radius:10px;background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.55);font-weight:700">' + brOpts + '</select>' +
+        '<span onclick="' + backFn + '" style="cursor:pointer;font-weight:800;font-size:17px;flex:1">←  Add Expense — ব্যয়</span>' +
+        '<select id="eBranchSel"' + (fixedBr ? ' disabled' : '') + ' style="width:auto;margin:0;padding:6px 8px;border-radius:10px;background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.55);font-weight:700">' + brOpts + '</select>' +
         '<span onclick="finAddExpense()" style="cursor:pointer;font-size:20px">↻</span>' +
       '</div>' +
       '<div class="card">' +
-      '<label>Date</label><input id="eDate" class="input" type="date" value="' + m.todayIST() + '">' +
+      '<label>Date</label><input id="eDate" class="input" type="date" value="' + (prefillDate || m.todayIST()) + '">' +
       '<label>Category</label><select id="eCat" class="input">' + catOpts + '</select>' +
       '<label>Paid To</label><input id="ePaidTo" class="input">' +
       '<label>Amount</label><input id="eAmt" class="input" type="number" value="">' +
       '<label>Mode</label><select id="eMode" class="input"><option>Cash</option><option>Online</option></select>' +
       /* 🔵 V388 (TK-নিয়ম): উপরের পটিতেই "←  Add …" তীর আছে — নিচে দ্বিতীয় তীর নয়। */
       '<div class="actions">' +
-      '<button onclick="finSaveExpense()">Save &amp; Add More</button></div></div>';
+      '<button onclick="finSaveExpense()">Save</button></div></div>';
     document.getElementById('finBody').innerHTML = html;
   }
 
@@ -1114,14 +1327,14 @@ function finRowTap(id) {
     var br = document.getElementById('eBranchSel').value;
     if (!br) { if (typeof toast === 'function') toast('উপরে ডানে ব্রাঞ্চ বাছুন'); else alert('ব্রাঞ্চ বাছুন'); return; }
     var cat = document.getElementById('eCat').value;
-    if (!cat) { if (typeof toast === 'function') toast('Category বাছুন'); else alert('Category বাছুন'); return; }
     // 🔵 খালি (০) Amount-এ সেভ নয় (Add More-এ ভুল ফাঁকা সারি ঠেকাতে) — ফোনের সাথে এক।
     var amtV = Number(document.getElementById('eAmt').value || 0);
     if (amtV <= 0) {
       if (typeof toast === 'function') toast('Amount লিখুন'); else alert('Amount লিখুন');
       return;
     }
-    if (finBadPaidTo(document.getElementById('ePaidTo').value)) {
+    var paidTo = String(document.getElementById('ePaidTo').value || '').trim();
+    if (!cat && finBadPaidTo(paidTo)) {
       if (typeof toast === 'function') toast('Paid To — নাম লিখুন (শুধু সংখ্যা চলবে না)');
       else alert('Paid To — নাম লিখুন (শুধু সংখ্যা চলবে না)');
       return;
@@ -1130,8 +1343,8 @@ function finRowTap(id) {
       id: m.uuid(),
       entry_date: document.getElementById('eDate').value,
       branch: br,
-      category: cat,
-      paid_to: document.getElementById('ePaidTo').value || '',
+      category: cat || 'Other Expense',
+      paid_to: cat || paidTo,
       amount: amtV,
       mode: document.getElementById('eMode').value,
       note: '',
@@ -1155,10 +1368,8 @@ function finRowTap(id) {
       }
     } catch (e) {}
     await m.save('fin', 'expenses', row);
-    // 🔵 পর্দাতেই থাকে; Amount/Paid To ফাঁকা (তারিখ+ব্রাঞ্চ+ক্যাটেগরি+মোড থাকে) — আরেকটা যোগ করা যায়।
-    document.getElementById('eAmt').value = '';
-    document.getElementById('ePaidTo').value = '';
-    if (typeof toast === 'function') toast('Saved — আরেকটা যোগ করতে পারেন');
+    if (typeof toast === 'function') toast('Saved');
+    incomeExpense();
   }
 
   async function finDailyLedger() {
@@ -1209,13 +1420,22 @@ function finRowTap(id) {
   async function finMonthly() {
     var m = window.MOD;
     var month = m.todayIST().slice(0, 7);
+    /* 🟢🔒 V628 (২৪.০৮.২০২৬, TK-নির্দেশ, স্পষ্ট) — "All Branches" অপশন বাদ,
+       হিসাবের খাতায় ব্রাঞ্চ মিশবে না। সবসময় একটা নির্দিষ্ট ব্রাঞ্চ বাছতে হবে। */
+    /* 🟢🔒 V695 (২৬.০৮.২০২৬, TK ডেমো দেখে "২ করুন") — উপরের জায়গা কমানো:
+       Month ও Branch আর একটার নিচে একটা নয়, **পাশাপাশি এক সারিতে** —
+       ফোনের `heroWithFields()`-এর মতোই, তাই টেবিল অনেক উপরে উঠে আসে।
+       ⛔ ঘর দুটোর id · মান · ব্রাঞ্চের তালিকা · Show-এর কাজ — কিছুই বদলায়নি,
+          শুধু পাশাপাশি বসেছে। */
     var html = '<div class="card"><h2>Monthly Summary</h2>' +
-      '<label>Month</label><input id="mMonth" class="input" type="month" value="' + month + '">' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap">' +
+      '<div style="flex:1;min-width:150px"><label>Month</label>' +
+      '<input id="mMonth" class="input" type="month" value="' + month + '"></div>' +
       /* 🟢🔒 V398: মনে-রাখা ব্রাঞ্চ আগে থেকেই বসানো। */
-      '<label>Branch</label><select id="mBranch" class="input">' +
-      (finCurBranch() ? '' : '<option value="" selected>Select Branch</option>') +
-      '<option value="__all"' + (finCurBranch() === 'All Branches' ? ' selected' : '') + '>All Branches</option>' +
-      branchOptions(finCurBranch() === 'All Branches' ? '' : finCurBranch()) + '</select>' +
+      '<div style="flex:1;min-width:150px"><label>Branch</label><select id="mBranch" class="input">' +
+      ((!finCurBranch() || finCurBranch() === 'All Branches') ? '<option value="" selected>Select Branch</option>' + branchOptions('')
+       : branchOptions(finCurBranch())) + '</select></div>' +
+      '</div>' +
       '<div class="actions"><button onclick="finRunMonthly()">Show</button></div>' +
       '<div id="mOut" class="mut"></div></div>';
     document.getElementById('finBody').innerHTML = html;
@@ -1285,14 +1505,26 @@ function finRowTap(id) {
 
     // দিন-ধরে জড়ো: প্রতিটি দিনের নগদ/অনলাইন + খরচ (খাতার খরচ + Add-Expense এন্ট্রি)।
     var days = {};
-    function ensure(d) { if (!days[d]) days[d] = { cash: 0, online: 0, exp: 0, seg: [] }; return days[d]; }
+    /* 🟠🔒 V960 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ — ফোনের যমজ) — TK:
+       *"এখানে এডিট বা ডিলিটের কোন অপশনই বা নেই কেন?"* এই পর্দার খরচ-পপ-আপে
+       খরচের **আসল সারিগুলো পাঠানোই হত না**, তাই ✏️ বসত না। এখন পাঠানো হয়
+       (`items`), আর "লেখা" হিসেবে যায় শুধু খাতার নিজের লেখাটুকু (`own`/`ownSeg`)
+       — তাই একই খরচ দুবার দেখায় না। ⛔ মোট (`exp`) আগের মতোই অপরিবর্তিত।
+       ⛔ এডিটরের কোড নতুন কিছু নয় — V400-এর `finExpenseEdit`-ই খোলে। */
+    function ensure(d) { if (!days[d]) days[d] = { cash: 0, online: 0, exp: 0, seg: [], ownSeg: [], own: 0, items: [] }; return days[d]; }
+    /* 🟢🔒 V628 (২৪.০৮.২০২৬) — তারিখ ধরে আসল collections সারি মনে রাখা, যাতে
+       "✏️ Edit This Day" বোতাম সঠিক সারিতে পৌঁছাতে পারে। ব্রাঞ্চ এখন সবসময়
+       একটাই নির্দিষ্ট (V628-এর "All Branches" অপসারণ) — তাই প্রতি তারিখে
+       বড়জোর একটাই সারি। */
+    var rowByDate = {};
     coll.forEach(function (row) {
       var d = row.entry_date; if (!d) return;
       var o = ensure(d);
       o.cash += Number(row.cash || 0); o.online += Number(row.online || 0);
+      rowByDate[d] = row;
       var note = row.expense_notes || '';
       var se = (row.expense_total != null && row.expense_total >= 0) ? Number(row.expense_total) : finSumNumbers(note);
-      if (se !== 0 || note) { o.exp += se; if (note) o.seg.push(note); }
+      if (se !== 0 || note) { o.exp += se; o.own += se; if (note) { o.seg.push(note); o.ownSeg.push(note); } }   /* 🟠 V960 */
     });
     exp.forEach(function (row) {
       var d = row.entry_date; if (!d) return;
@@ -1301,24 +1533,56 @@ function finRowTap(id) {
       o.exp += a;
       var cat = row.category || '', pt = row.paid_to || '';
       o.seg.push((pt ? (cat + ' — ' + pt) : cat) + '-' + a);
+      o.items.push(row);   /* 🟠 V960 — ✏️ চেপে বদলানো/মোছার জন্য আসল সারিটাই */
     });
+    /* 🟢🔒 V927 (৩১.০৮.২০২৬, TK ডেমো প্রুফ দেখে "আমার উত্তর পাশ") —
+       ০১/০৯/২০২৬ থেকে যে দিনগুলোয় **হাতে লেখা কোনো সারি নেই**, সেই দিনের আয়
+       অ্যাপ নিজেই Visit Fee · Treatment · Medicine/Saline পেমেন্ট থেকে গুনে
+       দেখায়। ⛔ ডেটাবেসে কিচ্ছু লেখা হয় না — শুধু দেখানো; হাতে লেখা সারি
+       থাকলে সেটাই জেতে; ০১/০৯-এর আগের দিন কখনো ছোঁয়া হয় না। */
+    var autoDays = {};
+    try {
+      if (typeof window.wlv1AutoIncomeForMonth === 'function') {
+        var __am = window.wlv1AutoIncomeForMonth(month, branch) || {};
+        Object.keys(__am).forEach(function (d) {
+          if (rowByDate[d]) return;                 // হাতে লেখা আছে → অ্যাপ ছোঁবে না
+          var o = ensure(d);
+          if (Number(o.cash || 0) !== 0 || Number(o.online || 0) !== 0) return;
+          o.cash = Number(__am[d].cash || 0);
+          o.online = Number(__am[d].online || 0);
+          autoDays[d] = true;
+        });
+      }
+    } catch (e) {}
+    var showTag = false;
+    try { showTag = (typeof window.isMaster === 'function') && window.isMaster(); } catch (e) { showTag = false; }
     var dates = Object.keys(days).sort();
     window.__finExpMap = window.__finExpMap || {};
     var cashTot = 0, onlineTot = 0, expTot = 0;
     var trs = dates.map(function (d) {
       var o = days[d];
       cashTot += o.cash; onlineTot += o.online; expTot += o.exp;
-      var dp = String(d).split('-'); var dotted = dp[2] + '/' + dp[1] + '/' + dp[0];
+      var dp = String(d).split('-'); var dotted = dp[2] + '.' + dp[1] + '.' + dp[0];
+      /* ট্যাগ শুধু মাস্টারের পর্দায় — TK: "অটো না হাতে ঠিক করা এটা মাস্টার
+         ছাড়া কেউ দেখতে পাবে না"। স্টাফ/ডাক্তার শুধু সংখ্যাটাই দেখেন। */
+      var tag = '';
+      if (showTag && d >= (window.WLV1_AUTO_INCOME_FROM || '2026-09-01')) {
+        tag = autoDays[d]
+          ? '<span style="display:inline-block;margin-left:6px;background:#EAF6EE;color:#0B8A3E;border:1px solid #CFE9D8;border-radius:6px;padding:1px 5px;font-size:8.5px;font-weight:800;vertical-align:middle">AUTO</span>'
+          : (rowByDate[d] ? '<span style="display:inline-block;margin-left:6px;background:#EAF2FE;color:#0B4FA8;border:1px solid #C9DDF7;border-radius:6px;padding:1px 5px;font-size:8.5px;font-weight:800;vertical-align:middle">হাতে ঠিক করা</span>' : '');
+      }
+      var dottedCell = dotted + tag;   /* ⛔ `dotted` নিজে অপরিবর্তিত — খরচের
+             পপ-আপের শিরোনামে (`__finExpMap[key].dotted`) ট্যাগ যাবে না */
       var key = 'M' + d;
       var expCell;
       if (o.exp > 0 || o.seg.length) {
-        window.__finExpMap[key] = { dotted: dotted, note: o.seg.join(', '), total: o.exp };
+        window.__finExpMap[key] = { dotted: dotted, note: (o.ownSeg || []).join(', '), total: o.exp, own: Number(o.own || 0), items: (o.items || []), editRowId: rowByDate[d] ? rowByDate[d].id : null };   /* 🟠 V960 */
         expCell = '<td onclick="finExpenseBreakdown(\'' + key + '\')" style="padding:6px;text-align:right;color:#B42318;font-weight:700;cursor:pointer;border:1px solid #CFE9D8">' +
           (o.exp > 0 ? m.money(o.exp).replace('₹', '') : '-') + '</td>';
       } else {
         expCell = '<td style="padding:6px;text-align:right;color:#B42318;border:1px solid #CFE9D8">-</td>';
       }
-      return '<tr><td style="padding:6px;font-weight:700;border:1px solid #CFE9D8">' + dotted + '</td>' +
+      return '<tr><td style="padding:6px;font-weight:700;border:1px solid #CFE9D8">' + dottedCell + '</td>' +
         '<td style="padding:6px;text-align:right;color:#0A7C3F;border:1px solid #CFE9D8">' + m.money(o.cash).replace('₹', '') + '</td>' +
         '<td style="padding:6px;text-align:right;color:#0A7C3F;border:1px solid #CFE9D8">' + m.money(o.online).replace('₹', '') + '</td>' +
         expCell + '</tr>';
@@ -1333,16 +1597,27 @@ function finRowTap(id) {
       '<td style="padding:6px;text-align:right;border:1px solid #CFE9D8;color:#0A5C33">' + m.money(cashTot).replace('₹', '') + '</td>' +
       '<td style="padding:6px;text-align:right;border:1px solid #CFE9D8;color:#0A5C33">' + m.money(onlineTot).replace('₹', '') + '</td>' +
       '<td style="padding:6px;text-align:right;border:1px solid #CFE9D8;color:#B42318">' + m.money(expTot).replace('₹', '') + '</td></tr>';
-    var remaining = prevBal + cashTot + onlineTot - expTot;
-    // 🔴🔒 V460 (Android-এ V453) — ব্রাঞ্চের নাম হেডারেই থাকে বলে brLabel বাদ;
-    // দুটো সংখ্যা এক পাশাপাশি সারিতে।
-    var balPair = '<div style="margin:8px 0 4px;display:flex;gap:8px">' +
-      '<div style="flex:1;background:#EEFAF0;border:1px solid #CDE9D5;border-radius:10px;padding:10px 8px;text-align:center">' +
-      '<div style="font-size:11.5px;font-weight:700;color:#0A5C33">Previous Balance</div>' +
-      '<div style="font-size:15px;font-weight:800;color:#0A5C33;padding-top:2px">' + (prevOk ? m.money(prevBal) : '—') + '</div></div>' +
-      '<div style="flex:1;background:#0B4F2A;border-radius:10px;padding:10px 8px;text-align:center">' +
-      '<div style="font-size:11.5px;font-weight:700;color:#fff">অবশিষ্ট টাকা</div>' +
-      '<div style="font-size:15px;font-weight:800;color:#fff;padding-top:2px">' + (prevOk ? m.money(remaining) : '—') + '</div></div>' +
+    /* 🟢🔒 V693 (২৬.০৮.২০২৬, TK-নির্দেশ ছবিসহ, তাঁর "হ্যাঁ" নিয়ে) — নিচের
+       বাক্সটা এখন TK-এর ছবির মতো: **মোট আয় · মোট ব্যয় · অবশিষ্ট**।
+       আগে ছিল "Previous Balance | অবশিষ্ট টাকা" (V460 / Android V453)।
+       ⚠️ টাকার হিসাবেও বদল — অবশিষ্ট = মোট আয় − মোট ব্যয়; **গত মাসের বাকি
+          আর যোগ হয় না**। TK-এর ছবির সংখ্যাও ঠিক এই হিসাবেই মেলে।
+       ⛔ ফোনের `IncomeExpenseActivity.monthTotalsBox()`-এর হুবহু একই (§৬.৬)।
+       ⛔ Daily Ledger-এর নিচের বার (এই ফাইলের ~৮৪১ লাইন) এক অক্ষরও বদলায়নি —
+          সেখানে গত মাসের বাকি আগের মতোই ধরা হয়। */
+    var incomeTot = cashTot + onlineTot;
+    var remaining = incomeTot - expTot;
+    function finSumLine(label, value, color, line){
+      return '<div style="display:flex;align-items:center;padding:7px 0' +
+        (line ? ';border-bottom:1px solid #EEF3F0' : '') + '">' +
+        '<span style="font-size:14px;font-weight:700;color:' + color + '">' + label + '</span>' +
+        '<span style="font-size:14px;color:' + color + ';padding:0 8px">=</span>' +
+        '<span style="flex:1;text-align:right;font-size:15px;font-weight:800;color:' + color + '">' + value + '</span></div>';
+    }
+    var balPair = '<div style="margin:10px 0 4px;background:#fff;border:1px solid #E3ECE6;border-radius:12px;padding:12px 14px">' +
+      finSumLine('মোট আয়', m.money(incomeTot), '#0A7C3F', true) +
+      finSumLine('মোট ব্যয়', m.money(expTot), '#B42318', true) +
+      finSumLine('অবশিষ্ট', m.money(remaining), '#1B4E9B', false) +
       '</div>';
     // 🔵 Date ঘর সরু (colgroup width), Cash/Online/খরচ বাকি জায়গা ভাগ করে নেয়।
     var tableHtml = '<div style="overflow-x:auto"><table style="width:100%;min-width:560px;border-collapse:collapse;font-size:12px">' +
@@ -1352,19 +1627,189 @@ function finRowTap(id) {
       /* 🔴 V430 — Monthly Summary-র খালি-লেখা ফোনের হুবহু (kt:2618) */
       (dates.length ? '' : '<div class="mut">এই মাসে এখনো কোনো এন্ট্রি নেই।</div>') +
       balPair +
-      '<div class="actions" style="margin-top:10px"><button onclick="finMonthlyPdf()">🖨️ PDF / Print</button>' +
-      '<button class="ghost" onclick="finMonthlyShare()">📤 WhatsApp</button></div>';
+      /* 🟢🔒 V693 (২৬.০৮.২০২৬, TK-নির্দেশ ছবিসহ) — দুটো আলাদা বোতামের বদলে
+         একটাই "••• Options", ভিতরে তিনটে কাজ — ফোনের PopupMenu-র মতোই।
+         ⛔ কাজ তিনটেই আগের প্রমাণিত ফাংশন (finMonthlyShare / finMonthlyPdf),
+            নতুন কিছু বানানো হয়নি। */
+      '<div class="actions" style="margin-top:10px;position:relative">' +
+      '<button class="ghost" onclick="finMonthlyOptions()">••• Options</button>' +
+      '<div id="finMonthlyMenu" style="display:none;position:absolute;bottom:46px;left:0;z-index:40;' +
+      'background:#fff;border:1px solid #E3ECE6;border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.14);min-width:210px;overflow:hidden">' +
+      '<div onclick="finMonthlyMenuPick(1)" style="padding:12px 14px;cursor:pointer;border-bottom:1px solid #EEF3F0">📤 WhatsApp-এ শেয়ার</div>' +
+      '<div onclick="finMonthlyMenuPick(2)" style="padding:12px 14px;cursor:pointer;border-bottom:1px solid #EEF3F0">📄 PDF Download</div>' +
+      '<div onclick="finMonthlyMenuPick(3)" style="padding:12px 14px;cursor:pointer">🖨️ Print</div>' +
+      '</div></div>';
     var shareText = 'Income & Expense — ' + month + (branch === '__all' ? ' (All Branches)' : ' (' + branch + ')');
     window._finMonthlyHtml = '<h1>' + m.esc(shareText) + '</h1>' + tableHtml + balPair;
     window._finMonthlyText = shareText + '\n' +
       'Collection: ' + m.money(cashTot + onlineTot) + ' (Cash ' + m.money(cashTot) + ' / Online ' + m.money(onlineTot) + ')\n' +
       'Expense: ' + m.money(expTot) + '\n' +
-      'Previous Balance: ' + (prevOk ? m.money(prevBal) : '—') + '\n' +
-      'অবশিষ্ট টাকা: ' + (prevOk ? m.money(remaining) : '—');
+      /* 🟢🔒 V693 — পর্দায় যা দেখা যায়, শেয়ারের লেখাতেও ঠিক তাই।
+         "Previous Balance" পর্দা থেকে উঠে যাওয়ায় লেখাতেও রাখা হলো না —
+         নইলে পর্দা আর লেখা দুরকম বলত, সেটাই নতুন একটা ভুল হত। */
+      'মোট আয়: ' + m.money(incomeTot) + '\n' +
+      'মোট ব্যয়: ' + m.money(expTot) + '\n' +
+      'অবশিষ্ট: ' + m.money(remaining);
   }
 
+  /* 🟢🔒 V693 — "••• Options" খোলা/বন্ধ, আর ভিতরের তিনটে কাজ। */
+  function finMonthlyOptions() {
+    var el = document.getElementById('finMonthlyMenu');
+    if (!el) return;
+    el.style.display = (el.style.display === 'block') ? 'none' : 'block';
+  }
+  function finMonthlyMenuPick(which) {
+    var el = document.getElementById('finMonthlyMenu');
+    if (el) el.style.display = 'none';
+    if (which === 1) finMonthlyShare();
+    /* PDF ও Print — একই ব্রাউজার-পর্দা; সেখানে গন্তব্যে "Save as PDF"
+       বাছলে পিডিএফ, প্রিন্টার বাছলে ছাপা (ফোনেও ঠিক একই নিয়ম)। */
+    else finMonthlyPdf();
+  }
   function finMonthlyPdf() { window.MOD.printHtml('Monthly Summary', window._finMonthlyHtml || ''); }
   function finMonthlyShare() { window.MOD.whatsapp(window._finMonthlyText || 'Monthly Summary'); }
+
+  /* =====================================================================
+     🟢🔒 V629 (২৪.০৮.২০২৬, TK-নির্দেশ) — "Statement": ব্যাংক-স্টেটমেন্টের
+     মতো, যেকোনো From–To তারিখের মধ্যে প্রতিদিনের **পরে চলতি ব্যালেন্স
+     (running balance)** দেখায়। ফোনের `IncomeExpenseActivity.statement()`-এর
+     হুবহু যমজ — একই দুই-উৎস হিসাব (collections.expense_notes + expenses),
+     একই ব্রাঞ্চ-নিয়ম (V628-এর "All Branches" বাদ, সবসময় একটা নির্দিষ্ট
+     ব্রাঞ্চ)। কোনো নতুন হিসাব-সূত্র নেই — Ledger Sheet/Monthly-র প্রমাণিত
+     সূত্রই পুনর্ব্যবহার।
+     ===================================================================== */
+  async function finStatement() {
+    var m = window.MOD;
+    var today = m.todayIST();
+    var fromD = new Date(today); fromD.setDate(fromD.getDate() - 30);
+    var fromIso = fromD.getFullYear() + '-' + String(fromD.getMonth() + 1).padStart(2, '0') + '-' + String(fromD.getDate()).padStart(2, '0');
+    var finLockBr = finLockedBranch();
+    var __stCur = finCurBranch();
+    var brOpts = finLockBr ? branchOptions(finLockBr)
+      : ((!__stCur || __stCur === 'All Branches') ? '<option value="" selected>Select Branch</option>' + branchOptions('')
+         : branchOptions(__stCur));
+    document.getElementById('finBody').innerHTML =
+      '<div class="card"><h2>📄 Statement</h2>' +
+      '<label>Branch</label><select id="stBranchSel"' + (finLockBr ? ' disabled' : '') + ' class="input">' + brOpts + '</select>' +
+      '<div class="finTwo"><div><label>From</label><input id="stFrom" class="input" type="date" value="' + fromIso + '"></div>' +
+      '<div><label>To</label><input id="stTo" class="input" type="date" value="' + today + '"></div></div>' +
+      '<div class="actions"><button onclick="finStatementLoad()">Show</button></div>' +
+      '<div id="stOut" class="mut">Loading...</div></div>';
+    finStatementLoad();
+  }
+
+  async function finStatementLoad() {
+    var m = window.MOD, client = await sb();
+    var brEl = document.getElementById('stBranchSel');
+    var branchSel = brEl ? brEl.value : '';
+    if (!finLockedBranch()) finSetGlobalBranch(branchSel || 'All Branches');
+    var out = document.getElementById('stOut');
+    if (!branchSel) {
+      if (out) out.innerHTML = (typeof window.wlv1BranchAskCard === 'function')
+        ? window.wlv1BranchAskCard() : '🏥 একটি Branch বাছুন।';
+      return;
+    }
+    var fromIso = (document.getElementById('stFrom') || {}).value;
+    var toIso = (document.getElementById('stTo') || {}).value;
+    if (!fromIso || !toIso) { out.innerHTML = 'তারিখ বাছুন।'; return; }
+    if (fromIso > toIso) { out.innerHTML = '"From" তারিখ "To"-এর পরে হতে পারে না।'; return; }
+    out.innerHTML = 'Loading...';
+    var toNext = new Date(toIso); toNext.setDate(toNext.getDate() + 1);
+    var toNextIso = toNext.getFullYear() + '-' + String(toNext.getMonth() + 1).padStart(2, '0') + '-' + String(toNext.getDate()).padStart(2, '0');
+    var coll = [], exp = [], prevColl = [], prevExp = [], openingOk = true;
+    try {
+      var qc = client.schema('fin').from('collections').select('*').gte('entry_date', fromIso).lt('entry_date', toNextIso).eq('ignored', false).eq('branch', branchSel);
+      var qe = client.schema('fin').from('expenses').select('*').gte('entry_date', fromIso).lt('entry_date', toNextIso).eq('ignored', false).eq('branch', branchSel);
+      var __rc = await qc.order('entry_date', { ascending: true }), __re = await qe.order('entry_date', { ascending: true });
+      if ((__rc && __rc.error) || (__re && __re.error)) { out.innerHTML = 'Could not load — একটু পরে আবার দেখুন'; return; }
+      coll = __rc.data || []; exp = __re.data || [];
+    } catch (e) { out.innerHTML = 'Could not load (offline?).'; return; }
+    // ওপেনিং ব্যালেন্স — "From"-এর আগের সব দিনের (এই ব্রাঞ্চের) আয়−খরচ। Ledger
+    // Sheet/Monthly-র prevBal-এর হুবহু একই দুই-উৎস হিসাব।
+    try {
+      var pqc = client.schema('fin').from('collections').select('cash,online,expense_total,expense_notes').lt('entry_date', fromIso).eq('ignored', false).eq('branch', branchSel);
+      var pqe = client.schema('fin').from('expenses').select('amount').lt('entry_date', fromIso).eq('ignored', false).eq('branch', branchSel);
+      var __pc = await pqc, __pe = await pqe;
+      if ((__pc && __pc.error) || (__pe && __pe.error)) openingOk = false;
+      prevColl = (__pc && __pc.data) || []; prevExp = (__pe && __pe.data) || [];
+    } catch (e) { openingOk = false; }
+    var opening = 0;
+    prevColl.forEach(function (row) {
+      var note = row.expense_notes || '';
+      var e2 = (row.expense_total != null && row.expense_total >= 0) ? Number(row.expense_total) : finSumNumbers(note);
+      opening += Number(row.cash || 0) + Number(row.online || 0) - e2;
+    });
+    prevExp.forEach(function (row) { opening -= Number(row.amount || 0); });
+    finStatementRender(coll, exp, opening, openingOk, fromIso, toIso, branchSel, out);
+  }
+
+  function finStatementRender(coll, exp, opening, openingOk, fromIso, toIso, branchSel, out) {
+    var m = window.MOD;
+    var days = {};
+    function ensure(d) { if (!days[d]) days[d] = { cash: 0, online: 0, exp: 0 }; return days[d]; }
+    coll.forEach(function (row) {
+      var d = row.entry_date; if (!d) return;
+      var o = ensure(d);
+      o.cash += Number(row.cash || 0); o.online += Number(row.online || 0);
+      var note = row.expense_notes || '';
+      var se = (row.expense_total != null && row.expense_total >= 0) ? Number(row.expense_total) : finSumNumbers(note);
+      if (se !== 0 || note) o.exp += se;
+    });
+    exp.forEach(function (row) {
+      var d = row.entry_date; if (!d) return;
+      ensure(d).exp += Number(row.amount || 0);
+    });
+    var dates = Object.keys(days).sort();
+    var rows = [];
+    rows.push(['Opening', '—', '—', '—', openingOk ? m.money(opening) : '—', true]);
+    var cashTot = 0, onlineTot = 0, expTot = 0, running = opening;
+    dates.forEach(function (d) {
+      var o = days[d];
+      cashTot += o.cash; onlineTot += o.online; expTot += o.exp;
+      running += o.cash + o.online - o.exp;
+      var dp = String(d).split('-'); var dotted = dp[2] + '.' + dp[1] + '.' + dp[0];
+      rows.push([dotted, o.cash > 0 ? m.money(o.cash).replace('₹', '') : '-', o.online > 0 ? m.money(o.online).replace('₹', '') : '-',
+        o.exp > 0 ? m.money(o.exp).replace('₹', '') : '-', m.money(running).replace('₹', ''), false]);
+    });
+    rows.push(['Total', m.money(cashTot).replace('₹', ''), m.money(onlineTot).replace('₹', ''), m.money(expTot).replace('₹', ''),
+      openingOk ? m.money(running).replace('₹', '') : '—', true]);
+
+    var html = '<table style="width:100%;border-collapse:collapse;font-size:12px">' +
+      '<tr style="background:#0A7C3F;color:#fff">' +
+      '<th style="padding:6px;border:1px solid #CFE9D8">Date</th><th style="padding:6px;border:1px solid #CFE9D8">Cash</th>' +
+      '<th style="padding:6px;border:1px solid #CFE9D8">Online</th><th style="padding:6px;border:1px solid #CFE9D8">খরচ</th>' +
+      '<th style="padding:6px;border:1px solid #CFE9D8">Running Balance</th></tr>';
+    rows.forEach(function (r, i) {
+      var bg = r[5] ? '#EAF6EE' : (i % 2 === 0 ? '#FFFFFF' : '#F7FBF8');
+      var fg = r[5] ? '#0A5C33' : '#41506A';
+      html += '<tr style="background:' + bg + '">' +
+        '<td style="padding:6px;border:1px solid #CFE9D8;font-weight:' + (r[5] ? '700' : '400') + ';color:' + fg + '">' + m.esc(r[0]) + '</td>' +
+        '<td style="padding:6px;border:1px solid #CFE9D8;text-align:right;color:#0A7C3F">' + m.esc(r[1]) + '</td>' +
+        '<td style="padding:6px;border:1px solid #CFE9D8;text-align:right;color:#0A7C3F">' + m.esc(r[2]) + '</td>' +
+        '<td style="padding:6px;border:1px solid #CFE9D8;text-align:right;color:#B42318">' + m.esc(r[3]) + '</td>' +
+        '<td style="padding:6px;border:1px solid #CFE9D8;text-align:right;font-weight:700;color:#0F3A66">' + m.esc(r[4]) + '</td></tr>';
+    });
+    html += '</table>';
+    if (!dates.length) html += '<div class="mut" style="margin-top:8px">এই সময়ের মধ্যে এখনো কোনো এন্ট্রি নেই।</div>';
+
+    // 🔵 R6-এর হুবহু একই প্যাটার্নে WhatsApp শেয়ার।
+    var fromDotted = fromIso.split('-').reverse().join('.'), toDotted = toIso.split('-').reverse().join('.');
+    var sbx = '📄 স্টেটমেন্ট — ' + fromDotted + ' থেকে ' + toDotted + '\n' + branchSel + '\n————————————\n' +
+      'Opening Balance: ' + (openingOk ? m.money(opening) : '—') + '\n';
+    var run2 = opening;
+    dates.forEach(function (d) {
+      var o = days[d]; run2 += o.cash + o.online - o.exp;
+      var dp = String(d).split('-'); var dotted = dp[2] + '.' + dp[1] + '.' + dp[0];
+      sbx += dotted + ' — Cash ' + m.money(o.cash) + ' · Online ' + m.money(o.online) + ' · খরচ ' + m.money(o.exp) + ' · Balance ' + m.money(run2) + '\n';
+    });
+    sbx += '————————————\nমোট: Cash ' + m.money(cashTot) + ' · Online ' + m.money(onlineTot) + ' · খরচ ' + m.money(expTot) + '\n';
+    sbx += 'Closing Balance: ' + (openingOk ? m.money(running) : '—');
+    window._finStatementText = sbx;
+    html += '<div class="actions" style="margin-top:10px"><button onclick="finStatementShare()">📤 WhatsApp-এ শেয়ার</button></div>';
+    out.innerHTML = html;
+  }
+
+  function finStatementShare() { window.MOD.whatsapp(window._finStatementText || 'Statement'); }
 
   // expose
   window.incomeExpense = incomeExpense;
@@ -1398,4 +1843,9 @@ function finRowTap(id) {
   window.finRunMonthly = finRunMonthly;
   window.finMonthlyPdf = finMonthlyPdf;
   window.finMonthlyShare = finMonthlyShare;
+  window.finMonthlyOptions = finMonthlyOptions;
+  window.finMonthlyMenuPick = finMonthlyMenuPick;
+  window.finStatement = finStatement;
+  window.finStatementLoad = finStatementLoad;
+  window.finStatementShare = finStatementShare;
 })();

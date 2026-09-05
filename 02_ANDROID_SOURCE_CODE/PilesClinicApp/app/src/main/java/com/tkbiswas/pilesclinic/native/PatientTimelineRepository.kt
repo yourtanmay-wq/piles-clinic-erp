@@ -64,6 +64,24 @@ data class TimelineEntry(
     // TK-REQUESTED ADDITION (2026-07-20): 3-tap edit target for Enquiry-stage
     // rows (Enquiry & Call History table). Optional, default null/-1, so
     // every other reader of TimelineEntry is completely unaffected.
+    /* ✏️🔒 V736 (২৭.০৮.২০২৬, TK-অনুমোদিত অপশন ৩) — **"Registration / Visit"
+       সারির ভুল লেখা ডাক্তার নিজে ঠিক করতে পারবেন, আর পুরোনো লেখাও জমা থাকবে।**
+
+       ডা. কে. এইচ. মণ্ডলের রিপোর্ট: *"এটা staff ভুল তুলেছে, এটা আমাকে ঠিক
+       করার অধিকার দেওয়া হোক"*। TK: *"অপশন ৩ — চারটেই বদলানো যাবে, তবে পুরোনো
+       লেখা জমা থাকবে।"*
+
+       ওই সারিটার লেখা আসলে **দুই জায়গার তিন+এক টুকরো জোড়া**:
+         · patients.complaint · patients.sinceWhen · patients.previousTreatment
+         · payments.progress  (+ টাকার লাইন, যেটা কখনো এডিটে আসে না)
+       তাই এডিট করতে হলে প্রতিটা টুকরোর **আসল ঠিকানা** সঙ্গে নিয়ে যেতে হয় —
+       নিচের ঘরগুলো ঠিক সেটাই বয়ে নেয়।
+       ⛔ যে সারিতে এসব নেই সেখানে সব `null`/ফাঁকা ⇒ আচরণ আগের মতোই। */
+    val regPatientRowId: String? = null,   // patients.id — কোন সারি বদলাবে
+    val regComplaint: String = "",         // patients.complaint
+    val regDuration: String = "",          // patients.sinceWhen
+    val regPrevTreatment: String = "",     // patients.previousTreatment
+    val payTypedNote: String = "",         // payments.progress-এর মানুষের লেখা অংশ
     val enquiryRowId: String? = null,
     val followUpHistoryId: String? = null,
     val followUpHistoryIndex: Int = -1,
@@ -80,7 +98,18 @@ data class TimelineEntry(
     // This field carries the answer directly instead: the remark a PERSON really
     // typed, and nothing else (blank when the app filled it in by itself).
     // Default blank, so every other reader of TimelineEntry is unaffected.
-    val typedRemark: String = ""
+    val typedRemark: String = "",
+    // 🟢🔒 V676 (২৫.০৮.২০২৬, TK-নির্দেশ — "আজকের Doctor Checkup এডিট করতে
+    // পারব") — "medical" সারির id + "selected" ঘর (Doctor Checkup-এ এতদিন
+    // ব্যবহারই হতো না, তাই এখানে structured JSON রাখা নিরাপদ — Prescription/
+    // Diet Chart-এর "selected" ব্যবহার অক্ষত, ওগুলোর id আলাদা row-এ থাকে)।
+    // ⛔ ডিফল্ট ফাঁকা — বাকি সব TimelineEntry পাঠক সম্পূর্ণ অপ্রভাবিত।
+    val medicalRecordId: String = "",
+    val medicalSelected: String = "",
+    /* 🟢🔒 V1090 (০৫.০৯.২০২৬, TK-রিপোর্ট: *"check up done দুইবার কেন"*) —
+       এই সারিটা আসলে চিকিৎসার নোট (কেউ ফোন করেননি)। ডিফল্ট false —
+       তাই TimelineEntry-এর বাকি সব পাঠক সম্পূর্ণ অপ্রভাবিত। */
+    val isTreatmentNote: Boolean = false
 )
 
 /** Header + all updates for one patient/mobile, built by joining every table. */
@@ -97,6 +126,10 @@ data class TimelineData(
     // TK-REQUESTED ADDITION (2026-07-16): total estimated bill, needed for
     // the register table's "Estimated" summary chip. 0 when not yet set.
     val billTotal: Double = 0.0,
+    // 🏷️ TK-APPROVED (03.09.2026): the discount already forgiven on this
+    // patient's bill. 0.0 means none was ever given -- the Discount box then
+    // stays hidden and the three older boxes look exactly as before.
+    val discount: Double = 0.0,
     // TK-REQUESTED ADDITION (2026-07-18): the "patients" table row id (uuid),
     // needed so the Patient Card header's 3-tap Edit can save name/mobile
     // corrections. Blank when no Registration/patients row exists yet for
@@ -187,6 +220,7 @@ object PatientTimelineRepository {
         return when {
             t.contains("enquiry") -> "📞" to "#1067D8"
             t.contains("registration") || t.contains("visit") -> "👣" to "#16A36D"
+            t.contains("discount") -> "🏷️" to "#0B7A34"
             t.contains("payment") || t.contains("advance") -> "💰" to "#F79009"
             t.contains("prescription") || t.contains("medicine") ||
                 t.contains("diet") || t.contains("blood") || t.contains("medical") ||
@@ -212,8 +246,25 @@ object PatientTimelineRepository {
      * ⛔ কোনো সারি বাদ যায় না · টাকার অঙ্ক বদলায় না · মোট Paid/Due এক থাকে।
      * ⛔ একই চাবি দিন-ভাগ (byDay) ও Report Card-এও — তাই দুই পর্দা কখনো আলাদা হবে না।
      */
+    /**
+     * 🔴🔴🔒 V655 (২৫.০৮.২০২৬, TK-রিপোর্ট, ছবিসহ — "উল্টা পাল্টা তারিখ হিসাবে
+     * কেন দেখাচ্ছে") — **আসল কারণ (কোড ধরে যাচাই, Sukanta Roy-র টাইমলাইনে
+     * প্রমাণিত):** "আসবে বলেছে" (chamber_expected) সারির `date` ঘরে
+     * ইচ্ছাকৃতভাবে **ভবিষ্যতের প্রত্যাশিত তারিখ** বসানো থাকে (স্টাফ যেদিন
+     * আসবে বলেছেন — যেমন ২৯.০৮.২০২৬), যদিও এন্ট্রিটা **সত্যিই তৈরি** হয়েছিল
+     * অন্য দিনে (২৪.০৮.২০২৬)। আগে `orderKey()` **প্রথমে `date`** দেখত —
+     * তাই এই সারিটা ভবিষ্যতের তারিখ ধরে "সবচেয়ে নতুন" সেজে তালিকার একদম
+     * উপরে উঠে যেত, যদিও ওই একই সারির দেখানো সময় (Date/Time কলাম, `sortKey`/
+     * `callTime` থেকে) ছিল ২৪.০৮.২০২৬ — তাই আজকের (২৫.০৮.২০২৬) আসল পেমেন্টও
+     * এর নিচে চলে যেত।
+     * **সমাধান:** এখন **প্রথমে `sortKey`** দেখা হয় (যেটা সবসময় সত্যিকারের
+     * "কবে ঘটেছে/তৈরি হয়েছে" ধরে, `date`-এর মতো ভবিষ্যতের-লক্ষ্য-তারিখ কখনো
+     * বহন করে না) — `date` শুধু fallback, `sortKey` ফাঁকা থাকলেই ব্যবহার হয়।
+     * ⛔ যেসব এন্ট্রিতে আলাদা `sortKey` কখনো বসানোই হয়নি (ডিফল্ট ফাঁকা),
+     *    তাদের ক্রম **অক্ষরে অক্ষরে আগের মতোই** (date-ই ব্যবহার হয়)।
+     */
     private fun orderKey(e: TimelineEntry): String {
-        val day = e.date.take(10).ifBlank { e.sortKey.take(10) }.ifBlank { e.callTime.take(10) }
+        val day = e.sortKey.take(10).ifBlank { e.date.take(10) }.ifBlank { e.callTime.take(10) }
         val stamp = listOf(e.sortKey, e.callTime).firstOrNull { it.length > 10 } ?: ""
         val timePart = if (stamp.length > 10) stamp.substring(10) else ""
         return if (day.isBlank()) "" else day + timePart
@@ -252,6 +303,16 @@ object PatientTimelineRepository {
         if (table == "followups")
             SupabaseClient.fetchListSlim(
                 "followups", "mobile=like.*$digits", 500, SupabaseClient.FOLLOWUP_COLS_NO_PHOTO
+            )
+        else if (table == "patients")
+            /* 🔴🔒 V794 (২৮.০৮.২০২৬, TK-নির্দেশে Egress-যাচাইয়ের পরে) —
+               এখানেও ছবিটা সারির সঙ্গে নামত (≈৬০–১২০ KB × যত সারি)। এখন
+               ছবি ছাড়া পড়া হয়, আর নিচে (`photo = …`) ছবিটা
+               `PatientPhotoCache` থেকে আসে — জমা থাকলে **একটাও বাইট নয়**,
+               নইলে একবারই শুধু `id,photo`।
+               ⛔ পর্দায় ও Report Card-এ ছবি আগের মতোই দেখাবে। */
+            SupabaseClient.fetchListSlim(
+                "patients", "mobile=like.*$digits", 500, SupabaseClient.PATIENT_NO_PHOTO_COLS
             )
         else
             SupabaseClient.fetchList(table, "mobile=like.*$digits", 500)
@@ -302,6 +363,48 @@ object PatientTimelineRepository {
     // ঘটনা আলাদা সারি হয় (History পর্দার জন্য)। ডিফল্ট false — ⛔ Report Card ও
     // অন্য সব কলার আগের মতোই (day-merge) পায়, এক অক্ষরও বদলায় না। টাকার হিসাব
     // দুই পথেই এক (প্রতি পেমেন্ট আলাদা paidEffect ধরে গোনা হয়, নিচে দেখুন)।
+    /**
+     * 🟢🔒 V1090 (০৫.০৯.২০২৬, TK: *"check up done দুইবার কেন"*) —
+     * **টাকার সারি থেকে সেই পুনরাবৃত্ত বাক্যটা তোলা।**
+     *
+     * চিকিৎসার নোট দুই জায়গায় জমা হয় (V590): ফলো-আপ খাতায় আর সেদিনের
+     * টাকার সারির `progress` ঘরে। History পর্দায় দুটোই দেখাত ⇒ এক কথা
+     * দু'বার। এখানে **শুধু দেখানোর জন্য** টাকার সারি থেকে ওই বাক্যটা তোলা
+     * হয়; ফলো-আপ সারিটা অক্ষত থাকে, তাই **কে লিখেছেন ও কখন** — কিছুই
+     * হারায় না, আর ৩-বার চেপে এডিটও আগের জায়গাতেই থাকে।
+     *
+     * ⛔ তোলা হয় **শুধু তখনই** যখন ঠিক ওই দিনেই ফলো-আপ সারিতে হুবহু একই
+     *    লেখা আছে। ⛔ তুললে নোট একদম ফাঁকা হয়ে গেলে কিছুই তোলা হয় না
+     *    (টাকা ০ হলে নোটে টাকার লাইন থাকে না — তখন আগের মতোই থাকবে)।
+     * ⛔ `payTypedNote`/`typedRemark` (Report Card ও ৩-বার চাপের এডিট
+     *    যেগুলো পড়ে) এক অক্ষরও বদলায় না — শুধু `note`।
+     * ⛔ একই দিনে একাধিক পেমেন্ট জোড়া লাগলে লেখাটা " | " দিয়ে জোড়া হয়;
+     *    তখন **প্রতিটা টুকরোই** ফলো-আপে থাকলে তবেই পুরোটা তোলা হয়।
+     */
+    private fun wlv1StripEchoedTreatmentNote(rows: List<TimelineEntry>): List<TimelineEntry> {
+        return try {
+            val noteKeys = HashSet<String>()
+            for (e in rows) {
+                if (!e.followUpHistoryId.isNullOrBlank() && e.note.trim().isNotEmpty())
+                    noteKeys.add(e.date.take(10) + "|" + e.note.trim().lowercase())
+            }
+            if (noteKeys.isEmpty()) return rows
+            rows.map { e ->
+                val typed = listOf(e.payTypedNote.trim(), e.typedRemark.trim())
+                    .firstOrNull { it.isNotEmpty() && e.note.trim().startsWith(it) }
+                if (e.paymentId == null || typed.isNullOrEmpty()) return@map e
+                val day = e.date.take(10)
+                val parts = typed.split(" | ").map { it.trim() }.filter { it.isNotEmpty() }
+                val allEchoed = parts.isNotEmpty() && parts.all { noteKeys.contains(day + "|" + it.lowercase()) }
+                if (!allEchoed) return@map e
+                val stripped = e.note.trim()
+                    .removePrefix(typed).trim()
+                    .removePrefix("\u2014").trim()
+                if (stripped.isEmpty()) e else e.copy(note = stripped)
+            }
+        } catch (_: Throwable) { rows }
+    }
+
     fun build(mobileDigits: String, section: String? = null, context: Context? = null, keepVisitFeeAsOwnRow: Boolean = false, separateRowsPerEvent: Boolean = false, preferRowId: String = "", preferPatientCode: String = ""): TimelineData {
         // Match by the trailing 10 digits (like the global search does) instead of
         // an exact "+91..." match, so a timeline is found regardless of how the
@@ -438,7 +541,9 @@ object PatientTimelineRepository {
                 else null
             }
             val medDef = async(Dispatchers.IO) {
-                if (medFilter != null) SupabaseClient.fetchList("medical", medFilter, 500) else null
+                // 🔴🔒 V794 — ছবি ছাড়া (Timeline শুধু type/details/selected/তারিখ পড়ে)
+                if (medFilter != null) SupabaseClient.fetchListSlim("medical", medFilter, 500,
+                        SupabaseClient.MEDICAL_COLS) else null
             }
             Pair(payDef.await(), medDef.await())
         }
@@ -512,7 +617,16 @@ object PatientTimelineRepository {
                 !status.equals("Closed", true)
         }
         val bestFollowup = (activeFollowups.ifEmpty { selectionPool })
-            .maxByOrNull { stagePriority(it.s("stage")) }
+            .maxWithOrNull(
+                // 🟢🔒🔒 V638 (২৪.০৮.২০২৬, TK-রিপোর্ট — একাধিকবার আসা রোগীর
+                // Treatment Progress আবার ফাঁকা দেখানো একই কারণ এখানেও) —
+                // সমান stage-এর একাধিক সারি থাকলে (একাধিক ভিজিট) আগে
+                // অনির্দিষ্ট ক্রমে প্রথমটাই বাছত। এখন সমান stage-এ সবচেয়ে
+                // সাম্প্রতিক (updatedAt/createdAt) সারিটাই জেতে —
+                // ChamberAttendanceRepository-র একই টাই-ব্রেকার এখানেও।
+                compareBy<org.json.JSONObject> { stagePriority(it.s("stage")) }
+                    .thenBy { it.s("updatedAt").ifBlank { it.s("createdAt") } }
+            )
         var effectiveFollowupStage = bestFollowup?.s("stage") ?: ""
         if (followups.length() == 0 && patientId.isNotBlank()) {
             // Infer the correct stage from real payment data: a genuine
@@ -768,7 +882,12 @@ object PatientTimelineRepository {
                     sortKey = patient.s("createdAt").ifBlank {
                         patient.s("registrationDate").ifBlank { patient.s("date") }
                     },
-                    callTime = patient.s("createdAt")
+                    callTime = patient.s("createdAt"),
+                    // ✏️🔒 V736 — এডিটের জন্য আসল ঠিকানা ও আসল তিনটে লেখা
+                    regPatientRowId = patient.s("id").ifBlank { null },
+                    regComplaint = patient.s("complaint"),
+                    regDuration = regDuration,
+                    regPrevTreatment = regPrevTreatment
                 ))
         }
 
@@ -828,7 +947,7 @@ object PatientTimelineRepository {
                 val names = mutableListOf<String>()
                 for (di in 0 until dailyEvents.length()) {
                     val ev = dailyEvents.optJSONObject(di) ?: continue
-                    val by = ev.optString("receivedBy").ifBlank { ev.optString("createdBy") }.trim()
+                    val by = ev.s("receivedBy").ifBlank { ev.s("createdBy") }.trim()   // 🔴 V819 — `optString` SQL NULL-এ আক্ষরিক "null" ফেরায় (V696/V812-এর ফাঁদ); `s()` সেটা ফাঁকা ধরে
                     if (by.isNotBlank() && !names.contains(by)) names.add(by)
                 }
                 names.joinToString(" / ").ifBlank { pBy }
@@ -938,6 +1057,8 @@ object PatientTimelineRepository {
             }
             entries.add(TimelineEntry(
                 icon, color, label, pDate, paymentBy, noteText,
+                // ✏️🔒 V736 — শুধু মানুষের টাইপ করা অংশ (টাকার লাইন ছাড়া)
+                payTypedNote = humanPart,
                 paymentId = p.s("id"), paymentBranch = p.s("branch"),
                 paymentAmount = amt,
                 paymentMode = if (isTreatmentMoney) PaymentModel.splitMode(split.first, split.second) else p.s("mode").ifBlank { "CASH" },
@@ -966,6 +1087,27 @@ object PatientTimelineRepository {
         // APPROVED UPDATE #9: Treatment Complete entry when the bill is fully paid
         // (Due = 0). Synthesized from the last payment — no other module changed.
         val billTotal = patient.optDouble("bill", 0.0)
+        // 🏷️ TK-APPROVED (03.09.2026): a discount given on this bill shows as
+        // its own permanent history row -- how much, what the bill was before
+        // and after, who gave it and why. Synthesized from the patients row
+        // itself (no new table), exactly the way Treatment Complete below is.
+        val discGiven = patient.optDouble("discount", 0.0)
+        if (discGiven > 0.0) {
+            val billBefore = patient.optDouble("billBeforeDiscount", 0.0)
+            val why = patient.s("discountReason")
+            val note = buildString {
+                // শিরোনামেই "Discount" লেখা থাকে, তাই নোটে আর দ্বিতীয়বার নয়।
+                append(money(discGiven))
+                if (billBefore > 0.0) append(" · Bill ").append(money(billBefore)).append(" → ").append(money(billTotal))
+                if (why.isNotBlank()) append(" · ").append(why)
+            }
+            entries.add(entry(
+                "Discount",
+                patient.s("discountAt").take(10).ifBlank { lastPayDate },
+                patient.s("discountBy").ifBlank { lastPayBy },
+                note
+            ).copy(sortKey = patient.s("discountAt"), callTime = patient.s("discountAt")))
+        }
         if (billTotal > 0.0 && totalPaid >= billTotal) {
             entries.add(entry("Treatment Complete", lastPayDate, lastPayBy, "Bill fully paid — " + money(billTotal)))
         }
@@ -978,10 +1120,62 @@ object PatientTimelineRepository {
                 val note = m.s("details").ifBlank { m.s("selected").ifBlank { m.s("decision") } }
                 entries.add(entry(type, m.s("date").ifBlank { m.s("createdAt") }, m.s("createdBy"), note).copy(
                     sortKey = m.s("createdAt").ifBlank { m.s("date") },
-                    callTime = m.s("createdAt")
+                    callTime = m.s("createdAt"),
+                    // 🟢🔒 V676 — এই সারিটার আসল id + JSON (থাকলে) ধরে রাখা,
+                    // যাতে আজকের নিজের Doctor Checkup এডিট করা যায়।
+                    medicalRecordId = m.s("id"),
+                    medicalSelected = m.s("selected")
                 ))
             }
         }
+
+        /* ╔═══════════════════════════════════════════════════════════
+           🟢🔒 V1090 (০৫.০৯.২০২৬) — TK, MD AKBAR ALI-র ছবিসহ:
+           *"check up done দুইবার কেন"*
+
+           **কারণ (কোডে প্রমাণিত, আন্দাজে নয়):** স্টাফ একবারই লেখেন, কিন্তু
+           V590 (২৩.০৮, TK-অনুমোদিত) থেকে লেখাটা **দুই জায়গায়** জমা হয় —
+           ফলো-আপ খাতায় (`followups.history`) আর সেদিনের টাকার সারিতে
+           (`payments.progress`, নইলে Report Card-এ উঠত না)। History পর্দা
+           দুটোই দেখাত ⇒ এক কথা দু'বার।
+           সঙ্গে দ্বিতীয় দোষ: `history`-র সারিতে ধরন লেখা থাকে না, তাই
+           চিকিৎসার নোটটাও **"Called By"** সেজে উপরের **Visit Calls**-এ
+           গোনা হত — যদিও কেউ ফোন করেননি।
+
+           **এই নিয়মটা করে (শুধু দেখানোর, B680/V399-এর হুবহু একই ধাঁচ):**
+           ① একই দিনে ফলো-আপ-নোটের লেখা আর টাকার সারির মানুষের-লেখা অংশ
+              হুবহু মিললে ⇒ ওই ফলো-আপ সারিটা "চিকিৎসার নোট" চিহ্নিত হয়।
+              টাকার সারি না থাকলেও ধরা পড়ে — লেখাটা পুরোপুরি চিকিৎসার
+              চিপ দিয়ে বানানো হলে (`TreatmentQuickNotes.isQuickNoteText`)।
+           ② **History পর্দায়** (separateRowsPerEvent) ওই টাকার সারি থেকে
+              শুধু ওই পুনরাবৃত্ত বাক্যটা তোলা হয় — টাকা ও মোড থেকে যায়
+              (`wlv1StripEchoedTreatmentNote`, নিচে — **একই দিনের একাধিক
+              পেমেন্ট জোড়া লাগার পরে** চলে, নইলে জোড়া লাগার সময় লেখাটা
+              আবার ফিরে আসত)। ⛔ তুললে লেখা একদম ফাঁকা হয়ে গেলে কিছুই
+              তোলা হয় না।
+
+           ⛔ ডেটাবেসে কিচ্ছু বদলায় না · `payTypedNote` (Report Card যেটা
+              পড়ে) ছোঁয়াই হয় না · Report Card ও অন্য সব পাঠক অটুট (② শুধু
+              History-তে) · ফলো-আপ সারিটা **থেকেই যায়**, তাই কে লিখেছেন ও
+              কখন লিখেছেন — কিছুই হারায় না।
+           ╚══════════════════════════════════════════════════════════ */
+        try {
+            val payTypedKeys = HashSet<String>()
+            for (e in entries) {
+                val typed = e.payTypedNote.trim()
+                if (e.paymentId != null && typed.isNotEmpty())
+                    payTypedKeys.add(e.date.take(10) + "|" + typed.lowercase())
+            }
+            for (i in entries.indices) {
+                val e = entries[i]
+                if (e.followUpHistoryId.isNullOrBlank()) continue
+                val txt = e.note.trim()
+                if (txt.isEmpty()) continue
+                val isTreat = payTypedKeys.contains(e.date.take(10) + "|" + txt.lowercase()) ||
+                    TreatmentQuickNotes.isQuickNoteText(txt)
+                if (isTreat) entries[i] = e.copy(isTreatmentNote = true)
+            }
+        } catch (_: Throwable) { /* ⛔ শুধু দেখানোর সাজানো — ব্যর্থ হলে আগের মতোই দেখাবে */ }
 
         // OWNER CONFIRMED (12.08.2026): Registration, Visit and Visit Fee are
         // ONE user action.  They stay in their existing database rows (the
@@ -1007,6 +1201,9 @@ object PatientTimelineRepository {
                         .joinToString(" | ")
                     val merged = reg.copy(
                         note = combinedNote,
+                        // ✏️🔒 V736 — reg-এর তিনটে ঘর `copy` নিজেই ধরে রাখে;
+                        //    পেমেন্টের মানুষের-লেখা অংশটা এখানে জুড়ে দেওয়া হলো
+                        payTypedNote = fee.payTypedNote,
                         paymentId = fee.paymentId,
                         paymentBranch = fee.paymentBranch,
                         paymentAmount = fee.paymentAmount,
@@ -1073,7 +1270,20 @@ object PatientTimelineRepository {
             (passthrough + mergedTreatment).sortedBy { orderKey(it) }
         } else displayEntries.sortedBy { orderKey(it) }
 
-        val chronologicalRaw = historyDisplayEntries
+        /* 🟢🔒 V1090 ধাপ ② — উপরের টীকা দ্রষ্টব্য। এখানেই চালানো হয়, কারণ
+           একই দিনের একাধিক Treatment পেমেন্ট জোড়া লাগার সময় লেখাটা নতুন
+           করে বানানো হয় (`note = human — breakdown`) — আগে তুলে দিলে সেটা
+           আবার ফিরে আসত। ⛔ History ছাড়া কোনো কলার প্রভাবিত হয় না। */
+        /* 🔴🔒 V1097 (০৫.০৯.২০২৬ — নিজে খুঁটিয়ে যাচাই করতে গিয়ে ধরা):
+           নিচে (`filtered`) সেকশন বাছা থাকলে ফলো-আপের সারিগুলো বাদ পড়ে যায়।
+           তখন টাকার সারি থেকে লেখাটা তুলে দিলে **কথাটা কোথাও আর দেখাই যেত না**।
+           ⇒ সেকশন বাছা থাকলে কিছুই তোলা হয় না — হুবহু আগের আচরণ। */
+        val historyDisplayFinal =
+            if (separateRowsPerEvent && section.isNullOrBlank())
+                wlv1StripEchoedTreatmentNote(historyDisplayEntries)
+            else historyDisplayEntries
+
+        val chronologicalRaw = historyDisplayFinal
 
         // TK-REQUESTED CHANGE (2026-07-19): one row per DAY, not one row per
         // event -- if an enquiry call, a follow-up remark, and a payment all
@@ -1218,8 +1428,24 @@ object PatientTimelineRepository {
             // "UNKNOWN" ফিক্স বসালেও কখনো কাজ করত না (name কখনো
             // ফাঁকা পেত না)। Enquiry-তে নাম খোঁজার নিয়ম অক্ষত রাখা হলো (ওটা
             // সঠিক ফলব্যাক) — শুধু একদম শেষের mobile-ফলব্যাক বাদ দেওয়া হলো।
+            //
+            // 🟢🔒🔒 V636 (২৪.০৮.২০২৬, TK-রিপোর্ট, ছবিসহ — "Follow-up কার্ডে
+            // OSMAN ORAW নাম দেখাচ্ছে, View করলে UNKNOWN কেন?") — আসল কারণ:
+            // এই নাম-খোঁজার নিয়ম শুধু `patient` (patients টেবিল) ও
+            // `enquiries[0]` দেখত — `followups[0]`-এ কখনো দেখতই না। ঠিক এই
+            // একই সমস্যা branch/disease/address-এ আগে (V235) ধরা পড়েছিল ও
+            // followups[0]-এ fallback যোগ করে ঠিক হয়েছিল (নিচের/উপরের লাইন
+            // দেখুন) — কিন্তু নাম-এর জন্য তখন করা হয়নি। যে রোগীর শুধু
+            // `followups` সারিই টিকে আছে (patients/enquiries সারি নেই — যেমন
+            // OSMAN ORAW), তার নাম followups টেবিলে থাকা সত্ত্বেও এখানে
+            // ফাঁকা থেকে যেত, তাই শেষে "UNKNOWN"। এখন branch/disease-এর
+            // প্রমাণিত একই প্যাটার্নে followups[0].name-ও যোগ হলো।
+            // ⛔ কোনো অনুমান/ভুয়া নাম নয় — সব ফাঁকা হলে আগের মতোই ""
+            //    (তখনই "UNKNOWN")।
             name = patient.s("name").ifBlank {
-                if (enquiries.length() > 0) enquiries.getJSONObject(0).s("name") else ""
+                (if (enquiries.length() > 0) enquiries.getJSONObject(0).s("name") else "").ifBlank {
+                    if (followups.length() > 0) followups.getJSONObject(0).s("name") else ""
+                }
             },
             patientId = patient.s("patientId"),
             mobile = mobileDigits,
@@ -1231,9 +1457,14 @@ object PatientTimelineRepository {
             disease = patient.s("disease").ifBlank {
                 if (followups.length() > 0) followups.getJSONObject(0).s("disease") else ""
             },
-            photo = patient.s("photo"),
+            // 🔴🔒 V794 — ছবিটা জমা থাকলে ফোন থেকেই, নইলে একবারই ক্লাউড থেকে
+            photo = patient.s("photo").ifBlank {
+                com.tkbiswas.pilesclinic.native.PatientPhotoCache.photoFor(
+                    context, patient.s("id"), patient.s("updatedAt"))
+            },
             entries = filtered,
             billTotal = billTotal,
+            discount = patient.optDouble("discount", 0.0),
             rowId = uuid,
             // TK-REQUESTED (2026-07-18): refDoctor was a name SNAPSHOT saved
             // at the time it was set -- if that doctor's name is later

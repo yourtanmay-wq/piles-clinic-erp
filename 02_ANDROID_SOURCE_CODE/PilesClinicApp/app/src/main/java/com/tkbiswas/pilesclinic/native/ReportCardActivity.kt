@@ -165,8 +165,13 @@ class ReportCardActivity : AppCompatActivity() {
                         // than every other screen. It now reads the same way and
                         // applies the ONE shared rule.
                         val rid = data.rowId
-                        val arr = if (rid.isNotBlank()) SupabaseClient.fetchList("patients", "id=eq.$rid", 1)
-                            else SupabaseClient.findByMobile("patients", "+91$mobile", "*", 50)
+                        /* 🔴🔒 V794 — এই সারিটা থেকে শুধু বয়স/ঠিকানা/লিঙ্গ নেওয়া হয়
+                           (যাচাই করা); ছবিটা আসে `PatientTimelineRepository.build`
+                           থেকে। তাই এখানে ছবি ছাড়া পড়া হয়। */
+                        val arr = if (rid.isNotBlank()) SupabaseClient.fetchListSlim("patients",
+                                "id=eq.$rid", 1, SupabaseClient.PATIENT_NO_PHOTO_COLS)
+                            else SupabaseClient.findByMobile("patients", "+91$mobile",
+                                SupabaseClient.PATIENT_NO_PHOTO_COLS, 50)
                         val ownBranch = NativeSession.current(this@ReportCardActivity)?.branch.orEmpty()
                         PatientIdentity.pickPatientRow(arr, ownBranch)
                     } catch (_: Throwable) { null }
@@ -262,7 +267,15 @@ class ReportCardActivity : AppCompatActivity() {
         // app-wide standard — LEFT: Name/Age/ID/Mobile, RIGHT: Date/Sex/
         // Diseases/Address. Same box, same photo, same smallLine() style —
         // nothing visual besides the field order/content changed.
-        leftCol.addView(smallLine("AGE", age.ifBlank { "—" }))
+        /* 🎨🔒 V894 (৩১.০৮.২০২৬, TK ডেমো ফটো দেখে **"হ্যাঁ পাশ, বসিয়ে দিন"**) —
+           TK: *"Age 30 MALE — অন্যান্য জায়গায় যেমন পাশাপাশি ছিল সে রকম থাকবে"*।
+           বয়স ও লিঙ্গ এখন এক লাইনেই ("30 / MALE"), ঠিক যেমন ছাপার কাগজে
+           (`PrintMappers`-এ "Age / Gender: 30 / MALE") আগে থেকেই আছে।
+           ⛔ ডানের কলাম থেকে SEX লাইনটা বাদ, তাই কিছু দুবার দেখায় না; আর
+              দু-কলামের লাইন সমান হওয়ায় DATE · DISEASE · ADDRESS নিজে থেকেই
+              একটু উপরে উঠে নামের সারি বরাবর বসে (TK-এর দ্বিতীয় নির্দেশ)। */
+        leftCol.addView(smallLine("AGE / SEX",
+            age.ifBlank { "—" } + " / " + sex.ifBlank { "—" }))
         leftCol.addView(smallLine("ID", data.patientId.ifBlank { "—" }))
         leftCol.addView(smallLine("MOB", "+91${data.mobile}"))
         val rightCol = LinearLayout(this).apply {
@@ -270,7 +283,6 @@ class ReportCardActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
         rightCol.addView(smallLine("DATE", formatDisplayDate(today())))
-        rightCol.addView(smallLine("SEX", sex.ifBlank { "—" }))
         rightCol.addView(smallLine("DISEASE", data.disease.ifBlank { "—" }))
         rightCol.addView(smallLine("ADDRESS", address.ifBlank { "—" }))
         prow.addView(leftCol)
@@ -376,14 +388,17 @@ class ReportCardActivity : AppCompatActivity() {
         val v = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            setPadding(dp(8), dp(8), dp(8), dp(8))
+            /* 🎨🔒 V894 — TK: *"total bill due paid — এই ঘরগুলো একটু
+               উচ্চতায় কম হবে"*। উপর-নিচের ফাঁক ৮ → ৫/৬। বাঁ-ডানের ফাঁক · রং ·
+               বর্ডার · টাকার অঙ্ক — কিছুই বদলায়নি। */
+            setPadding(dp(8), dp(5), dp(8), dp(6))
             background = android.graphics.drawable.GradientDrawable().apply {
                 setColor(android.graphics.Color.parseColor(bg)); cornerRadius = dp(9).toFloat()
                 setStroke(dp(1), android.graphics.Color.parseColor(border))
             }
         }
         v.addView(TextView(this).apply { text = label; textSize = 9.5f; setTextColor(android.graphics.Color.parseColor(border)); setTypeface(typeface, android.graphics.Typeface.BOLD) })
-        v.addView(TextView(this).apply { text = value; textSize = 15f; setTextColor(android.graphics.Color.parseColor(textColor)); setTypeface(typeface, android.graphics.Typeface.BOLD) })
+        v.addView(TextView(this).apply { text = value; textSize = 14f; setTextColor(android.graphics.Color.parseColor(textColor)); setTypeface(typeface, android.graphics.Typeface.BOLD) })
         if (onEdit != null) TripleTapEdit.attach(v) { onEdit() }
         return v
     }
@@ -449,7 +464,7 @@ class ReportCardActivity : AppCompatActivity() {
         if (dayList.size == 1) { editPaid(dayList[0]); return }
         val labels = dayList.map { "${money(it.paymentAmount)} · ${it.paymentMode}" }.toTypedArray()
         AlertDialog.Builder(this)
-            .setCustomTitle(PremiumAlert.header(this, "কোন পেমেন্ট Edit করবেন?"))
+            .setCustomTitle(PremiumAlert.header(this, "Which payment do you want to Edit?"))
             .setItems(labels) { _, which -> editPaid(dayList[which]) }
             .setNegativeButton("Cancel", null)
             .show().also { PremiumAlert.paint(it) }
@@ -475,8 +490,15 @@ class ReportCardActivity : AppCompatActivity() {
     // column here has no maxLines limit at all, so a long remark was even
     // more likely to get clipped. WRAP_CONTENT sizes every cell to its own
     // real content -- never clips, whatever else is in the row.
+    /* 🎨🔒 V894 (৩১.০৮.২০২৬, TK-রিপোর্ট ছবিসহ — *"নিচের বক্সগুলি দেখুন"*):
+       প্রতিটা ঘরের উচ্চতা আলাদাভাবে মাপা হতো (`WRAP_CONTENT`)। বাংলা লেখাওয়ালা
+       PROGRESS ঘরটা একটু লম্বা হয়ে যেত, ফলে **শেষ সারিতে দাগগুলো মিলত না** —
+       ঘরের নিচের রেখা এক জায়গায়, পাশেরটার আরেক জায়গায়।
+       এখন এক সারির সব ঘর **একই উচ্চতার** (`MATCH_PARENT`) — এই ফাইলেরই
+       `headCell()` আগে থেকে এটাই ব্যবহার করে, নতুন কিছু নয়।
+       ⛔ লেখা · টাকা · তারিখ · এডিট (ট্রিপল-ট্যাপ) — কিচ্ছু বদলায়নি, শুধু মাপ। */
     private fun cell(t: String, w: Int, weight: Float, color: String, bold: Boolean, left: Boolean = false): TextView = TextView(this).apply {
-        layoutParams = LinearLayout.LayoutParams(w, LinearLayout.LayoutParams.WRAP_CONTENT, weight)
+        layoutParams = LinearLayout.LayoutParams(w, LinearLayout.LayoutParams.MATCH_PARENT, weight)
         text = t; gravity = if (left) Gravity.CENTER_VERTICAL else Gravity.CENTER
         textSize = 12f; setTextColor(android.graphics.Color.parseColor(color))
         if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
@@ -609,7 +631,7 @@ class ReportCardActivity : AppCompatActivity() {
                     android.widget.Toast.makeText(
                         this@ReportCardActivity, NoBengali.s(if (ok) "Master-এর কাছে অনুরোধ পাঠানো হয়েছে ✅" else "পাঠানো যায়নি — আবার চেষ্টা করুন"),
                         android.widget.Toast.LENGTH_LONG
-                    ).show()
+                    ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                 }
             }
             .setNegativeButton("Cancel", null)

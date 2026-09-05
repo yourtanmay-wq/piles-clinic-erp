@@ -29,6 +29,24 @@ object DateUtil {
         "yyyy-MM-dd"
     ).map { SimpleDateFormat(it, Locale.US) }
 
+    /* 🔴🔒 V936 (৩১.০৮.২০২৬, TK-নির্দেশ: *"সম্পূর্ণ প্রজেক্টে তারিখ একই ফরমেটে
+       থাকতে হবে … ঝুঁকিহীন ভাবে"*) — দেখানোর তারিখ এখন সব জায়গায় **31.08.2026**।
+       কিন্তু কিছু নোটিশের ভিতরের তারিখ **মেশিনও পড়ে** (Reopen/Leave-এর Approve
+       বোতাম ওই লাইনটা পড়েই বোঝে কোন দিনের কাজ)। তাই দেখানোর লেখা বদলানোর
+       **আগে** এই ফাংশনটা বসানো হলো: যেকোনো চেনা ধাঁচ থেকে আসল `yyyy-MM-dd`
+       ফিরিয়ে দেয় — বিন্দু · স্ল্যাশ · হাইফেন · আগের কাঁচা ISO, সবই।
+       ⇒ **পুরনো অপেক্ষমাণ অনুরোধগুলোতেও Approve আগের মতোই কাজ করে।**
+       ⛔ চেনা না গেলে যা এসেছে তাই ফেরে — কখনো ফাঁকা বা ভুল তারিখ নয়। */
+    fun iso(raw: String?): String {
+        val t = (raw ?: "").trim()
+        if (t.isBlank()) return ""
+        if (t.length >= 10 && t[4] == '-' && t[7] == '-') return t.substring(0, 10)
+        val m = Regex("^(\\d{1,2})[./-](\\d{1,2})[./-](\\d{4})").find(t) ?: return t
+        val d = m.groupValues[1].padStart(2, '0')
+        val mo = m.groupValues[2].padStart(2, '0')
+        return m.groupValues[3] + "-" + mo + "-" + d
+    }
+
     fun display(raw: String?): String {
         if (raw.isNullOrBlank()) return raw ?: ""
         val datePart = if (raw.length >= 10 && raw[4] == '-' && raw[7] == '-') raw.substring(0, 10) else raw

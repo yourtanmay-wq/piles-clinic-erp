@@ -79,7 +79,7 @@ object SupabaseClient {
      * rows, same order, same figures. Screens that DO show a photo (patient
      * photo, timeline) keep asking for it as before.
      */
-    const val PATIENT_COLS_NO_PHOTO = "address,age,bill,branch,complaint,completeApprovedBy,completeRequestedBy,createdAt,createdBy,date,decision,diagnosis,discount,disease,doctorAdvice,doctorComplete,doctorFullNote,id,medicalHistory,mobile,name,occupation,patientId,previousCost,previousResult,previousTreatment,queue,refBy,refDoctor,refDoctorMobile,refundRestoredBy,registeredBy,registrationDate,sex,sinceWhen,stage,timeType,treatmentDuration,updatedAt,visitDate"
+    const val PATIENT_COLS_NO_PHOTO = "address,age,bill,branch,complaint,completeApprovedBy,completeRequestedBy,createdAt,createdBy,date,decision,diagnosis,discount,disease,doctorAdvice,doctorComplete,doctorFullNote,id,medicalHistory,mobile,name,occupation,patientId,previousCost,previousResult,previousTreatment,queue,queuedAt,refBy,refDoctor,refDoctorMobile,refundRestoredBy,registeredBy,registrationDate,sex,sinceWhen,stage,timeType,treatmentDuration,updatedAt,visitDate"
 
     // 🔒 সংশোধন (29.07.2026 দুপুর, খাতার সারি B105): এই তালিকাটা বানানো হয়েছিল
     // `PILES_CLINIC_DB_SETUP.sql` দেখে, আর ওই ফাইলটা **আসল ডেটাবেসের চেয়ে পুরনো**
@@ -91,13 +91,28 @@ object SupabaseClient {
     // এখন এটা **TK-এর নিজের হাতে লাইভ ডেটাবেসে যাচাই করা** তালিকাটাই
     // (`FollowUpRepository.FOLLOWUP_COLS`) — অর্থাৎ **শুধু `photo` ছাড়া
     // followups টেবিলের প্রতিটা ঘর**।
+    /* 🔴🔒 V820 (২৯.০৮.২০২৬, TK-নির্দেশে Supabase লগ **মেপে** পাওয়া সবচেয়ে বড় ফুটো) —
+       Enquiry ট্যাব `enquiries` টেবিল থেকে `select=*` দিয়ে **৫০০০ সারি** টানত
+       (লগে গত এক ঘণ্টায় ২৪ বার, chunked)। কোড পড়ে যাচাই করা হয়েছে — ওই
+       সারিগুলো থেকে সত্যিই পড়া হয় **শুধু নিচের ঘরগুলো**।
+       ⛔ বাদ পড়া ঘর: `stage` (কখনো পড়া হয় না — কোডে সবসময় "Inquiry" **লেখা**
+          হয়), `updatedAt` · `appointmentDate` · `convertedPatientId` ·
+          `convertedAt` (একবারও পড়া হয় না)।
+       ⛔ `patientId` ইচ্ছে করে নেই — ঘরটা `enquiries` টেবিলে **নেই-ই**
+          (schema-তে `convertedPatientId`)। আজও `row.s("patientId")` ফাঁকাই
+          ফেরে, তাই আচরণ এক চুলও বদলায় না; বরং তালিকায় রাখলে পড়াটাই ব্যর্থ হত।
+       ⛔ `order=updatedAt.desc.nullslast` আগের মতোই চলে — সাজানোর জন্য ঘরটা
+          select-এ থাকা লাগে না। */
+    const val ENQUIRY_COLS_INQUIRY_TAB =
+        "address,branch,callCount,createdAt,createdBy,date,disease,id,mobile,name,nextFollow,receivedBy,remarks,status,timeType"
+
     const val FOLLOWUP_COLS_NO_PHOTO = "address,age,branch,callCount,convertedPatientId,createdAt,createdBy,date,disease,history,id,lastCallDate,lastRemark,mobile,name,nextFollow,patientId,refId,registrationDate,sex,stage,status,timeType,updatedAt,visitDate"
 
     /** 🔵🔒 V441 (19.08.2026, TK-অনুমোদিত — Draft egress): Draft-এর enquiry
      *  bucket বানাতে কোডে যাচাই করে শুধু এই ঘরগুলোই পড়া হয়। সব নাম active
      *  enquiries schema-তে আছে; filter/order/limit একদম আগের মতো। Narrow read
      *  ব্যর্থ হলে fetchListSlimOrNull-এর পুরনো full-row fallback অটুট। */
-    const val ENQUIRY_COLS_DRAFT = "id,date,branch,name,mobile,disease,remarks,timeType,receivedBy,stage,nextFollow,createdBy,updatedAt"
+    const val ENQUIRY_COLS_DRAFT = "id,date,branch,name,mobile,disease,remarks,timeType,receivedBy,stage,nextFollow,createdBy,updatedAt,convertedPatientId"
 
     /**
      * 🟢🔒 B661 (15.08.2026, TK-অনুমোদিত · Egress-৩) — **শুধু চেম্বার হাজিরা বোর্ডের জন্য**।
@@ -117,15 +132,27 @@ object SupabaseClient {
      * ⛔ সারির সংখ্যা · ছাঁকনি · সাজানো · limit — কিচ্ছু বদলায়নি, শুধু ঘর কমল।
      * ⛔ সরু পড়া ব্যর্থ হলে অ্যাপ নিজেই সব ঘর চেয়ে নেয় (fetchListSlimOrNull-এর B446 নিয়ম)।
      */
-    const val FOLLOWUP_COLS_CHAMBER_BOARD = "branch,id,lastRemark,mobile,nextFollow,stage,status,updatedAt"
+    /* 🔴🔒 V814 — `lastRemarkAt` যোগ হলো: রিমার্কের কথাটা **কবে লেখা হলো**।
+       চেম্বার বোর্ডের "আজকের Treatment Progress" পাহারা এই ঘরটাই দেখে,
+       কারণ `updatedAt` রিমার্ক ছাড়া অন্য কাজেও আজকের হয়ে যায়।
+       ⛔ একটা ছোট সময় (~৩০ বাইট) — Egress-এ প্রভাব নগণ্য। */
+    const val FOLLOWUP_COLS_CHAMBER_BOARD = "branch,id,lastRemark,lastRemarkAt,mobile,nextFollow,stage,status,updatedAt"
 
     /** Everything the money lists actually read from a payment row.
      *  🔒 সংশোধন (29.07.2026, খাতার সারি B114): এই তালিকায় **`patientCode` ছিল না**,
      *  অথচ `PaymentModel.parsePaymentRow()` ওই ঘরটাই পড়ে Patient ID দেখানোর জন্য।
      *  কেউ এই তালিকা দিয়ে টাকার তালিকা নামালে **Patient ID ফাঁকা হয়ে যেত** —
      *  ঠিক খাতার সারি B109-এর সেই দোষটাই আবার হত। তাই ঘরটা যোগ করা হলো।
-     *  ⛔ ঘর যোগ করায় কোনো তথ্য হারায় না, শুধু ফাঁকা হওয়ার ফাঁদটা বন্ধ হয়। */
-    const val PAYMENT_COLS_LIST = "id,patientId,patientCode,mobile,branch,name,amount,mode,cashAmount,onlineAmount,dailyEvents,payType,payLabel,paymentLabel,date,remarks,receivedBy,createdBy,createdAt,updatedAt,refundApprovalStatus"
+     *  ⛔ ঘর যোগ করায় কোনো তথ্য হারায় না, শুধু ফাঁকা হওয়ার ফাঁদটা বন্ধ হয়।
+     *  🔴🔴🔒 V688 (২৫.০৮.২০২৬, নিজের যাচাইয়ে ধরা পড়া গুরুতর বাগ — V687-এর
+     *  Chamber বোর্ড ফিক্স আসলে কখনোই কাজ করত না) — V687-এ Chamber বোর্ডের
+     *  Treatment Progress-এর উৎস `payments.progress`-এ বদলানো হয়েছিল, কিন্তু
+     *  Chamber বোর্ড ঠিক **এই তালিকা** (`PAYMENT_COLS_LIST`) দিয়েই payments
+     *  আনে — আর তাতে `progress` ঘরটাই ছিল না! তাই `row.optString("progress")`
+     *  সবসময় ফাঁকা ফিরত, ফিক্সটা নীরবে কিছুই করত না। এখন `progress` ঘরও
+     *  এই তালিকায় যোগ করা হলো — খুবই ছোট লেখা (remarks-এর মতোই), Egress-এ
+     *  চাপ পড়ে না। */
+    const val PAYMENT_COLS_LIST = "id,patientId,patientCode,mobile,branch,name,amount,mode,cashAmount,onlineAmount,dailyEvents,payType,payLabel,paymentLabel,date,remarks,progress,receivedBy,createdBy,createdAt,updatedAt,refundApprovalStatus"
 
     private val jsonMedia = "application/json".toMediaType()
 
@@ -192,6 +219,53 @@ object SupabaseClient {
     //    (Collection Summary ₹0) কখনো ফিরে আসতে পারে না।
     // ⛔ যে টেবিল এখনো প্রমাণিত নয়, তার পথ **হুবহু আগের মতোই** (সরু → পুরো)।
     // ⛔ সফল slim-পড়ার পথ (বেশিরভাগ সময়) এক অক্ষরও বদলায়নি।
+    /* ═══════════════════════════════════════════════════════════════════════
+       🔴🔴🔒 V794 (২৮.০৮.২০২৬, TK-নির্দেশে পূর্ণ Egress-যাচাইয়ের পরে) —
+       **যে ঘরগুলো কেউ পড়েই না, সেগুলো আর নামানো হবে না।**
+
+       TK: *"Supabase egress এর ঝুঁকি আর কোথায় কোথায় আছে … আন্দাজে কিছু করবেন
+       না, যাচাই করে কাজ করবেন।"*
+
+       ─── প্রমাণ (আন্দাজ নয়) ────────────────────────────────────────────────
+       `medical.photos` ঘরে চেক-আপের before + during + after তিনটে ছবিই
+       base64 হিসেবে জমা হয় (`DoctorCheckupActivity.kt:1392-1402`,
+       ছবি ≈ ৫৫–১২০ KB করে ⇒ এক সারি ≈ ৩৬০ KB পর্যন্ত)।
+       কিন্তু পুরো প্রকল্পে খুঁজে দেখা গেছে — **এই ঘরটা কেউ কখনো পড়েই না**
+       (ফোনে `optString("photos")`/`s("photos")` একটাও নেই; ওয়েবেও `.photos`
+       পড়া নেই)। শুধু লেখা হয়, পড়া হয় না।
+       ⇒ অথচ পাঁচ জায়গায় ৫০০ সারি পর্যন্ত **ছবিসহ** নামত।
+
+       ─── এখন ─────────────────────────────────────────────────────────────
+       এই তালিকাটা `photos` **বাদ দিয়ে** বাকি সব ঘর চায় — তাই যারা এই সারি
+       ব্যবহার করে (Checkup History · Timeline · Print Center) তাদের একটাও
+       দরকারি ঘর হারায় না, শুধু না-পড়া ছবিগুলো আর নামে না।
+       ⛔ `photos` লেখার কোড এক অক্ষরও বদলায়নি — ডেটাবেসে ছবি আগের মতোই জমা
+          থাকে, ভবিষ্যতে দরকার হলে আলাদা করে ওই এক সারিটা পড়া যাবে।
+       ⛔ সরু পড়া ব্যর্থ হলে আগের মতোই তিন-ধাপের fallback চলে
+          (`fetchListSlim*`), তাই পর্দা কখনো ফাঁকা হবে না।
+       ═══════════════════════════════════════════════════════════════════ */
+    const val MEDICAL_COLS =
+        "id,patientId,type,date,selected,days,details,nextFollow,diagnosis," +
+        "decision,doctorFullNote,name,mobile,branch,createdBy,createdAt,updatedAt"
+
+    /** 🔴🔒 V794 — রোগীর সারির **সব ঘর, শুধু `photo` বাদ**।
+     *  যেসব জায়গায় ছবিটা পর্দায় দেখানো হয় **না** (যাচাই করে বার করা ৭টা
+     *  জায়গা), সেখানে এটাই ব্যবহার হয় — একটাও দরকারি ঘর হারায় না, শুধু
+     *  ৬০–১২০ KB-র base64 ছবিটা আর নামে না।
+     *  ⛔ যেখানে ছবি সত্যিই দেখানো হয় (Check-up হেডার · Report Card) সেখানে
+     *     এটা ব্যবহার হয় না — সেগুলোর জন্য `PatientPhotoCache`।
+     *  ⛔ V796 — `photo`-র সঙ্গে `editHistory`-ও বাদ। কারণ দুটো:
+     *     (১) খাতার নিয়ম — "editHistory তালিকা-পড়ায় টানা হয় না (egress বাঁচাতে)";
+     *     (২) যাচাই করে দেখা গেছে এই ১২টা জায়গার একটাও ওটা পড়ে না —
+     *         একমাত্র PatientTimelineActivity নিজে আলাদা করে `id,editHistory`
+     *         টানে, তাই কোনো কাজ নষ্ট হয়নি। */
+    const val PATIENT_NO_PHOTO_COLS = "id,address,age,altMobile,bill,branch,complaint,completeApprovedBy,completeRequestedBy,createdAt,createdBy,date,decision,diagnosis,discount,disease,doctorAdvice,doctorComplete,doctorFullNote,medicalHistory,mobile,name,occupation,patientId,previousCost,previousResult,previousTreatment,queue,queuedAt,refBy,refDoctor,refDoctorMobile,refundRestoredBy,registeredBy,registrationDate,sex,sinceWhen,stage,timeType,treatmentDuration,updatedAt,visitDate"
+
+    /** 🔴🔒 V794 — Follow-up সারিতে `photo` ও `history` দুটোই ভারী
+     *  (`SafeWideColumns`)। যেসব জায়গায় শুধু id/মিল দেখা হয়, সেখানে এই
+     *  ছোট্ট তালিকাটাই যথেষ্ট — প্রমাণ করে দেখা হয়েছে ওরা আর কিছু পড়ে না। */
+    const val FOLLOWUP_ID_COLS = "id,mobile,stage,patientId,name,updatedAt"
+
     fun fetchListSlimOrNull(table: String, filter: String?, limit: Int, cols: String, order: String = "updatedAt.desc.nullslast", offset: Int = 0): JSONArray? {
         val narrow = fetchListOrNull(table, filter, limit, order = order, select = cols, offset = offset)
         if (narrow != null) { slimProven.add(table); return narrow }
@@ -317,11 +391,14 @@ object SupabaseClient {
                     //    তালিকায় থেকে যায়, কিছুই হারায় না।
                     // ⛔ অন্য যে কোনো ব্যর্থতায় (নেট/অন্য কোড) আচরণ অবিকল আগের মতোই।
                     val payId = row.optString("id", "")
+                    /* 🔴🔒 V903 — একই কারণে (উপরে CloudWriteQueue দেখুন) এখানেও
+                       "already exists" ও আইডি-মিল আর চাওয়া হয় না; সার্ভার ওই
+                       বিস্তারিত অংশটা না পাঠালে এই পথটাও কাজ করত না।
+                       ⛔ নিচে সারিটা **পড়ে** নিশ্চিত হওয়া হয় — না পেলে আগের
+                          মতোই ব্যর্থ ধরা হয়, তাই ভুল করে "হয়ে গেছে" বলার পথ নেই। */
                     val dup = payId.isNotBlank() &&
                         raw.contains("23505") &&
-                        raw.contains("payments_pkey") &&
-                        raw.contains("already exists") &&
-                        raw.contains(payId)
+                        raw.contains("payments_pkey")
                     if (dup) {
                         val existing = try {
                             val enc = java.net.URLEncoder.encode(payId, "UTF-8")
@@ -605,27 +682,38 @@ object SupabaseClient {
      * যাতে ডাকা জায়গাটা দুটোর পার্থক্য বুঝে ওয়ার্নিং দিতে পারে।
      * ⛔ `findByMobile` এক অক্ষরও বদলানো হয়নি — পুরনো সব ডাক আগের মতোই চলবে।
      */
+    /* 🟢🔒 V600 (২৩.০৮.২০২৬, TK-নির্দেশ, ছবি-প্রুফ পাশ) — "Add Payment"
+       খুললেই প্রতিবার নতুন করে patients/payments টানত, যদিও রোগী আগে থেকেই
+       চেনা (Follow-up কার্ড থেকে খোলা)। খুঁজে পাওয়া গেছে: `fetchListOrNull()`
+       আগে থেকেই `CloudReadDedupe` (V493, ৬০ সেকেন্ড TTL, প্রতিটা সেভের পরে
+       নিজে থেকে খালি হয়ে যায়) দিয়ে সুরক্ষিত — কিন্তু `findByMobile()` ও
+       `findByMobileOrNull()` (৪০+ জায়গায় ব্যবহৃত — Payment, Doctor Visit,
+       Chamber Attendance, Registration, Print Center, Enquiry, Follow-up...)
+       এই সুরক্ষার **বাইরে** ছিল, প্রতিবারই কাঁচা নেট-কল করত।
+       ⛔ এখন এই দুটোও ঠিক সেই একই প্রমাণিত পথে (URL/filter/limit এক অক্ষরও
+       বদলায়নি, শুধু কাঁচা fetch-টা `CloudReadDedupe.body()`-এর ভিতর দিয়ে
+       যায়) — তাই নিজে কিছু সেভ করলে সঙ্গে সঙ্গে পুরনো তথ্য মুছে যায় (আগে
+       থেকেই প্রতিটা upsert/update/delete-এর পরে `CloudReadDedupe.clear()`
+       ডাকা হয়), কখনো বাসি টাকা/তথ্য দেখানোর ঝুঁকি নেই। */
     fun findByMobileOrNull(table: String, normalizedMobile: String, selectCols: String = "*", limit: Int = 1): JSONArray? {
         return try {
             val digits = normalizedMobile.filter { it.isDigit() }.takeLast(10)
             val filter = if (digits.length == 10) "mobile=like.*$digits" else "mobile=eq.$normalizedMobile"
-            val request = Request.Builder()
-                .url("$URL/rest/v1/$table?$filter&select=$selectCols&limit=$limit")
-                .addHeader("apikey", KEY)
-                .addHeader("Authorization", "Bearer $KEY")
-                .get()
-                .build()
-            http.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return null
-                val body = response.body?.string() ?: return null
-                JSONArray(body)
-            }
+            val url = "$URL/rest/v1/$table?$filter&select=$selectCols&limit=$limit"
+            val body = CloudReadDedupe.body(url) { fetchBodyOrNull(url) } ?: return null
+            JSONArray(body)
         } catch (e: Exception) {
             null
         }
     }
 
-    fun findByMobile(table: String, normalizedMobile: String, selectCols: String = "*", limit: Int = 1): JSONArray {
+    /* 🟣🔒 V961 (০১.০৯.২০২৬, TK-নির্দেশ) — `order` ঘরটা যোগ হলো (ডিফল্ট ফাঁকা,
+       তাই **পুরনো প্রতিটা ডাক অবিকল আগের মতোই** চলে)। কারণ: এক নম্বরে একাধিক
+       সারি থাকলে `limit=1`-এ সাজানো ছাড়া **যেকোনো একটা** ফিরত — কোনটা, তার
+       নিশ্চয়তা নেই। রেজিস্ট্রেশন ফর্ম এখান থেকেই এনকোয়ারির Timing নেয়, আর
+       সার্ভারের নিয়ম (V418 SQL) **সবচেয়ে নতুন** এনকোয়ারি ধরে — দুই দিক দুই
+       রকম হয়ে যেত। */
+    fun findByMobile(table: String, normalizedMobile: String, selectCols: String = "*", limit: Int = 1, order: String = ""): JSONArray {
         return try {
             // Match by the trailing 10 digits, not an exact "+91..." string. The
             // WebView stores mobiles as bare 10 digits (mob() = slice(-10)) while
@@ -633,17 +721,10 @@ object SupabaseClient {
             // created by the other front-end. `like.*<digits>` matches both.
             val digits = normalizedMobile.filter { it.isDigit() }.takeLast(10)
             val filter = if (digits.length == 10) "mobile=like.*$digits" else "mobile=eq.$normalizedMobile"
-            val request = Request.Builder()
-                .url("$URL/rest/v1/$table?$filter&select=$selectCols&limit=$limit")
-                .addHeader("apikey", KEY)
-                .addHeader("Authorization", "Bearer $KEY")
-                .get()
-                .build()
-            http.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return JSONArray()
-                val body = response.body?.string() ?: return JSONArray()
-                JSONArray(body)
-            }
+            val orderPart = if (order.isBlank()) "" else "&order=$order"
+            val url = "$URL/rest/v1/$table?$filter&select=$selectCols$orderPart&limit=$limit"
+            val body = CloudReadDedupe.body(url) { fetchBodyOrNull(url) } ?: return JSONArray()
+            JSONArray(body)
         } catch (e: Exception) {
             JSONArray()
         }
@@ -671,34 +752,24 @@ object SupabaseClient {
         }
     }
 
-    /** Fetches rows from a table with an optional raw filter (already
-     * URL-encoded query string fragment, e.g. "stage=eq.Inquiry"), sorted by
-     * updatedAt descending. Empty array on failure. */
-    /** TK-REPORTED (2026-07-27, "ডাটা লোড হতে প্রচুর সময় লাগে"): `select` was
-     *  hard-coded to "*", i.e. EVERY column of every row -- including the
-     *  patient PHOTO, which is a full image stored inside the row. A list of
-     *  a few hundred patients therefore dragged megabytes of photos down the
-     *  line before a single card could be drawn. Callers may now ask for just
-     *  the columns they actually use. The default is still "*", so every
-     *  existing caller behaves EXACTLY as before; only the callers that opt
-     *  in are affected. */
+    /* 🟢🔒 V600 (২৩.০৮.২০২৬, TK-নির্দেশ — Egress অডিট #২) — আজকের Supabase
+       কোটা শেষ হওয়ার পর (Egress 6.264/5 GB, 125%) পুরো প্রজেক্ট খুঁটিয়ে
+       যাচাই করে পাওয়া গেছে: `fetchList()` (এই ফাংশন) ২১টা ফাইলে ~৫৫ জায়গায়
+       ব্যবহৃত, কিন্তু `fetchListOrNull()`-এর মতো কখনোই `CloudReadDedupe`
+       (V493) বা `CloudListRevalidate` (V513) দিয়ে যায়নি — V515-এর নিজের
+       কমেন্টেই এটা লেখা ছিল, কিন্তু তখন শুধু হাতে-গোনা কয়েকটা জায়গা
+       (`fetchListGuarded`) সরানো হয়েছিল, বাকি ৫৫টা জায়গা আগের মতোই ছিল।
+       ⇒ এখন **এই একটা জায়গায়** বদলে সবকটা একসাথে সুরক্ষিত হলো —
+       ২১টা ফাইলের একটা লাইনও ছোঁয়া হয়নি।
+       ⛔ আচরণ (contract) হুবহু আগের মতোই: ব্যর্থ হলে **খালি তালিকা** (`[]`),
+          `fetchListOrNull`-এর মতো `null` নয় — তাই কোনো ডাকার জায়গার
+          `if (rows == null)` বা `.length()` কোনো কোডে ক্র্যাশ/আচরণ-বদল নেই।
+       ⛔ URL/filter/limit/order/select — এক অক্ষরও বদলায়নি।
+       ⛔ `trash`-এর মতো বড়-রেকর্ড টেবিলে ঝুঁকি নেই: `CloudListRevalidate`-এর
+          নিজস্ব ২MB/৮MB/১২MB সীমা (V515) বড় উত্তর কখনো জমা রাখে না — জমা
+          না হলেও ক্ষতি নেই, শুধু আগের মতোই প্রতিবার সরাসরি নেটে যায়। */
     fun fetchList(table: String, filter: String? = null, limit: Int = 500, order: String = "updatedAt.desc.nullslast", select: String = "*"): JSONArray {
-        return try {
-            val filterPart = if (filter != null) "&$filter" else ""
-            val request = Request.Builder()
-                .url("$URL/rest/v1/$table?select=$select&order=$order&limit=$limit$filterPart")
-                .addHeader("apikey", KEY)
-                .addHeader("Authorization", "Bearer $KEY")
-                .get()
-                .build()
-            http.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return JSONArray()
-                val body = response.body?.string() ?: return JSONArray()
-                JSONArray(body)
-            }
-        } catch (e: Exception) {
-            JSONArray()
-        }
+        return fetchListOrNull(table, filter, limit, order = order, select = select) ?: JSONArray()
     }
 
     // TK-REQUESTED ADDITION (2026-07-23): same request as fetchList() above,
@@ -796,6 +867,17 @@ object SupabaseClient {
      * ⛔ ভারী সারির টেবিল (যেমন `trash` — সারিতে মুছে ফেলা পুরো রেকর্ড ও ছবি)
      *    ইচ্ছে করে এখানে আনা হয়নি; V512-এর কারণটা অটুট।
      */
+    /* ⚠️🔒 V997 (০৩.০৯.২০২৬, TK-এর Egress অডিটে নিজে ধরা) — **সাবধান:**
+       নামে "Guarded" থাকলেও এই ফাংশনে **কোনো বদল-যাচাই নেই** — নিচের এক
+       লাইনই সব: প্রতিবার পুরো তালিকা নামে। উপরের লম্বা মন্তব্যটা যে
+       পাহারার কথা বলে, সেটা কোডে কখনো বসেনি।
+       ⇒ Egress বাঁচাতে হলে ডাকার জায়গায় `fetchListFingerprintOrNull()` দিয়ে
+         আগে মিলিয়ে নিতে হবে (যেমন `DoctorVisitRepository.fetchListRawSmartOrNull`
+         ও V997-এর `BriefingRepository.fetchRawSmart`)।
+       ⛔ এখানে আচরণ ইচ্ছে করেই বদলানো হয়নি; শুধু ভুল বোঝাটা যেন আর না হয়
+          সেজন্য এই সতর্কবার্তা। (গুনে দেখা: ডাকার জায়গা মাত্র ৬টা —
+          DoctorVisitRepository ২ · BriefingRepository ২ · মন্তব্যে ২। উপরের
+          পুরনো মন্তব্যের "৬০+" সংখ্যাটাও ভুল ছিল।) */
     fun fetchListGuarded(table: String, filter: String? = null, limit: Int = 500, order: String = "updatedAt.desc.nullslast", select: String = "*"): JSONArray {
         return fetchListOrNull(table, filter, limit, order = order, select = select) ?: JSONArray()
     }

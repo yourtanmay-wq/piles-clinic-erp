@@ -2,6 +2,7 @@ package com.tkbiswas.pilesclinic.modules
 
 import org.json.JSONArray
 import org.json.JSONObject
+import com.tkbiswas.pilesclinic.native.s   // 🔴 V819 — SQL NULL-নিরাপদ পড়া
 
 /* =====================================================================
    🟢🆕🔒 V401 (16.08.2026) — Staff/Doctor-এর পাঠানো "পুরনো তারিখের আয়-খরচ"
@@ -59,7 +60,7 @@ object IeRequests {
                                  " · " + money(p.optDouble("amount", 0.0))
             else              -> r.optString("kind")
         }
-        val who = r.optString("requested_by_name", "").ifBlank { r.optString("requested_by", "") }
+        val who = r.s("requested_by_name").ifBlank { r.s("requested_by") }   // 🔴 V819 — `optString` SQL NULL-এ আক্ষরিক "null" ফেরায় (V696/V812-এর ফাঁদ); `s()` সেটা ফাঁকা ধরে
         val why = r.optString("reason", "").let { if (it.isBlank() || it == "null") "" else "\nReason: $it" }
         return slashDate(r.optString("entry_date", "")) + " · " + r.optString("branch", "") +
                "\n" + what + "\nBy: " + who + why

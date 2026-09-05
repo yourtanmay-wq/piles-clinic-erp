@@ -94,7 +94,21 @@ class RegistrationActivity : AppCompatActivity() {
         binding.btnBack.setOnClickListener { finish() }
         binding.btnSave.setOnClickListener { validateAndSave(user) }
         binding.btnPatientPhoto.setOnClickListener { showPhotoSourceDialog() }
-        binding.btnSelectRefDoctor.setOnClickListener { showSavedRmpPicker(user) }
+        /* 🎨🔒 V829 (২৯.০৮.২০২৬, TK-অনুমোদিত ফটো-প্রুফ: *"হ্যাঁ করুন, তবে সাবধানে"*)
+           — অ্যাপের থিমে XML-এর সাদামাটা `<Button>` আপনা-আপনি **MaterialButton**
+           হয়ে যায়, আর সেটা `android:background` **অগ্রাহ্য করে** নিজের গাঢ় নীল
+           `backgroundTint` বসিয়ে দেয়। ফলে XML-এ লেখা রংটা ফোনে কখনো দেখা যেত না
+           (কম্পিউটারে ঠিকই দেখা যেত)। `backgroundTintList = null` বসালে তবেই
+           XML-এর drawable-টা দেখা যায় — প্রজেক্টের নিজেরই প্রমাণিত ওষুধ
+           (`DoctorQueueAdapter` · `DraftCardAdapter`-এ আগে থেকেই চলছে, পাহারা ৯.৩২)।
+           ⛔ শুধু চেহারা — বোতামের কাজ · জায়গা · লেখা কিচ্ছু বদলায়নি। */
+        /* 🟢🔒 V895 (৩১.০৮.২০২৬, TK ডেমো ফটো দেখে **"হ্যাঁ পাশ, বসিয়ে দিন"**) —
+           সবুজ "Select Saved RMP / Doctor" বোতামটা তুলে দেওয়া হলো; এখন নামের
+           ঘরে **নাম · এলাকা** বা মোবাইলের ঘরে **নম্বর** লিখতে শুরু করলেই নিচে
+           সেভ করা RMP-র তালিকা নামে (TK-এর নির্দেশ)।
+           ⛔ তালিকার উৎস · ছাঁকনি · বেছে নিলে যা বসে — সবই আগের পপ-আপের হুবহু
+              একই কোড থেকে (`cachedRmpChoices` · `searchText`), নতুন কিছু নয়। */
+        wireRmpSuggest(user)
 
         lifecycleScope.launch(Dispatchers.IO) { repository.flushPending() }
 
@@ -145,6 +159,12 @@ class RegistrationActivity : AppCompatActivity() {
                 val arr = try { org.json.JSONArray(raw) } catch (_: Throwable) { continue }
                 for (i in 0 until arr.length()) arr.optJSONObject(i)?.let { combined.put(it) }
             }
+            // 🟢🔒 V802 — Doctor Visit পর্দার জমানো ঘরের সঙ্গে RMP-বাছার নিজস্ব
+            // হালকা ঘরটাও যোগ (নিচের `seen` ইতিমধ্যেই ডুপ্লিকেট বাদ দেয়)।
+            run {
+                val extra = RmpDirectory.cachedRows(this, user.branch)
+                for (i in 0 until extra.length()) extra.optJSONObject(i)?.let { combined.put(it) }
+            }
             // Include a doctor/RMP just added on this phone even if its cloud
             // copy has not yet appeared in the saved cache.
             val rows = MyPhoneWrites.overlay(this, "doctor_visits", combined)
@@ -177,8 +197,158 @@ class RegistrationActivity : AppCompatActivity() {
         } catch (_: Throwable) { emptyList() }
     }
 
+    // ---------- 🟢🔒 V895: টাইপ করতে করতে RMP সাজেশন ----------
+
+    /** ফোনে জমা থাকা তালিকা — একবারই পড়া হয়, তারপর মনে থাকে। */
+    private var rmpSuggestCache: List<RmpChoice>? = null
+    /** ঘরে নিজেরা লেখা বসানোর সময় যেন সাজেশন আবার না খোলে। */
+    private var rmpSuggestMuted = false
+    /** ফাঁকা তালিকা হলে একবারই হালকা করে নামানো (V802-এর হুবহু নিয়ম)। */
+    private var rmpSuggestFetchTried = false
+
+    private fun wireRmpSuggest(user: NativeUser) {
+        val watcher = object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
+            override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {
+                if (!rmpSuggestMuted) showRmpSuggest(user, s?.toString().orEmpty())
+            }
+            override fun afterTextChanged(s: android.text.Editable?) {}
+        }
+        binding.etRefDoctorName.addTextChangedListener(watcher)
+        binding.etRefDoctorMobile.addTextChangedListener(watcher)
+    }
+
+    private fun showRmpSuggest(user: NativeUser, typed: String) {
+        val boxView = binding.llRmpSuggest
+        val q = typed.trim().lowercase(Locale.US)
+        if (q.length < 2) { boxView.removeAllViews(); boxView.visibility = View.GONE; return }
+        var all = rmpSuggestCache
+        if (all == null) { all = cachedRmpChoices(user); rmpSuggestCache = all }
+        /* ফোনে তালিকা না থাকলে (এই ফোনে Doctor Visit পর্দা কখনো খোলা হয়নি)
+           একবারই হালকা করে নামানো — আগের বোতামেও ঠিক এই ব্যবস্থাই ছিল (V802)। */
+        if (all.isEmpty() && !rmpSuggestFetchTried &&
+            !RmpDirectory.hasDoctorVisitCache(this, user.branch) &&
+            RmpDirectory.cachedRows(this, user.branch).length() == 0) {
+            rmpSuggestFetchTried = true
+            Thread {
+                /* ⚠️ Activity-context-ই যথেষ্ট (SharedPreferences একই ফাইল) —
+                   উপরের পুরোনো পথটাও ঠিক এটাই ব্যবহার করে। */
+                val got = try { RmpDirectory.refreshFromCloud(this@RegistrationActivity, user.branch) } catch (_: Throwable) { false }
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    // পর্দা বন্ধ হয়ে গেলে যেন কিছু না ভাঙে — try/catch-ই পাহারা।
+                    try {
+                        if (got) {
+                            rmpSuggestCache = cachedRmpChoices(user)
+                            showRmpSuggest(user, binding.etRefDoctorName.text.toString().ifBlank {
+                                binding.etRefDoctorMobile.text.toString() })
+                        }
+                    } catch (_: Throwable) { }
+                }
+            }.start()
+        }
+        val hits = all.filter { it.searchText().contains(q) }.take(6)
+        boxView.removeAllViews()
+        if (hits.isEmpty()) { boxView.visibility = View.GONE; return }
+        boxView.visibility = View.VISIBLE
+        boxView.addView(TextView(this).apply {
+            text = if (hits.size == 1) "1 saved RMP found" else "${hits.size} saved RMP found"
+            textSize = 10.5f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#118452"))
+            setPadding(dpRmp(10), dpRmp(7), dpRmp(10), dpRmp(5))
+        })
+        for ((i, item) in hits.withIndex()) {
+            if (i > 0) boxView.addView(View(this).apply {
+                setBackgroundColor(android.graphics.Color.parseColor("#EDF2F8"))
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpRmp(1))
+            })
+            boxView.addView(rmpSuggestRow(item))
+        }
+    }
+
+    private fun rmpSuggestRow(item: RmpChoice): View {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dpRmp(10), dpRmp(8), dpRmp(10), dpRmp(8))
+            isClickable = true
+        }
+        row.addView(View(this).apply {
+            setBackgroundColor(android.graphics.Color.parseColor("#118452"))
+            layoutParams = LinearLayout.LayoutParams(dpRmp(3), dpRmp(30)).apply { marginEnd = dpRmp(9) }
+        })
+        val texts = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        texts.addView(TextView(this).apply {
+            // 👁 V752-এর একই নিয়ম — তালিকায় নাম সবসময় বড় হাতে।
+            text = item.name.trim().uppercase()
+            textSize = 13.5f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#17312A"))
+            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+        })
+        val line2 = listOf(item.mobile, item.area.trim().uppercase()).filter { it.isNotBlank() }.joinToString(" · ")
+        if (line2.isNotBlank()) texts.addView(TextView(this).apply {
+            text = line2; textSize = 11f
+            setTextColor(android.graphics.Color.parseColor("#60766D"))
+            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+        })
+        row.addView(texts)
+        if (item.branch.isNotBlank()) row.addView(TextView(this).apply {
+            text = item.branch
+            textSize = 10f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#15549B"))
+            setPadding(dpRmp(9), dpRmp(3), dpRmp(9), dpRmp(3))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dpRmp(12).toFloat()
+                setColor(android.graphics.Color.parseColor("#E8F2FF"))
+            }
+        })
+        row.setOnClickListener {
+            rmpSuggestMuted = true
+            try {
+                binding.etRefDoctorName.setText(item.name.trim().uppercase())
+                binding.etRefDoctorMobile.setText(item.mobile)
+            } finally { rmpSuggestMuted = false }
+            binding.llRmpSuggest.removeAllViews()
+            binding.llRmpSuggest.visibility = View.GONE
+        }
+        return row
+    }
+
+    private fun dpRmp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
+
     private fun showSavedRmpPicker(user: NativeUser) {
         val all = cachedRmpChoices(user)
+        /* 🟢🔒 V802 (২৮.০৮.২০২৬) — TK: "RMP পাঠিয়েছে, তাহলে এখন কেন দেখাচ্ছে না
+           আরএমপি লিস্ট?" ─ কারণ ছিল: তালিকাটা শুধু `doctor_visit_cache` থেকে পড়ত,
+           আর ওই ঘরটা ভরে **একমাত্র Doctor Visit পর্দা খুললে**। যে ফোনে কেউ ওই
+           পর্দা কখনো খোলেনি, সেখানে তালিকা চিরকাল ফাঁকাই থাকত (পুরনো লেখাতেই
+           ছিল — "No cloud search was made")।
+           এখন ফাঁকা হলে **একবার** হালকা পড়া হয় (৮টা ঘর, ভারী `callHistory` ও
+           `referralPayments` ছাড়া ⇒ কয়েক KB), তারপর ফোনে জমা থাকে — পরের বার
+           এক বাইটও খরচ নেই। নেট না থাকলে আগের মতোই হাতে লেখা যায়। */
+        if (all.isEmpty() && !RmpDirectory.hasDoctorVisitCache(this@RegistrationActivity, user.branch) &&
+            RmpDirectory.cachedRows(this@RegistrationActivity, user.branch).length() == 0) {   // ⛔ একবারই — নামানো হয়ে গেলে আর নয়
+            android.widget.Toast.makeText(this@RegistrationActivity, "Loading saved RMP list…", android.widget.Toast.LENGTH_SHORT).show()
+            Thread {
+                val got = RmpDirectory.refreshFromCloud(this@RegistrationActivity, user.branch)   // SharedPreferences একই ফাইল, তাই Activity-context যথেষ্ট
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    // ⛔ পর্দা ইতিমধ্যে বন্ধ হয়ে গেলে ডায়ালগ দেখাতে গিয়ে যেন অ্যাপ না থামে
+                    try {
+                    if (got) showSavedRmpPicker(user) else AlertDialog.Builder(this@RegistrationActivity)
+                        .setCustomTitle(PremiumAlert.header(this@RegistrationActivity, "Saved RMP list not available"))
+                        .setMessage("Could not load the saved RMP list. Check the internet connection and try again, or enter the Doctor / RMP name and mobile manually below.")
+                        .setPositiveButton("OK", null)
+                        .show().also { PremiumAlert.paint(it) }
+                    } catch (_: Throwable) { }
+                }
+            }.start()
+            return
+        }
         if (all.isEmpty()) {
             AlertDialog.Builder(this)
                 .setCustomTitle(PremiumAlert.header(this, "Saved RMP list not available"))
@@ -263,7 +433,13 @@ class RegistrationActivity : AppCompatActivity() {
                                 orientation = LinearLayout.HORIZONTAL
                                 gravity = android.view.Gravity.CENTER_VERTICAL
                                 addView(TextView(this@RegistrationActivity).apply {
-                                    text = item.name
+                                    // 👁️ V752 (২৭.০৮.২০২৬, TK-রিপোর্ট ছবিসহ:
+                                    //    *"একই যায়গায় ২ রকম — সবাই আমরা বিভ্রান্ত হয়ে যাচ্ছি"*)
+                                    //    স্টাফেরা কেউ ছোট হাতে, কেউ বড় হাতে নাম লিখে সেভ
+                                    //    করেছেন ("amit goldar" বনাম "AMIT LAL BARMAN"), তাই এক
+                                    //    তালিকাতেই দু'রকম দেখাত। ⛔ ডেটাবেসের লেখা বদলানো হয়নি —
+                                    //    শুধু **দেখানোর সময়** এক রকম করা হলো।
+                                    text = item.name.trim().uppercase()
                                     textSize = 17f
                                     setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
                                     setTextColor(android.graphics.Color.parseColor("#17312A"))
@@ -278,7 +454,8 @@ class RegistrationActivity : AppCompatActivity() {
                                 setPadding(0, pad / 3, 0, 0)
                             })
                             if (item.area.isNotBlank()) addView(TextView(this@RegistrationActivity).apply {
-                                text = item.area
+                                // 👁️ V752 — এলাকার নামও একই কারণে এক রকম।
+                                text = item.area.trim().uppercase()
                                 textSize = 13f
                                 setTextColor(android.graphics.Color.parseColor("#60766D"))
                                 setPadding(0, pad / 5, 0, 0)
@@ -298,7 +475,9 @@ class RegistrationActivity : AppCompatActivity() {
             .create()
         list.setOnItemClickListener { _, _, position, _ ->
             val selected = shown.getOrNull(position) ?: return@setOnItemClickListener
-            binding.etRefDoctorName.setText(selected.name)
+            // 👁️ V752 — তালিকায় যেমন দেখাচ্ছে, ঘরেও ঠিক তেমনই বসবে
+            //    (নইলে বেছে নেওয়ার পরে চেহারা বদলে যেত — সেটাই বিভ্রান্তির শুরু)।
+            binding.etRefDoctorName.setText(selected.name.trim().uppercase())
             binding.etRefDoctorMobile.setText(selected.mobile)
             dialog.dismiss()
         }
@@ -309,6 +488,7 @@ class RegistrationActivity : AppCompatActivity() {
         })
         dialog.setOnShowListener { PremiumAlert.paint(dialog) }
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     // 🔒 V235: Enquiry থেকে Registration খোলা হলে সেই পুরনো নম্বর (থাকলে)।
@@ -336,20 +516,62 @@ class RegistrationActivity : AppCompatActivity() {
                 if (enquiryOriginMobile.length == 10 && digits.length == 10 &&
                     digits != enquiryOriginMobile &&
                     MobileInput.digits(binding.etAltMobile).isBlank()) {
+                    // ⛔ V754 — অ্যাপ **নিজে** বসাচ্ছে, তাই এতে পপ-আপ দেখানো হবে না
+                    //    (নইলে প্রতিবার নিজের বসানো নম্বরেই সতর্কবার্তা আসত)।
+                    altFilledByApp = true
                     binding.etAltMobile.setText(enquiryOriginMobile)
+                    altFilledByApp = false
                 }
+            }
+        })
+
+        /* 🔍🔒 V754 (২৭.০৮.২০২৬, TK-নির্দেশ — *"অল্টারনেট নাম্বার বসালে আগে যদি
+           আমাদের ডাটাবেসে থাকে তাহলে কেন শো করবে না"*)
+
+           **আসল কারণ (কোড ধরে যাচাই):** পুরনো রোগী খোঁজার কাজটা **শুধু মূল
+           Mobile ঘরে** লেখা ছিল (উপরের TextWatcher)। Alternate ঘরে কোনো
+           লুকআপই ছিল না, তাই ডেটাবেসে থাকা নম্বর ওখানে বসালেও কিছু দেখাত না।
+
+           এখন Alternate ঘরেও **হুবহু একই পপ-আপ** আসে।
+           ⛔ শুধু **দেখানো** — ফর্মের কোনো ঘর নিজে থেকে ভরে না
+              (`autofillFromEnquiry` ইচ্ছে করেই ডাকা হয়নি; নইলে স্টাফের টাইপ
+              করা তথ্য অন্য রোগীর তথ্যে চাপা পড়ে যেত)।
+           ⛔ মূল নম্বরের সমান হলে কিছুই হয় না (একই রোগী, অকারণ পপ-আপ নয়)। */
+        binding.etAltMobile.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun afterTextChanged(s: android.text.Editable) {
+                if (altFilledByApp) return
+                val alt = MobileInput.digits(binding.etAltMobile)
+                if (alt.length != 10) return
+                if (alt == MobileInput.digits(binding.etMobile)) return
+                if (alt == lastDupCheckedAltMobile) return
+                lastDupCheckedAltMobile = alt
+                checkExistingPatientPopup(alt, fromAlt = true)
             }
         })
     }
 
     private var lastDupCheckedMobile = ""
 
+    /** 🔍 V754 — Alternate ঘরের নিজের আলাদা পাহারা। মূল ঘরেরটার সঙ্গে মিলিয়ে
+     *  ফেললে একটা আরেকটাকে আটকে দিত (একই নম্বর দু'ঘরে বসলে দ্বিতীয়বার আর
+     *  দেখাত না) — তাই আলাদা রাখা হলো। */
+    private var lastDupCheckedAltMobile = ""
+
+    /** ⛔ অ্যাপ নিজে Alternate ঘর ভরছে কিনা — তখন পপ-আপ দেখানো হয় না। */
+    private var altFilledByApp = false
+
     /** Web parity: as soon as a full mobile number is entered, if that patient
      *  already exists show the duplicate popup immediately (not after the form is
      *  filled). The final "Update Existing" confirm still runs at save time. */
-    private fun checkExistingPatientPopup(digits: String) {
-        if (digits == lastDupCheckedMobile) return
-        lastDupCheckedMobile = digits
+    private fun checkExistingPatientPopup(digits: String, fromAlt: Boolean = false) {
+        // 🔍 V754 — Alternate ঘর থেকে এলে নিজের পাহারা আগেই দেখা হয়ে গেছে,
+        //    তাই মূল ঘরের পাহারায় আটকানো চলবে না (নইলে কিছুই দেখাত না)।
+        if (!fromAlt) {
+            if (digits == lastDupCheckedMobile) return
+            lastDupCheckedMobile = digits
+        }
         lifecycleScope.launch {
             val dup = withContext(Dispatchers.IO) { repository.checkDuplicatePatient(digits) }
             if (!dup.found) return@launch
@@ -363,7 +585,9 @@ class RegistrationActivity : AppCompatActivity() {
             tvDupName.copyOnLongPress("Name", dup.name)
             tvDupMobile.copyOnLongPress("Mobile", digits)
             view.findViewById<android.widget.TextView>(com.tkbiswas.pilesclinic.R.id.tvDupBranch).text = dup.branch.ifBlank { "-" }
-            view.findViewById<android.widget.TextView>(com.tkbiswas.pilesclinic.R.id.tvDupSection).text = "Patient"
+            // 🔍 V754 — কোন ঘরের নম্বরে মিলেছে, সেটা স্পষ্ট থাকুক।
+            view.findViewById<android.widget.TextView>(com.tkbiswas.pilesclinic.R.id.tvDupSection).text =
+                if (fromAlt) "Patient (Alternate number)" else "Patient"
             UppercaseInputUtil.applyToAll(view)  // TK-REQUESTED GLOBAL RULE (2026-07-24): English text auto-CAPITAL, Password fields excluded automatically
             val dialog = AlertDialog.Builder(this@RegistrationActivity).setView(view).setCancelable(true).create()
             dialog.window?.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
@@ -373,15 +597,54 @@ class RegistrationActivity : AppCompatActivity() {
                 startActivity(android.content.Intent(this@RegistrationActivity, PatientTimelineActivity::class.java).putExtra("mobile", digits))
             }
             view.findViewById<android.widget.TextView>(com.tkbiswas.pilesclinic.R.id.btnDupClose).setOnClickListener { dialog.dismiss() }
+            /* 👥🔒 V1011 (০৩.০৯.২০২৬, TK-রিপোর্ট: *"একই নাম্বার দিয়ে দ্বিতীয়
+               পেশেন্টের রেজিস্ট্রেশন করা সম্ভব হচ্ছে না"* — ফোনেও)।
+               **কোড পড়ে যা পাওয়া গেল:** নম্বরটা লেখামাত্রই এই পপ-আপটা আসে,
+               আর এতে বোতাম ছিল মাত্র দুটো — **View Existing** ও **Close**।
+               "Different Patient — Same Mobile" বাছাইটা আছে **সেভ চাপার পরের**
+               পপ-আপে; কিন্তু স্টাফ এখানেই *"এই নম্বর তো আগেই আছে"* দেখে থেমে
+               যান, ফর্মটাই আর ভরেন না — তাই দ্বিতীয় রোগী কখনো তৈরি হয় না।
+               ⇒ এখন এই প্রথম পপ-আপেই তৃতীয় বোতামটা থাকে; চাপলে পপ-আপ বন্ধ হয়
+                 আর স্টাফ জানেন ফর্ম ভরে Save চাপলেই আলাদা রোগী হিসেবে বাছা যাবে।
+               ⛔ এখানে কিছুই সেভ হয় না, কোনো সিদ্ধান্তও জমা হয় না — আসল বাছাই
+                  আগের মতোই সেভের পপ-আপে (V516), এক অক্ষরও বদলায়নি। */
+            val btnDiffHint: android.widget.TextView =
+                view.findViewById(com.tkbiswas.pilesclinic.R.id.btnDupDifferent)
+            btnDiffHint.visibility = android.view.View.VISIBLE
+            btnDiffHint.setOnClickListener {
+                dialog.dismiss()
+                android.widget.Toast.makeText(
+                    this@RegistrationActivity,
+                    "Fill the form and press Save, then choose \"Different Patient\".",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+            }
             dialog.show()
+            try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
         }
     }
 
     private fun autofillFromEnquiry(digits: String) {
+        // 🟢🔒 V620 (২৪.০৮.২০২৬) — নম্বর বদলালে আগের নম্বরের "Unexpected
+        // Time" অবস্থা যেন কখনো নতুন নম্বরে রয়ে না যায় (নতুন Enquiry
+        // খোঁজার ফলাফল আসার আগেই এখানে রিসেট) — নইলে mobile-A (Unexpected)
+        // থেকে mobile-B (Enquiry নেই/Official)-এ গেলে বোতাম ভুলভাবে
+        // visible/selected থেকে যেত।
+        binding.btnRegTimingUnexpected.visibility = android.view.View.GONE
+        if (selectedTiming == "Unexpected Time") selectRegTiming("Official Time")
         lifecycleScope.launch {
             val enq = withContext(Dispatchers.IO) {
+                /* 🟣🔒 V961 (০১.০৯.২০২৬, TK-নির্দেশ) — TK: *"এই লোক কোন
+                   আনএক্সপেক্টেড টাইমে কল করেনি, অফিশিয়াল টাইমেই কল করেছে,
+                   তাহলে এনাকে আনএক্সপেক্টেড বলে কেন গণ্য করা হলো"*।
+                   **আসল দোষ:** এই খোঁজাটা সাজানো ছাড়া একটামাত্র সারি আনত, তাই
+                   এক নম্বরে একাধিক এনকোয়ারি থাকলে **পুরনো/অন্য যেকোনো একটা**
+                   জিতে যেত — আর তার Timing ("Unexpected Time") রোগীর সারিতে
+                   বসে গিয়ে Extra Income তৈরি করত। সার্ভারের নিয়ম (V418 SQL)
+                   কিন্তু **সবচেয়ে নতুন** এনকোয়ারিই ধরে। এখন এখানেও তাই। */
                 val rows = SupabaseClient.findByMobile(
-                    "enquiries", "+91$digits", "name,branch,disease,address,timeType"
+                    "enquiries", "+91$digits", "name,branch,disease,address,timeType",
+                    order = "createdAt.desc.nullslast,date.desc.nullslast"
                 )
                 if (rows.length() == 0) null else rows.getJSONObject(0)
             } ?: return@launch
@@ -389,24 +652,65 @@ class RegistrationActivity : AppCompatActivity() {
             if (binding.etName.text.isNullOrBlank()) {
                 binding.etName.setText(enq.s("name"))
             }
-            val branch = enq.s("branch")
-            if (branch.isNotBlank()) {
-                val idx = branchItems.indexOf(branch)
-                if (idx >= 0) binding.spBranch.setSelection(idx)
-            }
+            /* ═══════════════════════════════════════════════════════════
+               🔴🔒 V1110 (০৫.০৯.২০২৬, TK-এর স্থায়ী নিয়ম — KASHAB MANDAL-এর
+               ঘটনার পরে): *"ইনকোয়ারি যে কোন ব্রাঞ্চের হতেই পারে, সেটা কোন
+               ব্যাপারই না। **রেজিস্ট্রেশন কোন ব্রাঞ্চে হলো সেটাই ম্যাটার করে**।
+               … জলপাইগুড়ির স্টাফ যখন রেজিস্ট্রেশন করেছে, জলপাইগুড়ির চেম্বারে
+               এসেছে পেশেন্ট — তাই অটোমেটিক জলপাইগুড়ি হতে হবে, এবং টাকা পয়সা
+               সমস্ত হিসাব জলপাইগুড়ির নামেই হবে।"*
+
+               🔴 আগে এখানে **এনকোয়ারির ব্রাঞ্চটা জোর করে বসিয়ে দেওয়া হত** —
+                  স্টাফের নিজের ব্রাঞ্চ মুছে দিয়ে, চুপচাপ, ৩-বার-চাপার তালাও
+                  না খুলিয়ে। ঠিক এই কারণেই কোচবিহারের পুরনো এনকোয়ারি থাকা
+                  রোগীর আইডি `COB-…` হয়ে গিয়েছিল।
+               ⇒ লাইনটা তুলে দেওয়া হলো। ব্রাঞ্চ এখন **সবসময় রেজিস্ট্রেশন করা
+                 স্টাফের নিজের ব্রাঞ্চ** (নিচের setupSpinners + সেভের পাহারা)।
+               ⛔ এনকোয়ারি থেকে নাম · রোগ · ঠিকানা · সময় — বাকি সব আগের মতোই আসে।
+               ═══════════════════════════════════════════════════════════ */
+            /* 🩺🔒 V1000 (০৩.০৯.২০২৬) — Enquiry-তে এখন একাধিক রোগ বাছা যায়
+               (TK: "একই লোকের তো দুই রকমের রোগ থাকতেই পারে"), আর একাধিক হলে
+               ঘরটায় ", " দিয়ে জোড়া লেখা থাকে। আগে হুবহু এক নামে মেলানো হত,
+               তাই "Piles, Fissure" এলে একটাও টিক বসত না — রোগের নামটাই
+               হারিয়ে যেত। এখন কমা দিয়ে ভেঙে প্রতিটা নামে টিক বসে।
+               ⛔ একটামাত্র রোগ হলে আচরণ হুবহু আগের মতোই। */
             val disease = enq.s("disease")
             if (disease.isNotBlank()) {
-                val cb = diseaseChecks.firstOrNull { it.text.toString().equals(disease, ignoreCase = true) }
-                if (cb != null && !cb.isChecked) cb.isChecked = true
+                disease.split(",").map { it.trim() }.filter { it.isNotEmpty() }.forEach { one ->
+                    val cb = diseaseChecks.firstOrNull { it.text.toString().equals(one, ignoreCase = true) }
+                    if (cb != null && !cb.isChecked) cb.isChecked = true
+                }
             }
             // TK-REQUESTED ADDITION (2026-07-24): Registration Timing
             // auto-fills from the source Enquiry's own Official/Unexpected
-            // choice, same as Name/Branch/Disease just above -- staff can
-            // still change it manually afterward (selectRegTiming just
-            // updates the toggle, doesn't lock it).
+            // choice, same as Name/Branch/Disease just above.
+            // 🟢🔒 V620 (২৪.০৮.২০২৬, TK-নির্দেশ) — আগে স্টাফ এরপরও হাতে
+            // বদলে নিতে পারতেন ("doesn't lock it")। এখন নিয়ম কড়া:
+            // Registration "Unexpected Time" শুধু তখনই বাছা/দেখানো যাবে
+            // যখন এই Enquiry নিজেই "Unexpected Time" ছিল। Enquiry
+            // Official হলে বা না থাকলে বোতামটাই লুকানো থাকে (উপরে
+            // `setupTimingButtons()`-এ ডিফল্ট GONE)।
             val timeType = enq.s("timeType")
-            if (timeType.isNotBlank()) {
-                selectRegTiming(timeType)
+            if (timeType.equals("Unexpected Time", ignoreCase = true)) {
+                binding.btnRegTimingUnexpected.visibility = android.view.View.VISIBLE
+                selectRegTiming("Unexpected Time")
+            }
+            /* 🩺🔒 V1070 (TK-নির্দেশ) — এনকোয়ারিতে লেখা "কে পাঠিয়েছেন" এখানেও
+               নিজে থেকে বসে যায়, তাই রোগী এলে RMP-র নামটা আর হাতে লিখতে হয় না
+               এবং দুই জায়গায় দুরকম হওয়ার ভয় থাকে না।
+               ⛔ এনকোয়ারিতে ঘরটা ফাঁকা থাকলে এখানে কিছুই বদলায় না (আগের মতোই)।
+               ⛔ স্টাফ এখানে পরে বদলাতে পারবেন — কিছু লক করা হয়নি। */
+            val eRefBy = enq.s("refBy").trim()
+            if (eRefBy.isNotBlank()) {
+                val at = refByOptions.indexOfFirst { it.equals(eRefBy, ignoreCase = true) }
+                if (at >= 0) binding.spRefBy.setSelection(at)
+                if (eRefBy.equals("Dr. Visit", ignoreCase = true)) {
+                    binding.llRefDoctor.visibility = android.view.View.VISIBLE
+                    enq.s("refDoctor").trim().takeIf { it.isNotBlank() }
+                        ?.let { binding.etRefDoctorName.setText(it) }
+                    enq.s("refDoctorMobile").trim().takeIf { it.isNotBlank() }
+                        ?.let { binding.etRefDoctorMobile.setText(it) }
+                }
             }
             android.widget.Toast.makeText(this@RegistrationActivity, "Details filled from Enquiry", android.widget.Toast.LENGTH_SHORT).show()
         }
@@ -546,10 +850,24 @@ class RegistrationActivity : AppCompatActivity() {
     // setupSexButtons/setupPayButtons just above, nothing else changed.
     // Refactored into selectRegTiming() (below) so autofillFromEnquiry can
     // also set this when auto-filling from an existing Enquiry.
+    /* 🕘🔒 V962 (০১.০৯.২০২৬, TK-নির্দেশ) — TK: *"রেজিস্ট্রেশন ফরমে আনএক্সপেক্টেড
+       থাকবে না, এক্সপেক্টেড ও থাকবে না … আনএক্সপেক্টেড টাইম সেটাই গণ্য হবে, অল
+       ব্রাঞ্চ ইনকয়ারি ফর্ম যদি সকাল ৯টা থেকে সন্ধ্যা ৬টার মধ্যে (না হয়)"*।
+       ⇒ এখানে আর কিছু বাছার নেই: সারিটাই লুকানো, কোনো ক্লিকও বসে না। রোগীর
+         সময়টা **শুধু এনকোয়ারি থেকেই** আসে (নিচে `autofillFromEnquiry`)।
+       ⚠️ এই দুটো বোতাম আগে TK-এর লক-করা তালিকায় ছিল — TK নিজেই তুলতে বলেছেন
+          (০১.০৯.২০২৬), তাই তোলা হলো। */
     private fun setupTimingButtons() {
         selectRegTiming(selectedTiming)
-        binding.btnRegTimingOfficial.setOnClickListener { selectRegTiming("Official Time") }
-        binding.btnRegTimingUnexpected.setOnClickListener { selectRegTiming("Unexpected Time") }
+        try { binding.rowRegTiming.visibility = android.view.View.GONE } catch (_: Throwable) { }
+        // 🟢🔒 V620 (২৪.০৮.২০২৬, TK-নির্দেশ, স্পষ্ট প্রশ্নে নিশ্চিত হয়ে) —
+        // "Enquiry-তে Unexpected থাকলে তবেই Registration-এ Unexpected
+        // হতে হবে, অন্যথায় না।" আগে স্টাফ যেকোনো সময় নিজে ইচ্ছেমতো
+        // "Unexpected Time" বেছে নিতে পারতেন (কোনো Enquiry না থাকলেও)।
+        // এখন ডিফল্টভাবে এই বোতামটা **লুকানো** — শুধু নিচের
+        // `autofillFromEnquiry()`-এ শর্ত মিললে (আসল Enquiry-ই Unexpected
+        // হলে) তবেই দেখা যাবে। ⛔ Official Time বোতাম/আচরণ অপরিবর্তিত।
+        binding.btnRegTimingUnexpected.visibility = android.view.View.GONE
     }
 
     private fun selectRegTiming(value: String) {
@@ -591,11 +909,20 @@ class RegistrationActivity : AppCompatActivity() {
                 if (boxTextSp != null) {
                     tv?.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, boxTextSp)
                     tv?.setPadding(0, 0, 0, 0)
+                    /* 🎨🔒 V892 (৩১.০৮.২০২৬, TK ডেমো ফটো দেখে "হ্যাঁ পাশ") —
+                       TK: *"উপরে ব্রাঞ্চের নাম সিলেক্ট করার জায়গার উজ্জ্বলতা কম"*।
+                       হেডারের ঘরটার লেখা মোটা (bold) হলো, আর নিচের রঙের নিয়মে
+                       "SELECT BRANCH" ফ্যাকাশে ধূসরের বদলে গাঢ় নেভি।
+                       ⛔ শুধু হেডারের এই ঘরটাতেই (`boxTextSp` একমাত্র এখানেই
+                          পাঠানো হয়) — ফর্মের বাকি বাছাই-ঘরগুলো অপরিবর্তিত। */
+                    tv?.setTypeface(null, android.graphics.Typeface.BOLD)
                 }
                 tv?.setTextColor(
                     androidx.core.content.ContextCompat.getColor(
                         this@RegistrationActivity,
-                        if (hintFirstInBox && position == 0) com.tkbiswas.pilesclinic.R.color.field_hint
+                        if (hintFirstInBox && position == 0)
+                            (if (boxTextSp != null) com.tkbiswas.pilesclinic.R.color.brand_navy
+                             else com.tkbiswas.pilesclinic.R.color.field_hint)
                         else com.tkbiswas.pilesclinic.R.color.clinic_text_primary
                     )
                 )
@@ -628,7 +955,18 @@ class RegistrationActivity : AppCompatActivity() {
 
     private fun setupSpinners(user: NativeUser) {
         val ownBranchUser = user.role == "staff" || user.role == "doctor"
-        branchItems = if (ownBranchUser) branches else listOf(SELECT_BRANCH) + branches
+        /* 🔴🔒 V1110 (TK-এর স্থায়ী নিয়ম, ০৫.০৯.২০২৬): *"যে স্টাফ যে ব্রাঞ্চের,
+           শুধুমাত্র সেই ব্রাঞ্চের পেশেন্টের রেজিস্ট্রেশন করতে পারবে।"*
+           ⇒ স্টাফ/ডাক্তারের তালিকায় এখন **নিজের ব্রাঞ্চটা ছাড়া আর কিছুই নেই**,
+             তাই ভুল করেও অন্য ব্রাঞ্চ বাছা যায় না (৩ বার চেপেও নয়)।
+           ⛔ মাস্টার ও Field Officer আগের মতোই নিজে বেছে নেবেন।
+           ⛔ ব্রাঞ্চ "All" হলে (কোনো স্টাফের তা-ই থাকতে পারে) আগের তালিকাই থাকে। */
+        val lockedOwnBranch = ownBranchUser && user.branch.isNotBlank() && user.branch != "All"
+        branchItems = when {
+            lockedOwnBranch -> listOf(user.branch)
+            ownBranchUser   -> branches
+            else            -> listOf(SELECT_BRANCH) + branches
+        }
         binding.spBranch.adapter = capsAdapter(
             branchItems,
             hideFirstInList = !ownBranchUser,
@@ -658,7 +996,8 @@ class RegistrationActivity : AppCompatActivity() {
             binding.spBranch,
             "SELECT BRANCH",
             hidePlaceholder = !ownBranchUser,
-            tapsToUnlock = if (ownBranchUser) 3 else 1,
+            // 🔴 V1110 — নিজের ব্রাঞ্চে বাঁধা থাকলে খোলার কিছু নেই (একটাই নাম)।
+            tapsToUnlock = if (ownBranchUser && !lockedOwnBranch) 3 else 1,
             lockLabel = "Branch"
         )
         SpinnerPicker.attach(binding.spOccupation, "CHOOSE OCCUPATION", hidePlaceholder = true)
@@ -757,6 +1096,19 @@ class RegistrationActivity : AppCompatActivity() {
         if (name.isBlank()) { focusError(binding.etName, "Patient name mandatory"); return }
         if (mobile.length != 10) { focusError(binding.etMobile, "Valid mobile number mandatory"); return }
         if (branch.isBlank() || branch == SELECT_BRANCH) { focusError(binding.spBranch, "Branch mandatory"); return }
+        /* 🔴🔒 V1110 (TK-এর স্থায়ী নিয়ম) — শেষ পাহারা: স্টাফ/ডাক্তার নিজের
+           ব্রাঞ্চ ছাড়া অন্য কোনো ব্রাঞ্চে রেজিস্ট্রেশন করতে পারবেন না।
+           ⛔ উপরের তালিকাতেই আর অন্য ব্রাঞ্চ নেই, তবু নিয়মটা **এখানেও** থাকা
+              দরকার — নইলে ভবিষ্যতে অন্য কোনো পথ এই পর্দা ব্যবহার করলে ফাঁকটা
+              আবার ফিরে আসবে (ঠিক এভাবেই খাতার সারি B98-এর পরেও একটা জায়গা
+              বাদ পড়ে গিয়েছিল)।
+           ⛔ মাস্টার ও Field Officer অপরিবর্তিত। */
+        if ((user.role == "staff" || user.role == "doctor") &&
+            user.branch.isNotBlank() && user.branch != "All" &&
+            !branch.equals(user.branch, ignoreCase = true)) {
+            focusError(binding.spBranch, "You can register only ${user.branch} patients")
+            return
+        }
         if (!(fee > 0)) { focusError(binding.etFee, "Registration Fee mandatory"); return }
         // 🔒 TK-ORDER (30.07.2026): "Registration Form-এ রোগের নাম বাধ্যতামূলক
         // করে দিন।" আগে Disease-এ একটাও চিপ না বাছলেও Save হয়ে যেত। এখন
@@ -764,6 +1116,12 @@ class RegistrationActivity : AppCompatActivity() {
         // নিয়মে (focusError → লাল বর্ডার + সরাসরি ওখানে স্ক্রল+ফোকাস)।
         if (diseaseChecks.none { it.isChecked }) { focusError(binding.diseaseGroup, "Disease mandatory — select at least one"); return }
 
+        /* 🛡️🔒 V863 (৩০.০৮.২০২৬, TK-অনুমোদিত) — এনকোয়ারির হুবহু একই পাহারা।
+           ⛔ আমাদের নম্বর না হলে নিচের সবটা এক অক্ষরও না বদলে আগের মতোই চলে। */
+        OwnNumberGuard.confirmIfOwn(this, mobile) { continueSave(user, name, mobile, branch, fee) }
+    }
+
+    private fun continueSave(user: NativeUser, name: String, mobile: String, branch: String, fee: Double) {
         setLoading(true)
         lifecycleScope.launch {
             val duplicate = withContext(Dispatchers.IO) { repository.checkDuplicatePatient(mobile) }
@@ -787,7 +1145,7 @@ class RegistrationActivity : AppCompatActivity() {
                 // এবং সিদ্ধান্তটা তাঁর হাতে দেওয়া হয়। ⛔ কিছুই আটকানো হয়নি — তিনি
                 // চাইলে আগের মতোই সেভ করতে পারবেন।
                 AlertDialog.Builder(this@RegistrationActivity)
-                    .setCustomTitle(PremiumAlert.header(this@RegistrationActivity, "⚠️ যাচাই করা গেল না"))
+                    .setCustomTitle(PremiumAlert.header(this@RegistrationActivity, "⚠️ Could not be checked")   /* 🔤 V726 */)
                     .setMessage(
                         "নেট ঠিকমতো কাজ করছে না, তাই এই নম্বরটা আগে থেকে রেজিস্টার করা আছে কিনা দেখা গেল না।\n\n" +
                         "এখনই সেভ করলে একই রোগীর দ্বিতীয় রেকর্ড তৈরি হয়ে যেতে পারে।\n\n" +
@@ -866,6 +1224,7 @@ class RegistrationActivity : AppCompatActivity() {
         }
         view.findViewById<android.widget.TextView>(com.tkbiswas.pilesclinic.R.id.btnDupClose).setOnClickListener { dialog.dismiss() }
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     /** APPROVED UPDATE #3: Professional Duplicate Popup (same dialog_duplicate
@@ -941,7 +1300,7 @@ class RegistrationActivity : AppCompatActivity() {
                     (if (m.branch.isNotBlank()) "  ·  " + m.branch else "")
             }
             val tvOthers = view.findViewById<android.widget.TextView>(com.tkbiswas.pilesclinic.R.id.tvDupOthers)
-            tvOthers.text = "এই নম্বরে আরও " + (duplicate.matches.size - 1) + " জন রোগী আছেন:\n" + others
+            tvOthers.text = NoBengali.s("এই নম্বরে আরও ") + (duplicate.matches.size - 1) + NoBengali.s(" জন রোগী আছেন:\n") + others
             tvOthers.visibility = android.view.View.VISIBLE
         }
         UppercaseInputUtil.applyToAll(view)  // TK-REQUESTED GLOBAL RULE (2026-07-24): English text auto-CAPITAL, Password fields excluded automatically
@@ -980,7 +1339,7 @@ class RegistrationActivity : AppCompatActivity() {
         btnDifferent.visibility = android.view.View.VISIBLE
         btnDifferent.setOnClickListener {
             AlertDialog.Builder(this)
-                .setCustomTitle(PremiumAlert.header(this, "নতুন আলাদা রোগী?"))
+                .setCustomTitle(PremiumAlert.header(this, "A new, separate patient?")   /* 🔤 V726 */)
                 .setMessage(
                     "এই মোবাইল নম্বরটা ইতিমধ্যে " +
                         duplicate.name.ifBlank { "একজন রোগীর" } +
@@ -999,9 +1358,10 @@ class RegistrationActivity : AppCompatActivity() {
                     )
                 }
                 .setNegativeButton("No") { d, _ -> d.dismiss() }
-                .show()
+                .show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
         }
         dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     private fun performSave(user: NativeUser, name: String, mobile: String, branch: String, fee: Double, existingPatientId: String = "", existingRowId: String = "", forceNewPatientRowId: String = "") {
@@ -1101,7 +1461,7 @@ class RegistrationActivity : AppCompatActivity() {
                        ⛔ A4 কাগজে আগের জোড়া-লাগানো লেখাটাই যায় (`a4DateTime`) —
                           ছাপা এক অক্ষরও বদলায়নি। */
                     val a4DateOnly = try {
-                        java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.US)
+                        java.text.SimpleDateFormat("dd.MM.yyyy", java.util.Locale.US)   // 🔴🔒 V936 — এক ফরম্যাট
                             .format(java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(draft.date)!!)
                     } catch (_: Throwable) { draft.date }
                     // এই মুহূর্তটাই রেজিস্ট্রেশনের আসল সময় (এখনই সেভ হচ্ছে)।
@@ -1235,6 +1595,9 @@ class RegistrationActivity : AppCompatActivity() {
         binding.etRefDoctorName.setText("")
         binding.etRefDoctorMobile.setText("")
         binding.llRefDoctor.visibility = View.GONE
+        // 🟢 V895 — ফর্ম ফাঁকা হলে সাজেশনের তালিকাও বন্ধ।
+        binding.llRmpSuggest.removeAllViews()
+        binding.llRmpSuggest.visibility = View.GONE
 
         diseaseChecks.forEach { it.isChecked = false }
         symptomChecks.forEach { it.isChecked = false }

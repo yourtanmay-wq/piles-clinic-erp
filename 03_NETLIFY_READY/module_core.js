@@ -112,7 +112,14 @@
     try { raw = JSON.parse(localStorage.getItem('rk_session') || 'null'); } catch (e) {}
     if (!raw || !raw.mobile) return null;
     var mobDigits = String(raw.mobile).replace(/\D/g, '').slice(-10);
-    return MOD.SPECIAL_CODE[mobDigits] || String(raw.name || '').trim().toUpperCase() || null;
+    // 🔑 V749 (২৭.০৮.২০২৬, TK: "KNE-LAXMI — এত মানুষ") — অ্যাপ থেকে যোগ করা
+    //    লোকের **কোড** এখন আলাদা `code` ঘরে আসে, নাম থেকে নয়। তাই পর্দায়
+    //    আসল নাম দেখানো যায়, আর auth-ইমেল (`<কোড>@staff.piles`) মিলে যায়।
+    //    ⛔ পুরনো ২৩ জনের সেশনে `code` ঘর নেই ⇒ আগের নিয়মই (নাম→কোড) অটুট,
+    //       এক অক্ষরও বদল নেই। Android-এ হুবহু একই ব্যবস্থা (ModuleAuth)।
+    return MOD.SPECIAL_CODE[mobDigits]
+        || String(raw.code || '').trim().toUpperCase()
+        || String(raw.name || '').trim().toUpperCase() || null;
   };
 
   MOD.autoSignIn = async function () {
@@ -274,8 +281,26 @@
   // Log an in-app Call-button press (owner rule 8). Records ONLY the press —
   // never claims the call connected, never a duration. Writes to wn.call_taps
   // and never touches any existing table.
+  /* 🔴🔒 V913 (৩১.০৮.২০২৬ — TK: "আপলোড করার পরে সেটা কার্যকরী হবে তো?")
+     **নিজের কাজ যাচাই করতে গিয়ে ধরা পড়ল:** V911-এ কল-গোনা বসানো হয়েছিল,
+     কিন্তু এই ঘরটা মডিউল-সেশন না থাকলে **চুপচাপ ফিরে যেত** — যে স্টাফ কখনো
+     Work Notebook/Staff Profiles খোলেননি, তাঁর একটাও কল গোনা হত না।
+     ফোনে `logCallTap()` দরকার হলে **নিজে থেকেই নিঃশব্দে সাইন-ইন** করে নেয়
+     (`signInCurrentSession`) — এখানেও ঠিক তাই।
+     ⛔ সাইন-ইনটা মডিউলের **নিজের আলাদা** Supabase ক্লায়েন্টে (`rk_module_auth`),
+        তাই মূল অ্যাপের লগইনে এক অক্ষরও হাত পড়ে না।
+     ⛔ কোনো পর্দা বা পাসওয়ার্ড দেখায় না (V252-এর নিঃশব্দ পথ)।
+     ⛔ একবার ব্যর্থ হলে এই পাতায় আর চেষ্টা করা হয় না — অকারণ নেট-ডাক নেই। */
+  MOD._callTapSignInFailed = false;
   MOD.logCallTap = async function (mobile) {
     try {
+      if (!MOD._session && !MOD._callTapSignInFailed) {
+        try { await MOD.restore(); } catch (e) {}
+        if (!MOD._session) {
+          try { await MOD.autoSignIn(); } catch (e) {}
+          if (!MOD._session) MOD._callTapSignInFailed = true;
+        }
+      }
       if (!MOD._session) return;
       var sb = await MOD.client();
       if (!sb) return;

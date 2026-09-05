@@ -10,6 +10,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import com.tkbiswas.pilesclinic.native.NativeSession
+import com.tkbiswas.pilesclinic.native.NoBengali
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -33,6 +34,20 @@ class PartnerSharesActivity : Activity() {
         return f.format(java.util.Date())
     }
     private fun yearStart(): String = today().substring(0, 4) + "-01-01"
+    /* 🔴🔒 V819 (২৯.০৮.২০২৬, TK-নির্দেশে ঝুঁকি-যাচাই) — **"null" ছাপার পুরনো ফাঁদ।**
+       `fin.partners.name` ঘরটা ডেটাবেসে ফাঁকা (SQL NULL) থাকতে পারে, আর
+       org.json-এর `optString()` তখন **আক্ষরিক "null" শব্দটাই** ফেরায়।
+       ফলে `ifBlank { }` ছাঁকনিটা ওটাকে ফাঁকা ধরতে পারত না — পর্দায়, কাগজে
+       ও WhatsApp-বার্তায় পার্টনারের নামের জায়গায় **"null"** লেখা উঠত।
+       ⛔ এই একই দোষ আগে দুবার ধরা পড়েছে (V696 — Treatment Progress-এ,
+          V812 — কল-নোটিফিকেশনে)। তাই এখানেও একই সাফাই বসানো হলো, আর
+          নিয়ম ৬.২ মেনে **এই পর্দার প্রতিটা নামের জায়গাতেই**।
+       ⛔ কোনো হিসাব · শতাংশ · টাকার অঙ্ক ছোঁয়া হয়নি — শুধু দেখানোর নাম। */
+    private fun ps(o: org.json.JSONObject?, key: String): String {
+        val t = (o?.optString(key) ?: "").trim()
+        return if (t.equals("null", ignoreCase = true) || t.equals("undefined", ignoreCase = true)) "" else t
+    }
+
     private fun n10(s: String?): String = (s ?: "").filter { it.isDigit() }.takeLast(10)
     private fun money(n: Double): String {
         val nf = java.text.NumberFormat.getIntegerInstance(java.util.Locale("en", "IN"))
@@ -200,7 +215,7 @@ class PartnerSharesActivity : Activity() {
                 for (b in BRANCHES) {
                     val list = byB[b] ?: mutableListOf()
                     val sub = if (list.isEmpty()) "not set up"
-                    else list.joinToString(" · ") { (it.optString("name").ifBlank { n10(it.optString("mobile")) }) + " " + fmtPct(it.optDouble("pct", 0.0)) + "%" }
+                    else list.joinToString(" · ") { (ps(it, "name").ifBlank { n10(ps(it, "mobile")) }) + " " + fmtPct(it.optDouble("pct", 0.0)) + "%" }
                     val rowCard = card().apply {
                         orientation = LinearLayout.HORIZONTAL
                         gravity = android.view.Gravity.CENTER_VERTICAL
@@ -329,7 +344,7 @@ class PartnerSharesActivity : Activity() {
         val cachedD = loadBranchCache(branch)
         if (cachedD != null) {
             try { renderPartnerCards(content, cachedD) } catch (_: Throwable) {}
-            content.addView(TextView(this).apply { text = "হালনাগাদ হচ্ছে…"; textSize = 11.5f; setTextColor(android.graphics.Color.parseColor("#7c8a83")); setPadding(0, dp(8), 0, dp(8)) })
+            content.addView(TextView(this).apply { text = NoBengali.s("হালনাগাদ হচ্ছে…"); textSize = 11.5f; setTextColor(android.graphics.Color.parseColor("#7c8a83")); setPadding(0, dp(8), 0, dp(8)) })
         } else {
             content.addView(TextView(this).apply { text = "Loading…"; setTextColor(android.graphics.Color.parseColor("#7c8a83")) })
         }
@@ -389,7 +404,7 @@ class PartnerSharesActivity : Activity() {
         for (x in d.list) {
             val c = card().apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
             val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f) }
-            left.addView(TextView(this).apply { text = x.p.optString("name").ifBlank { n10(x.p.optString("mobile")) }; textSize = 14f; setTextColor(android.graphics.Color.parseColor("#111111")); setTypeface(typeface, android.graphics.Typeface.BOLD) })
+            left.addView(TextView(this).apply { text = ps(x.p, "name").ifBlank { n10(ps(x.p, "mobile")) }; textSize = 14f; setTextColor(android.graphics.Color.parseColor("#111111")); setTypeface(typeface, android.graphics.Typeface.BOLD) })
             left.addView(TextView(this).apply { text = "Due " + money(x.due) + " · Withdrawn " + money(x.drawn); textSize = 11f; setTextColor(android.graphics.Color.parseColor("#0A5C33")); setTypeface(typeface, android.graphics.Typeface.BOLD) })
             c.addView(left)
             val red = x.bal < 0
@@ -415,7 +430,7 @@ class PartnerSharesActivity : Activity() {
     private fun saveBranchCache(branch: String, d: BData) {
         try {
             val arr = JSONArray()
-            for (x in d.list) arr.put(JSONObject().put("name", x.p.optString("name")).put("mobile", x.p.optString("mobile")).put("due", x.due).put("drawn", x.drawn).put("bal", x.bal))
+            for (x in d.list) arr.put(JSONObject().put("name", ps(x.p, "name")).put("mobile", ps(x.p, "mobile")).put("due", x.due).put("drawn", x.drawn).put("bal", x.bal))
             val o = JSONObject().put("income", d.income).put("expense", d.expense).put("net", d.net).put("list", arr)
             partnerCachePrefs().edit().putString("br_$branch", o.toString()).apply()
         } catch (_: Throwable) {}
@@ -425,7 +440,7 @@ class PartnerSharesActivity : Activity() {
             val o = JSONObject(partnerCachePrefs().getString("br_$branch", null) ?: return null)
             val arr = o.optJSONArray("list") ?: JSONArray()
             val list = ArrayList<PLine>()
-            for (i in 0 until arr.length()) { val x = arr.getJSONObject(i); list.add(PLine(JSONObject().put("name", x.optString("name")).put("mobile", x.optString("mobile")), x.optDouble("due"), x.optDouble("drawn"), x.optDouble("bal"))) }
+            for (i in 0 until arr.length()) { val x = arr.getJSONObject(i); list.add(PLine(JSONObject().put("name", ps(x, "name")).put("mobile", ps(x, "mobile")), x.optDouble("due"), x.optDouble("drawn"), x.optDouble("bal"))) }
             BData(o.optDouble("income"), o.optDouble("expense"), o.optDouble("net"), list)
         } catch (_: Throwable) { null }
     }
@@ -445,7 +460,7 @@ class PartnerSharesActivity : Activity() {
         sb.append("<th style=\"border:1px solid #cfe0d6;padding:6px\">Due</th><th style=\"border:1px solid #cfe0d6;padding:6px\">Withdrawn</th><th style=\"border:1px solid #cfe0d6;padding:6px\">Balance</th></tr>")
         for (x in d.list) {
             val red = x.bal < 0
-            sb.append("<tr><td style=\"border:1px solid #cfe0d6;padding:6px\">").append(esc(x.p.optString("name").ifBlank { n10(x.p.optString("mobile")) }))
+            sb.append("<tr><td style=\"border:1px solid #cfe0d6;padding:6px\">").append(esc(ps(x.p, "name").ifBlank { n10(ps(x.p, "mobile")) }))
                 .append("<br><small style=\"color:#777\">+91 ").append(esc(n10(x.p.optString("mobile")))).append("</small></td>")
                 .append("<td style=\"border:1px solid #cfe0d6;padding:6px;text-align:right\">").append(esc(money(x.due))).append("</td>")
                 .append("<td style=\"border:1px solid #cfe0d6;padding:6px;text-align:right\">").append(esc(money(x.drawn))).append("</td>")
@@ -478,7 +493,7 @@ class PartnerSharesActivity : Activity() {
     private fun settleBranch(branch: String, d: BData) {
         val toDo = d.list.filter { Math.abs(it.bal) >= 0.5 }
         if (toDo.isEmpty()) { Toast.makeText(this, "All balances are already zero — nothing to settle.", Toast.LENGTH_LONG).show(); return }
-        val lines = toDo.joinToString("\n") { (it.p.optString("name").ifBlank { n10(it.p.optString("mobile")) }) + ": " + (if (it.bal > 0) "pay " else "collect ") + money(Math.abs(it.bal)) }
+        val lines = toDo.joinToString("\n") { (ps(it.p, "name").ifBlank { n10(ps(it.p, "mobile")) }) + ": " + (if (it.bal > 0) "pay " else "collect ") + money(Math.abs(it.bal)) }
         android.app.AlertDialog.Builder(this)
             .setTitle("Settlement — $branch")
             .setMessage("Bring every balance to zero?\n\n$lines\n\nThis records the pay-outs / collections and cannot be undone from here.")
@@ -505,7 +520,7 @@ class PartnerSharesActivity : Activity() {
                         openBranch(branch)
                     }
                 }.start()
-            }.show()
+            }.show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
     }
 
     // ---------- SETUP ----------
@@ -552,7 +567,7 @@ class PartnerSharesActivity : Activity() {
                 fun addRow(p: JSONObject?) {
                     val c = card()
                     val line1 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-                    val nameEt = EditText(this).apply { hint = "Name"; setText(p?.optString("name") ?: ""); textSize = 13f; layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f) }
+                    val nameEt = EditText(this).apply { hint = "Name"; setText(ps(p, "name")); textSize = 13f; layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f) }
                     val pctEt = EditText(this).apply { hint = "%"; setText(p?.let { fmtPct(it.optDouble("pct", 0.0)) } ?: ""); textSize = 13f; inputType = android.text.InputType.TYPE_CLASS_TEXT; keyListener = android.text.method.DigitsKeyListener.getInstance("0123456789."); gravity = android.view.Gravity.CENTER; layoutParams = LinearLayout.LayoutParams(dp(70), LinearLayout.LayoutParams.WRAP_CONTENT) }
                     line1.addView(nameEt); line1.addView(pctEt); c.addView(line1)
                     val line2 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(6), 0, 0) }
@@ -702,7 +717,7 @@ class PartnerSharesActivity : Activity() {
         val (_, col) = screen("＋ Withdraw / Return")
         val c = card()
         c.addView(labelTv("Partner"))
-        val partnerNames = d.list.map { it.p.optString("name").ifBlank { n10(it.p.optString("mobile")) } }
+        val partnerNames = d.list.map { ps(it.p, "name").ifBlank { n10(ps(it.p, "mobile")) } }
         val partnerMobiles = d.list.map { n10(it.p.optString("mobile")) }
         val spWho = android.widget.Spinner(this)
         spWho.adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, partnerNames)

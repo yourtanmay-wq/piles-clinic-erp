@@ -130,9 +130,13 @@ class NotificationsActivity : AppCompatActivity() {
                 withContext(Dispatchers.IO) { DoctorVisitRepository().fetchExpectedTodayList(branchFilter) }
             } catch (_: Throwable) { emptyList() }
 
-            val callDueToday = try {
-                withContext(Dispatchers.IO) { DoctorVisitRepository().fetchNextCallDueTodayList(branchFilter) }
-            } catch (_: Throwable) { emptyList() }
+            /* 🔕🔒 V970 (০২.০৯.২০২৬, TK-নির্দেশ) — *"Today RMP Call Due
+               নোটিফিকেশন হিসাবে দেখানোর দরকার নেই, শুধুমাত্র RMP সেকশন খুললে
+               সেখানে দেখাক"*। তাই এখানে ক্লাউডে **অনুরোধই যায় না** (ফ্রি
+               প্ল্যানে একটা পড়া কমল), তালিকাও খালি।
+               ⛔ `DoctorVisitRepository.fetchNextCallDueTodayList()` মোছা হয়নি —
+                  RMP পর্দা ওটাই ব্যবহার করে। */
+            val callDueToday = emptyList<DoctorVisitItem>()
 
             val missedCallbacks = try {
                 withContext(Dispatchers.IO) { BranchSimHelper.pendingMissedCallbackNumbers(this@NotificationsActivity) }
@@ -200,44 +204,9 @@ class NotificationsActivity : AppCompatActivity() {
             }
         }
 
-        if (callDueToday.isNotEmpty()) {
-            addSectionHeader("📞 Call Doctor Today", "#16A36D")
-            // 🟢 V410: বেশি হলে এক লাইনে; চাপলে পুরো তালিকা খোলে।
-            if (callDueToday.size > COLLAPSE_OVER && !expandCallList) {
-                addRow(
-                    icon = "📞",
-                    iconColor = "#16A36D",
-                    title = "${callDueToday.size} doctors to call today",
-                    subtitle = "Tap to open the full list"
-                ) { expandCallList = true; renderStored() }
-            } else {
-                for (d in callDueToday) {
-                    addRow(
-                        icon = "📞",
-                        iconColor = "#16A36D",
-                        title = d.name.ifBlank { "UNKNOWN" },
-                        subtitle = "${d.mobile} · Next Call Date is today"
-                    ) {
-                        // 🔴 V410: ডাক্তারের ব্রাঞ্চটাও সঙ্গে যায় — নইলে RMP পর্দা সব
-                        //    ব্রাঞ্চে খুঁজত, সার্ভারের ~১,০০০ সারির সীমায় আটকে যেত, আর
-                        //    পুরনো রেকর্ডের ডাক্তার "পাওয়া যায়নি" হয়ে যেতেন।
-                        startActivity(
-                            Intent(this, DoctorVisitActivity::class.java)
-                                .putExtra("searchMobile", d.mobile)
-                                .putExtra("searchBranch", d.branch)
-                        )
-                    }
-                }
-                if (callDueToday.size > COLLAPSE_OVER) {
-                    addRow(
-                        icon = "▲",
-                        iconColor = "#6b7280",
-                        title = "Hide this list",
-                        subtitle = "Show it as one line again"
-                    ) { expandCallList = false; renderStored() }
-                }
-            }
-        }
+        /* 🔕 V970 (TK-নির্দেশ) — "📞 Call Doctor Today" সেকশনটা এখান থেকে
+           তুলে দেওয়া হলো; ওটা এখন শুধু RMP পর্দায়। ⛔ উপরের `callDueToday`
+           সবসময় খালি, তাই ঘন্টার সংখ্যাতেও আর গোনা হয় না। */
 
         if (expectedToday.isNotEmpty()) {
             addSectionHeader("🧑\u200d⚕️ Patient Expected Today", "#6941C6")

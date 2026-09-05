@@ -38,7 +38,12 @@ class MedicinePaymentActivity : AppCompatActivity() {
     private lateinit var etProduct: EditText
     private lateinit var etBill: EditText
     private lateinit var etDeposit: EditText
-    private lateinit var etRemarks: EditText
+    /* 🔄🔒 V849 (৩০.০৮.২০২৬, TK-অনুমোদিত ডেমো প্রুফ) — TK: "Remarks বক্সটাই
+       থাকবে না, সেখানে হবে … প্রকৃত জমার তারিখ"। PaymentActivity-র হুবহু একই
+       ধাঁচ: না ছুঁলে আজকের তারিখ · চাপলে পুরনো তারিখ বাছা যায় · ভবিষ্যতের
+       তারিখ বাছা যায় না (maxDate = আজ)। */
+    private lateinit var tvActualDate: TextView
+    private var pickedActualDate: String = ""
     private lateinit var historyContainer: LinearLayout
     private lateinit var progressLoad: ProgressBar
     private lateinit var tvEmpty: TextView
@@ -52,6 +57,8 @@ class MedicinePaymentActivity : AppCompatActivity() {
     private lateinit var chip7: TextView
     private lateinit var chip30: TextView
     private lateinit var chipPick: TextView
+    private lateinit var chipStatement: TextView  // 🆕 V847
+    private lateinit var chipDue: TextView        // 🆕 V846
     private lateinit var tvHistoryTotal: TextView
 
     // History ছাঁকা (সব client-side, কোনো বাড়তি সার্ভার-কল নয়): সর্বশেষ
@@ -59,11 +66,54 @@ class MedicinePaymentActivity : AppCompatActivity() {
     // সার্চ প্রয়োগ করে দেখাই।
     private var loadedRows: org.json.JSONArray = org.json.JSONArray()
     private var userBranchFilter: String = "All"
-    private var activeDateFilter: String = "today"   // today | 7 | 30 | pick
+    private var activeDateFilter: String = "today"   // today | 7 | 30 | pick | range
     private var pickedDate: String? = null            // yyyy-MM-dd
     private var searchQuery: String = ""
 
+    /* 🆕🔒 V846 (৩০.০৮.২০২৬) — TK: "বিল ২০০০, দিলেন ১২০০, বাকি ৮০০ — এই বাকি
+       টাকাটা কোথায় শো করবে?" ⇒ "Due Only" চিপ চাপলে **তারিখ না দেখে** সব দিনের
+       বাকি-থাকা বিক্রি একসাথে দেখায়, উপরে মোট বাকির অঙ্ক। */
+    private var dueOnly: Boolean = false
+
+    /* 🆕🔒 V847 (৩০.০৮.২০২৬) — TK: "Pick Date-এর পরে … কত তারিখ থেকে কত তারিখ
+       পর্যন্ত"। নাম TK নিজে বেছেছেন — **Statement**। */
+    private var rangeFrom: String? = null            // yyyy-MM-dd
+    private var rangeTo: String? = null              // yyyy-MM-dd
+
     private val branches = listOf("Kishanganj", "Jalpaiguri", "Cooch Behar", "Falakata", "Birpara")
+
+    companion object {
+        /** 🆕 V805 — `products.kind`-এর দুটো মান। পুরনো সব সারি = ওষুধ। */
+        const val KIND_MEDICINE = "medicinePayment"
+        const val KIND_SALINE = "salinePayment"
+        /** এই পর্দার তালিকায় **দুটোই** দেখাবে। */
+        fun isSaleRow(kind: String) = kind == KIND_MEDICINE || kind == KIND_SALINE
+
+        /* 🆕🔒 V846 — পরে বাকি টাকা জমা নেওয়ার নিয়ম।
+           ─── কেন পুরনো সারিটা বদলাই না ────────────────────────────────────
+           পুরনো সারির `deposit` বাড়ালে **ওই পুরনো দিনের** কালেকশনের মোট টাকা
+           পিছন-ফিরে বদলে যেত (PaymentRepository ও ChamberAttendanceRepository
+           দুটোই `date` ধরে `deposit` যোগ করে) — অর্থাৎ ছাপানো পুরনো রেজিস্টারের
+           সঙ্গে অ্যাপের হিসাব আর মিলত না, আর আজ হাতে-পাওয়া টাকাটা আজকের
+           কালেকশনে উঠতই না।
+           ─── তাই যা করি ──────────────────────────────────────────────────
+           বাকি জমা নিলে **আজকের তারিখে একটা নতুন সারি** বসে (deposit = যত টাকা
+           নেওয়া হলো, bill = 0)। ⇒ আজকের কালেকশন ঠিক, পুরনো দিনের হিসাবে
+           একটুও হাত পড়ে না।
+           ─── পুরনো সারিটা "শোধ হয়েছে" বোঝা যায় কী করে ───────────────────
+           নতুন সারির `id` = "due_" + পুরনো id + "_" + সময়। কোনো নতুন ডেটাবেস-ঘর
+           বা SQL লাগে না, আর `remarks`-এর মতো হাতে-লেখা ঘরের উপর ভরসা করতে
+           হয় না। */
+        const val DUE_ID_PREFIX = "due_"
+        fun isDueSettlementId(id: String) = id.startsWith(DUE_ID_PREFIX)
+        /** "due_<origId>_<millis>" → "<origId>" (না হলে ফাঁকা)। */
+        fun settledSaleIdOf(id: String): String {
+            if (!isDueSettlementId(id)) return ""
+            val body = id.substring(DUE_ID_PREFIX.length)
+            val cut = body.lastIndexOf('_')
+            return if (cut > 0) body.substring(0, cut) else ""
+        }
+    }
     private val modes = listOf("CASH", "ONLINE")
 
     // TK-REQUESTED REDESIGN (2026-07-20): Branch is now a compact tappable
@@ -71,6 +121,15 @@ class MedicinePaymentActivity : AppCompatActivity() {
     // selection is tracked here the same way spBranch.selectedItem was read.
     private var selectedBranch = "Kishanganj"
     private var selectedMpMode = "CASH"
+
+    /* 🆕🔒 V805 (২৮.০৮.২০২৬, TK-অনুমোদিত) — TK-নির্দেশ: *"রোগীকে স্যালাইন লাগানো
+       হলে তার জন্য আলাদা টাকা নেয়া হয় … এখানে সেটা জয়েন করে দিন, নাম হবে
+       medicine or saline"*।
+       ⛔ **নতুন কোনো ডেটাবেস-ঘর লাগেনি** — `products` টেবিলের পুরনো `kind` ঘরটাই
+          ব্যবহার হচ্ছে: ওষুধ হলে আগের মতোই `medicinePayment`, স্যালাইন হলে
+          `salinePayment`। ⇒ TK-কে কোনো SQL চালাতে হবে না, আর **পুরনো সব সারি
+          আগের মতোই ওষুধ হিসেবেই থাকবে** (একটাও সারি ছোঁয়া হয়নি)। */
+    private var selectedSaleType = KIND_MEDICINE
 
     // 🔒 B619 (11.08.2026, TK-নির্দেশ): ওষুধ বিক্রিও টাকা — তাই নিজের ব্রাঞ্চ ছাড়া
     // অন্য ব্রাঞ্চ দেখা/বেছে নেওয়া যাবে না (master সব ব্রাঞ্চ পারবেন)। MoneyBranchGuard-এর
@@ -101,6 +160,21 @@ class MedicinePaymentActivity : AppCompatActivity() {
                     selectedBranch = branches[which]
                     btnBranchChip.text = "🏥 $selectedBranch ▾"
                     dialog.dismiss()
+                    /* 🔴🔒 V804 (২৮.০৮.২০২৬) — TK: "Kishanganj ব্রাঞ্চ সিলেক্ট করা আছে,
+                       কিন্তু এখানে Jalpaiguri-র মেডিসিন পেমেন্ট কেন দেখাচ্ছে?"
+                       ─── আসল কারণ ─────────────────────────────────────────────
+                       উপরের এই চিপটা এতদিন শুধু **নিজের লেখাটাই** বদলাত আর নতুন
+                       বিক্রি কোন ব্রাঞ্চে বসবে সেটা ঠিক করত — **নিচের তালিকাটা
+                       একবারও নতুন করে আঁকা হত না**। আর তালিকা ছাঁকা হত
+                       `user.branch` দিয়ে (`loadHistory(user?.branch)`), যেটা
+                       Master-এর ক্ষেত্রে **"All"** ⇒ কোনো ছাঁকনিই বসত না।
+                       ⇒ Master যে ব্রাঞ্চই বাছুন, **সব ব্রাঞ্চের** বিক্রি দেখাত,
+                         আর উপরের সবুজ ঘরের মোট টাকা/সংখ্যাও সব ব্রাঞ্চ মিলিয়ে।
+                       ─── সারানো ───────────────────────────────────────────────
+                       চিপ বদলালেই তালিকা আবার আঁকা হয়, আর ছাঁকনি হয় **চিপের
+                       ব্রাঞ্চ** দিয়ে। ⛔ Master ছাড়া কারো কিছুই বদলায়নি — তাদের
+                       `selectedBranch` আর `user.branch` একই (লাইন ২১৭)। */
+                    showRows(loadedRows, selectedBranch)
                 }
                 .setNegativeButton("Cancel", null)
                 .show().also { PremiumAlert.paint(it) }
@@ -160,6 +234,43 @@ class MedicinePaymentActivity : AppCompatActivity() {
         })
     }
 
+    /* 🔄🔒 V849 — প্রকৃত জমার তারিখ। না ছুঁলে `pickedActualDate` ফাঁকাই থাকে
+       ⇒ সেভের সময় আজকের তারিখ বসে (আগের আচরণ হুবহু অটুট)। */
+    private fun actualDate(): String = pickedActualDate.ifBlank { today() }
+
+    private fun resetActualDate() {
+        pickedActualDate = ""
+        tvActualDate.text = "Actual deposit date"
+        tvActualDate.setTextColor(0xFF9AA4B0.toInt())
+    }
+
+    private fun setupActualDate() {
+        resetActualDate()
+        tvActualDate.setOnClickListener {
+            val cal = java.util.Calendar.getInstance()
+            try {
+                if (pickedActualDate.isNotBlank()) {
+                    SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(pickedActualDate)?.let { cal.time = it }
+                }
+            } catch (_: Exception) { }
+            android.app.DatePickerDialog(this, { _, y, m, d ->
+                val c = java.util.Calendar.getInstance().apply { set(y, m, d) }
+                val iso = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(c.time)
+                if (iso == today()) {
+                    resetActualDate()
+                } else {
+                    pickedActualDate = iso
+                    tvActualDate.text = DateUtil.display(iso)
+                    tvActualDate.setTextColor(0xFF10223A.toInt())
+                }
+            }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH),
+               cal.get(java.util.Calendar.DAY_OF_MONTH)).apply {
+                // ⛔ ভবিষ্যতের তারিখ বাছা যাবে না (TK-নির্দেশ)
+                try { datePicker.maxDate = System.currentTimeMillis() } catch (_: Throwable) { }
+            }.show()
+        }
+    }
+
     private fun setupMpModeButtons() {
         val cash = findViewById<android.widget.Button>(R.id.btnMpCash)
         val upi = findViewById<android.widget.Button>(R.id.btnMpUpi)
@@ -173,6 +284,31 @@ class MedicinePaymentActivity : AppCompatActivity() {
         }
         cash.setOnClickListener { selectedMpMode = "CASH"; render() }
         upi.setOnClickListener { selectedMpMode = "ONLINE"; render() }
+        render()
+    }
+
+    /* 🆕🔒 V805 — MEDICINE / SALINE বাছাই। উপরের `setupMpModeButtons()`-এর
+       **হুবহু একই কায়দা** (একই render/click নকশা), শুধু রঙ সবুজ — যাতে Mode-এর
+       নীল দুটোর সঙ্গে গুলিয়ে না যায়। ঘরের নামদুটোও সঙ্গে সঙ্গে বদলায়, তাই
+       স্যালাইন বাছলে "Medicine / Product Name" লেখা থেকে বিভ্রান্তি হয় না। */
+    private fun setupSaleTypeButtons() {
+        val med = findViewById<android.widget.Button>(R.id.btnTypeMedicine)
+        val sal = findViewById<android.widget.Button>(R.id.btnTypeSaline)
+        val lblProduct = findViewById<android.widget.TextView>(R.id.lblProduct)
+        val lblBill = findViewById<android.widget.TextView>(R.id.lblBill)
+        val green = android.graphics.Color.parseColor("#0B6E33")
+        val lightGreen = android.graphics.Color.parseColor("#E6F4EC")
+        fun render() {
+            val isMed = selectedSaleType == KIND_MEDICINE
+            med.backgroundTintList = android.content.res.ColorStateList.valueOf(if (isMed) green else lightGreen)
+            med.setTextColor(if (isMed) android.graphics.Color.WHITE else green)
+            sal.backgroundTintList = android.content.res.ColorStateList.valueOf(if (!isMed) green else lightGreen)
+            sal.setTextColor(if (!isMed) android.graphics.Color.WHITE else green)
+            lblProduct?.text = if (isMed) "Medicine / Product Name" else "Saline Name / Details"
+            lblBill?.text = if (isMed) "Total Medicine Bill" else "Total Saline Bill"
+        }
+        med.setOnClickListener { selectedSaleType = KIND_MEDICINE; render() }
+        sal.setOnClickListener { selectedSaleType = KIND_SALINE; render() }
         render()
     }
 
@@ -192,26 +328,55 @@ class MedicinePaymentActivity : AppCompatActivity() {
         etProduct = findViewById(R.id.etProduct)
         etBill = findViewById(R.id.etBill)
         etDeposit = findViewById(R.id.etDeposit)
-        etRemarks = findViewById(R.id.etRemarks)
+        tvActualDate = findViewById(R.id.tvActualDate)   // 🔄 V849
         historyContainer = findViewById(R.id.historyContainer)
         progressLoad = findViewById(R.id.progressLoad)
         tvEmpty = findViewById(R.id.tvEmpty)
         medicineContainer = findViewById(R.id.medicineContainer)
         btnAddMedicine = findViewById(R.id.btnAddMedicine)
         etHistorySearch = findViewById(R.id.etHistorySearch)
+        /* 📕🔒 V985 (TK-নির্দেশ: *"মেডিসিন স্যালাইন History এরকম খোলা থাকবে না
+           পর্দা"*) — শিরোনামে চাপ দিলে খোলে, আবার চাপলে গুটিয়ে যায়।
+           ⛔ ভিতরের সব কিছু (খোঁজা · চিপ · মোট · তালিকা) হুবহু আগের মতোই। */
+        try {
+            val head = findViewById<TextView>(R.id.tvHistoryHead)
+            val bodyBox = findViewById<LinearLayout>(R.id.boxHistoryBody)
+            head.setOnClickListener {
+                val open = bodyBox.visibility != View.VISIBLE
+                bodyBox.visibility = if (open) View.VISIBLE else View.GONE
+                head.text = (if (open) "▼  " else "▶  ") + "Medicine / Saline History"
+            }
+        } catch (_: Throwable) { }
+        /* 💊🔒 V985 (TK-নির্দেশ) — Search-এর "Med. Due" বোতাম থেকে এলে ওই
+           রোগীর নম্বরটাই আগে থেকে বসানো থাকে ও শুধু বাকিগুলোই দেখায়, যাতে
+           স্টাফকে খুঁজতে না হয়। ⛔ এমনি খুললে কিচ্ছু বদলায় না। */
+        try {
+            val pre = intent?.getStringExtra("prefill_search").orEmpty()
+            if (pre.isNotBlank()) {
+                searchQuery = pre; dueOnly = true
+                etHistorySearch.setText(pre)
+                // Search থেকে এলে তালিকাটা খোলাই থাকে (নইলে কিছুই দেখা যেত না)।
+                findViewById<LinearLayout>(R.id.boxHistoryBody).visibility = View.VISIBLE
+                findViewById<TextView>(R.id.tvHistoryHead).text = "▼  Medicine / Saline History"
+            }
+        } catch (_: Throwable) { }
         chipToday = findViewById(R.id.chipToday)
         chip7 = findViewById(R.id.chip7)
         chip30 = findViewById(R.id.chip30)
         chipPick = findViewById(R.id.chipPick)
+        chipStatement = findViewById(R.id.chipStatement)  // 🆕 V847
+        chipDue = findViewById(R.id.chipDue)          // 🆕 V846
         tvHistoryTotal = findViewById(R.id.tvHistoryTotal)
 
         // 🔒 B619: ব্রাঞ্চ-লক করার আগে জেনে নিই এই ইউজার master কিনা (master সব ব্রাঞ্চ পারবেন)।
         isMasterUser = NativeSession.current(this)?.role == "master"
 
         setupMpModeButtons()
+        setupSaleTypeButtons()   // 🆕 V805
         setupCustomerSuggestions()
         setupAddMedicine()
         setupHistoryControls()
+        setupActualDate()                            // 🔄 V849
 
         val user = NativeSession.current(this)
         val defaultBranch = if (user != null && user.branch != "All" && branches.contains(user.branch)) user.branch else branches.first()
@@ -237,7 +402,7 @@ class MedicinePaymentActivity : AppCompatActivity() {
             save(user?.mobile ?: "", user?.branch ?: "") { row -> printReceipt(row) }
         }
 
-        loadHistory(user?.branch ?: "All")
+        loadHistory(selectedBranch)   // 🔴 V804 — চিপের ব্রাঞ্চ, user.branch নয়
     }
 
     // 🔒 B558 — "+ ADD MEDICINE": নতুন ওষুধ-ঘর যোগ, ✕ দিয়ে মোছা।
@@ -309,7 +474,7 @@ class MedicinePaymentActivity : AppCompatActivity() {
 val mode = selectedMpMode
         val row = JSONObject()
             .put("id", "prd_" + UUID.randomUUID().toString().replace("-", ""))
-            .put("kind", "medicinePayment")
+            .put("kind", selectedSaleType)   // 🆕 V805 — ওষুধ না স্যালাইন
             .put("customer", customer)
             .put("product", product)
             .put("bill", bill)
@@ -317,8 +482,8 @@ val mode = selectedMpMode
             .put("deposit", deposit)
             .put("due", max(0.0, bill - deposit))
             .put("mode", mode)
-            .put("remarks", etRemarks.text?.toString()?.trim().orEmpty())
-            .put("date", today())
+            .put("remarks", "")                          // 🔄 V849 — Remarks ঘরটাই আর নেই
+            .put("date", actualDate())                   // 🔄 V849 — প্রকৃত জমার তারিখ
             .put("branch", branch)
             .put("receivedBy", staffMobile)
             .put("createdBy", staffMobile)
@@ -348,15 +513,16 @@ val mode = selectedMpMode
                 this@MedicinePaymentActivity,
                 if (ok) "Medicine payment saved" else "Saved failed — check connection",
                 Toast.LENGTH_SHORT
-            ).show()
+            ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
             if (ok) {
                 // Share/Print-এর জন্য ফর্ম খালি করার আগেই সেভ-হওয়া row হাতে
                 // ধরিয়ে দিই — তখন WhatsApp টেক্সট/প্রিন্ট রসিদ ওই row থেকেই বানে।
                 postAction?.invoke(row)
                 clearMedicineRows()
-                etBill.setText(""); etDeposit.setText(""); etRemarks.setText(""); etCustomer.setText("")
+                etBill.setText(""); etDeposit.setText(""); etCustomer.setText("")
+                resetActualDate()                        // 🔄 V849
                 customerSuggestions.removeAllViews()
-                loadHistory(NativeSession.current(this@MedicinePaymentActivity)?.branch ?: "All")
+                loadHistory(selectedBranch)   // 🔴 V804
             }
         }
     }
@@ -365,7 +531,7 @@ val mode = selectedMpMode
     override fun onResume() {
         super.onResume()
         if (firstResume) { firstResume = false; return }
-        loadHistory(NativeSession.current(this)?.branch ?: "All")
+        loadHistory(selectedBranch)   // 🔴 V804
     }
 
     // TK-REQUESTED ADDITION (2026-07-20): same "show what was already on the
@@ -419,29 +585,50 @@ val mode = selectedMpMode
         if (com.tkbiswas.pilesclinic.native.RedrawGuard.alreadyShowing(
                 historyContainer,
                 loadedRows.toString() + "|" + userBranchFilter + "|" +
-                    activeDateFilter + "|" + (pickedDate ?: "") + "|" + q)) return
+                    activeDateFilter + "|" + (pickedDate ?: "") + "|" + q +
+                    "|" + dueOnly +
+                    "|" + (rangeFrom ?: "") + "|" + (rangeTo ?: ""))) return   // 🆕 V846 · V847
 
+        rebuildSettledMap()                                       // 🆕 V846
         historyContainer.removeAllViews()
         var shown = 0
         var totalCollected = 0.0
         var cashCollected = 0.0
         var onlineCollected = 0.0
+        var outstanding = 0.0                                     // 🆕 V846
 
         for (i in 0 until loadedRows.length()) {
             val r = loadedRows.optJSONObject(i) ?: continue
             val br = r.s("branch")
             if (userBranchFilter != "All" && br.isNotBlank() && br != userBranchFilter) continue
 
-            // তারিখ-ঘর: সঞ্চিত "date" (yyyy-MM-dd) দিয়ে তুলনা (স্ট্রিং তুলনা নিরাপদ)।
-            val d = r.s("date")
-            val dateOk = when (activeDateFilter) {
-                "today" -> d == today
-                "7" -> d.isNotBlank() && d >= start7
-                "30" -> d.isNotBlank() && d >= start30
-                "pick" -> pickedDate != null && d == pickedDate
-                else -> true
+            /* 🆕 V846 — "Due Only" চললে তারিখ দেখা হয় না (বাকি টাকা পুরনো
+               দিনেরও হতে পারে); বদলে শুধু যাদের এখনো বাকি আছে তারাই আসে। */
+            /* 🔍🔒 V985 (০২.০৯.২০২৬, TK-নির্দেশ: *"কোন পেশেন্টের কত মেডিসিনের
+               বিল হলো সেটা যেন সার্চ করার অপশন থাকে"*)।
+               **আসল কারণ (কোড ধরে):** খোঁজাটা তারিখ-ছাঁকার **পরে** চলত, আর
+               শুরুতে "Today" বাছা থাকে — তাই পুরনো দিনের রোগী খুঁজলে কিছুই
+               আসত না। এখন কিছু লেখা থাকলে **সব তারিখ** দেখানো হয়।
+               ⛔ কিছু না লিখলে হুবহু আগের আচরণ (Today/7/30/Pick/Statement)। */
+            if (dueOnly) {
+                if (netDueOf(r) <= 0.0) continue
+            } else if (q.isNotEmpty()) {
+                // খোঁজার সময় তারিখ ধরা হয় না — সব দিনের বিল একসাথে।
+            } else {
+                // তারিখ-ঘর: সঞ্চিত "date" (yyyy-MM-dd) দিয়ে তুলনা (স্ট্রিং তুলনা নিরাপদ)।
+                val d = r.s("date")
+                val dateOk = when (activeDateFilter) {
+                    "today" -> d == today
+                    "7" -> d.isNotBlank() && d >= start7
+                    "30" -> d.isNotBlank() && d >= start30
+                    "pick" -> pickedDate != null && d == pickedDate
+                    // 🆕 V847 — Statement: From ≤ তারিখ ≤ To (দুই প্রান্তই ধরা)
+                    "range" -> rangeFrom != null && rangeTo != null &&
+                        d.isNotBlank() && d >= rangeFrom!! && d <= rangeTo!!
+                    else -> true
+                }
+                if (!dateOk) continue
             }
-            if (!dateOk) continue
 
             if (q.isNotEmpty()) {
                 val hay = (r.s("customer") + " " + r.s("product") + " " + r.s("mobile") + " " + r.s("receivedBy")).lowercase()
@@ -453,12 +640,18 @@ val mode = selectedMpMode
             val dep = r.optDouble("deposit", 0.0)
             totalCollected += dep
             if (r.s("mode") == "ONLINE") onlineCollected += dep else cashCollected += dep
+            outstanding += netDueOf(r)                            // 🆕 V846
         }
 
-        renderTotal(shown, totalCollected, cashCollected, onlineCollected)
+        if (dueOnly) renderDueTotal(shown, outstanding)           // 🆕 V846
+        else renderTotal(shown, totalCollected, cashCollected, onlineCollected)
         renderChips()
         if (shown == 0) {
-            tvEmpty.text = if (loadedRows.length() == 0) "No medicine payment yet." else "No sale in this filter."
+            tvEmpty.text = when {
+                loadedRows.length() == 0 -> "No medicine / saline payment yet."
+                dueOnly -> "No due pending. All cleared."          // 🆕 V846
+                else -> "No sale in this filter."
+            }
             tvEmpty.visibility = View.VISIBLE
         } else {
             tvEmpty.visibility = View.GONE
@@ -496,7 +689,11 @@ val mode = selectedMpMode
             // wrong empty data.
             val rows = try {
                 withContext(Dispatchers.IO) {
-                    SupabaseClient.fetchListOrNull("products", "kind=eq.medicinePayment", 500)
+                    /* 🆕🔒 V805 — এখন দুই রকমের সারিই আসে (ওষুধ + স্যালাইন)।
+                       ⛔ `in.(...)` PostgREST-এর নিজের লেখা, `eq.`-এর মতোই নিরাপদ;
+                          পুরনো সব সারি `medicinePayment` বলে একটাও বাদ যায় না। */
+                    SupabaseClient.fetchListOrNull(
+                        "products", "kind=in.($KIND_MEDICINE,$KIND_SALINE)", 500)
                 }
             } catch (t: Throwable) {
                 null
@@ -504,7 +701,7 @@ val mode = selectedMpMode
             progressLoad.visibility = View.GONE
             if (rows == null) {
                 if (!hadCache) {
-                    tvEmpty.text = "No medicine payment yet."
+                    tvEmpty.text = "No medicine / saline payment yet."
                     tvEmpty.visibility = View.VISIBLE
                 }
                 return@launch
@@ -547,7 +744,9 @@ val mode = selectedMpMode
         val outer = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             background = android.graphics.drawable.GradientDrawable().apply {
-                cornerRadius = dp(10).toFloat(); setColor(green)
+                // 🆕 V805 — স্যালাইন হলে বাঁ দিকের দাগটা নীল, ওষুধ হলে আগের মতোই সবুজ
+                cornerRadius = dp(10).toFloat()
+                setColor(if (r.s("kind") == KIND_SALINE) 0xFF1167D8.toInt() else green)
             }
             setPadding(dp(4), 0, 0, 0)
             layoutParams = LinearLayout.LayoutParams(
@@ -589,7 +788,10 @@ val mode = selectedMpMode
 
         // সারি ২: ওষুধ
         card.addView(TextView(this).apply {
-            text = "💊 $meds"; textSize = 12f; setTextColor(grey)
+            /* 🆕 V805 — স্যালাইনের সারিতে আলাদা আইকন, যাতে তালিকায় এক নজরেই
+               বোঝা যায় কোনটা ওষুধ আর কোনটা স্যালাইন। ⛔ ওষুধের সারি হুবহু আগের মতোই। */
+            val isSaline = r.s("kind") == KIND_SALINE
+            text = (if (isSaline) "💧 " else "💊 ") + meds; textSize = 12f; setTextColor(grey)
             setPadding(0, dp(3), 0, 0)
         })
 
@@ -608,14 +810,222 @@ val mode = selectedMpMode
                 .apply { setMargins(0, dp(6), 0, dp(5)) }
         })
 
-        // সারি ৪: Bill / Deposit / Due
+        /* সারি ৪: Bill / Deposit / Due
+           🆕🔒 V846 — এখানে দেখানো "Due" এখন **এই মুহূর্তের** বাকি: পরে যত টাকা
+           জমা নেওয়া হয়েছে সেটা বাদ দিয়ে। Bill আর Deposit ওই দিনের নিজের অঙ্কই
+           থাকে (বদলানো হয়নি), তাই পুরনো কাগজের সঙ্গে মিলবে। */
+        val settledLater = settledById[r.s("id")] ?: 0.0
+        val liveDue = netDueOf(r)
         card.addView(TextView(this).apply {
-            text = "Bill ₹${fmt(bill)}  ·  Deposit ₹${fmt(deposit)}  ·  Due ₹${fmt(due)}"
+            text = "Bill ₹${fmt(bill)}  ·  Deposit ₹${fmt(deposit)}  ·  Due ₹${fmt(if (isDueSettlementId(r.s("id"))) due else liveDue)}"
             textSize = 11.5f; setTextColor(0xFF10223A.toInt())
         })
+        if (settledLater > 0.0) {
+            card.addView(TextView(this).apply {
+                text = "Due collected later: ₹${fmt(settledLater)}"
+                textSize = 10.5f; setTextColor(green); setPadding(0, dp(2), 0, 0)
+            })
+        }
+        // 🆕 V846 — বাকি থাকলে তবেই বোতাম; শোধ হয়ে গেলে নিজে থেকেই উধাও।
+        if (liveDue > 0.0) card.addView(collectDueButton(r, liveDue))
 
         outer.addView(card)
         return outer
+    }
+
+    /* ══════════════ 🆕🔒 V846 — বাকি টাকা (Due) ══════════════
+       TK (৩০.০৮.২০২৬): "বিল হয়েছে ২০০০ টাকা কিন্তু তিনি আজকে ১২০০ টাকা দিয়ে
+       গেলেন, তাহলে বাকি থাকলো ৮০০ টাকা — এই বাকি টাকাটা কোথায় শো করবে?"
+       ⛔ পুরনো একটাও সারি বদলানো হয় না · নতুন কোনো ডেটাবেস-ঘর/SQL লাগে না। */
+
+    /** পুরনো বিক্রির id → পরে জমা-নেওয়া মোট টাকা। প্রতিবার তালিকা আঁকার
+     *  আগে নতুন করে গোনা হয়, তাই কখনো বাসি থাকে না। */
+    private val settledById = HashMap<String, Double>()
+
+    private fun rebuildSettledMap() {
+        settledById.clear()
+        for (i in 0 until loadedRows.length()) {
+            val r = loadedRows.optJSONObject(i) ?: continue
+            val origId = settledSaleIdOf(r.s("id"))
+            if (origId.isBlank()) continue
+            settledById[origId] = (settledById[origId] ?: 0.0) + r.optDouble("deposit", 0.0)
+        }
+    }
+
+    /** এখনো কত বাকি: বিল − ওই দিনের জমা − পরে জমা-নেওয়া টাকা।
+     *  বাকি-জমার সারিটার নিজের কোনো বাকি নেই (bill = 0)। */
+    private fun netDueOf(r: JSONObject): Double {
+        val id = r.s("id")
+        if (isDueSettlementId(id)) return 0.0
+        val bill = r.optDouble("bill", r.optDouble("total", 0.0))
+        val paid = r.optDouble("deposit", 0.0) + (settledById[id] ?: 0.0)
+        return max(0.0, bill - paid)
+    }
+
+    private fun renderDueTotal(count: Int, outstanding: Double) {
+        val sb = android.text.SpannableStringBuilder()
+        sb.append("TOTAL OUTSTANDING DUE").append("\n")
+        val s2 = sb.length
+        sb.append("₹ ${fmt(outstanding)}   ·   $count ${if (count == 1) "sale" else "sales"}")
+        sb.setSpan(android.text.style.RelativeSizeSpan(1.6f), s2, sb.length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        sb.setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), s2, sb.length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        sb.append("\n").append("All dates · tap a card's button to collect")
+        tvHistoryTotal.text = sb
+    }
+
+    /** "💰 COLLECT DUE" বোতাম — শুধু যে সারিতে সত্যিই বাকি আছে সেখানে। */
+    private fun collectDueButton(r: JSONObject, remaining: Double): TextView {
+        return TextView(this).apply {
+            text = "💰 COLLECT DUE ₹${fmt(remaining)}"
+            textSize = 11.5f
+            gravity = android.view.Gravity.CENTER
+            setTextColor(0xFFFFFFFF.toInt())
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setPadding(dp(10), dp(7), dp(10), dp(7))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(8).toFloat(); setColor(0xFFC62828.toInt())
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { setMargins(0, dp(7), 0, 0) }
+            setOnClickListener { openCollectDue(r, remaining) }
+        }
+    }
+
+    /** এই মুহূর্তে একটাই বাকি-জমা যাতে পাঠানো যায় (দুবার চাপলে দুবার টাকা নয়)। */
+    private var dueSaving = false
+
+    private fun openCollectDue(r: JSONObject, remaining: Double) {
+        if (dueSaving) return
+        val origId = r.s("id")
+        if (origId.isBlank()) {
+            Toast.makeText(this, "This sale has no id — cannot collect", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val cust = r.s("customer").ifBlank { "Walk-in" }
+
+        val pad = dp(16)
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, dp(10), pad, 0)
+        }
+        box.addView(TextView(this).apply {
+            text = "$cust  ·  Remaining ₹${fmt(remaining)}"
+            textSize = 12.5f; setTextColor(0xFF0B2B59.toInt())
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+        })
+        // ⛔ §৯.১৭ (B411): একা TYPE_CLASS_NUMBER নয় — TEXT + DigitsKeyListener,
+        //    নইলে কিছু ফোনে সংখ্যার কীবোর্ডই খোলে না।
+        val etAmt = EditText(this).apply {
+            hint = "Amount"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+            keyListener = android.text.method.DigitsKeyListener.getInstance("0123456789")
+            setText(fmt(remaining).replace(",", ""))
+            setSelection(text?.length ?: 0)
+        }
+        box.addView(etAmt)
+
+        var mode = "CASH"
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { setMargins(0, dp(8), 0, 0) }
+        }
+        val blue = 0xFF1167D8.toInt()
+        val cashBtn = TextView(this)
+        val onlineBtn = TextView(this)
+        fun paintModes() {
+            for ((b, on) in listOf(cashBtn to (mode == "CASH"), onlineBtn to (mode == "ONLINE"))) {
+                b.setTextColor(if (on) 0xFFFFFFFF.toInt() else blue)
+                b.background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(8).toFloat()
+                    setColor(if (on) blue else 0xFFE8F2FF.toInt())
+                }
+            }
+        }
+        for ((b, label) in listOf(cashBtn to "CASH", onlineBtn to "ONLINE")) {
+            b.text = label; b.textSize = 12f; b.gravity = android.view.Gravity.CENTER
+            b.setTypeface(b.typeface, android.graphics.Typeface.BOLD)
+            b.setPadding(dp(10), dp(8), dp(10), dp(8))
+            b.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                .apply { setMargins(dp(3), 0, dp(3), 0) }
+            b.setOnClickListener { mode = label; paintModes() }
+            row.addView(b)
+        }
+        paintModes()
+        box.addView(row)
+
+        AlertDialog.Builder(this)
+            .setCustomTitle(PremiumAlert.header(this, "💰 Collect Due"))
+            .setView(box)
+            .setPositiveButton("Collect") { _, _ ->
+                val amt = etAmt.text?.toString()?.trim()?.toDoubleOrNull() ?: 0.0
+                when {
+                    amt <= 0.0 -> Toast.makeText(this, "Enter an amount", Toast.LENGTH_SHORT).show()
+                    amt > remaining -> Toast.makeText(this, "More than the remaining due", Toast.LENGTH_SHORT).show()
+                    else -> saveDueCollection(r, amt, mode)
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show().also {
+                PremiumAlert.paint(it)
+                try { NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { }   // 🤫 V774
+            }
+    }
+
+    /** আজকের তারিখে একটা নতুন সারি বসে — পুরনো সারিতে একটুও হাত পড়ে না,
+     *  তাই পুরনো দিনের কালেকশন/ছাপানো রেজিস্টার হুবহু আগের মতোই থাকে, আর
+     *  আজ হাতে-পাওয়া টাকাটা আজকের কালেকশনেই ওঠে। */
+    private fun saveDueCollection(orig: JSONObject, amount: Double, mode: String) {
+        if (dueSaving) return
+        /* 🔒 V853 (নিজের যাচাইয়ে যোগ করা শেষ পাহারা — টাকার কাজ) — পপ-আপ খোলার
+           পর তালিকা নতুন করে এসে থাকলে বাকির অঙ্ক বদলে যেতে পারে। লেখার ঠিক
+           আগে আরেকবার মেপে নিই, যাতে বাকির চেয়ে বেশি টাকা কখনো বসতে না পারে।
+           ⛔ ওয়েবেও ঠিক এই যাচাইটাই আছে (medSaveDueCollection)। */
+        rebuildSettledMap()
+        val liveNow = netDueOf(orig)
+        if (amount > liveNow) {
+            Toast.makeText(this, "More than the remaining due", Toast.LENGTH_SHORT).show()
+            applyFilters()
+            return
+        }
+        val user = NativeSession.current(this)
+        val staffMobile = user?.mobile ?: ""
+        val origId = orig.s("id")
+        val newRow = JSONObject()
+            .put("id", DUE_ID_PREFIX + origId + "_" + System.currentTimeMillis())
+            .put("kind", orig.s("kind").ifBlank { KIND_MEDICINE })
+            .put("customer", orig.s("customer").ifBlank { "Walk-in" })
+            .put("product", "DUE PAYMENT — " + orig.s("product").ifBlank { "—" })
+            .put("bill", 0.0)
+            .put("total", 0.0)
+            .put("deposit", amount)
+            .put("due", 0.0)
+            .put("mode", mode)
+            .put("remarks", "Due collection for sale dated " + DateUtil.display(orig.s("date")))
+            .put("date", today())
+            .put("branch", orig.s("branch").ifBlank { selectedBranch })
+            .put("receivedBy", staffMobile)
+            .put("createdBy", staffMobile)
+            .put("createdAt", isoNow())
+            .put("updatedAt", isoNow())
+
+        dueSaving = true
+        lifecycleScope.launch {
+            val ok = try {
+                withContext(Dispatchers.IO) { SupabaseClient.upsert("products", newRow) }
+            } finally { dueSaving = false }
+            if (ok) {
+                try { MyPhoneWrites.remember(this@MedicinePaymentActivity, MP_TABLE, newRow.optString("id"), newRow) } catch (_: Throwable) { }
+            }
+            Toast.makeText(
+                this@MedicinePaymentActivity,
+                if (ok) "Due collected ₹${fmt(amount)}" else "Save failed — check connection",
+                Toast.LENGTH_SHORT
+            ).show().also { try { NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
+            if (ok) loadHistory(selectedBranch)
+        }
     }
 
     private fun modeBadge(mode: String): TextView {
@@ -651,6 +1061,9 @@ val mode = selectedMpMode
         chip7.setOnClickListener { activeDateFilter = "7"; applyFilters() }
         chip30.setOnClickListener { activeDateFilter = "30"; applyFilters() }
         chipPick.setOnClickListener { openDatePicker() }
+        chipStatement.setOnClickListener { openStatementRange() }   // 🆕 V847
+        // 🆕 V846 — টগল: চাপলে শুধু বাকি, আবার চাপলে আগের তারিখ-তালিকা।
+        chipDue.setOnClickListener { dueOnly = !dueOnly; applyFilters() }
         renderChips()
     }
 
@@ -676,9 +1089,54 @@ val mode = selectedMpMode
         ).show()
     }
 
+    /** 🆕🔒 V847 — Statement: আগে From তারিখ, তারপর To তারিখ। দুটোই বাছা হলে
+     *  তবেই তালিকা বদলায় — মাঝপথে ছেড়ে দিলে আগের ছাঁকনি হুবহু আগের মতোই থাকে। */
+    private fun openStatementRange() {
+        pickOneDate("Statement — From", rangeFrom) { from ->
+            pickOneDate("Statement — To", rangeTo ?: from) { to ->
+                // উল্টো বাছলে নিজে থেকেই ঠিক করে নেয় (ভুল ছাঁকনি হতে পারবে না)
+                val a = if (from <= to) from else to
+                val b = if (from <= to) to else from
+                rangeFrom = a; rangeTo = b
+                activeDateFilter = "range"
+                dueOnly = false
+                applyFilters()
+            }
+        }
+    }
+
+    private fun pickOneDate(title: String, preset: String?, onPicked: (String) -> Unit) {
+        val cal = java.util.Calendar.getInstance()
+        preset?.let {
+            try {
+                val d = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(it)
+                if (d != null) cal.time = d
+            } catch (_: Exception) {}
+        }
+        val dlg = android.app.DatePickerDialog(
+            this,
+            { _, y, m, day ->
+                val c = java.util.Calendar.getInstance().apply { set(y, m, day) }
+                onPicked(SimpleDateFormat("yyyy-MM-dd", Locale.US).format(c.time))
+            },
+            cal.get(java.util.Calendar.YEAR),
+            cal.get(java.util.Calendar.MONTH),
+            cal.get(java.util.Calendar.DAY_OF_MONTH)
+        )
+        dlg.setTitle(title)
+        // বিক্রি ভবিষ্যতে হয় না — আগামী তারিখ বাছা বন্ধ (ওয়েবেও max=today)
+        try { dlg.datePicker.maxDate = System.currentTimeMillis() } catch (_: Throwable) { }
+        dlg.show()
+    }
+
     private fun renderChips() {
         val green = 0xFF0B7A34.toInt()
+        /* 🔒 V848 — background বদলালে Android ভিউয়ের padding মুছে দিতে পারে;
+           চিপগুলো এখন এক সারিতে স্ক্রল করে বলে padding হারালে ওগুলো চেপ্টা
+           দেখাত। তাই আগের padding মেপে রেখে আবার বসানো হয়। */
         fun paint(chip: TextView, on: Boolean) {
+            val pl = chip.paddingLeft; val pt = chip.paddingTop
+            val pr = chip.paddingRight; val pb = chip.paddingBottom
             if (on) {
                 chip.background = android.graphics.drawable.GradientDrawable().apply {
                     cornerRadius = dp(16).toFloat(); setColor(green)
@@ -688,11 +1146,28 @@ val mode = selectedMpMode
                 chip.setBackgroundResource(R.drawable.bg_price_chip)
                 chip.setTextColor(green)
             }
+            chip.setPadding(pl, pt, pr, pb)
         }
         paint(chipToday, activeDateFilter == "today")
         paint(chip7, activeDateFilter == "7")
         paint(chip30, activeDateFilter == "30")
         paint(chipPick, activeDateFilter == "pick")
+        paint(chipStatement, activeDateFilter == "range")           // 🆕 V847
+        chipStatement.text = if (activeDateFilter == "range" && rangeFrom != null && rangeTo != null)
+            DateUtil.display(rangeFrom) + " – " + DateUtil.display(rangeTo) else "Statement"
+        // 🆕 V846 — বাকি-চিপ চালু থাকলে লাল, যাতে তারিখ-চিপের সঙ্গে না মেলে।
+        val dl = chipDue.paddingLeft; val dt = chipDue.paddingTop
+        val dr = chipDue.paddingRight; val db = chipDue.paddingBottom
+        if (dueOnly) {
+            chipDue.background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(16).toFloat(); setColor(0xFFC62828.toInt())
+            }
+            chipDue.setTextColor(0xFFFFFFFF.toInt())
+        } else {
+            chipDue.setBackgroundResource(R.drawable.bg_price_chip)
+            chipDue.setTextColor(0xFFC62828.toInt())
+        }
+        chipDue.setPadding(dl, dt, dr, db)
         // ⛔ B313/B202: ⏰ ইমোজি ফোনের ফন্টে "Jul 17" এঁকে দেয় (বিভ্রান্তিকর) —
         //    তাই এখানে ইমোজি ছাড়া পরিষ্কার লেখা; তারিখ বাছলে আসল তারিখ দেখায়।
         chipPick.text = if (activeDateFilter == "pick" && pickedDate != null)
@@ -705,6 +1180,8 @@ val mode = selectedMpMode
             "7" -> "LAST 7 DAYS SALE"
             "30" -> "LAST 30 DAYS SALE"
             "pick" -> "SALE ON ${DateUtil.display(pickedDate)}"
+            // 🆕 V847
+            "range" -> "STATEMENT ${DateUtil.display(rangeFrom)} – ${DateUtil.display(rangeTo)}"
             else -> "MEDICINE SALE"
         }
         val line2 = "₹ ${fmt(total)}   ·   $count ${if (count == 1) "sale" else "sales"}"
@@ -769,7 +1246,7 @@ val mode = selectedMpMode
         return buildString {
             append("*${b.clinicName}*\n")
             append("${b.addressLine}\n")
-            append("Ph: ${b.phoneLine}\n")
+            append("Ph: ${b.phoneLine}  |  Helpline: ${com.tkbiswas.pilesclinic.print.BranchCatalog.HELPLINE}\n")
             append("--------------------------------\n")
             append("*MEDICINE PAYMENT RECEIPT*\n\n")
             append("Patient  : $cust\n")
@@ -814,7 +1291,7 @@ td.v{font-weight:700;color:#10223A}
 .ft{margin-top:22px;font-size:12px;color:#555;display:flex;justify-content:space-between}
 .ty{text-align:center;margin-top:26px;font-size:13px;color:#0B7A34;font-weight:700}
 </style></head><body>
-<div class="h"><div class="cn">${esc(b.clinicName)}</div><div class="ad">${esc(b.addressLine)} &nbsp;·&nbsp; Ph: ${esc(b.phoneLine)}</div></div>
+<div class="h"><div class="cn">${esc(b.clinicName)}</div><div class="ad">${esc(b.addressLine)} &nbsp;·&nbsp; Ph: ${esc(b.phoneLine)} &nbsp;·&nbsp; Helpline: ${esc(com.tkbiswas.pilesclinic.print.BranchCatalog.HELPLINE)}</div></div>
 <div class="tt">MEDICINE PAYMENT RECEIPT</div>
 <table>
 <tr><td class="k">Patient</td><td class="v">$cust</td></tr>

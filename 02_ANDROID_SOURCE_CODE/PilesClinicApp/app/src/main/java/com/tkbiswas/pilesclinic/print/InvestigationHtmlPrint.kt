@@ -75,7 +75,8 @@ object InvestigationHtml {
     private fun esc(s: String): String = s
         .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
 
-    private fun addr2(a: String): String {
+    private fun addr2(aRaw: String): String {
+        val a = aRaw.uppercase(java.util.Locale.US)   // 🔠🔒 V1009 (০৩.০৯.২০২৬, TK-নির্দেশ: "সমস্ত জায়গায় ক্যাপিটাল লেটারই করবেন") — শুধু **দেখানোর** সময় বড় হাতে; ডেটাবেসে যা লেখা আছে তা এক অক্ষরও বদলায় না।
         if (a.isBlank()) return "-"
         val u = a.uppercase()
         val markers = listOf("PS:", "P.S", "P/S", "THANA", "POLICE STATION")
@@ -102,7 +103,7 @@ object InvestigationHtml {
 @page{size:A4;margin:0}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:Arial,"Noto Sans",sans-serif;color:#15231C;background:#fff}
-.sheet{width:210mm;height:296mm;padding:6mm 7mm 5mm;position:relative;display:flex;flex-direction:column}
+.sheet{width:210mm;height:297mm;padding:6mm 7mm 5mm;position:relative;overflow:hidden;display:flex;flex-direction:column}
 .head{display:grid;grid-template-columns:21mm 1fr 21mm;gap:4mm;align-items:center;padding-bottom:1.6mm}
 .head img{width:21mm;height:21mm;object-fit:contain;border-radius:50%}
 .hc{text-align:center}
@@ -190,7 +191,7 @@ table.inv tr.tot td{background:rgba(10,84,40,.07);letter-spacing:.6px;font-size:
   <div class="head">
     <img src="$logo">
     <div class="hc"><h1>${esc(branch.clinicName)}</h1>$brLine
-      <div class="ad">${esc(branch.addressLine)} &nbsp;·&nbsp; Mobile: ${esc(branch.phoneLine)}</div></div>
+      <div class="ad">${esc(branch.addressLine)} &nbsp;·&nbsp; Mobile: ${esc(branch.phoneLine)} &nbsp;·&nbsp; Helpline: ${esc(BranchCatalog.HELPLINE)}</div></div>
     <img src="$logo" style="visibility:hidden">
   </div>
   <div class="sep"></div>

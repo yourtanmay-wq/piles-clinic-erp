@@ -19,9 +19,14 @@ package com.tkbiswas.pilesclinic.native
 object CrossBranchStaffAccess {
 
     /** মোবাইল (শেষ ১০ অঙ্ক) → অতিরিক্ত অনুমোদিত ব্রাঞ্চ (নিজের ব্রাঞ্চ বাদে)। */
-    private val EXTRA_BRANCHES: Map<String, List<String>> = mapOf(
-        "9647840067" to listOf("Falakata", "Birpara") // JPE-CRP
-    )
+    /* 🔴🔒 V949 (০১.০৯.২০২৬, TK-নির্দেশ: *"JPE CRP কে Falakata & Birpara-র
+       Access দেওয়া হয়েছিল, সেটা বন্ধ করতে চাইছি"*) — তালিকাটা **ফাঁকা** করা হলো।
+       ⇒ এখন প্রত্যেকে শুধু নিজের ব্রাঞ্চই দেখেন, ঠিক V453-এর আগের মতো।
+       ⛔ ব্যবস্থাটা মোছা হয়নি, শুধু তালিকা ফাঁকা — ভবিষ্যতে TK চাইলে একটা
+          সারি বসালেই আবার চালু হবে, নতুন করে কিছু লিখতে হবে না।
+       ⛔ সব-ব্রাঞ্চ এনকোয়ারি ফর্ম এই তালিকার উপর নির্ভর করে না (যাচাই করা) —
+          তাই যে কোনো স্টাফ আগের মতোই যে কোনো ব্রাঞ্চের এনকোয়ারি করতে পারবেন। */
+    private val EXTRA_BRANCHES: Map<String, List<String>> = emptyMap()
 
     /**
      * এই ব্যবহারকারীর "দেখা/Edit"-এর জন্য effective branch-filter স্ট্রিং।

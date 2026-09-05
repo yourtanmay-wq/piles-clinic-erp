@@ -50,11 +50,80 @@ class BriefingRepository {
               `CloudReadCache`-এর নিয়ম ("খালি ফল কখনো জমা হয় না") অটুট। */
         val cached = try {
             CloudReadCache.get("briefings:all") {
-                val r = SupabaseClient.fetchListGuarded("briefings", null, 5000)
+                val r = SupabaseClient.fetchListGuarded("briefings", BRIEF_FILTER, 5000)
                 if (r.length() == 0) null else r
             }
         } catch (_: Throwable) { null }
-        return cached ?: SupabaseClient.fetchListGuarded("briefings", null, 5000)
+        return cached ?: SupabaseClient.fetchListGuarded("briefings", BRIEF_FILTER, 5000)
+    }
+
+    /* 🌿🔒 V1072 (০৪.০৯.২০২৬, TK-অনুমতি — Egress কমানো) — মুছে ফেলা নোটিশ
+       আগে **নামত, তারপর ফোনেই বাদ** যেত (`BriefingModel:154,208`)। এখন
+       সার্ভারেই বাদ যায়, তাই ওগুলোর জন্য এক বাইটও খরচ হয় না।
+       ⛔ পর্দায় কিছুই বদলায় না — ওই সারিগুলো আগেও দেখা যেত না।
+       ⛔ ঘরটা ফাঁকা (`is.null`) হলেও ধরা পড়ে, তাই পুরনো সারি হারায় না। */
+    /* ⛔ **দুটোই ধরা হয়** — ঘরটা NULL, আর কোথাও ফাঁকা লেখা (`''`) থাকলেও।
+       একটামাত্র রূপ ধরলে ফাঁকা-লেখা কোনো সারি চুপচাপ হারিয়ে যেত। */
+    private val BRIEF_FILTER = "or=(deletedAt.is.null,deletedAt.eq.)"
+
+    /**
+     * 🟢🔒 V997 (০৩.০৯.২০২৬, TK-নির্দেশ — Egress তালিকার ১ নম্বর) —
+     * **নোটিশ বোর্ড খুললে আর সবসময় পুরো টেবিল নামে না।**
+     *
+     * **আসল কারণ (কোড ধরে, আন্দাজ নয়):** `fetchRaw()` ব্যবহার করে
+     * `SupabaseClient.fetchListGuarded()`, যার নামে "পাহারা" থাকলেও ভিতরে
+     * (SupabaseClient.kt:870-872) সেটা শুধু `fetchListOrNull(...) ?: JSONArray()` —
+     * **কোনো বদল-যাচাই নেই**। তাই পর্দা খুললেই ৫০০০ সারি, নোটিশের পুরো
+     * লেখা (`message`) ও সব উত্তর (`replies`) সহ আবার নামত।
+     *
+     * **এখন:** প্রথমে একটা **অতি-ছোট** পড়া (`fetchListFingerprintOrNull` —
+     * শুধু গোনা ও সবচেয়ে নতুন `updatedAt`)। ফোনে জমা কপির সঙ্গে মিলে গেলে
+     * **একটা সারিও নামে না**; না মিললে শুধু `updatedAt` বড় সারিগুলো নামে
+     * আর জমা কপির উপরে বসে।
+     *
+     * ⛔ এটা `DoctorVisitRepository.fetchListRawSmartOrNull()`-এর **হুবহু একই
+     *    প্রমাণিত ধাঁচ** — নতুন কোনো নিয়ম বানানো হয়নি।
+     * ⛔ যেকোনো ধাপ ব্যর্থ হলে (জমা কপি নেই · fingerprint আসেনি · গোনা মেলেনি ·
+     *    delta ব্যর্থ) **আগের হুবহু পুরো পড়াটাই** চলে — তাই নোটিশ কখনো
+     *    হারাবে না বা অসম্পূর্ণ দেখাবে না।
+     * ⛔ সারি যোগ বা মোছা হলে গোনা মেলে না ⇒ পুরোটাই নামে, তাই মুছে যাওয়া
+     *    নোটিশ পর্দায় পড়ে থাকতে পারে না।
+     * ⛔ ফেরত তালিকার ক্রম আগের মতোই (`updatedAt` নতুন আগে)।
+     */
+    fun fetchRawSmart(cached: JSONArray?): JSONArray {
+        val full = { fetchRaw() }
+        if (cached == null || cached.length() == 0) return full()
+
+        val fp = SupabaseClient.fetchListFingerprintOrNull("briefings", null) ?: return full()
+        if (fp.first != cached.length()) return full()          // যোগ/মোছা হয়েছে
+        if (fp.second.isBlank()) return full()
+
+        var localStamp = ""
+        for (i in 0 until cached.length()) {
+            val u = cached.optJSONObject(i)?.optString("updatedAt").orEmpty()
+            if (u > localStamp) localStamp = u
+        }
+        if (localStamp.isBlank()) return full()
+        if (fp.second == localStamp) return cached              // ✅ কিছুই বদলায়নি
+
+        val enc = java.net.URLEncoder.encode(localStamp, "UTF-8")
+        val delta = SupabaseClient.fetchListOrNull(
+            "briefings", "updatedAt=gt.$enc", 5000) ?: return full()
+
+        val byId = LinkedHashMap<String, org.json.JSONObject>()
+        for (i in 0 until cached.length()) {
+            val o = cached.optJSONObject(i) ?: continue
+            val id = o.optString("id"); if (id.isNotBlank()) byId[id] = o
+        }
+        for (i in 0 until delta.length()) {
+            val o = delta.optJSONObject(i) ?: continue
+            val id = o.optString("id"); if (id.isNotBlank()) byId[id] = o
+        }
+        // সার্ভারের ক্রম হুবহু রাখা — নতুন `updatedAt` আগে
+        val sorted = byId.values.sortedByDescending { it.optString("updatedAt").orEmpty() }
+        val out = JSONArray()
+        for (v in sorted) out.put(v)
+        return out
     }
 
     /**
@@ -262,6 +331,26 @@ class BriefingRepository {
         return SupabaseClient.upsert("briefings", row)
     }
 
+    /**
+     * ⚡🔒 V756 (২৭.০৮.২০২৬) — **আগে থেকে জানা সারি দিয়ে "seen" লেখা।**
+     *
+     * ⚠️ কেন লাগল: `markSeen()` প্রতিবার আগে সারিটা **মেঘ থেকে টেনে আনে**,
+     *    তারপর লেখে — অর্থাৎ প্রতি নোটিশে **দুটো** নেট-কল। V753-এ মাস্টারের
+     *    জন্য সব নোটিশ "seen" হতে শুরু করায় এটা বিপজ্জনক হয়ে দাঁড়াত
+     *    (Supabase free প্ল্যানে অকারণ খরচ)। নিজের কাজ যাচাই করতে গিয়ে ধরা।
+     *
+     * এখানে সারিটা **হাতেই আছে** (পর্দা আঁকার জন্য যেটা আনা হয়েছে), তাই
+     * টানার দরকারই নেই ⇒ **অর্ধেক নেট-কল**।
+     * ⛔ যা লেখা হয় তা হুবহু একই (`buildSeenUpdate`), তাই ফল অপরিবর্তিত।
+     */
+    fun markSeenWithRow(id: String, existingSeen: JSONArray, userMobile: String): Boolean {
+        if (id.isBlank()) return false
+        return try {
+            SupabaseClient.updateById(
+                "briefings", id, BriefingModel.buildSeenUpdate(existingSeen, userMobile))
+        } catch (_: Throwable) { false }
+    }
+
     fun markSeen(id: String, userMobile: String): Boolean {
         val existing = SupabaseClient.fetchList("briefings", "id=eq.$id", 1)
         if (existing.length() == 0) return false
@@ -274,20 +363,67 @@ class BriefingRepository {
         return SupabaseClient.updateById("briefings", id, fields)
     }
 
-    fun addReply(id: String, text: String, userMobile: String): Boolean {
+    /**
+     * 🟢🔒 V642 (২৪.০৮.২০২৬, TK-নির্দেশ — "Reply করলে সে যেন Notification
+     * পায়") — **আসল কারণ:** রিপ্লাই এতদিন শুধু এই নোটিশের নিজের `replies`
+     * ঘরে জমা হতো — যিনি আসল অনুরোধ পাঠিয়েছিলেন (যেমন Uttama), তাঁর কাছে
+     * নতুন কোনো ঘন্টা-নোটিশ যেত না; নিজে থেকে আবার এই নোটিশটা না খুললে
+     * রিপ্লাই দেখতেই পেতেন না।
+     * **সমাধান:** রিপ্লাই সফল হলে, যদি রিপ্লাইকারী **আসল অনুরোধকারী নিজে
+     * না হন** (`createdBy` ভিন্ন), তাহলে তাঁকে (createdBy মোবাইলে) একটা
+     * নতুন, ছোট, ব্যক্তিগত (individual-target) ঘন্টা-নোটিশ যায় — "💬 Reply
+     * on: <শিরোনাম>" — তাতে আসল রিপ্লাই টেক্সটটাও থাকে। এই একই ফাংশন
+     * প্রজেক্টের **সাতটা জায়গা থেকেই** ডাকা হয় (Approve/Reject/Reopen
+     * বোতাম-সহ), তাই সব জায়গাতেই এই সুবিধা একসাথে চালু হলো — আলাদা করে
+     * প্রতিটা কল-সাইট বদলাতে হয়নি।
+     * ⛔ রিপ্লাই সেভের পুরনো নিয়ম এক অক্ষরও বদলায়নি — নোটিফিকেশন-পাঠানো
+     *    ব্যর্থ হলেও (যেমন `context` না থাকলে) রিপ্লাই সেভ হওয়া আটকায় না।
+     * ⛔ রিপ্লাইকারী নিজেই আসল অনুরোধকারী হলে (নিজের লেখায় নিজে রিপ্লাই)
+     *    কোনো বাড়তি নোটিশ যায় না — নিজেকে নিজে জানানোর দরকার নেই।
+     */
+    fun addReply(context: android.content.Context?, id: String, text: String, userMobile: String): Boolean {
         val existing = SupabaseClient.fetchList("briefings", "id=eq.$id", 1)
         if (existing.length() == 0) return false
-        val current = existing.getJSONObject(0).optJSONArray("replies") ?: JSONArray()
+        val row = existing.getJSONObject(0)
+        val current = row.optJSONArray("replies") ?: JSONArray()
         val fields = BriefingModel.buildReplyUpdate(current, text, userMobile)
-        return SupabaseClient.updateById("briefings", id, fields)
+        val ok = SupabaseClient.updateById("briefings", id, fields)
+        if (ok && context != null) {
+            try {
+                val creator = row.optString("createdBy", "")
+                if (BriefingModel.mob(creator).isNotBlank() && BriefingModel.mob(creator) != BriefingModel.mob(userMobile)) {
+                    val title = row.optString("title", "Notice")
+                    val branch = row.optString("branch", "")
+                    post(context, "\uD83D\uDCAC Reply on: $title", text, "individual", branch, "", userMobile, creator)
+                }
+            } catch (_: Throwable) { /* নোটিফিকেশন ব্যর্থ হলেও রিপ্লাই সেভ অক্ষত */ }
+        }
+        return ok
     }
 
     /** Master deletes for everyone; a non-master only hides it for themselves,
      * matching deleteBriefing(). */
-    fun deleteOrHide(id: String, user: NativeUser): Boolean {
+    /**
+     * 🔴🔴🔒 V666 (২৫.০৮.২০২৬, TK-রিপোর্ট, ছবিসহ — "অনুমতি দেওয়ার পরেও কেন
+     * থেকে যাচ্ছে?") — **আসল কারণ (কোড ধরে যাচাই):** এই ফাংশনের ফলাফল
+     * (সফল/ব্যর্থ) কোথাও যাচাই হতো না — নেটওয়ার্ক সমস্যায় ক্লাউডে ডিলিট-চিহ্ন
+     * বসাতে ব্যর্থ হলেও কোড ধরে নিত সব ঠিক আছে (`try { ... } catch { }`
+     * দিয়ে ফলাফল উপেক্ষা করা হতো)। "✅ Approved" রিপ্লাই ঠিকই যোগ হতো
+     * (আলাদা, সফল কল), কিন্তু আসল ডিলিট-চিহ্নটা কখনো বসত না — তাই পরের
+     * লোডে নোটিশ আবার ফিরে আসত।
+     * **সমাধান:** ব্যর্থ হলে এখন প্রমাণিত `GenericUpdateQueue`-তে জমা
+     * থাকে (context দেওয়া থাকলে), যতক্ষণ না সত্যিই ক্লাউডে বসে —
+     * অ্যাপের অন্য সব জায়গার (Payment/Trash ইত্যাদি) একই প্রমাণিত
+     * রিট্রাই-প্যাটার্ন। ⛔ `context` না দিলে (পুরনো caller) আগের মতোই
+     * আচরণ — নতুন কোনো ঝুঁকি নেই।
+     */
+    fun deleteOrHide(id: String, user: NativeUser, context: android.content.Context? = null): Boolean {
         // Master: আগের মতোই global delete (কোনো read নেই — অপরিবর্তিত)।
         if (user.role == "master") {
-            return SupabaseClient.updateById("briefings", id, BriefingModel.buildMasterDelete(user.mobile))
+            val fields = BriefingModel.buildMasterDelete(user.mobile)
+            val ok = SupabaseClient.updateById("briefings", id, fields)
+            if (!ok) context?.let { GenericUpdateQueue.queue(it, "briefings", id, fields) }
+            return ok
         }
         // 🔵 TK-ORDER (07.08.2026): non-master hide — existing row পড়া **ব্যর্থ** হলে
         // আন্দাজে খালি hiddenFor দিয়ে PATCH করব না (আগে করত → অন্যদের hide মুছে
@@ -295,7 +431,10 @@ class BriefingRepository {
         val existing = SupabaseClient.fetchListOrNull("briefings", "id=eq.$id", 1) ?: return false
         if (existing.length() == 0) return false
         val hidden = existing.getJSONObject(0).optJSONArray("hiddenFor") ?: JSONArray()
-        return SupabaseClient.updateById("briefings", id, BriefingModel.buildHideForUser(hidden, user.mobile))
+        val fields = BriefingModel.buildHideForUser(hidden, user.mobile)
+        val ok = SupabaseClient.updateById("briefings", id, fields)
+        if (!ok) context?.let { GenericUpdateQueue.queue(it, "briefings", id, fields) }
+        return ok
     }
 
     /**

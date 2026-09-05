@@ -38,6 +38,10 @@ class CollectionAdapter(
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         val item = items[position]
+        // 🟢🔒 V640 (২৪.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ) — নামের আগে
+        // সিরিয়াল নম্বর (এই তালিকায় কততম, position+1)। ⛔ ডেটা/সাজানোর
+        // নিয়ম কিছু বদলায়নি — শুধু দেখানোর একটা বাড়তি ঘর।
+        holder.binding.tvSerial.text = (position + 1).toString()
         holder.binding.tvName.text = item.name.ifBlank { "Walk-in" }
         val digits = item.mobile.filter { it.isDigit() }.takeLast(10)
         // 🆔 TK-এর নিয়ম (28.07.2026): নাম ও মোবাইলের সঙ্গে Patient ID-ও।
@@ -170,7 +174,8 @@ class CollectionAdapter(
 
     // 🔒 B575: গ্লোবাল দু'লাইন ঠিকানা নিয়ম (থানা-চিহ্নের আগে ভাঙা) — PaymentActivity-র
     // addressTwoLines-এর হুবহু একই। চিহ্ন না পেলে এক লাইন (কিছু ভাঙে না)।
-    private fun addrTwoLines(address: String): String {
+    private fun addrTwoLines(addressIn: String): String {
+        val address = addressIn.uppercase(java.util.Locale.US)   // 🔠🔒 V1009 (০৩.০৯.২০২৬, TK-নির্দেশ: "সমস্ত জায়গায় ক্যাপিটাল লেটারই করবেন") — শুধু **দেখানোর** সময় বড় হাতে; ডেটাবেসে যা লেখা আছে তা এক অক্ষরও বদলায় না।
         if (address.isBlank()) return address
         fun strip(s: String) = s.replace(Regex("(?i)Vill:?|PO:?|PS:?|Dist:?|PIN:?"), "").replace(Regex("\\s*,\\s*"), ", ").trim().trim(',').trim()
         val markers = listOf("PS:", "P.S", "P/S", "Thana", "থানা", "Police Station")

@@ -31,40 +31,43 @@ class InvestigationAdviceActivity : AppCompatActivity() {
 
     private lateinit var categoryContainer: LinearLayout
 
+    /* 🔴🔒 V786 (২৮.০৮.২০২৬, TK-রিপোর্ট: হেডারে "Patient / - / -") —
+       ফোনে কল এলে বা মেমরি কম পড়লে Android অ্যাপের প্রসেস বন্ধ করে দেয়;
+       পরে এই পর্দাটা আবার খোলে, কিন্তু মেমরির `RoleSession` ততক্ষণে ফাঁকা।
+       তাই রোগীর পরিচয় এই পর্দার নিজের Bundle-এও রাখা হয় — Bundle প্রসেস
+       মরলেও বাঁচে, আর V721-এর ৩০ মিনিটের সীমাও এতে লাগে না।
+       ⛔ মেমরিতে রোগী থাকলে `restoreFrom()` কিচ্ছু করে না (RoleSession.kt)। */
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        RoleSession.saveTo(outState)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        RoleSession.restoreFrom(savedInstanceState)   // 🔴🔒 V786 — কল/মেমরির কারণে হারানো রোগী ফেরানো
         ClinicalRepository.attachInvestMemory(this)
         setContentView(R.layout.activity_investigation_advice)
         UppercaseInputUtil.applyToAll(window.decorView.findViewById(android.R.id.content))  // TK-REQUESTED GLOBAL RULE (2026-07-24): English text auto-CAPITAL, Password fields excluded automatically
 
-        val toolbar = findViewById<Toolbar>(R.id.toolbar)
-        setSupportActionBar(toolbar)
-        toolbar.setNavigationOnClickListener { finish() }
-        // TK-DECISION (2026-07-22): show the current patient under the title so
-        // a Blood Test can't be made for the wrong patient by mistake.
+        /* 🎨🔒 V767 (২৭.০৮.২০২৬, TK-অনুমোদিত **ডিজাইন B**, ডেমো ফটো দেখে বাছা)
+           TK: *"পেশেন্ট ডিটেইলসের হেডারটা Check Up সেকশনের হেডারের সাথে মিলিয়ে দিন"*
+
+           **আগে কী হত:** রোগীর নাম·ID·রোগ টুলবারের **সাবটাইটেলে** বসত। টুলবারে
+           জায়গা কম, তাই তৃতীয় লাইনটা (COB-… · Piles, Fistula) **অর্ধেক কেটে**
+           যেত — TK ছবিতে সেটাই দেখিয়েছেন।
+
+           **এখন:** টুলবারটাই নেই (Check-Up পর্দার মতো), রোগীর তথ্য একটা
+           পরিষ্কার কার্ডে — কাটার প্রশ্নই ওঠে না।
+           ⛔ পিছনে ফেরা ফোনের নিজের Back-এ চলে (Check-Up-এ ঠিক যেভাবে চলে)।
+           ⛔ নাম/ID/রোগ যেখান থেকে আসে (`RoleSession`) তা এক অক্ষরও বদলায়নি। */
         run {
             // 🔒 খাতার সারি B175 — মানুষ-পড়া-যায় Patient ID।
             val line = listOf(RoleSession.currentPatientName, RoleSession.displayId(), RoleSession.currentPatientDisease)
-                .map { it.trim() }.filter { it.isNotBlank() }.joinToString(" · ")
-            if (line.isNotBlank()) {
-                supportActionBar?.subtitle = "👤 $line"
-                toolbar.setSubtitleTextColor(android.graphics.Color.parseColor("#DDE7F2"))
-            }
-        }
-        // TK-REPORTED BUG FIX (2026-07-16): the title was cut off with "..."
-        // because Toolbar titles are single-line by default. Let it wrap to
-        // 2 lines instead so the full "Blood Test / Investigation Advice"
-        // is always readable.
-        // 🔴 TK-REPORTED (02.08.2026, স্ক্রিনশট — "হেডার ঠিক নেই"): ঠিক এই
-        // একই কারণে সাবটাইটেলও (রোগীর নাম · ID · রোগ লাইন) কেটে "..." দেখাত —
-        // উপরের ফিক্স শুধু title-এর TextView ধরেছিল, subtitle-এর নিজের
-        // TextView আলাদা, সেটা তখন ছোঁয়া হয়নি। এখন দুটোই একই নিয়মে wrap হবে।
-        for (i in 0 until toolbar.childCount) {
-            val child = toolbar.getChildAt(i)
-            if (child is TextView && (child.text == toolbar.title || child.text == toolbar.subtitle)) {
-                child.isSingleLine = false
-                child.maxLines = 2
-                child.ellipsize = null
+                .map { it.trim() }.filter { it.isNotBlank() }
+            val head = findViewById<TextView>(R.id.tvPatientHead)
+            if (head != null && line.isNotEmpty()) {
+                head.text = "👤 " + line.joinToString("\n")
+                head.visibility = android.view.View.VISIBLE
             }
         }
 
@@ -93,29 +96,39 @@ class InvestigationAdviceActivity : AppCompatActivity() {
      *  ভিতরেই লেখা ছিল — এখন আলাদা ফাংশনে বার করা হলো যাতে "Common Blood Test"
      *  পপ-আপের নতুন Share বোতামও (TK-এর নির্দেশে) ঠিক এই একই কোড ব্যবহার করে,
      *  আলাদা করে দ্বিতীয়বার লেখা লাগেনি। ⛔ ভিতরের লজিক এক অক্ষরও বদলায়নি। */
+    /**
+     * 📄🔒 V765 (২৭.০৮.২০২৬, TK-নির্দেশ ছবিসহ: *"এখানে share এ চাপলে Text কেন
+     * যাবে, A4 Size এর PDF যেতে হবে"*)
+     *
+     * **আগে কী হত:** `Intent.ACTION_SEND` + `type = "text/plain"` — অর্থাৎ
+     * শুধু কয়েক লাইন লেখা যেত, কোনো কাগজ নয়।
+     *
+     * **এখন:** প্রিন্টে যে **হুবহু একই A4 কাগজ** যায়
+     * (`InvestigationHtmlPrint.build()`), সেটাই PDF বানিয়ে পাঠানো হয়
+     * (`PrescriptionWhatsAppShare.shareHtml()` — প্রজেক্টের প্রমাণিত যন্ত্র,
+     * প্রেসক্রিপশন ও Check-up History-তে বহুদিন ধরে চলছে)।
+     * ⇒ **নতুন কোনো কাগজ বা PDF-যন্ত্র বানানো হয়নি** — যা ছিল তাই জোড়া হলো,
+     *   তাই প্রিন্ট আর শেয়ারের কাগজ কখনো আলাদা হবে না।
+     * ⛔ "কোনো টেস্ট বাছা হয়নি" পাহারা আগের মতোই আছে।
+     */
     private fun shareInvestigations() {
         val chosen = ClinicalRepository.currentInvestigations.filter { it.isSelected }
         if (chosen.isEmpty()) {
             Toast.makeText(this, "No tests selected yet.", Toast.LENGTH_SHORT).show()
             return
         }
-        val line = listOf(RoleSession.currentPatientName, RoleSession.displayId())
-            .map { it.trim() }.filter { it.isNotBlank() }.joinToString(" \u00b7 ")
-        val shareText = buildString {
-            append("Blood Test / Investigation Advice\n")
-            if (line.isNotBlank()) append("$line\n")
-            append("\n")
-            chosen.forEach { append("\u2022 ${it.name}\n") }
-            // 🔴 V430 — লেখা থাকলে Advice / Remarks-ও সঙ্গে যায় (কম্পিউটারের মতোই)।
-            val rem = invRemarks()
-            if (rem.isNotBlank()) append("\nAdvice / Remarks : $rem\n")
+        try {
+            val html = com.tkbiswas.pilesclinic.print.InvestigationHtml.build(invRemarks())  // ⚠️ V769 — `build()` আছে `InvestigationHtml`-এ, `InvestigationHtmlPrint`-এ নয়
+                //    (দুটোই একই ফাইলে — ফাইলের নাম ধরে লিখে ফেলাই ছিল ভুল)
+            com.tkbiswas.pilesclinic.print.PrescriptionWhatsAppShare.shareHtml(
+                activity = this,
+                html = html,
+                documentTitle = "Blood Test Advice",
+                patientName = RoleSession.currentPatientName
+            )
+        } catch (_: Throwable) {
+            Toast.makeText(this, "Could not prepare the PDF. Please try Print instead.", Toast.LENGTH_LONG).show()
         }
-        val sendIntent = Intent(Intent.ACTION_SEND).apply {
-            type = "text/plain"
-            putExtra(Intent.EXTRA_SUBJECT, "Blood Test Advice - ${RoleSession.currentPatientName}")
-            putExtra(Intent.EXTRA_TEXT, shareText)
-        }
-        startActivity(Intent.createChooser(sendIntent, "Share Blood Test Advice"))
     }
 
     /** TK APPROVED (2026-07-15): printing matters more than just saving — added
@@ -128,6 +141,10 @@ class InvestigationAdviceActivity : AppCompatActivity() {
         catch (_: Throwable) { "" }
 
     private fun saveInvestigations(openPrintAfter: Boolean) {
+        /* 🔴🔒 V786 — রোগী চেনা না গেলে (কল/মেমরির কারণে প্রসেস মরে পর্দা
+           আবার খোলা) এখানেই থেমে যায়। আগে ফাঁকা আইডিতেও সেভ হয়ে যেত আর
+           "saved" লেখা উঠত — ডাক্তারের লেখা চুপচাপ হারাত। */
+        if (RoleSession.blockIfNoPatient(this)) return
         val requested = ClinicalRepository.currentInvestigations.filter { it.isSelected }
         if (requested.isEmpty()) {
             Toast.makeText(this, "No tests selected yet.", Toast.LENGTH_SHORT).show()
@@ -149,11 +166,20 @@ class InvestigationAdviceActivity : AppCompatActivity() {
         // প্রিন্টের সব তথ্য ফোনেই আছে, ক্লাউডের কিছু লাগে না। সেভটা আগে
         // ফোনেই লেখা হয়, তারপর পিছনে ক্লাউডে যায়; না গেলে অপেক্ষমাণ
         // তালিকায় জমা থেকে নিজে থেকেই আবার যায়, তাই কিছু হারায় না।
-        Toast.makeText(this@InvestigationAdviceActivity, "Saved (${requested.size} test/s).", Toast.LENGTH_SHORT).show()
         val appCtx = applicationContext
+        val detailsStr = if (invRem.isNotBlank()) invRem else summary
+        /* 🟡🔒 V708 (২৬.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত) — TK-এর ছবিতে
+           ৩.১৭–৩.২১-এর মধ্যে **৫টা হুবহু এক Investigation**। কারণ: এই পর্দার
+           `Save` ও `Save & Print` — দুটো বোতামই এই একই ফাংশন ডাকে, আর সেভের
+           কোডে ডুপ্লিকেট যাচাই ছিল না। এখন আজকের হুবহু একই লেখা আগে থেকে
+           থাকলে Warning আসে: **Cancel** = সেভ হবে না · **OK** = তবুও সেভ।
+           ⛔ নেটের খরচ শূন্য (শুধু ফোনের জমা তালিকা দেখা হয়)।
+           ⛔ Toast · প্রিন্ট · সেভ — তিনটেই আগের মতোই, শুধু সিদ্ধান্তের পরে। */
+        DuplicateSaveGuard.run(this, pid, "Investigation", selectedStr, detailsStr) {
+        Toast.makeText(this@InvestigationAdviceActivity, "Saved (${requested.size} test/s).", Toast.LENGTH_SHORT).show()
         com.tkbiswas.pilesclinic.native.BackgroundWork.run {
             ClinicalCloudRepository.saveMedical(appCtx, pid, pname, "Investigation", selectedStr,
-                if (invRem.isNotBlank()) invRem else summary, createdBy)
+                detailsStr, createdBy)
         }
         if (openPrintAfter) {
             /* 🩸🔒 V596 (২৩.০৮.২০২৬, TK-অনুমোদিত ডেমো-ফটো দেখে): Blood Test এখন
@@ -165,6 +191,7 @@ class InvestigationAdviceActivity : AppCompatActivity() {
             com.tkbiswas.pilesclinic.print.InvestigationHtmlPrint.print(
                 this@InvestigationAdviceActivity, invRemarks())
         }
+        }   // 🟡 V708 — DuplicateSaveGuard.run ব্লকের শেষ
     }
 
     override fun onResume() {
@@ -265,10 +292,13 @@ class InvestigationAdviceActivity : AppCompatActivity() {
             // 🔒 TK-এর নির্দেশ (01.08.2026): "৮টা বক্সের সাইজ ছোট করুন, লেখা
             // বক্সের সাথে সামঞ্জস্যপূর্ণ" — padding ও লেখার মাপ কমানো হলো;
             // চাপ দিলে যা হতো (category screen খোলা) তা এক অক্ষরও বদলায়নি।
+            // 🟢 V600 (২৩.০৮.২০২৬, TK-অনুমোদিত, ছবি-প্রুফ পাশ): "সাইজ আরো
+            // ছোট করুন, আইকন থাকবে না, নামের লেখা একটু বড় করুন" — padding
+            // 8/10dp → 6/6dp, ইমোজি আইকন সম্পূর্ণ বাদ, নামের সাইজ 11sp → 13sp।
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = android.view.Gravity.CENTER
-                setPadding(dp(8), dp(10), dp(8), dp(10))
+                setPadding(dp(6), dp(6), dp(6), dp(6))
                 background = android.graphics.drawable.GradientDrawable().apply {
                     cornerRadius = dp(14).toFloat()
                     colors = intArrayOf(android.graphics.Color.parseColor(c1), android.graphics.Color.parseColor(c2))
@@ -279,13 +309,8 @@ class InvestigationAdviceActivity : AppCompatActivity() {
                 isClickable = true; isFocusable = true
             }
             card.addView(TextView(this).apply {
-                text = cat.emoji; textSize = 17f; gravity = android.view.Gravity.CENTER
-            })
-            card.addView(TextView(this).apply {
-                text = cat.name; textSize = 11f; setTypeface(typeface, android.graphics.Typeface.BOLD)
+                text = cat.name; textSize = 13f; setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setTextColor(android.graphics.Color.parseColor(textColor)); gravity = android.view.Gravity.CENTER
-                val p = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-                p.topMargin = dp(4); layoutParams = p
             })
             card.addView(TextView(this).apply {
                 text = if (selectedCount > 0) "$selectedCount / ${cat.tests.size} selected" else "${cat.tests.size} tests"

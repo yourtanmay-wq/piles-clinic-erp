@@ -46,7 +46,7 @@ object PrescriptionHtmlPrint {
     @Suppress("StaticFieldLeak")
     private var keepAlive: WebView? = null
 
-    fun print(activity: Activity, model: PrintDocumentModel) {
+    fun print(activity: Activity, model: PrintDocumentModel, onStateChanged: ((String) -> Unit)? = null) {
         val html = PrescriptionHtml.build(activity, model)
         val wv = WebView(activity)
         wv.settings.javaScriptEnabled = false
@@ -56,13 +56,43 @@ object PrescriptionHtmlPrint {
                     val pm = activity.getSystemService(Context.PRINT_SERVICE) as PrintManager
                     val jobName = model.documentTitle
                     val adapter = view.createPrintDocumentAdapter(jobName)
-                    pm.print(
+                    val job = pm.print(
                         jobName, adapter,
                         PrintAttributes.Builder()
                             .setMediaSize(PrintAttributes.MediaSize.ISO_A4)
                             .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
                             .build()
                     )
+                    // 🟢🔒🔒 V675 (২৫.০৮.২০২৬, বিল্ড-এরর ফিক্স) — Android SDK-তে
+                    // `PrintJob`-এর কোনো state-change listener নেই (পাবলিক API
+                    // নেই), তাই Handler দিয়ে প্রতি ৫০০ms জব-স্টেট পোল করা হচ্ছে
+                    // যতক্ষণ না completed/failed/cancelled হয়।
+                    if (onStateChanged != null) {
+                        try {
+                            val handler = android.os.Handler(android.os.Looper.getMainLooper())
+                            var lastMsg = ""
+                            val poller = object : Runnable {
+                                override fun run() {
+                                    val msg = when {
+                                        job.isCompleted -> "✅ Print sheet closed — completed (printed or saved as PDF)."
+                                        job.isFailed -> "❌ Print failed — please try again."
+                                        job.isCancelled -> "⚠️ Print was cancelled — nothing was printed."
+                                        job.isBlocked -> "⏸️ Print is paused — check the printer."
+                                        job.isQueued || job.isStarted -> "⏳ Sending to printer…"
+                                        else -> ""
+                                    }
+                                    if (msg.isNotBlank() && msg != lastMsg) {
+                                        lastMsg = msg
+                                        onStateChanged(msg)
+                                    }
+                                    if (!job.isCompleted && !job.isFailed && !job.isCancelled) {
+                                        handler.postDelayed(this, 500)
+                                    }
+                                }
+                            }
+                            handler.postDelayed(poller, 500)
+                        } catch (_: Throwable) { }
+                    }
                 } catch (e: Throwable) {
                     android.widget.Toast.makeText(
                         activity, "Could not open print — please try again",
@@ -94,10 +124,22 @@ object PrescriptionHtml {
 
     private fun dot(date: Date): String = SimpleDateFormat("dd.MM.yyyy", Locale.US).format(date)
 
+    /** 🖨️🔒 V955 (০১.০৯.২০২৬, TK-নির্দেশ: *"Date-এর পাশে Time থাকতে হবে"*) —
+     *  প্রকল্পের লক করা ফরম্যাট: তারিখ `dd.MM.yyyy`, সময় `h.mm a` (১২-ঘণ্টা AM/PM,
+     *  ঠিক যেমন `DoctorCheckupActivity`-তে আছে)। ⛔ তারিখের রূপ বদলায়নি,
+     *  শুধু পাশে সময় যোগ হলো। */
+    private fun dotTime(date: Date): String =
+        SimpleDateFormat("dd.MM.yyyy", Locale.US).format(date) + "  " +
+        SimpleDateFormat("h.mm a", Locale.US).format(date)
+
     /** "2026-09-02" বা "02.09.2026" — দুটোই এসে 02.09.2026 হয়ে যায়। */
     private fun dotFromText(raw: String): String {
         val s = raw.trim()
-        if (s.isEmpty()) return "_______________"
+        /* 🖨️🔒 V994 (০৩.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — তারিখ না থাকলে
+           আগে `_______________` ছাপত; TK-এর কথায় ওটা দেখতে পেশাদার নয়।
+           এখন ফাঁকা যায় আর টেমপ্লেটের CSS একটা পরিষ্কার পাতলা দাগ আঁকে —
+           হাতে লেখার জায়গা আগের মতোই থাকে। ⛔ তারিখ থাকলে কিছুই বদলায়নি। */
+        if (s.isEmpty()) return ""
         val iso = Regex("^(\\d{4})-(\\d{2})-(\\d{2})").find(s)
         if (iso != null) {
             return iso.groupValues[3] + "." + iso.groupValues[2] + "." + iso.groupValues[1]
@@ -173,10 +215,16 @@ object PrescriptionHtml {
         } else {
             "<div class=\"brSub\">" + esc(model.branchName.trim().uppercase(Locale.US)) + " BRANCH</div>"
         }
-        val clinicAddr = esc(branch.addressLine) + " · Mobile: +91" + esc(branch.phoneLine)
+        val clinicAddr = esc(branch.addressLine) + " · Mobile: +91" + esc(branch.phoneLine) +
+            " · Helpline: +91" + esc(BranchCatalog.HELPLINE)   // ☎️ V833
 
         // 🔵 ওয়েবের মতোই: Diet ও রোগীর ইতিহাস শুধু PRESCRIPTION-এ, Medicine Slip-এ নয়।
-        val historyBlock = if (isPrescription) historyHtml(model.complaintHistory) else ""
+        /* 🖨️🔒 V833 (২৯.০৮.২০২৬, TK-নির্দেশ) — আগে এখানে `if (isPrescription)`
+           ছিল, তাই **Medicine Slip-এ বাঁ কলামটা ইচ্ছে করে বাদ দেওয়া হত**
+           (TK-এর প্রশ্ন: *"মেডিসিন স্লিপে নেই কেন?"*)। এখন দুই কাগজেই বসে।
+           ⛔ তালিকা ফাঁকা হলে আগের মতোই কিছুই বসে না — অর্থাৎ পুরনো কোনো
+              কাগজ ভাঙে না। */
+        val historyBlock = historyHtml(model.complaintHistory)
         /* 🔵 V488 (20.08.2026, TK-নির্দেশ): "ADVICE: Sitz Bath — 2 Times Daily"
            লাইনটা আগে টেমপ্লেটের ভিতরে **হাতে লেখা স্থির** ছিল, তাই কোনোভাবেই
            তোলা যেত না। এখন সেটা `{{ADVICE}}` ঘর — Prescription-এ টিক তোলা থাকলে
@@ -212,7 +260,7 @@ object PrescriptionHtml {
         out = out.replace("{{AGE}}", esc(agePart(model.patientAgeSex)))
         out = out.replace("{{PID}}", esc(model.patientId.trim()))
         out = out.replace("{{MOBILE}}", esc(model.patientMobile.trim()))
-        out = out.replace("{{DATE}}", dot(Date()))
+        out = out.replace("{{DATE}}", dotTime(Date()))   // 🖨️ V955 — তারিখের পাশে সময়
         out = out.replace("{{SEX}}", esc(sexPart(model.patientAgeSex)))
         out = out.replace("{{DISEASE}}", esc(model.patientDisease.trim().uppercase(Locale.US)))
         out = out.replace("{{ADDRESS}}", esc(model.patientAddress.trim()))

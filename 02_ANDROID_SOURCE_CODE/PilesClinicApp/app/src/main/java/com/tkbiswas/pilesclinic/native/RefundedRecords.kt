@@ -111,4 +111,31 @@ object RefundedRecords {
             HashSet()
         }
     }
+
+    /**
+     * 🟢🔒 V621 (২৪.০৮.২০২৬, TK-নির্দেশ) — "Fees Return" করা রোগী Chamber
+     * Date থেকে **সম্পূর্ণ বাদ** যাবে (উপরের `Cancelled`-এর মতো শুধু টাকা
+     * লুকানো না, পুরো সারিই)। ⛔ সম্পূর্ণ **আলাদা** ফাংশন — উপরের
+     * `fetch()`/`fromRows()`-এর প্রমাণিত "Cancelled" নিয়ম এক অক্ষরও
+     * ছোঁয়া হয়নি, নতুন এই status ("Returned") পুরনো কোনো ডেটার সাথে
+     * মেশে না। ব্যর্থ হলে খালি সেট — নিরাপদ দিক (কারো সারি ভুলবশত বাদ যায় না)।
+     */
+    fun fetchReturnedVisits(branchFilter: String?): HashSet<String> {
+        return try {
+            val filter = if (branchFilter != null && branchFilter != "All")
+                "branch=eq." + java.net.URLEncoder.encode(branchFilter, "UTF-8") else null
+            val rows = SupabaseClient.fetchListSlimOrNull("followups", filter, 5000, "id,mobile,status,stage")
+                ?: return HashSet()
+            val out = HashSet<String>()
+            for (i in 0 until rows.length()) {
+                val r = rows.optJSONObject(i) ?: continue
+                val m = r.optString("mobile", "").filter { it.isDigit() }.takeLast(10)
+                if (m.length != 10) continue
+                if (r.s("status").equals("Returned", ignoreCase = true) && r.s("stage") == "Patient") out.add(m)
+            }
+            out
+        } catch (_: Throwable) {
+            HashSet()
+        }
+    }
 }

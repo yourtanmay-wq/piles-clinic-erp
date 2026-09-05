@@ -150,7 +150,9 @@ class DoctorVisitRepository {
         return out
     }
 
-    data class DuplicateDoctor(val found: Boolean, val name: String)
+    /** 🔴🔒 V940 — `branch` যোগ হলো: ওই নম্বরটা **কোন ব্রাঞ্চে** আগে থেকে
+     *  আছে সেটা জানাতে। ⛔ ডিফল্ট ফাঁকা, তাই পুরনো কোনো ব্যবহার ভাঙে না। */
+    data class DuplicateDoctor(val found: Boolean, val name: String, val branch: String = "")
 
     // 🔒 (03.08.2026, TK-অনুমোদনে, খাতার সারি B190-এর গভীর পুনর্বিবেচনা) —
     // আগে এখানে `SupabaseClient.findByMobile()` ব্যবহার হত, যেটা নেট-ব্যর্থতায়ও
@@ -167,17 +169,41 @@ class DoctorVisitRepository {
     // সত্যিই উত্তর এলে (খালি হোক বা না) স্থানীয় তালিকা মোটেও ছোঁয়া হয় না —
     // তাই স্বাভাবিক নেটে আচরণ অপরিবর্তিত। ⛔ `localFallback` ডিফল্ট `null`
     // (এই একটাই call-site, তাই পুরনো কোনো ব্যবহার ভাঙে না)।
-    fun checkDuplicate(mobileDigitsOnly: String, localFallback: List<DoctorVisitItem>? = null): DuplicateDoctor {
+    fun checkDuplicate(mobileDigitsOnly: String, localFallback: List<DoctorVisitItem>? = null,
+                       forBranch: String = ""): DuplicateDoctor {
         val normalized = "+91$mobileDigitsOnly"
         // ১) ক্লাউডে প্রাইমারি mobile-এ মিলছে কিনা (আগের মতোই)।
-        val cloud = SupabaseClient.findByMobileOrNull("doctor_visits", normalized, "name")
-        if (cloud != null && cloud.length() > 0) return DuplicateDoctor(true, cloud.getJSONObject(0).s("name"))
+        val cloud = SupabaseClient.findByMobileOrNull("doctor_visits", normalized, "name,branch", 20)
+        if (cloud != null && cloud.length() > 0) {
+            /* 🔴🔴🔒 V940 (০১.০৯.২০২৬, TK-নির্দেশ, অনুমতি নিয়ে) — *"একই নম্বর
+               প্রতিটা ব্রাঞ্চে আলাদা RMP হিসেবে বসুক"*। তাই এখন **যে ব্রাঞ্চের
+               জন্য সেভ করা হচ্ছে** সেই ব্রাঞ্চে আগে আছে কিনা সেটাই আসল প্রশ্ন।
+               একই ব্রাঞ্চে থাকলে আগের মতোই আটকাবে; অন্য ব্রাঞ্চে থাকলে
+               ডাকার জায়গা স্টাফকে জিজ্ঞাসা করে সেভ করতে দেবে।
+               ⛔ `forBranch` ফাঁকা পাঠালে আচরণ **হুবহু আগের মতোই** (যে-কোনো
+                  ব্রাঞ্চের মিলই ডুপ্লিকেট) — তাই পুরনো কোনো কল ভাঙে না। */
+            var other: DuplicateDoctor? = null
+            for (i in 0 until cloud.length()) {
+                val r = cloud.optJSONObject(i) ?: continue
+                val b = r.s("branch")
+                if (forBranch.isBlank() || b.equals(forBranch, ignoreCase = true))
+                    return DuplicateDoctor(true, r.s("name"), b)
+                if (other == null) other = DuplicateDoctor(true, r.s("name"), b)
+            }
+            if (forBranch.isBlank()) return DuplicateDoctor(true, cloud.getJSONObject(0).s("name"))
+            if (other != null) return other
+            return DuplicateDoctor(false, "")
+        }
         // ২) 🟢 B630 (11.08.2026): এই ফোনের জানা তালিকায় প্রাইমারি **বা বাড়তি নম্বরে**
         //    মিলছে কিনা — ক্লাউড-query শুধু প্রাইমারি mobile দেখে, তাই বাড়তি নম্বরের
         //    ডুপ্লিকেট এখানেই ধরা হয়। (ক্লাউড ব্যর্থ হলেও এই তালিকা কাজ করে — পুরনো fail-safe অটুট।)
         if (localFallback != null) {
-            val hit = localFallback.firstOrNull { doctorItemHasNumber(it, mobileDigitsOnly) }
-            if (hit != null) return DuplicateDoctor(true, hit.name)
+            // 🔴🔒 V940 — এখানেও একই ব্রাঞ্চের নিয়ম (ক্লাউড ব্যর্থ হলে এই পথটাই চলে)।
+            val hits = localFallback.filter { doctorItemHasNumber(it, mobileDigitsOnly) }
+            val same = hits.firstOrNull { forBranch.isBlank() || it.branch.equals(forBranch, ignoreCase = true) }
+            if (same != null) return DuplicateDoctor(true, same.name, same.branch)
+            val other = hits.firstOrNull()
+            if (other != null) return DuplicateDoctor(true, other.name, other.branch)
         }
         return DuplicateDoctor(false, "")
     }
@@ -196,8 +222,9 @@ class DoctorVisitRepository {
     // anyone sees at the moment of saving -- it only notes the new doctor down
     // (MyPhoneWrites) so the Doctor/RMP list shows it even while the cloud copy
     // is still on its way. The save itself is exactly as it always was.
-    fun addNewDoctor(name: String, mobileDigitsOnly: String, branch: String, area: String, remarks: String, nextCallDate: String, staffMobile: String, context: android.content.Context? = null, altMobiles: String = ""): Boolean {
-        val row = DoctorVisitModel.buildNewDoctorRow(name, mobileDigitsOnly, branch, area, remarks, nextCallDate, staffMobile, altMobiles)
+    fun addNewDoctor(name: String, mobileDigitsOnly: String, branch: String, area: String, remarks: String, nextCallDate: String, staffMobile: String, context: android.content.Context? = null, altMobiles: String = "", policeStation: String = ""): Boolean {
+        // 🚓 V1034 — থানা (ডিফল্ট ফাঁকা, তাই পুরনো ডাক আগের মতোই চলে)।
+        val row = DoctorVisitModel.buildNewDoctorRow(name, mobileDigitsOnly, branch, area, remarks, nextCallDate, staffMobile, altMobiles, policeStation)
         val ok = SupabaseClient.upsert("doctor_visits", row)
         try { MyPhoneWrites.remember(context, "doctor_visits", row.optString("id"), row) } catch (_: Throwable) { }
         return ok
@@ -237,10 +264,64 @@ class DoctorVisitRepository {
         // এখান থেকে লেখার চেষ্টা শুরু — ব্যর্থ হলেও `SupabaseClient.updateById`
         // নিজেই `CloudWriteQueue`-তে বসিয়ে রাখে, তাই নেট এলে নিজে থেকেই যাবে।
         lastCallWriteQueued = true
+        /* 🔴🔒 V992 (TK-রিপোর্ট: এডিট সেভ হয়েও পুরনোটাই দেখাত) — সময়-চিহ্ন
+           না বসায় তালিকা "কিছু বদলায়নি" ধরে জমানো পুরনো কপি দেখাত। এখন
+           প্রতিটা বদলের সাথে চিহ্নটাও বসে, তাই সব ফোনে নতুনটা নামে। */
+        fields.put("updatedAt", java.text.SimpleDateFormat(
+            "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US
+        ).format(java.util.Date()))
         val ok = SupabaseClient.updateById("doctor_visits", id, fields)
         // Same permanent rule as addNewDoctor above: the remark just written on
         // this phone is noted down so the list shows it at once instead of the
         // older one -- TK: "রিমার্ক লিখছি হয়ে গেছে দেখায়, পরে পুরনোটাই থাকে."
+        try { MyPhoneWrites.remember(context, "doctor_visits", id, fields) } catch (_: Throwable) { }
+        return ok
+    }
+
+    /**
+     * 🟢🔒 V836 (২৯.০৮.২০২৬, TK-নির্দেশ, ডেমো-ফটো পাশ) — কল-শেষের
+     * নোটিফিকেশনের "📝 Add Remark" থেকে RMP-র কল-নোট লেখা।
+     *
+     * TK: *"কল কাটার পরে এখানে যেন Remarks লেখার অপশন আসে এবং Remarks
+     * লিখলে যেন অটোমেটিক Update হয়ে যায় RMP section এ।"*
+     * আর Next Call তারিখ — *"তবে বাধ্যতামূলক নয়"*।
+     *
+     * 🔴 কেন উপরের `logCall()` **সরাসরি ব্যবহার করা গেল না** (যাচাই করে ধরা,
+     *    TK-কে আগে জানানো হয়েছে): `buildCallUpdateFields()` সবসময়
+     *    `nextCallDate` **আর** `expectedPatientDate` দুটোই লিখে দেয়।
+     *    নোটিফিকেশন থেকে ওই দুটো জানা থাকে না ⇒ ফাঁকা পাঠালে ওই ডাক্তারের
+     *    **আগের Next Call ও Expected Patient তারিখ মুছে যেত**।
+     *    তাই এখানে সারিটা পড়ে **আগের মানদুটো নিজেই ফেরত বসিয়ে** দেওয়া হয়।
+     *
+     * ⛔ নতুন কোনো লেখার নিয়ম বানানো হয়নি — একই প্রমাণিত
+     *    `buildCallUpdateFields()` ব্যবহার হয়, তাই callHistory-র ধাঁচ,
+     *    `callStatus`, `remarks`, `lastCallDate` হুবহু আগের মতোই বসে।
+     * ⛔ V434-এর নিয়ম মানা: পড়া ব্যর্থ হলে (`null`) **কিছুই লেখা হয় না**,
+     *    `false` ফেরে — পুরনো callHistory মুছে যাওয়ার সুযোগ নেই।
+     * ⛔ `nextCallDate` ফাঁকা এলে আগেরটাই থাকে; স্টাফ তারিখ বাছলে তবেই বদলায়।
+     */
+    fun logCallKeepingDates(
+        id: String, note: String, staffMobile: String,
+        nextCallDate: String = "", context: android.content.Context? = null
+    ): Boolean {
+        if (id.isBlank() || note.isBlank()) return false
+        val existing = SupabaseClient.fetchListOrNull("doctor_visits", "id=eq.$id", 1) ?: return false
+        if (existing.length() == 0) return false
+        val row = existing.getJSONObject(0)
+        val existingHistory = row.optJSONArray("callHistory") ?: JSONArray()
+        val oldNext = if (row.isNull("nextCallDate")) "" else row.optString("nextCallDate", "")
+        val oldExpected = if (row.isNull("expectedPatientDate")) "" else row.optString("expectedPatientDate", "")
+        val useNext = nextCallDate.trim().ifBlank { oldNext }
+        val fields = DoctorVisitModel.buildCallUpdateFields(
+            existingHistory, note, useNext, staffMobile, oldExpected
+        )
+        /* 🔴🔒 V992 (TK-রিপোর্ট: এডিট সেভ হয়েও পুরনোটাই দেখাত) — সময়-চিহ্ন
+           না বসায় তালিকা "কিছু বদলায়নি" ধরে জমানো পুরনো কপি দেখাত। এখন
+           প্রতিটা বদলের সাথে চিহ্নটাও বসে, তাই সব ফোনে নতুনটা নামে। */
+        fields.put("updatedAt", java.text.SimpleDateFormat(
+            "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US
+        ).format(java.util.Date()))
+        val ok = SupabaseClient.updateById("doctor_visits", id, fields)
         try { MyPhoneWrites.remember(context, "doctor_visits", id, fields) } catch (_: Throwable) { }
         return ok
     }
@@ -267,6 +348,12 @@ class DoctorVisitRepository {
         val fields = org.json.JSONObject()
             .put("callHistory", newHistory)
             .put("remarks", fixedNote)
+        /* 🔴🔒 V992 (TK-রিপোর্ট: এডিট সেভ হয়েও পুরনোটাই দেখাত) — সময়-চিহ্ন
+           না বসায় তালিকা "কিছু বদলায়নি" ধরে জমানো পুরনো কপি দেখাত। এখন
+           প্রতিটা বদলের সাথে চিহ্নটাও বসে, তাই সব ফোনে নতুনটা নামে। */
+        fields.put("updatedAt", java.text.SimpleDateFormat(
+            "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US
+        ).format(java.util.Date()))
         val ok = SupabaseClient.updateById("doctor_visits", id, fields)
         try { MyPhoneWrites.remember(context, "doctor_visits", id, fields) } catch (_: Throwable) { }
         return ok
@@ -393,6 +480,24 @@ class DoctorVisitRepository {
                 .put("referralPayments", newArr)
                 .put("referralPaid", paid)
                 .put("referralDue", due)
+            /* 🔴🔒 V817 (২৯.০৮.২০২৬, V816-এর পরে TK-নির্দেশে পুরো প্রজেক্ট যাচাই) —
+               এই সারিটা **পুরো `referralPayments` তালিকাটাই** নতুন করে লেখে।
+               কোনো ফোনে ওই একই ঘরগুলোর **পুরনো একটা snapshot** অপেক্ষমাণ থাকলে
+               সেটা পরে চললে এই নতুন লেখাটা **মুছে গিয়ে পুরনোটা ফিরে আসত**।
+               V378-এ ঠিক এই সুরক্ষাটা delete ও edit-এ বসানো ছিল, কিন্তু এখানে
+               বাদ পড়েছিল — এখন তিন জায়গাতেই এক নিয়ম।
+               ⛔ উপরের তালিকাটা এইমাত্র ক্লাউড থেকে পড়া, তাই আমাদেরটাই নবীনতম;
+                  পুরনো snapshot বাদ দেওয়া সম্পূর্ণ নিরাপদ।
+               ⛔ শুধু এই তিনটে ঘর — অন্য কোনো ঘরের অপেক্ষমাণ লেখা ছোঁয়া হয় না। */
+            val refKeysV817 = setOf("referralPayments", "referralPaid", "referralDue")
+            if (context != null) try { GenericUpdateQueue.discardFields(context, "doctor_visits", docId, refKeysV817) } catch (_: Throwable) {}
+            try { CloudWriteQueue.discardUpdateFields("doctor_visits", docId, refKeysV817) } catch (_: Throwable) {}
+            /* 🔴🔒 V992 (TK-রিপোর্ট: এডিট সেভ হয়েও পুরনোটাই দেখাত) — সময়-চিহ্ন
+               না বসায় তালিকা "কিছু বদলায়নি" ধরে জমানো পুরনো কপি দেখাত। এখন
+               প্রতিটা বদলের সাথে চিহ্নটাও বসে, তাই সব ফোনে নতুনটা নামে। */
+            fields.put("updatedAt", java.text.SimpleDateFormat(
+                "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US
+            ).format(java.util.Date()))
             val ok = SupabaseClient.updateById("doctor_visits", docId, fields)
             if (!ok && context != null) {
                 try { GenericUpdateQueue.queue(context, "doctor_visits", docId, fields) } catch (_: Throwable) { }
@@ -450,7 +555,25 @@ class DoctorVisitRepository {
             if (matches.size != 1) return ""
             val newId = "ref_legacy_" + java.util.UUID.randomUUID().toString().replace("-", "")
             arr.getJSONObject(matches.single()).put("id", newId)
+            /* 🔴🔒 V817 (২৯.০৮.২০২৬, V816-এর পরে TK-নির্দেশে পুরো প্রজেক্ট যাচাই) —
+               এই সারিটা **পুরো `referralPayments` তালিকাটাই** নতুন করে লেখে।
+               কোনো ফোনে ওই একই ঘরগুলোর **পুরনো একটা snapshot** অপেক্ষমাণ থাকলে
+               সেটা পরে চললে এই নতুন লেখাটা **মুছে গিয়ে পুরনোটা ফিরে আসত**।
+               V378-এ ঠিক এই সুরক্ষাটা delete ও edit-এ বসানো ছিল, কিন্তু এখানে
+               বাদ পড়েছিল — এখন তিন জায়গাতেই এক নিয়ম।
+               ⛔ উপরের তালিকাটা এইমাত্র ক্লাউড থেকে পড়া, তাই আমাদেরটাই নবীনতম;
+                  পুরনো snapshot বাদ দেওয়া সম্পূর্ণ নিরাপদ।
+               ⛔ শুধু এই তিনটে ঘর — অন্য কোনো ঘরের অপেক্ষমাণ লেখা ছোঁয়া হয় না। */
+            val refKeysV817 = setOf("referralPayments", "referralPaid", "referralDue")
+            if (context != null) try { GenericUpdateQueue.discardFields(context, "doctor_visits", docId, refKeysV817) } catch (_: Throwable) {}
+            try { CloudWriteQueue.discardUpdateFields("doctor_visits", docId, refKeysV817) } catch (_: Throwable) {}
             val fields = org.json.JSONObject().put("referralPayments", arr)
+            /* 🔴🔒 V992 (TK-রিপোর্ট: এডিট সেভ হয়েও পুরনোটাই দেখাত) — সময়-চিহ্ন
+               না বসায় তালিকা "কিছু বদলায়নি" ধরে জমানো পুরনো কপি দেখাত। এখন
+               প্রতিটা বদলের সাথে চিহ্নটাও বসে, তাই সব ফোনে নতুনটা নামে। */
+            fields.put("updatedAt", java.text.SimpleDateFormat(
+                "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US
+            ).format(java.util.Date()))
             val ok = SupabaseClient.updateById("doctor_visits", docId, fields)
             if (!ok && context != null) try { GenericUpdateQueue.queue(context, "doctor_visits", docId, fields) } catch (_: Throwable) {}
             if (ok) newId else ""
@@ -495,6 +618,12 @@ class DoctorVisitRepository {
             val referralKeys = setOf("referralPayments", "referralPaid", "referralDue")
             if (context != null) try { GenericUpdateQueue.discardFields(context, "doctor_visits", docId, referralKeys) } catch (_: Throwable) {}
             try { CloudWriteQueue.discardUpdateFields("doctor_visits", docId, referralKeys) } catch (_: Throwable) {}
+            /* 🔴🔒 V992 (TK-রিপোর্ট: এডিট সেভ হয়েও পুরনোটাই দেখাত) — সময়-চিহ্ন
+               না বসায় তালিকা "কিছু বদলায়নি" ধরে জমানো পুরনো কপি দেখাত। এখন
+               প্রতিটা বদলের সাথে চিহ্নটাও বসে, তাই সব ফোনে নতুনটা নামে। */
+            fields.put("updatedAt", java.text.SimpleDateFormat(
+                "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US
+            ).format(java.util.Date()))
             val ok = SupabaseClient.updateById("doctor_visits", docId, fields)
             if (!ok && context != null) try { GenericUpdateQueue.queue(context, "doctor_visits", docId, fields) } catch (_: Throwable) {}
             if (ok) {
@@ -543,6 +672,12 @@ class DoctorVisitRepository {
             // otherwise replay later and resurrect the deleted income entry.
             if (context != null) try { GenericUpdateQueue.discardFields(context, "doctor_visits", docId, referralKeys) } catch (_: Throwable) {}
             try { CloudWriteQueue.discardUpdateFields("doctor_visits", docId, referralKeys) } catch (_: Throwable) {}
+            /* 🔴🔒 V992 (TK-রিপোর্ট: এডিট সেভ হয়েও পুরনোটাই দেখাত) — সময়-চিহ্ন
+               না বসায় তালিকা "কিছু বদলায়নি" ধরে জমানো পুরনো কপি দেখাত। এখন
+               প্রতিটা বদলের সাথে চিহ্নটাও বসে, তাই সব ফোনে নতুনটা নামে। */
+            fields.put("updatedAt", java.text.SimpleDateFormat(
+                "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US
+            ).format(java.util.Date()))
             val ok = SupabaseClient.updateById("doctor_visits", docId, fields)
             if (!ok && context != null) try { GenericUpdateQueue.queue(context, "doctor_visits", docId, fields) } catch (_: Throwable) {}
             if (ok) {
@@ -644,6 +779,12 @@ class DoctorVisitRepository {
         val fields = org.json.JSONObject()
             .put("deleteRequestedBy", staffMobile)
             .put("deleteRequestedAt", java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US).format(java.util.Date()))
+        /* 🔴🔒 V992 (TK-রিপোর্ট: এডিট সেভ হয়েও পুরনোটাই দেখাত) — সময়-চিহ্ন
+           না বসায় তালিকা "কিছু বদলায়নি" ধরে জমানো পুরনো কপি দেখাত। এখন
+           প্রতিটা বদলের সাথে চিহ্নটাও বসে, তাই সব ফোনে নতুনটা নামে। */
+        fields.put("updatedAt", java.text.SimpleDateFormat(
+            "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US
+        ).format(java.util.Date()))
         return SupabaseClient.updateById("doctor_visits", id, fields)
     }
 
@@ -653,6 +794,12 @@ class DoctorVisitRepository {
         val fields = org.json.JSONObject()
             .put("deleteRequestedBy", "")
             .put("deleteRequestedAt", "")
+        /* 🔴🔒 V992 (TK-রিপোর্ট: এডিট সেভ হয়েও পুরনোটাই দেখাত) — সময়-চিহ্ন
+           না বসায় তালিকা "কিছু বদলায়নি" ধরে জমানো পুরনো কপি দেখাত। এখন
+           প্রতিটা বদলের সাথে চিহ্নটাও বসে, তাই সব ফোনে নতুনটা নামে। */
+        fields.put("updatedAt", java.text.SimpleDateFormat(
+            "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US
+        ).format(java.util.Date()))
         return SupabaseClient.updateById("doctor_visits", id, fields)
     }
 
@@ -712,7 +859,25 @@ class DoctorVisitRepository {
             entry.put("patientMobile", mob)
             if (patientName.isNotBlank()) entry.put("patient", patientName)
             arr.put(hitIndex, entry)
+            /* 🔴🔒 V817 (২৯.০৮.২০২৬, V816-এর পরে TK-নির্দেশে পুরো প্রজেক্ট যাচাই) —
+               এই সারিটা **পুরো `referralPayments` তালিকাটাই** নতুন করে লেখে।
+               কোনো ফোনে ওই একই ঘরগুলোর **পুরনো একটা snapshot** অপেক্ষমাণ থাকলে
+               সেটা পরে চললে এই নতুন লেখাটা **মুছে গিয়ে পুরনোটা ফিরে আসত**।
+               V378-এ ঠিক এই সুরক্ষাটা delete ও edit-এ বসানো ছিল, কিন্তু এখানে
+               বাদ পড়েছিল — এখন তিন জায়গাতেই এক নিয়ম।
+               ⛔ উপরের তালিকাটা এইমাত্র ক্লাউড থেকে পড়া, তাই আমাদেরটাই নবীনতম;
+                  পুরনো snapshot বাদ দেওয়া সম্পূর্ণ নিরাপদ।
+               ⛔ শুধু এই তিনটে ঘর — অন্য কোনো ঘরের অপেক্ষমাণ লেখা ছোঁয়া হয় না। */
+            val refKeysV817 = setOf("referralPayments", "referralPaid", "referralDue")
+            if (context != null) try { GenericUpdateQueue.discardFields(context, "doctor_visits", docId, refKeysV817) } catch (_: Throwable) {}
+            try { CloudWriteQueue.discardUpdateFields("doctor_visits", docId, refKeysV817) } catch (_: Throwable) {}
             val fields = org.json.JSONObject().put("referralPayments", arr)
+            /* 🔴🔒 V992 (TK-রিপোর্ট: এডিট সেভ হয়েও পুরনোটাই দেখাত) — সময়-চিহ্ন
+               না বসায় তালিকা "কিছু বদলায়নি" ধরে জমানো পুরনো কপি দেখাত। এখন
+               প্রতিটা বদলের সাথে চিহ্নটাও বসে, তাই সব ফোনে নতুনটা নামে। */
+            fields.put("updatedAt", java.text.SimpleDateFormat(
+                "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US
+            ).format(java.util.Date()))
             val ok = SupabaseClient.updateById("doctor_visits", docId, fields)
             if (!ok && context != null) {
                 try { GenericUpdateQueue.queue(context, "doctor_visits", docId, fields) } catch (_: Throwable) { }
@@ -734,7 +899,8 @@ class DoctorVisitRepository {
     fun linkReferringDoctorIfBlank(patientRowId: String, doctorName: String, doctorMobile: String, context: android.content.Context? = null): Boolean {
         if (patientRowId.isBlank()) return false
         return try {
-            val rows = SupabaseClient.fetchList("patients", "id=eq.$patientRowId", 1)
+            val rows = SupabaseClient.fetchListSlim("patients", "id=eq.$patientRowId", 1,
+                SupabaseClient.PATIENT_NO_PHOTO_COLS)   // 🔴 V794 — ছবি ছাড়া
             if (rows.length() == 0) return false
             val pat = rows.getJSONObject(0)
             val existingRefBy = pat.s("refBy")

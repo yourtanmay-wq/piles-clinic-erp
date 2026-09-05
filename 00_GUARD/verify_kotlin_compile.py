@@ -196,6 +196,101 @@ def real_type_errors(log_text):
     return [(f, v) for f, v in sorted(other.items()) if unres.get(f, 0) == 0]
 
 
+# ══════════════════════════════════════════════════════════════════════════
+# 🔴🔴🔴 V840 — **TK-এর বিল্ড ভাঙা থেকে ধরা পড়া ফাঁক** (২৯.০৮.২০২৬)
+#
+# কী হয়েছিল: V833-এ `HELPLINE` ধ্রুবকটা `object BranchCatalog`-এর ভিতরে
+# লেখা হয়েছিল, কিন্তু ১২ জায়গায় ডাকা হয়েছিল `BranchInfo.HELPLINE` বলে —
+# ভুল নাম। Android Studio সাথে সাথে ধরল:
+#     Unresolved reference: HELPLINE :381
+# অথচ **এই পাহারাদার পাশ করিয়ে দিয়েছিল।**
+#
+# কেন ধরেনি: উপরের `real_type_errors()` শুধু তখনই FAIL করে যখন কোনো ফাইলে
+# "unresolved reference" **একটাও নেই** অথচ অন্য ভুল আছে। কিন্তু এই ভুলটা
+# নিজেই "unresolved reference" — আর ওই ফাইলগুলো androidx-এর হাজারো
+# একই ধরনের গোলমালে ভরা ⇒ **আসল ভুলটা গোলমালের ভিড়ে হারিয়ে গেল।**
+#
+# ✅ নতুন নিয়ম: "Unresolved reference: X" — যেখানে **X নামটা এই প্রজেক্টেরই
+#    কোনো ফাইলে ঘোষণা করা আছে** (object · class · const val · val · fun) —
+#    সেটা কখনোই বাইরের লাইব্রেরি না-থাকার ফল হতে পারে না। ওটা **আসল ভুল**।
+#    ⇒ সরাসরি FAIL, বেসলাইনে চাপা পড়বে না।
+#
+# ⛔ ভুল করে ধরার (false positive) আশঙ্কা কম: নামটা প্রজেক্টে ঘোষিত হতে হবে,
+#    আর androidx/android-এর নামের সাথে মেলে এমন সাধারণ নাম বাদ রাখা হয়েছে।
+# ══════════════════════════════════════════════════════════════════════════
+
+# প্রজেক্টের নাম হলেও এগুলো Android/androidx-এও আছে — তাই বাদ (নইলে ভুয়া ধরা)
+OWN_NAME_SKIP = {
+    "View", "Context", "Intent", "Bundle", "Activity", "Fragment", "Adapter",
+    "Builder", "Companion", "Type", "Item", "Entry", "Options", "Info",
+    "Model", "Repository", "State", "Result", "Error", "Log", "Color",
+}
+
+
+def project_declared_names(src_root):
+    """প্রজেক্টের নিজের **ধ্রুবক-জাতীয়** নামগুলো, যেগুলোর
+       "unresolved reference" কখনোই বাইরের লাইব্রেরি না-থাকার ফল হতে পারে না:
+
+         · `object NAME`            — যেমন `object BranchCatalog`
+         · `const val NAME`         — যেমন `const val HELPLINE`
+         · একদম বাঁ-ধার (indent 0) থেকে লেখা `val/var/fun NAME`
+
+       ⛔ **ইচ্ছে করে বাদ:** ভিতরের (indented) সাধারণ `val`/`fun` ও
+          `override` — কারণ `onCreate` · `intent` · `resources`-এর মতো নাম
+          AppCompatActivity থেকেও আসে, আর androidx এখানে নেই বলে সেগুলোর
+          "unresolved reference" **স্বাভাবিক গোলমাল**। ওগুলো ধরলে দিনে
+          ৬৮০টা ভুয়া ভুল আসত ⇒ আসল ভুল আবার ভিড়ে হারাত।
+    """
+    names = set()
+    re_obj = re.compile(r"^\s*(?:(?:public|internal|private|sealed)\s+)*object\s+([A-Za-z_][A-Za-z0-9_]*)")
+    re_const = re.compile(r"^\s*(?:(?:public|internal|private|protected)\s+)*const\s+val\s+([A-Za-z_][A-Za-z0-9_]*)")
+    re_top = re.compile(r"^(?:(?:public|internal|private|inline|suspend)\s+)*(?:val|var|fun)\s+([A-Za-z_][A-Za-z0-9_]*)")
+    for root, _dirs, files in os.walk(src_root):
+        for f in files:
+            if not f.endswith(".kt"):
+                continue
+            try:
+                with open(os.path.join(root, f), encoding="utf-8") as fh:
+                    for ln in fh:
+                        if "override" in ln:
+                            continue
+                        for rx in (re_obj, re_const, re_top):
+                            m = rx.match(ln)
+                            if m:
+                                names.add(m.group(1))
+                                break
+            except Exception:
+                pass
+    return names - OWN_NAME_SKIP
+
+
+def own_unresolved_errors(log_text, src_root):
+    """প্রজেক্টের নিজের নামের "unresolved reference" — সবগুলো আসল ভুল।"""
+    own = project_declared_names(src_root)
+    out = []
+    seen = set()
+    for ln in log_text.splitlines():
+        m = re.match(r"^(.*\.kt):(\d+):(\d+): error: (.*)$", ln.rstrip())
+        if not m:
+            continue
+        msg = m.group(4)
+        m2 = re.search(r"[Uu]nresolved reference:?\s+'?([A-Za-z_][A-Za-z0-9_]*)", msg)
+        if not m2:
+            continue
+        name = m2.group(1)
+        if name not in own:
+            continue
+        path = m.group(1).replace("\\", "/")
+        path = path[path.find("com/"):] if "com/" in path else path
+        key = (path, m.group(2), name)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append("%s:%s — Unresolved reference: %s  (এই নামটা প্রজেক্টেই ঘোষিত ⇒ আসল ভুল)"
+                   % (path.split("/")[-1], m.group(2), name))
+    return out
+
+
 # ── বাছাই: কোনটা "বাইরের লাইব্রেরি নেই বলে", কোনটা আসল ──────────────────────
 EXT_PKG = ("android", "androidx", "org.json", "kotlinx", "okhttp3", "okio",
            "java", "javax", "kotlin", "com.google")
@@ -266,6 +361,24 @@ def is_noise(msg, ext, members, mine=None):
         name = u.group(1)
         if name in ROOT_NAMES:
             return True
+        # 🔴🔴🔒 V775 (২৮.০৮.২০২৬) — **TK-এর Android Studio-তে বিল্ড ভাঙল,
+        #    অথচ এই পাহারাদার "PASS" বলেছিল।** TK: *"পাহারাদার কি করে
+        #    আপনাকে আটকালো না?"*
+        #
+        #    **আসল ফাঁক:** নিচের লাইনটা `members`-কেও ছাড় দিত। `members` মানে
+        #    প্রকল্পের **যেকোনো** ফাইলে `.নাম` হিসেবে লেখা সব নাম। তাই
+        #    `user` নামটা অন্য কোথাও `.user` হিসেবে থাকায়, DashboardActivity-র
+        #    আসল ভুল ("Unresolved reference: user" — ওই ফাংশনে `user` বলে
+        #    কিছুই নেই) **গোলমাল ধরে বাদ** পড়ে গিয়েছিল।
+        #
+        #    **সমাধান:** ছোট হাতের অক্ষরে শুরু হওয়া নাম = ভেরিয়েবল/ফাংশন,
+        #    ক্লাস নয়। এদের জন্য `members`-এর ঢালাও ছাড় আর নেই — শুধু
+        #    সত্যিকারের import করা বাইরের নাম (`ext`) হলে ছাড়। বাকি সব
+        #    **সন্দেহভাজন** হিসেবে যায়, আর বেসলাইনে না থাকলে **FAIL**।
+        #    ⛔ বড় হাতের নাম (ক্লাস) আগের নিয়মেই চলে — androidx/material
+        #       এই পরিবেশে নেই বলে ওই ছাড়টা না রাখলে শত শত মিথ্যা ভুল আসত।
+        if name[:1].islower() and name not in ext:
+            return False
         # 🔵 V575 টীকা: "ওই ফাইলে import আছে কি না" ধরে বাছাই করে দেখা হয়েছিল,
         #    কিন্তু তাতে উত্তরাধিকারে পাওয়া ধ্রুবক (MODE_PRIVATE,
         #    LAYER_TYPE_SOFTWARE) ও ভিতরের ক্লাস (ActivityLifecycleCallbacks,
@@ -358,6 +471,26 @@ def missing_import_errors():
             name = m.group(2) or m.group(1).split(".")[-1]
             if name[:1].isupper():
                 known.setdefault(name, m.group(1))
+    # 🔴🔴🔒 V807 (২৮.০৮.২০২৬) — **TK-এর Android Studio-তে আবার বিল্ড ভাঙল**
+    #   ("Unresolved reference: PilesClinicApplication", PatientPhotoCache.kt:41),
+    #   অথচ এই পাহারাদার PASS বলেছিল। TK: *"কি ধরনের ফালতু পাহারাদার রেখেছেন …
+    #   ইন্সপেক্টর রাখুন"*।
+    #   **আসল গর্ত:** উপরের লুপটা শুধু `android`/`androidx` ক্লাস শিখত —
+    #   **প্রকল্পের নিজের ক্লাস কখনো দেখত না**। তাই উপরের প্যাকেজের
+    #   (`com.tkbiswas.pilesclinic`) ক্লাস নিচের প্যাকেজে (`…native`) import
+    #   ছাড়া লিখলে কেউ ধরত না — অথচ Kotlin-এ ওটা লিখতেই হয়।
+    #   এখন প্রকল্প নিজে যত ক্লাস/object/interface ঘোষণা করে, সবগুলোই শেখা হয়।
+    #   ⛔ একই প্যাকেজ হলে ছাড় (নিচে `pkg == mypkg` যাচাই) — মিথ্যে ভুল আসবে না।
+    for t in files.values():
+        pm = re.search(r"^\s*package\s+([\w.]+)", t, re.M)
+        if not pm:
+            continue
+        pkg = pm.group(1)
+        for m in re.finditer(
+                r"^\s*(?:@\w+\s+)*(?:public\s+|internal\s+|private\s+|open\s+|abstract\s+"
+                r"|sealed\s+|data\s+|enum\s+|annotation\s+|value\s+)*"
+                r"(?:class|object|interface)\s+(\w+)", t, re.M):
+            known.setdefault(m.group(1), pkg)
     hits = []
     for p in sorted(files):
         code = _strip_code(files[p])
@@ -367,8 +500,12 @@ def missing_import_errors():
         declared = set(re.findall(
             r"\b(?:class|object|interface|enum class|annotation class)\s+(\w+)",
             code))
+        mypkg_m = re.search(r"^\s*package\s+([\w.]+)", code, re.M)
+        mypkg = mypkg_m.group(1) if mypkg_m else ""
         for name, pkg in known.items():
             if name in mine or name in IMP_SKIP or name in declared:
+                continue
+            if pkg == mypkg:      # 🔴 V807 — একই প্যাকেজে import লাগে না
                 continue
             if re.search(r"(?<![\w.])" + re.escape(name) + r"\s*[.(]", code):
                 short = p.replace("\\", "/")
@@ -492,6 +629,23 @@ def main():
         print()
         print("ফল: FAIL — Android Studio-তে এই ফাইল বিল্ড হবে না। ⛔ PASS নয়।")
         return 1
+    # 🔴🔴🔴 V840 — প্রজেক্টের **নিজের নামে** unresolved reference = আসল ভুল।
+    #   (V833-এ ঠিক এভাবেই `BranchInfo.HELPLINE` পার হয়ে গিয়ে TK-এর
+    #    Android Studio বিল্ড ভেঙেছিল — উপরের ব্যাখ্যা দেখুন।)
+    own = own_unresolved_errors(log, SRC)
+    if own:
+        print()
+        print("❌ FAIL — প্রজেক্টের **নিজের নামে** unresolved reference (%d টা)।" % len(own))
+        print("   এই নামগুলো প্রজেক্টেই ঘোষিত (object · const val · top-level),")
+        print("   তাই বাইরের লাইব্রেরি না-থাকার ফল হতেই পারে না — **আসল ভুল**।")
+        for m in own[:20]:
+            print("  ❌ %s" % m[:170])
+        if len(own) > 20:
+            print("       … আরো %d টা" % (len(own) - 20))
+        print()
+        print("ফল: FAIL — Android Studio-তে বিল্ড হবে না। ⛔ ফাইল পাঠানো যাবে না।")
+        return 1
+
     print("   ✅ android.jar দিয়ে টাইপ যাচাই — আসল ভুল ০")
 
     ext, members, per_file = project_vocabulary()

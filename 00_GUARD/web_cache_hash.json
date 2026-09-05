@@ -1,0 +1,38 @@
+{
+  "styles.css": {
+    "v": "v1112",
+    "sha": "881a96013f8e78adc28ff25f82776131378ef9418b654f1e2d787b5ab384aaf3"
+  },
+  "config.js": {
+    "v": "v834",
+    "sha": "55264bd05328d116879b0b22d202bfe154720c65aeb5b91fc0cdfc0f067b907e"
+  },
+  "app.js": {
+    "v": "v1117",
+    "sha": "b67839147741e467562bed5ee47cce06722ac851fa80f275d3e071a935332ba9"
+  },
+  "module_core.js": {
+    "v": "v913",
+    "sha": "1a1cca88a368cfd695e22f5e847c133d0fc6162289011c5cb5dc5bd910625dda"
+  },
+  "profile.js": {
+    "v": "v1108",
+    "sha": "51023c8bee4a1201807834bc5ce481194490817835b6d284f1b6cde67cad272e"
+  },
+  "notebook.js": {
+    "v": "v1032",
+    "sha": "95dd6a9260c56acecb077d6128636f563130c0e793b4cbee1f69121fa17e1c71"
+  },
+  "finance.js": {
+    "v": "v960",
+    "sha": "94f205f5ad300961744cc63538fe38c2b0f64d8978248dfffa72ae377871a933"
+  },
+  "partners.js": {
+    "v": "v466",
+    "sha": "764a574949413d96a31648c3b64985bb760c4f9f0375cc420ed1325302a44b55"
+  },
+  "rmp_commission.js": {
+    "v": "v1085",
+    "sha": "b744302f476a321be270924929305a0a750fac8a73e6661544ecdbe8784792df"
+  }
+}

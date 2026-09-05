@@ -30,7 +30,58 @@ import com.tkbiswas.pilesclinic.native.StaffDirectory
 object ModuleAuth {
 
     private const val EMAIL_DOMAIN = "staff.piles"
-    private val http = OkHttpClient()
+    /* 🔴🔴🔒 V803 (২৮.০৮.২০২৬) — **"Staff Profile তো খুলছেই না"** (TK-রিপোর্ট, ফটো সহ:
+       সাদা ফাঁকা পর্দা, নিচে "Opening..." লেখা আটকে আছে)।
+       ─── আসল কারণ (কোড ধরে প্রমাণিত) ────────────────────────────────────────
+       এখানে লেখা ছিল খালি `OkHttpClient()` — **একটাও timeout বসানো ছিল না**।
+       OkHttp-র নিজের ডিফল্টে `callTimeout = 0`, মানে **কোনো সময়সীমা নেই**।
+       নেট আধমরা হয়ে উত্তরটা ফোঁটা-ফোঁটা করে এলে `readTimeout` প্রতিবার নতুন
+       করে শুরু হয় ⇒ ডাকটা **কোনোদিনই শেষ হয় না**। আর Staff Profile পর্দা
+       ঠিক এই ডাকটার উত্তরের জন্যই অপেক্ষা করে (`ModuleUi.ensureSignedIn`),
+       তাই পর্দা সাদা থেকে যায়, কোনো ভুলের বার্তাও আসে না।
+       ⛔ এটা নতুন কোনো আবিষ্কার নয় — প্রজেক্টেই আগে ধরা পড়েছিল ও সারানো
+          হয়েছিল: `SupabaseClient.kt:19-29`-এ হুবহু এই কারণটা লেখা আছে
+          ("...loading spinner just span forever. callTimeout caps the TOTAL time")।
+          শুধু **এই ফাইলটায় সেটা বসানো হয়নি** — খাতার নিয়ম ৬.২ অনুযায়ী এখন বসল।
+       ─── সারানো ─────────────────────────────────────────────────────────────
+       মূল অ্যাপের প্রমাণিত মাপগুলোই: connect ৮s · read ৮s · **callTimeout ২৫s**।
+       ⇒ সবচেয়ে খারাপ অবস্থাতেও ২৫ সেকেন্ডে ডাক শেষ হয়ে "Could not open"
+       বার্তা আসে — পর্দা আর চিরকাল সাদা হয়ে বসে থাকে না। */
+    /* 🔴🔒 V808 (২৮.০৮.২০২৬) — TK: "staff Profile খুলছে না তো, কি কাজ করেছেন আপনি?"
+       V803-এ সময়সীমা বসিয়ে সাদা-পর্দা থামিয়েছিলাম — কিন্তু ওটা ছিল **উপসর্গ**
+       সারানো, রোগ নয়। পর্দা এখন "Could not open — timeout" দেখায়, খোলে না।
+       ─── "timeout" লেখাটা কেন অকেজো ──────────────────────────────────────
+       OkHttp ডিফল্টে **নিজে থেকেই বারবার অন্য রাস্তায় চেষ্টা করে**
+       (`retryOnConnectionFailure`)। তাই আসল ভুলটা (যেমন "connect হলো না" বা
+       HTTP ৪২৯) চাপা পড়ে যেত, আর শেষে শুধু `callTimeout`-এর নিরর্থক
+       "timeout" বেরিয়ে আসত — যা দিয়ে কারণ বোঝার উপায় নেই।
+       ─── এখন ────────────────────────────────────────────────────────────
+       বারবার চেষ্টা বন্ধ ⇒ আসল ভুলটা **তাড়াতাড়ি ও নিজের নামেই** আসে।
+       সময়সীমা একটু বাড়ানো হলো (দুর্বল নেটে যেন অকারণে না কাটে)। */
+    /* 🔴🔴🔴🔒 V809 (২৮.০৮.২০২৬) — **আমার নিজের করা ক্ষতি ফিরিয়ে নেওয়া হলো।**
+       TK: *"এক জলপাইগুড়ির স্টাফ পাঠিয়েছে — timeout, কাজ হচ্ছে না। কেন এরকম
+       ফাজলামো করলেন আপনি আমার সাথে?"*
+       ─── git-এর প্রমাণ ─────────────────────────────────────────────────────
+       V793 (যেটা এতদিন সবার ফোনে চলছিল) — `private val http = OkHttpClient()`
+         ⇒ OkHttp-র ডিফল্ট: connect ১০s · read ১০s · **মোট সময়ের কোনো সীমা নেই**
+       আমি V803-এ বসিয়েছিলাম — connect ৮s · read ৮s · **মোট ২৫s**
+       V808-এ আরও কড়া করেছিলাম — `retryOnConnectionFailure(false)`
+       ⇒ **তিনটে দিকেই আমি আগের চেয়ে কড়া করে দিয়েছিলাম।**
+       দুর্বল নেটে (স্টাফের ফোনে ৫ KB/s) যে ডাকটা আগে ধীরে হলেও **শেষ হত**,
+       সেটা এখন ২৫ সেকেন্ডে **জোর করে কেটে** যেত ⇒ "timeout"।
+       অর্থাৎ আগে পর্দাটা **ধীর** ছিল, আমি সেটাকে **ভাঙা** বানিয়ে ফেলেছি।
+       ─── এখন যা করা হলো ───────────────────────────────────────────────────
+       প্রতিটা মাপ V793-এর চেয়ে **উদার** — তাই আগে যা চলত, সবই চলবে:
+         connect ১০s → **২০s** · read ১০s → **৪০s** · বারবার চেষ্টা **আবার চালু**
+       শুধু একটা **শেষ ভরসার** সীমা (১২০s) রাখা হলো, যাতে V803-এর আসল সমস্যাটা
+       (পর্দা চিরকাল সাদা হয়ে বসে থাকা) ফিরে না আসে। ১২০ সেকেন্ড এত বড় যে
+       সত্যিকারের কোনো কাজ এতে কাটা পড়বে না। */
+    private val http = OkHttpClient.Builder()
+        .retryOnConnectionFailure(true)
+        .connectTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(40, java.util.concurrent.TimeUnit.SECONDS)
+        .callTimeout(120, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
     private val JSON = "application/json".toMediaType()
 
     @Volatile var accessToken: String? = null; private set
@@ -175,7 +226,26 @@ object ModuleAuth {
             "9002610352" -> "DR-GOKUL"
             "7810907954" -> "DR-SAIKAT-ROY"
             "9242009205" -> "DR-PRANAB-BISWAS"
-            else -> user.name.trim().uppercase()
+            // 🔑 V749 (২৭.০৮.২০২৬, TK: *"KNE-LAXMI — এত মানুষ"*) —
+            //    অ্যাপ থেকে যোগ করা লোকের **কোড** এখন জমানো তালিকা থেকে আসে,
+            //    নাম থেকে নয়। তাই পর্দায় আসল নাম দেখানো যায়, আর মডিউলের
+            //    auth-ইমেল (`<কোড>@staff.piles`) ঠিকঠাক মেলে।
+            //
+            //    ⚠️⚠️ **শর্তটা খেয়াল করুন — বাঁধা তালিকায় থাকলে এখানে ঢোকাই হয় না।**
+            //      অর্থাৎ আজকের ২৩ জনের ক্ষেত্রে আগের নিয়মই (নাম→কোড) অটুট,
+            //      এক অক্ষরও বদল নেই। মেঘের তালিকা না পেলেও আগের নিয়মেই ফেরে।
+            //    ⛔ `cachedCodeFor` কখনো নেটে যায় না — শুধু ফোনে জমানোটা পড়ে।
+            else -> {
+                var out = user.name.trim().uppercase()
+                if (StaffDirectory.findAccount(mobile) == null) {
+                    val fromCloud = try {
+                        com.tkbiswas.pilesclinic.native.CloudStaffDirectory
+                            .cachedCodeFor(context, mobile)
+                    } catch (_: Throwable) { null }
+                    if (!fromCloud.isNullOrBlank()) out = fromCloud
+                }
+                out
+            }
         }
     }
 
@@ -215,27 +285,57 @@ object ModuleAuth {
 
     /** Sign in with Staff Code + module password. Returns null on success, else error text.
      *  Blocking network call — run it on a background thread. */
+    /* 🔴🔒 V808 — এখন ভুলের বার্তায় **ঠিক কী হয়েছে** লেখা থাকে: কোন ধাপে
+       আটকেছে · সার্ভার কী কোড পাঠিয়েছে · কত সেকেন্ড লেগেছে · কোন ধরনের গোলমাল।
+       আগে শুধু "timeout" আসত — ওটা দিয়ে কারণ বোঝার কোনো উপায় ছিল না, তাই
+       সমস্যাটা ধরাই যাচ্ছিল না। ⛔ সফল পথে এক অক্ষরও বদলায়নি। */
     fun signIn(code: String, password: String): String? {
+        val t0 = System.currentTimeMillis()
+        fun secs() = "%.1f".format((System.currentTimeMillis() - t0) / 1000.0)
         try {
             val body = JSONObject()
                 .put("email", codeToEmail(code))
                 .put("password", password)
                 .toString().toRequestBody(JSON)
+            /* 🔴🔴🔴🔒 V811 (২৮.০৮.২০২৬) — **আসল কারণ পাওয়া গেল।**
+               TK-এর নেট মেপে দেখা: 10.4 Mbps ↓ · 42.3 Mbps ↑ · latency ৫৮ ms —
+               অর্থাৎ নেট দ্রুত, "ধীর নেট" আমার আগের অনুমান **ভুল** ছিল।
+               ─── যেভাবে ধরা পড়ল (কাজ করা vs আটকে যাওয়া ডাক মিলিয়ে) ──────────
+               এই অ্যাপের **যত ডাক কাজ করে** (`SupabaseClient.kt:333-334, 464-465`)
+               সবগুলোই **দুটো** হেডার পাঠায়:
+                     apikey: <key>   ও   Authorization: Bearer <key>
+               ওয়েবের Supabase SDK-ও (`createClient`) দুটোই পাঠায় — ওয়েবে তাই
+               মডিউল-লগইন চলে।
+               কিন্তু **এই একটামাত্র ডাক** পাঠাত **শুধু `apikey`** — `Authorization`
+               হেডারটাই ছিল না। নতুন ধরনের চাবিতে (`sb_publishable_…`) Supabase-এর
+               গেটওয়ে দুটোই চায়; একটা না পেলে ডাকটা সাড়াই দেয় না ⇒ অ্যাপ
+               অপেক্ষা করতেই থাকে ⇒ V793-এ সাদা পর্দা, V803-এর পরে "timeout"।
+               ─── প্রমাণ যে সময়সীমা দোষী নয় ─────────────────────────────────
+               `SupabaseClient`-এর নিজের মাপও connect ৮s · read ৮s · call ২৫s —
+               **হুবহু একই**, আর ওগুলো দিব্যি কাজ করে। তাই ২৫ সেকেন্ড কম ছিল না।
+               ⇒ আমি আগে যে বলেছিলাম "সময়সীমা কমিয়ে আমি ভেঙেছি" — **সেটাও ভুল
+                 ছিল**। দোষটা এই অনুপস্থিত হেডার, প্রথম দিন থেকেই।
+               ⛔ সারানো: বাকি সব ডাকের মতোই দুটো হেডারই পাঠানো হয়। */
             val req = Request.Builder()
                 .url(baseUrl() + "/auth/v1/token?grant_type=password")
                 .addHeader("apikey", anonKey())
+                .addHeader("Authorization", "Bearer " + anonKey())
                 .addHeader("Content-Type", "application/json")
                 .post(body).build()
             http.newCall(req).execute().use { resp ->
                 val txt = resp.body?.string() ?: ""
                 if (!resp.isSuccessful) {
-                    return try { JSONObject(txt).optString("error_description", "Sign-in failed") }
-                    catch (e: Exception) { "Sign-in failed" }
+                    val why = try { JSONObject(txt).optString("error_description", "").ifBlank {
+                        JSONObject(txt).optString("msg", "")
+                    } } catch (_: Exception) { "" }
+                    return "Step 1 (login) — server said HTTP ${resp.code}" +
+                        (if (why.isNotBlank()) ": $why" else "") +
+                        "\n\nCode: $code · ${secs()}s"
                 }
                 val json = JSONObject(txt)
                 accessToken = json.optString("access_token", "")
                 lastExpiresIn = json.optInt("expires_in", 3600)
-                if (accessToken.isNullOrBlank()) return "Sign-in failed"
+                if (accessToken.isNullOrBlank()) return "Step 1 (login) — no token came back. ${secs()}s"
             }
             val id = getRows("hr", "app_identity", "select=person_code,role_kind,is_master&limit=1")
             if (id.length() > 0) {
@@ -243,7 +343,21 @@ object ModuleAuth {
                 isMaster = id.getJSONObject(0).optBoolean("is_master", false)
             } else { personCode = code; isMaster = false }
             return null
-        } catch (e: Exception) { return e.message ?: "Sign-in error" }
+        } catch (e: Exception) {
+            val kind = e.javaClass.simpleName
+            val msg = e.message.orEmpty()
+            val plain = when {
+                kind.contains("UnknownHost") -> "Could not find the server — check the internet connection."
+                kind.contains("SSL") || kind.contains("Certificate") -> "Secure connection failed."
+                msg.contains("timeout", true) || kind.contains("Timeout") ->
+                    "The server did not answer in time."
+                kind.contains("ConnectException") || kind.contains("SocketException") ->
+                    "Could not reach the server."
+                else -> "Could not sign in."
+            }
+            return "Step 1 (login) — $plain\n\n$kind" +
+                (if (msg.isNotBlank()) ": $msg" else "") + " · ${secs()}s"
+        }
     }
 
     // 🔴🔒 V453: context ঐচ্ছিক — পুরনো ৫+ ব্যবহারের জায়গা (identity-switch
@@ -414,6 +528,50 @@ object ModuleAuth {
                 .patch(patch.toString().toRequestBody(JSON)).build()
             http.newCall(req).execute().use { resp -> resp.isSuccessful }
         } catch (e: Exception) { false }
+    }
+
+    /** 📊 V824 — DELETE from a schema-qualified table (raw PostgREST filter).
+     *  ⛔ শুধু নতুন `fin.registration_count_excluded` ("গোনায় ধরব না" দাগ)
+     *     সরাতে ব্যবহার হয় — রোগী · টাকা · Follow-up কোনো টেবিলে এটা ডাকা
+     *     হয় না। RLS সার্ভারেই ঠিক করে কে মুছতে পারে (শুধু মাস্টার)।
+     *  ⛔ পুরনো কোনো ফাংশন ছোঁয়া হয়নি — এটা সম্পূর্ণ নতুন ও আলাদা। */
+    fun deleteRows(schema: String, table: String, filter: String): Boolean {
+        fun once(): Pair<Boolean, Int> = try {
+            val req = Request.Builder().url(baseUrl() + "/rest/v1/" + table + "?" + filter)
+                .addHeader("apikey", anonKey())
+                .addHeader("Authorization", "Bearer " + (accessToken ?: ""))
+                .addHeader("Content-Profile", schema)
+                .addHeader("Accept-Profile", schema)
+                .addHeader("Prefer", "return=minimal")
+                .delete().build()
+            http.newCall(req).execute().use { resp -> Pair(resp.isSuccessful, resp.code) }
+        } catch (_: Exception) { Pair(false, -1) }
+        var result = once()
+        if (!result.first && result.second == 401 && reAuth()) result = once()
+        return result.first
+    }
+
+    /** PATCH করে সত্যিই অন্তত একটি সারি বদলেছে কি না যাচাই করে।
+     *  PostgREST `return=minimal`-এ ০ সারিও HTTP-success হওয়ায় Remove-এর মতো
+     *  গুরুত্বপূর্ণ কাজে সেই পুরনো Boolean যথেষ্ট নয়। */
+    fun updateAtLeastOne(schema: String, table: String, filter: String, patch: JSONObject): Boolean {
+        fun once(): Pair<Boolean, Int> = try {
+            val req = Request.Builder().url(baseUrl() + "/rest/v1/" + table + "?" + filter)
+                .addHeader("apikey", anonKey())
+                .addHeader("Authorization", "Bearer " + (accessToken ?: ""))
+                .addHeader("Content-Profile", schema)
+                .addHeader("Accept-Profile", schema)
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Prefer", "return=representation")
+                .patch(patch.toString().toRequestBody(JSON)).build()
+            http.newCall(req).execute().use { resp ->
+                val body = resp.body?.string() ?: "[]"
+                Pair(resp.isSuccessful && try { JSONArray(body).length() > 0 } catch (_: Throwable) { false }, resp.code)
+            }
+        } catch (_: Exception) { Pair(false, -1) }
+        var result = once()
+        if (!result.first && result.second == 401 && reAuth()) result = once()
+        return result.first
     }
 
     /** Count rows in the EXISTING public tables (read-only; those tables have

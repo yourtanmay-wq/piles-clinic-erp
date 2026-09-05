@@ -93,6 +93,10 @@ object TimelineCache {
                         // default 0.0 পেত) — শুধু refund থাকা রোগীর নয়, **সবার**।
                         // এখন সেভ করা হয়, তাই cache থেকে পড়লেও হিসাব ঠিক থাকে।
                         .put("paidEffect", e.paidEffect)
+                        // \ud83d\udfe2\ud83d\udd12 V1090 (\u09e6\u09eb.\u09e6\u09ef.\u09e8\u09e6\u09e8\u09ec) \u2014 \u099a\u09bf\u09b9\u09cd\u09a8\u099f\u09be cache-\u098f \u09a8\u09be \u09b0\u09be\u0996\u09b2\u09c7
+                        // \u09aa\u09b0\u09c7\u09b0 \u09ac\u09be\u09b0 cache \u09a5\u09c7\u0995\u09c7 \u0986\u0981\u0995\u09be\u09b0 \u09b8\u09ae\u09af\u09bc \u099a\u09bf\u0995\u09bf\u09ce\u09b8\u09be\u09b0 \u09a8\u09cb\u099f \u0986\u09ac\u09be\u09b0 "Called By"
+                        // \u09b8\u09c7\u099c\u09c7 \u0995\u09b2\u09c7 \u0997\u09cb\u09a8\u09be \u09b9\u09a4 \u2014 \u09a4\u09be\u0987 \u098f\u0996\u09be\u09a8\u09c7\u0993 \u09b0\u09be\u0996\u09be \u09b9\u09b2\u09cb\u0964
+                        .put("isTreatmentNote", e.isTreatmentNote)
                     // paymentId / enquiryRowId / followUpHistoryId are NEVER
                     // saved -- see the safety rule at the top of this file.
                 )
@@ -108,6 +112,7 @@ object TimelineCache {
                 .put("sex", data.sex)
                 .put("address", data.address)
                 .put("billTotal", data.billTotal)
+                .put("discount", data.discount)
                 .put("followupStage", data.followupStage)
                 .put("refDoctorDisplay", data.refDoctorDisplay)
                 /* 🔵🔒 V521 (২২.০৮.২০২৬): Timing চিপটা (⏰ UNEXPECTED TIME) যেন
@@ -161,7 +166,9 @@ object TimelineCache {
                         enquiryRowId = null,
                         followUpHistoryId = null,
                         followUpHistoryIndex = -1,
-                        callTime = o.optString("callTime", "")
+                        callTime = o.optString("callTime", ""),
+                        // \ud83d\udfe2\ud83d\udd12 V1090 \u2014 \u09aa\u09c1\u09b0\u09a8\u09cb cache-\u098f \u0998\u09b0\u099f\u09be \u09a8\u09c7\u0987 \u21d2 false \u21d2 \u09b9\u09c1\u09ac\u09b9\u09c1 \u0986\u0997\u09c7\u09b0 \u0986\u099a\u09b0\u09a3\u0964
+                        isTreatmentNote = o.optBoolean("isTreatmentNote", false)
                     )
                 )
             }
@@ -175,6 +182,7 @@ object TimelineCache {
                 photo = "",
                 entries = list,
                 billTotal = root.optDouble("billTotal", 0.0),
+                discount = root.optDouble("discount", 0.0),
                 age = root.optString("age", ""),
                 sex = root.optString("sex", ""),
                 address = root.optString("address", ""),

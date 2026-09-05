@@ -269,6 +269,42 @@
     return arr.map(function (e) { return '• ' + (e.time || '') + ' ' + (e.text || '') + ' [' + (e.status || 'pending') + ']'; }).join('\n');
   }
 
+/* 👨‍⚕️🔒 V1032 — ওই দিনে ওই স্টাফ কতজন **আলাদা** ডাক্তারের কাছে গেছেন।
+   নিয়মটা ফোনের `DoctorVisitDayCount`-এর হুবহু: প্রতিটা ডাক্তারের
+   `callHistory`-তে কল/ভিজিট লেখার সময় **তারিখ** ও **কে** বসে; সেটাই গোনা হয়।
+   ⛔ কোথাও কিছু লেখা হয় না — শুধু জমা তালিকা থেকে পড়া। */
+function nbDoctorVisitCount(dateIso, staffCode){
+  try{
+    var day = String(dateIso || '').slice(0, 10);
+    if (day.length !== 10) return 0;
+    var me = '';
+    try{
+      var acc = (typeof allUsers === 'function' ? allUsers() : []) || [];
+      for (var i = 0; i < acc.length; i++){
+        if (String(acc[i].name || '').toUpperCase() === String(staffCode || '').toUpperCase()){
+          me = String(acc[i].mobile || '').replace(/\D/g, '').slice(-10); break;
+        }
+      }
+    }catch(e){}
+    if (!me) me = String((typeof user !== 'undefined' && user && user.mobile) || '').replace(/\D/g, '').slice(-10);
+    if (me.length !== 10) return 0;
+    var rows = (typeof load === 'function' ? load('doctor_visits') : []) || [];
+    var seen = {}, n = 0;
+    for (var r = 0; r < rows.length; r++){
+      var d = rows[r]; if (!d || !d.id || seen[d.id]) continue;
+      var hist = d.callHistory;
+      if (typeof hist === 'string'){ try{ hist = JSON.parse(hist); }catch(e){ hist = null; } }
+      if (!hist || !hist.length) continue;
+      for (var h = 0; h < hist.length; h++){
+        var e2 = hist[h]; if (!e2) continue;
+        if (String(e2.date || '').slice(0, 10) !== day) continue;
+        if (String(e2.by || '').replace(/\D/g, '').slice(-10) !== me) continue;
+        seen[d.id] = 1; n++; break;
+      }
+    }
+    return n;
+  }catch(e){ return 0; }
+}
   async function renderToday() {
     var m = window.MOD, code = (m.session() || {}).code, date = m.todayIST();
     var loadedDay = await loadDay(date);
@@ -610,11 +646,11 @@
         await client.schema('wn').from('notebook_days').upsert(nd, { onConflict: 'staff_code,work_date' });
       } catch (e) {}
       if (date === m.todayIST() && window._nbDay) { window._nbDay.is_leave = true; window._nbDay.leave_reason = reason; }
-      nbPostBriefing('Staff Leave', '👤 Staff : ' + (code || mobile) + '\n🏥 Branch : ' + branch + '\n🏖️ Leave : ' + date + '\nReason : ' + reason, { branches: [branch] }, branch, mobile);
+      nbPostBriefing('Staff Leave', '👤 Staff : ' + (code || mobile) + '\n🏥 Branch : ' + branch + '\n🏖️ Leave : ' + (window.wlv1Dot ? window.wlv1Dot(date) : date) + '\nReason : ' + reason   /* 🔴🔒 V936 — এক ফরম্যাট */, { branches: [branch] }, branch, mobile);
       try { m.whatsapp('🏖️ Leave\nStaff: ' + code + '\nBranch: ' + branch + '\nDate: ' + date + '\nReason: ' + reason); } catch (e) {}
     } else {
       // ⚠️ ওয়েব approval bell (wlv1NoticeField) ছোট-হাতের "key :" খোঁজে — তাই emoji ছাড়া পরিষ্কার লাইন রাখি।
-      nbPostBriefing('Leave request', 'Staff : ' + (code || mobile) + '\nBranch : ' + branch + '\nLeave date : ' + date + '\nReason : ' + reason + '\nNeed : ' + needReason, { branches: [branch], roles: ['master'] }, branch, mobile);
+      nbPostBriefing('Leave request', 'Staff : ' + (code || mobile) + '\nBranch : ' + branch + '\nLeave date : ' + (window.wlv1Dot ? window.wlv1Dot(date) : date) + '\nReason : '   /* 🔴🔒 V936 — Approve `wlv1IsoDate()` দিয়ে ফিরিয়ে পড়ে */ + reason + '\nNeed : ' + needReason, { branches: [branch], roles: ['master'] }, branch, mobile);
       nbAddPendingLeave(date);
       try { toast('ছুটির অনুরোধ পাঠানো হয়েছে — Pending'); } catch (e) {}
     }
@@ -700,6 +736,15 @@
     }
     text += '\nNew Enquiry: ' + st.enquiries + '\nRegistration: ' + st.registrations +
       '\nToday Patient: ' + patientsVal + '\nApp Calls: ' + callTxt(apc) + '\nOutside Calls: ' + occ + '\nTotal call : ' + callTxt(callSum(apc, occ));
+    /* 👨‍⚕️🔒 V1032 (TK-নির্দেশ: *"কতজন ডাক্তারের কাছে ভিজিট করেছে তাকে ম্যানুয়ালি
+       এন্ট্রি করতে হয়েছে"*) — ফোনের হুবহু একই লাইন, একই নিয়ম।
+       ⚡ কম্পিউটারে **একটাও ক্লাউড-অনুরোধ যায় না** — ডাক্তারের তালিকা এমনিতেই
+          এখানে জমা থাকে, সেখান থেকেই গোনা হয়।
+       ⛔ শূন্য হলে লাইনটা ওঠে না — পুরনো রিপোর্ট হুবহু আগের মতোই। */
+    try {
+      var __dv = nbDoctorVisitCount(date, d.staff_code || code);
+      if (__dv > 0) text += '\nDoctor Visit: ' + __dv;
+    } catch (e) {}
     var notesTxt = (d.day_note || '').trim();
     if (notesTxt) text += '\n\nNotes: \n' + notesTxt;
     /* 🔴 V593 — না পড়তে পারলে `null`ই জমা হোক; `apc + occ` করলে JS-এ null যোগ

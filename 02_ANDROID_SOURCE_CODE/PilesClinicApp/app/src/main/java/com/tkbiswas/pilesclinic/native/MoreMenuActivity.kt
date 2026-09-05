@@ -186,7 +186,7 @@ class MoreMenuActivity : AppCompatActivity() {
                 if (!patientOnly) {
                     val dm = resources.displayMetrics.density
                     val ieBtn = android.widget.TextView(this).apply {
-                        text = "💵  আয় ও ব্যয়"
+                        text = NoBengali.s("💵  আয় ও ব্যয়")
                         textSize = 15f
                         setTextColor(android.graphics.Color.WHITE)
                         setTypeface(typeface, android.graphics.Typeface.BOLD)

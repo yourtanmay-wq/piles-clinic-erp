@@ -62,7 +62,8 @@ object RegistrationHtml {
         .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
 
     /** ওয়েবের wlv1AddrTwo — থানা-চিহ্নের আগে লাইন-ব্রেক, নইলে এক লাইনে। */
-    private fun addr2(a: String): String {
+    private fun addr2(aRaw: String): String {
+        val a = aRaw.uppercase(java.util.Locale.US)   // 🔠🔒 V1009 (০৩.০৯.২০২৬, TK-নির্দেশ: "সমস্ত জায়গায় ক্যাপিটাল লেটারই করবেন") — শুধু **দেখানোর** সময় বড় হাতে; ডেটাবেসে যা লেখা আছে তা এক অক্ষরও বদলায় না।
         if (a.isBlank()) return "-"
         val u = a.uppercase()
         val markers = listOf("PS:", "P.S", "P/S", "THANA", "POLICE STATION")
@@ -162,7 +163,7 @@ object RegistrationHtml {
 
         return "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><style>$css</style></head><body>" +
             "<div class=\"gold\"></div><div class=\"lh\"><img src=\"${info.logoAssetPath}\"><div><div class=\"cn\">${esc(info.clinicName)}</div><div class=\"tag\">Ayurveda &amp; Anorectal Diseases</div>" +
-            "<div class=\"addr\"><b>${esc(s("branch"))}:</b> ${esc(info.addressLine)} &nbsp;|&nbsp; <b>&#9742;</b> ${esc(info.phoneLine)}</div></div></div><div class=\"gbar\"></div>" +
+            "<div class=\"addr\"><b>${esc(s("branch"))}:</b> ${esc(info.addressLine)} &nbsp;|&nbsp; <b>&#9742;</b> ${esc(info.phoneLine)} &nbsp;|&nbsp; <b>&#9742;</b> ${esc(BranchCatalog.HELPLINE)}</div></div></div><div class=\"gbar\"></div>" +
             "<div class=\"tb\"><span class=\"t\">PATIENT REGISTRATION FORM</span><span class=\"r\">Reg. No: $pid<br>${esc(dateStr)}</span></div>" +
             "<div class=\"pi\"><div class=\"pphoto\">🧑</div>" +
             "<div class=\"c\"><div class=\"r\"><b>Name</b> : ${esc(s("name").ifBlank { "-" }).uppercase()}</div><div class=\"r\"><b>Patient ID</b> : $pid</div><div class=\"r\"><b>Age / Sex</b> : $ageSex</div><div class=\"r\"><b>Occupation</b> : ${esc(s("occupation").ifBlank { "-" })}</div><div class=\"r\"><b>Branch</b> : ${esc(s("branch").ifBlank { "-" })}</div></div>" +

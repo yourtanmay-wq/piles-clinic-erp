@@ -260,7 +260,7 @@ class ReportsRepository {
                 var se = 0; var sp = 0
                 for (i in 0 until enq.length()) {
                     val r = enq.getJSONObject(i)
-                    val who = last10(r.optString("receivedBy", "").ifBlank { r.optString("createdBy", "") })
+                    val who = last10(r.s("receivedBy").ifBlank { r.s("createdBy") })   // 🔴 V819 — `optString` SQL NULL-এ আক্ষরিক "null" ফেরায় (V696/V812-এর ফাঁদ); `s()` সেটা ফাঁকা ধরে
                     if (who == m && m.isNotBlank()) se++
                 }
                 for (i in 0 until pat.length()) {

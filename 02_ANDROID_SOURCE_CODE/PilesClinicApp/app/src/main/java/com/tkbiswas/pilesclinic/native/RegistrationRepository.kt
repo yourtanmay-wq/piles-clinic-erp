@@ -151,6 +151,13 @@ class RegistrationRepository(private val context: Context) {
         // ব্যর্থ হলে (নেট সমস্যা) আগের আচরণই চলে — নতুন কোনো ব্লক নেই।
         var effectiveRowId = existingRowId
         var effectivePatientId = existingPatientId
+        /* 🔴🔒🔒 V868 (TK-রিপোর্ট, RAJA MANDAL কার্ড) — আসল রেজিস্ট্রারের নাম
+           ও আসল সময় ধরে রাখার তিনটে ঘর। সারিটা আগে থেকে থাকলে নিচে এগুলো
+           ভরা হয়, আর `buildPatientRow`/`buildVisitFollowUpRow` পুরোনো মানই
+           বসায় — দ্বিতীয়বার সেভেও নাম বদলায় না। */
+        var keepCreatedBy = ""
+        var keepRegisteredBy = ""
+        var keepCreatedAt = ""
         /* 🔴🔵🔒 V516 (TK-অনুমোদিত): নিচের B455-পাহারাটা মোবাইল থেকে তৈরি স্থায়ী
            আইডি (`pat_<মোবাইল>`) ধরে খোঁজে — অর্থাৎ **ওই নম্বরের প্রথম রোগীকে**।
            রোজকার সেভে ওটাই ঠিক (একই রোগী দুবার সেভ হলে Visit Fee দুবার কাটে না)।
@@ -162,17 +169,119 @@ class RegistrationRepository(private val context: Context) {
         if (effectiveRowId.isBlank() && forceNewPatientRowId.isBlank()) {
             try {
                 val stableId = PatientModel.stableRowId(draft.mobileDigitsOnly)
-                val existing = SupabaseClient.fetchListOrNull("patients", "id=eq.$stableId", 1, select = "id,patientId")
+                // 🟢 V868 — তিনটে ঘর **এই একই অনুরোধেই** আসে, নতুন কোনো পড়া নয়।
+                val existing = SupabaseClient.fetchListOrNull(
+                    "patients", "id=eq.$stableId", 1,
+                    select = "id,patientId,createdBy,registeredBy,createdAt")
                 if (existing != null && existing.length() > 0) {
                     val row = existing.getJSONObject(0)
                     effectiveRowId = row.s("id")
                     effectivePatientId = row.s("patientId").ifBlank { existingPatientId }
+                    keepCreatedBy = row.s("createdBy")
+                    keepRegisteredBy = row.s("registeredBy")
+                    keepCreatedAt = row.s("createdAt")
+                }
+            } catch (_: Throwable) { }
+        }
+        /* 🟢 V868 — "Update Existing"-এর পথে উপরের যাচাইটা চলে না (আইডি
+           আগে থেকেই জানা)। তাই ঠিক তখনই, শুধু ওই একটা সারির তিনটে ছোট ঘর
+           একবার আনা হয়। ⛔ নতুন রেজিস্ট্রেশনে এটা চলে না ⇒ রোজকার কাজে
+           Egress এক বাইটও বাড়ে না। ⛔ না আনতে পারলে আগের আচরণই চলে। */
+        if (effectiveRowId.isNotBlank() && keepCreatedBy.isBlank() && keepRegisteredBy.isBlank()) {
+            try {
+                val own = SupabaseClient.fetchListOrNull(
+                    "patients", "id=eq.$effectiveRowId", 1,
+                    select = "createdBy,registeredBy,createdAt")
+                if (own != null && own.length() > 0) {
+                    val row = own.getJSONObject(0)
+                    keepCreatedBy = row.s("createdBy")
+                    keepRegisteredBy = row.s("registeredBy")
+                    keepCreatedAt = row.s("createdAt")
                 }
             } catch (_: Throwable) { }
         }
         val existingRowIdSafe = effectiveRowId
         val existingPatientIdSafe = effectivePatientId
-        val patientId = existingPatientIdSafe.ifBlank { PatientIdGenerator.generate(draft.branch, draft.date, context) }
+        /* ═══════════════════════════════════════════════════════════════
+           🔴🔒 V1110 (০৫.০৯.২০২৬, TK-রিপোর্ট — KASHAB MANDAL,
+           COB-05092026-001 অথচ branch = Jalpaiguri)।
+
+           ─── 🔴 আসল কারণ (TK-এর CSV + কোড, মেপে পাওয়া) ────────────────
+           সারিটা আগে থেকে থাকলে এখানে **পুরনো আইডিটাই রেখে দেওয়া হত**
+           (`existingPatientIdSafe`), আর **ব্রাঞ্চ বদলেছে কিনা কখনো দেখা হত না**।
+           ⇒ প্রথমবার ভুল করে Cooch Behar-এ সেভ হয়ে `COB-…` আইডি বসেছিল;
+             পরে ব্রাঞ্চ ঠিক করে (Jalpaiguri) আবার সেভ হয়েছে, কিন্তু আইডিটা
+             চিরকালের মতো `COB-` থেকে গেছে।
+
+           ─── এখন কী হয় (TK-এর স্থায়ী নিয়ম) ─────────────────────────────
+           TK: *"রেজিস্ট্রেশন কোন ব্রাঞ্চে হলো সেটাই ম্যাটার করে … টাকা পয়সা
+           সমস্ত হিসাব সেই ব্রাঞ্চের নামেই হবে"*।
+           ⇒ পুরনো আইডির ব্রাঞ্চ-সংকেত যদি **আজ যে ব্রাঞ্চে রেজিস্ট্রেশন হচ্ছে**
+             তার সঙ্গে না মেলে, তাহলে ঠিক ব্রাঞ্চের নতুন আইডি বসে।
+
+           ⛔ **শুধু তখনই, যখন আইডির তারিখটাও আজকেরই** — অর্থাৎ ভুলটা আজই
+              হয়েছে। পুরনো দিনের আইডি (রোগীর হাতে ছাপা কাগজ আছে) **কখনো**
+              বদলানো হয় না, নইলে পুরনো রসিদের সঙ্গে মিলত না।
+           ⛔ আইডি বদলালে টাকার সারির `patientCode`-ও একই সঙ্গে ঠিক করা হয়
+              (নিচে), তাই দুই জায়গায় দুরকম আইডি থেকে যেতে পারে না।
+           ⛔ নতুন আইডি বানাতে না পারলে (নেট নেই) পুরনোটাই থাকে — কিছুই ভাঙে না।
+           ═══════════════════════════════════════════════════════════════ */
+        val keptId = existingPatientIdSafe
+        val wantCode = PatientIdGenerator.branchCode(draft.branch)
+        val keptCode = keptId.substringBefore("-", "")
+        val keptDate = keptId.split("-").getOrNull(1).orEmpty()
+        val todayCode = PatientIdGenerator.dateCode(draft.date)
+        val mustRecode = keptId.isNotBlank() && keptCode.isNotBlank() &&
+            !keptCode.equals(wantCode, ignoreCase = true) && keptDate == todayCode
+        val recodedId = if (mustRecode)
+            (try { PatientIdGenerator.generate(draft.branch, draft.date, context) } catch (_: Throwable) { "" })
+        else ""
+        val patientIdRaw = when {
+            recodedId.isNotBlank() -> recodedId
+            keptId.isNotBlank()    -> keptId
+            else -> PatientIdGenerator.generate(draft.branch, draft.date, context)
+        }
+        /* ═══════════════════════════════════════════════════════════════
+           🛡️🔒 V1111 (০৫.০৯.২০২৬) — **শেষ পাহারা: আইডির ব্রাঞ্চ-সংকেত আর
+           সারির ব্রাঞ্চ কখনোই আলাদা হতে পারবে না।**
+
+           🔴 কেন দরকার (সৎ কথা): KASHAB MANDAL-এর সারিতে `createdAt` আর
+              `updatedAt` **হুবহু এক** (11:27:50.808) — অর্থাৎ সারিটা **একবারই**
+              লেখা হয়েছে, তবু `branch=Jalpaiguri` আর আইডি `COB-…`। উপরের সব
+              পথ একই `draft.branch` ব্যবহার করে, তাই **কোন পথে এটা হলো তা আমি
+              এখনো প্রমাণ করতে পারিনি** — TK-কে সেটা জানানো হয়েছে।
+           ⇒ তাই কারণ খোঁজার উপর ভরসা না করে **ফলটাই আটকে দেওয়া হলো**: লেখার
+             ঠিক আগে আইডির প্রথম তিন অক্ষর মিলিয়ে দেখা হয়; না মিললে ওই
+             ব্রাঞ্চের ঠিক আইডি বসে।
+           ⛔ শুধু **আজকের তারিখের** আইডিতে (রোগীর হাতে ছাপা পুরনো কাগজ অক্ষত)।
+           ⛔ নতুন আইডি বানাতে না পারলে (নেট নেই) আগেরটাই থাকে — সেভ আটকায় না।
+           ═══════════════════════════════════════════════════════════════ */
+        val patientId = run {
+            val code = patientIdRaw.substringBefore("-", "")
+            val dpart = patientIdRaw.split("-").getOrNull(1).orEmpty()
+            if (code.isNotBlank() && !code.equals(wantCode, ignoreCase = true) && dpart == todayCode) {
+                val fixed = try { PatientIdGenerator.generate(draft.branch, draft.date, context) } catch (_: Throwable) { "" }
+                if (fixed.isNotBlank()) fixed else patientIdRaw
+            } else patientIdRaw
+        }
+        /* 🔴 V1110 — আইডি বদলে থাকলে ওই রোগীর টাকার সারিগুলোর `patientCode`-ও
+           ঠিক করে দেওয়া হয়। ⛔ টাকার অঙ্ক · তারিখ · ব্রাঞ্চ কিছুই ছোঁয়া হয় না,
+           শুধু মানুষের-পড়ার আইডির ঘরটা। ⛔ ব্যর্থ হলে চুপচাপ — সেভ আটকায় না। */
+        if (recodedId.isNotBlank() && keptId.isNotBlank() && effectiveRowId.isNotBlank()) {
+            try {
+                Thread {
+                    try {
+                        val rows = SupabaseClient.fetchListSlimOrNull(
+                            "payments", "patientId=eq.$effectiveRowId&patientCode=eq.$keptId", 100, "id")
+                        if (rows != null) for (i in 0 until rows.length()) {
+                            val rid = rows.optJSONObject(i)?.s("id").orEmpty()
+                            if (rid.isNotBlank()) SupabaseClient.updateById(
+                                "payments", rid, org.json.JSONObject().put("patientCode", recodedId))
+                        }
+                    } catch (_: Throwable) { }
+                }.start()
+            } catch (_: Throwable) { }
+        }
         /* 🔵🔒 V516: সারির আইডি —
              · রোজকার সেভ ⇒ `existingRowIdSafe` (ফাঁকা হলে ভিতরে `stableRowId`) — আগের মতোই
              · "Different Patient" ⇒ স্টাফের বাছাইয়ে তৈরি নতুন অনন্য আইডি
@@ -181,7 +290,13 @@ class RegistrationRepository(private val context: Context) {
            ⛔ Follow-up (Visit) সারিও এই নতুন আইডি ধরেই তৈরি হয়, তাই প্রথম
               রোগীর Follow-up-এ হাত পড়ে না। */
         val rowIdForSave = existingRowIdSafe.ifBlank { forceNewPatientRowId }
-        val patientRow = PatientModel.buildPatientRow(draft, patientId, staffMobile, rowIdForSave)
+        /* 🔴🔒 V872 — শেষ শর্তটা: এটা কি আগে থেকে থাকা রোগীর সারি?
+           ⛔ ঠিক যে শর্তে Visit Fee কাটা হয় না, হুবহু সেই শর্তই (প্রমাণিত)।
+              "Different Patient" নতুন রোগী ⇒ এখানে `false`, আগের মতোই। */
+        val patientRow = PatientModel.buildPatientRow(
+            draft, patientId, staffMobile, rowIdForSave,
+            keepCreatedBy, keepRegisteredBy, keepCreatedAt,
+            isExistingRow = existingRowIdSafe.isNotBlank())
         /* 🔴🔒 V399 (16.08.2026, TK-রিপোর্ট ছবিসহ — "২ বার ৩ বার হয়ে যাচ্ছে"):
            এই রোগীর Follow-up (Visit) সারি ক্লাউডে আগে থেকেই আছে কিনা দেখা হয় —
            থাকলে **সেটার আইডিই** ব্যবহার হয়, তাই নতুন সারি আর তৈরি হয় না।
@@ -190,15 +305,25 @@ class RegistrationRepository(private val context: Context) {
            ⛔ স্থানীয় স্টোরে আগে থেকেই (মোবাইল+stage) মিলিয়ে আপডেট হয়
               (`LocalWorkflowStore.upsertFollowUp`), তাই সমস্যাটা শুধু ক্লাউডেই ছিল। */
         var existingFollowUpRowId = ""
+        var keepFuCreatedBy = ""
+        var keepFuCreatedAt = ""
         try {
             val refForFu = patientRow.s("id")
             if (refForFu.isNotBlank()) {
+                // 🟢 V868 — createdBy/createdAt **এই একই অনুরোধেই**, নতুন পড়া নয়।
                 val fu = SupabaseClient.fetchListOrNull(
-                    "followups", "refId=eq.$refForFu&stage=eq.Patient", 1, select = "id")
-                if (fu != null && fu.length() > 0) existingFollowUpRowId = fu.getJSONObject(0).s("id")
+                    "followups", "refId=eq.$refForFu&stage=eq.Patient", 1,
+                    select = "id,createdBy,createdAt")
+                if (fu != null && fu.length() > 0) {
+                    val row = fu.getJSONObject(0)
+                    existingFollowUpRowId = row.s("id")
+                    keepFuCreatedBy = row.s("createdBy")
+                    keepFuCreatedAt = row.s("createdAt")
+                }
             }
         } catch (_: Throwable) { }
-        val visitFollowUpRow = PatientModel.buildVisitFollowUpRow(patientRow, staffMobile, existingFollowUpRowId)
+        val visitFollowUpRow = PatientModel.buildVisitFollowUpRow(
+            patientRow, staffMobile, existingFollowUpRowId, keepFuCreatedBy, keepFuCreatedAt)
         // TK-REPORTED BUG FIX (2026-07-25): this used to build+queue a brand
         // new Visit Fee payment row EVERY time save() ran, even via "Update
         // Existing" on the duplicate-mobile popup -- so re-saving an
@@ -209,7 +334,46 @@ class RegistrationRepository(private val context: Context) {
         // a genuinely NEW registration (existingRowId blank); "Update
         // Existing" (existingRowId set) now only updates the patient/
         // followup record, no new fee.
-        val paymentRow = if (existingRowIdSafe.isBlank()) PatientModel.buildVisitFeePaymentRow(patientRow, draft, staffMobile) else null
+        /* 🔴🔒🔒 V901 (৩১.০৮.২০২৬, TK-রিপোর্ট — *"Visit Fee তো বাধ্যতামূলক,
+           তাহলে Missing কেন হবে?"*):
+
+           **আসল দোষ (কোড ধরে যাচাই):** ফর্মে ফি না লিখলে Save-ই হয় না, কিন্তু
+           ডুপ্লিকেট-পপ-আপে **"Update Existing"** চাপলে ফি-র টাকার সারিটা
+           **কোথাও লেখা হতো না** — স্টাফের নেওয়া টাকাটা হারিয়ে যেত, আর
+           Briefing-এ ওই নামটা "Visit Fee Missing"-এ উঠত।
+
+           **এখন (TK-অনুমোদিত নিয়ম):** "Update Existing"-এও ফি লেখা থাকলে সারিটা
+           বসে — **কিন্তু শুধু তখনই, যদি ওই রোগীর ভিজিট ফি আগে কখনো নেওয়া
+           না হয়ে থাকে**। তাই দুবার ফি কাটার পুরোনো সমস্যা (যেটার জন্য এই
+           নিয়মটা বসানো হয়েছিল) ফিরে আসার পথ নেই।
+           ⛔ যাচাই করতে না পারলে (নেট নেই) **কিছুই লেখা হয় না** — ভুল করে
+              দ্বিতীয়বার কাটার চেয়ে না-লেখাই নিরাপদ।
+           ⛔ নতুন রেজিস্ট্রেশনের পথ এক অক্ষরও বদলায়নি। */
+        /* 🟥🔒 V958 (০১.০৯.২০২৬, TK-নির্দেশ *"হ্যাঁ, বন্ধ করুন"*) — উপরের V901-এ
+           একটা দরজা খোলা ছিল: **যাচাই করা না গেলে** (নেট নেই / পড়া ব্যর্থ) ফি-র
+           সারিটা একেবারেই লেখা হত না, তাই স্টাফের নেওয়া টাকা হারিয়ে যেত আর নামটা
+           "Visit Fee Missing"-এ উঠত। এখন "জানি না" মানে **বাদ নয়, অপেক্ষা** —
+           সারিটা তৈরি হয়ে জমা থাকে, লাইন ফিরলে আবার যাচাই করে তবেই বসে।
+           ⛔ দুবার কাটার পথ নেই: সারিটা একবারই তৈরি, নিজের আইডি নিয়ে, আর
+              বসানোর ঠিক আগে প্রতিবার আবার যাচাই হয় (PendingVisitFeeStore)। */
+        val paymentRow = if (existingRowIdSafe.isBlank()) {
+            PatientModel.buildVisitFeePaymentRow(patientRow, draft, staffMobile)
+        } else if (draft.regFee > 0.0) {
+            when (PendingVisitFeeStore.visitFeeStatus(patientRow.s("id"), patientRow.s("patientId"))) {
+                PendingVisitFeeStore.FEE_NOT_TAKEN ->
+                    PatientModel.buildVisitFeePaymentRow(patientRow, draft, staffMobile)
+                PendingVisitFeeStore.FEE_TAKEN -> null
+                else -> {
+                    // যাচাই করা গেল না — সারিটা জমা থাক, লাইন ফিরলে বসবে।
+                    try {
+                        PendingVisitFeeStore.hold(
+                            context, PatientModel.buildVisitFeePaymentRow(patientRow, draft, staffMobile)
+                        )
+                    } catch (_: Throwable) { }
+                    null
+                }
+            }
+        } else null
 
         // OWNER-LOCK: Registration and Registration Fee are one action.
         // Move Enquiry -> Visit locally first and return without waiting for network.
@@ -289,6 +453,30 @@ class RegistrationRepository(private val context: Context) {
                     localStore.upsertFollowUp(visitFollowUpRow, "SYNCED")
                     localStore.upsertPatient(patientRow, "SYNCED")
                 }
+                /* ═══════════════════════════════════════════════════════════
+                   🔴🔒 V1101 (০৫.০৯.২০২৬) — TK: *"রেজিস্ট্রেশন নেওয়ার সময়
+                   ভিজিট ফি বাধ্যতামূলক, তাহলে আমার কাছে Visit Fee Missing
+                   নোটিফিকেশন আসবেই বা কেন"* — কথাটা ঠিক। সারানোর কাজটা
+                   মালিকের নয়, **অ্যাপের**।
+
+                   ⇒ সেভের পরে অ্যাপ নিজেই মিলিয়ে দেখে ফি-র সারিটা সত্যিই
+                     ক্লাউডে বসেছে কিনা। না বসলে সারিটা জমা-ঘরে (PendingVisitFeeStore)
+                     রেখে দেওয়া হয় — লাইন ফিরলে নিজে থেকেই বসে যায়।
+
+                   ⛔ **দুবার কাটার পথ নেই:** বসানোর ঠিক আগে প্রতিবার আবার
+                      যাচাই হয়; আগে থেকে ফি থাকলে সারিটা চুপচাপ বাদ যায়।
+                      সারির আইডিও একটাই, তাই একই আইডিতেই বসে (upsert)।
+                   ⛔ যাচাই করা না গেলে (নেট নেই) সারিটা জমাই থাকে — হারায় না।
+                   ⛔ টাকার অঙ্ক কখনো আন্দাজে বানানো হয় না — স্টাফের লেখা
+                      অঙ্কটাই, সেভের মুহূর্তের সেই একই সারি।
+                   ═══════════════════════════════════════════════════════════ */
+                if (paymentRow != null) try {
+                    val pid = patientRow.s("id")
+                    val code = patientRow.s("patientId")
+                    if (PendingVisitFeeStore.visitFeeStatus(pid, code) != PendingVisitFeeStore.FEE_TAKEN) {
+                        PendingVisitFeeStore.hold(context, paymentRow)
+                    }
+                } catch (_: Throwable) { }
             } catch (_: Throwable) { }
         }.start()
         return patientId
@@ -308,6 +496,10 @@ class RegistrationRepository(private val context: Context) {
      * actually succeeded, so a real failure gets retried and a real success
      * removes it from the queue -- still "best-effort" in the sense that it
      * never throws/blocks the original save either way. */
+    /* 🔴🔒 V901-এর `visitFeeAlreadyTaken()` V958-এ সরানো হলো — ওটা "যাচাই করা
+       গেল না"-কেও "ফি নেওয়া আছে" বলত, আর ওখান থেকেই টাকা হারাত। এখন তিন রকম
+       উত্তর দেয় `PendingVisitFeeStore.visitFeeStatus()`। */
+
     private fun closeSourceEnquiry(mobileDigitsOnly: String, patientId: String): Boolean {
         val digits = mobileDigitsOnly.filter { it.isDigit() }.takeLast(10)
         if (digits.length != 10) return true // nothing meaningful to retry
@@ -364,6 +556,7 @@ class RegistrationRepository(private val context: Context) {
                 history.put(
                     JSONObject()
                         .put("date", PatientModel.today())
+                        .put("time", java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US).format(java.util.Date()))   /* ⏰ V827 — সময়ও জমা হয় (TK: "LAST CALL তারিখের পরে যেন Time থাকে")। */
                         .put("remark", "Converted to Patient Registration")
                         .put("staff", "Registration")
                 )
@@ -433,6 +626,9 @@ class RegistrationRepository(private val context: Context) {
         // often), not skipped just because the Patient/Visit/Payment rows
         // above already finished syncing.
         flushCloseIntents()
+        // 🟥 V958: যাচাই না হওয়ায় যে ভিজিট-ফি সারিগুলো অপেক্ষায় আছে, লাইন
+        // ফিরলে সেগুলোও আবার যাচাই করে বসিয়ে দেওয়া হয়।
+        try { PendingVisitFeeStore.flush(context) } catch (_: Throwable) { }
         }
     }
 

@@ -71,29 +71,29 @@
                 <LinearLayout style="@style/RegCardInner" android:padding="12dp">
                     <LinearLayout style="@style/Row2">
                         <LinearLayout style="@style/Col">
-                            <TextView style="@style/FieldLabel" android:layout_marginTop="10dp" android:text="Mobile *" />
-                            <EditText android:id="@+id/etMobile" style="@style/FieldInput" android:inputType="phone" android:maxLines="1" android:importantForAutofill="no" android:autofillHints="@null" />
+                            <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="Mobile *" />
+                            <EditText android:id="@+id/etMobile" style="@style/RegFieldInput" android:inputType="phone" android:maxLines="1" android:importantForAutofill="no" android:autofillHints="@null" />
                         </LinearLayout>
                         <LinearLayout style="@style/ColEnd">
-                            <TextView style="@style/FieldLabel" android:layout_marginTop="10dp" android:text="First Visit Date" />
-                            <TextView android:id="@+id/tvDate" style="@style/FieldInput" />
+                            <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="First Visit Date" />
+                            <TextView android:id="@+id/tvDate" style="@style/RegFieldInput" />
                         </LinearLayout>
                     </LinearLayout>
                     <!-- 🔒 V235 (TK verified 01.08.2026): Alternate/Enquiry Mobile.
                          Enquiry থেকে খুললে পুরনো Enquiry নম্বর আপনা থেকে বসে; Primary-র
                          সমান হলে save-এ বাদ (duplicate নয়)। design/style অপরিবর্তিত। -->
-                    <TextView style="@style/FieldLabel" android:layout_marginTop="10dp" android:text="Alternate / Enquiry Mobile" />
-                    <EditText android:id="@+id/etAltMobile" style="@style/FieldInput" android:inputType="phone" android:maxLines="1" android:importantForAutofill="no" android:autofillHints="@null" />
-                    <TextView style="@style/FieldLabel" android:layout_marginTop="10dp" android:text="Patient Name *" />
-                    <EditText android:id="@+id/etName" style="@style/FieldInput" android:inputType="textPersonName|textCapWords" android:maxLines="1" />
+                    <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="Alternate / Enquiry Mobile" />
+                    <EditText android:id="@+id/etAltMobile" style="@style/RegFieldInput" android:inputType="phone" android:maxLines="1" android:importantForAutofill="no" android:autofillHints="@null" />
+                    <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="Patient Name *" />
+                    <EditText android:id="@+id/etName" style="@style/RegFieldInput" android:inputType="textPersonName|textCapWords" android:maxLines="1" />
                     <LinearLayout style="@style/Row2">
                         <LinearLayout style="@style/Col">
-                            <TextView style="@style/FieldLabel" android:layout_marginTop="10dp" android:text="Occupation" />
-                            <Spinner android:id="@+id/spOccupation" style="@style/FieldInput" android:background="@drawable/bg_input_field_picker" android:paddingEnd="40dp" />
+                            <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="Occupation" />
+                            <Spinner android:id="@+id/spOccupation" style="@style/RegFieldInput" android:background="@drawable/bg_input_field_picker" android:paddingEnd="40dp" />
                         </LinearLayout>
                         <LinearLayout style="@style/ColEnd">
-                            <TextView style="@style/FieldLabel" android:layout_marginTop="10dp" android:text="Age" />
-                            <EditText android:id="@+id/etAge" style="@style/FieldInput" android:inputType="number" android:maxLength="3" android:maxLines="1" />
+                            <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="Age" />
+                            <EditText android:id="@+id/etAge" style="@style/RegFieldInput" android:inputType="number" android:maxLength="3" android:maxLines="1" />
                         </LinearLayout>
                     </LinearLayout>
                     <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="12dp">
@@ -108,26 +108,26 @@
             <androidx.cardview.widget.CardView style="@style/RegCard" android:layout_marginTop="8dp">
                 <LinearLayout style="@style/RegCardInner" android:padding="12dp">
                     <TextView style="@style/SectionHead" android:layout_marginTop="12dp" android:text="Address" />
-                    <TextView style="@style/FieldLabel" android:layout_marginTop="10dp" android:text="Village" />
-                    <EditText android:id="@+id/etVillage" style="@style/FieldInput" android:maxLines="1" />
+                    <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="Village" />
+                    <EditText android:id="@+id/etVillage" style="@style/RegFieldInput" android:maxLines="1" />
                     <LinearLayout style="@style/Row2">
                         <LinearLayout style="@style/Col">
-                            <TextView style="@style/FieldLabel" android:layout_marginTop="10dp" android:text="PO" />
-                            <EditText android:id="@+id/etPo" style="@style/FieldInput" android:maxLines="1" />
+                            <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="PO" />
+                            <EditText android:id="@+id/etPo" style="@style/RegFieldInput" android:maxLines="1" />
                         </LinearLayout>
                         <LinearLayout style="@style/ColEnd">
-                            <TextView style="@style/FieldLabel" android:layout_marginTop="10dp" android:text="PS" />
-                            <EditText android:id="@+id/etPs" style="@style/FieldInput" android:maxLines="1" />
+                            <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="PS" />
+                            <EditText android:id="@+id/etPs" style="@style/RegFieldInput" android:maxLines="1" />
                         </LinearLayout>
                     </LinearLayout>
                     <LinearLayout style="@style/Row2">
                         <LinearLayout style="@style/Col">
-                            <TextView style="@style/FieldLabel" android:layout_marginTop="10dp" android:text="District" />
-                            <EditText android:id="@+id/etDistrict" style="@style/FieldInput" android:maxLines="1" />
+                            <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="District" />
+                            <EditText android:id="@+id/etDistrict" style="@style/RegFieldInput" android:maxLines="1" />
                         </LinearLayout>
                         <LinearLayout style="@style/ColEnd">
-                            <TextView style="@style/FieldLabel" android:layout_marginTop="10dp" android:text="PIN Code" />
-                            <EditText android:id="@+id/etPin" style="@style/FieldInput" android:inputType="number" android:maxLength="6" android:maxLines="1" />
+                            <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="PIN Code" />
+                            <EditText android:id="@+id/etPin" style="@style/RegFieldInput" android:inputType="number" android:maxLength="6" android:maxLines="1" />
                         </LinearLayout>
                     </LinearLayout>
                 </LinearLayout>
@@ -190,15 +190,15 @@
                          — DoctorCheckupActivity.kt), তাই এখানে কোড না
                          বদলেই ডাক্তার এখন Registration-এর সময় স্টাফের
                          লেখা এই তথ্য সরাসরি প্রি-ফিল অবস্থায় দেখবেন। -->
-                    <TextView style="@style/FieldLabel" android:layout_marginTop="10dp"
+                    <TextView style="@style/FieldLabel" android:layout_marginTop="8dp"
                         android:text="Duration of Problem" />
                     <LinearLayout style="@style/Row2">
                         <LinearLayout style="@style/Col">
-                            <EditText android:id="@+id/etDurationNote" style="@style/FieldInput"
+                            <EditText android:id="@+id/etDurationNote" style="@style/RegFieldInput"
                                 android:inputType="number" android:maxLines="1" />
                         </LinearLayout>
                         <LinearLayout style="@style/ColEnd">
-                            <Spinner android:id="@+id/spDurationUnit" style="@style/FieldInput"
+                            <Spinner android:id="@+id/spDurationUnit" style="@style/RegFieldInput"
                                 android:background="@drawable/bg_input_field_picker" android:paddingEnd="40dp" />
                         </LinearLayout>
                     </LinearLayout>
@@ -215,7 +215,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
                         app:singleLine="false" />
-                    <TextView style="@style/FieldLabel" android:layout_marginTop="10dp"
+                    <TextView style="@style/FieldLabel" android:layout_marginTop="8dp"
                         android:text="Other Treatment History (Optional)" />
                     <EditText android:id="@+id/etPrevTreatmentNote" style="@style/FieldInputMultiline"
                         android:inputType="textMultiLine" android:minLines="2"
@@ -226,8 +226,8 @@
             <!-- ===== RMP / REFERRING DOCTOR (conditional) ===== -->
             <androidx.cardview.widget.CardView style="@style/RegCard" android:layout_marginTop="8dp">
                 <LinearLayout style="@style/RegCardInner" android:padding="12dp">
-                    <TextView style="@style/FieldLabel" android:layout_marginTop="10dp" android:text="Referred By" />
-                    <Spinner android:id="@+id/spRefBy" style="@style/FieldInput" android:background="@drawable/bg_input_field_picker" android:paddingEnd="40dp" />
+                    <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="Referred By" />
+                    <Spinner android:id="@+id/spRefBy" style="@style/RegFieldInput" android:background="@drawable/bg_input_field_picker" android:paddingEnd="40dp" />
                     <LinearLayout
                         android:id="@+id/llRefDoctor"
                         android:layout_width="match_parent"
@@ -237,24 +237,26 @@
                         android:layout_marginTop="10dp"
                         android:padding="12dp"
                         android:background="@drawable/bg_reveal_panel">
-                        <!-- V324 owner-approved addition: this button reads only the
-                             RMP list already saved on this phone. It never performs a
-                             Supabase request; the two existing manual fields below
-                             remain available as the fail-safe. -->
-                        <Button
-                            android:id="@+id/btnSelectRefDoctor"
+                        <!-- 🟢🔒 V895 (৩১.০৮.২০২৬, TK ডেমো ফটো দেখে "হ্যাঁ পাশ, বসিয়ে দিন") —
+                             TK: *"নামের ঘরে ডাক্তারের নাম, ঠিকানা বা নম্বর লিখলেই যেন
+                             নিচে অটোমেটিক সাজেস্ট করে … সবুজ 'Select Saved RMP / Doctor'
+                             বোতামটা থাকবে না"*।
+                             পুরোনো বোতামটা এখানেই ছিল, এখন সরানো হলো; তার বদলে নিচের
+                             `llRmpSuggest` ঘরে টাইপ করতে করতেই তালিকা নামে।
+                             ⛔ তালিকা আগের মতোই **ফোনে জমা থাকা** ঘর থেকে আসে —
+                                ইন্টারনেট-খরচ এক বাইটও বাড়ে না। -->
+                        <TextView style="@style/FieldLabel" android:layout_marginTop="0dp" android:text="Doctor / RMP Name" />
+                        <EditText android:id="@+id/etRefDoctorName" style="@style/RegFieldInput" android:hint="Doctor / RMP name" android:inputType="textPersonName" android:maxLines="1" />
+                        <LinearLayout
+                            android:id="@+id/llRmpSuggest"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:background="@drawable/bg_btn_green"
-                            android:text="🔍  Select Saved RMP / Doctor"
-                            android:textAllCaps="false"
-                            android:textColor="@color/white"
-                            android:textStyle="bold"
-                            android:textSize="14sp" />
-                        <TextView style="@style/FieldLabel" android:layout_marginTop="10dp" android:text="Doctor / RMP Name" />
-                        <EditText android:id="@+id/etRefDoctorName" style="@style/FieldInput" android:hint="Doctor / RMP name" android:inputType="textPersonName" android:maxLines="1" />
-                        <TextView style="@style/FieldLabel" android:layout_marginTop="10dp" android:text="Doctor Mobile" />
-                        <EditText android:id="@+id/etRefDoctorMobile" style="@style/FieldInput" android:hint="Doctor mobile" android:inputType="phone" android:maxLines="1" />
+                            android:orientation="vertical"
+                            android:visibility="gone"
+                            android:layout_marginTop="6dp"
+                            android:background="@drawable/bg_rmp_suggest" />
+                        <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="Doctor Mobile" />
+                        <EditText android:id="@+id/etRefDoctorMobile" style="@style/RegFieldInput" android:hint="Doctor mobile" android:inputType="phone" android:maxLines="1" />
                     </LinearLayout>
                     <!-- TK-REQUESTED ADDITION (2026-07-24): same Official/
                          Unexpected Time toggle the Enquiry form already has
@@ -264,10 +266,18 @@
                          2-button pattern/styling as activity_enquiry.xml's
                          btnTimingOfficial/btnTimingUnexpected. Nothing
                          else in this card or the rest of the form changed. -->
+                    <!-- 🕘🔒 V962 (০১.০৯.২০২৬, TK-নির্দেশ) — TK: *"রেজিস্ট্রেশন
+                         ফরমে আনএক্সপেক্টেড থাকবে না, এক্সপেক্টেড ও থাকবে না"*।
+                         সময়টা এখন **শুধু অল-ব্রাঞ্চ এনকোয়ারি ফর্মে** ঘড়ি ধরে ঠিক
+                         হয়, তাই এখানে বাছার কিছু নেই — পুরো সারিটাই লুকানো।
+                         ⛔ বোতাম দুটো XML-এ রাখা হলো (মুছলে কোড ভাঙত); শুধু
+                            দেখা যায় না ও চাপা যায় না। -->
                     <LinearLayout
+                        android:id="@+id/rowRegTiming"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
+                        android:visibility="gone"
                         android:layout_marginTop="12dp">
                         <Button
                             android:id="@+id/btnRegTimingOfficial"
@@ -305,8 +315,8 @@
                 <LinearLayout style="@style/RegCardInner" android:padding="12dp">
                     <LinearLayout style="@style/Row2">
                         <LinearLayout style="@style/Col">
-                            <TextView style="@style/FieldLabel" android:layout_marginTop="10dp" android:text="Fee Amount *" />
-                            <EditText android:id="@+id/etFee" style="@style/FieldInput" android:inputType="number" android:maxLines="1" />
+                            <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="Fee Amount *" />
+                            <EditText android:id="@+id/etFee" style="@style/RegFieldInput" android:inputType="number" android:maxLines="1" />
                         </LinearLayout>
                         <LinearLayout style="@style/ColEnd">
                             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="34dp">
@@ -373,7 +383,8 @@
             android:text="✓  Save Patient"
             android:textColor="@color/white"
             android:textStyle="bold"
-            android:textSize="16sp" />
+            android:textSize="16sp"
+            android:textAllCaps="false" />
         <ProgressBar android:id="@+id/progressSave" android:layout_width="24dp" android:layout_height="24dp"
             android:layout_marginTop="8dp" android:layout_gravity="center" android:visibility="gone" />
     </LinearLayout>

@@ -80,7 +80,8 @@ object DietChartHtml {
         .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
 
     /** ওয়েবের `wlv1AddrTwo` — থানা-চিহ্নের আগে লাইন-ব্রেক, নইলে এক লাইনে। */
-    private fun addr2(a: String): String {
+    private fun addr2(aRaw: String): String {
+        val a = aRaw.uppercase(java.util.Locale.US)   // 🔠🔒 V1009 (০৩.০৯.২০২৬, TK-নির্দেশ: "সমস্ত জায়গায় ক্যাপিটাল লেটারই করবেন") — শুধু **দেখানোর** সময় বড় হাতে; ডেটাবেসে যা লেখা আছে তা এক অক্ষরও বদলায় না।
         if (a.isBlank()) return "-"
         val u = a.uppercase()
         val markers = listOf("PS:", "P.S", "P/S", "THANA", "POLICE STATION")
@@ -195,7 +196,7 @@ body{font-family:Arial,"Noto Sans Bengali","Noto Sans Devanagari",sans-serif;col
             "<img class=\"wm\" src=\"${info.logoAssetPath}\">" +
             "<div class=\"head\"><img src=\"${info.logoAssetPath}\"><div class=\"hc\">" +
             "<h1>${esc(info.clinicName)}</h1>$brLine<div class=\"rule\"></div>" +
-            "<div class=\"ad\">${esc(info.addressLine)} &nbsp;|&nbsp; Mob: ${esc(info.phoneLine)}</div>" +
+            "<div class=\"ad\">${esc(info.addressLine)} &nbsp;|&nbsp; Mob: ${esc(info.phoneLine)} &nbsp;|&nbsp; Helpline: ${esc(BranchCatalog.HELPLINE)}</div>" +
             "<div class=\"tag\"><b>WE PROVIDE AYURVEDA KSHAR SUTRA THERAPY IN PILES, FISSURE &amp; FISTULA</b>" +
             "<span>MOST SUCCESSFUL TREATMENT WITH HIGH SUCCESS RATE</span></div></div></div><div class=\"sep\"></div>" +
             "<div class=\"title\"><b>DIET &amp; LIFESTYLE CHART</b><span>PILES &nbsp;·&nbsp; FISSURE &nbsp;·&nbsp; FISTULA</span></div>" +

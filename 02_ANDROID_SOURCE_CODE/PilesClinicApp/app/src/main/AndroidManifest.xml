@@ -11,6 +11,17 @@
          Incoming Call থেকে গণনা করতে। ⛔ স্টাফ Allow না করলে/এই অনুমতি না
          থাকলে ঘরটা আগের মতোই সম্পূর্ণ হাতে-লেখা থেকে যায়, কিছুই আটকায় না। -->
     <uses-permission android:name="android.permission.READ_CALL_LOG" />
+
+    <!-- 🪟🔒 V845 (৩০.০৮.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — কল বাজার সময়
+         ফোনের নিজের কল-স্ক্রিন পুরো পর্দা ঢেকে রাখে, তাই অ্যাপের
+         নোটিফিকেশন পিছনে চলে যেত (TK: *"ফোন কল কাটার পরে কেন এটা আসবে…
+         আমি চাইছি ডিউরিং ফোন কলে"*)। এই অনুমতিটাই কল-স্ক্রিনের **উপরে**
+         ভাসমান কার্ড আঁকতে দেয় (Truecaller যেভাবে দেখায়)।
+         ⛔ এটা "special" অনুমতি — নিজে থেকে চালু হয় না, প্রতিটা ফোনে
+            স্টাফকে একবার হাতে চালু করতে হয় (Settings → Display over
+            other apps)। **না দিলে কিচ্ছু ভাঙে না** — তখন আজকের মতোই
+            শুধু নোটিফিকেশন আসবে। -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <!-- 🔴🆕🔒 B441 (05.08.2026, TK-নির্দেশ) — দুই-SIM ফোনে কোন SIM
          ব্রাঞ্চের নম্বর তা আলাদা করতে (নইলে দুটো SIM-এর কল মিলিয়ে ভুল
          সংখ্যা দেখাত)। ⛔ না দিলে/না থাকলে সব SIM মিলিয়ে গোনে, আটকায় না। -->
@@ -30,6 +41,13 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-feature android:name="android.hardware.location" android:required="false" />
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+    <!-- 🏍️🔒 V968 (০২.০৯.২০২৬, TK-নির্দেশ): শুধু বাইরে ঘোরা স্টাফের (RUPAM)
+         Field Visit-এ IN TIME থেকে OUT TIME পর্যন্ত কিলোমিটার গোনার জন্য।
+         ⛔ background location চাওয়া হয়নি — foreground service চলা অবস্থায়ই
+            অবস্থান নেওয়া হয়, আর স্থায়ী নোটিফিকেশন দেখানো হয় (Android-এর নিয়ম;
+            TK-কে কাজ শুরুর আগেই জানানো হয়েছে)। -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <!-- 🔴🔴🔴 TK-রিপোর্ট (05.08.2026) — IN/OUT TIME · Call Reminder ·
          Chamber Close Reminder তিনটেই ব্যাকগ্রাউন্ডে (WorkManager) চলে;
          অ্যাপ বন্ধ থাকলে কিছু ফোনের (Xiaomi/Vivo/Oppo-ঘরানার) নিজস্ব
@@ -172,7 +190,7 @@
         <activity
             android:name=".native.MedicinePaymentActivity"
             android:exported="false"
-            android:label="Medicine Payment"
+            android:label="Medicine or Saline"
             android:theme="@style/Theme.PilesClinic" />
 
         <activity
@@ -302,6 +320,12 @@
             android:exported="false"
             android:label="Draft"
             android:theme="@style/Theme.PilesClinic" />
+        <!-- 📊 V824 — Yearly Registration (শুধু মাস্টার) -->
+        <activity
+            android:name=".native.YearlyRegistrationActivity"
+            android:exported="false"
+            android:label="Yearly Registration"
+            android:theme="@style/Theme.PilesClinic" />
         <activity
             android:name=".native.ReportsActivity"
             android:exported="false"
@@ -399,9 +423,37 @@
         <!-- V245 additive — three new module activities (isolated; nothing existing changed) -->
         <activity android:name="com.tkbiswas.pilesclinic.modules.StaffProfileActivity" android:exported="false" />
         <activity android:name="com.tkbiswas.pilesclinic.modules.WorkNotebookActivity" android:exported="false" />
+        <!-- 🏍️🔒 V968 — ফিল্ড ভিজিট (শুধু বাইরে ঘোরা স্টাফ)। -->
+        <activity android:name="com.tkbiswas.pilesclinic.modules.FieldVisitActivity" android:exported="false" />
+        <!-- 💰🔒 V971 — এস্টিমেটের দরের তালিকা (যে কেউ বদলাতে পারবে)। -->
+        <activity android:name="com.tkbiswas.pilesclinic.clinical.PriceListActivity" android:exported="false" />
+        <!-- V982 additive — Estimate A4 full-screen paper (TK: "ফুল স্ক্রিন পর্দা খুলবে"); nothing existing changed -->
+        <activity android:name="com.tkbiswas.pilesclinic.clinical.EstimatePaperActivity" android:exported="false" />
+        <!-- V984 additive — Money Handover history (TK: "চেম্বার বন্ধ করার history"); nothing existing changed -->
+        <activity android:name="com.tkbiswas.pilesclinic.native.MoneyHandoverActivity" android:exported="false" />
+        <!-- V990 additive — My Unexpected Enquiries (TK: "তারা হিসাবটা পাবে কি করে"); nothing existing changed -->
+        <activity android:name="com.tkbiswas.pilesclinic.native.UnexpectedEnquiryActivity" android:exported="false" />
         <activity android:name="com.tkbiswas.pilesclinic.modules.IncomeExpenseActivity" android:exported="false" />
         <!-- V306 additive — Partner Shares (অংশীদারি ভাগ), isolated; nothing existing changed -->
         <activity android:name="com.tkbiswas.pilesclinic.modules.PartnerSharesActivity" android:exported="false" />
+
+        <!-- 🟢🔒 V605 (২৪.০৮.২০২৬, TK-নির্দেশ) — Incoming/Outgoing কলে রোগীর
+             পরিচয় + Remarks/New Enquiry (Truecaller-এর মতো, নোটিফিকেশন
+             দিয়ে)। additive — পুরনো কোনো activity/receiver ছোঁয়া হয়নি। -->
+        <activity android:name="com.tkbiswas.pilesclinic.native.CallRemarkActivity" android:exported="false" />
+        <receiver android:name="com.tkbiswas.pilesclinic.native.CallStateReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PHONE_STATE" />
+            </intent-filter>
+        </receiver>
+        <!-- 🟢🔒 V619 — নোটিফিকেশনের "✕ Dismiss" বোতামের জন্য, শুধু ভিতর থেকেই ডাকা হয়। -->
+        <receiver android:name="com.tkbiswas.pilesclinic.native.CallDismissReceiver" android:exported="false" />
+
+        <!-- 🏍️🔒 V968 — ফিল্ড ভিজিট চলাকালীন GPS (foreground service)। -->
+        <service
+            android:name="com.tkbiswas.pilesclinic.native.FieldVisitService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
 
     </application>
 

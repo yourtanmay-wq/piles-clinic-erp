@@ -12,6 +12,31 @@ class PaymentRepository(private val context: Context? = null) {
         private val LOCK = Any()
         private const val CACHE_PREFS = "todays_collection_cache"
 
+        /* 🔴🔒 V715 (২৬.০৮.২০২৬, TK-নির্দেশ — Supabase Egress-এর আসল কারণ,
+           সার্ভারের লগ থেকে **মেপে** পাওয়া):
+
+           গত ২৪ ঘণ্টায় `GET /rest/v1/followups` চলেছে **২০,৩১২ বার** — তার
+           ~১১,৭০০ বার এই একটাই ফাংশন (`promoteFollowUpToTreatment`) থেকে,
+           কারণ একটা পেমেন্ট ফোনের পেন্ডিং-তালিকায় আটকে আছে আর
+           `flushPending()` **প্রতিবার যেকোনো পর্দা খোলার সময়** চলে।
+
+           সবচেয়ে খারাপ দিকটা ছিল `select=*` — অর্থাৎ প্রতিবার রোগীর
+           **base64 ছবিসহ** ১০০টা পর্যন্ত সারি নামত (একটা ছবি ~৫৫–১২০ KB)।
+           এই একটা লাইনই দিনের egress-এর সিংহভাগ খেত।
+
+           এই তিনটে তালিকা আসলে **মাত্র কয়েকটা ঘর** পড়ে (কোডে মিলিয়ে দেখা):
+             · scan   → id · stage · status · lastRemark
+             · inquiry→ id · name · patientId · refId  (PatientIdentity.provablyOtherPatient)
+             · verify → শুধু গোনা হয় (`.length()`), একটাও ঘর পড়া হয় না
+
+           ⛔ `fetchListSlim` ব্যবহার করা হয়েছে — সরু পড়া ব্যর্থ হলে সে
+              **আগের মতোই পুরো সারি** নামায় (V405-এর প্রমাণিত fallback), তাই
+              কোনো অবস্থাতেই কম তথ্য নিয়ে ভুল সিদ্ধান্ত হতে পারে না।
+           ⛔ ছাঁকনি · limit · সাজানো · ফেরত আসা সারির সংখ্যা — কিছুই বদলায়নি। */
+        private const val PROMOTE_COLS_SCAN    = "id,stage,status,lastRemark,mobile,updatedAt"
+        private const val PROMOTE_COLS_INQUIRY = "id,name,patientId,refId,mobile,stage,status,updatedAt"
+        private const val PROMOTE_COLS_VERIFY  = "id"
+
         // 🟢🔒 B662 (15.08.2026, TK-অনুমোদিত · Egress-৪): "Visit Fee Missing" গোনার জন্য
         //   `fetchMissingVisitFeePatients()` **পাঁচ ব্রাঞ্চের সব রোগী** (ছাঁকনি নেই, limit
         //   5000) + সব visit_fee টাকার সারি নামায়। মাস্টারের ঘণ্টা (BellCounter) এটা
@@ -20,6 +45,32 @@ class PaymentRepository(private val context: Context? = null) {
         //   patients/payments টেবিলে সত্যিই কিছু বদলেছে (LiveRefresh-এর প্রমাণিত
         //   HEAD count-only প্রশ্ন — একটাও সারি নামে না)।
         //   ⛔ হিসাবের নিয়ম এক অক্ষরও বদলায়নি — শুধু বারবার না গুনে মনে রাখা হয়।
+        /* ═══════════════════════════════════════════════════════════════
+           🟢🔒 V1121 (০৫.০৯.২০২৬, TK-অনুমোদিত — "হ্যাঁ করুন, সাবধানে")
+           TK: *"Visit fee missing এখনো কেন এরকম?"* (৮ম বার)
+
+           🔴 **কোডে মেপে পাওয়া কারণ:** V1101-এ যে ব্যবস্থা বসেছে সেটা
+           **সেভের সময়ে** কাজ করে (`PendingVisitFeeStore`) — ওই দিনের পর
+           কোনো ফি-র সারি আর হারাতে পারে না। কিন্তু **তার আগে** যাঁদের সারি
+           হারিয়ে গেছে তাঁদের জন্য অ্যাপের কিছুই করার নেই, কারণ ফি-র
+           **টাকার অঙ্কটা কেবল ওই টাকার সারিতেই** জমা থাকত — রোগীর সারিতে
+           ফি-র কোনো ঘর নেই। ⇒ অঙ্কটা অ্যাপ জানেই না, আন্দাজে বসালে **ভুল
+           টাকা খাতায় ঢুকত**। তাই ওই পুরনো নামগুলো তালিকায় রেখে মালিককে
+           রোজ মনে করানোর কোনো মানে হয় না।
+
+           ⇒ এই তারিখের **আগে** রেজিস্টার হওয়া রোগীর নাম আর তালিকায় ওঠে না।
+           ⛔ এই তারিখ থেকে রেজিস্টার হওয়া কারো ফি-র সারি হারালে **আগের
+              মতোই** তালিকায় উঠবে — পাহারাটা এক অক্ষরও দুর্বল হয়নি।
+           ⛔ **কোনো টাকার হিসাব বদলায় না** · ডেটাবেসে কিছু লেখা/মোছা হয় না —
+              শুধু এই একটা তালিকায় দেখানো বন্ধ।
+           ⛔ তারিখটা ঠিক `yyyy-MM-dd` ধাঁচে না হলে (বা ফাঁকা হলে) কিছুই বাদ
+              যায় না — না জেনে কাউকে লুকিয়ে ফেলা হয় না।
+           ⚠️ TK-কে জানানো ঝুঁকি: এই চারজনের কেউ সত্যিই ফি না দিয়ে থাকলে সেই
+              মনে-করানোটাও চলে যাবে।
+           ═══════════════════════════════════════════════════════════════ */
+        private const val FEE_GUARD_FROM = "2026-09-05"
+        private val ISO_DAY = Regex("^\\d{4}-\\d{2}-\\d{2}$")
+
         private var missingFeeCache: List<MissingVisitFee>? = null
         private var missingFeeAt: Long = 0L
         private val missingFeeWatch = LiveRefresh.Watch("patients", "payments")
@@ -900,6 +951,70 @@ class PaymentRepository(private val context: Context? = null) {
         return treatmentPaidOnDate[patientId] ?: 0.0
     }
 
+    /* ═══════════════════════════════════════════════════════════════════
+       🔴🔒 V1106 (০৫.০৯.২০২৬, TK-রিপোর্ট, তিনটে ছবিসহ — SADDAM) —
+       *"একই দিনে একই ধরনের পেমেন্ট দুইবার হয়ে গেছে তাও আটকালেন না কেন? …
+       একটা বলছে আমি তো একবারই করেছিলাম … যেহেতু এটা কোন ডেমো প্রজেক্ট নয়,
+       এটা একটা লাইভ ক্লিনিক, বিশেষ করে টাকা পয়সার হিসাব, এগুলো তো আরো
+       কড়াকড়ি করতেই হবে"* · *"জিজ্ঞাসা করে নিশ্চিত করাবেন, একেবারে আটকাবেন না"*
+
+       ─── 🔴 আসল ফাঁকটা কোথায় ছিল (মেপে দেখা, আন্দাজ নয়) ──────────────
+       B52-এর প্রশ্নটা (`PaymentDayGuard`) আগে থেকেই চার জায়গাতেই বসানো ছিল,
+       **কিন্তু সে অঙ্কটা নিত ফোনের নিজের জমানো তালিকা থেকে**
+       (`paidOnDateFor` → `treatmentPaidOnDate`), যেটা ভরে **পর্দা খোলার সময়**।
+       ⇒ অন্য ফোন বা অন্য স্টাফ একটু আগে টাকা নিয়ে থাকলে এই ফোন সেটা জানতই
+         না, অঙ্ক ০ পেত, আর **কোনো প্রশ্নই আসত না**।
+       ⇒ ঠিক এই কারণেই স্টাফ সৎভাবে বলতে পারেন *"আমি তো একবারই করেছিলাম"*।
+
+       ─── এখন কী হয় ─────────────────────────────────────────────────────
+       সেভ চাপার মুহূর্তে **ক্লাউডকে একবার জিজ্ঞাসা করা হয়** — আজ এই রোগীর
+       নামে **হুবহু এই অঙ্কের** টাকা আগে থেকে বসানো আছে কি না। থাকলে কখন
+       নেওয়া হয়েছিল সেটাসহ প্রশ্ন — **Cancel = কিছুই হবে না · OK = জেনেশুনে তবুও**
+       (V708/V786-এ TK-এর পাশ করা হুবহু একই নিয়ম)।
+
+       ⛔ **কিছুই আটকানো হয় না** — TK-এর স্পষ্ট নির্দেশ মেনে শুধু জিজ্ঞাসা।
+       ⛔ **মিলিয়ে দেখা হয় প্রতিটা আলাদা এন্ট্রি ধরে** (`dailyEvents`), দিনের
+          মোট ধরে নয় — নইলে ৩,০০০+২,০০০ = ৫,০০০ থাকা দিনে নতুন ৫,০০০ নিতে
+          গেলে মিথ্যা সতর্কবার্তা আসত।
+       ⛔ Egress (ফ্রি প্ল্যান): **শুধু সেভ চাপার সময়**, একটাই ছোট query, একজন
+          রোগীর একটা দিনের সারি — তালিকা খোলার সময় নয়। দিনে ৩০-৬০টা পেমেন্ট
+          হলেও কয়েক KB।
+       ⛔ নেট খারাপ হলে চুপচাপ `null` — সৎ পেমেন্ট **কখনো** আটকায় না।
+       ⛔ ব্যাকডেট করা পেমেন্টে এই প্রশ্ন আসে না (ওটা মাস্টারের নিজের সিদ্ধান্ত)।
+       ═══════════════════════════════════════════════════════════════════ */
+    fun todaysPaymentLike(patient: PatientBillInfo, amount: Double): org.json.JSONObject? {
+        if (patient.id.isBlank() || amount <= 0.0) return null
+        return try {
+            val today = PaymentModel.today()
+            val rows = SupabaseClient.fetchList(
+                "payments",
+                "patientId=eq.${patient.id}&payType=eq.treatment&date=eq.$today",
+                50, select = "id,amount,mode,payLabel,createdAt,dailyEvents"
+            )
+            var hit: org.json.JSONObject? = null
+            outer@ for (i in 0 until rows.length()) {
+                val r = rows.optJSONObject(i) ?: continue
+                val evs = r.optJSONArray("dailyEvents")
+                if (evs != null && evs.length() > 0) {
+                    for (j in 0 until evs.length()) {
+                        val e = evs.optJSONObject(j) ?: continue
+                        if (kotlin.math.abs(e.optDouble("amount", 0.0) - amount) <= 0.5) {
+                            hit = org.json.JSONObject()
+                                .put("amount", e.optDouble("amount", 0.0))
+                                .put("mode", e.optString("mode", r.optString("mode", "")))
+                                .put("createdAt", e.optString("createdAt", r.optString("createdAt", "")))
+                                .put("payLabel", r.optString("payLabel", ""))
+                            break@outer
+                        }
+                    }
+                } else if (kotlin.math.abs(r.optDouble("amount", 0.0) - amount) <= 0.5) {
+                    hit = r; break@outer
+                }
+            }
+            hit
+        } catch (_: Throwable) { null }   // নেট খারাপ হলে চুপচাপ সরে দাঁড়ায় — সৎ পেমেন্ট কখনো আটকায় না
+    }
+
     /**
      * 🔒 খাতার সারি B52 (TK, 28.07.2026 রাত) — **ভুল করে নেওয়া টাকা স্টাফ নিজেই মুছতে পারবেন।**
      *
@@ -1001,7 +1116,13 @@ class PaymentRepository(private val context: Context? = null) {
      *  deletePaymentEntry()-এর প্রমাণিত পথেই মুছে যায়। */
     fun removeOneDailyEvent(row: JSONObject, eventId: String, byMobile: String, byName: String): Boolean {
         val ctx = context ?: return false
-        if (NativeSession.current(ctx)?.role != "master") return false
+        // 🟢🔒 V618 (২৪.০৮.২০২৬, TK-নির্দেশ, সততার সাথে যাচাই করে) — আগে এখানে
+        // সরাসরি "শুধু Master" লেখা ছিল (UI-এর গেট বদলালেও এই ভিতরের লকটা
+        // অক্ষতই থেকে যেত — Save চাপলে নীরবে ব্যর্থ হতো)। এখন বাকি সব
+        // পেমেন্ট-এডিটের মতোই একই নিয়ম: আজ/গতকাল স্টাফ নিজে পারবেন,
+        // তার বেশি পুরনো হলে শুধু Master।
+        val user = NativeSession.current(ctx)
+        if (user?.role != "master" && !PaymentModel.withinFreeEditWindow(row.s("date"))) return false
         val id = row.optString("id")
         if (id.isBlank() || eventId.isBlank()) return false
         val events = row.optJSONArray("dailyEvents") ?: return false
@@ -1033,6 +1154,27 @@ class PaymentRepository(private val context: Context? = null) {
                 .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }.format(java.util.Date()))
         val ok = try { SupabaseClient.updateById("payments", id, fields) } catch (_: Throwable) { false }
         if (!ok) return false
+        /* 🔴🔒 V816 (২৯.০৮.২০২৬, TK-রিপোর্ট ছবিসহ — GULGAR HOSSAIN, ₹1 CASH:
+           *"পেমেন্ট ডিলিট করার পরেও থেকে যায়, অনেকক্ষণ পরে গিয়ে মোছে কেন?"*)
+
+           **আসল কারণ (কোড ধরে প্রমাণিত, আন্দাজে নয়):**
+           একই দিনের দ্বিতীয় টাকাটা আলাদা সারি হয়ে বসে না — সার্ভারের
+           `tk_record_treatment_payment` ওটাকে ওই দিনের **একটাই** সারির
+           `dailyEvents`-এ ঢুকিয়ে দেয়। কিন্তু টাকা সেভ করার সময় ফোন ওই
+           পেমেন্টটা **অপেক্ষমাণ তালিকাতেও** (`piles_clinic_payment_pending`)
+           রেখে দেয়, আর সেটা মুছে যায় **শুধু ক্লাউডে পাঠানো সফল হলে**।
+           প্রথম চেষ্টা ব্যর্থ হলে (নেটের এক মুহূর্তের গোলমাল) এন্ট্রিটা
+           তালিকায় থেকে যায়। এদিকে ভিতরের এন্ট্রিটা মুছে দিলেও **ওই
+           অপেক্ষমাণ কপিটা কেউ মুছত না** — পরের বার `flushPending()` চললে
+           সেটা আবার সার্ভারে যেত, আর সার্ভার সেই একই `eventId` ওই দিনের
+           সারিতে **ফিরিয়ে বসাত**। ⇒ মোছা টাকা ফিরে আসত।
+
+           ⛔ এখন মোছার সঙ্গে সঙ্গেই ওই এন্ট্রির অপেক্ষমাণ কপিটাও তুলে দেওয়া
+              হয় — দুটো তালিকা থেকেই — তাই ফিরে আসার আর কোনো পথ নেই।
+           ⛔ শুধু **যেটা মোছা হলো ঠিক সেই eventId**-টাই সরে; বাকি এন্ট্রি
+              বা অন্য কারো টাকা এক পয়সাও ছোঁয়া হয় না। */
+        try { removePaymentPending(eventId) } catch (_: Throwable) { }
+        try { CloudWriteQueue.forget("UPSERT", "payments", eventId) } catch (_: Throwable) { }
         try {
             val updatedRow = JSONObject(row.toString())
             val it = fields.keys(); while (it.hasNext()) { val k = it.next(); updatedRow.put(k, fields.get(k)) }
@@ -1054,7 +1196,9 @@ class PaymentRepository(private val context: Context? = null) {
      *  (বাকিগুলো অক্ষত, মোট নতুন করে গণনা)। */
     fun editOneDailyEvent(row: JSONObject, eventId: String, newAmt: Double, newMode: String, byMobile: String, byName: String): Boolean {
         val ctx = context ?: return false
-        if (NativeSession.current(ctx)?.role != "master") return false
+        // 🟢🔒 V618 — removeOneDailyEvent-এর হুবহু একই কারণ ও একই নিয়ম।
+        val user = NativeSession.current(ctx)
+        if (user?.role != "master" && !PaymentModel.withinFreeEditWindow(row.s("date"))) return false
         val id = row.optString("id")
         if (id.isBlank() || eventId.isBlank() || newAmt <= 0.0) return false
         val events = row.optJSONArray("dailyEvents") ?: return false
@@ -1157,7 +1301,23 @@ class PaymentRepository(private val context: Context? = null) {
         // previously mandatory here (silently rejecting a real payment
         // with no clear reason why). effectiveBill can genuinely be 0 now;
         // only a real amount is still required.
-        val effectiveBill = if (patient.billLocked) patient.bill else enteredBill
+        // 🔴🔴🔒 V663 (২৫.০৮.২০২৬, TK-কড়া-রিপোর্ট — কোচবিহার, "Bulan Roy"
+        // রোগীর বিল সংশোধনের পরেও পুরনো বিলই দেখাচ্ছিল) — **আসল কারণ (কোড
+        // ধরে চূড়ান্তভাবে ধরা পড়ল):** এই লাইন আগে ছিল
+        // `if (patient.billLocked) patient.bill else enteredBill` — বিল
+        // আগে থেকে "লক" থাকলে (billLocked = আগের বিল > 0), নতুন লেখা
+        // বিলটাই **সম্পূর্ণ উপেক্ষা** হয়ে যেত, পুরনো `patient.bill`-ই
+        // আবার বসত — **কিন্তু শুধু তখনই যখন বিল-সংশোধনের সাথে একটা
+        // পেমেন্ট-এমাউন্টও একসাথে দেওয়া হতো** (শুধু-বিল-সংশোধন, কোনো
+        // টাকা ছাড়া, PaymentActivity.kt-এর আলাদা billOnlyCorrection/
+        // billChanged পথে ঠিকভাবে চলে যেত — তাই ওই ক্ষেত্রে কাজ করত)।
+        // billLocked-এর আসল উদ্দেশ্য ছিল: ফাঁকা/শূন্য বিল যেন কখনো
+        // দুর্ঘটনাক্রমে আগের আসল বিল মুছে না দেয় — ইচ্ছাকৃত সংশোধন আটকানো
+        // নয়। **সমাধান:** নতুন লেখা বিল ফাঁকা/শূন্য (≤0) হলে তবেই পুরনো
+        // লক করা বিল ব্যবহার হবে; সংখ্যা লেখা থাকলে (এমনকি আগেরটার থেকে
+        // আলাদা হলেও) সেটাই এখন সবসময় গ্রহণ হয় — এটাই একটা ইচ্ছাকৃত
+        // সংশোধন হিসেবে ধরা হয়।
+        val effectiveBill = if (patient.billLocked && enteredBill <= 0.0) patient.bill else enteredBill
         if (amount <= 0) return false
         // 🔒 TK'S LOCKED RULE (27.07.2026): "Bill · advance · any payment — যে
         // ব্রাঞ্চের স্টাফ তারাই করতে পারবে... সংশ্লিষ্ট ব্রাঞ্চের ডাক্তার করতে
@@ -1214,7 +1374,13 @@ class PaymentRepository(private val context: Context? = null) {
             // showing stale/₹0 even though the remark already said "Advance
             // Payment received". Now the local patients cache is updated
             // too, right away.
-            if (!patient.billLocked) {
+            // 🔴🔴🔒 V663 (২৫.০৮.২০২৬) — একই বাগের তৃতীয় অংশ (ফোনের নিজের
+            // ক্যাশ): আগে `if (!patient.billLocked)` — locked থাকলে ফোনের
+            // ক্যাশেও নতুন বিল বসত না, তাই ক্লাউড ফিক্সের পরেও ওই একই
+            // ফোনে সাথে সাথে পুরনো বিল দেখাত (পরের রিফ্রেশ পর্যন্ত)। এখন
+            // "বিল সত্যিই বদলেছে কিনা" শর্তে — বদলে থাকলে ক্যাশও সাথে
+            // সাথে আপডেট হয়।
+            if (effectiveBill != patient.bill) {
                 localStore.upsertPatient(
                     JSONObject()
                         .put("id", patient.id)
@@ -1239,6 +1405,12 @@ class PaymentRepository(private val context: Context? = null) {
             // locally too, so Today's Collection can show it immediately.
             localStore.upsertPayment(paymentRow)
         }
+        /* 🔁🔒 V839 (TK-নির্দেশ: *"Arrived নয় পেমেন্ট করলেও যেন কাজ হয়"*) —
+           টাকা জমা হলে রোগী আবার CHECK-UP তালিকায় ফিরবেন।
+           ⛔ নিজের ব্যাকগ্রাউন্ড থ্রেডে চলে, দিনে একবারের পাহারা ভিতরে;
+              পেমেন্ট সেভের কাজ এক মুহূর্তও আটকায় না, ব্যর্থ হলেও কিছু ভাঙে না।
+           ⛔ টাকার অঙ্ক · হিসাব · রসিদ — কিছুই ছোঁয়া হয়নি। */
+        try { NextVisitQueue.reopenForToday(context, patient.mobile) } catch (_: Throwable) { }
 
         // TK-REPORTED BUG FIX (2026-07-16): this ALSO used to be a single
         // one-shot background attempt with no retry -- exactly the same
@@ -1447,6 +1619,12 @@ class PaymentRepository(private val context: Context? = null) {
         } catch (_: Throwable) { "" }
     }
 
+    /** 🔵🔒 V789 — জমা থাকা nonce **শুধু পড়ে** (না থাকলে ফাঁকা, নতুন বানায় না)।
+     *  ⛔ `getOrCreateRefundNonce()` এক অক্ষরও বদলায়নি — সেভের পথ অটুট। */
+    private fun peekRefundNonce(ctx: Context, key: String): String = try {
+        ctx.getSharedPreferences(REFUND_NONCE_PREF, Context.MODE_PRIVATE).getString(key, "") ?: ""
+    } catch (_: Throwable) { "" }
+
     private fun clearRefundNonce(ctx: Context, key: String) {
         try {
             val p = ctx.getSharedPreferences(REFUND_NONCE_PREF, Context.MODE_PRIVATE)
@@ -1531,6 +1709,67 @@ class PaymentRepository(private val context: Context? = null) {
             }
             sum
         } catch (_: Throwable) { 0.0 }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       🟡🔒 V786 (২৮.০৮.২০২৬, TK-রিপোর্ট + ফটো-প্রমাণ) —
+       **"Refund ২ বার হয়ে গেল, আটকালো না কেন? ডুপ্লিকেট pop up কেন এলো না?"**
+
+       TK-এর ছবি (KABITA BANU · COB-26082026-001): ২৭.০৮.২০২৬ রাত ৯.২৫ ও
+       ৯.২৬ — **দুটো হুবহু ₹4,001 CASH Refund**, এক মিনিটের ব্যবধানে।
+
+       ─── কেন আটকায়নি (কোড ধরে যাচাই, আন্দাজ নয়) ─────────────────────────
+       Refund-এ তিনটে পাহারা ছিল, কিন্তু **ডুপ্লিকেট ধরার পাহারা ছিল না**:
+         ১. `refundSaving` — শুধু **একই ফর্মে** পরপর দুই চাপ আটকায়
+         ২. `nonce` — ইচ্ছে করেই **ফর্ম নতুন করে খুললে নতুন**, যাতে একই দিনে
+            একই টাকার **বৈধ** দ্বিতীয় ফেরত দেওয়া যায়
+         ৩. `maxRefundable` — জমার চেয়ে বেশি ফেরত আটকায়। এখানে জমা ছিল
+            ₹9,501 (₹5,500 + ₹4,001), তাই ₹4,001 × ২ = ₹8,002 **সীমার
+            ভিতরেই** ছিল ⇒ অঙ্কের দিক থেকে কিছুই ভুল ছিল না, তাই আটকায়নি।
+       ⇒ ফর্মটা দ্বিতীয়বার খোলা হয়েছিল, তাই ১ ও ২ কাজে লাগেনি; আর ৩ তো
+         এটাকে ভুলই মনে করেনি।
+
+       ─── এখন কী হয় ─────────────────────────────────────────────────────
+       V708-এ Prescription/Investigation-এ TK যে নিয়ম পাশ করেছিলেন, টাকার
+       পর্দাতেও ঠিক সেটাই — **Cancel = না · OK = জেনেশুনে তবুও**।
+       আজকের দিনে এই রোগীর **একই পরিমাণ** ফেরত আগে থেকে থাকলে সতর্কবার্তা।
+
+       ⛔ টাকার একটাও নিয়ম বদলায়নি — এটা শুধু **জিজ্ঞাসা** করে।
+       ⛔ Egress: একটাই ছোট query (`select=id,amount,time,reason`), আর সেটাও
+          শুধু Refund বোতাম চাপলে — তালিকা খোলার সময় নয়।
+       ═══════════════════════════════════════════════════════════════════ */
+    fun todaysRefundLike(
+        patient: PatientBillInfo, amount: Double, reason: String = "", byMobile: String = ""
+    ): org.json.JSONObject? {
+        if (patient.id.isBlank() || amount <= 0.0) return null
+        /* 🔵🔒 V789 — **কম্পিউটারের সঙ্গে মিলিয়ে নেওয়া।** ওয়েবের
+           `wlv1TodaysSameRefund()` চলতি এই Refund-এর **নিজের সারিটা** বাদ দেয়
+           (`selfId`), ফোনে সেটা বাদ পড়েছিল। ফল: প্রথম চেষ্টা অর্ধেক সফল হয়ে
+           নেট কেটে গেলে, আবার চাপলে নিজের সারিটাই "ডুপ্লিকেট" বলে দেখাত।
+           ⛔ nonce এখানে **শুধু পড়া হয়, তৈরি করা হয় না** (`peekRefundNonce`) —
+              তাই এই যাচাই কোনো কিছু বদলায় না, শুধু দেখে। */
+        val selfId = try {
+            val n = context?.let { peekRefundNonce(it, refundNonceKey(patient, amount, reason)) }.orEmpty()
+            if (n.isBlank()) "" else PaymentModel.refundIdFor(patient, amount, reason, byMobile, n)
+        } catch (_: Throwable) { "" }
+        return try {
+            val today = PaymentModel.today()
+            val rows = SupabaseClient.fetchList(
+                "payments",
+                "patientId=eq.${patient.id}&payType=eq.refund&date=eq.$today",
+                200, select = "id,amount,time,reason,refundApprovalStatus"
+            )
+            var hit: org.json.JSONObject? = null
+            for (i in 0 until rows.length()) {
+                val r = rows.optJSONObject(i) ?: continue
+                // বাতিল/না-মঞ্জুর সারি ডুপ্লিকেট নয়
+                val st = r.optString("refundApprovalStatus", "")
+                if (st.equals("rejected", true) || st.equals("cancelled", true)) continue
+                if (selfId.isNotBlank() && r.optString("id") == selfId) continue   // 🔵 V789 — নিজের সারি নয়
+                if (kotlin.math.abs(r.optDouble("amount", 0.0) - amount) <= 0.5) { hit = r; break }
+            }
+            hit
+        } catch (_: Throwable) { null }   // নেট খারাপ হলে চুপচাপ সরে দাঁড়ায় — সৎ ফেরত আটকানো যাবে না
     }
 
     /** Refund সেভ। Master → সরাসরি approved। Staff → **শুধু তখনই** সরাসরি
@@ -1637,8 +1876,53 @@ class PaymentRepository(private val context: Context? = null) {
                 } catch (_: Throwable) { }
             }
         }
+        // 🟢🔒 V676 (২৫.০৮.২০২৬, TK-নির্দেশ — "যেকোনো জায়গা থেকে Visit Fee
+        // Return করলে যেন হয়ে যায়, আর Return-এর ট্যাগ (Draft-এর "Return
+        // Visit" তালিকা) বসে")। আগে এই ট্যাগ শুধু Patient Timeline-এর
+        // আলাদা "Return Fees" ডায়ালগেই বসত — Payment/DUE-এর সাধারণ Refund
+        // দিয়ে করলে বসত না। এখন এই একই জায়গায় (সব Refund এখান দিয়েই যায়)
+        // বসানো হলো, তাই আর কোনো স্ক্রিন আলাদা রাখতে হবে না।
+        // ⛔ কোনো নতুন টাকা-হিসাব নেই — শুধু ইতিমধ্যে প্রমাণিত V509 নিয়ম
+        //    (Refund আগে treatment paid থেকে, ছাড়ালে Visit Fee থেকে) ধরেই
+        //    বোঝা হয় এই Refund Visit Fee ছুঁয়েছে কিনা (`amount > patient.paid`)।
+        if (ok && autoApprove && amount > patient.paid + 0.5) {
+            try {
+                val digits = patient.mobile.filter { it.isDigit() }.takeLast(10)
+                if (digits.length == 10) {
+                    val fid = resolveBestFollowUpIdForReturn(digits)
+                    if (!fid.isNullOrBlank()) {
+                        SupabaseClient.updateById("followups", fid, JSONObject().put("status", "Returned"))
+                    }
+                }
+            } catch (_: Throwable) { /* ⛔ ট্যাগ ব্যর্থ হলেও Refund সফল-ই থাকে */ }
+        }
         return RefundResult(ok, if (ok) "" else "Could not save to cloud — check internet and try again")
     }
+
+    /** V676 — Chamber Attendance-এর `resolveBestFollowUpId()`-এর হুবহু একই,
+     *  প্রমাণিত stage-priority নিয়ম (Treatment > Patient > Inquiry, terminal
+     *  স্ট্যাটাস বাদ) — শুধু এখানে blocking (এই ফাংশন এমনিতেই IO থ্রেডে চলে)। */
+    private fun resolveBestFollowUpIdForReturn(digits: String): String? = try {
+        fun stagePriority(s: String): Int = when {
+            s.equals("Treatment", true) || s.equals("Treatment Running", true) -> 3
+            s.equals("Patient", true) -> 2
+            s.equals("Inquiry", true) -> 1
+            else -> 0
+        }
+        val rows = SupabaseClient.findByMobileOrNull("followups", "+91$digits", "id,status,stage,updatedAt,createdAt", 50)
+        rows?.let { r ->
+            (0 until r.length()).map { r.getJSONObject(it) }
+                .filter {
+                    val st = it.optString("status", "Active")
+                    !st.equals("Cancelled", true) && !st.equals("Incomplete", true) &&
+                        !st.equals("Rejected", true) && !st.equals("Closed", true)
+                }
+                .maxWithOrNull(
+                    compareBy<org.json.JSONObject> { stagePriority(it.optString("stage", "")) }
+                        .thenBy { it.optString("updatedAt").ifBlank { it.optString("createdAt") } }
+                )?.optString("id", "")
+        }
+    } catch (_: Throwable) { null }
 
     /** Master-এর ঘন্টার জন্য pending refund request-এর সস্তা count। */
     fun fetchPendingRefundCount(): Int =
@@ -1879,12 +2163,57 @@ class PaymentRepository(private val context: Context? = null) {
         // ⛔ THE ANSWER CANNOT CHANGE: the comparison below is left word for
         // word, and a failed narrowed read falls back to every column by
         // itself, so this list can never come out wrongly long or short.
-        val patients = SupabaseClient.fetchListSlimOrNull(
-            "patients", null, 5000,
+        /* 🔴🔴🔒 V1060 (০৪.০৯.২০২৬) — **এই তালিকার আসল গোড়া, অবশেষে।**
+           TK: *"খাতায় ভালো করে দেখুন তো এই সমস্যার কথা কতবার আপনাকে বলা হয়েছে"* —
+           খাতা মিলিয়ে দেখা গেল **পাঁচবার** (V147 · V151 · V154 · V901 · V958)।
+           আগের প্রতিটা সমাধান ছিল **লেখার দিকে** (ফি-র সারিটা যেন তৈরি হয়);
+           কিন্তু দোষটা ছিল **পড়ার দিকে**, তাই বারবার ফিরে এসেছে। দুটো দোষ:
+
+           ① 🔢 **৫০০০-এর ছাঁট।** ফি-র সারি আনা হত `limit 5000`, আর ক্রম
+              `updatedAt.desc` — অর্থাৎ **নতুন ৫০০০টা**। ক্লিনিক বড় হয়ে ৫০০০
+              ছাড়াতেই সবচেয়ে **পুরনো** ফি-গুলো ছাঁটা পড়ত, তাই ওই পুরনো
+              রোগীদেরই "ফি নেই" মনে হত। TK-এর ছবিতে ঠিক তাই — ৩০.০৩.২০২৬ ও
+              ২৭.০৪.২০২৬-এ রেজিস্টার হওয়া দুজন, তালিকার সবচেয়ে পুরনো।
+              ⇒ এখন **পাতা ধরে ধরে সবটা** আনা হয়, একটাও বাদ যায় না।
+
+           ② 🏷️ **নামের বানান।** এখানে গোনা হত শুধু `visit_fee`, অথচ টাকার SQL
+              (V418-এর `incentive_wanted()`) ধরে **তিনটে** — `visit_fee` ·
+              `visitfee` · `registration`; কম্পিউটারের যাচাইও (app.js) দুটো ধরে।
+              অর্থাৎ এক জিনিসের নিয়ম দুই জায়গায় দুরকম (নিয়ম ৭ক-এর ২)।
+              ⇒ এখন তিনটেই ধরা হয়, ঠিক SQL-এর মতো।
+
+           ⛔ গোনার বাকি নিয়ম এক অক্ষরও বদলায়নি — মোবাইল ধরে এক করা, "যে কোনো
+              একটা সারিতে ফি থাকলেই হয়েছে" — সবই আগের মতোই।
+           ⛔ পড়া ব্যর্থ হলে আগের মতোই ফাঁকা তালিকা ফেরে (ভুল করে লম্বা নয়)। */
+        fun fetchAllPages(table: String, filter: String?, cols: String): org.json.JSONArray? {
+            val out = org.json.JSONArray()
+            var offset = 0
+            val page = 1000
+            while (true) {
+                /* 🔒 V1060খ (নিজে যাচাই করে ধরা, দুটো আসল ঝুঁকি):
+                   ① ক্রম **`id.asc`** — `updatedAt` একই/ফাঁকা হতে পারে, তাই ওটা
+                      দিয়ে পাতা করলে পড়ার মাঝে সারি **এড়িয়ে যেতে পারত**; একটা
+                      ফি-র সারি এড়ালেই ওই রোগী ভুল করে তালিকায় উঠত। `id`
+                      অনন্য, তাই পাতাগুলো সবসময় একই ক্রমে আসে।
+                   ② **যেকোনো** পাতা না এলে আধা-তালিকা নয়, `null` — অর্থাৎ
+                      "জানি না"। আধা-তালিকা দিলে বাকি রোগীদের ফি "নেই" মনে হত।
+                      পুরনো আচরণই: না জানলে তালিকা ফাঁকা, ভুল নাম ওঠে না। */
+                val part = SupabaseClient.fetchListSlimOrNull(
+                    table, filter, page, cols, order = "id.asc", offset = offset
+                ) ?: return null
+                for (i in 0 until part.length()) out.put(part.get(i))
+                if (part.length() < page) break
+                offset += page
+                if (offset >= 200000) break                  // অসীম লুপের বিরুদ্ধে পাহারা
+            }
+            return out
+        }
+        val patients = fetchAllPages(
+            "patients", null,
             "id,name,mobile,branch,patientId,bill,registrationDate,date,updatedAt"   // bill দরকার — কোন সারিটা আসল সেটা বাছতে
         ) ?: return emptyList()
-        val feePayments = SupabaseClient.fetchListSlimOrNull(
-            "payments", "payType=eq.visit_fee", 5000, "id,patientId,updatedAt"
+        val feePayments = fetchAllPages(
+            "payments", "payType=in.(visit_fee,visitfee,registration)", "id,patientId,updatedAt"
         ) ?: return emptyList()
         val patientIdsWithFee = HashSet<String>()
         for (i in 0 until feePayments.length()) {
@@ -1925,6 +2254,10 @@ class PaymentRepository(private val context: Context? = null) {
             val p = PatientIdentity.pickPatientRow(arr, "") ?: rows.first()
             val id = p.s("id")
             if (id.isBlank()) continue
+            /* 🟢 V1121 — V1101-এর পাহারা বসার আগের রেজিস্ট্রেশন হলে তালিকায় নয়
+               (উপরের বড় নোটে কারণ ও ঝুঁকি লেখা আছে)। */
+            val regDay = p.s("registrationDate").ifBlank { p.s("date") }.take(10)
+            if (ISO_DAY.matches(regDay) && regDay < FEE_GUARD_FROM) continue
             missing.add(
                 MissingVisitFee(
                     patientRowId = id,
@@ -1950,9 +2283,21 @@ class PaymentRepository(private val context: Context? = null) {
      * flushPending()'s retry, so both paths do exactly the same thing. */
     private fun pushPaymentToCloud(
         patient: PatientBillInfo, effectiveBill: Double, paymentRow: JSONObject,
-        staffMobile: String, sameDayRepeat: Boolean = false
+        staffMobile: String, sameDayRepeat: Boolean = false,
+        /* 🟢🔒 V706 (২৬.০৮.২০২৬, TK-নির্দেশ) — TK: *"কোন পেশেন্ট এর পেমেন্ট আটকে
+           রয়েছে সেটাই বা আমি জানবো কি করে"*। এখানে **কিছুই বদলায়নি** — শুধু
+           কোন ধাপটা আটকাল সেটা ডাকনেওয়ালাকে জানানোর একটা ঐচ্ছিক বাক্স।
+           ⛔ ডিফল্ট `null`, তাই আগের দুটো ডাক (প্রথম চেষ্টা ও flushPending)
+              এক অক্ষরও না বদলেই চলে; টাকার হিসাব/return মান অপরিবর্তিত। */
+        whyOut: StringBuilder? = null
     ): Boolean {
-        val billUpdateOk = if (!patient.billLocked) {
+        // 🔴🔴🔒 V663 (২৫.০৮.২০২৬) — একই বাগের দ্বিতীয়, সমান গুরুত্বপূর্ণ অংশ:
+        // আগে এখানে `if (!patient.billLocked)` — billLocked থাকলে ক্লাউডে
+        // বিল **লেখাই হতো না**, `effectiveBill`-এ (উপরের ফিক্সের পরে) সঠিক
+        // নতুন মান থাকলেও। এখন শর্তটা "বিল সত্যিই বদলেছে কিনা" — বদলে
+        // থাকলে (locked হোক বা না হোক) ক্লাউডে লেখা হয়; না বদলালে আগের
+        // মতোই বাড়তি write এড়ানো হয় (কোনো ঝুঁকি নেই, একই মান আবার লেখাই)।
+        val billUpdateOk = if (effectiveBill != patient.bill) {
             SupabaseClient.updateById(
                 "patients", patient.id,
                 JSONObject().put("bill", effectiveBill).put("stage", "Treatment Running").put("updatedAt", isoNow())
@@ -1973,6 +2318,17 @@ class PaymentRepository(private val context: Context? = null) {
             }
         }
         val promoted = if (billUpdateOk && paymentOk) promoteFollowUpToTreatment(patient, staffMobile) else false
+        // 🟢🔒 V706 — শুধু লেখা হয়, কোনো সিদ্ধান্ত এর উপর নির্ভর করে না।
+        //    ইংরেজি (TK-নির্দেশ: "বাংলা হবে না, শুধুমাত্র ইংরেজিতে করুন")।
+        whyOut?.setLength(0)
+        whyOut?.append(
+            when {
+                !paymentOk -> "Money row not sent yet"
+                !billUpdateOk -> "Money sent - bill update pending"
+                !promoted -> "Money sent - patient card pending"
+                else -> ""
+            }
+        )
         return billUpdateOk && paymentOk && promoted
     }
 
@@ -2094,14 +2450,31 @@ class PaymentRepository(private val context: Context? = null) {
      * fixed id (never creates a second row), and promoteFollowUpToTreatment
      * simply re-confirms stage="Treatment" if that already happened. Does
      * nothing (no network call at all) if nothing is pending. */
-    fun flushPending() {
+    /**
+     * 🔴🔒 V715 (২৬.০৮.২০২৬) — `force` ঘরটা **নতুন, ঐচ্ছিক**, ডিফল্ট `false`।
+     * তাই আগের প্রতিটা ডাক (`BottomNav.wire()` · `SyncWorker` · অন্য সব) এক
+     * অক্ষরও না বদলেই চলে। মালিক/স্টাফ নিজে "Send" চাপলে (`PendingSyncStatus
+     * .retryAllNow`) `force = true` যায় — তখন অপেক্ষা মানা হয় না, সঙ্গে সঙ্গে
+     * চেষ্টা হয়, ঠিক আগের মতোই।
+     */
+    fun flushPending(force: Boolean = false) {
         val prefs = paymentPendingPrefs ?: return
         synchronized(LOCK) {
         val queue = loadPaymentPendingQueue()
         if (queue.length() == 0) return
         val stillPending = org.json.JSONArray()
+        /* 🔵🔒 V717 — এই দফায় অপেক্ষার জন্য যাদের ছোঁয়া হলো না, তাদের তালিকা।
+           নিচে দেখুন: এই দফায় অন্য কেউ সফল হলে (= নেট ভালো, প্রমাণিত) এদের
+           অপেক্ষা মুছে দেওয়া হয়, যাতে নেট ফেরার সঙ্গে সঙ্গেই এরা সুযোগ পায়। */
+        val skipped = mutableListOf<org.json.JSONObject>()
+        var anySuccess = false
         for (i in 0 until queue.length()) {
             val e = queue.optJSONObject(i) ?: continue
+            /* 🔴🔒 V715 — পরপর অনেকবার ব্যর্থ হওয়া সারিটা এই দফায় বাদ।
+               ⛔ **সারিটা ফেলা হচ্ছে না** — হুবহু আগের মতোই `stillPending`-এ
+                  রেখে দেওয়া হচ্ছে, শুধু এইবার নেটে হাত দেওয়া হচ্ছে না।
+               ⛔ প্রথম দু'বার ব্যর্থতায় কোনো দেরি নেই (দুর্বল নেট অক্ষত)। */
+            if (!PendingRetryBackoff.shouldTry(e, force)) { skipped.add(e); stillPending.put(e); continue }
             try {
                 val paymentRow = e.optJSONObject("paymentRow") ?: continue
                 // TK-REQUESTED (2026-07-26): if this payment was deleted in
@@ -2119,15 +2492,36 @@ class PaymentRepository(private val context: Context? = null) {
                     paid = 0.0,
                     billLocked = e.optBoolean("billLocked", false)
                 )
+                val why = StringBuilder()
                 val ok = pushPaymentToCloud(
                     patient, e.optDouble("effectiveBill", 0.0), paymentRow,
-                    e.optString("staffMobile"), e.optBoolean("sameDayRepeat", false)
+                    e.optString("staffMobile"), e.optBoolean("sameDayRepeat", false), why
                 )
-                if (!ok) stillPending.put(e) else activateRmpCommissionAfterCloud(patient)
+                if (!ok) {
+                    /* 🟢🔒 V706 — কেন আটকাল সেটা এই ফোনের তালিকার সারিতেই লিখে
+                       রাখা, যাতে Dashboard-এর তালিকায় দেখা যায়।
+                       ⛔ এটা শুধু ফোনের ভিতরের একটা বাড়তি ঘর — ক্লাউডে যায় না,
+                          `pushPaymentToCloud` এই ঘরটা পড়েও না, তাই টাকার
+                          হিসাবে বা পাঠানোর নিয়মে কোনো প্রভাব নেই। */
+                    try { if (why.isNotEmpty()) e.put("lastWhy", why.toString()) } catch (_: Throwable) { }
+                    // 🔴🔒 V715 — আবার ব্যর্থ; পরের চেষ্টার ফাঁক বাড়ানো হলো।
+                    PendingRetryBackoff.noteFailure(e)
+                    stillPending.put(e)
+                } else { anySuccess = true; activateRmpCommissionAfterCloud(patient) }   // 🔵🔒 V717
             } catch (_: Throwable) {
+                PendingRetryBackoff.noteFailure(e)   // 🔴🔒 V715
                 stillPending.put(e)
             }
         }
+        /* 🔵🔒 V717 — এই দফায় অন্তত একটা সারি সফল হয়েছে ⇒ **লাইন ভালো**।
+           তাই যাদের শুধু অপেক্ষার জন্য ছোঁয়া হয়নি, তাদের অপেক্ষা মুছে দেওয়া
+           হলো — পরের বারই তারা আবার চেষ্টা পাবে।
+           ⛔ **এই দফায় যারা সত্যিই চেষ্টা করেও ব্যর্থ হয়েছে, তাদের অপেক্ষা
+              মোছা হয় না** — নেট ভালো থাকা সত্ত্বেও ব্যর্থ মানে দোষটা নেটের নয়,
+              তাই তাদের বারবার চেষ্টা করানোর কোনো মানে নেই (এটাই তো আসল সমস্যা
+              ছিল — দিনে ~৪,০০০ বার)।
+           ⛔ কোনো সারি ফেলা/বদলানো হয় না, শুধু অপেক্ষার হিসাব। */
+        if (anySuccess) skipped.forEach { PendingRetryBackoff.clearWait(it) }
         prefs.edit().putString("queue", stillPending.toString()).commit()
         }
     }
@@ -2135,7 +2529,10 @@ class PaymentRepository(private val context: Context? = null) {
     private fun promoteFollowUpToTreatment(patient: PatientBillInfo, staffMobile: String): Boolean {
         return try {
             val digits = patient.mobile.filter { it.isDigit() }.takeLast(10)
-            val followups = SupabaseClient.fetchList("followups", "mobile=like.*$digits", 100)
+            // 🔴🔒 V715 — আগে `fetchList(...)` = `select=*` (রোগীর ছবিসহ ১০০ সারি)।
+            // এই লুপ শুধু stage · status · id · lastRemark পড়ে — উপরের মন্তব্য দ্রষ্টব্য।
+            val followups = SupabaseClient.fetchListSlim(
+                "followups", "mobile=like.*$digits", 100, PROMOTE_COLS_SCAN)
             var moved = 0
             for (i in 0 until followups.length()) {
                 val row = followups.getJSONObject(i)
@@ -2190,9 +2587,30 @@ class PaymentRepository(private val context: Context? = null) {
             // enquiry-derived / virtual row) — create the Patient-tab record so the
             // bill + advance still show up, mirroring web saveVisitAdvancePayment().
             if (moved == 0) {
-                val fuId = "fu_" + java.util.UUID.randomUUID().toString().replace("-", "")
+                /* 🔴🔒🔒 V881 (৩০.০৮.২০২৬, TK-রিপোর্ট ছবিসহ — SHAHARYA ও
+                   GOURANGO BARMAN-এর কার্ডে Patient ID উধাও):
+                   TK: *"ভবিষ্যতে যেন এরকম ফালতু কাজ অ্যাপ নিজে থেকে না করে"*
+
+                   **আসল দোষ (কোড ধরে যাচাই, ডেটাবেসেও মিলিয়ে দেখা):** এই
+                   ফলব্যাক সারিটার আইডি ছিল **এলোমেলো** (`fu_<random>`), আর
+                   `patientId` ঘরটা বসানোই হতো না। ফলে —
+                     · উপরের খোঁজা কোনো কারণে ফসকালে (লাইন খারাপ) **প্রতিবার
+                       নতুন একটা সারি** জমত ⇒ একই ধাপে দুটো-তিনটে সারি
+                       (৩০.০৮.২০২৬-এ মাপা: **৮৭ জনের** এমন হয়েছিল),
+                     · আর ওই সারিতে আইডি না থাকায় কার্ডে আইডির বদলে তারিখ
+                       দেখাত (TK-এর ছবি)।
+
+                   **এখন:** আইডিটা **স্থির** — `fu_pat_<রোগীর সারির আইডি>`।
+                   এটা প্রকল্পের নিজের প্রমাণিত নিয়ম (ওয়েবের B626/V406 ও
+                   `PatientTimelineRepository` হুবহু এটাই ব্যবহার করে), তাই
+                   যতবারই চলুক **একই সারিতেই বসে — নতুন সারি আর জমে না**।
+                   সঙ্গে `patientId` ও `patientId`-এর তারিখও বসে, তাই কার্ডে
+                   আইডি কখনো ফাঁকা যাবে না।
+                   ⛔ টাকার হিসাব · বিল · advance — কিছুই বদলায়নি। */
+                val fuId = "fu_pat_" + patient.id
                 val tr = JSONObject()
                     .put("id", fuId).put("refId", patient.id)
+                    .put("patientId", patient.patientId)
                     .put("mobile", patient.mobile).put("name", patient.name).put("branch", patient.branch)
                     .put("stage", "Treatment").put("status", "Active")
                     .put("date", PatientIdGenerator.todayIso())
@@ -2219,8 +2637,23 @@ class PaymentRepository(private val context: Context? = null) {
             // retried along with everything else next time.
             var closeOk = true
             try {
-                val inquiries = SupabaseClient.fetchList(
-                    "followups", "mobile=like.*$digits&stage=eq.Inquiry", 5000
+                // 🔴🔒 V715 — আগে `select=*` (ছবিসহ, ৫০০০ পর্যন্ত)। এই লুপ শুধু
+                // id + PatientIdentity-র তিনটে ঘর (name · patientId · refId) পড়ে।
+                /* 🔴🔒 V953 (০১.০৯.২০২৬, TK-নির্দেশ "খুব সাবধানে") — **আসল কারণ,
+                   যাচাই করা:** এখানে এতদিন শুধু `stage=eq.Inquiry` সারিগুলো বন্ধ
+                   হত। রোগী Advance দিয়ে Treatment-এ গেলেও তাঁর পুরনো
+                   **`Patient`-stage সারিটা কখনো বন্ধ হত না** — তাই তিনি
+                   Follow-up-এর "Visit" তালিকায় চিরকাল ভেসে থাকতেন
+                   (TK-এর FAIZ ANWAR-এর অভিযোগ; ডেটাবেসে ১৮৯টা এমন সারি ছিল)।
+                   **এখন:** Inquiry **ও** Patient — দুটোই বন্ধ হয়।
+                   ⛔ কোনো সারি মোছা হয় না, শুধু `status=Closed` — ইতিহাস অক্ষত।
+                   ⛔ নিচের `provablyOtherPatient` পাহারা আগের মতোই — এক নম্বরে
+                      দু'জন থাকলে অন্যজনের সারিতে হাত পড়ে না।
+                   ⛔ ব্যর্থ হলে আগের মতোই `closeOk=false` ⇒ পেমেন্ট সারিতে
+                      থেকে যায় ও পরে আবার চেষ্টা হয়। */
+                val inquiries = SupabaseClient.fetchListSlim(
+                    "followups", "mobile=like.*$digits&stage=in.(Inquiry,Patient)&status=eq.Active", 5000,
+                    PROMOTE_COLS_INQUIRY
                 )
                 for (i in 0 until inquiries.length()) {
                     val row = inquiries.getJSONObject(i)
@@ -2230,20 +2663,28 @@ class PaymentRepository(private val context: Context? = null) {
                        ⛔ প্রমাণ না থাকলে আগের মতোই — কোনো সারি বাদ পড়ে না। */
                     if (PatientIdentity.provablyOtherPatient(
                             row, digits, patient.id, patient.patientId, patient.name)) continue
+                    /* 🔴 V953 — Inquiry সারির ক্ষেত্রে আগের মতোই stage="Registered"
+                       বসে (পুরনো আচরণ এক অক্ষরও বদলায়নি)। Patient সারির
+                       stage **ছোঁয়াই হয় না** — শুধু বন্ধ করা হয়, নইলে
+                       রোগীর নিজের ইতিহাসের ধাপটা হারিয়ে যেত। */
+                    val wasInquiry = row.s("stage").equals("Inquiry", true)
                     val fields = JSONObject()
-                        .put("stage", "Registered")
                         .put("status", "Closed")
                         .put("nextFollow", "")
                         .put("convertedPatientId", patient.patientId)
                         .put("lastRemark", "Converted to Patient / Treatment")
                         .put("updatedAt", isoNow())
+                    if (wasInquiry) fields.put("stage", "Registered")
                     if (!SupabaseClient.updateById("followups", id, fields)) closeOk = false
                 }
             } catch (_: Exception) { closeOk = false }
 
             // Verify the Patient-tab record is actually readable before reporting success.
-            val verify = SupabaseClient.fetchList(
-                "followups", "mobile=like.*$digits&stage=eq.Treatment&status=not.in.(Cancelled,Incomplete,Rejected,Closed)", 10
+            // 🔴🔒 V715 — আগে `select=*` (ছবিসহ)। এখানে শুধু **গোনা** হয়
+            // (`verify.length()`), একটাও ঘর পড়া হয় না — তাই `id`-ই যথেষ্ট।
+            val verify = SupabaseClient.fetchListSlim(
+                "followups", "mobile=like.*$digits&stage=eq.Treatment&status=not.in.(Cancelled,Incomplete,Rejected,Closed)", 10,
+                PROMOTE_COLS_VERIFY
             )
             moved > 0 && verify.length() > 0 && closeOk
         } catch (_: Exception) {

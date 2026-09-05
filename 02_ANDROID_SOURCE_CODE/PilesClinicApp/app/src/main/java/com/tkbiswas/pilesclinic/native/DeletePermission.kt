@@ -137,7 +137,13 @@ object DeletePermission {
         // সেটা নম্বর দিয়ে বোঝা যায় না (একজনের অনেক পেমেন্ট থাকে), তাই সারির
         // নিজের আইডিটাও অনুরোধে পাঠানো হয়। ⛔ অন্য সব ক্ষেত্রে এটা ফাঁকা থাকে,
         // তাই আগের কোনো অনুরোধের চেহারা বদলায় না।
-        rowId: String = ""
+        rowId: String = "",
+        // 🟢🔒 V641 (২৪.০৮.২০২৬, TK-রিপোর্ট — "আমি কেন বুঝব না এটা কিসের
+        // পেশেন্ট ছিল, Patient ID দেখে কি বুঝব?") — এখন রোগ (Disease)-ও
+        // অনুরোধে যায়, যাতে Master এক নজরেই বুঝতে পারেন কোন রোগী। ডিফল্ট
+        // ফাঁকা, তাই disease না পাঠানো পুরনো caller-দের কোনো ক্ষতি হয় না —
+        // ফাঁকা হলে সেই লাইনটা শুধু বসেই না।
+        disease: String = ""
     ): Boolean {
         return try {
             val who = StaffDirectory.findAccount(user.mobile)?.name ?: user.mobile
@@ -145,13 +151,13 @@ object DeletePermission {
             sb.append("Delete permission request\n")
             sb.append("Type : ").append(what).append("\n")
             sb.append("Name : ").append(name.ifBlank { mobile }).append("\n")
+            if (disease.isNotBlank()) sb.append("Disease : ").append(disease).append("\n")
             sb.append("Mobile : ").append(mobile).append("\n")
             if (patientId.isNotBlank()) sb.append("Patient ID : ").append(patientId).append("\n")
             if (branch.isNotBlank()) sb.append("Branch : ").append(branch).append("\n")
             if (rowId.isNotBlank()) sb.append("Row ID : ").append(rowId).append("\n")
             sb.append("Requested by : ").append(who).append("\n")
             if (reason.isNotBlank()) sb.append("Reason : ").append(reason).append("\n")
-            sb.append("\nMaster: এই রেকর্ডটা খুলে Take Action → Delete চেপে মুছে দিন।")
             BriefingRepository().post(
                 context,
                 "🗑️ Delete request — " + name.ifBlank { mobile },

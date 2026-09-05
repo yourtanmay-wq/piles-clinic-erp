@@ -56,8 +56,13 @@ object ReportCardPrinter {
                         // than every other screen. It now reads the same way and
                         // applies the ONE shared rule.
                         val rid = data.rowId
-                        val arr = if (rid.isNotBlank()) SupabaseClient.fetchList("patients", "id=eq.$rid", 1)
-                            else SupabaseClient.findByMobile("patients", "+91$mobile", "*", 50)
+                        /* 🔴🔒 V794 — এই সারিটা থেকে শুধু বয়স/ঠিকানা/লিঙ্গ নেওয়া হয়
+                           (যাচাই করা); ছবিটা আসে `PatientTimelineRepository.build`
+                           থেকে। তাই এখানে ছবি ছাড়া পড়া হয়। */
+                        val arr = if (rid.isNotBlank()) SupabaseClient.fetchListSlim("patients",
+                                "id=eq.$rid", 1, SupabaseClient.PATIENT_NO_PHOTO_COLS)
+                            else SupabaseClient.findByMobile("patients", "+91$mobile",
+                                SupabaseClient.PATIENT_NO_PHOTO_COLS, 50)
                         val ownBranch = user.branch
                         PatientIdentity.pickPatientRow(arr, ownBranch)
                     } catch (_: Throwable) { null }
@@ -120,7 +125,8 @@ object ReportCardPrinter {
     // ১ম লাইন গ্রাম+পোস্ট, ২য় লাইন থানা+জেলা। চিহ্ন না পেলে এক লাইনেই থাকে।
     // CheckupA4Report.addrTwoLines/formatAddressTwoLines-এর হুবহু একই নিয়ম।
     // সেভ-হওয়া ঠিকানা বদলায় না — শুধু ছাপার সময় ভাঙা।
-    private fun addrTwoLines(raw: String): String {
+    private fun addrTwoLines(rawIn: String): String {
+        val raw = rawIn.uppercase(java.util.Locale.US)   // 🔠🔒 V1009 (০৩.০৯.২০২৬, TK-নির্দেশ: "সমস্ত জায়গায় ক্যাপিটাল লেটারই করবেন") — শুধু **দেখানোর** সময় বড় হাতে; ডেটাবেসে যা লেখা আছে তা এক অক্ষরও বদলায় না।
         val markers = listOf("PS:", "P.S", "P/S", "Thana", "থানা", "Police Station")
         var idx = -1
         for (m in markers) { val i = raw.indexOf(m, ignoreCase = true); if (i > 0 && (idx == -1 || i < idx)) idx = i }
@@ -216,13 +222,18 @@ body{padding:10px;position:relative}
 .rtitle{text-align:center;font-weight:800;margin:2px 0 4px}
 table{width:100%;border-collapse:collapse;font-size:11px;table-layout:fixed}
 th,td{border:1px solid #0B2B59;height:24px;text-align:center;padding:1px 4px;overflow:hidden}
-/* 🔒 V235: table এখন ৪ column — DUE column বাদ; TREATMENT PROGRESS আরও চওড়া।
-   navy/teal রঙ ও border অপরিবর্তিত। */
-th:nth-child(1),td:nth-child(1){width:8%}
-th:nth-child(2),td:nth-child(2){width:15%}
-th:nth-child(3),td:nth-child(3){width:62%}
+/* 🔴🔒 V686 (২৫.০৮.২০২৬, TK-নির্দেশ — কাগজটা আরও প্রফেশনাল দেখাতে হবে) — আসল কারণ
+   (ছবি+PDF মিলিয়ে ধরা): VISIT ("VISI" কাটা যাচ্ছিল) ও DATE (শেষ অঙ্ক
+   কাটা, "28.07.202") কলাম দুটো বড়-হাতের-অক্ষর+bold লেখার তুলনায় অনেক
+   সরু ছিল, table-layout:fixed + overflow:hidden থাকায় লেখা নীরবে কেটে
+   যেত। এখন চওড়া করা হলো, PROGRESS কলাম একই অনুপাতে কমানো হয়েছে (মোট
+   ঠিক ১০০%)। ⛔ রং/বর্ডার/ফন্ট-সাইজ কিছু বদলায়নি, শুধু প্রস্থ+wrap। */
+th:nth-child(1),td:nth-child(1){width:10%}
+th:nth-child(2),td:nth-child(2){width:18%}
+th:nth-child(3),td:nth-child(3){width:57%}
 th:nth-child(4),td:nth-child(4){width:15%}
-th{background:#0e7c7b;color:#fff}
+th{background:#0e7c7b;color:#fff;white-space:nowrap;font-size:10.5px}
+td.v,td:nth-child(2){white-space:nowrap}
 /* 🔒 V235 (TK, Report Card—Single A4): Treatment Progress লেখা আর কখনো কাটা/লুকানো
    হবে না — আগের ২-লাইন clamp (line-clamp:2 · overflow:hidden) সরানো হলো। এখন
    লম্বা note প্রয়োজনীয় সংখ্যক লাইনে পুরো দেখায় (word-break সহ), cell/row নিজে
@@ -234,7 +245,7 @@ td.v{font-weight:700;color:#0e7c7b;background:#F2FAF8}
 td.pd{color:#0c8a4e;font-weight:700}
 </style></head><body>
 $watermark
-<div class="clinic"><div class="cn">${esc(branch.clinicName)}</div><div class="ca">${esc(branch.addressLine)} · ${esc(branch.phoneLine)}</div></div>
+<div class="clinic"><div class="cn">${esc(branch.clinicName)}</div><div class="ca">${esc(branch.addressLine)} · ${esc(branch.phoneLine)} · Helpline: ${esc(com.tkbiswas.pilesclinic.print.BranchCatalog.HELPLINE)}</div></div>
 <div class="pd2">
   ${if (data.photo.isNotBlank()) "<img class='photo' src='${esc(data.photo)}'/>" else "<div class='photo'></div>"}
   <div class="col"><div class="pname">${esc(data.name)}</div><div><b>AGE:</b> ${esc(age)}${if (sex.isNotBlank()) "&nbsp;&nbsp;${esc(sex)}" else ""}</div><div><b>ID:</b> ${esc(data.patientId)}</div><div><b>MOB:</b> +91${esc(data.mobile)}</div></div>

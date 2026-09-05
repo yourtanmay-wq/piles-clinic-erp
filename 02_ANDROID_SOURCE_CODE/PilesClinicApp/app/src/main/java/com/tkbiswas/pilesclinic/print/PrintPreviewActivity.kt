@@ -56,6 +56,14 @@ class PrintPreviewActivity : AppCompatActivity() {
                 renderPage(0)
                 setupPageNav()
                 setupActionButtons()
+                /* 💰🔒 V984 (TK-নির্দেশ: *"টাকা বুঝিয়ে দেয়ার সিস্টেমটা এই পর্দাতে
+                   রাখুন"*) — শুধু Chamber Register-এর সময় ঘরটা ভরে; বাকি প্রতিটা
+                   কাগজে ওটা লুকানোই থাকে, তাই কোথাও কিছু বদলায়নি। */
+                try {
+                    com.tkbiswas.pilesclinic.print.MoneyHandoverCard.attach(
+                        this, findViewById(R.id.handoverSlot)
+                    )
+                } catch (_: Throwable) { }
             } catch (e: Exception) {
                 showError("Could not render the PDF preview: ${e.message}")
             }
@@ -86,18 +94,73 @@ class PrintPreviewActivity : AppCompatActivity() {
         if (PrescriptionHtmlPrint.handles(model.documentTitle)) {
             findViewById<android.view.View>(R.id.pageNavRow).visibility = android.view.View.GONE
             findViewById<ImageView>(R.id.ivPreview).visibility = android.view.View.GONE
+            // 🟢🔒🔒 V670 (২৫.০৮.২০২৬, TK-নির্দেশ, তিনটে অনুরোধ) —
+            // ১) "প্রিন্ট হলো কিনা বোঝার উপায় নেই" — Android-এর PrintJob
+            //    state-listener দিয়ে সত্যিকারের ফলাফল দেখানো হয় (নিচে)।
+            // ২) "যেটা প্রিন্ট আউট হলো এটা যেন দেখা যায়" — একই HTML এখন
+            //    সরাসরি WebView-তে (wvRxPreview) দেখানো হয়।
+            // ৩) "এখান থেকে WhatsApp-এ শেয়ার করা যাবে" — আগে থেকেই থাকা
+            //    বোতাম (btnSharePdf, অন্য কাগজে ব্যবহৃত) এখানে দেখানো হলো,
+            //    PrescriptionWhatsAppShare-এর প্রমাণিত পথে জোড়া হলো।
+            val wvPreview = findViewById<android.webkit.WebView>(R.id.wvRxPreview)
+            try {
+                wvPreview.settings.javaScriptEnabled = false
+                /* 🔵🔒 V954 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — TK: *"কী প্রিন্ট
+                   আউট হবে সেটা যেন এখানে দেখতে পারি, এবং জুম করলে যেন বড়-ছোট হয়"*।
+                     · `loadWithOverviewMode` + `useWideViewPort` ⇒ খোলার সাথে সাথেই
+                       **পুরো কাগজটা** এঁটে দেখায় (আগে শুধু লোগোর টুকরো দেখাত)।
+                     · `setSupportZoom` + `builtInZoomControls` ⇒ **চিমটি দিয়ে জুম**।
+                       `displayZoomControls=false` ⇒ পর্দায় পুরনো ধাঁচের +/− বোতাম
+                       ভেসে ওঠে না, চেহারা পরিষ্কার থাকে।
+                   ⛔ ছাপার HTML এক অক্ষরও বদলায়নি — শুধু দেখানোর ধরন। */
+                wvPreview.settings.loadWithOverviewMode = true
+                wvPreview.settings.useWideViewPort = true
+                wvPreview.settings.setSupportZoom(true)
+                wvPreview.settings.builtInZoomControls = true
+                wvPreview.settings.displayZoomControls = false
+                /* 🖼️🔒 V1012 (০৩.০৯.২০২৬, TK-নির্দেশ: *"প্রিন্ট করার সময় যেটা
+                   প্রিন্ট করব আমার ডিসপ্লেতে সেটুকুই দেখাবে"*)।
+                   **আসল কারণ (কোড পড়ে):** ছাপার HTML-এ কোনো `viewport` লেখা
+                   নেই — ওটা দরকারও নেই, কারণ ছাপার সময় কাগজের মাপই (A4)
+                   বিবেচ্য। কিন্তু WebView-এ **পর্দায়** দেখাতে গেলে viewport
+                   ছাড়া সে নিজের ডিফল্ট প্রস্থ ধরে নেয়, তাই V954-এর
+                   `loadWithOverviewMode`/`useWideViewPort` কিছুই এঁটে দেখাতে
+                   পারত না — ফলে শুধু লোগোর বিশাল টুকরো দেখাত।
+                   ⇒ এখন **শুধু পর্দায় দেখানোর কপিটাতে** A4-এর প্রস্থ
+                     (৭৯৪ px = ২১০mm @96dpi) viewport হিসেবে বসানো হয়, তাই
+                     পুরো কাগজটা এঁটে দেখায় — যা ছাপবে ঠিক তাই।
+                   ⛔ **ছাপার HTML এক অক্ষরও বদলায়নি** — নিচের ছাপা/শেয়ার
+                      দুটোই আগের হুবহু একই `PrescriptionHtml.build()` ব্যবহার
+                      করে; এই viewport লাইনটা শুধু এই প্রিভিউ-কপিতে। */
+                val previewHtml = com.tkbiswas.pilesclinic.print.PrescriptionHtml.build(this, model)
+                val previewFitted = if (previewHtml.contains("name=\"viewport\"", ignoreCase = true)) previewHtml
+                    else previewHtml.replaceFirst(
+                        "<head>",
+                        "<head><meta name=\"viewport\" content=\"width=794, initial-scale=1\">",
+                        ignoreCase = true)
+                wvPreview.loadDataWithBaseURL("file:///android_asset/", previewFitted, "text/html", "UTF-8", null)
+                /* 🔵 V954 — WebView এখন আলাদা কার্ডে, পুরো জায়গা জুড়ে; তাই ছবির
+                   ScrollView-টা লুকিয়ে দেওয়া হয় (নইলে দুটো একসাথে জায়গা নিত)। */
+                findViewById<android.view.View>(R.id.cardRxPreview).visibility = android.view.View.VISIBLE
+                findViewById<android.view.View>(R.id.scrollImgPreview).visibility = android.view.View.GONE
+            } catch (_: Throwable) { }
             findViewById<MaterialButton>(R.id.btnSavePdf).visibility = android.view.View.GONE
-            findViewById<MaterialButton>(R.id.btnSharePdf).visibility = android.view.View.GONE
-            findViewById<TextView>(R.id.tvError).apply {
+            findViewById<MaterialButton>(R.id.btnSharePdf).visibility = android.view.View.VISIBLE
+            findViewById<MaterialButton>(R.id.btnSharePdf).setOnClickListener {
+                com.tkbiswas.pilesclinic.print.PrescriptionWhatsAppShare.share(this, model)
+            }
+            val tvStatus = findViewById<TextView>(R.id.tvError)
+            tvStatus.apply {
                 visibility = android.view.View.VISIBLE
                 text = "Opening the print sheet for this ${model.documentTitle}.\n\n" +
                     "Your phone's print sheet can print it or save it as a PDF."
             }
             findViewById<MaterialButton>(R.id.btnPrint).setOnClickListener {
-                PrescriptionHtmlPrint.print(this, model)
+                tvStatus.text = "Opening the print sheet for this ${model.documentTitle}…"
+                PrescriptionHtmlPrint.print(this, model) { statusMsg -> runOnUiThread { tvStatus.text = statusMsg } }
             }
             findViewById<MaterialButton>(R.id.btnClosePreview)?.setOnClickListener { finish() }
-            PrescriptionHtmlPrint.print(this, model)
+            PrescriptionHtmlPrint.print(this, model) { statusMsg -> runOnUiThread { tvStatus.text = statusMsg } }
             return
         }
 
@@ -219,7 +282,7 @@ class PrintPreviewActivity : AppCompatActivity() {
                     }
                 }
                 .setNegativeButton("Cancel", null)
-                .show()
+                .show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
         } catch (e: Exception) {
             Toast.makeText(this, "Share failed: ${e.message}", Toast.LENGTH_LONG).show()
         }

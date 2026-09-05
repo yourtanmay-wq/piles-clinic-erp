@@ -121,7 +121,14 @@ class ChamberCloseActivity : AppCompatActivity() {
             binding.listBox.removeAllViews()
             return
         }
-        binding.tvNote.text = "Loading..." 
+        // 🟢🔒 V604 (২৪.০৮.২০২৬, TK-রিপোর্ট — "পুরনো ডেটা থাকলেও Loading
+        // কেন দেখায়?") — যাচাই করে ধরা পড়ল: এই স্ক্রিন সবসময়ই "Loading..."
+        // লিখে দিত, নেটে যাওয়ার আগে মেমরির ক্যাশ (নিচের কল নিজেই ব্যবহার
+        // করে) একবারও দেখত না। এখন ক্যাশ তাজা থাকলে "Loading..." একবারও
+        // দেখানো হয় না — সরাসরি তালিকা বসে যায়, নেট-কলও বাদ যায় না
+        // (নিচের কল এখনো হয়, পিছনে গিয়ে হালনাগাদ করে)।
+        val cached = ChamberUnclosedRepository.peekCached(selectedBranch, lookBackDays)
+        if (cached != null) render(cached) else binding.tvNote.text = "Loading..."
         lifecycleScope.launch {
             val days = withContext(Dispatchers.IO) {
                 try { ChamberUnclosedRepository.findUnclosedCached(this@ChamberCloseActivity, selectedBranch, lookBackDays) }
@@ -188,7 +195,9 @@ class ChamberCloseActivity : AppCompatActivity() {
             })
 
             row.addView(android.widget.TextView(this).apply {
-                text = NoBengali.s("বন্ধ করুন")
+                // 🔤🔒 V832 — একই কারণ (উপরে WorkNotebookActivity-তে বিস্তারিত)।
+                //    `NoBengali`-র নিজের অনুবাদই বসানো হলো ⇒ কিশানগঞ্জে বদল নেই।
+                text = NoBengali.s("Close")
                 textSize = 11.5f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setTextColor(android.graphics.Color.parseColor("#FFFFFF"))

@@ -92,7 +92,7 @@ class ChamberAttendanceActivity : AppCompatActivity() {
             .setItems(labels) { _, which -> finishWith(people.getOrNull(which)) }
             .setNegativeButton("Cancel") { _, _ -> finishWith(null) }
             .setOnCancelListener { finishWith(null) }
-            .show()
+            .show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
     }
 
     // V450: a live mobile lookup can prove that follow-up rows exist but every
@@ -138,15 +138,31 @@ class ChamberAttendanceActivity : AppCompatActivity() {
         headerAdapter.currentHolder()?.let { vh -> vh.tvKalAsarCount.text = count }
     }
 
-    // 🆕 (07.08.2026) — কাল ওই ব্রাঞ্চে কতজন আসার কথা (chamber_expected, তারিখ =
-    // কাল), সেই সংখ্যা একবার হালকা রিড করে বোতামে বসায়। ⛔ একটাই ছোট query
-    // (তারিখ-ফিল্টার করা), Supabase ফ্রি-প্ল্যান নিরাপদ; ব্যর্থ হলে চুপচাপ ছেড়ে
-    // দেয় (কখনো ০ দেখিয়ে বিভ্রান্ত করে না — আগের মানই থাকে)। ব্রাঞ্চ-মিল
-    // ExpectedTomorrowActivity তালিকার সাথে হুবহু এক নিয়মে, যাতে সংখ্যা ও
-    // তালিকা কখনো আলাদা না হয়।
+    /* 🆕 (07.08.2026) — কাল ওই ব্রাঞ্চে কতজন আসার কথা (chamber_expected, তারিখ =
+     * কাল), সেই সংখ্যা একবার হালকা রিড করে বোতামে বসায়। ⛔ একটাই ছোট query
+     * (তারিখ-ফিল্টার করা), Supabase ফ্রি-প্ল্যান নিরাপদ; ব্যর্থ হলে চুপচাপ ছেড়ে
+     * দেয় (কখনো ০ দেখিয়ে বিভ্রান্ত করে না — আগের মানই থাকে)।
+     *
+     * 🟢🔒🔒 V635 (২৪.০৮.২০২৬, TK-রিপোর্ট, ছবিসহ — "ব্রাঞ্চ সিলেক্ট করা আছে
+     * জলপাইগুড়ি, কিন্তু 'আসার কথা'-তে চাপ দিলে কিষানগঞ্জের এনকোয়ারি কেন?")
+     * — **আসল কারণ (কোড ধরে যাচাই):** এই ফাংশন ব্রাঞ্চ ঠিক করত সরাসরি
+     * `user.branch` (যিনি লগইন করেছেন, তাঁর নিজস্ব/হোম ব্রাঞ্চ) দিয়ে —
+     * এই পর্দার উপরের ব্রাঞ্চ-পিকারে (Master-এর জন্য) যা **বাছা আছে**
+     * (`selectedBranch`) সেটা কখনো দেখতই না। এই একই ফাইলের বাকি প্রায়
+     * প্রতিটা জায়গায় (৬৩৪, ৯১২, ২৪৬২, ২৪৯২, ৩০১৯ নং লাইন — প্রমাণিত,
+     * বহু-জায়গায়-ব্যবহৃত নিয়ম) ঠিক এর উল্টো — `selectedBranch != "All"`
+     * হলে সেটাই, নইলে `user.branch` — শুধু এই একটা ফাংশনেই (পরে যোগ
+     * হয়েছিল বলে) সেই নিয়মটা মানা হয়নি। তাই Master যখন ব্রাঞ্চ-পিকারে
+     * অন্য ব্রাঞ্চে সুইচ করেন, বোতামের সংখ্যা ও তালিকা দুটোই **লগইনের
+     * নিজের ব্রাঞ্চ** দেখাত, স্ক্রিনে যা দেখানো হচ্ছে তা না।
+     * ⛔ Staff-এর জন্য কিছু বদলায় না — তাঁদের `selectedBranch` সবসময়
+     *    `user.branch`-ই থাকে (৩০৪ নং লাইন, ব্রাঞ্চ-পিকার তাঁরা দেখেনও
+     *    না), তাই এই সংশোধন শুধু Master/একাধিক-ব্রাঞ্চ-দেখা অ্যাকাউন্টে
+     *    প্রভাব ফেলে।
+     */
     private fun loadKalAsarCount() {
         if (!this::user.isInitialized || user.branch.isBlank()) return
-        val branch = user.branch
+        val branch = if (selectedBranch != "All") selectedBranch else user.branch
         val tomorrow = java.util.Calendar.getInstance().apply { add(java.util.Calendar.DAY_OF_YEAR, 1) }
         val key = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(tomorrow.time)
         BackgroundWork.run {
@@ -408,8 +424,14 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                 vh.cardExpected.setOnClickListener { toggleStatFilter("expected") }
                 vh.cardArrived.setOnClickListener { toggleStatFilter("arrived") }
                 // 🆕 (07.08.2026) — মাঝের বোতাম চাপলে কাল আসার কথা তালিকা খোলে।
+                // 🟢🔒 V635 (২৪.০৮.২০২৬) — এখন এই স্ক্রিনে বাছা ব্রাঞ্চটাই
+                // (selectedBranch != "All" হলে সেটা, নইলে লগইনের নিজের
+                // ব্রাঞ্চ) সাথে করে পাঠানো হয় — নইলে ওই পর্দা লগইনের নিজের
+                // ব্রাঞ্চেই ফিরে যেত, স্ক্রিনে যা দেখানো হচ্ছিল তা না।
                 vh.cardKalAsar.setOnClickListener {
-                    startActivity(android.content.Intent(this, ExpectedTomorrowActivity::class.java))
+                    val br = if (selectedBranch != "All") selectedBranch else user.branch
+                    startActivity(android.content.Intent(this, ExpectedTomorrowActivity::class.java)
+                        .putExtra("branchOverride", br))
                 }
                 vh.btnAddRegistration.visibility = if (isToday()) View.VISIBLE else View.GONE
                 vh.btnSearchPatient.visibility = if (isToday()) View.VISIBLE else View.GONE
@@ -460,10 +482,25 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                     android.widget.Toast.makeText(this, "Loading…", android.widget.Toast.LENGTH_SHORT).show()
                     lifecycleScope.launch {
                         val labels = try { withContext(Dispatchers.IO) { computeVisitLabels(b) } } catch (_: Throwable) { emptyMap() }
-                        if (!isFinishing && !isDestroyed) finalizeAndShare(b, labels)
+                        // 🆕 V805 — ওষুধ/স্যালাইনের মোট, ব্যাকগ্রাউন্ডেই (ব্যর্থ হলে শূন্য)
+                        val st = try { withContext(Dispatchers.IO) {
+                            ChamberAttendanceRepository.saleTotals(selectedDate, printBranchOverride.ifBlank {
+                                if (selectedBranch != "All") selectedBranch else user.branch })
+                        } } catch (_: Throwable) { ChamberRegisterPdfBuilder.SaleTotals() }
+                        if (!isFinishing && !isDestroyed) finalizeAndShare(b, labels, st)
                     }
                 }
             }
+        /* 🎨🔒 V829 (২৯.০৮.২০২৬, TK-অনুমোদিত ফটো-প্রুফ: *"হ্যাঁ করুন, তবে সাবধানে"*)
+           — অ্যাপের থিমে XML-এর সাদামাটা `<Button>` আপনা-আপনি **MaterialButton**
+           হয়ে যায়, আর সেটা `android:background` **অগ্রাহ্য করে** নিজের গাঢ় নীল
+           `backgroundTint` বসিয়ে দেয়। ফলে XML-এ লেখা রংটা ফোনে কখনো দেখা যেত না
+           (কম্পিউটারে ঠিকই দেখা যেত)। `backgroundTintList = null` বসালে তবেই
+           XML-এর drawable-টা দেখা যায় — প্রজেক্টের নিজেরই প্রমাণিত ওষুধ
+           (`DoctorQueueAdapter` · `DraftCardAdapter`-এ আগে থেকেই চলছে, পাহারা ৯.৩২)।
+           ⛔ শুধু চেহারা — বোতামের কাজ · জায়গা · লেখা কিচ্ছু বদলায়নি। */
+        binding.btnSharePastPdf.backgroundTintList = null
+        binding.btnPrintPast.backgroundTintList = null
             binding.btnSharePastPdf.setOnClickListener(sharePast)
             binding.btnPrintPast.setOnClickListener(sharePast)
 
@@ -492,6 +529,7 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                         if (picked != selectedBranch) {
                             selectedBranch = BranchFilterStore.set(this@ChamberAttendanceActivity, picked)   // 🟢 V398
                             dateClosedFlag = false; loadBoard()
+                            loadKalAsarCount()   // 🟢🔒 V635 — ব্রাঞ্চ বদলালে বোতামের সংখ্যাও নতুন ব্রাঞ্চের
                         }
                         binding.branchPicker.text = BranchFilterStore.pillText(this@ChamberAttendanceActivity)
                     }
@@ -512,6 +550,7 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                             if (picked != selectedBranch) {
                                 selectedBranch = BranchFilterStore.set(this@ChamberAttendanceActivity, picked)   // 🟢 V398
                                 dateClosedFlag = false; loadBoard()
+                                loadKalAsarCount()   // 🟢🔒 V635 — ব্রাঞ্চ বদলালে বোতামের সংখ্যাও নতুন ব্রাঞ্চের
                             }
                             binding.branchPicker.text = BranchFilterStore.pillText(this@ChamberAttendanceActivity)
                             dialog.dismiss()
@@ -1402,9 +1441,9 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                     }
                     if (!existing.isNullOrBlank() && existing != chosenDate) {
                         AlertDialog.Builder(this@ChamberAttendanceActivity)
-                            .setCustomTitle(PremiumAlert.header(this@ChamberAttendanceActivity, "⏰ আসার কথা দেওয়া আছে"))
+                            .setCustomTitle(PremiumAlert.header(this@ChamberAttendanceActivity, "⏰ Expected visit already set"))
                             .setMessage(NoBengali.s("এই রোগীর আসার কথা ইতিমধ্যে দেওয়া হয়েছে — ${FollowUpModel.displayDate(existing)}\n\nনতুন তারিখ ${FollowUpModel.displayDate(chosenDate)} বসাতে চান?"))
-                            .setPositiveButton(NoBengali.s("তারিখ বদলান")) { _, _ ->
+                            .setPositiveButton(NoBengali.s("Change the date")) { _, _ ->
                                 lifecycleScope.launch { saveExpectedFromChamber(digits, name, branch, chosenDate, parts.dialog) }
                             }
                             .setNegativeButton("Close", null)
@@ -1416,6 +1455,7 @@ class ChamberAttendanceActivity : AppCompatActivity() {
             }
         })
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     /** TK-REQUESTED (2026-07-27): the actual save, kept in one place so the
@@ -1433,6 +1473,38 @@ class ChamberAttendanceActivity : AppCompatActivity() {
         if (chosenDate == selectedDate) loadBoard()
     }
 
+    /**
+     * 🩺 V763 — রোগের নামের রঙিন চিপ (TK-অনুমোদিত ডিজাইন A)।
+     * ⛔ অচেনা রোগের জন্যও রং আছে (ধূসর-সবুজ), তাই কখনো ফাঁকা/সাদা দেখায় না।
+     */
+    private fun diseaseChip(disease: String): android.widget.TextView {
+        val d = resources.displayMetrics.density
+        val t = disease.trim().uppercase()
+        val (bg, fg) = when {
+            t.contains("PILES") -> "#FDECEA" to "#B4231A"
+            t.contains("FISSURE") -> "#FFF3E0" to "#A05A00"
+            t.contains("FISTULA") -> "#EEF0FD" to "#3B3FA8"
+            t.contains("HYDROCELE") -> "#E8F2FF" to "#15549B"
+            else -> "#EAF6EE" to "#0B8A3E"
+        }
+        return android.widget.TextView(this).apply {
+            text = t
+            textSize = 10.5f
+            setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor(fg))
+            setPadding((11 * d).toInt(), (4 * d).toInt(), (11 * d).toInt(), (4 * d).toInt())
+            background = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+                cornerRadius = 18f * d
+                setColor(android.graphics.Color.parseColor(bg))
+            }
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { marginStart = (8 * d).toInt() }
+        }
+    }
+
     private fun showSearchDialog() {
         val parts = premiumDialogShellChamber("🔍 Search Patient")
         val d = resources.displayMetrics.density
@@ -1443,15 +1515,34 @@ class ChamberAttendanceActivity : AppCompatActivity() {
             setPadding(padH, pad, padH, pad)
         }
         parts.body.addView(queryInput)
+        /* 🩺🎨🔒 V763 (২৭.০৮.২০২৬, TK-অনুমোদিত **ডিজাইন A**, ডেমো ফটো দেখে বাছা)
+           TK-এর কথা: *"এখানে নাম Type করার পরেও দেখায় না, নীচে search করার পরে
+           দেখায় কেন? আমি চাই কয়েকটা Type করলে যেন সাজেস্ট করে। তাছাড়া পেশেন্টের
+           নাম, রোগের নামও দেখাক। একটু প্রফেশনাল বানাতে হবে।"*
+
+           ⚡ **খরচের পাহারা (সবচেয়ে জরুরি):** প্রতিটা অক্ষরে খোঁজা হয় **না**।
+              টাইপ থামার **০.৫ সেকেন্ড পরে** একবারই যায় (debounce), আর আগের
+              অপেক্ষমাণ খোঁজাটা বাতিল হয়ে যায়। তাই "namita" লিখলে ৬টা নয়,
+              **একটাই** নেট-কল। ৩ অক্ষরের কম হলে কিছুই যায় না (পুরনো নিয়ম)।
+           ⛔ "Arrived" ও ৩-চাপে "Undo"-র কোড **এক অক্ষরও বদলায়নি**। */
+        val countLine = android.widget.TextView(this).apply {
+            textSize = 12.5f
+            setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#147A45"))
+            setPadding((4 * d).toInt(), (12 * d).toInt(), 0, 0)
+            visibility = View.GONE
+        }
+        parts.body.addView(countLine)
         val resultsBox = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.VERTICAL
-            setPadding(0, (12 * d).toInt(), 0, 0)
+            setPadding(0, (6 * d).toInt(), 0, 0)
         }
         parts.body.addView(resultsBox)
 
         fun runSearch() {
             val q = queryInput.text.toString().trim()
             resultsBox.removeAllViews()
+            countLine.visibility = View.GONE
             if (q.isBlank()) return
             // TK-REQUESTED OPTIMIZATION (2026-07-16): at least 3 characters
             // before a search request goes out at all, to keep Supabase
@@ -1478,18 +1569,61 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                     })
                     return@launch
                 }
+                countLine.text = if (results.size == 1) "1 patient found"
+                    else "${results.size} patients found"
+                countLine.visibility = View.VISIBLE
                 results.forEach { res ->
+                    // 🎨 ডিজাইন A — বাঁয়ে সবুজ দাগ · নাম + রোগের চিপ · নিচে মোবাইল ও আইডি
+                    val card = android.widget.LinearLayout(this@ChamberAttendanceActivity).apply {
+                        orientation = android.widget.LinearLayout.HORIZONTAL
+                        background = android.graphics.drawable.GradientDrawable().apply {
+                            shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+                            cornerRadius = 14f * d
+                            setColor(android.graphics.Color.WHITE)
+                            setStroke((1 * d).toInt(), android.graphics.Color.parseColor("#DBE8E2"))
+                        }
+                        elevation = 2f * d
+                        layoutParams = android.widget.LinearLayout.LayoutParams(
+                            android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                        ).apply { topMargin = (9 * d).toInt(); bottomMargin = (2 * d).toInt() }
+                    }
+                    card.addView(View(this@ChamberAttendanceActivity).apply {
+                        setBackgroundColor(android.graphics.Color.parseColor("#0E7A72"))
+                    }, android.widget.LinearLayout.LayoutParams(
+                        (5 * d).toInt(), android.widget.LinearLayout.LayoutParams.MATCH_PARENT))
                     val row = android.widget.LinearLayout(this@ChamberAttendanceActivity).apply {
                         orientation = android.widget.LinearLayout.HORIZONTAL
                         gravity = android.view.Gravity.CENTER_VERTICAL
-                        setPadding(0, (8 * d).toInt(), 0, (8 * d).toInt())
+                        setPadding((12 * d).toInt(), (11 * d).toInt(), (11 * d).toInt(), (11 * d).toInt())
+                        layoutParams = android.widget.LinearLayout.LayoutParams(
+                            0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                     }
-                    val info = android.widget.TextView(this@ChamberAttendanceActivity).apply {
-                        text = "${res.name}\n${res.mobile}${if (res.patientId.isNotBlank()) " · ${res.patientId}" else ""}"
-                        textSize = 13f
-                        setTextColor(android.graphics.Color.parseColor("#10223A"))
+                    card.addView(row)
+                    val info = android.widget.LinearLayout(this@ChamberAttendanceActivity).apply {
+                        orientation = android.widget.LinearLayout.VERTICAL
                         layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                        copyOnLongPress("Name/Mobile", "${res.name} · ${res.mobile}")
+                        addView(android.widget.LinearLayout(this@ChamberAttendanceActivity).apply {
+                            orientation = android.widget.LinearLayout.HORIZONTAL
+                            gravity = android.view.Gravity.CENTER_VERTICAL
+                            addView(android.widget.TextView(this@ChamberAttendanceActivity).apply {
+                                text = res.name.trim().uppercase()
+                                textSize = 15.5f
+                                setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+                                setTextColor(android.graphics.Color.parseColor("#17312A"))
+                                maxLines = 2
+                                copyOnLongPress("Name/Mobile", "${res.name} · ${res.mobile}")
+                            }, android.widget.LinearLayout.LayoutParams(
+                                0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                            // 🩺 রোগের চিপ — না থাকলে বসেই না (ফাঁকা চিপ দেখায় না)
+                            if (res.disease.isNotBlank()) addView(diseaseChip(res.disease))
+                        })
+                        addView(android.widget.TextView(this@ChamberAttendanceActivity).apply {
+                            text = res.mobile + (if (res.patientId.isNotBlank()) "   ·   ${res.patientId}" else "")
+                            textSize = 12.5f
+                            setTextColor(android.graphics.Color.parseColor("#5C6B64"))
+                            setPadding(0, (5 * d).toInt(), 0, 0)
+                        })
                     }
                     val arrivedBtn = pillButtonChamber("✅ Arrived", "#0C9E33").apply {
                         layoutParams = android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
@@ -1500,8 +1634,7 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                     // pattern used everywhere else in the app) before it
                     // actually deletes anything. This button switches
                     // between two modes: "✅ Arrived" (tap to mark) and,
-                    // once marked, "↩️ Undo" (3 taps to un-mark).
-                    var undoTapCount = 0
+                    // once marked, "↩️ Undo" (V773: এক চাপ + "Are you sure?" পপ-আপ)।
                     var markedRowId: String? = null
 
                     fun setArrivedMode() {
@@ -1530,51 +1663,94 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                                 }
                                 arrivedBtn.isEnabled = true
                                 markedRowId = newId
-                                undoTapCount = 0
                                 setUndoMode()
                                 android.widget.Toast.makeText(this@ChamberAttendanceActivity, "${res.name} marked Arrived", android.widget.Toast.LENGTH_SHORT).show()
                                 loadBoard()
                             }
                         } else {
-                            // Mode 2: already marked -- 3 taps to undo.
-                            undoTapCount++
-                            if (undoTapCount < 3) {
-                                android.widget.Toast.makeText(this@ChamberAttendanceActivity, "Tap ${3 - undoTapCount} more time(s) to undo", android.widget.Toast.LENGTH_SHORT).show()
-                                return@setOnClickListener
-                            }
-                            arrivedBtn.isEnabled = false
-                            lifecycleScope.launch {
-                                val ok = withContext(Dispatchers.IO) { ChamberAttendanceRepository.undoAttendanceMark(this@ChamberAttendanceActivity, id) }
-                                arrivedBtn.isEnabled = true
-                                android.widget.Toast.makeText(
-                                    this@ChamberAttendanceActivity,
-                                    if (ok) "Undone — ${res.name} removed from today's board" else "Could not undo — check connection",
-                                    android.widget.Toast.LENGTH_SHORT
-                                ).show()
-                                if (ok) {
-                                    markedRowId = null
-                                    undoTapCount = 0
-                                    setArrivedMode()
-                                    loadBoard()
+                            /* 🛡️🔴🔒 V773 (২৮.০৮.২০২৬) — **TK-এর আসল অভিযোগটা এখানেই।**
+                               TK: *"আমি তো বললাম পেমেন্ট মুছে গেছিল… সেখানে চাপ দিলে
+                               অটোমেটিক ডিলিট হয়ে যায় — আমি চাইছি সতর্কবার্তা দিক,
+                               Are you sure"*।
+
+                               **আগে কী হত:** পরপর **৩ বার চাপ** দিলেই সারিটা মুছে যেত
+                               (`undoAttendanceMark` → payments সারি সত্যিই ডিলিট)।
+                               মাঝের দুটো চাপে শুধু একটা টোস্ট ভেসে উঠত — তাড়াহুড়োয়
+                               সেটা চোখেই পড়ে না। তাই ভুল করে পেমেন্ট মুছে গিয়েছিল।
+
+                               **এখন:** এক চাপেই **"Are you sure?" পপ-আপ**, আর "Yes"
+                               প্রথম ১ সেকেন্ড নিষ্ক্রিয় — অর্থাৎ তাড়াহুড়োর চাপ কখনো
+                               ওটায় লাগতে পারে না। ⛔ Cancel প্রথম থেকেই সচল।
+                               ⛔ গোনার পুরনো নিয়ম (৩ চাপ) তুলে দেওয়া হলো — ওটাই
+                                  বিপদটা তৈরি করেছিল; সতর্কবার্তা তার চেয়ে অনেক জোরালো।
+                               ⛔ Arrived করার পথ ও ডিলিটের আসল কাজ এক অক্ষরও বদলায়নি। */
+                            val ask = androidx.appcompat.app.AlertDialog.Builder(this@ChamberAttendanceActivity)
+                                .setCustomTitle(PremiumAlert.header(this@ChamberAttendanceActivity, "↩️ Undo Arrived?"))
+                                .setMessage(res.name + " will be removed from today's board and this entry will be deleted.")
+                                .setPositiveButton("Yes, undo") { _, _ ->
+                                    arrivedBtn.isEnabled = false
+                                    lifecycleScope.launch {
+                                        val ok = withContext(Dispatchers.IO) { ChamberAttendanceRepository.undoAttendanceMark(this@ChamberAttendanceActivity, id) }
+                                        arrivedBtn.isEnabled = true
+                                        android.widget.Toast.makeText(
+                                            this@ChamberAttendanceActivity,
+                                            if (ok) "Undone — ${res.name} removed from today's board" else "Could not undo — check connection",
+                                            android.widget.Toast.LENGTH_SHORT
+                                        ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
+                                        if (ok) {
+                                            markedRowId = null
+                                            setArrivedMode()
+                                            loadBoard()
+                                        }
+                                    }
                                 }
+                                .setNegativeButton("Cancel", null)
+                                .setCancelable(false)
+                                .show().also { PremiumAlert.paint(it) }
+                            ask.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)?.let { yes ->
+                                yes.isEnabled = false
+                                yes.alpha = 0.45f
+                                yes.postDelayed({
+                                    try { yes.isEnabled = true; yes.alpha = 1f } catch (_: Throwable) {}
+                                }, 1000L)
                             }
                         }
                     }
                     row.addView(info)
                     row.addView(arrivedBtn)
-                    resultsBox.addView(row)
+                    resultsBox.addView(card)
                 }
             }
         }
         queryInput.setOnEditorActionListener { _, _, _ -> runSearch(); true }
 
-        parts.actionRow.addView(pillButtonChamber("Cancel", "#E5E8EC", android.graphics.Color.parseColor("#0F5C5C")).apply {
+        /* ⚡🔒 V763 — **টাইপ থামলে তবেই খোঁজা** (TK: "কয়েকটা Type করলে যেন সাজেস্ট করে")।
+           ⛔ প্রতিটা অক্ষরে নয় — প্রতিবার নতুন অক্ষর পড়লে আগের অপেক্ষমাণ খোঁজাটা
+              **বাতিল** হয়ে যায়, আর শেষ অক্ষরের ০.৫ সেকেন্ড পরে একবারই যায়।
+              ⇒ "namita" লিখলে ৬টা নয়, **১টা** নেট-কল। Supabase-এ বাড়তি চাপ নেই।
+           ⛔ ৩ অক্ষরের কম হলে কিছুই যায় না — পুরনো নিয়মটাই (runSearch-এর ভিতরে)।
+           ⛔ পর্দা বন্ধ হলে অপেক্ষমাণ কাজটাও মুছে ফেলা হয় (নইলে বন্ধ পর্দায় কাজ চলত)। */
+        val typeHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        val typeJob = Runnable { runSearch() }
+        queryInput.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(c: CharSequence?, a: Int, b: Int, x: Int) {}
+            override fun onTextChanged(c: CharSequence?, a: Int, b: Int, x: Int) {}
+            override fun afterTextChanged(e: android.text.Editable) {
+                typeHandler.removeCallbacks(typeJob)
+                if (e.toString().trim().length >= 3) typeHandler.postDelayed(typeJob, 500L)
+                else { resultsBox.removeAllViews(); countLine.visibility = View.GONE }
+            }
+        })
+        parts.dialog.setOnDismissListener { typeHandler.removeCallbacks(typeJob) }
+
+        // 🔍 V763 — টাইপ করলেই খোঁজা হয় বলে আলাদা "Search" বোতামের আর দরকার নেই
+        //    (TK: *"নীচে search করার পরে দেখায় কেন?"*)। কীবোর্ডের নিজের Search
+        //    বোতামটা আগের মতোই কাজ করে (উপরের setOnEditorActionListener)।
+        parts.actionRow.addView(pillButtonChamber("Close", "#0A8C8C").apply {
             setOnClickListener { parts.dialog.dismiss() }
         })
-        parts.actionRow.addView(pillButtonChamber("Search", "#0A8C8C").apply {
-            setOnClickListener { runSearch() }
-        })
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     /** Updates the SAME Follow-up "Last Remark" field the Visit/Patient
@@ -1740,33 +1916,70 @@ class ChamberAttendanceActivity : AppCompatActivity() {
         // হিসাব আসার আগে এগুলো ফাঁকা; আসামাত্র বসে যায় এবং Save চালু হয়।
         var patient: PatientBillInfo? = null
         var hasBill = false
-        val amt = android.widget.EditText(this).apply {
-            inputType = android.text.InputType.TYPE_CLASS_TEXT; keyListener = android.text.method.DigitsKeyListener.getInstance("0123456789."); hint = "Amount"
-            setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
-            val p = dp(12); setPadding(p, p, p, p)
+        /* 🎨🔒🔒 V876 (৩০.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত):
+           TK: *"২ যায়গায় ২ রকম কেন? Follow Up card এ যে রকম সেরকম ই থাকতে হবে"*
+           ⇒ এই বাক্সটা এখন Follow-up কার্ডের Advance Payment বাক্সের
+             (`dialog_advance.xml`) হুবহু একই চেহারায় — নেভি মাথা, গোল ঘর,
+             বাঁয়ে লেখা · ডানে টাকা, নিচে Close/Save পিল-বোতাম।
+           TK-এর আরও তিনটে নির্দেশ এখানে মানা হয়েছে:
+             · কোনো বাংলা লেখা নেই
+             · "No bill set…" ধরনের সতর্কবার্তা নেই
+             · প্রকৃত জমার তারিখের ঘরটা **হালকা/হাইড-টাইপ**, আর মাথার আইকন বাদ
+           ⛔ টাকার সেভ · যাচাই · কনফার্ম · day-guard — একটা অক্ষরও বদলায়নি,
+              শুধু চেহারা। */
+        fun rowField(label: String, dim: Boolean = false): Pair<android.widget.LinearLayout, android.widget.EditText> {
+            val et = android.widget.EditText(this).apply {
+                inputType = android.text.InputType.TYPE_CLASS_TEXT
+                keyListener = android.text.method.DigitsKeyListener.getInstance("0123456789.")
+                hint = "Enter amount"
+                setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                gravity = android.view.Gravity.END
+                textSize = if (dim) 17f else 19f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor(if (dim) "#B26A00" else "#16A36D"))
+                setHintTextColor(android.graphics.Color.parseColor("#B7C0CE"))
+                minWidth = dp(96)
+                setPadding(0, 0, 0, 0)
+            }
+            val row = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
+                setPadding(dp(14), dp(6), dp(14), dp(6))
+                addView(android.widget.TextView(this@ChamberAttendanceActivity).apply {
+                    text = label; textSize = 12.5f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.parseColor("#5B6B81"))
+                    layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                })
+                addView(et)
+            }
+            return row to et
         }
-        val billInput = android.widget.EditText(this).apply {
-            inputType = android.text.InputType.TYPE_CLASS_TEXT; keyListener = android.text.method.DigitsKeyListener.getInstance("0123456789."); hint = "Total Bill (optional)"
-            setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
-            val p = dp(12); setPadding(p, p, p, p)
-        }
+        val (rowBill, billInput) = rowField("Total Bill", dim = true)
+        val (rowAmt, amt) = rowField("Amount")
         // TK-REQUESTED (2026-07-25): same backdate date-picker pattern as
         // PaymentActivity's own Add-Treatment-Payment dialog (dateLabel/
         // dateValue/pickedActualDate there) -- reused here verbatim so
         // both payment-entry points behave identically.
         var pickedActualDate = PaymentModel.today()
+        /* 🎨 V876 — TK: *"এই ঘরটা উজ্জ্বলতা কম থাকবে, হাইড টাইপের থাকবে"*
+           ⇒ হালকা ধূসর লেখা, বাকি ঘরের মতো একই গোল ঘরে। ⛔ কাজ অপরিবর্তিত। */
         val dateValue = android.widget.TextView(this).apply {
-            text = NoBengali.s("আজকের তারিখ (ডিফল্ট) — বদলাতে ট্যাপ করুন")
-            setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
-            setPadding(dp(14), dp(12), dp(14), dp(12))
+            text = "Today \u2014 tap to change"
+            textSize = 13f
+            gravity = android.view.Gravity.END
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#AEB8C4"))
+            setPadding(0, 0, 0, 0)
             setOnClickListener {
                 val cal = java.util.Calendar.getInstance()
                 android.app.DatePickerDialog(this@ChamberAttendanceActivity, { _, y, m, dd ->
                     val cal2 = java.util.Calendar.getInstance().apply { set(y, m, dd) }
                     val iso = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(cal2.time)
                     pickedActualDate = iso
-                    text = if (iso == PaymentModel.today()) NoBengali.s("আজকের তারিখ (ডিফল্ট) — বদলাতে ট্যাপ করুন")
-                        else NoBengali.s("প্রকৃত জমা: ${DateUtil.display(iso)} (ট্যাপ করে বদলান)")
+                    text = if (iso == PaymentModel.today()) "Today \u2014 tap to change"
+                        else DateUtil.display(iso)
                 }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH), cal.get(java.util.Calendar.DAY_OF_MONTH)).apply {
                     datePicker.maxDate = System.currentTimeMillis()
                 }.show()
@@ -1774,16 +1987,22 @@ class ChamberAttendanceActivity : AppCompatActivity() {
         }
         // দুটো ঘরই আগেই তৈরি — হিসাব এলে কেবল লেখা ও দেখা/না-দেখা ঠিক হয়।
         val infoLine = android.widget.TextView(this).apply {
-            text = NoBengali.s("হিসাব আসছে…")
+            text = "Loading\u2026"
             textSize = 11f; setTextColor(android.graphics.Color.parseColor("#5B6B81"))
             setPadding(0, 0, 0, dp(8))
         }
-        billInput.visibility = android.view.View.GONE
+        rowBill.visibility = android.view.View.GONE
+        fun gapView() = android.view.View(this).apply {
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT, dp(10))
+        }
         val box = android.widget.LinearLayout(this).apply {
-            orientation = android.widget.LinearLayout.VERTICAL; setPadding(dp(20), dp(12), dp(20), 0)
+            orientation = android.widget.LinearLayout.VERTICAL; setPadding(dp(20), dp(16), dp(20), dp(4))
             addView(infoLine)
-            addView(billInput)
-            addView(amt)
+            addView(rowBill)
+            addView(gapView())
+            addView(rowAmt)
+            addView(gapView())
             // TK-REQUESTED (2026-07-25, fixes TK's live-reported "can't take
             // payment for past days"): this dialog was completely missing
             // the "actual deposit date" picker PaymentActivity's own
@@ -1792,20 +2011,51 @@ class ChamberAttendanceActivity : AppCompatActivity() {
             // entry point) had NO way to backdate at all. Same exact
             // pattern/wording as PaymentActivity: defaults to today (no
             // behaviour change for the normal case); past dates only.
-            addView(android.widget.TextView(this@ChamberAttendanceActivity).apply {
-                text = NoBengali.s("⏰ প্রকৃত জমার তারিখ (যদি আজ না হয়)"); textSize = 11f; setPadding(0, dp(10), 0, dp(4))
+            addView(android.widget.LinearLayout(this@ChamberAttendanceActivity).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
+                setPadding(dp(14), dp(12), dp(14), dp(12))
+                addView(android.widget.TextView(this@ChamberAttendanceActivity).apply {
+                    text = "Actual Date"; textSize = 12.5f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.parseColor("#AEB8C4"))
+                    layoutParams = android.widget.LinearLayout.LayoutParams(0,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                })
+                addView(dateValue)
+                isClickable = true
+                setOnClickListener { dateValue.performClick() }
             })
-            addView(dateValue)
         }
         UppercaseInputUtil.applyToAll(box)  // TK-REQUESTED GLOBAL RULE (2026-07-24): English text auto-CAPITAL, Password fields excluded automatically
         AlertDialog.Builder(this)
-            .setCustomTitle(PremiumAlert.header(this, "💵 $mode Payment — ${row.name.ifBlank { digits }}"))
+            /* 🎨 V876 — TK: *"উপরে ক্যাশ পেমেন্টের বাঁ পাশে আইকন থাকবে না"*
+               ⇒ আইকন বাদ, আর সবুজ মাথার বদলে Follow-up কার্ডের নেভি মাথা
+                 (`dialog_advance.xml`-এর হুবহু একই রং ও মাপ)। */
+            .setCustomTitle(android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+                setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_header_navy_top_round)
+                setPadding(dp(18), dp(18), dp(18), dp(18))
+                addView(android.widget.TextView(this@ChamberAttendanceActivity).apply {
+                    text = "$mode Payment"; textSize = 17f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.WHITE)
+                })
+                addView(android.widget.TextView(this@ChamberAttendanceActivity).apply {
+                    text = listOf(row.name.ifBlank { digits }, digits, row.branch)
+                        .filter { it.isNotBlank() }.joinToString(" \u00b7 ")
+                    textSize = 12f
+                    setTextColor(android.graphics.Color.parseColor("#B8C6D8"))
+                    setPadding(0, dp(3), 0, 0)
+                })
+            })
             .setView(android.widget.ScrollView(this).apply { addView(box) })
             .setPositiveButton("Save") { _, _ ->
                 val value = amt.text.toString().trim().toDoubleOrNull() ?: 0.0
                 if (value <= 0) { android.widget.Toast.makeText(this, "Enter a valid amount", android.widget.Toast.LENGTH_SHORT).show(); return@setPositiveButton }
                 val p = patient
-                if (p == null) { android.widget.Toast.makeText(this, NoBengali.s("হিসাব এখনো আসেনি — এক মুহূর্ত"), android.widget.Toast.LENGTH_SHORT).show(); return@setPositiveButton }
+                if (p == null) { android.widget.Toast.makeText(this, NoBengali.s("Figures have not arrived yet — one moment"), android.widget.Toast.LENGTH_SHORT).show(); return@setPositiveButton }
                 val paidSoFar = p.paid
                 val enteredBill = if (!hasBill) (billInput.text.toString().trim().toDoubleOrNull() ?: 0.0) else p.bill
                 // TK-DECISION (2026-07-26): the Total Bill is NOT forced here.
@@ -1859,19 +2109,38 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                 if (wouldExceed) {
                     val due = (enteredBill - paidSoFar).coerceAtLeast(0.0)
                     AlertDialog.Builder(this)
-                        .setCustomTitle(PremiumAlert.header(this, NoBengali.s("⚠️ Bill-এর থেকে বেশি হয়ে যাচ্ছে")))
-                        .setMessage(NoBengali.s("Bill ₹${"%,.0f".format(enteredBill)} · এখনো বাকি ₹${"%,.0f".format(due)}। আপনি ₹${"%,.0f".format(value)} নিতে চাইছেন — এটা বিলের থেকে বেশি। তবুও এগোবেন?"))
-                        .setPositiveButton(NoBengali.s("হ্যাঁ, এগোন")) { _, _ -> proceed() }
+                        .setCustomTitle(PremiumAlert.header(this, NoBengali.s("⚠️ Going higher than the Bill")))
+                        .setMessage(NoBengali.s("Bill ₹${"%,.0f".format(enteredBill)} · still due ₹${"%,.0f".format(due)}. You are taking ₹${"%,.0f".format(value)} — this is more than the bill. Continue anyway?"))   /* 🔤 V726 */
+                        .setPositiveButton(NoBengali.s("Yes, continue")) { _, _ -> proceed() }
                         .setNegativeButton("Cancel", null)
                         .show().also { PremiumAlert.paint(it) }
                 } else proceed()
             }
-            .setNegativeButton("Cancel", null)
-            .show().also { dlg ->
+            .setNegativeButton("Close", null)
+            .show().also { dlg ->   // ⛔ V774 — এখানে নিচে PremiumAlert.paint(dlg) আগে থেকেই আছে, তাই আলাদা কিছু লাগেনি
                 // 🔒🔒 খাতার সারি B181 (TK, 30.07.2026): এই বাইরের ডায়ালগটার
                 // (নিজের টাইটেল/লেবেল) নিজে থেকে কোনো পাহারা ছিল না — ভিতরের
                 // দুটো নেস্টেড কনফার্ম-ডায়ালগ (উপরে) আগে থেকেই ঢাকা ছিল।
                 PremiumAlert.paint(dlg)
+                /* 🎨 V876 — Follow-up কার্ডের Close / Save Advance বোতামের
+                   হুবহু একই পিল-চেহারা (`bg_pill_ghost` ও `bg_btn_green`)।
+                   ⛔ বোতামের কাজ এক অক্ষরও বদলায়নি — শুধু চেহারা। */
+                try {
+                    val negBtn: android.widget.Button? = dlg.getButton(AlertDialog.BUTTON_NEGATIVE)
+                    if (negBtn != null) {
+                        negBtn.setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_pill_ghost)
+                        negBtn.setTextColor(android.graphics.Color.parseColor("#5B6B81"))
+                        negBtn.isAllCaps = false
+                        negBtn.setPadding(dp(22), dp(11), dp(22), dp(11))
+                    }
+                    val posBtn: android.widget.Button? = dlg.getButton(AlertDialog.BUTTON_POSITIVE)
+                    if (posBtn != null) {
+                        posBtn.setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_btn_green)
+                        posBtn.setTextColor(android.graphics.Color.WHITE)
+                        posBtn.isAllCaps = false
+                        posBtn.setPadding(dp(26), dp(11), dp(26), dp(11))
+                    }
+                } catch (_: Throwable) { }
                 // 🔒 হিসাব না আসা পর্যন্ত Save বন্ধ — টাকার জায়গায় কোনো আন্দাজ নয়।
                 val save = dlg.getButton(AlertDialog.BUTTON_POSITIVE)
                 save?.isEnabled = false
@@ -1879,20 +2148,24 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                     val p = try { patientJob.await() } catch (_: Throwable) { null }
                     if (isFinishing || isDestroyed) return@launch
                     if (p == null) {
-                        infoLine.text = NoBengali.s("হিসাব আনা গেল না — লাইন দেখে আবার চেষ্টা করুন")
+                        infoLine.text = "Could not load the figures \u2014 check the line and try again"
                         infoLine.setTextColor(android.graphics.Color.parseColor("#B42318"))
                         return@launch
                     }
                     patient = p
                     hasBill = p.bill > 0.0
+                    /* 🎨 V876 — TK: *"no bill set for this payment — এই ধরনের
+                       লেখাও থাকবে না"* ⇒ সতর্কবার্তাটা বাদ। বিল বসানো না থাকলে
+                       শুধু Total Bill-এর ঘরটা দেখায়, কোনো লেখা নয়।
+                       ⛔ বিল থাকলে হিসাবের লাইনটা আগের মতোই (ওটা সতর্কবার্তা নয়)। */
                     if (hasBill) {
                         infoLine.text = "Bill ₹${"%,.0f".format(p.bill)} · Paid so far ₹${"%,.0f".format(p.paid)}"
                         infoLine.setTextColor(android.graphics.Color.parseColor("#5B6B81"))
-                        billInput.visibility = android.view.View.GONE
+                        infoLine.visibility = android.view.View.VISIBLE
+                        rowBill.visibility = android.view.View.GONE
                     } else {
-                        infoLine.text = NoBengali.s("⚠️ এখনো এই পেশেন্টের Bill বসানো হয়নি। বিল না বসালেও Advance নেওয়া যাবে — চাইলে নিচে বিল-ও বসিয়ে দিন।")
-                        infoLine.setTextColor(android.graphics.Color.parseColor("#B45309"))
-                        billInput.visibility = android.view.View.VISIBLE
+                        infoLine.visibility = android.view.View.GONE
+                        rowBill.visibility = android.view.View.VISIBLE
                     }
                     save?.isEnabled = true
                 }
@@ -1916,6 +2189,13 @@ class ChamberAttendanceActivity : AppCompatActivity() {
         var dayGuardAmount = 0.0
         var dayGuardName = ""
         var dayGuardLabel = ""
+        /* 🔴 V1106 (TK-নির্দেশ, SADDAM) — আজ হুবহু এই অঙ্কের টাকা আগে বসেছে
+           কিনা, সেটা এই পথেও **ক্লাউডে** দেখা হয় (আগে শুধু ফোনের জমানো অঙ্ক
+           দেখা হত, তাই অন্য ফোনের টাকা ধরা পড়ত না)।
+           ⛔ `dayGuardAsk` আলাদা রাখা হয়েছে — নইলে আজকের জমা ০ অথচ ডুপ্লিকেট
+              পাওয়া গেলে প্রশ্নও আসত না, টাকাও সেভ হত না (নিজে যাচাই করে ধরা)। */
+        var dayGuardAsk = false
+        var dayGuardDup: org.json.JSONObject? = null
         // 🔴🆕🔒 V439 (TK-রিপোর্ট ১৮.০৮.২০২৬ — *"অনুমতি দিয়েছি তবুও হয় না"*):
         //    Master-এর দেওয়া ব্যাকডেট-অনুমতি (`BackdatePaymentGrant`) এতদিন
         //    **শুধু Payment পর্দায়** কাজ করত। চেম্বারের Cash/Online ঘর থেকে
@@ -1963,12 +2243,18 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                         repo.requestBackdatePayment(
                             patient, enteredBill, value, mode, "Chamber $mode payment", pickedDate, user.mobile, user.name.ifBlank { user.mobile }
                         )
-                    } else if (!skipDayGuard && !isBackdated && repo.paidOnDateFor(patient.id) > 0.0) {
+                    } else if (!skipDayGuard && !isBackdated && run {
+                            // 🔴 V1106 — এই লাইনটা ইতিমধ্যেই IO-থ্রেডে চলছে, তাই
+                            //    এখানেই ক্লাউড-যাচাই করা নিরাপদ ও সবচেয়ে সস্তা।
+                            dayGuardDup = repo.todaysPaymentLike(patient, value)
+                            dayGuardDup != null || repo.paidOnDateFor(patient.id) > 0.0
+                        }) {
                         // 🔒 খাতার সারি B52: আজ এই রোগীর নামে টাকা নেওয়া হয়ে গেছে —
                         // ⛔ এখানে কিছুই সেভ হয় না; স্টাফকে আগে জিজ্ঞাসা করা হয়।
                         dayGuardAmount = repo.paidOnDateFor(patient.id)
                         dayGuardName = patient.name
                         dayGuardLabel = repo.nextLabelFor(patient.id)
+                        dayGuardAsk = true
                         false
                     } else {
                         repo.saveTreatmentPayment(
@@ -1982,12 +2268,18 @@ class ChamberAttendanceActivity : AppCompatActivity() {
             }
             // 🔒 খাতার সারি B52: টাকা নেওয়া হয়নি, শুধু প্রশ্নটা বাকি — স্টাফ
             // "Yes, add it" বললে ঠিক আগের সেই সেভটাই আবার চলে (এবার প্রশ্ন ছাড়া)।
-            if (dayGuardAmount > 0.0) {
-                PaymentDayGuard.confirmIfAlreadyPaidToday(
-                    this@ChamberAttendanceActivity, dayGuardAmount, dayGuardName, dayGuardLabel
-                ) {
+            if (dayGuardAsk) {
+                val __dup = dayGuardDup
+                val __again = {
                     confirmedTakePayment(row, mode, digits, value, enteredBill, pickedDate, skipDayGuard = true)
                 }
+                // 🔴 V1106 — হুবহু একই অঙ্ক পাওয়া গেলে সেই স্পষ্ট প্রশ্নটাই,
+                //    নইলে আগের B52 প্রশ্ন — লেখা ও আচরণ বাকি তিন পথের হুবহু এক।
+                if (__dup != null) PaymentDayGuard.askSameAmount(
+                    this@ChamberAttendanceActivity, dayGuardName, value, __dup, __again
+                ) else PaymentDayGuard.confirmIfAlreadyPaidToday(
+                    this@ChamberAttendanceActivity, dayGuardAmount, dayGuardName, dayGuardLabel, __again
+                )
                 return@launch
             }
             val msg = when {
@@ -2061,6 +2353,20 @@ class ChamberAttendanceActivity : AppCompatActivity() {
          · ""   = সত্যিই কোনো সারি নেই → নতুন সারি বানানো নিরাপদ (আগের মতোই)
          · id   = পাওয়া গেছে
        ⛔ stage-priority বাছার নিয়ম এক অক্ষরও বদলায়নি। */
+    /**
+     * 🟢🔒🔒 V638 (২৪.০৮.২০২৬, TK-রিপোর্ট — "KAPIL DAS ৩য় ভিজিট, তাও Treatment
+     * Progress আবার ফাঁকা দেখাচ্ছে") — **আসল কারণ (কোড ধরে যাচাই):** যে রোগী
+     * একাধিকবার এসেছেন (একাধিক ভিজিট), তাঁর নামে একাধিক `followups` সারি
+     * একই stage-এ (যেমন "Patient") থাকতে পারে। আগে এখানে `maxByOrNull` শুধু
+     * stage-priority দেখত — সমান priority-র একাধিক সারি থাকলে **যেটা
+     * Supabase থেকে প্রথমে ফেরত আসে সেটাই** (কোনো নির্দিষ্ট ক্রম ছাড়া)
+     * বেছে নিত। বোর্ডের নিজের রেজলিউশন (`ChamberAttendanceRepository`)
+     * আলাদা query থেকে, তাই **আলাদা সারি** বেছে ফেলতে পারত — লেখা একটা
+     * সারিতে সেভ হতো, বোর্ড আরেকটা সারি দেখে "ফাঁকা" বলত।
+     * **সমাধান:** সমান stage হলে **সবচেয়ে সাম্প্রতিক** (updatedAt/createdAt
+     * ধরে) সারিটাই জেতে — অর্থাৎ আজকের ভিজিটের সারিটাই, ঠিক TK যেটাতে লেখেন।
+     * ⛔ Active/Cancelled/Rejected ছাঁকনি এক অক্ষরও বদলায়নি।
+     */
     private suspend fun resolveBestFollowUpId(digits: String): String? = withContext(Dispatchers.IO) {
         try {
             fun stagePriority(s: String): Int = when {
@@ -2069,7 +2375,7 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                 s.equals("Inquiry", true) -> 1
                 else -> 0
             }
-            val rows = SupabaseClient.findByMobileOrNull("followups", "+91$digits", "id,status,stage", 50) ?: return@withContext null
+            val rows = SupabaseClient.findByMobileOrNull("followups", "+91$digits", "id,status,stage,updatedAt,createdAt", 50) ?: return@withContext null
             val active = (0 until rows.length())
                 .map { rows.getJSONObject(it) }
                 .filter {
@@ -2077,7 +2383,10 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                     !st.equals("Cancelled", true) && !st.equals("Incomplete", true) &&
                         !st.equals("Rejected", true) && !st.equals("Closed", true)
                 }
-                .maxByOrNull { stagePriority(it.optString("stage", "")) }
+                .maxWithOrNull(
+                    compareBy<org.json.JSONObject> { stagePriority(it.optString("stage", "")) }
+                        .thenBy { it.optString("updatedAt").ifBlank { it.optString("createdAt") } }
+                )
             when {
                 active != null -> active.optString("id", "")
                 rows.length() > 0 -> terminalFollowUpSentinel
@@ -2153,6 +2462,30 @@ class ChamberAttendanceActivity : AppCompatActivity() {
     // রকম না হয়ে যায়।
     private fun isEffectivelyBlankRemark(remark: String): Boolean =
         remark.trim().isBlank() || remark.trim().equals("Registered patient / Visit created", ignoreCase = true)
+
+    /* 🔴🔴🔒 V810 (২৮.০৮.২০২৬, TK-অনুমোদিত) — **"স্টাফ কিছু লেখেনি, তাহলে চেম্বার
+       বন্ধ সেভ হলো কি করে?"** (TK-এর কাগজে TREATMENT PROGRESS-এ "ASBEN")।
+       ─── আসল কারণ (কোড ধরে প্রমাণিত) ───────────────────────────────────────
+       বোর্ডের `remark` ঘরে রোগীর **সবচেয়ে সাম্প্রতিক** লেখাটা বসে — সেটা আজকের
+       হোক বা বহু দিন আগের (`ChamberAttendanceRepository`-তে `followups.lastRemark`)।
+       V654-এ **দেখানোর** দিকটা ঠিক করা হয়েছিল (পুরনো লেখা ধূসর, আজকেরটা গাঢ়) —
+       কিন্তু নিচের দুটো জায়গা তারিখটা **মেলাতোই না**, শুধু "ঘর ফাঁকা কিনা" দেখত:
+         ১) চেম্বার-বন্ধের পাহারা  ২) ছাপা রেজিস্টারের TREATMENT PROGRESS ঘর
+       ⇒ পুরনো একটা লেখা ঘরে বসে থাকায় পাহারা "লেখা আছে" ধরে **বন্ধ করতে দিত**,
+         আর কাগজে পুরনো লেখাটাই **আজকের চিকিৎসা-নোট** হিসেবে ছাপা হত।
+       ─── সারানো ────────────────────────────────────────────────────────────
+       এখন ওই দুটো জায়গায় তারিখও মেলানো হয়। V687-এর লেখা নির্দেশটাই
+       ("আজকের লেখা যতক্ষণ না লেখা হবে, ততক্ষণ চেম্বার বন্ধ করা যাবে না")
+       এবার সত্যিই কার্যকর হলো।
+       ⛔ **পুরনো দিনের বোর্ড/কাগজ অক্ষত** — তারিখ মেলানো হয় **শুধু আজকের**
+          বোর্ডে (নিচের শর্তটা দেখুন)। নইলে V535-এ ফিরিয়ে আনা পুরনো দিনের
+          লেখাগুলো "PENDING" হয়ে যেত — একটা ভালো কাজ নষ্ট হত।
+       ⛔ পর্দায় দেখানোর রং/লেখা (V654) এক অক্ষরও বদলায়নি। */
+    private fun todaysProgressMissing(remark: String, remarkUpdatedAt: String): Boolean {
+        if (isEffectivelyBlankRemark(remark)) return true
+        if (selectedDate != FollowUpModel.today()) return false   // পুরনো দিন — আগের মতোই
+        return remarkUpdatedAt.take(10) != selectedDate
+    }
 
     private fun writeTreatment(row: ChamberAttendanceRow) {
         val digitsForId = row.mobile.filter { it.isDigit() }.takeLast(10)
@@ -2295,6 +2628,26 @@ Thread {
                     val pid = p.optString("id")
                     if (pid.isBlank()) continue
                     targets.add(pid)
+                }
+                /* 📝🔒 V1116 (TK-রিপোর্ট, অনুমোদিত) — **টাকা না দেওয়া রোগীর লেখাটাও
+                   এখন থেকে যায়।** ওই দিনে একটাও টাকার সারি না থাকলে লেখাটা
+                   রাখার জায়গা ছিল না, তাই চেম্বার বন্ধ করে খুললে ফাঁকা দেখাত।
+                   ⇒ তখন একটা **শূন্য টাকার সারি** বসে শুধু লেখাটা ধরে রাখতে
+                     (`buildProgressHolderRow` — বিস্তারিত ওখানে লেখা)।
+                   ⛔ টাকার সারি থাকলে এই ধাপটা চলেই না — আচরণ হুবহু আগের মতোই।
+                   ⛔ লেখা ফাঁকা হলে কিছুই বসে না। */
+                if (targets.isEmpty() && text.isNotBlank()) {
+                    try {
+                        val holder = PaymentModel.buildProgressHolderRow(
+                            mobile = row.mobile, name = row.name, branch = row.branch,
+                            patientRowId = mineRowId, dateKey = dayKey,
+                            progress = text, staffMobile = user.mobile
+                        )
+                        val ok = try { SupabaseClient.upsert("payments", holder) } catch (_: Throwable) { false }
+                        if (!ok) GenericUpdateQueue.queue(
+                            appCtx, "payments", holder.optString("id"),
+                            org.json.JSONObject().put("progress", text))
+                    } catch (_: Throwable) { }
                 }
                 // Same rows, sent together instead of one-by-one.
                 ParallelCloud.map(targets) { pid ->
@@ -2463,8 +2816,8 @@ Thread {
         val dateDisplay = FollowUpModel.displayDate(selectedDate)
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setCustomTitle(PremiumAlert.header(this, "Reopen Chamber"))
-            .setMessage(NoBengali.s("এই দিনের ($dateDisplay, $br) চেম্বার আবার খুলবেন?"))
-            .setPositiveButton(NoBengali.s("হ্যাঁ, খুলুন")) { _, _ ->
+            .setMessage(NoBengali.s("Reopen the chamber for this day ($dateDisplay, $br)?")   /* 🔤 V728 */)
+            .setPositiveButton(NoBengali.s("Yes, reopen")) { _, _ ->
                 lifecycleScope.launch {
                     val ok = withContext(Dispatchers.IO) {
                         try { ChamberCloseRepository.reopen(this@ChamberAttendanceActivity, br, selectedDate) }
@@ -2477,13 +2830,13 @@ Thread {
                             else "খোলা গেল না — নেট চেক করে আবার চেষ্টা করুন"
                         ),
                         android.widget.Toast.LENGTH_LONG
-                    ).show()
+                    ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                     // দিনটা এখন আর "বন্ধ" নয় — পর্দা নতুন করে পড়ে নেয়
                     // (ব্রাঞ্চ বদলালে যা হয়, ঠিক সেই একই দুটো লাইন)।
                     if (ok) try { dateClosedFlag = false; loadBoard() } catch (_: Throwable) { }
                 }
             }
-            .setNegativeButton(NoBengali.s("না"), null)
+            .setNegativeButton(NoBengali.s("No"), null)
             .show().also { PremiumAlert.paint(it) }
     }
 
@@ -2493,8 +2846,8 @@ Thread {
         val dateDisplay = FollowUpModel.displayDate(selectedDate)
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setCustomTitle(PremiumAlert.header(this, "Request Reopen"))
-            .setMessage(NoBengali.s("এই দিনের ($dateDisplay, $br) চেম্বার আবার খোলার অনুরোধ Master-এর কাছে পাঠাবেন?"))
-            .setPositiveButton(NoBengali.s("হ্যাঁ, পাঠান")) { _, _ ->
+            .setMessage(NoBengali.s("Send a request to the Master to reopen this day ($dateDisplay, $br)?")   /* 🔤 V728 */)
+            .setPositiveButton(NoBengali.s("Yes, Send")) { _, _ ->
                 lifecycleScope.launch {
                     val ok = withContext(Dispatchers.IO) {
                         try { ChamberReopenPermission.sendRequest(this@ChamberAttendanceActivity, u, br, selectedDate) }
@@ -2507,10 +2860,10 @@ Thread {
                             else "পাঠানো গেল না — নেট চেক করে আবার চেষ্টা করুন"
                         ),
                         android.widget.Toast.LENGTH_LONG
-                    ).show()
+                    ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                 }
             }
-            .setNegativeButton(NoBengali.s("না"), null)
+            .setNegativeButton(NoBengali.s("No"), null)
             .show().also { PremiumAlert.paint(it) }
     }
 
@@ -2520,30 +2873,39 @@ Thread {
             android.widget.Toast.makeText(this, "Board still loading — try again in a moment", android.widget.Toast.LENGTH_SHORT).show()
             return
         }
-        val now = System.currentTimeMillis()
-        if (now - closeTapAt > 60_000) closeTapCount = 0
-        val missing = board.rows.firstOrNull { it.arrived && isEffectivelyBlankRemark(it.remark) }
-        if (missing != null && closeTapCount < 2) {
-            closeTapCount++; closeTapAt = now
-            android.widget.Toast.makeText(
-                this,
-                "⚠️ ${missing.name.ifBlank { missing.mobile }}'s Treatment box is empty — tap Close ${3 - closeTapCount} more time(s) to save anyway",
-                android.widget.Toast.LENGTH_LONG
-            ).show()
-            showRemarkDialog(missing)
-            return
-        }
+        // 🔴🔒 V687 (২৫.০৮.২০২৬, TK-নির্দেশ, স্পষ্ট — "আজকের লেখা যতক্ষণ না
+        // লেখা হবে, ততক্ষণ চেম্বার বন্ধ করা যাবে না") — আগে ৩ বার চাপলে
+        // ফাঁকা/পুরনো Treatment Progress থাকা সত্ত্বেও বন্ধ করার একটা
+        // ছাড় (bypass) ছিল। TK-এর স্পষ্ট নির্দেশে সেই ছাড় পুরোপুরি তুলে
+        // নেওয়া হলো — এখন প্রতিটা Arrived রোগীর আজকের (V687-এ ঠিক করা
+        // payments.progress-ভিত্তিক) Treatment Progress লেখা **বাধ্যতামূলক**,
+        // কোনো bypass নেই। ফাঁকা থাকলেই বক্স খুলে যায়, close হয় না।
+        // 🔴 V810 — এখন তারিখও মেলানো হয় (পুরনো লেখা আর পাহারা ফাঁকি দিতে পারবে না)
+        /* 🔴🔴🔒 V938 (৩১.০৮.২০২৬, TK-নির্দেশ, স্পষ্ট) — *"চেম্বার বন্ধ করুন-এ
+           একবার চাপ দিলেই পরের পর্দায় আসতে হবে, তবে সেখানে ওয়ার্নিং দেবে
+           Are you sure Yes/No। Yes চাপলে Review পর্দায় আসবে। কিন্তু এখানে
+           Treatment Progress প্রত্যেকটা ঘর লেখা না হলে সেভ হবে না, শেয়ার হবে
+           না, প্রিন্ট আউট হবে না — save/share/print যেখানেই চাপ দিক, যে ঘরে
+           লেখা নেই অটোমেটিক সেখানে রিডাইরেক্ট হয়ে যাবে।"*
+
+           ⇒ V687/V810-এর পাহারাটা **তুলে দেওয়া হয়নি**, শুধু **সরে গেছে** —
+             আগে এই প্রথম চাপেই আটকাত, এখন Review-এর "✅ Confirm Close"-এ
+             আটকায় (নিচে `showCloseReview`)। তাই ফাঁকা Treatment Progress
+             নিয়ে চেম্বার বন্ধ হওয়া আগের মতোই **অসম্ভব**, কিন্তু TK ভিতরে
+             ঢুকে সবটা এক পর্দায় দেখে নিতে পারেন।
+           ⛔ পুরনো "৩ বার চাপলে ছাড়" (bypass) ফেরানো হয়নি — সেটা V687-এ
+              চিরতরে বাদ। */
         closeTapCount = 0
         // 🔵 B607 (10.08.2026, TK-অনুমোদিত): কেউ না এলে (Arrived 0) ভুলে ফাঁকা
-        // চেম্বার বন্ধ/প্রিন্ট আটকাতে একটা নিশ্চিতকরণ — "হ্যাঁ, বন্ধ করুন" দিলে
-        // আগের মতোই বন্ধ হয় (রোগীশূন্য দিনও বন্ধ করা যায়), "না" দিলে থামে।
+        // চেম্বার বন্ধ/প্রিন্ট আটকাতে একটা নিশ্চিতকরণ — "Yes, Close" দিলে
+        // আগের মতোই বন্ধ হয় (রোগীশূন্য দিনও বন্ধ করা যায়), "No" দিলে থামে।
         // ⛔ Arrived>0 হলে এই পপ-আপ আসে না — স্বাভাবিক ফ্লো একটুও বদলায়নি।
         if (board.rows.none { it.arrived }) {
             androidx.appcompat.app.AlertDialog.Builder(this)
                 .setCustomTitle(PremiumAlert.header(this, "Nobody Arrived"))
-                .setMessage(NoBengali.s("আজ কেউ আসেননি (Arrived 0)। তবুও চেম্বার বন্ধ করবেন?"))
-                .setPositiveButton(NoBengali.s("হ্যাঁ, বন্ধ করুন")) { _, _ -> askPrintBranchThenReview(board) }
-                .setNegativeButton(NoBengali.s("না"), null)
+                .setMessage(NoBengali.s("Nobody arrived today (Arrived 0). Still close the chamber?"))
+                .setPositiveButton(NoBengali.s("Yes, Close")) { _, _ -> askPrintBranchThenReview(board) }
+                .setNegativeButton(NoBengali.s("No"), null)
                 .show().also { PremiumAlert.paint(it) }
             return
         }
@@ -2552,7 +2914,13 @@ Thread {
         // triple-taps to fix any wrong Payment / Treatment / Remark (which
         // writes back to the source so ALL sections update), and only then
         // taps "Confirm & Print".
-        askPrintBranchThenReview(board)
+        /* 🔴🔒 V938 — TK-এর চাওয়া "Are you sure Yes/No"। Yes দিলে তবেই Review। */
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(PremiumAlert.header(this, "Close Chamber"))
+            .setMessage(NoBengali.s("আজকের চেম্বার বন্ধ করবেন? পরের পর্দায় সবটা দেখে নিতে পারবেন।"))
+            .setPositiveButton(NoBengali.s("Yes")) { _, _ -> askPrintBranchThenReview(board) }
+            .setNegativeButton(NoBengali.s("No"), null)
+            .show().also { PremiumAlert.paint(it) }
     }
 
     // TK-APPROVED (2026-07-26, photo proof): the printed register used to mix
@@ -2607,9 +2975,9 @@ Thread {
         }
         val d = resources.displayMetrics.density
         fun dp(v: Int) = (v * d).toInt()
-        val parts = premiumDialogShellChamber("কোন ব্রাঞ্চের রেজিস্টার প্রিন্ট হবে?")
+        val parts = premiumDialogShellChamber("কোন ব্রাঞ্চের চেম্বার বন্ধ করবেন?")
         parts.body.addView(android.widget.TextView(this).apply {
-            text = NoBengali.s("আপনি এখন All Branch-এ আছেন। একটা ব্রাঞ্চ বেছে নিন — প্রিন্টের উপরে ওই ব্রাঞ্চের ক্লিনিকের নাম বসবে এবং নিচে শুধু ওই ব্রাঞ্চের রোগীই থাকবে।")
+            text = NoBengali.s("আপনি এখন All Branch-এ আছেন। যে ব্রাঞ্চটি বন্ধ করবেন সেটি বেছে নিন — Review-তে শুধু ওই ব্রাঞ্চের রোগীরা থাকবেন।")
             textSize = 12f
             setTextColor(android.graphics.Color.parseColor("#5B6B81"))
             setPadding(0, 0, 0, dp(10))
@@ -2668,6 +3036,7 @@ Thread {
             setOnClickListener { parts.dialog.dismiss() }
         })
         parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
     }
 
     // ============================================================
@@ -2687,16 +3056,205 @@ Thread {
     /** 🔴 V426: Review পর্দায় দেখানো আজকের মোট RMP কমিশন — ছাপা কাগজেও এই একই
      *  সংখ্যাটাই যায়। কমিশন না এলে ০, তখন কাগজ আগের মতোই। */
     private var cbDayCommissionTotal: Double = 0.0
+    // 🔴 V1078 — এই দুটো শুধু Review-এর হলুদ লাইনটার জন্য (টাকার হিসাবে নয়)।
+
+    /* 🔵🔒 V1083 (০৪.০৯.২০২৬, TK-এর পাশ-করা ফটো-প্রুফ) — এক RMP-র আজকের
+       রোগীরা: নাম · মোট বিল · আজ কত জমা · তার জন্য কত কমিশন, নিচে মোট।
+       ⛔ শুধু দেখা — একটাও সারি লেখা/বদলানো হয় না, কোনো নতুন cloud-কলও নয়। */
+    private fun cbShowRmpPatients(
+        rmpName: String,
+        rows: List<RmpCommissionRepository.DayCommissionRow>
+    ) {
+        try {
+            // ⛔ এই পর্দায় `dp` প্রতিটা ফাংশনের ভিতরেই আলাদা করে লেখা হয়
+            //    (ক্লাস-স্তরে নেই) — তাই এখানেও একই ধরনে।
+            val d = resources.displayMetrics.density
+            fun dp(v: Int) = (v * d).toInt()
+            fun money(v: Double) = "₹" + "%,.2f".format(v)
+            // তারিখ "yyyy-MM-dd" → "dd.MM.yyyy" (এই পর্দায় আলাদা ফাংশন নেই)
+            val dateText = try {
+                val q = selectedDate.take(10).split("-")
+                if (q.size == 3) q[2] + "." + q[1] + "." + q[0] else selectedDate.take(10)
+            } catch (_: Throwable) { selectedDate.take(10) }
+            val col = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+                setPadding(dp(16), dp(8), dp(16), dp(4))
+            }
+            col.addView(android.widget.TextView(this).apply {
+                text = rows.size.toString() +
+                    (if (rows.size == 1) " patient" else " patients") + "  ·  " + dateText
+                textSize = 11.5f
+                setTextColor(android.graphics.Color.parseColor("#8B98A9"))
+                setPadding(0, 0, 0, dp(6))
+            })
+            for (r in rows.sortedByDescending { it.commissionToday }) {
+                col.addView(android.widget.TextView(this).apply {
+                    text = r.patientName.ifBlank { r.patientMobile }.uppercase(java.util.Locale.US)
+                    textSize = 13.5f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.parseColor("#10223A"))
+                    setPadding(0, dp(8), 0, 0)
+                })
+                col.addView(android.widget.TextView(this).apply {
+                    text = listOf(r.patientMobile, r.patientCode).filter { it.isNotBlank() }
+                        .joinToString("  ·  ")
+                    textSize = 11f
+                    setTextColor(android.graphics.Color.parseColor("#8B98A9"))
+                })
+                val g = android.widget.LinearLayout(this).apply {
+                    orientation = android.widget.LinearLayout.HORIZONTAL
+                    setPadding(0, dp(6), 0, dp(6))
+                }
+                fun cell(cap: String, v: String, warm: Boolean): android.widget.LinearLayout {
+                    val b = android.widget.LinearLayout(this@ChamberAttendanceActivity).apply {
+                        orientation = android.widget.LinearLayout.VERTICAL
+                        gravity = android.view.Gravity.CENTER
+                        setPadding(dp(4), dp(6), dp(4), dp(6))
+                        background = android.graphics.drawable.GradientDrawable().apply {
+                            cornerRadius = dp(8).toFloat()
+                            setColor(android.graphics.Color.parseColor(if (warm) "#FDECEA" else "#F5F8FB"))
+                            setStroke(dp(1), android.graphics.Color.parseColor(if (warm) "#F3C9C4" else "#E2EAF2"))
+                        }
+                        layoutParams = android.widget.LinearLayout.LayoutParams(
+                            0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f
+                        ).apply { rightMargin = dp(6) }
+                    }
+                    b.addView(android.widget.TextView(this@ChamberAttendanceActivity).apply {
+                        text = cap; textSize = 9.5f
+                        gravity = android.view.Gravity.CENTER
+                        setTextColor(android.graphics.Color.parseColor("#6B7A8D"))
+                    })
+                    b.addView(android.widget.TextView(this@ChamberAttendanceActivity).apply {
+                        text = v; textSize = 12.5f
+                        gravity = android.view.Gravity.CENTER
+                        setTypeface(typeface, android.graphics.Typeface.BOLD)
+                        setTextColor(android.graphics.Color.parseColor(if (warm) "#B42318" else "#10223A"))
+                        setPadding(0, dp(2), 0, 0)
+                    })
+                    return b
+                }
+                // ⛔ বিল ০ হলে "—" দেখায়, ভুল করে ₹0 নয়
+                g.addView(cell("Bill", if (r.finalBill > 0.0) money(r.finalBill) else "\u2014", false))
+                g.addView(cell("Paid today", money(r.paidToday), false))
+                g.addView(cell("Commission", money(r.commissionToday), true))
+                col.addView(g)
+            }
+            col.addView(android.widget.TextView(this).apply {
+                text = "Total for " + rmpName + " today   " + money(rows.sumOf { it.commissionToday })
+                textSize = 13.5f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#B42318"))
+                setPadding(0, dp(8), 0, dp(2))
+            })
+            val sv = android.widget.ScrollView(this).apply { addView(col) }
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(rmpName)
+                .setView(sv)
+                .setPositiveButton("Close", null)
+                // ⛔ প্রকল্পের নিয়ম [৯.৩০] — প্রতিটা পপ-আপে সাজেশন-পাহারা
+                .show().also { PremiumAlert.paint(it) }
+        } catch (_: Throwable) { }
+    }
+
+    private var cbAutoLinked = 0
+    private var cbAutoNeedsTk = 0
+
+    /* 💰🔒 V984 (০২.০৯.২০২৬, TK-নির্দেশ) — Review পর্দায় যে অঙ্কগুলো দেখানো
+       হলো, রেজিস্টারের পর্দাতেও **হুবহু সেগুলোই** যায় (আবার আলাদা করে হিসাব
+       করা হয় না, তাই দুই জায়গায় কখনো আলাদা সংখ্যা হবে না)। */
+    private var cbHoFees = 0.0
+    private var cbHoCash = 0.0
+    private var cbHoOnline = 0.0
+    private var cbHoRefund = 0.0
+    private var cbHoTotal = 0.0
 
     /** 🔴 V427: আজ RMP-দের হাতে সত্যিই দেওয়া মোট টাকা — শুধু দেখানোর জন্য,
      *  কোনো মোট থেকে বাদ যায় না। */
     private var cbDayPaidTotal: Double = 0.0
 
+    /** 🔴🔒 V685 (২৫.০৮.২০২৬, TK-নির্দেশ — "প্রিন্ট আউটে RMP কমিশন লাল রঙে,
+     *  কোন RMP-র কত কমিশন সহ") — প্রতিটা RMP-র নাম + সেদিনের মোট কমিশন
+     *  (একাধিক রোগী থাকলে যোগ করে), ছাপার জন্য। ⛔ Review পর্দার
+     *  `cbDayCommissionTotal` (সবার যোগফল) অপরিবর্তিত — এটা তারই বিস্তারিত
+     *  ভাঙন, নতুন কোনো হিসাব/cloud-কল লাগে না (একই `dayCommission()` ফলাফল
+     *  থেকেই bmpName ধরে group করা)। */
+    private var cbDayCommissionByRmp: List<Pair<String, Double>> = emptyList()
+
+    /* 🟩🔒 V959 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — TK দুটো পর্দার ছবি
+       পাশাপাশি দিয়ে বললেন *"হিসাব ২ জায়গায় দুরকম কেন"*।
+       **আসল কারণ (কোডে মেপে, দুই দিনের ছবিতে পয়সায় পয়সায় মিলিয়ে):** ওষুধ ও
+       স্যালাইন বিক্রি জমা হয় আলাদা `products` টেবিলে। PAYMENT → Collection ওই
+       টেবিলটাও পড়ে, কিন্তু এই REVIEW পড়ে শুধু `payments` — তাই দুই পর্দার
+       ফারাক ঠিক ওই বিক্রির টাকাটাই (৬.৫৬ pm-এ ₹১,৬৫০/৫টা · ৭.৪৫ pm-এ
+       ₹১,৮০০/৬টা — দুবারই হুবহু মিলেছে)। টাকার কোনো গণ্ডগোল ছিল না।
+       **এখন:** সংখ্যাটা এখানেই দেখানো হয়, TOTAL-এর নিচে আলাদা লাইনে।
+       ⛔ TOTAL · Fees · Cash · Online · RMP — একটাও অঙ্ক বদলায়নি (V805-এ
+          TK-এর নিজের সিদ্ধান্ত: এই টাকা চেম্বারের মোটে যোগ হবে না)।
+       ⛔ বিক্রি না থাকলে লাইনটাই বসে না · ডাক ব্যর্থ হলে পর্দা হুবহু আগের মতো। */
+    private var cbMedicineSaleTotal: Double = 0.0
+    private var cbLastCommRows: List<RmpCommissionRepository.DayCommissionRow> = emptyList()
+    private var cbLastPaidRows: List<RmpCommissionRepository.DayPaidRow> = emptyList()
+
+    /** 🔴🔒 V938 — Review-এর "✅ Confirm Close"-এর আসল কাজ। ⛔ ভিতরের কোড
+     *  V938-এর আগে যা ছিল **হুবহু তাই** — শুধু আলাদা ফাংশনে সরানো হয়েছে,
+     *  যাতে Treatment Progress-এর পাহারা পার হলে তবেই ডাকা যায়। */
+    private fun performConfirmClose(board: ChamberAttendanceBoard) {
+
+                lifecycleScope.launch {
+                    // Review বাধ্যতামূলক; Confirm হলেই close mark লেখা হয়।
+                    // Print আর close-এর শর্ত নয়—নেট ব্যর্থ হলে repository-র
+                    // প্রমাণিত pending queue পরে Cloud-এ নিজে পাঠাবে।
+                    val cloudSaved = withContext(Dispatchers.IO) {
+                        val br = printBranchOverride.ifBlank { selectedBranch }
+                        if (br.isNotBlank() && !br.equals("All", ignoreCase = true)) {
+                            ChamberCloseRepository.markClosed(
+                                this@ChamberAttendanceActivity, br, selectedDate,
+                                NativeSession.current(this@ChamberAttendanceActivity)
+                            )
+                        } else false
+                    }
+                    // 🔒 TK-APPROVED (28.07.2026, ফটো-প্রুফে লক · খাতার সারি B35):
+                    // *"সেভ ও ক্লোজ করলে তো এখানে জিরো হয়ে যেতে হবে বা ব্ল্যাঙ্ক
+                    // হয়ে যেতে হবে।"* — ছাপা হয়ে যাওয়ার পরে বোর্ড ফাঁকা হয়ে যায়,
+                    // দুটো সংখ্যাই 0, আর উপরের কাজের বোতামগুলো বন্ধ।
+                    // ⛔ কোনো তথ্য মোছা হয় না — উপরের ক্যালেন্ডারে ওই তারিখ চাপলে
+                    // পুরো তালিকা আবার দেখা যায় (এবং Share PDF / Print-ও)।
+                    if (!isFinishing && !isDestroyed) {
+                        closedToday = true
+                        // 🔒 খাতার সারি B46: বিগত দিনের চেম্বার বন্ধ করলেও ঠিক
+                        // এখানেই চিহ্নটা বসে, আর "চেম্বার বন্ধ করুন" তালিকার
+                        // পুরনো স্মৃতি ফেলে দেওয়া হয় যাতে ফিরে গেলে দিনটা আর
+                        // তালিকায় না থাকে।
+                        dateClosedFlag = true
+                        try { ChamberUnclosedRepository.clearCache() } catch (_: Throwable) { }
+                        applyDayState()
+                        offerOptionalRegisterPrint(board, cloudSaved)
+                    }
+                }
+    }
+
     private fun showCloseReview(board: ChamberAttendanceBoard) {
         cbReviewNameCells.clear()
         cbDayCommissionTotal = 0.0
         cbDayPaidTotal = 0.0
-        val arrived = board.rows.filter { it.arrived }.sortedBy { it.arrivedAt.ifBlank { "9999" } }
+        cbDayCommissionByRmp = emptyList()
+        cbMedicineSaleTotal = 0.0            // 🟩 V959
+        cbLastCommRows = emptyList()         // 🟩 V959
+        cbLastPaidRows = emptyList()         // 🟩 V959
+        val arrivedOnly = board.rows.filter { it.arrived }
+        /* 🔴🔒 V709 (২৬.০৮.২০২৬, TK-রিপোর্ট, ডেমো-প্রুফে অনুমোদিত) — TK: *"আজকে
+           কিষানগঞ্জের চেম্বার থেকে একজন পেশেন্টের টাকা রিফান্ড করা হলো, কিন্তু
+           চেম্বারের তারিখে কেন দেখাচ্ছে না"*।
+           **আসল কারণ (কোড ধরে যাচাই):** রিফান্ডের সারি কখনো `arrived` গণনা করে
+           না (ইচ্ছাকৃত — টাকা ফেরত মানে রোগী আসেননি), কিন্তু এই পর্দা **শুধু
+           arrived সারিগুলোই** দেখাত ও যোগ করত। তাই রোগী আজ আর কোনো টাকা না
+           দিয়ে থাকলে তাঁর সারিটাই বাদ পড়ত — লাইনও দেখাত না, TOTAL থেকেও
+           বিয়োগ হত না।
+           ⇒ এখন আজকের **অনুমোদিত** রিফান্ডের সারিগুলোও তালিকায় আসে।
+           ⛔ উপরের **"N arrived" সংখ্যাটা `arrivedOnly` থেকেই** গোনা হয় — টাকা
+              ফেরত মানে রোগী আসেননি, তাই সংখ্যাটা এক অক্ষরও বাড়বে না। */
+        val refundOnly = board.rows.filter { !it.arrived && (it.refundCash + it.refundOnline) > 0.0 }
+        val arrived = (arrivedOnly + refundOnly).sortedBy { it.arrivedAt.ifBlank { "9999" } }
         val d = resources.displayMetrics.density
         fun dp(v: Int) = (v * d).toInt()
         fun money(v: Double) = if (v > 0.0) "₹" + "%,.0f".format(v) else "—"
@@ -2713,11 +3271,22 @@ Thread {
         //       (FEES = feesCash+feesOnline · CASH = paymentCash · ONLINE =
         //       paymentOnline), তাই পর্দার সারি আর উপরের মোট কখনো আলাদা হবে না।
         val cbFeesTotal = arrived.sumOf { it.feesCash + it.feesOnline }
-        val cbCashTotal = arrived.sumOf { it.paymentCash }
-        val cbOnlineTotal = arrived.sumOf { it.paymentOnline }
-        val cbGrandTotal = cbFeesTotal + cbCashTotal + cbOnlineTotal
+        /* 🔴🔒 V709 — Cash/Online এখন **রিফান্ড বাদ দেওয়ার আগের** অঙ্ক দেখায়
+           (`paymentCash` থেকে রিফান্ড আগেই বিয়োগ হয়ে আছে, তাই আবার যোগ করে
+           নেওয়া হলো), আর রিফান্ডটা নিজের আলাদা লাইনে লাল রঙে বিয়োগ হয় —
+           TK-এর অনুমোদিত ডেমো ঠিক এটাই। যোগফল আগের মতোই মেলে:
+             TOTAL = Fees + Cash + Online − Refund
+           ⛔ রিফান্ড না থাকলে (`cbRefundTotal == 0`) প্রতিটা সংখ্যা **হুবহু
+              আগের মতোই** — লাইনটাও বসে না। */
+        val cbRefundTotal = arrived.sumOf { it.refundCash + it.refundOnline }
+        val cbCashTotal = arrived.sumOf { it.paymentCash + it.refundCash }
+        val cbOnlineTotal = arrived.sumOf { it.paymentOnline + it.refundOnline }
+        val cbGrandTotal = cbFeesTotal + cbCashTotal + cbOnlineTotal - cbRefundTotal
+        // 💰 V984 — রেজিস্টারের পর্দার "MONEY HANDOVER" ঘরের জন্য জমা রাখা।
+        cbHoFees = cbFeesTotal; cbHoCash = cbCashTotal; cbHoOnline = cbOnlineTotal
+        cbHoRefund = cbRefundTotal; cbHoTotal = cbGrandTotal
         list.addView(android.widget.TextView(this).apply {
-            text = "REVIEW — ${arrived.size} arrived"
+            text = "REVIEW — ${arrivedOnly.size} arrived"   // 🔴🔒 V709 — রিফান্ড এখানে গোনা হয় না
             textSize = 13f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(android.graphics.Color.parseColor("#10223A"))
@@ -2774,8 +3343,38 @@ Thread {
             cbSumBox.addView(cbMoneyLine("Fees", cbFeesTotal, "#33404F", false))
             cbSumBox.addView(cbMoneyLine("Cash", cbCashTotal, "#0C9E33", false))
             cbSumBox.addView(cbMoneyLine("Online", cbOnlineTotal, "#123A8C", false))
+            // 🔴🔒 V709 — রিফান্ড থাকলে তবেই লাইনটা বসে (নইলে পর্দা হুবহু আগের মতো)।
+            if (cbRefundTotal > 0.0) {
+                cbSumBox.addView(cbMoneyLine("Refund", -cbRefundTotal, "#C0392B", true))
+            }
             cbSumBox.addView(cbThinLine())
             cbSumBox.addView(cbMoneyLine("TOTAL", cbGrandTotal, "#0B4F2A", true))
+            // 🟩🔒 V959 — ওষুধ ও স্যালাইন বিক্রির টাকা (আলাদা `products` টেবিল)।
+            //    TOTAL-এর নিচে নিজের লাইনে, যোগ হয় না — তাই Collection-এর
+            //    সঙ্গে ফারাক দেখলে কারণটা এখানেই চোখে পড়ে।
+            if (cbMedicineSaleTotal > 0.0) {
+                cbSumBox.addView(cbThinLine())
+                cbSumBox.addView(cbMoneyLine("Medicine", cbMedicineSaleTotal, "#5B6B81", false))
+                cbSumBox.addView(android.widget.TextView(this).apply {
+                    text = "Medicine & Saline sales — not counted in TOTAL"
+                    textSize = 10.5f
+                    setTextColor(android.graphics.Color.parseColor("#8A94A6"))
+                    setPadding(dp(70), 0, 0, dp(2))
+                })
+            }
+            /* 🔴🔒 V1078 — নিজে থেকে জোড়া লাগানোর ফল, TK-এর চোখের সামনে।
+               ⛔ শুধু খবর — একটাও টাকার অঙ্ক এতে বদলায় না। */
+            if (cbAutoLinked > 0 || cbAutoNeedsTk > 0) {
+                cbSumBox.addView(android.widget.TextView(this).apply {
+                    text = (if (cbAutoLinked > 0) "Auto-linked $cbAutoLinked patient(s) to their RMP.  " else "") +
+                        (if (cbAutoNeedsTk > 0)
+                            "$cbAutoNeedsTk more need your attention - RMP rate not set, or the name matches more than one RMP."
+                         else "")
+                    textSize = 10.5f
+                    setTextColor(android.graphics.Color.parseColor("#8A5A00"))
+                    setPadding(0, dp(3), 0, dp(1))
+                })
+            }
             val withComm = comm.filter { it.commissionToday > 0.0 }
             if (withComm.isNotEmpty()) {
                 cbSumBox.addView(cbThinLine())
@@ -2799,11 +3398,19 @@ Thread {
                                 0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                         })
                         addView(android.widget.TextView(this@ChamberAttendanceActivity).apply {
-                            text = "₹" + "%,.2f".format(amt)
+                            text = "₹" + "%,.2f".format(amt) + "  ›"
                             textSize = 12.5f
                             setTextColor(android.graphics.Color.parseColor("#B42318"))
                         })
                         setPadding(0, dp(2), 0, dp(2))
+                        /* 🔵🔒 V1083 (০৪.০৯.২০২৬, TK-এর পাশ-করা ফটো-প্রুফ) — TK:
+                           *"নামের উপরে চাপ দিলে যেন বোঝা যায় এটা কোন পেশেন্টের
+                           জন্য, কত বিল ছিল, আজ কত জমা করেছে, কত টাকা দেওয়া হচ্ছে"*।
+                           ⛔ নতুন কোনো ডাক বা হিসাব নয় — এই একই `rows` থেকেই
+                              সব দেখানো হয়, তাই সংখ্যা উপরের লাইনের সঙ্গে
+                              সবসময় মিলবে (দুই জায়গায় দুরকম হতে পারে না)। */
+                        isClickable = true
+                        setOnClickListener { cbShowRmpPatients(nm, rows) }
                     })
                 }
                 /* 🔴🔒 V562 (TK, ২২.০৮.২০২৬): *"আপাতত কমিশনটা লাল কালারের আলাদা
@@ -2889,7 +3496,9 @@ Thread {
         arrived.forEach { r ->
             val gridRow = android.widget.LinearLayout(this).apply {
                 orientation = android.widget.LinearLayout.HORIZONTAL
-                setBackgroundColor(android.graphics.Color.parseColor("#EAF9F1"))
+                // 🟢🔒 V654 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবিসহ — "ব্যাকগ্রাউন্ড
+                // পরিষ্কার সাদা থাকবে") — হালকা সবুজ (#EAF9F1) থেকে সাদা।
+                setBackgroundColor(android.graphics.Color.parseColor("#FFFFFF"))
                 val lp = android.widget.LinearLayout.LayoutParams(
                     android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
                     android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
@@ -2913,6 +3522,16 @@ Thread {
             val nameLines = mutableListOf(r.name.ifBlank { "UNKNOWN" }, r.mobile)
             val whenR = DateUtil.displayWithTime(r.arrivedAt.ifBlank { null })
             if (whenR.isNotBlank()) nameLines.add(whenR)
+            // 🔴🔒 V684 (২৫.০৮.২০২৬, TK-নির্দেশ, স্পষ্ট — "Name/Mobile/Date-Time-এর
+            // সাথে Ref By (RMP name)-ও প্রথম থেকেই থাকবে, Close Chamber চাপার
+            // অপেক্ষা করতে হবে না") — `r.refDoctor` বোর্ড লোড হওয়ার সময়েই
+            // আগে থেকে টেনে আনা থাকে (ChamberAttendanceRepository, বাড়তি কোনো
+            // cloud-call লাগে না), শুধু এতদিন এখানে ব্যবহার হতো না। এখন সরাসরি
+            // চতুর্থ লাইনে বসে। ⛔ নিচের V667-এর "Close Chamber" review-ধাপের
+            // RMP-কমিশন ট্যাগ অক্ষত রইল (ওটা আলাদা, কমিশনের হিসাবের জন্য)।
+            /* 🔴🔒 V933 — নিয়মটা এখন একটাই জায়গায় (`refByLabel`), তাই RMP-র
+               নাম না লেখা থাকলেও "Ref By: RMP" বসে। ⛔ নাম থাকলে হুবহু আগের লেখা। */
+            ChamberAttendanceRepository.refByLabel(r).takeIf { it.isNotBlank() }?.let { nameLines.add(it) }
             // 🔴 V426: RMP-চিহ্ন বসানোর জন্য এই ঘরটা মনে রাখা হয় (মোবাইল ধরে)।
             val nameCell = rvCell(nameLines.joinToString("\n"), 82, 0f, "#10223A", true).apply {
                 gravity = android.view.Gravity.START; setPadding(dp(8), dp(10), dp(4), dp(10)); textSize = 11f
@@ -2929,12 +3548,41 @@ Thread {
             // ⛔ এই একই sentinel টেক্সট প্রজেক্টের অন্য কোথাও (Draft/Follow-up
             // কার্ড, PatientModel.kt) ব্যবহার হয় — সেসব জায়গার প্রদর্শন এতটুকু
             // ছোঁয়া হয়নি, শুধু এই একটা "Treatment Progress" কলামের রঙ/লেখা।
-            val isAutoStubRemark = r.remark.trim().equals("Registered patient / Visit created", ignoreCase = true)
-            val treatText = if (isAutoStubRemark) NoBengali.s("কিছু লেখা হয়নি — চাপুন") else r.remark.trim().ifBlank { "—" }
-            val treatCell = rvCell(treatText, 0, 1f, if (r.remark.isBlank() || isAutoStubRemark) "#C47B00" else "#334155", false).apply { textSize = 11f; gravity = android.view.Gravity.CENTER }
-            val feesCell = rvCell(money(r.feesCash + r.feesOnline), 40, 0f, "#33404F", true)
-            val cashCell = rvCell(money(r.paymentCash), 40, 0f, "#0C9E33", true)
-            val onlineCell = rvCell(money(r.paymentOnline), 40, 0f, "#123A8C", true)
+            /* 🔴🔒 V696 (২৬.০৮.২০২৬, TK-এর ছবিতে ধরা) — **শেষ পাহারা।**
+               আসল দোষটা উৎসেই সারানো হয়েছে (`ChamberAttendanceRepository`-তে
+               `row.s("progress")`), কিন্তু যাঁদের ফোনে আগের বিল্ডের জমানো
+               তালিকায় ইতিমধ্যেই "null" লেখাটা ঢুকে গেছে, তাঁদের পর্দাতেও যেন
+               ওটা আর না দেখায় — তাই এখানেও ফাঁকা ধরা হয়। */
+            val rawRemark = r.remark.trim().let { if (it.equals("null", ignoreCase = true)) "" else it }
+            val isAutoStubRemark = rawRemark.equals("Registered patient / Visit created", ignoreCase = true)
+            val treatText = if (isAutoStubRemark) NoBengali.s("কিছু লেখা হয়নি — চাপুন") else rawRemark.ifBlank { "—" }
+            // 🟢🔒🔒 V654 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবিসহ — "গত দিনের ট্রিটমেন্ট
+            // প্রগ্রেস যেন হাইড থাকে... আজকে যেটা লিখব সেটা যেন উজ্জ্বল থাকে")
+            // — আসল কারণ (আগের V535-এর একই সমস্যা, আজকের বোর্ডে): `remark`
+            // ঘরে রোগীর **সবচেয়ে সাম্প্রতিক** লেখাটাই থাকে, সেটা আজ লেখা
+            // হয়েছে না বহু আগে — কোনো পার্থক্য দেখানো হতো না। এখন
+            // `remarkUpdatedAt`-এর তারিখ আজকের সাথে মিলিয়ে দেখা হয় —
+            // • আজকের লেখা → গাঢ়/বোল্ড, স্পষ্ট উজ্জ্বল রঙে
+            // • আগের দিনের লেখা → হালকা ধূসর ("আগের দিনের কাজ" বোঝাতে)
+            // ⛔ লেখা/সেভ/এডিট — কিছুই বদলায়নি, শুধু রং।
+            val today = FollowUpModel.today()
+            val isFromToday = r.remarkUpdatedAt.take(10) == today
+            val hasRealRemark = rawRemark.isNotBlank() && !isAutoStubRemark
+            val treatColor = when {
+                rawRemark.isBlank() || isAutoStubRemark -> "#C47B00"
+                hasRealRemark && isFromToday -> "#0B4F2A"       // আজকের — গাঢ়, উজ্জ্বল সবুজ
+                else -> "#9AA4B2"                                // আগের দিনের — হালকা ধূসর
+            }
+            val treatBold = hasRealRemark && isFromToday
+            val treatCell = rvCell(treatText, 0, 1f, treatColor, treatBold).apply { textSize = 11f; gravity = android.view.Gravity.CENTER }
+            /* 🔴🔒 V709 — `money()` ঋণাত্মক অঙ্ককে "—" দেখাত, তাই রিফান্ডের
+               সারিতে টাকাটা উধাও হয়ে যেত। এখন ঋণাত্মক হলে "− ₹x" লাল রঙে।
+               ⛔ ধনাত্মক ও শূন্য — দুটোই আগের মতোই (একই `money()`, একই রং)। */
+            fun cellText(v: Double) = if (v < 0.0) "− ₹" + "%,.0f".format(-v) else money(v)
+            fun cellColor(v: Double, normal: String) = if (v < 0.0) "#C0392B" else normal
+            val feesCell = rvCell(cellText(r.feesCash + r.feesOnline), 40, 0f, cellColor(r.feesCash + r.feesOnline, "#33404F"), true)
+            val cashCell = rvCell(cellText(r.paymentCash), 40, 0f, cellColor(r.paymentCash, "#0C9E33"), true)
+            val onlineCell = rvCell(cellText(r.paymentOnline), 40, 0f, cellColor(r.paymentOnline, "#123A8C"), true)
             gridRow.addView(nameCell)
             gridRow.addView(rvDivider()); gridRow.addView(treatCell)
             gridRow.addView(rvDivider()); gridRow.addView(feesCell)
@@ -2959,52 +3607,80 @@ Thread {
             })
         }
 
+        /* 💰🔒 V1025 (TK-নির্দেশ ০৩.০৯.২০২৬, ছবিসহ): *"Money Handover — এটা
+           চেম্বার বন্ধ করার সময় Staff-এর সামনে আসতে হবে, অন্যথায় বোঝা যাচ্ছে
+           না। এই ফটোতে নিচে ডান দিকে বসিয়ে দিন।"*
+           তাই REVIEW তালিকার **একদম নিচে, ডান দিকে** একটা বোতাম বসল।
+           ⛔ "✅ Confirm Close"-এ এক অক্ষরও হাত পড়েনি — এটা শুধু নতুন একটা
+              বোতাম, চাপলে Money Handover পর্দা খোলে। চেম্বার বন্ধ হয় না,
+              কোনো টাকা সেভ বা বদল হয় না। ⛔ যে কোনো গোলমালে নিঃশব্দে বাদ,
+              তাই পুরনো কাজ কখনো ভাঙে না। */
+        try {
+            val mhRow = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.END
+                setPadding(dp(12), dp(10), dp(12), dp(4))
+            }
+            val mhBtn = android.widget.Button(this).apply {
+                text = "\uD83D\uDCB0  Money Handover"
+                textSize = 13f
+                isAllCaps = false
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#8A5A00"))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(10).toFloat()
+                    setColor(android.graphics.Color.parseColor("#FFFBF0"))
+                    setStroke(dp(2), android.graphics.Color.parseColor("#B8860B"))
+                }
+                setPadding(dp(16), dp(8), dp(16), dp(8))
+                setOnClickListener {
+                    try {
+                        startActivity(android.content.Intent(
+                            this@ChamberAttendanceActivity, MoneyHandoverActivity::class.java))
+                    } catch (_: Throwable) { }
+                }
+            }
+            mhRow.addView(mhBtn)
+            list.addView(mhRow)
+        } catch (_: Throwable) { }
+
         UppercaseInputUtil.applyToAll(list)  // TK-REQUESTED GLOBAL RULE (2026-07-24): English text auto-CAPITAL, Password fields excluded automatically
         val dialog = AlertDialog.Builder(this)
             .setView(android.widget.ScrollView(this).apply { addView(list) })
-            .setPositiveButton("✅ Confirm & Print") { _, _ ->
-                currentReviewDialog = null
-                // TK-REQUESTED (2026-07-21): compute each patient's visit
-                // ordinal (from their timeline) OFF the main thread, then print.
-                lifecycleScope.launch {
-                    val visitLabels = withContext(Dispatchers.IO) { computeVisitLabels(board) }
-                    finalizeAndShare(board, visitLabels)
-                    // TK'S RULE (2026-07-27): from now on the app remembers that
-                    // this branch's chamber was closed today, so the 7 PM
-                    // reminder stops -- on THIS phone and on every other phone
-                    // of the same branch. Printing itself is untouched; this
-                    // only writes one small row.
-                    withContext(Dispatchers.IO) {
-                        val br = printBranchOverride.ifBlank { selectedBranch }
-                        if (br.isNotBlank() && !br.equals("All", ignoreCase = true)) {
-                            ChamberCloseRepository.markClosed(
-                                this@ChamberAttendanceActivity, br, selectedDate,
-                                NativeSession.current(this@ChamberAttendanceActivity)
-                            )
-                        }
-                    }
-                    // 🔒 TK-APPROVED (28.07.2026, ফটো-প্রুফে লক · খাতার সারি B35):
-                    // *"সেভ ও ক্লোজ করলে তো এখানে জিরো হয়ে যেতে হবে বা ব্ল্যাঙ্ক
-                    // হয়ে যেতে হবে।"* — ছাপা হয়ে যাওয়ার পরে বোর্ড ফাঁকা হয়ে যায়,
-                    // দুটো সংখ্যাই 0, আর উপরের কাজের বোতামগুলো বন্ধ।
-                    // ⛔ কোনো তথ্য মোছা হয় না — উপরের ক্যালেন্ডারে ওই তারিখ চাপলে
-                    // পুরো তালিকা আবার দেখা যায় (এবং Share PDF / Print-ও)।
-                    if (!isFinishing && !isDestroyed) {
-                        closedToday = true
-                        // 🔒 খাতার সারি B46: বিগত দিনের চেম্বার বন্ধ করলেও ঠিক
-                        // এখানেই চিহ্নটা বসে, আর "চেম্বার বন্ধ করুন" তালিকার
-                        // পুরনো স্মৃতি ফেলে দেওয়া হয় যাতে ফিরে গেলে দিনটা আর
-                        // তালিকায় না থাকে।
-                        dateClosedFlag = true
-                        try { ChamberUnclosedRepository.clearCache() } catch (_: Throwable) { }
-                        applyDayState()
-                    }
-                }
-            }
+            // 🔴🔒 V938 — আসল কাজটা `performConfirmClose()`-এ সরানো হলো; এই
+            // বোতামের লিসেনার `show()`-এর পরে বদলে দেওয়া হয় (নিচে দেখুন),
+            // যাতে Treatment Progress ফাঁকা থাকলে পর্দা বন্ধ না হয়ে যায়।
+            .setPositiveButton("✅ Confirm Close", null)
             .setNegativeButton("Back", null)
             .create()
         currentReviewDialog = dialog
         dialog.show()
+        try { PremiumAlert.paint(dialog) } catch (_: Throwable) { }   // 🛡️ পাহারা ৯.৩০
+        /* 🔴🔴🔒 V938 (TK-নির্দেশ) — Treatment Progress-এর পাহারা এখন **এখানে**।
+           ফাঁকা ঘর থাকলে "✅ Confirm Close" কিছুই করে না — সেভ · শেয়ার ·
+           প্রিন্ট কোনোটাই না; বদলে **ঠিক ওই রোগীর লেখার বাক্সটাই খুলে যায়**,
+           আর Review পর্দাটা খোলা থাকে (তাই লিখেই আবার Confirm চাপা যায়)।
+           ⛔ AlertDialog-এর নিজের বোতাম চাপলেই পর্দা বন্ধ হয়ে যায় — তাই
+              `show()`-এর পরে লিসেনার বদলানো হলো, প্রজেক্টের প্রমাণিত পথ
+              (PaymentActivity-র delete-confirm-এ একই কৌশল)।
+           ⛔ সব ঘর লেখা থাকলে হুবহু আগের কাজই হয় (নিচের `performConfirmClose`
+              সেই একই কোড, এক অক্ষরও বদলায়নি — শুধু আলাদা ফাংশনে সরানো)। */
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setOnClickListener {
+            val pending = board.rows.firstOrNull { it.arrived && todaysProgressMissing(it.remark, it.remarkUpdatedAt) }
+            if (pending != null) {
+                android.widget.Toast.makeText(
+                    this,
+                    "⚠️ ${pending.name.ifBlank { pending.mobile }} — " + NoBengali.s("আজকের Treatment Progress লেখা হয়নি — না লিখলে সেভ · শেয়ার · প্রিন্ট কিছুই হবে না"),
+                    android.widget.Toast.LENGTH_LONG
+                ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }
+                editRemarkInReview(pending)
+                return@setOnClickListener
+            }
+            try { dialog.dismiss() } catch (_: Throwable) { }
+            currentReviewDialog = null
+            performConfirmClose(board)
+        }
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }   // 🤫 V774
 
         /* 🔴🔒 V426 (TK-নির্দেশ ১৭.০৮.২০২৬) — *"Review পর্দাতে যদি কোন আরএমপির
            পেশেন্ট হয়ে থাকে তাহলে তার কমিশন এখানে মেনশন করতে হবে · এবং কমিশন বাদ
@@ -3016,7 +3692,9 @@ Thread {
               বা RMP-রোগী না থাকলে পর্দা হুবহু আগের মতোই থাকে — কিছুই ভাঙে না।
            ⛔ ব্রাঞ্চ "All" হলে ডাকা হয় না (সার্ভার একটাই ব্রাঞ্চ নেয়)। */
         run {
-            val cbBranch = if (selectedBranch != "All") selectedBranch else user.branch
+            val cbBranch = printBranchOverride.ifBlank {
+                if (selectedBranch != "All") selectedBranch else user.branch
+            }
             if (cbBranch.isNotBlank() && cbBranch != "All") {
                 lifecycleScope.launch {
                     // 🔴🔒 V429 (TK-রিপোর্ট: "চেম্বার খুলে Close Chamber চাপলাম,
@@ -3034,6 +3712,21 @@ Thread {
                                     .signInCurrentSession(applicationContext)
                         } catch (_: Throwable) { }
                     }
+                    /* 🔴🔒 V1078 (০৪.০৯.২০২৬, TK: *"হ্যাঁ করুন, তবে সাবধানে"*) —
+                       কমিশন গোনার **ঠিক আগে** একবার নিজে থেকে জোড়া লাগানো:
+                       যে রোগীর ঘরে RMP-র নাম লেখা আছে অথচ কমিশন বাঁধা নেই,
+                       তাকে ওই RMP-র বাঁধা হারে জুড়ে দেয় (সার্ভারেই)।
+                       ⛔ আগে থেকে বাঁধা কোনো কমিশন কখনো বদলায় না।
+                       ⛔ RMP-র হার বসানো না থাকলে বা একই নামে একাধিক RMP মিললে
+                          জোড়া হয় না — নিচে হলুদ লাইনে TK-কে জানানো হয়।
+                       ⛔ ব্যর্থ হলে নিঃশব্দে বাদ; Review আগের মতোই চলে। */
+                    val autoRes = withContext(Dispatchers.IO) {
+                        try { RmpCommissionRepository.autolinkRefDoctor(cbBranch, dryRun = false) }
+                        catch (_: Throwable) { null }
+                    }
+                    cbAutoLinked = autoRes?.value.orEmpty().count { it.action == "LINKED" }
+                    cbAutoNeedsTk = autoRes?.value.orEmpty().count {
+                        it.action == "NO_RATE" || it.action == "AMBIGUOUS" }
                     val res = withContext(Dispatchers.IO) {
                         try { RmpCommissionRepository.dayCommission(cbBranch, selectedDate) }
                         catch (_: Throwable) { null }
@@ -3047,19 +3740,36 @@ Thread {
                     cbDayPaidTotal = paidRows.sumOf { it.totalPaid }
                     if ((rows.isNotEmpty() || paidRows.isNotEmpty()) && !isFinishing && !isDestroyed) {
                         cbDayCommissionTotal = rows.sumOf { it.commissionToday }
+                        // 🔴🔒 V685 — প্রতিটা RMP-র নাম ধরে group করে যোগফল, প্রিন্টে
+                        // দেখানোর জন্য (একই `rows`, নতুন কোনো কল লাগেনি)।
+                        cbDayCommissionByRmp = rows.groupBy { it.rmpName.ifBlank { "RMP" } }
+                            .map { (name, list) -> name to list.sumOf { it.commissionToday } }
+                            .filter { it.second > 0.0 }
+                        cbLastCommRows = rows; cbLastPaidRows = paidRows   // 🟩 V959
                         try { cbDrawSum(rows, paidRows) } catch (_: Throwable) { }
                         rows.forEach { rw ->
                             val key = rw.patientMobile.filter { c -> c.isDigit() }.takeLast(10)
                             val cell = cbReviewNameCells[key] ?: return@forEach
                             try {
                                 val base = cell.text.toString()
-                                if (!base.startsWith("RMP ")) {
-                                    val sp = android.text.SpannableStringBuilder("RMP ")
+                                // 🟢🔒🔒 V667 (২৫.০৮.২০২৬, TK-নির্দেশ, স্পষ্ট — "কোন পেশেন্ট যদি
+                                // RMP-এর হয়ে থাকে তাহলে যেন সেটা Ref By RMP-এর নাম থাকে") —
+                                // আগে শুধু generic "RMP" ট্যাগ বসত (V426), RMP-এর আসল নাম
+                                // কখনো দেখানো হতো না — অথচ `rw.rmpName`-এ নামটা **আগে থেকেই**
+                                // ছিল (dayCommission() ইতিমধ্যে টেনে আনে), শুধু ব্যবহার হতো না।
+                                // এখন "RMP" ট্যাগের বদলে সরাসরি "Ref By: [নাম]" বসে।
+                                val tagText = "Ref By: ${rw.rmpName.ifBlank { "RMP" }} "
+                                // 🔴🔒 V684 — নিচের প্লেইন "Ref By:" লাইনটা (বোর্ড
+                                // লোড হওয়ার সময়েই বসে যায়, উপরে দেখুন) থাকলে এই
+                                // রঙিন ব্যাজ আর দ্বিতীয়বার বসানো হয় না (ডুপ্লিকেট
+                                // এড়াতে) — তাই "startsWith" থেকে "contains" করা হলো।
+                                if (!base.contains("Ref By:")) {
+                                    val sp = android.text.SpannableStringBuilder(tagText)
                                     sp.setSpan(android.text.style.BackgroundColorSpan(
-                                        android.graphics.Color.parseColor("#B42318")), 0, 3, 0)
+                                        android.graphics.Color.parseColor("#B42318")), 0, tagText.length, 0)
                                     sp.setSpan(android.text.style.ForegroundColorSpan(
-                                        android.graphics.Color.WHITE), 0, 3, 0)
-                                    sp.setSpan(android.text.style.RelativeSizeSpan(0.85f), 0, 3, 0)
+                                        android.graphics.Color.WHITE), 0, tagText.length, 0)
+                                    sp.setSpan(android.text.style.RelativeSizeSpan(0.85f), 0, tagText.length, 0)
                                     sp.append(base)
                                     cell.text = sp
                                 }
@@ -3068,6 +3778,27 @@ Thread {
                     }
                 }
             }
+        }
+        /* 🟩🔒 V959 — ওই দিনের ওষুধ ও স্যালাইন বিক্রির মোট (আলাদা `products`
+           টেবিল, V805-এ ছাপার জন্য বানানো **একই** সরু পড়া — নতুন কোনো ধরন নয়:
+           এক দিন · এক ব্রাঞ্চ · মাত্র ৫টা ঘর)। পর্দা আগেই দেখানো হয়ে গেছে;
+           সংখ্যা এলে শুধু একটা লাইন যোগ হয়। ⛔ ব্যর্থ হলে বা বিক্রি না থাকলে
+           পর্দা হুবহু আগের মতোই — কোনো অঙ্কে হাত পড়ে না। */
+        lifecycleScope.launch {
+            val msBranch = printBranchOverride.ifBlank {
+                if (selectedBranch != "All") selectedBranch else ""
+            }
+            val st = withContext(Dispatchers.IO) {
+                try {
+                    ChamberAttendanceRepository.saleTotals(
+                        selectedDate, msBranch.ifBlank { null }
+                    )
+                } catch (_: Throwable) { null }
+            } ?: return@launch
+            val saleTotal = st.medicineCash + st.medicineOnline + st.salineCash + st.salineOnline
+            if (saleTotal <= 0.0 || isFinishing || isDestroyed) return@launch
+            cbMedicineSaleTotal = saleTotal
+            try { cbDrawSum(cbLastCommRows, cbLastPaidRows) } catch (_: Throwable) { }
         }
         // TK-REQUESTED (2026-07-22): this was a small centered popup ("ছোট
         // ডিসপ্লে") -- now expanded to fill the entire screen. Everything
@@ -3151,7 +3882,21 @@ Thread {
                 // থেকে আনার দরকারই নেই)। আসল সেভ পিছনে চলে।
                 val board0 = lastBoard
                 if (board0 != null) {
-                    val updatedRows = board0.rows.map { if (it.mobile == r.mobile) it.copy(remark = remark) else it }
+                    /* 🔴🔴🔒 V939 (০১.০৯.২০২৬, নিজে ধরা — V938-এর পরে গভীরে যাচাই করে):
+                       এখানে শুধু `remark` বসত, **`remarkUpdatedAt` নয়**। V938-এ
+                       Treatment Progress-এর পাহারা Review-এর Confirm-এ সরে যাওয়ায়
+                       এটাই মারাত্মক হত: স্টাফ Review-এ লেখাটা লিখলেও তারিখ পুরনো
+                       থাকায় পাহারা আবার "লেখা হয়নি" ধরত — চেম্বার কখনোই বন্ধ করা
+                       যেত না (লিখুন → আবার আটকাল → আবার লিখুন…)।
+                       ⇒ লেখার সাথে তার নিজের তারিখটাও এখন বসে।
+                       ⛔ V933-এ জমানো বোর্ডে ঠিক এই একই ফাঁকই সারানো হয়েছিল। */
+                    /* ⛔ তারিখটা **যে দিনের বোর্ড খোলা আছে সেটাই** (`selectedDate`) —
+                       ঘড়ির UTC নয়। কারণ পাহারা ঠিক ওই দিনের সাথেই মেলায়, আর
+                       বোর্ডের payments-পথও হুবহু এই ধাঁচেই লেখে (V687)। */
+                    val nowIso = selectedDate + "T00:00:00.000Z"
+                    val updatedRows = board0.rows.map {
+                        if (it.mobile == r.mobile) it.copy(remark = remark, remarkUpdatedAt = nowIso) else it
+                    }
                     val updatedBoard = board0.copy(rows = updatedRows)
                     lastBoard = updatedBoard
                     currentReviewDialog?.dismiss(); currentReviewDialog = null
@@ -3230,7 +3975,29 @@ Thread {
     private fun editOnePaymentRow(p: org.json.JSONObject) {
         val eventCount = p.optJSONArray("dailyEvents")?.length()?.coerceAtLeast(1) ?: 1
         if (p.s("payType").equals("treatment", true) && eventCount > 1) {
-            android.widget.Toast.makeText(this, "This day's payment combines $eventCount entries. Cash/Online split will not be guessed.", android.widget.Toast.LENGTH_LONG).show()
+            // 🟢🔒 V618 (২৪.০৮.২০২৬, TK-নির্দেশ, সততার সাথে যাচাই করে) —
+            // আগে এখানে (Chamber Date-এর "Fix Payment") মিশ্র পেমেন্ট
+            // পড়লেই **সবার জন্য** (এমনকি Master-এর জন্যও) দরজা বন্ধ হয়ে
+            // যেত — শুধু সতর্কবার্তা, কোনো এডিট/ডিলিট পথই ছিল না। অথচ
+            // PaymentActivity-তে ঠিক এই কাজের জন্যই একটা নির্ভুল (আন্দাজ
+            // ছাড়া, `dailyEvents`-এর আসল আলাদা এন্ট্রি ধরে) এডিটর
+            // আগে থেকেই তৈরি ছিল, শুধু Master-only ছিল।
+            //
+            // ⇒ এখন দুটো কাজ একসাথে ঠিক হলো:
+            //   ১) PaymentActivity-র ওই এডিটর এখন বাকি সব পেমেন্টের মতোই
+            //      "আজ/গতকাল-মুক্ত, তার বেশি Master লাগবে" নিয়মে চলে
+            //      (এই একই ফাইলের অন্য জায়গার পরিবর্তন, `PaymentActivity.kt`)।
+            //   ২) এখানে (Chamber Date) মিশ্র পেমেন্ট পড়লে আর দরজা বন্ধ
+            //      না করে, সোজা সেই নির্ভুল এডিটরেই পাঠানো হচ্ছে — নতুন
+            //      কোনো এডিট-লজিক এখানে বানানো হয়নি (দ্বিগুণ কোড/দ্বিগুণ
+            //      ভুলের ঝুঁকি এড়াতে), শুধু সঠিক জায়গায় পাঠানো।
+            val digits = p.s("mobile").filter { it.isDigit() }.takeLast(10)
+            android.widget.Toast.makeText(this, NoBengali.s("মিশ্র পেমেন্ট — বিস্তারিত এডিটরে নিয়ে যাওয়া হচ্ছে…"), android.widget.Toast.LENGTH_SHORT).show()
+            startActivity(
+                android.content.Intent(this, PaymentActivity::class.java)
+                    .putExtra("mobile", digits)
+                    .putExtra("patientCode", p.s("patientCode"))
+            )
             return
         }
         val id = p.optString("id")
@@ -3322,8 +4089,8 @@ Thread {
                 }
                 if (!allowedNow) {
                     AlertDialog.Builder(this@ChamberAttendanceActivity)
-                        .setCustomTitle(PremiumAlert.header(this@ChamberAttendanceActivity, NoBengali.s("Master-এর অনুমতি লাগবে")))
-                        .setMessage(NoBengali.s("$amtT\n\n⛔ এখনই কিছুই মুছবে না। Master-এর ঘন্টায় অনুরোধ যাবে; তিনি অনুমোদন দিলে তবেই ডিলিট হবে।"))
+                        .setCustomTitle(PremiumAlert.header(this@ChamberAttendanceActivity, NoBengali.s("Master's approval needed")))
+                        .setMessage(NoBengali.s("⛔ Nothing will be deleted now. A request goes to the Master; it is deleted only after approval."))
                         .setPositiveButton("Send Request") { _, _ ->
                             lifecycleScope.launch {
                                 val sent = withContext(Dispatchers.IO) {
@@ -3338,7 +4105,7 @@ Thread {
                                 android.widget.Toast.makeText(
                                     this@ChamberAttendanceActivity, NoBengali.s(if (sent) "Master-কে অনুরোধ পাঠানো হয়েছে" else "ব্যর্থ — নেট চেক করুন"),
                                     android.widget.Toast.LENGTH_LONG
-                                ).show()
+                                ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                             }
                         }
                         .setNegativeButton("Close", null)
@@ -3435,7 +4202,7 @@ Thread {
                     android.widget.Toast.makeText(
                         this@ChamberAttendanceActivity, NoBengali.s(if (ok) "Master-এর কাছে অনুরোধ পাঠানো হয়েছে ✅" else "পাঠানো যায়নি — আবার চেষ্টা করুন"),
                         android.widget.Toast.LENGTH_LONG
-                    ).show()
+                    ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                 }
             }
             .setNegativeButton("Cancel", null)
@@ -3479,6 +4246,27 @@ Thread {
     //    so printing ALWAYS goes ahead and the chamber is never held up.
     //    Without this, a bad line could hold the print back indefinitely,
     //    which is the exact complaint being fixed.
+    /** Chamber ইতিমধ্যে বন্ধ। Register print এখন সম্পূর্ণ ঐচ্ছিক। */
+    private fun offerOptionalRegisterPrint(board: ChamberAttendanceBoard, cloudSaved: Boolean) {
+        val syncNote = if (cloudSaved) "" else "\n\nCloud sync pending — it will save automatically when internet returns."
+        AlertDialog.Builder(this)
+            .setCustomTitle(PremiumAlert.header(this, "✅ Chamber Closed"))
+            .setMessage("Review confirmed and chamber closed.$syncNote\n\nPrint the register now?")
+            .setPositiveButton("Print") { _, _ ->
+                lifecycleScope.launch {
+                    val visitLabels = withContext(Dispatchers.IO) { computeVisitLabels(board) }
+                    // 🆕 V805 — ওষুধ/স্যালাইনের মোট, ব্যাকগ্রাউন্ডেই (ব্যর্থ হলে শূন্য)
+                    val st = try { withContext(Dispatchers.IO) {
+                        ChamberAttendanceRepository.saleTotals(selectedDate, printBranchOverride.ifBlank {
+                            if (selectedBranch != "All") selectedBranch else user.branch })
+                    } } catch (_: Throwable) { ChamberRegisterPdfBuilder.SaleTotals() }
+                    if (!isFinishing && !isDestroyed) finalizeAndShare(board, visitLabels, st)
+                }
+            }
+            .setNegativeButton("Not Now", null)
+            .show().also { PremiumAlert.paint(it) }
+    }
+
     private fun computeVisitLabels(board: ChamberAttendanceBoard): Map<String, String> {
         val rows = board.rows.filter { it.arrived }
         val out = HashMap<String, String>()
@@ -3521,7 +4309,20 @@ Thread {
         return "$n$s Visit"
     }
 
-    private fun finalizeAndShare(board: ChamberAttendanceBoard, visitLabels: Map<String, String> = emptyMap()) {
+    /* 🆕🔒 V805 (২৮.০৮.২০২৬, TK-অনুমোদিত) — কাগজে ওষুধ ও স্যালাইনের টাকা
+       **আলাদা দুটো লাইনে শুধু দেখানোর** জন্য (TK-এর নিজের সিদ্ধান্ত: GRAND
+       TOTAL-এ যোগ হবে না)।
+       ⛔ **নিজের যাচাইয়ে ধরা পড়া ভুল, লেখার সময়ই সারানো:** প্রথমে এই
+          ফাংশনের ভিতরেই নেট-পড়াটা বসিয়েছিলাম — কিন্তু এই ফাংশনটা **মূল
+          থ্রেডে** চলে (`withContext(Dispatchers.IO)` শুধু `computeVisitLabels`-কে
+          ঘিরে আছে, তারপরই মূল থ্রেডে ফিরে আসে)। ওখানে নেট-পড়া দিলে
+          `NetworkOnMainThreadException` — অ্যাপ ক্র্যাশ করত। তাই এখন হিসাবটা
+          **ডাকার জায়গার IO-ব্লকেই** হয়ে যায়, আর এখানে শুধু তৈরি সংখ্যাটা আসে। */
+    private fun finalizeAndShare(
+        board: ChamberAttendanceBoard,
+        visitLabels: Map<String, String> = emptyMap(),
+        saleTotals: ChamberRegisterPdfBuilder.SaleTotals = ChamberRegisterPdfBuilder.SaleTotals()
+    ) {
         // TK-REQUESTED CHANGE (2026-07-19): print order is chronological
         // (earliest arrivedAt first), not the on-screen board's alphabetical
         // order -- NEW and OLD patients end up interleaved in the actual
@@ -3556,6 +4357,8 @@ Thread {
                     patientId = r.patientId,
                     newOrOld = if (r.whatHappened.contains("New Registration")) "NEW" else "OLD",
                     fees = r.feesCash + r.feesOnline,
+                    feesCash = r.feesCash, feesOnline = r.feesOnline,           // 🟢🔒 V612
+                    medicineCash = r.medicineCash, medicineOnline = r.medicineOnline,   // 🟢🔒 V612
                     cash = r.paymentCash,
                     online = r.paymentOnline,
                     // TK-REQUESTED (2026-07-25): at end-of-day Close
@@ -3574,7 +4377,8 @@ Thread {
                     // হুবহু অক্ষত থাকে (TK-এর সিদ্ধান্ত)। ⛔ ডেটাবেসে কিছু
                     // বদলায় না — শুধু কাগজে ছাপার আগে লেখাটা বদলে নেওয়া হয়।
                     // নিচের ফাঁকা-ঘরের লেখাটা শুধু কাগজেই যায়, পর্দায় নয়।
-                    treatment = if (isEffectivelyBlankRemark(r.remark)) "⚠️ PROGRESS PENDING"
+                    // 🔴 V810 — পুরনো দিনের লেখা আর আজকের নোট সেজে ছাপা হবে না
+                    treatment = if (todaysProgressMissing(r.remark, r.remarkUpdatedAt)) "⚠️ PROGRESS PENDING"
                         else com.tkbiswas.pilesclinic.print.PrintTextEnglish.forPrint(r.remark).ifBlank { "⚠️ PROGRESS PENDING" },
                     visitLabel = visitLabels[r.mobile] ?: "",
                     // TK-REQUESTED (2026-07-22): mode the registration/doctor-visit
@@ -3604,9 +4408,20 @@ Thread {
             //    নিচের লাইনেও **হুবহু সেটাই** যায় (আলাদা করে আবার হিসাব করা হয়
             //    না, তাই পর্দা আর কাগজের সংখ্যা কখনো আলাদা হবে না)। ০ হলে কাগজ
             //    আগের মতোই ছাপে।
+            /* 💰🔒 V984 (TK-নির্দেশ) — এই তারিখের টাকা কে বুঝে নিয়েছেন, সেই এক
+               লাইন কাগজেও ছাপে (আগে বুঝিয়ে দেওয়া হয়ে থাকলে)। ⛔ না থাকলে
+               কাগজ হুবহু আগের মতোই; নেট না পেলেও কিছু আটকায় না। */
+            val hoLine = try {
+                val hb = printBranchOverride.ifBlank { selectedBranch }
+                val hid = ChamberCloseRepository.idOf(hb, selectedDate)
+                val enc = java.net.URLEncoder.encode(hid, "UTF-8").replace("+", "%20")
+                val hr = SupabaseClient.fetchListOrNull(MoneyHandover.TABLE, "id=eq.$enc", 1)
+                if (hr != null && hr.length() > 0) MoneyHandover.paperLine(
+                    MoneyHandover.dayFrom(hr.getJSONObject(0))) else ""
+            } catch (_: Throwable) { "" }
             ChamberRegisterPdfBuilder(this).build(
                 branchInfo, dateLabel, dayLabel, registerRows, outFile,
-                cbDayCommissionTotal, cbDayPaidTotal
+                cbDayCommissionTotal, cbDayPaidTotal, cbDayCommissionByRmp, saleTotals, hoLine
             )
             // TK-REQUESTED (2026-07-25): Save PDF / Share PDF (WhatsApp etc.)
             // / Print -- reusing the SAME already-built, already-working
@@ -3615,6 +4430,22 @@ Thread {
             // to the system print dialog with no way to save or share.
             com.tkbiswas.pilesclinic.print.PrintDataHolder.prebuiltFile = outFile
             com.tkbiswas.pilesclinic.print.PrintDataHolder.prebuiltTitle = "Chamber Register - $dateLabel"
+            /* 💰🔒 V984 (TK-নির্দেশ: *"টাকা বুঝিয়ে দেয়ার সিস্টেমটা এই পর্দাতে
+               রাখুন"*) — রেজিস্টারের পর্দায় "MONEY HANDOVER" ঘরটা দেখানোর জন্য
+               দিনের অঙ্কগুলোও সাথে যায়। ⛔ ছাপার কাগজ · বোতাম · কোনো হিসাব
+               একটুও বদলায়নি। */
+            try {
+                val hoBranch = printBranchOverride.ifBlank { selectedBranch }
+                if (hoBranch.isNotBlank() && !hoBranch.equals("All", ignoreCase = true)) {
+                    com.tkbiswas.pilesclinic.print.PrintDataHolder.handoverBranch = hoBranch
+                    com.tkbiswas.pilesclinic.print.PrintDataHolder.handoverDate = selectedDate
+                    com.tkbiswas.pilesclinic.print.PrintDataHolder.handoverFees = cbHoFees
+                    com.tkbiswas.pilesclinic.print.PrintDataHolder.handoverCash = cbHoCash
+                    com.tkbiswas.pilesclinic.print.PrintDataHolder.handoverOnline = cbHoOnline
+                    com.tkbiswas.pilesclinic.print.PrintDataHolder.handoverRefund = cbHoRefund
+                    com.tkbiswas.pilesclinic.print.PrintDataHolder.handoverTotal = cbHoTotal
+                }
+            } catch (_: Throwable) { }
             startActivity(android.content.Intent(this, com.tkbiswas.pilesclinic.print.PrintPreviewActivity::class.java))
         } catch (e: Exception) {
             android.widget.Toast.makeText(this, NoBengali.s("PDF তৈরি করা যায়নি — ${e.javaClass.simpleName}"), android.widget.Toast.LENGTH_LONG).show()
@@ -3704,6 +4535,9 @@ Thread {
             Pair("📂 Draft", DraftActivity::class.java),
             Pair("💬 Briefing", BriefingActivity::class.java),
             Pair("🔍 Global Search", GlobalSearchActivity::class.java),
+            /* 💰 V984 (TK-নির্দেশ) — কোন দিনের টাকা কে বুঝে নিলেন, তার ইতিহাস।
+               স্টাফ · ডাক্তার · মাস্টার — সবার জন্যই, যে যার নিজের কাজটুকু দেখেন। */
+            Pair("💰 Money Handover", MoneyHandoverActivity::class.java),
             if (user.role == "master") Pair("📊 Reports", ReportsActivity::class.java) else null,
             if (user.role == "master") Pair("📋 Export Data", ExportDataActivity::class.java) else null,
             if (user.role == "master") Pair("☁️ Backup", com.tkbiswas.pilesclinic.security.SettingsActivity::class.java) else null,
@@ -3711,7 +4545,7 @@ Thread {
             if (user.role == "master") Pair("🗑️ Trash Bin", TrashBinActivity::class.java) else null
         )
         val actionNames = actions.map { it.first }.toTypedArray()
-        androidx.appcompat.app.AlertDialog.Builder(this).setCustomTitle(PremiumAlert.header(this, "সব কাজ / পরবর্তী কাজ")).setItems(actionNames) { _, which ->
+        androidx.appcompat.app.AlertDialog.Builder(this).setCustomTitle(PremiumAlert.header(this, "All work / next work")).setItems(actionNames) { _, which ->
             try {
                 startActivity(android.content.Intent(this, actions[which].second))
             } catch (_: Throwable) { }
