@@ -236,10 +236,33 @@ class RegistrationRepository(private val context: Context) {
         val recodedId = if (mustRecode)
             (try { PatientIdGenerator.generate(draft.branch, draft.date, context) } catch (_: Throwable) { "" })
         else ""
-        val patientId = when {
+        val patientIdRaw = when {
             recodedId.isNotBlank() -> recodedId
             keptId.isNotBlank()    -> keptId
             else -> PatientIdGenerator.generate(draft.branch, draft.date, context)
+        }
+        /* ═══════════════════════════════════════════════════════════════
+           🛡️🔒 V1111 (০৫.০৯.২০২৬) — **শেষ পাহারা: আইডির ব্রাঞ্চ-সংকেত আর
+           সারির ব্রাঞ্চ কখনোই আলাদা হতে পারবে না।**
+
+           🔴 কেন দরকার (সৎ কথা): KASHAB MANDAL-এর সারিতে `createdAt` আর
+              `updatedAt` **হুবহু এক** (11:27:50.808) — অর্থাৎ সারিটা **একবারই**
+              লেখা হয়েছে, তবু `branch=Jalpaiguri` আর আইডি `COB-…`। উপরের সব
+              পথ একই `draft.branch` ব্যবহার করে, তাই **কোন পথে এটা হলো তা আমি
+              এখনো প্রমাণ করতে পারিনি** — TK-কে সেটা জানানো হয়েছে।
+           ⇒ তাই কারণ খোঁজার উপর ভরসা না করে **ফলটাই আটকে দেওয়া হলো**: লেখার
+             ঠিক আগে আইডির প্রথম তিন অক্ষর মিলিয়ে দেখা হয়; না মিললে ওই
+             ব্রাঞ্চের ঠিক আইডি বসে।
+           ⛔ শুধু **আজকের তারিখের** আইডিতে (রোগীর হাতে ছাপা পুরনো কাগজ অক্ষত)।
+           ⛔ নতুন আইডি বানাতে না পারলে (নেট নেই) আগেরটাই থাকে — সেভ আটকায় না।
+           ═══════════════════════════════════════════════════════════════ */
+        val patientId = run {
+            val code = patientIdRaw.substringBefore("-", "")
+            val dpart = patientIdRaw.split("-").getOrNull(1).orEmpty()
+            if (code.isNotBlank() && !code.equals(wantCode, ignoreCase = true) && dpart == todayCode) {
+                val fixed = try { PatientIdGenerator.generate(draft.branch, draft.date, context) } catch (_: Throwable) { "" }
+                if (fixed.isNotBlank()) fixed else patientIdRaw
+            } else patientIdRaw
         }
         /* 🔴 V1110 — আইডি বদলে থাকলে ওই রোগীর টাকার সারিগুলোর `patientCode`-ও
            ঠিক করে দেওয়া হয়। ⛔ টাকার অঙ্ক · তারিখ · ব্রাঞ্চ কিছুই ছোঁয়া হয় না,
