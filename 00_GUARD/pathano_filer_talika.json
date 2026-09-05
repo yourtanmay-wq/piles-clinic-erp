@@ -2,28 +2,38 @@
   {
     "file": "PILES_CLINIC_APP_V1119_FINAL.zip",
     "versionCode": 1119,
-    "when": "05.09.2026 02.54 pm",
-    "reason": "TK: ফাইল পাঠাও — V1119 (চেকআপ ফর্মে ভরা ধাপগুলো নিচে একটাই SAVED বাক্সে) + V1104→V1119 সব কাজ",
-    "size_mb": 74.5,
-    "moot_file": 1812,
-    "folder_counts": {
+    "when": "05.09.2026 03.03 pm",
+    "zip_mb": 24.9,
+    "files": 1728,
+    "contents": {
       "02_ANDROID_SOURCE_CODE": 744,
-      "root (.md/.sql/.png ইত্যাদি)": 665,
+      "(root files)": 603,
       "04_SUPABASE_DATABASE_SETUP": 119,
       "00_SQL": 63,
-      "08_ASSETS_BACKUP": 58,
       "00_GUARD": 53,
       "03_NETLIFY_READY": 50,
+      "08_ASSETS_BACKUP": 36,
+      "07_RELEASE_NOTES_VERSION_HISTORY": 31,
+      "00_READ_ME_FIRST": 11,
+      "10_FUTURE_PLANS": 7,
+      "ROLLBACK_V448": 2,
+      "06_TEST_CHECKLISTS": 2,
+      "11_V223_TESTS": 2,
+      ".claude": 2,
+      "05_APK_AAB_BUILD_NOTES": 1,
       "03_SUPABASE_SQL": 1,
       "01_MASTER_LOCK_BOOK_SOURCE_OF_TRUTH": 1
     },
-    "bad_gelo": [
-      ".git (৮৮৯ MB — গিটের নিজের ইতিহাস, বিল্ডে লাগে না)",
-      "00_GUARD/.kotlinc (২২৭ MB — যাচাইয়ের নিজের কম্পাইলার)",
-      "build/ · .gradle/ · .idea/ · node_modules/ (Android Studio নিজেই বানায়)",
-      "__pycache__ · আগের সব .zip"
+    "excluded": [
+      "08_ASSETS_BACKUP/ANATOMY_PICTURES/ORIGINAL (৯.৩ MB — অনুমোদিত বাদ)",
+      "root *.png/*.gif ডেমো-প্রুফ (৬২টা, ৪২ MB)",
+      ".git",
+      "00_GUARD/.kotlinc",
+      "*/build",
+      "__pycache__"
     ],
-    "note": "ভিতরের top ফোল্ডার PILES_CLINIC_APP_V1119_FINAL/ — গঠন অপরিবর্তিত। খোলা অবস্থায় ১০৪ MB।"
+    "sql_to_run": "নেই",
+    "note": "🔴 প্রথমে ভুল করে ডেমো-প্রুফ ছবি ও ANATOMY ORIGINAL সহ বানিয়েছিলাম — ৭৪.৫ MB, পাঠানোর সীমা (৩০ MiB) পেরিয়ে যাওয়ায় যায়নি। তালিকা দেখে আগের নিয়মেই (V1103-এর হুবহু বাদ-তালিকা) আবার বানানো হলো — ২৪.৯ MB, ১৭২৮ ফাইল, V1103-এর সঙ্গে মিলে গেল। V1104→V1119: এস্টিমেটের ৫-ধাপ হিসাব ও এক-পেজ প্রিন্ট · রেজিস্ট্রেশন নিজের ব্রাঞ্চে লক · Bill Edit সত্যিই সেভ হয় · CHECK-UP Queue-তে সার্চ · DONE কার্ড ফিকে · Chamber Date-এ সিরিয়াল নম্বর ও ট্রিটমেন্ট প্রগ্রেস আর হারায় না · পেশেন্ট কার্ডে এনকোয়ারির কল-হিস্ট্রি ফিরল · চেকআপ ফর্মে ভরা ধাপগুলো নিচে একটাই SAVED বাক্সে"
   },
   {
     "file": "PILES_CLINIC_APP_V1103_FINAL.zip",
