@@ -2886,6 +2886,51 @@ def check_no_date_emoji():
              "\u00b7 \u09ac\u09a6\u09b2\u09c7 ic_pd_calendar_green / ic_pd_clock")
 
 
+# ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯.৪৪ — Java-র সংরক্ষিত শব্দ `native` কোনো ঘোষণায় নয়
+#  (TK-এর Studio-তে V1119 বিল্ড ভেঙেছিল, ০৫.০৯.২০২৬ — তাঁর ছবি থেকে ধরা)
+#
+#  বিল্ডের সময় kapt প্রতিটা Kotlin ক্লাসের একটা **Java নকল** (stub) বানায়।
+#  প্রকল্পের একটা প্যাকেজের নাম `...pilesclinic.native`, আর Java-তে `native`
+#  একটা **সংরক্ষিত শব্দ** — তাই ওই নামটা কোনো **ঘোষণায়** (ফাংশনের ফেরত-ধরন ·
+#  প্যারামিটার · property-র ধরন) থাকলে নকল ফাইলটাই ভেঙে যায়
+#  (`<identifier> expected` · `illegal start of type`) আর বিল্ড থামে।
+#  ⛔ ফাংশনের **ভিতরে** (শরীরে) ওই নাম থাকলে কোনো সমস্যা নেই — kapt শরীরটা
+#     ফেলে দেয়। তাই এই পাহারা শুধু ঘোষণার লাইনগুলোই দেখে।
+#  ⛔ `native` প্যাকেজের নিজের ফাইলগুলো এই যাচাইয়ের বাইরে — ওগুলো এতদিন
+#     ঠিকঠাক বিল্ড হয়েছে, নতুন করে কিছু বদলানোর দরকার নেই।
+# ═══════════════════════════════════════════════════════════════
+NATIVE_FQN = "com.tkbiswas.pilesclinic.native."
+_NATIVE_SIG_PATS = [
+    re.compile(r"\bfun\s+\w+[^=]*:\s*[^=]*" + re.escape(NATIVE_FQN)),
+    re.compile(r"\b(?:val|var)\s+\w+\s*:\s*[^=]*" + re.escape(NATIVE_FQN)),
+    re.compile(r"\bfun\s+\w+\s*\([^)]*" + re.escape(NATIVE_FQN)),
+]
+
+
+def check_no_native_in_signature():
+    if not os.path.isdir(JAVA):
+        return
+    bad = []
+    for dp, _, fs in os.walk(JAVA):
+        if os.path.basename(dp) == "native":
+            continue
+        for f in sorted(fs):
+            if not f.endswith(".kt"):
+                continue
+            for n, line in enumerate(read(os.path.join(dp, f)).split("\n"), 1):
+                t = line.strip()
+                if NATIVE_FQN not in t or t.startswith(("//", "*", "/*")):
+                    continue
+                if any(p.search(t) for p in _NATIVE_SIG_PATS):
+                    bad.append("%s:%d  %s" % (f, n, t[:110]))
+    for b in bad[:8]:
+        fail("৯.৪৪",
+             "ঘোষণার ভিতরে `" + NATIVE_FQN + "` — kapt-এর Java নকলে `native` "
+             "সংরক্ষিত শব্দ, তাই Android Studio-তে বিল্ড ভাঙবে → " + b +
+             "  ·  সমাধান: ধরনটা ঘোষণা থেকে সরান (ফাংশনের ভিতরে রাখলে সমস্যা নেই)")
+
+
 def check_no_bengali():
     nb = os.path.join(NATIVE, "NoBengali.kt")
     if not os.path.exists(nb):
@@ -3423,6 +3468,7 @@ def main():
     check_branch_encoded()      # 🧾 খাতার সারি B147
     check_no_bengali()          # 🚫 খাতার সারি B158
     check_no_date_emoji()       # 📅 TK ০৫.০৯.২০২৬ — "July 17 Emoji থাকবে না"
+    check_no_native_in_signature()   # 🔴 TK-এর Studio-তে V1119 বিল্ড ভাঙা (০৫.০৯.২০২৬)
     code = check_version()
     check_web()
     check_notes()

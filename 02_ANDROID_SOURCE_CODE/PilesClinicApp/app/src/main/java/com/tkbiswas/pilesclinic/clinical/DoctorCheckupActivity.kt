@@ -1047,8 +1047,8 @@ class DoctorCheckupActivity : AppCompatActivity() {
         val tvWho = findViewById<TextView>(R.id.tvDoctorReminderWho)
         whoBox?.setOnClickListener {
             val docs = doctorChoices()
-            val labels = (listOf(NoBengali.s("সব ডাক্তার")) + docs.map { it.name }).toTypedArray()
-            val mobiles = listOf("") + docs.map { it.mobile }
+            val labels = (listOf(NoBengali.s("সব ডাক্তার")) + docs.map { it.first }).toTypedArray()
+            val mobiles = listOf("") + docs.map { it.second }
             val current = mobiles.indexOf(doctorReminderForMobile).let { if (it < 0) 0 else it }
             val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
                 .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, NoBengali.s("কোন ডাক্তারকে মনে করাবে?")))
@@ -1274,15 +1274,28 @@ class DoctorCheckupActivity : AppCompatActivity() {
     }
 
     /** 🩺🔒 V1109 — ডাক্তারদের তালিকা: এই রোগীর ব্রাঞ্চেরটা আগে, তারপর বাকিরা।
-     *  ⛔ প্রকল্পের নিজের `StaffDirectory` থেকেই — নতুন টেবিল/ক্লাউড-পড়া নেই। */
-    private fun doctorChoices(): List<com.tkbiswas.pilesclinic.native.StaffAccount> {
+     *  ⛔ প্রকল্পের নিজের `StaffDirectory` থেকেই — নতুন টেবিল/ক্লাউড-পড়া নেই।
+     *
+     *  🔴🔒 V1120 (০৫.০৯.২০২৬ — TK-এর Studio-তে বিল্ড ভেঙেছিল, তাঁর ছবি থেকে ধরা):
+     *  আগে এই ফাংশনটা **নাম বলে দিত** `List<...pilesclinic.native.StaffAccount>`।
+     *  বিল্ডের সময় kapt প্রতিটা Kotlin ক্লাসের একটা **Java নকল** (stub) বানায়, আর
+     *  Java-তে **`native` একটা সংরক্ষিত শব্দ** — তাই নকল ফাইলে ওই নামটা লিখতেই
+     *  `<identifier> expected` · `illegal start of type` (মোট ৫টা ভুল) হয়ে বিল্ড
+     *  থেমে যেত। ⇒ এখন ঘোষণায় ওই প্যাকেজের নাম আর নেই — শুধু **নাম ও নম্বরের জোড়া**
+     *  ফেরে (ডাকার জায়গায় ঠিক এই দুটোই লাগত)।
+     *  ⛔ ফাংশনের **ভিতরে** ওই নাম থাকলে কোনো সমস্যা নেই — kapt শরীরটা ফেলে দেয়;
+     *     সমস্যা শুধু **ঘোষণায়** (return/parameter/property-র ধরন)। প্রকল্পের আর
+     *     কোথাও এমন নেই — পুরোটা খুঁজে দেখা হয়েছে, আর পাহারাদারে নিয়ম [৯.৪৪] বসানো হলো।
+     *  ⛔ তালিকা · ক্রম · আচরণ এক অক্ষরও বদলায়নি। */
+    private fun doctorChoices(): List<Pair<String, String>> {
         val all = try {
             com.tkbiswas.pilesclinic.native.StaffDirectory.allAccounts()
                 .filter { it.role == "doctor" }
         } catch (_: Throwable) { emptyList() }
         val br = RoleSession.currentPatientBranch.trim()
-        if (br.isBlank()) return all
-        return all.sortedByDescending { it.branch.equals(br, ignoreCase = true) }
+        val ordered = if (br.isBlank()) all
+            else all.sortedByDescending { it.branch.equals(br, ignoreCase = true) }
+        return ordered.map { it.name to it.mobile }
     }
 
     /** 🩺 V1109 — বাছা ডাক্তারের নাম ঘরে বসানো। ⛔ ফাঁকা হলে আগের ধূসর লেখা। */
