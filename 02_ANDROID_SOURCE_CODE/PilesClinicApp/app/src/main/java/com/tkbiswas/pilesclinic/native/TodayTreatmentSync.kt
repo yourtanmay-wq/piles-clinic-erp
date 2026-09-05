@@ -117,6 +117,7 @@ object TodayTreatmentSync {
         if (note.isBlank()) return
         try {
             val pays = SupabaseClient.fetchList("payments", "mobile=like.*$digits&date=eq.$day", 20)
+            var wrote = false   // 📝 V1116 — ওই দিনে সত্যিই কোথাও বসল কিনা
             for (i in 0 until pays.length()) {
                 val p = pays.optJSONObject(i) ?: continue
                 val payType = p.optString("payType", "")
@@ -130,6 +131,25 @@ object TodayTreatmentSync {
                 val fields = JSONObject().put("progress", note)
                 val ok = try { SupabaseClient.updateById("payments", pid, fields) } catch (_: Throwable) { false }
                 if (!ok && context != null) GenericUpdateQueue.queue(context, "payments", pid, fields)
+                wrote = true
+            }
+            /* 📝🔒 V1116 (TK-রিপোর্ট, অনুমোদিত) — **টাকা না দেওয়া রোগীর লেখাটাও
+               এখন থেকে যায়।** ওই দিনে একটাও টাকার সারি না থাকলে লেখাটা রাখার
+               জায়গা ছিল না, তাই চেম্বার বন্ধ করে খুললে ফাঁকা দেখাত।
+               ⇒ তখন একটা শূন্য টাকার সারি বসে শুধু লেখাটা ধরে রাখতে
+                 (`PaymentModel.buildProgressHolderRow` — বিস্তারিত ওখানে)।
+               ⛔ টাকার সারি থাকলে এই ধাপটা চলেই না — আচরণ হুবহু আগের মতোই।
+               ⛔ চেম্বার পর্দার পথেও (`syncProgressToReportCard`) হুবহু একই কাজ,
+                  আর আইডি স্থির বলে দুই পথে দুটো সারি হওয়ার পথ নেই। */
+            if (!wrote) {
+                val holder = PaymentModel.buildProgressHolderRow(
+                    mobile = digits, name = "", branch = "",
+                    patientRowId = patientRowId, dateKey = day,
+                    progress = note, staffMobile = staffName
+                )
+                val ok = try { SupabaseClient.upsert("payments", holder) } catch (_: Throwable) { false }
+                if (!ok && context != null) GenericUpdateQueue.queue(
+                    context, "payments", holder.optString("id"), JSONObject().put("progress", note))
             }
         } catch (_: Throwable) { }
     }

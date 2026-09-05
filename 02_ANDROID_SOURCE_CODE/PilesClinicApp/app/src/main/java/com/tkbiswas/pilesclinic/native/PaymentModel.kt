@@ -816,6 +816,58 @@ object PaymentModel {
             .put("updatedAt", now)
     }
 
+    /* ═══════════════════════════════════════════════════════════════════
+       📝🔒 V1116 (০৫.০৯.২০২৬, TK-রিপোর্ট, অনুমোদিত): *"চেম্বার বন্ধ করে
+       তারপর যদি পুনরায় আবার চেম্বার খোলা হয়, সেই ক্ষেত্রে অনেক ট্রিটমেন্ট
+       প্রগ্রেসের ঘর খালি দেখায়।"*
+
+       ─── 🔴 আসল কারণ (কোড ধরে মেপে পাওয়া) ─────────────────────────────
+       চেম্বারের Treatment Progress জমা হয় **ওই দিনের টাকার সারির `progress`
+       ঘরে** (V687-এ প্রমাণিত, V938-এ ডাক্তারের পথও একই)। ⇒ যে রোগী এসেছেন,
+       চিকিৎসা হয়েছে, কিন্তু **ওই দিনে এক টাকাও দেননি**, তাঁর একটাও টাকার
+       সারি নেই — তাই লেখাটা **রাখার জায়গাই নেই**। বোর্ড খোলা থাকতে পর্দায়
+       দেখায়, বন্ধ করে আবার খুললেই ফাঁকা।
+       ⛔ `followups.history` থেকে ফিরিয়ে আনার ব্যবস্থাটা **শুধু পুরনো তারিখে**
+          চলে, তাই একই দিনে বন্ধ-খোলায় কাজে লাগে না।
+
+       ─── সমাধান ─────────────────────────────────────────────────────────
+       তখন ওই দিনের জন্য একটা **শূন্য টাকার সারি** বসে, শুধু লেখাটা ধরে রাখতে।
+       ⛔ ধরন `attendance_mark` — প্রকল্পে **আগে থেকেই থাকা** সেই একই শূন্য-সারি
+          (V.. "Marked Arrived"), যেটা কোনো Fees/Payment যোগফলে **কখনো ধরা হয় না**
+          আর টাকার তালিকাতেও দেখানো হয় না (V549)। ⇒ নতুন কোনো ধরন বানানো হয়নি,
+          তাই কোনো হিসাব বা তালিকা বদলায় না।
+       ⛔ আইডি **তারিখ+নম্বর ধরে স্থির** (`prog_<নম্বর>_<তারিখ>`) — তাই একই দিনে
+          বারবার লিখলেও **একটাই সারি** হয়, কখনো দ্বিতীয় সারি বসে না।
+       ⛔ রোগী সত্যিই এসেছিলেন বলেই সারিটা বসে, তাই "arrived" চিহ্নেও কোনো
+          মিথ্যে যোগ হয় না।
+       ═══════════════════════════════════════════════════════════════════ */
+    fun buildProgressHolderRow(
+        mobile: String, name: String, branch: String, patientRowId: String,
+        dateKey: String, progress: String, staffMobile: String
+    ): JSONObject {
+        val now = isoNow()
+        val d10 = mobile.filter { it.isDigit() }.takeLast(10)
+        val day = dateKey.ifBlank { today() }
+        return JSONObject()
+            .put("id", "prog_" + d10 + "_" + day.replace("-", ""))
+            .put("payType", "attendance_mark")
+            .put("payLabel", "Marked Arrived")
+            .put("paymentLabel", "Marked Arrived")
+            .put("patientId", patientRowId)
+            .put("mobile", mobile)
+            .put("branch", branch)
+            .put("name", name)
+            .put("date", day)
+            .put("amount", 0.0)
+            .put("mode", "CASH")
+            .put("remarks", "Marked Arrived (Chamber Attendance)")
+            .put("progress", progress)
+            .put("receivedBy", staffMobile)
+            .put("createdBy", staffMobile)
+            .put("createdAt", now)
+            .put("updatedAt", now)
+    }
+
     /** TK-REQUESTED (2026-07-22): audit trail for a Total Bill correction.
      *  Same zero-amount "payments" row trick as buildAttendanceMarkRow --
      *  payType "bill_edit" NEVER adds to any Fees/Payment total and does not

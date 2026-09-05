@@ -2629,6 +2629,26 @@ Thread {
                     if (pid.isBlank()) continue
                     targets.add(pid)
                 }
+                /* 📝🔒 V1116 (TK-রিপোর্ট, অনুমোদিত) — **টাকা না দেওয়া রোগীর লেখাটাও
+                   এখন থেকে যায়।** ওই দিনে একটাও টাকার সারি না থাকলে লেখাটা
+                   রাখার জায়গা ছিল না, তাই চেম্বার বন্ধ করে খুললে ফাঁকা দেখাত।
+                   ⇒ তখন একটা **শূন্য টাকার সারি** বসে শুধু লেখাটা ধরে রাখতে
+                     (`buildProgressHolderRow` — বিস্তারিত ওখানে লেখা)।
+                   ⛔ টাকার সারি থাকলে এই ধাপটা চলেই না — আচরণ হুবহু আগের মতোই।
+                   ⛔ লেখা ফাঁকা হলে কিছুই বসে না। */
+                if (targets.isEmpty() && text.isNotBlank()) {
+                    try {
+                        val holder = PaymentModel.buildProgressHolderRow(
+                            mobile = row.mobile, name = row.name, branch = row.branch,
+                            patientRowId = mineRowId, dateKey = dayKey,
+                            progress = text, staffMobile = user.mobile
+                        )
+                        val ok = try { SupabaseClient.upsert("payments", holder) } catch (_: Throwable) { false }
+                        if (!ok) GenericUpdateQueue.queue(
+                            appCtx, "payments", holder.optString("id"),
+                            org.json.JSONObject().put("progress", text))
+                    } catch (_: Throwable) { }
+                }
                 // Same rows, sent together instead of one-by-one.
                 ParallelCloud.map(targets) { pid ->
                     /* 🔵🔒 V533 (২২.০৮.২০২৬, TK-সিদ্ধান্ত) — **স্টাফের লেখা Remark আর মুছবে না।**

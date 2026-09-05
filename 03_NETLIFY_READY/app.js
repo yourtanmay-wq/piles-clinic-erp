@@ -20764,7 +20764,34 @@ function wlv1SyncProgressToReportCard(m, rowId, txt, dayOverride){
       const owner=String(x.patientId||'').trim();
       return own ? (owner===own) : !wlv1IsDeclaredSeparateRowId(owner, m);
     });
-    if(!targets.length) return;
+    /* ═══════════════════════════════════════════════════════════════
+       📝🔒 V1116 (০৫.০৯.২০২৬, TK-রিপোর্ট, অনুমোদিত): *"চেম্বার বন্ধ করে
+       পুনরায় খুললে অনেক ট্রিটমেন্ট প্রগ্রেসের ঘর খালি দেখায়।"*
+       🔴 কারণ: লেখাটা জমা হয় **ওই দিনের টাকার সারির `progress` ঘরে**। যে
+          রোগী এসেছেন, চিকিৎসা হয়েছে, কিন্তু ওই দিনে **এক টাকাও দেননি**,
+          তাঁর একটাও টাকার সারি নেই ⇒ লেখাটা রাখার জায়গাই নেই।
+       ⇒ তখন একটা **শূন্য টাকার সারি** বসে শুধু লেখাটা ধরে রাখতে।
+       ⛔ ধরন `attendance_mark` — প্রকল্পে আগে থেকেই থাকা শূন্য-সারি, কোনো
+          যোগফলে ধরা হয় না, টাকার তালিকাতেও দেখায় না (V549)।
+       ⛔ আইডি তারিখ+নম্বর ধরে **স্থির**, তাই বারবার লিখলেও একটাই সারি।
+       ⛔ ফোনের `PaymentModel.buildProgressHolderRow`-এর হুবহু যমজ। */
+    if(!targets.length){
+      try{
+        if(String(txt||'').trim()){
+          var pt=(load('patients')||[]).find(function(x){return mob(x.mobile)===m})||{};
+          add('payments',{
+            id:'prog_'+m+'_'+day.replace(/-/g,''),
+            payType:'attendance_mark', payLabel:'Marked Arrived', paymentLabel:'Marked Arrived',
+            patientId: own||pt.id||'', mobile: normMob(pt.mobile||m), branch: pt.branch||(user&&user.branch)||'',
+            name: pt.name||'', date: day, amount: 0, mode:'CASH',
+            remarks:'Marked Arrived (Chamber Attendance)', progress: String(txt).trim(),
+            receivedBy:(user&&user.mobile)||'', createdBy:(user&&user.mobile)||'',
+            createdAt:isoNow(), updatedAt:isoNow()
+          });
+        }
+      }catch(_e){}
+      return;
+    }
     /* ⛔ ক্লাউডে পাঠানোর জন্য আলাদা কোনো ডাক লেখা হয়নি — `upd()` নিজেই
        ফোনে বসায় **আর** ক্লাউডে পাঠায় (প্রজেক্টের প্রমাণিত পথ, app.js:768)।
        আলাদা করে আবার পাঠালে একই সারি দুবার লেখা হত। */
