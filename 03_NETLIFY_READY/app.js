@@ -9909,6 +9909,21 @@ window["visitQueueRows"]=visitQueueRows;
    ⛔ নেট না থাকলে/ব্যর্থ হলে নিঃশব্দে বাদ; ৪৫ সেকেন্ডে একবারের বেশি নয়। */
 let __dqPullAt = 0;
 let __dqNoPhoto = new Set();   /* 🔵 V515: ক্লাউডেও ছবি নেই — এই পাতার মেয়াদে আর চাওয়া হবে না */
+/* 🔴🔒 V1087 (০৫.০৯.২০২৬, TK: *"এভাবে চলতে থাকলে ফ্রি প্ল্যানে কাজ হবে না"*)
+   ─── যে ফুটোটা ছিল (মেপে বার করা, আন্দাজ নয়) ─────────────────────────────
+   রোগীর টেবিল **১২ MB**, তার প্রায় পুরোটাই **ছবি** (লেখা মাত্র কয়েক KB)।
+   ব্রাউজার ১৮০ KB-র বড় ছবি নিজের কাছে **রাখে না** (`stripLargePhotos`),
+   অথচ নিচের ধাপ ২ "যাদের ছবি নেই" বলে ঠিক সেই ছবিগুলোই আবার চায় —
+   **প্রতি ৪৫ সেকেন্ডে, প্রতিটা খোলা কম্পিউটারে, সারাদিন**। অর্থাৎ একই বড়
+   ছবি দিনে শত শত বার নামত, অথচ পর্দায় কখনো দেখাতও না (সেভের সময় বাদ পড়ে)।
+   ─── সমাধান ──────────────────────────────────────────────────────────────
+   এই পাতার মেয়াদে যাদের ছবি **একবার চাওয়া হয়ে গেছে**, তাদের আর চাওয়া হয় না।
+   ⛔ পর্দায় কিছুই বদলায় না: যে ছবি আগে দেখাত সেটা এখনো দেখায় (একবার নেমে
+      সেভ হয়ে যায়), আর যে বড় ছবি আগেও দেখাত না সেটা এখনো দেখায় না —
+      শুধু বারবার নামা বন্ধ হলো।
+   ⛔ কোনো সারি যোগ/বাদ/বদল হয় না, কোনো আপলোড নেই, ক্লাউডের ছবি অটুট।
+   ⛔ পাতা নতুন করে খুললে তালিকা ফাঁকা হয়, তাই নতুন তোলা ছবি পরের বার আসে। */
+let __dqPhotoAsked = new Set();
 let __dqPulling = false;
 async function wlv1QueueCloudPull(){
   try{
@@ -9979,7 +9994,7 @@ async function wlv1QueueCloudPull(){
       try{ __picBase=visitQueueRows()||[] }catch(_e){ __picBase=[] }
       if(!__picBase.length) __picBase=rows;
       const need=[...new Set(__picBase.map(r=>r&&r.id).filter(id=>{
-        if(!id||__dqNoPhoto.has(id))return false;
+        if(!id||__dqNoPhoto.has(id)||__dqPhotoAsked.has(id))return false;   // 🔴 V1087
         const cur=stored.get(id);
         return !(cur&&cur.photo);
       }))];
@@ -9988,6 +10003,9 @@ async function wlv1QueueCloudPull(){
         for(let i=0;i<need.length;i+=200){
           const chunk=need.slice(i,i+200);
           const pr=await sb.from('patients').select('id,photo').in('id',chunk);
+          // 🔴 V1087 — চাওয়া হয়ে গেছে, তাই এই পাতার মেয়াদে আর চাওয়া হবে না
+          //    (সফল হোক বা না হোক — নইলে ব্যর্থতাতেও লুপ চলতেই থাকত)।
+          chunk.forEach(function(cid){ __dqPhotoAsked.add(cid); });
           if(pr&&!pr.error&&Array.isArray(pr.data)){
             pr.data.forEach(x=>{ if(x&&x.id){ if(x.photo)acc.push(x); else __dqNoPhoto.add(x.id); } });
           }else{ okAll=false; break; }
