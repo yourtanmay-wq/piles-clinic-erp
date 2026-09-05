@@ -87,14 +87,51 @@ object EstimateModel {
              একবারই বাদ যায়। কাটা দাগ আগের মতোই থাকে — সেটা শুধু দেখানোর।
            ⚠️ ফল: কোনো লাইন কাটা হলেও তার দাম যোগ হবে; টাকা কমাতে হলে
               **Discount ঘরে অঙ্কটা লিখতে হবে** — TK-এর বলা নিয়মই। */
-        val subtotal: Double get() = lines.sumOf { it.total }
+        /* ═══════════════════════════════════════════════════════════════
+           💰🔒 V1114 (০৫.০৯.২০২৬, TK-এর নিজের ছক, ফটো-প্রুফ পাশ) —
+           **কাগজের হিসাব এখন পাঁচ ধাপে**, TK যেভাবে লিখে দিয়েছেন:
 
-        /** শতাংশ হলে Subtotal-এর উপর হিসাব; কখনো Subtotal-এর বেশি নয়। */
+             ১. Grand Total                  ৩৯,০৭৮.৮০
+             ২. Cancelled Items Discount   − ৪,৩২৮.৮০
+             ৩. Amount After Item Discount   ৩৪,৭৫০.০০
+             ৪. Extra Discount (9%)        − ৩,১২৭.৫০
+             ৫. Net Payable Amount           ৩১,৬২২.৫০
+
+           TK: *"কাটা আইটেমগুলোও তালিকায় থাকবে, কিন্তু সেগুলোর মোট টাকা
+           অটোমেটিক Cancelled Items Discount হিসেবে বাদ যাবে। এরপর অবশিষ্ট
+           ₹34,750-এর ওপর আলাদাভাবে ৯% Discount হবে।"*
+
+           🔴 **আগে কী হত:** কাটা লাইনের টাকা `discount` ঘরের **ভিতরে** ঢুকিয়ে
+              দেওয়া হত (V1063/V1068), তাই কাগজে একটাই "Total Discount" লাইন
+              থাকত — কোনটা কাটা আইটেমের আর কোনটা TK-এর নিজের ছাড়, আলাদা করে
+              বোঝা যেত না। শতাংশও কষা হত **পুরো** Grand Total-এর উপর।
+           ⇒ এখন কাটা আইটেমের টাকা **নিজে থেকেই** আলাদা সারিতে বাদ যায়, আর
+             শতাংশ কষা হয় **কাটা বাদ দেওয়ার পরের** টাকার উপর — TK-এর ছক অনুযায়ী।
+           ⛔ কোনো লাইন মুছে যায় না — কাটা আইটেম কাগজে আগের মতোই দেখা যায়।
+           ⛔ পুরনো সেভ করা কাগজের টাকা এক পয়সাও বদলায় না — নিচের `parse()`-এ
+              পুরনো ছাড় থেকে কাটা টাকাটা ফিরিয়ে নেওয়া হয় (অঙ্ক কষে মেলানো:
+              পুরনো নেট = subtotal − discount; নতুন নেট = (subtotal − struck)
+              − (discount − struck) = হুবহু একই)।
+           ═══════════════════════════════════════════════════════════════ */
+        /** ১. সব লাইনের পুরো দাম (কাটা লাইনসুদ্ধ)। */
+        val grandTotal: Double get() = lines.sumOf { it.total }
+
+        /** ২. কাটা আইটেমগুলোর মোট — নিজে থেকেই বাদ যায়। */
+        val cancelledAmount: Double get() = lines.filter { it.struck }.sumOf { it.total }
+
+        /** ৩. কাটা বাদ দেওয়ার পরে যা থাকে। */
+        val afterItems: Double get() = (grandTotal - cancelledAmount).coerceAtLeast(0.0)
+
+        /** ⛔ পুরনো নাম — প্রকল্পের অন্য জায়গা এটাই ডাকে, তাই রাখা হলো। */
+        val subtotal: Double get() = grandTotal
+
+        /** ৪. TK-এর নিজের বাড়তি ছাড় — শতাংশ হলে **ধাপ ৩-এর** উপর কষা হয়। */
         val discountAmount: Double get() =
-            if (discountPct) (subtotal * discount / 100.0).coerceIn(0.0, subtotal)
-            else discount.coerceIn(0.0, subtotal)
+            if (discountPct) (afterItems * discount / 100.0).coerceIn(0.0, afterItems)
+            else discount.coerceIn(0.0, afterItems)
 
-        val netPayable: Double get() = (subtotal - discountAmount).coerceAtLeast(0.0)
+        /** ৫. শেষ পর্যন্ত যা দিতে হবে। */
+        val netPayable: Double get() = (afterItems - discountAmount).coerceAtLeast(0.0)
 
         /* 💰🔒 V1063 (০৪.০৯.২০২৬, TK-নির্দেশ: *"কাটলেই টাকাটা নিজে থেকে
            Discount-এ বসে যাক"*) — লাইন কাটলে/ফেরালে ছাড়ের **ঘরের অঙ্কটাই**
@@ -102,7 +139,19 @@ object EstimateModel {
            ⛔ শতাংশে থাকলে আগে ওই শতাংশটা টাকায় বদলে নেওয়া হয় (অঙ্ক এক থাকে),
               তারপর যোগ — নইলে টাকা ও শতাংশ মিশে ভুল হত।
            ⛔ ছাড় কখনো ঋণাত্মক হয় না; ফেরালে ঠিক ওই অঙ্কটুকুই কমে। */
+        /* 💰🔒 V1114 — **এটা এখন ছাড়ের ঘরে আর হাত দেয় না।** কাটা আইটেমের
+           টাকা উপরের `cancelledAmount` থেকে নিজে থেকেই বেরোয়, তাই ছাড়ের
+           ভিতরে ঢোকানোর দরকার ফুরিয়েছে (V1063/V1068-এর কাজটা এখন
+           স্বয়ংক্রিয়)। ⛔ TK-এর নিজের বাড়তি ছাড়টা অটুট থাকে — লাইন কাটলে
+           বা কাটা তুললে সেটা আর বদলায় না, যেটা আগে বদলে যেত।
+           ⛔ ফাংশনটা মোছা হয়নি — প্রকল্পের ডাকগুলো আগের মতোই চলে, আর
+              `struckAmt` ঘরটাও ভরা থাকে (পুরনো কাগজ মেলানোর কাজে লাগে)। */
         fun onStrikeToggled(line: Line, nowStruck: Boolean) {
+            line.struckAmt = if (nowStruck) line.total else 0.0
+        }
+
+        @Suppress("unused")
+        private fun onStrikeToggledOld(line: Line, nowStruck: Boolean) {
             if (discountPct) {
                 discount = (subtotal * discount / 100.0).coerceIn(0.0, subtotal)
                 discountPct = false
@@ -130,6 +179,11 @@ object EstimateModel {
                 /* 🔒 V1064 — এই কাগজটা **নতুন নিয়মে** তৈরি, তাই খোলার সময় আর
                    পুরনো-হিসাব-মেলানো লাগবে না (নিচের `parse()` দেখুন)। */
                 .put("strikeInDiscount", true)
+                /* 💰🔒 V1114 — এই কাগজটা **নতুন পাঁচ-ধাপের নিয়মে** তৈরি:
+                   কাটা আইটেমের টাকা ছাড়ের ঘরে **নেই**, আলাদা হিসাব হয়।
+                   ⛔ চিহ্নটা না থাকলে `parse()` পুরনো কাগজ ধরে নিয়ে ছাড় থেকে
+                      কাটা টাকাটা ফিরিয়ে নেয় — তাই টাকা এক পয়সাও বদলায় না। */
+                .put("cancelledSeparate", true)
                 .put("finding", finding)
         }
     }
@@ -178,6 +232,28 @@ object EstimateModel {
                     }
                     s.discount = (s.discount + struckTotal).coerceAtLeast(0.0)
                 }
+            }
+            /* ═══════════════════════════════════════════════════════════════
+               💰🔴🔒 V1114 — **পুরনো কাগজের টাকা যেন এক পয়সাও না বদলায়।**
+               উপরের ধাপ পর্যন্ত `discount` ঘরে কাটা আইটেমের টাকাও ঢোকানো
+               আছে (পুরনো নিয়ম)। নতুন নিয়মে কাটা টাকাটা **নিজে থেকেই** বাদ
+               যায় ⇒ কিছু না করলে সেটা **দুবার** বাদ যেত, রোগীর পুরনো কাগজের
+               Net Payable কমে যেত।
+               ⇒ তাই ঠিক ওই টাকাটুকুই ছাড় থেকে ফিরিয়ে নেওয়া হয়।
+               অঙ্ক মিলিয়ে দেখা: পুরনো নেট = মোট − ছাড়;
+               নতুন নেট = (মোট − কাটা) − (ছাড় − কাটা) = **হুবহু একই**।
+               ⛔ যোগ হয়েছিল ঠিক যতটা, ফেরানো হয় ততটাই (`struckAmt`) — মাঝে
+                  দাম বদলালেও ভুল হয় না।
+               ⛔ নতুন কাগজে `cancelledSeparate` চিহ্নটা থাকে, তাই এই ধাপটা
+                  আর চলে না — দুবার ফেরানোর পথ নেই।
+               ⛔ পুরনো নিয়মে কোনো লাইন কাটা থাকলে ছাড় সবসময় **টাকায়** থাকত
+                  (`onStrikeToggledOld` শতাংশকে টাকায় বদলে দিত), তাই এখানে
+                  শতাংশ নিয়ে আলাদা কিছু করার নেই।
+               ═══════════════════════════════════════════════════════════════ */
+            if (!o.optBoolean("cancelledSeparate", false)) {
+                val back = s.lines.filter { it.struck }
+                    .sumOf { if (it.struckAmt > 0.0) it.struckAmt else it.total }
+                if (back > 0.0) s.discount = (s.discount - back).coerceAtLeast(0.0)
             }
         } catch (_: Throwable) { }
         return s

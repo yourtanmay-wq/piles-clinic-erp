@@ -27705,7 +27705,7 @@ function wlv1EstShort(v){ v=Number(v||0); return (v===Math.floor(v))?v.toLocaleS
 
 var wlv1EstSheet={lines:[],discount:0,discountPct:false,finding:'',strikeInDiscount:true};
 function wlv1EstLoad(){
-  try{ var raw=window.__wlv1EstJson||''; if(!raw){ wlv1EstSheet={lines:[],discount:0,discountPct:false,finding:'',strikeInDiscount:true}; return }
+  try{ var raw=window.__wlv1EstJson||''; if(!raw){ wlv1EstSheet={lines:[],discount:0,discountPct:false,finding:'',strikeInDiscount:true,cancelledSeparate:true}; return }
     var o=JSON.parse(raw);
     wlv1EstSheet={lines:(o.lines||[]).map(function(l){return{name:l.name||'',measure:l.measure||'',position:l.position||'',rate:Number(l.rate||0),qty:Number(l.qty||1),struck:!!l.struck,struckAmt:Number(l.struckAmt||0)}}),   /* 🔒 V1068 */
       discount:Number(o.discount||0),discountPct:!!o.discountPct,finding:String(o.finding||''),
@@ -27732,20 +27732,44 @@ function wlv1EstLoad(){
       }
       wlv1EstSheet.strikeInDiscount=true;
     }
-  }catch(e){ wlv1EstSheet={lines:[],discount:0,discountPct:false,finding:'',strikeInDiscount:true} }
+    /* 💰🔴🔒 V1114 — **পুরনো কাগজের টাকা যেন এক পয়সাও না বদলায়।** উপরের ধাপ
+       পর্যন্ত `discount` ঘরে কাটা আইটেমের টাকাও ঢোকানো আছে (পুরনো নিয়ম)।
+       নতুন নিয়মে কাটা টাকা নিজে থেকেই বাদ যায় ⇒ কিছু না করলে দুবার বাদ যেত।
+       ⇒ ঠিক ওই টাকাটুকুই ছাড় থেকে ফিরিয়ে নেওয়া হয়।
+       অঙ্ক: পুরনো নেট = মোট − ছাড়; নতুন নেট = (মোট − কাটা) − (ছাড় − কাটা)
+       = **হুবহু একই**। ⛔ ফোনের `EstimateModel.parse()`-এর হুবহু যমজ। */
+    if(!o.cancelledSeparate){
+      var back=wlv1EstSheet.lines.filter(function(l){return l.struck})
+        .reduce(function(n,l){return n+(Number(l.struckAmt||0)>0?Number(l.struckAmt):Number(l.rate||0)*Number(l.qty||0))},0);
+      if(back>0) wlv1EstSheet.discount=Math.max(0,Number(wlv1EstSheet.discount||0)-back);
+    }
+    wlv1EstSheet.cancelledSeparate=true;
+  }catch(e){ wlv1EstSheet={lines:[],discount:0,discountPct:false,finding:'',strikeInDiscount:true,cancelledSeparate:true} }
 }
 /* 💰🔴🔒 V1062 (TK-নির্দেশ) — Subtotal এখন **সব লাইনের পুরো দাম** (কাটা লাইনসুদ্ধ),
    ছাড় একবারই বাদ যায়। আগে কাটা লাইন বাদ **আর** ছাড়ও বাদ হত ⇒ একই ছাড় দুবার।
    ⛔ ফোনের `EstimateModel.Sheet.subtotal`-এর হুবহু একই নিয়ম (নিয়ম ৬.৬)। */
-function wlv1EstSubtotal(){ return wlv1EstSheet.lines.reduce(function(n,l){return n+Number(l.rate||0)*Number(l.qty||0)},0) }
+/* 💰🔒 V1114 (০৫.০৯.২০২৬, TK-এর নিজের ছক, ফটো-প্রুফ পাশ) — কাগজের হিসাব এখন পাঁচ ধাপে:
+   Grand Total → Cancelled Items Discount → Amount After Item Discount →
+   Extra Discount (%) → Net Payable। কাটা আইটেমের টাকা **নিজে থেকেই** আলাদা
+   সারিতে বাদ যায়, আর শতাংশ কষা হয় **কাটা বাদ দেওয়ার পরের** টাকার উপর।
+   ⛔ ফোনের `EstimateModel`-এর হুবহু একই নিয়ম। */
+function wlv1EstGrand(){ return wlv1EstSheet.lines.reduce(function(n,l){return n+Number(l.rate||0)*Number(l.qty||0)},0) }
+function wlv1EstCancelled(){ return wlv1EstSheet.lines.reduce(function(n,l){return n+(l.struck?Number(l.rate||0)*Number(l.qty||0):0)},0) }
+function wlv1EstAfterItems(){ return Math.max(0, wlv1EstGrand()-wlv1EstCancelled()) }
+window["wlv1EstGrand"]=wlv1EstGrand; window["wlv1EstCancelled"]=wlv1EstCancelled;
+window["wlv1EstAfterItems"]=wlv1EstAfterItems;
+/* ⛔ পুরনো নাম — প্রকল্পের অন্য জায়গা এটাই ডাকে, তাই রাখা হলো। */
+function wlv1EstSubtotal(){ return wlv1EstGrand() }
 /* 💰🔒 V980 (০২.০৯.২০২৬, TK-নির্দেশ) — *"ডিসকাউন্ট আমি চাইলে ফিক্সড এমাউন্ট
    দিতে পারি, আমি চাইলে পার্সেন্টেজ হিসাবেও দিতে পারি"*। ফোনের হুবহু জোড়া। */
+/* 💰 V1114 — TK-এর বাড়তি ছাড়; শতাংশ হলে **কাটা বাদ দেওয়ার পরের** টাকার উপর। */
 function wlv1EstDiscAmt(){
-  var sub=wlv1EstSubtotal(), d=Number(wlv1EstSheet.discount||0);
-  var v=wlv1EstSheet.discountPct ? (sub*d/100) : d;
-  return Math.max(0, Math.min(v, sub));
+  var base=wlv1EstAfterItems(), d=Number(wlv1EstSheet.discount||0);
+  var v=wlv1EstSheet.discountPct ? (base*d/100) : d;
+  return Math.max(0, Math.min(v, base));
 }
-function wlv1EstNet(){ return Math.max(0, wlv1EstSubtotal()-wlv1EstDiscAmt()) }
+function wlv1EstNet(){ return Math.max(0, wlv1EstAfterItems()-wlv1EstDiscAmt()) }   /* 💰 V1114 */
 window["wlv1EstDiscAmt"]=wlv1EstDiscAmt;
 function wlv1EstDiscMode(){ wlv1EstSheet.discountPct=!wlv1EstSheet.discountPct; wlv1EstRender() }
 window["wlv1EstDiscMode"]=wlv1EstDiscMode;
@@ -27852,20 +27876,13 @@ function wlv1EstLineDrop(i){ wlv1EstSheet.lines.splice(i,1); closeModal(); wlv1E
    ছাড় হলো, আর টাকা **একবারই** বাদ যায়।
    ⛔ শতাংশে থাকলে আগে ওই শতাংশটা টাকায় বদলে নেওয়া হয় (অঙ্ক এক থাকে), তারপর যোগ।
    ⛔ ফোনের `Sheet.onStrikeToggled()`-এর হুবহু একই নিয়ম (নিয়ম ৬.৬)। */
+/* 💰🔒 V1114 — **এটা এখন ছাড়ের ঘরে আর হাত দেয় না।** কাটা আইটেমের টাকা
+   `wlv1EstCancelled()` থেকে নিজে থেকেই বেরোয় (V1068-এর কাজটা এখন স্বয়ংক্রিয়)।
+   ⛔ TK-এর নিজের বাড়তি ছাড় অটুট থাকে — লাইন কাটলে বা কাটা তুললে আর বদলায় না।
+   ⛔ ফাংশনটা মোছা হয়নি, `struckAmt`-ও ভরা থাকে (পুরনো কাগজ মেলাতে লাগে)।
+   ⛔ ফোনের `onStrikeToggled`-এর হুবহু যমজ। */
 function wlv1EstStruckSync(l, nowStruck){
-  try{
-    if(wlv1EstSheet.discountPct){
-      var sub=wlv1EstSubtotal();
-      wlv1EstSheet.discount = Math.max(0, Math.min(sub*Number(wlv1EstSheet.discount||0)/100, sub));
-      wlv1EstSheet.discountPct = false;
-    }
-    /* 🔒 V1068 — যোগ হয় **এখনকার** দাম, আর কমে **যা যোগ হয়েছিল ঠিক সেটুকুই**
-       (`struckAmt`) — মাঝে দাম/সংখ্যা বদলালেও ছাড়ে বাড়তি টাকা থেকে যায় না। */
-    var amt = Number(l.rate||0)*Number(l.qty||0);
-    if(nowStruck){ l.struckAmt = amt; wlv1EstSheet.discount = Math.max(0, Number(wlv1EstSheet.discount||0) + amt); }
-    else { var back = Number(l.struckAmt||0) > 0 ? Number(l.struckAmt) : amt; l.struckAmt = 0;
-           wlv1EstSheet.discount = Math.max(0, Number(wlv1EstSheet.discount||0) - back); }
-  }catch(e){}
+  try{ l.struckAmt = nowStruck ? (Number(l.rate||0)*Number(l.qty||0)) : 0; }catch(e){}
 }
 function wlv1EstStrike2(i){ var l=wlv1EstSheet.lines[i]; if(l){ l.struck=!l.struck; wlv1EstStruckSync(l,l.struck); } closeModal(); wlv1EstRender() }
 /* 💸🔒 V1113 (TK-রিপোর্ট: *"বুঝতেই পারলাম না পার্সেন্টেজ কত দিব"* · TK-সিদ্ধান্ত:
@@ -28145,6 +28162,9 @@ function wlv1EstPaperHtml(editable){
   var phone=cfg?cfg.mobile:'';
   /* 🖥️ V982 (TK-নির্দেশ) — `editable` হলে হলুদ ঘর ও চাপ দেওয়ার
      লিঙ্ক বসে; ছাপা ও শেয়ারে ফ্যাগটা থাকে না ⇒ কাগজ হুবহু আগের মতো। */
+  /* 📍 V1114 (TK-নির্দেশ) — একটাও লাইনে অবস্থান না থাকলে Position কলমটাই বসে না;
+     থাকলে কলম থাকে, আর যে লাইনে নেই সেখানে ফাঁকা (আগের "—" দাঁতটা আর নয়)। */
+  var showPos=wlv1EstSheet.lines.some(function(l){return String(l.position||'').trim()!==''});
   var rows=wlv1EstSheet.lines.map(function(l,i){
     var cls=l.struck?' class="free"':'';
     var amt=l.struck?' class="r amt"':' class="r"';
@@ -28154,21 +28174,22 @@ function wlv1EstPaperHtml(editable){
     var a0=editable?'<a class="tap" href="est://line/'+i+'">':'';
     var e0=editable?'<a class="ed" href="est://line/'+i+'">':'';
     var a1=editable?'</a>':'';
-    return '<tr'+cls+'><td>'+a0+label+a1+'</td><td class="k">'+a0+(l.position?esc(l.position):'&mdash;')+a1+'</td>'
+    return '<tr'+cls+'><td>'+a0+label+a1+'</td>'
+      +(showPos?('<td class="k">'+a0+esc(l.position||'')+a1+'</td>'):'')
       +'<td class="r">'+e0+wlv1EstMoney(l.rate)+a1+'</td><td class="r">'+e0+wlv1EstShort(l.qty)+a1+'</td>'
       +'<td'+amt+'>'+wlv1EstMoney(Number(l.rate||0)*Number(l.qty||0))+'</td></tr>';
   }).join('');
   if(editable && !wlv1EstSheet.lines.length){
-    rows='<tr><td colspan="5" class="k" style="text-align:center;padding:16px 0">No item added yet &mdash; use the buttons at the top.</td></tr>';
+    rows='<tr><td colspan="'+(showPos?5:4)+'" class="k" style="text-align:center;padding:16px 0">No item added yet &mdash; use the buttons at the top.</td></tr>';
   }
   /* 💰 V980 — শতাংশে দিলে কাগজেও "(20%)" লেখা থাকে। */
   var discLbl = (wlv1EstSheet.discountPct && Number(wlv1EstSheet.discount||0)>0)
-    ? ('Total Discount ('+wlv1EstShort(wlv1EstSheet.discount)+'%)') : 'Total Discount';
+    ? ('Extra Discount ('+wlv1EstShort(wlv1EstSheet.discount)+'%)') : 'Extra Discount';   /* 💰 V1114 */
   var d0=editable?'<a class="ed" href="est://discount">':'', d1=editable?'</a>':'';
   /* 💸 V986 — ছাড় শূন্য হলে কাগজে লাইনটাই নেই; পর্দায় শুধু "Add discount"। */
   var disc = (wlv1EstDiscAmt()>0)
     ? '<div><span class="lbl">'+discLbl+'</span><span class="disc">&minus; '+d0+wlv1EstMoney(wlv1EstDiscAmt())+d1+'</span></div>'
-    : (editable ? '<div><span class="lbl">Discount</span><span class="disc">'+d0+'Add discount'+d1+'</span></div>' : '');
+    : (editable ? '<div><span class="lbl">Extra Discount</span><span class="disc">'+d0+'Add discount'+d1+'</span></div>' : '');
   var ageSex=[String(p.age||''),String(p.sex||'')].filter(Boolean).join(' / ')||'-';
   var dt=wlv1Dot(today());
   return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Estimate</title><style>'
@@ -28198,6 +28219,7 @@ function wlv1EstPaperHtml(editable){
    +'.sumbox{width:300px;border:1px solid #d5ddd7;border-radius:4px;overflow:hidden}'
    +'.sumbox div{display:flex;justify-content:space-between;padding:6px 12px;font-size:11.5px;font-family:Arial;border-bottom:1px solid #f0f3f1}'
    +'.sumbox div:last-child{border-bottom:0}.sumbox .lbl{color:#6b7680}'
+   +'.sumbox .mid{background:#f7faf8;font-weight:700;color:#22303f}'   /* 💰 V1114 */
    +'.sumbox .net{background:#0f5132;color:#fff;font-weight:800;font-size:13px;padding:9px 12px}'
    +'.disc{color:#B42318;font-weight:700}'
    +'.small{font-size:10px;color:#6b7680;font-style:italic;padding:8px 2px 0;font-family:Arial}'
@@ -28222,9 +28244,16 @@ function wlv1EstPaperHtml(editable){
    +'<div class="c"><div class="r"><b>Mobile</b> : '+esc(normMob(p.mobile||''))+'</div>'
    +'<div class="r"><b>Branch</b> : '+esc(br)+'</div><div class="r"><b>Address</b> : <span style="display:inline-block;vertical-align:top">'+wlv1AddrTwo(p.address||'-')+'</span></div></div></div>'   /* 🏠 V1008 — গ্রাম+পোস্ট এক লাইনে, থানা+জেলা পরের লাইনে (ফোনের হুবহু যমজ) */
    +'<div class="wrap"><div class="sec"><div class="sh">COST BREAKDOWN</div>'
-   +'<table><thead><tr><th>Treatment / Item</th><th>Position</th><th class="r">Rate (&#8377;)</th><th class="r">Qty</th><th class="r">Total (&#8377;)</th></tr></thead>'
+   +'<table><thead><tr><th>Treatment / Item</th>'+(showPos?'<th>Position</th>':'')+'<th class="r">Rate (&#8377;)</th><th class="r">Qty</th><th class="r">Total (&#8377;)</th></tr></thead>'
    +'<tbody>'+rows+'</tbody></table></div>'
-   +'<div class="sum"><div class="sumbox"><div><span class="lbl">Subtotal</span><span>'+wlv1EstMoney(wlv1EstSubtotal())+'</span></div>'
+   /* 💰 V1114 — TK-এর পাঁচ ধাপ: Grand Total → Cancelled Items Discount →
+      Amount After Item Discount → Extra Discount → Net Payable।
+      ⛔ কাটা আইটেম না থাকলে মাঝের দুটো সারি বসেই না (কাগজ আগের মতোই)। */
+   +'<div class="sum"><div class="sumbox"><div><span class="lbl">Grand Total</span><span>'+wlv1EstMoney(wlv1EstGrand())+'</span></div>'
+   +(wlv1EstCancelled()>0
+      ? ('<div><span class="lbl">Cancelled Items Discount</span><span class="disc">&minus; '+wlv1EstMoney(wlv1EstCancelled())+'</span></div>'
+        +'<div class="mid"><span>Amount After Item Discount</span><span>'+wlv1EstMoney(wlv1EstAfterItems())+'</span></div>')
+      : '')
    +disc+'<div class="net"><span>Net Payable Amount</span><span>'+wlv1EstMoney(wlv1EstNet())+'</span></div></div></div>'
    +'<div class="small">* This estimate is indicative and based on the initial clinical presentation. The net payable amount may vary.</div></div>'
    +'<div class="foot"><div class="sign"><div class="ln"><b>TK BISWAS</b><small>Founder &amp; Consultant</small></div>'

@@ -60,6 +60,13 @@ object EstimateHtmlPrint {
         editable: Boolean = false
     ): String {
         val b = BranchCatalog.byName(branch)
+        /* 📍🔒 V1114 (০৫.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ): *"পজিশন যদি সব
+           ব্ল্যাঙ্ক থাকে তাহলে ওই কলমটা রাখারই দরকার নেই। যেখানে অবস্থান থাকবে
+           তখন সেই কলমে কিছু লেখা থাকবে, কিন্তু ফাঁকা দাঁত থাকবে না।"*
+           ⇒ একটাও লাইনে অবস্থান না থাকলে কলমটাই বসে না; থাকলে কলম থাকে, আর
+             যে লাইনে নেই সেখানে **ফাঁকা** (আগের "—" দাঁতটা আর নয়)।
+           ⛔ টাকার কিছুই বদলায় না — শুধু কাগজের চেহারা। */
+        val showPos = sheet.lines.any { it.position.isNotBlank() }
         val rows = StringBuilder()
         for ((i, l) in sheet.lines.withIndex()) {
             val cls = if (l.struck) " class=\"free\"" else ""
@@ -77,15 +84,17 @@ object EstimateHtmlPrint {
             val aEnd = if (editable) "</a>" else ""
             rows.append("<tr").append(cls).append(">")
                 .append("<td>").append(aOpen).append(label).append(aEnd).append("</td>")
-                .append("<td class=\"k\">").append(aOpen)
-                .append(if (l.position.isBlank()) "&mdash;" else esc(l.position)).append(aEnd).append("</td>")
+            if (showPos) rows.append("<td class=\"k\">").append(aOpen)
+                .append(esc(l.position)).append(aEnd).append("</td>")
+            rows
                 .append("<td class=\"r\">").append(eOpen).append(EstimateModel.money(l.rate)).append(aEnd).append("</td>")
                 .append("<td class=\"r\">").append(eOpen).append(EstimateModel.moneyShort(l.qty)).append(aEnd).append("</td>")
                 .append("<td").append(amtCls).append(">").append(EstimateModel.money(l.total)).append("</td>")
                 .append("</tr>")
         }
         if (editable && sheet.lines.isEmpty()) {
-            rows.append("<tr><td colspan=\"5\" class=\"k\" style=\"text-align:center;padding:16px 0\">")
+            rows.append("<tr><td colspan=\"").append(if (showPos) 5 else 4)
+                .append("\" class=\"k\" style=\"text-align:center;padding:16px 0\">")
                 .append("No item added yet &mdash; use the buttons at the top.</td></tr>")
         }
         val findingBlock = if (sheet.finding.isBlank()) "" else
@@ -93,7 +102,7 @@ object EstimateHtmlPrint {
 <div class="note">${esc(sheet.finding)}</div></div>"""
         /* 💰 V980 (TK-নির্দেশ) — শতাংশে দিলে কাগজেও "(20%)" লেখা থাকে। */
         val discLabel = if (sheet.discountPct && sheet.discount > 0.0)
-            "Total Discount (" + EstimateModel.moneyShort(sheet.discount) + "%)" else "Total Discount"
+            "Extra Discount (" + EstimateModel.moneyShort(sheet.discount) + "%)" else "Extra Discount"
         val discOpen = if (editable) "<a class=\"ed\" href=\"est://discount\">" else ""
         val discEnd = if (editable) "</a>" else ""
         /* 💸🔒 V986 (TK-রিপোর্ট: ছাড় শূন্য হলেও "Total Discount − 0.00" বসত)।
@@ -101,9 +110,16 @@ object EstimateHtmlPrint {
              একটা ছোট জায়গা থাকে, যাতে চাপ দিয়ে ছাড় বসানো যায়। */
         val discountRow = if (sheet.discountAmount <= 0.0 && !editable) "" else
             if (sheet.discountAmount <= 0.0)
-                """<div><span class="lbl">Discount</span><span class="disc">${discOpen}Add discount$discEnd</span></div>"""
+                """<div><span class="lbl">Extra Discount</span><span class="disc">${discOpen}Add discount$discEnd</span></div>"""
             else
                 """<div><span class="lbl">$discLabel</span><span class="disc">&minus; $discOpen${EstimateModel.money(sheet.discountAmount)}$discEnd</span></div>"""
+        /* 💰🔒 V1114 (TK-এর নিজের ছক, ফটো-প্রুফ পাশ) — কাটা আইটেমের টাকা এখন
+           **নিজের আলাদা সারিতে** বাদ যায়, আর তার নিচে "কত রইল" সেটাও দেখানো
+           হয়। তারপর TK-এর বাড়তি ছাড়। ⛔ কাটা আইটেম না থাকলে এই দুটো সারি
+           বসেই না — তখন কাগজ হুবহু আগের মতোই দেখায়। */
+        val cancelledRows = if (sheet.cancelledAmount <= 0.0) "" else
+            """<div><span class="lbl">Cancelled Items Discount</span><span class="disc">&minus; ${EstimateModel.money(sheet.cancelledAmount)}</span></div>
+<div class="mid"><span>Amount After Item Discount</span><span>${EstimateModel.money(sheet.afterItems)}</span></div>"""
 
         return """<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=794">
 <style>
@@ -152,6 +168,7 @@ tbody tr:last-child td{border-bottom:0;}
 .sumbox div{display:flex;justify-content:space-between;padding:6px 12px;font-size:11.5px;font-family:Arial;border-bottom:1px solid #f0f3f1;}
 .sumbox div:last-child{border-bottom:0;}
 .sumbox .lbl{color:#6b7680;}
+.sumbox .mid{background:#f7faf8;font-weight:700;color:#22303f;}   /* 💰 V1114 */
 .sumbox .net{background:#0f5132;color:#fff;font-weight:800;font-size:13px;padding:9px 12px;}
 .disc{color:#B42318;font-weight:700;}
 .small{font-size:10px;color:#6b7680;font-style:italic;padding:8px 2px 0;font-family:Arial;}
@@ -184,10 +201,11 @@ a{color:inherit;text-decoration:none;}
 <div class="wrap">
 $findingBlock
 <div class="sec"><div class="sh">COST BREAKDOWN</div>
-<table><thead><tr><th>Treatment / Item</th><th>Position</th><th class="r">Rate (&#8377;)</th><th class="r">Qty</th><th class="r">Total (&#8377;)</th></tr></thead>
+<table><thead><tr><th>Treatment / Item</th>${if (showPos) "<th>Position</th>" else ""}<th class="r">Rate (&#8377;)</th><th class="r">Qty</th><th class="r">Total (&#8377;)</th></tr></thead>
 <tbody>$rows</tbody></table></div>
 <div class="sum"><div class="sumbox">
-<div><span class="lbl">Subtotal</span><span>${EstimateModel.money(sheet.subtotal)}</span></div>
+<div><span class="lbl">Grand Total</span><span>${EstimateModel.money(sheet.grandTotal)}</span></div>
+$cancelledRows
 $discountRow
 <div class="net"><span>Net Payable Amount</span><span>${EstimateModel.money(sheet.netPayable)}</span></div>
 </div></div>
