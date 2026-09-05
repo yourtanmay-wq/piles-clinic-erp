@@ -20495,7 +20495,11 @@ function wlv1ChamberRefByLabel(r){
   return isDoc ? 'Ref By: RMP' : '';
 }
 window["wlv1ChamberRefByLabel"]=wlv1ChamberRefByLabel;
-function wlv1ChamberRowHtml(r){
+/* 🔢🔒 V1117 (০৫.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ "ক" পাশ) — নামের আগে ওই দিনের
+   সিরিয়াল নম্বর। ⛔ ক্রম নতুন করে বানানো হয়নি — তালিকা আগে থেকেই আসার সময়
+   ধরে সাজানো; এখানে শুধু গোনা হয়। ⛔ নম্বর পান শুধু যাঁরা এসেছেন।
+   ⛔ ফোনের `ChamberAttendanceAdapter`-এর হুবহু একই নিয়ম। */
+function wlv1ChamberRowHtml(r, __sn){
   // 🔒 V217 (§B216): আগে শুধু >0 হলেই সংখ্যা দেখাত, নইলে "—"। এখন refund-এর
   // পরে কোনো দিন cash/online ঋণাত্মক হতে পারে (শুধু ওই দিন refund হলে) —
   // সেটাও যেন "—" হয়ে লুকিয়ে না যায়, আসল সংখ্যা (ঋণচিহ্নসহ) দেখাবে।
@@ -20557,7 +20561,7 @@ function wlv1ChamberRowHtml(r){
   const refByTxt = wlv1ChamberRefByLabel(r);
   const refByLine = refByTxt
     ? `<div class="wlv1CbId" style="color:#B42318;font-weight:bold">${esc(refByTxt)}</div>` : '';
-  const patientBox = `<div class="wlv1CbPat" onclick="wlv1ChamberPatientChoices('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')" oncontextmenu="event.preventDefault();copyToClipboard('${esc([r.name,r.mobile,r.patientId].filter(Boolean).join(' | '))}');return false;" style="cursor:pointer"><div class="wlv1CbName${refByTxt?' wlv1CbRmp':''}" onclick="event.stopPropagation();wlv1ChamberPatientChoices('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')" oncontextmenu="event.preventDefault();event.stopPropagation();copyToClipboard('${esc(r.name||'')}');return false;">${esc(String(r.name||r.mobile).toUpperCase())}</div><div class="wlv1CbMob" onclick="event.stopPropagation();contact('${esc(r.mobile)}','call')" oncontextmenu="event.preventDefault();event.stopPropagation();copyToClipboard('${esc(shownMob(r.mobile))}');return false;">${esc(shownMob(r.mobile))}</div>${idLine}${refByLine}</div>`;
+  const patientBox = `<div class="wlv1CbPat" onclick="wlv1ChamberPatientChoices('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')" oncontextmenu="event.preventDefault();copyToClipboard('${esc([r.name,r.mobile,r.patientId].filter(Boolean).join(' | '))}');return false;" style="cursor:pointer"><div class="wlv1CbName${refByTxt?' wlv1CbRmp':''}" onclick="event.stopPropagation();wlv1ChamberPatientChoices('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')" oncontextmenu="event.preventDefault();event.stopPropagation();copyToClipboard('${esc(r.name||'')}');return false;">${(Number(__sn)>0?(Number(__sn)+' \u00b7 '):'')}${esc(String(r.name||r.mobile).toUpperCase())}</div><div class="wlv1CbMob" onclick="event.stopPropagation();contact('${esc(r.mobile)}','call')" oncontextmenu="event.preventDefault();event.stopPropagation();copyToClipboard('${esc(shownMob(r.mobile))}');return false;">${esc(shownMob(r.mobile))}</div>${idLine}${refByLine}</div>`;
   /* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬: "সব কিছু Android এর মত হোক") — ফোনে
      এই তিনটে ঘরে **চাপ দিলেই** কাজ হয় (ChamberAttendanceAdapter.kt:176-180):
      · TREATMENT PROGRESS → আজকের চিকিৎসার কথা লেখা/বদলানোর বাক্স
@@ -20987,7 +20991,7 @@ function chamberAttendance(){
       <div class="wlv1CbPat">PATIENT</div><div class="wlv1CbTreat">TREATMENT PROGRESS</div>
       ${money?'<div class="wlv1CbFee">FEES</div><div class="wlv1CbCash">CASH</div><div class="wlv1CbOnline">ONLINE</div>':''}
     </div>
-    ${shown.map(wlv1ChamberRowHtml).join('') || (__cbAsk?wlv1BranchAskCard():`<div class="card mut">${__emptyText}</div>`)}
+    ${(function(){var n=0;return shown.map(function(x){return wlv1ChamberRowHtml(x, x&&x.arrived?(++n):0)}).join('')})() || (__cbAsk?wlv1BranchAskCard():`<div class="card mut">${__emptyText}</div>`)}
     <!-- 🔴 V430 — বিগত দিনের সেভ করা রেজিস্টার আবার দেখা/ছাপার বোতাম
          (ফোনে আছে: activity_chamber_attendance.xml:299-323)। -->
     ${(__past && arrived.length)?`<div class="wlv1CbBtns wlv1CbPastRow">
