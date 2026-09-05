@@ -1535,6 +1535,29 @@
                     <LinearLayout android:id="@+id/investigationGroup" android:visibility="gone" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" />
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
+
+            <!-- 🟢🔒 V1119 (০৫.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ — "পাশ, বসিয়ে দিন") —
+                 TK: *"যেগুলো সেভ হয়ে যাবে সেগুলো নিচে থাকবে, কিন্তু সবগুলো একটার
+                 মধ্যে থাকবে — যেখানে চাপ দিলে তখন সেগুলো ওপেন হবে"*
+                 ⇒ ভরা-এবং-বন্ধ ধাপগুলো এই একটাই বাক্সে নেমে আসে; মাথায় কতগুলো
+                 তার সবুজ ব্যাজ; চাপ দিলে ভিতরেরগুলো খোলে (ফিকে, কিন্তু আগের
+                 মতোই সব করা যায়)।
+                 ⛔ এটা শুধু একটা **খালি মোড়ক** — ভিতরে কোনো নতুন ঘর/লেখা/সেভ নেই।
+                    ধাপের কার্ডগুলোই কোড থেকে এর ভিতরে-বাইরে যাওয়া-আসা করে, তাই
+                    `findViewById` · `lockSection` · সেভ — সব আগের মতোই চলে।
+                 ⛔ শুরুতে `gone` — একটাও ধাপ ভরা না থাকলে বাক্সটা দেখাই যায় না। -->
+            <androidx.cardview.widget.CardView android:id="@+id/secSavedGroup" style="@style/RegCard" app:cardBackgroundColor="#F4F7FA" android:visibility="gone">
+                <LinearLayout style="@style/RegCardInner" android:padding="10dp">
+                    <LinearLayout android:id="@+id/savedGroupHead" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:clickable="true" android:focusable="true" android:gravity="center_vertical">
+                        <TextView android:layout_width="23dp" android:layout_height="23dp" android:gravity="center" android:text="✓" android:textStyle="bold" android:textSize="12sp" android:textColor="#0F5132" android:background="@drawable/bg_checkup_step_num" />
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="9dp" android:text="SAVED" android:textStyle="bold" android:textSize="14sp" android:textColor="#101828" />
+                        <TextView android:id="@+id/savedGroupNum" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:background="@drawable/bg_fold_count_chip" android:paddingLeft="9dp" android:paddingTop="2dp" android:paddingRight="9dp" android:paddingBottom="2dp" android:textColor="#0B4F2A" android:textSize="11.5sp" android:textStyle="bold" />
+                        <TextView android:id="@+id/savedGroupChev" android:layout_width="24dp" android:layout_height="24dp" android:layout_marginStart="8dp" android:gravity="center" android:background="@drawable/bg_fold_chevron" android:text="⌄" android:textColor="#FFFFFF" android:textStyle="bold" android:textSize="15sp" />
+                    </LinearLayout>
+                    <LinearLayout android:id="@+id/savedGroupBody" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone" />
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+
         </LinearLayout>
     </ScrollView>
 

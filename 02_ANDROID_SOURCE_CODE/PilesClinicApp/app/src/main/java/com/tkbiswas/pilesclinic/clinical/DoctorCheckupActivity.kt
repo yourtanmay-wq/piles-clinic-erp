@@ -283,6 +283,10 @@ class DoctorCheckupActivity : AppCompatActivity() {
         wireTtdFold()        // 🔴 V938 — TODAY'S TREATMENT DONE (NEXT PLAN-এর ঠিক উপরে)
         wireNvpFold()        // 🟢 V866 — NEXT VISIT PLAN বন্ধ অবস্থায় শুরু হয়
         wireMainFolds()      // 🟢 V886 — ধাপ ১ · ৩ · ৪-ও বন্ধ অবস্থায় শুরু হয়
+        /* 🟢 V1119 — ভরা-ও-বন্ধ ধাপগুলোর জন্য নিচের একটাই "SAVED" বাক্স।
+           ⛔ `post`-এ, যাতে পর্দার সব অংশ বসে যাওয়ার পরেই সাজানোটা হয়। */
+        wireSavedGroup()
+        findViewById<android.view.View>(R.id.secSavedGroup)?.post { refreshSavedGroup() }
         internalPilesBox()?.setOnClickListener { askInternalGrade() }
         /* 🔵 V540: Grade বাছা হলে চেকবক্স নিজে থেকেই টিক পড়ে ও পাশে Grade দেখায়।
            ⛔ শোনার কাজটা **একবারই** বসে (পপ-আপ খোলার সময় বারবার নয়)। */
@@ -943,8 +947,11 @@ class DoctorCheckupActivity : AppCompatActivity() {
            চলে যেত, অর্থাৎ TK যা চেয়েছেন (হেডার উপরে, নিচে ১-৫) সেটাই
            দেখা যেত না।
            ⛔ ধাপ ২-৫ আগের মতোই নিজের সেকশনে যায় — এক অক্ষরও বদলায়নি। */
+        // 🟢 V1119 — ধাপটা যদি নিচের "SAVED" বাক্সের ভিতরে থাকে, চিপে চাপলে
+        // বাক্সটা নিজে থেকেই খুলে যায়; নইলে চিপ চেপে কিছুই দেখা যেত না।
+        if (target != null) openSavedGroupIfHolding(target)
         if (target != null) scroll.post {
-            scroll.smoothScrollTo(0, if (i == 0) 0 else target.top)
+            scroll.smoothScrollTo(0, if (i == 0) 0 else yInScroll(target))   // 🟢 V1119
         }
         // 🎨 (07.08.2026, প্রুফ-চেহারা) — নম্বর-বৃত্ত: চলতি ধাপ সবুজ+সাদা নম্বর,
         // বাকিগুলো ধূসর। নিচের লেবেলও সেই অনুযায়ী রঙ। (আগে বড় পিলে
@@ -1977,6 +1984,9 @@ class DoctorCheckupActivity : AppCompatActivity() {
         if (r.beforePhoto.isNotBlank()) showThumb(ivBeforePhoto, r.beforePhoto)
         if (r.duringPhoto.isNotBlank()) showThumb(ivDuringPhoto, r.duringPhoto)
         if (r.afterPhoto.isNotBlank()) showThumb(ivAfterPhoto, r.afterPhoto)
+        /* 🟢 V1119 — পুরনো রেকর্ড খুলে বসার পর ভরা ধাপগুলো সঙ্গে সঙ্গেই
+           নিচের "SAVED" বাক্সে নেমে যায় (সবগুলো ভাঁজ শুরুতে বন্ধই থাকে)। */
+        findViewById<android.view.View>(R.id.secSavedGroup)?.post { refreshSavedGroup() }
     }
 
     /**
@@ -2064,6 +2074,10 @@ class DoctorCheckupActivity : AppCompatActivity() {
                সুযোগ। ⛔ ডিফল্ট null, তাই আগের তিনটে ভাঁজ (sym/life/photo) এক
                অক্ষরও বদলায়নি — Kotlin-এর default argument। */
             onToggle?.invoke()
+            /* 🟢 V1119 — ভাঁজ বন্ধ করলেই ভরা ধাপটা নিচের "SAVED" বাক্সে নেমে
+               যায়, খুললেই আবার উপরে ফেরে। ⛔ `post` — চাপাচাপির হিসাব শেষ
+               হওয়ার পরে তবেই কার্ডটা সরানো হয়। */
+            head.post { refreshSavedGroup() }
         }
     }
 
@@ -2412,6 +2426,177 @@ class DoctorCheckupActivity : AppCompatActivity() {
             )
         }
     }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       🟢🔒 V1119 (০৫.০৯.২০২৬) — **ভরা ধাপগুলো নিচে একটাই "SAVED" বাক্সে**
+       TK-এর নির্দেশ (ফটো-প্রুফ দেখে *"পাশ, বসিয়ে দিন"*):
+       *"যেগুলো সেভ হয়ে যাবে সেগুলো নিচে থাকবে, কিন্তু সবগুলো একটার মধ্যে
+       থাকবে — যেখানে চাপ দিলে তখন সেগুলো ওপেন হবে"*
+
+       নিয়ম (মেপে বসানো, আন্দাজ নয়):
+       ① একটা ধাপ নিচে নামে **শুধু তখনই** যখন সেটা (ক) ভরা **এবং** (খ) বন্ধ।
+          ⛔ খোলা ধাপ কখনোই সরে না — ডাক্তার লেখার মাঝপথে পর্দা লাফাবে না।
+       ② ফাঁকা হয়ে গেলে ধাপটা **নিজের পুরনো জায়গায় ফিরে যায়** (ক্রম অটুট,
+          কারণ ৮টা কার্ডই পাশাপাশি ভাই আর SAVED বাক্সটা সবার শেষে)।
+       ③ নিচে নামলে কার্ডটা **ফিকে** (alpha 0.55) — কিন্তু ভিতরের একটাও ঘর ·
+          বোতাম · টিক অকেজো হয় না; চাপ দিলে আগের মতোই খোলে ও লেখা যায়।
+
+       ⛔ **কোনো ডেটা/সেভ/ক্লাউড কোড ছোঁয়া হয়নি** — কার্ডগুলো শুধু গাছের এক
+          ডাল থেকে আরেক ডালে যায়; `findViewById` পুরো পর্দা জুড়ে খোঁজে, তাই
+          `collect()` · `lockSection` · ছবি — সবই আগের মতোই কাজ করে।
+       ⛔ `secDoctorReminder` (ডাক্তারের নিজের নোট) এই তালিকায় নেই — ওটা
+          আলাদা মোড়কে থাকে, ছোঁয়া হয়নি।
+       ⚠️ কার্ড সরানোর কাজটা `post {}`-এর ভিতরে, কারণ চাপাচাপির (click) হিসাব
+          শেষ হওয়ার আগেই কার্ডটাকে গাছ থেকে তুলে নিলে ঝুঁকি থাকে।
+       ═══════════════════════════════════════════════════════════════════ */
+    private val savedGroupIds = intArrayOf(
+        R.id.secHistory, R.id.secClinical, R.id.secCounsel, R.id.secEstimate,
+        R.id.secDocRemark, R.id.secTodayTreat, R.id.secNextVisitPlan, R.id.secPhoto
+    )
+    private var savedGroupOpen = false
+    private var savedGroupBusy = false
+
+    /** ভিতরে কিছু ভরা আছে কি না — ঘর · টিক · তালিকা · চিপ সব মিলিয়ে। */
+    private fun sectionHasContent(v: android.view.View): Boolean {
+        when (v) {
+            is android.widget.EditText ->
+                if (v.text?.toString()?.isNotBlank() == true) return true
+            is android.widget.CompoundButton ->
+                if (v.isChecked) return true
+            is android.widget.Spinner ->
+                if (v.selectedItemPosition > 0) return true
+            is TextView -> {
+                if (v.getTag(R.id.historyDetailGroup) == true) return true
+                val sev = v.getTag(R.id.symptomGroup) as? String
+                if (!sev.isNullOrBlank()) return true
+            }
+        }
+        if (v is android.view.ViewGroup) {
+            for (i in 0 until v.childCount) if (sectionHasContent(v.getChildAt(i))) return true
+        }
+        return false
+    }
+
+    /** ধাপটা কি ভরা? (ছবির ধাপে ছবিগুলোও গোনা হয় — ওগুলো কোনো ঘরে থাকে না।) */
+    private fun sectionFilled(card: android.view.View): Boolean {
+        if (card.id == R.id.secPhoto &&
+            (beforePhotoData.isNotBlank() || duringPhotoData.isNotBlank() || afterPhotoData.isNotBlank())
+        ) return true
+        return sectionHasContent(card)
+    }
+
+    /** ধাপটা কি এই মুহূর্তে বন্ধ? (ভাঁজের শরীরটা দেখা না গেলে বন্ধ।) */
+    private fun sectionClosed(card: android.view.View): Boolean {
+        val bodyId = when (card.id) {
+            R.id.secHistory -> R.id.histFoldBody
+            R.id.secClinical -> R.id.clinicalFoldBody
+            R.id.secCounsel -> R.id.counsFoldBody
+            R.id.secEstimate -> R.id.estmFoldBody
+            R.id.secDocRemark -> R.id.dremFoldBody
+            R.id.secTodayTreat -> R.id.ttdFoldBody
+            R.id.secNextVisitPlan -> R.id.nvpFoldBody
+            R.id.secPhoto -> R.id.photoFoldBody
+            else -> return false
+        }
+        return findViewById<android.view.View>(bodyId)?.visibility != android.view.View.VISIBLE
+    }
+
+    private fun wireSavedGroup() {
+        val head = findViewById<android.view.View>(R.id.savedGroupHead) ?: return
+        val body = findViewById<android.view.View>(R.id.savedGroupBody) ?: return
+        val chev = findViewById<TextView>(R.id.savedGroupChev) ?: return
+        body.visibility = android.view.View.GONE
+        chev.text = "⌄"
+        head.setOnClickListener {
+            savedGroupOpen = !savedGroupOpen
+            body.visibility = if (savedGroupOpen) android.view.View.VISIBLE else android.view.View.GONE
+            chev.text = if (savedGroupOpen) "⌃" else "⌄"
+        }
+    }
+
+    /** ভরা-ও-বন্ধ ধাপগুলো নিচের বাক্সে নামায়, বাকিগুলো উপরে ফেরায়। */
+    private fun refreshSavedGroup() {
+        if (savedGroupBusy) return
+        try {
+            val group = findViewById<android.view.View>(R.id.secSavedGroup) ?: return
+            val body = findViewById<android.view.ViewGroup>(R.id.savedGroupBody) ?: return
+            val host = group.parent as? android.view.ViewGroup ?: return
+            savedGroupBusy = true
+
+            var down = 0
+            for (id in savedGroupIds) {
+                val card = findViewById<android.view.View>(id) ?: continue
+                val isDown = card.parent === body
+                val closed = sectionClosed(card)
+                /* 🔴 নিয়মটা মেপে বসানো: একটা ধাপ **নামে** যখন সে ভরা ও বন্ধ;
+                   কিন্তু একবার নেমে গেলে খুললেও **ওখানেই খোলে** (লাফিয়ে উপরে
+                   উঠে যায় না — TK-এর প্রুফে ঠিক এটাই দেখানো হয়েছে)। উপরে ফেরে
+                   একমাত্র তখনই, যখন ভিতরটা আবার ফাঁকা হয়ে যায়। */
+                val goesDown = sectionFilled(card) && (closed || isDown)
+                if (goesDown && !isDown) {
+                    (card.parent as? android.view.ViewGroup)?.removeView(card)
+                    body.addView(card)
+                } else if (!goesDown && isDown) {
+                    body.removeView(card)
+                    // ⛔ ঠিক নিজের ক্রমে ফেরে: এর পরের যে ধাপটা এখনো উপরে আছে
+                    //    তার ঠিক আগে; কেউ না থাকলে SAVED বাক্সটার ঠিক আগে।
+                    var at = host.indexOfChild(group)
+                    var after = false
+                    for (nid in savedGroupIds) {
+                        if (nid == id) { after = true; continue }
+                        if (!after) continue
+                        val nxt = findViewById<android.view.View>(nid) ?: continue
+                        val idx = host.indexOfChild(nxt)
+                        if (idx >= 0) { at = idx; break }
+                    }
+                    host.addView(card, at)
+                }
+                // ⛔ নিচে থাকলেও **খোলা অবস্থায় ফিকে নয়** — লেখার সময় ঝাপসা
+                //    পর্দায় ডাক্তার কাজ করতে পারবেন না।
+                card.alpha = if (goesDown && closed) 0.55f else 1.0f
+                if (goesDown) down++
+            }
+
+            findViewById<TextView>(R.id.savedGroupNum)?.text = down.toString()
+            group.visibility = if (down > 0) android.view.View.VISIBLE else android.view.View.GONE
+            if (down == 0) {
+                savedGroupOpen = false
+                body.visibility = android.view.View.GONE
+                findViewById<TextView>(R.id.savedGroupChev)?.text = "⌄"
+            }
+        } catch (_: Throwable) {
+            // ⛔ এখানে কিছু ভুল হলেও চেকআপ পর্দা ভাঙে না — সাজানোটা শুধু দেখার জিনিস।
+        } finally {
+            savedGroupBusy = false
+        }
+    }
+
+    /** ধাপটা নিচের "SAVED" বাক্সের ভিতরে থাকলে বাক্সটা খুলে দেয়। */
+    private fun openSavedGroupIfHolding(target: android.view.View) {
+        try {
+            val body = findViewById<android.view.ViewGroup>(R.id.savedGroupBody) ?: return
+            if (target.parent !== body) return
+            savedGroupOpen = true
+            body.visibility = android.view.View.VISIBLE
+            findViewById<TextView>(R.id.savedGroupChev)?.text = "⌃"
+        } catch (_: Throwable) { }
+    }
+
+    /** ScrollView-এর ভিতরে কোনো View আসলে কত নিচে — নিজের বাবার সাপেক্ষে নয়।
+     *  🔴 V1119-এ দরকার হলো: ধাপের কার্ড এখন SAVED বাক্সের ভিতরেও থাকতে পারে,
+     *  তখন `card.top` ওই বাক্সের সাপেক্ষে — পুরনো হিসাবে স্ক্রল ভুল জায়গায় যেত। */
+    private fun yInScroll(v: android.view.View): Int {
+        var y = 0
+        var cur: android.view.View = v
+        while (true) {
+            y += cur.top
+            val p = cur.parent as? android.view.View ?: break
+            if (p.id == R.id.stepScroll) break
+            cur = p
+        }
+        return y
+    }
+
 
     /** বন্ধ অবস্থাতেও ভিতরে কতগুলো টিক পড়েছে সেটা মাথার সবুজ ব্যাজে দেখানো। */
     private fun refreshNvpFold() {
@@ -4081,8 +4266,9 @@ class DoctorCheckupActivity : AppCompatActivity() {
         if (card.childCount > 1) card.removeViewAt(1)
         card.getChildAt(0).visibility = android.view.View.VISIBLE
         lockedFooter(false)  // show Back|Save so a re-edit can be re-saved
+        openSavedGroupIfHolding(card)   // 🟢 V1119
         findViewById<ScrollView>(R.id.stepScroll).post {
-            findViewById<ScrollView>(R.id.stepScroll).smoothScrollTo(0, card.top)
+            findViewById<ScrollView>(R.id.stepScroll).smoothScrollTo(0, yInScroll(card))   // 🟢 V1119
         }
     }
 
