@@ -4446,7 +4446,18 @@ class PatientTimelineActivity : AppCompatActivity() {
                 // showing three empty dashes. As soon as any real billing
                 // exists (Estimated set, or a Due value computed), it shows
                 // exactly as before.
-                val hasBillingData = data.billTotal > 0.0 || latestDue >= 0
+                /* 🔴🔒 V1086 (০৫.০৯.২০২৬, TK-রিপোর্ট: MD AKBAR ALI — ₹১,০০০
+                   Advance নেওয়া, অথচ উপরে Paid-এর ঘরটাই নেই)।
+                   কারণ: এই শর্তে আগে **শুধু বিল** দেখা হত। বিল না বসানো
+                   পর্যন্ত `latestDue` থাকে −১, তাই টাকা জমা পড়লেও পুরো
+                   সারিটা (ও Report Card বোতামটা) লুকিয়ে থাকত — অর্থাৎ
+                   **নেওয়া টাকা কার্ডে দেখাই যেত না**।
+                   ⇒ জমা টাকা বা ছাড় থাকলেও এখন সারিটা ওঠে।
+                   ⛔ শুধু ভিজিট ফি দেওয়া রোগীর কিছুই বদলায়নি — ভিজিট ফি
+                      `latestPaid`-এ গোনাই হয় না, তাই তাঁদের ক্ষেত্রে আগের
+                      মতোই সারিটা ওঠে না (এনকোয়ারি-মাত্র রোগীর নিয়ম অটুট)। */
+                val hasBillingData = data.billTotal > 0.0 || latestDue >= 0 ||
+                    latestPaid > 0.0 || data.discount > 0.0
                 currentBillTotal = data.billTotal
                 binding.tvChipEstimated.text = if (data.billTotal > 0.0) money(data.billTotal) else "\u2014"
                 binding.tvChipPaid.text = money(latestPaid)
