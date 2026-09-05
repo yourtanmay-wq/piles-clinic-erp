@@ -148,14 +148,55 @@
       (Number(s.overpaid) > 0 ? '<br><b style="color:#b42318">More Paid: ' + rmpMoney(s.overpaid) + '</b>' : '') + '</div>');
   }
 
+  /* 🔴🔒 V1085 (০৫.০৯.২০২৬, TK: *"অ্যান্ড্রয়েডে কাজ হচ্ছে কিন্তু কম্পিউটারে
+     হচ্ছে না"*) — কম্পিউটারে RMP-র **ব্রাঞ্চ-ভিত্তিক হার** (V470) কাজ করত না,
+     আর হার বসানো না থাকলে ফোনে V488-এর স্বয়ংক্রিয় ১০% ধরত কিন্তু এখানে ফাঁকা
+     দেখাত ⇒ একই রোগীতে দুই পর্দায় দুরকম টাকা বসতে পারত।
+     ⇒ এখন ফোনের হুবহু একই সার্ভার-ফাংশন ডাকা হয়, তাই অগ্রাধিকারও এক:
+        ব্রাঞ্চ-নির্দিষ্ট → বৈশ্বিক → স্বয়ংক্রিয় ১০%।
+     ⛔ বৈশ্বিক Default বসানোর পুরনো পথটা এক অক্ষরও বদলায়নি। */
   async function webRmpDefaultForm(docId) {
     var d = doctor(docId), c = await fin(); if (!d || !c) return toast('Could not open');
     var r = await c.from('rmp_commission_defaults').select('commission_mode,commission_value').eq('rmp_id', docId).limit(1).maybeSingle();
     var old = r && r.data || {};
+    var br = String((d && d.branch) || '').trim();
+    var eff = null;
+    try {
+      var g = await c.rpc('rmp_get_branch_default', { p_rmp_id: docId, p_branch: br });
+      if (g && !g.error && g.data && g.data.length) eff = g.data[0];
+    } catch (_e) { }
+    var effLine = '';
+    if (br) {
+      effLine = eff
+        ? (eff.is_branch_specific
+            ? '<div class="tiny" style="color:#0A5C33">' + esc(br) + ' — using its own rate: ' +
+              esc(eff.commission_mode) + ' ' + esc(String(eff.commission_value)) + '</div>'
+            : '<div class="tiny mut">' + esc(br) + ' — currently using the general Default above (' +
+              esc(String(eff.commission_value)) + ')</div>')
+        : '';
+    }
     modal('<h2 class="anRmp">RMP Default Commission</h2><div class="card"><b>' + esc(d.name || '') + '</b>' +
       '<label>Commission Type</label><select id="rmpDefMode" class="input"><option value="PERCENT"' + (old.commission_mode === 'AMOUNT' ? '' : ' selected') + '>Percent (%)</option><option value="AMOUNT"' + (old.commission_mode === 'AMOUNT' ? ' selected' : '') + '>Fixed Amount (₹)</option></select>' +
       '<label>Default Value</label><input id="rmpDefValue" class="input" inputmode="decimal" value="' + esc(old.commission_value == null ? '' : old.commission_value) + '">' +
-      '<button onclick="webRmpSaveDefault(\'' + esc(docId) + '\')">Save Default</button><button class="ghost" onclick="openWebRmpCommission(\'' + esc(docId) + '\')">Back</button></div>');
+      (br ? '<label>Branch-specific % (optional)</label>' + effLine +
+            '<input id="rmpDefBrValue" class="input" inputmode="decimal" placeholder="Leave blank to use the Default above">' : '') +
+      '<div class="actions"><button onclick="webRmpSaveDefault(\'' + esc(docId) + '\')">Save Default</button>' +
+      (br ? '<button onclick="webRmpSaveBranchDefault(\'' + esc(docId) + '\')">Save for ' + esc(br) + ' only</button>' : '') +
+      '<button class="ghost" onclick="openWebRmpCommission(\'' + esc(docId) + '\')">Back</button></div></div>');
+  }
+
+  /* 🔴 V1085 — ফোনের `setBranchDefault()`-এর হুবহু একই ডাক ও একই যাচাই। */
+  async function webRmpSaveBranchDefault(docId) {
+    var d = doctor(docId); if (!d) return toast('RMP not found');
+    var br = String((d && d.branch) || '').trim(); if (!br) return toast('This RMP has no branch');
+    var mode = document.getElementById('rmpDefMode').value;
+    var value = Number(document.getElementById('rmpDefBrValue').value);
+    if (!isFinite(value) || value < 0 || (mode === 'PERCENT' && value > 100)) return toast('Enter a valid value');
+    var c = await fin(); if (!c) return toast('Could not verify login');
+    var r = await c.rpc('rmp_set_branch_default', { p_rmp_id: docId, p_rmp_name: d.name || '',
+      p_rmp_mobile: d.mobile || '', p_branch: br, p_mode: mode, p_value: value });
+    if (r.error) return toast(errText(r.error));
+    toast('Saved for ' + br + ' only'); closeModal();
   }
 
   async function webRmpSaveDefault(docId) {
@@ -199,9 +240,20 @@
     else if (current && current.data && String(current.data.set_on || '') < today() && !isMaster()) {
       var requestedMode = mode, requestedValue = value;
       if (mode === 'DEFAULT') {
-        var def = await c.from('rmp_commission_defaults').select('commission_mode,commission_value').eq('rmp_id', docId).limit(1).maybeSingle();
-        if (!def || def.error || !def.data) return toast('RMP Default is not set');
-        requestedMode = def.data.commission_mode; requestedValue = Number(def.data.commission_value || 0);
+        /* 🔴 V1085 — আগে এখানে সরাসরি **বৈশ্বিক** Default পড়া হত, তাই
+           ব্রাঞ্চ-নির্দিষ্ট হার থাকলেও ভুল অঙ্ক অনুরোধে যেত, আর হার বসানো না
+           থাকলে "RMP Default is not set" বলে আটকে যেত (ফোনে ১০% ধরত)।
+           এখন সার্ভারের সেই একই ফাংশন — অগ্রাধিকার হুবহু ফোনের মতো। */
+        var g2 = await c.rpc('rmp_get_branch_default',
+          { p_rmp_id: docId, p_branch: String((p && p.branch) || '').trim() });
+        if (g2 && !g2.error && g2.data && g2.data.length) {
+          requestedMode = g2.data[0].commission_mode;
+          requestedValue = Number(g2.data[0].commission_value || 0);
+        } else {
+          var def = await c.from('rmp_commission_defaults').select('commission_mode,commission_value').eq('rmp_id', docId).limit(1).maybeSingle();
+          if (!def || def.error || !def.data) return toast('RMP Default is not set');
+          requestedMode = def.data.commission_mode; requestedValue = Number(def.data.commission_value || 0);
+        }
       }
       r = await c.rpc('rmp_request_approval', { p_request_type: 'PAST_COMMISSION_CHANGE', p_patient_row_id: p.id,
         p_payload: { rmp_id: docId, mode: requestedMode, value: requestedValue, set_on: current.data.set_on,
@@ -471,7 +523,10 @@
   async function webRmpDecide(id, approve) { var c = await fin(); if (!c) return toast('Could not verify login'); var r = await c.rpc('rmp_decide_request', { p_request_id: id, p_approve: !!approve }); if (r.error) return toast(errText(r.error)); toast(approve ? 'Approved' : 'Rejected'); webRmpPending(); }
 
   Object.assign(window, { webRmpActivateAfterPayment: webRmpActivateAfterPayment, openWebRmpCommission: openWebRmpCommission, webRmpSummary: webRmpSummary, webRmpDefaultForm: webRmpDefaultForm,
-    webRmpSaveDefault: webRmpSaveDefault, webRmpPatientForm: webRmpPatientForm, webRmpSavePatient: webRmpSavePatient,
+    webRmpSaveDefault: webRmpSaveDefault,
+    // 🔴 V1085 — নইলে বোতামটা চাপলে কিছুই হত না (onclick বাইরে থেকে ডাকে)।
+    webRmpSaveBranchDefault: webRmpSaveBranchDefault,
+    webRmpPatientForm: webRmpPatientForm, webRmpSavePatient: webRmpSavePatient,
     webRmpPayForm: webRmpPayForm, webRmpSavePayment: webRmpSavePayment, webRmpPaymentHistory: webRmpPaymentHistory,
     webRmpEditPaymentForm: webRmpEditPaymentForm, webRmpSavePaymentEdit: webRmpSavePaymentEdit,
     webRmpPending: webRmpPending, webRmpDecide: webRmpDecide, webRmpPatientStatus: webRmpPatientStatus,
