@@ -5019,7 +5019,7 @@ class DoctorVisitActivity : AppCompatActivity() {
             setTextColor(android.graphics.Color.parseColor("#145A32"))
         }
         body.addView(summaryText)
-        body.addView(fieldLabel("📅", "Payment Date"))
+        body.addView(fieldLabel("🧾", "Payment Date"))
         var paidOn = DoctorVisitModel.today()
         val dateValue = TextView(this).apply {
             text = FollowUpModel.displayDate(paidOn)

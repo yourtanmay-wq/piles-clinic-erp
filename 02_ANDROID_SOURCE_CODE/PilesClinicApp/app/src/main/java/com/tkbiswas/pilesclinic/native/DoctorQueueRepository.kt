@@ -36,6 +36,59 @@ class DoctorQueueRepository(private val context: Context? = null) {
     // background, same pattern as the app's other silent-refresh screens.
     // This is a read-only display cache -- it never affects what gets
     // fetched/filtered/saved; fetchQueue() below is completely unchanged.
+    /* ═══════════════════════════════════════════════════════════════
+       🔍🔒 V1108 (০৫.০৯.২০২৬, TK-নির্দেশ: *"সার্চ বক্সে নাম টাইপ করলেই চলে
+       আসতে হবে"*) — আজকের লাইনে না থাকলেও রোগী **নিজে থেকেই** উঠে আসে।
+
+       🔴 আগে কী হত: এই ঘরটা শুধু **আজকের তালিকার ভিতরেই** ছাঁকত, তাই
+          তালিকার বাইরের রোগী কোনোদিন আসতেন না (TK দুবার বলেছেন — সারি
+          ১৭৯ · ২১০)।
+
+       ⛔ **Egress (ফ্রি প্ল্যান) — প্রকল্পের আগে থেকেই TK-অনুমোদিত সেই একই
+          সস্তা পথ** (`ChamberAttendanceRepository.searchPatients`-এর হুবহু
+          নিয়ম): ছাঁকাটা **সার্ভারেই** হয় (`ilike`), তাই পুরো টেবিল নামে না —
+          শুধু মিলে যাওয়া কয়েকটা সারি, আর তাও মাত্র ৭টা দরকারি ঘর।
+       ⛔ **অন্তত ৩ অক্ষর** না লিখলে একটাও অনুরোধ যায় না।
+       ⛔ ডাক্তার/স্টাফের বাছা ব্রাঞ্চের বাইরে খোঁজা হয় না (পর্দার নিজের নিয়ম)।
+       ⛔ নেট খারাপ হলে চুপচাপ ফাঁকা তালিকা — পর্দা আগের মতোই চলে।
+       ═══════════════════════════════════════════════════════════════ */
+    fun searchAllPatients(query: String, branchFilter: String?): List<QueuePatient> {
+        val q = query.trim()
+        if (q.length < 3) return emptyList()
+        return try {
+            val pattern = java.net.URLEncoder.encode("*$q*", "UTF-8")
+            val orFilter = "or=(name.ilike.$pattern,mobile.ilike.$pattern,patientId.ilike.$pattern)"
+            val allBranch = branchFilter.isNullOrBlank() || branchFilter == "All"
+            val filter = if (allBranch) orFilter
+                else "branch=eq.${java.net.URLEncoder.encode(branchFilter, "UTF-8")}&$orFilter"
+            val rows = SupabaseClient.fetchListSlim(
+                "patients", filter, 25,
+                "id,name,mobile,patientId,branch,disease,registrationDate"
+            )
+            val out = ArrayList<QueuePatient>()
+            for (i in 0 until rows.length()) {
+                val p = rows.optJSONObject(i) ?: continue
+                val id = p.s("id").trim()
+                if (id.isBlank()) continue
+                out.add(
+                    QueuePatient(
+                        id = id,
+                        patientId = p.s("patientId"),
+                        name = p.s("name"),
+                        mobile = p.s("mobile"),
+                        disease = p.s("disease"),
+                        branch = p.s("branch"),
+                        photo = "",
+                        updatedAt = "",
+                        createdAt = "",
+                        registrationDate = p.s("registrationDate")
+                    )
+                )
+            }
+            out
+        } catch (_: Throwable) { emptyList() }   // নেট খারাপ হলে পর্দা আগের মতোই চলে
+    }
+
     fun loadCachedQueue(branchFilter: String?): List<QueuePatient>? {
         val ctx = context ?: return null
         val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

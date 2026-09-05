@@ -4592,7 +4592,7 @@ function wlv1MsgBlock(lang,who,pid,kind,o){
         payEnd:'এই পেমেন্টটি আপনার চিকিৎসার হিসাবের সঙ্গে যুক্ত হয়েছে।',
         enq:['আমাদের সঙ্গে যোগাযোগ করার জন্য ধন্যবাদ।','চেম্বার খোলা থাকে সকাল 11টা থেকে বিকেল 4টা।','যে কোনো প্রয়োজনে ফোন করুন।'],
         visitSet:'আপনার পরবর্তী ভিজিটের তারিখ নির্ধারণ করা হয়েছে।',
-        visitTime:'🕚 Visiting Time: সকাল 11টা থেকে বিকেল 4টা',
+        visitTime:'Visiting Time: সকাল 11টা থেকে বিকেল 4টা',
         visitEnd:'নির্ধারিত তারিখে ক্লিনিকে উপস্থিত হবেন।',
         dueIntro:'আপনার চিকিৎসার বকেয়া পেমেন্ট মনে করিয়ে দেওয়া হচ্ছে।',
         dueEnd:'সুবিধামতো অথবা পরবর্তী ভিজিটের সময় বকেয়া পরিশোধ করবেন।',
@@ -4613,7 +4613,7 @@ function wlv1MsgBlock(lang,who,pid,kind,o){
         payEnd:'यह भुगतान आपके इलाज के हिसाब से जुड़ गया है।',
         enq:['हमसे संपर्क करने के लिए धन्यवाद।','चेंबर सुबह 11 बजे से शाम 4 बजे तक खुला रहता है।','किसी भी ज़रूरत पर फ़ोन करें।'],
         visitSet:'आपकी अगली विज़िट की तारीख तय कर दी गई है।',
-        visitTime:'🕚 Visiting Time: सुबह 11 बजे से शाम 4 बजे तक',
+        visitTime:'Visiting Time: सुबह 11 बजे से शाम 4 बजे तक',
         visitEnd:'तय तारीख पर क्लिनिक में उपस्थित रहें।',
         dueIntro:'आपके इलाज का बकाया भुगतान याद दिलाया जा रहा है।',
         dueEnd:'सुविधा अनुसार अथवा अगली विज़िट के समय बकाया चुका दें।',
@@ -4634,7 +4634,7 @@ function wlv1MsgBlock(lang,who,pid,kind,o){
         payEnd:'This payment has been added to your treatment account.',
         enq:['Thank you for contacting us.','Chamber is open 11 am to 4 pm.','Call us any time you need help.'],
         visitSet:'Your next visit date has been scheduled.',
-        visitTime:'🕚 Visiting Time: 11:00 AM to 4:00 PM',
+        visitTime:'Visiting Time: 11:00 AM to 4:00 PM',
         visitEnd:'Please be present at the clinic on the scheduled date.',
         dueIntro:'This is a reminder about the pending payment for your treatment.',
         dueEnd:'Please clear the due amount at your convenience or during your next visit.',
@@ -8954,7 +8954,7 @@ function wlv1EditRegPayNote(pid,payid,backId){
      + '<div class="wlv1RpLock">'+esc(money(pay.amount||0)+' · '+(pay.mode||''))+'<em>🔒 LOCKED</em></div>';
   }
   h+='<div class="wlv1RpWarn">⚠️ The amount and mode cannot be changed here — use the Payment screen for that.</div>';
-  if(hist.length) h+='<div class="wlv1RpHist"><b>🕘 Earlier versions (kept)</b>'+hist.map(function(t){return '<div>'+esc(t)+'</div>'}).join('')+'</div>';
+  if(hist.length) h+='<div class="wlv1RpHist"><b>Earlier versions (kept)</b>'+hist.map(function(t){return '<div>'+esc(t)+'</div>'}).join('')+'</div>';
   h+='<div class="wlv1RpInfo">📝 Nothing is lost — who changed what, and when, is always kept.</div>';
   h+='<div class="actions"><button onclick="wlv1SaveRegPayNote()">💾 Save</button>'
    + '<button class="ghost" onclick="closeModal()">Cancel</button></div>';
@@ -10305,9 +10305,13 @@ function doctorQueue(keepSearch){if(!keepSearch){try{window.__dqSearch=''}catch(
     ⇒ এখন একটা **নীল বোতাম**, একবার চাপলেই এই নামটা নিয়ে সব রোগীর মধ্যে
       খোঁজার পর্দা খুলে যায় — আর কিছু টাইপ করতে হয় না। ফোনের হুবহু জোড়া।
     ⛔ এই পর্দায় নতুন কোনো ক্লাউড-পড়া যোগ হয়নি — খোঁজা তখনই, যখন চাপা হয়। */
+ /* 🔍🔒 V1108 (০৫.০৯.২০২৬, TK-নির্দেশ: *"সার্চ বক্সে নাম টাইপ করলেই চলে আসতে হবে"*) —
+    আজকের লাইনে না পেলে **নিজে থেকেই** সব রোগীর মধ্যে খোঁজা হয়ে যায়, ফল
+    এখানেই কার্ড হয়ে বসে — কোনো বোতাম চাপতে হয় না। ফোনের হুবহু জোড়া।
+    ⛔ ৩ অক্ষরের কম লিখলে একটাও অনুরোধ যায় না।
+    ⛔ ছাঁকাটা সার্ভারেই হয় (ilike), তাই পুরো টেবিল নামে না — কয়েকটা সারি, ৭টা ঘর। */
  if(!todayRows.length&&!overdueRows.length)body=__dqAsk?wlv1BranchAskCard():(searchBox+(__q
-   ?('<div class="dqSectionHead dqNotFound">NOT IN TODAY\'S QUEUE</div>'
-     +'<div class="dqSectionHead dqSearchAll" onclick="wlv1DqSearchAll()">\uD83D\uDD0D  SEARCH "'+esc(String(window.__dqSearch||'').trim().toUpperCase())+'" IN ALL PATIENTS</div>')
+   ?wlv1DqWideBlock(__q)
    :'<div class="card mut">No Patient In Queue</div>'));
  page('CHECK-UP Queue',`${branchWrap}${body}`,true);
  setTimeout(function(){
@@ -10337,8 +10341,13 @@ function doctorQueue(keepSearch){if(!keepSearch){try{window.__dqSearch=''}catch(
 }
 window["doctorQueue"]=doctorQueue;
 /* 🔍 V972 — লেখামাত্র ছাঁকে; কার্সর যাতে না হারায়, শুধু সারিগুলোই আবার আঁকা হয়। */
+let __dqWideTimer=null;
 function wlv1DqSearch(v){
   window.__dqSearch=String(v||'');
+  /* 🔍 V1108 — লেখা থামার ৪৫০ মিলিসেকেন্ড পরে একবারই খোঁজা হয় (প্রতি অক্ষরে নয়)। */
+  try{ clearTimeout(__dqWideTimer);
+       __dqWideTimer=setTimeout(function(){ wlv1DqWideFetch(String(window.__dqSearch||'').trim()) },450);
+  }catch(e){}
   try{
     var box=document.getElementById('dqSearch');
     var pos=box?box.selectionStart:null;
@@ -14258,7 +14267,7 @@ function summary(id){
    <button class="ghost" onclick="addTreatmentPayment('${p.id}')"><span>💰</span><b>Add Payment</b><small>${nextPaymentLabel(p.id)}</small></button><button class="ghost" onclick="paymentHistory('${p.id}')"><span>📒</span><b>Payment History</b><small>View / Hidden Edit</small></button>
   </div>`:(contactBranchNotice(p)+safeFollowActionsForMobile(p.mobile));
  let photo=p.photo?`<img class="summaryPhoto" src="${p.photo}">`:`<div class="summaryPhoto blank">👤</div>`;
- page('Patient Summary',`<div class="card patientSummaryPro wlv1Tl"><div class="wlv1TlHead ${wlv1StageClass(p)}"><div class="wlv1TlPhoto">${photo}</div><div class="wlv1TlInfo"><div class="wlv1TlMob">${esc(shownMob(p.mobile))}<button class="wlv1TlCall" onclick="contact('${esc(p.mobile)}','call')">📞</button></div><div class="wlv1TlName">${esc(String(p.name||'').toUpperCase())}</div><div class="wlv1TlLine">${esc([p.branch,p.disease,[p.sex,p.age].filter(Boolean).join('-')].filter(Boolean).join(' · ').toUpperCase())}</div><div class="wlv1TlLine wlv1TlAddr">${(function(){var l1=[p.village,p.po].filter(Boolean).join(', '),l2=[p.ps,p.district,p.pin].filter(Boolean).join(', ');if(l1||l2)return esc(l1.toUpperCase())+(l2?'<br>'+esc(l2.toUpperCase()):'');return p.address?wlv1AddrTwo(String(p.address).toUpperCase()):'';})()}</div>${p.refDoctor?`<div class="wlv1TlRef">By- Dr. ${esc(String(p.refDoctor).toUpperCase())}</div>`:''}<div class="wlv1TlId">${esc(p.patientId||'')}${(function(){/* 🔵🔒 V521 (২২.০৮.২০২৬, TK-নির্দেশ): অসময়ের এনকোয়ারি কিনা — ID-র পাশেই। স্টাফের Extra Income শুধু "Unexpected Time"-এর এনকোয়ারিতেই হয় (V418-এর SQL), তাই History খুলেই TK বুঝবেন টাকাটা কেন পাওনা। ⛔ ঘরটা ফাঁকা হলে (পুরোনো রেকর্ড) কিছুই দেখায় না — আগের মতোই। ⛔ ফোনের PatientTimelineActivity-তে হুবহু একই চিপ। */var tt=String(p.timeType||'').trim();if(!tt)return '';return '   ·   '+(/^unexpected time$/i.test(tt)?'⏰ UNEXPECTED TIME':'🕐 '+esc(tt.toUpperCase()));})()}</div></div><button class="small ghost wlv1TlPrint" onclick="printReg('${p.id}')">Print</button></div>${financeAllowed?wlv1MoneyChips(t):''}<div class="sectionTitle miniTitle">&#9201;&#65039; Updates — latest first</div>${wlv1TimelineTable(p,t)}${topActions}${payBlock}${wlv1CompleteDespiteDueBlock(p,t,financeAllowed,writeAllowed)}<div class="summaryDivider"></div><div class="summaryInfoGrid"><div><small>Disease</small><b>${esc(p.disease||'-')}</b></div><div><small>Since</small><b>${esc(p.sinceWhen||'-')}</b></div><div><small>Diagnosis</small><b>${esc(p.diagnosis||'-')}</b></div><div><small>Decision</small><b>${esc(p.decision||'-')}</b></div></div><div class="summaryText"><p><b>Complaint:</b> ${esc(p.complaint||'-')}</p><p><b>First Visit:</b> ${esc(p.visitDate||p.registrationDate||p.date||'-')}</p><p><b>Address:</b> ${esc(p.address||'-')}</p></div><div class="sectionTitle miniTitle">Clinical Actions</div>${clinicalActions}</div>${financeAllowed?`<div class="sectionTitle">Payment History</div>${pays.map((x,i)=>`<div class="card paymentHistoryCard" onclick="hiddenPaymentEditTap('${x.id}')"><b>${esc(paymentDisplayLabel(x,i))}</b><br><span class="mut">${esc(wlv1DayClock(x.date,x.createdAt))}</span><br>${money(x.amount)} · ${esc(x.mode)}<br><small>${esc(x.remarks||'')}</small><div class="actions"><button class="small ghost" onclick="event.stopPropagation();viewPaymentEntry('${x.id}')">View</button></div></div>`).join('')||'<div class="card mut">No treatment payment yet</div>'}`:''}<div class="sectionTitle">Medical Records</div>${meds.map(x=>`<div class="card"><b>${esc(x.type)}</b> · ${esc(x.date)}<br>${esc(x.decision||x.selected||'')}<br><small>${esc(x.details||x.diagnosis||'')}</small></div>`).join('')||'<div class="card mut">No medical record yet</div>'}`)
+ page('Patient Summary',`<div class="card patientSummaryPro wlv1Tl"><div class="wlv1TlHead ${wlv1StageClass(p)}"><div class="wlv1TlPhoto">${photo}</div><div class="wlv1TlInfo"><div class="wlv1TlMob">${esc(shownMob(p.mobile))}<button class="wlv1TlCall" onclick="contact('${esc(p.mobile)}','call')">📞</button></div><div class="wlv1TlName">${esc(String(p.name||'').toUpperCase())}</div><div class="wlv1TlLine">${esc([p.branch,p.disease,[p.sex,p.age].filter(Boolean).join('-')].filter(Boolean).join(' · ').toUpperCase())}</div><div class="wlv1TlLine wlv1TlAddr">${(function(){var l1=[p.village,p.po].filter(Boolean).join(', '),l2=[p.ps,p.district,p.pin].filter(Boolean).join(', ');if(l1||l2)return esc(l1.toUpperCase())+(l2?'<br>'+esc(l2.toUpperCase()):'');return p.address?wlv1AddrTwo(String(p.address).toUpperCase()):'';})()}</div>${p.refDoctor?`<div class="wlv1TlRef">By- Dr. ${esc(String(p.refDoctor).toUpperCase())}</div>`:''}<div class="wlv1TlId">${esc(p.patientId||'')}${(function(){/* 🔵🔒 V521 (২২.০৮.২০২৬, TK-নির্দেশ): অসময়ের এনকোয়ারি কিনা — ID-র পাশেই। স্টাফের Extra Income শুধু "Unexpected Time"-এর এনকোয়ারিতেই হয় (V418-এর SQL), তাই History খুলেই TK বুঝবেন টাকাটা কেন পাওনা। ⛔ ঘরটা ফাঁকা হলে (পুরোনো রেকর্ড) কিছুই দেখায় না — আগের মতোই। ⛔ ফোনের PatientTimelineActivity-তে হুবহু একই চিপ। */var tt=String(p.timeType||'').trim();if(!tt)return '';return '   ·   '+(/^unexpected time$/i.test(tt)?'⏰ UNEXPECTED TIME':esc(tt.toUpperCase()));})()}</div></div><button class="small ghost wlv1TlPrint" onclick="printReg('${p.id}')">Print</button></div>${financeAllowed?wlv1MoneyChips(t):''}<div class="sectionTitle miniTitle">&#9201;&#65039; Updates — latest first</div>${wlv1TimelineTable(p,t)}${topActions}${payBlock}${wlv1CompleteDespiteDueBlock(p,t,financeAllowed,writeAllowed)}<div class="summaryDivider"></div><div class="summaryInfoGrid"><div><small>Disease</small><b>${esc(p.disease||'-')}</b></div><div><small>Since</small><b>${esc(p.sinceWhen||'-')}</b></div><div><small>Diagnosis</small><b>${esc(p.diagnosis||'-')}</b></div><div><small>Decision</small><b>${esc(p.decision||'-')}</b></div></div><div class="summaryText"><p><b>Complaint:</b> ${esc(p.complaint||'-')}</p><p><b>First Visit:</b> ${esc(p.visitDate||p.registrationDate||p.date||'-')}</p><p><b>Address:</b> ${esc(p.address||'-')}</p></div><div class="sectionTitle miniTitle">Clinical Actions</div>${clinicalActions}</div>${financeAllowed?`<div class="sectionTitle">Payment History</div>${pays.map((x,i)=>`<div class="card paymentHistoryCard" onclick="hiddenPaymentEditTap('${x.id}')"><b>${esc(paymentDisplayLabel(x,i))}</b><br><span class="mut">${esc(wlv1DayClock(x.date,x.createdAt))}</span><br>${money(x.amount)} · ${esc(x.mode)}<br><small>${esc(x.remarks||'')}</small><div class="actions"><button class="small ghost" onclick="event.stopPropagation();viewPaymentEntry('${x.id}')">View</button></div></div>`).join('')||'<div class="card mut">No treatment payment yet</div>'}`:''}<div class="sectionTitle">Medical Records</div>${meds.map(x=>`<div class="card"><b>${esc(x.type)}</b> · ${esc(x.date)}<br>${esc(x.decision||x.selected||'')}<br><small>${esc(x.details||x.diagnosis||'')}</small></div>`).join('')||'<div class="card mut">No medical record yet</div>'}`)
 }
 window["summary"]=summary;
 /* 🔵 R2 — "Complete despite Due" (TK-অনুমোদিত, ১৫.০৮.২০২৬ · "খুব সাবধানে, ঝুঁকি নেই")।
@@ -15826,7 +15835,8 @@ function savePayment(id){saveTreatmentPayment(id)}
 window["savePayment"]=savePayment;
 function searchPage(){let body=`<input class="input capsuleGlobalSearch" placeholder="🔍 Search by name or mobile" oninput="searchDo(this.value)"><div id="sres">${searchResults('',true)}</div>`;page('Global Search',body)}
 window["searchPage"]=searchPage;
-/* 🔍🔒 V1107 — CHECK-UP Queue-এ টাইপ করা নামটা নিয়েই Global Search খোলে।
+/* 🔍🔒 V1107 → V1108 — CHECK-UP Queue-এ টাইপ করা নামটা নিয়েই Global Search খোলে
+   (এখন শুধু "আরো দেখুন" পথ হিসেবে রাখা — সাধারণত আর দরকারই হয় না)।
    ⛔ খোঁজার নিয়ম/ফল হুবহু হাতে টাইপ করার মতোই — `searchDo()` সেই একই ফাংশন। */
 function wlv1DqSearchAll(){
  var q=String(window.__dqSearch||'').trim();
@@ -15839,6 +15849,54 @@ function wlv1DqSearchAll(){
  },60);
 }
 window["wlv1DqSearchAll"]=wlv1DqSearchAll;
+/* 🔍🔒 V1108 — আজকের লাইনের বাইরের রোগীরা (ফোনের
+   `DoctorQueueRepository.searchAllPatients`-এর হুবহু একই নিয়ম ও একই ঘরগুলো)। */
+window.__dqWide = { q:'', rows:null, busy:false };
+function wlv1DqWideBlock(q){
+ var w=window.__dqWide;
+ if(String(q||'').length<3)
+   return '<div class="dqSectionHead dqNotFound">NOT IN TODAY\'S QUEUE — TYPE 3 LETTERS TO SEARCH ALL</div>';
+ if(w.busy&&w.q===q) return '<div class="dqSectionHead dqSearchAll">\uD83D\uDD0D  SEARCHING ALL PATIENTS…</div>';
+ if(w.q===q&&w.rows){
+   if(!w.rows.length)
+     return '<div class="dqSectionHead dqNotFound">NO PATIENT NAMED "'+esc(String(q).toUpperCase())+'"</div>';
+   return '<div class="dqSectionHead dqSearchAll">\uD83D\uDD0D  ALL PATIENTS ('+w.rows.length+')</div>'
+     +'<div id="dqRowsWide">'+w.rows.map(wlv1DqCard).join('')+'</div>';
+ }
+ return '<div class="dqSectionHead dqNotFound">NOT IN TODAY\'S QUEUE</div>';
+}
+window["wlv1DqWideBlock"]=wlv1DqWideBlock;
+async function wlv1DqWideFetch(q){
+ var w=window.__dqWide;
+ q=String(q||'').trim();
+ if(q.length<3){ if(w.q||w.rows){ w.q=''; w.rows=null; w.busy=false; doctorQueue(true); } return }
+ if(w.q===q&&(w.rows||w.busy)) return;
+ /* ⛔ আজকের লাইনেই পাওয়া গেলে ক্লাউডে যাওয়ার দরকার নেই। */
+ w.q=q; w.rows=null; w.busy=true; doctorQueue(true);
+ var out=[];
+ try{
+  if(typeof sb!=='undefined'&&sb){
+   /* ⛔ ব্রাঞ্চের নিয়ম হুবহু পর্দার নিজের নিয়মেই — মাস্টার/ক্রস-ব্রাঞ্চ ডাক্তার
+      হলে তাঁর বাছা ব্রাঞ্চ, নইলে নিজের ব্রাঞ্চ। বাইরের রোগী কখনো দেখায় না। */
+   var br=(isMaster()||wlv1IsCrossBranchDoctorQueueAccess())?wlv1BranchGet():((user&&user.branch)||'');
+   var pat='%'+q+'%';
+   var sel='id,name,mobile,patientId,branch,disease,registrationDate';
+   var qq=sb.from('patients').select(sel)
+     .or('name.ilike.'+pat+',mobile.ilike.'+pat+',patientId.ilike.'+pat).limit(25);
+   if(br&&br!=='All') qq=qq.eq('branch',br);
+   var r=await qq;
+   if(!r.error) out=(r.data||[]).map(function(p){
+     return {id:p.id,patientId:p.patientId||'',name:p.name||'',mobile:p.mobile||'',
+             disease:p.disease||'',branch:p.branch||'',photo:'',
+             registrationDate:p.registrationDate||''};
+   });
+  }
+ }catch(e){ out=[] }   /* নেট খারাপ হলে পর্দা আগের মতোই চলে */
+ if(String(window.__dqSearch||'').trim()!==q) return;
+ w.rows=out; w.busy=false;
+ doctorQueue(true);
+}
+window["wlv1DqWideFetch"]=wlv1DqWideFetch;
 let __quickSearchTimer=null;
 function quickSearch(q,context=''){let el=$('#quick');if(!el)return;q=String(q||'').trim();if(!q){el.innerHTML='';return}if(q.length<2){el.innerHTML='<div class="card mut tiny">Type at least 2 characters</div>';return}clearTimeout(__quickSearchTimer);__quickSearchTimer=setTimeout(()=>{let oldLimit=window.__SEARCH_LIMIT;window.__SEARCH_LIMIT=5;el.innerHTML=searchResults(q,false,context);window.__SEARCH_LIMIT=oldLimit},260)}
 window["quickSearch"]=quickSearch;

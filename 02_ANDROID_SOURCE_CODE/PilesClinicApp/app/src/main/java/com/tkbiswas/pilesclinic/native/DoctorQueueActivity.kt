@@ -73,6 +73,13 @@ class DoctorQueueActivity : AppCompatActivity() {
        যায় না, তাই ফ্রি প্ল্যানে বাড়তি চাপ নেই।
        ⛔ তালিকা আনা · সাজানো · Today/Overdue ভাগ — কিছুই বদলায়নি। */
     private var queueSearch = ""
+    /* 🔍🔒 V1108 — আজকের লাইনের বাইরে পাওয়া রোগীরা। ⛔ শুধু দেখানোর জন্য;
+       আসল তালিকা (`lastPendingItems`/`lastDoneItems`) ছোঁয়া হয় না। */
+    private var wideResults: List<QueuePatient> = emptyList()
+    private var wideForQuery = ""       // কোন লেখার ফল — একই লেখায় আবার অনুরোধ যায় না
+    private var wideSearching = false
+    private val wideHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var wideTask: Runnable? = null
     private val autoTick = object : Runnable {
         override fun run() {
             try { autoCheckForChanges() } catch (_: Throwable) { }
@@ -179,6 +186,10 @@ class DoctorQueueActivity : AppCompatActivity() {
             override fun afterTextChanged(s: android.text.Editable?) {
                 queueSearch = s?.toString().orEmpty().trim().lowercase()
                 renderRows()
+                /* 🔍🔒 V1108 (TK-নির্দেশ: *"সার্চ বক্সে নাম টাইপ করলেই চলে আসতে
+                   হবে"*) — লেখা থামার পরেই আজকের লাইনের **বাইরের** রোগীও
+                   নিজে থেকে উঠে আসে। ⛔ ৩ অক্ষরের কম হলে একটাও অনুরোধ যায় না। */
+                scheduleWideSearch()
             }
             override fun beforeTextChanged(t: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun onTextChanged(t: CharSequence?, a: Int, b: Int, c: Int) {}
@@ -458,6 +469,43 @@ class DoctorQueueActivity : AppCompatActivity() {
             (digits.isNotEmpty() && p.mobile.filter { it.isDigit() }.contains(digits))
     }
 
+    /** 🔍🔒 V1108 — লেখা থামার ৪৫০ মিলিসেকেন্ড পরে একবারই খোঁজা হয়।
+     *  ⛔ প্রতিটা অক্ষরে অনুরোধ যায় **না** — টাইপ থামলে তবেই একবার।
+     *  ⛔ ৩ অক্ষরের কম · একই লেখা আগে খোঁজা হয়ে থাকলে · অথবা আজকের লাইনেই
+     *     রোগী পাওয়া গেলে — কোনো অনুরোধই যায় না। */
+    private fun scheduleWideSearch() {
+        wideTask?.let { wideHandler.removeCallbacks(it) }
+        val q = queueSearch
+        if (q.length < 3) {
+            if (wideResults.isNotEmpty() || wideForQuery.isNotBlank()) {
+                wideResults = emptyList(); wideForQuery = ""; renderRows()
+            }
+            return
+        }
+        if (q == wideForQuery) return
+        // আজকের লাইনেই পাওয়া গেলে ক্লাউডে যাওয়ার দরকার নেই।
+        if (lastPendingItems.any { matchesSearch(it) } || lastDoneItems.any { matchesSearch(it) }) return
+        val task = Runnable {
+            if (isFinishing || isDestroyed) return@Runnable
+            if (queueSearch != q) return@Runnable
+            wideSearching = true
+            renderRows()
+            lifecycleScope.launch {
+                val found = withContext(Dispatchers.IO) {
+                    try { repository.searchAllPatients(q, shownBranch()) } catch (_: Throwable) { emptyList() }
+                }
+                wideSearching = false
+                if (isFinishing || isDestroyed) return@launch
+                if (queueSearch != q) return@launch
+                wideForQuery = q
+                wideResults = found
+                renderRows()
+            }
+        }
+        wideTask = task
+        wideHandler.postDelayed(task, 450L)
+    }
+
     /** 🔍🔒 V1107 — টাইপ করা নামটা নিয়ে "সব রোগীর মধ্যে খোঁজা" পর্দা।
      *  ⛔ পর্দাটা নিজের চেনা নিয়মেই খোঁজে — এখানে নতুন কোনো ক্লাউড-পড়া নেই। */
     private fun openAllPatientSearch() {
@@ -504,15 +552,28 @@ class DoctorQueueActivity : AppCompatActivity() {
              রোগীর মধ্যে খোঁজার পর্দা খুলে যায়, আর কিছু টাইপ করতে হয় না।
            ⛔ নতুন কোনো ক্লাউড-পড়া **এই পর্দায় যোগ হয়নি** — খোঁজা তখনই হয় যখন
               স্টাফ নিজে বোতামটা চাপেন (Egress অপরিবর্তিত)। */
+        /* 🔍🔒 V1108 (TK-নির্দেশ: *"সার্চ বক্সে নাম টাইপ করলেই চলে আসতে হবে"*) —
+           আজকের লাইনে না পেলে **নিজে থেকেই** সব রোগীর মধ্যে খোঁজা হয়ে যায়,
+           আর ফল এখানেই কার্ড হয়ে বসে — কোনো বোতাম চাপতে হয় না।
+           ⛔ কার্ডগুলো হুবহু আগের কার্ড (একই adapter), তাই Check-up · History ·
+              Action · Report সব বোতাম আগের মতোই কাজ করে।
+           ⛔ ৩ অক্ষরের কম লিখলে খোঁজাই হয় না, তাই অকারণে কিছু দেখায় না। */
         if (queueSearch.isNotBlank() && pendingShown.isEmpty() && doneShown.isEmpty()) {
             val typed = binding.etQueueSearch.text?.toString().orEmpty().trim()
-            /* ⛔ "কেন পাওয়া গেল না" লাইনটা রাখা হলো — নইলে বোতামটা কেন এল
-               সেটা বোঝা যেত না (কম্পিউটারেও হুবহু একই দুটো লাইন)। */
-            rows.add(QueueRow.Header("NOT IN TODAY'S QUEUE"))
-            rows.add(QueueRow.Header(
-                "🔍  SEARCH \"${typed.uppercase()}\" IN ALL PATIENTS",
-                onTap = { openAllPatientSearch() }
-            ))
+            when {
+                queueSearch.length < 3 ->
+                    rows.add(QueueRow.Header("NOT IN TODAY'S QUEUE — TYPE 3 LETTERS TO SEARCH ALL"))
+                wideSearching ->
+                    rows.add(QueueRow.Header("🔍  SEARCHING ALL PATIENTS…"))
+                wideResults.isNotEmpty() -> {
+                    rows.add(QueueRow.Header("🔍  ALL PATIENTS (${wideResults.size})"))
+                    wideResults.forEach { rows.add(QueueRow.Item(it)) }
+                }
+                wideForQuery == queueSearch ->
+                    rows.add(QueueRow.Header("NO PATIENT NAMED \"${typed.uppercase()}\""))
+                else ->
+                    rows.add(QueueRow.Header("NOT IN TODAY'S QUEUE"))
+            }
         }
         // 🔒 V217 (§B216, Master Fix Order §14, item 7 "CHECK-UP থেকে Back
         // দিলে একই জায়গায় ফিরবে"): CHECK-UP থেকে ফিরে এলে `onResume()`

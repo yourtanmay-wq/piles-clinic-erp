@@ -1027,7 +1027,7 @@
 
   function salTimeBadge(tt, src){
     var t=String(tt||'').trim(), sc=String(src||'').trim().toLowerCase();
-    if(!/^unexpected time$/i.test(t)) return t?('🕐 '+t.toUpperCase()):'';
+    if(!/^unexpected time$/i.test(t)) return t?t.toUpperCase():'';
     if(sc==='auto') return '⏰ AUTO UNEXPECTED';
     if(sc==='hand') return '✍️ UNEXPECTED (BY HAND)';
     return '⏰ UNEXPECTED';
@@ -1606,7 +1606,7 @@
 '</b></div>' : '') +
 
       /* 🗓️ V509 (TK-নির্দেশ): স্টাফের নিজের মাসিক হাজিরা-খাতা — DATE · IN · OUT · LEAVE */
-      '<div style="margin:18px 0 4px"><button class="ghost" style="width:100%;text-align:center" onclick="myAttendanceSheet()">🗓️ My Attendance Sheet</button></div>' +
+      '<div style="margin:18px 0 4px"><button class="ghost" style="width:100%;text-align:center" onclick="myAttendanceSheet()">My Attendance Sheet</button></div>' +
 
       '<div style="font-size:12.5px;font-weight:700;color:#667085;text-transform:uppercase;letter-spacing:.5px;margin:22px 2px 10px">Payment History</div>' +
       '<div style="background:#fff;border:1px solid #E4E8EE;border-radius:12px;box-shadow:0 1px 3px rgba(16,24,40,0.04);overflow:hidden;padding:2px 0">' +
@@ -2023,7 +2023,7 @@
    *    'attendance') আগে থেকেই তৈরি ছিল, শুধু **মাস্টারের** Staff Performance
    *    পথ থেকে খুলত (`staffPerformanceOne`-এ "Only Master")। স্টাফের নিজের
    *    পাতায় ঢোকার দরজাই ছিল না। এখানে শুধু সেই দরজাটা বসানো হলো —
-   *    ফোনের অ্যাপে হুবহু একই ("🗓️ My Attendance Sheet")।
+   *    ফোনের অ্যাপে হুবহু একই ("My Attendance Sheet")।
    * ⛔ স্টাফ **শুধু নিজের** খাতা দেখেন: নিজের কোড ছাড়া কিছু পাঠানোই হয় না, আর
    *    সার্ভারের নিয়মও (V509_MY_ATTENDANCE_SHEET SQL) নিজের কোড ছাড়া অন্য কারও
    *    সারি ফেরত দেয় না। মাস্টারের ক্ষমতা অপরিবর্তিত।

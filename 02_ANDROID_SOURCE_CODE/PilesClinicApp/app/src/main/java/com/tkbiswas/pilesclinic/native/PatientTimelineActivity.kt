@@ -3807,7 +3807,7 @@ class PatientTimelineActivity : AppCompatActivity() {
         })
         if (history.isNotEmpty()) {
             container.addView(android.widget.TextView(this).apply {
-                text = "🕘 Earlier versions (kept)\n" + history.joinToString("\n")
+                text = "Earlier versions (kept)\n" + history.joinToString("\n")
                 textSize = 11.5f
                 setTextColor(android.graphics.Color.parseColor("#3C4859"))
                 val p = dp(10); setPadding(p, p, p, p)
@@ -4343,7 +4343,7 @@ class PatientTimelineActivity : AppCompatActivity() {
                     val tt = data.timeType.trim()
                     if (tt.isBlank()) return ""
                     return if (tt.equals("Unexpected Time", ignoreCase = true)) "⏰ UNEXPECTED TIME"
-                    else "🕐 " + tt.uppercase()
+                    else tt.uppercase()
                 }
                 if (isInquiryStage) {
                     // TK-DECISION (2026-07-24): Enquiry ধাপে ID-র লাইন থাকে না।

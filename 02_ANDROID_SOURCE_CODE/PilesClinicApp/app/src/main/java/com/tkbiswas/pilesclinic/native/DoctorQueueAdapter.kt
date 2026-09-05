@@ -95,7 +95,7 @@ class DoctorQueueAdapter(
                 val isSearch = row.title.startsWith("🔍")
                 /* ⛔ V1107 — "কেন পাওয়া গেল না" লাইনটা ধূসর, যাতে বোতামের
                    সঙ্গে গুলিয়ে না যায়। */
-                val isInfo = row.title.startsWith("NOT IN")
+                val isInfo = row.title.startsWith("NOT IN") || row.title.startsWith("NO PATIENT")
                 hb.tvSectionHeader.setTextColor(android.graphics.Color.WHITE)
                 hb.tvSectionHeader.textSize = 15f
                 hb.tvSectionHeader.setTypeface(hb.tvSectionHeader.typeface, android.graphics.Typeface.BOLD)

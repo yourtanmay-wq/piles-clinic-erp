@@ -1335,7 +1335,7 @@ class WorkNotebookActivity : AppCompatActivity() {
             // প্রমাণিত ধরন) — Staff/Branch/Time আলাদা লাইনে, ইমোজি-সহ।
             val msg = "👤 Staff : ${staffCode.ifBlank { mobile }}\n" +
                 "🏥 Branch : $branch\n" +
-                "🕐 Time : " + displayTime12(ns(day, "check_in"))
+                "Time : " + displayTime12(ns(day, "check_in"))
             // ⛔ শিরোনাম ঠিক "Staff IN TIME"-ই রাখা হলো (ইমোজি যোগ করা
             // হয়নি) — `BriefingActivity.kt`-এর `AUTO_DELETE_ON_SEEN_TITLES`
             // এই হুবহু শব্দ মিলিয়ে "দেখা হলে নিজে থেকে মুছে যাওয়া"
@@ -1690,7 +1690,7 @@ class WorkNotebookActivity : AppCompatActivity() {
             row.addView(TextView(this).apply { text = "›"; textSize = 18f; setTextColor(android.graphics.Color.parseColor("#9CA3AF")) })
             return row
         }
-        val optOffice = optionRow("🕐", "Office time over", "অফিস টাইম শেষ")
+        val optOffice = optionRow("⏳", "Office time over", "অফিস টাইম শেষ")
         optOffice.setOnClickListener { finishWithReason("Office time over") }
         box.addView(optOffice)
         // 🔴🆕🔒 B466 (TK-নির্দেশ — "Office Time সিলেক্ট করলে প্রশ্ন আসার
@@ -2779,7 +2779,7 @@ class WorkNotebookActivity : AppCompatActivity() {
                        ⛔ এতদিন পাশের "Cancel Leave" শুধু **আজকের** ছুটি ফেরাত;
                           আগাম নেওয়া ছুটি ফেরানোর কোনো পথ ছিল না।
                        ⛔ পুরনো "Cancel Leave" বোতাম এক অক্ষরও বদলায়নি। */
-                    val myLeaveBtn = ModuleUi.buttonSoft(this, "🗓️ My Upcoming Leave") { upcomingLeaveScreen() }
+                    val myLeaveBtn = ModuleUi.buttonSoft(this, "My Upcoming Leave") { upcomingLeaveScreen() }
                     myLeaveBtn.layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
                         .apply { topMargin = ModuleUi.dp(this@WorkNotebookActivity, 6) }
                     form.addView(myLeaveBtn)

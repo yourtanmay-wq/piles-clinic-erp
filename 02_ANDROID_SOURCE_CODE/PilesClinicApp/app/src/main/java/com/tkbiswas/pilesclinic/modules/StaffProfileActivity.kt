@@ -2247,7 +2247,7 @@ class StaffProfileActivity : AppCompatActivity() {
             } catch (_: Throwable) { null }
         }
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "🕐 Fix Attendance"))
+            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "Fix Attendance"))
             .setView(box)
             .setPositiveButton("Save") { _, _ ->
                 val inTxt = inInput.text.toString().trim()
@@ -4597,7 +4597,7 @@ class StaffProfileActivity : AppCompatActivity() {
                  */
                 val myCode = ns(p, "person_code")
                 if (myCode.isNotBlank()) {
-                    box.addView(ModuleUi.button(this, "🗓️ My Attendance Sheet") {
+                    box.addView(ModuleUi.button(this, "My Attendance Sheet") {
                         val ym = SimpleDateFormat("yyyy-MM", Locale.US)
                             .apply { timeZone = TimeZone.getTimeZone("Asia/Kolkata") }
                             .format(java.util.Date())

@@ -2825,6 +2825,67 @@ def _bn_read_maps(src):
     return one("WHOLE"), one("MAP")
 
 
+# ══════════════════════════════════════════════════════════════════════
+#  যাচাই ৯.১৫ — 📅⛔ তারিখ/সময় আঁকা ইমোজি পর্দায় কোথাও নয়
+#
+#  TK (০৫.০৯.২০২৬): *"July 17 Emoji থাকবে না · আর কতবার আপনাকে বলবো ·
+#  ভবিষ্যতের জন্য এই ইমোজি ব্লক করে রাখুন"*
+#
+#  🔴 কেন: 📅 ইমোজিটা ফোনভেদে **"JULY 17"** লেখা একটা ক্যালেন্ডার আঁকে,
+#     আর 🕐-🕧 ঘড়ির মুখগুলো **একটা নির্দিষ্ট সময়** আঁকে। ফলে পর্দায়
+#     ভুল তারিখ/সময় লেখা থাকে — রোগীর কাগজে বা ডাক্তারের পর্দায় সেটা
+#     সরাসরি বিভ্রান্তি। TK এটা আগেও বলেছিলেন (V699-এ
+#     `ic_pd_calendar_green`/`ic_pd_clock` বসানো হয়েছিল), তবু আবার ফিরে এসেছে।
+#  ⇒ এখন থেকে পাহারাদারই আটকাবে — **ব্যবহারকারী যা দেখেন** সেই লেখায়
+#     (`android:text` · `android:hint` · Kotlin/JS-এর স্ট্রিং) এই ইমোজিগুলো
+#     থাকলে ফাইল বানানো যাবে না।
+#  ⛔ **কমেন্টে (ব্যাখ্যায়) থাকলে কিছু হয় না** — সেটা কেউ পর্দায় দেখে না।
+#  ⛔ বদলে ব্যবহার করুন: `ic_pd_calendar_green` · `ic_pd_clock` (আঁকা নেই)।
+# ══════════════════════════════════════════════════════════════════════
+DATE_TIME_EMOJI = ["\U0001F4C5", "\U0001F4C6", "\U0001F5D3"] + [chr(c) for c in range(0x1F550, 0x1F568)]
+
+def _dte_strip_comments(text, kind):
+    """কমেন্ট বাদ দেওয়া — ব্যাখ্যায় ইমোজি থাকলে কেউ পর্দায় দেখে না।"""
+    import re as _re
+    if kind == "xml":
+        return _re.sub(r"<!--.*?-->", " ", text, flags=_re.S)
+    # kt / js — ব্লক ও এক-লাইনের কমেন্ট
+    text = _re.sub(r"/\*.*?\*/", " ", text, flags=_re.S)
+    out = []
+    for line in text.split("\n"):
+        i = line.find("//")
+        out.append(line if i < 0 else line[:i])
+    return "\n".join(out)
+
+def check_no_date_emoji():
+    bad = []
+    scans = [(JAVA, ".kt", "kt"), (os.path.join(RES, "layout"), ".xml", "xml"),
+             (WEB, ".js", "js")]
+    for root, ext, kind in scans:
+        if not os.path.isdir(root):
+            continue
+        for dp, _, fs in os.walk(root):
+            for f in sorted(fs):
+                if not f.endswith(ext):
+                    continue
+                body = _dte_strip_comments(read(os.path.join(dp, f)), kind)
+                for em in DATE_TIME_EMOJI:
+                    if em not in body:
+                        continue
+                    for n, line in enumerate(body.split("\n"), 1):
+                        if em in line:
+                            bad.append("%s:%d  %s" % (f, n, em))
+                            break
+    for b in bad[:12]:
+        fail("৯.৪৩",
+             "[TK \u09e6\u09eb.\u09e6\u09ef.\u09e8\u09e6\u09e8\u09ec] "
+             "\u09a4\u09be\u09b0\u09bf\u0996/\u09b8\u09ae\u09df \u0986\u0981\u0995\u09be "
+             "\u0987\u09ae\u09cb\u099c\u09bf \u09aa\u09b0\u09cd\u09a6\u09be\u09b0 "
+             "\u09b2\u09c7\u0996\u09be\u09df \u2014 " + b +
+             "  \u00b7  TK: \"July 17 Emoji \u09a5\u09be\u0995\u09ac\u09c7 \u09a8\u09be\" "
+             "\u00b7 \u09ac\u09a6\u09b2\u09c7 ic_pd_calendar_green / ic_pd_clock")
+
+
 def check_no_bengali():
     nb = os.path.join(NATIVE, "NoBengali.kt")
     if not os.path.exists(nb):
@@ -3361,6 +3422,7 @@ def main():
     check_followup_id()         # 🧾 খাতার সারি B147
     check_branch_encoded()      # 🧾 খাতার সারি B147
     check_no_bengali()          # 🚫 খাতার সারি B158
+    check_no_date_emoji()       # 📅 TK ০৫.০৯.২০২৬ — "July 17 Emoji থাকবে না"
     code = check_version()
     check_web()
     check_notes()

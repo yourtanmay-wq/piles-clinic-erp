@@ -145,7 +145,7 @@ class FollowUpAdapter(
                         b.tvTimeType.visibility = View.VISIBLE
                     }
                     tt.equals("Official Time", ignoreCase = true) -> {
-                        b.tvTimeType.text = "🕘 Official Time"
+                        b.tvTimeType.text = "Official Time"
                         b.tvTimeType.setBackgroundColor(android.graphics.Color.parseColor("#0C9E33"))
                         b.tvTimeType.visibility = View.VISIBLE
                     }

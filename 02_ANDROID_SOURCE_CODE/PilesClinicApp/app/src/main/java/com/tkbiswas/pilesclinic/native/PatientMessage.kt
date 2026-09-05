@@ -342,7 +342,7 @@ object PatientMessage {
                         sb.append("প্রিয় ").append(who).append(",\n\n")
                         sb.append("আপনার পরবর্তী ভিজিটের তারিখ নির্ধারণ করা হয়েছে।\n\n")
                         sb.append("⏰ ").append(dateTimeLine(dateText, timeText)).append("\n")
-                        sb.append("🕚 Visiting Time: সকাল 11টা থেকে বিকেল 4টা\n\n")
+                        sb.append("Visiting Time: সকাল 11টা থেকে বিকেল 4টা\n\n")
                         sb.append("নির্ধারিত তারিখে ক্লিনিকে উপস্থিত হবেন।")
                     }
                     Kind.DUE_REMINDER -> {
@@ -371,7 +371,7 @@ object PatientMessage {
                         sb.append("প্রিয় ").append(who).append(",\n\n")
                         sb.append("আপনার নির্ধারিত ভিজিটের তারিখ মনে করিয়ে দেওয়া হচ্ছে।\n\n")
                         sb.append("⏰ ").append(dateTimeLine(dateText, timeText)).append("\n")
-                        sb.append("🕚 Visiting Time: সকাল 11টা থেকে বিকেল 4টা\n\n")
+                        sb.append("Visiting Time: সকাল 11টা থেকে বিকেল 4টা\n\n")
                         sb.append("নির্ধারিত তারিখে ক্লিনিকে উপস্থিত হবেন।")
                     }
                     Kind.DOCUMENT -> {
@@ -462,7 +462,7 @@ object PatientMessage {
                         sb.append("प्रिय ").append(who).append(",\n\n")
                         sb.append("आपकी अगली विज़िट की तारीख तय कर दी गई है।\n\n")
                         sb.append("⏰ ").append(dateTimeLine(dateText, timeText)).append("\n")
-                        sb.append("🕚 Visiting Time: सुबह 11 बजे से शाम 4 बजे तक\n\n")
+                        sb.append("Visiting Time: सुबह 11 बजे से शाम 4 बजे तक\n\n")
                         sb.append("तय तारीख पर क्लिनिक में उपस्थित रहें।")
                     }
                     Kind.DUE_REMINDER -> {
@@ -491,7 +491,7 @@ object PatientMessage {
                         sb.append("प्रिय ").append(who).append(",\n\n")
                         sb.append("आपकी तय विज़िट की तारीख याद दिलाई जा रही है।\n\n")
                         sb.append("⏰ ").append(dateTimeLine(dateText, timeText)).append("\n")
-                        sb.append("🕚 Visiting Time: सुबह 11 बजे से शाम 4 बजे तक\n\n")
+                        sb.append("Visiting Time: सुबह 11 बजे से शाम 4 बजे तक\n\n")
                         sb.append("तय तारीख पर क्लिनिक में उपस्थित रहें।")
                     }
                     Kind.DOCUMENT -> {
@@ -582,7 +582,7 @@ object PatientMessage {
                         sb.append("Dear ").append(who).append(",\n\n")
                         sb.append("Your next visit date has been scheduled.\n\n")
                         sb.append("⏰ ").append(dateTimeLine(dateText, timeText)).append("\n")
-                        sb.append("🕚 Visiting Time: 11:00 AM to 4:00 PM\n\n")
+                        sb.append("Visiting Time: 11:00 AM to 4:00 PM\n\n")
                         sb.append("Please be present at the clinic on the scheduled date.")
                     }
                     Kind.DUE_REMINDER -> {
@@ -611,7 +611,7 @@ object PatientMessage {
                         sb.append("Dear ").append(who).append(",\n\n")
                         sb.append("This is a reminder about your scheduled visit date.\n\n")
                         sb.append("⏰ ").append(dateTimeLine(dateText, timeText)).append("\n")
-                        sb.append("🕚 Visiting Time: 11:00 AM to 4:00 PM\n\n")
+                        sb.append("Visiting Time: 11:00 AM to 4:00 PM\n\n")
                         sb.append("Please be present at the clinic on the scheduled date.")
                     }
                     Kind.DOCUMENT -> {
@@ -1480,7 +1480,7 @@ object PatientMessage {
                 sb.append("আপনার অ্যাপয়েন্টমেন্ট সফলভাবে নিশ্চিত করা হয়েছে।\n\n")
                 if (patientId.isNotBlank()) sb.append("Patient ID: ").append(patientId).append("\n")
                 if (dateText.isNotBlank()) sb.append("⏰ Appointment Date: ").append(dateText).append("\n")
-                sb.append("🕚 Visiting Time: সকাল 11টা থেকে বিকেল 4টা\n\n")
+                sb.append("Visiting Time: সকাল 11টা থেকে বিকেল 4টা\n\n")
                 sb.append("নির্ধারিত তারিখে ক্লিনিকে উপস্থিত হবেন।")
             }
             "hi" -> {
@@ -1489,7 +1489,7 @@ object PatientMessage {
                 sb.append("आपका अपॉइंटमेंट सफलतापूर्वक निश्चित कर दिया गया है।\n\n")
                 if (patientId.isNotBlank()) sb.append("Patient ID: ").append(patientId).append("\n")
                 if (dateText.isNotBlank()) sb.append("⏰ Appointment Date: ").append(dateText).append("\n")
-                sb.append("🕚 Visiting Time: सुबह 11 बजे से शाम 4 बजे तक\n\n")
+                sb.append("Visiting Time: सुबह 11 बजे से शाम 4 बजे तक\n\n")
                 sb.append("तय तारीख पर क्लिनिक में उपस्थित रहें।")
             }
             else -> {
@@ -1498,7 +1498,7 @@ object PatientMessage {
                 sb.append("Your appointment has been confirmed successfully.\n\n")
                 if (patientId.isNotBlank()) sb.append("Patient ID: ").append(patientId).append("\n")
                 if (dateText.isNotBlank()) sb.append("⏰ Appointment Date: ").append(dateText).append("\n")
-                sb.append("🕚 Visiting Time: 11:00 AM to 4:00 PM\n\n")
+                sb.append("Visiting Time: 11:00 AM to 4:00 PM\n\n")
                 sb.append("Please be present at the clinic on the scheduled date.")
             }
         }

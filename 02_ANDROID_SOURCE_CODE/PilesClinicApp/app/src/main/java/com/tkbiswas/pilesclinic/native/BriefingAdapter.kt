@@ -215,7 +215,7 @@ class BriefingAdapter(
             b.tvAvatar.text = ((nm ?: staffCode).firstOrNull { it.isLetterOrDigit() }?.uppercaseChar() ?: 'S').toString()
             // কম্প্যাক্ট: Staff/Branch এখন হাইলাইটেই আছে, তাই বার্তায় শুধু সময়টুকু।
             val t = extractField(item.message, "Time")
-            if (t != null) b.tvMessage.text = "🕐 $t"
+            if (t != null) b.tvMessage.text = t
         }
 
         // 🟢🔒 V641 (২৪.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ — "ব্রাঞ্চ দুই
