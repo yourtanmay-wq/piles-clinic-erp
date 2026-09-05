@@ -590,11 +590,20 @@ class DashboardActivity : AppCompatActivity() {
                     // 🎨 V1084 — লেখাটা এখন গোলাপি কার্ডের ভিতরে, তাই কার্ডটাও
                     //    ঠিক একই সময়ে দেখা যায়/লুকায়। নিয়ম এক অক্ষরও বদলায়নি।
                     binding.callBannerCard.visibility = android.view.View.VISIBLE
-                    /* 🟢 V590 — বকেয়া থাকলে সংখ্যাটা আলাদা করে বলা হয়, তাই
-                       "কতগুলো জমে গেছে" এক নজরেই বোঝা যায়। */
-                    binding.tvCallBanner.text = if (overdue > 0)
-                        "📞 $count calls pending — $overdue overdue — tap to call"
-                    else "📞 $count calls pending today — tap to call"
+                    /* ═══════════════════════════════════════════════════
+                       📞🔒 V1115 (০৫.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ):
+                       *"51 Calls Pending, 33 over Due তার পাশের ট্যাপ টু কল —
+                       এটা রাখতে হবে না"* · *"Call icon 2 বার কেন? এখানে
+                       Over due-ও লেখা থাকবে না"*
+                       ⇒ পট্টিতে এখন শুধু **"51 calls pending"**।
+                         · লেখার ভিতরের দ্বিতীয় 📞 বাদ (বাঁয়ে গোল আইকনটা
+                           আগে থেকেই আছে, তাই দুবার দেখাত)
+                         · *"— N overdue"* বাদ
+                         · *"— tap to call"* বাদ (পাশেই **Call now ›** বোতাম)
+                       ⛔ চাপ দিলে আগের মতোই আজকের কলের তালিকা খোলে — কাজের
+                          কিছুই বদলায়নি, শুধু লেখা।
+                       ⛔ `overdue` গোনাটা মোছা হয়নি — অন্য কাজে লাগে। */
+                    binding.tvCallBanner.text = "$count calls pending"
                     binding.tvCallBanner.setOnClickListener {
                         startActivity(Intent(this@DashboardActivity, FollowUpActivity::class.java).putExtra("todayOnly", true))
                     }

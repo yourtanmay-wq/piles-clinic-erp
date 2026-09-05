@@ -21950,9 +21950,13 @@ function wlv1TodayCallBanner(){
   let over = 0;
   try{ const t=today(); over = wlv1TodayCallRows()
         .filter(x=>{const d=String(x.nextFollow||'').slice(0,10); return d!=='' && d<t;}).length; }catch(e){}
-  const txt = over>0 ? `${n} calls pending \u2014 ${over} overdue \u2014 tap to call`
-                     : `${n} calls pending today \u2014 tap to call`;
-  return `<button class="wlv1CallBanner" onclick="wlv1OpenTodayCalls()">\u{1F4DE} ${txt}</button>`;
+  /* 📞🔒 V1115 (TK-নির্দেশ, ফটো-প্রুফ পাশ): *"তার পাশের ট্যাপ টু কল এটা রাখতে
+     হবে না"* · *"Call icon 2 বার কেন? এখানে Over due-ও লেখা থাকবে না"*
+     ⇒ পট্টিতে এখন শুধু "51 calls pending" — ভিতরের দ্বিতীয় 📞 · "N overdue" ·
+       "tap to call" তিনটেই বাদ। ⛔ চাপ দিলে আগের মতোই তালিকা খোলে।
+     ⛔ `over` গোনাটা মোছা হয়নি — অন্য কাজে লাগে। ফোনের হুবহু জোড়া। */
+  const txt = `${n} calls pending`;
+  return `<button class="wlv1CallBanner" onclick="wlv1OpenTodayCalls()">${txt}</button>`;
 }
 window["wlv1TodayCallBanner"]=wlv1TodayCallBanner;
 function wlv1OpenTodayCalls(){
