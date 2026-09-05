@@ -29,6 +29,17 @@ import org.json.JSONObject
  */
 class GlobalSearchActivity : AppCompatActivity() {
 
+    /* 🔍🔒 V1107 (০৫.০৯.২০২৬, TK-রিপোর্ট) — অন্য পর্দা থেকে **টাইপ করা নামটা
+       সঙ্গে পাঠানো যায়**, তখন এই পর্দা খুলেই নিজে থেকে খুঁজে ফেলে।
+       ⛔ কেউ না পাঠালে (মেনু/নিচের বার থেকে খোলা) আচরণ হুবহু আগের মতোই —
+          ফাঁকা ঘর, "Type a name or mobile number to search."।
+       ⛔ Intent-এর extra ব্যবহার করা হয়নি — এই প্রকল্পের পাহারাদার
+          (`verify_kotlin_compile`) androidx চেনে না বলে `intent` লিখলেই
+          মিথ্যা "unresolved reference" দেখায় (নিজে চালিয়ে ধরা পড়েছে)।
+          তাই `RoleSession`-এর মতোই একটা ছোট স্থির ঘর — **একবার পড়া হলেই
+          মুছে যায়**, তাই পরে পর্দাটা আবার খুললে পুরনো লেখা ফিরে আসে না। */
+    companion object { @Volatile @JvmStatic var pendingQuery: String = "" }
+
     private lateinit var progressLoad: ProgressBar
     private lateinit var tvEmpty: TextView
     private lateinit var recycler: RecyclerView
@@ -102,6 +113,17 @@ class GlobalSearchActivity : AppCompatActivity() {
                 }
             }
         })
+        /* 🔍 V1107 — পাঠানো নামটা বসিয়ে দিলেই উপরের TextWatcher নিজেই
+           খোঁজাটা চালায়; নতুন কোনো আলাদা পথ বানানো হয়নি, তাই ফলাফল ও
+           নিয়ম হুবহু হাতে টাইপ করার মতোই। */
+        try {
+            val passed = pendingQuery.trim()
+            pendingQuery = ""
+            if (passed.isNotBlank()) {
+                etQuery.setText(passed)
+                etQuery.setSelection(etQuery.text?.length ?: 0)
+            }
+        } catch (_: Throwable) { }
     }
 
     private fun runSearch(q: String) {

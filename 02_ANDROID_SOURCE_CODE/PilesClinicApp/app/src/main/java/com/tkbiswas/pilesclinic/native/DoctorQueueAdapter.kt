@@ -20,7 +20,16 @@ import com.tkbiswas.pilesclinic.databinding.ItemQueueSectionHeaderBinding
  *  by default and only its patient rows open on tapping the header --
  *  "Today" always stays open, so `collapsible` is false for it. */
 sealed class QueueRow {
-    data class Header(val title: String, val collapsible: Boolean = false) : QueueRow()
+    /* 🔍🔒 V1107 (০৫.০৯.২০২৬, TK-রিপোর্ট ছবিসহ: *"এখানে সার্চ করলে পেসেন্ট
+       আসে না তো"*) — শিরোনাম-সারিতে এখন নিজের কাজও বসানো যায়, তাই "সব রোগীর
+       মধ্যে খুঁজুন" বোতামটা এই একই সারি দিয়েই বানানো হলো।
+       ⛔ `onTap` না দিলে আচরণ **হুবহু আগের মতোই** — পুরনো দুটো শিরোনাম
+          (PENDING TODAY · DONE TODAY) এক অক্ষরও বদলায়নি। */
+    data class Header(
+        val title: String,
+        val collapsible: Boolean = false,
+        val onTap: (() -> Unit)? = null
+    ) : QueueRow()
     data class Item(val patient: QueuePatient) : QueueRow()
 }
 
@@ -81,15 +90,34 @@ class DoctorQueueAdapter(
                 val dens = ctx.resources.displayMetrics.density
                 fun dp(v: Int) = (v * dens).toInt()
                 val isToday = row.title.contains("Today")
+                /* 🔍 V1107 — খোঁজার সারিটা নীল, যাতে সেটা যে একটা **বোতাম**
+                   তা চোখেই বোঝা যায়। ⛔ বাকি দুটো শিরোনামের রং অপরিবর্তিত। */
+                val isSearch = row.title.startsWith("🔍")
+                /* ⛔ V1107 — "কেন পাওয়া গেল না" লাইনটা ধূসর, যাতে বোতামের
+                   সঙ্গে গুলিয়ে না যায়। */
+                val isInfo = row.title.startsWith("NOT IN")
                 hb.tvSectionHeader.setTextColor(android.graphics.Color.WHITE)
                 hb.tvSectionHeader.textSize = 15f
                 hb.tvSectionHeader.setTypeface(hb.tvSectionHeader.typeface, android.graphics.Typeface.BOLD)
                 hb.tvSectionHeader.background = android.graphics.drawable.GradientDrawable().apply {
                     cornerRadius = dp(10).toFloat()
-                    setColor(android.graphics.Color.parseColor(if (isToday) "#0C9E33" else "#E8890C"))
+                    setColor(android.graphics.Color.parseColor(
+                        if (isSearch) "#1D6FD1"
+                        else if (isInfo) "#7B8794"
+                        else if (isToday) "#0C9E33" else "#E8890C"))
                 }
                 hb.tvSectionHeader.setPadding(dp(16), dp(11), dp(16), dp(11))
-                if (row.collapsible) {
+                /* 🔍 V1107 — নতুন দুটো সারি মাঝখানে (বোতামের মতো দেখতে);
+                   পুরনো দুটো শিরোনাম আগের মতোই বাঁ দিকে। */
+                hb.tvSectionHeader.gravity =
+                    if (isSearch || isInfo) android.view.Gravity.CENTER
+                    else android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
+                val tap = row.onTap
+                if (tap != null) {
+                    hb.root.isClickable = true
+                    hb.root.isFocusable = true
+                    hb.root.setOnClickListener { tap() }
+                } else if (row.collapsible) {
                     hb.root.isClickable = true
                     hb.root.isFocusable = true
                     hb.root.setOnClickListener { onHeaderTap() }

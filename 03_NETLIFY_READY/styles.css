@@ -3315,6 +3315,11 @@ body.hasDeskNav .wrap:not(.publicWrap) .enquiryCard{max-width:900px;display:grid
 .dqSectionHead.dqOverdue{background:#E8890C;cursor:pointer}
 /* ✅ V983 (TK-নির্দেশ) — Overdue-এর বদলে "DONE TODAY", গাঢ় নীল-ধূসর। */
 .dqSectionHead.dqDone{background:#334E68;cursor:pointer}
+/* 🔍🔒 V1107 (০৫.০৯.২০২৬, TK-রিপোর্ট) — "সব রোগীর মধ্যে খুঁজুন" বোতাম।
+   নীল, যাতে চোখেই বোঝা যায় এটা একটা **বোতাম**, শিরোনাম নয়।
+   ⛔ উপরের দুটো বারের রং/মাপ এক অক্ষরও বদলায়নি। */
+.dqSectionHead.dqSearchAll{background:#1D6FD1;cursor:pointer;text-align:center}
+.dqSectionHead.dqNotFound{background:#7B8794;text-align:center}
 
 /* 🔧 TK-নির্দেশে (১৫.০৮.২০২৬, "আইকন থাকবে না"): Draft হোম পাতার ৭টা বক্সে
    (My Enquiry/Reject/Incomplete/Complete/Unexpected/Refunded) আইকন শুধু
@@ -3972,6 +3977,8 @@ button.small{min-height:36px!important;font-size:13px!important;border-radius:12
 .dqSectionHead{border-radius:10px!important;padding:11px 16px!important;margin-top:10px!important;font-size:15px!important;font-weight:700!important;color:#FFFFFF!important}
 .dqToday{background:#0C9E33!important}
 .dqOverdue{background:#E8890C!important}
+.dqSearchAll{background:#1D6FD1!important;cursor:pointer!important;text-align:center!important}   /* 🔍 V1107 */
+.dqNotFound{background:#7B8794!important;text-align:center!important}   /* 🔍 V1107 */
 .card.doctorQueuePro{margin:8px!important;padding:14px!important;border-radius:18px!important;box-shadow:0 3px 8px rgba(16,34,58,.12)!important}
 .doctorQueuePro .queueRow{display:flex!important;align-items:center!important;gap:12px!important}
 .doctorQueuePro .queuePhoto{width:56px!important;height:56px!important;min-width:56px!important;border-radius:50%!important;object-fit:cover!important;background:linear-gradient(135deg,#0B66D8,#16A36D)!important;color:#fff!important;display:grid!important;place-items:center!important;font-size:24px!important;flex:0 0 auto!important}

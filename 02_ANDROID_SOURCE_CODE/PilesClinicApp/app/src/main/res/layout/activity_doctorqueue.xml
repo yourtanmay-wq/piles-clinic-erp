@@ -66,7 +66,10 @@
          *"এখানে patient Search করার মত অপশন থাকতে হবে"*। Dr. Visit পর্দার
          হুবহু একই খোঁজার ঘর (`activity_doctorvisit.xml`-এর `etSearch`) —
          নতুন কোনো নকশা বানানো হয়নি।
-         ⛔ শুধু পর্দায় ছাঁকে; ক্লাউডে একটাও নতুন অনুরোধ যায় না। -->
+         ⛔ শুধু পর্দায় ছাঁকে; ক্লাউডে একটাও নতুন অনুরোধ যায় না।
+         🔍🔒 V1107 (০৫.০৯.২০২৬, TK-রিপোর্ট ছবিসহ: *"এখানে সার্চ করলে পেসেন্ট
+         আসে না তো"*) — `imeOptions` না থাকায় কীবোর্ডে **Search বোতামটাই দেখা
+         যেত না**, অথচ পর্দার লেখায় "press Search" বলা ছিল। -->
     <EditText
         android:id="@+id/etQueueSearch"
         android:layout_width="match_parent"
@@ -80,6 +83,7 @@
         android:textColor="#10223A"
         android:textColorHint="@color/field_hint"
         android:maxLines="1"
+        android:imeOptions="actionSearch"
         android:inputType="text" />
 
     <ProgressBar

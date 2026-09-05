@@ -10298,7 +10298,17 @@ function doctorQueue(keepSearch){if(!keepSearch){try{window.__dqSearch=''}catch(
    body+=`<div class="dqSectionHead dqDone" onclick="wlv1DqToggleOverdue()">${__open?'▼':'▶'} DONE TODAY (${overdueRows.length})</div>`;
    if(__open)body+=`<div id="dqRows2">${overdueRows.map(wlv1DqCard).join('')}</div>`;
  }
- if(!todayRows.length&&!overdueRows.length)body=__dqAsk?wlv1BranchAskCard():(searchBox+'<div class="card mut">'+(__q?'No patient found':'No Patient In Queue')+'</div>');
+ /* 🔍🔒 V1107 (০৫.০৯.২০২৬, TK-রিপোর্ট ছবিসহ — DIPANKAR: *"এখানে সার্চ করলে
+    পেসেন্ট আসে না তো"*) — এই ঘরটা শুধু **আজকের তালিকার ভিতরেই** খোঁজে, তাই
+    তালিকার বাইরের রোগী এখানে কোনোদিন আসতেন না; অথচ লেখা ছিল শুধু
+    "No patient found" — কেন পাওয়া গেল না তা বোঝাই যেত না।
+    ⇒ এখন একটা **নীল বোতাম**, একবার চাপলেই এই নামটা নিয়ে সব রোগীর মধ্যে
+      খোঁজার পর্দা খুলে যায় — আর কিছু টাইপ করতে হয় না। ফোনের হুবহু জোড়া।
+    ⛔ এই পর্দায় নতুন কোনো ক্লাউড-পড়া যোগ হয়নি — খোঁজা তখনই, যখন চাপা হয়। */
+ if(!todayRows.length&&!overdueRows.length)body=__dqAsk?wlv1BranchAskCard():(searchBox+(__q
+   ?('<div class="dqSectionHead dqNotFound">NOT IN TODAY\'S QUEUE</div>'
+     +'<div class="dqSectionHead dqSearchAll" onclick="wlv1DqSearchAll()">\uD83D\uDD0D  SEARCH "'+esc(String(window.__dqSearch||'').trim().toUpperCase())+'" IN ALL PATIENTS</div>')
+   :'<div class="card mut">No Patient In Queue</div>'));
  page('CHECK-UP Queue',`${branchWrap}${body}`,true);
  setTimeout(function(){
    try{
@@ -15816,6 +15826,19 @@ function savePayment(id){saveTreatmentPayment(id)}
 window["savePayment"]=savePayment;
 function searchPage(){let body=`<input class="input capsuleGlobalSearch" placeholder="🔍 Search by name or mobile" oninput="searchDo(this.value)"><div id="sres">${searchResults('',true)}</div>`;page('Global Search',body)}
 window["searchPage"]=searchPage;
+/* 🔍🔒 V1107 — CHECK-UP Queue-এ টাইপ করা নামটা নিয়েই Global Search খোলে।
+   ⛔ খোঁজার নিয়ম/ফল হুবহু হাতে টাইপ করার মতোই — `searchDo()` সেই একই ফাংশন। */
+function wlv1DqSearchAll(){
+ var q=String(window.__dqSearch||'').trim();
+ searchPage();
+ setTimeout(function(){
+  try{
+   var el=document.querySelector('.capsuleGlobalSearch');
+   if(el&&q){ el.value=q; searchDo(q); el.focus(); }
+  }catch(e){}
+ },60);
+}
+window["wlv1DqSearchAll"]=wlv1DqSearchAll;
 let __quickSearchTimer=null;
 function quickSearch(q,context=''){let el=$('#quick');if(!el)return;q=String(q||'').trim();if(!q){el.innerHTML='';return}if(q.length<2){el.innerHTML='<div class="card mut tiny">Type at least 2 characters</div>';return}clearTimeout(__quickSearchTimer);__quickSearchTimer=setTimeout(()=>{let oldLimit=window.__SEARCH_LIMIT;window.__SEARCH_LIMIT=5;el.innerHTML=searchResults(q,false,context);window.__SEARCH_LIMIT=oldLimit},260)}
 window["quickSearch"]=quickSearch;

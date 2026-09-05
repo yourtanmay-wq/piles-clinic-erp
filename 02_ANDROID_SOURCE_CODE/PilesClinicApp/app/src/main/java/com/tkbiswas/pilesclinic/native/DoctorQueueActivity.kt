@@ -183,12 +183,12 @@ class DoctorQueueActivity : AppCompatActivity() {
             override fun beforeTextChanged(t: CharSequence?, a: Int, b: Int, c: Int) {}
             override fun onTextChanged(t: CharSequence?, a: Int, b: Int, c: Int) {}
         })
-        /* 🔍 V1013 — কীবোর্ডের Search চাপলে সব রোগীর মধ্যে খোঁজার পর্দা। */
+        /* 🔍 V1013 → 🔵 V1107 — কীবোর্ডের Search চাপলেও **টাইপ করা নামটা সঙ্গে
+           যায়** (আগে যেত না, তাই নতুন পর্দায় আবার লিখতে হত)। */
         binding.etQueueSearch.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH ||
                 actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE) {
-                try { startActivity(android.content.Intent(this, GlobalSearchActivity::class.java)) }
-                catch (_: Throwable) { }
+                openAllPatientSearch()
                 true
             } else false
         }
@@ -458,6 +458,16 @@ class DoctorQueueActivity : AppCompatActivity() {
             (digits.isNotEmpty() && p.mobile.filter { it.isDigit() }.contains(digits))
     }
 
+    /** 🔍🔒 V1107 — টাইপ করা নামটা নিয়ে "সব রোগীর মধ্যে খোঁজা" পর্দা।
+     *  ⛔ পর্দাটা নিজের চেনা নিয়মেই খোঁজে — এখানে নতুন কোনো ক্লাউড-পড়া নেই। */
+    private fun openAllPatientSearch() {
+        val q = binding.etQueueSearch.text?.toString().orEmpty().trim()
+        try {
+            GlobalSearchActivity.pendingQuery = q
+            startActivity(android.content.Intent(this, GlobalSearchActivity::class.java))
+        } catch (_: Throwable) { }
+    }
+
     private fun renderRows() {
         val rows = mutableListOf<QueueRow>()
         // 🔍 V972 — খোঁজার লেখা থাকলে ছেঁকে নেওয়া তালিকাই দেখানো হয়; ফাঁকা
@@ -484,8 +494,25 @@ class DoctorQueueActivity : AppCompatActivity() {
            ⇒ এখন লেখাটা স্পষ্ট, আর কীবোর্ডের Search চাপলে **সব রোগীর মধ্যে**
              খোঁজার পর্দাটা খুলে যায়।
            ⛔ নতুন কোনো ক্লাউড-পড়া যোগ হয়নি — খোঁজার পর্দা নিজের নিয়মেই চলে। */
+        /* 🔍🔒 V1107 (০৫.০৯.২০২৬, TK-রিপোর্ট ছবিসহ — DIPANKAR, Jalpaiguri:
+           *"এখানে সার্চ করলে পেসেন্ট আসে না তো"*)।
+           🔴 **এটা TK দ্বিতীয়বার বলেছেন — আমার আগের কাজটা (V1013) আধখানা ছিল।**
+              তখন শুধু লেখাটা বদলেছিলাম ("press Search on the keyboard"), কিন্তু
+              ① ঘরটায় `imeOptions` বসাইনি ⇒ কীবোর্ডে **Search বোতামটাই দেখা যেত না**
+              ② চাপলেও টাইপ করা নামটা সঙ্গে যেত না ⇒ নতুন পর্দায় আবার লিখতে হত।
+           ⇒ এখন লেখাটাই একটা **নীল বোতাম** — একবার চাপলেই এই নামটা নিয়ে সব
+             রোগীর মধ্যে খোঁজার পর্দা খুলে যায়, আর কিছু টাইপ করতে হয় না।
+           ⛔ নতুন কোনো ক্লাউড-পড়া **এই পর্দায় যোগ হয়নি** — খোঁজা তখনই হয় যখন
+              স্টাফ নিজে বোতামটা চাপেন (Egress অপরিবর্তিত)। */
         if (queueSearch.isNotBlank() && pendingShown.isEmpty() && doneShown.isEmpty()) {
-            rows.add(QueueRow.Header("Not in today's queue — press Search on the keyboard to look in all patients"))
+            val typed = binding.etQueueSearch.text?.toString().orEmpty().trim()
+            /* ⛔ "কেন পাওয়া গেল না" লাইনটা রাখা হলো — নইলে বোতামটা কেন এল
+               সেটা বোঝা যেত না (কম্পিউটারেও হুবহু একই দুটো লাইন)। */
+            rows.add(QueueRow.Header("NOT IN TODAY'S QUEUE"))
+            rows.add(QueueRow.Header(
+                "🔍  SEARCH \"${typed.uppercase()}\" IN ALL PATIENTS",
+                onTap = { openAllPatientSearch() }
+            ))
         }
         // 🔒 V217 (§B216, Master Fix Order §14, item 7 "CHECK-UP থেকে Back
         // দিলে একই জায়গায় ফিরবে"): CHECK-UP থেকে ফিরে এলে `onResume()`
