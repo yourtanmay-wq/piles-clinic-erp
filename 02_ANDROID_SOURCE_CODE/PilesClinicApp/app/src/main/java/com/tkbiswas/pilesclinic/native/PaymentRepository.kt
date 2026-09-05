@@ -925,6 +925,70 @@ class PaymentRepository(private val context: Context? = null) {
         return treatmentPaidOnDate[patientId] ?: 0.0
     }
 
+    /* ═══════════════════════════════════════════════════════════════════
+       🔴🔒 V1106 (০৫.০৯.২০২৬, TK-রিপোর্ট, তিনটে ছবিসহ — SADDAM) —
+       *"একই দিনে একই ধরনের পেমেন্ট দুইবার হয়ে গেছে তাও আটকালেন না কেন? …
+       একটা বলছে আমি তো একবারই করেছিলাম … যেহেতু এটা কোন ডেমো প্রজেক্ট নয়,
+       এটা একটা লাইভ ক্লিনিক, বিশেষ করে টাকা পয়সার হিসাব, এগুলো তো আরো
+       কড়াকড়ি করতেই হবে"* · *"জিজ্ঞাসা করে নিশ্চিত করাবেন, একেবারে আটকাবেন না"*
+
+       ─── 🔴 আসল ফাঁকটা কোথায় ছিল (মেপে দেখা, আন্দাজ নয়) ──────────────
+       B52-এর প্রশ্নটা (`PaymentDayGuard`) আগে থেকেই চার জায়গাতেই বসানো ছিল,
+       **কিন্তু সে অঙ্কটা নিত ফোনের নিজের জমানো তালিকা থেকে**
+       (`paidOnDateFor` → `treatmentPaidOnDate`), যেটা ভরে **পর্দা খোলার সময়**।
+       ⇒ অন্য ফোন বা অন্য স্টাফ একটু আগে টাকা নিয়ে থাকলে এই ফোন সেটা জানতই
+         না, অঙ্ক ০ পেত, আর **কোনো প্রশ্নই আসত না**।
+       ⇒ ঠিক এই কারণেই স্টাফ সৎভাবে বলতে পারেন *"আমি তো একবারই করেছিলাম"*।
+
+       ─── এখন কী হয় ─────────────────────────────────────────────────────
+       সেভ চাপার মুহূর্তে **ক্লাউডকে একবার জিজ্ঞাসা করা হয়** — আজ এই রোগীর
+       নামে **হুবহু এই অঙ্কের** টাকা আগে থেকে বসানো আছে কি না। থাকলে কখন
+       নেওয়া হয়েছিল সেটাসহ প্রশ্ন — **Cancel = কিছুই হবে না · OK = জেনেশুনে তবুও**
+       (V708/V786-এ TK-এর পাশ করা হুবহু একই নিয়ম)।
+
+       ⛔ **কিছুই আটকানো হয় না** — TK-এর স্পষ্ট নির্দেশ মেনে শুধু জিজ্ঞাসা।
+       ⛔ **মিলিয়ে দেখা হয় প্রতিটা আলাদা এন্ট্রি ধরে** (`dailyEvents`), দিনের
+          মোট ধরে নয় — নইলে ৩,০০০+২,০০০ = ৫,০০০ থাকা দিনে নতুন ৫,০০০ নিতে
+          গেলে মিথ্যা সতর্কবার্তা আসত।
+       ⛔ Egress (ফ্রি প্ল্যান): **শুধু সেভ চাপার সময়**, একটাই ছোট query, একজন
+          রোগীর একটা দিনের সারি — তালিকা খোলার সময় নয়। দিনে ৩০-৬০টা পেমেন্ট
+          হলেও কয়েক KB।
+       ⛔ নেট খারাপ হলে চুপচাপ `null` — সৎ পেমেন্ট **কখনো** আটকায় না।
+       ⛔ ব্যাকডেট করা পেমেন্টে এই প্রশ্ন আসে না (ওটা মাস্টারের নিজের সিদ্ধান্ত)।
+       ═══════════════════════════════════════════════════════════════════ */
+    fun todaysPaymentLike(patient: PatientBillInfo, amount: Double): org.json.JSONObject? {
+        if (patient.id.isBlank() || amount <= 0.0) return null
+        return try {
+            val today = PaymentModel.today()
+            val rows = SupabaseClient.fetchList(
+                "payments",
+                "patientId=eq.${patient.id}&payType=eq.treatment&date=eq.$today",
+                50, select = "id,amount,mode,payLabel,createdAt,dailyEvents"
+            )
+            var hit: org.json.JSONObject? = null
+            outer@ for (i in 0 until rows.length()) {
+                val r = rows.optJSONObject(i) ?: continue
+                val evs = r.optJSONArray("dailyEvents")
+                if (evs != null && evs.length() > 0) {
+                    for (j in 0 until evs.length()) {
+                        val e = evs.optJSONObject(j) ?: continue
+                        if (kotlin.math.abs(e.optDouble("amount", 0.0) - amount) <= 0.5) {
+                            hit = org.json.JSONObject()
+                                .put("amount", e.optDouble("amount", 0.0))
+                                .put("mode", e.optString("mode", r.optString("mode", "")))
+                                .put("createdAt", e.optString("createdAt", r.optString("createdAt", "")))
+                                .put("payLabel", r.optString("payLabel", ""))
+                            break@outer
+                        }
+                    }
+                } else if (kotlin.math.abs(r.optDouble("amount", 0.0) - amount) <= 0.5) {
+                    hit = r; break@outer
+                }
+            }
+            hit
+        } catch (_: Throwable) { null }   // নেট খারাপ হলে চুপচাপ সরে দাঁড়ায় — সৎ পেমেন্ট কখনো আটকায় না
+    }
+
     /**
      * 🔒 খাতার সারি B52 (TK, 28.07.2026 রাত) — **ভুল করে নেওয়া টাকা স্টাফ নিজেই মুছতে পারবেন।**
      *

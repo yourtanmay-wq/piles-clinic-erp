@@ -2501,11 +2501,16 @@ WORK_RULES = [
         "when": "26.07.2026",
         "rule": "একই রোগীর একই দিনে দ্বিতীয়বার টাকা বসানোর আগে সতর্কবার্তা দিতেই হবে",
         "why": "একই টাকা দুবার বসে গেলে দিনের হিসাব বাড়ে আর রোগীর Due ভুল দেখায়",
+        # 🕒 V1106 (০৫.০৯.২০২৬) — নিয়মটা এক চুলও শিথিল হয়নি, শুধু ডাকার নামটা
+        # বদলেছে: চারটে পর্দাই এখন `PaymentDayGuard.confirmBeforeSave(` ডাকে, যেটা
+        # আগে ক্লাউডে "হুবহু এই অঙ্ক আজ বসেছে কিনা" দেখে, তারপর **সবসময়**
+        # `confirmIfAlreadyPaidToday`-তেই গিয়ে ঠেকে। তাই পাহারাটা এখন `confirm`
+        # পর্যন্ত দেখে — দুটোর যেকোনোটা থাকলেই নিয়ম মানা, একটাও না থাকলে ধরা পড়বে।
         "files": {
-            "PaymentDayGuard.kt":            {"must": ["fun confirmIfAlreadyPaidToday("]},
-            "PaymentActivity.kt":            {"must": ["PaymentDayGuard.confirmIfAlreadyPaidToday("]},
-            "FollowUpActivity.kt":           {"must": ["PaymentDayGuard.confirmIfAlreadyPaidToday("]},
-            "ChamberAttendanceActivity.kt":  {"must": ["PaymentDayGuard.confirmIfAlreadyPaidToday("]},
+            "PaymentDayGuard.kt":            {"must": ["fun confirmIfAlreadyPaidToday(", "fun confirmBeforeSave("]},
+            "PaymentActivity.kt":            {"must": ["PaymentDayGuard.confirm"]},
+            "FollowUpActivity.kt":           {"must": ["PaymentDayGuard.confirm"]},
+            "ChamberAttendanceActivity.kt":  {"must": ["PaymentDayGuard.confirm"]},
         },
     },
     {

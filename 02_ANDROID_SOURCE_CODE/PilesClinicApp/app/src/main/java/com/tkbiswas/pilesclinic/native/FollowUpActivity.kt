@@ -3083,10 +3083,15 @@ class FollowUpActivity : AppCompatActivity() {
                     // 🔒 খাতার সারি B52 (TK, 28.07.2026 রাত): আজ এই রোগীর নামে
                     // ইতিমধ্যে টাকা নেওয়া হয়ে থাকলে আগে একবার জিজ্ঞাসা। আজ কিছু
                     // নেওয়া না হলে কোনো পপ-আপ আসে না — সেভ হুবহু আগের মতোই।
-                    PaymentDayGuard.confirmIfAlreadyPaidToday(
+                    /* 🔴 V1106 (TK-নির্দেশ) — সেভ চাপার মুহূর্তে ক্লাউডেও
+                       একবার দেখা হয়, তাই অন্য ফোনে নেওয়া একই অঙ্কের টাকাও
+                       ধরা পড়ে। ⛔ কিছুই আটকানো হয় না — শুধু প্রশ্ন। */
+                    PaymentDayGuard.confirmBeforeSave(
                         this@FollowUpActivity,
+                        pr,
+                        patientNow,
+                        amount,
                         pr.paidOnDateFor(patientNow.id),
-                        patientNow.name,
                         pr.nextLabelFor(patientNow.id)
                     ) {
                     advSaving = true
@@ -3348,10 +3353,15 @@ class FollowUpActivity : AppCompatActivity() {
                 else {
                     // 🔒 খাতার সারি B52 (TK, 28.07.2026 রাত): আজ এই রোগীর নামে
                     // ইতিমধ্যে টাকা নেওয়া হয়ে থাকলে আগে একবার জিজ্ঞাসা।
-                    PaymentDayGuard.confirmIfAlreadyPaidToday(
+                    /* 🔴 V1106 (TK-নির্দেশ) — সেভ চাপার মুহূর্তে ক্লাউডেও
+                       একবার দেখা হয়, তাই অন্য ফোনে নেওয়া একই অঙ্কের টাকাও
+                       ধরা পড়ে। ⛔ কিছুই আটকানো হয় না — শুধু প্রশ্ন। */
+                    PaymentDayGuard.confirmBeforeSave(
                         this@FollowUpActivity,
+                        pr,
+                        patientNow,
+                        amount,
                         pr.paidOnDateFor(patientNow.id),
-                        patientNow.name,
                         pr.nextLabelFor(patientNow.id)
                     ) {
                     nthSaving = true

@@ -658,7 +658,9 @@ class PaymentActivity : AppCompatActivity() {
                         val sp = if (p.s("payType").equals("treatment", true)) PaymentModel.paymentSplit(p) else 0.0 to 0.0
                         val modeText = if (p.s("payType").equals("treatment", true) && sp.first > 0.0 && sp.second > 0.0)
                             "CASH + ONLINE" else p.s("mode").ifBlank { "CASH" }
-                        text = "${DateUtil.display(p.s("date"))} · $modeText"
+                        /* 🕒 V1106 (TK-নির্দেশ) — তারিখের পাশে সময়। ব্যাকডেট করা
+                           পেমেন্টে সময় বসে না (সেটা অন্য দিনের ঘড়ি)। */
+                        text = "${PaymentModel.dayAndClock(p.s("date"), p.s("createdAt"))} · $modeText"
                         textSize = 11.5f; setTextColor(android.graphics.Color.parseColor("#8A93A6"))
                     })
                     if (rem.isNotBlank()) {
@@ -802,10 +804,14 @@ class PaymentActivity : AppCompatActivity() {
                 val eventId = e.optString("eventId")
                 val amt = e.optDouble("amount", 0.0)
                 val mode = e.s("mode").ifBlank { "CASH" }
-                val timeTxt = try {
-                    val ts = e.s("createdAt")
-                    if (ts.isBlank()) "" else android.text.format.DateFormat.format("h:mm a", java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US).apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }.parse(ts) ?: java.util.Date()).toString()
-                } catch (_: Throwable) { "" }
+                /* 🔴🕒 V1106 (TK-নির্দেশ, SADDAM-এর ডুপ্লিকেট খুঁজতে গিয়ে ধরা) —
+                   **এখানে সময়টা ভুল দেখাত।** আগে `createdAt`-কে UTC ধরে ফোনের
+                   ঘড়িতে বদলানো হত, অথচ ওই লেখাটা ফোনের **নিজের ঘড়ির** সময়
+                   (শেষে শুধু `Z` অক্ষরটা বসানো) ⇒ প্রতিটা সময় **৫ঘ ৩০মি এগিয়ে**
+                   দেখাত। এখন যেভাবে জমা আছে ঠিক সেভাবেই পড়া হয়।
+                   ⛔ পুরো প্রকল্পে একটাই নিয়ম (`PaymentModel.clockOf`), তাই দুই
+                      পর্দায় দুরকম সময় আর দেখাতে পারে না। */
+                val timeTxt = PaymentModel.clockOf(e.s("createdAt"))
                 val row = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL
                     gravity = android.view.Gravity.CENTER_VERTICAL
@@ -2515,11 +2521,17 @@ $dueRow
             // ইন্টারনেটে না বুঝে দ্বিতীয়বার সেভ করা আটকাতে)। আজ কিছু নেওয়া না
             // হলে কোনো পপ-আপ আসে না, তখন নিচের সেভ হুবহু আগের মতোই চলে।
             // ব্যাকডেট পেমেন্টে এই প্রশ্ন আসে না (ওটা মাস্টারের নিজের সিদ্ধান্ত)।
-            PaymentDayGuard.confirmIfAlreadyPaidToday(
+            /* 🔴 V1106 (TK-নির্দেশ) — এখন সেভ চাপার মুহূর্তে ক্লাউডকেও একবার
+               জিজ্ঞাসা করা হয় (হুবহু এই অঙ্ক আজ আগে বসেছে কিনা), তাই অন্য ফোনে
+               নেওয়া টাকাও ধরা পড়ে। ⛔ কিছুই আটকানো হয় না — শুধু প্রশ্ন। */
+            PaymentDayGuard.confirmBeforeSave(
                 this@PaymentActivity,
+                repository,
+                patient,
+                amtVal,
                 if (isBackdated) 0.0 else repository.paidOnDateFor(patient.id),
-                patient.name,
-                repository.nextLabelFor(patient.id, if (isBackdated) pickedActualDate else "")
+                repository.nextLabelFor(patient.id, if (isBackdated) pickedActualDate else ""),
+                skipCloudCheck = isBackdated
             ) {
                 doDirectSave(isBackdated, pickedActualDate, patient, billVal, amtVal, user, autoApprovedByGrant = false, receiptMode = receiptMode)
             }

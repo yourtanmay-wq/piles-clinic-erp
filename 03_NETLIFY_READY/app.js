@@ -7577,7 +7577,10 @@ function wlv1FuBloodTest(fid){
   }catch(e){ toast('Could not open Blood Test'); }
 }
 window["wlv1FuBloodTest"]=wlv1FuBloodTest;
-function saveVisitAdvancePayment(fid,pid){let ps=arr('patients'),i=ps.findIndex(p=>p.id===pid); if(i<0)return toast('Patient link missing'); let p=ps[i],bill=Number($id('visitBill')?.value||p.bill||0),amt=Number($id('visitAdvAmt')?.value||0); if(!wlv1CanTakeMoney(p))return toast(wlv1MoneyBlockMsg(p));
+/* 🔴 V1106 — সেভের আগে ক্লাউড-যাচাইয়ের প্রশ্নটা করতে হয় বলে এই ফাংশনটা
+   এখন `async`. ⛔ এটা শুধু onclick থেকেই ডাকা হয় (ফেরত মান কেউ ব্যবহার করে না),
+   তাই আর কিছুই বদলায় না — যাচাই করে দেখা হয়েছে। */
+async function saveVisitAdvancePayment(fid,pid){let ps=arr('patients'),i=ps.findIndex(p=>p.id===pid); if(i<0)return toast('Patient link missing'); let p=ps[i],bill=Number($id('visitBill')?.value||p.bill||0),amt=Number($id('visitAdvAmt')?.value||0); if(!wlv1CanTakeMoney(p))return toast(wlv1MoneyBlockMsg(p));
  // 🆕 TK-নির্দেশ (04.08.2026, RABINDRA CHANDRA NAHA-র বিলের একই সমস্যা এখানেও
  // থাকতে পারে বলে TK-কে জানানো হয়েছিল, TK নিজে "ঠিক করুন" বলেছেন): এটা
  // Visit-stage রোগীর **প্রথম** এডভান্সের পথ — কিন্তু স্টাফ যদি এই মুহূর্তে
@@ -7606,7 +7609,7 @@ function saveVisitAdvancePayment(fid,pid){let ps=arr('patients'),i=ps.findIndex(
   }
   return toast('Advance Payment amount required');
  }
- /* 🔒 V452: Visit-stage Advance uses the same one-day-one-payment rule. */ let payDay=todaySafe(); if(!wlv1DayGuardOk(pid,p.name,payDay))return; /* TK (27.07.2026): এটা প্রথম Advance-এর পথ — বিল ছাড়াই নেওয়া যাবে, পরে বসানো যাবে। */ let mode=String($id('visitAdvMode')?.value||'CASH').toUpperCase()==='UPI'?'UPI':'CASH'; p={...p,bill,stage:'Treatment Running',updatedAt:isoNow()}; ps[i]=p; put('patients',ps); let payLabel=nextPaymentLabel(pid,payDay),pay=wlv1BuildTreatmentEventRow(p,amt,mode,payDay,payLabel,'Advance Payment');let storedPay=wlv1UpsertDailyTreatmentLocal(pay);try{if(typeof window.webRmpActivateAfterPayment==='function')window.webRmpActivateAfterPayment(p.id);}catch(_e){} /* 🔴🔒 V953 (০১.০৯.২০২৬, TK-নির্দেশ "খুব সাবধানে") — **আসল কারণ, যাচাই করা:**
+ /* 🔒 V452: Visit-stage Advance uses the same one-day-one-payment rule. */ let payDay=todaySafe(); if(!(await wlv1DayGuardOk2(pid,p.name,payDay,amt)))return; /* TK (27.07.2026): এটা প্রথম Advance-এর পথ — বিল ছাড়াই নেওয়া যাবে, পরে বসানো যাবে। */ let mode=String($id('visitAdvMode')?.value||'CASH').toUpperCase()==='UPI'?'UPI':'CASH'; p={...p,bill,stage:'Treatment Running',updatedAt:isoNow()}; ps[i]=p; put('patients',ps); let payLabel=nextPaymentLabel(pid,payDay),pay=wlv1BuildTreatmentEventRow(p,amt,mode,payDay,payLabel,'Advance Payment');let storedPay=wlv1UpsertDailyTreatmentLocal(pay);try{if(typeof window.webRmpActivateAfterPayment==='function')window.webRmpActivateAfterPayment(p.id);}catch(_e){} /* 🔴🔒 V953 (০১.০৯.২০২৬, TK-নির্দেশ "খুব সাবধানে") — **আসল কারণ, যাচাই করা:**
    আগে এখানে পুরনো Visit-সারিটা শুধু **এই ব্রাউজারের** তালিকা থেকে ছেঁটে ফেলা
    হত (`filter`), কিন্তু ক্লাউডে মোছার কোনো বার্তা যেত না। ফলে পরের সিঙ্কেই
    সারিটা ফিরে আসত, আর রোগী চিকিৎসা শুরু করেও "Visit" তালিকায় ভেসে থাকতেন
@@ -14245,7 +14248,7 @@ function summary(id){
    <button class="ghost" onclick="addTreatmentPayment('${p.id}')"><span>💰</span><b>Add Payment</b><small>${nextPaymentLabel(p.id)}</small></button><button class="ghost" onclick="paymentHistory('${p.id}')"><span>📒</span><b>Payment History</b><small>View / Hidden Edit</small></button>
   </div>`:(contactBranchNotice(p)+safeFollowActionsForMobile(p.mobile));
  let photo=p.photo?`<img class="summaryPhoto" src="${p.photo}">`:`<div class="summaryPhoto blank">👤</div>`;
- page('Patient Summary',`<div class="card patientSummaryPro wlv1Tl"><div class="wlv1TlHead ${wlv1StageClass(p)}"><div class="wlv1TlPhoto">${photo}</div><div class="wlv1TlInfo"><div class="wlv1TlMob">${esc(shownMob(p.mobile))}<button class="wlv1TlCall" onclick="contact('${esc(p.mobile)}','call')">📞</button></div><div class="wlv1TlName">${esc(String(p.name||'').toUpperCase())}</div><div class="wlv1TlLine">${esc([p.branch,p.disease,[p.sex,p.age].filter(Boolean).join('-')].filter(Boolean).join(' · ').toUpperCase())}</div><div class="wlv1TlLine wlv1TlAddr">${(function(){var l1=[p.village,p.po].filter(Boolean).join(', '),l2=[p.ps,p.district,p.pin].filter(Boolean).join(', ');if(l1||l2)return esc(l1.toUpperCase())+(l2?'<br>'+esc(l2.toUpperCase()):'');return p.address?wlv1AddrTwo(String(p.address).toUpperCase()):'';})()}</div>${p.refDoctor?`<div class="wlv1TlRef">By- Dr. ${esc(String(p.refDoctor).toUpperCase())}</div>`:''}<div class="wlv1TlId">${esc(p.patientId||'')}${(function(){/* 🔵🔒 V521 (২২.০৮.২০২৬, TK-নির্দেশ): অসময়ের এনকোয়ারি কিনা — ID-র পাশেই। স্টাফের Extra Income শুধু "Unexpected Time"-এর এনকোয়ারিতেই হয় (V418-এর SQL), তাই History খুলেই TK বুঝবেন টাকাটা কেন পাওনা। ⛔ ঘরটা ফাঁকা হলে (পুরোনো রেকর্ড) কিছুই দেখায় না — আগের মতোই। ⛔ ফোনের PatientTimelineActivity-তে হুবহু একই চিপ। */var tt=String(p.timeType||'').trim();if(!tt)return '';return '   ·   '+(/^unexpected time$/i.test(tt)?'⏰ UNEXPECTED TIME':'🕐 '+esc(tt.toUpperCase()));})()}</div></div><button class="small ghost wlv1TlPrint" onclick="printReg('${p.id}')">Print</button></div>${financeAllowed?wlv1MoneyChips(t):''}<div class="sectionTitle miniTitle">&#9201;&#65039; Updates — latest first</div>${wlv1TimelineTable(p,t)}${topActions}${payBlock}${wlv1CompleteDespiteDueBlock(p,t,financeAllowed,writeAllowed)}<div class="summaryDivider"></div><div class="summaryInfoGrid"><div><small>Disease</small><b>${esc(p.disease||'-')}</b></div><div><small>Since</small><b>${esc(p.sinceWhen||'-')}</b></div><div><small>Diagnosis</small><b>${esc(p.diagnosis||'-')}</b></div><div><small>Decision</small><b>${esc(p.decision||'-')}</b></div></div><div class="summaryText"><p><b>Complaint:</b> ${esc(p.complaint||'-')}</p><p><b>First Visit:</b> ${esc(p.visitDate||p.registrationDate||p.date||'-')}</p><p><b>Address:</b> ${esc(p.address||'-')}</p></div><div class="sectionTitle miniTitle">Clinical Actions</div>${clinicalActions}</div>${financeAllowed?`<div class="sectionTitle">Payment History</div>${pays.map((x,i)=>`<div class="card paymentHistoryCard" onclick="hiddenPaymentEditTap('${x.id}')"><b>${esc(paymentDisplayLabel(x,i))}</b><br><span class="mut">${esc(x.date)}</span><br>${money(x.amount)} · ${esc(x.mode)}<br><small>${esc(x.remarks||'')}</small><div class="actions"><button class="small ghost" onclick="event.stopPropagation();viewPaymentEntry('${x.id}')">View</button></div></div>`).join('')||'<div class="card mut">No treatment payment yet</div>'}`:''}<div class="sectionTitle">Medical Records</div>${meds.map(x=>`<div class="card"><b>${esc(x.type)}</b> · ${esc(x.date)}<br>${esc(x.decision||x.selected||'')}<br><small>${esc(x.details||x.diagnosis||'')}</small></div>`).join('')||'<div class="card mut">No medical record yet</div>'}`)
+ page('Patient Summary',`<div class="card patientSummaryPro wlv1Tl"><div class="wlv1TlHead ${wlv1StageClass(p)}"><div class="wlv1TlPhoto">${photo}</div><div class="wlv1TlInfo"><div class="wlv1TlMob">${esc(shownMob(p.mobile))}<button class="wlv1TlCall" onclick="contact('${esc(p.mobile)}','call')">📞</button></div><div class="wlv1TlName">${esc(String(p.name||'').toUpperCase())}</div><div class="wlv1TlLine">${esc([p.branch,p.disease,[p.sex,p.age].filter(Boolean).join('-')].filter(Boolean).join(' · ').toUpperCase())}</div><div class="wlv1TlLine wlv1TlAddr">${(function(){var l1=[p.village,p.po].filter(Boolean).join(', '),l2=[p.ps,p.district,p.pin].filter(Boolean).join(', ');if(l1||l2)return esc(l1.toUpperCase())+(l2?'<br>'+esc(l2.toUpperCase()):'');return p.address?wlv1AddrTwo(String(p.address).toUpperCase()):'';})()}</div>${p.refDoctor?`<div class="wlv1TlRef">By- Dr. ${esc(String(p.refDoctor).toUpperCase())}</div>`:''}<div class="wlv1TlId">${esc(p.patientId||'')}${(function(){/* 🔵🔒 V521 (২২.০৮.২০২৬, TK-নির্দেশ): অসময়ের এনকোয়ারি কিনা — ID-র পাশেই। স্টাফের Extra Income শুধু "Unexpected Time"-এর এনকোয়ারিতেই হয় (V418-এর SQL), তাই History খুলেই TK বুঝবেন টাকাটা কেন পাওনা। ⛔ ঘরটা ফাঁকা হলে (পুরোনো রেকর্ড) কিছুই দেখায় না — আগের মতোই। ⛔ ফোনের PatientTimelineActivity-তে হুবহু একই চিপ। */var tt=String(p.timeType||'').trim();if(!tt)return '';return '   ·   '+(/^unexpected time$/i.test(tt)?'⏰ UNEXPECTED TIME':'🕐 '+esc(tt.toUpperCase()));})()}</div></div><button class="small ghost wlv1TlPrint" onclick="printReg('${p.id}')">Print</button></div>${financeAllowed?wlv1MoneyChips(t):''}<div class="sectionTitle miniTitle">&#9201;&#65039; Updates — latest first</div>${wlv1TimelineTable(p,t)}${topActions}${payBlock}${wlv1CompleteDespiteDueBlock(p,t,financeAllowed,writeAllowed)}<div class="summaryDivider"></div><div class="summaryInfoGrid"><div><small>Disease</small><b>${esc(p.disease||'-')}</b></div><div><small>Since</small><b>${esc(p.sinceWhen||'-')}</b></div><div><small>Diagnosis</small><b>${esc(p.diagnosis||'-')}</b></div><div><small>Decision</small><b>${esc(p.decision||'-')}</b></div></div><div class="summaryText"><p><b>Complaint:</b> ${esc(p.complaint||'-')}</p><p><b>First Visit:</b> ${esc(p.visitDate||p.registrationDate||p.date||'-')}</p><p><b>Address:</b> ${esc(p.address||'-')}</p></div><div class="sectionTitle miniTitle">Clinical Actions</div>${clinicalActions}</div>${financeAllowed?`<div class="sectionTitle">Payment History</div>${pays.map((x,i)=>`<div class="card paymentHistoryCard" onclick="hiddenPaymentEditTap('${x.id}')"><b>${esc(paymentDisplayLabel(x,i))}</b><br><span class="mut">${esc(wlv1DayClock(x.date,x.createdAt))}</span><br>${money(x.amount)} · ${esc(x.mode)}<br><small>${esc(x.remarks||'')}</small><div class="actions"><button class="small ghost" onclick="event.stopPropagation();viewPaymentEntry('${x.id}')">View</button></div></div>`).join('')||'<div class="card mut">No treatment payment yet</div>'}`:''}<div class="sectionTitle">Medical Records</div>${meds.map(x=>`<div class="card"><b>${esc(x.type)}</b> · ${esc(x.date)}<br>${esc(x.decision||x.selected||'')}<br><small>${esc(x.details||x.diagnosis||'')}</small></div>`).join('')||'<div class="card mut">No medical record yet</div>'}`)
 }
 window["summary"]=summary;
 /* 🔵 R2 — "Complete despite Due" (TK-অনুমোদিত, ১৫.০৮.২০২৬ · "খুব সাবধানে, ঝুঁকি নেই")।
@@ -14853,6 +14856,100 @@ function wlv1DayGuardOk(pid,name,forDate){
   +'Add this as NEW money to that day’s payment?');
 }
 window["wlv1DayGuardOk"]=wlv1DayGuardOk;
+/* ════════════════════════════════════════════════════════════════════
+   🔴🔒 V1106 (০৫.০৯.২০২৬, TK-রিপোর্ট ছবিসহ — SADDAM: *"একই দিনে একই ধরনের
+   পেমেন্ট দুইবার হয়ে গেছে তাও আটকালেন না কেন?"* · *"জিজ্ঞাসা করে নিশ্চিত
+   করাবেন, একেবারে আটকাবেন না"*) — ফোনের `PaymentDayGuard.confirmBeforeSave`-এর
+   হুবহু জোড়া, একই লেখা।
+
+   উপরের পুরনো প্রশ্নটা (B106) শুধু **এই ব্রাউজারের জমানো তালিকা** দেখত, তাই
+   অন্য ফোন/কম্পিউটারে একটু আগে নেওয়া টাকা সে জানতই না ⇒ কোনো প্রশ্নই আসত না।
+   এখন সেভ চাপার মুহূর্তে **ক্লাউডকে একবার জিজ্ঞাসা** করা হয়।
+
+   ⛔ কিছুই আটকানো হয় না — Cancel = কিছু হবে না · OK = জেনেশুনে তবুও।
+   ⛔ মেলানো হয় প্রতিটা **আলাদা এন্ট্রি** ধরে (`dailyEvents`), দিনের মোট ধরে নয়।
+   ⛔ Egress: শুধু সেভ চাপার সময়, একজন রোগীর একটা দিনের সারি — কয়েক KB।
+   ⛔ নেট/ক্লাউড না পেলে চুপচাপ নিজের জমানো তালিকা দেখে (আগের আচরণ), সৎ
+      পেমেন্ট কখনো আটকায় না।
+   ════════════════════════════════════════════════════════════════════ */
+function wlv1SameAmtIn(rows,amt){
+ var out=null;
+ (rows||[]).forEach(function(r){
+  if(out)return;
+  var evs=r&&r.dailyEvents;
+  if(Array.isArray(evs)&&evs.length){
+   evs.forEach(function(e){
+    if(out||!e)return;
+    if(Math.abs(Number(e.amount||0)-Number(amt||0))<=0.5)
+     out={amount:Number(e.amount||0),mode:String(e.mode||r.mode||''),createdAt:String(e.createdAt||r.createdAt||'')};
+   });
+  } else if(Math.abs(Number(r.amount||0)-Number(amt||0))<=0.5){
+   out={amount:Number(r.amount||0),mode:String(r.mode||''),createdAt:String(r.createdAt||'')};
+  }
+ });
+ return out;
+}
+window["wlv1SameAmtIn"]=wlv1SameAmtIn;
+async function wlv1TodaysSamePayment(pid,amt,forDate){
+ try{
+  var d=String(forDate||today()).slice(0,10);
+  if(!pid||!(Number(amt)>0)||d!==today())return null;
+  var rows=null;
+  try{
+   if(typeof sb!=='undefined'&&sb){
+    var r=await sb.from('payments').select('id,amount,mode,payLabel,createdAt,dailyEvents')
+      .eq('patientId',pid).eq('payType','treatment').eq('date',d).limit(50);
+    if(!r.error)rows=r.data||[];
+   }
+  }catch(e){}
+  if(!rows){
+   rows=load('payments').filter(function(x){
+    return String(x.patientId||'')===String(pid)&&isTreatmentPaymentRow(x)&&String(x.date||'').slice(0,10)===d;
+   });
+  }
+  return wlv1SameAmtIn(rows,amt);
+ }catch(e){return null}
+}
+window["wlv1TodaysSamePayment"]=wlv1TodaysSamePayment;
+/* 🕒 V1106 — ISO লেখা থেকে `5:40 PM`। ⛔ যেভাবে জমা আছে ঠিক সেভাবেই পড়া হয়
+   (`isoNow()` ব্রাউজারের নিজের ঘড়ি লিখে শেষে শুধু `Z` বসায়) — ফোনের
+   `PaymentModel.clockOf`-এর হুবহু একই নিয়ম, তাই দুই পাশে এক সময় দেখায়। */
+function wlv1ClockOf(iso){
+ try{
+  var t=String(iso||'').trim();
+  if(t.length<16||t[10]!=='T')return '';
+  var hh=parseInt(t.substr(11,2),10),mi=t.substr(14,2);
+  if(!isFinite(hh)||!/^\d{2}$/.test(mi))return '';
+  var ap=hh<12?'AM':'PM',h12=hh%12; if(h12===0)h12=12;
+  return h12+':'+mi+' '+ap;
+ }catch(e){return ''}
+}
+window["wlv1ClockOf"]=wlv1ClockOf;
+/* 🕒 V1106 — টাকার সারির "তারিখ + সময়"। সময় **শুধু তখনই** জোড়ে যখন সেটা ওই
+   তারিখেরই, নইলে ব্যাকডেট করা পেমেন্টে পুরনো তারিখের পাশে আজকের সময় বসত। */
+function wlv1DayClock(dateRaw,isoRaw){
+ var day=fmtDate(dateRaw),d10=String(dateRaw||'').slice(0,10),i10=String(isoRaw||'').slice(0,10);
+ var c=(d10&&d10===i10)?wlv1ClockOf(isoRaw):'';
+ return c?(day+'  '+c):day;
+}
+window["wlv1DayClock"]=wlv1DayClock;
+/* 🔴 V1106 — সেভের আগে দুটো প্রশ্ন একসাথে: ① হুবহু একই অঙ্ক আজ আগে বসেছে কিনা
+   (ক্লাউড দেখে) ② আজ কিছু নেওয়া হয়েছে কিনা (পুরনো B106)। দুটোরই উত্তর "না"
+   হলে আচরণ হুবহু আগের মতোই — একটাও বাড়তি চাপ পড়ে না। */
+async function wlv1DayGuardOk2(pid,name,forDate,amt){
+ try{
+  var dup=await wlv1TodaysSamePayment(pid,amt,forDate);
+  if(dup){
+   var who=String(name||'').trim()||'this patient';
+   var at=wlv1ClockOf(dup.createdAt), md=String(dup.mode||'');
+   if(!confirm('⚠️ Same amount already today\n\n₹'+Math.round(Number(amt)||0).toLocaleString('en-IN')
+     +(md?(' '+md):'')+' was already taken from '+who+' TODAY'+(at?(' at '+at):'')+'.\n\n'
+     +'Is this a SECOND, different payment?'))return false;
+  }
+ }catch(e){}
+ return wlv1DayGuardOk(pid,name,forDate);
+}
+window["wlv1DayGuardOk2"]=wlv1DayGuardOk2;
 function paymentDisplayLabel(x,idx){return x.payLabel||x.paymentLabel||ordinalPaymentLabel((idx||0)+1)}
 window["paymentDisplayLabel"]=paymentDisplayLabel;
 let __paymentEditTapState={id:'',count:0,at:0};
@@ -15073,7 +15170,7 @@ async function saveTreatmentPayment(id){
     payment date, not always today. A second genuine payment on the same date is
     added into that date's one Treatment Payment row. */
  let payDate=($('#payDate')?.value)||today();
- if(!wlv1DayGuardOk(id,p.name,payDate))return;
+ if(!(await wlv1DayGuardOk2(id,p.name,payDate,amt)))return;
  let up=upd('patients',id,{bill,discount,stage:p.stage||'Treatment Running',updatedAt:new Date().toISOString()});
  /* 🔒 B570: প্রকৃত জমার তারিখ বাছা থাকলে সেটাই, নইলে আজ (আগের আচরণ)। ফোনের ব্যাকডেট নিয়মের সাথে মেলে। */
  /* 🔴🔒 R1 (TK-অনুমোদিত, 09.08.2026): Backdate গেট — পুরনো তারিখে পেমেন্ট নিলে (মাস্টার নয় ও grant নেই)
@@ -15531,7 +15628,9 @@ function paymentHistory(id,type='all'){
   /* 🔒 খাতার সারি B121 (TK পাশ): টাকার সারির শেষে 🗑️ — ফোনের মতোই।
      ⛔ আগের তিনটে ঘর ও তাদের ৩-বার-চাপার Edit এক অক্ষরও বদলায়নি,
         শুধু একটা ঘর **যোগ** হলো। */
-  return `<tr><td>${esc(fmtDate(x.date||''))}</td><td class="phRemarks" onclick="hiddenPaymentEditTap('${esc(x.id)}')">${esc(x.remarks||paymentDisplayLabel(x,i))}</td><td class="phPaid" onclick="hiddenPaymentEditTap('${esc(x.id)}')">${esc(numFmt(x.amount))}</td><td class="phDue">${esc(numFmt(due))}</td><td style="text-align:center;cursor:pointer" title="Delete" onclick="wlv1DeletePayment('${esc(x.id)}');event.stopPropagation();">🗑️</td></tr>`;
+  /* 🕒 V1106 (TK-নির্দেশ) — তারিখের পাশে সময়। ব্যাকডেট করা পেমেন্টে
+     সময় বসে না (সেটা অন্য দিনের ঘড়ি) — ফোনের হুবহু একই নিয়ম। */
+  return `<tr><td>${esc(wlv1DayClock(x.date||'',x.createdAt||''))}</td><td class="phRemarks" onclick="hiddenPaymentEditTap('${esc(x.id)}')">${esc(x.remarks||paymentDisplayLabel(x,i))}</td><td class="phPaid" onclick="hiddenPaymentEditTap('${esc(x.id)}')">${esc(numFmt(x.amount))}</td><td class="phDue">${esc(numFmt(due))}</td><td style="text-align:center;cursor:pointer" title="Delete" onclick="wlv1DeletePayment('${esc(x.id)}');event.stopPropagation();">🗑️</td></tr>`;
  }).join('')||`<tr><td colspan="5" class="mut" style="text-align:center !important;">No payment yet</td></tr>`;
  let photo=p.photo?`<img class="summaryPhoto vaPhoto" src="${esc(p.photo)}">`:`<div class="summaryPhoto vaPhoto blank">👤</div>`;
  let fu=load('followups').find(f=>(f.refId===p.id||mob(f.mobile)===mob(p.mobile))&&(f.stage==='Treatment'||f.stage==='Patient'));

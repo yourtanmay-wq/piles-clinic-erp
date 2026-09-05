@@ -190,6 +190,44 @@ object PaymentModel {
     private fun isoNow(): String =
         SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).format(Date())
 
+    /* 🕒🔒 V1106 (০৫.০৯.২০২৬, TK-নির্দেশ — SADDAM-এর একই দিনে দুবার
+       পেমেন্ট): *"তারিখের পাশে সময় রাখতে হবে সমস্ত জায়গায়, তাহলে বোঝা যাবে যে
+       অরিজিনাল না ডুপ্লিকেট"*।
+
+       ⛔ **সময়টা যেভাবে জমা আছে ঠিক সেভাবেই পড়া হয়** — একটাও ঘণ্টা এদিক-ওদিক
+          করা হয় না। কারণ উপরের `isoNow()` ফোনের **নিজের ঘড়ির** সময় লিখে শেষে
+          শুধু `Z` অক্ষরটা বসায় (TK-এর লক করা নিয়ম, ছোঁয়া বারণ)। তাই ওটাকে
+          UTC ধরে হিসাব করলে সময় **৫ ঘণ্টা ৩০ মিনিট এগিয়ে** দেখাত।
+          🔴 ঠিক এই ভুলটাই মিশ্র পেমেন্টের ভাঙা-দেখার পপ-আপে ছিল — এখানেই সারানো।
+       ⛔ ধাঁচ `5:40 PM` — Payment Collection কার্ডে (B612) **আগে থেকেই** এই ধাঁচেই
+          সময় দেখাচ্ছে, তাই নতুন কোনো তৃতীয় ধাঁচ বানানো হয়নি; দুই পর্দায় দুরকম
+          সময় দেখানোর ঝুঁকিটাই সবচেয়ে বড়। AM/PM বড় হাতে (TK-এর নিয়ম B76)।
+       ⛔ সময় জানা না গেলে ফাঁকা ফেরে ⇒ ডাকনেওয়ালা শুধু তারিখটুকুই দেখায়,
+          কখনো ভুল বা আন্দাজি সময় নয়। */
+    fun clockOf(isoRaw: String?): String {
+        val t = (isoRaw ?: "").trim()
+        if (t.length < 16 || t[10] != 'T') return ""
+        val hh = t.substring(11, 13).toIntOrNull() ?: return ""
+        val mi = t.substring(14, 16)
+        if (mi.toIntOrNull() == null) return ""
+        val ap = if (hh < 12) "AM" else "PM"
+        var h12 = hh % 12
+        if (h12 == 0) h12 = 12
+        return "$h12:$mi $ap"
+    }
+
+    /** 🕒 V1106 — টাকার সারির "তারিখ + সময়"।
+     *  ⛔ সময়টা **শুধু তখনই** জোড়া হয় যখন সেটা ওই তারিখেরই — নইলে ব্যাকডেট করা
+     *     পেমেন্টে পুরনো তারিখের পাশে **আজকের** সময় বসে যেত, যা সম্পূর্ণ ভুল বার্তা।
+     *  ⛔ সময় না থাকলে/না মিললে হুবহু আগের মতোই শুধু তারিখ। */
+    fun dayAndClock(dateRaw: String?, isoRaw: String?): String {
+        val day = DateUtil.display(dateRaw)
+        val d10 = (dateRaw ?: "").take(10)
+        val i10 = (isoRaw ?: "").take(10)
+        val clock = if (d10.isNotBlank() && d10 == i10) clockOf(isoRaw) else ""
+        return if (clock.isBlank()) day else "$day  $clock"
+    }
+
     fun normalizeMode(mode: String): String =
         if (mode.trim().uppercase().contains("UPI") || mode.trim().uppercase().contains("ONLINE")) "ONLINE" else "CASH"
 
@@ -495,6 +533,10 @@ object PaymentModel {
 
     fun displayTime12(iso: String): String {
         if (iso.isBlank()) return ""
+        /* 🕒 V1106 — এখন প্রথমেই একই একটাই নিয়ম (`clockOf`) দেখে, তাই Payment
+           Collection কার্ড আর টাকার তালিকা কখনো দুরকম সময় দেখাতে পারে না।
+           ⛔ না পড়তে পারলে হুবহু আগের দুটো পথই আগের মতো চলে — কিছু হারায়নি। */
+        clockOf(iso).let { if (it.isNotBlank()) return it }
         return try {
             val parsed = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).parse(iso)
             SimpleDateFormat("h:mm a", Locale.US).format(parsed!!)

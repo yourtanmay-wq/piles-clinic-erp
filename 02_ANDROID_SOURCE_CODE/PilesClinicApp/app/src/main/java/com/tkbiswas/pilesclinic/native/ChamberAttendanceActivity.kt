@@ -2189,6 +2189,13 @@ class ChamberAttendanceActivity : AppCompatActivity() {
         var dayGuardAmount = 0.0
         var dayGuardName = ""
         var dayGuardLabel = ""
+        /* 🔴 V1106 (TK-নির্দেশ, SADDAM) — আজ হুবহু এই অঙ্কের টাকা আগে বসেছে
+           কিনা, সেটা এই পথেও **ক্লাউডে** দেখা হয় (আগে শুধু ফোনের জমানো অঙ্ক
+           দেখা হত, তাই অন্য ফোনের টাকা ধরা পড়ত না)।
+           ⛔ `dayGuardAsk` আলাদা রাখা হয়েছে — নইলে আজকের জমা ০ অথচ ডুপ্লিকেট
+              পাওয়া গেলে প্রশ্নও আসত না, টাকাও সেভ হত না (নিজে যাচাই করে ধরা)। */
+        var dayGuardAsk = false
+        var dayGuardDup: org.json.JSONObject? = null
         // 🔴🆕🔒 V439 (TK-রিপোর্ট ১৮.০৮.২০২৬ — *"অনুমতি দিয়েছি তবুও হয় না"*):
         //    Master-এর দেওয়া ব্যাকডেট-অনুমতি (`BackdatePaymentGrant`) এতদিন
         //    **শুধু Payment পর্দায়** কাজ করত। চেম্বারের Cash/Online ঘর থেকে
@@ -2236,12 +2243,18 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                         repo.requestBackdatePayment(
                             patient, enteredBill, value, mode, "Chamber $mode payment", pickedDate, user.mobile, user.name.ifBlank { user.mobile }
                         )
-                    } else if (!skipDayGuard && !isBackdated && repo.paidOnDateFor(patient.id) > 0.0) {
+                    } else if (!skipDayGuard && !isBackdated && run {
+                            // 🔴 V1106 — এই লাইনটা ইতিমধ্যেই IO-থ্রেডে চলছে, তাই
+                            //    এখানেই ক্লাউড-যাচাই করা নিরাপদ ও সবচেয়ে সস্তা।
+                            dayGuardDup = repo.todaysPaymentLike(patient, value)
+                            dayGuardDup != null || repo.paidOnDateFor(patient.id) > 0.0
+                        }) {
                         // 🔒 খাতার সারি B52: আজ এই রোগীর নামে টাকা নেওয়া হয়ে গেছে —
                         // ⛔ এখানে কিছুই সেভ হয় না; স্টাফকে আগে জিজ্ঞাসা করা হয়।
                         dayGuardAmount = repo.paidOnDateFor(patient.id)
                         dayGuardName = patient.name
                         dayGuardLabel = repo.nextLabelFor(patient.id)
+                        dayGuardAsk = true
                         false
                     } else {
                         repo.saveTreatmentPayment(
@@ -2255,12 +2268,18 @@ class ChamberAttendanceActivity : AppCompatActivity() {
             }
             // 🔒 খাতার সারি B52: টাকা নেওয়া হয়নি, শুধু প্রশ্নটা বাকি — স্টাফ
             // "Yes, add it" বললে ঠিক আগের সেই সেভটাই আবার চলে (এবার প্রশ্ন ছাড়া)।
-            if (dayGuardAmount > 0.0) {
-                PaymentDayGuard.confirmIfAlreadyPaidToday(
-                    this@ChamberAttendanceActivity, dayGuardAmount, dayGuardName, dayGuardLabel
-                ) {
+            if (dayGuardAsk) {
+                val __dup = dayGuardDup
+                val __again = {
                     confirmedTakePayment(row, mode, digits, value, enteredBill, pickedDate, skipDayGuard = true)
                 }
+                // 🔴 V1106 — হুবহু একই অঙ্ক পাওয়া গেলে সেই স্পষ্ট প্রশ্নটাই,
+                //    নইলে আগের B52 প্রশ্ন — লেখা ও আচরণ বাকি তিন পথের হুবহু এক।
+                if (__dup != null) PaymentDayGuard.askSameAmount(
+                    this@ChamberAttendanceActivity, dayGuardName, value, __dup, __again
+                ) else PaymentDayGuard.confirmIfAlreadyPaidToday(
+                    this@ChamberAttendanceActivity, dayGuardAmount, dayGuardName, dayGuardLabel, __again
+                )
                 return@launch
             }
             val msg = when {
