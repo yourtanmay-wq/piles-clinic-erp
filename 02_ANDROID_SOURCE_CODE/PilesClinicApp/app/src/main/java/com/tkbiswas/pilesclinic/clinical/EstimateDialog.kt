@@ -664,8 +664,31 @@ object EstimateDialog {
                     it.measure.isBlank() && it.position.isBlank() &&
                     it.rate == rate && !it.struck
             }
+            /* ═══════════════════════════════════════════════════════════
+               🚫🔒 V1113 (০৫.০৯.২০২৬, TK-নির্দেশ): *"ট্রিটমেন্টের খরচ ছাড়া
+               বাকিগুলো স্ট্রাইক কাট হিসাবে অল টাইম সেট থাকবে। আমি চাইলে
+               পরিবর্তন করতে পারবো।"*
+               ⇒ Medicine ও Other-এর প্রতিটা লাইন **নিজে থেকেই কাটা অবস্থায়**
+                 বসে; শুধু Treatment-এর লাইন আগের মতোই কাটা থাকে না।
+               ⛔ কাটা টাকাটা প্রকল্পের **প্রমাণিত সেই একই পথেই** ছাড়ে যায়
+                  (`onStrikeToggled`) — নতুন কোনো হিসাব লেখা হয়নি, তাই
+                  Subtotal · Discount · Net Payable-এর নিয়ম এক অক্ষরও বদলায়নি।
+               ⛔ TK যেকোনো লাইনে চাপ দিয়ে কাটা তুলে/বসিয়ে দিতে পারবেন — আগের
+                  মতোই।
+               ⚠️ ফল (TK-কে জানানো): কাগজে ওই টাকাটা **ছাড়ের ঘরে** যোগ হয়ে
+                  যায়, তাই Treatment-এর লাইন না থাকলে Net Payable ০ দেখাবে —
+                  এটাই ঠিক আচরণ (ওষুধ/অন্যান্য চিকিৎসার সঙ্গেই ধরা)।
+               ═══════════════════════════════════════════════════════════ */
+            val autoStrike = (group == EstimatePrices.G_MEDICINE || group == EstimatePrices.G_OTHER)
             if (same != null) same.qty += qty
-            else sheet.lines.add(EstimateModel.Line(name = name, rate = rate, qty = qty))
+            else {
+                val line = EstimateModel.Line(name = name, rate = rate, qty = qty)
+                sheet.lines.add(line)
+                if (autoStrike) {
+                    line.struck = true
+                    sheet.onStrikeToggled(line, true)
+                }
+            }
         }
 
         val root = LinearLayout(activity).apply {

@@ -82,9 +82,18 @@ class EstimatePaperActivity : AppCompatActivity() {
     /** 💊 V986 — দরের তালিকা থেকে ওষুধ ও অন্যান্য সব লাইন বসানো। */
     private fun prefillFromPriceList() {
         try {
+            /* 🚫🔒 V1113 (TK-নির্দেশ: *"ট্রিটমেন্টের খরচ ছাড়া বাকিগুলো স্ট্রাইক
+               কাট হিসাবে অল টাইম সেট থাকবে, আমি চাইলে পরিবর্তন করতে পারবো"*) —
+               কাগজ খোলার সময় নিজে থেকে বসা এই ওষুধ ও অন্যান্য লাইনগুলোও
+               **কাটা অবস্থাতেই** বসে (`EstimateDialog`-এর হুবহু একই নিয়ম)।
+               ⛔ টাকাটা প্রমাণিত `onStrikeToggled` পথেই ছাড়ে যায় — নতুন কোনো
+                  হিসাব লেখা হয়নি। ⛔ চাপ দিয়ে যেকোনো সময় তোলা যাবে। */
             for (g in listOf(EstimatePrices.G_MEDICINE, EstimatePrices.G_OTHER)) {
                 for (item in EstimatePrices.inGroup(this, g)) {
-                    sheet.lines.add(EstimateModel.Line(name = item.name, rate = item.rate, qty = 1.0))
+                    val line = EstimateModel.Line(name = item.name, rate = item.rate, qty = 1.0)
+                    sheet.lines.add(line)
+                    line.struck = true
+                    sheet.onStrikeToggled(line, true)
                 }
             }
         } catch (_: Throwable) { }
@@ -295,10 +304,38 @@ class EstimatePaperActivity : AppCompatActivity() {
         try { PremiumAlert.paint(dlg) } catch (_: Throwable) { }
     }
 
+    /* ═══════════════════════════════════════════════════════════════════
+       💸🔒 V1113 (০৫.০৯.২০২৬, TK-রিপোর্ট ছবিসহ): *"আমি এখানে বুঝতেই পারলাম না
+       যে পার্সেন্টেজ কত দিব। সহজ সরল ভাষা এখানে লিখে রাখুন অনলি পার্সেন্টেজ —
+       তার উপরে আমি ৮ ৯ ১০ ১৫ ২০ যা করব সেটাই হবে।"*
+       TK-এর সিদ্ধান্ত: *"₹ রাখুন, % ডিফল্ট থাকবে"*।
+
+       🔴 আগে কী হত: ঘরে "9" লিখলে সেটা ₹৯ না ৯% — বোঝার উপায় ছিল না, কারণ
+          ডিফল্ট ছিল **₹**, আর নিচের লেখাটা ("Now in ₹ — tap to use %") ছোট ও
+          দ্ব্যর্থক।
+       ⇒ এখন ① নতুন ছাড় **সবসময় শতাংশেই** শুরু হয় ② ঘরের মাথায় বড় করে লেখা
+         থাকে ছাড়টা কীসে ③ নিচের বোতামে স্পষ্ট লেখা, চাপ দিলে ₹-এ যাওয়া যায়।
+       ⛔ ₹ তোলা হয়নি (TK-নির্দেশ) — টাকায় ছাড় আগের মতোই দেওয়া যায়।
+       ⛔ হিসাবের নিয়ম এক অক্ষরও বদলায়নি।
+       ═══════════════════════════════════════════════════════════════════ */
+    private fun discModeText(pct: Boolean): String =
+        if (pct) "NOW: PERCENT %   ·   tap for RUPEE ₹" else "NOW: RUPEE ₹   ·   tap for PERCENT %"
+
     private fun editDiscount() {
+        /* 💸 V1113 — ছাড় বসানোই না থাকলে শতাংশ দিয়েই শুরু (TK-এর ডিফল্ট)। */
+        if (sheet.discount <= 0.0) sheet.discountPct = true
         val field = numberField(if (sheet.discount > 0) EstimateModel.moneyShort(sheet.discount) else "")
+        /* 💸 V1113 — মাথার লেখাটাই বলে দেয় ছাড়টা কীসে, তাই "9" মানে কী সেটা
+           নিয়ে আর সন্দেহ থাকে না। */
+        val capt: TextView? = caption(
+            if (sheet.discountPct) "DISCOUNT IN PERCENT  (%)" else "DISCOUNT IN RUPEE  (₹)"
+        ).apply {
+            // 💸 V1113 — TK যেন এক নজরেই পড়তে পারেন: বড় ও গাঢ় (৯.৫sp ছিল, খুব ছোট)।
+            textSize = 12.5f
+            setTextColor(Color.parseColor("#0F3D6B"))
+        }
         val mode = TextView(this).apply {
-            text = if (sheet.discountPct) "Now in  %  — tap to use ₹" else "Now in  ₹  — tap to use %"
+            text = discModeText(sheet.discountPct)
             textSize = 12.5f
             gravity = Gravity.CENTER
             setTypeface(typeface, Typeface.BOLD)
@@ -308,12 +345,13 @@ class EstimatePaperActivity : AppCompatActivity() {
         }
         mode.setOnClickListener {
             sheet.discountPct = !sheet.discountPct
-            mode.text = if (sheet.discountPct) "Now in  %  — tap to use ₹" else "Now in  ₹  — tap to use %"
+            mode.text = discModeText(sheet.discountPct)
+            capt?.text = if (sheet.discountPct) "DISCOUNT IN PERCENT  (%)" else "DISCOUNT IN RUPEE  (₹)"
         }
         val body = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(18), dp(6), dp(18), dp(4))
-            addView(caption("DISCOUNT")); addView(field)
+            addView(capt!!); addView(field)
             addView(mode.apply {
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT

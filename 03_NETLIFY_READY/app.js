@@ -27868,12 +27868,19 @@ function wlv1EstStruckSync(l, nowStruck){
   }catch(e){}
 }
 function wlv1EstStrike2(i){ var l=wlv1EstSheet.lines[i]; if(l){ l.struck=!l.struck; wlv1EstStruckSync(l,l.struck); } closeModal(); wlv1EstRender() }
+/* 💸🔒 V1113 (TK-রিপোর্ট: *"বুঝতেই পারলাম না পার্সেন্টেজ কত দিব"* · TK-সিদ্ধান্ত:
+   *"₹ রাখুন, % ডিফল্ট থাকবে"*) — ঘরের মাথায় বড় করে লেখা থাকে ছাড়টা কীসে, আর
+   নতুন ছাড় সবসময় শতাংশেই শুরু হয়। ⛔ ₹ তোলা হয়নি — চাপ দিলেই পাওয়া যায়।
+   ⛔ হিসাবের নিয়ম এক অক্ষরও বদলায়নি। ফোনের হুবহু যমজ। */
 function wlv1EstDiscountBox(){
+  if(!(Number(wlv1EstSheet.discount||0)>0)) wlv1EstSheet.discountPct=true;
+  var pct=!!wlv1EstSheet.discountPct;
   modal('<h2>&#128184; Discount</h2><div class="card">'
-    +'<div class="tiny mut">DISCOUNT</div>'
+    +'<div style="font-size:12.5px;font-weight:800;color:#0F3D6B;letter-spacing:.5px;margin-bottom:5px">'
+    +(pct?'DISCOUNT IN PERCENT  (%)':'DISCOUNT IN RUPEE  (&#8377;)')+'</div>'
     +'<input id="wlv1EstDV" class="input" value="'+(wlv1EstSheet.discount?wlv1EstShort(wlv1EstSheet.discount):'')+'" placeholder="0">'
     +'<button type="button" class="small" style="margin-top:9px;width:100%" onclick="wlv1EstDiscMode2()">'
-    +(wlv1EstSheet.discountPct?'Now in  %  &mdash; tap to use &#8377;':'Now in  &#8377;  &mdash; tap to use %')+'</button></div>'
+    +(pct?'NOW: PERCENT %   &middot;   tap for RUPEE &#8377;':'NOW: RUPEE &#8377;   &middot;   tap for PERCENT %')+'</button></div>'
     +'<div class="actions"><button class="ghost" onclick="closeModal()">Cancel</button>'
     +'<button onclick="wlv1EstDiscSave()">Save</button></div>');
 }
@@ -28050,10 +28057,23 @@ function wlv1EstAddCustom(g){
       && !l.measure && !l.position && Number(l.rate||0)===rt && !l.struck;
   })[0];
   if(same) same.qty=Number(same.qty||0)+qt;
-  else wlv1EstSheet.lines.push({name:nm,measure:'',position:'',rate:rt,qty:qt,struck:false});
+  else wlv1EstPushLine(g,{name:nm,measure:'',position:'',rate:rt,qty:qt,struck:false});   /* 🚫 V1113 */
   wlv1EstRender();
 }
 window["wlv1EstAddCustom"]=wlv1EstAddCustom;
+/* ═══════════════════════════════════════════════════════════════════════
+   🚫🔒 V1113 (০৫.০৯.২০২৬, TK-নির্দেশ): *"ট্রিটমেন্টের খরচ ছাড়া বাকিগুলো স্ট্রাইক
+   কাট হিসাবে অল টাইম সেট থাকবে। আমি চাইলে পরিবর্তন করতে পারবো।"*
+   ⇒ Medicine ও Other-এর লাইন **নিজে থেকেই কাটা অবস্থায়** বসে; Treatment নয়।
+   ⛔ কাটা টাকাটা প্রমাণিত `wlv1EstStruckSync` পথেই ছাড়ে যায় — হিসাবের নিয়ম
+      এক অক্ষরও বদলায়নি। ⛔ চাপ দিয়ে যেকোনো সময় তোলা যাবে (ফোনের হুবহু যমজ)। */
+function wlv1EstPushLine(g,line){
+  var auto=(g==='Medicine'||g==='Other');
+  line.struck=!!auto;
+  wlv1EstSheet.lines.push(line);
+  if(auto){ try{ wlv1EstStruckSync(line,true) }catch(e){} }
+}
+window["wlv1EstPushLine"]=wlv1EstPushLine;
 function wlv1EstAddPick(g,i){
   var items=wlv1EstPrices().filter(function(p){return p.group===g});
   var p=items[i]; if(!p)return;
@@ -28064,7 +28084,7 @@ function wlv1EstAddPick(g,i){
       && !l.measure && !l.position && Number(l.rate||0)===Number(p.rate||0) && !l.struck;
   })[0];
   if(same) same.qty=Number(same.qty||0)+1;
-  else wlv1EstSheet.lines.push({name:p.name,measure:'',position:'',rate:p.rate,qty:1,struck:false});
+  else wlv1EstPushLine(g,{name:p.name,measure:'',position:'',rate:p.rate,qty:1,struck:false});   /* 🚫 V1113 */
   wlv1EstRender();
 }
 window["wlv1EstAddTreat"]=wlv1EstAddTreat; window["wlv1EstTreatRender"]=wlv1EstTreatRender;
