@@ -1,5 +1,41 @@
 [
   {
+    "file": "PILES_CLINIC_APP_V1091_FINAL.zip",
+    "versionCode": 1091,
+    "when": "05.09.2026 10.05 am",
+    "zip_mb": 25.2,
+    "files": 1724,
+    "contents": {
+      "02_ANDROID_SOURCE_CODE": 744,
+      "(root files)": 604,
+      "04_SUPABASE_DATABASE_SETUP": 119,
+      "00_SQL": 58,
+      "00_GUARD": 53,
+      "03_NETLIFY_READY": 50,
+      "08_ASSETS_BACKUP": 36,
+      "07_RELEASE_NOTES_VERSION_HISTORY": 31,
+      "00_READ_ME_FIRST": 11,
+      "10_FUTURE_PLANS": 7,
+      "ROLLBACK_V448": 2,
+      "06_TEST_CHECKLISTS": 2,
+      "11_V223_TESTS": 2,
+      ".claude": 2,
+      "05_APK_AAB_BUILD_NOTES": 1,
+      "03_SUPABASE_SQL": 1,
+      "01_MASTER_LOCK_BOOK_SOURCE_OF_TRUTH": 1
+    },
+    "excluded": [
+      "08_ASSETS_BACKUP/ANATOMY_PICTURES/ORIGINAL (৯.৩ MB — verify_zip_contents.py-র অনুমোদিত বাদ)",
+      "root *.png demo proofs",
+      ".git",
+      "00_GUARD/.kotlinc",
+      "*/build",
+      "__pycache__"
+    ],
+    "sql_to_run": "নেই — V1090/V1091-এ SQL লাগে না (আজকের SQL — V1088 ও V1089 — TK আগেই চালিয়েছেন)",
+    "note": "TK: *full project ফাইল পাঠান, বিল্ডে যেন ভুল না আসে*। ⚠️ এবার 08_ASSETS_BACKUP **ভিতরে আছে** (V1084-এ ছিল না) — তাই ১৮.৫ MB থেকে বেড়ে ২৬ MB। বিল্ডের যাচাই: gradlew · wrapper.jar · settings/build.gradle.kts · AndroidManifest · ৩১৫টা .kt · ৩২৯টা res XML — সবই ZIP-এ আছে; Kotlin কম্পাইল · resource · নিষিদ্ধ-API · enum — সব পাশ"
+  },
+  {
     "file": "PILES_CLINIC_APP_V1084_FINAL.zip",
     "versionCode": 1084,
     "when": "05.09.2026 02.27 am",
