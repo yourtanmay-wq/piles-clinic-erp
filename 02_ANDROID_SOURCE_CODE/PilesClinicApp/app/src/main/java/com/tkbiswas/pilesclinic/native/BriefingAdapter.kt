@@ -418,6 +418,50 @@ class BriefingAdapter(
             b.btnViewRecord.setOnClickListener(null)
         }
     
+        /* ═══════════════════════════════════════════════════════════════
+           🎨🔒 V1102 (০৫.০৯.২০২৬) — TK নিজের নকশার ছবি পাঠিয়ে বললেন
+           *"এইরকম করুন"*: রোগের পিল · রোগীর নাম বড় করে · পাশে নম্বর ·
+           নিচে Patient ID · নিচে ভরাট **View** ও হালকা দ্বিতীয় বোতাম।
+           TK নিশ্চিত করেছেন দ্বিতীয় বোতামের কাজ **আগের মতোই — মুছে যাবে**,
+           তাই `btnDelete`-এর id ও কাজ এক অক্ষরও বদলায়নি (শুধু চেহারা)।
+
+           ⛔ শুধু অ্যাপের **নিজের তিন নোটিশে** (New Enquiry · New Registration ·
+              Advance Received) চলে, আর তখনই — যখন লেখাটা চেনা ধাঁচে আছে
+              (নাম - নম্বর - আইডি - রোগ - ব্রাঞ্চ)। না মিললে **হুবহু আগের কার্ডই**
+              দেখা যায়, একটা লাইনও হারায় না।
+           ⛔ হাতে লেখা Briefing · অনুমোদন · Overdue Alert — কিচ্ছু বদলায়নি।
+           ⛔ নম্বরে চাপলে আগের মতোই কল যায়।
+           ═══════════════════════════════════════════════════════════════ */
+        run {
+            var rich = false
+            try {
+                if (isAutoNotice(item)) {
+                    val parts = item.message.split(" - ").map { it.trim() }.filter { it.isNotEmpty() }
+                    val digitsOf = { t: String -> t.filter { c -> c.isDigit() } }
+                    if (parts.size >= 4 && digitsOf(parts[1]).length >= 10) {
+                        b.tvPatientName.text = parts[0]
+                        b.tvPatientPhone.text = parts[1]
+                        b.tvPatientId.text = "Patient ID   " + parts[2]
+                        val dis = parts.getOrNull(3).orEmpty()
+                        b.tvChipDisease.text = dis
+                        b.tvChipDisease.visibility = if (dis.isNotBlank()) View.VISIBLE else View.GONE
+                        b.rowPatient.visibility = View.VISIBLE
+                        b.tvPatientId.visibility = View.VISIBLE
+                        b.tvMessage.visibility = View.GONE
+                        val dg = digitsOf(parts[1]).takeLast(10)
+                        b.tvPatientPhone.setOnClickListener { if (dg.length == 10) onCallNumber(dg) }
+                        rich = true
+                    }
+                }
+            } catch (_: Throwable) { rich = false }
+            if (!rich) {
+                b.rowPatient.visibility = View.GONE
+                b.tvPatientId.visibility = View.GONE
+                b.tvChipDisease.visibility = View.GONE
+                b.tvMessage.visibility = View.VISIBLE
+            }
+        }
+
         // 🔴🔒 V449 — একই ফিক্স (দেখুন FollowUpAdapter.kt-এর মন্তব্য): তালিকার
         // সারির বাংলা যাতে বাংলা-বন্ধ স্টাফের ফোনে কখনো না দেখা যায়।
         try { NoBengali.sweep(holder.itemView) } catch (_: Throwable) { }
