@@ -3842,10 +3842,116 @@ class StaffProfileActivity : AppCompatActivity() {
             sb.append("\nExtra income is only for unexpected-time enquiries —")
             sb.append("\nplease check this entry.")
         }
+        /* ═══════════════════════════════════════════════════════════════
+           🎨🔒 V1104 (০৫.০৯.২০২৬, TK: *"এটা আরো প্রফেশনাল লুক বানান"* —
+           ফটো-প্রুফ দেখে পাশ) — লেখাগুলো এখন সাজানো কার্ডে: উপরে **টাকার
+           অঙ্ক বড় করে** ও পাশে DUE/PAID ব্যাজ, নিচে সারি ধরে তথ্য, শেষে
+           হলুদ বাক্সে নিয়মটা। TK-এর নির্দেশে **তারিখের পাশে সময়ও**।
+           ⛔ একটাও তথ্য বাদ যায়নি — উপরের `sb`-তে যা যা ছিল সবই আছে।
+           ⛔ দুটো বোতামের কাজ এক অক্ষরও বদলায়নি (Close · Open History)।
+           ⛔ সময় জানা না গেলে শুধু তারিখই বসে (নতুন কোনো ডাক নেই)।
+           ═══════════════════════════════════════════════════════════════ */
+        val isDue = payStatus(p) == "DUE"
+        /* 🕐 V1104 — TK: *"তারিখের পাশে সময় লাগবে"*। সময়টা সারির নিজের
+           `createdAt` থেকে (আগে থেকেই আনা), তাই নতুন কোনো ডাক নেই।
+           ⛔ সময় জানা না গেলে শুধু তারিখই বসে — আগের মতোই। */
+        val dateLine = run {
+            val raw = listOf(p.optString("createdAt", ""), p.optString("created_at", ""))
+                .firstOrNull { it.trim().length >= 16 }.orEmpty().trim()
+            val full = if (raw.length >= 16) whenText(raw) else ""
+            if (full.isNotBlank()) full else on
+        }
+
+        fun xiRow(k: String, v: String, color: String = "#12271E"): View =
+            LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(0, dp(9), 0, dp(9))
+                addView(TextView(this@StaffProfileActivity).apply {
+                    text = k; textSize = 12.5f
+                    setTextColor(android.graphics.Color.parseColor("#8494A0"))
+                    layoutParams = LinearLayout.LayoutParams(dp(96), LinearLayout.LayoutParams.WRAP_CONTENT)
+                })
+                addView(TextView(this@StaffProfileActivity).apply {
+                    text = v; textSize = 13.5f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.parseColor(color))
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                })
+            }
+
+        val body = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(6), dp(16), 0)
+        }
+        // টাকার বাক্স
+        body.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(14).toFloat()
+                setColor(android.graphics.Color.parseColor("#F1F8F4"))
+                setStroke(dp(1), android.graphics.Color.parseColor("#DCEDE3"))
+            }
+            addView(LinearLayout(this@StaffProfileActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                addView(TextView(this@StaffProfileActivity).apply {
+                    text = "AMOUNT"; textSize = 11f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.parseColor("#5C7568"))
+                })
+                addView(TextView(this@StaffProfileActivity).apply {
+                    text = amt; textSize = 25f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.parseColor("#0B6B34"))
+                })
+            })
+            addView(TextView(this@StaffProfileActivity).apply {
+                text = if (isDue) "DUE" else "PAID"
+                textSize = 11f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setPadding(dp(12), dp(6), dp(12), dp(6))
+                setTextColor(android.graphics.Color.parseColor(if (isDue) "#B0392B" else "#0B6B34"))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(20).toFloat()
+                    setColor(android.graphics.Color.parseColor(if (isDue) "#FDECEA" else "#E7F4EC"))
+                    setStroke(dp(1), android.graphics.Color.parseColor(if (isDue) "#F2C6C0" else "#CFE9D8"))
+                }
+            })
+        })
+        // সারিগুলো
+        if (name.isNotBlank()) body.addView(xiRow("Patient", name))
+        if (mob.isNotBlank()) body.addView(xiRow("Mobile", mob, "#1A73E8"))
+        if (timing.isNotBlank()) body.addView(xiRow("Timing",
+            timeBadge(timing, extraPatientSrc[pid].orEmpty(), longForm = true),
+            if (isUnexpected) "#B45309" else "#12271E"))
+        if (why.isNotBlank()) body.addView(xiRow("For", why))
+        if (stageLine.isNotBlank()) body.addView(xiRow("Step", stageLine))
+        body.addView(xiRow("Date", dateLine))
+        // নিয়ম ও টীকা — উপরের `sb`-র শেষ অংশটাই, হুবহু একই লেখা
+        run {
+            val tail = sb.toString().substringAfter("────────────", "").trim()
+            if (tail.isNotBlank()) body.addView(TextView(this).apply {
+                text = tail; textSize = 12.5f
+                setLineSpacing(0f, 1.35f)
+                setTextColor(android.graphics.Color.parseColor("#5B5233"))
+                setPadding(dp(13), dp(11), dp(13), dp(11))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(12).toFloat()
+                    setColor(android.graphics.Color.parseColor("#FBF8EF"))
+                    setStroke(dp(1), android.graphics.Color.parseColor("#EFE4C7"))
+                }
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                    .apply { topMargin = dp(8); bottomMargin = dp(4) }
+            })
+        }
+
         val d = androidx.appcompat.app.AlertDialog.Builder(this)
             .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(
-                this, "Extra income - why?"))
-            .setMessage(sb.toString())
+                this, "💰 Extra Income — why?"))
+            .setView(android.widget.ScrollView(this).apply { addView(body) })
             .setNegativeButton("Close", null)
         d.setPositiveButton("Open History") { _, _ -> openPatientHistory(pid, mob) }
         d.show().also { try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) { } }
