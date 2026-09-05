@@ -105,7 +105,11 @@ data class TimelineEntry(
     // Diet Chart-এর "selected" ব্যবহার অক্ষত, ওগুলোর id আলাদা row-এ থাকে)।
     // ⛔ ডিফল্ট ফাঁকা — বাকি সব TimelineEntry পাঠক সম্পূর্ণ অপ্রভাবিত।
     val medicalRecordId: String = "",
-    val medicalSelected: String = ""
+    val medicalSelected: String = "",
+    /* 🟢🔒 V1090 (০৫.০৯.২০২৬, TK-রিপোর্ট: *"check up done দুইবার কেন"*) —
+       এই সারিটা আসলে চিকিৎসার নোট (কেউ ফোন করেননি)। ডিফল্ট false —
+       তাই TimelineEntry-এর বাকি সব পাঠক সম্পূর্ণ অপ্রভাবিত। */
+    val isTreatmentNote: Boolean = false
 )
 
 /** Header + all updates for one patient/mobile, built by joining every table. */
@@ -359,6 +363,48 @@ object PatientTimelineRepository {
     // ঘটনা আলাদা সারি হয় (History পর্দার জন্য)। ডিফল্ট false — ⛔ Report Card ও
     // অন্য সব কলার আগের মতোই (day-merge) পায়, এক অক্ষরও বদলায় না। টাকার হিসাব
     // দুই পথেই এক (প্রতি পেমেন্ট আলাদা paidEffect ধরে গোনা হয়, নিচে দেখুন)।
+    /**
+     * 🟢🔒 V1090 (০৫.০৯.২০২৬, TK: *"check up done দুইবার কেন"*) —
+     * **টাকার সারি থেকে সেই পুনরাবৃত্ত বাক্যটা তোলা।**
+     *
+     * চিকিৎসার নোট দুই জায়গায় জমা হয় (V590): ফলো-আপ খাতায় আর সেদিনের
+     * টাকার সারির `progress` ঘরে। History পর্দায় দুটোই দেখাত ⇒ এক কথা
+     * দু'বার। এখানে **শুধু দেখানোর জন্য** টাকার সারি থেকে ওই বাক্যটা তোলা
+     * হয়; ফলো-আপ সারিটা অক্ষত থাকে, তাই **কে লিখেছেন ও কখন** — কিছুই
+     * হারায় না, আর ৩-বার চেপে এডিটও আগের জায়গাতেই থাকে।
+     *
+     * ⛔ তোলা হয় **শুধু তখনই** যখন ঠিক ওই দিনেই ফলো-আপ সারিতে হুবহু একই
+     *    লেখা আছে। ⛔ তুললে নোট একদম ফাঁকা হয়ে গেলে কিছুই তোলা হয় না
+     *    (টাকা ০ হলে নোটে টাকার লাইন থাকে না — তখন আগের মতোই থাকবে)।
+     * ⛔ `payTypedNote`/`typedRemark` (Report Card ও ৩-বার চাপের এডিট
+     *    যেগুলো পড়ে) এক অক্ষরও বদলায় না — শুধু `note`।
+     * ⛔ একই দিনে একাধিক পেমেন্ট জোড়া লাগলে লেখাটা " | " দিয়ে জোড়া হয়;
+     *    তখন **প্রতিটা টুকরোই** ফলো-আপে থাকলে তবেই পুরোটা তোলা হয়।
+     */
+    private fun wlv1StripEchoedTreatmentNote(rows: List<TimelineEntry>): List<TimelineEntry> {
+        return try {
+            val noteKeys = HashSet<String>()
+            for (e in rows) {
+                if (!e.followUpHistoryId.isNullOrBlank() && e.note.trim().isNotEmpty())
+                    noteKeys.add(e.date.take(10) + "|" + e.note.trim().lowercase())
+            }
+            if (noteKeys.isEmpty()) return rows
+            rows.map { e ->
+                val typed = listOf(e.payTypedNote.trim(), e.typedRemark.trim())
+                    .firstOrNull { it.isNotEmpty() && e.note.trim().startsWith(it) }
+                if (e.paymentId == null || typed.isNullOrEmpty()) return@map e
+                val day = e.date.take(10)
+                val parts = typed.split(" | ").map { it.trim() }.filter { it.isNotEmpty() }
+                val allEchoed = parts.isNotEmpty() && parts.all { noteKeys.contains(day + "|" + it.lowercase()) }
+                if (!allEchoed) return@map e
+                val stripped = e.note.trim()
+                    .removePrefix(typed).trim()
+                    .removePrefix("\u2014").trim()
+                if (stripped.isEmpty()) e else e.copy(note = stripped)
+            }
+        } catch (_: Throwable) { rows }
+    }
+
     fun build(mobileDigits: String, section: String? = null, context: Context? = null, keepVisitFeeAsOwnRow: Boolean = false, separateRowsPerEvent: Boolean = false, preferRowId: String = "", preferPatientCode: String = ""): TimelineData {
         // Match by the trailing 10 digits (like the global search does) instead of
         // an exact "+91..." match, so a timeline is found regardless of how the
@@ -1083,6 +1129,54 @@ object PatientTimelineRepository {
             }
         }
 
+        /* ╔═══════════════════════════════════════════════════════════
+           🟢🔒 V1090 (০৫.০৯.২০২৬) — TK, MD AKBAR ALI-র ছবিসহ:
+           *"check up done দুইবার কেন"*
+
+           **কারণ (কোডে প্রমাণিত, আন্দাজে নয়):** স্টাফ একবারই লেখেন, কিন্তু
+           V590 (২৩.০৮, TK-অনুমোদিত) থেকে লেখাটা **দুই জায়গায়** জমা হয় —
+           ফলো-আপ খাতায় (`followups.history`) আর সেদিনের টাকার সারিতে
+           (`payments.progress`, নইলে Report Card-এ উঠত না)। History পর্দা
+           দুটোই দেখাত ⇒ এক কথা দু'বার।
+           সঙ্গে দ্বিতীয় দোষ: `history`-র সারিতে ধরন লেখা থাকে না, তাই
+           চিকিৎসার নোটটাও **"Called By"** সেজে উপরের **Visit Calls**-এ
+           গোনা হত — যদিও কেউ ফোন করেননি।
+
+           **এই নিয়মটা করে (শুধু দেখানোর, B680/V399-এর হুবহু একই ধাঁচ):**
+           ① একই দিনে ফলো-আপ-নোটের লেখা আর টাকার সারির মানুষের-লেখা অংশ
+              হুবহু মিললে ⇒ ওই ফলো-আপ সারিটা "চিকিৎসার নোট" চিহ্নিত হয়।
+              টাকার সারি না থাকলেও ধরা পড়ে — লেখাটা পুরোপুরি চিকিৎসার
+              চিপ দিয়ে বানানো হলে (`TreatmentQuickNotes.isQuickNoteText`)।
+           ② **History পর্দায়** (separateRowsPerEvent) ওই টাকার সারি থেকে
+              শুধু ওই পুনরাবৃত্ত বাক্যটা তোলা হয় — টাকা ও মোড থেকে যায়
+              (`wlv1StripEchoedTreatmentNote`, নিচে — **একই দিনের একাধিক
+              পেমেন্ট জোড়া লাগার পরে** চলে, নইলে জোড়া লাগার সময় লেখাটা
+              আবার ফিরে আসত)। ⛔ তুললে লেখা একদম ফাঁকা হয়ে গেলে কিছুই
+              তোলা হয় না।
+
+           ⛔ ডেটাবেসে কিচ্ছু বদলায় না · `payTypedNote` (Report Card যেটা
+              পড়ে) ছোঁয়াই হয় না · Report Card ও অন্য সব পাঠক অটুট (② শুধু
+              History-তে) · ফলো-আপ সারিটা **থেকেই যায়**, তাই কে লিখেছেন ও
+              কখন লিখেছেন — কিছুই হারায় না।
+           ╚══════════════════════════════════════════════════════════ */
+        try {
+            val payTypedKeys = HashSet<String>()
+            for (e in entries) {
+                val typed = e.payTypedNote.trim()
+                if (e.paymentId != null && typed.isNotEmpty())
+                    payTypedKeys.add(e.date.take(10) + "|" + typed.lowercase())
+            }
+            for (i in entries.indices) {
+                val e = entries[i]
+                if (e.followUpHistoryId.isNullOrBlank()) continue
+                val txt = e.note.trim()
+                if (txt.isEmpty()) continue
+                val isTreat = payTypedKeys.contains(e.date.take(10) + "|" + txt.lowercase()) ||
+                    TreatmentQuickNotes.isQuickNoteText(txt)
+                if (isTreat) entries[i] = e.copy(isTreatmentNote = true)
+            }
+        } catch (_: Throwable) { /* ⛔ শুধু দেখানোর সাজানো — ব্যর্থ হলে আগের মতোই দেখাবে */ }
+
         // OWNER CONFIRMED (12.08.2026): Registration, Visit and Visit Fee are
         // ONE user action.  They stay in their existing database rows (the
         // payment row is still required for accounts/audit), but Full Journey
@@ -1176,7 +1270,15 @@ object PatientTimelineRepository {
             (passthrough + mergedTreatment).sortedBy { orderKey(it) }
         } else displayEntries.sortedBy { orderKey(it) }
 
-        val chronologicalRaw = historyDisplayEntries
+        /* 🟢🔒 V1090 ধাপ ② — উপরের টীকা দ্রষ্টব্য। এখানেই চালানো হয়, কারণ
+           একই দিনের একাধিক Treatment পেমেন্ট জোড়া লাগার সময় লেখাটা নতুন
+           করে বানানো হয় (`note = human — breakdown`) — আগে তুলে দিলে সেটা
+           আবার ফিরে আসত। ⛔ History ছাড়া কোনো কলার প্রভাবিত হয় না। */
+        val historyDisplayFinal =
+            if (separateRowsPerEvent) wlv1StripEchoedTreatmentNote(historyDisplayEntries)
+            else historyDisplayEntries
+
+        val chronologicalRaw = historyDisplayFinal
 
         // TK-REQUESTED CHANGE (2026-07-19): one row per DAY, not one row per
         // event -- if an enquiry call, a follow-up remark, and a payment all

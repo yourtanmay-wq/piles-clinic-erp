@@ -3179,6 +3179,8 @@ class PatientTimelineActivity : AppCompatActivity() {
             var payments = 0
             for (e in chronological) {
                 val t = e.title.lowercase()
+                // \ud83d\udfe2\ud83d\udd12 V1090 — \u099a\u09bf\u0995\u09bf\u09ce\u09b8\u09be\u09b0 \u09a8\u09cb\u099f \u0995\u0996\u09a8\u09cb \u0995\u09b2 \u09a8\u09af\u09bc, \u09a4\u09be\u0987 \u0997\u09cb\u09a8\u09be\u09af\u09bc \u09a7\u09b0\u09be \u09b9\u09df \u09a8\u09be\u0964
+                if (e.isTreatmentNote) continue
                 when {
                     t.contains("registration") || t.contains("visit") -> registrationSeen = true
                     t.contains("payment") || t.contains("advance") -> payments++
@@ -3521,6 +3523,10 @@ class PatientTimelineActivity : AppCompatActivity() {
             val __tl = e.title.lowercase()
             val displayTitle = when {
                 __tl.contains("expected") -> "\u0986\u09b8\u09ac\u09c7 \u09ac\u09b2\u09c7\u099b\u09c7"
+                // \ud83d\udfe2\ud83d\udd12 V1090 (\u09e6\u09eb.\u09e6\u09ef.\u09e8\u09e6\u09e8\u09ec, TK: *"check up done \u09a6\u09c1\u0987\u09ac\u09be\u09b0 \u0995\u09c7\u09a8"*) —
+                // \u099a\u09bf\u0995\u09bf\u09ce\u09b8\u09be\u09b0 \u09a8\u09cb\u099f\u09c7\u09b0 \u09b8\u09be\u09b0\u09bf\u09a4\u09c7 \u0986\u0997\u09c7 "Called By" \u09b2\u09c7\u0996\u09be \u0989\u09a0\u09a4 \u2014 \u0995\u09c7\u0989 \u09ab\u09cb\u09a8
+                // \u0995\u09b0\u09c7\u09a8\u09a8\u09bf, \u09a4\u09be\u0987 \u098f\u0996\u09a8 "Treatment"\u0964 \u26d4 \u09b6\u09c1\u09a7\u09c1 \u09a6\u09c7\u0996\u09be\u09a8\u09cb\u09b0 \u09b2\u09c7\u0996\u09be\u0964
+                e.isTreatmentNote -> "Treatment"
                 __tl.contains("enquiry") || __tl.contains("follow") || __tl.contains("call") -> "Called By"
                 else -> e.title
             }

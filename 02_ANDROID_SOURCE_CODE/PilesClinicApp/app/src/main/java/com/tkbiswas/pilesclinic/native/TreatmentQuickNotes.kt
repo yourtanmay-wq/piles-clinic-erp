@@ -50,6 +50,28 @@ object TreatmentQuickNotes {
     /** যে তালিকাটা এই স্টাফ দেখবেন। */
     fun labels(): List<String> = if (NoBengali.active()) QUICK_EN_HI else QUICK_BN
 
+    /**
+     * 🟢🔒 V1090 (০৫.০৯.২০২৬, TK-রিপোর্ট *"check up done দুইবার কেন"*) —
+     * লেখাটা কি **পুরোপুরি** এই চিপগুলো দিয়েই বানানো?
+     *
+     * History পর্দায় চিকিৎসার নোট আর ফোনের রিমার্ক আলাদা করতে লাগে
+     * (`followups.history`-তে ধরন লেখা থাকে না)। চিপ চাপলে লেখাগুলো
+     * " · " দিয়ে জোড়া হয় (উপরের `attach`), তাই সেভাবেই ভেঙে মেলানো হয়।
+     *
+     * ⛔ বড়-ছোট হাতের অক্ষর ধরা হয় না (`UppercaseInputUtil` ইংরেজি লেখা
+     *    বড় হাতে করে দেয়)। ⛔ দুটো তালিকাই (বাংলা ও ইংরেজি-হিন্দি) দেখা হয়,
+     *    কারণ এক ক্লিনিকে দু'রকম স্টাফ থাকতে পারেন।
+     * ⛔ একটা টুকরোও তালিকার বাইরে হলে `false` — অর্থাৎ মানুষের নিজের হাতে
+     *    লেখা কথা কখনো "চিকিৎসার নোট" ধরে নেওয়া হয় না।
+     */
+    fun isQuickNoteText(text: String): Boolean {
+        val t = text.trim()
+        if (t.isEmpty()) return false
+        val all = (QUICK_BN + QUICK_EN_HI).map { it.trim().lowercase() }
+        val parts = t.split(" · ").map { it.trim().lowercase() }.filter { it.isNotEmpty() }
+        return parts.isNotEmpty() && parts.all { all.contains(it) }
+    }
+
     /** হাতে লেখার ঘরের নিচে বসার নির্দেশ-লাইন। */
     fun hint(): String = NoBengali.s("আজ কী হলো — নিজে লিখুন বা নিচের চিপ চাপুন")
 

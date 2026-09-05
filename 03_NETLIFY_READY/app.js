@@ -14297,6 +14297,7 @@ function patientHistoryDesktop(id){
   let stt=String(h.status||'').toLowerCase();
   let isExp=stt.includes('expected')||String(h.remark||'').includes('আসবে');
   let tp=isExp?'আসবে বলেছে'
+    :wlv1IsTreatQuickText(h.remark||'')?'Treatment'   /* \u{1F7E2} V1090 \u2014 \u0995\u09c7\u0989 \u09ab\u09cb\u09a8 \u0995\u09b0\u09c7\u09a8\u09a8\u09bf */
     :(stt===''||stt==='called'||stt==='active'||stt==='follow-up'||stt==='continued'||stt==='cancelled'||stt==='incomplete')?'Called By'
     :(h.status||'Follow-up');
   rows.push({date:h.date||'',time:ht,dot:isExp?'exp':'call',type:tp,by:codeName(h.staff||''),note:h.remark||''});
@@ -20325,6 +20326,20 @@ function wlv1TreatQuickList(){
   return WLV1_TREAT_QUICK_BN;
 }
 window["wlv1TreatQuickList"]=wlv1TreatQuickList;
+/* \u{1F7E2}\u{1F512} V1090 (\u09e6\u09eb.\u09e6\u09ef.\u09e8\u09e6\u09e8\u09ec, TK: *"check up done \u09a6\u09c1\u0987\u09ac\u09be\u09b0 \u0995\u09c7\u09a8"*) \u2014
+   \u09b2\u09c7\u0996\u09be\u099f\u09be \u0995\u09bf **\u09aa\u09c1\u09b0\u09cb\u09aa\u09c1\u09b0\u09bf** \u099a\u09bf\u0995\u09bf\u09ce\u09b8\u09be\u09b0 \u099a\u09bf\u09aa \u09a6\u09bf\u09df\u09c7 \u09ac\u09be\u09a8\u09be\u09a8\u09cb? \u09ab\u09b2\u09cb-\u0986\u09aa \u0996\u09be\u09a4\u09be\u09df
+   \u09a7\u09b0\u09a8 \u09b2\u09c7\u0996\u09be \u09a5\u09be\u0995\u09c7 \u09a8\u09be, \u09a4\u09be\u0987 \u099a\u09bf\u0995\u09bf\u09ce\u09b8\u09be\u09b0 \u09a8\u09cb\u099f\u0993 "Called By" \u09b8\u09c7\u099c\u09c7 \u0989\u09a0\u09a4\u0964
+   \u09ab\u09cb\u09a8\u09c7\u09b0 `TreatmentQuickNotes.isQuickNoteText`-\u098f\u09b0 \u09b9\u09c1\u09ac\u09b9\u09c1 \u098f\u0995\u0987 \u09a8\u09bf\u09df\u09ae\u0964
+   \u26d4 \u098f\u0995\u099f\u09be \u099f\u09c1\u0995\u09b0\u09cb\u0993 \u09a4\u09be\u09b2\u09bf\u0995\u09be\u09b0 \u09ac\u09be\u0987\u09b0\u09c7 \u09b9\u09b2\u09c7 false \u2014 \u09ae\u09be\u09a8\u09c1\u09b7\u09c7\u09b0 \u09a8\u09bf\u099c\u09c7\u09b0 \u09b2\u09c7\u0996\u09be \u0995\u0996\u09a8\u09cb \u09a7\u09b0\u09be \u09aa\u09dc\u09c7 \u09a8\u09be\u0964 */
+function wlv1IsTreatQuickText(t){
+  try{
+    var s=String(t==null?'':t).trim(); if(!s)return false;
+    var all=WLV1_TREAT_QUICK_BN.concat(WLV1_TREAT_QUICK_ENHI).map(function(x){return String(x).trim().toLowerCase()});
+    var parts=s.split(' \u00B7 ').map(function(x){return String(x).trim().toLowerCase()}).filter(Boolean);
+    return parts.length>0 && parts.every(function(x){return all.indexOf(x)>=0});
+  }catch(e){ return false }
+}
+window["wlv1IsTreatQuickText"]=wlv1IsTreatQuickText;
 /** চিপে চাপলে লেখাটা ঘরে যোগ হয় — আগে কিছু থাকলে " \u00B7 " দিয়ে জোড়া
  *  (ফোনের `TreatmentQuickNotes.attach`-এর হুবহু একই নিয়ম)। */
 function wlv1TreatChipPick(boxId, label){
