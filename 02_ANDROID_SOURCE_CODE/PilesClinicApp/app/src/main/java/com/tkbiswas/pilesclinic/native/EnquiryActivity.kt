@@ -131,6 +131,7 @@ class EnquiryActivity : AppCompatActivity() {
         // for Branch only; "Call Received By" lock below is untouched.
         SpinnerLock.attach(binding.spReceivedBy, "Call Received By")
         setupEnqRefBy()   // 🩺 V1070
+        wireEnqRmpSuggest(user)   // 🩺 V1095 — টাইপ করতে করতে RMP সাজেশন
         setupTimingButtons()
         setupDiseaseButtons()
         binding.tvDate.text = displayDate(selectedDate)
@@ -296,6 +297,118 @@ class EnquiryActivity : AppCompatActivity() {
                 }
                 override fun onNothingSelected(p: android.widget.AdapterView<*>?) {}
             }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       🩺🔒 V1095 (০৫.০৯.২০২৬) — TK: *"All Branch Enquiry Form-এ RMP-র নাম
+       সাজেশন কেন দেখাচ্ছে না"*
+
+       🔴 **আমারই বাদ পড়া:** V1070-এ এই ফর্মে "Doctor / RMP Name" ও "Doctor
+       Mobile" ঘর দুটো বসিয়েছিলাম, কিন্তু Registration-এর **টাইপ করতে করতে
+       সাজেশন** (V895) এখানে বসাতে ভুলে গিয়েছিলাম — তাই "PK" লিখলেও কিছু নামত না।
+
+       ⛔ তালিকাটা `RmpPicker.cachedRmpChoices` থেকেই আসে — অর্থাৎ **ফোনে আগে
+          থেকে জমানো ঘর**; নতুন কোনো ইন্টারনেট-ডাক নেই, Egress-এ এক বাইটও বাড়ে না।
+       ⛔ `RegistrationActivity`-তে এক অক্ষরও হাত দেওয়া হয়নি — চালু পর্দাটা যেন
+          কোনোভাবেই না ভাঙে।
+       ⛔ নাম বা নম্বর — যেটাতেই লিখুন, দুটোতেই কাজ করে (Registration-এর মতোই)।
+       ⛔ দুই অক্ষরের কম লিখলে তালিকা ওঠে না; কিছু না মিললে চুপচাপ লুকিয়ে থাকে।
+       ═══════════════════════════════════════════════════════════════ */
+    private var enqRmpMuted = false
+
+    private fun wireEnqRmpSuggest(user: NativeUser) {
+        val watcher = object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
+            override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {
+                if (!enqRmpMuted) showEnqRmpSuggest(user, s?.toString().orEmpty())
+            }
+            override fun afterTextChanged(s: android.text.Editable?) {}
+        }
+        binding.etEnqRefDoctorName.addTextChangedListener(watcher)
+        binding.etEnqRefDoctorMobile.addTextChangedListener(watcher)
+    }
+
+    private fun dpEnq(v: Int): Int = (v * resources.displayMetrics.density).toInt()
+
+    private fun showEnqRmpSuggest(user: NativeUser, typed: String) {
+        val box = binding.llEnqRmpSuggest
+        val q = typed.trim().lowercase(Locale.US)
+        if (q.length < 2) { box.removeAllViews(); box.visibility = View.GONE; return }
+        val hits = try { RmpPicker.cachedRmpChoices(this, user) } catch (_: Throwable) { emptyList() }
+            .filter { it.searchText().contains(q) }.take(6)
+        box.removeAllViews()
+        if (hits.isEmpty()) { box.visibility = View.GONE; return }
+        box.visibility = View.VISIBLE
+        box.addView(android.widget.TextView(this).apply {
+            text = if (hits.size == 1) "1 saved RMP found" else "${hits.size} saved RMP found"
+            textSize = 10.5f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#118452"))
+            setPadding(dpEnq(10), dpEnq(7), dpEnq(10), dpEnq(5))
+        })
+        for ((i, item) in hits.withIndex()) {
+            if (i > 0) box.addView(View(this).apply {
+                setBackgroundColor(android.graphics.Color.parseColor("#EDF2F8"))
+                layoutParams = android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT, dpEnq(1))
+            })
+            box.addView(enqRmpRow(item))
+        }
+    }
+
+    private fun enqRmpRow(item: RmpPicker.RmpChoice): View {
+        val row = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dpEnq(10), dpEnq(8), dpEnq(10), dpEnq(8))
+            isClickable = true
+        }
+        row.addView(View(this).apply {
+            setBackgroundColor(android.graphics.Color.parseColor("#118452"))
+            layoutParams = android.widget.LinearLayout.LayoutParams(dpEnq(3), dpEnq(30))
+                .apply { marginEnd = dpEnq(9) }
+        })
+        val texts = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        texts.addView(android.widget.TextView(this).apply {
+            text = item.name.trim().uppercase()
+            textSize = 13.5f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#17312A"))
+            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+        })
+        val line2 = listOf(item.mobile, item.area.trim().uppercase())
+            .filter { it.isNotBlank() }.joinToString(" · ")
+        if (line2.isNotBlank()) texts.addView(android.widget.TextView(this).apply {
+            text = line2; textSize = 11f
+            setTextColor(android.graphics.Color.parseColor("#60766D"))
+            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+        })
+        row.addView(texts)
+        if (item.branch.isNotBlank()) row.addView(android.widget.TextView(this).apply {
+            text = item.branch
+            textSize = 10f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#15549B"))
+            setPadding(dpEnq(9), dpEnq(3), dpEnq(9), dpEnq(3))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dpEnq(12).toFloat()
+                setColor(android.graphics.Color.parseColor("#E8F2FF"))
+            }
+        })
+        row.setOnClickListener {
+            enqRmpMuted = true
+            try {
+                binding.etEnqRefDoctorName.setText(item.name.trim().uppercase())
+                binding.etEnqRefDoctorMobile.setText(item.mobile)
+            } finally { enqRmpMuted = false }
+            binding.llEnqRmpSuggest.removeAllViews()
+            binding.llEnqRmpSuggest.visibility = View.GONE
+        }
+        return row
     }
 
     private fun setupTimingButtons() {

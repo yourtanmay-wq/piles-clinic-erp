@@ -164,6 +164,20 @@
                         android:hint="Doctor / RMP name"
                         android:inputType="textPersonName"
                         android:maxLines="1" />
+                    <!-- 🩺🔒 V1095 (০৫.০৯.২০২৬, TK: *"All Branch Enquiry Form-এ RMP-র
+                         নাম সাজেশন কেন দেখাচ্ছে না"*) — V1070-এ ঘর দুটো বসিয়েছিলাম,
+                         কিন্তু Registration-এর টাইপ-করতে-করতে সাজেশনটা এখানে
+                         বসাতে ভুলে গিয়েছিলাম। ⛔ Registration-এর `llRmpSuggest`-এর
+                         হুবহু একই ঘর ও একই চেহারা। ⛔ তালিকা ফোনে জমা থাকা ঘর
+                         থেকেই আসে — ইন্টারনেট-খরচ এক বাইটও বাড়ে না। -->
+                    <LinearLayout
+                        android:id="@+id/llEnqRmpSuggest"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:visibility="gone"
+                        android:layout_marginTop="6dp"
+                        android:background="@drawable/bg_rmp_suggest" />
                     <TextView style="@style/FieldLabel" android:layout_marginTop="8dp" android:text="Doctor Mobile" />
                     <EditText
                         android:id="@+id/etEnqRefDoctorMobile"

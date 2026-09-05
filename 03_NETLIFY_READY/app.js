@@ -5913,10 +5913,10 @@ function enquiryFormDesk(){
            .map(function(x){return '<option>'+x+'</option>'}).join('')
        +'</select></div>'
      +'<div class="rdF" id="eRefDocBox" style="display:none">'+lbl('Doctor / RMP Name',1)
-       +'<input id="eRefDoctor" class="input" placeholder="Who sent this patient" oninput="wlv1Caps(this)"></div>'
+       +'<input id="eRefDoctor" class="input" placeholder="Who sent this patient" autocomplete="off" oninput="wlv1Caps(this);wlv1RmpSuggest(this.value)"><div id="eRmpSug" class="wlv1RmpSug hidden"></div></div>'
    +'</div>'
    +'<div class="rdF" id="eRefMobBox" style="display:none">'+lbl('Doctor / RMP Mobile',1)
-     +'<input id="eRefDoctorMobile" class="input" inputmode="numeric" maxlength="10" placeholder="10-digit number"></div>'
+     +'<input id="eRefDoctorMobile" class="input" inputmode="numeric" maxlength="10" placeholder="10-digit number" autocomplete="off" oninput="wlv1RmpSuggest(this.value)"></div>'
 
    +'<div class="rdSecHead"><span class="rdIco">💬</span>Remarks</div>'
    +'<div class="rdF">'+lbl('Remarks',1)
@@ -9162,10 +9162,22 @@ window["wlv1ChooseCachedRmp"]=wlv1ChooseCachedRmp;
    . সর্বোচ্চ ৬টা সারি
    . ঘর ফাঁকা থাকলে **একবারই** হালকা করে নামানো হয় (V802-এর একই পথ) */
 let wlv1RmpSugTried=false;
-function wlv1RmpSugHide(){let b=$('#wlv1RmpSug');if(b){b.innerHTML='';b.classList.add('hidden');}}
+/* \u{1F469}\u{200D}\u{2695}\u{FE0F}\u{1F512} V1095 (\u09e6\u09eb.\u09e6\u09ef.\u09e8\u09e6\u09e8\u09ec, TK: *"All Branch Enquiry Form-\u098f RMP-\u098f\u09b0
+   \u09a8\u09be\u09ae \u09b8\u09be\u099c\u09c7\u09b6\u09a8 \u0995\u09c7\u09a8 \u09a6\u09c7\u0996\u09be\u099a\u09cd\u099b\u09c7 \u09a8\u09be"*) \u2014 V1070-\u098f \u098f\u09a8\u0995\u09cb\u09df\u09be\u09b0\u09bf \u09ab\u09b0\u09cd\u09ae\u09c7
+   \u0998\u09b0 \u09a6\u09c1\u099f\u09cb \u09ac\u09b8\u09c7\u099b\u09bf\u09b2, \u0995\u09bf\u09a8\u09cd\u09a4\u09c1 \u09b8\u09be\u099c\u09c7\u09b6\u09a8\u099f\u09be \u09b6\u09c1\u09a7\u09c1 \u09b0\u09c7\u099c\u09bf\u09b8\u09cd\u099f\u09cd\u09b0\u09c7\u09b6\u09a8\u09c7\u0987 \u099b\u09bf\u09b2 \u2014 \u0986\u09ae\u09be\u09b0\u0987 \u09ac\u09be\u09a6 \u09aa\u09dc\u09be\u0964
+   \u21d2 \u098f\u0995\u0987 \u09ab\u09be\u0982\u09b6\u09a8 \u098f\u0996\u09a8 \u09a6\u09c1\u099f\u09cb \u09ab\u09b0\u09cd\u09ae\u09c7\u0987 \u0996\u09be\u099f\u09c7 \u2014 \u09af\u09c7 \u09ab\u09b0\u09cd\u09ae \u0996\u09cb\u09b2\u09be \u0986\u099b\u09c7 \u09a4\u09be\u09b0 \u0998\u09b0\u0997\u09c1\u09b2\u09cb\u0987 \u09a7\u09b0\u09be \u09b9\u09df\u0964
+   \u26d4 \u09b0\u09c7\u099c\u09bf\u09b8\u09cd\u099f\u09cd\u09b0\u09c7\u09b6\u09a8\u09c7\u09b0 \u0986\u099a\u09b0\u09a3 \u098f\u0995 \u0985\u0995\u09cd\u09b7\u09b0\u0993 \u09ac\u09a6\u09b2\u09be\u09df\u09a8\u09bf \u00b7 \u09a8\u09a4\u09c1\u09a8 \u0995\u09cb\u09a8\u09cb \u0987\u09a8\u09cd\u099f\u09be\u09b0\u09a8\u09c7\u099f-\u09a1\u09be\u0995 \u09a8\u09c7\u0987\u0964 */
+function wlv1RmpSugEls(){
+  var box=$('#wlv1RmpSug')||$('#eRmpSug');
+  var n=$('#pRefDocName')||$('#eRefDoctor');
+  var m=$('#pRefDocMobile')||$('#eRefDoctorMobile');
+  return {box:box,name:n,mob:m};
+}
+window["wlv1RmpSugEls"]=wlv1RmpSugEls;
+function wlv1RmpSugHide(){var b=wlv1RmpSugEls().box;if(b){b.innerHTML='';b.classList.add('hidden');}}
 window["wlv1RmpSugHide"]=wlv1RmpSugHide;
 function wlv1RmpSuggest(typed){
-  let box=$('#wlv1RmpSug'); if(!box) return;
+  let box=wlv1RmpSugEls().box; if(!box) return;
   let q=String(typed||'').trim().toLowerCase();
   if(q.length<2){ wlv1RmpSugHide(); return; }
   let rows=wlv1CachedRmpRows(q);
@@ -9173,7 +9185,7 @@ function wlv1RmpSuggest(typed){
     wlv1RmpSugTried=true;
     /* একবারের হালকা পড়া — শেষে যা টাইপ করা আছে সেটা দিয়েই আবার দেখানো হয়। */
     wlv1RmpDirFetch().then(function(got){ try{ if(got){
-      let n=($('#pRefDocName')||{}).value||'', m=($('#pRefDocMobile')||{}).value||'';
+      var __e=wlv1RmpSugEls(); let n=(__e.name||{}).value||'', m=(__e.mob||{}).value||'';
       wlv1RmpSuggest(String(n).trim().length>=2?n:m);
     } }catch(_e){} }).catch(function(){});
   }
@@ -9194,7 +9206,7 @@ function wlv1RmpSuggestPick(id){
   let __b=(load('doctor_visits')||[]); if(!__b.length)__b=wlv1RmpDirRows();
   let x=__b.find(function(r){return String(r.id||'')===String(id)}); if(!x)return;
   /* 👁 V757-এর একই নিয়ম — তালিকায় যেমন দেখাচ্ছে, ঘরেও ঠিক তেমনই বসবে। */
-  let n=$('#pRefDocName'), m=$('#pRefDocMobile');
+  var __e=wlv1RmpSugEls(); let n=__e.name, m=__e.mob;
   if(n)n.value=String(x.name||'').trim().toUpperCase(); if(m)m.value=mob(x.mobile||'');
   wlv1RmpSugHide();
 }
