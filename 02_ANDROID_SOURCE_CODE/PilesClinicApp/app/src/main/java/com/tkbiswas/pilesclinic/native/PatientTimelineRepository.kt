@@ -1274,8 +1274,13 @@ object PatientTimelineRepository {
            একই দিনের একাধিক Treatment পেমেন্ট জোড়া লাগার সময় লেখাটা নতুন
            করে বানানো হয় (`note = human — breakdown`) — আগে তুলে দিলে সেটা
            আবার ফিরে আসত। ⛔ History ছাড়া কোনো কলার প্রভাবিত হয় না। */
+        /* 🔴🔒 V1097 (০৫.০৯.২০২৬ — নিজে খুঁটিয়ে যাচাই করতে গিয়ে ধরা):
+           নিচে (`filtered`) সেকশন বাছা থাকলে ফলো-আপের সারিগুলো বাদ পড়ে যায়।
+           তখন টাকার সারি থেকে লেখাটা তুলে দিলে **কথাটা কোথাও আর দেখাই যেত না**।
+           ⇒ সেকশন বাছা থাকলে কিছুই তোলা হয় না — হুবহু আগের আচরণ। */
         val historyDisplayFinal =
-            if (separateRowsPerEvent) wlv1StripEchoedTreatmentNote(historyDisplayEntries)
+            if (separateRowsPerEvent && section.isNullOrBlank())
+                wlv1StripEchoedTreatmentNote(historyDisplayEntries)
             else historyDisplayEntries
 
         val chronologicalRaw = historyDisplayFinal
