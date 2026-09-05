@@ -8243,3 +8243,11 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
 /* ⋮🔒 V1058 — কার্ডের ⋮ মেনু */
 .pfDotsMenu{display:flex;flex-direction:column;gap:8px}
 .pfDotsMenu button{width:100%;text-align:left;padding:12px 14px;font-weight:700}
+
+/* 🎨 V1103 — নোটিশ কার্ডের ভিতরের সাজ (TK-এর নকশা, ফোনের V1102-এর যমজ) */
+.nbPills{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 2px}
+.nbPill{font-size:12.5px;font-weight:600;color:#12271E;background:#E6F3EA;border-radius:20px;padding:6px 13px}
+.nbName{font-size:16px;font-weight:800;color:#0F2118;margin-top:8px}
+.nbPhone{font-size:14px;font-weight:600;color:#1A73E8;text-decoration:underline;margin-left:8px}
+.nbId{font-size:13px;color:#7A8791;margin-top:3px}
+.nbId b{font-weight:600;color:#3F4B54}
