@@ -2120,9 +2120,7 @@ class PaymentRepository(private val context: Context? = null) {
         }
         val patients = fetchAllPages(
             "patients", null,
-            // 🔵 V1099 — `createdAt`ও দরকার: রোগীটা **কবে অ্যাপে তোলা হয়েছে** সেটা
-            //    জানা না থাকলে পুরনো-তোলা রোগী চেনা যায় না (নিচের নোট দেখুন)।
-            "id,name,mobile,branch,patientId,bill,registrationDate,date,createdAt,updatedAt"
+            "id,name,mobile,branch,patientId,bill,registrationDate,date,updatedAt"   // bill দরকার — কোন সারিটা আসল সেটা বাছতে
         ) ?: return emptyList()
         val feePayments = fetchAllPages(
             "payments", "payType=in.(visit_fee,visitfee,registration)", "id,patientId,updatedAt"
@@ -2161,38 +2159,6 @@ class PaymentRepository(private val context: Context? = null) {
                     (code.isNotBlank() && patientIdsWithFee.contains(code))
             }
             if (anyHasFee) continue
-            /* ═══════════════════════════════════════════════════════════
-               🔴🔒 V1099 (০৫.০৯.২০২৬) — TK, **৭ম বার**: *"Visit fee missing —
-               আর কতবার বললে কাজটা সঠিকভাবে করবেন যেটা ভবিষ্যতে কার্যকরী হবে"*
-               সঙ্গে TK নিজেই আসল কথাটা বললেন: *"আরো অনেক পুরনো রোগী আছে যাদের
-               নাম · নম্বর · ডিটেলস · পেমেন্ট সবই তুলতে বাকি — স্টাফ প্রতিনিয়ত
-               সেই কাজ চালিয়ে যাচ্ছে"*।
-
-               **আগের ছ-বার কেন কাজে লাগেনি:** প্রতিবারই *পড়া* বা *লেখার* দিক
-               সারানো হয়েছে (V147 · V151 · V154 · V901 · V958 · V1060) — কিন্তু
-               **নিয়মটাই ভুল ছিল**। পুরনো রোগী পরে অ্যাপে তোলা হলে তাঁর ভিজিট
-               ফি মাসখানেক আগে কাগজের খাতায় নেওয়া, অ্যাপে কোনোদিন বসেই না।
-               তাই প্রতিটা পুরনো রোগী তোলার সঙ্গে সঙ্গেই এই তালিকা বাড়ত —
-               কোনোদিন শেষ হত না।
-
-               **মেপে দেখা (০৫.০৯.২০২৬):** তালিকার ১১টার **সবগুলোই** পুরনো-তোলা;
-               অ্যাপে রেজিস্টার হয়ে ফি বাদ পড়া **একটাও নয়**।
-
-               ⇒ **নিয়ম:** রেজিস্ট্রেশনের তারিখ যদি অ্যাপে তোলার দিনের **আগের**
-                 হয়, সেটা পুরনো রোগী তোলা — ফি চাওয়া হবে না।
-               ⛔ অ্যাপেই রেজিস্টার হওয়া রোগীর ফি বাদ গেলে **আগের মতোই ওঠে**
-                  (তারিখ একই দিনের বা পরের হলে)।
-               ⛔ তারিখ দুটোর একটাও ঠিক ধাঁচে না থাকলে কিছুই বাদ যায় না —
-                  পুরনো নিরাপদ আচরণই চলে।
-               ═══════════════════════════════════════════════════════════ */
-            run {
-                val pick = PatientIdentity.pickPatientRow(
-                    org.json.JSONArray().also { a -> rows.forEach { a.put(it) } }, "") ?: rows.first()
-                val reg = pick.s("registrationDate").ifBlank { pick.s("date") }.take(10)
-                val made = pick.s("createdAt").take(10)
-                val shape = Regex("^\\d{4}-\\d{2}-\\d{2}$")
-                if (shape.matches(reg) && shape.matches(made) && reg < made) continue
-            }
             val arr = org.json.JSONArray()
             for (r in rows) arr.put(r)
             val p = PatientIdentity.pickPatientRow(arr, "") ?: rows.first()
