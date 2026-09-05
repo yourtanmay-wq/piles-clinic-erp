@@ -2628,11 +2628,31 @@ class StaffProfileActivity : AppCompatActivity() {
             setPadding(0, dp(8), 0, 0)
         })
 
-        col.addView(ModuleUi.button(this, "🖨 Print / PDF") {
-            com.tkbiswas.pilesclinic.print.SalaryStatementHtmlPrint.print(
-                this, code, dmy(stFrom), dmy(stTo), printRows)
+        /* 🎨🔒 V1104 (০৫.০৯.২০২৬, TK: *"Print, Back-এ দুটো পাশাপাশি রাখা যায় তো"*)
+           — দুটো বোতাম এখন এক সারিতে সমান চওড়ায়। ⛔ কাজ, রং, লেখা কিছুই
+           বদলায়নি; শুধু জায়গা। ⛔ ছোট পর্দাতেও লেখা ভাঙে না (এক লাইনে বাঁধা)। */
+        col.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            val bPrint = ModuleUi.button(this@StaffProfileActivity, "🖨 Print / PDF") {
+                com.tkbiswas.pilesclinic.print.SalaryStatementHtmlPrint.print(
+                    this@StaffProfileActivity, code, dmy(stFrom), dmy(stTo), printRows)
+            }
+            val bBack = ModuleUi.button(this@StaffProfileActivity, "Back") { salary(code) }
+            for (b in listOf(bPrint, bBack)) {
+                (b as? android.widget.TextView)?.let {
+                    it.setSingleLine(true)
+                    it.ellipsize = android.text.TextUtils.TruncateAt.END
+                }
+                b.minimumWidth = 0
+            }
+            bPrint.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                .apply { marginEnd = dp(5) }
+            bBack.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                .apply { marginStart = dp(5) }
+            addView(bPrint); addView(bBack)
         })
-        col.addView(ModuleUi.button(this, "Back") { salary(code) })
     }
 
     private fun salOutlineButton(text: String, textHex: String, borderHex: String, onClick: () -> Unit): android.widget.Button =
