@@ -380,6 +380,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
             // ক্র্যাশ হতো)।
             val reminderNoteNow = findViewById<android.widget.EditText>(R.id.etDoctorReminderNote).text?.toString().orEmpty().trim()
             val reminderDateNow = doctorReminderDateIso
+            val reminderForNow = doctorReminderForMobile   // 🩺 V1109
             // 🟢🔒 V671 — সময়ও একই মূল-থ্রেডেই ধরে রাখা হলো।
             val reminderTimeNow = doctorReminderTimeStr
             PrescriptionOptionsStore.captureCheckup(applicationContext, record)
@@ -527,6 +528,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
                             org.json.JSONObject()
                                 .put("doctorReminderNote", reminderNoteNow)
                                 .put("doctorReminderDate", reminderDateNow)
+                                .put("doctorReminderFor", reminderForNow)   // 🩺 V1109
                                 // 🟢🔒 V671 (২৫.০৮.২০২৬, TK-নির্দেশ) — সময়ও সেভ হয়,
                                 // নইলে "ঠিক সময়ে" মনে করানো সম্ভব না।
                                 .put("doctorReminderTime", reminderTimeNow)
@@ -1029,6 +1031,31 @@ class DoctorCheckupActivity : AppCompatActivity() {
            লেখা বদলানো আগের মতোই `tv`/`tvTime`-এ। */
         val dateBox = findViewById<android.view.View>(R.id.boxDoctorReminderDate)
         val timeBox = findViewById<android.view.View>(R.id.boxDoctorReminderTime)
+        /* 🩺🔒 V1109 (TK-নির্দেশ) — কোন ডাক্তারকে মনে করাবে, সেটা এখানেই বাছা যায়।
+           ⛔ তালিকা প্রকল্পের নিজের `StaffDirectory` থেকেই — নতুন কোনো টেবিল বা
+              ক্লাউড-পড়া লাগেনি।
+           ⛔ প্রথমে এই রোগীর ব্রাঞ্চের ডাক্তাররা, তারপর বাকিরা — বাছতে সুবিধা হয়।
+           ⛔ সবার উপরে "সব ডাক্তার" — কেউ নির্দিষ্ট করতে না চাইলে আগের আচরণই। */
+        val whoBox = findViewById<android.view.View>(R.id.boxDoctorReminderWho)
+        val tvWho = findViewById<TextView>(R.id.tvDoctorReminderWho)
+        whoBox?.setOnClickListener {
+            val docs = doctorChoices()
+            val labels = (listOf(NoBengali.s("সব ডাক্তার")) + docs.map { it.name }).toTypedArray()
+            val mobiles = listOf("") + docs.map { it.mobile }
+            val current = mobiles.indexOf(doctorReminderForMobile).let { if (it < 0) 0 else it }
+            val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+                .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, NoBengali.s("কোন ডাক্তারকে মনে করাবে?")))
+                .setSingleChoiceItems(labels, current) { d, which ->
+                    doctorReminderForMobile = mobiles[which]
+                    paintReminderWho(tvWho)
+                    d.dismiss()
+                }
+                .setNegativeButton(NoBengali.s("বাতিল"), null)
+                .create()
+            dlg.show()
+            try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(dlg) } catch (_: Throwable) { }
+        }
+        paintReminderWho(tvWho)
         dateBox.setOnClickListener {
             val cal = java.util.Calendar.getInstance()
             if (doctorReminderDateIso.isNotBlank()) {
@@ -1224,6 +1251,9 @@ class DoctorCheckupActivity : AppCompatActivity() {
                         .put("doctorReminderNote", note)
                         .put("doctorReminderDate", dateIso)
                         .put("doctorReminderTime", timeStr)
+                        /* 🩺 V1109 (TK-নির্দেশ) — কোন ডাক্তারের ফোনে বাজবে।
+                           ⛔ ফাঁকা = সব ডাক্তার (পুরনো আচরণ, কিছুই হারায় না)। */
+                        .put("doctorReminderFor", doctorReminderForMobile)
                 )
             } catch (_: Throwable) { false }
             runOnUiThread {
@@ -1234,6 +1264,33 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
             }
         }.start()
+    }
+
+    /** 🩺🔒 V1109 — ডাক্তারদের তালিকা: এই রোগীর ব্রাঞ্চেরটা আগে, তারপর বাকিরা।
+     *  ⛔ প্রকল্পের নিজের `StaffDirectory` থেকেই — নতুন টেবিল/ক্লাউড-পড়া নেই। */
+    private fun doctorChoices(): List<com.tkbiswas.pilesclinic.native.StaffAccount> {
+        val all = try {
+            com.tkbiswas.pilesclinic.native.StaffDirectory.allAccounts()
+                .filter { it.role == "doctor" }
+        } catch (_: Throwable) { emptyList() }
+        val br = RoleSession.currentPatientBranch.trim()
+        if (br.isBlank()) return all
+        return all.sortedByDescending { it.branch.equals(br, ignoreCase = true) }
+    }
+
+    /** 🩺 V1109 — বাছা ডাক্তারের নাম ঘরে বসানো। ⛔ ফাঁকা হলে আগের ধূসর লেখা। */
+    private fun paintReminderWho(tv: TextView?) {
+        if (tv == null) return
+        if (doctorReminderForMobile.isBlank()) {
+            tv.text = NoBengali.s("সব ডাক্তার")
+            tv.setTextColor(android.graphics.Color.parseColor("#8A93A0"))
+            return
+        }
+        val nm = try {
+            com.tkbiswas.pilesclinic.native.StaffDirectory.findAccount(doctorReminderForMobile)?.name
+        } catch (_: Throwable) { null }
+        tv.text = nm ?: doctorReminderForMobile
+        tv.setTextColor(android.graphics.Color.parseColor("#101828"))
     }
 
     private fun displayDateForReminder(iso: String): String = try {
@@ -1323,6 +1380,10 @@ class DoctorCheckupActivity : AppCompatActivity() {
             val savedReminderDate = p.s("doctorReminderDate")
             // 🟢🔒 V671 — সময়ও একইভাবে ফিরিয়ে বসানো হয়।
             val savedReminderTime = p.s("doctorReminderTime")
+            /* 🩺 V1109 — বাছা ডাক্তারও ফিরিয়ে বসানো হয়। ⛔ ঘরটা না থাকলে
+               (SQL এখনো চালানো হয়নি) ফাঁকাই আসে ⇒ আচরণ হুবহু আগের মতোই। */
+            doctorReminderForMobile = p.s("doctorReminderFor").trim()
+            paintReminderWho(findViewById(R.id.tvDoctorReminderWho))
             findViewById<android.widget.EditText>(R.id.etDoctorReminderNote).setText(savedReminderNote)
             if (savedReminderDate.isNotBlank()) {
                 doctorReminderDateIso = savedReminderDate
@@ -3525,6 +3586,13 @@ class DoctorCheckupActivity : AppCompatActivity() {
     // 🟢🔒 V671 (২৫.০৮.২০২৬, TK-নির্দেশ) — সময়ও লাগবে, নইলে নোটিফিকেশন
     // ঠিক সময়ে বাজবে কীভাবে জানা যায় না। ফরম্যাট "HH:mm" (24-ঘণ্টা)।
     private var doctorReminderTimeStr: String = ""
+    /* 🩺🔒 V1109 (০৫.০৯.২০২৬, TK-নির্দেশ: *"কোন ডাক্তারকে মনে করিয়ে দিতে হবে
+       সেই ডাক্তারের নাম যেন চুস করা যায়, এবং এটা যেন কার্যকরী হয়"*) —
+       বাছা ডাক্তারের **মোবাইল নম্বর** এখানে থাকে (নাম নয় — নাম বদলাতে পারে,
+       নম্বরই আসল পরিচয়, প্রকল্পের সব জায়গার একই নিয়ম)।
+       ⛔ ফাঁকা মানে **সব ডাক্তার** — পুরনো সেভ করা রিমাইন্ডারে ঠিক তাই থাকে,
+          তাই আগের কিছুই হারায় না। */
+    private var doctorReminderForMobile: String = ""
 
     /** পর্দা খোলার পর একবারই ফর্ম ভরানো হয়। */
     private var restoredOnce: Boolean = false

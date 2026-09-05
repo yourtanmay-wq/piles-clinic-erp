@@ -10466,6 +10466,12 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
  <div class="card" style="background:#FFFDF5">
   <div style="display:flex;align-items:center;gap:7px;margin-bottom:6px"><span>🔔</span><b>Doctor Note &amp; Reminder</b></div>
   <textarea id="dnReminderNote" placeholder="পরের বার রোগীকে কী ওষুধ/কী কাজ করা হবে — এখানে লিখুন">${esc(p.doctorReminderNote||'')}</textarea>
+  <!-- 🩺🔒 V1109 (০৫.০৯.২০২৬, TK-নির্দেশ: *"কোন ডাক্তারকে মনে করিয়ে দিতে হবে সেই
+       ডাক্তারের নাম যেন চুস করা যায়, এবং এটা যেন কার্যকরী হয়"*) — ফোনের হুবহু যমজ।
+       🔴 আগে ওই দিনের প্রতিটা রিমাইন্ডার **সব ডাক্তারের** ফোনে বাজত।
+       ⛔ ফাঁকা = সব ডাক্তার (পুরনো আচরণ) — কিছুই হারায় না। -->
+  <label>কোন ডাক্তারকে মনে করাবে?</label>
+  <select id="dnReminderFor" class="input">${wlv1DoctorOptions(p.doctorReminderFor||'', p.branch||'')}</select>
   <label>কোন দিনের আগের দিন মনে করাবে?</label>
   <input id="dnReminderDate" class="input" type="date" value="${esc(p.doctorReminderDate||'')}">
   ${wlv1DnSavedStrip(p)}
@@ -10891,6 +10897,28 @@ function wlv1DnSavedStrip(p){
   }catch(_e){ return '' }
 }
 window["wlv1DnSavedStrip"]=wlv1DnSavedStrip;
+/* 🩺🔒 V1109 (TK-নির্দেশ) — ডাক্তারদের তালিকা (এই রোগীর ব্রাঞ্চেরটা আগে)।
+   ⛔ তালিকা `config.js`-এর নিজের ডাক্তার-তালিকা থেকেই — নতুন কোনো টেবিল বা
+      ক্লাউড-পড়া লাগেনি, ফোনের `StaffDirectory`-র হুবহু একই উৎস।
+   ⛔ সবার উপরে "সব ডাক্তার" — ফাঁকা মানে আগের আচরণ (সবার কাছে যাবে)। */
+function wlv1DoctorOptions(picked,branch){
+  try{
+    var docs=((C&&C.users&&C.users.doctor)||[]).slice();
+    var br=String(branch||'').trim().toLowerCase();
+    if(br) docs.sort(function(a,b){
+      var x=String(a.branch||'').toLowerCase()===br?0:1, y=String(b.branch||'').toLowerCase()===br?0:1;
+      return x-y;
+    });
+    var cur=String(picked||'').replace(/\D/g,'').slice(-10);
+    var out='<option value="">সব ডাক্তার</option>';
+    docs.forEach(function(d){
+      var m=String(d.mobile||'').replace(/\D/g,'').slice(-10);
+      out+='<option value="'+esc(m)+'"'+(m&&m===cur?' selected':'')+'>'+esc(d.name||m)+'</option>';
+    });
+    return out;
+  }catch(e){ return '<option value="">সব ডাক্তার</option>' }
+}
+window["wlv1DoctorOptions"]=wlv1DoctorOptions;
 /* 🟢🔒 V952 — ⛔ "দুবার সেভের সতর্কতা" ওয়েবে **লাগে না**, তাই বসানো হয়নি:
    কম্পিউটারে রিমাইন্ডারের নিজস্ব কোনো Save বোতাম নেই — পুরো চেক-আপ সেভের
    সাথেই একবারে বসে (উপরের `upd('patients', …)`)। ফোনে আলাদা 💾 Save আছে,
@@ -14161,6 +14189,7 @@ async function saveDoctor(id){
   // একই আলাদা ঘরে বসে (doctorFullNote ব্লবের বাইরে), যাতে রিমাইন্ডার-চেক
   // প্রতিদিন সরাসরি তারিখ-ফিল্টার করে খুঁজতে পারে (পুরো JSON স্ক্যান না করে)।
   doctorReminderNote:$('#dnReminderNote')?.value||'',doctorReminderDate:$('#dnReminderDate')?.value||'',
+  doctorReminderFor:$('#dnReminderFor')?.value||'',   /* 🩺 V1109 — কোন ডাক্তারের ফোনে বাজবে */
   /* 🩺🔒 V839 — NEXT VISIT PLAN **একই সেভেই** বসে, বাড়তি কোনো কল নয়।
      ⛔ পুরনো তালিকা হুবহু রেখে নতুনটা শেষে যোগ হয় — একটাও পুরনো প্ল্যান মোছে না।
      ⛔ ডাক্তার কিছুই না বাছলে (`null`) ঘরটা **ছোঁয়াই হয় না** — তখন আগের

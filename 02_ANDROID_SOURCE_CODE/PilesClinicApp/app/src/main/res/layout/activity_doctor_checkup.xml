@@ -422,6 +422,31 @@
                 <EditText android:id="@+id/etDoctorReminderNote" style="@style/DocNoteInputMultiline" android:minLines="2"
                     android:layout_marginTop="4dp"
                     android:hint="পরের বার রোগীকে কী ওষুধ/কী কাজ করা হবে — এখানে লিখুন" />
+                <!-- 🩺🔒 V1109 (০৫.০৯.২০২৬, TK-নির্দেশ: *"কোন ডাক্তারকে মনে করিয়ে
+                     দিতে হবে সেই ডাক্তারের নাম যেন চুস করা যায়, এবং এটা যেন
+                     কার্যকরী হয়"*)।
+                     🔴 আগে কী হত (মেপে দেখা): নোটিফিকেশনটা **যে কোনো ডাক্তারের
+                        ফোনেই** বাজত — ওই দিনের প্রতিটা রিমাইন্ডার সব ডাক্তারের
+                        কাছে যেত, যদিও নিচের লেখায় বলা ছিল *"শুধু আপনাকেই"*।
+                     ⇒ এখন এখানেই ডাক্তার বাছা যায়; ওই একজনের ফোনেই বাজবে।
+                     ⛔ পুরনো সেভ করা রিমাইন্ডারে এই ঘর ফাঁকা — তখন আচরণ হুবহু
+                        আগের মতোই (সব ডাক্তারের কাছে), তাই কিছুই হারায় না। -->
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginTop="12dp">
+                    <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                        android:text="কোন ডাক্তারকে মনে করাবে?" android:textStyle="bold" android:textSize="11.5sp" android:textColor="#0A5C33" />
+                </LinearLayout>
+                <LinearLayout android:id="@+id/boxDoctorReminderWho"
+                    android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:orientation="horizontal" android:gravity="center_vertical"
+                    android:background="@drawable/bg_input_field_picker"
+                    android:paddingStart="11dp" android:paddingEnd="34dp" android:paddingTop="9dp" android:paddingBottom="9dp"
+                    android:clickable="true" android:focusable="true">
+                    <TextView android:id="@+id/tvDoctorReminderWho"
+                        android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                        android:maxLines="1" android:ellipsize="end"
+                        android:textSize="14.5sp" android:text="ডাক্তার বাছুন" android:textColor="#8A93A0" />
+                </LinearLayout>
                 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginTop="12dp">
                     <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
                         android:text="কোন দিনের আগের দিন মনে করাবে?" android:textStyle="bold" android:textSize="11.5sp" android:textColor="#0A5C33" />
@@ -478,7 +503,7 @@
                     android:layout_marginTop="12dp" android:background="@drawable/bg_brief_infobox"
                     android:paddingStart="11dp" android:paddingEnd="11dp" android:paddingTop="9dp" android:paddingBottom="9dp"
                     android:textSize="11.5sp" android:textColor="#0A5C33" android:lineSpacingExtra="2dp"
-                    android:text="তারিখ বাছলে তার আগের দিন মনে করানো হবে — শুধু আপনাকেই। সময় না বাছলে সন্ধ্যা 6টা।" />
+                    android:text="তারিখ বাছলে তার আগের দিন মনে করানো হবে — শুধু বাছা ডাক্তারকেই। সময় না বাছলে সন্ধ্যা 6টা।" />
             </LinearLayout>
         </LinearLayout>
     </androidx.cardview.widget.CardView>

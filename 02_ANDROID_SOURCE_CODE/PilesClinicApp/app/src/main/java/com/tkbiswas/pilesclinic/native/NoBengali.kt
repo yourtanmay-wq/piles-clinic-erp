@@ -710,6 +710,12 @@ object NoBengali {
         "ইচ্ছেমতো" to "Optional",
         "তারিখ বাছলে তার আগের দিন মনে করানো হবে — শুধু আপনাকেই। সময় না বাছলে সন্ধ্যা 6টা।"
             to "If you pick a date, you will be reminded the day before — only you. Without a time, 6 PM.",
+        /* 🩺 V1109 (TK-নির্দেশ) — ডাক্তার বাছার নতুন ঘরের লেখা। */
+        "তারিখ বাছলে তার আগের দিন মনে করানো হবে — শুধু বাছা ডাক্তারকেই। সময় না বাছলে সন্ধ্যা 6টা।"
+            to "If you pick a date, only the chosen doctor is reminded the day before. Without a time, 6 PM.",
+        "কোন ডাক্তারকে মনে করাবে?" to "Which doctor to remind?",
+        "ডাক্তার বাছুন" to "Pick a doctor",
+        "সব ডাক্তার" to "All doctors",
         "কিছু লেখা বা বাছা হয়নি" to "Nothing written or picked",
         "রোগী পাওয়া যায়নি — নিচের SAVE চাপুন" to "Patient not found — use the SAVE below",
         "মনে করানোর নোট সেভ হয়েছে" to "Reminder note saved",

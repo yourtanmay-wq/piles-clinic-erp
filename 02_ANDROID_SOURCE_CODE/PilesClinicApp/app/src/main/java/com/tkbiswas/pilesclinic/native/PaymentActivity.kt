@@ -1904,6 +1904,10 @@ $dueRow
         }
 
         val billValueRef = arrayOfNulls<TextView>(1)
+        /* 🔴 V1109 — ছোট পপ-আপ থেকে বিলটা **এইমাত্র সত্যিই সেভ হয়েছে** কিনা।
+           থাকলে বাইরের বড় SAVE একই কাজ আর দ্বিতীয়বার করে না (নইলে একই
+           বিল-সংশোধনের দুটো অডিট-সারি বসত)। ⛔ অন্য কোনো আচরণ বদলায় না। */
+        var billEditedTo = 0.0
         fun openBillEdit() {
             val inp = EditText(this).apply {
                 // B411: TEXT + DigitsKeyListener (সব ফোনে কীবোর্ড খোলে)।
@@ -1915,11 +1919,62 @@ $dueRow
             AlertDialog.Builder(this)
                 .setCustomTitle(PremiumAlert.header(this, "Edit Total Bill"))
                 .setView(inp)
+                /* ═══════════════════════════════════════════════════════════
+                   🔴🔒 V1109 (০৫.০৯.২০২৬, TK-রিপোর্ট ছবিসহ — SANJAY RAY,
+                   JPE-15082026-004): *"Bill Edit করলাম এনার। 43500 বিল হয়েছে,
+                   কিন্তু Edit করলাম আবার সেই ভুল Bill টা ই রয়ে গেল কিন্তু কেন
+                   এমন হবে?"*
+
+                   ─── 🔴 আসল কারণ (কোড ধরে মেপে পাওয়া, আন্দাজ নয়) ─────────
+                   এই "Save" বোতামটা **কোথাও কিছু সেভ করত না**। শুধু (ক) লুকানো
+                   `billInput`-এ লেখাটা বসাত, (খ) পর্দার পিলে নতুন সংখ্যাটা
+                   দেখাত। আসল সেভ হত **অনেক পরে**, যখন স্টাফ বাইরের বড়
+                   **SAVE** বোতামটা চাপতেন (`billOnlyCorrection` পথ)।
+                   ⇒ TK পিলে ৪৩,৫০০ দেখে ভাবতেন হয়ে গেছে, ফর্ম বন্ধ করে দিতেন —
+                     ডেটাবেসে এক পয়সাও যেত না, তাই আবার খুললে সেই ৩০,০০০।
+                   ⛔ বোতামে "Save" লেখা থাকা অবস্থায় কিছু সেভ না হওয়া —
+                      এটা সরাসরি ভুল বার্তা, বিশেষ করে টাকার হিসাবে।
+
+                   ─── এখন কী হয় ───────────────────────────────────────────────
+                   Save চাপলেই **সঙ্গে সঙ্গে ডেটাবেসে বসে** — প্রকল্পের আগে
+                   থেকেই থাকা প্রমাণিত `updateBillOnly()` দিয়ে, যেটা একই সঙ্গে
+                   ফোনের জমানো কপি ঠিক করে আর "কে · কখন · কত থেকে কত" নোটটাও
+                   Follow-up হিস্ট্রিতে লিখে রাখে।
+                   ⛔ ব্রাঞ্চের নিয়ম অটুট (`updateBillOnly`-এর ভিতরেই পাহারা)।
+                   ⛔ সেভ না হলে **সৎ বার্তা** দেখানো হয়, পিলেও পুরনো সংখ্যাই
+                      ফিরে আসে — ভুয়ো "হয়ে গেছে" কখনো দেখাবে না।
+                   ⛔ বাইরের বড় SAVE-এর পুরনো পথ এক অক্ষরও বদলায়নি; সেটা এখন
+                      একই মান আবার লিখতে গেলে কিছুই ক্ষতি হয় না।
+                   ═══════════════════════════════════════════════════════════ */
                 .setPositiveButton("Save") { _, _ ->
                     val v = inp.text?.toString()?.trim().orEmpty()
-                    billInput.setText(v)
                     val bv = v.toDoubleOrNull() ?: 0.0
+                    if (bv <= 0.0) {
+                        Toast.makeText(this, "Enter a valid Total Bill", Toast.LENGTH_SHORT).show()
+                        return@setPositiveButton
+                    }
+                    val oldBill = billInput.text?.toString()?.trim()?.toDoubleOrNull() ?: patient.bill
+                    billInput.setText(v)
                     billValueRef[0]?.text = "₹${"%,.0f".format(bv)}"
+                    lifecycleScope.launch {
+                        val ok = withContext(Dispatchers.IO) {
+                            try {
+                                repository.updateBillOnly(
+                                    patient, bv, oldBill, user.mobile, user.name.ifBlank { user.mobile }
+                                )
+                            } catch (_: Throwable) { false }
+                        }
+                        if (ok) {
+                            Toast.makeText(this@PaymentActivity, "Total Bill saved — ₹${"%,.0f".format(bv)}", Toast.LENGTH_SHORT).show()
+                            billEditedTo = bv          // 🔴 V1109 — বাইরের SAVE যেন আবার একই কাজ না করে
+                            loadSummary()
+                        } else {
+                            // ⛔ সৎ: সেভ হয়নি ⇒ পর্দাও পুরনো সংখ্যাতেই ফিরে যায়।
+                            billInput.setText(if (oldBill > 0.0) oldBill.toInt().toString() else "")
+                            billValueRef[0]?.text = "₹${"%,.0f".format(oldBill)}"
+                            Toast.makeText(this@PaymentActivity, "Bill not saved — check connection and try again", Toast.LENGTH_LONG).show()
+                        }
+                    }
                 }
                 .setNegativeButton("Cancel", null)
                 .show().also { PremiumAlert.paint(it) }
@@ -2396,7 +2451,9 @@ $dueRow
             // changed and NO new payment amount is entered, this is a bill-only
             // correction. Anyone may fix the bill on its own -- no forced
             // payment; correctBill() writes a who/when/old→new audit row.
-            val billOnlyCorrection = patient.billLocked && amtVal <= 0 && billVal > 0 && billVal != patient.bill
+            // 🔴 V1109 — ছোট পপ-আপেই সেভ হয়ে থাকলে এখানে আর কিছু করার নেই।
+            val billOnlyCorrection = patient.billLocked && amtVal <= 0 && billVal > 0 &&
+                billVal != patient.bill && billVal != billEditedTo
             if (billOnlyCorrection) {
                 FieldError.clear(billInput); FieldError.clear(amtInput)
                 lifecycleScope.launch {
@@ -2438,7 +2495,8 @@ $dueRow
             // locked bill was unlocked (3-tap) and changed, and no new payment
             // amount is entered, just update the bill (anyone may) and log WHO
             // edited it -- instead of forcing a new payment.
-            val billChanged = patient.billLocked && billVal > 0 && billVal != patient.bill
+            val billChanged = patient.billLocked && billVal > 0 &&
+                billVal != patient.bill && billVal != billEditedTo   // 🔴 V1109
             if (billChanged && amtVal <= 0) {
                 val vBill = FieldError.validate(listOf<Triple<View, Boolean, String>>(
                     Triple(billInput, billVal > 0, "Enter a valid Total cost")

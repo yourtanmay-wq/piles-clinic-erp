@@ -46,7 +46,24 @@ class DoctorReminderWorker(
                 val alreadyFiredIds = prefs.getStringSet(firedKeyFor(todayKey), emptySet()) ?: emptySet()
                 val nowHM = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
                 val defaultSlotHM = DEFAULT_SLOT_HOUR * 60
+                /* 🩺🔒 V1109 (০৫.০৯.২০২৬, TK-নির্দেশ: *"কোন ডাক্তারকে মনে করিয়ে
+                   দিতে হবে সেই ডাক্তারের নাম যেন চুস করা যায়, এবং এটা যেন
+                   কার্যকরী হয়"*)।
+                   🔴 আগে কী হত (মেপে দেখা): উপরের `role == "doctor"` ছাড়া আর
+                      কোনো ছাঁকনি ছিল না ⇒ ওই দিনের **প্রতিটা** রিমাইন্ডার
+                      **সব ডাক্তারের** ফোনে বাজত, যদিও পর্দার লেখায় বলা ছিল
+                      *"শুধু আপনাকেই"*।
+                   ⇒ এখন সারিতে ডাক্তার বাছা থাকলে **শুধু তাঁর ফোনেই** বাজে।
+                   ⛔ পুরনো সারিতে ঘরটা ফাঁকা ⇒ আচরণ হুবহু আগের মতোই (সবার কাছে),
+                      তাই আগের কোনো রিমাইন্ডার হারায় না।
+                   ⛔ নম্বর মেলানো হয় **শেষ ১০ অঙ্ক** ধরে (+91 থাকুক বা না থাকুক) —
+                      প্রকল্পের সব জায়গার একই নিয়ম। */
+                val meDigits = (user.mobile).filter { it.isDigit() }.takeLast(10)
                 val due = dueTomorrow().filter { d ->
+                    val want = d.forMobile.filter { it.isDigit() }.takeLast(10)
+                    if (want.isNotEmpty() && want != meDigits) return@filter false
+                    true
+                }.filter { d ->
                     if (d.id in alreadyFiredIds) return@filter false
                     if (d.timeHM != null) {
                         // 🔴🔒 V671 — সময় বাছা থাকলে সেই ১৫-মিনিটের জানালাতেই বাজে।
@@ -70,7 +87,11 @@ class DoctorReminderWorker(
         return Result.success()
     }
 
-    private data class Due(val id: String, val name: String, val note: String, val timeHM: Int?)
+    private data class Due(
+        val id: String, val name: String, val note: String, val timeHM: Int?,
+        /* 🩺 V1109 — কোন ডাক্তারের জন্য। ফাঁকা = সব ডাক্তার (পুরনো আচরণ)। */
+        val forMobile: String = ""
+    )
 
     /** patients টেবিলে যাদের doctorReminderDate = আগামীকাল। */
     private fun dueTomorrow(): List<Due> {
@@ -80,7 +101,8 @@ class DoctorReminderWorker(
             SupabaseClient.fetchListSlimOrNull(
                 "patients", "doctorReminderDate=eq.$key", 200,
                 // 🔴🔒 V671 — doctorReminderTime-ও এখন পড়া হয়।
-                "id,name,doctorReminderNote,doctorReminderDate,doctorReminderTime"
+                // 🩺 V1109 — `doctorReminderFor`-ও পড়া হয় (কোন ডাক্তারের জন্য)।
+                "id,name,doctorReminderNote,doctorReminderDate,doctorReminderTime,doctorReminderFor"
             )
         } catch (_: Throwable) { null } ?: return emptyList()
         val out = ArrayList<Due>()
@@ -93,7 +115,10 @@ class DoctorReminderWorker(
                 val parts = timeStr.split(":").map { it.toInt() }
                 parts[0] * 60 + parts[1]
             } catch (_: Throwable) { null } else null
-            out.add(Due(row.optString("id", "").trim(), row.optString("name", "").trim(), note, timeHM))
+            out.add(Due(
+                row.optString("id", "").trim(), row.optString("name", "").trim(), note, timeHM,
+                row.optString("doctorReminderFor", "").trim()   // 🩺 V1109
+            ))
         }
         return out
     }
