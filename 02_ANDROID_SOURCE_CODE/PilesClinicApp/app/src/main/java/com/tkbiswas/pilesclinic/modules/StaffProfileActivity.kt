@@ -600,7 +600,10 @@ class StaffProfileActivity : AppCompatActivity() {
     private fun staffDotsMenu(pc: String, fullName: String, mobile: String, isRemoved: Boolean, onView: () -> Unit) {
         val labels = ArrayList<String>()
         val acts = ArrayList<() -> Unit>()
-        labels.add("View profile"); acts.add { onView() }   // কার্ডে চাপ দিলে যা হয়, ঠিক তাই
+        labels.add("View profile"); acts.add { onView() }
+        // 🏆 V1091 (TK: *"ডানদিকে থ্রি ডটের মধ্যে থাকবে"*) — কার্ড থেকে তুলে আনা
+        //    বোতামটার কাজ এক অক্ষরও বদলায়নি, একই `performanceOne()` ডাকা হয়।
+        if (ModuleAuth.isMaster) { labels.add("Performance"); acts.add { performanceOne(pc, "") } }
         if (isRemoved) {
             labels.add("Restore"); acts.add { restoreStaffDialog(pc, fullName) }
         } else {
@@ -649,14 +652,24 @@ class StaffProfileActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
         val topRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
+        /* 🎨🔒 V1091 (TK-রিপোর্ট ছবিসহ — CHANDANA ROY PRADHAN: *"mobile version
+           কেন এরকম ব্রেক হবে"*) — লম্বা নাম গোটা সারিটা দখল করে নিত, তাই
+           ডানের ভার্সন-ব্যাজটা চেপে গিয়ে **তিন লাইনে** ভেঙে যেত।
+           ⇒ এখন নামটাই একমাত্র ঘর যেটা ছোট হয় (`weight = 1f`), আর ব্যাজ দুটো
+             নিজের মাপেই থাকে। নাম না ধরলে শেষে "…" বসে — ভাঙে না।
+           ⛔ লেখা · রং · মাপ কিছুই বদলায়নি, শুধু জায়গা ভাগের নিয়ম। */
         topRow.addView(TextView(this).apply {
             text = fullName; textSize = 14.5f
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(android.graphics.Color.parseColor("#1C2B22"))
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         })
         val isDoc = roleKind.equals("doctor", true)
         topRow.addView(TextView(this).apply {
             text = desig.ifBlank { if (isDoc) "Doctor" else "Staff" }; textSize = 9.5f
+            maxLines = 1   // 🎨 V1091 — চিপ কখনো ভাঙবে না
             setTextColor(android.graphics.Color.parseColor(if (isDoc) "#6A3FCB" else "#0B8A3E"))
             setPadding(dp(7), dp(2), dp(7), dp(2))
             background = android.graphics.drawable.GradientDrawable().apply {
@@ -714,20 +727,35 @@ class StaffProfileActivity : AppCompatActivity() {
                 marginStart = if (first) 0 else dp(4)
                 marginEnd = if (last) 0 else dp(4)
             }
+        /* 🎨🔒 V1091 (০৫.০৯.২০২৬, TK-রিপোর্ট ছবিসহ: *"সব লেখাগুলো ব্রেক হয়ে
+           উপর-নিচে হয়ে গেছে… সাইজ একটু ছোট করুন যাতে উপর নিচে না হয়"* —
+           বিশেষ করে RUPAM-এর কার্ড, যেখানে বোতাম একটা বেশি)।
+           ⇒ তিনটে পাহারা একসাথে:
+             ① `maxLines = 1` — লেখা কখনো দ্বিতীয় লাইনে নামবে না
+             ② লেখা **নিজে থেকে ছোট হয়ে** ঘরে বসে (autosize 8→11.5sp),
+                তাই বোতাম কটা আছে বা নাম কত লম্বা — কিছুতেই ভাঙবে না
+             ③ উচ্চতা নির্দিষ্ট (dp 40) — autosize-এর জন্য উচ্চতা wrap হলে
+                Android-এর ফল অনিশ্চিত হয়ে যায় (গুগলের নিজের সতর্কতা), আর
+                সব বোতাম সমান উঁচু দেখায়
+           ⛔ কোনো বোতামের কাজ · রং · কে দেখতে পায় — কিছুই বদলায়নি। */
         fun smallBtn(text: String, filled: Boolean, icon: Int = 0, onClick: () -> Unit) = TextView(this).apply {
             this.text = text; textSize = 11.5f
+            maxLines = 1
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             gravity = android.view.Gravity.CENTER
             /* 🎨 V1057 — লেখার বাঁয়ে আইকন (TK-এর ছবির মতো)। ⛔ আইকন না দিলে
                বোতামটা আগের মতোই শুধু লেখা — অন্য কোথাও কিছু ভাঙে না। */
             if (icon != 0) {
                 setCompoundDrawablesRelativeWithIntrinsicBounds(icon, 0, 0, 0)
-                compoundDrawablePadding = dp(6)
+                compoundDrawablePadding = dp(4)   // 🎨 V1091 — লেখার জায়গা বাড়াতে
                 // ভরাট বোতামে আইকনটাও সাদা, নইলে সবুজের উপর সবুজ মিলিয়ে যেত
                 if (filled) androidx.core.widget.TextViewCompat.setCompoundDrawableTintList(
                     this, android.content.res.ColorStateList.valueOf(android.graphics.Color.WHITE))
             }
-            setPadding(dp(6), dp(11), dp(6), dp(11))
+            setPadding(dp(4), 0, dp(4), 0)
+            height = dp(40)
+            androidx.core.widget.TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(
+                this, 8, 12, 1, android.util.TypedValue.COMPLEX_UNIT_SP)
             setTextColor(android.graphics.Color.parseColor(if (filled) "#FFFFFF" else "#0B4F2A"))
             background = android.graphics.drawable.GradientDrawable().apply {
                 cornerRadius = dp(9).toFloat()
@@ -740,13 +768,17 @@ class StaffProfileActivity : AppCompatActivity() {
         // 🔴 V404: লাল বোতাম বানানোর একটাই জায়গা (Suspend ও Remove একই চেহারার)।
         fun dangerBtn(label: String, icon: Int = 0, onClick: () -> Unit) = TextView(this).apply {
             text = label; textSize = 11.5f
+            maxLines = 1   // 🎨 V1091 — উপরের smallBtn-এর হুবহু একই নিয়ম
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             gravity = android.view.Gravity.CENTER
             if (icon != 0) {
                 setCompoundDrawablesRelativeWithIntrinsicBounds(icon, 0, 0, 0)
-                compoundDrawablePadding = dp(6)
+                compoundDrawablePadding = dp(4)   // 🎨 V1091 — লেখার জায়গা বাড়াতে
             }
-            setPadding(dp(6), dp(11), dp(6), dp(11))
+            setPadding(dp(4), 0, dp(4), 0)
+            height = dp(40)
+            androidx.core.widget.TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(
+                this, 8, 12, 1, android.util.TypedValue.COMPLEX_UNIT_SP)
             setTextColor(android.graphics.Color.parseColor("#B0392B"))
             background = android.graphics.drawable.GradientDrawable().apply {
                 cornerRadius = dp(9).toFloat()
@@ -763,14 +795,21 @@ class StaffProfileActivity : AppCompatActivity() {
            ⛔ `onView` ফাংশনটা এক অক্ষরও বদলায়নি — শুধু কোথা থেকে ডাকা হচ্ছে সেটা।
            ⛔ ভিতরের বোতামগুলো নিজের কাজই করে (Android-এ ভিতরের ক্লিক আগে চলে ও
               সেখানেই থেমে যায়), তাই Salary চাপলে ভুল করে View খুলবে না। */
+        /* 🏆🔒 V1091 (০৫.০৯.২০২৬, TK-নির্দেশ: *"কার্ডে চাপ দিলে পারফরমেন্স খুলবে…
+           সামনে Performance লেখা না থাকলেও চলবে, ডানদিকে থ্রি ডটের মধ্যে থাকবে"*)
+           ⇒ ① কার্ডে চাপ = **Performance** (আগে প্রোফাইল খুলত)
+             ② কার্ডের "Performance" বোতামটা তুলে দেওয়া হলো — তাই বোতাম একটা কমল,
+                লেখা ভাঙার চাপও কমল
+             ③ প্রোফাইল হারায়নি — ⋮ মেনুতে "View profile" আগে থেকেই আছে, আর
+                সেখানে "Performance"-ও বসানো হলো
+           ⛔ Master ছাড়া কারো জন্য Performance আগেও ছিল না, এখনো নেই — তাই
+              তাঁদের কার্ডে চাপ দিলে আগের মতোই প্রোফাইলই খোলে। */
         card.isClickable = true
         card.isFocusable = true
-        card.setOnClickListener { onView() }
+        card.setOnClickListener { if (ModuleAuth.isMaster) performanceOne(pc, "") else onView() }
         row1Btns.add(smallBtn("Salary", true, R.drawable.ic_sp_wallet, onSalary))
         // 💰 V1058 — TK: "salary performance extra income এই তিনটাই পাশাপাশি"
         row1Btns.add(smallBtn("Extra Income", false, R.drawable.ic_sp_hand_rupee) { salaryExtra(pc) })
-        // 🏆 V419: এই একজনের পুরো হিসাব (Master ছাড়া বোতামটাই আসে না)।
-        if (ModuleAuth.isMaster) row1Btns.add(smallBtn("Performance", false, R.drawable.ic_sp_chart) { performanceOne(pc, "") })
         // 🔴🔴🔒 V477 (20.08.2026, TK-জরুরি নির্দেশ — "সমস্ত স্টাফের একই সমস্যা,
         // OUT TIME দেখাচ্ছে না") — আসল কারণ (যাচাই করা): আজ সকালে JWT/reAuth
         // বাগ (V465-এ ঠিক করা) থাকাকালীন যাদের IN TIME নিঃশব্দে ক্লাউডে সেভ

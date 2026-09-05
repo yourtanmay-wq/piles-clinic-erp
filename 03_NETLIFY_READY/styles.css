@@ -5567,7 +5567,9 @@ button.small{min-height:36px!important;font-size:13px!important;border-radius:12
 .pfStaffCard{display:flex;align-items:flex-start;gap:10px}
 .pfStaffInfo{flex:1 1 auto;min-width:0}
 .pfNameRow{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.pfName{font-size:14.5px;font-weight:800;color:#1C2B22}
+.pfName{font-size:14.5px;font-weight:800;color:#1C2B22;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 🎨 V1091 (TK: "সব লেখাগুলো ব্রেক হয়ে উপর-নিচে হয়ে গেছে") — বোতামের লেখা কখনো দুই লাইনে ভাঙবে না */
+.pfStaffBtns .pfBtn{white-space:nowrap}
 .pfPill{font-size:9.5px;font-weight:700;color:#0B8A3E;background:#EAF6EE;border-radius:20px;padding:2px 7px;white-space:nowrap}
 .pfPillDoc{color:#6A3FCB;background:#EFEAFB}
 .pfMeta{font-size:11.5px;color:#6B7A72;padding-top:2px}

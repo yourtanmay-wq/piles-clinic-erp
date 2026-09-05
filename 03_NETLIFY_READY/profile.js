@@ -145,11 +145,17 @@
     /* 🔵🔒 V521: কার্ডে চাপ = View। কিন্তু ভিতরের কোনো বোতামে (Salary /
        Performance / Suspend / Remove) চাপ পড়লে কার্ডের চাপটা **চলবে না** —
        নইলে Salary চাপলে ভুল করে View খুলে যেত। */
+    /* \u{1F3C6}\u{1F512} V1091 (\u09e6\u09eb.\u09e6\u09ef.\u09e8\u09e6\u09e8\u09ec, TK-\u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6: *"\u0995\u09be\u09b0\u09cd\u09a1\u09c7 \u099a\u09be\u09aa \u09a6\u09bf\u09b2\u09c7
+       \u09aa\u09be\u09b0\u09ab\u09b0\u09ae\u09c7\u09a8\u09cd\u09b8 \u0996\u09c1\u09b2\u09ac\u09c7… \u09b8\u09be\u09ae\u09a8\u09c7 Performance \u09b2\u09c7\u0996\u09be \u09a8\u09be \u09a5\u09be\u0995\u09b2\u09c7\u0993 \u099a\u09b2\u09ac\u09c7,
+       \u09a1\u09be\u09a8\u09a6\u09bf\u0995\u09c7 \u09a5\u09cd\u09b0\u09bf \u09a1\u099f\u09c7\u09b0 \u09ae\u09a7\u09cd\u09af\u09c7 \u09a5\u09be\u0995\u09ac\u09c7"*) \u2014 \u09ab\u09cb\u09a8\u09c7\u09b0 \u09b9\u09c1\u09ac\u09b9\u09c1 \u098f\u0995\u0987 \u09ac\u09a6\u09b2\u0964
+       \u26d4 \u09aa\u09cd\u09b0\u09cb\u09ab\u09be\u0987\u09b2 \u09b9\u09be\u09b0\u09be\u09df\u09a8\u09bf \u2014 \u22ee \u09ae\u09c7\u09a8\u09c1\u09a4\u09c7 "View profile" \u0986\u0997\u09c7 \u09a5\u09c7\u0995\u09c7\u0987 \u0986\u099b\u09c7\u0964
+       \u26d4 \u09ad\u09bf\u09a4\u09b0\u09c7\u09b0 \u09ac\u09cb\u09a4\u09be\u09ae\u09c7 \u099a\u09be\u09aa \u09aa\u09dc\u09b2\u09c7 \u0995\u09be\u09b0\u09cd\u09a1\u09c7\u09b0 \u099a\u09be\u09aa\u099f\u09be \u0986\u0997\u09c7\u09b0 \u09ae\u09a4\u09cb\u0987 \u099a\u09b2\u09c7 \u09a8\u09be\u0964 */
     function pfCardTap(ev, code) {
       try {
         var t = ev && ev.target;
         if (t && t.closest && t.closest('button')) return;
-        profEdit(code);
+        if (typeof staffPerformanceOne === 'function') staffPerformanceOne(code);
+        else profEdit(code);
       } catch (e) {}
     }
     window["pfCardTap"] = pfCardTap;
@@ -183,7 +189,8 @@
         '<button class="pfMore" title="More" onclick="event.stopPropagation();profDots(\'' + m.esc(p.person_code) + '\',\'' + m.esc(String(p.full_name||'')) + '\')">\u22EE</button>' +
         '<div class="pfStaffBtns">' +
         '<button class="small pfBtn pfBtnFill" onclick="profSalary(\'' + m.esc(p.person_code) + '\')">Salary</button>' +
-        '<button class="small ghost pfBtn" onclick="staffPerformanceOne(\'' + m.esc(p.person_code) + '\')">Performance</button>' +
+        /* \u{1F3C6} V1091 \u2014 "Performance" \u09ac\u09cb\u09a4\u09be\u09ae\u099f\u09be \u0995\u09be\u09b0\u09cd\u09a1 \u09a5\u09c7\u0995\u09c7 \u09a4\u09c1\u09b2\u09c7 \u09a6\u09c7\u0993\u09df\u09be \u09b9\u09b2\u09cb \u2014
+           \u098f\u0996\u09a8 \u0995\u09be\u09b0\u09cd\u09a1\u09c7 \u099a\u09be\u09aa \u09a6\u09bf\u09b2\u09c7\u0987 \u0996\u09cb\u09b2\u09c7, \u0986\u09b0 \u22ee \u09ae\u09c7\u09a8\u09c1\u09a4\u09c7\u0993 \u0986\u099b\u09c7\u0964 */
         /* 🏍️🔒 V978 (০২.০৯.২০২৬, TK-নির্দেশ: *"ওই সারিতেই বসিয়ে দিন"*) — বাইরে
            ঘোরা স্টাফের কার্ডেই Field Visit বোতাম, ফোনের হুবহু জোড়া।
            ⛔ অন্য কারো কার্ডে ওঠে না; বাকি বোতাম অপরিবর্তিত। */
@@ -1701,6 +1708,8 @@
     var m = window.MOD;
     modal('<h2>' + m.esc(name || code) + '</h2><div class="card pfDotsMenu">'
       + '<button class="ghost" onclick="closeModal();profEdit(\'' + m.esc(code) + '\')">View profile</button>'
+      /* \u{1F3C6} V1091 (TK: *"\u09a1\u09be\u09a8\u09a6\u09bf\u0995\u09c7 \u09a5\u09cd\u09b0\u09bf \u09a1\u099f\u09c7\u09b0 \u09ae\u09a7\u09cd\u09af\u09c7 \u09a5\u09be\u0995\u09ac\u09c7"*) \u2014 \u0995\u09be\u099c \u098f\u0995 \u0985\u0995\u09cd\u09b7\u09b0\u0993 \u09ac\u09a6\u09b2\u09be\u09df\u09a8\u09bf\u0964 */
+      + '<button class="ghost" onclick="closeModal();staffPerformanceOne(\'' + m.esc(code) + '\')">Performance</button>'
       + '<button class="ghost pfDanger" onclick="closeModal();profSuspend(\'' + m.esc(code) + '\')">Suspend</button>'
       + '<button class="ghost pfDanger" onclick="closeModal();profRemove(\'' + m.esc(code) + '\')">Remove</button>'
       + '</div><div class="actions"><button class="ghost" onclick="closeModal()">Close</button></div>');
