@@ -3320,6 +3320,11 @@ body.hasDeskNav .wrap:not(.publicWrap) .enquiryCard{max-width:900px;display:grid
    ⛔ উপরের দুটো বারের রং/মাপ এক অক্ষরও বদলায়নি। */
 .dqSectionHead.dqSearchAll{background:#1D6FD1;cursor:pointer;text-align:center}
 .dqSectionHead.dqNotFound{background:#7B8794;text-align:center}
+/* 🌑🔒 V1112 (০৫.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — আজ চেকআপ হয়ে যাওয়া কার্ড
+   ফিকে, যাতে বাকি-রোগীর সঙ্গে গুলিয়ে না যায়। ⛔ কিছুই সরানো/লুকানো হয়নি —
+   সব বোতাম আগের মতোই কাজ করে। ⛔ ফোনের `alpha 0.55` + সাদা-কালো ছবির হুবহু জোড়া। */
+.card.doctorQueuePro.dqDim{opacity:.55}
+.card.doctorQueuePro.dqDim .queuePhoto{filter:grayscale(1)}
 
 /* 🔧 TK-নির্দেশে (১৫.০৮.২০২৬, "আইকন থাকবে না"): Draft হোম পাতার ৭টা বক্সে
    (My Enquiry/Reject/Incomplete/Complete/Unexpected/Refunded) আইকন শুধু
