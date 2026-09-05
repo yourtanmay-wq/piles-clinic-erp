@@ -754,8 +754,16 @@ class StaffProfileActivity : AppCompatActivity() {
             }
             setPadding(dp(4), 0, dp(4), 0)
             height = dp(40)
-            androidx.core.widget.TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(
-                this, 8, 12, 1, android.util.TypedValue.COMPLEX_UNIT_SP)
+            /* 🎨🔒 V1092 (০৫.০৯.২০২৬ — TK-এর বিল্ড-করা ছবিতে ধরা পড়ল: RUPAM-এর
+               "Extra Income" তখনো দুই লাইনে)। **আসল কারণ মেপে পাওয়া:** বাঁয়ের
+               আইকনটা (২৪dp + ফাঁক) বোতামের চওড়ার একটা বড় অংশ নিয়ে নেয়, আর
+               Android-এর নিজে-থেকে-ছোট-হওয়া (autosize) মাপার সময় **আইকনের
+               জায়গাটা বাদ দেয় না** — তাই লেখা ঠিক আছে ভেবে ছোট করত না, অথচ
+               আঁকার সময় জায়গা কম পড়ে ভেঙে যেত। ⇒ autosize-এর উপর ভরসা না করে
+               এখন নিশ্চিত নিয়ম: এক লাইনে বাঁধা, আর সারিতে ৩টে বা বেশি বোতাম
+               থাকলে নিচে (`row1Btns` বানানোর পরে) আইকন বাদ ও লেখা ছোট। */
+            setSingleLine(true)
+            ellipsize = android.text.TextUtils.TruncateAt.END
             setTextColor(android.graphics.Color.parseColor(if (filled) "#FFFFFF" else "#0B4F2A"))
             background = android.graphics.drawable.GradientDrawable().apply {
                 cornerRadius = dp(9).toFloat()
@@ -777,8 +785,8 @@ class StaffProfileActivity : AppCompatActivity() {
             }
             setPadding(dp(4), 0, dp(4), 0)
             height = dp(40)
-            androidx.core.widget.TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(
-                this, 8, 12, 1, android.util.TypedValue.COMPLEX_UNIT_SP)
+            setSingleLine(true)   // 🎨 V1092 — উপরের smallBtn-এর হুবহু একই নিয়ম
+            ellipsize = android.text.TextUtils.TruncateAt.END
             setTextColor(android.graphics.Color.parseColor("#B0392B"))
             background = android.graphics.drawable.GradientDrawable().apply {
                 cornerRadius = dp(9).toFloat()
@@ -835,6 +843,16 @@ class StaffProfileActivity : AppCompatActivity() {
                     .putExtra(FieldVisitActivity.EXTRA_STAFF_MOBILE,
                         com.tkbiswas.pilesclinic.native.FieldVisit.mobileForCode(pc)))
             })
+        }
+        /* 🎨🔒 V1092 — ৩টে বা বেশি বোতাম হলে (এখন শুধু RUPAM-এর কার্ড) প্রতিটা
+           বোতাম সরু হয়ে যায়। তখন আইকন তুলে দিয়ে ও লেখা একটু ছোট করে দেওয়া হয়,
+           তাই "Extra Income" এক লাইনেই ধরে। ⛔ দুটো বোতামের কার্ড (বাকি সবার)
+           হুবহু আগের মতোই — আইকনসহ, একই মাপ। */
+        if (row1Btns.size >= 3) {
+            row1Btns.forEach {
+                it.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, 0, 0)
+                it.textSize = 10f
+            }
         }
         row1Btns.forEachIndexed { i, b -> b.layoutParams = rowBtnParams(i == 0, i == row1Btns.size - 1); row1.addView(b) }
         info.addView(row1)
@@ -1722,7 +1740,26 @@ class StaffProfileActivity : AppCompatActivity() {
      *  🔴 TK-নির্দেশ (১৭.০৮.২০২৬): *"ডাক্তারদের বাদ দিয়ে দিন"* — এই তালিকা শুধু
      *  কর্মীদের। ডেটাবেসেও একই ছাঁকনি বসানো আছে; এটা দ্বিতীয় স্তর, যাতে পুরনো
      *  ডেটাবেসেও (নতুন SQL না চালালেও) ডাক্তার আর তালিকায় না ওঠেন। */
+    /* ═══════════════════════════════════════════════════════════════
+       ⚡🔒 V1092 (০৫.০৯.২০২৬, TK: *"যতবার চাপ দেই ততবার লোডিং নেয়"*)
+       V1091-এ কার্ডে চাপ দিলেই Performance খোলে, তাই TK এখন বারবার খোলেন —
+       আর প্রতিবার সার্ভারে **দুটো ডাক** (`staff_performance` +
+       `branch_performance`) যেত, তাই প্রতিবার "Loading..."।
+
+       ⇒ একই মাসের উত্তরটা **৬০ সেকেন্ড** ফোনের মধ্যেই রাখা হয়। ওই সময়ের
+         ভিতরে আবার খুললে সঙ্গে সঙ্গে দেখায়, কোনো ডাক যায় না।
+       ✅ Egress-এও লাভ — বারবার খুললে আর বারবার নামে না।
+       ⛔ ৬০ সেকেন্ড পেরোলে আগের মতোই তাজা হিসাব নামে, তাই সংখ্যা কখনো
+          পুরনো হয়ে থাকে না। ⛔ অ্যাপ বন্ধ করলে জমানো কিছুই থাকে না।
+       ⛔ গণনার নিয়ম · সংখ্যা · পর্দা — কিছুই বদলায়নি, শুধু বারবার না নামানো।
+       ═══════════════════════════════════════════════════════════════ */
+    private val perfCache = java.util.HashMap<String, JSONArray>()
+    private val perfCacheAt = java.util.HashMap<String, Long>()
+
     private fun perfFetch(month: String): JSONArray? {
+        perfCache[month]?.let { hit ->
+            if (System.currentTimeMillis() - (perfCacheAt[month] ?: 0L) < 60_000L) return hit
+        }
         return try {
             val r = ModuleAuth.rpc("hr", "staff_performance", JSONObject().put("p_month", month))
             if (!r.ok) return null
@@ -1752,6 +1789,9 @@ class StaffProfileActivity : AppCompatActivity() {
                     }
                 }
             } catch (_: Throwable) { }
+            // ⚡ V1092 — সফল উত্তরটাই শুধু জমা থাকে (ব্যর্থ হলে কিছুই জমে না)
+            perfCache[month] = out
+            perfCacheAt[month] = System.currentTimeMillis()
             out
         } catch (_: Throwable) { null }
     }
