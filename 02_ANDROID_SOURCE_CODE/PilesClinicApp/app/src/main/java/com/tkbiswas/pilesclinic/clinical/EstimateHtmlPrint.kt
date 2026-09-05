@@ -107,8 +107,19 @@ object EstimateHtmlPrint {
 
         return """<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=794">
 <style>
+/* 🖨️🔒 V1105 (০৫.০৯.২০২৬, TK-রিপোর্ট: *"print তো ১ পেজে হওয়ার কথা ছিল"*)।
+   মেপে দেখা: এই একটা কাগজেই `@page` নিয়মটা লেখাই হয়নি ⇒ ছাপার সময় প্রিন্টার
+   নিজের ফাঁক (~১০mm) বসিয়ে দিত, অথচ নকশা পুরো A4 লম্বা ⇒ উপচে **২ পাতা**
+   (২য় পাতায় শুধু সই-সারি)। V425-এ প্রেসক্রিপশনে ঠিক এই দোষটাই ধরা পড়েছিল
+   আর ফাঁক ০ করেই সারানো হয়েছিল — Registration · Investigation · Diet Chart
+   কাগজেও আগে থেকেই `@page{size:A4;margin:0}` আছে। এখানেও সেটাই বসল।
+   ⛔ কাগজের ভিতরের সব ফাঁক (.lh · .wrap · .foot-এর padding) আগের মতোই,
+      তাই লেখা কাগজের ধারে গিয়ে ঠেকে না — একটা দাগও নড়েনি।
+   ⛔ উচ্চতা px-এর বদলে mm-এ (২৯৬mm) — ১১২৩px ঠিক ২৯৭mm-এর সমান হওয়ায়
+      গোল করতে গিয়ে ১ পাতার বদলে ২ পাতা হয়ে যেতে পারত। */
+@page{size:A4;margin:0;}
 *{margin:0;padding:0;box-sizing:border-box;font-family:Georgia,'Noto Serif',serif;}
-body{background:#fff;color:#111;min-height:1123px;display:flex;flex-direction:column;}
+body{background:#fff;color:#111;min-height:296mm;display:flex;flex-direction:column;}
 .gold{height:5px;background:linear-gradient(90deg,#b8912f,#e6c65c,#b8912f);}
 .gbar{height:3px;background:#0f5132;}
 .lh{display:flex;align-items:center;gap:16px;padding:10px 20px 8px;}

@@ -10523,7 +10523,7 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
        নিচে (Treatment Plan-এর পরে, নোটের আগে) — Android-এর একই বদল।
        ⛔ id/সেভ-লজিক/নোটিফিকেশন/A4-রিপোর্ট কিছুই বদলায়নি — একই
        "dnEstimatedCost" input, শুধু জায়গা বদল (Step 4 থেকে Step 3-এ)। -->
-  <label>Estimated Cost · আনুমানিক খরচ কত বলা হল</label><div style="display:flex;gap:8px;align-items:center"><input id="dnEstimatedCost" class="input" style="flex:1;margin:0" value="${val('estimatedCost')}"></div>
+  <label>Estimated Cost · আনুমানিক খরচ কত বলা হল</label><div style="display:flex;gap:8px;align-items:center"><input id="dnEstimatedCost" class="input" style="flex:1;margin:0" value="${val('estimatedCost')}"><button type="button" class="dnHistBtn dnEstBtn" onclick="wlv1EstOpen()" title="Build Estimate">🧮</button></div>
   <label>Other Treatment Note · অন্যান্য চিকিৎসার কথা (টাইপ করুন)</label><textarea id="dnCounselling" placeholder="রোগীকে কিভাবে চিকিৎসা করবেন বলেছেন সেই কথা এখানে লিখুন">${val('counselling')}</textarea>
  </details>
  <!-- 🟢 V600 (২৩.০৮.২০২৬, TK-নির্দেশ, ছবিসহ): "যেখানে আছে সেখান থেকে সরিয়ে
@@ -27900,8 +27900,12 @@ function wlv1EstPaperHtml(editable){
   var ageSex=[String(p.age||''),String(p.sex||'')].filter(Boolean).join(' / ')||'-';
   var dt=wlv1Dot(today());
   return '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Estimate</title><style>'
+   /* 🖨️🔒 V1105 — ফোনের `EstimateHtmlPrint.kt`-এর হুবহু একই সারাই:
+      `@page` না থাকায় ছাপার সময় প্রিন্টারের নিজের ফাঁকে কাগজ উপচে ২ পাতা হত।
+      ⛔ এই কাগজটা আলাদা উইন্ডোতে খোলে, তাই এই নিয়ম আর কোনো কাগজে পড়ে না। */
+   +'@page{size:A4;margin:0}'
    +'*{margin:0;padding:0;box-sizing:border-box;font-family:Georgia,serif}'
-   +'body{background:#fff;color:#111;min-height:1123px;display:flex;flex-direction:column}'
+   +'body{background:#fff;color:#111;min-height:296mm;display:flex;flex-direction:column}'
    +'.gold{height:5px;background:linear-gradient(90deg,#b8912f,#e6c65c,#b8912f)}.gbar{height:3px;background:#0f5132}'
    +'.lh{display:flex;align-items:center;gap:16px;padding:10px 20px 8px}.lh img{width:78px;height:78px;object-fit:contain}'
    +'.cn{font-size:23px;font-weight:800;color:#0f5132;line-height:1}'

@@ -1089,6 +1089,26 @@
                                 android:orientation="horizontal"
                                 android:gravity="center_vertical">
                                 <EditText android:id="@+id/etEstimatedCost" style="@style/DocNoteInputSingle" android:inputType="number" android:hint="Estimated cost" android:layout_width="0dp" android:layout_weight="1" />
+                                <!-- 🧮🔒 V1105 (০৫.০৯.২০২৬, TK-রিপোর্ট: *"আনুমানিক খরচ কত বলা
+                                     হলো তার পাশেই তো এস্টিমেটের Sample টা থাকার কথা ছিল, আপনি তো
+                                     শুধুমাত্র হেডারেই রেখে দিয়েছেন, তার জন্য তো বিভ্রান্ত হয়ে গেলাম"*)।
+                                     V995-এ বোতামটা এখান থেকে হেডারে তোলা হয়েছিল; এখন ঘরের পাশেও
+                                     আবার বসল। **হেডারেরটা যেমন ছিল তেমনই থাকছে** — দুটো চাপলেই
+                                     হুবহু একই এস্টিমেটের কাগজ খোলে।
+                                     ⛔ `etEstimatedCost`-এর id · সেভ-লজিক · A4 রিপোর্ট · নোটিফিকেশন
+                                        কিছুই বদলায়নি — শুধু পাশে একটা বোতাম যোগ। -->
+                                <TextView
+                                    android:id="@+id/btnBuildEstimateInline"
+                                    android:layout_width="34dp"
+                                    android:layout_height="34dp"
+                                    android:layout_marginStart="8dp"
+                                    android:background="@drawable/bg_circle_gradient_violet"
+                                    android:gravity="center"
+                                    android:text="🧮"
+                                    android:textSize="15sp"
+                                    android:contentDescription="Build Estimate"
+                                    android:clickable="true"
+                                    android:focusable="true" />
                             </LinearLayout>
                         </LinearLayout>
                     </LinearLayout>

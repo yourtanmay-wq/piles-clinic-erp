@@ -3965,6 +3965,9 @@ class DoctorCheckupActivity : AppCompatActivity() {
            সেভের পর Counsel সারাংশে বদলে যেত বলে বোতামটা নিজে থেকেই হারিয়ে
            যেত; সেই আচরণ হুবহু রাখতে এখানে আইকনটাও লুকানো হয়। */
         findViewById<android.view.View>(R.id.btnBuildEstimate)?.visibility = android.view.View.GONE
+        /* 🧮 V1105 — ঘরের পাশের নতুন আইকনটাও ঠিক একই সময়ে লুকায়, নইলে সেভের
+           পরেও একটা বোতাম থেকে যেত (হেডারেরটা লুকিয়ে যেত, এটা নয়)। */
+        findViewById<android.view.View>(R.id.btnBuildEstimateInline)?.visibility = android.view.View.GONE
 
         // Photo — ছবি থাকে, শুধু ক্যামেরা-বোতাম + Quick Actions লুকানো।
         findViewById<android.view.View>(R.id.btnBeforePhoto).visibility = android.view.View.GONE
@@ -4650,7 +4653,10 @@ class DoctorCheckupActivity : AppCompatActivity() {
 
     private fun wireEstimateBuilder() {
         try {
-            findViewById<TextView>(R.id.btnBuildEstimate)?.setOnClickListener {
+            /* 🧮🔒 V1105 (TK-রিপোর্ট) — হেডারের গোল আইকন **আর** Estimated Cost
+               ঘরের পাশের আইকন, দুটোতেই হুবহু একই কাজ। একটাই লিসেনার লিখে দুটোতে
+               বসানো হয়েছে, তাই ভবিষ্যতে একটা বদলে অন্যটা আলাদা হয়ে যেতে পারে না। */
+            val openEstimate = android.view.View.OnClickListener {
                 /* 🖥️🔒 V982 (TK-নির্দেশ: *"তাহলে ফুল স্ক্রিন পর্দা খুলবে, আলাদা
                    পপ-আপ লাগবে না, zoom করা যাবে"*) — এখন পপ-আপের বদলে
                    **কাগজের ফুল-স্ক্রিন পর্দা**। পুরনো পপ-আপের বাছাই-বাক্সগুলোই
@@ -4661,6 +4667,8 @@ class DoctorCheckupActivity : AppCompatActivity() {
                     REQ_ESTIMATE_PAPER
                 )
             }
+            findViewById<TextView>(R.id.btnBuildEstimate)?.setOnClickListener(openEstimate)
+            findViewById<TextView>(R.id.btnBuildEstimateInline)?.setOnClickListener(openEstimate)
         } catch (_: Throwable) { }
     }
 
