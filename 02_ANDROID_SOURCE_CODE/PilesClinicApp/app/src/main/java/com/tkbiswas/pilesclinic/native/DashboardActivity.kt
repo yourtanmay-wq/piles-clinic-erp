@@ -587,6 +587,9 @@ class DashboardActivity : AppCompatActivity() {
                 // তাই তাঁর ড্যাশবোর্ডে "calls pending" ব্যানার দেখানো হয় না।
                 if (count > 0 && session.displayRole != "doctor") {
                     binding.tvCallBanner.visibility = android.view.View.VISIBLE
+                    // 🎨 V1084 — লেখাটা এখন গোলাপি কার্ডের ভিতরে, তাই কার্ডটাও
+                    //    ঠিক একই সময়ে দেখা যায়/লুকায়। নিয়ম এক অক্ষরও বদলায়নি।
+                    binding.callBannerCard.visibility = android.view.View.VISIBLE
                     /* 🟢 V590 — বকেয়া থাকলে সংখ্যাটা আলাদা করে বলা হয়, তাই
                        "কতগুলো জমে গেছে" এক নজরেই বোঝা যায়। */
                     binding.tvCallBanner.text = if (overdue > 0)
@@ -595,8 +598,13 @@ class DashboardActivity : AppCompatActivity() {
                     binding.tvCallBanner.setOnClickListener {
                         startActivity(Intent(this@DashboardActivity, FollowUpActivity::class.java).putExtra("todayOnly", true))
                     }
+                    // 🎨 V1084 — TK-এর নকশার "Call now ›" বোতাম, ঠিক একই জায়গায় নিয়ে যায়।
+                    binding.btnCallNow.setOnClickListener {
+                        startActivity(Intent(this@DashboardActivity, FollowUpActivity::class.java).putExtra("todayOnly", true))
+                    }
                 } else {
                     binding.tvCallBanner.visibility = android.view.View.GONE
+                    binding.callBannerCard.visibility = android.view.View.GONE
                 }
             }
             render(instant)
@@ -1099,7 +1107,12 @@ class DashboardActivity : AppCompatActivity() {
             val count = withContext(kotlinx.coroutines.Dispatchers.IO) {
                 BellCounter.count(this@DashboardActivity, session)
             }
-            binding.tvBell.text = if (count > 0) "🔔 $count" else "🔔"
+            // 🎨 V1084 — সংখ্যাটা এখন ঘণ্টার পাশের লাল ব্যাজে (TK-এর নকশা)।
+            //    ⛔ ০ হলে ব্যাজ লুকানো, তাই আগের মতোই শুধু "🔔" দেখা যায়।
+            binding.tvBell.text = "🔔"
+            binding.tvBellBadge.text = if (count > 99) "99+" else count.toString()
+            binding.tvBellBadge.visibility =
+                if (count > 0) android.view.View.VISIBLE else android.view.View.GONE
             BellNotifier.onCount(this@DashboardActivity, session, count)
         }
     }
