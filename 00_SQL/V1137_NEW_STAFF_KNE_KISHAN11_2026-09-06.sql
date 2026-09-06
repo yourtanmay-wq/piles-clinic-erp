@@ -128,3 +128,17 @@ from hr.staff_profiles p
 left join hr.salary_config c on c.person_code = p.person_code
 where p.person_code in ('KNE-KISHAN10','KNE-KISHAN11')
 order by p.person_code;
+
+
+-- ── অ্যাপে ঢোকার পাসওয়ার্ড (TK: "অন্যান্য Staff-এর যেমনভাবে করেছেন তেমনভাবে") ──
+-- মেপে দেখা: প্রত্যেক ব্যবহারকারীরই `usercredentials`-এ নিজের সারি আছে।
+-- ঘরগুলো অ্যাপের `PasswordCenterRepository.buildCredentialRow`-এর হুবহু একই।
+insert into public.usercredentials
+  (id, mobile, role, name, branch, password, password_hash, "changedBy", "createdAt", "updatedAt")
+values
+  ('cred_7482966958','7482966958','staff','KNE-KISHAN10','Kishanganj','staff123','','8001080080',now(),now()),
+  ('cred_7478288608','7478288608','staff','KNE-KISHAN11','Kishanganj','staff123','','8001080080',now(),now())
+on conflict (id) do update set
+  password = excluded.password, password_hash = excluded.password_hash,
+  role = excluded.role, name = excluded.name, branch = excluded.branch,
+  "changedBy" = excluded."changedBy", "updatedAt" = now();
