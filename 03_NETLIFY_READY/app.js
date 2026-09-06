@@ -25573,6 +25573,13 @@ function wlv1ShowEditPatient(patientId){
     '<label>Age</label><input id="wlv1EpAge" class="input" inputmode="numeric" value="'+esc(p.age||'')+'">'+
     '<label>Sex</label><select id="wlv1EpSex" class="input">'+opts(sexes,p.sex)+'</select>'+
     '<label>Address</label><input id="wlv1EpAddress" class="input" value="'+esc(p.address||'')+'">'+
+    /* 🔴🔒 V1145 (০৬.০৯.২০২৬, TK-নির্দেশ) — TK: *"অফিসিয়াল টাইমে কল এসেছিল,
+       স্টাফ ভুল করে আনএক্সপেক্টেড করে দিয়েছিল … এগুলো তো টাকা পয়সার হিসাব"*।
+       ⇒ ঘরটা এখানেও, ফোনের হুবহু যমজ। বাছাই বদলালে সেভের সময় `timeType`
+         তিন জায়গাতেই বসে — patients · enquiries · followups।
+       ⛔ হাত না দিলে কিচ্ছু লেখা হয় না। */
+    '<label>Time type</label><select id="wlv1EpTiming" class="input">'
+      +opts(['Official Time','Unexpected Time'],p.timeType||'')+'</select>'+
     '<label>Referred by Doctor (optional — fill in later if it becomes known)</label>'+
     '<input id="wlv1EpRefDoctor" class="input" placeholder="Doctor Name" value="'+esc(p.refDoctor||'')+'">'+
     '<input id="wlv1EpRefDoctorMobile" class="input" placeholder="Doctor Mobile" style="margin-top:8px" value="'+esc(p.refDoctorMobile||'')+'">'+
@@ -25602,6 +25609,12 @@ async function wlv1SaveEditPatient(patientId){
   // TK-REQUESTED (Android-এর একই নিয়ম): রেফারিং ডাক্তার পরে ভরা হলে refBy
   // "Dr. Visit" বসে, যাতে ওই ডাক্তারের "Referred Patients" তালিকায় দেখায়।
   if(fields.refDoctor) fields.refBy='Dr. Visit';
+  /* 🔴🔒 V1145 — সময়ের ধরন বদলালে রোগীর সারিতেও বসে (নিচে এনকোয়ারি ও
+     ফলোআপেও বসানো হয়; **টাকার হিসেব পড়ে `enquiries.timeType`**)। */
+  var newTiming=String(($('#wlv1EpTiming')||{}).value||'').trim();
+  var oldTiming=String(p.timeType||'').trim();
+  var timingChanged=(newTiming&&newTiming.toLowerCase()!==oldTiming.toLowerCase());
+  if(timingChanged) fields.timeType=newTiming;
   var ok=await wlv1UpdConfirmed('patients', patientId, fields);
   if(!ok) return toast('Failed — check connection');
   // 🟡 best-effort sync — মোবাইল বদলালে পুরনো নম্বরের followups/enquiries
@@ -25627,6 +25640,23 @@ async function wlv1SaveEditPatient(patientId){
       for(var i=0;i<fus.length;i++){ await wlv1UpdConfirmed('followups', fus[i].id, {mobile:newMobile,name:newName}); }
       var enqs=shared?[]:load('enquiries').filter(function(x){return mob(x.mobile||'')===oldMobile});
       for(var j=0;j<enqs.length;j++){ await wlv1UpdConfirmed('enquiries', enqs[j].id, {mobile:newMobile,name:newName}); }
+    }catch(_e){}
+  }
+  /* 🔴🔒 V1145 (০৬.০৯.২০২৬, TK-নির্দেশ) — সময়ের ধরন এক নম্বরের এনকোয়ারি ও
+     ফলোআপ সারিতেও বসে।
+     ⚠️ **ব্রাঞ্চ মিলিয়ে দেখা হয় না — ইচ্ছে করেই।** KASHAB MANDAL-এর ডেটায়
+        মেপে দেখা গেছে: রোগীর সারি Jalpaiguri, অথচ এনকোয়ারির সারি Cooch Behar
+        (কল অন্য ব্রাঞ্চের ফোনে এসেছিল)। ব্রাঞ্চ মিলিয়ে বদলালে ঠিক ওই সারিটাই
+        বাদ পড়ত — আর স্টাফের বাড়তি পাওনা ওটা ধরেই গোনা হয়।
+     ⛔ ব্রাউজারে যে সারিগুলো নামানো আছে সেগুলোই বদলায়; অন্য ব্রাঞ্চের সারি
+        এখানে না থাকলে ফোন থেকে বা SQL দিয়ে করতে হবে — সেটা সৎভাবে জানানো। */
+  if(timingChanged){
+    try{
+      var tmob=newMobile;
+      var fus2=load('followups').filter(function(x){return mob(x.mobile||'')===tmob});
+      for(var k=0;k<fus2.length;k++){ await wlv1UpdConfirmed('followups', fus2[k].id, {timeType:newTiming}); }
+      var enq2=load('enquiries').filter(function(x){return mob(x.mobile||'')===tmob});
+      for(var q=0;q<enq2.length;q++){ await wlv1UpdConfirmed('enquiries', enq2[q].id, {timeType:newTiming}); }
     }catch(_e){}
   }
   closeModal();

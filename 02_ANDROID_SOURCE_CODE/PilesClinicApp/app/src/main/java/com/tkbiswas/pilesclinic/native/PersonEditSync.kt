@@ -32,6 +32,42 @@ import org.json.JSONObject
  */
 object PersonEditSync {
 
+    /**
+     * 🔴🔒 V1145 (০৬.০৯.২০২৬, TK-নির্দেশ) — সময়ের ধরন ("Official Time" /
+     * "Unexpected Time") এক নম্বরের **তিন টেবিলেই** বসায়।
+     *
+     * TK-এর কথা: *"অফিসিয়াল টাইমে কল এসেছিল, স্টাফ ভুল করে আনএক্সপেক্টেড করে
+     * দিয়েছিল … এগুলো তো টাকা পয়সার হিসাব"*।
+     *
+     * ⚠️ **ব্রাঞ্চ মিলিয়ে দেখা হয় না — ইচ্ছে করেই।** KASHAB MANDAL-এর ডেটায়
+     *    মেপে দেখা গেছে: রোগীর সারি **Jalpaiguri**, অথচ এনকোয়ারির সারি
+     *    **Cooch Behar** (কল অন্য ব্রাঞ্চের ফোনে এসেছিল)। ব্রাঞ্চ মিলিয়ে
+     *    বদলালে ঠিক ওই এনকোয়ারির সারিটাই বাদ পড়ত — আর **টাকার হিসেব ওটাই
+     *    পড়ে** (`UnexpectedIncentive` ⇒ `enquiries.timeType`)। তাই এখানে
+     *    নম্বরই শেষ কথা।
+     * ⛔ ফাঁকা পাঠালে কিছুই বদলায় না। ⛔ টাকার কোনো সারি ছোঁয়া হয় না।
+     */
+    fun updateTimeType(mobile: String, timeType: String): Boolean {
+        val digits = mobile.filter { it.isDigit() }.takeLast(10)
+        val t = timeType.trim()
+        if (digits.length != 10 || t.isBlank()) return false
+        var any = false
+        for (table in listOf("patients", "enquiries", "followups")) {
+            try {
+                val rows = SupabaseClient.findByMobile(table, digits, "id,timeType", 50)
+                for (i in 0 until rows.length()) {
+                    val row = rows.optJSONObject(i) ?: continue
+                    val id = row.optString("id", "")
+                    if (id.isBlank()) continue
+                    if (row.optString("timeType", "").trim().equals(t, ignoreCase = true)) continue
+                    val ok = SupabaseClient.updateById(table, id, JSONObject().put("timeType", t))
+                    if (ok) any = true
+                }
+            } catch (_: Throwable) { }
+        }
+        return any
+    }
+
     /** এক নম্বরের সব সারিতে নাম ও ঠিকানা বসায়। অন্তত একটা সারি বসলে `true`। */
     fun updateNameAddress(
         mobile: String,

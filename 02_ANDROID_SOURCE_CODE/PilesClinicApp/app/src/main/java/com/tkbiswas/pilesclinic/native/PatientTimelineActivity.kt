@@ -681,6 +681,16 @@ class PatientTimelineActivity : AppCompatActivity() {
                             if (newCode.isNotBlank()) fields.put("patientId", newCode)
                         }
                         val mainOk = SupabaseClient.updateById("patients", currentPatientRowId, fields)
+                        /* 🔴🔒 V1145 (TK-নির্দেশ) — সময়ের ধরন বদলালে তিন টেবিলেই
+                           বসে (patients · enquiries · followups)। **টাকার হিসেব
+                           পড়ে `enquiries.timeType`**, তাই ওটা না বসলে স্টাফের
+                           বাড়তি পাওনা ভুলই থেকে যেত।
+                           ⛔ হাত না দিলে (মান এক থাকলে) কিছুই লেখা হয় না। */
+                        val newTiming = pickedTiming.trim()
+                        if (newTiming.isNotBlank() &&
+                            !newTiming.equals(currentTimeType.trim(), ignoreCase = true)) {
+                            try { PersonEditSync.updateTimeType(currentMobile, newTiming) } catch (_: Throwable) { }
+                        }
                         /* 🔴 V1142 — নতুন আইডি সব জায়গায় বসানো, যাতে কোথাও পুরনোটা
                            পড়ে না থাকে। ⛔ টাকার সারিতে **কেবল আইডির ঘর** — অঙ্ক ·
                            তারিখ · ধরন কিচ্ছু ছোঁয়া হয় না। */
