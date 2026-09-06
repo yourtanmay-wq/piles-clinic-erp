@@ -22,6 +22,10 @@ class BriefingAdapter(
      *  অনুরোধ মাস্টার এক চাপে অনুমোদন করবেন। ডিফল্ট ফাঁকা, তাই পুরনো কোনো
      *  ডাক ভাঙে না। */
     private val onApproveDelete: (Briefing) -> Unit = {},
+    /* 🟢🔒 V1134 (০৬.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — TK: *"আমি যদি
+       অনুমতি না দেই, তাহলে আমাকে কোনটা চাপতে হবে?"* ⇒ ডিলিট-অনুরোধ কার্ডে
+       এখন **Reject** বোতাম। ডিফল্ট ফাঁকা, তাই অন্য কোনো ব্যবহার ভাঙে না। */
+    private val onReject: (Briefing) -> Unit = {},
     /** 🔴 B281 (02.08.2026): "Refund request" নোটিশে Approve/Reject বোতাম চাপলে। */
     private val onApproveRefund: (Briefing) -> Unit = {},
     /** 🆕 B419 (04.08.2026): "Chamber reopen request" নোটিশে Approve চাপলে। */
@@ -259,6 +263,14 @@ class BriefingAdapter(
                 val l = line.trim()
                 l.startsWith("Name :", true) || l.startsWith("Branch :", true) ||
                     l.startsWith("Requested by :", true) ||
+                    /* 🟢🔒 V1134 (TK-নির্দেশ, ফটো-প্রুফ পাশ) — TK: *"এখানে পেশেন্ট
+                       আইডি, Row Id থাকবে না"* · *"আবার Type : Payment কেন লিখেছেন"*
+                       (কী মোছা হবে সেটা এখন শিরোনামেই লেখা)।
+                       ⛔ শুধু **দেখানো** লেখা থেকে বাদ — `item.message` (ডেটাবেসে সেভ
+                          করা আসল লেখা) এক অক্ষরও বদলায় না, তাই Approve বোতাম
+                          ওখান থেকে "Row ID"/"Type" পড়ে ঠিক সারিটাই মোছে। */
+                    l.startsWith("Type :", true) || l.startsWith("Patient ID :", true) ||
+                    l.startsWith("Row ID :", true) ||
                     (l.endsWith("permission request", true) && !l.contains(":")) ||
                     // 🟢🔒 V641 (২৪.০৮.২০২৬, TK-রিপোর্ট, ছবিসহ — "এটা দেখে কি
                     // প্রফেশনাল লুক মনে হচ্ছে?" → "না") — আসল কারণ: "Master:
@@ -335,7 +347,13 @@ class BriefingAdapter(
         /* 🟢 V1123 — TK: *"এই নোটিফিকেশনে নোটিস-ই বা কেন আসবে?"* — কাজ হয়ে
            যাওয়ার খবরে কোনো ব্যাজেরই দরকার নেই (০৪.০৮-এ সাধারণ তথ্য-কার্ডে
            TK নিজেই একই কথা বলেছিলেন, V433)। */
-        b.tvChip.visibility = if (isPlainInfo || replyNotice) View.GONE else View.VISIBLE
+        /* 🟢🔒 V1134 (TK-প্রশ্ন: *"Urjent লেখা কেন?"*) — অনুমতি-চাওয়া
+           কার্ডে বাঁ দিকের লাল দাগ ও রঙিন Approve বোতামই বুঝিয়ে দেয় কাজটা
+           TK-এর অনুমতির অপেক্ষায়; উপরে আবার "URGENT" লেখাটা বাড়তি।
+           ⛔ দাগ/রং/বোতাম কিচ্ছু বদলায়নি — শুধু ব্যাজটা লুকানো। */
+        val hideChip = isPlainInfo || replyNotice ||
+            (!replyNotice && titleLc.contains("delete request"))
+        b.tvChip.visibility = if (hideChip) View.GONE else View.VISIBLE
         /* 🟢🔒 V1123 (TK-অনুমোদিত ফটো-প্রুফ) — উত্তর-নোটিশের ফলটা ("Approved &
            deleted by …") এখন ছোট সবুজ ব্যাজে, ✅ ছবি-অক্ষরটা ছাড়াই — এক নজরেই
            বোঝা যায় কাজটা হয়ে গেছে।
@@ -382,6 +400,12 @@ class BriefingAdapter(
             b.btnApproveDelete.visibility = View.VISIBLE
             b.btnApproveDelete.text = "\u2714 Approve"      // 🔴 এক-লাইনে আঁটাতে ছোট লেখা (আগে "Approve & Delete"); কাজ একই
             b.btnApproveDelete.setOnClickListener { onApproveDelete(item) }
+            /* 🟢🔒 V1134 (TK: *"approve গ্রীন কালার করতে হবে তো"*) — অনুমতি
+               দেওয়া মানে "হ্যাঁ", তাই সবুজ; না-বলার বোতামটাই লাল।
+               ⛔ বাঁ দিকের লাল দাগ আগের মতোই থাকে, তাই কাজটা যে অনুমতির
+                  অপেক্ষায় সেটা বোঝা যায়। */
+            b.btnApproveDelete.backgroundTintList =
+                android.content.res.ColorStateList.valueOf(greenLine)
         } else {
             b.btnApproveDelete.visibility = View.GONE
             b.btnApproveDelete.setOnClickListener(null)
@@ -431,7 +455,25 @@ class BriefingAdapter(
             }
         }
 
-        b.btnSeen.setOnClickListener { onSeen(item) }
+        /* 🟢🔒 V1134 (TK-নির্দেশ, ফটো-প্রুফ পাশ) — *"হ্যাঁ Reject বসান,
+           Close তুলে দিয়ে চারটেই রাখুন"*। ডিলিট-অনুরোধ কার্ডে চারটে বোতাম:
+           **Approve · Reject · View · Reply**।
+           ⛔ নতুন কোনো id বানানো হয়নি — V433-এ লুকিয়ে রাখা `btnSeen` ঘরটাই
+              এখানে Reject হিসেবে কাজে লাগানো হলো, তাই লেআউটে হাত পড়েনি।
+           ⛔ **Close শুধু এই অনুমতি-চাওয়া কার্ড থেকেই সরে** — সাধারণ নোটিশে
+              ওটা না থাকলে বোর্ড আর পরিষ্কারই করা যেত না। */
+        val showReject = isMaster && isDeleteRequest
+        if (showReject) {
+            b.btnSeen.visibility = View.VISIBLE
+            b.btnSeen.text = "\u2716 Reject"
+            b.btnSeen.backgroundTintList =
+                android.content.res.ColorStateList.valueOf(redLine)
+            b.btnSeen.setOnClickListener { onReject(item) }
+        } else {
+            b.btnSeen.visibility = View.GONE
+            b.btnSeen.backgroundTintList = null
+            b.btnSeen.setOnClickListener { onSeen(item) }
+        }
         b.btnReply.setOnClickListener { onReply(item) }
         // 🔴 V433 (TK): "in time submit হয়েছে, তার জন্য আমাকে কেন আবার রিপ্লাই
         // দিতে হবে" — তথ্য-কার্ডে Reply নেই। Delete থেকেই যায় (চাইলে সরানো যায়)।
@@ -447,12 +489,22 @@ class BriefingAdapter(
             if (isPlainInfo || isAutoNotice(item) || BriefingModel.isOverdueAlert(item.title))
                 View.GONE else View.VISIBLE
         b.btnDelete.setOnClickListener { onDelete(item) }
+        b.btnDelete.visibility = if (showReject) View.GONE else View.VISIBLE   // 🟢 V1134
 
         /* 🔴🔒 V501 (TK-নির্দেশ) — "View" বোতাম।
            নোটিশের লেখায় রোগীর মোবাইল নম্বর থাকলেই দেখা যায়; না থাকলে
            লুকানো (অকেজো বোতাম দেখানো হয় না)। চাপলে ওই নম্বরের রোগীর পাতা।
            ⛔ নম্বর খোঁজা হয় ঠিক সেই একই নিয়মে যেটা দিয়ে নম্বরটা এতদিন
               ক্লিকযোগ্য করা হচ্ছে (`buildClickableMessage`) — নতুন কিছু নয়। */
+        /* 🟢🔒 V1134 (TK: *"View তে নেভি ব্লু কালার থাকবে না"*) — অনুমতি-চাওয়া
+           কার্ডে View এখন Reply-র মতোই হালকা সাদা ধাঁচে, তাই চোখ সোজা
+           Approve/Reject-এ যায়। ⛔ বাকি সব নোটিশে View আগের মতোই। */
+        if (showReject) b.btnViewRecord.setBackgroundResource(
+            com.tkbiswas.pilesclinic.R.drawable.bg_brief_btn_ghost)
+        else b.btnViewRecord.setBackgroundResource(
+            com.tkbiswas.pilesclinic.R.drawable.bg_brief_btn_dark)
+        b.btnViewRecord.setTextColor(android.graphics.Color.parseColor(
+            if (showReject) "#0F172A" else "#FFFFFF"))
         val mobileInNotice = firstMobileIn(item.message)
         // 🟢🔒 V692 — Overdue সতর্কতায় কোনো একটা নম্বর থাকে না (ব্রাঞ্চ ধরে
         //   গোনা), তাই নম্বর না থাকলেও View দেখাতে হবে। চাপলে ওই ব্রাঞ্চের

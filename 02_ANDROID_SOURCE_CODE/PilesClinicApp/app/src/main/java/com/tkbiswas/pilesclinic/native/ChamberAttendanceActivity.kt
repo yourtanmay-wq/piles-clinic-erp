@@ -4098,7 +4098,8 @@ Thread {
                                         DeletePermission.sendRequest(
                                             this@ChamberAttendanceActivity, user, "Payment",
                                             p.s("name"), p.s("mobile"), p.s("patientCode"),
-                                            p.s("branch"), amtT, p.s("id")
+                                            p.s("branch"), amtT, p.s("id"),
+                                            entryDate = p.s("date")   // 🟢 V1134 — কোন তারিখের টাকা, TK-নির্দেশ
                                         )
                                     } catch (_: Throwable) { false }
                                 }

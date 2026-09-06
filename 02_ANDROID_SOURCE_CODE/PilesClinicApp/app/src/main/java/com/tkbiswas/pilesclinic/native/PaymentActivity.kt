@@ -1165,7 +1165,8 @@ class PaymentActivity : AppCompatActivity() {
                                         DeletePermission.sendRequest(
                                             this@PaymentActivity, u, "Payment",
                                             p.s("name"), p.s("mobile"), p.s("patientCode"),
-                                            p.s("branch"), "$amtText ($labelText)", p.s("id")
+                                            p.s("branch"), "$amtText ($labelText)", p.s("id"),
+                                            entryDate = p.s("date")   // 🟢 V1134 — কোন তারিখের টাকা, TK-নির্দেশ
                                         )
                                     } catch (_: Throwable) { false }
                                 }

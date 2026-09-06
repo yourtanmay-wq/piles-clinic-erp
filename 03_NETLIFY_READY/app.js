@@ -3943,7 +3943,15 @@ function wlv1BriefBody(b){
       }
     }
   }catch(e){}
-  return '<p>'+esc((b&&b.message)||'')+'</p>';
+  /* 🟢🔒 V1134 (TK-নির্দেশ, ফোনের হুবহু যমজ) — TK: *"এখানে পেশেন্ট আইডি,
+     Row Id থাকবে না"* · *"আবার Type : Payment কেন লিখেছেন"* (শিরোনামেই আছে)।
+     ⛔ শুধু **দেখানো** লেখা থেকে বাদ — সেভ করা `b.message` এক অক্ষরও বদলায় না,
+        তাই Approve-এর পথ (Row ID ধরে সারি খোঁজা) আগের মতোই কাজ করে। */
+  var __body=String((b&&b.message)||'').split('\n').filter(function(l){
+    var t=String(l||'').trim().toLowerCase();
+    return !(t.indexOf('type :')===0||t.indexOf('patient id :')===0||t.indexOf('row id :')===0);
+  }).join('\n').trim();
+  return '<p>'+esc(__body)+'</p>';
 }
 window["wlv1BriefBody"]=wlv1BriefBody;
 /* ══════════════════════════════════════════════════════════════════════════
@@ -24942,7 +24950,9 @@ async function wlv1DeleteDraftEntryImpl(table, recId, mobile, branch, entryDate,
       // স্তরের সুরক্ষা হিসেবে এখানে চুপচাপ থেমে যায় (কিছুই মোছে না)।
       if(noConfirm) return false;
       if(!confirm(label+'\n\n⛔ Nothing will be deleted right now.\nThe request goes to Master\'s bell; it will be deleted only after Master approves.\n\nঅনুরোধ পাঠাব?')) return;
-      var req={id:uid('brief'),date:today(),title:'🗑️ Delete request — '+label,
+      /* 🟢🔒 V1134 (TK-নির্দেশ, ফোনের হুবহু যমজ) — শিরোনামেই **কী মোছা হবে**।
+         ⛔ "delete request" শব্দ দুটো অটুট, তাই চেনার নিয়ম আগের মতোই চলে। */
+      var req={id:uid('brief'),date:today(),title:'🗑️ '+(table==='enquiries'?'Enquiry':'Patient')+' delete request — '+label,
         message:'Delete permission request\nType : '+(table==='enquiries'?'Enquiry':'Patient')+
                  '\nName : '+(row.name||'')+'\nMobile : '+normMob(mm)+
                  '\nPatient ID : '+(row.patientId||'')+'\nBranch : '+(row.branch||'')+
@@ -25766,10 +25776,12 @@ async function wlv1DeletePaymentImpl(payId){
 
     if(!wlv1CanDeletePaymentNow(row, true) && !wlv1IsBackdateGranted(String(row.date||'').slice(0,10))){
       if(!confirm(amtT+' ('+label+')\n\n⛔ Nothing will be deleted right now.\nThe request goes to Master\'s bell; it will be deleted only after Master approves.\n\nঅনুরোধ পাঠাব?')) return;
-      var req={id:uid('brief'),date:today(),title:'🗑️ Delete request — '+(row.name||normMob(row.mobile||'')),
+      /* 🟢🔒 V1134 — শিরোনামে "Payment", আর কোন **তারিখের** টাকা সেটাও (TK-নির্দেশ)। */
+      var req={id:uid('brief'),date:today(),title:'🗑️ Payment delete request — '+(row.name||normMob(row.mobile||'')),
         message:'Delete permission request\nType : Payment\nName : '+(row.name||'')+'\nMobile : '+normMob(row.mobile||'')+
                 '\nPatient ID : '+(row.patientCode||'')+'\nBranch : '+(row.branch||'')+'\nRow ID : '+row.id+
-                '\nRequested by : '+(codeName(user&&user.mobile)||'')+'\nReason : '+amtT+' ('+label+')',
+                '\nRequested by : '+(codeName(user&&user.mobile)||'')+
+                '\nPayment : '+wlv1Dot(String(row.date||'').slice(0,10))+' · '+amtT+' ('+label+')',
         targets:{roles:['master']},branch:row.branch||'',seen:[],replies:[],
         createdBy:(user&&user.mobile)||'',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
       add('briefings',req);

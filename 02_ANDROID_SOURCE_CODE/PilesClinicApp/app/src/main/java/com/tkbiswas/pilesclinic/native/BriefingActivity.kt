@@ -66,6 +66,7 @@ class BriefingActivity : AppCompatActivity() {
             // 🔒 খাতার সারি B100 (TK, 29.07.2026 রাত ১১.১০): মাস্টার এখান থেকেই
             // এক চাপে স্টাফের ডিলিট-অনুরোধ অনুমোদন করতে পারবেন।
             onApproveDelete = { confirmApproveDelete(it) },
+            onReject = { confirmReject(it) },   // 🟢 V1134 — TK: "আমি অনুমতি না দিলে কোনটা চাপব?"
             // 🔴 B281 (02.08.2026, TK-রিপোর্ট): Refund request নোটিশ থেকেই
             // সরাসরি Approve/Reject করা যাবে, আলাদা ড্রপডাউন খুঁজতে হবে না।
             onApproveRefund = { confirmApproveRefund(it) },
@@ -2113,6 +2114,47 @@ class BriefingActivity : AppCompatActivity() {
             }
             onDone()
         }
+    }
+
+    /* 🟢🔒 V1134 (০৬.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — TK: *"আমি যদি অনুমতি
+       না দেই, অর্থাৎ এপ্রুভ না করি, তাহলে আমাকে কোনটা চাপতে হবে?"*
+
+       আগে "না" বলার কোনো বোতামই ছিল না — Close চাপলে শুধু নোটিশটা বোর্ড থেকে
+       সরত, আর স্টাফ জানতেই পারতেন না মাস্টার রাজি হননি।
+
+       ⇒ এখন **Reject**: টাকা/রেকর্ড কিচ্ছু মোছে না, স্টাফের কাছে উত্তর যায়
+         (অ্যাপের নিজের প্রমাণিত রিপ্লাই-পথেই — নতুন টেবিল বা SQL লাগে না),
+         তারপর অনুরোধটা বোর্ড থেকে সরে যায়।
+       ⛔ উত্তর পাঠানো না গেলে অনুরোধটা **সরানো হয় না** — নইলে স্টাফ কিছু
+          না জেনেই অপেক্ষা করতেন। */
+    private fun confirmReject(item: Briefing) {
+        AlertDialog.Builder(this)
+            .setCustomTitle(PremiumAlert.header(this, "Reject this request?"))
+            .setMessage(
+                item.title.ifBlank { "Request" } +
+                "\n\n\u26d4 Nothing will be deleted. The staff who asked will be told it was rejected."
+            )
+            .setPositiveButton("Reject") { _, _ ->
+                lifecycleScope.launch {
+                    val ok = withContext(Dispatchers.IO) {
+                        try {
+                            val told = repository.addReply(
+                                this@BriefingActivity, item.id,
+                                "Rejected by Master \u2014 nothing was deleted.", user.mobile
+                            )
+                            if (told) repository.deleteOrHide(item.id, user) else false
+                        } catch (_: Throwable) { false }
+                    }
+                    Toast.makeText(
+                        this@BriefingActivity,
+                        if (ok) "Rejected" else "Failed \u2014 check connection",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    if (ok) loadList()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show().also { PremiumAlert.paint(it) }
     }
 
     private fun confirmDelete(item: Briefing) {

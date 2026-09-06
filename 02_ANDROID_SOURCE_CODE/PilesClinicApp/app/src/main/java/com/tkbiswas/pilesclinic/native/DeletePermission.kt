@@ -143,7 +143,12 @@ object DeletePermission {
         // অনুরোধে যায়, যাতে Master এক নজরেই বুঝতে পারেন কোন রোগী। ডিফল্ট
         // ফাঁকা, তাই disease না পাঠানো পুরনো caller-দের কোনো ক্ষতি হয় না —
         // ফাঁকা হলে সেই লাইনটা শুধু বসেই না।
-        disease: String = ""
+        disease: String = "",
+        /* 🟢🔒 V1134 (০৬.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — TK: *"কত তারিখের
+           পেমেন্ট ডিলিট করতে চাইছে সেটা তো দেখাতে হবে"*। সারিটার নিজের তারিখ
+           (yyyy-MM-dd)। ফাঁকা হলে লাইনটা আগের মতোই "Reason :" থাকে, তাই পুরনো
+           caller-দের কিছু বদলায় না। */
+        entryDate: String = ""
     ): Boolean {
         return try {
             val who = StaffDirectory.findAccount(user.mobile)?.name ?: user.mobile
@@ -157,10 +162,24 @@ object DeletePermission {
             if (branch.isNotBlank()) sb.append("Branch : ").append(branch).append("\n")
             if (rowId.isNotBlank()) sb.append("Row ID : ").append(rowId).append("\n")
             sb.append("Requested by : ").append(who).append("\n")
-            if (reason.isNotBlank()) sb.append("Reason : ").append(reason).append("\n")
+            /* 🟢 V1134 — টাকার সারির ক্ষেত্রে **তারিখ ও অঙ্ক এক লাইনে**।
+               ⛔ তারিখ না পাঠালে আগের "Reason :" লাইনই হুবহু থাকে। */
+            if (reason.isNotBlank()) {
+                if (entryDate.isNotBlank())
+                    sb.append(what.ifBlank { "Entry" }).append(" : ")
+                        .append(DateUtil.display(entryDate)).append(" \u00b7 ").append(reason).append("\n")
+                else sb.append("Reason : ").append(reason).append("\n")
+            }
             BriefingRepository().post(
                 context,
-                "🗑️ Delete request — " + name.ifBlank { mobile },
+                /* 🟢🔒 V1134 (TK-রিপোর্ট): *"Delete request — BASANTI ROY —
+                   এখানে মনে হচ্ছে পেশেন্টটাকে ডিলিট করবে, কিন্তু এখানে তো পেমেন্ট
+                   ডিলিট করার কথা"*। ⇒ শিরোনামেই এখন **কী মোছা হবে** লেখা থাকে
+                   ("Payment delete request — …" · "Patient delete request — …")।
+                   ⛔ "delete request" শব্দ দুটো অটুট — Briefing-এর চেনার নিয়ম
+                      (`title.contains("Delete request", ignoreCase = true)`) ও
+                      একসাথে-অনুমোদনের ছাঁকনি আগের মতোই কাজ করে। */
+                "🗑️ " + what.ifBlank { "Record" } + " delete request — " + name.ifBlank { mobile },
                 sb.toString(),
                 "role",
                 branch,
