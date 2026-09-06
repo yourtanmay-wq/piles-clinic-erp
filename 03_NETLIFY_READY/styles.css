@@ -8263,3 +8263,59 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
 .nbPhone{font-size:14px;font-weight:600;color:#1A73E8;text-decoration:underline;margin-left:8px}
 .nbId{font-size:13px;color:#7A8791;margin-top:3px}
 .nbId b{font-weight:600;color:#3F4B54}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   🟢🔒 V1126 (০৫.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — ওয়েবের Report Card ছাপা
+   এখন ফোনের V1125-এর হুবহু যমজ: পুরো A4, ঠিক ১ পাতা, নিচে TK BISWAS ·
+   বারকোড · Dr. K.H MANDAL · সবুজ ফিতে — পাতার একদম নিচেই স্থির।
+   ⛔ পর্দায় কিছুই বদলায়নি — জলছবি ও নিচের অংশ পর্দায় লুকানো, শুধু ছাপায় ওঠে।
+   ⛔ টাকার একটাও হিসাব বা সারি ছোঁয়া হয়নি।
+   ═══════════════════════════════════════════════════════════════════════ */
+.wlv1RcWm,.wlv1RcDocLine,.wlv1RcThanks,.wlv1RcSp{display:none}
+.wlv1RcRepTitle{text-align:center;font-weight:900;font-size:12px;letter-spacing:.4px;
+                color:#0B2B59;margin:12px 2px 0}
+
+@media print{
+  @page{size:A4;margin:0}
+  /* 🔴 যাচাই করে ধরা: উপরের একটা পুরনো নিয়ম ছাপার সময় `.wrap` পুরোটাই লুকিয়ে দেয়
+     (ওয়েবের অন্য কাগজগুলো `.printArea` দিয়ে ছাপে)। তাই Report Card-এর Print
+     বোতামে **ফাঁকা পাতা** বেরোত। এখানে শুধু **Report Card খোলা থাকলেই**
+     (`:has(.wlv1RcCard)`) মোড়কটা আবার দেখানো হয় — অন্য কোনো পর্দার ছাপা এক
+     অক্ষরও বদলায় না। */
+  body:has(.wlv1RcCard) .wrap{display:block!important;max-width:none!important;padding:0!important;margin:0!important}
+  body:has(.wlv1RcCard) .page{padding:0!important;margin:0!important}
+  .wlv1Rc .noPrint,.wlv1RcTop{display:none!important}
+  .wlv1Rc{margin:0;padding:0}
+  .wlv1Rc .wlv1RcCard{position:relative;box-shadow:none;border:0;border-radius:0;
+    width:210mm;min-height:294mm;margin:0!important;padding:9mm 9mm 7mm;
+    display:flex;flex-direction:column;background:#fff}
+  .wlv1RcWm{display:block;position:absolute;top:52%;left:50%;width:86%;
+    transform:translate(-50%,-50%);opacity:.035;z-index:0;pointer-events:none}
+  /* ⚠️ জলছবিটা বাদ — নইলে সে প্রবাহে ঢুকে পড়ে আর কাগজের মাঝে বিরাট ফাঁক
+     তৈরি করে (পরীক্ষা করে ধরা, তাতে পাতাও দুটো হয়ে যাচ্ছিল)। */
+  .wlv1RcCard>*:not(.wlv1RcWm){position:relative;z-index:1}
+  .wlv1RcPaid{min-width:74px}
+  .wlv1RcDue{min-width:74px}
+  .wlv1RcClinic{text-align:center}
+  .wlv1RcName{font-size:19px}
+  .wlv1RcLine small{width:74px;font-size:10px}
+  .wlv1RcLine b{font-size:12.5px}
+  .wlv1RcBox b{font-size:17px}
+  .wlv1RcRepTitle{font-size:14px;margin:10px 2px 6px}
+  .wlv1RcTable{border-radius:8px}
+  .wlv1RcRow{padding:9px 8px}
+  .wlv1RcSp{display:block;flex:1}
+  .wlv1RcDocLine{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10mm;
+    margin:8mm 2mm 0;align-items:end}
+  .wlv1RcDocLine>div{border-top:1px solid #10223A;padding-top:2mm}
+  .wlv1RcDocLine b{font-size:12px;font-weight:900;color:#0B2B59}
+  .wlv1RcDocLine small{display:block;font-size:9px;color:#5B6B81;margin-top:1px}
+  .wlv1RcDocLine .dl{text-align:left}
+  .wlv1RcDocLine .dr{text-align:right}
+  .wlv1RcDocLine .vc{border-top:0;text-align:center;padding-top:0}
+  .wlv1RcDocLine .vc b{display:block;font-size:9px;color:#0B5D2A;margin-top:1mm}
+  .wlv1RcDocLine .vbar{height:9mm;width:32mm;margin:0 auto;
+    background:repeating-linear-gradient(90deg,#000 0,#000 .55mm,#fff .55mm,#fff 1.1mm)}
+  .wlv1RcThanks{display:block;margin-top:4mm;background:#0B5D2A;color:#fff;text-align:center;
+    font-weight:800;font-size:9px;padding:2mm 0;border-radius:4px}
+}

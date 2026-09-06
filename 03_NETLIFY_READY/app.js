@@ -21913,13 +21913,14 @@ function wlv1ReportCard(idOrMobile){
     <div class="card wlv1RcCard">
       <div class="wlv1RcClinic"><b>${esc(clinicPrintTitle(p))}</b>
         <span>${esc(branch(p.branch).address||'')} · Mob: ${esc(normMob(branch(p.branch).mobile||''))}</span></div>
+      <img class="wlv1RcWm" alt="" src="${(p.branch==='Kishanganj')?'assets/kishanganj-final-logo.jpg':'assets/maa-ayurved-final-logo.jpg'}">
       <div class="wlv1RcPatientRow">
         ${p.photo?`<img class="wlv1RcPhoto" src="${p.photo}">`:`<div class="wlv1RcPhoto blank">👤</div>`}
         <div class="wlv1RcPatientInfo">
           <div class="wlv1RcName">${esc(String(p.name||p.mobile).toUpperCase())}</div>
           <div class="wlv1RcCols">
-            <div>${line('AGE',p.age)}${line('ID',p.patientId)}${line('MOB','+91'+mob(p.mobile))}</div>
-            <div>${line('DATE',fmtDate(today()))}${line('SEX',p.sex)}${line('DISEASE',p.disease)}${line('ADDRESS',addr)}</div>
+            <div>${line('AGE',p.age)}${line('SEX',p.sex)}${line('ID',p.patientId)}${line('DISEASE',p.disease)}</div>
+            <div>${line('DATE',fmtDate(today()))}${line('MOB','+91'+mob(p.mobile))}${line('ADDRESS',addr)}</div>
           </div>
         </div>
       </div>
@@ -21928,12 +21929,20 @@ function wlv1ReportCard(idOrMobile){
         <div class="wlv1RcBox green"><small>PAID</small><b>${money(t.paid)}</b></div>
         <div class="wlv1RcBox red"><small>DUE</small><b>${t.bill>0?money(t.due):money(0)}</b></div>
       </div>
+      <div class="wlv1RcRepTitle">VISIT &middot; TREATMENT PROGRESS &amp; PAYMENT RECORD</div>
       <div class="wlv1RcTable">
         <div class="wlv1RcRow wlv1RcHead"><div class="wlv1RcVisit">VISIT</div><div class="wlv1RcDate">DATE</div>
           <div class="wlv1RcProg">PROGRESS</div><div class="wlv1RcPaid">PAID</div>
           <div class="wlv1RcDue">DUE</div></div>
         ${body}
       </div>
+      <div class="wlv1RcSp"></div>
+      <div class="wlv1RcDocLine">
+        <div class="dl"><b>TK BISWAS</b><small>Founder &amp; Consultant</small></div>
+        <div class="vc"><div class="vbar"></div><b>Document Digitally Verified</b></div>
+        <div class="dr"><b>Dr. K.H MANDAL</b><small>(B.A.M.S) Regd 12386</small></div>
+      </div>
+      <div class="wlv1RcThanks">All treatments are Ayurvedic &amp; Natural &nbsp;|&nbsp; Bring this report on your next visit &nbsp;|&nbsp; <b>In an emergency, visit your nearest hospital immediately</b></div>
     </div></div>`, true);
   setTimeout(function(){
     try{
