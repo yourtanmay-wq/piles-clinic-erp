@@ -119,3 +119,16 @@ notify pgrst, 'reload schema';
 -- ── যাচাই — সারিটা ঠিকঠাক বসল কিনা ───────────────────────────────────────
 select person_code, full_name, link_mobile, branch, role_kind, active
 from hr.staff_profiles where person_code = 'KNE-KISHAN10';
+
+
+-- ── বেতন (TK-নিশ্চিত ০৬.০৯.২০২৬): ₹৭,০০০ · প্রতি মাসের ৬ তারিখে ──────────
+insert into hr.salary_config(person_code, salary_enabled, salary_amount, salary_date, updated_by, updated_at)
+values ('KNE-KISHAN10', true, 7000, '6', 'MASTER', now())
+on conflict (person_code) do update set
+  salary_enabled = excluded.salary_enabled,
+  salary_amount  = excluded.salary_amount,
+  salary_date    = excluded.salary_date,
+  updated_by     = excluded.updated_by,
+  updated_at     = now();
+
+notify pgrst, 'reload schema';
