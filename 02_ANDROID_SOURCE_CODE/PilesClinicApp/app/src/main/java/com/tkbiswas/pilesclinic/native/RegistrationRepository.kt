@@ -448,6 +448,45 @@ class RegistrationRepository(private val context: Context) {
 
         Thread {
             try {
+                /* ═══════════════════════════════════════════════════════════
+                   🔴🔒 V1122 (০৫.০৯.২০২৬, TK-অনুমোদিত — "হ্যাঁ করুন, সাবধানে")
+                   TK: *"ভিজিট ফি যখন বাধ্যতামূলক, তখন আমি এই ধরনের নোটিফিকেশন
+                   কেন মেনে নেব"* — কথাটা ঠিক, তাই এবার ফাঁকটাই বন্ধ।
+
+                   🔴 প্রমাণিত কারণ: উপরের তিনটে সারি **আলাদা আলাদা তিনটে
+                   অনুরোধে** যেত (payments সবার শেষে)। মাঝপথে লাইন কাটলে প্রথম
+                   দুটো বসে যেত আর ফি-র সারিটা শুধু **এই ফোনের** জমা-ঘরে পড়ে
+                   থাকত — ওই ফোন পরে ফ্লাশ না করলে সারিটা চিরতরে হারাত, অথচ
+                   রোগী ক্লাউডে বসেই থাকত। (কোডের নিজের পুরনো মন্তব্যেই লেখা
+                   ছিল: *"If the line dies half-way, whichever rows were sent
+                   first are the ones that exist."*)
+
+                   ⇒ নতুন রেজিস্ট্রেশনে এখন **একটাই অনুরোধে** তিনটে সারি একসাথে
+                     বসে (সার্ভারের নিজের লেনদেন) — একটায় গোলমাল হলে তিনটেরই
+                     কিছু বসে না।
+
+                   ⛔ **এটা কেবল বাড়তি একটা চেষ্টা** — না চললে (SQL ফাংশনটা এখনো
+                      চালানো হয়নি · নেট নেই · সারিটা আগে থেকেই আছে) নিচের
+                      পুরনো, প্রমাণিত পথটাই আগের মতোই চলে। কিচ্ছু ভাঙে না।
+                   ⛔ শুধু **নতুন** রেজিস্ট্রেশনে (`existingRowIdSafe` ফাঁকা) —
+                      "Update Existing"-এ পুরনো পথই, তাই দুবার ফি কাটার পথ নেই।
+                   ⛔ সফল হলে ওই তিনটে সারি জমা-ঘর থেকে তুলে নেওয়া হয়, নইলে
+                      পরের ফ্লাশে আবার পাঠানো হত (একই আইডি, তাই ক্ষতি হত না)।
+                   ═══════════════════════════════════════════════════════════ */
+                var atomicOk = false
+                if (existingRowIdSafe.isBlank()) {
+                    atomicOk = try {
+                        SupabaseClient.registerAtomic(patientRow, visitFollowUpRow, paymentRow)
+                    } catch (_: Throwable) { false }
+                    if (atomicOk) {
+                        try { dropBatchFromQueue(batchId) } catch (_: Throwable) { }
+                        try {
+                            localStore.upsertFollowUp(visitFollowUpRow, "SYNCED")
+                            localStore.upsertPatient(patientRow, "SYNCED")
+                            if (paymentRow != null) localStore.upsertPayment(paymentRow, "SYNCED")
+                        } catch (_: Throwable) { }
+                    }
+                }
                 flushPending()
                 if (loadPendingQueue().length() == 0) {
                     localStore.upsertFollowUp(visitFollowUpRow, "SYNCED")
@@ -636,6 +675,21 @@ class RegistrationRepository(private val context: Context) {
      * retried later if the very first attempt (in save() above) doesn't
      * reach the cloud. Safe to run more than once -- closeSourceEnquiry()
      * just re-writes the same "Registered/Closed" state either way. */
+    /** 🟢 V1122 — এক লেনদেনে বসে যাওয়া সারিগুলো জমা-ঘর থেকে তুলে নেওয়া।
+     *  ⛔ ব্যাচের চিহ্ন ধরে, তাই ওই রেজিস্ট্রেশনের সারিগুলোই ওঠে, আর কারো নয়। */
+    private fun dropBatchFromQueue(batch: String) {
+        if (batch.isBlank()) return
+        synchronized(LOCK) {
+            val queue = loadPendingQueue()
+            val next = org.json.JSONArray()
+            for (i in 0 until queue.length()) {
+                val e = queue.optJSONObject(i) ?: continue
+                if (e.optString("batch", "") != batch) next.put(e)
+            }
+            savePendingQueue(next)
+        }
+    }
+
     private fun queueCloseIntent(mobileDigitsOnly: String, patientId: String) {
         synchronized(LOCK) {
         val queue = loadCloseQueue()

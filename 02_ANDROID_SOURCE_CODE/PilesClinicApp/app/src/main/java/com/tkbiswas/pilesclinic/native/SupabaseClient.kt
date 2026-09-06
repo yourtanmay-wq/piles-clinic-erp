@@ -344,6 +344,43 @@ object SupabaseClient {
      * Returning the canonical row is important on a fresh/reinstalled phone,
      * where local cache may not yet know that today's payment already exists.
      */
+    /* ═══════════════════════════════════════════════════════════════════
+       🔴🔒 V1122 (০৫.০৯.২০২৬, TK-অনুমোদিত — "হ্যাঁ করুন, সাবধানে")
+       TK: *"ভিজিট ফি যখন বাধ্যতামূলক, তখন আমি এই ধরনের নোটিফিকেশন কেন মেনে নেব"*
+
+       🔴 প্রমাণিত কারণ: রেজিস্ট্রেশনের তিনটে সারি (followups · patients ·
+       payments) **আলাদা আলাদা তিনটে অনুরোধে** যেত, payments সবার শেষে। মাঝপথে
+       লাইন কাটলে প্রথম দুটো বসে যেত আর ফি-র সারিটা ফোনের জমা-ঘরে পড়ে থাকত —
+       ওই ফোন পরে ফ্লাশ না করলে (অ্যাপ আবার বসানো · ডেটা মুছে যাওয়া · ফোন বদল)
+       সারিটা চিরতরে হারাত, অথচ রোগী ক্লাউডে বসেই থাকত।
+
+       ⇒ এখন **একটাই অনুরোধ** — সার্ভারের নিজের লেনদেনে তিনটে সারি একসাথে বসে।
+         একটায় গোলমাল হলে তিনটেরই কিছু বসে না, তাই "রোগী আছে, ফি নেই" অবস্থাটা
+         আর তৈরিই হতে পারে না।
+
+       ⛔ **ব্যর্থ হলে কিছুই ভাঙে না** — `false` ফেরে, আর ডাকনেওয়ালা তার পুরনো
+          প্রমাণিত পথেই (তিনটে আলাদা সারি + জমা-ঘর) সেভ করে। SQL ফাংশনটা
+          চালানোর আগেও অ্যাপ হুবহু আগের মতোই চলবে।
+       ⛔ নেট না থাকলে আগের মতোই ফোনে জমা থাকে — কিছুই হারায় না।
+       ⛔ Egress: তিনটে অনুরোধের বদলে একটা ⇒ খরচ বাড়ে না, কমে।
+       ⛔ চালু `recordTreatmentPayment()`-এর হুবহু একই ধাঁচ — নতুন কিছু বানানো হয়নি। */
+    fun registerAtomic(patient: JSONObject, followUp: JSONObject, payment: JSONObject?): Boolean {
+        return try {
+            val body = JSONObject()
+                .put("p_patient", patient)
+                .put("p_followup", followUp)
+                .put("p_payment", payment ?: JSONObject.NULL)
+            val request = Request.Builder()
+                .url("$URL/rest/v1/rpc/tk_register_patient")
+                .addHeader("apikey", KEY)
+                .addHeader("Authorization", "Bearer $KEY")
+                .addHeader("Content-Type", "application/json")
+                .post(body.toString().toRequestBody(jsonMedia))
+                .build()
+            writeHttp.newCall(request).execute().use { resp -> resp.isSuccessful }
+        } catch (_: Throwable) { false }
+    }
+
     fun recordTreatmentPayment(row: JSONObject): JSONObject? {
         return try {
             val body = JSONObject().put("p_row", row)
