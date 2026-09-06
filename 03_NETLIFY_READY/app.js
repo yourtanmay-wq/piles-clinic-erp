@@ -5935,7 +5935,7 @@ function enquiryFormDesk(){
    +'<div class="rdSecHead"><span class="rdIco">👤</span>Contact &amp; Branch</div>'
    +'<div class="rdGrid2">'
      +'<div class="rdF">'+lbl('Enquiry Date',1)+'<div class="wlv1DateBox input"><span id="eDateShow">'+wlv1Dot(today())+'</span><input id="eDate" type="date" value="'+today()+'" max="'+today()+'" oninput="wlv1ShowDate(\'eDate\',\'eDateShow\')"></div></div>'
-     +'<div class="rdF">'+lbl('Branch',1)+'<select id="eBranch" class="input" onchange="eqSummary()"><option value="" hidden selected>Select Branch</option>'+branchOptions('')+'</select></div>'
+     +'<div class="rdF">'+lbl('Branch',1)+'<select id="eBranch" class="input" onchange="eqSummary();wlv1EnqBranchChanged()"><option value="" hidden selected>Select Branch</option>'+branchOptions('')+'</select></div>'
      +'<div class="rdF">'+lbl('Patient Name',0)+'<input id="eName" class="input" placeholder="Enter patient name" oninput="wlv1Caps(this);eqSummary()"></div>'
      +'<div class="rdF">'+lbl('Mobile Number',1)+'<div class="eqMobWrap"><span class="eqMobPre">+91</span><input id="eMob" class="input" inputmode="tel" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" placeholder="Enter mobile number" oninput="eqSummary()"></div><span id="eMobPrefix" class="mobPrefixBadge hidden">+91</span><div class="rdHint">Duplicate number will be checked automatically.</div><div id="eMobDupBox"></div></div>'
    +'</div>'
@@ -6024,7 +6024,7 @@ window["eqSummary"]=eqSummary;
 function enquiryForm(){
  /* 📞 V1024 — চওড়া কম্পিউটার-পর্দায় নতুন সাজ; ফোনে আগের ফর্মই। */
  if(typeof wlv1DeskWide==='function' && wlv1DeskWide()){ return enquiryFormDesk() }
- page('New Enquiry',`<div class="card enquiryCard wlv1Form"><div class="regSection"><label class="enqLabel"><span class="enqIco">📞</span>Mobile <b class="wlv1Star">*</b></label><input id="eMob" class="input enqInput" inputmode="tel" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" placeholder="Enter Mobile Number"><span id="eMobPrefix" class="mobPrefixBadge hidden">+91</span><div id="eMobDupBox"></div><label class="enqLabel"><span class="enqIco">👤</span>Name</label><input id="eName" class="input enqInput" oninput="wlv1Caps(this)"><label class="enqLabel"><span class="enqIco">⏰</span>Date</label><div class="wlv1DateBox input enqInput"><span id="eDateShow">${wlv1Dot(today())}</span><input id="eDate" type="date" value="${today()}" max="${today()}" oninput="wlv1ShowDate('eDate','eDateShow')"></div><label class="enqLabel"><span class="enqIco">🏥</span>Branch <b class="wlv1Star">*</b></label><select id="eBranch" class="input enqInput"><option value="" hidden selected>Select Branch</option>${branchOptions('')}</select><label class="enqLabel"><span class="enqIco">🩺</span>Disease <b class="wlv1Star">*</b></label><div id="eDisRow" class="wlv1PickRow" data-wlv1group="dis"><button type="button" class="wlv1Pick" data-val="Piles" onclick="wlv1PickMany('dis','Piles','eDis')">🩸 Piles</button><button type="button" class="wlv1Pick" data-val="Fissure" onclick="wlv1PickMany('dis','Fissure','eDis')">✂️ Fissure</button><button type="button" class="wlv1Pick" data-val="Fistula" onclick="wlv1PickMany('dis','Fistula','eDis')">🔄 Fistula</button><button type="button" class="wlv1Pick" data-val="Hydrocele" onclick="wlv1PickMany('dis','Hydrocele','eDis')">💧 Hydrocele</button><button type="button" class="wlv1Pick" data-val="Gupt Rog" onclick="wlv1PickMany('dis','Gupt Rog','eDis')">🛡️ Gupt Rog</button><button type="button" class="wlv1Pick" data-val="Other" onclick="wlv1PickMany('dis','Other','eDis')">📋 Other</button></div><input id="eDis" type="hidden" value=""></div><div class="regSection"><label class="enqLabel"><span class="enqIco">🩺</span>Referred By</label><select id="eRefBy" class="input" onchange="wlv1EnqRefToggle()"><option>Self</option><option>Online</option><option>Offline</option><option>Dr. Visit</option><option>Old Patient</option><option>Others</option></select><div id="eRefDocBox" style="display:none;margin-top:8px"><label class="enqLabel"><span class="enqIco">👨‍⚕️</span>Doctor / RMP Name</label><input id="eRefDoctor" class="input" placeholder="Who sent this patient" oninput="wlv1Caps(this)"></div><div id="eRefMobBox" style="display:none;margin-top:8px"><label class="enqLabel"><span class="enqIco">📞</span>Doctor / RMP Mobile</label><input id="eRefDoctorMobile" class="input" inputmode="numeric" maxlength="10" placeholder="10-digit number"></div></div><div class="regSection"><label class="enqLabel"><span class="enqIco">📍</span>Address</label><textarea id="eAddr" class="enqInput" rows="1" oninput="wlv1Caps(this);wlv1AutoGrow(this)"></textarea><label class="enqLabel"><span class="enqIco">📝</span>Remarks <b class="wlv1Star">*</b></label><textarea id="eRem" class="enqInput" rows="1" oninput="wlv1Caps(this);wlv1AutoGrow(this)"></textarea><label class="enqLabel"><span class="enqIco">🎧</span>Call Received By</label><div id="eStaffDisplay" class="input enqInput" style="cursor:pointer" onclick="eStaffTripleTap()">${esc(codeName(user.mobile))}</div><select id="eStaff" class="input enqInput hidden" style="display:none">${callReceivedOptions(user.mobile)}</select><label class="enqLabel"><span class="enqIco">⏱️</span>Call Timing</label><div class="wlv1PickRow wlv1Pick2" data-wlv1group="time"><button type="button" class="wlv1Pick on" data-val="Official Time" onclick="wlv1PickOne('time','Official Time','eTime')">Official Time</button><button type="button" class="wlv1Pick" data-val="Unexpected Time" onclick="wlv1AskUnexpected()">Unexpected Time</button></div><input id="eTime" type="hidden" value="Official Time"><label class="enqLabel"><span class="enqIco">⏰</span>Next Follow-up Date <b class="wlv1Star">*</b></label><div id="eNextBox" class="wlv1DateBox input enqInput"><span id="eNextShow">Tap to select (optional)</span><input id="eNext" type="date" min="${today()}" oninput="wlv1ShowDate('eNext','eNextShow')"></div></div><button onclick="saveEnq()">Save Enquiry</button></div>`,wlv1DeskWide());setTimeout(function(){try{wlv1PhTint('eBranch')}catch(e){}},0) }
+ page('New Enquiry',`<div class="card enquiryCard wlv1Form"><div class="regSection"><label class="enqLabel"><span class="enqIco">📞</span>Mobile <b class="wlv1Star">*</b></label><input id="eMob" class="input enqInput" inputmode="tel" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" placeholder="Enter Mobile Number"><span id="eMobPrefix" class="mobPrefixBadge hidden">+91</span><div id="eMobDupBox"></div><label class="enqLabel"><span class="enqIco">👤</span>Name</label><input id="eName" class="input enqInput" oninput="wlv1Caps(this)"><label class="enqLabel"><span class="enqIco">⏰</span>Date</label><div class="wlv1DateBox input enqInput"><span id="eDateShow">${wlv1Dot(today())}</span><input id="eDate" type="date" value="${today()}" max="${today()}" oninput="wlv1ShowDate('eDate','eDateShow')"></div><label class="enqLabel"><span class="enqIco">🏥</span>Branch <b class="wlv1Star">*</b></label><select id="eBranch" class="input enqInput" onchange="wlv1EnqBranchChanged()"><option value="" hidden selected>Select Branch</option>${branchOptions('')}</select><label class="enqLabel"><span class="enqIco">🩺</span>Disease <b class="wlv1Star">*</b></label><div id="eDisRow" class="wlv1PickRow" data-wlv1group="dis"><button type="button" class="wlv1Pick" data-val="Piles" onclick="wlv1PickMany('dis','Piles','eDis')">🩸 Piles</button><button type="button" class="wlv1Pick" data-val="Fissure" onclick="wlv1PickMany('dis','Fissure','eDis')">✂️ Fissure</button><button type="button" class="wlv1Pick" data-val="Fistula" onclick="wlv1PickMany('dis','Fistula','eDis')">🔄 Fistula</button><button type="button" class="wlv1Pick" data-val="Hydrocele" onclick="wlv1PickMany('dis','Hydrocele','eDis')">💧 Hydrocele</button><button type="button" class="wlv1Pick" data-val="Gupt Rog" onclick="wlv1PickMany('dis','Gupt Rog','eDis')">🛡️ Gupt Rog</button><button type="button" class="wlv1Pick" data-val="Other" onclick="wlv1PickMany('dis','Other','eDis')">📋 Other</button></div><input id="eDis" type="hidden" value=""></div><div class="regSection"><label class="enqLabel"><span class="enqIco">🩺</span>Referred By</label><select id="eRefBy" class="input" onchange="wlv1EnqRefToggle()"><option>Self</option><option>Online</option><option>Offline</option><option>Dr. Visit</option><option>Old Patient</option><option>Others</option></select><div id="eRefDocBox" style="display:none;margin-top:8px"><label class="enqLabel"><span class="enqIco">👨‍⚕️</span>Doctor / RMP Name</label><input id="eRefDoctor" class="input" placeholder="Who sent this patient" oninput="wlv1Caps(this);wlv1RmpSuggest(this.value)"></div><div id="eRefMobBox" style="display:none;margin-top:8px"><label class="enqLabel"><span class="enqIco">📞</span>Doctor / RMP Mobile</label><input id="eRefDoctorMobile" class="input" inputmode="numeric" maxlength="10" placeholder="10-digit number" oninput="wlv1RmpSuggest(this.value)"><div id="eRmpSug" class="wlv1RmpSug hidden"></div></div></div><div class="regSection"><label class="enqLabel"><span class="enqIco">📍</span>Address</label><textarea id="eAddr" class="enqInput" rows="1" oninput="wlv1Caps(this);wlv1AutoGrow(this)"></textarea><label class="enqLabel"><span class="enqIco">📝</span>Remarks <b class="wlv1Star">*</b></label><textarea id="eRem" class="enqInput" rows="1" oninput="wlv1Caps(this);wlv1AutoGrow(this)"></textarea><label class="enqLabel"><span class="enqIco">🎧</span>Call Received By</label><div id="eStaffDisplay" class="input enqInput" style="cursor:pointer" onclick="eStaffTripleTap()">${esc(codeName(user.mobile))}</div><select id="eStaff" class="input enqInput hidden" style="display:none">${callReceivedOptions(user.mobile)}</select><label class="enqLabel"><span class="enqIco">⏱️</span>Call Timing</label><div class="wlv1PickRow wlv1Pick2" data-wlv1group="time"><button type="button" class="wlv1Pick on" data-val="Official Time" onclick="wlv1PickOne('time','Official Time','eTime')">Official Time</button><button type="button" class="wlv1Pick" data-val="Unexpected Time" onclick="wlv1AskUnexpected()">Unexpected Time</button></div><input id="eTime" type="hidden" value="Official Time"><label class="enqLabel"><span class="enqIco">⏰</span>Next Follow-up Date <b class="wlv1Star">*</b></label><div id="eNextBox" class="wlv1DateBox input enqInput"><span id="eNextShow">Tap to select (optional)</span><input id="eNext" type="date" min="${today()}" oninput="wlv1ShowDate('eNext','eNextShow')"></div></div><button onclick="saveEnq()">Save Enquiry</button></div>`,wlv1DeskWide());setTimeout(function(){try{wlv1PhTint('eBranch')}catch(e){}},0) }
 window["enquiryForm"]=enquiryForm;
 async function initCloudClientOnly(){
  // V221 real save fix: create Supabase client without doing an immediate pull/reset.
@@ -9202,12 +9202,22 @@ window["wlv1RefByChanged"]=wlv1RefByChanged;
 /* V324 owner-approved: Registration RMP search uses only doctor_visits already
    present in the web app's local cache. No Supabase call is made here. Manual
    name/mobile entry remains below as a fail-safe. */
-function wlv1CachedRmpRows(q=''){
-  let term=String(q||'').trim().toLowerCase(), br=String(($('#pBranch')||{}).value||user?.branch||'').trim();
+/* 🟢🔒 V1132 (০৬.০৯.২০২৬, TK-অনুমোদিত) — ফর্মে যে ব্রাঞ্চ বাছা হয়েছে সেই
+   ব্রাঞ্চের RMP-ই দেখাবে (ফোনে হুবহু একই)। এনকোয়ারি ফর্মে ব্রাঞ্চের ঘরটা
+   `#eBranch` — আগে শুধু `#pBranch` দেখা হত, তাই ওখানে সবসময় স্টাফের নিজের
+   ব্রাঞ্চেই আটকে যেত, অন্য ব্রাঞ্চের RMP কখনো নামত না। */
+function wlv1RmpFormBranch(){
+  var el=$('#pBranch')||$('#eBranch');
+  return el?String(el.value||'').trim():'';
+}
+window["wlv1RmpFormBranch"]=wlv1RmpFormBranch;
+function wlv1CachedRmpRows(q='',brArg){
+  let term=String(q||'').trim().toLowerCase();
+  let br=String((brArg!==undefined&&brArg!==null)?brArg:(wlv1RmpFormBranch()||user?.branch||'')).trim();
   let __base=(load('doctor_visits')||[]);
   /* 🟢 V802 — আসল ঘরে কিছু না থাকলে RMP-বাছার নিজস্ব হালকা ঘরটা ব্যবহার হয়।
      ⛔ আসল ঘরে সারি থাকলে সেটাই চলে — Doctor Visit পর্দার কিছুই বদলায় না। */
-  if(!__base.length) __base=wlv1RmpDirRows();
+  if(!__base.length) __base=wlv1RmpDirRows(br);
   return __base.filter(x=>{
     if(String(x.status||'Active').toLowerCase()!=='active')return false;
     if(br&&br!=='All'&&x.branch&&String(x.branch).toLowerCase()!==br.toLowerCase())return false;
@@ -9230,7 +9240,7 @@ window["wlv1ChooseCachedRmp"]=wlv1ChooseCachedRmp;
    . নাম · মোবাইল · বিকল্প নম্বর · এলাকা · ব্রাঞ্চ — যেকোনোটাতে মিললেই আসে
    . সর্বোচ্চ ৬টা সারি
    . ঘর ফাঁকা থাকলে **একবারই** হালকা করে নামানো হয় (V802-এর একই পথ) */
-let wlv1RmpSugTried=false;
+let wlv1RmpSugTried={};   /* 🟢 V1132 — ব্রাঞ্চ ধরে ধরে, আগে একটাই ছিল */
 /* \u{1F469}\u{200D}\u{2695}\u{FE0F}\u{1F512} V1095 (\u09e6\u09eb.\u09e6\u09ef.\u09e8\u09e6\u09e8\u09ec, TK: *"All Branch Enquiry Form-\u098f RMP-\u098f\u09b0
    \u09a8\u09be\u09ae \u09b8\u09be\u099c\u09c7\u09b6\u09a8 \u0995\u09c7\u09a8 \u09a6\u09c7\u0996\u09be\u099a\u09cd\u099b\u09c7 \u09a8\u09be"*) \u2014 V1070-\u098f \u098f\u09a8\u0995\u09cb\u09df\u09be\u09b0\u09bf \u09ab\u09b0\u09cd\u09ae\u09c7
    \u0998\u09b0 \u09a6\u09c1\u099f\u09cb \u09ac\u09b8\u09c7\u099b\u09bf\u09b2, \u0995\u09bf\u09a8\u09cd\u09a4\u09c1 \u09b8\u09be\u099c\u09c7\u09b6\u09a8\u099f\u09be \u09b6\u09c1\u09a7\u09c1 \u09b0\u09c7\u099c\u09bf\u09b8\u09cd\u099f\u09cd\u09b0\u09c7\u09b6\u09a8\u09c7\u0987 \u099b\u09bf\u09b2 \u2014 \u0986\u09ae\u09be\u09b0\u0987 \u09ac\u09be\u09a6 \u09aa\u09dc\u09be\u0964
@@ -9245,15 +9255,34 @@ function wlv1RmpSugEls(){
 window["wlv1RmpSugEls"]=wlv1RmpSugEls;
 function wlv1RmpSugHide(){var b=wlv1RmpSugEls().box;if(b){b.innerHTML='';b.classList.add('hidden');}}
 window["wlv1RmpSugHide"]=wlv1RmpSugHide;
+/* 🟢 V1132 — এনকোয়ারি ফর্মে ব্রাঞ্চ বদলালে তালিকাটাও ওই ব্রাঞ্চের হয়ে যায়। */
+function wlv1EnqBranchChanged(){
+  try{
+    var e=wlv1RmpSugEls(); var n=(e.name||{}).value||'', m=(e.mob||{}).value||'';
+    var t=String(n).trim().length>=2?n:m;
+    if(String(t||'').trim().length>=2) wlv1RmpSuggest(t); else wlv1RmpSugHide();
+  }catch(_e){}
+}
+window["wlv1EnqBranchChanged"]=wlv1EnqBranchChanged;
 function wlv1RmpSuggest(typed){
   let box=wlv1RmpSugEls().box; if(!box) return;
   let q=String(typed||'').trim().toLowerCase();
   if(q.length<2){ wlv1RmpSugHide(); return; }
-  let rows=wlv1CachedRmpRows(q);
-  if(!rows.length && !wlv1RmpSugTried && !wlv1CachedRmpRows('').length){
-    wlv1RmpSugTried=true;
+  /* 🟢 V1132 — ব্রাঞ্চ না বাছলে কোন ব্রাঞ্চের RMP দেখাব সেটাই জানা নেই।
+     TK-এর সিদ্ধান্ত: তখন তালিকা নয়, শুধু "Select branch first" লেখা থাকবে —
+     নইলে এক RMP পাঁচ ব্রাঞ্চ থেকে পাঁচবার নামত। */
+  var __brEl=$('#pBranch')||$('#eBranch');
+  var __br=__brEl?String(__brEl.value||'').trim():'';
+  if(__brEl&&!__br){
+    box.innerHTML='<div class="wlv1RmpSugHead" style="color:#94721B">Select branch first</div>';
+    box.classList.remove('hidden'); return;
+  }
+  var __tk=__br||'All';
+  let rows=wlv1CachedRmpRows(q,__br);
+  if(!rows.length && !wlv1RmpSugTried[__tk] && !wlv1CachedRmpRows('',__br).length){
+    wlv1RmpSugTried[__tk]=true;
     /* একবারের হালকা পড়া — শেষে যা টাইপ করা আছে সেটা দিয়েই আবার দেখানো হয়। */
-    wlv1RmpDirFetch().then(function(got){ try{ if(got){
+    wlv1RmpDirFetch(__br).then(function(got){ try{ if(!got) delete wlv1RmpSugTried[__tk]; if(got){
       var __e=wlv1RmpSugEls(); let n=(__e.name||{}).value||'', m=(__e.mob||{}).value||'';
       wlv1RmpSuggest(String(n).trim().length>=2?n:m);
     } }catch(_e){} }).catch(function(){});
@@ -9290,17 +9319,29 @@ window["wlv1RmpSuggestPick"]=wlv1RmpSuggestPick;
       ঘরে (`wlv1RmpDir`) রাখা হয়। কারণ Doctor Visit পর্দা ওই আসল ঘরটাই পড়ে, আর
       সেখানে হালকা সারি ঢুকলে কার্ডে কল-সংখ্যা ০ ও Paid ₹0 দেখাত (V543-এর বাগ ফিরত)। */
 const WLV1_RMP_DIR_COLS='id,name,mobile,altMobiles,area,branch,status,updatedAt';
-let wlv1RmpDirTry=0;
-function wlv1RmpDirRows(){ try{ return JSON.parse(localStorage.getItem('wlv1RmpDir')||'[]')||[] }catch(_e){ return [] } }
-async function wlv1RmpDirFetch(){
-  let now=Date.now(); if(now-wlv1RmpDirTry<60000) return false; wlv1RmpDirTry=now;
+let wlv1RmpDirTry={};
+/* 🟢🔒 V1132 — এখন প্রতিটা ব্রাঞ্চের তালিকা **আলাদা ঘরে** জমা হয়।
+   আগে একটাই ঘর ছিল, তাই এক ব্রাঞ্চ নামালে আগেরটা মুছে যেত।
+   ⛔ পুরনো ঘরটাও আগের মতোই লেখা হয় — পুরনো ব্রাউজারে কিছু ভাঙে না। */
+function wlv1RmpDirKey(br){ br=String(br||'').trim(); return br&&br!=='All'?('wlv1RmpDir_'+br):'wlv1RmpDir'; }
+function wlv1RmpDirRows(br){
+  try{
+    let k=wlv1RmpDirKey(br), raw=localStorage.getItem(k);
+    if(!raw&&k!=='wlv1RmpDir') raw=localStorage.getItem('wlv1RmpDir');
+    return JSON.parse(raw||'[]')||[];
+  }catch(_e){ return [] }
+}
+async function wlv1RmpDirFetch(brArg){
+  let br=String((brArg!==undefined&&brArg!==null&&String(brArg).trim())?brArg:((($('#pBranch')||$('#eBranch')||{}).value)||user?.branch||'')).trim();
+  let now=Date.now(), tk=br||'All';
+  if(now-(wlv1RmpDirTry[tk]||0)<60000) return false; wlv1RmpDirTry[tk]=now;
   try{
     if(!sb) return false;
-    let br=String(($('#pBranch')||{}).value||user?.branch||'').trim();
     let q=sb.from('doctor_visits').select(WLV1_RMP_DIR_COLS).limit(2000);
     if(br&&br!=='All') q=q.eq('branch',br);
     let r=await q;
     if(r.error||!Array.isArray(r.data)) return false;
+    try{ localStorage.setItem(wlv1RmpDirKey(br),JSON.stringify(r.data)) }catch(_e){}
     try{ localStorage.setItem('wlv1RmpDir',JSON.stringify(r.data)) }catch(_e){}
     return r.data.length>0;
   }catch(_e){ return false }

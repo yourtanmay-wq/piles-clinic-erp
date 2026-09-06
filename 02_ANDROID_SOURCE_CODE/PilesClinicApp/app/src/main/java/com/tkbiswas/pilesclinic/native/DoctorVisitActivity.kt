@@ -381,16 +381,24 @@ class DoctorVisitActivity : AppCompatActivity() {
        ⇒ নিয়ম: রোগী যাবেন **তাঁর নিজের ব্রাঞ্চের** সারিতে; ওই নম্বরে ওই
          ব্রাঞ্চে কোনো সারি না থাকলে **আগের মতোই** একমাত্র সারিতেই থাকবেন।
        ⛔ ওই নম্বরে একটাই সারি থাকলে (আজকের ৯৯%) আচরণ এক অক্ষরও বদলায় না। */
+    /* 🔴🔒 V1132 (০৬.০৯.২০২৬, TK-নির্দেশ ও অনুমতি) — TK: *"যে ব্রাঞ্চ থেকে দেখা
+       হবে, সেই ব্রাঞ্চে ওই RMP কতজন পেশেন্ট পাঠিয়েছে সেটাই যেন দেখায়"* ·
+       *"তিনি যখন বীরপাড়ায় পেশেন্ট পাঠাবেন, বীরপাড়া ব্রাঞ্চে তাঁর নাম্বার সেভ
+       থাকতে হবে।"*
+
+       🔴 TK-এর ছবিতে ধরা: কোচবিহারের TK BISWAS কার্ডে ১৯ জন — যার ১৭ জনই
+       **ফালাকাটার**। কারণ V940-এর নিয়মটা কাজ করত **কেবল তখনই, যখন ওই নম্বরে
+       একাধিক ব্রাঞ্চে সারি থাকত এবং রোগীর ব্রাঞ্চেও একটা সারি থাকত**।
+
+       ⇒ এখন নিয়মটা সোজা: রোগী দেখাবেন **সেই RMP সারিতেই যার ব্রাঞ্চ রোগীর
+         ব্রাঞ্চের সঙ্গে মেলে**। মিল না থাকলে ওই কার্ডে ওঠেন না।
+       ⛔ দুটোর কোনো একটার ব্রাঞ্চ ফাঁকা হলে **আগের মতোই রাখা হয়** — না জেনে
+         কাউকে লুকানো হয় না, পুরনো সারি হারায় না। */
     private fun v940Belongs(patientBranch: String, docBranch: String, docMobile10: String): Boolean {
-        if (docMobile10.length != 10) return true
-        val branches = allItems
-            .filter { it.mobile.filter { c -> c.isDigit() }.takeLast(10) == docMobile10 }
-            .map { it.branch.trim() }.filter { it.isNotBlank() }.distinct()
-        if (branches.size <= 1) return true
         val pb = patientBranch.trim()
-        if (pb.isBlank()) return true
-        if (branches.none { it.equals(pb, ignoreCase = true) }) return true
-        return docBranch.trim().equals(pb, ignoreCase = true)
+        val db = docBranch.trim()
+        if (pb.isBlank() || db.isBlank()) return true
+        return db.equals(pb, ignoreCase = true)
     }
     private var currentFilter: String = "all"
     private var searchQuery: String = ""

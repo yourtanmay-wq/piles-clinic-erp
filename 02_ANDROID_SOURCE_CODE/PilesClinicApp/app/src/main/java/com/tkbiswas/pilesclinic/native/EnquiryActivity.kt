@@ -316,6 +316,31 @@ class EnquiryActivity : AppCompatActivity() {
        ═══════════════════════════════════════════════════════════════ */
     private var enqRmpMuted = false
 
+    /* 🟢🔒 V1132 (০৬.০৯.২০২৬, TK-অনুমোদিত) — TK: *"জলপাইগুড়ির স্টাফ কোচবিহারের
+       রোগীর জন্য RMP TK BISWAS বাছতে চাইছে, নাম-নম্বর সম্পূর্ণ দিয়েও সাজেস্ট
+       করছে না।"*
+       🔴 কারণ: তালিকাটা ছাঁকা হত **লগ-ইন করা স্টাফের নিজের ব্রাঞ্চ** ধরে।
+       ⇒ এখন **ফর্মে বাছা ব্রাঞ্চ** ধরে চলে। ব্রাঞ্চ না বাছা পর্যন্ত তালিকা ওঠে না —
+         "Select branch first" লেখা থাকে (TK-এর নিজের সিদ্ধান্ত — নইলে এক নাম
+         পাঁচ ব্রাঞ্চ থেকে পাঁচবার নামত)।
+       ⛔ Registration ফর্মে এক অক্ষরও হাত পড়েনি — সেখানে স্টাফ নিজের ব্রাঞ্চেই
+         রেজিস্টার করেন (TK-এর লক করা নিয়ম)। */
+    private val enqRmpFetched = HashSet<String>()
+
+    /** ফর্মে এখন কোন ব্রাঞ্চ বাছা আছে — না বাছলে ফাঁকা। */
+    private fun enqSelectedBranch(): String {
+        val b = binding.spBranch.selectedItem?.toString()?.trim().orEmpty()
+        return if (b.isBlank() || b.equals("Select Branch", ignoreCase = true)) "" else b
+    }
+
+    /** এখন যেটা টাইপ করা আছে, সেটা দিয়েই তালিকাটা আবার আঁকা। */
+    private fun refreshEnqRmpSuggest(user: NativeUser) {
+        val typed = binding.etEnqRefDoctorName.text?.toString().orEmpty().ifBlank {
+            binding.etEnqRefDoctorMobile.text?.toString().orEmpty()
+        }
+        showEnqRmpSuggest(user, typed)
+    }
+
     private fun wireEnqRmpSuggest(user: NativeUser) {
         val watcher = object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
@@ -326,18 +351,59 @@ class EnquiryActivity : AppCompatActivity() {
         }
         binding.etEnqRefDoctorName.addTextChangedListener(watcher)
         binding.etEnqRefDoctorMobile.addTextChangedListener(watcher)
+        // 🟢 V1132 — ব্রাঞ্চ বদলালেই তালিকাটা ওই ব্রাঞ্চের হয়ে যায়।
+        binding.spBranch.onItemSelectedListener =
+            object : android.widget.AdapterView.OnItemSelectedListener {
+                override fun onItemSelected(p: android.widget.AdapterView<*>?, v: View?, pos: Int, id: Long) {
+                    if (!enqRmpMuted) refreshEnqRmpSuggest(user)
+                }
+                override fun onNothingSelected(p: android.widget.AdapterView<*>?) {}
+            }
     }
 
     private fun dpEnq(v: Int): Int = (v * resources.displayMetrics.density).toInt()
+
+    /** ছোট এক লাইনের বার্তা (তালিকা নয়) — একই ঘরেই বসে। */
+    private fun enqRmpNote(text: String) {
+        val box = binding.llEnqRmpSuggest
+        box.removeAllViews()
+        box.visibility = View.VISIBLE
+        box.addView(android.widget.TextView(this).apply {
+            this.text = text
+            textSize = 10.5f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#94721B"))
+            setPadding(dpEnq(10), dpEnq(7), dpEnq(10), dpEnq(7))
+        })
+    }
 
     private fun showEnqRmpSuggest(user: NativeUser, typed: String) {
         val box = binding.llEnqRmpSuggest
         val q = typed.trim().lowercase(Locale.US)
         if (q.length < 2) { box.removeAllViews(); box.visibility = View.GONE; return }
-        val hits = try { RmpPicker.cachedRmpChoices(this, user) } catch (_: Throwable) { emptyList() }
+        // 🟢 V1132 — ব্রাঞ্চ না বাছলে কোন ব্রাঞ্চের RMP দেখাব সেটাই জানা নেই।
+        val scope = enqSelectedBranch()
+        if (scope.isBlank()) { enqRmpNote("Select branch first"); return }
+        val hits = try { RmpPicker.cachedRmpChoices(this, user, scope) } catch (_: Throwable) { emptyList() }
             .filter { it.searchText().contains(q) }.take(6)
         box.removeAllViews()
-        if (hits.isEmpty()) { box.visibility = View.GONE; return }
+        if (hits.isEmpty()) {
+            /* 🟢 V1132 — অন্য ব্রাঞ্চের তালিকা এই ফোনে জমা নাও থাকতে পারে।
+               তখন **একবারই** ওই ব্রাঞ্চের হালকা তালিকা নামে (৮টা ঘর, ভারী
+               callHistory/referralPayments ছাড়া ⇒ কয়েক KB), তারপর ফোনে জমা থাকে —
+               পরের বার এক বাইটও খরচ নেই (V802-এর হুবহু একই পথ)। */
+            if (enqRmpFetched.add(scope)) {
+                enqRmpNote("Loading " + scope + " RMP list\u2026")
+                lifecycleScope.launch {
+                    val got = withContext(Dispatchers.IO) {
+                        RmpDirectory.refreshFromCloud(this@EnquiryActivity, scope)
+                    }
+                    if (!got) enqRmpFetched.remove(scope)   // নেট না থাকলে পরে আবার চেষ্টা হবে
+                    if (!isFinishing && !isDestroyed) refreshEnqRmpSuggest(user)
+                }
+            } else box.visibility = View.GONE
+            return
+        }
         box.visibility = View.VISIBLE
         box.addView(android.widget.TextView(this).apply {
             text = if (hits.size == 1) "1 saved RMP found" else "${hits.size} saved RMP found"

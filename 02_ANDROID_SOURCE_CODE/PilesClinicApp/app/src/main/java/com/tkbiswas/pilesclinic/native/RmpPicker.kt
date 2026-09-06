@@ -50,15 +50,32 @@ object RmpPicker {
         }
     }
 
-    fun cachedRmpChoices(act: android.app.Activity, user: NativeUser): List<RmpChoice> {
+    /**
+     * 🟢🔒 V1132 (০৬.০৯.২০২৬, TK-অনুমোদিত) — TK: *"জলপাইগুড়ির স্টাফ All Branch
+     * Enquiry Form-এ কোচবিহারের RMP বাছতে চাইছে, নাম-নম্বর সম্পূর্ণ দিয়েও
+     * সাজেস্ট করছে না।"*
+     *
+     * 🔴 **কারণ (কোডে মেপে পাওয়া):** তালিকাটা সবসময় **লগ-ইন করা স্টাফের নিজের
+     *    ব্রাঞ্চ** ধরে ছাঁকা হত — ফর্মে যে ব্রাঞ্চ বাছা হয়েছে সেটা ধরে নয়।
+     *
+     * ⇒ এখন ডাকার সময় চাইলে **অন্য একটা ব্রাঞ্চ** পাঠানো যায় (`branchScope`)।
+     * ⛔ কেউ না পাঠালে আচরণ **এক অক্ষরও বদলায় না** — আগের মতোই নিজের ব্রাঞ্চ।
+     * ⛔ Registration-এর নিজের তালিকা এই ফাইলটা ব্যবহারই করে না — সেখানে হাত পড়েনি।
+     */
+    fun cachedRmpChoices(
+        act: android.app.Activity,
+        user: NativeUser,
+        branchScope: String = ""
+    ): List<RmpChoice> {
+        val scope = branchScope.trim().ifBlank { user.branch }
         return try {
             val prefs = act.getSharedPreferences("doctor_visit_cache", android.content.Context.MODE_PRIVATE)
             // Staff/Doctor only ever need their own branch cache. Master may
             // have opened either All or an individual branch, so all existing
             // cache buckets are safely combined without any network request.
-            val keys = if (user.branch.equals("All", ignoreCase = true)) {
+            val keys = if (scope.equals("All", ignoreCase = true)) {
                 listOf("All") + BRANCHES
-            } else listOf(user.branch)
+            } else listOf(scope)
             val combined = org.json.JSONArray()
             for (branch in keys.distinct()) {
                 val raw = prefs.getString("cache_${branch.ifBlank { "All" }}", null) ?: continue
@@ -68,7 +85,7 @@ object RmpPicker {
             // 🟢🔒 V802 — Doctor Visit পর্দার জমানো ঘরের সঙ্গে RMP-বাছার নিজস্ব
             // হালকা ঘরটাও যোগ (নিচের `seen` ইতিমধ্যেই ডুপ্লিকেট বাদ দেয়)।
             run {
-                val extra = RmpDirectory.cachedRows(act, user.branch)
+                val extra = RmpDirectory.cachedRows(act, scope)
                 for (i in 0 until extra.length()) extra.optJSONObject(i)?.let { combined.put(it) }
             }
             // Include a doctor/RMP just added on this phone even if its cloud
@@ -85,8 +102,8 @@ object RmpPicker {
                 val status = row.optString("status").trim()
                 if (name.isBlank()) continue
                 if (status.isNotBlank() && !status.equals("Active", ignoreCase = true)) continue
-                if (!user.branch.equals("All", ignoreCase = true) &&
-                    branch.isNotBlank() && !branch.equals(user.branch, ignoreCase = true)) continue
+                if (!scope.equals("All", ignoreCase = true) &&
+                    branch.isNotBlank() && !branch.equals(scope, ignoreCase = true)) continue
                 if (id.isNotBlank() && try { DeletedGuard.isDeleted("doctor_visits", id, act) } catch (_: Throwable) { false }) continue
                 val unique = id.ifBlank { "$mobile|${name.lowercase(Locale.US)}" }
                 if (!seen.add(unique)) continue
