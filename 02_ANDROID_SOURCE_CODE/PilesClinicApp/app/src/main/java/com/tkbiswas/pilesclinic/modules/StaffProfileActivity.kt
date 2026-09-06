@@ -836,7 +836,7 @@ class StaffProfileActivity : AppCompatActivity() {
            ⛔ অন্য কারো কার্ডে বোতামটা ওঠেই না; বাকি বোতাম-সারি অপরিবর্তিত। */
         if (ModuleAuth.isMaster &&
             com.tkbiswas.pilesclinic.native.FieldVisit.isFieldStaffCode(pc)) {
-            row1Btns.add(smallBtn("Field Visit", false) {
+            row1Btns.add(smallBtn("Field Visit", false, R.drawable.ic_sp_pin) {
                 startActivity(android.content.Intent(this, FieldVisitActivity::class.java)
                     .putExtra(FieldVisitActivity.EXTRA_OWNER, true)
                     .putExtra(FieldVisitActivity.EXTRA_STAFF_CODE, pc)
@@ -848,11 +848,18 @@ class StaffProfileActivity : AppCompatActivity() {
            বোতাম সরু হয়ে যায়। তখন আইকন তুলে দিয়ে ও লেখা একটু ছোট করে দেওয়া হয়,
            তাই "Extra Income" এক লাইনেই ধরে। ⛔ দুটো বোতামের কার্ড (বাকি সবার)
            হুবহু আগের মতোই — আইকনসহ, একই মাপ। */
+        /* 🎨🔒 V1128 (০৫.০৯.২০২৬, TK-রিপোর্ট ছবিসহ — *"সবার মতো এক রকম করুন…
+           বোতামগুলোর উচ্চতা সবগুলোর ক্ষেত্রে একই থাকবে, যাতে দেখলে প্রফেশনাল
+           বলে মনে হয়"*) — আগে তিনটে বোতাম হলে **আইকন তুলে দেওয়া হত**, তাই
+           RUPAM-এর কার্ডটা বাকি সবার থেকে আলাদা দেখাত (TK ধরেছেন)।
+           ⇒ এখন **আইকন থাকে**, শুধু লেখা এক ধাপ ছোট (১১.৫ → ১০) — ফোনের আসল
+             চওড়ায় (৩৬০) মেপে দেখা হয়েছে, "Extra Income" ঠিকঠাক ধরে, কিছুই
+             কাটে না বা ভাঙে না।
+           ⛔ উচ্চতা প্রতিটা বোতামেই আগের মতোই স্থির (dp 40) — কার্ড কটা বোতাম
+              ধরে তাতে কিছু বদলায় না।
+           ⛔ দুটো বোতামের কার্ড (বাকি সবার) এক অক্ষরও বদলায়নি। */
         if (row1Btns.size >= 3) {
-            row1Btns.forEach {
-                it.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, 0, 0)
-                it.textSize = 10f
-            }
+            row1Btns.forEach { it.textSize = 10f }
         }
         row1Btns.forEachIndexed { i, b -> b.layoutParams = rowBtnParams(i == 0, i == row1Btns.size - 1); row1.addView(b) }
         info.addView(row1)
