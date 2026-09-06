@@ -20378,3 +20378,27 @@ Dashboard · Reminders — সব পরিষ্কার। 🔴 দোষ শ
 **ভার্সন:** ১১.৫০ (`styles.css?v=v1150`)। যাচাই: XML · resources · forbidden
 API · patterns · egress · SQL-function · version.json · node --check ×3 ·
 tk_guard — সব পাশ (Kotlin ছোঁয়া হয়নি, এটা শুধু ওয়েবের CSS)।
+
+---
+
+## ০৬.০৯.২০২৬ · রাত — এনকোয়ারিও এখন পুরো ফর্মে এডিট হয় (V1151)
+
+**TK-নির্দেশ:** *"যে কোন Enquiry / Visit / পেশেন্টের Edit করার প্রয়োজন হলে যেন
+full form edit-এর option আসে — Registration হওয়ার আগ অবদি All Branch Enquiry
+Form, আর Registration-এর পর Registration Form।"*
+
+**কাজ:** রেজিস্ট্রেশনের পরের অংশটা আগেই হয়ে গিয়েছিল (V1142/V1145/V1146)। এবার
+আগের অংশ — এনকোয়ারি কার্ডে **"Edit Enquiry Form"**, চাপলে পুরো ফর্ম আগের লেখা
+ভরা অবস্থায় খোলে। ফোন ও কম্পিউটার দুটোতেই।
+
+⛔ **সেভ করলে একই সারিতেই বসে — নতুন সারি তৈরি হয় না।** id · createdAt ·
+createdBy · stage · status · callCount · history · lastCallDate কিচ্ছু ছোঁয়া
+হয়নি; সারি না পেলে কিছুই লেখা হয় না।
+
+🔴 **দুটো ফাঁদ ধরা পড়ল ও আটকানো হলো:** ① এডিটে নম্বর বসানোমাত্র অ্যাপ কল-তালিকা
+দেখে **সময়ের ঘরটা পাল্টে দিত** — অথচ ওই ঘরই স্টাফের বাড়তি পাওনা ঠিক করে; এখন
+এডিটে আর বদলায় না ② "এই নম্বর আগে থেকেই আছে" পপ-আপটা এডিটেও উঠত; এখন ওঠে না
+(নতুন এনকোয়ারিতে পাহারা অটুট)।
+
+**ভার্সন:** ১১.৫১। যাচাই: Kotlin (০টি নতুন ভুল) · XML · resources · forbidden
+API · patterns · egress · SQL-function · version.json · node --check · tk_guard — সব পাশ।
