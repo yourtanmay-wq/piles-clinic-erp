@@ -2303,7 +2303,7 @@ button.doctorKpi{cursor:pointer}
 
 /* WEB APP . today's pending calls banner (native Dashboard) */
 .wlv1CallBanner{width:100%;margin:8px 0 0 0;height:auto;padding:11px 14px;border:0;border-radius:14px;
-  color:#fff;font-weight:800;font-size:13.5px;text-align:left;
+  color:#fff;font-weight:900;font-size:15px;text-align:left;   /* 🎨 V1138 — TK: "একটু বোল্ড হবে" */
   background:linear-gradient(90deg,#0B66D8,#16A36D);box-shadow:none}
 
 /* WEB APP . upcoming appointments list (native AppointmentActivity) */

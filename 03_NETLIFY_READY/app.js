@@ -22057,7 +22057,9 @@ function wlv1TodayCallBanner(){
      ⇒ পট্টিতে এখন শুধু "51 calls pending" — ভিতরের দ্বিতীয় 📞 · "N overdue" ·
        "tap to call" তিনটেই বাদ। ⛔ চাপ দিলে আগের মতোই তালিকা খোলে।
      ⛔ `over` গোনাটা মোছা হয়নি — অন্য কাজে লাগে। ফোনের হুবহু জোড়া। */
-  const txt = `${n} calls pending`;
+  /* 🎨🔒 V1138 (TK-অনুমোদিত ফটো-প্রুফ) — TK: *"Pending Calls 49 এরকম হবে"*।
+     ফোনের `DashboardActivity`-র হুবহু একই লেখা। ⛔ গোনা ও চাপ আগের মতোই। */
+  const txt = `Pending Calls ${n}`;
   return `<button class="wlv1CallBanner" onclick="wlv1OpenTodayCalls()">${txt}</button>`;
 }
 window["wlv1TodayCallBanner"]=wlv1TodayCallBanner;

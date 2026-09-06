@@ -20049,3 +20049,25 @@ egress · SQL-function · version.json · node --check ×3 · tk_guard — স�
 
 **ভার্সন:** ১১.৩৭। যাচাই: Kotlin (০টি নতুন ভুল) · resources · SQL-function ·
 version.json · node --check ×2 · tk_guard — সব পাশ।
+
+---
+
+## ০৬.০৯.২০২৬ · বিকেল — ড্যাশবোর্ডের দুটো লেখা (V1138)
+
+**TK-নির্দেশ (সম্পূর্ণ ডিসপ্লের ফটো-প্রুফ পাশ):** Welcome-এর লেখা ছোট,
+TK BISWAS এক লাইনে, "Pending Calls 49" একটু বোল্ড — বাকি কিছুতে হাত নয়।
+
+**কাজ:** Welcome ১৯sp → ১৪sp, এক লাইনে (লম্বা নাম হলে শেষে "…")।
+কল-পট্টি "49 calls pending" → **"Pending Calls 49"**, ১৪ → ১৫.৫sp।
+ওয়েবেও একই লেখা, CSS-এ ১৩.৫px/৮০০ → ১৫px/৯০০।
+
+⛔ আর কিচ্ছু ছোঁয়া হয়নি — লোগো · ঘণ্টা · Master · Synced · Better Care ·
+সার্চ · দশটা বোতাম সব আগের মতোই; গোনা ও চাপের নিয়মও অপরিবর্তিত।
+⚠️ "Welcome, …" হেডারটা কম্পিউটারে নেই (শুধু ফোনে) — তাই ওয়েবে শুধু পট্টি বদলাল।
+
+🔴 **নিজের দুটো ভুল:** প্রথম প্রুফে আসল লোগো বসাইনি (TK ধরেছেন), আর XML-এ
+attribute-এর মাঝে মন্তব্য বসিয়ে ফেলেছিলাম — দুটোই সঙ্গে সঙ্গে সারানো।
+
+**ভার্সন:** ১১.৩৮। যাচাই: Kotlin (০টি নতুন ভুল) · XML · resources ·
+forbidden API · egress · SQL-function · version.json · node --check ×3 ·
+tk_guard — সব পাশ।

@@ -154,13 +154,20 @@
                 android:layout_marginStart="14dp"
                 android:orientation="vertical">
 
+                <!-- 🎨🔒 V1138 (০৬.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — TK:
+                     *"welcome লেখাটা ফন্ট সাইজ ছোট হবে · TK BISWAS এক লাইনে হবে"*।
+                     লেখা ছোট হওয়ায় "Welcome, TK BISWAS" আর দু'লাইনে ভাঙে না।
+                     ⛔ `maxLines=1` + ellipsize — খুব লম্বা নাম হলেও দ্বিতীয় লাইনে
+                        নামবে না, শেষে "…" বসবে। ⛔ id/লেখা/কাজ কিচ্ছু বদলায়নি। -->
                 <TextView
                     android:id="@+id/tvWelcome"
-                    android:layout_width="wrap_content"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="Welcome"
                     android:textColor="@color/white"
-                    android:textSize="19sp"
+                    android:textSize="14sp"
+                    android:maxLines="1"
+                    android:ellipsize="end"
                     android:textStyle="bold" />
 
                 <TextView
@@ -348,7 +355,7 @@
                 android:text="📞 আজ কল বাকি দেখুন"
                 android:textColor="#C81E2B"
                 android:textStyle="bold"
-                android:textSize="14sp"
+                android:textSize="15.5sp"
                 android:clickable="true"
                 android:focusable="true"
                 android:visibility="gone" />

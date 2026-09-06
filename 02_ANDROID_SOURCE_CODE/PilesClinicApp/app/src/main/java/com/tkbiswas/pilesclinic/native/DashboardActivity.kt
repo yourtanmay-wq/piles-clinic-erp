@@ -603,7 +603,10 @@ class DashboardActivity : AppCompatActivity() {
                        ⛔ চাপ দিলে আগের মতোই আজকের কলের তালিকা খোলে — কাজের
                           কিছুই বদলায়নি, শুধু লেখা।
                        ⛔ `overdue` গোনাটা মোছা হয়নি — অন্য কাজে লাগে। */
-                    binding.tvCallBanner.text = "$count calls pending"
+                    // 🎨🔒 V1138 (TK-অনুমোদিত ফটো-প্রুফ) — TK: *"Pending Calls 49
+                    //    এরকম হবে, একটু বোল্ড হবে"*। ⛔ সংখ্যা · চাপ · দেখা-না-দেখা
+                    //    সবই আগের মতোই — শুধু লেখার ধরন বদলেছে।
+                    binding.tvCallBanner.text = "Pending Calls $count"
                     binding.tvCallBanner.setOnClickListener {
                         startActivity(Intent(this@DashboardActivity, FollowUpActivity::class.java).putExtra("todayOnly", true))
                     }
