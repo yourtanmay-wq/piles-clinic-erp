@@ -100,7 +100,7 @@ class ReminderAddActivity : AppCompatActivity() {
             textSize = 15f
             setBackgroundColor(Color.parseColor("#FFFFFF"))
             setPadding(dp(12), dp(12), dp(12), dp(12))
-            /* 🔒 পাহারা [৯.১৭]: একা TYPE_CLASS_NUMBER নিষিদ্ধ — টেক্সট + শুধু অঙ্ক। */
+            /* 🔒 পাহারা [৯.১৭]: শুধু-সংখ্যার কীবোর্ড কিছু ফোনে খোলে না — তাই টেক্সট + শুধু অঙ্ক (B411)। */
             inputType = android.text.InputType.TYPE_CLASS_TEXT
             keyListener = android.text.method.DigitsKeyListener.getInstance("0123456789")
         }
