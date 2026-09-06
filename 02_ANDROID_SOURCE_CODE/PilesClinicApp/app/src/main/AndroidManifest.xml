@@ -402,6 +402,16 @@
 
         <!-- Phase 9: Security + Settings (native, standalone for now — same
              reasoning as Phase 4/5/6). -->
+        <!-- 🟢 V1144 (০৬.০৯.২০২৬, TK-অনুমোদিত) — Reminders (তালিকা + যোগ করা)। -->
+        <activity
+            android:name=".native.ReminderActivity"
+            android:exported="false"
+            android:label="Reminders" />
+        <activity
+            android:name=".native.ReminderAddActivity"
+            android:exported="false"
+            android:label="Add Reminder" />
+
         <activity
             android:name=".security.SettingsActivity"
             android:exported="false"

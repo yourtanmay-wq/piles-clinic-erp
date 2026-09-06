@@ -326,10 +326,106 @@ class DashboardActivity : AppCompatActivity() {
         refreshUnclosedChambers(session)   // 🔒 খাতার সারি B36 → B46 (এখন শুধু লুকায়)
         refreshBell(session)
         refreshCallBanner(session)
+        refreshReminderCard(session)    // 🟢 V1144
         remindPendingRemarks(session)   // 🔒 খাতার সারি B51
         requestNotificationPermissionIfNeeded()
         requestIgnoreBatteryOptimizationsIfNeeded()
         requestOverlayPermissionIfNeeded()   // 🪟 V845
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       🟢🔒 V1144 (০৬.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ: *"হ্যাঁ পাশ, বসিয়ে দিন,
+       সাবধানে"*) — হোম পেজেই **Reminders** কার্ড।
+
+       TK-এর কথা: ডাক্তারবাবু যেন হোম পেজ থেকেই দেখতে পান কটা রিমাইন্ডার
+       এসেছে, আর চাপ দিলেই ভিতরে ঢুকে যোগ করতে ও হিস্ট্রি দেখতে পারেন।
+       স্টাফের পর্দাতেও একই কার্ড — ভিতরে "Sent by me" ঘরে নিজের পাঠানোগুলোর
+       অবস্থা দেখা যায়।
+
+       ⛔ XML-এ **এক অক্ষরও যোগ করা হয়নি** — কার্ডটা কোডে বানিয়ে কল-বাকির
+          কার্ডের ঠিক নিচে বসানো হয়, তাই ডাক্তারের ২×২ ছক এক চুলও নড়ে না।
+       ⛔ কিছু না থাকলে কার্ডটা **দেখাই যায় না** (খালি ঘর দেখানো হয় না)।
+       ⛔ পড়াটা সরু — মাত্র তিনটে ঘর, আর পর্দা খোলার সময়েই একবার। */
+    private var reminderCard: android.widget.LinearLayout? = null
+    private var reminderTitle: android.widget.TextView? = null
+    private var reminderLine: android.widget.TextView? = null
+
+    private fun buildReminderCard(): android.widget.LinearLayout? {
+        reminderCard?.let { return it }
+        val anchorView = binding.callBannerCard
+        val parent = anchorView.parent as? android.widget.LinearLayout ?: return null
+        val d = resources.displayMetrics.density
+        fun px(v: Int) = (v * d).toInt()
+
+        val card = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setBackgroundColor(android.graphics.Color.parseColor("#FFF6E3"))
+            setPadding(px(12), px(12), px(12), px(12))
+            visibility = android.view.View.GONE
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { setMargins(px(12), px(11), px(12), 0) }
+        }
+        card.addView(android.widget.TextView(this).apply {
+            text = "\uD83D\uDD14"
+            textSize = 20f
+            gravity = android.view.Gravity.CENTER
+            setBackgroundColor(android.graphics.Color.parseColor("#F7E4B8"))
+            setPadding(px(10), px(8), px(10), px(8))
+        })
+        val mid = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+            ).apply { setMargins(px(12), 0, px(8), 0) }
+        }
+        val title = android.widget.TextView(this).apply {
+            textSize = 16.5f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#8A5B00"))
+        }
+        val line = android.widget.TextView(this).apply {
+            textSize = 12.5f
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            setTextColor(android.graphics.Color.parseColor("#9A7327"))
+        }
+        mid.addView(title); mid.addView(line)
+        card.addView(mid)
+        card.addView(android.widget.TextView(this).apply {
+            text = "Open \u203A"
+            textSize = 13.5f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.WHITE)
+            setBackgroundColor(android.graphics.Color.parseColor("#8A5B00"))
+            setPadding(px(12), px(8), px(12), px(8))
+        })
+        card.setOnClickListener {
+            startActivity(Intent(this@DashboardActivity, ReminderActivity::class.java))
+        }
+        parent.addView(card, parent.indexOfChild(anchorView) + 1)
+        reminderCard = card; reminderTitle = title; reminderLine = line
+        return card
+    }
+
+    private fun refreshReminderCard(session: NativeUser) {
+        val card = buildReminderCard() ?: return
+        val code = session.name
+        if (code.isBlank()) { card.visibility = android.view.View.GONE; return }
+        BackgroundWork.run {
+            val count = ReminderRepository.openCountFor(code)
+            val line = if (count > 0) ReminderRepository.topLineFor(code) else ""
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                if (count <= 0) { card.visibility = android.view.View.GONE; return@post }
+                reminderTitle?.text = "Reminders " + count
+                reminderLine?.text = line
+                reminderLine?.visibility =
+                    if (line.isBlank()) android.view.View.GONE else android.view.View.VISIBLE
+                card.visibility = android.view.View.VISIBLE
+            }
+        }
     }
 
     /*
