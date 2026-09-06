@@ -25580,6 +25580,24 @@ function wlv1ShowEditPatient(patientId){
        ⛔ হাত না দিলে কিচ্ছু লেখা হয় না। */
     '<label>Time type</label><select id="wlv1EpTiming" class="input">'
       +opts(['Official Time','Unexpected Time'],p.timeType||'')+'</select>'+
+    /* 🔴🔒 V1146 (০৬.০৯.২০২৬, TK-নির্দেশ: *"সমস্ত কাজই আপনি কম্পিউটার এবং
+       অ্যান্ড্রয়েড দু জায়গার জন্যই করবেন"*) — ফোনের V1142-এ বসানো ঘরগুলো
+       এতদিন **শুধু ফোনেই** ছিল; এখন কম্পিউটারেও হুবহু একই।
+       রেজিস্ট্রেশনের তারিখ + ফর্মের বাকি সাতটা ঘর।
+       ⛔ ফাঁকা মানে "ছুঁয়ো না" — ফোনের হুবহু একই নিয়ম। */
+    '<label>Registration Date</label>'+
+    '<div class="wlv1DateBox input"><span id="wlv1EpRegDateShow">'
+      +(p.registrationDate||p.date?wlv1Dot(String(p.registrationDate||p.date).slice(0,10)):'Tap to select')+'</span>'
+      +'<input id="wlv1EpRegDate" type="date" max="'+today()+'" value="'
+      +esc(String(p.registrationDate||p.date||'').slice(0,10))
+      +'" oninput="wlv1ShowDate(\'wlv1EpRegDate\',\'wlv1EpRegDateShow\')"></div>'+
+    '<label>Occupation</label><input id="wlv1EpOcc" class="input" value="'+esc(p.occupation||'')+'">'+
+    '<label>Since when</label><input id="wlv1EpSince" class="input" value="'+esc(p.sinceWhen||'')+'">'+
+    '<label>Complaint</label><input id="wlv1EpComplaint" class="input" value="'+esc(p.complaint||'')+'">'+
+    '<label>Medical history</label><input id="wlv1EpMedHist" class="input" value="'+esc(p.medicalHistory||'')+'">'+
+    '<label>Previous treatment</label><input id="wlv1EpPrevTreat" class="input" value="'+esc(p.previousTreatment||'')+'">'+
+    '<label>Previous result</label><input id="wlv1EpPrevResult" class="input" value="'+esc(p.previousResult||'')+'">'+
+    '<label>Previous cost</label><input id="wlv1EpPrevCost" class="input" inputmode="numeric" value="'+esc(p.previousCost||'')+'">'+
     '<label>Referred by Doctor (optional — fill in later if it becomes known)</label>'+
     '<input id="wlv1EpRefDoctor" class="input" placeholder="Doctor Name" value="'+esc(p.refDoctor||'')+'">'+
     '<input id="wlv1EpRefDoctorMobile" class="input" placeholder="Doctor Mobile" style="margin-top:8px" value="'+esc(p.refDoctorMobile||'')+'">'+
@@ -25611,12 +25629,52 @@ async function wlv1SaveEditPatient(patientId){
   if(fields.refDoctor) fields.refBy='Dr. Visit';
   /* 🔴🔒 V1145 — সময়ের ধরন বদলালে রোগীর সারিতেও বসে (নিচে এনকোয়ারি ও
      ফলোআপেও বসানো হয়; **টাকার হিসেব পড়ে `enquiries.timeType`**)। */
+  /* 🔴🔒 V1146 — ফর্মের বাকি ঘরগুলো: **ফাঁকা হলে ছোঁয়াই হয় না** (ফোনের নিয়ম)। */
+  [['occupation','wlv1EpOcc'],['sinceWhen','wlv1EpSince'],['complaint','wlv1EpComplaint'],
+   ['medicalHistory','wlv1EpMedHist'],['previousTreatment','wlv1EpPrevTreat'],
+   ['previousResult','wlv1EpPrevResult'],['previousCost','wlv1EpPrevCost']]
+   .forEach(function(pair){
+     var v=String((($('#'+pair[1])||{}).value)||'').trim();
+     if(v) fields[pair[0]]=v;
+   });
   var newTiming=String(($('#wlv1EpTiming')||{}).value||'').trim();
   var oldTiming=String(p.timeType||'').trim();
   var timingChanged=(newTiming&&newTiming.toLowerCase()!==oldTiming.toLowerCase());
   if(timingChanged) fields.timeType=newTiming;
+  /* 🔴🔒 V1146 (ফোনের V1142-এর হুবহু যমজ) — তারিখ বদলালে তিনটে তারিখের ঘরই
+     বসে, আর রোগীর **আইডিও** নতুন তারিখ ধরে বানানো হয় (TK: *"আইডিও বদলাবে"*)।
+     ⛔ তারিখ না বদলালে আইডি ও তারিখ কিচ্ছু ছোঁয়া হয় না। */
+  var oldRegDate=String(p.registrationDate||p.date||'').slice(0,10);
+  var newRegDate=String((($('#wlv1EpRegDate')||{}).value)||'').slice(0,10);
+  var dateChanged=(newRegDate&&newRegDate!==oldRegDate);
+  var oldCode=String(p.patientId||''), newCode='';
+  if(dateChanged){
+    if(newRegDate>today()) return toast('Future registration date not allowed');
+    fields.date=newRegDate; fields.registrationDate=newRegDate; fields.visitDate=newRegDate;
+    try{ newCode=patientId(fields.branch||p.branch||'', newRegDate) }catch(e){ newCode='' }
+    if(newCode) fields.patientId=newCode;
+  }
   var ok=await wlv1UpdConfirmed('patients', patientId, fields);
   if(!ok) return toast('Failed — check connection');
+  /* 🔴 V1146 — নতুন আইডি সব জায়গায় বসানো, যাতে কোথাও পুরনোটা পড়ে না থাকে।
+     ⛔ টাকার সারিতে **কেবল আইডির ঘর** — অঙ্ক · তারিখ · ধরন কিচ্ছু ছোঁয়া হয় না। */
+  if(dateChanged&&newCode&&oldCode){
+    try{
+      for(var t3 of ['followups','enquiries','medical']){
+        var rws=load(t3).filter(function(x){return String(x.patientId||'')===oldCode});
+        for(var a3=0;a3<rws.length;a3++){ await wlv1UpdConfirmed(t3, rws[a3].id, {patientId:newCode}); }
+      }
+      var pys=load('payments').filter(function(x){
+        return String(x.patientId||'')===oldCode||String(x.patientCode||'')===oldCode;
+      });
+      for(var b3=0;b3<pys.length;b3++){
+        var pt={}; 
+        if(String(pys[b3].patientId||'')===oldCode)pt.patientId=newCode;
+        if(String(pys[b3].patientCode||'')===oldCode)pt.patientCode=newCode;
+        await wlv1UpdConfirmed('payments', pys[b3].id, pt);
+      }
+    }catch(_e){}
+  }
   // 🟡 best-effort sync — মোবাইল বদলালে পুরনো নম্বরের followups/enquiries
   // সারি নতুন নম্বরে সরানো হয় (Android-এর মতো শেয়ার-করা-নম্বর সুরক্ষা নেই)।
   /* 🔴🔒 V1130 (০৬.০৯.২০২৬, TK-এর SQL-এ ধরা — রোগীর ঘরে "SUMAN SARKAR",
