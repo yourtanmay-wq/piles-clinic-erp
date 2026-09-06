@@ -83,13 +83,17 @@ object PaymentDayGuard {
         alreadyPaid: Double,
         todayLabel: String,
         skipCloudCheck: Boolean = false,
+        // 🔴🔒 V1152 (০৬.০৯.২০২৬, TK-নির্দেশ) — সতর্কবার্তা এখন **অঙ্ক + ধরন**
+        // দুটোতেই মেলে (একই দিনে ১০০০ ক্যাশ ও ১০০০ অনলাইন = সতর্কতা নয়)।
+        // ⛔ ফাঁকা পাঠালে আগের মতোই শুধু অঙ্ক ধরে মেলে, তাই পুরনো ডাক ভাঙে না।
+        mode: String = "",
         onProceed: () -> Unit
     ) {
         if (skipCloudCheck || amount <= 0.0) {
             confirmIfAlreadyPaidToday(activity, alreadyPaid, patient.name, todayLabel, onProceed); return
         }
         Thread {
-            val dup = try { repo.todaysPaymentLike(patient, amount) } catch (_: Throwable) { null }
+            val dup = try { repo.todaysPaymentLike(patient, amount, mode) } catch (_: Throwable) { null }
             activity.runOnUiThread {
                 if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
                 if (dup == null) {

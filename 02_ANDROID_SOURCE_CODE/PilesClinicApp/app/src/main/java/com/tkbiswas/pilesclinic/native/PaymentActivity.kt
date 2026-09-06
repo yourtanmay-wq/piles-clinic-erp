@@ -1623,6 +1623,15 @@ class PaymentActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             val reason = reasonInput.text.toString().trim()
+            /* 🔴🔒 V1152 (০৬.০৯.২০২৬, TK-নির্দেশ) — *"রিটার্ন কি কারণে করল
+               রিমার্ক লেখাটা জরুরী"* ⇒ কারণ ফাঁকা রাখলে ফেরত হবে না।
+               ⛔ টাকার কোনো নিয়ম/সীমা বদলায়নি — শুধু একটা ঘর বাধ্যতামূলক হলো। */
+            if (reason.isBlank()) {
+                Toast.makeText(this, "Refund reason mandatory — write why the money is being returned", Toast.LENGTH_LONG)
+                    .show().also { try { NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }
+                reasonInput.requestFocus()
+                return@setOnClickListener
+            }
             /* 🔴🔒 V527 (২২.০৮.২০২৬, TK-এর স্পষ্ট নির্দেশ) — *"এক টাকাও যদি
                ফেরত দিতে, তাও ফিঙ্গারপ্রিন্ট চাইবে। ফিঙ্গারপ্রিন্ট না, পাসওয়ার্ড
                দিলেও যেন কার্যকরী হয়।"*
@@ -1645,7 +1654,10 @@ class PaymentActivity : AppCompatActivity() {
                ⛔ নেট খারাপ হলে `todaysRefundLike` চুপচাপ `null` দেয় ⇒ সৎ
                   ফেরত কখনো আটকায় না। */
             lifecycleScope.launch {
-                val dup = withContext(Dispatchers.IO) { repository.todaysRefundLike(patient, amt, reason, user.mobile) }
+                // 🔴 V1152 — একই অঙ্ক **ও একই ধরন** হলে তবেই সতর্কবার্তা।
+                val dup = withContext(Dispatchers.IO) {
+                    repository.todaysRefundLike(patient, amt, reason, user.mobile, modeSpinner.selectedItem.toString())
+                }
                 if (dup == null) { refundUnlockAndSave(patient, amt, modeSpinner.selectedItem.toString(), reason, refundNonce, autoApprove, dialog, directFormOnly); return@launch }
                 val prevTime = dup.s("time")
                 val prevWhy = dup.s("reason")
@@ -2596,7 +2608,8 @@ $dueRow
                 amtVal,
                 if (isBackdated) 0.0 else repository.paidOnDateFor(patient.id),
                 repository.nextLabelFor(patient.id, if (isBackdated) pickedActualDate else ""),
-                skipCloudCheck = isBackdated
+                skipCloudCheck = isBackdated,
+                mode = selectedPayMode   // 🔴 V1152 — একই অঙ্ক ও একই ধরন হলে তবেই
             ) {
                 doDirectSave(isBackdated, pickedActualDate, patient, billVal, amtVal, user, autoApprovedByGrant = false, receiptMode = receiptMode)
             }

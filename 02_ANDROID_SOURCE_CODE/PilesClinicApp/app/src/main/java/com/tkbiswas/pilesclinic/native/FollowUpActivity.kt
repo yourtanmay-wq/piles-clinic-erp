@@ -3092,7 +3092,8 @@ class FollowUpActivity : AppCompatActivity() {
                         patientNow,
                         amount,
                         pr.paidOnDateFor(patientNow.id),
-                        pr.nextLabelFor(patientNow.id)
+                        pr.nextLabelFor(patientNow.id),
+                        mode = mode   // 🔴 V1152 — একই অঙ্ক ও একই ধরন হলে তবেই সতর্কবার্তা
                     ) {
                     advSaving = true
                     lifecycleScope.launch {
@@ -3362,7 +3363,8 @@ class FollowUpActivity : AppCompatActivity() {
                         patientNow,
                         amount,
                         pr.paidOnDateFor(patientNow.id),
-                        pr.nextLabelFor(patientNow.id)
+                        pr.nextLabelFor(patientNow.id),
+                        mode = mode   // 🔴 V1152 — একই অঙ্ক ও একই ধরন হলে তবেই সতর্কবার্তা
                     ) {
                     nthSaving = true
                     lifecycleScope.launch {

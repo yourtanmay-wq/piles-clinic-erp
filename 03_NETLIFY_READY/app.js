@@ -7795,7 +7795,7 @@ async function saveVisitAdvancePayment(fid,pid){let ps=arr('patients'),i=ps.find
   }
   return toast('Advance Payment amount required');
  }
- /* 🔒 V452: Visit-stage Advance uses the same one-day-one-payment rule. */ let payDay=todaySafe(); if(!(await wlv1DayGuardOk2(pid,p.name,payDay,amt)))return; /* TK (27.07.2026): এটা প্রথম Advance-এর পথ — বিল ছাড়াই নেওয়া যাবে, পরে বসানো যাবে। */ let mode=String($id('visitAdvMode')?.value||'CASH').toUpperCase()==='UPI'?'UPI':'CASH'; p={...p,bill,stage:'Treatment Running',updatedAt:isoNow()}; ps[i]=p; put('patients',ps); let payLabel=nextPaymentLabel(pid,payDay),pay=wlv1BuildTreatmentEventRow(p,amt,mode,payDay,payLabel,'Advance Payment');let storedPay=wlv1UpsertDailyTreatmentLocal(pay);try{if(typeof window.webRmpActivateAfterPayment==='function')window.webRmpActivateAfterPayment(p.id);}catch(_e){} /* 🔴🔒 V953 (০১.০৯.২০২৬, TK-নির্দেশ "খুব সাবধানে") — **আসল কারণ, যাচাই করা:**
+ /* 🔒 V452: Visit-stage Advance uses the same one-day-one-payment rule. */ let payDay=todaySafe(); /* 🔴 V1152 — সতর্কবার্তা এখন অঙ্ক **ও ধরন** দুটোতেই মেলে, তাই ধরনটা আগে পড়ে নেওয়া হয়। */ let mode=String($id('visitAdvMode')?.value||'CASH').toUpperCase()==='UPI'?'UPI':'CASH'; if(!(await wlv1DayGuardOk2(pid,p.name,payDay,amt,mode)))return; /* TK (27.07.2026): এটা প্রথম Advance-এর পথ — বিল ছাড়াই নেওয়া যাবে, পরে বসানো যাবে। */ p={...p,bill,stage:'Treatment Running',updatedAt:isoNow()}; ps[i]=p; put('patients',ps); let payLabel=nextPaymentLabel(pid,payDay),pay=wlv1BuildTreatmentEventRow(p,amt,mode,payDay,payLabel,'Advance Payment');let storedPay=wlv1UpsertDailyTreatmentLocal(pay);try{if(typeof window.webRmpActivateAfterPayment==='function')window.webRmpActivateAfterPayment(p.id);}catch(_e){} /* 🔴🔒 V953 (০১.০৯.২০২৬, TK-নির্দেশ "খুব সাবধানে") — **আসল কারণ, যাচাই করা:**
    আগে এখানে পুরনো Visit-সারিটা শুধু **এই ব্রাউজারের** তালিকা থেকে ছেঁটে ফেলা
    হত (`filter`), কিন্তু ক্লাউডে মোছার কোনো বার্তা যেত না। ফলে পরের সিঙ্কেই
    সারিটা ফিরে আসত, আর রোগী চিকিৎসা শুরু করেও "Visit" তালিকায় ভেসে থাকতেন
@@ -15178,25 +15178,29 @@ window["wlv1DayGuardOk"]=wlv1DayGuardOk;
    ⛔ নেট/ক্লাউড না পেলে চুপচাপ নিজের জমানো তালিকা দেখে (আগের আচরণ), সৎ
       পেমেন্ট কখনো আটকায় না।
    ════════════════════════════════════════════════════════════════════ */
-function wlv1SameAmtIn(rows,amt){
+/* 🔴🔒 V1152 (০৬.০৯.২০২৬, TK-নির্দেশ) — মিল এখন **অঙ্ক + ধরন** দুটোতেই।
+   ⛔ `mode` না পাঠালে আগের মতোই শুধু অঙ্ক ধরে মেলে। */
+function wlv1SameAmtIn(rows,amt,mode){
  var out=null;
+ var want=String(mode||'').trim().toUpperCase(); if(want==='UPI')want='ONLINE';
+ var mOk=function(m){ if(!want)return true; var g=String(m||'').trim().toUpperCase(); if(g==='UPI')g='ONLINE'; return g===want };
  (rows||[]).forEach(function(r){
   if(out)return;
   var evs=r&&r.dailyEvents;
   if(Array.isArray(evs)&&evs.length){
    evs.forEach(function(e){
     if(out||!e)return;
-    if(Math.abs(Number(e.amount||0)-Number(amt||0))<=0.5)
+    if(Math.abs(Number(e.amount||0)-Number(amt||0))<=0.5 && mOk(e.mode||r.mode))
      out={amount:Number(e.amount||0),mode:String(e.mode||r.mode||''),createdAt:String(e.createdAt||r.createdAt||'')};
    });
-  } else if(Math.abs(Number(r.amount||0)-Number(amt||0))<=0.5){
+  } else if(Math.abs(Number(r.amount||0)-Number(amt||0))<=0.5 && mOk(r.mode)){
    out={amount:Number(r.amount||0),mode:String(r.mode||''),createdAt:String(r.createdAt||'')};
   }
  });
  return out;
 }
 window["wlv1SameAmtIn"]=wlv1SameAmtIn;
-async function wlv1TodaysSamePayment(pid,amt,forDate){
+async function wlv1TodaysSamePayment(pid,amt,forDate,mode){
  try{
   var d=String(forDate||today()).slice(0,10);
   if(!pid||!(Number(amt)>0)||d!==today())return null;
@@ -15213,7 +15217,7 @@ async function wlv1TodaysSamePayment(pid,amt,forDate){
     return String(x.patientId||'')===String(pid)&&isTreatmentPaymentRow(x)&&String(x.date||'').slice(0,10)===d;
    });
   }
-  return wlv1SameAmtIn(rows,amt);
+  return wlv1SameAmtIn(rows,amt,mode);
  }catch(e){return null}
 }
 window["wlv1TodaysSamePayment"]=wlv1TodaysSamePayment;
@@ -15242,9 +15246,9 @@ window["wlv1DayClock"]=wlv1DayClock;
 /* 🔴 V1106 — সেভের আগে দুটো প্রশ্ন একসাথে: ① হুবহু একই অঙ্ক আজ আগে বসেছে কিনা
    (ক্লাউড দেখে) ② আজ কিছু নেওয়া হয়েছে কিনা (পুরনো B106)। দুটোরই উত্তর "না"
    হলে আচরণ হুবহু আগের মতোই — একটাও বাড়তি চাপ পড়ে না। */
-async function wlv1DayGuardOk2(pid,name,forDate,amt){
+async function wlv1DayGuardOk2(pid,name,forDate,amt,mode){
  try{
-  var dup=await wlv1TodaysSamePayment(pid,amt,forDate);
+  var dup=await wlv1TodaysSamePayment(pid,amt,forDate,mode);
   if(dup){
    var who=String(name||'').trim()||'this patient';
    var at=wlv1ClockOf(dup.createdAt), md=String(dup.mode||'');
@@ -15476,7 +15480,8 @@ async function saveTreatmentPayment(id){
     payment date, not always today. A second genuine payment on the same date is
     added into that date's one Treatment Payment row. */
  let payDate=($('#payDate')?.value)||today();
- if(!(await wlv1DayGuardOk2(id,p.name,payDate,amt)))return;
+ /* 🔴 V1152 — অঙ্ক **ও ধরন** দুটোতেই মিললে তবেই সতর্কবার্তা। */
+ if(!(await wlv1DayGuardOk2(id,p.name,payDate,amt,payMode($('#mode')?.value||'CASH'))))return;
  let up=upd('patients',id,{bill,discount,stage:p.stage||'Treatment Running',updatedAt:new Date().toISOString()});
  /* 🔒 B570: প্রকৃত জমার তারিখ বাছা থাকলে সেটাই, নইলে আজ (আগের আচরণ)। ফোনের ব্যাকডেট নিয়মের সাথে মেলে। */
  /* 🔴🔒 R1 (TK-অনুমোদিত, 09.08.2026): Backdate গেট — পুরনো তারিখে পেমেন্ট নিলে (মাস্টার নয় ও grant নেই)
@@ -25443,7 +25448,11 @@ window["openRefundFormWeb"]=openRefundFormWeb;
 /* 🖥️🟡🔒 V786 — আজকের দিনে এই রোগীর হুবহু একই পরিমাণের ফেরত আগে থেকে আছে
    কিনা (বাতিল/না-মঞ্জুর সারি বাদ, আর চলতি এই সারিটাও বাদ — retry যেন না
    আটকায়)। ⛔ শুধু **দেখে**, কিছুই বদলায় না। */
-function wlv1TodaysSameRefund(p,amt,selfId){
+/* 🔴🔒 V1152 (০৬.০৯.২০২৬, TK-নির্দেশ) — সতর্কবার্তা এখন **অঙ্ক + ধরন** দুটোতেই
+   মেলে। TK: *"একই দিনে ১০০০ ক্যাশ আর ১০০০ অনলাইন হলে সতর্কবার্তার কিছু নেই;
+   কিন্তু সকাল দশটায় ১০০০ ক্যাশ আর দুপুর দুটোয় আবার ১০০০ ক্যাশ হলে অবশ্যই"*।
+   ⛔ `mode` না পাঠালে আগের মতোই শুধু অঙ্ক ধরে মেলে (পুরনো ডাক ভাঙে না)। */
+function wlv1TodaysSameRefund(p,amt,selfId,mode){
   try{
     var d=today(),out=null;
     load('payments').forEach(function(r){
@@ -25454,6 +25463,13 @@ function wlv1TodaysSameRefund(p,amt,selfId){
       if(selfId&&String(r.id)===String(selfId))return;
       var st=String(r.refundApprovalStatus||'').toLowerCase();
       if(st==='rejected'||st==='cancelled')return;
+      var want=String(mode||'').trim().toUpperCase();
+      if(want){
+        var got=String(r.mode||'').trim().toUpperCase();
+        if(got==='UPI')got='ONLINE';
+        if(want==='UPI')want='ONLINE';
+        if(got!==want)return;
+      }
       if(Math.abs(Number(r.amount||0)-Number(amt||0))<=0.5)out=r;
     });
     return out;
@@ -25468,6 +25484,9 @@ async function saveRefundWeb(patientId){
     if(!amt||amt<=0) return toast('Enter a valid refund amount');
     var mode=($('#rfMode')&&$('#rfMode').value)||'CASH';
     var reason=(($('#rfReason')&&$('#rfReason').value)||'').trim();
+    /* 🔴🔒 V1152 (TK-নির্দেশ) — *"রিটার্ন কি কারণে করল রিমার্ক লেখাটা জরুরী"*
+       ⇒ কারণ ফাঁকা রাখলে ফেরত হবে না। ফোনের হুবহু একই নিয়ম ও একই বার্তা। */
+    if(!reason) return focusFieldFail('rfReason','Refund reason mandatory — write why the money is being returned');
     var isM=isMaster();
     // V219 (§1): deterministic id — আবার চাপলে দ্বিতীয় Refund তৈরি হয় না।
     // V221 (§3): persist-করা nonce — crash/reload-এও একই অসম্পূর্ণ Refund একই id।
@@ -25494,7 +25513,7 @@ async function saveRefundWeb(patientId){
        ⇒ এখন V708-এর সেই একই TK-অনুমোদিত নিয়ম: **Cancel = না · OK = তবুও**।
        ⛔ নেটের একটাও নতুন অনুরোধ নয় — পর্দায় ধরা `load('payments')` থেকেই।
        ⛔ ফোনের `PaymentRepository.todaysRefundLike()`-এর হুবহু একই নিয়ম। */
-    var _rfDup=wlv1TodaysSameRefund(p,amt,rid);
+    var _rfDup=wlv1TodaysSameRefund(p,amt,rid,(($('#rfMode')&&$('#rfMode').value)||''));
     if(_rfDup&&!confirm('Same refund already today\n\nA refund of ₹'+numFmt(amt)+' for this patient is already recorded today'+(_rfDup.time?' at '+_rfDup.time:'')+'.\n\nCancel  -  do nothing (recommended)\nOK  -  refund again anyway'))return;
     var row={id:rid,payType:'refund',payLabel:'Refund',paymentLabel:'Refund',
       patientId:p.id,patientCode:p.patientId||'',mobile:p.mobile,branch:p.branch,name:p.name,

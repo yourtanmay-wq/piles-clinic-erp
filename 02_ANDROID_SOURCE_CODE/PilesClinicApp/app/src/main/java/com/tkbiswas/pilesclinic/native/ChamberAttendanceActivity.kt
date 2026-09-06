@@ -2246,7 +2246,8 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                     } else if (!skipDayGuard && !isBackdated && run {
                             // 🔴 V1106 — এই লাইনটা ইতিমধ্যেই IO-থ্রেডে চলছে, তাই
                             //    এখানেই ক্লাউড-যাচাই করা নিরাপদ ও সবচেয়ে সস্তা।
-                            dayGuardDup = repo.todaysPaymentLike(patient, value)
+                            // 🔴 V1152 — একই অঙ্ক **ও একই ধরন** হলে তবেই সতর্কবার্তা।
+                            dayGuardDup = repo.todaysPaymentLike(patient, value, mode)
                             dayGuardDup != null || repo.paidOnDateFor(patient.id) > 0.0
                         }) {
                         // 🔒 খাতার সারি B52: আজ এই রোগীর নামে টাকা নেওয়া হয়ে গেছে —

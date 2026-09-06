@@ -982,8 +982,16 @@ class PaymentRepository(private val context: Context? = null) {
        ⛔ নেট খারাপ হলে চুপচাপ `null` — সৎ পেমেন্ট **কখনো** আটকায় না।
        ⛔ ব্যাকডেট করা পেমেন্টে এই প্রশ্ন আসে না (ওটা মাস্টারের নিজের সিদ্ধান্ত)।
        ═══════════════════════════════════════════════════════════════════ */
-    fun todaysPaymentLike(patient: PatientBillInfo, amount: Double): org.json.JSONObject? {
+    /* 🔴🔒 V1152 (০৬.০৯.২০২৬, TK-নির্দেশ) — *"ক্যাশ অনলাইন সেটা কিন্তু আলাদা …
+       একই দিনে ১০০০ ক্যাশ আর ১০০০ অনলাইন হলে সতর্কবার্তার কিছু নেই; কিন্তু সকাল
+       দশটায় ১০০০ ক্যাশ আর দুপুর দুটোয় আবার ১০০০ ক্যাশ হলে অবশ্যই দেখাতে হবে"*।
+       ⇒ মিল এখন **অঙ্ক + ধরন** দুটোতেই। `mode` ফাঁকা পাঠালে আগের মতোই শুধু
+         অঙ্ক ধরে মেলে (পুরনো ডাক ভাঙে না)। */
+    fun todaysPaymentLike(patient: PatientBillInfo, amount: Double, mode: String = ""): org.json.JSONObject? {
         if (patient.id.isBlank() || amount <= 0.0) return null
+        val wantMode = PaymentModel.normalizeMode(mode).trim()
+        fun modeOk(m: String): Boolean =
+            wantMode.isBlank() || PaymentModel.normalizeMode(m).equals(wantMode, ignoreCase = true)
         return try {
             val today = PaymentModel.today()
             val rows = SupabaseClient.fetchList(
@@ -998,7 +1006,8 @@ class PaymentRepository(private val context: Context? = null) {
                 if (evs != null && evs.length() > 0) {
                     for (j in 0 until evs.length()) {
                         val e = evs.optJSONObject(j) ?: continue
-                        if (kotlin.math.abs(e.optDouble("amount", 0.0) - amount) <= 0.5) {
+                        if (kotlin.math.abs(e.optDouble("amount", 0.0) - amount) <= 0.5 &&
+                            modeOk(e.optString("mode", r.optString("mode", "")))) {
                             hit = org.json.JSONObject()
                                 .put("amount", e.optDouble("amount", 0.0))
                                 .put("mode", e.optString("mode", r.optString("mode", "")))
@@ -1007,7 +1016,8 @@ class PaymentRepository(private val context: Context? = null) {
                             break@outer
                         }
                     }
-                } else if (kotlin.math.abs(r.optDouble("amount", 0.0) - amount) <= 0.5) {
+                } else if (kotlin.math.abs(r.optDouble("amount", 0.0) - amount) <= 0.5 &&
+                           modeOk(r.optString("mode", ""))) {
                     hit = r; break@outer
                 }
             }
@@ -1738,8 +1748,13 @@ class PaymentRepository(private val context: Context? = null) {
        ⛔ Egress: একটাই ছোট query (`select=id,amount,time,reason`), আর সেটাও
           শুধু Refund বোতাম চাপলে — তালিকা খোলার সময় নয়।
        ═══════════════════════════════════════════════════════════════════ */
+    /* 🔴🔒 V1152 (০৬.০৯.২০২৬, TK-নির্দেশ) — ফেরতের সতর্কবার্তাতেও এখন
+       **ধরন (CASH/ONLINE)** মেলানো হয়; আগে শুধু অঙ্ক দেখা হত, তাই ১০০০ ক্যাশের
+       পরে ১০০০ অনলাইন ফেরত দিলেও অকারণে সতর্কতা উঠত।
+       ⛔ `mode` ফাঁকা পাঠালে আগের মতোই শুধু অঙ্ক ধরে মেলে। */
     fun todaysRefundLike(
-        patient: PatientBillInfo, amount: Double, reason: String = "", byMobile: String = ""
+        patient: PatientBillInfo, amount: Double, reason: String = "", byMobile: String = "",
+        mode: String = ""
     ): org.json.JSONObject? {
         if (patient.id.isBlank() || amount <= 0.0) return null
         /* 🔵🔒 V789 — **কম্পিউটারের সঙ্গে মিলিয়ে নেওয়া।** ওয়েবের
@@ -1757,7 +1772,7 @@ class PaymentRepository(private val context: Context? = null) {
             val rows = SupabaseClient.fetchList(
                 "payments",
                 "patientId=eq.${patient.id}&payType=eq.refund&date=eq.$today",
-                200, select = "id,amount,time,reason,refundApprovalStatus"
+                200, select = "id,amount,time,reason,mode,refundApprovalStatus"
             )
             var hit: org.json.JSONObject? = null
             for (i in 0 until rows.length()) {
@@ -1766,7 +1781,10 @@ class PaymentRepository(private val context: Context? = null) {
                 val st = r.optString("refundApprovalStatus", "")
                 if (st.equals("rejected", true) || st.equals("cancelled", true)) continue
                 if (selfId.isNotBlank() && r.optString("id") == selfId) continue   // 🔵 V789 — নিজের সারি নয়
-                if (kotlin.math.abs(r.optDouble("amount", 0.0) - amount) <= 0.5) { hit = r; break }
+                val wantMode = PaymentModel.normalizeMode(mode).trim()
+                val modeOk = wantMode.isBlank() ||
+                    PaymentModel.normalizeMode(r.optString("mode", "")).equals(wantMode, ignoreCase = true)
+                if (kotlin.math.abs(r.optDouble("amount", 0.0) - amount) <= 0.5 && modeOk) { hit = r; break }
             }
             hit
         } catch (_: Throwable) { null }   // নেট খারাপ হলে চুপচাপ সরে দাঁড়ায় — সৎ ফেরত আটকানো যাবে না
