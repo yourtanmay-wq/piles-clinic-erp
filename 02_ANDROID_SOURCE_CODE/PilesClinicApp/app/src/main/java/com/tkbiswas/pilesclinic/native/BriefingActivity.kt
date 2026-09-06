@@ -372,7 +372,7 @@ class BriefingActivity : AppCompatActivity() {
         val d = resources.displayMetrics.density
         fun dp(v: Int) = (v * d).toInt()
         box.addView(TextView(this).apply {
-            text = "📞 Remark Pending (${pending.size})"
+            text = "REMARK PENDING (${pending.size})"
             textSize = 14f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(android.graphics.Color.WHITE)
@@ -528,14 +528,14 @@ class BriefingActivity : AppCompatActivity() {
             box.visibility = View.VISIBLE
             val d = resources.displayMetrics.density
             fun dp(v: Int) = (v * d).toInt()
-            val backdateTitle = "⏳ Pending Backdate Payment Requests (${requests.size})"
+            val backdateTitle = "PENDING BACKDATE PAYMENTS (${requests.size})"
             val backdateRowsBox = LinearLayout(this@BriefingActivity).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
             box.addView(TextView(this@BriefingActivity).apply {
                 text = "$backdateTitle  ▼"
                 textSize = 14f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setTextColor(android.graphics.Color.WHITE)
-                setBackgroundColor(android.graphics.Color.parseColor("#B8860B"))
+                setBackgroundColor(android.graphics.Color.parseColor("#B42318"))
                 setPadding(dp(16), dp(12), dp(16), dp(12))
                 setOnClickListener { val opening = backdateRowsBox.visibility != View.VISIBLE; backdateRowsBox.visibility = if (opening) View.VISIBLE else View.GONE; text = "$backdateTitle  ${if (opening) "▲" else "▼"}" }
             })
@@ -632,16 +632,16 @@ class BriefingActivity : AppCompatActivity() {
         val box = binding.backdateGrantsContainer
         val grantsBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
         box.addView(TextView(this).apply {
-            text = "🔑 Backdate Payment Permissions  ▼"
+            text = "BACKDATE PERMISSIONS  ▼"
             textSize = 14f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(android.graphics.Color.WHITE)
-            setBackgroundColor(android.graphics.Color.parseColor("#5B3A9E"))
+            setBackgroundColor(android.graphics.Color.parseColor("#0F7A43"))
             setPadding(dp(16), dp(12), dp(16), dp(12))
             setOnClickListener {
                 val opening = grantsBox.visibility != View.VISIBLE
                 grantsBox.visibility = if (opening) View.VISIBLE else View.GONE
-                text = "🔑 Backdate Payment Permissions  ${if (opening) "▲" else "▼"}"
+                text = "BACKDATE PERMISSIONS  ${if (opening) "▲" else "▼"}"
             }
         })
 
@@ -1064,14 +1064,14 @@ class BriefingActivity : AppCompatActivity() {
             box.visibility = View.VISIBLE
             val d = resources.displayMetrics.density
             fun dp(v: Int) = (v * d).toInt()
-            val refundTitle = "💸 Pending Refund Requests (${requests.size})"
+            val refundTitle = "PENDING REFUND REQUESTS (${requests.size})"
             val refundRowsBox = LinearLayout(this@BriefingActivity).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
             box.addView(TextView(this@BriefingActivity).apply {
                 text = "$refundTitle  ▼"
                 textSize = 14f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setTextColor(android.graphics.Color.WHITE)
-                setBackgroundColor(android.graphics.Color.parseColor("#B23A2E"))
+                setBackgroundColor(android.graphics.Color.parseColor("#B42318"))
                 setPadding(dp(16), dp(12), dp(16), dp(12))
                 setOnClickListener { val opening = refundRowsBox.visibility != View.VISIBLE; refundRowsBox.visibility = if (opening) View.VISIBLE else View.GONE; text = "$refundTitle  ${if (opening) "▲" else "▼"}" }
             })
@@ -1185,13 +1185,13 @@ class BriefingActivity : AppCompatActivity() {
                 box.visibility = View.VISIBLE
                 val d = resources.displayMetrics.density
                 fun dp(v: Int) = (v * d).toInt()
-                val leaveTitle = "🏖️ Pending Leave Requests (${requests.length()})"
+                val leaveTitle = "PENDING LEAVE REQUESTS (${requests.length()})"
                 val leaveRowsBox = LinearLayout(this@BriefingActivity).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
                 box.addView(TextView(this@BriefingActivity).apply {
                     text = "$leaveTitle  ▼"; textSize = 14f
                     setTypeface(typeface, android.graphics.Typeface.BOLD)
                     setTextColor(android.graphics.Color.WHITE)
-                    setBackgroundColor(android.graphics.Color.parseColor("#0B6B3A"))
+                    setBackgroundColor(android.graphics.Color.parseColor("#B42318"))
                     setPadding(dp(16), dp(12), dp(16), dp(12))
                     setOnClickListener { val opening = leaveRowsBox.visibility != View.VISIBLE; leaveRowsBox.visibility = if (opening) View.VISIBLE else View.GONE; text = "$leaveTitle  ${if (opening) "▲" else "▼"}" }
                 })
@@ -1298,14 +1298,14 @@ class BriefingActivity : AppCompatActivity() {
             box.visibility = View.VISIBLE
             val d = resources.displayMetrics.density
             fun dp(v: Int) = (v * d).toInt()
-            val title = "💰 Salary Due (${due.size})"
+            val title = "SALARY DUE (${due.size})"
             val rowsBox = LinearLayout(this@BriefingActivity).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
             box.addView(TextView(this@BriefingActivity).apply {
                 text = "$title  ▼"
                 textSize = 14f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setTextColor(android.graphics.Color.WHITE)
-                setBackgroundColor(android.graphics.Color.parseColor("#0A7C3F"))
+                setBackgroundColor(android.graphics.Color.parseColor("#0F7A43"))
                 setPadding(dp(16), dp(12), dp(16), dp(12))
                 setOnClickListener { val opening = rowsBox.visibility != View.VISIBLE; rowsBox.visibility = if (opening) View.VISIBLE else View.GONE; text = "$title  ${if (opening) "▲" else "▼"}" }
             })
@@ -1486,14 +1486,14 @@ class BriefingActivity : AppCompatActivity() {
             }
 
             if (requests.isNotEmpty()) {
-            val editTitle = "🔒 Pending Payment Edit Requests (${requests.size})"
+            val editTitle = "PENDING PAYMENT EDIT REQUESTS (${requests.size})"
             val editRowsBox = LinearLayout(this@BriefingActivity).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
             box.addView(TextView(this@BriefingActivity).apply {
                 text = "$editTitle  ▼"
                 textSize = 14f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setTextColor(android.graphics.Color.WHITE)
-                setBackgroundColor(android.graphics.Color.parseColor("#B8860B"))
+                setBackgroundColor(android.graphics.Color.parseColor("#B42318"))
                 setPadding(dp(16), dp(12), dp(16), dp(12))
                 setOnClickListener { val opening = editRowsBox.visibility != View.VISIBLE; editRowsBox.visibility = if (opening) View.VISIBLE else View.GONE; text = "$editTitle  ${if (opening) "▲" else "▼"}" }
             })
@@ -1708,7 +1708,7 @@ class BriefingActivity : AppCompatActivity() {
             val d = resources.displayMetrics.density
             fun dp(v: Int) = (v * d).toInt()
             box.addView(TextView(this@BriefingActivity).apply {
-                text = "⚠️ Visit Fee Missing (${missing.size})"
+                text = "VISIT FEE MISSING (${missing.size})"
                 textSize = 14f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setTextColor(android.graphics.Color.WHITE)

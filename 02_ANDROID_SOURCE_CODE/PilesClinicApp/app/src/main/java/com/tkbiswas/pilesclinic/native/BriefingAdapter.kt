@@ -146,7 +146,11 @@ class BriefingAdapter(
         val item = items[position]
         val b = holder.binding
 
-        b.tvTitle.text = item.title.ifBlank { "(No title)" }
+        /* 🟢🔒 V1123 (TK-অনুমোদিত ফটো-প্রুফ) — শিরোনাম থেকে ছবি-অক্ষর (emoji)
+           বাদ, যাতে এক লাইনে পরিষ্কার পড়া যায়। ⛔ **শুধু দেখানোর সময়** —
+           `item.title` (ডেটাবেসে সেভ করা লেখা, যেটা ধরে Approve/Reply/ছাঁকনি
+           সব চলে) এক অক্ষরও বদলায় না, তাই কোনো নিয়ম ভাঙে না। */
+        b.tvTitle.text = plainTitle(item.title).ifBlank { "(No title)" }
         // 🔒 TK-নির্দেশ (04.08.2026): এখন তারিখের সাথে সময়ও দেখা যাবে —
         // যাতে নোটিফিকেশনটা আজকের নাকি অনেক পুরনো, তা এক নজরেই বোঝা যায়।
         // 🔒 TK-নির্দেশ (04.08.2026, ছবিসহ — "সময় শো করবে, তাহলে নোটিফিকেশন
@@ -228,6 +232,23 @@ class BriefingAdapter(
         //    আসল লেখা, Reply/cloud sync-এ যা ব্যবহার হয়) এক অক্ষরও বদলায় না।
         // ⛔ এই গঠন (Requested by :) নেই এমন বার্তায় (সাধারণ Briefing/
         //    auto-notice/Staff IN-OUT) একচুলও প্রভাব পড়ে না।
+        /* 🟢🔒 V1123 (TK-রিপোর্ট: *"কোচবিহারের কোন স্টাফ করেছে তার তো নাম নেই?"*)
+           — ঠিক কথা: এতদিন এই ধরনের কার্ডে শুধু **ব্রাঞ্চ** দেখাত। নামটা ডেটাতেই
+           ছিল (`createdBy`), শুধু পর্দায় বসানো হয়নি। ⇒ যেসব বার্তায় "Staff :"
+           বা "Requested by :" নেই, সেখানে পাঠানো স্টাফের কোড/নাম ব্রাঞ্চের পাশে
+           বসে। ⛔ চেনা না গেলে (তালিকায় নেই) লাইনটা **হুবহু আগের মতোই** থাকে —
+           বানানো কিছু বসানো হয় না। ⛔ প্রমাণিত সেই একই `staffNameFor()`। */
+        if (staffCode == null) {
+            val by = item.createdBy.trim()
+            if (by.isNotBlank()) {
+                val nm = staffNameFor(by)
+                val label = nm ?: by.takeIf { it.any { c -> c.isLetter() } }
+                if (!label.isNullOrBlank() && !who.equals(label, ignoreCase = true)) {
+                    b.tvWho.text = if (who.isNotBlank()) "$who · $label" else label
+                }
+            }
+        }
+
         val requestedBy = extractField(item.message, "Requested by")
         if (requestedBy != null) {
             val brOnly = item.branch.ifBlank { extractField(item.message, "Branch").orEmpty() }
@@ -266,7 +287,16 @@ class BriefingAdapter(
             b.tvMessage.setPadding(0, 0, 0, 0)
         }
         val titleLc = item.title.lowercase()
-        val urgent = listOf("request", "refund", "reopen", "urgent").any { titleLc.contains(it) }
+        /* 🔴🔒 V1123 (০৫.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — TK: *"Urgent কেন?"*
+           কারণ শিরোনামে "request" শব্দটা থাকলেই লাল URGENT বসত — অথচ
+           **"Reply on: … "** কার্ডটা তো কাজ **হয়ে যাওয়ার খবর**, অনুরোধ নয়।
+           V697-এ বোতামের জন্য এই ছাঁকনিটা এক জায়গায় আনা হয়েছিল
+           (`BriefingModel.isReplyNotice`), কিন্তু রং/ব্যাজের এই লাইনটা বাদ
+           পড়েছিল — সেটাই এখন মিলিয়ে দেওয়া হলো (নিয়ম ৭ক-এর ২)।
+           ⛔ আসল Refund/Delete/Reopen/Leave অনুরোধ আগের মতোই লাল থাকে। */
+        val replyNotice = com.tkbiswas.pilesclinic.native.BriefingModel.isReplyNotice(item.title)
+        val urgent = !replyNotice &&
+            listOf("request", "refund", "reopen", "urgent").any { titleLc.contains(it) }
         // 🔴🎨 TK-নির্দেশ (07.08.2026): "নেভি ব্লু/কালো রঙ ব্যবহার করা যাবে না।
         // ডিলিট একটা নিরাপত্তার জিনিস, তাই সেখানে লাল ধরনের রঙ; বাকিটা সবুজ,
         // যাতে সম্পূর্ণ প্রফেশনাল লাগে।" — তাই অ্যাভাটার/শিরোনাম/অনুমোদন-বোতাম
@@ -290,7 +320,7 @@ class BriefingAdapter(
             // 🟢🔒 V641 (২৪.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ — কমপ্যাক্ট
             // ডিজাইন) — শিরোনাম এখন ছোট রঙিন পিল (chip), আগের মতো পুরো-
             // চওড়া প্লেইন টেক্সট নয়। ⛔ শুধু দেখানোর সাজ — id/লজিক অক্ষত।
-            b.tvTitle.setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_brief_title_urgent)
+            b.tvTitle.setBackgroundResource(0)   // 🟢 V1123 — শিরোনাম আর রঙিন পিল নয়, সাদা এক লাইন
         } else {
             b.priorityBar.setBackgroundColor(greenLine)
             b.tvChip.text = "NOTICE"
@@ -298,11 +328,35 @@ class BriefingAdapter(
             b.tvChip.setTextColor(android.graphics.Color.parseColor("#166534"))
             b.tvAvatar.backgroundTintList = android.content.res.ColorStateList.valueOf(greenLine)
             b.tvTitle.setTextColor(android.graphics.Color.parseColor("#14361F"))
-            b.tvTitle.setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_brief_title_normal)
+            b.tvTitle.setBackgroundResource(0)   // 🟢 V1123
         }
         // 🔴 V433 (TK): "এটা একটা সাধারণ জিনিস, তাহলে এটা নোটিশ কেন হবে" —
         // তথ্য-কার্ডে NOTICE চিপটা তুলে দেওয়া হলো। রং/বার আগের মতোই সবুজ।
-        b.tvChip.visibility = if (isPlainInfo) View.GONE else View.VISIBLE
+        /* 🟢 V1123 — TK: *"এই নোটিফিকেশনে নোটিস-ই বা কেন আসবে?"* — কাজ হয়ে
+           যাওয়ার খবরে কোনো ব্যাজেরই দরকার নেই (০৪.০৮-এ সাধারণ তথ্য-কার্ডে
+           TK নিজেই একই কথা বলেছিলেন, V433)। */
+        b.tvChip.visibility = if (isPlainInfo || replyNotice) View.GONE else View.VISIBLE
+        /* 🟢🔒 V1123 (TK-অনুমোদিত ফটো-প্রুফ) — উত্তর-নোটিশের ফলটা ("Approved &
+           deleted by …") এখন ছোট সবুজ ব্যাজে, ✅ ছবি-অক্ষরটা ছাড়াই — এক নজরেই
+           বোঝা যায় কাজটা হয়ে গেছে।
+           ⛔ **শুধু দেখানোর সাজ** — `item.message` (ডেটাবেসে সেভ করা লেখা) এক
+              অক্ষরও বদলায় না, তাই Reply/সিঙ্ক/ছাঁকনি কিছুই ভাঙে না।
+           ⛔ রিসাইকেল-নিরাপদ: উত্তর-নোটিশ না হলে সাজটা প্রতিবার তুলে নেওয়া হয়। */
+        if (replyNotice) {
+            val plain = plainTitle(item.message)
+            if (plain.isNotBlank()) {
+                b.tvMessage.text = plain
+                b.tvMessage.setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_brief_chip_normal)
+                val padH = (9 * context.resources.displayMetrics.density).toInt()
+                val padV = (3 * context.resources.displayMetrics.density).toInt()
+                b.tvMessage.setPadding(padH, padV, padH, padV)
+                b.tvMessage.setTextColor(android.graphics.Color.parseColor("#0A6C3D"))
+                b.tvMessage.setTypeface(b.tvMessage.typeface, android.graphics.Typeface.BOLD)
+            }
+        } else {
+            b.tvMessage.setTextColor(android.graphics.Color.parseColor("#374151"))
+            b.tvMessage.setTypeface(null, android.graphics.Typeface.NORMAL)
+        }
         // অনুমোদন-বোতামের রংও একই নিয়মে (কালো বাদ)।
         b.btnApproveDelete.backgroundTintList =
             android.content.res.ColorStateList.valueOf(if (urgent) redLine else greenLine)
@@ -480,6 +534,19 @@ class BriefingAdapter(
     // মাস্টারের জমানো স্টাফ-তালিকা (staff_profile_cache → "rows") থেকে কোড ধরে নাম।
     // একবার পড়ে map-এ রাখা হয় (বারবার নয়)। না পেলে null (তখন শুধু কোড দেখাবে)।
     private var staffNameMap: Map<String, String>? = null
+    /** 🟢 V1123 — দেখানোর জন্য শিরোনাম: ছবি-অক্ষর ও বাড়তি ফাঁক বাদ।
+     *  ⛔ অক্ষর · সংখ্যা · সাধারণ যতিচিহ্ন সবই থাকে — শুধু ছবি-অক্ষরগুলো যায়। */
+    private fun plainTitle(raw: String): String {
+        val sb = StringBuilder()
+        for (ch in raw) {
+            val t = Character.getType(ch).toByte()
+            val drop = t == Character.SURROGATE || t == Character.OTHER_SYMBOL ||
+                t == Character.NON_SPACING_MARK || ch == '\uFE0F' || ch == '\u20E3'
+            if (!drop) sb.append(ch)
+        }
+        return sb.toString().replace(Regex("\\s{2,}"), " ").trim()
+    }
+
     private fun staffNameFor(code: String): String? {
         val map = staffNameMap ?: run {
             val m = HashMap<String, String>()
