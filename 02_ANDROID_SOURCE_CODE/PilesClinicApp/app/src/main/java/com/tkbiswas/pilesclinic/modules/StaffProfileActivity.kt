@@ -501,8 +501,13 @@ class StaffProfileActivity : AppCompatActivity() {
             /* 🟣 V961 — কোনো এক্সট্রা না থাকলে লাইনটাই বসে না (কার্ড আগের মতো)। */
             val exPaid = extraPaidByStaff[pc] ?: 0.0
             val exDue = extraDueByStaff[pc] ?: 0.0
-            val extraTxt = if (exPaid > 0.0 || exDue > 0.0)
-                "Extra: " + money(exPaid) + " paid · " + money(exDue) + " due" else ""
+            /* 🎨🔒 V1146 (০৬.০৯.২০২৬, TK-রিপোর্ট ছবিসহ: *"Extra 8100 Paid তাহলে
+               লাল কালার কেন? তাছাড়া 8100 এখানে দেখাবে না, শুধুমাত্র Due দেখাবে"*)
+               ⇒ লাইনটায় এখন **শুধু বাকিটা** — দেওয়া হয়ে যাওয়া টাকা আর ওঠে না,
+                 আর বাকি না থাকলে লাইনটাই বসে না (তাই লাল রংও আর ভুল বোঝায় না)।
+               ⛔ টাকার কোনো অঙ্ক/নিয়ম ছোঁয়া হয়নি — শুধু কার্ডে দেখানোর লেখা।
+               ⛔ `exPaid` মোছা হয়নি — Extra Income পর্দায় ওটা আগের মতোই লাগে। */
+            val extraTxt = if (exDue > 0.0) "Extra: " + money(exDue) + " due" else ""
             listBox.addView(staffCard(pc, desig, roleKind, branch, fullName, ns(p, "link_mobile"), salTxt,
                 onView = { editProfile(pc) }, onSalary = { salary(pc) }, isRemoved = removed,
                 extraText = extraTxt))
@@ -753,7 +758,8 @@ class StaffProfileActivity : AppCompatActivity() {
                     this, android.content.res.ColorStateList.valueOf(android.graphics.Color.WHITE))
             }
             setPadding(dp(4), 0, dp(4), 0)
-            height = dp(40)
+            // 🎨 V1146 (TK: *"তিনটা লাইন উচ্চতা এত কম"*) — 40 → 46dp, সব বোতামেই।
+            height = dp(46)
             /* 🎨🔒 V1092 (০৫.০৯.২০২৬ — TK-এর বিল্ড-করা ছবিতে ধরা পড়ল: RUPAM-এর
                "Extra Income" তখনো দুই লাইনে)। **আসল কারণ মেপে পাওয়া:** বাঁয়ের
                আইকনটা (২৪dp + ফাঁক) বোতামের চওড়ার একটা বড় অংশ নিয়ে নেয়, আর
@@ -784,7 +790,7 @@ class StaffProfileActivity : AppCompatActivity() {
                 compoundDrawablePadding = dp(4)   // 🎨 V1091 — লেখার জায়গা বাড়াতে
             }
             setPadding(dp(4), 0, dp(4), 0)
-            height = dp(40)
+            height = dp(46)       // 🎨 V1146 — smallBtn-এর হুবহু একই উচ্চতা
             setSingleLine(true)   // 🎨 V1092 — উপরের smallBtn-এর হুবহু একই নিয়ম
             ellipsize = android.text.TextUtils.TruncateAt.END
             setTextColor(android.graphics.Color.parseColor("#B0392B"))
@@ -858,8 +864,26 @@ class StaffProfileActivity : AppCompatActivity() {
            ⛔ উচ্চতা প্রতিটা বোতামেই আগের মতোই স্থির (dp 40) — কার্ড কটা বোতাম
               ধরে তাতে কিছু বদলায় না।
            ⛔ দুটো বোতামের কার্ড (বাকি সবার) এক অক্ষরও বদলায়নি। */
+        /* 🎨🔒 V1146 (০৬.০৯.২০২৬, TK-রিপোর্ট ছবিসহ: *"লেখা ব্রেক হয়ে গেছে"* —
+           RUPAM-এর কার্ডে "Extra Inc…")। **কারণ মেপে পাওয়া:** ৩৬০dp ফোনে
+           তিনটে বোতামের প্রতিটা ≈৯৭dp; তার থেকে আইকন ২৪dp + ফাঁক ৪ + প্যাডিং ৮
+           বাদ গেলে লেখার থাকে ≈৬১dp, আর "Extra Income" ১০sp-এ ≈৬২dp — ঠিক
+           ওইটুকুতেই কেটে যেত।
+           ⇒ আইকনটা **১৬dp**-তে ছোট করা হলো (ফাঁকও ৩dp) ⇒ লেখার জায়গা ≈৭০dp,
+             তাই পুরো "Extra Income" এক লাইনেই ধরে।
+           ⛔ V1128-এর TK-নির্দেশ অটুট: **আইকন থাকছে** (তুলে দেওয়া হয়নি) আর
+              সব বোতামের উচ্চতা এক — কার্ড কটা বোতাম ধরে তাতে কিছু বদলায় না।
+           ⛔ দুটো বোতামের কার্ড (বাকি সবার) এক অক্ষরও বদলায়নি। */
         if (row1Btns.size >= 3) {
-            row1Btns.forEach { it.textSize = 10f }
+            val ic = dp(16)
+            row1Btns.forEach { b ->
+                b.textSize = 10f
+                b.compoundDrawablePadding = dp(3)
+                b.compoundDrawablesRelative.getOrNull(0)?.let { d ->
+                    d.setBounds(0, 0, ic, ic)
+                    b.setCompoundDrawablesRelative(d, null, null, null)
+                }
+            }
         }
         row1Btns.forEachIndexed { i, b -> b.layoutParams = rowBtnParams(i == 0, i == row1Btns.size - 1); row1.addView(b) }
         info.addView(row1)
