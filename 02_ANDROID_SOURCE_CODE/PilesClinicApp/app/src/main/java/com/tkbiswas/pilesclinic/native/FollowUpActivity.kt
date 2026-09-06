@@ -3942,6 +3942,14 @@ class FollowUpActivity : AppCompatActivity() {
         return try {
             val fields = org.json.JSONObject()
                 .put("name", name).put("branch", branch).put("disease", disease)
+            /* 🔴🔒 V1139 (০৬.০৯.২০২৬ — TK: *"ঠিকানাটাও ভুল শুনেছিলাম, এখান থেকে
+               এডিট করতে পারছি না"* — মিলিয়ে দেখতে গিয়ে ধরা পড়া **আসল ফাঁক**):
+               ঠিকানা এতদিন লেখা হত শুধু `patients`/`enquiries`-এ। নিচের পুরনো
+               মন্তব্যে লেখা ছিল "followups-এ address নেই" — **সেটা ভুল**, ঘরটা
+               আছে, আর "কাল আসার কথা" পর্দা ঠিকানা **ওখান থেকেই** পড়ে। ⇒ ঠিকানা
+               বদলালেও ওই পর্দায় পুরনোটাই থেকে যেত।
+               ⛔ ফাঁকা হলে ঘরটা ছোঁয়াই হয় না (age/sex/address-এর পুরনো নিয়মই)। */
+            if (address.isNotBlank()) fields.put("address", address)
             if (mobile.length == 10) fields.put("mobile", mobile)
             // TK-REQUESTED ADDITION (2026-07-24): only followups' own
             // date/registrationDate/visitDate fields -- deliberately NOT

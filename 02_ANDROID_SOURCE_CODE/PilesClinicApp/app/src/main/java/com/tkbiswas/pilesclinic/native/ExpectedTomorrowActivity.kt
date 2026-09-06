@@ -34,6 +34,11 @@ class ExpectedTomorrowActivity : AppCompatActivity() {
     private lateinit var listHolder: LinearLayout
     private lateinit var subtitle: TextView
 
+    /* 🟢🔒 V1139 (০৬.০৯.২০২৬, TK-নির্দেশ) — এই পর্দায় এখন এডিট করা যায়, তাই
+       কোন ব্রাঞ্চের তালিকা দেখা হচ্ছে সেটা মনে রাখতে হয় (ওই ব্রাঞ্চের সারিই
+       কেবল বদলায়)। ⛔ তালিকা আনার নিয়মে কিছু বদলায়নি। */
+    private var shownBranch: String = ""
+
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -209,6 +214,7 @@ class ExpectedTomorrowActivity : AppCompatActivity() {
            হত — আর **নতুন রিমার্কটা পর্দায় বসতই না**। স্টাফ পুরোনো কথা পড়ে
            ফোন করতেন। এখন সারির **সব ঘর** চিহ্নে ধরা হয় (`toString()`), তাই
            এক অক্ষর বদলালেও আগের মতোই পুরো আঁকা হয়। */
+        shownBranch = branchName   // 🟢 V1139
         if (com.tkbiswas.pilesclinic.native.RedrawGuard.alreadyShowing(
                 listHolder, items.joinToString("|") { it.toString() })) return
         listHolder.removeAllViews()
@@ -300,7 +306,7 @@ class ExpectedTomorrowActivity : AppCompatActivity() {
             if (hasName) {
                 addView(TextView(this@ExpectedTomorrowActivity).apply {
                     text = name
-                    textSize = 15f
+                    textSize = 16f   // 🎨 V1139 — TK: "কার্ডের চেহারাটাও প্রফেশনাল লুক"
                     setTypeface(typeface, Typeface.BOLD)
                     setTextColor(Color.parseColor("#101828"))
                     isClickable = true; isFocusable = true
@@ -359,12 +365,36 @@ class ExpectedTomorrowActivity : AppCompatActivity() {
                 item.disease.ifBlank { null }?.let { "🩺 $it" },
                 item.address.ifBlank { null }?.let { "📍 $it" }
             ).filterNotNull().joinToString("  ·  ")
+            /* 🎨🔒 V1139 (TK-নির্দেশ: *"কার্ডের চেহারাটাও প্রফেশনাল লুক
+               বানাতে হবে"*) — রোগ ও ঠিকানা এখন আলাদা দুটো গোল "চিপ"-এ, এক
+               লম্বা ধূসর লাইনে নয়। ⛔ লেখা · ছবি-অক্ষর · কোথা থেকে আসে কিচ্ছু
+               বদলায়নি — শুধু সাজ। ⛔ কোনোটা ফাঁকা হলে ওই চিপটা বসেই না। */
             if (metaText.isNotBlank()) {
-                addView(TextView(this@ExpectedTomorrowActivity).apply {
-                    text = metaText
-                    textSize = 11.5f
-                    setTextColor(Color.parseColor("#7A8699"))
-                    setPadding(0, dp(4), 0, 0)
+                addView(LinearLayout(this@ExpectedTomorrowActivity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    val rlp = LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                    rlp.topMargin = dp(6)
+                    layoutParams = rlp
+                    for (part in metaText.split("  ·  ")) {
+                        if (part.isBlank()) continue
+                        addView(TextView(this@ExpectedTomorrowActivity).apply {
+                            text = part
+                            textSize = 11.5f
+                            setTextColor(Color.parseColor("#475467"))
+                            maxLines = 1
+                            ellipsize = android.text.TextUtils.TruncateAt.END
+                            setPadding(dp(9), dp(4), dp(9), dp(4))
+                            background = android.graphics.drawable.GradientDrawable().apply {
+                                setColor(Color.parseColor("#F1F5F9"))
+                                cornerRadius = dp(9).toFloat()
+                            }
+                            val clp = LinearLayout.LayoutParams(
+                                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                            clp.marginEnd = dp(6)
+                            layoutParams = clp
+                        })
+                    }
                 })
             }
             // Remark (থাকলেই) — কল করার আগে দেখা যাবে।
@@ -399,7 +429,17 @@ class ExpectedTomorrowActivity : AppCompatActivity() {
                 })
             }
         })
-        card.addView(TextView(this).apply {
+        /* 🟢🔒 V1139 (০৬.০৯.২০২৬, TK-নির্দেশ) — TK: *"এখানে নামটা ভুল টাইপ হয়ে
+           গেছে, আমি কেন এডিট করতে পারছি না … এখানে এডিট হবে এবং সম্পূর্ণ প্রজেক্টে
+           এই পেশেন্টের ডিটেলস আপডেট হয়ে যাবে"*।
+           ⇒ Call-এর নিচে **Edit** বোতাম; দুটো এখন একটা খাড়া কলামে বসে।
+           ⛔ Call বোতামের লেখা · রং · কাজ এক অক্ষরও বদলায়নি — শুধু জায়গা। */
+        val actions = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+        }
+        card.addView(actions)
+        actions.addView(TextView(this).apply {
             text = "📞 Call"
             textSize = 13f
             setTypeface(typeface, Typeface.BOLD)
@@ -427,7 +467,88 @@ class ExpectedTomorrowActivity : AppCompatActivity() {
                 }
             }
         })
+        actions.addView(TextView(this).apply {
+            text = "\u270F\uFE0F Edit"
+            textSize = 12.5f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(Color.parseColor("#1B2637"))
+            gravity = Gravity.CENTER
+            setPadding(dp(16), dp(9), dp(16), dp(9))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(Color.WHITE); cornerRadius = dp(10).toFloat()
+                setStroke(dp(1), Color.parseColor("#C9D3DF"))
+            }
+            isClickable = true; isFocusable = true
+            val mlp = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            mlp.topMargin = dp(8)
+            layoutParams = mlp
+            setOnClickListener { showExpectedEdit(item) }
+        })
         listHolder.addView(card)
+    }
+
+    /* 🟢🔒 V1139 — এই পর্দার নিজের এডিট: **নাম ও ঠিকানা** — TK-এর
+       রিপোর্টে ঠিক এই দুটোই ভুল ছিল।
+       ⛔ সেভ হয় `PersonEditSync` দিয়ে, যা একই নম্বরের **চারটে ঘরেই** বসায়
+          (followups · patients · enquiries · "কাল আসার কথা"-র নিজের সারি) —
+          তাই এক জায়গায় ঠিক করলে সব পর্দায় এক উত্তর (নিয়ম ৭ক-এর ২)।
+       ⛔ ফাঁকা রাখলে ওই ঘরটা ছোঁয়াই হয় না। ⛔ টাকার হিসাব কিচ্ছু বদলায় না। */
+    private fun showExpectedEdit(item: ExpectedItem) {
+        val pad = dp(16)
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad * 2, pad, pad * 2, 0)
+        }
+        fun label(t: String) = TextView(this).apply {
+            text = t
+            textSize = 12.5f
+            setTextColor(Color.parseColor("#475467"))
+            setPadding(0, dp(10), 0, dp(2))
+        }
+        val nameInput = android.widget.EditText(this).apply {
+            setText(item.name); hint = "Name"; setSingleLine(true)
+        }
+        val addressInput = android.widget.EditText(this).apply {
+            setText(item.address); hint = "Address"
+        }
+        box.addView(label("Name")); box.addView(nameInput)
+        box.addView(label("Address")); box.addView(addressInput)
+        try { UppercaseInputUtil.applyToAll(box) } catch (_: Throwable) { }
+
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(PremiumAlert.header(this, "Edit patient details"))
+            .setView(ScrollView(this).apply { addView(box) })
+            .setPositiveButton("Save") { _, _ ->
+                val newName = nameInput.text.toString().trim()
+                val newAddress = addressInput.text.toString().trim()
+                if (newName.isBlank() && newAddress.isBlank()) {
+                    android.widget.Toast.makeText(this, "Nothing to save", android.widget.Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                android.widget.Toast.makeText(this, "Saving\u2026", android.widget.Toast.LENGTH_SHORT).show()
+                val mob = item.mobile
+                val br = shownBranch
+                BackgroundWork.run {
+                    val ok = try {
+                        PersonEditSync.updateNameAddress(mob, br, newName, newAddress)
+                    } catch (_: Throwable) { false }
+                    if (!isFinishing && !isDestroyed) runOnUiThread {
+                        if (isFinishing || isDestroyed) return@runOnUiThread
+                        android.widget.Toast.makeText(
+                            this@ExpectedTomorrowActivity,
+                            if (ok) "Updated everywhere" else "Failed \u2014 check connection",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show().also { try { NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
+                        if (ok) load()
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .create()
+        dialog.show()
+        try { PremiumAlert.paint(dialog) } catch (_: Throwable) { }
+        try { NoAutofill.scrubAnyDialog(dialog) } catch (_: Throwable) { }
     }
 
     private fun formatMobile(raw: String): String {
