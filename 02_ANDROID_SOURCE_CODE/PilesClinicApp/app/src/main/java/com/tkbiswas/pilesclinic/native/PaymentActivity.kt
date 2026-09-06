@@ -2143,8 +2143,11 @@ $dueRow
         val modeRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         fun makeModeBox(label: String): TextView = TextView(this).apply {
             text = label; gravity = android.view.Gravity.CENTER
-            textSize = 15f; setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setPadding(cpx(13), cpx(13), cpx(13), cpx(13))
+            /* 🎨🔒 V1147 (০৬.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — বাক্স দুটো একটু
+               ছোট: ভেতরের ফাঁক ১৩→৯dp, লেখা ১৫→১৪sp। ⛔ চাপা · রঙ · কোনটা
+               বাছা আছে · সেভ — কিচ্ছু বদলায়নি, শুধু মাপ। */
+            textSize = 14f; setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setPadding(cpx(9), cpx(9), cpx(9), cpx(9))
             isClickable = true; isFocusable = true
         }
         val cashBox = makeModeBox("💵 CASH")
@@ -2312,7 +2315,10 @@ $dueRow
 
         val actionRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            val p = (16 * d).toInt(); setPadding(p, (8 * d).toInt(), p, p)
+            /* 🎨🔒 V1147 (০৬.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — চারটে বোতাম
+               একটু নিচে নামল: উপরের ফাঁক ৮→২০dp, তাই Payment Mode-এর বাক্সের
+               সঙ্গে আর গায়ে-গায়ে লাগে না। ⛔ বোতামের কাজ · ক্রম · রং অটুট। */
+            val p = (16 * d).toInt(); setPadding(p, (20 * d).toInt(), p, p)
         }
         // 🔒 B564 (TK-অনুমোদিত প্রুফ) — ৪ বোতাম: Cancel · Share · Print · Save।
         // 🔒 B570 (TK-নির্দেশ): বোতামের লেখা যেন এক লাইনে থাকে ("CANC EL"-এর মতো
