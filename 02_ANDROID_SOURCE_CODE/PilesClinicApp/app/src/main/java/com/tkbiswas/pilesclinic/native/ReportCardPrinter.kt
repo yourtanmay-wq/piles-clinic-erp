@@ -199,6 +199,15 @@ object ReportCardPrinter {
            বারকোড · Dr. K.H MANDAL পাতার একদম নিচেই স্থির থাকে (নিচের `.sp` ফাঁক),
            তাই সারি কম হলেও কাগজটা ফাঁকা-ফাঁকা লাগে না। */
 
+        /* 🟢 V1129 — TK-এর নিয়ম ৭ক-এর ৩ (ডেটা না থাকলেও ঠিক দেখাবে): একটাও
+           ভিজিট/টাকা না থাকলে টেবিলটা শুধু মাথাসহ ফাঁকা দাঁড়িয়ে থাকত, দেখতে
+           ভাঙা লাগত। এখন একটাই পরিষ্কার সারি বসে। ⛔ একটাও সারি থাকলে এই ধাপ
+           চলেই না — আচরণ হুবহু আগের মতোই। */
+        if (idx == 0) {
+            rows.append("<tr><td class='v'>—</td><td></td>" +
+                "<td class='pr'>No visit or payment recorded yet</td><td></td></tr>")
+        }
+
         val watermark = if (logoB64.isNotBlank())
             "<img class='wm' src='data:image/jpeg;base64,$logoB64'/>" else ""
 
