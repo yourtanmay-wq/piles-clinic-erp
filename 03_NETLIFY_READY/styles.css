@@ -7289,7 +7289,12 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
      জায়গার বাইরে বেরিয়ে যেত, লেখা কাটত আর টাকার ঘরটা ডান দিকে হারিয়ে যেত।
      ⇒ এখন প্রতিটা ঘর দরকারমতো ছোট হতে পারে — ঘর একটাও বাদ যায়নি, ক্রমও এক। */
   body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payListRow2{
-    grid-template-columns:34px minmax(0,1.7fr) minmax(0,128px) minmax(0,148px) minmax(0,1fr) minmax(0,126px)}
+    grid-template-columns:34px minmax(0,1.6fr) minmax(0,128px) minmax(0,1.2fr) minmax(0,126px)}
+  /* 🖥️🔒 V1150 (TK-নির্দেশ: *"পেশেন্ট আইডি লাগবে না"*) — ডেস্কটপের এই সারিতে
+     আইডির ঘরটা আর দেখানো হয় না; জায়গাটা নাম ও ঠিকানায় যোগ হলো।
+     ⛔ ফোনে আইডি আগের মতোই আছে · ⛔ আইডিটা ডেটাবেসে অক্ষত, শুধু এই তালিকায়
+        দেখানো বন্ধ। */
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payIdRow2{display:none}
   body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payListRow2>*{min-width:0}
   /* 🖥️🔒 V1150 — লম্বা নাম আগে পরের লাইনে নেমে যেত, তাই কোনো কোনো সারি
      অন্যগুলোর চেয়ে উঁচু দেখাত। এখন নাম এক লাইনেই থাকে, বেশি লম্বা হলে শেষে
