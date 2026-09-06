@@ -177,7 +177,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
     // এখানে স্ল্যাশ (`31/08/2026`) দেখাত, এখন প্রজেক্টের বিন্দু (`31.08.2026`)।
     // ⛔ ঘরের `.tag`-এ আসল ISO আগের মতোই থাকে — হিসাব/সেভ কিছুই বদলায়নি।
     private fun slashIso(iso: String): String = try {
-        val p = iso.split("-"); if (p.size == 3) "${p[2]}.${p[1]}.${p[0]}" else iso
+        val p = iso.split("-"); if (p.size == 3) "${p[2]}/${p[1]}/${p[0]}" else iso   // 🔴 V1158
     } catch (e: Exception) { iso }
     // read-only তারিখ-ঘর: চাপলেই ক্যালেন্ডার খোলে (পুরনো দিনও বাছা যায়, কোনো ইমোজি নেই)।
     private fun dateField(seedIso: String = todayIso()): android.widget.EditText {
@@ -680,7 +680,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
         for (i in 0 until rows.length()) {
             val r = rows.getJSONObject(i)
             val dotted = try {
-                val p = r.optString("entry_date").split("-"); p[2] + "." + p[1] + "." + p[0]
+                val p = r.optString("entry_date").split("-"); p[2] + "/" + p[1] + "/" + p[0]
             } catch (e: Exception) { r.optString("entry_date") }
             /* 🔴🔒 V929 — মাস্টারের পর্দায় তারিখের পাশে ট্যাগ বসে, তাই কলামের
                প্রস্থ মাপার সময়ও সেটাই মাপতে হবে — নইলে লেখাটা কেটে যেত। */
@@ -727,7 +727,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
             val r = rows.getJSONObject(i)
             val d = r.optString("entry_date")
             val dotted = try {
-                val p = d.split("-"); p[2] + "." + p[1] + "." + p[0]
+                val p = d.split("-"); p[2] + "/" + p[1] + "/" + p[0]
             } catch (e: Exception) { d }
             val cash = r.optDouble("cash", 0.0); val online = r.optDouble("online", 0.0)
             val note = r.optString("expense_notes", "").let { if (it == "null") "" else it }
@@ -2177,7 +2177,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
         val cal = java.util.Calendar.getInstance(TimeZone.getTimeZone("Asia/Kolkata"))
         android.app.DatePickerDialog(this, { _, y, m, d ->
             val iso = String.format(Locale.US, "%04d-%02d-%02d", y, m + 1, d)
-            val dotted = String.format(Locale.US, "%02d.%02d.%04d", d, m + 1, y)
+            val dotted = String.format(Locale.US, "%02d/%02d/%04d", d, m + 1, y)
             showDaySummary(iso, dotted)
         }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH), cal.get(java.util.Calendar.DAY_OF_MONTH)).show()
     }
@@ -3173,7 +3173,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
         var dateColPx = maxOf(measure.measureText("Date"), measure.measureText("Total"))
         var amtColPx = maxOf(measure.measureText("Cash"), measure.measureText("Online"))
         for (d in dates) {
-            val dotted = try { val p = d.split("-"); p[2] + "." + p[1] + "." + p[0] } catch (e: Exception) { d }
+            val dotted = try { val p = d.split("-"); p[2] + "/" + p[1] + "/" + p[0] } catch (e: Exception) { d }
             dateColPx = maxOf(dateColPx, measure.measureText(monthlyDateLabel(d, dotted, autoDays, rowByDate)))
             amtColPx = maxOf(amtColPx, measure.measureText(money(dayCash[d] ?: 0.0).removePrefix("₹")),
                 measure.measureText(money(dayOnline[d] ?: 0.0).removePrefix("₹")))
@@ -3206,7 +3206,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
         var cashTot = 0.0; var onlineTot = 0.0; var expTot = 0.0
         var idx = 0
         for (d in dates) {
-            val dotted = try { val p = d.split("-"); p[2] + "." + p[1] + "." + p[0] } catch (e: Exception) { d }
+            val dotted = try { val p = d.split("-"); p[2] + "/" + p[1] + "/" + p[0] } catch (e: Exception) { d }
             val dottedShown = monthlyDateLabel(d, dotted, autoDays, rowByDate)
             val cash = dayCash[d] ?: 0.0; val online = dayOnline[d] ?: 0.0
             val expSum = dayExp[d] ?: 0.0; val seg = daySeg[d]?.toString() ?: ""
@@ -3271,7 +3271,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
             //    উঠে যাওয়ায় লেখাতেও রাখা হলো না — নইলে পর্দা আর লেখা
             //    দুরকম বলত, সেটাই নতুন একটা ভুল হত।
             for (d in dates) {
-                val dotted = try { val p = d.split("-"); p[2] + "." + p[1] + "." + p[0] } catch (e: Exception) { d }
+                val dotted = try { val p = d.split("-"); p[2] + "/" + p[1] + "/" + p[0] } catch (e: Exception) { d }
                 sbx.append(dotted).append(" — Cash ").append(money(dayCash[d] ?: 0.0))
                     .append(" · Online ").append(money(dayOnline[d] ?: 0.0))
                     .append(" · খরচ ").append(money(dayExp[d] ?: 0.0)).append("\n")
@@ -3305,7 +3305,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
             sbh.append("<div class='sub'>").append(if (branchSel == "All Branches") "All Branches" else branchSel).append("</div>")
             sbh.append("<table><tr><th>Date</th><th>Cash</th><th>Online</th><th>Expense</th></tr>")
             for (d in dates) {
-                val dotted = try { val p = d.split("-"); p[2] + "." + p[1] + "." + p[0] } catch (e: Exception) { d }
+                val dotted = try { val p = d.split("-"); p[2] + "/" + p[1] + "/" + p[0] } catch (e: Exception) { d }
                 val c2 = dayCash[d] ?: 0.0; val o2 = dayOnline[d] ?: 0.0; val e2 = dayExp[d] ?: 0.0
                 sbh.append("<tr><td>").append(dotted).append("</td><td>")
                     .append(if (c2 > 0) money(c2).removePrefix("₹") else "-").append("</td><td>")
@@ -3675,7 +3675,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
         var amtColPx = maxOf(measure.measureText("Cash"), measure.measureText("Online"))
         var balColPx = maxOf(measure.measureText("Balance"), measure.measureText(money(opening).removePrefix("₹")))
         for (d in dates) {
-            val dotted = try { val p = d.split("-"); p[2] + "." + p[1] + "." + p[0] } catch (e: Exception) { d }
+            val dotted = try { val p = d.split("-"); p[2] + "/" + p[1] + "/" + p[0] } catch (e: Exception) { d }
             dateColPx = maxOf(dateColPx, measure.measureText(dotted))
             amtColPx = maxOf(amtColPx, measure.measureText(money(dayCash[d] ?: 0.0).removePrefix("₹")),
                 measure.measureText(money(dayOnline[d] ?: 0.0).removePrefix("₹")))
@@ -3731,7 +3731,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
         var running = opening
         var idx = 0
         for (d in dates) {
-            val dotted = try { val p = d.split("-"); p[2] + "." + p[1] + "." + p[0] } catch (e: Exception) { d }
+            val dotted = try { val p = d.split("-"); p[2] + "/" + p[1] + "/" + p[0] } catch (e: Exception) { d }
             val cash = dayCash[d] ?: 0.0; val online = dayOnline[d] ?: 0.0; val e = dayExp[d] ?: 0.0
             cashTot += cash; onlineTot += online; expTot += e
             running += cash + online - e
@@ -3775,15 +3775,15 @@ class IncomeExpenseActivity : AppCompatActivity() {
                 .append(".exp{color:#B42318}.bal{color:#0F3A66;font-weight:bold}")
                 .append("</style></head><body>")
             sb.append("<h2>Statement — ").append(branchSel).append("</h2>")
-            val fromDot2 = try { val p = fromIso.split("-"); p[2] + "." + p[1] + "." + p[0] } catch (e: Exception) { fromIso }
-            val toDot2 = try { val p = toIso.split("-"); p[2] + "." + p[1] + "." + p[0] } catch (e: Exception) { toIso }
+            val fromDot2 = try { val p = fromIso.split("-"); p[2] + "/" + p[1] + "/" + p[0] } catch (e: Exception) { fromIso }
+            val toDot2 = try { val p = toIso.split("-"); p[2] + "/" + p[1] + "/" + p[0] } catch (e: Exception) { toIso }
             sb.append("<div class='sub'>").append(fromDot2).append(" – ").append(toDot2).append("</div>")
             sb.append("<table><tr><th>Date</th><th>Cash</th><th>Online</th><th>Expense</th><th>Balance</th></tr>")
             sb.append("<tr class='open'><td>Opening</td><td>—</td><td>—</td><td>—</td><td>")
                 .append(if (openingOk) money(opening).removePrefix("₹") else "—").append("</td></tr>")
             var runningPdf = opening
             for (d in dates) {
-                val dotted = try { val p = d.split("-"); p[2] + "." + p[1] + "." + p[0] } catch (e: Exception) { d }
+                val dotted = try { val p = d.split("-"); p[2] + "/" + p[1] + "/" + p[0] } catch (e: Exception) { d }
                 val cash = dayCash[d] ?: 0.0; val online = dayOnline[d] ?: 0.0; val e2 = dayExp[d] ?: 0.0
                 runningPdf += cash + online - e2
                 sb.append("<tr><td>").append(dotted).append("</td><td>")
@@ -3803,8 +3803,8 @@ class IncomeExpenseActivity : AppCompatActivity() {
         // 🔵 R6-এর হুবহু একই প্যাটার্নে WhatsApp শেয়ার — প্রতিটা দিনের পরের
         // চলতি ব্যালেন্সও লেখায় যায়, TK চাইলে কাউকে পাঠিয়ে মিলিয়ে নিতে পারবেন।
         if (dates.isNotEmpty()) {
-            val fromDotted = try { val p = fromIso.split("-"); p[2] + "." + p[1] + "." + p[0] } catch (e: Exception) { fromIso }
-            val toDotted = try { val p = toIso.split("-"); p[2] + "." + p[1] + "." + p[0] } catch (e: Exception) { toIso }
+            val fromDotted = try { val p = fromIso.split("-"); p[2] + "/" + p[1] + "/" + p[0] } catch (e: Exception) { fromIso }
+            val toDotted = try { val p = toIso.split("-"); p[2] + "/" + p[1] + "/" + p[0] } catch (e: Exception) { toIso }
             val sbx = StringBuilder()
             sbx.append("📄 স্টেটমেন্ট — ").append(fromDotted).append(" থেকে ").append(toDotted).append("\n")
             sbx.append(branchSel).append("\n")
@@ -3812,7 +3812,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
             sbx.append("Opening Balance: ").append(if (openingOk) money(opening) else "—").append("\n")
             var run2 = opening
             for (d in dates) {
-                val dotted = try { val p = d.split("-"); p[2] + "." + p[1] + "." + p[0] } catch (e: Exception) { d }
+                val dotted = try { val p = d.split("-"); p[2] + "/" + p[1] + "/" + p[0] } catch (e: Exception) { d }
                 run2 += (dayCash[d] ?: 0.0) + (dayOnline[d] ?: 0.0) - (dayExp[d] ?: 0.0)
                 sbx.append(dotted).append(" — Cash ").append(money(dayCash[d] ?: 0.0))
                     .append(" · Online ").append(money(dayOnline[d] ?: 0.0))

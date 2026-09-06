@@ -124,7 +124,7 @@ object ReminderModel {
         val ms = parseMs(iso)
         if (ms <= 0L) return "—"
         return try {
-            java.text.SimpleDateFormat("dd.MM · h.mma", java.util.Locale.US)
+            java.text.SimpleDateFormat("dd/MM · h.mm a", java.util.Locale.US)   // 🔴 V1158
                 .format(java.util.Date(ms))
         } catch (_: Exception) { "—" }
     }

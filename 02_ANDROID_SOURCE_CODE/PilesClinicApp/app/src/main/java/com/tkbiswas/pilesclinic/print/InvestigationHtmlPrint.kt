@@ -102,7 +102,7 @@ object InvestigationHtml {
     }
 
     private fun today(): String =
-        java.text.SimpleDateFormat("dd.MM.yyyy", java.util.Locale.US)
+        java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.US)
             .apply { timeZone = java.util.TimeZone.getTimeZone("Asia/Kolkata") }
             .format(java.util.Date())
 

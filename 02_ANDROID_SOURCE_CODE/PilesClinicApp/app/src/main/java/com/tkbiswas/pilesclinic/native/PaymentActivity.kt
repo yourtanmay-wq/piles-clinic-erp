@@ -2268,7 +2268,7 @@ $dueRow
                     if (iso == PaymentModel.today()) {
                         text = NoBengali.s("Actual deposit date"); setTextColor(payDateGrey)
                     } else {
-                        text = NoBengali.s("প্রকৃত জমা: ${java.text.SimpleDateFormat("dd.MM.yyyy", java.util.Locale.US).format(cal2.time)}"); setTextColor(payDateDark)
+                        text = NoBengali.s("প্রকৃত জমা: ${java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.US).format(cal2.time)}"); setTextColor(payDateDark)
                     }
                 }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH), cal.get(java.util.Calendar.DAY_OF_MONTH)).apply {
                     datePicker.maxDate = System.currentTimeMillis()

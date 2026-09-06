@@ -509,7 +509,7 @@ class DialerActivity : AppCompatActivity() {
 
     private fun timeAgoLabel(dateMs: Long): String {
         return try {
-            val fmt = java.text.SimpleDateFormat("h:mm a", java.util.Locale.US)
+            val fmt = java.text.SimpleDateFormat("h.mm a", java.util.Locale.US)
             fmt.format(java.util.Date(dateMs))
         } catch (_: Throwable) { "" }
     }

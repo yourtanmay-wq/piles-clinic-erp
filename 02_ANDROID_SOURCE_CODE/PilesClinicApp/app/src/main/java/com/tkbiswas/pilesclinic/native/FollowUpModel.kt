@@ -266,7 +266,7 @@ object FollowUpModel {
 
     fun displayDate(iso: String): String = try {
         val parsed = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(iso)
-        SimpleDateFormat("dd.MM.yyyy", Locale.US).format(parsed!!)
+        SimpleDateFormat("dd/MM/yyyy", Locale.US).format(parsed!!)
     } catch (e: Exception) { iso }
 
     /** TK-REQUESTED (2026-07-17): the date a remark was written, shown next to
@@ -283,7 +283,7 @@ object FollowUpModel {
         return try {
             val fmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
             val parsed = fmt.parse(isoDateTime) ?: return ""
-            SimpleDateFormat("dd.MM.yyyy", Locale.US).format(parsed)
+            SimpleDateFormat("dd/MM/yyyy", Locale.US).format(parsed)
         } catch (e: Exception) { "" }
     }
 }

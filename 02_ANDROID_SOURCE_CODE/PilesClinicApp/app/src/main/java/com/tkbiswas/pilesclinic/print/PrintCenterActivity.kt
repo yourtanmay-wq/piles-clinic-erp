@@ -862,7 +862,7 @@ class PrintCenterActivity : AppCompatActivity() {
                 if (avoid.isNotEmpty()) sections.add(PrintSection("Avoid", avoid))
                 val remarks = remarksInput.text.toString().trim()
                 if (remarks.isNotBlank()) sections.add(PrintSection("Extra Advice", listOf(remarks)))
-                val today = java.text.SimpleDateFormat("dd.MM.yyyy", java.util.Locale.US).format(java.util.Date())
+                val today = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.US).format(java.util.Date())
                 val ageSex = listOf(wf.age.text.toString().trim(), wf.sex.text.toString().trim()).filter { it.isNotBlank() }.joinToString(" / ")
                 PrintDataHolder.pendingModel = PrintDocumentModel(
                     documentTitle = "Diet Chart",
@@ -1019,7 +1019,7 @@ class PrintCenterActivity : AppCompatActivity() {
             val rxDuration = walkInMeds.map { it.duration.ifBlank { "-" } }
             // 💊 V723 — Walk-in কাগজেও Instruction নামের নিচে ছাপবে।
             val rxInstructions = walkInMeds.map { it.instructions.trim() }
-            val today = java.text.SimpleDateFormat("dd.MM.yyyy", java.util.Locale.US).format(java.util.Date())
+            val today = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.US).format(java.util.Date())
             val ageSex = listOf(wf.age.text.toString().trim(), wf.sex.text.toString().trim()).filter { it.isNotBlank() }.joinToString(" / ")
             PrintDataHolder.pendingModel = PrintDocumentModel(
                 documentTitle = if (isPrescription) "Prescription" else "Medicine Slip",

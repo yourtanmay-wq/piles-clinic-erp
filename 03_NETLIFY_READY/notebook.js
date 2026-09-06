@@ -44,7 +44,7 @@
     return c === ym || String(x.date || '').slice(0, 7) === ym;
   }
   // "YYYY-MM-DD" -> "DD.MM.YYYY" (প্রজেক্টের DOT-তারিখ নিয়ম, ফোনের dotDate()-এর হুবহু একই লজিক)
-  function dotDate(iso) { var p = String(iso || '').split('-'); return p.length === 3 ? (p[2] + '.' + p[1] + '.' + p[0]) : iso; }
+  function dotDate(iso) { var p = String(iso || '').split('-'); return p.length === 3 ? (p[2] + '/' + p[1] + '/' + p[0]) : iso; }
   // "HH:mm" (২৪-ঘণ্টা) -> "h.mm AM/PM" — ফোনের displayTime12()-এর হুবহু একই লজিক
   function displayTime12(hhmm) {
     if (!hhmm) return '';
@@ -58,9 +58,11 @@
   function shareTimeLabel() {
     var d = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
     var h24 = d.getHours(), mm = d.getMinutes();
-    var ampm = h24 < 12 ? 'am' : 'pm';
+    /* 🔴 V1158 — TK-এর লক করা নিয়ম: AM/PM বড় হাতে, অঙ্কের পরে একটা ফাঁক।
+       ⛔ ফোনের `shareTimeLabel()`-এও হুবহু একই বদল, তাই দুই জায়গা এক থাকে। */
+    var ampm = h24 < 12 ? 'AM' : 'PM';
     var h12 = h24 === 0 ? 12 : (h24 > 12 ? h24 - 12 : h24);
-    return h12 + '.' + String(mm).padStart(2, '0') + ampm;
+    return h12 + '.' + String(mm).padStart(2, '0') + ' ' + ampm;
   }
 
   // ---- automatic statistics (read-only) ----

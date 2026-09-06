@@ -228,7 +228,7 @@ class EstimatePaperActivity : AppCompatActivity() {
             ageSex = ageSex,
             mobile = RoleSession.currentPatientMobile.ifBlank { "-" },
             address = RoleSession.currentPatientAddress.ifBlank { "-" },
-            date = SimpleDateFormat("dd.MM.yyyy", Locale.US).format(java.util.Date()),
+            date = SimpleDateFormat("dd/MM/yyyy", Locale.US).format(java.util.Date()),
             editable = editable
         )
     }

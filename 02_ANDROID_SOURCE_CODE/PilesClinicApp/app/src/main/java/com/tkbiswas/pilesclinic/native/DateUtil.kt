@@ -18,7 +18,7 @@ import java.util.Locale
  */
 object DateUtil {
 
-    private val displayFormat = SimpleDateFormat("dd.MM.yyyy", Locale.US)
+    private val displayFormat = SimpleDateFormat("dd/MM/yyyy", Locale.US)   // 🔴 V1158
 
     // Formats we might receive from Supabase / local storage, in the order
     // we try to parse them.
@@ -69,8 +69,20 @@ object DateUtil {
      *  (24.07.2026-এর পুরনো নিয়ম); TK নিজে সেটা বদলেছেন, তাই নিচের
      *  `replace()` দুটো তুলে দেওয়া হয়েছে। উদাহরণ: `31.12.2026 5.40 PM`।
      *  ⛔ এটা আর ছোট হাতের অক্ষরে ফেরানো যাবে না। */
+    /* 🔴🔴🔒 V1158 (৩১.১২.২০২৬ ৩.১৫ PM, TK-নির্দেশ, স্পষ্ট উদাহরণসহ:
+       *"31/12/2026 : 3.15 PM — সম্পূর্ণ প্রজেক্ট এরকম হতে হবে, প্রিন্ট আউট থেকে
+       শুরু করে অ্যাপের মধ্যে থাকা সমস্ত জায়গায়"*) — তারিখে **স্ল্যাশ**, তারিখ ও
+       সময়ের মাঝে **" : "**, সময়ে **বিন্দু** ও বড় হাতের AM/PM।
+       ⛔ শুধু **দেখানোর** লেখা — ডেটাবেসে · সাজানোয় · তুলনায় সবখানে আগের মতোই
+          `yyyy-MM-dd` যায়, এক অক্ষরও বদলায়নি।
+       ⛔ পুরনো লেখা পড়ার নিয়ম (`iso()`) বিন্দু ও স্ল্যাশ **দুটোই** চেনে, তাই
+          আগের জমা কোনো নোটিশ/অনুরোধ ভাঙে না। */
+    const val DISPLAY_DATE = "dd/MM/yyyy"
+    const val DISPLAY_TIME = "h.mm a"
+    const val DISPLAY_DATE_TIME = "dd/MM/yyyy : h.mm a"
+
     fun displayWithTime(d: java.util.Date): String {
-        return SimpleDateFormat("dd.MM.yyyy h.mm a", Locale.US).format(d)
+        return SimpleDateFormat(DISPLAY_DATE_TIME, Locale.US).format(d)
     }
 
     // 🔒 TK-নির্দেশ (04.08.2026, ছবিসহ — Briefing-এর ডিলিট-অনুরোধ কার্ডে শুধু

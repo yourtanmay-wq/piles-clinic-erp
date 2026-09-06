@@ -859,7 +859,8 @@ class WorkNotebookActivity : AppCompatActivity() {
                     applicationContext, quickMarkKind, hour, minute
                 )
             } catch (_: Throwable) { }
-            val label = String.format(java.util.Locale.US, "%02d:%02d", hour, minute)
+            // 🔴 V1158 — দেখানোর ঘড়ি সবসময় "2.30 PM" ধাঁচে (২৪-ঘণ্টা নয়)।
+            val label = displayTime12(String.format(java.util.Locale.US, "%02d:%02d", hour, minute))
             android.widget.Toast.makeText(this, NoBengali.s("ঠিক আছে, $label-এ আবার মনে করানো হবে"), android.widget.Toast.LENGTH_LONG).show()
             finish()
         }, cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE), false).show()
@@ -2305,7 +2306,7 @@ class WorkNotebookActivity : AppCompatActivity() {
     // নয়)। "YYYY-MM-DD" থেকে "DD.MM.YYYY"।
     private fun dotDate(iso: String): String {
         val p = iso.split("-")
-        return if (p.size == 3) "${p[2]}.${p[1]}.${p[0]}" else iso
+        return if (p.size == 3) "${p[2]}/${p[1]}/${p[0]}" else iso   // 🔴 V1158
     }
 
     /** "HH:mm" (২৪-ঘণ্টা, ডাটাবেসে যেভাবে থাকে) থেকে "h.mm AM/PM" — TK-এর
@@ -2320,15 +2321,16 @@ class WorkNotebookActivity : AppCompatActivity() {
         return "$h12.$m $ampm"
     }
 
-    /** এখনকার সময় "6.30pm" স্টাইলে — TK-এর নমুনার রিপোর্ট-হেডারের ঠিক
-     *  ফরম্যাটে (লোয়ারকেস, ফাঁকা জায়গা ছাড়া)। */
+    /** এখনকার সময় "6.30 PM" স্টাইলে। 🔴 V1158 — TK-এর নতুন নমুনা
+     *  ("31/12/2026 : 3.15 PM") অনুযায়ী AM/PM বড় হাতে ও আগে একটা ফাঁক। */
     private fun shareTimeLabel(): String {
         val cal = java.util.Calendar.getInstance()
         val h24 = cal.get(java.util.Calendar.HOUR_OF_DAY)
         val m = cal.get(java.util.Calendar.MINUTE)
-        val ampm = if (h24 < 12) "am" else "pm"
+        // 🔴 V1158 — TK-এর লক করা নিয়ম: AM/PM বড় হাতে, অঙ্কের পরে একটা ফাঁক।
+        val ampm = if (h24 < 12) "AM" else "PM"
         val h12 = when { h24 == 0 -> 12; h24 > 12 -> h24 - 12; else -> h24 }
-        return String.format(Locale.US, "%d.%02d%s", h12, m, ampm)
+        return String.format(Locale.US, "%d.%02d %s", h12, m, ampm)
     }
 
     // 🔴 B329 — Daily Report-এর "Notes:" এখন Work Entries-এর "what you did"

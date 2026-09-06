@@ -679,12 +679,12 @@
   function unxDateTime(raw){
     var t=String(raw||'').trim(); if(t.length<10) return '';
     var p=t.slice(0,10).split('-'); if(p.length<3) return '';
-    var d=p[2]+'.'+p[1]+'.'+p[0];
+    var d=p[2]+'/'+p[1]+'/'+p[0];   /* 🔴 V1158 */
     if(t.length<16) return d;
     var hh=parseInt(t.slice(11,13),10), mm=t.slice(14,16);
     if(isNaN(hh)) return d;
     var ap=hh>=12?'PM':'AM', h12=(hh===0)?12:(hh>12?hh-12:hh);
-    return d+'  ·  '+h12+'.'+mm+' '+ap;
+    return d+' : '+h12+'.'+mm+' '+ap;   /* 🔴 V1158 */
   }
   var UNX_NOT_TREATMENT = ['visit_fee','attendance_mark','bill_edit','chamber_expected','refund'];
   /* 💰 V1029 — রেজিস্ট্রেশনের ফি যে যে নামে জমা হয় (SQL-এর হুবহু তালিকা)। */
@@ -851,7 +851,8 @@
     try {
       var d = new Date(iso);
       if (isNaN(d.getTime())) return '-';
-      return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' });
+      /* 🔴 V1158 */
+      return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' }).replace(':', '.');
     } catch (_e) { return '-' }
   }
   function wlv1FvHours(a, b) {
@@ -983,14 +984,14 @@
     try{
       var t=String(iso||'').trim(); if(!t) return '';
       var mm=/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(t);
-      if(mm) return mm[3]+'.'+mm[2]+'.'+mm[1]+'  '+salClock(mm[4],mm[5]);
+      if(mm) return mm[3]+'/'+mm[2]+'/'+mm[1]+' : '+salClock(mm[4],mm[5]);   /* 🔴 V1158 */
       var d=/^(\d{4})-(\d{2})-(\d{2})/.exec(t);
-      return d ? (d[3]+'.'+d[2]+'.'+d[1]) : '';
+      return d ? (d[3]+'/'+d[2]+'/'+d[1]) : '';   /* 🔴 V1158 */
     }catch(e){ return ''; }
   }
   function salClock(hh,mi){
     var h=Number(hh), ap=h<12?'AM':'PM', h12=h%12; if(h12===0) h12=12;
-    return h12+':'+mi+' '+ap;
+    return h12+'.'+mi+' '+ap;   /* 🔴 V1158 */
   }
   /** ঐ রোগীর তিনটে ধাপ — এনকোয়ারি · রেজিস্ট্রেশন · ট্রিটমেন্টের টাকা। */
   function salSteps(pid){
@@ -1120,7 +1121,7 @@
   function salDmy(v){
     var t = String(v || '').trim();
     var mm = /^(\d{4})-(\d{2})-(\d{2})/.exec(t);
-    return mm ? (mm[3] + '.' + mm[2] + '.' + mm[1]) : t;   /* 🔴🔒 V936 — এক ফরম্যাট */
+    return mm ? (mm[3] + '/' + mm[2] + '/' + mm[1]) : t;   /* 🔴🔒 V1158 — এক ফরম্যাট */
   }
   /* 🔵 V417: Payment History খোলা/গোটানো — ক্লাউড থেকে নতুন কিছু আনা হয় না। */
   function profTogglePayHistory() {

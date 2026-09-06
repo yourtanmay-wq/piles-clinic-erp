@@ -662,7 +662,7 @@ class EnquiryActivity : AppCompatActivity() {
 
     private fun displayDate(iso: String): String = try {
         val parsed = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(iso)
-        SimpleDateFormat("dd.MM.yyyy", Locale.US).format(parsed!!)
+        SimpleDateFormat("dd/MM/yyyy", Locale.US).format(parsed!!)
     } catch (e: Exception) {
         iso
     }

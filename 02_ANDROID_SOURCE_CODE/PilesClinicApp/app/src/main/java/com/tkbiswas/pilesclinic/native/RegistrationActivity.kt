@@ -1089,7 +1089,7 @@ class RegistrationActivity : AppCompatActivity() {
 
     private fun displayDate(iso: String): String = try {
         val parsed = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(iso)
-        SimpleDateFormat("dd.MM.yyyy", Locale.US).format(parsed!!)
+        SimpleDateFormat("dd/MM/yyyy", Locale.US).format(parsed!!)
     } catch (e: Exception) { iso }
 
     private fun validateAndSave(user: NativeUser) {
@@ -1472,11 +1472,11 @@ class RegistrationActivity : AppCompatActivity() {
                        ⛔ A4 কাগজে আগের জোড়া-লাগানো লেখাটাই যায় (`a4DateTime`) —
                           ছাপা এক অক্ষরও বদলায়নি। */
                     val a4DateOnly = try {
-                        java.text.SimpleDateFormat("dd.MM.yyyy", java.util.Locale.US)   // 🔴🔒 V936 — এক ফরম্যাট
+                        java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.US)   // 🔴🔒 V936 — এক ফরম্যাট
                             .format(java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(draft.date)!!)
                     } catch (_: Throwable) { draft.date }
                     // এই মুহূর্তটাই রেজিস্ট্রেশনের আসল সময় (এখনই সেভ হচ্ছে)।
-                    val a4TimeOnly = java.text.SimpleDateFormat("h.mma", java.util.Locale.US)
+                    val a4TimeOnly = java.text.SimpleDateFormat("h.mm a", java.util.Locale.US)   // 🔴 V1158
                         .format(java.util.Date())
                         .let { if (it.length >= 2) it.dropLast(2) + it.takeLast(2).first().uppercase() + it.takeLast(1).lowercase() else it }
                     val a4DateTime = a4DateOnly + " · " + a4TimeOnly

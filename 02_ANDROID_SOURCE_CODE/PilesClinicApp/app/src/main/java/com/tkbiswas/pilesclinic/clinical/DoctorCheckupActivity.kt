@@ -1315,7 +1315,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
 
     private fun displayDateForReminder(iso: String): String = try {
         val d = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(iso)
-        java.text.SimpleDateFormat("dd.MM.yyyy", java.util.Locale.US).format(d!!)
+        java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.US).format(d!!)
     } catch (_: Throwable) { iso }
 
     // 🟢🔒 V671 — সময়ের ফরম্যাট (h.mm a — প্রজেক্টের 12-ঘণ্টা AM/PM নিয়ম)।
@@ -4957,7 +4957,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 ageSex = ageSex,
                 mobile = RoleSession.currentPatientMobile.ifBlank { "-" },
                 address = RoleSession.currentPatientAddress.ifBlank { "-" },
-                date = SimpleDateFormat("dd.MM.yyyy", Locale.US).format(java.util.Date())
+                date = SimpleDateFormat("dd/MM/yyyy", Locale.US).format(java.util.Date())
             )
             com.tkbiswas.pilesclinic.print.PrescriptionWhatsAppShare.shareHtml(
                 activity = this,

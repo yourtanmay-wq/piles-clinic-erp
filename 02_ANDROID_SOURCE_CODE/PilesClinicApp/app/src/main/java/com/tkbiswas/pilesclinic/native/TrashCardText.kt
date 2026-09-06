@@ -30,7 +30,7 @@ object TrashCardText {
         if (v.isBlank()) return v
         return try {
             val d = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(v.take(10))
-            java.text.SimpleDateFormat("dd.MM.yyyy", java.util.Locale.US).format(d!!)
+            java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.US).format(d!!)
         } catch (_: Throwable) { v }
     }
 
@@ -54,7 +54,7 @@ object TrashCardText {
         return try {
             val d = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
                 .parse(item.deletedAt) ?: return ""
-            java.text.SimpleDateFormat("dd.MM.yyyy\nh:mm a", java.util.Locale.US).format(d)
+            java.text.SimpleDateFormat("dd/MM/yyyy\nh.mm a", java.util.Locale.US).format(d)
         } catch (_: Throwable) { "" }
     }
 

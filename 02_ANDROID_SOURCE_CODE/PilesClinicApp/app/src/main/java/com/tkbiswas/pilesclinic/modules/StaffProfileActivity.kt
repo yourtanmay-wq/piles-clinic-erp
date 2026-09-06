@@ -1420,7 +1420,7 @@ class StaffProfileActivity : AppCompatActivity() {
         val t = iso.trim()
         val m = Regex("^(\\d{4})-(\\d{2})-(\\d{2})").find(t) ?: return t
         // 🔴🔒 V936 (TK-নির্দেশ — এক ফরম্যাট): স্ল্যাশ ছিল, এখন প্রজেক্টের বিন্দু।
-        return m.groupValues[3] + "." + m.groupValues[2] + "." + m.groupValues[1]
+        return m.groupValues[3] + "/" + m.groupValues[2] + "/" + m.groupValues[1]   // 🔴 V1158
     }
 
     /** একটা সারি এখনো "বাকি" না "দেওয়া হয়েছে"। পুরনো সারিতে ঘরটা নেই ⇒ দেওয়া হয়েছে। */
@@ -2258,7 +2258,7 @@ class StaffProfileActivity : AppCompatActivity() {
                         set(java.util.Calendar.HOUR_OF_DAY, hour)
                         set(java.util.Calendar.MINUTE, minute)
                     }
-                    target.setText(SimpleDateFormat("hh:mm a", Locale.US).format(picked.time))
+                    target.setText(SimpleDateFormat("hh.mm a", Locale.US).format(picked.time))   // 🔴 V1158
                 },
                 now.get(java.util.Calendar.HOUR_OF_DAY),
                 now.get(java.util.Calendar.MINUTE),
@@ -2271,11 +2271,16 @@ class StaffProfileActivity : AppCompatActivity() {
         fun to24(raw: String): String? {
             val t = raw.trim().uppercase(Locale.US)
             if (t.isBlank()) return null
-            return try {
-                val fmt = SimpleDateFormat("hh:mm a", Locale.US)
-                val parsed = fmt.parse(t) ?: return null
-                SimpleDateFormat("HH:mm:ss", Locale.US).format(parsed)
-            } catch (_: Throwable) { null }
+            /* 🔴🔒 V1158 — লেখাটা এখন `03.15 PM` ধাঁচে বসে, কিন্তু স্টাফ হাতে
+               `3:15 PM`-ও লিখতে পারেন, আর পুরনো বিল্ডের লেখাও ওরকমই।
+               ⇒ চারটে ধাঁচই চেষ্টা করা হয়, একটাও হারায় না। */
+            for (pat in listOf("hh.mm a", "h.mm a", "hh:mm a", "h:mm a")) {
+                try {
+                    val parsed = SimpleDateFormat(pat, Locale.US).parse(t) ?: continue
+                    return SimpleDateFormat("HH:mm:ss", Locale.US).format(parsed)
+                } catch (_: Throwable) { }
+            }
+            return null
         }
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "Fix Attendance"))
@@ -3575,14 +3580,14 @@ class StaffProfileActivity : AppCompatActivity() {
         if (t.length < 10) return ""
         val d = t.substring(0, 10).split("-")
         if (d.size != 3) return ""
-        val date = d[2] + "." + d[1] + "." + d[0]
+        val date = d[2] + "/" + d[1] + "/" + d[0]
         if (t.length < 16) return date
         val hh = t.substring(11, 13).toIntOrNull() ?: return date
         val mi = t.substring(14, 16)
         val ap = if (hh < 12) "AM" else "PM"
         var h12 = hh % 12
         if (h12 == 0) h12 = 12
-        return date + "  " + h12 + ":" + mi + " " + ap
+        return date + " : " + h12 + "." + mi + " " + ap   // 🔴 V1158
     }
 
     /* 👤🔒 V1044 (TK: *"আমার মনে হয় পেশেন্ট এর নাম দরকার এখানে"*) — `nameViews`
@@ -4096,7 +4101,8 @@ class StaffProfileActivity : AppCompatActivity() {
                 val src = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
                     timeZone = TimeZone.getTimeZone("Asia/Kolkata")
                 }
-                val out = SimpleDateFormat("dd MMM yyyy", Locale.US).apply {
+                // 🔴 V1158 — TK: সব জায়গায় একই চেহারা (31/12/2026)।
+                val out = SimpleDateFormat("dd/MM/yyyy", Locale.US).apply {
                     timeZone = TimeZone.getTimeZone("Asia/Kolkata")
                 }
                 out.format(src.parse(iso.take(10)) ?: return dmy(iso))

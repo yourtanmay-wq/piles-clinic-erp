@@ -122,15 +122,15 @@ object PrescriptionHtml {
         .replace(">", "&gt;")
         .replace("\"", "&quot;")
 
-    private fun dot(date: Date): String = SimpleDateFormat("dd.MM.yyyy", Locale.US).format(date)
+    private fun dot(date: Date): String = SimpleDateFormat("dd/MM/yyyy", Locale.US).format(date)
 
     /** 🖨️🔒 V955 (০১.০৯.২০২৬, TK-নির্দেশ: *"Date-এর পাশে Time থাকতে হবে"*) —
      *  প্রকল্পের লক করা ফরম্যাট: তারিখ `dd.MM.yyyy`, সময় `h.mm a` (১২-ঘণ্টা AM/PM,
      *  ঠিক যেমন `DoctorCheckupActivity`-তে আছে)। ⛔ তারিখের রূপ বদলায়নি,
      *  শুধু পাশে সময় যোগ হলো। */
     private fun dotTime(date: Date): String =
-        SimpleDateFormat("dd.MM.yyyy", Locale.US).format(date) + "  " +
-        SimpleDateFormat("h.mm a", Locale.US).format(date)
+        SimpleDateFormat("dd/MM/yyyy", Locale.US).format(date) + " : " +
+        SimpleDateFormat("h.mm a", Locale.US).format(date)   // 🔴 V1158
 
     /** "2026-09-02" বা "02.09.2026" — দুটোই এসে 02.09.2026 হয়ে যায়। */
     private fun dotFromText(raw: String): String {
@@ -142,7 +142,7 @@ object PrescriptionHtml {
         if (s.isEmpty()) return ""
         val iso = Regex("^(\\d{4})-(\\d{2})-(\\d{2})").find(s)
         if (iso != null) {
-            return iso.groupValues[3] + "." + iso.groupValues[2] + "." + iso.groupValues[1]
+            return iso.groupValues[3] + "/" + iso.groupValues[2] + "/" + iso.groupValues[1]   // 🔴 V1158
         }
         return s
     }

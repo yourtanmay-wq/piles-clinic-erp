@@ -16,7 +16,7 @@ object PrintMappers {
     // ছাপা কাগজে তারিখ বাংলা অঙ্কে (২৯.০৭.২০২৬) উঠতে পারত। TK-এর স্থায়ী নিয়ম:
     // ⛔ ছাপায় কখনো বাংলা নয় (একমাত্র Diet Chart ছাড়া), আর তারিখ সবসময়
     // 31.12.2026 ধাঁচে। তাই `Locale.US` — অ্যাপের বাকি সব জায়গার মতোই।
-    private val dateFormat = SimpleDateFormat("dd.MM.yyyy", Locale.US)
+    private val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.US)
     private fun now() = DateUtil.displayWithTime(Date())
 
     private fun patientAgeSex(): String = listOf(

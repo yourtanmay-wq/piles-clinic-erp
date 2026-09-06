@@ -193,7 +193,7 @@ body{font-family:Arial,"Noto Sans Bengali","Noto Sans Devanagari",sans-serif;col
         // PrintMappers.patientAgeSex()-এর হুবহু একই নিয়ম (Age / Sex)
         val ageSex = listOf(RoleSession.currentPatientAge.trim(), RoleSession.currentPatientSex.trim())
             .filter { it.isNotBlank() }.joinToString(" / ").ifBlank { "-" }
-        val dateStr = java.text.SimpleDateFormat("dd.MM.yyyy", java.util.Locale.US)
+        val dateStr = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.US)
             .format(java.util.Date())
 
         val remarkBlock = if (remarks.isBlank()) "" else

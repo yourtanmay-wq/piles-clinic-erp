@@ -2736,7 +2736,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                         DatePickerDialog(this@DoctorVisitActivity, com.tkbiswas.pilesclinic.R.style.PilesDatePicker, { _, y, m, d ->
                             // ⛔ Locale.US — নইলে ফোনের ভাষা বাংলা হলে সংখ্যা
                             //    বাংলায় বসে যেত (খাতার সারি B93-এর গ্লোবাল রুল)।
-                            nextDate = String.format(Locale.US, "%02d.%02d.%04d", d, m + 1, y)
+                            nextDate = String.format(Locale.US, "%02d/%02d/%04d", d, m + 1, y)
                             btnDate.text = nextDate
                         }, c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH)).apply {
             /* 🔴🔒 V843 (২৯.০৮.২০২৬, নিয়ম ৭ — একটা দোষ পেলে পুরো প্রজেক্টে):
@@ -4451,7 +4451,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                 val timeTxt = try {
                     val d = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
                         .parse(r.recordedAt.take(19))
-                    java.text.SimpleDateFormat("h:mm a", java.util.Locale.US).format(d!!)
+                    java.text.SimpleDateFormat("h.mm a", java.util.Locale.US).format(d!!)
                 } catch (_: Throwable) { "—" }
                 val row = LinearLayout(this@DoctorVisitActivity).apply {
                     orientation = LinearLayout.HORIZONTAL

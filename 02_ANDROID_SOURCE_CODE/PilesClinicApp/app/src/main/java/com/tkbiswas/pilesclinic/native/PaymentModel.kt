@@ -213,7 +213,7 @@ object PaymentModel {
         val ap = if (hh < 12) "AM" else "PM"
         var h12 = hh % 12
         if (h12 == 0) h12 = 12
-        return "$h12:$mi $ap"
+        return "$h12.$mi $ap"   // 🔴 V1158 — TK: "3.15 PM"
     }
 
     /** 🕒 V1106 — টাকার সারির "তারিখ + সময়"।
@@ -225,7 +225,7 @@ object PaymentModel {
         val d10 = (dateRaw ?: "").take(10)
         val i10 = (isoRaw ?: "").take(10)
         val clock = if (d10.isNotBlank() && d10 == i10) clockOf(isoRaw) else ""
-        return if (clock.isBlank()) day else "$day  $clock"
+        return if (clock.isBlank()) day else "$day : $clock"   // 🔴 V1158 — "31/12/2026 : 3.15 PM"
     }
 
     fun normalizeMode(mode: String): String =
@@ -539,11 +539,11 @@ object PaymentModel {
         clockOf(iso).let { if (it.isNotBlank()) return it }
         return try {
             val parsed = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).parse(iso)
-            SimpleDateFormat("h:mm a", Locale.US).format(parsed!!)
+            SimpleDateFormat("h.mm a", Locale.US).format(parsed!!)
         } catch (_: Exception) {
             try {
                 val hm = iso.substringAfter('T', "").take(5)   // "15:42"
-                if (hm.length == 5) SimpleDateFormat("h:mm a", Locale.US).format(
+                if (hm.length == 5) SimpleDateFormat("h.mm a", Locale.US).format(
                     SimpleDateFormat("HH:mm", Locale.US).parse(hm)!!
                 ) else ""
             } catch (_: Exception) { "" }

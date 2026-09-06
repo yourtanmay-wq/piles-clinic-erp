@@ -174,7 +174,7 @@ class FieldVisitActivity : AppCompatActivity() {
     private fun timeOf(iso: String): String = try {
         if (iso.isBlank()) "" else {
             val ms = parseIso(iso)
-            if (ms <= 0L) "" else SimpleDateFormat("h:mm a", Locale.US).apply {
+            if (ms <= 0L) "" else SimpleDateFormat("h.mm a", Locale.US).apply {
                 timeZone = TimeZone.getTimeZone("Asia/Kolkata")
             }.format(java.util.Date(ms))
         }
@@ -199,7 +199,7 @@ class FieldVisitActivity : AppCompatActivity() {
 
     private fun dmy(iso: String): String = try {
         val p = iso.take(10).split("-")
-        if (p.size == 3) p[2] + "." + p[1] + "." + p[0] else iso.take(10)
+        if (p.size == 3) p[2] + "/" + p[1] + "/" + p[0] else iso.take(10)
     } catch (_: Throwable) { iso.take(10) }
 
     // ─── পর্দা ────────────────────────────────────────────────────────────

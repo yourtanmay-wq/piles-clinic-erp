@@ -3759,7 +3759,7 @@ class FollowUpActivity : AppCompatActivity() {
 
     private fun displayDateForEdit(iso: String): String = try {
         val parsed = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(iso)
-        if (parsed != null) java.text.SimpleDateFormat("dd.MM.yyyy", java.util.Locale.US).format(parsed) else iso
+        if (parsed != null) java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.US).format(parsed) else iso
     } catch (e: Exception) { iso }
 
     private fun showEditDialog(item: FollowUpItem) {

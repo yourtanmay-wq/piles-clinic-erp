@@ -111,7 +111,7 @@ object MoneyHandover {
             val mm = t.substring(14, 16)
             val ap = if (hh >= 12) "PM" else "AM"
             val h12 = when { hh == 0 -> 12; hh > 12 -> hh - 12; else -> hh }
-            "$h12:$mm $ap"
+            "$h12.$mm $ap"   // 🔴 V1158
         } catch (_: Throwable) { "" }
     }
 
@@ -119,7 +119,7 @@ object MoneyHandover {
 
     fun dotDate(iso: String): String = try {
         val p = iso.trim().substring(0, 10).split("-")
-        p[2] + "." + p[1] + "." + p[0]
+        p[2] + "/" + p[1] + "/" + p[0]
     } catch (_: Throwable) { iso }
 
     private fun isoNow(): String = try {

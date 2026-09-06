@@ -213,7 +213,7 @@
   function finToday() { return window.MOD.todayIST(); }
   function finIsToday(d) { return String(d || '') === finToday(); }
   function finSlash(iso) {
-    try { var p = String(iso || '').split('-'); return p.length === 3 ? p[2] + '.' + p[1] + '.' + p[0] : iso; }
+    try { var p = String(iso || '').split('-'); return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso; }
     catch (e) { return iso; }
   }
   /** পুরনো তারিখে কিছু করতে গেলে — কারণ চেয়ে মাস্টারের কাছে অনুরোধ পাঠায়।
@@ -432,7 +432,7 @@
       return;
     }
     var d = m.todayIST();
-    var dp = d.split('-'); var dotted = dp[2] + '.' + dp[1] + '.' + dp[0];
+    var dp = d.split('-'); var dotted = dp[2] + '/' + dp[1] + '/' + dp[0];
     // 🔵🔒 cache-first (09.08.2026, TK-অনুমোদিত — ফোনের income_expense_cache-এর মতোই):
     // শেষ-জানা আজকের হিসাব থাকলে **সাথে সাথেই** দেখাই ("হালনাগাদ হচ্ছে…" লেখা-সহ),
     // তারপর নেট থেকে আসল সংখ্যা এলে বসাই। ⛔ হিসাবের নিয়ম বদলায়নি — শুধু আগে দেখায়।
@@ -510,7 +510,7 @@
       var note = x.expense_notes || '';
       if (note) expTotal += (x.expense_total != null && x.expense_total >= 0) ? Number(x.expense_total) : finSumNumbers(note);
     });
-    var dp = d.split('-'); var dotted = dp[2] + '.' + dp[1] + '.' + dp[0];
+    var dp = d.split('-'); var dotted = dp[2] + '/' + dp[1] + '/' + dp[0];
     var collTotal = cashColl + onlineColl;
     alert(dotted + ' · ' + brSel + '\n\n' +
       'Collection — Cash: ' + m.money(cashColl) + '  ·  Online: ' + m.money(onlineColl) + '\n' +
@@ -802,7 +802,7 @@ function finRowTap(id) {
       var expSum = ((row.expense_total != null && row.expense_total >= 0) ? Number(row.expense_total) : finSumNumbers(note))
         + Number(v399ExpByDate[String(row.entry_date || '')] || 0);
       cashTot += cash; onlineTot += online; expTot += expSum;
-      var dp = String(row.entry_date).split('-'); var dotted = dp[2] + '.' + dp[1] + '.' + dp[0];
+      var dp = String(row.entry_date).split('-'); var dotted = dp[2] + '/' + dp[1] + '/' + dp[0];
       /* 🟢🔒 V927 — ট্যাগ শুধু মাস্টারের পর্দায় (TK: "অটো না হাতে ঠিক করা এটা
          মাস্টার ছাড়া কেউ দেখতে পাবে না")। `dotted` নিজে অপরিবর্তিত, তাই
          খরচের পপ-আপের শিরোনামে ট্যাগ যায় না। */
@@ -1562,7 +1562,7 @@ function finRowTap(id) {
     var trs = dates.map(function (d) {
       var o = days[d];
       cashTot += o.cash; onlineTot += o.online; expTot += o.exp;
-      var dp = String(d).split('-'); var dotted = dp[2] + '.' + dp[1] + '.' + dp[0];
+      var dp = String(d).split('-'); var dotted = dp[2] + '/' + dp[1] + '/' + dp[0];
       /* ট্যাগ শুধু মাস্টারের পর্দায় — TK: "অটো না হাতে ঠিক করা এটা মাস্টার
          ছাড়া কেউ দেখতে পাবে না"। স্টাফ/ডাক্তার শুধু সংখ্যাটাই দেখেন। */
       var tag = '';
@@ -1767,7 +1767,7 @@ function finRowTap(id) {
       var o = days[d];
       cashTot += o.cash; onlineTot += o.online; expTot += o.exp;
       running += o.cash + o.online - o.exp;
-      var dp = String(d).split('-'); var dotted = dp[2] + '.' + dp[1] + '.' + dp[0];
+      var dp = String(d).split('-'); var dotted = dp[2] + '/' + dp[1] + '/' + dp[0];
       rows.push([dotted, o.cash > 0 ? m.money(o.cash).replace('₹', '') : '-', o.online > 0 ? m.money(o.online).replace('₹', '') : '-',
         o.exp > 0 ? m.money(o.exp).replace('₹', '') : '-', m.money(running).replace('₹', ''), false]);
     });
@@ -1793,13 +1793,13 @@ function finRowTap(id) {
     if (!dates.length) html += '<div class="mut" style="margin-top:8px">এই সময়ের মধ্যে এখনো কোনো এন্ট্রি নেই।</div>';
 
     // 🔵 R6-এর হুবহু একই প্যাটার্নে WhatsApp শেয়ার।
-    var fromDotted = fromIso.split('-').reverse().join('.'), toDotted = toIso.split('-').reverse().join('.');
+    var fromDotted = fromIso.split('-').reverse().join('/'), toDotted = toIso.split('-').reverse().join('/');
     var sbx = '📄 স্টেটমেন্ট — ' + fromDotted + ' থেকে ' + toDotted + '\n' + branchSel + '\n————————————\n' +
       'Opening Balance: ' + (openingOk ? m.money(opening) : '—') + '\n';
     var run2 = opening;
     dates.forEach(function (d) {
       var o = days[d]; run2 += o.cash + o.online - o.exp;
-      var dp = String(d).split('-'); var dotted = dp[2] + '.' + dp[1] + '.' + dp[0];
+      var dp = String(d).split('-'); var dotted = dp[2] + '/' + dp[1] + '/' + dp[0];
       sbx += dotted + ' — Cash ' + m.money(o.cash) + ' · Online ' + m.money(o.online) + ' · খরচ ' + m.money(o.exp) + ' · Balance ' + m.money(run2) + '\n';
     });
     sbx += '————————————\nমোট: Cash ' + m.money(cashTot) + ' · Online ' + m.money(onlineTot) + ' · খরচ ' + m.money(expTot) + '\n';

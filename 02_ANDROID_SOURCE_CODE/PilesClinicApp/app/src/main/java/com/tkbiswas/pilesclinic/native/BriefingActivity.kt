@@ -166,7 +166,10 @@ class BriefingActivity : AppCompatActivity() {
                 val cal = java.util.Calendar.getInstance()
                 android.app.TimePickerDialog(this, { _, hour, minute ->
                     try { BriefingReminderScheduler.scheduleExactTime(this, hour, minute) } catch (_: Throwable) { }
-                    val label = String.format(java.util.Locale.US, "%02d:%02d", hour, minute)
+                    // 🔴 V1158 — দেখানোর ঘড়ি সবসময় "2.30 PM" ধাঁচে (২৪-ঘণ্টা নয়)।
+                    val ap12 = if (hour < 12) "AM" else "PM"
+                    val h12 = when { hour == 0 -> 12; hour > 12 -> hour - 12; else -> hour }
+                    val label = String.format(java.util.Locale.US, "%d.%02d %s", h12, minute, ap12)
                     Toast.makeText(this, "OK, will remind you again at $label", Toast.LENGTH_LONG).show()
                 }, cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE), false).show()
             }
@@ -1213,7 +1216,7 @@ class BriefingActivity : AppCompatActivity() {
                         if (needRaw.contains("conflict")) add("Colleague on leave")
                         if (needRaw.contains("5th")) add("5th day this month")
                     }.joinToString(" + ").ifBlank { needRaw }
-                    val dotted = try { val p = date.split("-"); p[2] + "." + p[1] + "." + p[0] } catch (_: Throwable) { date }
+                    val dotted = try { val p = date.split("-"); p[2] + "/" + p[1] + "/" + p[0] } catch (_: Throwable) { date }
                     val row = LinearLayout(this@BriefingActivity).apply {
                         orientation = LinearLayout.VERTICAL
                         setBackgroundColor(android.graphics.Color.WHITE)

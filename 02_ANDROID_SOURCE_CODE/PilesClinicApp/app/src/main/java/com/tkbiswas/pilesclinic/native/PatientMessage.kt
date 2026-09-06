@@ -40,7 +40,7 @@ object PatientMessage {
 
     /** GLOBAL RULE (dot date, never slash) — same ধাঁচ প্রজেক্টের বাকি সব জায়গায়। */
     private fun dotDate(d: java.util.Date): String {
-        val sdf = java.text.SimpleDateFormat("dd.MM.yyyy", java.util.Locale.US)
+        val sdf = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.US)
         sdf.timeZone = java.util.TimeZone.getDefault()
         return sdf.format(d)
     }
@@ -60,14 +60,14 @@ object PatientMessage {
     /** `31.12.2026` — 🔴🔒 V936 (TK-নির্দেশ ৩১.০৮.২০২৬: *"সম্পূর্ণ প্রজেক্টে
      *  তারিখ একই ফরমেটে থাকতে হবে"*)। আগে স্ল্যাশ ছিল। */
     private fun tkDate(d: java.util.Date): String {
-        val sdf = java.text.SimpleDateFormat("dd.MM.yyyy", java.util.Locale.US)
+        val sdf = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.US)
         sdf.timeZone = java.util.TimeZone.getDefault()
         return sdf.format(d)
     }
 
     /** `12.34Pm` — TK-এর উদাহরণ হুবহু (প্রথম অক্ষর বড়, পরেরটা ছোট, ফাঁক নেই)। */
     private fun tkTime(d: java.util.Date): String {
-        val sdf = java.text.SimpleDateFormat("h.mma", java.util.Locale.US)
+        val sdf = java.text.SimpleDateFormat("h.mm a", java.util.Locale.US)   // 🔴 V1158
         sdf.timeZone = java.util.TimeZone.getDefault()
         val t = sdf.format(d)          // যেমন "12.34PM"
         return if (t.length >= 2)

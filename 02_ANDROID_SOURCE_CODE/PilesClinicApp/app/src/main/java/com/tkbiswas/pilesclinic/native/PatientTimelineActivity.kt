@@ -69,7 +69,7 @@ class PatientTimelineActivity : AppCompatActivity() {
      *  পড়া না গেলে যা আছে তাই ফেরে — কখনো আন্দাজে কিছু বসে না। */
     // 🔴🔒 V936 (TK-নির্দেশ — এক ফরম্যাট): স্ল্যাশ ছিল, এখন প্রজেক্টের বিন্দু।
     private fun tkSlashDate(raw: String): String = try {
-        if (raw.isBlank()) "" else java.text.SimpleDateFormat("dd.MM.yyyy", java.util.Locale.US)
+        if (raw.isBlank()) "" else java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.US)
             .format(java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(raw.take(10))!!)
     } catch (_: Throwable) { raw }
 
@@ -79,7 +79,7 @@ class PatientTimelineActivity : AppCompatActivity() {
             val f = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
             f.timeZone = java.util.TimeZone.getTimeZone("UTC")
             val d = f.parse(iso) ?: throw IllegalStateException()
-            val out = java.text.SimpleDateFormat("h.mma", java.util.Locale.US)
+            val out = java.text.SimpleDateFormat("h.mm a", java.util.Locale.US)   // 🔴 V1158
             out.timeZone = java.util.TimeZone.getDefault()
             out.format(d).let { it.dropLast(2) + it.takeLast(2).first().uppercase() + it.takeLast(1).lowercase() }
         }

@@ -193,7 +193,7 @@ function wlv1IsDeclaredSeparateRowId(rowId,mobileDigits){
   var pfx='pat_'+d+'_', id=String(rowId||'');
   return id.indexOf(pfx)===0 && id.length>pfx.length;
 }
-window["wlv1IsDeclaredSeparateRowId"]=wlv1IsDeclaredSeparateRowId;function fmtDate(v){let m=String(v||'').slice(0,10).match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}.${m[2]}.${m[1]}`:String(v||'')}
+window["wlv1IsDeclaredSeparateRowId"]=wlv1IsDeclaredSeparateRowId;function fmtDate(v){let m=String(v||'').slice(0,10).match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}/${m[2]}/${m[1]}`:String(v||'')}   /* 🔴 V1158 */
 window.fmtDate=fmtDate;
 /* 🔵🔒 V543: ISO সময় ("...T15:42:10.123Z") → "3:42 PM"। ফোনের
    `PaymentModel.displayTime12()`-এর হুবহু একই কাজ, যাতে দুই জায়গায় এক দেখায়।
@@ -235,7 +235,7 @@ const WLV1_PRINT_EN = [
 ];
 function wlv1PrintEn(t){let o=String(t==null?'':t);if(!o)return o;for(const pr of WLV1_PRINT_EN){if(o.indexOf(pr[0])>=0)o=o.split(pr[0]).join(pr[1])}return o}
 window["wlv1PrintEn"]=wlv1PrintEn;
-window.wlv1Ampm=wlv1Ampm;function fmtDateTime(v){let t=String(v||'');return fmtDate(t)+(t.includes('T')?' '+wlv1Ampm(t.slice(11,16)):'')}
+window.wlv1Ampm=wlv1Ampm;function fmtDateTime(v){let t=String(v||'');return fmtDate(t)+(t.includes('T')?' : '+wlv1Ampm(t.slice(11,16)):'')}   /* 🔴 V1158 */
 window.fmtDateTime=fmtDateTime;
 function rawDate(v){let m=String(v||'').match(/^(\d{2})-(\d{2})-(\d{4})$/);return m?`${m[3]}-${m[2]}-${m[1]}`:String(v||'').slice(0,10)}
 window["rawDate"]=rawDate;
@@ -2214,7 +2214,7 @@ function wlv1RmpDayPatients(name){
     var rs0=function(v){ return '₹'+Number(v||0).toLocaleString('en-IN',
       {minimumFractionDigits:0,maximumFractionDigits:0}); };
     var dt=String(wlv1ChamberDate||'').slice(0,10).split('-');
-    var dts=(dt.length===3)?(dt[2]+'.'+dt[1]+'.'+dt[0]):'';
+    var dts=(dt.length===3)?(dt[2]+'/'+dt[1]+'/'+dt[0]):'';   /* 🔴 V1158 */
     var tot=0, body='';
     all.slice().sort(function(a,b){
       return Number(b.commission_today||0)-Number(a.commission_today||0); })
@@ -3288,7 +3288,7 @@ function wlv1PayHhmm(x){
   var iso=String((x&&x.createdAt)||'');
   if(iso.length>=16 && iso[10]==='T') return iso.slice(11,16);
   var t=String(wlv1Time12(iso)||'').trim();
-  var m=/^(\d{1,2}):(\d{2})\s*([AaPp])/.exec(t);
+  var m=/^(\d{1,2})[.:](\d{2})\s*([AaPp])/.exec(t);   /* 🔴 V1158 — বিন্দু ও কোলন দুটোই */
   if(m){ var h=parseInt(m[1],10); if(h===12)h=0; if(m[3].toLowerCase()==='p')h+=12;
          return (h<10?'0':'')+h+':'+m[2]; }
   return '99:99';
@@ -5758,7 +5758,11 @@ window["handlePatientPhotoTap"]=handlePatientPhotoTap;
 /* ==== WEB APP . helpers that make this screen behave exactly like the native
    Android app (TK rule, 2026.07.25: whatever the native app has, the web app
    must have the same). All names start with wlv1 so nothing existing clashes. */
-function wlv1Dot(iso){ if(!iso) return ''; const p=String(iso).split('-'); return p.length===3?(p[2]+'.'+p[1]+'.'+p[0]):String(iso); }
+/* 🔴🔴🔒 V1158 (৩১.১২.২০২৬, TK-নির্দেশ: *"31/12/2026 : 3.15 PM — সম্পূর্ণ প্রজেক্ট
+   এরকম হতে হবে"*) — তারিখে এখন স্ল্যাশ। ⛔ শুধু **দেখানোর** লেখা; জমা · সাজানো ·
+   তুলনা সবখানে আগের মতোই `yyyy-MM-dd`। ⛔ পুরনো লেখা পড়ার `wlv1IsoDate()`
+   বিন্দু ও স্ল্যাশ দুটোই চেনে, তাই পুরনো কিছু ভাঙে না। */
+function wlv1Dot(iso){ if(!iso) return ''; const p=String(iso).split('-'); return p.length===3?(p[2]+'/'+p[1]+'/'+p[0]):String(iso); }
 window["wlv1Dot"]=wlv1Dot;
 /* 🔴🔒 V936 (৩১.০৮.২০২৬, TK-নির্দেশ: *"সম্পূর্ণ প্রজেক্টে তারিখ একই ফরমেটে থাকতে
    হবে … ঝুঁকিহীন ভাবে"*) — কিছু নোটিশের ভিতরের তারিখ **মেশিনও পড়ে** (Reopen ও
@@ -14923,7 +14927,7 @@ function wlv1Time12(iso){
     var hm=t.slice(0,5).split(':'); var h=parseInt(hm[0],10), m=parseInt(hm[1],10);
     if(isNaN(h)||isNaN(m)) return '';
     var ap=h>=12?'PM':'AM'; h=h%12; if(h===0)h=12;
-    return h+':'+(m<10?'0'+m:m)+' '+ap;
+    return h+'.'+(m<10?'0'+m:m)+' '+ap;   /* 🔴 V1158 */
   }catch(e){ return ''; }
 }
 window["wlv1Time12"]=wlv1Time12;
@@ -15231,7 +15235,7 @@ function wlv1ClockOf(iso){
   var hh=parseInt(t.substr(11,2),10),mi=t.substr(14,2);
   if(!isFinite(hh)||!/^\d{2}$/.test(mi))return '';
   var ap=hh<12?'AM':'PM',h12=hh%12; if(h12===0)h12=12;
-  return h12+':'+mi+' '+ap;
+  return h12+'.'+mi+' '+ap;   /* 🔴 V1158 */
  }catch(e){return ''}
 }
 window["wlv1ClockOf"]=wlv1ClockOf;
@@ -15240,7 +15244,7 @@ window["wlv1ClockOf"]=wlv1ClockOf;
 function wlv1DayClock(dateRaw,isoRaw){
  var day=fmtDate(dateRaw),d10=String(dateRaw||'').slice(0,10),i10=String(isoRaw||'').slice(0,10);
  var c=(d10&&d10===i10)?wlv1ClockOf(isoRaw):'';
- return c?(day+'  '+c):day;
+ return c?(day+' : '+c):day;   /* 🔴 V1158 — "31/12/2026 : 3.15 PM" */
 }
 window["wlv1DayClock"]=wlv1DayClock;
 /* 🔴 V1106 — সেভের আগে দুটো প্রশ্ন একসাথে: ① হুবহু একই অঙ্ক আজ আগে বসেছে কিনা
@@ -16028,7 +16032,8 @@ function wlv1ShowDailyBreakdown(paymentId){
     const amt = Number(e.amount||0);
     const mode = payMode(e.mode)==='UPI' ? 'UPI' : 'CASH';
     let timeTxt = '';
-    try { if(e.createdAt) timeTxt = new Date(e.createdAt).toLocaleTimeString('en-IN',{hour:'numeric',minute:'2-digit'}); } catch(_e){}
+    /* 🔴 V1158 — ঘড়ি সব জায়গায় "3.15 PM" ধাঁচে। */
+    try { if(e.createdAt) timeTxt = new Date(e.createdAt).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}).replace(':','.'); } catch(_e){}
     return `<div class="card" style="display:flex;align-items:center;gap:8px;padding:9px 12px">
       <div style="flex:1">
         <b style="color:#16A36D">₹${Number(amt).toLocaleString('en-IN')}</b><br>
@@ -16663,7 +16668,7 @@ function wlv1TrashWhen(x){
     if(isNaN(d))return '';
     var dd=String(d.getDate()).padStart(2,'0'), mm=String(d.getMonth()+1).padStart(2,'0');
     var h=d.getHours(), ap=h>=12?'PM':'AM'; h=h%12; if(h===0)h=12;
-    return dd+'.'+mm+'.'+d.getFullYear()+' '+h+':'+String(d.getMinutes()).padStart(2,'0')+' '+ap;
+    return dd+'/'+mm+'/'+d.getFullYear()+' : '+h+'.'+String(d.getMinutes()).padStart(2,'0')+' '+ap;   /* 🔴 V1158 */
   }catch(e){ return ''; }
 }
 function wlv1TrashDeletedBy(x){
@@ -23945,7 +23950,7 @@ function wlv1MhTime(raw){
   try{
     var hh=parseInt(t.slice(11,13),10), mm=t.slice(14,16);
     var ap=hh>=12?'PM':'AM', h12=(hh===0)?12:(hh>12?hh-12:hh);
-    return h12+':'+mm+' '+ap;
+    return h12+'.'+mm+' '+ap;   /* 🔴 V1158 */
   }catch(e){ return '' }
 }
 function wlv1MhMoney(v){ return '₹'+Number(v||0).toLocaleString('en-IN',{maximumFractionDigits:0}) }
@@ -28772,7 +28777,7 @@ function wlv1RemStamp(iso){
     if(isNaN(d)) return '—';
     var p=n=>String(n).padStart(2,'0');
     var h=d.getHours(), ap=h>=12?'Pm':'Am', h12=h%12||12;
-    return p(d.getDate())+'.'+p(d.getMonth()+1)+' · '+h12+'.'+p(d.getMinutes())+ap;
+    return p(d.getDate())+'/'+p(d.getMonth()+1)+' · '+h12+'.'+p(d.getMinutes())+' '+ap;   /* 🔴 V1158 */
   }catch(e){ return '—' }
 }
 

@@ -162,7 +162,7 @@ object UnexpectedIncentive {
         if (t.length < 10) return ""
         val d = try {
             val p = t.substring(0, 10).split("-")
-            p[2] + "." + p[1] + "." + p[0]
+            p[2] + "/" + p[1] + "/" + p[0]
         } catch (_: Throwable) { return "" }
         if (t.length < 16) return d
         return try {

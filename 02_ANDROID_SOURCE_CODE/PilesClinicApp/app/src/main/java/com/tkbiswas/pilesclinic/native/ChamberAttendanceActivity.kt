@@ -2499,7 +2499,9 @@ class ChamberAttendanceActivity : AppCompatActivity() {
           আর `followups.history` দুটোতেই তারিখ ধরে লেখাটা পাওয়া যায়। */
     private fun todaysProgressMissing(remark: String, remarkUpdatedAt: String): Boolean {
         if (isEffectivelyBlankRemark(remark)) return true
-        return remarkUpdatedAt.take(10) != selectedDate
+        // ⛔ কোনো কারণে দিনটা জানা না থাকলে আজকের দিনই ধরা হয় (আগের আচরণ)।
+        val day = selectedDate.ifBlank { FollowUpModel.today() }
+        return remarkUpdatedAt.take(10) != day
     }
 
     private fun writeTreatment(row: ChamberAttendanceRow) {
@@ -3086,10 +3088,10 @@ Thread {
             val d = resources.displayMetrics.density
             fun dp(v: Int) = (v * d).toInt()
             fun money(v: Double) = "₹" + "%,.2f".format(v)
-            // তারিখ "yyyy-MM-dd" → "dd.MM.yyyy" (এই পর্দায় আলাদা ফাংশন নেই)
+            // তারিখ "yyyy-MM-dd" → "dd/MM/yyyy" (এই পর্দায় আলাদা ফাংশন নেই) — 🔴 V1158
             val dateText = try {
                 val q = selectedDate.take(10).split("-")
-                if (q.size == 3) q[2] + "." + q[1] + "." + q[0] else selectedDate.take(10)
+                if (q.size == 3) q[2] + "/" + q[1] + "/" + q[0] else selectedDate.take(10)
             } catch (_: Throwable) { selectedDate.take(10) }
             val col = android.widget.LinearLayout(this).apply {
                 orientation = android.widget.LinearLayout.VERTICAL
@@ -4361,7 +4363,7 @@ Thread {
                 val parsed = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(selectedDate)
                 if (parsed != null) cal.time = parsed
             } catch (_: Exception) { }
-            val dateLabel = SimpleDateFormat("dd.MM.yyyy", Locale.US).format(cal.time)
+            val dateLabel = SimpleDateFormat("dd/MM/yyyy", Locale.US).format(cal.time)
             val dayLabel = SimpleDateFormat("EEEE", Locale.ENGLISH).format(cal.time)
             val registerRows = arrived.mapIndexed { i, r ->
                 ChamberRegisterPdfBuilder.RegisterRow(
