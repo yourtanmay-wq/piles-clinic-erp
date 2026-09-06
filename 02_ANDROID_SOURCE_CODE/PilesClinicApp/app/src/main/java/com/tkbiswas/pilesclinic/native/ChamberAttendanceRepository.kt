@@ -1334,8 +1334,18 @@ object ChamberAttendanceRepository {
          */
         try {
             if (date.isNotBlank() && date < FollowUpModel.today()) {
+                /* 🕓🔒 V1157 (০৭.০৯.২০২৬, TK-রিপোর্ট) — আগে **শুধু ফাঁকা** সারির
+                   জন্য খাতা দেখা হত। কিন্তু ঘরে অন্য দিনের একটা পুরনো লেখা বসে
+                   থাকলে সারিটা "ফাঁকা নয়" ধরে বাদ পড়ত — অথচ ওই দিনের নিজের
+                   লেখাটা খাতায় ছিল। ⇒ এখন **যার লেখা এই দিনের নয়**, তার জন্যও
+                   খাতা দেখা হয়। ⛔ ওই দিনের লেখা ইতিমধ্যে থাকলে বাদ, তাই
+                   বাড়তি অনুরোধ শুধু সত্যিই দরকার হলেই। */
+                fun needsDayRemark(v: MutableMap<String, Any?>): Boolean {
+                    if (((v["remark"] as? String).orEmpty()).isBlank()) return true
+                    return ((v["remarkUpdatedAt"] as? String).orEmpty()).take(10) != date
+                }
                 val needIds = byMobile.values
-                    .filter { ((it["remark"] as? String).orEmpty()).isBlank() }
+                    .filter { needsDayRemark(it) }
                     .mapNotNull { (it["followUpId"] as? String)?.trim()?.takeIf { s -> s.isNotEmpty() } }
                     .distinct()
                 if (needIds.isNotEmpty()) {
@@ -1360,9 +1370,17 @@ object ChamberAttendanceRepository {
                         }
                         if (dayRemarkById.isNotEmpty()) {
                             for (v in byMobile.values) {
-                                if (((v["remark"] as? String).orEmpty()).isNotBlank()) continue
+                                if (!needsDayRemark(v)) continue
                                 val fid = (v["followUpId"] as? String)?.trim().orEmpty()
-                                dayRemarkById[fid]?.let { v["remark"] = it }
+                                dayRemarkById[fid]?.let {
+                                    v["remark"] = it
+                                    /* 🔴🔒 V1157 (০৭.০৯.২০২৬, TK-রিপোর্ট) — লেখাটা
+                                       **ঠিক এই দিনেরই**, তাই তারিখটাও এখানে বসাতেই
+                                       হয়। নইলে চেম্বার-বন্ধের পাহারা (এখন পুরনো
+                                       দিনেও তারিখ মেলায়) সত্যিকারের লেখাকেই
+                                       "নেই" ধরে নিত। */
+                                    v["remarkUpdatedAt"] = date + "T00:00:00.000Z"
+                                }
                             }
                         }
                     }

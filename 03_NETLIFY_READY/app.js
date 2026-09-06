@@ -20570,6 +20570,35 @@ function wlv1ChamberRows(date, branch){
       if(!r.__hasProgressToday){ r.treatment = String(f.lastRemark||''); r.treatmentUpdatedAt = String(f.lastRemarkAt||f.updatedAt||f.createdAt||''); }
     }
   });
+  /* 🕓🔒 V1157 (০৭.০৯.২০২৬, TK-রিপোর্ট · ফোনের V535-এর যমজ — ওয়েবে এতদিন
+     ছিলই না) — **পুরনো দিনের বোর্ডে ওই দিনের নিজের লেখাটা** `followups.history`
+     থেকে ফিরিয়ে আনা। উপরের `lastRemark` হলো **এই মুহূর্তের** লেখা, ওই দিনের নয়;
+     রোগী আবার এলে বা টাকা দিলে ওটা বদলে যায়।
+     ⛔ ওই দিনের টাকার সারিতে `progress` থাকলে সেটাই জেতে — এখানে হাত পড়ে না।
+     ⛔ অ্যাপের নিজের অটো-লেখা কখনো নেওয়া হয় না।
+     ⛔ আজকের বোর্ডে এই ধাপটা চলেই না। */
+  try{
+    if(date && date < today()){
+      var __v1157Hist = {};
+      (fus||[]).forEach(function(f){
+        var m2 = mob(f && f.mobile); if(!m2) return;
+        var h = (f && f.history) || [];
+        for(var i2=0;i2<h.length;i2++){
+          var it = h[i2]||{};
+          if(String(d10(it.date||''))!==date) continue;
+          var rem = String(it.remark||'').trim();
+          if(rem && !wlv1ChamberAutoRemark(rem)) __v1157Hist[m2]=rem;
+        }
+      });
+      Object.keys(rows).forEach(function(k){
+        var r2 = rows[k]; if(!r2) return;
+        if(r2.__hasProgressToday) return;
+        if(String(r2.treatmentUpdatedAt||'').slice(0,10)===date) return;
+        var rem2 = __v1157Hist[mob(r2.mobile)];
+        if(rem2){ r2.treatment = rem2; r2.treatmentUpdatedAt = date+'T00:00:00.000Z'; }
+      });
+    }
+  }catch(_e){}
   /* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬) — এখন হুবহু ফোনের নিয়ম
      (ChamberAttendanceRepository.kt:847-858):
      ১) যিনি আসেননি **এবং** যাঁর "আসার কথা"-ও নেই — তিনি বোর্ডে উঠবেন না।
@@ -20695,6 +20724,25 @@ window["wlv1ChamberVisitLabel"]=wlv1ChamberVisitLabel;
 // জায়গায় (Treatment Progress কলাম, Close Chamber-এর "বাকি আছে"
 // সতর্কতা, Report Card-এর ছাপা) পুনর্ব্যবহার — ফোনের
 // isEffectivelyBlankRemark()-এর হুবহু একই নিয়ম।
+/* 🔴🔒 V1157 — ফোনের `isAppAutoRemark` + `PaymentModel.isAutoPaymentRemark`-এর
+   যমজ। অ্যাপের নিজের বসানো লেখা কখনো "স্টাফের লেখা Treatment Progress" ধরা
+   হয় না — নইলে পুরনো দিনের খাতা থেকে ওগুলোই উঠে আসত। */
+function wlv1ChamberAutoRemark(remark){
+  var r = String(remark||'').trim();
+  if(!r) return true;
+  var fixed = ['advance','advance payment','visit fee','registration fee',
+    'treatment payment','marked arrived','marked expected',
+    'registered patient / visit created','treatment payment / advance received',
+    'advance payment received','converted to patient / treatment'];
+  if(fixed.indexOf(r.toLowerCase())>=0) return true;
+  if(/^chamber( .+)? payment$/i.test(r)) return true;
+  if(/^₹\s?[\d,]+(\.\d+)?$/.test(r)) return true;
+  if(/^(cash|online|upi)$/i.test(r)) return true;
+  if(/^bill corrected:.*$/i.test(r)) return true;
+  if(/^marked (arrived|expected)\b.*$/i.test(r)) return true;
+  return /^\d+(st|nd|rd|th)( payment)?$/i.test(r);
+}
+window["wlv1ChamberAutoRemark"]=wlv1ChamberAutoRemark;
 function wlv1EffectivelyBlankRemark(remark){
   const t = String(remark||'').trim();
   return !t || t.toLowerCase()==='registered patient / visit created';
@@ -20708,10 +20756,15 @@ window["wlv1EffectivelyBlankRemark"]=wlv1EffectivelyBlankRemark;
    কাগজ তারিখটা মেলাতোই না** — শুধু "ঘর ফাঁকা কিনা" দেখত। ফলে পুরনো লেখা
    পাহারা ফাঁকি দিত, আর কাগজে আজকের নোট সেজে ছাপা হত।
    ⛔ পুরনো দিনের বোর্ড/কাগজ অক্ষত — তারিখ মেলানো হয় **শুধু আজকের** দিনে। */
+/* 🔴🔴🔒 V1157 (০৭.০৯.২০২৬, TK-রিপোর্ট · ফোনের হুবহু যমজ — নিয়ম ৬.৬) —
+   V810-এর তারিখ-মেলানো বসেছিল **শুধু আজকের** চেম্বারে; বিগত দিনের চেম্বারে
+   নিচের লাইনটা সোজা `false` ফেরত দিত, অর্থাৎ পাহারাটা ওখানে **বন্ধই ছিল** —
+   অন্য দিনের যে কোনো পুরনো লেখা থাকলেই বন্ধ হয়ে যেত, আর কাগজে ওটাই ছাপা হত।
+   ⇒ এখন **যে দিনের বোর্ড, সেই দিনের লেখা** — দুই ক্ষেত্রেই এক নিয়ম। */
 function wlv1TodaysProgressMissing(r){
   if(wlv1EffectivelyBlankRemark(r&&r.treatment)) return true;
-  if(String(wlv1ChamberDate||'')!==today()) return false;   // পুরনো দিন — আগের মতোই
-  return String((r&&r.treatmentUpdatedAt)||'').slice(0,10)!==today();
+  var d = String(wlv1ChamberDate||'')||today();
+  return String((r&&r.treatmentUpdatedAt)||'').slice(0,10)!==d;
 }
 window["wlv1TodaysProgressMissing"]=wlv1TodaysProgressMissing;
 /* 🔴🔒 V933 (৩১.০৮.২০২৬, TK-রিপোর্ট, ছবিসহ — "কোন পেশেন্ট যদি RMP পাঠায় সে
