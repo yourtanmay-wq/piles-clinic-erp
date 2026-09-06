@@ -86,6 +86,10 @@ class PatientTimelineActivity : AppCompatActivity() {
     } catch (_: Throwable) { "" }
 
     private var currentRegistrationDate: String = ""
+    /* 🔴🔒 V1145 (০৬.০৯.২০২৬, TK-নির্দেশ) — রোগীর সময়ের ধরন ("Official Time" /
+       "Unexpected Time")। এডিট পপ-আপে এটাও শুধরানো যায়, কারণ স্টাফের বাড়তি
+       পাওনা প্রতিবার **এই ঘরটা ধরেই** গোনা হয় (UnexpectedIncentive)। */
+    private var currentTimeType: String = ""
     /** 🔴🔒 V505 (TK-নির্দেশ ২১.০৮.২০২৬) — রোগীর সারির `createdAt`, অর্থাৎ
      *  **রেজিস্ট্রেশনের আসল সময়**। পরে আবার বার্তা পাঠালেও এই সময়টাই যায়। */
     private var currentRegistrationCreatedAt: String = ""
@@ -487,6 +491,41 @@ class PatientTimelineActivity : AppCompatActivity() {
                     cal.get(java.util.Calendar.DAY_OF_MONTH)).show()
             }
         }
+        /* 🔴🔒 V1145 (০৬.০৯.২০২৬, TK-নির্দেশ) — TK: *"অফিসিয়াল টাইমে কল
+           এসেছিল, স্টাফ ভুল করে আনএক্সপেক্টেড করে দিয়েছিল … এগুলো তো টাকা
+           পয়সার হিসাব"*।
+           ⇒ দুটো বোতাম, রেজিস্ট্রেশন ফর্মের মতোই। বাছাই বদলালে সেভের সময়
+             `timeType` **তিন জায়গাতেই** বসে — patients (কার্ডের ব্যাজ) ·
+             enquiries (টাকার হিসেব) · followups।
+           ⛔ হাত না দিলে কোথাও কিছু লেখা হয় না (আগের মানটাই থাকে)। */
+        var pickedTiming = currentTimeType.trim()
+        val timingRow = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+        }
+        val timingBtns = ArrayList<android.widget.TextView>()
+        fun paintTiming() {
+            timingBtns.forEach { b ->
+                val on = b.text.toString().equals(pickedTiming, ignoreCase = true)
+                b.setBackgroundColor(android.graphics.Color.parseColor(if (on) "#0B5F2E" else "#FFFFFF"))
+                b.setTextColor(android.graphics.Color.parseColor(if (on) "#FFFFFF" else "#475467"))
+            }
+        }
+        listOf("Official Time", "Unexpected Time").forEach { t ->
+            val b = android.widget.TextView(this).apply {
+                text = t
+                textSize = 13.5f
+                gravity = android.view.Gravity.CENTER
+                setPadding(dp(6), dp(10), dp(6), dp(10))
+                layoutParams = android.widget.LinearLayout.LayoutParams(
+                    0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+                ).apply { setMargins(dp(3), 0, dp(3), 0) }
+                isClickable = true; isFocusable = true
+                setOnClickListener { pickedTiming = t; paintTiming() }
+            }
+            timingBtns.add(b); timingRow.addView(b)
+        }
+        paintTiming()
+
         fun formBox(h: String) = android.widget.EditText(this).apply { hint = h }
         val occupationInput = formBox("Occupation")
         val sinceWhenInput = formBox("Since when")
@@ -546,6 +585,7 @@ class PatientTimelineActivity : AppCompatActivity() {
             setPadding(0, dp(10), 0, dp(2))
         }
         container.addView(formLabel("Registration Date")); container.addView(regDateBtn)
+        container.addView(formLabel("Time type")); container.addView(timingRow)
         container.addView(formLabel("Occupation")); container.addView(occupationInput)
         container.addView(formLabel("Since when")); container.addView(sinceWhenInput)
         container.addView(formLabel("Complaint")); container.addView(complaintInput)
@@ -4540,6 +4580,7 @@ class PatientTimelineActivity : AppCompatActivity() {
                 currentPatientSex = data.sex
                 currentPatientAddress = data.address
                 currentRegistrationDate = data.registrationDate
+                currentTimeType = data.timeType
                 currentRegistrationCreatedAt = data.registrationCreatedAt
                 currentRegisteredByMobile = data.registeredByMobile
                 currentEnquiryDate = data.enquiryDate
