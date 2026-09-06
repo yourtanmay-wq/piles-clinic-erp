@@ -20139,3 +20139,27 @@ Branch নয় · পেশেন্ট আইডি নয় · Seen By ন�
 
 **ভার্সন:** ১১.৪১। যাচাই: Kotlin (০টি নতুন ভুল) · XML · resources ·
 forbidden API · egress · version.json · node --check ×2 · tk_guard — সব পাশ।
+
+---
+
+## ০৬.০৯.২০২৬ · রাত — রোগীর পুরো রেজিস্ট্রেশন ফর্মই এখন এডিট হয় (V1142)
+
+**TK-নির্দেশ:** *"পুরানো দিনের পেশেন্ট… ভুল করে তারিখটা আজকের হয়ে গেছে,
+তারিখ চেঞ্জ করার অপশনই নেই"* · *"রেজিস্ট্রেশন ফর্মটাই আবার এডিট হবে"* ·
+*"আইডিও বদলাবে"*।
+
+**কাজ:** রোগীর পাতার "✏️ Edit Patient" পপ-আপে বসল **Registration Date**
+(তারিখ বাছার বোতাম) আর ফর্মের বাকি ঘর — Occupation · Since when · Complaint ·
+Medical history · Previous treatment · Previous result · Previous cost।
+পুরনো লেখা আগে থেকেই বসানো থাকে; **ফাঁকা রাখলে ওই ঘরে হাত পড়ে না**।
+
+🔴 **তারিখ বদলালে আইডিও বদলায়** (TK-র সিদ্ধান্ত) — নতুন আইডি তৈরি হয়ে পাঁচ
+জায়গায় একসাথে বসে: patients · followups · enquiries · medical · payments।
+
+⛔ টাকার অঙ্ক · পেমেন্টের তারিখ · ধরন — কিছুই ছোঁয়া হয়নি।
+⛔ কাজের মধ্যেই নিজের ধরা দুটো ভুল সারানো হয়েছে (runOnUiThread, ও নম্বর-ঘরের
+কি-বোর্ড নিয়ম [৯.১৭])।
+
+**ভার্সন:** ১১.৪২। যাচাই: Kotlin (০টি নতুন ভুল) · XML · resources ·
+forbidden API · patterns · egress · SQL-function · version.json ·
+node --check ×3 · tk_guard — সব পাশ।

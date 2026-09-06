@@ -453,6 +453,75 @@ class PatientTimelineActivity : AppCompatActivity() {
         }
         val addressLabel = android.widget.TextView(this).apply { text = "Address"; textSize = 11.5f; setPadding(0, dp(14), 0, dp(2)) }
         val addressInput = android.widget.EditText(this).apply { setText(currentPatientAddress); hint = "Address" }
+        /* 🔴🔒 V1142 (০৬.০৯.২০২৬, TK-নির্দেশ ও অনুমতি) — TK: *"পুরানো দিনের
+           পেশেন্টের এন্ট্রি এখন করছি, ভুল করে তারিখটা আজকের হয়ে গেছে; তারিখ
+           চেঞ্জ করার তো কোনো এডিট অপশনই নেই"* · *"রেজিস্ট্রেশন ফর্মটাই আবার
+           এডিট হবে"* · আর আইডি নিয়ে জিজ্ঞাসা করায় TK: *"আইডিও বদলাবে"*।
+
+           ⇒ এখানে এখন **রেজিস্ট্রেশনের তারিখ** ও ফর্মের বাকি ঘরগুলোও আছে।
+           ⛔ তারিখ বদলালে রোগীর **আইডিও** নতুন তারিখ ধরে বানানো হয় (অ্যাপের
+              নিজের প্রমাণিত `PatientIdGenerator`), আর সেই নতুন আইডি রোগীর সারি ·
+              ফলোআপ · এনকোয়ারি · টাকার সারি · মেডিকেল — সব জায়গায় বসে, যাতে
+              কোথাও পুরনো আইডি পড়ে না থাকে।
+           ⛔ **টাকার অঙ্ক · তারিখ · ধরন কিচ্ছু ছোঁয়া হয় না** — টাকার সারিতে
+              কেবল আইডির ঘরটা।
+           ⛔ নিচের বাড়তি ঘরগুলো **ফাঁকা থাকলে সেভই হয় না** (blank = ছুঁয়ো না),
+              তাই পড়া ব্যর্থ হলেও পুরনো তথ্য হারানোর পথ নেই। */
+        var pickedRegDate = currentRegistrationDate.take(10)
+        val regDateBtn = android.widget.TextView(this).apply {
+            text = if (pickedRegDate.isBlank()) "Tap to set" else FollowUpModel.displayDate(pickedRegDate)
+            textSize = 15f
+            setPadding(dp(4), dp(10), dp(4), dp(10))
+            setTextColor(android.graphics.Color.parseColor("#0B5F2E"))
+            isClickable = true; isFocusable = true
+            setOnClickListener {
+                val cal = java.util.Calendar.getInstance()
+                try {
+                    val p2 = pickedRegDate.split("-")
+                    if (p2.size == 3) cal.set(p2[0].toInt(), p2[1].toInt() - 1, p2[2].toInt())
+                } catch (_: Throwable) { }
+                android.app.DatePickerDialog(this@PatientTimelineActivity, { _, y, m, dd ->
+                    pickedRegDate = "%04d-%02d-%02d".format(y, m + 1, dd)
+                    text = FollowUpModel.displayDate(pickedRegDate)
+                }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH),
+                    cal.get(java.util.Calendar.DAY_OF_MONTH)).show()
+            }
+        }
+        fun formBox(h: String) = android.widget.EditText(this).apply { hint = h }
+        val occupationInput = formBox("Occupation")
+        val sinceWhenInput = formBox("Since when")
+        val complaintInput = formBox("Complaint")
+        val medHistoryInput = formBox("Medical history")
+        val prevTreatInput = formBox("Previous treatment")
+        val prevResultInput = formBox("Previous result")
+        val prevCostInput = formBox("Previous cost").apply {
+            // ⛔ B411-এর নিয়ম: একা TYPE_CLASS_NUMBER-এ কিছু ফোনে কীবোর্ড খোলে না।
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+            keyListener = android.text.method.DigitsKeyListener.getInstance("0123456789")
+        }
+        // ⛔ ফর্মের এই ঘরগুলো এই পর্দায় আগে থেকে জমা নেই — একটাই সারি পড়ে
+        //    ভরা হয় (কয়েকশো বাইট)। না এলে ফাঁকা থাকে, আর ফাঁকা মানে "বদলিও না"।
+        run {
+            val rowId = currentPatientRowId
+            BackgroundWork.run {
+                val row = try {
+                    val arr = SupabaseClient.fetchListSlim(
+                        "patients", "id=eq.$rowId", 1,
+                        "occupation,sinceWhen,complaint,medicalHistory,previousTreatment,previousResult,previousCost")
+                    if (arr.length() > 0) arr.optJSONObject(0) else null
+                } catch (_: Throwable) { null } ?: return@run
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    if (isFinishing || isDestroyed) return@post
+                    fun fill(v: android.widget.EditText, key: String) {
+                        if (v.text.isNullOrBlank()) v.setText(row.s(key))
+                    }
+                    fill(occupationInput, "occupation"); fill(sinceWhenInput, "sinceWhen")
+                    fill(complaintInput, "complaint"); fill(medHistoryInput, "medicalHistory")
+                    fill(prevTreatInput, "previousTreatment"); fill(prevResultInput, "previousResult")
+                    fill(prevCostInput, "previousCost")
+                }
+            }
+        }
         val refLabel = android.widget.TextView(this).apply {
             text = "Referred by Doctor (optional — fill in later if it becomes known)"
             textSize = 11.5f
@@ -470,6 +539,20 @@ class PatientTimelineActivity : AppCompatActivity() {
         container.addView(ageLabel); container.addView(ageInput)
         container.addView(sexLabel); container.addView(sexSpinner)
         container.addView(addressLabel); container.addView(addressInput)
+        // 🔴 V1142 — রেজিস্ট্রেশনের তারিখ ও ফর্মের বাকি ঘর
+        fun formLabel(t: String) = android.widget.TextView(this).apply {
+            text = t; textSize = 12.5f
+            setTextColor(android.graphics.Color.parseColor("#475467"))
+            setPadding(0, dp(10), 0, dp(2))
+        }
+        container.addView(formLabel("Registration Date")); container.addView(regDateBtn)
+        container.addView(formLabel("Occupation")); container.addView(occupationInput)
+        container.addView(formLabel("Since when")); container.addView(sinceWhenInput)
+        container.addView(formLabel("Complaint")); container.addView(complaintInput)
+        container.addView(formLabel("Medical history")); container.addView(medHistoryInput)
+        container.addView(formLabel("Previous treatment")); container.addView(prevTreatInput)
+        container.addView(formLabel("Previous result")); container.addView(prevResultInput)
+        container.addView(formLabel("Previous cost")); container.addView(prevCostInput)
         container.addView(refLabel)
         container.addView(refDoctorInput)
         container.addView(refDoctorMobileInput)
@@ -526,9 +609,64 @@ class PatientTimelineActivity : AppCompatActivity() {
                     // own "Referred Patients" list (DoctorVisitActivity),
                     // exactly like it would if entered at Registration time.
                     .apply { if (newRefDoctor.isNotBlank()) put("refBy", "Dr. Visit") }
+                /* 🔴🔒 V1142 — ফর্মের বাকি ঘরগুলো: **ফাঁকা মানে ছুঁয়ো না**,
+                   তাই ঘরটা না ভরলে পুরনো লেখাই অক্ষত থাকে। */
+                fun putIf(key: String, v: android.widget.EditText) {
+                    val t = v.text.toString().trim()
+                    if (t.isNotBlank()) fields.put(key, t)
+                }
+                putIf("occupation", occupationInput); putIf("sinceWhen", sinceWhenInput)
+                putIf("complaint", complaintInput); putIf("medicalHistory", medHistoryInput)
+                putIf("previousTreatment", prevTreatInput); putIf("previousResult", prevResultInput)
+                putIf("previousCost", prevCostInput)
+                /* 🔴🔒 V1142 — তারিখ বদলালে তিনটে তারিখের ঘরই বসে, আর রোগীর
+                   **আইডিও** নতুন তারিখ ধরে বানানো হয় (TK: *"আইডিও বদলাবে"*)।
+                   ⛔ তারিখ না বদলালে আইডি ও তারিখ কিচ্ছু ছোঁয়া হয় না। */
+                val oldRegDate = currentRegistrationDate.take(10)
+                val dateChanged = pickedRegDate.isNotBlank() && pickedRegDate != oldRegDate
+                if (dateChanged) {
+                    fields.put("date", pickedRegDate)
+                        .put("registrationDate", pickedRegDate)
+                        .put("visitDate", pickedRegDate)
+                }
+                val oldCode = currentPatientCode
                 lifecycleScope.launch {
                     val ok = withContext(Dispatchers.IO) {
+                        var newCode = ""
+                        if (dateChanged) {
+                            newCode = try {
+                                PatientIdGenerator.generate(newBranch.ifBlank { currentBranch },
+                                    pickedRegDate, this@PatientTimelineActivity)
+                            } catch (_: Throwable) { "" }
+                            if (newCode.isNotBlank()) fields.put("patientId", newCode)
+                        }
                         val mainOk = SupabaseClient.updateById("patients", currentPatientRowId, fields)
+                        /* 🔴 V1142 — নতুন আইডি সব জায়গায় বসানো, যাতে কোথাও পুরনোটা
+                           পড়ে না থাকে। ⛔ টাকার সারিতে **কেবল আইডির ঘর** — অঙ্ক ·
+                           তারিখ · ধরন কিচ্ছু ছোঁয়া হয় না। */
+                        if (mainOk && dateChanged && newCode.isNotBlank() && oldCode.isNotBlank()) {
+                            try {
+                                for ((table, cols) in listOf(
+                                    "followups" to listOf("patientId"),
+                                    "enquiries" to listOf("patientId"),
+                                    "medical" to listOf("patientId"),
+                                    "payments" to listOf("patientId", "patientCode")
+                                )) {
+                                    for (col in cols) {
+                                        val rows = SupabaseClient.fetchListSlim(
+                                            table, "$col=eq.$oldCode", 200, "id")
+                                        for (i in 0 until rows.length()) {
+                                            val id = rows.optJSONObject(i)?.optString("id").orEmpty()
+                                            if (id.isBlank()) continue
+                                            SupabaseClient.updateById(table, id,
+                                                org.json.JSONObject().put(col, newCode))
+                                        }
+                                    }
+                                }
+                                android.os.Handler(android.os.Looper.getMainLooper())
+                                    .post { currentPatientCode = newCode }
+                            } catch (_: Throwable) { }
+                        }
                         // TK-REQUESTED (2026-07-18): mobile is the join key
                         // Enquiry/Follow-up/Payments all use to find this
                         // person -- if it changes here but not there, those
