@@ -2644,6 +2644,8 @@ function wlv1DeskAutoSplit(title){
 window["wlv1DeskAutoSplit"]=wlv1DeskAutoSplit;
 function wlv1DeskNav(){return [
  ["🏠","Dashboard","dashboard()",["master","staff","doctor","field"]],
+ // 🟢 V1144 (০৬.০৯.২০২৬, TK-অনুমোদিত) — হোমের কার্ডের পাশাপাশি মেনু থেকেও খোলা যায়।
+ ["🔔","Reminders","remindersPage()",["master","staff","doctor","field"]],
  ["🩺","Doctor Queue","doctorQueue()",["master","doctor","staff"]],
  ["📝","Enquiry","enquiryForm()",["master","staff","doctor"]],
  ["🔁","Follow-up","followup('Inquiry')",["master","staff","doctor"]],
@@ -4436,7 +4438,7 @@ if(role==='doctor'){
 }else{
   cards=all.filter(x=>x[4].includes(role)).map(x=>card(x[0],x[1],x[2],x[3])).join('');
 }
-app().innerHTML=`<div class="wrap wlv1Wide ${role}"><div class="topbar dashboardTop"><div class="brand userBrand">${userAvatar()}<div><b>${esc(dashboardClinicName())}</b><br><small class="userMeta"><b>${esc(dashboardPersonName())}</b> · ${esc(roleTitle)} · ${esc(user.branch)}</small></div></div><div class="topActions">${headerBell()}<button class="ghost iconOnly" onclick="menu()" aria-label="Menu">☰</button></div></div><div class="page">${(!isMaster()&&activeBriefings().length)?`<div class="card briefFlash"><b>Admin Briefing</b><p>${esc(activeBriefings()[0].message||'')}</p><div class="actions"><button onclick="openBriefThread('${activeBriefings()[0].id}')">Reply</button><button class="ghost" onclick="markBriefSeen('${activeBriefings()[0].id}')">Seen</button></div></div>`:''}${wlv1TodayCallBanner()}${globalCapsuleSearchBar()}${(()=>{let __c=collectionDashboardCard(o);return __c?`<div class="grid stat">${__c}</div>`:'';})()}<div class="grid compactDashGrid">${cards}</div></div>${bottomNav()}</div>`;notifyBriefingIfNeeded();try{wlv1NoticeWatch()}catch(e){}
+app().innerHTML=`<div class="wrap wlv1Wide ${role}"><div class="topbar dashboardTop"><div class="brand userBrand">${userAvatar()}<div><b>${esc(dashboardClinicName())}</b><br><small class="userMeta"><b>${esc(dashboardPersonName())}</b> · ${esc(roleTitle)} · ${esc(user.branch)}</small></div></div><div class="topActions">${headerBell()}<button class="ghost iconOnly" onclick="menu()" aria-label="Menu">☰</button></div></div><div class="page">${(!isMaster()&&activeBriefings().length)?`<div class="card briefFlash"><b>Admin Briefing</b><p>${esc(activeBriefings()[0].message||'')}</p><div class="actions"><button onclick="openBriefThread('${activeBriefings()[0].id}')">Reply</button><button class="ghost" onclick="markBriefSeen('${activeBriefings()[0].id}')">Seen</button></div></div>`:''}${wlv1TodayCallBanner()}${wlv1ReminderCardHtml()}${globalCapsuleSearchBar()}${(()=>{let __c=collectionDashboardCard(o);return __c?`<div class="grid stat">${__c}</div>`:'';})()}<div class="grid compactDashGrid">${cards}</div></div>${bottomNav()}</div>`;notifyBriefingIfNeeded();try{wlv1NoticeWatch()}catch(e){}
   // 🔒 B582 (TK-নির্দেশ, ০৮.০৮.২০২৬): ডেস্কটপে হোম/ড্যাশবোর্ডেও একই প্রফেশনাল
   // সাইডবার (page()-এর মতো) — আগে এটা ডাকা হত না বলে বাঁ মেনু ভাঙা দেখাত ও
   // টাইল কেটে যেত। ⛔ শুধু বড় স্ক্রিনে চেহারা; ফোন/অ্যান্ড্রয়েড অপরিবর্তিত।
@@ -4457,6 +4459,8 @@ function wlv1AppVersion(){
 window["wlv1AppVersion"]=wlv1AppVersion;
 function menu(){let all=[
  ["🏠","Dashboard","dashboard()",["master","staff","doctor","field"]],
+ // 🟢 V1144 (০৬.০৯.২০২৬, TK-অনুমোদিত) — হোমের কার্ডের পাশাপাশি মেনু থেকেও খোলা যায়।
+ ["🔔","Reminders","remindersPage()",["master","staff","doctor","field"]],
  ["☁️","Sync Now (cloud)","syncNow()",["master","staff","doctor","field"]],
  ["📝","ALL BRANCH ENQUIRY FORM","enquiryForm()",["master","staff","doctor"]],
  ["🔁","Follow-up","followup(\'Inquiry\')",["master","staff","doctor"]],
@@ -28426,3 +28430,311 @@ function wlv1EstPaper(){
   }catch(e){ toast('Print not available') }
 }
 window["wlv1EstPaper"]=wlv1EstPaper; window["wlv1EstPaperHtml"]=wlv1EstPaperHtml;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   🟢🔒 V1144 (০৬.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ: *"হ্যাঁ পাশ, বসিয়ে দিন,
+   সাবধানে"*) — Reminders, ফোনের হুবহু যমজ।
+
+   এক ব্রাঞ্চের স্টাফ অন্য ব্রাঞ্চের ডাক্তারকে রোগী-ভিত্তিক রিমাইন্ডার পাঠান
+   (ওষুধ আনতে হবে · ট্রিটমেন্ট আছে · অন্য কিছু)। ডাক্তার Accept ও Done করেন,
+   আর পাঠানো স্টাফ অবস্থা দেখেন — Sent → Seen → Accepted → Done।
+   ২৪ ঘণ্টায় Accept না হলে পাঠানো স্টাফের ঘরে লাল "Not accepted yet"।
+
+   ⛔ ফোনের `ReminderRepository.kt`-এর হুবহু একই নিয়ম ও একই ঘরের নাম।
+   ⛔ পুরনো কোনো পর্দা/টেবিল/সিঙ্ক ছোঁয়া হয়নি — সবটাই যোগ।
+   ⛔ পড়া সরু: হোমের কার্ডে মাত্র চারটে ঘর নামে, আর তালিকা খুললে একবারই।
+   ═══════════════════════════════════════════════════════════════════════ */
+const WLV1_REM_TABLE='reminders';
+const WLV1_REM_COLS='id,branch,patientName,patientMobile,disease,type,details,remindOn,toCode,toName,fromCode,fromName,status,sentAt,seenAt,acceptedAt,doneAt';
+const WLV1_REM_WINDOW_MS=24*60*60*1000;   /* TK-নির্দেশ: ২৪ ঘণ্টা */
+
+/** এই ব্যবহারকারীর কোড — ফোনে `NativeUser.name`, ওয়েবে ঠিক একই জিনিস। */
+function wlv1RemMyCode(){ try{ return String((user&&user.name)||'').trim() }catch(e){ return '' } }
+window["wlv1RemMyCode"]=wlv1RemMyCode;
+
+function wlv1RemTint(t){ return t==='Medicine'?'#FDE8C8':(t==='Treatment'?'#E4DBF7':'#DCEFE4') }
+function wlv1RemIcon(t){ return t==='Medicine'?'💊':(t==='Treatment'?'🩺':'📋') }
+
+/** ISO সময় থেকে "06.09 · 3.10 Pm"; না বুঝলে ড্যাশ (আন্দাজে কিছু দেখানো হয় না)। */
+function wlv1RemStamp(iso){
+  try{
+    if(!iso) return '—';
+    var d=new Date(String(iso).length<=10?iso+'T00:00:00':iso);
+    if(isNaN(d)) return '—';
+    var p=n=>String(n).padStart(2,'0');
+    var h=d.getHours(), ap=h>=12?'Pm':'Am', h12=h%12||12;
+    return p(d.getDate())+'.'+p(d.getMonth()+1)+' · '+h12+'.'+p(d.getMinutes())+ap;
+  }catch(e){ return '—' }
+}
+
+function wlv1RemOverdue(r){
+  try{
+    if(r.status==='accepted'||r.status==='done') return false;
+    if(!r.sentAt) return false;
+    var t=new Date(r.sentAt).getTime();
+    if(isNaN(t)) return false;
+    return (Date.now()-t)>=WLV1_REM_WINDOW_MS;
+  }catch(e){ return false }
+}
+
+async function wlv1RemFetch(filterCol,value,limit){
+  try{
+    if(!(await ensureCloudOnline()))return null;
+    if(typeof sb==='undefined'||!sb)return null;
+    var r=await sb.from(WLV1_REM_TABLE).select(WLV1_REM_COLS)
+      .eq(filterCol,value).order('remindOn',{ascending:false}).limit(limit||60);
+    if(r.error)return null;
+    return r.data||[];
+  }catch(e){ return null }
+}
+
+/* ─── হোম পেজের কার্ড ─────────────────────────────────────────────────────
+   ⛔ কিছু বাকি না থাকলে কার্ডটা দেখাই যায় না, তাই খালি ঘর কখনো ওঠে না। */
+function wlv1ReminderCardHtml(){
+  try{ setTimeout(function(){ try{ wlv1RemCardRefresh() }catch(e){} },400) }catch(e){}
+  return '<div id="wlv1RemCard"></div>';
+}
+window["wlv1ReminderCardHtml"]=wlv1ReminderCardHtml;
+
+async function wlv1RemCardRefresh(){
+  var box=document.getElementById('wlv1RemCard');
+  if(!box)return;
+  var code=wlv1RemMyCode();
+  if(!code){ box.innerHTML=''; return }
+  try{
+    if(!(await ensureCloudOnline()))return;
+    if(typeof sb==='undefined'||!sb)return;
+    var r=await sb.from(WLV1_REM_TABLE).select('id,branch,patientName,type')
+      .eq('toCode',code).neq('status','done').order('remindOn',{ascending:false}).limit(60);
+    if(r.error)return;
+    var rows=r.data||[];
+    if(!rows.length){ box.innerHTML=''; return }
+    var f=rows[0]||{}, bits=[];
+    if(f.branch)bits.push(f.branch);
+    if(f.patientName)bits.push(f.patientName);
+    var line=bits.join(' · ')+(f.type&&bits.length?' — '+f.type:'');
+    box.innerHTML='<div class="card wlv1RemHome" onclick="remindersPage()">'
+      +'<div class="wlv1RemHomeIco">🔔</div>'
+      +'<div class="wlv1RemHomeMid"><b>Reminders '+rows.length+'</b><small>'+esc(line)+'</small></div>'
+      +'<div class="wlv1RemHomeBtn">Open ›</div></div>';
+  }catch(e){ }
+}
+window["wlv1RemCardRefresh"]=wlv1RemCardRefresh;
+
+/* ─── তালিকা পর্দা ─────────────────────────────────────────────────────── */
+var wlv1RemTab='mine';
+var wlv1RemOpenHist={};
+
+async function remindersPage(tab){
+  if(tab)wlv1RemTab=tab;
+  var code=wlv1RemMyCode();
+  page('Reminders','<div class="card mut">Loading…</div>');
+  var rows=await wlv1RemFetch(wlv1RemTab==='sent'?'fromCode':'toCode',code,60);
+  var head='<div class="wlv1RemTabs">'
+    +'<button class="'+(wlv1RemTab==='sent'?'ghost':'')+'" onclick="remindersPage(\'mine\')">For me</button>'
+    +'<button class="'+(wlv1RemTab==='sent'?'':'ghost')+'" onclick="remindersPage(\'sent\')">Sent by me</button>'
+    +'</div>'
+    +'<button class="fullSave" onclick="wlv1RemAddForm()">+  Add Reminder</button>';
+  if(rows===null){ return page('Reminders',head+'<div class="card redP">Cloud could not be reached. Please check the internet and open again.</div>') }
+  if(!rows.length){ return page('Reminders',head+'<div class="card mut">Nothing here yet.</div>') }
+  var sent=(wlv1RemTab==='sent');
+  var live=rows.filter(r=>r.status!=='done'), done=rows.filter(r=>r.status==='done');
+  var html=head;
+  if(live.length){ html+='<div class="wlv1RemSec">'+(sent?'WAITING':'TODO')+'</div>'+live.map(r=>wlv1RemCard(r,sent)).join('') }
+  if(done.length){ html+='<div class="wlv1RemSec">EARLIER</div>'+done.map(r=>wlv1RemCard(r,sent)).join('') }
+  page('Reminders',html);
+  Object.keys(wlv1RemOpenHist).forEach(function(id){ if(wlv1RemOpenHist[id])wlv1RemHistoryLoad(id) });
+}
+window["remindersPage"]=remindersPage;
+
+function wlv1RemCard(r,sent){
+  var bits=[];
+  if(r.branch)bits.push(r.branch);
+  if(r.type)bits.push(r.type);
+  if(r.remindOn)bits.push(wlv1Dot(r.remindOn));
+  var sub=[];
+  if(r.patientMobile)sub.push(normMob(r.patientMobile));
+  if(r.disease)sub.push(r.disease);
+  var h='<div class="card wlv1RemCard'+(r.status==='done'?' isDone':'')+'">'
+    +'<div class="wlv1RemHd"><div class="wlv1RemIco" style="background:'+wlv1RemTint(r.type)+'">'+wlv1RemIcon(r.type)+'</div>'
+    +'<div class="wlv1RemHh"><div class="wlv1RemNm">'+esc(r.patientName||normMob(r.patientMobile||''))+'</div>'
+    +'<div class="wlv1RemMt">'+esc(bits.join(' · '))+'</div></div></div>';
+  if(sub.length)h+='<div class="wlv1RemMt">'+esc(sub.join(' · '))+'</div>';
+  h+='<div class="wlv1RemBody">'+esc(r.details||'')+'</div>';
+  h+='<div class="wlv1RemBy">'+(sent?('To '+esc(r.toName||r.toCode||'')):('Sent by '+esc(r.fromName||r.fromCode||'')))+'</div>';
+  if(sent){
+    h+='<div class="wlv1RemTrail">'
+      +wlv1RemStep('Sent',r.sentAt)+wlv1RemStep('Seen',r.seenAt)
+      +wlv1RemStep('Accepted',r.acceptedAt)+wlv1RemStep('Done',r.doneAt)+'</div>';
+    if(wlv1RemOverdue(r))h+='<div class="wlv1RemAlert">Not accepted yet — 24 hours passed</div>';
+  }else{
+    h+='<div class="actions">';
+    if(r.status==='sent'||r.status==='seen')h+='<button onclick="wlv1RemAdvance(\''+esc(r.id)+'\',\'accepted\')">Accept</button>';
+    if(r.status!=='done')h+='<button onclick="wlv1RemAdvance(\''+esc(r.id)+'\',\'done\')">Done</button>';
+    h+='<button class="ghost" onclick="wlv1RemToggleHistory(\''+esc(r.id)+'\',\''+esc(normMob(r.patientMobile||''))+'\')">History</button></div>';
+    h+='<div id="wlv1RemH_'+esc(r.id)+'"></div>';
+  }
+  return h+'</div>';
+}
+
+function wlv1RemStep(label,at){
+  var on=!!at;
+  return '<div class="wlv1RemStep'+(on?' on':'')+'"><b>'+label+'</b><small>'+(on?wlv1RemStamp(at):'—')+'</small></div>';
+}
+
+/* অবস্থা এগোনো — পিছনে কখনো ফেরে না (ফোনের হুবহু একই নিয়ম)। */
+async function wlv1RemAdvance(id,to){
+  try{
+    if(!(await ensureCloudOnline()))return toast('No internet');
+    if(typeof sb==='undefined'||!sb)return toast('No internet');
+    var cur=await sb.from(WLV1_REM_TABLE).select(WLV1_REM_COLS).eq('id',id).limit(1);
+    if(cur.error||!cur.data||!cur.data.length)return toast('Reminder not found');
+    var r=cur.data[0];
+    var order=['sent','seen','accepted','done'];
+    if(order.indexOf(to)<=order.indexOf(String(r.status||'sent')))return;
+    var now=new Date().toISOString().slice(0,19);
+    var f={status:to,updatedAt:now};
+    if(!r.seenAt)f.seenAt=now;
+    if(to==='accepted')f.acceptedAt=now;
+    if(to==='done'){ if(!r.acceptedAt)f.acceptedAt=now; f.doneAt=now }
+    var wr=await sb.from(WLV1_REM_TABLE).update(f).eq('id',id);
+    if(wr.error)return toast('Could not save');
+    toast('Saved');
+    remindersPage();
+  }catch(e){ toast('Could not save') }
+}
+window["wlv1RemAdvance"]=wlv1RemAdvance;
+
+function wlv1RemToggleHistory(id,mobile){
+  wlv1RemOpenHist[id]=!wlv1RemOpenHist[id];
+  var box=document.getElementById('wlv1RemH_'+id);
+  if(!box)return;
+  if(!wlv1RemOpenHist[id]){ box.innerHTML=''; return }
+  box.innerHTML='<div class="wlv1RemMt">Loading history…</div>';
+  wlv1RemHistoryLoad(id,mobile);
+}
+window["wlv1RemToggleHistory"]=wlv1RemToggleHistory;
+
+async function wlv1RemHistoryLoad(id,mobile){
+  var box=document.getElementById('wlv1RemH_'+id);
+  if(!box)return;
+  var m=normMob(mobile||'');
+  if(!m){ box.innerHTML='<div class="wlv1RemMt">No earlier record for this patient.</div>'; return }
+  var rows=await wlv1RemFetch('patientMobile',m,30);
+  if(!rows){ box.innerHTML='<div class="wlv1RemMt">Could not load history.</div>'; return }
+  rows=rows.filter(x=>x.id!==id);
+  if(!rows.length){ box.innerHTML='<div class="wlv1RemMt">No earlier record for this patient.</div>'; return }
+  box.innerHTML='<div class="wlv1RemHist">'+rows.map(function(h){
+    return '<div class="wlv1RemHRow"><b>'+esc(h.remindOn?wlv1Dot(h.remindOn):'—')+'</b><span>'+esc((h.type||'')+' — '+(h.details||''))+'</span></div>';
+  }).join('')+'</div>';
+}
+window["wlv1RemHistoryLoad"]=wlv1RemHistoryLoad;
+
+/* ─── নতুন রিমাইন্ডার ──────────────────────────────────────────────────────
+   TK-নির্দেশ: ব্রাঞ্চ **নিজের ব্রাঞ্চেই তালাবন্ধ** · পেশেন্ট আইডি লাগবে না ·
+   নম্বর দিলে **নাম · মোবাইল · রোগ** উঠে আসবে। */
+function wlv1RemDoctors(){
+  try{
+    var me=wlv1RemMyCode(), out=[];
+    (C.users.doctor||[]).forEach(function(d){ out.push({name:d.name,branch:d.branch}) });
+    (C.users.master||[]).forEach(function(d){ out.push({name:d.name,branch:d.branch}) });
+    return out.filter(function(x){ return String(x.name||'').toLowerCase()!==me.toLowerCase() });
+  }catch(e){ return [] }
+}
+
+function wlv1RemAddForm(){
+  var br=(user&&user.branch)||'';
+  var docs=wlv1RemDoctors();
+  page('Add Reminder',
+    '<div class="card wlv1Form">'
+   +'<label>Branch</label><div class="input wlv1RemLock">'+esc(br||'—')+' 🔒</div>'
+   +'<label>Patient mobile <b class="wlv1Star">*</b></label>'
+   +'<input id="remMob" class="input" inputmode="tel" maxlength="10" placeholder="10-digit mobile" autocomplete="off" onblur="wlv1RemLookUp(this.value)">'
+   +'<div id="remFound"></div>'
+   +'<label>Reminder for <b class="wlv1Star">*</b></label>'
+   +'<div class="wlv1PickRow wlv1TopGap" data-wlv1group="remtype">'
+   +'<button type="button" class="wlv1Pick on" data-val="Medicine" onclick="wlv1PickOne(\'remtype\',\'Medicine\',\'remType\')">Medicine</button>'
+   +'<button type="button" class="wlv1Pick" data-val="Treatment" onclick="wlv1PickOne(\'remtype\',\'Treatment\',\'remType\')">Treatment</button>'
+   +'<button type="button" class="wlv1Pick" data-val="Other" onclick="wlv1PickOne(\'remtype\',\'Other\',\'remType\')">Other</button>'
+   +'</div><input id="remType" type="hidden" value="Medicine">'
+   +'<label>Details <b class="wlv1Star">*</b></label>'
+   +'<textarea id="remDetails" class="input" placeholder="What has to be done"></textarea>'
+   +'<label>Remind on <b class="wlv1Star">*</b></label>'
+   +'<div class="wlv1DateBox input"><span id="remDateShow">Tap to select</span>'
+   +'<input id="remDate" type="date" min="'+today()+'" oninput="wlv1ShowDate(\'remDate\',\'remDateShow\')"></div>'
+   +'<label>Send to <b class="wlv1Star">*</b></label>'
+   +'<select id="remTo" class="input"><option value="" hidden>Choose</option>'
+   + docs.map(function(d){ return '<option value="'+esc(d.name)+'">'+esc(d.name)+(d.branch&&d.branch!=='All'?' · '+esc(d.branch):'')+'</option>' }).join('')
+   +'</select>'
+   +'<button class="fullSave" onclick="wlv1RemSend(event)">Send Reminder</button>'
+   +'</div>');
+}
+window["wlv1RemAddForm"]=wlv1RemAddForm;
+
+var wlv1RemFound={name:'',disease:''};
+async function wlv1RemLookUp(v){
+  var m=normMob(v||''), box=document.getElementById('remFound');
+  wlv1RemFound={name:'',disease:''};
+  if(!box)return;
+  if(!m||m.length!==10){ box.innerHTML=''; return }
+  var br=(user&&user.branch)||'';
+  var hit=null;
+  try{
+    var local=load('patients').filter(function(p){ return mob(p.mobile)===m });
+    hit=local.find(function(p){ return String(p.branch||'').toLowerCase()===String(br).toLowerCase() })||local[0]||null;
+  }catch(e){}
+  if(!hit){
+    try{
+      if(await ensureCloudOnline()&&typeof sb!=='undefined'&&sb){
+        var r=await sb.from('patients').select('name,mobile,branch,disease').eq('mobile',m).limit(5);
+        if(!r.error&&r.data&&r.data.length){
+          hit=r.data.find(function(p){ return String(p.branch||'').toLowerCase()===String(br).toLowerCase() })||r.data[0];
+        }
+      }
+    }catch(e){}
+  }
+  if(!hit){ box.innerHTML='<div class="wlv1RemMt">No patient found with this number.</div>'; return }
+  wlv1RemFound={name:hit.name||'',disease:hit.disease||''};
+  var sub=[m]; if(hit.disease)sub.push(hit.disease);
+  box.innerHTML='<div class="wlv1RemFound"><b>'+esc(hit.name||'')+'</b><small>'+esc(sub.join(' · '))+'</small></div>';
+}
+window["wlv1RemLookUp"]=wlv1RemLookUp;
+
+async function wlv1RemSend(evt){
+  var btn=(evt&&evt.target)||null;
+  try{
+    var m=normMob(($('#remMob')||{}).value||'');
+    var details=String((($('#remDetails')||{}).value||'')).trim();
+    var on=(($('#remDate')||{}).value||'');
+    var to=(($('#remTo')||{}).value||'');
+    var ty=(($('#remType')||{}).value||'Other');
+    if(m.length!==10)return focusFieldFail('remMob','Valid patient mobile mandatory');
+    if(!details)return focusFieldFail('remDetails','Details mandatory');
+    if(!on)return focusFieldFail('remDate','Remind date mandatory — tap to select');
+    if(!to)return focusFieldFail('remTo','Choose who this reminder is for');
+    if(btn){btn.disabled=true;btn.textContent='Sending...'}
+    if(!(await ensureCloudOnline())||typeof sb==='undefined'||!sb){
+      if(btn){btn.disabled=false;btn.textContent='Send Reminder'}
+      return toast('No internet — could not send');
+    }
+    var now=new Date().toISOString().slice(0,19);
+    var me=wlv1RemMyCode();
+    var row={
+      id:'rem_'+Date.now()+'_'+Math.floor(100+Math.random()*900),
+      branch:(user&&user.branch)||'', patientName:wlv1RemFound.name||m, patientMobile:m,
+      disease:wlv1RemFound.disease||'', type:ty, details:details, remindOn:on,
+      toCode:to, toName:to, fromCode:me, fromName:me,
+      status:'sent', sentAt:now, createdBy:me, createdAt:now, updatedAt:now
+    };
+    var wr=await sb.from(WLV1_REM_TABLE).upsert(row);
+    if(btn){btn.disabled=false;btn.textContent='Send Reminder'}
+    if(wr.error)return toast('Could not send — try again');
+    toast('Reminder sent');
+    wlv1RemTab='sent';
+    remindersPage();
+  }catch(e){
+    if(btn){btn.disabled=false;btn.textContent='Send Reminder'}
+    toast('Could not send — try again');
+  }
+}
+window["wlv1RemSend"]=wlv1RemSend;

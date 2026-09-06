@@ -8319,3 +8319,36 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
   .wlv1RcThanks{display:block;margin-top:4mm;background:#0B5D2A;color:#fff;text-align:center;
     font-weight:800;font-size:9px;padding:2mm 0;border-radius:4px}
 }
+
+/* 🟢🔒 V1144 (০৬.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — Reminders।
+   ⛔ সবগুলোই নতুন নাম (wlv1Rem…), তাই পুরনো কোনো পর্দার চেহারা বদলায় না। */
+.wlv1RemHome{display:flex;align-items:center;background:#FFF6E3;border:1px solid #F0D18B;cursor:pointer}
+.wlv1RemHomeIco{width:40px;height:40px;border-radius:50%;background:#F7E4B8;display:flex;align-items:center;justify-content:center;font-size:19px;flex:none}
+.wlv1RemHomeMid{flex:1;margin-left:12px;min-width:0}
+.wlv1RemHomeMid b{display:block;font-size:16px;color:#8A5B00}
+.wlv1RemHomeMid small{display:block;font-size:12px;color:#9A7327;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wlv1RemHomeBtn{flex:none;background:#8A5B00;color:#fff;font-size:13px;font-weight:700;border-radius:9px;padding:7px 12px;margin-left:10px}
+.wlv1RemTabs{display:flex;gap:8px;margin:10px 0 4px}
+.wlv1RemTabs button{flex:1}
+.wlv1RemSec{font-size:11.5px;font-weight:700;color:#6B7A8C;letter-spacing:.5px;margin:14px 2px 6px}
+.wlv1RemCard.isDone{opacity:.65}
+.wlv1RemHd{display:flex;align-items:center}
+.wlv1RemIco{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:18px;flex:none}
+.wlv1RemHh{flex:1;margin-left:10px;min-width:0}
+.wlv1RemNm{font-size:16px;font-weight:700;color:#15213A}
+.wlv1RemMt{font-size:12.5px;color:#7B8899;margin-top:4px}
+.wlv1RemBody{font-size:14.5px;color:#28374A;margin-top:8px;line-height:1.35}
+.wlv1RemBy{font-size:12px;color:#8B97A6;margin-top:6px}
+.wlv1RemTrail{display:flex;margin-top:10px;border-top:1px solid #E4EAF1;padding-top:10px}
+.wlv1RemStep{flex:1;text-align:center}
+.wlv1RemStep b{display:block;font-size:12.5px;color:#B9C3CF}
+.wlv1RemStep.on b{color:#0E8F63}
+.wlv1RemStep small{display:block;font-size:11px;color:#8B97A6;margin-top:3px}
+.wlv1RemAlert{margin-top:10px;background:#FDECEC;border:1px solid #F3B9B9;border-radius:9px;padding:9px 12px;color:#C81E2B;font-size:13px;font-weight:700}
+.wlv1RemHist{margin-top:10px;border-top:1px solid #E4EAF1;padding-top:8px}
+.wlv1RemHRow{display:flex;font-size:13px;color:#3A4A5E;padding:5px 0;line-height:1.3}
+.wlv1RemHRow b{flex:none;width:92px;color:#7B8899}
+.wlv1RemFound{background:#F1F6FF;border:1px solid #CFE0FA;border-radius:11px;padding:10px 12px;margin-top:8px}
+.wlv1RemFound b{font-size:15px;color:#15213A}
+.wlv1RemFound small{display:block;font-size:12.5px;color:#6B7A8C;margin-top:4px}
+.wlv1RemLock{background:#F2F5F9;color:#4A5A6D}
