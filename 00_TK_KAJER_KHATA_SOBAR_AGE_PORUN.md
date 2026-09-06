@@ -20270,3 +20270,23 @@ API · patterns · egress · SQL-function · version.json · node --check · tk_
 
 **ভার্সন:** ১১.৪৬। যাচাই: Kotlin (০টি নতুন ভুল) · XML · resources · forbidden
 API · patterns · egress · SQL-function · version.json · node --check · tk_guard — সব পাশ।
+
+---
+
+## ০৬.০৯.২০২৬ · রাত — পেমেন্ট পপ-আপের মাপ (V1147)
+
+**TK-অনুমোদিত ফটো-প্রুফ:** *"হ্যাঁ পাশ, বসিয়ে দিন, সাবধানে"*।
+
+**কাজ:** "Add Treatment Payment" পপ-আপে — CASH/ONLINE বাক্স দুটো ছোট (ভেতরের
+ফাঁক ১৩→৯dp, লেখা ১৫→১৪sp), আর Cancel · Share · Print · Save চারটে বোতাম
+একটু নিচে (উপরের ফাঁক ৮→২০dp), তাই বাক্সের গায়ে আর লাগে না।
+
+🔴 **সৎভাবে জানানো:** এই দুটো বদল আগে শুধু **ছবিতে** দেখানো হয়েছিল, কোডে
+বসানোই হয়নি — আজ বসল। (স্টাফ-কার্ডেরটা এর আগেই বসানো ছিল।)
+
+⛔ বোতামের কাজ · ক্রম · রং · টাকার কোনো নিয়ম — কিচ্ছু বদলায়নি, শুধু মাপ।
+⛔ কম্পিউটারে এই পপ-আপটাই নেই, তাই বদলটা ফোনেই।
+
+**ভার্সন:** ১১.৪৭। যাচাই: Kotlin (০টি নতুন ভুল) · XML · resources · forbidden
+API · patterns · egress · SQL-function · version.json · node --check ×3 ·
+tk_guard — সব পাশ।
