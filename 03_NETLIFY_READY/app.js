@@ -9271,15 +9271,17 @@ function wlv1RmpSuggest(typed){
   /* 🟢 V1132 — ব্রাঞ্চ না বাছলে কোন ব্রাঞ্চের RMP দেখাব সেটাই জানা নেই।
      TK-এর সিদ্ধান্ত: তখন তালিকা নয়, শুধু "Select branch first" লেখা থাকবে —
      নইলে এক RMP পাঁচ ব্রাঞ্চ থেকে পাঁচবার নামত। */
-  var __brEl=$('#pBranch')||$('#eBranch');
-  var __br=__brEl?String(__brEl.value||'').trim():'';
-  if(__brEl&&!__br){
+  var __regBr=$('#pBranch'), __enqBr=$('#eBranch');
+  var __br=__regBr?String(__regBr.value||'').trim():(__enqBr?String(__enqBr.value||'').trim():'');
+  // ⛔ এই থামাটা **শুধু এনকোয়ারি ফর্মে** — Registration-এর আচরণ আগের মতোই।
+  if(__enqBr&&!__regBr&&!__br){
     box.innerHTML='<div class="wlv1RmpSugHead" style="color:#94721B">Select branch first</div>';
     box.classList.remove('hidden'); return;
   }
   var __tk=__br||'All';
-  let rows=wlv1CachedRmpRows(q,__br);
-  if(!rows.length && !wlv1RmpSugTried[__tk] && !wlv1CachedRmpRows('',__br).length){
+  var __scope=__br?__br:undefined;   // ফাঁকা হলে আগের পথই (নিজের ব্রাঞ্চ)
+  let rows=wlv1CachedRmpRows(q,__scope);
+  if(!rows.length && !wlv1RmpSugTried[__tk] && !wlv1CachedRmpRows('',__scope).length){
     wlv1RmpSugTried[__tk]=true;
     /* একবারের হালকা পড়া — শেষে যা টাইপ করা আছে সেটা দিয়েই আবার দেখানো হয়। */
     wlv1RmpDirFetch(__br).then(function(got){ try{ if(!got) delete wlv1RmpSugTried[__tk]; if(got){
