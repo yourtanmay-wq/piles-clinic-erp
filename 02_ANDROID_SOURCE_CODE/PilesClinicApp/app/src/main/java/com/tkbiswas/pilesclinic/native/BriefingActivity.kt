@@ -636,8 +636,10 @@ class BriefingActivity : AppCompatActivity() {
             text = "BACKDATE PERMISSIONS  ▼"
             textSize = 14f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
+            // 🎨🔒 V1141 (TK-অনুমোদিত ফটো-প্রুফ) — TK: *"ব্যাকডেট পারমিশনের কালার
+            //    বেগুনি করুন"*। ⛔ শুধু রঙ; ভিতরের কিছুই বদলায়নি।
             setTextColor(android.graphics.Color.WHITE)
-            setBackgroundColor(android.graphics.Color.parseColor("#0F7A43"))
+            setBackgroundColor(android.graphics.Color.parseColor("#6A1B9A"))
             setPadding(dp(16), dp(12), dp(16), dp(12))
             setOnClickListener {
                 val opening = grantsBox.visibility != View.VISIBLE
@@ -1305,8 +1307,11 @@ class BriefingActivity : AppCompatActivity() {
                 text = "$title  ▼"
                 textSize = 14f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
-                setTextColor(android.graphics.Color.WHITE)
-                setBackgroundColor(android.graphics.Color.parseColor("#0F7A43"))
+                // 🎨🔒 V1141 (০৬.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — TK: *"Salary Due-তে
+                //    গ্রীন কালার সরিয়ে হলুদ কালার দিন"*। ⛔ শুধু রঙ; তালিকা · গোনা ·
+                //    চাপ কিচ্ছু বদলায়নি।
+                setTextColor(android.graphics.Color.parseColor("#3D2B00"))
+                setBackgroundColor(android.graphics.Color.parseColor("#F0B429"))
                 setPadding(dp(16), dp(12), dp(16), dp(12))
                 setOnClickListener { val opening = rowsBox.visibility != View.VISIBLE; rowsBox.visibility = if (opening) View.VISIBLE else View.GONE; text = "$title  ${if (opening) "▲" else "▼"}" }
             })

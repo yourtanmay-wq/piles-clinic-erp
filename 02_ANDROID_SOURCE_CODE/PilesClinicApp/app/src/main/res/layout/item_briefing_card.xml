@@ -38,7 +38,7 @@
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:paddingHorizontal="11dp"
-            android:paddingVertical="5dp">
+            android:paddingVertical="4dp">
 
             <!-- Top row: avatar · sender+time · priority chip -->
             <LinearLayout
@@ -98,17 +98,40 @@
                     android:padding="0dp"
                     android:visibility="gone" />
 
-                <TextView
-                    android:id="@+id/tvChip"
+                <!-- 🎨🔒 V1141 (০৬.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — TK: *"Seen By
+                     notice-এর নিচে রাখুন, তাহলে কার্ডটা আরো কম্প্যাক্ট হবে"*।
+                     ⛔ `tvTargets`-এর id ও অ্যাডাপ্টারের বাইন্ডিং হুবহু আগের —
+                        শুধু জায়গা বদলেছে (নিচের আলাদা লাইন থেকে এখানে)। -->
+                <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:background="@drawable/bg_brief_chip_normal"
-                    android:paddingHorizontal="11dp"
-                    android:paddingVertical="5dp"
-                    android:text="NOTICE"
-                    android:textSize="10.5sp"
-                    android:textStyle="bold"
-                    android:textColor="#166534" />
+                    android:orientation="vertical"
+                    android:gravity="end">
+
+                    <TextView
+                        android:id="@+id/tvChip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="end"
+                        android:background="@drawable/bg_brief_chip_normal"
+                        android:paddingHorizontal="11dp"
+                        android:paddingVertical="5dp"
+                        android:text="NOTICE"
+                        android:textSize="10.5sp"
+                        android:textStyle="bold"
+                        android:textColor="#166534" />
+
+                    <TextView
+                        android:id="@+id/tvTargets"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="end"
+                        android:layout_marginTop="3dp"
+                        android:gravity="end"
+                        android:text="All Staff"
+                        android:textSize="10.5sp"
+                        android:textColor="@color/brand_blue" />
+                </LinearLayout>
             </LinearLayout>
 
             <!-- 🎨🔒 V1102 (০৫.০৯.২০২৬ — TK নিজের নকশার ছবি পাঠিয়েছেন ও পাশ
@@ -117,7 +140,7 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
+                android:layout_marginTop="6dp"
                 android:orientation="horizontal">
 
                 <TextView
@@ -126,7 +149,7 @@
                     android:layout_height="wrap_content"
                     android:background="@drawable/bg_brief_chip_normal"
                     android:paddingHorizontal="14dp"
-                    android:paddingVertical="7dp"
+                    android:paddingVertical="5dp"
                     android:text="Title"
                     android:textSize="13sp"
                     android:textColor="#12271E" />
@@ -138,7 +161,7 @@
                     android:layout_marginStart="9dp"
                     android:background="@drawable/bg_brief_chip_normal"
                     android:paddingHorizontal="14dp"
-                    android:paddingVertical="7dp"
+                    android:paddingVertical="5dp"
                     android:text="Disease"
                     android:textSize="13sp"
                     android:textColor="#12271E"
@@ -152,7 +175,7 @@
                 android:id="@+id/rowPatient"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
+                android:layout_marginTop="6dp"
                 android:orientation="horizontal"
                 android:gravity="bottom"
                 android:visibility="gone">
@@ -197,16 +220,6 @@
                 android:textSize="11.5sp"
                 android:lineSpacingMultiplier="1.15"
                 android:textColor="#374151" />
-
-            <TextView
-                android:id="@+id/tvTargets"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="9dp"
-                android:gravity="end"
-                android:text="All Staff"
-                android:textSize="13sp"
-                android:textColor="@color/brand_blue" />
 
             <TextView
                 android:id="@+id/tvReplies"

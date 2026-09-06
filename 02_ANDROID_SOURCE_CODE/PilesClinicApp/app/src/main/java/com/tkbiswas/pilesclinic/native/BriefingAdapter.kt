@@ -189,10 +189,17 @@ class BriefingAdapter(
         // ১০-অঙ্কের (ঐচ্ছিক +91 সহ) নম্বর খুঁজে সেটাকে ক্লিকযোগ্য করা হয়।
         // ⛔ মেসেজের বাকি লেখা/রং/সাইজ কিছুই বদলায়নি — শুধু নম্বরটুকু নীল ও
         // আন্ডারলাইন করা, বাকি স্বাভাবিক।
+        /* 🎨🔒 V1141 (TK-অনুমোদিত ফটো-প্রুফ) — TK: *"Jalpaiguri-র পাশে তারিখ
+           এবং সময় রাখুন"* ⇒ তারিখ-সময় এখন উপরের লাইনেই, নিচের আলাদা লাইনটা
+           লুকানো — কার্ড অনেক কম উঁচু। ⛔ `tvDate`-এর id ও লেখা অক্ষত, শুধু দেখানো বন্ধ। */
+        b.tvDate.visibility = View.GONE
         b.tvMessage.text = buildClickableMessage(item.message)
         b.tvMessage.movementMethod = android.text.method.LinkMovementMethod.getInstance()
         b.tvMessage.highlightColor = android.graphics.Color.TRANSPARENT
-        bindSeenBy(b.tvTargets, "${item.targetsSummary} · ", item)
+        /* 🎨🔒 V1141 (TK: *"নিচে আবার Branch Jalpaiguri থাকবে না"*) — ব্রাঞ্চ
+           উপরের লাইনেই আছে, তাই এখানে শুধু "Seen by N"। ⛔ চাপ দিলে কে দেখেছেন
+              তার তালিকা আগের মতোই খোলে (V682)। */
+        bindSeenBy(b.tvTargets, "", item)
         // 🔴🔒 V682 (২৫.০৮.২০২৬, TK-লাইভ-টেস্ট রিপোর্ট — "Seen by 1-এ চাপ
         // দিলে কে দেখেছে বোঝা যায় না") — এখন চাপলে নামের তালিকা দেখায়
         // (স্টাফ কোড → নাম, প্রমাণিত StaffDirectory.findAccount())। ⛔
@@ -208,7 +215,9 @@ class BriefingAdapter(
         // existing logic changes. Both branches set every field, so a recycled
         // card never keeps a previous card's colour/chip.
         val who = item.branch.ifBlank { item.targetsSummary }.ifBlank { "Notice" }
-        b.tvWho.text = who
+        val whenTxt = b.tvDate.text?.toString().orEmpty()   // 🎨 V1141 — একই লাইনে তারিখ-সময়
+        fun withWhen(base: String) = if (whenTxt.isBlank()) base else "$base \u00b7 $whenTxt"
+        b.tvWho.text = withWhen(who)
         val initialSrc = who.trim().ifEmpty { item.title.trim() }
         b.tvAvatar.text = (initialSrc.firstOrNull { it.isLetterOrDigit() }?.uppercaseChar() ?: 'N').toString()
         // 🔴🆕🔒 TK-নির্দেশ (08.08.2026, ফটো-প্রুফে লক) — স্টাফ-নোটিশের (IN/OUT TIME
@@ -219,7 +228,7 @@ class BriefingAdapter(
         val staffCode = extractField(item.message, "Staff")
         if (staffCode != null) {
             val nm = staffNameFor(staffCode)
-            b.tvWho.text = if (nm != null) "$staffCode · $nm" else staffCode
+            b.tvWho.text = withWhen(if (nm != null) "$staffCode · $nm" else staffCode)   // 🎨 V1141
             b.tvAvatar.text = ((nm ?: staffCode).firstOrNull { it.isLetterOrDigit() }?.uppercaseChar() ?: 'S').toString()
             // কম্প্যাক্ট: Staff/Branch এখন হাইলাইটেই আছে, তাই বার্তায় শুধু সময়টুকু।
             val t = extractField(item.message, "Time")
@@ -248,7 +257,7 @@ class BriefingAdapter(
                 val nm = staffNameFor(by)
                 val label = nm ?: by.takeIf { it.any { c -> c.isLetter() } }
                 if (!label.isNullOrBlank() && !who.equals(label, ignoreCase = true)) {
-                    b.tvWho.text = if (who.isNotBlank()) "$who · $label" else label
+                    b.tvWho.text = withWhen(if (who.isNotBlank()) "$who · $label" else label)   // 🎨 V1141
                 }
             }
         }
@@ -256,7 +265,7 @@ class BriefingAdapter(
         val requestedBy = extractField(item.message, "Requested by")
         if (requestedBy != null) {
             val brOnly = item.branch.ifBlank { extractField(item.message, "Branch").orEmpty() }
-            b.tvWho.text = if (brOnly.isNotBlank()) "$brOnly · $requestedBy" else requestedBy
+            b.tvWho.text = withWhen(if (brOnly.isNotBlank()) "$brOnly · $requestedBy" else requestedBy)   // 🎨 V1141
             b.tvAvatar.text = (brOnly.trim().ifEmpty { requestedBy }
                 .firstOrNull { it.isLetterOrDigit() }?.uppercaseChar() ?: 'N').toString()
             val trimmed = item.message.lines().filterNot { line ->
@@ -499,12 +508,11 @@ class BriefingAdapter(
         /* 🟢🔒 V1134 (TK: *"View তে নেভি ব্লু কালার থাকবে না"*) — অনুমতি-চাওয়া
            কার্ডে View এখন Reply-র মতোই হালকা সাদা ধাঁচে, তাই চোখ সোজা
            Approve/Reject-এ যায়। ⛔ বাকি সব নোটিশে View আগের মতোই। */
-        if (showReject) b.btnViewRecord.setBackgroundResource(
+        /* 🎨🔒 V1141 (TK: *"View-এর কালার Normal রাখুন"*) — গাঢ় নেভি বাদ,
+           সব কার্ডেই View এখন Reply/Close-এর মতো সাদা ধাঁচে। ⛔ কাজ অপরিবর্তিত। */
+        b.btnViewRecord.setBackgroundResource(
             com.tkbiswas.pilesclinic.R.drawable.bg_brief_btn_ghost)
-        else b.btnViewRecord.setBackgroundResource(
-            com.tkbiswas.pilesclinic.R.drawable.bg_brief_btn_dark)
-        b.btnViewRecord.setTextColor(android.graphics.Color.parseColor(
-            if (showReject) "#0F172A" else "#FFFFFF"))
+        b.btnViewRecord.setTextColor(android.graphics.Color.parseColor("#0F172A"))
         val mobileInNotice = firstMobileIn(item.message)
         // 🟢🔒 V692 — Overdue সতর্কতায় কোনো একটা নম্বর থাকে না (ব্রাঞ্চ ধরে
         //   গোনা), তাই নম্বর না থাকলেও View দেখাতে হবে। চাপলে ওই ব্রাঞ্চের
@@ -547,12 +555,19 @@ class BriefingAdapter(
                     if (parts.size >= 4 && digitsOf(parts[1]).length >= 10) {
                         b.tvPatientName.text = parts[0]
                         b.tvPatientPhone.text = parts[1]
-                        b.tvPatientId.text = "Patient ID   " + parts[2]
+                        /* 🔴🔒 V1141 (TK: *"পেশেন্ট id লাগবে না"* · *"এই Registration-টা
+                           কে করলো সেটা তো জানা যাচ্ছে না"*) — আইডির বদলে এখানে এখন
+                           **কে করেছেন** সেটা বসে। নামটা `createdBy`-তেই ছিল, শুধু
+                           খোঁজার চাবি ভুল ছিল (উপরে `staffNameFor` দেখুন)।
+                           ⛔ চেনা না গেলে লাইনটাই বসে না — বানানো কিছু দেখানো হয় না। */
+                        val doneBy = staffNameFor(item.createdBy.trim())
+                        b.tvPatientId.text = if (doneBy != null) "By  $doneBy" else ""
                         val dis = parts.getOrNull(3).orEmpty()
                         b.tvChipDisease.text = dis
                         b.tvChipDisease.visibility = if (dis.isNotBlank()) View.VISIBLE else View.GONE
                         b.rowPatient.visibility = View.VISIBLE
-                        b.tvPatientId.visibility = View.VISIBLE
+                        b.tvPatientId.visibility =
+                            if (b.tvPatientId.text.isNullOrBlank()) View.GONE else View.VISIBLE
                         b.tvMessage.visibility = View.GONE
                         val dg = digitsOf(parts[1]).takeLast(10)
                         b.tvPatientPhone.setOnClickListener { if (dg.length == 10) onCallNumber(dg) }
@@ -624,7 +639,26 @@ class BriefingAdapter(
             staffNameMap = m
             m
         }
-        return map[code]?.takeIf { it.isNotBlank() }
+        val direct = map[code]?.takeIf { it.isNotBlank() }
+        if (direct != null) return direct
+        /* 🔴🔒 V1141 (০৬.০৯.২০২৬, TK-রিপোর্ট: *"এই Registration-টা কে করলো
+           সেটা তো জানা যাচ্ছে না"*) — 🔴 **কারণ (কোডে মেপে পাওয়া):** নোটিশের
+           `createdBy` ঘরে থাকে স্টাফের **মোবাইল নম্বর**, অথচ এই তালিকাটা
+           **person_code** ধরে নাম খোঁজে ⇒ কখনো মিলত না, আর নম্বরে অক্ষর নেই
+           বলে কাঁচা নম্বরটাও বসত না। ফল: শুধু ব্রাঞ্চই দেখাত।
+           ⇒ এখন নম্বর পেলে আগে **কোড** বার করা হয় (প্রমাণিত `StaffDirectory`,
+             DoctorVisit পর্দায় ঠিক এভাবেই চলে), তারপর সেই কোডে নাম।
+           ⛔ কোড দিয়ে ডাকলে আচরণ হুবহু আগের মতোই। */
+        val ten = code.filter { it.isDigit() }.takeLast(10)
+        if (ten.length == 10) {
+            val acc = try { StaffDirectory.findAccount(ten) } catch (_: Throwable) { null }
+            val byCode = acc?.name?.takeIf { it.isNotBlank() }
+            if (byCode != null) {
+                val nm = map[byCode]?.takeIf { it.isNotBlank() }
+                return if (nm != null) "$byCode \u00b7 $nm" else byCode
+            }
+        }
+        return null
     }
 
     // 🆕 B467 (05.08.2026, TK-নির্দেশ) — মেসেজের লেখায় ১০-অঙ্কের ভারতীয়
