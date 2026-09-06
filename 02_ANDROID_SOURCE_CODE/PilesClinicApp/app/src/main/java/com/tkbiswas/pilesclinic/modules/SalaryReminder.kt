@@ -53,17 +53,29 @@ object SalaryReminder {
             // 🔴 V404 (16.08.2026): `active` ঘরটাও টানা হচ্ছে — বাদ-দেওয়া কর্মীর
             //    নাম যেন আর কখনো "বেতন বাকি"-তে না ওঠে। আগে উঠত: SWAPNA ADHIKARI
             //    কাজ ছেড়ে দেওয়ার পরেও তাঁর নাম প্রতি মাসে দেখানোর কথা ছিল।
+            /* \U0001f534\U0001f512 V1140 (০৬.০৯.২০২৬, TK-রিপোর্ট) — TK: *"KISHAN-10, KISHAN-11
+               আজকের থেকে জয়েন করেছে, তাহলে তাদের স্যালারি ডিউ কেন দেখাচ্ছে?
+               ১ মাস যাবে তারপর তো তাদের স্যালারি দেবো।"*
+               \U0001f534 কারণ (কোডে মেপে পাওয়া): নিয়ম ছিল শুধু দুটো — বেতনের দিন এসে
+                  গেছে কিনা, আর এই মাসে দেওয়া হয়েছে কিনা। **জয়েনিং তারিখ কখনো
+                  দেখাই হত না**, তাই আজ জয়েন করা কর্মীও আজই "বেতন বাকি"-তে উঠত।
+               ⇒ এখন `join_date`-ও টানা হয়: যিনি **এই মাসে (বা পরে) জয়েন করেছেন**,
+                 তাঁর নাম এ মাসে ওঠে না — প্রথম বেতন পরের মাস থেকে।
+               ⛔ তারিখ ফাঁকা/অচেনা হলে আগের মতোই ধরা হয় — পুরনো কারও নাম হারায় না। */
             val prof = ModuleAuth.getRows(
                 "hr", "staff_profiles",
-                "select=person_code,full_name,branch,active"
+                "select=person_code,full_name,branch,active,join_date"
             )
             val info = HashMap<String, Pair<String, String>>()
             val removedCodes = HashSet<String>()
+            val notYetDue = HashSet<String>()
             for (i in 0 until prof.length()) {
                 val pr = prof.getJSONObject(i)
                 info[pr.optString("person_code")] = Pair(pr.optString("full_name"), pr.optString("branch"))
                 // ⛔ ঘরটা না থাকলে (পুরনো সারি) ডিফল্ট true ⇒ কেউ ভুলে বাদ পড়বে না।
                 if (!pr.optBoolean("active", true)) removedCodes.add(pr.optString("person_code"))
+                val jm = pr.optString("join_date").trim().take(7)   // "yyyy-MM"
+                if (jm.length == 7 && jm >= cur) notYetDue.add(pr.optString("person_code"))
             }
 
             val out = ArrayList<Due>()
@@ -76,6 +88,7 @@ object SalaryReminder {
                 if (today < sday) continue                        // স্যালারির দিন এখনো আসেনি
                 val code = c.optString("person_code")
                 if (removedCodes.contains(code)) continue           // 🔴 V404: বাদ-দেওয়া কর্মী
+                if (notYetDue.contains(code)) continue              // 🔴 V1140: এই মাসেই জয়েন
                 if ((paid[code] ?: 0.0) >= amount) continue        // এ মাসে দেওয়া হয়ে গেছে
                 val nb = info[code] ?: Pair(code, "")
                 out.add(Due(code, nb.first.ifBlank { code }, nb.second, amount, sday.toString()))

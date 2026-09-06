@@ -37,7 +37,7 @@
     // "লোড করা গেল না" বার্তা, যাতে সত্যিই তালিকা খালি নাকি নেট-সমস্যা বোঝা যায়।
     var listFailed = false;
     try { var __rp = await client.schema('hr').from('staff_profiles')
-      .select('person_code,designation,role_kind,branch,full_name,link_mobile,active')
+      .select('person_code,designation,role_kind,branch,full_name,link_mobile,active,join_date')   /* 🔴 V1140 — join_date-ও লাগে */
       .order('person_code'); if (__rp && __rp.error) listFailed = true; rows = __rp.data || []; } catch (e) { listFailed = true; }
     /* ⛔🔒 V890 (৩০.০৮.২০২৬, TK-নির্দেশ) — বাদ দেওয়া স্টাফের একটাও তথ্য
        কোথাও দেখাবে না। ফোনের `BlockedStaff`-এর হুবহু একই তালিকা।
@@ -122,7 +122,7 @@
       __pa.forEach(function (p) { (paysByCode[p.person_code] = paysByCode[p.person_code] || []).push(p); });
     } catch (e) {}
     var dueRows = [];
-    rows.forEach(function (p) { var sc = cfgs[p.person_code] || {}; var d = salaryDueThisMonth(sc, paysByCode[p.person_code] || []); if (d > 0) dueRows.push({ code: p.person_code, name: p.full_name || p.person_code, branch: p.branch || '', sd: sc.salary_date, amt: d }); });
+    rows.forEach(function (p) { var sc = cfgs[p.person_code] || {}; var d = salaryDueThisMonth(sc, paysByCode[p.person_code] || [], p.join_date);   /* 🔴 V1140 */ if (d > 0) dueRows.push({ code: p.person_code, name: p.full_name || p.person_code, branch: p.branch || '', sd: sc.salary_date, amt: d }); });
     var dueHtml = dueRows.length ? ('<div class="card" style="border:1px solid #ffd58a;background:#fff7e6"><b>💰 Salary Due (' + dueRows.length + ')</b>' +
       dueRows.map(function (d) { return '<div style="padding:8px 0;border-top:1px solid #f0e2c0"><b>' + m.esc(d.name) + '</b> · ' + m.esc(d.branch) +
         /* 🔴 V430 — ফোনের লেখা: "Salary day 5 · due this month · ₹5,000"
@@ -1500,7 +1500,12 @@
   }
   /** ফোনের SalaryReminder-এর হুবহু হিসাব: enabled + amount>0 + salary_date দেওয়া +
    *  আজকের দিন >= salary_date + এই মাসে এখনো পুরো দেওয়া হয়নি → বাকি টাকা ফেরত (নইলে 0)। */
-  function salaryDueThisMonth(sc, pays){
+  /* 🔴🔒 V1140 (০৬.০৯.২০২৬, TK-রিপোর্ট: *"আজকের থেকে জয়েন করেছে, তাহলে
+     স্যালারি ডিউ কেন দেখাচ্ছে? ১ মাস যাবে তারপর তো স্যালারি দেবো"*) —
+     এই মাসে (বা পরে) জয়েন করা কর্মীর নাম এ মাসে আর ওঠে না; প্রথম বেতন
+     পরের মাস থেকে। ⛔ তারিখ ফাঁকা/অচেনা হলে আগের মতোই ধরা হয়।
+     ⛔ ফোনের `SalaryReminder.kt`-এর হুবহু একই নিয়ম। */
+  function salaryDueThisMonth(sc, pays, joinDate){
     try{
       if(!sc || !sc.salary_enabled) return 0;
       var amount=Number(sc.salary_amount||0); if(!(amount>0)) return 0;
@@ -1508,6 +1513,8 @@
       var now=new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Kolkata'}));
       if(now.getDate()<sd) return 0;
       var cur=(''+now.getFullYear())+'-'+(''+(now.getMonth()+1)).toString().padStart(2,'0');
+      var jm=String(joinDate||'').trim().slice(0,7);
+      if(jm.length===7 && jm>=cur) return 0;   /* 🔴 V1140 — এই মাসেই জয়েন */
       var paidThis=0;
       (pays||[]).forEach(function(p){ if(salIsExtra(p)) return; if(salPayMonth(p)===cur) paidThis+=Number(p.amount||0); });
       return Math.max(0, amount-paidThis);
