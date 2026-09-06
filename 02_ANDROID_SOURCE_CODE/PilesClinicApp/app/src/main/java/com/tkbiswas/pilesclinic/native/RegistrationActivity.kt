@@ -62,7 +62,11 @@ class RegistrationActivity : AppCompatActivity() {
     private val medHistOptions = listOf("Previous Medication", "Previous Doctor Treatment", "Previous Operation History", "Previous Ayurvedic/Herbal Treatment")
     private val payModes = listOf("CASH", "ONLINE")
 
-    private var selectedDate: String = PatientIdGenerator.todayIso()
+    /* 🔴🔒 V1143 (০৬.০৯.২০২৬, TK-নির্দেশ) — আর আপনা-আপনি আজকের তারিখ বসে না।
+       স্টাফকে নিজে তারিখ বাছতেই হবে, নইলে সেভ আটকে যায় (নিচে validateAndSave)।
+       নিয়মটা বদলানোর একটাই জায়গা: `RegDateRule.MUST_PICK` — ওটা `false` করলেই
+       আগের মতো আজকের তারিখ নিজে থেকে বসে যাবে, আর কিছু বদলাতে হবে না। */
+    private var selectedDate: String = if (RegDateRule.MUST_PICK) "" else PatientIdGenerator.todayIso()
     private val diseaseChecks = mutableListOf<com.google.android.material.chip.Chip>()
     private val symptomChecks = mutableListOf<com.google.android.material.chip.Chip>()
     private val medHistChecks = mutableListOf<com.google.android.material.chip.Chip>()
@@ -89,7 +93,7 @@ class RegistrationActivity : AppCompatActivity() {
         setupPayButtons()
         setupTimingButtons()
         setupCheckboxGroups()
-        binding.tvDate.text = displayDate(selectedDate)
+        showRegDate()
         binding.tvDate.setOnClickListener { pickDate() }
         binding.btnBack.setOnClickListener { finish() }
         binding.btnSave.setOnClickListener { validateAndSave(user) }
@@ -1072,10 +1076,15 @@ class RegistrationActivity : AppCompatActivity() {
             val cal2 = Calendar.getInstance().apply { set(y, m, d) }
             val iso = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cal2.time)
             selectedDate = iso
-            binding.tvDate.text = displayDate(iso)
+            showRegDate()
         }, cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH)).apply {
             datePicker.maxDate = today.timeInMillis
         }.show()
+    }
+
+    /** তারিখের ঘরে কী লেখা থাকবে — ফাঁকা থাকলে স্টাফকে বলা হয় চেপে বাছতে। */
+    private fun showRegDate() {
+        binding.tvDate.text = if (selectedDate.isBlank()) "Tap to select" else displayDate(selectedDate)
     }
 
     private fun displayDate(iso: String): String = try {
@@ -1092,6 +1101,8 @@ class RegistrationActivity : AppCompatActivity() {
         val fee = feeRaw.toDoubleOrNull() ?: 0.0
 
         // Same validation order/messages as savePatient() in app.js.
+        // 🔴🔒 V1143 (TK-নির্দেশ) — তারিখ না বাছলে রেজিস্ট্রেশন সেভ হবে না।
+        if (selectedDate.isBlank()) { focusError(binding.tvDate, "Registration date mandatory — tap to select"); return }
         if (selectedDate > PatientIdGenerator.todayIso()) { focusError(binding.tvDate, "Future registration date not allowed"); return }
         if (name.isBlank()) { focusError(binding.etName, "Patient name mandatory"); return }
         if (mobile.length != 10) { focusError(binding.etMobile, "Valid mobile number mandatory"); return }
@@ -1623,8 +1634,8 @@ class RegistrationActivity : AppCompatActivity() {
         lastAutofilledMobile = ""
         lastDupCheckedMobile = ""
 
-        selectedDate = PatientIdGenerator.todayIso()
-        binding.tvDate.text = displayDate(selectedDate)
+        selectedDate = if (RegDateRule.MUST_PICK) "" else PatientIdGenerator.todayIso()
+        showRegDate()
         binding.etName.requestFocus()
     }
 
