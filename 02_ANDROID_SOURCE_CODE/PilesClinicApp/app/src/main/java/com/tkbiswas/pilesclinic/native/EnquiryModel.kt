@@ -137,6 +137,6 @@ object EnquiryModel {
             .put("updatedAt", now)
     }
 
-    private fun isoNow(): String =
+    fun isoNow(): String =
         SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).format(Date())
 }

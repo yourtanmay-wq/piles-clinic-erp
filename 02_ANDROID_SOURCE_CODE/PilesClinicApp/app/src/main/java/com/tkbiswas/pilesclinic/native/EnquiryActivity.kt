@@ -74,6 +74,14 @@ class EnquiryActivity : AppCompatActivity() {
     /* 🩺 V1070 — Registration-এর হুবহু একই তালিকা (`RegistrationActivity.refByOptions`) */
     private val enqRefByOptions = listOf("Self", "Online", "Offline", "Dr. Visit", "Old Patient", "Others")
 
+    /* 🔴🔒 V1151 (০৬.০৯.২০২৬, TK-নির্দেশ: *"যে কোন Enquiry / Visit / পেশেন্টের
+       Edit করার প্রয়োজন হলে full form edit-এর option আসবে — Registration হওয়ার
+       আগ অবদি All Branch Enquiry Form"*)।
+       ফাঁকা হলে পর্দাটা **হুবহু আগের মতোই** নতুন এনকোয়ারির ফর্ম; ভরা থাকলে
+       ওই সারিটাই এডিট হচ্ছে ⇒ সেভ করলে **নতুন সারি বসে না**, একই সারিতে লেখা হয়।
+       ⛔ কল-হিস্ট্রি · কল-গোনা · ধাপ · status — কিচ্ছু ছোঁয়া হয় না। */
+    private var editEnquiryId: String = ""
+
     private var selectedDate: String = EnquiryModel.today()
     private var selectedNextFollow: String = ""
     private var lastDupChecked = ""
@@ -117,6 +125,9 @@ class EnquiryActivity : AppCompatActivity() {
         // ডুপ্লিকেট-চেক স্বয়ংক্রিয়ভাবে চলত না, staff-কে আবার একবার লিখে
         // মুছে টাইপ করতে হতো)।
         intent.getStringExtra("prefillMobile")?.let { if (it.isNotBlank()) binding.etMobile.setText(it) }
+        // 🔴 V1151 — এডিট-মোড: সারিটা এনে ঘরগুলো ভরে দেওয়া হয়।
+        editEnquiryId = intent.getStringExtra("editEnquiryId")?.trim().orEmpty()
+        if (editEnquiryId.isNotBlank()) loadEnquiryForEdit(editEnquiryId)
 
         val user = NativeSession.current(this)
         if (user == null) {
@@ -226,6 +237,74 @@ class EnquiryActivity : AppCompatActivity() {
         // it green (see selectDisease below). Nothing else on this form changed.
         // 🩺 V1000 — এক জায়গা থেকেই রং বসে, তাই বাছা থাকলে সবুজই থাকে।
         paintDiseaseButtons(map)
+    }
+
+    /* 🔴🔒 V1151 — এডিট-মোডে সারিটা এনে ঘরগুলো ভরে দেয়।
+       ⛔ পড়া ব্যর্থ হলে ফর্মটা ফাঁকাই থাকে আর একটা বার্তা ওঠে — ভুল তথ্য
+          বসিয়ে দেওয়ার চেয়ে কিছু না বসানোই নিরাপদ। */
+    private fun loadEnquiryForEdit(id: String) {
+        BackgroundWork.run {
+            val rows = try {
+                SupabaseClient.fetchListOrNull("enquiries", "id=eq.$id", 1, "createdAt.desc.nullslast", "*")
+            } catch (_: Throwable) { null }
+            val row = if (rows != null && rows.length() > 0) rows.optJSONObject(0) else null
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                if (row == null) {
+                    editEnquiryId = ""
+                    android.widget.Toast.makeText(this, "Could not open this enquiry — please try again", android.widget.Toast.LENGTH_LONG)
+                        .show().also { try { NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }
+                    return@post
+                }
+                try { fillFormFromRow(row) } catch (_: Throwable) { }
+            }
+        }
+    }
+
+    /** সারির লেখাগুলো ঘরে বসানো — ওয়েবের `wlv1EnqFillForm`-এর হুবহু যমজ। */
+    private fun fillFormFromRow(row: org.json.JSONObject) {
+        fun sv(k: String) = row.optString(k, "").trim()
+        binding.etMobile.setText(StaffDirectory.normalizeMobile(sv("mobile")))
+        binding.etName.setText(sv("name"))
+        binding.etAddress.setText(sv("address"))
+        binding.etRemarks.setText(sv("remarks"))
+        sv("date").take(10).let { if (it.isNotBlank()) { selectedDate = it; binding.tvDate.text = displayDate(it) } }
+        sv("nextFollow").take(10).let { if (it.isNotBlank()) { selectedNextFollow = it; binding.tvNextFollow.text = displayDate(it) } }
+        // ব্রাঞ্চ
+        val br = sv("branch")
+        if (br.isNotBlank()) {
+            val ad = binding.spBranch.adapter
+            for (i in 0 until (ad?.count ?: 0)) {
+                if (ad.getItem(i)?.toString()?.trim().equals(br, ignoreCase = true)) { binding.spBranch.setSelection(i); break }
+            }
+        }
+        // রোগ (একাধিক হতে পারে, ", " দিয়ে জোড়া)
+        selectedDiseaseSet.clear()
+        sv("disease").split(",").map { it.trim() }.filter { it.isNotBlank() }.forEach { d ->
+            diseaseValues.firstOrNull { it.equals(d, ignoreCase = true) }?.let { selectedDiseaseSet.add(it) }
+        }
+        try { setupDiseaseButtons() } catch (_: Throwable) { }
+        // সময়ের ধরন — সারিতে যা আছে সেটাই বাছা থাকে
+        val tt = sv("timeType")
+        if (tt.isNotBlank()) { try { selectTiming(tt) } catch (_: Throwable) { } }
+        /* ⛔ এডিটে সময়ের ঘরটা আর কল-তালিকা দেখে বদলানো হয় না — সারিতে যা জমা
+           আছে সেটাই থাকে (স্টাফ চাইলে বোতাম চেপে বদলাতে পারেন, আগের নিয়মেই)। */
+        timingIsAuto = false
+        // কে পাঠিয়েছেন
+        val rb = sv("refBy")
+        if (rb.isNotBlank()) {
+            val ad = binding.spEnqRefBy.adapter
+            for (i in 0 until (ad?.count ?: 0)) {
+                if (ad.getItem(i)?.toString()?.trim().equals(rb, ignoreCase = true)) { binding.spEnqRefBy.setSelection(i); break }
+            }
+        }
+        binding.etEnqRefDoctorName.setText(sv("refDoctor"))
+        binding.etEnqRefDoctorMobile.setText(sv("refDoctorMobile"))
+        // কে কল ধরেছিলেন
+        val rcv = StaffDirectory.normalizeMobile(sv("receivedBy"))
+        if (rcv.length == 10) {
+            val idx = receivedByMobiles.indexOfFirst { StaffDirectory.normalizeMobile(it) == rcv }
+            if (idx >= 0) binding.spReceivedBy.setSelection(idx)
+        }
     }
 
     private fun selectDisease(value: String, map: List<Pair<android.widget.Button, String>>) {
@@ -492,6 +571,10 @@ class EnquiryActivity : AppCompatActivity() {
 
     /** কল-তালিকার ফল অনুযায়ী বোতাম দুটো সাজায়। */
     private fun applyTimingFromCall(callMs: Long?) {
+        /* 🔴 V1151 — এডিট-মোডে সারিতে জমা থাকা সময়টাই শেষ কথা; কল-তালিকা দেখে
+           সেটা বদলানো হয় না (নইলে পুরনো এনকোয়ারি এডিট করতে গেলেই সময়ের ঘরটা
+           আজকের কল অনুযায়ী পাল্টে যেত — টাকার হিসাবেও তার ছাপ পড়ত)। */
+        if (editEnquiryId.isNotBlank()) { branchCallMs = callMs; return }
         branchCallMs = callMs
         timingIsAuto = callMs != null                  // 🕐 V1042
         if (callMs == null) {
@@ -627,7 +710,9 @@ val disease = selectedDisease
                     withContext(Dispatchers.IO) { repository.closedInfo(mobile) }
                 else EnquiryRepository.ClosedInfo(false)
                 setLoading(false)
-                if (duplicate.found) {
+                if (duplicate.found && editEnquiryId.isBlank()) {
+                    // 🔴 V1151 — এডিটে "এই নম্বর আগে থেকেই আছে" পপ-আপ ওঠে না;
+                    //    সারিটা তো ওই ব্যক্তিরই। ⛔ নতুন এনকোয়ারিতে পাহারা অটুট।
                     showRestoreDialog(user, duplicate, mobile, branch, disease, remarks, closed)
                 } else {
                     performSave(user, mobile, branch, name, disease, address, remarks, timing)
@@ -987,6 +1072,59 @@ val disease = selectedDisease
             receivedByMobile = receivedByMobiles.getOrNull(binding.spReceivedBy.selectedItemPosition) ?: user.mobile
         )
         setLoading(true)
+        /* ═══════════════════════════════════════════════════════════════════
+           🔴🔒 V1151 — **এডিট-মোড: নতুন সারি তৈরি হয় না।** পুরনো সারিটাতেই
+           ফর্মের ঘরগুলো বসে, আর ওই ব্যক্তির Inquiry-ধাপের ফলো-আপ সারিতেও
+           দেখানোর ঘরগুলো মিলিয়ে দেওয়া হয় (ওয়েবের হুবহু একই নিয়ম)।
+           ⛔ `id` · `createdAt` · `createdBy` · `stage` · `status` ·
+              `callCount` · `history` · `lastCallDate` — একটাও ছোঁয়া হয় না। */
+        if (editEnquiryId.isNotBlank()) {
+            val editId = editEnquiryId
+            lifecycleScope.launch {
+                val ok = withContext(Dispatchers.IO) {
+                    try {
+                        val f = org.json.JSONObject()
+                            .put("date", draft.date).put("branch", draft.branch).put("name", draft.name)
+                            .put("mobile", draft.mobileDigitsOnly).put("disease", draft.disease)
+                            .put("address", draft.address).put("remarks", draft.remarks)
+                            .put("nextFollow", draft.nextFollow).put("timeType", draft.timeType)
+                            .put("refBy", draft.refBy).put("refDoctor", draft.refDoctor)
+                            .put("refDoctorMobile", draft.refDoctorMobile)
+                            .put("receivedBy", draft.receivedByMobile)
+                            .put("updatedAt", EnquiryModel.isoNow())
+                        val main = SupabaseClient.updateById("enquiries", editId, f)
+                        if (main) {
+                            // ফলো-আপের দেখানোর ঘরগুলো মেলানো — শুধু Inquiry ধাপে।
+                            try {
+                                val rows = SupabaseClient.findByMobile(
+                                    "followups", draft.mobileDigitsOnly, "id,stage", 20)
+                                for (i in 0 until rows.length()) {
+                                    val r = rows.optJSONObject(i) ?: continue
+                                    if (!r.optString("stage", "").equals("Inquiry", ignoreCase = true)) continue
+                                    val fid = r.optString("id", "")
+                                    if (fid.isBlank()) continue
+                                    SupabaseClient.updateById("followups", fid, org.json.JSONObject()
+                                        .put("name", draft.name).put("branch", draft.branch)
+                                        .put("disease", draft.disease).put("address", draft.address)
+                                        .put("nextFollow", draft.nextFollow).put("timeType", draft.timeType)
+                                        .put("lastRemark", draft.remarks)
+                                        .put("updatedAt", EnquiryModel.isoNow()))
+                                }
+                            } catch (_: Throwable) { }
+                        }
+                        main
+                    } catch (_: Throwable) { false }
+                }
+                setLoading(false)
+                android.widget.Toast.makeText(
+                    this@EnquiryActivity,
+                    if (ok) "Enquiry updated" else "Could not save — check connection and try again",
+                    android.widget.Toast.LENGTH_LONG
+                ).show().also { try { NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }
+                if (ok) finish()
+            }
+            return
+        }
         lifecycleScope.launch {
             try {
                 val savedOnline = withContext(Dispatchers.IO) {

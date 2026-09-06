@@ -961,7 +961,19 @@ class PatientTimelineActivity : AppCompatActivity() {
         // see for someone who is Enquiry-only (no Registration yet) --
         // label now reflects what's actually being edited at this stage.
         // showPatientHeaderEdit() itself is unchanged either way.
-        actionRow("✏️", if (isRegistered) "Edit Patient" else "Edit Enquiry", "#0E7C7B") { dialog.dismiss(); showPatientHeaderEdit() }
+        /* 🔴🔒 V1151 (০৬.০৯.২০২৬, TK-নির্দেশ) — *"Registration হওয়ার আগ অবদি
+           All Branch Enquiry Form, আর Registration-এর পর Registration Form"*।
+           ⇒ রেজিস্টার্ড হলে আগের মতোই "Edit Patient" পপ-আপ (সেখানে V1142/V1145-এ
+             রেজিস্ট্রেশন ফর্মের সব ঘরই বসানো আছে); না হলে **পুরো এনকোয়ারি ফর্ম**
+             খোলে, আগের লেখা ভরা অবস্থায়।
+           ⛔ এনকোয়ারির সারির আইডি না পেলে আগের পপ-আপই খোলে — কিছু ভাঙে না। */
+        actionRow("✏️", if (isRegistered) "Edit Patient" else "Edit Enquiry Form", "#0E7C7B") {
+            dialog.dismiss()
+            if (!isRegistered && currentEnquiryId.isNotBlank()) {
+                startActivity(Intent(this, EnquiryActivity::class.java)
+                    .putExtra("editEnquiryId", currentEnquiryId))
+            } else showPatientHeaderEdit()
+        }
         // 🟢🔒 V616 (২৪.০৮.২০২৬, TK-নির্দেশ — "ভুল ব্রাঞ্চে রেজিস্টার হওয়া
         // রোগী পরে ঠিক ব্রাঞ্চে সরানোর ব্যবস্থা") — শুধু Master দেখবেন।
         // ⛔ এই ফাংশনের নিজস্ব `user` ভেরিয়েবল এখনো ঘোষণা হয়নি (নিচে হয়),
