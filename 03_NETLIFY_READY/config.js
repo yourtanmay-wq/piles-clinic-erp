@@ -16,6 +16,10 @@ window.RK_CONFIG = {
     staff: [
       {mobile:'9883605917', name:'KNE-LAXMI', branch:'Kishanganj'},
       {mobile:'8676002200', name:'KNE-BRANCH', branch:'Kishanganj'},
+      /* 🟢🔒 V1136 (০৬.০৯.২০২৬, TK-নির্দেশ) — কিশানগঞ্জের নতুন স্টাফ
+         MANISHA LAKRA (KNE-KISHAN10), জয়েন ০৩.০৯.২০২৬। ফোনের
+         StaffDirectory.kt-র হুবহু যমজ, তাই দুই দিকে একই লগইন। */
+      {mobile:'7482966958', name:'KNE-KISHAN10', branch:'Kishanganj'},
       /* V453 (20.08.2026, TK-approved): KNE-KISHAN5 (6207841890) কাজ ছেড়ে দিয়েছে,
          আর এখানে নেই — পুরনো নম্বর দিয়ে আর লগইন হবে না। পুরনো রেকর্ড অক্ষত। */
       /* 🔴 V734 (27.08.2026, TK-এর সরাসরি নির্দেশ): কিশানগঞ্জের KNE-KISHAN6
