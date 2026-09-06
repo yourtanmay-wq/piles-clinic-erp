@@ -663,6 +663,26 @@ class PaymentActivity : AppCompatActivity() {
                         text = "${PaymentModel.dayAndClock(p.s("date"), p.s("createdAt"))} · $modeText"
                         textSize = 11.5f; setTextColor(android.graphics.Color.parseColor("#8A93A6"))
                     })
+                    /* 🔴🔒 V1153 (০৬.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — TK: *"এখানে
+                       সেই staff-এর নাম নেই কেন?"* (KABITA BANU-র ₹৮,০০২ কে নিয়েছে
+                       খুঁজতে গিয়ে)। ⇒ তথ্যটা সারিতে আগে থেকেই জমা (`receivedBy`,
+                       না থাকলে `createdBy`), শুধু দেখানো হত না।
+                       ⛔ নম্বর থেকে স্টাফ-কোড বের হয় প্রজেক্টের প্রমাণিত পথেই;
+                          চেনা না গেলে লাইনটাই বসে না (আন্দাজে কিছু দেখানো হয় না)।
+                       ⛔ টাকার অঙ্ক · তারিখ · লেবেল · রিমার্ক — কিছুই বদলায়নি। */
+                    run {
+                        val byMob = p.s("receivedBy").ifBlank { p.s("createdBy") }
+                        val byName = try {
+                            StaffDirectory.findAccount(StaffDirectory.normalizeMobile(byMob))?.name.orEmpty()
+                        } catch (_: Throwable) { "" }
+                        if (byName.isNotBlank()) {
+                            left.addView(TextView(this@PaymentActivity).apply {
+                                text = "👤 $byName"; textSize = 11.5f
+                                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                                setTextColor(android.graphics.Color.parseColor("#0B5F2E"))
+                            })
+                        }
+                    }
                     if (rem.isNotBlank()) {
                         left.addView(TextView(this@PaymentActivity).apply {
                             text = "📝 $rem"; textSize = 11f

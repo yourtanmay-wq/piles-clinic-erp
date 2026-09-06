@@ -15941,7 +15941,20 @@ function paymentHistory(id,type='all'){
         শুধু একটা ঘর **যোগ** হলো। */
   /* 🕒 V1106 (TK-নির্দেশ) — তারিখের পাশে সময়। ব্যাকডেট করা পেমেন্টে
      সময় বসে না (সেটা অন্য দিনের ঘড়ি) — ফোনের হুবহু একই নিয়ম। */
-  return `<tr><td>${esc(wlv1DayClock(x.date||'',x.createdAt||''))}</td><td class="phRemarks" onclick="hiddenPaymentEditTap('${esc(x.id)}')">${esc(x.remarks||paymentDisplayLabel(x,i))}</td><td class="phPaid" onclick="hiddenPaymentEditTap('${esc(x.id)}')">${esc(numFmt(x.amount))}</td><td class="phDue">${esc(numFmt(due))}</td><td style="text-align:center;cursor:pointer" title="Delete" onclick="wlv1DeletePayment('${esc(x.id)}');event.stopPropagation();">🗑️</td></tr>`;
+  return `<tr><td>${esc(wlv1DayClock(x.date||'',x.createdAt||''))}</td><td class="phRemarks" onclick="hiddenPaymentEditTap('${esc(x.id)}')">${esc(x.remarks||paymentDisplayLabel(x,i))}${
+    /* 🔴🔒 V1153 (০৬.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — *"এখানে সেই staff-এর নাম
+       নেই কেন?"*। তথ্যটা সারিতে আগেই জমা (`receivedBy`, না থাকলে `createdBy`),
+       শুধু দেখানো হত না। ফোনের পপ-আপেও একই লাইন বসেছে।
+       ⛔ চেনা না গেলে লাইনটাই বসে না · ⛔ টাকার কিছু বদলায়নি। */
+    (function(){ try{
+      var m=mob(x.receivedBy||x.createdBy||'');
+      var by=m?(codeName(m)||''):'';
+      /* ⛔ `codeName` চেনা না গেলে নম্বরটাই ফেরত দেয় — তখন লাইনটা বসানো হয় না,
+         কারণ নম্বর দেখিয়ে TK-র কোনো কাজে লাগবে না। */
+      if(!by||by===m) return '';
+      return '<div class="tiny" style="color:#0B5F2E;font-weight:700;margin-top:2px">👤 '+esc(by)+'</div>';
+    }catch(e){ return '' } })()
+  }</td><td class="phPaid" onclick="hiddenPaymentEditTap('${esc(x.id)}')">${esc(numFmt(x.amount))}</td><td class="phDue">${esc(numFmt(due))}</td><td style="text-align:center;cursor:pointer" title="Delete" onclick="wlv1DeletePayment('${esc(x.id)}');event.stopPropagation();">🗑️</td></tr>`;
  }).join('')||`<tr><td colspan="5" class="mut" style="text-align:center !important;">No payment yet</td></tr>`;
  let photo=p.photo?`<img class="summaryPhoto vaPhoto" src="${esc(p.photo)}">`:`<div class="summaryPhoto vaPhoto blank">👤</div>`;
  let fu=load('followups').find(f=>(f.refId===p.id||mob(f.mobile)===mob(p.mobile))&&(f.stage==='Treatment'||f.stage==='Patient'));
