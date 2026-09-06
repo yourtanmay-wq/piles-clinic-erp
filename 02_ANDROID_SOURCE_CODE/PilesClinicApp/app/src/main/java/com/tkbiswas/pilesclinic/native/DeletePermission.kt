@@ -103,21 +103,48 @@ object DeletePermission {
         return true
     }
 
-    /** B467-এর OUT TIME-চেক — `wn.notebook_days`-এ আজকের সারিতে `check_out`
-     *  ভরা আছে কিনা দেখে। নেট ব্যর্থ হলে বা সারি না পেলে-সঠিক-জানা-না-গেলে
-     *  নিরাপদ দিক ধরে `true` (OUT TIME হয়ে গেছে ধরে নেওয়া, অনুমতি লাগবে)। */
+    /**
+     * B467-এর OUT TIME-চেক — `wn.notebook_days`-এ আজকের সারিতে `check_out`
+     * ভরা আছে কিনা দেখে।
+     *
+     * 🔴🔴🔒 V1148 (০৬.০৯.২০২৬, TK-রিপোর্ট — BASANTI ROY, খাতার সারি ২৪৩):
+     * TK: *"আজকে পেমেন্ট নিয়েছে, ভুল করে কম-বেশি করে ফেলেছে, ডিলিট করতে
+     * চাইছে; তাহলে কেন মাস্টারের অনুমতি লাগবে?"* — আর পরে: *"স্টাফ তখন
+     * আমার সামনেই বসে ছিল"* (অর্থাৎ OUT TIME হয়ইনি, চেম্বারও খোলা)।
+     *
+     * 🔴 **ফাঁকটা এখানেই ছিল, আর সেটা আমারই:** এই পড়াটা **মডিউল-লগইনের**
+     *    টোকেন দিয়ে হয়, অথচ পড়ার আগে `signInCurrentSession()` **কখনো ডাকা
+     *    হত না** (প্রজেক্টের অন্য জায়গায় ডাকা হয় — যেমন `SalaryReminder`)।
+     *    স্টাফ ওই সেশনে Work Notebook/Profile না খুলে থাকলে টোকেনই থাকত না
+     *    ⇒ পড়া ব্যর্থ ⇒ নিচের "নিরাপদ দিক" নিয়মে **OUT TIME হয়ে গেছে** ধরে
+     *    নেওয়া হত ⇒ *Master's approval needed*। ঠিক TK যা দেখেছেন।
+     *
+     * ⇒ এখন দুটো বদল:
+     *   ① পড়ার আগে দরকার হলে মডিউল-লগইনটা করানো হয় (একবারই, প্রমাণিত পথে)
+     *   ② **জানা না গেলে আর আটকায় না** (TK-এর সিদ্ধান্ত: *"জানা না গেলেও
+     *      মুছতে দিন, চেম্বার খোলা থাকলে"*)। চেম্বার-বন্ধের পাহারাটা এর
+     *      **আগেই** চলে (`canDeleteEntryNow`), তাই চেম্বার বন্ধ হয়ে গেলে
+     *      স্টাফ এমনিতেই মুছতে পারেন না — সেই সুরক্ষা অটুট।
+     * ⛔ সত্যিই OUT TIME সেভ থাকলে আগের মতোই আটকাবে — নিয়মটা বদলায়নি।
+     */
     private fun hasOutTimeToday(context: Context?, user: NativeUser): Boolean {
-        if (context == null) return true
+        if (context == null) return false   // 🔴 V1148 — জানা না গেলে আটকানো নয়
         return try {
+            // 🔴 V1148 ① — টোকেন না থাকলে আগে মডিউল-লগইন, নইলে পড়াটাই ব্যর্থ হয়।
+            try {
+                if (!com.tkbiswas.pilesclinic.modules.ModuleAuth.isSignedIn) {
+                    com.tkbiswas.pilesclinic.modules.ModuleAuth.signInCurrentSession(context)
+                }
+            } catch (_: Throwable) { }
             val staffCode = user.name.ifBlank { user.mobile }
             val result = com.tkbiswas.pilesclinic.modules.ModuleAuth.getRowsChecked(
                 "wn", "notebook_days",
                 "select=check_out&staff_code=eq.${java.net.URLEncoder.encode(staffCode, "UTF-8")}&work_date=eq.${todayIso()}&limit=1"
             )
-            if (!result.ok) return true // নেট ব্যর্থ — নিরাপদ দিক
+            if (!result.ok) return false // 🔴 V1148 ② — জানা গেল না ⇒ আটকাব না
             if (result.rows.length() == 0) return false // আজ এখনো কোনো সারিই নেই — OUT TIME হয়নি
             result.rows.getJSONObject(0).optString("check_out").isNotBlank()
-        } catch (_: Throwable) { true }
+        } catch (_: Throwable) { false }
     }
 
     /**
