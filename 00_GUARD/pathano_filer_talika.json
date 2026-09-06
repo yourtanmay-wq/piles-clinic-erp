@@ -1,5 +1,42 @@
 [
   {
+    "file": "PILES_CLINIC_APP_V1133_FINAL.zip",
+    "versionCode": 1133,
+    "when": "০৬.০৯.২০২৬ ১২.২০",
+    "zip_mb": 24.8,
+    "files": 1731,
+    "contents": {
+      "02_ANDROID_SOURCE_CODE": 745,
+      "(root files)": 603,
+      "04_SUPABASE_DATABASE_SETUP": 119,
+      "00_SQL": 65,
+      "00_GUARD": 53,
+      "03_NETLIFY_READY": 50,
+      "08_ASSETS_BACKUP": 36,
+      "07_RELEASE_NOTES_VERSION_HISTORY": 31,
+      "00_READ_ME_FIRST": 11,
+      "10_FUTURE_PLANS": 7,
+      ".claude": 2,
+      "06_TEST_CHECKLISTS": 2,
+      "11_V223_TESTS": 2,
+      "ROLLBACK_V448": 2,
+      "01_MASTER_LOCK_BOOK_SOURCE_OF_TRUTH": 1,
+      "03_SUPABASE_SQL": 1,
+      "05_APK_AAB_BUILD_NOTES": 1
+    },
+    "excluded": [
+      "08_ASSETS_BACKUP/ANATOMY_PICTURES/ORIGINAL (৯.৩ MB — অনুমোদিত বাদ)",
+      "root *.png/*.gif ডেমো-প্রুফ",
+      ".git",
+      "00_GUARD/.kotlinc",
+      "*/build",
+      "__pycache__"
+    ],
+    "sql_to_run": "V1132 — fin.rmp_legacy_view_all_v2 · rmp_legacy_card_counts · rmp_legacy_performance (TK ইতিমধ্যেই চালিয়েছেন; যাচাইয়ে কোচবিহার ২ · ফালাকাটা ১৭ · কিশানগঞ্জ ০ এসেছে)",
+    "note": "V1129 → V1133: বিল বসানো না থাকলে Estimated ঘরে \"Not set\" (ফোন ও ওয়েব) · All Branch Enquiry ফর্মে RMP সাজেশন এখন ফর্মে বাছা ব্রাঞ্চ ধরে, ব্রাঞ্চ না বাছলে \"Select branch first\" · RMP কার্ডে শুধু সেই ব্রাঞ্চের রোগী (সার্ভারের তিনটে পড়ার ফাংশন + ফোনের বিকল্প পথ) · V1133-এ নিজের ভুল সারানো — ওয়েবে Registration ফর্মে ওই থামাটা লেগে গিয়েছিল, তুলে দেওয়া হলো। ⚠️ V1121 থেকে এখনো TK-র Studio-তে বিল্ড হয়নি।",
+    "bhul_dhora": "প্রথম বার ZIP-এ ভুল করে **সব** *.png/*.gif বাদ দিয়ে ফেলেছিলাম (২২.৭ MB · ১৭১৪ ফাইল) — অ্যাপের ছবি-রিসোর্সও বাদ পড়ত। মেপে ধরা পড়ায় শুধু root-এর ডেমো-প্রুফ বাদ দিয়ে আবার বানানো হলো।"
+  },
+  {
     "file": "PILES_CLINIC_APP_V1129_FINAL.zip",
     "versionCode": 1129,
     "when": "০৬.০৯.২০২৬ ০৩.৪৬",
