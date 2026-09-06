@@ -21959,7 +21959,11 @@ function wlv1ReportCard(idOrMobile){
       <div class="wlv1RcProg"><b>${esc(r.title)}</b>${r.typed?`<span>${esc(wlv1PrintEn(r.typed))}</span>`:''}</div>
       <div class="wlv1RcPaid">${r.paid>0?money(r.paid):''}</div>
       <div class="wlv1RcDue">${rcBill>0?money(due):''}</div></div>`;
-  }).join('') || '<div class="wlv1RcRow"><div class="wlv1RcProg mut">No update yet</div></div>';
+  /* 🟢🔒 V1135 (০৬.০৯.২০২৬ — TK: *"অ্যান্ড্রয়েড থেকে যত প্রিন্ট আউট হয়, একই জিনিস
+     একই মডেল কম্পিউটার থেকেও হতে হবে"* — মিলিয়ে দেখতে গিয়ে ধরা পড়ল): ফাঁকা
+     টেবিলে ফোনে লেখা ওঠে **"No visit or payment recorded yet"** (V1129), অথচ
+     এখানে লেখা ছিল "No update yet" ⇒ এক কাগজে দুরকম উত্তর। এখন হুবহু এক। */
+  }).join('') || '<div class="wlv1RcRow"><div class="wlv1RcVisit">—</div><div class="wlv1RcDate"></div><div class="wlv1RcProg">No visit or payment recorded yet</div><div class="wlv1RcPaid"></div><div class="wlv1RcDue"></div></div>';
 
   page('Report Card', `<div class="wlv1Rc">
     <div class="wlv1RcTop" id="wlv1RcTopWrap">
