@@ -7164,8 +7164,14 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
     max-width:100%!important;padding:12px 96px 8px!important}
 
   /* ── উপরে হিসাব, তার নিচে বোতামের সারি, তারপর পুরো চওড়া তালিকা ── */
+  /* 🖥️🔒 V1150 (০৬.০৯.২০২৬) — এই সারিটা আগে `display:flex` বসাত, কিন্তু
+     নিচে আরও দুবার নকশা বদলে `display:grid` বসানো হয়েছে (৭২২৭ ও ৭২৬০ নম্বরের
+     আশপাশে)। তিনটে একসাথে থাকায় ঘরের মাপ গুলিয়ে যাচ্ছিল — মেপে পাওয়া:
+     ভিতরের অংশ ১০৪২px, অথচ বাক্স ৮৫২px ⇒ ১২৮০px পর্দায় ৯৪px বাইরে চলে যেত।
+     ⇒ এখানে শুধু চওড়ার সীমাটুকুই রাখা হলো; সাজানোর কাজটা নিচের **শেষ**
+       নকশাটাই করে (TK-র সবচেয়ে পরে অনুমোদিত সাজ)। */
   body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay{
-    max-width:none!important;width:100%;display:flex;flex-direction:column;gap:10px}
+    max-width:none!important;width:100%;gap:10px}
   body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>*{margin:0!important}
   body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .wlv1PayBoxes{
     display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
@@ -7193,7 +7199,12 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
   /* ── আজকের কালেকশনের সারি — সব এক লাইনে, পুরো চওড়ায় ─────────── */
   body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payListRow2{
     display:grid!important;
-    grid-template-columns:34px minmax(180px,1.1fr) 160px 190px minmax(200px,1.4fr) 150px;
+    /* 🖥️🔒 V1150 (০৬.০৯.২০২৬) — আগে ঘরগুলোর মাপ ছিল **স্থির** (৩৪+১৮০+১৬০+
+       ১৯০+২০০+১৫০ + ফাঁক = ৯৭৪px), অথচ ডেস্কটপে সারির জায়গা ৮৫২px ⇒ প্রতিটা
+       সারি ~১৯০px চওড়া হয়ে লেখা কেটে যেত ও টাকার ঘরটা ডান দিকে বেরিয়ে যেত।
+       ⇒ এখন প্রতিটা ঘর দরকারমতো ছোট হতে পারে (`minmax(0,…)`), তাই সারি
+         জায়গার মধ্যেই বসে — কোনো ঘর বাদ যায়নি, ক্রমও এক। */
+    grid-template-columns:34px minmax(0,1.1fr) minmax(0,120px) minmax(0,150px) minmax(0,1.4fr) minmax(0,130px);
     align-items:center;gap:12px;padding:7px 12px!important;margin:0 0 6px!important;
     border:1px solid #E7EEF6;border-radius:10px;background:#fff;overflow:hidden}
   body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payPerson2{display:contents}
@@ -7224,9 +7235,10 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
 @media (min-width:1200px){
   /* 💰 V1019 (সংশোধিত) — তারিখ · দুই বড় বোতাম · Cash · Online সব **একটাই সারিতে**,
      তাই তিন সারির জায়গা বাঁচে আর তালিকায় বেশি রোগী দেখা যায়। */
+  /* 🖥️🔒 V1150 — নিচে আরও একবার নকশা বদলেছে (`auto 1fr`, তারপর `1fr`), তাই
+     এই তিন-কলামের ছকটা আর কার্যকর নয়; শুধু ঘরের ফাঁক ও পাশ-মিল রাখা হলো। */
   body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay{
-    display:grid!important;grid-template-columns:auto auto 1fr;
-    grid-template-rows:auto auto 1fr;gap:10px 12px;align-items:center}
+    display:grid!important;gap:10px 12px;align-items:center}
   body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.wlv1PaySum{
     grid-column:1 / -1;grid-row:1}
   body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.wlv1CollPick{
@@ -7257,8 +7269,9 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
   /* 💰 V1019 (TK-সংশোধন ২): তারিখ হেডারেই আছে — ভিতরের নকলটা বাদ।
      PATIENT PAYMENT ও MEDICINE PAYMENT ফোনের মতোই **সবার উপরে**।
      রোগীর নাম বড় ও গাঢ়, যাতে এক নজরেই চোখে পড়ে। */
+  /* 🖥️🔒 V1150 — এটাও পরে `1fr`-এ বদলে গেছে; শুধু সারির ছকটুকু রইল। */
   body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay{
-    grid-template-columns:auto 1fr;grid-template-rows:auto auto 1fr}
+    grid-template-rows:auto auto 1fr}
   body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.wlv1CollPick{display:none!important}
   body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.wlv1PayBtns{
     grid-column:1;grid-row:1}
@@ -7270,8 +7283,25 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
     grid-column:1 / -1;grid-row:3}
   body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payNameRow b{
     font-size:15px!important;font-weight:800;color:#10223A!important;text-decoration:none}
+  /* 🖥️🔒 V1150 (০৬.০৯.২০২৬) — এটাই **শেষ ও কার্যকর** সারির ছক, তাই সংশোধনটা
+     এখানেই। আগে সবগুলো ঘরের সর্বনিম্ন মাপ যোগ করলে ৯৭৪px হত (৩৪+২১০+১৬০+১৯০+
+     ১৯০+১৫০ + ৫টা ফাঁক), অথচ ডেস্কটপে সারির জায়গা মাত্র ৮৫২px ⇒ প্রতিটা সারি
+     জায়গার বাইরে বেরিয়ে যেত, লেখা কাটত আর টাকার ঘরটা ডান দিকে হারিয়ে যেত।
+     ⇒ এখন প্রতিটা ঘর দরকারমতো ছোট হতে পারে — ঘর একটাও বাদ যায়নি, ক্রমও এক। */
   body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payListRow2{
-    grid-template-columns:34px minmax(210px,1.2fr) 160px 190px minmax(190px,1.3fr) 150px}
+    grid-template-columns:34px minmax(0,1.7fr) minmax(0,128px) minmax(0,148px) minmax(0,1fr) minmax(0,126px)}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payListRow2>*{min-width:0}
+  /* 🖥️🔒 V1150 — লম্বা নাম আগে পরের লাইনে নেমে যেত, তাই কোনো কোনো সারি
+     অন্যগুলোর চেয়ে উঁচু দেখাত। এখন নাম এক লাইনেই থাকে, বেশি লম্বা হলে শেষে
+     "…" বসে — সব সারি সমান উঁচু। ⛔ নামের উপর চাপ দিলে আগের মতোই কাজ করে। */
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payNameRow{
+    display:flex!important;align-items:center;gap:8px;min-width:0;flex-wrap:wrap;row-gap:3px}
+  /* রোগের চিপটা সবসময় নামের নিচের লাইনে — তাই প্রতিটা সারি একই রকম দেখায়। */
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payNameRow .payDisChip{
+    flex:0 0 100%}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payNameRow b,
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payListRow2 .wlv1NameLink{
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1 1 0}
 }
 
 /* 💰 V1019 — হেডারের Cash/Online শুধু চওড়া কম্পিউটার-পর্দায়; ফোনে লুকোনো
@@ -7281,7 +7311,12 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
   body.hasDeskNav .wlv1DeskOnlyBtn{display:inline-flex}
   /* ভিতরের নকল Cash/Online কম্পিউটারে আর দেখানো হয় না */
   body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.wlv1PayExtra{display:none!important}
-  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay{grid-template-columns:1fr}
+  /* 🖥️🔒 V1150 — শেষ (কার্যকর) নকশা। `minmax(0,1fr)` না দিলে গ্রিডের ঘর
+     নিজের লেখার চেয়ে ছোট হতে চায় না, আর ঠিক সেটাই ভিতরের অংশগুলোকে বাক্সের
+     বাইরে ঠেলে দিচ্ছিল (মেপে পাওয়া: ১০৪২px বনাম ৮৫২px)। */
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay{grid-template-columns:minmax(0,1fr)}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>*{min-width:0}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payAddr{overflow-wrap:anywhere}
   body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.wlv1PayBtns{grid-column:1;grid-row:1}
   body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.wlv1PaySum{grid-column:1;grid-row:2}
   body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay>.payListBox{grid-column:1;grid-row:3}
