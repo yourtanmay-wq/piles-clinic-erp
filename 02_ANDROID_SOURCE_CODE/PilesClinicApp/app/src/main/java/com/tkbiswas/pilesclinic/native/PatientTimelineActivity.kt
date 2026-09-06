@@ -3483,7 +3483,7 @@ class PatientTimelineActivity : AppCompatActivity() {
                         return@setOnClickListener
                     } catch (_: Throwable) { /* নিচের পুরনো পপ-আপে ফিরে যায় */ }
                     androidx.appcompat.app.AlertDialog.Builder(this@PatientTimelineActivity)
-                        .setCustomTitle(PremiumAlert.header(this@PatientTimelineActivity, "Note — ${e.date}"))
+                        .setCustomTitle(PremiumAlert.header(this@PatientTimelineActivity, "Note — " + displayDate(e.date)))
                         .setMessage(fullNote.ifBlank { "\u2014" })
                         .setPositiveButton("Close", null)
                         .apply {
@@ -4841,7 +4841,7 @@ class PatientTimelineActivity : AppCompatActivity() {
             com.tkbiswas.pilesclinic.clinical.CheckupA4Report.parseDetails(note)
         )
         val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
-            .setCustomTitle(PremiumAlert.header(this, "Check-up Record — $dateText"))
+            .setCustomTitle(PremiumAlert.header(this, "Check-up Record — " + displayDate(dateText)))   // 🟢 V1124
             // 🩹🔒 V737: কম্পন-মুক্ত — উচ্চতা একবার বসে, তারপর আর বদলায় না
             .setView(steadyWebView(html, zoomable = true))
             .setPositiveButton("Close", null)
@@ -4935,7 +4935,12 @@ class PatientTimelineActivity : AppCompatActivity() {
             sb.append("<div class=\"nkCard\"><div class=\"nkNote\">")
                 .append(noteHtmlEsc(txt.ifBlank { "—" })).append("</div></div>")
         } else {
-            if (remarks.isNotEmpty()) sb.append("<div class=\"nkCard\"><div class=\"nkT\">"+noteHtmlEsc(NoBengali.s("📌 Remark"))+"</div><div class=\"nkNote\">")
+            /* 🟢🔒 V1124 (TK-রিপোর্ট ছবিসহ) — রেজিস্ট্রেশনের সারিতে লেখাটা
+               "REMARK" নয়, ওটা **রোগীর সমস্যা ও আগের চিকিৎসার বিবরণ**; ভুল
+               শিরোনাম বিভ্রান্ত করত। ⛔ বাকি প্রতিটা সারিতে শিরোনাম হুবহু আগের। */
+            val remarkTitle = if (rowTitle.contains("Registration", ignoreCase = true))
+                "Complaint & History" else "Remark"
+            if (remarks.isNotEmpty()) sb.append("<div class=\"nkCard\"><div class=\"nkT\">"+noteHtmlEsc(NoBengali.s(remarkTitle))+"</div><div class=\"nkNote\">")
                 .append(remarks.joinToString("<br>") { noteHtmlEsc(it) }).append("</div></div>")
             if (status.isNotEmpty()) {
                 sb.append("<div class=\"nkCard\"><div class=\"nkT\">"+noteHtmlEsc(NoBengali.s("🧾 স্ট্যাটাস"))+"</div><div class=\"nkChips\">")
@@ -4965,8 +4970,15 @@ class PatientTimelineActivity : AppCompatActivity() {
             ".nkKv .nkK{color:#667085;font-weight:700}.nkKv .nkV{color:#10223a;font-weight:800}" +
             ".nkPay{color:#0b7a34;font-size:18px;font-weight:900}" +
             "</style></head><body>" + sb.toString() + "</body></html>"
+        /* 🟢🔒 V1124 (০৫.০৯.২০২৬, TK-রিপোর্ট ছবিসহ — *"এটা কি ঠিক?"*) —
+           পপ-আপের মাথায় তারিখটা **কাঁচা ধাঁচে** (2026-07-06) দেখাত, অথচ TK-এর
+           লক করা নিয়ম (২৪.০৭.২০২৬): পর্দার প্রতিটা তারিখ **০৬.০৭.২০২৬** ধাঁচে।
+           এই পর্দাতেই ঠিক ধাঁচটা (`displayDate`) আগে থেকেই আছে, শুধু এখানে
+           ব্যবহার হয়নি। ⇒ চারটে পপ-আপেই এখন সেটাই ব্যবহার হয় (নিয়ম ৭)।
+           ⛔ `displayDate` আগে থেকে সাজানো তারিখে হাত দেয় না (ঠিক ধাঁচে থাকলে
+              হুবহু ফেরত দেয়), তাই কোনো ডাকনেওয়ালা ভাঙে না। */
         val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
-            .setCustomTitle(PremiumAlert.header(this, "Note — $dateText"))
+            .setCustomTitle(PremiumAlert.header(this, "Note — " + displayDate(dateText)))
             // 🩹🔒 V737: কম্পন-মুক্ত — উচ্চতা একবার বসে, তারপর আর বদলায় না
             .setView(steadyWebView(html))
             .setPositiveButton("Close", null)
@@ -5013,7 +5025,7 @@ class PatientTimelineActivity : AppCompatActivity() {
             ".rxBox:nth-child(even){background:#eef5ff}" +
             "</style></head><body>" + body + "</body></html>"
         val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
-            .setCustomTitle(PremiumAlert.header(this, "Prescription Details — $dateText"))
+            .setCustomTitle(PremiumAlert.header(this, "Prescription Details — " + displayDate(dateText)))   // 🟢 V1124
             // 🩹🔒 V737: কম্পন-মুক্ত — উচ্চতা একবার বসে, তারপর আর বদলায় না
             .setView(steadyWebView(html))
             .setPositiveButton("Close", null)
