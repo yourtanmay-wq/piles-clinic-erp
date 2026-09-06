@@ -6031,7 +6031,7 @@ function enquiryFormDesk(){
    +'</div>'
  +'</div>'
  +'</div>';
- page('New Enquiry', body, true);
+ page(wlv1EnqEditId?'✏️ Edit Enquiry':'New Enquiry', body, true);
  setTimeout(function(){try{wlv1PhTint('eBranch')}catch(e){}try{eqSummary()}catch(e){}},0);
 }
 window["enquiryFormDesk"]=enquiryFormDesk;
@@ -6046,10 +6046,88 @@ function eqSummary(){
 }
 window["eqSummary"]=eqSummary;
 
-function enquiryForm(){
+/* ═══════════════════════════════════════════════════════════════════════════
+   🔴🔒 V1151 (০৬.০৯.২০২৬, TK-নির্দেশ: *"যে কোন Enquiry / Visit / পেশেন্টের যদি
+   Edit করার প্রয়োজন হয়, তাহলে যেন full form edit-এর option আসে — Registration
+   হওয়ার আগ অবদি All Branch Enquiry Form, আর Registration-এর পর Registration
+   Form"* · *"সাবধানে, কোন ভালো কাজ যেন খারাপ না হয়"*)।
+
+   রেজিস্ট্রেশনের **পরের** অংশটা আগেই হয়েছে (V1142/V1145/V1146 — এডিট পপ-আপে
+   তারিখ + ফর্মের সাতটা ঘর + সময়ের ধরন)। এটা **আগের** অংশ: এনকোয়ারিতে চাপলে
+   পুরো ফর্মটাই খোলে, আগের লেখা ভরা অবস্থায়।
+
+   ⛔ **সবচেয়ে বড় সাবধানতা — নতুন সারি যেন তৈরি না হয়:** এডিট-মোডে সেভ করলে
+      **ওই একই সারিতেই** লেখা হয় (নিচে `saveEnq`-এ), নতুন আইডি বসে না।
+   ⛔ কল-হিস্ট্রি · কল-গোনা · ধাপ (stage) · status — কিচ্ছু ছোঁয়া হয় না।
+   ⛔ এডিট-মোড ছাড়া ফর্মটা **হুবহু আগের মতোই** কাজ করে (নতুন এনকোয়ারি)। */
+var wlv1EnqEditId='';
+function enquiryEdit(id){
+  try{
+    var row=load('enquiries').find(function(x){return x.id===id});
+    if(!row) return toast('Enquiry not found');
+    enquiryForm({editId:id});
+  }catch(e){ toast('Could not open the form') }
+}
+window["enquiryEdit"]=enquiryEdit;
+
+/** ফর্ম আঁকা হয়ে যাওয়ার পরে পুরনো লেখাগুলো বসিয়ে দেয় (ফোন ও কম্পিউটার — ঘরের
+ *  নাম দুই সাজেই এক, তাই একটাই ফাংশন)। */
+function wlv1EnqFillForm(id){
+  try{
+    var r=load('enquiries').find(function(x){return x.id===id});
+    if(!r) return;
+    var set=function(sel,v){ var el=$(sel); if(el&&v!=null) el.value=v; };
+    set('#eMob',normMob(r.mobile||''));
+    set('#eName',r.name||'');
+    set('#eDate',String(r.date||'').slice(0,10));
+    set('#eBranch',r.branch||'');
+    set('#eAddr',r.address||'');
+    set('#eRem',r.remarks||'');
+    set('#eNext',String(r.nextFollow||'').slice(0,10));
+    set('#eRefBy',r.refBy||'Self');
+    set('#eRefDoctor',r.refDoctor||'');
+    set('#eRefDoctorMobile',r.refDoctorMobile||'');
+    set('#eStaff',r.receivedBy||'');
+    try{ wlv1ShowDate('eDate','eDateShow') }catch(_e){}
+    try{ wlv1ShowDate('eNext','eNextShow') }catch(_e){}
+    try{ wlv1EnqRefToggle() }catch(_e){}
+    /* রোগের চিপগুলো — যেগুলো সারিতে আছে সেগুলোই জ্বালানো হয়। */
+    try{
+      var want=String(r.disease||'').split(',').map(function(x){return x.trim().toLowerCase()}).filter(Boolean);
+      var box=document.querySelector('[data-wlv1group="dis"]');
+      if(box){
+        [].forEach.call(box.querySelectorAll('button'),function(b){
+          b.classList.toggle('on', want.indexOf(String(b.getAttribute('data-val')||'').toLowerCase())>=0);
+        });
+        var h=$('#eDis');
+        if(h) h.value=[].filter.call(box.querySelectorAll('button'),function(b){return b.classList.contains('on')})
+                        .map(function(b){return b.getAttribute('data-val')}).join(', ');
+      }
+    }catch(_e){}
+    /* সময়ের বোতাম — সারিতে যা আছে সেটাই বাছা থাকে। ⛔ এখানে কোনো প্রশ্ন-পপ-আপ
+       তোলা হয় না; স্টাফ নিজে বোতাম চাপলে আগের নিয়মই চলে। */
+    try{
+      var t=String(r.timeType||'Official Time');
+      var tb=document.querySelector('[data-wlv1group="time"]');
+      if(tb){
+        [].forEach.call(tb.querySelectorAll('button'),function(b){
+          b.classList.toggle('on', String(b.getAttribute('data-val')||'')===t);
+        });
+      }
+      set('#eTime',t);
+    }catch(_e){}
+    try{ var sd=$('#eStaffDisplay'); if(sd&&r.receivedBy) sd.textContent=codeName(r.receivedBy)||normMob(r.receivedBy) }catch(_e){}
+  }catch(e){}
+}
+window["wlv1EnqFillForm"]=wlv1EnqFillForm;
+
+function enquiryForm(pref){
+ pref=pref||{};
+ wlv1EnqEditId=String(pref.editId||'');
+ if(wlv1EnqEditId){ setTimeout(function(){ try{ wlv1EnqFillForm(wlv1EnqEditId) }catch(e){} },0) }
  /* 📞 V1024 — চওড়া কম্পিউটার-পর্দায় নতুন সাজ; ফোনে আগের ফর্মই। */
  if(typeof wlv1DeskWide==='function' && wlv1DeskWide()){ return enquiryFormDesk() }
- page('New Enquiry',`<div class="card enquiryCard wlv1Form"><div class="regSection"><label class="enqLabel"><span class="enqIco">📞</span>Mobile <b class="wlv1Star">*</b></label><input id="eMob" class="input enqInput" inputmode="tel" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" placeholder="Enter Mobile Number"><span id="eMobPrefix" class="mobPrefixBadge hidden">+91</span><div id="eMobDupBox"></div><label class="enqLabel"><span class="enqIco">👤</span>Name</label><input id="eName" class="input enqInput" oninput="wlv1Caps(this)"><label class="enqLabel"><span class="enqIco">⏰</span>Date</label><div class="wlv1DateBox input enqInput"><span id="eDateShow">${wlv1Dot(today())}</span><input id="eDate" type="date" value="${today()}" max="${today()}" oninput="wlv1ShowDate('eDate','eDateShow')"></div><label class="enqLabel"><span class="enqIco">🏥</span>Branch <b class="wlv1Star">*</b></label><select id="eBranch" class="input enqInput" onchange="wlv1EnqBranchChanged()"><option value="" hidden selected>Select Branch</option>${branchOptions('')}</select><label class="enqLabel"><span class="enqIco">🩺</span>Disease <b class="wlv1Star">*</b></label><div id="eDisRow" class="wlv1PickRow" data-wlv1group="dis"><button type="button" class="wlv1Pick" data-val="Piles" onclick="wlv1PickMany('dis','Piles','eDis')">🩸 Piles</button><button type="button" class="wlv1Pick" data-val="Fissure" onclick="wlv1PickMany('dis','Fissure','eDis')">✂️ Fissure</button><button type="button" class="wlv1Pick" data-val="Fistula" onclick="wlv1PickMany('dis','Fistula','eDis')">🔄 Fistula</button><button type="button" class="wlv1Pick" data-val="Hydrocele" onclick="wlv1PickMany('dis','Hydrocele','eDis')">💧 Hydrocele</button><button type="button" class="wlv1Pick" data-val="Gupt Rog" onclick="wlv1PickMany('dis','Gupt Rog','eDis')">🛡️ Gupt Rog</button><button type="button" class="wlv1Pick" data-val="Other" onclick="wlv1PickMany('dis','Other','eDis')">📋 Other</button></div><input id="eDis" type="hidden" value=""></div><div class="regSection"><label class="enqLabel"><span class="enqIco">🩺</span>Referred By</label><select id="eRefBy" class="input" onchange="wlv1EnqRefToggle()"><option>Self</option><option>Online</option><option>Offline</option><option>Dr. Visit</option><option>Old Patient</option><option>Others</option></select><div id="eRefDocBox" style="display:none;margin-top:8px"><label class="enqLabel"><span class="enqIco">👨‍⚕️</span>Doctor / RMP Name</label><input id="eRefDoctor" class="input" placeholder="Who sent this patient" oninput="wlv1Caps(this);wlv1RmpSuggest(this.value)"></div><div id="eRefMobBox" style="display:none;margin-top:8px"><label class="enqLabel"><span class="enqIco">📞</span>Doctor / RMP Mobile</label><input id="eRefDoctorMobile" class="input" inputmode="numeric" maxlength="10" placeholder="10-digit number" oninput="wlv1RmpSuggest(this.value)"><div id="eRmpSug" class="wlv1RmpSug hidden"></div></div></div><div class="regSection"><label class="enqLabel"><span class="enqIco">📍</span>Address</label><textarea id="eAddr" class="enqInput" rows="1" oninput="wlv1Caps(this);wlv1AutoGrow(this)"></textarea><label class="enqLabel"><span class="enqIco">📝</span>Remarks <b class="wlv1Star">*</b></label><textarea id="eRem" class="enqInput" rows="1" oninput="wlv1Caps(this);wlv1AutoGrow(this)"></textarea><label class="enqLabel"><span class="enqIco">🎧</span>Call Received By</label><div id="eStaffDisplay" class="input enqInput" style="cursor:pointer" onclick="eStaffTripleTap()">${esc(codeName(user.mobile))}</div><select id="eStaff" class="input enqInput hidden" style="display:none">${callReceivedOptions(user.mobile)}</select><label class="enqLabel"><span class="enqIco">⏱️</span>Call Timing</label><div class="wlv1PickRow wlv1Pick2" data-wlv1group="time"><button type="button" class="wlv1Pick on" data-val="Official Time" onclick="wlv1PickOne('time','Official Time','eTime')">Official Time</button><button type="button" class="wlv1Pick" data-val="Unexpected Time" onclick="wlv1AskUnexpected()">Unexpected Time</button></div><input id="eTime" type="hidden" value="Official Time"><label class="enqLabel"><span class="enqIco">⏰</span>Next Follow-up Date <b class="wlv1Star">*</b></label><div id="eNextBox" class="wlv1DateBox input enqInput"><span id="eNextShow">Tap to select (optional)</span><input id="eNext" type="date" min="${today()}" oninput="wlv1ShowDate('eNext','eNextShow')"></div></div><button onclick="saveEnq()">Save Enquiry</button></div>`,wlv1DeskWide());setTimeout(function(){try{wlv1PhTint('eBranch')}catch(e){}},0) }
+ page(wlv1EnqEditId?'✏️ Edit Enquiry':'New Enquiry',`<div class="card enquiryCard wlv1Form"><div class="regSection"><label class="enqLabel"><span class="enqIco">📞</span>Mobile <b class="wlv1Star">*</b></label><input id="eMob" class="input enqInput" inputmode="tel" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-form-type="other" placeholder="Enter Mobile Number"><span id="eMobPrefix" class="mobPrefixBadge hidden">+91</span><div id="eMobDupBox"></div><label class="enqLabel"><span class="enqIco">👤</span>Name</label><input id="eName" class="input enqInput" oninput="wlv1Caps(this)"><label class="enqLabel"><span class="enqIco">⏰</span>Date</label><div class="wlv1DateBox input enqInput"><span id="eDateShow">${wlv1Dot(today())}</span><input id="eDate" type="date" value="${today()}" max="${today()}" oninput="wlv1ShowDate('eDate','eDateShow')"></div><label class="enqLabel"><span class="enqIco">🏥</span>Branch <b class="wlv1Star">*</b></label><select id="eBranch" class="input enqInput" onchange="wlv1EnqBranchChanged()"><option value="" hidden selected>Select Branch</option>${branchOptions('')}</select><label class="enqLabel"><span class="enqIco">🩺</span>Disease <b class="wlv1Star">*</b></label><div id="eDisRow" class="wlv1PickRow" data-wlv1group="dis"><button type="button" class="wlv1Pick" data-val="Piles" onclick="wlv1PickMany('dis','Piles','eDis')">🩸 Piles</button><button type="button" class="wlv1Pick" data-val="Fissure" onclick="wlv1PickMany('dis','Fissure','eDis')">✂️ Fissure</button><button type="button" class="wlv1Pick" data-val="Fistula" onclick="wlv1PickMany('dis','Fistula','eDis')">🔄 Fistula</button><button type="button" class="wlv1Pick" data-val="Hydrocele" onclick="wlv1PickMany('dis','Hydrocele','eDis')">💧 Hydrocele</button><button type="button" class="wlv1Pick" data-val="Gupt Rog" onclick="wlv1PickMany('dis','Gupt Rog','eDis')">🛡️ Gupt Rog</button><button type="button" class="wlv1Pick" data-val="Other" onclick="wlv1PickMany('dis','Other','eDis')">📋 Other</button></div><input id="eDis" type="hidden" value=""></div><div class="regSection"><label class="enqLabel"><span class="enqIco">🩺</span>Referred By</label><select id="eRefBy" class="input" onchange="wlv1EnqRefToggle()"><option>Self</option><option>Online</option><option>Offline</option><option>Dr. Visit</option><option>Old Patient</option><option>Others</option></select><div id="eRefDocBox" style="display:none;margin-top:8px"><label class="enqLabel"><span class="enqIco">👨‍⚕️</span>Doctor / RMP Name</label><input id="eRefDoctor" class="input" placeholder="Who sent this patient" oninput="wlv1Caps(this);wlv1RmpSuggest(this.value)"></div><div id="eRefMobBox" style="display:none;margin-top:8px"><label class="enqLabel"><span class="enqIco">📞</span>Doctor / RMP Mobile</label><input id="eRefDoctorMobile" class="input" inputmode="numeric" maxlength="10" placeholder="10-digit number" oninput="wlv1RmpSuggest(this.value)"><div id="eRmpSug" class="wlv1RmpSug hidden"></div></div></div><div class="regSection"><label class="enqLabel"><span class="enqIco">📍</span>Address</label><textarea id="eAddr" class="enqInput" rows="1" oninput="wlv1Caps(this);wlv1AutoGrow(this)"></textarea><label class="enqLabel"><span class="enqIco">📝</span>Remarks <b class="wlv1Star">*</b></label><textarea id="eRem" class="enqInput" rows="1" oninput="wlv1Caps(this);wlv1AutoGrow(this)"></textarea><label class="enqLabel"><span class="enqIco">🎧</span>Call Received By</label><div id="eStaffDisplay" class="input enqInput" style="cursor:pointer" onclick="eStaffTripleTap()">${esc(codeName(user.mobile))}</div><select id="eStaff" class="input enqInput hidden" style="display:none">${callReceivedOptions(user.mobile)}</select><label class="enqLabel"><span class="enqIco">⏱️</span>Call Timing</label><div class="wlv1PickRow wlv1Pick2" data-wlv1group="time"><button type="button" class="wlv1Pick on" data-val="Official Time" onclick="wlv1PickOne('time','Official Time','eTime')">Official Time</button><button type="button" class="wlv1Pick" data-val="Unexpected Time" onclick="wlv1AskUnexpected()">Unexpected Time</button></div><input id="eTime" type="hidden" value="Official Time"><label class="enqLabel"><span class="enqIco">⏰</span>Next Follow-up Date <b class="wlv1Star">*</b></label><div id="eNextBox" class="wlv1DateBox input enqInput"><span id="eNextShow">Tap to select (optional)</span><input id="eNext" type="date" min="${today()}" oninput="wlv1ShowDate('eNext','eNextShow')"></div></div><button onclick="saveEnq()">Save Enquiry</button></div>`,wlv1DeskWide());setTimeout(function(){try{wlv1PhTint('eBranch')}catch(e){}},0) }
 window["enquiryForm"]=enquiryForm;
 async function initCloudClientOnly(){
  // V221 real save fix: create Supabase client without doing an immediate pull/reset.
@@ -6212,10 +6290,56 @@ function saveEnq(){
   if(!next)return focusFieldFail('eNextBox','Next Follow-up Call date mandatory');
   if(next&&next<today())return toast('Next follow-up previous date not allowed');
 
-  let d=duplicate(m);
-  if(d)return duplicatePopup(d);
+  /* 🔴 V1151 — এডিট করার সময় "এই নম্বর আগে থেকেই আছে" পপ-আপ তোলা হয় না;
+     সারিটা তো ওই ব্যক্তিরই, নতুন কেউ নয়। ⛔ নতুন এনকোয়ারিতে পাহারাটা অটুট। */
+  if(!wlv1EnqEditId){
+    let d=duplicate(m);
+    if(d)return duplicatePopup(d);
+  }
 
   let now=new Date().toISOString();
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     🔴🔒 V1151 — **এডিট-মোড।** এখানে নতুন কিছু তৈরি হয় না: পুরনো সারিটাই
+     খুঁজে নিয়ে শুধু ফর্মের ঘরগুলো বসানো হয়, আর একই ব্যক্তির ফলো-আপ সারিতেও
+     দেখানোর ঘরগুলো মিলিয়ে দেওয়া হয়।
+     ⛔ `id` · `createdAt` · `createdBy` · `stage` · `status` · `callCount` ·
+        `history` · `lastCallDate` — একটাও ছোঁয়া হয় না।
+     ⛔ সারিটা খুঁজে না পেলে **কিছুই করা হয় না** (নতুন সারি বসিয়ে দেওয়ার
+        চেয়ে কিছু না করাই নিরাপদ)। */
+  if(wlv1EnqEditId){
+    let rows=load('enquiries');
+    let i=rows.findIndex(x=>x.id===wlv1EnqEditId);
+    if(i<0){ return toast('Enquiry not found — nothing changed') }
+    let patch={date,branch:br,name,mobile:normMob(m),disease,address,remarks:rem,nextFollow:next,
+      timeType,refBy:($('#eRefBy')?.value||'Self'),
+      refDoctor:($('#eRefBy')?.value==='Dr. Visit' ? ($('#eRefDoctor')?.value||'').trim() : ''),
+      refDoctorMobile:($('#eRefBy')?.value==='Dr. Visit' ? mob($('#eRefDoctorMobile')?.value||'') : ''),
+      receivedBy,updatedAt:now};
+    rows[i]={...rows[i],...patch};
+    save('enquiries',rows);
+    /* ওই ব্যক্তির ফলো-আপ সারিতেও নাম/ব্রাঞ্চ/রোগ/ঠিকানা/পরের কল মিলিয়ে দেওয়া —
+       নইলে তালিকায় পুরনো লেখাই থেকে যেত। ⛔ কল-হিস্ট্রি ও গোনা অক্ষত। */
+    try{
+      let fus=load('followups');
+      let changed=false;
+      for(let k=0;k<fus.length;k++){
+        let f=fus[k];
+        if(String(f.refId||'')!==wlv1EnqEditId && mob(f.mobile||'')!==mob(m)) continue;
+        if(String(f.stage||'')!=='Inquiry') continue;   // রেজিস্টার্ড সারিতে হাত নয়
+        fus[k]={...f,name,branch:br,disease,address,nextFollow:next,timeType,
+                lastRemark:rem,mobile:normMob(m),updatedAt:now};
+        changed=true;
+      }
+      if(changed) save('followups',fus);
+    }catch(_e){}
+    try{ forceCloudVisibleRows([{table:'enquiries',row:rows[i]}]) }catch(_e){}
+    let doneId=wlv1EnqEditId; wlv1EnqEditId='';
+    toast('Enquiry updated');
+    try{ followup('Inquiry') }catch(_e){ dashboard() }
+    return;
+  }
+
   let e={
    id:uid('enq'),date,branch:br,name,mobile:normMob(m),disease,address,remarks:rem,nextFollow:next,
    timeType,
@@ -8863,7 +8987,14 @@ function viewFollow(id){
          (২) ভিতরের `<h2>` বাদ (পাতার নিজের শিরোনাম আছে, নইলে দুবার লেখা উঠত),
          (৩) "Close" → "← Back", যা অ্যাপের নিজের `goBackOnePage()` ডাকে।
          ⛔ "Add Remark" আগের মতোই `openRemarkNote()` খোলে (পাতার উপরে পপ-আপ — সমস্যা নেই)। */
-      page('View All Timeline', `<div class="card anTlCard anTlStage-${esc(String(x.stage||'Inquiry'))}"><div class="summaryIdentity anTlIdent">${photo}<div><b class="anTlName">${esc(p.name||x.name||e.name||frNorm(mm))}</b><br><span class="anTlSub">${esc(p.patientId||'')} ${p.patientId?'· ':''}${esc(frNorm(mm))}</span><br><span class="anTlSub">${esc(p.branch||x.branch||e.branch||'')}</span> · <span class="anTlStagePill">${esc(frStageName(x))}</span>${((p.address||x.address||e.address||'').trim())?`<br><span class="anTlSub">📍 ${esc((p.address||x.address||e.address||'').trim().toUpperCase())}</span>`:''}</div></div></div><div class="sectionTitle anTlSecTitle">Recent Updates</div>${visibleHtml}${hiddenHtml}<div class="actions"><button onclick="openRemarkNote('${id}')">Add Remark</button></div>`, true);
+      page('View All Timeline', `<div class="card anTlCard anTlStage-${esc(String(x.stage||'Inquiry'))}"><div class="summaryIdentity anTlIdent">${photo}<div><b class="anTlName">${esc(p.name||x.name||e.name||frNorm(mm))}</b><br><span class="anTlSub">${esc(p.patientId||'')} ${p.patientId?'· ':''}${esc(frNorm(mm))}</span><br><span class="anTlSub">${esc(p.branch||x.branch||e.branch||'')}</span> · <span class="anTlStagePill">${esc(frStageName(x))}</span>${((p.address||x.address||e.address||'').trim())?`<br><span class="anTlSub">📍 ${esc((p.address||x.address||e.address||'').trim().toUpperCase())}</span>`:''}</div></div></div><div class="sectionTitle anTlSecTitle">Recent Updates</div>${visibleHtml}${hiddenHtml}<div class="actions"><button onclick="openRemarkNote('${id}')">Add Remark</button>${
+        /* 🔴🔒 V1151 (TK-নির্দেশ) — রেজিস্ট্রেশনের **আগ পর্যন্ত** পুরো
+           All Branch Enquiry Form-এ এডিট। রেজিস্ট্রেশন হয়ে গেলে এই বোতামটা
+           ওঠে না — তখন রোগীর কার্ডের "Edit Patient"-এ পুরো রেজিস্ট্রেশন ফর্মই
+           খোলে (V1146)। ⛔ রোগীর সারি থাকলে বোতামটা দেখানো হয় না। */
+        (!p.id && String(x.stage||'')==='Inquiry' && e && e.id)
+          ? `<button class="ghost" onclick="enquiryEdit('${esc(e.id)}')">✏️ Edit Enquiry Form</button>` : ''
+      }</div>`, true);
     }
 window.viewFollow=viewFollow;
 function openRemarkNote(id){let x=load('followups').find(a=>a.id===id);if(!x)return toast('Follow-up not found');modal(`<h2>Remarks</h2><b>${esc(x.name||normMob(x.mobile))}</b><div class="remarkHistory">${(x.history||[]).map(h=>`<div class="card remarkLine"><b>${esc(h.date||'')}</b><br>${esc(h.remark||'')}<br><small>By: ${esc(codeName(h.staff||''))}</small></div>`).join('')||'<div class="card mut">No history</div>'}</div><label>New Remark</label><textarea id="fr" placeholder="এখানে কিছু লিখুন…"></textarea><button onclick="saveRemarkOnly('${id}')">Save Remark</button>`)}
