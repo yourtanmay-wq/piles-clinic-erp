@@ -3562,6 +3562,10 @@ class StaffProfileActivity : AppCompatActivity() {
           কখনো আলাদা হবে না (কম্পিউটারে ঠিক এই নিয়মই, নিয়ম ৬.৬)। */
     private val xGroupSums = HashMap<String, DoubleArray>()
     private val xStepBoxes = mutableListOf<Pair<String, LinearLayout>>()
+    /* 🧾🔒 V1155 (TK: *"১৫৬ আর ১৫৭ ফোনে করুন"*) — হাতে-লেখা কারণগুলো রোগী ধরে
+       জমা থাকে, যাতে উপরের লাইন থেকে লেখাটা তুলে দিলেও **কিছু হারিয়ে না যায়** —
+       ওটা নিচে "Other" ধাপের পাশেই বসে (কম্পিউটারে ঠিক এই নিয়মই)। */
+    private val xGroupOther = HashMap<String, MutableList<Pair<String, Double>>>()
     private val xGroupDue = HashMap<String, Boolean>()      // 💰 V1050 — কিছু বাকি আছে কি
     private val xGroupState = HashMap<String, String>()     // DUE · PAID · PART DUE
 
@@ -3646,9 +3650,26 @@ class StaffProfileActivity : AppCompatActivity() {
                 stepRow("Enquiry", extraPatientEnq[pid].orEmpty(), 0.0)
                 stepRow("Registration", extraPatientReg[pid].orEmpty(), sums[0])
                 stepRow("Treatment paid", extraPatientTrt[pid].orEmpty(), sums[1])
-                if (sums[2] > 0.0) stepRow("Other", "", sums[2])
+                /* 🧾 V1155 — হাতে-লেখা কারণ: প্রত্যেকটা নিজের সারিতে, লেখা সহ।
+                   ⛔ লেখা জানা না গেলে আগের মতোই শুধু যোগফলের একটা সারি। */
+                val others = xGroupOther[pid].orEmpty()
+                if (others.isNotEmpty()) {
+                    for ((txt, amt) in others) {
+                        val row = LinearLayout(this).apply {
+                            orientation = LinearLayout.HORIZONTAL
+                            setPadding(dp(13), dp(2), dp(2), dp(2))
+                        }
+                        row.addView(cell("Other", 11.8f, "#8B98A9", 104))
+                        row.addView(cell(txt, 11.8f, "#33404F", 0))
+                        if (amt > 0.0) row.addView(cell("   " + money(amt), 12f, "#C62828", 0))
+                        box.addView(row)
+                    }
+                } else if (sums[2] > 0.0) stepRow("Other", "", sums[2])
             }
             val shownSeparately = nameViews.map { it.first }.toSet()   // 👤 V1044
+            /* 🧾 V1155 — যে রোগীর ধাপ-বাক্স আঁকা হয়েছে। ⛔ নামের তালিকা ছাড়াও
+               ডাকা হতে পারে (কোড ধরে দেরিতে জোড়া লাগার পথ), তাই দুটোই মেলানো হয়। */
+            val xGrouped = xStepBoxes.map { it.first }.toSet()
             for ((pid, view, row) in rows) {
                 if (view == null) continue
                 val nm = extraPatientCache[pid]?.first.orEmpty().trim()
@@ -3660,6 +3681,20 @@ class StaffProfileActivity : AppCompatActivity() {
                     val one = "\uD83D\uDC64 " + nm + (if (mb.isNotBlank()) "  \u00B7  " + mb else "")
                     if (view.text?.toString() != one) view.text = one
                     view.visibility = android.view.View.VISIBLE
+                    continue
+                }
+                /* 🧾🔒 V1155 (TK-নির্দেশ ১৫৬: *"patient ID লাগবে না"* · ১৫৭:
+                   *"unexpected এর আগে আবার Registration কেন থাকবে?"*) — যে বাক্সে
+                   ধাপগুলো নিচে তারিখ-সময় সহ বসে, সেখানে এই লাইনে এখন **শুধু সময়ের
+                   ব্যাজ**। ধাপের নাম ও রোগীর কোড দুটোই নিচে/উপরে আগে থেকেই আছে,
+                   তাই এখানে থাকলে দুবার হত। ⛔ কম্পিউটারে হুবহু এই নিয়মই (V1047·V1048)।
+                   ⛔ হাতে-লেখা কারণ হারায় না — সেটা নিচে "Other" ধাপে বসে।
+                   ⛔ রোগী চেনা না গেলে (বাক্স হয়নি) লাইনটা আগের মতোই থাকে। */
+                if (pid in shownSeparately || pid in xGrouped) {
+                    val badge = if (tt.isNotBlank()) timeBadge(tt, extraPatientSrc[pid].orEmpty()) else ""
+                    if (view.text?.toString() != badge) view.text = badge
+                    view.visibility =
+                        if (badge.isBlank()) android.view.View.GONE else android.view.View.VISIBLE
                     continue
                 }
                 if (nm.isBlank() && tt.isBlank()) continue          // এখনো কিছুই আসেনি
@@ -4204,6 +4239,7 @@ class StaffProfileActivity : AppCompatActivity() {
            ⛔ এক ধাপে একাধিক সারি থাকলে সেগুলো **যোগ** হয়, তাই Total আর উপরের
               অঙ্ক কখনো আলাদা হবে না (কম্পিউটারে ধরা দোষটা এখানেও ঠিক)। */
         xStepBoxes.clear(); xGroupSums.clear(); xGroupDue.clear(); xGroupState.clear()
+        xGroupOther.clear()                                   // 🧾 V1155
         run {
             val seenCount = HashMap<String, Int>()
             val dueCount = HashMap<String, Int>()
@@ -4217,7 +4253,13 @@ class StaffProfileActivity : AppCompatActivity() {
                 when {
                     head.startsWith("registration") -> arr[0] += amt
                     head.startsWith("treatment") -> arr[1] += amt
-                    else -> arr[2] += amt
+                    else -> {
+                        arr[2] += amt
+                        // 🧾 V1155 — লেখাটাও রাখা হয়, নিচে "Other" ধাপে দেখানোর জন্য
+                        val txt = cleanWhy(ns(q, "extra_reason")).trim()
+                        if (txt.isNotBlank())
+                            xGroupOther.getOrPut(qp) { mutableListOf() }.add(Pair(txt, amt))
+                    }
                 }
                 seenCount[qp] = (seenCount[qp] ?: 0) + 1
                 if (payStatus(q) == "DUE") dueCount[qp] = (dueCount[qp] ?: 0) + 1
