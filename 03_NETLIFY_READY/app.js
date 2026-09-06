@@ -25519,11 +25519,26 @@ async function wlv1SaveEditPatient(patientId){
   if(!ok) return toast('Failed — check connection');
   // 🟡 best-effort sync — মোবাইল বদলালে পুরনো নম্বরের followups/enquiries
   // সারি নতুন নম্বরে সরানো হয় (Android-এর মতো শেয়ার-করা-নম্বর সুরক্ষা নেই)।
-  if(newMobile!==oldMobile){
+  /* 🔴🔒 V1130 (০৬.০৯.২০২৬, TK-এর SQL-এ ধরা — রোগীর ঘরে "SUMAN SARKAR",
+     অথচ ফলোআপের ঘরে "SUBAL SARKAR")। ফোনের হুবহু যমজ ফাঁক ছিল এখানেও:
+     নিচের ধাপটা চলত **কেবল নম্বর বদলালে**, তাই শুধু **নাম** ঠিক করলে
+     ফলোআপ/এনকোয়ারিতে পুরনো নামই রয়ে যেত। রোগী কিন্তু একজনই।
+     ⇒ এখন নাম বদলালেও চলে।
+     ⛔ **নতুন পাহারা:** এক নম্বরে একাধিক রোগী থাকলে (ফোনের `PatientIdentity`-র
+        নিয়ম) শুধু **এই রোগীরই** ফলোআপ সারি বদলায়; এনকোয়ারিতে রোগী চেনার ঘরই
+        নেই, তাই ভাগ করা নম্বরে সেগুলো **ছোঁয়াই হয় না** — ভুল নাম বসানোর
+        চেয়ে কিছু না করা নিরাপদ। ⛔ এক রোগী হলে আচরণ হুবহু আগের মতোই। */
+  if(newMobile!==oldMobile || newName!==String(p.name||'').trim()){
     try{
-      var fus=load('followups').filter(function(x){return mob(x.mobile||'')===oldMobile});
+      var shared=load('patients').filter(function(x){return mob(x.mobile||'')===oldMobile}).length>1;
+      var myCode=String(p.patientId||'');
+      var fus=load('followups').filter(function(x){
+        if(mob(x.mobile||'')!==oldMobile) return false;
+        if(!shared) return true;
+        return String(x.refId||'')===String(patientId) || (myCode && String(x.patientId||'')===myCode);
+      });
       for(var i=0;i<fus.length;i++){ await wlv1UpdConfirmed('followups', fus[i].id, {mobile:newMobile,name:newName}); }
-      var enqs=load('enquiries').filter(function(x){return mob(x.mobile||'')===oldMobile});
+      var enqs=shared?[]:load('enquiries').filter(function(x){return mob(x.mobile||'')===oldMobile});
       for(var j=0;j<enqs.length;j++){ await wlv1UpdConfirmed('enquiries', enqs[j].id, {mobile:newMobile,name:newName}); }
     }catch(_e){}
   }

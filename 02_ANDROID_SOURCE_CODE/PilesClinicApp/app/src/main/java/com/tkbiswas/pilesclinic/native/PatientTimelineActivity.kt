@@ -535,7 +535,23 @@ class PatientTimelineActivity : AppCompatActivity() {
                         // records silently stop matching this patient.
                         // Best-effort propagate to any followups/enquiries
                         // row still under the OLD number.
-                        if (mainOk && newMobile != currentMobile) {
+                        /* 🔴🔒 V1130 (০৬.০৯.২০২৬, TK-এর SQL-এ ধরা — রোগীর ঘরে
+                           "SUMAN SARKAR", অথচ ফলোআপের ঘরে "SUBAL SARKAR")।
+
+                           **কারণ (কোডে মেপে পাওয়া):** নিচের ধাপটা চলত **কেবল
+                           তখনই, যখন মোবাইল নম্বরও বদলাত**। তাই স্টাফ শুধু **নাম**
+                           ঠিক করলে নতুন নামটা রোগীর ঘরে বসত, কিন্তু ফলোআপ ও
+                           এনকোয়ারির ঘরে **পুরনো নামই রয়ে যেত** — এক পর্দায় এক
+                           নাম, আরেক পর্দায় আরেক নাম। রোগী কিন্তু একজনই।
+
+                           ⇒ এখন **নাম বদলালেও** ধাপটা চলে।
+                           ⛔ ভিতরের পাহারা এক অক্ষরও বদলায়নি — এক নম্বরে দুজন
+                              রোগী থাকলে (`PatientIdentity`) শুধু **এই রোগীরই**
+                              সারিগুলো বদলায়, অন্যজনেরটা ছোঁয়াই হয় না।
+                           ⛔ নম্বর না বদলালে ওই ঘরে পুরনো নম্বরই বসে (একই মান),
+                              তাই নম্বরের কিছুই বদলায় না। */
+                        if (mainOk && (newMobile != currentMobile ||
+                                !newName.equals(currentPatientName, ignoreCase = false))) {
                             try {
                                 /* 🔵🔒 V534 (২২.০৮.২০২৬, TK-নির্দেশ) — **অন্য রোগীর সারি আর ছোঁয়া হয় না।**
                                    আগে এখানে ওই নম্বরের **সব** followups/enquiries সারিতে নতুন নাম ও
@@ -595,7 +611,10 @@ class PatientTimelineActivity : AppCompatActivity() {
                                         SupabaseClient.PATIENT_NO_PHOTO_COLS)   // 🔴 V794 — ছবি ছাড়া
                                     if (prow.length() > 0) prow.getJSONObject(0).optString("patientId", "") else ""
                                 } catch (_: Exception) { "" }
-                                MobileChangeSync.sync(currentMobile, newMobile, pid, this@PatientTimelineActivity)
+                                /* ⛔ V1130 — নম্বর সত্যিই বদলালে তবেই এই ধাপ।
+                                   শুধু নাম বদলানোয় এটা চালানোর কিছু নেই। */
+                                if (newMobile != currentMobile)
+                                    MobileChangeSync.sync(currentMobile, newMobile, pid, this@PatientTimelineActivity)
                             } catch (_: Exception) { }
                         }
                         mainOk
