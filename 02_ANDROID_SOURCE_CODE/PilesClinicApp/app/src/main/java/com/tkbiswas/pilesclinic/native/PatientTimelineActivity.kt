@@ -4480,7 +4480,28 @@ class PatientTimelineActivity : AppCompatActivity() {
                 val hasBillingData = data.billTotal > 0.0 || latestDue >= 0 ||
                     latestPaid > 0.0 || data.discount > 0.0
                 currentBillTotal = data.billTotal
-                binding.tvChipEstimated.text = if (data.billTotal > 0.0) money(data.billTotal) else "\u2014"
+                /* 🟢🔒 V1131 (০৬.০৯.২০২৬, TK-অনুমোদিত — "হ্যাঁ করুন, সাবধানে")
+                   TK: MD AKBAR ALI-র কার্ডে *"এক হাজার টাকা জমা করেছে, কিন্তু
+                   তার বিল কত দেখতে পাচ্ছি না, বাকি কত সেটাও না"*।
+
+                   **কারণ (কোডে মেপে পাওয়া):** এই রোগীর বিল **০** — চিকিৎসার
+                   মোট খরচ কোথাও বসানো হয়নি। নিয়ম হলো বিল ০ হলে Estimated ও
+                   Due দুটো ঘরই লুকানো, তাই কার্ডটা দেখে বোঝার উপায় ছিল না
+                   "বিল বসানোই হয়নি" নাকি "অ্যাপ দেখাচ্ছে না"।
+
+                   ⇒ এখন **টাকা জমা আছে অথচ বিল বসেনি** — ঠিক এই অবস্থায়
+                     Estimated ঘরে **"Not set"** লেখা ওঠে।
+                   ⛔ বিল বসানো থাকলে আগের মতোই টাকার অঙ্কই বসে।
+                   ⛔ এনকোয়ারি-মাত্র বা শুধু ভিজিট ফি দেওয়া রোগীর কার্ড এক
+                      অক্ষরও বদলায়নি (তাঁদের `latestPaid` ০, তাই এই অবস্থাই আসে না)।
+                   ⛔ Due ঘরটা আগের মতোই লুকানো থাকে — বিল ছাড়া "বাকি" কত সেটা
+                      অ্যাপ জানে না, আন্দাজে সংখ্যা দেখানো হবে না। */
+                val noBillYet = data.billTotal <= 0.0 && latestPaid > 0.0
+                binding.tvChipEstimated.text = when {
+                    data.billTotal > 0.0 -> money(data.billTotal)
+                    noBillYet -> "Not set"
+                    else -> "\u2014"
+                }
                 binding.tvChipPaid.text = money(latestPaid)
                 binding.tvChipDue.text = if (latestDue < 0) "\u2014" else money(latestDue)
                 // TK-STANDING RULE (restated 2026-07-27): "যখন জিরো থাকবে
@@ -4489,7 +4510,7 @@ class PatientTimelineActivity : AppCompatActivity() {
                 // three are zero the whole row disappears. The amounts and
                 // their colours are untouched -- only whether a zero box is
                 // drawn at all.
-                val showEstimated = data.billTotal > 0.0
+                val showEstimated = data.billTotal > 0.0 || noBillYet   // 🟢 V1131
                 val showPaid = latestPaid > 0.0
                 val showDue = latestDue > 0.0
                 // 🏷️ TK-APPROVED (03.09.2026): the Discount box follows the very

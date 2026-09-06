@@ -14311,7 +14311,14 @@ window["wlv1StageClass"]=wlv1StageClass;
 function wlv1MoneyChips(t){
   try{
     const parts = [];
+    /* 🟢🔒 V1131 (০৬.০৯.২০২৬, TK-অনুমোদিত — ফোনের হুবহু যমজ) — TK: MD AKBAR
+       ALI-র কার্ডে *"এক হাজার টাকা জমা করেছে, কিন্তু বিল কত দেখতে পাচ্ছি না"*।
+       টাকা জমা আছে অথচ বিল বসেনি — ঠিক এই অবস্থায় Estimated ঘরে "Not set"
+       ওঠে, যাতে "বিল বসানোই হয়নি" ব্যাপারটা পরিষ্কার হয়।
+       ⛔ বিল বসানো থাকলে আগের মতোই টাকার অঙ্ক · Due আগের মতোই লুকানো (বিল
+          ছাড়া বাকি কত অ্যাপ জানে না) · এনকোয়ারি-মাত্র রোগীর কার্ড অপরিবর্তিত। */
     if(t.bill>0) parts.push(`<div class="wlv1TlChip"><small>Estimated</small><b>${money(t.bill)}</b></div>`);
+    else if(t.paid>0) parts.push(`<div class="wlv1TlChip"><small>Estimated</small><b>Not set</b></div>`);
     if(t.paid>0) parts.push(`<div class="wlv1TlChip"><small>Paid</small><b>${money(t.paid)}</b></div>`);
     if(t.due>0)  parts.push(`<div class="wlv1TlChip"><small>Due</small><b>${money(t.due)}</b></div>`);
     return parts.length? `<div class="wlv1TlChips">${parts.join('')}</div>` : '';
