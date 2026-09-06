@@ -64,6 +64,13 @@ class FieldVisitService : Service() {
                     lastRemindMs = now
                     remindOutTime()
                 }
+                /* 🛰️🔒 V1156 — আগে অবস্থান নেওয়ার ব্যবস্থা **একবারই** বসত
+                   (সেবা চালু হওয়ার সময়)। তখন অনুমতি না থাকলে বা Location
+                   সুইচ বন্ধ থাকলে চুপচাপ ফিরে যেত, আর পরে অনুমতি দিলে/সুইচ
+                   চালু করলেও সারাদিনে আর একবারও চেষ্টা হত না ⇒ কিলোমিটার
+                   চিরকাল ০.০। ⇒ এখন প্রতি মিনিটে আবার চেষ্টা হয়, বসে গেলে
+                   আর নয়। ⛔ বসে যাওয়ার পর বাড়তি কোনো কাজ হয় না। */
+                if (!registered) startUpdates()
                 updateNotice()
             } catch (_: Throwable) { }
             handler.postDelayed(this, TICK_MS)
@@ -84,6 +91,7 @@ class FieldVisitService : Service() {
     override fun onDestroy() {
         try { handler.removeCallbacks(tick) } catch (_: Throwable) { }
         try { lm?.removeUpdates(listener) } catch (_: Throwable) { }
+        registered = false
         super.onDestroy()
     }
 
@@ -91,17 +99,32 @@ class FieldVisitService : Service() {
         ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
             PackageManager.PERMISSION_GRANTED
 
+    /** 🛰️ V1156 — অবস্থান নেওয়া সত্যিই বসেছে কি না। না বসলে প্রতি মিনিটে আবার। */
+    private var registered = false
+
     private fun startUpdates() {
         if (!hasPermission()) return
         try {
             lm = getSystemService(Context.LOCATION_SERVICE) as LocationManager
             val providers = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
+            var any = false
             for (p in providers) {
                 try {
-                    if (lm?.isProviderEnabled(p) == true)
+                    if (lm?.isProviderEnabled(p) == true) {
                         lm?.requestLocationUpdates(p, MIN_TIME_MS, MIN_DIST_M, listener, Looper.getMainLooper())
+                        any = true
+                        /* 🛰️ V1156 — শেষ জানা অবস্থানটা দিয়েই গোনার শুরুর বিন্দু
+                           বসে যায়, নইলে প্রথম সত্যিকারের মাপ আসা পর্যন্ত (কখনো
+                           কয়েক মিনিট) যতটা পথ যাওয়া হয় সেটা হারিয়ে যেত।
+                           ⛔ এটা শুধু শুরুর বিন্দু — দূরত্ব এতে বাড়ে না। */
+                        try {
+                            val last = lm?.getLastKnownLocation(p)
+                            if (last != null) FieldVisit.onLocation(this, last)
+                        } catch (_: Throwable) { }
+                    }
                 } catch (_: Throwable) { }
             }
+            registered = any
         } catch (_: Throwable) { }
     }
 

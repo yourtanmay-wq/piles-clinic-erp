@@ -265,6 +265,58 @@ class WorkNotebookActivity : AppCompatActivity() {
             }
         }
 
+    /* 🛰️🔒 V1156 (০৭.০৯.২০২৬, TK: *"১৩৯ Field Visit Tracking এবার ঠিক করুন"*)।
+       **আসল কারণ (কোডে মেপে পাওয়া):** উপরের অনুমতি-বাক্সটা খোলে শুধু
+       *ক্লিনিকে-আছেন-কিনা* যাচাইয়ের ভিতরে। বাইরে ঘোরা স্টাফ (RUPAM) TK-এর
+       নিজেরই নিয়মে ওই যাচাই এড়িয়ে যান (V650) ⇒ তাঁর ফোনে অনুমতির বাক্স
+       **কোনোদিন উঠতই না** ⇒ GPS-সেবা চুপচাপ ফিরে যেত ⇒ কিলোমিটার চিরকাল ০.০।
+       ⇒ এখন ফিল্ড ভিজিটের জন্য **নিজের একটা অনুমতি-বাক্স**। অনুমতি পেলে
+         গোনা সঙ্গে সঙ্গে চালু, না পেলে Settings-এ যাওয়ার পথ।
+       ⛔ হাজিরা (IN/OUT TIME) এতে **কখনো আটকায় না** — অনুমতি না দিলেও IN TIME
+          আগের মতোই সেভ হয়ে থাকে, শুধু কিলোমিটার গোনা হয় না। */
+    private val requestFieldLocationPermission =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+            val granted = result[android.Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                result[android.Manifest.permission.ACCESS_COARSE_LOCATION] == true
+            if (granted) {
+                try { com.tkbiswas.pilesclinic.native.FieldVisitControl.start(this) } catch (_: Throwable) { }
+                ModuleUi.toast(this, "Location allowed - km will now be counted.")
+            } else {
+                ModuleUi.toast(this, "Without Location permission km cannot be counted.")
+            }
+            try { render() } catch (_: Throwable) { }
+        }
+
+    /**
+     * 🛰️ V1156 — ফিল্ড ভিজিটের গোনা সত্যিই চলতে পারবে কি না, সেটা নিশ্চিত করা।
+     * অনুমতি না থাকলে বাক্স খোলে; বাক্স না উঠলে (আগে "Don't ask again" চাপা
+     * থাকলে) অ্যাপের Settings পাতা।
+     * ⛔ শুধু বাইরে ঘোরা স্টাফের ফোনে — অন্য কারো জন্য এক লাইনও চলে না।
+     */
+    private fun ensureFieldLocationReady(fromButton: Boolean) {
+        try {
+            val fv = com.tkbiswas.pilesclinic.native.FieldVisit
+            if (!fv.isFieldStaff(this)) return
+            if (!fv.hasLocationPermission(this)) {
+                try {
+                    requestFieldLocationPermission.launch(
+                        arrayOf(
+                            android.Manifest.permission.ACCESS_FINE_LOCATION,
+                            android.Manifest.permission.ACCESS_COARSE_LOCATION
+                        )
+                    )
+                } catch (_: Throwable) { if (fromButton) openAppSettings() }
+                return
+            }
+            // অনুমতি আছে, কিন্তু ফোনের Location সুইচ বন্ধ — ওই পাতাটা খোলা হয়।
+            if (!fv.isLocationOn(this)) { if (fromButton) openLocationSettings(); return }
+            if (fromButton) {
+                try { com.tkbiswas.pilesclinic.native.FieldVisitControl.start(this) } catch (_: Throwable) { }
+                ModuleUi.toast(this, "Location is on - km is being counted.")
+            }
+        } catch (_: Throwable) { }
+    }
+
     /** অ্যাপের নিজের Settings পাতা — সেখান থেকে হাতে অনুমতি দেওয়া যায়। */
     private fun openAppSettings() {
         try {
@@ -1325,6 +1377,10 @@ class WorkNotebookActivity : AppCompatActivity() {
                       দ্বিতীয় সারি তৈরি হয় না, পুরনোটাই হালনাগাদ হয়। */
                 val fvCtx = applicationContext
                 Thread { try { fv.push(fvCtx, ended = false, auto = false) } catch (_: Throwable) { } }.start()
+                /* 🛰️ V1156 — গোনা শুরু হলো, কিন্তু অনুমতি না থাকলে একটাও
+                   অবস্থান আসবে না। তাই এখানেই একবার অনুমতি চাওয়া হয়।
+                   ⛔ IN TIME ইতিমধ্যেই সেভ — এই বাক্স তাতে হাত দেয় না। */
+                ensureFieldLocationReady(fromButton = false)
             }
         } catch (_: Throwable) { }
         try {
@@ -2432,7 +2488,7 @@ class WorkNotebookActivity : AppCompatActivity() {
         if (!gotFix) {
             form.addView(TextView(this).apply {
                 text = "\u26A0\uFE0F LOCATION NOT WORKING - km is NOT being counted.\n" +
-                    "Turn ON Location (GPS) and allow it for this app, then open this screen again."
+                    "Tap FIX LOCATION below, then allow Location for this app."
                 textSize = 12.5f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setTextColor(android.graphics.Color.parseColor("#B42318"))
@@ -2445,6 +2501,18 @@ class WorkNotebookActivity : AppCompatActivity() {
                     setColor(android.graphics.Color.parseColor("#FDECEA"))
                     setStroke(ModuleUi.dp(this@WorkNotebookActivity, 1), android.graphics.Color.parseColor("#F2C6C0"))
                 }
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { topMargin = ModuleUi.dp(this@WorkNotebookActivity, 6) }
+            })
+            /* 🛰️🔒 V1156 — V1032-এ শুধু **লেখা** ছিল *"অনুমতি দিয়ে আবার
+               চেষ্টা করুন"*, অথচ অনুমতি দেওয়ার কোনো পথই স্টাফের সামনে খুলত না
+               (অনুমতির বাক্স এই স্টাফের ফোনে কোনোদিন ওঠেই না — উপরে কারণ লেখা)।
+               ⇒ এখন একটা বোতাম: দরকার মতো অনুমতির বাক্স · Location-এর পাতা ·
+                 অ্যাপের Settings — যেটা লাগে সেটাই খোলে। */
+            form.addView(ModuleUi.buttonSoft(this, "FIX LOCATION") {
+                ensureFieldLocationReady(fromButton = true)
+            }.apply {
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
                 ).apply { topMargin = ModuleUi.dp(this@WorkNotebookActivity, 6) }

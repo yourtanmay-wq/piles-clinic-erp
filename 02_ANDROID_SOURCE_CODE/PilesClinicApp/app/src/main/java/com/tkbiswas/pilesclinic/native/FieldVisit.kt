@@ -51,6 +51,30 @@ object FieldVisit {
     /** এক লাফে এর বেশি হলে ধরা হয় না — লাফিয়ে-যাওয়া ভুল অবস্থান বাদ। */
     private const val MAX_STEP_M = 3000f
 
+    /* 🛰️🔒 V1156 (০৭.০৯.২০২৬, TK: *"১৩৯ Field Visit Tracking এবার ঠিক করুন"*)।
+       **আসল কারণ (কোডে মেপে পাওয়া, আন্দাজ নয়):** Location-এর অনুমতি অ্যাপ
+       চাইত **শুধু ক্লিনিকে-আছেন-কিনা যাচাইয়ের সময়** (`startInTimeFlow`)।
+       কিন্তু বাইরে ঘোরা স্টাফ (RUPAM) TK-এর নিজেরই নিয়মে **ওই যাচাই এড়িয়ে
+       যান** (V650, ২৫.০৮.২০২৬ — মাঠে থাকলে ক্লিনিকের গণ্ডিতে থাকবেন না)।
+       ⇒ তাঁর ফোনে অনুমতির বাক্স **কোনোদিন ওঠেই না** ⇒ GPS-সেবা চুপচাপ ফিরে
+         যায় ⇒ একটাও অবস্থান আসে না ⇒ কিলোমিটার চিরকাল ০.০।
+       ⛔ এই দুটো ফাংশনই সেই ফাঁক ধরার জন্য — কিছু বদলায় না, শুধু সত্যি বলে। */
+    fun hasLocationPermission(context: Context): Boolean = try {
+        androidx.core.content.ContextCompat.checkSelfPermission(
+            context, android.Manifest.permission.ACCESS_FINE_LOCATION
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED ||
+            androidx.core.content.ContextCompat.checkSelfPermission(
+                context, android.Manifest.permission.ACCESS_COARSE_LOCATION
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+    } catch (_: Throwable) { false }
+
+    /** ফোনের Location সুইচটা চালু আছে কি না (অনুমতি থাকলেও বন্ধ থাকতে পারে)। */
+    fun isLocationOn(context: Context): Boolean = try {
+        val lm = context.getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager
+        lm.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER) ||
+            lm.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER)
+    } catch (_: Throwable) { false }
+
     fun isFieldStaff(mobile: String?): Boolean =
         FIELD_STAFF_MOBILES.contains(StaffDirectory.normalizeMobile(mobile.orEmpty()))
 
