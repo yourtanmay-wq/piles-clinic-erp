@@ -1,5 +1,10 @@
 [
  {
+  "file": "PILES_CLINIC_APP_V1192_FINAL.zip",
+  "versionCode": 1192,
+  "when": "07.09.2026 04.28 pm"
+ },
+ {
   "file": "PILES_CLINIC_APP_V1173_FINAL.zip",
   "versionCode": 1173,
   "when": "07.09.2026 09.18 am"
@@ -4235,5 +4240,48 @@
   },
   "sql_to_run": "⛔ নতুন কোনো SQL নেই। (RMP-র হার TK নিজে চালিয়ে বসিয়েছেন — ডেটাবেসেই শেষ।)",
   "note": "V1162 → V1173। ঘণ্টা হিসাবে বেতন — শুধু দেখানো, টাকা কাটা নয় (V1166) · OUT TIME না চাপলে ৭.৩০ PM-এ জোর করে পপ-আপ (V1166) · V1166 আরও গভীরে যাচাই করে নিজে ধরা তিনটে দোষ সারানো (V1167) · ড্যাশবোর্ডের Welcome-এ স্টাফের সম্পূর্ণ নাম (V1168) · IN TIME নোটিশে কোন স্টাফ, শিরোনামেই (V1169) · History-তে এক কাজের তিন সারি, দুটো লুকানো (V1170) · টাকার সারিতে স্টাফের সম্পূর্ণ নাম (V1171) · \"Treatment Complete\"-এর তারিখ · সময় · নাম ঠিক (V1172) · শুধু-খরচের দিনেও এখন টাকা বসানো যায় (V1173)। যাচাই: Kotlin কম্পাইল · resource · নিষিদ্ধ API · প্যাটার্ন · egress · version.json · SQL · node --check · tk_guard — সব পাশ। ZIP মেপে দেখা: Android-এর ১৩টা ছবিই আছে (১০টা লঞ্চার আইকনসহ), res-এ ৩৭৩টা ফাইল, মূল ফোল্ডারের ডেমো-ছবি ০।"
+ },
+ {
+  "file": "PILES_CLINIC_APP_V1192_FINAL.zip",
+  "tarikh": "০৭.০৯.২০২৬ ১৬.৩০",
+  "version": "11.92 (V1192)",
+  "mb": 25.5,
+  "files": 1753,
+  "folders": {
+   "02_ANDROID_SOURCE_CODE": 756,
+   "(মূল ফোল্ডারের নথি)": 604,
+   "04_SUPABASE_DATABASE_SETUP": 122,
+   "00_SQL": 71,
+   "00_GUARD": 53,
+   "03_NETLIFY_READY": 51,
+   "08_ASSETS_BACKUP": 36,
+   "07_RELEASE_NOTES_VERSION_HISTORY": 31,
+   "00_READ_ME_FIRST": 11,
+   "10_FUTURE_PLANS": 7,
+   "ROLLBACK_V448": 2,
+   "06_TEST_CHECKLISTS": 2,
+   "11_V223_TESTS": 2,
+   ".claude": 2,
+   "05_APK_AAB_BUILD_NOTES": 1,
+   "03_SUPABASE_SQL": 1,
+   "01_MASTER_LOCK_BOOK_SOURCE_OF_TRUTH": 1
+  },
+  "excluded": [
+   ".git",
+   "00_GUARD/.kotlinc",
+   "*/build",
+   "__pycache__",
+   "node_modules",
+   "08_ASSETS_BACKUP/ANATOMY_PICTURES/ORIGINAL (অনুমোদিত বাদ)",
+   "মূল ফোল্ডারের ৬১টা ডেমো-প্রুফ ছবি (নাম ধরে ধরে বাদ)"
+  ],
+  "jachai": {
+   "android_png": 13,
+   "res_files": 373,
+   "root_demo_images": 0,
+   "V1186_SQL": "আছে",
+   "doctorreminder.js": "আছে"
+  },
+  "ki_notun": "V1174→V1192: আয়-ব্যয়ের নতুন দিন ও লেজার · অন্য ব্রাঞ্চে IN TIME ও Work From Home (৭ ঘণ্টা) · Salary পর্দায় ৩ ডট · Extra Income ফর্ম ও Pay পর্দার নতুন চেহারা, আলাদা Pay · Unexpected কমিশনের নতুন ভাগ (১০০ · ৩৫০+৫০) · Doctor Note & Reminder (হোম কার্ড · টাইল · Accept · History) · ডাক্তারের রিমাইন্ডার মিস হওয়া বন্ধ · Daily Report-এর মিথ্যে ০ · Report Card প্রিন্টের ডান দিক কাটা · চিকিৎসার লেখা Report Card ও Queue-তে দেখা · চিকিৎসা/কল আলাদা চিহ্ন"
  }
 ]
