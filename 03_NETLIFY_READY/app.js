@@ -3951,9 +3951,15 @@ function wlv1BriefBody(b){
         তাই Approve-এর পথ (Row ID ধরে সারি খোঁজা) আগের মতোই কাজ করে। */
   var __body=String((b&&b.message)||'').split('\n').filter(function(l){
     var t=String(l||'').trim().toLowerCase();
-    return !(t.indexOf('type :')===0||t.indexOf('patient id :')===0||t.indexOf('row id :')===0);
+    /* 👤 V1169 (TK: *"নিচে স্টাফ নাম আর টাইম থাকবে না"*) — স্টাফ-নোটিশে
+       Staff · Branch · Time তিনটেই উপরে/শিরোনামে আছে, তাই নিচে আর নয়।
+       বাকি লাইন (যেমন `Reason :`) থেকে যায় — কোনো তথ্য হারায় না।
+       ⛔ ইমোজি দিয়ে শুরু হতে পারে, তাই অক্ষর-পর্যন্ত বাদ দিয়ে মেলানো হয়। */
+    var t2=t.replace(/^[^a-z]+/,'');
+    var staffLine=(t2.indexOf('staff :')===0||t2.indexOf('branch :')===0||t2.indexOf('time :')===0);
+    return !(t.indexOf('type :')===0||t.indexOf('patient id :')===0||t.indexOf('row id :')===0||staffLine);
   }).join('\n').trim();
-  return '<p>'+esc(__body)+'</p>';
+  return __body?('<p>'+esc(__body)+'</p>'):'';   /* 👤 V1169 — ফাঁকা হলে লাইনটাই নয় */
 }
 window["wlv1BriefBody"]=wlv1BriefBody;
 /* ══════════════════════════════════════════════════════════════════════════
@@ -4209,13 +4215,79 @@ window["anBrUrgentCls"]=anBrUrgentCls;
    ফোনের `BriefingAdapter.kt`-এর হুবহু একই নিয়ম এখানে বসানো হলো —
    সময় একবারই · Seen/Replies লাইন নেই · Reply/Open Thread বোতাম নেই।
    ⛔ বাকি সব নোটিশ (অনুরোধ/ছুটি/TK-এর নিজের লেখা) এক অক্ষরও বদলায়নি। */
+/* 👤🔒 V1169 (০৭.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ "খ" — ফোনের হুবহু যমজ) —
+   TK: *"কোন staff in time দিয়েছে বোঝা যাচ্ছে না"* · *"নিচে স্টাফ নাম আর টাইম
+   থাকবে না"*। নোটিশ-কার্ড এখন:
+     উপরে  →  ব্রাঞ্চ · তারিখ : সময়
+     শিরোনামে →  `IN TIME — স্টাফের নাম`
+     নিচে  →  Staff · Branch · Time তিনটেই বাদ (বাকি কিছু থাকলে থাকে)
+   ⛔ সেভ করা `b.title`/`b.message` এক অক্ষরও বদলায় না — শুধু **দেখানো** লেখা।
+   ⛔ স্টাফের সম্পূর্ণ নাম `hr.staff_profiles` থেকে **দিনে একবার** এনে ব্রাউজারে
+      জমা থাকে; না পেলে কোডটাই বসে (কিছুই ভাঙে না)। */
+var WLV1_STAFF_NAME_KEY='rk_staff_name_map';
+function wlv1StaffNameMap(){
+  try{ var o=JSON.parse(localStorage.getItem(WLV1_STAFF_NAME_KEY)||'{}'); return (o&&o.map)||{} }catch(e){ return {} }
+}
+/* ⛔ নামটা ইচ্ছে করে `wlv1StaffFullNameOf` — প্রকল্পে আগে থেকেই একটা
+   `wlv1StaffNameOf` আছে (মোবাইল → নাম); একই নাম দিলে সেটাই জিতে যেত আর
+   এখানে কোডই দেখাত। নিজের যাচাইয়ে ধরা পড়েছে। */
+function wlv1StaffFullNameOf(code){
+  var k=String(code||'').trim().toUpperCase(); if(!k) return '';
+  var n=wlv1StaffNameMap()[k]||'';
+  return (n && n.toUpperCase()!==k) ? n : '';
+}
+async function wlv1RefreshStaffNames(){
+  try{
+    var o={}; try{ o=JSON.parse(localStorage.getItem(WLV1_STAFF_NAME_KEY)||'{}')||{} }catch(e){}
+    /* দিনে একবারের বেশি নয় — TK-র ফ্রি প্ল্যানে বাড়তি খরচ নয়। */
+    if(o.at && (Date.now()-Number(o.at))<86400000) return;
+    if(!window.MOD) return;
+    var c=await window.MOD.client(); if(!c) return;
+    var rows=((await c.schema('hr').from('staff_profiles').select('person_code,full_name')).data)||[];
+    var m={};
+    rows.forEach(function(r){
+      var k=String((r&&r.person_code)||'').trim().toUpperCase();
+      var n=String((r&&r.full_name)||'').trim();
+      if(k&&n) m[k]=n;
+    });
+    if(Object.keys(m).length) localStorage.setItem(WLV1_STAFF_NAME_KEY,JSON.stringify({at:Date.now(),map:m}));
+  }catch(e){}
+}
+window["wlv1RefreshStaffNames"]=wlv1RefreshStaffNames;
+/** বার্তার একটা ঘরের মান (`Staff` / `Time` …)। না পেলে ''। */
+function anBrField(msg,label){
+  try{
+    var re=new RegExp(label+'\\s*:\\s*([^\\n]+)','i');
+    var m=re.exec(String(msg||'')); return m?String(m[1]).trim():'';
+  }catch(e){ return '' }
+}
+/** কার্ডে দেখানোর শিরোনাম — স্টাফ-নোটিশে `IN TIME — নাম`। */
+function anBrCardTitle(b,fallback){
+  var t=String((b&&b.title)||'').trim()||String(fallback||'');
+  try{
+    var code=anBrField(b&&b.message,'Staff');
+    if(!code) return t;
+    var nm=wlv1StaffFullNameOf(code)||code;
+    /* ⛔ `Staff ` উপসর্গটা শুধু IN/OUT TIME-এ বাদ যায় — নইলে
+       "Staff still at chamber" হয়ে যেত "still at chamber" (নিজে মেপে ধরা)। */
+    var shortT=/^Staff\s+(IN|OUT)\s+TIME$/i.test(t)?t.replace(/^Staff\s+/i,'').trim():t;
+    return nm?(shortT+' \u2014 '+nm):shortT;
+  }catch(e){ return t }
+}
+window["anBrCardTitle"]=anBrCardTitle;
 function anBrPlainInfo(title){var t=String(title||'').trim().toLowerCase();return t==='staff in time'||t==='staff out time';}
 window["anBrPlainInfo"]=anBrPlainInfo;
 function anBrBriefWhen(b){
   if(anBrPlainInfo(b&&b.title)){
     var d=String((b&&b.date)||'').slice(0,10);
     var s=(typeof wlv1Dot==='function'&&d)?wlv1Dot(d):'';
-    return esc(s||fmtDateTime((b&&b.createdAt)||(b&&b.date)));
+    /* 👤 V1169 — নিচের লাইনটা তুলে দেওয়া হয়েছে, তাই আসল IN/OUT TIME-টা
+       এখানেই বসে (বার্তার `Time :` ঘর থেকে)। না পেলে আগের মতোই। */
+    var br=String((b&&b.branch)||'').trim();
+    var tm=anBrField(b&&b.message,'Time');
+    var head=(s||fmtDateTime((b&&b.createdAt)||(b&&b.date)));
+    if(tm) head=head+' : '+tm;
+    return esc(br?(br+' \u00b7 '+head):head);
   }
   return esc(fmtDateTime((b&&b.createdAt)||(b&&b.date)))+' · '+esc(briefingSummary(b));
 }
@@ -4245,12 +4317,12 @@ function anBrBriefThreadBtn(b,label){
   return '<button onclick="openBriefThread(\''+b.id+'\')">'+(label||'Open Thread')+'</button>';
 }
 window["anBrBriefThreadBtn"]=anBrBriefThreadBtn;
-function briefingHome(){currentView='briefing';if(!isMaster()&&!window.__RK_BRIEF_REFRESHING){window.__RK_BRIEF_REFRESHING=true;refreshBriefingsFromCloud().then(()=>{window.__RK_BRIEF_REFRESHING=false;if(currentView==='briefing')briefingHome()}).catch(()=>{window.__RK_BRIEF_REFRESHING=false})}let all=briefings().filter(b=>!isBriefingDeletedForMe(b));if(isMaster()){let __mList=all.filter(briefingVisibleForMaster).slice().reverse().slice(0,30);try{wlv1AutoSeenForMaster(__mList)}catch(e){}let list=__mList.map(b=>`<div class="card briefingAdminCard ${anBrUrgentCls(b.title)}"><b>${esc(b.title||'Briefing')}</b><br><small>${anBrBriefWhen(b)}</small>${wlv1BriefBody(b)}${anBrBriefMeta(b)}${briefingReplies(b).map(r=>briefingReplyLine(b,r)).join('')}<div class="actions">${wlv1ApprovalButtons(b)}${wlv1OverdueViewBtn(b)}${anBrBriefThreadBtn(b,'Open Thread')}${briefingDeleteButton(b)}</div></div>`).join('')||/* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬) — ফোনে পর্দার নাম সবার জন্যই
+function briefingHome(){currentView='briefing';try{wlv1RefreshStaffNames()}catch(e){}   /* 👤 V1169 */if(!isMaster()&&!window.__RK_BRIEF_REFRESHING){window.__RK_BRIEF_REFRESHING=true;refreshBriefingsFromCloud().then(()=>{window.__RK_BRIEF_REFRESHING=false;if(currentView==='briefing')briefingHome()}).catch(()=>{window.__RK_BRIEF_REFRESHING=false})}let all=briefings().filter(b=>!isBriefingDeletedForMe(b));if(isMaster()){let __mList=all.filter(briefingVisibleForMaster).slice().reverse().slice(0,30);try{wlv1AutoSeenForMaster(__mList)}catch(e){}let list=__mList.map(b=>`<div class="card briefingAdminCard ${anBrUrgentCls(b.title)}"><b>${esc(anBrCardTitle(b,'Briefing'))}</b><br><small>${anBrBriefWhen(b)}</small>${wlv1BriefBody(b)}${anBrBriefMeta(b)}${briefingReplies(b).map(r=>briefingReplyLine(b,r)).join('')}<div class="actions">${wlv1ApprovalButtons(b)}${wlv1OverdueViewBtn(b)}${anBrBriefThreadBtn(b,'Open Thread')}${briefingDeleteButton(b)}</div></div>`).join('')||/* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬) — ফোনে পর্দার নাম সবার জন্যই
    "Briefing / Notice Board" আর খালি-লেখা "No briefing / notice yet"
    (res/layout/activity_briefing.xml:30,148)। ওয়েবে মাস্টারের জন্য আলাদা
    নাম ও ছোট খালি-লেখা ছিল। */
 '<div class="card mut">No briefing / notice yet</div>';page('Briefing / Notice Board',`<div class="card"><label>Message</label><textarea id="brMsg" placeholder="Today target / notice"></textarea><label>Send To</label><select id="brTarget" class="input" onchange="briefingTargetExtra()"><option value="allStaff">All Staff</option><option value="branch">My Branch Staff</option><option value="role_staff">All Staff Role</option><option value="role_doctor">All Doctors</option><option value="role_field">All Field Officers</option><option value="individual">Individual / Multiple Staff</option></select><div id="brExtra"></div><button onclick="createBriefing()">Send Briefing</button></div><div class="card"><button class="ghost" style="width:100%;color:#6A5320;border:1px solid #E0CFA0;font-weight:800" onclick="wlv1BpgScreen()">🔑 Backdate Payment Permissions</button></div><div id="wlv1Approvals"></div><div id="finIeApprovals"></div>${list}`);briefingTargetExtra();setTimeout(()=>{try{wlv1LoadApprovals()}catch(e){}/* 🔵 V406: মাস্টারের ঘণ্টার পাতায় আয়-খরচের অনুরোধও (Approve/Reject) — আগে শুধু ফোনে ছিল। ⛔ finance.js না থাকলে/ব্যর্থ হলে কিছুই ভাঙে না। */try{if(typeof window.finRenderApprovals==='function')window.finRenderApprovals()}catch(e){}},60);}else{/* 🔵 B618: ব্রাঞ্চ-ডাক্তার পুরনো দিনেরও pending ছুটির অনুরোধ দেখেন (Approve/Reject); দিন পেরোলেও হারায় না। */
-let pendLeave=all.filter(b=>briefingNeedsApproval(b)&&String(b.title||'').toLowerCase().indexOf('leave request')>=0&&wlv1CanApproveLeave(b));let pendIds={};pendLeave.forEach(b=>{pendIds[b.id]=1;});let leaveCards=pendLeave.slice().reverse().map(b=>`<div class="card briefCard ${anBrUrgentCls(b.title)}"><b>${esc(b.title||'')}</b>${wlv1BriefBody(b)}${briefingReplies(b).map(r=>briefingReplyLine(b,r)).join('')}<div class="actions">${wlv1ApprovalButtons(b)}${anBrBriefThreadBtn(b,'Reply')}</div></div>`).join('');let list=activeBriefings().filter(b=>!pendIds[b.id]).map(b=>`<div class="card briefCard ${anBrUrgentCls(b.title)}"><b>${esc(b.title||'Today Briefing')}</b>${wlv1BriefBody(b)}${briefingReplies(b).map(r=>briefingReplyLine(b,r)).join('')}<div class="actions">${isAutoNotice(b)?wlv1NoticeViewBtn(b):(wlv1IsOverdueAlert(b)?wlv1OverdueViewBtn(b):anBrBriefThreadBtn(b,'Reply'))}<button class="ghost" onclick="markBriefSeen('${b.id}')">Seen & Hide</button>${briefingDeleteButton(b)}</div></div>`).join('')||(leaveCards?'':'<div class="card mut">No briefing / notice yet</div>');page('Briefing / Notice Board','<div id="wlv1Approvals"></div><div id="finIeApprovals"></div>'+leaveCards+list);setTimeout(()=>{try{wlv1LoadApprovals()}catch(e){}/* 🔵 V406: মাস্টারের ঘণ্টার পাতায় আয়-খরচের অনুরোধও (Approve/Reject) — আগে শুধু ফোনে ছিল। ⛔ finance.js না থাকলে/ব্যর্থ হলে কিছুই ভাঙে না। */try{if(typeof window.finRenderApprovals==='function')window.finRenderApprovals()}catch(e){}},60);}}
+let pendLeave=all.filter(b=>briefingNeedsApproval(b)&&String(b.title||'').toLowerCase().indexOf('leave request')>=0&&wlv1CanApproveLeave(b));let pendIds={};pendLeave.forEach(b=>{pendIds[b.id]=1;});let leaveCards=pendLeave.slice().reverse().map(b=>`<div class="card briefCard ${anBrUrgentCls(b.title)}"><b>${esc(anBrCardTitle(b,''))}</b>${wlv1BriefBody(b)}${briefingReplies(b).map(r=>briefingReplyLine(b,r)).join('')}<div class="actions">${wlv1ApprovalButtons(b)}${anBrBriefThreadBtn(b,'Reply')}</div></div>`).join('');let list=activeBriefings().filter(b=>!pendIds[b.id]).map(b=>`<div class="card briefCard ${anBrUrgentCls(b.title)}"><b>${esc(anBrCardTitle(b,'Today Briefing'))}</b>${wlv1BriefBody(b)}${briefingReplies(b).map(r=>briefingReplyLine(b,r)).join('')}<div class="actions">${isAutoNotice(b)?wlv1NoticeViewBtn(b):(wlv1IsOverdueAlert(b)?wlv1OverdueViewBtn(b):anBrBriefThreadBtn(b,'Reply'))}<button class="ghost" onclick="markBriefSeen('${b.id}')">Seen & Hide</button>${briefingDeleteButton(b)}</div></div>`).join('')||(leaveCards?'':'<div class="card mut">No briefing / notice yet</div>');page('Briefing / Notice Board','<div id="wlv1Approvals"></div><div id="finIeApprovals"></div>'+leaveCards+list);setTimeout(()=>{try{wlv1LoadApprovals()}catch(e){}/* 🔵 V406: মাস্টারের ঘণ্টার পাতায় আয়-খরচের অনুরোধও (Approve/Reject) — আগে শুধু ফোনে ছিল। ⛔ finance.js না থাকলে/ব্যর্থ হলে কিছুই ভাঙে না। */try{if(typeof window.finRenderApprovals==='function')window.finRenderApprovals()}catch(e){}},60);}}
 window["briefingHome"]=briefingHome;
 async function createBriefing(){let msg=($('#brMsg')?.value||'').trim();if(!msg)return toast('Message required');let sel=$('#brTarget')?.value||'allStaff';let targets={};if(sel==='allStaff')targets.allStaff=true;else if(sel==='branch')targets.branches=[user.branch];else if(sel==='role_staff')targets.roles=['staff'];else if(sel==='role_doctor')targets.roles=['doctor'];else if(sel==='role_field')targets.roles=['field'];else if(sel==='individual'){let mobiles=$$('.brUserChk:checked').map(x=>mob(x.value)).filter(Boolean);if(!mobiles.length)return toast('Select at least one person');targets.mobiles=mobiles}let row={id:uid('brief'),date:today(),title:'Today Briefing',message:msg,targets,branch:user.branch,seen:[],replies:[],createdBy:user.mobile,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};add('briefings',row);let cloudOk=await cloudUpsertBriefing(row);toast(cloudOk?'Briefing sent to staff':'Internet/Supabase not connected. Briefing saved on this device only.');briefingHome()}
 window["createBriefing"]=createBriefing;

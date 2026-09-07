@@ -230,14 +230,65 @@ class BriefingAdapter(
         // নাম** (কোড দিয়ে জমানো স্টাফ-তালিকা থেকে নাম) — master যেন বিভ্রান্ত না হয়।
         // ⛔ যেসব নোটিশে "Staff :" নেই (Admin briefing/Delete/Refund অনুরোধ) সেগুলো
         // আগের মতোই (ব্রাঞ্চ)। নাম না পেলে শুধু কোড — কিছুই ভাঙে না।
+        /* 👤🔒 V1169 (০৭.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ "খ") — TK:
+           *"কোন staff in time দিয়েছে বোঝা যাচ্ছে না"* · *"নিচে স্টাফ নাম আর টাইম থাকবে না"*।
+
+           আগে স্টাফের কোড ও নাম বসত **উপরের ধূসর হেডার-লাইনে**, আর কার্ডের ভিতরে
+           লেখা হয়ে যেত শুধু `10.28 AM` — তাই কে দিয়েছে বোঝা যেত না, আর লাইনটা
+           লম্বা হলে কেটেও যেত। এখন:
+             উপরে  →  ব্রাঞ্চ · তারিখ : সময়
+             পিলে  →  `IN TIME — স্টাফের নাম`
+             নিচে  →  কিছু না (TK-নির্দেশে কোড ও সময় দুটোই বাদ)
+
+           ⛔ `item.title` এক অক্ষরও বদলায়নি — শুধু **দেখানোর** লেখা। কারণ "দেখা
+              হলে নিজে মুছে যাওয়া" ব্যবস্থা (B467) শিরোনামের হুবহু শব্দ মেলায়;
+              শিরোনাম বদলালে সেটা ভেঙে যেত।
+           ⛔ একই ধরনের সব কার্ডে (IN TIME · OUT TIME · Staff still at chamber)
+              একই নিয়ম — বার্তায় `Staff :` ঘরটা থাকলেই।
+           ⛔ নাম না পেলে কোডটাই বসে; সময় না পেলে শুধু তারিখ — কিছুই ভাঙে না। */
         val staffCode = extractField(item.message, "Staff")
+        val staffNotice = staffCode != null
+        var staffExtra = ""
         if (staffCode != null) {
             val nm = staffNameFor(staffCode)
-            b.tvWho.text = withWhen(if (nm != null) "$staffCode · $nm" else staffCode)   // 🎨 V1141
-            b.tvAvatar.text = ((nm ?: staffCode).firstOrNull { it.isLetterOrDigit() }?.uppercaseChar() ?: 'S').toString()
-            // কম্প্যাক্ট: Staff/Branch এখন হাইলাইটেই আছে, তাই বার্তায় শুধু সময়টুকু।
+            /* উপরের লাইন — ব্রাঞ্চ · তারিখ : সময়। সময়টা বার্তার ঘর থেকেই নেওয়া
+               (পোস্টের সময় নয়) — এটাই আসল IN/OUT TIME। */
             val t = extractField(item.message, "Time")
-            if (t != null) b.tvMessage.text = t
+            /* ⛔ তারিখটা সরাসরি `item.date` থেকে — `tvDate`-এর লেখা কার্ড-ভেদে
+               কখনো সময়সহ হয়, তখন সময় দুবার বসে যেত (নিজে মেপে ধরা)। */
+            val dateTxt = try { DateUtil.display(item.date) } catch (_: Throwable) { "" }
+            val whenFull = when {
+                t != null && dateTxt.isNotBlank() -> dateTxt + " : " + t
+                t != null -> t
+                dateTxt.isNotBlank() -> dateTxt
+                else -> b.tvDate.text?.toString().orEmpty().trim()
+            }
+            b.tvWho.text = if (whenFull.isBlank()) who else who + " \u00b7 " + whenFull
+            b.tvAvatar.text = ((nm ?: staffCode).firstOrNull { it.isLetterOrDigit() }?.uppercaseChar() ?: 'S').toString()
+            /* পিলে — `Staff ` উপসর্গটা বাদ দিয়ে নামটা জুড়ে দেওয়া। */
+            /* ⛔ `Staff ` উপসর্গটা শুধু IN/OUT TIME-এ বাদ যায় — নইলে
+               "Staff still at chamber" হয়ে যেত "still at chamber" (নিজে মেপে ধরা)। */
+            val fullTitle = plainTitle(item.title)
+            val shortTitle =
+                if (Regex("(?i)^Staff\\s+(IN|OUT)\\s+TIME$").matches(fullTitle.trim()))
+                    fullTitle.trim().removePrefix("Staff ").removePrefix("staff ").trim()
+                else fullTitle
+            val whoName = (nm ?: staffCode).trim()
+            b.tvTitle.text = if (whoName.isNotBlank()) shortTitle + " \u2014 " + whoName else shortTitle
+            /* নিচের লাইন থেকে **Staff · Branch · Time** তিনটেই বাদ (TK:
+               *"নিচে স্টাফ নাম আর টাইম থাকবে না"*) — তিনটেই উপরে/পিলে আছে।
+               বাকি কিছু থাকলে (যেমন "Staff still at chamber"-এর `Reason :`)
+               সেটুকু থেকে যায় — কোনো তথ্য হারায় না।
+               ⛔ কিছুই না থাকলে লাইনটাই বসে না; নিচের `!rich` ঘরে
+                  `staffExtra` দিয়ে সেটা ঠিক রাখা হয় (রিসাইকেল-নিরাপদ)। */
+            staffExtra = item.message.split("\n")
+                .map { it.trim() }
+                .filter { line ->
+                    line.isNotBlank() &&
+                        !Regex("(?i)^[^A-Za-z]*(Staff|Branch|Time)\\s*:").containsMatchIn(line)
+                }
+                .joinToString("\n")
+            if (staffExtra.isNotBlank()) b.tvMessage.text = buildClickableMessage(staffExtra)
         }
 
         // 🟢🔒 V641 (২৪.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ — "ব্রাঞ্চ দুই
@@ -634,7 +685,11 @@ class BriefingAdapter(
             } catch (_: Throwable) { rich = false }
             if (!rich) {
                 b.rowPatient.visibility = View.GONE
-                b.tvMessage.visibility = View.VISIBLE
+                /* 👤 V1169 — স্টাফ-নোটিশে নিচের লাইন থাকবে না (TK-নির্দেশ);
+                   বাকি সব কার্ডে আগের মতোই দেখায় — দুই দিকই বসানো, তাই সারি
+                   পুনর্ব্যবহার হলেও অন্য কার্ডে ভুল চেহারা যায় না। */
+                b.tvMessage.visibility =
+                    if (staffNotice && staffExtra.isBlank()) View.GONE else View.VISIBLE
                 /* 🔴🔒 V1165 — অনুরোধ-কার্ডে (Delete/Refund/Reopen) উপরে **By …**
                    লাইনটা ও রোগের চিপটা ইচ্ছে করে বসানো হয়েছে; এই ঘরটা সেগুলো
                    মুছে দিত। তাই অনুরোধ-কার্ড হলে এখানে হাত দেওয়া হয় না।
