@@ -1625,7 +1625,8 @@ class StaffProfileActivity : AppCompatActivity() {
             val r = try {
                 ModuleAuth.getRowsChecked(
                     "wn", "notebook_days",
-                    "select=work_date,check_in,check_out,is_leave&staff_code=eq.$code" +
+                    /* 🏠 V1180 — Work From Home দিনও চেনা দরকার (৭ ঘণ্টা ধরা হয়)। */
+                    "select=work_date,check_in,check_out,is_leave,is_wfh&staff_code=eq.$code" +
                         "&work_date=gte.$from&work_date=lt.$end"
                 )
             } catch (_: Throwable) { null }

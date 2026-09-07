@@ -560,6 +560,10 @@
     (days||[]).forEach(function(d){
       /* মঞ্জুর হওয়া ছুটি ⇒ পুরো দিনের ৭ ঘণ্টা (`is_leave` মঞ্জুর হলেই বসে)। */
       if(d && d.is_leave){ leaves++; worked += SAL_DAY_MINUTES; return; }
+      /* 🏠🔒 V1180 (০৭.০৯.২০২৬, TK-নির্দেশ): মাস্টারের অনুমোদিত Work From Home
+         দিন = সকাল ১০টা–বিকেল ৫টা, অর্থাৎ **সবসময় ৭ ঘণ্টা** (কম-বেশি নয়)।
+         ⛔ ফোনের `HourSalary.compute`-এর হুবহু একই নিয়ম, তাই দুই পর্দা মেলে। */
+      if(d && d.is_wfh){ worked += SAL_DAY_MINUTES; return; }
       var a = salHourMinutes(d && d.check_in), b = salHourMinutes(d && d.check_out);
       if(a === null || b === null || b <= a){ missing++; return; }
       worked += (b - a);
@@ -576,7 +580,7 @@
       var from = ym + '-01';
       var end = (mo >= 12) ? ((y+1) + '-01-01') : (y + '-' + ((mo+1)<10?'0'+(mo+1):''+(mo+1)) + '-01');
       var rows = ((await client.schema('wn').from('notebook_days')
-        .select('work_date,check_in,check_out,is_leave')
+        .select('work_date,check_in,check_out,is_leave,is_wfh')
         .eq('staff_code', code).gte('work_date', from).lt('work_date', end)).data) || [];
       var r = salHourCompute(rows, amount, ym);
       /* ⛔ নিজে মেপে ধরা: নিয়মটা চালু **আগামী মাস থেকে**, অথচ দেখানো হচ্ছে

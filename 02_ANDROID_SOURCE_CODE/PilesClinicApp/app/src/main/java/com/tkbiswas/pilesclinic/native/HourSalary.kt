@@ -110,6 +110,16 @@ object HourSalary {
                       (LeaveRepository.approve · অ্যাপের নিজে-মঞ্জুর) — তাই
                       নামঞ্জুর ছুটি এখানে কখনো ঢোকে না। */
                 if (d.optBoolean("is_leave", false)) { leaves++; worked += DAY_MINUTES; continue }
+                /* 🏠🔒 V1180 (০৭.০৯.২০২৬, TK-নির্দেশ, হুবহু): *"Work from Home…
+                   মাস্টার অনুমতি দিলে সেটা 7 ঘন্টাই হিসাব করা হবে, কম বেশি হিসাবে
+                   সেদিনের জন্য হবে না"* — অর্থাৎ সকাল ১০টা–বিকেল ৫টা ধরাই হবে।
+                   ⇒ মাস্টারের অনুমোদিত Work From Home দিনে **সবসময় ৭ ঘণ্টা**,
+                     ওই দিনের IN/OUT TIME যা-ই থাক।
+                   ⛔ `is_wfh` কেবল মাস্টার Approve করলেই বসে (WfhRequests →
+                      WorkNotebookActivity), তাই না-মঞ্জুর অনুরোধ এখানে ঢোকে না।
+                   ⛔ ছুটির (is_leave) নিয়ম উপরে অক্ষত; বাকি দিনগুলোর হিসাবও
+                      এক অক্ষরও বদলায়নি। */
+                if (d.optBoolean("is_wfh", false)) { worked += DAY_MINUTES; continue }
                 val a = minutesOf(d.optString("check_in", ""))
                 val b = minutesOf(d.optString("check_out", ""))
                 /* ⛔ দুটোর একটাও না থাকলে/না পড়া গেলে ওই দিন ০ — TK-র বাছা পথ "খ"।

@@ -2291,6 +2291,31 @@ class WorkNotebookActivity : AppCompatActivity() {
      *    হিসাব এতে বদলায় না — এটা শুধু **তথ্য**।
      */
     private fun noteDutyBranch(homeBranch: String) {
+        /* 🏠🔒 V1180 (০৭.০৯.২০২৬, TK-নির্দেশ, হুবহু): *"Work from Home… মাস্টার
+           অনুমতি দিলে সেটা 7 ঘন্টাই হিসাব করা হবে, কম বেশি হিসাবে সেদিনের জন্য
+           হবে না"* (সকাল ১০টা–বিকেল ৫টা)। ⇒ ওই দিনের সারিতে `is_wfh` বসে, আর
+           বেতনের ঘণ্টা-হিসাব সেটা দেখেই **৭ ঘণ্টা** ধরে।
+           ⛔ স্টাফের আসল IN/OUT TIME মোছা হয় না — রেকর্ড হিসেবে থেকেই যায়;
+              শুধু বেতনের গোনায় ওই দিনটা ৭ ঘণ্টা।
+           ⛔ `is_wfh` ঘরটা ডেটাবেসে না থাকলেও হাজিরা ভাঙে না — নিচের
+              `writeNotebookRowWithoutOptionalColumns()` ওটা বাদ দিয়ে আবার পাঠায়। */
+        if (workedFromHome) {
+            val codeW = staffCode
+            val dateW = todayIso()
+            Thread {
+                try {
+                    robustSaveNotebookDay(
+                        JSONObject().put("staff_code", codeW).put("work_date", dateW).put("is_wfh", true)
+                    )
+                } catch (_: Throwable) { }
+            }.start()
+            try {
+                android.widget.Toast.makeText(this,
+                    "Work From Home today - counted as 7 hours",
+                    android.widget.Toast.LENGTH_LONG).show()
+            } catch (_: Throwable) { }
+            return
+        }
         val duty = dutyBranch
         if (duty.isBlank()) return
         if (duty.equals(homeBranch.ifBlank { NativeSession.current(this)?.branch ?: "" }, ignoreCase = true)) return
@@ -2322,7 +2347,9 @@ class WorkNotebookActivity : AppCompatActivity() {
      *  পরে সেটা পূর্ণ তথ্যসহ আবার বসতে পারে। */
     private fun writeNotebookRowWithoutOptionalColumns(row: JSONObject): Boolean {
         // টেবিলে না-থাকতে পারা ঐচ্ছিক ঘর (আসল হাজিরার জন্য জরুরি নয়)।
-        val optional = listOf("check_out_reason")
+        /* 🏠 V1180 — `is_wfh` ঘরটাও ঐচ্ছিক ধরা হলো: TK এখনো V1180-এর SQL
+           না চালালে ওই ঘর ছাড়াই সারিটা বসবে, তাই IN/OUT TIME কখনো হারাবে না। */
+        val optional = listOf("check_out_reason", "is_wfh")
         if (optional.none { row.has(it) }) return false
         val slim = try { JSONObject(row.toString()) } catch (_: Throwable) { return false }
         optional.forEach { slim.remove(it) }
