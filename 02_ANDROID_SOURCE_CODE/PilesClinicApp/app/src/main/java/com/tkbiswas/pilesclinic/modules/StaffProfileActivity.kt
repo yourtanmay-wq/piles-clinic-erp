@@ -4718,19 +4718,41 @@ class StaffProfileActivity : AppCompatActivity() {
     /** 🔵 V416 (TK-নির্দেশ): বেতনের বাইরে দেওয়া বাড়তি টাকা।
      *  ⛔ `kind='EXTRA'` হয়ে জমা হয় ⇒ বেতনের "বাকি কত" হিসাবে কখনো ঢোকে না।
      *  ⛔ `for_month` ফাঁকা রাখা হয় — বাড়তি টাকা কোনো মাসের বেতন নয়। */
+    /* 🎨🔒 V1182 (০৭.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — Extra Income
+       ফর্মের চেহারা। উপরে সোনালি পট্টি, সবকিছু একটাই সাদা কার্ডে, ঘরগুলো
+       বক্সের ভিতরে, আর "When" ও "Mode" পাশাপাশি।
+       ⛔ যা সেভ হয় তার এক অক্ষরও বদলায়নি — একই সারি, একই ঘর, একই নিয়ম
+          (`Paying now` = PAID, নইলে DUE)। শুধু বসার জায়গা ও সাজ। */
+    private fun salBoxed(v: android.view.View): android.view.View {
+        v.background = android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = dp(11).toFloat()
+            setColor(android.graphics.Color.parseColor("#FBFDFC"))
+            setStroke(dp(1), android.graphics.Color.parseColor("#D6DEE6"))
+        }
+        v.setPadding(dp(13), dp(12), dp(13), dp(12))
+        return v
+    }
+
     private fun addExtraIncome(code: String) {
         backAction = { salary(code) }
         val col = ModuleUi.screen(this, "Extra Income — $code")
+        val card = ModuleUi.card(this)
+        col.addView(card)
         val amt = ModuleUi.numberInput(this, "Amount", allowDecimal = true)
         val why = ModuleUi.input(this, "Reason (Bonus / Festival / Overtime)")
         val md = spinner(listOf("Cash", "Online"))
         // 🔵 V417 (TK-অনুমোদিত): এখনই দিচ্ছি, নাকি ঠিক করে রাখছি (পরে দেব)।
         val whenSpin = spinner(listOf("Paying now", "Pay later (Due)"))
-        col.addView(ModuleUi.label(this, "Amount")); col.addView(amt)
-        col.addView(ModuleUi.label(this, "Reason")); col.addView(why)
-        col.addView(ModuleUi.label(this, "When")); col.addView(whenSpin)
-        col.addView(ModuleUi.label(this, "Mode")); col.addView(md)
-        col.addView(ModuleUi.button(this, "Save Extra Income") {
+        card.addView(salGoldHeader("EXTRA INCOME", ""))
+        card.addView(ModuleUi.label(this, "Amount")); card.addView(salBoxed(amt))
+        card.addView(ModuleUi.label(this, "Reason")); card.addView(salBoxed(why))
+        /* 🎨 V1182 — TK-এর পাশ-করা প্রুফ অনুযায়ী দুটো বাছাই এক লাইনে। */
+        val whenCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        whenCol.addView(ModuleUi.label(this, "When")); whenCol.addView(salBoxed(whenSpin))
+        val modeCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        modeCol.addView(ModuleUi.label(this, "Mode")); modeCol.addView(salBoxed(md))
+        card.addView(salPairRow(whenCol, modeCol))
+        card.addView(ModuleUi.button(this, "Save Extra Income") {
             val v = amt.text.toString().toDoubleOrNull() ?: 0.0
             if (v <= 0.0) { ModuleUi.toast(this, "Enter an amount"); return@button }
             val r = why.text.toString().trim()

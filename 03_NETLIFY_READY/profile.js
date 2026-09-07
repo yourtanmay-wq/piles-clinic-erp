@@ -1504,11 +1504,18 @@
     var m = window.MOD;
     document.getElementById('app').innerHTML = '<div class="wrap anMod anModPf"><div class="topbar"><b>Extra Income — ' + m.esc(code) + '</b>' +
       '<button class="ghost" onclick="profSalary(\'' + m.esc(code) + '\')">Back</button></div><div class="page">' +
+      /* 🎨🔒 V1182 (০৭.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — সোনালি পট্টি,
+         সবকিছু একটাই কার্ডে, "When" ও "Mode" পাশাপাশি (ফোনের হুবহু যমজ)।
+         ⛔ ঘরগুলোর `id` · কী সেভ হয় · নিয়ম — এক অক্ষরও বদলায়নি। */
       '<div class="card">' +
+      '<div style="background:linear-gradient(90deg,#B45309,#E0A800);color:#fff;border-radius:12px;padding:10px 14px;margin-bottom:10px">' +
+        '<b style="font-size:14px;letter-spacing:.6px">EXTRA INCOME</b></div>' +
       '<label>Amount</label><input id="exAmt" class="input" type="number" inputmode="numeric">' +
-      '<label>Reason</label><input id="exWhy" class="input" type="text">' +
-      '<label>When</label><select id="exWhen" class="input"><option value="now">Paying now</option><option value="due">Pay later (Due)</option></select>' +
-      '<label>Mode</label><select id="exMode" class="input"><option>Cash</option><option>Online</option></select>' +
+      '<label>Reason</label><input id="exWhy" class="input" type="text" placeholder="Bonus / Festival / Overtime">' +
+      '<div style="display:flex;gap:9px">' +
+        '<div style="flex:1"><label>When</label><select id="exWhen" class="input"><option value="now">Paying now</option><option value="due">Pay later (Due)</option></select></div>' +
+        '<div style="flex:1"><label>Mode</label><select id="exMode" class="input"><option>Cash</option><option>Online</option></select></div>' +
+      '</div>' +
       '<div class="actions"><button class="ghost" onclick="profSalary(\'' + m.esc(code) + '\')">Cancel</button>' +
       '<button onclick="profExtraIncomeSave(\'' + m.esc(code) + '\')">Save Extra Income</button></div></div>' +
       '</div></div>';
