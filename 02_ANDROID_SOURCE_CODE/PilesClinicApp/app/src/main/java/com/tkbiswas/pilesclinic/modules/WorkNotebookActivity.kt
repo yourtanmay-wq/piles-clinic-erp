@@ -3219,6 +3219,42 @@ class WorkNotebookActivity : AppCompatActivity() {
             val dateFilter = if (mode == "day") "createdAt=gte.$key" else "createdAt=gte.$key-01&createdAt=lt.$key-32"
             // 🔴 V509: `date` ঘরের জন্য সত্যিকারের সীমা (পরের মাসের ১ তারিখ)।
             val monthEnd = monthEndExclusive(key)
+            /* 🚨🔒 V1188 (০৭.০৯.২০২৬, TK-রিপোর্ট: *"KISHAN-10 & 11 এরা কিছু
+               রেজিষ্ট্রেশন করেছে … কিন্তু তাদের টা কেন 0"* এবং TK-এর সঠিক আপত্তি
+               *"আপনি আবার নেট দুর্বল বলছেন, আমার প্রতিটা চেম্বারে হাই স্পিডের
+               ইন্টারনেট লাগানো"*)।
+
+               🔴 **প্রথমে প্রমাণ (আন্দাজ নয়):** TK-র পাঠানো রিপোর্টে **App Calls: 0**
+                  লেখা ছিল — "…" নয়। ওই ঘরটা পড়া ব্যর্থ হলে "…" দেখায় (V590)।
+                  ⇒ **পড়াগুলো সফলই হয়েছিল**, নেটের কোনো দোষ ছিল না। সার্ভার সত্যিই
+                  ০ ফেরত দিয়েছে — অর্থাৎ **ছাঁকনিটাই মিলছিল না**। আমার আগের
+                  "নেট দুর্বল" কথাটা ভুল ছিল।
+
+               🔴 **দুটো অমিল কোডে মেপে বের করা হলো — কম্পিউটারের নিজের নিয়মের
+                  সঙ্গে মিলিয়ে (`notebook.js`-এর `autoStats`):**
+                  ① **নম্বর মেলানো** — কম্পিউটার `mobEq()` দিয়ে **শেষ ১০ অঙ্ক** মেলায়,
+                     তাই "+919883605917" আর "9883605917" একই ধরা হয়। ফোনে ছিল হুবহু
+                     `eq.` — সারিটা অন্য ধাঁচে সেভ হলে (কম্পিউটার থেকে করা
+                     রেজিস্ট্রেশন, পুরনো সারি) কখনোই মিলত না ⇒ ০।
+                  ② **তারিখের ঘর** — কম্পিউটার `createdAt` **অথবা** `date` **অথবা**
+                     `registrationDate` — তিনটের যেকোনোটা দেখে। ফোনে ছিল শুধু
+                     `createdAt`। পুরনো সারি আবার সেভ হলে `createdAt`-এ **আসল
+                     পুরনো সময়ই** থেকে যায় (V868-এর নিয়ম), তাই আজ কাজ করেও আজকের
+                     গোনায় ঢুকত না ⇒ ০।
+
+               ⇒ এখন ফোনেও ঠিক কম্পিউটারের নিয়ম: শেষ ১০ অঙ্ক ধরে মেলানো, আর
+                 তিনটে তারিখ-ঘরের যেকোনোটা। ⛔ কাকে গোনা হবে (নিজের করা কাজ) —
+                 সেই নিয়ম এক অক্ষরও বদলায়নি, শুধু মেলানোর ধরনটা উদার হলো।
+               ⛔ নতুন ছাঁকনি কোনো কারণে সার্ভার না বুঝলে **আগের হুবহু ছাঁকনিতেই**
+                 আবার চেষ্টা হয় (নিচে `countBoth`) — তাই আগের চেয়ে খারাপ কিছু
+                 কখনো হতে পারে না। */
+            val me10 = mobile.filter { it.isDigit() }.takeLast(10)
+            val dayOr = if (mode == "day")
+                "or(createdAt.gte.$key,date.eq.$key,registrationDate.eq.$key)"
+            else "or(createdAt.gte.$key-01,date.gte.$key-01,registrationDate.gte.$key-01)"
+            val mineEnqNew = "and=(or(createdBy.like.*$me10,receivedBy.like.*$me10),$dayOr)"
+            val minePatNew = "and=(or(registeredBy.like.*$me10,createdBy.like.*$me10),$dayOr)"
+            val minePayNew = "and=(or(receivedBy.like.*$me10,createdBy.like.*$me10),$dayOr)"
             val mineEnq = "or=(createdBy.eq.$mobile,receivedBy.eq.$mobile)&$dateFilter"
             val minePat = "or=(registeredBy.eq.$mobile,createdBy.eq.$mobile)&$dateFilter"
             val minePay = "or=(receivedBy.eq.$mobile,createdBy.eq.$mobile)&$dateFilter"
@@ -3226,13 +3262,21 @@ class WorkNotebookActivity : AppCompatActivity() {
             // নেটওয়ার্ক ব্যর্থ হলে সংখ্যাটা "জিরো" না দেখিয়ে "…" দেখানো
             // হয় (নিচে loadStats()-এ), যাতে আসল ডেটা মুছে গেছে বলে ভুল
             // ধারণা না হয়।
-            val enqR = ModuleAuth.countPublicChecked("enquiries", mineEnq)
-            val regR = ModuleAuth.countPublicChecked("patients", minePat)
+            /* 🛡 V1188 — নতুন (উদার) ছাঁকনি আগে; সার্ভার না বুঝলে পুরনোটা।
+               ⛔ তাই সবচেয়ে খারাপ ক্ষেত্রেও আগের সংখ্যাটাই আসে, কম নয়। */
+            fun countBoth(table: String, wide: String, old: String): ModuleAuth.CountResult {
+                val r = ModuleAuth.countPublicChecked(table, wide)
+                return if (r.ok) r else ModuleAuth.countPublicChecked(table, old)
+            }
+            val enqR = countBoth("enquiries", mineEnqNew, mineEnq)
+            val regR = countBoth("patients", minePatNew, minePat)
             val enq = enqR.count
             val reg = regR.count
             // AUDIT FIX (2026-08-06): use the checked sum so a network failure
             // shows "…" instead of a misleading ₹0 (see loadStats/report below).
-            val collR = ModuleAuth.sumPublicChecked("payments", minePay, "amount")
+            val collR = ModuleAuth.sumPublicChecked("payments", minePayNew, "amount").let {
+                if (it.ok) it else ModuleAuth.sumPublicChecked("payments", minePay, "amount")
+            }
             val coll = collR.sum
             /* 🟢🔒 V590 (২৩.০৮.২০২৬, TK-রিপোর্ট, ছবিসহ: *"App থেকে অনেকগুলো কল
                আমার সামনেই করলো, কিন্তু এখন সব 0 কেন দেখাচ্ছে?"*)
