@@ -657,11 +657,9 @@ class BriefingActivity : AppCompatActivity() {
             setBackgroundColor(android.graphics.Color.WHITE)
             setPadding(dp(16), dp(14), dp(16), dp(14))
         }
-        formCard.addView(TextView(this).apply {
-            text = "Grant new permission"; textSize = 13f
-            setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setTextColor(android.graphics.Color.parseColor("#10223A"))
-        })
+        /* 📄🔒 V1177 (TK-অনুমোদিত ফটো-প্রুফ) — TK: *"Grant New
+           Permission উপরে লেখার দরকার নেই"* (উপরের বেগুনি পট্টিতেই
+           "BACKDATE PERMISSIONS" লেখা আছে)। ⛔ শুধু লেখাটা বাদ, ফর্ম অটুট। */
         fun field(hint: String): EditText = EditText(this).apply {
             this.hint = hint; textSize = 13f
             setPadding(dp(10), dp(10), dp(10), dp(10))
@@ -819,9 +817,14 @@ class BriefingActivity : AppCompatActivity() {
                 PremiumAlert.paint(dlg)
             }
         }
-        val startDateInput = field("Start date (tap to pick)").apply { isFocusable = false }
-        val endDateInput = field("End date (tap to pick)").apply { isFocusable = false }
-        val noteInput = field("Reason / note (optional)")
+        /* 📄 V1177 — পাশাপাশি বসায় লেখা ছোট: "Start date" · "End date"। */
+        val startDateInput = field("Start date").apply { isFocusable = false }
+        val endDateInput = field("End date").apply { isFocusable = false }
+        /* 📄🔒 V1177 (TK-নির্দেশ) — *"Reason এর দরকার নেই"*।
+           ⛔ ঘরটা মোছা হয়নি (প্রকল্প-নিয়ম: নিজে থেকে কোড মোছা হয় না) — শুধু
+              **দেখানো বন্ধ**, আর সেভে ফাঁকা লেখা যায়। নিচের `grantBackdate(...)`
+              কল এক অক্ষরও বদলায়নি, তাই ভবিষ্যতে ফেরাতে চাইলে এক লাইনেই ফেরে। */
+        val noteInput = field("Reason / note (optional)").apply { visibility = View.GONE }
         fun pickDateInto(target: EditText) {
             val cal = java.util.Calendar.getInstance()
             android.app.DatePickerDialog(this, { _, y, m, dd ->
@@ -830,7 +833,21 @@ class BriefingActivity : AppCompatActivity() {
         }
         startDateInput.setOnClickListener { pickDateInto(startDateInput) }
         endDateInput.setOnClickListener { pickDateInto(endDateInput) }
-        formCard.addView(staffMobileInput); formCard.addView(startDateInput); formCard.addView(endDateInput); formCard.addView(noteInput)
+        formCard.addView(staffMobileInput)
+        /* 📄🔒 V1177 (TK-নির্দেশ) — *"start date & End Date পাশাপাশি
+           রাখুন"*: দুটো ঘর এক সারিতে, সমান চওড়া। ⛔ ঘরের id · ক্যালেন্ডার ·
+           সেভ — কিচ্ছু বদলায়নি, শুধু বসার জায়গা। */
+        formCard.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            addView(startDateInput, LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            addView(endDateInput, LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { leftMargin = dp(8) })
+        })
+        formCard.addView(noteInput)
         val grantBtn = TextView(this).apply {
             text = "✅ Grant Permission"
             textSize = 12.5f
@@ -1992,7 +2009,10 @@ class BriefingActivity : AppCompatActivity() {
         // dismiss হয়। ⛔ ডিলিট/Trash/অনুমতির আসল লজিক এক অক্ষরও বদলায়নি।
         val dlg = AlertDialog.Builder(this)
             .setCustomTitle(PremiumAlert.header(this, "Approve & Delete?"))
-            .setMessage(item.message + NoBengali.s("\n\n⚠️ If you approve, the record goes to the Trash Bin (it can be restored later).")   /* 🔤 V728 */)
+            /* 📄 V1177 — শুধু দরকারি তিন লাইন (TK-অনুমোদিত প্রুফ)।
+               ⛔ `item.message` অক্ষত, তাই নিচের Approve আগের মতোই চলে। */
+            .setMessage(DeletePermission.shortSummary(item.message) +
+                NoBengali.s("\n\nGoes to Trash — can be restored."))
             .setPositiveButton("Approve & Delete", null)
             .setNegativeButton("Cancel", null)
             .show().also { PremiumAlert.paint(it) }

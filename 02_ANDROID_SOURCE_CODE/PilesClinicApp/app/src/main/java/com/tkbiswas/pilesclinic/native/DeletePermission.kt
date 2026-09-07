@@ -221,6 +221,38 @@ object DeletePermission {
     @Volatile private var lastMsg: String = ""
     fun lastMessage(): String = lastMsg.ifBlank { "Request sent to Master" }
 
+    /* 📄🔒 V1177 (০৭.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — TK, ছবিসহ:
+       *"এগুলি প্রফেশনাল লুক আনতে হবে · এত বেশি বিস্তারিত রাখা যাবে না ·
+       যেটুকু প্রয়োজন সেটুকুই রাখুন"*।
+
+       "Approve & Delete?" পপ-আপে **পুরো কাঁচা বার্তাটা** বসত — Row ID ·
+       Patient ID · Mobile-এর মতো যন্ত্রের লেখা সহ, ৯ লাইন। মাস্টারের
+       সিদ্ধান্ত নিতে ওগুলোর দরকার নেই।
+
+       এখন তিন লাইন: **নাম** · **তারিখ ও টাকা** · **ব্রাঞ্চ · কে চাইল**।
+       ⛔ সেভ করা `item.message` এক অক্ষরও বদলায় না — শুধু **দেখানোর** লেখা;
+          তাই Approve-এর পথ (`approveAndDelete` ওই বার্তা থেকেই Row ID পড়ে)
+          হুবহু আগের মতোই কাজ করে।
+       ⛔ কোনো ঘর চেনা না গেলে সেই লাইনটা শুধু বসে না — কিছু ভাঙে না। */
+    fun shortSummary(message: String): String {
+        return try {
+            fun f(key: String): String = Regex(
+                "(?im)^[^A-Za-z]*" + Regex.escape(key) + "\\s*:\\s*(.+)$"
+            ).find(message)?.groupValues?.get(1)?.trim().orEmpty()
+            val type = f("Type").ifBlank { "Record" }
+            val what = f(type).ifBlank { f("Reason") }          // "Payment : 07.09.2026 · ₹1,000 …"
+            val by = f("Requested by")
+            val branch = f("Branch")
+            val lines = ArrayList<String>()
+            f("Name").takeIf { it.isNotBlank() }?.let { lines.add(it) }
+            if (what.isNotBlank()) lines.add(what)
+            val third = listOf(branch, if (by.isNotBlank()) "By $by" else "")
+                .filter { it.isNotBlank() }.joinToString(" \u00b7 ")
+            if (third.isNotBlank()) lines.add(third)
+            if (lines.isEmpty()) message else lines.joinToString("\n")
+        } catch (_: Throwable) { message }
+    }
+
     fun sendRequest(
         context: Context,
         user: NativeUser,

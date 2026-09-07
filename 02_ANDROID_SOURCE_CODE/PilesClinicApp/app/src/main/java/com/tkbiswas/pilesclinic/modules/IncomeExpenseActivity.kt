@@ -1323,11 +1323,15 @@ class IncomeExpenseActivity : AppCompatActivity() {
                 val amtNow = amount.text.toString().toDoubleOrNull() ?: exp.optDouble("amount", 0.0)
                 androidx.appcompat.app.AlertDialog.Builder(this@IncomeExpenseActivity)
                     .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this@IncomeExpenseActivity, "🗑️ Delete this expense?")   /* 🔤 V726 */)
+                    /* 📄 V1177 (TK-অনুমোদিত ফটো-প্রুফ) — *"যেটুকু প্রয়োজন
+                       সেটুকুই রাখুন"*: উপরে **কীসের খরচ**, তারপর **তারিখ ও টাকা**,
+                       নিচে **ব্রাঞ্চ · কাকে দেওয়া**। ⛔ মোছার নিয়ম অটুট। */
                     .setMessage(
-                        slashIso((dateInp.tag as? String) ?: startIso) + " · " + branch.selectedItem.toString() + "\n" +
-                        ((cat.tag as? String) ?: "") + " · " + paidTo.text.toString() + "\n" +
-                        "টাকা: " + money(amtNow) + "\n\n" +
-                        "এটি হিসাব থেকে বাদ যাবে। চিরতরে মুছবে না — দরকারে ফেরানো যাবে।"
+                        ((cat.tag as? String) ?: "") + "\n" +
+                        slashIso((dateInp.tag as? String) ?: startIso) + " · " + money(amtNow) + "\n" +
+                        listOf(branch.selectedItem.toString(), paidTo.text.toString())
+                            .filter { it.isNotBlank() }.joinToString(" \u00b7 ") + "\n\n" +
+                        com.tkbiswas.pilesclinic.native.NoBengali.s("Goes to Trash — can be restored.")
                     )
                     .setNegativeButton("Cancel", null)
                     .setPositiveButton("Delete") { _, _ ->
@@ -1514,7 +1518,9 @@ class IncomeExpenseActivity : AppCompatActivity() {
                     val oShow = money(online.text.toString().toDoubleOrNull() ?: 0.0)
                     androidx.appcompat.app.AlertDialog.Builder(this@IncomeExpenseActivity)
                         .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this@IncomeExpenseActivity, "🗑️ Delete this entry?"))
-                        .setMessage("$dShow · $bShow\nCash $cShow · Online $oShow\n\nThis row will be removed from the ledger. It is hidden safely — not permanently erased.")
+                        /* 📄 V1177 — একই ধাঁচ, ছোট ও পরিষ্কার (নিয়ম ৭)। */
+                        .setMessage("$dShow · $bShow\nCash $cShow · Online $oShow\n\n" +
+                            com.tkbiswas.pilesclinic.native.NoBengali.s("Goes to Trash — can be restored."))
                         .setNegativeButton("Cancel", null)
                         .setPositiveButton("Delete") { _, _ ->
                             ModuleUi.toast(this@IncomeExpenseActivity, "Deleting...")
