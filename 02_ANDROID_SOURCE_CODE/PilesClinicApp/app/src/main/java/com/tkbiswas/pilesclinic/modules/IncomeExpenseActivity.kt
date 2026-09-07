@@ -1362,26 +1362,83 @@ class IncomeExpenseActivity : AppCompatActivity() {
 
     private fun openSheetRowEditor(date: String, existing: JSONObject?, onSaved: () -> Unit) {
         backAction = { sheet(date.substring(0, 7)) }
-        val col = ModuleUi.screen(this, "Ledger Entry")
+        /* 🎨🔒 V1175 (০৭.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — TK:
+           *"কোচবিহারের মধ্যে ঢুকে আয় ব্যয় তুলছে, সেখানে আবার ব্রাঞ্চ কেন সিলেক্ট
+           করতে হবে · ক্যাশ এবং অনলাইন পাশাপাশি রাখুন, বক্স আকারে · খরচের লেখাটাও
+           একটা বক্সের মধ্যে রাখুন যাতে প্রফেশনাল দেখতে লাগে"*।
+
+           ⛔ **সেভের নিয়ম · টাকার অঙ্ক · অনুমতির শর্ত — কিচ্ছু বদলায়নি**; শুধু
+              চেহারা। ব্রাঞ্চটা এখন **বাছতে হয় না** — যে ব্রাঞ্চের খাতা থেকে ঢোকা
+              হয়েছে সেটাই উপরের পট্টিতে লেখা থাকে, আর সেভেও ঠিক সেটাই যায়
+              (আগে spinner-এ ওটাই বাছা থাকত, তাই ফলে কোনো পার্থক্য নেই)।
+           ⛔ তারিখের ঘরে কোনো ছবি-অক্ষর নেই (TK-নির্দেশ) — চাপলে আগের মতোই
+              ক্যালেন্ডার খোলে। */
+        val col = ModuleUi.screen(this, "")
         val dateInp = dateField(date)
-        val branch = spinner(BRANCHES)
-        val cash = ModuleUi.numberInput(this, "Cash", allowDecimal = true)
-        val online = ModuleUi.numberInput(this, "Online", allowDecimal = true)
+        /* যে ব্রাঞ্চের সারি, সেটাই — না পেলে খাতার চলতি ব্রাঞ্চ। */
+        val rowBranch = (existing?.s("branch")?.takeIf { it.isNotBlank() && it in BRANCHES })
+            ?: (lockedBranch?.takeIf { it in BRANCHES })
+            ?: homeBranch.takeIf { it in BRANCHES }
+            ?: BRANCHES.first()
+        col.addView(ledgerHeader("Ledger Entry", rowBranch))
+        val cash = ModuleUi.numberInput(this, "", allowDecimal = true)
+        val online = ModuleUi.numberInput(this, "", allowDecimal = true)
         val expenseBox = android.widget.EditText(this).apply {
             hint = ""
             minLines = 4; gravity = android.view.Gravity.TOP or android.view.Gravity.START
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
         }
-        val totalTv = ModuleUi.body(this, "Total Expense: ₹0")
-        col.addView(ModuleUi.label(this, "Date")); col.addView(dateInp)
-        col.addView(ModuleUi.label(this, "Branch")); col.addView(branch)
-        col.addView(ModuleUi.label(this, "Cash")); col.addView(cash)
-        col.addView(ModuleUi.label(this, "Online")); col.addView(online)
+        val totalTv = ModuleUi.body(this, "₹0")
+        col.addView(ModuleUi.label(this, "Date")); col.addView(boxify(dateInp))
+        /* 🎨 V1175 — Cash ও Online পাশাপাশি, সমান চওড়া (TK-নির্দেশ)। */
+        col.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(8) }
+            addView(LinearLayout(this@IncomeExpenseActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                addView(ModuleUi.label(this@IncomeExpenseActivity, "Cash"))
+                addView(boxify(cash, big = true))
+            })
+            addView(LinearLayout(this@IncomeExpenseActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    .apply { leftMargin = dp(10) }
+                addView(ModuleUi.label(this@IncomeExpenseActivity, "Online"))
+                addView(boxify(online, big = true))
+            })
+        })
         col.addView(ModuleUi.label(this, "Expense / ব্যায়"))
-        col.addView(expenseBox)
-        col.addView(totalTv)
+        col.addView(boxify(expenseBox))
+        /* 🎨 V1175 — মোট খরচ এখন নিজের একটা হালকা পট্টিতে। ⛔ অঙ্কটা
+           হুবহু আগের ফাংশনেই (`sumNumbersInText`) হিসাব হয়। */
+        col.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dp(12), dp(9), dp(12), dp(9))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(9).toFloat()
+                setColor(android.graphics.Color.parseColor("#EEF7F1"))
+                setStroke(dp(1), android.graphics.Color.parseColor("#CFE2D5"))
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(10) }
+            addView(android.widget.TextView(this@IncomeExpenseActivity).apply {
+                text = "Total Expense"; textSize = 13f
+                setTextColor(android.graphics.Color.parseColor("#33404F"))
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            })
+            addView(totalTv.apply {
+                textSize = 14f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#B42318"))
+            })
+        })
 
-        fun refreshTotal() { totalTv.text = "Total Expense: " + money(sumNumbersInText(expenseBox.text.toString())) }
+        fun refreshTotal() { totalTv.text = money(sumNumbersInText(expenseBox.text.toString())) }
         expenseBox.addTextChangedListener(object : android.text.TextWatcher {
             override fun afterTextChanged(s: android.text.Editable?) { refreshTotal() }
             override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
@@ -1392,7 +1449,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
             cash.setText(existing.optDouble("cash", 0.0).let { if (it == 0.0) "" else it.toInt().toString() })
             online.setText(existing.optDouble("online", 0.0).let { if (it == 0.0) "" else it.toInt().toString() })
             expenseBox.setText(existing.optString("expense_notes", "").let { if (it == "null") "" else it })
-            val bIdx = BRANCHES.indexOf(existing.s("branch")); if (bIdx >= 0) branch.setSelection(bIdx)
+            /* 🎨 V1175 — ব্রাঞ্চ এখন `rowBranch`-এ, উপরের পট্টিতে দেখানো হয়। */
         }
         refreshTotal()
 
@@ -1407,7 +1464,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
             val dNow = (dateInp.tag as? String) ?: date
             val exId = existing?.optString("id")
             if (ieRestricted && !ieIsToday(dNow)) {
-                ieAskApproval(IePermit.EDIT_COLLECTION, branch.selectedItem.toString(), dNow, exId,
+                ieAskApproval(IePermit.EDIT_COLLECTION, rowBranch, dNow, exId,
                     JSONObject()
                         .put("cash", cash.text.toString().toDoubleOrNull() ?: 0.0)
                         .put("online", online.text.toString().toDoubleOrNull() ?: 0.0)
@@ -1417,7 +1474,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
             }
             val row = JSONObject()
                 .put("entry_date", (dateInp.tag as? String) ?: date)
-                .put("branch", branch.selectedItem.toString())
+                .put("branch", rowBranch)
                 .put("cash", cash.text.toString().toDoubleOrNull() ?: 0.0)
                 .put("online", online.text.toString().toDoubleOrNull() ?: 0.0)
                 .put("expense_notes", note)
@@ -1452,7 +1509,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
                 layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(50)).apply { topMargin = dp(12) }
                 setOnClickListener {
                     val dShow = slashIso((dateInp.tag as? String) ?: date)
-                    val bShow = branch.selectedItem?.toString() ?: ""
+                    val bShow = rowBranch
                     val cShow = money(cash.text.toString().toDoubleOrNull() ?: 0.0)
                     val oShow = money(online.text.toString().toDoubleOrNull() ?: 0.0)
                     androidx.appcompat.app.AlertDialog.Builder(this@IncomeExpenseActivity)
@@ -2520,6 +2577,67 @@ class IncomeExpenseActivity : AppCompatActivity() {
        (Monthly-র "\u2022\u2022\u2022 Options")। ⛔ `middleText` ডিফল্ট ফাঁকা, তাই এই
        ফাংশনের পুরনো সব ডাক (Back/Show) এক অক্ষরও বদলায়নি — ফাঁকা হলে
        মাঝের বোতামটা বসেই না, আগের মতো দুটোই থাকে। */
+    /* 🎨🔒 V1175 (০৭.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — Ledger Entry-র
+       উপরের পট্টি: বাঁয়ে নাম, ডানে **যে ব্রাঞ্চের খাতা** সেটার নাম।
+       ⛔ শুধু দেখানো — এখানে কিছু বাছা যায় না, তাই ভুল ব্রাঞ্চে সেভ হওয়ার
+          কোনো পথও থাকে না (আগে spinner-এ ভুল করে অন্য ব্রাঞ্চ বাছা যেত)। */
+    private fun ledgerHeader(title: String, branch: String): LinearLayout =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dp(14), dp(12), dp(12), dp(12))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(12).toFloat()
+                orientation = android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT
+                colors = intArrayOf(
+                    android.graphics.Color.parseColor("#123F86"),
+                    android.graphics.Color.parseColor("#16A34A")
+                )
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(4) }
+            addView(android.widget.TextView(this@IncomeExpenseActivity).apply {
+                text = title; textSize = 16f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.WHITE)
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            })
+            addView(android.widget.TextView(this@IncomeExpenseActivity).apply {
+                text = branch; textSize = 12f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.WHITE)
+                setPadding(dp(11), dp(5), dp(11), dp(5))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(20).toFloat()
+                    setColor(android.graphics.Color.parseColor("#33FFFFFF"))
+                    setStroke(dp(1), android.graphics.Color.parseColor("#66FFFFFF"))
+                }
+            })
+        }
+
+    /* 🎨🔒 V1175 — ঘরটাকে **বাক্স** বানায় (TK: *"বক্স আকারে"*)।
+       ⛔ শুধু সাজ — ঘরের id · লেখা · কীবোর্ড · সেভ কিচ্ছু বদলায় না।
+       `big = true` হলে টাকার ঘর: বড়, মোটা, ডানে-ঘেঁষা সবুজ। */
+    private fun <T : android.view.View> boxify(v: T, big: Boolean = false): T {
+        v.background = android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = dp(9).toFloat()
+            setColor(android.graphics.Color.parseColor("#FAFDFB"))
+            setStroke(dp(1), android.graphics.Color.parseColor("#D7E0DA"))
+        }
+        v.setPadding(dp(11), dp(9), dp(11), dp(9))
+        if (v is android.widget.TextView) {
+            if (big) {
+                v.textSize = 17f
+                v.setTypeface(v.typeface, android.graphics.Typeface.BOLD)
+                v.gravity = android.view.Gravity.END
+                v.setTextColor(android.graphics.Color.parseColor("#0A5C33"))
+            } else v.setTextColor(android.graphics.Color.parseColor("#123A26"))
+        }
+        (v.layoutParams as? LinearLayout.LayoutParams)?.let { it.topMargin = dp(2) }
+        return v
+    }
+
     private fun compactFooter(
         secondaryText: String,
         primaryText: String,
