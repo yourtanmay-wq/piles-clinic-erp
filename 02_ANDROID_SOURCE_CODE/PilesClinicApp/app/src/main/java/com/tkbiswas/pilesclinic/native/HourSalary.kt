@@ -34,12 +34,23 @@ object HourSalary {
     const val DAY_HOURS = 7.0
     private const val DAY_MINUTES = (DAY_HOURS * 60).toInt()
 
-    /** যে মাস থেকে এই নিয়ম চালু — এর আগের মাসে হিসাব দেখানো হয় না। */
-    fun startsFrom(): String {
-        val c = Calendar.getInstance(TimeZone.getTimeZone("Asia/Kolkata"))
-        c.add(Calendar.MONTH, 1)
-        return String.format(Locale.US, "%04d-%02d", c.get(Calendar.YEAR), c.get(Calendar.MONTH) + 1)
-    }
+    /**
+     * যে মাস থেকে এই নিয়ম চালু।
+     *
+     * 📅🔒 V1178 (০৭.০৯.২০২৬, TK-নির্দেশ) — TK: *"হ্যাঁ, সেপ্টেম্বর থেকেই
+     * চালু হবে"* · *"স্যালারি হবে 01/09/2026 থেকে"*।
+     *
+     * আগে এটা **আসছে মাস** হিসাব করত (V1166-এ TK বলেছিলেন *"বিগত দিনের হিসাব
+     * ধরবেন না, আগামী মাস থেকে হবে"*)। TK নিজে সেপ্টেম্বরের সংখ্যাটা মিলিয়ে
+     * দেখে (COB-UTTAMA — ৪৪ঘ ৫২মি · ₹১,৪৯৬, হাতে গুনে হুবহু মিলেছে) সিদ্ধান্ত
+     * বদলেছেন। তাই এখন **বাঁধা `2026-09`**।
+     *
+     * ⛔ বাঁধা লেখা রাখা হয়েছে ইচ্ছে করে — "আসছে মাস" রাখলে অক্টোবরে গিয়ে
+     *    নিয়মটা আবার পিছিয়ে যেত, আর সেপ্টেম্বরের হিসাব হারিয়ে যেত।
+     */
+    const val STARTS_FROM = "2026-09"
+
+    fun startsFrom(): String = STARTS_FROM
 
     /** "2026-10" → ওই মাসে কত দিন। চেনা না গেলে ০। */
     fun daysInMonth(ym: String): Int = try {

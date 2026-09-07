@@ -533,11 +533,11 @@
         এর জন্য থামে না — ব্যর্থ হলে লাইনটা শুধু বসে না। */
   var SAL_DAY_HOURS = 7, SAL_DAY_MINUTES = 7 * 60;
   /* যে মাস থেকে নিয়মটা চালু — TK: *"বিগত দিনের হিসাব ধরবেন না"*। */
-  function salHourStartsFrom(){
-    var t = window.MOD.todayIST(), y = parseInt(t.slice(0,4),10), mo = parseInt(t.slice(5,7),10) + 1;
-    if (mo > 12) { mo = 1; y += 1; }
-    return y + '-' + (mo < 10 ? '0' + mo : '' + mo);
-  }
+  /* 📅🔒 V1178 (০৭.০৯.২০২৬, TK-নির্দেশ) — TK: *"হ্যাঁ, সেপ্টেম্বর থেকেই চালু হবে"*।
+     আগে "আসছে মাস" হিসাব হত; TK নিজে সেপ্টেম্বরের সংখ্যা মিলিয়ে দেখে সিদ্ধান্ত
+     বদলেছেন। এখন বাঁধা `2026-09` (ফোনের `HourSalary.STARTS_FROM`-এর হুবহু একই)। */
+  var SAL_HOUR_STARTS_FROM = '2026-09';
+  function salHourStartsFrom(){ return SAL_HOUR_STARTS_FROM; }
   function salHourDaysInMonth(ym){
     try{ var p = String(ym).split('-'); var y = parseInt(p[0],10), mo = parseInt(p[1],10);
       if(!y || !mo) return 0; return new Date(Date.UTC(y, mo, 0)).getUTCDate(); }catch(e){ return 0 }
@@ -567,7 +567,7 @@
     return { monthHours: mh, ratePerHour: rate, workedMinutes: worked,
              leaveDays: leaves, missingDays: missing, payable: (worked/60) * rate };
   }
-  async function salHourFill(code, amount, ym){
+  async function salHourFill(code, amount, ym, paidThisMonth){
     var el = document.getElementById('salHourVal'), lab = document.getElementById('salHourLab');
     if(!el) return;
     try{
@@ -590,6 +590,17 @@
       el.textContent = window.MOD.money(r.payable) + '  \u00b7  ' + salHourText(r.workedMinutes) +
         ' of ' + Math.round(r.monthHours) + 'h';
       el.style.color = '#0E6E8C';
+      /* 💰🔒 V1178 (TK-অনুমোদিত ধাপ ২) — নিয়ম চালু হওয়া মাস থেকে "এই মাসে বাকি"-ও
+         ঘণ্টা হিসাবেই। ⛔ হাজিরা আনা না গেলে এই ঘরটা ছোঁয়াই হয় না (উপরের catch),
+         তখন আগের নিয়মেই সেট করা বেতন ধরে বাকি দেখায়। */
+      if (started) {
+        var dueNow = Math.max(0, r.payable - Number(paidThisMonth || 0));
+        var dEl = document.getElementById('salDueVal');
+        if (dEl) {
+          dEl.textContent = dueNow <= 0 ? 'Paid' : ('Due ' + window.MOD.money(dueNow));
+          dEl.style.color = dueNow <= 0 ? '#0A7C3F' : '#B42318';
+        }
+      }
     }catch(e){
       var row = document.getElementById('salHourRow'); if(row) row.style.display = 'none';
     }
@@ -658,7 +669,12 @@
       '<div style="font-weight:800;color:#0A5C33;font-size:16px;padding-bottom:4px">Salary</div>' +
       (active
         ? (salRow('Monthly', m.money(amount) + (sc.salary_date ? (' · day ' + m.esc(sc.salary_date)) : ''), '#0A5C33', true) +
-           salRow(monthLabel(cur), (due <= 0 ? 'Paid' : 'Due ' + m.money(due)), (due <= 0 ? '#0A7C3F' : '#B42318'), true) +
+           /* 💰 V1178 — এই সারিটাই পরে ঘণ্টার হিসাবে বদলে যায় (`salHourFill`)।
+              ⛔ প্রথমে আগের নিয়মেই বসে, তাই হাজিরা না এলে কিছু খারাপ হয় না। */
+           ('<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px solid #F0F4F1">' +
+             '<span style="color:#3B5A49;font-size:13.5px">' + m.esc(monthLabel(cur)) + '</span>' +
+             '<b id="salDueVal" style="color:' + (due <= 0 ? '#0A7C3F' : '#B42318') + ';font-size:14.5px">' +
+             (due <= 0 ? 'Paid' : 'Due ' + m.money(due)) + '</b></div>') +
            salRow('Paid up to', (latest ? monthLabel(latest) : '—'), '#0A7C3F', true) +
            /* ⏱️🔒 V1166 — ঘণ্টা হিসাবে কত হত (শুধু দেখানো; টাকা বদলায় না)। */
            '<div id="salHourRow" style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px solid #F0F4F1">' +
@@ -748,7 +764,7 @@
       salaryCard + payHtml + extraCard + settingsCard + fieldCard +
       '</div></div>';
     /* ⛔ পর্দা আগে আঁকা হয়, তারপর ঘণ্টার লাইনটা ভরে — ফোনের মতোই। */
-    if(active) salHourFill(code, amount, cur);
+    if(active) salHourFill(code, amount, cur, paidThis);   /* 💰 V1178 */
   }
 
   /* ⏰🔒 V990 (০৩.০৯.২০২৬, TK-এর পাশ-করা ফটো-প্রুফ) —

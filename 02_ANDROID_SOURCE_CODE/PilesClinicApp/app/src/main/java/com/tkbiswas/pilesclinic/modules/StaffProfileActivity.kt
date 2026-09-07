@@ -1597,6 +1597,22 @@ class StaffProfileActivity : AppCompatActivity() {
      * ⏱️ V1166 — ওই স্টাফের ওই মাসের হাজিরা পড়ে **ঘণ্টা হিসাবে বেতন কত হত**
      * সেটা লাইনে বসায়। ⛔ শুধু দেখানো — কোনো টাকা লেখা/বদলানো হয় না।
      */
+    /* 💰🔒 V1178 (০৭.০৯.২০২৬, TK-অনুমোদিত ধাপ ২) — TK নিজে সেপ্টেম্বরের
+       সংখ্যাটা মিলিয়ে দেখে (COB-UTTAMA — ৪৪ঘ ৫২মি · ₹১,৪৯৬, হাতে গুনে হুবহু
+       মিলেছে) বলেছেন: *"হ্যাঁ, সেপ্টেম্বর থেকেই চালু হবে"*।
+
+       ⇒ এখন **"এই মাসে বাকি" ঘণ্টা হিসাবেই** আসে (সেপ্টেম্বর ২০২৬ থেকে):
+          বাকি = ঘণ্টার হিসাবে প্রাপ্য − ওই মাসে ইতিমধ্যে দেওয়া।
+
+       ⛔ **শেষ-ভরসা:** হাজিরা আনা না গেলে (নেট/অনুমতি) সংখ্যাটা **ছোঁয়াই হয় না** —
+          তখন আগের নিয়মেই সেট করা বেতন ধরে বাকি দেখায়। ভুল অঙ্ক কখনো বসে না।
+       ⛔ সেপ্টেম্বরের আগের কোনো মাস ছোঁয়া হয় না।
+       ⛔ দেওয়া টাকার সারি (`hr.salary_payments`) এক অক্ষরও বদলায় না — শুধু
+          "বাকি কত" দেখানোর অঙ্কটা। */
+    private var hourPayThisMonth: Double? = null
+    private var salaryDueRow: LinearLayout? = null
+    private var salaryPaidThisMonth: Double = 0.0
+
     private fun loadHourSalaryInto(code: String, amount: Double, ym: String, row: LinearLayout) {
         if (amount <= 0.0) { row.visibility = android.view.View.GONE; return }
         Thread {
@@ -1630,6 +1646,17 @@ class StaffProfileActivity : AppCompatActivity() {
                     text = money(res.payable) + "  \u00b7  " +
                         HourSalary.hoursText(res.workedMinutes) + " of " + res.monthHours.toInt() + "h"
                     setTextColor(android.graphics.Color.parseColor("#0E6E8C"))
+                }
+                /* 💰 V1178 — নিয়ম চালু হওয়া মাস থেকে "এই মাসে বাকি"-ও
+                   ঘণ্টা হিসাবেই। ⛔ এর আগের মাসে হাত পড়ে না। */
+                if (started) {
+                    hourPayThisMonth = res.payable
+                    val dueNow = maxOf(0.0, res.payable - salaryPaidThisMonth)
+                    (salaryDueRow?.getChildAt(1) as? TextView)?.apply {
+                        text = if (dueNow <= 0.0) "Paid" else "Due " + money(dueNow)
+                        setTextColor(android.graphics.Color.parseColor(
+                            if (dueNow <= 0.0) "#0A7C3F" else "#B42318"))
+                    }
                 }
             }
         }.start()
@@ -1675,9 +1702,15 @@ class StaffProfileActivity : AppCompatActivity() {
         box.addView(salSectionTitle("Salary", "#0A5C33"))
         if (active) {
             box.addView(salaryStatusRow("Monthly", money(amount) + (if (salaryDate.isNotBlank()) " · day $salaryDate" else ""), "#0A5C33"))
-            box.addView(salaryStatusRow(salaryMonthLabel(cur),
+            /* 💰 V1178 — এই সারিটাই পরে ঘণ্টার হিসাবে বদলে যায় (উপরে দেখুন)।
+               ⛔ প্রথমে আগের নিয়মেই বসে, তাই হাজিরা না এলে কিছুই খারাপ হয় না। */
+            val dueRow = salaryStatusRow(salaryMonthLabel(cur),
                 if (due <= 0.0) "Paid" else "Due " + money(due),
-                if (due <= 0.0) "#0A7C3F" else "#B42318"))
+                if (due <= 0.0) "#0A7C3F" else "#B42318")
+            salaryDueRow = dueRow
+            salaryPaidThisMonth = paidThisMonth
+            hourPayThisMonth = null
+            box.addView(dueRow)
             box.addView(salaryStatusRow("Paid up to", if (latestMonth.isNotBlank()) salaryMonthLabel(latestMonth) else "—", "#0A7C3F"))
             /* ⏱️🔒 V1166 (০৭.০৯.২০২৬, TK-র সঙ্গে পুরো আলোচনা করে ঠিক হওয়া নিয়ম —
                খাতার সারি ২৭০) — **ঘণ্টা হিসাবে বেতন কত হত**, এখানে দেখানো হয়।
@@ -3377,7 +3410,12 @@ class StaffProfileActivity : AppCompatActivity() {
         for (i in 0 until pays.length()) paidSet.add(salaryPayMonth(pays.getJSONObject(i)))
         val labels = months.map { salaryMonthLabel(it) + (if (paidSet.contains(it)) "  (Paid)" else "  (Due)") }
         val monthSpinner = spinner(labels)
-        val pamt = ModuleUi.numberInput(this, "Amount", allowDecimal = true).apply { if (amount > 0) setText(amount.toLong().toString()) }
+        /* 💰 V1178 — চলতি মাসের ঘণ্টা-হিসাব জানা থাকলে **সেটাই** আগে বসে
+           (TK-র নিয়ম: কম কাজ = কম বেতন)। না জানলে আগের মতোই সেট করা বেতন।
+           ⛔ অঙ্কটা বদলানো যায় — মাস্টারের হাতেই শেষ সিদ্ধান্ত। */
+        val suggested = hourPayThisMonth ?: amount
+        val pamt = ModuleUi.numberInput(this, "Amount", allowDecimal = true)
+            .apply { if (suggested > 0) setText(Math.round(suggested).toString()) }
         val pmode = spinner(listOf("Cash", "Online"))
         col.addView(ModuleUi.label(this, "Month")); col.addView(monthSpinner)
         col.addView(ModuleUi.label(this, "Amount")); col.addView(pamt)
