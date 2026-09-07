@@ -1301,6 +1301,24 @@ class BriefingActivity : AppCompatActivity() {
             val box = binding.salaryDueContainer
             box.removeAllViews()
             if (due.isEmpty()) { box.visibility = View.GONE; return@launch }
+            /* 🔔🔒 V1164 (০৭.০৯.২০২৬, TK-নির্দেশ: *"Salary Due সব সময় কেন থাকবে?
+               দিনে একবার দেখালো ঠিক আছে চলবে, কিন্তু সারা জীবন কেন থেকে যায়"*) —
+               পট্টিটা এখন **দিনে একবারই** ওঠে। একবার দেখানো হয়ে গেলে ওই দিনের
+               মতো আর ওঠে না; পরদিন আবার ওঠে।
+               ⛔ **নতুন কেউ বাকির তালিকায় ঢুকলে সঙ্গে সঙ্গেই আবার ওঠে** — সংখ্যাটাও
+                  মনে রাখা হয়, তাই নতুন বাকি কখনো চাপা পড়ে না।
+               ⛔ টাকার কোনো হিসাব · তালিকা · Pay Salary-র পথ কিচ্ছু বদলায়নি —
+                  শুধু কবে দেখানো হবে সেটুকু।
+               ⛔ চিহ্নটা ফোনের ভিতরেই থাকে (SharedPreferences), ক্লাউডে কিছু যায় না। */
+            run {
+                val today = FollowUpModel.today()
+                val pref = getSharedPreferences("piles_salary_due_banner", MODE_PRIVATE)
+                val seenDate = pref.getString("date", "").orEmpty()
+                val seenCount = pref.getInt("count", 0)
+                // আজ দেখানো হয়ে গেছে **আর** নতুন কেউ যোগ হয়নি ⇒ আজ আর নয়।
+                if (seenDate == today && due.size <= seenCount) { box.visibility = View.GONE; return@launch }
+                pref.edit().putString("date", today).putInt("count", due.size).apply()
+            }
             box.visibility = View.VISIBLE
             val d = resources.displayMetrics.density
             fun dp(v: Int) = (v * d).toInt()
