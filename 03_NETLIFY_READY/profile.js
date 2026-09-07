@@ -685,15 +685,17 @@
              '<span id="salHourLab" style="color:#3B5A49;font-size:13.5px">By hours</span>' +
              '<b id="salHourVal" style="color:#5B6B81;font-size:14.5px">…</b></div>')
         : salRow('Monthly', 'Not set', '#B42318', true)) +
-      salRow('Total paid', m.money(salaryTotal), '#123A26', true) + joinRow +
+      /* 🎨 V1181 (০৭.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — "Total paid" ও
+         "Joining date" এখন উপরের ⋮-এর ভিতরে (TK: *"না থাকলেও চলবে এখানে"*)।
+         ⛔ মুছে ফেলা হয়নি, শুধু সরানো — ফোনেও হুবহু একই। */
       /* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬) — ফোনে "Add Salary" বোতামটা **শুধু
          বেতন চালু থাকলেই** আসে (StaffProfileActivity.kt:913-919); বন্ধ থাকলে
          "Payment History" পুরো সারিটা নেয়। ওয়েবে বেতন "Not set" হলেও বোতামটা
          পড়ে থাকত — চাপলে কোনো মাসই বাছা যেত না। */
-      '<div style="display:flex;gap:9px;margin-top:11px">' +
-        (active ? salPairBtn('Add Salary', '#0A5C33', '#0A5C33', 'profSalaryAddMonth(\'' + m.esc(code) + '\')') : '') +
-        salPairBtn('Payment History (' + pays.length + ')', '#0A5C33', '#0A5C33', 'profTogglePayHistory()') +
-      '</div>' +
+      /* 🎨 V1181 — "Add Salary" একাই পুরো লাইন; History ⋮-এ গেছে। */
+      (active ? ('<div style="display:flex;gap:9px;margin-top:11px">' +
+        salPairBtn('Add Salary', '#0A5C33', '#0A5C33', 'profSalaryAddMonth(\'' + m.esc(code) + '\')') +
+      '</div>') : '') +
       /* 🔵 V417: Statement নিজে থেকে খোলা থাকে না — বোতামে চাপলে খোলে, আবার
          চাপলে গুটিয়ে যায়। ⛔ কোনো সারি হারায় না। */
       '<div id="phBox" style="display:none;margin-top:12px">' + salaryTable(pays) + '</div>' +
@@ -733,14 +735,22 @@
         salPairBtn('Add Extra', '#B45309', '#E0A800', 'profExtraIncome(\'' + m.esc(code) + '\')') +
         (extraDue>0 ? salPairBtn('Pay ' + m.money(extraDue), '#0A5C33', '#0A5C33', 'profPayExtraDue(\'' + m.esc(code) + '\')') : '') +
       '</div>' +
-      /* 🧾 V1052 — তারিখ থেকে তারিখ স্টেটমেন্ট (TK-নির্দেশ) */
-      '<div style="margin-top:8px"><button class="ghost" style="width:100%" onclick="profStatement(\'' + m.esc(code) + '\')">🧾 Statement (date to date)</button></div>' +
+      /* 🎨 V1181 — Statement এখন উপরের ⋮-এর ভিতরে (ফোনের মতোই)। */
       /* ⏰🔒 V990 (০৩.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — TK: *"তারা যদি নাই
          জানতে পারে যে সেই পেশেন্টটা ট্রিটমেন্ট চালু করেছে কিনা, তাহলে তারা
          হিসাবটা পাবে কি করে"*। ফোনের হুবহু জোড়া বোতাম।
          ⛔ টাকার কোনো অঙ্ক এখান থেকে বদলায় না — শুধু দেখা। */
+      /* 🎨🔒 V1181 (TK-নির্দেশ, হুবহু): *"Extra income History, My Unexpected
+         Enquiry এগুলি পাশাপাশি থাকতে হবে ( তাছাড়া My Unexpected Enquiry এটা
+         staff এর তাহলে মাস্টারের ডিসপ্লে তে এরকম নাম কেন থাকবে)"*।
+         ⇒ দুটো এক লাইনে, আর মাস্টারের পর্দায় "My" থাকে না — তিনি তখন **অন্য
+           একজন স্টাফের** এনকোয়ারি দেখছেন। ⛔ ফোনের হুবহু একই নিয়ম। */
+      /* ⚠️ কম্পিউটারে **আলাদা "Extra Income History" বোতাম নেই** — এখানে
+         বেতন ও এক্সট্রার হিস্ট্রি একটাই মিলিত তালিকা ("Payment History",
+         এখন ⋮-এর ভিতরে)। তাই পাশে বসানোর মতো দ্বিতীয় বোতামই নেই; এই
+         বোতামটা একাই পুরো লাইন নেয়। ⛔ TK-কে এটা সৎভাবে জানানো হয়েছে। */
       '<div style="display:flex;gap:9px;margin-top:9px">' +
-        salPairBtn('My Unexpected Enquiries', '#123E8C', '#123E8C', 'profUnexpected(\'' + m.esc(code) + '\')') +
+        salPairBtn(((typeof isMaster==='function'&&isMaster()) ? 'Unexpected Enquiries' : 'My Unexpected Enquiries'), '#123E8C', '#123E8C', 'profUnexpected(\'' + m.esc(code) + '\')') +
       '</div></div>';
 
     /* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬) — ফোনে এটা **আলাদা পর্দা**
@@ -748,6 +758,8 @@
        Salary (disabled/enabled বাছাই) · Amount · Salary Date, নিচে
        Cancel ও Save। ওয়েবে একটা গুটোনো লাইনের ভিতরে চেকবক্স ছিল।
        ⛔ কী সেভ হয় (salary_enabled · salary_amount · salary_date) — একই। */
+    /* 🎨 V1181 — এই কার্ডটা আর পর্দায় বসে না ("Salary Settings" এখন ⋮-এ)।
+       ⛔ কোড মোছা হয়নি (প্রকল্প-নিয়ম) — ভবিষ্যতে দরকার হলে এক লাইনেই ফেরে। */
     var settingsCard = '<div class="card">' +
       '<div onclick="profSalaryEdit(\'' + m.esc(code) + '\')" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer">' +
         '<b style="color:#0A5C33;font-size:15px">Salary Settings</b><span style="color:#9AA8B5">›</span></div></div>';
@@ -763,9 +775,22 @@
       '<div onclick="profFieldVisit(\'' + m.esc(code) + '\')" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer">' +
         '<b style="color:#0369A1;font-size:15px">Field Visit Tracking</b><span style="color:#9AA8B5">›</span></div></div>';
 
-    document.getElementById('app').innerHTML = '<div class="wrap anMod anModPf"><div class="topbar"><b>Salary — ' + m.esc(code) + '</b>' +
-      '<button class="ghost" onclick="staffProfiles()">Back</button></div><div class="page">' +
-      salaryCard + payHtml + extraCard + settingsCard + fieldCard +
+    /* 🎨🔒 V1181 (০৭.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — উপরের ⋮।
+       ভিতরে: Payment History · Statement · Salary Settings · Total paid ·
+       Joining date। ⛔ প্রতিটা সারি ঠিক আগের বোতামটাই ডাকে, কাজ বদলায়নি।
+       ⛔ শেষ দুটো শুধু দেখার — চাপলে কিছু হয় না। */
+    var salMenu = '<div id="salMenu" style="display:none;position:absolute;right:12px;top:44px;z-index:40;' +
+      'min-width:240px;background:#fff;border:1px solid #E4E8EE;border-radius:12px;box-shadow:0 8px 26px rgba(16,24,40,.18);overflow:hidden">' +
+      '<div class="salMi" onclick="profSalMenuHide();profTogglePayHistory()" style="padding:12px 16px;font-size:14px;color:#1C2B3A;border-bottom:1px solid #EEF1F5;cursor:pointer">Payment History (' + pays.length + ')</div>' +
+      '<div class="salMi" onclick="profSalMenuHide();profStatement(\'' + m.esc(code) + '\')" style="padding:12px 16px;font-size:14px;color:#1C2B3A;border-bottom:1px solid #EEF1F5;cursor:pointer">🧾 Statement (date to date)</div>' +
+      '<div class="salMi" onclick="profSalMenuHide();profSalaryEdit(\'' + m.esc(code) + '\')" style="padding:12px 16px;font-size:14px;color:#1C2B3A;border-bottom:1px solid #EEF1F5;cursor:pointer">Salary Settings</div>' +
+      '<div style="padding:12px 16px;font-size:14px;color:#1C2B3A;border-bottom:1px solid #EEF1F5;display:flex;justify-content:space-between;gap:14px">Total paid<span style="color:#5B6B81">' + m.money(salaryTotal) + '</span></div>' +
+      '<div style="padding:12px 16px;font-size:14px;color:#1C2B3A;display:flex;justify-content:space-between;gap:14px">Joining date<span style="color:#5B6B81">' + m.esc(prof.join_date ? salDmy(prof.join_date) : 'Not recorded') + '</span></div>' +
+      '</div>';
+    document.getElementById('app').innerHTML = '<div class="wrap anMod anModPf"><div class="topbar" style="position:relative"><b>Salary — ' + m.esc(code) + '</b>' +
+      '<span onclick="profSalMenuToggle()" style="font-size:20px;font-weight:800;color:#0B4F2A;padding:0 10px;cursor:pointer;user-select:none">⋮</span>' +
+      '<button class="ghost" onclick="staffProfiles()">Back</button>' + salMenu + '</div><div class="page">' +
+      salaryCard + payHtml + extraCard + fieldCard +
       '</div></div>';
     /* ⛔ পর্দা আগে আঁকা হয়, তারপর ঘণ্টার লাইনটা ভরে — ফোনের মতোই। */
     if(active) salHourFill(code, amount, cur, paidThis);   /* 💰 V1178 */
@@ -1245,6 +1270,10 @@
     } catch (e) {}
   }
   window.profTogglePayHistory = profTogglePayHistory;
+  /* 🎨 V1181 — উপরের ⋮ খোলা/বন্ধ। ⛔ শুধু দেখানো, কোনো তথ্য ছোঁয় না। */
+  function profSalMenuToggle(){ try{ var e=document.getElementById('salMenu'); if(e) e.style.display = (e.style.display==='block'?'none':'block'); }catch(_e){} }
+  function profSalMenuHide(){ try{ var e=document.getElementById('salMenu'); if(e) e.style.display='none'; }catch(_e){} }
+  window.profSalMenuToggle = profSalMenuToggle; window.profSalMenuHide = profSalMenuHide;
 
   /* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬: "সব কিছু Android এর মত হোক") — Payment
      History এখন হুবহু ফোনের মতো (StaffProfileActivity.kt:1548-1573):

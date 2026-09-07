@@ -1378,9 +1378,20 @@ class StaffProfileActivity : AppCompatActivity() {
     private var openExtraOnce = false
     private fun salaryExtra(code: String) { openExtraOnce = true; salary(code) }
 
+    /* 🎨🔒 V1181 (০৭.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, হুবহু): *"Salary History,
+       Salary Statement উপরে ৩ ডট থাকবে তার মধ্যে থাকবে · Total Paid Joining Date
+       না থাকলেও চলবে এখানে"* + *"salary Setting টা ও ৩ ডটে রাখুন"*।
+       ⇒ পর্দার উপরে ডান দিকে একটা ⋮ — তার ভিতরে পাঁচটা: Salary History ·
+         Statement · Salary Settings · Total paid · Joining date।
+       ⛔ কোনো বোতামের **কাজ** বদলায়নি — একই ফাংশনই ডাকা হয়, শুধু জায়গা।
+       ⛔ টাকার একটাও হিসাব ছোঁয়া হয়নি। */
+    private var salMenuAction: (() -> Unit)? = null
+
     private fun salary(code: String) {
         backAction = { renderList() }
-        val col = ModuleUi.screen(this, "Salary — $code")
+        salMenuAction = null
+        val col = ModuleUi.screen(this, "")
+        col.addView(salHeaderRow("Salary — " + code))
         val box = ModuleUi.card(this)
         col.addView(box)
         /* 🔵🔒 V521 — জমানো তথ্য থাকলে **সঙ্গে সঙ্গে** পর্দা; "Loading..." নয়।
@@ -1728,8 +1739,8 @@ class StaffProfileActivity : AppCompatActivity() {
         } else {
             box.addView(salaryStatusRow("Monthly", "Not set", "#B42318"))
         }
-        box.addView(salaryStatusRow("Total paid", money(salaryTotal), "#123A26"))
-        box.addView(salaryStatusRow("Joining date", if (joinDate.isBlank()) "Not recorded" else dmy(joinDate), "#5B6B81"))
+        /* 🎨 V1181 — "Total paid" ও "Joining date" এখন ⋮-এর ভিতরে (TK: *"না
+           থাকলেও চলবে এখানে"*) — মুছে ফেলা হয়নি, শুধু সরানো হয়েছে। */
 
         /* 🔵 V417খ (TK-নির্দেশ): *"Add Salary & Payment History এক লাইনে থাকবে পাশাপাশি
            বক্স"* ⇒ দুটো সমান বাক্স এক লাইনে।
@@ -1750,11 +1761,11 @@ class StaffProfileActivity : AppCompatActivity() {
         val btnHistory = salOutlineButton("Salary History (" + salaryCount + ")", "#0A5C33", "#0A5C33") {
             showAllPayments(code, pays, "SALARY")
         }
-        box.addView(if (btnAddSalary != null) salPairRow(btnAddSalary, btnHistory) else salPairRow(btnHistory, null))
-        /* 🧾 V1055 (TK-নির্দেশ) — তারিখ থেকে তারিখ স্টেটমেন্ট */
-        box.addView(salOutlineButton("🧾 Statement (date to date)", "#0A5C33", "#0A5C33") {
-            statement(code, pays)
-        })
+        /* 🎨 V1181 — "Add Salary" একাই পুরো লাইন; "Salary History" ও
+           "🧾 Statement (date to date)" এখন ⋮-এর ভিতরে (নিচে দেখুন)।
+           ⛔ `btnHistory` বানানোই থাকল — গোনার হিসাবটা (salaryCount) ওখান
+              থেকেই আসে, আর ⋮-এর সারিতেও ঠিক ওই লেখাটাই বসে। */
+        if (btnAddSalary != null) box.addView(salPairRow(btnAddSalary, null))
         /* 🗑️🔒 V1051 (TK-নির্দেশ, ০৪.০৯.২০২৬: *"Add salary আর Pay September 2026
            salary — ২টা একই জিনিস, তাহলে এটা বাদ দিন"*) — TK ঠিক বলেছেন: "Add
            Salary" দিয়ে **যেকোনো মাসের** বেতন দেওয়া যায়, তাই এই বোতামটা বাড়তি।
@@ -1764,19 +1775,19 @@ class StaffProfileActivity : AppCompatActivity() {
         // ───────── বাক্স ২ ও ৩ · আলাদা সাদা কার্ডে (মডেল ৩) ─────────
         // ⛔ আগের কার্ডগুলো tag দিয়ে চিনে সরিয়ে তবেই নতুন বসে ⇒ বারবার আঁকলেও
         //    কার্ড জমতে থাকে না। col না পেলে সবটা এই বাক্সেই বসে (কিছু হারায় না)।
+        /* 🎨 V1181 — "Salary Settings"-এর নিজের বাক্সটা আর নেই (TK-নির্দেশে
+           বোতামটা ⋮-এ গেছে), তাই সেই কার্ডটা এখন **বানানোই হয় না** — নইলে
+           একটা ফাঁকা সাদা বাক্স পড়ে থাকত। ⛔ পুরনো কার্ড থাকলে আগের মতোই
+           সরিয়ে দেওয়া হয় (বারবার আঁকলে জমে না)। */
         val col = box.parent as? LinearLayout
         val extraBox: LinearLayout
-        val cfgBox: LinearLayout?
         if (col != null) {
             col.findViewWithTag<android.view.View>(SAL_TAG_EXTRA)?.let { col.removeView(it) }
             col.findViewWithTag<android.view.View>(SAL_TAG_CFG)?.let { col.removeView(it) }
             extraBox = ModuleUi.card(this).apply { tag = SAL_TAG_EXTRA }
             col.addView(extraBox, col.indexOfChild(box) + 1)
-            cfgBox = ModuleUi.card(this).apply { tag = SAL_TAG_CFG }
-            col.addView(cfgBox, col.indexOfChild(extraBox) + 1)
         } else {
             extraBox = box
-            cfgBox = null
         }
 
         // 🔵 V416: বেতন ছাড়াও বাড়তি টাকা। ⛔ `kind='EXTRA'` হয়ে জমা হয়, তাই বেতনের
@@ -1796,9 +1807,9 @@ class StaffProfileActivity : AppCompatActivity() {
            এখন এখানেই নিজের বোতাম। ⛔ টাকার কোনো অঙ্ক ছোঁয়া হয়নি। */
         var extraCount = 0
         for (i in 0 until pays.length()) if (payKind(pays.getJSONObject(i)) == "EXTRA") extraCount++
-        extraBox.addView(salOutlineButton("Extra Income History (" + extraCount + ")", "#B45309", "#E0A800") {
+        val btnExtraHistory = salOutlineButton("Extra Income History (" + extraCount + ")", "#B45309", "#E0A800") {
             showAllPayments(code, pays, "EXTRA")
-        })
+        }
         // 💰 V1029 — কার্ডের "Extra Income" বোতাম থেকে এলে তালিকাটা নিজেই খোলে
         if (openExtraOnce) { openExtraOnce = false; extraBox.post { try { showAllPayments(code, pays, "EXTRA") } catch (_: Throwable) {} } }
         /* ⏰🔒 V990 (০৩.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — TK: *"তারা যদি নাই
@@ -1806,7 +1817,15 @@ class StaffProfileActivity : AppCompatActivity() {
            হিসাবটা পাবে কি করে"*। এই বোতামে স্টাফ নিজের অসময়ের এনকোয়ারিগুলো ও
            প্রতিটার এখনকার ধাপ দেখতে পান; মাস্টার যেকোনো স্টাফেরটা।
            ⛔ টাকার কোনো অঙ্ক এখান থেকে বদলায় না — শুধু দেখা। */
-        extraBox.addView(salOutlineButton("My Unexpected Enquiries", "#123E8C", "#123E8C") {
+        /* 🎨🔒 V1181 (TK-নির্দেশ, হুবহু): *"Extra income History, My Unexpected
+           Enquiry এগুলি পাশাপাশি থাকতে হবে ( তাছাড়া My Unexpected Enquiry এটা
+           staff এর তাহলে মাস্টারের ডিসপ্লে তে এরকম নাম কেন থাকবে)"*।
+           ⇒ দুটো বোতাম এক লাইনে, আর মাস্টারের পর্দায় "My" থাকে না — কারণ
+             মাস্টার তখন **অন্য একজন স্টাফের** এনকোয়ারি দেখছেন, নিজের নয়।
+           ⛔ বোতামের কাজ ও রং অপরিবর্তিত; স্টাফের নিজের পর্দায় লেখাটাও হুবহু আগের। */
+        val btnUnexpected = salOutlineButton(
+            if (ModuleAuth.isMaster) "Unexpected Enquiries" else "My Unexpected Enquiries",
+            "#123E8C", "#123E8C") {
             try {
                 startActivity(
                     android.content.Intent(this, com.tkbiswas.pilesclinic.native.UnexpectedEnquiryActivity::class.java)
@@ -1820,11 +1839,30 @@ class StaffProfileActivity : AppCompatActivity() {
                         )
                 )
             } catch (_: Throwable) { }
-        })
+        }
+        extraBox.addView(salPairRow(btnExtraHistory, btnUnexpected))
 
-        (cfgBox ?: box).addView(salOutlineButton("Salary Settings", "#0A5C33", "#0A5C33") {
-            editSalaryConfig(code, enabled, amount, salaryDate)
-        })
+        /* 🎨🔒 V1181 — ⋮-এর তালিকা এখানেই তৈরি হয়, কারণ সংখ্যা ও তারিখগুলো
+           (History-র গোনা · মোট দেওয়া · জয়েনিং ডেট) এই জায়গাতেই জানা যায়।
+           ⛔ প্রতিটা সারি ঠিক আগের বোতামটাই ডাকে — কাজ এক অক্ষরও বদলায়নি।
+           ⛔ "Total paid" ও "Joining date" শুধু দেখার সারি, চাপলে কিছু হয় না। */
+        salMenuAction = {
+            val items: List<Pair<String, () -> Unit>> = listOf(
+                ("Salary History (" + salaryCount + ")") to ({ showAllPayments(code, pays, "SALARY") }),
+                "🧾 Statement (date to date)" to ({ statement(code, pays) }),
+                "Salary Settings" to ({ editSalaryConfig(code, enabled, amount, salaryDate) }),
+                ("Total paid  ·  " + money(salaryTotal)) to ({ }),
+                ("Joining date  ·  " + (if (joinDate.isBlank()) "Not recorded" else dmy(joinDate))) to ({ })
+            )
+            try {
+                val pm = android.widget.PopupMenu(this, salMenuAnchor ?: box)
+                items.forEachIndexed { i, (label, _) -> pm.menu.add(0, i, i, label) }
+                pm.setOnMenuItemClickListener { mi ->
+                    items.getOrNull(mi.itemId)?.second?.invoke(); true
+                }
+                pm.show()
+            } catch (_: Throwable) { }
+        }
 
         /* 🏍️ V978 (TK-নির্দেশ) — বোতামটা এখন **স্টাফ-কার্ডের সারিতেই**
            (Salary · Performance · Fix Attendance-এর পাশে), তাই বেতন-পর্দার
@@ -2493,6 +2531,43 @@ class StaffProfileActivity : AppCompatActivity() {
     }
 
     /** মডেল ৩-এর কার্ড-শিরোনাম (Salary / Extra Income)। */
+    /* 🎨🔒 V1181 (০৭.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — বেতন-পর্দার উপরের
+       সারি: বাঁয়ে শিরোনাম, ডানে ⋮।
+       ⛔ শিরোনামের লেখা · মাপ · রং · নিচের ফাঁক — সব হুবহু `ModuleUi.screen()`-এর
+          মতোই রাখা হলো, যাতে দেখতে এক চুলও আলাদা না লাগে।
+       ⛔ তথ্য আসার আগে ⋮ চাপলে কিছু ভাঙে না — তখন শুধু একটা ছোট বার্তা। */
+    private var salMenuAnchor: android.view.View? = null
+
+    private fun salHeaderRow(title: String): LinearLayout {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(0, 0, 0, dp(10))
+        }
+        row.addView(TextView(this).apply {
+            text = title
+            textSize = 19f
+            setTextColor(android.graphics.Color.parseColor("#0B4F2A"))
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        })
+        val dots = TextView(this).apply {
+            text = "⋮"
+            textSize = 22f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#0B4F2A"))
+            setPadding(dp(16), dp(4), dp(6), dp(4))
+            isClickable = true
+            setOnClickListener {
+                val a = salMenuAction
+                if (a == null) ModuleUi.toast(this@StaffProfileActivity, "Loading...")
+                else a()
+            }
+        }
+        salMenuAnchor = dots
+        row.addView(dots)
+        return row
+    }
+
     private fun salSectionTitle(text: String, hex: String): TextView = TextView(this).apply {
         this.text = text
         textSize = 16f
