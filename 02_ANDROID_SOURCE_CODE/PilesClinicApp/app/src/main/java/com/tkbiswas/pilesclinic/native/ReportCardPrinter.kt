@@ -237,7 +237,7 @@ object ReportCardPrinter {
            ⛔ টাকার একটাও হিসাব · একটাও সারি বদলায়নি — শুধু কাগজের চেহারা।
            ═══════════════════════════════════════════════════════════════════ */
         return """
-<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=1240"><style>
 @page{size:A4;margin:0}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{width:1240px}
@@ -376,6 +376,30 @@ $watermark
         val webView = WebView(context)
         // সফটওয়্যার লেয়ার আগে — পরে নয়।
         try { webView.setLayerType(android.view.View.LAYER_TYPE_SOFTWARE, null) } catch (_: Throwable) { }
+        /* 🚨🔒 V1190 (০৭.০৯.২০২৬, TK-রিপোর্ট ছবিসহ: *"প্রিন্ট আউট এরকম কেন
+           আসে? … ফটো প্রুফ যেটা আমাকে দেখাবেন সেটা ভবিষ্যতে কার্যকারী হবে"*) —
+           কাগজের ডান দিক (TREATMENT PROGRESS ও PAID কলাম) কেটে যাচ্ছিল।
+
+           🔴 **আসল কারণ (কোডে মেপে বের করা, আন্দাজ নয়):** কাগজের HTML-এ লেখা
+              `width:1240px` — কিন্তু ওটা **CSS পিক্সেল**। WebView-কে না বললে সে
+              পাতার চওড়া ধরে **ঘনত্ব ভাগ করে** (২× ফোনে ১২৪০ ÷ ২ = ৬২০ CSS px)।
+              ফলে ১২৪০ চওড়া কাগজটা ৬২০-এর জানালায় আঁকা হত ⇒ **ডান দিকটা কেটে
+              যেত** (TK-র ছবিতে ঠিক অর্ধেকের একটু বেশি দেখা যাচ্ছিল)।
+              ⛔ ছাপার মাপ/scale-এর হিসাব ঠিকই ছিল; দোষটা ছিল WebView-কে
+                 CSS-চওড়াটা **বলে না দেওয়ায়**।
+
+           ✅ **সমাধান — প্রকল্পের নিজের প্রমাণিত পথ** (`CheckupA4Report` ও
+              `EstimateHtmlPrint`-এ ঠিক এটাই আছে): পাতায় `<meta name="viewport"
+              content="width=1240">` আর এখানে `useWideViewPort` চালু। তখন ১২৪০
+              CSS px ঠিক ১২৪০ পিক্সেলের ভিউয়েই বসে — **যেকোনো ফোনে, যেকোনো
+              ঘনত্বে** পুরো কাগজটা আঁকা হয়।
+           ⛔ কাগজের সাজ · লেখা · কলামের মাপ — এক অক্ষরও বদলায়নি।
+           ⚠️ **আমার দায়:** এটা আজকের কাজে ভাঙেনি (শেষ বদল V1125), কিন্তু TK-কে
+              দেখানো প্রুফটা আসল ফোনে মেলেনি — সেটা আমারই ব্যর্থতা। */
+        try {
+            webView.settings.useWideViewPort = true
+            webView.settings.loadWithOverviewMode = true
+        } catch (_: Throwable) { }
         val root = activity?.findViewById<android.view.ViewGroup>(android.R.id.content)
         if (root != null) {
             webView.alpha = 0f
