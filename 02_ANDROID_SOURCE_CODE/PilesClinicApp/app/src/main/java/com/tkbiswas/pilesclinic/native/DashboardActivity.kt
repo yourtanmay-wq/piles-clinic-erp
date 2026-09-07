@@ -153,6 +153,12 @@ class DashboardActivity : AppCompatActivity() {
         // every tile looking identical. Grid, labels, icons, click targets and
         // role visibility are all completely unchanged -- only colour + a
         // little shadow depth were added.
+        /* 🔔🔒 V1186 (০৭.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — TK: *"Check Up,
+           Enquiry, follow Up এর মতই একটা icon থাকুক"* ও *"এটা প্রত্যেকের হোম
+           স্ক্রিনে ই থাকবে · যে কোন staff, যে কোন ডাক্তার এবং মাস্টার এটা
+           ক্রিয়েট করতে পারবে"* ⇒ তাই তিনটে role-এই দেখা যায়।
+           ⛔ ঘড়ি/ক্যালেন্ডার/ঘণ্টার ইমোজি নয় (TK-র স্থায়ী নিয়ম) — 📌। */
+        tile(binding.tileDoctorReminder, "📌", "Doctor Reminder", listOf("master", "staff", "doctor"), "#E8F4F1", "#C9E7E0", "#0F766E") { startActivity(Intent(this, DoctorReminderActivity::class.java)) }
         tile(binding.tileEnquiry, "📝", "Enquiry", listOf("master", "staff", "doctor"), "#FFF3E0", "#FFE0B2", "#FFB74D") { startActivity(Intent(this, EnquiryActivity::class.java)) }
         tile(binding.tileFollowUp, "🔁", "Follow-up", listOf("master", "staff", "doctor"), "#E8F5EE", "#C8E6D5", "#0EA25F") { startActivity(Intent(this, FollowUpActivity::class.java)) }
         tile(binding.tileRegistration, "🧾", "Registration", listOf("master", "staff", "doctor"), "#E7EEFB", "#C9D9F5", "#4A78D6") { startActivity(Intent(this, RegistrationActivity::class.java)) }
@@ -346,6 +352,7 @@ class DashboardActivity : AppCompatActivity() {
         refreshBell(session)
         refreshCallBanner(session)
         refreshReminderCard(session)    // 🟢 V1144
+        paintDoctorReminders(session)   // 🔔 V1186 — Doctor Note & Reminder
         remindPendingRemarks(session)   // 🔒 খাতার সারি B51
         requestNotificationPermissionIfNeeded()
         requestIgnoreBatteryOptimizationsIfNeeded()
@@ -427,6 +434,116 @@ class DashboardActivity : AppCompatActivity() {
         parent.addView(card, parent.indexOfChild(anchorView) + 1)
         reminderCard = card; reminderTitle = title; reminderLine = line
         return card
+    }
+
+    /**
+     * 🔔🔒 V1186 (০৭.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — হোম পর্দায়
+     * **Doctor Note & Reminder** কার্ড।
+     *
+     * TK: *"এটা প্রত্যেকের হোম স্ক্রিনে ই থাকবে · সেখানে কোন রুগীর জন্য কে
+     * রিমাইনডার দিচ্ছে কার উদ্দেশ্যে দিচ্ছে সব যেন থাকে"* ও *"পাঠানোর পর
+     * KH MANDAL কে Accept করতে হবে"*।
+     *
+     * ⛔ এটা V1144-এর "Reminders" কার্ড **নয়** — ওটা স্টাফের নিজের কাজের
+     *    রিমাইন্ডার, আলাদা টেবিল, আলাদা কার্ড; দুটোই অটুট থাকে।
+     * ⛔ কিছু না থাকলে কার্ডটা বসেই না (অন্য সব ব্যানারের মতোই)।
+     * ⛔ একটাই সরু পড়া, আর সেটা ব্যাকগ্রাউন্ডে — পর্দা আঁকা থামে না।
+     */
+    private fun paintDoctorReminders(session: NativeUser) {
+        val holder = binding.doctorReminderCard
+        BackgroundWork.run {
+            val rows = try { DoctorReminderRepository.visibleFor(session) } catch (_: Throwable) { emptyList() }
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                if (isFinishing || isDestroyed) return@post
+                holder.removeAllViews()
+                if (rows.isEmpty()) { holder.visibility = android.view.View.GONE; return@post }
+                holder.visibility = android.view.View.VISIBLE
+                fun d(v: Int) = (v * resources.displayMetrics.density).toInt()
+                fun bg(fill: String, stroke: String?, r: Int) =
+                    android.graphics.drawable.GradientDrawable().apply {
+                        cornerRadius = d(r).toFloat()
+                        setColor(android.graphics.Color.parseColor(fill))
+                        if (stroke != null) setStroke(d(1), android.graphics.Color.parseColor(stroke))
+                    }
+                fun t(text: String, size: Float, hex: String, bold: Boolean = false) =
+                    android.widget.TextView(this).apply {
+                        this.text = text; textSize = size
+                        setTextColor(android.graphics.Color.parseColor(hex))
+                        if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    }
+
+                val card = android.widget.LinearLayout(this).apply {
+                    orientation = android.widget.LinearLayout.VERTICAL
+                    background = bg("#FFFFFF", "#E7ECEA", 18)
+                    clipToOutline = true
+                }
+                val head = android.widget.LinearLayout(this).apply {
+                    orientation = android.widget.LinearLayout.HORIZONTAL
+                    gravity = android.view.Gravity.CENTER_VERTICAL
+                    setBackgroundColor(android.graphics.Color.parseColor("#0B4F2A"))
+                    setPadding(d(14), d(11), d(14), d(11))
+                }
+                head.addView(t("DOCTOR NOTE & REMINDER", 13.5f, "#FFFFFF", bold = true).apply {
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                })
+                head.addView(t(rows.size.toString(), 12.5f, "#0B4F2A", bold = true).apply {
+                    background = bg("#FFFFFF", null, 20)
+                    setPadding(d(11), d(2), d(11), d(2))
+                })
+                card.addView(head)
+
+                /* ⛔ হোম পর্দায় সর্বোচ্চ তিনটে — বাকিগুলো "View all"-এ। */
+                for (r in rows.take(3)) {
+                    val accepted = r.optString("acceptedAt", "").isNotBlank()
+                    val row = android.widget.LinearLayout(this).apply {
+                        orientation = android.widget.LinearLayout.HORIZONTAL
+                    }
+                    row.addView(android.view.View(this).apply {
+                        setBackgroundColor(android.graphics.Color.parseColor(if (accepted) "#0F766E" else "#E0A800"))
+                        layoutParams = android.widget.LinearLayout.LayoutParams(
+                            d(5), android.widget.LinearLayout.LayoutParams.MATCH_PARENT)
+                    })
+                    val bd = android.widget.LinearLayout(this).apply {
+                        orientation = android.widget.LinearLayout.VERTICAL
+                        setPadding(d(13), d(11), d(13), d(12))
+                        layoutParams = android.widget.LinearLayout.LayoutParams(
+                            0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    }
+                    row.addView(bd)
+                    bd.addView(t(r.optString("patientName", "").ifBlank { "Patient" } +
+                        "   " + r.optString("patientMobile", ""), 13.5f, "#0B2B1C", bold = true))
+                    bd.addView(t(r.optString("note", ""), 12.5f, "#17212B").apply {
+                        background = bg("#F6FAF7", "#E2EDE6", 10)
+                        setPadding(d(10), d(8), d(10), d(8))
+                        layoutParams = android.widget.LinearLayout.LayoutParams(
+                            android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                        ).apply { topMargin = d(6) }
+                    })
+                    bd.addView(t("For  " + r.optString("forName", "").ifBlank { "All doctors" }, 11.5f, "#123E8C", bold = true)
+                        .apply { setPadding(0, d(7), 0, 0) })
+                    val byBranch = r.optString("byBranch", "")
+                    bd.addView(t("By  " + r.optString("byName", "") +
+                        (if (byBranch.isNotBlank()) " · $byBranch" else ""), 11.5f, "#8A5A00", bold = true))
+                    if (accepted) {
+                        bd.addView(t("Accepted", 11.5f, "#0A7C3F", bold = true).apply { setPadding(0, d(6), 0, 0) })
+                    } else {
+                        bd.addView(t("Not accepted yet", 11.5f, "#8A5A00", bold = true).apply { setPadding(0, d(6), 0, 0) })
+                    }
+                    card.addView(row)
+                }
+                card.addView(t("View all", 13f, "#0A5C33", bold = true).apply {
+                    gravity = android.view.Gravity.CENTER
+                    setPadding(d(10), d(12), d(10), d(12))
+                })
+                card.isClickable = true
+                card.setOnClickListener {
+                    startActivity(Intent(this@DashboardActivity, DoctorReminderActivity::class.java))
+                }
+                holder.addView(card)
+            }
+        }
     }
 
     private fun refreshReminderCard(session: NativeUser) {
@@ -1399,7 +1516,10 @@ class DashboardActivity : AppCompatActivity() {
             "CHECK-UP",       // Check Up  (উপরে-বাঁয়ে)
             "Print",          //           (উপরে-ডানে)
             "Chamber Date",   //           (নিচে-বাঁয়ে)
-            "Payment"         //           (নিচে-ডানে)
+            "Payment",        //           (নিচে-ডানে)
+            // 🔔 V1186 (TK-নির্দেশ): *"এটা প্রত্যেকের হোম স্ক্রিনে ই থাকবে"* —
+            //    তাই ডাক্তারের ছোট তালিকাতেও এটা যোগ হলো।
+            "Doctor Reminder"
             // "Dr. Visit" — 08.08.2026-এ সরানো, এখন Menu-তে (উপরের নোট দেখুন)
         )
     }

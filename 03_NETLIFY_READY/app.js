@@ -4522,6 +4522,10 @@ let roleTitle={master:'Master Admin',staff:'Staff',doctor:'Doctor',field:'Field 
       ঘন্টা/মেনুর বদলে বাক্সই সহজ পথ। তাই সেগুলো ফোনের ক্রমের পরে বসানো হলো।
    ⛔ কোনো বাক্সের কাজ বা কে দেখতে পাবে (role) — একটুও বদলায়নি। */
 let all=[
+ /* 🔔 V1186 (০৭.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ): *"Check Up, Enquiry,
+    follow Up এর মতই একটা icon থাকুক"* — ফোনের টাইলের হুবহু যমজ।
+    ⛔ ঘড়ি/ক্যালেন্ডার/ঘণ্টার ইমোজি নয় (TK-র স্থায়ী নিয়ম)। */
+ ['📌','Doctor Reminder','','drRemHome()',['master','staff','doctor']],
  ['📝','Enquiry','','enquiryForm()',['master','staff','doctor']],
  ['🔁','Follow-up','','followup(\'Inquiry\')',['master','staff','doctor']],
  ['🧾','Registration','','registration()',['master','staff','doctor']],
@@ -4549,6 +4553,9 @@ let all=[
 let cards;
 if(role==='doctor'){
   let docTiles=[
+    /* 🔔 V1186 — TK: *"এটা প্রত্যেকের হোম স্ক্রিনে ই থাকবে"*, তাই ডাক্তারের
+       ছোট তালিকাতেও (ফোনের DOCTOR_DASHBOARD_TILES-এর মতোই)। */
+    ['📌','Doctor Reminder','','drRemHome()'],
     ['🩺','CHECK-UP','','doctorQueue()'],
     ['🖨️','Print','','openPrintMenu()'],
     ['📋','Chamber Date','','chamberAttendance()'],
@@ -4558,7 +4565,7 @@ if(role==='doctor'){
 }else{
   cards=all.filter(x=>x[4].includes(role)).map(x=>card(x[0],x[1],x[2],x[3])).join('');
 }
-app().innerHTML=`<div class="wrap wlv1Wide ${role}"><div class="topbar dashboardTop"><div class="brand userBrand">${userAvatar()}<div><b>${esc(dashboardClinicName())}</b><br><small class="userMeta"><b>${esc(dashboardPersonName())}</b> · ${esc(roleTitle)} · ${esc(user.branch)}</small></div></div><div class="topActions">${headerBell()}<button class="ghost iconOnly" onclick="menu()" aria-label="Menu">☰</button></div></div><div class="page">${(!isMaster()&&activeBriefings().length)?`<div class="card briefFlash"><b>Admin Briefing</b><p>${esc(activeBriefings()[0].message||'')}</p><div class="actions"><button onclick="openBriefThread('${activeBriefings()[0].id}')">Reply</button><button class="ghost" onclick="markBriefSeen('${activeBriefings()[0].id}')">Seen</button></div></div>`:''}${wlv1TodayCallBanner()}${wlv1ReminderCardHtml()}${globalCapsuleSearchBar()}${(()=>{let __c=collectionDashboardCard(o);return __c?`<div class="grid stat">${__c}</div>`:'';})()}<div class="grid compactDashGrid">${cards}</div></div>${bottomNav()}</div>`;notifyBriefingIfNeeded();try{wlv1NoticeWatch()}catch(e){}
+app().innerHTML=`<div class="wrap wlv1Wide ${role}"><div class="topbar dashboardTop"><div class="brand userBrand">${userAvatar()}<div><b>${esc(dashboardClinicName())}</b><br><small class="userMeta"><b>${esc(dashboardPersonName())}</b> · ${esc(roleTitle)} · ${esc(user.branch)}</small></div></div><div class="topActions">${headerBell()}<button class="ghost iconOnly" onclick="menu()" aria-label="Menu">☰</button></div></div><div class="page">${(!isMaster()&&activeBriefings().length)?`<div class="card briefFlash"><b>Admin Briefing</b><p>${esc(activeBriefings()[0].message||'')}</p><div class="actions"><button onclick="openBriefThread('${activeBriefings()[0].id}')">Reply</button><button class="ghost" onclick="markBriefSeen('${activeBriefings()[0].id}')">Seen</button></div></div>`:''}${wlv1TodayCallBanner()}${wlv1ReminderCardHtml()}${drRemHomeCard()}${globalCapsuleSearchBar()}${(()=>{let __c=collectionDashboardCard(o);return __c?`<div class="grid stat">${__c}</div>`:'';})()}<div class="grid compactDashGrid">${cards}</div></div>${bottomNav()}</div>`;notifyBriefingIfNeeded();try{wlv1NoticeWatch()}catch(e){}
   // 🔒 B582 (TK-নির্দেশ, ০৮.০৮.২০২৬): ডেস্কটপে হোম/ড্যাশবোর্ডেও একই প্রফেশনাল
   // সাইডবার (page()-এর মতো) — আগে এটা ডাকা হত না বলে বাঁ মেনু ভাঙা দেখাত ও
   // টাইল কেটে যেত। ⛔ শুধু বড় স্ক্রিনে চেহারা; ফোন/অ্যান্ড্রয়েড অপরিবর্তিত।

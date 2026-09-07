@@ -1,7 +1,7 @@
 # 🛡️ Kotlin কম্পাইলারের **জানা গোলমাল** (Android SDK নেই বলে)।
 # ⛔ হাতে লিখবেন না — `verify_kotlin_compile.py --update-baseline`
 # প্রতিটা সারি:  ফাইল <TAB> ভুলের বার্তা (সংখ্যা N দিয়ে ঢাকা)
-# মোট: 967
+# মোট: 975
 com/tkbiswas/pilesclinic/clinical/ClinicalModulesActivity.kt	none of the following functions can be called with the arguments supplied:
 com/tkbiswas/pilesclinic/clinical/ClinicalModulesActivity.kt	unresolved reference: findViewById
 com/tkbiswas/pilesclinic/clinical/ClinicalModulesActivity.kt	unresolved reference: finish
@@ -429,6 +429,14 @@ com/tkbiswas/pilesclinic/native/DoctorQueueActivity.kt	unresolved reference: set
 com/tkbiswas/pilesclinic/native/DoctorQueueActivity.kt	unresolved reference: startActivity
 com/tkbiswas/pilesclinic/native/DoctorQueueAdapter.kt	unresolved reference: databinding
 com/tkbiswas/pilesclinic/native/DoctorQueueAdapter.kt	unresolved reference: notifyDataSetChanged
+com/tkbiswas/pilesclinic/native/DoctorReminderActivity.kt	type mismatch: inferred type is DoctorReminderActivity but Activity was expected
+com/tkbiswas/pilesclinic/native/DoctorReminderActivity.kt	type mismatch: inferred type is DoctorReminderActivity but Context was expected
+com/tkbiswas/pilesclinic/native/DoctorReminderActivity.kt	type mismatch: inferred type is DoctorReminderActivity but Context! was expected
+com/tkbiswas/pilesclinic/native/DoctorReminderActivity.kt	unresolved reference: finish
+com/tkbiswas/pilesclinic/native/DoctorReminderActivity.kt	unresolved reference: isDestroyed
+com/tkbiswas/pilesclinic/native/DoctorReminderActivity.kt	unresolved reference: isFinishing
+com/tkbiswas/pilesclinic/native/DoctorReminderActivity.kt	unresolved reference: onCreate
+com/tkbiswas/pilesclinic/native/DoctorReminderActivity.kt	unresolved reference: runOnUiThread
 com/tkbiswas/pilesclinic/native/DoctorReminderWorker.kt	one type argument expected for class Result<out T>
 com/tkbiswas/pilesclinic/native/DoctorReminderWorker.kt	unresolved reference: applicationContext
 com/tkbiswas/pilesclinic/native/DoctorVisitActivity.kt	none of the following functions can be called with the arguments supplied:

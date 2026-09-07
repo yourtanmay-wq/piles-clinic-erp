@@ -135,6 +135,14 @@
             android:label="@string/app_name"
             android:theme="@style/Theme.PilesClinic" />
 
+        <!-- 🔔 V1186 (07.09.2026, TK-order): Doctor Note & Reminder screen
+             (create · accept · history). Same theme as every other screen. -->
+        <activity
+            android:name=".native.DoctorReminderActivity"
+            android:exported="false"
+            android:label="Doctor Note &amp; Reminder"
+            android:theme="@style/Theme.PilesClinic" />
+
         <activity
             android:name=".native.DashboardActivity"
             android:exported="false"

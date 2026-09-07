@@ -411,6 +411,19 @@
 
 
 
+        <!-- 🔔 V1186 (07.09.2026, TK-order + approved photo proof): the
+             "Doctor Note & Reminder" card, built in Kotlin
+             (DashboardActivity.paintDoctorReminders()). GONE by default like
+             every other banner — it only appears when there is something. -->
+        <LinearLayout
+            android:id="@+id/doctorReminderCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginHorizontal="14dp"
+            android:layout_marginTop="10dp"
+            android:visibility="gone" />
+
         <!-- Google-style capsule search (top). Opens A-Z global search. -->
         <LinearLayout
             android:id="@+id/searchCapsule"
@@ -455,6 +468,9 @@
             android:columnCount="2"
             android:useDefaultMargins="false">
 
+            <!-- 🔔 V1186 (07.09.2026, TK-order): "Doctor Reminder" tile —
+                 CHECK-UP / Enquiry / Follow-up-এর হুবহু একই প্যাটার্ন। -->
+            <include android:id="@+id/tileDoctorReminder" layout="@layout/item_dashboard_tile" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="5dp" />
             <include android:id="@+id/tileEnquiry" layout="@layout/item_dashboard_tile" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="5dp" />
             <include android:id="@+id/tileFollowUp" layout="@layout/item_dashboard_tile" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="5dp" />
             <include android:id="@+id/tileRegistration" layout="@layout/item_dashboard_tile" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="5dp" />

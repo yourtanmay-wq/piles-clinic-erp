@@ -36,6 +36,14 @@ class DoctorReminderWorker(
         try {
             val ctx = applicationContext
             val user = NativeSession.current(ctx)
+            /* 🔔🔒 V1186 (০৭.০৯.২০২৬, TK-নির্দেশ) — নতুন `doctor_reminders`
+               টেবিলের রিমাইন্ডারও এই একই কাজের ভিতরেই বাজে, তাই বাড়তি কোনো
+               WorkManager কাজ বা ব্যাটারি-খরচ নেই।
+               ⛔ **স্টাফও পান** — কারণ এখন যে কেউ পাঠাতে পারেন, আর যাঁকে
+                  পাঠানো হয়েছে তিনি স্টাফ-ডাক্তার যেই হোন, তাঁর ফোনেই বাজা উচিত।
+               ⛔ নিজের try/catch-এ — ব্যর্থ হলেও নিচের পুরনো (patients-ভিত্তিক)
+                  রিমাইন্ডার এক অক্ষরও প্রভাবিত হয় না। */
+            try { notifyNewTable(ctx, user) } catch (_: Throwable) { }
             // ⛔ শুধু ডাক্তার — TK-এর স্পষ্ট নির্দেশ ("শুধু ডাক্তার")।
             if (user != null && user.role == "doctor") {
                 /* 🔔🔒 V839 (TK-নির্দেশ) — NEXT VISIT PLAN-এর দুটো নোটিফিকেশন
@@ -103,6 +111,60 @@ class DoctorReminderWorker(
             DoctorReminderScheduler.scheduleNext(applicationContext)
         }
         return Result.success()
+    }
+
+    /**
+     * 🔔🔒 V1186 — নতুন টেবিলের (`doctor_reminders`) রিমাইন্ডার।
+     * পুরনো পথের হুবহু একই তিনটে নিয়ম: **তারিখের আগের দিন** · বাছা **সময়
+     * পেরিয়ে গেলে** · **দিনে একবার**।
+     * ⛔ যাঁকে পাঠানো হয়েছে কেবল তাঁর ফোনেই (নাম না দেওয়া থাকলে ওই ব্রাঞ্চের
+     *    সবার)। ⛔ যিনি পাঠিয়েছেন তাঁর নিজের ফোনে বাজে না।
+     * ⛔ একটাই সরু পড়া — শুধু আগামীকালের সারিগুলো।
+     */
+    private fun notifyNewTable(ctx: Context, user: NativeUser?) {
+        if (user == null) return
+        val me = user.mobile.filter { it.isDigit() }.takeLast(10)
+        if (me.length != 10) return
+        val tomorrow = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, 1) }
+        val key = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(tomorrow.time)
+        val rows = try {
+            SupabaseClient.fetchList(
+                DoctorReminderRepository.TABLE,
+                "active=eq.true&remindDate=eq.$key", 200, order = "createdAt.desc"
+            )
+        } catch (_: Throwable) { return }
+        if (rows.length() == 0) return
+
+        val now = Calendar.getInstance()
+        val nowHM = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
+        val todayKey = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(now.time)
+        val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val firedKey = "fired_new_$todayKey"
+        val fired = prefs.getStringSet(firedKey, emptySet()) ?: emptySet()
+
+        val mine = ArrayList<Due>()
+        for (i in 0 until rows.length()) {
+            val r = rows.optJSONObject(i) ?: continue
+            val id = r.optString("id", "")
+            if (id.isBlank() || id in fired) continue
+            val note = r.optString("note", "").trim()
+            if (note.isBlank()) continue
+            val forM = r.optString("forMobile", "").filter { it.isDigit() }.takeLast(10)
+            val byM = r.optString("byMobile", "").filter { it.isDigit() }.takeLast(10)
+            if (byM == me && forM != me) continue        // নিজের পাঠানো নিজেকে নয়
+            val hit = if (forM.isNotEmpty()) forM == me
+                      else r.optString("branch", "").trim().equals(user.branch.trim(), true)
+            if (!hit) continue
+            val ts = r.optString("remindTime", "").trim()
+            val hm = if (ts.isNotBlank()) try {
+                val p = ts.split(":").map { it.toInt() }; p[0] * 60 + p[1]
+            } catch (_: Throwable) { null } else null
+            if (nowHM < (hm ?: (DEFAULT_SLOT_HOUR * 60))) continue
+            mine.add(Due(id, r.optString("patientName", "").trim(), note, hm, forM))
+        }
+        if (mine.isEmpty()) return
+        notify(ctx, mine)
+        prefs.edit().putStringSet(firedKey, (fired + mine.map { it.id }).toMutableSet()).commit()
     }
 
     private data class Due(

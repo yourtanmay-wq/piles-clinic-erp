@@ -8,16 +8,20 @@
     "sha": "57b8128baedc359f9c264fcffff070171013c9ca96d0f20abbfa59749e48cfa2"
   },
   "app.js": {
-    "v": "v1180",
-    "sha": "a77328e150930bbfc9912bad2ea7757f7f7b5f55ab0afd27698928baed44b597"
+    "v": "v1186",
+    "sha": "647e8472a9368be881d0f3236dc5e020c77578f625f8b551f80d00bb479656c4"
   },
   "module_core.js": {
     "v": "v913",
     "sha": "1a1cca88a368cfd695e22f5e847c133d0fc6162289011c5cb5dc5bd910625dda"
   },
   "profile.js": {
-    "v": "v1184",
+    "v": "v1186",
     "sha": "5f34ba26a25987aa5df4abb68745f5219993ab3661650014dd9380167bea8ea2"
+  },
+  "doctorreminder.js": {
+    "v": "v1186",
+    "sha": "8848849e930ee3032153c9dc842af9e2752679fd942692a722b4cc6521a15007"
   },
   "notebook.js": {
     "v": "v1180",
