@@ -585,11 +585,31 @@
     document.getElementById('finBody').innerHTML =
       '<div class="card" style="padding:10px 12px 68px"><div style="font-size:18px;font-weight:700;margin:0 0 8px">' + monthName + '</div>' +
       '<input id="lsMonth" type="hidden" value="' + month + '"><select id="lsBranchSel" style="display:none">' + brOpts + '</select>' +
+      /* ➕🔒 V1174 (০৭.০৯.২০২৬, TK-নির্দেশ — ফোনের হুবহু যমজ) — TK, হাতের খাতার
+         ছবিসহ: *"26/08/2026 এর হিসাব কি ভাবে তুলিবো"*।
+         খাতায় শুধু সেই দিনগুলোই ওঠে যেদিনে ক্লাউডে কিছু আছে; একদম বাদ পড়া দিন
+         যোগ করার কোনো পথই ছিল না। এখন এই বোতামে **ফাঁকা Ledger Entry** খোলে —
+         ক্যালেন্ডার থেকে দিন বেছে Cash/Online/খরচ লিখে Save।
+         ⛔ `finLedgerRowEdit('v399exp_<তারিখ>')` — প্রকল্পের **আগে থেকেই থাকা**
+            পথ (V928); নতুন কোনো সেভ-নিয়ম বানানো হয়নি। id ক্লাউডে নেই বলে
+            সবসময় **নতুন** সারি বসে, পুরনো কোনো দিন ওভাররাইট হয় না।
+         ⛔ পুরনো-তারিখের অনুমতির নিয়ম আগেরটাই। ⛔ টাকার কোনো হিসাব ছোঁয়া হয়নি। */
+      '<button class="ghost" style="width:100%;margin-bottom:8px;font-weight:700;color:#0A5C33;border:1px solid #CFE2D5;background:#EEF7F1" ' +
+        'onclick="finAddNewDay()">\u2795 নতুন দিন</button>' +
       '<div id="lsOut" class="mut">Loading...</div>' +
       '<div style="position:fixed;left:0;right:0;bottom:0;z-index:20;background:#fff;padding:7px 14px;display:flex;gap:10px;border-top:1px solid #ddd">' +
       '<button class="ghost" style="flex:1;padding:9px" onclick="incomeExpense()">Back</button><button style="flex:1;padding:9px" onclick="finLedgerLoad()">Show</button></div></div>';
     finLedgerLoad();
   }
+
+  /* ➕🔒 V1174 — "নতুন দিন": দেখানো মাসের ১ তারিখ থেকে ফাঁকা এন্ট্রি খোলে
+     (ক্যালেন্ডার ওই মাসেই খোলে, অন্য মাস থেকে ঘুরে আসতে হয় না)। */
+  function finAddNewDay() {
+    var mEl = document.getElementById('lsMonth');
+    var ym = (mEl && mEl.value) ? mEl.value : window.MOD.todayIST().slice(0, 7);
+    finLedgerRowEdit('v399exp_' + ym + '-01');
+  }
+  window.finAddNewDay = finAddNewDay;
 
   // 🔵 TK-নির্দেশ (09.08.2026): এটা শুধু পুরনো এন্ট্রি দেখার খাতা — এক-চাপে ভুল করে
   // এডিটে ঢোকা ঠেকাতে কোনো দিন এডিট করতে সেই সারিতে **তিনবার** চাপতে হবে (১.২ সেকেন্ডে)।

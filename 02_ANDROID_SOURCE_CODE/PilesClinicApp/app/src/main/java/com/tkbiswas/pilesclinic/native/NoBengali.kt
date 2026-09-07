@@ -694,6 +694,7 @@ object NoBengali {
         "লোড হয়নি" to "Not Loaded",
         "এই মাসের হিসাব" to "This Month's Accounts",
         "পুরো খাতা" to "Full Ledger",
+        "➕ নতুন দিন" to "➕ New Day",   /* ➕ V1174 */
         "অংশীদারি ভাগ" to "Partner Share",
         "উপরে ডানে ব্রাঞ্চ বাছুন" to "Select a branch at the top right",
         "নগদ বা অনলাইন — অন্তত একটা লিখুন" to "Enter at least one: Cash or Online",

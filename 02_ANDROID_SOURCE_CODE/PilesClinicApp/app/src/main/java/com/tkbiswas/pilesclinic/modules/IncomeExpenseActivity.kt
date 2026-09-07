@@ -297,6 +297,49 @@ class IncomeExpenseActivity : AppCompatActivity() {
         }
         col.addView(month)
 
+        /* ➕🔒 V1174 (০৭.০৯.২০২৬, TK-নির্দেশ) — TK, হাতের খাতার ছবিসহ:
+           *"26/08/2026 এর হিসাব কি ভাবে তুলিবো"*।
+
+           **কারণ (কোডে মেপে দেখা):** খাতায় শুধু **সেই দিনগুলোই** ওঠে যেদিনে
+           ক্লাউডে কিছু আছে (`fin.collections`-এর সারি, নয়তো `fin.expenses`-এর
+           খরচ)। যে দিনে কিচ্ছু হয়নি, সেই দিনের সারিই থাকে না — তাই ৩-চাপ দেওয়ার
+           জায়গাও নেই। আর V630-এ TK-রই নির্দেশে আলাদা "Add Collection" বোতামটা
+           তুলে দেওয়া হয়েছিল (*"আয় এবং ব্যয় দুই রকম আলাদা কলম থাকবে না"*), তাই
+           **একদম বাদ পড়া দিন যোগ করার কোনো পথই ছিল না**।
+
+           **এখন:** মাসের নামের নিচে একটাই বোতাম — চাপলে **ফাঁকা Ledger Entry**
+           খোলে, ক্যালেন্ডার থেকে দিন বেছে Cash/Online/খরচ লিখে Save।
+
+           ⛔ `existing`-এ **শুধু ব্রাঞ্চ** যায় — কোনো `id` নেই, খরচের লেখাও নেই ⇒
+              ① Save সবসময় **নতুন** সারি বানায়, পুরনো কোনো দিন ওভাররাইট হয় না
+              ② "Delete Entry" বোতাম আসে না ③ খরচ কপি হয় না।
+           ⛔ পুরনো-তারিখের অনুমতির নিয়ম (`ieRestricted`) হুবহু আগেরটাই — মাস্টার
+              নন এমন কেউ চাপলে আগের মতোই মাস্টারের কাছে অনুরোধ যায়।
+           ⛔ কোনো টাকার হিসাব · মোট · আগের ব্যালেন্স — কিচ্ছু ছোঁয়া হয়নি। */
+        col.addView(android.widget.TextView(this).apply {
+            text = com.tkbiswas.pilesclinic.native.NoBengali.s("➕ নতুন দিন")
+            isClickable = true; isFocusable = true
+            textSize = 15f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#0A5C33"))
+            gravity = android.view.Gravity.CENTER
+            setPadding(dp(12), dp(9), dp(12), dp(9))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(10).toFloat()
+                setColor(android.graphics.Color.parseColor("#EEF7F1"))
+                setStroke(dp(1), android.graphics.Color.parseColor("#CFE2D5"))
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(8) }
+            setOnClickListener {
+                /* দেখানো মাসেরই ১ তারিখ থেকে শুরু — ক্যালেন্ডার ওই মাসেই খোলে,
+                   TK-কে অন্য মাস থেকে ঘুরে আসতে হয় না। */
+                val ym = (month.tag as? String) ?: todayIso().substring(0, 7)
+                openSheetRowEditor(ym + "-01", JSONObject().put("branch", branchSel)) { sheet(ym) }
+            }
+        })
+
         col.addView(out)
         val footer = compactFooter("← Back", "Show", { renderMenu() }) {
             loadSheet(month.tag as String, branchSel, out)
