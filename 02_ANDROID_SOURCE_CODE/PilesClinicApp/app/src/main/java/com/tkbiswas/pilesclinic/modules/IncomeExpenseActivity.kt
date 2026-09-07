@@ -751,10 +751,32 @@ class IncomeExpenseActivity : AppCompatActivity() {
                 row.removeCallbacks(resetTaps)
                 if (tapCount[0] >= 3) {
                     tapCount[0] = 0
-                    // 🔒 V399: শুধু-খরচের দিনে ক্লাউডে কোনো collection সারি নেই — এডিটর খুলবে না।
+                    /* 💰🔒 V1173 (০৭.০৯.২০২৬, TK-নির্দেশ) — TK, ছবিসহ:
+                       *"একটা পেমেন্ট ভুল করে ওঠেনি, আমি এখান থেকে করতে পারছি না কেন?
+                       আমি মাস্টার, আমাকে এরকম বিভ্রান্ত কেন করা হবে?"*
+
+                       **যা ছিল (V399):** যে দিনে শুধু খরচ আছে, সেদিন `fin.collections`-এ
+                       কোনো সারিই নেই — খাতার সারিটা অ্যাপ নিজে বানিয়ে দেখায়। এডিটর
+                       খুলত না, শুধু বার্তা দেখাত। **ওটা ইচ্ছাকৃত সুরক্ষা ছিল, দোষ নয়** —
+                       ওই বানানো সারিটা `existing` হিসেবে পাঠালে তার **খরচের লেখাটা**
+                       `collections.expense_notes`-এ কপি হয়ে যেত, আর ওই দিনের খরচ
+                       **দুবার গোনা** হত। কিন্তু ফল খারাপ: মাস্টারও বাদ পড়া টাকা
+                       বসাতে পারতেন না।
+
+                       **এখন:** ওই সারিতে ৩-চাপে **ফাঁকা নতুন এন্ট্রি** খোলে — তারিখ ও
+                       ব্রাঞ্চ আগে থেকে বসানো, Cash/Online/খরচ তিনটেই ফাঁকা। শুধু
+                       Cash/Online বসিয়ে Save করলেই ওই দিনের আয় বসে যায়।
+
+                       ⛔ `existing`-এ **শুধু ব্রাঞ্চ** পাঠানো হয় — কোনো `id` নেই, খরচের
+                          লেখাও নেই। তাই ① খরচ কপি হয় না (দুবার গোনার ঝুঁকি নেই)
+                          ② Save নতুন সারি বানায় (পুরনো কিছু ওভাররাইট হয় না)
+                          ③ "Delete Entry" বোতামও আসে না (id ফাঁকা)।
+                       ⛔ পুরনো-তারিখের অনুমতির নিয়ম (`ieRestricted`) হুবহু আগেরটাই —
+                          মাস্টার নন এমন কেউ চাইলে মাস্টারের কাছেই অনুরোধ যাবে।
+                       ⛔ খরচের সারিগুলো (`fin.expenses`) এক অক্ষরও ছোঁয়া হয় না। */
                     if (r.optBoolean("_v399ExpenseOnly", false)) {
-                        android.widget.Toast.makeText(this@IncomeExpenseActivity,
-                            com.tkbiswas.pilesclinic.native.NoBengali.s("এই দিনে শুধু খরচ আছে — Add Expense পর্দা থেকে দেখুন"), android.widget.Toast.LENGTH_SHORT).show()
+                        val fresh = JSONObject().put("branch", r.optString("branch", branchSel))
+                        openSheetRowEditor(d, fresh) { sheet(d.substring(0, 7)) }
                     } else openSheetRowEditor(d, r) { sheet(d.substring(0, 7)) }
                 }
                 else row.postDelayed(resetTaps, 1200)
