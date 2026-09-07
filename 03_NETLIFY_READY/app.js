@@ -10543,6 +10543,34 @@ function wlv1NvpCheckupWithReminder(id){
 }
 window["wlv1NvpCheckupWithReminder"]=wlv1NvpCheckupWithReminder;
 
+/* 🚨🔒 V1189 · V1191 — তারিখ ধরে চেম্বারে লেখা কথা (একটাই জায়গায়, তাই
+   Report Card ও CHECK-UP Queue কখনো দুরকম বলবে না)।
+   `followups.history`-র প্রতিটা সারিতে `date` · `remark` জমা থাকে
+   (`FollowUpRepository.updateRemark` / চেম্বার-বোর্ডের সেভ)।
+   ⛔ একই দিনে একাধিক হলে ` · ` দিয়ে জোড়া, কিছুই হারায় না।
+   ⛔ অ্যাপের নিজের বসানো কথা বাদ (একই `wlv1IsAutoPayRemark` ছাঁকনি)।
+   ⛔ নতুন কোনো পড়া নয় — জমা তালিকা থেকেই। */
+function wlv1ChamberNoteOn(mm, dt){
+  try{
+    var day=String(dt||'').slice(0,10);
+    if(!day) return '';
+    var out=[];
+    (load('followups')||[]).filter(function(f){ return mob(f.mobile)===mm; }).forEach(function(f){
+      (f.history||[]).forEach(function(h){
+        if(String(h.date||'').slice(0,10)!==day) return;
+        var r=String(h.remark||'').trim();
+        if(!r) return;
+        if(typeof wlv1IsAutoPayRemark==='function' && wlv1IsAutoPayRemark(r,'')) return;
+        var human=r.split('| Audit:')[0].split('Audit:')[0].trim();
+        if(!human) return;
+        if(!out.some(function(z){ return z.toLowerCase()===human.toLowerCase(); })) out.push(human);
+      });
+    });
+    return out.join('  \u00b7  ');
+  }catch(_e){ return ''; }
+}
+window["wlv1ChamberNoteOn"]=wlv1ChamberNoteOn;
+
 /* 🩺🔒 V951 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — ডাক্তারের লাইনের কার্ডে
    আজ ট্রিটমেন্টের টাকা জমা দেওয়া রোগীর জন্য: **বিল · আজ জমা · বাকি**, আর তার
    নিচে **গত ট্রিটমেন্ট** ও **প্ল্যান** (ফলো-আপ কার্ডের সেই একই সবুজ ডটেড বাক্স)।
@@ -10570,6 +10598,14 @@ function wlv1DqMoney(p){
     });
     /* 💰🔒 V976 (TK-নির্দেশ) — *"সমস্ত পেশেন্টের ক্ষেত্রে দেখাবে"* ⇒ আজ টাকা না
        দিলেও ঘরগুলো বসে (আগে এখানে `return null` হত)। ফোনের হুবহু জোড়া। */
+    /* 🚨🔒 V1191 (০৭.০৯.২০২৬, TK-রিপোর্ট): *"last treatment … কিন্তু সেদিন তাকে
+       কি চিকিৎসা করা হয়েছিল সেটা লেখা নেই কেন"*।
+       🔴 **কারণ (কোডে মেপে) — V1189-এর হুবহু একই দোষ, আরেক জায়গায়:** লেখাটা
+          নেওয়া হত **টাকার সারির** `progress` ঘর থেকে, অথচ চেম্বার-বোর্ডে লেখা
+          কথা জমা হয় **ফলো-আপ সারির** `history`-তে (তারিখ সহ)।
+       ⇒ টাকার সারিতে লেখা না থাকলে এখন **ঐ দিনের** চেম্বারের লেখাটা বসে।
+       ⛔ নতুন কোনো পড়া নয় — জমা তালিকা থেকেই। ⛔ ফোনেও হুবহু এই নিয়ম। */
+    if(!lastT && lastD){ try{ lastT = wlv1ChamberNoteOn(mob(p.mobile), lastD) || ''; }catch(_e){} }
     return {paidToday:paidToday, paidTotal:paidTotal,
             visitNo:Object.keys(days).length, lastDate:lastD, lastText:lastT, lastTime:lastTime};
   }catch(_e){ return null }
@@ -22207,28 +22243,6 @@ function wlv1TimelineRows(p){
 
   const reg = d10(p.registrationDate || p.date);
   if(reg) out.push({date:reg, title:'Registration', note:[p.disease,p.branch].filter(Boolean).join(' · '), paid:0});
-
-  /* 🚨🔒 V1189 — তারিখ ধরে চেম্বারে লেখা কথা। `followups.history`-র প্রতিটা
-     সারিতে `date` · `remark` জমা থাকে, তাই কোন দিনে কী লেখা হয়েছিল ঠিকঠাক
-     বের করা যায়। ⛔ একই দিনে একাধিক হলে ` · ` দিয়ে জোড়া, কিছুই হারায় না।
-     ⛔ অ্যাপের নিজের বসানো কথা বাদ (একই `wlv1IsAutoPayRemark` ছাঁকনি)।
-     ⛔ নতুন কোনো পড়া নয় — জমা তালিকা থেকেই। */
-  function wlv1ChamberNoteOn(mm, dt){
-    if(!dt) return '';
-    const out2=[];
-    (load('followups')||[]).filter(f=>mob(f.mobile)===mm).forEach(f=>{
-      (f.history||[]).forEach(h=>{
-        if(d10(h.date)!==dt) return;
-        const r=String(h.remark||'').trim();
-        if(!r) return;
-        if(wlv1IsAutoPayRemark(r,'')) return;
-        const human=r.split('| Audit:')[0].split('Audit:')[0].trim();
-        if(!human) return;
-        if(!out2.some(z=>z.toLowerCase()===human.toLowerCase())) out2.push(human);
-      });
-    });
-    return out2.join('  \u00b7  ');
-  }
 
   load('followups').filter(f=>mob(f.mobile)===m).forEach(f=>{
     (f.history||[]).forEach(h=>{

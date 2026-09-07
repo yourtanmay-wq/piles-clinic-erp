@@ -437,6 +437,60 @@ class DoctorQueueRepository(private val context: Context? = null) {
                 }
             }
 
+            /* 🚨🔒 V1191 (০৭.০৯.২০২৬, TK-রিপোর্ট, হুবহু): *"last treatment
+               03/08/2026 : 3.37PM এটা তো বুঝলাম, কিন্তু সেদিন তাকে কি চিকিৎসা করা
+               হয়েছিল সেটা লেখা নেই কেন"*।
+
+               🔴 **আসল কারণ (কোডে মেপে) — V1189-এর হুবহু একই দোষ, আরেক জায়গায়:**
+                  উপরে "গত ট্রিটমেন্ট"-এর লেখাটা নেওয়া হয় **টাকার সারির**
+                  `progress` ঘর থেকে। কিন্তু চেম্বার-বোর্ডে স্টাফ যা লেখেন সেটা
+                  জমা হয় **রোগীর ফলো-আপ সারির** `history`-তে (তারিখ সহ)। দুটো
+                  আলাদা জায়গা ⇒ ঘরটা ফাঁকাই থাকত।
+               ⚠️ **আমার ব্যর্থতা:** V1189-এ Report Card-এ এই দোষটা সারানোর সময়
+                  একই ধরনের বাকি জায়গা খুঁজে দেখিনি (নিয়ম ৭ ভেঙেছি)। TK ধরিয়ে
+                  দেওয়ার পর এখানেও সারানো হলো।
+
+               ⇒ তাই কুইউয়ের রোগীদের ফলো-আপ থেকে **তারিখ ধরে** চেম্বারের লেখাটা
+                 আনা হয়; টাকার সারিতে লেখা থাকলে **সেটাই আগের মতো** থাকে।
+               ⛔ একটাই সরু ব্যাচ-পড়া (শুধু `mobile,history`), আর কেবল আজকের
+                  কুইউয়ের রোগীদের জন্য — খরচ নগণ্য (নিয়ম ১৩)।
+               ⛔ পড়া ব্যর্থ হলে কিছুই ভাঙে না — ঘরটা আগের মতোই ফাঁকা থাকে। */
+            val chamberNote = HashMap<String, HashMap<String, String>>()   // mobile10 → (তারিখ → লেখা)
+            try {
+                val mobs = current.mapNotNull { q ->
+                    q.mobile.filter { c -> c.isDigit() }.takeLast(10).takeIf { it.length == 10 }
+                }.distinct()
+                for (i in mobs.indices step 100) {
+                    val part = mobs.subList(i, minOf(i + 100, mobs.size))
+                    val inList = part.joinToString(",")
+                    val fu = SupabaseClient.fetchListSlimOrNull(
+                        "followups", "mobile=in.($inList)", 2000, "mobile,history"
+                    ) ?: continue
+                    for (j in 0 until fu.length()) {
+                        val f = fu.optJSONObject(j) ?: continue
+                        val m10 = f.optString("mobile", "").filter { c -> c.isDigit() }.takeLast(10)
+                        if (m10.length != 10) continue
+                        val hist = f.optJSONArray("history") ?: continue
+                        val byDate = chamberNote.getOrPut(m10) { HashMap() }
+                        for (k in 0 until hist.length()) {
+                            val h = hist.optJSONObject(k) ?: continue
+                            val hd = h.optString("date", "").take(10)
+                            val hr = h.optString("remark", "").trim()
+                            if (hd.isBlank() || hr.isBlank()) continue
+                            if (PaymentModel.isAutoPaymentRemark(hr, "")) continue
+                            val human = PaymentModel.typedPartOf(hr, "").trim()
+                            if (human.isBlank()) continue
+                            val prevNote = byDate[hd].orEmpty()
+                            byDate[hd] = when {
+                                prevNote.isBlank() -> human
+                                prevNote.contains(human, ignoreCase = true) -> prevNote
+                                else -> prevNote + "  \u00b7  " + human
+                            }
+                        }
+                    }
+                }
+            } catch (_: Throwable) { }
+
             /* রোগীর সারিগুলো id ধরে হাতের কাছে (নাম/ছবি/বিল বসানোর জন্য)। */
             val byId = HashMap<String, org.json.JSONObject>()
             for (i in 0 until patientRows.length()) {
@@ -455,7 +509,12 @@ class DoctorQueueRepository(private val context: Context? = null) {
                 paidToday = paidTodayBy[q.id] ?: 0.0,
                 paidTotal = paidTotalBy[q.id] ?: 0.0,
                 lastTreatmentDate = lastTreatBy[q.id]?.first ?: "",
-                lastTreatment = lastTreatBy[q.id]?.second ?: "",
+                /* 🚨 V1191 — টাকার সারিতে লেখা না থাকলে **ঐ দিনের** চেম্বারের লেখা। */
+                lastTreatment = (lastTreatBy[q.id]?.second ?: "").ifBlank {
+                    val d = lastTreatBy[q.id]?.first.orEmpty()
+                    val m10 = q.mobile.filter { c -> c.isDigit() }.takeLast(10)
+                    if (d.isBlank() || m10.length != 10) "" else chamberNote[m10]?.get(d).orEmpty()
+                },
                 lastTreatmentTime = lastTreatTimeBy[q.id] ?: ""
             )
 
