@@ -669,8 +669,30 @@ class WorkNotebookActivity : AppCompatActivity() {
             dayFromCache = false
             dayLoadFailed = false
             saveDayCache()   // 🔴 V511 — আজকের সারিটা এই ফোনে জমা রইল
-            runOnUiThread { dismissWnLoading(); maybeShowQuickMark() }
+            runOnUiThread { dismissWnLoading(); maybeShowQuickMark(); maybeAskOutTime() }
         }.start()
+    }
+
+    /* ⏰🔒 V1166 (০৭.০৯.২০২৬, TK-নির্দেশ) — সন্ধ্যা ৭.৩০-এর পরে OUT TIME না
+       দেওয়া থাকলে **জোর করে** জিজ্ঞাসা: আর কতক্ষণ থাকবেন ও কেন। বসানো সময়
+       পেরোলে আবার। ⛔ শুধু তখনই, যখন আজ IN TIME দেওয়া আছে কিন্তু OUT নেই —
+       ছুটির দিনে বা না-আসা দিনে কখনো নয়। ⛔ হাজিরার কোনো ঘর এখান থেকে লেখা
+       হয় না; "OUT TIME now" চাপলে প্রকল্পের পুরনো প্রমাণিত পথটাই চলে। */
+    private fun maybeAskOutTime() {
+        try {
+            if (isFinishing || isDestroyed) return
+            if (day.optBoolean("is_leave", false)) return
+            val hasIn = ns(day, "check_in").isNotBlank()
+            val hasOut = ns(day, "check_out").isNotBlank()
+            if (!com.tkbiswas.pilesclinic.native.OutTimePrompt.shouldAsk(this, hasIn, hasOut)) return
+            com.tkbiswas.pilesclinic.native.OutTimePrompt.show(
+                this, staffCode.ifBlank { mobile }, NativeSession.current(this)?.branch.orEmpty()
+            ) {
+                /* "OUT TIME now" ⇒ প্রকল্পের পুরনো প্রমাণিত পথ — quick-mark পপ-আপ।
+                   ⛔ নতুন কোনো সেভ-পথ বানানো হয়নি। */
+                quickMarkKind = "out"; maybeShowQuickMark()
+            }
+        } catch (_: Throwable) { }
     }
 
     // 🔵 (07.08.2026) — খোলার সময় স্পষ্ট ফিডব্যাক, যাতে পর্দা ফাঁকা/জমে না

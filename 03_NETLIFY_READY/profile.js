@@ -522,6 +522,77 @@
     } catch (e) {}
   }
 
+  /* ⏱️🔒 V1166 (০৭.০৯.২০২৬) — **ঘণ্টা হিসাবে বেতন** — ফোনের
+     `native/HourSalary.kt`-এর হুবহু যমজ (TK-নির্দেশ ৮: দুটো জায়গাতেই)।
+     নিয়ম (খাতার সারি ২৭০): দিন ১০টা–৫টা = ৭ ঘণ্টা · মাসের ঘণ্টা =
+     ওই মাসের আসল দিন × ৭ · দর = সেট করা বেতন ÷ মাসের ঘণ্টা · মঞ্জুর
+     ছুটি = ৭ ঘণ্টা · IN বা OUT একটাও না থাকলে ওই দিন ০ ঘণ্টা।
+     ⛔ TK-এর স্পষ্ট নির্দেশ: *"প্রথমে শুধু দেখানো, টাকা কাটা নয়"* ⇒ এই
+        লাইনটা **এক পয়সাও বদলায় না** — Due · Paid · Total সব আগের নিয়মেই।
+     ⛔ একটাই ছোট পড়া (ওই স্টাফের ওই মাসের হাজিরা, তিনটে ঘর), পর্দা আঁকা
+        এর জন্য থামে না — ব্যর্থ হলে লাইনটা শুধু বসে না। */
+  var SAL_DAY_HOURS = 7, SAL_DAY_MINUTES = 7 * 60;
+  /* যে মাস থেকে নিয়মটা চালু — TK: *"বিগত দিনের হিসাব ধরবেন না"*। */
+  function salHourStartsFrom(){
+    var t = window.MOD.todayIST(), y = parseInt(t.slice(0,4),10), mo = parseInt(t.slice(5,7),10) + 1;
+    if (mo > 12) { mo = 1; y += 1; }
+    return y + '-' + (mo < 10 ? '0' + mo : '' + mo);
+  }
+  function salHourDaysInMonth(ym){
+    try{ var p = String(ym).split('-'); var y = parseInt(p[0],10), mo = parseInt(p[1],10);
+      if(!y || !mo) return 0; return new Date(Date.UTC(y, mo, 0)).getUTCDate(); }catch(e){ return 0 }
+  }
+  /* `"09:15"` ও `"09:15:00"` — দুটো ধাঁচই জমা থাকে (Fix Attendance সেকেন্ড লেখে)। */
+  function salHourMinutes(raw){
+    var t = String(raw==null?'':raw).trim(); if(!t) return null;
+    var p = t.split(':'); if(p.length !== 2 && p.length !== 3) return null;
+    var h = parseInt(p[0],10), mi = parseInt(p[1],10);
+    if(isNaN(h) || isNaN(mi) || h<0 || h>23 || mi<0 || mi>59) return null;
+    return h*60 + mi;
+  }
+  function salHourText(mins){
+    var h = Math.floor(mins/60), mm = mins%60; return h + 'h ' + (mm<10?'0'+mm:''+mm) + 'm';
+  }
+  function salHourCompute(days, amount, ym){
+    var mh = salHourDaysInMonth(ym) * SAL_DAY_HOURS;
+    var rate = mh > 0 ? (amount / mh) : 0;
+    var worked = 0, leaves = 0, missing = 0;
+    (days||[]).forEach(function(d){
+      /* মঞ্জুর হওয়া ছুটি ⇒ পুরো দিনের ৭ ঘণ্টা (`is_leave` মঞ্জুর হলেই বসে)। */
+      if(d && d.is_leave){ leaves++; worked += SAL_DAY_MINUTES; return; }
+      var a = salHourMinutes(d && d.check_in), b = salHourMinutes(d && d.check_out);
+      if(a === null || b === null || b <= a){ missing++; return; }
+      worked += (b - a);
+    });
+    return { monthHours: mh, ratePerHour: rate, workedMinutes: worked,
+             leaveDays: leaves, missingDays: missing, payable: (worked/60) * rate };
+  }
+  async function salHourFill(code, amount, ym){
+    var el = document.getElementById('salHourVal'), lab = document.getElementById('salHourLab');
+    if(!el) return;
+    try{
+      var client = await sb();
+      var p = String(ym).split('-'), y = parseInt(p[0],10), mo = parseInt(p[1],10);
+      var from = ym + '-01';
+      var end = (mo >= 12) ? ((y+1) + '-01-01') : (y + '-' + ((mo+1)<10?'0'+(mo+1):''+(mo+1)) + '-01');
+      var rows = ((await client.schema('wn').from('notebook_days')
+        .select('work_date,check_in,check_out,is_leave')
+        .eq('staff_code', code).gte('work_date', from).lt('work_date', end)).data) || [];
+      var r = salHourCompute(rows, amount, ym);
+      if(lab) lab.textContent = 'By hours \u00b7 from ' + salHourMonthName(salHourStartsFrom());
+      el.textContent = window.MOD.money(r.payable) + '  \u00b7  ' + salHourText(r.workedMinutes) +
+        ' of ' + Math.round(r.monthHours) + 'h';
+      el.style.color = '#0E6E8C';
+    }catch(e){
+      var row = document.getElementById('salHourRow'); if(row) row.style.display = 'none';
+    }
+  }
+  function salHourMonthName(ym){
+    try{ var q = String(ym||'').split('-');
+      var n = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      return n[parseInt(q[1],10)-1] + ' ' + q[0]; }catch(e){ return ym||'' }
+  }
+
   async function profSalary(code) {
     var m = window.MOD, client = await sb();
     await profIncentiveSync(client);
@@ -581,7 +652,11 @@
       (active
         ? (salRow('Monthly', m.money(amount) + (sc.salary_date ? (' · day ' + m.esc(sc.salary_date)) : ''), '#0A5C33', true) +
            salRow(monthLabel(cur), (due <= 0 ? 'Paid' : 'Due ' + m.money(due)), (due <= 0 ? '#0A7C3F' : '#B42318'), true) +
-           salRow('Paid up to', (latest ? monthLabel(latest) : '—'), '#0A7C3F', true))
+           salRow('Paid up to', (latest ? monthLabel(latest) : '—'), '#0A7C3F', true) +
+           /* ⏱️🔒 V1166 — ঘণ্টা হিসাবে কত হত (শুধু দেখানো; টাকা বদলায় না)। */
+           '<div id="salHourRow" style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px solid #F0F4F1">' +
+             '<span id="salHourLab" style="color:#3B5A49;font-size:13.5px">By hours</span>' +
+             '<b id="salHourVal" style="color:#5B6B81;font-size:14.5px">…</b></div>')
         : salRow('Monthly', 'Not set', '#B42318', true)) +
       salRow('Total paid', m.money(salaryTotal), '#123A26', true) + joinRow +
       /* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬) — ফোনে "Add Salary" বোতামটা **শুধু
@@ -665,6 +740,8 @@
       '<button class="ghost" onclick="staffProfiles()">Back</button></div><div class="page">' +
       salaryCard + payHtml + extraCard + settingsCard + fieldCard +
       '</div></div>';
+    /* ⛔ পর্দা আগে আঁকা হয়, তারপর ঘণ্টার লাইনটা ভরে — ফোনের মতোই। */
+    if(active) salHourFill(code, amount, cur);
   }
 
   /* ⏰🔒 V990 (০৩.০৯.২০২৬, TK-এর পাশ-করা ফটো-প্রুফ) —

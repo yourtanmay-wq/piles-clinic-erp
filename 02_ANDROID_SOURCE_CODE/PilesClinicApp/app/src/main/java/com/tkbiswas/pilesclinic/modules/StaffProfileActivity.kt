@@ -17,6 +17,7 @@ import android.widget.Spinner
 import android.widget.ArrayAdapter
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import com.tkbiswas.pilesclinic.native.HourSalary   // ⏱️ V1166
 import com.tkbiswas.pilesclinic.native.NativeSession
 import com.tkbiswas.pilesclinic.native.PhotoUtils
 import com.tkbiswas.pilesclinic.native.TripleTapEdit
@@ -1592,6 +1593,41 @@ class StaffProfileActivity : AppCompatActivity() {
         }.start()
     }
 
+    /**
+     * ⏱️ V1166 — ওই স্টাফের ওই মাসের হাজিরা পড়ে **ঘণ্টা হিসাবে বেতন কত হত**
+     * সেটা লাইনে বসায়। ⛔ শুধু দেখানো — কোনো টাকা লেখা/বদলানো হয় না।
+     */
+    private fun loadHourSalaryInto(code: String, amount: Double, ym: String, row: LinearLayout) {
+        if (amount <= 0.0) { row.visibility = android.view.View.GONE; return }
+        Thread {
+            val from = "$ym-01"
+            val end = try {
+                val p = ym.split("-"); val y = p[0].toInt(); val m = p[1].toInt()
+                if (m >= 12) String.format(Locale.US, "%04d-01-01", y + 1)
+                else String.format(Locale.US, "%04d-%02d-01", y, m + 1)
+            } catch (_: Throwable) { "$ym-31" }
+            val r = try {
+                ModuleAuth.getRowsChecked(
+                    "wn", "notebook_days",
+                    "select=work_date,check_in,check_out,is_leave&staff_code=eq.$code" +
+                        "&work_date=gte.$from&work_date=lt.$end"
+                )
+            } catch (_: Throwable) { null }
+            val res = HourSalary.compute(if (r != null && r.ok) r.rows else null, amount, ym)
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (r == null || !r.ok) { row.visibility = android.view.View.GONE; return@runOnUiThread }
+                (row.getChildAt(0) as? TextView)?.text =
+                    "By hours \u00b7 from " + salaryMonthLabel(HourSalary.startsFrom())
+                (row.getChildAt(1) as? TextView)?.apply {
+                    text = money(res.payable) + "  \u00b7  " +
+                        HourSalary.hoursText(res.workedMinutes) + " of " + res.monthHours.toInt() + "h"
+                    setTextColor(android.graphics.Color.parseColor("#0E6E8C"))
+                }
+            }
+        }.start()
+    }
+
     private fun renderSalary(code: String, box: LinearLayout, enabled: Boolean, amount: Double, salaryDate: String, pays: JSONArray, joinDate: String) {
         box.removeAllViews()
         val cur = salaryCurrentMonth()
@@ -1636,6 +1672,18 @@ class StaffProfileActivity : AppCompatActivity() {
                 if (due <= 0.0) "Paid" else "Due " + money(due),
                 if (due <= 0.0) "#0A7C3F" else "#B42318"))
             box.addView(salaryStatusRow("Paid up to", if (latestMonth.isNotBlank()) salaryMonthLabel(latestMonth) else "—", "#0A7C3F"))
+            /* ⏱️🔒 V1166 (০৭.০৯.২০২৬, TK-র সঙ্গে পুরো আলোচনা করে ঠিক হওয়া নিয়ম —
+               খাতার সারি ২৭০) — **ঘণ্টা হিসাবে বেতন কত হত**, এখানে দেখানো হয়।
+               ⛔ TK-এর স্পষ্ট নির্দেশ: *"প্রথমে শুধু দেখানো, টাকা কাটা নয়"* ⇒
+                  এই লাইনটা **কোনো টাকা বদলায় না** — উপরের Due · Paid · সব
+                  হিসাব হুবহু আগের নিয়মেই চলে, এক পয়সাও নড়ে না।
+               ⛔ TK: *"বিগত দিনের হিসাব ধরবেন না, আগামী মাস থেকে হবে"* ⇒ লাইনেই
+                  লেখা থাকে কোন মাস থেকে নিয়মটা চালু হবে।
+               ⛔ একটাই ছোট পড়া (ওই স্টাফের ওই মাসের হাজিরা, তিনটে ঘর) — পর্দা
+                  আঁকা এর জন্য থামে না, ব্যর্থ হলে লাইনটা শুধু বসে না। */
+            val hourRow = salaryStatusRow("By hours", "…", "#5B6B81")
+            box.addView(hourRow)
+            loadHourSalaryInto(code, amount, cur, hourRow)
         } else {
             box.addView(salaryStatusRow("Monthly", "Not set", "#B42318"))
         }

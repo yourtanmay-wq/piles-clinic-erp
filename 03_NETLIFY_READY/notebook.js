@@ -455,7 +455,106 @@ function nbDoctorVisitCount(dateIso, staffCode){
         });
       }
     } catch (e) {}
+    /* ⏰🔒 V1166 — OUT TIME না চাপলে জোর করে জিজ্ঞাসা (ফোনের যমজ)। */
+    try { nbMaybeAskOutTime(day, code); } catch (e) {}
   }
+
+  /* ⏰🔒 V1166 (০৭.০৯.২০২৬) — **OUT TIME না চাপলে জোর করে জিজ্ঞাসা** —
+     ফোনের `native/OutTimePrompt.kt`-এর হুবহু যমজ।
+     TK-নির্দেশ (খাতার সারি ২৭০): সন্ধ্যা **৭.৩০ PM** পার হলেও OUT TIME না
+     থাকলে পপ-আপ — **আর কতক্ষণ থাকবেন (সময়)** ও **কারণ** দুটোই লিখতেই হবে;
+     বসানো সময় পেরিয়ে গেলে **আবার একই পপ-আপ**।
+     ⛔ বাতিল করা যায় না (বাইরে চাপলেও বন্ধ হয় না) — TK: *"জোর করে"*।
+     ⛔ হাজিরার কোনো ঘর এখান থেকে লেখা হয় না — IN/OUT TIME-এর নিয়ম অটুট।
+     ⛔ শুধু আজ যিনি IN দিয়েছেন কিন্তু OUT দেননি — ছুটির দিনে কখনো ওঠে না।
+     ⚠️ ফোনে ৭.৩০-এর নোটিফিকেশনও ডাকে; ব্রাউজারে পর্দা বন্ধ থাকলে কিছু চলে
+        না, তাই এখানে **পর্দা খোলার সময়** পপ-আপটা ওঠে — TK-কে জানানো হয়েছে। */
+  var NB_OUT_ASK_MINUTES = 19 * 60 + 30;      /* TK-নির্দেশ: সন্ধ্যা ৭.৩০ PM */
+  var NB_OUT_PREF = 'rk_out_time_prompt';
+  function nbOutNowMinutes(){
+    var d = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    return d.getHours() * 60 + d.getMinutes();
+  }
+  /* স্টাফ যে সময় পর্যন্ত থাকবেন বলেছেন (মিনিটে); বলা না থাকলে -1। */
+  function nbOutStayUntil(){
+    try{
+      var raw = JSON.parse(localStorage.getItem(NB_OUT_PREF) || '{}');
+      if(String(raw.date||'') !== window.MOD.todayIST()) return -1;
+      var u = parseInt(raw.until, 10);
+      return isNaN(u) ? -1 : u;
+    }catch(e){ return -1 }
+  }
+  function nbOutClock(mins){
+    var h = Math.floor(mins/60), mm = mins%60, ap = h < 12 ? 'AM' : 'PM';
+    var h12 = (h === 0) ? 12 : (h > 12 ? h - 12 : h);
+    return h12 + '.' + (mm<10?'0'+mm:''+mm) + ' ' + ap;
+  }
+  function nbShouldAskOutTime(day){
+    if(!day || day.is_leave) return false;
+    if(!day.check_in || day.check_out) return false;
+    var now = nbOutNowMinutes();
+    if(now < NB_OUT_ASK_MINUTES) return false;
+    var until = nbOutStayUntil();
+    /* এখনো কিছু বলেননি ⇒ জিজ্ঞাসা। বলা সময় পেরিয়ে গেছে ⇒ আবার জিজ্ঞাসা। */
+    return (until < 0 || now >= until);
+  }
+  function nbMaybeAskOutTime(day, code){
+    if(!nbShouldAskOutTime(day)) return;
+    if(document.getElementById('nbOutAskBack')) return;   /* একবারেই একটা */
+    var m = window.MOD;
+    var br = '';
+    /* ⛔ প্রকল্পের নিজের `appUser()` — `window.user` সব সময় থাকে না। */
+    try{ br = String((appUser() || {}).branch || ''); }catch(e){}
+    var back = document.createElement('div');
+    back.id = 'nbOutAskBack';
+    /* ⛔ বাইরে চাপলে বন্ধ হয় না — কোনো onclick বসানো হয়নি। */
+    back.style.cssText = 'position:fixed;inset:0;background:rgba(16,24,40,.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:18px';
+    back.innerHTML = '<div style="background:#fff;border-radius:14px;max-width:420px;width:100%;overflow:hidden;box-shadow:0 12px 34px rgba(16,24,40,.28)">' +
+      '<div style="background:#145A32;color:#fff;padding:13px 18px;font-weight:800;font-size:15px">Still at the chamber?</div>' +
+      '<div style="padding:16px 18px 6px">' +
+        '<div style="font-size:13.5px;color:#33404F">OUT TIME is not marked yet.</div>' +
+        '<label style="display:block;font-size:11px;color:#667085;margin:12px 0 5px;font-weight:600;text-transform:uppercase;letter-spacing:.3px">How long will you stay?</label>' +
+        '<input id="nbOutAskTime" class="input" type="time" style="margin:0;padding:10px 12px;font-size:14px;border-radius:8px">' +
+        '<label style="display:block;font-size:11px;color:#667085;margin:12px 0 5px;font-weight:600;text-transform:uppercase;letter-spacing:.3px">Why are you still here?</label>' +
+        '<textarea id="nbOutAskWhy" class="input" rows="2" style="margin:0;padding:10px 12px;font-size:14px;border-radius:8px"></textarea>' +
+      '</div>' +
+      '<div style="display:flex;gap:10px;padding:14px 18px 18px">' +
+        '<button class="ghost" style="flex:1;margin:0" onclick="nbOutAskMarkOut()">OUT TIME now</button>' +
+        '<button style="flex:1;margin:0" onclick="nbOutAskSave(\'' + m.esc(code) + '\',\'' + m.esc(br) + '\')">Save</button>' +
+      '</div></div>';
+    document.body.appendChild(back);
+  }
+  function nbOutAskClose(){
+    try{ var b = document.getElementById('nbOutAskBack'); if(b) b.remove(); }catch(e){}
+  }
+  function nbOutAskMarkOut(){
+    nbOutAskClose();
+    try{ nbCheck('out'); }catch(e){}
+  }
+  async function nbOutAskSave(code, branch){
+    var m = window.MOD;
+    var t = String((document.getElementById('nbOutAskTime') || {}).value || '').trim();
+    var why = String((document.getElementById('nbOutAskWhy') || {}).value || '').trim();
+    var p = t.split(':'), h = parseInt(p[0],10), mi = parseInt(p[1],10);
+    if(!t || isNaN(h) || isNaN(mi)){ try{ toast('Pick the time first'); }catch(e){} return; }
+    if(!why){ try{ toast('Write the reason'); }catch(e){} return; }
+    var until = h*60 + mi;
+    try{ localStorage.setItem(NB_OUT_PREF, JSON.stringify({ date: m.todayIST(), until: until })); }catch(e){}
+    /* মাস্টার যেন জানতে পারেন — আগে থেকেই থাকা নোটিশ-বোর্ডেই।
+       ⛔ ব্যর্থ হলে নিঃশব্দে বাদ; স্টাফের কাজ এর জন্য আটকায় না। */
+    try{
+      var mob = ''; try{ mob = String((appUser() || {}).mobile || ''); }catch(_e){}
+      /* ⛔ প্রকল্পের নিজের `nbPostBriefing` দিয়েই — নতুন কোনো পথ বানানো হয়নি। */
+      await nbPostBriefing('Staff still at chamber',
+        '\ud83d\udc64 Staff : ' + code + '\n\ud83c\udfe5 Branch : ' + branch +
+          '\n\u23f0 Staying until : ' + nbOutClock(until) + '\nReason : ' + why,
+        { roles: ['master'] }, branch, mob);
+    }catch(e){}
+    nbOutAskClose();
+    try{ toast('OK - we will ask again at ' + nbOutClock(until)); }catch(e){}
+  }
+  window.nbOutAskSave = nbOutAskSave;
+  window.nbOutAskMarkOut = nbOutAskMarkOut;
 
   // ⛔ পুরনো, নতুন পর্দা থেকে আর ডাকা হয় না — মোছা হয়নি (Work Entries লিস্ট)
   function drawEntries() {
