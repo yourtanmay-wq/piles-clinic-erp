@@ -72,7 +72,7 @@ object OutTimePrompt {
      * পপ-আপটা দেখায়। সময় ও কারণ দুটোই না লিখলে বন্ধ হয় না।
      * @param onMarkOut "OUT TIME now" চাপলে যা চলবে (হাজিরার পুরনো পথ)।
      */
-    fun show(activity: Activity, staffCode: String, branch: String, onMarkOut: () -> Unit) {
+    fun show(activity: Activity, staffCode: String, branch: String, byMobile: String, onMarkOut: () -> Unit) {
         if (activity.isFinishing) return
         val d = activity.resources.displayMetrics.density
         fun dp(v: Int) = (v * d).toInt()
@@ -157,7 +157,9 @@ object OutTimePrompt {
                         ctx, "Staff still at chamber",
                         "👤 Staff : " + staffCode + "\n🏥 Branch : " + branch +
                             "\n⏰ Staying until : " + clock(picked) + "\nReason : " + why,
-                        "role", branch, "master", ""
+                        /* ⛔ "Staff IN TIME" নোটিশের হুবহু একই পথ ও একই ক্রম
+                           (WorkNotebookActivity:1431) — নতুন কিছু বানানো হয়নি। */
+                        "role", branch, "master", byMobile
                     )
                 } catch (_: Throwable) { }
             }

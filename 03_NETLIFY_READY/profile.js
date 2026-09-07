@@ -579,7 +579,14 @@
         .select('work_date,check_in,check_out,is_leave')
         .eq('staff_code', code).gte('work_date', from).lt('work_date', end)).data) || [];
       var r = salHourCompute(rows, amount, ym);
-      if(lab) lab.textContent = 'By hours \u00b7 from ' + salHourMonthName(salHourStartsFrom());
+      /* ⛔ নিজে মেপে ধরা: নিয়মটা চালু **আগামী মাস থেকে**, অথচ দেখানো হচ্ছে
+         **এই মাসের** হিসাব (TK যেন আগে থেকে মিলিয়ে দেখতে পারেন) — তাই চালু
+         হওয়ার আগে লেবেলেই স্পষ্ট লেখা থাকে যে এটা শুধু আগাম দেখা। */
+      var started = String(ym) >= salHourStartsFrom();
+      if(lab) lab.textContent = started
+        ? ('By hours \u00b7 ' + salHourMonthName(ym))
+        : ('By hours \u00b7 ' + salHourMonthName(ym) +
+           ' (preview \u2014 counts from ' + salHourMonthName(salHourStartsFrom()) + ')');
       el.textContent = window.MOD.money(r.payable) + '  \u00b7  ' + salHourText(r.workedMinutes) +
         ' of ' + Math.round(r.monthHours) + 'h';
       el.style.color = '#0E6E8C';

@@ -669,7 +669,14 @@ class WorkNotebookActivity : AppCompatActivity() {
             dayFromCache = false
             dayLoadFailed = false
             saveDayCache()   // 🔴 V511 — আজকের সারিটা এই ফোনে জমা রইল
-            runOnUiThread { dismissWnLoading(); maybeShowQuickMark(); maybeAskOutTime() }
+            runOnUiThread {
+                dismissWnLoading()
+                /* ⏰ V1166 — জোর-করে-জিজ্ঞাসার পপ-আপটা **আগে** দেখা হয়; সেটা
+                   উঠলে quick-mark পপ-আপ আর দেখানো হয় না (নইলে দুটো পপ-আপ
+                   একটার উপর আরেকটা জমত — নিজে মেপে ধরা)। জোরেরটাই জেতে,
+                   কারণ TK-র নিয়ম: *"জোর করে নোটিফিকেশন দেবে"*। */
+                if (maybeAskOutTime()) { quickMarkKind = ""; render() } else maybeShowQuickMark()
+            }
         }.start()
     }
 
@@ -678,21 +685,23 @@ class WorkNotebookActivity : AppCompatActivity() {
        পেরোলে আবার। ⛔ শুধু তখনই, যখন আজ IN TIME দেওয়া আছে কিন্তু OUT নেই —
        ছুটির দিনে বা না-আসা দিনে কখনো নয়। ⛔ হাজিরার কোনো ঘর এখান থেকে লেখা
        হয় না; "OUT TIME now" চাপলে প্রকল্পের পুরনো প্রমাণিত পথটাই চলে। */
-    private fun maybeAskOutTime() {
+    /** @return পপ-আপটা সত্যিই দেখানো হলো কিনা (তাহলে quick-mark আর দেখানো হয় না)। */
+    private fun maybeAskOutTime(): Boolean {
         try {
-            if (isFinishing || isDestroyed) return
-            if (day.optBoolean("is_leave", false)) return
+            if (isFinishing || isDestroyed) return false
+            if (day.optBoolean("is_leave", false)) return false
             val hasIn = ns(day, "check_in").isNotBlank()
             val hasOut = ns(day, "check_out").isNotBlank()
-            if (!com.tkbiswas.pilesclinic.native.OutTimePrompt.shouldAsk(this, hasIn, hasOut)) return
+            if (!com.tkbiswas.pilesclinic.native.OutTimePrompt.shouldAsk(this, hasIn, hasOut)) return false
             com.tkbiswas.pilesclinic.native.OutTimePrompt.show(
-                this, staffCode.ifBlank { mobile }, NativeSession.current(this)?.branch.orEmpty()
+                this, staffCode.ifBlank { mobile }, NativeSession.current(this)?.branch.orEmpty(), mobile
             ) {
                 /* "OUT TIME now" ⇒ প্রকল্পের পুরনো প্রমাণিত পথ — quick-mark পপ-আপ।
                    ⛔ নতুন কোনো সেভ-পথ বানানো হয়নি। */
                 quickMarkKind = "out"; maybeShowQuickMark()
             }
-        } catch (_: Throwable) { }
+            return true
+        } catch (_: Throwable) { return false }
     }
 
     // 🔵 (07.08.2026) — খোলার সময় স্পষ্ট ফিডব্যাক, যাতে পর্দা ফাঁকা/জমে না

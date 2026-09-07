@@ -1617,8 +1617,15 @@ class StaffProfileActivity : AppCompatActivity() {
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 if (r == null || !r.ok) { row.visibility = android.view.View.GONE; return@runOnUiThread }
+                /* ⛔ নিজে মেপে ধরা: নিয়মটা চালু **আগামী মাস থেকে**, অথচ পর্দায়
+                   দেখানো হচ্ছে **এই মাসের** হিসাব (TK যেন আগে থেকে মিলিয়ে
+                   দেখতে পারেন)। তাই চালু হওয়ার আগে লেবেলে স্পষ্ট লেখা থাকে
+                   যে এটা শুধু আগাম দেখা — নইলে TK ভাবতেন সংখ্যাটা ওই মাসের। */
+                val started = ym >= HourSalary.startsFrom()
                 (row.getChildAt(0) as? TextView)?.text =
-                    "By hours \u00b7 from " + salaryMonthLabel(HourSalary.startsFrom())
+                    if (started) "By hours \u00b7 " + salaryMonthLabel(ym)
+                    else "By hours \u00b7 " + salaryMonthLabel(ym) +
+                        " (preview \u2014 counts from " + salaryMonthLabel(HourSalary.startsFrom()) + ")"
                 (row.getChildAt(1) as? TextView)?.apply {
                     text = money(res.payable) + "  \u00b7  " +
                         HourSalary.hoursText(res.workedMinutes) + " of " + res.monthHours.toInt() + "h"
