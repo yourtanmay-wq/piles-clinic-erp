@@ -4231,6 +4231,18 @@ function wlv1StaffNameMap(){
 /* ⛔ নামটা ইচ্ছে করে `wlv1StaffFullNameOf` — প্রকল্পে আগে থেকেই একটা
    `wlv1StaffNameOf` আছে (মোবাইল → নাম); একই নাম দিলে সেটাই জিতে যেত আর
    এখানে কোডই দেখাত। নিজের যাচাইয়ে ধরা পড়েছে। */
+/* 🔴🔒 V1171 (০৭.০৯.২০২৬, TK: *"২৬১ করুন, স্টাফের নাম বসিয়ে দিন"*) —
+   টাকার সারিতে কে নিয়েছেন সেটা **মোবাইল** হিসেবে জমা (`receivedBy`), তাই
+   মোবাইল ধরেও সম্পূর্ণ নাম বের করা দরকার। না পেলে '' — তখন ডাকার জায়গা
+   আগের নিয়মেই (কোড) চলে, কিছুই ভাঙে না। */
+function wlv1StaffFullNameByMobile(v){
+  try{
+    var k=String(v||'').replace(/[^0-9]/g,'').slice(-10); if(k.length!==10) return '';
+    var o=JSON.parse(localStorage.getItem(WLV1_STAFF_NAME_KEY)||'{}');
+    var n=((o&&o.mmap)||{})[k]||'';
+    return (n&&n.toUpperCase()!==k)?n:'';
+  }catch(e){ return '' }
+}
 function wlv1StaffFullNameOf(code){
   var k=String(code||'').trim().toUpperCase(); if(!k) return '';
   var n=wlv1StaffNameMap()[k]||'';
@@ -4243,14 +4255,18 @@ async function wlv1RefreshStaffNames(){
     if(o.at && (Date.now()-Number(o.at))<86400000) return;
     if(!window.MOD) return;
     var c=await window.MOD.client(); if(!c) return;
-    var rows=((await c.schema('hr').from('staff_profiles').select('person_code,full_name')).data)||[];
-    var m={};
+    var rows=((await c.schema('hr').from('staff_profiles').select('person_code,full_name,link_mobile')).data)||[];
+    var m={},mm={};
     rows.forEach(function(r){
       var k=String((r&&r.person_code)||'').trim().toUpperCase();
       var n=String((r&&r.full_name)||'').trim();
       if(k&&n) m[k]=n;
+      /* 🔴 V1171 — মোবাইল ধরেও নাম লাগে (টাকার সারিতে `receivedBy` মোবাইল)। */
+      var mo=String((r&&r.link_mobile)||'').replace(/[^0-9]/g,'').slice(-10);
+      if(mo.length===10&&n) mm[mo]=n;
     });
-    if(Object.keys(m).length) localStorage.setItem(WLV1_STAFF_NAME_KEY,JSON.stringify({at:Date.now(),map:m}));
+    if(Object.keys(m).length||Object.keys(mm).length)
+      localStorage.setItem(WLV1_STAFF_NAME_KEY,JSON.stringify({at:Date.now(),map:m,mmap:mm}));
   }catch(e){}
 }
 window["wlv1RefreshStaffNames"]=wlv1RefreshStaffNames;
@@ -14638,7 +14654,7 @@ function summary(id){
    <button class="ghost" onclick="addTreatmentPayment('${p.id}')"><span>💰</span><b>Add Payment</b><small>${nextPaymentLabel(p.id)}</small></button><button class="ghost" onclick="paymentHistory('${p.id}')"><span>📒</span><b>Payment History</b><small>View / Hidden Edit</small></button>
   </div>`:(contactBranchNotice(p)+safeFollowActionsForMobile(p.mobile));
  let photo=p.photo?`<img class="summaryPhoto" src="${p.photo}">`:`<div class="summaryPhoto blank">👤</div>`;
- page('Patient Summary',`<div class="card patientSummaryPro wlv1Tl"><div class="wlv1TlHead ${wlv1StageClass(p)}"><div class="wlv1TlPhoto">${photo}</div><div class="wlv1TlInfo"><div class="wlv1TlMob">${esc(shownMob(p.mobile))}<button class="wlv1TlCall" onclick="contact('${esc(p.mobile)}','call')">📞</button></div><div class="wlv1TlName">${esc(String(p.name||'').toUpperCase())}</div><div class="wlv1TlLine">${esc([p.branch,p.disease,[p.sex,p.age].filter(Boolean).join('-')].filter(Boolean).join(' · ').toUpperCase())}</div><div class="wlv1TlLine wlv1TlAddr">${(function(){var l1=[p.village,p.po].filter(Boolean).join(', '),l2=[p.ps,p.district,p.pin].filter(Boolean).join(', ');if(l1||l2)return esc(l1.toUpperCase())+(l2?'<br>'+esc(l2.toUpperCase()):'');return p.address?wlv1AddrTwo(String(p.address).toUpperCase()):'';})()}</div>${p.refDoctor?`<div class="wlv1TlRef">By- Dr. ${esc(String(p.refDoctor).toUpperCase())}</div>`:''}<div class="wlv1TlId">${esc(p.patientId||'')}${(function(){/* 🔵🔒 V521 (২২.০৮.২০২৬, TK-নির্দেশ): অসময়ের এনকোয়ারি কিনা — ID-র পাশেই। স্টাফের Extra Income শুধু "Unexpected Time"-এর এনকোয়ারিতেই হয় (V418-এর SQL), তাই History খুলেই TK বুঝবেন টাকাটা কেন পাওনা। ⛔ ঘরটা ফাঁকা হলে (পুরোনো রেকর্ড) কিছুই দেখায় না — আগের মতোই। ⛔ ফোনের PatientTimelineActivity-তে হুবহু একই চিপ। */var tt=String(p.timeType||'').trim();if(!tt)return '';return '   ·   '+(/^unexpected time$/i.test(tt)?'⏰ UNEXPECTED TIME':esc(tt.toUpperCase()));})()}</div></div><button class="small ghost wlv1TlPrint" onclick="printReg('${p.id}')">Print</button></div>${financeAllowed?wlv1MoneyChips(t):''}<div class="sectionTitle miniTitle">&#9201;&#65039; Updates — latest first</div>${wlv1TimelineTable(p,t)}${topActions}${payBlock}${wlv1CompleteDespiteDueBlock(p,t,financeAllowed,writeAllowed)}<div class="summaryDivider"></div><div class="summaryInfoGrid"><div><small>Disease</small><b>${esc(p.disease||'-')}</b></div><div><small>Since</small><b>${esc(p.sinceWhen||'-')}</b></div><div><small>Diagnosis</small><b>${esc(p.diagnosis||'-')}</b></div><div><small>Decision</small><b>${esc(p.decision||'-')}</b></div></div><div class="summaryText"><p><b>Complaint:</b> ${esc(p.complaint||'-')}</p><p><b>First Visit:</b> ${esc(p.visitDate||p.registrationDate||p.date||'-')}</p><p><b>Address:</b> ${esc(p.address||'-')}</p></div><div class="sectionTitle miniTitle">Clinical Actions</div>${clinicalActions}</div>${financeAllowed?`<div class="sectionTitle">Payment History</div>${pays.map((x,i)=>`<div class="card paymentHistoryCard" onclick="hiddenPaymentEditTap('${x.id}')"><b>${esc(paymentDisplayLabel(x,i))}</b><br><span class="mut">${esc(wlv1DayClock(x.date,x.createdAt))}</span><br>${money(x.amount)} · ${esc(x.mode)}<br><small>${esc(x.remarks||'')}</small><div class="actions"><button class="small ghost" onclick="event.stopPropagation();viewPaymentEntry('${x.id}')">View</button></div></div>`).join('')||'<div class="card mut">No treatment payment yet</div>'}`:''}<div class="sectionTitle">Medical Records</div>${meds.map(x=>`<div class="card"><b>${esc(x.type)}</b> · ${esc(x.date)}<br>${esc(x.decision||x.selected||'')}<br><small>${esc(x.details||x.diagnosis||'')}</small></div>`).join('')||'<div class="card mut">No medical record yet</div>'}`)
+ page('Patient Summary',`<div class="card patientSummaryPro wlv1Tl"><div class="wlv1TlHead ${wlv1StageClass(p)}"><div class="wlv1TlPhoto">${photo}</div><div class="wlv1TlInfo"><div class="wlv1TlMob">${esc(shownMob(p.mobile))}<button class="wlv1TlCall" onclick="contact('${esc(p.mobile)}','call')">📞</button></div><div class="wlv1TlName">${esc(String(p.name||'').toUpperCase())}</div><div class="wlv1TlLine">${esc([p.branch,p.disease,[p.sex,p.age].filter(Boolean).join('-')].filter(Boolean).join(' · ').toUpperCase())}</div><div class="wlv1TlLine wlv1TlAddr">${(function(){var l1=[p.village,p.po].filter(Boolean).join(', '),l2=[p.ps,p.district,p.pin].filter(Boolean).join(', ');if(l1||l2)return esc(l1.toUpperCase())+(l2?'<br>'+esc(l2.toUpperCase()):'');return p.address?wlv1AddrTwo(String(p.address).toUpperCase()):'';})()}</div>${p.refDoctor?`<div class="wlv1TlRef">By- Dr. ${esc(String(p.refDoctor).toUpperCase())}</div>`:''}<div class="wlv1TlId">${esc(p.patientId||'')}${(function(){/* 🔵🔒 V521 (২২.০৮.২০২৬, TK-নির্দেশ): অসময়ের এনকোয়ারি কিনা — ID-র পাশেই। স্টাফের Extra Income শুধু "Unexpected Time"-এর এনকোয়ারিতেই হয় (V418-এর SQL), তাই History খুলেই TK বুঝবেন টাকাটা কেন পাওনা। ⛔ ঘরটা ফাঁকা হলে (পুরোনো রেকর্ড) কিছুই দেখায় না — আগের মতোই। ⛔ ফোনের PatientTimelineActivity-তে হুবহু একই চিপ। */var tt=String(p.timeType||'').trim();if(!tt)return '';return '   ·   '+(/^unexpected time$/i.test(tt)?'⏰ UNEXPECTED TIME':esc(tt.toUpperCase()));})()}</div></div><button class="small ghost wlv1TlPrint" onclick="printReg('${p.id}')">Print</button></div>${financeAllowed?wlv1MoneyChips(t):''}<div class="sectionTitle miniTitle">&#9201;&#65039; Updates — latest first</div>${wlv1TimelineTable(p,t)}${topActions}${payBlock}${wlv1CompleteDespiteDueBlock(p,t,financeAllowed,writeAllowed)}<div class="summaryDivider"></div><div class="summaryInfoGrid"><div><small>Disease</small><b>${esc(p.disease||'-')}</b></div><div><small>Since</small><b>${esc(p.sinceWhen||'-')}</b></div><div><small>Diagnosis</small><b>${esc(p.diagnosis||'-')}</b></div><div><small>Decision</small><b>${esc(p.decision||'-')}</b></div></div><div class="summaryText"><p><b>Complaint:</b> ${esc(p.complaint||'-')}</p><p><b>First Visit:</b> ${esc(p.visitDate||p.registrationDate||p.date||'-')}</p><p><b>Address:</b> ${esc(p.address||'-')}</p></div><div class="sectionTitle miniTitle">Clinical Actions</div>${clinicalActions}</div>${financeAllowed?`<div class="sectionTitle">Payment History</div>${pays.map((x,i)=>`<div class="card paymentHistoryCard" onclick="hiddenPaymentEditTap('${x.id}')"><b>${esc(paymentDisplayLabel(x,i))}</b><br><span class="mut">${esc(wlv1DayClock(x.date,x.createdAt))}</span><br>${money(x.amount)} · ${esc(x.mode)}${(function(){/* 🔴 V1171 — কে নিয়েছেন, এখানেও (নিয়ম ৭) */try{var m=mob(x.receivedBy||x.createdBy||'');var by=m?(wlv1StaffFullNameByMobile(m)||codeName(m)||''):'';return (by&&by!==m)?('<br><span style="color:#0B5F2E;font-weight:700">👤 '+esc(by)+'</span>'):''}catch(e){return ''}})()}<br><small>${esc(x.remarks||'')}</small><div class="actions"><button class="small ghost" onclick="event.stopPropagation();viewPaymentEntry('${x.id}')">View</button></div></div>`).join('')||'<div class="card mut">No treatment payment yet</div>'}`:''}<div class="sectionTitle">Medical Records</div>${meds.map(x=>`<div class="card"><b>${esc(x.type)}</b> · ${esc(x.date)}<br>${esc(x.decision||x.selected||'')}<br><small>${esc(x.details||x.diagnosis||'')}</small></div>`).join('')||'<div class="card mut">No medical record yet</div>'}`)
 }
 window["summary"]=summary;
 /* 🔵 R2 — "Complete despite Due" (TK-অনুমোদিত, ১৫.০৮.২০২৬ · "খুব সাবধানে, ঝুঁকি নেই")।
@@ -16015,6 +16031,7 @@ function fallbackCopy(text){
 }
 window.copyToClipboard=copyToClipboard;
 function paymentHistory(id,type='all'){
+ try{wlv1RefreshStaffNames()}catch(e){}   /* 🔴 V1171 — দিনে একবার, সম্পূর্ণ নামের জন্য */
  /* TK (27.07.2026): রোগীর সারি ফোনে/ব্রাউজারে না থাকলেও যেন আগের মতোই id ধরে টাকা মেলে — তাই খালি {} নয়, id বসানো থাকে। */
  let p=load('patients').find(x=>x.id===id)||{id:id};
  let rows=load('payments').filter(x=>payOwnedBy(x,p)&&(type==='all'?true:(type==='treatment'?isTreatmentPaymentRow(x):(x.payType||'treatment')===type)));
@@ -16046,7 +16063,9 @@ function paymentHistory(id,type='all'){
        ⛔ চেনা না গেলে লাইনটাই বসে না · ⛔ টাকার কিছু বদলায়নি। */
     (function(){ try{
       var m=mob(x.receivedBy||x.createdBy||'');
-      var by=m?(codeName(m)||''):'';
+      /* 🔴 V1171 — আগে শুধু **কোড** বসত (`codeName`); এখন আগে সম্পূর্ণ নাম
+         খোঁজা হয় (`hr.staff_profiles`, দিনে একবার জমানো), না পেলে আগের কোডই। */
+      var by=m?(wlv1StaffFullNameByMobile(m)||codeName(m)||''):'';
       /* ⛔ `codeName` চেনা না গেলে নম্বরটাই ফেরত দেয় — তখন লাইনটা বসানো হয় না,
          কারণ নম্বর দেখিয়ে TK-র কোনো কাজে লাগবে না। */
       if(!by||by===m) return '';

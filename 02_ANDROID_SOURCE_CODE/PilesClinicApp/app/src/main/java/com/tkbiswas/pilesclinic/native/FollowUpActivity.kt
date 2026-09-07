@@ -3564,7 +3564,13 @@ class FollowUpActivity : AppCompatActivity() {
                     if (staff.isNotBlank()) {
                         left.addView(android.widget.TextView(this@FollowUpActivity).apply {
                             // TK-REQUESTED (2026-07-22): staff CODE, not raw mobile.
-                            text = "By: ${StaffDirectory.findAccount(staff)?.name ?: staff}"; textSize = 10.5f
+                            /* 🔴 V1171 — এখানেও আগে সম্পূর্ণ নাম (নিয়ম ৭); না
+                               পেলে আগের নিয়মেই কোড/নম্বর। */
+                            val byFull = try {
+                                CloudStaffDirectory.cachedNameFor(this@FollowUpActivity,
+                                    StaffDirectory.normalizeMobile(staff))?.takeIf { it.isNotBlank() }
+                            } catch (_: Throwable) { null }
+                            text = "By: ${byFull ?: (StaffDirectory.findAccount(staff)?.name ?: staff)}"; textSize = 10.5f
                             setTextColor(android.graphics.Color.parseColor("#A8B2C2"))
                         })
                     }

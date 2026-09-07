@@ -672,8 +672,18 @@ class PaymentActivity : AppCompatActivity() {
                        ⛔ টাকার অঙ্ক · তারিখ · লেবেল · রিমার্ক — কিছুই বদলায়নি। */
                     run {
                         val byMob = p.s("receivedBy").ifBlank { p.s("createdBy") }
+                        /* 🔴🔒 V1171 (০৭.০৯.২০২৬, TK: *"২৬১ করুন, স্টাফের নাম
+                           বসিয়ে দিন"*) — আগে শুধু বাঁধা তালিকার নাম দেখা হত, আর
+                           স্টাফের বেলায় ওখানে **কোডই** জমা থাকে; অ্যাপ থেকে যোগ
+                           করা স্টাফ তো কিছুই দেখাত না। এখন আগে **সম্পূর্ণ নাম**
+                           খোঁজা হয় (ফোনে আগে থেকেই জমানো তালিকা, কখনো নেটে যায়
+                           না), না পেলে আগের নিয়মটাই।
+                           ⛔ চেনা না গেলে লাইনটা আগের মতোই বসে না। */
+                        val byNorm = try { StaffDirectory.normalizeMobile(byMob) } catch (_: Throwable) { "" }
                         val byName = try {
-                            StaffDirectory.findAccount(StaffDirectory.normalizeMobile(byMob))?.name.orEmpty()
+                            CloudStaffDirectory.cachedNameFor(this@PaymentActivity, byNorm)
+                                ?.takeIf { it.isNotBlank() }
+                                ?: StaffDirectory.findAccount(byNorm)?.name.orEmpty()
                         } catch (_: Throwable) { "" }
                         if (byName.isNotBlank()) {
                             left.addView(TextView(this@PaymentActivity).apply {
