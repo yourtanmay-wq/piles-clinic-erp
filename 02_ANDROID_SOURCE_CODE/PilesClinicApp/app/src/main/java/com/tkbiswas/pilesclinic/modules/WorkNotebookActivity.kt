@@ -130,6 +130,24 @@ class WorkNotebookActivity : AppCompatActivity() {
     private fun callTxt(s: JSONObject, key: String): String =
         if (callsOk(s)) s.optInt(key).toString() else "…"
 
+    /**
+     * 🚨🔒 V1187 (০৭.০৯.২০২৬, TK-রিপোর্ট): *"KISHAN-10 & 11 এরা কিছু
+     * রেজিষ্ট্রেশন করেছে … কিন্তু তাদের টা কেন 0 আমাকে যখন Daily Report পাঠায়"*।
+     *
+     * 🔴 **আসল কারণ (কোডে মেপে দেখা, আন্দাজ নয়):** New Enquiry ও Registration-এর
+     *    সংখ্যা মেঘ থেকে পড়া হয়, আর পড়া সফল হলো কিনা সেটা আগে থেকেই
+     *    `enqOk` / `regOk`-এ জানা থাকে (B496)। **পর্দায়** ব্যর্থ হলে "…" দেখানো হয়,
+     *    কিন্তু **WhatsApp-এর রিপোর্টে** ওই পাহারাটা বসানো হয়নি — সেখানে সোজা
+     *    `optInt()` লেখা ছিল, তাই পড়া ব্যর্থ হলেই **"0"** চলে যেত। ⇒ কাজ করা
+     *    সত্ত্বেও মাস্টারের কাছে "০ রেজিস্ট্রেশন" পৌঁছাত।
+     *
+     * ⇒ এখন কল-এর মতোই একই পাহারা: পড়া ব্যর্থ হলে **"…"**, কখনো মিথ্যে "0" নয়।
+     * ⛔ পড়া সফল হলে সংখ্যা হুবহু আগের মতোই — একটাও গোনার নিয়ম বদলায়নি।
+     * ⛔ পর্দার সংখ্যা আগে থেকেই ঠিক ছিল, সেটা ছোঁয়া হয়নি; এখন দুই জায়গা মেলে।
+     */
+    private fun statTxt(s: JSONObject, key: String, okKey: String): String =
+        if (s.optBoolean(okKey, true)) s.optInt(key).toString() else "…"
+
     private fun callTapCode(): String =
         try { ModuleAuth.expectedCode(this) ?: staffCode } catch (_: Throwable) { staffCode }
 
@@ -853,8 +871,8 @@ class WorkNotebookActivity : AppCompatActivity() {
                                             text.append("OUT TIME ").append(displayTime12(ns(day, "check_out")).ifBlank { "-" }).append("\n")
                                             // 🔴 V509: ক্লিনিকের বাইরে থেকে দিলে তবেই এই লাইন।
                                             if (placeNote.isNotBlank()) text.append("⚠️ ").append(placeNote).append("\n")
-                                            text.append("\nNew Enquiry: ").append(s.optInt("enquiries"))
-                                                .append("\nRegistration: ").append(s.optInt("registrations"))
+                                            text.append("\nNew Enquiry: ").append(statTxt(s, "enquiries", "enqOk"))
+                                                .append("\nRegistration: ").append(statTxt(s, "registrations", "regOk"))
                                             // ⚠️ সৎ সীমাবদ্ধতা: নোটিফিকেশন থেকে দ্রুত
                                             // OUT TIME করলে "Today Patient" ফর্মের
                                             // লাইভ ঘর থেকে পড়া যায় না (এই পথে ফর্ম
@@ -1487,8 +1505,8 @@ class WorkNotebookActivity : AppCompatActivity() {
                     .append("\nStaff: $staffCode\n")
                 text.append("IN TIME- ").append(displayTime12(ns(day, "check_in")).ifBlank { "-" }).append("\n")
                 text.append("OUT TIME ").append(displayTime12(ns(day, "check_out")).ifBlank { "-" }).append("\n")
-                text.append("\nNew Enquiry: ").append(s.optInt("enquiries"))
-                    .append("\nRegistration: ").append(s.optInt("registrations"))
+                text.append("\nNew Enquiry: ").append(statTxt(s, "enquiries", "enqOk"))
+                    .append("\nRegistration: ").append(statTxt(s, "registrations", "regOk"))
                     .append("\nToday Patient: ").append(s.optInt("patients"))
                     .append("\nApp Calls: ").append(callTxt(s, "appCalls"))
                     .append("\nOutside Calls: ").append(callTxt(s, "outsideCalls"))
@@ -1731,8 +1749,8 @@ class WorkNotebookActivity : AppCompatActivity() {
                             // 🔴 V509: ক্লিনিকের ভিতর থেকে দিলে এই লাইনটা আসেই না —
                             // শুধু বাইরে থেকে বা যাচাই করা না গেলে দেখা যায়।
                             if (placeNote.isNotBlank()) text.append("⚠️ ").append(placeNote).append("\n")
-                            text.append("\nNew Enquiry: ").append(s.optInt("enquiries"))
-                                .append("\nRegistration: ").append(s.optInt("registrations"))
+                            text.append("\nNew Enquiry: ").append(statTxt(s, "enquiries", "enqOk"))
+                                .append("\nRegistration: ").append(statTxt(s, "registrations", "regOk"))
                                 .append("\nToday Patient: ").append(patientsField.text.toString().trim().ifBlank { "0" })
                                 .append("\nApp Calls: ").append(callTxt(s, "appCalls"))
                                 .append("\nOutside Calls: ").append(callTxt(s, "outsideCalls"))
@@ -3115,8 +3133,8 @@ class WorkNotebookActivity : AppCompatActivity() {
                         text.append("IN TIME- ").append(displayTime12(ns(day, "check_in")).ifBlank { "-" }).append("\n")
                         text.append("OUT TIME ").append(displayTime12(ns(day, "check_out")).ifBlank { "-" }).append("\n")
                     }
-                    text.append("\nNew Enquiry: ").append(s.optInt("enquiries"))
-                        .append("\nRegistration: ").append(s.optInt("registrations"))
+                    text.append("\nNew Enquiry: ").append(statTxt(s, "enquiries", "enqOk"))
+                        .append("\nRegistration: ").append(statTxt(s, "registrations", "regOk"))
                         .append("\nToday Patient: ").append(patientsField.text.toString().trim().ifBlank { "0" })
                         .append("\nApp Calls: ").append(callTxt(s, "appCalls"))
                         .append("\nOutside Calls: ").append(callTxt(s, "outsideCalls"))
