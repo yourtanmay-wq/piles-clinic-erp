@@ -2603,9 +2603,26 @@ class StaffProfileActivity : AppCompatActivity() {
      *  ⛔ নতুন সারি বানানো হয় না — যে সারিটা "বাকি" ছিল সেটাই "দেওয়া হয়েছে" হয়,
      *     তাই একই টাকা দুবার গোনা হওয়ার সুযোগ নেই।
      *  ⛔ শুধু `status` · `mode` · `paid_on` বদলায়; টাকার অঙ্ক ও কারণ অটুট। */
+    /**
+     * 🎨🔒 V1183 (০৭.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, হুবহু):
+     * *"এই ২ টা তে চেহারা একই রকম করতে হবে, রোগের নামের পাশে থাকবে Unexpected Time"*
+     * · *"একটা একটা আলদা আলদা ও Paid করা যায় তার ব্যাবস্থা রাখতে হবে"*
+     *
+     * ⇒ এই পর্দাটা এখন Extra Income History-র **হুবহু একই বাক্স** আঁকে —
+     *   এক রোগী = এক বাক্স (নাম · মোবাইল · রোগ · Unexpected Time), নিচে ধাপগুলো
+     *   তারিখ-সময় সহ, তারপর Total ও অবস্থা। প্রতিটা বাক্সে নিজের একটা **Pay**
+     *   বোতাম — শুধু ওই রোগীর বাকি টাকাটাই মেটে।
+     * ⛔ নিচের "Mark as Paid" আগের মতোই **সবগুলো একসাথে** মেটায় — তুলে দেওয়া হয়নি।
+     * ⛔ টাকার কোনো অঙ্ক · নিয়ম · কোন সারি কোথায় জমা — কিচ্ছু বদলায়নি; যা সেভ হয়
+     *    তা ঠিক আগের মতোই (`status=PAID` · `mode` · `paid_on`)।
+     * ⛔ বাক্সগুলোর তথ্য আসে ঠিক ওই একই ব্যাচ-পড়া থেকে (`fillExtraPatientNames`) —
+     *    নতুন কোনো cloud-read যোগ হয়নি।
+     */
     private fun payExtraDue(code: String, pays: JSONArray) {
         backAction = { salary(code) }
         val col = ModuleUi.screen(this, "Pay Extra Income")
+        (col.parent as? android.widget.ScrollView)?.isFillViewport = true
+
         val dueRows = ArrayList<JSONObject>()
         var dueSum = 0.0
         for (i in 0 until pays.length()) {
@@ -2614,66 +2631,175 @@ class StaffProfileActivity : AppCompatActivity() {
                 dueRows.add(p); dueSum += p.optDouble("amount", 0.0)
             }
         }
-        val box = ModuleUi.card(this)
-        col.addView(box)
-        box.addView(salaryStatusRow("Total to pay now", money(dueSum), "#B42318"))
-        /* 👤🔒 V1040 (TK: *"extra income আমি কোন পেশেন্ট এর জন্য দিচ্ছি সেটা বুঝতেই
-           তো পারছি না"* → *"ওখানে চাপ দিলে পেশেন্টের ভিউ ওয়াল খুলতে হবে"*)।
-           ⇒ প্রতিটা সারিতে এখন রোগীর নাম, আর সারিতে চাপ দিলে ঐ রোগীর পুরো
-             History খোলে — Extra Income History-র হুবহু একই পথ (`openPatientHistory`)।
-           ⛔ নাম আনা হয় ইতিমধ্যেই বানানো `fillExtraPatientNames` দিয়েই, নতুন
-             কোনো আলাদা পড়া নয়। নাম না এলে আগের মতোই শুধু কারণ দেখায়। */
-        val payRows = ArrayList<Triple<String, TextView?, JSONObject>>()
+        val head = ModuleUi.card(this)
+        col.addView(head)
+        head.addView(salaryStatusRow("Total to pay now", money(dueSum), "#B42318"))
+
+        val md = spinner(listOf("Cash", "Online"))
+
+        /* ⛔ এই পর্দার নিজের ছোট সহায়ক — History-র বাক্সের হুবহু মাপ ও রং। */
+        fun boxBg(fill: String, stroke: String): android.graphics.drawable.GradientDrawable =
+            android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(12).toFloat()
+                setColor(android.graphics.Color.parseColor(fill))
+                setStroke(dp(1), android.graphics.Color.parseColor(stroke))
+            }
+
+        // ⬇ এক রোগী = এক বাক্স (History-র মতোই), ধাপ ধরে টাকার যোগ
+        xStepBoxes.clear(); xGroupSums.clear(); xGroupDue.clear(); xGroupState.clear(); xGroupOther.clear()
+        val byPatient = LinkedHashMap<String, MutableList<JSONObject>>()
+        val loose = ArrayList<JSONObject>()
         for (p in dueRows) {
-            val line = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(dp(2), dp(7), dp(2), dp(7))
-            }
-            line.addView(ModuleUi.body(this, money(p.optDouble("amount", 0.0)) + "  ·  " + cleanWhy(ns(p, "extra_reason"))))
-            val whoView = TextView(this).apply {
-                textSize = 13f
-                setTypeface(typeface, android.graphics.Typeface.BOLD)
-                setTextColor(android.graphics.Color.parseColor("#0F5132"))
-                setPadding(0, dp(2), 0, 0)
-                visibility = android.view.View.GONE
-            }
-            line.addView(whoView)
             val pid = extraPatientId(p)
-            if (pid.isNotBlank()) {
-                payRows.add(Triple(pid, whoView, p))
-                line.isClickable = true
-                line.isFocusable = true
-                line.setOnClickListener {
-                    openPatientHistory(pid, extraPatientCache[pid]?.second.orEmpty())
+            if (pid.isBlank()) loose.add(p) else byPatient.getOrPut(pid) { mutableListOf() }.add(p)
+        }
+        for ((pid, list) in byPatient) {
+            val arr = doubleArrayOf(0.0, 0.0, 0.0)
+            for (q in list) {
+                val amt = q.optDouble("amount", 0.0)
+                val h = cleanWhy(ns(q, "extra_reason")).trim().substringBefore("·").trim().lowercase()
+                when {
+                    h.startsWith("registration") -> arr[0] += amt
+                    h.startsWith("treatment") -> arr[1] += amt
+                    else -> {
+                        arr[2] += amt
+                        val txt = cleanWhy(ns(q, "extra_reason")).trim()
+                        if (txt.isNotBlank()) xGroupOther.getOrPut(pid) { mutableListOf() }.add(Pair(txt, amt))
+                    }
                 }
             }
-            box.addView(line)
+            xGroupSums[pid] = arr
+            xGroupDue[pid] = true
+            xGroupState[pid] = "DUE"
         }
-        if (payRows.isNotEmpty()) fillExtraPatientNames(payRows, nameOnly = true)
-        val md = spinner(listOf("Cash", "Online"))
+
+        val payRows = ArrayList<Triple<String, TextView?, JSONObject>>()
+        val nameViews = ArrayList<Pair<String, TextView>>()
+
+        for ((pid, list) in byPatient) {
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(10), dp(10), dp(10), dp(9))
+                background = boxBg("#FFF7F7", "#F2C8C8")
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { bottomMargin = dp(8) }
+            }
+            val nameView = TextView(this).apply {
+                textSize = 13.5f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#0F5132"))
+                setPadding(dp(3), dp(3), dp(2), 0)
+                visibility = android.view.View.GONE
+            }
+            card.addView(nameView)
+            nameViews.add(Pair(pid, nameView))
+
+            val stepBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            card.addView(stepBox)
+            xStepBoxes.add(Pair(pid, stepBox))
+
+            var mine = 0.0
+            for (q in list) mine += q.optDouble("amount", 0.0)
+
+            val foot = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(dp(13), dp(8), dp(2), dp(2))
+            }
+            foot.addView(TextView(this).apply {
+                text = "Total " + money(mine)
+                textSize = 15f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#C62828"))
+            })
+            foot.addView(TextView(this).apply {
+                text = "DUE"
+                textSize = 10.5f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#C62828"))
+                gravity = android.view.Gravity.CENTER
+                setPadding(dp(7), dp(4), dp(7), dp(4))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(6).toFloat()
+                    setColor(android.graphics.Color.parseColor("#FDE9EA"))
+                }
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { leftMargin = dp(9) }
+            })
+            /* 💸 V1183 (TK-নির্দেশ) — শুধু **এই রোগীর** টাকা মেটানোর বোতাম। */
+            foot.addView(android.view.View(this).apply {
+                layoutParams = LinearLayout.LayoutParams(0, dp(1), 1f)
+            })
+            foot.addView(salOutlineButton("Pay " + money(mine), "#0A5C33", "#0A5C33") {
+                markExtraPaid(code, list, md.selectedItem?.toString().orEmpty())
+            })
+            card.addView(foot)
+
+            card.isClickable = true
+            card.isFocusable = true
+            card.setOnClickListener { openPatientHistory(pid, extraPatientCache[pid]?.second.orEmpty()) }
+            payRows.add(Triple(pid, null, list[0]))
+            col.addView(card)
+        }
+
+        /* ⛔ রোগী চেনা যায়নি এমন সারি (পুরনো তথ্য) — আগের মতোই সাদামাটা লাইন,
+           যাতে একটাও টাকা পর্দা থেকে হারিয়ে না যায়। */
+        for (p in loose) {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(dp(10), dp(10), dp(10), dp(9))
+                background = boxBg("#FFF7F7", "#F2C8C8")
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { bottomMargin = dp(8) }
+            }
+            row.addView(TextView(this).apply {
+                text = money(p.optDouble("amount", 0.0)) + "  ·  " + cleanWhy(ns(p, "extra_reason"))
+                textSize = 13.5f
+                setTextColor(android.graphics.Color.parseColor("#17212B"))
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            })
+            row.addView(salOutlineButton("Pay " + money(p.optDouble("amount", 0.0)), "#0A5C33", "#0A5C33") {
+                markExtraPaid(code, listOf(p), md.selectedItem?.toString().orEmpty())
+            })
+            col.addView(row)
+        }
+
+        if (payRows.isNotEmpty() || nameViews.isNotEmpty()) fillExtraPatientNames(payRows, nameViews = nameViews)
+
         col.addView(ModuleUi.label(this, "Mode")); col.addView(md)
         col.addView(ModuleUi.button(this, "✅ Mark as Paid") {
             if (dueRows.isEmpty()) { ModuleUi.toast(this, "Nothing due"); return@button }
-            val mode = md.selectedItem.toString()
-            Thread {
-                var okAll = true
-                for (p in dueRows) {
-                    val id = ns(p, "id")
-                    if (id.isBlank()) { okAll = false; continue }
-                    val patch = JSONObject().put("status", "PAID").put("mode", mode).put("paid_on", todayIso())
-                    if (!ModuleAuth.update("hr", "salary_payments", "id=eq.$id", patch)) okAll = false
-                }
-                runOnUiThread {
-                    ModuleUi.toast(this, if (okAll) "Paid" else "Some entries did not save — try again")
-                    salary(code)
-                }
-            }.start()
+            markExtraPaid(code, dueRows, md.selectedItem?.toString().orEmpty())
         })
-        (col.parent as? android.widget.ScrollView)?.isFillViewport = true
         col.addView(android.view.View(this).apply {
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
         })
         col.addView(ModuleUi.button(this, "Back") { salary(code) })
+    }
+
+    /** 💸🔒 V1183 — বাকি টাকা মেটানোর **একটাই** পথ (একটা সারি হোক বা সবগুলো),
+     *  তাই দুই বোতামে কখনো দুরকম কিছু ঘটতে পারে না।
+     *  ⛔ যা লেখা হয় তা হুবহু আগের মতোই: `status=PAID` · `mode` · `paid_on`। */
+    private fun markExtraPaid(code: String, rows: List<JSONObject>, mode: String) {
+        if (rows.isEmpty()) { ModuleUi.toast(this, "Nothing due"); return }
+        Thread {
+            var okAll = true
+            for (p in rows) {
+                val id = ns(p, "id")
+                if (id.isBlank()) { okAll = false; continue }
+                val patch = JSONObject().put("status", "PAID").put("mode", mode).put("paid_on", todayIso())
+                if (!ModuleAuth.update("hr", "salary_payments", "id=eq.$id", patch)) okAll = false
+            }
+            runOnUiThread {
+                salaryCacheClear(code)
+                ModuleUi.toast(this, if (okAll) "Paid" else "Some entries did not save — try again")
+                salary(code)
+            }
+        }.start()
     }
 
 
@@ -3803,9 +3929,18 @@ class StaffProfileActivity : AppCompatActivity() {
                    ⛔ যেটা জানা নেই সেটা বসেই না, আন্দাজে কিছু লেখা হয় না। */
                 val mb = extraPatientCache[pid]?.second.orEmpty().trim()
                 val ds = extraPatientDisease[pid].orEmpty().trim()
+                /* 🎨🔒 V1183 (০৭.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, হুবহু):
+                   *"রোগের নামের পাশে থাকবে Unexpected Time"* ⇒ সময়ের ব্যাজটা
+                   এখন রোগের ঠিক পাশেই বসে। ⛔ নিচের লাইন থেকে ওটা তুলে দেওয়া
+                   হয়েছে (একই কথা দুবার লেখা হত)। ⛔ কোনো নতুন পড়া লাগেনি —
+                   `timeType` আগের ব্যাচ-পড়াতেই আসে। */
+                val tb = timeBadge(
+                    extraPatientTiming[pid].orEmpty(), extraPatientSrc[pid].orEmpty(), longForm = true
+                )
                 val one = "\uD83D\uDC64 " + nm +
                     (if (mb.isNotBlank()) "   \uD83D\uDCDE " + mb else "") +
-                    (if (ds.isNotBlank()) "   \uD83E\uDE7A " + ds else "")
+                    (if (ds.isNotBlank()) "   \uD83E\uDE7A " + ds else "") +
+                    (if (tb.isNotBlank()) "   \u00b7   " + tb else "")
                 if (v.text?.toString() != one) v.text = one
                 v.visibility = android.view.View.VISIBLE
                 /* 👤 V1045 — নামের সারিতে চাপ ⇒ ঐ রোগীর পুরো ডিটেলস।
@@ -3882,11 +4017,13 @@ class StaffProfileActivity : AppCompatActivity() {
                    তাই এখানে থাকলে দুবার হত। ⛔ কম্পিউটারে হুবহু এই নিয়মই (V1047·V1048)।
                    ⛔ হাতে-লেখা কারণ হারায় না — সেটা নিচে "Other" ধাপে বসে।
                    ⛔ রোগী চেনা না গেলে (বাক্স হয়নি) লাইনটা আগের মতোই থাকে। */
+                /* 🎨 V1183 (TK-নির্দেশ) — সময়ের ব্যাজ এখন **উপরের নামের সারিতে**,
+                   রোগের ঠিক পাশে। তাই এই লাইনটা এখানে আর কিছুই দেখায় না
+                   (নইলে একই কথা দুবার লেখা হত)।
+                   ⛔ লাইনটা মোছা হয়নি — শুধু লুকানো, তাই বাকি সব পথ অটুট। */
                 if (pid in shownSeparately || pid in xGrouped) {
-                    val badge = if (tt.isNotBlank()) timeBadge(tt, extraPatientSrc[pid].orEmpty()) else ""
-                    if (view.text?.toString() != badge) view.text = badge
-                    view.visibility =
-                        if (badge.isBlank()) android.view.View.GONE else android.view.View.VISIBLE
+                    view.text = ""
+                    view.visibility = android.view.View.GONE
                     continue
                 }
                 if (nm.isBlank() && tt.isBlank()) continue          // এখনো কিছুই আসেনি

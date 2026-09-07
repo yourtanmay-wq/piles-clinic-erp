@@ -819,6 +819,20 @@
   /* 💰 V1029 — রেজিস্ট্রেশনের ফি যে যে নামে জমা হয় (SQL-এর হুবহু তালিকা)। */
   var UNX_FEE_TYPES = ['visit_fee','visitfee','registration'];
 
+  /* 💰🔒 V1184 — নতুন নিয়ম কবে থেকে ও কত (ফোনের `UnexpectedIncentive`-এর যমজ)। */
+  var UNX_NEW_RULE_FROM='2026-09-08';
+  var UNX_NEW_REG=100, UNX_NEW_TRT=350;
+  /* রেজিস্ট্রেশন-কারী সত্যিই স্টাফ কিনা — প্রকল্পের নিজের `staffCodeMap()`
+     (মোবাইল → স্টাফ-কোড) থেকেই। ⛔ নতুন কোনো পড়া নয়। ⛔ চেনা না গেলে `false`,
+     অর্থাৎ তখন ভাগ হয় না — ডেটাবেসের নিয়মেও ঠিক তাই। */
+  function unxKnownStaff(mob10){
+    try{
+      if(typeof staffCodeMap!=='function') return false;
+      var map=staffCodeMap()||{};
+      for(var k in map){ if(unxDigits(k)===mob10) return true; }
+      return false;
+    }catch(e){ return false; }
+  }
   async function profUnexpected(code){
     var m = window.MOD;
     var mob='';
@@ -845,6 +859,21 @@
       }
     }catch(e){}
 
+    /* 💰🔒 V1184 (০৭.০৯.২০২৬, TK-নির্দেশ) — কে রেজিস্ট্রেশন করেছেন ও কোন
+       তারিখে; নতুন নিয়মটা তারিখ ধরে চলে বলে এটা না জানলে প্রাপ্য অঙ্ক ঠিক
+       বলা যায় না। ⛔ একটাই সরু পড়া; ব্যর্থ হলে পুরনো নিয়মেই দেখানো হয়। */
+    var unxRegBy={}, unxRegOn={};
+    try{
+      if(mobs && mobs.length && typeof sb!=='undefined' && sb){
+        var r3=await sb.from('patients').select('id,mobile,registeredBy,registrationDate,date').in('mobile',mobs).limit(2000);
+        ((r3&&r3.data)||[]).forEach(function(q){
+          var mm=unxDigits(q.mobile); if(mm.length!==10) return;
+          unxRegBy[mm]=unxDigits(q.registeredBy||'');
+          unxRegOn[mm]=String(q.registrationDate||q.date||'').slice(0,10);
+        });
+      }
+    }catch(e){}
+
     var firstVisit={}, firstTreat={};
     pays.forEach(function(p){
       var mm=unxDigits(p.mobile); if(mm.length!==10) return;
@@ -864,7 +893,22 @@
       var mm=unxDigits(e.mobile); if(mm.length!==10||seen[mm]) return; seen[mm]=1;
       var treat=firstTreat[mm], visit=firstVisit[mm];
       var stage=treat?'treatment':(visit?'visit':'none');
-      var earned=(stage==='treatment')?500:(stage==='visit'?100:0);
+      /* 💰🔒 V1184 (TK-নির্দেশ ০৭.০৯.২০২৬) — ফোনের `UnexpectedIncentive`-এর
+         হুবহু একই নিয়ম, তাই দুই পর্দা কখনো দুরকম বলবে না (নিয়ম ৬.৬ · ৭ক-২):
+           • রেজিস্ট্রেশন ০৮.০৯.২০২৬ বা তার পরে ⇒ এনকোয়ারি-ফর্মকারী ₹১০০,
+             ট্রিটমেন্ট শুরু হলে আরও ₹৩৫০ (রেজিস্ট্রেশন-কারী আলাদা ₹৫০ পান)।
+           • তার আগের রেজিস্ট্রেশনে ⇒ পুরনো নিয়মে ₹১০০ ও ₹৪০০ **সমান ভাগ**।
+         ⛔ তারিখ জানা না গেলে পুরনো নিয়মই ধরা হয় — আন্দাজে বেশি দেখানো নয়। */
+      var rOn=String(unxRegOn[mm]||''), rBy=String(unxRegBy[mm]||'');
+      var newEra=(rOn.length===10 && rOn>=UNX_NEW_RULE_FROM);
+      var otherReg=(rBy.length===10 && rBy!==mob && !!unxKnownStaff(rBy));
+      var earned;
+      if(newEra){
+        earned=(stage==='treatment')?(UNX_NEW_REG+UNX_NEW_TRT):(stage==='visit'?UNX_NEW_REG:0);
+      }else{
+        var share=otherReg?2:1;
+        earned=(stage==='treatment')?(500/share):(stage==='visit'?(100/share):0);
+      }
       var at=treat||visit||'';
       if(at.slice(0,7)===ym) monthTotal+=earned;
       rows.push({name:e.name||'(no name)',mobile:mm,branch:e.branch||'',callAt:e.createdAt||e.date||'',stage:stage,at:at,earned:earned});
@@ -1429,16 +1473,20 @@
                  + amtTag(Number(q.amount||0)) + '</div>';
         });
 
+        /* 🎨🔒 V1183 (০৭.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, হুবহু): *"রোগের নামের
+           পাশে থাকবে Unexpected Time"* ⇒ সময়ের ব্যাজটা এখন রোগের ঠিক পাশে,
+           নিজের আলাদা লাইনটা আর নেই (একই কথা দুবার লেখা হত)।
+           ⛔ ফোনেও হুবহু এই নিয়ম। ⛔ নতুন কোনো পড়া লাগেনি। */
         var whoRow = vNm
           ? ('<div class="pfXWho"'+(vMob?' onclick="event.stopPropagation();salOpenPatient(\''+m.esc(vMob)+'\')"':'')+'>'
              +'\uD83D\uDC64 '+m.esc(vNm)
              +(vMob?'<span class="pfXSub">\uD83D\uDCDE '+m.esc(vMob)+'</span>':'')
              +(vDis?'<span class="pfXSub">\uD83E\uDE7A '+m.esc(vDis)+'</span>':'')
+             +(mark?'<span class="pfXSub">\u00b7 '+m.esc(mark)+'</span>':'')
              +'</div>')
           : '';
         return '<div class="pfStmtEntry pfXCard'+(dueN?' isDue':'')+'"'+vClick+'>' +
           whoRow +
-          (mark ? ('<div class="pfXWhy">'+m.esc(mark)+'</div>') : '') +
           (steps ? ('<div class="pfXSteps">'+steps+'</div>') : '') +
           '<div class="pfXFoot"><b class="pfXAmt">Total '+m.money(tot)+'</b>' +
             '<span class="pfStmtBadge'+stateCls+'">'+payState+'</span></div>' +
@@ -1570,20 +1618,76 @@
         code: salExtraPatientCode(x)
       };
     }
+    /* 🎨🔒 V1183 (০৭.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — এই পর্দাটা এখন
+       Extra Income History-র **হুবহু একই বাক্স** আঁকে (এক রোগী = এক বাক্স:
+       নাম · মোবাইল · রোগ · Unexpected Time, নিচে ধাপগুলো তারিখ-সময় সহ,
+       তারপর Total ও অবস্থা)। প্রতিটা বাক্সে নিজের **Pay** বোতাম —
+       TK: *"একটা একটা আলদা আলদা ও Paid করা যায় তার ব্যাবস্থা রাখতে হবে"*।
+       ⛔ নিচের "Mark as Paid" আগের মতোই সবগুলো একসাথে মেটায়।
+       ⛔ টাকার কোনো অঙ্ক/নিয়ম বদলায়নি; যা সেভ হয় তা হুবহু আগের মতোই।
+       ⛔ ফোনের `payExtraDue()`-এর যমজ (নিয়ম ৬.৬)। */
     function draw() {
+      var seen = {}, cards = '';
+      due.forEach(function (x) {
+        var pid = salExtraPatientId(x);
+        if (!pid) return;
+        if (seen[pid]) return;
+        seen[pid] = 1;
+        var mine = due.filter(function (q) { return salExtraPatientId(q) === pid; });
+        var c = SAL_PAT_CACHE[pid] || null;
+        var nm = c ? String(c.name || '').trim() : '';
+        var mob = c ? String(c.mobile || '').trim() : '';
+        var dis = c ? String(c.disease || '').trim() : '';
+        var tt = c ? String(c.timeType || '').trim() : '';
+        var mk = tt ? salTimeBadge(tt, c ? c.timeSource : '') : '';
+        function sumOf(re) {
+          return mine.filter(function (q) { return re.test(String(q.extra_reason || '').trim()); })
+                     .reduce(function (a, q) { return a + Number(q.amount || 0); }, 0);
+        }
+        var regAmt = sumOf(/^registration/i), trtAmt = sumOf(/^treatment/i);
+        var others = mine.filter(function (q) {
+          var r = String(q.extra_reason || '').trim();
+          return !/^registration/i.test(r) && !/^treatment/i.test(r); });
+        var tot = mine.reduce(function (a, q) { return a + Number(q.amount || 0); }, 0);
+        var st = salSteps(pid);
+        function amtTag(v) { return v > 0 ? '<em class="pfXEarn">' + m.money(v) + '</em>' : ''; }
+        var steps = '';
+        if (st.enq) steps += '<div class="pfXStep"><span>Enquiry</span><b>' + m.esc(st.enq) + '</b></div>';
+        if (st.reg || regAmt > 0)
+          steps += '<div class="pfXStep"><span>Registration</span><b>' + m.esc(st.reg || '—') + '</b>' + amtTag(regAmt) + '</div>';
+        if (st.trt || trtAmt > 0)
+          steps += '<div class="pfXStep"><span>Treatment paid</span><b>' + m.esc(st.trt || '—') + '</b>' + amtTag(trtAmt) + '</div>';
+        others.forEach(function (q) {
+          steps += '<div class="pfXStep"><span>Other</span><b>' + m.esc(salCleanWhy(String(q.extra_reason || '-'))) + '</b>'
+                 + amtTag(Number(q.amount || 0)) + '</div>';
+        });
+        var whoRow = nm
+          ? ('<div class="pfXWho"' + (mob ? ' onclick="event.stopPropagation();salOpenPatient(\'' + m.esc(mob) + '\')"' : '') + '>'
+             + '\uD83D\uDC64 ' + m.esc(nm)
+             + (mob ? '<span class="pfXSub">\uD83D\uDCDE ' + m.esc(mob) + '</span>' : '')
+             + (dis ? '<span class="pfXSub">\uD83E\uDE7A ' + m.esc(dis) + '</span>' : '')
+             + (mk ? '<span class="pfXSub">\u00b7 ' + m.esc(mk) + '</span>' : '')
+             + '</div>')
+          : '';
+        cards += '<div class="pfStmtEntry pfXCard isDue">' + whoRow +
+          (steps ? ('<div class="pfXSteps">' + steps + '</div>') : '') +
+          '<div class="pfXFoot"><b class="pfXAmt">Total ' + m.money(tot) + '</b>' +
+            '<span class="pfStmtBadge due">DUE</span>' +
+            '<button class="ghost" style="margin-left:auto;padding:6px 16px" ' +
+              'onclick="event.stopPropagation();profPayOne(\'' + m.esc(code) + '\',\'' + m.esc(pid) + '\')">Pay ' + m.money(tot) + '</button>' +
+          '</div></div>';
+      });
+      /* ⛔ রোগী চেনা যায়নি এমন সারি (পুরনো তথ্য) — আগের মতোই সাদামাটা লাইন,
+         যাতে একটাও টাকা পর্দা থেকে হারিয়ে না যায়। */
+      due.forEach(function (x) {
+        if (salExtraPatientId(x)) return;
+        cards += '<div class="pfPayLine"><div class="pfPayTop"><b>' + m.money(x.amount) + '</b>' +
+                 '<span>' + m.esc(salCleanWhy(x.extra_reason || '')) + '</span></div></div>';
+      });
       document.getElementById('app').innerHTML = '<div class="wrap anMod anModPf"><div class="topbar"><b>Pay Extra Income — ' + m.esc(code) + '</b>' +
         '<button class="ghost" onclick="profSalary(\'' + m.esc(code) + '\')">Back</button></div><div class="page">' +
         '<div class="card"><div class="pfTotRow"><span>Total to pay now</span><b style="color:#B42318">' + m.money(sum) + '</b></div>' +
-        due.map(function (x) {
-          var w = whoOf(x);
-          var who = w.name
-            ? '<div class="pfPayWho">👤 ' + m.esc(w.name) + (w.mobile ? '  ·  ' + m.esc(w.mobile) : '') + '</div>'
-            : (w.code ? '<div class="pfPayWho">👤 ' + m.esc(w.code) + '</div>' : '');
-          var tap = w.mobile ? ' pfPayTap" onclick="profPayExtraOpen(\'' + m.esc(String(x.id || '')) + '\')' : '';
-          return '<div class="pfPayLine' + tap + '"><div class="pfPayTop"><b>' + m.money(x.amount) + '</b>' +
-                 '<span>' + m.esc(salCleanWhy(x.extra_reason || '')) + '</span></div>' + who +
-                 (w.mobile ? '<div class="pfPayGo">Tap to open this patient</div>' : '') + '</div>';
-        }).join('') +
+        cards +
         '<label>Mode</label><select id="exdMode" class="input"><option>Cash</option><option>Online</option></select>' +
         '<div class="actions"><button class="ghost" onclick="profSalary(\'' + m.esc(code) + '\')">Cancel</button>' +
         '<button onclick="profPayExtraDueSave(\'' + m.esc(code) + '\')">✅ Mark as Paid</button></div></div>' +
@@ -1620,6 +1724,24 @@
     profSalary(code);
   }
   window.profPayExtraDueSave = profPayExtraDueSave;
+  /* 💸🔒 V1183 (TK-নির্দেশ) — **শুধু একজন রোগীর** বাকি টাকা মেটানো।
+     ⛔ যা লেখা হয় তা "Mark as Paid"-এর হুবহু একই (status/mode/paid_on),
+        তাই দুই বোতামে কখনো দুরকম কিছু ঘটতে পারে না। */
+  async function profPayOne(code, pid) {
+    var m = window.MOD, client = await sb();
+    var rows = ((await client.schema('hr').from('salary_payments').select('*').eq('person_code', code)).data) || [];
+    var mine = rows.filter(function (r) { return salIsDue(r) && salExtraPatientId(r) === String(pid); });
+    if (!mine.length) { try { toast('Nothing due'); } catch (e) {} return; }
+    var mode = String((document.getElementById('exdMode') || {}).value || 'Cash');
+    for (var i = 0; i < mine.length; i++) {
+      var r = mine[i];
+      r.status = 'PAID'; r.mode = mode; r.paid_on = m.todayIST();
+      await m.save('hr', 'salary_payments', r);
+    }
+    try { toast('Paid'); } catch (e) {}
+    profPayExtraDue(code);
+  }
+  window.profPayOne = profPayOne;
 
   /* ===================================================================
      🟢 B629 (11.08.2026) — ওয়েব parity: (১) "Add Salary — choose month"
