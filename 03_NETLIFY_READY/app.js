@@ -9417,7 +9417,7 @@ function wlv1SaveRemarkNow(id,r){wlv1PendingRemark={id:'',text:''};let x=load('f
     ⛔ nextFollowDate()/saveNextFollow() ফাংশন দুটোর ভিতরে এক অক্ষরও বদলানো
     হয়নি, শুধু এখান থেকে ডাকা হচ্ছে। ⛔ updateFollowAction()-এর কাজ/হিসাব/
     ইতিহাস কিছুই বদলায়নি। */
- try{ if(x&&x.mobile) wlv1RemarkPendingRemove(x.mobile) }catch(_e){}if(x?.nextFollow===today())patch.nextFollow='';updateFollowAction(id,patch,{date:today(),time:isoNow(),remark:r,staff:user.name,nextFollow:patch.nextFollow??(x?.nextFollow||''),status:'Called'},x?.stage);nextFollowDate(id)}
+ try{ if(x&&x.mobile) wlv1RemarkPendingRemove(x.mobile) }catch(_e){}if(x?.nextFollow===today())patch.nextFollow='';updateFollowAction(id,patch,{date:today(),time:isoNow(),remark:r,staff:user.name,nextFollow:patch.nextFollow??(x?.nextFollow||''),status:'Called',src:'call'},x?.stage)/* 🏷 V1192 — এটা ফোন-কলের রিমার্ক, চিকিৎসা নয় */;nextFollowDate(id)}
 window["wlv1SaveRemarkNow"]=wlv1SaveRemarkNow;function nextFollowDate(id){
       let x=load('followups').find(a=>a.id===id);
       /* 🔴🔒 V718 — বোতামের HTML আগে বানিয়ে নেওয়া হলো (টেমপ্লেটের ভিতরে
@@ -10560,6 +10560,9 @@ function wlv1ChamberNoteOn(mm, dt){
         if(String(h.date||'').slice(0,10)!==day) return;
         var r=String(h.remark||'').trim();
         if(!r) return;
+        /* 🏷 V1192 — ফোন-কলের রিমার্ক চিকিৎসার জায়গায় কখনো নয়।
+           ⛔ পুরনো সারিতে চিহ্ন নেই ⇒ সেগুলো আগের মতোই দেখানো হয়। */
+        if(String(h.src||'').toLowerCase()==='call') return;
         if(typeof wlv1IsAutoPayRemark==='function' && wlv1IsAutoPayRemark(r,'')) return;
         var human=r.split('| Audit:')[0].split('Audit:')[0].trim();
         if(!human) return;
@@ -11247,7 +11250,8 @@ function wlv1CkSaveTtd(p, txt, docRemark){
     var i=rows.findIndex(function(x){ return String(x.id)===String(own.id); });
     if(i>=0){
       rows[i]={...rows[i], lastRemark:remarkText, lastRemarkAt:new Date().toISOString(), updatedAt:new Date().toISOString(),
-        history:[...(rows[i].history||[]), {date:today(), time:isoNow(), remark:remarkText, staff:(user&&(user.name||user.mobile))||''}]};
+        /* 🏷 V1192 — ডাক্তারের চেকআপ থেকেও এটা **চিকিৎসা**-ই। */
+        history:[...(rows[i].history||[]), {date:today(), time:isoNow(), remark:remarkText, staff:(user&&(user.name||user.mobile))||'', src:'treat'}]};
       save('followups', rows);
     }
   }
@@ -21201,7 +21205,9 @@ function wlv1ChamberSaveTreatment(mobile, rowId){
   /* 🔴🔒 V814 — লেখাটা **কবে লেখা হলো** সেটা আলাদা ঘরে বসে (ফোনের
      `FollowUpRepository.updateRemark`-এর হুবহু জোড়া)। */
   rows[i] = {...rows[i], lastRemark: txt, lastRemarkAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-    history: [...(rows[i].history||[]), {date: today(), time: isoNow(), remark: txt, staff: (user&&(user.name||user.mobile))||''}]};
+    /* 🏷 V1192 — এটা চেম্বারের **চিকিৎসা**; চিহ্ন বসে যাতে পরে কল-রিমার্কের
+       সঙ্গে গুলিয়ে না যায়। ⛔ পর্দায় কিছুই বদলায় না। */
+    history: [...(rows[i].history||[]), {date: today(), time: isoNow(), remark: txt, staff: (user&&(user.name||user.mobile))||'', src:'treat'}]};
   save('followups', rows);
   /* 🟢🔒 V590 (২৩.০৮.২০২৬, TK-রিপোর্ট: *"ট্রিটমেন্ট প্রোগ্রেসে যা লেখা হয় রিপোর্ট
      কার্ডে অটোমেটিক উঠে না কেন"*) — এই বাক্সটা এতদিন শুধু ফলো-আপ খাতায় লিখত,

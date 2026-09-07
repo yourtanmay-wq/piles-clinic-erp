@@ -2773,7 +2773,25 @@ class FollowUpRepository(private val context: Context? = null) {
      * ⛔ `incrementCall = true` হলে সেই পুরনো নিয়মই আগে চলে; এই ঘরটা তখন
      *    বাড়তি কিছু করে না (তারিখ ওখানেই বসে যায়)।
      */
-    fun updateRemark(id: String, remark: String, staffName: String, incrementCall: Boolean = false, stampCallDate: Boolean = false): Boolean {
+    /**
+     * 🏷🔒 V1192 (০৭.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — **প্রতিটা লেখায় উৎসের চিহ্ন।**
+     *
+     * TK-এর রিপোর্ট থেকে যে ফাঁকটা বেরিয়েছিল: চেম্বারে লেখা **চিকিৎসা** আর
+     * ফোন-কলের **রিমার্ক** — দুটোই এই একই `history`-তে জমা হয়, আলাদা চেনার
+     * কিছু ছিল না। ফলে Report Card ও CHECK-UP Queue যখন ওই দিনের লেখা তুলে
+     * আনে (V1189/V1191), তখন কল-রিমার্ক "চিকিৎসা" সেজে বসে যেতে পারত।
+     *
+     * ⇒ এখন প্রতিটা নতুন সারিতে একটা ছোট চিহ্ন বসে: `src` = `"treat"` (চেম্বারের
+     *   চিকিৎসা) অথবা `"call"` (ফোন-কল)। জানা না গেলে চিহ্নটা বসেই না।
+     * ⛔ **পর্দায় কিচ্ছু বদলায় না** — চিহ্নটা শুধু ভিতরে; History-র Type কলাম,
+     *    কল-গোনা, লেখা — সব হুবহু আগের মতোই।
+     * ⛔ **পুরনো সারিতে চিহ্ন নেই**, আর সেগুলো আগের মতোই দেখানো হয় (V1189/V1191-এ
+     *    TK যা প্রুফে পাশ করেছেন) — শুধু **স্পষ্টভাবে `"call"` লেখা** সারিগুলোই
+     *    চিকিৎসার জায়গায় বাদ যায়। তাই আজ থেকে ভুলটা আর হতেই পারবে না, অথচ
+     *    পুরনো কিছুই হারায় না।
+     * ⛔ ডেটাবেসে নতুন কোনো টেবিল/কলাম লাগে না — `history` আগে থেকেই JSON।
+     */
+    fun updateRemark(id: String, remark: String, staffName: String, incrementCall: Boolean = false, stampCallDate: Boolean = false, source: String = ""): Boolean {
         // Match the WebView's updateFollowAction: append to the history log and,
         // when this is an enquiry call, bump callCount (capped at 5) + stamp today.
         val existing = SupabaseClient.fetchList("followups", "id=eq.$id", 1)
@@ -2806,7 +2824,18 @@ class FollowUpRepository(private val context: Context? = null) {
         //    আগেরটা অক্ষত রাখা ভালো।
         val haveRow = row.length() > 0
         if (remark.isNotBlank() && haveRow) {
-            history.put(JSONObject().put("date", FollowUpModel.today()).put("time", isoNow()).put("remark", remark).put("staff", staffName))
+            /* 🏷 V1192 — উৎসের চিহ্ন। কল-ফ্ল্যাগ থাকলে নিজে থেকেই "call",
+               নইলে caller যা বলেছে (চেম্বারের পথে "treat")। কিছুই জানা না গেলে
+               ঘরটা বসেই না — তখন আচরণ হুবহু আগের মতোই। */
+            val src = when {
+                source.isNotBlank() -> source
+                incrementCall || stampCallDate -> "call"
+                else -> ""
+            }
+            val entry = JSONObject().put("date", FollowUpModel.today()).put("time", isoNow())
+                .put("remark", remark).put("staff", staffName)
+            if (src.isNotBlank()) entry.put("src", src)
+            history.put(entry)
         }
 
         val fields = JSONObject().put("updatedAt", isoNow())

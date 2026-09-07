@@ -2565,7 +2565,7 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                     }
                     val savedId = liveFollowUpId
                     val ok = withContext(Dispatchers.IO) {
-                        FollowUpRepository(this@ChamberAttendanceActivity).updateRemark(savedId, text, user.name.ifBlank { user.mobile })
+                        FollowUpRepository(this@ChamberAttendanceActivity).updateRemark(savedId, text, user.name.ifBlank { user.mobile }, source = "treat")   // 🏷 V1192
                     }
                     /* 🟢🔒 V590 (২৩.০৮.২০২৬, TK-নির্দেশ) — Report Card-এ লেখাটা
                        পাঠানোর কাজটা এখন একটাই জায়গায় (`syncProgressToReportCard`),
@@ -2808,7 +2808,7 @@ Thread {
                 val appCtx = this@ChamberAttendanceActivity.applicationContext
                 val staffName = user.name.ifBlank { user.mobile }
                 BackgroundWork.run {
-                    try { FollowUpRepository(appCtx).updateRemark(row.followUpId, remark, staffName) } catch (_: Throwable) { }
+                    try { FollowUpRepository(appCtx).updateRemark(row.followUpId, remark, staffName, source = "treat") } catch (_: Throwable) { }   // 🏷 V1192
                 }
                 // 🟢 V590 — এই বাক্সটা এতদিন Report Card-এ কিছু পাঠাত না।
                 syncProgressToReportCard(row, remark, selectedDate)
@@ -3923,7 +3923,7 @@ Thread {
                 val appCtx = this@ChamberAttendanceActivity.applicationContext
                 val staffName = user.name.ifBlank { user.mobile }
                 BackgroundWork.run {
-                    try { FollowUpRepository(appCtx).updateRemark(r.followUpId, remark, staffName) } catch (_: Throwable) { }
+                    try { FollowUpRepository(appCtx).updateRemark(r.followUpId, remark, staffName, source = "treat") } catch (_: Throwable) { }   // 🏷 V1192
                 }
                 // 🟢 V590 — Review-এর এই বাক্সটাও এতদিন Report Card-এ কিছু পাঠাত না।
                 syncProgressToReportCard(r, remark, selectedDate)

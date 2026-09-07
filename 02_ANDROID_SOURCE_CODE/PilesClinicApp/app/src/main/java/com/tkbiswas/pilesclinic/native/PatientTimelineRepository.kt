@@ -403,6 +403,9 @@ object PatientTimelineRepository {
                     val d = h.optString("date", "").take(10)
                     val r = h.optString("remark", "").trim()
                     if (d.isBlank() || r.isBlank()) continue
+                    /* 🏷 V1192 — ফোন-কলের রিমার্ক চিকিৎসার জায়গায় কখনো নয়।
+                       ⛔ পুরনো সারিতে চিহ্ন নেই ⇒ সেগুলো আগের মতোই দেখানো হয়। */
+                    if (h.optString("src", "").equals("call", true)) continue
                     if (PaymentModel.isAutoPaymentRemark(r, "")) continue
                     val human = PaymentModel.typedPartOf(r, "").trim()
                     if (human.isBlank()) continue

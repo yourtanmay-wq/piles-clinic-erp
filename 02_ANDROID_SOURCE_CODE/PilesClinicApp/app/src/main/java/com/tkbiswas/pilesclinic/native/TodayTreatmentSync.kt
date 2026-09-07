@@ -106,7 +106,7 @@ object TodayTreatmentSync {
                 }
             }
             if (bestId.isNotBlank()) {
-                FollowUpRepository(context).updateRemark(bestId, remarkText, staffName)
+                FollowUpRepository(context).updateRemark(bestId, remarkText, staffName, source = "treat")   // 🏷 V1192
             }
         } catch (_: Throwable) { }
 

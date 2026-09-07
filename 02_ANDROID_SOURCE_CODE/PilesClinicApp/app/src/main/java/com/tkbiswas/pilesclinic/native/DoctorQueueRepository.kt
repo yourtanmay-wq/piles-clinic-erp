@@ -477,6 +477,9 @@ class DoctorQueueRepository(private val context: Context? = null) {
                             val hd = h.optString("date", "").take(10)
                             val hr = h.optString("remark", "").trim()
                             if (hd.isBlank() || hr.isBlank()) continue
+                            /* 🏷 V1192 — ফোন-কলের রিমার্ক চিকিৎসার জায়গায় কখনো নয়।
+                               ⛔ পুরনো সারিতে চিহ্ন নেই ⇒ আগের মতোই দেখানো হয়। */
+                            if (h.optString("src", "").equals("call", true)) continue
                             if (PaymentModel.isAutoPaymentRemark(hr, "")) continue
                             val human = PaymentModel.typedPartOf(hr, "").trim()
                             if (human.isBlank()) continue
