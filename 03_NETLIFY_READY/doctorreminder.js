@@ -79,6 +79,95 @@
     });
   }
 
+  /* ─────────────────────────────────────────────────────────────────────
+     🙈🔒 V1193 (০৭.০৯.২০২৬, TK-নির্দেশ, হুবহু) — ফোনের `waitingFor` /
+     `acceptedNoticesFor` / `hide` / `ack`-এর যমজ।
+       · "আমি তো পাঠালাম, তাহলে অল টাইম আমার হোম স্ক্রিনে কেন দেখাবে"
+       · "এটা হাইড রাখার ব্যবস্থা তো রাখতে হবে"
+       · "উপরের ঘন্টাতে নোটিফিকেশন আসুক"
+     ⛔ Doctor Note & Reminder পর্দা ও History-তে সব **আগের মতোই** থাকে।
+     ───────────────────────────────────────────────────────────────────── */
+  function listHas(raw,m){ if(!m) return false;
+    return String(raw||'').split(',').some(function(x){ return x.trim()===m; }); }
+  function listAdd(raw,m){ if(!m) return String(raw||'');
+    if(listHas(raw,m)) return String(raw||'');
+    return String(raw||'')?(String(raw)+','+m):m; }
+
+  /** হোম-কার্ড ও ঘন্টার একটাই উৎস — এই ব্যক্তির জন্য অপেক্ষা করছে এমনগুলো। */
+  function drWaiting(rows){
+    var m=me(); if(!m) return [];
+    var br=myBranch().toLowerCase(), role=myRole();
+    var canRole=(role==='master'||role==='doctor');
+    return (rows||[]).filter(function(x){
+      if(String(x.acceptedAt||'')) return false;
+      if(listHas(x.hiddenBy,m)) return false;
+      if(d10(x.byMobile)===m) return false;             // নিজের পাঠানো নয়
+      var f=d10(x.forMobile);
+      if(f) return f===m;
+      return canRole && String(x.branch||'').trim().toLowerCase()===br;
+    });
+  }
+  /** পাঠানো ব্যক্তির ঘন্টার জন্য — তাঁর পাঠানো যেগুলো Accept হয়েছে, দেখা হয়নি। */
+  function drAcceptedNotices(rows){
+    var m=me(); if(!m) return [];
+    return (rows||[]).filter(function(x){
+      return d10(x.byMobile)===m && String(x.acceptedAt||'') && !listHas(x.ackBy,m);
+    });
+  }
+  window.__DR_BELL={waiting:[],accepted:[]};
+  /** একটাই পড়া — হোম-কার্ড, ঘন্টার সংখ্যা ও ঘন্টার তালিকা তিনটেই এখান থেকেই। */
+  async function drRemBellRefresh(){
+    /* ⛔ **একটাই পড়া** — দুটো তালিকাই এই একই সারিগুলো থেকে ছেঁকে বার করা হয়,
+       তাই ফ্রি প্ল্যানে বাড়তি egress লাগে না (V509-এর শিক্ষা)। */
+    var rows=[]; try{ rows=await drRemLoad(true); }catch(e){ return window.__DR_BELL; }
+    var t=todayIso();
+    var live=rows.filter(function(x){ return String(x.remindDate||'')>=t; });
+    window.__DR_BELL={ waiting:drWaiting(live), accepted:drAcceptedNotices(rows) };
+    try{ drRemPaintBadge(); }catch(e){}
+    return window.__DR_BELL;
+  }
+  function drRemBellCount(){
+    try{ return (window.__DR_BELL.waiting.length + window.__DR_BELL.accepted.length); }catch(e){ return 0; }
+  }
+  /** ঘন্টার ব্যাজে সংখ্যাটা বসিয়ে দেয় — নতুন করে পুরো হেডার আঁকতে হয় না। */
+  function drRemPaintBadge(){
+    try{
+      var b=document.querySelector('.bellOnly'); if(!b) return;
+      var base=0;
+      try{ base=mergeFollow(scoped(load('followups'))).filter(wlv1CallDue).length; }catch(e){ base=0; }
+      var n=base+drRemBellCount();
+      var sp=b.querySelector('.bellBadge');
+      if(n>0){ if(!sp){ sp=document.createElement('span'); sp.className='bellBadge'; b.appendChild(sp); } sp.textContent=n; }
+      else if(sp){ sp.remove(); }
+    }catch(e){}
+  }
+  async function drRemHide(id){
+    var x=(DR_ROWS||[]).filter(function(r){return r.id===id})[0];
+    var m=me(); if(!m) return;
+    if(typeof sb==='undefined'||!sb) return toast('No internet connection');
+    try{
+      var next=listAdd(x?x.hiddenBy:'', m);
+      var r=await sb.from(TABLE).update({hiddenBy:next}).eq('id',id);
+      if(r&&r.error) return toast('করা গেল না — আবার চেষ্টা করুন');
+      if(x) x.hiddenBy=next;
+      toast('Hidden from your Home & bell');
+      await drRemBellRefresh();
+      try{ var el=document.getElementById('drRemHomeBox'); if(el&&!drRemBellCount()) el.innerHTML=''; }catch(e){}
+      drRemHome();
+    }catch(e){ toast('করা গেল না — আবার চেষ্টা করুন'); }
+  }
+  async function drRemAck(id){
+    var m=me(); if(!m||typeof sb==='undefined'||!sb) return;
+    var x=((window.__DR_BELL||{}).accepted||[]).filter(function(r){return r.id===id})[0];
+    try{
+      var next=listAdd(x?x.ackBy:'', m);
+      await sb.from(TABLE).update({ackBy:next}).eq('id',id);
+      if(x) x.ackBy=next;
+      await drRemBellRefresh();
+    }catch(e){}
+    drRemHome();
+  }
+
   /** এই সারিটা এই ব্যবহারকারী Accept করতে পারেন কিনা — ফোনের হুবহু নিয়ম।
       ⛔ স্টাফ কখনো নয়; নির্দিষ্ট একজনকে পাঠানো হলে কেবল তিনিই। */
   function canAccept(x){
@@ -94,40 +183,72 @@
   function drCard(x, withAccept){
     var accepted=!!String(x.acceptedAt||'');
     var rail=accepted?'#0F766E':'#E0A800';
-    var btn = (withAccept && canAccept(x))
-      ? '<button style="margin-top:9px" onclick="drRemAccept(\'' + esc2(x.id) + '\')">Accept</button>'
-      : (accepted
-          ? '<div style="margin-top:8px;color:#0A7C3F;font-weight:700;font-size:13px">Accepted · '+esc2(x.acceptedByName||'')+' · '+esc2(stamp(x.acceptedAt))+'</div>'
-          : '<div style="margin-top:8px;color:#8A5A00;font-weight:700;font-size:13px">Not accepted yet</div>');
+    function cell(l,v,last){
+      return '<div style="flex:1;background:#FBFDFC;border:1px solid #E7ECEA;border-radius:14px;padding:9px 12px;margin-top:8px'+(last?'':';margin-right:8px')+'">'+
+        '<div style="font-size:10.5px;color:#8B98A9;font-weight:700;letter-spacing:.8px">'+l+'</div>'+
+        '<div style="font-size:12.5px;color:#0B2B1C;font-weight:700;margin-top:3px">'+(v||'—')+'</div></div>';
+    }
+    var acts='';
+    if(withAccept && canAccept(x)){
+      acts='<button class="small" style="margin-right:10px" onclick="drRemAccept(\''+esc2(x.id)+'\')">Accept</button>'+
+           '<span style="flex:1;color:#8A5A00;font-weight:700;font-size:12px">Not accepted yet</span>';
+    } else if(accepted){
+      acts='<span style="flex:1;color:#0A7C3F;font-weight:700;font-size:12px">Accepted  ·  '+esc2(x.acceptedByName||'')+'  ·  '+esc2(stamp(x.acceptedAt))+'</span>';
+    } else {
+      acts='<span style="flex:1;color:#8A5A00;font-weight:700;font-size:12px">Not accepted yet</span>';
+    }
+    /* 🙈 V1193 — "Hide": শুধু এই ব্যক্তির হোম ও ঘন্টা থেকে সরে; তালিকা ও
+       History-তে সারিটা অটুট থাকে, কেউ কিছু হারায় না। */
+    if(withAccept) acts+='<button class="small ghost" onclick="drRemHide(\''+esc2(x.id)+'\')">Hide</button>';
     return '<div style="display:flex;background:#fff;border:1px solid #E7ECEA;border-radius:16px;overflow:hidden;margin-bottom:10px">'+
       '<div style="width:6px;background:'+rail+'"></div>'+
       '<div style="flex:1;padding:14px 16px">'+
         '<div style="font-size:15px;font-weight:700;color:#0B2B1C">'+esc2(x.patientName||'Patient')+
           ' <span style="font-weight:400;color:#7A8794;font-size:13px">'+esc2(x.patientMobile||'')+'</span></div>'+
         '<div style="margin-top:7px;background:#F6FAF7;border:1px solid #E2EDE6;border-radius:11px;padding:10px 12px;font-size:13.5px;color:#17212B">'+esc2(x.note||'')+'</div>'+
-        '<div style="margin-top:8px;font-size:12.5px;color:#123E8C;font-weight:700">For  '+esc2(x.forName||'All doctors')+'</div>'+
-        '<div style="font-size:12.5px;color:#8A5A00;font-weight:700">By  '+esc2(x.byName||'')+(x.byBranch?(' · '+esc2(x.byBranch)):'')+'</div>'+
-        (x.remindDate?('<div style="margin-top:7px;font-size:12.5px;color:#B45309;font-weight:700">Remind on  '+esc2(dmy(x.remindDate))+(x.remindTime?('  ·  '+esc2(time12(x.remindTime))):'')+'</div>'):'')+
-        btn+
+        '<div style="display:flex">'+cell('FOR',esc2(x.forName||'All doctors'),false)+
+          cell('BY',esc2(x.byName||'')+(x.byBranch?(' · '+esc2(x.byBranch)):''),true)+'</div>'+
+        (x.remindDate?('<div style="margin-top:8px;background:#FFFBF0;border:1px solid #F0E0BC;border-radius:14px;padding:10px 12px;font-size:12.5px;color:#B45309;font-weight:700">Remind on  '+esc2(dmy(x.remindDate))+(x.remindTime?('  ·  '+esc2(time12(x.remindTime))):'')+'</div>'):'')+
+        '<div style="display:flex;align-items:center;margin-top:10px">'+acts+'</div>'+
       '</div></div>';
   }
 
-  /** হোম পর্দার কার্ড — কিছু না থাকলে কিছুই বসে না (ফোনের মতোই)। */
+  /** হোম পর্দার কার্ড — শুধু **এই ব্যক্তির জন্য অপেক্ষা করছে** এমনগুলো
+      (V1193, TK-নির্দেশ)। কিছু না থাকলে কিছুই বসে না, আর উপরে **Hide**। */
   function drRemHomeCard(){
     setTimeout(function(){
-      drRemLoad(false).then(function(rows){
+      drRemBellRefresh().then(function(b){
         var el=document.getElementById('drRemHomeBox'); if(!el) return;
+        var rows=(b&&b.waiting)||[];
         if(!rows.length){ el.innerHTML=''; return; }
         DR_ROWS=rows;
-        el.innerHTML='<div class="card" style="padding:0;overflow:hidden;cursor:pointer" onclick="drRemHome()">'+
+        el.innerHTML='<div class="card" style="padding:0;overflow:hidden">'+
           '<div style="background:#0B4F2A;color:#fff;padding:12px 16px;display:flex;align-items:center">'+
             '<b style="flex:1;font-size:14px;letter-spacing:.5px">DOCTOR NOTE &amp; REMINDER</b>'+
+            '<span onclick="drRemHideAll(event)" style="border:1.5px solid #9FD3B6;border-radius:12px;padding:5px 14px;font-size:12px;font-weight:700;margin-right:9px;cursor:pointer">Hide</span>'+
             '<span style="background:#fff;color:#0B4F2A;border-radius:20px;padding:2px 12px;font-size:12.5px;font-weight:700">'+rows.length+'</span></div>'+
-          '<div style="padding:12px 14px">'+rows.slice(0,3).map(function(x){return drCard(x,false)}).join('')+
+          '<div style="padding:12px 14px;cursor:pointer" onclick="drRemHome()">'+rows.slice(0,3).map(function(x){return drCard(x,false)}).join('')+
           '<div style="text-align:center;color:#0A5C33;font-weight:700;font-size:13.5px;padding:6px 0 2px">View all</div></div></div>';
       }).catch(function(){});
     }, 60);
     return '<div id="drRemHomeBox"></div>';
+  }
+
+  /** হোম-কার্ডের "Hide" — এই ব্যক্তির হোম ও ঘন্টা থেকেই শুধু সরে যায়। */
+  async function drRemHideAll(ev){
+    try{ ev.stopPropagation(); }catch(e){}
+    var rows=((window.__DR_BELL||{}).waiting)||[];
+    var m=me(); if(!m||typeof sb==='undefined'||!sb) return;
+    for(var i=0;i<rows.length;i++){
+      try{
+        var next=listAdd(rows[i].hiddenBy,m);
+        await sb.from(TABLE).update({hiddenBy:next}).eq('id',rows[i].id);
+        rows[i].hiddenBy=next;
+      }catch(e){}
+    }
+    try{ var el=document.getElementById('drRemHomeBox'); if(el) el.innerHTML=''; }catch(e){}
+    await drRemBellRefresh();
+    toast('Hidden from your Home & bell');
   }
 
   async function drRemAccept(id){
@@ -142,13 +263,20 @@
 
   async function drRemHome(){
     var rows=[]; try{ rows=await drRemLoad(false); }catch(e){}
-    document.getElementById('app').innerHTML='<div class="wrap"><div class="topbar"><b>Doctor Note &amp; Reminder</b>'+
-      '<button class="ghost" onclick="dashboard()">Back</button></div><div class="page">'+
-      '<div class="card"><div class="actions" style="justify-content:flex-start;gap:10px">'+
-        '<button onclick="drRemNew()">New Reminder</button>'+
-        '<button class="ghost" onclick="drRemHistory()">Reminder History</button></div></div>'+
-      (rows.length? rows.map(function(x){return drCard(x,true)}).join('')
-                  : '<div class="card">No reminder right now.</div>')+
+    DR_ROWS=rows;
+    /* 🎨 V1193 (TK-র পাশ-করা প্রুফ) — উপরে ছোট "+ New", একটাই কার্ড,
+       আর **Back একদম নিচে** (TK-নির্দেশ: *"Back একদম ডিসপ্লের নিচে থাকবে"*)। */
+    document.getElementById('app').innerHTML='<div class="wrap">'+
+      '<div class="topbar"><b>Doctor Note &amp; Reminder</b>'+
+      '<button class="small" onclick="drRemNew()">+ New</button></div>'+
+      '<div class="page"><div class="card">'+
+        '<div style="background:linear-gradient(90deg,#0B4F2A,#0F766E);border-radius:14px;padding:11px 16px;margin-bottom:10px;display:flex;align-items:center">'+
+          '<b style="flex:1;color:#fff;font-size:13.5px;letter-spacing:.6px">WAITING NOW'+(rows.length?('   ('+rows.length+')'):'')+'</b></div>'+
+        (rows.length? rows.map(function(x){return drCard(x,true)}).join('')
+                    : '<div class="mut">No reminder right now.</div>')+
+        '<button class="ghost" style="width:100%;margin-top:12px" onclick="drRemHistory()">Reminder History</button>'+
+      '</div>'+
+      '<button class="ghost" style="width:100%;margin-top:14px" onclick="dashboard()">Back</button>'+
       '</div></div>';
   }
 
@@ -176,31 +304,93 @@
           '</div>'+
         '</div></div>';
     }).join('');
-    document.getElementById('app').innerHTML='<div class="wrap"><div class="topbar"><b>Reminder History</b>'+
-      '<button class="ghost" onclick="drRemHome()">Back</button></div><div class="page">'+
-      (rows.length?body:'<div class="card">Nothing yet.</div>')+'</div></div>';
+    document.getElementById('app').innerHTML='<div class="wrap"><div class="topbar"><b>Reminder History</b></div><div class="page">'+
+      (rows.length?body:'<div class="card">Nothing yet.</div>')+
+      '<button class="ghost" style="width:100%;margin-top:14px" onclick="drRemHome()">Back</button>'+
+      '</div></div>';
   }
 
   var DR_PICKED=null, DR_FOR=['',''];
+  /* 🎨🔒 V1193 (TK-র পাশ-করা ফটো-প্রুফ) — একটাই কার্ড, উপরে সোনালি পট্টি,
+     প্রতিটা ঘর নিজের বাক্সে, দিন ও সময় পাশাপাশি, নিচে একটাই Send, আর
+     **Back একদম পর্দার নিচে**। ফোনের `renderCreate()`-এর হুবহু যমজ।
+     ⛔ যা সেভ হয় (`drRemSend`) তার এক অক্ষরও বদলায়নি — একই ঘর, একই সারি। */
   function drRemNew(){
     DR_PICKED=null; DR_FOR=['',''];
-    document.getElementById('app').innerHTML='<div class="wrap"><div class="topbar"><b>New Reminder</b>'+
-      '<button class="ghost" onclick="drRemHome()">Back</button></div><div class="page"><div class="card">'+
-      '<label>Patient</label><input id="drPat" class="input" type="text" placeholder="Patient name or mobile">'+
-      '<div id="drPatOut" style="font-size:13px;color:#8A93A0;margin:6px 0 4px">No patient chosen</div>'+
-      '<button class="ghost" onclick="drRemFind()">Find Patient</button>'+
-      '<label>Note</label><input id="drNote" class="input" type="text" placeholder="What to give / what to do">'+
-      '<label>Send to which doctor?</label><select id="drFor" class="input"><option value="">All doctors</option></select>'+
+    var CELL='background:#FBFDFC;border:1px solid #E7ECEA;border-radius:14px;padding:11px 13px;margin-top:9px';
+    var CAP='font-size:10.5px;color:#8B98A9;font-weight:700;letter-spacing:.8px';
+    document.getElementById('app').innerHTML='<div class="wrap"><div class="topbar"><b>New Reminder</b></div>'+
+      '<div class="page"><div class="card">'+
+      '<div style="background:linear-gradient(90deg,#B45309,#E0A800);border-radius:14px;padding:11px 16px;display:flex;align-items:center;margin-bottom:6px">'+
+        '<b style="flex:1;color:#fff;font-size:13.5px;letter-spacing:.6px">NEW REMINDER</b>'+
+        '<span style="color:#FFF3D6;font-size:12px">'+esc2(dmy(todayIso()))+'</span></div>'+
+
+      '<div style="'+CELL+'"><div style="'+CAP+'">PATIENT</div>'+
+        '<div style="display:flex;align-items:center;gap:9px">'+
+          '<input id="drPat" class="input" type="text" placeholder="Patient name or mobile" style="flex:1;margin:0" oninput="drRemSuggest()">'+
+          '<button class="small ghost" onclick="drRemFind()">Find</button></div></div>'+
+      '<div id="drPatSug"></div>'+
+      '<div style="'+CELL+'"><div id="drPatOut" style="font-size:13.5px;color:#8A93A0">No patient chosen</div></div>'+
+
+      '<div style="'+CELL+'"><div style="'+CAP+'">NOTE</div>'+
+        '<input id="drNote" class="input" type="text" placeholder="What to give / what to do" style="margin:4px 0 0"></div>'+
+
+      '<div style="'+CELL+'"><div style="'+CAP+'">SEND TO</div>'+
+        '<select id="drFor" class="input" style="margin:4px 0 0"><option value="">All doctors</option></select></div>'+
+
       '<div style="display:flex;gap:9px">'+
-        '<div style="flex:1"><label>Which day — reminds the day before</label><input id="drDate" class="input" type="date"></div>'+
-        '<div style="flex:1"><label>Time</label><input id="drTime" class="input" type="time"></div>'+
+        '<div style="flex:1;'+CELL+'"><div style="'+CAP+'">REMIND DAY</div>'+
+          '<input id="drDate" class="input" type="date" style="margin:4px 0 0"></div>'+
+        '<div style="flex:1;'+CELL+'"><div style="'+CAP+'">TIME</div>'+
+          '<input id="drTime" class="input" type="time" style="margin:4px 0 0"></div>'+
       '</div>'+
-      '<label>Reminder by</label>'+
-      '<div style="background:#FFF8E9;border:1.5px solid #F0DCA8;border-radius:12px;padding:11px 14px;font-size:13.5px;color:#8A5A00;font-weight:700">'+
-        esc2(myName())+(myBranch()?(' · '+esc2(myBranch())):'')+'  (you)</div>'+
-      '<div class="actions"><button class="ghost" onclick="drRemHome()">Cancel</button>'+
-      '<button onclick="drRemSend()">Send</button></div></div></div></div>';
+      '<div style="font-size:11.5px;color:#8B98A9;padding:8px 2px 0">Reminds the doctor one day before.</div>'+
+
+      '<div style="background:#FFFBF0;border:1px solid #F0E0BC;border-radius:14px;padding:11px 13px;margin-top:9px">'+
+        '<div style="'+CAP+'">REMINDER BY</div>'+
+        '<div style="font-size:13.5px;color:#8A5A00;font-weight:700;margin-top:3px">'+
+          esc2(myName())+(myBranch()?('  ·  '+esc2(myBranch())):'')+'   (you)</div></div>'+
+
+      '<button style="width:100%;margin-top:12px" onclick="drRemSend()">Send Reminder</button>'+
+      '</div>'+
+      '<button class="ghost" style="width:100%;margin-top:14px" onclick="drRemHome()">Back</button>'+
+      '</div></div>';
     drRemFillDoctors(myBranch());
+  }
+
+  /* 🔎🔒 V1193 (TK-নির্দেশ, হুবহু): *"পেশেন্ট এর নাম 4 সংখ্যা দিলে সাজেশন কেন
+     করে না"* — যাচাই করে দেখা গেল টাইপ করার সঙ্গে সঙ্গে সাজেশন দেখানোর
+     ব্যবস্থা **কোনোদিনই ছিল না**, "Find Patient" চাপতেই হত। এখন ৩ অক্ষর
+     লিখলেই নিজে থেকে তালিকা নামে।
+     ⛔ খোঁজা হয় **ফোনে/ব্রাউজারে আগে থেকেই রাখা** রোগী-তালিকা থেকে —
+        নতুন কোনো ক্লাউড-পড়া যোগ হয়নি। */
+  var DR_SUG_T=null;
+  function drRemSuggest(){
+    if(DR_SUG_T) clearTimeout(DR_SUG_T);
+    DR_SUG_T=setTimeout(function(){
+      var box=document.getElementById('drPatSug'); if(!box) return;
+      var q=String((document.getElementById('drPat')||{}).value||'').trim();
+      if(q.length<3){ box.innerHTML=''; return; }
+      var list=drRemSearch(q).slice(0,8);
+      window.__drFound=list;
+      if(!list.length){ box.innerHTML=''; return; }
+      box.innerHTML=list.map(function(p,i){
+        return '<div onclick="drRemPick('+i+')" style="background:#F2FBF5;border:1px solid #D8ECDF;border-radius:14px;padding:10px 13px;margin-top:8px;cursor:pointer">'+
+          '<div style="font-size:13.5px;font-weight:700;color:#0B2B1C">'+esc2(p.name||'')+'</div>'+
+          '<div style="font-size:11.5px;color:#4A6B58;margin-top:2px">'+esc2(p.mobile||'')+'  ·  '+esc2(p.branch||'')+'</div></div>';
+      }).join('');
+    }, 300);
+  }
+
+  /** নাম বা নম্বরের টুকরো ধরে রোগী — "Find" ও সাজেশন দুটোই এই একটাই নিয়মে। */
+  function drRemSearch(q){
+    var digits=String(q||'').replace(/\D/g,'');
+    try{
+      return (load('patients')||[]).filter(function(p){
+        if(digits.length>=4) return d10(p.mobile).indexOf(digits.slice(-10))>=0 || String(p.mobile||'').indexOf(digits)>=0;
+        return String(p.name||'').toLowerCase().indexOf(String(q).toLowerCase())>=0;
+      }).slice(0,25);
+    }catch(e){ return []; }
   }
 
   function drRemFillDoctors(branch){
@@ -213,14 +403,7 @@
   function drRemFind(){
     var q=String((document.getElementById('drPat')||{}).value||'').trim();
     if(q.length<3) return toast('Type at least 3 letters or digits');
-    var digits=q.replace(/\D/g,'');
-    var list=[];
-    try{
-      list=(load('patients')||[]).filter(function(p){
-        if(digits.length>=4) return d10(p.mobile).indexOf(digits.slice(-10))>=0 || String(p.mobile||'').indexOf(digits)>=0;
-        return String(p.name||'').toLowerCase().indexOf(q.toLowerCase())>=0;
-      }).slice(0,25);
-    }catch(e){}
+    var list=drRemSearch(q);
     if(!list.length) return toast('No patient found');
     var rows=list.map(function(p,i){
       return '<button class="menuBtn" onclick="drRemPick('+i+')"><b>'+esc2(p.name||'')+'</b><small>'+esc2(p.mobile||'')+' · '+esc2(p.branch||'')+'</small></button>';
@@ -232,7 +415,8 @@
     var p=(window.__drFound||[])[i]; if(!p) return;
     DR_PICKED=p;
     var out=document.getElementById('drPatOut');
-    if(out){ out.textContent=(p.name||'')+'   '+(p.mobile||''); out.style.color='#0B2B1C'; }
+    if(out){ out.textContent=(p.name||'')+'   '+(p.mobile||'')+(p.branch?('   ·   '+p.branch):''); out.style.color='#0B2B1C'; }
+    try{ var sug=document.getElementById('drPatSug'); if(sug) sug.innerHTML=''; }catch(e){}
     drRemFillDoctors(p.branch||myBranch());
     try{ closeModal(); }catch(e){}
   }
@@ -268,4 +452,7 @@
   window.drRemHome=drRemHome; window.drRemHistory=drRemHistory; window.drRemNew=drRemNew;
   window.drRemAccept=drRemAccept; window.drRemFind=drRemFind; window.drRemPick=drRemPick;
   window.drRemSend=drRemSend; window.drRemHomeCard=drRemHomeCard;
+  window.drRemHide=drRemHide; window.drRemHideAll=drRemHideAll; window.drRemAck=drRemAck;
+  window.drRemSuggest=drRemSuggest; window.drRemSearch=drRemSearch;
+  window.drRemBellRefresh=drRemBellRefresh; window.drRemBellCount=drRemBellCount;
 })();

@@ -70,19 +70,141 @@ class DoctorReminderActivity : AppCompatActivity() {
         return "$h12.${p[1]} $ap"
     }
 
+    /* ═══════════════ 🎨 V1193 — TK-র পাশ-করা প্রুফের সাজ ═══════════════
+       TK (০৭.০৯.২০২৬): *"এগুলি প্রফেশনাল লুক আনতে হবে"* ও
+       *"Back একদম ডিসপ্লের নিচে থাকবে"*।
+       ⇒ Extra Income ফর্মের (V1182, TK-পাশ) হুবহু একই ভাষা — একটাই সাদা
+         কার্ড, উপরে রঙিন পট্টি, প্রতিটা ঘর নিজের বাক্সে, ছোট আউটলাইন
+         বোতাম, আর Back কার্ডের বাইরে পর্দার একদম নিচে।
+       ⛔ কী সেভ হয় · কে দেখেন · কে Accept করেন — কিচ্ছু বদলায়নি, শুধু সাজ। */
+
+    private fun cardBox(): LinearLayout = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(dp(11), dp(11), dp(11), dp(12))
+        background = box("#FFFFFF", "#CFE9D8", 18)
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+    }
+
+    private fun stripHeader(title: String, right: String, from: String, to: String): LinearLayout =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            background = android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
+                intArrayOf(android.graphics.Color.parseColor(from), android.graphics.Color.parseColor(to))
+            ).apply { cornerRadius = dp(14).toFloat() }
+            setPadding(dp(14), dp(10), dp(14), dp(10))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(8) }
+            addView(TextView(this@DoctorReminderActivity).apply {
+                text = title; textSize = 13.5f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.WHITE)
+                letterSpacing = 0.05f
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            })
+            if (right.isNotBlank()) addView(TextView(this@DoctorReminderActivity).apply {
+                text = right; textSize = 12f
+                setTextColor(android.graphics.Color.parseColor("#EAF7F0"))
+            })
+        }
+
+    private fun cellBox(fill: String = "#FBFDFC", stroke: String = "#E7ECEA"): LinearLayout =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = box(fill, stroke, 14)
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(8) }
+        }
+
+    private fun capLabel(text: String): TextView = tv(text, 10.5f, "#8B98A9", bold = true).apply {
+        letterSpacing = 0.06f
+    }
+
+    private fun miniBtn(text: String, textHex: String, borderHex: String, onClick: () -> Unit): android.widget.Button =
+        android.widget.Button(this).apply {
+            this.text = text
+            isAllCaps = false
+            textSize = 13f
+            minWidth = 0; minimumWidth = 0
+            gravity = android.view.Gravity.CENTER
+            setPadding(dp(14), dp(8), dp(14), dp(8))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor(textHex))
+            background = box("#FFFFFF", borderHex, 12).apply {
+                setStroke(dp(2), android.graphics.Color.parseColor(borderHex))
+            }
+            var lastTap = 0L
+            setOnClickListener {
+                val now = android.os.SystemClock.elapsedRealtime()
+                if (now - lastTap < 900L) return@setOnClickListener
+                lastTap = now
+                onClick()
+            }
+        }
+
+    private fun rowOf(vararg views: android.view.View): LinearLayout =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            for (v in views) addView(v)
+        }
+
+    /** কার্ডের বাইরে, পর্দার একদম নিচে Back (TK-নির্দেশ)। */
+    private fun bottomBack(col: LinearLayout, onClick: () -> Unit) {
+        col.addView(android.view.View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
+        })
+        col.addView(ModuleUi.buttonSoft(this, "Back", onClick).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(10) }
+        })
+    }
+
     // ───────────────────────── চলতি তালিকা ─────────────────────────
     private fun renderList() {
-        val col = ModuleUi.screen(this, "Doctor Note & Reminder")
+        val col = ModuleUi.screen(this, "")
         (col.parent as? android.widget.ScrollView)?.isFillViewport = true
-        col.addView(ModuleUi.button(this, "New Reminder") { renderCreate() })
+
+        // উপরে শিরোনাম + ছোট "+ New" (আগের বড় সবুজ বার নয় — TK-র পাশ-করা প্রুফ)
+        col.addView(rowOf(
+            tv("Doctor Note & Reminder", 19f, "#0B4F2A").apply {
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            },
+            android.widget.Button(this).apply {
+                text = "+ New"; isAllCaps = false; textSize = 13.5f
+                minWidth = 0; minimumWidth = 0
+                setPadding(dp(16), dp(9), dp(16), dp(9))
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.WHITE)
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(12).toFloat()
+                    setColor(android.graphics.Color.parseColor("#0B8A3E"))
+                }
+                setOnClickListener { renderCreate() }
+            }
+        ).apply { setPadding(0, 0, 0, dp(10)) })
+
+        val sheet = cardBox()
+        col.addView(sheet)
+        val strip = stripHeader("WAITING NOW", "", "#0B4F2A", "#0F766E")
+        sheet.addView(strip)
         val holder = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        col.addView(holder)
+        sheet.addView(holder)
         holder.addView(ModuleUi.body(this, "Loading..."))
         Thread {
             val rows = DoctorReminderRepository.visibleFor(user)
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 holder.removeAllViews()
+                (strip.getChildAt(0) as? TextView)?.text =
+                    if (rows.isEmpty()) "WAITING NOW" else "WAITING NOW   (" + rows.size + ")"
                 if (rows.isEmpty()) {
                     holder.addView(ModuleUi.body(this, "No reminder right now."))
                 } else {
@@ -90,14 +212,16 @@ class DoctorReminderActivity : AppCompatActivity() {
                 }
             }
         }.start()
-        col.addView(ModuleUi.button(this, "Reminder History") { renderHistory() })
-        col.addView(android.view.View(this).apply {
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
+        sheet.addView(miniBtn("Reminder History", "#B45309", "#E0A800") { renderHistory() }.apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(14) }
         })
-        col.addView(ModuleUi.button(this, "Back") { finish() })
+
+        bottomBack(col) { finish() }
     }
 
-    /** এক রোগী = এক কার্ড (TK-র পাশ-করা প্রুফের হুবহু সাজ)। */
+    /** এক রোগী = এক বাক্স (TK-র পাশ-করা প্রুফের হুবহু সাজ)। */
     private fun card(r: JSONObject, showAccept: Boolean): LinearLayout {
         val accepted = r.optString("acceptedAt", "").isNotBlank()
         val wrap = LinearLayout(this).apply {
@@ -129,24 +253,42 @@ class DoctorReminderActivity : AppCompatActivity() {
             ).apply { topMargin = dp(7) }
         })
 
+        // FOR ও BY পাশাপাশি দুটো ঘরে (প্রুফের মতো)
+        fun cell(label: String, value: String, last: Boolean): LinearLayout = cellBox().apply {
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                .apply { topMargin = dp(8); if (!last) rightMargin = dp(8) }
+            addView(capLabel(label))
+            addView(tv(value.ifBlank { "—" }, 12.5f, "#0B2B1C", bold = true))
+        }
         val forName = r.optString("forName", "").ifBlank { "All doctors" }
         val byName = r.optString("byName", "")
         val byBranch = r.optString("byBranch", "")
-        bd.addView(tv("For  $forName", 12.5f, "#123E8C", bold = true).apply { setPadding(0, dp(8), 0, 0) })
-        bd.addView(tv("By  " + byName + (if (byBranch.isNotBlank()) " · $byBranch" else ""), 12.5f, "#8A5A00", bold = true))
+        bd.addView(rowOf(
+            cell("FOR", forName, false),
+            cell("BY", byName + (if (byBranch.isNotBlank()) " · $byBranch" else ""), true)
+        ))
 
         val rd = r.optString("remindDate", "")
         val rt = r.optString("remindTime", "")
         if (rd.isNotBlank()) {
-            bd.addView(tv("Remind on  " + dmy(rd) + (if (rt.isNotBlank()) "  ·  " + time12(rt) else ""),
-                12.5f, "#B45309", bold = true).apply { setPadding(0, dp(7), 0, 0) })
+            bd.addView(cellBox("#FFFBF0", "#F0E0BC").apply {
+                addView(tv("Remind on  " + dmy(rd) + (if (rt.isNotBlank()) "  ·  " + time12(rt) else ""),
+                    12.5f, "#B45309", bold = true))
+            })
         }
 
+        val acts = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(0, dp(8), 0, 0)
+        }
         if (accepted) {
-            bd.addView(tv("Accepted  ·  " + r.optString("acceptedByName", "") + "  ·  " + stamp(r.optString("acceptedAt", "")),
-                12.5f, "#0A7C3F", bold = true).apply { setPadding(0, dp(7), 0, 0) })
+            acts.addView(tv("Accepted  ·  " + r.optString("acceptedByName", "") + "  ·  " + stamp(r.optString("acceptedAt", "")),
+                12f, "#0A7C3F", bold = true).apply {
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            })
         } else if (showAccept && DoctorReminderRepository.canAccept(r, user)) {
-            bd.addView(ModuleUi.button(this, "Accept") {
+            acts.addView(miniBtn("Accept", "#0A5C33", "#0A5C33") {
                 val id = r.optString("id", "")
                 Thread {
                     val ok = DoctorReminderRepository.accept(id, user)
@@ -156,9 +298,27 @@ class DoctorReminderActivity : AppCompatActivity() {
                     }
                 }.start()
             })
+            acts.addView(tv("  Not accepted yet", 12f, "#8A5A00", bold = true).apply {
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            })
         } else if (showAccept) {
-            bd.addView(tv("Not accepted yet", 12.5f, "#8A5A00", bold = true).apply { setPadding(0, dp(7), 0, 0) })
+            acts.addView(tv("Not accepted yet", 12f, "#8A5A00", bold = true).apply {
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            })
         }
+        /* 🙈 V1193 (TK-নির্দেশ) — শুধু **এই ব্যক্তির** হোম ও ঘন্টা থেকে সরে;
+           তালিকা ও History-তে সারিটা আগের মতোই থাকে, কেউ কিছু হারায় না। */
+        if (showAccept) {
+            acts.addView(miniBtn("Hide", "#5B6B82", "#C9D6CE") {
+                Thread {
+                    val ok = DoctorReminderRepository.hide(r, user)
+                    runOnUiThread {
+                        ModuleUi.toast(this, if (ok) "Hidden from your Home & bell" else "Failed — check the network")
+                    }
+                }.start()
+            })
+        }
+        bd.addView(acts)
         return wrap
     }
 
@@ -178,10 +338,7 @@ class DoctorReminderActivity : AppCompatActivity() {
                 else for (r in rows) holder.addView(historyCard(r))
             }
         }.start()
-        col.addView(android.view.View(this).apply {
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
-        })
-        col.addView(ModuleUi.button(this, "Back") { renderList() })
+        bottomBack(col) { renderList() }
     }
 
     /** TK-র পাশ-করা প্রুফ — কে পাঠাল · কবে · কাকে · কবে Accept, প্রতিটা নিজের ঘরে। */
@@ -253,70 +410,158 @@ class DoctorReminderActivity : AppCompatActivity() {
         val col = ModuleUi.screen(this, "New Reminder")
         (col.parent as? android.widget.ScrollView)?.isFillViewport = true
 
+        val sheet = cardBox()
+        col.addView(sheet)
+        sheet.addView(stripHeader("NEW REMINDER", dmy(DoctorReminderRepository.todayIso()), "#B45309", "#E0A800"))
+
+        // ── রোগী ──
+        sheet.addView(capLabel("PATIENT"))
         val search = ModuleUi.input(this, "Patient name or mobile")
-        col.addView(ModuleUi.label(this, "Patient")); col.addView(search)
         val patLine = tv("No patient chosen", 13.5f, "#8A93A0")
-        col.addView(patLine)
-        col.addView(ModuleUi.button(this, "Find Patient") {
-            val q = search.text.toString().trim()
-            if (q.length < 3) { ModuleUi.toast(this, "Type at least 3 letters or digits"); return@button }
-            findPatient(q) { p ->
-                pickedPatient = p
-                patLine.text = p.optString("name", "") + "   " + p.optString("mobile", "")
-                patLine.setTextColor(android.graphics.Color.parseColor("#0B2B1C"))
+        val sugHolder = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val findCell = cellBox()
+        findCell.addView(rowOf(
+            search.apply {
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            },
+            miniBtn("Find", "#0A5C33", "#0A5C33") {
+                val q = search.text.toString().trim()
+                if (q.length < 3) { ModuleUi.toast(this, "Type at least 3 letters or digits"); return@miniBtn }
+                findPatient(q) { p -> choosePatient(p, patLine, sugHolder) }
+            }
+        ))
+        sheet.addView(findCell)
+        sheet.addView(sugHolder)
+        sheet.addView(cellBox().apply { addView(patLine) })
+
+        /* 🔎🔒 V1193 (TK-নির্দেশ, হুবহু): *"পেশেন্ট এর নাম 4 সংখ্যা দিলে সাজেশন
+           কেন করে না"* — যাচাই করে দেখা গেল টাইপ করার সঙ্গে সঙ্গে সাজেশন
+           দেখানোর ব্যবস্থা **কোনোদিনই ছিল না**, "Find Patient" চাপতেই হত।
+           এখন ৩ অক্ষর/সংখ্যা লিখলেই নিজে থেকে তালিকা নামে।
+           ⛔ টাইপ থামার ~০.৫ সেকেন্ড পরে **একটাই সরু পড়া** (৮টা সারি,
+              ৪টে ঘর) — তাই ফ্রি প্ল্যানে বাড়তি চাপ পড়ে না।
+           ⛔ "Find" বোতামটা আগের মতোই আছে, কিছু কেড়ে নেওয়া হয়নি। */
+        val sugHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        var sugTask: Runnable? = null
+        var lastQuery = ""
+        search.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(c: CharSequence?, a: Int, b: Int, d: Int) {}
+            override fun onTextChanged(c: CharSequence?, a: Int, b: Int, d: Int) {}
+            override fun afterTextChanged(e: android.text.Editable?) {
+                val q = (e?.toString() ?: "").trim()
+                sugTask?.let { sugHandler.removeCallbacks(it) }
+                if (q.length < 3) { sugHolder.removeAllViews(); return }
+                val t = Runnable {
+                    if (q == lastQuery) return@Runnable
+                    lastQuery = q
+                    Thread {
+                        val rows = DoctorReminderRepository.searchPatients(q)
+                        runOnUiThread {
+                            if (isFinishing || isDestroyed) return@runOnUiThread
+                            if (search.text.toString().trim() != q) return@runOnUiThread
+                            sugHolder.removeAllViews()
+                            if (rows == null || rows.length() == 0) return@runOnUiThread
+                            for (i in 0 until rows.length()) {
+                                val pt = rows.optJSONObject(i) ?: continue
+                                sugHolder.addView(cellBox("#F2FBF5", "#D8ECDF").apply {
+                                    isClickable = true
+                                    addView(tv(pt.optString("name", ""), 13.5f, "#0B2B1C", bold = true))
+                                    addView(tv(pt.optString("mobile", "") + "  ·  " + pt.optString("branch", ""),
+                                        11.5f, "#4A6B58"))
+                                    setOnClickListener { choosePatient(pt, patLine, sugHolder) }
+                                })
+                            }
+                        }
+                    }.start()
+                }
+                sugTask = t
+                sugHandler.postDelayed(t, 500L)
             }
         })
 
+        // ── নোট ──
         val note = ModuleUi.input(this, "What to give / what to do")
-        col.addView(ModuleUi.label(this, "Note")); col.addView(note)
+        sheet.addView(cellBox().apply { addView(capLabel("NOTE")); addView(note) })
 
-        val whoLine = tv("All doctors", 13.5f, "#0B2B1C")
-        col.addView(ModuleUi.label(this, "Send to which doctor?")); col.addView(whoLine)
-        col.addView(ModuleUi.button(this, "Choose Doctor") {
-            val branch = (pickedPatient?.optString("branch", "") ?: "").ifBlank { user?.branch ?: "" }
-            val docs = DoctorReminderRepository.doctorsForBranch(branch)
-            val labels = (listOf("All doctors") + docs.map { it.first }).toTypedArray()
-            val mobiles = listOf("") + docs.map { it.second }
-            val names = listOf("") + docs.map { it.first }
-            val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
-                .setCustomTitle(PremiumAlert.header(this, "Send to which doctor?"))
-                .setItems(labels) { _, which ->
-                    forMobile = mobiles[which]; forName = names[which]
-                    whoLine.text = labels[which]
+        // ── কোন ডাক্তার ──
+        val whoLine = tv("All doctors", 14f, "#0B2B1C", bold = true)
+        sheet.addView(cellBox().apply {
+            addView(rowOf(
+                LinearLayout(this@DoctorReminderActivity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    addView(capLabel("SEND TO"))
+                    addView(whoLine)
+                },
+                miniBtn("Choose", "#123E8C", "#123E8C") {
+                    val branch = (pickedPatient?.optString("branch", "") ?: "").ifBlank { user?.branch ?: "" }
+                    val docs = DoctorReminderRepository.doctorsForBranch(branch)
+                    val labels = (listOf("All doctors") + docs.map { it.first }).toTypedArray()
+                    val mobiles = listOf("") + docs.map { it.second }
+                    val names = listOf("") + docs.map { it.first }
+                    /* ⚠️ এখানে `this` = উপরের `cellBox()` (LinearLayout), Activity নয় —
+                       তাই স্পষ্ট করে Activity-টাই দিতে হয়। */
+                    val act = this@DoctorReminderActivity
+                    val dlg = androidx.appcompat.app.AlertDialog.Builder(act)
+                        .setCustomTitle(PremiumAlert.header(act, "Send to which doctor?"))
+                        .setItems(labels) { _, which ->
+                            forMobile = mobiles[which]; forName = names[which]
+                            whoLine.text = labels[which]
+                        }
+                        .setNegativeButton("Close", null)
+                        .create()
+                    dlg.show()
+                    try { PremiumAlert.paint(dlg) } catch (_: Throwable) { }
                 }
-                .setNegativeButton("Close", null)
-                .create()
-            dlg.show()
-            try { PremiumAlert.paint(dlg) } catch (_: Throwable) { }
+            ))
         })
 
+        // ── দিন ও সময় পাশাপাশি ──
         val dateLine = tv("Not chosen", 13.5f, "#8A93A0")
-        col.addView(ModuleUi.label(this, "Which day — reminds the day before")); col.addView(dateLine)
-        col.addView(ModuleUi.button(this, "Pick Date") {
-            val c = java.util.Calendar.getInstance()
-            android.app.DatePickerDialog(this, { _, y, m, d ->
-                remindDate = String.format(java.util.Locale.US, "%04d-%02d-%02d", y, m + 1, d)
-                dateLine.text = dmy(remindDate)
-                dateLine.setTextColor(android.graphics.Color.parseColor("#0B2B1C"))
-            }, c.get(java.util.Calendar.YEAR), c.get(java.util.Calendar.MONTH),
-                c.get(java.util.Calendar.DAY_OF_MONTH)).show()
-        })
         val timeLine = tv("Not chosen", 13.5f, "#8A93A0")
-        col.addView(ModuleUi.label(this, "Time")); col.addView(timeLine)
-        col.addView(ModuleUi.button(this, "Pick Time") {
-            val c = java.util.Calendar.getInstance()
-            android.app.TimePickerDialog(this, { _, h, mi ->
-                remindTime = String.format(java.util.Locale.US, "%02d:%02d", h, mi)
-                timeLine.text = time12(remindTime)
-                timeLine.setTextColor(android.graphics.Color.parseColor("#0B2B1C"))
-            }, c.get(java.util.Calendar.HOUR_OF_DAY), c.get(java.util.Calendar.MINUTE), false).show()
+        fun pickCell(label: String, line: TextView, btn: String, onPick: () -> Unit, last: Boolean): LinearLayout =
+            cellBox().apply {
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    .apply { topMargin = dp(8); if (!last) rightMargin = dp(8) }
+                addView(capLabel(label))
+                addView(line)
+                addView(miniBtn(btn, "#B45309", "#E0A800") { onPick() }.apply {
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply { topMargin = dp(7) }
+                })
+            }
+        sheet.addView(rowOf(
+            pickCell("REMIND DAY", dateLine, "Pick Date", {
+                val c = java.util.Calendar.getInstance()
+                android.app.DatePickerDialog(this, { _, y, m, d ->
+                    remindDate = String.format(java.util.Locale.US, "%04d-%02d-%02d", y, m + 1, d)
+                    dateLine.text = dmy(remindDate)
+                    dateLine.setTextColor(android.graphics.Color.parseColor("#0B2B1C"))
+                }, c.get(java.util.Calendar.YEAR), c.get(java.util.Calendar.MONTH),
+                    c.get(java.util.Calendar.DAY_OF_MONTH)).show()
+            }, false),
+            pickCell("TIME", timeLine, "Pick Time", {
+                val c = java.util.Calendar.getInstance()
+                android.app.TimePickerDialog(this, { _, h, mi ->
+                    remindTime = String.format(java.util.Locale.US, "%02d:%02d", h, mi)
+                    timeLine.text = time12(remindTime)
+                    timeLine.setTextColor(android.graphics.Color.parseColor("#0B2B1C"))
+                }, c.get(java.util.Calendar.HOUR_OF_DAY), c.get(java.util.Calendar.MINUTE), false).show()
+            }, true)
+        ))
+        sheet.addView(tv("Reminds the doctor one day before.", 11.5f, "#8B98A9").apply {
+            setPadding(dp(2), dp(8), 0, 0)
         })
 
-        col.addView(ModuleUi.label(this, "Reminder by"))
-        col.addView(tv((user?.name ?: "") + (if ((user?.branch ?: "").isNotBlank()) " · " + user?.branch else "") + "   (you)",
-            13.5f, "#8A5A00", bold = true))
+        // ── কে পাঠাচ্ছেন ──
+        sheet.addView(cellBox("#FFFBF0", "#F0E0BC").apply {
+            addView(capLabel("REMINDER BY"))
+            addView(tv((user?.name ?: "") + (if ((user?.branch ?: "").isNotBlank()) "  ·  " + user?.branch else "") + "   (you)",
+                13.5f, "#8A5A00", bold = true))
+        })
 
-        col.addView(ModuleUi.button(this, "Send") {
+        sheet.addView(ModuleUi.button(this, "Send Reminder") {
             val p = pickedPatient
             if (p == null) { ModuleUi.toast(this, "Choose a patient first"); return@button }
             val n = note.text.toString().trim()
@@ -334,11 +579,22 @@ class DoctorReminderActivity : AppCompatActivity() {
                     if (ok) renderList()
                 }
             }.start()
+        }.apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(12) }
         })
-        col.addView(android.view.View(this).apply {
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
-        })
-        col.addView(ModuleUi.button(this, "Back") { renderList() })
+
+        bottomBack(col) { renderList() }
+    }
+
+    /** বেছে নেওয়া রোগী পর্দায় বসে, সাজেশনের তালিকা গুটিয়ে যায়। */
+    private fun choosePatient(p: JSONObject, patLine: TextView, sugHolder: LinearLayout) {
+        pickedPatient = p
+        patLine.text = p.optString("name", "") + "   " + p.optString("mobile", "") +
+            (if (p.optString("branch", "").isNotBlank()) "   ·   " + p.optString("branch", "") else "")
+        patLine.setTextColor(android.graphics.Color.parseColor("#0B2B1C"))
+        sugHolder.removeAllViews()
     }
 
     /** নাম বা নম্বর ধরে রোগী খোঁজা — একটাই সরু পড়া, তারপর বেছে নেওয়া। */

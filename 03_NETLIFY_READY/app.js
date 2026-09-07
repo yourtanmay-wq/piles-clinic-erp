@@ -3774,6 +3774,11 @@ window["wlv1CallLate"]=wlv1CallLate;
 function headerBell(){
  let n=0;
  try{n=mergeFollow(scoped(load('followups'))).filter(wlv1CallDue).length}catch(e){n=0}
+ /* 📌🔒 V1193 (০৭.০৯.২০২৬, TK-নির্দেশ): *"উপরের ঘন্টাতে নোটিফিকেশন আসুক"*।
+    ⛔ সংখ্যাটা `doctorreminder.js`-এর সেই একই স্মৃতি থেকে আসে যেটা ঘন্টার
+       তালিকাও ব্যবহার করে — তাই সংখ্যা আর তালিকা কখনো আলাদা হতে পারে না।
+    ⛔ নতুন কোনো ক্লাউড-পড়া এখানে নেই (হোম পর্দা খোলার সময় একবার পড়া হয়)। */
+ try{ if(typeof drRemBellCount==='function') n+=drRemBellCount(); }catch(e){}
  // 🔔 TK-অনুমোদিত (১৫.০৮.২০২৬): ঘন্টা এখন **পূর্ণ Notifications পাতা** খোলে
  // (Android-এর মতো)। ⛔ ব্যাজের সংখ্যা গোনার নিয়ম উপরে এক অক্ষরও বদলায়নি।
  // ⛔ পুরনো `pendingBellMenu()` মোছা হয়নি — নতুনটা কোনো কারণে না চললে ওটাই চলে।
@@ -3821,6 +3826,34 @@ window["wlv1NbToggle"]=wlv1NbToggle;
 function wlv1NotificationsPage(){
   var html='', total=0;
   var t=today();
+  /* 📌🔒 V1193 (TK-নির্দেশ) — সবচেয়ে উপরে Doctor Reminder, কারণ এগুলোতে
+     কারো কাজ আটকে থাকে। ⛔ ফোনের `NotificationsActivity`-র হুবহু দুটো বিভাগ।
+     ⛔ ঘন্টার ব্যাজ ঠিক এই একই তালিকা গোনে। */
+  try{
+    var DRB=(window.__DR_BELL||{waiting:[],accepted:[]});
+    if((DRB.waiting||[]).length){
+      total+=DRB.waiting.length;
+      html+='<div class="nbSec" style="color:#0F766E"><i style="background:#0F766E"></i>📌 Doctor Reminder</div>';
+      DRB.waiting.forEach(function(x){
+        var d=String(x.remindDate||''), tm=String(x.remindTime||'');
+        var when=d?(' · '+(function(p){return p[2]+'/'+p[1]+'/'+p[0]})(d.slice(0,10).split('-'))+(tm?(' · '+tm):'')):'';
+        html+=wlv1NbRow('📌','#dff1ec',
+          String(x.patientName||'Patient')+'   '+String(x.patientMobile||''),
+          String(x.note||'')+(x.byName?('  ·  By '+x.byName):'')+when,'drRemHome()');
+      });
+    }
+    if((DRB.accepted||[]).length){
+      total+=DRB.accepted.length;
+      html+='<div class="nbSec" style="color:#0A7C3F"><i style="background:#0A7C3F"></i>✅ Reminder Accepted</div>';
+      DRB.accepted.forEach(function(x){
+        html+=wlv1NbRow('✅','#e8f6ed',
+          String(x.patientName||'Patient')+'   '+String(x.patientMobile||''),
+          'Accepted by '+String(x.acceptedByName||''),
+          "drRemAck('"+String(x.id||'').replace(/'/g,'')+"')");
+      });
+    }
+  }catch(e){}
+
   // ১) 🔔 Notices — ঘন্টার ব্যাজ যা গোনে, হুবহু তাই।
   var notices=0; try{ notices=activeBriefings().length }catch(e){ notices=0 }
   if(notices>0){

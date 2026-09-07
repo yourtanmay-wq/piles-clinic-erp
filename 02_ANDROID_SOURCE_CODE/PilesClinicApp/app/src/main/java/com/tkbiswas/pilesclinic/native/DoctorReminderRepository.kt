@@ -87,7 +87,7 @@ object DoctorReminderRepository {
                 .put("acceptedByName", "")
                 .put("acceptedAt", "")
                 .put("active", true)
-            SupabaseClient.upsert(TABLE, row)
+            SupabaseClient.upsert(TABLE, row).also { if (it) cacheAt = 0L }
         } catch (_: Throwable) { false }
     }
 
@@ -101,7 +101,7 @@ object DoctorReminderRepository {
                     .put("acceptedBy", digits(user?.mobile ?: ""))
                     .put("acceptedByName", (user?.name ?: "").ifBlank { digits(user?.mobile ?: "") })
                     .put("acceptedAt", nowIso())
-            )
+            ).also { if (it) cacheAt = 0L }   // 🔄 V1193 — সঙ্গে সঙ্গে নতুন করে পড়া হবে
         } catch (_: Throwable) { false }
     }
 
@@ -131,6 +131,136 @@ object DoctorReminderRepository {
             }
             out
         } catch (_: Throwable) { emptyList() }
+    }
+
+    /* ─────────────────────────────────────────────────────────────
+       🙈🔒 V1193 (০৭.০৯.২০২৬, TK-নির্দেশ, হুবহু):
+         · *"আমি তো পাঠালাম, তাহলে অল টাইম আমার হোম স্ক্রিনে কেন দেখাবে"*
+         · *"এটা হাইড রাখার ব্যবস্থা তো রাখতে হবে"*
+         · *"উপরের ঘন্টাতে নোটিফিকেশন আসুক"*
+       ⇒ হোম-কার্ড ও ঘন্টা এখন **শুধু যেগুলো এই ব্যক্তির জন্য অপেক্ষা করছে**
+         সেগুলোই দেখায়; নিজের পাঠানো কখনো নয়। Accept হলে সেটা পাঠানো
+         ব্যক্তির ঘন্টায় একবার "Accepted" হয়ে আসে।
+       ⛔ Doctor Reminder পর্দা ও History-তে **আগের মতোই সব** দেখা যায় —
+          `visibleFor()` এক অক্ষরও বদলায়নি, তাই কিছুই হারায় না।
+       ───────────────────────────────────────────────────────────── */
+
+    private fun listHas(raw: String, mob: String): Boolean {
+        if (mob.isEmpty()) return false
+        return raw.split(",").any { it.trim() == mob }
+    }
+
+    private fun listAdd(raw: String, mob: String): String {
+        if (mob.isEmpty()) return raw
+        if (listHas(raw, mob)) return raw
+        return if (raw.isBlank()) mob else "$raw,$mob"
+    }
+
+    /** এই ব্যক্তির হোম/ঘন্টা থেকে সরিয়ে দেওয়া — অন্য কারো পর্দায় কিছুই বদলায় না। */
+    fun hide(row: JSONObject, user: NativeUser?): Boolean {
+        val id = row.optString("id", "")
+        val me = digits(user?.mobile ?: "")
+        if (id.isBlank() || me.isEmpty()) return false
+        return try {
+            val next = listAdd(row.optString("hiddenBy", ""), me)
+            val ok = SupabaseClient.updateById(TABLE, id, JSONObject().put("hiddenBy", next))
+            if (ok) { row.put("hiddenBy", next); cacheAt = 0L }
+            ok
+        } catch (_: Throwable) { false }
+    }
+
+    /** পাঠানো ব্যক্তি "Accepted" খবরটা দেখে নিলেন — আর ঘন্টায় আসবে না। */
+    fun ack(row: JSONObject, user: NativeUser?): Boolean {
+        val id = row.optString("id", "")
+        val me = digits(user?.mobile ?: "")
+        if (id.isBlank() || me.isEmpty()) return false
+        return try {
+            val next = listAdd(row.optString("ackBy", ""), me)
+            val ok = SupabaseClient.updateById(TABLE, id, JSONObject().put("ackBy", next))
+            if (ok) { row.put("ackBy", next); cacheAt = 0L }
+            ok
+        } catch (_: Throwable) { false }
+    }
+
+    /**
+     * হোম-কার্ড ও ঘন্টার একটাই উৎস — **এই ব্যক্তির জন্য অপেক্ষা করছে** এমনগুলো।
+     * ⛔ নিজের পাঠানো কখনো নয় · Accept হয়ে গেলে নয় · নিজে Hide করলে নয়।
+     * ⛔ ঘন্টার সংখ্যা আর তালিকা একই ফাংশন থেকে আসে, তাই কখনো আলাদা হতে পারে না।
+     */
+    /* 💸🔒 V509-এর শিক্ষা (Egress) — ঘন্টা দিনে বহুবার গোনা হয়, আর
+       `waitingFor` ও `acceptedNoticesFor` **দুটোই** একসাথে ডাকা হয়।
+       তাই সারিগুলো একবার নামিয়ে **৬০ সেকেন্ড** স্মৃতিতে রাখা হয় — দুটো
+       তালিকাই ওই একই সারি থেকে ছেঁকে বার করা হয়।
+       ⛔ ফলাফল এক অক্ষরও বদলায় না, শুধু অকারণ পড়াটা বাদ যায়। */
+    private var cacheRows: org.json.JSONArray? = null
+    private var cacheAt = 0L
+
+    private fun activeRows(): org.json.JSONArray {
+        val now = android.os.SystemClock.elapsedRealtime()
+        val c = cacheRows
+        if (c != null && now - cacheAt < 60_000L) return c
+        val rows = try {
+            SupabaseClient.fetchList(TABLE, "active=eq.true", 300, order = "createdAt.desc")
+        } catch (_: Throwable) { org.json.JSONArray() }
+        cacheRows = rows; cacheAt = now
+        return rows
+    }
+
+    fun waitingFor(user: NativeUser?): List<JSONObject> {
+        val me = digits(user?.mobile ?: "")
+        if (me.isEmpty()) return emptyList()
+        val myBranch = (user?.branch ?: "").trim()
+        val canAcceptRole = user?.role == "master" || user?.displayRole == "doctor" || user?.role == "doctor"
+        return try {
+            val rows = activeRows()
+            val today = todayIso()
+            val out = ArrayList<JSONObject>()
+            for (i in 0 until rows.length()) {
+                val r = rows.optJSONObject(i) ?: continue
+                if (r.optString("remindDate", "") < today) continue
+                if (r.optString("acceptedAt", "").isNotBlank()) continue
+                if (listHas(r.optString("hiddenBy", ""), me)) continue
+                if (digits(r.optString("byMobile", "")) == me) continue     // নিজের পাঠানো নয়
+                val forM = digits(r.optString("forMobile", ""))
+                val mine =
+                    if (forM.isNotEmpty()) forM == me
+                    else canAcceptRole && r.optString("branch", "").trim().equals(myBranch, ignoreCase = true)
+                if (mine) out.add(r)
+            }
+            out
+        } catch (_: Throwable) { emptyList() }
+    }
+
+    /** পাঠানো ব্যক্তির ঘন্টার জন্য — তাঁর পাঠানো যেগুলো Accept হয়েছে, এখনো দেখা হয়নি। */
+    fun acceptedNoticesFor(user: NativeUser?): List<JSONObject> {
+        val me = digits(user?.mobile ?: "")
+        if (me.isEmpty()) return emptyList()
+        return try {
+            val rows = activeRows()
+            val out = ArrayList<JSONObject>()
+            for (i in 0 until rows.length()) {
+                val r = rows.optJSONObject(i) ?: continue
+                if (digits(r.optString("byMobile", "")) != me) continue
+                if (r.optString("acceptedAt", "").isBlank()) continue
+                if (listHas(r.optString("ackBy", ""), me)) continue
+                out.add(r)
+            }
+            out
+        } catch (_: Throwable) { emptyList() }
+    }
+
+    /** নাম বা নম্বরের টুকরো ধরে রোগী খোঁজা — টাইপ করার সঙ্গে সঙ্গে সাজেশনের জন্য। */
+    fun searchPatients(q: String): org.json.JSONArray? {
+        val t = q.trim()
+        if (t.length < 3) return null
+        val digitsOnly = t.filter { it.isDigit() }
+        val enc = java.net.URLEncoder.encode("*$t*", "UTF-8")
+        val filter = if (digitsOnly.length >= 4) "mobile=like.*$digitsOnly*" else "name=ilike.$enc"
+        return try {
+            SupabaseClient.fetchListSlimOrNull(
+                "patients", filter, 8, "id,name,mobile,branch", order = "name.asc"
+            )
+        } catch (_: Throwable) { null }
     }
 
     /** এই সারিটা এই ব্যবহারকারী Accept করতে পারেন কিনা (যাঁকে পাঠানো হয়েছে)। */

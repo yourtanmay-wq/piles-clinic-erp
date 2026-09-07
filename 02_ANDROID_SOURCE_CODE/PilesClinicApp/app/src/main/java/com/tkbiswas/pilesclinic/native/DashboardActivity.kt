@@ -452,7 +452,13 @@ class DashboardActivity : AppCompatActivity() {
     private fun paintDoctorReminders(session: NativeUser) {
         val holder = binding.doctorReminderCard
         BackgroundWork.run {
-            val rows = try { DoctorReminderRepository.visibleFor(session) } catch (_: Throwable) { emptyList() }
+            /* 🙈🔒 V1193 (০৭.০৯.২০২৬, TK-নির্দেশ, হুবহু): *"আমি তো পাঠালাম, তাহলে
+               অল টাইম আমার হোম স্ক্রিনে কেন দেখাবে"* · *"এটা হাইড রাখার ব্যবস্থা
+               তো রাখতে হবে"*।
+               ⇒ হোম-কার্ডে এখন **শুধু যেগুলো এই ব্যক্তির জন্য অপেক্ষা করছে** —
+                 নিজের পাঠানো নয় · Accept হয়ে গেলে নয় · নিজে Hide করলে নয়।
+               ⛔ Doctor Reminder পর্দা ও History-তে সব আগের মতোই থাকে। */
+            val rows = try { DoctorReminderRepository.waitingFor(session) } catch (_: Throwable) { emptyList() }
             android.os.Handler(android.os.Looper.getMainLooper()).post {
                 if (isFinishing || isDestroyed) return@post
                 holder.removeAllViews()
@@ -486,6 +492,27 @@ class DashboardActivity : AppCompatActivity() {
                 head.addView(t("DOCTOR NOTE & REMINDER", 13.5f, "#FFFFFF", bold = true).apply {
                     layoutParams = android.widget.LinearLayout.LayoutParams(
                         0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                })
+                /* 🙈 V1193 — "Hide": শুধু **এই ব্যক্তির** হোম ও ঘন্টা থেকে সরে যায়;
+                   তালিকা ও History-তে সারিটা অটুট থাকে, কেউ কিছু হারায় না। */
+                head.addView(t("Hide", 11.5f, "#FFFFFF", bold = true).apply {
+                    background = bg("#0B4F2A", "#9FD3B6", 12)
+                    setPadding(d(12), d(5), d(12), d(5))
+                    isClickable = true
+                    setOnClickListener {
+                        BackgroundWork.run {
+                            for (r in rows) try { DoctorReminderRepository.hide(r, session) } catch (_: Throwable) { }
+                            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                if (isFinishing || isDestroyed) return@post
+                                holder.removeAllViews()
+                                holder.visibility = android.view.View.GONE
+                            }
+                        }
+                    }
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply { rightMargin = d(9) }
                 })
                 head.addView(t(rows.size.toString(), 12.5f, "#0B4F2A", bold = true).apply {
                     background = bg("#FFFFFF", null, 20)

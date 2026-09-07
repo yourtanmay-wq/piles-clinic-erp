@@ -66,6 +66,9 @@ class NotificationsActivity : AppCompatActivity() {
     private var lastExpected: List<DoctorVisitItem> = emptyList()
     private var lastCallDue: List<DoctorVisitItem> = emptyList()
     private var lastMissed: List<BranchSimHelper.CallLogRow> = emptyList()
+    // 📌 V1193 — Doctor Reminder (অপেক্ষমাণ ও "Accepted" খবর)
+    private var lastRemWaiting: List<org.json.JSONObject> = emptyList()
+    private var lastRemAccepted: List<org.json.JSONObject> = emptyList()
 
     /** মেমরিতে রাখা একই তালিকা দিয়ে আবার আঁকে — নতুন কোনো ডাউনলোড নয়। */
     private fun renderStored() {
@@ -142,6 +145,16 @@ class NotificationsActivity : AppCompatActivity() {
                 withContext(Dispatchers.IO) { BranchSimHelper.pendingMissedCallbackNumbers(this@NotificationsActivity) }
             } catch (_: Throwable) { emptyList() }
 
+            /* 📌🔒 V1193 (TK-নির্দেশ): *"উপরের ঘন্টাতে নোটিফিকেশন আসুক"*।
+               ⛔ ঠিক সেই দুটো ফাংশনই ডাকা হয় যেগুলো `BellCounter` গোনে,
+                  তাই ঘন্টার সংখ্যা আর এই তালিকা কখনো আলাদা হতে পারে না। */
+            lastRemWaiting = try {
+                withContext(Dispatchers.IO) { DoctorReminderRepository.waitingFor(user) }
+            } catch (_: Throwable) { emptyList() }
+            lastRemAccepted = try {
+                withContext(Dispatchers.IO) { DoctorReminderRepository.acceptedNoticesFor(user) }
+            } catch (_: Throwable) { emptyList() }
+
             progressLoad.visibility = View.GONE
             render(unseenNotices, pendingRemarks, expectedToday, callDueToday, missedCallbacks)
         }
@@ -163,7 +176,8 @@ class NotificationsActivity : AppCompatActivity() {
         lastMissed = missedCallbacks
 
         sectionsContainer.removeAllViews()
-        val totalCount = unseenNotices + pendingRemarks.size + expectedToday.size + callDueToday.size + missedCallbacks.size
+        val totalCount = unseenNotices + pendingRemarks.size + expectedToday.size + callDueToday.size +
+            missedCallbacks.size + lastRemWaiting.size + lastRemAccepted.size
 
         findViewById<TextView>(R.id.tvHeaderTitle).text =
             if (totalCount > 0) "Notifications ($totalCount)" else "Notifications"
@@ -176,6 +190,48 @@ class NotificationsActivity : AppCompatActivity() {
         }
         tvEmpty.visibility = View.GONE
         scrollView.visibility = View.VISIBLE
+
+        /* 📌🔒 V1193 — সবচেয়ে উপরে, কারণ এগুলোতে কারো কাজ আটকে থাকে। */
+        if (lastRemWaiting.isNotEmpty()) {
+            addSectionHeader("📌 Doctor Reminder", "#0F766E")
+            for (r in lastRemWaiting) {
+                val nm = r.optString("patientName", "").ifBlank { "Patient" }
+                val mb = r.optString("patientMobile", "")
+                val by = r.optString("byName", "")
+                val rd = r.optString("remindDate", "")
+                val rt = r.optString("remindTime", "")
+                addRow(
+                    icon = "📌",
+                    iconColor = "#0F766E",
+                    title = nm + (if (mb.isNotBlank()) "   $mb" else ""),
+                    subtitle = r.optString("note", "") +
+                        (if (by.isNotBlank()) "  ·  By $by" else "") +
+                        (if (rd.isNotBlank()) "  ·  " + dmy(rd) + (if (rt.isNotBlank()) " · " + time12(rt) else "") else "")
+                ) { startActivity(Intent(this, DoctorReminderActivity::class.java)) }
+            }
+        }
+
+        /* ✅ V1193 — পাঠানো ব্যক্তির ঘন্টায় "Accept হয়েছে" খবরটা। চাপলে
+           পর্দা খোলে আর খবরটা দেখা-হয়েছে হিসেবে চিহ্নিত হয় (আর আসে না);
+           ⛔ History-তে সারিটা চিরকাল থাকে, কিছুই মোছে না। */
+        if (lastRemAccepted.isNotEmpty()) {
+            addSectionHeader("✅ Reminder Accepted", "#0A7C3F")
+            for (r in lastRemAccepted) {
+                val nm = r.optString("patientName", "").ifBlank { "Patient" }
+                val mb = r.optString("patientMobile", "")
+                addRow(
+                    icon = "✅",
+                    iconColor = "#0A7C3F",
+                    title = nm + (if (mb.isNotBlank()) "   $mb" else ""),
+                    subtitle = "Accepted by " + r.optString("acceptedByName", "") + "  ·  " + stamp(r.optString("acceptedAt", ""))
+                ) {
+                    lifecycleScope.launch {
+                        try { withContext(Dispatchers.IO) { DoctorReminderRepository.ack(r, user) } } catch (_: Throwable) { }
+                        startActivity(Intent(this@NotificationsActivity, DoctorReminderActivity::class.java))
+                    }
+                }
+            }
+        }
 
         if (unseenNotices > 0) {
             addSectionHeader("🔔 Notices", "#3b82f6")
@@ -260,6 +316,34 @@ class NotificationsActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    private fun dmy(iso: String): String = try {
+        val p = iso.take(10).split("-"); p[2] + "/" + p[1] + "/" + p[0]
+    } catch (_: Throwable) { iso }
+
+    private fun time12(hm: String): String {
+        val p = hm.trim().split(":")
+        if (p.size < 2) return hm
+        val h = p[0].toIntOrNull() ?: return hm
+        val ap = if (h >= 12) "PM" else "AM"
+        val h12 = when { h == 0 -> 12; h > 12 -> h - 12; else -> h }
+        return "$h12.${p[1]} $ap"
+    }
+
+    /** "2026-09-07T18:42:03Z" → "07/09/2026 · 6.42 PM"। চেনা না গেলে যা আছে তাই। */
+    private fun stamp(raw: String): String {
+        val t = raw.trim()
+        if (t.length < 10) return ""
+        val d = dmy(t)
+        if (t.length < 16) return d
+        return try {
+            val hh = t.substring(11, 13).toInt()
+            val mm = t.substring(14, 16)
+            val ap = if (hh >= 12) "PM" else "AM"
+            val h12 = when { hh == 0 -> 12; hh > 12 -> hh - 12; else -> hh }
+            "$d  ·  $h12.$mm $ap"
+        } catch (_: Throwable) { d }
     }
 
     private fun addSectionHeader(text: String, colorHex: String) {
