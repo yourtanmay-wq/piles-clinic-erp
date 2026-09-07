@@ -928,6 +928,19 @@ object PatientTimelineRepository {
         var totalPaid = 0.0
         var lastPayDate = ""
         var lastPayBy = ""
+        /* 🕐🔒 V1172 (০৭.০৯.২০২৬, TK-অনুমোদিত পরিকল্পনা) — "Treatment Complete"
+           সারির **সময়**। আগে বসত না, তাই ঘরটা `—` দেখাত (TK: *"তাছাড়া এখানে
+           টাইম নেই কেন?"*)। এখন যে টাকার সারিতে বিল পুরো হলো, তার নিজের
+           সময়টাই বসে। ⛔ সময় জমা না থাকলে (খুব পুরনো সারি) আগের মতোই `—` —
+           আন্দাজে কোনো সময় বসানো হয় না। */
+        var lastPayAt = ""
+        /* ⛔ **শেষ-ভরসা:** ছাঁকনির পরে একটাও সারি না মিললে (যেমন সব সারিতেই
+           তারিখ ফাঁকা) যেন সারিটা **ফাঁকা তারিখে** না বসে — তখন আগের নিয়মটাই
+           (যেকোনো সারি) চলে। অর্থাৎ এই বদলে কোনো অবস্থাতেই আগের চেয়ে খারাপ
+           হয় না। */
+        var anyPayDate = ""
+        var anyPayBy = ""
+        var anyPayAt = ""
         for (i in 0 until payments.length()) {
             val p = payments.optJSONObject(i) ?: continue
             val storedLabel = p.s("payLabel").ifBlank { p.s("paymentLabel").ifBlank { "Payment" } }
@@ -1081,7 +1094,36 @@ object PatientTimelineRepository {
             // 🔒 V217 (§B216): paidEffect-এই সাইন ঠিক করা আছে (উপরে) — এখানে
             // শুধু যোগ করলেই approved refund বিয়োগ ও pending/rejected বাদ যায়।
             totalPaid += paidEffect
-            if (pDate.isNotBlank() && pDate >= lastPayDate) { lastPayDate = pDate; lastPayBy = pBy }
+            /* 🕐🔒 V1172 (০৭.০৯.২০২৬, TK-অনুমোদিত পরিকল্পনা) — TK, SAMOTI
+               BARMAN-এর ছবিসহ: *"Treatment complete by Dr. kh mandal · bill
+               Fully Paid 20000 — এগুলির জন্য বিভ্রান্ত হয়ে যাচ্ছি"*।
+
+               **কারণ (কোডে প্রমাণিত):** "শেষ টাকা কবে, কে নিল" বাছার সময় আগে
+               **সব সারি** ধরা হত — `attendance_mark` (Marked Arrived) ·
+               `chamber_expected` (আসবে বলেছে) · `bill_edit` (Bill Edited)-এর
+               মতো **₹০-র চিহ্ন-সারিগুলোও**। তাই SAMOTI-র ক্ষেত্রে ০৭.০৯-এর
+               "Marked Arrived" (Dr. K.H MANDAL, ₹০) সারিটাই শেষ ধরা হয়েছিল ⇒
+               নিচের "Treatment Complete" সারিতে **আজকের তারিখ ও ডাক্তারের নাম**
+               উঠত, অথচ বিল সত্যিই পুরো হয়েছিল ০২.০৮.২০২৬-এ COB-BRANCH-এর
+               নেওয়া ₹২০,০০০ Advance-এ। মনে হত ডাক্তার আজ চিকিৎসা শেষ করলেন।
+
+               **এখন শুধু আসল টাকার সারি** ধরা হয় (চিহ্ন-সারি বাদ, আর অঙ্ক ০-র
+               বেশি হতে হবে)। ছাঁকনিটা প্রকল্পের **আগে থেকেই থাকা প্রমাণিত**
+               `PaymentModel.isMarkerOnlyRow` — নতুন কোনো নিয়ম বানানো হয়নি
+               (V533/V549-এ এই একই ছাঁকনি তালিকা দেখানোয় ব্যবহার হয়)।
+
+               ⛔ **টাকার কোনো অঙ্ক বদলায় না** — উপরের `totalPaid` আগের মতোই
+                  প্রতিটা সারি ধরেই হয় (চিহ্ন-সারির টাকা এমনিতেই ০)। Paid ·
+                  Due · Total · Report Card — সব অক্ষত।
+               ⛔ শুধু "Treatment Complete" ও "Discount" সারির **তারিখ · সময় ·
+                  কে** — এই তিনটেই ঠিক হয়। */
+            val isMarkerRow = try { PaymentModel.isMarkerOnlyRow(payTypeRaw) } catch (_: Throwable) { false }
+            if (!isMarkerRow && amt > 0.0 && pDate.isNotBlank() && pDate >= lastPayDate) {
+                lastPayDate = pDate; lastPayBy = pBy; lastPayAt = p.s("createdAt")
+            }
+            if (pDate.isNotBlank() && pDate >= anyPayDate) {
+                anyPayDate = pDate; anyPayBy = pBy; anyPayAt = p.s("createdAt")
+            }
         }
 
         // APPROVED UPDATE #9: Treatment Complete entry when the bill is fully paid
@@ -1091,6 +1133,9 @@ object PatientTimelineRepository {
         // its own permanent history row -- how much, what the bill was before
         // and after, who gave it and why. Synthesized from the patients row
         // itself (no new table), exactly the way Treatment Complete below is.
+        /* ⛔ V1172-এর শেষ-ভরসা এখানেই বসে — নিচের দুটো সারি (Discount ও
+           Treatment Complete) এই তিনটে মান-ই ব্যবহার করে। */
+        if (lastPayDate.isBlank()) { lastPayDate = anyPayDate; lastPayBy = anyPayBy; lastPayAt = anyPayAt }
         val discGiven = patient.optDouble("discount", 0.0)
         if (discGiven > 0.0) {
             val billBefore = patient.optDouble("billBeforeDiscount", 0.0)
@@ -1109,7 +1154,11 @@ object PatientTimelineRepository {
             ).copy(sortKey = patient.s("discountAt"), callTime = patient.s("discountAt")))
         }
         if (billTotal > 0.0 && totalPaid >= billTotal) {
-            entries.add(entry("Treatment Complete", lastPayDate, lastPayBy, "Bill fully paid — " + money(billTotal)))
+            /* 🕐 V1172 — সময়টাও বসল (আসল টাকার সারির নিজের `createdAt`)।
+               ⛔ `sortKey`-ও সেই একই মান, তাই সারিটা এখন **ঠিক জায়গায়** বসে —
+                  আগে তারিখ ধরে বসত, একই দিনের অন্য সারির সঙ্গে ক্রম গুলিয়ে যেত। */
+            entries.add(entry("Treatment Complete", lastPayDate, lastPayBy, "Bill fully paid — " + money(billTotal))
+                .copy(sortKey = lastPayAt.ifBlank { lastPayDate }, callTime = lastPayAt))
         }
 
         // Medical (prescription / diet / investigation / checkup)
