@@ -206,15 +206,6 @@
                     android:textColor="#1A73E8" />
             </LinearLayout>
 
-            <TextView
-                android:id="@+id/tvPatientId"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="3dp"
-                android:text="Patient ID"
-                android:textSize="10.5sp"
-                android:textColor="#7A8791"
-                android:visibility="gone" />
 
             <TextView
                 android:id="@+id/tvMessage"
@@ -225,6 +216,19 @@
                 android:textSize="11.5sp"
                 android:lineSpacingMultiplier="1.15"
                 android:textColor="#374151" />
+            <!-- 🔴🔒 V1165 (০৭.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — "By …" লাইনটা
+                 এখন **বার্তার নিচে**। অনুরোধ-কার্ডে ক্রমটা তখন হয়: কী মোছা হবে →
+                 নম্বর ও অঙ্ক → কে চেয়েছে। ⛔ স্বয়ংক্রিয় নোটিশে বার্তাটা লুকানো
+                 থাকে, তাই সেখানে দেখতে এক অক্ষরও বদলায় না। ⛔ id অপরিবর্তিত। -->
+            <TextView
+                android:id="@+id/tvPatientId"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:text="Patient ID"
+                android:textSize="10.5sp"
+                android:textColor="#7A8791"
+                android:visibility="gone" />
 
             <TextView
                 android:id="@+id/tvReplies"

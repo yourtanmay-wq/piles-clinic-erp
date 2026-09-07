@@ -267,7 +267,21 @@ class BriefingAdapter(
         val requestedBy = extractField(item.message, "Requested by")
         if (requestedBy != null) {
             val brOnly = item.branch.ifBlank { extractField(item.message, "Branch").orEmpty() }
-            b.tvWho.text = withWhen(if (brOnly.isNotBlank()) "$brOnly · $requestedBy" else requestedBy)   // 🎨 V1141
+            /* 🔴🔒 V1165 (০৭.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — TK: *"এটা কিসের
+               রিকোয়েস্ট আমি তো বুঝতেই পারছি না · রিকোয়েস্টটা কোন স্টাফ করেছে
+               সেটাও তো বোঝা যাচ্ছে না"*।
+               **কোডে মেপে পাওয়া দুটো কারণ:**
+               ① কী মোছা হবে সেটা বার্তার `Type :` ঘরে **আছেই**, কিন্তু V1134-এ
+                  দেখানো থেকে বাদ দেওয়া হয়েছিল ("শিরোনামেই আছে" ধরে) — অথচ
+                  V1134-এর **আগে পাঠানো** নোটিশের শিরোনামে ওটা নেই। তাই পুরনো
+                  অনুরোধে TK কিছুই বুঝতে পারতেন না।
+               ② উপরের লাইনে অনুরোধকারীর **কোড** বসত (JPE-CRP), নাম নয়।
+               ⇒ এখন: উপরে শুধু **ব্রাঞ্চ · তারিখ-সময়**; শিরোনামে **কী মোছা হবে +
+                 রোগীর নাম**, পাশে **রোগের নাম** (বার্তার `Disease :` ঘর — এটাও
+                 আগে থেকেই জমা ছিল); নিচে নম্বর ও অঙ্ক; তারপর **By কোড · নাম**।
+               ⛔ `item.message` (ডেটাবেসে সেভ করা লেখা) এক অক্ষরও বদলায় না —
+                  তাই ✔ Approve আগের মতোই `Row ID`/`Type` পড়ে ঠিক সারিটাই মোছে। */
+            b.tvWho.text = withWhen(brOnly)
             b.tvAvatar.text = (brOnly.trim().ifEmpty { requestedBy }
                 .firstOrNull { it.isLetterOrDigit() }?.uppercaseChar() ?: 'N').toString()
             val trimmed = item.message.lines().filterNot { line ->
@@ -294,11 +308,39 @@ class BriefingAdapter(
                     // (Reopen-এর মতো তথ্য-জানানো Master-নোট অক্ষত থাকে)।
                     (l.contains("Take Action", true) && l.contains("Master", true))
             }.joinToString("\n").trim()
-            b.tvMessage.text = buildClickableMessage(trimmed)
-            val dens = holder.itemView.resources.displayMetrics.density
-            val pad = (8 * dens).toInt()
-            b.tvMessage.setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_brief_infobox)
-            b.tvMessage.setPadding(pad, pad, pad, pad)
+            /* 🔴 V1165 — কী মোছা হবে (`Type`) শিরোনামে, রোগ পাশের চিপে, আর
+               নম্বর ও কারণ এক লাইনে — তিনটেই বার্তার ভিতরে আগে থেকেই ছিল। */
+            val what = extractField(item.message, "Type").orEmpty().trim()
+            val pname = extractField(item.message, "Name").orEmpty().trim()
+            val dis = extractField(item.message, "Disease").orEmpty().trim()
+            if (what.isNotBlank() && pname.isNotBlank())
+                b.tvTitle.text = "Delete $what — $pname"
+            b.tvChipDisease.text = dis
+            b.tvChipDisease.visibility = if (dis.isNotBlank()) View.VISIBLE else View.GONE
+            /* নম্বর ও কারণ এক লাইনে — আলাদা দুই লাইনের বদলে, তাই কার্ড ছোট হয়।
+               ⛔ যেটা জানা নেই সেটা বসেই না; দুটোই ফাঁকা হলে আগের পুরো লেখাটাই। */
+            val mob = extractField(item.message, "Mobile").orEmpty().trim()
+            val why = trimmed.lines().firstOrNull { l ->
+                val t = l.trim()
+                t.startsWith("Reason :", true) || (what.isNotBlank() && t.startsWith("$what :", true))
+            }?.substringAfter(":")?.trim().orEmpty()
+            val oneLine = listOf(mob, why).filter { it.isNotBlank() }.joinToString("  ·  ")
+            b.tvMessage.text = buildClickableMessage(if (oneLine.isNotBlank()) oneLine else trimmed)
+            /* 🔴 V1165 — ধূসর বাক্সটা আর নয়; এক লাইনের লেখায় ওটা শুধু জায়গা নিত।
+               ⛔ রিসাইকেল-নিরাপদ: নিচের `else`-এ ব্যাকগ্রাউন্ড/প্যাডিং মোছাই থাকে। */
+            b.tvMessage.background = null
+            b.tvMessage.setPadding(0, 0, 0, 0)
+            /* 🔴 V1165 — **কে চেয়েছে**: কোড ও নাম, একবারই, নিজের লাইনে।
+               ⛔ নাম চেনা না গেলে শুধু কোড; কিছুই না জানলে লাইনটাই বসে না। */
+            val byNm = staffNameFor(requestedBy)
+            val byTxt = when {
+                byNm == null -> requestedBy
+                byNm.contains(requestedBy, ignoreCase = true) -> byNm
+                else -> "$requestedBy \u00b7 $byNm"
+            }
+            b.tvPatientId.text = if (byTxt.isNotBlank()) "By  $byTxt" else ""
+            b.tvPatientId.visibility =
+                if (b.tvPatientId.text.isNullOrBlank()) View.GONE else View.VISIBLE
             // 🟢🔒 V641 (২৪.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ) — এই
             // ধরনের গঠিত অনুরোধ-নোটিশে "Role: master" অংশটা বাদ (কে
             // পাঠিয়েছেন সেটা হেডারেই আছে) — শুধু "Seen by X" থাকে।
@@ -592,9 +634,15 @@ class BriefingAdapter(
             } catch (_: Throwable) { rich = false }
             if (!rich) {
                 b.rowPatient.visibility = View.GONE
-                b.tvPatientId.visibility = View.GONE
-                b.tvChipDisease.visibility = View.GONE
                 b.tvMessage.visibility = View.VISIBLE
+                /* 🔴🔒 V1165 — অনুরোধ-কার্ডে (Delete/Refund/Reopen) উপরে **By …**
+                   লাইনটা ও রোগের চিপটা ইচ্ছে করে বসানো হয়েছে; এই ঘরটা সেগুলো
+                   মুছে দিত। তাই অনুরোধ-কার্ড হলে এখানে হাত দেওয়া হয় না।
+                   ⛔ বাকি সব কার্ডে আচরণ হুবহু আগের মতোই (রিসাইকেল-নিরাপদ)। */
+                if (requestedBy == null) {
+                    b.tvPatientId.visibility = View.GONE
+                    b.tvChipDisease.visibility = View.GONE
+                }
                 /* 🎨🔒 V1163 — RecyclerView সারি **পুনর্ব্যবহার** করে, তাই উপরের
                    ধাপে লুকানো পিল-সারিটা এখানে আবার দেখাতেই হয় — নইলে স্ক্রল
                    করলে অন্য কার্ডের শিরোনাম চুপচাপ হারিয়ে যেত।
