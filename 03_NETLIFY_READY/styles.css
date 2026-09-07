@@ -8408,3 +8408,16 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
 .wlv1RemFound b{font-size:15px;color:#15213A}
 .wlv1RemFound small{display:block;font-size:12.5px;color:#6B7A8C;margin-top:4px}
 .wlv1RemLock{background:#F2F5F9;color:#4A5A6D}
+
+/* 📏🔒 V1197 (০৭.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — TK: *"প্রায় জায়গায়
+   দেখি বক্সের উচ্চতা অনেক বড় কেন"*। মেপে দেখা গিয়েছিল কম্পিউটারে ঘর ৪৬px,
+   লেখার উপরের ফাঁক ১৪px ⇒ এখন ৪০px ও ১০px।
+   ⛔ বদলটা **শুধু Enquiry ও Registration ফর্মের ভিতরেই** (`.enquiryCard` ও
+      `.regForm`) — শেয়ার্ড `.input` ছোঁয়া হয়নি, তাই বাকি সব পর্দা অটুট।
+   ⛔ `textarea` বাদ রাখা হলো — Address/Remarks ঘর দুটো V989-এর নিয়মে এক লাইন
+      থেকে নিজে বড় হয়, ওখানে উচ্চতা বসালে সেই নিয়ম ভাঙত।
+   ⛔ ফোনে কিছুই বদলায়নি — TK: *"মোবাইলে থাক, মাপ ঠিকই তো আছে"*। */
+.enquiryCard .input,.enquiryCard select,
+.regForm .input,.regForm select{min-height:40px;padding:9px 13px;margin:5px 0}
+.enquiryCard .enqLabel{margin-top:10px}
+.regForm label{margin-top:6px}
