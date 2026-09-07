@@ -22208,6 +22208,28 @@ function wlv1TimelineRows(p){
   const reg = d10(p.registrationDate || p.date);
   if(reg) out.push({date:reg, title:'Registration', note:[p.disease,p.branch].filter(Boolean).join(' · '), paid:0});
 
+  /* 🚨🔒 V1189 — তারিখ ধরে চেম্বারে লেখা কথা। `followups.history`-র প্রতিটা
+     সারিতে `date` · `remark` জমা থাকে, তাই কোন দিনে কী লেখা হয়েছিল ঠিকঠাক
+     বের করা যায়। ⛔ একই দিনে একাধিক হলে ` · ` দিয়ে জোড়া, কিছুই হারায় না।
+     ⛔ অ্যাপের নিজের বসানো কথা বাদ (একই `wlv1IsAutoPayRemark` ছাঁকনি)।
+     ⛔ নতুন কোনো পড়া নয় — জমা তালিকা থেকেই। */
+  function wlv1ChamberNoteOn(mm, dt){
+    if(!dt) return '';
+    const out2=[];
+    (load('followups')||[]).filter(f=>mob(f.mobile)===mm).forEach(f=>{
+      (f.history||[]).forEach(h=>{
+        if(d10(h.date)!==dt) return;
+        const r=String(h.remark||'').trim();
+        if(!r) return;
+        if(wlv1IsAutoPayRemark(r,'')) return;
+        const human=r.split('| Audit:')[0].split('Audit:')[0].trim();
+        if(!human) return;
+        if(!out2.some(z=>z.toLowerCase()===human.toLowerCase())) out2.push(human);
+      });
+    });
+    return out2.join('  \u00b7  ');
+  }
+
   load('followups').filter(f=>mob(f.mobile)===m).forEach(f=>{
     (f.history||[]).forEach(h=>{
       out.push({date:d10(h.date), title:(f.stage||'Follow-up')+' Call',
@@ -22230,7 +22252,18 @@ function wlv1TimelineRows(p){
        an amount-correction appends is cut off too. */
     const rawRem=String(x.remarks||'');
     const lbl=String(x.payLabel||x.paymentLabel||'');
-    const typed=wlv1IsAutoPayRemark(rawRem,lbl)?'':rawRem.split('| Audit:')[0].split('Audit:')[0].trim();
+    let typed=wlv1IsAutoPayRemark(rawRem,lbl)?'':rawRem.split('| Audit:')[0].split('Audit:')[0].trim();
+    /* 🚨🔒 V1189 (০৭.০৯.২০২৬, TK-রিপোর্ট ও ফটো-প্রুফ পাশ, হুবহু): *"Treatment
+       Progress এর ঘরে কিছু নেই কেন? … চেম্বার গেটের প্রগ্রেসের ঘর থেকে এখানে কেন
+       অটোমেটিক আপডেট হচ্ছে না"*।
+       🔴 **কারণ (কোডে মেপে):** চেম্বার-বোর্ডে লেখা কথাটা জমা হয় **ফলো-আপ সারিতে**
+          (`history`), কিন্তু Report Card-এর PROGRESS ঘর পড়ে **টাকার সারির**
+          `remarks` থেকে — দুটো আলাদা জায়গা, তাই কখনোই আসত না।
+       ⇒ টাকার সারিতে মানুষের লেখা কিছু না থাকলে এখন **ঐ একই তারিখের** চেম্বারের
+         লেখাটা বসে। ⛔ শুধু দেখানো — ডেটাবেসে কিছু লেখা হয় না, তাই পুরনো
+         ভিজিটেও দেখা যায়। ⛔ টাকার সারিতে লেখা থাকলে সেটাই থাকে।
+       ⛔ ফোনের `PatientTimelineRepository`-তেও হুবহু এই নিয়ম (নিয়ম ৬.৬)। */
+    if(!typed){ try{ typed = wlv1ChamberNoteOn(m, d10(x.date)) || ''; }catch(_e){} }
     const sp=wlv1PaymentSplit(x),modeText=sp.cash>0&&sp.online>0?'Cash + Online':(sp.online>0?'Online':'Cash');
     out.push({date:d10(x.date), title:collectionPaymentLabel?collectionPaymentLabel(x):'Payment',
               note:[modeText, typed].filter(Boolean).join(' · '),

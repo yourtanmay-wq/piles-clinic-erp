@@ -381,6 +381,39 @@ object PatientTimelineRepository {
      * ⛔ একই দিনে একাধিক পেমেন্ট জোড়া লাগলে লেখাটা " | " দিয়ে জোড়া হয়;
      *    তখন **প্রতিটা টুকরোই** ফলো-আপে থাকলে তবেই পুরোটা তোলা হয়।
      */
+    /* 🚨🔒 V1189 — তারিখ ধরে চেম্বারের লেখা। `followups`-এর `history`-তে
+       প্রতিটা সারিতে `date` · `time` · `remark` · `staff` জমা থাকে
+       (`FollowUpRepository.updateRemark`), তাই কোন দিনে কী লেখা হয়েছিল সেটা
+       ঠিকঠাক বের করা যায়।
+       ⛔ একই দিনে একাধিক লেখা থাকলে সেগুলো ` · ` দিয়ে জোড়া হয়, একটাও হারায় না।
+       ⛔ অ্যাপের নিজের বসানো কথা বাদ যায় (একই `isAutoPaymentRemark` ছাঁকনি)।
+       ⛔ নতুন কোনো cloud-read লাগে না — `history` আগের পড়াতেই চলে আসে। */
+    private var chamberNotesByDate: Map<String, String> = emptyMap()
+
+    private fun chamberNoteOn(date: String): String = chamberNotesByDate[date].orEmpty()
+
+    private fun buildChamberNotes(followups: org.json.JSONArray) {
+        val out = LinkedHashMap<String, MutableList<String>>()
+        try {
+            for (i in 0 until followups.length()) {
+                val f = followups.optJSONObject(i) ?: continue
+                val hist = f.optJSONArray("history") ?: continue
+                for (j in 0 until hist.length()) {
+                    val h = hist.optJSONObject(j) ?: continue
+                    val d = h.optString("date", "").take(10)
+                    val r = h.optString("remark", "").trim()
+                    if (d.isBlank() || r.isBlank()) continue
+                    if (PaymentModel.isAutoPaymentRemark(r, "")) continue
+                    val human = PaymentModel.typedPartOf(r, "").trim()
+                    if (human.isBlank()) continue
+                    val list = out.getOrPut(d) { mutableListOf() }
+                    if (list.none { it.equals(human, ignoreCase = true) }) list.add(human)
+                }
+            }
+        } catch (_: Throwable) { }
+        chamberNotesByDate = out.mapValues { it.value.joinToString("  \u00b7  ") }
+    }
+
     private fun wlv1StripEchoedTreatmentNote(rows: List<TimelineEntry>): List<TimelineEntry> {
         return try {
             val noteKeys = HashSet<String>()
@@ -432,6 +465,9 @@ object PatientTimelineRepository {
             followups = mergeWithPending(followups, store.pendingFollowUps(), mobileDigits)
             patients = mergeWithPending(patients, store.pendingPatients(), mobileDigits)
         }
+        /* 🚨 V1189 — চেম্বারে কোন দিনে কী লেখা হয়েছিল, তারিখ ধরে একবারেই
+           বের করে রাখা হয় (নিচে PROGRESS ঘর ফাঁকা হলে এখান থেকেই বসে)। */
+        buildChamberNotes(followups)
 
         // TK-REQUESTED (2026-07-27), ধাপ ৩: this took whichever row the cloud
         // returned first. When a person has a duplicate "patients" row, that
@@ -1058,8 +1094,33 @@ object PatientTimelineRepository {
             // app's own labels and the amount/mode text left out. The audit trail
             // an amount-correction appends ("… | Audit: …") is cut off here too,
             // so a corrected payment shows the real note, not the audit line.
-            val typedOnly = if (isAttendanceMark || isAutoFilledRemark) "" else
+            var typedOnly = if (isAttendanceMark || isAutoFilledRemark) "" else
                 PaymentModel.typedPartOf(staffRemark, storedLabel)
+            /* 🚨🔒 V1189 (০৭.০৯.২০২৬, TK-রিপোর্ট ও ফটো-প্রুফ পাশ, হুবহু):
+               *"Treatment Progress এর ঘরে কিছু নেই কেন? চেম্বার গেটের ট্রিটমেন্টের
+               প্রগ্রেসের ঘরে কিছু না লিখলে তো চেম্বার বন্ধই হয় না। তাহলে সেখান থেকে
+               এখানে কেন অটোমেটিক আপডেট হচ্ছে না"*
+
+               🔴 **আসল কারণ (কোডে মেপে বের করা, আন্দাজ নয়):** চেম্বার-বোর্ডের
+                  TREATMENT PROGRESS ঘরে লেখা কথাটা জমা হয় **রোগীর ফলো-আপ সারিতে**
+                  (`FollowUpRepository.updateRemark` → `lastRemark` ও `history`),
+                  কিন্তু Report Card-এর PROGRESS ঘর পড়ে **টাকার সারির** নিজের
+                  `progress`/`remarks` ঘর থেকে। দুটো সম্পূর্ণ আলাদা জায়গা ⇒ চেম্বারে
+                  লেখা কথা এখানে কখনোই আসতে পারত না।
+
+               ⇒ টাকার সারিতে মানুষের লেখা কিছু না থাকলে এখন **ঐ একই তারিখের**
+                 চেম্বারের লেখাটা বসে। তারিখ ধরে মেলানো হয় বলে প্রতিটা ভিজিটে
+                 **সেই দিনেরই** কথা যায়, শেষ কথাটা সব সারিতে বসে না।
+               ⛔ এটা শুধু **দেখানোর** কাজ — ডেটাবেসে কিছু লেখা/বদলানো হয় না, তাই
+                  পুরনো ভিজিটগুলোতেও নিজে থেকেই দেখা যাবে।
+               ⛔ টাকার সারিতে লেখা থাকলে **সেটাই আগের মতো** থাকে; চেম্বারের কথা
+                  কখনো তার উপরে বসে না।
+               ⛔ অ্যাপের নিজের বসানো কথা (টাকার লেখা ইত্যাদি) আগের একই ছাঁকনিতেই
+                  বাদ যায় (`isAutoPaymentRemark`), তাই PROGRESS ঘরে টাকার কথা ঢোকার
+                  সুযোগ নেই। */
+            if (typedOnly.isBlank() && !isAttendanceMark && pDate.isNotBlank()) {
+                typedOnly = chamberNoteOn(pDate)
+            }
             // 🔒 V217 (§B216): এই এক জায়গাতেই refund-এর সাইন ঠিক হয় — বাকি
             // সব হিসাব (totalPaid, day-merge, runningPaid) এখান থেকেই নেয়।
             val paidEffect = when {
