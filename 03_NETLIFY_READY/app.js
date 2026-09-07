@@ -23600,6 +23600,8 @@ function wlv1ApprovalButtons(b){var t=String(b&&b.title||'').toLowerCase();
   /* 🔵 B618 (11.08.2026): ছুটির অনুরোধ — Master অথবা ওই ব্রাঞ্চের Doctor (যেকোনো একজন)। */
   if(t.indexOf('leave request')>=0){if(!wlv1CanApproveLeave(b))return '';return `<button class="anBrApprove" onclick="wlv1ApproveLeaveNotice('${b.id}')">✅ Approve</button><button class="ghost" onclick="wlv1RejectLeaveNotice('${b.id}')">Reject</button>`;}
   if(typeof isMaster==='function'&&!isMaster())return '';/* নিচেরগুলো (refund/reopen/delete) শুধু Master — doctor-এর কার্ডেও যেন না আসে */
+  /* 🏠 V1179 (০৭.০৯.২০২৬, TK-নির্দেশ): Work From Home — শুধু Master অনুমতি দেন। */
+  if(t.indexOf('work from home request')>=0)return `<button class="anBrApprove" onclick="wlv1ApproveWfhNotice('${b.id}')">✅ Approve</button><button class="ghost" onclick="wlv1RejectWfhNotice('${b.id}')">Reject</button>`;
   if(t.indexOf('refund request')>=0)return `<button class="anBrApprove" onclick="wlv1ApproveRefundNotice('${b.id}')">✅ Approve</button><button class="ghost" onclick="wlv1RejectRefundNotice('${b.id}')">Reject</button>`;if(t.indexOf('reopen request')>=0)return `<button class="anBrApprove" onclick="wlv1ApproveReopenNotice('${b.id}')">✅ Approve</button><button class="ghost" onclick="wlv1RejectReopenNotice('${b.id}')">Reject</button>`;if(t.indexOf('delete request')>=0)return `<button class="anBrApprove" onclick="wlv1ApproveDeleteNotice('${b.id}')">✅ Approve &amp; Delete</button><button class="ghost" onclick="wlv1RejectDeleteNotice('${b.id}')">Reject</button>`;return '';}
 window["wlv1ApprovalButtons"]=wlv1ApprovalButtons;
 /* 🔵 B618: ছুটি-অনুমোদনের অধিকার — Master সবসময়; নইলে ওই ব্রাঞ্চের Doctor (message-এর Branch মিললে)। */
@@ -23661,6 +23663,43 @@ async function wlv1ResolveLeaveNotice(id,approve){
     briefingHome();
   }catch(e){toast('করা গেল না — আবার চেষ্টা করুন');}
 }
+/* 🏠🔒 V1179 (০৭.০৯.২০২৬, TK-নির্দেশ, হুবহু): *"সে যদি Work from Home করতে চায় তার
+   ব্যাবস্থা যেন থাকে এবং মাস্টারের অনুমতি নেওয়া জরুরী Work From Home এর ক্ষেত্রে"*।
+   ফোনের `WfhRequests.decide()`-এর হুবহু ধাপ: public.wfh_requests-এর status বদলানো +
+   স্টাফের কাছে নোটিশ + নোটিশ বন্ধ। ⛔ অনুমতি **শুধু ওই একদিনের** — পরদিন আবার চাইতে হবে।
+   ⛔ হাজিরার কোনো নিয়ম এখান থেকে বদলায় না; স্টাফ নিজেই IN/OUT TIME দেন, তাই ঘণ্টা
+      সত্যিকারের কাজের সময় ধরেই গোনা হয় (ছুটি হিসেবে বসে না)। */
+async function wlv1ResolveWfhNotice(id,approve){
+  if(!isMaster())return toast('Only Master Admin');
+  if(typeof sb==='undefined'||!sb)return toast('No internet connection');
+  var b=briefings().find(function(x){return x.id===id;});
+  if(!b)return toast('Notice not found');
+  var reqId=wlv1NoticeField(b.message,'Request ID');
+  var staff=wlv1NoticeField(b.message,'Staff');
+  var branch=wlv1NoticeField(b.message,'Branch');
+  var date=wlv1IsoDate(wlv1NoticeField(b.message,'Date'));
+  if(!reqId)return toast('এই অনুরোধ থেকে Request ID চেনা গেল না');
+  var now=new Date().toISOString();
+  var byMob=String((user&&user.mobile)||'').replace(/\D/g,'').slice(-10);
+  try{
+    var up=await sb.from('wfh_requests').update({status:approve?'approved':'rejected',decidedBy:byMob,decidedByName:(codeName(user.mobile)||user.mobile),decidedAt:now}).eq('id',reqId);
+    if(up&&up.error)return toast('করা গেল না — আবার চেষ্টা করুন');
+    try{
+      var row={id:'brief_'+MOD.uuid().replace(/-/g,''),date:MOD.todayIST(),
+        title:(approve?'🏠 Work From Home approved — ':'🏠 Work From Home rejected — ')+(staff||''),
+        message:'Staff : '+(staff||'')+'\nBranch : '+(branch||'')+'\nDate : '+(date||'')+'\n'+(approve?'Work From Home approved by Master.':'Work From Home not approved.'),
+        targets:{branches:[branch]},seen:[],replies:[],hiddenFor:[],branch:branch,createdBy:byMob,createdAt:now,updatedAt:now};
+      await cloudUpsertBriefing(row);
+    }catch(_e){}
+    wlv1CloseNotice(id,(approve?'✅ Work From Home Approved':'❌ Work From Home Rejected')+' by '+(codeName(user.mobile)||user.mobile));
+    toast(approve?'Work From Home Approved ✓':'Work From Home Rejected');
+    briefingHome();
+  }catch(e){toast('করা গেল না — আবার চেষ্টা করুন');}
+}
+function wlv1ApproveWfhNotice(id){return wlv1ResolveWfhNotice(id,true);}
+function wlv1RejectWfhNotice(id){return wlv1ResolveWfhNotice(id,false);}
+window["wlv1ApproveWfhNotice"]=wlv1ApproveWfhNotice;window["wlv1RejectWfhNotice"]=wlv1RejectWfhNotice;
+
 function wlv1ApproveLeaveNotice(id){return wlv1ResolveLeaveNotice(id,true);}
 function wlv1RejectLeaveNotice(id){return wlv1ResolveLeaveNotice(id,false);}
 window["wlv1ApproveLeaveNotice"]=wlv1ApproveLeaveNotice;window["wlv1RejectLeaveNotice"]=wlv1RejectLeaveNotice;

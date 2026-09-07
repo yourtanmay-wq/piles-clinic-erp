@@ -134,6 +134,7 @@ class BriefingActivity : AppCompatActivity() {
         // V216 (§13): Refund request approval — Master-only, no-op অন্য role-এ।
         loadRefundRequests()
         loadLeaveRequests()   // 🔵 B618: master/ব্রাঞ্চ-ডাক্তারের ছুটি-অনুমোদন
+        loadWfhRequests()     // 🏠 V1179: Work From Home-এর অনুমোদন
         // TK-REQUESTED ADDITION (2026-07-24): "Visit Fee Missing"
         // visibility -- Master-only, read-only, no-op for any non-Master
         // role.
@@ -189,6 +190,7 @@ class BriefingActivity : AppCompatActivity() {
         loadSalaryDue()   // 🟢 B629: Master ও Doctor-এর Salary Due মনে করানো
         loadRefundRequests()   // V216 (§13)
         loadLeaveRequests()    // 🔵 B618
+        loadWfhRequests()      // 🏠 V1179
         loadMissingVisitFees()
         loadPendingRemarks()   // 🔒 খাতার সারি B51
         // 🆕 B467 (05.08.2026, TK-নির্দেশ — "কলিং অপশন খুলে যাওয়ার পরে যখন
@@ -1186,6 +1188,106 @@ class BriefingActivity : AppCompatActivity() {
     // ছুটি-অনুরোধ — Refund তালিকার হুবহু ধরন (loadRefundRequests-এর নকল)।
     // ⛔ wn.leave_requests পড়তে/লিখতে module-লগইন লাগে, তাই ensureSignedIn-এর
     // ভিতরে। অন্য কোনো সেকশন/আচরণ ছোঁয়া হয়নি — নতুন container-এ আঁকা।
+    /**
+     * 🏠🔒 V1179 (০৭.০৯.২০২৬, TK-নির্দেশ, হুবহু): *"সে যদি Work from Home
+     * করতে চায় তার ব্যাবস্থা যেন থাকে এবং মাস্টারের অনুমতি নেওয়া জরুরী"*।
+     *
+     * `loadLeaveRequests()`-এর হুবহু একই ধরন (নতুন কোনো ছাঁদ তৈরি করা হয়নি) —
+     * শুধু নিজের container-এ আঁকা, তাই ছুটির সেকশনটা এক অক্ষরও বদলায়নি।
+     * ⛔ শুধু **আজকের** অপেক্ষমাণ অনুরোধ দেখায় — Work From Home একদিনের অনুমতি।
+     */
+    private fun loadWfhRequests() {
+        val canApprove = user.role == "master" || user.displayRole == "doctor"
+        if (!canApprove) { binding.wfhRequestsContainer.visibility = View.GONE; return }
+        lifecycleScope.launch {
+            val requests = withContext(Dispatchers.IO) {
+                try { com.tkbiswas.pilesclinic.native.WfhRequests.pendingToday() }
+                catch (_: Exception) { emptyList<org.json.JSONObject>() }
+            }
+            val box = binding.wfhRequestsContainer
+            box.removeAllViews()
+            if (requests.isEmpty()) { box.visibility = View.GONE; return@launch }
+            box.visibility = View.VISIBLE
+            val d = resources.displayMetrics.density
+            fun dp(v: Int) = (v * d).toInt()
+            val wfhTitle = "PENDING WORK FROM HOME REQUESTS (${requests.size})"
+            val wfhRowsBox = LinearLayout(this@BriefingActivity).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
+            box.addView(TextView(this@BriefingActivity).apply {
+                text = "$wfhTitle  ▼"; textSize = 14f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.WHITE)
+                setBackgroundColor(android.graphics.Color.parseColor("#B42318"))
+                setPadding(dp(16), dp(12), dp(16), dp(12))
+                setOnClickListener { val opening = wfhRowsBox.visibility != View.VISIBLE; wfhRowsBox.visibility = if (opening) View.VISIBLE else View.GONE; text = "$wfhTitle  ${if (opening) "▲" else "▼"}" }
+            })
+            for (req in requests) {
+                val staffName = req.optString("staffName", "").ifBlank {
+                    req.optString("staffCode", "").ifBlank { req.optString("staffMobile", "") }
+                }
+                val branch = req.optString("branch", "")
+                val date = req.optString("workDate", "")
+                val reason = req.optString("reason", "").ifBlank { "—" }
+                val dotted = try { val p = date.split("-"); p[2] + "/" + p[1] + "/" + p[0] } catch (_: Throwable) { date }
+                val row = LinearLayout(this@BriefingActivity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setBackgroundColor(android.graphics.Color.WHITE)
+                    setPadding(dp(16), dp(14), dp(16), dp(14))
+                }
+                row.addView(TextView(this@BriefingActivity).apply {
+                    text = "$staffName · $branch"; textSize = 13.5f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.parseColor("#10223A"))
+                })
+                row.addView(TextView(this@BriefingActivity).apply {
+                    text = "Date: $dotted · Reason: $reason"; textSize = 11.5f
+                    setTextColor(android.graphics.Color.parseColor("#5b6b81"))
+                    setPadding(0, dp(4), 0, 0)
+                })
+                val btnRow = LinearLayout(this@BriefingActivity).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(10), 0, 0) }
+                val approveBtn = TextView(this@BriefingActivity).apply {
+                    text = "✅ Approve"; textSize = 12.5f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.WHITE)
+                    setBackgroundColor(android.graphics.Color.parseColor("#0C9E33"))
+                    setPadding(dp(18), dp(10), dp(18), dp(10))
+                }
+                val rejectBtn = TextView(this@BriefingActivity).apply {
+                    text = "❌ Reject"; textSize = 12.5f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.WHITE)
+                    setBackgroundColor(android.graphics.Color.parseColor("#7A1F3D"))
+                    setPadding(dp(18), dp(10), dp(18), dp(10))
+                    val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                    lp.marginStart = dp(12); layoutParams = lp
+                }
+                fun decide(approve: Boolean) {
+                    approveBtn.isEnabled = false; rejectBtn.isEnabled = false
+                    lifecycleScope.launch {
+                        val ok = withContext(Dispatchers.IO) {
+                            com.tkbiswas.pilesclinic.native.WfhRequests.decide(
+                                this@BriefingActivity, req, approve, user.mobile, user.name.ifBlank { user.mobile }
+                            )
+                        }
+                        Toast.makeText(this@BriefingActivity,
+                            if (ok) (if (approve) "Work From Home Approved" else "Work From Home Rejected")
+                            else "Failed — check net", Toast.LENGTH_SHORT).show()
+                        if (ok) loadWfhRequests() else { approveBtn.isEnabled = true; rejectBtn.isEnabled = true }
+                    }
+                }
+                approveBtn.setOnClickListener { decide(true) }
+                rejectBtn.setOnClickListener { decide(false) }
+                btnRow.addView(approveBtn); btnRow.addView(rejectBtn)
+                row.addView(btnRow)
+                wfhRowsBox.addView(row)
+                wfhRowsBox.addView(View(this@BriefingActivity).apply {
+                    layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(1))
+                    setBackgroundColor(android.graphics.Color.parseColor("#E0E0E0"))
+                })
+            }
+            box.addView(wfhRowsBox)
+        }
+    }
+
     private fun loadLeaveRequests() {
         val canApprove = user.role == "master" || user.displayRole == "doctor"
         if (!canApprove) { binding.leaveRequestsContainer.visibility = View.GONE; return }

@@ -206,6 +206,17 @@ class WorkNotebookActivity : AppCompatActivity() {
 
     private var quickMarkKind = ""
 
+    /* 🏥🔒 V1179 (০৭.০৯.২০২৬, TK-নির্দেশ) — অন্য ব্রাঞ্চে ডিউটি ও
+       Work From Home-এর জন্য তিনটে ছোট মনে-রাখা ঘর।
+       • [dutyBranch]        — IN TIME চাপার সময় স্টাফ **যে ক্লিনিকে দাঁড়িয়ে
+                               ছিলেন** তার নাম; খাতার সারিতে এটাই বসে।
+       • [workedFromHome]    — মাস্টারের অনুমতিতে বাড়ি থেকে হাজিরা কিনা।
+       • [wfhApprovedToday]  — আজকের অনুমতি আছে কিনা, একবার পড়ে রাখা হয়
+                               (`null` = এখনো পড়া হয়নি)। */
+    private var dutyBranch = ""
+    private var workedFromHome = false
+    private var wfhApprovedToday: Boolean? = null
+
     // 🔴🆕🔒 খাতার সারি B440/B441 (TK-নির্দেশ, 05.08.2026 — "প্রতিটা
     // ব্রাঞ্চের নির্দিষ্ট ফোনে সারাদিন যত Incoming Call আসে, স্বয়ংক্রিয়ভাবে
     // গণনা হয়ে অ্যাপে বসে যাক")। TK-এর নিজের সিদ্ধান্ত: **অটো গণনা হবে,
@@ -1421,8 +1432,18 @@ class WorkNotebookActivity : AppCompatActivity() {
             // হবে") — এক লম্বা বাক্যের বদলে এখন সাজানো, লাইন-বাই-লাইন
             // (DeletePermission.kt/ChamberReopenPermission.kt-এর মতোই
             // প্রমাণিত ধরন) — Staff/Branch/Time আলাদা লাইনে, ইমোজি-সহ।
+            /* 🏥 V1179 (TK-নির্দেশ) — অন্য ব্রাঞ্চে ডিউটি করলে মাস্টারের
+               নোটিশেও **সেই ব্রাঞ্চই** লেখা থাকে, নইলে দুই পর্দায় দু'রকম
+               হত। বাড়ি থেকে কাজ হলে সেটাও এক লাইনে বলা থাকে।
+               ⛔ শিরোনাম "Staff IN TIME" অটুট (B467-এর নিয়ম)। */
+            val whereLine = when {
+                workedFromHome -> "🏥 Branch : $branch\n🏠 Work From Home (Master approved)"
+                dutyBranch.isNotBlank() && !dutyBranch.equals(branch, true) ->
+                    "🏥 Branch : $dutyBranch\n🔄 On duty from $branch"
+                else -> "🏥 Branch : $branch"
+            }
             val msg = "👤 Staff : ${staffCode.ifBlank { mobile }}\n" +
-                "🏥 Branch : $branch\n" +
+                whereLine + "\n" +
                 "Time : " + displayTime12(ns(day, "check_in"))
             // ⛔ শিরোনাম ঠিক "Staff IN TIME"-ই রাখা হলো (ইমোজি যোগ করা
             // হয়নি) — `BriefingActivity.kt`-এর `AUTO_DELETE_ON_SEEN_TITLES`
@@ -1600,7 +1621,9 @@ class WorkNotebookActivity : AppCompatActivity() {
         h.postDelayed({ deliver("Location not verified") }, 15_000L)
         try {
             val user = com.tkbiswas.pilesclinic.native.NativeSession.current(this)
-            com.tkbiswas.pilesclinic.native.ClinicPresence.check(this, user?.branch) { p ->
+            /* 🏥 V1179 — অন্য ব্রাঞ্চে ডিউটি করলেও "বাইরে থেকে" লেখা উঠবে না
+               (৫টা ক্লিনিকের যেকোনোটার কাছে থাকলেই ভিতরে ধরা হয়)। */
+            com.tkbiswas.pilesclinic.native.ClinicPresence.check(this, user?.branch, anyBranch = true) { p ->
                 deliver(
                     when {
                         p.ok -> ""     // ভিতরেই আছেন — রিপোর্টে বাড়তি কিছু লেখার দরকার নেই
@@ -2024,10 +2047,30 @@ class WorkNotebookActivity : AppCompatActivity() {
             return
         }
 
+        /* 🏠🔒 V1179 (০৭.০৯.২০২৬, TK-নির্দেশ) — **Work From Home।**
+           TK: *"সে যদি Work from Home করতে চায় তার ব্যাবস্থা যেন থাকে এবং
+           মাস্টারের অনুমতি নেওয়া জরুরী"*। ⇒ মাস্টার **আজকের দিনের জন্য**
+           অনুমতি দিয়ে থাকলে GPS-ধাপটা বাদ যায়; বাকি সব ধাপ (আঙুলের ছাপ ·
+           সার্ভারে সেভ) হুবহু আগের মতোই থাকে।
+           ⛔ অনুমতি না থাকলে এক চুলও ছাড় নেই — নিচের GPS-পাহারাই চলে।
+           ⛔ মেঘ থেকে একবারই পড়া হয় (এই পর্দা যতক্ষণ খোলা), তাই বাড়তি খরচ নেই। */
+        val cachedWfh = wfhApprovedToday
+        if (cachedWfh == true) { dutyBranch = ""; workedFromHome = true; startBiometricThenSaveInTime(onSaved); return }
+        if (cachedWfh == null) {
+            android.widget.Toast.makeText(this, "Checking...", android.widget.Toast.LENGTH_SHORT).show()
+            Thread {
+                val ok = try {
+                    com.tkbiswas.pilesclinic.native.WfhRequests.approvedToday(user?.mobile ?: "")
+                } catch (_: Throwable) { false }
+                runOnUiThread { wfhApprovedToday = ok; startInTimeFlow(onSaved) }
+            }.start()
+            return
+        }
+
         // ধাপ ৩ — ক্লিনিকে আছেন কিনা (GPS)
         // 🔤 V519 (TK-নির্দেশ): এই পর্দার লেখা সব ব্রাঞ্চেই ইংরেজি।
         android.widget.Toast.makeText(this, "Checking whether you are at the clinic...", android.widget.Toast.LENGTH_SHORT).show()
-        com.tkbiswas.pilesclinic.native.ClinicPresence.check(this, user?.branch) { presence ->
+        com.tkbiswas.pilesclinic.native.ClinicPresence.check(this, user?.branch, anyBranch = true) { presence ->
             if (!presence.ok) {
                 /* 🔴🔴🔒 V519 (TK-রিপোর্ট): অনুমতি না থাকলে আগে শুধু বার্তা দেখাত,
                    আর "আবার চেষ্টা" চাপলেও হুবহু একই বার্তা — কারণ অ্যাপ অনুমতি
@@ -2056,12 +2099,25 @@ class WorkNotebookActivity : AppCompatActivity() {
                 /* ফোনের Location বন্ধ থাকলেও স্টাফ আটকে যেতেন — এখন সরাসরি
                    Location-এর পাতায় যাওয়ার বোতাম আছে। */
                 val offSwitch = presence.reason == com.tkbiswas.pilesclinic.native.ClinicPresence.Reason.LOCATION_OFF
+                /* 🏠🔒 V1179 (TK-নির্দেশ) — ক্লিনিকের বাইরে থাকলে এখান থেকেই
+                   **Work From Home** চাওয়া যায়। ⛔ চাওয়া মানে পাওয়া নয় —
+                   মাস্টার Approve না করা পর্যন্ত IN TIME হবে না।
+                   ⛔ Location বন্ধ থাকলে ওই বোতামটা আগের মতোই "Open Settings"
+                      থাকে (নইলে স্টাফ Location চালু করার পথটাই হারাতেন)। */
+                val canAskWfh = !offSwitch &&
+                    (presence.reason == com.tkbiswas.pilesclinic.native.ClinicPresence.Reason.OUTSIDE ||
+                        presence.reason == com.tkbiswas.pilesclinic.native.ClinicPresence.Reason.TIMEOUT)
                 inTimeMessage("At the clinic?", presence.message, "#A8281C",
                     retry = if (canRetry) ({ startInTimeFlow(onSaved) }) else null,
-                    extraLabel = if (offSwitch) "Open Settings" else null,
-                    extra = if (offSwitch) ({ openLocationSettings() }) else null)
+                    extraLabel = if (offSwitch) "Open Settings" else if (canAskWfh) "🏠 Work From Home" else null,
+                    extra = if (offSwitch) ({ openLocationSettings() })
+                            else if (canAskWfh) ({ askWorkFromHome(onSaved) }) else null)
                 return@check
             }
+            /* 🏥 V1179 — কোন ক্লিনিকে দাঁড়িয়ে আছেন সেটা মনে রাখা হয়;
+               সেভের পরে খাতার সারিতে **ওই ব্রাঞ্চই** বসবে (নিজের ব্রাঞ্চ নয়)। */
+            dutyBranch = presence.atBranch
+            workedFromHome = false
             /* 🟢🔒 V529 (২২.০৮.২০২৬, TK-নির্দেশ: **"STAFF এর intime দেওয়ার
                সময় থাকুক"**) — V528-এ এই ধাপটা তুলে দেওয়া হয়েছিল; TK বলার পর
                সেটা git থেকে **অক্ষরে অক্ষরে** ফিরিয়ে আনা হয়েছে।
@@ -2079,6 +2135,68 @@ class WorkNotebookActivity : AppCompatActivity() {
      * তাই নিরাপত্তার এই শেষ স্তরটা (আঙুল/পাসওয়ার্ড) কখনো আলাদা হয়ে যেতে
      * পারে না।
      */
+    /**
+     * 🏠🔒 V1179 (০৭.০৯.২০২৬, TK-নির্দেশ, হুবহু): *"তাছাড়া সে যদি Work from
+     * Home করতে চায় তার ব্যাবস্থা যেন থাকে এবং মাস্টারের অনুমতি নেওয়া জরুরী
+     * Work From Home এর ক্ষেত্রে"*।
+     *
+     * স্টাফ কারণ লিখে অনুরোধ পাঠান — অনুরোধটা মাস্টারের Briefing পর্দায়
+     * "PENDING WORK FROM HOME REQUESTS"-এ বসে। মাস্টার Approve করলে স্টাফের
+     * ফোনে নোটিশ যায়, আর তখন IN TIME চাপলে GPS-ধাপটা বাদ পড়ে।
+     * ⛔ এই বাক্স থেকে হাজিরা **বসে না** — শুধু অনুরোধ যায়।
+     */
+    private fun askWorkFromHome(onSaved: () -> Unit) {
+        val user = com.tkbiswas.pilesclinic.native.NativeSession.current(this)
+        val input = android.widget.EditText(this).apply {
+            hint = "Why are you working from home today?"
+            setSingleLine(false)
+            setPadding(ModuleUi.dp(this@WorkNotebookActivity, 14), ModuleUi.dp(this@WorkNotebookActivity, 12),
+                ModuleUi.dp(this@WorkNotebookActivity, 14), ModuleUi.dp(this@WorkNotebookActivity, 12))
+        }
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(ModuleUi.dp(this@WorkNotebookActivity, 18), ModuleUi.dp(this@WorkNotebookActivity, 6),
+                ModuleUi.dp(this@WorkNotebookActivity, 18), 0)
+            addView(input)
+        }
+        try {
+            val d = androidx.appcompat.app.AlertDialog.Builder(this)
+                .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "🏠 Work From Home"))
+                .setView(box)
+                .setPositiveButton("Ask Master", null)
+                .setNegativeButton("Close", null)
+                .create()
+            d.show()
+            com.tkbiswas.pilesclinic.native.PremiumAlert.paint(d)
+            d.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val reason = input.text.toString().trim()
+                if (reason.isBlank()) {
+                    android.widget.Toast.makeText(this, "Please write the reason", android.widget.Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                d.dismiss()
+                android.widget.Toast.makeText(this, "Sending...", android.widget.Toast.LENGTH_SHORT).show()
+                Thread {
+                    val msg = com.tkbiswas.pilesclinic.native.WfhRequests.request(
+                        applicationContext,
+                        user?.mobile ?: "", staffCode,
+                        (user?.name ?: "").ifBlank { staffCode },
+                        user?.branch ?: "", reason
+                    )
+                    runOnUiThread {
+                        /* মাস্টার ইতিমধ্যে অনুমতি দিয়ে থাকলে সঙ্গে সঙ্গেই হাজিরা
+                           বসানো যায় — স্টাফকে আর অপেক্ষা করতে হয় না। */
+                        wfhApprovedToday = null
+                        inTimeMessage("🏠 Work From Home", msg, "#0B2B59",
+                            retry = { startInTimeFlow(onSaved) })
+                    }
+                }.start()
+            }
+        } catch (_: Throwable) {
+            android.widget.Toast.makeText(this, "Could not open", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private fun startBiometricThenSaveInTime(onSaved: () -> Unit) {
             /* 🔴🔒 V500 (২১.০৮.২০২৬) — TK-এর স্পষ্ট সিদ্ধান্ত:
                আমি জানিয়েছিলাম, হাজিরায় ফোনের PIN খুলে দিলে কেউ সহকর্মীকে
@@ -2130,6 +2248,7 @@ class WorkNotebookActivity : AppCompatActivity() {
                         // পর্দার তথ্য সার্ভারের সত্যি দিয়ে মিলিয়ে নেওয়া
                         if (res.checkIn.isNotBlank()) day.put("check_in", res.checkIn)
                         markReminderFlag("in", true)
+                        noteDutyBranch(res.branch)
                         android.widget.Toast.makeText(this,
                             res.message.ifBlank { "Attendance done." },   // 🔤 V519
                             android.widget.Toast.LENGTH_LONG).show()
@@ -2152,6 +2271,42 @@ class WorkNotebookActivity : AppCompatActivity() {
                 }
             }
         }.start()
+    }
+
+    /**
+     * 🏥🔒 V1179 (০৭.০৯.২০২৬, TK-নির্দেশ) — **অন্য ব্রাঞ্চে ডিউটি করলে
+     * খাতার সারিতে সেই ব্রাঞ্চই বসে।**
+     *
+     * সার্ভারের `wn.mark_check_in()` ব্রাঞ্চ নেয় `hr.staff_profiles.branch`
+     * থেকে — অর্থাৎ স্টাফের **নিজের** ব্রাঞ্চ। তাই কোচবিহারে ডিউটি করা
+     * জলপাইগুড়ির স্টাফের হাজিরা জলপাইগুড়ির নামেই বসত।
+     * ⇒ IN TIME চাপার সময় GPS যে ক্লিনিক চিনেছে ([dutyBranch]) সেটা আলাদা
+     *   হলে সঙ্গে সঙ্গে সারিটার `branch` ঘরটা ঠিক করে দেওয়া হয়।
+     *
+     * ⛔ শুধু `branch` ঘরটাই লেখা হয় (upsert-এ যে ঘরগুলো পাঠানো হয় কেবল
+     *    সেগুলোই বদলায়) — `check_in` · `check_out` · `is_leave` কিছুই ছোঁয়া হয় না।
+     * ⛔ এক রকম হলে একটাও নেট-কল হয় না।
+     * ⛔ `wn.notebook_days`-এর `branch` ঘরটা প্রকল্পের কোথাও ছাঁকনি বা
+     *    হিসাবে ব্যবহার হয় না (মেপে দেখা হয়েছে), তাই বেতন/হাজিরার কোনো
+     *    হিসাব এতে বদলায় না — এটা শুধু **তথ্য**।
+     */
+    private fun noteDutyBranch(homeBranch: String) {
+        val duty = dutyBranch
+        if (duty.isBlank()) return
+        if (duty.equals(homeBranch.ifBlank { NativeSession.current(this)?.branch ?: "" }, ignoreCase = true)) return
+        try { day.put("branch", duty) } catch (_: Throwable) { }
+        val code = staffCode
+        val date = todayIso()
+        Thread {
+            try {
+                robustSaveNotebookDay(
+                    JSONObject().put("staff_code", code).put("work_date", date).put("branch", duty)
+                )
+            } catch (_: Throwable) { }
+        }.start()
+        try {
+            android.widget.Toast.makeText(this, "Duty branch today: " + duty, android.widget.Toast.LENGTH_LONG).show()
+        } catch (_: Throwable) { }
     }
 
     private fun writeNotebookRow(row: JSONObject): Boolean {

@@ -360,7 +360,15 @@ function nbDoctorVisitCount(dateIso, staffCode){
       // নোটিশ; শুধু Mark as Leave থাকে। ⛔ ১২টার আগে সবসময় খোলা (সকালে-আসা কেউ
       // যেন আটকে না যায়)। OUT অপরিবর্তিত। সেভ-লজিক এক অক্ষরও বদলায়নি।
       var nbHourIST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })).getHours();
-      var nbWindowOpen = nbHourIST < 12;
+      /* 🔴🔒 V1179 (০৭.০৯.২০২৬) — ফোনে TK-এর V508 নিয়মে (*"যখন খুশি আসুক। ১১টার
+         পরে আর ৪টার আগে চলে গেলে Late কাউন্ট হবে"*) দুপুর ১২টার বাধা **তুলে
+         দেওয়া হয়েছিল**, কিন্তু কম্পিউটারে সেটা রয়ে গিয়েছিল — অর্থাৎ একই স্টাফ
+         ফোনে IN TIME দিতে পারতেন, কম্পিউটারে পারতেন না। অন্য ব্রাঞ্চে গিয়ে
+         ডিউটির কাজ করতে গিয়ে এটা ধরা পড়ল (দুই পর্দায় দুরকম উত্তর = দোষ)।
+         ⇒ এখন কম্পিউটারেও দিনের যেকোনো সময় IN TIME দেওয়া যায়।
+         ⛔ `nbHourIST` মোছা হয়নি (প্রকল্প-নিয়ম) — Late-এর হিসাব ও সেভ-লজিক
+            এক অক্ষরও বদলায়নি। */
+      var nbWindowOpen = true;
       // 🔴🔒 B536 (08.08.2026, TK-নির্দেশ — "একবার IN TIME হয়ে গেলে সেই দিন
       // আর দরকার নেই, একবার OUT TIME হয়ে গেলে আর দরকার নেই") — আগে বোতাম দুটো
       // মার্ক হওয়ার পরেও চাপা যেত, ভুল করে আবার চাপলে আগের সময় মুছে নতুন
@@ -643,10 +651,8 @@ function nbDoctorVisitCount(dateIso, staffCode){
     // 🔵 B608 parity (Android-এর মতো): IN TIME না হলে OUT TIME মার্ক করা যাবে না।
     if (which === 'out' && !d.check_in) { try { toast('আগে IN TIME দিন'); } catch (e) {} return; }
     // 🔵 B615 parity: দুপুর ১২টা পার হলে IN TIME দেওয়া যাবে না (ডিউটি সকালের)।
-    if (which === 'in') {
-      var h = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' })).getHours();
-      if (h >= 12) { try { toast('আজকের IN TIME-এর সময় শেষ'); } catch (e) {} return; }
-    }
+    /* 🔴🔒 V1179 — ফোনের V508 নিয়মের সঙ্গে মিলিয়ে দুপুর ১২টার বাধা তুলে
+       দেওয়া হলো (উপরে কারণ লেখা)। ⛔ সেভ-লজিক অপরিবর্তিত। */
     if (which === 'in') d.check_in = t; else d.check_out = t;
     /* 🔴 V430 (TK-সিদ্ধান্ত ১৮.০৮.২০২৬) — ফোনে OUT TIME চাপলেই দিনের সব লেখা
        (Today Patient · বাইরের কল · Notes) সেভ হয়ে **রিপোর্টটাও চুপচাপ
