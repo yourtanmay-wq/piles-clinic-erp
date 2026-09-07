@@ -538,8 +538,12 @@ class DashboardActivity : AppCompatActivity() {
                             0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                     }
                     row.addView(bd)
+                    /* 🩺 V1194 (TK: *"রোগের নাম দরকার তো"*) — নামের পাশে।
+                       ⛔ পুরনো সারিতে ঘরটা ফাঁকা, তখন কিছুই দেখানো হয় না। */
+                    val dis = r.optString("disease", "")
                     bd.addView(t(r.optString("patientName", "").ifBlank { "Patient" } +
-                        "   " + r.optString("patientMobile", ""), 13.5f, "#0B2B1C", bold = true))
+                        "   " + r.optString("patientMobile", "") +
+                        (if (dis.isNotBlank()) "   ·   $dis" else ""), 13.5f, "#0B2B1C", bold = true))
                     bd.addView(t(r.optString("note", ""), 12.5f, "#17212B").apply {
                         background = bg("#F6FAF7", "#E2EDE6", 10)
                         setPadding(d(10), d(8), d(10), d(8))

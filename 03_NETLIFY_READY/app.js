@@ -3837,8 +3837,9 @@ function wlv1NotificationsPage(){
       DRB.waiting.forEach(function(x){
         var d=String(x.remindDate||''), tm=String(x.remindTime||'');
         var when=d?(' · '+(function(p){return p[2]+'/'+p[1]+'/'+p[0]})(d.slice(0,10).split('-'))+(tm?(' · '+tm):'')):'';
+        var dz=''; try{ dz=(typeof drDisease==='function')?drDisease(x):String(x.disease||''); }catch(_e){ dz=''; }
         html+=wlv1NbRow('📌','#dff1ec',
-          String(x.patientName||'Patient')+'   '+String(x.patientMobile||''),
+          String(x.patientName||'Patient')+'   '+String(x.patientMobile||'')+(dz?('   ·   '+dz):''),
           String(x.note||'')+(x.byName?('  ·  By '+x.byName):'')+when,'drRemHome()');
       });
     }
@@ -3846,8 +3847,9 @@ function wlv1NotificationsPage(){
       total+=DRB.accepted.length;
       html+='<div class="nbSec" style="color:#0A7C3F"><i style="background:#0A7C3F"></i>✅ Reminder Accepted</div>';
       DRB.accepted.forEach(function(x){
+        var dz2=''; try{ dz2=(typeof drDisease==='function')?drDisease(x):String(x.disease||''); }catch(_e){ dz2=''; }
         html+=wlv1NbRow('✅','#e8f6ed',
-          String(x.patientName||'Patient')+'   '+String(x.patientMobile||''),
+          String(x.patientName||'Patient')+'   '+String(x.patientMobile||'')+(dz2?('   ·   '+dz2):''),
           'Accepted by '+String(x.acceptedByName||''),
           "drRemAck('"+String(x.id||'').replace(/'/g,'')+"')");
       });

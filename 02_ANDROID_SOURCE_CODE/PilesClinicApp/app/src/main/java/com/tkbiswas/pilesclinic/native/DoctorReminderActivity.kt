@@ -188,6 +188,26 @@ class DoctorReminderActivity : AppCompatActivity() {
                     setColor(android.graphics.Color.parseColor("#0B8A3E"))
                 }
                 setOnClickListener { renderCreate() }
+            },
+            /* ⋮🔒 V1194 (TK-নির্দেশ, ফটো-প্রুফ পাশ, হুবহু): *"রিমাইন্ডার হিস্টরি
+               উপরে ডান সাইডে ৩ ডট থাকবে তার মধ্যে থাকতে হবে"* — বেতন-পর্দার
+               হুবহু একই ধাঁচ (`PopupMenu`)। ⛔ History-র পর্দা ও তার সব সারি
+               এক অক্ষরও বদলায়নি, শুধু বোতামটা এখানে এলো। */
+            TextView(this).apply {
+                text = "⋮"
+                textSize = 22f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#0B4F2A"))
+                setPadding(dp(14), dp(4), dp(4), dp(4))
+                isClickable = true
+                setOnClickListener { v ->
+                    try {
+                        val pm = android.widget.PopupMenu(this@DoctorReminderActivity, v)
+                        pm.menu.add(0, 0, 0, "Reminder History")
+                        pm.setOnMenuItemClickListener { renderHistory(); true }
+                        pm.show()
+                    } catch (_: Throwable) { renderHistory() }
+                }
             }
         ).apply { setPadding(0, 0, 0, dp(10)) })
 
@@ -212,12 +232,6 @@ class DoctorReminderActivity : AppCompatActivity() {
                 }
             }
         }.start()
-        sheet.addView(miniBtn("Reminder History", "#B45309", "#E0A800") { renderHistory() }.apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { topMargin = dp(14) }
-        })
-
         bottomBack(col) { finish() }
     }
 
@@ -244,7 +258,21 @@ class DoctorReminderActivity : AppCompatActivity() {
 
         val nm = r.optString("patientName", "").ifBlank { "Patient" }
         val mb = r.optString("patientMobile", "")
-        bd.addView(tv(nm + (if (mb.isNotBlank()) "   $mb" else ""), 14.5f, "#0B2B1C", bold = true))
+        /* 🩺 V1194 (TK: *"রোগের নাম দরকার তো"*) — নামের ঠিক পাশে।
+           ⛔ পুরনো সারিতে ঘরটা ফাঁকা, তখন কিছুই দেখানো হয় না। */
+        val dis = r.optString("disease", "")
+        bd.addView(rowOf(
+            tv(nm + (if (mb.isNotBlank()) "   $mb" else ""), 14.5f, "#0B2B1C", bold = true),
+            tv(if (dis.isBlank()) "" else dis, 11.5f, "#123E8C", bold = true).apply {
+                if (dis.isNotBlank()) {
+                    background = box("#EEF4FF", "#D6E2FB", 10)
+                    setPadding(dp(9), dp(3), dp(9), dp(3))
+                }
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { leftMargin = dp(8) }
+            }
+        ))
         bd.addView(tv(r.optString("note", ""), 13.5f, "#17212B").apply {
             background = box("#F6FAF7", "#E2EDE6", 11)
             setPadding(dp(11), dp(9), dp(11), dp(9))
@@ -301,6 +329,30 @@ class DoctorReminderActivity : AppCompatActivity() {
             acts.addView(tv("  Not accepted yet", 12f, "#8A5A00", bold = true).apply {
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             })
+        } else if (showAccept && DoctorReminderRepository.canCancel(r, user)) {
+            /* 🚫 V1194 — ভুল করে পাঠানো হলে **যিনি পাঠিয়েছেন** বাতিল করতে পারেন
+               (Accept হওয়ার আগে পর্যন্ত)। ⛔ সারিটা মোছে না — History-তে থাকে। */
+            acts.addView(miniBtn("Cancel", "#C0392B", "#C0392B") {
+                val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setCustomTitle(PremiumAlert.header(this, "Cancel this reminder?"))
+                    .setMessage("It was sent by you and is not accepted yet.\nHistory will still show it as CANCELLED.")
+                    .setPositiveButton("Yes, cancel") { _, _ ->
+                        Thread {
+                            val ok = DoctorReminderRepository.cancel(r, user)
+                            runOnUiThread {
+                                ModuleUi.toast(this, if (ok) "Cancelled" else "Failed — check the network")
+                                if (ok) renderList()
+                            }
+                        }.start()
+                    }
+                    .setNegativeButton("No", null)
+                    .create()
+                dlg.show()
+                try { PremiumAlert.paint(dlg) } catch (_: Throwable) { }
+            })
+            acts.addView(tv("  Not accepted yet  ·  sent by you", 12f, "#8A5A00", bold = true).apply {
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            })
         } else if (showAccept) {
             acts.addView(tv("Not accepted yet", 12f, "#8A5A00", bold = true).apply {
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
@@ -344,6 +396,7 @@ class DoctorReminderActivity : AppCompatActivity() {
     /** TK-র পাশ-করা প্রুফ — কে পাঠাল · কবে · কাকে · কবে Accept, প্রতিটা নিজের ঘরে। */
     private fun historyCard(r: JSONObject): LinearLayout {
         val accepted = r.optString("acceptedAt", "").isNotBlank()
+        val cancelled = r.optString("cancelledAt", "").isNotBlank()   // 🚫 V1194
         val wrap = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             background = box("#FFFFFF", "#E7ECEA", 16)
@@ -352,7 +405,8 @@ class DoctorReminderActivity : AppCompatActivity() {
             ).apply { topMargin = dp(8) }
         }
         wrap.addView(android.view.View(this).apply {
-            setBackgroundColor(android.graphics.Color.parseColor(if (accepted) "#0F766E" else "#E0A800"))
+            setBackgroundColor(android.graphics.Color.parseColor(
+                if (cancelled) "#C0392B" else if (accepted) "#0F766E" else "#E0A800"))
             layoutParams = LinearLayout.LayoutParams(dp(5), LinearLayout.LayoutParams.MATCH_PARENT)
         })
         val bd = LinearLayout(this).apply {
@@ -361,8 +415,20 @@ class DoctorReminderActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
         wrap.addView(bd)
-        bd.addView(tv(r.optString("patientName", "").ifBlank { "Patient" } + "   " + r.optString("patientMobile", ""),
-            14f, "#0B2B1C", bold = true))
+        val hDis = r.optString("disease", "")
+        bd.addView(rowOf(
+            tv(r.optString("patientName", "").ifBlank { "Patient" } + "   " + r.optString("patientMobile", ""),
+                14f, "#0B2B1C", bold = true),
+            tv(if (hDis.isBlank()) "" else hDis, 11.5f, "#123E8C", bold = true).apply {
+                if (hDis.isNotBlank()) {
+                    background = box("#EEF4FF", "#D6E2FB", 10)
+                    setPadding(dp(9), dp(3), dp(9), dp(3))
+                }
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { leftMargin = dp(8) }
+            }
+        ))
         bd.addView(tv(r.optString("note", ""), 13f, "#17212B").apply {
             background = box("#F6FAF7", "#E2EDE6", 11)
             setPadding(dp(11), dp(9), dp(11), dp(9))
@@ -388,13 +454,19 @@ class DoctorReminderActivity : AppCompatActivity() {
         val byBranch = r.optString("byBranch", "")
         pair("SENT BY", byName + (if (byBranch.isNotBlank()) " · $byBranch" else ""),
             "SENT ON", stamp(r.optString("createdAt", "")))
-        pair("SENT TO", r.optString("forName", "").ifBlank { "All doctors" },
-            "ACCEPTED", if (accepted) (r.optString("acceptedByName", "") + " · " + stamp(r.optString("acceptedAt", ""))) else "Not yet")
+        if (cancelled) {
+            pair("SENT TO", r.optString("forName", "").ifBlank { "All doctors" },
+                "CANCELLED BY", r.optString("cancelledByName", "") + " · " + stamp(r.optString("cancelledAt", "")))
+        } else {
+            pair("SENT TO", r.optString("forName", "").ifBlank { "All doctors" },
+                "ACCEPTED", if (accepted) (r.optString("acceptedByName", "") + " · " + stamp(r.optString("acceptedAt", ""))) else "Not yet")
+        }
         val rd = r.optString("remindDate", "")
         val rt = r.optString("remindTime", "")
         bd.addView(tv("Remind on  " + dmy(rd) + (if (rt.isNotBlank()) "  ·  " + time12(rt) else "") +
-            "        " + (if (accepted) "ACCEPTED" else "WAITING"),
-            12.5f, if (accepted) "#0A7C3F" else "#8A5A00", bold = true).apply { setPadding(0, dp(9), 0, 0) })
+            "        " + (if (cancelled) "CANCELLED" else if (accepted) "ACCEPTED" else "WAITING"),
+            12.5f, if (cancelled) "#C0392B" else if (accepted) "#0A7C3F" else "#8A5A00", bold = true)
+            .apply { setPadding(0, dp(9), 0, 0) })
         return wrap
     }
 
@@ -466,7 +538,8 @@ class DoctorReminderActivity : AppCompatActivity() {
                                 sugHolder.addView(cellBox("#F2FBF5", "#D8ECDF").apply {
                                     isClickable = true
                                     addView(tv(pt.optString("name", ""), 13.5f, "#0B2B1C", bold = true))
-                                    addView(tv(pt.optString("mobile", "") + "  ·  " + pt.optString("branch", ""),
+                                    addView(tv(pt.optString("mobile", "") + "  ·  " + pt.optString("branch", "") +
+                                        (if (pt.optString("disease", "").isNotBlank()) "  ·  " + pt.optString("disease", "") else ""),
                                         11.5f, "#4A6B58"))
                                     setOnClickListener { choosePatient(pt, patLine, sugHolder) }
                                 })
@@ -572,7 +645,8 @@ class DoctorReminderActivity : AppCompatActivity() {
                 val ok = DoctorReminderRepository.send(
                     p.optString("id", ""), p.optString("name", ""), p.optString("mobile", ""),
                     p.optString("branch", "").ifBlank { user?.branch ?: "" },
-                    n, forMobile, forName, remindDate, remindTime, user
+                    n, forMobile, forName, remindDate, remindTime, user,
+                    p.optString("disease", "")
                 )
                 runOnUiThread {
                     ModuleUi.toast(this, if (ok) "Sent" else "Failed — check the network")
@@ -592,7 +666,8 @@ class DoctorReminderActivity : AppCompatActivity() {
     private fun choosePatient(p: JSONObject, patLine: TextView, sugHolder: LinearLayout) {
         pickedPatient = p
         patLine.text = p.optString("name", "") + "   " + p.optString("mobile", "") +
-            (if (p.optString("branch", "").isNotBlank()) "   ·   " + p.optString("branch", "") else "")
+            (if (p.optString("branch", "").isNotBlank()) "   ·   " + p.optString("branch", "") else "") +
+            (if (p.optString("disease", "").isNotBlank()) "   ·   " + p.optString("disease", "") else "")
         patLine.setTextColor(android.graphics.Color.parseColor("#0B2B1C"))
         sugHolder.removeAllViews()
     }
@@ -606,7 +681,7 @@ class DoctorReminderActivity : AppCompatActivity() {
             val filter = if (digitsOnly.length >= 4) "mobile=like.*$digitsOnly*" else "name=ilike.$enc"
             val rows = try {
                 SupabaseClient.fetchListSlimOrNull(
-                    "patients", filter, 25, "id,name,mobile,branch", order = "name.asc"
+                    "patients", filter, 25, "id,name,mobile,branch,disease", order = "name.asc"
                 )
             } catch (_: Throwable) { null }
             runOnUiThread {
@@ -614,7 +689,8 @@ class DoctorReminderActivity : AppCompatActivity() {
                 if (rows == null || rows.length() == 0) { ModuleUi.toast(this, "No patient found"); return@runOnUiThread }
                 val list = (0 until rows.length()).mapNotNull { rows.optJSONObject(it) }
                 val labels = list.map {
-                    it.optString("name", "") + "  ·  " + it.optString("mobile", "") + "  ·  " + it.optString("branch", "")
+                    it.optString("name", "") + "  ·  " + it.optString("mobile", "") + "  ·  " + it.optString("branch", "") +
+                        (if (it.optString("disease", "").isNotBlank()) "  ·  " + it.optString("disease", "") else "")
                 }.toTypedArray()
                 val pick = androidx.appcompat.app.AlertDialog.Builder(this)
                     .setCustomTitle(PremiumAlert.header(this, "Choose patient"))

@@ -71,6 +71,8 @@
     if(!historyMode) q=q.gte('remindDate',todayIso());
     var r=await q.order('createdAt',{ascending:false}).limit(300);
     var rows=(r&&r.data)||[];
+    // 🚫 V1194 — বাতিল হওয়া সারি চলতি তালিকায় আসে না; History-তে আসে।
+    if(!historyMode) rows=rows.filter(function(x){ return !String(x.cancelledAt||''); });
     if(myRole()==='master') return rows;
     var m=me(), br=myBranch().toLowerCase();
     return rows.filter(function(x){
@@ -99,6 +101,7 @@
     var br=myBranch().toLowerCase(), role=myRole();
     var canRole=(role==='master'||role==='doctor');
     return (rows||[]).filter(function(x){
+      if(String(x.cancelledAt||'')) return false;      // 🚫 V1194
       if(String(x.acceptedAt||'')) return false;
       if(listHas(x.hiddenBy,m)) return false;
       if(d10(x.byMobile)===m) return false;             // নিজের পাঠানো নয়
@@ -156,6 +159,32 @@
       drRemHome();
     }catch(e){ toast('করা গেল না — আবার চেষ্টা করুন'); }
   }
+  /* 🚫🔒 V1194 (TK-নির্দেশ ও ফটো-প্রুফ পাশ) — ভুল করে পাঠানো হলে **যিনি
+     পাঠিয়েছেন** বাতিল করতে পারেন, **Accept হওয়ার আগে পর্যন্ত**। TK:
+     *"ডিলিট লেখা থাকলে তো বিভ্রান্ত হতে পারে"* ⇒ লেখা **Cancel**।
+     ⛔ সারিটা মোছে না — History-তে "CANCELLED · কে · কখন" থেকে যায়। */
+  function canCancel(x){
+    var m=me(); if(!m) return false;
+    if(String(x.acceptedAt||'')) return false;
+    if(String(x.cancelledAt||'')) return false;
+    return d10(x.byMobile)===m;
+  }
+  async function drRemCancel(id){
+    var x=(DR_ROWS||[]).filter(function(r){return r.id===id})[0];
+    if(!x||!canCancel(x)) return;
+    if(typeof sb==='undefined'||!sb) return toast('No internet connection');
+    if(!confirm('Cancel this reminder?\nIt was sent by you and is not accepted yet.\nHistory will still show it as CANCELLED.')) return;
+    try{
+      var at=nowIso(), nm=myName();
+      var r=await sb.from(TABLE).update({cancelledBy:me(),cancelledByName:nm,cancelledAt:at}).eq('id',id);
+      if(r&&r.error) return toast('করা গেল না — আবার চেষ্টা করুন');
+      x.cancelledBy=me(); x.cancelledByName=nm; x.cancelledAt=at;
+      toast('Cancelled');
+      await drRemBellRefresh();
+      drRemHome();
+    }catch(e){ toast('করা গেল না — আবার চেষ্টা করুন'); }
+  }
+
   async function drRemAck(id){
     var m=me(); if(!m||typeof sb==='undefined'||!sb) return;
     var x=((window.__DR_BELL||{}).accepted||[]).filter(function(r){return r.id===id})[0];
@@ -180,6 +209,24 @@
     return String(x.branch||'').trim().toLowerCase()===myBranch().toLowerCase();
   }
 
+  /* 🩺🔒 V1194 (TK: *"রোগের নাম দরকার তো"*) — নামের পাশে ছোট চিপ।
+     ⛔ পুরনো সারিতে ঘরটা ফাঁকা; কম্পিউটারে তখন **আগে থেকেই রাখা** রোগী-তালিকা
+        থেকে নামটা ভরে নেওয়া হয় (নতুন কোনো ক্লাউড-পড়া নয়)। */
+  function drDisease(x){
+    var d=String(x.disease||'').trim();
+    if(d) return d;
+    try{
+      var m=d10(x.patientMobile);
+      var p=(load('patients')||[]).filter(function(q){ return d10(q.mobile)===m; })[0];
+      return p?String(p.disease||'').trim():'';
+    }catch(e){ return ''; }
+  }
+  function drDisChip(x){
+    var d=drDisease(x);
+    if(!d) return '';
+    return ' <span style="background:#EEF4FF;border:1px solid #D6E2FB;color:#123E8C;border-radius:10px;font-size:11.5px;font-weight:700;padding:3px 9px;margin-left:6px">'+esc2(d)+'</span>';
+  }
+
   function drCard(x, withAccept){
     var accepted=!!String(x.acceptedAt||'');
     var rail=accepted?'#0F766E':'#E0A800';
@@ -199,12 +246,17 @@
     }
     /* 🙈 V1193 — "Hide": শুধু এই ব্যক্তির হোম ও ঘন্টা থেকে সরে; তালিকা ও
        History-তে সারিটা অটুট থাকে, কেউ কিছু হারায় না। */
+    if(withAccept && canCancel(x)){
+      acts='<button class="small ghost" style="border-color:#C0392B;color:#C0392B;margin-right:10px" onclick="drRemCancel(\''+esc2(x.id)+'\')">Cancel</button>'+
+           '<span style="flex:1;color:#8A5A00;font-weight:700;font-size:12px">Not accepted yet  ·  sent by you</span>';
+    }
     if(withAccept) acts+='<button class="small ghost" onclick="drRemHide(\''+esc2(x.id)+'\')">Hide</button>';
     return '<div style="display:flex;background:#fff;border:1px solid #E7ECEA;border-radius:16px;overflow:hidden;margin-bottom:10px">'+
       '<div style="width:6px;background:'+rail+'"></div>'+
       '<div style="flex:1;padding:14px 16px">'+
         '<div style="font-size:15px;font-weight:700;color:#0B2B1C">'+esc2(x.patientName||'Patient')+
-          ' <span style="font-weight:400;color:#7A8794;font-size:13px">'+esc2(x.patientMobile||'')+'</span></div>'+
+          ' <span style="font-weight:400;color:#7A8794;font-size:13px">'+esc2(x.patientMobile||'')+'</span>'+
+          drDisChip(x)+'</div>'+
         '<div style="margin-top:7px;background:#F6FAF7;border:1px solid #E2EDE6;border-radius:11px;padding:10px 12px;font-size:13.5px;color:#17212B">'+esc2(x.note||'')+'</div>'+
         '<div style="display:flex">'+cell('FOR',esc2(x.forName||'All doctors'),false)+
           cell('BY',esc2(x.byName||'')+(x.byBranch?(' · '+esc2(x.byBranch)):''),true)+'</div>'+
@@ -268,16 +320,24 @@
        আর **Back একদম নিচে** (TK-নির্দেশ: *"Back একদম ডিসপ্লের নিচে থাকবে"*)। */
     document.getElementById('app').innerHTML='<div class="wrap">'+
       '<div class="topbar"><b>Doctor Note &amp; Reminder</b>'+
-      '<button class="small" onclick="drRemNew()">+ New</button></div>'+
+      '<button class="small" onclick="drRemNew()">+ New</button>'+
+      /* V1194 (TK-নির্দেশ): "রিমাইন্ডার হিস্টরি উপরে ডান সাইডে ৩ ডট থাকবে
+         তার মধ্যে থাকতে হবে" — ফোনের PopupMenu-র যমজ। */
+      '<button class="ghost" style="min-width:0;padding:6px 12px;font-size:19px;font-weight:700" onclick="drRemMenu()">\u22EE</button></div>'+
       '<div class="page"><div class="card">'+
         '<div style="background:linear-gradient(90deg,#0B4F2A,#0F766E);border-radius:14px;padding:11px 16px;margin-bottom:10px;display:flex;align-items:center">'+
           '<b style="flex:1;color:#fff;font-size:13.5px;letter-spacing:.6px">WAITING NOW'+(rows.length?('   ('+rows.length+')'):'')+'</b></div>'+
         (rows.length? rows.map(function(x){return drCard(x,true)}).join('')
                     : '<div class="mut">No reminder right now.</div>')+
-        '<button class="ghost" style="width:100%;margin-top:12px" onclick="drRemHistory()">Reminder History</button>'+
       '</div>'+
       '<button class="ghost" style="width:100%;margin-top:14px" onclick="dashboard()">Back</button>'+
       '</div></div>';
+  }
+
+  function drRemMenu(){
+    try{ modal('<h2>Doctor Note &amp; Reminder</h2><div class="grid menuGrid">'+
+      '<button class="menuBtn" onclick="closeModal();drRemHistory()"><b>Reminder History</b></button></div>'); }
+    catch(e){ drRemHistory(); }
   }
 
   async function drRemHistory(){
@@ -287,20 +347,24 @@
       '<div style="font-size:13px;color:#0B2B1C;font-weight:700;margin-top:3px">'+(v||'—')+'</div></div>'; }
     var body=rows.map(function(x){
       var accepted=!!String(x.acceptedAt||'');
+      var cancelled=!!String(x.cancelledAt||'');   /* V1194 */
       return '<div style="display:flex;background:#fff;border:1px solid #E7ECEA;border-radius:16px;overflow:hidden;margin-bottom:12px">'+
-        '<div style="width:6px;background:'+(accepted?'#0F766E':'#E0A800')+'"></div>'+
+        '<div style="width:6px;background:'+(cancelled?'#C0392B':(accepted?'#0F766E':'#E0A800'))+'"></div>'+
         '<div style="flex:1;padding:14px 16px">'+
           '<div style="font-size:15px;font-weight:700;color:#0B2B1C">'+esc2(x.patientName||'Patient')+
-            ' <span style="font-weight:400;color:#7A8794;font-size:13px">'+esc2(x.patientMobile||'')+'</span></div>'+
+            ' <span style="font-weight:400;color:#7A8794;font-size:13px">'+esc2(x.patientMobile||'')+'</span>'+drDisChip(x)+'</div>'+
           '<div style="margin-top:7px;background:#F6FAF7;border:1px solid #E2EDE6;border-radius:11px;padding:10px 12px;font-size:13.5px;color:#17212B">'+esc2(x.note||'')+'</div>'+
           '<div style="display:flex">'+cell('SENT BY', esc2(x.byName||'')+(x.byBranch?(' · '+esc2(x.byBranch)):''))+cell('SENT ON', esc2(stamp(x.createdAt)))+'</div>'+
-          '<div style="display:flex">'+cell('SENT TO', esc2(x.forName||'All doctors'))+cell('ACCEPTED', accepted?(esc2(x.acceptedByName||'')+' · '+esc2(stamp(x.acceptedAt))):'Not yet')+'</div>'+
+          '<div style="display:flex">'+cell('SENT TO', esc2(x.forName||'All doctors'))+
+            (cancelled? cell('CANCELLED BY', esc2(x.cancelledByName||'')+' · '+esc2(stamp(x.cancelledAt)))
+                      : cell('ACCEPTED', accepted?(esc2(x.acceptedByName||'')+' · '+esc2(stamp(x.acceptedAt))):'Not yet'))+'</div>'+
           '<div style="margin-top:11px;display:flex;align-items:center;border-top:1px solid #EEF1F5;padding-top:11px">'+
             '<span style="font-size:12.5px;color:#5B6B81">Remind on</span>'+
             '<b style="font-size:13.5px;color:#0B2B1C;margin-left:8px">'+esc2(dmy(x.remindDate))+(x.remindTime?('  ·  '+esc2(time12(x.remindTime))):'')+'</b>'+
             '<span style="margin-left:auto;border-radius:12px;padding:5px 14px;font-size:12px;font-weight:700;'+
-              (accepted?'background:#E8F6ED;color:#0A7C3F;border:1.5px solid #BFE3CD':'background:#FFF4E5;color:#8A5A00;border:1.5px solid #F0DCA8')+'">'+
-              (accepted?'ACCEPTED':'WAITING')+'</span>'+
+              (cancelled?'background:#FDECEA;color:#C0392B;border:1.5px solid #F3C4BE'
+                        :(accepted?'background:#E8F6ED;color:#0A7C3F;border:1.5px solid #BFE3CD':'background:#FFF4E5;color:#8A5A00;border:1.5px solid #F0DCA8'))+'">'+
+              (cancelled?'CANCELLED':(accepted?'ACCEPTED':'WAITING'))+'</span>'+
           '</div>'+
         '</div></div>';
     }).join('');
@@ -377,7 +441,7 @@
       box.innerHTML=list.map(function(p,i){
         return '<div onclick="drRemPick('+i+')" style="background:#F2FBF5;border:1px solid #D8ECDF;border-radius:14px;padding:10px 13px;margin-top:8px;cursor:pointer">'+
           '<div style="font-size:13.5px;font-weight:700;color:#0B2B1C">'+esc2(p.name||'')+'</div>'+
-          '<div style="font-size:11.5px;color:#4A6B58;margin-top:2px">'+esc2(p.mobile||'')+'  ·  '+esc2(p.branch||'')+'</div></div>';
+          '<div style="font-size:11.5px;color:#4A6B58;margin-top:2px">'+esc2(p.mobile||'')+'  ·  '+esc2(p.branch||'')+(p.disease?('  ·  '+esc2(p.disease)):'')+'</div></div>';
       }).join('');
     }, 300);
   }
@@ -406,7 +470,7 @@
     var list=drRemSearch(q);
     if(!list.length) return toast('No patient found');
     var rows=list.map(function(p,i){
-      return '<button class="menuBtn" onclick="drRemPick('+i+')"><b>'+esc2(p.name||'')+'</b><small>'+esc2(p.mobile||'')+' · '+esc2(p.branch||'')+'</small></button>';
+      return '<button class="menuBtn" onclick="drRemPick('+i+')"><b>'+esc2(p.name||'')+'</b><small>'+esc2(p.mobile||'')+' · '+esc2(p.branch||'')+(p.disease?(' · '+esc2(p.disease)):'')+'</small></button>';
     }).join('');
     window.__drFound=list;
     try{ modal('<h2>Choose patient</h2><div class="grid menuGrid">'+rows+'</div>'); }catch(e){}
@@ -415,7 +479,7 @@
     var p=(window.__drFound||[])[i]; if(!p) return;
     DR_PICKED=p;
     var out=document.getElementById('drPatOut');
-    if(out){ out.textContent=(p.name||'')+'   '+(p.mobile||'')+(p.branch?('   ·   '+p.branch):''); out.style.color='#0B2B1C'; }
+    if(out){ out.textContent=(p.name||'')+'   '+(p.mobile||'')+(p.branch?('   ·   '+p.branch):'')+(p.disease?('   ·   '+p.disease):''); out.style.color='#0B2B1C'; }
     try{ var sug=document.getElementById('drPatSug'); if(sug) sug.innerHTML=''; }catch(e){}
     drRemFillDoctors(p.branch||myBranch());
     try{ closeModal(); }catch(e){}
@@ -436,10 +500,12 @@
       id:'drem_'+Date.now()+'_'+Math.floor(Math.random()*1000),
       patientId:String(DR_PICKED.id||''), patientName:String(DR_PICKED.name||''),
       patientMobile:d10(DR_PICKED.mobile), branch:String(DR_PICKED.branch||myBranch()),
+      disease:String(DR_PICKED.disease||''),      /* V1194 */
       note:note, forMobile:d10(forMob), forName:forName,
       byMobile:me(), byName:myName(), byBranch:myBranch(),
       remindDate:date, remindTime:time, createdAt:nowIso(),
-      acceptedBy:'', acceptedByName:'', acceptedAt:'', active:true
+      acceptedBy:'', acceptedByName:'', acceptedAt:'',
+      cancelledBy:'', cancelledByName:'', cancelledAt:'', active:true
     };
     try{
       var r=await sb.from(TABLE).upsert(row);
@@ -454,5 +520,6 @@
   window.drRemSend=drRemSend; window.drRemHomeCard=drRemHomeCard;
   window.drRemHide=drRemHide; window.drRemHideAll=drRemHideAll; window.drRemAck=drRemAck;
   window.drRemSuggest=drRemSuggest; window.drRemSearch=drRemSearch;
+  window.drRemCancel=drRemCancel; window.drRemMenu=drRemMenu; window.drDisease=drDisease;
   window.drRemBellRefresh=drRemBellRefresh; window.drRemBellCount=drRemBellCount;
 })();

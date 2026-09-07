@@ -65,7 +65,7 @@ object DoctorReminderRepository {
     fun send(
         patientId: String, patientName: String, patientMobile: String, branch: String,
         note: String, forMobile: String, forName: String, remindDate: String, remindTime: String,
-        byUser: NativeUser?
+        byUser: NativeUser?, disease: String = ""
     ): Boolean {
         return try {
             val row = JSONObject()
@@ -74,6 +74,7 @@ object DoctorReminderRepository {
                 .put("patientName", patientName)
                 .put("patientMobile", digits(patientMobile))
                 .put("branch", branch)
+                .put("disease", disease)          // 🩺 V1194 — TK: *"রোগের নাম দরকার তো"*
                 .put("note", note)
                 .put("forMobile", digits(forMobile))
                 .put("forName", forName)
@@ -86,6 +87,9 @@ object DoctorReminderRepository {
                 .put("acceptedBy", "")
                 .put("acceptedByName", "")
                 .put("acceptedAt", "")
+                .put("cancelledBy", "")
+                .put("cancelledByName", "")
+                .put("cancelledAt", "")
                 .put("active", true)
             SupabaseClient.upsert(TABLE, row).also { if (it) cacheAt = 0L }
         } catch (_: Throwable) { false }
@@ -121,6 +125,8 @@ object DoctorReminderRepository {
             val out = ArrayList<JSONObject>()
             for (i in 0 until rows.length()) {
                 val r = rows.optJSONObject(i) ?: continue
+                // 🚫 V1194 — বাতিল হওয়া সারি চলতি তালিকায় আসে না; History-তে আসে।
+                if (!historyMode && r.optString("cancelledAt", "").isNotBlank()) continue
                 if (isMaster) { out.add(r); continue }
                 val forM = digits(r.optString("forMobile", ""))
                 val byM = digits(r.optString("byMobile", ""))
@@ -165,6 +171,45 @@ object DoctorReminderRepository {
             val next = listAdd(row.optString("hiddenBy", ""), me)
             val ok = SupabaseClient.updateById(TABLE, id, JSONObject().put("hiddenBy", next))
             if (ok) { row.put("hiddenBy", next); cacheAt = 0L }
+            ok
+        } catch (_: Throwable) { false }
+    }
+
+    /* 🚫🔒 V1194 (০৭.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, হুবহু):
+         *"কেউ যদি ভুল করে বার্তাটা পাঠিয়ে দেয় তাহলে সে ডিলিট করতে পারবে"* ·
+         *"ডিলিট লেখা থাকলে তো বিভ্রান্ত হতে পারে"* ⇒ লেখা **Cancel**।
+       ⛔ **যিনি পাঠিয়েছেন কেবল তিনিই**, আর **Accept হওয়ার আগে পর্যন্ত**।
+       ⛔ সারিটা **মোছা হয় না** — শুধু "বাতিল" চিহ্ন বসে, তাই History-তে
+          "CANCELLED · কে · কখন" চিরকাল থাকে (TK: *"যাতে কেউ অস্বীকার না
+          করতে পারে"*)। বাতিলের পর কারো তালিকা/হোম/ঘন্টায় আর আসে না। */
+    fun canCancel(row: JSONObject, user: NativeUser?): Boolean {
+        val me = digits(user?.mobile ?: "")
+        if (me.isEmpty()) return false
+        if (row.optString("acceptedAt", "").isNotBlank()) return false
+        if (row.optString("cancelledAt", "").isNotBlank()) return false
+        return digits(row.optString("byMobile", "")) == me
+    }
+
+    fun cancel(row: JSONObject, user: NativeUser?): Boolean {
+        if (!canCancel(row, user)) return false
+        val id = row.optString("id", "")
+        if (id.isBlank()) return false
+        return try {
+            val at = nowIso()
+            val nm = (user?.name ?: "").ifBlank { digits(user?.mobile ?: "") }
+            val ok = SupabaseClient.updateById(
+                TABLE, id,
+                JSONObject()
+                    .put("cancelledBy", digits(user?.mobile ?: ""))
+                    .put("cancelledByName", nm)
+                    .put("cancelledAt", at)
+            )
+            if (ok) {
+                row.put("cancelledBy", digits(user?.mobile ?: ""))
+                row.put("cancelledByName", nm)
+                row.put("cancelledAt", at)
+                cacheAt = 0L
+            }
             ok
         } catch (_: Throwable) { false }
     }
@@ -218,6 +263,7 @@ object DoctorReminderRepository {
             for (i in 0 until rows.length()) {
                 val r = rows.optJSONObject(i) ?: continue
                 if (r.optString("remindDate", "") < today) continue
+                if (r.optString("cancelledAt", "").isNotBlank()) continue   // 🚫 V1194
                 if (r.optString("acceptedAt", "").isNotBlank()) continue
                 if (listHas(r.optString("hiddenBy", ""), me)) continue
                 if (digits(r.optString("byMobile", "")) == me) continue     // নিজের পাঠানো নয়
@@ -258,7 +304,7 @@ object DoctorReminderRepository {
         val filter = if (digitsOnly.length >= 4) "mobile=like.*$digitsOnly*" else "name=ilike.$enc"
         return try {
             SupabaseClient.fetchListSlimOrNull(
-                "patients", filter, 8, "id,name,mobile,branch", order = "name.asc"
+                "patients", filter, 8, "id,name,mobile,branch,disease", order = "name.asc"
             )
         } catch (_: Throwable) { null }
     }

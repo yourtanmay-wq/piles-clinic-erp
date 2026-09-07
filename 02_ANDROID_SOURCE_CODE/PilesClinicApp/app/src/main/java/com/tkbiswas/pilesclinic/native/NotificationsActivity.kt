@@ -200,10 +200,11 @@ class NotificationsActivity : AppCompatActivity() {
                 val by = r.optString("byName", "")
                 val rd = r.optString("remindDate", "")
                 val rt = r.optString("remindTime", "")
+                val dis = r.optString("disease", "")   // 🩺 V1194
                 addRow(
                     icon = "📌",
                     iconColor = "#0F766E",
-                    title = nm + (if (mb.isNotBlank()) "   $mb" else ""),
+                    title = nm + (if (mb.isNotBlank()) "   $mb" else "") + (if (dis.isNotBlank()) "   ·   $dis" else ""),
                     subtitle = r.optString("note", "") +
                         (if (by.isNotBlank()) "  ·  By $by" else "") +
                         (if (rd.isNotBlank()) "  ·  " + dmy(rd) + (if (rt.isNotBlank()) " · " + time12(rt) else "") else "")
@@ -222,7 +223,8 @@ class NotificationsActivity : AppCompatActivity() {
                 addRow(
                     icon = "✅",
                     iconColor = "#0A7C3F",
-                    title = nm + (if (mb.isNotBlank()) "   $mb" else ""),
+                    title = nm + (if (mb.isNotBlank()) "   $mb" else "") +
+                        (if (r.optString("disease", "").isNotBlank()) "   ·   " + r.optString("disease", "") else ""),
                     subtitle = "Accepted by " + r.optString("acceptedByName", "") + "  ·  " + stamp(r.optString("acceptedAt", ""))
                 ) {
                     lifecycleScope.launch {
