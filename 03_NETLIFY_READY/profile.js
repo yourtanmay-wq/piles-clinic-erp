@@ -1493,12 +1493,24 @@
         '</div>';
       }
 
+      /* 🗑️🔒 V1195 (TK-নির্দেশ ও ফটো-প্রুফ পাশ) — ভুল করে বসে যাওয়া স্যালারির
+         সারি **মাস্টার** মুছতে পারেন (নিশ্চিত করার প্রশ্নের পরেই; মোছার আগে
+         hr.salary_deleted_log-এ কে-কখন-কী মুছল লেখা হয়)। ফোনের হুবহু একই নিয়ম।
+         ⛔ স্টাফ/ডাক্তারের পর্দায় বোতামটা বসেই না। ⛔ Extra সারিতে নয়। */
+      var delBtn = '';
+      try{
+        if(!isExtra && String(x.id||'') && (window.MOD && MOD.isMasterModule && MOD.isMasterModule()))
+          delBtn = '<div class="pfStmtDel"><button class="ghost small" style="border-color:#E8B4B4;color:#C62828" '
+                 + 'onclick="event.stopPropagation();salDeletePay(\''+m.esc(String(x.id))+'\')">Delete</button></div>';
+      }catch(e){}
+      try{ SAL_PAY_BY_ID[String(x.id||'')] = x; }catch(e){}
       return '<div class="pfStmtEntry'+(isDue?' isDue':'')+'"'+vClick+'>' +
         '<span class="pfStmtAccent"></span>' +
         '<div class="pfStmtMain"><b>'+m.esc(title)+'</b><span>'+m.money(x.amount)+'</span></div>' +
         '<div class="pfStmtMode"><span class="pfStmtBadge'+modeCls+'">'+m.esc(mode)+'</span></div>' +
         '<div class="pfStmtDate">'+m.esc(salDmy(x.paid_on))+'</div>' +
         (detail ? ('<div class="pfStmtDetail">'+m.esc(detail)+'</div>') : '') +
+        delBtn +
       '</div>';
     }).join('');
     if (!pays.length) lines = '<div class="pfStmtEmpty">No payments.</div>';
@@ -1807,7 +1819,10 @@
       /* 🔴 V430 — ফোনে ভিতরে দ্বিতীয় শিরোনাম নেই, উপরের নামটাই যথেষ্ট। */
       '<div class="card">'+
       '<label>Month</label><select id="amMonth" class="input">'+opts+'</select>'+
-      '<label>Amount</label><input id="amAmt" class="input" type="number" value="'+(amount>0?amount:'')+'">'+
+      /* 💰🔒 V1195 (TK: "September আমি 2044 দেই নাই একবারও") — অঙ্ক আর নিজে
+         থেকে বসে না; ঘরটা ফাঁকাই থাকে, প্রস্তাবটা শুধু নিচে হালকা লেখায়। */
+      '<label>Amount</label><input id="amAmt" class="input" type="number" placeholder="Enter amount">'+
+      (amount>0?('<div style="font-size:12px;color:#8B98A9;padding:6px 2px 0">Suggested : \u20B9'+amount+'</div>'):'')+
       '<label>Mode</label><select id="amMode" class="input"><option>Cash</option><option>Online</option></select>'+
       '<div class="actions"><button onclick="profSalaryPayMonth(\''+m.esc(code)+'\')">Add Payment</button>'+
       '<button class="ghost" onclick="profSalary(\''+m.esc(code)+'\')">Cancel</button></div></div>'+
@@ -1819,11 +1834,53 @@
     var amt=Number((document.getElementById('amAmt')||{}).value||0);
     if(!ym){ try{ toast('Choose a month'); }catch(e){} return; }
     if(!(amt>0)){ try{ toast('Enter amount'); }catch(e){} return; }
+    /* 🛡️🔒 V1195 (TK: "একই পেমেন্ট তিনবার দিলে আটকাবে না কেন") — ওই মাস আগে
+       দেওয়া থাকলে **আগে জিজ্ঞাসা**, তারপরই সেভ। ফোনের হুবহু একই নিয়ম। */
+    try{
+      var client0=await sb();
+      var old=((await client0.schema('hr').from('salary_payments').select('*').eq('person_code',code).limit(300)).data)||[];
+      var prev=old.filter(function(p){ return !salIsExtra(p) && salPayMonth(p)===ym; })[0];
+      if(prev){
+        var okGo=confirm(salMonthLabel(ym)+' already paid\n\n\u20B9'+Number(prev.amount||0)+'  ·  '+(prev.mode||'—')+'  ·  '+String(prev.paid_on||'').slice(0,10)+
+          '\nAlready recorded for this month.\n\nAdd one more payment for '+salMonthLabel(ym)+'?');
+        if(!okGo) return;
+      }
+    }catch(e){}
     var row={ id:m.uuid(), person_code:code, paid_on:m.todayIST(), amount:amt, mode:(document.getElementById('amMode')||{}).value||'Cash', paid_by:(m.session()||{}).code||'master', remark:'', for_month:ym };
     try{ await m.save('hr','salary_payments',row); try{ toast('Payment added'); }catch(e){} }
     catch(e){ try{ toast('Retry'); }catch(_e){} }
     profSalary(code);
   }
+
+  /* 🗑️🔒 V1195 (TK-নির্দেশ ও ফটো-প্রুফ পাশ, হুবহু): *"মনে করুন আমি ভুল করে
+     দিয়ে ফেলেছি, তাহলে সেটা ডিলিট করতে পারছি না কেন?"*
+     ⛔ শুধু মাস্টার · নিশ্চিত করার প্রশ্নের পরেই · মোছার **আগে** খাতায়
+        (hr.salary_deleted_log) কে-কখন-কী মুছল লেখা হয়; খাতায় লেখা না গেলে
+        কিছুই মোছে না (নইলে টাকা হারাত, প্রমাণও থাকত না)। ফোনের হুবহু একই নিয়ম। */
+  async function salDeletePay(id){
+    var m=window.MOD;
+    if(!(m && m.isMasterModule && m.isMasterModule())) return;
+    var x=SAL_PAY_BY_ID[String(id||'')]; if(!x) return;
+    var ym=String(x.for_month||String(x.paid_on||'').slice(0,7));
+    var ok=confirm('Delete this salary payment?\n\n'+salMonthLabel(ym)+'  ·  \u20B9'+Number(x.amount||0)+
+      '  ·  '+(x.mode||'—')+'  ·  '+String(x.paid_on||'').slice(0,10)+
+      '\nIt will be removed from the total, and who deleted it will be recorded.');
+    if(!ok) return;
+    try{
+      var client=await sb();
+      var log={ id:m.uuid(), original_id:String(x.id||''), person_code:String(x.person_code||''),
+        for_month:ym, amount:Number(x.amount||0), mode:String(x.mode||''), kind:String(x.kind||''),
+        paid_on:String(x.paid_on||''), paid_by:String(x.paid_by||''), remark:String(x.remark||''),
+        deleted_by:(m.session()||{}).code||'master', deleted_at:new Date().toISOString() };
+      var ins=await client.schema('hr').from('salary_deleted_log').insert(log);
+      if(ins && ins.error){ try{ toast('Not deleted — run the V1195 SQL patch first'); }catch(e){} return; }
+      var del=await client.schema('hr').from('salary_payments').delete().eq('id', String(x.id||''));
+      if(del && del.error){ try{ toast('Could not delete — try again'); }catch(e){} return; }
+      try{ toast('Deleted'); }catch(e){}
+      profSalary(String(x.person_code||''));
+    }catch(e){ try{ toast('Could not delete — try again'); }catch(_e){} }
+  }
+  window.salDeletePay=salDeletePay;
 
   async function renderSelf() {
     var m = window.MOD, client = await sb();

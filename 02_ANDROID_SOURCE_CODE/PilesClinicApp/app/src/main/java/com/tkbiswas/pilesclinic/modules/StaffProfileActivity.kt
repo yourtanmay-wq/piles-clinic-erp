@@ -3555,6 +3555,93 @@ class StaffProfileActivity : AppCompatActivity() {
         }.start()
     }
 
+    /* ═══════════════════════════════════════════════════════════════
+       💰🔒 V1195 (০৭.০৯.২০২৬, TK-রিপোর্ট ও ফটো-প্রুফ পাশ, হুবহু):
+         *"September আমি 2044 দেই নাই একবারও, তাহলে এখানে ৩ বার কেন দেখাচ্ছে"* ·
+         *"একই পেমেন্ট আমি যখন তিনবার দিব তাহলে আমাকে আটকাবে না কেন?"* ·
+         *"ভুল করে দিয়ে ফেললে সেটা ডিলিট করতে পারছি না কেন?"*
+
+       কোডে মেপে দেখা গিয়েছিল — ঢোকানোর সময় **কোনো ডুপ্লিকেট-পাহারা ছিল না**,
+       আর অঙ্কটা অ্যাপ নিজেই ঘরে বসিয়ে রাখত (V1178-এর ঘণ্টা-হিসাব), তাই না
+       দেখে চাপ পড়লেই সেটা সেভ হয়ে যেত। তিনটেই এখানে সারানো হলো।
+       ⛔ টাকার **হিসাবের নিয়ম** এক অক্ষরও বদলায়নি — শুধু পাহারা যোগ হলো। */
+    private fun salaryAlreadyPaidRow(pays: JSONArray, ym: String): JSONObject? {
+        for (i in 0 until pays.length()) {
+            val p = pays.optJSONObject(i) ?: continue
+            if (payKind(p) == "EXTRA") continue
+            if (salaryPayMonth(p) == ym) return p
+        }
+        return null
+    }
+
+    /** ওই মাস আগে দেওয়া থাকলে **আটকে জিজ্ঞাসা করে**; নইলে সোজা কাজটা করে। */
+    private fun confirmIfMonthPaid(pays: JSONArray, ym: String, go: () -> Unit) {
+        val old = salaryAlreadyPaidRow(pays, ym)
+        if (old == null) { go(); return }
+        val msg = money(old.optDouble("amount", 0.0)) + "  ·  " +
+            ns(old, "mode").ifBlank { "—" } + "  ·  " + dmy(ns(old, "paid_on")) +
+            "\nAlready recorded for this month.\n\nAdd one more payment for " +
+            salaryMonthLabel(ym) + "?"
+        val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, salaryMonthLabel(ym) + " already paid"))
+            .setMessage(msg)
+            .setPositiveButton("Yes, add") { _, _ -> go() }
+            .setNegativeButton("No", null)
+            .create()
+        dlg.show()
+        try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(dlg) } catch (_: Throwable) { }
+    }
+
+    /** ভুল সারি মোছা — আগে খাতায় নকল, তারপরই আসল সারি। ⛔ শুধু মাস্টার। */
+    private fun deleteSalaryRow(code: String, row: JSONObject, after: () -> Unit) {
+        val id = ns(row, "id")
+        if (id.isBlank()) { ModuleUi.toast(this, "This entry has no id"); return }
+        val title = if (payKind(row) == "EXTRA") "Delete this extra income?" else "Delete this salary payment?"
+        val body = (if (payKind(row) == "EXTRA") "Extra" else salaryMonthLabel(salaryPayMonth(row))) +
+            "  ·  " + money(row.optDouble("amount", 0.0)) + "  ·  " + ns(row, "mode").ifBlank { "—" } +
+            "  ·  " + dmy(ns(row, "paid_on")) +
+            "\nIt will be removed from the total, and who deleted it will be recorded."
+        val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, title))
+            .setMessage(body)
+            .setPositiveButton("Yes, delete") { _, _ ->
+                ModuleUi.toast(this, "Deleting...")
+                Thread {
+                    val log = JSONObject()
+                        .put("id", "sdl_" + System.currentTimeMillis() + "_" + (0..999).random())
+                        .put("original_id", id)
+                        .put("person_code", ns(row, "person_code").ifBlank { code })
+                        .put("for_month", salaryPayMonth(row))
+                        .put("amount", row.optDouble("amount", 0.0))
+                        .put("mode", ns(row, "mode"))
+                        .put("kind", payKind(row))
+                        .put("paid_on", ns(row, "paid_on"))
+                        .put("paid_by", ns(row, "paid_by"))
+                        .put("remark", ns(row, "remark"))
+                        .put("deleted_by", ModuleAuth.personCode)
+                        .put("deleted_at", java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
+                            .apply { timeZone = TimeZone.getTimeZone("UTC") }.format(java.util.Date()))
+                    /* ⛔ খাতায় লেখা না গেলে **কিছুই মোছা হয় না** — নইলে টাকা
+                       হারিয়ে যেত আর কে মুছল তার কোনো প্রমাণ থাকত না। */
+                    val logged = ModuleAuth.insert("hr", "salary_deleted_log", log)
+                    if (!logged) {
+                        runOnUiThread { ModuleUi.toast(this, "Not deleted — run the V1195 SQL patch first") }
+                        return@Thread
+                    }
+                    val gone = ModuleAuth.deleteRows("hr", "salary_payments", "id=eq." + id)
+                    runOnUiThread {
+                        salaryCacheClear(code)
+                        ModuleUi.toast(this, if (gone) "Deleted" else "Could not delete — try again")
+                        if (gone) after()
+                    }
+                }.start()
+            }
+            .setNegativeButton("No", null)
+            .create()
+        dlg.show()
+        try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(dlg) } catch (_: Throwable) { }
+    }
+
     /** "এই মাসের বেতন দিন" — ছোট পূর্ণ-স্ক্রিন ফর্ম: Amount (prefilled=due) · Mode; for_month=এই মাস।
      *  ⛔ salary_payments-এ insert-এর কল আগের মতোই, শুধু `for_month` যোগ। */
     private fun payForMonth(code: String, monthYm: String, due: Double) {
@@ -3615,12 +3702,20 @@ class StaffProfileActivity : AppCompatActivity() {
         /* 💰 V1178 — চলতি মাসের ঘণ্টা-হিসাব জানা থাকলে **সেটাই** আগে বসে
            (TK-র নিয়ম: কম কাজ = কম বেতন)। না জানলে আগের মতোই সেট করা বেতন।
            ⛔ অঙ্কটা বদলানো যায় — মাস্টারের হাতেই শেষ সিদ্ধান্ত। */
+        /* 💰🔒 V1195 (TK: *"September আমি 2044 দেই নাই একবারও"*) — অঙ্কটা আর
+           **নিজে থেকে বসে না**; ঘরটা ফাঁকাই থাকে, প্রস্তাবটা শুধু নিচে হালকা
+           লেখায় দেখানো হয়। ⇒ না দেখে চাপ পড়লে আর কোনো অঙ্ক সেভ হবে না। */
         val suggested = hourPayThisMonth ?: amount
         val pamt = ModuleUi.numberInput(this, "Amount", allowDecimal = true)
-            .apply { if (suggested > 0) setText(Math.round(suggested).toString()) }
         val pmode = spinner(listOf("Cash", "Online"))
         col.addView(ModuleUi.label(this, "Month")); col.addView(monthSpinner)
         col.addView(ModuleUi.label(this, "Amount")); col.addView(pamt)
+        if (suggested > 0) col.addView(TextView(this).apply {
+            text = "Suggested from this month's hours : " + money(suggested)
+            textSize = 11.5f
+            setTextColor(android.graphics.Color.parseColor("#8B98A9"))
+            setPadding(dp(2), dp(6), 0, 0)
+        })
         col.addView(ModuleUi.label(this, "Mode")); col.addView(pmode)
         /* 🔵🔒 V521 (২২.০৮.২০২৬, TK-নির্দেশ) — *"Add Payment · Cancel এই দুইটা
            পাশাপাশি থাকবে, একটা যেন আরেকটার গায়ে ঘেঁষে না যায়। 'Add Payment'
@@ -3645,13 +3740,16 @@ class StaffProfileActivity : AppCompatActivity() {
             val amt = pamt.text.toString().toDoubleOrNull() ?: 0.0
             if (amt <= 0) { ModuleUi.toast(this, "Enter amount"); return@button }
             val ym = months[idx]
-            val row = JSONObject().put("person_code", code).put("paid_on", todayIso())
-                .put("amount", amt).put("mode", pmode.selectedItem.toString())
-                .put("paid_by", ModuleAuth.personCode).put("remark", "").put("for_month", ym)
-            Thread {
-                val ok = ModuleAuth.insert("hr", "salary_payments", row)
-                runOnUiThread { salaryCacheClear(code); ModuleUi.toast(this, if (ok) "Payment added" else "Retry"); salary(code) }
-            }.start()
+            /* 🛡️ V1195 — ওই মাস আগে দেওয়া থাকলে **আগে জিজ্ঞাসা**, তারপরই সেভ। */
+            confirmIfMonthPaid(pays, ym) {
+                val row = JSONObject().put("person_code", code).put("paid_on", todayIso())
+                    .put("amount", amt).put("mode", pmode.selectedItem.toString())
+                    .put("paid_by", ModuleAuth.personCode).put("remark", "").put("for_month", ym)
+                Thread {
+                    val ok = ModuleAuth.insert("hr", "salary_payments", row)
+                    runOnUiThread { salaryCacheClear(code); ModuleUi.toast(this, if (ok) "Payment added" else "Retry"); salary(code) }
+                }.start()
+            }
         }.apply {
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
                 marginStart = dp(6)
@@ -4688,6 +4786,31 @@ class StaffProfileActivity : AppCompatActivity() {
                ⛔ স্যালারির সারি হুবহু আগের মতোই — সেখানে এখনই বসে। */
             if (!isExtra) card.addView(top)
 
+            /* 🗑️🔒 V1195 (TK-নির্দেশ ও ফটো-প্রুফ পাশ) — ভুল করে বসে যাওয়া সারি
+               **মাস্টার** মুছতে পারেন। ⛔ নিশ্চিত করার প্রশ্নের পরেই · মোছার
+               আগে খাতায় (hr.salary_deleted_log) কে-কখন-কী মুছল লেখা হয়।
+               ⛔ স্টাফ/ডাক্তারের পর্দায় বোতামটা দেখাই যায় না। */
+            if (!isExtra && ModuleAuth.isMaster && ns(p, "id").isNotBlank()) {
+                val delRow = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = android.view.Gravity.END
+                    setPadding(0, dp(6), 0, 0)
+                }
+                delRow.addView(TextView(this@StaffProfileActivity).apply {
+                    text = "Delete"
+                    textSize = 11.5f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(danger)
+                    setPadding(dp(14), dp(6), dp(14), dp(6))
+                    background = bg("#FFFFFF", "#E8B4B4", 10)
+                    isClickable = true
+                    setOnClickListener {
+                        deleteSalaryRow(code, p) { salary(code) }
+                    }
+                })
+                card.addView(delRow)
+            }
+
             val detail = when {
                 isExtra && why.isNotBlank() -> why + (ns(p, "remark").takeIf { it.isNotBlank() }?.let { " · $it" } ?: "")
                 !isExtra && why.isNotBlank() -> why
@@ -4866,7 +4989,14 @@ class StaffProfileActivity : AppCompatActivity() {
             setColor(android.graphics.Color.parseColor("#FBFDFC"))
             setStroke(dp(1), android.graphics.Color.parseColor("#D6DEE6"))
         }
-        v.setPadding(dp(13), dp(12), dp(13), dp(12))
+        /* 📏🔒 V1195 (TK-নির্দেশ ও ফটো-প্রুফ পাশ: *"বক্সের উচ্চতা কিছু কিছু এত
+           উচ্চতা কেন করেছেন?"*) — উপরে-নিচের ফাঁক ১২ → ৬dp, আর ঘরের নিজের
+           সবচেয়ে-কম উচ্চতাও কমানো হলো। ⛔ লেখা · রং · কাজ কিছুই বদলায়নি। */
+        v.setPadding(dp(13), dp(6), dp(13), dp(6))
+        if (v is android.widget.EditText) {
+            v.minHeight = dp(34)
+            v.minimumHeight = dp(34)
+        }
         return v
     }
 

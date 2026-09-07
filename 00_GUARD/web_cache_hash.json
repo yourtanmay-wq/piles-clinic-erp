@@ -1,7 +1,7 @@
 {
   "styles.css": {
-    "v": "v1160",
-    "sha": "47340f61c02ba580e6287086b9727932d62c7e1dde538085ec98fcd36d11dd24"
+    "v": "v1195",
+    "sha": "53933bd3eda0c52478d7a63eb50863b45013a3d5e2822295c4a54e883d1731cb"
   },
   "config.js": {
     "v": "v1143",
@@ -16,8 +16,8 @@
     "sha": "1a1cca88a368cfd695e22f5e847c133d0fc6162289011c5cb5dc5bd910625dda"
   },
   "profile.js": {
-    "v": "v1186",
-    "sha": "5f34ba26a25987aa5df4abb68745f5219993ab3661650014dd9380167bea8ea2"
+    "v": "v1195",
+    "sha": "3862f5cb2cbce3caa584f81056ec87a9b5f7ccf3a23067c270efb4bbb5f6a5e4"
   },
   "doctorreminder.js": {
     "v": "v1194",
