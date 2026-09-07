@@ -159,21 +159,18 @@ object MoneyHandoverCard {
         body.addView(pick)
         paintPick()
 
-        // ── পাসওয়ার্ড ──
-        val pw = EditText(activity).apply {
-            hint = "Password"
-            textSize = 13.5f
-            setTextColor(Color.parseColor("#101C2E"))
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-            background = box(activity, "#F8FBFE", "#D6E1EE", 10)
-            setPadding(dp(activity, 12), dp(activity, 11), dp(activity, 12), dp(activity, 11))
-            /* 🤫 প্রকল্পের নিয়ম — পাসওয়ার্ড ঘরে কখনো বড় হাতের জোর নয়। */
-            tag = "nocaps"
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { topMargin = dp(activity, 10) }
-        }
-        body.addView(pw)
+        /* 🔔🔒 V1196 (০৭.০৯.২০২৬, TK-নির্দেশ, হুবহু): *"যে স্টাফ হ্যান্ডওভার করে
+           দেবে, এখানে অন্যের পাসওয়ার্ড সেই staff-এর ফোনে কেন দেখাবে? তার জন্য
+           তো একটা নোটিফিকেশন যাওয়া উচিত"* — নিয়ম ৭ মেনে **এখানেও** একই বদল।
+           ⇒ পাসওয়ার্ডের ঘরটা বাদ; নোটিশ যায় শুধু যাঁকে দেওয়া হচ্ছে তাঁর ও
+             মাস্টারের কাছে, তিনি নিজের ফোনে স্বীকার করলে তবেই "received"। */
+        body.addView(TextView(activity).apply {
+            text = "He will get a notification on his own phone and confirm there.\n" +
+                "Until then this day stays as WAITING."
+            textSize = 11.5f
+            setTextColor(Color.parseColor("#7A8794"))
+            setPadding(0, dp(activity, 10), 0, 0)
+        })
 
         // ── দুটো বোতাম ──
         val btns = LinearLayout(activity).apply {
@@ -185,7 +182,7 @@ object MoneyHandoverCard {
         body.addView(btns)
 
         val done = TextView(activity).apply {
-            text = "✅  HAND OVER"
+            text = "Send"
             textSize = 12.5f
             gravity = Gravity.CENTER
             setTypeface(typeface, Typeface.BOLD)
@@ -232,29 +229,16 @@ object MoneyHandoverCard {
         }.start()
 
         done.setOnClickListener {
-            val typed = pw.text?.toString().orEmpty()
-            if (typed.isBlank()) {
-                Toast.makeText(activity, "Enter the password of the person receiving", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
             lock(true)
             val who = chosen
+            val myMobile = try { NativeSession.current(activity)?.mobile.orEmpty() } catch (_: Throwable) { "" }
             Thread {
-                val role = StaffDirectory.findAccount(who.mobile)?.role ?: "doctor"
-                val v = MoneyHandover.verifyPassword(who.mobile, role, typed)
-                val ok = v == MoneyHandover.Verify.OK &&
-                    MoneyHandover.saveHandover(activity, branch, date, cash, who, true, myName)   // 💵 V1038
+                val ok = MoneyHandover.saveHandover(activity, branch, date, cash, who, false, myName, myMobile)
                 activity.runOnUiThread {
                     lock(false)
-                    when {
-                        v == MoneyHandover.Verify.NO_NETWORK ->
-                            Toast.makeText(activity, "Network problem — could not verify. Please try again.", Toast.LENGTH_LONG).show()
-                        v == MoneyHandover.Verify.WRONG ->
-                            Toast.makeText(activity, "Wrong password", Toast.LENGTH_LONG).show()
-                        ok -> finishCard("✓  " + who.name + "  ·  " +
-                            MoneyHandover.money(cash) + "  ·  handed over", "#0B5B2F")
-                        else -> Toast.makeText(activity, "Could not save — please try again", Toast.LENGTH_LONG).show()
-                    }
+                    if (ok) finishCard("⌛  Sent to " + who.name + "  ·  " +
+                        MoneyHandover.money(cash) + "  ·  waiting for confirmation", "#8A5A00")
+                    else Toast.makeText(activity, "Could not save — please try again", Toast.LENGTH_LONG).show()
                 }
             }.start()
         }

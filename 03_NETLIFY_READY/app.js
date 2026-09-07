@@ -24256,15 +24256,34 @@ async function wlv1MhSaveTotals(branch,date,fees,cash,online,refund,grand){
   }catch(e){ return false }
 }
 
+/* 🔔🔒 V1196 (০৭.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, হুবহু): *"যে স্টাফ
+   হ্যান্ডওভার করে দেবে, এখানে J.H MANDAL-এর পাসওয়ার্ড সেই staff-এর ফোনে কেন
+   দেখাবে? তার জন্য তো একটা নোটিফিকেশন যাওয়া উচিত — শুধুমাত্র যাকে টাকাটা বুঝে
+   দেবে তার কাছে আর মাস্টারের কাছে, অন্যান্য কারো কাছে নয়"*।
+   ⇒ আর পাসওয়ার্ড লাগে না; সারিটা **waiting** হয় আর ঠিক দুটো নোটিশ যায়।
+   ⛔ টাকার অঙ্ক · কোন ঘরে জমা — কিছুই বদলায়নি। ফোনের হুবহু একই নিয়ম। */
 async function wlv1MhSaveHandover(branch,date,total,who,byName){
   try{
     var ok=await initCloudClientOnly(); if(!ok||!sb) return false;
     var id=String(branch).trim().toUpperCase()+'|'+date, now=wlv1MhNow();
     var wr=await sb.from('chamber_close').update({
       receivedBy:mob(who.mobile), receivedByName:who.name, receivedAt:now,
-      handoverStatus:'received', handoverByName:byName, updatedAt:now
+      handoverStatus:'waiting', handoverByName:byName, handoverBy:mob((user&&user.mobile)||''), updatedAt:now
     }).eq('id',id).select('id');
-    return !!(wr && !wr.error);
+    if(!wr || wr.error) return false;
+    try{
+      var msg='Branch : '+String(branch)+'\nDate : '+wlv1Dot(date)+
+              '\nAmount : '+wlv1MhMoney(total)+'\nHanded over by : '+byName;
+      var n1={id:uid('brief'),date:today(),title:'Money handover — please confirm',
+        message:msg,targets:{mobiles:[mob(who.mobile)]},branch:String(branch)||'',seen:[],replies:[],
+        createdBy:(user&&user.mobile)||'',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
+      add('briefings',n1); try{ cloudUpsertBriefing(n1) }catch(_e){}
+      var n2={id:uid('brief'),date:today(),title:'Money handover — waiting for confirmation',
+        message:msg+'\nTo : '+String(who.name||''),targets:{roles:['master']},branch:String(branch)||'',seen:[],replies:[],
+        createdBy:(user&&user.mobile)||'',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
+      add('briefings',n2); try{ cloudUpsertBriefing(n2) }catch(_e){}
+    }catch(e){}
+    return true;
   }catch(e){ return false }
 }
 
@@ -24341,16 +24360,32 @@ async function wlv1MoneyHandover(){
         শুধু এই পর্দা কোন অঙ্কটা দেখায় ও কোনটা হাতে বুঝিয়ে দেওয়া হয়। */
   var pend=rows.filter(function(r){ var s=String(r.handoverStatus||''); return !s||s==='pending' })
                .reduce(function(n,r){ return n+Number(r.cashTotal||0) },0);
-  var body='<div class="card" style="background:#8A1810;color:#fff;display:flex;justify-content:space-between;font-weight:800">'
-    +'<span>STILL WITH YOU</span><span>'+wlv1MhMoney(pend)+'</span></div>';
-  if(!rows.length) body+='<div class="card mut">No closed chamber found yet.</div>';
+  /* 🎨 V1196 (TK-র পাশ-করা প্রুফ) — লাল পট্টির বদলে একটাই কার্ড (কত বাকি ·
+     কয় দিন), প্রতিটা দিন এক বাক্সে, ডানদিকে ছোট বোতাম। ফোনের হুবহু একই সাজ। */
+  var pendDays=rows.filter(function(r){ var s=String(r.handoverStatus||''); return !s||s==='pending' }).length;
+  var hist=!!window.__wlv1MhHistory;
+  var body='<div class="card" style="display:flex;padding:0;overflow:hidden">'
+    +'<div style="flex:1;padding:12px 14px"><div class="tiny mut" style="font-weight:800;letter-spacing:.6px">STILL WITH YOU</div>'
+      +'<div style="font-size:20px;font-weight:800;color:#C0392B;margin-top:4px">'+wlv1MhMoney(pend)+'</div></div>'
+    +'<div style="width:1px;background:#EDF2EF;margin:10px 0"></div>'
+    +'<div style="flex:1;padding:12px 14px"><div class="tiny mut" style="font-weight:800;letter-spacing:.6px">DAYS PENDING</div>'
+      +'<div style="font-size:20px;font-weight:800;color:#16232E;margin-top:4px">'+pendDays+'</div></div></div>'
+    +'<div class="actions" style="justify-content:flex-end"><button class="ghost small" onclick="wlv1MhToggleHistory()">'
+      +(hist?'Pending handovers':'Handover History')+'</button></div>';
+  rows=rows.filter(function(r){ return hist ? String(r.handoverStatus||'')==='received' : String(r.handoverStatus||'')!=='received' });
+  if(!rows.length) body+='<div class="card mut">'+(hist?'No handover yet.':'Nothing pending.')+'</div>';
   rows.forEach(function(r,i){
     var st=String(r.handoverStatus||''), tm=wlv1MhTime(r.receivedAt);
-    var line, ink, fill;
-    if(st==='received'){ line='✓ <b>'+esc(String(r.receivedByName||''))+'</b>'+(tm?'  ·  '+tm:''); ink='#0B5B2F'; fill='#EAF7F0'; }
-    else if(st==='waiting'){ line='⌛ <b>'+esc(String(r.receivedByName||''))+'</b>'+(tm?'  ·  '+tm:'')+' — waiting'; ink='#8A5A00'; fill='#FFF6E6'; }
-    else { line='⚠️ Money is still with you — nobody has received it'; ink='#8A1810'; fill='#FDEDEC'; }
-    body+='<div class="card wlv1MhRow"><div style="display:flex;align-items:baseline;gap:10px">'
+    var lbl, sub, ink, fill, strk, rail;
+    if(st==='received'){ lbl='RECEIVED'; sub=esc(String(r.receivedByName||''))+(tm?('  ·  '+esc(wlv1Dot(String(r.receivedAt||'')))+'  ·  '+tm):'');
+      ink='#0A7C3F'; fill='#E8F6ED'; strk='#BFE3CD'; rail='#0F766E'; }
+    else if(st==='waiting'){ lbl='WAITING'; sub='Sent to '+esc(String(r.receivedByName||''))+(tm?('  ·  '+tm):'');
+      ink='#8A5A00'; fill='#FFF6E6'; strk='#F0DCA8'; rail='#E0A800'; }
+    else { lbl='NOT HANDED OVER'; sub='nobody has received it'; ink='#C0392B'; fill='#FDECEA'; strk='#F3C4BE'; rail='#C0392B'; }
+    var line='<span style="display:inline-block;border-radius:9px;padding:5px 10px;font-size:10.5px;font-weight:800;color:'+ink
+      +';background:'+fill+';border:1px solid '+strk+'">'+lbl+'</span>'
+      +'<span class="mut" style="font-size:11.5px;margin-left:8px">'+sub+'</span>';
+    body+='<div class="card wlv1MhRow" style="border-left:5px solid '+rail+'"><div style="display:flex;align-items:baseline;gap:10px">'
       +'<b style="font-size:15px">'+esc(wlv1Dot(String(r.date||'')))+'</b>'
       +'<span class="mut" style="flex:1">'+esc(String(r.branch||''))+'</span>'
       +'<b style="color:#0F5132;font-size:16px">'+wlv1MhMoney(r.cashTotal)+'</b></div>'
@@ -24360,7 +24395,7 @@ async function wlv1MoneyHandover(){
         ? '<div class="tiny mut" style="margin-top:4px">Online '+wlv1MhMoney(r.onlineTotal)+' — came to you directly</div>' : '')
       +'<div style="margin-top:8px;border-radius:8px;padding:9px 12px;color:'+ink+';background:'+fill+'">'+line+'</div>';
     if(!st||st==='pending'){
-      body+='<div class="actions"><button onclick="wlv1MhHandOver('+i+')">💰 HAND OVER NOW</button></div>';
+      body+='<div class="actions" style="justify-content:flex-end"><button class="small" onclick="wlv1MhHandOver('+i+')">Hand over</button></div>';
     }
     body+='</div>';
   });
@@ -24381,27 +24416,33 @@ function wlv1MhHandOver(i){
 }
 window["wlv1MhHandOver"]=wlv1MhHandOver;
 
+/* 🔔 V1196 — পাসওয়ার্ডের বদলে নিশ্চিত করার প্রশ্ন; নোটিশ যায় শুধু তাঁর ও
+   মাস্টারের কাছে, তিনি নিজের ফোনে স্বীকার করলে তবেই সবুজ। */
 function wlv1MhAskPw(k){
   var who=(window.__wlv1MhList||[])[k]; if(!who) return;
+  var r=window.__wlv1MhPick; if(!r) return;
   window.__wlv1MhWho=who;
-  modal('<h2>💰 '+esc(who.name)+'</h2><div class="card">'
-    +'<div class="tiny mut">PASSWORD OF '+esc(who.name)+'</div>'
-    +'<input id="wlv1MhPw" class="input" type="password" autocapitalize="off" autocorrect="off" spellcheck="false" data-nocaps="1"></div>'
+  modal('<h2>💰 Hand over '+wlv1MhMoney(r.cashTotal)+'</h2><div class="card">'
+    +'<div style="font-size:14px">To : <b>'+esc(who.name)+'</b>  ·  '+esc(who.role||'')+'</div>'
+    +'<div class="mut" style="margin-top:8px;font-size:13px">He will get a notification on his own phone and confirm there.<br>'
+    +'Until then this day stays as <b>WAITING</b>.</div></div>'
     +'<div class="actions"><button class="ghost" onclick="closeModal()">Cancel</button>'
-    +'<button onclick="wlv1MhDoHandOver()">Hand over</button></div>');
+    +'<button onclick="wlv1MhDoHandOver()">Send</button></div>');
 }
 window["wlv1MhAskPw"]=wlv1MhAskPw;
 
+function wlv1MhToggleHistory(){
+  window.__wlv1MhHistory=!window.__wlv1MhHistory;
+  wlv1MoneyHandover();
+}
+window["wlv1MhToggleHistory"]=wlv1MhToggleHistory;
+
 async function wlv1MhDoHandOver(){
   var r=window.__wlv1MhPick, who=window.__wlv1MhWho; if(!r||!who) return;
-  var typed=''; try{ typed=$('#wlv1MhPw').value||'' }catch(e){}
-  var v=await wlv1MhVerify(who.mobile, wlv1MhRoleOf(who.mobile), typed);
-  if(v==='NO_NETWORK') return toast('Network problem — could not verify. Please try again.');
-  if(v!=='OK') return toast('Wrong password');
   var byName=(user&&(user.name||user.mobile))||'';
   var ok=await wlv1MhSaveHandover(String(r.branch||''), String(r.date||''), Number(r.cashTotal||0), who, byName);   /* 💵 V1037 */
   if(!ok) return toast('Could not save — please try again');
-  closeModal(); toast('Handed over to '+who.name); wlv1MoneyHandover();
+  closeModal(); toast('Sent to '+who.name+' for confirmation'); wlv1MoneyHandover();
 }
 window["wlv1MhDoHandOver"]=wlv1MhDoHandOver;
 
@@ -24424,10 +24465,12 @@ function wlv1MhAskAtClose(branch,date,total,online){
       ? '<div class="tiny mut" style="font-weight:600;margin-top:4px">Online '+wlv1MhMoney(online)+' — came to you directly</div>' : '')
     +'</div>'
     +'<div class="card"><div class="tiny mut">RECEIVED BY</div>'+opts+'</div>'
-    +'<div class="card"><div class="tiny mut">PASSWORD OF THE PERSON RECEIVING</div>'
-    +'<input id="wlv1MhPw2" class="input" type="password" autocapitalize="off" autocorrect="off" spellcheck="false" data-nocaps="1"></div>'
+    /* 🔔 V1196 (TK-নির্দেশ) — এখানেও আর কারো পাসওয়ার্ড লাগে না; নোটিশ যায়
+       শুধু যাঁকে দেওয়া হচ্ছে তাঁর ও মাস্টারের কাছে (নিয়ম ৭ — একই দোষ সব জায়গায়)। */
+    +'<div class="card mut" style="font-size:13px">He will get a notification on his own phone and confirm there. '
+    +'Until then this day stays as <b>WAITING</b>.</div>'
     +'<div class="actions"><button class="ghost" onclick="wlv1MhNotYet()">Not handed over yet</button>'
-    +'<button onclick="wlv1MhCloseHandOver()">✅ HAND OVER</button></div>');
+    +'<button onclick="wlv1MhCloseHandOver()">Send</button></div>');
 }
 window["wlv1MhAskAtClose"]=wlv1MhAskAtClose;
 
@@ -24435,15 +24478,10 @@ async function wlv1MhCloseHandOver(){
   var r=window.__wlv1MhPick; if(!r) return;
   var k=0; try{ k=parseInt((document.querySelector('input[name="wlv1MhR"]:checked')||{}).value||'0',10) }catch(e){}
   var who=(window.__wlv1MhList||[])[k]; if(!who) return;
-  var typed=''; try{ typed=$('#wlv1MhPw2').value||'' }catch(e){}
-  if(!typed) return toast('Enter the password of the person receiving');
-  var v=await wlv1MhVerify(who.mobile, wlv1MhRoleOf(who.mobile), typed);
-  if(v==='NO_NETWORK') return toast('Network problem — could not verify. Please try again.');
-  if(v!=='OK') return toast('Wrong password');
   var byName=(user&&(user.name||user.mobile))||'';
   var ok=await wlv1MhSaveHandover(r.branch, r.date, Number(r.cashTotal||0), who, byName);   /* 💵 V1037 */
   if(!ok) return toast('Could not save — please try again');
-  closeModal(); toast('Handed over to '+who.name);
+  closeModal(); toast('Sent to '+who.name+' for confirmation');
   if(confirm('Print chamber register now?'))wlv1ChamberRegisterPrint();else chamberAttendance();
 }
 window["wlv1MhCloseHandOver"]=wlv1MhCloseHandOver;

@@ -80,7 +80,9 @@ object MoneyHandover {
         val status: String,
         val receiverName: String,
         val receiverMobile: String,
-        val receivedAt: String
+        val receivedAt: String,
+        val handoverByName: String = "",     // 🔔 V1196 — কে দিয়েছিলেন
+        val handoverBy: String = ""          // 🔔 V1196 — তাঁর মোবাইল (ফেরত-নোটিশের জন্য)
     ) {
         val stillWithStaff: Boolean get() = status.isBlank() || status == "pending"
     }
@@ -99,7 +101,9 @@ object MoneyHandover {
         status = o.s("handoverStatus"),
         receiverName = o.s("receivedByName"),
         receiverMobile = o.s("receivedBy"),
-        receivedAt = o.s("receivedAt")
+        receivedAt = o.s("receivedAt"),
+        handoverByName = o.s("handoverByName"),
+        handoverBy = o.s("handoverBy")
     )
 
     /** সময়টা "5:10 PM" চেহারায় — তারিখ আলাদা করে উপরে থাকে (TK-নির্দেশ)। */
@@ -163,7 +167,7 @@ object MoneyHandover {
      */
     fun saveHandover(
         context: Context?, branch: String, date: String, total: Double,
-        receiver: Receiver, acknowledged: Boolean, byName: String
+        receiver: Receiver, acknowledged: Boolean, byName: String, byMobile: String = ""
     ): Boolean {
         val id = ChamberCloseRepository.idOf(branch, date)
         val now = isoNow()
@@ -173,6 +177,7 @@ object MoneyHandover {
             .put("receivedAt", now)
             .put("handoverStatus", if (acknowledged) "received" else "waiting")
             .put("handoverByName", byName)
+            .put("handoverBy", StaffDirectory.normalizeMobile(byMobile))   // 🔔 V1196
             .put("updatedAt", now)
         val ok = try { SupabaseClient.updateById(TABLE, id, body) } catch (_: Throwable) { false }
         if (ok && context != null && !acknowledged) {
@@ -186,6 +191,18 @@ object MoneyHandover {
                         " handed over by " + byName,
                     "individual", branch, "doctor", "",
                     StaffDirectory.normalizeMobile(receiver.mobile)
+                )
+            } catch (_: Throwable) { }
+            /* 🔔🔒 V1196 (TK-নির্দেশ, হুবহু): *"শুধুমাত্র যাকে টাকাটা বুঝে দেবে
+               তার কাছে আর মাস্টারের কাছে, অন্যান্য কারো কাছে নয়"*।
+               ⇒ ঠিক দুটো নোটিশ — যাঁকে দেওয়া হলো (উপরে) আর মাস্টার (এখানে)। */
+            try {
+                BriefingRepository().post(
+                    context,
+                    "Money handover — waiting for confirmation",
+                    branch.trim() + " · " + dotDate(date) + " · " + money(total) +
+                        " handed over by " + byName + " to " + receiver.name,
+                    "role", branch, "master", "", ""
                 )
             } catch (_: Throwable) { }
         }
@@ -225,12 +242,25 @@ object MoneyHandover {
         val ok = try { SupabaseClient.updateById(TABLE, day.id, body) } catch (_: Throwable) { false }
         if (ok && context != null) {
             try {
+                /* 🔔🔒 V1196 (TK-নির্দেশ) — ফেরত-খবরটা এখন **যে স্টাফ দিয়েছিলেন
+                   তাঁর কাছেই** যায় (আগে ওই ব্রাঞ্চের সব স্টাফের কাছে যেত), আর
+                   মাস্টারের কাছে। ⛔ অন্য কারো কাছে নয়। */
+                val toStaff = StaffDirectory.normalizeMobile(day.handoverBy)
+                if (toStaff.isNotBlank()) {
+                    BriefingRepository().post(
+                        context,
+                        "Money handover confirmed",
+                        day.branch + " · " + dotDate(day.date) + " · " + money(day.cash) +
+                            " received by " + byName,
+                        "individual", day.branch, "staff", "", toStaff
+                    )
+                }
                 BriefingRepository().post(
                     context,
                     "Money handover confirmed",
                     day.branch + " · " + dotDate(day.date) + " · " + money(day.cash) +
                         " received by " + byName,   // 💵 V1039 — শুধু ক্যাশ
-                    "branch", day.branch, "staff", "", ""
+                    "role", day.branch, "master", "", ""
                 )
             } catch (_: Throwable) { }
         }
