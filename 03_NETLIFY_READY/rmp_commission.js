@@ -114,6 +114,8 @@
     var d = doctor(docId); if (!d) return toast('RMP not found');
     if (user && user.role === 'field') { closeModal(); return viewDoctorVisit(docId); }
     var c = await fin(); if (!c) return toast('Could not verify login — try again');
+    // 🔴 V1161 — পর্দা খোলার সঙ্গে সঙ্গেই বাঁধা-না-থাকা রোগীদের জুড়ে দেওয়া।
+    try { await window.wlv1RmpAutolinkOnce(d.branch || (typeof wlv1RmpBranch==='function'?wlv1RmpBranch():'')); } catch (_) {}
     modal('<h2 class="anRmp">Referral Income — ' + esc(d.name || '') + '</h2><div class="card">' +
       '<button onclick="webRmpDefaultForm(\'' + esc(docId) + '\')">RMP Default Commission</button>' +
       '<button onclick="webRmpPatientForm(\'' + esc(docId) + '\')">Patient Commission / Payment</button>' +
@@ -126,6 +128,8 @@
 
   async function webRmpSummary(docId) {
     var d = doctor(docId), c = await fin(); if (!d || !c) return toast('Could not verify login');
+    // 🔴 V1161 — হিসাব দেখানোর ঠিক আগেও একবার (এক ব্রাঞ্চে একবারই চলে)।
+    try { await window.wlv1RmpAutolinkOnce(d.branch || (typeof wlv1RmpBranch==='function'?wlv1RmpBranch():'')); } catch (_) {}
     var r = await c.rpc('rmp_rmp_summary', { p_rmp_id: docId });
     if (r.error || !r.data || !r.data.length) return toast('Could not verify commission summary');
     var a = await c.from('rmp_advance_payments').select('amount,allocated_amount,legacy_covered_amount').eq('rmp_id', docId);
@@ -416,6 +420,22 @@
   window.wlv1RmpAutolink = async function (branch) {
     try { return (await smallRpc('rmp_autolink_refdoctor', { p_branch: branch, p_dry_run: false })) || []; }
     catch (_) { return []; }
+  };
+  /* 🔴🔒 V1161 (০৭.০৯.২০২৬, TK: *"এদের তো ডিফল্ট কমিশন ৪০%, তাহলে আবার রোগী
+     প্রতি কেন কমিশন বসাতে হবে"* — TK ঠিকই বলেছেন)। **কারণ:** উপরের জোড়া
+     লাগানোটা চলত শুধু চেম্বার বন্ধ করার Review পর্দায়; যে রোগী ওই ধাপে পড়েনি
+     তার কমিশন বসেই থাকত না ⇒ পর্দায় ০ ⇒ সারিটা লুকিয়ে যেত।
+     ⇒ এখন **RMP-র পর্দা খুললেই** একই কাজ চলে, এক ব্রাঞ্চে **একবারই**।
+     ⛔ আগে থেকে বাঁধা কমিশন কখনো বদলায় না · ⛔ ব্যর্থ হলে নিঃশব্দে বাদ।
+     ⛔ ফোনের `DoctorVisitActivity`-তে হুবহু একই জায়গা ও একই নিয়ম। */
+  var wlv1RmpAutoDone = {};
+  window.wlv1RmpAutolinkOnce = async function (branch) {
+    try {
+      var br = String(branch || '').trim();
+      if (!br || br === 'All' || wlv1RmpAutoDone[br]) return [];
+      wlv1RmpAutoDone[br] = 1;
+      return await window.wlv1RmpAutolink(br);
+    } catch (_) { return []; }
   };
   window.wlv1RmpDayPaid = async function (branch, date) {
     try { return (await smallRpc('rmp_day_paid', { p_branch: branch, p_date: date })) || []; }

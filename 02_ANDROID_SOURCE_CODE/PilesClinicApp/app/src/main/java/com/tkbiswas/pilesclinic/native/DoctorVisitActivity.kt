@@ -56,6 +56,10 @@ import java.util.Locale
  */
 class DoctorVisitActivity : AppCompatActivity() {
 
+    /** 🔴 V1161 — এই অ্যাপ চালু থাকা পর্যন্ত যে ব্রাঞ্চে জোড়া লাগানো হয়ে গেছে। */
+    private val rmpAutoLinkedBranches = java.util.Collections.synchronizedSet(HashSet<String>())
+
+
     private lateinit var binding: ActivityDoctorvisitBinding
 
     /**
@@ -2406,6 +2410,24 @@ class DoctorVisitActivity : AppCompatActivity() {
                     // Allocated advance is already inside the new payment total;
                     // only the still-unallocated balance is added, preventing double count.
                     if (authReady) {
+                        /* 🔴🔒 V1161 (০৭.০৯.২০২৬, TK: *"এদের তো ডিফল্ট কমিশন ৪০%,
+                           তাহলে আবার রোগী প্রতি কেন কমিশন বসাতে হবে"* — TK ঠিকই
+                           বলেছেন)। **কোডে মেপে পাওয়া কারণ:** রোগীকে RMP-র বাঁধা
+                           হারে নিজে থেকে জুড়ে দেওয়ার কাজটা (`autolinkRefDoctor`,
+                           V1078) চলত **শুধু চেম্বার বন্ধ করার Review পর্দায়**, আর
+                           তখন শুধু ওই ব্রাঞ্চের জন্য। যে রোগী ওই ধাপে পড়েনি তার
+                           কমিশন বসেই থাকত না ⇒ পর্দায় ০ ⇒ সারিটা লুকিয়ে যেত।
+                           ⇒ এখন **RMP-র পর্দা খুললেই** একই জোড়া লাগানো চলে।
+                           ⛔ আগে থেকে বাঁধা কোনো কমিশন কখনো বদলায় না — শুধু যেটা
+                              বাঁধাই হয়নি সেটাই বাঁধা হয় (সার্ভারের একই ফাংশন)।
+                           ⛔ এক ব্রাঞ্চে **একবারই** ডাকা হয় (অ্যাপ চালু থাকা
+                              পর্যন্ত), তাই Egress-এ চাপ পড়ে না।
+                           ⛔ ব্যর্থ হলে নিঃশব্দে বাদ — পর্দা আগের মতোই চলে। */
+                        try {
+                            val br = item.branch.trim()
+                            if (br.isNotBlank() && br != "All" && rmpAutoLinkedBranches.add(br))
+                                RmpCommissionRepository.autolinkRefDoctor(br, dryRun = false)
+                        } catch (_: Throwable) { }
                         val modern = RmpCommissionRepository.rmpSummary(item.id)
                         val advances = RmpCommissionRepository.advancePayments(item.id)
                         val covered = if (advances.ok) (advances.value ?: emptyList()).sumOf { it.legacyCovered } else 0.0
