@@ -566,7 +566,7 @@ class DraftListActivity : AppCompatActivity() {
                             )
                         }
                         Toast.makeText(
-                            this@DraftListActivity, NoBengali.s(if (ok) "Master-কে অনুরোধ পাঠানো হয়েছে" else "পাঠানো গেল না — নেট চেক করুন"),
+                            this@DraftListActivity, NoBengali.s(DeletePermission.lastMessage()),   /* 🔁 V1176 — বার্তাটা এখন `DeletePermission` নিজেই ঠিক করে দেয় (পাঠানো হলো · আগেই পাঠানো · ব্যর্থ)। */
                             Toast.LENGTH_LONG
                         ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                     }
@@ -677,7 +677,7 @@ class DraftListActivity : AppCompatActivity() {
                                             )
                                         }
                                         Toast.makeText(
-                                            this@DraftListActivity, NoBengali.s(if (ok) "Master-কে অনুরোধ পাঠানো হয়েছে" else "পাঠানো গেল না — নেট চেক করুন"),
+                                            this@DraftListActivity, NoBengali.s(DeletePermission.lastMessage()),   /* 🔁 V1176 — বার্তাটা এখন `DeletePermission` নিজেই ঠিক করে দেয় (পাঠানো হলো · আগেই পাঠানো · ব্যর্থ)। */
                                             Toast.LENGTH_LONG
                                         ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                                     }

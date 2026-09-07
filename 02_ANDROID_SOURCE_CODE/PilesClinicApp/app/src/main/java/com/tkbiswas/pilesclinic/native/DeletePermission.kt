@@ -151,6 +151,76 @@ object DeletePermission {
      * মাস্টারের ঘন্টায় অনুরোধ পাঠায়। কিছুই মোছে না।
      * @param what কী মোছার কথা — যেমন "Enquiry" / "Patient" / "Visit"
      */
+    /* ═══════════════════════════════════════════════════════════════════
+       🔁🔒 V1176 (০৭.০৯.২০২৬, TK-নির্দেশ) — **একই অনুরোধ দুবার যাবে না।**
+
+       TK, ছবিসহ: *"একই রিকোয়েস্ট যখন আমার কাছে আগে চলে এসেছে, তাহলে স্টাফকে
+       কেন দেখাবে না যে অটোমেটিক চলে গেছে, আপনাকে আর পাঠাইতে হবে না — এরকম তো
+       একটা Pop up আসার কথা"* (KANAK LAL MONDAL-এর একই Delete Payment অনুরোধ
+       ১২.১৪ PM ও ২.৫৩ PM — দুবার)।
+
+       **কারণ (কোডে মেপে দেখা):** `sendRequest()` কোনো যাচাই ছাড়াই প্রতিবার
+       নতুন নোটিশ পাঠাত — আগে একটা অপেক্ষায় আছে কিনা কেউ দেখত না, আর স্টাফও
+       কোনো ইঙ্গিত পেতেন না।
+
+       **এখন:** অনুরোধ পাঠানোর সঙ্গে সঙ্গে ওই সারির চাবিটা **ফোনেই** মনে রাখা
+       হয়। **একই দিনে** আবার পাঠাতে গেলে নতুন নোটিশ যায় না — বদলে স্টাফ দেখেন
+       *"এই অনুরোধ আগেই পাঠানো হয়েছে (২.৫৩ PM) — আবার পাঠাতে হবে না"*।
+
+       ⛔ **কোনো ক্লাউড-পড়া নেই** (ফ্রি প্ল্যানে বাড়তি খরচ নেই), কোনো নতুন ঘর
+          বা SQL নেই — শুধু ফোনের নিজের জমানো তালিকা।
+       ⛔ **পরদিন আবার পাঠানো যায়** — মাস্টার সিদ্ধান্ত না নিলে স্টাফ যেন
+          চিরতরে আটকে না যান।
+       ⚠️ **সৎ সীমা (TK-কে আগেই জানানো):** এটা ওই স্টাফের **নিজের ফোনে** কাজ
+          করে। অন্য স্টাফ একই অনুরোধ পাঠালে ধরা পড়বে না — তার জন্য মাস্টারের
+          নোটিশ ক্লাউড থেকে পড়তে হত, আর স্টাফের ওই পড়ার অনুমতি আছে কিনা
+          নিশ্চিত নয়।
+       ═══════════════════════════════════════════════════════════════════ */
+    private const val SENT_PREF = "piles_delete_request_sent"
+
+    /** কোন জিনিসের অনুরোধ — সারির নিজের আইডি থাকলে সেটাই, নইলে নম্বর। */
+    private fun sentKey(what: String, rowId: String, mobile: String): String =
+        what.trim().lowercase() + "|" + rowId.trim().ifBlank { mobile.filter { it.isDigit() }.takeLast(10) }
+
+    private fun sentPrefs(context: Context?) =
+        context?.applicationContext?.getSharedPreferences(SENT_PREF, Context.MODE_PRIVATE)
+
+    /** "2.53 PM" ধাঁচে (TK-র লক করা ঘড়ির চেহারা)। */
+    private fun clockOf(millis: Long): String = try {
+        java.text.SimpleDateFormat("h.mm a", java.util.Locale.US).format(java.util.Date(millis))
+    } catch (_: Throwable) { "" }
+
+    /**
+     * আজ এই অনুরোধ আগেই পাঠানো হয়েছে কি? হ্যাঁ হলে **কখন** (যেমন `2.53 PM`),
+     * নইলে `null`। ⛔ কখনো নেটে যায় না, কখনো ব্যতিক্রম ছোড়ে না।
+     */
+    fun alreadySentToday(context: Context?, what: String, rowId: String, mobile: String): String? {
+        return try {
+            val p = sentPrefs(context) ?: return null
+            val v = p.getString(sentKey(what, rowId, mobile), "") ?: ""
+            if (v.isBlank()) return null
+            val parts = v.split("|")
+            if (parts.size != 2 || parts[0] != todayIso()) return null
+            clockOf(parts[1].toLongOrNull() ?: return null).ifBlank { null }
+        } catch (_: Throwable) { null }
+    }
+
+    private fun markSentToday(context: Context?, what: String, rowId: String, mobile: String) {
+        try {
+            sentPrefs(context)?.edit()
+                ?.putString(sentKey(what, rowId, mobile), todayIso() + "|" + System.currentTimeMillis())
+                ?.apply()
+        } catch (_: Throwable) { }
+    }
+
+    /**
+     * শেষ চেষ্টার ফল — স্টাফকে যা দেখানো হবে। `sendRequest()` প্রতিবার এটা
+     * বসিয়ে দেয়, তাই ডাকার জায়গাগুলো শুধু এটাই দেখালেই সঠিক কথা যায়।
+     * ⛔ শুধু **দেখানোর লেখা** — কোনো সিদ্ধান্ত এর উপর নির্ভর করে না।
+     */
+    @Volatile private var lastMsg: String = ""
+    fun lastMessage(): String = lastMsg.ifBlank { "Request sent to Master" }
+
     fun sendRequest(
         context: Context,
         user: NativeUser,
@@ -177,6 +247,12 @@ object DeletePermission {
            caller-দের কিছু বদলায় না। */
         entryDate: String = ""
     ): Boolean {
+        /* 🔁 V1176 — আজ এই অনুরোধ আগেই গেছে? তাহলে নতুন নোটিশ যাবে না। */
+        val already = alreadySentToday(context, what, rowId, mobile)
+        if (already != null) {
+            lastMsg = "Already sent at " + already + " — no need to send again"
+            return false
+        }
         return try {
             val who = StaffDirectory.findAccount(user.mobile)?.name ?: user.mobile
             val sb = StringBuilder()
@@ -212,8 +288,16 @@ object DeletePermission {
                 branch,
                 "master",
                 user.mobile
-            )
-        } catch (_: Throwable) { false }
+            ).also { ok ->
+                /* 🔁 V1176 — সত্যিই গেলে তবেই মনে রাখা হয়; ব্যর্থ হলে নয়,
+                   নইলে নেট ফিরলে স্টাফ আর পাঠাতেই পারতেন না। */
+                lastMsg = if (ok) "Request sent to Master" else "Failed — check the network"
+                if (ok) markSentToday(context, what, rowId, mobile)
+            }
+        } catch (_: Throwable) {
+            lastMsg = "Failed — check the network"
+            false
+        }
     }
 
     /**

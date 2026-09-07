@@ -1201,7 +1201,7 @@ class PaymentActivity : AppCompatActivity() {
                                     } catch (_: Throwable) { false }
                                 }
                                 Toast.makeText(
-                                    this@PaymentActivity, NoBengali.s(if (sent) "Request sent to Master" else "Failed — check the network"),
+                                    this@PaymentActivity, NoBengali.s(DeletePermission.lastMessage()),   /* 🔁 V1176 — বার্তাটা এখন `DeletePermission` নিজেই ঠিক করে দেয় (পাঠানো হলো · আগেই পাঠানো · ব্যর্থ)। */
                                     Toast.LENGTH_LONG
                                 ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                             }

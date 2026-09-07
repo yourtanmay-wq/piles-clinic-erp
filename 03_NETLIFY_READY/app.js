@@ -4114,6 +4114,38 @@ window["activeBriefings"]=activeBriefings;
    থাকবে?") — Approve করলে যে "💬 Reply on: 🗑️ Delete request — ..." নোটিশ
    অনুরোধকারীকে পাঠানো হয় তার টাইটেলেও "delete request" থাকে বলে ভুল করে
    আবার "Approve লাগবে" ধরে নিত। "reply on:" দিয়ে শুরু হওয়া টাইটেল এখন বাদ। */
+/* 🔁🔒 V1176 (০৭.০৯.২০২৬, TK-নির্দেশ — ফোনের হুবহু যমজ) — **একই অনুরোধ দুবার যাবে না।**
+   TK, ছবিসহ: *"একই রিকোয়েস্ট যখন আমার কাছে আগে চলে এসেছে, তাহলে স্টাফকে কেন
+   দেখাবে না যে অটোমেটিক চলে গেছে"*।
+   অনুরোধ পাঠানোর সঙ্গে সঙ্গে ওই সারির চাবিটা **এই ব্রাউজারেই** মনে রাখা হয়;
+   একই দিনে আবার পাঠাতে গেলে নতুন নোটিশ যায় না, বদলে সময়সহ জানানো হয়।
+   ⛔ কোনো ক্লাউড-পড়া নেই · কোনো নতুন ঘর/SQL নেই।
+   ⛔ পরদিন আবার পাঠানো যায় — মাস্টার সিদ্ধান্ত না নিলে কেউ চিরতরে আটকে না যান।
+   ⚠️ সীমা: এই ব্রাউজারেই কাজ করে; অন্য স্টাফ পাঠালে ধরা পড়বে না। */
+var WLV1_DELREQ_KEY='rk_delete_request_sent';
+function wlv1DelReqKey(what,rowId,mobile){
+  var id=String(rowId||'').trim()||String(mobile||'').replace(/\D/g,'').slice(-10);
+  return String(what||'').trim().toLowerCase()+'|'+id;
+}
+function wlv1DelReqSentToday(what,rowId,mobile){
+  try{
+    var o=JSON.parse(localStorage.getItem(WLV1_DELREQ_KEY)||'{}')||{};
+    var v=o[wlv1DelReqKey(what,rowId,mobile)];
+    if(!v||String(v.d||'')!==today()) return '';
+    var t=new Date(Number(v.t||0));
+    if(isNaN(t.getTime())) return '';
+    var h=t.getHours(), ap=h<12?'AM':'PM', h12=(h===0)?12:(h>12?h-12:h);
+    return h12+'.'+String(t.getMinutes()).padStart(2,'0')+' '+ap;
+  }catch(e){ return '' }
+}
+function wlv1DelReqMark(what,rowId,mobile){
+  try{
+    var o=JSON.parse(localStorage.getItem(WLV1_DELREQ_KEY)||'{}')||{};
+    o[wlv1DelReqKey(what,rowId,mobile)]={d:today(),t:Date.now()};
+    localStorage.setItem(WLV1_DELREQ_KEY,JSON.stringify(o));
+  }catch(e){}
+}
+window.wlv1DelReqSentToday=wlv1DelReqSentToday;
 function briefingNeedsApproval(b){let t=String(b?.title||'').toLowerCase();if(t.includes('reply on:'))return false;return t.includes('refund request')||t.includes('delete request')||t.includes('reopen request')||t.includes('leave request')/* 🔵 B618 */}
 window["briefingNeedsApproval"]=briefingNeedsApproval;
 function briefingVisibleForMaster(b){return briefingNeedsApproval(b)||briefingDateOk(b)}
@@ -25301,6 +25333,9 @@ async function wlv1DeleteDraftEntryImpl(table, recId, mobile, branch, entryDate,
       // 🔵 R7 — একসাথে-বাছাইয়ে এই সারিগুলো আগেই বাদ দেওয়া হয়েছে; তবু দ্বিতীয়
       // স্তরের সুরক্ষা হিসেবে এখানে চুপচাপ থেমে যায় (কিছুই মোছে না)।
       if(noConfirm) return false;
+      /* 🔁 V1176 — একই দিনে দ্বিতীয়বার নয়। */
+      var __sentAt2 = wlv1DelReqSentToday(table==='enquiries'?'Enquiry':'Patient', row.id, mm);
+      if(__sentAt2){ if(!noConfirm) toast('Already sent at ' + __sentAt2 + ' — no need to send again'); return; }
       if(!confirm(label+'\n\n⛔ Nothing will be deleted right now.\nThe request goes to Master\'s bell; it will be deleted only after Master approves.\n\nঅনুরোধ পাঠাব?')) return;
       /* 🟢🔒 V1134 (TK-নির্দেশ, ফোনের হুবহু যমজ) — শিরোনামেই **কী মোছা হবে**।
          ⛔ "delete request" শব্দ দুটো অটুট, তাই চেনার নিয়ম আগের মতোই চলে। */
@@ -25313,6 +25348,7 @@ async function wlv1DeleteDraftEntryImpl(table, recId, mobile, branch, entryDate,
         createdBy:(user&&user.mobile)||'',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
       add('briefings',req);
       try{ await cloudUpsertBriefing(req) }catch(_e){}
+      wlv1DelReqMark(table==='enquiries'?'Enquiry':'Patient', row.id, mm);   /* 🔁 V1176 */
       return toast('Master notified');
     }
 
@@ -26229,6 +26265,9 @@ async function wlv1DeletePaymentImpl(payId){
     await wlv1PullBackdateGrantsFromCloud();
 
     if(!wlv1CanDeletePaymentNow(row, true) && !wlv1IsBackdateGranted(String(row.date||'').slice(0,10))){
+      /* 🔁 V1176 — আজ এই অনুরোধ আগেই গেছে? তাহলে নতুন নোটিশ যাবে না। */
+      var __sentAt = wlv1DelReqSentToday('Payment', row.id, row.mobile);
+      if(__sentAt) return toast('Already sent at ' + __sentAt + ' — no need to send again');
       if(!confirm(amtT+' ('+label+')\n\n⛔ Nothing will be deleted right now.\nThe request goes to Master\'s bell; it will be deleted only after Master approves.\n\nঅনুরোধ পাঠাব?')) return;
       /* 🟢🔒 V1134 — শিরোনামে "Payment", আর কোন **তারিখের** টাকা সেটাও (TK-নির্দেশ)। */
       var req={id:uid('brief'),date:today(),title:'🗑️ Payment delete request — '+(row.name||normMob(row.mobile||'')),
@@ -26240,6 +26279,7 @@ async function wlv1DeletePaymentImpl(payId){
         createdBy:(user&&user.mobile)||'',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
       add('briefings',req);
       try{ await cloudUpsertBriefing(req) }catch(_e){}
+      wlv1DelReqMark('Payment', row.id, row.mobile);   /* 🔁 V1176 */
       return toast('Request sent to Master');
     }
 

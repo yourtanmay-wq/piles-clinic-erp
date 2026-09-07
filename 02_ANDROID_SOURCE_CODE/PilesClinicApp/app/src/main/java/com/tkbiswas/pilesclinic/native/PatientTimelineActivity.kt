@@ -2887,7 +2887,7 @@ class PatientTimelineActivity : AppCompatActivity() {
                             }
                             android.widget.Toast.makeText(
                                 this@PatientTimelineActivity,
-                                if (sent) "Master notified" else "Could not send — check connection",
+                                NoBengali.s(DeletePermission.lastMessage()),   /* 🔁 V1176 — বার্তাটা এখন `DeletePermission` নিজেই ঠিক করে দেয় (পাঠানো হলো · আগেই পাঠানো · ব্যর্থ)। */
                                 android.widget.Toast.LENGTH_LONG
                             ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                         }
@@ -3050,7 +3050,7 @@ class PatientTimelineActivity : AppCompatActivity() {
                         )
                     }
                     android.widget.Toast.makeText(
-                        this@PatientTimelineActivity, NoBengali.s(if (ok) "Master-কে অনুরোধ পাঠানো হয়েছে" else "পাঠানো গেল না — নেট চেক করুন"),
+                        this@PatientTimelineActivity, NoBengali.s(DeletePermission.lastMessage()),   /* 🔁 V1176 — বার্তাটা এখন `DeletePermission` নিজেই ঠিক করে দেয় (পাঠানো হলো · আগেই পাঠানো · ব্যর্থ)। */
                         android.widget.Toast.LENGTH_LONG
                     ).show().also { try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }   // 🤫 V774
                 }
