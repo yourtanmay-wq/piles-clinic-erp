@@ -55,7 +55,7 @@
                     android:gravity="center"
                     android:text="N"
                     android:textColor="#FFFFFF"
-                    android:textSize="11sp"
+                    android:textSize="10sp"
                     android:textStyle="bold" />
 
                 <LinearLayout
@@ -72,7 +72,7 @@
                         android:text="All Staff"
                         android:maxLines="1"
                         android:ellipsize="end"
-                        android:textSize="13sp"
+                        android:textSize="10sp"
                         android:textStyle="bold"
                         android:textColor="#14361F" />
 
@@ -102,11 +102,15 @@
                      notice-এর নিচে রাখুন, তাহলে কার্ডটা আরো কম্প্যাক্ট হবে"*।
                      ⛔ `tvTargets`-এর id ও অ্যাডাপ্টারের বাইন্ডিং হুবহু আগের —
                         শুধু জায়গা বদলেছে (নিচের আলাদা লাইন থেকে এখানে)। -->
+                <!-- 🎨🔒 V1163 (০৭.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ "খ") — NOTICE ও
+                     "Seen by N" আগে **উপর-নিচে দুই লাইনে** ছিল, তাই কার্ডের মাথাটাই
+                     দুই লাইন উঁচু হত। এখন **পাশাপাশি এক লাইনে**। ⛔ দুটোরই id ও
+                     অ্যাডাপ্টারের বাইন্ডিং হুবহু আগের — শুধু সাজ। -->
                 <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:gravity="end">
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical|end">
 
                     <TextView
                         android:id="@+id/tvChip"
@@ -114,10 +118,10 @@
                         android:layout_height="wrap_content"
                         android:layout_gravity="end"
                         android:background="@drawable/bg_brief_chip_normal"
-                        android:paddingHorizontal="11dp"
-                        android:paddingVertical="5dp"
+                        android:paddingHorizontal="9dp"
+                        android:paddingVertical="4dp"
                         android:text="NOTICE"
-                        android:textSize="10.5sp"
+                        android:textSize="9sp"
                         android:textStyle="bold"
                         android:textColor="#166534" />
 
@@ -125,8 +129,8 @@
                         android:id="@+id/tvTargets"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_gravity="end"
-                        android:layout_marginTop="3dp"
+                        android:layout_gravity="center_vertical"
+                        android:layout_marginStart="8dp"
                         android:gravity="end"
                         android:text="All Staff"
                         android:textSize="10.5sp"
@@ -138,9 +142,10 @@
                  করেছেন): শিরোনাম এখন গোল "পিল", আর তার পাশে রোগের পিল।
                  ⛔ `tvTitle`-এর id ও অ্যাডাপ্টারের বাইন্ডিং হুবহু আগের। -->
             <LinearLayout
+                android:id="@+id/rowTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
+                android:layout_marginTop="4dp"
                 android:orientation="horizontal">
 
                 <TextView
@@ -148,8 +153,8 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:background="@drawable/bg_brief_chip_normal"
-                    android:paddingHorizontal="14dp"
-                    android:paddingVertical="5dp"
+                    android:paddingHorizontal="12dp"
+                    android:paddingVertical="3dp"
                     android:text="Title"
                     android:textSize="13sp"
                     android:textColor="#12271E" />
@@ -160,8 +165,8 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="9dp"
                     android:background="@drawable/bg_brief_chip_normal"
-                    android:paddingHorizontal="14dp"
-                    android:paddingVertical="5dp"
+                    android:paddingHorizontal="12dp"
+                    android:paddingVertical="3dp"
                     android:text="Disease"
                     android:textSize="13sp"
                     android:textColor="#12271E"
@@ -175,7 +180,7 @@
                 android:id="@+id/rowPatient"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
+                android:layout_marginTop="4dp"
                 android:orientation="horizontal"
                 android:gravity="bottom"
                 android:visibility="gone">
@@ -187,7 +192,7 @@
                     android:maxLines="1"
                     android:ellipsize="end"
                     android:text="NAME"
-                    android:textSize="17sp"
+                    android:textSize="13.5sp"
                     android:textStyle="bold"
                     android:textColor="#0F2118" />
 
@@ -197,7 +202,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="12dp"
                     android:text="+91"
-                    android:textSize="15sp"
+                    android:textSize="12sp"
                     android:textColor="#1A73E8" />
             </LinearLayout>
 
@@ -205,9 +210,9 @@
                 android:id="@+id/tvPatientId"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
+                android:layout_marginTop="3dp"
                 android:text="Patient ID"
-                android:textSize="13.5sp"
+                android:textSize="10.5sp"
                 android:textColor="#7A8791"
                 android:visibility="gone" />
 
@@ -256,9 +261,9 @@
                     android:gravity="center"
                     android:maxLines="1"
                     android:ellipsize="end"
-                    android:paddingVertical="5dp"
+                    android:paddingVertical="4dp"
                     android:text="Approve"
-                    android:textSize="11sp"
+                    android:textSize="10sp"
                     android:textStyle="bold"
                     android:textColor="#FFFFFF"
                     android:visibility="gone" />
@@ -278,9 +283,9 @@
                     android:layout_marginEnd="8dp"
                     android:background="@drawable/bg_brief_btn_dark"
                     android:gravity="center"
-                    android:paddingVertical="5dp"
+                    android:paddingVertical="4dp"
                     android:text="Seen"
-                    android:textSize="11sp"
+                    android:textSize="10sp"
                     android:textStyle="bold"
                     android:textColor="#FFFFFF" />
 
@@ -299,9 +304,9 @@
                     android:layout_marginEnd="8dp"
                     android:background="@drawable/bg_brief_btn_dark"
                     android:gravity="center"
-                    android:paddingVertical="5dp"
+                    android:paddingVertical="4dp"
                     android:text="View"
-                    android:textSize="11sp"
+                    android:textSize="10sp"
                     android:textStyle="bold"
                     android:textColor="#FFFFFF"
                     android:visibility="gone" />
@@ -314,9 +319,9 @@
                     android:layout_marginEnd="8dp"
                     android:background="@drawable/bg_brief_btn_ghost"
                     android:gravity="center"
-                    android:paddingVertical="5dp"
+                    android:paddingVertical="4dp"
                     android:text="Reply"
-                    android:textSize="11sp"
+                    android:textSize="10sp"
                     android:textStyle="bold"
                     android:textColor="#0F172A" />
 
@@ -327,9 +332,9 @@
                     android:layout_weight="1"
                     android:background="@drawable/bg_brief_btn_ghost"
                     android:gravity="center"
-                    android:paddingVertical="5dp"
+                    android:paddingVertical="4dp"
                     android:text="Close"
-                    android:textSize="11sp"
+                    android:textSize="10sp"
                     android:textStyle="bold"
                     android:textColor="#3F4B54" />
             </LinearLayout>

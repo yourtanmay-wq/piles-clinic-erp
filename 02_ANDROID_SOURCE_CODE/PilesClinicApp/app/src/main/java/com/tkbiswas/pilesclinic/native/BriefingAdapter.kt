@@ -214,6 +214,11 @@ class BriefingAdapter(
         // green. Derived from the title only, so NO new data is needed and no
         // existing logic changes. Both branches set every field, so a recycled
         // card never keeps a previous card's colour/chip.
+        /* 🎨🔒 V1163 (০৭.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ "খ") — গোল অক্ষরের
+           চিহ্নটা (avatar) আর দেখানো হয় না; ওটা কোনো তথ্য দিত না, শুধু জায়গা
+           নিত। ⛔ `tvAvatar`-এর id ও নিচের লেখা বসানো হুবহু আগের — শুধু লুকানো,
+           তাই ভবিষ্যতে ফেরাতে চাইলে এক লাইনেই ফেরে। */
+        b.tvAvatar.visibility = View.GONE
         val who = item.branch.ifBlank { item.targetsSummary }.ifBlank { "Notice" }
         val whenTxt = b.tvDate.text?.toString().orEmpty()   // 🎨 V1141 — একই লাইনে তারিখ-সময়
         fun withWhen(base: String) = if (whenTxt.isBlank()) base else "$base \u00b7 $whenTxt"
@@ -251,16 +256,13 @@ class BriefingAdapter(
            বা "Requested by :" নেই, সেখানে পাঠানো স্টাফের কোড/নাম ব্রাঞ্চের পাশে
            বসে। ⛔ চেনা না গেলে (তালিকায় নেই) লাইনটা **হুবহু আগের মতোই** থাকে —
            বানানো কিছু বসানো হয় না। ⛔ প্রমাণিত সেই একই `staffNameFor()`। */
-        if (staffCode == null) {
-            val by = item.createdBy.trim()
-            if (by.isNotBlank()) {
-                val nm = staffNameFor(by)
-                val label = nm ?: by.takeIf { it.any { c -> c.isLetter() } }
-                if (!label.isNullOrBlank() && !who.equals(label, ignoreCase = true)) {
-                    b.tvWho.text = withWhen(if (who.isNotBlank()) "$who · $label" else label)   // 🎨 V1141
-                }
-            }
-        }
+        /* 🎨🔒 V1163 (০৭.০৯.২০২৬, TK-নির্দেশ: *"staff-এর নাম ২ জায়গায় থাকবে না ·
+           উপরে ব্রাঞ্চের পাশে স্টাফের নাম থাকবে না"*) — V1123-এ এখানে ব্রাঞ্চের
+           পাশে পাঠানো স্টাফের নামটা বসত, আর V1141-এ ঠিক সেই নামটাই নিচের
+           **By …** লাইনেও বসে ⇒ নাম দুবার। ⇒ উপরের লাইনে আর বসে না; নামটা
+           নিচের লাইনে একবারই থাকে, তাই কোনো তথ্য হারায় না।
+           ⛔ "Staff :" ও "Requested by :" ধরনের নোটিশে ব্রাঞ্চ ও নাম একসাথে
+              দেখানো হয় না, তাই সেখানে আগের নিয়মই অটুট (নিচে দেখুন)। */
 
         val requestedBy = extractField(item.message, "Requested by")
         if (requestedBy != null) {
@@ -560,8 +562,21 @@ class BriefingAdapter(
                            **কে করেছেন** সেটা বসে। নামটা `createdBy`-তেই ছিল, শুধু
                            খোঁজার চাবি ভুল ছিল (উপরে `staffNameFor` দেখুন)।
                            ⛔ চেনা না গেলে লাইনটাই বসে না — বানানো কিছু দেখানো হয় না। */
+                        /* 🎨🔒 V1163 (০৭.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ "খ") —
+                           শিরোনামের পিলটা (যেমন "New Enquiry") আগে **নিজের একটা
+                           আলাদা লাইন** নিত। এখন সেটা নিচের ধূসর লাইনেই লেখা হিসেবে
+                           বসে, তাই কার্ড থেকে একটা গোটা লাইন কমে গেল।
+                           ⛔ লেখাটা `tvTitle`-এর থেকেই নেওয়া — নতুন কিছু বানানো হয়নি।
+                           ⛔ যে কার্ডে এই ধরনটা খাটে না, সেখানে পিল-সারি আগের মতোই থাকে। */
                         val doneBy = staffNameFor(item.createdBy.trim())
-                        b.tvPatientId.text = if (doneBy != null) "By  $doneBy" else ""
+                        val titleTxt = b.tvTitle.text?.toString().orEmpty().trim()
+                        b.tvPatientId.text = when {
+                            titleTxt.isNotBlank() && doneBy != null -> "$titleTxt  ·  By $doneBy"
+                            doneBy != null -> "By  $doneBy"
+                            titleTxt.isNotBlank() -> titleTxt
+                            else -> ""
+                        }
+                        b.rowTitle.visibility = View.GONE
                         val dis = parts.getOrNull(3).orEmpty()
                         b.tvChipDisease.text = dis
                         b.tvChipDisease.visibility = if (dis.isNotBlank()) View.VISIBLE else View.GONE
@@ -580,6 +595,11 @@ class BriefingAdapter(
                 b.tvPatientId.visibility = View.GONE
                 b.tvChipDisease.visibility = View.GONE
                 b.tvMessage.visibility = View.VISIBLE
+                /* 🎨🔒 V1163 — RecyclerView সারি **পুনর্ব্যবহার** করে, তাই উপরের
+                   ধাপে লুকানো পিল-সারিটা এখানে আবার দেখাতেই হয় — নইলে স্ক্রল
+                   করলে অন্য কার্ডের শিরোনাম চুপচাপ হারিয়ে যেত।
+                   ⛔ প্রকল্পের চিরকালের নিয়ম: প্রতিটা ঘরে **দুই দিকই** বসানো। */
+                b.rowTitle.visibility = View.VISIBLE
             }
         }
 
