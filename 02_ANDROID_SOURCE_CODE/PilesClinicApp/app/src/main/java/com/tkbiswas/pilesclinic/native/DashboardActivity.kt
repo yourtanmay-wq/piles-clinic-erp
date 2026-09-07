@@ -83,7 +83,26 @@ class DashboardActivity : AppCompatActivity() {
             return
         }
 
-        binding.tvWelcome.text = "Welcome, ${user.name}"
+        /* 👤🔒 V1168 (০৭.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ "ক") — TK:
+           *"কাকে ওয়েলকাম জানানো হচ্ছে তার নামটাই তো কেটে গেছে · এখানে স্টাফ
+           কোড নাম্বার থাকবে না, এখানে স্টাফের সম্পূর্ণ নাম থাকবে"*, আর
+           *"welcome এক লাইনে, নিচের লাইনে ফুল নাম"*।
+           ⛔ V1138-এ TK নিজেই এক লাইন চেয়েছিলেন — এখন তিনিই দু'লাইন চাইলেন,
+              তাই XML-এ `maxLines` ১ → ২; লেখাটা আর কাটে না।
+           ⛔ নামটা আসে **ফোনে আগে থেকেই জমানো** স্টাফ-তালিকা থেকে
+              (`CloudStaffDirectory` — দিনে একবার নবায়ন হয়); নতুন কোনো
+              ক্লাউড-পড়া বানানো হয়নি, তাই ফ্রি প্ল্যানে বাড়তি খরচ নেই।
+           ⛔ জমানো তালিকায় না পেলে আগের লেখাটাই (সেশনের নাম) বসে। */
+        renderWelcome(welcomeFullName(user))
+        /* 🧵 তালিকা পুরনো হলে (এক দিনের বেশি) নিঃশব্দে নবায়ন — নাম পাওয়া গেলে
+           সঙ্গে সঙ্গে বসিয়ে দেওয়া হয়। ⛔ ব্যর্থ হলে কিছুই বদলায় না। */
+        BackgroundWork.run {
+            try {
+                CloudStaffDirectory.refreshIfStale(applicationContext)
+                val fresh = welcomeFullName(user)
+                runOnUiThread { if (!isFinishing && !isDestroyed) renderWelcome(fresh) }
+            } catch (_: Throwable) { }
+        }
         val roleLabel = user.displayRole.replaceFirstChar { it.uppercase() }
         binding.tvRoleBranch.text = if (user.branch == "All") roleLabel else "$roleLabel · ${user.branch}"
 
@@ -1304,6 +1323,31 @@ class DashboardActivity : AppCompatActivity() {
         tile.tvIcon.text = icon
         tile.tvLabel.text = label
         tile.root.setOnClickListener { onClick() }
+    }
+
+    /** ফোনে জমানো তালিকা থেকে সম্পূর্ণ নাম; না পেলে সেশনের লেখাটাই। */
+    private fun welcomeFullName(user: NativeUser): String {
+        val cached = try {
+            CloudStaffDirectory.cachedNameFor(applicationContext, user.mobile)
+        } catch (_: Throwable) { null }
+        return cached?.takeIf { it.isNotBlank() } ?: user.name
+    }
+
+    /** TK-অনুমোদিত "ক": উপরে ছোট করে `Welcome,`, নিচের লাইনে বড় করে পুরো নাম। */
+    private fun renderWelcome(fullName: String) {
+        val head = "Welcome,\n"
+        val sp = android.text.SpannableStringBuilder(head + fullName)
+        /* উপরের লাইন — ছোট, হালকা রং, মোটা নয় (XML-এ পুরোটা bold, তাই খোলা হয়)। */
+        sp.setSpan(android.text.style.RelativeSizeSpan(11f / 14f), 0, head.length,
+            android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        sp.setSpan(android.text.style.ForegroundColorSpan(android.graphics.Color.parseColor("#CFE8D8")),
+            0, head.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        sp.setSpan(android.text.style.StyleSpan(android.graphics.Typeface.NORMAL), 0, head.length,
+            android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        /* নিচের লাইন — নামটাই বড়, সাদা ও মোটা। */
+        sp.setSpan(android.text.style.RelativeSizeSpan(15f / 14f), head.length, sp.length,
+            android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        binding.tvWelcome.text = sp
     }
 
     private fun confirmLogout() {

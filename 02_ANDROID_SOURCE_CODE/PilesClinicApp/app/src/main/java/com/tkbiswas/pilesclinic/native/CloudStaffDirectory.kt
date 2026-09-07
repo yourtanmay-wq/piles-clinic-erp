@@ -186,6 +186,38 @@ object CloudStaffDirectory {
         return found
     }
 
+    /**
+     * 👤🔒 V1168 (০৭.০৯.২০২৬, TK-নির্দেশ) — এই মোবাইলের **সম্পূর্ণ নাম**
+     * (`hr.staff_profiles.full_name`), ড্যাশবোর্ডের "Welcome" লাইনে দেখানোর জন্য।
+     *
+     * TK: *"এখানে স্টাফ কোড নাম্বার থাকবে না, এখানে স্টাফের সম্পূর্ণ নাম থাকবে"*।
+     *
+     * ⛔ **কখনো নেটে যায় না** — `cachedCodeFor`-এর হুবহু একই নিয়মে শুধু ফোনে
+     *    জমানো তালিকাটাই পড়ে, তাই মূল থ্রেড থেকেও ডাকা নিরাপদ।
+     * ⛔ নাম না পেলে (বা নামের ঘরে কোডই বসানো থাকলে) `null` — তখন ডাকার
+     *    জায়গা আগের লেখাটাই দেখায়, কিছু খারাপ হয় না।
+     */
+    fun cachedNameFor(ctx: Context, mobile: String): String? {
+        val target = StaffDirectory.normalizeMobile(mobile)
+        if (target.length != 10) return null
+        var found: String? = null
+        try {
+            val txt = prefs(ctx).getString(KEY_JSON, "") ?: ""
+            if (txt.isNotBlank()) {
+                val arr = JSONArray(txt)
+                for (i in 0 until arr.length()) {
+                    val o = arr.optJSONObject(i) ?: continue
+                    if (StaffDirectory.normalizeMobile(o.s("mobile")) != target) continue
+                    val n = o.s("full_name").trim()
+                    val c = o.s("person_code").trim()
+                    /* ⛔ নামের ঘরে কোডই বসানো থাকলে ওটা "সম্পূর্ণ নাম" নয়। */
+                    if (n.isNotBlank() && !n.equals(c, ignoreCase = true)) { found = n; break }
+                }
+            }
+        } catch (_: Throwable) { found = null }
+        return found
+    }
+
     /** 📋 V755 — ফোনে জমানো সব অ্যাকাউন্ট (তালিকা দেখানোর জন্য)।
      *  ⛔ **কখনো নেটে যায় না** — শুধু জমানোটা পড়ে, তাই মূল থ্রেডেও নিরাপদ।
      *

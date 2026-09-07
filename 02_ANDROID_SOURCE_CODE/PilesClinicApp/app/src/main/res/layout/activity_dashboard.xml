@@ -154,6 +154,11 @@
                 android:layout_marginStart="14dp"
                 android:orientation="vertical">
 
+                <!-- 👤🔒 V1168 (০৭.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ "ক") — TK:
+                     *"welcome এক লাইনে, নিচের লাইনে ফুল নাম"*। তাই maxLines
+                     ১ → ২। নিচের V1138-এর নোটটা রাখা হলো, কারণ তখনকার নিয়মটা
+                     TK নিজেই বদলেছেন — মুছলে ইতিহাস হারাত।
+                     ⛔ id/রং/মাপ কিছুই বদলায়নি, শুধু দ্বিতীয় লাইন খুলল। -->
                 <!-- 🎨🔒 V1138 (০৬.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — TK:
                      *"welcome লেখাটা ফন্ট সাইজ ছোট হবে · TK BISWAS এক লাইনে হবে"*।
                      লেখা ছোট হওয়ায় "Welcome, TK BISWAS" আর দু'লাইনে ভাঙে না।
@@ -166,7 +171,7 @@
                     android:text="Welcome"
                     android:textColor="@color/white"
                     android:textSize="14sp"
-                    android:maxLines="1"
+                    android:maxLines="2"
                     android:ellipsize="end"
                     android:textStyle="bold" />
 
