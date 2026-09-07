@@ -48,7 +48,10 @@
   // "HH:mm" (২৪-ঘণ্টা) -> "h.mm AM/PM" — ফোনের displayTime12()-এর হুবহু একই লজিক
   function displayTime12(hhmm) {
     if (!hhmm) return '';
-    var p = String(hhmm).split(':'); if (p.length !== 2) return hhmm;
+    /* 🔴🔒 V1162 (০৭.০৯.২০২৬, TK-নির্দেশ · ফোনের হুবহু যমজ) — "Fix Attendance"
+       দিয়ে সময় শুধরালে ঘরে বসে `HH:mm:ss` (তিন টুকরো), অথচ শর্ত ছিল ঠিক দুই
+       টুকরো ⇒ ওই সারিগুলো কাঁচা **09:15:00** হয়ে দেখাত। এখন দুটোই চেনে। */
+    var p = String(hhmm).split(':'); if (p.length !== 2 && p.length !== 3) return hhmm;
     var h24 = parseInt(p[0], 10); if (isNaN(h24)) return hhmm;
     var ampm = h24 < 12 ? 'AM' : 'PM';
     var h12 = h24 === 0 ? 12 : (h24 > 12 ? h24 - 12 : h24);

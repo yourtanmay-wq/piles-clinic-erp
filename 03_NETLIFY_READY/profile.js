@@ -1118,6 +1118,15 @@
     return 'This entry: <b>' + mny(got) + '</b> of ' + mny(full) + ' — the rest goes to the<br>other staff (enquiry and registration by two different people).';
   }
 
+  /* 🔴 V1162 — "09:15" বা "09:15:00" → "9.15 AM"। চেনা না গেলে যা এসেছে তাই। */
+  function salAttTime12(raw){
+    var t = String(raw || '').trim(); if(!t) return '';
+    var p = t.split(':'); if(p.length !== 2 && p.length !== 3) return t;
+    var h24 = parseInt(p[0], 10); if(isNaN(h24)) return t;
+    var ap = h24 < 12 ? 'AM' : 'PM';
+    var h12 = h24 === 0 ? 12 : (h24 > 12 ? h24 - 12 : h24);
+    return h12 + '.' + p[1] + ' ' + ap;
+  }
   function salDmy(v){
     var t = String(v || '').trim();
     var mm = /^(\d{4})-(\d{2})-(\d{2})/.exec(t);
@@ -1971,7 +1980,10 @@
       } else if (ctx.kind === 'reports') {
         main = r.report_date || ''; sub = (r.status || 'sent') + (r.accepted ? ' · seen' : '');
       } else if (ctx.kind === 'attendance') {
-        main = r.work_date || ''; sub = 'IN ' + (r.check_in || '—') + ' · OUT ' + (r.check_out || '—') + (r.is_leave ? ' · Leave' : '');
+        /* 🔴🔒 V1162 (০৭.০৯.২০২৬, TK-নির্দেশ · ফোনের হুবহু যমজ) — তারিখ ও সময়
+           এখানে **কাঁচা** বসত (`2026-09-07` · `09:15:00`)। এখন প্রকল্পের এক
+           চেহারায়: `07/09/2026` ও `9.15 AM`। ⛔ জমা লেখায় হাত পড়েনি। */
+        main = salDmy(r.work_date || ''); sub = 'IN ' + (salAttTime12(r.check_in) || '—') + ' · OUT ' + (salAttTime12(r.check_out) || '—') + (r.is_leave ? ' · Leave' : '');
       }
       return '<div ' + (clickable ? 'onclick="perfWebDrillDetail(' + i + ')" ' : '') + 'style="padding:11px 2px;' + (i ? 'border-top:1px solid #E3ECE7;' : '') + (clickable ? 'cursor:pointer;' : '') + '">' +
         '<div style="display:flex;justify-content:space-between;gap:8px"><b style="color:#123A26;font-size:14px">' + m.esc(main) + '</b>' + (clickable ? '<span style="color:#9AA8B5">&rsaquo;</span>' : '') + '</div>' +

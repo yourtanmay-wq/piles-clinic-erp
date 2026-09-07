@@ -3246,9 +3246,13 @@ class StaffProfileActivity : AppCompatActivity() {
                         text = t; textSize = 12.5f; setTextColor(android.graphics.Color.parseColor(color))
                         layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, w)
                     }
+                    /* 🔴🔒 V1162 (০৭.০৯.২০২৬, TK-নির্দেশ) — হাজিরার এই তালিকায়
+                       সময় দুটো **কাঁচা ২৪-ঘণ্টার লেখাই** বসত (`09:15` / `09:15:00`),
+                       অথচ প্রকল্পের বাকি সব জায়গায় `9.15 AM`। ⇒ এখন এখানেও এক নিয়ম।
+                       ⛔ ডেটাবেসে আগের মতোই ২৪-ঘণ্টা জমা থাকে — শুধু দেখানোটা বদলাল। */
                     tr.addView(cell(dmy(ns(row, "work_date")), 1.1f, "#123A26"))
-                    tr.addView(cell(ns(row, "check_in").ifBlank { "\u2014" }, 1f, "#0A7C3F"))
-                    tr.addView(cell(ns(row, "check_out").ifBlank { "\u2014" }, 1f, "#B42318"))
+                    tr.addView(cell(attTime12(ns(row, "check_in")).ifBlank { "\u2014" }, 1f, "#0A7C3F"))
+                    tr.addView(cell(attTime12(ns(row, "check_out")).ifBlank { "\u2014" }, 1f, "#B42318"))
                     tr.addView(cell(if (isLeave) "\u2713" else "\u2014", 0.8f, if (isLeave) "#B45309" else "#5B6B81"))
                     sheet.addView(tr)
                     if (i < rows.length() - 1) sheet.addView(android.view.View(this).apply {
@@ -3574,7 +3578,21 @@ class StaffProfileActivity : AppCompatActivity() {
     private val xGroupDue = HashMap<String, Boolean>()      // 💰 V1050 — কিছু বাকি আছে কি
     private val xGroupState = HashMap<String, String>()     // DUE · PAID · PART DUE
 
-    /** `2026-08-22T21:14:00Z` → `22.08.2026  9:14 PM` (সময় না থাকলে শুধু তারিখ)। */
+    /** 🔴 V1162 — `"09:15"` বা `"09:15:00"` → `"9.15 AM"`। চেনা না গেলে যা এসেছে
+     *  তাই ফেরে (কখনো ফাঁকা নয়)। ⛔ WorkNotebook-এর `displayTime12()`-এর একই নিয়ম। */
+    private fun attTime12(raw: String): String {
+        val t = raw.trim()
+        if (t.isBlank()) return ""
+        val p = t.split(":")
+        if (p.size != 2 && p.size != 3) return t
+        val h24 = p[0].toIntOrNull() ?: return t
+        val mi = p[1]
+        val ampm = if (h24 < 12) "AM" else "PM"
+        val h12 = when { h24 == 0 -> 12; h24 > 12 -> h24 - 12; else -> h24 }
+        return "$h12.$mi $ampm"
+    }
+
+    /** `2026-08-22T21:14:00Z` → `22/08/2026 : 9.14 PM` (সময় না থাকলে শুধু তারিখ)। */
     private fun whenText(iso: String): String {
         val t = iso.trim()
         if (t.length < 10) return ""

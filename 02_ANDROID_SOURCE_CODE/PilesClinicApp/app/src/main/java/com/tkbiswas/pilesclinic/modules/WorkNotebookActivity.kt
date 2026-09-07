@@ -2313,7 +2313,12 @@ class WorkNotebookActivity : AppCompatActivity() {
      *  নমুনার হুবহু ফরম্যাট ("9.30 AM")। */
     private fun displayTime12(hhmm: String): String {
         if (hhmm.isBlank()) return ""
-        val p = hhmm.split(":"); if (p.size != 2) return hhmm
+        /* 🔴🔒 V1162 (০৭.০৯.২০২৬, TK: *"টাইম-পিকারের ভিতরের ২৪-ঘণ্টার ঘর"*)।
+           **মেপে পাওয়া দোষ:** "Fix Attendance" দিয়ে সময় শুধরালে ঘরে বসে
+           `HH:mm:ss` (তিন টুকরো), অথচ এখানে শর্ত ছিল ঠিক দুই টুকরো ⇒ ওই
+           সারিগুলো পর্দায় ও WhatsApp-এ কাঁচা **09:15:00** হয়ে দেখাত।
+           ⇒ এখন দুই ও তিন টুকরো দুটোই চেনে। ⛔ জমা লেখায় হাত পড়েনি। */
+        val p = hhmm.split(":"); if (p.size != 2 && p.size != 3) return hhmm
         val h24 = p[0].toIntOrNull() ?: return hhmm
         val m = p[1]
         val ampm = if (h24 < 12) "AM" else "PM"

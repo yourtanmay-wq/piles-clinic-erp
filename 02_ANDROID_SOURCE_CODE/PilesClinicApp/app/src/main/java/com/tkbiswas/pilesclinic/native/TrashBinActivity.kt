@@ -372,7 +372,7 @@ class TrashBinActivity : AppCompatActivity() {
             box.addView(card)
             // 🗑 কে মুছেছেন, কখন — Trash-এর নিজের তথ্য, কার্ডে থাকে না
             val who = TrashCardText.deletedByName(item)
-            val whenT = TrashCardText.whenText(item).replace("\n", "  ")
+            val whenT = TrashCardText.whenText(item)   // 🔴 V1162 — লাইন-ভাঙা আর নেই
             val line = listOf(who, whenT).filter { it.isNotBlank() }.joinToString("  ·  ")
             if (line.isNotBlank()) {
                 box.addView(TextView(this).apply {

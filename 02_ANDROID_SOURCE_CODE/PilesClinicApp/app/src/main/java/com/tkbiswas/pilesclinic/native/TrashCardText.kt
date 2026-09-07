@@ -54,7 +54,11 @@ object TrashCardText {
         return try {
             val d = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
                 .parse(item.deletedAt) ?: return ""
-            java.text.SimpleDateFormat("dd/MM/yyyy\nh.mm a", java.util.Locale.US).format(d)
+            /* 🔴 V1162 (০৭.০৯.২০২৬, TK: *"২ আর ৩ করুন"*) — তারিখ ও সময় এখন
+               **এক লাইনে**, প্রকল্পের লক করা চেহারায়: `31/12/2026 : 3.15 PM`।
+               ⛔ আগে মাঝে লাইন-ভাঙা ছিল, আর ডাকার জায়গায় সেটাকে ", " বা "  "
+                  দিয়ে বদলানো হত — তাই তিন জায়গায় তিন রকম দেখাত। */
+            java.text.SimpleDateFormat("dd/MM/yyyy : h.mm a", java.util.Locale.US).format(d)
         } catch (_: Throwable) { "" }
     }
 
@@ -73,7 +77,7 @@ object TrashCardText {
      * ⛔ দুটো তথ্যই অক্ষত, কোনো ঘর/হিসাব বদলায়নি — শুধু দেখানোর জায়গা।
      */
     fun whenAndBy(item: TrashItem): String {
-        val w = whenText(item).replace("\n", ", ")
+        val w = whenText(item)   // 🔴 V1162 — লাইন-ভাঙা আর নেই
         val by = deletedByName(item)
         return when {
             w.isNotBlank() && by.isNotBlank() -> "🗑 $w · Deleted by $by"
@@ -258,7 +262,7 @@ object TrashCardText {
         add("Created by", "createdBy")
         val by = deletedByName(item)
         if (by.isNotBlank()) out.add("Deleted by" to by)
-        val w = whenText(item).replace("\n", "  ")
+        val w = whenText(item)   // 🔴 V1162 — লাইন-ভাঙা আর নেই
         if (w.isNotBlank()) out.add("Deleted at" to w)
         val rid = r.s("id").trim()
         if (rid.isNotBlank()) out.add("Record ID" to rid)
