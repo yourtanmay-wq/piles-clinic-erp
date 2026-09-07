@@ -9018,7 +9018,15 @@ function viewFollow(id){
          কত নম্বর রিমার্ক) সঙ্গে রাখা হয়। ⛔ দেখানোর লেখা/ক্রম/গণনা — কিছুই
          বদলায়নি, শুধু দুটো বাড়তি ঘর যোগ হলো। */
       if(e.id)timeline.push({type:'Enquiry',date:e.date||e.createdAt,by:e.receivedBy||e.createdBy,note:e.remarks||'',status:e.status||e.stage,_eid:e.id});
-      (x.history||[]).forEach((h,hi)=>timeline.push({type:h.status||'Follow-up',date:h.date,by:h.staff,note:h.remark,next:h.nextFollow,_fid:x.id,_hidx:hi}));
+      /* 🗂️🔒 V1170 — এখানেও একই নিয়ম (নিয়ম ৭: এক দোষ পেলে পুরো প্রজেক্টে):
+         রেজিস্ট্রেশনের অটো-চিহ্ন দুটো History-তে সারি হয়ে বসবে না।
+         ⛔ `hi` (সংশোধনের চাবি) আসল সূচকই থাকে — ভিতরে বাদ দেওয়া হয়, তাই
+            পুরনো "Note সংশোধন" (V512) এক অক্ষরও ভাঙে না। */
+      (x.history||[]).forEach((h,hi)=>{
+        if(p&&p.id&&['registered patient / visit created','converted to patient registration']
+             .indexOf(String(h.remark||'').trim().toLowerCase())>=0)return;
+        timeline.push({type:h.status||'Follow-up',date:h.date,by:h.staff,note:h.remark,next:h.nextFollow,_fid:x.id,_hidx:hi});
+      });
       /* ✏️🔒 V736 — সংশোধনের চাবি `_pid` (কোন রোগীর সারি)। ⛔ দেখানোর লেখা,
          ক্রম, গণনা — কিছুই বদলায়নি, শুধু একটা বাড়তি ঘর। */
       if(p.id)timeline.push({type:'Registration / Visit',date:p.registrationDate||p.visitDate||p.date,by:p.registeredBy||p.createdBy,note:wlv1RegistrationNote(p),status:'Visit',_pid:p.id});
@@ -14723,7 +14731,21 @@ function patientHistoryDesktop(id){
  // exactly the same merge/dedupe rule the phone app's Full Journey already uses.
  let allFollowups=load('followups').filter(x=>mob(x.mobile)===mm);
  let seenHist=new Set(),rows=[];
+ /* 🗂️🔒 V1170 (০৭.০৯.২০২৬, TK-অনুমতি — ফোনের হুবহু যমজ) — TK:
+    *"22/08/2026: 1.06 PM-এ ২ রকম সারি কেন?"*
+    রেজিস্ট্রেশন **একটাই কাজ**, কিন্তু অ্যাপ তিন জায়গায় লেখে: ① `patients` সারি
+    (`Registration / Visit` — আসল তথ্য, এটাই থাকবে) ② পুরনো Inquiry বন্ধ করার
+    নোট `Converted to Patient Registration` ③ নতুন Patient সারির অটো-নোট
+    `Registered patient / Visit created`। ②③ অ্যাপের নিজের বসানো চিহ্ন — কেউ ফোন
+    করেননি, নতুন কোনো তথ্যও দেয় না; তবু "Called By" সেজে কল-গোনায় ঢুকত।
+    ⇒ **শুধু History পর্দায়** ওই দুটো সারি আর দেখানো হয় না।
+    ⛔ ডেটাবেসে কিচ্ছু বদলায় না — `followups.history` অক্ষত, যেকোনো দিন ফেরানো যায়।
+    ⛔ **সুরক্ষা:** রোগীর নিজের সারিটা না থাকলে কিছুই লুকানো হয় না (নইলে ওই
+       দিনের একমাত্র প্রমাণটাই হারাত)। ⛔ লেখা হুবহু মিললে তবেই। */
+ var WLV1_AUTO_STUBS=['registered patient / visit created','converted to patient registration'];
+ var wlv1HideAutoStub=!!(p&&p.id);
  allFollowups.forEach(f=>(f.history||[]).forEach(h=>{
+  if(wlv1HideAutoStub&&WLV1_AUTO_STUBS.indexOf(String(h.remark||'').trim().toLowerCase())>=0)return;
   // 🔒 খাতার সারি (Claude, 09.08.2026 — TK-অনুমোদিত প্রুফ · ওয়েব↔Android মিল):
   // প্রতিটা কথা আলাদা সারিতেই থাকে (আগেও তাই — শুধু হুবহু ডুপ্লিকেট এক হয়);
   // key-তে সময় যোগ — একই দিনে/একই রিমার্কে ভিন্ন সময়ের কথা আর মিশে যাবে না।

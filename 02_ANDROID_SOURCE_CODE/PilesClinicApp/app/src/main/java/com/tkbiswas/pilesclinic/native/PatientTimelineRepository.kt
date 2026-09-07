@@ -1185,6 +1185,54 @@ object PatientTimelineRepository {
         // Any accidental extra fee is deliberately left visible rather than
         // hidden.  Report Card and every non-History caller retain the old
         // behaviour because this is gated by separateRowsPerEvent.
+        /* 🗂️🔒 V1170 (০৭.০৯.২০২৬, TK-অনুমতি: *"হ্যাঁ অনুমতি দিলাম,
+           লুকিয়ে দিন সাবধানে, কোনো ভালো কাজ যেন খারাপ না হয়"*)
+
+           TK, AMIT MAJUMDAR-এর History-র ছবিসহ: *"22/08/2026: 1.06 PM-এ ২ রকম
+           সারি কেন?"*
+
+           **কারণ (কোডে প্রমাণিত, আন্দাজে নয়):** ১.০৬ PM-এ স্টাফ **একটাই কাজ**
+           করেছেন — রেজিস্ট্রেশন। কিন্তু ওই এক কাজে অ্যাপ তিন জায়গায় লেখে:
+             ① `patients` সারি ⇒ `Registration / Visit` (অভিযোগ · Duration ·
+                আগের চিকিৎসা — **আসল তথ্য, এটাই থাকবে**)
+             ② পুরনো Inquiry সারিটা বন্ধ করার সময় তার খাতায়
+                `Converted to Patient Registration` (`RegistrationRepository.kt`)
+             ③ নতুন Patient সারিটা তৈরির সময় তার খাতায়
+                `Registered patient / Visit created` (`PatientModel.kt`)
+           ②③ দুটোই **অ্যাপের নিজের বসানো চিহ্ন** — কেউ ফোন করেননি, নতুন কোনো
+           তথ্যও দেয় না। তবু History-তে সারি হয়ে বসত, আর ধরন না থাকায়
+           **"Called By" সেজে `Enquiry Calls` গোনায়ও ঢুকত** (ছবিতে ৫, আসলে ৩)।
+
+           **এই নিয়মটা করে (V1090/B680-এর হুবহু প্রমাণিত ধাঁচ):** শুধু
+           **History পর্দায়** (`separateRowsPerEvent`) ওই দুটো সারি দেখানো হয় না।
+
+           ⛔ ডেটাবেসে কিচ্ছু বদলায় না — `followups.history` অক্ষত, ক্লাউডেও
+              হুবহু আগের লেখা; TK চাইলে যেকোনো দিন ফেরানো যায় (এক শর্ত সরালেই)।
+           ⛔ Report Card · Chamber · Draft · Follow-up কার্ড — **একটাও ছোঁয়া
+              হয়নি** (এটা শুধু History-র শাখায়)।
+           ⛔ **সুরক্ষা:** `Registration / Visit` সারিটা যদি কোনো কারণে না থাকে
+              (রোগীর সারি মুছে গেছে), তখন কিছুই লুকানো হয় না — নইলে ওই দিনের
+              একমাত্র প্রমাণটাই হারিয়ে যেত।
+           ⛔ শুধু ফলো-আপের খাতার সারি (`followUpHistoryId`) — কোনো পেমেন্ট বা
+              রেজিস্ট্রেশন সারি এই নিয়মে কখনো পড়ে না।
+           ⛔ লেখাটা **হুবহু** মিললে তবেই; স্টাফের নিজের লেখা কিছু বাদ যায় না। */
+        run {
+            try {
+                val hasReg = entries.any { it.title.equals("Registration / Visit", ignoreCase = true) }
+                if (separateRowsPerEvent && hasReg) {
+                    val autoStubs = setOf(
+                        "registered patient / visit created",
+                        "converted to patient registration"
+                    )
+                    entries.removeAll { e ->
+                        !e.followUpHistoryId.isNullOrBlank() &&
+                            e.paymentId == null &&
+                            autoStubs.contains(e.note.trim().lowercase())
+                    }
+                }
+            } catch (_: Throwable) { /* ⛔ ব্যর্থ হলে আগের মতোই সব সারি দেখাবে */ }
+        }
+
         val displayEntries = if (separateRowsPerEvent) {
             val regIndex = entries.indexOfFirst { it.title.equals("Registration / Visit", ignoreCase = true) }
             if (regIndex >= 0) {
