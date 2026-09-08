@@ -15997,7 +15997,15 @@ function medicinePaymentHome(){
       '<button type="button" id="medTypeSal" class="btn medTypeBtn" onclick="medSetType(\'salinePayment\')">💧 SALINE</button>'+
     '</div></div>'+
     '<div id="medBranchWrap"><label>Branch</label><select id="medBranch" class="input" onchange="medRenderHistory()">'+(isMaster()?branchOptions(user.branch==='All'?'':user.branch):'<option selected>'+esc(user.branch)+'</option>')+'</select></div>'+
-    '<label>Patient Mobile / Name</label><input id="medCust" class="input" placeholder="Patient name or mobile" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">'+
+    /* 🔍🔒 V1228 (০৮.০৯.২০২৬, TK-অনুমতি) — এতদিন এই ঘরে যা টাইপ হত তা শুধু
+       নাম হিসেবেই জমত, রোগীর **নম্বর ও Patient ID কিছুই জমত না** (V1227-এর
+       আসল কারণ)। ⇒ এখন টাইপ করলেই রোগীর তালিকা থেকে মিল দেখায়; একজনকে বাছলে
+       তাঁর নম্বর ও ID পাকাপাকি সারিতে জমা হয়।
+       ⛔ ঘরটার লেখা/জায়গা বদলায়নি; না বাছলেও আগের মতোই সেভ হয় (তখন V1227-এর
+          নিয়মে নম্বর খোঁজা হয়) — কোনো পুরনো পথ বন্ধ হয়নি। */
+    '<label>Patient Mobile / Name</label><input id="medCust" class="input" placeholder="Patient name or mobile" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" oninput="medPatSuggest(this.value)">'+
+    '<div id="medPatBox" style="display:none;border:1px solid #D6E0EA;border-radius:10px;margin-top:4px;max-height:190px;overflow:auto;background:#fff"></div>'+
+    '<div id="medPatPicked" class="tiny" style="color:#0A7C3F;font-weight:700;margin-top:4px"></div>'+
     '<label id="medLblProduct">Medicine / Product Name</label>'+
     '<div id="medMeds"><div class="medRow"><input class="input medProdInp" placeholder="Medicine / product name" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"><button type="button" class="ghost medDel" onclick="this.closest(\'.medRow\').remove()">✕</button></div></div>'+
     '<button type="button" class="ghost medAddBtn" onclick="medAddRow()">＋ Add Medicine</button>'+
@@ -16283,6 +16291,46 @@ function medTotalHtml(rows){
   var label=__medFilter==='today'?"TODAY'S MEDICINE SALE":__medFilter==='7'?'LAST 7 DAYS SALE':__medFilter==='30'?'LAST 30 DAYS SALE':__medFilter==='pick'?('SALE ON '+esc(wlv1Dot(__medPick))):__medFilter==='range'?('STATEMENT '+esc(wlv1Dot(__medFrom))+' – '+esc(wlv1Dot(__medTo))):'MEDICINE SALE';   /* 🆕 V847 */
   return '<div class="medTotBox"><div class="medTotL">'+label+'</div><div class="medTotN">'+money(tot)+' · '+rows.length+' '+(rows.length===1?'sale':'sales')+'</div><div class="medTotS">Cash '+money(cash)+' · Online '+money(onl)+'</div></div>';
 }
+/* 🔍🔒 V1228 — রোগী খোঁজা ও বাছা। ⛔ কোনো নতুন ক্লাউড-পড়া নেই —
+   ফোনে/ব্রাউজারে আগে থেকেই নামানো `patients` তালিকা থেকেই খোঁজে।
+   ⛔ শুধু নিজের ব্রাঞ্চের রোগী (`scoped`) — বাকি পর্দার মতোই। */
+var __medPickedMobile='', __medPickedPid='';
+function medPatSuggest(q){
+  var box=document.getElementById('medPatBox'), tag=document.getElementById('medPatPicked');
+  // নতুন করে টাইপ করলে আগের বাছাই বাতিল — নইলে অন্য রোগীর নম্বর জুড়ে যেত
+  __medPickedMobile=''; __medPickedPid=''; if(tag)tag.textContent='';
+  var t=String(q||'').trim().toUpperCase();
+  if(!box)return;
+  if(t.length<3){ box.style.display='none'; box.innerHTML=''; return; }
+  var digits=t.replace(/\D/g,'');
+  var rows=[];
+  try{
+    var all=scoped(load('patients'))||[];
+    for(var i=0;i<all.length && rows.length<8;i++){
+      var x=all[i]; if(!x)continue;
+      var nm=String(x.name||'').toUpperCase(), mm=mob(x.mobile), pid=String(x.patientId||'').toUpperCase();
+      if((nm&&nm.indexOf(t)>-1)||(digits&&mm.indexOf(digits)>-1)||(pid&&pid.indexOf(t)>-1))rows.push(x);
+    }
+  }catch(e){}
+  if(!rows.length){ box.style.display='none'; box.innerHTML=''; return; }
+  box.innerHTML=rows.map(function(x){
+    return '<div onclick="medPickPatient(\''+esc(mob(x.mobile))+'\',\''+esc(String(x.patientId||''))+'\',\''+esc(String(x.name||'').replace(/'/g,''))+'\')" '+
+      'style="padding:9px 11px;border-bottom:1px solid #EEF3F0;cursor:pointer;font-size:13px">'+
+      '<b>'+esc(String(x.name||'').toUpperCase())+'</b><br>'+
+      '<span style="color:#5B6B82;font-size:11.5px">+91 '+esc(mob(x.mobile))+(x.patientId?(' \u00b7 '+esc(x.patientId)):'')+'</span></div>';
+  }).join('');
+  box.style.display='block';
+}
+function medPickPatient(mobile,pid,name){
+  var inp=document.getElementById('medCust'); if(inp)inp.value=name||mobile||'';
+  __medPickedMobile=mob(mobile); __medPickedPid=String(pid||'');
+  var box=document.getElementById('medPatBox'); if(box){box.style.display='none';box.innerHTML=''}
+  var tag=document.getElementById('medPatPicked');
+  if(tag)tag.textContent='\u2713 +91 '+__medPickedMobile+(__medPickedPid?(' \u00b7 '+__medPickedPid):'');
+}
+window["medPatSuggest"]=medPatSuggest;
+window["medPickPatient"]=medPickPatient;
+
 function saveMedicinePayment(action){
   var cust=($('#medCust').value||'').trim(),prod=medCollect(),bill=Number($('#medBill').value||0),dep=Number($('#medDep').value||0),br=($('#medBranch')&&$('#medBranch').value)||user.branch;
   /* 🔴 V437 #15 — ফোনে তিনটে আলাদা বার্তা (FieldError.validate), ওয়েবে একটাই ছিল */
@@ -16293,9 +16341,16 @@ function saveMedicinePayment(action){
   /* 🔴 V1227 — টাইপ করা লেখাটা নম্বর হলে (বা নামে ঠিক একজনই মিললে) সেই
      নম্বরটা এখনই সারিতে জমা থাকে, তাই ভবিষ্যতে আর খুঁজতে হয় না ও রোগীর
      হিসাবের সঙ্গে জুড়ে যায়। ⛔ না মিললে ঘরটা ফাঁকাই থাকে — আন্দাজে কিছু নয়। */
-  var __medMob=''; try{ __medMob=wlv1MedResolveMobile({customer:cust}) }catch(_e){}
-  var row={id:uid('prd'),kind:__medType,   /* 🆕 V805 */ customer:cust||'Walk-in',mobile:__medMob,product:prod,bill:bill,total:bill,deposit:dep,due:Math.max(0,bill-dep),mode:(String($('#medMode').value||'').toUpperCase()==='CASH'?'CASH':'ONLINE'),   /* 🔴 V437 — নিচের টীকা দেখুন */remarks:'',date:(__medActualDate||today()),branch:br,   /* 🔄 V849 */receivedBy:user.mobile,createdBy:user.mobile,createdAt:isoNow()};
+  /* 🔍 V1228 — স্টাফ তালিকা থেকে বেছে থাকলে সেটাই সবচেয়ে নির্ভরযোগ্য;
+     না বাছলে V1227-এর খোঁজা নিয়ম আগের মতোই চলে। */
+  var __medMob='', __medPid='';
+  try{
+    if(__medPickedMobile){ __medMob=__medPickedMobile; __medPid=__medPickedPid; }
+    else __medMob=wlv1MedResolveMobile({customer:cust});
+  }catch(_e){}
+  var row={id:uid('prd'),kind:__medType,   /* 🆕 V805 */ customer:cust||'Walk-in',mobile:__medMob,patientId:__medPid,product:prod,bill:bill,total:bill,deposit:dep,due:Math.max(0,bill-dep),mode:(String($('#medMode').value||'').toUpperCase()==='CASH'?'CASH':'ONLINE'),   /* 🔴 V437 — নিচের টীকা দেখুন */remarks:'',date:(__medActualDate||today()),branch:br,   /* 🔄 V849 */receivedBy:user.mobile,createdBy:user.mobile,createdAt:isoNow()};
   add('products',row);
+  __medPickedMobile=''; __medPickedPid='';   // 🔍 V1228 — পরের সেভে যেন পুরনো বাছাই না থাকে
   toast('Medicine payment saved');
   if(action==='share')medShareReceipt(row);
   else if(action==='print')medPrintReceipt(row);
