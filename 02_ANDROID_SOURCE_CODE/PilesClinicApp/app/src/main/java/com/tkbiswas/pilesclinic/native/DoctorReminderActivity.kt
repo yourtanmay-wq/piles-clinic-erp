@@ -115,8 +115,10 @@ class DoctorReminderActivity : AppCompatActivity() {
     private fun cellBox(fill: String = "#FBFDFC", stroke: String = "#E7ECEA"): LinearLayout =
         LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = box(fill, stroke, 14)
-            setPadding(dp(12), dp(10), dp(12), dp(10))
+            background = box(fill, stroke, 13)
+            /* 📏 V1202 (TK-নির্দেশ ও ফটো-প্রুফ পাশ: *"প্রতিটা ঘর এবং প্রতিটা
+               বক্সের উচ্চতা আরো কম হবে"*) — ভিতরের উপর-নিচের ফাঁক ১০ → ৬dp। */
+            setPadding(dp(12), dp(6), dp(12), dp(6))
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply { topMargin = dp(8) }
@@ -130,10 +132,10 @@ class DoctorReminderActivity : AppCompatActivity() {
         android.widget.Button(this).apply {
             this.text = text
             isAllCaps = false
-            textSize = 13f
+            textSize = 12.5f
             minWidth = 0; minimumWidth = 0
             gravity = android.view.Gravity.CENTER
-            setPadding(dp(14), dp(8), dp(14), dp(8))
+            setPadding(dp(14), dp(5), dp(14), dp(5))   // 📏 V1202 — পাতলা বোতাম
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(android.graphics.Color.parseColor(textHex))
             background = box("#FFFFFF", borderHex, 12).apply {
@@ -174,13 +176,15 @@ class DoctorReminderActivity : AppCompatActivity() {
 
         // উপরে শিরোনাম + ছোট "+ New" (আগের বড় সবুজ বার নয় — TK-র পাশ-করা প্রুফ)
         col.addView(rowOf(
-            tv("Doctor Note & Reminder", 19f, "#0B4F2A").apply {
+            /* 📏 V1202 (TK: *"এই লেখাটা আরও ছোট হবে"*) — ১৯ → ১৫.৫sp। */
+            tv("Doctor Note & Reminder", 15.5f, "#0B4F2A").apply {
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             },
             android.widget.Button(this).apply {
-                text = "+ New"; isAllCaps = false; textSize = 13.5f
+                text = "+ New"; isAllCaps = false; textSize = 12.5f
                 minWidth = 0; minimumWidth = 0
-                setPadding(dp(16), dp(9), dp(16), dp(9))
+                /* 📏 V1202 (TK: *"+ New উচ্চতা আরো কম হবে"*) — ৯ → ৫dp। */
+                setPadding(dp(15), dp(5), dp(15), dp(5))
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setTextColor(android.graphics.Color.WHITE)
                 background = android.graphics.drawable.GradientDrawable().apply {
@@ -198,7 +202,8 @@ class DoctorReminderActivity : AppCompatActivity() {
                 textSize = 22f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setTextColor(android.graphics.Color.parseColor("#0B4F2A"))
-                setPadding(dp(14), dp(4), dp(4), dp(4))
+                /* 📏 V1202 (TK: *"+New ও ৩ ডটের মধ্যে গ্যাপ থাকবে আরো"*) — ১৪ → ৩০dp। */
+                setPadding(dp(30), dp(4), dp(4), dp(4))
                 isClickable = true
                 setOnClickListener { v ->
                     try {
@@ -326,9 +331,6 @@ class DoctorReminderActivity : AppCompatActivity() {
                     }
                 }.start()
             })
-            acts.addView(tv("  Not accepted yet", 12f, "#8A5A00", bold = true).apply {
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            })
         } else if (showAccept && DoctorReminderRepository.canCancel(r, user)) {
             /* 🚫 V1194 — ভুল করে পাঠানো হলে **যিনি পাঠিয়েছেন** বাতিল করতে পারেন
                (Accept হওয়ার আগে পর্যন্ত)। ⛔ সারিটা মোছে না — History-তে থাকে। */
@@ -350,13 +352,6 @@ class DoctorReminderActivity : AppCompatActivity() {
                 dlg.show()
                 try { PremiumAlert.paint(dlg) } catch (_: Throwable) { }
             })
-            acts.addView(tv("  Not accepted yet  ·  sent by you", 12f, "#8A5A00", bold = true).apply {
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            })
-        } else if (showAccept) {
-            acts.addView(tv("Not accepted yet", 12f, "#8A5A00", bold = true).apply {
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-            })
         }
         /* 🙈 V1193 (TK-নির্দেশ) — শুধু **এই ব্যক্তির** হোম ও ঘন্টা থেকে সরে;
            তালিকা ও History-তে সারিটা আগের মতোই থাকে, কেউ কিছু হারায় না। */
@@ -369,6 +364,17 @@ class DoctorReminderActivity : AppCompatActivity() {
                     }
                 }.start()
             })
+        }
+        /* ↔️ V1202 (TK-নির্দেশ) — বোতামগুলো **পাশাপাশি সমান চওড়া**।
+           লেখা-ঘর (Accepted ...) থাকলে সেটাই জায়গা নেয়, বোতাম নয়। */
+        run {
+            var onlyBtn = acts.childCount > 0
+            for (i in 0 until acts.childCount) if (acts.getChildAt(i) !is android.widget.Button) onlyBtn = false
+            if (onlyBtn) for (i in 0 until acts.childCount) {
+                val lp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                lp.leftMargin = if (i == 0) 0 else dp(8)
+                acts.getChildAt(i).layoutParams = lp
+            }
         }
         bd.addView(acts)
         return wrap
@@ -589,28 +595,36 @@ class DoctorReminderActivity : AppCompatActivity() {
             ))
         })
 
-        // ── দিন ও সময় পাশাপাশি ──
-        val dateLine = tv("Not chosen", 13.5f, "#8A93A0")
-        val timeLine = tv("Not chosen", 13.5f, "#8A93A0")
-        fun pickCell(label: String, line: TextView, btn: String, onPick: () -> Unit, last: Boolean): LinearLayout =
+        /* ✂️ V1202 (০৮.০৯.২০২৬, TK-নির্দেশ, হুবহু): *"reminder day not choosen /
+           time not choosen — এই ডেমি লেখাগুলো থাকবে না"* ⇒ আলাদা "Not chosen"
+           লাইনটা তুলে দেওয়া হলো; **বাছা দিন/সময় বোতামের গায়েই** লেখা ওঠে।
+           ঘরের উচ্চতাও তাই কমে। ⛔ কী সেভ হয় — এক অক্ষরও বদলায়নি। */
+        val dateBtn = miniBtn("Pick Date", "#B45309", "#E0A800") { }
+        val timeBtn = miniBtn("Pick Time", "#B45309", "#E0A800") { }
+        fun pickCell(label: String, b: android.widget.Button, onPick: () -> Unit, last: Boolean): LinearLayout =
             cellBox().apply {
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                     .apply { topMargin = dp(8); if (!last) rightMargin = dp(8) }
                 addView(capLabel(label))
-                addView(line)
-                addView(miniBtn(btn, "#B45309", "#E0A800") { onPick() }.apply {
+                addView(b.apply {
                     layoutParams = LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-                    ).apply { topMargin = dp(7) }
+                    ).apply { topMargin = dp(5) }
+                    var lastTap = 0L
+                    setOnClickListener {
+                        val now = android.os.SystemClock.elapsedRealtime()
+                        if (now - lastTap < 900L) return@setOnClickListener
+                        lastTap = now
+                        onPick()
+                    }
                 })
             }
         sheet.addView(rowOf(
-            pickCell("REMIND DAY", dateLine, "Pick Date", {
+            pickCell("REMIND DAY", dateBtn, {
                 val c = java.util.Calendar.getInstance()
                 val dp = android.app.DatePickerDialog(this, { _, y, m, d ->
                     remindDate = String.format(java.util.Locale.US, "%04d-%02d-%02d", y, m + 1, d)
-                    dateLine.text = dmy(remindDate)
-                    dateLine.setTextColor(android.graphics.Color.parseColor("#0B2B1C"))
+                    dateBtn.text = dmy(remindDate)
                 }, c.get(java.util.Calendar.YEAR), c.get(java.util.Calendar.MONTH),
                     c.get(java.util.Calendar.DAY_OF_MONTH))
                 /* 📅🔒 V1201 (০৮.০৯.২০২৬, TK-রিপোর্ট, হুবহু): *"রিমাইন্ডার আবার
@@ -622,12 +636,11 @@ class DoctorReminderActivity : AppCompatActivity() {
                 try { dp.datePicker.minDate = System.currentTimeMillis() - 1000 } catch (_: Throwable) { }
                 dp.show()
             }, false),
-            pickCell("TIME", timeLine, "Pick Time", {
+            pickCell("TIME", timeBtn, {
                 val c = java.util.Calendar.getInstance()
                 android.app.TimePickerDialog(this, { _, h, mi ->
                     remindTime = String.format(java.util.Locale.US, "%02d:%02d", h, mi)
-                    timeLine.text = time12(remindTime)
-                    timeLine.setTextColor(android.graphics.Color.parseColor("#0B2B1C"))
+                    timeBtn.text = time12(remindTime)
                 }, c.get(java.util.Calendar.HOUR_OF_DAY), c.get(java.util.Calendar.MINUTE), false).show()
             }, true)
         ))

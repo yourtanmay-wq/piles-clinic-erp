@@ -231,26 +231,28 @@
     var accepted=!!String(x.acceptedAt||'');
     var rail=accepted?'#0F766E':'#E0A800';
     function cell(l,v,last){
-      return '<div style="flex:1;background:#FBFDFC;border:1px solid #E7ECEA;border-radius:14px;padding:9px 12px;margin-top:8px'+(last?'':';margin-right:8px')+'">'+
+      return '<div style="flex:1;background:#FBFDFC;border:1px solid #E7ECEA;border-radius:13px;padding:6px 12px;margin-top:8px'+(last?'':';margin-right:8px')+'">'+
         '<div style="font-size:10.5px;color:#8B98A9;font-weight:700;letter-spacing:.8px">'+l+'</div>'+
         '<div style="font-size:12.5px;color:#0B2B1C;font-weight:700;margin-top:3px">'+(v||'—')+'</div></div>';
     }
+    /* ✂️↔️ V1202 (০৮.০৯.২০২৬, TK-নির্দেশ, হুবহু): *"not accept yet sent by you
+       (এই লেখাটা ওখানে থাকবে না) · cancel hide এই বক্স দুটো পাশাপাশি থাকবে,
+       উচ্চতা আরো কম হবে"* ⇒ লেখাগুলো বাদ, বোতাম দুটো **সমান চওড়ায় পাশাপাশি**
+       আর পাতলা। ⛔ কে Accept করতে পারে · কী সেভ হয় — কিছুই বদলায়নি।
+       (ফোনের DoctorReminderActivity-র হুবহু যমজ।) */
+    var BSTY='flex:1;padding:5px 10px;font-size:12.5px;min-width:0';
     var acts='';
     if(withAccept && canAccept(x)){
-      acts='<button class="small" style="margin-right:10px" onclick="drRemAccept(\''+esc2(x.id)+'\')">Accept</button>'+
-           '<span style="flex:1;color:#8A5A00;font-weight:700;font-size:12px">Not accepted yet</span>';
+      acts='<button class="small" style="'+BSTY+'" onclick="drRemAccept(\''+esc2(x.id)+'\')">Accept</button>';
     } else if(accepted){
       acts='<span style="flex:1;color:#0A7C3F;font-weight:700;font-size:12px">Accepted  ·  '+esc2(x.acceptedByName||'')+'  ·  '+esc2(stamp(x.acceptedAt))+'</span>';
-    } else {
-      acts='<span style="flex:1;color:#8A5A00;font-weight:700;font-size:12px">Not accepted yet</span>';
     }
     /* 🙈 V1193 — "Hide": শুধু এই ব্যক্তির হোম ও ঘন্টা থেকে সরে; তালিকা ও
        History-তে সারিটা অটুট থাকে, কেউ কিছু হারায় না। */
     if(withAccept && canCancel(x)){
-      acts='<button class="small ghost" style="border-color:#C0392B;color:#C0392B;margin-right:10px" onclick="drRemCancel(\''+esc2(x.id)+'\')">Cancel</button>'+
-           '<span style="flex:1;color:#8A5A00;font-weight:700;font-size:12px">Not accepted yet  ·  sent by you</span>';
+      acts='<button class="small ghost" style="border-color:#C0392B;color:#C0392B;'+BSTY+'" onclick="drRemCancel(\''+esc2(x.id)+'\')">Cancel</button>';
     }
-    if(withAccept) acts+='<button class="small ghost" onclick="drRemHide(\''+esc2(x.id)+'\')">Hide</button>';
+    if(withAccept) acts+='<button class="small ghost" style="'+BSTY+'" onclick="drRemHide(\''+esc2(x.id)+'\')">Hide</button>';
     return '<div style="display:flex;background:#fff;border:1px solid #E7ECEA;border-radius:16px;overflow:hidden;margin-bottom:10px">'+
       '<div style="width:6px;background:'+rail+'"></div>'+
       '<div style="flex:1;padding:14px 16px">'+
@@ -261,7 +263,7 @@
         '<div style="display:flex">'+cell('FOR',esc2(x.forName||'All doctors'),false)+
           cell('BY',esc2(x.byName||'')+(x.byBranch?(' · '+esc2(x.byBranch)):''),true)+'</div>'+
         (x.remindDate?('<div style="margin-top:8px;background:#FFFBF0;border:1px solid #F0E0BC;border-radius:14px;padding:10px 12px;font-size:12.5px;color:#B45309;font-weight:700">Remind on  '+esc2(dmy(x.remindDate))+(x.remindTime?('  ·  '+esc2(time12(x.remindTime))):'')+'</div>'):'')+
-        '<div style="display:flex;align-items:center;margin-top:10px">'+acts+'</div>'+
+        '<div style="display:flex;align-items:center;gap:8px;margin-top:9px">'+acts+'</div>'+
       '</div></div>';
   }
 
@@ -319,8 +321,11 @@
     /* 🎨 V1193 (TK-র পাশ-করা প্রুফ) — উপরে ছোট "+ New", একটাই কার্ড,
        আর **Back একদম নিচে** (TK-নির্দেশ: *"Back একদম ডিসপ্লের নিচে থাকবে"*)। */
     document.getElementById('app').innerHTML='<div class="wrap">'+
-      '<div class="topbar"><b>Doctor Note &amp; Reminder</b>'+
-      '<button class="small" onclick="drRemNew()">+ New</button>'+
+      /* 📏 V1202 (TK-নির্দেশ): *"doctor note and reminders এই লেখাটা আরও ছোট হবে ·
+         + New উচ্চতা আরো কম হবে · +New ও ৩-ডটের মধ্যে গ্যাপ থাকবে আরো"* */
+      '<div class="topbar"><b style="font-size:15.5px">Doctor Note &amp; Reminder</b>'+
+      '<button class="small" style="padding:5px 12px;font-size:12.5px" onclick="drRemNew()">+ New</button>'+
+      '<span style="width:18px;display:inline-block"></span>'+
       /* V1194 (TK-নির্দেশ): "রিমাইন্ডার হিস্টরি উপরে ডান সাইডে ৩ ডট থাকবে
          তার মধ্যে থাকতে হবে" — ফোনের PopupMenu-র যমজ। */
       '<button class="ghost" style="min-width:0;padding:6px 12px;font-size:19px;font-weight:700" onclick="drRemMenu()">\u22EE</button></div>'+
@@ -381,7 +386,9 @@
      ⛔ যা সেভ হয় (`drRemSend`) তার এক অক্ষরও বদলায়নি — একই ঘর, একই সারি। */
   function drRemNew(){
     DR_PICKED=null; DR_FOR=['',''];
-    var CELL='background:#FBFDFC;border:1px solid #E7ECEA;border-radius:14px;padding:11px 13px;margin-top:9px';
+    /* 📏 V1202 (TK-নির্দেশ): *"প্রতিটা ঘর এবং প্রতিটা বক্সের উচ্চতা আরো কম হবে"*
+       — ফোনের cellBox()-এর হুবহু যমজ মাপ (১১ → ৬px)। */
+    var CELL='background:#FBFDFC;border:1px solid #E7ECEA;border-radius:13px;padding:6px 12px;margin-top:8px';
     var CAP='font-size:10.5px;color:#8B98A9;font-weight:700;letter-spacing:.8px';
     document.getElementById('app').innerHTML='<div class="wrap"><div class="topbar"><b>New Reminder</b></div>'+
       '<div class="page"><div class="card">'+
