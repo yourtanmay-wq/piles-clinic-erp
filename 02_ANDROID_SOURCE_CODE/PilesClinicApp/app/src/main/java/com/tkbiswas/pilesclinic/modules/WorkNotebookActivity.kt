@@ -2760,6 +2760,31 @@ class WorkNotebookActivity : AppCompatActivity() {
     // ছোট বাক্সের গ্রিড: প্রতিটা ঘর (Enquiry/Registration/Today Patient/
     // App Calls/রিসিভ ফোন/Total call) এখন একটা ছোট, বর্ডার-করা বাক্সে
     // — উপরে ছোট লেবেল, নিচে বড় সংখ্যা/ইনপুট। শুধু এই ফাইলে ব্যবহৃত।
+
+    /* 🔆🔒 V1204 (০৮.০৯.২০২৬, TK-নির্দেশ, হুবহু): *"যেগুলো দিল সেগুলো উজ্জ্বলতা
+       কম থাকলে ঠিক আছে, কিন্তু যেখানে সংখ্যা আছে সেগুলোর উজ্জ্বলতা বেশি হতে হবে —
+       আজকের কল ০ হলে কম, আজকের পেশেন্ট ২ হলে বেশি"*।
+       ⇒ ঘরের সংখ্যাটা ০-র বেশি হলে গাঢ় ও বোল্ড; ০ বা ফাঁকা বা "…" হলে হালকা ধূসর।
+       ⛔ কোনো সংখ্যা বদলায় না — শুধু রং। EditText-এও চলে, তাই স্টাফ টাইপ করার
+         সঙ্গে সঙ্গেই রং বদলায় (TextWatcher)। */
+    private fun brightIfNonZero(tv: TextView) {
+        fun paint() {
+            val t = tv.text?.toString()?.trim() ?: ""
+            val bright = (t.replace(",", "").toDoubleOrNull() ?: 0.0) > 0.0
+            tv.setTextColor(android.graphics.Color.parseColor(if (bright) "#0B2B59" else "#B9C0C8"))
+            tv.typeface = android.graphics.Typeface.create(
+                android.graphics.Typeface.DEFAULT,
+                if (bright) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL
+            )
+        }
+        paint()
+        tv.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) { paint() }
+        })
+    }
+
     private fun gridCell(label: String, valueView: View): LinearLayout {
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -2780,6 +2805,7 @@ class WorkNotebookActivity : AppCompatActivity() {
             if (valueView is TextView) {
                 valueView.textSize = 16f; valueView.setPadding(0, 0, 0, 0); valueView.background = null
                 valueView.setTypeface(valueView.typeface, android.graphics.Typeface.BOLD)
+                brightIfNonZero(valueView)   // 🔆 V1204
             }
             addView(valueView)
         }
@@ -3098,7 +3124,14 @@ class WorkNotebookActivity : AppCompatActivity() {
         col.addView(hero(
             if (isKishanganjStaff) "🗒️ Today Work" else "🗒️ Today Work / আজকের কাজ",
             todayIso() + " · " + staffCode, 14f,
-            listOf("📌 Plan My Day" to { planMyDayFlow() })
+            /* ⋮🔒 V1204 (০৮.০৯.২০২৬, TK-নির্দেশ, হুবহু): *"monthly report · my reports —
+               উপরে ডান সাইডে এলজি থ্রি ডটের মধ্যে থাকবে"*। নিচের ছোট নীল লিংক
+               দুটো তুলে দিয়ে এখানে বসানো হলো — খোলা পর্দা দুটো এক অক্ষরও বদলায়নি। */
+            listOf(
+                "📌 Plan My Day" to { planMyDayFlow() },
+                "📊 Monthly Report" to { report("monthly", todayIso().substring(0, 7)) },
+                "🗂️ My Reports" to { history() }
+            )
         ))
 
         val form = ModuleUi.card(this); col.addView(form)
@@ -3407,9 +3440,8 @@ class WorkNotebookActivity : AppCompatActivity() {
             isClickable = true; isFocusable = true
             setOnClickListener { onClick() }
         }
-        linksRow.addView(smallLink("📊 Monthly Report") { report("monthly", todayIso().substring(0, 7)) })
-        linksRow.addView(smallLink("🗂️ My Reports") { history() })
-        col.addView(linksRow)
+        /* ⋮ V1204 — দুটো লিংকই এখন উপরের ⋮ মেনুতে (TK-নির্দেশ)। `smallLink`
+           ও `linksRow` মোছা হয়নি (TK-নিয়ম: নিজে থেকে কোড মোছা হয় না)। */
     }
 
     // 🔴 B342 — Daily-র জন্য এখন একটাই বোতাম: (১) Outside Calls/Notes সেভ,
@@ -3770,8 +3802,8 @@ class WorkNotebookActivity : AppCompatActivity() {
                     }
                     addView(TextView(this@WorkNotebookActivity).apply { text = label; textSize = 9.5f; setTextColor(android.graphics.Color.parseColor("#6B7280")) })
                     addView(TextView(this@WorkNotebookActivity).apply {
-                        text = value; textSize = 15f; setTypeface(typeface, android.graphics.Typeface.BOLD)
-                        setTextColor(android.graphics.Color.parseColor("#0B2B59"))
+                        text = value; textSize = 15f
+                        brightIfNonZero(this)   // 🔆 V1204 — ০ হলে ফিকে, ০-র বেশি হলে গাঢ়
                     })
                 }
                 var idx = 0
@@ -3813,7 +3845,7 @@ class WorkNotebookActivity : AppCompatActivity() {
                     .apply { marginStart = ModuleUi.dp(this@WorkNotebookActivity, 6) }
                 btnRow.addView(submitBtn); btnRow.addView(shareBtn)
                 out.addView(btnRow)
-                col.addView(ModuleUi.button(this, "Back") { render() })
+                bottomBack(col) { render() }   // ⬇️ V1204
             }
         }
     }
@@ -3838,8 +3870,49 @@ class WorkNotebookActivity : AppCompatActivity() {
                 ok = ModuleAuth.insert("wn", "work_reports", row)
                 if (!ok) { attempt++; if (attempt < 3) try { Thread.sleep(1200) } catch (_: Throwable) { } }
             }
-            runOnUiThread { ModuleUi.toast(this, if (ok) "Submitted to Master" else "সেভ হয়নি — একটু পরে আবার Submit চাপুন"); render() }
+            /* 🔔🔒 V1204 (০৮.০৯.২০২৬, TK-রিপোর্ট, হুবহু): *"মান্থলি রিপোর্ট স্টাফ যখন
+               সাবমিট করে, স্টাফকে দেখাচ্ছে সাবমিট সাকসেসফুল, কিন্তু মাস্টার মানে
+               আমার কাছে তো আসেই না — না হোয়াটসঅ্যাপে, না অ্যাপের কোন নোটিফিকেশন"*।
+               🔬 কোডে মেপে দেখা — কথাটা সত্যি ছিল: এই ফাংশনটা শুধু `wn.work_reports`-এ
+                  সারিটা বসাত, মাস্টারের জন্য কোনো নোটিশই যেত না।
+               ⇒ TK-র সিদ্ধান্ত *"দুটোই চাই"* মেনে: (১) মাস্টারের ঘন্টায় নোটিশ
+                 (BriefingRepository-র সেই পুরনো প্রমাণিত পথ, MoneyHandover যেটা
+                 ব্যবহার করে), (২) সাবমিটের পরেই WhatsApp/Share শিট নিজে থেকে খোলে।
+               ⛔ সেভ ব্যর্থ হলে কোনোটাই হয় না — মিথ্যা "পাঠানো হয়েছে" নয়। */
+            if (ok) try {
+                val who = NativeSession.current(this)?.name ?: staffCode
+                val br = NativeSession.current(this)?.branch ?: ""
+                com.tkbiswas.pilesclinic.native.BriefingRepository().post(
+                    this,
+                    if (type == "daily") "Daily Report submitted" else "Monthly Report submitted",
+                    who + " · " + staffCode + (if (br.isBlank()) "" else " · " + br) + " · " + key,
+                    "role", br, "master", "", ""
+                )
+            } catch (_: Throwable) { }
+            runOnUiThread {
+                ModuleUi.toast(this, if (ok) "Submitted to Master" else "সেভ হয়নি — একটু পরে আবার Submit চাপুন")
+                render()
+                /* 💬 V1204 — TK: *"WhatsApp খুলতে হবে জোর করে"*। সাধারণ Share-শিট নয়,
+                   WhatsAppMessageChooser-এর প্রমাণিত পথ (Personal/Business বেছে
+                   সরাসরি WhatsApp-ই খোলে)। WhatsApp না থাকলে সৎ বার্তা দেখায়। */
+                if (ok) try {
+                    com.tkbiswas.pilesclinic.native.WhatsAppMessageChooser.sendGeneric(this, summary)
+                } catch (_: Throwable) { }
+            }
         }.start()
+    }
+
+
+    /* ⬇️🔒 V1204 (০৮.০৯.২০২৬, TK-নির্দেশ): *"ব্যাক বটম সব সময় ডিসপ্লের নিচেতে
+       থাকবে"*। Doctor Reminder-এর হুবহু একই পথ — ScrollView-কে fillViewport
+       করে উপরে ওজন-১ ফাঁকা জায়গা, তাই বোতামটা সবসময় পর্দার নিচে বসে; লেখা
+       বড় হলে স্বাভাবিকভাবেই নিচে নেমে যায়, কখনো ঢাকা পড়ে না। */
+    private fun bottomBack(col: LinearLayout, onClick: () -> Unit) {
+        (col.parent as? android.widget.ScrollView)?.isFillViewport = true
+        col.addView(View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
+        })
+        col.addView(ModuleUi.button(this, "Back") { onClick() })
     }
 
     private fun shareText(text: String) {
@@ -3859,7 +3932,7 @@ class WorkNotebookActivity : AppCompatActivity() {
         val col = ModuleUi.screen(this, "")
         col.addView(hero("My Reports", staffCode))
         val box = ModuleUi.card(this); col.addView(box); box.addView(ModuleUi.body(this, "Loading..."))
-        col.addView(ModuleUi.button(this, "Back") { render() })
+        bottomBack(col) { render() }   // ⬇️ V1204
         Thread {
             /* 🔵🔒 V818 (২৯.০৮.২০২৬, TK-নির্দেশে Egress-এর পূর্ণ যাচাই) —
                আগে এখানে ছিল `select=*` **কোনো সীমা ও কোনো ছাঁকনি ছাড়া**।

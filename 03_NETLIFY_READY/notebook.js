@@ -334,9 +334,18 @@ function nbDoctorVisitCount(dateIso, staffCode){
     /* 🔴 V430 — ঐচ্ছিক `id` যোগ করা হলো, যাতে "Total call (auto)" ঘরটা
        বাইরের কল লেখার সঙ্গে সঙ্গে বদলে যেতে পারে (ফোনে ঠিক তাই হয় —
        WorkNotebookActivity.kt:1411 refreshTotal)। */
+    /* 🔆🔒 V1204 (০৮.০৯.২০২৬, TK-নির্দেশ, হুবহু): *"যেখানে সংখ্যা আছে সেগুলোর
+       উজ্জ্বলতা বেশি হতে হবে — আজকের কল ০ হলে কম, আজকের পেশেন্ট ২ হলে বেশি"*।
+       ⇒ ০ / ফাঁকা / "…" হলে ফিকে ধূসর, ০-র বেশি হলে গাঢ় ও বোল্ড। ফোনের যমজ। */
+    function nbNumStyle(val) {
+      var bright = (Number(String(val).replace(/,/g, '')) || 0) > 0;
+      return bright
+        ? 'color:#0B2B59;font-weight:700'
+        : 'color:#B9C0C8;font-style:italic';
+    }
     function autoRow(label, val, id) {
       return '<div class="nbRow" style="display:flex;justify-content:space-between;padding:11px 20px;border-bottom:1px solid #F5F6F8;font-size:13.5px">' +
-        '<span style="color:#667085">' + label + '</span><span' + (id ? ' id="' + id + '"' : '') + ' style="color:#98A2B3;font-style:italic">' + val + '</span></div>';
+        '<span style="color:#667085">' + label + '</span><span' + (id ? ' id="' + id + '"' : '') + ' style="' + nbNumStyle(val) + '">' + val + '</span></div>';
     }
     function editRow(id, label, val, placeholder) {
       return '<div class="nbRow nbEdit" style="padding:11px 20px;border-bottom:1px solid #F5F6F8">' +
@@ -442,8 +451,7 @@ function nbDoctorVisitCount(dateIso, staffCode){
       '</div></div>' +
 
       '<div style="margin-top:22px;display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap">' +
-      '<button class="ghost" onclick="nbMonthly()">📊 Monthly Report</button>' +
-      '<button class="ghost" onclick="nbHistory()">🗂️ My Reports</button>' +
+      /* ⋮ V1204 — দুটোই এখন উপরের ⋮ মেনুতে (TK-নির্দেশ)। */
       /* 🔴 V430 (TK-সিদ্ধান্ত ১৮.০৮.২০২৬: "তুলে দিন — ফোনের মতো") — ফোনে আলাদা
          Submit বোতাম নেই; **OUT TIME দিলেই** দিনের রিপোর্ট Master-এর কাছে
          চলে যায় (WorkNotebookActivity.kt:817, 1264 — TK-এর নিজেরই নিয়ম)।
@@ -462,7 +470,10 @@ function nbDoctorVisitCount(dateIso, staffCode){
       if (__oc && __tc) {
         var __app = Number(apc || 0);
         __oc.addEventListener('input', function () {
-          __tc.textContent = String(__app + (parseInt(__oc.value, 10) || 0));
+          var __n = __app + (parseInt(__oc.value, 10) || 0);
+          __tc.textContent = String(__n);
+          /* 🔆 V1204 — সংখ্যা বদলালে উজ্জ্বলতাও সঙ্গে সঙ্গে বদলায়। */
+          __tc.setAttribute('style', __n > 0 ? 'color:#0B2B59;font-weight:700' : 'color:#B9C0C8;font-style:italic');
         });
       }
     } catch (e) {}
@@ -640,9 +651,13 @@ function nbDoctorVisitCount(dateIso, staffCode){
       + ((isBranch||approved)?'PLANNED':'WAITING')+'</span></div>';
   }
 
+  /* ⋮🔒 V1204 (০৮.০৯.২০২৬, TK-নির্দেশ): *"monthly report · my reports — উপরে ডান
+     সাইডে এলজি থ্রি ডটের মধ্যে থাকবে"*। ফোনের ⋮ মেনুর হুবহু যমজ। */
   function nbPlanMenu(){
     try{ modal('<h2>Today Work</h2><div class="grid menuGrid">'
-      + '<button class="menuBtn" onclick="closeModal();nbPlanMyDay()"><b>📌 Plan My Day</b></button></div>'); }
+      + '<button class="menuBtn" onclick="closeModal();nbPlanMyDay()"><b>📌 Plan My Day</b></button>'
+      + '<button class="menuBtn" onclick="closeModal();nbMonthly()"><b>📊 Monthly Report</b></button>'
+      + '<button class="menuBtn" onclick="closeModal();nbHistory()"><b>🗂️ My Reports</b></button></div>'); }
     catch(e){ nbPlanMyDay(); }
   }
 
@@ -1053,6 +1068,27 @@ function nbDoctorVisitCount(dateIso, staffCode){
       if (__ins && __ins.error) throw __ins.error;
       if (existing) await client.schema('wn').from('work_reports').update({ superseded_by: row.id }).eq('id', existing.id);
       try { toast('Report submitted to Master'); } catch (e) {}
+      /* 🔔💬🔒 V1204 (০৮.০৯.২০২৬, TK-রিপোর্ট): *"স্টাফকে দেখাচ্ছে সাবমিট সাকসেসফুল,
+         কিন্তু মাস্টারের কাছে তো আসেই না — না হোয়াটসঅ্যাপে, না অ্যাপের নোটিফিকেশন"*।
+         🔬 মেপে দেখা: এতদিন শুধু `wn.work_reports`-এ সারিটা বসত, আর কিছুই না।
+         ⇒ TK-র সিদ্ধান্ত *"দুটোই চাই"*: (১) মাস্টারের ঘন্টায় নোটিশ (Money Handover-এর
+           হুবহু প্রমাণিত পথ), (২) সাবমিটের পরেই WhatsApp নিজে থেকে খোলে।
+         ⛔ সেভ ব্যর্থ হলে (নিচের catch) কোনোটাই হয় না — মিথ্যা "পাঠানো হয়েছে" নয়। */
+      try {
+        var __who = ((appUser() || {}).name) || code;
+        var __br = (appUser() || {}).branch || '';
+        var __n = { id: uid('brief'), date: today(),
+          title: (type === 'daily' ? 'Daily Report submitted' : 'Monthly Report submitted'),
+          message: __who + ' · ' + code + (__br ? ' · ' + __br : '') + ' · ' + key,
+          targets: { roles: ['master'] }, branch: __br, seen: [], replies: [],
+          createdBy: ((appUser() || {}).mobile) || '',
+          createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+        add('briefings', __n); try { cloudUpsertBriefing(__n); } catch (e3) {}
+      } catch (e3) {}
+      try {
+        var __txt = String((r && (r.text || r.manual_summary)) || '') || ('Monthly Report ' + key + '\nStaff: ' + code);
+        window.open('https://wa.me/?text=' + encodeURIComponent(__txt), '_blank');
+      } catch (e4) {}
     } catch (e) { m.queueWrite('wn', 'work_reports', row); try { toast('Saved offline — will submit when online'); } catch (e2) {} }
     if (!silentReturn) workNotebook();
   }

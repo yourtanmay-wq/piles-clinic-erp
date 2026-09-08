@@ -785,7 +785,7 @@
       '<div class="salMi" onclick="profSalMenuHide();profStatement(\'' + m.esc(code) + '\')" style="padding:12px 16px;font-size:14px;color:#1C2B3A;border-bottom:1px solid #EEF1F5;cursor:pointer">🧾 Statement (date to date)</div>' +
       '<div class="salMi" onclick="profSalMenuHide();profSalaryEdit(\'' + m.esc(code) + '\')" style="padding:12px 16px;font-size:14px;color:#1C2B3A;border-bottom:1px solid #EEF1F5;cursor:pointer">Salary Settings</div>' +
       /* 🗓️ V1199 (TK-নির্দেশ) — কত তারিখে কত ঘণ্টা, আলাদা পর্দায় (ফোনের যমজ)। */
-      '<div class="salMi" onclick="profSalMenuHide();attendanceSheet(\'' + m.esc(code) + '\')" style="padding:12px 16px;font-size:14px;color:#1C2B3A;border-bottom:1px solid #EEF1F5;cursor:pointer">Attendance Sheet</div>' +
+      '<div class="salMi" onclick="profSalMenuHide();attendanceSheet(\'' + m.esc(code) + '\')" style="padding:12px 16px;font-size:14px;color:#1C2B3A;border-bottom:1px solid #EEF1F5;cursor:pointer">Performance Sheet</div>' +
       '<div style="padding:12px 16px;font-size:14px;color:#1C2B3A;border-bottom:1px solid #EEF1F5;display:flex;justify-content:space-between;gap:14px">Total paid<span style="color:#5B6B81">' + m.money(salaryTotal) + '</span></div>' +
       '<div style="padding:12px 16px;font-size:14px;color:#1C2B3A;display:flex;justify-content:space-between;gap:14px">Joining date<span style="color:#5B6B81">' + m.esc(prof.join_date ? salDmy(prof.join_date) : 'Not recorded') + '</span></div>' +
       '</div>';
@@ -2389,7 +2389,7 @@
         IN/OUT-এর একটা না থাকলে ০; মাসের ঘণ্টা = ওই মাসের দিন × ৭।
      ⛔ পুরনো `myAttendanceSheet()` (RPC-ভিত্তিক) ছোঁয়া হয়নি — এটা নতুন পর্দা।
      ═══════════════════════════════════════════════════════════════════ */
-  var ATT_ROWS = [], ATT_INFO = {};
+  var ATT_ROWS = [], ATT_INFO = {}, ATT_PERF = null;   /* 📊 V1204 */
   function attT12(raw){
     var t = String(raw || '').trim();
     if (t.length < 4) return '—';
@@ -2421,7 +2421,7 @@
     var days = [], cfg = {}, prof = {};
     try{
       days = ((await client.schema('wn').from('notebook_days')
-        .select('work_date,check_in,check_out,is_leave,leave_reason,is_wfh,is_other_branch,branch')
+        .select('work_date,check_in,check_out,is_leave,leave_reason,is_wfh,is_other_branch,branch,outside_calls_manual')   /* 📊 V1204 */
         .eq('staff_code', code).gte('work_date', from).lt('work_date', end)
         .order('work_date', {ascending:true})).data) || [];
     }catch(e){}
@@ -2456,6 +2456,38 @@
     var monthHours = attDaysInMonth(ym) * 7;
     var rate = monthHours > 0 ? amount/monthHours : 0;
     var payable = (worked/60) * rate;
+    /* 📊🔒 V1204 (০৮.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — মাসের পারফরম্যান্স।
+       ⛔ গোনার নিয়ম হুবহু notebook.js-এর মাসিক হিসাবেরই (শেষ ১০ অঙ্ক ধরে মেলানো),
+         তাই স্টাফের পর্দা ও এই কাগজ কখনো আলাদা হবে না।
+       ⛔ পড়া ব্যর্থ হলে "…" — মিথ্যা ০ নয়। তিনটে ছোট count-কল, সারি টানা হয় না। */
+    var perf = { enq:'…', reg:'…', app:'…', out:'0', tot:'…', lv:'0' };
+    try {
+      var mob10 = String(prof.link_mobile||'').replace(/\D/g,'').slice(-10);
+      async function cnt(tbl, col1, col2){
+        try{
+          var q = client.from(tbl).select('id', { count:'exact', head:true })
+            .or(col1+'.like.%'+mob10+','+col2+'.like.%'+mob10)
+            .or('createdAt.gte.'+from+',date.gte.'+from+',registrationDate.gte.'+from);
+          var r = await q;
+          if (r && r.error) return '…';
+          return String(r.count == null ? '…' : r.count);
+        }catch(e){ return '…'; }
+      }
+      if (mob10.length === 10) {
+        perf.enq = await cnt('enquiries','createdBy','receivedBy');
+        perf.reg = await cnt('patients','registeredBy','createdBy');
+      }
+      try{
+        var ct = await client.schema('wn').from('call_taps').select('id', { count:'exact', head:true })
+          .eq('staff_code', code).gte('call_date', from).lt('call_date', end);
+        perf.app = (ct && !ct.error && ct.count != null) ? String(ct.count) : '…';
+      }catch(e){}
+      var oSum = 0, lvN = 0;
+      days.forEach(function(d){ oSum += Number(d.outside_calls_manual||0); if (d.is_leave) lvN++; });
+      perf.out = String(oSum); perf.lv = String(lvN);
+      perf.tot = (perf.app === '…') ? '…' : String(Number(perf.app) + oSum);
+    } catch(e) {}
+    ATT_PERF = perf;
     ATT_ROWS = rows;
     ATT_INFO = { code:code, ym:ym, monthLabel:salMonthLabel(ym), name:String(prof.full_name||code),
       branch:String(prof.branch||''), mobile:String(prof.link_mobile||''), address:String(prof.address||''),
@@ -2469,7 +2501,18 @@
       return '<tr'+click+'>'+cell(m.esc(r.date),'attD')+cell(m.esc(r.inTime))+out+hcell+'</tr>';
     }).join('') || '<tr><td colspan="4" class="mut">No attendance in this month.</td></tr>';
 
-    var html = '<div class="card" style="display:flex;padding:0;overflow:hidden">'
+    /* 📊 V1204 — কাগজে যে ছয়টা ঘর, পর্দাতেও হুবহু সেগুলোই (এক নিয়ম, এক সংখ্যা)।
+       সংখ্যা ০-র বেশি হলে গাঢ়, ০ হলে ফিকে (TK-নির্দেশ)। */
+    function pfCell(lbl, v){
+      var bright = (Number(v) || 0) > 0;
+      return '<div style="flex:1;padding:8px 10px"><div class="tiny mut" style="font-weight:800">'+lbl+'</div>'
+        + '<div style="font-size:17px;font-weight:'+(bright?'800':'600')+';margin-top:2px;color:'
+        + (bright ? '#0B2B59' : '#B9C0C8') + '">'+m.esc(String(v||'-'))+'</div></div>';
+    }
+    var html = '<div class="card" style="padding:6px 4px"><div class="tiny mut" style="font-weight:800;padding:4px 10px;color:#0B4F2A">MONTHLY PERFORMANCE</div>'
+      + '<div style="display:flex">'+pfCell('NEW ENQUIRY',perf.enq)+pfCell('REGISTRATION',perf.reg)+pfCell('APP CALLS',perf.app)+'</div>'
+      + '<div style="display:flex">'+pfCell('OUTSIDE CALLS',perf.out)+pfCell('TOTAL CALLS',perf.tot)+pfCell('LEAVE DAYS',perf.lv)+'</div></div>'
+      + '<div class="card" style="display:flex;padding:0;overflow:hidden">'
       + '<div style="flex:1;padding:12px 14px"><div class="tiny mut" style="font-weight:800">WORKED</div>'
       +   '<div style="font-size:19px;font-weight:800;color:#0A7C3F;margin-top:3px">'+attHours(worked)+'</div></div>'
       + '<div style="width:1px;background:#EDF2EF;margin:10px 0"></div>'
@@ -2485,7 +2528,7 @@
       + '<button class="ghost" onclick="attWhatsApp()">WhatsApp</button>'
       + '<button class="ghost" onclick="attPickMonth(\''+m.esc(code)+'\')">Change month</button></div>';
 
-    page('Attendance Sheet · ' + m.esc(code) + ' · ' + salMonthLabel(ym), html, true);
+    page('Performance Sheet · ' + m.esc(code) + ' · ' + salMonthLabel(ym), html, true);   /* 📊 V1204 */
   }
   window.attendanceSheet = attendanceSheet;
 
@@ -2539,6 +2582,17 @@
   }
   window.attEditDay = attEditDay;
 
+  /* 📊 V1204 — কাগজের "MONTHLY PERFORMANCE" বাক্স। না পড়া গেলে বাক্সটাই বসে না,
+     তাই কাগজ আগের মতোই ছাপা হয় (কিছু ভাঙে না)। */
+  function attPerfBlockHtml(){
+    var m = window.MOD, P = ATT_PERF, I = ATT_INFO;
+    if (!P) return '';
+    function c(l, v){ return '<td><span class="pl">'+l+'</span>'+m.esc(String(v||'-'))+'</td>'; }
+    return '<div class="blk"><div class="h">MONTHLY PERFORMANCE &middot; '+m.esc(String(I.monthLabel).toUpperCase())+'</div>'
+      + '<table class="perf"><tr>'+c('NEW ENQUIRY',P.enq)+c('REGISTRATION',P.reg)+c('APP CALLS',P.app)
+      + c('OUTSIDE CALLS',P.out)+c('TOTAL CALLS',P.tot)+c('LEAVE DAYS',P.lv)+'</tr></table></div>';
+  }
+
   /** A4 এক পাতার কাগজ — ফোনের `AttendanceSheetHtmlPrint`-এর হুবহু একই সাজ। */
   function attSheetHtml(){
     var m = window.MOD, I = ATT_INFO;
@@ -2547,7 +2601,7 @@
       return '<tr><td class="d">'+m.esc(r.date)+'</td><td>'+m.esc(r.inTime)+'</td>'+out
         + '<td class="'+(r.kind||'')+'">'+m.esc(r.hours)+(r.tag?('<small> · '+m.esc(r.tag)+'</small>'):'')+'</td></tr>';
     }).join('') || '<tr><td colspan="4">No attendance in this month.</td></tr>';
-    return '<!doctype html><html><head><meta charset="utf-8"><title>Attendance Sheet</title><style>'
+    return '<!doctype html><html><head><meta charset="utf-8"><title>Performance Sheet</title><style>'
       + '@page{size:A4;margin:8mm} body{font-family:sans-serif;color:#1C2A33;margin:0}'
       + '.tb{background:#0f5132;color:#fff;display:flex;justify-content:space-between;align-items:center;padding:6px 10px}'
       + '.tb .t{font-size:12px;font-weight:800;letter-spacing:2px}.tb .r{font-size:9px;color:#cfe6d8;text-align:right}'
@@ -2562,16 +2616,21 @@
       + 'tfoot td{border-top:2px solid #0B4F2A;font-weight:800;background:#F4F9F6}'
       + '.calc{margin-top:7px;border:1px solid #D6DEE6;border-radius:5px;overflow:hidden}'
       + '.calc .h{background:#0B4F2A;color:#fff;padding:4px 9px;font-size:8.5px;font-weight:800;letter-spacing:1px}'
+      /* 📊 V1204 — পারফরম্যান্সের বাক্স (ফোনের কাগজের হুবহু যমজ) */
+      + '.blk{margin:0 0 7px;border:1px solid #D6DEE6;border-radius:5px;overflow:hidden}'
+      + '.blk .h{background:#0B4F2A;color:#fff;padding:4px 9px;font-size:8.5px;font-weight:800;letter-spacing:1px}'
+      + '.perf td{text-align:center;font-weight:800;font-size:13px;color:#0B2B59;padding:5px 4px}'
+      + '.perf td .pl{display:block;font-size:8px;font-weight:700;color:#6B7280;letter-spacing:.6px}'
       + '.wrap{padding:2px 10px 0}'
       + '</style></head><body>'
       + '<div class="cn">' + m.esc(I.branch ? (I.branch.toUpperCase()==='KISHANGANJ'?'TK BISWAS PILES CLINIC':'MAA AYURVED PILES CLINIC') : 'MAA AYURVED PILES CLINIC') + '</div>'
       + '<div class="addr">' + m.esc(I.branch) + '</div>'
-      + '<div class="tb"><span class="t">STAFF ATTENDANCE SHEET</span><span class="r">'+m.esc(I.monthLabel)+'</span></div>'
+      + '<div class="tb"><span class="t">STAFF PERFORMANCE SHEET</span><span class="r">'+m.esc(I.monthLabel)+'</span></div>'
       + '<div class="pi"><div class="c"><div><b>Staff Name</b> : '+m.esc(I.name)+'</div>'
       +   '<div><b>Staff Code</b> : '+m.esc(I.code)+'</div><div><b>Branch</b> : '+m.esc(I.branch)+'</div></div>'
       + '<div class="c"><div><b>Mobile</b> : '+m.esc(I.mobile||'-')+'</div>'
       +   '<div><b>Address</b> : '+m.esc(I.address||'-')+'</div></div></div>'
-      + '<div class="wrap"><table><thead><tr><th>DATE</th><th>IN TIME</th><th>OUT TIME</th><th>HOURS</th></tr></thead>'
+      + '<div class="wrap">' + attPerfBlockHtml() + '<table><thead><tr><th>DATE</th><th>IN TIME</th><th>OUT TIME</th><th>HOURS</th></tr></thead>'
       + '<tbody>'+body+'</tbody>'
       + '<tfoot><tr><td colspan="3">TOTAL HOURS WORKED</td><td>'+attHours(I.worked)+'</td></tr></tfoot></table>'
       + '<div class="calc"><div class="h">SALARY CALCULATION · '+m.esc(String(I.monthLabel).toUpperCase())+'</div><table>'
@@ -2595,8 +2654,14 @@
 
   function attWhatsApp(){
     var I = ATT_INFO;
-    var lines = ['*STAFF ATTENDANCE SHEET*', I.name + '  ·  ' + I.code, I.branch + '  ·  ' + I.monthLabel,
+    var lines = ['*STAFF PERFORMANCE SHEET*', I.name + '  ·  ' + I.code, I.branch + '  ·  ' + I.monthLabel,
       '--------------------------------'];
+    if (ATT_PERF) {   /* 📊 V1204 — কাগজ ও WhatsApp একই সংখ্যা */
+      lines.push('New Enquiry: ' + ATT_PERF.enq + '  |  Registration: ' + ATT_PERF.reg);
+      lines.push('App Calls: ' + ATT_PERF.app + '  |  Outside Calls: ' + ATT_PERF.out + '  |  Total: ' + ATT_PERF.tot);
+      lines.push('Leave Days: ' + ATT_PERF.lv);
+      lines.push('--------------------------------');
+    }
     ATT_ROWS.forEach(function(r){
       lines.push(String(r.date).slice(0,5) + '  '
         + (r.outMissing ? (r.inTime + ' → MISSING') : (r.inTime + ' → ' + r.outTime))

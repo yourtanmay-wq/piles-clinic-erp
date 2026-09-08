@@ -1852,7 +1852,7 @@ class StaffProfileActivity : AppCompatActivity() {
                 "🧾 Statement (date to date)" to ({ statement(code, pays) }),
                 "Salary Settings" to ({ editSalaryConfig(code, enabled, amount, salaryDate) }),
                 /* 🗓️ V1199 (TK-নির্দেশ) — কত তারিখে কত ঘণ্টা, আলাদা পর্দায়। */
-                "Attendance Sheet" to ({ attendanceSheet(code, salaryCurrentMonth()) }),
+                "Performance Sheet" to ({ attendanceSheet(code, salaryCurrentMonth()) }),
                 ("Total paid  ·  " + money(salaryTotal)) to ({ }),
                 ("Joining date  ·  " + (if (joinDate.isBlank()) "Not recorded" else dmy(joinDate))) to ({ })
             )
@@ -3515,7 +3515,7 @@ class StaffProfileActivity : AppCompatActivity() {
         val prevBack = backAction
         backAction = { prevBack() }
         attSheetMonth = ym
-        val col = ModuleUi.screen(this, "Attendance Sheet")
+        val col = ModuleUi.screen(this, "Performance Sheet")   // 📊 V1204
         (col.parent as? android.widget.ScrollView)?.isFillViewport = true
         col.addView(TextView(this).apply {
             text = code + "  \u00b7  " + salaryMonthLabel(ym)
@@ -3551,7 +3551,8 @@ class StaffProfileActivity : AppCompatActivity() {
             val days = try {
                 ModuleAuth.getRowsChecked(
                     "wn", "notebook_days",
-                    "select=work_date,check_in,check_out,is_leave,leave_reason,is_wfh,is_other_branch,branch" +
+                    // 📊 V1204 — `outside_calls_manual`-ও এই একই পড়াতেই আসে, নতুন কোনো নেট-কল নয়।
+                    "select=work_date,check_in,check_out,is_leave,leave_reason,is_wfh,is_other_branch,branch,outside_calls_manual" +
                         "&staff_code=eq.$code&work_date=gte.$from&work_date=lt.$end&order=work_date.asc"
                 )
             } catch (_: Throwable) { null }
@@ -3614,11 +3615,44 @@ class StaffProfileActivity : AppCompatActivity() {
                     outMissing, mins, HourSalary.hoursText(mins), tag, kind
                 ))
             }
+            /* 📊🔒 V1204 (০৮.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — মাসের পারফরম্যান্স।
+               ⛔ গোনার নিয়ম **হুবহু WorkNotebook-এর `fetchStats("month")`-এর মতোই**
+                 (শেষ ১০ অঙ্ক ধরে মেলানো, তিনটে তারিখ-ঘরের যেকোনোটা) — নতুন কোনো
+                 নিয়ম বানানো হয়নি, তাই স্টাফের পর্দা ও এই কাগজ কখনো আলাদা হবে না।
+               ⛔ পড়া ব্যর্থ হলে "…" বসে, মিথ্যা ০ নয়।
+               ⛔ egress: মোট তিনটে ছোট গোনা-কল (count/HEAD), সারি টেনে আনা হয় না। */
+            val perfObj: com.tkbiswas.pilesclinic.print.AttendanceSheetHtmlPrint.Perf = run {
+                val mob10 = ns(pr, "link_mobile").filter { it.isDigit() }.takeLast(10)
+                val monthOr = "or(createdAt.gte.$ym-01,date.gte.$ym-01,registrationDate.gte.$ym-01)"
+                fun cnt(table: String, filter: String): String = try {
+                    val r = ModuleAuth.countPublicChecked(table, filter)
+                    if (r.ok) r.count.toString() else "…"
+                } catch (_: Throwable) { "…" }
+                val enqTxt = if (mob10.length != 10) "…"
+                    else cnt("enquiries", "and=(or(createdBy.like.*$mob10,receivedBy.like.*$mob10),$monthOr)")
+                val regTxt = if (mob10.length != 10) "…"
+                    else cnt("patients", "and=(or(registeredBy.like.*$mob10,createdBy.like.*$mob10),$monthOr)")
+                val appTxt = try {
+                    val r = ModuleAuth.getRowsChecked("wn", "call_taps",
+                        "select=id&staff_code=eq.$code&call_date=gte.$from&call_date=lt.$end")
+                    if (r.ok) r.rows.length().toString() else "…"
+                } catch (_: Throwable) { "…" }
+                var outSum = 0
+                for (i in 0 until arr.length()) outSum += arr.optJSONObject(i)?.optInt("outside_calls_manual", 0) ?: 0
+                var lv = 0
+                for (i in 0 until arr.length()) if (arr.optJSONObject(i)?.optBoolean("is_leave", false) == true) lv++
+                val totTxt = if (appTxt == "…") "…" else (appTxt.toInt() + outSum).toString()
+                com.tkbiswas.pilesclinic.print.AttendanceSheetHtmlPrint.Perf(
+                    enqTxt, regTxt, appTxt, outSum.toString(), totTxt, lv.toString()
+                )
+            }
             val res = HourSalary.compute(arr, amount, ym)
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 attSheetRows = rows
+                attSheetPerf = perfObj   // 📊 V1204
                 box.removeAllViews()
+                box.addView(attPerfStrip(perfObj))   // 📊 V1204 — কাগজে যা, পর্দাতেও তাই
                 box.addView(attSummary(res, worked))
                 box.addView(attTable(code, rows))
                 actions.removeAllViews()
@@ -3840,6 +3874,59 @@ class StaffProfileActivity : AppCompatActivity() {
         try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(dlg) } catch (_: Throwable) { }
     }
 
+    /* 📊 V1204 — পর্দার উপরে পারফরম্যান্সের ছোট পট্টি। কাগজের বাক্সটার হুবহু
+       একই ছয়টা ঘর, একই সংখ্যা — তাই পর্দা ও কাগজ কখনো আলাদা হতে পারে না। */
+    private fun attPerfStrip(p: com.tkbiswas.pilesclinic.print.AttendanceSheetHtmlPrint.Perf): LinearLayout {
+        val wrap = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(10), dp(8), dp(10), dp(8))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(10).toFloat()
+                setColor(android.graphics.Color.parseColor("#F4F9F6"))
+                setStroke(dp(1), android.graphics.Color.parseColor("#CFE3D4"))
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(8) }
+        }
+        wrap.addView(TextView(this).apply {
+            text = "MONTHLY PERFORMANCE"; textSize = 9.5f
+            setTextColor(android.graphics.Color.parseColor("#0B4F2A"))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setPadding(0, 0, 0, dp(4))
+        })
+        fun cell(label: String, v: String): LinearLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            addView(TextView(this@StaffProfileActivity).apply {
+                text = label; textSize = 8.5f
+                setTextColor(android.graphics.Color.parseColor("#6B7280"))
+            })
+            addView(TextView(this@StaffProfileActivity).apply {
+                text = v.ifBlank { "-" }; textSize = 15f
+                val bright = (v.toIntOrNull() ?: 0) > 0
+                setTextColor(android.graphics.Color.parseColor(if (bright) "#0B2B59" else "#B9C0C8"))
+                setTypeface(typeface, if (bright) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
+            })
+        }
+        val r1 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        r1.addView(cell("NEW ENQUIRY", p.enquiries)); r1.addView(cell("REGISTRATION", p.registrations))
+        r1.addView(cell("APP CALLS", p.appCalls))
+        val r2 = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(6) }
+        }
+        r2.addView(cell("OUTSIDE CALLS", p.outsideCalls)); r2.addView(cell("TOTAL CALLS", p.totalCalls))
+        r2.addView(cell("LEAVE DAYS", p.leaveDays))
+        wrap.addView(r1); wrap.addView(r2)
+        return wrap
+    }
+
+    /** 📊 V1204 — এই মাসের পারফরম্যান্স, ছাপা ও WhatsApp দুটোতেই একই সংখ্যা যায়। */
+    private var attSheetPerf: com.tkbiswas.pilesclinic.print.AttendanceSheetHtmlPrint.Perf? = null
+
     private fun attPrintRows(): List<com.tkbiswas.pilesclinic.print.AttendanceSheetHtmlPrint.Row> =
         attSheetRows.map {
             com.tkbiswas.pilesclinic.print.AttendanceSheetHtmlPrint.Row(
@@ -3861,7 +3948,8 @@ class StaffProfileActivity : AppCompatActivity() {
             monthHoursText = res.monthHours.toInt().toString() + "h 00m",
             salaryText = money(amount),
             rateText = money(res.ratePerHour),
-            payableText = money(res.payable)
+            payableText = money(res.payable),
+            perf = attSheetPerf                       // 📊 V1204
         )
         com.tkbiswas.pilesclinic.print.AttendanceSheetHtmlPrint.print(this, code, salaryMonthLabel(ym), html)
     }
@@ -3870,7 +3958,8 @@ class StaffProfileActivity : AppCompatActivity() {
         val txt = com.tkbiswas.pilesclinic.print.AttendanceSheetHtmlPrint.whatsAppText(
             ns(pr, "full_name").ifBlank { code }, code, ns(pr, "branch"),
             salaryMonthLabel(ym), attPrintRows(),
-            HourSalary.hoursText(attSheetRows.sumOf { it.minutes }), money(res.payable)
+            HourSalary.hoursText(attSheetRows.sumOf { it.minutes }), money(res.payable),
+            attSheetPerf                              // 📊 V1204
         )
         try {
             val i = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
@@ -3898,7 +3987,7 @@ class StaffProfileActivity : AppCompatActivity() {
         //      এক অক্ষরও বদলায়নি (V509-এ যেভাবে ছিল, ঠিক সেভাবেই)।
         val prevBack = (if (fromPerf) perfListBack else null) ?: backAction
         backAction = { prevBack() }
-        val col = ModuleUi.screen(this, "Attendance Sheet")
+        val col = ModuleUi.screen(this, "Performance Sheet")   // 📊 V1204
         col.addView(TextView(this).apply {
             text = fullName + "  \u00b7  " + perfLabel(month); textSize = 12f
             setTextColor(android.graphics.Color.parseColor("#5B6B81"))
