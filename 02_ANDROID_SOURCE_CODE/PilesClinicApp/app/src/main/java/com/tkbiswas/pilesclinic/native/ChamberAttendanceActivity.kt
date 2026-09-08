@@ -3104,6 +3104,35 @@ Thread {
                 setTextColor(android.graphics.Color.parseColor("#8B98A9"))
                 setPadding(0, 0, 0, dp(6))
             })
+            /* 👤🔒 V1234 (০৮.০৯.২০২৬, TK-নির্দেশ: *"কোন ডাক্তার এবং কোন রোগীর জন্য
+               টাকা দিচ্ছে এখানে শুধু তাদের নাম রয়েছে, কিন্তু নামের উপর ক্লিক করলে
+               যেন তাদের প্রোফাইল খোলে — তাহলেই তো বুঝতে পারবো কোন ডাক্তার ইনি
+               অথবা কোন পেশেন্ট ইনি"*) — রোগীর নামে চাপ দিলে তাঁর টাইমলাইন,
+               ডাক্তারের নামে চাপ দিলে তাঁর Dr. Visit পর্দা খোলে।
+               ⛔ দুটোই **আগে থেকে প্রমাণিত পথ** (`PatientTimelineActivity` extra
+                  "mobile" · `DoctorVisitActivity` extra "searchMobile"/"searchBranch")
+                  — নতুন কিছু বানানো হয়নি, কোনো নতুন ক্লাউড-পড়াও নেই।
+               ⛔ নম্বর না থাকলে নামটা আগের মতোই সাধারণ লেখা থাকে, চাপ কাজ করে না
+                  (ভুল পর্দা খোলার চেয়ে কিছু না হওয়াই ভালো)।
+               ⛔ টাকার একটাও অঙ্ক · কমিশনের হিসাব · পপ-আপের বাকি সব অপরিবর্তিত। */
+            fun openPatient(mobRaw: String) {
+                val digits = mobRaw.filter { it.isDigit() }.takeLast(10)
+                if (digits.length != 10) return
+                try {
+                    startActivity(android.content.Intent(
+                        this, com.tkbiswas.pilesclinic.native.PatientTimelineActivity::class.java)
+                        .putExtra("mobile", digits))
+                } catch (_: Throwable) { }
+            }
+            fun openRmp(mobRaw: String) {
+                val digits = mobRaw.filter { it.isDigit() }.takeLast(10)
+                if (digits.length != 10) return
+                try {
+                    startActivity(android.content.Intent(
+                        this, com.tkbiswas.pilesclinic.native.DoctorVisitActivity::class.java)
+                        .putExtra("searchMobile", digits))
+                } catch (_: Throwable) { }
+            }
             for (r in rows.sortedByDescending { it.commissionToday }) {
                 col.addView(android.widget.TextView(this).apply {
                     text = r.patientName.ifBlank { r.patientMobile }.uppercase(java.util.Locale.US)
@@ -3111,6 +3140,13 @@ Thread {
                     setTypeface(typeface, android.graphics.Typeface.BOLD)
                     setTextColor(android.graphics.Color.parseColor("#10223A"))
                     setPadding(0, dp(8), 0, 0)
+                    // 👤 V1234 — নম্বর থাকলে তবেই চাপা যায়, আর তখন নীল-আন্ডারলাইন
+                    if (r.patientMobile.filter { c -> c.isDigit() }.takeLast(10).length == 10) {
+                        setTextColor(android.graphics.Color.parseColor("#0B5FD0"))
+                        paintFlags = paintFlags or android.graphics.Paint.UNDERLINE_TEXT_FLAG
+                        isClickable = true; isFocusable = true
+                        setOnClickListener { openPatient(r.patientMobile) }
+                    }
                 })
                 col.addView(android.widget.TextView(this).apply {
                     text = listOf(r.patientMobile, r.patientCode).filter { it.isNotBlank() }
@@ -3156,6 +3192,18 @@ Thread {
                 g.addView(cell("Commission", money(r.commissionToday), true))
                 col.addView(g)
             }
+            /* 👤 V1234 — ডাক্তারের নামের সারিটাও চাপা যায় (নম্বর জানা থাকলে)। */
+            val rmpMob = rows.firstOrNull { it.rmpMobile.filter { c -> c.isDigit() }.length >= 10 }?.rmpMobile.orEmpty()
+            if (rmpMob.isNotBlank()) col.addView(android.widget.TextView(this).apply {
+                text = "\uD83D\uDC64  " + rmpName.uppercase(java.util.Locale.US) + " \u2014 open profile"
+                textSize = 12f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#0B5FD0"))
+                paintFlags = paintFlags or android.graphics.Paint.UNDERLINE_TEXT_FLAG
+                setPadding(0, dp(10), 0, 0)
+                isClickable = true; isFocusable = true
+                setOnClickListener { openRmp(rmpMob) }
+            })
             col.addView(android.widget.TextView(this).apply {
                 text = "Total for " + rmpName + " today   " + money(rows.sumOf { it.commissionToday })
                 textSize = 13.5f
