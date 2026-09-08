@@ -3444,7 +3444,64 @@ class IncomeExpenseActivity : AppCompatActivity() {
             setPadding(dp(10), dp(2), dp(2), dp(2))
             isClickable = true; isFocusable = true
         }
-        col.addView(heroWithFields("📈 Monthly Summary", month, branchBox, dotsTv))
+        /* 📏 V1217 — কেন এক সারির `heroWithFields()` এখানে চলল না (মেপে দেখা,
+           আন্দাজ নয়): ৩৬০dp চওড়া ফোনে হেডারে জায়গা থাকে ~৩১১dp, অথচ
+           "📈 Monthly Summary" (~১৬৬dp) + "September 2026 ▾" (~১৪৩dp) +
+           ব্রাঞ্চ (~১২২dp) + ⋮ (~২৪dp) = ~৪৫৫dp। আগে "2026-09" ছোট ছিল বলে আঁটত;
+           মাসের পুরো নাম বসতেই শিরোনাম কেটে "📈 M…" হয়ে যেত।
+           ⇒ তাই এই পর্দায় হেডার দু-সারির: উপরে শিরোনাম ও ডানে ⋮ (TK: *"উপরে ডান
+              দিকে LG থ্রি ডট"*), নিচে ডানদিকে মাস ও ব্রাঞ্চ।
+           ⛔ `heroWithFields()` ও বাকি সব পর্দার হেডার এক অক্ষরও বদলায়নি। */
+        val heroCard = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), dp(8), dp(9), dp(8))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(18).toFloat()
+                setColor(android.graphics.Color.WHITE)
+                setStroke(dp(1), android.graphics.Color.parseColor("#DCE6E0"))
+            }
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                .apply { bottomMargin = dp(8) }
+        }
+        val heroTop = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+        }
+        heroTop.addView(android.widget.TextView(this).apply {
+            text = "📈 Monthly Summary"; textSize = 15f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#0A5C33"))
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        })
+        heroTop.addView(dotsTv)
+        val heroBottom = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL or android.view.Gravity.END
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                .apply { topMargin = dp(6) }
+        }
+        // পিল দুটো হুবহু `heroWithFields()`-এর মতোই — হালকা সবুজ-ধূসর, গাঢ় সবুজ লেখা।
+        fun heroPill(field: android.view.View): LinearLayout {
+            val b = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(dp(9), dp(5), dp(9), dp(5))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(12).toFloat()
+                    setColor(android.graphics.Color.parseColor("#F1F6F3"))
+                    setStroke(dp(1), android.graphics.Color.parseColor("#D6E4DC"))
+                }
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                    .apply { marginStart = dp(6) }
+            }
+            b.addView(field)
+            return b
+        }
+        heroBottom.addView(heroPill(month)); heroBottom.addView(heroPill(branchBox))
+        heroCard.addView(heroTop); heroCard.addView(heroBottom)
+        col.addView(heroCard)
         val out = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
 
         /* মাস বা ব্রাঞ্চ বদলালেই সঙ্গে সঙ্গে নতুন হিসাব — TK: *"Show থাকবে না,

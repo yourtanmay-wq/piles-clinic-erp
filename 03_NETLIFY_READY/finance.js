@@ -1564,9 +1564,14 @@ function finRowTap(id) {
     var month = m.todayIST().slice(0, 7);
     /* 🟢🔒 V628 (২৪.০৮.২০২৬, TK-নির্দেশ, স্পষ্ট) — "All Branches" অপশন বাদ,
        হিসাবের খাতায় ব্রাঞ্চ মিশবে না। সবসময় একটা নির্দিষ্ট ব্রাঞ্চ বাছতে হবে। */
+    /* 📏 V1217 — হেডার দু-সারির, ফোনের হুবহু যমজ: উপরে শিরোনাম ও ডানে ⋮,
+       নিচে ডানদিকে মাস ও ব্রাঞ্চ। মাসের পুরো নাম বসায় এক সারিতে আর আঁটে না। */
     var html = '<div class="card">' +
-      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
-      '<h2 style="flex:1;margin:0;min-width:120px">📈 Monthly Summary</h2>' +
+      '<div style="display:flex;gap:8px;align-items:center">' +
+      '<h2 style="flex:1;margin:0">📈 Monthly Summary</h2>' +
+      '<span onclick="finMonthlyOptions()" style="cursor:pointer;font-size:20px;font-weight:800;color:#0A5C33;padding:0 6px">&#8942;</span>' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end;margin-top:6px">' +
       '<span id="mMonthBtn" onclick="finMonthPick()" style="cursor:pointer;font-weight:800;' +
       'color:#0A5C33;background:#F1F6F3;border:1px solid #D6E4DC;border-radius:12px;padding:6px 10px">' +
       m.esc(finMonthLabel(month)) + '  &#9662;</span>' +
@@ -1574,7 +1579,6 @@ function finRowTap(id) {
       '<select id="mBranch" class="input" style="width:auto;flex:0 1 auto">' +
       ((!finCurBranch() || finCurBranch() === 'All Branches') ? '<option value="" selected>Select Branch</option>' + branchOptions('')
        : branchOptions(finCurBranch())) + '</select>' +
-      '<span onclick="finMonthlyOptions()" style="cursor:pointer;font-size:20px;font-weight:800;color:#0A5C33;padding:0 6px">&#8942;</span>' +
       '</div>' +
       '<input id="mMonth" type="hidden" value="' + month + '">' +
       '<div style="position:relative">' +
