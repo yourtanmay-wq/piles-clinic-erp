@@ -3761,6 +3761,8 @@ window["masterUserPhotoManager"]=masterUserPhotoManager;
 function wlv1CallDue(x){
   var d=String((x&&x.nextFollow)||'');
   if(!d) return false;
+  /* 📵 V1206 — "আর কল লাগবে না" বলা সারি কল-তালিকায় আর আসে না (ফোনের যমজ)। */
+  if(x&&x.noMoreCalls) return false;
   if(d>today()) return false;
   try{ if(isConvertedOrClosed(x)) return false }catch(_e){}
   return true;
@@ -7534,7 +7536,10 @@ let inc=(x.lastCallDate===today()?Math.max(1,Number(x.callCount||0)):Math.min(5,
    চিরকাল "Overdue" থাকত (পরের কল, শেষ কলের আগে)।
    ⛔ ভবিষ্যতের তারিখ কখনো ছোঁয়া হয় না; স্টাফের বাছা তারিখ (patch) জেতে। */
 let __nf=String((patch&&patch.nextFollow)||x.nextFollow||'').trim();
-let __nfFix=(patch&&patch.nextFollow)?{}:((!__nf||__nf<today())?{nextFollow:today()}:{});
+/* 📵 V1206 — "আর কল লাগবে না" বলা সারিতে এই নিয়ম আর তারিখ বসাবে না
+   (এটাই ছিল নাম ফিরে আসার আসল কারণ)। ফোনের হুবহু যমজ। */
+let __stopped=(patch&&patch.noMoreCalls!==undefined)?!!patch.noMoreCalls:!!x.noMoreCalls;
+let __nfFix=(__stopped||(patch&&patch.nextFollow))?{}:((!__nf||__nf<today())?{nextFollow:today()}:{});
 rows[i]={...x,...patch,...__nfFix,callCount:inc,lastCallDate:today(),updatedAt:new Date().toISOString(),history:[...(x.history||[]),historyItem]};save('followups',rows);closeModal();followup(redirectStage||x.stage)}
 window["updateFollowAction"]=updateFollowAction;
 /* 🟢🔒 V926 — গোনা ও তালিকা এখন ফোনের নিয়মে (আজ + বকেয়া)।
@@ -9457,7 +9462,10 @@ window["wlv1SaveRemarkNow"]=wlv1SaveRemarkNow;function nextFollowDate(id){
       let x=load('followups').find(a=>a.id===id);
       /* 🔴🔒 V718 — বোতামের HTML আগে বানিয়ে নেওয়া হলো (টেমপ্লেটের ভিতরে
          টেমপ্লেট বসালে ব্যাকটিক সংঘর্ষ হয় — নিজে পরীক্ষা করে ধরা)। */
-      var __noCallBtn = (String(x&&x.stage||'')==='Treatment')
+      /* 📵🔒 V1206 (০৮.০৯.২০২৬, TK-রিপোর্ট: *"এই পেসেন্ট এর নো মোর কল অপশন কেনো নেই"*
+         — কার্ডটা ছিল VISITED)। V711-এ শুধু Treatment ধাপে বসত; এখন Visit (Patient)
+         ধাপেও। ⛔ Enquiry-তে নয় — ওঁরা এখনো রোগীই নন। ফোনের অ্যাপের হুবহু যমজ। */
+      var __noCallBtn = (String(x&&x.stage||'')==='Treatment'||String(x&&x.stage||'')==='Patient')
         ? '<button class="ghost" style="width:100%;margin-top:10px;border:2px solid #C9B8F0;background:#F6F2FE;color:#5B3A9E;font-weight:800" onclick="wlv1NoMoreCalls(\'' + id + '\')">\uD83D\uDCF5 No more calls needed</button>'
         : '';
       modal(`<h2>Next Follow-up Date</h2><label>Select Date</label><input id="fd" type="date" class="input" value="${x?.nextFollow&&x.nextFollow>=today()?x.nextFollow:''}" min="${today()}" onclick="try{this.showPicker&&this.showPicker()}catch(e){}" onfocus="try{this.showPicker&&this.showPicker()}catch(e){}"><div class="actions"><button onclick="saveNextFollow('${id}')">Save Date</button><button class="ghost" onclick="saveNextFollow('${id}')">Skip</button></div>
@@ -9479,7 +9487,8 @@ window.nextFollowDate=nextFollowDate;function saveNextFollow(id){
       let d=$('#fd')?.value||'';
       if(d && d<today())return toast('Previous date not allowed');
       let x=load('followups').find(a=>a.id===id);
-      updateFollowAction(id,{nextFollow:d,lastRemark:x?.lastRemark||(d?'Next follow-up date updated':'Next follow-up skipped')},{date:today(),time:isoNow(),remark:d?'Next follow-up date updated':'Next follow-up skipped',staff:user?.name||user?.mobile||'',nextFollow:d},x?.stage)
+      /* 📵 V1206 — স্টাফ নতুন তারিখ বাছলেন ⇒ থামানো বাতিল, আবার চালু। */
+      updateFollowAction(id,{nextFollow:d,noMoreCalls:!d,lastRemark:x?.lastRemark||(d?'Next follow-up date updated':'Next follow-up skipped')},{date:today(),time:isoNow(),remark:d?'Next follow-up date updated':'Next follow-up skipped',staff:user?.name||user?.mobile||'',nextFollow:d},x?.stage)
       /* 🔒 TK-APPROVED (28.07.2026): আসার তারিখের খবর রোগীকে।
          ⛔ শুধু Patient কার্ড থেকে (stage = Treatment) — Enquiry ও Visit-এর
          তারিখ শুধু ফোন করার তারিখ, ওখান থেকে পাঠালে রোগী ভুল করে চলে আসতেন।
@@ -9496,7 +9505,10 @@ window.saveNextFollow=saveNextFollow;
    ⛔ ফেরানো সহজ: ➜ চেপে আবার একটা তারিখ দিলেই আগের মতোই ফিরে আসবেন। */
 function wlv1NoMoreCalls(id){
   var x=load('followups').find(function(a){return a.id===id});
-  updateFollowAction(id,{nextFollow:'',lastRemark:(x&&x.lastRemark)||'No more calls needed'},
+  /* 📵🔒 V1206 — থামানোটা এখন আলাদা করে মনে রাখা হয় (`noMoreCalls`), নইলে
+     পরের রিমার্ক/টাকা বসলেই অ্যাপ নিজে থেকে আজকের তারিখ বসিয়ে নামটা কল-তালিকায়
+     ফিরিয়ে আনত (TK: *"বার বার নো মোর কল দাবার পরেও আবার নাম কেনো শো করছে"*)। */
+  updateFollowAction(id,{nextFollow:'',noMoreCalls:true,lastRemark:(x&&x.lastRemark)||'No more calls needed'},
     {date:today(),time:isoNow(),remark:'No more calls needed',staff:(user&&(user.name||user.mobile))||'',nextFollow:''},
     x&&x.stage);
   toast('Removed from the call list');
@@ -22061,7 +22073,8 @@ function wlv1SearchRemarkSave(mobile){
      আজকের হত কিন্তু `nextFollow` পুরনোই থাকত ⇒ পরের কল, শেষ কলের আগে।
      ⛔ ফোনের `stampCallDate` পথের হুবহু একই নিয়ম; ভবিষ্যতের তারিখ ছোঁয়া হয় না। */
   const __nf=String(rows[i].nextFollow||'').trim();
-  const __nfFix=(!__nf||__nf<today())?{nextFollow:today()}:{};
+  /* 📵 V1206 — থামানো সারিতে তারিখ বসে না (উপরের V1065-এর মতোই)। */
+  const __nfFix=rows[i].noMoreCalls?{}:((!__nf||__nf<today())?{nextFollow:today()}:{});
   rows[i]={...rows[i], ...__nfFix, lastRemark:txt, lastRemarkAt:now, updatedAt:now,
     /* ⛔ শুধু তারিখ — `callCount` ইচ্ছাকৃতভাবে ছোঁয়া হয় না (TK-অনুমোদিত)। */
     lastCallDate: today(),

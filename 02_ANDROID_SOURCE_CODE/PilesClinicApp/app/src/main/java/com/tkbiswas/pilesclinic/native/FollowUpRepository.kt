@@ -69,7 +69,7 @@ class FollowUpRepository(private val context: Context? = null) {
         //
         // If a column is ever ADDED to the live table, nothing breaks: the app
         // simply does not read it here, the same as before it existed.
-        private const val FOLLOWUP_COLS = "address,age,branch,callCount,convertedPatientId,createdAt,createdBy,date,disease,history,id,lastCallDate,lastRemark,mobile,name,nextFollow,patientId,refId,registrationDate,sex,stage,status,timeType,updatedAt,visitDate"
+        private const val FOLLOWUP_COLS = "address,age,branch,callCount,convertedPatientId,createdAt,createdBy,date,disease,history,id,lastCallDate,lastRemark,mobile,name,nextFollow,noMoreCalls,patientId,refId,registrationDate,sex,stage,status,timeType,updatedAt,visitDate"
         // 🔴🆕🔒 TK-নির্দেশ (08.08.2026) — Supabase Egress কমানো (মাসে ১০ GB > ৫ GB
         // ফ্রি সীমা = ২০৫%)। Follow-up তালিকা প্রতিবার খুললে সব রোগীর এই ৫টা বড়
         // লেখা-ঘরও নামত, অথচ তালিকায় এগুলো দেখানোই হয় না; শুধু ডাক্তার-চেকআপ/
@@ -515,6 +515,7 @@ class FollowUpRepository(private val context: Context? = null) {
                         patientId = r.optString("patientId", ""), address = r.optString("address", ""),
                         age = r.optString("age", ""), sex = r.optString("sex", ""),
                         photo = r.optString("photo", ""), updatedAt = r.optString("updatedAt", ""),
+                        noMoreCalls = r.optBoolean("noMoreCalls", false),   // 📵 V1206
                         // 🏷️🔒 V712 — উপরের তিনটে ঘর ফেরত পড়া (পুরোনো জমানো তালিকায়
                         //    না থাকলে ফাঁকা — অর্থাৎ ঠিক আগের আচরণ, কিছুই ভাঙে না)।
                         timeType = r.optString("timeType", ""),
@@ -684,6 +685,7 @@ class FollowUpRepository(private val context: Context? = null) {
                         .put("id", it.id).put("name", it.name).put("mobile", it.mobile)
                         .put("branch", it.branch).put("disease", it.disease).put("stage", it.stage)
                         .put("lastRemark", it.lastRemark).put("nextFollow", it.nextFollow)
+                        .put("noMoreCalls", it.noMoreCalls)   // 📵 V1206
                         .put("recordDate", it.recordDate).put("callCount", it.callCount)
                         .put("createdAt", it.createdAt)   // 🔒 খাতার সারি B65
                         .put("bill", it.bill).put("paid", it.paid).put("patientId", it.patientId)
@@ -2897,7 +2899,15 @@ class FollowUpRepository(private val context: Context? = null) {
            ⛔ স্টাফ নিজে তারিখ বাছলে সেটাই জেতে (`nextFollow` আগেই বসানো থাকলে
               এখানে আর কিছু করা হয় না)।
            ⛔ সারি তালিকা থেকে হারায় না — "বকেয়া" থেকে "আজকের"-এ সরে আসে। */
-        if (fields.has("lastCallDate") && !fields.has("nextFollow") && haveRow) {
+        /* 📵🔒 V1206 (০৮.০৯.২০২৬, TK-রিপোর্ট: *"বার বার নো মোর কল দাবার পরেও
+           আবার এই পেশেন্টের নাম কেনো শো করছে"*) — **এটাই ছিল আসল দোষ।**
+           V1065-এর এই নিয়মটা ফাঁকা `nextFollow` দেখলেই আজকের দিন বসিয়ে দিত,
+           অর্থাৎ "ইচ্ছে করে থামানো"-কেও "কখনো বসানোই হয়নি" ধরত। ⇒ এখন
+           `noMoreCalls` সত্যি হলে এই নিয়ম **ছোঁয়াই হয় না**।
+           ⛔ V1065-এর আসল উদ্দেশ্য (কল হলেও সারিটা চিরকাল "বকেয়া" না থাকা)
+              অন্য সব সারিতে হুবহু আগের মতোই কাজ করে। */
+        val stoppedRow = haveRow && row.optBoolean("noMoreCalls", false)
+        if (fields.has("lastCallDate") && !fields.has("nextFollow") && haveRow && !stoppedRow) {
             val todayStr = FollowUpModel.today()
             val nf = if (row.isNull("nextFollow")) "" else row.optString("nextFollow", "").trim()
             if (nf.isBlank() || nf < todayStr) fields.put("nextFollow", todayStr)
@@ -2930,10 +2940,16 @@ class FollowUpRepository(private val context: Context? = null) {
         return reallySaved || context != null
     }
 
-    fun updateNextFollow(id: String, nextFollow: String): Boolean {
+    /* 📵🔒 V1206 — `stop` **শুধু তখনই** লেখা হয় যখন ডাকার জায়গা নিজে বলে দেয়:
+       "আর কল লাগবে না" ⇒ true, স্টাফ নতুন তারিখ বাছলে ⇒ false (আবার চালু,
+       আলাদা কোনো বোতাম লাগে না)।
+       ⛔ ডিফল্ট `null` ⇒ বাকি সব পুরোনো ডাক (Dialer · Appointment · Draft ·
+          Timeline) **এক অক্ষরও বদলায়নি**, ঘরটা তারা ছোঁয়ই না। */
+    fun updateNextFollow(id: String, nextFollow: String, stop: Boolean? = null): Boolean {
         val fields = JSONObject()
             .put("nextFollow", nextFollow)
             .put("updatedAt", isoNow())
+        if (stop != null) fields.put("noMoreCalls", stop)
         val knownRow = try {
             val found = SupabaseClient.fetchList("followups", "id=eq.$id", 1)
             if (found.length() > 0) found.getJSONObject(0) else null

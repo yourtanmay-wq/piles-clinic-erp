@@ -1036,8 +1036,11 @@ class FollowUpActivity : AppCompatActivity() {
                ⇒ ব্যানার/নোটিফিকেশন থেকে এলে এখন **আজকের + বকেয়া** দুটোই আসে।
                ⛔ উপরের "Today" বোতামটা স্টাফ নিজে চাপলে আগের মতোই শুধু আজকের
                   (নিচের `else` শাখা) — সেটা এক অক্ষরও বদলায়নি। */
-            "Today" -> if (bannerCallsOnly) items.filter { it.nextFollow.isNotBlank() && it.nextFollow <= today }
-                       else items.filter { it.nextFollow == today || it.recordDate == today }
+            /* 📵 V1206 — "আর কল লাগবে না" বলা সারি কল-তালিকায় আর আসে না।
+               ⛔ শুধু এই দুটো কল-তালিকায় (আজকের ও বকেয়া); অন্য কোনো ট্যাব,
+                  খোঁজা বা গোনা ছোঁয়া হয়নি — সারিটা কোথাও হারায় না। */
+            "Today" -> if (bannerCallsOnly) items.filter { !it.noMoreCalls && it.nextFollow.isNotBlank() && it.nextFollow <= today }
+                       else items.filter { !it.noMoreCalls && (it.nextFollow == today || it.recordDate == today) }
             /* 🟢🔒 V692 — সাধারণ Overdue আগের মতোই। শুধু Briefing-এর ⚠️ Overdue
                Follow-up Alert-এর View থেকে এলে **৩+ দিন** পেরোনোগুলোই —
                DashboardActivity যে হিসাবে নোটিশের সংখ্যাটা বানায়
@@ -1046,8 +1049,8 @@ class FollowUpActivity : AppCompatActivity() {
             "Overdue" -> if (overdue3PlusOnly) {
                 val threeDaysAgo = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
                     .format(java.util.Date(System.currentTimeMillis() - 3L * 24 * 60 * 60 * 1000))
-                items.filter { it.nextFollow.isNotBlank() && it.nextFollow <= threeDaysAgo }
-            } else items.filter { it.nextFollow.isNotBlank() && it.nextFollow < today }
+                items.filter { !it.noMoreCalls && it.nextFollow.isNotBlank() && it.nextFollow <= threeDaysAgo }
+            } else items.filter { !it.noMoreCalls && it.nextFollow.isNotBlank() && it.nextFollow < today }
             "This Week" -> {
                 val cal = java.util.Calendar.getInstance()
                 cal.set(java.util.Calendar.DAY_OF_WEEK, cal.firstDayOfWeek)
@@ -2636,7 +2639,15 @@ class FollowUpActivity : AppCompatActivity() {
             ChamberCalendarDialog.show(
                 this, item.branch, NoBengali.s("পরের আসার দিন"),
                 chamberOnly = false, initialIso = defaultIso, mandatory = mandatory,
-                onNoMoreCalls = if (item.stage == "Treatment") ({ saveNoMoreCalls(item) }) else null
+                /* 📵🔒 V1206 (০৮.০৯.২০২৬, TK-রিপোর্ট: *"এই পেসেন্ট এর নো মোর কল
+                   অপশন কেনো নেই"* — কার্ডটা ছিল **VISITED**)। V711-এ বোতামটা
+                   শুধু Treatment ধাপে বসত; TK-র নিজের কথায় নিয়মটা ছিল *"কোন
+                   পেশেন্ট যখন কন্টিনিউ পেশেন্ট অথবা কন্টিনিউ ট্রিটমেন্ট করাচ্ছে"* —
+                   অর্থাৎ Visit-ও এর মধ্যে পড়ে। ⇒ এখন Patient (Visit) ধাপেও বসে।
+                   ⛔ Enquiry ধাপে বসানো হয়নি — ওঁরা এখনো রোগীই নন; TK চাইলে
+                      বসিয়ে দেওয়া যাবে (TK-কে জানানো হয়েছে)। */
+                onNoMoreCalls = if (item.stage == "Treatment" || item.stage == "Patient")
+                    ({ saveNoMoreCalls(item) }) else null
             ) { iso -> saveNextFollowDate(item, iso, markExpected = true) }
         }
     }
@@ -2664,7 +2675,9 @@ class FollowUpActivity : AppCompatActivity() {
             android.widget.Toast.LENGTH_SHORT
         ).show()
         BackgroundWork.run {
-            val ok = try { repository.updateNextFollow(resolveFollowUpId(item), "") } catch (_: Throwable) { false }
+            // 📵 V1206 — থামানোটা এখন আলাদা করে মনে রাখা হয় (নইলে পরের রিমার্ক/
+            //    টাকা বসলেই অ্যাপ নিজে থেকে আজকের তারিখ বসিয়ে নামটা ফিরিয়ে আনত)।
+            val ok = try { repository.updateNextFollow(resolveFollowUpId(item), "", stop = true) } catch (_: Throwable) { false }
             if (ok && !isFinishing && !isDestroyed) {
                 runOnUiThread { if (!isFinishing && !isDestroyed) loadTab(currentStage) }
             }
@@ -2676,7 +2689,8 @@ class FollowUpActivity : AppCompatActivity() {
     private fun saveNextFollowDate(item: FollowUpItem, iso: String, markExpected: Boolean) {
         android.widget.Toast.makeText(this, "Next follow-up set", android.widget.Toast.LENGTH_SHORT).show()
         BackgroundWork.run {
-            val ok = repository.updateNextFollow(resolveFollowUpId(item), iso)
+            // 📵 V1206 — স্টাফ নতুন তারিখ বাছলেন ⇒ থামানো বাতিল, আবার চালু।
+            val ok = repository.updateNextFollow(resolveFollowUpId(item), iso, stop = false)
             if (ok && markExpected) {
                 try {
                     ChamberAttendanceRepository.markExpected(
@@ -4252,7 +4266,8 @@ class FollowUpActivity : AppCompatActivity() {
             // যেতে পারবেন — ক্লাউডের উত্তরের জন্য পর্দা আটকে থাকবে না।
             Toast.makeText(this@FollowUpActivity, "Next follow-up set", Toast.LENGTH_SHORT).show()
             BackgroundWork.run {
-                val ok = repository.updateNextFollow(resolveFollowUpId(item), iso)
+                // 📵 V1206 — স্টাফ নতুন তারিখ বাছলেন ⇒ থামানো বাতিল, আবার চালু।
+            val ok = repository.updateNextFollow(resolveFollowUpId(item), iso, stop = false)
                 // TK-CORRECTED (2026-07-27): only the Patient card (stage
                 // "Treatment") marks আসার কথা -- see pickNextFollow() above.
                 if (ok && item.stage == "Treatment") {

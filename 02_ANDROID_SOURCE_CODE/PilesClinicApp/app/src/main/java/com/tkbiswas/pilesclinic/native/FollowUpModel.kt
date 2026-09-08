@@ -102,7 +102,18 @@ data class FollowUpItem(
        রেজিস্ট্রেশন করেছিল"। ⛔ ডিফল্ট ফাঁকা ⇒ যে পর্দা এই দুটো ঘর ভরে না
        (Follow-up · Trash-প্রিভিউ) সেখানে কার্ড **হুবহু আগের মতোই** থাকে। */
     val regDate: String = "",
-    val regBy: String = ""
+    val regBy: String = "",
+    /* 📵🔒 V1206 (০৮.০৯.২০২৬, TK-রিপোর্ট, হুবহু): *"বার বার নো মোর কল দাবার পরেও
+       আবার এই পেশেন্টের নাম কেনো শো করছে"*।
+       🔬 **আসল কারণ (কোডে মেপে পাওয়া):** "No more calls" এতদিন শুধু `nextFollow`
+          **ফাঁকা** করত। কিন্তু V1065-এর নিয়ম বলে — কল/রিমার্ক/টাকা বসলেই
+          `nextFollow` ফাঁকা বা পুরনো হলে **আজকের দিন বসিয়ে দাও**। অর্থাৎ
+          "ইচ্ছে করে থামানো" আর "কখনো বসানোই হয়নি" — দুটো **একরকম** ধরা হত,
+          তাই পরের বার টাকা/রিমার্ক বসলেই নামটা আবার আজকের তালিকায় ফিরে আসত।
+       ⇒ এখন থামানোটা আলাদা করে **মনে রাখা হয়** (`noMoreCalls`), তাই কোনো
+         নিয়মই আর নিজে থেকে তারিখ বসাবে না।
+       ⛔ ডিফল্ট false ⇒ পুরোনো সব সারি ও পুরোনো সব কোড হুবহু আগের মতোই। */
+    val noMoreCalls: Boolean = false
 )
 
 object FollowUpModel {
@@ -122,6 +133,7 @@ object FollowUpModel {
         recordDate = s(row, "date"),
         createdAt = s(row, "createdAt"),   // 🔒 খাতার সারি B65 — সিরিয়ালের স্থির ক্রম
         callCount = row.optInt("callCount", 0),
+        noMoreCalls = row.optBoolean("noMoreCalls", false),   // 📵 V1206
         bill = row.optDouble("bill", 0.0),
         paid = row.optDouble("paid", 0.0),
         patientId = s(row, "patientId"),
