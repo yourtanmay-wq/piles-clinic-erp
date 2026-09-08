@@ -556,9 +556,20 @@ class FollowCalendarActivity : AppCompatActivity() {
         } catch (_: Exception) { }
         val picker = android.app.DatePickerDialog(this, com.tkbiswas.pilesclinic.R.style.PilesDatePicker, { _, y, m, day ->
             val iso = String.format(java.util.Locale.US, "%04d-%02d-%02d", y, m + 1, day)
+            /* 🔴🔒 V1222 ③ (০৮.০৯.২০২৬) — FollowUpActivity-র হুবহু একই সুরক্ষা
+               (নিয়ম ৭)। সঙ্গে সঙ্গের বার্তা অটুট; নিচে কাজটা সত্যিই না বসলে
+               পরে একটা সৎ খবর যায়। */
             Toast.makeText(this@FollowCalendarActivity, "Next follow-up set", Toast.LENGTH_SHORT).show()
             BackgroundWork.run {
-                val ok = repository.updateNextFollow(resolveFollowUpId(item), iso)
+                val ok = repository.updateNextFollowSaved(resolveFollowUpId(item), iso).also { s2 ->
+                    if (!s2) runOnUiThread {
+                        if (!isFinishing && !isDestroyed) Toast.makeText(
+                            this@FollowCalendarActivity,
+                            "Not sent yet — saved on this phone, will send when online",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                } || true
                 if (ok && item.stage != "Inquiry") {
                     try {
                         ChamberAttendanceRepository.markExpected(this@FollowCalendarActivity, item.mobile, item.name, item.branch, iso, user.mobile)

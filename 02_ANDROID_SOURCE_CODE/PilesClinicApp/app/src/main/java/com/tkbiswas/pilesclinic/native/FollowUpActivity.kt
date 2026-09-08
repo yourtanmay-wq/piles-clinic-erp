@@ -2694,11 +2694,31 @@ class FollowUpActivity : AppCompatActivity() {
 
     /** Saves the chosen date exactly as before, then (when markExpected) writes
      *  the person's "আসার কথা" via the SAME shared markExpected used elsewhere. */
+    /* 🔴🔒 V1222 ③ (০৮.০৯.২০২৬ — Laxmi-র রিপোর্ট, TK-র অনুমতি নিয়ে):
+       "Next follow-up set" লেখাটা দেখানো হত সেভের **আগেই**, আর ফলটা কেউ কখনো
+       মিলিয়ে দেখত না। তাই নেট দুর্বল হয়ে কাজটা শুধু ফোনে জমা হলেও স্টাফ
+       "হয়ে গেছে" দেখে নিশ্চিন্তে পরের কলে চলে যেতেন।
+       ⛔ **TK-র ২৮.০৭.২০২৬-এর নিয়ম অটুট রাখা হয়েছে** — *"তারিখ বেছে দেওয়ামাত্র
+          স্টাফ পরের কাজে যেতে পারবেন, ক্লাউডের উত্তরের জন্য পর্দা আটকে থাকবে না"*।
+          তাই সঙ্গে সঙ্গের বার্তাটা **আগের মতোই** আছে।
+       ⇒ শুধু যোগ হলো: কাজটা সত্যিই ক্লাউডে **না বসলে** পরে একটা সৎ বার্তা —
+         *"Not sent yet — saved on this phone, will send when online"*।
+       ⛔ সেভের নিয়ম · তারিখ · কোনো হিসাব কিচ্ছু বদলায়নি। */
     private fun saveNextFollowDate(item: FollowUpItem, iso: String, markExpected: Boolean) {
         android.widget.Toast.makeText(this, "Next follow-up set", android.widget.Toast.LENGTH_SHORT).show()
         BackgroundWork.run {
             // 📵 V1206 — স্টাফ নতুন তারিখ বাছলেন ⇒ থামানো বাতিল, আবার চালু।
-            val ok = repository.updateNextFollow(resolveFollowUpId(item), iso, stop = false)
+            val saved = repository.updateNextFollowSaved(resolveFollowUpId(item), iso, stop = false)
+            if (!saved) runOnUiThread {
+                if (!isFinishing && !isDestroyed) android.widget.Toast.makeText(
+                    this@FollowUpActivity,
+                    "Not sent yet — saved on this phone, will send when online",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+            }
+            // ⛔ পুরনো আচরণ হুবহু: `updateNextFollow()` Activity-তে context থাকায়
+            //    আগেও সবসময় true-ই ফেরাত, তাই নিচের ধাপগুলো আগের মতোই চলে।
+            val ok = true
             if (ok && markExpected) {
                 try {
                     ChamberAttendanceRepository.markExpected(
@@ -4278,7 +4298,18 @@ class FollowUpActivity : AppCompatActivity() {
             Toast.makeText(this@FollowUpActivity, "Next follow-up set", Toast.LENGTH_SHORT).show()
             BackgroundWork.run {
                 // 📵 V1206 — স্টাফ নতুন তারিখ বাছলেন ⇒ থামানো বাতিল, আবার চালু।
-            val ok = repository.updateNextFollow(resolveFollowUpId(item), iso, stop = false)
+                // 🔴🔒 V1222 ③ — উপরের saveNextFollowDate-এর হুবহু একই সুরক্ষা
+                //    TK-র নিয়ম ৭ মেনে: একটা দোষ পেলে একই ধরনের সব জায়গা।
+                //    সঙ্গে সঙ্গের বার্তা অটুট; শুধু না-বসলে পরে সৎ খবরটা যায়।
+            val ok = repository.updateNextFollowSaved(resolveFollowUpId(item), iso, stop = false).also { s2 ->
+                if (!s2) runOnUiThread {
+                    if (!isFinishing && !isDestroyed) Toast.makeText(
+                        this@FollowUpActivity,
+                        "Not sent yet — saved on this phone, will send when online",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            } || true
                 // TK-CORRECTED (2026-07-27): only the Patient card (stage
                 // "Treatment") marks আসার কথা -- see pickNextFollow() above.
                 if (ok && item.stage == "Treatment") {
