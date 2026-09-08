@@ -27308,6 +27308,10 @@ var WLV1_NOBN_MAP=[
 ['করানো হয়নি','not done'],
 ['কোন পেমেন্ট','Which payment'],
 ['খরচের বিবরণ','Expense Details'],
+/* 💰 V1211 — Ledger Entry-র নতুন জোড়া ঘর (ফোনের NoBengali.kt-এর যমজ) */
+['কত টাকা খরচ করলাম','How much was spent'],
+['কীসে খরচ করলাম','What it was spent on'],
+['＋  আরও একটা খরচ','＋  Add another expense'],
 ['জন এসেছিলেন','people came'],
 ['টাকার হিসাব','Accounts'],
 ['তারিখ বদলান','Change the date'],

@@ -685,6 +685,10 @@ object NoBengali {
         "TK BISWAS যে কোনো সময় যাচাই করতে পারেন — সতর্ক থাকুন"
             to "TK BISWAS can verify this at any time — be careful",
         "খরচের বিবরণ" to "Expense Details",
+        // 💰 V1211 — Ledger Entry-র নতুন জোড়া ঘর (TK-অনুমোদিত ফটো-প্রুফ)
+        "কত টাকা খরচ করলাম" to "How much was spent",
+        "কীসে খরচ করলাম" to "What it was spent on",
+        "＋  আরও একটা খরচ" to "＋  Add another expense",
         "ব্যায়" to "Expense",
         "টাকার হিসাব" to "Accounts",
         "আজকের হিসাব" to "Today's Accounts",

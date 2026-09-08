@@ -1417,11 +1417,17 @@ class IncomeExpenseActivity : AppCompatActivity() {
         col.addView(ledgerHeader("Ledger Entry", rowBranch))
         val cash = ModuleUi.numberInput(this, "", allowDecimal = true)
         val online = ModuleUi.numberInput(this, "", allowDecimal = true)
-        val expenseBox = android.widget.EditText(this).apply {
-            hint = ""
-            minLines = 4; gravity = android.view.Gravity.TOP or android.view.Gravity.START
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
-        }
+        /* 💰🔒 V1211 (০৮.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, হুবহু): *"খরচ কিসে
+           করছি সেটা বাক্স আলাদা রাখতে হবে"* · *"আগে রাখতে হবে কত টাকা খরচ করলাম,
+           আর সেটা কিসে খরচা করলাম"* · *"আরও একটা দুটো হতে পারে, প্লাস চিহ্ন রাখতে
+           হবে"*।
+           ⇒ এক দিনে যতগুলো খরচ, ততগুলো **জোড়া ঘর** (কত টাকা · কীসে), আর নিচে ＋।
+           ⛔ **সেভ হয় হুবহু আগের ধাঁচেই** — ঘরগুলো জুড়ে "নাম টাকা, নাম টাকা"
+              লেখা বানিয়ে সেই একই `expense_notes`/`expense_total`-এ যায়। তাই
+              খরচের বিবরণ · মাসের হিসাব · ছাপা — সব আগের মতোই চলে, আর পুরনো
+              দিনের লেখাও এখানে ভেঙে ঘরে বসে যায় (নিচে `expLoad`)। */
+        val expRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val expPairs = ArrayList<Pair<android.widget.EditText, android.widget.EditText>>()
         val totalTv = ModuleUi.body(this, "₹0")
         col.addView(ModuleUi.label(this, "Date")); col.addView(boxify(dateInp))
         /* 🎨 V1175 — Cash ও Online পাশাপাশি, সমান চওড়া (TK-নির্দেশ)। */
@@ -1445,7 +1451,24 @@ class IncomeExpenseActivity : AppCompatActivity() {
             })
         })
         col.addView(ModuleUi.label(this, "Expense / ব্যায়"))
-        col.addView(boxify(expenseBox))
+        col.addView(expRows)
+        val addMore = android.widget.TextView(this).apply {
+            text = NoBengali.s("＋  আরও একটা খরচ")
+            textSize = 13.5f; gravity = android.view.Gravity.CENTER
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#B42318"))
+            setPadding(0, dp(11), 0, dp(11))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(11).toFloat()
+                setColor(android.graphics.Color.parseColor("#FFF3F1"))
+                setStroke(dp(2), android.graphics.Color.parseColor("#D9A8A1"))
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(8) }
+            isClickable = true; isFocusable = true
+        }
+        col.addView(addMore)
         /* 🎨 V1175 — মোট খরচ এখন নিজের একটা হালকা পট্টিতে। ⛔ অঙ্কটা
            হুবহু আগের ফাংশনেই (`sumNumbersInText`) হিসাব হয়। */
         col.addView(LinearLayout(this).apply {
@@ -1472,26 +1495,86 @@ class IncomeExpenseActivity : AppCompatActivity() {
             })
         })
 
-        fun refreshTotal() { totalTv.text = money(sumNumbersInText(expenseBox.text.toString())) }
-        expenseBox.addTextChangedListener(object : android.text.TextWatcher {
-            override fun afterTextChanged(s: android.text.Editable?) { refreshTotal() }
-            override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
-            override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {}
-        })
+        /* 💰 V1211 — ঘরগুলো থেকে সেই পুরনো ধাঁচের লেখা: "নাম টাকা, নাম টাকা"।
+           ⛔ নামের ভিতরে কমা থাকলে সেটা সরানো হয়, নইলে ভাঙার সময় দুটো হয়ে যেত। */
+        fun expText(): String = expPairs.mapNotNull { (amtF, whatF) ->
+            val a0 = amtF.text.toString().trim().replace(",", "")
+            val w0 = whatF.text.toString().trim().replace(",", " ")
+            val n = a0.toDoubleOrNull() ?: 0.0
+            if (n == 0.0 && w0.isBlank()) null
+            else (if (w0.isBlank()) "খরচ" else w0) + " " + String.format(Locale.US, "%.0f", n)
+        }.joinToString(", ")
+
+        fun refreshTotal() { totalTv.text = money(sumNumbersInText(expText())) }
+
+        /** 💰 V1211 — একটা জোড়া ঘর (কত টাকা উপরে, কীসে নিচে)। */
+        fun addExpPair(amount: String, what: String) {
+            val act = this
+            val amtF = ModuleUi.numberInput(act, "", allowDecimal = true).apply {
+                if (amount.isNotBlank()) setText(amount)
+                setTextColor(android.graphics.Color.parseColor("#B42318"))
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+            }
+            val whatF = android.widget.EditText(act).apply {
+                hint = ""
+                if (what.isNotBlank()) setText(what)
+                inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+            }
+            val card = LinearLayout(act).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(12), dp(4), dp(12), dp(12))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(12).toFloat()
+                    setColor(android.graphics.Color.WHITE)
+                    setStroke(dp(1), android.graphics.Color.parseColor("#EBD6D2"))
+                }
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { topMargin = dp(8) }
+                addView(ModuleUi.label(act, NoBengali.s("কত টাকা খরচ করলাম")))
+                addView(boxify(amtF, big = true))
+                addView(ModuleUi.label(act, NoBengali.s("কীসে খরচ করলাম")))
+                addView(boxify(whatF))
+            }
+            expPairs.add(amtF to whatF)
+            expRows.addView(card)
+            val w = object : android.text.TextWatcher {
+                override fun afterTextChanged(s: android.text.Editable?) { refreshTotal() }
+                override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
+                override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {}
+            }
+            amtF.addTextChangedListener(w); whatF.addTextChangedListener(w)
+        }
+        addMore.setOnClickListener { addExpPair("", ""); refreshTotal() }
 
         if (existing != null) {
             cash.setText(existing.optDouble("cash", 0.0).let { if (it == 0.0) "" else it.toInt().toString() })
             online.setText(existing.optDouble("online", 0.0).let { if (it == 0.0) "" else it.toInt().toString() })
-            expenseBox.setText(existing.optString("expense_notes", "").let { if (it == "null") "" else it })
+            /* 💰 V1211 — পুরনো লেখা ভেঙে ঘরে বসানো। ⛔ ভাঙার নিয়ম **হুবহু খরচের
+               বিবরণ পপ-আপেরই** (`showExpenseBreakdown`) — সংখ্যাটা শেষে, তার
+               আগের অংশটাই নাম। তাই পর্দা ও এখানকার ভাঙা কখনো আলাদা হবে না। */
+            val old = existing.optString("expense_notes", "").let { if (it == "null") "" else it }.trim()
+            val amtRe = Regex("[0-9][0-9,]*(?:\\.[0-9]+)?")
+            for (raw in old.split(",", "\n", ";")) {
+                val seg = raw.trim()
+                if (seg.isEmpty()) continue
+                val m = amtRe.findAll(seg).lastOrNull() ?: continue
+                val amt = m.value.replace(",", "").toDoubleOrNull() ?: continue
+                var name = (seg.substring(0, m.range.first) + seg.substring(m.range.last + 1))
+                    .trim().trim('-', ':', '=', '·', '.', '/', '(', ')').trim()
+                if (name.isEmpty()) name = "খরচ"
+                addExpPair(String.format(Locale.US, "%.0f", amt), name)
+            }
             /* 🎨 V1175 — ব্রাঞ্চ এখন `rowBranch`-এ, উপরের পট্টিতে দেখানো হয়। */
         }
+        if (expPairs.isEmpty()) addExpPair("", "")   // 💰 V1211 — শুরুতে একটাই জোড়া
         refreshTotal()
 
         // 🔵 খাতার সারি (TK-নির্দেশ, 09.09.2026): Save/Cancel আগে উপর-নিচে ভেসে
         // একটা আরেকটার গায়ে পড়ছিল। এখন compactFooter দিয়ে **পাশাপাশি** (মাঝে ফাঁক),
         // Cancel বাঁয়ে সাদা-আউটলাইন · Save ডানে সবুজ। ⛔ সেভের কাজ/হিসাব হুবহু অটুট।
         col.addView(compactFooter("Cancel", "Save", { onSaved() }) {
-            val note = expenseBox.text.toString()
+            val note = expText()   // 💰 V1211 — ঘরগুলো জুড়ে সেই পুরনো ধাঁচের লেখা
             /* 🟢🔒 V401: মাস্টার নন এমন কেউ পুরনো তারিখের সারি বদলাতে পারবেন না —
                বদলে মাস্টারের কাছে অনুরোধ যাবে। (ডেটাবেসেও আটকানো; এখানে আগেভাগে
                ধরা হয় যাতে "Saved" দেখিয়ে আসলে কিছু না-হওয়ার ভুল না ঘটে।) */

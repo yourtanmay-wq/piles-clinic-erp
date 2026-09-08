@@ -1169,9 +1169,14 @@ function finRowTap(id) {
       '<div><label>Branch</label><select id="lsBranch" class="input">' + branchOptions(row.branch) + '</select></div></div>' +
       '<div class="finTwo"><div><label>Cash</label><input id="lsCash" class="input" type="number" value="' + Number(row.cash || 0) + '"></div>' +
       '<div><label>Online</label><input id="lsOnline" class="input" type="number" value="' + Number(row.online || 0) + '"></div></div>' +
-      '<label>Expense — you may write several items; all numbers are added up below</label>' +
-      '<textarea id="lsExpense" class="input" rows="5" placeholder="e.g. Rupam-500, CRP-2000, parcel-5400">' +
-      m.esc(row.expense_notes || '') + '</textarea>' +
+      /* 💰🔒 V1211 (০৮.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — একটাই বড় ঘরের বদলে
+         **জোড়া-জোড়া ঘর** (আগে "কত টাকা", তারপর "কীসে"), সঙ্গে ＋ বোতাম।
+         ⛔ সেভ হয় হুবহু আগের ধাঁচেই ("নাম টাকা, নাম টাকা") — তাই খরচের বিবরণ ·
+            মাসের হিসাব · ছাপা সব আগের মতোই চলে। ফোনের হুবহু যমজ। */
+      '<label>Expense / ব্যয়</label>' +
+      '<div id="lsExpRows"></div>' +
+      '<div id="lsExpAdd" style="margin-top:8px;border:2px dashed #D9A8A1;background:#FFF3F1;color:#B42318;' +
+        'border-radius:11px;text-align:center;padding:10px;font-weight:800;cursor:pointer">＋  আরও একটা খরচ</div>' +
       '<div id="lsTotal" class="mut" style="margin-top:6px">Total Expense: ' + m.money(finSumNumbers(row.expense_notes || '')) + '</div>' +
       /* 🖥️🔵 B678 (১৫.০৮.২০২৬, TK-নির্দেশ): *"save Cancel Delete এগুলি তো পাশাপাশি
          রাখা যায় না কি?"* — তিনটেই এক সারিতে। ⛔ প্রতিটার কাজ · রং · নিয়ম অপরিবর্তিত;
@@ -1188,10 +1193,57 @@ function finRowTap(id) {
       ((row.id && finIsMaster()) ? '<button class="ghost finDel" onclick="finLedgerDelete(\'' + m.esc(row.id) + '\')">' +
         '\uD83D\uDDD1\uFE0F  Delete</button>' : '') +
       '</div></div>';
-    var expEl = document.getElementById('lsExpense');
-    expEl.addEventListener('input', function () {
-      document.getElementById('lsTotal').textContent = 'Total Expense: ' + m.money(finSumNumbers(this.value));
-    });
+    /* 💰 V1211 — ঘরগুলো জুড়ে সেই পুরনো ধাঁচের লেখা (ফোনের `expText()`-এর যমজ)। */
+    window.finExpText = function () {
+      var out = [];
+      var cards = document.querySelectorAll('#lsExpRows .lsExpCard');
+      Array.prototype.forEach.call(cards, function (c) {
+        var a0 = String((c.querySelector('.lsExpAmt') || {}).value || '').trim().replace(/,/g, '');
+        var w0 = String((c.querySelector('.lsExpWhat') || {}).value || '').trim().replace(/,/g, ' ');
+        var n = Number(a0) || 0;
+        if (!n && !w0) return;
+        out.push((w0 || 'খরচ') + ' ' + Math.round(n));
+      });
+      return out.join(', ');
+    };
+    function lsRefreshTotal() {
+      var t = document.getElementById('lsTotal');
+      if (t) t.textContent = 'Total Expense: ' + m.money(finSumNumbers(window.finExpText()));
+    }
+    window.lsAddExpPair = function (amount, what) {
+      var host = document.getElementById('lsExpRows'); if (!host) return;
+      var d = document.createElement('div');
+      d.className = 'lsExpCard';
+      d.setAttribute('style', 'background:#fff;border:1px solid #EBD6D2;border-radius:12px;padding:4px 12px 12px;margin-top:8px');
+      d.innerHTML = '<label>কত টাকা খরচ করলাম</label>' +
+        '<input class="input lsExpAmt" type="number" value="' + (amount || '') + '" style="color:#B42318!important;font-weight:700!important">' +
+        '<label>কীসে খরচ করলাম</label>' +
+        '<input class="input lsExpWhat" value="' + m.esc(what || '') + '">';
+      host.appendChild(d);
+      Array.prototype.forEach.call(d.querySelectorAll('input'), function (el) {
+        el.addEventListener('input', lsRefreshTotal);
+      });
+    };
+    /* 💰 V1211 — পুরনো লেখা ভেঙে ঘরে বসানো (খরচের বিবরণ পপ-আপের হুবহু নিয়ম)। */
+    (function () {
+      var old = String(row.expense_notes || '').trim();
+      var re = /[0-9][0-9,]*(?:\.[0-9]+)?/g;
+      old.split(/[,\n;]/).forEach(function (seg) {
+        seg = String(seg || '').trim(); if (!seg) return;
+        var last = null, mm2;
+        re.lastIndex = 0;
+        while ((mm2 = re.exec(seg)) !== null) last = mm2;
+        if (!last) return;
+        var amt = Number(String(last[0]).replace(/,/g, '')); if (!isFinite(amt)) return;
+        var name = (seg.slice(0, last.index) + seg.slice(last.index + last[0].length))
+          .trim().replace(/^[-:=·./()\s]+|[-:=·./()\s]+$/g, '').trim();
+        window.lsAddExpPair(String(Math.round(amt)), name || 'খরচ');
+      });
+      if (!document.querySelectorAll('#lsExpRows .lsExpCard').length) window.lsAddExpPair('', '');
+      lsRefreshTotal();
+    })();
+    var addBtn = document.getElementById('lsExpAdd');
+    if (addBtn) addBtn.addEventListener('click', function () { window.lsAddExpPair('', ''); lsRefreshTotal(); });
   }
 
   /* 🟢🔒 B675 — ফোনের `IncomeExpenseActivity` যা করে হুবহু তাই:
@@ -1209,7 +1261,7 @@ function finRowTap(id) {
     var online = Number(document.getElementById('lsOnline').value || 0);
     if (!confirm('Delete this entry?\n\n' + d + ' · ' + br + '\nCash ' + m.money(cash) + ' · Online ' + m.money(online) +
                  '\n\nIt will be removed from the ledger. Nothing is permanently erased.')) return;
-    var note = document.getElementById('lsExpense').value;
+    var note = (typeof window.finExpText === 'function') ? window.finExpText() : '';   // 💰 V1211
     await m.save('fin', 'collections', {
       id: existingId,
       entry_date: d,
@@ -1226,7 +1278,7 @@ function finRowTap(id) {
 
   async function finLedgerSave(existingId) {
     var m = window.MOD;
-    var note = document.getElementById('lsExpense').value;
+    var note = (typeof window.finExpText === 'function') ? window.finExpText() : '';   // 💰 V1211
     // 🔴 বাগ-প্রতিরোধ (ফোনের সংস্করণে ধরা পড়া একই ঝুঁকি এখানেও এড়ানো হলো):
     // existing দিন এডিট করলে তার আসল id-ই পাঠাতে হবে, নইলে upsert নতুন সারি
     // বানিয়ে ফেলত — একই দিনের টাকা দুইবার গোনা হয়ে যেত।
