@@ -688,6 +688,10 @@ object NoBengali {
         // 💰 V1211 — Ledger Entry-র নতুন জোড়া ঘর (TK-অনুমোদিত ফটো-প্রুফ)
         "কত টাকা খরচ করলাম" to "How much was spent",
         "কীভাবে ছাড় দেবেন" to "How to give the discount",   // 🏷️ V1213
+        // 👥 V1215 — "এই টাকা কার কার কাছ থেকে" পপ-আপ
+        "এই দিনের অ্যাপে তোলা কোনো পেমেন্ট পাওয়া গেল না (হাতে লেখা সংখ্যা হতে পারে)।"
+            to "No app-entered payment found for this day (it may be a hand-written figure).",
+        "✏️ এই সংখ্যাটা হাতে বদলান" to "✏️ Edit this number by hand",
         "কীসে খরচ করলাম" to "What it was spent on",
         "＋  আরও একটা খরচ" to "＋  Add another expense",
         "ব্যায়" to "Expense",

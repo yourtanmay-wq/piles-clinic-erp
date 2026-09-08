@@ -372,8 +372,19 @@ class IncomeExpenseActivity : AppCompatActivity() {
        ⛔ পড়া ব্যর্থ হলে (null) কিচ্ছু বসে না — ভুল/অসম্পূর্ণ সংখ্যা কখনো নয়।
        ⚠️ ক্লাউড ছোঁয় — শুধু background thread থেকে ডাকা হয়।
        ═══════════════════════════════════════════════════════════════════════ */
+    /* 👥🔒 V1215 (০৮.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, হুবহু): *"সেই কালেকশনের
+       উপরে ক্লিক করলে আমি যেন দেখতে পাই ওই কালেকশনগুলো কার কার কাছ থেকে এসেছে …
+       কারণ ০৩/০৯/২০২৬ এই তারিখে আমাদের চেম্বার বন্ধ ছিল"*।
+       ⇒ অটো-আয়ের সংখ্যাটা যে সারিগুলো থেকে বসে, **সেগুলোই** এখানে দিন ধরে জমা
+         থাকে — রোগীর নাম · Patient ID · সময় · মোড · টাকা সবই ওদের ভিতরেই আছে।
+       ⛔ **একটাও নতুন ক্লাউড-পড়া নেই** — হুবহু সেই একই `fetchCollectionRange()`,
+          একই ছাঁকনি; শুধু যোগফলের পাশাপাশি সারিগুলোও রাখা হচ্ছে।
+       ⛔ টাকার এক পয়সাও এতে বদলায় না। */
+    private val collRowsByDate = HashMap<String, MutableList<com.tkbiswas.pilesclinic.native.CollectionRow>>()
+
     private fun autoIncomeByDate(ym: String, branchSel: String): Map<String, Pair<Double, Double>> {
         val out = HashMap<String, Pair<Double, Double>>()
+        collRowsByDate.clear()   // 👥 V1215
         try {
             val start = "$ym-01"
             if (start < AUTO_INCOME_FROM) {
@@ -432,6 +443,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
                 if (isRefunded(row.mobile)) continue
                 val cur = out[d] ?: Pair(0.0, 0.0)
                 out[d] = Pair(cur.first + row.cashAmount, cur.second + row.onlineAmount)
+                collRowsByDate.getOrPut(d) { ArrayList() }.add(row)   // 👥 V1215
             }
             // ঋণাত্মক (বেশি refund) হলে ০ ধরা হয় — ওয়েবের হুবহু একই নিয়ম
             for (k in out.keys.toList()) {
@@ -440,6 +452,119 @@ class IncomeExpenseActivity : AppCompatActivity() {
             }
         } catch (_: Throwable) { }
         return out
+    }
+
+    /* 👥🔒 V1215 — "এই টাকা কার কার কাছ থেকে" পপ-আপ।
+       ⛔ কোনো হিসাব এখানে কষা হয় না — যে সারিগুলো থেকে ঘরের সংখ্যাটা বসেছে,
+          হুবহু সেগুলোই দেখানো হয়, তাই ঘর ও তালিকা কখনো আলাদা হতে পারে না।
+       ⛔ তালিকা না পাওয়া গেলে সৎ বার্তা — বানানো কিছু দেখানো হয় না। */
+    private fun showCollectionPeople(
+        dateIso: String, mode: String, row: JSONObject, rowBranch: String
+    ) {
+        val isCash = mode == "cash"
+        val all = collRowsByDate[dateIso].orEmpty()
+        val mine = all.filter { if (isCash) it.cashAmount > 0.0 else it.onlineAmount > 0.0 }
+            .sortedBy { it.time }
+        val total = mine.sumOf { if (isCash) it.cashAmount else it.onlineAmount }
+
+        val body = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(14), dp(18), dp(6))
+        }
+        if (mine.isEmpty()) {
+            body.addView(ModuleUi.body(this, NoBengali.s(
+                "এই দিনের অ্যাপে তোলা কোনো পেমেন্ট পাওয়া গেল না (হাতে লেখা সংখ্যা হতে পারে)।")))
+        } else {
+            for (cr in mine) {
+                val amt = if (isCash) cr.cashAmount else cr.onlineAmount
+                val line = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = android.view.Gravity.CENTER_VERTICAL
+                    setPadding(dp(12), dp(10), dp(12), dp(10))
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        cornerRadius = dp(10).toFloat()
+                        setColor(android.graphics.Color.parseColor("#F4FBF6"))
+                        setStroke(dp(1), android.graphics.Color.parseColor("#CFE3D4"))
+                    }
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply { bottomMargin = dp(8) }
+                }
+                val texts = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                }
+                texts.addView(android.widget.TextView(this).apply {
+                    text = cr.name.ifBlank { cr.mobile }
+                    textSize = 14f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.parseColor("#17212B"))
+                })
+                val sub = listOf(cr.patientId, cr.time, cr.source)
+                    .map { it.trim() }.filter { it.isNotBlank() }.joinToString("  ·  ")
+                if (sub.isNotBlank()) texts.addView(android.widget.TextView(this).apply {
+                    text = sub; textSize = 11.5f
+                    setTextColor(android.graphics.Color.parseColor("#5B6B81"))
+                })
+                line.addView(texts)
+                line.addView(android.widget.TextView(this).apply {
+                    text = money(amt); textSize = 15f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.parseColor("#0A7C3F"))
+                })
+                body.addView(line)
+            }
+            body.addView(android.view.View(this).apply {
+                setBackgroundColor(android.graphics.Color.parseColor("#CFE3D4"))
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(1))
+                    .apply { topMargin = dp(4); bottomMargin = dp(10) }
+            })
+            body.addView(LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                addView(android.widget.TextView(this@IncomeExpenseActivity).apply {
+                    text = if (isCash) "Total Cash" else "Total Online"
+                    textSize = 15f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.parseColor("#0A7C3F"))
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                })
+                addView(android.widget.TextView(this@IncomeExpenseActivity).apply {
+                    text = money(total); textSize = 15f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.parseColor("#0A7C3F"))
+                })
+            })
+        }
+        val editBtn = android.widget.Button(this).apply {
+            text = NoBengali.s("✏️ এই সংখ্যাটা হাতে বদলান")
+            isAllCaps = false; textSize = 14f
+            setTextColor(android.graphics.Color.parseColor("#0B4F2A"))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(10).toFloat()
+                setColor(android.graphics.Color.WHITE)
+                setStroke(dp(2), android.graphics.Color.parseColor("#0B4F2A"))
+            }
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(46))
+                .apply { topMargin = dp(12) }
+        }
+        body.addView(editBtn)
+
+        val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(
+                this, (if (isCash) "💵 " else "🏦 ") + slashIso(dateIso) + " — " +
+                    (if (isCash) "Cash Collection" else "Online Collection")))
+            .setView(android.widget.ScrollView(this).apply { addView(body) })
+            .setPositiveButton("OK", null)
+            .setCancelable(true)
+            .show().also { try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) { } }
+
+        editBtn.setOnClickListener {
+            try { dlg.dismiss() } catch (_: Throwable) { }
+            quickFieldEditor(row, dateIso, rowBranch, mode, if (isCash) "Cash" else "Online") {
+                sheet(dateIso.substring(0, 7))
+            }
+        }
     }
 
     private fun loadSheet(ym: String, branchSel: String, out: LinearLayout) {
@@ -492,9 +617,13 @@ class IncomeExpenseActivity : AppCompatActivity() {
                এখন প্রতিটা খরচ আলাদা লাইনে দেখাতে ও এডিট করতে হবে, তাই ওই একই
                সারিগুলোরই আরো কয়েকটা ঘর টানা হয়। ⛔ সারির **সংখ্যা** এক — একই
                ফিল্টার, একই টেবিল; শুধু প্রতি সারিতে কয়েকটা ছোট ঘর বেশি আসে। */
+            /* ⏱️🔒 V1215 (০৮.০৯.২০২৬, TK-নির্দেশ, হুবহু): *"যে খরচ আমি আগে তুলব
+               সেটা আগে দেখাবে … টাইম অনুসারে সাজতে হবে"*।
+               ⇒ খরচের সব পড়ায় এখন `created_at` ধরে **আগে-তোলাটা আগে** (asc)।
+               ⛔ কোন সারি আসবে বা টাকার যোগফল — কিচ্ছু বদলায় না, শুধু ক্রম। */
             val expMonth = ModuleAuth.getRowsChecked(
                 "fin", "expenses",
-                "select=id,entry_date,branch,category,paid_to,amount,mode&entry_date=gte.$start&entry_date=lt.$end&ignored=eq.false$branchQ"
+                "select=id,entry_date,branch,category,paid_to,amount,mode&entry_date=gte.$start&entry_date=lt.$end&ignored=eq.false$branchQ&order=created_at.asc"
             )
             val expByDate = HashMap<String, Double>()
             val expItemsByDate = HashMap<String, org.json.JSONArray>()
@@ -832,29 +961,18 @@ class IncomeExpenseActivity : AppCompatActivity() {
             // শুধু সেই একটা সংখ্যার জন্য ছোট এডিটর খোলে (পুরো সারির ফর্ম নয়)।
             // ⛔ শুধু-খরচের সারিতে (isExpenseOnly) কোনো collections সারিই নেই,
             // তাই এখানে এডিট চালু হয় না — আগের মতোই।
+            /* 👥🔒 V1215 (TK-অনুমোদিত ফটো-প্রুফ) — **এক চাপেই** ওই দিনের ওই ঘরের
+               টাকা কার কার কাছ থেকে এসেছে তার তালিকা। হাতে বদলানোর পথটা হারায়নি —
+               তালিকার ভিতরেই "✏️ এই সংখ্যাটা হাতে বদলান" বোতাম, যেটা সেই একই
+               প্রমাণিত `quickFieldEditor()`-ই খোলে (নতুন কোনো সেভ-পথ নয়)।
+               ⛔ TK নিজে বেছে নিয়েছেন: *"হ্যাঁ পাশ, এভাবেই বসিয়ে দিন"* — তাই
+                  V630-এর ৩-চাপ আর লাগে না, ভুলে সংখ্যা বদলে যাওয়ার পথও নেই
+                  (বদলাতে হলে পপ-আপের ভিতরের বোতামে চাপতেই হবে)। */
             if (!isExpenseOnly) {
-                val cashTaps = intArrayOf(0)
                 cashCell.isClickable = true
-                val resetCashTaps = Runnable { cashTaps[0] = 0 }
-                cashCell.setOnClickListener {
-                    cashTaps[0]++
-                    cashCell.removeCallbacks(resetCashTaps)
-                    if (cashTaps[0] >= 3) {
-                        cashTaps[0] = 0
-                        quickFieldEditor(r, d, rowBranch, "cash", "Cash") { sheet(d.substring(0, 7)) }
-                    } else cashCell.postDelayed(resetCashTaps, 1200)
-                }
-                val onlineTaps = intArrayOf(0)
+                cashCell.setOnClickListener { showCollectionPeople(d, "cash", r, rowBranch) }
                 onlineCell.isClickable = true
-                val resetOnlineTaps = Runnable { onlineTaps[0] = 0 }
-                onlineCell.setOnClickListener {
-                    onlineTaps[0]++
-                    onlineCell.removeCallbacks(resetOnlineTaps)
-                    if (onlineTaps[0] >= 3) {
-                        onlineTaps[0] = 0
-                        quickFieldEditor(r, d, rowBranch, "online", "Online") { sheet(d.substring(0, 7)) }
-                    } else onlineCell.postDelayed(resetOnlineTaps, 1200)
-                }
+                onlineCell.setOnClickListener { showCollectionPeople(d, "online", r, rowBranch) }
             }
             /* 🟢🔒 V929 — TK: *"অটো না হাতে ঠিক করা এটা মাস্টার ছাড়া কেউ দেখতে
                পাবে না"*। তাই ট্যাগটা শুধু মাস্টারের পর্দায়; স্টাফ/ডাক্তার
@@ -1983,8 +2101,8 @@ class IncomeExpenseActivity : AppCompatActivity() {
         Thread {
             val branchQ = if (homeBranch != "All Branches")
                 "&branch=eq." + java.net.URLEncoder.encode(homeBranch, "UTF-8").replace("+", "%20") else ""
-            val collR = ModuleAuth.getRowsChecked("fin", "collections", "select=*&entry_date=eq.$iso&ignored=eq.false$branchQ")
-            val expR = ModuleAuth.getRowsChecked("fin", "expenses", "select=*&entry_date=eq.$iso&ignored=eq.false$branchQ")
+            val collR = ModuleAuth.getRowsChecked("fin", "collections", "select=*&entry_date=eq.$iso&ignored=eq.false$branchQ&order=created_at.asc")
+            val expR = ModuleAuth.getRowsChecked("fin", "expenses", "select=*&entry_date=eq.$iso&ignored=eq.false$branchQ&order=created_at.asc")
             if (!collR.ok || !expR.ok) {
                 runOnUiThread {
                     if (isFinishing || isDestroyed) return@runOnUiThread
@@ -2504,8 +2622,8 @@ class IncomeExpenseActivity : AppCompatActivity() {
             ModuleUi.toast(this, "Loading...")
         }
         Thread {
-            val collR = ModuleAuth.getRowsChecked("fin", "collections", "select=*&entry_date=eq.$iso&ignored=eq.false$branchQ")
-            val expR = ModuleAuth.getRowsChecked("fin", "expenses", "select=*&entry_date=eq.$iso&ignored=eq.false$branchQ")
+            val collR = ModuleAuth.getRowsChecked("fin", "collections", "select=*&entry_date=eq.$iso&ignored=eq.false$branchQ&order=created_at.asc")
+            val expR = ModuleAuth.getRowsChecked("fin", "expenses", "select=*&entry_date=eq.$iso&ignored=eq.false$branchQ&order=created_at.asc")
             if (!collR.ok || !expR.ok) {
                 runOnUiThread {
                     if (cached == null) {
@@ -3095,7 +3213,21 @@ class IncomeExpenseActivity : AppCompatActivity() {
             val p = ""
             val md = mode.selectedItem.toString()
             fun enc(x: String) = try { java.net.URLEncoder.encode(x, "UTF-8") } catch (_: Throwable) { x }
-            val finishSave = { ieSaveBusy = false; renderMenu() }
+            /* ➕🔒 V1215 (০৮.০৯.২০২৬, TK-রিপোর্ট, হুবহু): *"একটা খরচ তুললেই সেভ হয়ে
+               যাওয়ার পরে ব্যাকে চলে আসছি · + চিহ্ন নেই কেন? · টাকা থাকলে আমি ওই
+               তারিখে আরও কিছু পেমেন্ট তুলতে পারি"*।
+               🔬 **কোডে মেপে দেখা — কথাটা সত্যি:** সেভের পরে `renderMenu()` ডাকা
+                  হত, তাই একটা খরচ লিখলেই একদম "টাকার হিসাব" পর্দায় ফিরে যেত;
+                  দ্বিতীয় খরচের জন্য আবার পুরো পথ হেঁটে আসতে হত।
+               ⇒ এখন সেভের পরে **ওই একই দিন ও ব্রাঞ্চ নিয়ে ফর্মটাই আবার খোলে**
+                 (টাকা ও "Spent On" ফাঁকা) — পরপর যতগুলো খরচ দরকার লেখা যায়।
+               ⛔ ফেরার পথ হারায়নি — উপরের ← আর নিচের Back আগের মতোই আছে।
+               ⛔ সেভের নিয়ম · ডুপ্লিকেট-সতর্কতা · অনুমতির নিয়ম কিচ্ছু বদলায়নি। */
+            val finishSave = {
+                ieSaveBusy = false
+                val keepDate = (date.tag as? String) ?: prefillDate
+                addExpense(prefillDate = keepDate, prefillBranch = b)
+            }
             /* 🟢🔒 V401: পুরনো তারিখ হলে সরাসরি নয় — মাস্টারের অনুমতি চাইতে হবে। */
             if (ieRestricted && !ieIsToday(d)) {
                 ieSaveBusy = false
@@ -3163,8 +3295,8 @@ class IncomeExpenseActivity : AppCompatActivity() {
         Thread {
             // AUDIT FIX (2026-08-06): checked fetch — on network failure show a
             // clear message instead of ₹0 totals (loadOk gates the render below).
-            val collR = ModuleAuth.getRowsChecked("fin", "collections", "select=*&entry_date=eq.$d&ignored=eq.false")
-            val expR = ModuleAuth.getRowsChecked("fin", "expenses", "select=*&entry_date=eq.$d&ignored=eq.false")
+            val collR = ModuleAuth.getRowsChecked("fin", "collections", "select=*&entry_date=eq.$d&ignored=eq.false&order=created_at.asc")
+            val expR = ModuleAuth.getRowsChecked("fin", "expenses", "select=*&entry_date=eq.$d&ignored=eq.false&order=created_at.asc")
             val loadOk = collR.ok && expR.ok
             val coll = collR.rows
             val exp = expR.rows
@@ -3322,7 +3454,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
             val collR = ModuleAuth.getRowsChecked("fin", "collections",
                 "select=*&entry_date=gte.$start&entry_date=lt.$end&ignored=eq.false$branchQ&order=entry_date.asc")
             val expR = ModuleAuth.getRowsChecked("fin", "expenses",
-                "select=*&entry_date=gte.$start&entry_date=lt.$end&ignored=eq.false$branchQ&order=entry_date.asc")
+                "select=*&entry_date=gte.$start&entry_date=lt.$end&ignored=eq.false$branchQ&order=entry_date.asc,created_at.asc")
             // 🔵 আগের বাকি (Previous Balance) = এই মাসের আগের সব দিনের (একই ব্রাঞ্চের)
             // আয় − খরচ। দুই উৎস থেকেই খরচ বাদ যায়: খাতার নিজের খরচ (collections) +
             // Add-Expense এন্ট্রি (expenses)। মাসের ভিতরের হিসাবের সাথে হুবহু মেলে।
