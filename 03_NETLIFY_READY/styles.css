@@ -8448,3 +8448,25 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
 .wlv1CbDis{margin-left:6px;font-size:10px;font-weight:700;color:#8A5A00;
   background:#FFF3DC;border:1px solid #F3DDB0;border-radius:8px;padding:1px 6px;
   white-space:nowrap;vertical-align:middle}
+
+/* 📏🔒 V1229 (০৮.০৯.২০২৬, TK-নির্দেশ) — *"pending call and search এই দুইটা
+   পাশাপাশি রাখুন"*। শুধু কম্পিউটারে (≥৯০০px, সাইড-মেনু থাকলে) পাশাপাশি;
+   ফোনে আগের মতোই একটার নিচে একটা — ফোনের চেহারা এক চুলও বদলায়নি।
+   ⛔ একটা না থাকলে (যেমন বকেয়া কল শূন্য) অন্যটা পুরো চওড়া নেয়। */
+.dashTopRow{display:block}
+@media (min-width:900px){
+  body.hasDeskNav .dashTopRow{display:flex;gap:12px;align-items:center}
+  body.hasDeskNav .dashTopRow>*{flex:1 1 50%;min-width:0;margin-top:0!important;margin-bottom:0!important}
+  body.hasDeskNav .dashTopRow>*:only-child{flex:1 1 100%}
+  body.hasDeskNav .dashTopRow .wlv1CallBanner{margin:0!important}
+  body.hasDeskNav .dashTopRow .globalCapsuleWrap{margin:0!important}
+}
+
+/* 👁🔒 V1229 (০৮.০৯.২০২৬, TK: *"today collection-এর background colour এমন হয়ে
+   আছে যে আরও কী কী লেখা আছে সেগুলো বোঝাই যাচ্ছে না"*) — গাঢ় নীলের উপর ছোট
+   লেখাটা `opacity:.92` ও পাতলা ছিল, তাই Cash · Online · কতগুলো লেনদেন কিছুই
+   পড়া যেত না। ⇒ এখন লেখাটা পরিষ্কার সাদা, মোটা, আর হালকা একটা বাক্সের ভিতরে।
+   ⛔ কার্ডের রং · টাকার অঙ্ক · কাজ কিছুই বদলায়নি — শুধু পড়া যায়। */
+.tccOneLine small{opacity:1!important;color:#FFFFFF!important;font-weight:800!important;
+  font-size:12.5px!important;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.28);
+  border-radius:999px;padding:4px 11px;letter-spacing:.2px}
