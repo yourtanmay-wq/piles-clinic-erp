@@ -549,6 +549,13 @@
     webRmpPatientForm: webRmpPatientForm, webRmpSavePatient: webRmpSavePatient,
     webRmpPayForm: webRmpPayForm, webRmpSavePayment: webRmpSavePayment, webRmpPaymentHistory: webRmpPaymentHistory,
     webRmpEditPaymentForm: webRmpEditPaymentForm, webRmpSavePaymentEdit: webRmpSavePaymentEdit,
+    /* 🔴🔒 V1223 (০৮.০৯.২০২৬, TK: *"ওয়েবে অনেক বোতাম কোন কাজ করছে না"*) —
+       যন্ত্র দিয়ে ওয়েবের **প্রতিটা** বোতাম মিলিয়ে দেখতে গিয়ে ধরা পড়ল: পেমেন্ট
+       এডিট পর্দার **Delete** বোতামটা এই তালিকায় ছিল না। ফাইলটা IIFE-এ মোড়া,
+       তাই তালিকায় না থাকলে বাইরের `onclick` ফাংশনটাকে খুঁজেই পেত না —
+       বোতাম চাপলে **কিচ্ছু হত না** (V1085-এ ঠিক এই একই দোষ ধরা পড়েছিল)।
+       ⛔ ফাংশনটা আগে থেকেই আছে ও ঠিক আছে — শুধু বাইরে থেকে ডাকার পথটা ছিল না। */
+    webRmpDeletePayment: webRmpDeletePayment,
     webRmpPending: webRmpPending, webRmpDecide: webRmpDecide, webRmpPatientStatus: webRmpPatientStatus,
     webRmpAdvance: webRmpAdvance, webRmpAdvanceAdjustForm: webRmpAdvanceAdjustForm, webRmpAdvanceAdjustSave: webRmpAdvanceAdjustSave,
     webRmpCardCounts: webRmpCardCounts, webRmpViewAll: webRmpViewAll, webRmpPerformance: webRmpPerformance });
