@@ -61,6 +61,31 @@ class EstimatePaperActivity : AppCompatActivity() {
            লাগবে না সেটা কেটে বা মুছে দিলেই হলো।
            ⛔ চিকিৎসার লাইন বসানো হয় না — গ্রেড/ইঞ্চি রোগভেদে আলাদা, ডাক্তারকেই
               বাছতে হয়। ⛔ আগের সেভ করা হিসাব খুললে কিচ্ছু যোগ হয় না। */
+        /* 🔴🔴🔒 V1233 (০৮.০৯.২০২৬ — TK, ছবিসহ: *"এই ব্যক্তির এস্টিমেট সেভ করা
+           হয়েছিল, পুনরায় খুললাম তখন কেন রোগের নামগুলো কাটা হয়ে গেল · মেডিসিনের
+           কোয়ান্টিটি একবার সেভ করলে সেটাই ডিফল্ট থাকবে, কেন আবার ১ হয়ে যাচ্ছে"*)।
+
+           **গভীরে যাচাই করে পাওয়া আসল কারণ:** এই পর্দার **SAVE** বোতাম হিসাবটা
+           শুধু চেকআপ-পর্দায় **ফেরত পাঠায়** (`setResult`), সেটা মেমরিতে বসে।
+           কাগজটা সত্যিই পাকাপাকি লেখা হয় **চেকআপ পর্দার নিজের Save-এ**
+           (`estimateJson`, DoctorCheckupActivity)। ⇒ ডাক্তার এখানে SAVE চেপে
+           যদি চেকআপের Save না চেপে বেরিয়ে যান, হিসাবটা কোথাও থাকে না।
+           পরের বার খুললে `sheet.lines` ফাঁকা ⇒ নিচের `prefillFromPriceList()`
+           চলে ⇒ দরের তালিকা থেকে ওষুধ/অন্যান্য নতুন করে বসে — **সবগুলো কাটা
+           অবস্থায় (V1113-এর নিয়ম) আর qty = ১**। TK-র ছবিতে ঠিক এটাই।
+
+           ⇒ **সমাধান (কোনো পুরনো পথ না ভেঙে):** SAVE চাপলেই হিসাবটা **এই ফোনেই
+             রোগীর নামে জমা** থাকে; পরের বার কাগজ খুললে ক্লাউড/চেকআপ থেকে কিছু
+             না এলে **ওই জমা হিসাবটাই** ফিরে আসে — কাটা-দাগ ও qty সহ হুবহু।
+           ⛔ চেকআপের Save চাপলে আগের মতোই ক্লাউডে যায়; তখন সেটাই জেতে।
+           ⛔ কোনো টাকার হিসাব · ছাড়ের নিয়ম · V1113-এর কাটা-নিয়ম বদলায়নি।
+           ⛔ ফাঁকা হিসাব কখনো জমা হয় না, তাই নতুন রোগীর কাগজ আগের মতোই খোলে। */
+        if (sheet.lines.isEmpty()) {
+            val remembered = estRememberedJson()
+            if (remembered.isNotBlank()) {
+                sheet = try { EstimateModel.parse(remembered) } catch (_: Throwable) { sheet }
+            }
+        }
         if (sheet.lines.isEmpty()) prefillFromPriceList()
         setContentView(buildScreen())
         render()
@@ -78,6 +103,35 @@ class EstimatePaperActivity : AppCompatActivity() {
         super.onRestoreInstanceState(savedInstanceState)
         RoleSession.restoreFrom(savedInstanceState)
     }
+
+    /* 🔴🔒 V1233 — এই ফোনে রোগীর নামে হিসাব মনে রাখা।
+       ⛔ শুধু এই ফোনে (SharedPreferences) — ক্লাউডে একটাও নতুন লেখা/পড়া নেই,
+          তাই খরচ এক পয়সাও বাড়ে না। ⛔ রোগী চেনা না গেলে কিছুই জমে না। */
+    /* ⛔ অ্যাপের নিজের Context ধরে (প্রকল্পের বাকি সব জায়গার হুবহু একই ধরন) —
+       Activity-র উত্তরাধিকারী ঘর ব্যবহার করলে কম্পাইল-পাহারা ধরতে পারে না। */
+    private fun estPrefs(): android.content.SharedPreferences? = try {
+        com.tkbiswas.pilesclinic.PilesClinicApplication.appContext
+            ?.getSharedPreferences("piles_clinic_estimate_last", android.content.Context.MODE_PRIVATE)
+    } catch (_: Throwable) { null }
+
+    private fun estKey(): String = try {
+        val pid = RoleSession.currentPatientId.orEmpty().trim()
+        val mob = RoleSession.currentPatientMobile.orEmpty().filter { it.isDigit() }.takeLast(10)
+        if (pid.isNotBlank()) "pid_" + pid else if (mob.length == 10) "mob_" + mob else ""
+    } catch (_: Throwable) { "" }
+
+    private fun estRemember(s: EstimateModel.Sheet) {
+        try {
+            val k = estKey(); if (k.isBlank() || s.isEmpty) return
+            val pr = estPrefs() ?: return
+            pr.edit().putString(k, s.toJson().toString()).commit()
+        } catch (_: Throwable) { }
+    }
+
+    private fun estRememberedJson(): String = try {
+        val k = estKey()
+        if (k.isBlank()) "" else (estPrefs()?.getString(k, "") ?: "")
+    } catch (_: Throwable) { "" }
 
     /** 💊 V986 — দরের তালিকা থেকে ওষুধ ও অন্যান্য সব লাইন বসানো। */
     private fun prefillFromPriceList() {
@@ -373,6 +427,7 @@ class EstimatePaperActivity : AppCompatActivity() {
 
     // ─────────────────────────── তিনটে কাজ ───────────────────────────
     private fun saveAndClose() {
+        estRemember(sheet)   // 🔴 V1233 — ফোনেই জমা, যাতে পরের বার ফিরে আসে
         setResult(RESULT_OK, android.content.Intent().putExtra(RESULT_SHEET, sheet.toJson().toString()))
         finish()
     }
