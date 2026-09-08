@@ -1468,7 +1468,10 @@ class BriefingActivity : AppCompatActivity() {
                     setTextColor(android.graphics.Color.parseColor("#10223A"))
                 })
                 row.addView(TextView(this@BriefingActivity).apply {
-                    text = "Salary day " + item.salaryDay + " · due this month · ₹" + "%,.0f".format(item.amount)
+                    // 💰 V1198 — কোন মাসের বেতন, সেটা এখন লেখাতেই থাকে
+                    text = "Salary day " + item.salaryDay + " · " +
+                        (if (item.forMonthLabel.isNotBlank()) item.forMonthLabel + " due" else "due") +
+                        " · ₹" + "%,.0f".format(item.amount)
                     textSize = 11.5f
                     setTextColor(android.graphics.Color.parseColor("#B42318"))
                     setPadding(0, dp(4), 0, 0)

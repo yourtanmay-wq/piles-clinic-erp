@@ -131,7 +131,7 @@
            বোতামটা পাশাপাশি বসত মাত্র একটা ফাঁকা-অক্ষরের দূরত্বে, তাই ₹8,000-এর
            গায়ে "Pay Salary" লেগে থাকত। এখন নিজের সারিতে, মাঝে সত্যিকারের ফাঁক,
            আর জায়গা না হলে বোতামটা নিচে নামে। ⛔ লেখা/কাজ কিছুই বদলায়নি। */
-        '<div class="pfDueLine"><span class="tiny mut">Salary day ' + m.esc(d.sd || '-') + ' · due this month · ' + m.money(d.amt) + '</span>' +
+        '<div class="pfDueLine"><span class="tiny mut">Salary day ' + m.esc(d.sd || '-') + ' · ' + m.esc(salMonthLabel(salDueMonth())) + ' due · ' + m.money(d.amt) + '</span>' +
         '<button class="small" onclick="profSalary(\'' + m.esc(d.code) + '\')">➕ Pay Salary</button></div></div>'; }).join('') + '</div>') : '';
     /* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬: "সব কিছু Android এর মত হোক") — কর্মীর
        কার্ডটা হুবহু ফোনের মতো করা হলো (StaffProfileActivity.kt:251-327):
@@ -1789,6 +1789,16 @@
      এই মাসে (বা পরে) জয়েন করা কর্মীর নাম এ মাসে আর ওঠে না; প্রথম বেতন
      পরের মাস থেকে। ⛔ তারিখ ফাঁকা/অচেনা হলে আগের মতোই ধরা হয়।
      ⛔ ফোনের `SalaryReminder.kt`-এর হুবহু একই নিয়ম। */
+  /* 💰🔒 V1198 (০৮.০৯.২০২৬, TK-নির্দেশ, হুবহু): *"আগস্টের স্যালারি সেপ্টেম্বরে
+     দেয়া হয় … তাহলে নোটিফিকেশনে কেন বারবার স্যালারি ডিউ লেখা আসে"*।
+     🔴 নিয়ম বসানো ছিল "চলতি মাসের বেতন চলতি মাসেই বাকি" ⇒ এখন বেতনের দিন এলে
+        **আগের মাসের** বেতন বাকি কিনা দেখে। ফোনের `SalaryReminder`-এর হুবহু যমজ।
+     ⛔ টাকার অঙ্ক কিছুই বদলায়নি, শুধু কোন মাসটা খোঁজা হবে। */
+  function salDueMonth(){
+    var now=new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Kolkata'}));
+    now.setMonth(now.getMonth()-1);
+    return (''+now.getFullYear())+'-'+(''+(now.getMonth()+1)).toString().padStart(2,'0');
+  }
   function salaryDueThisMonth(sc, pays, joinDate){
     try{
       if(!sc || !sc.salary_enabled) return 0;
@@ -1796,11 +1806,11 @@
       var sd=parseInt(sc.salary_date||'0',10); if(!(sd>=1)) return 0;
       var now=new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Kolkata'}));
       if(now.getDate()<sd) return 0;
-      var cur=(''+now.getFullYear())+'-'+(''+(now.getMonth()+1)).toString().padStart(2,'0');
+      var due=salDueMonth();
       var jm=String(joinDate||'').trim().slice(0,7);
-      if(jm.length===7 && jm>=cur) return 0;   /* 🔴 V1140 — এই মাসেই জয়েন */
+      if(jm.length===7 && jm>due) return 0;   /* 🔴 V1140 + V1198 — বাকি মাসের পরে জয়েন */
       var paidThis=0;
-      (pays||[]).forEach(function(p){ if(salIsExtra(p)) return; if(salPayMonth(p)===cur) paidThis+=Number(p.amount||0); });
+      (pays||[]).forEach(function(p){ if(salIsExtra(p)) return; if(salPayMonth(p)===due) paidThis+=Number(p.amount||0); });
       return Math.max(0, amount-paidThis);
     }catch(e){ return 0; }
   }
@@ -1936,7 +1946,7 @@
       (sc && sc.salary_enabled ? '<span>Monthly Salary</span><b style="font-size:22px">' + m.money(sc.salary_amount) + ' <span style="font-size:13px;font-weight:400;opacity:0.85">(day ' + m.esc(sc.salary_date || '-') + ')</span></b>' : '<span>Salary not enabled.</span>') +
       '</div>' +
       // 🟢 B629: নিজের এই মাসের বেতন বাকি থাকলে (salary date পেরিয়ে গেলে) মনে করিয়ে দেওয়া
-      (salaryDueThisMonth(sc, pays) > 0 ? '<div style="border:1px solid #ffd58a;background:#fff7e6;border-radius:10px;padding:11px 16px;margin-top:8px"><b style="color:#B42318">Salary due this month: ' + m.money(salaryDueThisMonth(sc, pays)) + /* 🔴 V430 — বন্ধনীর ভিতরের ছোট ব্যাখ্যা-লাইনটা তুলে দেওয়া হলো (TK-এর স্থায়ী
+      (salaryDueThisMonth(sc, pays) > 0 ? '<div style="border:1px solid #ffd58a;background:#fff7e6;border-radius:10px;padding:11px 16px;margin-top:8px"><b style="color:#B42318">' + m.esc(salMonthLabel(salDueMonth())) + ' salary due: ' + m.money(salaryDueThisMonth(sc, pays)) + /* 🔴 V430 — বন্ধনীর ভিতরের ছোট ব্যাখ্যা-লাইনটা তুলে দেওয়া হলো (TK-এর স্থায়ী
    নিয়ম: পর্দায় নির্দেশ/ব্যাখ্যা-লাইন থাকবে না)। বেতনের দিনটা উপরের সবুজ
    কার্ডেই লেখা আছে, তাই কোনো তথ্য হারায়নি। */
 '</b></div>' : '') +
