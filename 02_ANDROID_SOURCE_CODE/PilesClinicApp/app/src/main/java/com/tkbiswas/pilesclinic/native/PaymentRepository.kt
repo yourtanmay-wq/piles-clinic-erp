@@ -2316,10 +2316,20 @@ class PaymentRepository(private val context: Context? = null) {
         // থাকলে (locked হোক বা না হোক) ক্লাউডে লেখা হয়; না বদলালে আগের
         // মতোই বাড়তি write এড়ানো হয় (কোনো ঝুঁকি নেই, একই মান আবার লেখাই)।
         val billUpdateOk = if (effectiveBill != patient.bill) {
-            SupabaseClient.updateById(
-                "patients", patient.id,
-                JSONObject().put("bill", effectiveBill).put("stage", "Treatment Running").put("updatedAt", isoNow())
-            )
+            val billFields = JSONObject()
+                .put("bill", effectiveBill).put("stage", "Treatment Running").put("updatedAt", isoNow())
+            val done = SupabaseClient.updateById("patients", patient.id, billFields)
+            /* 🔴🔒 V1205 (০৮.০৯.২০২৬, TK-রিপোর্ট) — বিল আপডেট ব্যর্থ হলেও আগে
+               পুরো পেমেন্ট "ব্যর্থ" ধরা হত ⇒ টাকা ক্লাউডে গিয়েও সারিটা চিরকাল
+               অপেক্ষমাণ তালিকায় থাকত। এখন কাজটা `GenericUpdateQueue`-এ জমা থাকে
+               (হারায় না, নেট ফিরলে নিজে থেকেই বসে), তাই আর আটকায় না।
+               ⛔ টাকার কোনো অঙ্ক এতে বদলায় না। */
+            if (!done) {
+                var queued = false
+                try { context?.let { GenericUpdateQueue.queue(it, "patients", patient.id, billFields); queued = true } }
+                catch (_: Throwable) { }
+                queued
+            } else true
         } else true
         // V452: one cloud write returns the REAL daily owner row. This is
         // safer than trusting sameDayRepeat from local cache: after reinstall
@@ -2693,18 +2703,35 @@ class PaymentRepository(private val context: Context? = null) {
                         .put("lastRemark", "Converted to Patient / Treatment")
                         .put("updatedAt", isoNow())
                     if (wasInquiry) fields.put("stage", "Registered")
-                    if (!SupabaseClient.updateById("followups", id, fields)) closeOk = false
+                    /* 🔴🔒 V1205 (০৮.০৯.২০২৬, TK-রিপোর্ট: *"১২টা পেমেন্ট বার বার সেন্ড
+                       করছি কিন্তু সেন্ড কেনো হচ্ছে না"*) — **আসল দোষ, কোডে মেপে পাওয়া:**
+                       এই পুরনো-সারি-বন্ধ করার ধাপটা ব্যর্থ হলে (একটা সারিও) পুরো
+                       পেমেন্টটা "ব্যর্থ" ধরা হত ⇒ **টাকা ক্লাউডে পৌঁছে যাওয়ার পরেও**
+                       সারিটা অপেক্ষমাণ তালিকা থেকে কোনোদিন উঠত না, "send" চাপলেও নয়।
+                       ⇒ এখন ব্যর্থ হলে কাজটা **হারায় না** — প্রকল্পের নিজের প্রমাণিত
+                         `GenericUpdateQueue`-এ জমা থাকে, নেট ফিরলে নিজে থেকেই বসে।
+                       ⛔ ২০২৬-০৭-১৬-এর নিয়মের **উদ্দেশ্য অটুট** ("ধাপটা যেন আবার চেষ্টা
+                          পায়") — শুধু টাকার সারিকে আর জিম্মি করে রাখে না। */
+                    if (!SupabaseClient.updateById("followups", id, fields)) {
+                        var queued = false
+                        try {
+                            context?.let { GenericUpdateQueue.queue(it, "followups", id, fields); queued = true }
+                        } catch (_: Throwable) { }
+                        if (!queued) closeOk = false
+                    }
                 }
             } catch (_: Exception) { closeOk = false }
 
             // Verify the Patient-tab record is actually readable before reporting success.
             // 🔴🔒 V715 — আগে `select=*` (ছবিসহ)। এখানে শুধু **গোনা** হয়
             // (`verify.length()`), একটাও ঘর পড়া হয় না — তাই `id`-ই যথেষ্ট।
-            val verify = SupabaseClient.fetchListSlim(
-                "followups", "mobile=like.*$digits&stage=eq.Treatment&status=not.in.(Cancelled,Incomplete,Rejected,Closed)", 10,
-                PROMOTE_COLS_VERIFY
-            )
-            moved > 0 && verify.length() > 0 && closeOk
+            /* 🔴🔒 V1205 — এটা শুধু একটা **পড়া**। লাইন খারাপ হলে বা ছাঁকনি না
+               মিললে ০ সারি ফেরে, অথচ উপরের **লেখাটা সফলই হয়েছে** (২০০ পেয়েছে)।
+               আগে সেই ০ দেখে পুরো পেমেন্ট "ব্যর্থ" ধরা হত ⇒ চিরকাল আটকে থাকত।
+               ⇒ এখন লেখা সফল (`moved > 0`) হলে পড়ার ব্যর্থতা আর আটকায় না।
+               ⛔ লেখাই না হলে (`moved == 0`) আগের মতোই ব্যর্থ — টাকা কখনো
+                  ভুল করে "হয়ে গেছে" ধরা হবে না। */
+            moved > 0 && closeOk
         } catch (_: Exception) {
             false
         }
