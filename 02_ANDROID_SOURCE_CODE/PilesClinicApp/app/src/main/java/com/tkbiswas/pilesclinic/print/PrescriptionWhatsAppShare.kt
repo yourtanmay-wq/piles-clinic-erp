@@ -168,11 +168,40 @@ object PrescriptionWhatsAppShare {
            ⛔ ছাপার পথ (PrintManager · `PdfPrintDocumentAdapter`) সম্পূর্ণ
               আলাদা, সেখানে হাত পড়েনি — তাই প্রিন্ট আগের মতোই।
            ═══════════════════════════════════════════════════════════════ */
+        /* 🔴🔒 V1242 (০৮.০৯.২০২৬, TK-রিপোর্ট ছবিসহ — *"কমন ব্লাড টেস্ট
+           হোয়াটসঅ্যাপে শেয়ার করলাম, কেন এরকম ব্রেক হয়ে গেল"*, খাতার সারি ৩৬৩)।
+           🔴 **আসল কারণ (কোডে মেপে — এবং দোষটা আমারই, V795-এ আধখানা কাজ):**
+              উপরের V795-এর সমাধান দুটো অবস্থা সামলাত — viewport-এ সংখ্যা আছে,
+              বা viewport-এর ট্যাগটা আছে (তখন বদলে দেওয়া হত)। কিন্তু কোনো কাগজে
+              **viewport-এর ট্যাগটাই না থাকলে** নিচের `replace` কিছুই খুঁজে পেত না,
+              তাই পাতাটা **অবিকল আগের মতোই** চলে যেত।
+              Blood Test Advice-এর কাগজে (`InvestigationHtmlPrint`) ওই ট্যাগটা
+              কোনোদিনই ছিল না ⇒ WebView ফোনের চওড়া (~৩৬০px) ধরে সাজাত, অথচ
+              কাগজটা ২১০mm ≈ ৭৯৪px চওড়া ⇒ ডান দিকটা কেটে যেত, লোগো বিশাল
+              দেখাত। TK-এর ছবিতে ঠিক তাই।
+           ⇒ এখন **তিন নম্বর অবস্থাটাও** সামলানো হয়: ট্যাগ না থাকলে `<head>`-এর
+             ঠিক পরেই A4-এর viewport বসিয়ে দেওয়া হয়।
+           ⛔ আসল টেমপ্লেট ফাইল ছোঁয়া হয়নি — বদলটা শুধু মেমরির এই কপিতে।
+           ⛔ যে কাগজগুলোতে viewport আগে থেকেই ছিল, সেগুলো **এক অক্ষরও বদলায়নি**।
+           ⛔ ছাপার পথ আলাদা, সেখানে হাত পড়েনি। */
         val htmlForPdf = try {
-            if (Regex("name=[\"']viewport[\"'][^>]*content=[\"'][^\"']*width\\s*=\\s*\\d{3,4}",
-                    RegexOption.IGNORE_CASE).containsMatchIn(html)) html
-            else Regex("<meta[^>]*name=[\"']viewport[\"'][^>]*>", RegexOption.IGNORE_CASE)
-                .replace(html, "<meta name=\"viewport\" content=\"width=$A4_WIDTH_PX\">")
+            val hasNumber = Regex("name=[\"']viewport[\"'][^>]*content=[\"'][^\"']*width\\s*=\\s*\\d{3,4}",
+                RegexOption.IGNORE_CASE).containsMatchIn(html)
+            val hasTag = Regex("<meta[^>]*name=[\"']viewport[\"'][^>]*>", RegexOption.IGNORE_CASE)
+                .containsMatchIn(html)
+            when {
+                hasNumber -> html
+                hasTag -> Regex("<meta[^>]*name=[\"']viewport[\"'][^>]*>", RegexOption.IGNORE_CASE)
+                    .replace(html, "<meta name=\"viewport\" content=\"width=$A4_WIDTH_PX\">")
+                else -> {
+                    // ⛔ `<head ...>`-এর নিজের লেখাটা অক্ষত রেখে ঠিক তার পরেই বসানো হয়।
+                    val m = Regex("<head[^>]*>", RegexOption.IGNORE_CASE).find(html)
+                    if (m == null) html
+                    else html.substring(0, m.range.last + 1) +
+                        "<meta name=\"viewport\" content=\"width=$A4_WIDTH_PX\">" +
+                        html.substring(m.range.last + 1)
+                }
+            }
         } catch (_: Throwable) { html }
 
         val wv = WebView(activity)
