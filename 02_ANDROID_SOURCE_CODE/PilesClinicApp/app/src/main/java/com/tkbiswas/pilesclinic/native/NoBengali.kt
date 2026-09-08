@@ -732,6 +732,7 @@ object NoBengali {
         "সেভ হয়নি — নিচের SAVE চাপুন" to "Not saved — use the SAVE below",
         // 🟢🔒 V693 (২৬.০৮.২০২৬) — মাসের হিসাবের "••• Options" মেনু।
         "আগে Show চাপুন।" to "Tap Show first.",
+        "হিসাব আসছে — এক মুহূর্ত পরে আবার চাপুন।" to "Report is loading — please try again in a moment.",
         "হালনাগাদ হচ্ছে…" to "Updating…",
         "খুলছি... একটু অপেক্ষা করুন" to "Opening... please wait",
         "আজকের তথ্য আনছি..." to "Loading today's information...",

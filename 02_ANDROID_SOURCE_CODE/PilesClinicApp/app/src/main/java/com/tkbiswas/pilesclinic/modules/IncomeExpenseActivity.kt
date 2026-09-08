@@ -2777,7 +2777,8 @@ class IncomeExpenseActivity : AppCompatActivity() {
      *    আপনাকে বলা হয় নাই"*)।
      */
     private fun heroWithFields(title: String, leftView: android.view.View,
-                               rightView: android.view.View): LinearLayout {
+                               rightView: android.view.View,
+                               extraView: android.view.View? = null): LinearLayout {
         val h = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = android.view.Gravity.CENTER_VERTICAL
@@ -2816,6 +2817,9 @@ class IncomeExpenseActivity : AppCompatActivity() {
             return b
         }
         h.addView(pill(leftView)); h.addView(pill(rightView))
+        /* ⋮ V1217 — ঐচ্ছিক তৃতীয় ভিউ (পিল ছাড়া), Monthly Summary-র ⋮ মেনুর জন্য।
+           ⛔ ডিফল্ট null ⇒ এই হেল্পারের বাকি সব ডাক এক অক্ষরও বদলায়নি। */
+        if (extraView != null) h.addView(extraView)
         return h
     }
 
@@ -3381,27 +3385,51 @@ class IncomeExpenseActivity : AppCompatActivity() {
         }.start()
     }
 
+    /* 📈🔒 V1217 (০৮.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, হুবহু): *"Option
+       থাকবে না — উপরে ডান দিকে LG থ্রি ডট, তার মধ্যে WhatsApp share · pdf Download ·
+       print"* · *"Show থাকবে না — মাস সিলেক্ট করলে Show হতে হবে"* · *"উপরে যেখানে লেখা
+       আছে 2026-09, তার বদলে মাসের নাম থাকবে, আর সেখানে চাপ দিলে মাসের লিস্ট আসবে"* ·
+       *"Back বটম একদম নিচে"*।
+       ⛔ ভিতরে মাসটা আগের মতোই `yyyy-MM` (`monthYm`) — `runMonthly()`-তে হুবহু
+          একই মান যাচ্ছে। হিসাবের কোনো নিয়ম, ছাঁকনি বা টাকার অঙ্ক এক অক্ষরও
+          বদলায়নি — শুধু পর্দায় মাসের নামটা দেখানো হয়।
+       ⛔ V412-এর সুরক্ষা অক্ষত — মাস/ব্রাঞ্চ বদলালেই আগের টেবিল সঙ্গে সঙ্গে মুছে
+          গিয়ে নতুন হিসাব আসে (`runMonthly` নিজেই আগে `out` ফাঁকা করে) — এক
+          ব্রাঞ্চের টাকা কখনো অন্য ব্রাঞ্চের নামে পড়া যাবে না।
+       ⛔ 📅 ইমোজি কোথাও বসানো হয়নি (TK-র চিরস্থায়ী নিষেধ, সারি ২১৩)। */
     private fun monthly() {
         backAction = { renderMenu() }
-        val col = ModuleUi.screen(this, "")
-        val month = ModuleUi.input(this, "YYYY-MM").apply { setText(todayIso().substring(0, 7)) }
+        /* Back একদম নিচে রাখার জন্য পর্দা = page(নিচে ফুটার) + scroll(weight 1)।
+           এই ধরনটা এই ফাইলেই `sheet()`-এ আগে থেকে প্রমাণিত — নতুন কিছু নয়। */
+        val page = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(android.graphics.Color.parseColor("#F4FBF6"))
+        }
+        val scroll = android.widget.ScrollView(this).apply {
+            setBackgroundColor(android.graphics.Color.parseColor("#F4FBF6"))
+            isFillViewport = true
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
+        }
+        val col = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(14), dp(12), dp(14), dp(8))
+        }
+        scroll.addView(col); page.addView(scroll); setContentView(page)
+
+        var monthYm = todayIso().substring(0, 7)
+        /* মাসের নাম — চাপলে মাসের তালিকা। `monthLabel()` এই ফাইলেরই পুরনো,
+           `sheet()`-এ প্রমাণিত হেল্পার — নতুন কিছু লেখা হয়নি। */
+        val month = android.widget.TextView(this).apply {
+            text = monthLabel(monthYm) + "  ▾"
+            textSize = 12f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#0A5C33"))
+            isClickable = true; isFocusable = true
+        }
         /* 🟢🔒 V628 (২৪.০৮.২০২৬, TK-নির্দেশ, স্পষ্ট) — "ওটা তো হিসাবের খাতা...
            প্রতিটা ব্রাঞ্চের হিসাব থাকবে আলাদা, সমস্ত ব্রাঞ্চ একসাথে দেখানো
-           যাবে না"। "All Branches" আর অপশনেই নেই — সবসময় একটা নির্দিষ্ট
-           ব্রাঞ্চ বাছতে হবে। */
-        /* 🟢🔒 V695 (২৬.০৮.২০২৬, TK ডেমো দেখে "২ করুন" বলেছেন) — ব্রাঞ্চ এখন
-           Spinner নয়, চাপলে-তালিকা-খোলা একটা ঘর।
-           ⚠️ কেন Spinner রাখা গেল না (আন্দাজ নয়, দেখে নেওয়া): `spinner()`
-              হেল্পার বন্ধ-অবস্থা **ও** ড্রপডাউন — দুটোতেই একই
-              `simple_spinner_dropdown_item` ব্যবহার করে। সবুজ হেডারে বসাতে
-              লেখা সাদা করলে **ড্রপডাউনের সাদা তালিকাতেও সাদা লেখা** হয়ে
-              যেত, কিছুই পড়া যেত না।
-           ⛔ তাই এই ফাইলেই আগে থেকে প্রমাণিত ধরনটাই নেওয়া হলো — Statement
-              পর্দার ব্রাঞ্চ-চিপ (`.setItems(BRANCHES)` পপ-আপ)। নতুন কিছু নয়।
-           ⛔ `spinner()` হেল্পার ও বাকি পর্দার ব্রাঞ্চ-ঘর এক অক্ষরও বদলায়নি। */
+           যাবে না"। "All Branches" আর অপশনেই নেই। */
         var branchSel = v398Branch().let { if (it in BRANCHES) it else BRANCHES.first() }
-        /* 🟢🔒 V891 — হেডার এখন সাদা, তাই মাস ও ব্রাঞ্চের লেখা সাদা নয়,
-           গাঢ় সবুজ — না বদলালে সাদার উপর সাদা লেখা পড়াই যেত না। */
         val branchBox = android.widget.TextView(this).apply {
             text = "$branchSel  ▾"
             textSize = 12f
@@ -3409,77 +3437,77 @@ class IncomeExpenseActivity : AppCompatActivity() {
             setTextColor(android.graphics.Color.parseColor("#0A5C33"))
             isClickable = true; isFocusable = true
         }
-        month.background = null
-        month.textSize = 12f
-        month.setTextColor(android.graphics.Color.parseColor("#0A5C33"))
-        month.setHintTextColor(android.graphics.Color.parseColor("#8AA79A"))
-        month.setTypeface(month.typeface, android.graphics.Typeface.BOLD)
-        month.setPadding(0, 0, 0, 0)
-        col.addView(heroWithFields("📈 Monthly Summary", month, branchBox))
+        val dotsTv = android.widget.TextView(this).apply {
+            text = "⋮"; textSize = 20f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#0A5C33"))
+            setPadding(dp(10), dp(2), dp(2), dp(2))
+            isClickable = true; isFocusable = true
+        }
+        col.addView(heroWithFields("📈 Monthly Summary", month, branchBox, dotsTv))
         val out = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
 
-        /* 🔴🔒 V412 (TK-রিপোর্ট, ৪টে ছবিসহ, ১৭.০৮.২০২৬) — **টাকার অঙ্ক ভুল পড়ার ফাঁদ।**
-           TK ড্রপডাউনে Jalpaiguri · Falakata · Kishanganj · Birpara একে একে বেছে
-           দেখলেন **চারটেতেই একই সংখ্যা** (Previous Balance ₹1,19,652 · খরচ ₹2,700)।
-           কারণ: "Show" না চাপলে নতুন হিসাব আনা হয় না, আর **আগের ব্রাঞ্চের ফলটা
-           পর্দাতেই থেকে যেত**। উপরে ড্রপডাউনে নতুন ব্রাঞ্চের নাম, নিচে পুরনো
-           ব্রাঞ্চের টাকা — যে কেউ ওটাকে নতুন ব্রাঞ্চের হিসাব ভেবে নেবেন।
-           (লেবেলে "· Cooch Behar" লেখা ছিল বলেই ধরা গেল আসলে কোনটা দেখানো হচ্ছে।)
-           ⇒ এখন ব্রাঞ্চ বা মাস বদলালেই আগের টেবিল **সঙ্গে সঙ্গে মুছে যায়**।
-           ⛔ কোনো হিসাব · ফিল্টার · টাকার অঙ্ক ছোঁয়া হয়নি — শুধু পুরনো ফল আর
-              পর্দায় বসে থাকে না। */
-        val clearStale = {
-            if (out.childCount > 0) {
-                out.removeAllViews()
-                out.addView(ModuleUi.body(this, "Press Show to see this branch and month."))
-            }
+        /* মাস বা ব্রাঞ্চ বদলালেই সঙ্গে সঙ্গে নতুন হিসাব — TK: *"Show থাকবে না,
+           মাস সিলেক্ট করলে Show হতে হবে"*। ⛔ শেয়ার/PDF-এর লেখা আগের মতোই
+           পুরনো ফল মুছে তবেই নতুন করে বসে। */
+        val reload = {
+            v398Remember(branchSel)   // 🟢🔒 V398
+            monthlyShareText = null; monthlyPdfHtml = null
+            runMonthly(monthYm, branchSel, out)
         }
-        // 🟢🔒 V695 — ব্রাঞ্চ বাছাই। ⛔ V412-এর সুরক্ষা অক্ষত: ব্রাঞ্চ বদলালেই
-        //   আগের টেবিল সঙ্গে সঙ্গে মুছে যায়, যাতে এক ব্রাঞ্চের টাকা অন্য
-        //   ব্রাঞ্চের নামে পড়া না হয়।
+        month.setOnClickListener {
+            val yms = ArrayList<String>()
+            val cal = java.util.Calendar.getInstance()
+            for (k in 0 until 24) {
+                yms.add(String.format(Locale.US, "%04d-%02d",
+                    cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH) + 1))
+                cal.add(java.util.Calendar.MONTH, -1)
+            }
+            val labels = yms.map { monthLabel(it) }.toTypedArray()
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "Select Month"))
+                .setItems(labels) { _, which ->
+                    monthYm = yms[which]
+                    month.text = labels[which] + "  ▾"
+                    reload()
+                }
+                .setNegativeButton("Cancel", null)
+                .show().also { d -> try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(d) } catch (_: Throwable) { } }
+        }
         branchBox.setOnClickListener {
             androidx.appcompat.app.AlertDialog.Builder(this)
                 .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "🏥 Branch"))
                 .setItems(BRANCHES.toTypedArray()) { _, which ->
                     branchSel = BRANCHES[which]
                     branchBox.text = "$branchSel  ▾"
-                    clearStale()
+                    reload()
                 }
                 .setNegativeButton("Cancel", null)
                 .show().also { d -> try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(d) } catch (_: Throwable) { } }
         }
-        month.addTextChangedListener(object : android.text.TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: android.text.Editable?) { clearStale() }
-        })
+        dotsTv.setOnClickListener { v -> showMonthlyOptions(v) }
 
-        // 🟢🔒 V693 (২৬.০৮.২০২৬, TK-নির্দেশ ছবিসহ) — মাঝখানে "••• Options"
-        //   (WhatsApp-এ শেয়ার · PDF Download · Print)। ⛔ শুধু এই মাসের
-        //   পর্দাতেই; বাকি পর্দার Back/Show ফুটার এক অক্ষরও বদলায়নি।
-        /* 🟢🔒 V891 (৩০.০৮.২০২৬, TK-অনুমোদিত প্রুফ) — *"অপশনের আগে তিনটে ডট
-           থাকবে না"* ও *"back option show তিনটে বক্সের সাইজ একই রকম হতে হবে"*।
-           — ডট বাদ, তিনটেই এক মাপ ও উচ্চতায় কম।
-           ⛔ শুধু এই পর্দার ফুটার—বাকি পর্দার Back/Show এক অক্ষরও বদলায়নি। */
-        val monthFooter = compactFooter("Back", "Show", { renderMenu() },
-            middleText = "Options",
-            onMiddle = { v -> showMonthlyOptions(v) }
-        ) {
-            v398Remember(branchSel)   // 🟢🔒 V398
-            monthlyShareText = null; monthlyPdfHtml = null  // নতুন মাস দেখানোর আগে পুরনো লেখা মুছে
-            runMonthly(month.text.toString(), branchSel, out)
-        }
-        for (i in 0 until monthFooter.childCount) {
-            val b = monthFooter.getChildAt(i)
-            if (b is android.widget.Button) {
-                b.minWidth = 0; b.minimumWidth = 0
-                b.minHeight = dp(40); b.minimumHeight = dp(40)
-                b.setPadding(dp(2), 0, dp(2), 0)
-                b.textSize = 13.5f
-            }
-        }
-        col.addView(monthFooter)
         col.addView(out)
+
+        // Back — পর্দার একদম নিচে (TK-নির্দেশ, V1217)।
+        val footer = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(dp(14), dp(4), dp(14), dp(8))
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        }
+        val backBtn = ModuleUi.button(this, "← Back") { renderMenu() }
+        backBtn.setTextColor(android.graphics.Color.parseColor("#0B4F2A"))
+        backBtn.background = android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = dp(10).toFloat(); setColor(android.graphics.Color.WHITE)
+            setStroke(dp(1), android.graphics.Color.parseColor("#CFE9D8"))
+        }
+        backBtn.minimumHeight = 0; backBtn.minHeight = 0
+        backBtn.setPadding(dp(10), dp(9), dp(10), dp(9))
+        backBtn.layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        footer.addView(backBtn)
+        page.addView(footer)
+
+        reload()
     }
 
     // 🔵🔒 Monthly Summary — TK-অনুমোদিত প্রুফ (09.08.2026): টাকার খাতার হুবহু একই
@@ -3902,7 +3930,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
         val share = monthlyShareText
         val html = monthlyPdfHtml
         if (share.isNullOrBlank() || html.isNullOrBlank()) {
-            ModuleUi.toast(this, "আগে Show চাপুন।")
+            ModuleUi.toast(this, "হিসাব আসছে — এক মুহূর্ত পরে আবার চাপুন।")
             return
         }
         val menu = android.widget.PopupMenu(this, anchor)

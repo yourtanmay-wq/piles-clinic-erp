@@ -1543,41 +1543,78 @@ function finRowTap(id) {
     if (body) body.innerHTML = html;
   }
 
+  /* 📈🔒 V1217 (০৮.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, হুবহু): *"Option
+     থাকবে না — উপরে ডান দিকে LG থ্রি ডট, তার মধ্যে WhatsApp share · pdf Download ·
+     print"* · *"Show থাকবে না — মাস সিলেক্ট করলে Show হতে হবে"* · *"2026-09-এর বদলে
+     মাসের নাম, চাপ দিলে মাসের লিস্ট"*। ফোনের `monthly()`-র হুবহু যমজ।
+     ⛔ ভিতরে মাসটা আগের মতোই `yyyy-MM` — লুকোনো `#mMonth` ঘরেই থাকে, তাই
+        `finRunMonthly()` এক অক্ষরও বদলায়নি; কোনো হিসাব/ছাঁকনি/টাকার অঙ্ক নয়।
+     ⛔ V412-এর সুরক্ষা অক্ষত — মাস/ব্রাঞ্চ বদলালেই সঙ্গে সঙ্গে নতুন হিসাব বসে,
+        পুরনো ব্রাঞ্চের টাকা পর্দায় বসে থাকে না।
+     ⛔ 📅 ইমোজি কোথাও বসানো হয়নি (TK-র চিরস্থায়ী নিষেধ, সারি ২১৩)। */
+  var FIN_MONTH_NAMES = ['January','February','March','April','May','June',
+    'July','August','September','October','November','December'];
+  function finMonthLabel(ym) {
+    try { var pp = String(ym).split('-'); return FIN_MONTH_NAMES[Number(pp[1]) - 1] + ' ' + pp[0]; }
+    catch (e) { return ym; }
+  }
+
   async function finMonthly() {
     var m = window.MOD;
     var month = m.todayIST().slice(0, 7);
     /* 🟢🔒 V628 (২৪.০৮.২০২৬, TK-নির্দেশ, স্পষ্ট) — "All Branches" অপশন বাদ,
        হিসাবের খাতায় ব্রাঞ্চ মিশবে না। সবসময় একটা নির্দিষ্ট ব্রাঞ্চ বাছতে হবে। */
-    /* 🟢🔒 V695 (২৬.০৮.২০২৬, TK ডেমো দেখে "২ করুন") — উপরের জায়গা কমানো:
-       Month ও Branch আর একটার নিচে একটা নয়, **পাশাপাশি এক সারিতে** —
-       ফোনের `heroWithFields()`-এর মতোই, তাই টেবিল অনেক উপরে উঠে আসে।
-       ⛔ ঘর দুটোর id · মান · ব্রাঞ্চের তালিকা · Show-এর কাজ — কিছুই বদলায়নি,
-          শুধু পাশাপাশি বসেছে। */
-    var html = '<div class="card"><h2>Monthly Summary</h2>' +
-      '<div style="display:flex;gap:10px;flex-wrap:wrap">' +
-      '<div style="flex:1;min-width:150px"><label>Month</label>' +
-      '<input id="mMonth" class="input" type="month" value="' + month + '"></div>' +
+    var html = '<div class="card">' +
+      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+      '<h2 style="flex:1;margin:0;min-width:120px">📈 Monthly Summary</h2>' +
+      '<span id="mMonthBtn" onclick="finMonthPick()" style="cursor:pointer;font-weight:800;' +
+      'color:#0A5C33;background:#F1F6F3;border:1px solid #D6E4DC;border-radius:12px;padding:6px 10px">' +
+      m.esc(finMonthLabel(month)) + '  &#9662;</span>' +
       /* 🟢🔒 V398: মনে-রাখা ব্রাঞ্চ আগে থেকেই বসানো। */
-      '<div style="flex:1;min-width:150px"><label>Branch</label><select id="mBranch" class="input">' +
+      '<select id="mBranch" class="input" style="width:auto;flex:0 1 auto">' +
       ((!finCurBranch() || finCurBranch() === 'All Branches') ? '<option value="" selected>Select Branch</option>' + branchOptions('')
-       : branchOptions(finCurBranch())) + '</select></div>' +
+       : branchOptions(finCurBranch())) + '</select>' +
+      '<span onclick="finMonthlyOptions()" style="cursor:pointer;font-size:20px;font-weight:800;color:#0A5C33;padding:0 6px">&#8942;</span>' +
       '</div>' +
-      '<div class="actions"><button onclick="finRunMonthly()">Show</button></div>' +
+      '<input id="mMonth" type="hidden" value="' + month + '">' +
+      '<div style="position:relative">' +
+      '<div id="finMonthlyMenu" style="display:none;position:absolute;top:4px;right:0;z-index:40;' +
+      'background:#fff;border:1px solid #E3ECE6;border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.14);min-width:210px;overflow:hidden">' +
+      '<div onclick="finMonthlyMenuPick(1)" style="padding:12px 14px;cursor:pointer;border-bottom:1px solid #EEF3F0">📤 WhatsApp-এ শেয়ার</div>' +
+      '<div onclick="finMonthlyMenuPick(2)" style="padding:12px 14px;cursor:pointer;border-bottom:1px solid #EEF3F0">📄 PDF Download</div>' +
+      '<div onclick="finMonthlyMenuPick(3)" style="padding:12px 14px;cursor:pointer">🖨️ Print</div>' +
+      '</div></div>' +
       '<div id="mOut" class="mut"></div></div>';
     document.getElementById('finBody').innerHTML = html;
-    /* 🔴🔒 V412 (TK-রিপোর্ট, ছবিসহ, ১৭.০৮.২০২৬): ব্রাঞ্চ/মাস বদলানোর পরেও আগের
-       ব্রাঞ্চের টাকার অঙ্ক পর্দায় থেকে যেত — যে কেউ ওটাকে নতুন ব্রাঞ্চের হিসাব
-       ভেবে নিতে পারতেন। এখন বদলালেই আগেরটা মুছে যায়। ফোনেও হুবহু একই ব্যবস্থা।
-       ⛔ কোনো হিসাব বা টাকার অঙ্ক ছোঁয়া হয়নি। */
-    try{
-      var __clear = function(){
-        var o = document.getElementById('mOut');
-        if (o && o.innerHTML.trim() !== '') o.innerHTML = 'Press Show to see this branch and month.';
-      };
-      var __b = document.getElementById('mBranch'); if (__b) __b.onchange = __clear;
-      var __m = document.getElementById('mMonth');  if (__m) __m.onchange = __clear;
-    }catch(_e){}
+    try {
+      var __b = document.getElementById('mBranch');
+      if (__b) __b.onchange = function () { try { finRunMonthly(); } catch (_e) {} };
+    } catch (_e) {}
+    try { finRunMonthly(); } catch (_e) {}
   }
+
+  /* মাসের তালিকা — শেষ ২৪ মাস, ফোনের `monthly()`-র হুবহু একই। */
+  function finMonthPick() {
+    var m = window.MOD, out = [], d = new Date();
+    for (var k = 0; k < 24; k++) {
+      var ym = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+      out.push(ym);
+      d.setMonth(d.getMonth() - 1);
+    }
+    var html = out.map(function (ym) {
+      return '<button class="menuBtn" onclick="closeModal();finMonthSet(\'' + ym + '\')"><b>' +
+        m.esc(finMonthLabel(ym)) + '</b></button>';
+    }).join('');
+    modal('<h2>Select Month</h2><div class="grid menuGrid">' + html + '</div>');
+  }
+  function finMonthSet(ym) {
+    var inp = document.getElementById('mMonth'); if (inp) inp.value = ym;
+    var btn = document.getElementById('mMonthBtn');
+    if (btn) btn.innerHTML = window.MOD.esc(finMonthLabel(ym)) + '  &#9662;';
+    try { finRunMonthly(); } catch (_e) {}
+  }
+  window.finMonthPick = finMonthPick;
+  window.finMonthSet = finMonthSet;
 
   // 🔵🔒 Monthly Summary — TK-অনুমোদিত প্রুফ (09.08.2026): টাকার খাতার হুবহু একই
   // খাতা-ডিজাইন (finLedgerLoad-এর মতোই)। উপরে Previous Balance, দিন-ধরে
@@ -1754,18 +1791,11 @@ function finRowTap(id) {
       /* 🔴 V430 — Monthly Summary-র খালি-লেখা ফোনের হুবহু (kt:2618) */
       (dates.length ? '' : '<div class="mut">এই মাসে এখনো কোনো এন্ট্রি নেই।</div>') +
       balPair +
-      /* 🟢🔒 V693 (২৬.০৮.২০২৬, TK-নির্দেশ ছবিসহ) — দুটো আলাদা বোতামের বদলে
-         একটাই "••• Options", ভিতরে তিনটে কাজ — ফোনের PopupMenu-র মতোই।
-         ⛔ কাজ তিনটেই আগের প্রমাণিত ফাংশন (finMonthlyShare / finMonthlyPdf),
-            নতুন কিছু বানানো হয়নি। */
-      '<div class="actions" style="margin-top:10px;position:relative">' +
-      '<button class="ghost" onclick="finMonthlyOptions()">••• Options</button>' +
-      '<div id="finMonthlyMenu" style="display:none;position:absolute;bottom:46px;left:0;z-index:40;' +
-      'background:#fff;border:1px solid #E3ECE6;border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.14);min-width:210px;overflow:hidden">' +
-      '<div onclick="finMonthlyMenuPick(1)" style="padding:12px 14px;cursor:pointer;border-bottom:1px solid #EEF3F0">📤 WhatsApp-এ শেয়ার</div>' +
-      '<div onclick="finMonthlyMenuPick(2)" style="padding:12px 14px;cursor:pointer;border-bottom:1px solid #EEF3F0">📄 PDF Download</div>' +
-      '<div onclick="finMonthlyMenuPick(3)" style="padding:12px 14px;cursor:pointer">🖨️ Print</div>' +
-      '</div></div>';
+      /* 🟢🔒 V693 → 📈🔒 V1217 — আগে এখানে নিচে "••• Options" বোতাম ও
+         তার মেনু বসত। TK-নির্দেশে (০৮.০৯.২০২৬) সেটা উপরের হেডারের ⋮-এ উঠে
+         গেছে। ⛔ কাজ তিনটেই আগের প্রমাণিত ফাংশন (finMonthlyShare /
+         finMonthlyPdf) — এক অক্ষরও বদলায়নি, শুধু জায়গা বদলেছে। */
+      '';
     var shareText = 'Income & Expense — ' + month + (branch === '__all' ? ' (All Branches)' : ' (' + branch + ')');
     window._finMonthlyHtml = '<h1>' + m.esc(shareText) + '</h1>' + tableHtml + balPair;
     window._finMonthlyText = shareText + '\n' +
@@ -1788,6 +1818,12 @@ function finRowTap(id) {
   function finMonthlyMenuPick(which) {
     var el = document.getElementById('finMonthlyMenu');
     if (el) el.style.display = 'none';
+    /* 📈🔒 V1217 — Show বোতাম আর নেই, হিসাব নিজে থেকেই আসে; কিন্তু আসার
+       আগেই ⋮ চাপলে ফাঁকা লেখা শেয়ার হয়ে যেত। ফোনেও হুবহু একই সুরক্ষা। */
+    if (!window._finMonthlyText || !window._finMonthlyHtml) {
+      alert('হিসাব আসছে — এক মুহূর্ত পরে আবার চাপুন।');
+      return;
+    }
     if (which === 1) finMonthlyShare();
     /* PDF ও Print — একই ব্রাউজার-পর্দা; সেখানে গন্তব্যে "Save as PDF"
        বাছলে পিডিএফ, প্রিন্টার বাছলে ছাপা (ফোনেও ঠিক একই নিয়ম)। */
