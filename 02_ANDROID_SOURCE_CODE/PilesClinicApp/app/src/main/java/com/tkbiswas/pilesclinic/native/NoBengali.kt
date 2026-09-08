@@ -687,6 +687,7 @@ object NoBengali {
         "খরচের বিবরণ" to "Expense Details",
         // 💰 V1211 — Ledger Entry-র নতুন জোড়া ঘর (TK-অনুমোদিত ফটো-প্রুফ)
         "কত টাকা খরচ করলাম" to "How much was spent",
+        "কীভাবে ছাড় দেবেন" to "How to give the discount",   // 🏷️ V1213
         "কীসে খরচ করলাম" to "What it was spent on",
         "＋  আরও একটা খরচ" to "＋  Add another expense",
         "ব্যায়" to "Expense",

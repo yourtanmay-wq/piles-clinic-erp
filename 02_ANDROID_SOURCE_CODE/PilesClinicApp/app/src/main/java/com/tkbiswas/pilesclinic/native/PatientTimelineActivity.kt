@@ -2601,11 +2601,20 @@ class PatientTimelineActivity : AppCompatActivity() {
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(android.graphics.Color.parseColor("#10223A"))
         })
-        box.addView(android.widget.TextView(this).apply {
+        /* 🏷️🔒 V1213 (০৮.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, হুবহু): *"ডিসকাউন্ট
+           আমি চাইলে % অথবা Amount হিসাবে দিতে পারি তার ব্যবস্থা রাখতে হবে"*।
+           ⇒ দুটো চিপ — **₹ Amount** (আগের মতোই) আর **% Percent**।
+           ⛔ % দিলে অঙ্কটা **বিলের উপরে** কষা হয়, আর সঙ্গে সঙ্গে "= ₹x · y% of
+              bill" দেখানো হয় — তাই কত টাকা ছাড় পড়ছে তা না দেখে সেভ করা যায় না।
+           ⛔ শেষ পর্যন্ত যা জমা হয় তা **টাকার অঙ্কই** (আগের হুবহু একই ঘর), তাই
+              হিসাব · ইতিহাস · ছাপা কোথাও কিছু বদলায় না।
+           ⛔ "ছাড় বাকির চেয়ে বেশি নয়" — পুরনো পাহারাটা এক অক্ষরও বদলায়নি। */
+        var pctMode = false
+        val labelTv = android.widget.TextView(this).apply {
             text = "Discount amount"
             textSize = 11.5f
             setPadding(0, dp(14), 0, dp(2))
-        })
+        }
         val amountInput = android.widget.EditText(this).apply {
             hint = "Discount amount"
             // B411 — শুধু TYPE_CLASS_NUMBER দিলে কিছু ফোনে কীবোর্ডই খোলে না;
@@ -2614,7 +2623,87 @@ class PatientTimelineActivity : AppCompatActivity() {
             keyListener = android.text.method.DigitsKeyListener.getInstance("0123456789")
             setText("%.0f".format(due))
         }
+        val calcTv = android.widget.TextView(this).apply {
+            textSize = 12f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#0B5E2A"))
+            setPadding(0, dp(6), 0, 0)
+            visibility = android.view.View.GONE
+        }
+        /** 🏷️ V1213 — এই মুহূর্তে ছাড়ের আসল টাকার অঙ্ক। */
+        fun discountValue(): Double {
+            val n = amountInput.text.toString().filter { it.isDigit() }.toDoubleOrNull() ?: 0.0
+            return if (!pctMode) n else Math.round(currentBillTotal * n / 100.0).toDouble()
+        }
+        fun refreshCalc() {
+            if (!pctMode) { calcTv.visibility = android.view.View.GONE; return }
+            val n = amountInput.text.toString().filter { it.isDigit() }.toDoubleOrNull() ?: 0.0
+            calcTv.visibility = android.view.View.VISIBLE
+            calcTv.text = "= " + money(discountValue()) + "   ·   " + "%.0f".format(n) + "% of bill"
+        }
+        val chipRow = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            setPadding(0, dp(12), 0, 0)
+        }
+        lateinit var chipAmt: android.widget.TextView
+        lateinit var chipPct: android.widget.TextView
+        fun paintChips() {
+            fun paint(t: android.widget.TextView, on: Boolean) {
+                t.setTextColor(android.graphics.Color.parseColor(if (on) "#FFFFFF" else "#0B5E2A"))
+                t.background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(10).toFloat()
+                    setColor(android.graphics.Color.parseColor(if (on) "#0B7A34" else "#F4FBF6"))
+                    setStroke(dp(2), android.graphics.Color.parseColor(if (on) "#0B7A34" else "#CFE3D4"))
+                }
+            }
+            paint(chipAmt, !pctMode); paint(chipPct, pctMode)
+        }
+        fun chip(text: String): android.widget.TextView = android.widget.TextView(this).apply {
+            this.text = text
+            textSize = 13f
+            gravity = android.view.Gravity.CENTER
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setPadding(0, dp(9), 0, dp(9))
+            isClickable = true; isFocusable = true
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        chipAmt = chip("₹ Amount")
+        chipPct = chip("% Percent").apply {
+            (layoutParams as android.widget.LinearLayout.LayoutParams).leftMargin = dp(10)
+        }
+        chipRow.addView(chipAmt); chipRow.addView(chipPct)
+        chipAmt.setOnClickListener {
+            if (!pctMode) return@setOnClickListener
+            pctMode = false; paintChips()
+            labelTv.text = "Discount amount"
+            amountInput.hint = "Discount amount"
+            amountInput.setText("%.0f".format(due))
+            refreshCalc()
+        }
+        chipPct.setOnClickListener {
+            if (pctMode) return@setOnClickListener
+            pctMode = true; paintChips()
+            labelTv.text = "Discount percent (%)"
+            amountInput.hint = "Discount percent (%)"
+            amountInput.setText("")
+            refreshCalc()
+        }
+        paintChips()
+        box.addView(android.widget.TextView(this).apply {
+            text = NoBengali.s("কীভাবে ছাড় দেবেন")
+            textSize = 11.5f
+            setPadding(0, dp(14), 0, dp(2))
+        })
+        box.addView(chipRow)
+        box.addView(labelTv)
         box.addView(amountInput)
+        box.addView(calcTv)
+        amountInput.addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(s: android.text.Editable?) { refreshCalc() }
+            override fun beforeTextChanged(s: CharSequence?, a2: Int, b2: Int, c2: Int) {}
+            override fun onTextChanged(s: CharSequence?, a2: Int, b2: Int, c2: Int) {}
+        })
         box.addView(android.widget.TextView(this).apply {
             text = "Reason"
             textSize = 11.5f
@@ -2638,10 +2727,13 @@ class PatientTimelineActivity : AppCompatActivity() {
             .create()
         dlg.setOnShowListener {
             dlg.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                val amount = amountInput.text.toString().filter { it.isDigit() }.toDoubleOrNull() ?: 0.0
+                /* 🏷️ V1213 — % হলে বিলের উপরে কষা টাকাটাই যায়; ₹ হলে হুবহু আগের মতো। */
+                val amount = discountValue()
                 val why = reasonInput.text.toString().trim()
                 if (amount <= 0.0) {
-                    android.widget.Toast.makeText(this, "Write the discount amount", android.widget.Toast.LENGTH_SHORT).show()
+                    android.widget.Toast.makeText(this,
+                        if (pctMode) "Write the discount percent" else "Write the discount amount",
+                        android.widget.Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
                 if (amount > due) {

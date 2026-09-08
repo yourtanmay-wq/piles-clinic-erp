@@ -26175,11 +26175,22 @@ function wlv1ShowDiscountDialog(patientId){
   var t=treatmentTotals(p);
   if(!(t.bill>0)) return toast('No bill on this patient yet');
   if(!(t.due>0)) return toast('Nothing due — no discount needed');
+  window.__wlv1DiscPct = 0; window.__wlv1DiscBill = Number(t.bill||0);   /* 🏷️ V1213 */
   modal('<h2>🏷️ Give Discount</h2>'+
     '<div class="card"><b>'+esc(String(p.name||'').toUpperCase())+'</b> ('+esc(normMob(p.mobile||''))+')<br>'+
     '<small>Bill '+money(t.bill)+' · Paid '+money(t.paid)+' · Due '+money(t.due)+'</small></div>'+
-    '<label>Discount amount</label>'+
-    '<input id="wlv1DiscAmt" class="input" type="number" value="'+t.due+'">'+
+    /* 🏷️🔒 V1213 (০৮.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — ₹ / % বেছে নেওয়া।
+       ⛔ % দিলে অঙ্কটা **বিলের উপরে** কষা হয় ও সঙ্গে সঙ্গে "= ₹x · y% of bill"
+          দেখায়; জমা হয় শেষমেশ টাকার অঙ্কই, তাই হিসাব/ইতিহাস কিছু বদলায় না।
+       ⛔ "ছাড় বাকির চেয়ে বেশি নয়" — পুরনো পাহারা অটুট। ফোনের হুবহু যমজ। */
+    '<label>কীভাবে ছাড় দেবেন</label>'+
+    '<div id="wlv1DiscChips" class="actions" style="margin:0 0 8px">'+
+      '<button id="wlv1DiscChipAmt" onclick="wlv1DiscMode(0)" style="flex:1;background:#0B7A34">₹ Amount</button>'+
+      '<button id="wlv1DiscChipPct" class="ghost" onclick="wlv1DiscMode(1)" style="flex:1">% Percent</button>'+
+    '</div>'+
+    '<label id="wlv1DiscLab">Discount amount</label>'+
+    '<input id="wlv1DiscAmt" class="input" type="number" value="'+t.due+'" oninput="wlv1DiscCalc()">'+
+    '<div id="wlv1DiscCalcLine" style="display:none;color:#0B5E2A;font-weight:800;margin:-4px 0 8px"></div>'+
     '<label>Reason</label>'+
     '<input id="wlv1DiscWhy" class="input" placeholder="Why this discount is given">'+
     '<div class="card mut" style="margin-top:10px">The bill comes down by this amount, so the Due becomes 0 and the patient can be completed. The discount stays saved in this patient\'s history forever.</div>'+
@@ -26188,14 +26199,45 @@ function wlv1ShowDiscountDialog(patientId){
 }
 window["wlv1ShowDiscountDialog"]=wlv1ShowDiscountDialog;
 
+/* 🏷️ V1213 — ₹ / % বদল ও লাইভ হিসাব (ফোনের যমজ)। */
+window.__wlv1DiscPct = 0;
+window.__wlv1DiscBill = 0;
+function wlv1DiscMode(pct){
+  window.__wlv1DiscPct = pct ? 1 : 0;
+  var a=document.getElementById('wlv1DiscChipAmt'), b=document.getElementById('wlv1DiscChipPct');
+  if(a&&b){
+    a.className = pct ? 'ghost' : ''; a.style.background = pct ? '' : '#0B7A34';
+    b.className = pct ? '' : 'ghost'; b.style.background = pct ? '#0B7A34' : '';
+  }
+  var lab=document.getElementById('wlv1DiscLab'), inp=document.getElementById('wlv1DiscAmt');
+  if(lab) lab.textContent = pct ? 'Discount percent (%)' : 'Discount amount';
+  if(inp) inp.value = '';
+  wlv1DiscCalc();
+}
+window["wlv1DiscMode"]=wlv1DiscMode;
+/** 🏷️ V1213 — এই মুহূর্তে ছাড়ের আসল টাকার অঙ্ক। */
+function wlv1DiscValue(){
+  var n=Number(String((document.getElementById('wlv1DiscAmt')||{}).value||'').replace(/[^0-9]/g,''))||0;
+  return window.__wlv1DiscPct ? Math.round(Number(window.__wlv1DiscBill||0)*n/100) : n;
+}
+window["wlv1DiscValue"]=wlv1DiscValue;
+function wlv1DiscCalc(){
+  var line=document.getElementById('wlv1DiscCalcLine'); if(!line) return;
+  if(!window.__wlv1DiscPct){ line.style.display='none'; return; }
+  var n=Number(String((document.getElementById('wlv1DiscAmt')||{}).value||'').replace(/[^0-9]/g,''))||0;
+  line.style.display='block';
+  line.textContent = '= ' + money(wlv1DiscValue()) + '   ·   ' + n + '% of bill';
+}
+window["wlv1DiscCalc"]=wlv1DiscCalc;
+
 function wlv1SaveDiscount(patientId){
   var p=load('patients').find(function(x){return x.id===patientId});
   if(!p) return toast('Patient not found');
   if(typeof wlv1CanTakeMoney==='function' && !wlv1CanTakeMoney(p)) return toast(wlv1MoneyBlockMsg(p));
   var t=treatmentTotals(p);
-  var amt=Number(String(($('#wlv1DiscAmt')||{}).value||'').replace(/[^0-9]/g,''))||0;
+  var amt=wlv1DiscValue();   /* 🏷️ V1213 — % হলে বিলের উপরে কষা টাকাটাই */
   var why=String((($('#wlv1DiscWhy')||{}).value||'')).trim();
-  if(!(amt>0)) return toast('Write the discount amount');
+  if(!(amt>0)) return toast(window.__wlv1DiscPct?'Write the discount percent':'Write the discount amount');
   if(amt>t.due) return toast('Discount cannot be more than the Due ('+money(t.due)+')');
   if(!why) return toast('Write the reason');
   var liveBill=Number(p.bill||0), had=Number(p.discount||0), orig=Number(p.billBeforeDiscount||0);
@@ -27314,6 +27356,7 @@ var WLV1_NOBN_MAP=[
 ['খরচের বিবরণ','Expense Details'],
 /* 💰 V1211 — Ledger Entry-র নতুন জোড়া ঘর (ফোনের NoBengali.kt-এর যমজ) */
 ['কত টাকা খরচ করলাম','How much was spent'],
+['কীভাবে ছাড় দেবেন','How to give the discount'],   /* 🏷️ V1213 */
 ['কীসে খরচ করলাম','What it was spent on'],
 ['＋  আরও একটা খরচ','＋  Add another expense'],
 ['জন এসেছিলেন','people came'],
