@@ -3551,7 +3551,7 @@ class StaffProfileActivity : AppCompatActivity() {
             val days = try {
                 ModuleAuth.getRowsChecked(
                     "wn", "notebook_days",
-                    "select=work_date,check_in,check_out,is_leave,leave_reason,is_wfh,branch" +
+                    "select=work_date,check_in,check_out,is_leave,leave_reason,is_wfh,is_other_branch,branch" +
                         "&staff_code=eq.$code&work_date=gte.$from&work_date=lt.$end&order=work_date.asc"
                 )
             } catch (_: Throwable) { null }
@@ -3586,12 +3586,21 @@ class StaffProfileActivity : AppCompatActivity() {
                         mins = (HourSalary.DAY_HOURS * 60).toInt()
                         tag = "WORK FROM HOME"; kind = "wf"
                     }
+                    /* 🚌 V1200 — আগে থেকে জানানো "অন্য ব্রাঞ্চে ডিউটি" ⇒ ৭ ঘণ্টা
+                       (হিসাবের নিয়ম হুবহু `HourSalary`-রই)। */
+                    d.optBoolean("is_other_branch", false) -> {
+                        mins = (HourSalary.DAY_HOURS * 60).toInt()
+                        tag = "DUTY \u00b7 " + ns(d, "branch").trim().uppercase(); kind = "br"
+                    }
                     else -> {
                         val a = HourSalary.minutesOf(ci); val b = HourSalary.minutesOf(co)
-                        if (a == null || b == null || b <= a) { mins = 0; outMissing = (a != null && b == null) }
+                        /* ⏰ V1200 (TK-সিদ্ধান্ত) — IN আছে অথচ OUT নেই ⇒ **৭ ঘণ্টা**
+                           (আগে ০ ছিল)। IN-ই না থাকলে আগের মতোই ০। */
+                        if (a != null && b == null) { mins = (HourSalary.DAY_HOURS * 60).toInt(); outMissing = true }
+                        else if (a == null || b == null || b <= a) { mins = 0 }
                         else mins = b - a
                         val br = ns(d, "branch")
-                        if (br.isNotBlank() && homeBranch.isNotBlank() &&
+                        if (tag.isBlank() && br.isNotBlank() && homeBranch.isNotBlank() &&
                             !br.trim().equals(homeBranch.trim(), ignoreCase = true)) {
                             tag = br.trim().uppercase(); kind = "br"
                         }

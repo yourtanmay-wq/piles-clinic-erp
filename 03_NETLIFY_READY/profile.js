@@ -2421,7 +2421,7 @@
     var days = [], cfg = {}, prof = {};
     try{
       days = ((await client.schema('wn').from('notebook_days')
-        .select('work_date,check_in,check_out,is_leave,leave_reason,is_wfh,branch')
+        .select('work_date,check_in,check_out,is_leave,leave_reason,is_wfh,is_other_branch,branch')
         .eq('staff_code', code).gte('work_date', from).lt('work_date', end)
         .order('work_date', {ascending:true})).data) || [];
     }catch(e){}
@@ -2434,12 +2434,16 @@
       var iso = String(d.work_date||'').slice(0,10), tag='', kind='', mins=0, outMissing=false;
       if (d.is_leave){ mins = DAYM; tag = 'LEAVE' + (d.leave_reason ? (' ('+d.leave_reason+')') : ''); kind='lv'; }
       else if (d.is_wfh){ mins = DAYM; tag = 'WORK FROM HOME'; kind='wf'; }
+      /* 🚌 V1200 — আগে থেকে জানানো "অন্য ব্রাঞ্চে ডিউটি" ⇒ ৭ ঘণ্টা (ফোনের নিয়মই)। */
+      else if (d.is_other_branch){ mins = DAYM; tag = 'DUTY · ' + String(d.branch||'').trim().toUpperCase(); kind='br'; }
       else {
         var a = attMins(d.check_in), b = attMins(d.check_out);
-        if (a===null || b===null || b<=a){ mins = 0; outMissing = (a!==null && b===null); }
+        /* ⏰ V1200 (TK-সিদ্ধান্ত) — IN আছে অথচ OUT নেই ⇒ ৭ ঘণ্টা (আগে ০ ছিল)। */
+        if (a!==null && b===null){ mins = DAYM; outMissing = true; }
+        else if (a===null || b===null || b<=a){ mins = 0; }
         else mins = b - a;
         var br = String(d.branch||'').trim();
-        if (br && home && br.toLowerCase() !== home){ tag = br.toUpperCase(); kind='br'; }
+        if (!tag && br && home && br.toLowerCase() !== home){ tag = br.toUpperCase(); kind='br'; }
       }
       worked += mins;
       var plain = (d.is_leave || d.is_wfh);

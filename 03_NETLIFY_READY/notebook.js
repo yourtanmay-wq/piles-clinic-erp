@@ -394,6 +394,9 @@ function nbDoctorVisitCount(dateIso, staffCode){
         ((inSet && !nbWaSent('in')) ? '<button class="nbResendBtn" onclick="nbResendInTime()">&#128228; Send IN TIME to WhatsApp again</button>' : '') +
         ((outSet && !nbWaSent('out')) ? '<button class="nbResendBtn" onclick="nbResendDaily()">&#128228; Send the report to WhatsApp again</button>' : '') +
         '<span onclick="nbApplyLeave()" style="font-size:12.5px;color:#98A2B3;text-decoration:underline;cursor:pointer">🏖️ Mark as Leave</span>' +
+        /* 📌 V1200 (TK-নির্দেশ) — ⋮-এর ভিতরে "Plan My Day" (ফোনের হুবহু যমজ)। */
+        '<span onclick="nbPlanMenu()" style="font-size:18px;font-weight:800;color:#0B4F2A;cursor:pointer;padding:0 6px">&#8942;</span>' +
+        nbPlanStripHtml() +
         ((!inSet && !nbWindowOpen) ? '<div style="flex-basis:100%;font-size:12.5px;color:#B42318;margin-top:2px">⏰ আজকের IN TIME-এর সময় শেষ, না এলে ছুটি দিন</div>' : '') +
         /* 🔴🔒 V512 — এখন যা দেখছেন সেটা এই ফোনে জমানো কপি (ক্লাউড থেকে আসেনি)।
            ফোনের অ্যাপে ঠিক এই একই কথা দেখানো হয়। ⛔ IN/OUT TIME অক্ষত থাকে। */
@@ -590,6 +593,130 @@ function nbDoctorVisitCount(dateIso, staffCode){
      ওপেন হয়, কিন্তু একবার ব্যাকে আসলে তারপর আর পাঠানোর ব্যবস্থা নেই"*) —
      IN TIME-এর বার্তাটা **একটাই জায়গায়** বানানো হয়, তাই আবার পাঠালেও লেখা
      হুবহু একই থাকে। ফোনের WorkNotebookActivity.afterInTimeMarked-এর একই লেখা। */
+  /* ═══════════════════════════════════════════════════════════════════
+     📌🔒 V1200 (০৮.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — **PLAN MY DAY**
+     (ফোনের `WorkNotebookActivity.planMyDayFlow()`-এর যমজ)।
+     · 🏠 Work From Home — মাস্টারের অনুমতি লাগে
+     · 🚌 অন্য ব্রাঞ্চে ডিউটি — শুধু জানানো (TK-সিদ্ধান্ত), দুটোতেই ৭ ঘণ্টা
+     ⛔ একই `wfh_requests` টেবিল; নতুন ঘর `kind` ও `toBranch`।
+     ═══════════════════════════════════════════════════════════════════ */
+  var NB_PLAN = null, NB_PLAN_LOADED = false;
+
+  async function nbLoadPlan(){
+    if (NB_PLAN_LOADED) return;
+    NB_PLAN_LOADED = true;
+    try{
+      var ok = await initCloudClientOnly(); if(!ok||!sb) return;
+      var mm = String((user&&user.mobile)||'').replace(/\D/g,'').slice(-10);
+      var d = new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Kolkata'}));
+      var today = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+      var r = await sb.from('wfh_requests').select('*').eq('staffMobile', mm).eq('workDate', today)
+        .order('requestedAt', {ascending:false}).limit(1);
+      var rows = (r && r.data) || [];
+      if (rows.length){ NB_PLAN = rows[0]; try{ renderToday(); }catch(e){} }
+    }catch(e){}
+  }
+
+  function nbPlanStripHtml(){
+    try{ nbLoadPlan(); }catch(e){}
+    var p = NB_PLAN; if (!p) return '';
+    var st = String(p.status||'');
+    if (st === 'rejected') return '';
+    var isBranch = String(p.kind||'wfh') === 'branch';
+    var approved = (st === 'approved');
+    var fill = isBranch ? '#E8F6ED' : '#FFF6E6';
+    var strk = isBranch ? '#BFE3CD' : '#F0DCA8';
+    var ink  = isBranch ? '#0A5C33' : '#8A5A00';
+    var title = isBranch ? ('Today\'s plan — Duty at ' + String(p.toBranch||'').toUpperCase())
+                         : 'Today\'s plan — Work From Home';
+    var sub = isBranch ? 'You told this in advance · counted as 7 hours'
+                       : (approved ? 'Approved by Master · counted as 7 hours' : 'Waiting for Master\'s approval');
+    return '<div style="flex-basis:100%;display:flex;align-items:center;gap:12px;background:'+fill
+      + ';border:1px solid '+strk+';border-radius:12px;padding:12px 14px;margin-top:8px">'
+      + '<span style="font-size:18px">'+(isBranch?'🚌':'🏠')+'</span>'
+      + '<div style="flex:1"><div style="font-weight:800;font-size:13.5px;color:'+ink+'">'+esc(title)+'</div>'
+      + '<div style="font-size:11.5px;color:'+ink+';margin-top:2px">'+esc(sub)+'</div></div>'
+      + '<span style="background:'+(isBranch?'#0A7C3F':'#B45309')+';color:#fff;border-radius:10px;font-size:10.5px;font-weight:800;padding:5px 11px">'
+      + ((isBranch||approved)?'PLANNED':'WAITING')+'</span></div>';
+  }
+
+  function nbPlanMenu(){
+    try{ modal('<h2>Today Work</h2><div class="grid menuGrid">'
+      + '<button class="menuBtn" onclick="closeModal();nbPlanMyDay()"><b>📌 Plan My Day</b></button></div>'); }
+    catch(e){ nbPlanMyDay(); }
+  }
+
+  function nbPlanMyDay(){
+    var d = new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Kolkata'}));
+    var today = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    var brs = [];
+    try{ brs = (C.branches||[]).map(function(b){ return String(b.name||''); }).filter(Boolean); }catch(e){ brs = []; }
+    var opts = brs.map(function(b){ return '<option>'+esc(b)+'</option>'; }).join('');
+    modal('<h2>📌 Plan My Day</h2><div class="card">'
+      + '<label>Which day</label><input id="nbPlanDate" class="input" type="date" min="'+today+'" value="'+today+'">'
+      + '<label>What</label><select id="nbPlanKind" class="input" onchange="nbPlanKindChanged()">'
+      +   '<option value="wfh">🏠 Work From Home</option>'
+      +   '<option value="branch">🚌 Duty at another branch</option></select>'
+      + '<div id="nbPlanBranchBox" style="display:none"><label>Which branch</label>'
+      +   '<select id="nbPlanBranch" class="input">'+opts+'</select></div>'
+      + '<div class="tiny mut" style="margin-top:10px">Work From Home — master\'s approval needed.<br>'
+      +   'Duty at another branch — no approval, master is only informed.<br>Both days are counted as 7 hours.</div>'
+      + '</div><div class="actions"><button class="ghost" onclick="closeModal()">Cancel</button>'
+      + '<button onclick="nbPlanSend()">Send</button></div>');
+  }
+  function nbPlanKindChanged(){
+    try{
+      var k = document.getElementById('nbPlanKind').value;
+      document.getElementById('nbPlanBranchBox').style.display = (k === 'branch') ? '' : 'none';
+    }catch(e){}
+  }
+
+  async function nbPlanSend(){
+    var m = window.MOD;
+    var date = String((document.getElementById('nbPlanDate')||{}).value||'').slice(0,10);
+    var kind = String((document.getElementById('nbPlanKind')||{}).value||'wfh');
+    var toBr = kind === 'branch' ? String((document.getElementById('nbPlanBranch')||{}).value||'') : '';
+    if (!date) return toast('Choose the day');
+    if (kind === 'branch' && !toBr) return toast('Choose the branch');
+    try{
+      var ok = await initCloudClientOnly(); if(!ok||!sb) return toast('No internet connection');
+      var mm = String((user&&user.mobile)||'').replace(/\D/g,'').slice(-10);
+      var ex = await sb.from('wfh_requests').select('id,status').eq('staffMobile', mm).eq('workDate', date).limit(1);
+      if (ex && ex.data && ex.data.length) { closeModal(); return toast('Already planned for this day.'); }
+      var row = {
+        id: 'wfh_' + Date.now() + '_' + Math.floor(Math.random()*1000),
+        staffMobile: mm, staffCode: String((typeof codeName==='function' ? (codeName(user&&user.mobile)||'') : '') || (user&&user.mobile) || ''),
+        staffName: String((typeof codeName==='function' ? (codeName(user&&user.mobile)||'') : '') || (user&&user.name) || ''),
+        branch: String((user&&user.branch)||''), workDate: date,
+        reason: (kind === 'branch' ? ('Duty at ' + toBr) : 'Work from home'),
+        status: (kind === 'branch' ? 'approved' : 'pending'),
+        kind: kind, toBranch: toBr,
+        requestedAt: new Date().toISOString()
+      };
+      var w = await sb.from('wfh_requests').upsert(row);
+      if (w && w.error) return toast('Failed - check your network');
+      /* 🔔 মাস্টারের নোটিশ — প্রকল্পের প্রমাণিত briefings পথেই। */
+      try{
+        var req = { id: uid('brief'), date: today(),
+          title: (kind === 'branch' ? '🚌 Duty at another branch — ' : '🏠 Work From Home request — ') + row.staffName,
+          message: 'Staff : ' + row.staffCode + '\nBranch : ' + row.branch + '\nDate : ' + date
+            + '\nReason : ' + row.reason + (toBr ? ('\nTo branch : ' + toBr) : '')
+            + '\nRequest ID : ' + row.id,
+          targets: { roles: ['master'] }, branch: row.branch, seen: [], replies: [],
+          createdBy: (user&&user.mobile)||'', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+        add('briefings', req); try{ cloudUpsertBriefing(req) }catch(_e){}
+      }catch(e){}
+      closeModal();
+      toast(kind === 'branch' ? 'Planned — the Master has been informed' : 'Request sent to Master');
+      NB_PLAN_LOADED = false; NB_PLAN = null;
+      try{ nbLoadPlan(); }catch(e){}
+      try{ renderToday(); }catch(e){}
+    }catch(e){ toast('Failed - check your network'); }
+  }
+
+  window.nbPlanMenu = nbPlanMenu; window.nbPlanMyDay = nbPlanMyDay;
+  window.nbPlanKindChanged = nbPlanKindChanged; window.nbPlanSend = nbPlanSend;
+
   function nbInTimeText() {
     var m = window.MOD, d = window._nbDay || {};
     return 'IN TIME- ' + (d.check_in || '-') +

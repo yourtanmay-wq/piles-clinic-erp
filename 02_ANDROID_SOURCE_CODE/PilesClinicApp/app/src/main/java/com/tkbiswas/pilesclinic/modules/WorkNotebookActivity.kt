@@ -2308,6 +2308,239 @@ class WorkNotebookActivity : AppCompatActivity() {
      *    হিসাবে ব্যবহার হয় না (মেপে দেখা হয়েছে), তাই বেতন/হাজিরার কোনো
      *    হিসাব এতে বদলায় না — এটা শুধু **তথ্য**।
      */
+    /* ═══════════════════════════════════════════════════════════════════
+       📌🔒 V1200 (০৮.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — **PLAN MY DAY**
+       TK: *"work from home / work on another branch — স্টাফ এরকম যেন আগে থেকে
+       বিবেচনা করে নিতে পারে, আর সেই ক্ষেত্রে ৭ ঘন্টা ধরা হবে"*।
+       ⇒ ⋮ → Plan My Day: আজ **বা আগামী** যেকোনো দিন বেছে —
+          · 🏠 Work From Home — মাস্টারের অনুমতি লাগে (আগের নিয়মই)
+          · 🚌 অন্য ব্রাঞ্চে ডিউটি — **শুধু জানানো** (TK-সিদ্ধান্ত), অনুমতি নয়
+       ⛔ কোনো পুরনো পথ বদলায়নি — একই `wfh_requests` টেবিল, শুধু `kind`,
+          `toBranch` ও ইচ্ছে-মতো তারিখ যোগ হলো।
+       ═══════════════════════════════════════════════════════════════════ */
+    private var todayPlan: JSONObject? = null
+    private var todayPlanLoaded = false
+
+    /** আজকের প্ল্যান একবার পড়ে রাখা — পর্দা যতক্ষণ খোলা, আর পড়া হয় না। */
+    private fun loadTodayPlan() {
+        if (todayPlanLoaded) return
+        todayPlanLoaded = true
+        val mob = mobile
+        Thread {
+            val p = try {
+                com.tkbiswas.pilesclinic.native.WfhRequests.planFor(mob, todayIso())
+            } catch (_: Throwable) { null }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (p != null) { todayPlan = p; render() }
+            }
+        }.start()
+    }
+
+    /** IN TIME-এর উপরের পট্টি — প্ল্যান না থাকলে `null` (কিছুই বসে না)। */
+    private fun todayPlanCard(): LinearLayout? {
+        loadTodayPlan()
+        val p = todayPlan ?: return null
+        val kind = p.optString("kind", com.tkbiswas.pilesclinic.native.WfhRequests.KIND_WFH)
+        val status = p.optString("status", "")
+        val branchTo = p.optString("toBranch", "")
+        val isBranch = kind == com.tkbiswas.pilesclinic.native.WfhRequests.KIND_BRANCH
+        val approved = status == com.tkbiswas.pilesclinic.native.WfhRequests.STATUS_APPROVED
+        if (status == com.tkbiswas.pilesclinic.native.WfhRequests.STATUS_REJECTED) return null
+        val fill = if (isBranch) "#E8F6ED" else "#FFF6E6"
+        val stroke = if (isBranch) "#BFE3CD" else "#F0DCA8"
+        val ink = if (isBranch) "#0A5C33" else "#8A5A00"
+        val title = if (isBranch) "Today's plan — Duty at " + branchTo.uppercase()
+                    else "Today's plan — Work From Home"
+        val sub = when {
+            isBranch -> "You told this in advance \u00b7 counted as 7 hours"
+            approved -> "Approved by Master \u00b7 counted as 7 hours"
+            else -> "Waiting for Master's approval"
+        }
+        val d = resources.displayMetrics.density
+        fun dpx(v: Int) = (v * d).toInt()
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dpx(14), dpx(12), dpx(14), dpx(12))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dpx(14).toFloat()
+                setColor(android.graphics.Color.parseColor(fill))
+                setStroke(dpx(1), android.graphics.Color.parseColor(stroke))
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dpx(10) }
+            addView(android.widget.TextView(this@WorkNotebookActivity).apply {
+                text = if (isBranch) "🚌" else "🏠"; textSize = 18f
+                setPadding(0, 0, dpx(12), 0)
+            })
+            addView(LinearLayout(this@WorkNotebookActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                addView(android.widget.TextView(this@WorkNotebookActivity).apply {
+                    text = title; textSize = 13.5f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.parseColor(ink))
+                })
+                addView(android.widget.TextView(this@WorkNotebookActivity).apply {
+                    text = sub; textSize = 11.5f
+                    setTextColor(android.graphics.Color.parseColor(ink))
+                    setPadding(0, dpx(3), 0, 0)
+                })
+            })
+            addView(android.widget.TextView(this@WorkNotebookActivity).apply {
+                text = if (isBranch || approved) "PLANNED" else "WAITING"
+                textSize = 10.5f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.WHITE)
+                setPadding(dpx(11), dpx(5), dpx(11), dpx(5))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dpx(10).toFloat()
+                    setColor(android.graphics.Color.parseColor(if (isBranch) "#0A7C3F" else "#B45309"))
+                }
+            })
+        }
+    }
+
+    private fun planMyDayFlow() {
+        var pickedDate = todayIso()
+        var pickedKind = com.tkbiswas.pilesclinic.native.WfhRequests.KIND_WFH
+        var pickedBranch = ""
+        val d = resources.displayMetrics.density
+        fun dpx(v: Int) = (v * d).toInt()
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dpx(20), dpx(8), dpx(20), dpx(4))
+        }
+        fun cap(t: String) = android.widget.TextView(this).apply {
+            text = t; textSize = 10.5f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#8B98A9"))
+            setPadding(0, dpx(10), 0, dpx(4))
+        }
+        val dateLine = android.widget.TextView(this).apply {
+            text = dotDate(pickedDate); textSize = 15f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#0B2B1C"))
+            isClickable = true
+            setPadding(dpx(12), dpx(11), dpx(12), dpx(11))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dpx(11).toFloat()
+                setColor(android.graphics.Color.parseColor("#FBFDFC"))
+                setStroke(dpx(1), android.graphics.Color.parseColor("#E7ECEA"))
+            }
+            setOnClickListener {
+                val c = java.util.Calendar.getInstance()
+                val dp = android.app.DatePickerDialog(this@WorkNotebookActivity, { _, y, m, dd ->
+                    pickedDate = String.format(java.util.Locale.US, "%04d-%02d-%02d", y, m + 1, dd)
+                    text = dotDate(pickedDate)
+                }, c.get(java.util.Calendar.YEAR), c.get(java.util.Calendar.MONTH), c.get(java.util.Calendar.DAY_OF_MONTH))
+                /* ⛔ অতীতের দিন বাছা যায় না — "আগে থেকে" পরিকল্পনার মানেই থাকত না। */
+                try { dp.datePicker.minDate = System.currentTimeMillis() - 1000 } catch (_: Throwable) { }
+                dp.show()
+            }
+        }
+        val kindLine = android.widget.TextView(this).apply {
+            text = "🏠  Work From Home"; textSize = 15f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#0B2B1C"))
+            isClickable = true
+            setPadding(dpx(12), dpx(11), dpx(12), dpx(11))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dpx(11).toFloat()
+                setColor(android.graphics.Color.parseColor("#FBFDFC"))
+                setStroke(dpx(1), android.graphics.Color.parseColor("#E7ECEA"))
+            }
+        }
+        val branchLine = android.widget.TextView(this).apply {
+            text = "Not chosen"; textSize = 15f
+            setTextColor(android.graphics.Color.parseColor("#8A93A0"))
+            isClickable = true
+            visibility = android.view.View.GONE
+            setPadding(dpx(12), dpx(11), dpx(12), dpx(11))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dpx(11).toFloat()
+                setColor(android.graphics.Color.parseColor("#FBFDFC"))
+                setStroke(dpx(1), android.graphics.Color.parseColor("#E7ECEA"))
+            }
+        }
+        val branchCap = cap("WHICH BRANCH").apply { visibility = android.view.View.GONE }
+        val branches = try {
+            com.tkbiswas.pilesclinic.native.ClinicLocations.ALL.map { it.displayName }
+        } catch (_: Throwable) { emptyList() }
+        branchLine.setOnClickListener {
+            if (branches.isEmpty()) { ModuleUi.toast(this, "Branch list not found"); return@setOnClickListener }
+            val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+                .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "Which branch"))
+                .setItems(branches.toTypedArray()) { _, w ->
+                    pickedBranch = branches[w]
+                    branchLine.text = pickedBranch
+                    branchLine.setTextColor(android.graphics.Color.parseColor("#0B2B1C"))
+                }
+                .setNegativeButton("Close", null).create()
+            dlg.show()
+            try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(dlg) } catch (_: Throwable) { }
+        }
+        kindLine.setOnClickListener {
+            val items = arrayOf("🏠  Work From Home", "🚌  Duty at another branch")
+            val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+                .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "What is the plan"))
+                .setItems(items) { _, w ->
+                    pickedKind = if (w == 0) com.tkbiswas.pilesclinic.native.WfhRequests.KIND_WFH
+                                 else com.tkbiswas.pilesclinic.native.WfhRequests.KIND_BRANCH
+                    kindLine.text = items[w]
+                    val show = (w == 1)
+                    branchCap.visibility = if (show) android.view.View.VISIBLE else android.view.View.GONE
+                    branchLine.visibility = if (show) android.view.View.VISIBLE else android.view.View.GONE
+                }
+                .setNegativeButton("Close", null).create()
+            dlg.show()
+            try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(dlg) } catch (_: Throwable) { }
+        }
+        box.addView(cap("WHICH DAY")); box.addView(dateLine)
+        box.addView(cap("WHAT")); box.addView(kindLine)
+        box.addView(branchCap); box.addView(branchLine)
+        box.addView(android.widget.TextView(this).apply {
+            text = "Work From Home — master's approval needed.\n" +
+                "Duty at another branch — no approval, master is only informed.\n" +
+                "Both days are counted as 7 hours."
+            textSize = 11.5f
+            setTextColor(android.graphics.Color.parseColor("#8A5A00"))
+            setPadding(dpx(2), dpx(12), 0, 0)
+        })
+        val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "📌 Plan My Day"))
+            .setView(box)
+            .setPositiveButton("Send") { _, _ ->
+                if (pickedKind == com.tkbiswas.pilesclinic.native.WfhRequests.KIND_BRANCH && pickedBranch.isBlank()) {
+                    ModuleUi.toast(this, "Choose the branch"); return@setPositiveButton
+                }
+                ModuleUi.toast(this, "Sending...")
+                val mob = mobile
+                val br = NativeSession.current(this)?.branch ?: ""
+                val nm = NativeSession.current(this)?.name ?: staffCode
+                val dateP = pickedDate; val kindP = pickedKind; val toBr = pickedBranch
+                Thread {
+                    val msg = com.tkbiswas.pilesclinic.native.WfhRequests.request(
+                        this, mob, staffCode, nm, br,
+                        if (kindP == com.tkbiswas.pilesclinic.native.WfhRequests.KIND_BRANCH)
+                            "Duty at " + toBr else "Work from home",
+                        dateP, kindP, toBr
+                    )
+                    runOnUiThread {
+                        ModuleUi.toast(this, msg)
+                        todayPlanLoaded = false; todayPlan = null
+                        render()
+                    }
+                }.start()
+            }
+            .setNegativeButton("Cancel", null)
+            .create()
+        dlg.show()
+        try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(dlg) } catch (_: Throwable) { }
+    }
+
     private fun noteDutyBranch(homeBranch: String) {
         /* 🏠🔒 V1180 (০৭.০৯.২০২৬, TK-নির্দেশ, হুবহু): *"Work from Home… মাস্টার
            অনুমতি দিলে সেটা 7 ঘন্টাই হিসাব করা হবে, কম বেশি হিসাবে সেদিনের জন্য
@@ -2333,6 +2566,35 @@ class WorkNotebookActivity : AppCompatActivity() {
                     android.widget.Toast.LENGTH_LONG).show()
             } catch (_: Throwable) { }
             return
+        }
+        /* 🚌🔒 V1200 (TK-সিদ্ধান্ত) — আগে থেকে জানানো "অন্য ব্রাঞ্চে ডিউটি" হলে
+           ওই দিনের সারিতে `is_other_branch` বসে ⇒ বেতনের হিসাবে **৭ ঘণ্টা**।
+           ⛔ ঘরটা কেবল **প্ল্যান থাকলেই** বসে; এমনি অন্য ব্রাঞ্চে গেলে আগের
+              নিয়মই (আসল IN/OUT ধরে ঘণ্টা)। */
+        run {
+            val pl = todayPlan
+            if (pl != null &&
+                pl.optString("kind", "") == com.tkbiswas.pilesclinic.native.WfhRequests.KIND_BRANCH &&
+                pl.optString("status", "") == com.tkbiswas.pilesclinic.native.WfhRequests.STATUS_APPROVED) {
+                val toBr = pl.optString("toBranch", "").ifBlank { dutyBranch }
+                val codeB = staffCode
+                val dateB = todayIso()
+                try { day.put("branch", toBr); day.put("is_other_branch", true) } catch (_: Throwable) { }
+                Thread {
+                    try {
+                        robustSaveNotebookDay(
+                            JSONObject().put("staff_code", codeB).put("work_date", dateB)
+                                .put("branch", toBr).put("is_other_branch", true)
+                        )
+                    } catch (_: Throwable) { }
+                }.start()
+                try {
+                    android.widget.Toast.makeText(this,
+                        "Duty at " + toBr + " today - counted as 7 hours",
+                        android.widget.Toast.LENGTH_LONG).show()
+                } catch (_: Throwable) { }
+                return
+            }
         }
         val duty = dutyBranch
         if (duty.isBlank()) return
@@ -2367,7 +2629,7 @@ class WorkNotebookActivity : AppCompatActivity() {
         // টেবিলে না-থাকতে পারা ঐচ্ছিক ঘর (আসল হাজিরার জন্য জরুরি নয়)।
         /* 🏠 V1180 — `is_wfh` ঘরটাও ঐচ্ছিক ধরা হলো: TK এখনো V1180-এর SQL
            না চালালে ওই ঘর ছাড়াই সারিটা বসবে, তাই IN/OUT TIME কখনো হারাবে না। */
-        val optional = listOf("check_out_reason", "is_wfh")
+        val optional = listOf("check_out_reason", "is_wfh", "is_other_branch")   // 🚌 V1200
         if (optional.none { row.has(it) }) return false
         val slim = try { JSONObject(row.toString()) } catch (_: Throwable) { return false }
         optional.forEach { slim.remove(it) }
@@ -2424,7 +2686,10 @@ class WorkNotebookActivity : AppCompatActivity() {
     // 🔴 B321 (03.08.2026, TK-অনুমোদিত মকআপ — "লক করে রাখুন") — সবুজ গ্রেডিয়েন্ট
     // হিরো হেডার, Staff Profile (B308)/Income & Expense (B312)-এর একই প্রমাণিত
     // প্যাটার্ন এখানেও (শুধু এই ফাইলে যোগ, অন্য মডিউল ছোঁয়া হয়নি)।
-    private fun hero(title: String, subtitle: String, titleSize: Float = 19f): LinearLayout {
+    /* 📌 V1200 (TK-নির্দেশ: *"plan my day — এটা উপরে ডান সাইডের ৩ ডট থাকবে,
+       তার মধ্যে এটা থাকবে"*) — পট্টির ডানদিকে ⋮; `menu` না দিলে হুবহু আগের চেহারা। */
+    private fun hero(title: String, subtitle: String, titleSize: Float = 19f,
+                     menu: List<Pair<String, () -> Unit>> = emptyList()): LinearLayout {
         val h = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(ModuleUi.dp(this@WorkNotebookActivity, 16), ModuleUi.dp(this@WorkNotebookActivity, 16),
@@ -2445,6 +2710,33 @@ class WorkNotebookActivity : AppCompatActivity() {
             text = subtitle; textSize = 12f
             setTextColor(android.graphics.Color.parseColor("#E8F5EC"))
             setPadding(0, ModuleUi.dp(this@WorkNotebookActivity, 3), 0, 0)
+        })
+        if (menu.isEmpty()) return h
+        // ⋮ থাকলে শিরোনাম আর ⋮ পাশাপাশি বসে (লেখা এক অক্ষরও বদলায় না)
+        val texts = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        while (h.childCount > 0) {
+            val v = h.getChildAt(0); h.removeViewAt(0); texts.addView(v)
+        }
+        h.orientation = LinearLayout.HORIZONTAL
+        h.gravity = android.view.Gravity.CENTER_VERTICAL
+        h.addView(texts)
+        h.addView(android.widget.TextView(this).apply {
+            text = "⋮"; textSize = 22f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.WHITE)
+            setPadding(ModuleUi.dp(this@WorkNotebookActivity, 16), 0, ModuleUi.dp(this@WorkNotebookActivity, 2), 0)
+            isClickable = true
+            setOnClickListener { v ->
+                try {
+                    val pm = android.widget.PopupMenu(this@WorkNotebookActivity, v)
+                    menu.forEachIndexed { i, (label, _) -> pm.menu.add(0, i, i, label) }
+                    pm.setOnMenuItemClickListener { mi -> menu.getOrNull(mi.itemId)?.second?.invoke(); true }
+                    pm.show()
+                } catch (_: Throwable) { menu.firstOrNull()?.second?.invoke() }
+            }
         })
         return h
     }
@@ -2803,7 +3095,11 @@ class WorkNotebookActivity : AppCompatActivity() {
         backAction = { finish() }
         val isKishanganjStaff = (NativeSession.current(this)?.branch ?: "").trim().lowercase() == "kishanganj"
         val col = ModuleUi.screen(this, "")
-        col.addView(hero(if (isKishanganjStaff) "🗒️ Today Work" else "🗒️ Today Work / আজকের কাজ", todayIso() + " · " + staffCode, 14f))
+        col.addView(hero(
+            if (isKishanganjStaff) "🗒️ Today Work" else "🗒️ Today Work / আজকের কাজ",
+            todayIso() + " · " + staffCode, 14f,
+            listOf("📌 Plan My Day" to { planMyDayFlow() })
+        ))
 
         val form = ModuleUi.card(this); col.addView(form)
 
@@ -3054,6 +3350,10 @@ class WorkNotebookActivity : AppCompatActivity() {
                     // ১২টা পার হলে IN TIME লুকিয়ে যায় — শুধু ছোট নোটিশ ও Mark As Leave
                     // থাকে (রাত/বিকেলে ভুল করে IN দেখানো বন্ধ)। ⛔ IN TIME চাপার
                     // সেভ-লজিক এক অক্ষরও বদলায়নি।
+                    /* 📌🔒 V1200 (TK-নির্দেশ ও ফটো-প্রুফ পাশ) — আগে থেকে ঠিক করা
+                       থাকলে সেদিনের প্ল্যানটা **IN TIME বোতামের ঠিক উপরে**।
+                       ⛔ প্ল্যান না থাকলে কিছুই বসে না (পর্দা হুবহু আগের মতো)। */
+                    todayPlanCard()?.let { form.addView(it) }
                     if (inTimeWindowOpen()) {
                         // 🏍️ V977 — TK-নির্দেশে বাছাইয়ের সারিটা আর দেখানো হয় না
                         //    (IN TIME চাপলেই নিজে থেকে চালু)। ⛔ ফাংশনটা মোছা

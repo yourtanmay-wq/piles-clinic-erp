@@ -23,6 +23,9 @@ object WfhRequests {
 
     const val TABLE = "wfh_requests"
 
+    const val KIND_WFH = "wfh"        // 🏠 Work From Home — মাস্টারের অনুমতি লাগে
+    const val KIND_BRANCH = "branch"  // 🚌 অন্য ব্রাঞ্চে ডিউটি — শুধু জানানো (V1200)
+
     const val STATUS_PENDING = "pending"
     const val STATUS_APPROVED = "approved"
     const val STATUS_REJECTED = "rejected"
@@ -60,20 +63,30 @@ object WfhRequests {
 
     /** স্টাফ অনুরোধ পাঠান। একই দিনে আগের অনুরোধ থাকলে **নতুন সারি বসে না** —
      *  সেটার অবস্থাই ফেরত যায় (ডুপ্লিকেট নোটিশ আটকাতে, V1176-এর মতোই)। */
+    /* 📌🔒 V1200 (০৮.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, হুবহু):
+         *"work from home / work on another branch — স্টাফ এরকম যেন আগে থেকে
+          বিবেচনা করে নিতে পারে"* · অন্য ব্রাঞ্চের ক্ষেত্রে *"শুধু জানিয়ে রাখলেই হবে"*।
+       ⇒ দুটো নতুন ঘর: `kind` ("wfh" / "branch") ও `toBranch`; আর তারিখটা এখন
+         বাইরে থেকে দেওয়া যায় (আজ **বা আগামী** যেকোনো দিন)।
+       ⛔ পুরনো ডাকটা (আজকের Work From Home) হুবহু আগের মতোই চলে — নতুন ঘরগুলোর
+          ডিফল্ট মান পুরনো আচরণই দেয়। */
     fun request(
         context: android.content.Context?,
         staffMobile: String, staffCode: String, staffName: String,
-        branch: String, reason: String
+        branch: String, reason: String,
+        workDate: String = "", kind: String = KIND_WFH, toBranch: String = ""
     ): String {
         return try {
             val m = digits(staffMobile)
             if (m.length != 10) return "Could not identify you. Please inform the Master."
-            val today = todayIso()
+            val today = workDate.ifBlank { todayIso() }
             val existing = latestFor(m, today)
             if (existing != null) {
                 return when (existing.optString("status", "")) {
-                    STATUS_APPROVED -> "Master has already approved. Press IN TIME again."
-                    STATUS_REJECTED -> "Master did not approve today's Work From Home."
+                    STATUS_APPROVED ->
+                        if (kind == KIND_BRANCH) "Already planned for this day."
+                        else "Master has already approved. Press IN TIME again."
+                    STATUS_REJECTED -> "Master did not approve this day's Work From Home."
                     else -> "Request already sent — waiting for the Master."
                 }
             }
@@ -85,7 +98,11 @@ object WfhRequests {
                 .put("branch", branch)
                 .put("workDate", today)
                 .put("reason", reason)
-                .put("status", STATUS_PENDING)
+                /* 🚌 V1200 — অন্য ব্রাঞ্চের ডিউটিতে অনুমতি লাগে না (TK-সিদ্ধান্ত),
+                   তাই সারিটা সঙ্গে সঙ্গেই approved; মাস্টার শুধু খবর পান। */
+                .put("status", if (kind == KIND_BRANCH) STATUS_APPROVED else STATUS_PENDING)
+                .put("kind", kind)
+                .put("toBranch", toBranch)
                 .put("requestedAt", nowIso())
             val ok = SupabaseClient.upsert(TABLE, row)
             /* 🔔 মাস্টারের ঘন্টা বাজার জন্য নোটিশও যায় — শুধু টেবিলে বসলে
@@ -102,14 +119,23 @@ object WfhRequests {
                 try {
                     BriefingRepository().post(
                         context,
-                        "🏠 Work From Home request — " + staffName.ifBlank { staffCode },
-                        msg, "role", branch, "master", m
+                        if (kind == KIND_BRANCH)
+                            "🚌 Duty at another branch — " + staffName.ifBlank { staffCode }
+                        else "🏠 Work From Home request — " + staffName.ifBlank { staffCode },
+                        msg + (if (kind == KIND_BRANCH) "\nTo branch : " + toBranch else ""),
+                        "role", branch, "master", m
                     )
                 } catch (_: Throwable) { }
             }
-            if (ok) "Request sent to Master" else "Failed - check your network"
+            if (ok) (if (kind == KIND_BRANCH) "Planned — the Master has been informed"
+                     else "Request sent to Master")
+            else "Failed - check your network"
         } catch (_: Throwable) { "Failed - check your network" }
     }
+
+    /** 📌 V1200 — ওই দিনের প্ল্যান (Work From Home বা অন্য ব্রাঞ্চ), না থাকলে null। */
+    fun planFor(staffMobile: String, workDate: String): org.json.JSONObject? =
+        latestFor(staffMobile, workDate)
 
     /** মাস্টারের পর্দায় দেখানোর জন্য — **আজকের** অপেক্ষমাণ অনুরোধগুলো। */
     fun pendingToday(): List<org.json.JSONObject> {
