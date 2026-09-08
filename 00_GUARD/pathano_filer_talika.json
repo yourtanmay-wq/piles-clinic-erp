@@ -1,5 +1,10 @@
 [
  {
+  "file": "PILES_CLINIC_APP_V1245_FINAL.zip",
+  "versionCode": 1245,
+  "when": "08.09.2026 08.03 pm"
+ },
+ {
   "file": "PILES_CLINIC_APP_V1240_FINAL.zip",
   "versionCode": 1240,
   "when": "08.09.2026 05.17 pm"
@@ -4732,5 +4737,72 @@
   },
   "keno_alada_nam": "TK-র আগের নির্দেশে Netlify-র অংশ আলাদা ZIP-এ; নাম গুলিয়ে না যেতে শেষে _NETLIFY।",
   "ki_notun": "শুধু কম্পিউটারের (ওয়েব) অংশ — Netlify-তে টেনে ছাড়ার জন্য। ভিতরের কোড V1240-এর হুবহু একই। ⚠️ আগের বারের চেয়ে ৩টা ফাইল বেশি (৫৪, আগে ৫১) — বাড়তিগুলো ফোল্ডারে আগে থেকেই ছিল, কোনো নতুন ফাইল বানানো হয়নি; সৎভাবে লিখে রাখা হলো।"
+ },
+ {
+  "tarikh": "০৯.০৯.২০২৬ ০১.১৫",
+  "version": "12.45 (V1245)",
+  "file": "PILES_CLINIC_APP_V1245_FINAL.zip",
+  "mb": 25.33,
+  "files": 1762,
+  "folders": {
+   "02_ANDROID_SOURCE_CODE": 759,
+   "(মূল ফোল্ডারের নথি)": 603,
+   "04_SUPABASE_DATABASE_SETUP": 128,
+   "00_SQL": 72,
+   "00_GUARD": 53,
+   "03_NETLIFY_READY": 51,
+   "08_ASSETS_BACKUP": 36,
+   "07_RELEASE_NOTES_VERSION_HISTORY": 31,
+   "00_READ_ME_FIRST": 11,
+   "10_FUTURE_PLANS": 7,
+   "06_TEST_CHECKLISTS": 2,
+   "11_V223_TESTS": 2,
+   "ROLLBACK_V448": 2,
+   ".claude": 2,
+   "01_MASTER_LOCK_BOOK_SOURCE_OF_TRUTH": 1,
+   "03_SUPABASE_SQL": 1,
+   "05_APK_AAB_BUILD_NOTES": 1
+  },
+  "excluded": [
+   ".git",
+   "node_modules",
+   "build",
+   ".gradle",
+   ".idea",
+   "*.apk",
+   "*.zip",
+   "00_GUARD/.kotlinc (কম্পাইল-পাহারার কম্পাইলার, ~৪০০MB)",
+   "08_ASSETS_BACKUP/ANATOMY_PICTURES/ORIGINAL (২২টা কাঁচা ছবি — আগের প্রতিটা ফাইলেও বাদ)",
+   "__pycache__",
+   ".DS_Store",
+   "local.properties"
+  ],
+  "jachai": {
+   "version_3_jaygay": "build.gradle.kts 1245/12.45 · version.json 1245/12.45 · index.html-এ app.js?v=v1239 · doctorreminder.js?v=v1241 · styles.css?v=v1235",
+   "guards": "kotlin-compile (নতুন ভুল ০) · resources · patterns · forbidden-api · sql-function · node --check · tk_guard — সব পাশ"
+  },
+  "ki_notun": "V1241–V1245: Doctor Reminder-এর নোটিফিকেশন সারানো (আজকের তারিখের রিমাইন্ডার কোনোদিন বাজত না) + বাছা সময়ে ফোনের অ্যালার্ম ঘড়ি + Accept-এর সময় UTC-র বদলে ভারতীয় সময় · শেয়ার করা কাগজের ডান দিক কেটে যাওয়া (Blood Test ও Diet Chart) · IN TIME শুধু ৯টা–৬টা (ফোনে ও সার্ভারে) · OUT TIME ১২টা–৯টা, রূপম ছাড় · কল-তালিকায় কার্ড ফিরে আসার দুটো ফাঁক বন্ধ (\"আর ফোন নয়\" নম্বর ও পুরনো তারিখ)।"
+ },
+ {
+  "tarikh": "০৯.০৯.২০২৬ ০১.১৫",
+  "version": "12.45 (V1245)",
+  "file": "PILES_CLINIC_APP_V1245_NETLIFY.zip",
+  "mb": 5.87,
+  "files": 54,
+  "folders": {
+   "(ZIP-এর গোড়াতেই সব — index.html একদম উপরে)": 15,
+   "img": 33,
+   "assets": 6
+  },
+  "excluded": [
+   "পুরো প্রজেক্টের বাকি সব ফোল্ডার — শুধু 03_NETLIFY_READY-র ভিতরটা",
+   ".DS_Store"
+  ],
+  "jachai": {
+   "index_html_root": true,
+   "version_json": "1245 / 12.45"
+  },
+  "keno_alada_nam": "Netlify-র অংশ আলাদা ZIP-এ (TK-র আগের নির্দেশ)।",
+  "ki_notun": "শুধু কম্পিউটারের অংশ। এই দফায় ওয়েবে বদলেছে: Doctor Reminder-এর সময় ভারতীয় সময়ে দেখানো ও পর্দার লেখা।"
  }
 ]
