@@ -24350,9 +24350,6 @@ function wlv1CloseReview(rows){
   const __fC=rows.reduce((a,r)=>a+Number(r.feeCash||0),0),
         __fO=rows.reduce((a,r)=>a+Number(r.feeOnline||0),0);
   const __arrivedN=rows.filter(r=>r.arrived).length;
-  /* 💰 V984 — পর্দায় যে অঙ্কগুলো দেখানো হলো, হ্যান্ডওভারেও **হুবহু সেগুলোই**
-     যায় (আবার আলাদা করে হিসাব করা হয় না)। */
-  try{ window.__wlv1MhTot={fees:__fT,cash:__cT,online:__oT,refund:__rT,grand:__gT} }catch(_e){}
   const rs = v => '₹'+Number(v||0).toLocaleString('en-IN');
   /* 🟩🔒 V959 (০১.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ — ফোনের যমজ): TK দুটো পর্দার
      ছবি দিয়ে বললেন *"হিসাব ২ জায়গায় দুরকম কেন"*। **আসল কারণ:** ওষুধ ও স্যালাইন
@@ -24380,6 +24377,16 @@ function wlv1CloseReview(rows){
     }catch(_e){ return {c:0,o:0} }
   })();
   const __msC=Number(__ms.c||0), __msO=Number(__ms.o||0);
+  /* 💰 V984 — পর্দায় যে অঙ্কগুলো দেখানো হলো, হ্যান্ডওভারেও **হুবহু সেগুলোই**
+     যায় (আবার আলাদা করে হিসাব করা হয় না)।
+     💵🔒 V1236 (০৮.০৯.২০২৬, TK-এর সরাসরি অনুমতি — "হ্যাঁ যোগ করুন"):
+     ওষুধ ও স্যালাইন বিক্রির টাকাও ড্রয়ারের সত্যিকারের টাকা, তাই
+     "CASH TO HAND OVER"-এ সেটাও যোগ হয় (অনলাইনের ভাগ আগের মতোই
+     "came to you directly" লাইনে)। ফোনের cbHoApplySale()-এর হুবহু যমজ।
+     ⛔ TK-এর V1037/V1038-এর নিয়ম অটুট — হ্যান্ডওভার এখনো শুধু ক্যাশ।
+     ⛔ বিক্রি না থাকলে প্রতিটা অঙ্ক হুবহু আগের মতোই। */
+  try{ window.__wlv1MhTot={fees:__fT,cash:__cT+__msC,online:__oT+__msO,refund:__rT,
+       grand:__fT+__cT+__msC+__oT+__msO-__rT} }catch(_e){}
   modal(`<h2>REVIEW — ${__arrivedN} arrived</h2>
     <div class="wlv1CbRevSum">${wlv1CbSheetHtml(__cT,__oT,__fC,__fO,__msC,__msO,__rT)}</div>
     <div class="wlv1CbRevWrap">${list}</div>

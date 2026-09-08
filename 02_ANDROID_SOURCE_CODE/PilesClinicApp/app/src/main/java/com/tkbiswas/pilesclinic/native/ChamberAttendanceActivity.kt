@@ -3266,6 +3266,16 @@ Thread {
           মোটে যোগ হবে না") তিনি নিজেই বদলেছেন, ছবি দেখে অনুমোদন করেছেন। */
     private var cbMedicineSaleCash: Double = 0.0
     private var cbMedicineSaleOnline: Double = 0.0
+
+    /** 💵🔒 V1236 — বিক্রির টাকা ধরে "MONEY HANDOVER"-এর ঘরগুলো বসায়।
+     *  ⛔ Fees ও Refund-এর ঘর ছোঁয়া হয় না; মোটটা REVIEW-এর GRAND TOTAL-এর সমান। */
+    private fun cbHoApplySale() {
+        cbHoCash = cbHoBaseCash + cbMedicineSaleCash
+        cbHoOnline = cbHoBaseOnline + cbMedicineSaleOnline
+        cbHoTotal = cbHoFees + cbHoCash + cbHoOnline - cbHoRefund
+    }
+    private var cbHoBaseCash = 0.0
+    private var cbHoBaseOnline = 0.0
     private var cbLastCommRows: List<RmpCommissionRepository.DayCommissionRow> = emptyList()
     private var cbLastPaidRows: List<RmpCommissionRepository.DayPaidRow> = emptyList()
 
@@ -3360,8 +3370,16 @@ Thread {
         val cbOnlineTotal = arrived.sumOf { it.paymentOnline + it.refundOnline }
         val cbGrandTotal = cbFeesTotal + cbCashTotal + cbOnlineTotal - cbRefundTotal
         // 💰 V984 — রেজিস্টারের পর্দার "MONEY HANDOVER" ঘরের জন্য জমা রাখা।
-        cbHoFees = cbFeesTotal; cbHoCash = cbCashTotal; cbHoOnline = cbOnlineTotal
-        cbHoRefund = cbRefundTotal; cbHoTotal = cbGrandTotal
+        /* 💵🔒 V1236 (০৮.০৯.২০২৬, TK-এর সরাসরি অনুমতি — *"হ্যাঁ যোগ করুন"*):
+           ওষুধ ও স্যালাইন বিক্রির টাকাও ড্রয়ারের সত্যিকারের টাকা, তাই
+           "CASH TO HAND OVER"-এ সেটাও যোগ হবে (অনলাইনের ভাগটা আগের মতোই
+           "came to you directly" লাইনে)। বিক্রির অঙ্কটা ক্লাউড থেকে একটু পরে
+           আসে, তাই নিচের `cbHoApplySale()` ওটা এলেই ঘরগুলো আবার বসায়।
+           ⛔ TK-এর V1037/V1038-এর নিয়ম অটুট — হ্যান্ডওভার এখনো **শুধু ক্যাশ**।
+           ⛔ বিক্রি না থাকলে (বা ডাক ব্যর্থ হলে) প্রতিটা অঙ্ক হুবহু আগের মতোই। */
+        cbHoFees = cbFeesTotal; cbHoRefund = cbRefundTotal
+        cbHoBaseCash = cbCashTotal; cbHoBaseOnline = cbOnlineTotal
+        cbHoApplySale()
         list.addView(android.widget.TextView(this).apply {
             text = "REVIEW — ${arrivedOnly.size} arrived"   // 🔴🔒 V709 — রিফান্ড এখানে গোনা হয় না
             textSize = 13f
@@ -3934,6 +3952,7 @@ Thread {
             // 🟦 V1235 — একই পড়া থেকেই Cash/Online আলাদা (নতুন কোনো ডাক নয়)।
             cbMedicineSaleCash = st.medicineCash + st.salineCash
             cbMedicineSaleOnline = st.medicineOnline + st.salineOnline
+            cbHoApplySale()   // 💵 V1236 — হ্যান্ডওভারের ক্যাশেও বিক্রির টাকা
             try { cbDrawSum(cbLastCommRows, cbLastPaidRows) } catch (_: Throwable) { }
         }
         // TK-REQUESTED (2026-07-22): this was a small centered popup ("ছোট
