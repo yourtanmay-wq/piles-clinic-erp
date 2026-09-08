@@ -312,6 +312,10 @@
       '<span style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">' +
       branchSel +
       '<span onclick="finPickDay()" style="cursor:pointer">' + liveCal + '</span>' +
+      /* ⋮🔒 V1216 (০৮.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — পাঁচটা বোতামই এখন
+         ⋮ মেনুতে; ব্রাঞ্চ ও ক্যালেন্ডার বাঁয়ে, ⋮ তাদের ডানে। ফোনের হুবহু যমজ।
+         ⛔ কে কোনটা দেখবেন সেই নিয়ম এক অক্ষরও বদলায়নি। */
+      '<span onclick="finHomeMenu()" style="cursor:pointer;font-size:20px;font-weight:800;color:#0A5C33;padding:0 6px">&#8942;</span>' +
       '<button class="ghost" onclick="dashboard()">Home</button></span></div><div class="page">' +
       '<div id="finToday" class="card" style="padding:14px">Loading...</div>' +
       /* 🟢🔒 V630 (২৪.০৮.২০২৬, TK-নির্দেশ) — "আয় এবং ব্যয় এটা দুই রকম ভাবে
@@ -337,6 +341,9 @@
          নিচে ঠেলে দিত)। ছোট পর্দায় `flex-wrap` নিজে থেকেই আগের মতো একটার
          নিচে একটা সাজায় (`.finTileRow` — styles.css)।
          ⛔ কোন বোতাম কার জন্য, কী কাজ করে — কিছুই বদলায়নি। */
+      /* ⋮ V1216 — সারিটা আর বসে না, সবগুলো ⋮ মেনুতে (নিচের finBox-গুলো
+         মোছা হয়নি; TK-নিয়ম: নিজে থেকে কোড মোছা হয় না)। */
+      '' + (false ?
       '<div class="finTileRow">' +
       (finIsStaffOnly() ?
         finBox('', "Today's Entries", 'finDailyLedger()', false, '', '#0A5C33') :
@@ -352,10 +359,32 @@
          🔑 আইকন বসানো ছিল। ⛔ বোতামের কাজ ও অনুমতির নিয়ম অপরিবর্তিত। */
       finBox('🤝', 'অংশীদারি ভাগ', 'finPartners()', false, '', '#0A5C33') +
       (finIsMaster() ? finBox('', 'Entry Permission', 'finEntryPermission()', false, '', '#6A5320') : '') +
-      '</div>' +
+      '</div>' : '') +
       '<div id="finBody"></div></div></div>';
     finLoadToday();
   }
+
+  /* ⋮ V1216 — ⋮ মেনু। শর্তগুলো উপরের বোতামগুলোর হুবহু নকল, তাই কে কী দেখবেন
+     তা কোথাও বদলায় না। ⛔ 📅 ইমোজি কোথাও নয় (TK-র চিরস্থায়ী নিষেধ)। */
+  function finHomeMenu(){
+    var out = [];
+    if (finIsStaffOnly()) {
+      out.push(['Today\'s Entries', 'finDailyLedger()']);
+    } else {
+      out.push(['এই মাসের হিসাব', 'finMonthly()']);
+      out.push(['পুরো খাতা', 'finLedgerSheet()']);
+      out.push(['📄 Statement', 'finStatement()']);
+    }
+    out.push(['🤝 অংশীদারি ভাগ', 'finPartners()']);
+    if (finIsMaster()) out.push(['Entry Permission', 'finEntryPermission()']);
+    var html = out.map(function (it) {
+      return '<button class="menuBtn" onclick="closeModal();' + it[1] + '"><b>' +
+        window.MOD.esc(it[0]) + '</b></button>';
+    }).join('');
+    try { modal('<h2>💵 টাকার হিসাব</h2><div class="grid menuGrid">' + html + '</div>'); }
+    catch (e) { try { finMonthly(); } catch (e2) {} }
+  }
+  window.finHomeMenu = finHomeMenu;
 
   // 🔵🔒 B617 (11.08.2026, TK-অনুমোদিত প্রুফ "সাজ ক"): প্রফেশনাল টেবিল-কার্ড — সবুজ
   // হেডার, কলাম Cash·Online·মোট, সারি আয়(সবুজ)·ব্যয়(লাল)·অবশিষ্ট(নীল=আয়−ব্যয়)।

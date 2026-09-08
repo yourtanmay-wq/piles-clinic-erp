@@ -1938,10 +1938,26 @@ class IncomeExpenseActivity : AppCompatActivity() {
             }
         })
         headerRow.addView(ModuleUi.liveDateIconButton(this) { pickDateForSummary() })
+        /* ⋮🔒 V1216 (০৮.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, হুবহু): *"এই মাসের হিসাব ·
+           পুরো খাতা · statement · অংশীদারী ভাগ · entry permission — এই সবগুলো উপরে
+           LG-3 ডট এর মধ্যে রাখুন। সেই ক্ষেত্রে ব্রাঞ্চ আর ক্যালেন্ডার আরেকটু বাঁদিকে
+           করুন, আর তার ডান পাশে থাকবে LG-3 ডট"*।
+           ⛔ **কে কোনটা দেখবেন সেই নিয়ম এক অক্ষরও বদলায়নি** — নিচের `menuItems()`
+              হুবহু `buildActionGrid()`-এর শর্তগুলোই মানে (staff-only-today ·
+              master · অংশীদার-ডাক্তার)।
+           ⛔ পর্দাগুলো নিজে কিছুই বদলায়নি — শুধু পৌঁছানোর পথ।
+           ⛔ ⛔ 📅 ইমোজি কোথাও বসানো হয়নি (TK-র চিরস্থায়ী নিষেধ, সারি ২১৩)। */
+        headerRow.addView(android.widget.TextView(this).apply {
+            text = "⋮"; textSize = 22f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#0A5C33"))
+            setPadding(dp(10), dp(2), dp(2), dp(2))
+            isClickable = true; isFocusable = true
+            setOnClickListener { v -> showIeMenu(v) }
+        })
         col.addView(headerRow)
 
         col.addView(buildTodaySummaryCard())
-        col.addView(buildActionGrid())
         // 🔵 spacer — Back-কে একদম নিচে ঠেলে দেয়
         col.addView(android.view.View(this).apply {
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
@@ -2166,6 +2182,39 @@ class IncomeExpenseActivity : AppCompatActivity() {
     }
 
     /** নিচের ৪টা সমান বক্স (২×২): টাকা জমা · খরচ / এই মাসের হিসাব · পুরো খাতা। */
+    /* ⋮ V1216 — মেনুর সারিগুলো। ⛔ শর্তগুলো `buildActionGrid()`-এর হুবহু নকল,
+       তাই কে কী দেখবেন তা কোথাও বদলায় না। ⛔ `buildActionGrid()` মোছা হয়নি
+       (TK-নিয়ম: নিজে থেকে কোড মোছা হয় না) — শুধু আর ডাকা হয় না। */
+    private fun ieMenuItems(): List<Pair<String, () -> Unit>> {
+        val out = ArrayList<Pair<String, () -> Unit>>()
+        val staffOnlyToday = ieRestricted && !ieIsDoctor && !isPartnerDoctor
+        if (staffOnlyToday) {
+            out.add("Today's Entries" to { dailyLedger() })
+        } else {
+            out.add(NoBengali.s("এই মাসের হিসাব") to { monthly() })
+            out.add(NoBengali.s("পুরো খাতা") to { sheet() })
+            out.add("📄 Statement" to { statement() })
+        }
+        if (ModuleAuth.isMaster || isPartnerDoctor) {
+            out.add("🤝 " + NoBengali.s("অংশীদারি ভাগ") to {
+                startActivity(android.content.Intent(this, PartnerSharesActivity::class.java))
+            })
+        }
+        if (ModuleAuth.isMaster) out.add("Entry Permission" to { entryPermission() })
+        return out
+    }
+
+    private fun showIeMenu(anchor: android.view.View) {
+        val items = ieMenuItems()
+        if (items.isEmpty()) return
+        val pm = android.widget.PopupMenu(this, anchor)
+        items.forEachIndexed { i, (label, _) -> pm.menu.add(0, i, i, label) }
+        pm.setOnMenuItemClickListener { mi ->
+            items.getOrNull(mi.itemId)?.second?.invoke(); true
+        }
+        pm.show()
+    }
+
     private fun buildActionGrid(): LinearLayout {
         val wrap = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
