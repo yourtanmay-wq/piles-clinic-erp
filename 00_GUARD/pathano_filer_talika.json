@@ -1,5 +1,10 @@
 [
  {
+  "file": "PILES_CLINIC_APP_V1197_FINAL.zip",
+  "versionCode": 1197,
+  "when": "08.09.2026 12.52 am"
+ },
+ {
   "file": "PILES_CLINIC_APP_V1192_FINAL.zip",
   "versionCode": 1192,
   "when": "07.09.2026 04.28 pm"
@@ -4283,5 +4288,48 @@
    "doctorreminder.js": "আছে"
   },
   "ki_notun": "V1174→V1192: আয়-ব্যয়ের নতুন দিন ও লেজার · অন্য ব্রাঞ্চে IN TIME ও Work From Home (৭ ঘণ্টা) · Salary পর্দায় ৩ ডট · Extra Income ফর্ম ও Pay পর্দার নতুন চেহারা, আলাদা Pay · Unexpected কমিশনের নতুন ভাগ (১০০ · ৩৫০+৫০) · Doctor Note & Reminder (হোম কার্ড · টাইল · Accept · History) · ডাক্তারের রিমাইন্ডার মিস হওয়া বন্ধ · Daily Report-এর মিথ্যে ০ · Report Card প্রিন্টের ডান দিক কাটা · চিকিৎসার লেখা Report Card ও Queue-তে দেখা · চিকিৎসা/কল আলাদা চিহ্ন"
+ },
+ {
+  "file": "PILES_CLINIC_APP_V1197_FINAL.zip",
+  "tarikh": "০৮.০৯.২০২৬ ০০.৫৫",
+  "version": "11.97 (V1197)",
+  "mb": 25.5,
+  "files": 1757,
+  "folders": {
+   "02_ANDROID_SOURCE_CODE": 756,
+   "(মূল ফোল্ডারের নথি)": 604,
+   "04_SUPABASE_DATABASE_SETUP": 126,
+   "00_SQL": 71,
+   "00_GUARD": 53,
+   "03_NETLIFY_READY": 51,
+   "08_ASSETS_BACKUP": 36,
+   "07_RELEASE_NOTES_VERSION_HISTORY": 31,
+   "00_READ_ME_FIRST": 11,
+   "10_FUTURE_PLANS": 7,
+   "ROLLBACK_V448": 2,
+   "06_TEST_CHECKLISTS": 2,
+   "11_V223_TESTS": 2,
+   ".claude": 2,
+   "05_APK_AAB_BUILD_NOTES": 1,
+   "03_SUPABASE_SQL": 1,
+   "01_MASTER_LOCK_BOOK_SOURCE_OF_TRUTH": 1
+  },
+  "excluded": [
+   ".git",
+   "00_GUARD/.kotlinc",
+   "*/build",
+   "__pycache__",
+   "node_modules",
+   "08_ASSETS_BACKUP/ANATOMY_PICTURES/ORIGINAL (অনুমোদিত বাদ)",
+   "মূল ফোল্ডারের ৬১টা ডেমো-প্রুফ ছবি (নাম ধরে ধরে বাদ)"
+  ],
+  "jachai": {
+   "gradle": "1197 / 11.97",
+   "version_json": "1197 / 11.97",
+   "root_demo_images": 0,
+   "SQL": "V1193 · V1194 · V1195 · V1196 চারটেই আছে",
+   "code_markers": "১০টার ১০টাই আছে (Cancel · CANCELLED BY · deleteSalaryRow · askConfirm · waiting for confirmation ×২ · drRemCancel · salDeletePay · wlv1MhToggleHistory · styles.css V1197)"
+  },
+  "ki_notun": "V1192→V1197: Doctor Reminder — নিজের পাঠানো আর হোমে বসে না · Hide · ঘন্টায় নোটিফিকেশন (অপেক্ষমাণ ও Accepted) · ৩ অক্ষরে রোগীর সাজেশন · New Reminder ও তালিকার নতুন সাজ (Back নিচে) · ভুলে পাঠালে Cancel (History-তে CANCELLED) · রোগের নাম · Reminder History ⋮-এ · স্যালারিতে একই মাস দুবার দিলে আটকায় · অঙ্ক আর নিজে বসে না · ভুল সারি Delete (কে মুছল খাতায়) · Extra Income ফর্মের বক্স ছোট · Money Handover-এর নতুন সাজ, অন্যের পাসওয়ার্ড বাদ, নোটিশ শুধু প্রাপক ও মাস্টারকে, Handover History · কম্পিউটারের Enquiry ও Registration ফর্মের বক্স ছোট"
  }
 ]
