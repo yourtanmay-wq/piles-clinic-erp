@@ -3971,14 +3971,39 @@ function isAutoNotice(b){return AUTO_NOTICE_TITLES.includes(String(b?.title||'')
 function wlv1BriefBody(b){
   try{
     if(isAutoNotice(b)){
-      var parts=String((b&&b.message)||'').split(' - ').map(function(x){return String(x).trim()}).filter(Boolean);
+      /* 🚨🔒 V1207 (০৮.০৯.২০২৬, TK-রিপোর্ট: *"এই নম্বরে এন্ট্রি করে কোন Staff করল
+         এটা এখানে কেন দেখা যাচ্ছে না"*) — **আসল দোষ (ফোনের যমজ):** এখানে
+         `.filter(Boolean)` ছিল; রোগীর **নামের ঘর ফাঁকা** থাকলে প্রথম টুকরোটা বাদ
+         পড়ে যেত ⇒ টুকরো ৩ ⇒ শর্তটাই মিলত না ⇒ পুরো সাজটাই বসত না।
+         ⇒ এখন ফাঁকা টুকরোও জায়গায় থাকে। নাম থাকা সারিতে ছাঁকনি কিছুই বাদ দিত
+           না, তাই তাদের আচরণ হুবহু আগের মতোই। */
+      var parts=String((b&&b.message)||'').split(' - ').map(function(x){return String(x).trim()});
       var dg=function(t){return String(t||'').replace(/\D/g,'')};
       if(parts.length>=4 && dg(parts[1]).length>=10){
         var ph=dg(parts[1]).slice(-10);
-        return (parts[3]?'<div class="nbPills"><span class="nbPill">'+esc(parts[3])+'</span></div>':'')
+        /* 🏷️🔒 V1207 (TK-অনুমোদিত ফটো-প্রুফ) — TK: *"Enquiry Piles Jpe-Crp — এই
+           তিনটা পাশাপাশি Tag হিসাবে থাকবে"*। ধরন · রোগ · স্টাফের কোড।
+           ⛔ যেটা জানা নেই সেই ট্যাগটা বসেই না — বানানো কিছু দেখানো হয় না। */
+        var __ttl=String((b&&b.title)||'').trim();
+        var __typeTag=(/^new enquiry$/i.test(__ttl)?'Enquiry':(/^new registration$/i.test(__ttl)?'Registration':(/^advance received$/i.test(__ttl)?'Advance':__ttl)));
+        var __dis='';
+        for(var __i=2;__i<parts.length;__i++){
+          var __t=parts[__i];
+          if(__t && !/branch$/i.test(__t) && dg(__t).length<10){ __dis=__t; break; }
+        }
+        var __code='';
+        try{
+          var __m=dg((b&&b.createdBy)||'').slice(-10);
+          if(__m.length===10){
+            var __u=allUsers().find(function(x){return mob(x.mobile)===__m});
+            __code=String((__u&&(__u.code||__u.name))||'').trim().toUpperCase();
+          }
+        }catch(_e){}
+        var __tags=[__typeTag,__dis,__code].filter(Boolean)
+          .map(function(t){return '<span class="nbPill">'+esc(t)+'</span>'}).join('');
+        return (__tags?'<div class="nbPills">'+__tags+'</div>':'')
              + '<div class="nbName">'+esc(parts[0])
-             + ' <a class="nbPhone" href="tel:'+esc(ph)+'">'+esc(parts[1])+'</a></div>'
-             + '<div class="nbId">Patient ID <b>'+esc(parts[2])+'</b></div>';
+             + ' <a class="nbPhone" href="tel:'+esc(ph)+'">'+esc(parts[1])+'</a></div>';
       }
     }
   }catch(e){}

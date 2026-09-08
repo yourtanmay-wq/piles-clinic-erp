@@ -645,7 +645,16 @@ class BriefingAdapter(
             var rich = false
             try {
                 if (isAutoNotice(item)) {
-                    val parts = item.message.split(" - ").map { it.trim() }.filter { it.isNotEmpty() }
+                    /* 🚨🔒 V1207 (০৮.০৯.২০২৬, TK-রিপোর্ট: *"এই নম্বরে এন্ট্রি করে কোন
+                       Staff করল এটা এখানে কেন দেখা যাচ্ছে না"*) — **আসল দোষ, কোডে মেপে পাওয়া:**
+                       এখানে `.filter { it.isNotEmpty() }` ছিল। রোগীর **নামের ঘর ফাঁকা**
+                       থাকলে প্রথম টুকরোটা বাদ পড়ে যেত ⇒ টুকরো ৪-এর বদলে ৩ ⇒ নিচের
+                       শর্তটাই মিলত না ⇒ **স্টাফের নাম-সহ পুরো সাজটাই বসত না**, শুধু
+                       কাঁচা লেখাটা দেখাত। (TK-এর ছবিতে ঠিক তাই — লেখাটা "-" দিয়ে শুরু।)
+                       ⇒ এখন ফাঁকা টুকরোও **জায়গায় থাকে**, তাই ঘরগুলো আর সরে যায় না।
+                       ⛔ নাম থাকা সারিতে আগে ছাঁকনিটা কিছুই বাদ দিত না — তাই ওদের
+                          আচরণ **হুবহু আগের মতোই**। */
+                    val parts = item.message.split(" - ").map { it.trim() }
                     val digitsOf = { t: String -> t.filter { c -> c.isDigit() } }
                     if (parts.size >= 4 && digitsOf(parts[1]).length >= 10) {
                         b.tvPatientName.text = parts[0]
@@ -661,18 +670,27 @@ class BriefingAdapter(
                            বসে, তাই কার্ড থেকে একটা গোটা লাইন কমে গেল।
                            ⛔ লেখাটা `tvTitle`-এর থেকেই নেওয়া — নতুন কিছু বানানো হয়নি।
                            ⛔ যে কার্ডে এই ধরনটা খাটে না, সেখানে পিল-সারি আগের মতোই থাকে। */
-                        val doneBy = staffNameFor(item.createdBy.trim())
+                        /* 🏷️🔒 V1207 (TK-অনুমোদিত ফটো-প্রুফ, হুবহু): *"Enquiry Piles
+                           Jpe-Crp — এই তিনটা পাশাপাশি Tag হিসাবে থাকবে"*।
+                           ⇒ উপরের সারিতে তিনটে ট্যাগ: ধরন · রোগ · স্টাফের কোড।
+                           ⛔ কোড জানা না গেলে ট্যাগটা বসেই না — বানানো কিছু নয়। */
                         val titleTxt = b.tvTitle.text?.toString().orEmpty().trim()
-                        b.tvPatientId.text = when {
-                            titleTxt.isNotBlank() && doneBy != null -> "$titleTxt  ·  By $doneBy"
-                            doneBy != null -> "By  $doneBy"
-                            titleTxt.isNotBlank() -> titleTxt
-                            else -> ""
-                        }
-                        b.rowTitle.visibility = View.GONE
-                        val dis = parts.getOrNull(3).orEmpty()
+                        b.tvTitle.text = shortNoticeTag(titleTxt)
+                        b.tvPatientId.text = ""
+                        b.rowTitle.visibility = View.VISIBLE
+                        /* 🩺 V1207 — রোগের ট্যাগটা **মেপে** বাছা হয়: নাম ও নম্বরের
+                           পরের যে টুকরোটা "branch" দিয়ে শেষ হয় না আর যাতে ১০ অঙ্কের
+                           নম্বর নেই — সেটাই রোগ। এতে লেখার ধরন সামান্য আলাদা হলেও
+                           (নাম থাকা/না-থাকা) ভুল করে "Cooch Behar branch" বসে না। */
+                        val dis = parts.drop(2).firstOrNull { t ->
+                            t.isNotBlank() && !t.trim().endsWith("branch", true) &&
+                                digitsOf(t).length < 10
+                        }.orEmpty()
                         b.tvChipDisease.text = dis
                         b.tvChipDisease.visibility = if (dis.isNotBlank()) View.VISIBLE else View.GONE
+                        val staffTag = staffCodeFor(item.createdBy.trim()).orEmpty()
+                        b.tvChipStaff.text = staffTag
+                        b.tvChipStaff.visibility = if (staffTag.isNotBlank()) View.VISIBLE else View.GONE
                         b.rowPatient.visibility = View.VISIBLE
                         b.tvPatientId.visibility =
                             if (b.tvPatientId.text.isNullOrBlank()) View.GONE else View.VISIBLE
@@ -735,6 +753,32 @@ class BriefingAdapter(
             if (!drop) sb.append(ch)
         }
         return sb.toString().replace(Regex("\\s{2,}"), " ").trim()
+    }
+
+    /* 🏷️ V1207 — ট্যাগের ছোট লেখা: "New Enquiry" → "Enquiry" ইত্যাদি।
+       চেনা না গেলে শিরোনামটাই যেমন আছে তেমনই বসে। */
+    private fun shortNoticeTag(title: String): String = when {
+        title.equals("New Enquiry", true) -> "Enquiry"
+        title.equals("New Registration", true) -> "Registration"
+        title.equals("Advance Received", true) -> "Advance"
+        else -> title
+    }
+
+    /* 🏷️ V1207 — শুধু স্টাফের **কোড** (যেমন COB-4 · JPE-CRP)। `createdBy`-তে
+       মোবাইল থাকে, তাই V1141-এর প্রমাণিত পথেই কোড বার করা হয়।
+       ⛔ না পেলে null ⇒ ট্যাগটা বসে না। */
+    private fun staffCodeFor(raw: String): String? {
+        val t = raw.trim()
+        if (t.isBlank()) return null
+        val ten = t.filter { it.isDigit() }.takeLast(10)
+        if (ten.length == 10) {
+            val acc = try { StaffDirectory.findAccount(ten) } catch (_: Throwable) { null }
+            val c = acc?.name?.trim()
+            if (!c.isNullOrBlank()) return c.uppercase()
+            return null
+        }
+        // মোবাইল নয় — তাহলে কোডই বসানো আছে
+        return t.uppercase()
     }
 
     private fun staffNameFor(code: String): String? {

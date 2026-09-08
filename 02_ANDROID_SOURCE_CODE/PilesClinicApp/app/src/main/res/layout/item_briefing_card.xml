@@ -171,6 +171,23 @@
                     android:textSize="13sp"
                     android:textColor="#12271E"
                     android:visibility="gone" />
+
+                <!-- 🏷️🔒 V1207 (০৮.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — TK:
+                     "New Enquiry এর পাশে staff এর নাম থাকবে … Enquiry Piles
+                     Jpe-Crp — এই তিনটা পাশাপাশি Tag হিসাবে থাকবে"।
+                     ⛔ ডিফল্ট gone — যেখানে কোড জানা নেই সেখানে বসেই না। -->
+                <TextView
+                    android:id="@+id/tvChipStaff"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="9dp"
+                    android:background="@drawable/bg_brief_chip_normal"
+                    android:paddingHorizontal="12dp"
+                    android:paddingVertical="3dp"
+                    android:text="Staff"
+                    android:textSize="13sp"
+                    android:textColor="#12271E"
+                    android:visibility="gone" />
             </LinearLayout>
 
             <!-- 🎨 V1102 — রোগীর নাম ও নম্বর এক লাইনে, নিচে Patient ID।
