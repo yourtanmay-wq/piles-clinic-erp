@@ -8283,13 +8283,17 @@ function wlv1YrScreen(rows, branchLabel){
   window.__yrSheetRows = shown.map(function(x){
     var __m=String(x.mobile||'').replace(/\D/g,'').slice(-10);
     var __bill=Number(x.bill||0), __paid=Number(__yrPaid[__m]||0);
+    /* 🧾 V1210 (TK-নির্দেশ: *"একটা কলমের তারিখ আর তারপরের কলমে সেই তারিখে
+       কত জমা করেছে"*) — তাই আর এক ঘরে নয়, জোড়া-জোড়া ঘরে (ফোনের যমজ)। */
     var __h=(__yrHist[__m]||[]).slice().sort(function(a,b){return String(a.d).localeCompare(String(b.d))})
-      .map(function(r){ return (r.d?fmtDate(r.d):'-')+' '+Number(r.a).toLocaleString('en-IN',{maximumFractionDigits:0}); })
-      .join('  |  ');
+      .map(function(r){ return {d:(r.d?fmtDate(r.d):'-'), a:String(Math.round(Number(r.a)||0))}; });
     return { date:(x.__reg?fmtDate(x.__reg):''), name:String(x.name||''),
       mobile:__m,
       branch:String(x.branch||branchLabel||''), disease:String(x.disease||x.diagnosis||''),
       code:String(x.__code||''),
+      /* 🩺 V1210 (TK: *"তাছাড়া Ref by লাগবে"*) — রোগীর সারিতেই আছে। */
+      refby:[String(x.refBy||''),String(x.refDoctor||'')].map(function(t){return String(t||'').trim()})
+        .filter(Boolean).filter(function(t,i,a){return a.indexOf(t)===i}).join(' — '),
       address:String(x.address||''),
       bill:Math.round(__bill), paid:Math.round(__paid), due:Math.round(__bill-__paid),
       hist:__h,
@@ -8321,11 +8325,26 @@ function wlv1YrSheet(){
     if(!rows.length){ toast('Nothing to download — the list is empty'); return; }
     function c(v){ var t=String(v==null?'':v).replace(/[\r\n]+/g,' ').trim();
       return (t.indexOf(',')>=0||t.indexOf('"')>=0)?('"'+t.replace(/"/g,'""')+'"'):t; }
-    var lines=[['SL','DATE','NAME','MOBILE','BRANCH','DISEASE','PATIENT ID','STATUS','REGISTERED BY',
-      'ADDRESS','BILL','PAID','DUE','PAYMENTS (date & amount)'].join(',')];
+    /* 🧾 V1210 — প্রতিটা জমা দুটো আলাদা কলমে (1ST DATE · 1ST PAYMENT · …),
+       যতগুলো জমা সবচেয়ে বেশি কারো আছে ততগুলো জোড়া। কারো কম থাকলে ঘর ফাঁকা। */
+    function ord(n){
+      var s2=(n%100>=11&&n%100<=13)?'TH':(n%10===1?'ST':(n%10===2?'ND':(n%10===3?'RD':'TH')));
+      return n+s2;
+    }
+    var maxPay=0;
+    rows.forEach(function(r){ maxPay=Math.max(maxPay,(r.hist||[]).length); });
+    var head=['SL','DATE','NAME','MOBILE','BRANCH','DISEASE','PATIENT ID','STATUS','REGISTERED BY',
+      'REF BY','ADDRESS','BILL','PAID','DUE'];
+    for(var k=1;k<=maxPay;k++){ head.push(ord(k)+' DATE'); head.push(ord(k)+' PAYMENT'); }
+    var lines=[head.map(c).join(',')];
     rows.forEach(function(r,i){
-      lines.push([i+1,r.date,r.name,r.mobile,r.branch,r.disease,r.code,r.status,r.by,
-        r.address,r.bill,r.paid,r.due,r.hist].map(c).join(','));
+      var line=[i+1,r.date,r.name,r.mobile,r.branch,r.disease,r.code,r.status,r.by,
+        r.refby,r.address,r.bill,r.paid,r.due];
+      for(var k=0;k<maxPay;k++){
+        var pp=(r.hist||[])[k];
+        line.push(pp?pp.d:''); line.push(pp?pp.a:'');
+      }
+      lines.push(line.map(c).join(','));
     });
     var blob=new Blob(['\uFEFF'+lines.join('\r\n')],{type:'text/csv;charset=utf-8;'});
     var a=document.createElement('a');

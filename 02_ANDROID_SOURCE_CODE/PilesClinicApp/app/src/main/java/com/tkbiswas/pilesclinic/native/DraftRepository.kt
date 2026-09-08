@@ -81,7 +81,10 @@ data class DraftEntry(
        ⛔ ডিফল্ট ফাঁকা ⇒ যে তালিকা এটা ভরে না, সেখানে কিছুই বদলায় না।
        ⛔ **নতুন কোনো ক্লাউড-পড়া লাগেনি** — টাকার সারিগুলো এই ফাংশনেই
           আগে থেকে নেমে আসে (`paidByMobile`-এর একই লুপ)। */
-    val payHistory: String = ""
+    val payHistory: String = "",
+    /* 🩺🔒 V1210 (০৮.০৯.২০২৬, TK-নির্দেশ): *"তাছাড়া Ref by লাগবে"*।
+       রোগীর সারিতেই আছে (`refBy` · `refDoctor`) — নতুন কোনো ক্লাউড-পড়া নেই। */
+    val refByText: String = ""
 ) : java.io.Serializable
 
 /**
@@ -214,6 +217,7 @@ class DraftRepository(private val context: Context? = null) {
                     .put("regDate", e.regDate)
                     .put("regBy", e.regBy)
                     .put("payHistory", e.payHistory)   // 💰 V1209 (পাহারা §৯.২৩)
+                    .put("refByText", e.refByText)     // 🩺 V1210 (পাহারা §৯.২৩)
                     .put("regTag", e.regTag)   // 🆕 V852 (পাহারা §৯.২৩)
             )
         }
@@ -249,6 +253,7 @@ class DraftRepository(private val context: Context? = null) {
                     lastCallBy = r.optString("lastCallBy", ""),
                     lastCallTime = r.optString("lastCallTime", ""),
                     payHistory = r.optString("payHistory", ""),   // 💰 V1209 (পাহারা §৯.২৩)
+                    refByText = r.optString("refByText", ""),     // 🩺 V1210 (পাহারা §৯.২৩)
                     regDate = r.optString("regDate", ""),
                     regBy = r.optString("regBy", ""),
                     regTag = r.optString("regTag", "")   // 🆕 V852
@@ -1244,16 +1249,24 @@ class DraftRepository(private val context: Context? = null) {
                    জমা"*) — তিনটেই এই ফাংশনে **আগে থেকেই** আছে: বিল রোগীর নিজের
                    সারিতে, জমা ও জমার তালিকা উপরের `payments` লুপে।
                    ⛔ একটাও নতুন ক্লাউড-পড়া লাগেনি (Egress এক বাইটও বাড়ে না)। */
+                /* 🧾 V1210 (TK-নির্দেশ: *"একটা কলমের তারিখ আর তারপরের কলমে সেই
+                   তারিখে কত জমা করেছে"*) — তাই এখানে **যন্ত্র-পাঠযোগ্য** ধাঁচ:
+                   `dd/MM/yyyy=টাকা|dd/MM/yyyy=টাকা`। শিট বানানোর সময় এটাই
+                   ভেঙে আলাদা আলাদা কলমে বসে। ⛔ এই লেখাটা কোনো পর্দায় দেখানো
+                   হয় না, শুধু শিটের জন্য। */
                 val hist = payHistByMobile[mobKey].orEmpty()
                     .sortedBy { it.first }
-                    .joinToString("  |  ") { (d, amt) ->
-                        (if (d.isBlank()) "-" else DateUtil.display(d)) + " " +
-                            String.format(java.util.Locale.US, "%,.0f", amt)
+                    .joinToString("|") { (d, amt) ->
+                        (if (d.isBlank()) "-" else DateUtil.display(d)) + "=" +
+                            String.format(java.util.Locale.US, "%.0f", amt)
                     }
+                val refTxt = listOf(row.s("refBy"), row.s("refDoctor"))
+                    .map { it.trim() }.filter { it.isNotBlank() }.distinct().joinToString(" — ")
                 out.add(entry(row, "yearlyreg", marked,
                         bill = row.optDouble("bill", 0.0),
                         paid = paidByMobile[mobKey] ?: 0.0)
-                    .copy(recordDate = regDate, lastRemark = "", regTag = tag, payHistory = hist))
+                    .copy(recordDate = regDate, lastRemark = "", regTag = tag,
+                        payHistory = hist, refByText = refTxt))
             }
             yearlyOutDemo = outDemo
             yearlyOutNoDate = outNoDate

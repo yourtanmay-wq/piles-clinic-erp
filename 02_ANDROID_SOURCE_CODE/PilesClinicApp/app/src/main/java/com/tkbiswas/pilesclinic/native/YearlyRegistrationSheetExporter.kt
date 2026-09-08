@@ -22,6 +22,30 @@ object YearlyRegistrationSheetExporter {
         return if (v.contains(',') || v.contains('"')) "\"" + v.replace("\"", "\"\"") + "\"" else v
     }
 
+    /** 🧾 V1210 — `dd/MM/yyyy=টাকা|…` ভেঙে (তারিখ, টাকা) জোড়ার তালিকা। */
+    private fun splitPays(raw: String): List<Pair<String, String>> {
+        if (raw.isBlank()) return emptyList()
+        return raw.split("|").mapNotNull { seg ->
+            val t = seg.trim()
+            if (t.isBlank()) return@mapNotNull null
+            val i = t.lastIndexOf('=')
+            if (i <= 0) return@mapNotNull null
+            t.substring(0, i) to t.substring(i + 1)
+        }
+    }
+
+    /** 🧾 V1210 — 1ST · 2ND · 3RD · 4TH … (TK-এর নমুনার হুবহু লেখা)। */
+    private fun ord(n: Int): String {
+        val suffix = when {
+            n % 100 in 11..13 -> "TH"
+            n % 10 == 1 -> "ST"
+            n % 10 == 2 -> "ND"
+            n % 10 == 3 -> "RD"
+            else -> "TH"
+        }
+        return "$n$suffix"
+    }
+
     /** টাকার অঙ্ক — শিটে যোগ করা যায় এমন সাদামাটা সংখ্যা (কমা/চিহ্ন ছাড়া)। */
     private fun num(v: Double): String =
         if (v == 0.0) "0" else String.format(java.util.Locale.US, "%.0f", v)
@@ -37,16 +61,25 @@ object YearlyRegistrationSheetExporter {
         /* 💰🔒 V1209 (০৮.০৯.২০২৬, TK-নির্দেশ, হুবহু): *"সেই রুগীর ঠিকানা লাগবে ·
            কত বিল · কত জমা · কত বাকি · কত কত তারিখে কত কত জমা করেছে"*।
            ⛔ পাঁচটাই আগে থেকে ফোনে নেমে আসা তথ্য — নতুন কোনো ক্লাউড-পড়া নেই। */
-        val header = listOf(
+        /* 🧾🔒 V1210 (০৮.০৯.২০২৬, TK-নির্দেশ ও নমুনা-শিট, হুবহু): *"একটা কলমের
+           তারিখ আর তারপরের কলমে সেই তারিখে কত জমা করেছে — সেরকম হতে হবে,
+           আপনি তো একটা কলমেই সমস্ত পেমেন্ট তুলে দিয়েছেন"* · *"তাছাড়া Ref by লাগবে"*।
+           ⇒ প্রতিটা জমা এখন **দুটো আলাদা কলমে** — 1ST DATE · 1ST PAYMENT ·
+             2ND DATE · 2ND PAYMENT … যত জমা সবচেয়ে বেশি কারো আছে, ততগুলো জোড়া।
+           ⛔ কারো কম জমা থাকলে বাকি ঘরগুলো ফাঁকা থাকে — কিছু গায়েব হয় না। */
+        val pays = items.map { splitPays(it.payHistory) }
+        val maxPay = pays.maxOfOrNull { it.size } ?: 0
+        val header = ArrayList(listOf(
             "SL", "DATE", "NAME", "MOBILE", "BRANCH", "DISEASE",
-            "PATIENT ID", "STATUS", "REGISTERED BY",
-            "ADDRESS", "BILL", "PAID", "DUE", "PAYMENTS (date & amount)"
-        )
+            "PATIENT ID", "STATUS", "REGISTERED BY", "REF BY",
+            "ADDRESS", "BILL", "PAID", "DUE"
+        ))
+        for (i in 1..maxPay) { header.add(ord(i) + " DATE"); header.add(ord(i) + " PAYMENT") }
         val sb = StringBuilder()
         sb.append(header.joinToString(",") { cell(it) }).append("\r\n")
         items.forEachIndexed { idx, e ->
             val mob = e.mobile.filter { it.isDigit() }.takeLast(10)
-            val line = listOf(
+            val line = ArrayList(listOf(
                 (idx + 1).toString(),
                 if (e.recordDate.isBlank()) "" else DateUtil.display(e.recordDate),
                 e.name,
@@ -56,12 +89,17 @@ object YearlyRegistrationSheetExporter {
                 e.patientId,
                 statusOf(e),
                 e.regBy,
+                e.refByText,
                 e.address,
                 num(e.bill),
                 num(e.paid),
-                num(e.bill - e.paid),
-                e.payHistory
-            )
+                num(e.bill - e.paid)
+            ))
+            val mine = pays[idx]
+            for (i in 0 until maxPay) {
+                line.add(mine.getOrNull(i)?.first ?: "")
+                line.add(mine.getOrNull(i)?.second ?: "")
+            }
             sb.append(line.joinToString(",") { cell(it) }).append("\r\n")
         }
         val dir = File(context.cacheDir, "exports").apply { mkdirs() }
