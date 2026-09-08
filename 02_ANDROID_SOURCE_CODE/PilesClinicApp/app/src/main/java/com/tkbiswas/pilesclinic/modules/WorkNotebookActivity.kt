@@ -2279,6 +2279,11 @@ class WorkNotebookActivity : AppCompatActivity() {
                     }
                     AttendanceRepository.Status.NOT_STAFF ->
                         inTimeMessage("IN TIME", res.message, "#0B2B59")
+                    /* 🕒🔒 V1243 (TK-নির্দেশ) — চেম্বারের সময়ের বাইরে হাজিরা নয়।
+                       ⛔ "আবার চেষ্টা করুন" বোতাম নেই — বারবার চেপে লাভ নেই,
+                          সময় হলে তবেই হবে। */
+                    AttendanceRepository.Status.OUTSIDE_HOURS ->
+                        inTimeMessage("IN TIME", res.message, "#A8281C")
                     AttendanceRepository.Status.INACTIVE, AttendanceRepository.Status.SUSPENDED -> {
                         // মাস্টার বন্ধ করে দিয়েছেন — সার্ভারই জানাল (TK §১১)
                         inTimeMessage("Account closed", res.message, "#A8281C")   // 🔤 V519
