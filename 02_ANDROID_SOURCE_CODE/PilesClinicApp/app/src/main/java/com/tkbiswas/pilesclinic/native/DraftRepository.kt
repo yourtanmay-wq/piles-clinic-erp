@@ -75,7 +75,13 @@ data class DraftEntry(
        refund এরকম কোনো ব্যাপার থাকলে ওই ব্যক্তির পাশে ফার্স্ট ব্র্যাকেটের
        মধ্যে মেনশন থাকবে" · "তালিকায় যা দেখাবে গোনাও যেন একই হয়"।
        মান: "" · "Return Visit" · "Refund"। */
-    val regTag: String = ""
+    val regTag: String = "",
+    /* 💰🔒 V1209 (০৮.০৯.২০২৬, TK-নির্দেশ): *"কত কত তারিখে কত কত জমা করেছে
+       সেগুলিও লাগবে"*। এক লাইনে সাজানো — "02/01/2026 ₹5,000 | 10/02/2026 ₹3,000"।
+       ⛔ ডিফল্ট ফাঁকা ⇒ যে তালিকা এটা ভরে না, সেখানে কিছুই বদলায় না।
+       ⛔ **নতুন কোনো ক্লাউড-পড়া লাগেনি** — টাকার সারিগুলো এই ফাংশনেই
+          আগে থেকে নেমে আসে (`paidByMobile`-এর একই লুপ)। */
+    val payHistory: String = ""
 ) : java.io.Serializable
 
 /**
@@ -207,6 +213,7 @@ class DraftRepository(private val context: Context? = null) {
                     .put("lastCallTime", e.lastCallTime)
                     .put("regDate", e.regDate)
                     .put("regBy", e.regBy)
+                    .put("payHistory", e.payHistory)   // 💰 V1209 (পাহারা §৯.২৩)
                     .put("regTag", e.regTag)   // 🆕 V852 (পাহারা §৯.২৩)
             )
         }
@@ -241,6 +248,7 @@ class DraftRepository(private val context: Context? = null) {
                     lastCallDate = r.optString("lastCallDate", ""),
                     lastCallBy = r.optString("lastCallBy", ""),
                     lastCallTime = r.optString("lastCallTime", ""),
+                    payHistory = r.optString("payHistory", ""),   // 💰 V1209 (পাহারা §৯.২৩)
                     regDate = r.optString("regDate", ""),
                     regBy = r.optString("regBy", ""),
                     regTag = r.optString("regTag", "")   // 🆕 V852
@@ -682,6 +690,8 @@ class DraftRepository(private val context: Context? = null) {
         }
 
         val paidByMobile = HashMap<String, Double>()
+        // 💰 V1209 — মোবাইল ধরে "তারিখ → টাকা" (একই payments থেকেই)।
+        val payHistByMobile = HashMap<String, ArrayList<Pair<String, Double>>>()
         // 🔴 TK-নির্দেশ (02.08.2026): কার Approved Refund আছে সেটাও এই একই
         // লুপে ধরে রাখা হচ্ছে (নিচে "Refunded" ঘর বানাতে লাগবে) — নতুন কোনো
         // নেট-কল লাগেনি, একই payments থেকেই।
@@ -705,6 +715,13 @@ class DraftRepository(private val context: Context? = null) {
             }
             val pm = p.s("mobile").filter { it.isDigit() }.takeLast(10)
             if (pm.isNotBlank()) paidByMobile[pm] = (paidByMobile[pm] ?: 0.0) + paidEffect
+            /* 💰 V1209 — একই লুপে "কত তারিখে কত" জমা হয় (নতুন কল নয়)।
+               ⛔ Refund-এর সারি বাদ (উপরের `paidEffect`-এর মতোই হিসাব),
+                  তাই টাকার যোগফল ও এই তালিকা কখনো আলাদা হয় না। */
+            if (pm.isNotBlank() && paidEffect != 0.0) {
+                val d = p.s("date").take(10)
+                payHistByMobile.getOrPut(pm) { ArrayList() }.add(d to paidEffect)
+            }
             if (PaymentModel.isApprovedRefund(p) && pm.isNotBlank()) hasApprovedRefundByMobile.add(pm)
         }
 
@@ -1223,8 +1240,20 @@ class DraftRepository(private val context: Context? = null) {
                     returnMobiles.contains(mobKey) -> YearlyRegistration.TAG_RETURN
                     else -> ""
                 }
-                out.add(entry(row, "yearlyreg", marked)
-                    .copy(recordDate = regDate, lastRemark = "", regTag = tag))
+                /* 💰 V1209 (TK: *"কত বিল · কত জমা · কত বাকি · কত কত তারিখে কত কত
+                   জমা"*) — তিনটেই এই ফাংশনে **আগে থেকেই** আছে: বিল রোগীর নিজের
+                   সারিতে, জমা ও জমার তালিকা উপরের `payments` লুপে।
+                   ⛔ একটাও নতুন ক্লাউড-পড়া লাগেনি (Egress এক বাইটও বাড়ে না)। */
+                val hist = payHistByMobile[mobKey].orEmpty()
+                    .sortedBy { it.first }
+                    .joinToString("  |  ") { (d, amt) ->
+                        (if (d.isBlank()) "-" else DateUtil.display(d)) + " " +
+                            String.format(java.util.Locale.US, "%,.0f", amt)
+                    }
+                out.add(entry(row, "yearlyreg", marked,
+                        bill = row.optDouble("bill", 0.0),
+                        paid = paidByMobile[mobKey] ?: 0.0)
+                    .copy(recordDate = regDate, lastRemark = "", regTag = tag, payHistory = hist))
             }
             yearlyOutDemo = outDemo
             yearlyOutNoDate = outNoDate

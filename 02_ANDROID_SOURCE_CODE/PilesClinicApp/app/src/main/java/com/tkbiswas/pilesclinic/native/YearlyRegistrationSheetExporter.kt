@@ -22,6 +22,10 @@ object YearlyRegistrationSheetExporter {
         return if (v.contains(',') || v.contains('"')) "\"" + v.replace("\"", "\"\"") + "\"" else v
     }
 
+    /** টাকার অঙ্ক — শিটে যোগ করা যায় এমন সাদামাটা সংখ্যা (কমা/চিহ্ন ছাড়া)। */
+    private fun num(v: Double): String =
+        if (v == 0.0) "0" else String.format(java.util.Locale.US, "%.0f", v)
+
     /** পর্দার সারির অবস্থা — ঠিক যা কার্ডে দেখানো হয়। */
     private fun statusOf(e: DraftEntry): String = when {
         e.extra == YearlyRegistration.SKIP_MARK -> "Removed"
@@ -30,9 +34,13 @@ object YearlyRegistrationSheetExporter {
     }
 
     fun write(context: Context, branch: String, year: String, items: List<DraftEntry>): File {
+        /* 💰🔒 V1209 (০৮.০৯.২০২৬, TK-নির্দেশ, হুবহু): *"সেই রুগীর ঠিকানা লাগবে ·
+           কত বিল · কত জমা · কত বাকি · কত কত তারিখে কত কত জমা করেছে"*।
+           ⛔ পাঁচটাই আগে থেকে ফোনে নেমে আসা তথ্য — নতুন কোনো ক্লাউড-পড়া নেই। */
         val header = listOf(
             "SL", "DATE", "NAME", "MOBILE", "BRANCH", "DISEASE",
-            "PATIENT ID", "STATUS", "REGISTERED BY"
+            "PATIENT ID", "STATUS", "REGISTERED BY",
+            "ADDRESS", "BILL", "PAID", "DUE", "PAYMENTS (date & amount)"
         )
         val sb = StringBuilder()
         sb.append(header.joinToString(",") { cell(it) }).append("\r\n")
@@ -47,7 +55,12 @@ object YearlyRegistrationSheetExporter {
                 e.disease,
                 e.patientId,
                 statusOf(e),
-                e.regBy
+                e.regBy,
+                e.address,
+                num(e.bill),
+                num(e.paid),
+                num(e.bill - e.paid),
+                e.payHistory
             )
             sb.append(line.joinToString(",") { cell(it) }).append("\r\n")
         }

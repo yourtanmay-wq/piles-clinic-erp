@@ -8266,11 +8266,33 @@ function wlv1YrScreen(rows, branchLabel){
   /* 📊🔒 V1208 (০৮.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — TK: *"এটা আমি গুগল শিট
      ডাউনলোড করতে চাই, কেন অপশন নেই?"*। ফোনের "⬇ Sheet"-এর হুবহু যমজ; পর্দার
      চালু ফিল্টারের সারিগুলোই যায়, তাই পর্দা ও শিট কখনো আলাদা হয় না। */
+  /* 💰🔒 V1209 (০৮.০৯.২০২৬, TK-নির্দেশ, হুবহু): *"সেই রুগীর ঠিকানা লাগবে · কত বিল ·
+     কত জমা · কত বাকি · কত কত তারিখে কত কত জমা করেছে"*। ফোনের হুবহু যমজ।
+     ⛔ টাকার নিয়ম প্রকল্পের নিজেরই (`wlv1PayEffect` — Visit Fee বাদ, approved
+        refund বিয়োগ), তাই যোগফল ও তারিখ-ধরে তালিকা কখনো আলাদা হয় না।
+     ⛔ নতুন কোনো ক্লাউড-পড়া নেই — টাকার সারি ব্রাউজারে আগে থেকেই জমা। */
+  var __yrPaid={}, __yrHist={};
+  try{
+    (load('payments')||[]).forEach(function(pay){
+      var eff=wlv1PayEffect(pay); if(!eff) return;
+      var mm=mob(pay.mobile); if(!mm) return;
+      __yrPaid[mm]=(__yrPaid[mm]||0)+eff;
+      (__yrHist[mm]=__yrHist[mm]||[]).push({d:String(pay.date||'').slice(0,10),a:eff});
+    });
+  }catch(_e){}
   window.__yrSheetRows = shown.map(function(x){
+    var __m=String(x.mobile||'').replace(/\D/g,'').slice(-10);
+    var __bill=Number(x.bill||0), __paid=Number(__yrPaid[__m]||0);
+    var __h=(__yrHist[__m]||[]).slice().sort(function(a,b){return String(a.d).localeCompare(String(b.d))})
+      .map(function(r){ return (r.d?fmtDate(r.d):'-')+' '+Number(r.a).toLocaleString('en-IN',{maximumFractionDigits:0}); })
+      .join('  |  ');
     return { date:(x.__reg?fmtDate(x.__reg):''), name:String(x.name||''),
-      mobile:String(x.mobile||'').replace(/\D/g,'').slice(-10),
+      mobile:__m,
       branch:String(x.branch||branchLabel||''), disease:String(x.disease||x.diagnosis||''),
       code:String(x.__code||''),
+      address:String(x.address||''),
+      bill:Math.round(__bill), paid:Math.round(__paid), due:Math.round(__bill-__paid),
+      hist:__h,
       status:(x.__skip?'Removed':(String(x.__tag||'')||'Counted')),
       /* 👤 V1208 — কে রেজিস্ট্রেশন করেছে: ফোনের `DraftRepository`-র হুবহু একই
          নিয়ম (`registeredBy` না থাকলে `createdBy`), তারপর প্রমাণিত `codeName()`। */
@@ -8299,9 +8321,11 @@ function wlv1YrSheet(){
     if(!rows.length){ toast('Nothing to download — the list is empty'); return; }
     function c(v){ var t=String(v==null?'':v).replace(/[\r\n]+/g,' ').trim();
       return (t.indexOf(',')>=0||t.indexOf('"')>=0)?('"'+t.replace(/"/g,'""')+'"'):t; }
-    var lines=[['SL','DATE','NAME','MOBILE','BRANCH','DISEASE','PATIENT ID','STATUS','REGISTERED BY'].join(',')];
+    var lines=[['SL','DATE','NAME','MOBILE','BRANCH','DISEASE','PATIENT ID','STATUS','REGISTERED BY',
+      'ADDRESS','BILL','PAID','DUE','PAYMENTS (date & amount)'].join(',')];
     rows.forEach(function(r,i){
-      lines.push([i+1,r.date,r.name,r.mobile,r.branch,r.disease,r.code,r.status,r.by].map(c).join(','));
+      lines.push([i+1,r.date,r.name,r.mobile,r.branch,r.disease,r.code,r.status,r.by,
+        r.address,r.bill,r.paid,r.due,r.hist].map(c).join(','));
     });
     var blob=new Blob(['\uFEFF'+lines.join('\r\n')],{type:'text/csv;charset=utf-8;'});
     var a=document.createElement('a');
