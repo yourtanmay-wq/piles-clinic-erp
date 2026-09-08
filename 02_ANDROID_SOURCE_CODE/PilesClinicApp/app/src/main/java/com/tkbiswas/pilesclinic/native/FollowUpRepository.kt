@@ -1266,7 +1266,20 @@ class FollowUpRepository(private val context: Context? = null) {
                         // V445: include every terminal Inquiry status.  The active list is
                         // fetched separately; this small companion read is only the
                         // "do not resurrect" guard for duplicate rows of the same mobile.
-                        slimFollowups("stage=eq.Inquiry&status=in.(Cancelled,Incomplete,Rejected,Closed)")
+                        /* 📵🔒 V1245 (০৯.০৯.২০২৬, TK-রিপোর্ট ও অনুমতি — খাতার সারি ৩৬৬):
+                           TK: *"যে সমস্ত নাম্বারে আমরা কল করব না বলে ফাইনাল করেছি,
+                           সেই নম্বরগুলোও কেন দেখাবে"*।
+                           🔴 **আসল কারণ (কোড ধরে):** নিচের এনকোয়ারি-জাল `followups`
+                              সারিটা না পেলে `enquiries` টেবিল থেকে কার্ডটা আবার বানায়,
+                              আর সেই বানানো কার্ডে `noMoreCalls` **কখনো বসেই না** ⇒
+                              ডিফল্ট false ⇒ থামানো নম্বর ফিরে আসে। জালের বাদ-দেওয়ার
+                              তালিকাতেও শুধু Cancelled/Incomplete/Rejected/Closed ছিল।
+                           ⇒ **এই একই পড়াতেই** এখন `noMoreCalls=true` সারিগুলোও আসে —
+                             **নতুন কোনো ক্লাউড-ডাক নয়**, শুধু ছাঁকনিটা চওড়া (নিয়ম ১৩)।
+                           ⛔ নিচে `closedInquiryMobiles` বানানোর সময় **status মিলিয়ে**
+                              নেওয়া হয়, তাই "আর ফোন নয়" সারি ভুল করে *Reject* হিসেবে
+                              গোনা হয় না — পুরনো আচরণ এক অক্ষরও বদলায়নি। */
+                        slimFollowups("stage=eq.Inquiry&or=(status.in.(Cancelled,Incomplete,Rejected,Closed),noMoreCalls.is.true)")
                     }
                 }
                 jobs += async(Dispatchers.IO) {
@@ -1509,11 +1522,23 @@ class FollowUpRepository(private val context: Context? = null) {
         // there is no terminal sibling left, so the card appears normally again.
         // No row is deleted and no payment/patient data is touched.
         val closedInquiryMobiles = HashSet<String>()
+        /* 📵🔒 V1245 — *"আর ফোন নয়"* করা নম্বরগুলো আলাদা তালিকায়।
+           ⛔ ইচ্ছে করেই `closedInquiryMobiles`-এ মেশানো হয়নি — ওটা Reject/Close-এর
+              অর্থ বহন করে, আর "আর ফোন নয়" **Reject নয়** (কার্ডটা তালিকায় থাকে,
+              শুধু কল-তালিকা ও ব্যানার থেকে সরে)। মিশিয়ে দিলে ভালো কাজ খারাপ হত। */
+        val stoppedInquiryMobiles = HashSet<String>()
         if (stage == "Inquiry") {
             preCancelledInquiry?.let { terminalRows ->
                 for (i in 0 until terminalRows.length()) {
-                    val m = digits(terminalRows.optJSONObject(i)?.s("mobile").orEmpty())
-                    if (m.isNotEmpty()) closedInquiryMobiles.add(m)
+                    val r = terminalRows.optJSONObject(i) ?: continue
+                    val m = digits(r.s("mobile"))
+                    if (m.isEmpty()) continue
+                    /* 📵 V1245 — পড়াটা এখন দুরকম সারি আনে, তাই এখানে **status
+                       মিলিয়ে** নেওয়া হয়: terminal হলে আগের তালিকায়, "আর ফোন নয়"
+                       হলে নতুন তালিকায়। ⛔ আগের আচরণ হুবহু অক্ষত। */
+                    val st = r.s("status").trim().lowercase()
+                    if (st in setOf("cancelled", "incomplete", "rejected", "closed")) closedInquiryMobiles.add(m)
+                    if (r.optBoolean("noMoreCalls", false)) stoppedInquiryMobiles.add(m)
                 }
             }
             // V447: terminal enquiry rows must be judged by STATUS, not by stage=Inquiry.
@@ -1737,6 +1762,11 @@ class FollowUpRepository(private val context: Context? = null) {
             if (cancelledInquiryOrNull != null) {
                 val rejectedMobiles = HashSet<String>()
                 rejectedMobiles.addAll(closedInquiryMobiles)
+                /* 📵🔒 V1245 (TK-র অনুমতি) — *"আর ফোন নয়"* করা নম্বরও
+                   জাল আর ফিরিয়ে আনবে না। ⛔ কার্ডটা মোছে না, Reject-ও হয় না —
+                   শুধু এই জাল ওটাকে **নতুন করে বানায় না**, তাই স্টাফের সিদ্ধান্ত
+                   আর উল্টে যায় না। */
+                rejectedMobiles.addAll(stoppedInquiryMobiles)
                 for (i in 0 until cancelledInquiryOrNull.length()) {
                     val m = digits(cancelledInquiryOrNull.getJSONObject(i).s("mobile"))
                     if (m.isNotEmpty()) rejectedMobiles.add(m)
@@ -1828,6 +1858,11 @@ class FollowUpRepository(private val context: Context? = null) {
                         .put("nextFollow", row.s("nextFollow"))
                         .put("date", row.s("date"))
                         .put("callCount", row.optInt("callCount", 0))
+                        /* 📵🔒 V1245 — **দ্বিতীয় জাল।** উপরের বাদ-দেওয়ার তালিকা
+                           কোনো কারণে (নেট) ফাঁকা এলেও যেন থামানো কার্ড কল-তালিকায়
+                           না ওঠে, তাই ঘরটা এখানেও বসে। আগে এটা **কখনোই বসত না** ⇒
+                           ডিফল্ট false ⇒ TK-র অভিযোগ। */
+                        .put("noMoreCalls", m in stoppedInquiryMobiles)
                         .put("history", fbHistory)
                     items.add(FollowUpModel.parse(fallback))
                     presentMobiles.add(m)
@@ -3136,6 +3171,41 @@ class FollowUpRepository(private val context: Context? = null) {
         } catch (_: Exception) { null }
         rememberEditOnThisPhone(id, fields, knownRow)
         val cloudOk = SupabaseClient.updateById("followups", id, fields)
+        /* 📅🔒 V1245 (০৯.০৯.২০২৬, TK-রিপোর্ট ও অনুমতি — খাতার সারি ৩৬৬):
+           TK: *"স্টাফরা বলছে রিমার্ক লিখেছি, পরের তারিখও দিয়েছি — তারপরেও কেন
+           এগুলো আসবে"*।
+           🔴 **আসল কারণ (কোড ধরে):** নতুন তারিখটা এতদিন **শুধু `followups`
+              সারিতেই** বসত। কিন্তু এনকোয়ারি ট্যাবের জাল কার্ডটা বানায়
+              `enquiries` টেবিল থেকে, আর ওই সারির `nextFollow` লেখা হয় **শুধু
+              এনকোয়ারি তৈরির দিনে** — তারপর কোনোদিন বদলায় না। ⇒ জাল একবার
+              চললেই কার্ডে **পুরনো তারিখটাই** ফিরে আসত, স্টাফের দেওয়া নতুন
+              তারিখ নয় — দেখে মনে হত কেউ কল করেইনি।
+           ⇒ এখন Inquiry ধাপে নতুন তারিখটা **এনকোয়ারির সারিতেও** বসে, ঠিক
+             V445-এর প্রমাণিত ধাঁচে (দুই টেবিলের কথা এক রাখা)।
+           ⛔ **বাড়তি কোনো পড়া নেই** — `knownRow` উপরে এমনিতেই আনা হয়েছে,
+              সেখান থেকেই stage ও মোবাইল নেওয়া হয় (নিয়ম ১৩)।
+           ⛔ শুধু `nextFollow` ঘরটাই — নাম · নম্বর · রিমার্ক · status · ইতিহাস
+              কিছুই ছোঁয়া হয় না; সারি মোছাও হয় না।
+           ⛔ ব্যর্থ হলে কিছুই ভাঙে না — `followups`-এর তারিখটাই আসল, এটা শুধু
+              জালের জন্য বাড়তি সুরক্ষা।
+           ⛔ Inquiry ছাড়া অন্য ধাপে (Visit/Patient) চলেই না — ওদের জাল আলাদা। */
+        try {
+            val kStage = knownRow?.s("stage").orEmpty().trim()
+            val kMob = digits(knownRow?.s("mobile").orEmpty())
+            if (cloudOk && kStage.equals("Inquiry", true) && kMob.length == 10 && nextFollow.isNotBlank()) {
+                val eRows = SupabaseClient.findByMobileOrNull("enquiries", kMob, "id", 50)
+                if (eRows != null) {
+                    for (i in 0 until eRows.length()) {
+                        val eid = eRows.optJSONObject(i)?.optString("id").orEmpty()
+                        if (eid.isBlank()) continue
+                        val ef = JSONObject().put("nextFollow", nextFollow).put("updatedAt", isoNow())
+                        if (!SupabaseClient.updateById("enquiries", eid, ef)) {
+                            context?.let { try { GenericUpdateQueue.queue(it, "enquiries", eid, ef) } catch (_: Throwable) { } }
+                        }
+                    }
+                }
+            }
+        } catch (_: Throwable) { }
         // Same proof as the remark just above: an update that matched no row
         // still answers 200, so read it back before believing it.
         val reallySaved = cloudOk && try {
