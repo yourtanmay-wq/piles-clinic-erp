@@ -11046,7 +11046,16 @@ function doctorCheck(id){
    ⛔ পুরোনো রেকর্ডে সেভ আছে "Fistula Per ইঞ্চি" (ওয়েব) বা "Fistula Per Inch"
       (ফোন)। নতুন মান "Fistula Per CM"। এই ছোট helper তিনটেই মেনে নেয়, তাই
       **আগের প্রতিটা চেকআপে টিকটা আগের মতোই বসে থাকে**। */
-wlv1ChkFistula=(arr)=>Array.isArray(arr)&&['Fistula Per CM','Fistula Per Inch','Fistula Per \u0987\u099e\u09cd\u099a\u09bf'].some(v=>arr.includes(v))?'checked':'';
+/* 🔴🔴🔒 V1225 (০৮.০৯.২০২৬, TK: *"CHECK-UP QUEUE-তে Check-up এ কাজ করে না"*)।
+   **আসল দোষ (ব্রাউজারে চালিয়ে প্রমাণ করা, আন্দাজ নয়):** ঘরটা `var/let` ছাড়াই
+   বসানো ছিল। `app.js`-এর প্রথম লাইনেই `'use strict'` — তাই ঘোষণা ছাড়া বসালে
+   JavaScript **ReferenceError** ছোড়ে (`wlv1ChkFistula is not defined`), আর
+   `doctorCheck()` ঠিক ওখানেই থেমে যায় ⇒ **চেকআপ ফর্মটা কখনো খোলেই না**।
+   ⛔ আর ডাকার জায়গায় (`wlv1NvpCheckupWithReminder`) দুটো `try{}catch{}` থাকায়
+      ভুলটা চুপচাপ গিলে ফেলা হত — তাই পর্দায় কোনো বার্তাও আসত না, বোতামটা
+      মরা মনে হত। ⇒ এখন ঘরটা `var` দিয়ে ঘোষণা করা হলো।
+   ⛔ ফাংশনের কাজ এক অক্ষরও বদলায়নি (তিনটে পুরনো মানই আগের মতো মেনে নেয়)। */
+var wlv1ChkFistula=(arr)=>Array.isArray(arr)&&['Fistula Per CM','Fistula Per Inch','Fistula Per \u0987\u099e\u09cd\u099a\u09bf'].some(v=>arr.includes(v))?'checked':'';
 window["wlv1ChkFistula"]=wlv1ChkFistula;;
  let val=(k,fb='')=>esc((note&&note[k])??(p&&p[k])??fb??'');
  let complaint=p.complaint||p.diagnosis||p.disease||'';

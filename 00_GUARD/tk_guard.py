@@ -735,7 +735,7 @@ def check_web_flag_fields():
         mask = _js_code_mask(s)
         for m in obj.finditer(s):
             if not mask[m.start()]:
-                continue                  # মন্তব্য বা লেখার ভিতরে — কোড নয়
+                continue                  # মন্তব্য বা লেখার ভিতরে
             before, after = s[:m.start()], s[m.end():]
             if before.rstrip().endswith("wlv1Flag("):
                 continue                  # ঠিকভাবেই পড়া হচ্ছে
@@ -2931,6 +2931,65 @@ _NATIVE_FIELD_PATS = [
 ]
 
 
+# ═══════════════════════════════════════════════════════════════
+#  যাচাই ৯.৪৫ — 'use strict' ফাইলে **ঘোষণা ছাড়া** ঘর বসানো নিষেধ
+#  (TK-রিপোর্ট ০৮.০৯.২০২৬: *"CHECK-UP QUEUE-তে Check-up এ কাজ করে না"*)
+#
+#  `app.js`-এর প্রথম লাইনেই `'use strict'`। ওই অবস্থায় `var/let/const` ছাড়া
+#  কোনো নাম-ঘরে মান বসালে JavaScript **ReferenceError** ছোড়ে, আর ওই লাইনেই
+#  পুরো ফাংশনটা থেমে যায়। V1225-এ ঠিক এটাই হয়েছিল — `wlv1ChkFistula=(arr)=>…`
+#  ঘোষণা ছাড়া বসানো ছিল, তাই `doctorCheck()` ওখানেই থেমে যেত ⇒ **চেকআপ ফর্ম
+#  কখনো খুলত না**, আর ডাকার জায়গার try/catch ভুলটা গিলে ফেলায় পর্দায় কোনো
+#  বার্তাও আসত না — বোতামটা মরা মনে হত।
+#  ⛔ `node --check` এটা ধরতে পারে না (লেখা ঠিকই আছে, ভুলটা চলার সময়ের)।
+#  ⛔ এক লাইনে একাধিক ঘোষণা (`let a=1, b=2`) ও ফাংশনের ঘর ধরা হয়, তাই
+#     মিথ্যা সতর্কতা দিয়ে TK-র সময় নষ্ট হয় না (নিয়ম ৫ক)।
+# ═══════════════════════════════════════════════════════════════
+def check_strict_undeclared():
+    import glob as _g
+    for js in sorted(_g.glob(os.path.join(WEB, "*.js"))):
+        if os.path.basename(js).startswith("V"):
+            continue
+        s = read(js)
+        if "'use strict'" not in s and '"use strict"' not in s:
+            continue
+        declared = set(re.findall(r"\b(?:var|let|const|function)\s+([A-Za-z_$][\w$]*)", s))
+        declared |= set(re.findall(r"\bcatch\s*\(\s*([A-Za-z_$][\w$]*)", s))
+        # এক লাইনে একাধিক ঘোষণা:  let a=1, b=2, c=3
+        # ⚠️ একাধিক লাইনে ছড়ানো ঘোষণাও ধরা হয় (`var a=1,\n    b=2;`) — নইলে
+        #    ভুল করে "ঘোষণা নেই" বলে মিথ্যা সতর্কতা দিত (নিয়ম ৫ক)।
+        for m in re.finditer(r"\b(?:var|let|const)\s+([^;]{0,800})", s):
+            for nm in re.findall(r"(?:^|,)\s*([A-Za-z_$][\w$]*)\s*(?==|,|$)", m.group(1)):
+                declared.add(nm)
+        # ফাংশনের ঘর (parameters)
+        for m in re.finditer(r"function\s*\*?\s*[A-Za-z_$\w]*\s*\(([^)]{0,300})\)", s):
+            for nm in re.findall(r"[A-Za-z_$][\w$]*", m.group(1)):
+                declared.add(nm)
+        # ⚠️ লেখা/টেমপ্লেটের ভিতরের অংশ কোড নয় — মিথ্যা সতর্কতা ঠেকাতে মুখোশ।
+        mask = _js_code_mask(s)
+        for m in re.finditer(r"(?m)^[ \t]*([A-Za-z_$][\w$]*)\s*=(?!=)", s):
+            n = m.group(1)
+            if n in declared or n == "window":
+                continue
+            if not mask[m.start()]:
+                continue                  # মন্তব্য বা লেখার ভিতরে
+            # ব্যাকটিক-লেখার (template) ভিতরেও কোড নয় — আগে কতগুলো ব্যাকটিক
+            # আছে গুনে দেখা হয় (বিজোড় হলে ভিতরে আছি)।
+            if s.count("`", 0, m.start()) % 2 == 1:
+                continue
+            # আগের লাইন কমা দিয়ে শেষ হলে এটা একই ঘোষণার পরের অংশ
+            head = s[:m.start()].rstrip()
+            prev = head.rsplit("\n", 1)[-1].strip() if "\n" in head else head.strip()
+            if prev.endswith(","):
+                continue
+            line = s[:m.start()].count("\n") + 1
+            fail("৯.৪৫",
+                 f"{os.path.basename(js)}:{line} — `{n}` **ঘোষণা ছাড়া** বসানো হয়েছে, "
+                 f"অথচ ফাইলটা `'use strict'` ⇒ চালানোর সময় ReferenceError, ওই "
+                 f"ফাংশনটা ওখানেই থেমে যাবে (বোতাম মরা মনে হবে)। "
+                 f"সমাধান: সামনে `var` বসান।")
+
+
 def check_no_native_in_signature():
     if not os.path.isdir(JAVA):
         return
@@ -3497,6 +3556,7 @@ def main():
     check_no_bengali()          # 🚫 খাতার সারি B158
     check_no_date_emoji()       # 📅 TK ০৫.০৯.২০২৬ — "July 17 Emoji থাকবে না"
     check_no_native_in_signature()   # 🔴 TK-এর Studio-তে V1119 বিল্ড ভাঙা (০৫.০৯.২০২৬)
+    check_strict_undeclared()        # 🔴 V1225 — Check-up বোতাম মরা হয়ে যাওয়া
     code = check_version()
     check_web()
     check_notes()
@@ -3530,6 +3590,7 @@ def main():
         ("১১",  "রোগীর সময় ১১টা–৪টা"),
         ("৯.৩৭", "🔑 Supabase-এর প্রতিটা ডাকে apikey + Authorization দুটোই আছে"),
         ("৯.৩৬", "🕵️ ইন্সপেক্টর — প্রকল্পের প্রতিটা ক্লাসের import আছে"),
+        ("৯.৪৫", "🚦 strict ফাইলে ঘোষণা ছাড়া কোনো ঘর বসানো নেই"),
         ("৯.৪২", "🔤 হ্যাঁ/না-এর ঘর সবসময় wlv1Flag() দিয়েই পড়া হয়"),
         ("৯.৪১", "⏰ history-র প্রতিটা সারিতে তারিখ ও সময় দুটোই বসে"),
         ("৯.৪০", "🧱 প্রতিটা Kotlin ফাইলে ব্রেস ও বন্ধনী মেলে"),
