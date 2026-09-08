@@ -19,7 +19,7 @@ Studio-তে বিল্ড **তখনই ভাঙে** ("Unresolved referen
 
 চালানো:  python3 00_GUARD/verify_android_resources.py
 """
-import io, os, re, sys, collections
+import io, os, re, sys, glob, collections
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 APP  = os.path.join(ROOT, '02_ANDROID_SOURCE_CODE/PilesClinicApp/app/src/main')
@@ -166,6 +166,43 @@ for p in walk(RES, ('.xml',)):
                 continue
             line = txt[:m.start()].count('\n') + 1
             BAD.append('%s:%d — @%s/%s নেই res-এ' % (os.path.relpath(p, ROOT), line, kind, name))
+
+# ── 🐞🔒 V1240 (০৮.০৯.২০২৬) — layout XML-এর ভাঁজ ঠিক আছে তো? ──────────
+#
+# TK ভিডিও পাঠিয়ে দেখালেন: ডাক্তারের ফোনে ☰ চাপলেই অ্যাপ বন্ধ হয়ে হোম
+# স্ক্রিনে ফিরে আসে। **আসল কারণ (আমারই ভুল, V1212):** একটা নতুন সারি
+# বসানোর সময় বন্ধ-ট্যাগ ভুল জায়গায় পড়ায় `ScrollView`-এর ভিতরে **দুটো
+# সরাসরি ঘর** হয়ে গিয়েছিল। Android-এ ScrollView-এ একটাই ঘর থাকতে পারে —
+# তাই পর্দা তৈরি হওয়ার মুহূর্তেই অ্যাপ ভেঙে পড়ত।
+#
+# ⚠️ এই দোষ **কোনো পাহারাতেই ধরা পড়েনি** — XML ভাঙা ছিল না (ট্যাগ মিলে
+#    যাচ্ছিল), রিসোর্সও সব ঠিক ছিল। তাই এখন থেকে এই দুটোও দেখা হবে:
+#      ① প্রতিটা layout ফাইল সত্যিই পড়া যায় কিনা (ট্যাগের ভাঁজ ঠিক আছে কিনা)
+#      ② ScrollView / HorizontalScrollView / NestedScrollView-এর ভিতরে
+#         একটাই সরাসরি ঘর আছে কিনা
+# ⛔ শুধু পড়া — কোনো ফাইল বদলায় না।
+try:
+    import xml.etree.ElementTree as _ET
+    _SINGLE = ('ScrollView', 'HorizontalScrollView', 'NestedScrollView')
+    for _p in sorted(glob.glob(os.path.join(RES, 'layout*', '*.xml'))):
+        _rel = os.path.relpath(_p, ROOT)
+        try:
+            _root = _ET.parse(_p).getroot()
+        except Exception as _e:
+            BAD.append('%s — XML-এর ভাঁজ ভাঙা: %s' % (_rel, _e))
+            continue
+        _stack = [_root]
+        while _stack:
+            _n = _stack.pop()
+            _t = _n.tag.split('.')[-1]
+            _kids = list(_n)
+            if _t in _SINGLE and len(_kids) > 1:
+                BAD.append('%s — %s-এর ভিতরে %d টা সরাসরি ঘর; Android-এ একটাই '
+                           'থাকতে পারে (পর্দা খুললেই অ্যাপ ভাঙবে)'
+                           % (_rel, _t, len(_kids)))
+            _stack.extend(_kids)
+except Exception:
+    pass
 
 # ── ছাপা ───────────────────────────────────────────────────────────────
 print('=' * 66)

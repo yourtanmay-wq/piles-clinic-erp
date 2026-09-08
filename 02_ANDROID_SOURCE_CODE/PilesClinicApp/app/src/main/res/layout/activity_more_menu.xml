@@ -784,7 +784,16 @@
 
         </LinearLayout>
 
-        </LinearLayout>
+        <!-- 🐞🔒 V1240 (০৮.০৯.২০২৬, TK-রিপোর্ট ভিডিওসহ, খাতার সারি ৩৬০)
+             **দোষটা আমারই, V1212-তে।** নিচের সারিটা (rowDocModules5) বসানোর সময়
+             ভুল জায়গায় বসেছিল — **মূল লম্বা ঘরটা বন্ধ হয়ে যাওয়ার পরে**, আর এর
+             নিজের বন্ধ-ট্যাগটাও লেখা হয়নি। ফলে ScrollView-এর ভিতরে **দুটো
+             সরাসরি ঘর** হয়ে যেত। Android-এ ScrollView-এ একটাই ঘর থাকতে পারে,
+             তাই মেনু পর্দা তৈরি হওয়ার মুহূর্তেই অ্যাপ ভেঙে বন্ধ হয়ে যেত —
+             ☰ চাপলেই হোম স্ক্রিনে ফিরে আসত (সব role-এই)।
+             ⇒ এখানে ওই বাড়তি বন্ধ-ট্যাগটা তুলে দেওয়া হলো, আর সারিটার নিজের
+                বন্ধ-ট্যাগ নিচে বসানো হলো। ⛔ একটাও ঘর/লেখা/রং/নিয়ম বদলায়নি —
+                শুধু ভাঁজটা ঠিক হলো। -->
 
         <!-- 📌🔒 V1212 (০৮.০৯.২০২৬, TK-নির্দেশ): *"Doctor reminder icon টা উপরে ডান
              সাইডে যা থ্রি ডট, তার মধ্যে ক্লিক করলে যে মেনুগুলো আসে সেখানে থাকবে"*।
@@ -829,6 +838,8 @@
                 </LinearLayout>
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textSize="18sp" android:textColor="#B7C0CC" />
             </LinearLayout>
+        </LinearLayout>   <!-- 🐞 V1240 — rowDocModules5-এর বাদ পড়া বন্ধ-ট্যাগ -->
+
         <!-- Wide cards: My Profile (non-master) / Staff Profiles + Income & Expense (master) -->
         <LinearLayout
             android:id="@+id/btnMyProfile"
