@@ -191,6 +191,36 @@ class WorkNotebookActivity : AppCompatActivity() {
     /** বিকেল ৪:০০ — এর আগে OUT TIME হলে Late। */
     private fun earlyOutBeforeMinutes(): Int = 16 * 60
 
+    /* 🕒🔒 V1244 (০৮.০৯.২০২৬, TK-নির্দেশ ও অনুমোদন — খাতার সারি ৩৬৫):
+       IN TIME-এর মতো **OUT TIME-এও সময়ের সীমা** — দুপুর ১২টা থেকে রাত ৯টা।
+       রাত ২টোয় OUT TIME বসানো আর সম্ভব নয়।
+
+       🏍️ **রূপম বাদ (TK-র হুবহু নির্দেশ):** *"রূপমের জন্য কোনো সময়সীমা
+          থাকবে না, কারণ সে গ্রামে গ্রামে গিয়ে RMP ডাক্তারদের কাছে ভিজিট করে —
+          কোনদিন সন্ধ্যাতে, কোনদিন রাত্রেও বাড়িতে আসতে পারে।"*
+          চেনা হয় প্রকল্পের **আগে থেকে প্রমাণিত** `FieldVisit.isFieldStaff()`
+          দিয়েই — নতুন কোনো তালিকা বা নম্বর বসানো হয়নি।
+
+       ⚠️ যাচাই করে জানানো: TK-র সন্ধ্যা ৭.৩০-এর নিয়মটা (V1166) কোডে **আছে**,
+          কিন্তু ওটা শুধু **মনে করিয়ে দেয়** — আটকায় না। সেটা অপরিবর্তিত রইল;
+          এই সীমাটা তার উপরে বাড়তি।
+       ⛔ ভিতরের সময়ে আচরণ হুবহু আগের মতোই। ⛔ IN TIME-এর নিয়ম ছোঁয়া হয়নি। */
+    private fun outTimeFromMin(): Int = 12 * 60      // দুপুর ১২টা
+    private fun outTimeToMin(): Int = 21 * 60        // রাত ৯টা
+
+    /** OUT TIME এখন দেওয়া যাবে কিনা; না গেলে সৎ বার্তা দেখিয়ে false ফেরে। */
+    private fun outTimeAllowedNow(): Boolean {
+        try {
+            // 🏍️ রূপমের (মাঠে ঘোরা স্টাফ) কোনো সীমা নেই
+            if (com.tkbiswas.pilesclinic.native.FieldVisit.isFieldStaff(this)) return true
+            val c = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("Asia/Kolkata"))
+            val m = c.get(java.util.Calendar.HOUR_OF_DAY) * 60 + c.get(java.util.Calendar.MINUTE)
+            if (m in outTimeFromMin()..outTimeToMin()) return true
+            ModuleUi.toast(this, "OUT TIME can only be marked between 12:00 PM and 9:00 PM.")
+            return false
+        } catch (_: Throwable) { return true }   // ⛔ সন্দেহ হলে কখনো আটকানো নয়
+    }
+
     /** `"HH:mm"` → মিনিটে। পড়া না গেলে `null`। */
     private fun minutesOf(hhmm: String): Int? = try {
         val p = hhmm.trim().split(":")
@@ -848,6 +878,7 @@ class WorkNotebookActivity : AppCompatActivity() {
                               // ⛔ কাউকে আটকায় না; শুধু লিখে রাখে।
                               // 🔒 সময়টা **এখনই** ধরা — অপেক্ষা করতে হলেও খাতায়
                               //    চাপার সময়টাই বসবে, পরের সময় নয়।
+                              if (!outTimeAllowedNow()) { render(); return@checkEmptyFieldsThenOut }   // 🕒 V1244
                               val outAt = nowTime()
                               withPlaceNote { placeNote ->
                                 day.put("check_out", outAt); markReminderFlag("out", true)
@@ -1729,6 +1760,7 @@ class WorkNotebookActivity : AppCompatActivity() {
               // ⛔ GPS না পাওয়া / অনুমতি নেই / সময় শেষ — কোনো অবস্থাতেই OUT TIME
               //    আটকায় না; তখন শুধু "Location not verified" লেখা থাকে।
               // 🔒 সময়টা **এখনই** ধরা — অপেক্ষা করতে হলেও খাতায় চাপার সময়টাই বসবে।
+              if (!outTimeAllowedNow()) return@checkEmptyFieldsThenOut   // 🕒 V1244
               val outAt = nowTime()
               withPlaceNote { placeNote ->
                 day.put("check_out", outAt)

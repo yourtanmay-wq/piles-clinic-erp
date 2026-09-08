@@ -53,6 +53,17 @@ object OutTimePrompt {
      */
     fun shouldAsk(context: Context, hasIn: Boolean, hasOut: Boolean): Boolean {
         if (!hasIn || hasOut) return false
+        /* 🏍️🔒 V1244 (০৮.০৯.২০২৬, TK-নির্দেশ হুবহু): *"সন্ধ্যা সাড়ে সাতটা
+           বাজলে স্টাফকে জোর করে বাড়ি পাঠানো হবে — কিন্তু রূপমকে ছাড়া। কারণ সে
+           গ্রামে গ্রামে গিয়ে RMP ডাক্তারদের কাছে ভিজিট করে; কোনদিন সন্ধ্যাতে,
+           কোনদিন রাত্রেও বাড়িতে আসতে পারে।"*
+           ⇒ মাঠে ঘোরা স্টাফের (এখন রূপম) কাছে এই পপ-আপটা আর আসে না।
+           ⛔ চেনা হয় প্রকল্পের **আগে থেকে প্রমাণিত** `FieldVisit.isFieldStaff()`
+              দিয়েই — নতুন কোনো তালিকা বা নম্বর বসানো হয়নি।
+           ⛔ বাকি সবার জন্য ৭.৩০-এর নিয়ম **এক অক্ষরও বদলায়নি**। */
+        try {
+            if (FieldVisit.isFieldStaff(context)) return false
+        } catch (_: Throwable) { }
         val now = nowMinutes()
         if (now < ASK_HOUR * 60 + ASK_MINUTE) return false
         val until = stayUntil(context)
