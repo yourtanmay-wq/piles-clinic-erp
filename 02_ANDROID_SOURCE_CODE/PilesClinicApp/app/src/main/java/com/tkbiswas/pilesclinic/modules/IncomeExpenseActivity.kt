@@ -877,7 +877,9 @@ class IncomeExpenseActivity : AppCompatActivity() {
                 // আলাদা খরচগুলো — দুটোই পপ-আপে পাঠানো হয়, যাতে ভুলটায় চেপে বদলানো যায়।
                 val ownExp = r.optDouble("expense_total", -1.0).let { if (it >= 0.0) it else sumNumbersInText(note) }
                 val items = r.optJSONArray("_v400ExpItems")
-                expCell.setOnClickListener { showExpenseBreakdown(dotted, note, expSum, ownExp, items, null) }
+                expCell.setOnClickListener {
+                    showExpenseBreakdown(dotted, note, expSum, ownExp, items, null, d, rowBranch)   // ➕ V1203
+                }
             } else if (!isExpenseOnly) {
                 // 🟢🔒 V630 (TK-নির্দেশ, "হ্যাঁ চাই") — খালি খরচ ঘরে চাপলে নতুন
                 // খরচ যোগ করার ফর্ম খোলে (addExpense()-এর প্রমাণিত পথ, শুধু এই
@@ -1015,7 +1017,18 @@ class IncomeExpenseActivity : AppCompatActivity() {
            একটাই নির্দিষ্ট — তাই কোন সারি এডিট হবে তা নিয়ে কোনো দ্বিধা নেই)।
            null হলে (যেমন Ledger Sheet নিজের পর্দা থেকে ডাকলে, যেখানে ইতিমধ্যেই
            ৩-চাপে সরাসরি এডিট করা যায়) নিচের বোতামটা দেখানো হয় না। */
-        editRow: JSONObject?
+        editRow: JSONObject?,
+        /* ➕🔒 V1203 (০৮.০৯.২০২৬, TK-রিপোর্ট, হুবহু): *"উক্ত দিনে আরও ব্যয় ছিল,
+           সেই ব্যয়টা আমি এখন কেন লিখতে পারছি না এখানে … আমি চাইছি এই পর্দাতেই
+           যেন আরো খরচা হলে আমি সেটা যোগ করতে পারি"*।
+           🔬 কোডে মেপে দেখা — কথাটা সত্যি: খরচের ঘর **ফাঁকা থাকলেই** কেবল নতুন
+             খরচের ফর্ম খুলত (V630); ওই দিনে আগে থেকে খরচ থাকলে এই পপ-আপ শুধু
+             বিবরণ দেখাত, যোগ করার কোনো পথ ছিল না।
+           ⇒ তাই ওই দিন ও ব্রাঞ্চ এখানে পাঠানো হয়, আর নিচে "➕ Add Expense on
+             this day" বোতাম বসে — যেটা `addExpense()`-এর **প্রমাণিত পুরনো
+             পথটাই** খোলে (নতুন কোনো সেভ-লজিক নয়, কিছু ওভাররাইট হয় না)। */
+        isoDate: String? = null,
+        forBranch: String? = null
     ) {
         val clean = note.let { if (it == "null") "" else it }.trim()
         val amtRe = Regex("[0-9][0-9,]*(?:\\.[0-9]+)?")
@@ -1136,6 +1149,24 @@ class IncomeExpenseActivity : AppCompatActivity() {
            নিজের ৩-চাপ এডিটরই (`openSheetRowEditor`) পুনর্ব্যবহার হচ্ছে, শুধু
            এখান থেকেও পৌঁছানো যাচ্ছে। ব্রাঞ্চ এখন সবসময় নির্দিষ্ট বলে (V628-এর
            "All Branches" বাদ) কোন সারি এডিট হবে তা নিয়ে কোনো দ্বিধা নেই। */
+        // ➕ V1203 — ওই দিনে আরও খরচ যোগ করার বোতাম (দিন ও ব্রাঞ্চ দুটোই জানা থাকলেই)।
+        var addBtnRef: android.widget.Button? = null
+        if (!isoDate.isNullOrBlank() && !forBranch.isNullOrBlank() && forBranch in BRANCHES) {
+            val addBtn = android.widget.Button(this).apply {
+                text = "➕ Add Expense on this day"; isAllCaps = false; textSize = 14.5f
+                setTextColor(android.graphics.Color.parseColor("#0B4F2A"))
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(10).toFloat()
+                    setColor(android.graphics.Color.WHITE)
+                    setStroke(dp(2), android.graphics.Color.parseColor("#0B4F2A"))
+                }
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(46))
+                    .apply { topMargin = dp(12) }
+            }
+            body.addView(addBtn)
+            addBtnRef = addBtn
+        }
         if (editRow != null && ModuleAuth.isMaster) {
             val editBtn = android.widget.Button(this).apply {
                 text = "✏️ Edit This Day"; isAllCaps = false; textSize = 14.5f
@@ -1165,6 +1196,11 @@ class IncomeExpenseActivity : AppCompatActivity() {
                 try { dlg.dismiss() } catch (_: Throwable) { }
                 openExpenseEditor(e)
             }
+        }
+        // ➕ V1203 — পপ-আপ বন্ধ করে ওই দিন+ব্রাঞ্চ প্রি-ফিল করা Add Expense ফর্ম।
+        addBtnRef?.setOnClickListener {
+            try { dlg.dismiss() } catch (_: Throwable) { }
+            addExpense(prefillDate = isoDate, prefillBranch = forBranch)
         }
         // 🟢🔒 V628 — "✏️ Edit This Day" — পপ-আপ বন্ধ করে সরাসরি Ledger এডিটর।
         if (editRow != null) editBtnRef?.setOnClickListener {
@@ -1236,19 +1272,16 @@ class IncomeExpenseActivity : AppCompatActivity() {
         val dateInp = dateField(startIso)
         val branch = spinner(BRANCHES)
         BRANCHES.indexOf(exp.s("branch")).let { if (it >= 0) branch.setSelection(it) }
-        val cat = ModuleUi.input(this, "Category").apply {
-            isFocusable = false; isFocusableInTouchMode = false; isClickable = true; keyListener = null
-            val cur = exp.s("category")
-            tag = cur; setText(if (cur.isBlank()) "" else catDisplay(cur)); hint = "Select…"
-        }
-        cat.setOnClickListener {
-            val items = CATS.map { catDisplay(it) }.toTypedArray()
-            androidx.appcompat.app.AlertDialog.Builder(this)
-                .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "Select Category"))
-                .setItems(items) { _, which -> cat.tag = CATS[which]; cat.setText(catDisplay(CATS[which])) }
-                .show().also { try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) { } }
-        }
-        val paidTo = ModuleUi.input(this, "Paid To").apply { setText(exp.s("paid_to")) }
+        /* 📝🔒 V1203 — Add Expense-এর মতোই এখানেও **একটাই লেখার ঘর**। আগে
+           Category তালিকা-ঘর ছিল; টাইপ-করা নতুন লেখা ওই তালিকায় না থাকায়
+           বদলাতে গেলে ঘরটা ফাঁকা দেখাত ও সেভ আটকে যেত — সেই ফাঁকটাও এতে বন্ধ।
+           পুরনো সারিতে দুটো আলাদা লেখা থাকলে " · " দিয়ে জুড়ে দেখানো হয়, যাতে
+           কিছু হারায় না। */
+        val oldCat = exp.s("category")
+        val oldPaid = exp.s("paid_to")
+        val joined = listOf(oldCat, oldPaid).filter { it.isNotBlank() && it != "Other Expense" }
+            .distinct().joinToString(" · ")
+        val spentOn = ModuleUi.input(this, "Spent On (optional)").apply { setText(joined) }
         // 🔴 TK-নির্দেশ: খরচের সব সংখ্যা লাল — তাই Amount ঘরের লেখাও লাল।
         val amount = ModuleUi.numberInput(this, "Amount", allowDecimal = true).apply {
             setText(exp.optDouble("amount", 0.0).let { if (it == 0.0) "" else String.format(Locale.US, "%.0f", it) })
@@ -1260,8 +1293,8 @@ class IncomeExpenseActivity : AppCompatActivity() {
         modes.indexOf(exp.s("mode")).let { if (it >= 0) mode.setSelection(it) }
 
         col.addView(entryCard(listOf(
-            "Date" to dateInp, "Branch" to branch, "Category" to cat,
-            "Paid To" to paidTo, "Amount" to amount, "Mode" to mode
+            "Date" to dateInp, "Branch" to branch, "Amount" to amount,
+            "Mode" to mode, "Spent On (optional)" to spentOn
         )))
         col.addView(android.view.View(this).apply {
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
@@ -1272,18 +1305,16 @@ class IncomeExpenseActivity : AppCompatActivity() {
         val goBack = { sheet(((dateInp.tag as? String) ?: startIso).substring(0, 7)) }
 
         col.addView(compactFooter("← Back", "Save", { sheet(startIso.substring(0, 7)) }) {
-            val c = (cat.tag as? String) ?: ""
-            if (c.isBlank()) { ModuleUi.toast(this, "Category বাছুন"); return@compactFooter }
-            if (ieBadPaidTo(paidTo.text.toString())) {
-                ModuleUi.toast(this, "Paid To — নাম লিখুন (শুধু সংখ্যা চলবে না)"); return@compactFooter
-            }
+            /* 📝 V1203 — ঘরটা ঐচ্ছিক; ফাঁকা হলে "Other Expense"। */
+            val typedE = spentOn.text.toString().trim()
+            val c = if (typedE.isBlank()) "Other Expense" else typedE
             val amt = amount.text.toString().toDoubleOrNull() ?: 0.0
             if (amt <= 0.0) { ModuleUi.toast(this, "Enter Amount")   /* 🔤 V726 */; return@compactFooter }
             /* 🟢🔒 V401: পুরনো তারিখের খরচ — মাস্টারের অনুমতি লাগবে। */
             val dNow = (dateInp.tag as? String) ?: startIso
             if (ieRestricted && !ieIsToday(dNow)) {
                 ieAskApproval(IePermit.EDIT_EXPENSE, branch.selectedItem.toString(), dNow, expId,
-                    JSONObject().put("category", c).put("paid_to", paidTo.text.toString())
+                    JSONObject().put("category", c).put("paid_to", "")
                         .put("amount", amt).put("mode", mode.selectedItem.toString())) { goBack() }
                 return@compactFooter
             }
@@ -1291,7 +1322,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
                 .put("entry_date", (dateInp.tag as? String) ?: startIso)
                 .put("branch", branch.selectedItem.toString())
                 .put("category", c)
-                .put("paid_to", paidTo.text.toString())
+                .put("paid_to", "")
                 .put("amount", amt)
                 .put("mode", mode.selectedItem.toString())
             // কখন বদলানো হলো — টেবিলে `updated_at` নিজে থেকে বসে না, তাই এখানে বসানো হয়।
@@ -1327,10 +1358,9 @@ class IncomeExpenseActivity : AppCompatActivity() {
                        সেটুকুই রাখুন"*: উপরে **কীসের খরচ**, তারপর **তারিখ ও টাকা**,
                        নিচে **ব্রাঞ্চ · কাকে দেওয়া**। ⛔ মোছার নিয়ম অটুট। */
                     .setMessage(
-                        ((cat.tag as? String) ?: "") + "\n" +
+                        spentOn.text.toString().trim().ifBlank { "Other Expense" } + "\n" +
                         slashIso((dateInp.tag as? String) ?: startIso) + " · " + money(amtNow) + "\n" +
-                        listOf(branch.selectedItem.toString(), paidTo.text.toString())
-                            .filter { it.isNotBlank() }.joinToString(" \u00b7 ") + "\n\n" +
+                        branch.selectedItem.toString() + "\n\n" +
                         com.tkbiswas.pilesclinic.native.NoBengali.s("Goes to Trash — can be restored.")
                     )
                     .setNegativeButton("Cancel", null)
@@ -1682,7 +1712,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
         val branchLocked = lockedBranch != null   // 🔵 B617: ডাক্তার হলে ব্রাঞ্চ বদলানো যাবে না।
         if (!branchLocked) homeBranch = v398Branch()   // 🟢🔒 V398: মনে-রাখা ব্রাঞ্চ
         headerRow.addView(android.widget.TextView(this).apply {
-            text = if (branchLocked) "🏥 " + homeBranch + " 🔒" else "🏥 " + homeBranch + " ▾"; textSize = 12f
+            text = if (branchLocked) "🏥 " + homeBranch else "🏥 " + homeBranch + " ▾"; textSize = 12f
             setTextColor(android.graphics.Color.parseColor("#0A5C33"))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setPadding(dp(10), dp(6), dp(10), dp(6))
@@ -2736,7 +2766,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
             setOnClickListener { renderMenu() }
         })
         val branchChip = android.widget.TextView(this).apply {
-            text = if (selectedBranch != null) "🏥 $selectedBranch 🔒" else "🏥 Select ▾"; textSize = 13f
+            text = if (selectedBranch != null) "🏥 $selectedBranch" else "🏥 Select ▾"; textSize = 13f
             setTextColor(android.graphics.Color.WHITE)
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setPadding(dp(10), dp(6), dp(10), dp(6))
@@ -2909,7 +2939,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
             setOnClickListener { renderMenu() }
         })
         val branchChip = android.widget.TextView(this).apply {
-            text = if (selectedBranch != null) "🏥 $selectedBranch 🔒" else "🏥 Select ▾"; textSize = 13f
+            text = if (selectedBranch != null) "🏥 $selectedBranch" else "🏥 Select ▾"; textSize = 13f
             setTextColor(android.graphics.Color.WHITE)
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setPadding(dp(10), dp(6), dp(10), dp(6))
@@ -2943,31 +2973,23 @@ class IncomeExpenseActivity : AppCompatActivity() {
         })
         col.addView(header)
 
+        /* 📝🔒 V1203 (০৮.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, হুবহু): *"আমি এখানে
+           ক্যাটাগরি চাইছি না · একটা ব্লাঙ্ক বক্স থাকবে · কিসে কিসে খরচা করলাম আমি
+           টাইপ করে লিখব · Category ও Paid To — এরকম দুটো বক্স আলাদা থাকবে না,
+           একটাই বক্স থাকবে ঐচ্ছিক"* আর *"আগে ব্যয় করার অপশনটা থাকবে, তারপরে থাকবে
+           ব্যয়টা কি কারণে করা হলো ঐচ্ছিক"*।
+           ⇒ Category-র তালিকা-ঘর ও Paid To — দুটো মিলে **একটাই লেখার ঘর**
+             ("Spent On", ঐচ্ছিক), আর ক্রম: Date → Amount → Mode → Spent On।
+           🔬 কোডে মেপে দেখা: `category` ঘরটা শুধু **লেখা দেখানোর** কাজে লাগে
+             (দিনের খাতা · মাসের সারাংশ · ছাপা) — কোনো যোগফল বা হিসাব ওটা ধরে হয়
+             না, তাই টাকার কোনো হিসাব এতে ভাঙে না।
+           ⛔ পুরনো সারিগুলো যেমন ছিল তেমনই থাকে (category + paid_to দুটোই দেখায়)। */
         val date = dateField(prefillDate ?: todayIso())
-        // Category — read-only ঘর, চাপলে প্রফেশনাল তালিকা (Select…); বাছা মান .tag-এ।
-        val cat = ModuleUi.input(this, "Category").apply {
-            hint = "Select…"; setText("")
-            isFocusable = false; isFocusableInTouchMode = false; isClickable = true; keyListener = null
-        }
-        cat.setOnClickListener {
-            val items = (listOf("No Category — type Paid To") + CATS).map { catDisplay(it) }.toTypedArray()
-            androidx.appcompat.app.AlertDialog.Builder(this)
-                .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "Select Category"))
-                .setItems(items) { _, which ->
-                    if (which == 0) {
-                        cat.tag = null; cat.setText("")
-                    } else {
-                        cat.tag = CATS[which - 1]
-                        cat.setText(catDisplay(CATS[which - 1]))
-                    }
-                }
-                .show().also { try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) { } }
-        }
-        val paidTo = ModuleUi.input(this, "Paid To")
+        val spentOn = ModuleUi.input(this, "Spent On (optional)")
         val amount = ModuleUi.numberInput(this, "Amount", allowDecimal = true)
         val mode = spinner(listOf("Cash", "Online"))
-        col.addView(entryCard(listOf("Date" to date, "Category" to cat,
-            "Paid To (only when Category is blank)" to paidTo, "Amount" to amount, "Mode" to mode)))
+        col.addView(entryCard(listOf("Date" to date, "Amount" to amount,
+            "Mode" to mode, "Spent On (optional)" to spentOn)))
         // 🔵 spacer — Back/Save একদম নিচে
         col.addView(android.view.View(this).apply {
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
@@ -2979,16 +3001,15 @@ class IncomeExpenseActivity : AppCompatActivity() {
             ieSaveBusy = true
             val b = selectedBranch
             if (b == null) { ieSaveBusy = false; ModuleUi.toast(this, "উপরে ডানে ব্রাঞ্চ বাছুন"); return@compactFooter }
-            val selectedCategory = (cat.tag as? String)
-            if (selectedCategory == null && ieBadPaidTo(paidTo.text.toString())) {
-                ieSaveBusy = false
-                ModuleUi.toast(this, "Category বাছুন অথবা Paid To-তে নাম লিখুন"); return@compactFooter
-            }
+            /* 📝 V1203 — ঘরটা **ঐচ্ছিক**, তাই ফাঁকা থাকলেও সেভ আটকায় না
+               (TK: *"একটাই বক্স থাকবে ঐচ্ছিক"*)। ফাঁকা হলে আগের মতোই
+               "Other Expense" লেখা হয়, যাতে পুরনো সারির সঙ্গে চেহারা মেলে। */
             val amt = amount.text.toString().toDoubleOrNull() ?: 0.0
             if (amt <= 0.0) { ieSaveBusy = false; ModuleUi.toast(this, "Enter Amount")   /* 🔤 V726 */; return@compactFooter }
             val d = (date.tag as? String) ?: todayIso()
-            val c = selectedCategory ?: "Other Expense"
-            val p = if (selectedCategory != null) selectedCategory else paidTo.text.toString().trim()
+            val typed = spentOn.text.toString().trim()
+            val c = if (typed.isBlank()) "Other Expense" else typed
+            val p = ""
             val md = mode.selectedItem.toString()
             fun enc(x: String) = try { java.net.URLEncoder.encode(x, "UTF-8") } catch (_: Throwable) { x }
             val finishSave = { ieSaveBusy = false; renderMenu() }
@@ -3074,7 +3095,9 @@ class IncomeExpenseActivity : AppCompatActivity() {
             for (i in 0 until exp.length()) {
                 val e = exp.getJSONObject(i)
                 val amt = e.optDouble("amount", 0.0); expTotal += amt
-                rows.add(Triple(e.s("category") + " · " + e.s("paid_to") + " · " + e.s("mode"), money(amt), false))
+                // 📝 V1203 — `paid_to` ফাঁকা হতে পারে (একটাই ঘর), তাই ফাঁকা বাদ দিয়ে জোড়া।
+                rows.add(Triple(listOf(e.s("category"), e.s("paid_to"), e.s("mode"))
+                    .filter { it.isNotBlank() }.joinToString(" · "), money(amt), false))
             }
             // 🔴 একই টাকা সব জায়গায় এক দেখাতে: Ledger Sheet-এ লেখা খরচও এখানে যোগ
             for (i in 0 until coll.length()) {
@@ -3415,7 +3438,8 @@ class IncomeExpenseActivity : AppCompatActivity() {
                 expCell.setOnClickListener {
                     showExpenseBreakdown(
                         dotted, dayOwnSeg[d]?.toString() ?: "", expSum,
-                        dayOwnExp[d] ?: 0.0, expItemsByDate[d], rowByDate[d]
+                        dayOwnExp[d] ?: 0.0, expItemsByDate[d], rowByDate[d],
+                        d, branchSel                                       // ➕ V1203
                     )
                 }
             }
@@ -3701,7 +3725,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
         })
         val branchLocked = lockedBranch != null
         val branchChip = android.widget.TextView(this).apply {
-            text = if (branchLocked) "🏥 $branchSel 🔒" else "🏥 $branchSel ▾"; textSize = 13f
+            text = if (branchLocked) "🏥 $branchSel" else "🏥 $branchSel ▾"; textSize = 13f
             setTextColor(android.graphics.Color.WHITE)
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setPadding(dp(10), dp(6), dp(10), dp(6))

@@ -292,7 +292,7 @@
     // width:auto দিয়ে গ্লোবাল select{width:100%} ওভাররাইড — মোবাইল/ডেস্কটপ দুটোতেই ঠিক বসে।
     var branchSel = finLockBr
       ? '<span style="display:inline-block;border:1px solid #B7E3C5;background:#E7F6EC;color:#0A5C33;' +
-        'font-weight:800;font-size:12.5px;border-radius:10px;padding:7px 12px">🏥 ' + window.MOD.esc(finHomeBranch) + ' 🔒</span>'
+        'font-weight:800;font-size:12.5px;border-radius:10px;padding:7px 12px">🏥 ' + window.MOD.esc(finHomeBranch) + '</span>'
       : '<select onchange="finSetHomeBranch(this.value)" style="width:auto;max-width:100%;' +
       'border:1px solid #B7E3C5;background:#E7F6EC;color:#0A5C33;font-weight:800;font-size:12.5px;' +
       'border-radius:10px;padding:7px 10px;margin:0">' +
@@ -846,7 +846,9 @@ function finRowTap(id) {
           /* 🟢 V400: খাতার নিজের খরচ আলাদা, আর ওই দিনের "Add Expense" খরচগুলো আলাদা —
              পপ-আপে প্রতিটা আলাদা লাইনে দেখাতে ও বদলাতে। */
           own: ((row.expense_total != null && row.expense_total >= 0) ? Number(row.expense_total) : finSumNumbers(note)),
-          items: (v400ExpItems[String(row.entry_date || '')] || [])
+          items: (v400ExpItems[String(row.entry_date || '')] || []),
+          /* ➕ V1203 — "এই দিনে আরও খরচ" বোতামের জন্য দিন ও ব্রাঞ্চ। */
+          addDate: String(row.entry_date || ''), addBranch: String(row.branch || branchSel || '')
         };
         expCell = '<td onclick="event.stopPropagation();finExpenseBreakdown(\'' + rid + '\')" style="padding:6px;text-align:right;color:#B42318;font-weight:700;cursor:pointer;border:1px solid #CFE9D8">' +
           (expSum > 0 ? m.money(expSum).replace('₹', '') : '-') + '</td>';
@@ -978,6 +980,17 @@ function finRowTap(id) {
        `finLedgerRowEdit()` পুনর্ব্যবহার হচ্ছে। ব্রাঞ্চ এখন সবসময় নির্দিষ্ট
        (V628-এর "All Branches" অপসারণ) বলে কোন সারি এডিট হবে তা নিয়ে কোনো
        দ্বিধা নেই। */
+    /* ➕🔒 V1203 (০৮.০৯.২০২৬, TK-রিপোর্ট, ফটো-প্রুফ পাশ) — TK: *"উক্ত দিনে আরও
+       ব্যয় ছিল, সেই ব্যয়টা আমি এখন কেন লিখতে পারছি না এখানে … এই পর্দাতেই যেন
+       আরো খরচা হলে আমি সেটা যোগ করতে পারি"*। কোডে মেপে দেখা গেল খরচের ঘর
+       **ফাঁকা থাকলেই** কেবল নতুন খরচের ফর্ম খুলত (V630)। ⇒ এখন এখান থেকেও
+       `finAddExpense()`-এর সেই একই প্রমাণিত পথ খোলে (দিন+ব্রাঞ্চ প্রি-ফিল)।
+       ⛔ নতুন কোনো সেভ-লজিক নয়, কিছু ওভাররাইট হয় না — শুধু নতুন সারি যোগ।
+       (ফোনের showExpenseBreakdown-এর হুবহু যমজ।) */
+    if (info.addDate && info.addBranch) {
+      h += '<button type="button" id="v400ExpAdd" style="width:100%;margin-top:12px;background:#fff;color:#0B4F2A;' +
+        'border:2px solid #0B4F2A;border-radius:10px;padding:11px;font-size:14.5px;font-weight:700;cursor:pointer">➕ Add Expense on this day</button>';
+    }
     if (info.editRowId && finIsMaster()) {
       h += '<button type="button" id="v400ExpEdit" style="width:100%;margin-top:12px;background:#0B4F2A;color:#fff;border:none;' +
         'border-radius:10px;padding:12px;font-size:14.5px;font-weight:700;cursor:pointer">✏️ Edit This Day</button>';
@@ -998,6 +1011,11 @@ function finRowTap(id) {
     var okBtn = ov.querySelector('#v400ExpOk');
     if (okBtn) okBtn.addEventListener('click', closeOv);
     // 🟢🔒 V628 — "✏️ Edit This Day" — পপ-আপ বন্ধ করে সরাসরি Ledger এডিটর।
+    var addBtn = ov.querySelector('#v400ExpAdd');
+    if (addBtn) addBtn.addEventListener('click', function () {
+      closeOv();
+      finAddExpense(info.addDate, info.addBranch);
+    });
     var editBtn = ov.querySelector('#v400ExpEdit');
     if (editBtn) editBtn.addEventListener('click', function () {
       closeOv();
@@ -1025,10 +1043,13 @@ function finRowTap(id) {
     try { row = (await client.schema('fin').from('expenses').select('*').eq('id', id).maybeSingle()).data; } catch (e) { }
     if (!row) { if (typeof toast === 'function') toast('খরচটি পাওয়া গেল না — আবার দেখুন'); return; }
     __v400ExpRow = row;   // 🔒 আসল সারি ধরে রাখা (উপরের ব্যাখ্যা দেখুন)
-    var catOpts = '<option value="">Select…</option>' +
-      CATS.map(function (c) {
-        return '<option value="' + c.replace(/"/g, '&quot;') + '"' + (c === row.category ? ' selected' : '') + '>' + c + '</option>';
-      }).join('');
+    /* 📝🔒 V1203 — Add Expense-এর মতোই এখানেও একটাই লেখার ঘর। আগে Category
+       তালিকা-ঘর ছিল; টাইপ-করা নতুন লেখা তালিকায় না থাকায় বদলাতে গেলে ঘরটা
+       ফাঁকা দেখাত ও সেভ আটকে যেত — সেই ফাঁকটাও এতে বন্ধ। পুরনো সারিতে দুটো
+       আলাদা লেখা থাকলে " · " দিয়ে জুড়ে দেখানো হয়, কিছু হারায় না। */
+    var xJoin = [String(row.category || ''), String(row.paid_to || '')]
+      .filter(function (t) { return t && t !== 'Other Expense'; })
+      .filter(function (t, i, a) { return a.indexOf(t) === i; }).join(' · ');
     var modeOpts = ['Cash', 'Online'].map(function (x) {
       return '<option' + (x === row.mode ? ' selected' : '') + '>' + x + '</option>';
     }).join('');
@@ -1037,13 +1058,13 @@ function finRowTap(id) {
       '<div class="card">' +
       '<div class="finTwo"><div><label>Date</label><input id="xDate" class="input" type="date" value="' + m.esc(String(row.entry_date || '')) + '"></div>' +
       '<div><label>Branch</label><select id="xBranch" class="input">' + branchOptions(row.branch) + '</select></div></div>' +
-      '<label>Category</label><select id="xCat" class="input">' + catOpts + '</select>' +
-      '<label>Paid To</label><input id="xPaidTo" class="input" value="' + m.esc(String(row.paid_to || '')) + '">' +
+
       /* 🔴 TK-নির্দেশ: খরচের সব সংখ্যা লাল — তাই Amount ঘরের লেখাও লাল।
          `!important` লাগে, কারণ মোবাইল-ভিউয়ের `.input` নিয়মে (styles.css §৪)
          `color:#1A1A1A!important` বসানো আছে — নইলে লাল রংটা বসত না। */
       '<label>Amount</label><input id="xAmt" class="input" type="number" value="' + Number(row.amount || 0) + '" style="color:#B42318!important;font-weight:700!important">' +
       '<label>Mode</label><select id="xMode" class="input">' + modeOpts + '</select>' +
+      '<label>Spent On (optional)</label><input id="xPaidTo" class="input" placeholder="Type here…" value="' + m.esc(xJoin) + '">' +
       '<div class="actions finActs">' +
       '<button onclick="finExpenseSave(\'' + m.esc(String(row.id)) + '\')">Save</button>' +
       '<button class="ghost" onclick="finLedgerSheet()">← Back</button>' +
@@ -1067,8 +1088,9 @@ function finRowTap(id) {
     base.id = existingId;
     base.entry_date = document.getElementById('xDate').value;
     base.branch = document.getElementById('xBranch').value;
-    base.category = document.getElementById('xCat').value;
-    base.paid_to = document.getElementById('xPaidTo').value || '';
+    /* 📝 V1203 — একটাই ঘর; ফাঁকা হলে "Other Expense"। */
+    base.category = String(document.getElementById('xPaidTo').value || '').trim() || 'Other Expense';
+    base.paid_to = '';
     base.amount = Number(document.getElementById('xAmt').value || 0);
     base.mode = document.getElementById('xMode').value;
     try { base.updated_at = new Date().toISOString(); } catch (e) { }
@@ -1079,7 +1101,6 @@ function finRowTap(id) {
     var m = window.MOD;
     if (!existingId) return;
     var row = v400ExpFormRow(existingId);
-    if (!row.category) { if (typeof toast === 'function') toast('Category বাছুন'); else alert('Category বাছুন'); return; }
     if (!(row.amount > 0)) { if (typeof toast === 'function') toast('Amount লিখুন'); else alert('Amount লিখুন'); return; }
     /* 🟢🔒 V401: পুরনো তারিখের খরচ — মাস্টারের অনুমতি লাগবে। */
     if (!finIsMaster() && !finIsToday(row.entry_date)) {
@@ -1323,8 +1344,6 @@ function finRowTap(id) {
     // 🟢🔒 V630 (২৪.০৮.২০২৬) — Sheet-এর খালি খরচ-ঘর থেকে এলে date/branch প্রি-ফিল।
     var fixedBr = finLockBr || prefillBranch || '';
     var brOpts = fixedBr ? branchOptions(fixedBr) : ('<option value="">🏥 Select</option>' + branchOptions(''));
-    var catOpts = '<option value="">Select…</option>' +
-      CATS.map(function (c) { return '<option value="' + c.replace(/"/g, '&quot;') + '">' + c + '</option>'; }).join('');
     var backFn = prefillDate ? "finLedgerSheet()" : "finDailyLedger()";
     var html =
       '<div style="background:linear-gradient(90deg,#7A1212,#C0271B);color:#fff;border-radius:14px;padding:11px 14px;display:flex;align-items:center;gap:10px;margin-bottom:12px">' +
@@ -1333,11 +1352,14 @@ function finRowTap(id) {
         '<span onclick="finAddExpense()" style="cursor:pointer;font-size:20px">↻</span>' +
       '</div>' +
       '<div class="card">' +
+      /* 📝🔒 V1203 (০৮.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — Category-র তালিকা-ঘর ও
+         Paid To মিলে **একটাই লেখার ঘর** ("Spent On", ঐচ্ছিক), আর ক্রম:
+         Date → Amount → Mode → Spent On। ফোনের addExpense()-এর হুবহু যমজ।
+         🔬 `category` শুধু লেখা দেখানোর কাজে লাগে — কোনো যোগফল ওটা ধরে হয় না। */
       '<label>Date</label><input id="eDate" class="input" type="date" value="' + (prefillDate || m.todayIST()) + '">' +
-      '<label>Category</label><select id="eCat" class="input">' + catOpts + '</select>' +
-      '<label>Paid To</label><input id="ePaidTo" class="input">' +
       '<label>Amount</label><input id="eAmt" class="input" type="number" value="">' +
       '<label>Mode</label><select id="eMode" class="input"><option>Cash</option><option>Online</option></select>' +
+      '<label>Spent On (optional)</label><input id="ePaidTo" class="input" placeholder="Type here…">' +
       /* 🔵 V388 (TK-নিয়ম): উপরের পটিতেই "←  Add …" তীর আছে — নিচে দ্বিতীয় তীর নয়। */
       '<div class="actions">' +
       '<button onclick="finSaveExpense()">Save</button></div></div>';
@@ -1353,25 +1375,21 @@ function finRowTap(id) {
     var m = window.MOD;
     var br = document.getElementById('eBranchSel').value;
     if (!br) { if (typeof toast === 'function') toast('উপরে ডানে ব্রাঞ্চ বাছুন'); else alert('ব্রাঞ্চ বাছুন'); return; }
-    var cat = document.getElementById('eCat').value;
     // 🔵 খালি (০) Amount-এ সেভ নয় (Add More-এ ভুল ফাঁকা সারি ঠেকাতে) — ফোনের সাথে এক।
     var amtV = Number(document.getElementById('eAmt').value || 0);
     if (amtV <= 0) {
       if (typeof toast === 'function') toast('Amount লিখুন'); else alert('Amount লিখুন');
       return;
     }
-    var paidTo = String(document.getElementById('ePaidTo').value || '').trim();
-    if (!cat && finBadPaidTo(paidTo)) {
-      if (typeof toast === 'function') toast('Paid To — নাম লিখুন (শুধু সংখ্যা চলবে না)');
-      else alert('Paid To — নাম লিখুন (শুধু সংখ্যা চলবে না)');
-      return;
-    }
+    /* 📝 V1203 — ঘরটা **ঐচ্ছিক**, ফাঁকা থাকলেও সেভ আটকায় না; ফাঁকা হলে আগের
+       মতোই "Other Expense" লেখা হয়, যাতে পুরনো সারির সঙ্গে চেহারা মেলে। */
+    var typed = String(document.getElementById('ePaidTo').value || '').trim();
     var row = {
       id: m.uuid(),
       entry_date: document.getElementById('eDate').value,
       branch: br,
-      category: cat || 'Other Expense',
-      paid_to: cat || paidTo,
+      category: typed || 'Other Expense',
+      paid_to: '',
       amount: amtV,
       mode: document.getElementById('eMode').value,
       note: '',
@@ -1603,7 +1621,8 @@ function finRowTap(id) {
       var key = 'M' + d;
       var expCell;
       if (o.exp > 0 || o.seg.length) {
-        window.__finExpMap[key] = { dotted: dotted, note: (o.ownSeg || []).join(', '), total: o.exp, own: Number(o.own || 0), items: (o.items || []), editRowId: rowByDate[d] ? rowByDate[d].id : null };   /* 🟠 V960 */
+        window.__finExpMap[key] = { dotted: dotted, note: (o.ownSeg || []).join(', '), total: o.exp, own: Number(o.own || 0), items: (o.items || []), editRowId: rowByDate[d] ? rowByDate[d].id : null,
+          addDate: d, addBranch: (branch === '__all' ? '' : branch) };   /* 🟠 V960 · ➕ V1203 */
         expCell = '<td onclick="finExpenseBreakdown(\'' + key + '\')" style="padding:6px;text-align:right;color:#B42318;font-weight:700;cursor:pointer;border:1px solid #CFE9D8">' +
           (o.exp > 0 ? m.money(o.exp).replace('₹', '') : '-') + '</td>';
       } else {
