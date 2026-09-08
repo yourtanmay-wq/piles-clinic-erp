@@ -4674,7 +4674,7 @@ if(role==='doctor'){
 }
 app().innerHTML=`<div class="wrap wlv1Wide ${role}"><div class="topbar dashboardTop"><div class="brand userBrand">${userAvatar()}<div><b>${esc(dashboardClinicName())}</b><br><small class="userMeta"><b>${esc(dashboardPersonName())}</b> · ${esc(roleTitle)} · ${esc(user.branch)}</small></div></div><div class="topActions">${headerBell()}<button class="ghost iconOnly" onclick="menu()" aria-label="Menu">☰</button></div></div><div class="page">${(!isMaster()&&activeBriefings().length)?`<div class="card briefFlash"><b>Admin Briefing</b><p>${esc(activeBriefings()[0].message||'')}</p><div class="actions"><button onclick="openBriefThread('${activeBriefings()[0].id}')">Reply</button><button class="ghost" onclick="markBriefSeen('${activeBriefings()[0].id}')">Seen</button></div></div>`:''}${/* 📏🔒 V1229 (০৮.০৯.২০২৬, TK: *"pending call and search এই দুইটা পাশাপাশি
    রাখুন"*) — দুটো এখন একটা সারিতে (শুধু কম্পিউটারে; ফোনে আগের মতোই একটার নিচে
-   একটা)। ⛔ দুটোরই কাজ · লেখা · রং কিছুই বদলায়নি, শুধু জায়গা। */''}<div class="dashTopRow">${wlv1TodayCallBanner()}${globalCapsuleSearchBar()}</div>${wlv1ReminderCardHtml()}${drRemHomeCard()}${(()=>{let __c=collectionDashboardCard(o);return __c?`<div class="grid stat">${__c}</div>`:'';})()}<div class="grid compactDashGrid">${cards}</div></div>${bottomNav()}</div>`;notifyBriefingIfNeeded();try{wlv1NoticeWatch()}catch(e){}
+   একটা)। ⛔ দুটোরই কাজ · লেখা · রং কিছুই বদলায়নি, শুধু জায়গা। */''}${wlv1DashKpiRow(o)}${globalCapsuleSearchBar()}${wlv1ReminderCardHtml()}${drRemHomeCard()}${(()=>{/* 🏠 V1232 — কালেকশন এখন উপরের বড় ঘরেই; ঘরটা না বসলে (০ টাকা) পুরনো কার্ডটাই আগের মতো বসে, তাই কোনো তথ্য হারায় না। */let __k=wlv1DashKpiRow(o);if(__k&&__k.indexOf('Today Collection')>=0)return '';let __c=collectionDashboardCard(o);return __c?`<div class="grid stat">${__c}</div>`:'';})()}<div class="grid compactDashGrid">${cards}</div></div>${bottomNav()}</div>`;notifyBriefingIfNeeded();try{wlv1NoticeWatch()}catch(e){}
   // 🔒 B582 (TK-নির্দেশ, ০৮.০৮.২০২৬): ডেস্কটপে হোম/ড্যাশবোর্ডেও একই প্রফেশনাল
   // সাইডবার (page()-এর মতো) — আগে এটা ডাকা হত না বলে বাঁ মেনু ভাঙা দেখাত ও
   // টাইল কেটে যেত। ⛔ শুধু বড় স্ক্রিনে চেহারা; ফোন/অ্যান্ড্রয়েড অপরিবর্তিত।
@@ -22812,6 +22812,38 @@ function wlv1TodayCallCount(){
   try{ return wlv1TodayCallRows().length; }catch(e){ return 0; }
 }
 window["wlv1TodayCallCount"]=wlv1TodayCallCount;
+/* 🏠🔒 V1232 (০৮.০৯.২০২৬ — TK-র পাঠানো ডেস্কটপ নকশা ও ফটো-প্রুফ পাশ:
+   *"এটা ডেস্কটপ ভিউ, হোম স্ক্রীন বানাতে হবে ওয়েবে, কিন্তু Dashboard লেখা
+   থাকবে না"*) — হোমের উপরে তিনটে বড় ঘর একসারিতে: বকেয়া কল · আজকের কালেকশন ·
+   আসার কথা (Appointments)।
+   ⛔ **তিনটে সংখ্যাই আগের প্রমাণিত জায়গা থেকেই আসে** — নতুন কোনো হিসাব বা
+      ক্লাউড-পড়া নেই: `wlv1TodayCallCount()` · ড্যাশবোর্ডের নিজের `o` (cash+online)
+      · `wlv1UpcomingAppointments()`। তাই সংখ্যা কখনো অন্য পর্দার সঙ্গে অমিল হবে না।
+   ⛔ চাপ দিলে যে পর্দা খোলে সেগুলোও পুরনো ও প্রমাণিত (`wlv1OpenTodayCalls` ·
+      `branchWiseCollectionPage` · `appointmentScreen`)।
+   ⛔ ডাক্তারের হোমে বকেয়া-কলের ঘরটা আগের নিয়মেই বসে না (B614)। কালেকশনের ঘরে
+      চাপ দেওয়া শুধু মাস্টারের, আগের মতোই। ঘর ফাঁকা হলে (০) সেটা বসেই না। */
+function wlv1DashKpiRow(o){
+  try{
+    var out=[];
+    // ১) বকেয়া কল — ব্যানারের হুবহু একই গোনা ও একই ছাঁকনি
+    var isDoc = (typeof user!=='undefined' && user && user.role==='doctor');
+    var n = 0; try{ n = isDoc?0:wlv1TodayCallCount() }catch(e){ n=0 }
+    if(n>0) out.push('<div class="dashKpi k1" onclick="wlv1OpenTodayCalls()">'+
+      '<div class="ic">\u{1F4DE}</div><div class="tx"><span>Pending Calls</span><b>'+n+'</b></div><i>\u203A</i></div>');
+    // ২) আজকের কালেকশন — ড্যাশবোর্ডের নিজের হিসাব থেকেই
+    var tot = Number((o&&o.cash)||0)+Number((o&&o.online)||0);
+    if(tot>0) out.push('<div class="dashKpi k2"'+(isMaster()?' onclick="branchWiseCollectionPage()"':'')+'>'+
+      '<div class="ic">\u{1F4B3}</div><div class="tx"><span>Today Collection</span><b>'+money(tot)+'</b></div><i>\u203A</i></div>');
+    // ৩) আসার কথা — Appointment পর্দার হুবহু একই তালিকা
+    var ap=0; try{ ap=(wlv1UpcomingAppointments()||[]).length }catch(e){ ap=0 }
+    if(ap>0) out.push('<div class="dashKpi k3" onclick="appointmentScreen()">'+
+      '<div class="ic">\u{23F0}</div><div class="tx"><span>Appointments</span><b>'+ap+'</b></div><i>\u203A</i></div>');
+    return out.length?('<div class="dashKpiRow">'+out.join('')+'</div>'):'';
+  }catch(e){ return '' }
+}
+window["wlv1DashKpiRow"]=wlv1DashKpiRow;
+
 function wlv1TodayCallBanner(){
   // \ud83d\udd35 B614 parity (10.08.2026, TK-\u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6): \u09a1\u09be\u0995\u09cd\u09a4\u09be\u09b0 \u09ab\u09b2\u09cb-\u0986\u09aa \u0995\u09b2 \u0995\u09b0\u09c7\u09a8 \u09a8\u09be \u2014 \u09a4\u09be\u0987
   // \u09a4\u09be\u0981\u09b0 \u09a1\u09cd\u09af\u09be\u09b6\u09ac\u09cb\u09b0\u09cd\u09a1\u09c7 "calls pending" banner \u09a6\u09c7\u0996\u09be\u09a8\u09cb \u09b9\u09af\u09bc \u09a8\u09be (\u0995\u09b2 \u0995\u09b0\u09c7\u09a8 \u09b8\u09cd\u099f\u09be\u09ab)\u0964

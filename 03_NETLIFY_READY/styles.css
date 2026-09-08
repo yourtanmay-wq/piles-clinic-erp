@@ -8470,3 +8470,21 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
 .tccOneLine small{opacity:1!important;color:#FFFFFF!important;font-weight:800!important;
   font-size:12.5px!important;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.28);
   border-radius:999px;padding:4px 11px;letter-spacing:.2px}
+
+/* 🏠🔒 V1232 (০৮.০৯.২০২৬, TK-র নকশা ও ফটো-প্রুফ পাশ) — হোমের উপরে তিনটে
+   বড় ঘর। কম্পিউটারে পাশাপাশি তিনটে, ফোনে একটার নিচে একটা (ফোনের চেহারা
+   ভাঙে না)। ⛔ V1229-এর `.dashTopRow` আর ব্যবহার হয় না, কিন্তু নিয়মগুলো
+   মোছা হয়নি (TK-নিয়ম: নিজে থেকে কিছু মোছা হয় না)। */
+.dashKpiRow{display:grid;grid-template-columns:1fr;gap:12px;margin:0 0 12px}
+.dashKpi{display:flex;align-items:center;gap:13px;border-radius:16px;padding:14px 16px;cursor:pointer}
+.dashKpi .ic{width:50px;height:50px;border-radius:14px;display:grid;place-items:center;font-size:22px;color:#fff;flex:0 0 50px}
+.dashKpi .tx{min-width:0}
+.dashKpi .tx span{display:block;color:#475569;font-size:13px;font-weight:700}
+.dashKpi .tx b{display:block;font-size:24px;font-weight:900;margin-top:2px;line-height:1.1}
+.dashKpi i{margin-left:auto;color:#94A3B8;font-size:20px;font-style:normal}
+.dashKpi.k1{background:#E9F8F0}.dashKpi.k1 .ic{background:#0E9F6E}.dashKpi.k1 .tx b{color:#0A5C33}
+.dashKpi.k2{background:#E7F0FE}.dashKpi.k2 .ic{background:#1D6FD0}.dashKpi.k2 .tx b{color:#0B3D91}
+.dashKpi.k3{background:#E9F8F0}.dashKpi.k3 .ic{background:#0E9F6E}.dashKpi.k3 .tx b{color:#0A5C33}
+@media (min-width:900px){
+  body.hasDeskNav .dashKpiRow{grid-template-columns:repeat(3,1fr)}
+}
