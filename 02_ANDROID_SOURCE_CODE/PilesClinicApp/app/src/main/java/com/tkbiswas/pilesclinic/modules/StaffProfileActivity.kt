@@ -1851,6 +1851,8 @@ class StaffProfileActivity : AppCompatActivity() {
                 ("Salary History (" + salaryCount + ")") to ({ showAllPayments(code, pays, "SALARY") }),
                 "🧾 Statement (date to date)" to ({ statement(code, pays) }),
                 "Salary Settings" to ({ editSalaryConfig(code, enabled, amount, salaryDate) }),
+                /* 🗓️ V1199 (TK-নির্দেশ) — কত তারিখে কত ঘণ্টা, আলাদা পর্দায়। */
+                "Attendance Sheet" to ({ attendanceSheet(code, salaryCurrentMonth()) }),
                 ("Total paid  ·  " + money(salaryTotal)) to ({ }),
                 ("Joining date  ·  " + (if (joinDate.isBlank()) "Not recorded" else dmy(joinDate))) to ({ })
             )
@@ -3467,6 +3469,413 @@ class StaffProfileActivity : AppCompatActivity() {
             line.addView(perfRowTitle(dmy(ns(r, "report_date"))))
             val acc = try { r.optBoolean("accepted", false) } catch (_: Throwable) { false }
             line.addView(perfRowSub(ns(r, "status").ifBlank { "sent" } + if (acc) "  \u00b7  seen \u2705" else ""))
+        }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       🗓️🔒 V1199 (০৮.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — **ATTENDANCE SHEET**
+       (কত তারিখে কত ঘণ্টা, আলাদা পর্দায়)।
+
+       TK-এর কথা (হুবহু): *"কত ঘন্টা কাজ করেছে, কত তারিখে কত ঘন্টা তার হিস্ট্রি
+       যেন আমি আলাদাভাবে দেখতে পারি"* · *"গুগল শিটের মতন চারি সাইডে বক্স"* ·
+       *"ছুটি · ওয়ার্ক ফ্রম হোম · অন্য ব্রাঞ্চে ডিউটি — ঘন্টার ঘরে থাকবে"* ·
+       *"আউট টাইম মিসিং এই লেখাটা আউট টাইমের ঘরে থাকবে"* · *"মাস্টার যেন এখান
+       থেকেই ইন টাইম আউট টাইম এডিট করতে পারে"* · *"WhatsApp-এ শেয়ার ও A4
+       পিডিএফ/প্রিন্ট"*।
+
+       ⛔ ঘণ্টার হিসাব **হুবহু `HourSalary`-রই** — এখানে নতুন কোনো নিয়ম নেই
+          (ছুটি ও Work From Home = ৭ ঘণ্টা · IN/OUT-এর একটা না থাকলে ০)।
+       ⛔ পুরনো `perfShowAttendanceSheet` পর্দাটা **ছোঁয়া হয়নি** — সেটা আগের
+          মতোই চলে; এটা তার পাশে নতুন পর্দা।
+       ⛔ মাস্টারের এডিট ঠিক সেই ঘরেই লেখে যেখানে Fix Attendance লেখে
+          (`wn.notebook_days` · staff_code,work_date) — নতুন কোনো ঘর নয়।
+       ═══════════════════════════════════════════════════════════════════ */
+    private var attSheetRows: List<AttRow> = emptyList()
+    private var attSheetMonth: String = ""
+
+    private data class AttRow(
+        val dateIso: String, val date: String, val inTime: String, val outTime: String,
+        val outMissing: Boolean, val minutes: Int, val hours: String,
+        val tag: String, val tagKind: String
+    )
+
+    /** "10:05" / "10:05:00" → "10.05 AM"; ফাঁকা হলে "—"। */
+    private fun attT12(raw: String): String {
+        val t = raw.trim()
+        if (t.length < 4) return "\u2014"
+        return try {
+            val hh = t.substring(0, 2).toInt(); val mm = t.substring(3, 5)
+            val ap = if (hh >= 12) "PM" else "AM"
+            val h12 = when { hh == 0 -> 12; hh > 12 -> hh - 12; else -> hh }
+            "$h12.$mm $ap"
+        } catch (_: Throwable) { t }
+    }
+
+    private fun attendanceSheet(code: String, ym: String) {
+        val prevBack = backAction
+        backAction = { prevBack() }
+        attSheetMonth = ym
+        val col = ModuleUi.screen(this, "Attendance Sheet")
+        (col.parent as? android.widget.ScrollView)?.isFillViewport = true
+        col.addView(TextView(this).apply {
+            text = code + "  \u00b7  " + salaryMonthLabel(ym)
+            textSize = 12f
+            setTextColor(android.graphics.Color.parseColor("#5B6B81"))
+            setPadding(dp(2), 0, dp(2), dp(8))
+        })
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        col.addView(box)
+        box.addView(ModuleUi.body(this, "Loading..."))
+
+        val actions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(10), 0, 0)
+        }
+        col.addView(actions)
+        col.addView(android.view.View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
+        })
+        col.addView(ModuleUi.buttonSoft(this, "Back") { backAction() }.apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(10) }
+        })
+
+        Thread {
+            val from = "$ym-01"
+            val end = try {
+                val p = ym.split("-"); val y = p[0].toInt(); val m = p[1].toInt()
+                if (m >= 12) String.format(Locale.US, "%04d-01-01", y + 1)
+                else String.format(Locale.US, "%04d-%02d-01", y, m + 1)
+            } catch (_: Throwable) { "$ym-31" }
+            val days = try {
+                ModuleAuth.getRowsChecked(
+                    "wn", "notebook_days",
+                    "select=work_date,check_in,check_out,is_leave,leave_reason,is_wfh,branch" +
+                        "&staff_code=eq.$code&work_date=gte.$from&work_date=lt.$end&order=work_date.asc"
+                )
+            } catch (_: Throwable) { null }
+            val cfg = try {
+                ModuleAuth.getRows("hr", "salary_config", "select=salary_amount&person_code=eq.$code&limit=1")
+            } catch (_: Throwable) { JSONArray() }
+            val prof = try {
+                ModuleAuth.getRows("hr", "staff_profiles",
+                    "select=full_name,branch,link_mobile,address&person_code=eq.$code&limit=1")
+            } catch (_: Throwable) { JSONArray() }
+            val amount = if (cfg.length() > 0) cfg.getJSONObject(0).optDouble("salary_amount", 0.0) else 0.0
+            val pr = if (prof.length() > 0) prof.getJSONObject(0) else JSONObject()
+            val homeBranch = ns(pr, "branch")
+
+            val rows = ArrayList<AttRow>()
+            var worked = 0
+            val arr = if (days != null && days.ok) days.rows else JSONArray()
+            for (i in 0 until arr.length()) {
+                val d = arr.optJSONObject(i) ?: continue
+                val iso = ns(d, "work_date").take(10)
+                val ci = ns(d, "check_in"); val co = ns(d, "check_out")
+                var tag = ""; var kind = ""
+                var mins: Int
+                var outMissing = false
+                when {
+                    d.optBoolean("is_leave", false) -> {
+                        mins = (HourSalary.DAY_HOURS * 60).toInt()
+                        val why = ns(d, "leave_reason")
+                        tag = "LEAVE" + (if (why.isNotBlank()) " ($why)" else ""); kind = "lv"
+                    }
+                    d.optBoolean("is_wfh", false) -> {
+                        mins = (HourSalary.DAY_HOURS * 60).toInt()
+                        tag = "WORK FROM HOME"; kind = "wf"
+                    }
+                    else -> {
+                        val a = HourSalary.minutesOf(ci); val b = HourSalary.minutesOf(co)
+                        if (a == null || b == null || b <= a) { mins = 0; outMissing = (a != null && b == null) }
+                        else mins = b - a
+                        val br = ns(d, "branch")
+                        if (br.isNotBlank() && homeBranch.isNotBlank() &&
+                            !br.trim().equals(homeBranch.trim(), ignoreCase = true)) {
+                            tag = br.trim().uppercase(); kind = "br"
+                        }
+                    }
+                }
+                worked += mins
+                rows.add(AttRow(
+                    iso, dmy(iso),
+                    if (d.optBoolean("is_leave", false) || d.optBoolean("is_wfh", false)) "\u2014" else attT12(ci),
+                    if (d.optBoolean("is_leave", false) || d.optBoolean("is_wfh", false)) "\u2014" else attT12(co),
+                    outMissing, mins, HourSalary.hoursText(mins), tag, kind
+                ))
+            }
+            val res = HourSalary.compute(arr, amount, ym)
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                attSheetRows = rows
+                box.removeAllViews()
+                box.addView(attSummary(res, worked))
+                box.addView(attTable(code, rows))
+                actions.removeAllViews()
+                fun act(label: String, colour: String, go: () -> Unit) =
+                    ModuleUi.button(this, label, go).apply {
+                        textSize = 13f
+                        background = android.graphics.drawable.GradientDrawable().apply {
+                            cornerRadius = dp(10).toFloat()
+                            setColor(android.graphics.Color.parseColor(colour))
+                        }
+                        layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                            .apply { rightMargin = dp(6) }
+                    }
+                actions.addView(act("Print / PDF", "#0B4F2A") { attPrint(code, ym, pr, amount, res, worked) })
+                actions.addView(act("WhatsApp", "#128C7E") { attWhatsApp(code, ym, pr, res) })
+                actions.addView(act("Change month", "#B45309") { attPickMonth(code) })
+            }
+        }.start()
+    }
+
+    private fun attSummary(res: HourSalary.HourPay, worked: Int): LinearLayout {
+        fun cell(label: String, value: String, hex: String) = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), dp(11), dp(10), dp(11))
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            addView(TextView(this@StaffProfileActivity).apply {
+                text = label; textSize = 10.5f
+                setTextColor(android.graphics.Color.parseColor("#8B98A9"))
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+            })
+            addView(TextView(this@StaffProfileActivity).apply {
+                text = value; textSize = 16f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor(hex))
+                setPadding(0, dp(4), 0, 0)
+            })
+        }
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dp(16).toFloat()
+                setColor(android.graphics.Color.WHITE)
+                setStroke(dp(1), android.graphics.Color.parseColor("#D9E8DF"))
+            }
+            addView(cell("WORKED", HourSalary.hoursText(worked), "#0A7C3F"))
+            addView(cell("MONTH HOURS", res.monthHours.toInt().toString() + "h", "#16232E"))
+            addView(cell("SALARY", money(res.payable), "#0E6E8C"))
+        }
+    }
+
+    /** Google Sheet-এর মতো — প্রতিটা ঘরের চার দিকেই দাগ (TK-নির্দেশ)। */
+    private fun attTable(code: String, rows: List<AttRow>): LinearLayout {
+        val line = android.graphics.Color.parseColor("#C9D8CF")
+        fun cellBox(text: String, weight: Float, bold: Boolean, hex: String, size: Float): TextView =
+            TextView(this).apply {
+                this.text = text; textSize = size
+                gravity = android.view.Gravity.CENTER
+                if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor(hex))
+                setPadding(dp(6), dp(8), dp(6), dp(8))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(android.graphics.Color.TRANSPARENT); setStroke(dp(1), line)
+                }
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, weight)
+            }
+        val wrap = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(10), 0, 0)
+        }
+        wrap.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setBackgroundColor(android.graphics.Color.parseColor("#0B4F2A"))
+            addView(cellBox("DATE", 1.15f, true, "#FFFFFF", 10.5f))
+            addView(cellBox("IN TIME", 1f, true, "#FFFFFF", 10.5f))
+            addView(cellBox("OUT TIME", 1f, true, "#FFFFFF", 10.5f))
+            addView(cellBox("HOURS", 1.25f, true, "#FFFFFF", 10.5f))
+        })
+        if (rows.isEmpty()) {
+            wrap.addView(ModuleUi.body(this, "No attendance in this month."))
+            return wrap
+        }
+        for (r in rows) {
+            val tr = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setBackgroundColor(android.graphics.Color.WHITE)
+            }
+            tr.addView(cellBox(r.date, 1.15f, true, "#17212B", 12f))
+            tr.addView(cellBox(r.inTime, 1f, false, "#17212B", 12f))
+            tr.addView(
+                if (r.outMissing) cellBox("MISSING", 1f, true, "#C62828", 11.5f)
+                else cellBox(r.outTime, 1f, false, "#17212B", 12f)
+            )
+            val hx = when (r.tagKind) { "lv" -> "#123E8C"; "wf" -> "#8A5A00"; "br" -> "#0A7C3F"; else -> "#17212B" }
+            tr.addView(cellBox(r.hours + (if (r.tag.isBlank()) "" else "\n" + r.tag), 1.25f, true, hx,
+                if (r.tag.isBlank()) 12f else 11f))
+            /* ✏️ V1199 — মাস্টার সারিতে চাপলে ওই দিনের IN/OUT বদলাতে পারেন। */
+            if (ModuleAuth.isMaster) {
+                tr.isClickable = true
+                tr.setOnClickListener { attEditDay(code, r) }
+            }
+            wrap.addView(tr)
+        }
+        return wrap
+    }
+
+    private fun attPickMonth(code: String) {
+        val months = ArrayList<String>()
+        val c = java.util.Calendar.getInstance(TimeZone.getTimeZone("Asia/Kolkata"))
+        for (i in 0 until 12) {
+            months.add(String.format(Locale.US, "%04d-%02d",
+                c.get(java.util.Calendar.YEAR), c.get(java.util.Calendar.MONTH) + 1))
+            c.add(java.util.Calendar.MONTH, -1)
+        }
+        val labels = months.map { salaryMonthLabel(it) }.toTypedArray()
+        val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "Choose month"))
+            .setItems(labels) { _, which -> attendanceSheet(code, months[which]) }
+            .setNegativeButton("Close", null)
+            .create()
+        dlg.show()
+        try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(dlg) } catch (_: Throwable) { }
+    }
+
+    /** ✏️ মাস্টার ওই দিনের IN / OUT বদলান — ঠিক সেই ঘরেই লেখে যেখানে
+     *  Fix Attendance লেখে (`wn.notebook_days`)। ঘণ্টা নিজে থেকেই ঠিক হয়। */
+    private fun attEditDay(code: String, r: AttRow) {
+        if (!ModuleAuth.isMaster) return
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(10), dp(20), dp(4))
+        }
+        fun timeField(label: String, initial: String): Pair<TextView, android.widget.EditText> {
+            val cap = TextView(this).apply {
+                text = label; textSize = 10.5f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#8B98A9"))
+                setPadding(0, dp(8), 0, dp(4))
+            }
+            val f = android.widget.EditText(this).apply {
+                setText(if (initial == "\u2014") "" else initial)
+                hint = "Tap to select time"
+                isFocusable = false; isCursorVisible = false
+                textSize = 14f
+                setPadding(dp(12), dp(11), dp(12), dp(11))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(11).toFloat()
+                    setColor(android.graphics.Color.parseColor("#FBFDFC"))
+                    setStroke(dp(1), android.graphics.Color.parseColor("#E7ECEA"))
+                }
+                setOnClickListener {
+                    val c = java.util.Calendar.getInstance()
+                    android.app.TimePickerDialog(this@StaffProfileActivity, { _, h, mi ->
+                        val ap = if (h >= 12) "PM" else "AM"
+                        val h12 = when { h == 0 -> 12; h > 12 -> h - 12; else -> h }
+                        setText(String.format(Locale.US, "%d.%02d %s", h12, mi, ap))
+                    }, c.get(java.util.Calendar.HOUR_OF_DAY), c.get(java.util.Calendar.MINUTE), false).show()
+                }
+            }
+            return Pair(cap, f)
+        }
+        val (inCap, inF) = timeField("IN TIME", r.inTime)
+        val (outCap, outF) = timeField("OUT TIME", r.outTime)
+        box.addView(inCap); box.addView(inF); box.addView(outCap); box.addView(outF)
+        box.addView(TextView(this).apply {
+            text = "Hours will be counted from these two times."
+            textSize = 11.5f
+            setTextColor(android.graphics.Color.parseColor("#0A5C33"))
+            setPadding(dp(2), dp(12), 0, 0)
+        })
+        /** "9.15 AM" → "09:15:00"; ফাঁকা হলে null (বদলাবে না)। */
+        fun to24(v: String): String? {
+            val t = v.trim().uppercase(Locale.US)
+            if (t.isBlank()) return null
+            return try {
+                val pm = t.contains("PM")
+                val core = t.replace("AM", "").replace("PM", "").trim().replace(".", ":")
+                val p = core.split(":")
+                var h = p[0].trim().toInt(); val mi = p[1].trim().toInt()
+                if (pm && h < 12) h += 12
+                if (!pm && h == 12) h = 0
+                String.format(Locale.US, "%02d:%02d:00", h, mi)
+            } catch (_: Throwable) { null }
+        }
+        val dlg = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setCustomTitle(com.tkbiswas.pilesclinic.native.PremiumAlert.header(this, "Edit hours  \u00b7  " + r.date))
+            .setView(box)
+            .setPositiveButton("Save") { _, _ ->
+                val in24 = to24(inF.text.toString())
+                val out24 = to24(outF.text.toString())
+                if (in24 == null && out24 == null) {
+                    ModuleUi.toast(this, "Nothing to save"); return@setPositiveButton
+                }
+                ModuleUi.toast(this, "Saving...")
+                Thread {
+                    val existing = try {
+                        val rr = ModuleAuth.getRowsChecked("wn", "notebook_days",
+                            "select=*&staff_code=eq.$code&work_date=eq." + r.dateIso + "&limit=1")
+                        if (rr.ok && rr.rows.length() > 0) rr.rows.getJSONObject(0) else null
+                    } catch (_: Throwable) { null }
+                    val row = existing ?: JSONObject()
+                        .put("staff_code", code).put("work_date", r.dateIso)
+                        .put("manual_entries", JSONArray())
+                    if (!row.has("manual_entries") || row.isNull("manual_entries")) row.put("manual_entries", JSONArray())
+                    if (in24 != null) row.put("check_in", in24)
+                    if (out24 != null) row.put("check_out", out24)
+                    row.put("updated_at", SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
+                        .apply { timeZone = TimeZone.getTimeZone("UTC") }.format(java.util.Date()))
+                    var ok = try { ModuleAuth.upsertOnConflict("wn", "notebook_days", row, "staff_code,work_date") } catch (_: Throwable) { false }
+                    if (!ok) ok = try { ModuleAuth.upsert("wn", "notebook_days", row) } catch (_: Throwable) { false }
+                    runOnUiThread {
+                        ModuleUi.toast(this, if (ok) "Saved" else "Could not save — try again")
+                        if (ok) attendanceSheet(code, attSheetMonth)
+                    }
+                }.start()
+            }
+            .setNegativeButton("Cancel", null)
+            .create()
+        dlg.show()
+        try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(dlg) } catch (_: Throwable) { }
+    }
+
+    private fun attPrintRows(): List<com.tkbiswas.pilesclinic.print.AttendanceSheetHtmlPrint.Row> =
+        attSheetRows.map {
+            com.tkbiswas.pilesclinic.print.AttendanceSheetHtmlPrint.Row(
+                it.date, it.inTime, it.outTime, it.outMissing, it.hours, it.tag, it.tagKind
+            )
+        }
+
+    private fun attPrint(code: String, ym: String, pr: JSONObject, amount: Double, res: HourSalary.HourPay, worked: Int) {
+        val html = com.tkbiswas.pilesclinic.print.AttendanceSheetHtmlPrint.build(
+            branchName = ns(pr, "branch"),
+            staffName = ns(pr, "full_name").ifBlank { code },
+            staffCode = code,
+            mobile = ns(pr, "link_mobile"),
+            address = ns(pr, "address"),
+            monthLabel = salaryMonthLabel(ym),
+            printedOn = dmy(todayIso()),
+            rows = attPrintRows(),
+            totalHours = HourSalary.hoursText(worked),
+            monthHoursText = res.monthHours.toInt().toString() + "h 00m",
+            salaryText = money(amount),
+            rateText = money(res.ratePerHour),
+            payableText = money(res.payable)
+        )
+        com.tkbiswas.pilesclinic.print.AttendanceSheetHtmlPrint.print(this, code, salaryMonthLabel(ym), html)
+    }
+
+    private fun attWhatsApp(code: String, ym: String, pr: JSONObject, res: HourSalary.HourPay) {
+        val txt = com.tkbiswas.pilesclinic.print.AttendanceSheetHtmlPrint.whatsAppText(
+            ns(pr, "full_name").ifBlank { code }, code, ns(pr, "branch"),
+            salaryMonthLabel(ym), attPrintRows(),
+            HourSalary.hoursText(attSheetRows.sumOf { it.minutes }), money(res.payable)
+        )
+        try {
+            val i = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(android.content.Intent.EXTRA_TEXT, txt)
+                setPackage("com.whatsapp")
+            }
+            startActivity(i)
+        } catch (_: Throwable) {
+            try {
+                startActivity(android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                    type = "text/plain"; putExtra(android.content.Intent.EXTRA_TEXT, txt)
+                })
+            } catch (_: Throwable) { ModuleUi.toast(this, "WhatsApp not found") }
         }
     }
 

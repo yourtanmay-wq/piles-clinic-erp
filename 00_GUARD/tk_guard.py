@@ -1891,6 +1891,9 @@ _WEBVIEW_ALLOWED = {
     # 🧾 V1055 (০৪.০৯.২০২৬) — TK-কে জানিয়ে যোগ করা হলো। এটা **ছাপার** ফাইল
     #    (DietChartHtmlPrint-এর হুবহু একই পথ), পপ-আপে বসে না, তাই কম্পনের ফাঁদ নেই।
     "print/SalaryStatementHtmlPrint.kt": (1, "ছাপা"),
+    # 🗓️ V1199 (০৮.০৯.২০২৬) — TK-কে জানিয়ে যোগ করা হলো। এটা **ছাপার** ফাইল
+    #    (SalaryStatementHtmlPrint-এর হুবহু একই পথ), পপ-আপে বসে না, তাই কম্পনের ফাঁদ নেই।
+    "print/AttendanceSheetHtmlPrint.kt": (1, "ছাপা — Staff Attendance Sheet"),
     "print/InvestigationHtmlPrint.kt":   (1, "ছাপা"),
     "print/PrescriptionHtmlPrint.kt":    (1, "ছাপা"),
     "print/PrescriptionWhatsAppShare.kt":(1, "WhatsApp-এ PDF"),

@@ -784,6 +784,8 @@
       '<div class="salMi" onclick="profSalMenuHide();profTogglePayHistory()" style="padding:12px 16px;font-size:14px;color:#1C2B3A;border-bottom:1px solid #EEF1F5;cursor:pointer">Payment History (' + pays.length + ')</div>' +
       '<div class="salMi" onclick="profSalMenuHide();profStatement(\'' + m.esc(code) + '\')" style="padding:12px 16px;font-size:14px;color:#1C2B3A;border-bottom:1px solid #EEF1F5;cursor:pointer">🧾 Statement (date to date)</div>' +
       '<div class="salMi" onclick="profSalMenuHide();profSalaryEdit(\'' + m.esc(code) + '\')" style="padding:12px 16px;font-size:14px;color:#1C2B3A;border-bottom:1px solid #EEF1F5;cursor:pointer">Salary Settings</div>' +
+      /* 🗓️ V1199 (TK-নির্দেশ) — কত তারিখে কত ঘণ্টা, আলাদা পর্দায় (ফোনের যমজ)। */
+      '<div class="salMi" onclick="profSalMenuHide();attendanceSheet(\'' + m.esc(code) + '\')" style="padding:12px 16px;font-size:14px;color:#1C2B3A;border-bottom:1px solid #EEF1F5;cursor:pointer">Attendance Sheet</div>' +
       '<div style="padding:12px 16px;font-size:14px;color:#1C2B3A;border-bottom:1px solid #EEF1F5;display:flex;justify-content:space-between;gap:14px">Total paid<span style="color:#5B6B81">' + m.money(salaryTotal) + '</span></div>' +
       '<div style="padding:12px 16px;font-size:14px;color:#1C2B3A;display:flex;justify-content:space-between;gap:14px">Joining date<span style="color:#5B6B81">' + m.esc(prof.join_date ? salDmy(prof.join_date) : 'Not recorded') + '</span></div>' +
       '</div>';
@@ -2380,6 +2382,230 @@
    *    Master" দেখাত। তাই এখানে নিজের `myProfile()`-এ ফেরার আলাদা Back বসানো হয়।
    * ⚡ Egress: চাপ দিলে তবেই একটাই ছোট RPC (সর্বোচ্চ ৩১ সারি, ৪টে ঘর)।
    */
+  /* ═══════════════════════════════════════════════════════════════════
+     🗓️🔒 V1199 (০৮.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — **ATTENDANCE SHEET**
+     (কত তারিখে কত ঘণ্টা), ফোনের `attendanceSheet()`-এর হুবহু যমজ।
+     ⛔ ঘণ্টার নিয়ম হুবহু ফোনের `HourSalary`-রই: ছুটি ও Work From Home = ৭ ঘণ্টা;
+        IN/OUT-এর একটা না থাকলে ০; মাসের ঘণ্টা = ওই মাসের দিন × ৭।
+     ⛔ পুরনো `myAttendanceSheet()` (RPC-ভিত্তিক) ছোঁয়া হয়নি — এটা নতুন পর্দা।
+     ═══════════════════════════════════════════════════════════════════ */
+  var ATT_ROWS = [], ATT_INFO = {};
+  function attT12(raw){
+    var t = String(raw || '').trim();
+    if (t.length < 4) return '—';
+    try{
+      var hh = parseInt(t.slice(0,2),10), mm = t.slice(3,5);
+      var ap = hh >= 12 ? 'PM' : 'AM', h12 = (hh===0) ? 12 : (hh>12 ? hh-12 : hh);
+      return h12 + '.' + mm + ' ' + ap;
+    }catch(e){ return t; }
+  }
+  function attMins(raw){
+    var t = String(raw || '').trim();
+    if (t.length < 4) return null;
+    try{
+      var h = parseInt(t.slice(0,2),10), mi = parseInt(t.slice(3,5),10);
+      if (isNaN(h) || isNaN(mi)) return null;
+      return h*60 + mi;
+    }catch(e){ return null; }
+  }
+  function attHours(mins){ return Math.floor(mins/60) + 'h ' + String(mins%60).padStart(2,'0') + 'm'; }
+  function attDmy(iso){ try{ var p=String(iso).slice(0,10).split('-'); return p[2]+'/'+p[1]+'/'+p[0]; }catch(e){ return iso||''; } }
+  function attDaysInMonth(ym){ try{ var p=ym.split('-'); return new Date(Number(p[0]), Number(p[1]), 0).getDate(); }catch(e){ return 30; } }
+
+  async function attendanceSheet(code, ym){
+    var m = window.MOD, client = await sb();
+    if (!ym) { var d=new Date(); ym = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
+    var from = ym + '-01';
+    var p = ym.split('-'), y = Number(p[0]), mo = Number(p[1]);
+    var end = (mo >= 12) ? ((y+1) + '-01-01') : (y + '-' + String(mo+1).padStart(2,'0') + '-01');
+    var days = [], cfg = {}, prof = {};
+    try{
+      days = ((await client.schema('wn').from('notebook_days')
+        .select('work_date,check_in,check_out,is_leave,leave_reason,is_wfh,branch')
+        .eq('staff_code', code).gte('work_date', from).lt('work_date', end)
+        .order('work_date', {ascending:true})).data) || [];
+    }catch(e){}
+    try{ cfg = ((await client.schema('hr').from('salary_config').select('salary_amount').eq('person_code',code).maybeSingle()).data) || {}; }catch(e){}
+    try{ prof = ((await client.schema('hr').from('staff_profiles').select('full_name,branch,link_mobile,address').eq('person_code',code).maybeSingle()).data) || {}; }catch(e){}
+
+    var home = String(prof.branch||'').trim().toLowerCase();
+    var DAYM = 7*60, worked = 0, rows = [];
+    days.forEach(function(d){
+      var iso = String(d.work_date||'').slice(0,10), tag='', kind='', mins=0, outMissing=false;
+      if (d.is_leave){ mins = DAYM; tag = 'LEAVE' + (d.leave_reason ? (' ('+d.leave_reason+')') : ''); kind='lv'; }
+      else if (d.is_wfh){ mins = DAYM; tag = 'WORK FROM HOME'; kind='wf'; }
+      else {
+        var a = attMins(d.check_in), b = attMins(d.check_out);
+        if (a===null || b===null || b<=a){ mins = 0; outMissing = (a!==null && b===null); }
+        else mins = b - a;
+        var br = String(d.branch||'').trim();
+        if (br && home && br.toLowerCase() !== home){ tag = br.toUpperCase(); kind='br'; }
+      }
+      worked += mins;
+      var plain = (d.is_leave || d.is_wfh);
+      rows.push({ iso:iso, date:attDmy(iso),
+        inTime: plain ? '—' : attT12(d.check_in),
+        outTime: plain ? '—' : attT12(d.check_out),
+        outMissing: outMissing, minutes: mins, hours: attHours(mins), tag: tag, kind: kind });
+    });
+    var amount = Number(cfg.salary_amount||0);
+    var monthHours = attDaysInMonth(ym) * 7;
+    var rate = monthHours > 0 ? amount/monthHours : 0;
+    var payable = (worked/60) * rate;
+    ATT_ROWS = rows;
+    ATT_INFO = { code:code, ym:ym, monthLabel:salMonthLabel(ym), name:String(prof.full_name||code),
+      branch:String(prof.branch||''), mobile:String(prof.link_mobile||''), address:String(prof.address||''),
+      worked:worked, monthHours:monthHours, amount:amount, rate:rate, payable:payable };
+
+    function cell(t, cls){ return '<td'+(cls?(' class="'+cls+'"'):'')+'>'+t+'</td>'; }
+    var body = rows.map(function(r,i){
+      var out = r.outMissing ? '<td class="attMs">MISSING</td>' : cell(m.esc(r.outTime));
+      var hcell = '<td class="att-'+(r.kind||'x')+'">'+m.esc(r.hours)+(r.tag?('<small> · '+m.esc(r.tag)+'</small>'):'')+'</td>';
+      var click = (m.isMasterModule()) ? (' onclick="attEditDay('+i+')" style="cursor:pointer"') : '';
+      return '<tr'+click+'>'+cell(m.esc(r.date),'attD')+cell(m.esc(r.inTime))+out+hcell+'</tr>';
+    }).join('') || '<tr><td colspan="4" class="mut">No attendance in this month.</td></tr>';
+
+    var html = '<div class="card" style="display:flex;padding:0;overflow:hidden">'
+      + '<div style="flex:1;padding:12px 14px"><div class="tiny mut" style="font-weight:800">WORKED</div>'
+      +   '<div style="font-size:19px;font-weight:800;color:#0A7C3F;margin-top:3px">'+attHours(worked)+'</div></div>'
+      + '<div style="width:1px;background:#EDF2EF;margin:10px 0"></div>'
+      + '<div style="flex:1;padding:12px 14px"><div class="tiny mut" style="font-weight:800">MONTH HOURS</div>'
+      +   '<div style="font-size:19px;font-weight:800;margin-top:3px">'+monthHours+'h</div></div>'
+      + '<div style="width:1px;background:#EDF2EF;margin:10px 0"></div>'
+      + '<div style="flex:1;padding:12px 14px"><div class="tiny mut" style="font-weight:800">SALARY</div>'
+      +   '<div style="font-size:19px;font-weight:800;color:#0E6E8C;margin-top:3px">'+m.money(payable)+'</div></div></div>'
+      + '<div class="card" style="padding:8px"><table class="attTbl">'
+      + '<thead><tr><th>DATE</th><th>IN TIME</th><th>OUT TIME</th><th>HOURS</th></tr></thead>'
+      + '<tbody>'+body+'</tbody></table></div>'
+      + '<div class="actions"><button onclick="attPrint()">Print / PDF</button>'
+      + '<button class="ghost" onclick="attWhatsApp()">WhatsApp</button>'
+      + '<button class="ghost" onclick="attPickMonth(\''+m.esc(code)+'\')">Change month</button></div>';
+
+    page('Attendance Sheet · ' + m.esc(code) + ' · ' + salMonthLabel(ym), html, true);
+  }
+  window.attendanceSheet = attendanceSheet;
+
+  function attPickMonth(code){
+    var m = window.MOD, out = [], d = new Date();
+    for (var i=0;i<12;i++){
+      var ym = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+      out.push('<button class="menuBtn" onclick="closeModal();attendanceSheet(\''+m.esc(code)+'\',\''+ym+'\')"><b>'+salMonthLabel(ym)+'</b></button>');
+      d.setMonth(d.getMonth()-1);
+    }
+    try{ modal('<h2>Choose month</h2><div class="grid menuGrid">'+out.join('')+'</div>'); }catch(e){}
+  }
+  window.attPickMonth = attPickMonth;
+
+  /* ✏️ V1199 — মাস্টার ওই দিনের IN / OUT বদলান; ঘণ্টা নিজে থেকেই ঠিক হয়।
+     ⛔ ফোনের মতোই `wn.notebook_days`-এ (staff_code, work_date) upsert। */
+  async function attEditDay(i){
+    var m = window.MOD;
+    if (!m.isMasterModule()) return;
+    var r = ATT_ROWS[i]; if (!r) return;
+    function ask(label, cur){
+      var v = prompt(label + ' (hh:mm AM/PM) — blank = no change', (cur==='—'?'':cur));
+      return v;
+    }
+    var vi = ask('IN TIME', r.inTime); if (vi === null) return;
+    var vo = ask('OUT TIME', r.outTime); if (vo === null) return;
+    function to24(v){
+      var t = String(v||'').trim().toUpperCase(); if (!t) return null;
+      try{
+        var pm = t.indexOf('PM') >= 0;
+        var core = t.replace('AM','').replace('PM','').trim().replace('.',':');
+        var pp = core.split(':'); var h = parseInt(pp[0],10), mi = parseInt(pp[1],10);
+        if (isNaN(h) || isNaN(mi)) return null;
+        if (pm && h < 12) h += 12;
+        if (!pm && h === 12) h = 0;
+        return String(h).padStart(2,'0')+':'+String(mi).padStart(2,'0')+':00';
+      }catch(e){ return null; }
+    }
+    var in24 = to24(vi), out24 = to24(vo);
+    if (!in24 && !out24) return;
+    try{
+      var client = await sb();
+      var row = { staff_code: ATT_INFO.code, work_date: r.iso, updated_at: new Date().toISOString() };
+      if (in24) row.check_in = in24;
+      if (out24) row.check_out = out24;
+      var up = await client.schema('wn').from('notebook_days').upsert(row, { onConflict: 'staff_code,work_date' });
+      if (up && up.error) { try{ toast('Could not save — try again'); }catch(e){} return; }
+      try{ toast('Saved'); }catch(e){}
+      attendanceSheet(ATT_INFO.code, ATT_INFO.ym);
+    }catch(e){ try{ toast('Could not save — try again'); }catch(_e){} }
+  }
+  window.attEditDay = attEditDay;
+
+  /** A4 এক পাতার কাগজ — ফোনের `AttendanceSheetHtmlPrint`-এর হুবহু একই সাজ। */
+  function attSheetHtml(){
+    var m = window.MOD, I = ATT_INFO;
+    var body = ATT_ROWS.map(function(r){
+      var out = r.outMissing ? '<td class="ms">MISSING</td>' : '<td>'+m.esc(r.outTime)+'</td>';
+      return '<tr><td class="d">'+m.esc(r.date)+'</td><td>'+m.esc(r.inTime)+'</td>'+out
+        + '<td class="'+(r.kind||'')+'">'+m.esc(r.hours)+(r.tag?('<small> · '+m.esc(r.tag)+'</small>'):'')+'</td></tr>';
+    }).join('') || '<tr><td colspan="4">No attendance in this month.</td></tr>';
+    return '<!doctype html><html><head><meta charset="utf-8"><title>Attendance Sheet</title><style>'
+      + '@page{size:A4;margin:8mm} body{font-family:sans-serif;color:#1C2A33;margin:0}'
+      + '.tb{background:#0f5132;color:#fff;display:flex;justify-content:space-between;align-items:center;padding:6px 10px}'
+      + '.tb .t{font-size:12px;font-weight:800;letter-spacing:2px}.tb .r{font-size:9px;color:#cfe6d8;text-align:right}'
+      + '.cn{font-size:16px;font-weight:800;color:#0f5132;padding:8px 10px 2px}'
+      + '.addr{font-size:9px;color:#3b4650;padding:0 10px 6px}'
+      + '.pi{display:flex;gap:16px;padding:6px 10px 4px;font-size:9.5px}.pi .c{flex:1}.pi b{color:#0f5132}'
+      + 'table{width:100%;border-collapse:collapse;font-size:9.5px}'
+      + 'th{background:#0B4F2A;color:#fff;padding:4px 6px;font-size:8.5px;border:1px solid #0B4F2A}'
+      + 'td{padding:2.5px 6px;border:1px solid #D6DEE6;text-align:center}'
+      + 'td.d{text-align:left;font-weight:700} td small{font-size:8px;font-weight:700}'
+      + '.lv small{color:#123E8C}.wf small{color:#8A5A00}.br small{color:#0A7C3F}.ms{color:#C62828;font-weight:700}'
+      + 'tfoot td{border-top:2px solid #0B4F2A;font-weight:800;background:#F4F9F6}'
+      + '.calc{margin-top:7px;border:1px solid #D6DEE6;border-radius:5px;overflow:hidden}'
+      + '.calc .h{background:#0B4F2A;color:#fff;padding:4px 9px;font-size:8.5px;font-weight:800;letter-spacing:1px}'
+      + '.wrap{padding:2px 10px 0}'
+      + '</style></head><body>'
+      + '<div class="cn">' + m.esc(I.branch ? (I.branch.toUpperCase()==='KISHANGANJ'?'TK BISWAS PILES CLINIC':'MAA AYURVED PILES CLINIC') : 'MAA AYURVED PILES CLINIC') + '</div>'
+      + '<div class="addr">' + m.esc(I.branch) + '</div>'
+      + '<div class="tb"><span class="t">STAFF ATTENDANCE SHEET</span><span class="r">'+m.esc(I.monthLabel)+'</span></div>'
+      + '<div class="pi"><div class="c"><div><b>Staff Name</b> : '+m.esc(I.name)+'</div>'
+      +   '<div><b>Staff Code</b> : '+m.esc(I.code)+'</div><div><b>Branch</b> : '+m.esc(I.branch)+'</div></div>'
+      + '<div class="c"><div><b>Mobile</b> : '+m.esc(I.mobile||'-')+'</div>'
+      +   '<div><b>Address</b> : '+m.esc(I.address||'-')+'</div></div></div>'
+      + '<div class="wrap"><table><thead><tr><th>DATE</th><th>IN TIME</th><th>OUT TIME</th><th>HOURS</th></tr></thead>'
+      + '<tbody>'+body+'</tbody>'
+      + '<tfoot><tr><td colspan="3">TOTAL HOURS WORKED</td><td>'+attHours(I.worked)+'</td></tr></tfoot></table>'
+      + '<div class="calc"><div class="h">SALARY CALCULATION · '+m.esc(String(I.monthLabel).toUpperCase())+'</div><table>'
+      + '<tr><td class="d">Month hours</td><td>'+I.monthHours+'h 00m</td></tr>'
+      + '<tr><td class="d">Monthly salary (set)</td><td>'+m.money(I.amount)+'</td></tr>'
+      + '<tr><td class="d">Rate per hour</td><td>'+m.money(I.rate)+'</td></tr>'
+      + '<tr><td class="d">Hours worked</td><td>'+attHours(I.worked)+'</td></tr>'
+      + '<tr style="background:#F4F9F6"><td class="d"><b>SALARY FOR THIS MONTH</b></td>'
+      +   '<td style="font-weight:800;color:#0F5132">'+m.money(I.payable)+'</td></tr></table></div></div>'
+      + '</body></html>';
+  }
+  function attPrint(){
+    try{
+      var w = window.open('', '_blank');
+      if (!w) { toast('Allow pop-ups to print'); return; }
+      w.document.write(attSheetHtml()); w.document.close();
+      setTimeout(function(){ try{ w.focus(); w.print(); }catch(e){} }, 400);
+    }catch(e){ try{ toast('Could not open print'); }catch(_e){} }
+  }
+  window.attPrint = attPrint;
+
+  function attWhatsApp(){
+    var I = ATT_INFO;
+    var lines = ['*STAFF ATTENDANCE SHEET*', I.name + '  ·  ' + I.code, I.branch + '  ·  ' + I.monthLabel,
+      '--------------------------------'];
+    ATT_ROWS.forEach(function(r){
+      lines.push(String(r.date).slice(0,5) + '  '
+        + (r.outMissing ? (r.inTime + ' → MISSING') : (r.inTime + ' → ' + r.outTime))
+        + '  ' + r.hours + (r.tag ? ('  (' + r.tag + ')') : ''));
+    });
+    lines.push('--------------------------------');
+    lines.push('*Total hours* : ' + attHours(I.worked));
+    lines.push('*Salary this month* : ' + window.MOD.money(I.payable));
+    try{ window.open('https://wa.me/?text=' + encodeURIComponent(lines.join('\n')), '_blank'); }
+    catch(e){ try{ toast('Could not open WhatsApp'); }catch(_e){} }
+  }
+  window.attWhatsApp = attWhatsApp;
+
   async function myAttendanceSheet() {
     var m = window.MOD;
     var code = (m.session() || {}).code || '';

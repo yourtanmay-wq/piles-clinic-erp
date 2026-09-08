@@ -8421,3 +8421,15 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
 .regForm .input,.regForm select{min-height:40px;padding:9px 13px;margin:5px 0}
 .enquiryCard .enqLabel{margin-top:10px}
 .regForm label{margin-top:6px}
+
+/* 🗓️ V1199 (TK-নির্দেশ ও ফটো-প্রুফ পাশ) — Attendance Sheet-এর টেবিল:
+   Google Sheet-এর মতো প্রতিটা ঘরের চার দিকেই দাগ। ⛔ শুধু এই টেবিলেই। */
+.attTbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.attTbl th{background:#0B4F2A;color:#fff;padding:7px 6px;font-size:10.5px;letter-spacing:.5px;border:1px solid #0B4F2A}
+.attTbl td{padding:7px 6px;border:1px solid #C9D8CF;text-align:center;color:#17212B}
+.attTbl td.attD{text-align:left;font-weight:700}
+.attTbl td small{font-size:10.5px;font-weight:700}
+.attTbl .attMs{color:#C62828;font-weight:700}
+.attTbl .att-lv small{color:#123E8C}
+.attTbl .att-wf small{color:#8A5A00}
+.attTbl .att-br small{color:#0A7C3F}
