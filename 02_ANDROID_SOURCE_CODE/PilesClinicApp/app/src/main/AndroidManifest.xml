@@ -6,6 +6,18 @@
          when unavailable, matching the existing web app's offline-first design) -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- ⏰🔒 V1241 (০৮.০৯.২০২৬, TK-নির্দেশ হুবহু: *"জোর করে আসতে হবে — যে টাইম
+         সেট করবে সেই টাইমে সেই ডাক্তারবাবুকে জোর করে নোটিফিকেশন দিতে হবে"*)।
+         Doctor Reminder-এর ঘণ্টা এতদিন শুধু পিছনের প্রতি-১৫-মিনিটের কাজে বাজত,
+         যেটা ফোন ইচ্ছেমতো পিছিয়ে দিতে পারে। এখন বাছা সময়ে ফোনের নিজের
+         **অ্যালার্ম ঘড়ি** বসে, তাই কাঁটায়-কাঁটায় বাজে।
+         · USE_EXACT_ALARM — Android 13+ (নিজে থেকেই দেওয়া থাকে)
+         · SCHEDULE_EXACT_ALARM — Android 12 ও 12L (ইনস্টলেই দেওয়া থাকে)
+         ⛔ অনুমতি না থাকলে কোড নিজেই কাছাকাছি সময়ে বসায়, আর পুরনো
+            ১৫-মিনিটের জালটা আগের মতোই থাকে — কিছুই ভাঙে না। -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"
+        android:maxSdkVersion="32" />
     <!-- 🔴🆕🔒 খাতার সারি B440 (05.08.2026, TK-নির্দেশ) — Work Notebook-এ
          "Outside Calls Today" ঘরের ডিফল্ট মান স্বয়ংক্রিয়ভাবে ফোনের
          Incoming Call থেকে গণনা করতে। ⛔ স্টাফ Allow না করলে/এই অনুমতি না
@@ -466,6 +478,11 @@
         </receiver>
         <!-- 🟢🔒 V619 — নোটিফিকেশনের "✕ Dismiss" বোতামের জন্য, শুধু ভিতর থেকেই ডাকা হয়। -->
         <receiver android:name="com.tkbiswas.pilesclinic.native.CallDismissReceiver" android:exported="false" />
+        <!-- ⏰🔒 V1241 — বাছা সময়ে অ্যালার্ম বাজলে এটাই রিমাইন্ডারের কাজটা
+             সঙ্গে সঙ্গে চালায়। ⛔ অ্যাপের বাইরে থেকে কেউ ডাকতে পারে না
+             (exported=false)। -->
+        <receiver android:name="com.tkbiswas.pilesclinic.native.DoctorReminderAlarmReceiver"
+            android:exported="false" />
 
         <!-- 🏍️🔒 V968 — ফিল্ড ভিজিট চলাকালীন GPS (foreground service)। -->
         <service

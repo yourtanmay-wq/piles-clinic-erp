@@ -28,8 +28,26 @@
   function esc2(v){ try{ return esc(String(v==null?'':v)); }catch(e){ return String(v==null?'':v); } }
 
   function dmy(iso){ try{ var p=String(iso).slice(0,10).split('-'); return p[2]+'/'+p[1]+'/'+p[0]; }catch(e){ return iso||''; } }
+  /* ⏰🔒 V1241 — ফোনের হুবহু যমজ। সময় ডেটাবেসে UTC-তে জমা (...Z),
+     কিন্তু এতদিন ওই ঘণ্টাটাই সোজা ছাপা হত ⇒ ভারতীয় সময়ের চেয়ে ৫ঘ.৩০মি. পিছিয়ে
+     দেখাত (১১.১৫ PM → ৫.৪৫ PM)। এখন ভারতীয় সময়ে বদলে দেখানো হয়।
+     ⛔ জমা থাকা লেখা এক অক্ষরও বদলায়নি — শুধু পর্দায় পড়াটা ঠিক হলো। */
   function stamp(raw){
     var t=String(raw||''); if(t.length<10) return '';
+    if(t.length>=19 && t.slice(-1)==='Z'){
+      try{
+        var ms=Date.parse(t);
+        if(!isNaN(ms)){
+          var ist=new Date(ms+(5*60+30)*60000);
+          var dd=String(ist.getUTCDate()).padStart(2,'0'),
+              mo=String(ist.getUTCMonth()+1).padStart(2,'0'),
+              yy=ist.getUTCFullYear(),
+              H=ist.getUTCHours(), M=String(ist.getUTCMinutes()).padStart(2,'0');
+          var ap2=H>=12?'PM':'AM', h2=(H===0)?12:(H>12?H-12:H);
+          return dd+'/'+mo+'/'+yy+'  \u00b7  '+h2+'.'+M+' '+ap2;
+        }
+      }catch(e){}
+    }
     var d=dmy(t); if(t.length<16) return d;
     try{
       var hh=parseInt(t.substr(11,2),10), mm=t.substr(14,2);
@@ -417,7 +435,7 @@
         '<div style="flex:1;'+CELL+'"><div style="'+CAP+'">TIME</div>'+
           '<input id="drTime" class="input" type="time" style="margin:4px 0 0"></div>'+
       '</div>'+
-      '<div style="font-size:11.5px;color:#8B98A9;padding:8px 2px 0">Reminds the doctor one day before.</div>'+
+      '<div style="font-size:11.5px;color:#8B98A9;padding:8px 2px 0">Reminds the doctor the day before, and again at the chosen time.</div>'+
 
       '<div style="background:#FFFBF0;border:1px solid #F0E0BC;border-radius:14px;padding:11px 13px;margin-top:9px">'+
         '<div style="'+CAP+'">REMINDER BY</div>'+

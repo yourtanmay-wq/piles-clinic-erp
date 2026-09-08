@@ -46,10 +46,29 @@ class DoctorReminderActivity : AppCompatActivity() {
         val p = iso.take(10).split("-"); p[2] + "/" + p[1] + "/" + p[0]
     } catch (_: Throwable) { iso }
 
-    /** "2026-09-07T18:42:03Z" → "07/09/2026 · 6.42 PM"। চেনা না গেলে যা আছে তাই। */
+    /* ⏰🔒 V1241 (০৮.০৯.২০২৬, TK-রিপোর্ট ছবিসহ, খাতার সারি ৩৬১) — TK:
+       *"রাত ১১টা ১৪-১৫ মিনিটে Accept করলাম, কিন্তু এখানে দেখাচ্ছে ৫.৪৫ PM"*।
+       🔴 **আসল কারণ (মেপে দেখা, দোষটা আমারই):** সময়টা ডেটাবেসে **UTC**-তে
+          জমা হয় (`...THH:mm:ssZ` — TK-র লক করা নিয়ম, ছোঁয়া হয়নি), কিন্তু
+          দেখানোর সময় ওই ঘণ্টাটাই **সোজা ছাপা হত**, ভারতীয় সময়ে বদলানো হত না।
+          ভারত UTC-র চেয়ে ৫ ঘণ্টা ৩০ মিনিট এগিয়ে ⇒ ১১.১৫ PM লেখা হত ৫.৪৫ PM।
+       ⇒ এখন সময়টা ভারতীয় সময়ে বদলে দেখানো হয়। ⛔ **জমা থাকা লেখাটা এক
+         অক্ষরও বদলায়নি** — শুধু পর্দায় পড়াটা ঠিক হলো; তাই পুরনো সব সারিও
+         এখন থেকে সঠিক সময় দেখাবে। */
+    /** "2026-09-07T18:42:03Z" → ভারতীয় সময়ে "08/09/2026 · 12.12 AM"। */
     private fun stamp(raw: String): String {
         val t = raw.trim()
         if (t.length < 10) return ""
+        if (t.length >= 19 && t.endsWith("Z")) {
+            try {
+                val inFmt = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US)
+                inFmt.timeZone = java.util.TimeZone.getTimeZone("UTC")
+                val outFmt = java.text.SimpleDateFormat("dd/MM/yyyy'  ·  'h.mm a", java.util.Locale.US)
+                outFmt.timeZone = java.util.TimeZone.getTimeZone("Asia/Kolkata")
+                val parsed = inFmt.parse(t)
+                if (parsed != null) return outFmt.format(parsed)
+            } catch (_: Throwable) { }
+        }
         val d = dmy(t)
         if (t.length < 16) return d
         return try {
@@ -644,7 +663,8 @@ class DoctorReminderActivity : AppCompatActivity() {
                 }, c.get(java.util.Calendar.HOUR_OF_DAY), c.get(java.util.Calendar.MINUTE), false).show()
             }, true)
         ))
-        sheet.addView(tv("Reminds the doctor one day before.", 11.5f, "#8B98A9").apply {
+        // 🔔 V1241 — এখন আজকের দিনের রিমাইন্ডারও বাজে, তাই লেখাটা সত্যি করা হলো।
+        sheet.addView(tv("Reminds the doctor the day before, and again at the chosen time.", 11.5f, "#8B98A9").apply {
             setPadding(dp(2), dp(8), 0, 0)
         })
 
@@ -675,7 +695,19 @@ class DoctorReminderActivity : AppCompatActivity() {
                 )
                 runOnUiThread {
                     ModuleUi.toast(this, if (ok) "Sent" else "Failed — check the network")
-                    if (ok) renderList()
+                    if (ok) {
+                        /* ⏰🔒 V1241 — পাঠানোর **সঙ্গে সঙ্গেই** বাছা সময়ের জন্য ফোনের
+                           অ্যালার্ম ঘড়ি বসে; পিছনের ১৫-মিনিটের কাজের অপেক্ষা করতে
+                           হয় না। ⛔ ব্যর্থ হলেও কিছু ভাঙে না — ওই কাজটা আগের মতোই
+                           পরে নিজে থেকে বসিয়ে নেয়। */
+                        try {
+                            if (remindTime.isNotBlank()) {
+                                val at = DoctorReminderAlarm.millisOf(remindDate, remindTime)
+                                if (at > 0L) DoctorReminderAlarm.scheduleAt(this, at)
+                            }
+                        } catch (_: Throwable) { }
+                        renderList()
+                    }
                 }
             }.start()
         }.apply {

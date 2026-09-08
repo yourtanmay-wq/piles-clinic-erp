@@ -19,6 +19,17 @@ object DoctorReminderScheduler {
 
     private const val WORK_NAME = "piles_clinic_doctor_reminder"
 
+    /** ⏰🔒 V1241 — অ্যালার্ম বাজলে **সঙ্গে সঙ্গে** একই কাজটা চালায় (অপেক্ষা নয়)।
+     *  ⛔ কাজটার ভিতরের একটাও নিয়ম বদলায়নি — শুধু কখন চলবে সেটা বদলাল। */
+    fun runNow(context: Context) {
+        val request = OneTimeWorkRequestBuilder<DoctorReminderWorker>().build()
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            WORK_NAME + "_now",
+            ExistingWorkPolicy.REPLACE,
+            request
+        )
+    }
+
     fun scheduleNext(context: Context) {
         val delay = TimeUnit.MINUTES.toMillis(DoctorReminderWorker.REPEAT_GAP_MINUTES.toLong())
         val request = OneTimeWorkRequestBuilder<DoctorReminderWorker>()
