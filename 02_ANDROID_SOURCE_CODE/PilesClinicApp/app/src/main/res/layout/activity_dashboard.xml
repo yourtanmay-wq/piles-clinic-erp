@@ -468,9 +468,6 @@
             android:columnCount="2"
             android:useDefaultMargins="false">
 
-            <!-- 🔔 V1186 (07.09.2026, TK-order): "Doctor Reminder" tile —
-                 CHECK-UP / Enquiry / Follow-up-এর হুবহু একই প্যাটার্ন। -->
-            <include android:id="@+id/tileDoctorReminder" layout="@layout/item_dashboard_tile" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="5dp" />
             <include android:id="@+id/tileEnquiry" layout="@layout/item_dashboard_tile" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="5dp" />
             <include android:id="@+id/tileFollowUp" layout="@layout/item_dashboard_tile" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="5dp" />
             <include android:id="@+id/tileRegistration" layout="@layout/item_dashboard_tile" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="5dp" />
@@ -495,6 +492,18 @@
             <include android:id="@+id/tileAppointment" layout="@layout/item_dashboard_tile" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="5dp" />
             <!-- TK-REQUESTED ADDITION (2026-07-16): Export Data tile, Master-only. -->
             <include android:id="@+id/tileExportData" layout="@layout/item_dashboard_tile" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="5dp" />
+            <!-- 🔔 V1186 (07.09.2026, TK-order): "Doctor Reminder" tile —
+                 CHECK-UP / Enquiry / Follow-up-এর হুবহু একই প্যাটার্ন।
+                 🔴🔒 V1221 (০৮.০৯.২০২৬, TK-রিপোর্ট ছবিসহ, হুবহু): *"প্রথমটা থাকতে হবে
+                 Enquiry, কিন্তু 2nd পজিশনে কেন আছে"* — **আমারই ভুল।** V1212-এ ঘরটা
+                 লুকিয়ে (GONE) ☰ মেনুতে পাঠানো হয়েছিল, কিন্তু ঘরটা তালিকার **একদম
+                 প্রথমে** বসানো ছিল। GridLayout লুকোনো ঘরের জায়গাটা ছেড়েই রাখে, তাই
+                 প্রথম সারির বাঁ দিকটা ফাঁকা পড়ে থাকত আর Enquiry ডানে সরে যেত।
+                 ⇒ ঘরটা এখন তালিকার **সবার শেষে** — লুকোনো থাকায় পর্দায় কিছুই দেখায়
+                   না, আর মাঝখানে কোনো ফাঁক থাকে না; Enquiry আগের মতোই প্রথমে।
+                 ⛔ ঘরের সেটআপ (role · রং · ক্লিক) এক অক্ষরও বদলায়নি — শুধু জায়গা।
+                 ⛔ বাকি কোনো ঘরের ক্রম ছোঁয়া হয়নি। -->
+            <include android:id="@+id/tileDoctorReminder" layout="@layout/item_dashboard_tile" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_columnWeight="1" android:layout_gravity="fill_horizontal" android:layout_margin="5dp" />
         </GridLayout>
 
         <TextView
