@@ -24383,10 +24383,17 @@ function wlv1CloseReview(rows){
      ওষুধ ও স্যালাইন বিক্রির টাকাও ড্রয়ারের সত্যিকারের টাকা, তাই
      "CASH TO HAND OVER"-এ সেটাও যোগ হয় (অনলাইনের ভাগ আগের মতোই
      "came to you directly" লাইনে)। ফোনের cbHoApplySale()-এর হুবহু যমজ।
+     💵🔒 V1237 (TK-এর সরাসরি অনুমতি — "হ্যাঁ যোগ করুন"): **ভিজিট/রেজিস্ট্রেশন
+     ফি-র ক্যাশও** যোগ হলো। 🐞 এটা আমারই পুরনো দোষ — V1038-এ হ্যান্ডওভার
+     "শুধু ক্যাশ" করার সময় `cashTotal` ধরা হয়েছিল, অথচ ফি-র টাকা আলাদা ঘরে
+     (feeCash) থাকে, তাই কাউন্টারে থাকা ফি-র ক্যাশটা হিসাবের বাইরে পড়ে
+     গিয়েছিল। TK-র নিয়ম কখনোই "ফি বাদ" ছিল না — নিয়ম ছিল "অনলাইন বাদ"।
      ⛔ TK-এর V1037/V1038-এর নিয়ম অটুট — হ্যান্ডওভার এখনো শুধু ক্যাশ।
-     ⛔ বিক্রি না থাকলে প্রতিটা অঙ্ক হুবহু আগের মতোই। */
-  try{ window.__wlv1MhTot={fees:__fT,cash:__cT+__msC,online:__oT+__msO,refund:__rT,
-       grand:__fT+__cT+__msC+__oT+__msO-__rT} }catch(_e){}
+     ⛔ `fees` ঘরটা (feesTotal) আগের মতোই দিনের পুরো ফি — ছোঁয়া হয়নি; কোথাও
+        fees আর cash একসাথে যোগ হয় না (হ্যান্ডওভার সবসময় শুধু cashTotal পড়ে)।
+     ⛔ বিক্রি বা ফি না থাকলে প্রতিটা অঙ্ক হুবহু আগের মতোই। */
+  try{ window.__wlv1MhTot={fees:__fT,cash:__cT+__fC+__msC,online:__oT+__fO+__msO,refund:__rT,
+       grand:__cT+__fC+__msC+__oT+__fO+__msO-__rT} }catch(_e){}
   modal(`<h2>REVIEW — ${__arrivedN} arrived</h2>
     <div class="wlv1CbRevSum">${wlv1CbSheetHtml(__cT,__oT,__fC,__fO,__msC,__msO,__rT)}</div>
     <div class="wlv1CbRevWrap">${list}</div>

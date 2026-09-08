@@ -3267,12 +3267,22 @@ Thread {
     private var cbMedicineSaleCash: Double = 0.0
     private var cbMedicineSaleOnline: Double = 0.0
 
-    /** 💵🔒 V1236 — বিক্রির টাকা ধরে "MONEY HANDOVER"-এর ঘরগুলো বসায়।
-     *  ⛔ Fees ও Refund-এর ঘর ছোঁয়া হয় না; মোটটা REVIEW-এর GRAND TOTAL-এর সমান। */
+    /* 💵🔒 V1236/V1237 — "MONEY HANDOVER"-এর ঘরগুলো বসায়।
+       V1236 (TK: *"হ্যাঁ যোগ করুন"*): ওষুধ/স্যালাইন বিক্রির টাকা ক্যাশে যোগ হলো।
+       V1237 (TK: *"হ্যাঁ যোগ করুন"*): **ভিজিট/রেজিস্ট্রেশন ফি-র ক্যাশও** যোগ হলো।
+       🐞 এটা আমারই পুরনো দোষ: V1038-এ যখন হ্যান্ডওভার "শুধু ক্যাশ" করা হয়েছিল,
+          তখন `cashTotal` ধরা হয়েছিল — অথচ ফি-র টাকাটা আলাদা ঘরে (`feesCash`)
+          থাকে, তাই কাউন্টারে থাকা ফি-র ক্যাশটা হিসাবের বাইরে পড়ে গিয়েছিল।
+          TK-র নিয়ম কখনোই "ফি বাদ" ছিল না — নিয়ম ছিল "অনলাইন বাদ, শুধু ক্যাশ"।
+       ⛔ TK-র V1037/V1038-এর নিয়ম অটুট — এখনো শুধু ক্যাশ, অনলাইন আলাদা লাইনে।
+       ⛔ `cbHoFees` (সারিতে জমা হওয়া feesTotal ঘর) আগের মতোই দিনের পুরো ফি —
+          ছোঁয়া হয়নি; কোথাও fees আর cash একসাথে যোগ হয় না (যাচাই করা হয়েছে:
+          ফোন ও কম্পিউটার দুই জায়গাতেই হ্যান্ডওভার শুধু `cashTotal` পড়ে)।
+       ⛔ মোটটা REVIEW-এর GRAND TOTAL-এর সমান (Collection + Fees + Medicine − Refund)। */
     private fun cbHoApplySale() {
         cbHoCash = cbHoBaseCash + cbMedicineSaleCash
         cbHoOnline = cbHoBaseOnline + cbMedicineSaleOnline
-        cbHoTotal = cbHoFees + cbHoCash + cbHoOnline - cbHoRefund
+        cbHoTotal = cbHoCash + cbHoOnline - cbHoRefund
     }
     private var cbHoBaseCash = 0.0
     private var cbHoBaseOnline = 0.0
@@ -3378,7 +3388,9 @@ Thread {
            ⛔ TK-এর V1037/V1038-এর নিয়ম অটুট — হ্যান্ডওভার এখনো **শুধু ক্যাশ**।
            ⛔ বিক্রি না থাকলে (বা ডাক ব্যর্থ হলে) প্রতিটা অঙ্ক হুবহু আগের মতোই। */
         cbHoFees = cbFeesTotal; cbHoRefund = cbRefundTotal
-        cbHoBaseCash = cbCashTotal; cbHoBaseOnline = cbOnlineTotal
+        // 💵 V1237 — ফি-র ক্যাশ/অনলাইনও ভিত্তিতে ধরা হয় (উপরের ব্যাখ্যা দেখুন)।
+        cbHoBaseCash = cbCashTotal + cbFeesCash
+        cbHoBaseOnline = cbOnlineTotal + cbFeesOnline
         cbHoApplySale()
         list.addView(android.widget.TextView(this).apply {
             text = "REVIEW — ${arrivedOnly.size} arrived"   // 🔴🔒 V709 — রিফান্ড এখানে গোনা হয় না
