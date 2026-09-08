@@ -1279,7 +1279,15 @@ class FollowUpRepository(private val context: Context? = null) {
                            ⛔ নিচে `closedInquiryMobiles` বানানোর সময় **status মিলিয়ে**
                               নেওয়া হয়, তাই "আর ফোন নয়" সারি ভুল করে *Reject* হিসেবে
                               গোনা হয় না — পুরনো আচরণ এক অক্ষরও বদলায়নি। */
+                        /* 🛡️🔒 V1246 — **নিরাপত্তা:** `noMoreCalls` ঘরটা ডেটাবেসে
+                           না থাকলে (V1206-এর SQL না চালানো থাকলে) এই চওড়া ছাঁকনি
+                           ব্যর্থ হত ⇒ উত্তর `null` ⇒ নিচের এনকোয়ারি-জাল **পুরোটাই বন্ধ**
+                           হয়ে যেত, নতুন এনকোয়ারিও দেখা যেত না। তাই ব্যর্থ হলে
+                           সঙ্গে সঙ্গে **পুরনো সরু ছাঁকনিতেই** ফিরে যাওয়া হয় —
+                           তখন আচরণ হুবহু V1244-এর মতো, কিছুই ভাঙে না।
+                           ⛔ সফল হলে (SQL চালানো থাকলে) আগের মতোই দুরকম সারি আসে। */
                         slimFollowups("stage=eq.Inquiry&or=(status.in.(Cancelled,Incomplete,Rejected,Closed),noMoreCalls.is.true)")
+                            ?: slimFollowups("stage=eq.Inquiry&status=in.(Cancelled,Incomplete,Rejected,Closed)")
                     }
                 }
                 jobs += async(Dispatchers.IO) {

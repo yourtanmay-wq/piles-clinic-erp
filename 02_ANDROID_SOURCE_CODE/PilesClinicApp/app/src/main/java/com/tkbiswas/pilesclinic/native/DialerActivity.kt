@@ -490,7 +490,7 @@ class DialerActivity : AppCompatActivity() {
         outer.setOnLongClickListener { showCallLongPressMenu(digits, matched); true }
         outer.setOnClickListener {
             CallChooser.open(this, digits)
-            DialerRepository.logDialedCall(this, digits, user.mobile, user.name, user.branch)
+            // 📞 V1246 — ইতিহাসের সারিটা এখন CallChooser নিজেই লেখে (সব পর্দার জন্য এক নিয়ম)।
             // 🟢🔒 V605 (২৪.০৮.২০২৬, TK-নির্দেশ ৩ — "কল চলাকালীন ও কল
             // শেষে দুটোতেই, Outgoing-ও") — অ্যাপের নিজের Call বোতাম থেকে
             // ডায়াল করার মুহূর্তেই নম্বর জানা থাকে, তাই এখানেই শুরু করা
@@ -653,7 +653,7 @@ class DialerActivity : AppCompatActivity() {
         callIcon.addView(callGlyph)
         callIcon.setOnClickListener {
             CallChooser.open(this, digits)
-            DialerRepository.logDialedCall(this, digits, user.mobile, user.name, user.branch)
+            // 📞 V1246 — ইতিহাসের সারিটা এখন CallChooser নিজেই লেখে (সব পর্দার জন্য এক নিয়ম)।
             // 🟢🔒 V605 — Contacts ট্যাব থেকে কল করলেও একই নোটিফিকেশন।
             val matched = DialerRepository.MatchedContact(
                 id = item.id, name = item.name, mobile = digits, branch = item.branch,
@@ -812,7 +812,7 @@ class DialerActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             CallChooser.open(this, digits)
-            DialerRepository.logDialedCall(this, digits, user.mobile, user.name, user.branch)
+            // 📞 V1246 — ইতিহাসের সারিটা এখন CallChooser নিজেই লেখে (সব পর্দার জন্য এক নিয়ম)।
             // 🟢🔒 V605 — কিপ্যাড থেকে হাতে নম্বর টাইপ করে কল করলেও একই
             // নোটিফিকেশন; এই নম্বরটা আগে থেকে মেলানো ছিল না, তাই এখানেই
             // (হালকা, ছোট ১-নম্বরের) মেলানো হচ্ছে — CallNotifyManager
