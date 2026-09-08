@@ -8263,7 +8263,25 @@ function wlv1YrScreen(rows, branchLabel){
         (x.__skip?'Undo':'Remove')+'</button></div>';   /* V884 — শুধু লেখা */
   }).join('') : '<div class="tiny mut">'+(rows.length?'Nothing in this filter.':'No registration in this year.')+'</div>';
 
+  /* 📊🔒 V1208 (০৮.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — TK: *"এটা আমি গুগল শিট
+     ডাউনলোড করতে চাই, কেন অপশন নেই?"*। ফোনের "⬇ Sheet"-এর হুবহু যমজ; পর্দার
+     চালু ফিল্টারের সারিগুলোই যায়, তাই পর্দা ও শিট কখনো আলাদা হয় না। */
+  window.__yrSheetRows = shown.map(function(x){
+    return { date:(x.__reg?fmtDate(x.__reg):''), name:String(x.name||''),
+      mobile:String(x.mobile||'').replace(/\D/g,'').slice(-10),
+      branch:String(x.branch||branchLabel||''), disease:String(x.disease||x.diagnosis||''),
+      code:String(x.__code||''),
+      status:(x.__skip?'Removed':(String(x.__tag||'')||'Counted')),
+      /* 👤 V1208 — কে রেজিস্ট্রেশন করেছে: ফোনের `DraftRepository`-র হুবহু একই
+         নিয়ম (`registeredBy` না থাকলে `createdBy`), তারপর প্রমাণিত `codeName()`। */
+      by:(function(){ try{ return codeName(String(x.registeredBy||x.createdBy||'')); }catch(_e){ return ''; } })() };
+  });
+  window.__yrSheetName = 'YEARLY_REGISTRATION_'
+    + String(branchLabel||'All').toUpperCase().replace(/[^A-Z0-9]+/g,'_').replace(/^_|_$/g,'')
+    + '_' + year + '_' + wlv1Dot(today()).replace(/\//g,'-') + '.csv';
+
   page('Yearly Registration',
+    '<div class="actions" style="justify-content:flex-end"><button class="ghost" onclick="wlv1YrSheet()">⬇ Sheet</button></div>'+
     '<div class="tiny mut">'+esc((branchLabel||'All')+' · '+year)+'</div>'+
     '<div class="wlv1YrBig">'+total+'</div>'+
     excLine+
@@ -8272,6 +8290,28 @@ function wlv1YrScreen(rows, branchLabel){
     /* 🔤 V852 — TK: "Patients লিখেছেন কেন, এতে বিভ্রান্ত হয়ে যাচ্ছি" */
     '<h3 class="wlv1YrH">Registered</h3>'+selBar+list, true);
 }
+
+/* 📊 V1208 — CSV বানিয়ে ডাউনলোড। ⛔ প্রকল্পের নিজের প্রমাণিত পথ (Blob + a.download),
+   শুরুতে UTF-8 চিহ্ন যাতে Excel/Sheets-এ বাংলা ভাঙে না। */
+function wlv1YrSheet(){
+  try{
+    var rows=window.__yrSheetRows||[];
+    if(!rows.length){ toast('Nothing to download — the list is empty'); return; }
+    function c(v){ var t=String(v==null?'':v).replace(/[\r\n]+/g,' ').trim();
+      return (t.indexOf(',')>=0||t.indexOf('"')>=0)?('"'+t.replace(/"/g,'""')+'"'):t; }
+    var lines=[['SL','DATE','NAME','MOBILE','BRANCH','DISEASE','PATIENT ID','STATUS','REGISTERED BY'].join(',')];
+    rows.forEach(function(r,i){
+      lines.push([i+1,r.date,r.name,r.mobile,r.branch,r.disease,r.code,r.status,r.by].map(c).join(','));
+    });
+    var blob=new Blob(['\uFEFF'+lines.join('\r\n')],{type:'text/csv;charset=utf-8;'});
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=window.__yrSheetName||'YEARLY_REGISTRATION.csv';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ try{ URL.revokeObjectURL(a.href); a.remove(); }catch(_e){} },1500);
+  }catch(e){ try{ toast('Could not make the sheet'); }catch(_e){} }
+}
+window["wlv1YrSheet"]=wlv1YrSheet;
 
 function draffHome(tab='home'){
  /* 🔴🔒 V912 (৩১.০৮.২০২৬, TK-নির্দেশ — বাকি ধাপগুলো চালিয়ে যাওয়া)।

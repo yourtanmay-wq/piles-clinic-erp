@@ -139,8 +139,77 @@ class YearlyRegistrationActivity : AppCompatActivity() {
             textSize = 17f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(android.graphics.Color.WHITE)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        })
+        /* 📊🔒 V1208 (০৮.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — TK: *"এটা আমি
+           গুগল শিট ডাউনলোড করতে চাই, কেন অপশন নেই?"*
+           ⇒ উপরে ডানে "⬇ Sheet" — চাপলে CSV বানিয়ে শেয়ার/সেভের পর্দা খোলে
+             (Draft তালিকার **প্রমাণিত পথটাই**, নতুন কিছু বানানো হয়নি)।
+           ⛔ পর্দার চালু ফিল্টারের সারিগুলোই যায় — পর্দা ও শিট কখনো আলাদা নয়। */
+        bar.addView(TextView(this).apply {
+            text = "⬇ Sheet"
+            textSize = 12.5f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.WHITE)
+            setPadding(px(12), px(5), px(12), px(5))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = 10f * d()
+                setColor(android.graphics.Color.parseColor("#26FFFFFF"))
+                setStroke(px(1), android.graphics.Color.parseColor("#A6FFFFFF"))
+            }
+            isClickable = true; isFocusable = true
+            setOnClickListener { downloadSheet() }
         })
         return bar
+    }
+
+    /* 📊 V1208 — শিট বানিয়ে শেয়ার। ⛔ `DraftListActivity.downloadSheet()`-এর
+       হুবহু একই পথ (FileProvider + ACTION_SEND), তাই নতুন কোনো ঝুঁকি নেই। */
+    @Volatile private var sheetBusy = false
+
+    private fun downloadSheet() {
+        if (sheetBusy) return
+        val shown = rows.filter { visibleIn(it) }
+        if (shown.isEmpty()) {
+            android.widget.Toast.makeText(this, "Nothing to download — the list is empty",
+                android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        sheetBusy = true
+        android.widget.Toast.makeText(this, "Preparing sheet…", android.widget.Toast.LENGTH_SHORT).show()
+        val br = branch.ifBlank { "All" }
+        val yr = year
+        val act = this
+        Thread {
+            val file = try { YearlyRegistrationSheetExporter.write(this, br, yr, shown) }
+            catch (_: Throwable) { null }
+            runOnUiThread {
+                sheetBusy = false
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (file == null || !file.exists()) {
+                    android.widget.Toast.makeText(this, "Could not make the sheet — please try again",
+                        android.widget.Toast.LENGTH_LONG).show()
+                    return@runOnUiThread
+                }
+                try {
+                    /* 📊 V1208 — FileProvider-এর নাম `AndroidManifest.xml`-এ যা বসানো
+                       আছে হুবহু তাই (`applicationId` + ".fileprovider")। */
+                    val uri = androidx.core.content.FileProvider.getUriForFile(
+                        act, com.tkbiswas.pilesclinic.BuildConfig.APPLICATION_ID + ".fileprovider", file)
+                    val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                        type = "text/csv"
+                        putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                        putExtra(android.content.Intent.EXTRA_SUBJECT, file.name)
+                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    startActivity(android.content.Intent.createChooser(send, "Save / Send sheet"))
+                } catch (_: Throwable) {
+                    android.widget.Toast.makeText(this,
+                        "Sheet made, but this phone could not open the share window",
+                        android.widget.Toast.LENGTH_LONG).show()
+                }
+            }
+        }.start()
     }
 
     private fun label(text: String, size: Float, color: String, bold: Boolean = false): TextView =
