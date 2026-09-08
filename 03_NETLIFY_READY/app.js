@@ -22087,16 +22087,14 @@ window["wlv1PaymentCloudPull"]=wlv1PaymentCloudPull;
    তালিকা খোলে (ফোনে এটা আলাদা পর্দা — ExpectedTomorrowActivity)।
    ⛔ নতুন কিছু হিসাব করা হয় না — চেম্বারের তারিখটা এক দিন এগিয়ে দিয়ে
       "আসার কথা" ছাঁকনি বসানো হয়, তাই সংখ্যাটা বাক্সের সংখ্যার সঙ্গে মেলে। */
-function wlv1ExpectedTomorrow(){
-  try{
-    const d = new Date(wlv1ChamberDate+'T00:00:00');
-    d.setDate(d.getDate()+1);
-    wlv1ChamberDate = d.toISOString().slice(0,10);
-    wlv1ChamberFilter = 'expected';
-    chamberAttendance();
-  }catch(e){ toast('Could not open tomorrow\'s list'); }
-}
-window["wlv1ExpectedTomorrow"]=wlv1ExpectedTomorrow;
+/* 🐞🔒 V1239 — এখানে `wlv1ExpectedTomorrow` নামে একটা সংস্করণ ছিল যা
+   চেম্বারের তারিখটা এক দিন এগিয়ে দিয়ে বোর্ডেই "আসার কথা" ছাঁকনি বসাত।
+   কিন্তু **ঠিক সেই নামে** নিচে আরেকটা সংস্করণ আছে যা ফোনের
+   `ExpectedTomorrowActivity`-র মতো **আলাদা পর্দা** খোলে — আর শেষেরটাই
+   জেতে বলে এতদিন কার্যত ওটাই চলে আসছে (মেনুর টাইল ও চেম্বারের নীল ঘর,
+   দুটোতেই)। এই উপরেরটা কখনো চলতই না।
+   ⇒ নকল নামটা তুলে দেওয়া হলো। ⛔ পর্দায় **এক পিক্সেলও বদলায়নি** — যা চলত
+     তাই চলছে; শুধু একই নামে দুটো থাকার ফাঁদটা আর রইল না। */
 
 /* 🔴 V430 — স্টাফ/ডাক্তার বন্ধ চেম্বার খোলার **অনুরোধ** পাঠান, Master অনুমোদন
    দিলে তবেই খোলে (TK-এর ০৭.০৮.২০২৬-এর সিদ্ধান্ত, ফোনে অনেকদিন ধরেই আছে)।
@@ -23881,7 +23879,12 @@ window["wlv1LoadApprovals"]=wlv1LoadApprovals;
    as its own .csv file, which is what the phone app also produces.
    Read only . nothing is written or changed anywhere.
    ========================================================================== */
-function wlv1CsvCell(v){
+/* 🐞🔒 V1239 — এই ফাংশনটার নাম ছিল `wlv1CsvCell`, অথচ নিচে **ঠিক সেই
+   নামে** আরেকটা (সরল) সংস্করণ আছে — তাই নিচেরটাই জিতত, আর Export Data-র
+   ফাইলে ফাঁকা ঘরে `null`/`undefined` আর জটিল ঘরে `[object Object]` লেখা যেত।
+   ⇒ নাম বদলে `wlv1CsvCellAny` করা হলো, তাই Export আবার নিজের সংস্করণটাই পায়।
+   ⛔ নিচের সরল `wlv1CsvCell` ও তার ব্যবহারকারী এক অক্ষরও বদলায়নি। */
+function wlv1CsvCellAny(v){
   if(v===null||v===undefined) return '';
   let s = (typeof v==='object') ? JSON.stringify(v) : String(v);
   s = s.replace(/"/g,'""');
@@ -23891,7 +23894,7 @@ function wlv1CsvOf(rows){
   if(!rows.length) return '';
   const cols = [...rows.reduce((set,r)=>{Object.keys(r||{}).forEach(k=>set.add(k));return set;}, new Set())];
   return cols.join(',') + '\n' +
-    rows.map(r=>cols.map(c=>wlv1CsvCell(r ? r[c] : '')).join(',')).join('\n');
+    rows.map(r=>cols.map(c=>wlv1CsvCellAny(r ? r[c] : '')).join(',')).join('\n');
 }
 window["wlv1CsvOf"]=wlv1CsvOf;
 function wlv1ExportScreen(){
@@ -26135,7 +26138,9 @@ window["wlv1RefundAutoApprove"]=wlv1RefundAutoApprove;
  *  হুবহু নিয়ম; Java String.hashCode মিলিয়ে দুই প্ল্যাটফর্মে একই id)। একই রোগী+টাকা+
  *  কারণ+আজকের তারিখ+যিনি করলেন → একই id, তাই cloud-এ না গিয়ে আবার চাপলে upsert
  *  পুরোনো row-ই overwrite করে — দ্বিতীয় Refund তৈরি হয় না। */
-function wlv1JavaHash(s){ var h=0; for(var i=0;i<s.length;i++){ h=(Math.imul(31,h)+s.charCodeAt(i))|0; } return h; }
+/* 🐞 V1239 — এখানে `wlv1JavaHash` প্রথমবার লেখা ছিল, কিন্তু নিচে হুবহু
+   একই কাজের আরেকটা আছে ও সেটাই জিতত। নকলটা তুলে দেওয়া হলো —
+   ⛔ আচরণ এক চুলও বদলায়নি (এতদিনও নিচেরটাই চলত)। */
 function wlv1RefundIdFor(p,amt,reason,req,nonce){
   var mob=String((p&&p.mobile)||'').replace(/\D/g,'').slice(-10);
   var amtCents=Math.round(Number(amt||0)*100);
@@ -28239,13 +28244,26 @@ window["wlv1NoBnFix"]=wlv1NoBnFix;window["wlv1NoBnSweep"]=wlv1NoBnSweep;window["
 /* ── 📩 ডাক্তারকে চারটে বার্তা (ফোনের `DoctorMessage.kt`-এর হুবহু লেখা) ──
    ⛔ TK নিজে এক এক করে ফাইনাল করেছেন (খাতার সারি B157) — একটা শব্দও
       বদলানো যাবে না। কিশানগঞ্জে হিন্দি/বাংলা বাছাই (সারি B159)। */
-function wlv1DocHead(br,hi){var b=wlv1BranchInfo(br);return b.clinic+'\n'+b.address+'\n'+(hi?'फ़ोन: ':'ফোন: ')+b.phone}
+/* 🐞🔒 V1239 (০৮.০৯.২০২৬, TK-এর পাশ — *"সারিয়ে দিন সাবধানে"*)
+   এই ফাংশনটার নাম ছিল `wlv1DocHead` — কিন্তু **ঠিক সেই নামেই** আরও উপরে
+   (ডাক্তারকে বার্তা পাঠানোর পপ-আপে) সম্পূর্ণ আলাদা কাজের আরেকটা ফাংশন আছে।
+   JavaScript-এ একই নামে দুটো থাকলে **শেষেরটাই জেতে** — তাই এই ছাপার
+   ফাংশনটা উপরের পপ-আপেরটাকে চাপা দিয়ে দিত, আর ৫টা পপ-আপের শিরোনামে
+   *"Choose Patient / Send Message"*-এর বদলে ক্লিনিকের নাম-ঠিকানা-ফোন বসত।
+   ⇒ এখানকার নাম বদলে `wlv1DocLetterHead` করা হলো (এই ফাংশনের কাজ ও
+   এর একমাত্র ব্যবহারকারী এক অক্ষরও বদলায়নি), তাই উপরের পপ-আপগুলো আবার
+   নিজেদের শিরোনাম ফিরে পেল।
+   ⛔ styles.css-এর `.wlv1DocHead` **ক্লাসটা** আলাদা জিনিস — ছোঁয়া হয়নি। */
+function wlv1DocLetterHead(br,hi){var b=wlv1BranchInfo(br);return b.clinic+'\n'+b.address+'\n'+(hi?'फ़ोन: ':'ফোন: ')+b.phone}
 function wlv1DocFoot(br,hi){var b=wlv1BranchInfo(br);return (hi?'सादर,':'সবিনয়ে,')+'\nTK BISWAS\nFounder & Consultant\n'+b.clinic+' · '+b.name}
-function wlv1DocName(n,m){var t=String(n||'').trim();return (t?t:String(m||'').trim()).toUpperCase()}
+/* 🐞 V1239 — এখানে হুবহু একই কাজের `wlv1DocName` দ্বিতীয়বার লেখা ছিল
+   (উপরে আগেই আছে, অক্ষরে অক্ষরে এক)। নাম দুবার থাকা মানেই ভবিষ্যতে একটা
+   বদলালে অন্যটা চুপচাপ জিতে যাওয়ার ফাঁদ — তাই এই নকলটা তুলে দেওয়া হলো।
+   ⛔ আচরণ এক চুলও বদলায়নি; নিচের ব্যবহার আগের ফাংশনটাই পায়। */
 function wlv1DocMsg(kind,br,dr,drMob,pt,ptMob,dateText,hi,o){
   o=o||{};
   var D=wlv1DocName(dr,drMob),P=wlv1DocName(pt,ptMob),s='';
-  s+=wlv1DocHead(br,hi)+'\n\n'+(hi?'आदरणीय Dr. ':'শ্রদ্ধেয় Dr. ')+D+',\n\n';
+  s+=wlv1DocLetterHead(br,hi)+'\n\n'+(hi?'आदरणीय Dr. ':'শ্রদ্ধেয় Dr. ')+D+',\n\n';
   if(kind==='intro'){
     s+=hi?'आज हमारे क्लिनिक की ओर से आपसे बात हुई। समय देने के लिए Thank you सर। हमारे क्लिनिक का परिचय आपको दे रहे हैं।\n\nहमारा इलाज\nPiles · Fissure · Fistula · Hydrocele · Gupt Rog\n\nहमारी विशेषता\nआयुर्वेद की Kshar Sutra पद्धति से बिना ऑपरेशन इलाज। मरीज़ को भर्ती रखने की ज़रूरत नहीं, खर्च आपकी पहुँच में। अनुभवी डॉक्टर की निगरानी में इलाज होता है और हर मरीज़ के ठीक होने तक नियमित follow-up रखा जाता है — इस रोग के इलाज में इस क्षेत्र में हम ही सबसे भरोसेमंद नाम हैं।\n\nReferral\nआपके भेजे हर मरीज़ के लिए हम सही referral income पूरे हिसाब के साथ, समय पर देते हैं।\n\nनिवेदन\nसर, आपके पास इस तरह के मरीज़ हों तो हमारे क्लिनिक में भेजने की व्यवस्था करें, हम आपके आभारी रहेंगे। आपके भेजे मरीज़ की पूरी ज़िम्मेदारी हमारी है।'
           :'আজ আমাদের ক্লিনিকের পক্ষ থেকে আপনার সঙ্গে কথা হলো। সময় দেওয়ার জন্য Thank you স্যার। আমাদের ক্লিনিকের পরিচয় আপনাকে জানাচ্ছি।\n\nআমাদের চিকিৎসা\nPiles · Fissure · Fistula · Hydrocele · Gupt Rog\n\nআমাদের বিশেষত্ব\nআয়ুর্বেদের Kshar Sutra পদ্ধতিতে বিনা অপারেশনে চিকিৎসা। পেশেন্টকে ভর্তি রাখতে হয় না, খরচ সাধ্যের মধ্যে। অভিজ্ঞ ডাক্তারের তত্ত্বাবধানে চিকিৎসা হয় এবং প্রতিটি পেশেন্টের সুস্থ হওয়া পর্যন্ত নিয়মিত follow-up রাখা হয় — এই রোগের চিকিৎসায় এই অঞ্চলে আমরাই সবচেয়ে ভরসার নাম।\n\nReferral\nআপনার পাঠানো প্রতিটি পেশেন্টের জন্য আমরা প্রকৃত referral income সম্পূর্ণ হিসাব সহ, যথাসময়ে দিয়ে থাকি।\n\nঅনুরোধ\nস্যার, আপনার কাছে সেই ধরনের পেশেন্ট থাকলে আমাদের ক্লিনিকে পাঠানোর ব্যবস্থা করলে আমরা কৃতজ্ঞ থাকব। আপনার পাঠানো পেশেন্টের সম্পূর্ণ দায়িত্ব আমাদের।';
