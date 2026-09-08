@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 📏🔒 V1231 (০৮.০৯.২০২৬, TK-নির্দেশ ছবিসহ: *"প্রতিটা বক্সের উচ্চতা একটু কম
+     করুন"* — CHECK-UP পর্দা)। প্রতিটা সাদা বক্সের **ভিতরের ফাঁক ১৬dp → ১০dp** ও
+     **উপরের ফাঁক ১০dp → ৬dp**। ⇒ প্রতিটা বক্স প্রায় ১৬dp করে ছোট, তাই এক পর্দায়
+     বেশি দেখা যায়।
+     ⛔ বদলটা **শুধু এই ফাইলেই** — `RegCard`/`RegCardInner` স্টাইল দুটো ছোঁয়া
+        হয়নি, তাই Registration সহ বাকি সব পর্দা এক চুলও বদলায়নি।
+     ⛔ কোনো ঘর · লেখা · সেভ · ভাঁজ-খোলার নিয়ম বদলায়নি — শুধু ফাঁক। -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
@@ -406,8 +413,8 @@
          ⛔ **কোনো ঘর মোছা/যোগ করা হয়নি** — `etDoctorReminderNote`,
             `tvDoctorReminderDate`, `tvDoctorReminderTime` তিনটে id, তাদের
             hint ও লেখা হুবহু আগের। সেভের কোড এক অক্ষরও বদলায়নি। -->
-    <androidx.cardview.widget.CardView android:id="@+id/secDoctorReminder" style="@style/RegCard" app:cardBackgroundColor="#FFFFFF" android:visibility="gone">
-        <LinearLayout style="@style/RegCardInner">
+    <androidx.cardview.widget.CardView android:id="@+id/secDoctorReminder" style="@style/RegCard" android:layout_marginTop="6dp" app:cardBackgroundColor="#FFFFFF" android:visibility="gone">
+        <LinearLayout style="@style/RegCardInner" android:padding="10dp">
             <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="4dp">
                 <TextView android:id="@+id/tvDoctorReminderHeading" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="🩺" android:textSize="16sp" />
                 <TextView android:id="@+id/tvDoctorReminderHeadingText" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="7dp" android:text="Doctor Note &amp; Reminder" android:textStyle="bold" android:textSize="14sp" android:textColor="#101828" />
@@ -541,8 +548,8 @@
                  হয়েছে। ⛔ **কোনো id/hint/সেভ-লজিক বদলায়নি** — শুধু
                  প্রতিটা লেবেল+ইনপুটের চারপাশের বাক্স/আইকন/লেআউট। -->
             <!-- 🎨 (07.08.2026, প্রুফ-চেহারা, TK-অনুমোদিত) কার্ড সাদা — আগে #EAF3FF -->
-            <androidx.cardview.widget.CardView android:id="@+id/secHistory" style="@style/RegCard" app:cardBackgroundColor="#FFFFFF">
-                <LinearLayout style="@style/RegCardInner">
+            <androidx.cardview.widget.CardView android:id="@+id/secHistory" style="@style/RegCard" android:layout_marginTop="6dp" app:cardBackgroundColor="#FFFFFF">
+                <LinearLayout style="@style/RegCardInner" android:padding="10dp">
 
                     <!-- 🎨 (07.08.2026, প্রুফ-চেহারা) সেকশন-শিরোনাম (RegCardInner-এর
                          ভিতরে প্রথম সন্তান, তাই lockSection-এর getChildAt(0) অক্ষত)। -->
@@ -856,7 +863,7 @@
                  চেকবক্সে হাত দেওয়া হবে না)। id/hint/সেভ-লজিক কিছুই
                  বদলায়নি। -->
             <androidx.cardview.widget.CardView android:id="@+id/secClinical" style="@style/RegCard">
-                <LinearLayout style="@style/RegCardInner">
+                <LinearLayout style="@style/RegCardInner" android:padding="10dp">
                     <!-- 🎨 (07.08.2026, প্রুফ-চেহারা) সেকশন-শিরোনাম -->
                     <LinearLayout android:id="@+id/clinicalFoldHead" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="6dp" android:clickable="true" android:focusable="true">
                         <TextView android:layout_width="23dp" android:layout_height="23dp" android:gravity="center" android:text="2" android:textStyle="bold" android:textSize="12sp" android:textColor="#12805C" android:background="@drawable/bg_checkup_step_num" />
@@ -980,8 +987,8 @@
                  থাকেন তাহলে সেই কথা এখানে লিখুন, অন্যথায় Next চাপুন"।
                  ⛔ `etCounselling` id/সেভ-লজিক অপরিবর্তিত। -->
             <!-- 🎨 (07.08.2026, প্রুফ-চেহারা) কার্ড সাদা — আগে #F5EFFF -->
-            <androidx.cardview.widget.CardView android:id="@+id/secCounsel" style="@style/RegCard" app:cardBackgroundColor="#FFFFFF">
-                <LinearLayout style="@style/RegCardInner">
+            <androidx.cardview.widget.CardView android:id="@+id/secCounsel" style="@style/RegCard" android:layout_marginTop="6dp" app:cardBackgroundColor="#FFFFFF">
+                <LinearLayout style="@style/RegCardInner" android:padding="10dp">
                     <!-- 🎨 (07.08.2026, প্রুফ-চেহারা) সেকশন-শিরোনাম -->
                     <!-- 🟢🔒🔒 V886 (৩০.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত):
                          TK: *"মেইন পয়েন্টগুলো ফর্ম খোলা থাকবে না"* ⇒ এই ধাপটাও
@@ -1161,8 +1168,8 @@
                  (`decisionOptions.map{...}`) ছোঁয়া হয়নি। ⛔ id/hint/
                  সেভ-লজিক কিছুই বদলায়নি। -->
             <!-- 🎨 (07.08.2026, প্রুফ-চেহারা) কার্ড সাদা — আগে #EAFBF0 -->
-            <androidx.cardview.widget.CardView android:id="@+id/secEstimate" style="@style/RegCard" app:cardBackgroundColor="#FFFFFF">
-                <LinearLayout style="@style/RegCardInner">
+            <androidx.cardview.widget.CardView android:id="@+id/secEstimate" style="@style/RegCard" android:layout_marginTop="6dp" app:cardBackgroundColor="#FFFFFF">
+                <LinearLayout style="@style/RegCardInner" android:padding="10dp">
 
                     <!-- 🎨 (07.08.2026, প্রুফ-চেহারা) সেকশন-শিরোনাম -->
                     <!-- 🟢🔒🔒 V886 (৩০.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত):
@@ -1272,8 +1279,8 @@
                  ⛔ এটা **শুধু** স্টাফের কল-পর্দার Last Remark-এ যাবে —
                     চেম্বার বোর্ড বা রিপোর্ট কার্ডে **নয়** (TK-এর স্পষ্ট নির্দেশ)।
                  ⛔ "TODAY'S TREATMENT DONE"-এর ঠিক আগে, প্রুফে দেখানো জায়গাতেই। -->
-            <androidx.cardview.widget.CardView android:id="@+id/secDocRemark" style="@style/RegCard" app:cardBackgroundColor="#FFFFFF">
-                <LinearLayout style="@style/RegCardInner">
+            <androidx.cardview.widget.CardView android:id="@+id/secDocRemark" style="@style/RegCard" android:layout_marginTop="6dp" app:cardBackgroundColor="#FFFFFF">
+                <LinearLayout style="@style/RegCardInner" android:padding="10dp">
                     <!-- 📝🔒 V996 (০৩.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — TK: *"কয়েকটা
                          ফর্ম ওপেন থাকতেছে"*। এই ঘরটা ভাঁজের বাইরে ছিল বলে সবসময়
                          খোলা থাকত। এখন TODAY'S TREATMENT DONE-এর হুবহু একই ভাঁজ —
@@ -1296,8 +1303,8 @@
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
-            <androidx.cardview.widget.CardView android:id="@+id/secTodayTreat" style="@style/RegCard" app:cardBackgroundColor="#FFFFFF">
-                <LinearLayout style="@style/RegCardInner">
+            <androidx.cardview.widget.CardView android:id="@+id/secTodayTreat" style="@style/RegCard" android:layout_marginTop="6dp" app:cardBackgroundColor="#FFFFFF">
+                <LinearLayout style="@style/RegCardInner" android:padding="10dp">
 
                     <LinearLayout android:id="@+id/ttdFoldHead" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="2dp">
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="TODAY&apos;S TREATMENT DONE" android:textStyle="bold" android:textSize="14sp" android:textColor="#0B4F2A" />
@@ -1328,8 +1335,8 @@
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
-            <androidx.cardview.widget.CardView android:id="@+id/secNextVisitPlan" style="@style/RegCard" app:cardBackgroundColor="#FFFFFF">
-                <LinearLayout style="@style/RegCardInner">
+            <androidx.cardview.widget.CardView android:id="@+id/secNextVisitPlan" style="@style/RegCard" android:layout_marginTop="6dp" app:cardBackgroundColor="#FFFFFF">
+                <LinearLayout style="@style/RegCardInner" android:padding="10dp">
 
                     <!-- 🟢🔒 V866 (৩০.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত):
                          *"next visit plan — এই ফর্মটা ওপেন থাকবে না"* ⇒ ধাপ ২ (V703) ও
@@ -1385,8 +1392,8 @@
                  Prescription/Medicine Slip/Blood Test/Diet) TK-এর নির্দেশে
                  অপরিবর্তিত রাখা হয়েছে। -->
             <!-- 🎨 (07.08.2026, প্রুফ-চেহারা) কার্ড সাদা — আগে #FDEEE3 -->
-            <androidx.cardview.widget.CardView android:id="@+id/secPhoto" style="@style/RegCard" app:cardBackgroundColor="#FFFFFF">
-                <LinearLayout style="@style/RegCardInner">
+            <androidx.cardview.widget.CardView android:id="@+id/secPhoto" style="@style/RegCard" android:layout_marginTop="6dp" app:cardBackgroundColor="#FFFFFF">
+                <LinearLayout style="@style/RegCardInner" android:padding="10dp">
                     <!-- 🎨 (07.08.2026, প্রুফ-চেহারা) সেকশন-শিরোনাম -->
                     <!-- 🟢 V600 (২৩.০৮.২০২৬, TK-নির্দেশ, ছবিসহ): "এখানে ফটো তোলার
                          চিহ্নগুলো হাইড থাকবে, Photo and Video-তে চাপ দিলে তবে এই
@@ -1546,7 +1553,7 @@
                     ধাপের কার্ডগুলোই কোড থেকে এর ভিতরে-বাইরে যাওয়া-আসা করে, তাই
                     `findViewById` · `lockSection` · সেভ — সব আগের মতোই চলে।
                  ⛔ শুরুতে `gone` — একটাও ধাপ ভরা না থাকলে বাক্সটা দেখাই যায় না। -->
-            <androidx.cardview.widget.CardView android:id="@+id/secSavedGroup" style="@style/RegCard" app:cardBackgroundColor="#F4F7FA" android:visibility="gone">
+            <androidx.cardview.widget.CardView android:id="@+id/secSavedGroup" style="@style/RegCard" android:layout_marginTop="6dp" app:cardBackgroundColor="#F4F7FA" android:visibility="gone">
                 <LinearLayout style="@style/RegCardInner" android:padding="10dp">
                     <LinearLayout android:id="@+id/savedGroupHead" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:clickable="true" android:focusable="true" android:gravity="center_vertical">
                         <TextView android:layout_width="23dp" android:layout_height="23dp" android:gravity="center" android:text="✓" android:textStyle="bold" android:textSize="12sp" android:textColor="#0F5132" android:background="@drawable/bg_checkup_step_num" />
