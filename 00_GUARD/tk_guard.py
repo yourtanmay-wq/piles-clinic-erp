@@ -2914,6 +2914,22 @@ _NATIVE_SIG_PATS = [
     re.compile(r"\bfun\s+\w+\s*\([^)]*" + re.escape(NATIVE_FQN)),
 ]
 
+# 🔴 V1220 (০৮.০৯.২০২৬) — এই পাহারার **ফাঁক**, TK-র Studio-তে আবার বিল্ড ভাঙায় ধরা।
+#   উপরের নিয়মগুলো শুধু **কোলন দিয়ে লেখা** ধরন দেখত (`val x: com...native.Foo`)।
+#   কিন্তু ঘরের ধরন **নিজে থেকে বুঝে নেওয়া** হলেও (কোলন ছাড়া) kapt-এর Java নকলে
+#   পুরো নামটাই বসে — যেমন V1215-এর
+#   `private val collRowsByDate = HashMap<String, MutableList<com...native.CollectionRow>>()`
+#   ⇒ নকল ভেঙে `<identifier> expected`।
+#   ⇒ তাই এখন **ক্লাসের ঘর** (ঠিক ৪ ফাঁকা দিয়ে শুরু) হলে ইনিশিয়ালাইজারও দেখা হয়,
+#     কিন্তু **শুধু দুটো সত্যিকারের বিপদে** — (১) `<…>`-এর ভিতরে native টাইপ,
+#     (২) সরাসরি `native.ClassName(` নতুন বস্তু বানানো।
+#   ⛔ `= com...native.MoneyFormat.inr(n)`-এর মতো ডাক ধরা হয় না — ওর ধরন String,
+#      ওতে বিল্ড ভাঙে না; মিথ্যা সতর্কতা দিয়ে TK-র সময় নষ্ট করা হবে না।
+_NATIVE_FIELD_PATS = [
+    re.compile(r"<[^<>]*" + re.escape(NATIVE_FQN)),
+    re.compile(re.escape(NATIVE_FQN) + r"[A-Z]\w*\s*\("),
+]
+
 
 def check_no_native_in_signature():
     if not os.path.isdir(JAVA):
@@ -2929,7 +2945,12 @@ def check_no_native_in_signature():
                 t = line.strip()
                 if NATIVE_FQN not in t or t.startswith(("//", "*", "/*")):
                     continue
-                if any(p.search(t) for p in _NATIVE_SIG_PATS):
+                hit = any(p.search(t) for p in _NATIVE_SIG_PATS)
+                # 🔴 V1220 — ক্লাসের ঘর (ঠিক ৪ ফাঁকা), ধরন নিজে থেকে বোঝা।
+                if not hit and line.startswith("    ") and not line.startswith("     "):
+                    if re.match(r"\s*(?:private |internal |protected |public )?(?:val|var)\s+\w+\s*=", line):
+                        hit = any(p.search(t) for p in _NATIVE_FIELD_PATS)
+                if hit:
                     bad.append("%s:%d  %s" % (f, n, t[:110]))
     for b in bad[:8]:
         fail("৯.৪৪",

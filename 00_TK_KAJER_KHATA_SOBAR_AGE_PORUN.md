@@ -22191,3 +22191,27 @@ Enquiry-তে TK-রই নির্দেশে (V718) বসানো হয�
 **পাহারা:** kotlin-compile ✅ · resources ✅ · forbidden-api ✅ · patterns ✅ · egress ✅ ·
 sql-function ✅ · version.json ✅ · node --check ✅ · tk_guard ✅
 সংস্করণ 1219 / 12.19
+
+---
+
+## 🔴 V1220 — Android Studio-তে বিল্ড ভাঙা সারানো (০৮.০৯.২০২৬, বিকেল)
+
+**TK-র ছবি:** `kaptDebugKotlin 5 errors · IncomeExpenseActivity.java ·
+<identifier> expected · illegal start of type` — V1219 বিল্ড হলো না।
+
+**আমারই ভুল, অজুহাত নেই।** V1215-এ ক্লাসের একটা ঘরের ধরনে
+`com.tkbiswas.pilesclinic.native.CollectionRow` বসিয়েছিলাম। kapt প্রতিটা ক্লাসের
+Java নকল বানায় ও অন্য প্যাকেজের ধরন পুরো নাম ধরে লেখে — আর `native` Java-র
+সংরক্ষিত শব্দ, তাই নকলটাই ভাঙে। ⇒ ঘরটার ধরন এখন `Any`, পড়ার সময়
+`filterIsInstance` দিয়ে ছেঁকে নেওয়া হয়।
+
+**পাহারার ফাঁকও সারানো হলো:** [৯.৪৪] এতদিন শুধু কোলন দিয়ে লেখা ধরন দেখত, নিজে
+থেকে বুঝে নেওয়া ধরন দেখত না। এখন ক্লাসের ঘরের ইনিশিয়ালাইজারও দেখে — পুরনো ভাঙা
+লাইনটা ফিরিয়ে পরীক্ষা করে দেখেছি, পাহারা ধরে।
+
+**⛔ ঝুঁকি নেই:** কোনো তথ্য · টাকার অঙ্ক · ছাঁকনি · ক্লাউড-পড়া বদলায়নি।
+V1215-এর কাজ (কালেকশনে চাপলে কার কার টাকা) হুবহু আগের মতোই চলে।
+
+**পাহারা:** kotlin-compile ✅ · resources ✅ · forbidden-api ✅ · patterns ✅ · egress ✅ ·
+sql-function ✅ · version.json ✅ · node --check ✅ · tk_guard ✅
+সংস্করণ 1220 / 12.20

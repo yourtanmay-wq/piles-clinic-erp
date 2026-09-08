@@ -380,7 +380,20 @@ class IncomeExpenseActivity : AppCompatActivity() {
        ⛔ **একটাও নতুন ক্লাউড-পড়া নেই** — হুবহু সেই একই `fetchCollectionRange()`,
           একই ছাঁকনি; শুধু যোগফলের পাশাপাশি সারিগুলোও রাখা হচ্ছে।
        ⛔ টাকার এক পয়সাও এতে বদলায় না। */
-    private val collRowsByDate = HashMap<String, MutableList<com.tkbiswas.pilesclinic.native.CollectionRow>>()
+    /* 🔴🔒 V1220 (০৮.০৯.২০২৬ — TK-র Android Studio-তে বিল্ড ভাঙল, আমারই ভুল)।
+       **আসল কারণ (মেপে পাওয়া, আন্দাজ নয়):** kapt (Room-এর জন্য চালু) প্রতিটা
+       ক্লাসের **Java stub** বানায়, আর সেখানে অন্য প্যাকেজের টাইপ পুরো নাম ধরে
+       লেখে — `com.tkbiswas.pilesclinic.native.CollectionRow`। কিন্তু `native`
+       **Java-র সংরক্ষিত শব্দ**, তাই ওই stub-টা Java হিসেবে পড়াই যায় না
+       (`<identifier> expected`)। এই ফাইলটা `modules` প্যাকেজে, তাই পুরো নামটাই
+       লিখতে হত ⇒ ভাঙত। (`native` প্যাকেজের ভিতরের ক্লাসে একই টাইপ থাকলে ছোট
+       নামেই চলে, তাই ওখানে কখনো ভাঙেনি — যেমন `PaymentActivity.kt`।)
+       ⇒ তাই ঘরটার টাইপ এখন `Any` — ভিতরে যা রাখা হয় তা হুবহু আগের সেই
+         `CollectionRow` সারিগুলোই, শুধু পড়ার সময় ছেঁকে নেওয়া হয়
+         (`filterIsInstance`, ফাংশনের ভিতরে — stub-এ যায় না)।
+       ⛔ কোনো তথ্য · টাকার অঙ্ক · ছাঁকনি · ক্লাউড-পড়া কিচ্ছু বদলায়নি।
+       ⛔ V1215-এর কাজ (কালেকশনে চাপলে কার কার টাকা) হুবহু আগের মতোই চলে। */
+    private val collRowsByDate = HashMap<String, MutableList<Any>>()
 
     private fun autoIncomeByDate(ym: String, branchSel: String): Map<String, Pair<Double, Double>> {
         val out = HashMap<String, Pair<Double, Double>>()
@@ -462,7 +475,9 @@ class IncomeExpenseActivity : AppCompatActivity() {
         dateIso: String, mode: String, row: JSONObject, rowBranch: String
     ) {
         val isCash = mode == "cash"
+        // 🔴 V1220 — ঘরটা `Any` (উপরের কারণ), তাই এখানে ছেঁকে নেওয়া হয়।
         val all = collRowsByDate[dateIso].orEmpty()
+            .filterIsInstance<com.tkbiswas.pilesclinic.native.CollectionRow>()
         val mine = all.filter { if (isCash) it.cashAmount > 0.0 else it.onlineAmount > 0.0 }
             .sortedBy { it.time }
         val total = mine.sumOf { if (isCash) it.cashAmount else it.onlineAmount }
