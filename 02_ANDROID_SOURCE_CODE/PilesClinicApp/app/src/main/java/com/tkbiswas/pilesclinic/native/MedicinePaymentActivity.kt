@@ -198,9 +198,16 @@ class MedicinePaymentActivity : AppCompatActivity() {
                 if (q.trim().length < 2) { customerSuggestions.removeAllViews(); return }
                 customerSearchJob = lifecycleScope.launch {
                     kotlinx.coroutines.delay(250)
-                    val matches = try {
+                    val found = try {
                         withContext(Dispatchers.IO) { repo.searchPatients(q) }
                     } catch (t: Throwable) { emptyList() }
+                    // 🏥🔒 V1235 (নিয়ম ৭ — একই দোষ সব জায়গায়) — Payment-এর
+                    // Search Patient-এর মতো এখানেও তালিকাটা টাকার নিয়মেই ছাঁকা হয়
+                    // (`MoneyBranchGuard`, TK-এর ২৭.০৭.২০২৬-এর নিজের নিয়ম)।
+                    // ⛔ মাস্টার আগের মতোই সবাইকে দেখেন।
+                    val matches = found.filter {
+                        MoneyBranchGuard.canTakeMoney(this@MedicinePaymentActivity, it.branch, it.patientId)
+                    }
                     customerSuggestions.removeAllViews()
                     val density = resources.displayMetrics.density
                     fun dp(v: Int) = (v * density).toInt()

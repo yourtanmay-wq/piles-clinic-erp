@@ -3257,6 +3257,15 @@ Thread {
           TK-এর নিজের সিদ্ধান্ত: এই টাকা চেম্বারের মোটে যোগ হবে না)।
        ⛔ বিক্রি না থাকলে লাইনটাই বসে না · ডাক ব্যর্থ হলে পর্দা হুবহু আগের মতো। */
     private var cbMedicineSaleTotal: Double = 0.0
+    /* 🟦🔒 V1235 (০৮.০৯.২০২৬, TK-নির্দেশ + ফটো-প্রুফ পাশ, হুবহু): *"Fees 400/- আর
+       cash 32500 এই দুটো যোগ হয়ে আগে বসুক 32900; কেউ অনলাইন Fees দিলে সেই দুটো
+       আলাদা বসুক; মেডিসিনের টাকা ক্যাশ হোক বা অনলাইন — ক্যাশের সাথে যুক্ত হবে
+       ও অনলাইনের সাথে যুক্ত হবে; তারপর গ্রান্ড টোটাল হবে"*।
+       ⇒ তাই বিক্রির টাকাটা এখন Cash/Online আলাদা করে ধরা হয়।
+       ⛔ এটা TK-এর নিজের আগের সিদ্ধান্ত (V805/V959 — "বিক্রির টাকা চেম্বারের
+          মোটে যোগ হবে না") তিনি নিজেই বদলেছেন, ছবি দেখে অনুমোদন করেছেন। */
+    private var cbMedicineSaleCash: Double = 0.0
+    private var cbMedicineSaleOnline: Double = 0.0
     private var cbLastCommRows: List<RmpCommissionRepository.DayCommissionRow> = emptyList()
     private var cbLastPaidRows: List<RmpCommissionRepository.DayPaidRow> = emptyList()
 
@@ -3304,6 +3313,7 @@ Thread {
         cbDayPaidTotal = 0.0
         cbDayCommissionByRmp = emptyList()
         cbMedicineSaleTotal = 0.0            // 🟩 V959
+        cbMedicineSaleCash = 0.0; cbMedicineSaleOnline = 0.0   // 🟦 V1235
         cbLastCommRows = emptyList()         // 🟩 V959
         cbLastPaidRows = emptyList()         // 🟩 V959
         val arrivedOnly = board.rows.filter { it.arrived }
@@ -3335,7 +3345,9 @@ Thread {
         //    ⛔ সংখ্যাগুলো নিচের গ্রিডের **ঠিক সেই একই ঘর** থেকেই যোগ হয়
         //       (FEES = feesCash+feesOnline · CASH = paymentCash · ONLINE =
         //       paymentOnline), তাই পর্দার সারি আর উপরের মোট কখনো আলাদা হবে না।
-        val cbFeesTotal = arrived.sumOf { it.feesCash + it.feesOnline }
+        val cbFeesCash = arrived.sumOf { it.feesCash }          // 🟦 V1235
+        val cbFeesOnline = arrived.sumOf { it.feesOnline }      // 🟦 V1235
+        val cbFeesTotal = cbFeesCash + cbFeesOnline
         /* 🔴🔒 V709 — Cash/Online এখন **রিফান্ড বাদ দেওয়ার আগের** অঙ্ক দেখায়
            (`paymentCash` থেকে রিফান্ড আগেই বিয়োগ হয়ে আছে, তাই আবার যোগ করে
            নেওয়া হলো), আর রিফান্ডটা নিজের আলাদা লাইনে লাল রঙে বিয়োগ হয় —
@@ -3378,6 +3390,43 @@ Thread {
                 })
                 setPadding(0, dp(2), 0, dp(2))
             }
+        /* 🟦🔒 V1235 (০৮.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — REVIEW-এর টাকার
+           ঘরটা এখন গুগল-শিটের মতো: সারি Cash · Online · TOTAL, কলাম
+           COLLECTION · FEES · MEDICINE · TOTAL। নিচের দুটো সহায়ক শুধু ওই ঘর
+           আঁকে — কোনো হিসাব করে না। */
+        fun cbSheetCell(txt: String, size: Float, bold: Boolean, colorHex: String,
+                        weight: Float, right: Boolean): android.widget.TextView =
+            android.widget.TextView(this).apply {
+                text = txt; textSize = size
+                if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor(colorHex))
+                gravity = if (right) android.view.Gravity.END else android.view.Gravity.START
+                maxLines = 1
+                setPadding(dp(3), dp(5), dp(3), dp(5))
+                layoutParams = android.widget.LinearLayout.LayoutParams(
+                    0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, weight)
+            }
+        fun cbSheetRow(label: String, a1: String, a2: String, a3: String, a4: String,
+                       size: Float, bold: Boolean, colorHex: String, lastHex: String,
+                       bgHex: String): android.widget.LinearLayout =
+            android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                if (bgHex.isNotEmpty()) setBackgroundColor(android.graphics.Color.parseColor(bgHex))
+                addView(cbSheetCell(label, size, bold, "#5B6B81", 0.88f, false))
+                addView(cbSheetCell(a1, size, bold, colorHex, 1.20f, true))
+                addView(cbSheetCell(a2, size, bold, colorHex, 0.85f, true))
+                addView(cbSheetCell(a3, size, bold, colorHex, 1.10f, true))
+                addView(cbSheetCell(a4, size, true, lastHex, 1.20f, true))
+            }
+        /** লম্বা লেবেল (Refund · GRAND TOTAL) — লেখাটা প্রথম চারটে কলাম জুড়ে বসে। */
+        fun cbWideRow(label: String, value: String, bold: Boolean, colorHex: String,
+                      bgHex: String): android.widget.LinearLayout =
+            android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                if (bgHex.isNotEmpty()) setBackgroundColor(android.graphics.Color.parseColor(bgHex))
+                addView(cbSheetCell(label, 12.5f, bold, "#5B6B81", 4.15f, false))
+                addView(cbSheetCell(value, 13.5f, true, colorHex, 1.20f, true))
+            }
         fun cbThinLine(): android.view.View = android.view.View(this).apply {
             setBackgroundColor(android.graphics.Color.parseColor("#BFE9CE"))
             layoutParams = android.widget.LinearLayout.LayoutParams(
@@ -3405,28 +3454,47 @@ Thread {
             paid: List<RmpCommissionRepository.DayPaidRow> = emptyList()
         ) {
             cbSumBox.removeAllViews()
-            cbSumBox.addView(cbMoneyLine("Fees", cbFeesTotal, "#33404F", false))
-            cbSumBox.addView(cbMoneyLine("Cash", cbCashTotal, "#0C9E33", false))
-            cbSumBox.addView(cbMoneyLine("Online", cbOnlineTotal, "#123A8C", false))
-            // 🔴🔒 V709 — রিফান্ড থাকলে তবেই লাইনটা বসে (নইলে পর্দা হুবহু আগের মতো)।
-            if (cbRefundTotal > 0.0) {
-                cbSumBox.addView(cbMoneyLine("Refund", -cbRefundTotal, "#C0392B", true))
-            }
+            /* 🟦🔒 V1235 — TK-এর হুবহু নির্দেশ (ছবি দেখে পাশ):
+                            COLLECTION   FEES  MEDICINE   TOTAL
+                 Cash          32,500     400     3,960   36,860
+                 Online        32,000       0       400   32,400
+                 TOTAL         64,500     400     4,360   69,260
+               ⛔ COLLECTION-এর ঘর দুটো **আগের Cash/Online-এর হুবহু সেই একই
+                  সংখ্যা** (`cbCashTotal`/`cbOnlineTotal`) — এক পয়সাও নতুন করে
+                  হিসাব করা হয়নি। FEES ভাঙা হলো রোগীর সারির নিজের feesCash/
+                  feesOnline থেকে (যোগফল আগের Fees-এর সমান)।
+               ⛔ MEDICINE = আলাদা `products` টেবিলের ওষুধ+স্যালাইন বিক্রি।
+                  V805/V959-এ TK ঠিক করেছিলেন ওটা মোটে যোগ হবে না — ০৮.০৯.২০২৬-এ
+                  TK নিজেই সেই সিদ্ধান্ত বদলেছেন, তাই এখন যোগ হয়। */
+            val cbMedCash = cbMedicineSaleCash
+            val cbMedOnline = cbMedicineSaleOnline
+            val cbRowCash = cbCashTotal + cbFeesCash + cbMedCash
+            val cbRowOnline = cbOnlineTotal + cbFeesOnline + cbMedOnline
+            val cbColMed = cbMedCash + cbMedOnline
+            val cbSheetTotal = cbRowCash + cbRowOnline
+            fun n(v: Double) = "%,.0f".format(v)
+            cbSumBox.addView(cbSheetRow("\u20b9", "COLLECTION", "FEES", "MEDICINE", "TOTAL",
+                9f, true, "#8A94A6", "#8A94A6", ""))
             cbSumBox.addView(cbThinLine())
-            cbSumBox.addView(cbMoneyLine("TOTAL", cbGrandTotal, "#0B4F2A", true))
-            // 🟩🔒 V959 — ওষুধ ও স্যালাইন বিক্রির টাকা (আলাদা `products` টেবিল)।
-            //    TOTAL-এর নিচে নিজের লাইনে, যোগ হয় না — তাই Collection-এর
-            //    সঙ্গে ফারাক দেখলে কারণটা এখানেই চোখে পড়ে।
-            if (cbMedicineSaleTotal > 0.0) {
+            cbSumBox.addView(cbSheetRow("Cash", n(cbCashTotal), n(cbFeesCash), n(cbMedCash),
+                n(cbRowCash), 12.5f, false, "#33404F", "#0C9E33", ""))
+            cbSumBox.addView(cbSheetRow("Online", n(cbOnlineTotal), n(cbFeesOnline), n(cbMedOnline),
+                n(cbRowOnline), 12.5f, false, "#33404F", "#123A8C", ""))
+            cbSumBox.addView(cbThinLine())
+            cbSumBox.addView(cbSheetRow("TOTAL", n(cbCashTotal + cbOnlineTotal), n(cbFeesTotal),
+                n(cbColMed), n(cbSheetTotal), 12.5f, true, "#10223A", "#0B4F2A", "#EAF7EF"))
+            /* 🔴🔒 V709 — রিফান্ড থাকলে তবেই লাইনটা বসে (নইলে পর্দা হুবহু আগের মতো)।
+               🟦 V1235 — রিফান্ড উপরের ঘরের TOTAL থেকে বিয়োগ হয়ে GRAND TOTAL হয়;
+               রিফান্ড না থাকলে উপরের TOTAL-ই শেষ কথা, বাড়তি একটাও লাইন বসে না। */
+            if (cbRefundTotal > 0.0) {
+                cbSumBox.addView(cbWideRow("Refund", "\u2212 " + n(cbRefundTotal), true, "#C0392B", ""))
                 cbSumBox.addView(cbThinLine())
-                cbSumBox.addView(cbMoneyLine("Medicine", cbMedicineSaleTotal, "#5B6B81", false))
-                cbSumBox.addView(android.widget.TextView(this).apply {
-                    text = "Medicine & Saline sales — not counted in TOTAL"
-                    textSize = 10.5f
-                    setTextColor(android.graphics.Color.parseColor("#8A94A6"))
-                    setPadding(dp(70), 0, 0, dp(2))
-                })
+                cbSumBox.addView(cbWideRow("GRAND TOTAL", n(cbSheetTotal - cbRefundTotal),
+                    true, "#0B4F2A", "#EAF7EF"))
             }
+            // 🟩 V959 → 🟦 V1235 — বিক্রির টাকা এখন উপরের ঘরের MEDICINE
+            //    কলামেই বসে (Cash/Online আলাদা) ও TOTAL-এ যোগ হয়, তাই আলাদা
+            //    "Medicine" লাইনটা আর দরকার নেই।
             /* 🔴🔒 V1078 — নিজে থেকে জোড়া লাগানোর ফল, TK-এর চোখের সামনে।
                ⛔ শুধু খবর — একটাও টাকার অঙ্ক এতে বদলায় না। */
             if (cbAutoLinked > 0 || cbAutoNeedsTk > 0) {
@@ -3863,6 +3931,9 @@ Thread {
             val saleTotal = st.medicineCash + st.medicineOnline + st.salineCash + st.salineOnline
             if (saleTotal <= 0.0 || isFinishing || isDestroyed) return@launch
             cbMedicineSaleTotal = saleTotal
+            // 🟦 V1235 — একই পড়া থেকেই Cash/Online আলাদা (নতুন কোনো ডাক নয়)।
+            cbMedicineSaleCash = st.medicineCash + st.salineCash
+            cbMedicineSaleOnline = st.medicineOnline + st.salineOnline
             try { cbDrawSum(cbLastCommRows, cbLastPaidRows) } catch (_: Throwable) { }
         }
         // TK-REQUESTED (2026-07-22): this was a small centered popup ("ছোট

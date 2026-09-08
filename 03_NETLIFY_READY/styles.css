@@ -5377,6 +5377,28 @@ button.small{min-height:36px!important;font-size:13px!important;border-radius:12
    ⛔ বিক্রি না থাকলে লাইনদুটো বসেই না, তাই পুরনো চেহারা অটুট। */
 .wlv1CbRevSum>div.msLine{border-top:1px solid #BFE9CE;margin-top:5px;padding-top:6px}
 .wlv1CbRevSum>div.wlv1CbMsNote{display:block;padding:0 0 2px 70px;font-size:10.5px;color:#8A94A6}
+/* 🟦🔒 V1235 (০৮.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — REVIEW-এর টাকার ঘর
+   গুগল-শিটের মতো: সারি Cash · Online · TOTAL, কলাম COLLECTION · FEES ·
+   MEDICINE · TOTAL। ফোনের cbSheetRow-এর মাপ ধরে ধরে মেলানো (১.০০ / ১.২০ /
+   ০.৮৫ / ১.১০ / ১.২০)। ⛔ শুধু সাজ — একটাও অঙ্ক এখানে হয় না। */
+.wlv1CbRevSum>.cbSheet{display:block;padding:0}
+.cbSheet{width:100%}
+.cbSheetRow{display:flex;align-items:center}
+.cbSheetRow>span{flex:1.20 1 0;text-align:right;padding:5px 3px;font-size:13px;color:#33404F;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cbSheetRow>span.l{flex:0.88 1 0;text-align:left;color:#5B6B81}
+.cbSheetRow>span:nth-child(3){flex:0.85 1 0}
+.cbSheetRow>span:nth-child(4){flex:1.10 1 0}
+.cbSheetRow>span:nth-child(5){font-weight:800}
+.cbSheetRow>span.c{color:#0C9E33}
+.cbSheetRow>span.o{color:#123A8C}
+.cbSheetRow>span.g,.cbSheetRow>span.r{font-weight:800}
+.cbSheetRow>span.g{color:#0B4F2A}
+.cbSheetRow>span.r{color:#C0392B}
+.cbSheetHead>span{font-size:9px;font-weight:800;color:#8A94A6;letter-spacing:0}
+.cbSheetHead{border-bottom:1px solid #BFE9CE}
+.cbSheetTot{border-top:1px solid #BFE9CE;background:#EAF7EF;border-radius:6px}
+.cbSheetTot>span{font-weight:800;color:#10223A}
+.cbSheetWide>span.l{flex:4.15 1 0}
 /* V426 — ছাপা রেজিস্টারের একদম নিচে এক লাইনের হিসাব */
 .cbRegOneLine{margin-top:4mm;padding-top:2mm;border-top:1px solid #0A5428;font-size:10.5px;font-weight:800;color:#0A5428;text-align:left;white-space:nowrap}
 @media print{.cbRegOneLine{position:absolute;left:6mm;right:6mm;bottom:6mm;margin:0}}

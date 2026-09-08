@@ -1456,13 +1456,29 @@ class PaymentActivity : AppCompatActivity() {
             searchJob?.cancel()
             searchJob = lifecycleScope.launch {
                 kotlinx.coroutines.delay(250)
-                val matches = try {
+                val found = try {
                     withContext(Dispatchers.IO) { repository.searchPatients(q) }
                 } catch (t: Throwable) { emptyList() }
+                /* 🏥🔒 V1235 (০৮.০৯.২০২৬, TK-রিপোর্ট ছবিসহ, খাতার সারি ৩৫৯):
+                   *"বীরপাড়া ব্রাঞ্চ থেকে পেমেন্ট উইন্ডো খুলে নাম এন্ট্রি করলে সমস্ত
+                   ব্রাঞ্চের পেশেন্ট সাজেস্ট করছে — যে স্টাফ যে ব্রাঞ্চের, শুধু সেই
+                   ব্রাঞ্চের পেশেন্টই সাজেস্ট হবে এবং পেমেন্ট নিতে পারবে"*।
+                   **নতুন কোনো নিয়ম বানানো হয়নি** — টাকা নেওয়ার নিয়মটা TK-এর
+                   নিজেরই ২৭.০৭.২০২৬-এর নিয়ম, কোডে `MoneyBranchGuard`-এ আগে
+                   থেকেই বসানো ছিল ও ফর্ম সেভের সময় আটকাতও। বাদ ছিল শুধু
+                   **এই তালিকাটা** — তাই স্টাফ অন্য ব্রাঞ্চের নাম দেখে চাপ দিতেন,
+                   আর আটকানো হত অনেক পরে। এখন ঠিক সেই একই নিয়মেই তালিকা ছাঁকা হয়।
+                   ⛔ মাস্টার (বা "All" ব্রাঞ্চ) আগের মতোই সবাইকে দেখেন।
+                   ⛔ কারো ব্রাঞ্চ ও Patient ID দুটোই ফাঁকা হলে আগের মতোই দেখায়
+                      (MoneyBranchGuard-এর নিজের নিয়ম — টাকা যেন কখনো আটকে না যায়)। */
+                val matches = found.filter {
+                    MoneyBranchGuard.canTakeMoney(this@PaymentActivity, it.branch, it.patientId)
+                }
                 if (matches.isEmpty()) {
                     resultsContainer.removeAllViews()
                     val empty = TextView(this@PaymentActivity).apply {
-                        text = "No match found"
+                        text = if (found.isEmpty()) "No match found"
+                               else "No match in your branch \u2014 this patient belongs to another branch."
                         textSize = 12f
                         setTextColor(android.graphics.Color.parseColor("#999999"))
                         setPadding(dp(4), dp(6), 0, 0)

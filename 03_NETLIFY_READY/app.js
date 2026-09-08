@@ -3565,7 +3565,7 @@ function wlv1AutoIncomeForDay(dateISO,branch){
     /* 🔴🔒 V1100 (\u09e6\u09eb.\u09e6\u09ef.\u09e8\u09e6\u09e8\u09ec, TK-\u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6) \u2014 \u09aa\u09c1\u09b0\u09a8\u09cb \u09a4\u09be\u09b0\u09bf\u0996\u09c7\u09b0
        \u099f\u09be\u0995\u09be \u09aa\u09b0\u09c7 \u0985\u09cd\u09af\u09be\u09aa\u09c7 \u09a4\u09c1\u09b2\u09b2\u09c7 \u09b8\u09c7\u099f\u09be \u0986\u09df-\u09ac\u09cd\u09af\u09df\u09c7\u09b0 \u0996\u09be\u09a4\u09be\u09df \u09a7\u09b0\u09be \u09b9\u09ac\u09c7 \u09a8\u09be
        (\u099f\u09be\u0995\u09be\u09b0 \u09a4\u09be\u09b0\u09bf\u0996 < \u09a4\u09cb\u09b2\u09be\u09b0 \u09a6\u09bf\u09a8)\u0964 \u09ab\u09cb\u09a8\u09c7\u09b0 `IncomeExpenseActivity`-\u098f\u09b0 \u09b9\u09c1\u09ac\u09b9\u09c1 \u098f\u0995\u0987 \u09a8\u09bf\u09df\u09ae\u0964
-       \u26d4 \u09a4\u09cb\u09b2\u09be\u09b0 \u09a6\u09bf\u09a8 \u099c\u09be\u09a8\u09be \u09a8\u09be \u0997\u09c7\u09b2\u09c7 \u0995\u09bf\u099b\u09c1\u0987 \u09ac\u09be\u09a6 \u09af\u09be\u09df \u09a8\u09be \u00b7 Payment \u09aa\u09b0\u09cd\u09a6\u09be \u0985\u099f\u09c1\u099f\u0964 */
+       ⛔ \u09a4\u09cb\u09b2\u09be\u09b0 \u09a6\u09bf\u09a8 \u099c\u09be\u09a8\u09be \u09a8\u09be \u0997\u09c7\u09b2\u09c7 \u0995\u09bf\u099b\u09c1\u0987 \u09ac\u09be\u09a6 \u09af\u09be\u09df \u09a8\u09be \u00b7 Payment \u09aa\u09b0\u09cd\u09a6\u09be \u0985\u099f\u09c1\u099f\u0964 */
     function wlv1EnteredDay(x){
       var t=String((x&&(x.paidAt||x.createdAt))||'').slice(0,10);
       return /^\d{4}-\d{2}-\d{2}$/.test(t)?t:'';
@@ -4010,9 +4010,9 @@ function isAutoNotice(b){return AUTO_NOTICE_TITLES.includes(String(b?.title||'')
 /* \u{1F3A8}\u{1F512} V1103 (\u09e6\u09eb.\u09e6\u09ef.\u09e8\u09e6\u09e8\u09ec) \u2014 TK-\u098f\u09b0 \u09a8\u09bf\u099c\u09c7\u09b0 \u09a8\u0995\u09b6\u09be\u09df \u09a8\u09cb\u099f\u09bf\u09b6
    (\u09ab\u09cb\u09a8\u09c7 V1102) \u2014 \u098f\u0996\u09a8 \u0995\u09ae\u09cd\u09aa\u09bf\u0989\u099f\u09be\u09b0\u09c7\u0993\u0964 \u09b0\u09cb\u0997\u09c7\u09b0 \u09aa\u09bf\u09b2 \u00b7 \u09b0\u09cb\u0997\u09c0\u09b0 \u09a8\u09be\u09ae \u09ac\u09dc \u0995\u09b0\u09c7 \u00b7
    \u09aa\u09be\u09b6\u09c7 \u09a8\u09c0\u09b2 \u09a8\u09ae\u09cd\u09ac\u09b0 (\u099a\u09be\u09aa\u09b2\u09c7 \u0995\u09b2) \u00b7 \u09a8\u09bf\u099a\u09c7 Patient ID\u0964
-   \u26d4 \u09b6\u09c1\u09a7\u09c1 \u0985\u09cd\u09af\u09be\u09aa\u09c7\u09b0 \u09a8\u09bf\u099c\u09c7\u09b0 \u09a4\u09bf\u09a8 \u09a8\u09cb\u099f\u09bf\u09b6\u09c7, \u0986\u09b0 \u09b2\u09c7\u0996\u09be \u099a\u09c7\u09a8\u09be \u0997\u09c7\u09b2\u09c7\u0987 \u2014 \u09a8\u09be \u09ae\u09bf\u09b2\u09b2\u09c7
+   ⛔ \u09b6\u09c1\u09a7\u09c1 \u0985\u09cd\u09af\u09be\u09aa\u09c7\u09b0 \u09a8\u09bf\u099c\u09c7\u09b0 \u09a4\u09bf\u09a8 \u09a8\u09cb\u099f\u09bf\u09b6\u09c7, \u0986\u09b0 \u09b2\u09c7\u0996\u09be \u099a\u09c7\u09a8\u09be \u0997\u09c7\u09b2\u09c7\u0987 \u2014 \u09a8\u09be \u09ae\u09bf\u09b2\u09b2\u09c7
       \u09b9\u09c1\u09ac\u09b9\u09c1 \u0986\u0997\u09c7\u09b0 \u09b2\u09c7\u0996\u09be\u0987 \u09a6\u09c7\u0996\u09be\u09df, \u098f\u0995\u099f\u09be \u09b2\u09be\u0987\u09a8\u0993 \u09b9\u09be\u09b0\u09be\u09df \u09a8\u09be\u0964
-   \u26d4 \u0995\u09cb\u09a8\u09cb \u09ac\u09cb\u09a4\u09be\u09ae \u09ac\u09be \u09a4\u09be\u09b0 \u0995\u09be\u099c \u098f\u0995 \u0985\u0995\u09cd\u09b7\u09b0\u0993 \u09ac\u09a6\u09b2\u09be\u09df\u09a8\u09bf\u0964 */
+   ⛔ \u0995\u09cb\u09a8\u09cb \u09ac\u09cb\u09a4\u09be\u09ae \u09ac\u09be \u09a4\u09be\u09b0 \u0995\u09be\u099c \u098f\u0995 \u0985\u0995\u09cd\u09b7\u09b0\u0993 \u09ac\u09a6\u09b2\u09be\u09df\u09a8\u09bf\u0964 */
 function wlv1BriefBody(b){
   try{
     if(isAutoNotice(b)){
@@ -9787,7 +9787,7 @@ let wlv1RmpSugTried={};   /* 🟢 V1132 — ব্রাঞ্চ ধরে ধ�
    \u09a8\u09be\u09ae \u09b8\u09be\u099c\u09c7\u09b6\u09a8 \u0995\u09c7\u09a8 \u09a6\u09c7\u0996\u09be\u099a\u09cd\u099b\u09c7 \u09a8\u09be"*) \u2014 V1070-\u098f \u098f\u09a8\u0995\u09cb\u09df\u09be\u09b0\u09bf \u09ab\u09b0\u09cd\u09ae\u09c7
    \u0998\u09b0 \u09a6\u09c1\u099f\u09cb \u09ac\u09b8\u09c7\u099b\u09bf\u09b2, \u0995\u09bf\u09a8\u09cd\u09a4\u09c1 \u09b8\u09be\u099c\u09c7\u09b6\u09a8\u099f\u09be \u09b6\u09c1\u09a7\u09c1 \u09b0\u09c7\u099c\u09bf\u09b8\u09cd\u099f\u09cd\u09b0\u09c7\u09b6\u09a8\u09c7\u0987 \u099b\u09bf\u09b2 \u2014 \u0986\u09ae\u09be\u09b0\u0987 \u09ac\u09be\u09a6 \u09aa\u09dc\u09be\u0964
    \u21d2 \u098f\u0995\u0987 \u09ab\u09be\u0982\u09b6\u09a8 \u098f\u0996\u09a8 \u09a6\u09c1\u099f\u09cb \u09ab\u09b0\u09cd\u09ae\u09c7\u0987 \u0996\u09be\u099f\u09c7 \u2014 \u09af\u09c7 \u09ab\u09b0\u09cd\u09ae \u0996\u09cb\u09b2\u09be \u0986\u099b\u09c7 \u09a4\u09be\u09b0 \u0998\u09b0\u0997\u09c1\u09b2\u09cb\u0987 \u09a7\u09b0\u09be \u09b9\u09df\u0964
-   \u26d4 \u09b0\u09c7\u099c\u09bf\u09b8\u09cd\u099f\u09cd\u09b0\u09c7\u09b6\u09a8\u09c7\u09b0 \u0986\u099a\u09b0\u09a3 \u098f\u0995 \u0985\u0995\u09cd\u09b7\u09b0\u0993 \u09ac\u09a6\u09b2\u09be\u09df\u09a8\u09bf \u00b7 \u09a8\u09a4\u09c1\u09a8 \u0995\u09cb\u09a8\u09cb \u0987\u09a8\u09cd\u099f\u09be\u09b0\u09a8\u09c7\u099f-\u09a1\u09be\u0995 \u09a8\u09c7\u0987\u0964 */
+   ⛔ \u09b0\u09c7\u099c\u09bf\u09b8\u09cd\u099f\u09cd\u09b0\u09c7\u09b6\u09a8\u09c7\u09b0 \u0986\u099a\u09b0\u09a3 \u098f\u0995 \u0985\u0995\u09cd\u09b7\u09b0\u0993 \u09ac\u09a6\u09b2\u09be\u09df\u09a8\u09bf \u00b7 \u09a8\u09a4\u09c1\u09a8 \u0995\u09cb\u09a8\u09cb \u0987\u09a8\u09cd\u099f\u09be\u09b0\u09a8\u09c7\u099f-\u09a1\u09be\u0995 \u09a8\u09c7\u0987\u0964 */
 function wlv1RmpSugEls(){
   var box=$('#wlv1RmpSug')||$('#eRmpSug');
   var n=$('#pRefDocName')||$('#eRefDoctor');
@@ -10410,7 +10410,7 @@ async function savePatient(evt){
        \u09ab\u09bf \u09ac\u09be\u09a7\u09cd\u09af\u09a4\u09be\u09ae\u09c2\u09b2\u0995, \u09a4\u09be\u09b9\u09b2\u09c7 Visit Fee Missing \u09a8\u09cb\u099f\u09bf\u09ab\u09bf\u0995\u09c7\u09b6\u09a8 \u0986\u09b8\u09ac\u09c7\u0987 \u09ac\u09be \u0995\u09c7\u09a8"*
        \u21d2 \u09b8\u09be\u09b0\u09bf\u099f\u09be \u09ac\u09b8\u09be\u09a8\u09cb\u09b0 \u09aa\u09b0\u09c7\u0993 \u099c\u09ae\u09be-\u0998\u09b0\u09c7 \u09b0\u09be\u0996\u09be \u09b9\u09df\u0964 \u09aa\u09b0\u09c7\u09b0 \u09ab\u09cd\u09b2\u09be\u09b6 \u09aa\u09cd\u09b0\u09a4\u09bf\u09ac\u09be\u09b0
        \u09ae\u09bf\u09b2\u09bf\u09df\u09c7 \u09a6\u09c7\u0996\u09c7 \u2014 \u0995\u09cd\u09b2\u09be\u0989\u09a1\u09c7 \u0986\u0997\u09c7\u0987 \u09a5\u09be\u0995\u09b2\u09c7 \u099a\u09c1\u09aa\u099a\u09be\u09aa \u09ac\u09be\u09a6, \u09a8\u09be \u09a5\u09be\u0995\u09b2\u09c7 \u0986\u09ac\u09be\u09b0 \u09ac\u09b8\u09c7\u0964
-       \u26d4 \u098f\u0995\u0987 \u0986\u0987\u09a1\u09bf, \u09a4\u09be\u0987 \u09a6\u09c1\u09ac\u09be\u09b0 \u0995\u09be\u099f\u09be\u09b0 \u09aa\u09a5 \u09a8\u09c7\u0987 \u00b7 \u099f\u09be\u0995\u09be\u09b0 \u0985\u0999\u09cd\u0995 \u0986\u09a8\u09cd\u09a6\u09be\u099c\u09c7 \u09ac\u09be\u09a8\u09be\u09a8\u09cb \u09b9\u09df \u09a8\u09be\u0964 */
+       ⛔ \u098f\u0995\u0987 \u0986\u0987\u09a1\u09bf, \u09a4\u09be\u0987 \u09a6\u09c1\u09ac\u09be\u09b0 \u0995\u09be\u099f\u09be\u09b0 \u09aa\u09a5 \u09a8\u09c7\u0987 \u00b7 \u099f\u09be\u0995\u09be\u09b0 \u0985\u0999\u09cd\u0995 \u0986\u09a8\u09cd\u09a6\u09be\u099c\u09c7 \u09ac\u09be\u09a8\u09be\u09a8\u09cb \u09b9\u09df \u09a8\u09be\u0964 */
     if(wlv1FeeUnknown) wlv1HoldVisitFee(wlv1FeeRow);
     else { add('payments',wlv1FeeRow); try{ wlv1HoldVisitFee(wlv1FeeRow) }catch(_e){} }
    }
@@ -16311,7 +16311,12 @@ function medPatSuggest(q){
     for(var i=0;i<all.length && rows.length<8;i++){
       var x=all[i]; if(!x)continue;
       var nm=String(x.name||'').toUpperCase(), mm=mob(x.mobile), pid=String(x.patientId||'').toUpperCase();
-      if((nm&&nm.indexOf(t)>-1)||(digits&&mm.indexOf(digits)>-1)||(pid&&pid.indexOf(t)>-1))rows.push(x);
+      if(!((nm&&nm.indexOf(t)>-1)||(digits&&mm.indexOf(digits)>-1)||(pid&&pid.indexOf(t)>-1)))continue;
+      /* 🏥🔒 V1235 (নিয়ম ৭) — টাকার তালিকা টাকার নিয়মেই ছাঁকা হয়:
+         অন্য ব্রাঞ্চের রোগী আর সাজেস্ট হবেন না (TK-এর ২৭.০৭.২০২৬-এর নিয়ম,
+         `wlv1CanTakeMoney`)। ⛔ মাস্টার আগের মতোই সবাইকে দেখেন। */
+      if(typeof wlv1CanTakeMoney==='function'&&!wlv1CanTakeMoney(x))continue;
+      rows.push(x);
     }
   }catch(e){}
   if(!rows.length){ box.style.display='none'; box.innerHTML=''; return; }
@@ -21453,7 +21458,7 @@ window["wlv1TreatQuickList"]=wlv1TreatQuickList;
    \u09b2\u09c7\u0996\u09be\u099f\u09be \u0995\u09bf **\u09aa\u09c1\u09b0\u09cb\u09aa\u09c1\u09b0\u09bf** \u099a\u09bf\u0995\u09bf\u09ce\u09b8\u09be\u09b0 \u099a\u09bf\u09aa \u09a6\u09bf\u09df\u09c7 \u09ac\u09be\u09a8\u09be\u09a8\u09cb? \u09ab\u09b2\u09cb-\u0986\u09aa \u0996\u09be\u09a4\u09be\u09df
    \u09a7\u09b0\u09a8 \u09b2\u09c7\u0996\u09be \u09a5\u09be\u0995\u09c7 \u09a8\u09be, \u09a4\u09be\u0987 \u099a\u09bf\u0995\u09bf\u09ce\u09b8\u09be\u09b0 \u09a8\u09cb\u099f\u0993 "Called By" \u09b8\u09c7\u099c\u09c7 \u0989\u09a0\u09a4\u0964
    \u09ab\u09cb\u09a8\u09c7\u09b0 `TreatmentQuickNotes.isQuickNoteText`-\u098f\u09b0 \u09b9\u09c1\u09ac\u09b9\u09c1 \u098f\u0995\u0987 \u09a8\u09bf\u09df\u09ae\u0964
-   \u26d4 \u098f\u0995\u099f\u09be \u099f\u09c1\u0995\u09b0\u09cb\u0993 \u09a4\u09be\u09b2\u09bf\u0995\u09be\u09b0 \u09ac\u09be\u0987\u09b0\u09c7 \u09b9\u09b2\u09c7 false \u2014 \u09ae\u09be\u09a8\u09c1\u09b7\u09c7\u09b0 \u09a8\u09bf\u099c\u09c7\u09b0 \u09b2\u09c7\u0996\u09be \u0995\u0996\u09a8\u09cb \u09a7\u09b0\u09be \u09aa\u09dc\u09c7 \u09a8\u09be\u0964 */
+   ⛔ \u098f\u0995\u099f\u09be \u099f\u09c1\u0995\u09b0\u09cb\u0993 \u09a4\u09be\u09b2\u09bf\u0995\u09be\u09b0 \u09ac\u09be\u0987\u09b0\u09c7 \u09b9\u09b2\u09c7 false \u2014 \u09ae\u09be\u09a8\u09c1\u09b7\u09c7\u09b0 \u09a8\u09bf\u099c\u09c7\u09b0 \u09b2\u09c7\u0996\u09be \u0995\u0996\u09a8\u09cb \u09a7\u09b0\u09be \u09aa\u09dc\u09c7 \u09a8\u09be\u0964 */
 function wlv1IsTreatQuickText(t){
   try{
     var s=String(t==null?'':t).trim(); if(!s)return false;
@@ -24183,6 +24188,41 @@ window["wlv1ApproveBackdate"]=wlv1ApproveBackdate;
    ========================================================================== */
 var wlv1CloseTapCount = 0, wlv1CloseTapAt = 0, wlv1ClosePrintBranch = '';
 
+/* 🟦🔒 V1235 (০৮.০৯.২০২৬, TK-নির্দেশ হুবহু, ফটো-প্রুফ পাশ): "Fees 400/- আর
+   cash 32500 এই দুটো যোগ হয়ে আগে বসুক 32900; কেউ অনলাইন Fees দিলে সেই দুটো
+   আলাদা বসুক; মেডিসিনের টাকা ক্যাশ হোক বা অনলাইন — ক্যাশের সাথে ও অনলাইনের
+   সাথে যুক্ত হবে; তারপর গ্রান্ড টোটাল হবে"।
+   ⇒ REVIEW-এর টাকার ঘরটা এখন গুগল-শিটের মতো:
+                  COLLECTION   FEES  MEDICINE   TOTAL
+        Cash          32,500     400     3,960   36,860
+        Online        32,000       0       400   32,400
+        TOTAL         64,500     400     4,360   69,260
+   ⛔ COLLECTION-এর ঘর দুটো আগের Cash/Online-এর হুবহু সেই একই সংখ্যা —
+      নতুন করে কিছু হিসাব করা হয়নি। ⛔ ফোনের ChamberAttendanceActivity-র
+      cbSheetRow-এর যমজ, তাই দুই জায়গায় সংখ্যা কখনো আলাদা হবে না।
+   ⛔ V805/V959-এ TK ঠিক করেছিলেন বিক্রির টাকা মোটে যোগ হবে না — ০৮.০৯.২০২৬-এ
+      TK নিজেই সেই সিদ্ধান্ত বদলেছেন, তাই এখন যোগ হয়। */
+function wlv1CbSheetHtml(colCash, colOnline, feeCash, feeOnline, medCash, medOnline, refund){
+  const n = v => Number(v||0).toLocaleString('en-IN', {maximumFractionDigits:0});
+  const rowCash = Number(colCash||0)+Number(feeCash||0)+Number(medCash||0);
+  const rowOnline = Number(colOnline||0)+Number(feeOnline||0)+Number(medOnline||0);
+  const tot = rowCash+rowOnline;
+  const cell = (t,cls) => '<span class="'+(cls||'')+'">'+t+'</span>';
+  let h = '<div class="cbSheet">'
+    + '<div class="cbSheetRow cbSheetHead">'+cell('₹','l')+cell('COLLECTION')+cell('FEES')+cell('MEDICINE')+cell('TOTAL')+'</div>'
+    + '<div class="cbSheetRow">'+cell('Cash','l')+cell(n(colCash))+cell(n(feeCash))+cell(n(medCash))+cell(n(rowCash),'c')+'</div>'
+    + '<div class="cbSheetRow">'+cell('Online','l')+cell(n(colOnline))+cell(n(feeOnline))+cell(n(medOnline))+cell(n(rowOnline),'o')+'</div>'
+    + '<div class="cbSheetRow cbSheetTot">'+cell('TOTAL','l')+cell(n(Number(colCash||0)+Number(colOnline||0)))
+      +cell(n(Number(feeCash||0)+Number(feeOnline||0)))+cell(n(Number(medCash||0)+Number(medOnline||0)))+cell(n(tot),'g')+'</div>';
+  // রিফান্ড না থাকলে উপরের TOTAL-ই শেষ কথা, বাড়তি লাইন বসে না।
+  if(Number(refund||0)>0){
+    h += '<div class="cbSheetRow cbSheetWide"><span class="l">Refund</span><span class="r">− '+n(refund)+'</span></div>'
+      +  '<div class="cbSheetRow cbSheetWide cbSheetTot"><span class="l">GRAND TOTAL</span><span class="g">'+n(tot-Number(refund||0))+'</span></div>';
+  }
+  return h+'</div>';
+}
+window["wlv1CbSheetHtml"]=wlv1CbSheetHtml;
+
 function wlv1ChamberArrivedRows(){
   const br = wlv1ChamberBranch || (user && user.branch==='All' ? 'All' : (user?user.branch:''));
   /* 🖥️🔴🔒 V709 — আগে শুধু `arrived` সারিগুলোই আসত, কিন্তু রিফান্ড কখনো
@@ -24304,6 +24344,11 @@ function wlv1CloseReview(rows){
   const __fT=rows.reduce((a,r)=>a+Number(r.fee||0),0),
         __cT=rows.reduce((a,r)=>a+Number(r.cash||0)+Number(r.refundCash||0),0),
         __oT=rows.reduce((a,r)=>a+Number(r.online||0)+Number(r.refundOnline||0),0), __gT=__fT+__cT+__oT-__rT;
+  /* 🟦🔒 V1235 (০৮.০৯.২০২৬, TK-নির্দেশ, ফটো-প্রুফ পাশ) — Fees-এর Cash/Online
+     আলাদা (ফোনের feesCash/feesOnline-এর হুবহু যমজ — r.feeCash/r.feeOnline
+     আগে থেকেই বসানো আছে)। ⛔ যোগফল __fT-এর সমান। */
+  const __fC=rows.reduce((a,r)=>a+Number(r.feeCash||0),0),
+        __fO=rows.reduce((a,r)=>a+Number(r.feeOnline||0),0);
   const __arrivedN=rows.filter(r=>r.arrived).length;
   /* 💰 V984 — পর্দায় যে অঙ্কগুলো দেখানো হলো, হ্যান্ডওভারেও **হুবহু সেগুলোই**
      যায় (আবার আলাদা করে হিসাব করা হয় না)। */
@@ -24317,7 +24362,7 @@ function wlv1CloseReview(rows){
      ⛔ TOTAL/Fees/Cash/Online-এর একটাও অঙ্ক বদলায়নি — যোগ হয় না, শুধু দেখায়
         (V805-এ TK-এর নিজের সিদ্ধান্ত)। ⛔ বিক্রি না থাকলে লাইনটাই বসে না।
      ⛔ নতুন কোনো ক্লাউড-কল নয় — পর্দায় ইতিমধ্যে ধরা `products` থেকেই গোনা। */
-  const __msT=(function(){
+  const __ms=(function(){
     try{
       const d=String(wlv1ChamberDate||today()).slice(0,10);
       const br=String(wlv1ChamberBranch||'').trim();
@@ -24327,12 +24372,16 @@ function wlv1CloseReview(rows){
         if(k!=='medicinePayment'&&k!=='salinePayment') return a;
         if(br&&br!=='All'&&String(x.branch||'').toLowerCase()!==br.toLowerCase()) return a;
         const v=Number(x.deposit||0);
-        return a+(v>0?v:0);
-      },0);
-    }catch(_e){ return 0 }
+        if(!(v>0)) return a;
+        const md=String(x.mode||'').toUpperCase();
+        if(md==='ONLINE'||md==='UPI') a.o+=v; else a.c+=v;
+        return a;
+      },{c:0,o:0});
+    }catch(_e){ return {c:0,o:0} }
   })();
+  const __msC=Number(__ms.c||0), __msO=Number(__ms.o||0);
   modal(`<h2>REVIEW — ${__arrivedN} arrived</h2>
-    <div class="wlv1CbRevSum"><div><span>Fees</span><b>${rs(__fT)}</b></div><div><span>Cash</span><b class="c">${rs(__cT)}</b></div><div><span>Online</span><b class="o">${rs(__oT)}</b></div>${__rT>0?`<div><span>Refund</span><b style="color:#C0392B">− ${rs(__rT)}</b></div>`:''}<div class="tot"><span>TOTAL</span><b>${rs(__gT)}</b></div>${__msT>0?`<div class="msLine"><span>Medicine</span><b style="color:#5B6B81">${rs(__msT)}</b></div><div class="wlv1CbMsNote">Medicine &amp; Saline sales &mdash; not counted in TOTAL</div>`:''}</div>
+    <div class="wlv1CbRevSum">${wlv1CbSheetHtml(__cT,__oT,__fC,__fO,__msC,__msO,__rT)}</div>
     <div class="wlv1CbRevWrap">${list}</div>
     <div class="actions wlv1CbActions"><button class="ghost" onclick="closeModal()">Back</button>
     <button onclick="wlv1ConfirmChamberClose()">&#9989; Confirm Close</button>
