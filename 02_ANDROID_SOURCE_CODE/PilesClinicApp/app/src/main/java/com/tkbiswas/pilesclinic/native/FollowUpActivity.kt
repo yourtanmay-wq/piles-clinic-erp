@@ -2615,11 +2615,19 @@ class FollowUpActivity : AppCompatActivity() {
                         chamberOnly = false, initialIso = defaultIso, mandatory = mandatory
                     ) { iso -> saveNextFollowDate(item, iso, markExpected = false) }
                 },
-                /* 📵🔒 V718 (TK-নির্দেশ) — **Enquiry-তে এই বোতাম আর নেই।**
-                   TK: *"enquiry visit এই সমস্ত ক্ষেত্রে হবে না, কারণ সেই ক্ষেত্রে
-                   একটা নিয়ম অলরেডি করাই আছে — পাঁচ বার ফোন কল করার পরে
-                   অটোমেটিক রিজেক্ট হয়ে যায়।"*
-                   ⛔ আসবে / শুধু ফোন করব — দুটো বোতামই আগের মতোই অক্ষত। */
+                /* 📵🔒 V718 (২৬.০৮.২০২৬) — তখন TK বলেছিলেন *"enquiry visit এই সমস্ত
+                   ক্ষেত্রে হবে না, কারণ পাঁচ বার ফোন কল করার পরে অটোমেটিক রিজেক্ট
+                   হয়ে যায়"*, তাই Enquiry-তে বোতামটা বসানো হয়নি।
+                   📵🔒 V1219 (০৮.০৯.২০২৬, TK-রিপোর্ট ও অনুমতি, হুবহু): *"Today Pending
+                   Call-এ দেখাচ্ছে, কিন্তু আমরা তাকে আর কল করতে চাই না — সেখানে
+                   অপশনটা আসছে না"* → *"হ্যাঁ পাশ, Enquiry-তেও বসিয়ে দিন সাবধানে"*।
+                   ⇒ এখন Enquiry ধাপেও বোতামটা বসে।
+                   ⛔ পাঁচ-কলে অটো-রিজেক্টের পুরোনো নিয়ম এক অক্ষরও বদলায়নি — এটা
+                      শুধু হাতে থামানোর একটা বাড়তি পথ, আগেরটার বদলে নয়।
+                   ⛔ আসবে / শুধু ফোন করব — দুটো বোতামই আগের মতোই অক্ষত।
+                   ⛔ উপ-লেখাটা Enquiry-র জন্য আলাদা — এঁদের "চিকিৎসা চলছে" নয়। */
+                onNoMoreCalls = { saveNoMoreCalls(item) },
+                noMoreCallsSub = "আর ফোন করা হবে না — কল-তালিকা ও ব্যানার থেকে সরে যাবে"
             )
         } else {
             /* 📵🔒 V711 — Visit/Patient কার্ডে বাছাইয়ের পর্দা নেই (এক চাপেই
@@ -2723,7 +2731,10 @@ class FollowUpActivity : AppCompatActivity() {
         onCome: () -> Unit,
         onCallOnly: () -> Unit,
         // 📵 V711 — ডিফল্ট null, তাই পুরোনো কোনো ডাক ভাঙে না।
-        onNoMoreCalls: (() -> Unit)? = null
+        onNoMoreCalls: (() -> Unit)? = null,
+        /* 📵 V1219 — বোতামের নিচের ছোট লেখাটা এখন বদলানো যায়। ডিফল্ট হুবহু
+           আগেরটাই, তাই Treatment/Visit-এ এক অক্ষরও বদলায়নি। */
+        noMoreCallsSub: String = "চিকিৎসা চলছে — কল-তালিকা ও ব্যানার থেকে সরে যাবে"
     ) {
         val d = android.app.Dialog(this)
         d.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
@@ -2780,7 +2791,7 @@ class FollowUpActivity : AppCompatActivity() {
         if (onNoMoreCalls != null) {
             bigBtn(
                 NoBengali.s("📵 আর কল লাগবে না"),
-                NoBengali.s("চিকিৎসা চলছে — কল-তালিকা ও ব্যানার থেকে সরে যাবে"),
+                NoBengali.s(noMoreCallsSub),
                 false
             ) { onNoMoreCalls.invoke() }
         }

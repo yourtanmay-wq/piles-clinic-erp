@@ -662,6 +662,7 @@ object NoBengali {
         // 📵🔒 V711 (২৬.০৮.২০২৬, TK-নির্দেশ) — "আর কল লাগবে না" ব্যবস্থার লেখাগুলো।
         "📵 আর কল লাগবে না" to "📵 No more calls needed",
         "চিকিৎসা চলছে — কল-তালিকা ও ব্যানার থেকে সরে যাবে" to "Treatment is running — will leave the call list and the banner",
+        "আর ফোন করা হবে না — কল-তালিকা ও ব্যানার থেকে সরে যাবে" to "No more calls — will leave the call list and the banner",
         "ঠিক আছে — এঁকে আর কল-তালিকায় দেখাবে না" to "Done — this person will no longer show in the call list",
         "📵 কল বন্ধ" to "📵 NO CALLS",
         "Clinical পরীক্ষা" to "Clinical Examination",

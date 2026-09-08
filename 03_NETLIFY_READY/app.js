@@ -9574,12 +9574,14 @@ window["wlv1SaveRemarkNow"]=wlv1SaveRemarkNow;function nextFollowDate(id){
       let x=load('followups').find(a=>a.id===id);
       /* 🔴🔒 V718 — বোতামের HTML আগে বানিয়ে নেওয়া হলো (টেমপ্লেটের ভিতরে
          টেমপ্লেট বসালে ব্যাকটিক সংঘর্ষ হয় — নিজে পরীক্ষা করে ধরা)। */
-      /* 📵🔒 V1206 (০৮.০৯.২০২৬, TK-রিপোর্ট: *"এই পেসেন্ট এর নো মোর কল অপশন কেনো নেই"*
-         — কার্ডটা ছিল VISITED)। V711-এ শুধু Treatment ধাপে বসত; এখন Visit (Patient)
-         ধাপেও। ⛔ Enquiry-তে নয় — ওঁরা এখনো রোগীই নন। ফোনের অ্যাপের হুবহু যমজ। */
-      var __noCallBtn = (String(x&&x.stage||'')==='Treatment'||String(x&&x.stage||'')==='Patient')
-        ? '<button class="ghost" style="width:100%;margin-top:10px;border:2px solid #C9B8F0;background:#F6F2FE;color:#5B3A9E;font-weight:800" onclick="wlv1NoMoreCalls(\'' + id + '\')">\uD83D\uDCF5 No more calls needed</button>'
-        : '';
+      /* 📵🔒 V1206 (০৮.০৯.২০২৬) — Visit (Patient) ধাপেও বসল।
+         📵🔒 V1219 (০৮.০৯.২০২৬, TK-রিপোর্ট ও অনুমতি, হুবহু): *"Today Pending Call-এ
+         দেখাচ্ছে, কিন্তু আমরা তাকে আর কল করতে চাই না — সেখানে অপশনটা আসছে না"* →
+         *"হ্যাঁ পাশ, Enquiry-তেও বসিয়ে দিন সাবধানে"*। ⇒ এখন **সব ধাপেই** বোতামটা
+         বসে (Enquiry সহ)। ফোনের অ্যাপের হুবহু যমজ।
+         ⛔ পাঁচ-কলে অটো-রিজেক্টের পুরোনো নিয়ম এক অক্ষরও বদলায়নি — এটা শুধু হাতে
+            থামানোর একটা বাড়তি পথ। */
+      var __noCallBtn = '<button class="ghost" style="width:100%;margin-top:10px;border:2px solid #C9B8F0;background:#F6F2FE;color:#5B3A9E;font-weight:800" onclick="wlv1NoMoreCalls(\'' + id + '\')">\uD83D\uDCF5 No more calls needed</button>';
       modal(`<h2>Next Follow-up Date</h2><label>Select Date</label><input id="fd" type="date" class="input" value="${x?.nextFollow&&x.nextFollow>=today()?x.nextFollow:''}" min="${today()}" onclick="try{this.showPicker&&this.showPicker()}catch(e){}" onfocus="try{this.showPicker&&this.showPicker()}catch(e){}"><div class="actions"><button onclick="saveNextFollow('${id}')">Save Date</button><button class="ghost" onclick="saveNextFollow('${id}')">Skip</button></div>
       <!-- 📵🔒 V711 (২৬.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত): TK — *"কোন পেশেন্ট
            যখন কন্টিনিউ পেশেন্ট অথবা কন্টিনিউ ট্রিটমেন্ট করাচ্ছে, তাদেরকে আর ফোন না
