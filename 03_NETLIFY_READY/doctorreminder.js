@@ -403,8 +403,10 @@
         '<select id="drFor" class="input" style="margin:4px 0 0"><option value="">All doctors</option></select></div>'+
 
       '<div style="display:flex;gap:9px">'+
+        /* 📅🔒 V1201 (TK-রিপোর্ট: *"রিমাইন্ডার আবার অতীত কাল কি করে নির্বাচন করা হয়"*)
+           — আজকের আগের দিন আর বাছা যায় না (ফোনেও হুবহু একই)। */
         '<div style="flex:1;'+CELL+'"><div style="'+CAP+'">REMIND DAY</div>'+
-          '<input id="drDate" class="input" type="date" style="margin:4px 0 0"></div>'+
+          '<input id="drDate" class="input" type="date" min="'+esc2(todayIso())+'" style="margin:4px 0 0"></div>'+
         '<div style="flex:1;'+CELL+'"><div style="'+CAP+'">TIME</div>'+
           '<input id="drTime" class="input" type="time" style="margin:4px 0 0"></div>'+
       '</div>'+
@@ -491,6 +493,7 @@
     if(!note) return toast('Write the note');
     var date=String((document.getElementById('drDate')||{}).value||'').slice(0,10);
     if(!date) return toast('Pick the date');
+    if(date < todayIso()) return toast('Past date cannot be chosen');   /* 📅 V1201 */
     var time=String((document.getElementById('drTime')||{}).value||'').slice(0,5);
     var sel=document.getElementById('drFor');
     var forMob=sel?String(sel.value||''):'';

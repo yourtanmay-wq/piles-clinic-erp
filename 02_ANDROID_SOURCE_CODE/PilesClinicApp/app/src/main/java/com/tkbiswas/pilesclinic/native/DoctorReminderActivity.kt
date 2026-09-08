@@ -607,12 +607,20 @@ class DoctorReminderActivity : AppCompatActivity() {
         sheet.addView(rowOf(
             pickCell("REMIND DAY", dateLine, "Pick Date", {
                 val c = java.util.Calendar.getInstance()
-                android.app.DatePickerDialog(this, { _, y, m, d ->
+                val dp = android.app.DatePickerDialog(this, { _, y, m, d ->
                     remindDate = String.format(java.util.Locale.US, "%04d-%02d-%02d", y, m + 1, d)
                     dateLine.text = dmy(remindDate)
                     dateLine.setTextColor(android.graphics.Color.parseColor("#0B2B1C"))
                 }, c.get(java.util.Calendar.YEAR), c.get(java.util.Calendar.MONTH),
-                    c.get(java.util.Calendar.DAY_OF_MONTH)).show()
+                    c.get(java.util.Calendar.DAY_OF_MONTH))
+                /* 📅🔒 V1201 (০৮.০৯.২০২৬, TK-রিপোর্ট, হুবহু): *"রিমাইন্ডার আবার
+                   অতীত কাল কি করে নির্বাচন করা হয়"* — কোডে মেপে দেখা গেল তারিখ
+                   বাছার ঘরে **সর্বনিম্ন তারিখ বসানোই ছিল না**, তাই গত মাসের দিনও
+                   বেছে ফেলা যেত (ওই রিমাইন্ডার কখনো বাজত না)।
+                   ⇒ এখন **আজকের আগের কোনো দিন বাছাই করা যায় না**।
+                   ⛔ বাকি সব — কার কাছে যাবে · কী সেভ হয় — এক অক্ষরও বদলায়নি। */
+                try { dp.datePicker.minDate = System.currentTimeMillis() - 1000 } catch (_: Throwable) { }
+                dp.show()
             }, false),
             pickCell("TIME", timeLine, "Pick Time", {
                 val c = java.util.Calendar.getInstance()
@@ -640,6 +648,10 @@ class DoctorReminderActivity : AppCompatActivity() {
             val n = note.text.toString().trim()
             if (n.isBlank()) { ModuleUi.toast(this, "Write the note"); return@button }
             if (remindDate.isBlank()) { ModuleUi.toast(this, "Pick the date"); return@button }
+            /* 📅 V1201 — দ্বিতীয় স্তরের পাহারা: পুরনো তারিখ কোনোভাবেই সেভ হবে না। */
+            if (remindDate < DoctorReminderRepository.todayIso()) {
+                ModuleUi.toast(this, "Past date cannot be chosen"); return@button
+            }
             ModuleUi.toast(this, "Sending...")
             Thread {
                 val ok = DoctorReminderRepository.send(
