@@ -8342,9 +8342,15 @@ function wlv1YrScreen(rows, branchLabel){
     + String(branchLabel||'All').toUpperCase().replace(/[^A-Z0-9]+/g,'_').replace(/^_|_$/g,'')
     + '_' + year + '_' + wlv1Dot(today()).replace(/\//g,'-') + '.csv';
 
+  /* 📏🔒 V1226 (০৮.০৯.২০২৬, TK: *"উপরে এত জায়গা ফাঁকা কেন থাকবে ·
+     Sheet দরকারে হেডারে রাখুন"*) — "⬇ Sheet" বোতামটা নিজের একটা পুরো সারি
+     (`actions`) দখল করে বসত, তাই উপরে বড় ফাঁকা জায়গা পড়ে থাকত।
+     ⇒ এখন বোতামটা শিরোনামের সারিতেই (ডান দিকে), আলাদা সারিটা বাদ।
+     ⛔ বোতামের কাজ (`wlv1YrSheet`) এক অক্ষরও বদলায়নি। */
   page('Yearly Registration',
-    '<div class="actions" style="justify-content:flex-end"><button class="ghost" onclick="wlv1YrSheet()">⬇ Sheet</button></div>'+
-    '<div class="tiny mut">'+esc((branchLabel||'All')+' · '+year)+'</div>'+
+    '<div class="tiny mut" style="display:flex;align-items:center;gap:10px;justify-content:space-between">'+
+      '<span>'+esc((branchLabel||'All')+' · '+year)+'</span>'+
+      '<button class="ghost" style="padding:5px 12px" onclick="wlv1YrSheet()">\u2193 Sheet</button></div>'+
     '<div class="wlv1YrBig">'+total+'</div>'+
     excLine+
     '<div class="wlv1YrCols">'+col(0,5)+col(6,11)+'</div>'+
@@ -15356,7 +15362,7 @@ function paymentHome(){
     খোঁজা হয় সারিতে যা চোখে দেখা যায় ঠিক তাই ধরে — নাম · মোবাইল · Patient ID।
     ⛔ TK-এর সিদ্ধান্ত: উপরের বড় টাকার কার্ডটা কখনো বদলায় না — ওটা সবসময় ওই দিনের পুরো হিসাব।
     ⛔ "View All ›" বোতাম · সারিতে চাপ দেওয়ার কাজ · টাকার হিসাব — কিছুই বদলায়নি। */
- let list=todayRows.map((x,__i)=>{let nm=String(x.name||'Walk-in').trim(),sp=wlv1PaymentSplit(x),mode=(sp.cash>0&&sp.online>0?'CASH + ONLINE':(sp.online>0?'UPI':'CASH'));let pt=load('patients').find(p=>mob(p.mobile)===mob(x.mobile))||{};let dis=String(pt.disease||'').trim();let disChip=dis?`<span class="payDisChip">${esc(dis.toUpperCase())}</span>`:'';/* 🔴🔒 V566 (TK): RMP ও অসময়ের রোগী হলে নামের পাশে চিপ। ⛔ না থাকলে বসে না। ⚠️ ফোনের PaymentModel.rmpTagOf/unexpectedTagOf-এর হুবহু একই নিয়ম। */let rmpTag=wlv1PayRmpTag(pt.refBy,pt.refDoctor);let rmpChip=rmpTag?`<span class="payRmpChip">${esc(rmpTag)}</span>`:'';let unexTag=wlv1PayUnexpectedTag(pt.timeType);let unexChip=unexTag?`<span class="payTimeChip">${esc(unexTag)}</span>`:'';let al1=[pt.village,pt.po].filter(Boolean).join(', '),al2=[pt.ps,pt.district,pt.pin].filter(Boolean).join(', ');let addrHtml=(al1||al2)?(esc(al1.toUpperCase())+(al2?'<br>'+esc(al2.toUpperCase()):'')):(pt.address?wlv1AddrTwo(String(pt.address).toUpperCase()):'');let addrRow=addrHtml?`<div class="payAddr">📍 ${addrHtml}</div>`:'';let idc=x.pidCode||pt.patientId||'';return `<div class="payListRow2 ${mode==='UPI'?'onl':'cash'}" data-paysearch="${esc((nm+' '+String(x.mobile||'')+' '+String(idc||'')).toUpperCase())}" data-payextra="${__i>=8?'1':'0'}" onclick="showCollectionRowDetails('${esc(x.mobile)}')" style="cursor:pointer !important;${__i>=8?'display:none;':''}"><div class="payPerson2"><div class="payNameRow"><span class="paySerialTag">${__i+1}</span><b class="wlv1NameLink" onclick="event.stopPropagation();summaryByMobile('${esc(mob(x.mobile))}')" title="Tap for History">${esc(nm.toUpperCase())}</b>${disChip}${rmpChip}${unexChip}</div><div class="payMob2"><span class="wlv1CallLink" onclick="event.stopPropagation();contact('${esc(x.mobile)}','call')" oncontextmenu="event.preventDefault();event.stopPropagation();copyToClipboard('+91 ${esc(mob(x.mobile||''))}');return false;" title="Long-press to copy">+91 ${esc(mob(x.mobile||''))}</span></div>${idc?`<div class="payIdRow2"><span class="payIdTag2">ID</span> ${esc(idc)}</div>`:''}${addrRow}</div><div class="payAmount2"><b>${money(x.amount)}</b><em>${esc(mode||'CASH')}</em>${wlv1Time12(x.createdAt)?`<span class="payTime2">${esc(wlv1Time12(x.createdAt))}</span>`:''}</div></div>`}).join('')||`<div class="card mut">${chosenDate===today()?'No collection today':'No collection on selected date'}</div>`   /* 🔴 V437 #4 — ফোনে আজকের জন্য আলাদা লেখা (PaymentActivity.kt:275,297) */;
+ let list=todayRows.map((x,__i)=>{let nm=String(x.name||'Walk-in').trim(),sp=wlv1PaymentSplit(x),mode=(sp.cash>0&&sp.online>0?'CASH + ONLINE':(sp.online>0?'UPI':'CASH'));let pt=load('patients').find(p=>mob(p.mobile)===mob(x.mobile))||{};let dis=String(pt.disease||'').trim();let disChip=dis?`<span class="payDisChip">${esc(dis.toUpperCase())}</span>`:'';/* 🔴🔒 V566 (TK): RMP ও অসময়ের রোগী হলে নামের পাশে চিপ। ⛔ না থাকলে বসে না। ⚠️ ফোনের PaymentModel.rmpTagOf/unexpectedTagOf-এর হুবহু একই নিয়ম। */let rmpTag=wlv1PayRmpTag(pt.refBy,pt.refDoctor);let rmpChip=rmpTag?`<span class="payRmpChip">${esc(rmpTag)}</span>`:'';let unexTag=wlv1PayUnexpectedTag(pt.timeType);let unexChip=unexTag?`<span class="payTimeChip">${esc(unexTag)}</span>`:'';let al1=[pt.village,pt.po].filter(Boolean).join(', '),al2=[pt.ps,pt.district,pt.pin].filter(Boolean).join(', ');let addrHtml=(al1||al2)?(esc(al1.toUpperCase())+(al2?'<br>'+esc(al2.toUpperCase()):'')):(pt.address?wlv1AddrTwo(String(pt.address).toUpperCase()):'');let addrRow=addrHtml?`<div class="payAddr">📍 ${addrHtml}</div>`:'';let idc=x.pidCode||pt.patientId||'';return `<div class="payListRow2 ${mode==='UPI'?'onl':'cash'}" data-paysearch="${esc((nm+' '+String(x.mobile||'')+' '+String(idc||'')).toUpperCase())}" data-payextra="${__i>=8?'1':'0'}" onclick="showCollectionRowDetails('${esc(x.mobile)}')" style="cursor:pointer !important;${__i>=8?'display:none;':''}"><div class="payPerson2"><div class="payNameRow"><span class="paySerialTag">${__i+1}</span><b class="wlv1NameLink" onclick="event.stopPropagation();summaryByMobile('${esc(mob(x.mobile))}')" title="Tap for History">${esc(nm.toUpperCase())}</b>${disChip}${rmpChip}${unexChip}</div><div class="payMob2"><span class="wlv1CallLink" onclick="event.stopPropagation();contact('${esc(x.mobile)}','call')" oncontextmenu="event.preventDefault();event.stopPropagation();copyToClipboard('+91 ${esc(mob(x.mobile||''))}');return false;" title="Long-press to copy">${mob(x.mobile||'')?('+91 '+esc(mob(x.mobile||''))):'\u2014'}</span></div>${idc?`<div class="payIdRow2"><span class="payIdTag2">ID</span> ${esc(idc)}</div>`:''}${addrRow}</div><div class="payAmount2"><b>${money(x.amount)}</b><em>${esc(mode||'CASH')}</em>${wlv1Time12(x.createdAt)?`<span class="payTime2">${esc(wlv1Time12(x.createdAt))}</span>`:''}</div></div>`}).join('')||`<div class="card mut">${chosenDate===today()?'No collection today':'No collection on selected date'}</div>`   /* 🔴 V437 #4 — ফোনে আজকের জন্য আলাদা লেখা (PaymentActivity.kt:275,297) */;
  /* 💰 V1019 (TK-নির্দেশ): চওড়া কম্পিউটার-পর্দায় খোঁজার ঘরটা দুই বড় বোতামের
     ডান পাশে বসে — তাতে তালিকার জন্য একটা গোটা সারি জায়গা বাঁচে।
     ⛔ ফোনে হুবহু আগের জায়গাতেই (তালিকার মাথায়) থাকে। */
@@ -21184,6 +21190,28 @@ window["wlv1ChamberRefByLabel"]=wlv1ChamberRefByLabel;
    সিরিয়াল নম্বর। ⛔ ক্রম নতুন করে বানানো হয়নি — তালিকা আগে থেকেই আসার সময়
    ধরে সাজানো; এখানে শুধু গোনা হয়। ⛔ নম্বর পান শুধু যাঁরা এসেছেন।
    ⛔ ফোনের `ChamberAttendanceAdapter`-এর হুবহু একই নিয়ম। */
+/* 🏷🔒 V1226 (০৮.০৯.২০২৬, TK-নির্দেশ: *"নামের পাশে রোগের নাম লিখুন"*)।
+   রোগের নামটা চেম্বারের সারিতে থাকে না, থাকে রোগীর সারিতে — তাই মোবাইল ধরে
+   **একবারই একটা সূচি** বানানো হয় (রোগীর তালিকা বদলালে নিজে থেকেই নতুন হয়)।
+   ⛔ প্রতিটা সারির জন্য পুরো তালিকা ঘোরা হয় না — V1224-এর শিক্ষা মেনে, নইলে
+      পর্দা আবার ধীর হয়ে যেত। ⛔ কোনো নতুন ক্লাউড-পড়া নেই। */
+var __cbDisMap=null, __cbDisLen=-1;
+function wlv1CbDisease(mobile){
+  try{
+    var rows=load('patients')||[];
+    if(__cbDisMap===null||__cbDisLen!==rows.length){
+      __cbDisMap=new Map(); __cbDisLen=rows.length;
+      for(var i=0;i<rows.length;i++){
+        var m=mob(rows[i]&&rows[i].mobile); if(!m)continue;
+        var d=String((rows[i].disease||rows[i].diagnosis||'')).trim();
+        if(d&&!__cbDisMap.has(m))__cbDisMap.set(m,d);
+      }
+    }
+    return __cbDisMap.get(mob(mobile))||'';
+  }catch(e){ return '' }
+}
+window["wlv1CbDisease"]=wlv1CbDisease;
+
 function wlv1ChamberRowHtml(r, __sn){
   // 🔒 V217 (§B216): আগে শুধু >0 হলেই সংখ্যা দেখাত, নইলে "—"। এখন refund-এর
   // পরে কোনো দিন cash/online ঋণাত্মক হতে পারে (শুধু ওই দিন refund হলে) —
@@ -21246,7 +21274,7 @@ function wlv1ChamberRowHtml(r, __sn){
   const refByTxt = wlv1ChamberRefByLabel(r);
   const refByLine = refByTxt
     ? `<div class="wlv1CbId" style="color:#B42318;font-weight:bold">${esc(refByTxt)}</div>` : '';
-  const patientBox = `<div class="wlv1CbPat" onclick="wlv1ChamberPatientChoices('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')" oncontextmenu="event.preventDefault();copyToClipboard('${esc([r.name,r.mobile,r.patientId].filter(Boolean).join(' | '))}');return false;" style="cursor:pointer"><div class="wlv1CbName${refByTxt?' wlv1CbRmp':''}" onclick="event.stopPropagation();wlv1ChamberPatientChoices('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')" oncontextmenu="event.preventDefault();event.stopPropagation();copyToClipboard('${esc(r.name||'')}');return false;">${(Number(__sn)>0?(Number(__sn)+' \u00b7 '):'')}${esc(String(r.name||r.mobile).toUpperCase())}</div><div class="wlv1CbMob" onclick="event.stopPropagation();contact('${esc(r.mobile)}','call')" oncontextmenu="event.preventDefault();event.stopPropagation();copyToClipboard('${esc(shownMob(r.mobile))}');return false;">${esc(shownMob(r.mobile))}</div>${idLine}${refByLine}</div>`;
+  const patientBox = `<div class="wlv1CbPat" onclick="wlv1ChamberPatientChoices('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')" oncontextmenu="event.preventDefault();copyToClipboard('${esc([r.name,r.mobile,r.patientId].filter(Boolean).join(' | '))}');return false;" style="cursor:pointer"><div class="wlv1CbName${refByTxt?' wlv1CbRmp':''}" onclick="event.stopPropagation();wlv1ChamberPatientChoices('${esc(r.mobile)}','${esc(String(r.patientRowId||''))}')" oncontextmenu="event.preventDefault();event.stopPropagation();copyToClipboard('${esc(r.name||'')}');return false;">${(Number(__sn)>0?(Number(__sn)+' \u00b7 '):'')}${esc(String(r.name||r.mobile).toUpperCase())}${(function(){var d=wlv1CbDisease(r.mobile);return d?('<span class="wlv1CbDis">'+esc(d.toUpperCase())+'</span>'):''})()}</div><div class="wlv1CbMob" onclick="event.stopPropagation();contact('${esc(r.mobile)}','call')" oncontextmenu="event.preventDefault();event.stopPropagation();copyToClipboard('${esc(shownMob(r.mobile))}');return false;">${esc(shownMob(r.mobile))}</div>${idLine}${refByLine}</div>`;
   /* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬: "সব কিছু Android এর মত হোক") — ফোনে
      এই তিনটে ঘরে **চাপ দিলেই** কাজ হয় (ChamberAttendanceAdapter.kt:176-180):
      · TREATMENT PROGRESS → আজকের চিকিৎসার কথা লেখা/বদলানোর বাক্স

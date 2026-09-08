@@ -8433,3 +8433,18 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
 .attTbl .att-lv small{color:#123E8C}
 .attTbl .att-wf small{color:#8A5A00}
 .attTbl .att-br small{color:#0A7C3F}
+
+/* 📏🔒 V1226 (০৮.০৯.২০২৬, TK: *"এত জায়গা থাকা সত্ত্বেও পেশেন্টের নাম ব্রেক
+   কেন হবে"*) — CHAMBER DATE-এর PATIENT ঘরটা ১১৮px-এ বাঁধা ছিল, তাই বড় নাম
+   তিন লাইনে ভেঙে যেত, অথচ পাশের TREATMENT PROGRESS ঘরে অনেক জায়গা ফাঁকা।
+   ⇒ শুধু **কম্পিউটারে** (সাইড-মেনু থাকলে) ঘরটা চওড়া হলো; ফোনের চেহারা
+     এক চুলও বদলায়নি (TK-র পুরনো নিয়ম: *"মোবাইলে থাক, মাপ ঠিকই তো আছে"*)।
+   🏷 সঙ্গে নামের পাশে রোগের নাম (TK-নির্দেশ) — ছোট, হালকা, নামের ডানে। */
+@media (min-width:900px){
+  body.hasDeskNav .wlv1CbHead .wlv1CbPat,
+  body.hasDeskNav .wlv1CbRow .wlv1CbPat{flex:0 0 260px!important;width:260px!important}
+  body.hasDeskNav .wlv1CbName{white-space:normal;word-break:normal;overflow-wrap:anywhere}
+}
+.wlv1CbDis{margin-left:6px;font-size:10px;font-weight:700;color:#8A5A00;
+  background:#FFF3DC;border:1px solid #F3DDB0;border-radius:8px;padding:1px 6px;
+  white-space:nowrap;vertical-align:middle}
