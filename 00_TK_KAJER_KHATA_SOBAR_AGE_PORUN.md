@@ -22023,3 +22023,23 @@ sql-function ✅ · version.json ✅ · node --check ✅ · tk_guard ✅
 **পাহারা:** kotlin-compile ✅ · resources ✅ · forbidden-api ✅ · patterns ✅ · egress ✅ ·
 sql-function ✅ · version.json ✅ · node --check ✅ · tk_guard ✅
 সংস্করণ 1211 / 12.11
+
+---
+
+## V1212 — Doctor Reminder এখন ☰ মেনুতে (০৮.০৯.২০২৬)
+
+**TK যা বলেছেন (হুবহু):** *"Doctor reminder icon টা উপরে ডান সাইডে যা থ্রি ডট, তার মধ্যে
+ক্লিক করলে যে মেনুগুলো আসে সেখানে থাকবে"*।
+
+**কী হলো:** হোম-পর্দার 📌 ঘরটা লুকানো হলো, আর ☰ মেনুতে "Doctor Reminder · Note &
+reminder" যোগ হলো। **ফোন ও কম্পিউটার — দুটোতেই** (কম্পিউটারে মাস্টার/স্টাফ ও ডাক্তার —
+দুই তালিকা থেকেই বাদ, মেনুতে যোগ)।
+
+**⛔ যা ছোঁয়া হয়নি:** কারা দেখবেন সেই নিয়ম হুবহু আগের মতোই (master · staff · doctor);
+Doctor Reminder পর্দা · History · ঘন্টার নোটিফিকেশন — এক অক্ষরও বদলায়নি; শুধু পৌঁছানোর
+পথ বদলাল। ফোনে ঘরটার সেটআপ (role/রং/ক্লিক) **রেখেই শুধু লুকানো** হয়েছে (Reports ও
+Export-এর মতোই), তাই ভবিষ্যতে ফেরাতে হলে একটা লাইন সরালেই হয়।
+
+**পাহারা:** kotlin-compile ✅ · resources ✅ · forbidden-api ✅ · patterns ✅ · egress ✅ ·
+sql-function ✅ · version.json ✅ · node --check ✅ · tk_guard ✅
+সংস্করণ 1212 / 12.12

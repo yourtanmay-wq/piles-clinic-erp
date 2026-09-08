@@ -2646,6 +2646,10 @@ function wlv1DeskNav(){return [
  ["🏠","Dashboard","dashboard()",["master","staff","doctor","field"]],
  // 🟢 V1144 (০৬.০৯.২০২৬, TK-অনুমোদিত) — হোমের কার্ডের পাশাপাশি মেনু থেকেও খোলা যায়।
  ["🔔","Reminders","remindersPage()",["master","staff","doctor","field"]],
+ /* 📌🔒 V1212 (০৮.০৯.২০২৬, TK-নির্দেশ): *"Doctor reminder icon টা উপরে ডান সাইডে
+    যা থ্রি ডট, তার মধ্যে ক্লিক করলে যে মেনুগুলো আসে সেখানে থাকবে"*।
+    ⇒ হোমের ঘরটা বাদ, ☰ মেনুতে এলো। role-তালিকা হুবহু আগের ঘরটারই। */
+ ["📌","Doctor Reminder","drRemHome()",["master","staff","doctor"]],
  ["🩺","Doctor Queue","doctorQueue()",["master","doctor","staff"]],
  ["📝","Enquiry","enquiryForm()",["master","staff","doctor"]],
  ["🔁","Follow-up","followup('Inquiry')",["master","staff","doctor"]],
@@ -4587,7 +4591,7 @@ let all=[
  /* 🔔 V1186 (০৭.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ): *"Check Up, Enquiry,
     follow Up এর মতই একটা icon থাকুক"* — ফোনের টাইলের হুবহু যমজ।
     ⛔ ঘড়ি/ক্যালেন্ডার/ঘণ্টার ইমোজি নয় (TK-র স্থায়ী নিয়ম)। */
- ['📌','Doctor Reminder','','drRemHome()',['master','staff','doctor']],
+ /* 📌 V1212 — ঘরটা এখন ☰ মেনুতে (TK-নির্দেশ)। */
  ['📝','Enquiry','','enquiryForm()',['master','staff','doctor']],
  ['🔁','Follow-up','','followup(\'Inquiry\')',['master','staff','doctor']],
  ['🧾','Registration','','registration()',['master','staff','doctor']],
@@ -4617,7 +4621,7 @@ if(role==='doctor'){
   let docTiles=[
     /* 🔔 V1186 — TK: *"এটা প্রত্যেকের হোম স্ক্রিনে ই থাকবে"*, তাই ডাক্তারের
        ছোট তালিকাতেও (ফোনের DOCTOR_DASHBOARD_TILES-এর মতোই)। */
-    ['📌','Doctor Reminder','','drRemHome()'],
+    /* 📌 V1212 — ঘরটা এখন ☰ মেনুতে (TK-নির্দেশ)। */
     ['🩺','CHECK-UP','','doctorQueue()'],
     ['🖨️','Print','','openPrintMenu()'],
     ['📋','Chamber Date','','chamberAttendance()'],

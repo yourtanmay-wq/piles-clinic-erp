@@ -66,6 +66,25 @@ class MoreMenuActivity : AppCompatActivity() {
 
         val isMaster = user.role == "master"
 
+        /* 📌🔒 V1212 (০৮.০৯.২০২৬, TK-নির্দেশ, হুবহু): *"Doctor reminder icon টা উপরে
+           ডান সাইডে যা থ্রি ডট, তার মধ্যে ক্লিক করলে যে মেনুগুলো আসে সেখানে থাকবে"*।
+           ⇒ Dashboard-এর ঘরটা লুকানো হলো (DashboardActivity), আর এখানে এলো।
+           ⛔ কারা দেখবেন সেই নিয়ম **হুবহু আগের মতোই** — master · staff · doctor
+              (Dashboard-এর ঘরটায় ঠিক এই তিনজনই ছিল)। Field-এর পর্দায় বসে না।
+           ⛔ Doctor Reminder পর্দাটা এক অক্ষরও বদলায়নি — শুধু পৌঁছানোর পথ বদলাল। */
+        run {
+            val who = user.displayRole
+            val allowed = isMaster || who == "staff" || who == "doctor"
+            if (allowed) {
+                binding.rowDocModules5.visibility = View.VISIBLE
+                binding.btnDocDoctorReminder.setOnClickListener {
+                    startActivity(Intent(this, DoctorReminderActivity::class.java))
+                }
+            } else {
+                binding.rowDocModules5.visibility = View.GONE
+            }
+        }
+
         // 🔒 নতুন হেল্পার (04.08.2026) — B374-এর সমাধানের সেই একই চিন্তা,
         // এখন ২-কলাম "সারি" LinearLayout-এর জন্য: item লুকিয়ে row থেকে
         // সরিয়ে দেয় (বাকি item weight=1 থাকায় নিজে থেকে পুরো সারি নিয়ে

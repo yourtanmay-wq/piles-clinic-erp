@@ -784,6 +784,51 @@
 
         </LinearLayout>
 
+        </LinearLayout>
+
+        <!-- 📌🔒 V1212 (০৮.০৯.২০২৬, TK-নির্দেশ): *"Doctor reminder icon টা উপরে ডান
+             সাইডে যা থ্রি ডট, তার মধ্যে ক্লিক করলে যে মেনুগুলো আসে সেখানে থাকবে"*।
+             ⇒ Dashboard-এর ঘরটা লুকানো হলো, আর এই মেনুতে যোগ হলো।
+             wiring: MoreMenuActivity.btnDocDoctorReminder -->
+        <LinearLayout
+            android:id="@+id/rowDocModules5"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:visibility="gone"
+            android:paddingHorizontal="12dp">
+
+            <LinearLayout
+                android:id="@+id/btnDocDoctorReminder"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_margin="5dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/bg_more_card"
+                android:elevation="2dp"
+                android:padding="13dp"
+                android:clickable="true"
+                android:focusable="true">
+                <FrameLayout
+                    android:layout_width="42dp"
+                    android:layout_height="42dp"
+                    android:background="@drawable/bg_more_icon_badge"
+                    android:backgroundTint="#E8F4F1">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center" android:text="📌" android:textSize="17sp" />
+                </FrameLayout>
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:layout_marginStart="10dp"
+                    android:orientation="vertical">
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Doctor Reminder" android:fontFamily="serif" android:textStyle="bold" android:textSize="13sp" android:textColor="@color/brand_navy" android:maxLines="1" android:ellipsize="end" />
+                    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Note &amp; reminder" android:textSize="9.5sp" android:textColor="@color/clinic_text_secondary" android:maxLines="1" android:ellipsize="end" />
+                </LinearLayout>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="›" android:textSize="18sp" android:textColor="#B7C0CC" />
+            </LinearLayout>
         <!-- Wide cards: My Profile (non-master) / Staff Profiles + Income & Expense (master) -->
         <LinearLayout
             android:id="@+id/btnMyProfile"

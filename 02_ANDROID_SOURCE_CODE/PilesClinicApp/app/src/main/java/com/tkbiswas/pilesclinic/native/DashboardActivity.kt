@@ -159,6 +159,11 @@ class DashboardActivity : AppCompatActivity() {
            ক্রিয়েট করতে পারবে"* ⇒ তাই তিনটে role-এই দেখা যায়।
            ⛔ ঘড়ি/ক্যালেন্ডার/ঘণ্টার ইমোজি নয় (TK-র স্থায়ী নিয়ম) — 📌। */
         tile(binding.tileDoctorReminder, "📌", "Doctor Reminder", listOf("master", "staff", "doctor"), "#E8F4F1", "#C9E7E0", "#0F766E") { startActivity(Intent(this, DoctorReminderActivity::class.java)) }
+        /* 📌🔒 V1212 (০৮.০৯.২০২৬, TK-নির্দেশ) — ঘরটা এখন ☰ মেনুতে
+           (MoreMenuActivity.btnDocDoctorReminder)। Reports/Export-এর মতোই
+           **ঘরের সেটআপ (role/রং/ক্লিক) হুবহু রেখে শুধু লুকানো** হলো, তাই
+           ভবিষ্যতে ফেরাতে হলে এই একটা লাইন সরালেই হয়। */
+        binding.tileDoctorReminder.root.visibility = android.view.View.GONE
         tile(binding.tileEnquiry, "📝", "Enquiry", listOf("master", "staff", "doctor"), "#FFF3E0", "#FFE0B2", "#FFB74D") { startActivity(Intent(this, EnquiryActivity::class.java)) }
         tile(binding.tileFollowUp, "🔁", "Follow-up", listOf("master", "staff", "doctor"), "#E8F5EE", "#C8E6D5", "#0EA25F") { startActivity(Intent(this, FollowUpActivity::class.java)) }
         tile(binding.tileRegistration, "🧾", "Registration", listOf("master", "staff", "doctor"), "#E7EEFB", "#C9D9F5", "#4A78D6") { startActivity(Intent(this, RegistrationActivity::class.java)) }
