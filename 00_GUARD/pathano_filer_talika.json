@@ -1,5 +1,10 @@
 [
  {
+  "file": "PILES_CLINIC_APP_V1200_FINAL.zip",
+  "versionCode": 1200,
+  "when": "08.09.2026 03.15 am"
+ },
+ {
   "file": "PILES_CLINIC_APP_V1197_FINAL.zip",
   "versionCode": 1197,
   "when": "08.09.2026 12.52 am"
@@ -4331,5 +4336,48 @@
    "code_markers": "১০টার ১০টাই আছে (Cancel · CANCELLED BY · deleteSalaryRow · askConfirm · waiting for confirmation ×২ · drRemCancel · salDeletePay · wlv1MhToggleHistory · styles.css V1197)"
   },
   "ki_notun": "V1192→V1197: Doctor Reminder — নিজের পাঠানো আর হোমে বসে না · Hide · ঘন্টায় নোটিফিকেশন (অপেক্ষমাণ ও Accepted) · ৩ অক্ষরে রোগীর সাজেশন · New Reminder ও তালিকার নতুন সাজ (Back নিচে) · ভুলে পাঠালে Cancel (History-তে CANCELLED) · রোগের নাম · Reminder History ⋮-এ · স্যালারিতে একই মাস দুবার দিলে আটকায় · অঙ্ক আর নিজে বসে না · ভুল সারি Delete (কে মুছল খাতায়) · Extra Income ফর্মের বক্স ছোট · Money Handover-এর নতুন সাজ, অন্যের পাসওয়ার্ড বাদ, নোটিশ শুধু প্রাপক ও মাস্টারকে, Handover History · কম্পিউটারের Enquiry ও Registration ফর্মের বক্স ছোট"
+ },
+ {
+  "file": "PILES_CLINIC_APP_V1200_FINAL.zip",
+  "tarikh": "০৮.০৯.২০২৬ ০৯.০০",
+  "version": "12.00 (V1200)",
+  "mb": 25.5,
+  "files": 1759,
+  "folders": {
+   "02_ANDROID_SOURCE_CODE": 757,
+   "(মূল ফোল্ডারের নথি)": 604,
+   "04_SUPABASE_DATABASE_SETUP": 127,
+   "00_SQL": 71,
+   "00_GUARD": 53,
+   "03_NETLIFY_READY": 51,
+   "08_ASSETS_BACKUP": 36,
+   "07_RELEASE_NOTES_VERSION_HISTORY": 31,
+   "00_READ_ME_FIRST": 11,
+   "10_FUTURE_PLANS": 7,
+   "ROLLBACK_V448": 2,
+   "06_TEST_CHECKLISTS": 2,
+   "11_V223_TESTS": 2,
+   ".claude": 2,
+   "05_APK_AAB_BUILD_NOTES": 1,
+   "03_SUPABASE_SQL": 1,
+   "01_MASTER_LOCK_BOOK_SOURCE_OF_TRUTH": 1
+  },
+  "excluded": [
+   ".git",
+   "00_GUARD/.kotlinc",
+   "*/build",
+   "__pycache__",
+   "node_modules",
+   "08_ASSETS_BACKUP/ANATOMY_PICTURES/ORIGINAL (অনুমোদিত বাদ)",
+   "মূল ফোল্ডারের ৬১টা ডেমো-প্রুফ ছবি (নাম ধরে ধরে বাদ)"
+  ],
+  "jachai": {
+   "gradle": "1200 / 12.00",
+   "version_json": "1200 / 12.00",
+   "root_demo_images": 0,
+   "SQL": "V1193 · V1194 · V1195 · V1196 · V1200 পাঁচটাই আছে",
+   "code_markers": "এই সেশনের ৫৮টা চিহ্নের ৫৮টাই আছে (V1193–V1200, ফোন ও কম্পিউটার)"
+  },
+  "ki_notun": "V1197→V1200: কম্পিউটারের Enquiry/Registration ফর্মের বক্স ছোট · স্যালারি Due এখন আগের মাসের (আগস্টের বেতন সেপ্টেম্বরে) · নতুন STAFF ATTENDANCE SHEET (দিন ধরে ঘণ্টা · মাস্টারের এডিট · এক পাতার A4/PDF · WhatsApp) · Plan My Day (আগাম Work From Home বা অন্য ব্রাঞ্চের ডিউটি) · OUT না চাপলে ৭ ঘণ্টা · অন্য ব্রাঞ্চের প্ল্যান ⇒ ৭ ঘণ্টা"
  }
 ]
