@@ -3521,7 +3521,7 @@ function wlv1AutoIncomeForDay(dateISO,branch){
     if(d.length!==10 || d<WLV1_AUTO_INCOME_FROM) return null;
     var all=(typeof branch==='string' && branch && branch!=='__all' && branch!=='All Branches' && branch!=='All');
     function inBr(x){ return !all || String(x&&x.branch||'')===String(branch) }
-    /* \u{1F534}\u{1F512} V1100 (\u09e6\u09eb.\u09e6\u09ef.\u09e8\u09e6\u09e8\u09ec, TK-\u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6) \u2014 \u09aa\u09c1\u09b0\u09a8\u09cb \u09a4\u09be\u09b0\u09bf\u0996\u09c7\u09b0
+    /* 🔴🔒 V1100 (\u09e6\u09eb.\u09e6\u09ef.\u09e8\u09e6\u09e8\u09ec, TK-\u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6) \u2014 \u09aa\u09c1\u09b0\u09a8\u09cb \u09a4\u09be\u09b0\u09bf\u0996\u09c7\u09b0
        \u099f\u09be\u0995\u09be \u09aa\u09b0\u09c7 \u0985\u09cd\u09af\u09be\u09aa\u09c7 \u09a4\u09c1\u09b2\u09b2\u09c7 \u09b8\u09c7\u099f\u09be \u0986\u09df-\u09ac\u09cd\u09af\u09df\u09c7\u09b0 \u0996\u09be\u09a4\u09be\u09df \u09a7\u09b0\u09be \u09b9\u09ac\u09c7 \u09a8\u09be
        (\u099f\u09be\u0995\u09be\u09b0 \u09a4\u09be\u09b0\u09bf\u0996 < \u09a4\u09cb\u09b2\u09be\u09b0 \u09a6\u09bf\u09a8)\u0964 \u09ab\u09cb\u09a8\u09c7\u09b0 `IncomeExpenseActivity`-\u098f\u09b0 \u09b9\u09c1\u09ac\u09b9\u09c1 \u098f\u0995\u0987 \u09a8\u09bf\u09df\u09ae\u0964
        \u26d4 \u09a4\u09cb\u09b2\u09be\u09b0 \u09a6\u09bf\u09a8 \u099c\u09be\u09a8\u09be \u09a8\u09be \u0997\u09c7\u09b2\u09c7 \u0995\u09bf\u099b\u09c1\u0987 \u09ac\u09be\u09a6 \u09af\u09be\u09df \u09a8\u09be \u00b7 Payment \u09aa\u09b0\u09cd\u09a6\u09be \u0985\u099f\u09c1\u099f\u0964 */
@@ -7045,6 +7045,31 @@ function repairAtoZWorkflowFormula(){
        let mm=mob(f.mobile); if(mm)followupsByRefOrMobilePatientStage.set('m:'+mm, idx);
      }
    });
+   /* 🔴🔒 V1224 (০৮.০৯.২০২৬, TK-নির্দেশ ও অনুমতি — *"কারসর রাখা কোন
+      বোতামই কাজ করছে না · A to Z বোতাম দেরিতে কাজ করে · গভীরে যাচাই করুন"*)।
+      **আসল কারণ (মেপে পাওয়া):** নিচের লুপে **প্রতিটা রোগীর জন্য** পুরো
+      `enquiriesArr` ও পুরো `followupsArr` গোড়া থেকে শেষ পর্যন্ত ঘোরা হত।
+      ধাপ = রোগী × (এনকোয়ারি + ফলোআপ) ⇒ কয়েক হাজার সারিতে **কোটি ধাপ**,
+      পুরোটাই ব্রাউজারের একই থ্রেডে। ওই সময়টুকু পাতা জমে থাকে, তাই কোনো
+      বোতামে চাপ কাজ করে না; শেষ হলে তবেই সাড়া দেয়।
+      ⇒ এখন মোবাইল ধরে **একবারই সূচি** বানানো হয় — ফল হুবহু এক, ধাপ কোটি
+        থেকে হাজারে নামে।
+      ⛔ কোন সারি কী হবে, কোন ঘরে কী বসবে — এক অক্ষরও বদলায়নি। */
+   let enqIdxByMobile=new Map();
+   enquiriesArr.forEach((e,i)=>{
+     let mm=mob(e&&e.mobile); if(!mm)return;
+     let a=enqIdxByMobile.get(mm); if(!a){a=[];enqIdxByMobile.set(mm,a)} a.push(i);
+   });
+   let inqFuIdxByMobile=new Map();
+   followupsArr.forEach((f,i)=>{
+     if(String(f&&f.stage||'')!=='Inquiry')return;
+     let mm=mob(f.mobile); if(!mm)return;
+     let a=inqFuIdxByMobile.get(mm); if(!a){a=[];inqFuIdxByMobile.set(mm,a)} a.push(i);
+   });
+   /* নতুন সারিগুলো লুপের ভিতরে `unshift` করলে প্রতিবার সব সূচি এক ঘর করে সরত
+      (আবার কোটি ধাপ)। তাই জমিয়ে রেখে **শেষে একবারে** সামনে বসানো হয় —
+      `reverse()` দিয়ে ক্রমটাও আগের `unshift`-এর হুবহু একই রাখা হলো। */
+   let azNewRows=[];
    patients.forEach(p=>{
      if(!p||!p.id||!mob(p.mobile))return;
      let mm=mob(p.mobile);
@@ -7057,9 +7082,7 @@ function repairAtoZWorkflowFormula(){
      if(idx===undefined){
        /* 🔴 V406 (16.08.2026): র‍্যান্ডম `uid('fu')`-এর বদলে **স্থির id** `fu_pat_<রোগীর id>` — খাতার সারি B626-এ `repairBranchWorkflowRows`-এ এই নিয়মই বসানো হয়েছিল, কিন্তু এই দুটো heal বাদ পড়ে গিয়েছিল। এগুলো ড্যাশবোর্ড খুললেই চলে, তাই র‍্যান্ডম id-তে প্রতিবার নতুন সারি জমত। স্থির id-তে বারবার চললেও একই সারিতেই বসে। ফোনের `PatientTimelineRepository`-ও এখন হুবহু এই id ব্যবহার করে, তাই ওয়েব ও ফোন এক সারিতেই মেলে। */
        let row={id:'fu_pat_'+p.id,...base};
-       followupsArr.unshift(row);
-       followupsByRefOrMobilePatientStage.forEach((v,k)=>followupsByRefOrMobilePatientStage.set(k,v+1));
-       followupsByRefOrMobilePatientStage.set('r:'+p.id,0);
+       azNewRows.push(row);   // 🔴 V1224 — শেষে একবারে সামনে বসবে
        followupsChanged=true;
      }else{
        let old=followupsArr[idx];
@@ -7075,25 +7098,34 @@ function repairAtoZWorkflowFormula(){
          lastRemark:(old.lastRemark||'')!==''?old.lastRemark:base.lastRemark,
          status:(old.status!==undefined&&String(old.status)!=='')?old.status:base.status,
          stage:(old.stage||base.stage)};
-       followupsArr[idx]=row;
-       followupsChanged=true;
+       /* 🔴 V1224 — **সত্যিই কিছু বদলালে তবেই** সারিটা বসে। আগে মিল পেলেই
+          "বদলেছে" ধরা হত, তাই কিছু না বদলালেও গোটা টেবিল আবার সেভ ও ক্লাউডে
+          পাঠানোর জন্য চিহ্নিত হত (বাড়তি জমাট ও বাড়তি egress)। */
+       let __same=true;
+       try{ for(let k in row){ let a=(row[k]===undefined||row[k]===null)?'':row[k]; let b=(!old||old[k]===undefined||old[k]===null)?'':old[k]; if(String(a)!==String(b)){__same=false;break} } }catch(_e){ __same=false }
+       if(!__same){ followupsArr[idx]=row; followupsChanged=true; }
      }
 
      // --- same result as finalizeEnquiryRegistrationVisit(mm,p), reusing the
      // same already-loaded arrays instead of reloading per patient ---
-     enquiriesArr.forEach((e,i)=>{
-       if(mob(e.mobile)===mm){
-         enquiriesArr[i]={...e,stage:'Registered',status:'Registered',nextFollow:'',convertedPatientId:p.id,convertedAt:e.convertedAt||now,updatedAt:now};
-         enquiriesChanged=true;
-       }
+     /* 🔴 V1224 — পুরো তালিকা ঘোরার বদলে সূচি থেকে সরাসরি; আর সত্যিই
+        বদলালে তবেই সেভ। ⛔ কোন সারি বাছা হবে ও কী বসবে — হুবহু আগের মতোই। */
+     (enqIdxByMobile.get(mm)||[]).forEach(i=>{
+       let e=enquiriesArr[i]; if(!e)return;
+       if(String(e.stage||'')==='Registered'&&String(e.status||'')==='Registered'&&
+          String(e.nextFollow||'')===''&&e.convertedPatientId===p.id)return;
+       enquiriesArr[i]={...e,stage:'Registered',status:'Registered',nextFollow:'',convertedPatientId:p.id,convertedAt:e.convertedAt||now,updatedAt:now};
+       enquiriesChanged=true;
      });
-     followupsArr.forEach((f,i)=>{
-       if(mob(f.mobile)===mm&&String(f.stage||'')==='Inquiry'){
-         followupsArr[i]={...f,previousStage:f.previousStage||'Inquiry',stage:'Registered',status:'Closed',nextFollow:'',lastRemark:'Converted to Patient Registration',convertedPatientId:p.id,convertedAt:f.convertedAt||now,updatedAt:now};
-         followupsChanged=true;
-       }
+     (inqFuIdxByMobile.get(mm)||[]).forEach(i=>{
+       let f=followupsArr[i]; if(!f)return;
+       if(String(f.stage||'')!=='Inquiry')return;
+       followupsArr[i]={...f,previousStage:f.previousStage||'Inquiry',stage:'Registered',status:'Closed',nextFollow:'',lastRemark:'Converted to Patient Registration',convertedPatientId:p.id,convertedAt:f.convertedAt||now,updatedAt:now};
+       followupsChanged=true;
      });
    });
+   // 🔴 V1224 — জমানো নতুন সারিগুলো এখন একবারে সামনে (ক্রম আগের মতোই)
+   if(azNewRows.length){ followupsArr=azNewRows.reverse().concat(followupsArr); }
    if(followupsChanged)save('followups',followupsArr);
    if(enquiriesChanged)save('enquiries',enquiriesArr);
    // Cloud sync stays best-effort/fire-and-forget exactly as before, just
@@ -10325,7 +10357,7 @@ async function savePatient(evt){
      date:today(),amount:regFee,mode:payMode($('#regMode')?.value||'CASH'),
      remarks:'Visit Fee',receivedBy:(user&&user.mobile)||'',createdBy:(user&&user.mobile)||'',updatedAt:new Date().toISOString()
     };
-    /* \u{1F534}\u{1F512} V1101 (\u09e6\u09eb.\u09e6\u09ef.\u09e8\u09e6\u09e8\u09ec) \u2014 TK: *"\u09b0\u09c7\u099c\u09bf\u09b8\u09cd\u099f\u09cd\u09b0\u09c7\u09b6\u09a8\u09c7 \u09ad\u09bf\u099c\u09bf\u099f
+    /* 🔴🔒 V1101 (\u09e6\u09eb.\u09e6\u09ef.\u09e8\u09e6\u09e8\u09ec) \u2014 TK: *"\u09b0\u09c7\u099c\u09bf\u09b8\u09cd\u099f\u09cd\u09b0\u09c7\u09b6\u09a8\u09c7 \u09ad\u09bf\u099c\u09bf\u099f
        \u09ab\u09bf \u09ac\u09be\u09a7\u09cd\u09af\u09a4\u09be\u09ae\u09c2\u09b2\u0995, \u09a4\u09be\u09b9\u09b2\u09c7 Visit Fee Missing \u09a8\u09cb\u099f\u09bf\u09ab\u09bf\u0995\u09c7\u09b6\u09a8 \u0986\u09b8\u09ac\u09c7\u0987 \u09ac\u09be \u0995\u09c7\u09a8"*
        \u21d2 \u09b8\u09be\u09b0\u09bf\u099f\u09be \u09ac\u09b8\u09be\u09a8\u09cb\u09b0 \u09aa\u09b0\u09c7\u0993 \u099c\u09ae\u09be-\u0998\u09b0\u09c7 \u09b0\u09be\u0996\u09be \u09b9\u09df\u0964 \u09aa\u09b0\u09c7\u09b0 \u09ab\u09cd\u09b2\u09be\u09b6 \u09aa\u09cd\u09b0\u09a4\u09bf\u09ac\u09be\u09b0
        \u09ae\u09bf\u09b2\u09bf\u09df\u09c7 \u09a6\u09c7\u0996\u09c7 \u2014 \u0995\u09cd\u09b2\u09be\u0989\u09a1\u09c7 \u0986\u0997\u09c7\u0987 \u09a5\u09be\u0995\u09b2\u09c7 \u099a\u09c1\u09aa\u099a\u09be\u09aa \u09ac\u09be\u09a6, \u09a8\u09be \u09a5\u09be\u0995\u09b2\u09c7 \u0986\u09ac\u09be\u09b0 \u09ac\u09b8\u09c7\u0964
