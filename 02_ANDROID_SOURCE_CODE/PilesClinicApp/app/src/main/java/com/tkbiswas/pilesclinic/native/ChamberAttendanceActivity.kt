@@ -3282,7 +3282,9 @@ Thread {
     private fun cbHoApplySale() {
         cbHoCash = cbHoBaseCash + cbMedicineSaleCash
         cbHoOnline = cbHoBaseOnline + cbMedicineSaleOnline
-        cbHoTotal = cbHoCash + cbHoOnline - cbHoRefund
+        // 💵 V1238 — রিফান্ড এখন cbHoCash/cbHoOnline-এর ভিতরেই বাদ হয়ে আছে,
+        //    তাই এখানে আর বিয়োগ হয় না (নইলে দুবার বাদ যেত)।
+        cbHoTotal = cbHoCash + cbHoOnline
     }
     private var cbHoBaseCash = 0.0
     private var cbHoBaseOnline = 0.0
@@ -3375,7 +3377,13 @@ Thread {
              TOTAL = Fees + Cash + Online − Refund
            ⛔ রিফান্ড না থাকলে (`cbRefundTotal == 0`) প্রতিটা সংখ্যা **হুবহু
               আগের মতোই** — লাইনটাও বসে না। */
-        val cbRefundTotal = arrived.sumOf { it.refundCash + it.refundOnline }
+        /* 💵🔒 V1238 — রিফান্ড এতদিন **একসাথে** গোনা হত (ক্যাশ+অনলাইন)। হ্যান্ডওভারের
+           জন্য দুটো আলাদা করে জানা দরকার — নইলে অনলাইনে করা রিফান্ড ক্যাশের ঘর
+           থেকে বাদ যেত, যা ভুল। ⛔ `cbRefundTotal`-এর অঙ্ক ও ব্যবহার হুবহু আগের
+           মতোই (এখন শুধু দুটোর যোগফল হিসেবে লেখা)। */
+        val cbRefundCash = arrived.sumOf { it.refundCash }
+        val cbRefundOnline = arrived.sumOf { it.refundOnline }
+        val cbRefundTotal = cbRefundCash + cbRefundOnline
         val cbCashTotal = arrived.sumOf { it.paymentCash + it.refundCash }
         val cbOnlineTotal = arrived.sumOf { it.paymentOnline + it.refundOnline }
         val cbGrandTotal = cbFeesTotal + cbCashTotal + cbOnlineTotal - cbRefundTotal
@@ -3388,9 +3396,14 @@ Thread {
            ⛔ TK-এর V1037/V1038-এর নিয়ম অটুট — হ্যান্ডওভার এখনো **শুধু ক্যাশ**।
            ⛔ বিক্রি না থাকলে (বা ডাক ব্যর্থ হলে) প্রতিটা অঙ্ক হুবহু আগের মতোই। */
         cbHoFees = cbFeesTotal; cbHoRefund = cbRefundTotal
-        // 💵 V1237 — ফি-র ক্যাশ/অনলাইনও ভিত্তিতে ধরা হয় (উপরের ব্যাখ্যা দেখুন)।
-        cbHoBaseCash = cbCashTotal + cbFeesCash
-        cbHoBaseOnline = cbOnlineTotal + cbFeesOnline
+        /* 💵 V1237 — ফি-র ক্যাশ/অনলাইনও ভিত্তিতে ধরা হয় (উপরের ব্যাখ্যা দেখুন)।
+           💵 V1238 (TK: *"হ্যাঁ ঠিক করুন"*) — রিফান্ডে যে টাকা ফেরত দেওয়া হয়েছে
+           সেটা ড্রয়ারে আর নেই, তাই **যে উপায়ে ফেরত হয়েছে ঠিক সেই ঘর থেকেই**
+           বাদ যায়। `cbCashTotal`/`cbOnlineTotal` ইচ্ছে করেই রিফান্ড-বাদ-দেওয়ার
+           **আগের** অঙ্ক (V709 — পর্দায় আলাদা লাইনে দেখানোর জন্য), তাই এখানে
+           একবারই বিয়োগ হয়, দুবার নয়। ⛔ রিফান্ড না থাকলে অঙ্ক হুবহু আগের মতোই। */
+        cbHoBaseCash = cbCashTotal - cbRefundCash + cbFeesCash
+        cbHoBaseOnline = cbOnlineTotal - cbRefundOnline + cbFeesOnline
         cbHoApplySale()
         list.addView(android.widget.TextView(this).apply {
             text = "REVIEW — ${arrivedOnly.size} arrived"   // 🔴🔒 V709 — রিফান্ড এখানে গোনা হয় না

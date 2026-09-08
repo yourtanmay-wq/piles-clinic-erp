@@ -24340,7 +24340,12 @@ function wlv1CloseReview(rows){
      ⛔ রিফান্ড না থাকলে প্রতিটা সংখ্যা হুবহু আগের মতোই, লাইনটাও বসে না।
      ⛔ "N arrived" সংখ্যাটা এখন শুধু সত্যিই আসা রোগীদের (r.arrived) — টাকা
         ফেরত মানে রোগী আসেননি, তাই সংখ্যাটা বাড়বে না। */
-  const __rT=rows.reduce((a,r)=>a+Number(r.refundCash||0)+Number(r.refundOnline||0),0);
+  /* 💵🔒 V1238 — রিফান্ড এতদিন একসাথে গোনা হত (ক্যাশ+অনলাইন)। হ্যান্ডওভারের
+     জন্য দুটো আলাদা করে জানা দরকার — নইলে অনলাইনে করা রিফান্ড ক্যাশের ঘর থেকে
+     বাদ যেত, যা ভুল। ⛔ `__rT`-এর অঙ্ক ও ব্যবহার হুবহু আগের মতোই। */
+  const __rC=rows.reduce((a,r)=>a+Number(r.refundCash||0),0),
+        __rO=rows.reduce((a,r)=>a+Number(r.refundOnline||0),0);
+  const __rT=__rC+__rO;
   const __fT=rows.reduce((a,r)=>a+Number(r.fee||0),0),
         __cT=rows.reduce((a,r)=>a+Number(r.cash||0)+Number(r.refundCash||0),0),
         __oT=rows.reduce((a,r)=>a+Number(r.online||0)+Number(r.refundOnline||0),0), __gT=__fT+__cT+__oT-__rT;
@@ -24391,9 +24396,14 @@ function wlv1CloseReview(rows){
      ⛔ TK-এর V1037/V1038-এর নিয়ম অটুট — হ্যান্ডওভার এখনো শুধু ক্যাশ।
      ⛔ `fees` ঘরটা (feesTotal) আগের মতোই দিনের পুরো ফি — ছোঁয়া হয়নি; কোথাও
         fees আর cash একসাথে যোগ হয় না (হ্যান্ডওভার সবসময় শুধু cashTotal পড়ে)।
-     ⛔ বিক্রি বা ফি না থাকলে প্রতিটা অঙ্ক হুবহু আগের মতোই। */
-  try{ window.__wlv1MhTot={fees:__fT,cash:__cT+__fC+__msC,online:__oT+__fO+__msO,refund:__rT,
-       grand:__cT+__fC+__msC+__oT+__fO+__msO-__rT} }catch(_e){}
+     ⛔ বিক্রি বা ফি না থাকলে প্রতিটা অঙ্ক হুবহু আগের মতোই।
+     💵🔒 V1238 (TK: "হ্যাঁ ঠিক করুন") — রিফান্ডে যে টাকা ফেরত দেওয়া হয়েছে সেটা
+     ড্রয়ারে আর নেই, তাই **যে উপায়ে ফেরত হয়েছে ঠিক সেই ঘর থেকেই** বাদ যায়।
+     __cT/__oT ইচ্ছে করেই রিফান্ড-বাদ-দেওয়ার **আগের** অঙ্ক (V709 — পর্দায় আলাদা
+     লাইনে দেখানোর জন্য), তাই এখানে একবারই বিয়োগ হয়, দুবার নয়। ফোনের
+     cbHoApplySale()-এর হুবহু যমজ। ⛔ রিফান্ড না থাকলে অঙ্ক হুবহু আগের মতোই। */
+  try{ window.__wlv1MhTot={fees:__fT,cash:__cT-__rC+__fC+__msC,online:__oT-__rO+__fO+__msO,
+       refund:__rT, grand:(__cT-__rC+__fC+__msC)+(__oT-__rO+__fO+__msO)} }catch(_e){}
   modal(`<h2>REVIEW — ${__arrivedN} arrived</h2>
     <div class="wlv1CbRevSum">${wlv1CbSheetHtml(__cT,__oT,__fC,__fO,__msC,__msO,__rT)}</div>
     <div class="wlv1CbRevWrap">${list}</div>
