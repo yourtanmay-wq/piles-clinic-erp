@@ -3477,6 +3477,47 @@ function collectionRowsWithZero(){ return wlv1CollectionRowsRaw(null, true) }
 window["collectionRowsWithZero"]=collectionRowsWithZero;
 window["collectionRowsAll"]=collectionRowsAll;
 function collectionRows(){ return wlv1CollectionRowsRaw(wlv1RefundedMobiles()) }
+/* 🔴🔴🔒 V1227 (০৮.০৯.২০২৬ — TK, ছবিসহ: *"+91 এগুলো আমাদের পেশেন্ট ·
+   রেজিস্ট্রেশন না হলে আমরা কোন পেশেন্টকে ট্রিটমেন্টও করি না, মেডিসিনও দিই না ·
+   ফালতু কথা না বলে গভীরে যাচাই করে তবে কাজ করুন"*)।
+   ⛔ **আমার আগের কথাটা ভুল ছিল** — আমি বলেছিলাম ওগুলো ওয়াক-ইন, নম্বর নেই।
+      TK ঠিক বলেছেন; কোডে মেপে আসল কারণ পাওয়া গেল:
+
+   **Medicine Payment ফর্মে ঘর একটাই — "Patient Mobile / Name"**, আর সেভের সময়
+   যা টাইপ করা হয় তা শুধু `customer` ঘরে বসে; `mobile` ঘরটা **কখনোই লেখা হয় না**
+   (`saveMedicinePayment`)। তাই Payment তালিকায় ওই সারিগুলোর নম্বর ফাঁকা, আর
+   পর্দায় খালি "+91" পড়ে থাকত। সারিতে চাপ দিলে রোগীর হিসাবও খুলত না।
+
+   ⇒ এখন নম্বরটা **খুঁজে বের করা হয়** — (১) সারিতে নম্বর থাকলে সেটাই, (২) স্টাফ
+     নম্বর টাইপ করে থাকলে সেটা, (৩) নাম টাইপ করা হলে রোগীর তালিকায় ওই নামে
+     **ঠিক একজনই** থাকলে তাঁর নম্বর।
+   ⛔ **আন্দাজে কিছু বসানো হয় না** — একই নামে একাধিক রোগী থাকলে (যেমন DIPANKAR
+      ROY দুজন) কিছুই বসে না, ঘরটা ফাঁকাই থাকে। ভুল রোগীর সঙ্গে টাকা জোড়া
+      লাগার চেয়ে ফাঁকা থাকা ভালো।
+   ⛔ নামের তালিকা **একবারই** বানানো হয় (V1224-এর শিক্ষা), নতুন ক্লাউড-পড়া নেই। */
+var __medMobMap=null, __medMobLen=-1;
+function wlv1MedResolveMobile(row){
+  try{
+    var direct=mob(row&&row.mobile); if(direct.length===10)return direct;
+    var typed=mob(row&&row.customer); if(typed.length===10)return typed;
+    var nm=String((row&&row.customer)||'').trim().toUpperCase();
+    if(!nm||mob(nm))return '';
+    var pats=load('patients')||[];
+    if(__medMobMap===null||__medMobLen!==pats.length){
+      __medMobMap=new Map(); __medMobLen=pats.length;
+      for(var i=0;i<pats.length;i++){
+        var k=String((pats[i]&&pats[i].name)||'').trim().toUpperCase(); if(!k)continue;
+        var mm=mob(pats[i].mobile); if(mm.length!==10)continue;
+        if(!__medMobMap.has(k))__medMobMap.set(k,mm);
+        else if(__medMobMap.get(k)!==mm)__medMobMap.set(k,'__MANY__');   // একাধিক ⇒ কিছুই নয়
+      }
+    }
+    var got=__medMobMap.get(nm)||'';
+    return (got&&got!=='__MANY__')?got:'';
+  }catch(e){ return '' }
+}
+window["wlv1MedResolveMobile"]=wlv1MedResolveMobile;
+
 function wlv1CollectionRowsRaw(refunded, keepZero){
 
  var wlv1NotRefunded=function(mob){
@@ -3491,7 +3532,7 @@ function wlv1CollectionRowsRaw(refunded, keepZero){
  // TK-কে আলাদা করে জানানো আছে।
  let pays=scoped(load('payments')).filter(x=>wlv1NotRefunded(x.mobile)&&String(x.payType||'').toLowerCase()!=='refund').map(x=>{let sp=wlv1PaymentSplit(x);return {source:collectionPaymentLabel(x),payLabel:x.payLabel||x.paymentLabel||'',date:x.date,name:x.name||'',mobile:x.mobile||'',branch:x.branch||'',mode:wlv1SplitMode(sp.cash,sp.online),amount:Number(x.amount||0),cashAmount:sp.cash,onlineAmount:sp.online,id:x.patientId||x.id,patientId:x.patientId||'',patientCode:x.patientCode||'',payType:x.payType||'treatment',remarks:x.remarks||'',pidCode:String(x.patientCode||'')||wlv1PidCode(x.mobile),createdAt:x.createdAt||'',receivedBy:x.receivedBy||'',createdBy:x.createdBy||'',dailyEvents:Array.isArray(x.dailyEvents)?x.dailyEvents:[]};});
  pays=wlv1MergeDailyTreatmentRows(pays);
- let meds=scoped(load('products')).filter(x=>x.kind==='medicinePayment'||x.deposit||x.total).filter(x=>wlv1NotRefunded(x.mobile)).map(x=>({source:'Medicine Payment',date:x.date,name:x.customer||x.name||'Walk-in',mobile:x.mobile||'',branch:x.branch||'',mode:payMode(x.mode),amount:Number(x.deposit||0),id:x.id,remarks:x.remarks||'',payType:'medicine'   /* 🔴 V437 #14: ফোনে fallback নেই (MedicinePaymentActivity.kt:441-443) */,pidCode:wlv1PidCode(x.mobile),createdAt:x.createdAt||''}));
+ let meds=scoped(load('products')).filter(x=>x.kind==='medicinePayment'||x.deposit||x.total).filter(x=>wlv1NotRefunded(x.mobile)).map(x=>({source:'Medicine Payment',date:x.date,name:x.customer||x.name||'Walk-in',mobile:(x.mobile||wlv1MedResolveMobile(x)||''),branch:x.branch||'',mode:payMode(x.mode),amount:Number(x.deposit||0),id:x.id,remarks:x.remarks||'',payType:'medicine'   /* 🔴 V437 #14: ফোনে fallback নেই (MedicinePaymentActivity.kt:441-443) */,pidCode:wlv1PidCode(x.mobile||wlv1MedResolveMobile(x)),createdAt:x.createdAt||''}));
  /* 🔴 V437 #9 — `keepZero` দিলে ₹0 সারিও থাকে (শুধু রোগীর নিজের পপ-আপের জন্য);
     ⛔ ডিফল্টে আগের মতোই শুধু ₹0-এর বেশি — কোনো মোট/হিসাব বদলায়নি। */
  return [...pays,...meds].filter(x=>keepZero?true:Number(x.amount||0)>0);
@@ -16249,7 +16290,11 @@ function saveMedicinePayment(action){
   if(!(bill>0))return toast('সঠিক Bill দিন');
   if(!(dep>0))return toast('সঠিক Deposit দিন');
   if(dep>bill&&!confirm('Deposit is more than bill. Continue?'))return;
-  var row={id:uid('prd'),kind:__medType,   /* 🆕 V805 */ customer:cust||'Walk-in',product:prod,bill:bill,total:bill,deposit:dep,due:Math.max(0,bill-dep),mode:(String($('#medMode').value||'').toUpperCase()==='CASH'?'CASH':'ONLINE'),   /* 🔴 V437 — নিচের টীকা দেখুন */remarks:'',date:(__medActualDate||today()),branch:br,   /* 🔄 V849 */receivedBy:user.mobile,createdBy:user.mobile,createdAt:isoNow()};
+  /* 🔴 V1227 — টাইপ করা লেখাটা নম্বর হলে (বা নামে ঠিক একজনই মিললে) সেই
+     নম্বরটা এখনই সারিতে জমা থাকে, তাই ভবিষ্যতে আর খুঁজতে হয় না ও রোগীর
+     হিসাবের সঙ্গে জুড়ে যায়। ⛔ না মিললে ঘরটা ফাঁকাই থাকে — আন্দাজে কিছু নয়। */
+  var __medMob=''; try{ __medMob=wlv1MedResolveMobile({customer:cust}) }catch(_e){}
+  var row={id:uid('prd'),kind:__medType,   /* 🆕 V805 */ customer:cust||'Walk-in',mobile:__medMob,product:prod,bill:bill,total:bill,deposit:dep,due:Math.max(0,bill-dep),mode:(String($('#medMode').value||'').toUpperCase()==='CASH'?'CASH':'ONLINE'),   /* 🔴 V437 — নিচের টীকা দেখুন */remarks:'',date:(__medActualDate||today()),branch:br,   /* 🔄 V849 */receivedBy:user.mobile,createdBy:user.mobile,createdAt:isoNow()};
   add('products',row);
   toast('Medicine payment saved');
   if(action==='share')medShareReceipt(row);
