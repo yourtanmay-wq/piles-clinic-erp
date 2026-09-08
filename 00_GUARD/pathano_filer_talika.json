@@ -1,5 +1,10 @@
 [
  {
+  "file": "PILES_CLINIC_APP_V1234_FINAL.zip",
+  "versionCode": 1234,
+  "when": "08.09.2026 02.12 pm"
+ },
+ {
   "file": "PILES_CLINIC_APP_V1220_FINAL.zip",
   "versionCode": 1220,
   "when": "08.09.2026 10.53 am"
@@ -4592,5 +4597,67 @@
    "guard_fix": "tk_guard.py-তে [৯.৪৪]-এর নতুন নিয়ম (V1220) ZIP-এর ভিতরে আছে"
   },
   "ki_notun": "V1220: TK-র Android Studio-তে kapt বিল্ড ভাঙা সারানো — V1215-এ ক্লাসের এক ঘরের ধরনে `com.tkbiswas.pilesclinic.native.CollectionRow` বসেছিল, আর `native` Java-র সংরক্ষিত শব্দ বলে kapt-এর Java নকল ভেঙে যেত। ধরন এখন `Any`, পড়ার সময় filterIsInstance। সঙ্গে পাহারা [৯.৪৪]-এর ফাঁকও সারানো (কোলন ছাড়া ধরনও ধরে)। ⛔ কোনো তথ্য/টাকা/ছাঁকনি বদলায়নি। বাকি সব V1212–V1219-এর মতোই।"
+ },
+ {
+  "file": "PILES_CLINIC_APP_V1234_FINAL.zip",
+  "tarikh": "০৮.০৯.২০২৬ ১৯.২০",
+  "version": "12.34 (V1234)",
+  "mb": 25.33,
+  "files": 1760,
+  "folders": {
+   "02_ANDROID_SOURCE_CODE": 758,
+   "(মূল ফোল্ডারের নথি)": 603,
+   "04_SUPABASE_DATABASE_SETUP": 127,
+   "00_SQL": 72,
+   "00_GUARD": 53,
+   "03_NETLIFY_READY": 51,
+   "08_ASSETS_BACKUP": 36,
+   "07_RELEASE_NOTES_VERSION_HISTORY": 31,
+   "00_READ_ME_FIRST": 11,
+   "10_FUTURE_PLANS": 7,
+   "ROLLBACK_V448": 2,
+   "11_V223_TESTS": 2,
+   "06_TEST_CHECKLISTS": 2,
+   ".claude": 2,
+   "05_APK_AAB_BUILD_NOTES": 1,
+   "03_SUPABASE_SQL": 1,
+   "01_MASTER_LOCK_BOOK_SOURCE_OF_TRUTH": 1
+  },
+  "excluded": [
+   ".git",
+   "00_GUARD/.kotlinc",
+   "*/build",
+   "__pycache__",
+   "node_modules",
+   "08_ASSETS_BACKUP/ANATOMY_PICTURES/ORIGINAL (অনুমোদিত বাদ)"
+  ],
+  "jachai": {
+   "gradle": "1234 / 12.34",
+   "version_json": "1234 / 12.34",
+   "root_demo_images": 0,
+   "cache_tags": "app.js?v=v1232 · styles.css?v=v1232 · module_core.js?v=v1230 · rmp_commission.js?v=v1223 (যে ফাইল যে ভার্সনে শেষ বদলেছে)",
+   "guards": "kotlin-compile · resources · forbidden-api · patterns · egress · sql-function · version.json · node --check · tk_guard — সব পাশ"
+  },
+  "ki_notun": "V1221–V1234 (V1220-এর পর যা যা হয়েছে): হোমে Enquiry আবার প্রথমে · স্টাফের কল ও রিমার্ক আর হারাবে না (৪টে দোষ) · ওয়েবের মৃত বোতাম · A-to-Z দ্রুত (2104ms→96ms) · CHECK-UP বোতাম সারানো · নাম ভাঙা বন্ধ ও নামের পাশে রোগ · Payment-এ খালি +91 · Medicine Payment-এ রোগী খোঁজা · Pending+Search পাশাপাশি ও Today Collection পড়া যায় · Staff Profiles/Income & Expense আর নিঃশব্দে ঝুলবে না · ওয়েবের নতুন হোম (তিনটে বড় ঘর) · CHECK-UP-এর বক্স ছোট · সেভ করা এস্টিমেট আর হারাবে না · RMP পপ-আপে নামে চাপ দিলে প্রোফাইল।"
+ },
+ {
+  "file": "PILES_CLINIC_APP_V1234_NETLIFY.zip",
+  "tarikh": "০৮.০৯.২০২৬ ১৯.২০",
+  "version": "12.34 (V1234)",
+  "mb": 5.87,
+  "files": 51,
+  "folders": {
+   "(ZIP-এর গোড়াতেই সব — index.html একদম উপরে)": 51
+  },
+  "excluded": [
+   "পুরো প্রজেক্টের বাকি সব ফোল্ডার — শুধু 03_NETLIFY_READY-র ভিতরটা",
+   ".DS_Store"
+  ],
+  "jachai": {
+   "index_html_root": true,
+   "version_json": "1234 / 12.34"
+  },
+  "keno_alada_nam": "TK-র আগের নির্দেশে Netlify-র অংশ আলাদা ZIP-এ; নাম গুলিয়ে না যেতে শেষে _NETLIFY।",
+  "ki_notun": "শুধু কম্পিউটারের (ওয়েব) অংশ — Netlify-তে টেনে ছাড়ার জন্য। ভিতরের কোড V1234-এর হুবহু একই।"
  }
 ]
