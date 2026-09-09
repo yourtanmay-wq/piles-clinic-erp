@@ -239,6 +239,30 @@
 
     </LinearLayout>
 
+    <!-- 📒🔒 V1252 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, khata row 373):
+         TK - "কত তারিখে কোন RMP কে কত কমিশন দেওয়া হল সেটা আমি Google Sheet এর
+         মত দেখতে চাই"। Read-only sheet: date, RMP, patient, amount, mode,
+         branch, reference, recorded by, with the total at the end of the
+         column and Cash & Online / Share / Print inside the top-right menu.
+         Master-only (same money-privacy tone as B211); default gone, made
+         visible from Kotlin only for the master. -->
+    <TextView
+        android:id="@+id/btnRmpCommissionSheet"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="12dp"
+        android:layout_marginBottom="10dp"
+        android:background="@drawable/bg_rmp_due_btn"
+        android:text="RMP Commission Sheet"
+        android:textColor="@color/white"
+        android:textStyle="bold"
+        android:textSize="13sp"
+        android:gravity="center"
+        android:paddingVertical="12dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone" />
+
 
     <!-- TK-REQUESTED ADDITION (2026-07-23): visible count of how many
          doctors match the currently active filter. Hidden when filter is

@@ -1894,6 +1894,10 @@ _WEBVIEW_ALLOWED = {
     # 🗓️ V1199 (০৮.০৯.২০২৬) — TK-কে জানিয়ে যোগ করা হলো। এটা **ছাপার** ফাইল
     #    (SalaryStatementHtmlPrint-এর হুবহু একই পথ), পপ-আপে বসে না, তাই কম্পনের ফাঁদ নেই।
     "print/AttendanceSheetHtmlPrint.kt": (1, "ছাপা — Staff Attendance Sheet"),
+    # 📒 V1252 (০৯.০৯.২০২৬) — TK-কে জানিয়ে যোগ করা হলো। এটা **ছাপার**
+    #    WebView (EstimatePaperActivity-র হুবহু একই পথ) — পপ-আপে বসে না,
+    #    পর্দায় দেখানোও হয় না, তাই কম্পনের ফাঁদ নেই।
+    "native/RmpCommissionSheetActivity.kt": (1, "ছাপা — RMP Commission Sheet"),
     "print/InvestigationHtmlPrint.kt":   (1, "ছাপা"),
     "print/PrescriptionHtmlPrint.kt":    (1, "ছাপা"),
     "print/PrescriptionWhatsAppShare.kt":(1, "WhatsApp-এ PDF"),

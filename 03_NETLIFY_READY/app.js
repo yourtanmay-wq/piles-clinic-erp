@@ -17622,6 +17622,10 @@ function doctorVisit(filter='home'){
     পূর্ণ-চওড়া ব্যানার-ধাঁচে। ⛔ Master + Staff (ডাক্তারের role ভিতরে
     "staff") দেখেন, Field Officer নয় — ফোনের সাথে হুবহু এক নিয়ম। */
  let rmpDueHtml=wlv1CanSeeDue()?`<button class="dvRmpDueBanner" onclick="wlv1RmpDueList()">RMP Due List</button>`:'';
+ /* 📒🔒 V1252 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, খাতার সারি ৩৭৩) —
+    ফোনের নতুন `btnRmpCommissionSheet`-এর যমজ, ঠিক ওই দুটো ব্যানারের সঙ্গেই।
+    🔒 শুধু Master (টাকার তালিকা, B211-এর সুরে) — ফোনের সাথে হুবহু এক নিয়ম। */
+ let rmpSheetHtml=isMaster()?`<button class="dvRmpDueBanner" onclick="wlv1RmpSheet()">RMP Commission Sheet</button>`:'';
  let callSummaryHtml=isMaster()?`<div class="dvCallSummaryLink"><a href="javascript:void(0)" onclick="doctorStaffCallSummary()">📊 Staff Call Summary</a></div>`:'';
  let title=filter==='expected'?'Expected Patient':filter==='pending'?'Overdue Call':filter==='called'?'This Month Called':filter==='all'?'Dr. Visit - All Doctors':q?'Search Result':'Doctor Visit / RMP';
  let masterBranchHtml=isMaster()?`<div id="rmpBranchWrap" class="wlv1HdrPick"><select class="input" onchange="wlv1RmpMasterBranchChange(this.value)"><option value="">Select Branch</option>${(C.branches||[]).map(b=>`<option value="${esc(b.name)}" ${wlv1RmpBranch()===String(b.name)?'selected':''}>${esc(b.name)}</option>`).join('')}</select></div>`:'';
@@ -17631,7 +17635,7 @@ function doctorVisit(filter='home'){
     ভিতরে; কম্পিউটারে (≥900px) পাশাপাশি দুই কলামে, ফোনে আগের মতোই একটার নিচে
     একটা (styles.css-এ নিয়ম)। ⛔ বোতাম দুটোর লেখা · রং · কাজ · কে দেখবেন —
     কিছুই বদলায়নি; শুধু কম্পিউটারে জায়গার ব্যবহার। */
- let rmpBannerRow=(rmpPerfHtml||rmpDueHtml)?`<div class="dvRmpBannerRow">${rmpPerfHtml}${rmpDueHtml}</div>`:'';
+ let rmpBannerRow=(rmpPerfHtml||rmpDueHtml||rmpSheetHtml)?`<div class="dvRmpBannerRow">${rmpPerfHtml}${rmpDueHtml}${rmpSheetHtml}</div>`:'';
  let body=`${masterBranchHtml}${stats}${rmpBannerRow}${callSummaryHtml}${searchRow}`;
  /* 🟢🔒 V922 (৩১.০৮.২০২৬, TK ডেমো প্রুফ দেখে "card এ পাশাপাশি ২ টা করে
     থাকতে হবে") — কার্ডগুলো একটা মোড়কে। কম্পিউটারে (≥900px) পাশাপাশি দুটো
@@ -17877,6 +17881,219 @@ function wlv1RmpDueList(){
   setTimeout(function(){wlv1RmpDueVerify(rows)},0);
 }
 window["wlv1RmpDueList"]=wlv1RmpDueList;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   📒🔒 V1252 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ — খাতার সারি ৩৭৩) —
+   **RMP COMMISSION SHEET** · ফোনের `RmpCommissionSheetActivity`-র যমজ।
+
+   TK: *"কত তারিখে কোন RMP কে কত কমিশন দেওয়া হল সেটা আমি Google Sheet-এর মতো
+   দেখতে চাই"* · *"কোন রোগীর জন্য দিলাম"* · *"share · print উপরের ডান দিকের
+   ⋮-এর মধ্যে"* · *"ব্রাঞ্চ সিলেক্ট হেডারে"* · *"Total Paid নিচে, কলামের শেষে"*
+   · *"Cash & Online ⋮-এর মধ্যে"* · *"পেশেন্ট Id থাকবে না"*।
+
+   ⛔ **নতুন কোনো টেবিল · কলাম · SQL নেই** — সব সারি আগে থেকেই জমা
+      (`fin.rmp_commission_payments` ও `fin.rmp_advance_payments`)।
+   ⛔ **শুধু পড়া** — এই পাতা থেকে একটাও সারি লেখা/বদলানো যায় না।
+   ⛔ RMP বাছাই ব্রাউজারেই ছেঁকে দেখায় — বাড়তি একটাও ক্লাউড-ডাক নেই।
+   ⛔ গোপনীয়তা ডেটাবেসের নিজের RLS-এ (V325) — Master ছাড়া কেউ
+      `hidden_from_non_master` সারি পড়তেই পারেন না।
+   ⚠️ সৎ তফাত (TK-কে জানানো): ব্রাউজার থেকে হোয়াটসঅ্যাপে **ফাইল** সংযুক্ত করা
+      যায় না, তাই কম্পিউটারে "Share" লেখাটা পাঠায় আর "Print / PDF" কাগজটা ছাপে।
+      ফোনে দুটোই আগের প্রমাণিত পথে A4 PDF হয়ে যায়।
+   ═══════════════════════════════════════════════════════════════════════ */
+var WLV1_RMC = { month: '', branch: '', rmp: '', rows: [], state: 'loading' };
+
+function wlv1RmcYmNow(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0') }
+function wlv1RmcMonthFrom(ym){ return ym+'-01' }
+function wlv1RmcMonthTo(ym){ var p=String(ym).split('-'); var y=Number(p[0]), m=Number(p[1]);
+  return ym+'-'+String(new Date(y,m,0).getDate()).padStart(2,'0') }
+function wlv1RmcMonthLabel(ym){ try{ var p=String(ym).split('-');
+  return ['January','February','March','April','May','June','July','August','September','October','November','December'][Number(p[1])-1]+' '+p[0]; }catch(e){ return ym } }
+/* 🔴 V1158-এর লক করা ফরম্যাট — সব পর্দায় তারিখ dd/MM/yyyy। */
+function wlv1RmcDmy(iso){ var m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso||'').trim()); return m?(m[3]+'/'+m[2]+'/'+m[1]):String(iso||'') }
+/* 🔒 ফোনের `String.format("%,.2f")`-এর হুবহু এক — নইলে একই সংখ্যা দুই জায়গায় দুরকম দেখাত। */
+function wlv1RmcMoney(v){ try{ return Number(v||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}) }catch(e){ return Number(v||0).toFixed(2) } }
+function wlv1RmcMode(m){ m=String(m||''); return /^online$/i.test(m)?'Online':(/^cash$/i.test(m)?'Cash':m) }
+
+function wlv1RmcShown(){ return WLV1_RMC.rmp ? WLV1_RMC.rows.filter(function(r){return r.rmpName===WLV1_RMC.rmp}) : WLV1_RMC.rows }
+
+async function wlv1RmcClient(){ try{ if(!window.MOD) return null; await MOD.autoSignIn(); var c=await MOD.client(); return c?c.schema('fin'):null }catch(e){ return null } }
+
+/** দুটো টেবিল একসাথে — নতুন তারিখ আগে। ⛔ শুধু পড়া। */
+async function wlv1RmcLoad(){
+  var c=await wlv1RmcClient(); if(!c){ WLV1_RMC.state='fail'; return }
+  var from=wlv1RmcMonthFrom(WLV1_RMC.month), to=wlv1RmcMonthTo(WLV1_RMC.month), br=WLV1_RMC.branch;
+  var out=[], anyOk=false;
+  /* ১. রোগীর নামে দেওয়া কমিশন — রোগীর নামটা একই পড়াতেই (foreign key ধরে)। */
+  var payCols='id,rmp_name,treatment_branch,paid_on,amount,mode,reference_no,recorded_by,recorded_at';
+  var q=c.from('rmp_commission_payments').select(payCols+',rmp_patient_commissions(patient_name)')
+        .gte('paid_on',from).lte('paid_on',to).order('paid_on',{ascending:false}).limit(1000);
+  if(br) q=q.eq('treatment_branch',br);
+  var r=await q;
+  /* ⛔ শেষ-ভরসা: নামের embed না চললে নাম ছাড়াই পড়া হয় — তালিকা তবু আসে। */
+  if(r.error){
+    var q2=c.from('rmp_commission_payments').select(payCols)
+          .gte('paid_on',from).lte('paid_on',to).order('paid_on',{ascending:false}).limit(1000);
+    if(br) q2=q2.eq('treatment_branch',br);
+    r=await q2;
+  }
+  if(!r.error){ anyOk=true; (r.data||[]).forEach(function(x){
+    var pc=x.rmp_patient_commissions;
+    if(Array.isArray(pc)) pc=pc[0];
+    out.push({ paidOn:x.paid_on||'', rmpName:x.rmp_name||'', patientName:(pc&&pc.patient_name)||'',
+      isAdvance:false, amount:Number(x.amount||0), mode:x.mode||'', branch:x.treatment_branch||'',
+      referenceNo:x.reference_no||'', recordedBy:x.recorded_by||'', recordedAt:x.recorded_at||'' });
+  }) }
+  /* ২. আগাম দেওয়া টাকা — কোনো রোগীর সঙ্গে বাঁধা নয়। */
+  var qa=c.from('rmp_advance_payments').select('id,rmp_name,branch,paid_on,amount,mode,reference_no,recorded_by,recorded_at')
+        .gte('paid_on',from).lte('paid_on',to).order('paid_on',{ascending:false}).limit(1000);
+  if(br) qa=qa.eq('branch',br);
+  var ra=await qa;
+  if(!ra.error){ anyOk=true; (ra.data||[]).forEach(function(x){
+    out.push({ paidOn:x.paid_on||'', rmpName:x.rmp_name||'', patientName:'',
+      isAdvance:true, amount:Number(x.amount||0), mode:x.mode||'', branch:x.branch||'',
+      referenceNo:x.reference_no||'', recordedBy:x.recorded_by||'', recordedAt:x.recorded_at||'' });
+  }) }
+  if(!anyOk){ WLV1_RMC.state='fail'; return }
+  out.sort(function(a,b){ return (b.paidOn===a.paidOn) ? String(b.recordedAt).localeCompare(String(a.recordedAt)) : String(b.paidOn).localeCompare(String(a.paidOn)) });
+  WLV1_RMC.rows=out; WLV1_RMC.state='ok';
+}
+
+function wlv1RmcTableHtml(){
+  if(WLV1_RMC.state==='loading') return '<div class="card mut">Loading…</div>';
+  if(WLV1_RMC.state==='fail') return '<div class="card mut">⚠️ Could not load now — weak internet. Nothing is lost; open again when online.</div>';
+  var list=wlv1RmcShown();
+  if(!list.length) return '<div class="card mut">No commission was paid in '+esc(wlv1RmcMonthLabel(WLV1_RMC.month))+'.</div>';
+  var total=0;
+  var body=list.map(function(r){
+    total+=r.amount;
+    return '<tr><td>'+esc(wlv1RmcDmy(r.paidOn))+'</td><td>'+esc(r.rmpName)+'</td>'
+      +'<td>'+(r.isAdvance?'<span class="wlv1RmcAdv">Advance</span>':'<b>'+esc(r.patientName)+'</b>')+'</td>'
+      +'<td class="r">'+wlv1RmcMoney(r.amount)+'</td>'
+      +'<td>'+esc(wlv1RmcMode(r.mode))+'</td><td>'+esc(r.branch)+'</td>'
+      +'<td>'+esc(r.referenceNo)+'</td><td>'+esc(r.recordedBy)+'</td></tr>';
+  }).join('');
+  /* 💰 TK: *"Total Paid নিচে থাকবে কলামের শেষে, উপরে থাকবে না"* */
+  return '<div class="wlv1RmcWrap"><table class="wlv1RmcTable">'
+    +'<tr><th>DATE</th><th>RMP</th><th>PATIENT</th><th class="r">AMOUNT</th><th>MODE</th><th>BRANCH</th><th>REFERENCE</th><th>RECORDED BY</th></tr>'
+    +body
+    +'<tr class="tot"><td colspan="3">TOTAL &nbsp;·&nbsp; '+list.length+' payments</td><td class="r">'+wlv1RmcMoney(total)+'</td><td colspan="4"></td></tr>'
+    +'</table></div>';
+}
+
+function wlv1RmcRender(){
+  var brOpts=['<option value="">All Branches</option>'].concat((C.branches||[]).map(function(b){
+    return '<option value="'+esc(b.name)+'"'+(WLV1_RMC.branch===String(b.name)?' selected':'')+'>'+esc(b.name)+'</option>'; })).join('');
+  var months=[], d=new Date();
+  for(var i=0;i<24;i++){ months.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')); d.setMonth(d.getMonth()-1); }
+  var mOpts=months.map(function(m){ return '<option value="'+m+'"'+(WLV1_RMC.month===m?' selected':'')+'>'+esc(wlv1RmcMonthLabel(m))+'</option>' }).join('');
+  var names=[]; WLV1_RMC.rows.forEach(function(r){ if(r.rmpName&&names.indexOf(r.rmpName)<0)names.push(r.rmpName) }); names.sort();
+  var rOpts=['<option value="">All RMP</option>'].concat(names.map(function(n){
+    return '<option value="'+esc(n)+'"'+(WLV1_RMC.rmp===n?' selected':'')+'>'+esc(n)+'</option>' })).join('');
+  var body=''
+    +'<div class="wlv1RmcHead"><span class="wlv1RmcTtl">RMP COMMISSION SHEET</span>'
+    +'<select class="input wlv1RmcBr" onchange="wlv1RmcSetBranch(this.value)">'+brOpts+'</select>'
+    +'<span class="wlv1RmcDots" onclick="wlv1RmcMenu()">⋮</span></div>'
+    +'<div class="wlv1RmcChips">'
+    +'<select class="input" onchange="wlv1RmcSetMonth(this.value)">'+mOpts+'</select>'
+    +'<select class="input" onchange="wlv1RmcSetRmp(this.value)">'+rOpts+'</select></div>'
+    +'<div id="wlv1RmcHost">'+wlv1RmcTableHtml()+'</div>'
+    +'<div class="wlv1RmcHint">Slide sideways for Mode · Branch · Reference No. · Recorded by</div>';
+  page('RMP Commission Sheet', body);
+}
+
+function wlv1RmcRepaint(){ try{ var h=document.getElementById('wlv1RmcHost'); if(h)h.innerHTML=wlv1RmcTableHtml(); else wlv1RmcRender(); }catch(e){} }
+
+async function wlv1RmcReload(){ WLV1_RMC.state='loading'; WLV1_RMC.rows=[]; WLV1_RMC.rmp=''; wlv1RmcRender(); await wlv1RmcLoad(); wlv1RmcRender(); }
+function wlv1RmcSetBranch(v){ WLV1_RMC.branch=String(v||''); wlv1RmcReload() }
+function wlv1RmcSetMonth(v){ WLV1_RMC.month=String(v||wlv1RmcYmNow()); wlv1RmcReload() }
+function wlv1RmcSetRmp(v){ WLV1_RMC.rmp=String(v||''); wlv1RmcRepaint() }
+
+/* 💵 TK: *"Cash & Online দেখতে হলে উপরের ডান দিকের ⋮-এর মধ্যে থাকবে"*।
+   ⛔ যোগফলটা পর্দার ওই সারিগুলোরই — আলাদা কোনো নিয়ম বা ডাক নেই, তাই ফোন ও
+      কম্পিউটারে সংখ্যা আলাদা হতে পারে না। */
+function wlv1RmcCashOnline(){
+  var list=wlv1RmcShown();
+  var cash=list.filter(function(r){return /^cash$/i.test(r.mode)}).reduce(function(s,r){return s+r.amount},0);
+  var online=list.filter(function(r){return /^online$/i.test(r.mode)}).reduce(function(s,r){return s+r.amount},0);
+  modal('<h2>Cash &amp; Online</h2><div class="card">'+esc(wlv1RmcMonthLabel(WLV1_RMC.month))
+    +'<br><br>Cash &nbsp; <b>'+wlv1RmcMoney(cash)+'</b><br>Online &nbsp; <b>'+wlv1RmcMoney(online)
+    +'</b><br><br>Total &nbsp; <b>'+wlv1RmcMoney(cash+online)+'</b></div>'
+    +'<div class="actions"><button onclick="closeModal()">OK</button></div>');
+}
+
+function wlv1RmcMenu(){
+  modal('<h2>RMP Commission Sheet</h2><div class="card">'
+    +'<button onclick="closeModal();wlv1RmcCashOnline()">Cash &amp; Online</button>'
+    +'<button class="ghost" onclick="closeModal();wlv1RmcShare()">Share</button>'
+    +'<button class="ghost" onclick="closeModal();wlv1RmcPrint()">Print / PDF</button></div>'
+    +'<div class="actions"><button class="ghost" onclick="closeModal()">Close</button></div>');
+}
+
+/** ⛔ ছাপা ও শেয়ার একই কাগজ থেকেই — দুটো কখনো আলাদা হতে পারে না। */
+function wlv1RmcPaperHtml(){
+  var list=wlv1RmcShown(), total=0;
+  var rows=list.map(function(r){ total+=r.amount;
+    return '<tr><td>'+esc(wlv1RmcDmy(r.paidOn))+'</td><td>'+esc(r.rmpName)+'</td><td>'
+      +(r.isAdvance?'Advance':esc(r.patientName))+'</td><td>'+esc(wlv1RmcMode(r.mode))+'</td><td>'
+      +esc(r.branch)+'</td><td>'+esc(r.referenceNo)+'</td><td>'+esc(r.recordedBy)+'</td><td class="r">'
+      +wlv1RmcMoney(r.amount)+'</td></tr>'; }).join('');
+  return '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=794"><style>'
+    +'@page{size:A4;margin:0}*{box-sizing:border-box;margin:0;padding:0}'
+    +'body{font-family:Arial,sans-serif;color:#111;background:#fff}'
+    +'.sheet{width:210mm;min-height:297mm;padding:10mm 9mm}'
+    +'h1{font-size:15px;color:#0B5E34;letter-spacing:.5px}'
+    +'.sub{font-size:11px;color:#5B6B81;margin-top:3px}'
+    +'table{border-collapse:collapse;width:100%;margin-top:7mm;font-size:10.5px}'
+    +'th{background:#F2F6FA;color:#3C4A5C;text-align:left;padding:5px 6px;border:1px solid #D8E0EA;font-size:9.5px}'
+    +'td{padding:5px 6px;border:1px solid #E6ECF3}'
+    +'.r{text-align:right;font-weight:bold;color:#0B4F2A}'
+    +'tr:nth-child(even) td{background:#FAFCFE}'
+    +'.tot td{background:#0B5E34;color:#fff;font-weight:bold;border-color:#0B5E34}'
+    +'.tot td.r{color:#fff}'
+    +'</style></head><body><div class="sheet"><h1>RMP COMMISSION SHEET</h1><div class="sub">'
+    +esc(wlv1RmcMonthLabel(WLV1_RMC.month))+'  ·  '+esc(WLV1_RMC.branch||'All Branches')
+    +(WLV1_RMC.rmp?('  ·  '+esc(WLV1_RMC.rmp)):'')+'</div>'
+    +'<table><tr><th>DATE</th><th>RMP</th><th>PATIENT</th><th>MODE</th><th>BRANCH</th><th>REFERENCE</th><th>RECORDED BY</th><th>AMOUNT</th></tr>'
+    +rows+'<tr class="tot"><td colspan="7">TOTAL  ·  '+list.length+' payments</td><td class="r">'
+    +wlv1RmcMoney(total)+'</td></tr></table></div></body></html>';
+}
+
+function wlv1RmcPrint(){
+  if(!wlv1RmcShown().length) return toast('Nothing to print');
+  /* 🖨️ প্রজেক্টে আগে থেকে থাকা প্রমাণিত পথ (app.js-এর অন্য ছাপার মতোই)। */
+  try{ var w=window.open('','_blank'); if(!w){ toast('Allow pop-ups to print'); return }
+    w.document.write(wlv1RmcPaperHtml()); w.document.close(); w.focus();
+    setTimeout(function(){ try{ w.print() }catch(e){} },300);
+  }catch(e){ toast('Print not available') }
+}
+
+/* ⚠️ ব্রাউজার থেকে হোয়াটসঅ্যাপে **ফাইল** সংযুক্ত করা যায় না (এটা ব্রাউজারের
+   সীমা, অ্যাপের নয়) — তাই কম্পিউটারে হিসাবটা লেখা হয়ে যায়। কাগজ চাইলে
+   পাশের "Print / PDF"। ফোনে দুটোই A4 PDF হয়ে যায়। */
+function wlv1RmcShare(){
+  var list=wlv1RmcShown(); if(!list.length) return toast('Nothing to share');
+  var total=0; var lines=list.map(function(r){ total+=r.amount;
+    return wlv1RmcDmy(r.paidOn)+'  '+r.rmpName+'  '+(r.isAdvance?'Advance':r.patientName)+'  '+wlv1RmcMoney(r.amount); });
+  var text='RMP COMMISSION SHEET\n'+wlv1RmcMonthLabel(WLV1_RMC.month)+' · '+(WLV1_RMC.branch||'All Branches')
+    +(WLV1_RMC.rmp?(' · '+WLV1_RMC.rmp):'')+'\n\n'+lines.join('\n')
+    +'\n\nTOTAL · '+list.length+' payments · '+wlv1RmcMoney(total);
+  try{ window.MOD.whatsapp(text) }catch(e){ toast('Could not open WhatsApp') }
+}
+
+/* 🔒 শুধু Master — ফোনের সাথে হুবহু এক নিয়ম (টাকার এই তালিকা B211-এর সুরে)। */
+async function wlv1RmpSheet(){
+  if(!isMaster()) return toast('Master Admin only');
+  WLV1_RMC.month=wlv1RmcYmNow(); WLV1_RMC.rmp=''; WLV1_RMC.rows=[]; WLV1_RMC.state='loading';
+  wlv1RmcRender();
+  await wlv1RmcLoad();
+  wlv1RmcRender();
+}
+window["wlv1RmpSheet"]=wlv1RmpSheet;
+window["wlv1RmcSetBranch"]=wlv1RmcSetBranch; window["wlv1RmcSetMonth"]=wlv1RmcSetMonth;
+window["wlv1RmcSetRmp"]=wlv1RmcSetRmp; window["wlv1RmcMenu"]=wlv1RmcMenu;
+window["wlv1RmcCashOnline"]=wlv1RmcCashOnline; window["wlv1RmcPrint"]=wlv1RmcPrint;
+window["wlv1RmcShare"]=wlv1RmcShare;
 /* ধাপ ২ — শুধু **যাদের বাকি আছে** তাদের (সর্বোচ্চ ২৫) সংখ্যা ক্লাউডে মিলিয়ে
    নেওয়া, ঠিক ফোনের `showRmpDueList()`-এর মতো একই সীমায়। ⛔ সবার জন্য নয় —
    ফ্রি প্ল্যানে ঝুঁকি এড়াতে TK-কে জানিয়ে এই সীমাই ঠিক হয়েছে। ⛔ ব্যর্থ হলে

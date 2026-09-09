@@ -274,6 +274,88 @@ object RmpCommissionRepository {
         } catch (_: Exception) { RepoResult(false, message = "Invalid RMP commission summary") }
     }
 
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       📒🔒 V1252 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, খাতার সারি ৩৭৩) —
+       TK: *"কত তারিখে কোন RMP কে কত কমিশন দেওয়া হল সেটা আমি Google Sheet-এর
+       মতো দেখতে চাই"* · পরে: *"কোন রোগীর জন্য দিলাম"*।
+
+       ⛔ **নতুন কোনো টেবিল · কলাম · SQL লাগেনি** — টাকা দেওয়ার সব সারি আগে
+          থেকেই দুটো টেবিলে জমা: `fin.rmp_commission_payments` (রোগীর নামে
+          দেওয়া কমিশন) ও `fin.rmp_advance_payments` (আগাম দেওয়া টাকা)।
+          এতদিন শুধু **এক রোগীর** বা **এক RMP-র** সারি আলাদা করে দেখা যেত;
+          তারিখ ধরে সবার একসাথে দেখার কোনো পথ ছিল না।
+       ⛔ **শুধু পড়া** — একটাও সারি লেখা/বদলানো হয় না।
+       ⛔ Egress-এর হিসাব (ফ্রি প্ল্যান): এক মাসে **দুটো ছোট পড়া**, আর
+          রোগীর নামটা প্রথম পড়ার ভিতরেই embed হয়ে আসে (আলাদা ডাক নয়)।
+          embed কোনো কারণে না চললে **নামহীন হয়ে হলেও তালিকাটা আসে** —
+          পর্দা কখনো ফাঁকা যায় না।
+       ⛔ গোপনীয়তা: `hidden_from_non_master` সারি Master ছাড়া কেউ দেখেন না —
+          এটা ডেটাবেসের নিজের RLS নিয়মেই আটকানো (V325), অ্যাপের হাতে নয়।
+       ═══════════════════════════════════════════════════════════════════ */
+    data class SheetRow(
+        val paidOn: String, val rmpName: String, val patientName: String,
+        val isAdvance: Boolean, val amount: Double, val mode: String,
+        val branch: String, val referenceNo: String, val recordedBy: String,
+        val recordedAt: String
+    )
+
+    /** একটা তারিখ-সীমার সব কমিশন ও আগাম টাকা, নতুন তারিখ আগে। */
+    fun commissionSheet(fromIso: String, toIso: String, branch: String): RepoResult<List<SheetRow>> {
+        val range = "&paid_on=gte.${enc(fromIso)}&paid_on=lte.${enc(toIso)}"
+        val out = ArrayList<SheetRow>()
+        var anyOk = false
+
+        // ── ১. রোগীর নামে দেওয়া কমিশন ──────────────────────────────────
+        val payCols = "id,rmp_name,treatment_branch,paid_on,amount,mode,reference_no,recorded_by,recorded_at"
+        val payBranch = if (branch.isBlank()) "" else "&treatment_branch=eq.${enc(branch)}"
+        /* 🔵 রোগীর নামটা একই পড়াতেই আসে (foreign key ধরে) — আলাদা ডাক নয়,
+           তাই ফ্রি প্ল্যানে বাড়তি চাপ পড়ে না। */
+        var payR = ModuleAuth.getRowsChecked("fin", "rmp_commission_payments",
+            "select=$payCols,rmp_patient_commissions(patient_name)$range$payBranch&order=paid_on.desc,recorded_at.desc&limit=1000")
+        /* ⛔ শেষ-ভরসা: embed কোনো কারণে না চললে নাম ছাড়াই পড়া হয় —
+           তালিকাটা তখনো আসে, শুধু PATIENT ঘরটা ফাঁকা থাকে। */
+        if (!payR.ok) {
+            payR = ModuleAuth.getRowsChecked("fin", "rmp_commission_payments",
+                "select=$payCols$range$payBranch&order=paid_on.desc,recorded_at.desc&limit=1000")
+        }
+        if (payR.ok) {
+            anyOk = true
+            for (i in 0 until payR.rows.length()) {
+                val x = payR.rows.optJSONObject(i) ?: continue
+                val pc = x.optJSONObject("rmp_patient_commissions")
+                out.add(SheetRow(
+                    x.optString("paid_on", ""), x.optString("rmp_name", ""),
+                    pc?.optString("patient_name", "") ?: "",
+                    false, x.optDouble("amount", 0.0), x.optString("mode", ""),
+                    x.optString("treatment_branch", ""), x.optString("reference_no", ""),
+                    x.optString("recorded_by", ""), x.optString("recorded_at", "")))
+            }
+        }
+
+        // ── ২. আগাম দেওয়া টাকা (কোনো রোগীর সঙ্গে বাঁধা নয়) ─────────────
+        val advBranch = if (branch.isBlank()) "" else "&branch=eq.${enc(branch)}"
+        val advR = ModuleAuth.getRowsChecked("fin", "rmp_advance_payments",
+            "select=id,rmp_name,branch,paid_on,amount,mode,reference_no,recorded_by,recorded_at" +
+                "$range$advBranch&order=paid_on.desc,recorded_at.desc&limit=1000")
+        if (advR.ok) {
+            anyOk = true
+            for (i in 0 until advR.rows.length()) {
+                val x = advR.rows.optJSONObject(i) ?: continue
+                out.add(SheetRow(
+                    x.optString("paid_on", ""), x.optString("rmp_name", ""), "",
+                    true, x.optDouble("amount", 0.0), x.optString("mode", ""),
+                    x.optString("branch", ""), x.optString("reference_no", ""),
+                    x.optString("recorded_by", ""), x.optString("recorded_at", "")))
+            }
+        }
+
+        if (!anyOk) return RepoResult(false, message = "Could not load the commission sheet")
+        // নতুন তারিখ আগে; একই তারিখে যেটা পরে বসানো হয়েছে সেটা আগে।
+        out.sortWith(compareByDescending<SheetRow> { it.paidOn }.thenByDescending { it.recordedAt })
+        return RepoResult(true, out)
+    }
+
     fun advancePayments(rmpId: String): RepoResult<List<AdvancePayment>> {
         val got = ModuleAuth.getRowsChecked("fin", "rmp_advance_payments",
             "select=id,paid_on,amount,allocated_amount,legacy_covered_amount,mode,reference_no,recorded_at&rmp_id=eq.${enc(rmpId)}&order=paid_on.desc,recorded_at.desc&limit=200")

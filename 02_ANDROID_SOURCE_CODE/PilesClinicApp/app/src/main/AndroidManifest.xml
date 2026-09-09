@@ -463,6 +463,8 @@
         <activity android:name="com.tkbiswas.pilesclinic.native.MoneyHandoverActivity" android:exported="false" />
         <!-- V990 additive — My Unexpected Enquiries (TK: "তারা হিসাবটা পাবে কি করে"); nothing existing changed -->
         <activity android:name="com.tkbiswas.pilesclinic.native.UnexpectedEnquiryActivity" android:exported="false" />
+        <!-- 📒 V1252 (TK-নির্দেশ, ফটো-প্রুফ পাশ) — RMP Commission Sheet, শুধু দেখার পর্দা। -->
+        <activity android:name="com.tkbiswas.pilesclinic.native.RmpCommissionSheetActivity" android:exported="false" />
         <activity android:name="com.tkbiswas.pilesclinic.modules.IncomeExpenseActivity" android:exported="false" />
         <!-- V306 additive — Partner Shares (অংশীদারি ভাগ), isolated; nothing existing changed -->
         <activity android:name="com.tkbiswas.pilesclinic.modules.PartnerSharesActivity" android:exported="false" />

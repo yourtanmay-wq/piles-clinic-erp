@@ -325,6 +325,22 @@ class DoctorVisitActivity : AppCompatActivity() {
             binding.btnRmpDueList.setOnClickListener { showRmpDueList() }
         }
 
+        /* 📒🔒 V1252 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, খাতার সারি ৩৭৩) —
+           TK: *"কত তারিখে কোন RMP কে কত কমিশন দেওয়া হল সেটা আমি Google Sheet-এর
+           মতো দেখতে চাই"*। তারিখ ধরে সবার একসাথে দেখার পর্দাটাই ছিল না।
+           🔒 শুধু Master — টাকার এই তালিকা B211-এর সুরেই মাস্টারের; TK চাইলে
+              এখানেই এক লাইনে স্টাফের জন্য খোলা যাবে।
+           ⛔ পর্দাটা **শুধু পড়ার** — ওখান থেকে একটাও সারি লেখা/বদলানো যায় না।
+           ⛔ উপরের কোনো বোতাম বা ডিজাইন নড়েনি — এটা তার নিচে নতুন একটা সারি। */
+        if (user.role == "master") {
+            binding.btnRmpCommissionSheet.visibility = View.VISIBLE
+            binding.btnRmpCommissionSheet.setOnClickListener {
+                try {
+                    startActivity(android.content.Intent(this, RmpCommissionSheetActivity::class.java))
+                } catch (_: Throwable) { }
+            }
+        }
+
         // TK-REQUESTED ADDITION (2026-07-18): deep-link from Patient
         // Timeline's "Referring Doctor" action. We don't know which branch
         // the referring doctor belongs to, so this bypasses the
