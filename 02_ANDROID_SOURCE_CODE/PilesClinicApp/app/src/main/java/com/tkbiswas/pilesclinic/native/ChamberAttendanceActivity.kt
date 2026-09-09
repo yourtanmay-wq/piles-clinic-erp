@@ -2243,11 +2243,17 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                         repo.requestBackdatePayment(
                             patient, enteredBill, value, mode, "Chamber $mode payment", pickedDate, user.mobile, user.name.ifBlank { user.mobile }
                         )
-                    } else if (!skipDayGuard && !isBackdated && run {
+                    } else if (!skipDayGuard && run {
                             // 🔴 V1106 — এই লাইনটা ইতিমধ্যেই IO-থ্রেডে চলছে, তাই
                             //    এখানেই ক্লাউড-যাচাই করা নিরাপদ ও সবচেয়ে সস্তা।
                             // 🔴 V1152 — একই অঙ্ক **ও একই ধরন** হলে তবেই সতর্কবার্তা।
-                            dayGuardDup = repo.todaysPaymentLike(patient, value, mode)
+                            /* 🔴🔒 V1272 (০৯.০৯.২০২৬, TK-নির্দেশ: *"ব্যাকডেট এর
+                               ফাঁকটাও বন্ধ করুন"*) — আগে এখানে `!isBackdated` শর্ত
+                               ছিল, তাই পুরনো তারিখে একই অঙ্ক দুবার বসলেও প্রশ্ন
+                               আসত না। এখন **ওই তারিখের** সারি দেখে প্রশ্ন হয়।
+                               ⛔ আজকের দিনের আচরণ এক অক্ষরও বদলায়নি।
+                               ⛔ আটকায় না — "Yes" বললে ঠিক আগের সেভটাই চলে। */
+                            dayGuardDup = repo.todaysPaymentLike(patient, value, mode, pickedDate)
                             dayGuardDup != null || repo.paidOnDateFor(patient.id) > 0.0
                         }) {
                         // 🔒 খাতার সারি B52: আজ এই রোগীর নামে টাকা নেওয়া হয়ে গেছে —
@@ -2277,7 +2283,7 @@ class ChamberAttendanceActivity : AppCompatActivity() {
                 // 🔴 V1106 — হুবহু একই অঙ্ক পাওয়া গেলে সেই স্পষ্ট প্রশ্নটাই,
                 //    নইলে আগের B52 প্রশ্ন — লেখা ও আচরণ বাকি তিন পথের হুবহু এক।
                 if (__dup != null) PaymentDayGuard.askSameAmount(
-                    this@ChamberAttendanceActivity, dayGuardName, value, __dup, __again
+                    this@ChamberAttendanceActivity, dayGuardName, value, __dup, __again, pickedDate   // 🔴 V1272
                 ) else PaymentDayGuard.confirmIfAlreadyPaidToday(
                     this@ChamberAttendanceActivity, dayGuardAmount, dayGuardName, dayGuardLabel, __again
                 )

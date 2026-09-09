@@ -15735,7 +15735,13 @@ window["wlv1SameAmtIn"]=wlv1SameAmtIn;
 async function wlv1TodaysSamePayment(pid,amt,forDate,mode){
  try{
   var d=String(forDate||today()).slice(0,10);
-  if(!pid||!(Number(amt)>0)||d!==today())return null;
+  /* 🔴🔒 V1272 (০৯.০৯.২০২৬, TK-নির্দেশ: *"ব্যাকডেট এর ফাঁকটাও বন্ধ করুন"*) —
+     আগে এখানে `d!==today()` শর্ত ছিল, তাই পুরনো তারিখে একই অঙ্ক দুবার
+     বসলেও কোনো প্রশ্ন আসত না। এখন **ওই দিনের** সারিই দেখা হয় — নিচের
+     query আগে থেকেই `d` ধরে চলত, তাই বাড়তি কিছু লাগেনি।
+     ⛔ আজকের দিনের আচরণ এক অক্ষরও বদলায়নি · ⛔ আটকায় না, শুধু জিজ্ঞাসা।
+     ⛔ Egress বাড়ে না — সারির সংখ্যা একই, শুধু কোন দিনের সেটা বদলায়। */
+  if(!pid||!(Number(amt)>0)||!d)return null;
   var rows=null;
   try{
    if(typeof sb!=='undefined'&&sb){
@@ -15783,9 +15789,17 @@ async function wlv1DayGuardOk2(pid,name,forDate,amt,mode){
   var dup=await wlv1TodaysSamePayment(pid,amt,forDate,mode);
   if(dup){
    var who=String(name||'').trim()||'this patient';
-   var at=wlv1ClockOf(dup.createdAt), md=String(dup.mode||'');
-   if(!confirm('⚠️ Same amount already today\n\n₹'+Math.round(Number(amt)||0).toLocaleString('en-IN')
-     +(md?(' '+md):'')+' was already taken from '+who+' TODAY'+(at?(' at '+at):'')+'.\n\n'
+   /* 🔴 V1272 — লেখা এখন কোন দিনের টাকা সেই অনুযায়ী (আজ হলে হুবহু
+      আগের মতোই "TODAY")। সময় তখনই জোড়ে যখন সেটা ওই দিনেরই —
+      ব্যাকডেট সারির `createdAt` বসানোর দিনের ঘড়ি (`wlv1DayClock`-এর একই নিয়ম)।
+      ⛔ ফোনের `PaymentDayGuard.askSameAmount`-এ হুবহু একই লেখা। */
+   var d10=String(forDate||today()).slice(0,10), isTdy=(!d10||d10===today());
+   var whenTxt=isTdy?'TODAY':('on '+fmtDate(d10));
+   var sameDay=isTdy||String(dup.createdAt||'').slice(0,10)===d10;
+   var at=sameDay?wlv1ClockOf(dup.createdAt):'', md=String(dup.mode||'');
+   if(!confirm((isTdy?'⚠️ Same amount already today':'⚠️ Same amount already on that date')
+     +'\n\n₹'+Math.round(Number(amt)||0).toLocaleString('en-IN')
+     +(md?(' '+md):'')+' was already taken from '+who+' '+whenTxt+(at?(' at '+at):'')+'.\n\n'
      +'Is this a SECOND, different payment?'))return false;
   }
  }catch(e){}

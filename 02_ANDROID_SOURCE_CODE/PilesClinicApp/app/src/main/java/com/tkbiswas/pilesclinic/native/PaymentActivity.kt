@@ -2614,7 +2614,16 @@ $dueRow
                         try { BackdatePaymentGrant.isGrantedNow(user.mobile, pickedActualDate) } catch (_: Throwable) { false }
                     }
                     if (hasGrant) {
-                        doDirectSave(isBackdated, pickedActualDate, patient, billVal, amtVal, user, autoApprovedByGrant = true, receiptMode = receiptMode)
+                        /* 🔴🔒 V1272 — Master-এর অনুমতি থাকা স্টাফও এই পথে
+                           সরাসরি সেভ করেন, তাই এখানেও ওই তারিখের ডুপ্লিকেট
+                           প্রশ্নটা লাগে — নইলে ফাঁকটা আধখানা বন্ধ হতো। */
+                        PaymentDayGuard.confirmBeforeSave(
+                            this@PaymentActivity, repository, patient, amtVal,
+                            0.0, repository.nextLabelFor(patient.id, pickedActualDate),
+                            mode = selectedPayMode, forDate = pickedActualDate
+                        ) {
+                            doDirectSave(isBackdated, pickedActualDate, patient, billVal, amtVal, user, autoApprovedByGrant = true, receiptMode = receiptMode)
+                        }
                         return@launch
                     }
                     // Staff: never saves a real payment directly -- goes to
@@ -2654,8 +2663,13 @@ $dueRow
                 amtVal,
                 if (isBackdated) 0.0 else repository.paidOnDateFor(patient.id),
                 repository.nextLabelFor(patient.id, if (isBackdated) pickedActualDate else ""),
-                skipCloudCheck = isBackdated,
-                mode = selectedPayMode   // 🔴 V1152 — একই অঙ্ক ও একই ধরন হলে তবেই
+                /* 🔴🔒 V1272 (০৯.০৯.২০২৬, TK-নির্দেশ: *"ব্যাকডেট এর ফাঁকটাও
+                   বন্ধ করুন"*) — আগে ব্যাকডেট হলে ক্লাউড-যাচাই বাদ যেত
+                   (`skipCloudCheck = isBackdated`), তাই পুরনো তারিখে একই অঙ্ক
+                   দুবার বসলেও প্রশ্ন আসত না। এখন **ওই তারিখের** সারি দেখে
+                   প্রশ্ন হয়। ⛔ আটকায় না, শুধু জিজ্ঞাসা। */
+                mode = selectedPayMode,  // 🔴 V1152 — একই অঙ্ক ও একই ধরন হলে তবেই
+                forDate = if (isBackdated) pickedActualDate else ""
             ) {
                 doDirectSave(isBackdated, pickedActualDate, patient, billVal, amtVal, user, autoApprovedByGrant = false, receiptMode = receiptMode)
             }

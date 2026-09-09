@@ -987,13 +987,22 @@ class PaymentRepository(private val context: Context? = null) {
        দশটায় ১০০০ ক্যাশ আর দুপুর দুটোয় আবার ১০০০ ক্যাশ হলে অবশ্যই দেখাতে হবে"*।
        ⇒ মিল এখন **অঙ্ক + ধরন** দুটোতেই। `mode` ফাঁকা পাঠালে আগের মতোই শুধু
          অঙ্ক ধরে মেলে (পুরনো ডাক ভাঙে না)। */
-    fun todaysPaymentLike(patient: PatientBillInfo, amount: Double, mode: String = ""): org.json.JSONObject? {
+    /* 🔴🔒 V1272 (০৯.০৯.২০২৬, TK-নির্দেশ: *"ব্যাকডেট এর ফাঁকটাও বন্ধ করুন"*) —
+       আগে এই যাচাই **শুধু আজকের** সারি দেখত, তাই পুরনো তারিখে টাকা বসালে
+       একই অঙ্ক দুবার বসলেও কোনো প্রশ্ন আসত না। এখন `forDate` পাঠালে **ওই
+       দিনের** সারিই দেখা হয়।
+       ⛔ `forDate` না পাঠালে আচরণ হুবহু আগের মতোই (আজকের দিন) — পুরনো ডাক ভাঙে না।
+       ⛔ আটকানো এখনো হয় না, শুধু প্রশ্ন — TK-র পুরনো নিয়ম অটুট।
+       ⛔ Egress বাড়ে না — সারির সংখ্যা একই, শুধু কোন দিনের সেটা বদলায়। */
+    fun todaysPaymentLike(
+        patient: PatientBillInfo, amount: Double, mode: String = "", forDate: String = ""
+    ): org.json.JSONObject? {
         if (patient.id.isBlank() || amount <= 0.0) return null
         val wantMode = PaymentModel.normalizeMode(mode).trim()
         fun modeOk(m: String): Boolean =
             wantMode.isBlank() || PaymentModel.normalizeMode(m).equals(wantMode, ignoreCase = true)
         return try {
-            val today = PaymentModel.today()
+            val today = DateUtil.iso(forDate).take(10).ifBlank { PaymentModel.today() }
             val rows = SupabaseClient.fetchList(
                 "payments",
                 "patientId=eq.${patient.id}&payType=eq.treatment&date=eq.$today",

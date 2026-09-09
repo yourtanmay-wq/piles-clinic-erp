@@ -87,20 +87,25 @@ object PaymentDayGuard {
         // দুটোতেই মেলে (একই দিনে ১০০০ ক্যাশ ও ১০০০ অনলাইন = সতর্কতা নয়)।
         // ⛔ ফাঁকা পাঠালে আগের মতোই শুধু অঙ্ক ধরে মেলে, তাই পুরনো ডাক ভাঙে না।
         mode: String = "",
+        /* 🔴🔒 V1272 (০৯.০৯.২০২৬, TK-নির্দেশ: *"ব্যাকডেট এর ফাঁকটাও বন্ধ করুন"*) —
+           টাকাটা কোন দিনের জন্য বসছে। ফাঁকা = আজ (আগের আচরণ হুবহু অটুট)।
+           ⛔ ব্যাকডেট হলে এখন **ওই দিনের** সারি দেখে প্রশ্ন করা হয় —
+              আগে ব্যাকডেটে কোনো প্রশ্নই আসত না। */
+        forDate: String = "",
         onProceed: () -> Unit
     ) {
         if (skipCloudCheck || amount <= 0.0) {
             confirmIfAlreadyPaidToday(activity, alreadyPaid, patient.name, todayLabel, onProceed); return
         }
         Thread {
-            val dup = try { repo.todaysPaymentLike(patient, amount, mode) } catch (_: Throwable) { null }
+            val dup = try { repo.todaysPaymentLike(patient, amount, mode, forDate) } catch (_: Throwable) { null }
             activity.runOnUiThread {
                 if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
                 if (dup == null) {
                     confirmIfAlreadyPaidToday(activity, alreadyPaid, patient.name, todayLabel, onProceed)
                     return@runOnUiThread
                 }
-                askSameAmount(activity, patient.name, amount, dup, onProceed)
+                askSameAmount(activity, patient.name, amount, dup, onProceed, forDate)
             }
         }.start()
     }
@@ -110,19 +115,29 @@ object PaymentDayGuard {
      *  ⛔ ফলে চার জায়গায় লেখা ও আচরণ **হুবহু এক**, দুরকম হওয়ার পথ নেই। */
     fun askSameAmount(
         activity: Activity, patientName: String, amount: Double,
-        dup: org.json.JSONObject, onProceed: () -> Unit
+        dup: org.json.JSONObject, onProceed: () -> Unit,
+        /* 🔴 V1272 — কোন দিনের টাকা। ফাঁকা/আজ হলে লেখা হুবহু আগের মতোই "TODAY"। */
+        forDate: String = ""
     ) {
         if (activity.isFinishing || activity.isDestroyed) return
         val who = patientName.ifBlank { "this patient" }
         val amt = "₹" + "%,.0f".format(amount)
-        val prevTime = PaymentModel.clockOf(dup.optString("createdAt", ""))
+        val day = DateUtil.iso(forDate).take(10)
+        val isToday = day.isBlank() || day == PaymentModel.today()
+        val whenTxt = if (isToday) "TODAY" else "on " + DateUtil.display(day)
+        /* 🔴 V1272 — সময়টা তখনই দেখানো হয় যখন সেটা ওই দিনেরই। ব্যাকডেট করা
+           সারিতে `createdAt` আসলে বসানোর দিনের ঘড়ি, তাই পুরনো তারিখের পাশে
+           আজকের সময় বসলে ভুল বোঝাত (ওয়েবের `wlv1DayClock`-এর একই নিয়ম)। */
+        val sameDay = dup.optString("createdAt", "").take(10).let { it.isNotBlank() && (isToday || it == day) }
+        val prevTime = if (sameDay) PaymentModel.clockOf(dup.optString("createdAt", "")) else ""
         val prevMode = dup.optString("mode", "")
         val at = if (prevTime.isBlank()) "" else " at $prevTime"
         val md = if (prevMode.isBlank()) "" else " $prevMode"
         AlertDialog.Builder(activity)
-            .setCustomTitle(PremiumAlert.header(activity, "⚠️ Same amount already today"))
+            .setCustomTitle(PremiumAlert.header(activity,
+                if (isToday) "⚠️ Same amount already today" else "⚠️ Same amount already on that date"))
             .setMessage(
-                "$amt$md was already taken from $who TODAY$at.\n\n" +
+                "$amt$md was already taken from $who $whenTxt$at.\n\n" +
                 "Is this a SECOND, different payment?"
             )
             .setPositiveButton("Yes, take it again") { _, _ -> onProceed() }
