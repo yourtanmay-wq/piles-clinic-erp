@@ -676,6 +676,19 @@ class BriefingAdapter(
                            ⛔ কোড জানা না গেলে ট্যাগটা বসেই না — বানানো কিছু নয়। */
                         val titleTxt = b.tvTitle.text?.toString().orEmpty().trim()
                         b.tvTitle.text = shortNoticeTag(titleTxt)
+                        /* 🏷️🔒 V1253 (০৯.০৯.২০২৬, TK-নির্দেশ, খাতার সারি ৩৭৪) — TK:
+                           *"Enquiry, Piles & Staff Name একই সাইজের ফন্ট হতে হবে"*।
+                           মেপে দেখা (লেআউটে ও TK-র নিজের ছবিতে): **ফন্ট আগে থেকেই
+                           তিনটেই ১৩sp, অক্ষরের উচ্চতাও হুবহু এক** — তফাতটা ছিল
+                           সবুজ পিলের, V1123-এ শিরোনামের পিলটা তোলা হয়েছিল।
+                           ⇒ **শুধু এই তিন-ট্যাগের সারিতেই** পিলটা ফিরল, তাই তিনটে
+                             ট্যাগ দেখতে হুবহু এক (V1207-এ TK যা চেয়েছিলেন)।
+                           ⛔ বাকি সব নোটিশের শিরোনাম (যেমন "IN TIME — LAXMI GUPTA")
+                              V1123-এর মতোই **পিল ছাড়া সাদা লাইনেই** থাকে — ওখানে
+                              এক অক্ষরও বদলায়নি (উপরের `setBackgroundResource(0)`
+                              আগের মতোই চলে, এই লাইনটা শুধু এই শাখাতেই পরে বসে)। */
+                        b.tvTitle.setBackgroundResource(
+                            com.tkbiswas.pilesclinic.R.drawable.bg_brief_chip_normal)
                         b.tvPatientId.text = ""
                         b.rowTitle.visibility = View.VISIBLE
                         /* 🩺 V1207 — রোগের ট্যাগটা **মেপে** বাছা হয়: নাম ও নম্বরের
