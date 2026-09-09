@@ -29334,7 +29334,7 @@ var WLV1_EST_DEFAULTS=[
   {group:'Piles',name:'Grade II Haemorrhoid Treatment',rate:8500,unit:'per position',measure:'Grade II'},
   {group:'Piles',name:'Grade III Haemorrhoid Treatment',rate:9000,unit:'per position',measure:'Grade III'},
   {group:'Piles',name:'Grade IV Haemorrhoid Treatment',rate:10000,unit:'per position',measure:'Grade IV'},
-  {group:'Fistula',name:'Fistula Treatment',rate:3800,unit:'per inch',measure:'inch'},
+  {group:'Fistula',name:'Fistula Treatment',rate:3800,unit:'per cm',measure:'cm'},   /* 📏 V1278 — TK: inch নয়, CM */
   {group:'Fissure',name:'Fissure Treatment',rate:6500,unit:'per position',measure:''},
   {group:'Hydrocele',name:'Hydrocele Treatment',rate:11000,unit:'per side',measure:''},
   {group:'Medicine',name:'Q-Alkali',rate:5.20,unit:'per piece',measure:''},
@@ -29357,6 +29357,18 @@ function wlv1EstPricesSave(list){ try{ localStorage.setItem('wlv1EstPrices',JSON
 function wlv1EstPricesReset(){ try{ localStorage.removeItem('wlv1EstPrices') }catch(e){} }
 function wlv1EstNum(v){ var c=String(v==null?'':v).replace(/[^0-9.]/g,''); var n=parseFloat(c); return isFinite(n)?n:0 }
 function wlv1EstMoney(v){ return Number(v||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}) }
+/* 📏🔒 V1278 (০৯.০৯.২০২৬, TK-নির্দেশ — তালিকা সারি ৪০১): *"11000 inches
+   হবে না, 11000 CM হবে"*। কোডের নমুনা সারি ও নতুন মাপ দুটোই ঠিক করা হলো;
+   তার উপরে **দেখানোর মুহূর্তে**ও `inch` → `cm` করা হয়, তাই ডেটাবেসে আগে
+   থেকে জমা সারিগুলোও এখন CM দেখায়।
+   ⛔ ডেটাবেসে কিছু বদলানো হয় না · ⛔ টাকার হিসাব এক পয়সাও বদলায়নি।
+   ⛔ ফোনের `EstimateModel.unitTxt()`-এর হুবহু একই নিয়ম। */
+function wlv1EstUnitTxt(raw){
+  var t=String(raw||'').trim();
+  if(!t)return '';
+  return t.replace(/\binches\b/gi,'cm').replace(/\binch\b/gi,'cm');
+}
+window["wlv1EstUnitTxt"]=wlv1EstUnitTxt;
 function wlv1EstShort(v){ v=Number(v||0); return (v===Math.floor(v))?v.toLocaleString('en-IN'):v.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}) }
 /* 🔢🔒 V1251 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, খাতার সারি ৩৭২) —
    TK: *"কোয়ান্টিটি আমি যা সেট করে রাখবো সেটাই থাকার কথা ছিল … আমি যেটা সেট
@@ -29622,7 +29634,7 @@ function wlv1EstTreatRender(){
     var on=wlv1EstPick.item&&wlv1EstPick.item.name===p.name;
     return '<span style="display:inline-flex;align-items:center;margin:3px">'
       +'<button type="button" class="small'+(on?'':' ghost')+'" onclick="wlv1EstPickItem('+i+')">'
-      +esc(p.measure||p.name)+' · '+wlv1EstShort(p.rate)+'</button>'
+      +esc(wlv1EstUnitTxt(p.measure)||p.name)+' · '+wlv1EstShort(p.rate)+'</button>'   /* 📏 V1278 */
       +'<span style="cursor:pointer;padding:0 6px;color:#0B66D8;font-weight:800" onclick="wlv1EstEditListRate('+i+')">&#9998;</span></span>';
   }).join('');
   var clock='';
@@ -29670,7 +29682,7 @@ function wlv1EstTreatAdd(){
   var p=wlv1EstPick.item; if(!p){ toast('Select a treatment first'); return }
   var qty=wlv1EstNum(($('#wlv1EstQty')||{}).value)||1;
   var rate=wlv1EstNum(($('#wlv1EstRate')||{}).value)||p.rate;
-  var measure=(wlv1EstPick.group==='Fistula')?(wlv1EstShort(qty)+' inch'):(p.measure||'');
+  var measure=(wlv1EstPick.group==='Fistula')?(wlv1EstShort(qty)+' cm'):(p.measure||'');   /* 📏 V1278 */
   wlv1EstSheet.lines.push({name:p.name,measure:measure,
     position:wlv1EstPick.clock.length?(wlv1EstPick.clock.join(', ')+" o'clock"):'',
     rate:rate,qty:qty,struck:false});
@@ -29838,7 +29850,7 @@ function wlv1EstPaperHtml(editable){
     var cls=l.struck?' class="free"':'';
     var amt=l.struck?' class="r amt"':' class="r"';
     /* 🏷️ V986 — নামেই মাপ থাকলে বন্ধনীতে আর লেখা হয় না ("Grade II … (Grade II)")। */
-    var __m=String(l.measure||'');
+    var __m=wlv1EstUnitTxt(l.measure);   /* 📏 V1278 — পুরনো "inch" সারিতেও CM */
     var label=esc(l.name)+((__m && String(l.name||'').toLowerCase().indexOf(__m.toLowerCase())<0)?(' ('+esc(__m)+')'):'');
     var a0=editable?'<a class="tap" href="est://line/'+i+'">':'';
     var e0=editable?'<a class="ed" href="est://line/'+i+'">':'';

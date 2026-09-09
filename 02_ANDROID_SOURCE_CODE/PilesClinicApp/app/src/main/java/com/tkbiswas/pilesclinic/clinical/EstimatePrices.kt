@@ -38,7 +38,7 @@ object EstimatePrices {
      *  · [group]  — কোন দলে (উপরের ধ্রুবক)
      *  · [name]   — কাগজে যেভাবে ছাপা হবে
      *  · [rate]   — এক এককের দর
-     *  · [unit]   — "per position" · "per inch" · "per day" · "per piece" …
+     *  · [unit]   — "per position" · "per cm" · "per day" · "per piece" …   // 📏 V1278
      *  · [measure]— পাইলসে "Grade II", ফিস্টুলায় ইঞ্চি — ফাঁকা হলে মাপ লাগে না
      *  · [qty]    — 🔢 V1251 (TK-নির্দেশ, ফটো-প্রুফ পাশ): **নিজে থেকে বসা সংখ্যা।**
      *               TK: *"আমি যেটা সেট করে রাখবো সেটাই যেন অটোমেটিক ডিফল্ট
@@ -84,7 +84,7 @@ object EstimatePrices {
         Item(G_PILES, "Grade III Haemorrhoid Treatment", 9000.0, "per position", "Grade III"),
         Item(G_PILES, "Grade IV Haemorrhoid Treatment", 10000.0, "per position", "Grade IV"),
 
-        Item(G_FISTULA, "Fistula Treatment", 3800.0, "per inch", "inch"),
+        Item(G_FISTULA, "Fistula Treatment", 3800.0, "per cm", "cm"),   // 📏 V1278 — TK: inch নয়, CM
         Item(G_FISSURE, "Fissure Treatment", 6500.0, "per position", ""),
         Item(G_HYDROCELE, "Hydrocele Treatment", 11000.0, "per side", ""),
 

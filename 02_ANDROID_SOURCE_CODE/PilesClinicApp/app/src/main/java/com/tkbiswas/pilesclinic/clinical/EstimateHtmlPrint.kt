@@ -83,7 +83,7 @@ object EstimateHtmlPrint {
                হয় না। ⛔ ফিস্টুলার "(2 inch)" আগের মতোই থাকে। */
             val label = if (l.measure.isBlank() || l.name.contains(l.measure, ignoreCase = true))
                             esc(l.name)
-                        else esc(l.name) + " (" + esc(l.measure) + ")"
+                        else esc(l.name) + " (" + esc(EstimateModel.unitTxt(l.measure)) + ")"   // 📏 V1278
             /* ছাপার সময় `editable=false` ⇒ নিচের তিনটে স্ট্রিং ফাঁকা থাকে,
                তাই কাগজ হুবহু আগের মতোই ছাপে। */
             val aOpen = if (editable) "<a class=\"tap\" href=\"est://line/$i\">" else ""

@@ -280,7 +280,8 @@ object EstimateDialog {
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
         info.addView(TextView(activity).apply {
-            text = if (line.measure.isBlank()) line.name else line.name + "  (" + line.measure + ")"
+            // 📏 V1278 — পুরনো সারিতেও একক CM দেখায় (ডেটাবেস ছোঁয়া হয় না)
+            text = if (line.measure.isBlank()) line.name else line.name + "  (" + EstimateModel.unitTxt(line.measure) + ")"
             textSize = 13f
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(Color.parseColor(if (line.struck) MUT else INK))
@@ -437,7 +438,8 @@ object EstimateDialog {
                নাম `item` — নইলে ভুল জিনিস বসত। */
             for (item in items) {
                 val t = TextView(activity).apply {
-                    text = (if (item.measure.isBlank()) item.name else item.measure) +
+                    // 📏 V1278 — পুরনো জমা সারিতে "inch" লেখা থাকলেও পর্দায় CM
+                    text = (if (item.measure.isBlank()) item.name else EstimateModel.unitTxt(item.measure)) +
                         "\n" + EstimateModel.moneyShort(item.rate)
                     textSize = 11.5f
                     gravity = Gravity.CENTER
@@ -567,7 +569,7 @@ object EstimateDialog {
                     val qty = EstimateModel.num(qtyField.text?.toString()).let { q -> if (q <= 0.0) 1.0 else q }
                     val rate = EstimateModel.num(rateField.text?.toString()).let { r -> if (r <= 0.0) chosenItem.rate else r }
                     val measure = if (group == EstimatePrices.G_FISTULA)
-                        EstimateModel.moneyShort(qty) + " inch" else chosenItem.measure
+                        EstimateModel.moneyShort(qty) + " cm" else chosenItem.measure   // 📏 V1278
                     sheet.lines.add(
                         EstimateModel.Line(
                             name = chosenItem.name,

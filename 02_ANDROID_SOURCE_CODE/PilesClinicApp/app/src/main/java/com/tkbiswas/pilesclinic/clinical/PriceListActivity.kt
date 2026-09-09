@@ -122,7 +122,8 @@ class PriceListActivity : AppCompatActivity() {
                নামের নিচেই দেখা যায়, তাই খুলে না দেখেও বোঝা যায়।
                ⛔ ১ হলে লেখা হয় না — আগের সারিগুলো হুবহু আগের মতোই থাকে। */
             val q = EstimatePrices.qtyOf(item)
-            text = item.unit + (if (item.measure.isBlank()) "" else "  ·  " + item.measure) +
+            // 📏 V1278 — একক CM-এ দেখানো (পুরনো "inch" লেখা সারিতেও)
+            text = EstimateModel.unitTxt(item.unit) + (if (item.measure.isBlank()) "" else "  ·  " + EstimateModel.unitTxt(item.measure)) +
                 (if (q == 1.0) "" else "  ·  Qty " + EstimateModel.moneyShort(q))
             textSize = 11f
             setTextColor(Color.parseColor("#8B98A9"))
