@@ -215,6 +215,7 @@ $findingBlock
 $cancelledRows
 $discountRow
 <div class="net"><span>Net Payable Amount</span><span>${EstimateModel.money(sheet.netPayable)}</span></div>
+${if (sheet.timeAsked.isBlank()) "" else """<div><span class="lbl">Time Asked</span><span>${esc(sheet.timeAsked)}</span></div>"""}
 </div></div>
 <div class="small">* This estimate is indicative and based on the initial clinical presentation. The net payable amount may vary.</div>
 </div>

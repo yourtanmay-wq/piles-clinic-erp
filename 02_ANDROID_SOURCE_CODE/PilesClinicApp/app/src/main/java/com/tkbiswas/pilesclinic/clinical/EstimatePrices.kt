@@ -22,6 +22,29 @@ import org.json.JSONObject
  */
 object EstimatePrices {
 
+    /* 🧮🔒 V1280 (০৯.০৯.২০২৬, TK-নির্দেশ) — এস্টিমেটের একটা লাইন কোন রোগের
+       (Piles · Fistula · Fissure · Hydrocele), যাতে চেকআপের "Probable Disease"
+       এস্টিমেট থেকেই বসে। আগে দরের তালিকায় নামটা মেলে কিনা দেখা হয়, নইলে
+       নামের শব্দ থেকে। ওষুধ/অন্যান্য হলে ফাঁকা। ⛔ শুধু পড়া, কিছু লেখে না। */
+    fun groupOfLine(ctx: android.content.Context, lineName: String): String {
+        val n = lineName.trim().lowercase()
+        if (n.isBlank()) return ""
+        try {
+            for (it in list(ctx)) {
+                if (it.group == G_MEDICINE || it.group == G_OTHER) continue
+                if (it.name.trim().lowercase() == n) return it.group
+            }
+        } catch (_: Throwable) { }
+        return when {
+            n.contains("fistula") || n.contains("ফিস্টুলা") || n.contains("ভগন্দর") -> G_FISTULA
+            n.contains("fissure") || n.contains("ফিসার") -> G_FISSURE
+            n.contains("hydrocele") || n.contains("হাইড্রোসিল") -> G_HYDROCELE
+            n.contains("piles") || n.contains("অর্শ") || n.contains("kshar") || n.contains("ক্ষার") -> G_PILES
+            else -> ""
+        }
+    }
+
+
     /** কোন দলে পড়ে — পর্দায় এই দল ধরেই ভাগ দেখানো হয়। */
     const val G_PILES = "Piles"
     const val G_FISTULA = "Fistula"

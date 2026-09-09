@@ -667,6 +667,9 @@ object NoBengali {
         "📵 কল বন্ধ" to "📵 NO CALLS",
         "Clinical পরীক্ষা" to "Clinical Examination",
         "চোখে দেখা পরীক্ষা" to "Visual Examination",
+        // 📝 V1280 (তালিকা সারি ৪০৩) — চেকআপ ধাপ ৩-এর চুক্তি/পরিকল্পনার ঘর
+        "চিকিৎসার চুক্তি ও পরিকল্পনা" to "Treatment Plan & Agreement",
+        "রোগীর সাথে কী চুক্তি হল — কীভাবে চিকিৎসা, কতদিন, কিস্তি — বিস্তারিত এখানে লিখুন" to "What was agreed with the patient — how, how long, instalments — write in detail",
         "চিকিৎসা পরিকল্পনা" to "Treatment Plan",
         "এখানে কিছু লিখুন…" to "Write here…",
         "আয় ও ব্যয়" to "Income & Expense",
@@ -1775,6 +1778,9 @@ object NoBengali {
         " · আর্থিক সমস্যা" to "",
         "কল নিয়ে যা বললেন লিখুন…" to "Write what was discussed on the call...",
         "চোখে দেখা পরীক্ষা" to "Visual Examination",
+        // 📝 V1280 (তালিকা সারি ৪০৩) — চেকআপ ধাপ ৩-এর চুক্তি/পরিকল্পনার ঘর
+        "চিকিৎসার চুক্তি ও পরিকল্পনা" to "Treatment Plan & Agreement",
+        "রোগীর সাথে কী চুক্তি হল — কীভাবে চিকিৎসা, কতদিন, কিস্তি — বিস্তারিত এখানে লিখুন" to "What was agreed with the patient — how, how long, instalments — write in detail",
         "চিকিৎসা পরিকল্পনা" to "Treatment Plan",
         "রোগের ছবি · রোগীকে দেখিয়ে বোঝানোর জন্য" to "Disease picture - to show and explain to the patient",
         "রোগী নিজে যা যা বললেন — এখানে টাইপ করুন" to "What the patient said in their own words - type here",

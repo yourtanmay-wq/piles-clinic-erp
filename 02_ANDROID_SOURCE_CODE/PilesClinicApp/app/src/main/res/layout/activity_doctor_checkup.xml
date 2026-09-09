@@ -999,7 +999,7 @@
                             মোড়ক (`counsFoldBody`) ও মাথায় চ্যাভরন যোগ হয়েছে। -->
                     <LinearLayout android:id="@+id/counsFoldHead" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:clickable="true" android:focusable="true" android:gravity="center_vertical" android:layout_marginBottom="6dp">
                         <TextView android:layout_width="23dp" android:layout_height="23dp" android:gravity="center" android:text="3" android:textStyle="bold" android:textSize="12sp" android:textColor="#12805C" android:background="@drawable/bg_checkup_step_num" />
-                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="9dp" android:text="Counsel · চিকিৎসা পরিকল্পনা" android:textStyle="bold" android:textSize="14sp" android:textColor="#101828" />
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="9dp" android:text="Estimated Cost · চিকিৎসা পরিকল্পনা" android:textStyle="bold" android:textSize="14sp" android:textColor="#101828" />
                         <TextView android:id="@+id/counsFoldNum" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:background="@drawable/bg_fold_count_chip" android:paddingLeft="9dp" android:paddingTop="2dp" android:paddingRight="9dp" android:paddingBottom="2dp" android:textColor="#0B4F2A" android:textSize="11.5sp" android:textStyle="bold" android:visibility="gone" />
                         <TextView android:id="@+id/counsFoldChev" android:layout_width="24dp" android:layout_height="24dp" android:layout_marginStart="8dp" android:gravity="center" android:background="@drawable/bg_fold_chevron" android:text="⌄" android:textColor="#FFFFFF" android:textStyle="bold" android:textSize="15sp" />
                         <View android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
@@ -1015,6 +1015,14 @@
                             ১৮৮-১৯৩ লাইন), আর `checkedText()` সেই `.tag`-ই পড়ে,
                             পর্দার লেখা নয়। তাই পুরোনো রেকর্ড ও রিপোর্ট অটুট।
                          ⛔ টাকার ঘর (etAmt*) · দাম · হিসাব — কিছুই ছোঁয়া হয়নি। -->
+                    <!-- 🧮🔒 V1280 (০৯.০৯.২০২৬, TK-র ফাইনাল অনুমতি ও ফটো-প্রুফ পাশ — তালিকা
+                         সারি ৪০৩): TK: *"পার পাইলস / ফিস্টুলা … অ্যামাউন্ট বসানোর জন্য সিস্টেম
+                         আলাদা করাই আছে … তাতে গিয়ে তো দুই বার হয়ে যাচ্ছে … এটা তুলে দিন"*।
+                         ⇒ টিক-তালিকা ও তার ₹ ঘরগুলো **পর্দা থেকে সরল** (এই মোড়কটা gone)।
+                         ⛔ ঘরগুলো লেআউটে **রয়ে গেছে** — COST ESTIMATE থেকে ফিরে এলে অ্যাপ
+                            নিজেই টিক বসিয়ে দেয় (`applyEstimateToCheckup`), তাই সেভ · কাগজের
+                            TREATMENT PLAN লাইন · পুরনো রেকর্ড — সবই আগের ঘর দিয়েই চলে। -->
+                    <LinearLayout android:id="@+id/txPlanLegacyWrap" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
                     <TextView style="@style/FieldLabel" android:layout_marginTop="0dp" android:text="Treatment Plan · কীভাবে চিকিৎসা করা হবে" android:textColor="@color/brand_navy" />
 
                     <!-- টাকা-সহ তিনটে (পরপর, সবার উপরে) -->
@@ -1102,6 +1110,7 @@
                          নোটিফিকেশন/A4-রিপোর্ট কিছুই বদলায়নি — একই
                          `etEstimatedCost` view, শুধু জায়গা বদল (Step 4 থেকে
                          Step 3-এ)। -->
+                    </LinearLayout><!-- txPlanLegacyWrap (V1280) -->
                     <LinearLayout style="@style/DocNoteFieldBox">
                         <View style="@style/DocNoteAccentBarPurple" />
                         <LinearLayout style="@style/DocNoteFieldBoxInner">
@@ -1119,7 +1128,11 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:orientation="horizontal"
-                                android:gravity="center_vertical">
+                                android:gravity="center_vertical"
+                                android:visibility="gone">
+                                <!-- 🧮 V1280 — হাতে টাইপের ঘর ও ছোট আইকন লুকানো (TK: *"হাতে এস্টিমেট
+                                     টাইপ করার দরকার নেই"*); `etEstimatedCost` রয়ে গেছে — COST ESTIMATE
+                                     থেকে ফিরে এলে Net Payable এখানেই বসে ও সেভ হয়, আগের মতোই। -->
                                 <EditText android:id="@+id/etEstimatedCost" style="@style/DocNoteInputSingle" android:inputType="number" android:hint="Estimated cost" android:layout_width="0dp" android:layout_weight="1" />
                                 <!-- 🧮🔒 V1105 (০৫.০৯.২০২৬, TK-রিপোর্ট: *"আনুমানিক খরচ কত বলা
                                      হলো তার পাশেই তো এস্টিমেটের Sample টা থাকার কথা ছিল, আপনি তো
@@ -1145,14 +1158,49 @@
                         </LinearLayout>
                     </LinearLayout>
 
-                    <LinearLayout style="@style/DocNoteFieldBox" android:layout_marginBottom="4dp">
+                    <!-- 🧮🔒 V1280 — TK: *"সেই আইকন টা আরেকটু বড় করতে হবে যাতে বুঝতে হবে"*
+                         ⇒ পুরো চওড়ার বড় বেগুনি বোতাম; চাপলে আগের সেই COST ESTIMATE
+                         কাগজই খোলে (`openEstimate`)। নিচে "FROM COST ESTIMATE" সারাংশ —
+                         শুধু দেখার, কিছু টাইপ করার নেই। -->
+                    <TextView
+                        android:id="@+id/btnBuildEstimateBig"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:background="@drawable/bg_btn_gradient_violet"
+                        android:gravity="center"
+                        android:paddingVertical="15dp"
+                        android:text="🧮  COST ESTIMATE"
+                        android:textColor="@android:color/white"
+                        android:textSize="17sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.03"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:contentDescription="Build Estimate" />
+                    <LinearLayout style="@style/DocNoteFieldBox" android:layout_marginTop="10dp">
                         <View style="@style/DocNoteAccentBarPurple" />
                         <LinearLayout style="@style/DocNoteFieldBoxInner">
-                            <EditText android:id="@+id/etCounselling" style="@style/DocNoteInputMultiline" android:minLines="2" android:hint="উপরে টিক মারার বাইরেও যদি রোগীকে অন্য কিছু বলে থাকেন তাহলে সেই কথা এখানে লিখুন, অন্যথায় Next চাপুন" />
+                            <TextView style="@style/FieldLabel" android:layout_marginTop="0dp" android:text="FROM COST ESTIMATE" android:textColor="#8B98A9" android:letterSpacing="0.06" />
+                            <TextView android:id="@+id/tvEstimateSummary" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="14.5sp" android:textColor="#123A26" android:lineSpacingExtra="4dp" android:paddingTop="4dp" android:text="Nothing added yet — tap COST ESTIMATE above" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <!-- 📝🔒 V1280 — TK: *"রোগীর সাথে কোন চুক্তিতে ট্রিটমেন্ট করব, কতদিন সময় নিব —
+                         বিস্তারিত লিখব … পরে অন্য ডাক্তার বুঝতে পারবে … এস্টিমেট প্রিন্টে যাবে না ·
+                         চেকআপ কাগজেও না, তবে অপশন থাকবে আলাদা"* ⇒ এই ঘরটা **আগের `etCounselling`-ই**
+                         (সেভ · হিস্ট্রি অটুট), শুধু নাম ও ইঙ্গিত বদলাল; কাগজে যাবে কিনা প্রিভিউ
+                         পর্দার সুইচে (ডিফল্ট বন্ধ)। এস্টিমেট কাগজে কোনো অবস্থাতেই নয়। -->
+                    <TextView style="@style/FieldLabel" android:layout_marginTop="12dp" android:text="Treatment Plan &amp; Agreement · চিকিৎসার চুক্তি ও পরিকল্পনা" android:textColor="@color/brand_navy" />
+                    <LinearLayout style="@style/DocNoteFieldBox" android:layout_marginBottom="2dp">
+                        <View style="@style/DocNoteAccentBarPurple" />
+                        <LinearLayout style="@style/DocNoteFieldBoxInner">
+                            <EditText android:id="@+id/etCounselling" style="@style/DocNoteInputMultiline" android:minLines="2" android:hint="রোগীর সাথে কী চুক্তি হল — কীভাবে চিকিৎসা, কতদিন, কিস্তি — বিস্তারিত এখানে লিখুন" />
                         </LinearLayout>
                     </LinearLayout>
 
 
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Internal note — saved with the check-up, never printed on the patient&apos;s estimate" android:textSize="10.5sp" android:textColor="#8B98A9" android:paddingStart="2dp" android:paddingBottom="4dp" />
                     </LinearLayout><!-- counsFoldBody -->
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
@@ -1168,7 +1216,7 @@
                  (`decisionOptions.map{...}`) ছোঁয়া হয়নি। ⛔ id/hint/
                  সেভ-লজিক কিছুই বদলায়নি। -->
             <!-- 🎨 (07.08.2026, প্রুফ-চেহারা) কার্ড সাদা — আগে #EAFBF0 -->
-            <androidx.cardview.widget.CardView android:id="@+id/secEstimate" style="@style/RegCard" android:layout_marginTop="6dp" app:cardBackgroundColor="#FFFFFF">
+            <androidx.cardview.widget.CardView android:id="@+id/secEstimate" style="@style/RegCard" android:layout_marginTop="6dp" android:visibility="gone" app:cardBackgroundColor="#FFFFFF">
                 <LinearLayout style="@style/RegCardInner" android:padding="10dp">
 
                     <!-- 🎨 (07.08.2026, প্রুফ-চেহারা) সেকশন-শিরোনাম -->
@@ -1403,7 +1451,7 @@
                          বসানো হলো — শুরুতে বন্ধ, হেডারে চাপ দিলে খোলে।
                          ⛔ Quick Actions/Investigations (নিচের অংশ) ছোঁয়া হয়নি। -->
                     <LinearLayout android:id="@+id/photoFoldHead" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="6dp">
-                        <TextView android:layout_width="23dp" android:layout_height="23dp" android:gravity="center" android:text="5" android:textStyle="bold" android:textSize="12sp" android:textColor="#12805C" android:background="@drawable/bg_checkup_step_num" />
+                        <TextView android:layout_width="23dp" android:layout_height="23dp" android:gravity="center" android:text="4" android:textStyle="bold" android:textSize="12sp" android:textColor="#12805C" android:background="@drawable/bg_checkup_step_num" />
                         <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="9dp" android:text="Photo &amp; Video" android:textStyle="bold" android:textSize="14sp" android:textColor="#101828" />
                         <TextView android:id="@+id/photoFoldNum" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp" android:background="@drawable/bg_fold_count_chip" android:paddingLeft="9dp" android:paddingTop="2dp" android:paddingRight="9dp" android:paddingBottom="2dp" android:textColor="#0B4F2A" android:textSize="11.5sp" android:textStyle="bold" android:visibility="gone" />
                         <!-- 🟢🔒 V653 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবিসহ — "আরো উজ্জ্বল
@@ -1613,6 +1661,17 @@
             <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Turn off before giving the print to the patient" android:textSize="10.5sp" android:textColor="#8B98A9" />
         </LinearLayout>
         <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/swDrRemark" android:layout_width="wrap_content" android:layout_height="wrap_content" android:checked="true" />
+    </LinearLayout>
+    <!-- 📝🔒 V1280 (০৯.০৯.২০২৬, TK-নির্দেশ হুবহু: *"শুধু ফোনে থাকবে, চেকআপ কাগজেও
+         ছাপবে না। তবে অপশন থাকবে আলাদা"*) — চুক্তি/পরিকল্পনার নোট কাগজে যাবে
+         কিনা। **ডিফল্ট বন্ধ** — চালু করলে তবেই ক্লিনিকের নিজের কপিতে ছাপে।
+         ⛔ এস্টিমেট কাগজে কোনো অবস্থাতেই যায় না (ওটা আলাদা শিট থেকে বানে)। -->
+    <LinearLayout android:id="@+id/agreeBar" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:background="@color/white" android:paddingHorizontal="14dp" android:paddingVertical="6dp" android:visibility="gone">
+        <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Treatment Plan &amp; Agreement on paper" android:textSize="13.5sp" android:textColor="#123A26" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Internal note — off by default, turn on only for the clinic&apos;s own copy" android:textSize="10.5sp" android:textColor="#8B98A9" />
+        </LinearLayout>
+        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/swAgreement" android:layout_width="wrap_content" android:layout_height="wrap_content" android:checked="false" />
     </LinearLayout>
     <LinearLayout android:id="@+id/bottomActionBar" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:background="@color/white" android:elevation="8dp" android:paddingHorizontal="12dp" android:paddingVertical="5dp">
         <com.google.android.material.button.MaterialButton android:id="@+id/btnBack" style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="wrap_content" android:layout_height="36dp" android:minHeight="0dp" android:insetTop="0dp" android:insetBottom="0dp" android:paddingHorizontal="12dp" android:textSize="12.5sp" android:text="◀ Back" app:strokeColor="#0C9E33" android:textColor="#0C9E33" />

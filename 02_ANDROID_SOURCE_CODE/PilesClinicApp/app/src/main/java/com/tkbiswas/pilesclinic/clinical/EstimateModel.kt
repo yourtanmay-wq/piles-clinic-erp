@@ -91,7 +91,12 @@ object EstimateModel {
            `false` = টাকা (আগের আচরণ), `true` = শতাংশ।
            ⛔ পুরনো সেভ করা হিসাবে এই ঘরটা নেই ⇒ `false` ⇒ হুবহু আগের মতোই। */
         var discountPct: Boolean = false,
-        var finding: String = ""
+        var finding: String = "",
+        /* ⏳🔒 V1280 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ — তালিকা সারি ৪০৩):
+           *"কত সময় চাওয়া হলো সেটাও এস্টিমেটের মধ্যে যুক্ত করে দেয়া হয়"*।
+           লেখাটা "15 Days" ধাঁচে (চেকআপের `timeAsked`-এর হুবহু একই ধাঁচ)।
+           ⛔ পুরনো কাগজে ঘরটা নেই ⇒ ফাঁকা ⇒ কিছুই বদলায় না। */
+        var timeAsked: String = ""
     ) {
         /* 💰🔴🔒 V1062 (০৪.০৯.২০২৬, TK-নির্দেশ ছবিসহ: *"আমি চাইছিলাম Sub Total-এ
            without discount amount বসবে। তাহলে এক্ষেত্রে Sub Total হয় ₹17,038,
@@ -202,6 +207,7 @@ object EstimateModel {
                       কাটা টাকাটা ফিরিয়ে নেয় — তাই টাকা এক পয়সাও বদলায় না। */
                 .put("cancelledSeparate", true)
                 .put("finding", finding)
+                .put("timeAsked", timeAsked)   // ⏳ V1280
         }
     }
 
@@ -224,6 +230,7 @@ object EstimateModel {
             s.discount = o.optDouble("discount", 0.0)
             s.discountPct = o.optBoolean("discountPct", false)
             s.finding = o.optString("finding", "")
+            s.timeAsked = o.optString("timeAsked", "")   // ⏳ V1280
             /* 💰🔴🔒 V1064 (০৪.০৯.২০২৬ — নিজে যাচাই করতে গিয়ে ধরা) — **পুরনো
                সেভ করা এস্টিমেটের টাকা যেন এক পয়সাও না বদলায়।**
                পুরনো নিয়মে কাটা লাইনের টাকা **নিজে থেকেই** বাদ যেত, তাই তখন

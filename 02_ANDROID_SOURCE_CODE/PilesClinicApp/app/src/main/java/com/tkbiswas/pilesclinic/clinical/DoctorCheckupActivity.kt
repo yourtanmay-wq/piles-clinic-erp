@@ -603,7 +603,14 @@ class DoctorCheckupActivity : AppCompatActivity() {
     private var stepChips = mutableListOf<TextView>()   // 🎨 এখন এগুলো নম্বর-বৃত্ত (TextView)
     // 🎨 (07.08.2026, প্রুফ-চেহারা) — প্রতি চিপের নিচের ছোট লেবেল (History/Clinical…)
     private var stepChipLabels = mutableListOf<TextView>()
-    private val stepShort = listOf("History", "Clinical", "Counsel", "Estimate", "Photo")
+    /* 🧮🔒 V1280 (০৯.০৯.২০২৬, TK-র ফাইনাল অনুমতি ও ফটো-প্রুফ পাশ — তালিকা
+       সারি ৪০২ · ৪০৩): TK: *"এই 4 নম্বর অপশন টা থাকবেই না"* · *"Estimate"*।
+       ⇒ ধাপ এখন **চারটে**: History · Clinical · Estimate · Photo।
+       ⛔ ধাপ ৪-এর (Probable Disease · Time Asked) ঘরগুলো লেআউটে **রয়ে গেছে,
+          শুধু লুকানো** — রোগ এখন COST ESTIMATE-এর লাইন থেকে, সময় এস্টিমেট
+          পর্দা থেকে আসে (নিচে `onActivityResult`), তাই সেভ · কাগজ · রোগীর
+          `disease` ঘর — সবই আগের ঘর দিয়েই চলে; পুরনো রেকর্ড অটুট। */
+    private val stepShort = listOf("History", "Clinical", "Estimate", "Photo")
     private var currentStep = 0
 
     // 🆕 (07.08.2026, TK-অনুমোদিত) — সেভ-করা রেকর্ড ও A4 রিপোর্টের পেশেন্ট-তথ্য
@@ -736,6 +743,13 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 a4ShowDocRemark = on
                 lastSavedRecord?.let { showSavedA4(buildA4Html(it)) }
             }
+        /* 📝 V1280 — দ্বিতীয় সুইচ: চুক্তি/পরিকল্পনার নোট (ডিফল্ট বন্ধ)। একই নিয়ম —
+           ঘোরালেই কাগজ নতুন করে আঁকা, পর্দা · Print · Share এক। */
+        findViewById<com.google.android.material.switchmaterial.SwitchMaterial>(R.id.swAgreement)
+            .setOnCheckedChangeListener { _, on ->
+                a4ShowAgreement = on
+                lastSavedRecord?.let { showSavedA4(buildA4Html(it)) }
+            }
         // 🆕 (07.08.2026) — A4 রিপোর্ট থেকে ✎ Edit চাপলে আবার ফর্মে ফেরে।
         findViewById<MaterialButton>(R.id.btnEditCheckup).setOnClickListener { showEditForm() }
         showStep(0)
@@ -779,7 +793,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
     // displayedChild নেই)। রোগীর পূর্ণ কার্ড সবসময় উপরে থাকে (সংকুচিত-কার্ড
     // টগল বাদ)। ⛔ সব ফিল্ড/ডেটা-সেভ অপরিবর্তিত।
     private val sectionIds = intArrayOf(
-        R.id.secHistory, R.id.secClinical, R.id.secCounsel, R.id.secEstimate, R.id.secPhoto
+        R.id.secHistory, R.id.secClinical, R.id.secCounsel, R.id.secPhoto   // 🧮 V1280 — secEstimate বাদ
     )
     /**
      * 🎓🔒 V783 — **রোগীকে বোঝানোর পর্দা।** পাইলস · ফিশার · ফিস্টুলা —
@@ -2007,6 +2021,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         etCounselling.setText(r.counselling)
         etEstimatedCost.setText(r.estimatedCost)
         estimateSheet = EstimateModel.parse(r.estimateJson)   // 💰 V971
+        renderEstimateSummary()   // 🧮 V1280
         keptRecoveryTime = r.recoveryTime   // 🟢 V589: দেখানো হয় না, কিন্তু হারায়ও না
         // 🔵 B622: "Advance Payment to be Done" ঘর বাদ।
         // V455 (18.08.2026): patientDecision/decisionRemark/documents populate বাদ (ঘর নেই)।
@@ -4250,11 +4265,14 @@ class DoctorCheckupActivity : AppCompatActivity() {
             "Investigations" to r.investigation
         ).filter { it.second.isNotBlank() }) { unlockSection(R.id.secClinical) })
 
-        lockSection(R.id.secCounsel, buildSectionSummary("Counsel · চিকিৎসা পরিকল্পনা", listOf(
+        /* 🧮 V1280 — সারাংশে এখন এস্টিমেট থেকে আসা তিনটে জিনিস + চুক্তি-নোট। */
+        lockSection(R.id.secCounsel, buildSectionSummary("Estimated Cost · চিকিৎসা পরিকল্পনা", listOf(
+            "রোগ" to (if (r.probableDisease == CounselModel.PICK_NONE) "" else r.probableDisease),
             "চিকিৎসা" to r.treatmentPlan,
-            "হার" to buildRateSummary(r),
-            "পরামর্শ" to r.counselling
-        )) { unlockSection(R.id.secCounsel) })
+            "Net Payable" to r.estimatedCost,
+            "Time Asked" to r.timeAsked,
+            "চুক্তি" to r.counselling
+        ).filter { it.second.isNotBlank() }) { unlockSection(R.id.secCounsel) })
 
         // Estimate & Decision — সেভের পর লুকানো।
         findViewById<android.view.View>(R.id.secEstimate).visibility = android.view.View.GONE
@@ -4265,6 +4283,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         /* 🧮 V1105 — ঘরের পাশের নতুন আইকনটাও ঠিক একই সময়ে লুকায়, নইলে সেভের
            পরেও একটা বোতাম থেকে যেত (হেডারেরটা লুকিয়ে যেত, এটা নয়)। */
         findViewById<android.view.View>(R.id.btnBuildEstimateInline)?.visibility = android.view.View.GONE
+        findViewById<android.view.View>(R.id.btnBuildEstimateBig)?.visibility = android.view.View.GONE   // 🧮 V1280
 
         // Photo — ছবি থাকে, শুধু ক্যামেরা-বোতাম + Quick Actions লুকানো।
         findViewById<android.view.View>(R.id.btnBeforePhoto).visibility = android.view.View.GONE
@@ -4336,6 +4355,8 @@ class DoctorCheckupActivity : AppCompatActivity() {
     /* 📝 V1276 — কাগজে ডাক্তারের মন্তব্য থাকবে কিনা। **ডিফল্ট চালু** —
        বন্ধ থাকলে TK-র অভিযোগটাই ("লেখাটা কোথাও নেই") ফিরে আসত। */
     private var a4ShowDocRemark = true
+    /* 📝 V1280 — চুক্তি/পরিকল্পনার নোট কাগজে যাবে কিনা। **ডিফল্ট বন্ধ** (TK)। */
+    private var a4ShowAgreement = false
 
     private fun showSavedA4(html: String) {
         val wv = findViewById<android.webkit.WebView>(R.id.savedA4View)
@@ -4361,6 +4382,8 @@ class DoctorCheckupActivity : AppCompatActivity() {
            লিখেছেন; নইলে কাগজে ওই ভাগটাই বসে না, তাই সুইচেরও মানে নেই। */
         findViewById<android.view.View>(R.id.drRemarkBar).visibility =
             vis(!(lastSavedRecord?.doctorRemark ?: "").isBlank())
+        findViewById<android.view.View>(R.id.agreeBar).visibility =
+            vis(!(lastSavedRecord?.counselling ?: "").isBlank())   // 📝 V1280
     }
 
     private fun showEditForm() {
@@ -4377,6 +4400,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.btnShareCheckup).visibility = vis(false)
         findViewById<MaterialButton>(R.id.btnPrintCheckup).visibility = vis(false)
         findViewById<android.view.View>(R.id.drRemarkBar).visibility = vis(false)   // 📝 V1276
+        findViewById<android.view.View>(R.id.agreeBar).visibility = vis(false)   // 📝 V1280
         showStep(currentStep)
     }
 
@@ -4410,7 +4434,9 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 onProbing = r.onProbing, investigation = r.investigation,
                 otherFindings = r.otherFindings,
                 treatmentPlan = r.treatmentPlan, rate = buildRateSummary(r),
-                counselling = r.counselling,
+                /* 📝🔒 V1280 — চুক্তি/পরিকল্পনার নোট: TK — *"শুধু ফোনে থাকবে, চেকআপ
+                   কাগজেও ছাপবে না, তবে অপশন থাকবে আলাদা"* ⇒ সুইচ চালু থাকলে তবেই। */
+                counselling = if (a4ShowAgreement) r.counselling else "",
                 estCost = r.estimatedCost,
                 /* 🟢🔒 V589 (২৩.০৮.২০২৬, TK-নির্দেশ) — *"অ্যাপের মধ্যে এক জায়গায়
                    তো আমি বেছে নিচ্ছি সেটাই ছেপে যাবে"*।
@@ -4960,6 +4986,66 @@ class DoctorCheckupActivity : AppCompatActivity() {
             val sheet = EstimateModel.parse(data?.getStringExtra(EstimatePaperActivity.RESULT_SHEET))
             estimateSheet = sheet
             if (!sheet.isEmpty) etEstimatedCost.setText(EstimateModel.moneyShort(sheet.netPayable))
+            /* 🧮🔒 V1280 (TK: *"কস্ট এসটিমেটে চাপ দিলে যখন রোগের নাম এবং কত খরচ
+               অটোমেটিক ক্যালকুলেশন হয়ে যাচ্ছে, তাহলে আবার হাতে টাইপ করার
+               দরকার নেই · রোগের নামও ওখানে সিলেক্ট করা যায় · সময় চাওয়া
+               হলো সেটাও এস্টিমেটের মধ্যে"*) — একই কাগজ থেকে **রোগ · চিকিৎসা ·
+               সময়** তিনটেও বসে যায়, আগের লুকানো ঘরগুলোতেই:
+               • রোগ → ধাপ ৪-এর চিপে (তাই `patients.disease` বদলানোর পুরনো
+                 নিয়ম, নোটিফিকেশন, কাগজের "Probable Disease" — সব আগের মতোই)
+               • চিকিৎসা → পুরনো টিক-বাক্সে (কাটা লাইন বাদ), তাই কাগজের
+                 TREATMENT PLAN লাইন আগের মতোই ভরে
+               • সময় → ধাপ ৪-এর `etTimeAsked` + একক
+               ⛔ কোনো নতুন ঘর/টেবিল নয় — সেভের কোড এক অক্ষরও বদলায়নি।
+               ⛔ এস্টিমেটে কিছু না বাছলে আগের মান হুবহু থাকে (মুছে যায় না)। */
+            applyEstimateToCheckup(sheet)
+        } catch (_: Throwable) { }
+    }
+
+    /** 🧮 V1280 — এস্টিমেটের কাগজ থেকে রোগ · চিকিৎসা · সময় ⇒ চেকআপের লুকানো ঘরে। */
+    private fun applyEstimateToCheckup(sheet: EstimateModel.Sheet) {
+        try {
+            val live = sheet.lines.filter { !it.struck }
+            // রোগ — চিকিৎসার লাইনের গ্রুপ থেকে (Piles · Fistula · Fissure · Hydrocele)
+            val groups = LinkedHashSet<String>()
+            for (l in live) {
+                val g = EstimatePrices.groupOfLine(this, l.name)
+                if (g.isNotBlank()) groups.add(g)
+            }
+            if (groups.isNotEmpty()) applyProbableDisease(groups.joinToString(", "))
+            // চিকিৎসা — টিক-বাক্সে (নাম মিলিয়ে); কোনো চিকিৎসার লাইন না থাকলে ছোঁয়া হয় না
+            val txNames = live.filter { EstimatePrices.groupOfLine(this, it.name).isNotBlank() }
+                .map { it.name.lowercase() }
+            if (txNames.isNotEmpty()) {
+                cbTxPerPiles.isChecked = txNames.any { it.contains("piles") || it.contains("অর্শ") }
+                cbTxFistulaInch.isChecked = txNames.any { it.contains("fistula") || it.contains("ফিস্টুলা") }
+                cbTxKsharSutra.isChecked = txNames.any { it.contains("kshar") || it.contains("ক্ষার") }
+            }
+            // সময় — এস্টিমেটে লেখা থাকলে
+            val (tAmt, tUnit) = CounselModel.splitTimeAsked(sheet.timeAsked)
+            if (tAmt.isNotBlank()) {
+                findViewById<android.widget.EditText>(R.id.etTimeAsked).setText(tAmt)
+                val ui = CounselModel.UNITS.indexOf(tUnit).let { if (it < 0) 0 else it }
+                findViewById<android.widget.Spinner>(R.id.spTimeAskedUnit).setSelection(ui)
+            }
+            renderEstimateSummary()
+        } catch (_: Throwable) { }
+    }
+
+    /** 🧮 V1280 — ধাপ ৩-এর বোতামের নিচে "FROM COST ESTIMATE" সারাংশ (শুধু দেখার)। */
+    private fun renderEstimateSummary() {
+        try {
+            val box = findViewById<TextView>(R.id.tvEstimateSummary) ?: return
+            val disease = collectProbableDisease().let { if (it == CounselModel.PICK_NONE) "" else it }
+            val cost = etEstimatedCost.text?.toString()?.trim().orEmpty()
+            val time = CounselModel.timeAsked(
+                findViewById<android.widget.EditText>(R.id.etTimeAsked).text?.toString().orEmpty(),
+                CounselModel.UNITS.getOrElse(findViewById<android.widget.Spinner>(R.id.spTimeAskedUnit).selectedItemPosition) { "Days" })
+            val parts = ArrayList<String>()
+            if (disease.isNotBlank()) parts.add("Disease: $disease")
+            if (cost.isNotBlank()) parts.add("Net Payable: ₹$cost")
+            if (time.isNotBlank()) parts.add("Time Asked: $time")
+            box.text = if (parts.isEmpty()) "Nothing added yet — tap COST ESTIMATE above" else parts.joinToString("\n")
         } catch (_: Throwable) { }
     }
 
@@ -4981,6 +5067,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
             }
             findViewById<TextView>(R.id.btnBuildEstimate)?.setOnClickListener(openEstimate)
             findViewById<TextView>(R.id.btnBuildEstimateInline)?.setOnClickListener(openEstimate)
+            findViewById<TextView>(R.id.btnBuildEstimateBig)?.setOnClickListener(openEstimate)   // 🧮 V1280
         } catch (_: Throwable) { }
     }
 

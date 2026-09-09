@@ -11130,7 +11130,9 @@ let wlv1CkCur = 0;
    "History, Clinical, Counsel, Estimate, Photo" — সংখ্যাটা ফোনে আলাদা গোল
    ব্যাজে বসে, লেখার ভিতরে নয়। ওয়েবেও এখন সংখ্যাটা CSS-এর গোল ব্যাজে বসে।
    ⛔ কোন ধাপে কী আছে, কোন বাক্স কোথায় — কিচ্ছু বদলায়নি, শুধু ব্যাজের লেখা। */
-const WLV1_CK_TITLES = ['History','Clinical','Counsel','Estimate','Photo'];
+/* 🧮🔒 V1280 (০৯.০৯.২০২৬, TK-র ফাইনাল অনুমতি ও ফটো-প্রুফ পাশ — তালিকা সারি ৪০২ · ৪০৩):
+   TK: *"এই 4 নম্বর অপশন টা থাকবেই না"* ⇒ ধাপ চারটে (ফোনের হুবহু জোড়া)। */
+const WLV1_CK_TITLES = ['History','Clinical','Estimate','Photo'];
 // 🆕 (03.08.2026, TK-অনুমোদিত মকআপ, "ওকে লক") — ফোনের DoctorCheckupActivity.kt-এর
 // একই বাংলা-ডিসপ্লে ম্যাপ, ওয়েবেও। ⛔ চেকবক্স/অপশনের আসল value="${x}" (সেভ
 // হওয়া মান) এক অক্ষরও বদলায়নি — শুধু পাশে দেখানো লেখায় বাংলা যোগ হয়েছে,
@@ -11299,7 +11301,11 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
   <div class="card"><b>D. On Probing · প্রোব পরীক্ষা</b><label>Direction and depth of tract after probing · প্রোব ঢোকানোর পরে নালি কোন দিকে কতটা গেল</label><textarea id="dnProbing">${val('onProbing')}</textarea></div></div>
   <div class="grid"><!-- 🔴 V542 (TK-নির্দেশ: "investigation তুলে দেন, থাকবে না") — কার্ডটা সরানো। ⛔ পুরোনো রেকর্ডের মান থেকে যায়, ছাপায় আগের মতোই দেখা যায়। --></div>
  </details>
- <details class="card"><summary><b>3. Counselling &amp; Advice · পরামর্শ ও উপদেশ</b></summary>
+ <details class="card"><summary><b>3. Estimated Cost · চিকিৎসা পরিকল্পনা</b></summary>
+  <!-- 🧮🔒 V1280 — TK: *"অ্যামাউন্ট বসানোর জন্য সিস্টেম আলাদা করাই আছে … দুই বার হয়ে যাচ্ছে … এটা তুলে দিন"*
+       ⇒ টিক-তালিকা ও ₹ ঘর পর্দা থেকে সরল (hidden)। ঘরগুলো রয়ে গেছে — COST ESTIMATE সেভ করলে
+       অ্যাপ নিজেই টিক বসায় (wlv1EstSave), তাই সেভ · A4-এর TREATMENT PLAN · পুরনো রেকর্ড অটুট। -->
+  <div id="dnTxPlanLegacy" hidden>
   <label>Treatment Plan · কীভাবে চিকিৎসা করা হবে</label>
   <div class="checkGrid premiumChecks wlv1TxPlan">
    <label class="wlv1TxRow"><input class="dnTxPlan" type="checkbox" value="Per Piles" ${chk(note.treatmentPlan,'Per Piles')}> Per Piles <span class="wlv1TxAmt">₹ <input id="dnAmtPerPiles" class="input wlv1TxAmtInput" inputmode="numeric" value="${val('amtPerPiles','8000')}"></span></label>
@@ -11309,6 +11315,7 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
    <label class="wlv1TxRow"><input class="dnTxPlan" type="checkbox" value="LIS-এর মাধ্যমে চিকিৎসা করা হবে" ${chk(note.treatmentPlan,'LIS-এর মাধ্যমে চিকিৎসা করা হবে')}> LIS-এর মাধ্যমে চিকিৎসা করা হবে</label>
    <!-- 🔴 V542 (TK-নির্দেশ: "ইনজেকশন চিকিৎসা থাকবে না") — সারিটা সরানো। ⛔ পুরোনো রেকর্ডে মানটা থেকে যায়, ছাপায় আগের মতোই দেখা যায়। -->
   </div>
+  </div><!-- dnTxPlanLegacy (V1280) -->
   <!-- 🟢🔒🔒 V652 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবিসহ — "সম্ভাব্য রোগের মধ্যে
        থাকবে এটা") — "Patient Picture" (রোগের ছবি/অ্যানাটমি আঁকার হাতিয়ার,
        wlv1AnatBoxHtml) এখান (Step 3) থেকে সরিয়ে Step 4 (Probable Disease
@@ -11319,8 +11326,15 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
        নিচে (Treatment Plan-এর পরে, নোটের আগে) — Android-এর একই বদল।
        ⛔ id/সেভ-লজিক/নোটিফিকেশন/A4-রিপোর্ট কিছুই বদলায়নি — একই
        "dnEstimatedCost" input, শুধু জায়গা বদল (Step 4 থেকে Step 3-এ)। -->
-  <label>Estimated Cost · আনুমানিক খরচ কত বলা হল</label><div style="display:flex;gap:8px;align-items:center"><input id="dnEstimatedCost" class="input" style="flex:1;margin:0" value="${val('estimatedCost')}"><button type="button" class="dnHistBtn dnEstBtn" onclick="wlv1EstOpen()" title="Build Estimate">🧮</button></div>
-  <label>Other Treatment Note · অন্যান্য চিকিৎসার কথা (টাইপ করুন)</label><textarea id="dnCounselling" placeholder="রোগীকে কিভাবে চিকিৎসা করবেন বলেছেন সেই কথা এখানে লিখুন">${val('counselling')}</textarea>
+  <!-- 🧮🔒 V1280 — TK: *"হাতে এস্টিমেট টাইপ করার দরকার নেই … আইকনটা বড় করতে হবে"* ⇒ টাইপ-ঘর
+       লুকানো (id ও সেভ অটুট — Net Payable এখানেই বসে), পুরো চওড়ার বড় বোতাম, নিচে "FROM COST ESTIMATE" সারাংশ। -->
+  <input id="dnEstimatedCost" class="input" type="hidden" value="${val('estimatedCost')}">
+  <button type="button" class="wlv1EstBigBtn" onclick="wlv1EstOpen()">🧮&nbsp; COST ESTIMATE</button>
+  <div class="wlv1EstSum"><div class="tiny mut" style="letter-spacing:.5px">FROM COST ESTIMATE</div><div id="dnEstSummary">Nothing added yet — tap COST ESTIMATE above</div></div>
+  <!-- 📝🔒 V1280 — TK: *"রোগীর সাথে কোন চুক্তিতে ট্রিটমেন্ট করব … পরে অন্য ডাক্তার বুঝবে … এস্টিমেট প্রিন্টে যাবে না · চেকআপ কাগজেও না, তবে অপশন থাকবে আলাদা"*
+       ⇒ আগের dnCounselling ঘরটাই, শুধু নাম ও ইঙ্গিত; কাগজে যাবে কিনা A4 পাতার সুইচে (ডিফল্ট বন্ধ)। -->
+  <label>Treatment Plan &amp; Agreement · চিকিৎসার চুক্তি ও পরিকল্পনা</label><textarea id="dnCounselling" placeholder="রোগীর সাথে কী চুক্তি হল — কীভাবে চিকিৎসা, কতদিন, কিস্তি — বিস্তারিত এখানে লিখুন">${val('counselling')}</textarea>
+  <div class="tiny mut">Internal note — saved with the check-up, never printed on the patient's estimate</div>
  </details>
  <!-- 🟢 V600 (২৩.০৮.২০২৬, TK-নির্দেশ, ছবিসহ): "যেখানে আছে সেখান থেকে সরিয়ে
       দেবেন ... estimate and decision ওই জায়গাতে রাখবেন ... যেহেতু ডিসিশন
@@ -11331,7 +11345,9 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
  <!-- 🟢🔒 V651 (২৫.০৮.২০২৬, TK-নির্দেশ — "নামকরণটাও থাকবে না") — Estimated
       Cost ঘর সরানোর পরে এই শিরোনামও আর ঠিক না — তাই বদলানো হলো
       (Android-এর একই বদল)। -->
- <details class="card"><summary><b>4. Probable Disease and Time Asked<br>সম্ভাব্য রোগ ও সময়</b></summary>
+ <!-- 🧮🔒 V1280 — ধাপ ৪ উঠে গেল (TK)। ভিতরের ঘরগুলো (রোগের চিপ · সময়) রয়ে গেছে, শুধু লুকানো —
+      COST ESTIMATE সেভ করলে অ্যাপ নিজেই ভরে, তাই patients.disease · নোটিফিকেশন · A4 — আগের নিয়মেই চলে। -->
+ <div id="dnStep4Legacy" hidden>
   ${wlv1CounselBoxHtml(note,p)}
   <!-- 🟢🔒 V651 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবিসহ) — Estimated Cost এখন Step
        3-এর নিচে (উপরে দেখুন) — এখান থেকে সরিয়ে নেওয়া হলো, ডুপ্লিকেট id
@@ -11342,7 +11358,7 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
        একটা যায়গায় থাকবে, সম্ভাব্য রোগ এবং সময়ের মধ্যে থাকবে না") — Patient Picture
        (wlv1AnatBoxHtml) এখান (ধাপ ৪) থেকে সরিয়ে ধাপ ৫ (Photo and Video)-এ, তিনটে
        ছবির ঠিক নিচে — ফোনের একই বদল। ⛔ id/সেভ-লজিক/A4-রিপোর্ট কিছুই বদলায়নি। -->
- </details>
+ </div><!-- dnStep4Legacy (V1280) -->
  <!-- 🩺🔒 V839 (২৯.০৮.২০২৬, TK-নির্দেশ, ফটো-প্রুফ দেখিয়ে অনুমোদিত) —
       NEXT VISIT PLAN · পরের বার এই রোগীর কী হবে। ফোনের হুবহু একই নয়টি
       অপশন, একই চাবি (NextVisitPlan.OPTIONS) — তাই ফোনে লিখলে ওয়েবে
@@ -11369,14 +11385,14 @@ window["wlv1ChkFistula"]=wlv1ChkFistula;;
  <details class="card"><summary><b>NEXT VISIT PLAN · পরের বার কী হবে</b></summary>
   ${wlv1NvpBoxHtml(p)}
  </details>
- <details class="card"><summary><b>5. Photo &amp; Video · ছবি ও ভিডিও</b></summary>
+ <details class="card"><summary><b>4. Photo &amp; Video · ছবি ও ভিডিও</b></summary>
   <div class="grid"><div><label>Before Treatment Photo · আগের ছবি</label><input id="dnBeforePhoto" class="input" type="file" accept="image/*"><small>${note.beforePhoto?'Before photo saved':''}</small></div><div><label>During Treatment Photo · চলাকালীন ছবি</label><input id="dnDuringPhoto" class="input" type="file" accept="image/*"><small>${note.duringPhoto?'During photo saved':''}</small></div><div><label>After Treatment Photo · পরের ছবি</label><input id="dnAfterPhoto" class="input" type="file" accept="image/*"><small>${note.afterPhoto?'After photo saved':''}</small></div></div>
   ${wlv1AnatBoxHtml(note,id)}
  </details>
  </div>
  <div class="wlv1CkBar"><button class="wlv1CkSide" onclick="wlv1CkStep(-1)">Back</button><button class="wlv1CkSave" onclick="saveDoctor('${id}')">💾 Save</button><button class="wlv1CkSide" onclick="wlv1CkStep(1)">Next ▶</button></div>
  <div class="actions"><button onclick="saveDoctor('${id}')">💾 Save</button><button class="ghost" onclick="prescription('${id}')">Prescription</button><button class="ghost" onclick="medicine('${id}')">Medicine Slip</button><button class="ghost" onclick="blood('${id}')">Blood Test</button><button class="ghost" onclick="diet('${id}')">Diet</button></div>`);
- setTimeout(()=>{try{wlv1CkShow(0)}catch(e){}},40);
+ setTimeout(()=>{try{wlv1CkShow(0)}catch(e){}},40); try{ wlv1EstSummaryRender() }catch(e){}   /* 🧮 V1280 */
  setTimeout(()=>{try{dnWireV547()}catch(e){}},50);   /* 🔵 V547 */
  setTimeout(()=>{try{dnWireV558()}catch(e){}},60);   /* 🔵 V558 — রোগের ছবি */
 }
@@ -23829,7 +23845,8 @@ function wlv1CheckupA4Html(p, dateText, lang, anatImg){
   var planCells=[];
   if(f.treatmentPlan)planCells.push(cell(T('plan'),f.treatmentPlan,true));
   if(f.rate)planCells.push(cell(T('rate'),f.rate,true));
-  if(f.counselling)planCells.push(cell(T('counselling'),f.counselling,true));
+  /* 📝🔒 V1280 — TK: *"শুধু ফোনে থাকবে, চেকআপ কাগজেও ছাপবে না, তবে অপশন থাকবে আলাদা"* ⇒ সুইচ চালু থাকলে তবেই। */
+  if(f.counselling && window.wlv1A4ShowAgreement===true)planCells.push(cell(T('counselling'),f.counselling,true));
   var estCells=[];
   if(f.estCost)estCells.push(cell(T('estCost'),f.estCost));
   if(f.recovery)estCells.push(cell(T('recovery'),f.recovery));
@@ -23974,9 +23991,18 @@ function wlv1ShowCheckupA4(id, langWanted){
     ' onchange="wlv1A4ToggleDocRemark(\''+esc(id)+'\',\''+lang+'\',this.checked)">'+
     '<span><b>Doctor\'s Remark on paper</b><br><small>Turn off before giving the print to the patient</small></span>'+
     '</label>'):'';
+  /* 📝 V1280 — দ্বিতীয় সুইচ: চুক্তি/পরিকল্পনার নোট, ডিফল্ট বন্ধ (ফোনের হুবহু জোড়া)। */
+  var wlv1AgrHas=!!String((note&&note.counselling)||'').trim();
+  var wlv1AgrOn=(window.wlv1A4ShowAgreement===true);
+  var wlv1AgrBar=wlv1AgrHas?('<label class="wlv1A4DremBar">'+
+    '<input type="checkbox" id="wlv1AgrChk"'+(wlv1AgrOn?' checked':'')+
+    ' onchange="wlv1A4ToggleAgreement(\''+esc(id)+'\',\''+lang+'\',this.checked)">'+
+    '<span><b>Treatment Plan &amp; Agreement on paper</b><br><small>Internal note — off by default, turn on only for the clinic\'s own copy</small></span>'+
+    '</label>'):'';
   page('📜 Check-up Record — '+esc(dateText),'<div class="nkWrap">'+
     wlv1A4LangBar+
     wlv1DremBar+
+    wlv1AgrBar+
     '<div style="max-height:70vh;overflow:auto;border:1px solid #e3e9f1;border-radius:10px;margin:0 0 10px"><iframe id="wlv1A4Frame" style="width:100%;height:70vh;border:0" srcdoc="'+esc(html)+'"></iframe></div>'+
     '<div class="actions"><button onclick="wlv1PrintCheckupA4(\''+b64+'\')">🖨️ Print</button></div></div>');
   });
@@ -23989,6 +24015,8 @@ function wlv1A4ToggleDocRemark(id,lang,on){
   try{ wlv1ShowCheckupA4(id,lang); }catch(e){}
 }
 window["wlv1A4ToggleDocRemark"]=wlv1A4ToggleDocRemark;
+function wlv1A4ToggleAgreement(id,lang,on){ try{ window.wlv1A4ShowAgreement=!!on }catch(e){} try{ wlv1ShowCheckupA4(id,lang) }catch(e){} }
+window["wlv1A4ToggleAgreement"]=wlv1A4ToggleAgreement;
 /* 🔵🔒 V584 (২৩.০৮.২০২৬, TK-নির্দেশ) — হেডারের 📜 বোতাম: **Check-up History**।
    TK: *"যতক্ষণ চেকআপ ... হিস্টরি তৈরি না হবে ততক্ষণ ... শুধুমাত্র ওয়ার্নিং
    দেখাবে ... আর যদি ... কমপ্লিট হয়ে থাকে তবে ... a4 প্রিন্ট / ভিউ /
@@ -29384,6 +29412,7 @@ function wlv1EstLoad(){
     var o=JSON.parse(raw);
     wlv1EstSheet={lines:(o.lines||[]).map(function(l){return{name:l.name||'',measure:l.measure||'',position:l.position||'',rate:Number(l.rate||0),qty:Number(l.qty||1),struck:!!l.struck,struckAmt:Number(l.struckAmt||0)}}),   /* 🔒 V1068 */
       discount:Number(o.discount||0),discountPct:!!o.discountPct,finding:String(o.finding||''),
+      timeAsked:String(o.timeAsked||''),   /* ⏳ V1280 */
       strikeInDiscount:!!o.strikeInDiscount};
     /* 💰🔴🔒 V1064 — **পুরনো সেভ করা এস্টিমেটের টাকা যেন এক পয়সাও না বদলায়।**
        পুরনো নিয়মে কাটা লাইনের টাকা নিজে থেকেই বাদ যেত, তাই তখন Discount ঘরে
@@ -29476,6 +29505,8 @@ function wlv1EstOpen(){
   wlv1EstZoom=1;
   wlv1EstScreen();
 }
+function wlv1EstTaChange(){ try{ wlv1EstSheet.timeAsked=wlv1TimeAsked(($('#wlv1EstTaAmt')||{}).value||'',($('#wlv1EstTaUnit')||{}).value||'Days'); wlv1EstRender() }catch(e){} }
+window["wlv1EstTaChange"]=wlv1EstTaChange;
 function wlv1EstScreen(){
   var old=document.getElementById('wlv1EstScreen'); if(old) old.remove();
   var box=document.createElement('div');
@@ -29492,6 +29523,11 @@ function wlv1EstScreen(){
     +'<button type="button" class="small ghost" style="flex:1" onclick="wlv1EstAddGroup(\'Medicine\')">+ Medicine</button>'
     +'<button type="button" class="small ghost" style="flex:1" onclick="wlv1EstAddGroup(\'Other\')">+ Other</button>'
     +'<button type="button" class="small ghost" style="flex:1" onclick="wlv1EstPriceList()">Price List</button></div>'
+    /* ⏳🔒 V1280 — TK: *"কত সময় চাওয়া হলো সেটাও এস্টিমেটের মধ্যে"* ⇒ বোতাম-সারির নিচে Time Asked; কাগজেও ছাপে। */
+    +'<div style="background:#fff;display:flex;gap:8px;align-items:center;padding:4px 12px 9px;border-bottom:1px solid #DCE4DE">'
+    +'<span style="font-size:13px;color:#123A26;white-space:nowrap">Time Asked</span>'
+    +'<input id="wlv1EstTaAmt" class="input" inputmode="numeric" style="width:90px;margin:0" value="'+esc(wlv1SplitTimeAsked(wlv1EstSheet.timeAsked||'')[0])+'" oninput="wlv1EstTaChange()">'
+    +'<select id="wlv1EstTaUnit" class="input" style="flex:1;margin:0" onchange="wlv1EstTaChange()">'+WLV1_TA_UNITS.map(function(u){var cur=wlv1SplitTimeAsked(wlv1EstSheet.timeAsked||'')[1]||'Days';return '<option'+(u===cur?' selected':'')+'>'+u+'</option>'}).join('')+'</select></div>'
     +'<div id="wlv1EstStage" style="flex:1;overflow:auto;padding:12px"></div>'
     +'<div style="background:#fff;display:flex;gap:8px;padding:8px 10px 12px;border-top:1px solid #DCE4DE">'
     +'<button type="button" class="ghost" style="flex:1" onclick="wlv1EstSave()">&#128190; SAVE</button>'
@@ -29612,7 +29648,44 @@ function wlv1EstStrike(i){ var l=wlv1EstSheet.lines[i]; if(!l)return; l.struck=!
 function wlv1EstDrop(i){ wlv1EstSheet.lines.splice(i,1); wlv1EstRender() }
 function wlv1EstSave(){ wlv1EstStore();
   try{ if(wlv1EstSheet.lines.length){ var b=$('#dnEstimatedCost'); if(b) b.value=wlv1EstShort(wlv1EstNet()) } }catch(e){}
+  try{ wlv1EstApplyToCheckup() }catch(e){}   /* 🧮 V1280 */
   closeModal(); wlv1EstClose(); toast('Estimate saved'); }
+/* 🧮🔒 V1280 — এস্টিমেটের কাগজ থেকে রোগ · চিকিৎসা · সময় ⇒ চেকআপের লুকানো ঘরে
+   (ফোনের `applyEstimateToCheckup`-এর হুবহু জোড়া)। ⛔ এস্টিমেটে কিছু না বাছলে আগের মান থাকে। */
+function wlv1EstGroupOfLine(name){
+  var n=String(name||'').trim().toLowerCase(); if(!n) return '';
+  try{ var hit=wlv1EstPrices().filter(function(p){return p.group!=='Medicine'&&p.group!=='Other'&&String(p.name||'').trim().toLowerCase()===n})[0]; if(hit) return hit.group }catch(e){}
+  if(/fistula|ফিস্টুলা|ভগন্দর/.test(n)) return 'Fistula';
+  if(/fissure|ফিসার/.test(n)) return 'Fissure';
+  if(/hydrocele|হাইড্রোসিল/.test(n)) return 'Hydrocele';
+  if(/piles|অর্শ|kshar|ক্ষার/.test(n)) return 'Piles';
+  return '';
+}
+function wlv1EstApplyToCheckup(){
+  var live=(wlv1EstSheet.lines||[]).filter(function(l){return !l.struck});
+  var groups=[]; live.forEach(function(l){ var g=wlv1EstGroupOfLine(l.name); if(g&&groups.indexOf(g)<0) groups.push(g) });
+  if(groups.length){ $$('input[name=dnDis]').forEach(function(c){ c.checked=groups.indexOf(c.value)>=0; try{ c.parentNode.classList.toggle('on',c.checked) }catch(e){} }) }
+  var tx=live.filter(function(l){return !!wlv1EstGroupOfLine(l.name)}).map(function(l){return String(l.name||'').toLowerCase()});
+  if(tx.length){ $$('.dnTxPlan').forEach(function(c){ var v=String(c.value||'').toLowerCase();
+    if(/per piles/.test(v)) c.checked=tx.some(function(t){return /piles|অর্শ/.test(t)});
+    else if(/fistula/.test(v)) c.checked=tx.some(function(t){return /fistula|ফিস্টুলা/.test(t)});
+    else if(/kshar|ক্ষারসূত্র/.test(v)) c.checked=tx.some(function(t){return /kshar|ক্ষার/.test(t)}); }) }
+  var ta=wlv1SplitTimeAsked(String(wlv1EstSheet.timeAsked||''));
+  if(ta[0]){ var a=$('#dnTimeAsked'), u=$('#dnTimeAskedUnit'); if(a) a.value=ta[0]; if(u) u.value=ta[1]||'Days'; }
+  wlv1EstSummaryRender();
+}
+/* 🧮 V1280 — ধাপ ৩-এর বড় বোতামের নিচের "FROM COST ESTIMATE" সারাংশ (শুধু দেখার)। */
+function wlv1EstSummaryRender(){
+  try{
+    var box=$('#dnEstSummary'); if(!box) return;
+    var dis=(typeof wlv1CollectProbableDisease==='function')?wlv1CollectProbableDisease():''; if(dis===WLV1_PICK_NONE) dis='';
+    var cost=String(($('#dnEstimatedCost')||{}).value||'').trim();
+    var t=wlv1TimeAsked(($('#dnTimeAsked')||{}).value||'',($('#dnTimeAskedUnit')||{}).value||'');
+    var parts=[]; if(dis) parts.push('Disease: <b>'+esc(dis)+'</b>'); if(cost) parts.push('Net Payable: <b>₹'+esc(cost)+'</b>'); if(t) parts.push('Time Asked: <b>'+esc(t)+'</b>');
+    box.innerHTML=parts.length?parts.join('<br>'):'Nothing added yet — tap COST ESTIMATE above';
+  }catch(e){}
+}
+window["wlv1EstApplyToCheckup"]=wlv1EstApplyToCheckup; window["wlv1EstSummaryRender"]=wlv1EstSummaryRender;
 window["wlv1EstOpen"]=wlv1EstOpen; window["wlv1EstEdit"]=wlv1EstEdit;
 window["wlv1EstDiscount"]=wlv1EstDiscount; window["wlv1EstStrike"]=wlv1EstStrike;
 window["wlv1EstDrop"]=wlv1EstDrop; window["wlv1EstSave"]=wlv1EstSave;
@@ -29941,7 +30014,9 @@ function wlv1EstPaperHtml(editable){
       ? ('<div><span class="lbl">Cancelled Items Discount</span><span class="disc">&minus; '+wlv1EstMoney(wlv1EstCancelled())+'</span></div>'
         +'<div class="mid"><span>Amount After Item Discount</span><span>'+wlv1EstMoney(wlv1EstAfterItems())+'</span></div>')
       : '')
-   +disc+'<div class="net"><span>Net Payable Amount</span><span>'+wlv1EstMoney(wlv1EstNet())+'</span></div></div></div>'
+   +disc+'<div class="net"><span>Net Payable Amount</span><span>'+wlv1EstMoney(wlv1EstNet())+'</span></div>'
+   +(String(wlv1EstSheet.timeAsked||'').trim()?('<div><span class="lbl">Time Asked</span><span>'+esc(wlv1EstSheet.timeAsked)+'</span></div>'):'')   /* ⏳ V1280 */
+   +'</div></div>'
    +'<div class="small">* This estimate is indicative and based on the initial clinical presentation. The net payable amount may vary.</div></div>'
    +'<div class="foot"><div class="sign"><div class="ln"><b>TK BISWAS</b><small>Founder &amp; Consultant</small></div>'
    +'<div class="vfy"><div class="bar"></div><div><b>Document Digitally Verified</b> &middot; <small>No Physical Signature Required</small></div></div>'

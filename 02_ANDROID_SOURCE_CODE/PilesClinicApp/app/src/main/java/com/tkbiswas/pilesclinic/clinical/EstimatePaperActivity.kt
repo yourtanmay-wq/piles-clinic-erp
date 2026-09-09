@@ -223,6 +223,59 @@ class EstimatePaperActivity : AppCompatActivity() {
         }
         root.addView(tools)
 
+        /* ⏳🔒 V1280 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ — তালিকা সারি ৪০৩):
+           *"শুধু কত সময় চাওয়া হলো সেটাও যদি এস্টিমেটের মধ্যে যুক্ত করে দেয়া
+           হয়"* ⇒ বোতাম-সারির ঠিক নিচে **Time Asked [সংখ্যা] [Days ▾]**।
+           লেখাটা কাগজেও ছাপে (`EstimateHtmlPrint`) আর চেকআপে ফিরে গিয়ে
+           আগের `timeAsked` ঘরেই বসে। ⛔ টাকার হিসাবে এর কোনো হাত নেই। */
+        val taRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setBackgroundColor(Color.WHITE)
+            setPadding(dp(12), dp(2), dp(12), dp(8))
+        }
+        taRow.addView(TextView(this).apply {
+            text = "Time Asked"; textSize = 12.5f
+            setTextColor(Color.parseColor("#123A26"))
+            setPadding(0, 0, dp(10), 0)
+        })
+        val (taAmt0, taUnit0) = CounselModel.splitTimeAsked(sheet.timeAsked)
+        val taAmt = android.widget.EditText(this).apply {
+            setText(taAmt0)
+            // ⛔ পাহারা ৯.১৭ — প্রকল্পের নিয়ম: TYPE_CLASS_TEXT + DigitsKeyListener (কীবোর্ড না-খোলার ফাঁদ এড়াতে)
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+            keyListener = android.text.method.DigitsKeyListener.getInstance("0123456789")
+            textSize = 14f; setTextColor(Color.parseColor("#101C2E"))
+            background = box("#F7FAFC", "#CFE0EE", 10)
+            setPadding(dp(12), dp(8), dp(12), dp(8))
+            layoutParams = LinearLayout.LayoutParams(dp(78), LinearLayout.LayoutParams.WRAP_CONTENT)
+                .apply { rightMargin = dp(8) }
+        }
+        val taUnit = android.widget.Spinner(this).apply {
+            adapter = android.widget.ArrayAdapter(this@EstimatePaperActivity,
+                android.R.layout.simple_spinner_dropdown_item, CounselModel.UNITS)
+            setSelection(CounselModel.UNITS.indexOf(taUnit0).let { if (it < 0) 0 else it })
+            background = box("#F7FAFC", "#CFE0EE", 10)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        fun pushTimeAsked() {
+            sheet.timeAsked = CounselModel.timeAsked(
+                taAmt.text?.toString().orEmpty(),
+                CounselModel.UNITS.getOrElse(taUnit.selectedItemPosition) { "Days" })
+            render()
+        }
+        taAmt.addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(e: android.text.Editable?) { pushTimeAsked() }
+            override fun beforeTextChanged(t: CharSequence?, a: Int, b: Int, c: Int) {}
+            override fun onTextChanged(t: CharSequence?, a: Int, b: Int, c: Int) {}
+        })
+        taUnit.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(p: android.widget.AdapterView<*>?, v: android.view.View?, pos: Int, id: Long) { pushTimeAsked() }
+            override fun onNothingSelected(p: android.widget.AdapterView<*>?) {}
+        }
+        taRow.addView(taAmt); taRow.addView(taUnit)
+        root.addView(taRow)
+
         // কাগজ — দুই আঙুলে জুম হয়
         web = WebView(this).apply {
             setBackgroundColor(Color.parseColor("#EDF1EE"))
