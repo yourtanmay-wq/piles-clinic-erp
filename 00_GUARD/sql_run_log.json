@@ -137,5 +137,21 @@
     "result": "১টা সারি — amount = 1, cashAmount = 1, label '3rd Payment', date 2026-08-19, createdAt 2026-08-21T14:18Z",
     "proof": "TK-র পাঠানো CSV (০৯.০৯.২০২৬ ৫.১৮ pm)",
     "note": "প্রমাণ হলো Briefing-এর Delete Payment কার্ড ঠিক অঙ্কই দেখাচ্ছে (₹১) — অ্যাপে দোষ নেই। শুধু-পড়ার SQL, কিছু বদলায়নি।"
+  },
+  {
+    "sql_file": "গোনা — HISTORICAL স্যালারি সারি কতগুলো ও তারিখ কতটা সরবে (চ্যাটে দেওয়া SELECT)",
+    "run_by": "TK",
+    "when": "০৯.০৯.২০২৬ সন্ধ্যা ৫.৫৩",
+    "result": "মোট ৮৫টা HISTORICAL সারি — COB-4 ১ · COB-UTTAMA ১৬ · FLK-1 ৯ · JPE-CRP ২৯ · JPE-JALPAI-13 ৪ · JPE-RUPAM ৫ · KNE-KISHAN5 ৪ · KNE-LAXMI ১৭। ৮৫টারই paid_on-এর মাস = for_month; for_month ফাঁকা ০; আগে থেকে আলাদা ০; এক মাস এগোলে ভবিষ্যতে যেত ১টা (FLK-1)",
+    "proof": "TK-র পাঠানো ২টা CSV (০৯.০৯.২০২৬ ৫.৫৩ pm)",
+    "note": "শুধু-পড়ার SQL, কিছু বদলায়নি।"
+  },
+  {
+    "sql_file": "সংশোধন — HISTORICAL স্যালারি সারির paid_on এক মাস এগিয়ে দেওয়া (চ্যাটে দেওয়া transactional UPDATE)",
+    "run_by": "TK",
+    "when": "০৯.০৯.২০২৬ সন্ধ্যা ৬.০০",
+    "result": "Success. No rows returned — ভিতরের পাহারা (মোট=৮৫ · বাকি=০ · ভবিষ্যৎ=০ · সরেছে=৮৫) পাশ করেছে, তাই commit হয়েছে",
+    "proof": "TK-র ছবি (Supabase 'Success. No rows returned', ০৯.০৯.২০২৬ ৬.০০ pm) + মিলিয়ে দেখার CSV — KNE-LAXMI for_month 2026-08 → paid_on 2026-09-03",
+    "note": "কারণ: V369 (১৩.০৮.২০২৬) ও V424 (১৭.০৮.২০২৬) ব্যাকফিল SQL paid_on = for_month-এর মাস বসিয়েছিল, অথচ TK-র নিয়ম আগের মাসের বেতন পরের মাসে দেওয়া। ⛔ amount · for_month · mode — কিচ্ছু ছোঁয়া হয়নি, শুধু তারিখ। ⛔ FLK-1-এর ১টা সারি ভবিষ্যতে যেত বলে আজকের তারিখে থামানো হয়েছে। ⛔ SQL আবার চালালে কিছুই হবে না (শর্ত: paid_on-এর মাস = for_month)।"
   }
 ]
