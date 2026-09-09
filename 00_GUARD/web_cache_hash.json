@@ -1,15 +1,15 @@
 {
   "styles.css": {
-    "v": "v1263",
-    "sha": "274a0e22760cd13aed0d68088a8762ff8c6d1a71bd88f9b8b1b023cb7edae12a"
+    "v": "v1264",
+    "sha": "87320cdc07eed4669e9b8cea820b8912703c28400b47087c9e5febe6ddd1de19"
   },
   "config.js": {
     "v": "v1143",
     "sha": "57b8128baedc359f9c264fcffff070171013c9ca96d0f20abbfa59749e48cfa2"
   },
   "app.js": {
-    "v": "v1262",
-    "sha": "9bc583eba7006dcb905ecc4c3760009559beb51e1be191673521fdaeb2420b4b"
+    "v": "v1264",
+    "sha": "7cb6e48499f78cb93b8cb749391812cb2c28a109ac42afa87a6756a00f2bd4f7"
   },
   "module_core.js": {
     "v": "v1230",

@@ -8727,3 +8727,56 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
     padding:5px 13px;line-height:1}
   .drGo{font-size:19px!important;color:#AFC0CE!important;margin-left:2px}
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   🖥️🎨 V1264 (০৯.০৯.২০২৬, TK-নির্দেশ: *"৫ নম্বর Briefing পর্দাটা সুন্দর
+   করুন"* · খাতার সারি ১১৩) — **শুধু কম্পিউটারের চওড়া পর্দায়** Briefing।
+   ⛔ পুরো ব্লকটা `min-width:1200px`-এর ভিতরে ⇒ ফোনে এক পিক্সেলও বদলায় না।
+   ⛔ নিয়মগুলো **শুধু এই পর্দার দুটো কার্ডেই** খাটে (`.brCompose` ও
+      `.brPerm` — এই দুটো নাম কেবল Briefing পর্দাতেই বসে), তাই প্রজেক্টের
+      অন্য কোনো পর্দার `.card` · `label` · `textarea` · `button`-এ
+      এর ছোঁয়া লাগতে পারে না।
+   ⛔ দুই কলামের সাজানো (`.wlv1TwoCol`) ছোঁয়া হয়নি · বার্তা কোথায় যাবে,
+      কে পাবে, কী সেভ হবে — কিচ্ছু বদলায়নি; শুধু CSS।
+   ═══════════════════════════════════════════════════════════════════════ */
+@media (min-width:1200px){
+  .card.brCompose{border-radius:16px!important;border:1px solid #E4EDF3!important;
+    box-shadow:0 2px 10px rgba(16,40,64,.06)!important;padding:20px 22px!important}
+
+  /* ঘরের নাম — ছোট, ফাঁক-দেওয়া, শান্ত রঙে */
+  .card.brCompose>label{display:block;font-size:11.5px!important;font-weight:800!important;
+    letter-spacing:.9px!important;text-transform:uppercase;color:#5A6D80!important;
+    margin:0 0 7px!important}
+  .card.brCompose>label~label{margin-top:16px!important}
+
+  /* লেখার বাক্সটা বড়, যাতে পুরো নোটিশ চোখে দেখা যায় */
+  .card.brCompose #brMsg{min-height:150px!important;border-radius:12px!important;
+    border:1px solid #D8E4EE!important;padding:13px 14px!important;font-size:14px!important;
+    line-height:1.5!important;resize:vertical;transition:border-color .15s ease,box-shadow .15s ease}
+  .card.brCompose #brMsg:focus{border-color:#1E7FE0!important;
+    box-shadow:0 0 0 3px rgba(30,127,224,.14)!important;outline:none}
+
+  .card.brCompose #brTarget{height:46px!important;border-radius:12px!important;
+    border:1px solid #D8E4EE!important;font-size:14px!important;padding:0 12px!important}
+  .card.brCompose #brTarget:focus{border-color:#1E7FE0!important;
+    box-shadow:0 0 0 3px rgba(30,127,224,.14)!important;outline:none}
+
+  /* পাঠানোর বোতাম — পর্দার মূল কাজ, তাই পুরো চওড়া ও স্পষ্ট */
+  .card.brCompose>button{width:100%;height:48px!important;margin-top:18px!important;
+    border-radius:12px!important;font-size:14.5px!important;font-weight:800!important;
+    letter-spacing:.2px!important;border:0!important;color:#fff!important;
+    background:linear-gradient(180deg,#1E7FE0,#1263BC)!important;
+    box-shadow:0 3px 10px rgba(18,99,188,.28)!important;
+    transition:box-shadow .16s ease,transform .16s ease}
+  .card.brCompose>button:hover{box-shadow:0 7px 18px rgba(18,99,188,.34)!important;
+    transform:translateY(-1px)}
+
+  /* চাবির বোতামের কার্ড */
+  .card.brPerm{border-radius:16px!important;border:1px solid #E4EDF3!important;
+    box-shadow:0 2px 10px rgba(16,40,64,.06)!important;padding:14px 16px!important}
+  .card.brPerm>button{height:48px!important;border-radius:12px!important;
+    font-size:14px!important;background:#FFFBF2!important;
+    transition:background .16s ease,box-shadow .16s ease}
+  .card.brPerm>button:hover{background:#FFF5E2!important;
+    box-shadow:0 4px 12px rgba(122,90,20,.16)!important}
+}
