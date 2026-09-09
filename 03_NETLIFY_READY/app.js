@@ -4245,6 +4245,38 @@ function wlv1DelReqSentToday(what,rowId,mobile){
     return h12+'.'+String(t.getMinutes()).padStart(2,'0')+' '+ap;
   }catch(e){ return '' }
 }
+/* 🔁🔒 V1271 (০৯.০৯.২০২৬, TK-রিপোর্ট: ঘণ্টায় হুবহু একই Delete Payment অনুরোধ
+   দুটো কার্ডে) — নোটিশের **নির্দিষ্ট আইডি**: কী + সারির আইডি + আজকের তারিখ।
+   ⇒ একই অনুরোধ দ্বিতীয়বার গেলে নতুন কার্ড না হয়ে **আগেরটাই আবার লেখা হয়**,
+     তাই দুটো ফোন/কম্পিউটার থেকেও একটাই কার্ড থাকে।
+   ⛔ ফোনের `DeletePermission.requestBriefId()`-এর হুবহু একই নিয়ম, তাই দুই
+      জায়গা থেকে একই অনুরোধ গেলেও আইডি এক হবে। */
+function wlv1DelReqBriefId(what,rowId,mobile){
+  var key=String(rowId||'').trim()||mob(mobile||'');
+  var safe=(String(what||'').trim().toLowerCase()+'_'+key).replace(/[^a-z0-9_]/gi,'_');
+  return 'brief_del_'+safe+'_'+today();
+}
+window.wlv1DelReqBriefId=wlv1DelReqBriefId;
+/* 🔁 V1271 — চিহ্নটা পাঠানোর আগেই বসে; কিছু ভুল হলে এটা দিয়ে তোলা যায়। */
+function wlv1DelReqClear(what,rowId,mobile){
+  try{
+    var o=JSON.parse(localStorage.getItem(WLV1_DELREQ_KEY)||'{}')||{};
+    delete o[wlv1DelReqKey(what,rowId,mobile)];
+    localStorage.setItem(WLV1_DELREQ_KEY,JSON.stringify(o));
+  }catch(e){}
+}
+window.wlv1DelReqClear=wlv1DelReqClear;
+/* 🔁 V1271 — একই আইডির পুরনো সারি থাকলে সেটা সরিয়ে তবেই নতুনটা বসে, নইলে
+   ব্রাউজারের জমা তালিকায় দুটো একরকম কার্ড থেকে যেত। */
+function wlv1AddBriefOnce(req){
+  try{
+    var a=load('briefings')||[];
+    var i=a.findIndex(function(x){return x&&x.id===req.id});
+    if(i>-1){ a.splice(i,1); save('briefings',a); }
+  }catch(e){}
+  return add('briefings',req);
+}
+window.wlv1AddBriefOnce=wlv1AddBriefOnce;
 function wlv1DelReqMark(what,rowId,mobile){
   try{
     var o=JSON.parse(localStorage.getItem(WLV1_DELREQ_KEY)||'{}')||{};
@@ -26232,16 +26264,16 @@ async function wlv1DeleteDraftEntryImpl(table, recId, mobile, branch, entryDate,
       if(!confirm(label+'\n\n⛔ Nothing will be deleted right now.\nThe request goes to Master\'s bell; it will be deleted only after Master approves.\n\nঅনুরোধ পাঠাব?')) return;
       /* 🟢🔒 V1134 (TK-নির্দেশ, ফোনের হুবহু যমজ) — শিরোনামেই **কী মোছা হবে**।
          ⛔ "delete request" শব্দ দুটো অটুট, তাই চেনার নিয়ম আগের মতোই চলে। */
-      var req={id:uid('brief'),date:today(),title:'🗑️ '+(table==='enquiries'?'Enquiry':'Patient')+' delete request — '+label,
+      wlv1DelReqMark(table==='enquiries'?'Enquiry':'Patient', row.id, mm);   /* 🔁 V1271 — চিহ্ন আগে */
+      var req={id:wlv1DelReqBriefId(table==='enquiries'?'Enquiry':'Patient',row.id,mm),date:today(),title:'🗑️ '+(table==='enquiries'?'Enquiry':'Patient')+' delete request — '+label,
         message:'Delete permission request\nType : '+(table==='enquiries'?'Enquiry':'Patient')+
                  '\nName : '+(row.name||'')+'\nMobile : '+normMob(mm)+
                  '\nPatient ID : '+(row.patientId||'')+'\nBranch : '+(row.branch||'')+
                  '\nRequested by : '+(codeName(user&&user.mobile)||''),
         targets:{roles:['master']},branch:row.branch||'',seen:[],replies:[],
         createdBy:(user&&user.mobile)||'',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
-      add('briefings',req);
+      wlv1AddBriefOnce(req);   /* 🔁 V1271 */
       try{ await cloudUpsertBriefing(req) }catch(_e){}
-      wlv1DelReqMark(table==='enquiries'?'Enquiry':'Patient', row.id, mm);   /* 🔁 V1176 */
       return toast('Master notified');
     }
 
@@ -27207,16 +27239,16 @@ async function wlv1DeletePaymentImpl(payId){
       if(__sentAt) return toast('Already sent at ' + __sentAt + ' — no need to send again');
       if(!confirm(amtT+' ('+label+')\n\n⛔ Nothing will be deleted right now.\nThe request goes to Master\'s bell; it will be deleted only after Master approves.\n\nঅনুরোধ পাঠাব?')) return;
       /* 🟢🔒 V1134 — শিরোনামে "Payment", আর কোন **তারিখের** টাকা সেটাও (TK-নির্দেশ)। */
-      var req={id:uid('brief'),date:today(),title:'🗑️ Payment delete request — '+(row.name||normMob(row.mobile||'')),
+      wlv1DelReqMark('Payment', row.id, row.mobile);   /* 🔁 V1271 — চিহ্ন আগে, নইলে দুবার চাপলে দুটো যেত */
+      var req={id:wlv1DelReqBriefId('Payment',row.id,row.mobile),date:today(),title:'🗑️ Payment delete request — '+(row.name||normMob(row.mobile||'')),
         message:'Delete permission request\nType : Payment\nName : '+(row.name||'')+'\nMobile : '+normMob(row.mobile||'')+
                 '\nPatient ID : '+(row.patientCode||'')+'\nBranch : '+(row.branch||'')+'\nRow ID : '+row.id+
                 '\nRequested by : '+(codeName(user&&user.mobile)||'')+
                 '\nPayment : '+wlv1Dot(String(row.date||'').slice(0,10))+' · '+amtT+' ('+label+')',
         targets:{roles:['master']},branch:row.branch||'',seen:[],replies:[],
         createdBy:(user&&user.mobile)||'',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
-      add('briefings',req);
+      wlv1AddBriefOnce(req);   /* 🔁 V1271 — একই আইডির দ্বিতীয় কার্ড হয় না */
       try{ await cloudUpsertBriefing(req) }catch(_e){}
-      wlv1DelReqMark('Payment', row.id, row.mobile);   /* 🔁 V1176 */
       return toast('Request sent to Master');
     }
 

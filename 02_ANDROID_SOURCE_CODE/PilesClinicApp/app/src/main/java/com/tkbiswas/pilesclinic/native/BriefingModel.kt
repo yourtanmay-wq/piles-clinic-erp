@@ -214,10 +214,17 @@ object BriefingModel {
 
     /** Builds a new briefing row for posting. target is one of the simple
      * options this native screen offers: "allStaff", "branch", "role". */
+    /* 🔁🔒 V1271 (০৯.০৯.২০২৬, TK-অনুমোদিত — খাতার সারি ৩৯১) — `forcedId`
+       ঘরটা **ঐচ্ছিক**; না দিলে আগের মতোই এলোমেলো আইডি বসে, তাই প্রজেক্টের
+       বাকি প্রতিটা ডাকার জায়গা এক অক্ষরও বদলায়নি (মিলিয়ে দেখা)।
+       ⛔ শুধু ডিলিটের অনুরোধ এটা ব্যবহার করে — একই অনুরোধ দ্বিতীয়বার গেলে
+          **নতুন কার্ড না হয়ে আগেরটাই আবার লেখা হয়**, তাই ঘণ্টায় দুটো
+          একরকম কার্ড আর দেখা যাবে না। */
     fun buildNewBriefing(
         title: String, message: String, target: String,
         branch: String, role: String, createdByMobile: String,
-        targetMobile: String = ""
+        targetMobile: String = "",
+        forcedId: String = ""
     ): JSONObject {
         val now = isoNow()
         val targets = JSONObject()
@@ -228,7 +235,7 @@ object BriefingModel {
             else -> targets.put("allStaff", true)
         }
         return JSONObject()
-            .put("id", "brief_" + UUID.randomUUID().toString().replace("-", ""))
+            .put("id", forcedId.ifBlank { "brief_" + UUID.randomUUID().toString().replace("-", "") })
             .put("date", today())
             .put("title", title)
             .put("message", message)

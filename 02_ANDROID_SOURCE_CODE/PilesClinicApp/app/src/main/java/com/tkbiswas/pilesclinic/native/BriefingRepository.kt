@@ -282,9 +282,10 @@ class BriefingRepository {
         context: android.content.Context,
         title: String, message: String, target: String,
         branch: String, role: String, createdByMobile: String,
-        targetMobile: String = ""
+        targetMobile: String = "",
+        forcedId: String = ""   // 🔁 V1271 — ঐচ্ছিক; না দিলে আগের মতোই এলোমেলো আইডি
     ): Boolean {
-        val row = BriefingModel.buildNewBriefing(title, message, target, branch, role, createdByMobile, targetMobile)
+        val row = BriefingModel.buildNewBriefing(title, message, target, branch, role, createdByMobile, targetMobile, forcedId)
         val ok = try { SupabaseClient.upsert("briefings", row) } catch (_: Throwable) { false }
         if (!ok) {
             synchronized(LOCK) {
@@ -325,9 +326,10 @@ class BriefingRepository {
     fun post(
         title: String, message: String, target: String,
         branch: String, role: String, createdByMobile: String,
-        targetMobile: String = ""
+        targetMobile: String = "",
+        forcedId: String = ""   // 🔁 V1271
     ): Boolean {
-        val row = BriefingModel.buildNewBriefing(title, message, target, branch, role, createdByMobile, targetMobile)
+        val row = BriefingModel.buildNewBriefing(title, message, target, branch, role, createdByMobile, targetMobile, forcedId)
         return SupabaseClient.upsert("briefings", row)
     }
 

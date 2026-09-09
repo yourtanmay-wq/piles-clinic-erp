@@ -205,6 +205,35 @@ object DeletePermission {
         } catch (_: Throwable) { null }
     }
 
+    /* 🔁🔒 V1271 (০৯.০৯.২০২৬, TK-রিপোর্ট ছবিসহ: ঘণ্টায় **হুবহু একই** Delete
+       Payment অনুরোধ **দুটো কার্ডে**, দুটোই ৩.১০ PM, একই স্টাফ)।
+
+       🔬 **আসল কারণ (কোডে মেপে):** V1176-এর "আজ একবারই" পাহারাটা ঠিকই আছে,
+          কিন্তু চিহ্নটা বসত **নোটিশ পাঠানোর পরে**। মাঝের সময়টা একটা নেট-কল
+          (দুর্বল লাইনে কয়েক সেকেন্ড) — ওই ফাঁকে দ্বিতীয়বার চাপলে পাহারা
+          এখনো কিছুই দেখতে পেত না ⇒ দুটো নোটিশ চলে যেত।
+          আর প্রতিটা নোটিশের আইডি **এলোমেলো** ছিল, তাই দুটো আলাদা কার্ড হত।
+
+       ⇒ **দুটো পাহারা বসল:**
+         ① চিহ্নটা এখন **পাঠানোর আগেই** বসে (ব্যর্থ হলে তুলে নেওয়া হয়, তাই
+            স্টাফ আবার চেষ্টা করতে পারেন) — একই ফোনে দুবার চাপলেও একটাই যাবে।
+         ② নোটিশের আইডি এখন **নির্দিষ্ট** (কী + সারির আইডি + আজকের তারিখ) —
+            তাই **দুটো আলাদা ফোন** থেকেও একই অনুরোধ গেলে নতুন কার্ড না হয়ে
+            আগেরটাই আবার লেখা হয়, ঘণ্টায় একটাই কার্ড থাকে।
+       ⛔ কোনো ক্লাউড-পড়া যোগ হয়নি (ফ্রি প্ল্যান নিরাপদ)।
+       ⛔ অন্য কোনো নোটিশের আইডি বদলায়নি — `forcedId` ঘরটা ঐচ্ছিক, শুধু
+          ডিলিটের অনুরোধই সেটা পাঠায়। */
+    private fun requestBriefId(what: String, rowId: String, mobile: String): String {
+        val key = rowId.trim().ifBlank { mobile.filter { it.isDigit() }.takeLast(10) }
+        val safe = (what.trim().lowercase() + "_" + key)
+            .map { if (it.isLetterOrDigit() || it == '_') it else '_' }.joinToString("")
+        return "brief_del_" + safe + "_" + todayIso()
+    }
+
+    private fun clearSentToday(context: Context?, what: String, rowId: String, mobile: String) {
+        try { sentPrefs(context)?.edit()?.remove(sentKey(what, rowId, mobile))?.apply() } catch (_: Throwable) { }
+    }
+
     private fun markSentToday(context: Context?, what: String, rowId: String, mobile: String) {
         try {
             sentPrefs(context)?.edit()
@@ -305,6 +334,8 @@ object DeletePermission {
                         .append(DateUtil.display(entryDate)).append(" \u00b7 ").append(reason).append("\n")
                 else sb.append("Reason : ").append(reason).append("\n")
             }
+            /* 🔁 V1271 ① — চিহ্নটা **পাঠানোর আগেই**; নিচে ব্যর্থ হলে তুলে নেওয়া হয়। */
+            markSentToday(context, what, rowId, mobile)
             BriefingRepository().post(
                 context,
                 /* 🟢🔒 V1134 (TK-রিপোর্ট): *"Delete request — BASANTI ROY —
@@ -319,14 +350,17 @@ object DeletePermission {
                 "role",
                 branch,
                 "master",
-                user.mobile
+                user.mobile,
+                /* 🔁 V1271 ② — নির্দিষ্ট আইডি, তাই দ্বিতীয় অনুরোধে নতুন কার্ড হয় না */
+                forcedId = requestBriefId(what, rowId, mobile)
             ).also { ok ->
-                /* 🔁 V1176 — সত্যিই গেলে তবেই মনে রাখা হয়; ব্যর্থ হলে নয়,
-                   নইলে নেট ফিরলে স্টাফ আর পাঠাতেই পারতেন না। */
+                /* 🔁 V1176/V1271 — ব্যর্থ হলে চিহ্নটা তুলে নেওয়া হয়, নইলে নেট
+                   ফিরলে স্টাফ আর পাঠাতেই পারতেন না। */
                 lastMsg = if (ok) "Request sent to Master" else "Failed — check the network"
-                if (ok) markSentToday(context, what, rowId, mobile)
+                if (!ok) clearSentToday(context, what, rowId, mobile)
             }
         } catch (_: Throwable) {
+            clearSentToday(context, what, rowId, mobile)   // 🔁 V1271
             lastMsg = "Failed — check the network"
             false
         }
