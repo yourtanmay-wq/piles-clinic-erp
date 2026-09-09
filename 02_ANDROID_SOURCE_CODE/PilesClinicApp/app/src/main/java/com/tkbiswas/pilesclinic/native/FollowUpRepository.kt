@@ -1156,10 +1156,40 @@ class FollowUpRepository(private val context: Context? = null) {
                 // নিরাপত্তা-জাল: পূর্ণ fetchTab() চালিয়ে তিনটে cache-ই আবার জমানো।
                 val result = fetchTab(stage, branchFilter, creatorName, creatorMobile)
                 try {
-                    val freshCloud = slimFollowups("stage=eq.$stage&status=not.in.(Cancelled,Incomplete,Rejected,Closed)")
+                    /* 📉🔒 V1257 (০৯.০৯.২০২৬, TK-অনুমোদিত Egress-প্লানের **ধাপ ১**,
+                       খাতার সারি ৩৮০) — TK: *"free Plan-এ চালানোর কথা ছিল"*।
+
+                       🔴 **মাপা দোষ:** ঠিক উপরের `fetchTab()` এইমাত্র
+                          followups + patients + payments তিনটেই নামিয়েছে; নিচে
+                          জমা রাখার জন্য **হুবহু সেই তিনটেই আবার** নামত — একই
+                          তথ্য দুবার।
+
+                       ⇒ এখন `CloudReadCache`-এর **হুবহু সেই চাবিগুলো** দিয়েই চাওয়া
+                         হয়, যেগুলো `fetchTab()` একটু আগে ভরে গেছে (২০ সেকেন্ডের
+                         ভিতরে) ⇒ **নতুন কোনো ডাউনলোড হয় না**, একই সারিগুলোই ফেরে।
+                       ⛔ ক্যাশ ফাঁকা/পুরনো হলে ভিতরের ডাকটা **হুবহু আগের পড়াটাই**
+                          চালায় — তাই আচরণ এক চুলও বদলায় না, কিছু হারানোর পথ নেই।
+
+                       ⚠️ **followups-এ ইচ্ছে করে হাত দেওয়া হয়নি, শুধু "All" ছাড়া**
+                          (TK-কে আগেই জানানো): নিচে জমা হওয়া `precloud_<ধাপ>` ঘরটা
+                          ব্রাঞ্চ ধরে আলাদা নয়। ব্রাঞ্চ বাছা থাকলে `fetchTab()`-এর
+                          ক্যাশে **শুধু ওই ব্রাঞ্চের** সারি থাকে; সেটা ওখানে বসালে
+                          পরে মাস্টার/অন্য ব্রাঞ্চে **কম সারি** দেখাত — ভালো কাজ
+                          খারাপ হত। তাই ব্রাঞ্চ বাছা থাকলে ওই পড়াটা আগের মতোই
+                          আলাদা করে হয়; "All" হলে ক্যাশের সারিটাই হুবহু এক, তাই
+                          তখন সেটাই নেওয়া হয়। */
+                    val bKey = branchKeyPart(branchFilter)
+                    val fuBase = "stage=eq.$stage&status=not.in.(Cancelled,Incomplete,Rejected,Closed)"
+                    val freshCloud = if (followupBranchScope(branchFilter).isEmpty())
+                        CloudReadCache.get("fu:stage:$stage:$bKey") { slimFollowups(fuBase) }
+                    else slimFollowups(fuBase)
                     val branchExtra = branchScopeFilterPlain(branchFilter)
-                    val freshPatients = SupabaseClient.fetchListSlimOrNull("patients", branchExtra.removePrefix("&"), 5000, PATIENT_COLS)
-                    val freshPayments = SupabaseClient.fetchListSlimOrNull("payments", branchExtra.removePrefix("&"), 5000, SupabaseClient.PAYMENT_COLS_LIST)
+                    val freshPatients = CloudReadCache.get("followup:patients:$bKey") {
+                        SupabaseClient.fetchListSlimOrNull("patients", branchExtra.removePrefix("&"), 5000, PATIENT_COLS)
+                    }
+                    val freshPayments = CloudReadCache.get("followup:payments:$bKey") {
+                        SupabaseClient.fetchListSlimOrNull("payments", branchExtra.removePrefix("&"), 5000, SupabaseClient.PAYMENT_COLS_LIST)
+                    }
                     if (freshCloud != null && freshPatients != null && freshPayments != null) {
                         markPatientTreatmentFullDone(stage, branchFilter, freshCloud, freshPatients, freshPayments)
                     }
@@ -1178,7 +1208,14 @@ class FollowUpRepository(private val context: Context? = null) {
             // জমিয়ে রাখা হয়, যাতে পরের delta-কল এখান থেকে এগোতে পারে।
             val result = fetchTab(stage, branchFilter, creatorName, creatorMobile)
             try {
-                val fresh = slimFollowups("stage=eq.Inquiry&status=not.in.(Cancelled,Incomplete,Rejected,Closed)")
+                /* 📉🔒 V1257 (ধাপ ১, উপরের একই কারণ ও একই সাবধানতা) — `fetchTab()`
+                   এইমাত্র এই পড়াটা করেছে; "All" হলে ক্যাশের সারিটা হুবহু এক, তাই
+                   আর নামানো হয় না। ⛔ ব্রাঞ্চ বাছা থাকলে আগের মতোই আলাদা পড়া —
+                   নইলে ব্রাঞ্চ-ধরে-আলাদা-নয় এমন ঘরে কম সারি জমা হয়ে যেত। */
+                val fuBase = "stage=eq.Inquiry&status=not.in.(Cancelled,Incomplete,Rejected,Closed)"
+                val fresh = if (followupBranchScope(branchFilter).isEmpty())
+                    CloudReadCache.get("fu:stage:Inquiry:" + branchKeyPart(branchFilter)) { slimFollowups(fuBase) }
+                else slimFollowups(fuBase)
                 if (fresh != null) markFuFullDone(fresh)
             } catch (_: Throwable) { }
             return result
