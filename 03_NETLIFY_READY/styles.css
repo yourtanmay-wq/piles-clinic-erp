@@ -8612,3 +8612,82 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
   .doctorQueuePro .queueActions button:not(.ghost):hover{
     box-shadow:0 6px 15px rgba(18,99,188,.32)!important}
 }
+/* ═══════════════════════════════════════════════════════════════════════
+   🖥️🎨 V1262 (০৯.০৯.২০২৬, TK-নির্দেশ: *"৩ নম্বর Chamber Date পর্দাটা সুন্দর
+   করুন"* · খাতার সারি ১১৩) — **শুধু কম্পিউটারের চওড়া পর্দায়** CHAMBER DATE।
+   ⛔ পুরো ব্লকটা `min-width:1200px`-এর ভিতরে ⇒ ফোনে ও ট্যাবে এক পিক্সেলও
+      বদলায় না (ফোনের `activity_chamber_attendance.xml`-এর হুবহু মাপ অটুট)।
+   ⛔ রঙের **মানে** বদলানো হয়নি — হেডার সেই চকলেট #6B3A16, সারির রং
+      (এসেছেন সবুজ · আসার কথা হলুদ · আসেননি লাল), নাম লাল / RMP নেভি —
+      সবই আগের মতোই। শুধু মাপ · ফাঁক · কোণ · ছায়া · হাত রাখলে সাড়া।
+   ═══════════════════════════════════════════════════════════════════════ */
+@media (min-width:1200px){
+  /* উপরের তিনটে বোতাম — লম্বা, নরম ঢালু রং, নিচে ছোট লেখা পড়া যায় */
+  .wlv1CbBtns{gap:12px!important;padding:10px 0 0!important}
+  .wlv1CbBtn{height:56px!important;min-height:56px!important;border-radius:14px!important;
+    font-size:14px!important;font-weight:800!important;letter-spacing:.2px!important;
+    padding:0 14px!important;box-shadow:0 3px 10px rgba(16,40,64,.13)!important;
+    transition:transform .14s ease,box-shadow .14s ease}
+  .wlv1CbBtn:hover{transform:translateY(-1px);box-shadow:0 7px 18px rgba(16,40,64,.18)!important}
+  .wlv1CbBtn small{display:block;margin-top:3px;font-size:11px!important;font-weight:600!important;opacity:.88}
+  .wlv1CbTeal{background:linear-gradient(180deg,#0FA0A0,#087C7C)!important}
+  .wlv1CbGreen{background:linear-gradient(180deg,#19B078,#0E8A5B)!important}
+
+  /* তিনটে গোনার বাক্স — বড় সংখ্যা, পরিষ্কার নাম */
+  .wlv1CbStats{gap:12px!important;padding:12px 0 0!important}
+  .wlv1CbStat{border-radius:14px!important;padding:12px 10px!important;
+    box-shadow:0 2px 8px rgba(16,40,64,.10)!important;
+    transition:transform .14s ease,box-shadow .14s ease}
+  .wlv1CbStat:hover{transform:translateY(-1px);box-shadow:0 7px 16px rgba(16,40,64,.15)!important}
+  .wlv1CbStat span{font-size:12px!important;font-weight:700!important;letter-spacing:.4px!important}
+  .wlv1CbStat b{font-size:22px!important;font-weight:800!important;margin-top:2px!important}
+
+  /* তালিকাটা একটাই পরিষ্কার খাতা — উপরে চকলেট পট্টি, চারপাশে হালকা দাগ */
+  .wlv1CbHead{padding:12px 16px!important;font-size:11.5px!important;
+    letter-spacing:1px!important;
+    background:linear-gradient(180deg,#7B4520,#63340F)!important;
+    border-radius:14px 14px 0 0!important;margin-top:16px!important;
+    box-shadow:0 3px 10px rgba(16,40,64,.12)!important}
+  .wlv1CbRow{padding:0 16px!important;min-height:74px!important;
+    border-left:1px solid #E1E9F0;border-right:1px solid #E1E9F0;
+    border-bottom:1px solid #E7EDF3!important;
+    transition:box-shadow .14s ease}
+  .wlv1CbRow:hover{box-shadow:inset 0 0 0 9999px rgba(11,61,145,.035)}
+  .wlv1CbRow:last-of-type{border-radius:0 0 14px 14px;
+    border-bottom:1px solid #E1E9F0!important;
+    box-shadow:0 3px 12px rgba(16,40,64,.07)}
+
+  /* কলামের চওড়া — কম্পিউটারের পর্দায় নাম ও টাকা দুটোই খোলামেলা */
+  /* ⛔ PATIENT ঘরের **চওড়া ছোঁয়া হয়নি** — TK নিজে V1226-এ ২৬০px ঠিক করেছেন
+     (*"এত জায়গা থাকা সত্ত্বেও পেশেন্টের নাম ব্রেক কেন হবে"*), তাই শুধু ভিতরের
+     ফাঁকটুকু বাড়ানো হলো। */
+  .wlv1CbHead .wlv1CbPat,.wlv1CbRow .wlv1CbPat{padding:12px 10px 12px 0!important}
+  .wlv1CbHead .wlv1CbTreat,.wlv1CbRow .wlv1CbTreat{flex:1 1 auto!important;font-size:13.5px!important;
+    padding:10px 14px!important}
+  .wlv1CbHead .wlv1CbFee,.wlv1CbRow .wlv1CbFee{flex:0 0 118px!important;width:118px!important;font-size:13px!important}
+  .wlv1CbHead .wlv1CbCash,.wlv1CbRow .wlv1CbCash,
+  .wlv1CbHead .wlv1CbOnline,.wlv1CbRow .wlv1CbOnline{flex:0 0 124px!important;width:124px!important;
+    font-size:14px!important;font-variant-numeric:tabular-nums}
+  .wlv1CbHead .wlv1CbTreat,.wlv1CbHead .wlv1CbFee,
+  .wlv1CbHead .wlv1CbCash,.wlv1CbHead .wlv1CbOnline{font-size:11.5px!important}
+
+  /* রোগীর নাম ও নিচের দুটো লাইন */
+  .wlv1CbName{font-size:15px!important;letter-spacing:-.1px!important}
+  .wlv1CbMob{font-size:12.5px!important;margin-top:3px!important}
+  .wlv1CbId{font-size:11.5px!important;margin-top:2px!important}
+
+  /* Close Chamber ও দিনের অবস্থার লাইন */
+  .wlv1CbClose{height:58px!important;border-radius:14px!important;font-size:15px!important;
+    margin-top:14px!important;box-shadow:0 3px 12px rgba(16,40,64,.14)!important}
+  .wlv1CbNote{border-radius:12px!important;padding:11px 16px!important;font-size:13px!important;margin-top:12px!important}
+}
+
+/* 🩺🔒 V1262 (০৯.০৯.২০২৬, TK-নির্দেশ: *"RMP-এর পেশেন্ট হলে যেন বোঝা যায়"*)।
+   ⛔ নতুন কোনো নিয়ম বানানো হয়নি — চিহ্নটা ঠিক তখনই বসে যখন সারিতে
+      "Ref By: …" লেখাটা বসে (`wlv1ChamberRefByLabel`), অর্থাৎ হুবহু একই শর্ত।
+   ⛔ নামের নেভি রং (V987) ও নিচের লাল "Ref By" লাইন (V684) আগের মতোই আছে —
+      এটা তার **উপরে** একটা চোখে পড়ার মতো চিহ্ন, কিছু সরানো হয়নি।
+   ⛔ চিপের সাজ রোগের চিপের (`.wlv1CbDis`) যমজ, শুধু রং নেভি। */
+.wlv1CbRmpTag{margin-left:6px;font-size:10px;font-weight:800;color:#0B3D91;
+  background:#E7F0FE;border:1px solid #BBD4F7;border-radius:8px;padding:1px 7px;
+  letter-spacing:.4px;white-space:nowrap;vertical-align:middle}

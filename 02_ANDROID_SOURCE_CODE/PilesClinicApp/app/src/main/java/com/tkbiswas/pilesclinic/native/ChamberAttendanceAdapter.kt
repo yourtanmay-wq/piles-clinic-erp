@@ -142,15 +142,13 @@ class ChamberAttendanceAdapter(
                ⛔ RMP-র নাম (V471) আগের মতোই একই ঘরে নিচের লাইনে।
                ⛔ সময় জানা না থাকলে (পুরনো সারি) লাইনটা আগের মতোই লুকিয়ে যায়। */
             val whenV = DateUtil.displayWithTime(row.arrivedAt.ifBlank { null })
-            val pidTextV = listOfNotNull(
-                whenV.ifBlank { null },
-                // 🟢🔒 V668 (২৫.০৮.২০২৬, TK-নির্দেশ, স্পষ্ট — "Ref By RMP-এর নাম
-                // থাকে") — লেখাটা এখন "👨‍⚕️" emoji-এর বদলে স্পষ্ট "Ref By:"
-                // — TK-এর নিজের শব্দের সাথে হুবহু মিলিয়ে।
-                // 🔴🔒 V933 — এক নিয়ম, তাই নাম না থাকলেও "Ref By: RMP" বসে।
-                ChamberAttendanceRepository.refByLabel(row).ifBlank { null }
-            ).joinToString("\n")
-            b.tvPatientId.text = pidTextV
+            // 🟢🔒 V668 (২৫.০৮.২০২৬, TK-নির্দেশ, স্পষ্ট — "Ref By RMP-এর নাম
+            // থাকে") — লেখাটা "👨‍⚕️" emoji-এর বদলে স্পষ্ট "Ref By:"।
+            // 🔴🔒 V933 — এক নিয়ম, তাই নাম না থাকলেও "Ref By: RMP" বসে।
+            // 🩺🔒 V1262 — ওই লাইনটাই এখন নেভি ও মোটা (নিচে `pidWithRmpMark`)।
+            val refByV = ChamberAttendanceRepository.refByLabel(row)
+            val pidTextV = listOfNotNull(whenV.ifBlank { null }, refByV.ifBlank { null }).joinToString("\n")
+            b.tvPatientId.text = pidWithRmpMark(whenV, refByV)
             b.tvPatientId.visibility = if (pidTextV.isNotBlank()) View.VISIBLE else View.GONE
             // TK-LOCKED (2026-07-25): three separate columns again.
             // FEES = the registration fee taken today. A patient who did NOT
@@ -249,13 +247,12 @@ class ChamberAttendanceAdapter(
             // 🔴🔒 V471 (20.08.2026, TK-অনুমোদিত) — Wide-লেআউটেও একই যোগ
             // (উপরের tvPatientId-এর হুবহু একই যুক্তি)।
             // 🟢🔒 V588 — Wide-লেআউটেও একই (উপরের ঘরটার হুবহু একই যুক্তি)।
-            val pidTextVW = listOfNotNull(
-                whenV.ifBlank { null },
-                // 🟢🔒 V668 — Wide-লেআউটেও একই ("Ref By:")।
-                // 🔴🔒 V933 — Wide-লেআউটেও একই এক নিয়ম।
-                ChamberAttendanceRepository.refByLabel(row).ifBlank { null }
-            ).joinToString("\n")
-            b.tvPatientIdW.text = pidTextVW
+            // 🟢🔒 V668 — Wide-লেআউটেও একই ("Ref By:")।
+            // 🔴🔒 V933 — Wide-লেআউটেও একই এক নিয়ম।
+            // 🩺🔒 V1262 — Wide-লেআউটেও একই নেভি-মোটা চিহ্ন (নিয়ম ৭)।
+            val refByVW = ChamberAttendanceRepository.refByLabel(row)
+            val pidTextVW = listOfNotNull(whenV.ifBlank { null }, refByVW.ifBlank { null }).joinToString("\n")
+            b.tvPatientIdW.text = pidWithRmpMark(whenV, refByVW)
             b.tvPatientIdW.visibility = if (pidTextVW.isNotBlank()) View.VISIBLE else View.GONE
             val note = row.remark.trim()
             b.tvTreatmentW.text = if (note.isNotBlank()) note else "—"
@@ -376,5 +373,33 @@ class ChamberAttendanceAdapter(
         // সারির বাংলা কখনো ঢাকাই পড়ত না। এখন প্রতিটা বাইন্ডের শেষেই সরাসরি সুইপ —
         // বাংলা-বন্ধ না থাকলে কিছুই করে না (activeCache false ⇒ সাথে সাথে ফেরত)।
         try { NoBengali.sweep(holder.itemView) } catch (_: Throwable) { }
+    }
+
+    /* 🩺🔒 V1262 (০৯.০৯.২০২৬, TK-নির্দেশ: *"RMP-এর পেশেন্ট হলে যেন বোঝা যায়"*
+       · ফটো-প্রুফ পাশ · খাতার সারি ৩৮২) — কম্পিউটারে নামের পাশে নেভি "RMP"
+       চিপ বসেছে। ফোনে **নামের পাশে চিপ বসানো যায় না** — নামের ঘরটা মাত্র
+       ১০৬dp চওড়া আর এক লাইনেই কাটা (`maxLines=1 ellipsize=end`); ঠিক এই
+       কারণেই TK নিজে V984-এ বলেছিলেন *"Ref by … ডান পাশে কেটে গেছে,
+       দেখা যাচ্ছে না"*। চিপ বসালে সেটাও কেটে যেত — অর্থাৎ যে চিহ্নের জন্য
+       কাজ, সেটাই দেখা যেত না।
+       ⇒ তাই ফোনে চিহ্নটা বসল **"Ref By" লাইনে** — ওই ঘরটা তিন লাইন পর্যন্ত
+         নেয়, তাই কখনো কাটে না। লাইনটা এখন **নেভি ও মোটা**, নামের নেভি রঙের
+         (V987) সঙ্গে মিলিয়ে ⇒ এক নজরেই RMP-র রোগী চেনা যায়।
+       ⛔ কোন সারিতে চিহ্ন বসবে তার শর্ত **এক অক্ষরও বদলায়নি** — সেই একই
+          `refByLabel(row)`; লেখাটাও হুবহু আগেরটাই, শুধু রং ও মোটা হরফ।
+       ⛔ উপরের তারিখ-সময়ের লাইনটা আগের ধূসর রঙেই থাকে। */
+    private fun pidWithRmpMark(whenTxt: String, refByTxt: String): CharSequence {
+        val sb = android.text.SpannableStringBuilder()
+        if (whenTxt.isNotBlank()) sb.append(whenTxt)
+        if (refByTxt.isNotBlank()) {
+            if (sb.isNotEmpty()) sb.append("\n")
+            val from = sb.length
+            sb.append(refByTxt)
+            sb.setSpan(android.text.style.ForegroundColorSpan(android.graphics.Color.parseColor("#0B3D91")),
+                from, sb.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            sb.setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD),
+                from, sb.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        return sb
     }
 }
