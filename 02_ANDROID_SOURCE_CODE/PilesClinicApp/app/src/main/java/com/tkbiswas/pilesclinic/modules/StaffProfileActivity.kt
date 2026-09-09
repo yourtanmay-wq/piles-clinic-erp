@@ -5607,22 +5607,73 @@ class StaffProfileActivity : AppCompatActivity() {
         val md = spinner(listOf("Cash", "Online"))
         // 🔵 V417 (TK-অনুমোদিত): এখনই দিচ্ছি, নাকি ঠিক করে রাখছি (পরে দেব)।
         val whenSpin = spinner(listOf("Paying now", "Pay later (Due)"))
+        /* 🗓️🔒 V1273 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ — খাতার সারি ৩৯৫):
+           TK: *"Extra income কত তারিখে দেয়া হলো, তারিখ তো এখানে রাখতে হবে ·
+           প্রকৃত টাকা দেয়ার তারিখ · আজকের তারিখ হতে পারে পূর্ববর্তী তারিখও হতে পারে"*।
+           **কারণ (কোডে মেপে):** এই ফর্মে **তারিখের কোনো ঘরই ছিল না** — সেভের
+           সময় সবসময় `paid_on = আজ` বসত। ⇒ আগে দেওয়া বাড়তি টাকা লিখতে গেলে
+           তারিখ আজকেরই হয়ে যেত। হুবহু এই দোষটাই Add Salary ফর্মে ছিল, V1248-এ
+           সারানো হয়েছে — এটা একই দোষের বাকি অর্ধেক (নিয়ম ৭)।
+           ⇒ এখন **Paid on** ঘরটা বসল — ডিফল্ট আজ, চাপ দিলে পিছনের যেকোনো দিন;
+             **ভবিষ্যতের তারিখ বাছা যায় না** (V1248-এর হুবহু একই নিয়ম)।
+           🎨 সাজ Add Salary-র মতোই — "Paid on | Mode" পাশাপাশি, "When" উপরে
+              পুরো চওড়ায় ⇒ দুই পর্দার নিচের সারি এক দেখায় (নিয়ম ৭ক-এর ২)।
+           ⛔ "Pay later (Due)" বাছলে তারিখের ঘরটা লুকোয় — তখনো টাকা দেওয়াই
+              হয়নি, তাই তারিখের কোনো মানে নেই; পরে "দেওয়া হলো" করলে আগের
+              মতোই ওই দিনের তারিখ বসে (`payExtraDue` এক অক্ষরও বদলায়নি)।
+           ⛔ কী সেভ হয় (`kind='EXTRA'` · `for_month` ফাঁকা · status · mode) —
+              কিচ্ছু বদলায়নি, শুধু তারিখটা এখন হাতে বাছা যায়। */
+        var exPaidOnIso = todayIso()
+        val exPaidOnBtn = TextView(this).apply {
+            text = salDmy(exPaidOnIso)
+            textSize = 15.5f
+            setTextColor(android.graphics.Color.parseColor("#101C2E"))
+            isClickable = true
+            setOnClickListener {
+                val c = java.util.Calendar.getInstance()
+                try {
+                    c.set(exPaidOnIso.substring(0, 4).toInt(),
+                        exPaidOnIso.substring(5, 7).toInt() - 1,
+                        exPaidOnIso.substring(8, 10).toInt())
+                } catch (_: Throwable) { }
+                val dlg = android.app.DatePickerDialog(this@StaffProfileActivity, { _, y, mth, d ->
+                    exPaidOnIso = String.format(java.util.Locale.US, "%04d-%02d-%02d", y, mth + 1, d)
+                    text = salDmy(exPaidOnIso)
+                }, c.get(java.util.Calendar.YEAR), c.get(java.util.Calendar.MONTH),
+                    c.get(java.util.Calendar.DAY_OF_MONTH))
+                try { dlg.datePicker.maxDate = System.currentTimeMillis() } catch (_: Throwable) { }
+                dlg.show()
+            }
+        }
         card.addView(salGoldHeader("EXTRA INCOME", ""))
         card.addView(ModuleUi.label(this, "Amount")); card.addView(salBoxed(amt))
         card.addView(ModuleUi.label(this, "Reason")); card.addView(salBoxed(why))
-        /* 🎨 V1182 — TK-এর পাশ-করা প্রুফ অনুযায়ী দুটো বাছাই এক লাইনে। */
-        val whenCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        whenCol.addView(ModuleUi.label(this, "When")); whenCol.addView(salBoxed(whenSpin))
+        // 🗓️ V1273 — "When" এখন উপরে পুরো চওড়ায় (আগে Mode-এর পাশে ছিল)।
+        card.addView(ModuleUi.label(this, "When")); card.addView(salBoxed(whenSpin))
+        /* 🎨 V1182 + V1273 — নিচের সারিতে দুটো বাছাই এক লাইনে (Add Salary-র মতো)। */
+        val exPaidOnCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        exPaidOnCol.addView(ModuleUi.label(this, "Paid on")); exPaidOnCol.addView(salBoxed(exPaidOnBtn))
         val modeCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         modeCol.addView(ModuleUi.label(this, "Mode")); modeCol.addView(salBoxed(md))
-        card.addView(salPairRow(whenCol, modeCol))
+        card.addView(salPairRow(exPaidOnCol, modeCol))
+        /* 🗓️ V1273 — "Pay later (Due)" বাছলে তারিখের ঘরটা লুকোয়। ⛔ ফর্ম খোলার
+           সময় "Paying now"-ই বাছা থাকে, তাই শুরুতে ঘরটা দেখাই যায়। */
+        whenSpin.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                exPaidOnCol.visibility = if (position == 0) android.view.View.VISIBLE else android.view.View.GONE
+            }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) { }
+        }
         card.addView(ModuleUi.button(this, "Save Extra Income") {
             val v = amt.text.toString().toDoubleOrNull() ?: 0.0
             if (v <= 0.0) { ModuleUi.toast(this, "Enter an amount"); return@button }
             val r = why.text.toString().trim()
             if (r.isEmpty()) { ModuleUi.toast(this, "Enter a reason"); return@button }
             val payingNow = whenSpin.selectedItemPosition == 0
-            val row = JSONObject().put("person_code", code).put("paid_on", todayIso())
+            /* 🗓️ V1273 — "এখনই দিচ্ছি" হলে মাস্টারের বাছা তারিখ; "পরে দেব" হলে
+               আগের মতোই আজ (তখনো টাকা দেওয়াই হয়নি)। */
+            val row = JSONObject().put("person_code", code)
+                .put("paid_on", if (payingNow) exPaidOnIso else todayIso())
                 .put("amount", v).put("mode", if (payingNow) md.selectedItem.toString() else "")
                 .put("paid_by", ModuleAuth.personCode).put("remark", "")
                 .put("for_month", "").put("kind", "EXTRA").put("extra_reason", r)

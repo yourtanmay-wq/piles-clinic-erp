@@ -1574,15 +1574,37 @@
         '<b style="font-size:14px;letter-spacing:.6px">EXTRA INCOME</b></div>' +
       '<label>Amount</label><input id="exAmt" class="input" type="number" inputmode="numeric">' +
       '<label>Reason</label><input id="exWhy" class="input" type="text" placeholder="Bonus / Festival / Overtime">' +
+      /* 🗓️🔒 V1273 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ — খাতার সারি ৩৯৫):
+         TK: *"Extra income কত তারিখে দেয়া হলো … প্রকৃত টাকা দেয়ার তারিখ"*।
+         আগে তারিখের কোনো ঘরই ছিল না, সেভের সময় সবসময় `paid_on = আজ` বসত।
+         এখন **Paid on** ঘর — ডিফল্ট আজ, `max` আজ ⇒ ভবিষ্যতের তারিখ বাছা যায় না।
+         🎨 ফোনের হুবহু যমজ — "When" উপরে পুরো চওড়ায়, নিচে "Paid on | Mode"।
+         ⛔ "Pay later (Due)" বাছলে তারিখের ঘরটা লুকোয় (তখনো টাকা দেওয়া হয়নি)।
+         ⛔ ঘরগুলোর পুরনো `id` · কী সেভ হয় — এক অক্ষরও বদলায়নি। */
+      '<label>When</label><select id="exWhen" class="input" onchange="profExtraWhenChange()"><option value="now">Paying now</option><option value="due">Pay later (Due)</option></select>' +
       '<div style="display:flex;gap:9px">' +
-        '<div style="flex:1"><label>When</label><select id="exWhen" class="input"><option value="now">Paying now</option><option value="due">Pay later (Due)</option></select></div>' +
+        '<div style="flex:1" id="exPaidOnBox"><label>Paid on</label><input id="exPaidOn" class="input" type="date"></div>' +
         '<div style="flex:1"><label>Mode</label><select id="exMode" class="input"><option>Cash</option><option>Online</option></select></div>' +
       '</div>' +
       '<div class="actions"><button class="ghost" onclick="profSalary(\'' + m.esc(code) + '\')">Cancel</button>' +
       '<button onclick="profExtraIncomeSave(\'' + m.esc(code) + '\')">Save Extra Income</button></div></div>' +
       '</div></div>';
+    /* 🗓️ V1273 — ডিফল্ট আজ, আর আজকের পরের দিন বাছা যায় না। */
+    try {
+      var __t = m.todayIST(), __d = document.getElementById('exPaidOn');
+      if (__d) { __d.value = __t; __d.max = __t; }
+    } catch (e) {}
   }
   window.profExtraIncome = profExtraIncome;
+  /* 🗓️ V1273 — "Pay later (Due)" হলে তারিখের ঘরটা লুকোয়, নইলে দেখায়। */
+  function profExtraWhenChange() {
+    try {
+      var w = String((document.getElementById('exWhen') || {}).value || 'now');
+      var b = document.getElementById('exPaidOnBox');
+      if (b) b.style.display = (w === 'now') ? '' : 'none';
+    } catch (e) {}
+  }
+  window.profExtraWhenChange = profExtraWhenChange;
   async function profExtraIncomeSave(code) {
     var m = window.MOD;
     var v = Number((document.getElementById('exAmt') || {}).value || 0);
@@ -1591,8 +1613,12 @@
     if (!why) { try { toast('Enter a reason'); } catch (e) {} return; }
     var payingNow = String((document.getElementById('exWhen') || {}).value || 'now') === 'now';
     var mode = payingNow ? String((document.getElementById('exMode') || {}).value || 'Cash') : '';
+    /* 🗓️ V1273 — "এখনই দিচ্ছি" হলে মাস্টারের বাছা তারিখ; "পরে দেব" হলে
+       আগের মতোই আজ (তখনো টাকা দেওয়াই হয়নি)। ঘর ফাঁকা/ভুল হলেও আজ। */
+    var exOn = String((document.getElementById('exPaidOn') || {}).value || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(exOn) || exOn > m.todayIST()) exOn = m.todayIST();
     var row = {
-      id: m.uuid(), person_code: code, paid_on: m.todayIST(), amount: v, mode: mode,
+      id: m.uuid(), person_code: code, paid_on: (payingNow ? exOn : m.todayIST()), amount: v, mode: mode,
       paid_by: (m.session() || {}).code || 'master', remark: '',
       for_month: '', kind: 'EXTRA', extra_reason: why,
       status: (payingNow ? 'PAID' : 'DUE')
