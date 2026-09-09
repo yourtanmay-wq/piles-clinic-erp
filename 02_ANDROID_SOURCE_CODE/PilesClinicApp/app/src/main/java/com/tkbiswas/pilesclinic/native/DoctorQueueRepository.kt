@@ -29,7 +29,13 @@ class DoctorQueueRepository(private val context: Context? = null) {
            Dashboard V1258-এ, Chamber V1275-এ — সবই ৩ ঘণ্টা)।
            ⛔ একই কারণ ও একই ঝুঁকি (শুধু hard-DELETE দেরিতে ধরা পড়ে); রোজকার
               বদল আগের মতোই delta-তেই আসে। ⛔ সারি · ছাঁকনি · হিসাব অটুট। */
-        private const val FULL_REFRESH_INTERVAL_MS = 3L * 60L * 60L * 1000L   // ৩ ঘণ্টা (V1275; আগে ২ ঘণ্টা)
+        /* ⛔🔴 **আমার ভুল সংশোধন — V1277 (০৯.০৯.২০২৬):** V1275-এ Egress কমাতে
+           এটা ২ → ৩ ঘণ্টা করেছিলাম। কিন্তু আজ ধরা পড়ল যে **আজকের টাকা-জমা
+           রোগীরা কেবল এই পূর্ণ পড়ার পথেই** লাইনে ঢুকতেন ⇒ আমার ওই বদলে TK-র
+           অভিযোগটা **আরও খারাপ** হত। উপরে delta পথেও কাজটা বসানো হলো, আর
+           সাবধানতার জন্য সময়টাও **২ ঘণ্টায় ফিরিয়ে** আনা হলো।
+           ⛔ Follow-up · Dashboard · Chamber-এর ৩ ঘণ্টা অটুট (ওদের এই নির্ভরতা নেই)। */
+        private const val FULL_REFRESH_INTERVAL_MS = 2L * 60L * 60L * 1000L   // ২ ঘণ্টা (V1277-এ ফেরানো)
         private const val SAFETY_BACK_MS = 5_000L
     }
 
@@ -98,6 +104,12 @@ class DoctorQueueRepository(private val context: Context? = null) {
         val ctx = context ?: return null
         val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val key = "cache_" + (branchFilter ?: "All")
+        /* 📅 V1277 — অন্য দিনের জমানো তালিকা আর দেখানো হয় না (উপরে কারণ লেখা)।
+           ⛔ তখনো ফোনের নিজের রেকর্ড থেকে যা পাওয়া যায় তা দেখায় — পর্দা
+              কখনো ভুল রোগীর নাম দেখাবে না, বড়জোর একটু ফাঁকা থাকবে। */
+        val cacheDay = prefs.getString("cacheDay_" + (branchFilter ?: "All"), "") ?: ""
+        if (cacheDay.isNotBlank() && cacheDay != FollowUpModel.today())
+            return mergeOwnPhonePatients(branchFilter, emptyList()).ifEmpty { null }
         val json = prefs.getString(key, null)
             // ⚡ জমানো তালিকা না থাকলেও ফোনের নিজের রেকর্ড সঙ্গে সঙ্গে দেখাতে হবে।
             ?: return mergeOwnPhonePatients(branchFilter, emptyList()).ifEmpty { null }
@@ -191,7 +203,19 @@ class DoctorQueueRepository(private val context: Context? = null) {
                         // re-applied to cached data, it's only used for the raw fetch above.
                 )
             }
-            ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(key, arr.toString()).apply()
+            /* 📅🔒 V1277 (০৯.০৯.২০২৬, TK-রিপোর্ট হুবহু — তালিকা সারি ৩৯৯:
+               *"Check up ওপেন করার সাথে সাথে এটা আসে — এই সমস্ত পেশেন্ট আজকে
+               চেম্বারে কেউ আসে নাই · দু থেকে তিন সেকেন্ডের মধ্যে আবার পরিবর্তন
+               হয়ে যায়"*)।
+               🔴 **আসল কারণ (কোডে মেপে, দোষটা আমার):** জমানো তালিকার চাবিতে
+               **তারিখ ছিল না** (`cache_<branch>`) ⇒ কাল/পরশুর লাইনটাই আজ পর্দা
+               খুললেই দেখাত, তারপর ক্লাউডের আসল তালিকা এসে বদলে দিত।
+               ⇒ এখন কোন দিনের তালিকা সেটাও লেখা থাকে; অন্য দিনের হলে আর
+                 দেখানো হয় না (নিচে `loadCachedQueue`)। */
+            ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+                .putString(key, arr.toString())
+                .putString("cacheDay_" + (branchFilter ?: "All"), FollowUpModel.today())
+                .apply()
         } catch (_: Throwable) { }
     }
 
@@ -506,6 +530,28 @@ class DoctorQueueRepository(private val context: Context? = null) {
                 val rid = r.optString("id", "")
                 if (rid.isNotBlank()) byId[rid] = r
             }
+            /* 💰🔒 V1277 (০৯.০৯.২০২৬, TK-রিপোর্ট — তালিকা সারি ৩৯৯) — delta পথে
+               `patientRows`-এ শুধু **বদলে-যাওয়া** সারি থাকে, আর টাকা জমা দিলে
+               `patients` সারি বদলায় না (টাকা আলাদা টেবিলে) ⇒ নিচে
+               `byId[pid] ?: continue`-তে আজ টাকা দেওয়া রোগী চুপচাপ বাদ পড়তেন।
+               ⇒ এখন যাঁদের সারি হাতে নেই **শুধু তাঁদেরই** একবারে আনা হয়।
+               ⛔ পূর্ণ পড়ার পথে সবার সারি আগে থেকেই থাকে ⇒ ওখানে একটাও
+                  বাড়তি পড়া হয় না (মেপে দেখা)।
+               ⛔ ছবি ছাড়া সরু পড়া (`PATIENT_COLS_NO_PHOTO`) — Egress নগণ্য।
+               ⛔ ব্যর্থ হলে চুপচাপ এগিয়ে যায়; লাইন কখনো ফাঁকা হয় না। */
+            val missing = ids.filter { it.isNotBlank() && !byId.containsKey(it) }
+            for (i in missing.indices step 200) {
+                val part = missing.subList(i, minOf(i + 200, missing.size))
+                val inList = part.joinToString(",") { "\"" + it.replace("\"", "") + "\"" }
+                val got = SupabaseClient.fetchListSlimOrNull(
+                    "patients", "id=in.($inList)", 500, SupabaseClient.PATIENT_COLS_NO_PHOTO
+                ) ?: continue
+                for (j in 0 until got.length()) {
+                    val r = got.optJSONObject(j) ?: continue
+                    val rid = r.optString("id", "")
+                    if (rid.isNotBlank()) byId[rid] = r
+                }
+            }
 
             /* 💰🔒 V976 (০২.০৯.২০২৬, TK-নির্দেশ) — *"সমস্ত পেশেন্টের ক্ষেত্রে
                দেখাবে"*। আগে **আজ টাকা না দিলে** এই ঘরগুলো একটাও বসত না
@@ -763,7 +809,20 @@ class DoctorQueueRepository(private val context: Context? = null) {
             oncePerMobile.add(q)
         }
         val sorted = DoctorQueueModel.sortNewestFirst(oncePerMobile)
-        val result = if (includePhoto) sorted else fillPhotosFromCache(branchFilter, sorted)
+        val r1 = if (includePhoto) sorted else fillPhotosFromCache(branchFilter, sorted)
+        /* 💰🔒 V1277 (০৯.০৯.২০২৬, TK-রিপোর্ট — তালিকা সারি ৩৯৯: *"যারা আজকে
+           পেমেন্ট করেছে তাদের এখানে দেখায় না … আমি তো আপনাকে বলেছিলাম পেমেন্ট
+           করলেই চেকআপ পর্দায় তাদেরকে দেখাইতে হবে"*)।
+           🔴 **আসল কারণ (কোডে মেপে, দোষটা আমার):** V951-এ (তালিকা সারি ৩৭)
+           টাকা-জমা রোগীদের লাইনে আনার কাজটা **শুধু পূর্ণ পড়ার পথে** বসানো
+           হয়েছিল; এই delta পথে বসানো হয়নি। টাকা জমা দিলে `patients` সারি
+           বদলায় না (টাকা আলাদা টেবিলে) ⇒ delta ওঁদের কোনোদিনই দেখতে পেত না,
+           আর পূর্ণ পড়া হত অনেকক্ষণ পরপর। ⇒ এখন **দুই পথেই একই নিয়ম**।
+           ⛔ V839-এর NEXT VISIT PLAN-ও একই কারণে বাদ পড়ত, সেটাও বসল (নিয়ম ৭)।
+           ⛔ কোনো নতুন নিয়ম নয় — পূর্ণ পথের ঠিক এই দুটো ধাপই এখানে ডাকা হলো,
+              তাই দুই পথে দুরকম উত্তর হওয়ার পথ আর নেই (নিয়ম ৭ক-এর ২)। */
+        val r2 = fillNextVisitPlans(r1)
+        val result = addTodaysTreatmentPayers(branchFilter, delta, r2)
         saveCachedQueue(branchFilter, result, includePhoto)
 
         sp.edit().putString("since_$key", stampNow()).apply()

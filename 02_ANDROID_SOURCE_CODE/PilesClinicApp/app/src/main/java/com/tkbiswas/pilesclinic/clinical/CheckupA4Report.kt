@@ -59,7 +59,14 @@ object CheckupA4Report {
            সেই রেকর্ডে উপরের ঘরগুলো ফাঁকা থাকে আর নিচেরগুলো ভরে — তখন সেকশনটা
            সারি-সারি না হয়ে **এক লাইনে** বসে। কিছু হারায় না, শুধু সাজ আলাদা। */
         val symptomText: String = "", val historyText: String = "",
-        val habitText: String = "", val pictureText: String = ""
+        val habitText: String = "", val pictureText: String = "",
+        /* 📝🔒 V1276 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ — তালিকা সারি ৩৯৮):
+           TK: *"আমি এখানে এটা লিখলাম … কিন্তু পরের ফটোতে দেখুন এই লেখাটা কোথাও নেই"*।
+           **কারণ (মেপে দেখা):** এই `Fields`-এ `doctorRemark` ঘরটাই ছিল না, আর
+           `parseDetails` কোনোদিন "Doctor Remark" লেবেল খুঁজতই না ⇒ কাগজে কখনো
+           বসেনি। লেখাটা হারায়নি (রেকর্ডে ও Follow-up-এর last remark-এ ছিল)।
+           ⛔ ফাঁকা থাকলে ভাগটাই বসে না — পুরনো কাগজ হুবহু আগের মতোই। */
+        val doctorRemark: String = ""
     )
 
     fun today(): String {
@@ -209,7 +216,9 @@ object CheckupA4Report {
             symptomText = field("Patient Reported"),
             historyText = field("History Detail"),
             habitText = field("Habits"),
-            pictureText = field("Disease Picture")
+            pictureText = field("Disease Picture"),
+            // 📝 V1276 — পুরনো এক-লাইনের লেখাতেও লেবেলটা থাকলে তুলে আনা হয়
+            doctorRemark = field("Doctor Remark", "Doctor's Remark")
         )
     }
 
@@ -329,6 +338,21 @@ object CheckupA4Report {
             right.isBlank() -> left
             else -> """<div class="two"><div>$left</div><div>$right</div></div>"""
         }
+        /* 📝🔒 V1276 — ডাক্তারের মন্তব্য: কাগজের সবার নিচে, দস্তখতের ঠিক আগে,
+           পুরো চওড়ায় — বাকি ভাগগুলোর হুবহু একই সাজ (`sec`)। লেখাটা কয়েক
+           লাইনের হতে পারে, তাই লাইন-ভাঙা রাখা হয়েছে (`<br>`)।
+           ⛔ ফাঁকা হলে একটাও ট্যাগ বসে না ⇒ পুরনো কাগজ এক চুলও বদলায়নি। */
+        val dremSection =
+            if (f.doctorRemark.isBlank()) ""
+            else {
+                /* ⛔ **আগে esc, তারপর লাইন-ভাঙা** — উল্টো করলে `<br>`-ও পালিয়ে
+                   গিয়ে কাগজে হুবহু "&lt;br&gt;" ছাপা হত (`cell()` ভিতরে esc করে,
+                   তাই এখানে ওটা ব্যবহার করা যায়নি — সাজ হুবহু একই রাখা হলো)। */
+                val body = esc(f.doctorRemark.trim())
+                    .replace("\r\n", "\n").replace("\r", "\n").replace("\n", "<br>")
+                """<div class="sec"><div class="sh">${t("sec9")}</div>""" +
+                """<div class="g one"><div class="cell full"><span class="v">$body</span></div></div></div>"""
+            }
         val midRow = two(sec(t("sec2"), symCells), sec(t("sec4"), habCells))
         val btmRow = when {
             picSection.isBlank() -> rightCol
@@ -419,6 +443,7 @@ ${sec(t("sec1"), step1)}
 $midRow
 ${sec(t("sec3"), hisCells, true)}
 $btmRow
+$dremSection
 </div>
 <div class="foot"><div class="sign">
 <div class="ln"><b>TK BISWAS</b><small>Founder &amp; Consultant</small></div>

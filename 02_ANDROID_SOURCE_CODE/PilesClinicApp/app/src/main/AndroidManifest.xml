@@ -15,6 +15,8 @@
          · SCHEDULE_EXACT_ALARM — Android 12 ও 12L (ইনস্টলেই দেওয়া থাকে)
          ⛔ অনুমতি না থাকলে কোড নিজেই কাছাকাছি সময়ে বসায়, আর পুরনো
             ১৫-মিনিটের জালটা আগের মতোই থাকে — কিছুই ভাঙে না। -->
+    <!-- ⏰ V1277 — ফোন চালু হলে অ্যালার্মগুলো আবার বসানোর জন্য (তালিকা সারি ৪০০) -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"
         android:maxSdkVersion="32" />
@@ -485,6 +487,21 @@
              (exported=false)। -->
         <receiver android:name="com.tkbiswas.pilesclinic.native.DoctorReminderAlarmReceiver"
             android:exported="false" />
+
+        <!-- ⏰🔒 V1277 (০৯.০৯.২০২৬, TK-রিপোর্ট — তালিকা সারি ৪০০): ফোন রিস্টার্ট
+             হলে Android বসানো সব অ্যালার্ম মুছে দেয়, আর প্রকল্পে সেগুলো আবার
+             বসানোর কোনো ব্যবস্থাই ছিল না ⇒ ডাক্তারের ফোন একবার বন্ধ-চালু হলেই
+             ঠিক-সময়ের ঘণ্টা চলে যেত। এখন চালু হওয়ার সঙ্গে সঙ্গেই আবার বসে।
+             ⛔ অ্যাপের বাইরের কেউ ডাকতে পারে না — শুধু সিস্টেমের boot বার্তা। -->
+        <receiver android:name="com.tkbiswas.pilesclinic.native.BootRearmReceiver"
+            android:exported="true" android:enabled="true"
+            android:permission="android.permission.RECEIVE_BOOT_COMPLETED">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <!-- 🏍️🔒 V968 — ফিল্ড ভিজিট চলাকালীন GPS (foreground service)। -->
         <service

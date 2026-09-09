@@ -22,7 +22,16 @@ object DoctorReminderScheduler {
     /** ⏰🔒 V1241 — অ্যালার্ম বাজলে **সঙ্গে সঙ্গে** একই কাজটা চালায় (অপেক্ষা নয়)।
      *  ⛔ কাজটার ভিতরের একটাও নিয়ম বদলায়নি — শুধু কখন চলবে সেটা বদলাল। */
     fun runNow(context: Context) {
-        val request = OneTimeWorkRequestBuilder<DoctorReminderWorker>().build()
+        /* ⏰🔒 V1277 (০৯.০৯.২০২৬, TK-রিপোর্ট — তালিকা সারি ৪০০) — অ্যালার্ম
+           ঠিক সময়ে বাজলেও কাজটা **সাধারণ সারিতে** যেত, আর ফোন গভীর ঘুমে
+           (Doze) থাকলে WorkManager সেটা পিছিয়ে দিতে পারত ⇒ ঘণ্টা দেরিতে।
+           ⇒ এখন **expedited** — Doze-এও সঙ্গে সঙ্গে চলে।
+           ⛔ কোটা ফুরোলে নিজে থেকেই আগের সাধারণ নিয়মে নামে
+              (`RUN_AS_NON_EXPEDITED_WORK_REQUEST`), তাই কখনো ব্যর্থ হয় না।
+           ⛔ কাজটার ভিতরের একটাও নিয়ম বদলায়নি। */
+        val request = OneTimeWorkRequestBuilder<DoctorReminderWorker>()
+            .setExpedited(androidx.work.OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+            .build()
         WorkManager.getInstance(context).enqueueUniqueWork(
             WORK_NAME + "_now",
             ExistingWorkPolicy.REPLACE,

@@ -23674,7 +23674,7 @@ var WLV1_A4_TITLES={
   en:{sec1:'HISTORY &amp; PREVIOUS TREATMENT',sec2:"PATIENT'S OWN COMPLAINTS &middot; PART 2",
       sec3:'HISTORY AS TOLD BY THE PATIENT &middot; PART 3',sec4:'CONDITIONS &amp; HABITS &middot; PART 4',
       sec5:'CLINICAL FINDINGS',sec6:'DISEASE PICTURE &middot; PART 6',
-      sec7:'TREATMENT PLAN &amp; COUNSELLING',sec8:'ESTIMATE &amp; DECISION',
+      sec7:'TREATMENT PLAN &amp; COUNSELLING',sec8:'ESTIMATE &amp; DECISION',sec9:'DOCTOR&#39;S REMARK',   /* 📝 V1276 */
       complaint:'Chief Complaint',duration:'Duration',occupation:'Occupation',
       prevTreatment:'Prev. Treatment',patientSaid:'Patient Said',
       visual:'Visual Exam',grade:'Proctoscopy Grade',probable:'Probable Disease',
@@ -23685,7 +23685,7 @@ var WLV1_A4_TITLES={
   bn:{sec1:'ইতিহাস ও পূর্বের চিকিৎসা',sec2:'রোগী এসে প্রথমে কী কী বললেন &middot; ভাগ 2',
       sec3:'রোগীর বলা ইতিহাস &middot; ভাগ 3',sec4:'রোগ ও অভ্যাস &middot; ভাগ 4',
       sec5:'ডাক্তারি পরীক্ষা',sec6:'রোগের ছবি &middot; ভাগ 6',
-      sec7:'চিকিৎসা পরিকল্পনা ও পরামর্শ',sec8:'খরচের হিসাব ও সিদ্ধান্ত',
+      sec7:'চিকিৎসা পরিকল্পনা ও পরামর্শ',sec8:'খরচের হিসাব ও সিদ্ধান্ত',sec9:'ডাক্তারের মন্তব্য',   /* 📝 V1276 */
       complaint:'প্রধান সমস্যা',duration:'কতদিন ধরে',occupation:'পেশা',
       prevTreatment:'পূর্বের চিকিৎসা',patientSaid:'রোগী যা বললেন',
       visual:'চোখে দেখে',grade:'গ্রেড',probable:'সম্ভাব্য রোগ',
@@ -23769,7 +23769,12 @@ function wlv1CheckupA4Fields(n){
        (যেমন `15 Days`)। পুরনো রেকর্ডে ওটা ফাঁকা হলে আগের লেখাটাই ছাপে, তাই
        পুরনো কোনো কাগজ ফাঁকা হয়ে যায় না। ফোনের সঙ্গে হুবহু এক নিয়ম। */
     estCost:n.estimatedCost||'', recovery:(n.timeAsked||'')||(n.recoveryTime||''), advance:n.advanceDiscussed||'',
-    beforePhoto:n.beforePhoto||'', duringPhoto:n.duringPhoto||'', afterPhoto:n.afterPhoto||''
+    beforePhoto:n.beforePhoto||'', duringPhoto:n.duringPhoto||'', afterPhoto:n.afterPhoto||'',
+    /* 📝🔒 V1276 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ — তালিকা সারি ৩৯৮):
+       ডাক্তারের মন্তব্য এতদিন কাগজে **যেতই না** (এই তালিকায় ঘরটাই ছিল না)।
+       লেখাটা ফোনের চেকআপ পর্দায় ভরা হয় ও একই JSON-এ জমা থাকে, তাই
+       কম্পিউটারেও ঠিকই পড়া যায়। ⛔ ফাঁকা হলে কাগজে ভাগটাই বসে না। */
+    doctorRemark:n.doctorRemark||''
   };
 }
 /* 🔵🔒 V584 (২৩.০৮.২০২৬, TK-অনুমোদিত ডেমো-প্রুফ) — এক পাতার, দুই ভাষার A4।
@@ -23842,6 +23847,17 @@ function wlv1CheckupA4Html(p, dateText, lang, anatImg){
   /* ── পাশাপাশি সাজ — একদিক ফাঁকা হলে অন্যদিক পুরো চওড়া নেয় ── */
   var two=function(l,r){ if(!l&&!r)return ''; if(!l)return r; if(!r)return l;
     return '<div class="two"><div>'+l+'</div><div>'+r+'</div></div>' };
+  /* 📝🔒 V1276 — ডাক্তারের মন্তব্য: কাগজের সবার নিচে, দস্তখতের ঠিক আগে,
+     পুরো চওড়ায় — ফোনের `CheckupA4Report.kt`-এর হুবহু একই জায়গা ও সাজ।
+     ⛔ **আগে esc, তারপর লাইন-ভাঙা** — উল্টো করলে কাগজে হুবহু "&lt;br&gt;" ছাপা হত।
+     ⛔ সুইচ বন্ধ থাকলে (`wlv1A4ShowDocRemark===false`) ভাগটা বসেই না ⇒ পর্দায়
+        যা দেখা যায় 🖨️ Print-এও হুবহু তাই যায় (একই HTML)। */
+  var dremOn=(typeof window!=='undefined'&&window.wlv1A4ShowDocRemark===false)?false:true;
+  var dremTxt=dremOn?String(f.doctorRemark||'').trim():'';
+  var dremSection=dremTxt?('<div class="sec"><div class="sh">'+T('sec9')+'</div>'+
+    '<div class="g one"><div class="cell full"><span class="v">'+
+    esc(dremTxt).replace(/\r\n/g,'\n').replace(/\r/g,'\n').replace(/\n/g,'<br>')+
+    '</span></div></div></div>'):'';
   var midRow=two(sec(T('sec2'),symCells),sec(T('sec4'),habCells));
   var btmRow=(!picSection)?rightCol:((!rightCol)?picSection:
     ('<div class="two btm"><div>'+picSection+'</div><div>'+rightCol+'</div></div>'));
@@ -23895,6 +23911,7 @@ sec(T('sec1'),step1)+
 midRow+
 sec(T('sec3'),hisCells,true)+
 btmRow+
+dremSection+
 '</div>'+
 '<div class="foot"><div class="sign">'+
 '<div class="ln"><b>TK BISWAS</b><small>Founder &amp; Consultant</small></div>'+
@@ -23943,13 +23960,35 @@ function wlv1ShowCheckupA4(id, langWanted){
   /* 🟢🔒 V643 — বাংলা-বন্ধ স্টাফের সামনে "বাংলা" বোতামটাই দেখানো হয় না। */
   var wlv1A4IsNoBn=false; try{ wlv1A4IsNoBn=(typeof wlv1NoBnActive==='function' && wlv1NoBnActive()); }catch(_e){}
   var wlv1A4LangBar=wlv1A4IsNoBn ? '' : ('<div class="wlv1A4LangBar">'+segBtn(WLV1_A4_BN,'বাংলা')+segBtn(WLV1_A4_EN,'English')+'</div>');
+  /* 📝🔒 V1276 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ — তালিকা সারি ৩৯৮):
+     TK: *"রোগীকে সেই কাগজ প্রিন্ট আউট দিব তখন … ডাক্তারের রিমার্কটা ওখানে
+     থাকবে না সেই হিসেবে প্রিন্ট আউট হবে … থাকবে সেই ক্ষেত্রে … তার একটা
+     অপশন রাখবেন"*। ফোনের সুইচটার হুবহু জোড়া।
+     ⛔ ডাক্তার সত্যিই কিছু লিখলে তবেই সুইচটা দেখা যায়।
+     ⛔ ডিফল্ট **চালু**; ঘোরালে পাতাটা আবার বসে, তাই iframe ও 🖨️ Print
+        দুটোতেই হুবহু একই কাগজ যায়। */
+  var wlv1DremHas=!!String((note&&note.doctorRemark)||'').trim();
+  var wlv1DremOn=(window.wlv1A4ShowDocRemark===false)?false:true;
+  var wlv1DremBar=wlv1DremHas?('<label class="wlv1A4DremBar">'+
+    '<input type="checkbox" id="wlv1DremChk"'+(wlv1DremOn?' checked':'')+
+    ' onchange="wlv1A4ToggleDocRemark(\''+esc(id)+'\',\''+lang+'\',this.checked)">'+
+    '<span><b>Doctor\'s Remark on paper</b><br><small>Turn off before giving the print to the patient</small></span>'+
+    '</label>'):'';
   page('📜 Check-up Record — '+esc(dateText),'<div class="nkWrap">'+
     wlv1A4LangBar+
+    wlv1DremBar+
     '<div style="max-height:70vh;overflow:auto;border:1px solid #e3e9f1;border-radius:10px;margin:0 0 10px"><iframe id="wlv1A4Frame" style="width:100%;height:70vh;border:0" srcdoc="'+esc(html)+'"></iframe></div>'+
     '<div class="actions"><button onclick="wlv1PrintCheckupA4(\''+b64+'\')">🖨️ Print</button></div></div>');
   });
 }
 window["wlv1ShowCheckupA4"]=wlv1ShowCheckupA4;
+/* 📝 V1276 — সুইচ ঘোরালে ফ্ল্যাগ বসিয়ে একই পাতাটাই আবার আঁকা হয়।
+   ⛔ কোনো নতুন সেভ বা ক্লাউড-কল নেই — শুধু দেখার কাগজটা নতুন করে বসে। */
+function wlv1A4ToggleDocRemark(id,lang,on){
+  try{ window.wlv1A4ShowDocRemark=!!on; }catch(e){}
+  try{ wlv1ShowCheckupA4(id,lang); }catch(e){}
+}
+window["wlv1A4ToggleDocRemark"]=wlv1A4ToggleDocRemark;
 /* 🔵🔒 V584 (২৩.০৮.২০২৬, TK-নির্দেশ) — হেডারের 📜 বোতাম: **Check-up History**।
    TK: *"যতক্ষণ চেকআপ ... হিস্টরি তৈরি না হবে ততক্ষণ ... শুধুমাত্র ওয়ার্নিং
    দেখাবে ... আর যদি ... কমপ্লিট হয়ে থাকে তবে ... a4 প্রিন্ট / ভিউ /

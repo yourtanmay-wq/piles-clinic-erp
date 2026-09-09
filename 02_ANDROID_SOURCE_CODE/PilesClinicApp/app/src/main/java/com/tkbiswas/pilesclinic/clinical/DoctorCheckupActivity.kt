@@ -722,6 +722,20 @@ class DoctorCheckupActivity : AppCompatActivity() {
         // 🔴 V501 — Back ও Save-এর মাঝের নতুন Share বোতাম (TK-নির্দেশ)।
         findViewById<MaterialButton>(R.id.btnShareNow).setOnClickListener { saveThenShare() }
         findViewById<MaterialButton>(R.id.btnPrintCheckup).setOnClickListener { printCheckup() }
+        /* 📝🔒 V1276 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ — তালিকা সারি ৩৯৮):
+           TK: *"রোগীকে সেই কাগজ প্রিন্ট আউট দিব তখন … ডাক্তারের রিমার্কটা
+           ওখানে থাকবে না সেই হিসেবে প্রিন্ট আউট হবে … থাকবে সেই ক্ষেত্রে
+           … তার একটা অপশন রাখবেন"*।
+           ⛔ ঘোরালেই কাগজটা নতুন করে আঁকা হয়, আর `buildA4Html()`-এ একই ঘরটা
+              বসে ⇒ পর্দা · 🖨 Print · 🔗 Share তিনটেতেই **হুবহু একই** কাগজ যায়,
+              তিন জায়গায় তিনরকম হওয়ার পথ নেই (নিয়ম ৭ক-এর ২)।
+           ⛔ শুনানিটা এখানে **একবারই** বসে; `showSavedA4()` সুইচের অবস্থা
+              ছোঁয় না, তাই নিজে-নিজে বারবার আঁকার (recursion) কোনো পথ নেই। */
+        findViewById<com.google.android.material.switchmaterial.SwitchMaterial>(R.id.swDrRemark)
+            .setOnCheckedChangeListener { _, on ->
+                a4ShowDocRemark = on
+                lastSavedRecord?.let { showSavedA4(buildA4Html(it)) }
+            }
         // 🆕 (07.08.2026) — A4 রিপোর্ট থেকে ✎ Edit চাপলে আবার ফর্মে ফেরে।
         findViewById<MaterialButton>(R.id.btnEditCheckup).setOnClickListener { showEditForm() }
         showStep(0)
@@ -4319,6 +4333,10 @@ class DoctorCheckupActivity : AppCompatActivity() {
     //   • buildA4Html(): সেভ-করা রেকর্ড থেকে ক্লিনিক-হেডারসহ A4 HTML বানায়।
     // ⛔ কোনো ফিল্ড/সেভ-লজিক ছোঁয়া হয়নি — শুধু "দেখা"র রূপ।
     // ─────────────────────────────────────────────────────────────────────
+    /* 📝 V1276 — কাগজে ডাক্তারের মন্তব্য থাকবে কিনা। **ডিফল্ট চালু** —
+       বন্ধ থাকলে TK-র অভিযোগটাই ("লেখাটা কোথাও নেই") ফিরে আসত। */
+    private var a4ShowDocRemark = true
+
     private fun showSavedA4(html: String) {
         val wv = findViewById<android.webkit.WebView>(R.id.savedA4View)
         wv.settings.javaScriptEnabled = false
@@ -4339,6 +4357,10 @@ class DoctorCheckupActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.btnEditCheckup).visibility = vis(true)
         findViewById<MaterialButton>(R.id.btnShareCheckup).visibility = vis(true)
         findViewById<MaterialButton>(R.id.btnPrintCheckup).visibility = vis(true)
+        /* 📝 V1276 — সুইচটা **শুধু তখনই** দেখা যায় যখন ডাক্তার সত্যিই কিছু
+           লিখেছেন; নইলে কাগজে ওই ভাগটাই বসে না, তাই সুইচেরও মানে নেই। */
+        findViewById<android.view.View>(R.id.drRemarkBar).visibility =
+            vis(!(lastSavedRecord?.doctorRemark ?: "").isBlank())
     }
 
     private fun showEditForm() {
@@ -4354,6 +4376,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.btnEditCheckup).visibility = vis(false)
         findViewById<MaterialButton>(R.id.btnShareCheckup).visibility = vis(false)
         findViewById<MaterialButton>(R.id.btnPrintCheckup).visibility = vis(false)
+        findViewById<android.view.View>(R.id.drRemarkBar).visibility = vis(false)   // 📝 V1276
         showStep(currentStep)
     }
 
@@ -4408,7 +4431,12 @@ class DoctorCheckupActivity : AppCompatActivity() {
                 lifestyle = r.lifestyle,
                 anatomy = r.anatomy,
                 anatomyImage = CheckupAnatomyImage.dataUrl(this, r.anatomy),
-                probableDisease = if (r.probableDisease == CounselModel.PICK_NONE) "" else r.probableDisease
+                probableDisease = if (r.probableDisease == CounselModel.PICK_NONE) "" else r.probableDisease,
+                /* 📝🔒 V1276 — ডাক্তারের মন্তব্য এতদিন কাগজে **যেতই না**
+                   (`Fields`-এ ঘরটাই ছিল না)। এখন যায় — তবে সুইচ বন্ধ থাকলে
+                   ফাঁকা পাঠানো হয়, আর ফাঁকা হলে কাগজে ভাগটাই বসে না।
+                   ⛔ পর্দা · Print · Share তিনটেই এই একই লাইন দিয়ে যায়। */
+                doctorRemark = if (a4ShowDocRemark) r.doctorRemark else ""
             ),
             lang
         )

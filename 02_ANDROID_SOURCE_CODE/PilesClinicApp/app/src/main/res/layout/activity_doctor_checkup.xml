@@ -1598,6 +1598,22 @@
          থিম বদলালে পুরো অ্যাপের সব বোতাম বদলে যেত, তাই থিম না ছুঁয়ে
          শুধু এই তিনটে বোতামেই আলাদা করে সবুজ বসানো হলো (মাল্টি-গ্রিন —
          প্রতিটার শেড একটু আলাদা)। -->
+    <!-- 📝🔒 V1276 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ — তালিকা সারি ৩৯৮):
+         TK: *"রোগীকে সেই কাগজ প্রিন্ট আউট দিব তখন … ডাক্তারের রিমার্কটা ওখানে
+         থাকবে না সেই হিসেবে প্রিন্ট আউট হবে … থাকবে সেই ক্ষেত্রে … তার একটা
+         অপশন রাখবেন"*।
+         ⛔ শুধু সেভের পরের A4 পর্দায় দেখা যায় (`showSavedA4`), ফর্মে নয়।
+         ⛔ ডিফল্ট **চালু** — বন্ধ থাকলে TK-র আজকের অভিযোগটাই ("লেখাটা নেই")
+            ফিরে আসত; বন্ধ করা এক ছোঁয়ার কাজ।
+         ⛔ ঘোরালেই কাগজটা নতুন করে আঁকা হয়, তাই পর্দায় যা দেখছেন Print ও
+            Share-এ হুবহু সেটাই যায়। -->
+    <LinearLayout android:id="@+id/drRemarkBar" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:background="@color/white" android:paddingHorizontal="14dp" android:paddingVertical="6dp" android:visibility="gone">
+        <LinearLayout android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:orientation="vertical">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Doctor&apos;s Remark on paper" android:textSize="13.5sp" android:textColor="#123A26" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Turn off before giving the print to the patient" android:textSize="10.5sp" android:textColor="#8B98A9" />
+        </LinearLayout>
+        <com.google.android.material.switchmaterial.SwitchMaterial android:id="@+id/swDrRemark" android:layout_width="wrap_content" android:layout_height="wrap_content" android:checked="true" />
+    </LinearLayout>
     <LinearLayout android:id="@+id/bottomActionBar" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:background="@color/white" android:elevation="8dp" android:paddingHorizontal="12dp" android:paddingVertical="5dp">
         <com.google.android.material.button.MaterialButton android:id="@+id/btnBack" style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="wrap_content" android:layout_height="36dp" android:minHeight="0dp" android:insetTop="0dp" android:insetBottom="0dp" android:paddingHorizontal="12dp" android:textSize="12.5sp" android:text="◀ Back" app:strokeColor="#0C9E33" android:textColor="#0C9E33" />
         <!-- 🔴🔒 V501 (TK-নির্দেশ ২১.০৮.২০২৬, ফটো-প্রুফ অনুমোদিত):

@@ -8912,3 +8912,13 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
   /* ডান দিকের তির-চিহ্নটা নরম রঙে */
   .compactDashGrid .card.module.wlv1Tile:after{color:#AFC0CE!important}
 }
+
+/* 📝🔒 V1276 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ — তালিকা সারি ৩৯৮) —
+   Check-up A4 পাতার "Doctor's Remark on paper" সুইচের সারি।
+   ⛔ শুধু এই একটাই নতুন ক্লাস; আগের কোনো নিয়ম ছোঁয়া হয়নি।
+   ⛔ ফোন ও কম্পিউটার দুটোতেই একই দেখায় (মাপ শতাংশে, স্থির চওড়া নেই)। */
+.wlv1A4DremBar{display:flex;align-items:center;gap:10px;background:#fff;
+  border:1px solid #DCEAE1;border-radius:12px;padding:10px 12px;margin:0 0 10px;cursor:pointer}
+.wlv1A4DremBar input{width:18px;height:18px;flex:0 0 auto;accent-color:#128040}
+.wlv1A4DremBar span{font-size:13.5px;color:#123A26;line-height:1.45}
+.wlv1A4DremBar small{color:#8B98A9;font-size:11.5px}

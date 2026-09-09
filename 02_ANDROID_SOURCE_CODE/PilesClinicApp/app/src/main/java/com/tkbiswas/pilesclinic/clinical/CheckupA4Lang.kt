@@ -220,6 +220,9 @@ object CheckupA4Lang {
         "sec6" to "DISEASE PICTURE &middot; PART 6",
         "sec7" to "TREATMENT PLAN &amp; COUNSELLING",
         "sec8" to "ESTIMATE &amp; DECISION",
+        /* 📝🔒 V1276 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ — তালিকা সারি ৩৯৮):
+           ডাক্তারের মন্তব্যের ভাগটা এতদিন কাগজে **ছিলই না**। */
+        "sec9" to "DOCTOR&#39;S REMARK",
         "complaint" to "Chief Complaint", "duration" to "Duration",
         "occupation" to "Occupation", "prevTreatment" to "Prev. Treatment",
         "patientSaid" to "Patient Said",
@@ -240,6 +243,7 @@ object CheckupA4Lang {
         "sec6" to "রোগের ছবি &middot; ভাগ 6",
         "sec7" to "চিকিৎসা পরিকল্পনা ও পরামর্শ",
         "sec8" to "খরচের হিসাব ও সিদ্ধান্ত",
+        "sec9" to "ডাক্তারের মন্তব্য",   // 📝 V1276
         "complaint" to "প্রধান সমস্যা", "duration" to "কতদিন ধরে",
         "occupation" to "পেশা", "prevTreatment" to "পূর্বের চিকিৎসা",
         "patientSaid" to "রোগী যা বললেন",
