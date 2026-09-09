@@ -7859,14 +7859,25 @@ function _followupCore(tab='Inquiry'){
  let titles={Inquiry:'Follow-up',Patient:'Follow-up',Treatment:'Follow-up'};
  let tabs=['Inquiry','Patient','Treatment'].map(t=>`<button class="followTab ${t===tab?'active':''}" onclick="wlv1FuTab('${t}')"><span>${t==='Inquiry'?'👥':t==='Patient'?'👣':'👤'}</span>${stageLabel(t)}</button>`).join('');
  // 🆕 TK-নির্দেশ (04.08.2026): "My Call" — ফোনের মতোই "All"-এর ঠিক পরে (B213)।
- let fmodes=['All','My Call','Today','Overdue','This Week','This Month','⏰ Custom Date'];
+ /* 🚫🔒 V1265 (০৯.০৯.২০২৬, TK-নির্দেশ: *"custom date to sheet এ কোন icon
+    থাকবে না"*) — Custom Date থেকে Sheet পর্যন্ত ছাঁকনির বোতামগুলো থেকে
+    ছবি-অক্ষর (emoji) তুলে দেওয়া হলো, শুধু লেখা থাকল।
+    ⛔ প্রতিটা বোতাম **কোন ছাঁকনি চালায় সেই মান এক অক্ষরও বদলায়নি** —
+       নিচের `val` আগে emoji-সহ নাম মিলিয়ে মান বসাত; emoji উঠে যাওয়ায়
+       এখন নামটাই মান, আর দুটো হুবহু এক (মিলিয়ে দেখা)।
+    ⛔ ফোনের `activity_followup.xml`-এও একই সাতটা লেখা থেকে emoji তোলা হলো,
+       নইলে দুই জায়গায় দুরকম দেখাত (নিয়ম ৮)। */
+ let fmodes=['All','My Call','Today','Overdue','This Week','This Month','Custom Date'];
  // 🟢🔒 V646 (২৫.০৮.২০২৬, TK-নির্দেশ — "২ যায়গায়ই থাকবে") — Enquiry ট্যাবে
  // "Unexpected", Patient(Treatment) ট্যাবে "Running/Incomplete/Complete" —
  // Android-এর একই বাড়তি চিপ, শুধু প্রাসঙ্গিক ট্যাবেই দেখা যায়।
- if(tab==='Inquiry') fmodes=fmodes.concat(['🌙 Unexpected']);
- if(tab==='Treatment') fmodes=fmodes.concat(['🏃 Running','⏳ Incomplete','✅ Complete']);
+ if(tab==='Inquiry') fmodes=fmodes.concat(['Unexpected']);
+ if(tab==='Treatment') fmodes=fmodes.concat(['Running','Incomplete','Complete']);
  let cur=__followDateFilter.mode||'All';
- let fbtns=fmodes.map(m=>{let val=(m==='All'?'':(m==='⏰ Custom Date'?'Custom Date':(m==='🌙 Unexpected'?'Unexpected':(m==='🏃 Running'?'Running':(m==='⏳ Incomplete'?'Incomplete':(m==='✅ Complete'?'Complete':m))))));
+ /* 🚫 V1265 — emoji উঠে যাওয়ায় প্রতিটা নামই এখন সরাসরি তার নিজের মান
+    ("All" ছাড়া, যেটা আগের মতোই ফাঁকা)। ⛔ আগের লম্বা শর্তগুলো ঠিক এই একই
+    ছ'টা মানই বসাত — তাই ফল হুবহু এক, কোনো ছাঁকনি বদলায়নি। */
+ let fbtns=fmodes.map(m=>{let val=(m==='All'?'':m);
    let on=(cur===val)||(m==='All'&&!__followDateFilter.mode);
    return `<button class="wlv1FuFilter ${on?'on':''}" onclick="wlv1FollowFilter('${tab}','${val}')">${m}</button>`}).join('')
    /* 🔒 খাতার সারি B116 (TK পাশ, 29.07.2026): ছাঁকনির সারির শেষে "⬇ Sheet" —
@@ -7874,10 +7885,10 @@ function _followupCore(tab='Inquiry'){
       ⛔ শুধু একটা বোতাম **যোগ** হলো; উপরের ছাঁকনির বোতামগুলো ও তাদের কাজ
          এক অক্ষরও বদলায়নি। ⛔ ক্লাউডে একটাও অনুরোধ যায় না — যে সারিগুলো
          পর্দায় আছে সেগুলো থেকেই ফাইল বানে। */
-   + `<button class="wlv1FuFilter" onclick="wlv1SerialJump('${tab}')">🔢 Serial No.</button>`
+   + `<button class="wlv1FuFilter" onclick="wlv1SerialJump('${tab}')">Serial No.</button>`
    /* 🔴 V512 — মিশ্র-মোডে ফাইলেও তিন ভাগই (`__ALL__`), নইলে পর্দায় যা দেখছেন
       তার এক-তৃতীয়াংশই ফাইলে নামত। */
-   + `<button class="wlv1FuFilter" onclick="wlv1DownloadSheet('${__wlv1FuAllSections?'__ALL__':tab}')">⬇ Sheet</button>`;
+   + `<button class="wlv1FuFilter" onclick="wlv1DownloadSheet('${__wlv1FuAllSections?'__ALL__':tab}')">Sheet</button>`;
  /* 🔴🔴🆕🔒 V436 (একই রিপোর্ট) — **দ্বিতীয় কারণ:** উপরের তিনটে সংখ্যা
     (`112 Enquiry · 64 Visit · 0 Patient`) **সব ব্রাঞ্চ মিলিয়ে** গোনা হত,
     অথচ নিচের তালিকাটা শুধু বাছা ব্রাঞ্চের (`wlv1BranchGate` পরে বসত)।

@@ -8780,3 +8780,57 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
   .card.brPerm>button:hover{background:#FFF5E2!important;
     box-shadow:0 4px 12px rgba(122,90,20,.16)!important}
 }
+/* ═══════════════════════════════════════════════════════════════════════
+   🖥️🎨 V1265 (০৯.০৯.২০২৬, TK-নির্দেশ: *"৭ নম্বর Follow-up পর্দাটা সুন্দর
+   করুন"* · খাতার সারি ১১৩) — **শুধু কম্পিউটারের চওড়া পর্দায়** Follow-up।
+   ⛔ পুরো ব্লকটা `min-width:1200px`-এর ভিতরে ⇒ ফোনে এক পিক্সেলও বদলায় না।
+   ⛔ প্রতিটা নিয়ম `.card.followCard.finalFollow.anFu`-এর ভিতরে, তাই শুধু
+      Follow-up-এর কার্ডেই খাটে — অন্য পর্দার `.card` বা `button`-এ নয়।
+   ⛔ কার্ডের গঠন · তথ্য · বোতামের কাজ · রঙের মানে — কিচ্ছু বদলায়নি;
+      শুধু কোণ · ছায়া · উচ্চতা · হাত রাখলে সাড়া।
+   ═══════════════════════════════════════════════════════════════════════ */
+@media (min-width:1200px){
+  /* কার্ড — নরম ছায়া, মাউস রাখলে হালকা উঠে আসে (বাঁ দিকের রঙিন দাগ অটুট) */
+  .card.followCard.finalFollow.anFu{
+    box-shadow:0 2px 10px rgba(16,40,64,.06)!important;
+    transition:box-shadow .18s ease,transform .18s ease,border-color .18s ease}
+  .card.followCard.finalFollow.anFu:hover{
+    box-shadow:0 10px 24px rgba(16,40,64,.11)!important;
+    transform:translateY(-2px);border-color:#CFE0EC!important}
+
+  /* PRESCRIPTION বড়ি — একটু বড় ও পরিষ্কার */
+  .card.followCard.finalFollow.anFu .anFuRx{padding:5px 11px!important;
+    font-size:10.5px!important;border-radius:999px!important;letter-spacing:.4px!important}
+  .card.followCard.finalFollow.anFu .anFuRx:hover{background:#DBEAFE!important}
+
+  /* শেষ কল / পরের কলের বাক্স — নরম কোণ, একটু বেশি শ্বাস */
+  .card.followCard.finalFollow.anFu .anFuRemark{border-radius:14px!important;
+    padding:11px 13px 12px!important}
+
+  /* নিচের চারটে বোতাম — সমান, একটু লম্বা, নরম ছায়া ও সাড়া */
+  .card.followCard.finalFollow.anFu .followActions{gap:10px!important}
+  .card.followCard.finalFollow.anFu .followActions button{
+    height:44px!important;min-height:44px!important;max-height:44px!important;
+    border-radius:12px!important;font-size:15px!important;
+    box-shadow:0 2px 7px rgba(16,40,64,.16)!important;
+    transition:box-shadow .16s ease,transform .16s ease,filter .16s ease}
+  .card.followCard.finalFollow.anFu .followActions button:hover{
+    box-shadow:0 6px 14px rgba(16,40,64,.22)!important;
+    transform:translateY(-1px);filter:brightness(1.06)}
+
+  /* টাকার দুটো ছোট ঘর — একটু বড়, তাই সংখ্যা পড়া যায় */
+  .card.followCard.finalFollow.anFu .anFuBill,
+  .card.followCard.finalFollow.anFu .anFuDue{padding:5px 8px!important;
+    font-size:10.5px!important;border-radius:9px!important}
+}
+
+/* 📏🔒 V1265 (TK: *"all to sheet এক লাইনেই থাকবে"*) — Follow-up-এর ছাঁকনির
+   বোতামগুলো কম্পিউটারে দুই লাইনে ভেঙে যেত। এখন **এক লাইনেই** — অক্ষর ও
+   ফাঁক একটু ছোট করে বারোটাই এক সারিতে বসানো হলো।
+   ⛔ শুধু `min-width:1200px` ⇒ ফোনে আগের মতোই (ওখানে এক লাইনে সরে-সরে দেখা যায়)।
+   ⛔ কোন ছাঁকনি আছে · কে কী করে — কিচ্ছু বদলায়নি, শুধু মাপ। */
+@media (min-width:1200px){
+  .wlv1FuFilters{flex-wrap:nowrap!important;gap:5px!important;overflow:visible!important}
+  .wlv1FuFilter{flex:0 0 auto!important;height:32px!important;padding:0 9px!important;
+    font-size:11px!important;white-space:nowrap!important;border-radius:11px!important}
+}
