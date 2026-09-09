@@ -8834,3 +8834,41 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
   .wlv1FuFilter{flex:0 0 auto!important;height:32px!important;padding:0 9px!important;
     font-size:11px!important;white-space:nowrap!important;border-radius:11px!important}
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   🖥️🎨 V1266 (০৯.০৯.২০২৬, TK-নির্দেশ: *"৮ নম্বর Payment পর্দাটা সুন্দর
+   করুন"* · খাতার সারি ১১৩) — **শুধু কম্পিউটারের চওড়া পর্দায়** Payment।
+
+   🔴 **আসল দোষটা মেপে বের করা হয়েছে (ব্রাউজারে):** রোগের গোলাপি চিপটা
+      (`payDisChip`) কম্পিউটারে **২৯৭px চওড়া** হয়ে যেত — অর্থাৎ লেখা শেষ
+      হয়ে গেলেও গোলাপি রংটা পুরো সারি জুড়ে টানা থাকত, দেখতে খারাপ লাগত।
+      কারণ: V1150-এ চিপটাকে **নামের নিচের লাইনে** নামানোর জন্য
+      `flex:0 0 100%` দেওয়া হয়েছিল — সেটা লাইন ভাঙে ঠিকই, কিন্তু চিপটাকেও
+      পুরো চওড়া করে দেয়।
+   ⇒ এখন তিনটে চিপ একটা মোড়কের (`payChips`) ভিতরে; **মোড়কটাই** পুরো চওড়া নেয়
+     (তাই V1150-এর নিয়ম অটুট — চিপ নামের নিচের লাইনেই থাকে), আর চিপগুলো
+     নিজের লেখার মাপেই থাকে।
+   ⛔ ফোনে মোড়কটা `display:contents` ⇒ ব্রাউজার ওটাকে গোনেই না, চিপগুলো
+      হুবহু আগের মতোই নামের পাশে বসে — ফোনের চেহারা এক পিক্সেলও বদলায়নি।
+   ⛔ টাকার অঙ্ক · সারির ক্রম · কে কী দেখেন — কিচ্ছু বদলায়নি।
+   ═══════════════════════════════════════════════════════════════════════ */
+.payChips{display:contents}
+
+@media (min-width:1200px){
+  /* মোড়কটাই লাইন ভাঙে; চিপ নিজের মাপে থাকে */
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payNameRow .payChips{
+    display:flex!important;flex:0 0 100%!important;flex-wrap:wrap;gap:6px;align-items:center}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payNameRow .payDisChip{
+    flex:0 0 auto!important;width:max-content!important}
+
+  /* সারিতে মাউস রাখলে হালকা রং — কোন সারিতে আছি বোঝা যায় */
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payListRow2{
+    border-radius:12px;transition:background .15s ease,box-shadow .15s ease}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payListRow2:hover{
+    background:#F4F9FD;box-shadow:0 3px 12px rgba(16,40,64,.08)}
+
+  /* টাকার ঘরটা একটু বড় ও পরিষ্কার */
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payAmount2{
+    padding:8px 12px!important;border-radius:11px!important}
+  body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payAmount2 b{font-size:15.5px!important}
+}
