@@ -1111,6 +1111,36 @@ class FollowUpRepository(private val context: Context? = null) {
     }
 
     /** patients/payments — upsert-only (কখনো row সরানো হয় না, উপরের কারণেই)। */
+    /* 💸🔒 V1282 (০৯.০৯.২০২৬, TK-র অনুমতি — তালিকা সারি ৪০৫, ধাপ ২ক; TK: *"আমি কোন
+       প্রকার ঝুঁকি নিতে চাইছি না"*) — **Doctor Queue-র জন্য Follow-up-এর রোগী-তালিকা
+       ভাগ করে দেওয়া।** মেপে দেখা: Queue-র প্রতিটা ঘর `PATIENT_COLS`-এর ভিতরেই আছে,
+       আর দুটোর ব্রাঞ্চ-ছাঁকনিও হুবহু এক (`or=(branch.eq.X,branch.is.null)`, limit 5000)।
+       ⇒ Follow-up-এর Patient/Treatment ট্যাব গত ৩ ঘণ্টায় পূর্ণ পড়া করে থাকলে, Queue
+         আর নিজে ২ MB নামায় না — জমানো তালিকার উপরে শুধু `updatedAt` বদলানো সারি
+         বসিয়ে সেটাই পায়।
+       ⛔ **কখনো Follow-up-এর নিজের ঘড়ি (`since_`/`fullAt_`) ছোঁয় না** — শুধু পড়ে।
+       ⛔ তালিকা তাজা না থাকলে (Follow-up খোলা হয়নি / ৩ ঘণ্টা পার) `null` ⇒ Queue
+          **হুবহু আগের মতো নিজের পড়াই** করে — কোনো আচরণ বদলায় না। */
+    fun sharedPatientsOrNull(branchFilter: String?): JSONArray? {
+        val sp = deltaPrefs() ?: return null
+        val branchKey = branchKeyPart(branchFilter)
+        val now = System.currentTimeMillis()
+        var bestSince: String? = null
+        var bestFullAt = 0L
+        for (stage in listOf("Treatment", "Patient")) {
+            val k = "${stage.lowercase()}_$branchKey"
+            val since = sp.getString("since_$k", null) ?: continue
+            val fullAt = sp.getLong("fullAt_$k", 0L)
+            if (since.isBlank() || fullAt <= 0L || (now - fullAt) > FU_FULL_REFRESH_INTERVAL_MS) continue
+            if (fullAt > bestFullAt) { bestFullAt = fullAt; bestSince = since }
+        }
+        val since = bestSince ?: return null
+        if (loadCachedArray("prepatients_$branchKey").length() == 0) return null
+        return try {
+            deltaUpsertOnlyOrNull("patients", PATIENT_COLS, branchScopeFilterPlain(branchFilter), "prepatients_$branchKey", since)
+        } catch (_: Throwable) { null }
+    }
+
     private fun deltaUpsertOnlyOrNull(table: String, cols: String, extraFilter: String, cacheKey: String, since: String): JSONArray? {
         val sinceEnc = try { java.net.URLEncoder.encode(since, "UTF-8") } catch (_: Throwable) { since }
         val filter = "updatedAt=gt.$sinceEnc" + (if (extraFilter.isNotBlank()) "&$extraFilter" else "")

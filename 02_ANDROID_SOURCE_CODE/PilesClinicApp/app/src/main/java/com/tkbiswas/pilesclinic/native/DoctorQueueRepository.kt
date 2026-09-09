@@ -280,7 +280,11 @@ class DoctorQueueRepository(private val context: Context? = null) {
             "id,name,mobile,branch,disease,patientId,photo,queue,stage,doctorComplete,createdBy,registeredBy,createdAt,updatedAt,bill,registrationDate,queuedAt"
         else
             "id,name,mobile,branch,disease,patientId,queue,stage,doctorComplete,createdBy,registeredBy,createdAt,updatedAt,bill,registrationDate,queuedAt"
-        val rowsRaw = SupabaseClient.fetchListSlimOrNull("patients", filter, 5000, cols)
+        /* 💸🔒 V1282 (তালিকা সারি ৪০৫, ধাপ ২ক) — ছবি ছাড়া পথে আগে Follow-up-এর
+           ভাগাভাগি রোগী-তালিকা (`sharedPatientsOrNull`) — একই ঘর, একই ছাঁকনি, একই
+           limit; পাওয়া না গেলে **হুবহু আগের পড়া**। ছবিসহ পথ (includePhoto) অটুট। */
+        val shared = if (!includePhoto) try { FollowUpRepository(context).sharedPatientsOrNull(branchFilter) } catch (_: Throwable) { null } else null
+        val rowsRaw = shared ?: SupabaseClient.fetchListSlimOrNull("patients", filter, 5000, cols)
         if (rowsRaw == null) loadCachedQueue(branchFilter)?.let { return it }
         val rows = rowsRaw ?: JSONArray()
 
