@@ -24294,3 +24294,16 @@ TK: *"এর আগেও তো এই বিষয়ে কথা হয়�
 সারমর্ম: ২১.০৮ ৬৩৩ → ০১–০২.০৯ ২৭০/২০৭ (লক্ষ্য ১৬৫-র কাছে) → ০৩.০৯ থেকে আবার ~৪০০ MB।
 কারণ জানা নেই — দিনলিপির ধাপ ৩ক লগ-query TK-কে দেওয়া হলো। (TK-র মনে থাকা V882 আসলে
 Wi-Fi-তারিখের কাজ; egress-এর ভার্সন V818/V820 ও V997/V999।)
+
+## ০৯.০৯.২০২৬ ২২:৩০ — লগ-মাপ (Last hour, রাত ৯.১৪–১০.১৪) — কোড বদল নেই
+
+TK Log Explorer-এ চালালেন (নতুন unified logs syntax)। ফল: followups ৬৫৫ · patients ২২১ ·
+payments ১৭৭ · deleted_records ১২৩ · enquiries ১০৯ · briefings ৭৮ ডাক/ঘণ্টা।
+followups-এর ভিতরে: পূর্ণ তালিকা (`select=address,age,branch,callCount…` = FOLLOWUP_COLS)
+~২১ বার/ঘণ্টা; Chamber বোর্ডের তালিকা (`FOLLOWUP_COLS_CHAMBER_BOARD`) ~২১ বার;
+RefundedRecords (`id,mobile,status,stage`) ১১ বার; Jalpaiguri-র fingerprint ১৩ বার।
+🔴 **অচেনা ডাক:** `?mobile=like.*<নম্বর>&select=id&limit=1` — প্রতি নম্বরে ৮–১০ বার/ঘণ্টা,
+অনেক নম্বর। **আজকের ফোন-কোডে বা ওয়েবে এই রূপের ডাক নেই** (পুরো গাছ + git ইতিহাস
+খুঁজে; একমাত্র কাছাকাছি জায়গায় stage/status ছাঁকনিও থাকে)। ⇒ সন্দেহ: পুরনো APK বা
+অন্য উৎস — প্রমাণ নেই, তাই "দোষ" বলা হয়নি। পরের ধাপ: ২৪ ঘণ্টার ঘণ্টা-ভাগ query।
+BackgroundRefreshWorker ১৫ মিনিটে (রাত ১০টার পর শুধু flush) — একাই এটা ব্যাখ্যা করে না।
