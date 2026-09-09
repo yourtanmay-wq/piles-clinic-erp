@@ -8872,3 +8872,43 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
     padding:8px 12px!important;border-radius:11px!important}
   body.hasDeskNav .wrap:not(.publicWrap) .paymentPro.wlv1Pay .payAmount2 b{font-size:15.5px!important}
 }
+/* ═══════════════════════════════════════════════════════════════════════
+   🖥️🎨 V1267 (০৯.০৯.২০২৬, TK-নির্দেশ: *"১ নম্বর Dashboard পর্দাটাও সুন্দর
+   করুন"* · খাতার সারি ১১৩) — **শুধু কম্পিউটারের চওড়া পর্দায়** হোম পর্দা।
+   ⛔ পুরো ব্লকটা `min-width:1200px`-এর ভিতরে ⇒ ফোনে এক পিক্সেলও বদলায় না।
+   ⛔ নিয়মগুলো শুধু হোমের ঘরেই (`compactDashGrid` · `wlv1Tile` · `dashKpi`)
+      — এই নামগুলো অন্য কোনো পর্দায় নেই (খুঁজে দেখা)।
+   ⛔ কোন ঘর কোথায় · কে কী দেখেন · কোন সংখ্যা — কিচ্ছু বদলায়নি; শুধু
+      মাপ · কোণ · ছায়া · হাত রাখলে সাড়া।
+   ═══════════════════════════════════════════════════════════════════════ */
+@media (min-width:1200px){
+  /* উপরের দুটো বড় ঘর — সংখ্যা বড়, মাউস রাখলে হালকা ওঠে */
+  .dashKpi{border-radius:18px!important;padding:16px 18px!important;
+    box-shadow:0 2px 10px rgba(16,40,64,.06);
+    transition:box-shadow .16s ease,transform .16s ease}
+  .dashKpi:hover{box-shadow:0 9px 22px rgba(16,40,64,.12);transform:translateY(-2px)}
+  .dashKpi .ic{width:54px!important;height:54px!important;flex:0 0 54px!important;
+    border-radius:16px!important;font-size:24px!important}
+  .dashKpi .tx span{font-size:13.5px!important}
+  .dashKpi .tx b{font-size:27px!important}
+
+  /* নিচের ঘরগুলো — একটু লম্বা, নরম ছায়া, মাউস রাখলে ওঠে */
+  .compactDashGrid{gap:16px!important}
+  .compactDashGrid .card.module.wlv1Tile{
+    min-height:96px!important;border-radius:18px!important;
+    background:#fff!important;border:1px solid #E4EDF3!important;
+    box-shadow:0 2px 10px rgba(16,40,64,.06)!important;
+    transition:box-shadow .18s ease,transform .18s ease,border-color .18s ease}
+  .compactDashGrid .card.module.wlv1Tile:hover{
+    box-shadow:0 10px 24px rgba(16,40,64,.12)!important;
+    transform:translateY(-2px);border-color:#CFE0EC!important}
+
+  /* আইকনের টালি ও নাম */
+  .compactDashGrid .wlv1Chip{width:48px!important;height:48px!important;
+    border-radius:15px!important;font-size:25px!important}
+  .compactDashGrid .wlv1TileLabel{font-size:14.5px!important;color:#10314F!important;
+    letter-spacing:-.1px!important}
+
+  /* ডান দিকের তির-চিহ্নটা নরম রঙে */
+  .compactDashGrid .card.module.wlv1Tile:after{color:#AFC0CE!important}
+}
