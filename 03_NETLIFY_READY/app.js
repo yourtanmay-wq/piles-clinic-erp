@@ -1967,7 +1967,7 @@ let rtWired=false;
 // তাই এখানকার আসল Egress-খরচ এমনিতেই কম — তাই এই টেবিল যেমন ছিল তেমনই
 // (select='*') রাখা হলো।
 const RT_NO_PHOTO_COLS={
- followups:'address,age,branch,callCount,convertedPatientId,createdAt,createdBy,date,disease,history,id,lastCallDate,lastRemark,mobile,name,nextFollow,patientId,refId,registrationDate,sex,stage,status,timeType,timeSource,refBy,refDoctor,refDoctorMobile,updatedAt,visitDate',
+ followups:'address,age,branch,callCount,convertedPatientId,createdAt,createdBy,date,disease,history,id,lastCallDate,lastRemark,mobile,name,nextFollow,noMoreCalls,patientId,refId,registrationDate,sex,stage,status,timeType,timeSource,refBy,refDoctor,refDoctorMobile,updatedAt,visitDate',
  patients:'address,age,bill,branch,complaint,completeApprovedBy,completeRequestedBy,createdAt,createdBy,date,decision,diagnosis,discount,billBeforeDiscount,discountReason,discountBy,discountAt,disease,doctorAdvice,doctorComplete,doctorFullNote,id,medicalHistory,mobile,name,occupation,patientId,previousCost,previousResult,previousTreatment,queue,refBy,refDoctor,refDoctorMobile,refundRestoredBy,registeredBy,registrationDate,sex,sinceWhen,stage,timeType,timeSource,treatmentDuration,updatedAt,visitDate',
  medical:'id,patientId,type,date,selected,days,details,nextFollow,diagnosis,decision,doctorFullNote,name,mobile,branch,createdBy,createdAt,updatedAt'
 };
@@ -3803,11 +3803,25 @@ window["masterUserPhotoManager"]=masterUserPhotoManager;
    সংখ্যা কখনোই মিলত না, আর একদিন বাদ পড়া কল কম্পিউটারে চিরতরে হারিয়ে যেত।
    ⛔ তারিখ ফাঁকা হলে (কল ঠিক করাই নেই) আগের মতোই গোনা হয় না।
    ⛔ Converted/Closed বাদ দেওয়ার নিয়ম এক অক্ষরও বদলায়নি। */
+/* 📵🔒 V1283 (তালিকা সারি ৪০৬) — একই নম্বরের **যেকোনো** সারি থামানো থাকলে
+   সবগুলোই থামানো ধরা (জোড়া সারির চিহ্ন অন্য সারিতে থাকতে পারে — SQL-এ মাপা)।
+   ৩ সেকেন্ডের জন্য জমিয়ে রাখা হয়, যাতে বড় তালিকায় বারবার গোনা না লাগে। */
+var __wlv1StopMemo={t:0,set:null};
+function wlv1StoppedMobiles(){
+  var n=Date.now();
+  if(__wlv1StopMemo.set&&(n-__wlv1StopMemo.t)<3000) return __wlv1StopMemo.set;
+  var s=new Set();
+  try{ load('followups').forEach(function(f){ if(f&&f.noMoreCalls){ var m=mob(f.mobile); if(m.length===10) s.add(m) } }) }catch(_e){}
+  __wlv1StopMemo={t:n,set:s};
+  return s;
+}
+window["wlv1StoppedMobiles"]=wlv1StoppedMobiles;
 function wlv1CallDue(x){
   var d=String((x&&x.nextFollow)||'');
   if(!d) return false;
   /* 📵 V1206 — "আর কল লাগবে না" বলা সারি কল-তালিকায় আর আসে না (ফোনের যমজ)। */
   if(x&&x.noMoreCalls) return false;
+  try{ var __m=mob(x&&x.mobile); if(__m.length===10&&wlv1StoppedMobiles().has(__m)) return false }catch(_e){}
   if(d>today()) return false;
   try{ if(isConvertedOrClosed(x)) return false }catch(_e){}
   return true;
@@ -7707,7 +7721,7 @@ let __nf=String((patch&&patch.nextFollow)||x.nextFollow||'').trim();
    (এটাই ছিল নাম ফিরে আসার আসল কারণ)। ফোনের হুবহু যমজ। */
 let __stopped=(patch&&patch.noMoreCalls!==undefined)?!!patch.noMoreCalls:!!x.noMoreCalls;
 let __nfFix=(__stopped||(patch&&patch.nextFollow))?{}:((!__nf||__nf<today())?{nextFollow:today()}:{});
-rows[i]={...x,...patch,...__nfFix,callCount:inc,lastCallDate:today(),updatedAt:new Date().toISOString(),history:[...(x.history||[]),historyItem]};save('followups',rows);closeModal();followup(redirectStage||x.stage)}
+rows[i]={...x,...patch,...__nfFix,callCount:inc,lastCallDate:today(),updatedAt:new Date().toISOString(),history:[...(x.history||[]),historyItem]};/* 📵🔒 V1283 (তালিকা সারি ৪০৬) — ফোনের যমজ: থামালে/চালু করলে একই নম্বরের **সব চালু সারিতে** একই চিহ্ন (থামালে তারিখও ফাঁকা); জোড়া সারিতে চিহ্ন না বসলে পরের কল/টাকায় নাম ফিরে আসত (SQL-এ মাপা)। ⛔ Cancelled/Incomplete/Rejected/Closed ছোঁয়া হয় না; কিছু মোছে না। */try{if(patch&&patch.noMoreCalls!==undefined){try{__wlv1StopMemo={t:0,set:null}}catch(_e){}var __sm=mob(x.mobile),__st=!!patch.noMoreCalls,__sn=new Date().toISOString();if(__sm.length===10)for(var __j=0;__j<rows.length;__j++){if(__j===i)continue;var __r=rows[__j];if(!__r||mob(__r.mobile)!==__sm)continue;if(['Cancelled','Incomplete','Rejected','Closed'].indexOf(String(__r.status||''))>=0)continue;if(!!__r.noMoreCalls===__st&&(!__st||!String(__r.nextFollow||'')))continue;rows[__j]=Object.assign({},__r,{noMoreCalls:__st,updatedAt:__sn},__st?{nextFollow:''}:{})}}}catch(_e){}save('followups',rows);closeModal();followup(redirectStage||x.stage)}
 window["updateFollowAction"]=updateFollowAction;
 /* 🟢🔒 V926 — গোনা ও তালিকা এখন ফোনের নিয়মে (আজ + বকেয়া)।
    ⛔ Inquiry-র দৃশ্যমানতার পুরনো ছাঁকনি (`isInquiryVisibleRow`) অটুট। */

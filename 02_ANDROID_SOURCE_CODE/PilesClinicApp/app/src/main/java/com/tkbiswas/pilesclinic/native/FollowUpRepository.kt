@@ -2214,11 +2214,20 @@ class FollowUpRepository(private val context: Context? = null) {
             /* 🔵🔒 V518: "একই নম্বর একবারই" → "একই **রোগী** একবারই"।
                ⛔ একজন রোগীর ক্ষেত্রে চাবিটা মোবাইলই — নিয়ম হুবহু আগের মতোই। */
             val dedup = ArrayList<FollowUpItem>()
+            /* 📵🔒 V1283 (তালিকা সারি ৪০৬) — একই রোগীর **যেকোনো** সারি "আর কল নয়"
+               হলে যে সারিটা কার্ড হিসেবে টিকল সেটাও থামানো ধরা হয়। নইলে চিহ্নটা
+               জোড়া সারিতে থেকে যেত আর কার্ড/গোনা অন্যটা দিয়ে চলত (SQL-এ মাপা)।
+               ⛔ কোন সারি টিকবে — সেই নিয়ম (নতুন recordDate) এক অক্ষরও বদলায়নি। */
+            val stoppedKeys = HashSet<String>()
+            for (r in items) if (r.noMoreCalls) {
+                val k = identityKey(r.refId, r.mobile)
+                if (k.isNotEmpty()) stoppedKeys.add(k)
+            }
             items.sortedByDescending { it.recordDate }.forEach { r ->
                 val m = identityKey(r.refId, r.mobile)
                 if (m.isNotEmpty() && seen.contains(m)) return@forEach
                 if (m.isNotEmpty()) seen.add(m)
-                dedup.add(r)
+                dedup.add(if (!r.noMoreCalls && m.isNotEmpty() && m in stoppedKeys) r.copy(noMoreCalls = true) else r)
             }
             items.clear(); items.addAll(dedup)
         }
@@ -3350,6 +3359,42 @@ class FollowUpRepository(private val context: Context? = null) {
         } catch (_: Exception) { null }
         rememberEditOnThisPhone(id, fields, knownRow)
         val cloudOk = SupabaseClient.updateById("followups", id, fields)
+        /* 📵🔒 V1283 (১০.০৯.২০২৬, TK-রিপোর্ট ষষ্ঠবার ও অনুমতি — তালিকা সারি ৪০৬):
+           TK: *"staff-দের বক্তব্য তারা আর কল করতে চায় না বলে চেপেছে, তারপরও
+           আবার সেই সমস্ত নম্বর ফিরে আসে Today pending call-এ"*।
+           🔴 **SQL-প্রমাণে ধরা আসল কারণ:** একই নম্বরে **জোড়া সারি** থাকে (heal-এ
+           বানানো `fu_mskc7kv…`/`fu_pat_…`)। থামানোর চিহ্ন বসত শুধু **এই একটা**
+           সারিতে (`ensureFollowUpRowId()` ক্লাউডের প্রথমটা বাছে), অথচ কার্ড ও
+           গোনা চলে **জোড়াটা** দিয়ে; পরের কল/টাকায় V1065-এর নিয়ম জোড়াটায়
+           আজকের তারিখ বসাত (৪০ থামানো সারির ৩টায় হুবহু এটাই মাপা)।
+           ⇒ এখন থামালে/চালু করলে ওই নম্বরের **সব চালু সারিতে** একই চিহ্ন বসে
+             (থামালে তারিখও ফাঁকা); চালু করলে (`stop=false`) জোড়ার শুধু চিহ্ন
+             ওঠে — ওদের তারিখ ছোঁয়া হয় না।
+           ⛔ Cancelled/Incomplete/Rejected/Closed সারি ছোঁয়া হয় না · কিছু মোছে না ·
+              ইতিহাস অটুট · ব্যর্থ হলে জমা (queue) থেকে পরে আবার চেষ্টা।
+           ⛔ `stop == null` (সাধারণ তারিখ-বদল) হলে এই ব্লক চলেই না — আগের আচরণ অটুট। */
+        if (stop != null) {
+            try {
+                val kMob = digits(knownRow?.s("mobile").orEmpty())
+                if (kMob.length == 10) {
+                    val sibs = SupabaseClient.fetchListSlimOrNull(
+                        "followups",
+                        "mobile=like.*$kMob&status=not.in.(Cancelled,Incomplete,Rejected,Closed)",
+                        20, "id,mobile,stage,status,nextFollow,noMoreCalls,updatedAt"
+                    )
+                    if (sibs != null) for (i in 0 until sibs.length()) {
+                        val s = sibs.optJSONObject(i) ?: continue
+                        val sid = s.optString("id", "")
+                        if (sid.isBlank() || sid == id) continue
+                        if (s.optBoolean("noMoreCalls", false) == stop && (!stop || s.s("nextFollow").isBlank())) continue
+                        val sf = JSONObject().put("noMoreCalls", stop).put("updatedAt", isoNow())
+                        if (stop) sf.put("nextFollow", "")
+                        rememberEditOnThisPhone(sid, sf, s)
+                        if (!SupabaseClient.updateById("followups", sid, sf)) queueFieldUpdate(sid, sf)
+                    }
+                }
+            } catch (_: Throwable) { }
+        }
         /* 📅🔒 V1245 (০৯.০৯.২০২৬, TK-রিপোর্ট ও অনুমতি — খাতার সারি ৩৬৬):
            TK: *"স্টাফরা বলছে রিমার্ক লিখেছি, পরের তারিখও দিয়েছি — তারপরেও কেন
            এগুলো আসবে"*।
