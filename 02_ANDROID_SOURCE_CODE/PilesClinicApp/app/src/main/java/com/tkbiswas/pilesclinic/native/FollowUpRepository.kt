@@ -80,6 +80,42 @@ class FollowUpRepository(private val context: Context? = null) {
         // medicalHistory · previousTreatment · previousResult।
         private const val PATIENT_COLS = "address,age,bill,branch,complaint,completeApprovedBy,completeRequestedBy,createdAt,createdBy,date,decision,diagnosis,discount,disease,doctorComplete,id,mobile,name,occupation,patientId,previousCost,queue,queuedAt,refBy,refDoctor,refDoctorMobile,refundRestoredBy,registeredBy,registrationDate,sex,sinceWhen,stage,timeType,treatmentDuration,updatedAt,visitDate"
 
+        /* 📉🔒 V1259 (০৯.০৯.২০২৬, TK-অনুমোদিত Egress-কাজ · খাতার সারি ৩৮০) —
+           **Follow-up তালিকার `payments` পড়ায় ২২টা ঘরের বদলে ৭টা।**
+
+           TK: *"কোন ভাল কাজ যেন খারাপ না হয়, সঠিকভাবে সততার সাথে গভীরে যাচাই
+           করে কাজটা করতে হবে"*।
+
+           🔬 **যাচাই (কোড ধরে, আন্দাজ নয়) — এই টেবিলের সারিগুলো এই ফাইলে
+              ঠিক দুই জায়গায় ব্যবহার হয়, আর কোথাও নয়:**
+           ① `paymentsForHigher` লুপ — পড়ে `payType` · `amount` · `mobile`
+           ② টাকার মূল লুপ (`paidByPid` / `paidByMobileFallback`) — পড়ে
+              `patientId` · `payType` · `amount` · `mobile`, আর
+              `PaymentModel.isRefundRow()` / `isApprovedRefund()` পড়ে
+              `payType` · `refundApprovalStatus`।
+           ⇒ মোট **৫টা ঘর**।
+
+           🛡️ **তার সঙ্গে দুটো ঘর ইচ্ছে করে রাখা হলো (নইলে ভালো কাজ খারাপ হত):**
+           · `id` — `deltaUpsertOnlyOrNull()` সারিগুলো **`id` ধরে** মেলায়;
+             `id` না থাকলে ওখানে সারি বাদ পড়ে যেত ⇒ টাকার হিসাব কম দেখাত।
+           · `updatedAt` — পড়ার সাজানোর ক্রম (`updatedAt.desc.nullslast`)।
+
+           ⛔ **একটাও সারি কমে না** — শুধু প্রতিটা সারির অব্যবহৃত ঘরগুলো
+              (`dailyEvents` · `progress` · `remarks` · `payLabel` ·
+              `paymentLabel` · `cashAmount` · `onlineAmount` · `mode` ·
+              `patientCode` · `branch` · `name` · `date` · `receivedBy` ·
+              `createdBy` · `createdAt`) আর নামে না ⇒ Paid · Due · Bill ·
+              কার্ড · সংখ্যা — সব এক চুলও বদলায় না।
+           ⛔ তিন জায়গাতেই **হুবহু এই একই তালিকা** বসাতে হবে — দুটো পড়া একই
+              জমানো-চাবি (`followup:payments:<ব্রাঞ্চ>`) ব্যবহার করে, আলাদা
+              তালিকা দিলে কে আগে ভরল তার উপর ফল নির্ভর করত।
+           ⛔ ঘরের নাম ভুল হলে `fetchListSlimOrNull` নিজেই চওড়া পড়ায় ফিরে যায় —
+              তখন বাড়তি ঘর আসে, কম নয়; তাই কিছু ভাঙার পথ নেই।
+           ⛔ Chamber বোর্ড · টাকার পর্দা · রিপোর্ট — এরা `PAYMENT_COLS_LIST`
+              আগের মতোই ব্যবহার করে, ছোঁয়া হয়নি। */
+        private const val PAYMENT_COLS_FOLLOWUP =
+            "id,patientId,mobile,amount,payType,refundApprovalStatus,updatedAt"
+
         /**
          * Narrowed read, with a one-time full-row safety net.
          *
@@ -1080,7 +1116,7 @@ class FollowUpRepository(private val context: Context? = null) {
             "patients", PATIENT_COLS, branchExtra, "prepatients_$branchKey", since
         ) ?: return null
         val payments = deltaUpsertOnlyOrNull(
-            "payments", SupabaseClient.PAYMENT_COLS_LIST, branchExtra, "prepayments_$branchKey", since
+            "payments", PAYMENT_COLS_FOLLOWUP, branchExtra, "prepayments_$branchKey", since   // V1259
         ) ?: return null
 
         try { sp.edit().putString("since_$stateKey", fuStampNow()).apply() } catch (_: Throwable) { }
@@ -1212,7 +1248,7 @@ class FollowUpRepository(private val context: Context? = null) {
                         SupabaseClient.fetchListSlimOrNull("patients", branchExtra.removePrefix("&"), 5000, PATIENT_COLS)
                     }
                     val freshPayments = CloudReadCache.get("followup:payments:$bKey") {
-                        SupabaseClient.fetchListSlimOrNull("payments", branchExtra.removePrefix("&"), 5000, SupabaseClient.PAYMENT_COLS_LIST)
+                        SupabaseClient.fetchListSlimOrNull("payments", branchExtra.removePrefix("&"), 5000, PAYMENT_COLS_FOLLOWUP)   // V1259
                     }
                     if (freshCloud != null && freshPatients != null && freshPayments != null) {
                         markPatientTreatmentFullDone(stage, branchFilter, freshCloud, freshPatients, freshPayments)
@@ -1439,7 +1475,7 @@ class FollowUpRepository(private val context: Context? = null) {
                     val scope = branchScopeFilter(branchFilter)
                     prePayments = if (prePaymentsOverride != null) prePaymentsOverride else
                         CloudReadCache.get("followup:payments:" + branchKeyPart(branchFilter)) {
-                            SupabaseClient.fetchListOrNull("payments", scope, 5000, select = SupabaseClient.PAYMENT_COLS_LIST)
+                            SupabaseClient.fetchListOrNull("payments", scope, 5000, select = PAYMENT_COLS_FOLLOWUP)   // V1259
                         }
                 }
             }
