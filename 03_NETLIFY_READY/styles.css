@@ -8691,3 +8691,39 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
 .wlv1CbRmpTag{margin-left:6px;font-size:10px;font-weight:800;color:#0B3D91;
   background:#E7F0FE;border:1px solid #BBD4F7;border-radius:8px;padding:1px 7px;
   letter-spacing:.4px;white-space:nowrap;vertical-align:middle}
+/* ═══════════════════════════════════════════════════════════════════════
+   🖥️🎨 V1263 (০৯.০৯.২০২৬, TK-নির্দেশ: *"৪ নম্বর Draft পর্দাটা সুন্দর করুন"*
+   · খাতার সারি ১১৩) — **শুধু কম্পিউটারের চওড়া পর্দায়** Draft।
+   ⛔ পুরো ব্লকটা `min-width:1200px`-এর ভিতরে ⇒ ফোনে এক পিক্সেলও বদলায় না।
+   ⛔ দুই কলামের সাজানো (V1211) ছোঁয়া হয়নি — সারি · গোনা · কে কোন দলে,
+      কিচ্ছু বদলায়নি; শুধু মাপ · ফাঁক · ছায়া · হাত রাখলে সাড়া।
+   ═══════════════════════════════════════════════════════════════════════ */
+@media (min-width:1200px){
+  /* দলের নাম — ছোট চাপা লেখা নয়, পরিষ্কার শিরোনাম */
+  .drSecHead{margin:0 2px 10px!important;font-size:13px!important;
+    letter-spacing:1px!important;text-transform:uppercase;color:#0B3B73!important}
+  .drSecHead span{font-size:16px}
+
+  /* দলটা একটাই পরিষ্কার কার্ড */
+  .drSec{border-radius:16px!important;border:1px solid #E4EDF3!important;
+    box-shadow:0 2px 10px rgba(16,40,64,.06)!important;margin-bottom:18px}
+
+  /* প্রতিটা সারি — বড় ছোঁয়ার জায়গা, মাউস রাখলে হালকা রং */
+  .drRow{gap:14px!important;padding:14px 18px!important;min-height:64px;
+    border-bottom:1px solid #EEF3F8!important;
+    transition:background .15s ease}
+  .drRow:hover{background:#F4F9FD!important}
+
+  /* আইকনটা এখন একটা ছোট টালি — সারিগুলো এক লাইনে সাজানো দেখায় */
+  .drIcon{width:40px;height:40px;border-radius:12px;background:#F1F6FB;
+    border:1px solid #E4EDF3;display:grid;place-items:center;font-size:19px!important}
+
+  .drTxt b{font-size:14.5px!important;color:#10314F!important;letter-spacing:-.1px}
+  .drTxt small{font-size:12px!important;color:#6B7C8D!important;margin-top:2px}
+
+  /* গোনার সংখ্যাটা একটা নরম বড়ি-র ভিতরে, তাই চোখে পড়ে */
+  .drNum{font-size:16px!important;min-width:auto!important;
+    background:#EAF6EF;border:1px solid #CFE9DA;border-radius:999px;
+    padding:5px 13px;line-height:1}
+  .drGo{font-size:19px!important;color:#AFC0CE!important;margin-left:2px}
+}
