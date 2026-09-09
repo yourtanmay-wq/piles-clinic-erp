@@ -2055,7 +2055,17 @@ class FollowUpRepository(private val context: Context? = null) {
                         .put("lastRemark", row.s("remarks"))
                         .put("nextFollow", row.s("nextFollow"))
                         .put("timeType", row.s("timeType"))
-                        .put("callCount", row.optInt("callCount", 0))
+                        /* 📶🔴🔒 V1268 (TK-রিপোর্ট: *"কল করেছে তাও ওয়াইফাই সিগনাল
+                           কেন ওঠেনি?"*) — এখানে `enquiries.callCount` কপি হত, আর
+                           ওই ঘরটা **সব সময় ০** (`EnquiryModel.buildEnquiryRow`)।
+                           নিচে `history`-ও ফাঁকা লেখা হয় ⇒ মেরামত করা সারিতে
+                           সিগন্যাল **চিরকাল ফাঁকা** থাকত।
+                           ⇒ এখন অন্তত **১** — হুবহু সেই নিয়ম যেটা
+                             `EnquiryModel.buildFollowUpRow()`-এ TK-র ৩১.০৭.২০২৬-এর
+                             নির্দেশে আগে থেকেই বসানো আছে (*"Enquiry Form Save
+                             হওয়ার সাথে সাথেই তো একটা signal হতে হতো"*)।
+                           ⛔ এনকোয়ারিতে গোনা বেশি থাকলে সেটাই থাকে, কমে না। */
+                        .put("callCount", maxOf(row.optInt("callCount", 0), 1))
                         .put("status", "Active")
                         .put("history", JSONArray())
                         .put("createdBy", row.s("createdBy"))

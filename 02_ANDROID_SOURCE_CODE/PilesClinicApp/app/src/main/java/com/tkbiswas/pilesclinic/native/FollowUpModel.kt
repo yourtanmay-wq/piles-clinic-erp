@@ -132,7 +132,30 @@ object FollowUpModel {
         nextFollow = s(row, "nextFollow"),
         recordDate = s(row, "date"),
         createdAt = s(row, "createdAt"),   // 🔒 খাতার সারি B65 — সিরিয়ালের স্থির ক্রম
-        callCount = row.optInt("callCount", 0),
+        /* 📶🔴🔒 V1268 (০৯.০৯.২০২৬, TK-রিপোর্ট ছবিসহ: *"কল করেছে তাও ওয়াইফাই
+           সিগনাল কেন ওঠেনি?"* — +918651838395, খাতায় "Enquiry Calls: 2",
+           অথচ কার্ডের সিগন্যাল ফাঁকা)।
+
+           🔬 **আসল কারণ (কোডে মেপে, আন্দাজ নয়):** সিগন্যাল-আইকনটা পড়ে
+              `followups.callCount` ঘরটা, আর ওই ঘরটা **সব সময় বাড়ত না** —
+              · V1149-এর (০৬.০৯.২০২৬) আগে গোনা বাড়ত শুধু কয়েকটা পর্দা থেকে;
+                TK-র নিজের SQL-এ মেপে পাওয়া গিয়েছিল **১৫০২টার মধ্যে ১৩৯৩টা**
+                সারিতে গোনা আর ইতিহাস দুই রকম, প্রায় সবগুলোতেই **গোনা কম**।
+                V1149 নিয়মটা সারিয়েছে, কিন্তু **পুরনো সারিগুলো ০-ই রয়ে গেছে**।
+              · আর এনকোয়ারি থেকে বানানো/মেরামত করা সারিতে `enquiries.callCount`
+                (সব সময় ০) কপি হত ⇒ সেখানেও সিগন্যাল ফাঁকা।
+
+           ⇒ **সমাধান — এই ফাইলেরই প্রমাণিত নিয়মে:** ঠিক নিচেই `lastCallDate`
+             ঘরটা ফাঁকা হলে **ইতিহাস থেকে** নেওয়া হয় (আগের একই ধরনের TK-রিপোর্টে
+             বসানো)। কল-গোনাতেও এখন সেটাই — জমানো সংখ্যা আর **ইতিহাসে গোনা
+             কলের** মধ্যে যেটা **বেশি**, সেটাই দেখানো হয়।
+           ⛔ ডেটাবেসে কিচ্ছু লেখা হয় না — শুধু **দেখানোর** সময় মিলিয়ে নেওয়া
+              (কোনো বাড়তি ক্লাউড-কল নেই, `history` ঘরটা আগে থেকেই আসে)।
+           ⛔ গোনার নিয়ম TK-র নিজের নিয়মেই: **দিনে একটাই** (খাতার সারি B53) ও
+              সর্বোচ্চ ৫ — তাই সংখ্যা কখনো লাইভ নিয়মের চেয়ে বেশি হতে পারে না।
+           ⛔ চিকিৎসার নোট (`src=treat`) ও অ্যাপের নিজের বসানো লেখা কল হিসেবে
+              গোনা হয় না — টাইমলাইনের "Enquiry Calls" গোনার একই দর্শন। */
+        callCount = maxOf(row.optInt("callCount", 0), callsFromHistory(row)).coerceIn(0, 5),
         noMoreCalls = row.optBoolean("noMoreCalls", false),   // 📵 V1206
         bill = row.optDouble("bill", 0.0),
         paid = row.optDouble("paid", 0.0),
@@ -206,6 +229,34 @@ object FollowUpModel {
             found
         }
     } catch (e: Exception) { "" }
+
+    /** 📶 V1268 — `history`-তে কতগুলো **আলাদা দিনের** কল/রিমার্ক আছে।
+     *  ⛔ TK-র "দিনে একবার" নিয়ম (B53) এখানেও, তাই এই সংখ্যা কখনো লাইভ
+     *     গোনার চেয়ে বেশি হয় না। ⛔ কিছু গোলমাল হলে ০ ফেরে — তখন আগের
+     *     জমানো সংখ্যাটাই দেখায়, অর্থাৎ আচরণ হুবহু আগের মতো। */
+    private val AUTO_STUB_REMARKS = setOf(
+        "registered patient / visit created",
+        "treatment payment / advance received",
+        "enquiry (syncing…)"
+    )
+
+    private fun callsFromHistory(row: JSONObject): Int = try {
+        val arr = row.optJSONArray("history")
+        if (arr == null || arr.length() == 0) 0 else {
+            val days = HashSet<String>()
+            for (i in 0 until arr.length()) {
+                val e = arr.optJSONObject(i) ?: continue
+                val src = if (e.isNull("src")) "" else e.optString("src", "")
+                if (src.equals("treat", ignoreCase = true)) continue
+                val remark = (if (e.isNull("remark")) "" else e.optString("remark", "")).trim()
+                if (remark.isBlank()) continue
+                if (remark.lowercase() in AUTO_STUB_REMARKS) continue
+                val d = (if (e.isNull("date")) "" else e.optString("date", "")).take(10)
+                if (d.isNotBlank()) days.add(d)
+            }
+            days.size
+        }
+    } catch (_: Throwable) { 0 }
 
     private fun lastCallDateFromHistory(row: JSONObject): String = try {
         val arr = row.optJSONArray("history")

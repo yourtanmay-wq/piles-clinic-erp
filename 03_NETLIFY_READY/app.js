@@ -6906,7 +6906,7 @@ function repairBranchWorkflowRows(){
    if(!e||!e.id||isConvertedOrClosed(e))return;
    let mm=__M(e.mobile); if(!mm)return;
    let i=__firstIdx('Inquiry',e.id,mm);
-   let base={refId:e.id,mobile:normMob(mm),name:e.name||'',branch:e.branch||'',disease:e.disease||'',address:e.address||'',stage:'Inquiry',date:e.date||today(),registrationDate:e.date||today(),visitDate:e.date||today(),lastRemark:e.remarks||'',nextFollow:e.nextFollow||'',callCount:Number(e.callCount||0),status:e.status||'Active',history:[{date:e.date||today(),time:e.createdAt||isoNow(),remark:e.remarks||'',staff:e.receivedBy||e.createdBy||''}],createdBy:e.createdBy||e.receivedBy||'',createdAt:e.createdAt||now,updatedAt:e.updatedAt||now};   /* ⏰🔒 V1005 — সময়টা এনকোয়ারির নিজের, মেরামতের মুহূর্তের নয় */
+   let base={refId:e.id,mobile:normMob(mm),name:e.name||'',branch:e.branch||'',disease:e.disease||'',address:e.address||'',stage:'Inquiry',date:e.date||today(),registrationDate:e.date||today(),visitDate:e.date||today(),lastRemark:e.remarks||'',nextFollow:e.nextFollow||'',callCount:Math.max(Number(e.callCount||0),1),   /* 📶 V1268 — enquiries.callCount সব সময় ০; ensureFollow-এর প্রমাণিত নিয়মে অন্তত ১ */status:e.status||'Active',history:[{date:e.date||today(),time:e.createdAt||isoNow(),remark:e.remarks||'',staff:e.receivedBy||e.createdBy||''}],createdBy:e.createdBy||e.receivedBy||'',createdAt:e.createdAt||now,updatedAt:e.updatedAt||now};   /* ⏰🔒 V1005 — সময়টা এনকোয়ারির নিজের, মেরামতের মুহূর্তের নয় */
    // 🟢 B626 (11.08.2026, TK-নির্দেশ · ডুপ্লিকেট/Reject-ফিরে-আসা রোগ): আগে
    //   uid('fu') দিয়ে র‍্যান্ডম id বসত — লোকাল কপিতে সারি না পেলে প্রতিবার নতুন
    //   একটা তৈরি হত (ভিন্ন id, তাই mergeById মেলাতে পারত না) → একই এনকোয়ারিতে
@@ -7367,6 +7367,37 @@ window["sortEnquiryFollowRows"]=sortEnquiryFollowRows;
    → (৩) → (৪) → বাইরের আর্ক(৫)।  ⛔ ফাংশনের নাম · প্যারামিটার · onclick ·
    বাইরের ক্লাস সব আগের মতোই, তাই signalTripleTap আগের মতোই কাজ করে।
    ⛔ callSignal() শুধু fuCard()-এ ব্যবহার হয় (যাচাই করা), অন্য কোনো পর্দায় নয়। */
+/* 📶🔴🔒 V1268 (০৯.০৯.২০২৬, TK-রিপোর্ট ছবিসহ: *"কল করেছে তাও ওয়াইফাই সিগনাল
+   কেন ওঠেনি?"*) — `history`-তে কতগুলো **আলাদা দিনের** কল/রিমার্ক আছে।
+
+   🔬 **আসল কারণ (কোডে মেপে):** সিগন্যাল পড়ে `callCount` ঘরটা, আর ওই ঘরটা
+      সব সময় বাড়ত না — V1149-এর আগে গোনা বাড়ত শুধু কয়েকটা পর্দা থেকে
+      (TK-র SQL-এ ১৫০২টার মধ্যে ১৩৯৩টায় গোনা কম ছিল), আর এনকোয়ারি থেকে
+      মেরামত করা সারিতে `enquiries.callCount` (সব সময় ০) কপি হত।
+   ⇒ এখন জমানো সংখ্যা আর ইতিহাসে গোনা কল — যেটা **বেশি** সেটাই দেখানো হয়।
+   ⛔ ডেটাবেসে কিচ্ছু লেখা হয় না, শুধু দেখানোর সময় মিলিয়ে নেওয়া।
+   ⛔ TK-র "দিনে একবার" নিয়ম (B53) ও ৫-এর সীমা এখানেও, তাই সংখ্যা কখনো
+      লাইভ গোনার চেয়ে বেশি হয় না।
+   ⛔ ফোনের `FollowUpModel.callsFromHistory()`-এর হুবহু একই নিয়ম, তাই দুই
+      জায়গায় দাগ কখনো আলাদা হবে না। */
+var WLV1_AUTO_STUB_REMARKS=['registered patient / visit created',
+  'treatment payment / advance received','enquiry (syncing…)'];
+function wlv1CallsFromHistory(x){
+ try{
+  var arr=(x&&x.history)||[]; if(!Array.isArray(arr)||!arr.length) return 0;
+  var days={},n=0;
+  for(var i=0;i<arr.length;i++){
+   var e=arr[i]||{};
+   if(String(e.src||'').toLowerCase()==='treat') continue;
+   var rem=String(e.remark||'').trim(); if(!rem) continue;
+   if(WLV1_AUTO_STUB_REMARKS.indexOf(rem.toLowerCase())>=0) continue;
+   var d=String(e.date||'').slice(0,10); if(!d) continue;
+   if(!days[d]){ days[d]=1; n++; }
+  }
+  return n;
+ }catch(_e){ return 0; }
+}
+window["wlv1CallsFromHistory"]=wlv1CallsFromHistory;
 function callSignal(n,followId,dateStr){
  n=Math.max(0,Math.min(5,Number(n||0)));
  var ON='#1067D8',OFF='#D8E4F2';
@@ -9133,7 +9164,7 @@ function fuCard(x){
 
  /* ---------- বাঁ কলাম: শুধু Enquiry-তে (FollowUpActivity.kt:1458 `if (isInquiry) topRow.addView(left)`) ---------- */
  let left=isInquiry
-  ? `<div class="anFuLeft">${callSignal(x.callCount,x.id,fmtDate(x.recordDate||x.date||'-'))}</div>`
+  ? `<div class="anFuLeft">${callSignal(Math.max(Number(x.callCount||0),wlv1CallsFromHistory(x)),x.id,fmtDate(x.recordDate||x.date||'-'))}</div>`   /* 📶 V1268 */
   : '';
 
  let wlv1AddrTagVal=wlv1AddrTagForCard(x.mobile,x.address,x.stage);
