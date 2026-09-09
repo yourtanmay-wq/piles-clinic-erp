@@ -1402,15 +1402,27 @@ class StaffProfileActivity : AppCompatActivity() {
         /* 🔵🔒 V521 — জমানো তথ্য থাকলে **সঙ্গে সঙ্গে** পর্দা; "Loading..." নয়।
            ⛔ প্রথমবার (বা ১০ মিনিটের পুরনো হলে) আগের মতোই "Loading..."। */
         val cached = salaryCacheLoad(code)
+        /* 🔵🔒 V1250 (০৯.০৯.২০২৬, TK-রিপোর্ট ছবিসহ: *"এই স্ক্রিনে ঢুকলেই স্ক্রিনটা
+           কাঁপে কেন"*, খাতার সারি ৩৭০) — জমানো তথ্য দিয়ে যেটা আঁকা হলো, তার
+           **হুবহু ছাপ** এখানে রাখা হয়। ক্লাউডের উত্তর এসে যদি ঠিক এই তথ্যই দেয়
+           (বেশির ভাগ সময় তাই হয়), তখন পর্দাটা **আর দ্বিতীয়বার আঁকা হয় না** —
+           ওই দ্বিতীয় আঁকাটাই TK-র চোখে "কাঁপা" হয়ে ধরা পড়ছিল।
+           ⛔ ছাপ না মিললে (সত্যিই কিছু বদলেছে) আগের মতোই সঙ্গে সঙ্গে নতুন করে
+              আঁকা হয় — বাসি তথ্য এক মুহূর্তও থাকে না। */
+        var cacheSig = ""
         if (cached != null) {
             try {
                 val cfg = cached.optJSONObject("cfg") ?: JSONObject()
+                val cPays = cached.optJSONArray("pays") ?: JSONArray()
+                val cJoin = cached.optString("joinDate", "")
                 renderSalary(code, box,
                     cfg.optBoolean("salary_enabled", false),
                     cfg.optDouble("salary_amount", 0.0),
                     ns(cfg, "salary_date"),
-                    cached.optJSONArray("pays") ?: JSONArray(),
-                    cached.optString("joinDate", ""))
+                    cPays, cJoin)
+                // ⛔ ছাপটা **আঁকা সফল হওয়ার পরেই** রাখা হয় — নইলে "Loading..."
+                //    লেখাটাই পর্দায় থেকে যেত।
+                cacheSig = salSignature(cfg, cPays, cJoin)
             } catch (_: Throwable) {
                 box.removeAllViews()
                 box.addView(ModuleUi.body(this, "Loading..."))
@@ -1428,7 +1440,7 @@ class StaffProfileActivity : AppCompatActivity() {
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
         })
         col.addView(ModuleUi.button(this, "Back") { renderList() })
-        loadSalary(code, box, cached != null)
+        loadSalary(code, box, cached != null, cacheSig)
     }
 
     /** 🔵 V416 (TK-নির্দেশ): তারিখ সবসময় 31/12/2026 ধাঁচে।
@@ -1557,7 +1569,13 @@ class StaffProfileActivity : AppCompatActivity() {
         } catch (_: Throwable) {}
     }
 
-    private fun loadSalary(code: String, box: LinearLayout, hadCache: Boolean = false) {
+    /** 🔵🔒 V1250 — পর্দায় এখন যা আঁকা আছে তার হুবহু ছাপ। দুটো ছাপ এক হলে
+     *  আর আঁকার দরকার নেই (পর্দা কাঁপে না)। ⛔ শুধু মেলানোর কাজ — কোনো
+     *  টাকার হিসাব বা সাজ এতে বদলায় না। */
+    private fun salSignature(cfg: JSONObject, pays: JSONArray, joinDate: String): String =
+        cfg.toString() + "\u0001" + pays.toString() + "\u0001" + joinDate
+
+    private fun loadSalary(code: String, box: LinearLayout, hadCache: Boolean = false, shownSig: String = "") {
         Thread {
             incentiveSyncThrottled()
             val cfgR = ModuleAuth.getRowsChecked("hr", "salary_config", "select=*&person_code=eq.$code&limit=1")
@@ -1600,6 +1618,11 @@ class StaffProfileActivity : AppCompatActivity() {
                 val joinDate = if (profR.ok && profR.rows.length() > 0) ns(profR.rows.getJSONObject(0), "join_date") else ""
                 // 🔵 V521: পরেরবার যেন সঙ্গে সঙ্গে দেখানো যায়
                 salaryCacheSave(code, cfg, payR.rows, joinDate)
+                /* 🔵🔒 V1250 — ক্লাউড ঠিক সেই তথ্যই দিল যা পর্দায় আঁকা আছে
+                   ⇒ আবার আঁকা মানে শুধু একটা ঝাঁকুনি, আর কিছু নয়। থামা হলো।
+                   ⛔ এক অক্ষর আলাদা হলেই নিচের আঁকাটা আগের মতোই চলে। */
+                if (shownSig.isNotEmpty() &&
+                    salSignature(cfg, payR.rows, joinDate) == shownSig) return@runOnUiThread
                 renderSalary(code, box,
                     cfg.optBoolean("salary_enabled", false),
                     cfg.optDouble("salary_amount", 0.0),
