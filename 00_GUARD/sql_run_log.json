@@ -126,8 +126,8 @@
     "sql_file": "V1270_DUPLICATE_PATIENT_DELETE_2026-09-09 (কোনো ফাইল নয় — চ্যাটে দেওয়া SQL)",
     "run_by": "TK",
     "when": "০৯.০৯.২০২৬ বিকেল ৫.০৯",
-    "result": "Success. No rows returned — লেনদেন (BEGIN/COMMIT) সম্পূর্ণ হয়েছে",
-    "proof": "TK-র Supabase পর্দার ছবি (০৯.০৯.২০২৬ ৫.০৯ pm)",
+    "result": "Success. No rows returned — লেনদেন (BEGIN/COMMIT) সম্পূর্ণ হয়েছে · **মিলিয়ে দেখা হয়েছে (৫.১২ pm): যাচাই-SQL-এ ০ সারি — patients/payments/followups তিন জায়গার একটাও সারি আর নেই**",
+    "proof": "TK-র Supabase পর্দার ছবি (০৯.০৯.২০২৬ ৫.০৯ pm) + যাচাই-SQL-এর ছবি (০ rows, ৫.১২ pm)",
     "note": "Yearly Registration-এর ৩ জোড়া ডুপ্লিকেটের বাড়তি সারি মোছা হলো — patients ৩ · payments ৩ (৪০০×৩ = ১,২০০ টাকা) · followups ৩; সঙ্গে deleted_records-এ ৯টা 'মোছা হয়েছে' চিহ্ন, যাতে কোনো ফোন/ব্রাউজারের পুরনো কপি সারিগুলো আবার ক্লাউডে না তোলে। মোছা হয়েছে: pat_7482046466 (SAGAR KUMAR SHING KNE-02062026-005) · pat_8967577917 (DHARMENDRA SAH KNE-02092026-004) · pat_9932648277 (SAHA ALAM KNE-29082026-004)। রাখা হয়েছে যেটায় চিকিৎসা/টাকা আছে, নইলে ওই দিনের প্রথম রেজিস্ট্রেশন। KALPANA BAKCHI ও HABIB TK-র নির্দেশে রাখা হয়েছে (স্টাফ ইচ্ছে করে 'Different Patient — Same Mobile' চেপেছিলেন)।"
   }
 ]
