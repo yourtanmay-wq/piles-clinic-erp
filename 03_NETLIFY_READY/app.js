@@ -10272,6 +10272,20 @@ async function savePatient(evt){
       if(btn){btn.disabled=false;btn.textContent='✓  Save Patient'}
       regHistoryWarn(closedRec,m); return;
     }
+    /* 🔴🔒 V1269 (০৯.০৯.২০২৬, TK-অনুমোদিত — খাতার সারি ৩৮৯/৩৮৯ক) — নম্বরে মিল
+       নেই, কিন্তু **একই নামে একই ব্রাঞ্চে** আগে রেজিস্ট্রেশন থাকতে পারে।
+       নম্বরে এক ঘর টাইপ-ভুল হলে ঠিক এটাই হয়েছিল (TK-র SQL-এ তিন জোড়া প্রমাণ:
+       SAGAR KUMAR SHING · DHARMENDRA SAH · SAHA ALAM)।
+       ⛔ **আটকানো হয় না** — Continue চাপলে হুবহু আগের পথেই সেভ হয়।
+       ⛔ খোঁজাটা **ব্রাউজারের নিজের জমা তালিকায়** ⇒ ক্লাউডে একটাও অনুরোধ নয়।
+       ⛔ ফোনের `checkSameNamePatient()`-এর একই নিয়ম, তাই দুই জায়গায় এক আচরণ। */
+    if(window.__regNameOk!==m){
+      let sameName=regSameNamePatients(name,br,m);
+      if(sameName.length){
+        if(btn){btn.disabled=false;btn.textContent='✓  Save Patient'}
+        regSameNameWarn(sameName,m); return;
+      }
+    }
   }
   window.__regHistOk='';
   // V225 workflow integrity: when Registration is converted from an Enquiry/Visit source,
@@ -21025,6 +21039,48 @@ function regHistoryWarn(rec,m){
 }
 window["regHistoryWarn"]=regHistoryWarn;
 function regHistoryContinue(mm){ window.__regHistOk=mm; closeModal(); savePatient(); }
+
+/* 🔴🔒 V1269 — একই নামে একই ব্রাঞ্চে আগে রেজিস্ট্রেশন আছে কিনা (ব্রাউজারের
+   জমা তালিকা থেকেই, নতুন কোনো ক্লাউড-পড়া নেই)।
+   ⛔ নাম ৩ অক্ষরের কম হলে দেখা হয় না (নইলে সব মিলে যেত)।
+   ⛔ যে নম্বরটা এখন লেখা হচ্ছে সেই সারিগুলো বাদ (ওগুলো নম্বর-পাহারার কাজ)। */
+function regSameNamePatients(name,branch,mNow){
+ try{
+  let n=String(name||'').trim().toLowerCase(), b=String(branch||'').trim().toLowerCase();
+  if(n.length<3||!b) return [];
+  return (load('patients')||[]).filter(function(x){
+    return String(x.name||'').trim().toLowerCase()===n
+        && String(x.branch||'').trim().toLowerCase()===b
+        && mob(x.mobile)!==mNow;
+  }).slice(0,20);
+ }catch(_e){ return []; }
+}
+window["regSameNamePatients"]=regSameNamePatients;
+
+function regSameNameWarn(rows,m){
+  let mm=mob(m);
+  let lines=rows.map(function(x){
+    return '<div style="margin-top:5px">• <b>'+esc(String(x.name||'').toUpperCase())+'</b>'
+      +(x.patientId?('  ·  '+esc(x.patientId)):'')
+      +(x.mobile?('  ·  '+esc(normMob(x.mobile))):'')+'</div>';
+  }).join('');
+  modal(`<h2>⚠️ Same name already registered</h2>`+
+    `<div class="card" style="display:block">`+
+    `<div style="font-weight:700">This name is already registered in this branch:</div>`+
+    lines+
+    `<div style="margin-top:10px;background:#FFF7E6;border:1px solid #F0D9A8;border-radius:10px;padding:9px 11px;color:#8A5A00;font-weight:700;font-size:12px">`+
+    `The mobile number is different, so this may be another person.`+
+    `<div style="font-weight:600;margin-top:3px">Please check the number once — one wrong digit creates a second record for the same patient.</div></div>`+
+    `</div>`+
+    `<div class="actions duplicateActions">`+
+    `<button onclick="closeModal()">Cancel</button>`+
+    `<button style="background:#1E7C43;color:#fff" onclick="regSameNameContinue('${mm}')">Continue</button>`+
+    `</div>`);
+}
+window["regSameNameWarn"]=regSameNameWarn;
+function regSameNameContinue(mm){ window.__regNameOk=mm; closeModal(); savePatient(); }
+window["regSameNameContinue"]=regSameNameContinue;
+
 window["regHistoryContinue"]=regHistoryContinue;
 
 /* ===== FIX (checklist #33): "VISITED" badge 3-tap -> Continue Follow-up / Cancel ===== */

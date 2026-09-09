@@ -1178,10 +1178,47 @@ class RegistrationActivity : AppCompatActivity() {
                     try { EnquiryRepository(this@RegistrationActivity).closedInfo(mobile) }
                     catch (_: Throwable) { EnquiryRepository.ClosedInfo(false) }
                 }
-                if (hist.closed) showHistoryWarningDialog(user, name, mobile, branch, fee, hist)
+                if (hist.closed) { showHistoryWarningDialog(user, name, mobile, branch, fee, hist); return@launch }
+                /* 🔴🔒 V1269 (০৯.০৯.২০২৬, TK-অনুমোদিত — খাতার সারি ৩৮৯/৩৮৯ক) —
+                   নম্বরে কোনো মিল পাওয়া যায়নি, কিন্তু **একই নামে একই ব্রাঞ্চে**
+                   আগে রেজিস্ট্রেশন থাকতে পারে (নম্বরে এক ঘর টাইপ-ভুল হলে ঠিক
+                   এটাই হয়েছিল — TK-র SQL-এ তিন জোড়া প্রমাণ)।
+                   ⛔ আটকানো হয় না — শুধু দেখানো হয়, স্টাফ চাইলে এগোবেন। */
+                val sameName = withContext(Dispatchers.IO) {
+                    try { repository.checkSameNamePatient(name, branch) }
+                    catch (_: Throwable) { RegistrationRepository.DuplicatePatient(false, "", "", "") }
+                }
+                if (sameName.found) showSameNameWarningDialog(user, name, mobile, branch, fee, sameName)
                 else performSave(user, name, mobile, branch, fee)
             }
         }
+    }
+
+    /* 🔴🔒 V1269 (০৯.০৯.২০২৬, TK-অনুমোদিত) — **একই নামে একই ব্রাঞ্চে আগে
+       রেজিস্ট্রেশন আছে** — শুধু সতর্কবার্তা।
+       ⛔ সেভ **আটকানো হয় না** (নামের মিল সব সময় ডুপ্লিকেট নয় — TK-র নিজের
+          SQL-ফলেই ১৩ জোড়া আলাদা মানুষ ছিল); স্টাফ "Continue" চাপলে হুবহু
+          আগের পথেই নতুন রেজিস্ট্রেশন হয়, Visit Fee/Patient ID-র নিয়ম
+          এক অক্ষরও বদলায় না।
+       ⛔ পুরনো নম্বরটাও দেখানো হয়, যাতে টাইপ-ভুল সঙ্গে সঙ্গে চোখে পড়ে। */
+    private fun showSameNameWarningDialog(
+        user: NativeUser, name: String, mobile: String, branch: String, fee: Double,
+        dup: RegistrationRepository.DuplicatePatient
+    ) {
+        val lines = dup.matches.joinToString("\n") { m ->
+            "• " + m.name.uppercase() + (if (m.patientId.isNotBlank()) "  ·  " + m.patientId else "")
+        }
+        AlertDialog.Builder(this)
+            .setCustomTitle(PremiumAlert.header(this, "⚠️ Same name already registered"))
+            .setMessage(
+                "This name is already registered in this branch:\n\n" + lines +
+                "\n\nThe mobile number is different, so this may be another person.\n" +
+                "Please check the number once — one wrong digit creates a second record for the same patient."
+            )
+            .setPositiveButton("Continue") { _, _ -> performSave(user, name, mobile, branch, fee) }
+            .setNegativeButton("Cancel", null)
+            .setCancelable(false)
+            .show().also { PremiumAlert.paint(it) }
     }
 
     /** 🔒 B601 (10.08.2026, TK-অনুমোদিত প্রুফ): নম্বরটা আগে Reject/Incomplete/

@@ -57,6 +57,49 @@ class RegistrationRepository(private val context: Context) {
         val matches: List<Match> = emptyList()
     )
 
+    /* 🔴🔒 V1269 (০৯.০৯.২০২৬ — TK-রিপোর্ট ছবিসহ ও তাঁর নিজের SQL-এ প্রমাণিত:
+       *"yearly registration এ কিছু কিছু নাম ডুপ্লিকেট কেন এসেছে"*)।
+
+       🔬 **আসল ফাঁক (TK-র SQL-ফলে মেপে, আন্দাজ নয়):** ডুপ্লিকেট-পাহারা এতদিন
+          **শুধু মোবাইল নম্বর** ধরে দেখত। কিন্তু ফলে পাওয়া গেল তিন জোড়া সারি
+          যেখানে **একই দিনে একই নাম**, অথচ নম্বরে **ঠিক এক ঘর টাইপ-ভুল** —
+          SAGAR KUMAR SHING (748204**69**66 ↔ 748204**64**66) ·
+          DHARMENDRA SAH (896**7**577917 ↔ 896**9**577917) ·
+          SAHA ALAM (993264**82**77 ↔ 993264**85**77)।
+          নম্বর আলাদা বলে পাহারা এগুলো **দেখতেই পায়নি**, তাই দ্বিতীয় রেকর্ড
+          তৈরি হয়ে গেছে।
+
+       ⇒ এখন নম্বরে মিল না পেলে **নাম + ব্রাঞ্চ** ধরেও একবার দেখা হয়।
+       ⛔ **কিছুই আটকানো হয় না** — শুধু স্টাফকে দেখানো হয় "এই নামে আগে
+          রেজিস্ট্রেশন আছে"; তিনি চাইলে আগের মতোই এগোতে পারবেন (নামের মিল
+          সবসময় ডুপ্লিকেট নয় — TK-র ওই একই SQL-এ ১৩ জোড়া আলাদা মানুষ ছিল)।
+       ⛔ পড়াটা **খুব ছোট** ও শুধু তখনই হয় যখন নম্বরে কোনো মিল পাওয়া যায়নি —
+          ৪টে ঘর, সর্বোচ্চ ২০ সারি ⇒ Egress-এ প্রভাব নগণ্য (নিয়ম ১৩)।
+       ⛔ নেট খারাপ হলে ফাঁকা ফেরে ⇒ আগের মতোই কিছুই দেখানো হয় না, সেভ আটকায় না। */
+    fun checkSameNamePatient(name: String, branch: String): DuplicatePatient {
+        val n = name.trim()
+        val b = branch.trim()
+        if (n.length < 3 || b.isBlank()) return DuplicatePatient(false, "", "", "")
+        val enc = { v: String ->
+            try { java.net.URLEncoder.encode(v, "UTF-8").replace("+", "%20") } catch (_: Throwable) { v }
+        }
+        val rows = try {
+            SupabaseClient.fetchList(
+                "patients", "name=ilike.${enc(n)}&branch=eq.${enc(b)}", 20,
+                select = "id,name,branch,patientId,mobile,registrationDate"
+            )
+        } catch (_: Throwable) { org.json.JSONArray() }
+        val all = LinkedHashMap<String, Match>()
+        for (i in 0 until rows.length()) {
+            val row = rows.getJSONObject(i)
+            val rid = row.s("id")
+            if (rid.isNotBlank()) all[rid] = Match(rid, row.s("name"), row.s("branch"), row.s("patientId"))
+        }
+        if (all.isEmpty()) return DuplicatePatient(false, "", "", "")
+        val first = all.values.first()
+        return DuplicatePatient(true, first.name, first.branch, first.patientId, first.rowId, matches = all.values.toList())
+    }
+
     fun checkDuplicatePatient(mobileDigitsOnly: String): DuplicatePatient {
         val normalized = PatientModel.normalizedMobile(mobileDigitsOnly)
         // খাতার সারি B30: ব্যর্থ হলে `null` — "নতুন" আর "দেখতেই পারলাম না" আর এক নয়।
