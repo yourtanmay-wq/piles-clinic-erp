@@ -441,6 +441,11 @@ class DoctorCheckupActivity : AppCompatActivity() {
             // checkbox, autofill, ছবি (before/during/after) — কিছুই ছোঁয়া
             // হয়নি, শুধু Toast/ক্লাউড-কলের সময়টা।
             Toast.makeText(this@DoctorCheckupActivity, "Check-up saved.", Toast.LENGTH_SHORT).show()
+            /* 💾 V1255 (TK-নির্দেশ) — এইবার থেকেই ভরা-ও-বন্ধ ধাপগুলো নিচের
+               বাক্সে নামতে পারবে। ⛔ সেভের কোনো কাজ/ক্রম বদলায়নি — শুধু
+                  দেখার সাজানোটা এখান থেকে শুরু হয়। */
+            savedInThisScreen = true
+            try { refreshSavedGroup() } catch (_: Throwable) { }
             val appCtx = applicationContext
             val branch = RoleSession.currentPatientBranch
             val displayId = RoleSession.currentPatientDisplayId.ifBlank { pid }
@@ -2468,6 +2473,14 @@ class DoctorCheckupActivity : AppCompatActivity() {
     )
     private var savedGroupOpen = false
     private var savedGroupBusy = false
+    /* 💾🔒 V1255 (০৯.০৯.২০২৬, TK-নির্দেশ, খাতার সারি ৩৭৭) — TK: *"এই চেকআপ
+       পর্দায় আসার পরে যেটা সেভ করা হবে সেগুলোই নিচে যাবে"*।
+       ⇒ **SAVE চাপার আগে নিচের বাক্সে একটা কার্ডও নামে না।** এই ঘরটা তখনই
+         `true` হয় যখন সেভ সত্যিই হয়ে যায়।
+       ⛔ কে সেভ করতে পারবেন সেই নিয়ম **এক অক্ষরও বদলায়নি** (TK: *"শুধুমাত্র
+          ডাক্তারের জন্য নয়, যে কেউ"* — এই ঘরটাও কোনো role দেখে না, যিনিই
+          সেভ করুন, তাঁর জন্যই কাজ করে)। */
+    private var savedInThisScreen = false
 
     /** ভিতরে কিছু ভরা আছে কি না — ঘর · টিক · তালিকা · চিপ সব মিলিয়ে। */
     private fun sectionHasContent(v: android.view.View): Boolean {
@@ -2545,7 +2558,11 @@ class DoctorCheckupActivity : AppCompatActivity() {
                    কিন্তু একবার নেমে গেলে খুললেও **ওখানেই খোলে** (লাফিয়ে উপরে
                    উঠে যায় না — TK-এর প্রুফে ঠিক এটাই দেখানো হয়েছে)। উপরে ফেরে
                    একমাত্র তখনই, যখন ভিতরটা আবার ফাঁকা হয়ে যায়। */
-                val goesDown = sectionFilled(card) && (closed || isDown)
+                /* 💾 V1255 — সেভ না হওয়া পর্যন্ত কিছুই নামে না। আগে শুধু
+                   "ভরা" দেখা হত, তাই Registration থেকে আসা History আর
+                   লেআউটে আগে থেকে লেখা দরের ঘরগুলোর জন্য Counselling —
+                   দুটোই না-ছোঁয়া অবস্থাতেই "SAVED" বাক্সে নেমে যেত। */
+                val goesDown = savedInThisScreen && sectionFilled(card) && (closed || isDown)
                 if (goesDown && !isDown) {
                     (card.parent as? android.view.ViewGroup)?.removeView(card)
                     body.addView(card)
