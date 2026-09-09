@@ -315,6 +315,12 @@ class BriefingActivity : AppCompatActivity() {
         else
             android.content.Intent(this, FollowUpActivity::class.java)
                 .putExtra("focusCardMobile", digits)
+                /* 🏷️🔒 V1254 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, খাতার সারি ৩৭৫) —
+                   TK: *"কোন নম্বরটা Enquiry-তে নতুন এসেছে বুঝতে পারি না"*।
+                   কার্ডটা চেনানোর ছোট ট্যাগের লেখাটা এখান থেকেই যায় (৬ সেকেন্ড
+                   থাকে — TK-র নিজের সিদ্ধান্ত)। ⛔ অন্য পথ থেকে এলে ট্যাগ যায় না,
+                   তখন আগের মতোই শুধু হাইলাইট — বানানো লেখা কখনো বসে না। */
+                .putExtra("focusCardTag", if (isEnquiry) "NEW ENQUIRY" else "NEW REGISTRATION")
         try { startActivity(next) } catch (_: Throwable) { }
     }
 

@@ -150,7 +150,7 @@ class RmpCommissionSheetActivity : AppCompatActivity() {
             textSize = 19f
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(Color.WHITE)
-            setPadding(dp(10), 0, dp(2), 0)
+            setPadding(dp(16), 0, dp(12), 0)   // 🔎 V1254
             setOnClickListener { openMenu() }
         }
         menuAnchor = dots

@@ -2585,7 +2585,7 @@ class StaffProfileActivity : AppCompatActivity() {
             textSize = 22f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(android.graphics.Color.parseColor("#0B4F2A"))
-            setPadding(dp(16), dp(4), dp(6), dp(4))
+            setPadding(dp(16), dp(4), dp(12), dp(4))   // 🔎 V1254
             isClickable = true
             setOnClickListener {
                 val a = salMenuAction

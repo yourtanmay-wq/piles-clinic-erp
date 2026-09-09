@@ -222,7 +222,7 @@ class DoctorReminderActivity : AppCompatActivity() {
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setTextColor(android.graphics.Color.parseColor("#0B4F2A"))
                 /* 📏 V1202 (TK: *"+New ও ৩ ডটের মধ্যে গ্যাপ থাকবে আরো"*) — ১৪ → ৩০dp। */
-                setPadding(dp(30), dp(4), dp(4), dp(4))
+                setPadding(dp(30), dp(4), dp(12), dp(4))   // 🔎 V1254
                 isClickable = true
                 setOnClickListener { v ->
                     try {

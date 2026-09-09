@@ -294,6 +294,7 @@ class FollowUpActivity : AppCompatActivity() {
             // 🔵 TK (10.08.2026): "কাল আসার কথা" কার্ডে চাপলে সোজা ওই ব্যক্তির
             // Follow-Up সেকশনে (Enquiry/Visit/Patient) নিয়ে গিয়ে কার্ডটা হাইলাইট।
             pendingFocusCardMobile = intent.getStringExtra("focusCardMobile") ?: ""
+            focusCardTag = intent.getStringExtra("focusCardTag") ?: ""   // 🏷️ V1254
 
             binding.btnBack.setOnClickListener { finish() }
             binding.btnCalendar.setOnClickListener {
@@ -762,6 +763,11 @@ class FollowUpActivity : AppCompatActivity() {
     private var pendingFocusMobile: String = ""
     /** 🔵 TK (10.08.2026): "কাল আসার কথা" কার্ড থেকে ফোকাস করার নম্বর (থাকলে)। */
     private var pendingFocusCardMobile: String = ""
+    /* 🏷️🔒 V1254 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, খাতার সারি ৩৭৫) —
+       নোটিশ থেকে আসা কার্ডে যে ছোট ট্যাগটা বসবে ("NEW ENQUIRY" / "NEW
+       REGISTRATION")। ⛔ ফাঁকা থাকলে ট্যাগ বসে না — অন্য পথে (যেমন "কাল
+       আসার কথা" কার্ড) এলে আগের মতোই শুধু হাইলাইট হয়, বানানো লেখা নয়। */
+    private var focusCardTag: String = ""
     /** 🔒 খাতার সারি B65: কার্ডের আইডি → ওই ব্রাঞ্চের ভিতরের সিরিয়াল নম্বর। */
     private var serialByItemId: Map<String, Int> = emptyMap()
     /** 🔒 খাতার সারি B69: পর্দায় এখন যে তালিকাটা যে ক্রমে দেখা যাচ্ছে। */
@@ -1277,12 +1283,63 @@ class FollowUpActivity : AppCompatActivity() {
         binding.rvList.postDelayed({ highlightCardAt(pos) }, 300L)
     }
 
+    /* 🏷️🔴🔒 V1254 (০৯.০৯.২০২৬, TK-রিপোর্ট ও ফটো-প্রুফ পাশ — খাতার সারি ৩৭৫)।
+       TK: *"কি নামে Enquiry সেটা দেখার জন্য যখন চাপ দেই তখন বুঝতে পারি না কোন
+       নম্বরটা Enquiry-তে নতুন এসেছে"*।
+
+       🔴 **আসল কারণ (কোডে মেপে, আন্দাজ নয়):** হাইলাইটটা **হত**ই — কিন্তু
+          হালকা হলুদ রংটা বসত কার্ডের **পিছনের মোড়কে** (`box`), আর কার্ডের
+          নিজের সাদা পটভূমি সেটা প্রায় পুরোটাই ঢেকে দিত; তার উপর থাকত মাত্র
+          **২.২ সেকেন্ড**। তাই TK চোখেই দেখতে পেতেন না।
+
+       ⇒ এখন মোড়কটায় ৪dp ফাঁক রেখে **কমলা বেড় + হালকা হলুদ** বসে, তাই দাগটা
+         কার্ডের চারপাশে স্পষ্ট দেখা যায়; উপরে ছোট একটা ট্যাগও বসে
+         ("NEW ENQUIRY" / "NEW REGISTRATION")। TK-র সিদ্ধান্ত: থাকবে
+         **৬ সেকেন্ড** (*"৬ সেকেন্ডই রাখুন"*), তারপর নিজে থেকেই মিলিয়ে যায়।
+       ⛔ কার্ডের ভিতরের কিছুই বদলায়নি — লেখা · রং · বোতাম · হিসাব সব আগের।
+       ⛔ ট্যাগের লেখাটা নোটিশ থেকেই আসে; না এলে ট্যাগ বসে না (বানানো নয়)।
+       ⛔ ৬ সেকেন্ডের মধ্যে তালিকা সরে গেলেও কিছু আটকে থাকে না — কার্ড আবার
+          বসানোর সময় (`onBindViewHolder`) মোড়কের সাজ ও ফাঁক দুটোই মুছে যায়। */
     private fun highlightCardAt(pos: Int) {
         try {
             val holder = binding.rvList.findViewHolderForAdapterPosition(pos) as? FollowCardHolder ?: return
             val box = holder.box
-            box.setBackgroundColor(android.graphics.Color.parseColor("#FFF3CD"))
-            box.postDelayed({ try { box.background = null } catch (_: Throwable) { } }, 2200L)
+            val pad = dpx(4)
+            box.setPadding(pad, pad, pad, pad)
+            box.background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(android.graphics.Color.parseColor("#FFF3CD"))
+                cornerRadius = dpx(16).toFloat()
+                setStroke(dpx(2), android.graphics.Color.parseColor("#F59E0B"))
+            }
+            var tag: android.widget.TextView? = null
+            val tagText = focusCardTag.trim()
+            focusCardTag = ""
+            if (tagText.isNotBlank()) {
+                tag = android.widget.TextView(this).apply {
+                    text = tagText
+                    textSize = 9.5f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.WHITE)
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        setColor(android.graphics.Color.parseColor("#F59E0B"))
+                        cornerRadius = dpx(6).toFloat()
+                    }
+                    setPadding(dpx(8), dpx(2), dpx(8), dpx(2))
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply { bottomMargin = dpx(4) }
+                }
+                box.addView(tag, 0)
+            }
+            val chip = tag
+            box.postDelayed({
+                try {
+                    box.background = null
+                    box.setPadding(0, 0, 0, 0)
+                    if (chip != null && chip.parent === box) box.removeView(chip)
+                } catch (_: Throwable) { }
+            }, 6000L)
         } catch (_: Throwable) { }
     }
 
@@ -1493,6 +1550,7 @@ class FollowUpActivity : AppCompatActivity() {
         override fun onBindViewHolder(holder: FollowCardHolder, position: Int) {
             holder.box.removeAllViews()
             holder.box.background = null   // 🔵 ফোকাস-হাইলাইট রিসাইকেল হলে যেন থেকে না যায়
+            holder.box.setPadding(0, 0, 0, 0)   // 🏷️ V1254 — বেড়ের ফাঁকটাও যেন থেকে না যায়
             // exactly the same card builder as before, not one line changed
             buildFollowCard(holder.box, rows[position])
         }

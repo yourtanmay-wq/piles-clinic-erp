@@ -2764,7 +2764,7 @@ class WorkNotebookActivity : AppCompatActivity() {
             text = "⋮"; textSize = 22f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(android.graphics.Color.WHITE)
-            setPadding(ModuleUi.dp(this@WorkNotebookActivity, 16), 0, ModuleUi.dp(this@WorkNotebookActivity, 2), 0)
+            setPadding(ModuleUi.dp(this@WorkNotebookActivity, 16), 0, ModuleUi.dp(this@WorkNotebookActivity, 12), 0)   // 🔎 V1254
             isClickable = true
             setOnClickListener { v ->
                 try {

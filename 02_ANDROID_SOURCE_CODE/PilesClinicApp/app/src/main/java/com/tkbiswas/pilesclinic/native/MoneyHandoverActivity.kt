@@ -79,7 +79,7 @@ class MoneyHandoverActivity : AppCompatActivity() {
                 text = "⋮"; textSize = 20f
                 setTypeface(typeface, Typeface.BOLD)
                 setTextColor(Color.WHITE)
-                setPadding(dp(14), dp(2), dp(12), dp(2))
+                setPadding(dp(16), dp(2), dp(12), dp(2))   // 🔎 V1254
                 isClickable = true
                 setOnClickListener { v ->
                     try {

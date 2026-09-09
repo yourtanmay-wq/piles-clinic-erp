@@ -1962,11 +1962,23 @@ class IncomeExpenseActivity : AppCompatActivity() {
               master · অংশীদার-ডাক্তার)।
            ⛔ পর্দাগুলো নিজে কিছুই বদলায়নি — শুধু পৌঁছানোর পথ।
            ⛔ ⛔ 📅 ইমোজি কোথাও বসানো হয়নি (TK-র চিরস্থায়ী নিষেধ, সারি ২১৩)। */
+        /* 🔎🔒 V1254 (০৯.০৯.২০২৬, TK-রিপোর্ট ছবিসহ, খাতার সারি ৩৭৬) — TK:
+           *"উপরে ব্রাঞ্চ সিলেক্ট এবং ক্যালেন্ডার একটু বাঁ দিকে সরান, অন্যথায়
+           ⋮ চাপ দিতে পারছি না"*।
+           **কারণ (কোডে মেপে):** ⋮-এর ডান দিকের ফাঁক ছিল মাত্র ২dp, তাই ওর
+           ছোঁয়ার জায়গাটা পর্দার একদম কিনারা ঘেঁষে বসত — আঙুল পড়ত পাশে।
+           ⇒ ডানে ১২dp ও বাঁয়ে ১৬dp ফাঁক ⇒ ছোঁয়ার জায়গা বড়, আর ব্রাঞ্চ ও
+             ক্যালেন্ডার নিজে থেকেই একটু বাঁ দিকে সরে যায় (TK যা চেয়েছেন)।
+           ⛔ **উঁচু-নিচু ফাঁক ছোঁয়া হয়নি**, তাই হেডারের উচ্চতা এক চুলও বাড়ে না।
+           ⛔ লেখা · রং · মাপ · মেনুর সারি — কিচ্ছু বদলায়নি।
+           🔁 প্রজেক্টের **সব ⋮-এই** একই মাপ বসানো হলো (Staff Profile · Work
+              Notebook · Money Handover · Doctor Reminder · Monthly Summary ·
+              RMP Commission Sheet) — একই ধরনের সমস্যা যেন আর কোথাও না থাকে। */
         headerRow.addView(android.widget.TextView(this).apply {
             text = "⋮"; textSize = 22f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(android.graphics.Color.parseColor("#0A5C33"))
-            setPadding(dp(10), dp(2), dp(2), dp(2))
+            setPadding(dp(16), dp(2), dp(12), dp(2))   // 🔎 V1254
             isClickable = true; isFocusable = true
             setOnClickListener { v -> showIeMenu(v) }
         })
@@ -3456,7 +3468,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
             text = "⋮"; textSize = 20f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(android.graphics.Color.parseColor("#0A5C33"))
-            setPadding(dp(10), dp(2), dp(2), dp(2))
+            setPadding(dp(16), dp(2), dp(12), dp(2))   // 🔎 V1254
             isClickable = true; isFocusable = true
         }
         /* 📏 V1217 — কেন এক সারির `heroWithFields()` এখানে চলল না (মেপে দেখা,
