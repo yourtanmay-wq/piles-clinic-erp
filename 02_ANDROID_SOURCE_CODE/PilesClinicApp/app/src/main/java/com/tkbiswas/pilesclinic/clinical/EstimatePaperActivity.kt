@@ -144,7 +144,12 @@ class EstimatePaperActivity : AppCompatActivity() {
                   হিসাব লেখা হয়নি। ⛔ চাপ দিয়ে যেকোনো সময় তোলা যাবে। */
             for (g in listOf(EstimatePrices.G_MEDICINE, EstimatePrices.G_OTHER)) {
                 for (item in EstimatePrices.inGroup(this, g)) {
-                    val line = EstimateModel.Line(name = item.name, rate = item.rate, qty = 1.0)
+                    /* 🔢 V1251 (TK-নির্দেশ) — Price List-এ বসানো "Default
+                       quantity" এখান থেকেই আসে। ⛔ কিছু বসানো না থাকলে
+                       `qtyOf` আগের মতোই ১ দেয়, তাই কিছুই বদলায় না। */
+                    val line = EstimateModel.Line(
+                        name = item.name, rate = item.rate,
+                        qty = EstimatePrices.qtyOf(item))
                     sheet.lines.add(line)
                     line.struck = true
                     sheet.onStrikeToggled(line, true)

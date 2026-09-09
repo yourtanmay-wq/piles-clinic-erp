@@ -28958,6 +28958,13 @@ function wlv1EstPricesReset(){ try{ localStorage.removeItem('wlv1EstPrices') }ca
 function wlv1EstNum(v){ var c=String(v==null?'':v).replace(/[^0-9.]/g,''); var n=parseFloat(c); return isFinite(n)?n:0 }
 function wlv1EstMoney(v){ return Number(v||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}) }
 function wlv1EstShort(v){ v=Number(v||0); return (v===Math.floor(v))?v.toLocaleString('en-IN'):v.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}) }
+/* 🔢🔒 V1251 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, খাতার সারি ৩৭২) —
+   TK: *"কোয়ান্টিটি আমি যা সেট করে রাখবো সেটাই থাকার কথা ছিল … আমি যেটা সেট
+   করে রাখবো সেটাই যেন অটোমেটিক ডিফল্ট হিসেবে থাকে"*।
+   দরের তালিকায় এতদিন **সংখ্যার কোনো ঘরই ছিল না**, তাই এস্টিমেটে সবসময় ১ বসত।
+   ⛔ কিছু বসানো না থাকলে (বা ০/উল্টো সংখ্যা) আগের মতোই ১ — পুরনো কিছু বদলায় না।
+   ⛔ ফোনের যমজ: `EstimatePrices.qtyOf()`। */
+function wlv1EstQtyOf(p){ var q=Number((p&&p.qty)||0); return (q>0)?q:1 }
 
 var wlv1EstSheet={lines:[],discount:0,discountPct:false,finding:'',strikeInDiscount:true};
 function wlv1EstLoad(){
@@ -29050,7 +29057,7 @@ function wlv1EstOpen(){
     if(!wlv1EstSheet.lines.length){
       wlv1EstPrices().forEach(function(p){
         if(p.group==='Medicine'||p.group==='Other')
-          wlv1EstSheet.lines.push({name:p.name,measure:'',position:'',rate:p.rate,qty:1,struck:false});
+          wlv1EstSheet.lines.push({name:p.name,measure:'',position:'',rate:p.rate,qty:wlv1EstQtyOf(p),struck:false});   /* 🔢 V1251 */
       });
     }
   }catch(e){}
@@ -29357,7 +29364,7 @@ function wlv1EstAddPick(g,i){
       && !l.measure && !l.position && Number(l.rate||0)===Number(p.rate||0) && !l.struck;
   })[0];
   if(same) same.qty=Number(same.qty||0)+1;
-  else wlv1EstPushLine(g,{name:p.name,measure:'',position:'',rate:p.rate,qty:1,struck:false});   /* 🚫 V1113 */
+  else wlv1EstPushLine(g,{name:p.name,measure:'',position:'',rate:p.rate,qty:wlv1EstQtyOf(p),struck:false});   /* 🚫 V1113 · 🔢 V1251 */
   wlv1EstRender();
 }
 window["wlv1EstAddTreat"]=wlv1EstAddTreat; window["wlv1EstTreatRender"]=wlv1EstTreatRender;
@@ -29378,6 +29385,8 @@ function wlv1EstPriceList(g){
       +'<div style="display:flex;gap:8px;margin-top:6px">'
       +'<div style="flex:1"><div class="tiny mut">RATE</div><input class="input" style="margin:2px 0" value="'+wlv1EstShort(r.p.rate)+'" oninput="wlv1EstPriceEdit('+r.i+',\'rate\',this.value)"></div>'
       +'<div style="flex:1"><div class="tiny mut">UNIT</div><input class="input" style="margin:2px 0" value="'+esc(r.p.unit||'')+'" oninput="wlv1EstPriceEdit('+r.i+',\'unit\',this.value)"></div>'
+      /* 🔢 V1251 — নিজে থেকে বসা সংখ্যা (ফোনের "Default quantity"-র যমজ)। */
+      +'<div style="flex:1"><div class="tiny mut">QTY</div><input class="input" style="margin:2px 0" value="'+wlv1EstShort(wlv1EstQtyOf(r.p))+'" oninput="wlv1EstPriceEdit('+r.i+',\'qty\',this.value)"></div>'
       +'</div></div>';
   }).join('')||'<div class="card mut">Nothing here yet.</div>';
   modal('<h2>Price List</h2><div class="card mut tiny">Anyone can change · saved on this computer</div>'
@@ -29387,12 +29396,16 @@ function wlv1EstPriceList(g){
     +'<button onclick="wlv1EstRender()">Done</button></div>');
 }
 function wlv1EstPriceEdit(i,key,v){ var all=wlv1EstPrices(); if(!all[i])return;
-  all[i][key]=(key==='rate')?wlv1EstNum(v):String(v||''); wlv1EstPricesSave(all) }
+  /* 🔢 V1251 — `qty`-ও সংখ্যা হিসেবেই জমা হয়; ফাঁকা/০ হলে ১। */
+  all[i][key]=(key==='rate')?wlv1EstNum(v)
+    :(key==='qty')?(wlv1EstNum(v)>0?wlv1EstNum(v):1)
+    :String(v||''); wlv1EstPricesSave(all) }
 function wlv1EstPriceDrop(i,g){ var all=wlv1EstPrices(); all.splice(i,1); wlv1EstPricesSave(all); wlv1EstPriceList(g) }
 function wlv1EstPriceAdd(g){
   var name=prompt('Item name'); if(!name)return;
   var rate=wlv1EstNum(prompt('Rate')); var unit=prompt('Unit (per position / per inch / per day)')||'';
-  var all=wlv1EstPrices(); all.push({group:g,name:name,rate:rate,unit:unit,measure:''});
+  var qty=wlv1EstNum(prompt('Default quantity')); if(!(qty>0))qty=1;   /* 🔢 V1251 */
+  var all=wlv1EstPrices(); all.push({group:g,name:name,rate:rate,unit:unit,measure:'',qty:qty});
   wlv1EstPricesSave(all); wlv1EstPriceList(g);
 }
 function wlv1EstPriceReset(){

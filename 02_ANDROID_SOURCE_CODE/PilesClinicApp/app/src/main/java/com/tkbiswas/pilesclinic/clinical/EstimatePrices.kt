@@ -40,18 +40,27 @@ object EstimatePrices {
      *  · [rate]   — এক এককের দর
      *  · [unit]   — "per position" · "per inch" · "per day" · "per piece" …
      *  · [measure]— পাইলসে "Grade II", ফিস্টুলায় ইঞ্চি — ফাঁকা হলে মাপ লাগে না
+     *  · [qty]    — 🔢 V1251 (TK-নির্দেশ, ফটো-প্রুফ পাশ): **নিজে থেকে বসা সংখ্যা।**
+     *               TK: *"আমি যেটা সেট করে রাখবো সেটাই যেন অটোমেটিক ডিফল্ট
+     *               হিসেবে থাকে"* ⇒ এস্টিমেটে এই জিনিসটা বসলে Qty-তে এটাই
+     *               বসে। ⛔ কিছু না লিখলে আগের মতোই ১।
      */
     data class Item(
         val group: String,
         val name: String,
         val rate: Double,
         val unit: String,
-        val measure: String = ""
+        val measure: String = "",
+        val qty: Double = 1.0
     ) {
         fun toJson(): JSONObject = JSONObject()
             .put("group", group).put("name", name)
             .put("rate", rate).put("unit", unit).put("measure", measure)
+            .put("qty", qty)
     }
+
+    /** 🔢 V1251 — কখনো ০ বা উল্টো সংখ্যা বসতে দেওয়া হয় না; তখন ১। */
+    fun qtyOf(item: Item): Double = if (item.qty > 0.0) item.qty else 1.0
 
     /* ⛔ পাহারা [৯.১০]-এর নিয়মে সোজা ফাংশন, `companion object` নয়। */
     fun itemFrom(o: JSONObject): Item = Item(
@@ -59,7 +68,9 @@ object EstimatePrices {
         name = o.optString("name", ""),
         rate = o.optDouble("rate", 0.0),
         unit = o.optString("unit", ""),
-        measure = o.optString("measure", "")
+        measure = o.optString("measure", ""),
+        /* 🔢 V1251 — পুরনো জমানো তালিকায় ঘরটা নেই ⇒ আগের মতোই ১, কিছু ভাঙে না। */
+        qty = o.optDouble("qty", 1.0)
     )
 
     /* 🔒 রেডিমেড তালিকা — TK-এর পাঠানো নমুনা PDF-এর জিনিস ও দর ধরে।

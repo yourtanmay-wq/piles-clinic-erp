@@ -861,7 +861,8 @@ object EstimateDialog {
             val idx = rowViews.indexOfFirst { it.first === v }
             v.setOnClickListener {
                 val chosen = items[idx]
-                addLine(chosen.name, chosen.rate, 1.0)
+                // 🔢 V1251 — Price List-এর "Default quantity" (না থাকলে ১)।
+                addLine(chosen.name, chosen.rate, EstimatePrices.qtyOf(chosen))
                 try { dlg.dismiss() } catch (_: Throwable) { }
                 redraw()
             }

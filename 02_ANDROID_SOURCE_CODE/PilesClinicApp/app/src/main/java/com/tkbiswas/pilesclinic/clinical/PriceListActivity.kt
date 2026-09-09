@@ -118,7 +118,12 @@ class PriceListActivity : AppCompatActivity() {
             setTextColor(Color.parseColor("#101C2E"))
         })
         info.addView(TextView(this).apply {
-            text = item.unit + (if (item.measure.isBlank()) "" else "  ·  " + item.measure)
+            /* 🔢 V1251 (TK-নির্দেশ, ফটো-প্রুফ পাশ) — নিজে থেকে বসা সংখ্যাটা
+               নামের নিচেই দেখা যায়, তাই খুলে না দেখেও বোঝা যায়।
+               ⛔ ১ হলে লেখা হয় না — আগের সারিগুলো হুবহু আগের মতোই থাকে। */
+            val q = EstimatePrices.qtyOf(item)
+            text = item.unit + (if (item.measure.isBlank()) "" else "  ·  " + item.measure) +
+                (if (q == 1.0) "" else "  ·  Qty " + EstimateModel.moneyShort(q))
             textSize = 11f
             setTextColor(Color.parseColor("#8B98A9"))
         })
@@ -173,7 +178,15 @@ class PriceListActivity : AppCompatActivity() {
         val rate = field("Rate", if (existing == null) "" else EstimateModel.moneyShort(existing.rate), true)
         val unit = field("Unit (per position / per inch / per day)", existing?.unit.orEmpty(), false)
         val measure = field("Grade or measure (optional)", existing?.measure.orEmpty(), false)
-        for (f in listOf(name, rate, unit, measure)) {
+        /* 🔢🔒 V1251 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — TK: *"কোয়ান্টিটি
+           আমি যা সেট করে রাখবো সেটাই থাকার কথা ছিল … আমি যেটা সেট করে রাখবো
+           সেটাই যেন অটোমেটিক ডিফল্ট হিসেবে থাকে"* (খাতার সারি ৩৭২)।
+           **আগে এই ঘরটাই ছিল না** — তাই এস্টিমেটে সবসময় ১ বসত।
+           ⛔ ফাঁকা রাখলে আগের মতোই ১, তাই পুরনো কোনো জিনিস বদলায় না। */
+        val qty = field("Default quantity", 
+            if (existing == null || EstimatePrices.qtyOf(existing) == 1.0) ""
+            else EstimateModel.moneyShort(existing.qty), true)
+        for (f in listOf(name, rate, unit, measure, qty)) {
             root.addView(f.apply {
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
@@ -191,7 +204,9 @@ class PriceListActivity : AppCompatActivity() {
                     name = n,
                     rate = EstimateModel.num(rate.text?.toString()),
                     unit = unit.text?.toString()?.trim().orEmpty(),
-                    measure = measure.text?.toString()?.trim().orEmpty()
+                    measure = measure.text?.toString()?.trim().orEmpty(),
+                    // 🔢 V1251 — ফাঁকা বা ০ হলে ১ (আগের আচরণ)।
+                    qty = EstimateModel.num(qty.text?.toString()).let { q -> if (q > 0.0) q else 1.0 }
                 )
                 if (existing == null) items.add(fresh)
                 else {
