@@ -1,125 +1,133 @@
 [
- {
-  "sql_file": "V839_NEXT_VISIT_PLAN.sql",
-  "run_by": "TK",
-  "when": "29.08.2026 · 8.49 (স্ক্রিনশটে দেখা সময়)",
-  "result": "Success. No rows returned — patients.nextVisitPlan (jsonb) ঘরটি যোগ হয়েছে",
-  "proof": "screenshot — Supabase SQL Editor, প্রোজেক্ট biswasayurvedkis…, শাখা main"
- },
- {
-  "sql_file": "V384_RMP_REFERRED_PATIENT_DISEASE_2026-08-14.sql",
-  "run_by": "TK",
-  "when": "15.08.2026 (confirmed via has_function_privilege check)",
-  "result": "Success — authenticated_can_call=true, anon_can_call=false",
-  "proof": "screenshot"
- },
- {
-  "sql_file": "V316_referral_edit_requests_2026-08-11.sql",
-  "run_by": "TK",
-  "when": "15.08.2026 (confirmed via information_schema check)",
-  "result": "already done — table exists",
-  "proof": "screenshot+csv"
- },
- {
-  "sql_file": "V318_doctor_altMobiles_2026-08-11.sql",
-  "run_by": "TK",
-  "when": "15.08.2026 (confirmed via information_schema check)",
-  "result": "already done — column exists",
-  "proof": "screenshot+csv"
- },
- {
-  "sql_file": "V329_FIVE_CONFIRMED_DEMO_NUMBERS_SAFE_CLEANUP_2026-08-12.sql",
-  "run_by": "TK",
-  "when": "15.08.2026 (confirmed — demo numbers no longer present)",
-  "result": "already done",
-  "proof": "screenshot+csv"
- },
- {
-  "sql_file": "V369_STAFF_SALARY_FULL_HISTORY_2026-08-13.sql",
-  "run_by": "TK",
-  "when": "15.08.2026 (confirmed via information_schema check)",
-  "result": "already done — for_month column exists",
-  "proof": "screenshot+csv"
- },
- {
-  "sql_file": "V380_RMP_PAYMENT_EDIT_DELETE_RULE_2026-08-14.sql",
-  "run_by": "TK",
-  "when": "15.08.2026 (confirmed via information_schema check)",
-  "result": "already done — function exists",
-  "proof": "screenshot+csv"
- },
- {
-  "sql_file": "V382_RMP_PAID_TOTAL_DEDUP_2026-08-14.sql",
-  "run_by": "TK",
-  "when": "15.08.2026 (confirmed via information_schema check)",
-  "result": "already done — table exists",
-  "proof": "screenshot+csv"
- },
- {
-  "sql_file": "V383_RMP_DIRECT_PAYMENT_DUE_CORRECTION_2026-08-14.sql",
-  "run_by": "TK",
-  "when": "15.08.2026 (confirmed via information_schema check)",
-  "result": "already done — function exists",
-  "proof": "screenshot+csv"
- },
- {
-  "sql_file": "V311_LEAVE_APPROVAL_AND_SUSPEND_2026-08-11.sql",
-  "run_by": "TK",
-  "when": "11.08.2026 12.27 pm",
-  "result": "Success. No rows returned",
-  "proof": "screenshot",
-  "note": "B618 — wn.leave_requests + hr.staff_profiles.suspended_until + public.suspended_until_for + hr.my_role(). Idempotent."
- },
- {
-  "sql_file": "V253_LEDGER_SHEET_COLUMNS_2026-08-02.sql",
-  "run_by": "TK",
-  "when": "02.08.2026 07.28 pm",
-  "result": "Success. No rows returned",
-  "proof": "screenshot"
- },
- {
-  "sql_file": "V252_STAFF_PHOTO_COLUMN_2026-08-02.sql",
-  "run_by": "TK",
-  "when": "02.08.2026 06.31 pm",
-  "result": "Success. No rows returned",
-  "proof": "screenshot"
- },
- {
-  "sql_file": "V251_STAFF_PROFILE_DATA_9_STAFF_2026-08-02.sql",
-  "run_by": "TK",
-  "when": "02.08.2026 06.30 pm",
-  "result": "Success. No rows returned",
-  "proof": "screenshot"
- },
- {
-  "sql_file": "V251_STAFF_PROFILE_EXTRA_FIELDS_2026-08-02.sql",
-  "run_by": "TK",
-  "when": "02.08.2026 06.30 pm",
-  "result": "Success. No rows returned",
-  "proof": "screenshot"
- },
- {
-  "sql_file": "V509_MY_ATTENDANCE_SHEET_2026-08-21.sql",
-  "run_by": "TK",
-  "when": "21.08.2026 05.58 pm",
-  "result": "Success. No rows returned",
-  "proof": "screenshot",
-  "what": "hr.perf_attendance_sheet(): guard changed from hr.is_master() to hr.is_master() or p_code = hr.my_code() — staff can now open ONLY their own monthly attendance sheet (DATE/IN/OUT/LEAVE). Master unchanged. No table/column/row created or deleted."
- },
- {
-  "sql_file": "V533_PAYMENTS_PROGRESS_COLUMN_2026-08-22.sql",
-  "run_by": "TK",
-  "when": "22.08.2026 01.53 pm",
-  "result": "Success. No rows returned",
-  "proof": "screenshot",
-  "what": "alter table public.payments add column if not exists progress text; + notify pgrst 'reload schema'. Only ONE new empty column. No table/row/column deleted or changed, no RLS touched. The chamber treatment note now goes to payments.progress instead of overwriting payments.remarks (which was destroying refund reasons, medicine remarks and the amount/mode edit audit trail). Old rows keep progress empty, so the app falls back to remarks and no old note is lost. Needs V533 or later build."
- },
- {
-  "sql_file": "V586_REALTIME_CHOBI_CHARA_CHALU_2026-08-23.sql",
-  "run_by": "TK",
-  "when": "চালানোর তারিখ জানা নেই — ০৯.০৯.২০২৬-এ প্রমাণ পাওয়া গেল",
-  "result": "চালানো হয়েছে — pg_publication_tables-এ patients/followups/medical-এর ঘরের তালিকায় photo/photos নেই",
-  "proof": "TK-র চালানো SQL-এর CSV (pg_publication_tables, ০৯.০৯.২০২৬ ১.২৯ pm)",
-  "note": "এই সারিটা আগে খাতায় ছিল না, তাই ০৯.০৯.২০২৬-এ আমি ভুল করে 'খুঁজে পাইনি' বলেছিলাম। প্রমাণ পেয়ে বসানো হলো।"
- }
+  {
+    "sql_file": "V839_NEXT_VISIT_PLAN.sql",
+    "run_by": "TK",
+    "when": "29.08.2026 · 8.49 (স্ক্রিনশটে দেখা সময়)",
+    "result": "Success. No rows returned — patients.nextVisitPlan (jsonb) ঘরটি যোগ হয়েছে",
+    "proof": "screenshot — Supabase SQL Editor, প্রোজেক্ট biswasayurvedkis…, শাখা main"
+  },
+  {
+    "sql_file": "V384_RMP_REFERRED_PATIENT_DISEASE_2026-08-14.sql",
+    "run_by": "TK",
+    "when": "15.08.2026 (confirmed via has_function_privilege check)",
+    "result": "Success — authenticated_can_call=true, anon_can_call=false",
+    "proof": "screenshot"
+  },
+  {
+    "sql_file": "V316_referral_edit_requests_2026-08-11.sql",
+    "run_by": "TK",
+    "when": "15.08.2026 (confirmed via information_schema check)",
+    "result": "already done — table exists",
+    "proof": "screenshot+csv"
+  },
+  {
+    "sql_file": "V318_doctor_altMobiles_2026-08-11.sql",
+    "run_by": "TK",
+    "when": "15.08.2026 (confirmed via information_schema check)",
+    "result": "already done — column exists",
+    "proof": "screenshot+csv"
+  },
+  {
+    "sql_file": "V329_FIVE_CONFIRMED_DEMO_NUMBERS_SAFE_CLEANUP_2026-08-12.sql",
+    "run_by": "TK",
+    "when": "15.08.2026 (confirmed — demo numbers no longer present)",
+    "result": "already done",
+    "proof": "screenshot+csv"
+  },
+  {
+    "sql_file": "V369_STAFF_SALARY_FULL_HISTORY_2026-08-13.sql",
+    "run_by": "TK",
+    "when": "15.08.2026 (confirmed via information_schema check)",
+    "result": "already done — for_month column exists",
+    "proof": "screenshot+csv"
+  },
+  {
+    "sql_file": "V380_RMP_PAYMENT_EDIT_DELETE_RULE_2026-08-14.sql",
+    "run_by": "TK",
+    "when": "15.08.2026 (confirmed via information_schema check)",
+    "result": "already done — function exists",
+    "proof": "screenshot+csv"
+  },
+  {
+    "sql_file": "V382_RMP_PAID_TOTAL_DEDUP_2026-08-14.sql",
+    "run_by": "TK",
+    "when": "15.08.2026 (confirmed via information_schema check)",
+    "result": "already done — table exists",
+    "proof": "screenshot+csv"
+  },
+  {
+    "sql_file": "V383_RMP_DIRECT_PAYMENT_DUE_CORRECTION_2026-08-14.sql",
+    "run_by": "TK",
+    "when": "15.08.2026 (confirmed via information_schema check)",
+    "result": "already done — function exists",
+    "proof": "screenshot+csv"
+  },
+  {
+    "sql_file": "V311_LEAVE_APPROVAL_AND_SUSPEND_2026-08-11.sql",
+    "run_by": "TK",
+    "when": "11.08.2026 12.27 pm",
+    "result": "Success. No rows returned",
+    "proof": "screenshot",
+    "note": "B618 — wn.leave_requests + hr.staff_profiles.suspended_until + public.suspended_until_for + hr.my_role(). Idempotent."
+  },
+  {
+    "sql_file": "V253_LEDGER_SHEET_COLUMNS_2026-08-02.sql",
+    "run_by": "TK",
+    "when": "02.08.2026 07.28 pm",
+    "result": "Success. No rows returned",
+    "proof": "screenshot"
+  },
+  {
+    "sql_file": "V252_STAFF_PHOTO_COLUMN_2026-08-02.sql",
+    "run_by": "TK",
+    "when": "02.08.2026 06.31 pm",
+    "result": "Success. No rows returned",
+    "proof": "screenshot"
+  },
+  {
+    "sql_file": "V251_STAFF_PROFILE_DATA_9_STAFF_2026-08-02.sql",
+    "run_by": "TK",
+    "when": "02.08.2026 06.30 pm",
+    "result": "Success. No rows returned",
+    "proof": "screenshot"
+  },
+  {
+    "sql_file": "V251_STAFF_PROFILE_EXTRA_FIELDS_2026-08-02.sql",
+    "run_by": "TK",
+    "when": "02.08.2026 06.30 pm",
+    "result": "Success. No rows returned",
+    "proof": "screenshot"
+  },
+  {
+    "sql_file": "V509_MY_ATTENDANCE_SHEET_2026-08-21.sql",
+    "run_by": "TK",
+    "when": "21.08.2026 05.58 pm",
+    "result": "Success. No rows returned",
+    "proof": "screenshot",
+    "what": "hr.perf_attendance_sheet(): guard changed from hr.is_master() to hr.is_master() or p_code = hr.my_code() — staff can now open ONLY their own monthly attendance sheet (DATE/IN/OUT/LEAVE). Master unchanged. No table/column/row created or deleted."
+  },
+  {
+    "sql_file": "V533_PAYMENTS_PROGRESS_COLUMN_2026-08-22.sql",
+    "run_by": "TK",
+    "when": "22.08.2026 01.53 pm",
+    "result": "Success. No rows returned",
+    "proof": "screenshot",
+    "what": "alter table public.payments add column if not exists progress text; + notify pgrst 'reload schema'. Only ONE new empty column. No table/row/column deleted or changed, no RLS touched. The chamber treatment note now goes to payments.progress instead of overwriting payments.remarks (which was destroying refund reasons, medicine remarks and the amount/mode edit audit trail). Old rows keep progress empty, so the app falls back to remarks and no old note is lost. Needs V533 or later build."
+  },
+  {
+    "sql_file": "V586_REALTIME_CHOBI_CHARA_CHALU_2026-08-23.sql",
+    "run_by": "TK",
+    "when": "চালানোর তারিখ জানা নেই — ০৯.০৯.২০২৬-এ প্রমাণ পাওয়া গেল",
+    "result": "চালানো হয়েছে — pg_publication_tables-এ patients/followups/medical-এর ঘরের তালিকায় photo/photos নেই",
+    "proof": "TK-র চালানো SQL-এর CSV (pg_publication_tables, ০৯.০৯.২০২৬ ১.২৯ pm)",
+    "note": "এই সারিটা আগে খাতায় ছিল না, তাই ০৯.০৯.২০২৬-এ আমি ভুল করে 'খুঁজে পাইনি' বলেছিলাম। প্রমাণ পেয়ে বসানো হলো।"
+  },
+  {
+    "sql_file": "V1270_DUPLICATE_PATIENT_DELETE_2026-09-09 (কোনো ফাইল নয় — চ্যাটে দেওয়া SQL)",
+    "run_by": "TK",
+    "when": "০৯.০৯.২০২৬ বিকেল ৫.০৯",
+    "result": "Success. No rows returned — লেনদেন (BEGIN/COMMIT) সম্পূর্ণ হয়েছে",
+    "proof": "TK-র Supabase পর্দার ছবি (০৯.০৯.২০২৬ ৫.০৯ pm)",
+    "note": "Yearly Registration-এর ৩ জোড়া ডুপ্লিকেটের বাড়তি সারি মোছা হলো — patients ৩ · payments ৩ (৪০০×৩ = ১,২০০ টাকা) · followups ৩; সঙ্গে deleted_records-এ ৯টা 'মোছা হয়েছে' চিহ্ন, যাতে কোনো ফোন/ব্রাউজারের পুরনো কপি সারিগুলো আবার ক্লাউডে না তোলে। মোছা হয়েছে: pat_7482046466 (SAGAR KUMAR SHING KNE-02062026-005) · pat_8967577917 (DHARMENDRA SAH KNE-02092026-004) · pat_9932648277 (SAHA ALAM KNE-29082026-004)। রাখা হয়েছে যেটায় চিকিৎসা/টাকা আছে, নইলে ওই দিনের প্রথম রেজিস্ট্রেশন। KALPANA BAKCHI ও HABIB TK-র নির্দেশে রাখা হয়েছে (স্টাফ ইচ্ছে করে 'Different Patient — Same Mobile' চেপেছিলেন)।"
+  }
 ]
