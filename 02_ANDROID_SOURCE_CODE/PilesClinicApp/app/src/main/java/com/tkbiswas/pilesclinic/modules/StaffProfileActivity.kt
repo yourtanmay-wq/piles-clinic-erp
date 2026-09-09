@@ -122,6 +122,11 @@ class StaffProfileActivity : AppCompatActivity() {
         }
     }
 
+    /** 🗓️ V1248 — "2026-08-28" → "28/08/2026"। চেনা না গেলে যা আছে তাই। */
+    private fun salDmy(iso: String): String = try {
+        val p = iso.take(10).split("-"); p[2] + "/" + p[1] + "/" + p[0]
+    } catch (_: Throwable) { iso }
+
     private fun todayIso(): String {
         val f = SimpleDateFormat("yyyy-MM-dd", Locale.US); f.timeZone = TimeZone.getTimeZone("Asia/Kolkata")
         return f.format(java.util.Date())
@@ -4215,15 +4220,60 @@ class StaffProfileActivity : AppCompatActivity() {
         val suggested = hourPayThisMonth ?: amount
         val pamt = ModuleUi.numberInput(this, "Amount", allowDecimal = true)
         val pmode = spinner(listOf("Cash", "Online"))
-        col.addView(ModuleUi.label(this, "Month")); col.addView(monthSpinner)
-        col.addView(ModuleUi.label(this, "Amount")); col.addView(pamt)
-        if (suggested > 0) col.addView(TextView(this).apply {
+        /* 🗓️ V1248 — "কবে দিয়েছি"। ডিফল্ট আজ; চাপ দিলে ক্যালেন্ডার,
+           সর্বোচ্চ আজ পর্যন্ত (ভবিষ্যতের তারিখ নয়)। */
+        var paidOnIso = todayIso()
+        val paidOnBtn = TextView(this).apply {
+            text = salDmy(paidOnIso)
+            textSize = 15.5f
+            setTextColor(android.graphics.Color.parseColor("#101C2E"))
+            isClickable = true
+            setOnClickListener {
+                val c = java.util.Calendar.getInstance()
+                try {
+                    c.set(paidOnIso.substring(0, 4).toInt(),
+                        paidOnIso.substring(5, 7).toInt() - 1,
+                        paidOnIso.substring(8, 10).toInt())
+                } catch (_: Throwable) { }
+                val dlg = android.app.DatePickerDialog(this@StaffProfileActivity, { _, y, m, d ->
+                    paidOnIso = String.format(java.util.Locale.US, "%04d-%02d-%02d", y, m + 1, d)
+                    text = salDmy(paidOnIso)
+                }, c.get(java.util.Calendar.YEAR), c.get(java.util.Calendar.MONTH),
+                    c.get(java.util.Calendar.DAY_OF_MONTH))
+                try { dlg.datePicker.maxDate = System.currentTimeMillis() } catch (_: Throwable) { }
+                dlg.show()
+            }
+        }
+        /* 🗓️🔒 V1248 (০৯.০৯.২০২৬, TK-রিপোর্ট ও ফটো-প্রুফ পাশ — খাতার সারি ৩৬৯):
+           TK: *"সেলারিটা তাকে আমি আগেই দিয়েছি কিন্তু লিখতে ভুলে গেছিলাম — কিন্তু
+           এখানে আগের ডেট দিয়ে গেল না, কেন এরকম হলো"*।
+           **কারণ (কোডে মেপে):** এই ফর্মে **তারিখের কোনো ঘরই ছিল না**; সেভের সময়
+           সবসময় `paid_on = আজ` বসত। শুধু "কোন মাসের বেতন" বাছা যেত, "কবে দিয়েছি"
+           বাছার উপায় ছিল না। ⇒ এখন **Paid on** ঘরটা বসল — ডিফল্ট আজ, চাপ দিলে
+           পিছনের যেকোনো দিন; **ভবিষ্যতের তারিখ বাছা যায় না**।
+           🎨 সঙ্গে TK-র পাশ-করা প্রুফ অনুযায়ী সাজটাও Extra Income-এর মতো —
+              সোনালি পট্টি · একটাই সাদা কার্ড · ঘরগুলো বক্সে · Paid on ও Mode
+              পাশাপাশি। ⛔ সবগুলোই **আগে থেকে থাকা** সহায়ক (`salGoldHeader` ·
+              `salBoxed` · `salPairRow`) — নতুন কিছু বানানো হয়নি।
+           ⛔ কোন মাস বাছা যাবে · প্রস্তাবিত অঙ্ক · Mode · "আগে দেওয়া মাসে আবার
+              দিলে জিজ্ঞাসা" — কিচ্ছু বদলায়নি; শুধু তারিখটা এখন হাতে বাছা যায়। */
+        val card = ModuleUi.card(this)
+        col.addView(card)
+        card.addView(salGoldHeader("SALARY PAYMENT", ""))
+        card.addView(ModuleUi.label(this, "Month")); card.addView(salBoxed(monthSpinner))
+        card.addView(ModuleUi.label(this, "Amount")); card.addView(salBoxed(pamt))
+        if (suggested > 0) card.addView(TextView(this).apply {
             text = "Suggested from this month's hours : " + money(suggested)
             textSize = 11.5f
             setTextColor(android.graphics.Color.parseColor("#8B98A9"))
             setPadding(dp(2), dp(6), 0, 0)
         })
-        col.addView(ModuleUi.label(this, "Mode")); col.addView(pmode)
+        val paidOnCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        paidOnCol.addView(ModuleUi.label(this, "Paid on"))
+        paidOnCol.addView(salBoxed(paidOnBtn))
+        val modeCol2 = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        modeCol2.addView(ModuleUi.label(this, "Mode")); modeCol2.addView(salBoxed(pmode))
+        card.addView(salPairRow(paidOnCol, modeCol2))
         /* 🔵🔒 V521 (২২.০৮.২০২৬, TK-নির্দেশ) — *"Add Payment · Cancel এই দুইটা
            পাশাপাশি থাকবে, একটা যেন আরেকটার গায়ে ঘেঁষে না যায়। 'Add Payment'
            লেখা থাকবে না — 'Salary Payment' হবে।"*
@@ -4249,7 +4299,8 @@ class StaffProfileActivity : AppCompatActivity() {
             val ym = months[idx]
             /* 🛡️ V1195 — ওই মাস আগে দেওয়া থাকলে **আগে জিজ্ঞাসা**, তারপরই সেভ। */
             confirmIfMonthPaid(pays, ym) {
-                val row = JSONObject().put("person_code", code).put("paid_on", todayIso())
+                // 🗓️ V1248 — আজকের তারিখের বদলে স্টাফের বাছা তারিখ।
+                val row = JSONObject().put("person_code", code).put("paid_on", paidOnIso)
                     .put("amount", amt).put("mode", pmode.selectedItem.toString())
                     .put("paid_by", ModuleAuth.personCode).put("remark", "").put("for_month", ym)
                 Thread {
@@ -4264,7 +4315,7 @@ class StaffProfileActivity : AppCompatActivity() {
         }
         addRow.addView(addCancel)
         addRow.addView(addSave)
-        col.addView(addRow)
+        card.addView(addRow)   // 🎨 V1248 — বোতাম দুটোও একই কার্ডের ভিতরে
     }
 
     /** জয়েনিং মাস থেকে চলতি মাস পর্যন্ত YYYY-MM তালিকা (নতুন-আগে)। join_date না
