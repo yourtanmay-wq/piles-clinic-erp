@@ -8536,3 +8536,79 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
 .wlv1RmcAdv{background:#FFF4E5;color:#B45309;font-size:9.5px;font-weight:700;
   padding:2px 7px;border-radius:8px}
 .wlv1RmcHint{font-size:10px;color:#8B98A9;margin-top:6px}
+/* ═══════════════════════════════════════════════════════════════════════
+   🖥️🎨 V1261 (০৯.০৯.২০২৬, TK-নির্দেশ: *"২ নম্বর CHECK-UP পর্দাটা সুন্দর
+   করুন"* · খাতার সারি ১১৩) — **শুধু কম্পিউটারের চওড়া পর্দায়** CHECK-UP
+   Queue-এর সাজ।
+   ⛔ পুরো ব্লকটা `min-width:1200px`-এর ভিতরে ⇒ ফোনে ও ট্যাবে **এক পিক্সেলও
+      বদলায় না** (V976-এ TK-র চাওয়া ছোট মাপ ফোনে অটুট)।
+   ⛔ কম্পিউটারেও কার্ডের উচ্চতা প্রায় আগেরটাই রাখা হলো — TK আগে বলেছিলেন
+      *"উচ্চতা কম হবে প্রতিটা বক্সের"*, তাই লম্বা করা হয়নি; শুধু ছায়া, কোণ,
+      অক্ষরের গাঢ়ত্ব, বোতামের ভারসাম্য ও মাউস রাখলে সাড়া যোগ হলো।
+   ⛔ একটাও ঘর · বোতাম · সংখ্যা · রঙের মানে বদলানো হয়নি।
+   ═══════════════════════════════════════════════════════════════════════ */
+@media (min-width:1200px){
+  /* সেকশনের পট্টি — চ্যাপ্টা বার নয়, নরম ঢালু রং ও পরিষ্কার অক্ষর */
+  .dqSectionHead{border-radius:13px!important;padding:11px 18px!important;
+    font-size:12.5px!important;font-weight:800!important;letter-spacing:1.1px!important;
+    text-transform:uppercase;margin:14px 0 10px!important;
+    box-shadow:0 3px 11px rgba(16,40,64,.10)!important}
+  .dqSectionHead.dqToday{background:linear-gradient(90deg,#0FA83A,#0A7F2A)!important}
+  .dqSectionHead.dqOverdue{background:linear-gradient(90deg,#F0960F,#D97A06)!important}
+  .dqSectionHead.dqDone{background:linear-gradient(90deg,#3D5C79,#2B4459)!important}
+
+  /* কার্ড — নরম ছায়া ও কোণ, মাউস রাখলে হালকা উঠে আসে */
+  .doctorQueuePro{padding:12px 14px!important;border-radius:16px!important;
+    border:1px solid #E4EDF3!important;background:#fff!important;
+    box-shadow:0 2px 9px rgba(16,40,64,.06)!important;
+    transition:box-shadow .18s ease,transform .18s ease,border-color .18s ease}
+  .doctorQueuePro:hover{box-shadow:0 9px 22px rgba(16,40,64,.11)!important;
+    transform:translateY(-2px);border-color:#CFE0EC!important}
+
+  /* পরিচয়ের সারি — চিহ্নটা ডান দিকে উপরে, নাম গাঢ় */
+  /* TK: *"পেশেন্ট নামের একদম ডান পাশে NEW/OLD রাখুন"* — সারিটা grid ছিল, তাই
+     চিহ্নটা নিচে নেমে যেত; এখন এক সারিতে: ছবি · পরিচয় · ডান কিনারায় চিহ্ন। */
+  .doctorQueuePro .queueRow{display:flex!important;gap:11px!important;
+    align-items:flex-start!important;flex-wrap:nowrap!important}
+  .doctorQueuePro .queuePhoto{width:48px!important;height:48px!important;
+    border-radius:14px!important;font-size:21px!important;flex:0 0 auto;
+    border:1px solid #E4EDF3!important;background:#F4F8FB!important}
+  .doctorQueuePro .queueInfo{min-width:0}
+  .doctorQueuePro .queueInfo b{font-size:15px!important;color:#10314F!important;
+    letter-spacing:-.2px!important}
+  .doctorQueuePro .queueInfo span{font-size:12px!important;color:#546A7E!important}
+  .doctorQueuePro .queueInfo small{font-size:11.5px!important;color:#7C8B99!important}
+  .doctorQueuePro .queueBadge{margin-left:auto;align-self:flex-start;flex:0 0 auto;
+    font-size:9.5px!important;padding:5px 11px!important;
+    border-radius:999px!important;letter-spacing:.7px!important}
+
+  /* টাকার তিনটে ঘর — একটু পরিষ্কার, উচ্চতা প্রায় আগেরটাই */
+  .doctorQueuePro .dqMoney{gap:8px!important;margin:10px 0 3px!important}
+  .doctorQueuePro .dqM{padding:7px 5px!important;border-radius:11px!important}
+  .doctorQueuePro .dqM span{font-size:9px!important;letter-spacing:.6px!important}
+  .doctorQueuePro .dqM b{font-size:14px!important}
+
+  /* গত ট্রিটমেন্ট / প্ল্যানের বাক্স */
+  .doctorQueuePro .dqFp{padding:8px 10px!important;border-radius:11px!important;margin-top:7px!important}
+  .doctorQueuePro .dqFh{font-size:10px!important;letter-spacing:.4px!important}
+  .doctorQueuePro .dqFt{font-size:12px!important}
+
+  /* বোতাম — সমান উচ্চতা, Check-up-টাই মূল বোতাম */
+  /* TK: *"History · Report Card · Check-up · Action একই লাইনে শুরু থেকে শেষ
+     অবধি রাখুন"* — চারটে বোতাম সমান ভাগে পুরো চওড়া জুড়ে, এক লাইনেই। */
+  .doctorQueuePro .queueActions{display:flex!important;flex-wrap:nowrap!important;
+    margin-top:10px!important;gap:8px!important}
+  .doctorQueuePro .queueActions button{flex:1 1 0!important;min-width:0!important;
+    white-space:nowrap!important;padding:0 6px!important;height:35px!important;
+    font-size:12px!important;font-weight:700!important;border-radius:11px!important;
+    transition:background .16s ease,border-color .16s ease,box-shadow .16s ease}
+  .doctorQueuePro .queueActions button.ghost{background:#fff!important;
+    border:1px solid #D8E4EE!important;color:#20415F!important}
+  .doctorQueuePro .queueActions button.ghost:hover{background:#F3F8FC!important;
+    border-color:#B9D0E2!important}
+  .doctorQueuePro .queueActions button:not(.ghost){
+    background:linear-gradient(180deg,#1E7FE0,#1263BC)!important;color:#fff!important;
+    border:0!important;box-shadow:0 3px 9px rgba(18,99,188,.26)!important}
+  .doctorQueuePro .queueActions button:not(.ghost):hover{
+    box-shadow:0 6px 15px rgba(18,99,188,.32)!important}
+}
