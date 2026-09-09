@@ -29650,7 +29650,13 @@ function wlv1EstTreatRender(){
     +'<div class="card"><div class="tiny mut">POSITION (O\'CLOCK)</div>'+clock+'</div>'
     +'<div class="card"><div style="display:flex;gap:8px">'
     +'<div style="flex:1"><div class="tiny mut">RATE</div><input id="wlv1EstRate" class="input" value="'+rate+'"></div>'
-    +'<div style="flex:1"><div class="tiny mut">QTY</div><input id="wlv1EstQty" class="input" value="'+qty+'"></div></div></div>'
+    /* 📏🔒 V1279 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ — তালিকা সারি ৪০১):
+       TK: *"ফিস্টুলার ক্ষেত্রে কোয়ান্টিটি কেন হবে … পার সেন্টিমিটার হিসাবে
+       হবে · পাইলসের ক্ষেত্রে কোয়ান্টিটি ঠিক ছিল"* · *"RATE & LENGTH পাশাপাশি
+       থাকতে হবে"*। Fistula-য় এই ঘরটাই আগে থেকেই দৈর্ঘ্য (`qty + ' cm'`,
+       দাম = রেট × ওই সংখ্যা) ⇒ শুধু **নামটাই** বদলাল। ফোনের হুবহু জোড়া।
+       ⛔ ঘরের `id` · হিসাব · সেভ — এক অক্ষরও বদলায়নি। */
+    +'<div style="flex:1"><div class="tiny mut">'+(wlv1EstPick.group==='Fistula'?'LENGTH (CM)':'QTY')+'</div><input id="wlv1EstQty" class="input" value="'+qty+'"></div></div></div>'
     +'<div class="actions"><button class="ghost" onclick="wlv1EstRender()">Cancel</button>'
     +'<button onclick="wlv1EstTreatAdd()">Add to estimate</button></div>');
 }

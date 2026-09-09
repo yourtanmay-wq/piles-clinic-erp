@@ -403,16 +403,30 @@ object EstimateDialog {
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply { topMargin = dp(activity, 10) }
         }
-        fun cell(title: String, field: EditText) {
+        /* 📏🔒 V1279 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ — তালিকা সারি ৪০১):
+           TK: *"ফিস্টুলার ক্ষেত্রে কোয়ান্টিটি কেন হবে · ফিস্টুলার ক্ষেত্রে তো
+           পার সেন্টিমিটার হিসাবে হবে · পাইলসের ক্ষেত্রে কোয়ান্টিটি ঠিক ছিল"*
+           ও *"RATE & LENGTH পাশাপাশি থাকতে হবে"*।
+           **যাচাই (কোডে মেপে):** Fistula-য় এই ঘরটাই **আগে থেকেই দৈর্ঘ্য** —
+           এখানে যা লেখা হয় সেটাই মাপ হয়ে বসে (`qty + " cm"`) আর দাম = রেট ×
+           ওই সংখ্যা। ⇒ তাই শুধু **নামটাই ভুল ছিল**।
+           ⇒ এখন Fistula-য় লেখা থাকে **LENGTH (CM)**, বাকি রোগে আগের মতোই **QTY**।
+           ⛔ ঘরটা · হিসাব · সেভ — এক অক্ষরও বদলায়নি, তাই পুরনো কোনো সারি
+              বা কাগজ নষ্ট হওয়ার পথ নেই (নিয়ম ৭ক-এর ৪)।
+           ⛔ RATE ও এই ঘরটা আগের মতোই **পাশাপাশি** এক সারিতেই। */
+        var qtyLabel: TextView? = null
+        fun cell(title: String, field: EditText): TextView {
             val c = LinearLayout(activity).apply {
                 orientation = LinearLayout.VERTICAL
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                     .apply { rightMargin = dp(activity, 6) }
             }
-            c.addView(label(activity, title)); c.addView(field); rateRow.addView(c)
+            val lb = label(activity, title)
+            c.addView(lb); c.addView(field); rateRow.addView(c)
+            return lb
         }
         cell("RATE", rateField)
-        cell("QTY", qtyField)
+        qtyLabel = cell("QTY", qtyField)
         root.addView(rateRow)
         rateField.addTextChangedListener(object : android.text.TextWatcher {
             override fun afterTextChanged(s: android.text.Editable?) { rateTouched = true }
@@ -427,6 +441,9 @@ object EstimateDialog {
             measureBox.removeAllViews()
             val items = EstimatePrices.inGroup(activity, group)
             measureBox.addView(label(activity, if (group == EstimatePrices.G_FISTULA) "TRACT LENGTH" else "GRADE / TYPE"))
+            /* 📏 V1279 — রোগ বদলালে নিচের ঘরের নামও বদলায়: Fistula-য়
+               "LENGTH (CM)", বাকি সবেতে আগের মতোই "QTY"। */
+            qtyLabel?.text = if (group == EstimatePrices.G_FISTULA) "LENGTH (CM)" else "QTY"
             val wrap = LinearLayout(activity).apply {
                 orientation = LinearLayout.HORIZONTAL
                 layoutParams = LinearLayout.LayoutParams(
@@ -439,14 +456,23 @@ object EstimateDialog {
             for (item in items) {
                 val t = TextView(activity).apply {
                     // 📏 V1278 — পুরনো জমা সারিতে "inch" লেখা থাকলেও পর্দায় CM
-                    text = (if (item.measure.isBlank()) item.name else EstimateModel.unitTxt(item.measure)) +
-                        "\n" + EstimateModel.moneyShort(item.rate)
+                    /* 📏🔒 V1279 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ — তালিকা
+                       সারি ৪০১): *"CM 11000 ওই বক্স টা উচ্চতা কম করুন"*।
+                       ⇒ Fistula-য় লেখাটা **এক লাইনে** (`cm · 11,000`) আর
+                         উপর-নিচের ফাঁক ৯ → ৫dp ⇒ বাক্সটা প্রায় অর্ধেক উঁচু।
+                       ⛔ বাকি রোগগুলোতে (Piles · Fissure · Hydrocele) বাক্সটা
+                          **হুবহু আগের মতোই** দুই লাইনে — ছোঁয়া হয়নি।
+                       ⛔ দর · ক্লিক · চেপে-ধরে দর বদলানো — কিচ্ছু বদলায়নি। */
+                    val mTxt = if (item.measure.isBlank()) item.name else EstimateModel.unitTxt(item.measure)
+                    val oneLine = (group == EstimatePrices.G_FISTULA)
+                    text = mTxt + (if (oneLine) "  \u00b7  " else "\n") + EstimateModel.moneyShort(item.rate)
                     textSize = 11.5f
                     gravity = Gravity.CENTER
                     setTypeface(typeface, Typeface.BOLD)
                     layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                         .apply { leftMargin = dp(activity, 3); rightMargin = dp(activity, 3) }
-                    setPadding(dp(activity, 4), dp(activity, 9), dp(activity, 4), dp(activity, 9))
+                    setPadding(dp(activity, 4), dp(activity, if (oneLine) 5 else 9),
+                               dp(activity, 4), dp(activity, if (oneLine) 5 else 9))
                     setOnClickListener {
                         picked = item
                         /* 🔒 TK: দর নিজে থেকেই বসে; পরে হাতে বদলালে সেটাই থাকে।
