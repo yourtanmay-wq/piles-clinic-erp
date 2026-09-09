@@ -1855,16 +1855,36 @@
     document.getElementById('app').innerHTML='<div class="wrap anMod anModPf"><div class="topbar"><b>Add Salary — '+m.esc(code)+'</b>'+
       '<button class="ghost" onclick="profSalary(\''+m.esc(code)+'\')">Back</button></div><div class="page">'+
       /* 🔴 V430 — ফোনে ভিতরে দ্বিতীয় শিরোনাম নেই, উপরের নামটাই যথেষ্ট। */
+      /* 🗓️🔒 V1274 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ — খাতার সারি ৩৯৬):
+         **আমারই ভুল সংশোধন।** V1248-এ (খাতার সারি ৩৬৯) "Paid on" ঘরটা
+         **শুধু ফোনে** বসেছিল, কম্পিউটারে বসেনি ⇒ ওয়েবে সেভ করলে সবসময়
+         আজকের তারিখ বসত (`paid_on: m.todayIST()`) — TK-এর নিয়ম ৮ ভাঙা।
+         ⇒ এখন ওয়েবেও **Paid on** ঘর — ডিফল্ট আজ, `max` আজ ⇒ ভবিষ্যতের
+           তারিখ বাছা যায় না (ফোনের `maxDate` নিয়মের হুবহু জোড়া)।
+         🎨 সাজও ফোনের মতো — সোনালি পট্টি · "Paid on | Mode" পাশাপাশি ·
+            বোতাম "Cancel · Salary Payment" (ফোনের V521 নিয়ম)।
+         ⛔ কোন মাস বাছা যাবে · প্রস্তাবিত অঙ্ক · ডুপ্লিকেট-মাসের প্রশ্ন ·
+            `for_month` — কিচ্ছু বদলায়নি; শুধু তারিখটা এখন হাতে বাছা যায়। */
       '<div class="card">'+
+      '<div style="background:linear-gradient(90deg,#B45309,#E0A800);color:#fff;border-radius:12px;padding:10px 14px;margin-bottom:10px">'+
+        '<b style="font-size:14px;letter-spacing:.6px">SALARY PAYMENT</b></div>'+
       '<label>Month</label><select id="amMonth" class="input">'+opts+'</select>'+
       /* 💰🔒 V1195 (TK: "September আমি 2044 দেই নাই একবারও") — অঙ্ক আর নিজে
          থেকে বসে না; ঘরটা ফাঁকাই থাকে, প্রস্তাবটা শুধু নিচে হালকা লেখায়। */
       '<label>Amount</label><input id="amAmt" class="input" type="number" placeholder="Enter amount">'+
       (amount>0?('<div style="font-size:12px;color:#8B98A9;padding:6px 2px 0">Suggested : \u20B9'+amount+'</div>'):'')+
-      '<label>Mode</label><select id="amMode" class="input"><option>Cash</option><option>Online</option></select>'+
-      '<div class="actions"><button onclick="profSalaryPayMonth(\''+m.esc(code)+'\')">Add Payment</button>'+
-      '<button class="ghost" onclick="profSalary(\''+m.esc(code)+'\')">Cancel</button></div></div>'+
+      '<div style="display:flex;gap:9px">'+
+        '<div style="flex:1"><label>Paid on</label><input id="amPaidOn" class="input" type="date"></div>'+
+        '<div style="flex:1"><label>Mode</label><select id="amMode" class="input"><option>Cash</option><option>Online</option></select></div>'+
+      '</div>'+
+      '<div class="actions"><button class="ghost" onclick="profSalary(\''+m.esc(code)+'\')">Cancel</button>'+
+      '<button onclick="profSalaryPayMonth(\''+m.esc(code)+'\')">Salary Payment</button></div></div>'+
             '</div></div>';
+    /* 🗓️ V1274 — ডিফল্ট আজ, আর আজকের পরের দিন বাছা যায় না। */
+    try {
+      var __t=m.todayIST(), __d=document.getElementById('amPaidOn');
+      if(__d){ __d.value=__t; __d.max=__t; }
+    } catch(e){}
   }
   async function profSalaryPayMonth(code){
     var m=window.MOD;
@@ -1884,7 +1904,12 @@
         if(!okGo) return;
       }
     }catch(e){}
-    var row={ id:m.uuid(), person_code:code, paid_on:m.todayIST(), amount:amt, mode:(document.getElementById('amMode')||{}).value||'Cash', paid_by:(m.session()||{}).code||'master', remark:'', for_month:ym };
+    /* 🗓️ V1274 — আজকের বদলে মাস্টারের বাছা তারিখ। ঘর ফাঁকা/ভুল/ভবিষ্যতের
+       হলে আগের মতোই আজ ⇒ কখনো ফাঁকা বা ভুল তারিখ জমা হয় না।
+       ⛔ `for_month` আগের মতোই বাছা মাস — তারিখ থেকে **কখনো** ধরা হয় না। */
+    var amOn=String((document.getElementById('amPaidOn')||{}).value||'').slice(0,10);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(amOn) || amOn>m.todayIST()) amOn=m.todayIST();
+    var row={ id:m.uuid(), person_code:code, paid_on:amOn, amount:amt, mode:(document.getElementById('amMode')||{}).value||'Cash', paid_by:(m.session()||{}).code||'master', remark:'', for_month:ym };
     try{ await m.save('hr','salary_payments',row); try{ toast('Payment added'); }catch(e){} }
     catch(e){ try{ toast('Retry'); }catch(_e){} }
     profSalary(code);
