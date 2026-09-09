@@ -204,6 +204,42 @@ object PrescriptionWhatsAppShare {
             }
         } catch (_: Throwable) { html }
 
+        /* 🖨️🔴🔒 V1249 (০৯.০৯.২০২৬, TK-রিপোর্ট ছবিসহ — *"প্রেসক্রিপশন হোয়াটসঅ্যাপে
+           শেয়ার করলে এরকম কেন আসে … যেগুলো প্রিন্টার থেকে ছাপি, হোয়াটসঅ্যাপে
+           পাঠালেও যেন হুবহু একই A4 সাইজের PDF যায়"*, খাতার সারি ৩৭১)।
+
+           🔴 **আসল কারণ (ব্রাউজারে মেপে দেখা, আন্দাজ নয়):** Prescription ও
+              Medicine Slip-এর কাগজ (`assets/www/rx_print.html`)-এর **পুরো A4
+              সাজটাই `@media print { … }`-এর ভিতরে** লেখা — লোগোর মাপ, হেডারের
+              গ্রিড, ২১০mm চওড়া, ২৯৭mm উঁচু পাতা, সবকিছু।
+              • ছাপার পথ (PrintManager) কাগজটা **print মিডিয়ায়** আঁকে ⇒ সব নিয়ম
+                লাগে ⇒ কাগজ ঠিক।
+              • কিন্তু এই PDF বানানোর পথটা একটা সাধারণ WebView — সেটা **screen
+                মিডিয়ায়** আঁকে ⇒ ওই নিয়মগুলো একটাও লাগে না।
+              হুবহু একই কাগজে মেপে পাওয়া গেছে (৭৯৪×১১২৩-এ):
+                screen → লোগো ৬৪০×৬৪০ px · পাতা ২২১৪ px উঁচু · ১০৫০ px চওড়া
+                print  → লোগো  ৮০×৮০  px · পাতা ১১২৩ px উঁচু ·  ৭৯৪ px চওড়া
+              ⇒ TK-এর ছবিতে ঠিক এটাই: বিশাল লোগো · ২ পাতা · ডান দিক কাটা।
+              ⚠️ V795/V1242-এ আমি viewport-এর চওড়াটা সারিয়েছিলাম, কিন্তু
+                 মিডিয়ার এই তফাতটা তখন ধরতে পারিনি — সেটা আমারই আধখানা কাজ।
+
+           ⇒ **সমাধান:** এই PDF বানানোর সময় কাগজটাকে **ছাপার নিয়মেই** আঁকতে বলা
+             হয় — `@media print` ⇒ সবসময় চালু, `@media screen` ⇒ বন্ধ।
+             মেপে দেখা: এর পরে screen-এ আঁকা কাগজ **print-এর সঙ্গে হুবহু এক**
+             (৭৯৩.৬৯ × ১১২২.৫২ px — এক পিক্সেলও তফাত নেই), ঠিক ১ পাতা A4।
+           ⛔ **ডিজাইনের একটা অক্ষরও বদলায়নি** — TK-এর স্পষ্ট নির্দেশ; বরং
+              ছাপা কাগজের **হুবহু সেই ডিজাইনটাই** এখন হোয়াটসঅ্যাপে যায়।
+           ⛔ আসল টেমপ্লেট ফাইল ছোঁয়া হয়নি — বদলটা শুধু মেমরির এই কপিতে।
+           ⛔ ছাপার পথ (PrintManager) সম্পূর্ণ আলাদা, সেখানে হাত পড়েনি।
+           ⛔ বাকি কাগজগুলোতে (Blood Test Advice · Diet Chart · Check-up ·
+              Estimate · Registration) `@media print` নিয়মই নেই — মেপে দেখা —
+              তাই ওদের জন্য এই লাইনগুলো কিছুই করে না, ওরা অক্ষত থাকে। */
+        val htmlPrintMedia = try {
+            Regex("@media\\s+print\\s*\\{", RegexOption.IGNORE_CASE)
+                .replace(htmlForPdf, "@media all{")
+                .let { Regex("@media\\s+screen\\s*\\{", RegexOption.IGNORE_CASE).replace(it, "@media not all{") }
+        } catch (_: Throwable) { htmlForPdf }
+
         val wv = WebView(activity)
         // ⚠️ JavaScript শুধু পাতার **উচ্চতা মাপার** জন্য। টেমপ্লেটে নিজের কোনো
         //    স্ক্রিপ্ট নেই ও বাইরের কিছু লোড হয় না, তাই এতে ঝুঁকি নেই।
@@ -234,7 +270,7 @@ object PrescriptionWhatsAppShare {
             val wantWidth = Regex(
                 "name=[\"']viewport[\"'][^>]*content=[\"'][^\"']*width\\s*=\\s*(\\d{3,4})",
                 RegexOption.IGNORE_CASE
-            ).find(htmlForPdf)?.groupValues?.getOrNull(1)?.toIntOrNull()
+            ).find(htmlPrintMedia)?.groupValues?.getOrNull(1)?.toIntOrNull()
             if (wantWidth != null && wantWidth >= 300) {
                 wv.settings.useWideViewPort = true
                 /* 🔴🔒🔒 V701 (২৬.০৮.২০২৬, TK-এর ৪টে ছবিতে ধরা — PDF-এ লোগো
@@ -273,7 +309,7 @@ object PrescriptionWhatsAppShare {
         } catch (_: Throwable) { }
         layoutAt(wv, A4_HEIGHT_PX)
         // baseURL = file:///android_asset/  → লোগোর ছবি রিজলভ হয় (ছাপার পথের মতোই)।
-        wv.loadDataWithBaseURL("file:///android_asset/", htmlForPdf, "text/html", "UTF-8", null)
+        wv.loadDataWithBaseURL("file:///android_asset/", htmlPrintMedia, "text/html", "UTF-8", null)
     }
 
     /* 🔴🔒 V701 — কাগজের আসল চওড়া। সাধারণত A4 (৭৯৪), কিন্তু কোনো ফোনে
@@ -408,7 +444,15 @@ object PrescriptionWhatsAppShare {
             val drawWidthPx = max(renderWidthPx, A4_WIDTH_PX)
             val scale = A4_WIDTH_PT.toFloat() / drawWidthPx.toFloat()
             val pageHeightPx = A4_HEIGHT_PT / scale           // এক পাতায় কত px ধরে
-            val pageCount = max(1, ceil(totalHeightPx / pageHeightPx).toInt())
+            /* 🔴🔒 V1249 — **শেষ এক-দুই পিক্সেলের জন্য যেন বাড়তি ফাঁকা পাতা না
+               আসে।** A4-এর উচ্চতা ২৯৭mm = ১১২২.৫২ px; WebView সেটা মেপে দেয়
+               ১১২৩ (বা কোনো ফোনে ১১২৪) — আধ পিক্সেল বেশি হলেই আগের হিসাবে
+               `ceil` দুই পাতা বানিয়ে ফেলত, দ্বিতীয়টা প্রায় ফাঁকা।
+               ⇒ এক পাতার ২%-এর কম উপচে পড়াকে উপচানো ধরা হয় না।
+               ⛔ সত্যিকারের বড় কাগজ (যেমন লম্বা Check-up রিপোর্ট) আগের
+                  মতোই সব পাতা পায় — ২২ px-এর বেশি উপচালেই নতুন পাতা। */
+            val slackPx = pageHeightPx * 0.02f
+            val pageCount = max(1, ceil((totalHeightPx - slackPx) / pageHeightPx).toInt())
             for (i in 0 until pageCount) {
                 val info = PdfDocument.PageInfo
                     .Builder(A4_WIDTH_PT, A4_HEIGHT_PT, i + 1)
