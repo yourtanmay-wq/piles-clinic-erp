@@ -2760,7 +2760,12 @@ class PatientTimelineActivity : AppCompatActivity() {
                                     // আসল সারিটা আবার পড়া হয় — অন্য কেউ ইতিমধ্যে
                                     // ছাড় দিয়ে থাকলে বা টাকা বসিয়ে থাকলে যেন তার
                                     // উপরেই যোগ হয়, তার লেখা মুছে না যায়।
-                                    val rows = SupabaseClient.fetchList("patients", "id=eq.$rowId", 1)
+                                    /* 🟢🔒 V1275 (TK-নির্দেশ, Egress) — আগে সব ঘর
+                                       নামত (base64 `photo`-সহ), অথচ নিচে পড়া হয়
+                                       শুধু `bill` · `discount` · `billBeforeDiscount`।
+                                       ⛔ ছাড়ের হিসাব এক অক্ষরও বদলায়নি। */
+                                    val rows = SupabaseClient.fetchList("patients", "id=eq.$rowId", 1,
+                                        select = "id,bill,discount,billBeforeDiscount")
                                     val row = if (rows.length() > 0) rows.getJSONObject(0) else null
                                     val liveBill = row?.optDouble("bill", currentBillTotal) ?: currentBillTotal
                                     val hadDiscount = row?.optDouble("discount", 0.0) ?: 0.0

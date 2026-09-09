@@ -995,7 +995,7 @@ class FollowUpRepository(private val context: Context? = null) {
     //    ছোঁয়া হয় না।
     //
     // নিরাপত্তা-জাল (Doctor Queue-র একই ৩ স্তর, কিন্তু কড়া — ৩০ মিনিট):
-    //  ১. since না থাকলে/৩০ মিনিট পার হলে → জোর করে পূর্ণ fetch
+    //  ১. since না থাকলে/৩ ঘণ্টা পার হলে → জোর করে পূর্ণ fetch
     //  ২. delta-কল ব্যর্থ হলে → পূর্ণ fetch
     //  ৩. প্রতিটা delta-সারি নিজের `status` দিয়ে যাচাই হয় — এখনও Active হলে
     //     জমানো preCloud-এ বসে/আপডেট হয়, Cancelled/Incomplete/Rejected/
@@ -1035,7 +1035,7 @@ class FollowUpRepository(private val context: Context? = null) {
     //
     // ⛔ সত্যিকারের hard-DELETE (কোনো row updatedAt না বদলে সরাসরি মুছে
     //    যাওয়া) delta-তে ধরা পড়বে না — DoctorQueue/Inquiry-র একই সীমাবদ্ধতা,
-    //    ৩০ মিনিটের নিয়মিত পূর্ণ-fetch স্বয়ংক্রিয়ভাবে ঠিক করে দেয়।
+    //    ৩ ঘণ্টার নিয়মিত পূর্ণ-fetch স্বয়ংক্রিয়ভাবে ঠিক করে দেয়।
     // =========================================================================
 
     /**

@@ -24,7 +24,12 @@ class DoctorQueueRepository(private val context: Context? = null) {
         private const val DELTA_PREFS = "doctor_queue_delta_state"
         /** নিরাপত্তা-জাল ১: এত সময় পার হলে (বা কোনো since না থাকলে) জোর করে
          *  পূর্ণ-fetch — কিছু ভুলে বাদ পড়লেও নিজে থেকেই ঠিক হয়ে যাবে। */
-        private const val FULL_REFRESH_INTERVAL_MS = 2L * 60L * 60L * 1000L
+        /* 🟢🔒 V1275 (০৯.০৯.২০২৬, TK-নির্দেশ) — **২ ঘণ্টা → ৩ ঘণ্টা**, যাতে
+           প্রকল্পের চারটে জোর-করা পূর্ণ-পড়ার ঘড়িই এক মাপে থাকে (Follow-up ও
+           Dashboard V1258-এ, Chamber V1275-এ — সবই ৩ ঘণ্টা)।
+           ⛔ একই কারণ ও একই ঝুঁকি (শুধু hard-DELETE দেরিতে ধরা পড়ে); রোজকার
+              বদল আগের মতোই delta-তেই আসে। ⛔ সারি · ছাঁকনি · হিসাব অটুট। */
+        private const val FULL_REFRESH_INTERVAL_MS = 3L * 60L * 60L * 1000L   // ৩ ঘণ্টা (V1275; আগে ২ ঘণ্টা)
         private const val SAFETY_BACK_MS = 5_000L
     }
 

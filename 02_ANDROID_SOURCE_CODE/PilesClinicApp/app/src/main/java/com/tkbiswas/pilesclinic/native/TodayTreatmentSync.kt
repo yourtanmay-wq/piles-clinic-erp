@@ -73,7 +73,11 @@ object TodayTreatmentSync {
            হয় — শুধু তখনই, আর শুধু ডাক্তার কিছু বাছলে (উপরে ফাঁকা হলে ফিরে গেছে)। */
         if (digits.length != 10 && patientRowId.isNotBlank()) {
             try {
-                val rows = SupabaseClient.fetchList("patients", "id=eq.$patientRowId", 1)
+                /* 🟢🔒 V1275 (TK-নির্দেশ, Egress) — আগে এখানে রোগীর **সব ঘর**
+                   নামত, অর্থাৎ base64 `photo`-ও (৫০–১০০ KB), অথচ নিচের লাইনে
+                   পড়া হয় শুধু `mobile`। ⇒ এখন শুধু দুটো ঘর।
+                   ⛔ কাজ · সারি · ছাঁকনি — এক অক্ষরও বদলায়নি। */
+                val rows = SupabaseClient.fetchList("patients", "id=eq.$patientRowId", 1, select = "id,mobile")
                 if (rows.length() > 0) {
                     digits = rows.getJSONObject(0).optString("mobile", "").filter { it.isDigit() }.takeLast(10)
                 }
