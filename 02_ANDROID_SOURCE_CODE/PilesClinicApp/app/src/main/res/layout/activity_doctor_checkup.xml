@@ -1415,23 +1415,13 @@
                         <View android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
                     </LinearLayout>
                     <LinearLayout android:id="@+id/photoFoldBody" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
-                    <LinearLayout style="@style/Row2" android:layout_marginTop="0dp">
-                        <LinearLayout style="@style/Col">
-                            <TextView style="@style/FieldLabel" android:layout_marginTop="0dp" android:text="Before Photo\nআগের ছবি" />
-                            <ImageView android:id="@+id/ivBeforePhoto" android:layout_width="match_parent" android:layout_height="90dp" android:scaleType="centerCrop" android:background="#EDF1F6" android:layout_marginTop="6dp" />
-                            <com.google.android.material.button.MaterialButton android:id="@+id/btnBeforePhoto" style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="11sp" android:insetTop="0dp" android:insetBottom="0dp" android:layout_marginTop="2dp" android:text="📷 Before" />
-                        </LinearLayout>
-                        <LinearLayout style="@style/Col">
-                            <TextView style="@style/FieldLabel" android:layout_marginTop="0dp" android:text="During Photo\nচলাকালীন ছবি" />
-                            <ImageView android:id="@+id/ivDuringPhoto" android:layout_width="match_parent" android:layout_height="90dp" android:scaleType="centerCrop" android:background="#EDF1F6" android:layout_marginTop="6dp" />
-                            <com.google.android.material.button.MaterialButton android:id="@+id/btnDuringPhoto" style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="11sp" android:insetTop="0dp" android:insetBottom="0dp" android:layout_marginTop="2dp" android:text="📷 During" />
-                        </LinearLayout>
-                        <LinearLayout style="@style/ColEnd">
-                            <TextView style="@style/FieldLabel" android:layout_marginTop="0dp" android:text="After Photo\nপরের ছবি" />
-                            <ImageView android:id="@+id/ivAfterPhoto" android:layout_width="match_parent" android:layout_height="90dp" android:scaleType="centerCrop" android:background="#EDF1F6" android:layout_marginTop="6dp" />
-                            <com.google.android.material.button.MaterialButton android:id="@+id/btnAfterPhoto" style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="11sp" android:insetTop="0dp" android:insetBottom="0dp" android:layout_marginTop="2dp" android:text="📷 After" />
-                        </LinearLayout>
-                    </LinearLayout>
+                    <!-- 📸🔒 V1256 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, খাতার সারি ৩৭৮) —
+                         TK: *"এখানে Before, During, After এগুলো নিচে থাকবে · হাতে এঁকে যে
+                         ছবিটা দেখায় সেগুলো উপরে থাকবে"*।
+                         ⇒ এই তিনটে ছবির সারিটা "Patient Picture" ব্লকের **নিচে** নামানো হলো।
+                         ⛔ ব্লকের **একটাও লাইন বদলানো হয়নি** — হুবহু কেটে এনে বসানো;
+                            id (ivBeforePhoto / btnBeforePhoto / … ) · ছবি তোলার কাজ ·
+                            সেভ · A4-রিপোর্ট — সবই অক্ষত, শুধু XML-এ জায়গা বদল। -->
                     <!-- 🟢🔒🔒 V704 (২৬.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত —
                          "এই ফটোটা অন্য একটা যায়গায় থাকবে, সম্ভাব্য রোগ এবং সময়ের
                          মধ্যে থাকবে না") — "Patient Picture" ব্লকটা Step 4
@@ -1502,6 +1492,23 @@
                              কোন ব্যবস্থা থাকবে না"* → লেখার ঘরটা তুলে দেওয়া হলো।
                              ⛔ পুরোনো যাঁদের রেকর্ডে এই লেখা জমা আছে সেটা **মুছে যায়নি** —
                                 আগের মতোই জমা থাকে ও ছাপায় আসে, শুধু নতুন করে লেখার ঘর নেই। -->
+                    </LinearLayout>
+                    <LinearLayout style="@style/Row2" android:layout_marginTop="0dp">
+                        <LinearLayout style="@style/Col">
+                            <TextView style="@style/FieldLabel" android:layout_marginTop="0dp" android:text="Before Photo\nআগের ছবি" />
+                            <ImageView android:id="@+id/ivBeforePhoto" android:layout_width="match_parent" android:layout_height="90dp" android:scaleType="centerCrop" android:background="#EDF1F6" android:layout_marginTop="6dp" />
+                            <com.google.android.material.button.MaterialButton android:id="@+id/btnBeforePhoto" style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="11sp" android:insetTop="0dp" android:insetBottom="0dp" android:layout_marginTop="2dp" android:text="📷 Before" />
+                        </LinearLayout>
+                        <LinearLayout style="@style/Col">
+                            <TextView style="@style/FieldLabel" android:layout_marginTop="0dp" android:text="During Photo\nচলাকালীন ছবি" />
+                            <ImageView android:id="@+id/ivDuringPhoto" android:layout_width="match_parent" android:layout_height="90dp" android:scaleType="centerCrop" android:background="#EDF1F6" android:layout_marginTop="6dp" />
+                            <com.google.android.material.button.MaterialButton android:id="@+id/btnDuringPhoto" style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="11sp" android:insetTop="0dp" android:insetBottom="0dp" android:layout_marginTop="2dp" android:text="📷 During" />
+                        </LinearLayout>
+                        <LinearLayout style="@style/ColEnd">
+                            <TextView style="@style/FieldLabel" android:layout_marginTop="0dp" android:text="After Photo\nপরের ছবি" />
+                            <ImageView android:id="@+id/ivAfterPhoto" android:layout_width="match_parent" android:layout_height="90dp" android:scaleType="centerCrop" android:background="#EDF1F6" android:layout_marginTop="6dp" />
+                            <com.google.android.material.button.MaterialButton android:id="@+id/btnAfterPhoto" style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="11sp" android:insetTop="0dp" android:insetBottom="0dp" android:layout_marginTop="2dp" android:text="📷 After" />
+                        </LinearLayout>
                     </LinearLayout>
                     <!-- V455 (TK-নির্দেশ ১৮.০৮.২০২৬) — "Documents / Reports Note" বাদ।
                          ⛔ ClinicalModels-এর documents ঘর অটুট (ডিফল্ট ""), শুধু UI সরানো। -->
