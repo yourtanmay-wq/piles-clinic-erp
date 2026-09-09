@@ -302,7 +302,31 @@ class FollowUpRepository(private val context: Context? = null) {
         //    blank-branch repair) এই delta-র কথা জানেই না — তারা যা পায়
         //    (merge-করা preCloud) তাই নিয়ে **হুবহু আগের মতোই** কাজ করে।
         private const val FU_DELTA_PREFS = "followup_inquiry_delta_state"
-        private const val FU_FULL_REFRESH_INTERVAL_MS = 30L * 60L * 1000L   // ৩০ মিনিট (Doctor Queue-র চেয়ে কড়া)
+        /* 📉🔒 V1258 (০৯.০৯.২০২৬, TK-অনুমোদিত Egress-প্লানের **ধাপ ৩**,
+           খাতার সারি ৩৮০) — ৩০ মিনিট → **৩ ঘণ্টা**।
+
+           এই ঘড়িটা শুধু একটা কাজেই লাগে — সময় পেরোলে delta ছেড়ে
+           **পূর্ণ পড়া** (followups + patients + payments একসাথে) চালানো।
+           সেই পূর্ণ পড়াটাই প্রকল্পের সবচেয়ে ভারী — তাই ব্যবধান ৬ গুণ হলে
+           ওই খরচ ৬ ভাগের এক হয়।
+
+           মাঝের সময়ে কি হারায় — মেপে দেখা (আন্দাজ নয়):
+           · নতুন/বদলানো সারি → delta-তে আগের মতোই সঙ্গে সঙ্গে আসে।
+           · Cancelled/Incomplete/Rejected/Closed → `deltaPreCloudOrNull()`
+             নিজেই সরিয়ে দেয় (নিচে `terminal` তালিকা)।
+           · ধাপ বদল (Patient → Treatment) → `fetchTab()`-এর `preHigher` পড়াটা
+             **কখনোই delta নয়**, সবসময় তাজা — তাই পদোন্নতি পাওয়া সারি
+             নিচের সেকশন থেকে আগের মতোই বাদ পড়ে।
+           ⚠️ শুধু **সত্যিকারের ডিলিট** (Trash → Delete Forever) delta ধরতে পারে না —
+             এতদিন সেটা সরতে সর্বোচ্চ ৩০ মিনিট লাগত, এখন সর্বোচ্চ ৩ ঘণ্টা।
+             TK-কে এটা কাজের আগেই বলা হয়েছে (নিয়ম ৬)।
+           ⛔ এই ঘড়ি শুধু **নিজে-নিজে রিফ্রেশ** পথে (`fetchTabDelta`) খাটে।
+              পর্দা খোলা · Resume · ট্যাব বদল · ব্রাঞ্চ বদল — সবই আগের মতোই
+              সরাসরি পূর্ণ `fetchTab()`, এক অক্ষরও বদলায়নি।
+           ⛔ `DashboardActivity.BANNER_FULL_GAP_MS`-ও **একসাথে ৩ ঘণ্টা** করা হলো —
+              দুটো আলাদা হলে ব্যানারের সংখ্যা আর তালিকার সংখ্যা বেমানান হত (TK-এর
+              "৫৬ বনাম ৪৭"-এর সমস্যা) — তাই দুটো সবসময় এক মাপে রাখতে হবে। */
+        private const val FU_FULL_REFRESH_INTERVAL_MS = 3L * 60L * 60L * 1000L   // ৩ ঘণ্টা (V1258; আগে ৩০ মিনিট)
         private const val FU_SAFETY_BACK_MS = 5_000L
     }
 
