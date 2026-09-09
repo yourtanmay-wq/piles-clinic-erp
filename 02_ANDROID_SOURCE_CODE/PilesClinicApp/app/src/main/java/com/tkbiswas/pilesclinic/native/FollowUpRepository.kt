@@ -153,6 +153,40 @@ class FollowUpRepository(private val context: Context? = null) {
         }
 
         private fun slimFollowups(filter: String?): JSONArray? = slim("followups", filter, FOLLOWUP_COLS)
+        /* 📉🔒 V1260 (০৯.০৯.২০২৬, TK-অনুমোদিত Egress-কাজ · খাতার সারি ৩৮০) —
+           **"কে কোন ধাপে আছে" মেলানোর চারটে পড়ায় ২৬ ঘরের বদলে ৫ ঘর।**
+
+           TK: *"সত্যতা যাচাই করে গভীরে গিয়ে কাজ করবেন, কোন ভাল কাজের যেন
+           ক্ষতি না হয়"*।
+
+           🔬 **যাচাই (কোড ধরে, প্রতিটা লাইন খুলে দেখা):** Follow-up পর্দা খুললে
+              তালিকার মূল পড়াটা ছাড়াও আরও কয়েকটা `followups` পড়া হয় — শুধু
+              এটুকু জানার জন্য যে **কোন নম্বর ইতিমধ্যে উপরের ধাপে চলে গেছে বা
+              বাতিল হয়েছে**, যাতে সেই কার্ড নিচের সেকশনে দুবার না দেখায়।
+              ওই চারটে পড়ার সারি থেকে কোড **শুধু** এইগুলো পড়ে:
+              · `fu:higher:…`     → `mobile` · `refId` · `patientId`
+              · `fu:visitRejected` → `mobile`
+              · `fu:treatmentAll`  → `mobile`
+              · `fu:trIncomplete`  → `mobile`
+              ⇒ আর একটাও ঘর নয় (প্রতিটা ব্যবহারের জায়গা খুঁজে মিলিয়ে দেখা)।
+
+           ⛔ অথচ এতদিন প্রতিবার **২৬টা ঘর** নামত — তার মধ্যে `history`
+              (প্রতিটা রোগীর পুরো কল-ইতিহাস) এই টেবিলের **সবচেয়ে ভারী** অংশ,
+              যেটা এই চারটে পড়ায় কোনোদিন ছোঁয়াও হয় না।
+           ⛔ **একটাও সারি কমে না** — একই ছাঁকনি · একই সারি · একই ফল; শুধু
+              প্রতিটা সারি অনেক হালকা হয়ে আসে।
+           ⛔ `id` ও `updatedAt` ইচ্ছে করে রাখা হলো (সাজানোর ক্রম ও ভবিষ্যতের
+              মেলানো), যদিও এখনকার হিসাবে লাগে না।
+           ⛔ **তালিকার মূল পড়াটা (`preCloud`) ছোঁয়া হয়নি** — কার্ডে "শেষ কল কে ·
+              কখন" ওই `history` ঘর থেকেই আসে (TK-র স্থায়ী নিয়ম)।
+           ⛔ **`fu:inqCancelled` ইচ্ছে করে বাদ রাখা হলো** — ওটা `noMoreCalls`
+              ঘরটাও পড়ে, আর ওই ঘর ডেটাবেসে আছে কিনা এখান থেকে যাচাই করা যায় না
+              (V1246-এর মন্তব্য দেখুন)। না থাকলে সরু পড়া ব্যর্থ হয়ে **উল্টে বেশি**
+              ডেটা নামত। আন্দাজে হাত দেওয়া হয়নি।
+           ⛔ সরু পড়া ব্যর্থ হলে `slim()` নিজেই চওড়া পড়ায় ফিরে যায় ⇒ তখন
+              **বাড়তি** ঘর আসে, কম নয় — তাই ভাঙার পথ নেই। */
+        private const val FOLLOWUP_COLS_LINK = "id,mobile,patientId,refId,updatedAt"
+        private fun slimFollowupsLink(filter: String?): JSONArray? = slim("followups", filter, FOLLOWUP_COLS_LINK)
         private fun slimPatients(filter: String?): JSONArray? = slim("patients", filter, PATIENT_COLS)
 
         /**
@@ -1353,7 +1387,7 @@ class FollowUpRepository(private val context: Context? = null) {
             if (higherStagesPre != null) {
                 jobs += async(Dispatchers.IO) {
                     preHigher = CloudReadCache.get("fu:higher:$higherStagesPre") {
-                        slimFollowups("stage=in.($higherStagesPre)&status=not.in.(Cancelled,Incomplete,Rejected,Closed)")
+                        slimFollowupsLink("stage=in.($higherStagesPre)&status=not.in.(Cancelled,Incomplete,Rejected,Closed)")   // V1260
                     }
                 }
             }
@@ -1482,19 +1516,19 @@ class FollowUpRepository(private val context: Context? = null) {
             if (stage == "Patient") {
                 jobs += async(Dispatchers.IO) {
                     preRejectedVisits = CloudReadCache.get("fu:visitRejected") {
-                        slimFollowups("stage=eq.Patient&status=in.(Cancelled,Incomplete,Rejected,Closed)")
+                        slimFollowupsLink("stage=eq.Patient&status=in.(Cancelled,Incomplete,Rejected,Closed)")   // V1260
                     }
                 }
                 jobs += async(Dispatchers.IO) {
                     preTreatmentStage = CloudReadCache.get("fu:treatmentAll") {
-                        slimFollowups("stage=eq.Treatment")
+                        slimFollowupsLink("stage=eq.Treatment")   // V1260
                     }
                 }
             }
             if (stage == "Treatment") {
                 jobs += async(Dispatchers.IO) {
                     preIncompleteTreatment = CloudReadCache.get("fu:trIncomplete") {
-                        slimFollowups("stage=eq.Treatment&status=in.(Cancelled,Incomplete,Rejected,Closed)")
+                        slimFollowupsLink("stage=eq.Treatment&status=in.(Cancelled,Incomplete,Rejected,Closed)")   // V1260
                     }
                 }
             }
