@@ -5504,6 +5504,22 @@ class StaffProfileActivity : AppCompatActivity() {
             v.minHeight = dp(34)
             v.minimumHeight = dp(34)
         }
+        /* 📏🔒 V1247 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ — খাতার সারি ৩৬৮):
+           TK: *"Paying now & Cash — ওই বক্সগুলির উচ্চতা কম করুন"*।
+           **কারণ (মেপে দেখা):** এই দুটো ঘর Spinner। Android-এর নিজের
+           `simple_spinner_dropdown_item` সাজে বন্ধ অবস্থাতেও ভিতরে অনেকটা
+           ফাঁক রাখে, তাই বাক্স দুটো Amount/Reason-এর চেয়ে অনেক লম্বা দেখাত।
+           ⇒ বাইরের উপর-নিচের ফাঁক ৬ → ২dp, আর নিজের সবচেয়ে-কম উচ্চতা ৩৪dp —
+             অর্থাৎ Amount/Reason-এর সমান মাপে নামল।
+           ⛔ **Amount ও Reason-এর বাক্স এক চুলও বদলায়নি** (TK নিজে ধরেছেন যে
+              ওগুলো ঠিকই ছিল — আমার প্রুফেই ভুল আঁকা হয়েছিল, কোডে নয়)।
+           ⛔ লেখা · রং · তালিকা · কী সেভ হয় — কিচ্ছু বদলায়নি; শুধু উচ্চতা।
+           ⛔ `salBoxed` শুধু এই Extra Income ফর্মেই ব্যবহার হয় (মেপে দেখা),
+              তাই অন্য কোনো পর্দার চেহারা ছোঁয়া হয়নি। */
+        if (v is android.widget.Spinner) {
+            v.setPadding(dp(13), dp(2), dp(13), dp(2))
+            v.minimumHeight = dp(34)
+        }
         return v
     }
 
@@ -5822,7 +5838,15 @@ class StaffProfileActivity : AppCompatActivity() {
 
     private fun spinner(items: List<String>): Spinner {
         val sp = Spinner(this)
-        sp.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, items)
+        /* 📏🔒 V1247 — বন্ধ অবস্থার সাজ এখন `simple_spinner_item` (ছোট),
+           আর খোলা তালিকা আগের মতোই `simple_spinner_dropdown_item`।
+           এটাই Android-এর নিজের স্বাভাবিক ধাঁচ — বাক্সের উচ্চতা কমে, কিন্তু
+           বেছে নেওয়ার তালিকা হুবহু আগের মতোই দেখায়।
+           ⛔ কোন কোন বিকল্প থাকবে · কোনটা বাছা আছে · কী সেভ হয় — কিচ্ছু
+              বদলায়নি (`selectedItemPosition` আগের মতোই কাজ করে)। */
+        val ad = ArrayAdapter(this, android.R.layout.simple_spinner_item, items)
+        ad.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        sp.adapter = ad
         return sp
     }
 }
