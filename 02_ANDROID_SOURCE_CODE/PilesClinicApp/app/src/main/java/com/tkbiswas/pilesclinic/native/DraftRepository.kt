@@ -174,6 +174,13 @@ data class DraftBuckets(
 
 class DraftRepository(private val context: Context? = null) {
 
+    companion object {
+        /* 💸 V1281 — Draft-এর delta-ঘড়ি: পূর্ণ পড়া ৩ ঘণ্টায় (Follow-up · Chamber · Dashboard-এর একই মাপ)। */
+        private const val DRAFT_DELTA_PREFS = "draft_delta_state"
+        private const val DRAFT_FULL_REFRESH_INTERVAL_MS = 3L * 60L * 60L * 1000L
+        private const val DRAFT_SAFETY_BACK_MS = 5_000L
+    }
+
     // TK-REQUESTED ADDITION (2026-07-20): same "show what was already on the
     // phone instantly" pattern added to the other screens today. load()
     // below (fetch/merge/bucket logic) is completely unchanged except for
@@ -451,6 +458,55 @@ class DraftRepository(private val context: Context? = null) {
        ⛔ সবটাই **আগে থেকে নামানো** সারি থেকে — নতুন কোনো ক্লাউড-পড়া নেই।
        `pat` = এই মানুষের `patients` সারি (থাকলে); ওখান থেকেই রেজিস্ট্রেশনের
        তারিখ ও কে রেজিস্টার করেছিলেন। */
+    // ═══════════════════════════════════════════════════════════════════════
+    // 💸🔒 V1281 — Draft-এর "শুধু বদল" পড়া (Follow-up V1258 / Chamber-এর একই ছাঁচ)
+    // ═══════════════════════════════════════════════════════════════════════
+    private fun draftDeltaPrefs() = context?.getSharedPreferences(DRAFT_DELTA_PREFS, Context.MODE_PRIVATE)
+    private fun draftStampNow(): String = try {
+        SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
+            .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
+            .format(Date(System.currentTimeMillis() - DRAFT_SAFETY_BACK_MS))
+    } catch (_: Throwable) { "" }
+    private fun draftLoadCached(key: String): JSONArray? {
+        val sp = draftDeltaPrefs() ?: return null
+        return try { sp.getString("arr_$key", null)?.let { JSONArray(it) } } catch (_: Throwable) { null }
+    }
+    private fun draftSaveCached(key: String, arr: JSONArray) {
+        val sp = draftDeltaPrefs() ?: return
+        try { sp.edit().putString("arr_$key", arr.toString()).apply() } catch (_: Throwable) { }
+    }
+    /** পূর্ণ পড়া ৩ ঘণ্টায় একবার; মাঝে শুধু `updatedAt` বদলানো সারি জমানো তালিকার
+     *  উপরে বসে (upsert-only)। ⛔ delta ব্যর্থ/জমানো তালিকা না থাকলে **আগের পূর্ণ
+     *  পড়াই** চলে — ফলাফল কখনো ফাঁকা হয় না। ⛔ ছাঁকনি · limit · ঘর হুবহু আগের। */
+    private fun draftDeltaOrFull(table: String, branchPart: String?, cols: String, key: String): JSONArray? {
+        val sp = draftDeltaPrefs()
+        val since = sp?.getString("since_$key", null)
+        val lastFullAt = sp?.getLong("fullAt_$key", 0L) ?: 0L
+        val now = System.currentTimeMillis()
+        val cached = if (since.isNullOrBlank()) null else draftLoadCached(key)
+        if (sp != null && !since.isNullOrBlank() && cached != null && (now - lastFullAt) <= DRAFT_FULL_REFRESH_INTERVAL_MS) {
+            val sinceEnc = try { java.net.URLEncoder.encode(since, "UTF-8") } catch (_: Throwable) { since }
+            val filter = "updatedAt=gt.$sinceEnc" + (if (branchPart.isNullOrBlank()) "" else "&$branchPart")
+            val delta = try { SupabaseClient.fetchListSlimOrNull(table, filter, 2000, cols) } catch (_: Throwable) { null }
+            if (delta != null) {
+                val byId = LinkedHashMap<String, JSONObject>()
+                for (i in 0 until cached.length()) { val o = cached.optJSONObject(i) ?: continue; val id = o.optString("id"); if (id.isNotBlank()) byId[id] = o }
+                for (i in 0 until delta.length()) { val o = delta.optJSONObject(i) ?: continue; val id = o.optString("id"); if (id.isNotBlank()) byId[id] = o }
+                val merged = JSONArray(); for (v in byId.values) merged.put(v)
+                draftSaveCached(key, merged)
+                try { sp.edit().putString("since_$key", draftStampNow()).apply() } catch (_: Throwable) { }
+                return merged
+            }
+        }
+        // পূর্ণ পড়া — হুবহু আগের ডাক
+        val full = SupabaseClient.fetchListSlimOrNull(table, branchPart, 5000, cols) ?: return null
+        if (sp != null) {
+            draftSaveCached(key, full)
+            try { sp.edit().putString("since_$key", draftStampNow()).putLong("fullAt_$key", now).apply() } catch (_: Throwable) { }
+        }
+        return full
+    }
+
     private fun histLast(row: JSONObject, key: String): String = try {
         val arr = row.optJSONArray("history")
         if (arr == null || arr.length() == 0) "" else {
@@ -619,7 +675,7 @@ class DraftRepository(private val context: Context? = null) {
             // আগের মতো full row দিয়ে retry করে — তালিকা ফাঁকা হয়ে যাবে না।
             val a = async(Dispatchers.IO) {
                 CloudReadCache.get("draft:enq:$draftCacheKey") {
-                    SupabaseClient.fetchListSlimOrNull("enquiries", branchPart, 5000, SupabaseClient.ENQUIRY_COLS_DRAFT)
+                    draftDeltaOrFull("enquiries", branchPart, SupabaseClient.ENQUIRY_COLS_DRAFT, "enq_$draftCacheKey")   // 💸 V1281
                 }
             }
             // 🔒 কোটা/গতি (29.07.2026, খাতার সারি B105): এই পর্দার `patients`
@@ -631,9 +687,21 @@ class DraftRepository(private val context: Context? = null) {
             //    limit · সাজানো কিছুই বদলায়নি, আর সরু পড়া ব্যর্থ হলে
             //    `fetchListSlimOrNull` নিজেই সব ঘর চেয়ে নেয়, তাই আসল ব্যর্থতা
             //    আগের মতোই `null` হয়ে ফেরে (নিচের ক্যাশ-ফলব্যাক ওটাই আশা করে)।
+            /* 💸🔒 V1281 (০৯.০৯.২০২৬, TK-র অনুমতি — তালিকা সারি ৪০৫, ধাপ ১; TK:
+               *"এক এক করে করবেন … কোনো ভালো কাজ যেন খারাপ না হয় … আন্দাজে কিছু
+               করবেন না"*)। **আগে:** Draft খুললেই চারটে টেবিলের পুরো ব্রাঞ্চ নামত
+               (ভাগাভাগি-ক্যাশ মাত্র ২০ সেকেন্ড), followups-এ `history`-সহ — TK-র মাপে
+               মাস্টার ফোনে প্রতিবার ~৯ MB। **এখন:** Follow-up (V1258) ও Chamber-এর
+               প্রমাণিত নিয়ম — পূর্ণ পড়া **৩ ঘণ্টায় একবার**, মাঝে শুধু `updatedAt`
+               বদলানো সারি (`draftDeltaOrFull`), আর followups-এ `history` নামে না
+               (`FOLLOWUP_COLS_DRAFT`)।
+               ⛔ চারটে টেবিলের ছাঁকনি · limit · ঘর (history ছাড়া) · নিচের সব হিসাব —
+                  এক অক্ষরও বদলায়নি; delta ব্যর্থ হলে আগের পূর্ণ পড়াই চলে।
+               ⛔ ঝুঁকি (TK মেনেছেন): অন্য ফোনে চিরতরে মোছা সারি ৩ ঘণ্টা পর্যন্ত
+                  Draft-এ থাকতে পারে; ৩ ঘণ্টার পূর্ণ পড়া সেটা নিজে ঠিক করে। */
             val b = async(Dispatchers.IO) {
                 CloudReadCache.get("draft:followups:$draftCacheKey") {
-                    SupabaseClient.fetchListSlimOrNull("followups", branchPart, 5000, SupabaseClient.FOLLOWUP_COLS_NO_PHOTO)
+                    draftDeltaOrFull("followups", branchPart, SupabaseClient.FOLLOWUP_COLS_DRAFT, "fu_$draftCacheKey")
                 }
             }
             // 🔒 SPEED FIX (28.07.2026, TK-approved · khata row B26): this one
@@ -648,7 +716,7 @@ class DraftRepository(private val context: Context? = null) {
             // is still reported as null exactly as before.
             val c2 = async(Dispatchers.IO) {
                 CloudReadCache.get("draft:patients:$draftCacheKey") {
-                    SupabaseClient.fetchListSlimOrNull("patients", branchPart, 5000, SupabaseClient.PATIENT_COLS_NO_PHOTO)
+                    draftDeltaOrFull("patients", branchPart, SupabaseClient.PATIENT_COLS_NO_PHOTO, "pat_$draftCacheKey")   // 💸 V1281
                 }
             }
             // ⚡ খাতার সারি B135 (TK "হ্যাঁ", 29.07.2026 রাত ৯.৩০): এই পড়াটাও
@@ -659,7 +727,7 @@ class DraftRepository(private val context: Context? = null) {
             //    নিজেই সব ঘর চেয়ে নেয়, আসল ব্যর্থতা আগের মতোই `null`।
             val d = async(Dispatchers.IO) {
                 CloudReadCache.get("draft:payments:$draftCacheKey") {
-                    SupabaseClient.fetchListSlimOrNull("payments", branchPart, 5000, SupabaseClient.PAYMENT_COLS_LIST)
+                    draftDeltaOrFull("payments", branchPart, SupabaseClient.PAYMENT_COLS_LIST, "pay_$draftCacheKey")   // 💸 V1281
                 }
             }
             val e2 = async(Dispatchers.IO) {
@@ -880,8 +948,11 @@ class DraftRepository(private val context: Context? = null) {
                 if (key.isBlank()) { best[row.s("id").ifBlank { java.util.UUID.randomUUID().toString() }] = row; continue }
                 val existing = best[key]
                 if (existing == null) { best[key] = row; continue }
-                val existingHist = existing.optJSONArray("history")?.length() ?: 0
-                val newHist = row.optJSONArray("history")?.length() ?: 0
+                /* 💸 V1281 — `history` আর নামে না; কোন সারিটা "বেশি চলেছে" সেটা
+                   এখন `callCount` দিয়ে (একই মানে: কতবার কথা হয়েছে), সমান হলে
+                   আগের মতোই updatedAt। */
+                val existingHist = existing.optInt("callCount", existing.optJSONArray("history")?.length() ?: 0)
+                val newHist = row.optInt("callCount", row.optJSONArray("history")?.length() ?: 0)
                 if (newHist > existingHist) { best[key] = row; continue }
                 if (newHist == existingHist && row.s("updatedAt") > existing.s("updatedAt")) best[key] = row
             }

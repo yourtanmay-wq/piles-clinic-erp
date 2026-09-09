@@ -108,6 +108,15 @@ object SupabaseClient {
 
     const val FOLLOWUP_COLS_NO_PHOTO = "address,age,branch,callCount,convertedPatientId,createdAt,createdBy,date,disease,history,id,lastCallDate,lastRemark,mobile,name,nextFollow,patientId,refId,registrationDate,sex,stage,status,timeType,updatedAt,visitDate"
 
+    /* 💸🔒 V1281 (০৯.০৯.২০২৬, TK-র অনুমতি — তালিকা সারি ৪০৫, ধাপ ১): Draft পর্দার
+       followups-পড়া। `FOLLOWUP_COLS_NO_PHOTO`-র হুবহু তালিকা, শুধু **`history`
+       বাদ** — ওই লম্বা লেখাটা Draft-এর কোনো হিসাবে লাগে না (কার্ডের LAST CALL-এর
+       তারিখ `lastCallDate` ঘর থেকেই আসে)। TK-কে আগে জানানো সৎ সীমা: history না
+       নামালে ওই লাইনে "কে করেছিলেন · কটায়" অংশটা ফাঁকা যাবে।
+       ⛔ `history` ঘরটা ডেটাবেসে অটুট (TK-র লক করা নিয়ম) — শুধু এই একটা পড়ায় নামে না;
+          Draft থেকে history-তে লেখার দুটো পথই আগে সেই একটা সারি আলাদা করে নামায়। */
+    const val FOLLOWUP_COLS_DRAFT = "address,age,branch,callCount,convertedPatientId,createdAt,createdBy,date,disease,id,lastCallDate,lastRemark,mobile,name,nextFollow,patientId,refId,registrationDate,sex,stage,status,timeType,updatedAt,visitDate"
+
     /** 🔵🔒 V441 (19.08.2026, TK-অনুমোদিত — Draft egress): Draft-এর enquiry
      *  bucket বানাতে কোডে যাচাই করে শুধু এই ঘরগুলোই পড়া হয়। সব নাম active
      *  enquiries schema-তে আছে; filter/order/limit একদম আগের মতো। Narrow read
