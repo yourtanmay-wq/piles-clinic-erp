@@ -1682,8 +1682,9 @@ async function wlv1CloudRead(ct,t,forceFull,photoDelta){
      নেট-সমস্যা হলে আর চেষ্টা নয় — নিচে res.error ফেরে, ডাকার জায়গা পুরনো
      local তথ্য অটুট রাখে ও পরের বার আবার চেষ্টা করে (V223 §C1 অটুট)। */
   if(res.error && (wantPhoto || wlv1IsColumnError(res.error))){
-    var r0=await sb.from(ct).select('*').limit(2000);
-    res={error:r0.error,rows:(Array.isArray(r0.data)?r0.data:[])}; isDelta=false;
+    /* 🔴 V1303 (তালিকা ৪১৭): Supabase একবারে সর্বোচ্চ ১০০০ সারি দেয় — .limit(2000)-ও ১০০০-এ থেমে যেত; এখন পাতা-ধরে */
+    var r0=await wlv1FetchPaged(ct,'*',null,true);
+    res={error:r0.error,rows:(Array.isArray(r0.rows)?r0.rows:[])}; isDelta=false;
   }
   if(!res.error){
     var mx=wlv1MaxUpdatedAt(res.rows);
@@ -1875,10 +1876,11 @@ async function cloudPush(t,d,pushOpts){
       }
       if(okAll){remote=normalizeCloudRows(acc);remoteKnown=true}
      }else{
-      let r=await sb.from(ct).select(__ph||'*').limit(2000);
+      /* 🔴 V1303 (তালিকা ৪১৭): .limit(2000) চুপচাপ ১০০০-এ থামত ⇒ পুরো টেবিল পাতা-ধরে (wlv1FetchPaged) */
+      let __pg=await wlv1FetchPaged(ct,__ph||'*',null,true); let r={error:__pg.error,data:__pg.rows};
       /* 🔴 V494 (TK-যাচাই ৪): উপরের একই নিয়ম — ডুপ্লিকেট সরানো, '*' শুধু
          ঘরের নাম ভুল হলে। */
-      if(__ph&&r.error&&wlv1IsColumnError(r.error)){r=await sb.from(ct).select('*').limit(2000);}
+      if(__ph&&r.error&&wlv1IsColumnError(r.error)){__pg=await wlv1FetchPaged(ct,'*',null,true); r={error:__pg.error,data:__pg.rows};}
       if(!r.error&&Array.isArray(r.data)){remote=normalizeCloudRows(r.data);remoteKnown=true}
      }
     }catch(_e){}

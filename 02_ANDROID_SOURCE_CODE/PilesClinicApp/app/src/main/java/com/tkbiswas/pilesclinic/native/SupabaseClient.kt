@@ -865,11 +865,59 @@ object SupabaseClient {
                ⛔ `offset > 0` (শুধু DeletedGuard-এর পাতা-ধরে পড়া) এই স্তরে ঢোকে
                   না — ওখানে প্রতিটা পাতার URL আলাদা, সই মেলানোর মানে হয় না।
                ⛔ URL এক অক্ষরও বদলায়নি; সার্ভারের দিকে তালিকার অনুরোধ হুবহু আগেরটাই। */
+            /* 🔴🔴🔒 V1303 (১০.০৯.২০২৬, তালিকা ৪১৭ — REHANA BAGUM, TK-র মাপা CSV):
+               Supabase একটা অনুরোধে **সর্বোচ্চ ১০০০ সারি** দেয় — `limit=5000`
+               চাইলেও চুপচাপ ১০০০-ই আসে (কোনো error নয়)। Kishanganj-এর payments
+               ১১০৭ সারি, Rehana-র ₹1,500 সারির ক্রম ১০০৩ ⇒ Follow-up কার্ডে Paid ০;
+               "All"-এ ২৮২১-র মধ্যে ১৮২১ সারি কখনো আসতই না। এখন ১০০০-র বেশি চাইলে
+               **পাতা-ধরে-পাতা** (offset) নামানো হয়, শেষ পাতা ছোট হলে থামে —
+               ওয়েবের `wlv1FetchPaged`-এর একই নিয়ম। id-ধরে জোড়া বাদ (পড়ার মাঝে
+               নতুন সারি ঢুকলে পাতার সীমানায় একই সারি দুবার আসতে পারে — টাকা
+               দুবার গোনা যাবে না)। কোনো পাতা ব্যর্থ ⇒ null (আগের মতোই "ব্যর্থ"),
+               আধখানা তালিকা কখনো ফেরে না।
+               ⛔ ১০০০ বা কম চাইলে URL · dedupe · revalidate — **হুবহু আগের মতো**। */
+            if (limit > SERVER_PAGE_MAX) return fetchListPagedOrNull(table, filter, limit, order, select, offset)
             val body = CloudReadDedupe.body(url) {
                 if (offset > 0) fetchBodyOrNull(url)
                 else CloudListRevalidate.body(table, filter, url) { fetchBodyOrNull(url) }
             } ?: return null
             JSONArray(body)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /** Supabase (PostgREST) প্রতি অনুরোধে সর্বোচ্চ যতগুলো সারি দেয় (project-এর "Max rows")। */
+    private const val SERVER_PAGE_MAX = 1000
+
+    /** 🔴 V1303 — ১০০০-র বেশি সারির তালিকা পাতা-ধরে নামানো (উপরে দেখুন)। */
+    private fun fetchListPagedOrNull(table: String, filter: String?, limit: Int, order: String, select: String, offset: Int, direct: Boolean = false): JSONArray? {
+        return try {
+            val filterPart = if (filter != null) "&$filter" else ""
+            val all = JSONArray()
+            val seenIds = HashSet<String>()
+            var off = if (offset > 0) offset else 0
+            val end = off + limit
+            while (off < end) {
+                val pageLimit = minOf(SERVER_PAGE_MAX, end - off)
+                val offsetPart = if (off > 0) "&offset=$off" else ""
+                val url = "$URL/rest/v1/$table?select=$select&order=$order&limit=$pageLimit$offsetPart$filterPart"
+                val body = (if (direct) fetchBodyOrNull(url)
+                    else CloudReadDedupe.body(url) {
+                        if (off > 0) fetchBodyOrNull(url)
+                        else CloudListRevalidate.body(table, filter, url) { fetchBodyOrNull(url) }
+                    }) ?: return null
+                val page = JSONArray(body)
+                for (i in 0 until page.length()) {
+                    val row = page.opt(i)
+                    val id = (row as? JSONObject)?.optString("id", "") ?: ""
+                    if (id.isNotBlank() && !seenIds.add(id)) continue
+                    all.put(row)
+                }
+                if (page.length() < pageLimit) break
+                off += page.length()
+            }
+            all
         } catch (e: Exception) {
             null
         }
@@ -930,6 +978,8 @@ object SupabaseClient {
 
     fun fetchListOrNullDirect(table: String, filter: String? = null, limit: Int = 500, order: String = "updatedAt.desc.nullslast", select: String = "*"): JSONArray? {
         return try {
+            // 🔴 V1303 — ১০০০-র বেশি চাইলে পাতা-ধরে (উপরের একই নিয়ম, শুধু dedupe/revalidate ছাড়া)।
+            if (limit > SERVER_PAGE_MAX) return fetchListPagedOrNull(table, filter, limit, order, select, 0, direct = true)
             val filterPart = if (filter != null) "&$filter" else ""
             val url = "$URL/rest/v1/$table?select=$select&order=$order&limit=$limit$filterPart"
             val body = fetchBodyOrNull(url) ?: return null
