@@ -1,5 +1,10 @@
 [
   {
+    "file": "PILES_CLINIC_APP_V1318_FINAL.zip",
+    "versionCode": 1318,
+    "when": "10.09.2026 05.15 pm"
+  },
+  {
     "file": "PILES_CLINIC_APP_V1317_FINAL.zip",
     "versionCode": 1317,
     "when": "10.09.2026 04.43 pm"
@@ -5277,5 +5282,13 @@
     "total_files": 1807,
     "excluded": "root-level demo .png (22) + 08_ASSETS_BACKUP/ANATOMY_PICTURES/ORIGINAL — ইচ্ছে করে",
     "note": "V1317 — Follow-up/Payment permanent black-screen-এর আসল সমাধান (LocalWorkflowStore .commit()->.apply()), talika 424 বন্ধ"
+  },
+  {
+    "file": "PILES_CLINIC_APP_V1318_FINAL.zip",
+    "when": "১১.০৯.২০২৬ রাত",
+    "size_mb": 25.66,
+    "total_files": 1807,
+    "excluded": "root-level demo .png (22) + 08_ASSETS_BACKUP/ANATOMY_PICTURES/ORIGINAL — ইচ্ছে করে",
+    "note": "V1318 — Follow-up-এর GPU-আঁকা বন্ধ থাকার দ্বিতীয় আসল কারণ ঠিক, talika 424"
   }
 ]
