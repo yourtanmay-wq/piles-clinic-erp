@@ -265,5 +265,13 @@
   "result": "baki: enquiries 0 · followups 0 (১৭ সারি মোছা: enquiries 4 · followups 13, সব Cancelled)",
   "proof": "screenshot",
   "what": "deleted_records-এ 'টেবিল|id' চিহ্ন আছে অথচ সারি টেবিলে আছে এবং status='Cancelled' — শুধু সেগুলো মোছা। patients/payments/doctor_visits/medical-এ এমন সারি ০ ছিল, টাকা জড়িত নয়। TK: 'হ্যাঁ, মুছে দিন'।"
+ },
+ {
+  "sql_file": "00_SQL/V1290_SERVER_AT_GHOR_2026-09-10.sql (⑧ ক)",
+  "run_by": "TK",
+  "when": "১০.০৯.২০২৬ সকাল ১০.৫৯",
+  "result": "৬ টেবিলে server_at timestamptz default now() — CSV-তে ৬ সারি",
+  "proof": "CSV",
+  "what": "payments/patients/followups/enquiries/doctor_visits/medical-এ সার্ভার-সময়ের ঘর; কোনো সারি/মান বদলায়নি; পুরনো সারি NULL। পরে DEKHAR_SQL_GHORI_MIL_server_at.sql দিয়ে ফোনের ঘড়ি মেলানো যাবে (কিছু দিন তথ্য জমার পরে)।"
  }
 ]
