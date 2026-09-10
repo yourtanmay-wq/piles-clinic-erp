@@ -24484,6 +24484,23 @@ verify_zip_contents ✅ (১০ আইকন)। **২৫.৫ MB · ১৮০০
 গোপন কিছু নেই (service-account শুধু Netlify env; google-services.json গোপন নয়)। এই ZIP-এ V1297–V1301: push (FCM) ·
 Payment delete-request · Queue-ফেরা · চিহ্ন-সারি। TK-কে মনে করানো: আসল বিল্ড Android Studio-তে; ওয়েব এখন GitHub থেকে নিজে ওঠে।
 
+## ১০.০৯.২০২৬ ১৮:৪৫ — V1309 · তালিকা ৪১৮ (TK: *"৩ পাশ, সাবধানে"*): RMP Commission Sheet — বক্স · তারিখ/সময় · কোন রোগীর জন্য (নাম, চাপলে পাতা) — ফোন + কম্পিউটার + ছাপা + SQL
+
+**ভুল স্বীকার:** "Advance" লেবেল — আসলে "RMP Payment" বোতাম (V398) টাকা `fin.rmp_advance_payments`-এ লেখে; স্টাফ কমিশনই দিয়েছিলেন, আগাম নয়।
+**SQL (`00_SQL/V1309_RMP_SHEET_COVER_2026-09-10.sql`):** `fin.rmp_sheet_cover(p_from,p_to,p_branch)` — RMP-পেমেন্ট কোন রোগীর জন্য:
+(ক) হাতে adjust করা (`rmp_advance_allocations`) হুবহু; (খ) বাকি টাকা ওই RMP-র রোগীদের বকেয়া (rmp_summary: earned − paid) **পুরনো আগে**
+(set_on ধরে) — আগের মাসের পেমেন্ট আগের রোগীদের ঢাকে, তারপর এই সীমার। শুধু পড়া। **পাহারা:** sql_local_check-এ নতুন ধাপ — SQL `fin.` ছুঁলে
+নকলে hr-নকল + fin-ছাঁচ (লাইভের V325…V411 ফাইল ক্রমে) বসে ⇒ এখন থেকে RMP-র SQL-ও যাচাই হয়; নমুনা-পরীক্ষা `00_GUARD/sql_tests/
+rmp_sheet_cover_test.sql` (২ রোগী: due 1000/2000; পেমেন্ট 1500 ⇒ 1000+500, পরের 2000 ⇒ 1500, 500 বাকি; অগাস্টে ০) — PASS।
+**ফোন (RmpCommissionRepository/Activity):** পড়ায় rmp_id · patient_row_id/mobile · allocated/legacy; adjust-এ তৈরি হওয়া দ্বিতীয় commission-সারি
+বাদ (`rmp_advance_allocations.commission_payment_id`) ⇒ TOTAL দুবার নয়; RPC-র cover রোগী-নাম RMP-পেমেন্টের ঘরে (নাম + টাকা,
+"adjusted"/"Not yet against any patient"/"Earlier patients (before app)"/"No patient due")। পর্দা: প্রতিটা ঘরে বর্ডার, সবুজ হেডার;
+DATE-এর নিচে recorded_at-এর ভারতীয় সময়; RMP-নামে চাপ → doctor_visits থেকে নম্বর নিয়ে Dr. Visit/RMP (searchMobile); রোগীর নামে চাপ →
+Patient Timeline (mobile + patientRowId)। ছাপা/শেয়ারের কাগজে একই ঘর। **কম্পিউটার:** `wlv1RmcLoad/TableHtml/PaperHtml` হুবহু যমজ
+(rpc + allocations; লিঙ্ক: RMP → `wlv1NbOpenDoctor`, রোগী → `summary(rowId)`)। ⛔ কোনো ডাক ব্যর্থ হলে আগের মতো তালিকা (নাম ছাড়া)।
+⛔ TK-কে SQL V1309 চালাতে হবে — না চালালে নামের ঘরে "No patient due" দেখাবে, বাকি সব চলবে। পাহারা: resources ✅ · ব্রাউজার ✅ ·
+tk_guard ✅ · node ✅ · SQL guard ✅ · Kotlin compile: android.jar-এ আসল ভুল ০; নতুন ২টা লাইন AppCompat-noise (startActivity/Intent — এই ফাইলে আগে ছিল না) ⇒ `--update-baseline` (precedent V1144/V1186/V1252/V1284/V1298) ✅। ভার্সন 1309 (gradle · version.json · index ?v=v1309)।
+
 ## ১০.০৯.২০২৬ ১৮:০৫ — V1308 · তালিকা ৪২১ (TK: *"২ পাশ, সাবধানে"*): চেম্বার বন্ধের ঠিক পরে Money Handover জানলা · ₹0-র দিন লুকানো (ফোন + কম্পিউটার)
 
 **কারণ (৫ক, কোডে):** ফোনে টাকা জমা (`saveTotals`) ও "কাকে দেবেন" ঘর (`print/MoneyHandoverCard`) বসত **শুধু রেজিস্টার-ছাপার প্রিভিউতে**

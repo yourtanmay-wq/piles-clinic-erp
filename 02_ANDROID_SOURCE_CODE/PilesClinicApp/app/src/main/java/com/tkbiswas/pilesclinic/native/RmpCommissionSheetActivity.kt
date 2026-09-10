@@ -98,6 +98,44 @@ class RmpCommissionSheetActivity : AppCompatActivity() {
 
     private fun money(v: Double): String = String.format(Locale.US, "%,.2f", v)
 
+    /** 📒 V1309 — recorded_at (timestamptz) → ভারতীয় সময় "5.42 PM"; না বোঝা গেলে ফাঁকা। */
+    private fun timeIst(raw: String): String = try {
+        val t = raw.trim()
+        val m = Regex("^(\\d{4}-\\d{2}-\\d{2})[T ](\\d{2}:\\d{2}:\\d{2})(?:\\.\\d+)?(Z|[+-]\\d{2}:?\\d{2})?$").find(t)
+        if (m == null) "" else {
+            val f = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ssZ", Locale.US)
+            val off = m.groupValues[3].let { if (it.isBlank() || it == "Z") "+0000" else it.replace(":", "") }
+            val d = f.parse(m.groupValues[1] + " " + m.groupValues[2] + off)
+            val out = java.text.SimpleDateFormat("h.mm a", Locale.US).apply { timeZone = TimeZone.getTimeZone("Asia/Kolkata") }
+            if (d == null) "" else out.format(d)
+        }
+    } catch (_: Throwable) { "" }
+    /** 📒 V1309 — RMP-র নামে চাপ: ওই RMP-র পাতা (Dr. Visit / RMP, তাঁর নম্বর ধরে)। */
+    private fun openRmp(rmpId: String, rmpName: String) {
+        if (rmpId.isBlank()) return
+        Thread {
+            val rows = try { SupabaseClient.fetchListOrNull("doctor_visits", "id=eq." + java.net.URLEncoder.encode(rmpId, "UTF-8"), 1, select = "id,mobile,branch") } catch (_: Throwable) { null }
+            val row = if (rows != null && rows.length() > 0) rows.optJSONObject(0) else null
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                val mob = row?.optString("mobile", "").orEmpty()
+                if (mob.isBlank()) { ModuleUi.toast(this, "Could not open " + rmpName + " now"); return@runOnUiThread }
+                try {
+                    startActivity(android.content.Intent(this, DoctorVisitActivity::class.java)
+                        .putExtra("searchMobile", mob).putExtra("searchBranch", row?.optString("branch", "").orEmpty()))
+                } catch (_: Throwable) { }
+            }
+        }.start()
+    }
+    /** 📒 V1309 — রোগীর নামে চাপ: তাঁর Patient Timeline। */
+    private fun openPatient(rowId: String, mobile: String) {
+        if (rowId.isBlank() && mobile.isBlank()) return
+        try {
+            startActivity(android.content.Intent(this, PatientTimelineActivity::class.java)
+                .putExtra("mobile", mobile).putExtra("patientRowId", rowId))
+        } catch (_: Throwable) { }
+    }
+
     // ───────────────────────── ছেঁকে নেওয়া ─────────────────────────
     private fun shown(): List<RmpCommissionRepository.SheetRow> =
         if (rmpPick.isBlank()) all else all.filter { it.rmpName == rmpPick }
@@ -206,17 +244,22 @@ class RmpCommissionSheetActivity : AppCompatActivity() {
     // ───────────────────────── শিটের ঘর ─────────────────────────
     /* 📏 TK-এর পাশ-করা প্রুফের মাপ: পর্দায় DATE · RMP · PATIENT · AMOUNT
        ধরে যায়; বাকিগুলো পাশে টানলে আসে (Google Sheet-এর মতোই)। */
-    private val wDate = 62
-    private val wRmp = 98
-    private val wPatient = 100
-    private val wAmount = 76
+    private val wDate = 84      // 📒 V1309 — "07/09/2026" এক লাইনে, নিচে সময়
+    private val wRmp = 104
+    private val wPatient = 150
+    private val wAmount = 74
     private val wMode = 56
     private val wBranch = 86
     private val wRef = 92
     private val wBy = 92
 
+    /* 📒🔒 V1309 (তালিকা ৪১৮, TK: *"গুগল শিটের মতন বক্স থাকতে হবে"*) — প্রতিটা ঘরে বর্ডার,
+       হেডার সবুজ; DATE-এর নিচে সময়; নামে চাপ দিলে পাতা খোলে। */
+    private fun cellBg(fill: String, stroke: String = "#C9D3DF") = GradientDrawable().apply {
+        setColor(Color.parseColor(fill)); setStroke(dp(1), Color.parseColor(stroke))
+    }
     private fun cell(text: String, widthDp: Int, bold: Boolean, color: String,
-                     right: Boolean = false, size: Float = 10.5f): TextView =
+                     right: Boolean = false, size: Float = 10.5f, fill: String = "#FFFFFF"): TextView =
         TextView(this).apply {
             this.text = text
             textSize = size
@@ -224,8 +267,29 @@ class RmpCommissionSheetActivity : AppCompatActivity() {
             setTextColor(Color.parseColor(color))
             gravity = if (right) (Gravity.END or Gravity.CENTER_VERTICAL) else Gravity.CENTER_VERTICAL
             setPadding(dp(6), dp(7), dp(6), dp(7))
+            background = cellBg(fill)
             layoutParams = LinearLayout.LayoutParams(dp(widthDp), LinearLayout.LayoutParams.MATCH_PARENT)
         }
+    /** একটা ঘরে অনেক লাইন (নাম-লিঙ্ক · ছোট লেখা) — বর্ডারসহ। */
+    private fun cellBox(widthDp: Int, fill: String = "#FFFFFF"): LinearLayout = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        gravity = Gravity.CENTER_VERTICAL
+        setPadding(dp(6), dp(5), dp(6), dp(5))
+        background = cellBg(fill)
+        layoutParams = LinearLayout.LayoutParams(dp(widthDp), LinearLayout.LayoutParams.MATCH_PARENT)
+    }
+    private fun link(text: String, size: Float = 10.5f, onTap: () -> Unit): TextView = TextView(this).apply {
+        this.text = text; textSize = size
+        setTypeface(typeface, Typeface.BOLD)
+        setTextColor(Color.parseColor("#0B57D0"))
+        paintFlags = paintFlags or android.graphics.Paint.UNDERLINE_TEXT_FLAG
+        setSingleLine(true); ellipsize = android.text.TextUtils.TruncateAt.END
+        setOnClickListener { onTap() }
+    }
+    private fun small(text: String, color: String = "#5B6B81"): TextView = TextView(this).apply {
+        this.text = text; textSize = 8.5f; setTextColor(Color.parseColor(color))
+        setSingleLine(true); ellipsize = android.text.TextUtils.TruncateAt.END
+    }
 
     private fun rowBox(fill: String): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
@@ -254,44 +318,62 @@ class RmpCommissionSheetActivity : AppCompatActivity() {
         }
 
         // শিরোনামের সারি
-        val hr = rowBox("#F2F6FA")
-        hr.addView(cell("DATE", wDate, true, "#3C4A5C", size = 9.5f))
-        hr.addView(cell("RMP", wRmp, true, "#3C4A5C", size = 9.5f))
-        hr.addView(cell("PATIENT", wPatient, true, "#3C4A5C", size = 9.5f))
-        hr.addView(cell("AMOUNT", wAmount, true, "#3C4A5C", right = true, size = 9.5f))
-        hr.addView(cell("MODE", wMode, true, "#3C4A5C", size = 9.5f))
-        hr.addView(cell("BRANCH", wBranch, true, "#3C4A5C", size = 9.5f))
-        hr.addView(cell("REFERENCE", wRef, true, "#3C4A5C", size = 9.5f))
-        hr.addView(cell("RECORDED BY", wBy, true, "#3C4A5C", size = 9.5f))
+        val hr = rowBox("#0B5E34")
+        val hf = "#0B5E34"
+        hr.addView(cell("DATE / TIME", wDate, true, "#FFFFFF", size = 9.5f, fill = hf))
+        hr.addView(cell("RMP", wRmp, true, "#FFFFFF", size = 9.5f, fill = hf))
+        hr.addView(cell("PATIENT (for whom)", wPatient, true, "#FFFFFF", size = 9.5f, fill = hf))
+        hr.addView(cell("AMOUNT", wAmount, true, "#FFFFFF", right = true, size = 9.5f, fill = hf))
+        hr.addView(cell("MODE", wMode, true, "#FFFFFF", size = 9.5f, fill = hf))
+        hr.addView(cell("BRANCH", wBranch, true, "#FFFFFF", size = 9.5f, fill = hf))
+        hr.addView(cell("REFERENCE", wRef, true, "#FFFFFF", size = 9.5f, fill = hf))
+        hr.addView(cell("RECORDED BY", wBy, true, "#FFFFFF", size = 9.5f, fill = hf))
         grid.addView(hr)
-        grid.addView(line())
 
         var total = 0.0
         for ((i, r) in list.withIndex()) {
             total += r.amount
             val bg = if (i % 2 == 0) "#FFFFFF" else "#FAFCFE"
             val row = rowBox(bg)
-            row.addView(cell(dmy(r.paidOn), wDate, false, "#1B2733"))
-            row.addView(cell(r.rmpName, wRmp, false, "#1B2733"))
-            /* 🟠 আগাম দেওয়া টাকার সঙ্গে কোনো রোগী থাকে না — TK-এর পাশ-করা
-               প্রুফ অনুযায়ী সেখানে কমলা "Advance" বসে। */
-            row.addView(
-                if (r.isAdvance) cell("Advance", wPatient, true, "#B45309")
-                else cell(r.patientName, wPatient, true, "#101C2E"))
-            row.addView(cell(money(r.amount), wAmount, true, "#0B4F2A", right = true))
-            row.addView(cell(modeText(r.mode), wMode, false, "#1B2733"))
-            row.addView(cell(r.branch, wBranch, false, "#1B2733"))
-            row.addView(cell(r.referenceNo, wRef, false, "#5B6B81"))
-            row.addView(cell(r.recordedBy, wBy, false, "#5B6B81"))
+            // DATE / TIME — তারিখের নিচে এন্ট্রির সময় (ভারতীয়)
+            row.addView(cellBox(wDate, bg).apply {
+                addView(TextView(this@RmpCommissionSheetActivity).apply { text = dmy(r.paidOn); textSize = 10.5f; setTextColor(Color.parseColor("#1B2733")) })
+                val t = timeIst(r.recordedAt); if (t.isNotBlank()) addView(small(t))
+            })
+            row.addView(cellBox(wRmp, bg).apply { addView(link(r.rmpName) { openRmp(r.rmpId, r.rmpName) }) })
+            /* 📒 V1309 — PATIENT: রোগীর নামে দেওয়া হলে সেই নাম; RMP-কে দেওয়া হলে কোন কোন রোগীর জন্য
+               (হাতে adjust / পুরনো বকেয়া আগে) — নাম + টাকা; কারো বকেয়া না থাকলে "No patient due" */
+            row.addView(cellBox(wPatient, bg).apply {
+                if (!r.isAdvance) addView(link(r.patientName.ifBlank { "—" }) { openPatient(r.patientRowId, r.patientMobile) })
+                else {
+                    var shownSum = 0.0
+                    for ((k, c) in r.covers.withIndex()) {
+                        shownSum += c.amount
+                        addView(LinearLayout(this@RmpCommissionSheetActivity).apply {
+                            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+                            addView(link(c.name.ifBlank { "—" }, if (k == 0) 10.5f else 9f) { openPatient(c.rowId, c.mobile) })
+                            addView(small("  " + money(c.amount) + (if (c.kind == "allocated") " · adjusted" else "")))
+                        })
+                    }
+                    if (r.legacyCovered > 0.0) addView(small("Earlier patients (before app) " + money(r.legacyCovered), "#8A5A00"))
+                    val rest = r.amount - shownSum - r.legacyCovered
+                    if (r.covers.isEmpty() && r.legacyCovered <= 0.0) addView(small("No patient due — RMP payment", "#B45309"))
+                    else if (rest > 0.5) addView(small("Not yet against any patient " + money(rest), "#B45309"))
+                }
+            })
+            row.addView(cell(money(r.amount), wAmount, true, "#0B4F2A", right = true, fill = bg))
+            row.addView(cell(modeText(r.mode), wMode, false, "#1B2733", fill = bg))
+            row.addView(cell(r.branch, wBranch, false, "#1B2733", fill = bg))
+            row.addView(cell(r.referenceNo, wRef, false, "#5B6B81", fill = bg))
+            row.addView(cell(r.recordedBy, wBy, false, "#5B6B81", fill = bg))
             grid.addView(row)
-            grid.addView(line())
         }
 
         /* 💰 TK-নির্দেশ: *"Total Paid নিচে থাকবে কলামের শেষে, উপরে থাকবে না"* */
         val tr = rowBox("#0B5E34")
-        tr.addView(cell("TOTAL  ·  " + list.size + " payments", wDate + wRmp + wPatient, true, "#FFFFFF", size = 11f))
-        tr.addView(cell(money(total), wAmount, true, "#FFFFFF", right = true, size = 11f))
-        tr.addView(cell("", wMode + wBranch + wRef + wBy, false, "#FFFFFF"))
+        tr.addView(cell("TOTAL  ·  " + list.size + " payments", wDate + wRmp + wPatient, true, "#FFFFFF", size = 11f, fill = "#0B5E34"))
+        tr.addView(cell(money(total), wAmount, true, "#FFFFFF", right = true, size = 11f, fill = "#0B5E34"))
+        tr.addView(cell("", wMode + wBranch + wRef + wBy, false, "#FFFFFF", fill = "#0B5E34"))
         grid.addView(tr)
 
         body.addView(HorizontalScrollView(this).apply { addView(grid) })
@@ -401,9 +483,22 @@ class RmpCommissionSheetActivity : AppCompatActivity() {
         val rows = StringBuilder()
         for (r in list) {
             total += r.amount
-            rows.append("<tr><td>").append(esc(dmy(r.paidOn)))
+            val tm = timeIst(r.recordedAt)
+            val pat = StringBuilder()
+            if (!r.isAdvance) pat.append("<b>").append(esc(r.patientName)).append("</b>")
+            else {
+                var shownSum = 0.0
+                for (c in r.covers) { shownSum += c.amount
+                    pat.append("<div><b>").append(esc(c.name)).append("</b> ").append(money(c.amount))
+                        .append(if (c.kind == "allocated") " · adjusted" else "").append("</div>") }
+                if (r.legacyCovered > 0.0) pat.append("<div class=\"m\">Earlier patients (before app) ").append(money(r.legacyCovered)).append("</div>")
+                val rest = r.amount - shownSum - r.legacyCovered
+                if (r.covers.isEmpty() && r.legacyCovered <= 0.0) pat.append("<span class=\"m\">No patient due — RMP payment</span>")
+                else if (rest > 0.5) pat.append("<div class=\"m\">Not yet against any patient ").append(money(rest)).append("</div>")
+            }
+            rows.append("<tr><td>").append(esc(dmy(r.paidOn))).append(if (tm.isBlank()) "" else "<div class=\"m\">" + tm + "</div>")
                 .append("</td><td>").append(esc(r.rmpName))
-                .append("</td><td>").append(if (r.isAdvance) "Advance" else esc(r.patientName))
+                .append("</td><td>").append(pat)
                 .append("</td><td>").append(esc(modeText(r.mode)))
                 .append("</td><td>").append(esc(r.branch))
                 .append("</td><td>").append(esc(r.referenceNo))
@@ -422,6 +517,7 @@ class RmpCommissionSheetActivity : AppCompatActivity() {
             "th{background:#F2F6FA;color:#3C4A5C;text-align:left;padding:5px 6px;border:1px solid #D8E0EA;font-size:9.5px}" +
             "td{padding:5px 6px;border:1px solid #E6ECF3}" +
             ".r{text-align:right;font-weight:bold;color:#0B4F2A}" +
+            ".m{font-size:9px;color:#5B6B81}" +
             "tr:nth-child(even) td{background:#FAFCFE}" +
             ".tot td{background:#0B5E34;color:#fff;font-weight:bold;border-color:#0B5E34}" +
             ".tot td.r{color:#fff}" +
@@ -429,7 +525,7 @@ class RmpCommissionSheetActivity : AppCompatActivity() {
             "<h1>RMP COMMISSION SHEET</h1><div class=\"sub\">" +
             monthLabel(month) + "  ·  " + (if (branch.isBlank()) "All Branches" else branch) +
             (if (rmpPick.isBlank()) "" else "  ·  " + rmpPick) + "</div>" +
-            "<table><tr><th>DATE</th><th>RMP</th><th>PATIENT</th><th>MODE</th><th>BRANCH</th>" +
+            "<table><tr><th>DATE / TIME</th><th>RMP</th><th>PATIENT (for whom)</th><th>MODE</th><th>BRANCH</th>" +
             "<th>REFERENCE</th><th>RECORDED BY</th><th>AMOUNT</th></tr>" + rows +
             "<tr class=\"tot\"><td colspan=\"7\">TOTAL  ·  " + list.size + " payments</td>" +
             "<td class=\"r\">" + money(total) + "</td></tr></table>" +

@@ -85,6 +85,39 @@ def build_schema():
     r = psql("select count(*) from information_schema.columns where table_schema='public'", db=DB)
     return errs, added, r.stdout.strip()
 
+FIN_FILES = [   # ক্রম গুরুত্বপূর্ণ — RMP-কমিশনের ছাঁচ (fin) যেভাবে লাইভে বসেছিল
+    "V325_RMP_COMMISSION_SAFE_FOUNDATION_2026-08-12.sql", "V380_RMP_PAYMENT_EDIT_DELETE_RULE_2026-08-14.sql",
+    "V382_RMP_PAID_TOTAL_DEDUP_2026-08-14.sql", "V383_RMP_DIRECT_PAYMENT_DUE_CORRECTION_2026-08-14.sql",
+    "V398_STAFF_DOCTOR_RMP_DIRECT_PAYMENT_2026-08-16.sql", "V407_RMP_LINK_TO_DEFAULT_2026-08-16.sql",
+    "V411_RMP_BRANCH_DUE_2026-08-17.sql",
+]
+def build_fin_schema():
+    """📒 V1309 — SQL-টা `fin.` ছুঁলে RMP-কমিশনের ছাঁচটাও নকলে বসে: hr-এর দুটো ফাংশনের নকল
+       (is_master=true · my_code='TEST'), fin.expenses, তারপর লাইভের সেই ফাইলগুলোই ক্রমে; auth/policy-র
+       লাইন নিঃশব্দে বাদ। ⛔ শুধু নকল ডেটাবেসে — লাইভ ছোঁয়া হয় না।"""
+    psql("""do $$ begin
+      if not exists (select 1 from pg_roles where rolname='authenticated') then create role authenticated; end if;
+      if not exists (select 1 from pg_roles where rolname='anon') then create role anon; end if; end $$;""", db=DB)
+    psql("""create extension if not exists pgcrypto; create schema if not exists hr; create schema if not exists fin;
+      create or replace function hr.is_master() returns boolean language sql as $$ select true $$;
+      create or replace function hr.my_code() returns text language sql as $$ select 'TEST' $$;
+      create or replace function fin.rmp_can_use() returns boolean language sql as $$ select true $$;
+      create or replace function fin.rmp_can_write_branch(p_branch text) returns boolean language sql as $$ select true $$;
+      create table if not exists fin.expenses (id uuid primary key default gen_random_uuid(), entry_date date not null, branch text,
+        category text, paid_to text, amount numeric not null default 0, mode text, note text, receipt_path text,
+        ignored boolean not null default false, created_by text, created_at timestamptz not null default now(),
+        updated_at timestamptz not null default now());
+      alter table public.payments add column if not exists "refundOfPaymentId" text;
+      alter table public.payments add column if not exists "refundApprovalStatus" text;""", db=DB)
+    for f in FIN_FILES:
+        fp = os.path.join(ROOT, "04_SUPABASE_DATABASE_SETUP", f)
+        if os.path.exists(fp): psql(file=fp, db=DB)
+    # লাইভ-ফাইল দুটো ফাংশন আবার লেখে (auth ধরে) — নকলে আবার সরল রূপে
+    psql("""create or replace function fin.rmp_can_use() returns boolean language sql as $$ select true $$;
+      create or replace function fin.rmp_can_write_branch(p_branch text) returns boolean language sql as $$ select true $$;""", db=DB)
+    r = psql("select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='fin'", db=DB)
+    return r.stdout.strip()
+
 def main():
     if len(sys.argv) < 2: sys.exit(__doc__)
     if sys.argv[1] == "--stdin": sql = sys.stdin.read(); name = "(stdin)"
@@ -93,6 +126,9 @@ def main():
     ensure_server()
     errs, added, ncols = build_schema()
     print(f"নকল ডেটাবেস তৈরি — বাড়তি ঘর {added} · মোট ঘর {ncols} · গঠনে ভুল {len(errs)}")
+    if re.search(r'\bfin\.', sql):
+        nfin = build_fin_schema()
+        print(f"RMP-কমিশনের ছাঁচ (fin) নকলে বসল — ফাংশন {nfin}")
     if re.search(r'"?updatedAt"?\s*=\s*now\(\)', sql, re.I):
         print("⚠️ সতর্কতা: \"updatedAt\" = now() — অ্যাপের ছাঁচ নয় (T…Z); to_char(now() at time zone 'utc','YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') লিখুন (তালিকা ৪১১-⑦)")
     wrapped = "begin;\n" + sql.rstrip().rstrip(";") + ";\nrollback;\n"

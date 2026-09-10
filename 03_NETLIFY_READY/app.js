@@ -18476,6 +18476,24 @@ function wlv1RmcDmy(iso){ var m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso||'').
 /* 🔒 ফোনের `String.format("%,.2f")`-এর হুবহু এক — নইলে একই সংখ্যা দুই জায়গায় দুরকম দেখাত। */
 function wlv1RmcMoney(v){ try{ return Number(v||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}) }catch(e){ return Number(v||0).toFixed(2) } }
 function wlv1RmcMode(m){ m=String(m||''); return /^online$/i.test(m)?'Online':(/^cash$/i.test(m)?'Cash':m) }
+/* 📒 V1309 — recorded_at → ভারতীয় সময় "5.42 PM"; না বোঝা গেলে ফাঁকা। */
+function wlv1RmcTime(iso){ try{ var d=new Date(String(iso||'')); if(isNaN(d.getTime())) return '';
+  var s=d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true,timeZone:'Asia/Kolkata'}); return s.replace(':','.'); }catch(e){ return '' } }
+/* 📒 V1309 — নামে চাপ: RMP → Dr. Visit / RMP (তাঁর নম্বর ধরে) · রোগী → Patient Summary */
+function wlv1RmcOpenRmp(rmpId){ try{ var d=(load('doctor_visits')||[]).find(function(x){return x&&x.id===rmpId}); if(!d||!d.mobile) return toast('Could not open now'); wlv1NbOpenDoctor(d.mobile); }catch(e){} }
+function wlv1RmcOpenPatient(rowId){ try{ if(rowId) summary(rowId); }catch(e){} }
+window["wlv1RmcOpenRmp"]=wlv1RmcOpenRmp; window["wlv1RmcOpenPatient"]=wlv1RmcOpenPatient;
+function wlv1RmcPatientCell(r,forPaper){
+  var L=function(t,id,mob,sz){ return forPaper?('<b>'+esc(t||'—')+'</b>'):('<a href="javascript:void(0)" style="color:#0B57D0;font-weight:800;font-size:'+(sz||13)+'px" onclick="wlv1RmcOpenPatient(\''+esc(id||'')+'\')">'+esc(t||'—')+'</a>') };
+  if(!r.isAdvance) return L(r.patientName,r.patientRowId,r.patientMobile);
+  var h='', sum=0;
+  (r.covers||[]).forEach(function(c,k){ sum+=c.amount; h+='<div>'+L(c.name,c.rowId,c.mobile,k?11:13)+' <span class="mut" style="font-size:11px">'+wlv1RmcMoney(c.amount)+(c.kind==='allocated'?' · adjusted':'')+'</span></div>' });
+  if(r.legacyCovered>0) h+='<div class="mut" style="font-size:11px;color:#8A5A00">Earlier patients (before app) '+wlv1RmcMoney(r.legacyCovered)+'</div>';
+  var rest=r.amount-sum-(r.legacyCovered||0);
+  if(!(r.covers||[]).length&&!(r.legacyCovered>0)) h+='<span style="font-size:11px;color:#B45309">No patient due — RMP payment</span>';
+  else if(rest>0.5) h+='<div style="font-size:11px;color:#B45309">Not yet against any patient '+wlv1RmcMoney(rest)+'</div>';
+  return h;
+}
 
 function wlv1RmcShown(){ return WLV1_RMC.rmp ? WLV1_RMC.rows.filter(function(r){return r.rmpName===WLV1_RMC.rmp}) : WLV1_RMC.rows }
 
@@ -18487,8 +18505,8 @@ async function wlv1RmcLoad(){
   var from=wlv1RmcMonthFrom(WLV1_RMC.month), to=wlv1RmcMonthTo(WLV1_RMC.month), br=WLV1_RMC.branch;
   var out=[], anyOk=false;
   /* ১. রোগীর নামে দেওয়া কমিশন — রোগীর নামটা একই পড়াতেই (foreign key ধরে)। */
-  var payCols='id,rmp_name,treatment_branch,paid_on,amount,mode,reference_no,recorded_by,recorded_at';
-  var q=c.from('rmp_commission_payments').select(payCols+',rmp_patient_commissions(patient_name)')
+  var payCols='id,rmp_id,rmp_name,treatment_branch,paid_on,amount,mode,reference_no,recorded_by,recorded_at';   /* 📒 V1309 +rmp_id */
+  var q=c.from('rmp_commission_payments').select(payCols+',rmp_patient_commissions(patient_name,patient_row_id,patient_mobile)')
         .gte('paid_on',from).lte('paid_on',to).order('paid_on',{ascending:false}).limit(1000);
   if(br) q=q.eq('treatment_branch',br);
   var r=await q;
@@ -18502,21 +18520,38 @@ async function wlv1RmcLoad(){
   if(!r.error){ anyOk=true; (r.data||[]).forEach(function(x){
     var pc=x.rmp_patient_commissions;
     if(Array.isArray(pc)) pc=pc[0];
-    out.push({ paidOn:x.paid_on||'', rmpName:x.rmp_name||'', patientName:(pc&&pc.patient_name)||'',
+    out.push({ id:x.id||'', rmpId:x.rmp_id||'', paidOn:x.paid_on||'', rmpName:x.rmp_name||'', patientName:(pc&&pc.patient_name)||'',
+      patientRowId:(pc&&pc.patient_row_id)||'', patientMobile:(pc&&pc.patient_mobile)||'',
       isAdvance:false, amount:Number(x.amount||0), mode:x.mode||'', branch:x.treatment_branch||'',
-      referenceNo:x.reference_no||'', recordedBy:x.recorded_by||'', recordedAt:x.recorded_at||'' });
+      referenceNo:x.reference_no||'', recordedBy:x.recorded_by||'', recordedAt:x.recorded_at||'', covers:[], legacyCovered:0 });
   }) }
   /* ২. আগাম দেওয়া টাকা — কোনো রোগীর সঙ্গে বাঁধা নয়। */
-  var qa=c.from('rmp_advance_payments').select('id,rmp_name,branch,paid_on,amount,mode,reference_no,recorded_by,recorded_at')
+  var qa=c.from('rmp_advance_payments').select('id,rmp_id,rmp_name,branch,paid_on,amount,mode,reference_no,recorded_by,recorded_at,allocated_amount,legacy_covered_amount')   /* 📒 V1309 */
         .gte('paid_on',from).lte('paid_on',to).order('paid_on',{ascending:false}).limit(1000);
   if(br) qa=qa.eq('branch',br);
   var ra=await qa;
   if(!ra.error){ anyOk=true; (ra.data||[]).forEach(function(x){
-    out.push({ paidOn:x.paid_on||'', rmpName:x.rmp_name||'', patientName:'',
+    out.push({ id:x.id||'', rmpId:x.rmp_id||'', paidOn:x.paid_on||'', rmpName:x.rmp_name||'', patientName:'',
       isAdvance:true, amount:Number(x.amount||0), mode:x.mode||'', branch:x.branch||'',
-      referenceNo:x.reference_no||'', recordedBy:x.recorded_by||'', recordedAt:x.recorded_at||'' });
+      referenceNo:x.reference_no||'', recordedBy:x.recorded_by||'', recordedAt:x.recorded_at||'',
+      covers:[], legacyCovered:Number(x.legacy_covered_amount||0) });
   }) }
   if(!anyOk){ WLV1_RMC.state='fail'; return }
+  /* 📒🔒 V1309 (তালিকা ৪১৮, ফোনের RmpCommissionRepository-র হুবহু যমজ): RMP-কে দেওয়া টাকা কোন রোগীর
+     জন্য — সার্ভারের এক ডাক (fin.rmp_sheet_cover: হাতে adjust থাকলে সেটা, বাকিটা পুরনো বকেয়া আগে);
+     adjust-এ তৈরি হওয়া দ্বিতীয় commission-সারি আলাদা নয় ⇒ TOTAL দুবার নয়। ডাক ব্যর্থ হলে নাম ছাড়াই তালিকা। */
+  try{
+    var advIds=out.filter(function(r){return r.isAdvance&&r.id}).map(function(r){return r.id});
+    if(advIds.length){
+      var al=await c.from('rmp_advance_allocations').select('commission_payment_id,advance_id').in('advance_id',advIds).limit(1000);
+      if(!al.error){ var drop={}; (al.data||[]).forEach(function(a){ if(a.commission_payment_id) drop[a.commission_payment_id]=1 });
+        out=out.filter(function(r){ return r.isAdvance || !drop[r.id] }); }
+      var cv=await c.rpc('rmp_sheet_cover',{p_from:from,p_to:to,p_branch:br||null});
+      if(!cv.error&&Array.isArray(cv.data)){ var byAdv={};
+        cv.data.forEach(function(x){ if(!x.advance_id) return; (byAdv[x.advance_id]=byAdv[x.advance_id]||[]).push({name:x.patient_name||'',rowId:x.patient_row_id||'',mobile:x.patient_mobile||'',amount:Number(x.amount||0),kind:x.kind||''}) });
+        out.forEach(function(r){ if(r.isAdvance&&byAdv[r.id]) r.covers=byAdv[r.id] }); }
+    }
+  }catch(e){}
   out.sort(function(a,b){ return (b.paidOn===a.paidOn) ? String(b.recordedAt).localeCompare(String(a.recordedAt)) : String(b.paidOn).localeCompare(String(a.paidOn)) });
   WLV1_RMC.rows=out; WLV1_RMC.state='ok';
 }
@@ -18529,15 +18564,18 @@ function wlv1RmcTableHtml(){
   var total=0;
   var body=list.map(function(r){
     total+=r.amount;
-    return '<tr><td>'+esc(wlv1RmcDmy(r.paidOn))+'</td><td>'+esc(r.rmpName)+'</td>'
-      +'<td>'+(r.isAdvance?'<span class="wlv1RmcAdv">Advance</span>':'<b>'+esc(r.patientName)+'</b>')+'</td>'
+    var tm=wlv1RmcTime(r.recordedAt);
+    return '<tr><td>'+esc(wlv1RmcDmy(r.paidOn))+(tm?'<div class="mut" style="font-size:11px">'+tm+'</div>':'')+'</td>'
+      +'<td><a href="javascript:void(0)" style="color:#0B57D0;font-weight:800" onclick="wlv1RmcOpenRmp(\''+esc(r.rmpId||'')+'\')">'+esc(r.rmpName)+'</a></td>'
+      +'<td>'+wlv1RmcPatientCell(r,false)+'</td>'
       +'<td class="r">'+wlv1RmcMoney(r.amount)+'</td>'
       +'<td>'+esc(wlv1RmcMode(r.mode))+'</td><td>'+esc(r.branch)+'</td>'
       +'<td>'+esc(r.referenceNo)+'</td><td>'+esc(r.recordedBy)+'</td></tr>';
   }).join('');
   /* 💰 TK: *"Total Paid নিচে থাকবে কলামের শেষে, উপরে থাকবে না"* */
-  return '<div class="wlv1RmcWrap"><table class="wlv1RmcTable">'
-    +'<tr><th>DATE</th><th>RMP</th><th>PATIENT</th><th class="r">AMOUNT</th><th>MODE</th><th>BRANCH</th><th>REFERENCE</th><th>RECORDED BY</th></tr>'
+  /* 📒 V1309 (TK: "গুগল শিটের মতন বক্স") — প্রতিটা ঘরে বর্ডার, সবুজ হেডার (inline, styles.css অছোঁয়া) */
+  return '<div class="wlv1RmcWrap"><style>.wlv1RmcTable{border-collapse:collapse}.wlv1RmcTable td,.wlv1RmcTable th{border:1px solid #C9D3DF}.wlv1RmcTable th{background:#0B5E34;color:#fff}</style><table class="wlv1RmcTable">'
+    +'<tr><th>DATE / TIME</th><th>RMP</th><th>PATIENT (for whom)</th><th class="r">AMOUNT</th><th>MODE</th><th>BRANCH</th><th>REFERENCE</th><th>RECORDED BY</th></tr>'
     +body
     +'<tr class="tot"><td colspan="3">TOTAL &nbsp;·&nbsp; '+list.length+' payments</td><td class="r">'+wlv1RmcMoney(total)+'</td><td colspan="4"></td></tr>'
     +'</table></div>';
@@ -18604,9 +18642,9 @@ function wlv1RmcMenu(){
 /** ⛔ ছাপা ও শেয়ার একই কাগজ থেকেই — দুটো কখনো আলাদা হতে পারে না। */
 function wlv1RmcPaperHtml(){
   var list=wlv1RmcShown(), total=0;
-  var rows=list.map(function(r){ total+=r.amount;
-    return '<tr><td>'+esc(wlv1RmcDmy(r.paidOn))+'</td><td>'+esc(r.rmpName)+'</td><td>'
-      +(r.isAdvance?'Advance':esc(r.patientName))+'</td><td>'+esc(wlv1RmcMode(r.mode))+'</td><td>'
+  var rows=list.map(function(r){ total+=r.amount; var tm=wlv1RmcTime(r.recordedAt);
+    return '<tr><td>'+esc(wlv1RmcDmy(r.paidOn))+(tm?'<div class="m">'+tm+'</div>':'')+'</td><td>'+esc(r.rmpName)+'</td><td>'
+      +wlv1RmcPatientCell(r,true)+'</td><td>'+esc(wlv1RmcMode(r.mode))+'</td><td>'
       +esc(r.branch)+'</td><td>'+esc(r.referenceNo)+'</td><td>'+esc(r.recordedBy)+'</td><td class="r">'
       +wlv1RmcMoney(r.amount)+'</td></tr>'; }).join('');
   return '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=794"><style>'
@@ -18618,14 +18656,14 @@ function wlv1RmcPaperHtml(){
     +'table{border-collapse:collapse;width:100%;margin-top:7mm;font-size:10.5px}'
     +'th{background:#F2F6FA;color:#3C4A5C;text-align:left;padding:5px 6px;border:1px solid #D8E0EA;font-size:9.5px}'
     +'td{padding:5px 6px;border:1px solid #E6ECF3}'
-    +'.r{text-align:right;font-weight:bold;color:#0B4F2A}'
+    +'.r{text-align:right;font-weight:bold;color:#0B4F2A}.m{font-size:9px;color:#5B6B81}'
     +'tr:nth-child(even) td{background:#FAFCFE}'
     +'.tot td{background:#0B5E34;color:#fff;font-weight:bold;border-color:#0B5E34}'
     +'.tot td.r{color:#fff}'
     +'</style></head><body><div class="sheet"><h1>RMP COMMISSION SHEET</h1><div class="sub">'
     +esc(wlv1RmcMonthLabel(WLV1_RMC.month))+'  ·  '+esc(WLV1_RMC.branch||'All Branches')
     +(WLV1_RMC.rmp?('  ·  '+esc(WLV1_RMC.rmp)):'')+'</div>'
-    +'<table><tr><th>DATE</th><th>RMP</th><th>PATIENT</th><th>MODE</th><th>BRANCH</th><th>REFERENCE</th><th>RECORDED BY</th><th>AMOUNT</th></tr>'
+    +'<table><tr><th>DATE / TIME</th><th>RMP</th><th>PATIENT (for whom)</th><th>MODE</th><th>BRANCH</th><th>REFERENCE</th><th>RECORDED BY</th><th>AMOUNT</th></tr>'
     +rows+'<tr class="tot"><td colspan="7">TOTAL  ·  '+list.length+' payments</td><td class="r">'
     +wlv1RmcMoney(total)+'</td></tr></table></div></body></html>';
 }

@@ -293,11 +293,16 @@ object RmpCommissionRepository {
        ⛔ গোপনীয়তা: `hidden_from_non_master` সারি Master ছাড়া কেউ দেখেন না —
           এটা ডেটাবেসের নিজের RLS নিয়মেই আটকানো (V325), অ্যাপের হাতে নয়।
        ═══════════════════════════════════════════════════════════════════ */
+    /** 📒 V1309 — RMP-পেমেন্ট কোন রোগীর জন্য (হাতে adjust = allocated · পুরনো বকেয়া আগে = fifo)। */
+    data class Cover(val name: String, val rowId: String, val mobile: String, val amount: Double, val kind: String)
     data class SheetRow(
         val paidOn: String, val rmpName: String, val patientName: String,
         val isAdvance: Boolean, val amount: Double, val mode: String,
         val branch: String, val referenceNo: String, val recordedBy: String,
-        val recordedAt: String
+        val recordedAt: String,
+        val id: String = "", val rmpId: String = "",                 // 📒 V1309
+        val patientRowId: String = "", val patientMobile: String = "",
+        val legacyCovered: Double = 0.0, val covers: List<Cover> = emptyList()
     )
 
     /** একটা তারিখ-সীমার সব কমিশন ও আগাম টাকা, নতুন তারিখ আগে। */
@@ -307,12 +312,12 @@ object RmpCommissionRepository {
         var anyOk = false
 
         // ── ১. রোগীর নামে দেওয়া কমিশন ──────────────────────────────────
-        val payCols = "id,rmp_name,treatment_branch,paid_on,amount,mode,reference_no,recorded_by,recorded_at"
+        val payCols = "id,rmp_id,rmp_name,treatment_branch,paid_on,amount,mode,reference_no,recorded_by,recorded_at"   // 📒 V1309 +rmp_id
         val payBranch = if (branch.isBlank()) "" else "&treatment_branch=eq.${enc(branch)}"
         /* 🔵 রোগীর নামটা একই পড়াতেই আসে (foreign key ধরে) — আলাদা ডাক নয়,
            তাই ফ্রি প্ল্যানে বাড়তি চাপ পড়ে না। */
         var payR = ModuleAuth.getRowsChecked("fin", "rmp_commission_payments",
-            "select=$payCols,rmp_patient_commissions(patient_name)$range$payBranch&order=paid_on.desc,recorded_at.desc&limit=1000")
+            "select=$payCols,rmp_patient_commissions(patient_name,patient_row_id,patient_mobile)$range$payBranch&order=paid_on.desc,recorded_at.desc&limit=1000")   // 📒 V1309
         /* ⛔ শেষ-ভরসা: embed কোনো কারণে না চললে নাম ছাড়াই পড়া হয় —
            তালিকাটা তখনো আসে, শুধু PATIENT ঘরটা ফাঁকা থাকে। */
         if (!payR.ok) {
@@ -329,15 +334,18 @@ object RmpCommissionRepository {
                     pc?.optString("patient_name", "") ?: "",
                     false, x.optDouble("amount", 0.0), x.optString("mode", ""),
                     x.optString("treatment_branch", ""), x.optString("reference_no", ""),
-                    x.optString("recorded_by", ""), x.optString("recorded_at", "")))
+                    x.optString("recorded_by", ""), x.optString("recorded_at", ""),
+                    id = x.optString("id", ""), rmpId = x.optString("rmp_id", ""),
+                    patientRowId = pc?.optString("patient_row_id", "") ?: "",
+                    patientMobile = pc?.optString("patient_mobile", "") ?: ""))
             }
         }
 
         // ── ২. আগাম দেওয়া টাকা (কোনো রোগীর সঙ্গে বাঁধা নয়) ─────────────
         val advBranch = if (branch.isBlank()) "" else "&branch=eq.${enc(branch)}"
         val advR = ModuleAuth.getRowsChecked("fin", "rmp_advance_payments",
-            "select=id,rmp_name,branch,paid_on,amount,mode,reference_no,recorded_by,recorded_at" +
-                "$range$advBranch&order=paid_on.desc,recorded_at.desc&limit=1000")
+            "select=id,rmp_id,rmp_name,branch,paid_on,amount,mode,reference_no,recorded_by,recorded_at,allocated_amount,legacy_covered_amount" +
+                "$range$advBranch&order=paid_on.desc,recorded_at.desc&limit=1000")   // 📒 V1309
         if (advR.ok) {
             anyOk = true
             for (i in 0 until advR.rows.length()) {
@@ -346,11 +354,53 @@ object RmpCommissionRepository {
                     x.optString("paid_on", ""), x.optString("rmp_name", ""), "",
                     true, x.optDouble("amount", 0.0), x.optString("mode", ""),
                     x.optString("branch", ""), x.optString("reference_no", ""),
-                    x.optString("recorded_by", ""), x.optString("recorded_at", "")))
+                    x.optString("recorded_by", ""), x.optString("recorded_at", ""),
+                    id = x.optString("id", ""), rmpId = x.optString("rmp_id", ""),
+                    legacyCovered = x.optDouble("legacy_covered_amount", 0.0)))
             }
         }
 
         if (!anyOk) return RepoResult(false, message = "Could not load the commission sheet")
+        /* 📒🔒 V1309 (১০.০৯.২০২৬, তালিকা ৪১৮ — TK: *"পেশেন্টের ঘরে এডভান্স লেখা কেন… নাম থাকতে হবে"*):
+           ① RMP-কে দেওয়া টাকা (rmp_advance_payments — "RMP Payment" বোতাম এটাতেই লেখে) কোন রোগীর
+              জন্য: সার্ভারের এক ডাকে (fin.rmp_sheet_cover) — হাতে adjust করা থাকলে সেটা, বাকিটা ওই
+              RMP-র রোগীদের পুরনো বকেয়া আগে (FIFO)। ② adjust করলে যে দ্বিতীয় commission-সারি তৈরি হয়
+              (একই টাকা), সেটা আলাদা সারি হিসেবে আর নয় — শুধু RMP-পেমেন্টের নিচে রোগীর নাম হিসেবে ⇒
+              TOTAL = সত্যিই হাতে দেওয়া টাকা, দুবার নয়। ⛔ কোনো ডাক ব্যর্থ হলে তালিকা আগের মতোই আসে
+              (নাম ছাড়া) — কিছু হারায় না। */
+        try {
+            val advIds = out.filter { it.isAdvance && it.id.isNotBlank() }.map { it.id }
+            if (advIds.isNotEmpty()) {
+                val allocR = ModuleAuth.getRowsChecked("fin", "rmp_advance_allocations",
+                    "select=commission_payment_id,advance_id&advance_id=in.(" + advIds.joinToString(",") { enc(it) } + ")&limit=1000")
+                if (allocR.ok) {
+                    val allocPayIds = HashSet<String>()
+                    for (i in 0 until allocR.rows.length()) {
+                        val a = allocR.rows.optJSONObject(i) ?: continue
+                        val cp = a.optString("commission_payment_id", ""); if (cp.isNotBlank()) allocPayIds.add(cp)
+                    }
+                    if (allocPayIds.isNotEmpty()) out.removeAll { !it.isAdvance && allocPayIds.contains(it.id) }
+                }
+                val rpc = ModuleAuth.rpc("fin", "rmp_sheet_cover", JSONObject()
+                    .put("p_from", fromIso).put("p_to", toIso)
+                    .put("p_branch", if (branch.isBlank()) JSONObject.NULL else branch))
+                if (rpc.ok) {
+                    val arr = try { JSONArray(rpc.body) } catch (_: Throwable) { JSONArray() }
+                    val byAdv = HashMap<String, MutableList<Cover>>()
+                    for (i in 0 until arr.length()) {
+                        val c = arr.optJSONObject(i) ?: continue
+                        val aid = c.optString("advance_id", ""); if (aid.isBlank()) continue
+                        byAdv.getOrPut(aid) { mutableListOf() }.add(Cover(
+                            c.optString("patient_name", ""), c.optString("patient_row_id", ""),
+                            c.optString("patient_mobile", ""), c.optDouble("amount", 0.0), c.optString("kind", "")))
+                    }
+                    for (i in out.indices) {
+                        val r = out[i]
+                        if (r.isAdvance) byAdv[r.id]?.let { out[i] = r.copy(covers = it) }
+                    }
+                }
+            }
+        } catch (_: Throwable) { }
         // নতুন তারিখ আগে; একই তারিখে যেটা পরে বসানো হয়েছে সেটা আগে।
         out.sortWith(compareByDescending<SheetRow> { it.paidOn }.thenByDescending { it.recordedAt })
         return RepoResult(true, out)
