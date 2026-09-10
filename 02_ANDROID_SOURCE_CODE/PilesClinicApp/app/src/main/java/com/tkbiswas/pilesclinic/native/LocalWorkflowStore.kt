@@ -195,6 +195,34 @@ class LocalWorkflowStore(context: Context) {
     }
 
 
+    /** V1320 (তালিকা ৪২৪, একই দোষ আরেক জায়গায় — নিয়ম ৭): batched সংস্করণ,
+     *  ঠিক upsertFollowUps-এর প্যাটার্নে। RegistrationRepository.flushPending()
+     *  আগে প্রতিটা সফল-sync হওয়া সারির জন্য আলাদা করে upsertPatient() ডাকত —
+     *  N সারি মানে N বার পুরো টেবিল পড়া+লেখা। এখন একবারেই। */
+    fun upsertPatients(rows: List<JSONObject>, syncStatus: String = "PENDING") {
+        if (rows.isEmpty()) return
+        synchronized(LOCK) {
+            val stored = load("patients")
+            for (row in rows) {
+                val copy = JSONObject(row.toString()).put("_syncStatus", syncStatus)
+                val id = copy.optString("id")
+                var replaced = false
+                for (i in 0 until stored.length()) {
+                    val old = stored.getJSONObject(i)
+                    if (id.isNotBlank() && old.optString("id") == id) {
+                        if (isStaleCloudRefresh(old, syncStatus, copy)) { replaced = true; break }
+                        val keys = copy.keys()
+                        while (keys.hasNext()) { val k = keys.next(); old.put(k, copy.opt(k)) }
+                        stored.put(i, old); replaced = true; break
+                    }
+                }
+                if (!replaced) stored.put(copy)
+            }
+            save("patients", stored)
+        }
+    }
+
+
     /** Every locally-cached "patients" row not yet confirmed synced. */
     fun pendingPatients(): JSONArray {
         val out = JSONArray()
@@ -228,6 +256,32 @@ class LocalWorkflowStore(context: Context) {
         if (!replaced) rows.put(copy)
         save("payments", rows)
             }
+    }
+
+
+    /** V1320 (তালিকা ৪২৪, নিয়ম ৭) — উপরের upsertPatients-এর মতোই, "payments"-এর
+     *  জন্য batched সংস্করণ। */
+    fun upsertPayments(rows: List<JSONObject>, syncStatus: String = "PENDING") {
+        if (rows.isEmpty()) return
+        synchronized(LOCK) {
+            val stored = load("payments")
+            for (row in rows) {
+                val copy = JSONObject(row.toString()).put("_syncStatus", syncStatus)
+                val id = copy.optString("id")
+                var replaced = false
+                for (i in 0 until stored.length()) {
+                    val old = stored.getJSONObject(i)
+                    if (id.isNotBlank() && old.optString("id") == id) {
+                        if (isStaleCloudRefresh(old, syncStatus, copy)) { replaced = true; break }
+                        val keys = copy.keys()
+                        while (keys.hasNext()) { val k = keys.next(); old.put(k, copy.opt(k)) }
+                        stored.put(i, old); replaced = true; break
+                    }
+                }
+                if (!replaced) stored.put(copy)
+            }
+            save("payments", stored)
+        }
     }
 
 
@@ -284,6 +338,32 @@ class LocalWorkflowStore(context: Context) {
         if (!replaced) rows.put(copy)
         save("enquiries", rows)
             }
+    }
+
+
+    /** V1320 (তালিকা ৪২৪, নিয়ম ৭) — উপরের upsertPatients-এর মতোই, "enquiries"-এর
+     *  জন্য batched সংস্করণ। EnquiryRepository.flushPending()-এ ব্যবহৃত। */
+    fun upsertEnquiries(rows: List<JSONObject>, syncStatus: String = "PENDING") {
+        if (rows.isEmpty()) return
+        synchronized(LOCK) {
+            val stored = load("enquiries")
+            for (row in rows) {
+                val copy = JSONObject(row.toString()).put("_syncStatus", syncStatus)
+                val id = copy.optString("id")
+                var replaced = false
+                for (i in 0 until stored.length()) {
+                    val old = stored.getJSONObject(i)
+                    if (id.isNotBlank() && old.optString("id") == id) {
+                        if (isStaleCloudRefresh(old, syncStatus, copy)) { replaced = true; break }
+                        val keys = copy.keys()
+                        while (keys.hasNext()) { val k = keys.next(); old.put(k, copy.opt(k)) }
+                        stored.put(i, old); replaced = true; break
+                    }
+                }
+                if (!replaced) stored.put(copy)
+            }
+            save("enquiries", stored)
+        }
     }
 
 

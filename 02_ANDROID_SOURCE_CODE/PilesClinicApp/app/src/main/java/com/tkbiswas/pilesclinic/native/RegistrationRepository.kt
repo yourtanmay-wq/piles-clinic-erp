@@ -673,6 +673,14 @@ class RegistrationRepository(private val context: Context) {
                 if (DeletedGuard.isDeleted(e.optString("table"), rid, context)) cancelledBatches.add(b)
             }
             val stillPending = JSONArray()
+            // V1320 (তালিকা ৪২৪, নিয়ম ৭ — Follow-up-এ ধরা পড়া একই দোষ এখানেও ছিল):
+            // আগে প্রতিটা সফল সারির জন্য আলাদা করে upsertPatient/upsertFollowUp/
+            // upsertPayment ডাকা হতো -- N সারি মানে N বার পুরো টেবিল পড়া+লেখা,
+            // ঠিক V1319-এ ধরা পড়া মূল সমস্যার মতোই (শুধু কম-ঘটা পথে, নেট বন্ধ
+            // থাকার পর অনেক সারি জমলে)। এখন জমিয়ে একবারেই batched upsert।
+            val syncedPatients = ArrayList<JSONObject>()
+            val syncedFollowUps = ArrayList<JSONObject>()
+            val syncedPayments = ArrayList<JSONObject>()
             for (i in 0 until queue.length()) {
                 val entry = queue.getJSONObject(i)
                 val table = entry.getString("table")
@@ -692,13 +700,19 @@ class RegistrationRepository(private val context: Context) {
                     // un-synced local change forever after it has, in
                     // fact, already reached the cloud.
                     when (table) {
-                        "patients" -> LocalWorkflowStore(context).upsertPatient(row, "SYNCED")
-                        "followups" -> LocalWorkflowStore(context).upsertFollowUp(row, "SYNCED")
-                        "payments" -> LocalWorkflowStore(context).upsertPayment(row, "SYNCED")
+                        "patients" -> syncedPatients.add(row)
+                        "followups" -> syncedFollowUps.add(row)
+                        "payments" -> syncedPayments.add(row)
                     }
                 } else {
                     stillPending.put(entry)
                 }
+            }
+            if (syncedPatients.isNotEmpty() || syncedFollowUps.isNotEmpty() || syncedPayments.isNotEmpty()) {
+                val store = LocalWorkflowStore(context)
+                store.upsertPatients(syncedPatients, "SYNCED")
+                store.upsertFollowUps(syncedFollowUps, "SYNCED")
+                store.upsertPayments(syncedPayments, "SYNCED")
             }
             savePendingQueue(stillPending)
         }

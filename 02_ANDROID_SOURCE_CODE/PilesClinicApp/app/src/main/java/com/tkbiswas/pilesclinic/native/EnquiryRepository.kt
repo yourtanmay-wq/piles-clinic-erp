@@ -425,6 +425,12 @@ class EnquiryRepository(private val context: Context) {
             if (DeletedGuard.isDeleted(e.optString("table"), rid, context)) cancelledBatches.add(b)
         }
         val stillPending = JSONArray()
+        // V1320 (তালিকা ৪২৪, নিয়ম ৭ — Follow-up-এ ধরা পড়া একই দোষ এখানেও ছিল):
+        // আগে প্রতিটা সফল সারির জন্য আলাদা করে upsertEnquiry/upsertFollowUp
+        // ডাকা হতো -- N সারি মানে N বার পুরো টেবিল পড়া+লেখা। এখন জমিয়ে
+        // একবারেই batched upsert।
+        val syncedEnquiries = ArrayList<JSONObject>()
+        val syncedFollowUps = ArrayList<JSONObject>()
         for (i in 0 until queue.length()) {
             val entry = queue.getJSONObject(i)
             val table = entry.getString("table")
@@ -447,11 +453,16 @@ class EnquiryRepository(private val context: Context) {
                 // device, forever, for this one record. Now confirmed
                 // synced immediately after this retry succeeds, the same
                 // way the very first successful save already does.
-                if (table == "enquiries") LocalWorkflowStore(context).upsertEnquiry(row, "SYNCED")
-                else if (table == "followups") LocalWorkflowStore(context).upsertFollowUp(row, "SYNCED")
+                if (table == "enquiries") syncedEnquiries.add(row)
+                else if (table == "followups") syncedFollowUps.add(row)
             } else {
                 stillPending.put(entry)
             }
+        }
+        if (syncedEnquiries.isNotEmpty() || syncedFollowUps.isNotEmpty()) {
+            val store = LocalWorkflowStore(context)
+            store.upsertEnquiries(syncedEnquiries, "SYNCED")
+            store.upsertFollowUps(syncedFollowUps, "SYNCED")
         }
         savePendingQueue(stillPending)
         }
