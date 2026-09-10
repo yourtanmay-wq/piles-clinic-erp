@@ -232,14 +232,15 @@ class FollowUpActivity : AppCompatActivity() {
         try {
             binding = ActivityFollowupBinding.inflate(layoutInflater)
             setContentView(binding.root)
-            // ⚡ ধাপ ১ — স্ক্রল মসৃণ করা (TK, 28.07.2026), ঝুঁকিহীন।
-            // এই পর্দার সবচেয়ে নিচের ঘরটাই গ্রেডিয়েন্ট রংটা আঁকে
-            // (activity_followup.xml-এ background=bg_app_gradient), অথচ
-            // অ্যাপের থিমও জানালায় ঠিক ওই একই রং আঁকে — অর্থাৎ প্রতিটা
-            // ফ্রেমে **একই রং দু'বার** আঁকা হচ্ছিল। জানালার আঁকাটা বাদ দিলে
-            // ফ্রেমপ্রতি একটা গোটা পর্দার আঁকা কমে যায়।
-            // ⛔ চেহারায় কিছুই বদলায় না — রংটা নিচের ঘর থেকেই আসতে থাকে।
-            try { window.setBackgroundDrawable(null) } catch (_: Throwable) { }
+            // 🔴🔒 V1316 (১০.০৯.২০২৬, TK-রিপোর্ট ও ভিডিও-প্রুফ — "Follow-up চাপলেই
+            // পর্দা কালো হয়ে আটকে যাচ্ছে", একাধিকবার প্রমাণিত, Clear Data-তেও ফিরে
+            // এসেছে): আগের V1013-এর "জানালার আঁকা বাদ" পারফরম্যান্স-কৌশল
+            // (`window.setBackgroundDrawable(null)`) সরানো হলো — এই একটাই পর্দা
+            // প্রজেক্টে এটা করত, ঠিক এই পর্দাটাই কালো হয়ে আটকাত। ⛔ চেহারায় কিছু
+            // বদলায় না — থিমের `windowBackground`-ও ঠিক এই একই গ্রেডিয়েন্ট
+            // (`bg_app_gradient`, themes.xml), তাই স্বাভাবিক অবস্থায় দৃশ্যত অভিন্ন;
+            // কিন্তু এখন নিচের ঘরের আঁকা কোনো কারণে ব্যর্থ হলেও জানালার নিজের
+            // রংটা তবু দেখা যাবে, খালি কালো নয়।
             UppercaseInputUtil.applyToAll(binding.root)  // TK-REQUESTED GLOBAL RULE (2026-07-24): English text auto-CAPITAL, Password fields excluded automatically
             // ⚡ ধাপ ২ (খাতার সারি B19, TK 28.07.2026 "হ্যাঁ") — Enquiry-র তালিকা
             // এখন RecyclerView-তে: পর্দায় যতটুকু দেখা যায় ততটুকু কার্ডই ফোনের
