@@ -24491,6 +24491,12 @@ verify_zip_contents + verify_zip_root_name দুটোই PASS। হিসা�
 এই ZIP-এ V1312 থেকে V1316 পর্যন্ত সব কাজ — RMP REFERENCE-এর "null" ফিক্স, RMP Commission Sheet-এর REFERENCE
 ঘর বাদ, সব পর্দা portrait-লক, আর সবচেয়ে জরুরি: **Follow-up পর্দার permanent black screen ফিক্স** (তালিকা ৪২৪)।
 
+## ১১.০৯.২০২৬ ০১:৩৫ — 📦 PILES_CLINIC_APP_V1317_FINAL.zip পাঠানো (TK: "ফাইল পাঠান")
+
+২৫.৬৫ MB · ১৮০৭ ফাইল। বাদ: গোড়ার ২২টা ডেমো .png + অ্যানাটমি-ছবির আসল কপি। গোপন কিছু নেই। verify_zip_contents
++ verify_zip_root_name দুটোই PASS। এই ZIP-এ V1317 — আজ রাতের Follow-up/Payment স্থায়ী কালো-হয়ে-যাওয়ার
+আসল সমাধান, আর CLAUDE.md-এ নতুন স্থায়ী রুল ৫খ (ফোনের জমানো তথ্যে হাত দেওয়ার আগে আসল মাপ ভাবা)।
+
 ## ১১.০৯.২০২৬ ০১:২০ — TK-নির্দেশ স্থায়ী নিয়মে লেখা হলো (CLAUDE.md রুল ৫খ)
 
 TK: *"এই সমস্যাটা আপনি তৈরি কেন করেছিলেন… এটা কোন ডেমো ক্লিনিকের অ্যাপ্লিকেশন নয়, এটা বাস্তব ক্লিনিক। কোন
