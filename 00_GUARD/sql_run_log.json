@@ -273,5 +273,13 @@
   "result": "৬ টেবিলে server_at timestamptz default now() — CSV-তে ৬ সারি",
   "proof": "CSV",
   "what": "payments/patients/followups/enquiries/doctor_visits/medical-এ সার্ভার-সময়ের ঘর; কোনো সারি/মান বদলায়নি; পুরনো সারি NULL। পরে DEKHAR_SQL_GHORI_MIL_server_at.sql দিয়ে ফোনের ঘড়ি মেলানো যাবে (কিছু দিন তথ্য জমার পরে)।"
+ },
+ {
+  "sql_file": "00_SQL/DEKHAR_SQL_2026-09-10_CHOBI_MAPA.sql (⑩ মাপা — শুধু পড়া)",
+  "run_by": "TK",
+  "when": "১০.০৯.২০২৬ বেলা ১১.২০",
+  "result": "patients.photo 167/839 · 11.50 MB · গড় 71 KB · বড় 129 KB; followups.photo 6 · 0.27 MB; medical.photos 6 · 0.32 MB; DB মোট 66 MB",
+  "proof": "CSV",
+  "what": "টেবিলের ভিতরে base64 ছবির মাপ"
  }
 ]
