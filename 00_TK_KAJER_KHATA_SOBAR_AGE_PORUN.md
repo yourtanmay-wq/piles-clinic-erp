@@ -24484,6 +24484,14 @@ verify_zip_contents ✅ (১০ আইকন)। **২৫.৫ MB · ১৮০০
 গোপন কিছু নেই (service-account শুধু Netlify env; google-services.json গোপন নয়)। এই ZIP-এ V1297–V1301: push (FCM) ·
 Payment delete-request · Queue-ফেরা · চিহ্ন-সারি। TK-কে মনে করানো: আসল বিল্ড Android Studio-তে; ওয়েব এখন GitHub থেকে নিজে ওঠে।
 
+## ১০.০৯.২০২৬ ১৯:৪৫ — V1312: CHECK-UP Queue-তে "Loading..." লেখা তালিকা এসেও থেকে যাওয়া
+
+TK-র ছবি ৩টা — Kishanganj-এ "PENDING TODAY (1)" কার্ড দেখাচ্ছে, তার উপরেই "Loading…" লেখাটাও রয়ে গেছে; পরের ছবিতে একা "Loading…"।
+**আসল কারণ (কোডে ধরা):** ক্লাউড থেকে তাজা তালিকা এলে ও তাতে রোগী থাকলে (cache না থাকা প্রথম খোলায়) কার্ডগুলো বসত ঠিকই, কিন্তু
+"Loading…" লেখার ঘরটা (`tvEmpty`) কোথাও লুকানো হত না — ঠিক উপরের cache-পথে যে লাইনটা আছে, নতুন-তালিকার পথে সেটাই বাদ পড়ে গিয়েছিল।
+✅ **ফিক্স:** সেই একই লাইন বসানো হলো — তালিকা এলে "Loading…" লুকিয়ে যায়। ওয়েবে এই পর্দায় এই ধরনের লেখাই নেই, তাই ওখানে কিছু বদলায়নি।
+পাহারা: Kotlin compile PASS · resources PASS · node --check OK · tk_guard PASS। ভার্সন 1312 (gradle · version.json; app.js অছোঁয়া)।
+
 ## ১০.০৯.২০২৬ — 📦 PILES_CLINIC_APP_V1311_FINAL.zip পাঠানো (TK: "ফাইল পাঠাও")
 
 ২৫.৬৫ MB · ১৮০৭ ফাইল (02_ANDROID_SOURCE_CODE ৭৬৭ · root ৬০৪ · SQL/DB ফোল্ডার ২২৯ · 00_GUARD ৫৮ · 03_NETLIFY_READY ৫৩ · বাকি)। বাদ: গোড়ার ২২টা ডেমো .png + অ্যানাটমি-ছবির আসল কপি (ইচ্ছে করে, জায়গা বাঁচাতে)। গোপন কিছু নেই (release সই-চাবি ও service-account ট্র্যাক করা নয়)। verify_zip_contents + verify_zip_root_name দুটোই PASS। হিসাব `00_GUARD/pathano_filer_talika.json`-এ লেখা। এই ZIP-এ V1311 (তালিকা ৪২৩ — A-to-Z অডিট)।

@@ -432,6 +432,11 @@ class DoctorQueueActivity : AppCompatActivity() {
                 lastDoneItems = emptyList()
             } else {
                 binding.progressLoad.visibility = View.GONE
+                // 🔴🔒 V1312 (TK-রিপোর্ট, ছবিসহ — "Loading..." তালিকার উপরেই আটকে
+                //   থাকছিল): তাজা পড়া সারি পেলেও এই "না-খালি" পথে tvEmpty কখনো
+                //   GONE করা হত না, তাই cache-ছাড়া প্রথম খোলায় বসানো "Loading..."
+                //   পাকাপাকি রয়ে যেত (উপরের cache-পথে ঠিক এই লাইনটাই আছে)।
+                binding.tvEmpty.visibility = View.GONE
                 binding.recyclerView.visibility = View.VISIBLE
                 // TK-REQUESTED ADDITION (2026-07-20): split into "Today" and
                 // "Pending / Overdue" sections instead of one flat list, so a
