@@ -24484,6 +24484,15 @@ verify_zip_contents ✅ (১০ আইকন)। **২৫.৫ MB · ১৮০০
 গোপন কিছু নেই (service-account শুধু Netlify env; google-services.json গোপন নয়)। এই ZIP-এ V1297–V1301: push (FCM) ·
 Payment delete-request · Queue-ফেরা · চিহ্ন-সারি। TK-কে মনে করানো: আসল বিল্ড Android Studio-তে; ওয়েব এখন GitHub থেকে নিজে ওঠে।
 
+## ১০.০৯.২০২৬ ১৭:৪৫ — V1307 · তালিকা ৪২০ (TK: *"১ পাশ, সাবধানে"*): Dr. Visit / RMP — তিন বোতাম হেডারের ⋮ মেনুতে (ফোন + কম্পিউটার)
+
+**ফোন:** activity_doctorvisit.xml হেডারে ➕-এর পাশে নতুন `btnRmpMenu` (⋮, ডিফল্ট gone)। DoctorVisitActivity: আগে যে তিন শর্তে তিনটে বোতাম
+VISIBLE হত (Performance — শুধু Master · Due List — Master/Staff, Field Officer নয় · Commission Sheet — শুধু Master) — ঠিক সেই শর্তেই এখন
+মেনুর সারি জমে (`rmpMenuItems`), একটাও থাকলে ⋮ দেখায়, চাপলে PopupMenu, প্রতিটা সারিতে আগের সেই একই ফাংশন। পুরনো তিন বোতাম লেআউটে
+আছে কিন্তু আর কখনো VISIBLE হয় না। **কম্পিউটার:** তিন ব্যানার (`dvRmpBannerRow`) বাদ; ব্রাঞ্চ-বাছাইয়ের পাশে (wlv1HdrPick — ফোন-মাপে হেডারে
+উঠে যায়) ⋮ বোতাম → `wlv1RmpMenu()` মোডালে একই তিন সারি, একই শর্ত (isMaster / wlv1CanSeeDue)। ⛔ তিনটে পর্দার ভিতরের কিছুই বদলায়নি।
+পাহারা: resources ✅ · ব্রাউজার ✅ · tk_guard ✅ · node ✅ · Kotlin compile ✅ PASS। ভার্সন 1307 (gradle · version.json · index ?v=v1307)।
+
 ## ১০.০৯.২০২৬ ১৭:২৫ — V1306 · তালিকা ৪২২: CHECK-UP Queue-তে না-আসা পুরনো রোগী — ফোনের আধখানা কপি আর ক্লাউডের সারি চাপা দেবে না (Queue + Chamber)
 
 **TK (রেগে):** *"চেকআপ পর্দায় এতগুলো পেশেন্ট, কেউ আসেনি… একই সমস্যা অনেকবার… আন্দাজে কাজ কেন"*। **মাপা:** TK-র ২টা SQL — ক্লাউডে

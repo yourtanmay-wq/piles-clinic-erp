@@ -18188,8 +18188,17 @@ function doctorVisit(filter='home'){
     ভিতরে; কম্পিউটারে (≥900px) পাশাপাশি দুই কলামে, ফোনে আগের মতোই একটার নিচে
     একটা (styles.css-এ নিয়ম)। ⛔ বোতাম দুটোর লেখা · রং · কাজ · কে দেখবেন —
     কিছুই বদলায়নি; শুধু কম্পিউটারে জায়গার ব্যবহার। */
- let rmpBannerRow=(rmpPerfHtml||rmpDueHtml||rmpSheetHtml)?`<div class="dvRmpBannerRow">${rmpPerfHtml}${rmpDueHtml}${rmpSheetHtml}</div>`:'';
- let body=`${masterBranchHtml}${stats}${rmpBannerRow}${callSummaryHtml}${searchRow}`;
+ /* ⋮🔒 V1307 (১০.০৯.২০২৬, তালিকা ৪২০ — TK-র ফটো-প্রুফ পাশ, ফোনের হুবহু যমজ): তিনটে বড় ব্যানার
+    বাদ; হেডারের ডানদিকে (ব্রাঞ্চ-বাছাইয়ের পাশে) ⋮ — ভিতরে RMP Performance · RMP Due List ·
+    RMP Commission Sheet। ⛔ কে কোনটা দেখবেন — আগের তিনটে শর্তই (isMaster / wlv1CanSeeDue)। */
+ let rmpMenuItems=[];
+ if(rmpPerfHtml) rmpMenuItems.push(['🏆 RMP Performance','rmpPerformanceReport()']);
+ if(rmpDueHtml) rmpMenuItems.push(['RMP Due List','wlv1RmpDueList()']);
+ if(rmpSheetHtml) rmpMenuItems.push(['RMP Commission Sheet','wlv1RmpSheet()']);
+ window.__wlv1RmpMenuItems=rmpMenuItems;
+ let rmpMenuHtml=rmpMenuItems.length?`<div class="wlv1HdrPick dvRmpMenuWrap"><button class="small ghost dvRmpMenuBtn" title="RMP menu" style="font-size:20px;font-weight:800;line-height:1;padding:2px 10px" onclick="wlv1RmpMenu()">⋮</button></div>`:'';
+ let rmpBannerRow='';
+ let body=`${masterBranchHtml}${rmpMenuHtml}${stats}${rmpBannerRow}${callSummaryHtml}${searchRow}`;
  /* 🟢🔒 V922 (৩১.০৮.২০২৬, TK ডেমো প্রুফ দেখে "card এ পাশাপাশি ২ টা করে
     থাকতে হবে") — কার্ডগুলো একটা মোড়কে। কম্পিউটারে (≥900px) পাশাপাশি দুটো
     (styles.css), ফোনে মোড়কটার কোনো নিয়ম নেই তাই আগের মতোই একটার নিচে একটা।
@@ -18574,6 +18583,15 @@ function wlv1RmcCashOnline(){
     +'</b><br><br>Total &nbsp; <b>'+wlv1RmcMoney(cash+online)+'</b></div>'
     +'<div class="actions"><button onclick="closeModal()">OK</button></div>');
 }
+
+/* ⋮ V1307 (তালিকা ৪২০) — Dr. Visit / RMP হেডারের ⋮ মেনু; ফোনের PopupMenu-র যমজ। */
+function wlv1RmpMenu(){
+  var items=window.__wlv1RmpMenuItems||[]; if(!items.length) return;
+  modal('<h2>Dr. Visit / RMP</h2><div class="card">'
+    +items.map(function(it,i){ return '<button class="'+(i?'ghost':'')+'" style="display:block;width:100%;margin:6px 0" onclick="closeModal();'+it[1]+'">'+esc(it[0])+'</button>'; }).join('')
+    +'</div><div class="actions"><button class="ghost" onclick="closeModal()">Close</button></div>');
+}
+window["wlv1RmpMenu"]=wlv1RmpMenu;
 
 function wlv1RmcMenu(){
   modal('<h2>RMP Commission Sheet</h2><div class="card">'

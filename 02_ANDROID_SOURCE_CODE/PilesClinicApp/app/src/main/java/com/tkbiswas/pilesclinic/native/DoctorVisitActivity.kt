@@ -299,9 +299,14 @@ class DoctorVisitActivity : AppCompatActivity() {
         // ফিল্ড অফিসার হোক"): নতুন বাটন সম্পূর্ণ Master-only — অন্য কোনো রোলের
         // জন্য এই বাটন কখনো দেখা যাবে না (লেআউটে ডিফল্ট gone, এখানে শুধু
         // মাস্টার হলে VISIBLE করা হয়)।
+        /* ⋮🔒 V1307 (১০.০৯.২০২৬, তালিকা ৪২০ — TK-র ফটো-প্রুফ পাশ: *"ব্রাঞ্চ-সিলেক্টের পাশে +,
+           তার পাশে ⋮ — তার মধ্যে RMP Performance · RMP Due List · RMP Commission Sheet"*):
+           তিনটে বড় বোতাম পর্দা থেকে সরে হেডারের ⋮ মেনুতে। ⛔ কে কোনটা দেখবেন — B211/B685/V1252-এর
+           নিয়ম **হুবহু এক** (নিচের তিনটে শর্তই আগের); প্রতিটা চাপে আগের সেই একই ফাংশনই চলে।
+           ⛔ পুরনো বোতাম তিনটে লেআউটে আছে কিন্তু কখনো VISIBLE হয় না। */
+        val rmpMenuItems = ArrayList<Pair<String, () -> Unit>>()
         if (user.role == "master") {
-            binding.btnRmpPerformance.visibility = View.VISIBLE
-            binding.btnRmpPerformance.setOnClickListener { showRmpPerformanceReport() }
+            rmpMenuItems.add(Pair("\uD83C\uDFC6 RMP Performance") { showRmpPerformanceReport() })
         }
 
         // 🟢🔒 B685 (15.08.2026, TK-অনুমোদিত — TK: "কোন আরএমপির কত টাকা ডিউ
@@ -321,8 +326,7 @@ class DoctorVisitActivity : AppCompatActivity() {
         //    পরীক্ষাটাই (এই ফাইলের ৩৭৬১ লাইনে যেমন) ব্যবহার করা হলো।
         val isFieldOfficer = ModuleAuth.personCode == "FIELD-OFFICER"
         if ((user.role == "master" || user.role == "staff") && !isFieldOfficer) {
-            binding.btnRmpDueList.visibility = View.VISIBLE
-            binding.btnRmpDueList.setOnClickListener { showRmpDueList() }
+            rmpMenuItems.add(Pair("RMP Due List") { showRmpDueList() })   // ⋮ V1307
         }
 
         /* 📒🔒 V1252 (০৯.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ, খাতার সারি ৩৭৩) —
@@ -333,13 +337,26 @@ class DoctorVisitActivity : AppCompatActivity() {
            ⛔ পর্দাটা **শুধু পড়ার** — ওখান থেকে একটাও সারি লেখা/বদলানো যায় না।
            ⛔ উপরের কোনো বোতাম বা ডিজাইন নড়েনি — এটা তার নিচে নতুন একটা সারি। */
         if (user.role == "master") {
-            binding.btnRmpCommissionSheet.visibility = View.VISIBLE
-            binding.btnRmpCommissionSheet.setOnClickListener {
+            rmpMenuItems.add(Pair("RMP Commission Sheet") {   // ⋮ V1307
                 try {
                     startActivity(android.content.Intent(this, RmpCommissionSheetActivity::class.java))
                 } catch (_: Throwable) { }
-            }
+            })
         }
+        // ⋮ V1307 — হেডারের ⋮: যাঁর একটাও নেই (যেমন Field Officer) তাঁর কাছে বোতামটাই নেই।
+        if (rmpMenuItems.isNotEmpty()) {
+            binding.btnRmpMenu.visibility = View.VISIBLE
+            binding.btnRmpMenu.setOnClickListener { anchor ->
+                try {
+                    val pm = android.widget.PopupMenu(this, anchor)
+                    rmpMenuItems.forEachIndexed { i, it -> pm.menu.add(0, i, i, it.first) }
+                    pm.setOnMenuItemClickListener { mi ->
+                        rmpMenuItems.getOrNull(mi.itemId)?.second?.invoke(); true
+                    }
+                    pm.show()
+                } catch (_: Throwable) { }
+            }
+        } else binding.btnRmpMenu.visibility = View.GONE
 
         // TK-REQUESTED ADDITION (2026-07-18): deep-link from Patient
         // Timeline's "Referring Doctor" action. We don't know which branch

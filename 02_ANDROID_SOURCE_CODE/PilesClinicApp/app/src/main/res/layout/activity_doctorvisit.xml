@@ -67,6 +67,21 @@
             android:textColor="@color/white"
             android:textSize="20sp"
             android:padding="4dp" />
+        <!-- ⋮🔒 V1307 (তালিকা ৪২০, TK-র প্রুফ পাশ): +-এর পাশে ⋮ — ভিতরে RMP Performance ·
+             RMP Due List · RMP Commission Sheet (Kotlin-এ role ধরে ভরা হয়; কারো একটাও না
+             থাকলে বোতামটাই gone)। -->
+        <TextView
+            android:id="@+id/btnRmpMenu"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="2dp"
+            android:text="⋮"
+            android:textColor="@color/white"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="2dp"
+            android:visibility="gone" />
     </LinearLayout>
 
     <!-- 🔒🔒 খাতার সারি B193 (TK, 30.07.2026 রাত — আলোচনায় পাশ): TK-এর
