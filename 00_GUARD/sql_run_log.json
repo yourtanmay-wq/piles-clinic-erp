@@ -225,5 +225,13 @@
     "result": "Success. No rows returned",
     "proof": "screenshot",
     "what": "payments.amount · patients.bill · patients.discount — সংখ্যা বা ফাঁকা ছাড়া লেখা ঢুকবে না (add constraint … not valid + validate)। আগে মাপা: ভুল লেখা ০টা। ঘরের ধরন বদলানো হয়নি (১৫টা SQL ফাংশন লেখা-ধরনে চলে)।"
+  },
+  {
+    "sql_file": "তালিকা ৪১১-④ — followups জোড়া সারি মেলানো (চ্যাটে দেওয়া transactional SQL, temp table m)",
+    "run_by": "TK",
+    "when": "১০.০৯.২০২৬ সকাল ৯.৪৪",
+    "result": "groups_merged 24 · leftover_dups 0",
+    "proof": "screenshot",
+    "what": "একই মোবাইল+stage-এর চালু সারি (২১ জোড়া + ৩ তিন-সারি): সবচেয়ে বেশি history-র সারি রাখা; history সব জুড়ে, callCount max, nextFollow max (থামানো হলে ফাঁকা), noMoreCalls OR, lastCallDate/lastRemarkAt max, lastRemark নবীনটা, patientId ফাঁকা হলে অন্যটার; বাড়তি ২৭ সারি মোছা + deleted_records চিহ্ন। প্রথম চেষ্টায় lastRemarkAt-এ nullif(…,'') ভুল (timestamptz) → rollback, ঠিক করে দ্বিতীয়বার সফল।"
   }
 ]
