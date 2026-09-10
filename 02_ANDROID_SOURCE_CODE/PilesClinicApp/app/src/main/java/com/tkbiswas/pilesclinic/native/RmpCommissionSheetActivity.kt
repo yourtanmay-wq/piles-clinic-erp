@@ -217,7 +217,7 @@ class RmpCommissionSheetActivity : AppCompatActivity() {
         root.addView(scroll)
 
         root.addView(TextView(this).apply {
-            text = "Slide sideways for Mode · Branch · Reference No. · Recorded by"
+            text = "Slide sideways for Mode · Branch · Recorded by"   // 🔴🔒 V1314 (TK-নির্দেশ, ফটো-প্রুফে পাশ, ০৭.০৯.২০২৬-এর পরে): "রেফারেন্স ঘরটা আমার লাগবে না"
             textSize = 10f
             setTextColor(Color.parseColor("#8B98A9"))
             setPadding(dp(12), dp(4), dp(12), dp(10))
@@ -250,8 +250,7 @@ class RmpCommissionSheetActivity : AppCompatActivity() {
     private val wAmount = 74
     private val wMode = 56
     private val wBranch = 86
-    private val wRef = 92
-    private val wBy = 92
+    private val wBy = 92   // 🔴🔒 V1314 — রেফারেন্স ঘর (wRef) TK-নির্দেশে বাদ
 
     /* 📒🔒 V1309 (তালিকা ৪১৮, TK: *"গুগল শিটের মতন বক্স থাকতে হবে"*) — প্রতিটা ঘরে বর্ডার,
        হেডার সবুজ; DATE-এর নিচে সময়; নামে চাপ দিলে পাতা খোলে। */
@@ -326,7 +325,6 @@ class RmpCommissionSheetActivity : AppCompatActivity() {
         hr.addView(cell("AMOUNT", wAmount, true, "#FFFFFF", right = true, size = 9.5f, fill = hf))
         hr.addView(cell("MODE", wMode, true, "#FFFFFF", size = 9.5f, fill = hf))
         hr.addView(cell("BRANCH", wBranch, true, "#FFFFFF", size = 9.5f, fill = hf))
-        hr.addView(cell("REFERENCE", wRef, true, "#FFFFFF", size = 9.5f, fill = hf))
         hr.addView(cell("RECORDED BY", wBy, true, "#FFFFFF", size = 9.5f, fill = hf))
         grid.addView(hr)
 
@@ -364,7 +362,6 @@ class RmpCommissionSheetActivity : AppCompatActivity() {
             row.addView(cell(money(r.amount), wAmount, true, "#0B4F2A", right = true, fill = bg))
             row.addView(cell(modeText(r.mode), wMode, false, "#1B2733", fill = bg))
             row.addView(cell(r.branch, wBranch, false, "#1B2733", fill = bg))
-            row.addView(cell(r.referenceNo, wRef, false, "#5B6B81", fill = bg))
             row.addView(cell(r.recordedBy, wBy, false, "#5B6B81", fill = bg))
             grid.addView(row)
         }
@@ -373,7 +370,7 @@ class RmpCommissionSheetActivity : AppCompatActivity() {
         val tr = rowBox("#0B5E34")
         tr.addView(cell("TOTAL  ·  " + list.size + " payments", wDate + wRmp + wPatient, true, "#FFFFFF", size = 11f, fill = "#0B5E34"))
         tr.addView(cell(money(total), wAmount, true, "#FFFFFF", right = true, size = 11f, fill = "#0B5E34"))
-        tr.addView(cell("", wMode + wBranch + wRef + wBy, false, "#FFFFFF", fill = "#0B5E34"))
+        tr.addView(cell("", wMode + wBranch + wBy, false, "#FFFFFF", fill = "#0B5E34"))
         grid.addView(tr)
 
         body.addView(HorizontalScrollView(this).apply { addView(grid) })
@@ -501,7 +498,6 @@ class RmpCommissionSheetActivity : AppCompatActivity() {
                 .append("</td><td>").append(pat)
                 .append("</td><td>").append(esc(modeText(r.mode)))
                 .append("</td><td>").append(esc(r.branch))
-                .append("</td><td>").append(esc(r.referenceNo))
                 .append("</td><td>").append(esc(r.recordedBy))
                 .append("</td><td class=\"r\">").append(money(r.amount))
                 .append("</td></tr>")
@@ -526,8 +522,8 @@ class RmpCommissionSheetActivity : AppCompatActivity() {
             monthLabel(month) + "  ·  " + (if (branch.isBlank()) "All Branches" else branch) +
             (if (rmpPick.isBlank()) "" else "  ·  " + rmpPick) + "</div>" +
             "<table><tr><th>DATE / TIME</th><th>RMP</th><th>PATIENT (for whom)</th><th>MODE</th><th>BRANCH</th>" +
-            "<th>REFERENCE</th><th>RECORDED BY</th><th>AMOUNT</th></tr>" + rows +
-            "<tr class=\"tot\"><td colspan=\"7\">TOTAL  ·  " + list.size + " payments</td>" +
+            "<th>RECORDED BY</th><th>AMOUNT</th></tr>" + rows +
+            "<tr class=\"tot\"><td colspan=\"6\">TOTAL  ·  " + list.size + " payments</td>" +
             "<td class=\"r\">" + money(total) + "</td></tr></table>" +
             "</div></body></html>"
     }

@@ -18574,14 +18574,14 @@ function wlv1RmcTableHtml(){
       +'<td>'+wlv1RmcPatientCell(r,false)+'</td>'
       +'<td class="r">'+wlv1RmcMoney(r.amount)+'</td>'
       +'<td>'+esc(wlv1RmcMode(r.mode))+'</td><td>'+esc(r.branch)+'</td>'
-      +'<td>'+esc(r.referenceNo)+'</td><td>'+esc(r.recordedBy)+'</td></tr>';
+      +'<td>'+esc(r.recordedBy)+'</td></tr>';   /* 🔴🔒 V1314 (TK-নির্দেশ, ফটো-প্রুফে পাশ): রেফারেন্স ঘর বাদ */
   }).join('');
   /* 💰 TK: *"Total Paid নিচে থাকবে কলামের শেষে, উপরে থাকবে না"* */
   /* 📒 V1309 (TK: "গুগল শিটের মতন বক্স") — প্রতিটা ঘরে বর্ডার, সবুজ হেডার (inline, styles.css অছোঁয়া) */
   return '<div class="wlv1RmcWrap"><style>.wlv1RmcTable{border-collapse:collapse}.wlv1RmcTable td,.wlv1RmcTable th{border:1px solid #C9D3DF}.wlv1RmcTable th{background:#0B5E34;color:#fff}</style><table class="wlv1RmcTable">'
-    +'<tr><th>DATE / TIME</th><th>RMP</th><th>PATIENT (for whom)</th><th class="r">AMOUNT</th><th>MODE</th><th>BRANCH</th><th>REFERENCE</th><th>RECORDED BY</th></tr>'
+    +'<tr><th>DATE / TIME</th><th>RMP</th><th>PATIENT (for whom)</th><th class="r">AMOUNT</th><th>MODE</th><th>BRANCH</th><th>RECORDED BY</th></tr>'
     +body
-    +'<tr class="tot"><td colspan="3">TOTAL &nbsp;·&nbsp; '+list.length+' payments</td><td class="r">'+wlv1RmcMoney(total)+'</td><td colspan="4"></td></tr>'
+    +'<tr class="tot"><td colspan="3">TOTAL &nbsp;·&nbsp; '+list.length+' payments</td><td class="r">'+wlv1RmcMoney(total)+'</td><td colspan="3"></td></tr>'
     +'</table></div>';
 }
 
@@ -18602,7 +18602,7 @@ function wlv1RmcRender(){
     +'<select class="input" onchange="wlv1RmcSetMonth(this.value)">'+mOpts+'</select>'
     +'<select class="input" onchange="wlv1RmcSetRmp(this.value)">'+rOpts+'</select></div>'
     +'<div id="wlv1RmcHost">'+wlv1RmcTableHtml()+'</div>'
-    +'<div class="wlv1RmcHint">Slide sideways for Mode · Branch · Reference No. · Recorded by</div>';
+    +'<div class="wlv1RmcHint">Slide sideways for Mode · Branch · Recorded by</div>';   /* 🔴🔒 V1314 (TK-নির্দেশ) */
   page('RMP Commission Sheet', body);
 }
 
@@ -18649,7 +18649,7 @@ function wlv1RmcPaperHtml(){
   var rows=list.map(function(r){ total+=r.amount; var tm=wlv1RmcTime(r.recordedAt);
     return '<tr><td>'+esc(wlv1RmcDmy(r.paidOn))+(tm?'<div class="m">'+tm+'</div>':'')+'</td><td>'+esc(r.rmpName)+'</td><td>'
       +wlv1RmcPatientCell(r,true)+'</td><td>'+esc(wlv1RmcMode(r.mode))+'</td><td>'
-      +esc(r.branch)+'</td><td>'+esc(r.referenceNo)+'</td><td>'+esc(r.recordedBy)+'</td><td class="r">'
+      +esc(r.branch)+'</td><td>'+esc(r.recordedBy)+'</td><td class="r">'   /* 🔴🔒 V1314 (TK-নির্দেশ) — রেফারেন্স ঘর বাদ */
       +wlv1RmcMoney(r.amount)+'</td></tr>'; }).join('');
   return '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=794"><style>'
     +'@page{size:A4;margin:0}*{box-sizing:border-box;margin:0;padding:0}'
@@ -18667,8 +18667,8 @@ function wlv1RmcPaperHtml(){
     +'</style></head><body><div class="sheet"><h1>RMP COMMISSION SHEET</h1><div class="sub">'
     +esc(wlv1RmcMonthLabel(WLV1_RMC.month))+'  ·  '+esc(WLV1_RMC.branch||'All Branches')
     +(WLV1_RMC.rmp?('  ·  '+esc(WLV1_RMC.rmp)):'')+'</div>'
-    +'<table><tr><th>DATE / TIME</th><th>RMP</th><th>PATIENT (for whom)</th><th>MODE</th><th>BRANCH</th><th>REFERENCE</th><th>RECORDED BY</th><th>AMOUNT</th></tr>'
-    +rows+'<tr class="tot"><td colspan="7">TOTAL  ·  '+list.length+' payments</td><td class="r">'
+    +'<table><tr><th>DATE / TIME</th><th>RMP</th><th>PATIENT (for whom)</th><th>MODE</th><th>BRANCH</th><th>RECORDED BY</th><th>AMOUNT</th></tr>'
+    +rows+'<tr class="tot"><td colspan="6">TOTAL  ·  '+list.length+' payments</td><td class="r">'
     +wlv1RmcMoney(total)+'</td></tr></table></div></body></html>';
 }
 

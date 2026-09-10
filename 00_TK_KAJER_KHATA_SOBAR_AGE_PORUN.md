@@ -24484,6 +24484,15 @@ verify_zip_contents ✅ (১০ আইকন)। **২৫.৫ MB · ১৮০০
 গোপন কিছু নেই (service-account শুধু Netlify env; google-services.json গোপন নয়)। এই ZIP-এ V1297–V1301: push (FCM) ·
 Payment delete-request · Queue-ফেরা · চিহ্ন-সারি। TK-কে মনে করানো: আসল বিল্ড Android Studio-তে; ওয়েব এখন GitHub থেকে নিজে ওঠে।
 
+## ১০.০৯.২০২৬ ২১:৩০ — V1314: RMP Commission Sheet থেকে REFERENCE ঘর বাদ (TK: "ঘরটা আমার লাগবে না")
+
+TK ফটো-প্রুফ (MODE·BRANCH·RECORDED BY রঙ/মাপ মিলিয়ে HTML মকআপ, রেফারেন্স ছাড়া) দেখে **পাশ করেছেন**।
+সারি/হেডার/মোট-এর ঘর-জোড়া · কাগজ/শেয়ার/ছাপার কপি (paperHtml) — সবগুলো থেকেই REFERENCE বাদ, নিচের সংকেত-লেখাও
+("Slide sideways for Mode · Branch · Recorded by")। ফোন ও ওয়েব দুটোতেই। ⛔ ডেটাবেসের রেফারেন্স-নম্বর ঘরটা
+ছোঁয়া হয়নি (RMP পেমেন্ট নেওয়ার সময় এখনো লেখা যায়) — শুধু এই দেখার শিটে আর দেখানো হবে না।
+পাহারা: Kotlin compile PASS · resources PASS · node --check OK · ব্রাউজার-পরীক্ষা PASS · tk_guard PASS।
+ভার্সন 1314 (gradle · version.json · index-এর app.js?v=v1314)।
+
 ## ১০.০৯.২০২৬ ২০:৫৫ — V1313: RMP Commission Sheet-এর REFERENCE ঘরে "null" লেখা
 
 TK প্রশ্ন করলেন Cooch Behar-এর সব Cash সারিতে REFERENCE-এ "null" কেন। **যাচাই করে:** রেফারেন্স নম্বর ঘরটা ঐচ্ছিক
