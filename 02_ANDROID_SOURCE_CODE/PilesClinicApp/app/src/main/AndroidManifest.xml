@@ -196,11 +196,17 @@
             android:name=".native.ReportCardActivity"
             android:exported="false"
             android:theme="@style/Theme.PilesClinic" />
+        <!-- 🔴🔒 V1318 (১১.০৯.২০২৬, তালিকা ৪২৪): `hardwareAccelerated="false"` এই একটাই
+             পর্দায় ছিল (প্রথম কমিট থেকেই, কোথাও ব্যাখ্যা লেখা ছিল না), বাকি ৫৮টা পর্দার
+             কোনোটাতেই নেই। এতে এই পর্দার সব আঁকা সফটওয়্যারে (CPU) হয়, GPU-তে নয় —
+             গ্রেডিয়েন্ট + বড় তালিকায় এটা ধীর/এলোমেলো দেরি করাতে পারে। TK-র বারবার
+             পরীক্ষায় ঠিক এই পর্দাতেই (আর কোথাও না) কালো/আটকে থাকা দেখা গেছে বলে সরানো
+             হলো — বাকি সব পর্দার মতোই এখন এই পর্দাও GPU-তে আঁকবে। ⛔ চেহারায় কিছু
+             বদলায় না। -->
         <activity
             android:screenOrientation="portrait"
             android:name=".native.FollowUpActivity"
             android:exported="false"
-            android:hardwareAccelerated="false"
             android:label="Follow-up"
             android:theme="@style/Theme.PilesClinic" />
 
