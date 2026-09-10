@@ -151,6 +151,7 @@ python3 00_GUARD/verify_kotlin_compile.py     # Kotlin
 python3 00_GUARD/verify_android_resources.py  # XML
 node --check 03_NETLIFY_READY/app.js          # ওয়েব
 python3 00_GUARD/tk_guard.py                  # সব পাহারা
+python3 00_GUARD/sql_local_check.py <file.sql>  # ⛔ TK-কে SQL পাঠানোর আগে — নকল ডেটাবেসে চালিয়ে PASS না হলে পাঠানো নিষেধ
 ```
 
 **ভার্সন তিন জায়গায় একসাথে বাড়বে:** `build.gradle.kts` (২টা লাইন) ·
