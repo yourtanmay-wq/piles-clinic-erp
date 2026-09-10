@@ -24484,6 +24484,16 @@ verify_zip_contents ✅ (১০ আইকন)। **২৫.৫ MB · ১৮০০
 গোপন কিছু নেই (service-account শুধু Netlify env; google-services.json গোপন নয়)। এই ZIP-এ V1297–V1301: push (FCM) ·
 Payment delete-request · Queue-ফেরা · চিহ্ন-সারি। TK-কে মনে করানো: আসল বিল্ড Android Studio-তে; ওয়েব এখন GitHub থেকে নিজে ওঠে।
 
+## ১০.০৯.২০২৬ ২০:৫৫ — V1313: RMP Commission Sheet-এর REFERENCE ঘরে "null" লেখা
+
+TK প্রশ্ন করলেন Cooch Behar-এর সব Cash সারিতে REFERENCE-এ "null" কেন। **যাচাই করে:** রেফারেন্স নম্বর ঘরটা ঐচ্ছিক
+("Transaction / Reference No. — Online only") — Cash-এ ফাঁকা রাখাই ঠিক, TK-র নিজের নিয়মেই। **আসল দোষ:**
+ক্লাউডের ফাঁকা (SQL NULL) ঘর পড়তে `optString()` ব্যবহার হয়েছিল, যেটা org.json-এর পুরনো ফাঁদ — JSON null-কে
+লেখা **"null"** বানিয়ে ফেলে (প্রজেক্টে আগেই ধরা পড়া বাগ-ক্লাস, V760, `JsonExt.s()` তার প্রমাণিত সমাধান)।
+`RmpCommissionRepository.kt`-এর `commissionSheet()`-এ (Commission ও Advance দুটো পথেই) `reference_no`
+এখন `.s()` দিয়ে পড়া হয় — ফাঁকা ঘর সত্যিই ফাঁকা দেখাবে। ওয়েবে আগে থেকেই ঠিক ছিল (`x.reference_no||''`)।
+পাহারা: Kotlin compile PASS · resources PASS · node --check OK · tk_guard PASS। ভার্সন 1313 (gradle · version.json; app.js অছোঁয়া)।
+
 ## ১০.০৯.২০২৬ ১৯:৪৫ — V1312: CHECK-UP Queue-তে "Loading..." লেখা তালিকা এসেও থেকে যাওয়া
 
 TK-র ছবি ৩টা — Kishanganj-এ "PENDING TODAY (1)" কার্ড দেখাচ্ছে, তার উপরেই "Loading…" লেখাটাও রয়ে গেছে; পরের ছবিতে একা "Loading…"।

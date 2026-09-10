@@ -333,7 +333,7 @@ object RmpCommissionRepository {
                     x.optString("paid_on", ""), x.optString("rmp_name", ""),
                     pc?.optString("patient_name", "") ?: "",
                     false, x.optDouble("amount", 0.0), x.optString("mode", ""),
-                    x.optString("treatment_branch", ""), x.optString("reference_no", ""),
+                    x.optString("treatment_branch", ""), x.s("reference_no"),   // 🔴🔒 V1313 (TK-প্রশ্ন: "REFERENCE null মানে কী?") — optString() JSON-null-কে লেখা "null" বানিয়ে ফেলত; ফাঁকা ঘরে (Cash-এ রেফারেন্স লাগেই না) এখন সত্যিই ফাঁকা
                     x.optString("recorded_by", ""), x.optString("recorded_at", ""),
                     id = x.optString("id", ""), rmpId = x.optString("rmp_id", ""),
                     patientRowId = pc?.optString("patient_row_id", "") ?: "",
@@ -353,7 +353,7 @@ object RmpCommissionRepository {
                 out.add(SheetRow(
                     x.optString("paid_on", ""), x.optString("rmp_name", ""), "",
                     true, x.optDouble("amount", 0.0), x.optString("mode", ""),
-                    x.optString("branch", ""), x.optString("reference_no", ""),
+                    x.optString("branch", ""), x.s("reference_no"),   // 🔴🔒 V1313 — উপরের একই কারণ/ফিক্স
                     x.optString("recorded_by", ""), x.optString("recorded_at", ""),
                     id = x.optString("id", ""), rmpId = x.optString("rmp_id", ""),
                     legacyCovered = x.optDouble("legacy_covered_amount", 0.0)))
