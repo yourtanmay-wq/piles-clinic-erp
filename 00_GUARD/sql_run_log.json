@@ -177,5 +177,13 @@
     "result": "Success — stopped_rows_now = 52 (রাত ১১.০০-এ ছিল 40)",
     "proof": "screenshot",
     "what": "update followups set noMoreCalls=true, nextFollow='' where not noMoreCalls and status not terminal and exists (sibling same last-10 mobile with noMoreCalls). 43 বলেছিলাম কারণ আগের গোনা-SQL শুধু তারিখওয়ালা জোড়া (৩টা) গুনেছিল; UPDATE-টা তারিখ-ফাঁকা জোড়াও ধরেছে (ইচ্ছাকৃত — ওগুলোও থামানো রোগীরই সারি), তাছাড়া মাঝরাতে/সকালে স্টাফের নতুন থামানোও থাকতে পারে। কোনোটাই থামানো রোগী ছাড়া অন্য কারও নয় (শর্ত: থামানো সারির জোড়া)।"
+  },
+  {
+    "sql_file": "তালিকা ৪০৮ — SADDAM HUSSAIN ডুপ্লিকেট (চ্যাটে দেওয়া transactional SQL)",
+    "run_by": "TK",
+    "when": "১০.০৯.২০২৬ সকাল ৬.১০",
+    "result": "Success — payments_now 13 · patients_now 1",
+    "proof": "screenshot",
+    "what": "KNE-15072026-002 (Saddam, bill 49000) রাখা, নাম SADDAM HUSSAIN (patients/followups/payments); KNE-01072026-001-এর ₹400 ওতে সরানো; ওই patients+followups সারি মোছা, deleted_records-এ চিহ্ন।"
   }
 ]
