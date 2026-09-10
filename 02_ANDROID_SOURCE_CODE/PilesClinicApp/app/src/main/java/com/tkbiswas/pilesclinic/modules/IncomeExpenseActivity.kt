@@ -509,13 +509,27 @@ class IncomeExpenseActivity : AppCompatActivity() {
                     orientation = LinearLayout.VERTICAL
                     layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                 }
+                /* 🐞🔒 V1322 (TK-নির্দেশ, ডেমো-প্রুফ "A" পাশ, ১১.০৯.২০২৬: *"পেমেন্ট
+                   টা কোন staff নিয়েছে কোন তারিখে কোন সময়ে সেটা জরুরী"*) —
+                   স্টাফের নাম এখন সবচেয়ে উপরের লাইনে (সবুজ), রোগীর নামের ঠিক আগে। */
                 texts.addView(android.widget.TextView(this).apply {
-                    text = cr.name.ifBlank { cr.mobile }
+                    val patientPart = cr.name.ifBlank { cr.mobile }
+                    if (cr.staff.isNotBlank()) {
+                        val full = cr.staff + "  —  " + patientPart
+                        text = android.text.SpannableString(full).apply {
+                            setSpan(
+                                android.text.style.ForegroundColorSpan(android.graphics.Color.parseColor("#0A7C3F")),
+                                0, cr.staff.length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                            )
+                        }
+                    } else {
+                        text = patientPart
+                    }
                     textSize = 14f
                     setTypeface(typeface, android.graphics.Typeface.BOLD)
                     setTextColor(android.graphics.Color.parseColor("#17212B"))
                 })
-                val sub = listOf(cr.patientId, cr.time, cr.source)
+                val sub = listOf(cr.patientId, slashIso(dateIso), cr.time, cr.source)
                     .map { it.trim() }.filter { it.isNotBlank() }.joinToString("  ·  ")
                 if (sub.isNotBlank()) texts.addView(android.widget.TextView(this).apply {
                     text = sub; textSize = 11.5f

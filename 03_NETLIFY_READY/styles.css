@@ -4137,6 +4137,14 @@ button.small{min-height:36px!important;font-size:13px!important;border-radius:12
 .wlv1SAct>b{font-size:10.5px!important;font-weight:700!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
 .wlv1SAct.g{background:linear-gradient(135deg,#0EA25F,#0A5428)!important;color:#fff!important}
 .wlv1SWide{grid-column:1/-1!important;margin:0 10px 10px!important}
+/* 🎨🔒 V1322 (TK-নির্দেশ ১১.০৯.২০২৬, ডেমো-প্রুফ পাশ) — ⋮ (Call/WhatsApp/Print)
+   ও Payment/Full Journey/Mark Arrived-এর আলাদা রং, হেডারের সবুজের সঙ্গে না মিশতে। */
+.wlv1SDots{width:32px!important;height:32px!important;min-width:32px!important;border-radius:9px!important;
+  background:rgba(255,255,255,0.22)!important;color:#fff!important;border:0!important;font-size:17px!important;
+  font-weight:700!important;cursor:pointer!important;flex:0 0 auto!important;margin-right:10px!important}
+.wlv1SAct.blue{background:linear-gradient(135deg,#1D6FE0,#1457B8)!important;color:#fff!important}
+.wlv1SAct.purple{background:linear-gradient(135deg,#8A63E8,#6A3FCB)!important;color:#fff!important}
+.wlv1SAct.amber{background:linear-gradient(135deg,#D98A2B,#B45309)!important;color:#fff!important}
 
 /* ── ২৪. LOGIN — activity_login.xml ─────────────────────────────────────── */
 .modal:has(.wlv1Hero){padding:0!important;border-radius:20px!important;overflow:hidden!important;background:transparent!important;box-shadow:none!important}

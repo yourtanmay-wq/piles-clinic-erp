@@ -685,7 +685,7 @@ class GlobalSearchActivity : AppCompatActivity() {
         // never visually breaks regardless of name/label length.
         class VH(
             val root: LinearLayout,
-            val avatar: TextView,
+            val dots: TextView,
             val tvName: TextView,
             val tvMeta: TextView,
             val tvTag: TextView,
@@ -718,17 +718,6 @@ class GlobalSearchActivity : AppCompatActivity() {
                     colors = intArrayOf(android.graphics.Color.parseColor("#0A5428"), android.graphics.Color.parseColor("#0EA25F"))
                 }
             }
-            val avatar = TextView(ctx).apply {
-                textSize = 18f
-                gravity = android.view.Gravity.CENTER
-                background = android.graphics.drawable.GradientDrawable().apply {
-                    shape = android.graphics.drawable.GradientDrawable.OVAL
-                    orientation = android.graphics.drawable.GradientDrawable.Orientation.TL_BR
-                    colors = intArrayOf(android.graphics.Color.parseColor("#F4F6F9"), android.graphics.Color.parseColor("#A7ADB8"))
-                }
-                layoutParams = LinearLayout.LayoutParams(dp(44), dp(44)).also { it.marginEnd = dp(12) }
-            }
-            header.addView(avatar)
             val nameCol = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
             val tvName = TextView(ctx).apply {
                 textSize = 15.5f; setTypeface(typeface, android.graphics.Typeface.BOLD)
@@ -755,6 +744,23 @@ class GlobalSearchActivity : AppCompatActivity() {
             }
             nameCol.addView(tvName); nameCol.addView(tvMeta); nameCol.addView(tvTag)
             header.addView(nameCol, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            /* 📋🔒 V1322 (TK-নির্দেশ ১১.০৯.২০২৬, ডেমো-প্রুফ পাশ) — Call ·
+               WhatsApp · Print তিনটেই এখন এই ⋮-এর ভিতরে। ছবি-আইকন (avatar)
+               তুলে দেওয়া হলো, "Write Remark" বোতামও বাদ। ⛔ কাজ তিনটেই
+               (onCall/onWhatsApp/onPrint) আগের মতোই — শুধু বসার জায়গা বদলাল। */
+            val dots = TextView(ctx).apply {
+                text = "⋮"; textSize = 18f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.WHITE)
+                gravity = android.view.Gravity.CENTER
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(9).toFloat()
+                    setColor(android.graphics.Color.argb(46, 255, 255, 255))
+                }
+                isClickable = true; isFocusable = true
+                layoutParams = LinearLayout.LayoutParams(dp(34), dp(34))
+            }
+            header.addView(dots)
             /* 🧭🔒 V985 (TK-নির্দেশ: *"হেডারে চাপ দিলে যেন ভিউ অল পর্দা ওপেন হয়"*)
                — পুরো সবুজ হেডারে চাপ দিলেই রোগীর সব কিছু (Full Journey)।
                ⛔ নিচের "Full Journey" বোতামটা আগের মতোই থাকছে — একই পর্দা,
@@ -768,7 +774,7 @@ class GlobalSearchActivity : AppCompatActivity() {
             }
             root.addView(grid)
 
-            return VH(root, avatar, tvName, tvMeta, tvTag, grid)
+            return VH(root, dots, tvName, tvMeta, tvTag, grid)
         }
 
         override fun getItemCount() = items.size
@@ -779,7 +785,6 @@ class GlobalSearchActivity : AppCompatActivity() {
             val dens = ctx.resources.displayMetrics.density
             fun dp(v: Int) = (v * dens).toInt()
 
-            holder.avatar.text = if (h.type == "Patient") "🧑‍⚕️" else "📞"
             /* 🩺🔒 V985 (TK-নির্দেশ: *"নামের পাশে কোন রোগের জন্য সে এসেছিল সেটাও
                লেখা থাকবে"*) — রোগ জানা না থাকলে শুধু নামই বসে, কিছু বদলায় না। */
             holder.tvName.text = h.name.ifBlank { "(no name)" } +
@@ -787,6 +792,21 @@ class GlobalSearchActivity : AppCompatActivity() {
             holder.root.getChildAt(0)?.setOnClickListener { onFullJourney(h) }
             holder.tvMeta.text = PatientIdText.mobileWithId(h.mobile, h.patientId) + " · " + h.branch
             holder.tvTag.text = h.type.uppercase()
+
+            // 📋🔒 V1322 — Call · WhatsApp · Print এখন ⋮-এর ভিতরে (ডেমো-প্রুফ পাশ)।
+            holder.dots.setOnClickListener { v ->
+                val items = listOf(
+                    Triple("📞", "Call") { onCall(h) },
+                    Triple("💬", "WhatsApp") { onWhatsApp(h) },
+                    Triple("🖨️", "Print") { onPrint(h) }
+                )
+                try {
+                    val pm = android.widget.PopupMenu(ctx, v)
+                    items.forEachIndexed { i, (icon, label, _) -> pm.menu.add(0, i, i, "$icon  $label") }
+                    pm.setOnMenuItemClickListener { mi -> items.getOrNull(mi.itemId)?.third?.invoke(); true }
+                    pm.show()
+                } catch (_: Throwable) { }
+            }
 
             holder.grid.removeAllViews()
 
@@ -799,19 +819,22 @@ class GlobalSearchActivity : AppCompatActivity() {
                 val p = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
                 p.topMargin = dp(7); layoutParams = p
             }
-            fun actionButton(icon: String, label: String, green: Boolean, action: () -> Unit): LinearLayout {
+            // 🎨🔒 V1322 (TK-নির্দেশ: *"Payment, Full Journey, Mark Arrived-এর
+            // কালার হেডারের কালারের সাথে মিশে কেন যাবে"*) — এখন `green`
+            // এর বদলে নিজের রং দেওয়া যায় (`fillColors`), যাতে হেডারের সবুজ
+            // gradient-এর সঙ্গে গুলিয়ে না যায়। না দিলে আগের ধূসর/সবুজ নিয়মই।
+            fun actionButton(icon: String, label: String, green: Boolean, fillColors: IntArray? = null, action: () -> Unit): LinearLayout {
                 return LinearLayout(ctx).apply {
                     orientation = LinearLayout.HORIZONTAL
                     gravity = android.view.Gravity.CENTER_VERTICAL
                     setPadding(dp(10), dp(9), dp(8), dp(9))
                     background = android.graphics.drawable.GradientDrawable().apply {
                         cornerRadius = dp(12).toFloat()
-                        if (green) {
-                            orientation = android.graphics.drawable.GradientDrawable.Orientation.TL_BR
-                            colors = intArrayOf(android.graphics.Color.parseColor("#0EA25F"), android.graphics.Color.parseColor("#0A5428"))
+                        orientation = android.graphics.drawable.GradientDrawable.Orientation.TL_BR
+                        colors = fillColors ?: if (green) {
+                            intArrayOf(android.graphics.Color.parseColor("#0EA25F"), android.graphics.Color.parseColor("#0A5428"))
                         } else {
-                            orientation = android.graphics.drawable.GradientDrawable.Orientation.TL_BR
-                            colors = intArrayOf(android.graphics.Color.parseColor("#F4F6F9"), android.graphics.Color.parseColor("#D6DBE2"))
+                            intArrayOf(android.graphics.Color.parseColor("#F4F6F9"), android.graphics.Color.parseColor("#D6DBE2"))
                         }
                     }
                     val lp = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
@@ -826,41 +849,30 @@ class GlobalSearchActivity : AppCompatActivity() {
                     addView(TextView(ctx).apply {
                         text = label; textSize = 10.5f
                         setTypeface(typeface, android.graphics.Typeface.BOLD)
-                        setTextColor(if (green) android.graphics.Color.WHITE else android.graphics.Color.parseColor("#1B2432"))
+                        setTextColor(if (green || fillColors != null) android.graphics.Color.WHITE else android.graphics.Color.parseColor("#1B2432"))
                         maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
                     })
                 }
             }
-            fun addPairRow(a: Pair<Triple<String, String, Boolean>, () -> Unit>, b: Pair<Triple<String, String, Boolean>, () -> Unit>) {
+            /* 📋🔒 V1322 (TK-নির্দেশ ১১.০৯.২০২৬, ডেমো-প্রুফ পাশ) — Call ·
+               WhatsApp সারিটা তোলা হলো (⋮-এ চলে গেছে), "Write Remark"
+               বোতামও বাদ। Payment/Full Journey/Mark Arrived-এর রং এখন
+               আলাদা (নীল/বেগুনি/কমলা) — হেডারের সবুজের সঙ্গে যেন না মেশে। */
+            run {
                 val row = newRow()
-                row.addView(actionButton(a.first.first, a.first.second, a.first.third, a.second))
-                row.addView(actionButton(b.first.first, b.first.second, b.first.third, b.second))
+                row.addView(actionButton("💳", "Payment", false,
+                    intArrayOf(android.graphics.Color.parseColor("#1D6FE0"), android.graphics.Color.parseColor("#1457B8"))
+                ) { onPayment(h) })
+                row.addView(actionButton("🧭", "Full Journey", false,
+                    intArrayOf(android.graphics.Color.parseColor("#8A63E8"), android.graphics.Color.parseColor("#6A3FCB"))
+                ) { onFullJourney(h) })
                 holder.grid.addView(row)
             }
-
-            addPairRow(
-                Triple("📞", "Call", false) to { onCall(h) },
-                Triple("💬", "WhatsApp", false) to { onWhatsApp(h) }
-            )
-            addPairRow(
-                Triple("💳", "Payment", true) to { onPayment(h) },
-                Triple("🧭", "Full Journey", true) to { onFullJourney(h) }
-            )
-            /* 🖨️🔒 V827 (২৯.০৮.২০২৬, TK-নির্দেশ: *"Prescription · Medicine Slip ·
-               Blood Test · Diet Chart — এগুলো আলাদা আলাদা থাকবে না, একটার
-               মধ্যেই থাকবে, যার নাম হবে প্রিন্ট"*)।
-               ⛔ চারটে পর্দার কাজ · ঠিকানা · তথ্য এক অক্ষরও বদলায়নি — ওই
-                  একই `onPrescription/onMedicineSlip/onBloodTest/onDietChart`
-                  ডাকা হয়, শুধু এখন একটা তালিকা থেকে বাছতে হয়।
-               ⛔ কার্ডটা ছোট হলো, তাই সব বোতাম এক পর্দাতেই ধরে। */
-            /* 💊🔒 V985 (TK-নির্দেশ: *"Print কে ছোট করুন, তার পাশে একই সাইজের
-               বক্স বানিয়ে দিন"*) — Print এখন অর্ধেক, পাশে মেডিসিনের বাকি।
-               বাকি থাকলে লাল ও চাপলে টাকা নেওয়ার বাক্স; না থাকলে ধূসর ও
-               চাপলে কিছুই হয় না। ⛔ Print-এর কাজ এক অক্ষরও বদলায়নি। */
+            /* 🖨️🔒 V827/V985 — Print এখন ⋮-এ (উপরে); মেডিসিনের বাকি-টাকা বাক্সটা
+               আগের মতোই একা এক সারিতে। ⛔ কাজ/হিসাব এক অক্ষরও বদলায়নি। */
             run {
                 val due = dueOf(h.mobile)
                 val row = newRow()
-                row.addView(actionButton("🖨️", "Print", false) { onPrint(h) })
                 if (due > 0.0) {
                     val b = actionButton("💊", "Med. Due ₹" + "%,.0f".format(due), false) { onCollectDue(h) }
                     b.background = android.graphics.drawable.GradientDrawable().apply {
@@ -874,23 +886,13 @@ class GlobalSearchActivity : AppCompatActivity() {
                     (b.getChildAt(1) as? TextView)?.setTextColor(android.graphics.Color.parseColor("#8B98A9"))
                     row.addView(b)
                 }
+                /* 📝🔒 V827 — Mark Arrived আগে "Write Remark"-এর পাশে ছিল;
+                   Write Remark বাদ যাওয়ায় এখন Med. Due-এর পাশে, কমলা রঙে। */
+                row.addView(actionButton("🏥", "Mark Arrived", false,
+                    intArrayOf(android.graphics.Color.parseColor("#D98A2B"), android.graphics.Color.parseColor("#B45309"))
+                ) { onMarkArrived(h) })
                 holder.grid.addView(row)
             }
-            /* 📝🔒 V827 (২৯.০৮.২০২৬, TK-নির্দেশ: *"Remarks & Mark Arrived
-               পাশাপাশি রাখুন"*) — সবচেয়ে নিচের সারিতে দুটো একসাথে।
-               ⛔ Mark Arrived-এর আইকন · রং · কাজ এক অক্ষরও বদলায়নি, শুধু আগে
-                  পুরো চওড়া সারিতে একা বসত, এখন অর্ধেক জায়গায়।
-               ⛔ **লেখাটা ছোট করা হলো — TK-এর অনুমতি নিয়ে** (২৯.০৮.২০২৬):
-                  অর্ধেক জায়গায় "Mark Arrived (এসেছেন)" কোনোমতে ধরত, ছোট
-                  পর্দায় বা ফোনের লেখার সাইজ বড় থাকলে শেষটা "…" হয়ে কেটে
-                  যেত। এখন শুধু "Mark Arrived" — কখনো কাটবে না।
-                  ⛔ এটা **শুধু এই Search কার্ডেই**; Follow-up ও Patient
-                     Timeline-এর পপ-আপে লেখাটা আগের মতোই পুরো আছে (সেখানে
-                     পুরো চওড়া জায়গা, কাটার ভয় নেই — ছোঁয়া হয়নি)। */
-            addPairRow(
-                Triple("🗒️", "Write Remark", true) to { onRemark(h) },
-                Triple("🏥", "Mark Arrived", true) to { onMarkArrived(h) }
-            )
         }
     }
 }

@@ -23356,36 +23356,44 @@ function wlv1MedDueOpen(mobile){
   }catch(e){}
 }
 window["wlv1MedDueOpen"]=wlv1MedDueOpen;
+function wlv1SearchMore(mobile){
+  /* \uD83D\uDCCB\uD83D\uDD12 V1322 (TK-\u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6 \u09e7\u09e7.\u09e6\u09ef.\u09e8\u09e6\u09e8\u09ec, \u09a1\u09c7\u09ae\u09cb-\u09aa\u09cd\u09b0\u09c1\u09ab \u09aa\u09be\u09b6) \u2014
+     Call/WhatsApp/Print \u098f\u0996\u09a8 \u09b9\u09c7\u09a1\u09be\u09b0\u09c7\u09b0 \u22ee-\u098f; \u099b\u09ac\u09bf-\u0986\u0987\u0995\u09a8 \u09a4\u09cb\u09b2\u09be \u09b9\u09b2\u09cb
+     (\u09ab\u09cb\u09a8\u09c7\u09b0 \u09b9\u09c1\u09ac\u09b9\u09c1 \u098f\u0995\u0987 \u09ac\u09a6\u09b2)\u0964 */
+  const m=esc(mob(mobile));
+  modal(`<h2>Actions</h2><div class="card pfDotsMenu">`
+    + `<button class="ghost" onclick="closeModal();contact('${m}','call')">\u{1F4DE} Call</button>`
+    + `<button class="ghost" onclick="closeModal();contact('${m}','wa')">\u{1F4AC} WhatsApp</button>`
+    + `<button class="ghost" onclick="closeModal();wlv1SearchPrint('${m}')">\u{1F5A8}\uFE0F Print</button>`
+    + `</div><div class="actions"><button class="ghost" onclick="closeModal()">Close</button></div>`);
+}
+window["wlv1SearchMore"]=wlv1SearchMore;
 function wlv1SearchCard(r){
   const nm = String(r.name||'').trim() || normMob(r.mobile);
-  const initials = nm.split(/\s+/).map(a=>a[0]).join('').slice(0,2).toUpperCase() || 'PC';
   const m = esc(mob(r.mobile));
-  const act = (icon,label,green,call)=>
-    `<button class="wlv1SAct ${green?'g':''}" onclick="${call}"><span>${icon}</span><b>${label}</b></button>`;
+  const act = (icon,label,cls,call)=>
+    `<button class="wlv1SAct ${cls||''}" onclick="${call}"><span>${icon}</span><b>${label}</b></button>`;
   return `<div class="wlv1SCard">
-    <div class="wlv1SHead"><div class="wlv1SAva">${esc(initials)}</div>
+    <div class="wlv1SHead" style="position:relative">
+      <button class="wlv1SDots" title="More" onclick="wlv1SearchMore('${m}')">\u22EE</button>
       <div><div class="wlv1SName wlv1NameLink" onclick="wlv1FullJourney('${m}')" title="Tap for History">${esc(nm.toUpperCase())}</div>
-        <div class="wlv1SMeta">${esc(wlv1MobIdLine(shownMob(r.mobile),wlv1PidCode(r.mobile)))}${r.branch?' · '+esc(r.branch):''}</div></div>
+        <div class="wlv1SMeta">${esc(wlv1MobIdLine(shownMob(r.mobile),wlv1PidCode(r.mobile)))}${r.branch?' \u00b7 '+esc(r.branch):''}</div></div>
       ${r.stage?`<div class="wlv1STag">${esc(r.stage)}</div>`:''}</div>
     <div class="wlv1SGrid">
-      ${act('\u{1F4DE}','Call',false,`contact('${m}','call')`)}
-      ${act('\u{1F4AC}','WhatsApp',false,`contact('${m}','wa')`)}
-      ${act('\u{1F4B3}','Payment',true,`patientPaymentHome()`)}
-      ${act('\u{1F9ED}','Full Journey',true,`wlv1FullJourney('${m}')`)}
-      ${act('\u{1F4CB}','Report Card',true,`wlv1ReportCard('${m}')`)}
-      ${act('\u{1F4DA}','Clinical History',false,`wlv1ClinicalHistory('${m}')`)}
-      ${/* 🖨️ V827 — চারটে ছাপার বোতাম এখন একটাই।
-            💊 V1027 — ফোনের মতো Print অর্ধেক, পাশে মেডিসিনের বাকি। */''}
-      <button class="wlv1SAct" onclick="wlv1SearchPrint('${m}')"><span>\u{1F5A8}\uFE0F</span><b>Print</b></button>
+      ${/* \uD83C\uDFA8\uD83D\uDD12 V1322 (TK-\u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6: *"\u0995\u09be\u09b2\u09be\u09b0 \u09b9\u09c7\u09a1\u09be\u09b0\u09c7\u09b0 \u0995\u09be\u09b2\u09be\u09b0
+            \u09b8\u09be\u09a5\u09c7 \u09ae\u09bf\u09b6\u09c7 \u0995\u09c7\u09a8 \u09af\u09be\u09ac\u09c7"*) \u2014 Payment/Full Journey/Mark Arrived-\u098f\u09b0
+            \u09a8\u09bf\u099c\u09b8\u09cd\u09ac \u09b0\u0982, \u09b9\u09c7\u09a1\u09be\u09b0\u09c7\u09b0 \u09b8\u09ac\u09c1\u099c gradient-\u098f\u09b0 \u09b8\u0999\u09cd\u0997\u09c7 \u09af\u09c7\u09a8 \u0997\u09c1\u09b2\u09bf\u09df\u09c7 \u09a8\u09be \u09af\u09be\u09df\u0964 */''}
+      ${act('\u{1F4B3}','Payment','blue',`patientPaymentHome()`)}
+      ${act('\u{1F9ED}','Full Journey','purple',`wlv1FullJourney('${m}')`)}
+      ${act('\u{1F4CB}','Report Card','g',`wlv1ReportCard('${m}')`)}
+      ${act('\u{1F4DA}','Clinical History','',`wlv1ClinicalHistory('${m}')`)}
+      ${/* \uD83D\uDC8A V1027 \u2014 \u09ab\u09cb\u09a8\u09c7\u09b0 \u09ae\u09a4\u09cb Print \u0985\u09b0\u09cd\u09a7\u09c7\u0995, \u09aa\u09be\u09b6\u09c7 \u09ae\u09c7\u09a1\u09bf\u09b8\u09bf\u09a8\u09c7\u09b0 \u09ac\u09be\u0995\u09bf\u0964 Print \u098f\u0996\u09a8 \u22ee-\u098f\u0964 */''}
       ${(function(){var __d=wlv1MedDueOf(r.mobile);
         return __d>0
           ? `<button class="wlv1SAct wlv1SMedDue" onclick="wlv1MedDueOpen('${m}')"><span>\u{1F48A}</span><b>Med. Due ${esc(money(__d))}</b></button>`
           : `<button class="wlv1SAct wlv1SNoDue" type="button" onclick="return false"><span>\u{1F48A}</span><b>No med. due</b></button>`;})()}
-      ${/* 📝 V827 — TK-নির্দেশ: Remarks ও Mark Arrived পাশাপাশি */''}
-      ${act('\u{1F5D2}\uFE0F','Write Remark',true,`wlv1SearchRemark('${m}')`)}
-      ${/* ⛔ V827 — TK-এর অনুমতি নিয়ে লেখাটা ছোট (অর্ধেক জায়গায় কাটার ভয় নেই)।
-            শুধু এই Search কার্ডে; অন্য পর্দায় লেখাটা আগের মতোই পুরো আছে। */''}
-      ${act('\u{1F3E5}','Mark Arrived',true,`wlv1MarkArrived('${m}')`)}
+      ${/* \u26d4 V1322 \u2014 "Write Remark" \u09ac\u09be\u09a6 (TK-\u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6)\u0964 Mark Arrived \u098f\u0996\u09a8 Med. Due-\u098f\u09b0 \u09aa\u09be\u09b6\u09c7\u0964 */''}
+      ${act('\u{1F3E5}','Mark Arrived','amber',`wlv1MarkArrived('${m}')`)}
     </div>
   </div>`;
 }
