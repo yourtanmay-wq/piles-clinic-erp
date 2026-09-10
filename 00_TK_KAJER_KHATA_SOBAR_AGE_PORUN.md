@@ -24476,7 +24476,7 @@ delta-য় বাদ। ফোনের parseIsoMs ওই ছাঁচে ০ 
 সব public টেবিলে যেখানে `updatedAt text` (১৪টা) একবার update + `before insert or update of "updatedAt"`
 trigger। নকল DB-তে পরীক্ষা: a/e/p1 বদলাল, b (অ্যাপ-ছাঁচ)/c (ফাঁকা)/d (garbage) অছোঁয়া, insert
 `+00` → T-ছাঁচে, update `+00` → T-ছাঁচে, trigger ১৪ টেবিলে। sql_local_check: UTF8/C.utf8 cluster,
-not-null ছাঁটা, `"updatedAt" = now()` লিখলে সতর্কবার্তা। TK-কে SQL দেওয়া — অনুমতি বাকি।
+not-null ছাঁটা, `"updatedAt" = now()` লিখলে সতর্কবার্তা। TK চালালেন (১০.৩৯): followups/patients/payments ০ বাকি; enquiries-এ ১টা সারি বাকি — মান সময়-ছাঁচে নয় বলে নিয়ম মেনে অছোঁয়া, দেখার SQL দেওয়া।
 
 ## ১০.০৯.২০২৬ ১০:৫৫ — V1288 · তালিকা ৪১১-⑥ (ক): ফোনের জমা-তালিকা — না বদলালে লেখা নয় + আলাদা ফাইল
 

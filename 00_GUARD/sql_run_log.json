@@ -241,5 +241,21 @@
   "result": "MOT 8860 সারি · 8.14 MB (payments 2.76 · followups 1.53 · doctor_visits 1.49 · patients 1.10 · medical 0.61 · briefings 0.35 · enquiries 0.28 · products 0.01 · address_tags 0)",
   "proof": "CSV",
   "what": "কম্পিউটারের অ্যাপ ব্রাউজারে যা জমা রাখে (ছবি বাদে) তার মাপ। প্রথম পাঠানো সংস্করণে jsonb_each-এর ঘরের নাম ভুল (k,v) → 42703 → TK ধরলেন; ঠিক করে (to_jsonb - 'photo' - 'patientPhoto') আবার। এরপর থেকে sql_local_check.py PASS ছাড়া SQL যাবে না।"
+ },
+ {
+  "sql_file": "00_SQL/V1289_MAPA_UPDATEDAT_CHANCH_2026-09-10.sql (⑦ মাপা — শুধু পড়া)",
+  "run_by": "TK",
+  "when": "১০.০৯.২০২৬ সকাল ১০.৩৩",
+  "result": "followups 736/1600 · patients 3 · enquiries 2 · payments 1 · medical 0 · doctor_visits 0 · collation en_US.UTF-8",
+  "proof": "CSV",
+  "what": "updatedAt-এ অ্যাপের T…Z ছাঁচ ছাড়া অন্য ছাঁচ কত সারিতে"
+ },
+ {
+  "sql_file": "00_SQL/V1289_UPDATEDAT_EK_CHANCH_2026-09-10.sql (⑦ ক)",
+  "run_by": "TK",
+  "when": "১০.০৯.২০২৬ সকাল ১০.৩৯",
+  "result": "baki: followups 0 · patients 0 · enquiries 1 · payments 0",
+  "proof": "CSV",
+  "what": "সব টেবিলের অন্য-ছাঁচের updatedAt একবার অ্যাপের ছাঁচে + ১৪ টেবিলে tk_fix_updated_at_format trigger। enquiries-এ ১টা সারি বাকি (সময়-ছাঁচে নয়, তাই ইচ্ছে করে ছোঁয়া হয়নি) — দেখার SQL দেওয়া।"
  }
 ]
