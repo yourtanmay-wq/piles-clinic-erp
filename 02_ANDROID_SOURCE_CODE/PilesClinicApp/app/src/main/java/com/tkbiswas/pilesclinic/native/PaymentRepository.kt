@@ -253,7 +253,9 @@ class PaymentRepository(private val context: Context? = null) {
             "payments", "date=eq.$today$branchPart", 500,
             // V216 (§13): refundApprovalStatus যোগ — refund row চিনতে ও শুধু
             // approved refund collection থেকে বিয়োগ করতে দরকার।
-            "id,payType,remarks,date,name,mobile,branch,mode,amount,cashAmount,onlineAmount,dailyEvents,patientCode,refundApprovalStatus,updatedAt,createdAt"
+            // 🐞🔒 V1322 (TK-নির্দেশ) — receivedBy যোগ, যাতে কার্ডে কোন স্টাফ
+            // পেমেন্ট নিয়েছেন সেটা দেখানো যায়।
+            "id,payType,remarks,date,name,mobile,branch,mode,amount,cashAmount,onlineAmount,dailyEvents,patientCode,refundApprovalStatus,updatedAt,createdAt,receivedBy"
         )
         if (paymentsRaw == null) loadCachedTodayCollection(branchFilter)?.let { return it }
         val payments = paymentsRaw ?: org.json.JSONArray()
@@ -455,7 +457,9 @@ class PaymentRepository(private val context: Context? = null) {
         val payments = SupabaseClient.fetchListSlimOrNull(
             "payments", range, 5000,
             // V216 (§13): refundApprovalStatus যোগ (refund চেনা ও বিয়োগের জন্য)।
-            "id,payType,remarks,date,name,mobile,branch,mode,amount,cashAmount,onlineAmount,dailyEvents,patientCode,refundApprovalStatus,updatedAt,createdAt"
+            // 🐞🔒 V1322 (TK-নির্দেশ) — receivedBy যোগ, কোন স্টাফ পেমেন্ট নিয়েছেন
+            // সেটা কার্ডে দেখানোর জন্য। শুধু দেখানোর তথ্য — টাকার হিসাব অপরিবর্তিত।
+            "id,payType,remarks,date,name,mobile,branch,mode,amount,cashAmount,onlineAmount,dailyEvents,patientCode,refundApprovalStatus,updatedAt,createdAt,receivedBy"
         ) ?: return null   // 🔵 পড়া ব্যর্থ → null (₹0/অসম্পূর্ণ টোটাল নয়)
         for (i in 0 until payments.length()) {
             val row = payments.getJSONObject(i)

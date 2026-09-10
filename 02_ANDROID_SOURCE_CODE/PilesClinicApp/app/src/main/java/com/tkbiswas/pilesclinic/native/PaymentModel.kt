@@ -50,7 +50,12 @@ data class CollectionRow(
     val onlineAmount: Double = 0.0,
     // একই দিনের কতগুলো আসল money-event এই display row-এ জোড়া আছে। শুধু
     // History-তে ambiguous old 3-tap correction আটকাতে ব্যবহৃত; amount বদলায় না।
-    val paymentEventCount: Int = 1
+    val paymentEventCount: Int = 1,
+    /* 🐞🔒 V1322 (TK-রিপোর্ট, ১১.০৯.২০২৬: *"পেমেন্ট টা কোন staff নিয়েছে ...
+       সেটা জরুরী"*) — সারিতে `receivedBy` (স্টাফের মোবাইল) আগে থেকেই ছিল,
+       শুধু নামে বদলে কার্ডে দেখানো হতো না। ডিফল্ট ফাঁকা — না পাওয়া গেলে
+       আগের মতোই কিছু দেখায় না (patient/টাকার কোনো হিসাব বদলায়নি)। */
+    val staff: String = ""
 )
 
 // TK-REQUESTED ADDITION (2026-07-24): Visit Fee visibility -- unlike the
@@ -345,7 +350,12 @@ object PaymentModel {
             paidAt = row.s("createdAt"),                     // 🔵 V565 — সাজানোর জন্য
             cashAmount = split.first,
             onlineAmount = split.second,
-            paymentEventCount = eventCount
+            paymentEventCount = eventCount,
+            // 🐞🔒 V1322 — receivedBy (না থাকলে createdBy) থেকে স্টাফের নাম।
+            // StaffDirectory-তে না পেলে মোবাইল নম্বরটাই দেখায়, একদম ফাঁকা নয়।
+            staff = row.s("receivedBy").ifBlank { row.s("createdBy") }.let { mob ->
+                if (mob.isBlank()) "" else StaffDirectory.findAccount(mob)?.name?.takeIf { it.isNotBlank() } ?: mob
+            }
         )
     }
 

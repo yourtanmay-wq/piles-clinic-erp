@@ -700,6 +700,13 @@ class IncomeExpenseActivity : AppCompatActivity() {
                             .put("_v399ExtraExpense", amt).put("_v399ExpenseOnly", true)
                         expItemsByDate[d]?.let { try { only.put("_v400ExpItems", it) } catch (_: Throwable) { } }
                         mergedRows.put(only)
+                        // 🐞🔒 V1322 (TK-রিপোর্ট ছবিসহ, ১১.০৯.২০২৬: "এটা কি ফাজলামি") —
+                        // এই তারিখটা এখানে `seenDates`-এ যোগ হতো না, তাই নিচের V929
+                        // অটো-আয় লুপ একই তারিখের জন্য **দ্বিতীয়** একটা সারি বসিয়ে
+                        // দিত (একই cash/online দুবার) — Total ও "অবশিষ্ট টাকা"-তে
+                        // দ্বিগুণ যোগ হতো। ডেটাবেসের টাকা ছোঁয়া হয়নি, শুধু এই
+                        // পর্দার যোগফল। এখন যোগ করা হলো, তাই আর দ্বিতীয় সারি বসবে না।
+                        seenDates.add(d)
                     }
                 }
                 /* 🟢🔒 V630 (২৪.০৮.২০২৬, TK-নির্দেশ) — চলতি মাস দেখলে, আজকের সারি
@@ -2717,6 +2724,21 @@ class IncomeExpenseActivity : AppCompatActivity() {
                 val c = coll.getJSONObject(i)
                 cashColl += c.optDouble("cash", 0.0)
                 onlineColl += c.optDouble("online", 0.0)
+            }
+            /* 🐞🔒 V1322 (TK-রিপোর্ট ছবিসহ, ১১.০৯.২০২৬: "দুই পর্দায় দুই রকম কেন") —
+               এই পপ-আপ শুধু `fin.collections`-এর **হাতে-লেখা** সারি পড়ত। যেদিন
+               এখনও কেউ হাতে "নতুন দিন" এন্ট্রি বসাননি, ওই টেবিলে সারিই নেই ⇒
+               সৎভাবে ₹0 দেখাত — অথচ Payment স্ক্রিন আসল টাকা (payments টেবিল
+               থেকে) ঠিকই দেখাত। Ledger Sheet ও Monthly Summary অনেক আগে থেকেই
+               এই ফাঁক ভরে দেয় `autoIncomeByDate()` দিয়ে (V929) — এই একটা
+               পপ-আপেই সেটা ডাকা হতো না। এখন এখানেও ডাকা হলো, শুধু তখনই যখন
+               `fin.collections`-এ সত্যিই কোনো হাতে-লেখা সারি নেই — থাকলে সেই
+               সারিই চলবে, আগের মতো (V929-এর নিয়মের সঙ্গে হুবহু মেলানো)। */
+            if (coll.length() == 0) {
+                try {
+                    val auto = autoIncomeByDate(iso.substring(0, 7), branchSel)[iso]
+                    if (auto != null) { cashColl = auto.first; onlineColl = auto.second }
+                } catch (_: Throwable) { }
             }
             var cashExp = 0.0; var onlineExp = 0.0
             for (i in 0 until exp.length()) {

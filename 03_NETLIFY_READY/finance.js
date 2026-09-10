@@ -534,6 +534,21 @@
     } catch (e) { try { toast('লোড করা গেল না — একটু পরে আবার দেখুন'); } catch (e2) { alert('লোড করা গেল না — একটু পরে আবার দেখুন'); } return; }
     var cashColl = coll.reduce(function (s, x) { return s + Number(x.cash || 0); }, 0);
     var onlineColl = coll.reduce(function (s, x) { return s + Number(x.online || 0); }, 0);
+    /* 🐞🔒 V1322 (TK-রিপোর্ট ছবিসহ, ১১.০৯.২০২৬: "দুই পর্দায় দুই রকম কেন") —
+       এই পপ-আপ শুধু `fin.collections`-এর হাতে-লেখা সারি পড়ত। যেদিন কেউ এখনও
+       হাতে "নতুন দিন" এন্ট্রি বসাননি, ওই টেবিলে সারিই নেই ⇒ সৎভাবে ₹0
+       দেখাত — অথচ Payment স্ক্রিন আসল টাকা ঠিকই দেখাত। খাতা ও Monthly
+       Summary অনেক আগে থেকেই এই ফাঁক ভরে দেয় wlv1AutoIncomeForDay() দিয়ে
+       (V928/V1100) — এখানেই সেটা ডাকা হতো না। এখন শুধু তখনই ডাকা হচ্ছে যখন
+       fin.collections-এ সত্যিই কোনো হাতে-লেখা সারি নেই। */
+    if (!coll.length) {
+      try {
+        if (typeof window.wlv1AutoIncomeForDay === 'function') {
+          var __auto = window.wlv1AutoIncomeForDay(d, brSel);
+          if (__auto) { cashColl = __auto.cash; onlineColl = __auto.online; }
+        }
+      } catch (e) {}
+    }
     var expTotal = exp.reduce(function (s, x) { return s + Number(x.amount || 0); }, 0);
     coll.forEach(function (x) {
       var note = x.expense_notes || '';
@@ -774,7 +789,15 @@ function finRowTap(id) {
     try {
       var seen = {}; rows.forEach(function (x) { seen[String(x.entry_date || '')] = 1; });
       Object.keys(v399ExpByDate).forEach(function (d) {
-        if (!seen[d] && v399ExpByDate[d] > 0) rows.push({ entry_date: d, cash: 0, online: 0, expense_notes: '', __v399ExpenseOnly: 1 });
+        if (!seen[d] && v399ExpByDate[d] > 0) {
+          rows.push({ entry_date: d, cash: 0, online: 0, expense_notes: '', __v399ExpenseOnly: 1 });
+          /* 🐞🔒 V1322 (TK-রিপোর্ট ছবিসহ, ১১.০৯.২০২৬) — আগে এখানে `seen[d]=1`
+             বসানো হতো না, তাই নিচের V927 অটো-আয় লুপ একই তারিখের জন্য
+             **দ্বিতীয়** একটা সারি বসিয়ে দিত (একই cash/online দুবার) — খাতার
+             Total ও "অবশিষ্ট টাকা"-তে দ্বিগুণ যোগ হতো। ডেটাবেসের টাকা
+             ছোঁয়া হয়নি, শুধু এই পর্দার যোগফল। */
+          seen[d] = 1;
+        }
       });
       /* 🟢🔒 V630 (২৪.০৮.২০২৬, TK-নির্দেশ) — চলতি মাস দেখলে, আজকের সারি সবসময়
          সবার নিচে (এখনো কোনো এন্ট্রি না থাকলেও) — নতুন দিন শুরু করতে আলাদা
