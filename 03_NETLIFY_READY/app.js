@@ -1220,7 +1220,27 @@ async function wlv1WebSyncDeleted(){
     /* 🔵🔒 V441 (19.08.2026, TK-অনুমোদিত): আগে `limit(5000)`-এর পরে থাকা
        tombstone কখনো নামত না। এখন ছোট 1000-row page ধরে **সব** id পড়ে। কোনো
        page ব্যর্থ হলে নতুন অসম্পূর্ণ Set বসানো হয় না — আগের নিরাপদ Set-ই থাকে। */
+    /* 🔵🔒 V1292 (১০.০৯.২০২৬, তালিকা ৪১১-⑪ ক, TK: *"ক করুন, সাবধানে"*) — ক্লাউডে নতুন কিছু
+       মোছা/তোলা না হলে পুরো id-তালিকা আর নামানো হয় না: আগে ২টা ছোট ডাক (মোট-গোনা + সবচেয়ে
+       নতুন id); শেষ সম্পূর্ণ পড়ার ছাপের সঙ্গে মিললে (ও ২৪ ঘণ্টা পার না হলে) জমা তালিকাটাই
+       (IndexedDB, `rk_deleted_ids`) ব্যবহার। নতুন চিহ্ন ⇒ newest বদলায়, তোলা ⇒ গোনা বদলায়;
+       তবু দিনে একবার পুরো পড়া হয়ই। ⛔ চিহ্ন প্রয়োগের নিয়ম (wlv1WebNotDeleted) অছোঁয়া। */
     const pageSize=1000, ids=[];
+    let sig=null;
+    try{
+      let hc=await sb.from('deleted_records').select('id',{count:'exact',head:true});
+      let hd=await sb.from('deleted_records').select('id').order('deletedAt',{ascending:false,nullsFirst:false}).order('id',{ascending:true}).limit(1);
+      if(!hc.error&&typeof hc.count==='number'&&!hd.error&&Array.isArray(hd.data)){
+        sig=String(hc.count)+'|'+String((hd.data[0]&&hd.data[0].id)||'');
+        let prevSig=null, prevAt=0, prevIds=null;
+        try{ prevSig=localStorage.getItem('rk_deleted_sig'); prevAt=Number(localStorage.getItem('rk_deleted_full_at')||0); }catch(_e){}
+        try{ let raw=wlv1BigGet('rk_deleted_ids'); if(raw){ let a=JSON.parse(raw); if(Array.isArray(a)) prevIds=a; } }catch(_e){}
+        if(prevSig===sig && prevIds && prevIds.length===hc.count && prevAt>0 && Date.now()-prevAt<24*60*60*1000){
+          wlv1WebDeletedSet=new Set(prevIds.map(String));
+          return;
+        }
+      }
+    }catch(_e){ sig=null; }
     for(let from=0;;from+=pageSize){
       let {data,error}=await sb.from('deleted_records').select('id').order('id',{ascending:true}).range(from,from+pageSize-1);
       if(error||!Array.isArray(data))return;
@@ -1228,6 +1248,16 @@ async function wlv1WebSyncDeleted(){
       if(data.length<pageSize)break;
     }
     wlv1WebDeletedSet=new Set(ids);
+    /* ছাপ শুধু তখনই, যখন পুরো পড়া হয়েছে আর গোনা মিলেছে (নইলে পরের বার আবার পুরো)। */
+    try{
+      if(sig!==null && Number(sig.split('|')[0])===ids.length){
+        wlv1BigSet('rk_deleted_ids',JSON.stringify(ids));
+        localStorage.setItem('rk_deleted_sig',sig);
+        localStorage.setItem('rk_deleted_full_at',String(Date.now()));
+      } else {
+        localStorage.removeItem('rk_deleted_sig'); localStorage.removeItem('rk_deleted_full_at');
+      }
+    }catch(_e){}
   }catch(e){}
 }
 function wlv1WebNotDeleted(t,rows){

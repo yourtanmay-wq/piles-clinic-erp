@@ -253,6 +253,16 @@ object DeletedGuard {
 
     private const val TABLE = "deleted_records"
     private const val KEY_SYNC_AT = "cloudSyncAt"
+    /* 📱🔒 V1292 (১০.০৯.২০২৬, তালিকা ৪১১-⑪ ক, TK: *"ক করুন, সাবধানে"*) — **ক্লাউডে নতুন
+       কিছু মোছা না হলে পুরো তালিকা আর নামানো হয় না।** শেষ *সম্পূর্ণ* পড়ার সময়কার
+       মোট-গোনা + সবচেয়ে নতুন id মনে রাখা হয়; পরের ঘণ্টায় শুধু ওই দুটো (২টা ছোট
+       ডাক) মিলিয়ে দেখা — এক থাকলে পাতা-ধরে টানা বাদ। নতুন চিহ্ন ⇒ newest বদলায়,
+       তোলা চিহ্ন ⇒ গোনা বদলায়; দুটোই একসাথে বদলে অমিল লুকোনোর তাত্ত্বিক সম্ভাবনা
+       ঢাকতে **দিনে অন্তত একবার** পুরো পড়া হয়ই। ⛔ চিহ্ন যোগ/তোলার নিয়ম অছোঁয়া। */
+    private const val KEY_LAST_FULL_COUNT = "lastFullCount"
+    private const val KEY_LAST_FULL_HEAD = "lastFullHead"
+    private const val KEY_LAST_FULL_AT = "lastFullAt"
+    private const val FULL_READ_MAX_GAP_MS = 24L * 60L * 60L * 1000L
     // 🚨 খাতার সারি B145 (TK, 30.07.2026): আগে ছিল **৬ ঘণ্টা**। ওই ৬ ঘণ্টার
     // ফাঁকে অন্য ফোনের পুরনো অপেক্ষমাণ কপি মুছে ফেলা সারিটাকে আবার ক্লাউডে
     // তুলে দিতে পারত। এখন **১ ঘণ্টা** — ফাঁকটা ৬ গুণ ছোট।
@@ -354,6 +364,20 @@ object DeletedGuard {
             ) ?: return
             val newestBefore = headBefore.optJSONObject(0)?.optString("id", "").orEmpty()
 
+            // 📱 V1292 (⑪ ক): শেষ সম্পূর্ণ পড়ার পরে ক্লাউডে কিছু বদলায়নি (গোনা + newest এক)
+            // এবং ২৪ ঘণ্টা পার হয়নি ⇒ পুরো তালিকা নামানো বাদ। চিহ্ন-তালিকা যেমন ছিল তেমনই।
+            try {
+                val lastCount = p.getInt(KEY_LAST_FULL_COUNT, -1)
+                val lastHead = p.getString(KEY_LAST_FULL_HEAD, null)
+                val lastFullAt = p.getLong(KEY_LAST_FULL_AT, 0L)
+                if (countBefore >= 0 && lastCount >= 0 && lastHead != null &&
+                    countBefore == lastCount && newestBefore == lastHead &&
+                    lastFullAt > 0L && now - lastFullAt < FULL_READ_MAX_GAP_MS) {
+                    p.edit().putLong(KEY_SYNC_AT, now).apply()
+                    return
+                }
+            } catch (_: Throwable) { }
+
             val fromCloud = HashSet<String>()
             var offset = 0
             var reachedEnd = false
@@ -414,6 +438,11 @@ object DeletedGuard {
                 // V442: no size-pruning here. Every known tombstone remains guarded.
                 if (added || removed) persist(context)
             }
+            // 📱 V1292: শুধু *সম্পূর্ণ* পড়া হলে তার ছাপ মনে রাখা (নইলে পরের বার আবার পুরো পড়া)।
+            try {
+                if (complete) p.edit().putInt(KEY_LAST_FULL_COUNT, countAfter).putString(KEY_LAST_FULL_HEAD, newestAfter).putLong(KEY_LAST_FULL_AT, now).apply()
+                else p.edit().remove(KEY_LAST_FULL_COUNT).remove(KEY_LAST_FULL_HEAD).remove(KEY_LAST_FULL_AT).apply()
+            } catch (_: Throwable) { }
             try { p.edit().putLong(KEY_SYNC_AT, now).apply() } catch (_: Throwable) { }
         } catch (_: Throwable) { }
     }
