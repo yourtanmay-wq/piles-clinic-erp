@@ -33,7 +33,8 @@
 (function () {
   function sb() { return window.MOD.client(); }
   function appUser() { try { return window.user || JSON.parse(localStorage.getItem('rk_session') || '{}'); } catch (e) { return {}; } }
-  function rawLoad(t) { try { return JSON.parse(localStorage.getItem('rk_' + t) || '[]'); } catch (e) { return []; } }
+  /* V1287: টেবিল এখন IndexedDB-তে (app.js) — localStorage নয়; app.js না থাকলে পুরনো পথ। */
+  function rawLoad(t) { try { if (window.wlv1TableRows) return window.wlv1TableRows(t) || []; return JSON.parse(localStorage.getItem('rk_' + t) || '[]'); } catch (e) { return []; } }
   function mobEq(a, b) { return String(a || '').replace(/\D/g, '').slice(-10) === String(b || '').replace(/\D/g, '').slice(-10); }
   function onDate(x, date) {
     var c = String(x.createdAt || '').slice(0, 10);

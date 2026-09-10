@@ -24463,6 +24463,26 @@ alias `androiddebugkey` · SHA-256 5C:B2:24:AB:…:E6:AB — এটাই ফো
 ফাংশন/ট্রিগার লেখা-ধরনে চলে — বদলালে ভাঙত)। বদলে তিন ঘরে CHECK: সংখ্যা বা ফাঁকা ছাড়া ঢুকবে না;
 অ্যাপ সবসময় সংখ্যা লেখে, তাই কিছু আটকায় না। sql_run_log-এ এন্ট্রি। কোড বদল নেই।
 
+## ১০.০৯.২০২৬ ১০:৩৫ — V1287 · তালিকা ৪১১-⑤ (ক): কম্পিউটারের টেবিল localStorage → IndexedDB
+
+TK: *"ক করুন, সাবধানে… কোন ভাল কাজ যেন খারাপ না হয়"*। **আগে প্রমাণ** (Playwright, V1286 কোড):
+৬.৫ M অক্ষরের টেবিল সেভ ⇒ RAM-ভিত্তিক ⇒ পাতা খুললে ০ সারি — আসল তথ্য ৮.১৪ MB, তাই
+কম্পিউটারে এটা রোজই ঘটছিল। **বদল (শুধু app.js + notebook.js):** `rk_<table>` লেখাগুলো এখন
+IndexedDB-তে (`piles_clinic_big`/`kv`); খোলার সময় `wlv1BigPreload` সব চাবি RAM-কপিতে তোলে,
+তারপর `wlv1BigGet` (sync) / `wlv1BigSet` (RAM এখনই + IndexedDB পিছন থেকে, চাবি-প্রতি ক্রম,
+BroadcastChannel-এ অন্য ট্যাবকে খবর)। প্রথমবার localStorage-এর পুরনো কপি লিখে-পড়ে মিলিয়ে
+তবেই মোছা; দুটোই থাকলে নতুন updatedAt-ওয়ালাটা। IndexedDB না থাকলে/ভাঙলে হুবহু আগের
+localStorage-পথ (V918 RAM_ONLY সহ)। `rawLoad`/`save`/`resetLocalTableFromCloud`/
+`emergencyPhotoStorageCleanup`-এ শুধু getItem/setItem → wlv1BigGet/Set; boot এখন preload-এর
+পরে। notebook.js নিজের localStorage-পড়া → `window.wlv1TableRows`। **পরীক্ষা (Playwright):**
+A সরানো ৪০০০ সারি ✅ (localStorage খালি, IndexedDB-তে) · B ১৪০০০ সারি (৭ M অক্ষর) reload-এর
+পরেও ১৪০০০ ✅ · C IndexedDB বন্ধ করে ৩০০০ সারি localStorage-পথে ✅ · D অন্য ট্যাবের লেখা
+দেখা ✅ · E মাস্টার-সেশনে boot, ড্যাশবোর্ড, page-error ০ ✅। ফোন অছোঁয়া (নিজস্ব জমা-ঘর, সমস্যা
+নেই)। জানা সীমা: এই ভার্সনের পরে পুরনো app.js-এ ফিরলে টেবিল ফাঁকা দেখে ক্লাউড থেকে পুরো টানবে
+(তথ্য হারায় না)। rk_backup_history (স্থানীয় ব্যাকআপ-ইতিহাস) ইচ্ছে করে অছোঁয়া — ৩০×৮ MB লেখা
+প্রতিবার UI থমকাত; আলাদা আলোচনার বিষয়। ভার্সন **১২৮৭** (app.js, notebook.js v1287)।
+পাহারা: node ✅ · tk_guard ✅ · Kotlin অছোঁয়া।
+
 ## ১০.০৯.২০২৬ ১০:১০ — SQL-পাহারা (নকল ডেটাবেস) · তালিকা ৪১১-⑤ মাপা
 
 **আমার ভুল:** ⑤-এর মাপার SQL না চালিয়ে পাঠিয়েছিলাম — `jsonb_each` ঘরের নাম `key,value`,

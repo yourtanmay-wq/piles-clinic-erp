@@ -657,12 +657,146 @@ function wlv1PhotoPendingGet(){try{return JSON.parse(localStorage.getItem('rk_ph
 function wlv1PhotoPendingSet(a){try{localStorage.setItem('rk_photoPending',JSON.stringify([...new Set(a)].slice(0,500)))}catch(_e){}}
 function wlv1PhotoPendingAdd(t,id){if(!id)return;let s=wlv1PhotoPendingGet();s.push(String(t)+'|'+String(id));wlv1PhotoPendingSet(s)}
 function wlv1PhotoPendingDel(t,id){if(!id)return;let k=String(t)+'|'+String(id);wlv1PhotoPendingSet(wlv1PhotoPendingGet().filter(x=>x!==k))}
+/* 🔴🔒 V1287 (১০.০৯.২০২৬, তালিকা ৪১১-⑤, TK: *"ক করুন, সাবধানে… কোন ভাল কাজ যেন
+   খারাপ না হয়"*) — **টেবিলের সারি এখন ব্রাউজারের বড় ঘরে (IndexedDB)।**
+
+   মাপা (TK-র CSV ১০:০৩): ছবি বাদেই ৮.১৪ MB / ৮৮৬০ সারি — localStorage-এর সীমা
+   ≈ ৫ M অক্ষর। পরীক্ষায় (Playwright, V1286 কোড): ৬.৫ M অক্ষরের টেবিল সেভ ⇒
+   RAM-ভিত্তিক ⇒ পাতা খুললে **০ সারি**। অর্থাৎ কম্পিউটারে জমা কপি আর সম্পূর্ণ
+   থাকছিল না (V918-এর RAM-পথ রোজ চলছিল)।
+
+   **এখন:** `rk_<table>` লেখাগুলো localStorage-এ নয়, IndexedDB-তে (শত শত MB
+   জায়গা)। পড়া আগের মতোই **সঙ্গে সঙ্গে** (sync) — কারণ খোলার সময় সব টেবিল একবার
+   RAM-কপিতে (`__bigCache`) তুলে নেওয়া হয়, তারপর `wlv1BigGet` ওখান থেকেই দেয়;
+   লেখা RAM-কপিতে সঙ্গে সঙ্গে + IndexedDB-তে পিছন থেকে (চাবি-প্রতি ক্রম বজায়)।
+   · প্রথমবার: localStorage-এর পুরনো `rk_<table>` IndexedDB-তে সরিয়ে (লিখে-পড়ে
+     মিলিয়ে) তবেই localStorage থেকে মোছা — কিছু হারায় না।
+   · IndexedDB না থাকলে/ভাঙলে: আগের localStorage-পথ হুবহু (কোনো আচরণ বদলায় না)।
+   · অন্য ট্যাব: BroadcastChannel-এ খবর ⇒ সেই টেবিল IndexedDB থেকে আবার RAM-এ।
+   · ⛔ `rawLoad`/`save`/`resetLocalTableFromCloud`-এর নিয়ম, ছবি-ছাঁটা (stripLargePhotos),
+     RAM_ONLY-পাহারা — সব আগের মতোই; শুধু "কোথায় লেখা হয়" বদলেছে।
+   · ফোনে এই সমস্যা নেই (নিজস্ব জমা-ঘর) — ফোনের কোড অছোঁয়া। */
+const WLV1_BIG_DB='piles_clinic_big', WLV1_BIG_STORE='kv';
+const __bigCache={};
+let __bigDb=null, __bigOff=false, __bigBc=null, __bigFailToldAt=0;
+const __bigChain={};
+function wlv1BigKeyOk(k){ return typeof k==='string' && k.indexOf('rk_')===0; }
+function wlv1BigOpen(){
+ return new Promise(res=>{
+  try{
+   if(!window.indexedDB){ __bigOff=true; return res(null); }
+   let rq=indexedDB.open(WLV1_BIG_DB,1);
+   rq.onupgradeneeded=e=>{ try{ let db=e.target.result; if(!db.objectStoreNames.contains(WLV1_BIG_STORE)) db.createObjectStore(WLV1_BIG_STORE); }catch(_e){} };
+   rq.onsuccess=e=>{ __bigDb=e.target.result; try{ __bigDb.onversionchange=()=>{ try{__bigDb.close()}catch(_e){} __bigDb=null; }; }catch(_e){} res(__bigDb); };
+   rq.onerror=()=>{ __bigOff=true; res(null); };
+   rq.onblocked=()=>{ __bigOff=true; res(null); };
+  }catch(_e){ __bigOff=true; res(null); }
+ });
+}
+function wlv1BigStore(mode){ return __bigDb.transaction(WLV1_BIG_STORE,mode).objectStore(WLV1_BIG_STORE); }
+function wlv1BigReadAll(){
+ return new Promise(res=>{
+  let out={};
+  try{
+   let rq=wlv1BigStore('readonly').openCursor();
+   rq.onsuccess=e=>{ let c=e.target.result; if(c){ if(typeof c.value==='string') out[String(c.key)]=c.value; c.continue(); } else res(out); };
+   rq.onerror=()=>res(out);
+  }catch(_e){ res(out); }
+ });
+}
+function wlv1BigRead(key){
+ return new Promise(res=>{
+  try{ let rq=wlv1BigStore('readonly').get(key); rq.onsuccess=()=>res(typeof rq.result==='string'?rq.result:null); rq.onerror=()=>res(null); }
+  catch(_e){ res(null); }
+ });
+}
+function wlv1BigWrite(key,val){
+ return new Promise(res=>{
+  try{
+   let st=wlv1BigStore('readwrite'); if(val==null) st.delete(key); else st.put(val,key);
+   let tx=st.transaction; tx.oncomplete=()=>res(true); tx.onerror=()=>res(false); tx.onabort=()=>res(false);
+  }catch(_e){ res(false); }
+ });
+}
+/* সঙ্গে-সঙ্গে পড়া: RAM-কপি থেকে; IndexedDB বন্ধ থাকলে আগের মতো localStorage। */
+function wlv1BigGet(key){
+ if(__bigOff||!__bigDb) return localStorage.getItem(key);
+ return Object.prototype.hasOwnProperty.call(__bigCache,key)?__bigCache[key]:null;
+}
+/* লেখা: RAM-কপিতে এখনই, IndexedDB-তে পিছন থেকে (একই চাবির লেখা ক্রমে)।
+   IndexedDB বন্ধ থাকলে localStorage.setItem-ই (ভরে গেলে আগের মতোই throw ⇒ V918-পথ)। */
+function wlv1BigSet(key,val){
+ if(__bigOff||!__bigDb){ localStorage.setItem(key,val); return true; }
+ __bigCache[key]=val;
+ let prev=__bigChain[key]||Promise.resolve();
+ let mine=__bigChain[key]=prev.then(()=>{
+  if(__bigCache[key]!==val) return true;            // এর মধ্যে নতুন লেখা এসেছে — সেটাই যাবে
+  return wlv1BigWrite(key,val).then(ok=>{
+   if(ok){ try{ if(__bigBc) __bigBc.postMessage({key}); }catch(_e){} return true; }
+   /* IndexedDB লেখা ব্যর্থ — শেষ চেষ্টা localStorage; তাও না হলে সৎভাবে জানানো। */
+   try{ localStorage.setItem(key,val); return true; }
+   catch(_e){
+    try{ if(key.indexOf('rk_')===0) wlv1RamOnlyMark(key.slice(3)); }catch(__e){}
+    return false;
+   }
+  });
+ }).catch(()=>false);
+ return true;
+}
+function wlv1BigRemove(key){ try{ delete __bigCache[key]; }catch(_e){} if(__bigOff||!__bigDb){ try{localStorage.removeItem(key)}catch(_e){} return; } let prev=__bigChain[key]||Promise.resolve(); __bigChain[key]=prev.then(()=>wlv1BigWrite(key,null)).catch(()=>false); }
+/* কোন কপি নতুন — সারির সবচেয়ে নতুন updatedAt/createdAt দেখে (rowStamp-এর নিয়ম)। */
+function wlv1BigNewest(text){
+ try{ let a=JSON.parse(text||'[]'); if(!Array.isArray(a)) return 0; let m=0; for(let i=0;i<a.length;i++){ let r=a[i]; let v=(r&&(r.updatedAt||r.createdAt||r.registrationDate||r.visitDate||r.date))||''; let n=Date.parse(v); if(Number.isFinite(n)&&n>m)m=n; } return m; }
+ catch(_e){ return 0; }
+}
+/* খোলার সময় একবার: IndexedDB → RAM-কপি; localStorage-এর পুরনো টেবিল সরানো। */
+let __bigPreloadP=null;
+function wlv1BigPreload(){
+ if(__bigPreloadP) return __bigPreloadP;
+ __bigPreloadP=(async()=>{
+  try{
+   let db=await wlv1BigOpen();
+   if(!db){ __bigOff=true; return false; }
+   let all=await wlv1BigReadAll();
+   Object.keys(all).forEach(k=>{ if(wlv1BigKeyOk(k)) __bigCache[k]=all[k]; });
+   for(const t of TABLES){
+    let key='rk_'+t, ls=null;
+    try{ ls=localStorage.getItem(key); }catch(_e){ ls=null; }
+    if(ls==null) continue;
+    let have=Object.prototype.hasOwnProperty.call(__bigCache,key)?__bigCache[key]:null;
+    let pick=ls;
+    if(have!=null && have!==ls){ pick=(wlv1BigNewest(ls)>wlv1BigNewest(have))?ls:have; }
+    if(have!==pick){
+     let ok=await wlv1BigWrite(key,pick);
+     if(!ok) continue;                                 // সরানো গেল না ⇒ localStorage-এরটা থাকুক
+     let back=await wlv1BigRead(key);
+     if(back!==pick) continue;                          // লিখে-পড়ে মেলেনি ⇒ মুছব না
+    }
+    __bigCache[key]=pick;
+    try{ localStorage.removeItem(key); }catch(_e){}
+   }
+   try{
+    if(window.BroadcastChannel){
+     __bigBc=new BroadcastChannel('wlv1_big_'+WLV1_BIG_DB);
+     __bigBc.onmessage=ev=>{ try{ let k=ev&&ev.data&&ev.data.key; if(!wlv1BigKeyOk(k)||!__bigDb) return; wlv1BigRead(k).then(v=>{ if(v!=null){ __bigCache[k]=v; try{ if(k.indexOf('rk_')===0) wlv1RamOnlyClear(k.slice(3)); }catch(_e){} } }); }catch(_e){} };
+    }
+   }catch(_e){}
+   return true;
+  }catch(_e){ __bigOff=true; return false; }
+ })();
+ return __bigPreloadP;
+}
+window["wlv1BigPreload"]=wlv1BigPreload;
+window["wlv1BigGet"]=wlv1BigGet;
+window["wlv1BigSet"]=wlv1BigSet;
+/* অন্য ফাইল (notebook.js) টেবিল পড়ার জন্য — localStorage নয়, এই পথেই। */
+window["wlv1TableRows"]=function(t){ try{ return rawLoad(t); }catch(_e){ return []; } };
 function emergencyPhotoStorageCleanup(){
  try{
   TABLES.forEach(t=>{
-   let raw=localStorage.getItem('rk_'+t); if(!raw)return;
+   let raw=wlv1BigGet('rk_'+t); if(!raw)return;
    let arr=JSON.parse(raw); if(!Array.isArray(arr))return;
-   localStorage.setItem('rk_'+t,JSON.stringify(stripLargePhotos(arr)));
+   wlv1BigSet('rk_'+t,JSON.stringify(stripLargePhotos(arr)));
   });
  }catch(e){}
 }
@@ -671,7 +805,7 @@ const rawLoad=t=>{
  try{
   /* 🔴 V918 — এই টেবিলের লেখা ব্যর্থ হয়েছিল ⇒ RAM-ই সত্য (উপরের টীকা)। */
   if(RAM_ONLY[t]&&Array.isArray(RAM_STORE[t])) return normalizeTableRows(t,RAM_STORE[t]);
-  let a=JSON.parse(localStorage.getItem('rk_'+t)||'[]');
+  let a=JSON.parse(wlv1BigGet('rk_'+t)||'[]');   /* V1287: IndexedDB-র RAM-কপি */
   if(Array.isArray(a)&&a.length){
    let n=normalizeTableRows(t,a);
    /* 🔴🔴🆕🔒 V435 (TK-রিপোর্ট ১৮.০৮.২০২৬ — সব পর্দা ধীর)। আগে এখানে **পুরো
@@ -689,7 +823,7 @@ const rawLoad=t=>{
      if(!__o||typeof __o!=='object')continue;
      if(!Object.prototype.hasOwnProperty.call(__o,'patientId')||__o.patientId!==n[__i].patientId){__ch=true;break}
     }
-    if(__ch){try{localStorage.setItem('rk_'+t,JSON.stringify(stripLargePhotos(n)))}catch(_){}try{wlv1PidIndexInvalidate()}catch(_){}}
+    if(__ch){try{wlv1BigSet('rk_'+t,JSON.stringify(stripLargePhotos(n)))}catch(_){}try{wlv1PidIndexInvalidate()}catch(_){}}
    }
    RAM_STORE[t]=n;return n
   }
@@ -901,11 +1035,11 @@ const save=(t,d,opts={})=>{
  RAM_STORE[t]=rows;
  /* 🔴 V435 — রোগী বদলালে মোবাইল→ID তালিকাটা বাতিল, নইলে পুরনো ID দেখাত। */
  if(t==='patients'){try{wlv1PidIndexInvalidate()}catch(_e){}}
- try{localStorage.setItem('rk_'+t,JSON.stringify(stripLargePhotos(rows)));wlv1RamOnlyClear(t)}
+ try{wlv1BigSet('rk_'+t,JSON.stringify(stripLargePhotos(rows)));wlv1RamOnlyClear(t)}   /* V1287: IndexedDB */
  catch(e){
   console.warn('Local save quota issue, cleaning photo storage',e);
   /* 🔴 V918 — সাফ করে আবার চেষ্টা; তাতেও না পারলে টেবিলটা RAM-ভিত্তিক। */
-  try{emergencyPhotoStorageCleanup();localStorage.setItem('rk_'+t,JSON.stringify(stripLargePhotos(rows)));wlv1RamOnlyClear(t)}
+  try{emergencyPhotoStorageCleanup();wlv1BigSet('rk_'+t,JSON.stringify(stripLargePhotos(rows)));wlv1RamOnlyClear(t)}
   catch(_){ wlv1RamOnlyMark(t); }
  }
  // A genuine local write (not a save that's just writing back merged/pulled cloud
@@ -1125,8 +1259,8 @@ function resetLocalTableFromCloud(t,rows){
   /* 🔴 V918 — জমা-ঘরে জায়গা না থাকলেও এই সারিগুলো যেন হারিয়ে না যায়:
      লেখা ব্যর্থ হলে টেবিলটা RAM-ভিত্তিক ধরা হয় (উপরের `RAM_ONLY` টীকা),
      আর পুরো কাজটা আগের মতোই সফল ধরা হয় — নইলে এখানেই থেমে যেত। */
-  try{ localStorage.setItem('rk_'+t,JSON.stringify(stripLargePhotos(RAM_STORE[t]))); wlv1RamOnlyClear(t); }
-  catch(_e){ try{ emergencyPhotoStorageCleanup(); localStorage.setItem('rk_'+t,JSON.stringify(stripLargePhotos(RAM_STORE[t]))); wlv1RamOnlyClear(t); }catch(__e){ wlv1RamOnlyMark(t); } }
+  try{ wlv1BigSet('rk_'+t,JSON.stringify(stripLargePhotos(RAM_STORE[t]))); wlv1RamOnlyClear(t); }   /* V1287: IndexedDB */
+  catch(_e){ try{ emergencyPhotoStorageCleanup(); wlv1BigSet('rk_'+t,JSON.stringify(stripLargePhotos(RAM_STORE[t]))); wlv1RamOnlyClear(t); }catch(__e){ wlv1RamOnlyMark(t); } }
   if(!keep.length)clearPendingCloud(t); else markPendingCloud(t);
   return true
  }catch(e){return false}
@@ -20230,7 +20364,8 @@ window["v266CleanFollowRows"]=v266CleanFollowRows;
 
 window.onerror=function(msg,src,line,col,err){try{console.error(msg,src,line,col,err);if(window.__RK_USER_ACTION_ACTIVE)toast('Action could not complete. Please retry.');}catch(e){};return true};
 
-window.addEventListener('DOMContentLoaded',boot);
+/* V1287: আগে IndexedDB → RAM-কপি (ও localStorage থেকে সরানো), তবেই boot — নইলে প্রথম পড়া ফাঁকা পেত। */
+window.addEventListener('DOMContentLoaded',function(){ try{ wlv1BigPreload().then(boot,boot); }catch(_e){ boot(); } });
 /* ===== FIX (checklist #5): ANY date input, anywhere in the app — tapping anywhere on the
    field opens the native calendar picker immediately, not just the small icon area. ===== */
 document.addEventListener('click',function(e){
