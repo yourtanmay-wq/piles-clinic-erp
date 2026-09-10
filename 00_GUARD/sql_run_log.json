@@ -321,5 +321,21 @@
     "result": "pat_8337885258 KNE-01082026-001 · queuedAt=2026-09-10 · stage Doctor Queue · queue true · doctorComplete false",
     "proof": "CSV 547b9271",
     "what": "MD RIYAZ-এর লাইনে-ওঠার দিন আজকের বসানো (১ সারি, শুধু queuedAt+updatedAt)। কোড-ফাঁক V1300-এ ঠিক (ফোন+ওয়েব)।"
+  },
+  {
+    "sql_file": "00_SQL/V1297A_TINKU_3000_ASOL_PAYMENT_2026-09-10.sql (তালিকা ৪১৩)",
+    "run_by": "TK",
+    "when": "১০.০৯.২০২৬ বিকেল ৩.১০",
+    "result": "pay_4a81fb54f47e4ea893875ab2d4ba95e2 → treatment · 3000 · 2nd Payment · 2026-08-07",
+    "proof": "CSV 58630b97",
+    "what": "Tinku Bauli-র bill_edit চিহ্ন-সারি আসল পেমেন্টে (ব্রাঞ্চ: ₹3,000 নেওয়া হয়েছিল)। এখন সব পর্দায় Paid ₹13,000 / Due ₹12,000।"
+  },
+  {
+    "sql_file": "00_SQL/V1302_MARKER_ROW_TAKA_NISHEDH_2026-09-10.sql (তালিকা ৪১৩)",
+    "run_by": "TK",
+    "when": "১০.০৯.২০২৬ বিকেল ৩.১৩",
+    "result": "trigger 1 · marker_rows_with_money 0",
+    "proof": "screenshot",
+    "what": "payments-এ ট্রিগার tk_marker_rows_no_money — চিহ্ন-সারিতে টাকা আর কখনো ঢুকবে না (যে পথেই হোক)। কোনো পুরনো সারি বদলায়নি।"
   }
 ]
