@@ -24463,6 +24463,16 @@ alias `androiddebugkey` · SHA-256 5C:B2:24:AB:…:E6:AB — এটাই ফো
 ফাংশন/ট্রিগার লেখা-ধরনে চলে — বদলালে ভাঙত)। বদলে তিন ঘরে CHECK: সংখ্যা বা ফাঁকা ছাড়া ঢুকবে না;
 অ্যাপ সবসময় সংখ্যা লেখে, তাই কিছু আটকায় না। sql_run_log-এ এন্ট্রি। কোড বদল নেই।
 
+## ১০.০৯.২০২৬ ১৬:২০ — 📦 PILES_CLINIC_APP_V1296_FINAL.zip পাঠানো (TK: *"ফাইল পাঠান"*)
+
+tk_guard --release ✅ (নাম তালিকায়) · mkzip (স্ক্র্যাচপ্যাড; বাদ: .git · node_modules · build · .gradle · .idea ·
+*.apk · *.zip · 00_GUARD/.kotlinc · ANATOMY ORIGINAL · root *.png · __pycache__ · .DS_Store · local.properties) ·
+verify_zip_root_name ✅ · verify_zip_contents ✅ (১০ আইকন)। **২৫.৪৮ MB · ১৭৮৭ ফাইল** (V1282: ২৫.৪ MB · ১৭৬৫) —
+হিসাব pathano_filer_talika.json-এ ফোল্ডার-ধরে। কী-ফাইল: শুধু আগের V477-এর permanent-debug-key (আগের সব ZIP-এও
+ছিল), আজ নতুন কিছু ঢোকেনি। এই ZIP-এ: V1284–V1296 (ফোন: DuplicateCheck, promote-scan, ক্যাশ, pending-merge,
+DeletedGuard, SafeWideColumns; ওয়েব: IndexedDB, heal, deleted-sync, poll; পাহারা: sql_local_check,
+web_browser_test, cloud_backup + workflow)। TK-কে মনে করানো: আসল বিল্ড Android Studio-তে; Netlify-তে ওয়েব তুলতে হবে।
+
 ## ১০.০৯.২০২৬ ১৬:০০ — V1296 · TK: *"সমস্ত কাজ একবার গভীরে যাচাই করে দেখুন — ভুল থাকলে ঠিক করুন, আন্দাজে নয়"*
 
 আজকের সব কাজ (V1286–V1295, SQL V1289/১২৯০/১২৯৫, তালিকা ৪১১ ①–⑭, ৪১২) কোড পড়ে আবার মেলানো:
