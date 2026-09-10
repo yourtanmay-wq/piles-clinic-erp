@@ -1330,11 +1330,48 @@ class PaymentActivity : AppCompatActivity() {
                     try { BackdatePaymentGrant.isGrantedNow(user?.mobile ?: "", p.s("date")) } catch (_: Throwable) { false }
                 }
                 if (granted) proceed()
-                else Toast.makeText(this@PaymentActivity, "Only Master can edit entries older than yesterday", Toast.LENGTH_SHORT).show()
+                else offerDeleteRequestWhenEditBlocked(p, user)   /* 🔴 V1299 — তালিকা ৪১৫ */
             }
             return
         }
         proceed()
+    }
+
+    /* 🔴🔒 V1299 (১০.০৯.২০২৬, তালিকা ৪১৫, TK: *"ঠিক করুন সাবধানে"*) — **পুরনো এন্ট্রিতে
+       স্টাফ Master-কে ডিলিট-অনুরোধ পাঠাতেই পারতেন না।** TK-র B52-নিয়ম (২৮.০৭): স্টাফ শুধু
+       আজ/গতকালের এন্ট্রি বদলাতে পারেন — সেটা অটুট। কিন্তু "Send Request" বোতামটা ছিল
+       এডিট-জানলার ভিতরে, আর পুরনো এন্ট্রিতে ওই জানলাই খোলে না ⇒ শুধু একটা toast।
+       এখন: একই নিয়মে আটকালে একটা ছোট জানলা — "Send delete request to Master"; পাঠানোর
+       নিয়ম ও বার্তা হুবহু এডিট-জানলার Delete-বোতামের (DeletePermission.sendRequest, V1134
+       তারিখসহ, V1176 বার্তা)। ⛔ কিছু মোছে না, কিছু বদলায় না — শুধু Master-এর ঘণ্টায় অনুরোধ। */
+    private fun offerDeleteRequestWhenEditBlocked(p: org.json.JSONObject, user: NativeUser?) {
+        val u = user ?: return
+        val amtText = "₹${"%,.0f".format(p.optDouble("amount", 0.0))}"
+        val labelText = p.s("payLabel").ifBlank { p.s("paymentLabel").ifBlank { "Payment" } }
+        AlertDialog.Builder(this)
+            .setCustomTitle(PremiumAlert.header(this, "Only Master can edit"))
+            .setMessage(
+                "$amtText ($labelText) · ${DateUtil.display(p.s("date"))}\n\n" +
+                "Only Master can edit entries older than yesterday.\n" +
+                "You can ask Master to delete this entry — nothing changes until Master approves."
+            )
+            .setPositiveButton("Send delete request") { _, _ ->
+                lifecycleScope.launch {
+                    withContext(Dispatchers.IO) {
+                        try {
+                            DeletePermission.sendRequest(
+                                this@PaymentActivity, u, "Payment",
+                                p.s("name"), p.s("mobile"), p.s("patientCode"),
+                                p.s("branch"), "$amtText ($labelText)", p.s("id"),
+                                entryDate = p.s("date")
+                            )
+                        } catch (_: Throwable) { false }
+                    }
+                    Toast.makeText(this@PaymentActivity, NoBengali.s(DeletePermission.lastMessage()), Toast.LENGTH_LONG).show()
+                }
+            }
+            .setNegativeButton("Close", null)
+            .show().also { PremiumAlert.paint(it) }
     }
 
     // TK-REQUESTED REDESIGN (2026-07-20): the old dialog only took an exact

@@ -24463,6 +24463,26 @@ alias `androiddebugkey` · SHA-256 5C:B2:24:AB:…:E6:AB — এটাই ফো
 ফাংশন/ট্রিগার লেখা-ধরনে চলে — বদলালে ভাঙত)। বদলে তিন ঘরে CHECK: সংখ্যা বা ফাঁকা ছাড়া ঢুকবে না;
 অ্যাপ সবসময় সংখ্যা লেখে, তাই কিছু আটকায় না। sql_run_log-এ এন্ট্রি। কোড বদল নেই।
 
+## ১০.০৯.২০২৬ ১৪:২৫ — V1299 · তালিকা ৪১৫: Payment পর্দায় পুরনো এন্ট্রি এডিট আটকালে এখন "Send delete request to Master" জানলা · তালিকা ৪১৭ (REHANA BAGUM Paid অমিল) খোঁজা শুরু
+
+**৪১৫ (TK: *"হ্যাঁ, ঠিক করুন সাবধানে"*):** স্টাফের এডিট-নিয়ম (B52 — শুধু আজ/গতকাল) **অছোঁয়া**। শুধু আটকানোর
+বার্তাটার (toast) জায়গায় এখন একটা জানলা: "Only Master can edit…" + **Send delete request** বোতাম — একই
+`DeletePermission.sendRequest` (Report Card/Timeline যেটা ব্যবহার করে), তাই Master-এর Briefing-এ একই রকম অনুরোধ যায়।
+`PaymentActivity.tryEditPayment` → `offerDeleteRequestWhenEditBlocked`। **ওয়েবে বদল লাগেনি (রুল ৮, মেপে):** ওয়েবের
+Payment তালিকায় আলাদা Delete-আইকন আছে — অনুমতি না থাকলে `wlv1DeletePayment` নিজেই Master-কে অনুরোধ পাঠায়;
+এডিট আটকালে `wlv1AskMasterPaymentEdit`। পাহারা: Kotlin compile PASS · tk_guard PASS। ভার্সন 1299 (gradle ২ লাইন +
+version.json; ওয়েব-ফাইল বদলায়নি তাই `?v=` অছোঁয়া)। **বাকি:** TK-র APK V1299 বিল্ড (V1298-এর push-ও এতে আছে)।
+
+**৪১৭ (TK ছবি: Follow-up কার্ডে Bill ₹20,000/Due ₹20,000/0%, ভিতরে Paid ₹1,500/Due ₹18,500 — ০৪.০৮ Advance ₹1,500):**
+কোড মিলিয়ে (৫ক): দুই পর্দা **দু-রকম উৎস** থেকে গোনে — ভিতরের Timeline রোগীর মোবাইল/আইডি ধরে **সব** payments সারি;
+Follow-up কার্ড (`FollowUpRepository`) payments টানে **শুধু নিজের ব্রাঞ্চ + ফাঁকা-ব্রাঞ্চ** ছাঁকনিতে (`branchScopeFilter`,
+`branch.eq` — বড়/ছোট হাতের অক্ষরে সংবেদনশীল), তারপর `max(আইডি-ধরে, মোবাইল-ধরে, followups-সারির paid)`। কার্ডে ০ ⇒
+ওই ₹1,500 সারিটা ছাঁকনিতেই আসেনি (সম্ভাব্য: payments.branch রোগীর branch-এর সঙ্গে হুবহু মেলে না) **অথবা** এক নম্বরে
+ঘোষিত আলাদা রোগী (`pat_<mobile>_…`) থাকায় মোবাইল-ফলব্যাক বন্ধ আর সারির patientId অন্য। কোনটা — DB না দেখে বলা যায় না ⇒
+`00_SQL/DEKHAR_SQL_2026-09-10_REHANA_PAID_MISMATCH.sql` (নকল DB-তে PASS + নকল সারি দিয়ে ফল মিলিয়ে দেখা): ক) Rehana-র
+payments/patients/followups সারি, খ) **পুরো DB-তে** যে টাকার সারির branch রোগীর branch থেকে আলাদা (একই শ্রেণির সব রোগী — TK-র
+"আর কার কার" প্রশ্নের উত্তর এখান থেকেই)। ফল এলে তবেই সিদ্ধান্ত (ছাঁকনি নাকি ডেটা) — আন্দাজে কোড বদল নয়।
+
 ## ১০.০৯.২০২৬ ১৮:০০ — V1298 · তালিকা ৪১৪: SMS-এর মতো push নোটিফিকেশন (FCM) — কোড তৈরি, Firebase-ফাইল বাকি
 
 TK: *"নোটিফিকেশন আসামাত্র একবার সাউন্ড… ক করুন, সাবধানে — কিন্তু আমার তো Firebase নেই"*। যাচাই: প্রজেক্টে push/FCM/
