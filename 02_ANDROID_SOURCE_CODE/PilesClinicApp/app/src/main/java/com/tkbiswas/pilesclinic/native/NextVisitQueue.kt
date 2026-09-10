@@ -74,14 +74,42 @@ object NextVisitQueue {
                    ⛔ `findByMobileOrNull`: নেট ব্যর্থ হলে `null` ফেরে, তখন
                       **কিছুই লেখা হয় না** (V434-এর প্রমাণিত নিয়ম)। */
                 val rows = SupabaseClient.findByMobileOrNull(
-                    "patients", digits, "id,doctorComplete", 20
+                    "patients", digits, "id,doctorComplete,queue,stage,queuedAt", 20
                 ) ?: return@run
                 for (i in 0 until rows.length()) {
                     val row = rows.optJSONObject(i) ?: continue
                     val id = row.optString("id")
                     if (id.isBlank()) continue
                     // ইতিমধ্যেই তালিকায় আছেন — ছোঁয়ার দরকার নেই।
-                    if (!row.optBoolean("doctorComplete", false)) continue
+                    if (!row.optBoolean("doctorComplete", false)) {
+                        /* 🔴🔒 V1300 (১০.০৯.২০২৬, তালিকা ৪১৬ — MD RIYAZ, TK: *"হ্যাঁ, ঠিক
+                           করুন সাবধানে"*): আগে এখানে "doctorComplete নয় = ইতিমধ্যেই
+                           তালিকায় আছেন" ধরে ছেড়ে দেওয়া হত। কিন্তু V1013-এর নিয়মে
+                           তালিকায় থাকেন **শুধু আজ লাইনে ওঠা** রোগী (`queuedAt`, নইলে
+                           visitDate/registrationDate) — যাঁর চেকআপ কখনো শেষ-চিহ্ন
+                           পায়নি অথচ দিন পেরিয়ে গেছে (queuedAt ফাঁকা/পুরনো), তিনি
+                           আজ Arrived/পেমেন্ট করলেও অদৃশ্য থাকতেন। এখন তাঁর শুধু
+                           লাইনে-ওঠার দিনটা আজকের করা হয় — stage · queue ·
+                           doctorComplete · অন্য কিছু ছোঁয়া হয় না।
+                           ⛔ যিনি আজই লাইনে আছেন (queuedAt আজ) — আগের মতোই অছোঁয়া।
+                           ⛔ queue=false ও stage-ও লাইনের নয় (যেমন Treatment Running,
+                              doctorComplete কখনো বসেনি) — আগের মতোই কিছু হয় না;
+                              সেটা এই ফাঁকের অংশ নয়, আলাদা সিদ্ধান্ত। */
+                        val stage = row.optString("stage", "")
+                        val inQueueRow = row.optBoolean("queue", false) || stage == "Doctor Queue" || stage == "Visit"
+                        if (!inQueueRow) continue
+                        val qAt = row.optString("queuedAt", "").take(10)
+                        if (qAt == today()) continue
+                        val stamp = JSONObject()
+                            .put("queuedAt", today())
+                            .put("updatedAt", isoNow())
+                        val okStamp = SupabaseClient.updateById("patients", id, stamp)
+                        if (!okStamp && appCtx != null) {
+                            try { GenericUpdateQueue.queue(appCtx, "patients", id, stamp) } catch (_: Throwable) { }
+                        }
+                        try { MyPhoneWrites.remember(appCtx, "patients", id, stamp) } catch (_: Throwable) { }
+                        continue
+                    }
                     val fields = JSONObject()
                         .put("queue", true)
                         .put("stage", "Doctor Queue")

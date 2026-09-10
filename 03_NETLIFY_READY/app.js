@@ -10804,6 +10804,9 @@ async function savePatient(evt){
    p.stage='Doctor Queue';
    p.queue=true;
    p.doctorComplete=false;
+   /* 🔴🔒 V1300 (তালিকা ৪১৬, রুল ৮): ফোনের রেজিস্ট্রেশন (PatientModel) লাইনে-ওঠার
+      দিন `queuedAt` বসায়, কম্পিউটারেরটা বসাত না — এখন দুটো এক। */
+   p.queuedAt=regDate;
   }
   p.visitDate=regDate;
   p.registrationDate=regDate;
@@ -23005,7 +23008,21 @@ function wlv1NvpReopenQueue(mobile){
     if(seen.indexOf(d)>-1)return;                    // আজ একবার হয়ে গেছে
     var did=false;
     load('patients').filter(function(x){return mob(x.mobile)===d}).forEach(function(x){
-      if(!wlv1Flag(x.doctorComplete))return;          // ইতিমধ্যেই তালিকায় আছেন
+      if(!wlv1Flag(x.doctorComplete)){
+        /* 🔴🔒 V1300 (১০.০৯.২০২৬, তালিকা ৪১৬ — MD RIYAZ): "doctorComplete নয় =
+           ইতিমধ্যেই তালিকায় আছেন" ধরাটা ভুল ছিল — V1013-এর নিয়মে তালিকায়
+           থাকেন শুধু আজ লাইনে ওঠা রোগী (queuedAt, নইলে visitDate/registrationDate)।
+           চেকআপ কখনো শেষ-চিহ্ন পায়নি অথচ দিন পেরিয়ে গেছে ⇒ আজ Arrived/পেমেন্টেও
+           অদৃশ্য। এখন শুধু লাইনে-ওঠার দিনটা আজকের করা হয় (ফোনের
+           NextVisitQueue.reopenForToday-এর হুবহু একই নিয়ম)। stage · queue ·
+           doctorComplete ছোঁয়া হয় না; queuedAt আজকের হলে কিছুই হয় না। */
+        var st=String(x.stage||'');
+        var inQ=wlv1Flag(x.queue)||st==='Doctor Queue'||st==='Visit';
+        if(!inQ)return;
+        if(String(x.queuedAt||'').slice(0,10)===today())return;   // আজই লাইনে আছেন
+        try{ upd('patients',x.id,{queuedAt:today()}); did=true; }catch(_e){}
+        return;
+      }
       try{ upd('patients',x.id,{stage:'Doctor Queue',queue:true,doctorComplete:false,queuedAt:today()}); did=true; }catch(_e){}
     });
     seen.push(d);

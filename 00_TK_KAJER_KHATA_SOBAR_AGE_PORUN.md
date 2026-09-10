@@ -24463,6 +24463,27 @@ alias `androiddebugkey` · SHA-256 5C:B2:24:AB:…:E6:AB — এটাই ফো
 ফাংশন/ট্রিগার লেখা-ধরনে চলে — বদলালে ভাঙত)। বদলে তিন ঘরে CHECK: সংখ্যা বা ফাঁকা ছাড়া ঢুকবে না;
 অ্যাপ সবসময় সংখ্যা লেখে, তাই কিছু আটকায় না। sql_run_log-এ এন্ট্রি। কোড বদল নেই।
 
+## ১০.০৯.২০২৬ ১৫:০৫ — V1300 · তালিকা ৪১৬: দিন-পেরোনো রোগী আজ Arrived/পেমেন্ট করলে CHECK-UP Queue-তে ফিরবেন (ফোন + কম্পিউটার) · ৪১৭ ফল
+
+**৪১৬ (MD RIYAZ, TK: *"হ্যাঁ, ঠিক করুন সাবধানে"*):** TK-র SQL-ফল: stage Doctor Queue · queue true · doctorComplete false ·
+**queuedAt ফাঁকা** · রেজি ০১.০৮ ⇒ V1013-এর নিয়মে (লাইনে থাকেন শুধু আজ লাইনে ওঠা রোগী; QUEUE_STALE_DAYS=0) ৪০ দিন পুরনো
+বলে লুকানো। **আসল কারণ (আমার ফাঁক, দুই জায়গাতেই):** V839-এর "লাইনে ফেরানো" (ফোন `NextVisitQueue.reopenForToday`, ওয়েব
+`wlv1NvpReopenQueue`) শুধু doctorComplete=true হলে চলত — "doctorComplete নয় = ইতিমধ্যেই তালিকায়" ধরে নিত, যা V1013-এর
+পরে আর সত্যি নয়। **ঠিক (দুই জায়গায় একই নিয়ম):** doctorComplete না হলেও সারিটা লাইনের (queue বা stage Doctor Queue/Visit)
+আর queuedAt আজকের না হলে ⇒ শুধু queuedAt=আজ (+updatedAt) — stage/queue/doctorComplete অছোঁয়া; queuedAt আজকের হলে কিছুই
+হয় না; দিনে-একবার পাহারা আগের মতোই। ওয়েব-রেজিস্ট্রেশনে queuedAt বসত না (ফোনে বসত) — এখন বসে (রুল ৮)।
+**এখনই:** SQL V1300 (local PASS) TK চালালেন ১৪:৪৪ — MD RIYAZ-এর queuedAt=২০২৬-০৯-১০ ✅ (sql_run_log-এ)।
+**জানা সীমা (সৎভাবে):** queue=false ও stage-ও লাইনের নয় অথচ doctorComplete কখনো বসেনি (যেমন Treatment Running) — এমন
+রোগী Arrived/পেমেন্টে এখনও লাইনে আসেন না; এটা এই ফাঁকের অংশ নয়, TK চাইলে আলাদা সিদ্ধান্ত।
+পাহারা: node --check ✅ · ব্রাউজার-পরীক্ষা ✅ · resources ✅ · tk_guard ✅ · Kotlin compile (শেষবার) ✅ PASS।
+ভার্সন 1300 (gradle ২ লাইন · version.json · index.html app.js?v=v1300)।
+
+**৪১৭ (REHANA, TK-র SQL-ফল ১৪:২৬):** payments সারি ₹1,500 treatment, patientId/branch দুটোই রোগীর সঙ্গে মেলে; পুরো DB-তে
+branch-অমিল টাকার সারি **০** ⇒ ডেটার দোষ নয়, ওই ফোনের জমানো টাকার-তালিকা বাসি/অসম্পূর্ণ (কার্ড ওখান থেকে গোনে, ভিতরের
+Timeline সরাসরি ক্লাউড)। কোড খুঁজে দেখা: branch.eq ছাঁকনি (Kishanganj = Kishanganj ✓), PAYMENT_COLS_FOLLOWUP-এর
+refundApprovalStatus ঘর আসল DB-তে আছে ✓ (TK-র ০৭.০৯ CSV), CloudListRevalidate/CloudReadCache শুধু RAM-এ ✓, V1288
+cache-migration ✓ — কোনোটাই স্থায়ী বাসি হওয়ার কারণ নয়। ⇒ ফোনে রিফ্রেশ + ভার্সন জানার অপেক্ষা; আন্দাজে কোড বদল নয়।
+
 ## ১০.০৯.২০২৬ ১৪:২৫ — V1299 · তালিকা ৪১৫: Payment পর্দায় পুরনো এন্ট্রি এডিট আটকালে এখন "Send delete request to Master" জানলা · তালিকা ৪১৭ (REHANA BAGUM Paid অমিল) খোঁজা শুরু
 
 **৪১৫ (TK: *"হ্যাঁ, ঠিক করুন সাবধানে"*):** স্টাফের এডিট-নিয়ম (B52 — শুধু আজ/গতকাল) **অছোঁয়া**। শুধু আটকানোর
