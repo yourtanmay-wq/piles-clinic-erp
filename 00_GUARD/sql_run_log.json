@@ -289,5 +289,13 @@
   "result": "MOT 1126 (followups 657 · payments 186 · trash 120 · enquiries 97 · patients 48 · chamber_close 17 · medical 1) · ৩০ দিনের পুরনো 275 · টেবিল 624 kB · প্রথম 29.07 · শেষ 10.09",
   "proof": "CSV",
   "what": "deleted_records-এর মাপ"
+ },
+ {
+  "sql_file": "00_SQL/DEKHAR_SQL_2026-09-10_BACKUP_MAPA.sql (⑬ মাপা — শুধু পড়া)",
+  "run_by": "TK",
+  "when": "১০.০৯.২০২৬ বেলা ১১.৫৫",
+  "result": "backuprecords 53 সারি · 7.7 MB · টেবিল 7864 kB · আসল payload আছে মাত্র ২টায় (4.83 MB ২৮.০৮/০৮.০৯-এর enquiries, 2.92 MB) — বাকি ৫১টা ফাঁকা (0.00 MB)",
+  "proof": "CSV",
+  "what": "কম্পিউটারের Backup Center যে কপি ডেটাবেসের ভিতরে রাখে তার মাপ"
  }
 ]
