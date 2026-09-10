@@ -193,5 +193,13 @@
     "result": "Success — payments_now 2 · patients_now 1",
     "proof": "screenshot",
     "what": "KNE-02062026-002 রাখা; KNE-02062026-003-এর ₹400 ওতে সরানো; ওই patients+followups মোছা, deleted_records-এ চিহ্ন।"
+  },
+  {
+    "sql_file": "তালিকা ৪০৮ — KALPANA BAKCHI ডুপ্লিকেট (চ্যাটে দেওয়া transactional SQL)",
+    "run_by": "TK",
+    "when": "১০.০৯.২০২৬ সকাল ৬.১৫",
+    "result": "Success — payments_now 5 · patients_now 1",
+    "proof": "screenshot",
+    "what": "pat_9547593030 (KNE-01052026-001) রাখা; pat_9547593030_2022571e (KNE-01052026-002)-এর ₹400 ওতে সরানো; ওই patients+followups মোছা, deleted_records-এ চিহ্ন।"
   }
 ]
