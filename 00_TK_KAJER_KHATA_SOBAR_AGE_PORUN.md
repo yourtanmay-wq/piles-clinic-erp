@@ -24463,6 +24463,25 @@ alias `androiddebugkey` · SHA-256 5C:B2:24:AB:…:E6:AB — এটাই ফো
 ফাংশন/ট্রিগার লেখা-ধরনে চলে — বদলালে ভাঙত)। বদলে তিন ঘরে CHECK: সংখ্যা বা ফাঁকা ছাড়া ঢুকবে না;
 অ্যাপ সবসময় সংখ্যা লেখে, তাই কিছু আটকায় না। sql_run_log-এ এন্ট্রি। কোড বদল নেই।
 
+## ১০.০৯.২০২৬ ১৮:০০ — V1298 · তালিকা ৪১৪: SMS-এর মতো push নোটিফিকেশন (FCM) — কোড তৈরি, Firebase-ফাইল বাকি
+
+TK: *"নোটিফিকেশন আসামাত্র একবার সাউন্ড… ক করুন, সাবধানে — কিন্তু আমার তো Firebase নেই"*। যাচাই: প্রজেক্টে push/FCM/
+websocket/pg_net কিছুই ছিল না। **তৈরি:** ① `00_SQL/V1298_PUSH_DEVICE_TOKENS_TRIGGER_2026-09-10.sql` — `device_tokens`
+টেবিল + `pg_net` + briefings AFTER INSERT trigger `tk_push_new_briefing` → POST https://maaayurvedpilesclinic.netlify.app/
+notify-push (header x-push-secret; repo-ফাইলে `<<PUSH_SECRET>>`, আসল শব্দ শুধু চ্যাটে ও Netlify env-এ) — নকল DB-তে
+pg_net-stub দিয়ে পরীক্ষা ✅ ② Netlify function `03_NETLIFY_READY/netlify/functions/notify-push.mjs` (npm নেই; RS256 JWT
+node:crypto; targetsHit-এর হুবহু নিয়ম all/allStaff/mobiles/roles/branches; লেখকের নিজের ফোনে নয়; FCM v1 messages:send,
+channel clinic_notices_v2, sound default; মরা token মুছে দেয়) + `netlify.toml` (03_NETLIFY_READY ও root — root-এরটা publish
+= 03_NETLIFY_READY, যাতে CLI/MCP-deploy-এ প্রজেক্টের বাকি কিছু কখনো সাইটে না যায়) ③ Netlify env `PUSH_SHARED_SECRET`
+(secret, functions scope) MCP দিয়ে বসানো ✅ — সাইট maaayurvedpilesclinic ④ ফোন: `PushService` (FirebaseMessagingService;
+onNewToken → PushTokenSync; onMessageReceived → NoticeChannels-এর clinic_notices_v2, id-ধরে dedupe), `PushTokenSync`
+(Dashboard onResume-এ token → device_tokens upsert, দিনে একবার), manifest service + default channel/icon meta,
+firebase-bom 33.4.0 + firebase-messaging, root plugin google-services 4.4.2 apply false, app-এ **google-services.json থাকলে
+তবেই** plugin apply (নইলে বিল্ড স্বাভাবিক, push বন্ধ)। Kotlin compile: ৩টা "unresolved firebase/applicationContext" —
+লাইব্রেরি এখানে নেই (maven বন্ধ) ⇒ AppCompat-noise-এর মতো `--update-baseline` (precedent V1144/V1186/V1252/V1284)।
+ভার্সন **১২৯৮**। **বাকি (TK):** Firebase প্রজেক্ট → google-services.json (app/ ফোল্ডারে, গোপন নয়) → service-account JSON
+→ শুধু Netlify env FCM_SERVICE_ACCOUNT_JSON (repo-তে কখনো নয়) → function deploy → SQL চালানো → APK বিল্ড।
+
 ## ১০.০৯.২০২৬ ১৬:২০ — 📦 PILES_CLINIC_APP_V1296_FINAL.zip পাঠানো (TK: *"ফাইল পাঠান"*)
 
 tk_guard --release ✅ (নাম তালিকায়) · mkzip (স্ক্র্যাচপ্যাড; বাদ: .git · node_modules · build · .gradle · .idea ·

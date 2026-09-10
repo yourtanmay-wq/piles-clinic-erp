@@ -20,8 +20,8 @@ plugins {
 // versionName আর APK-র নাম তিনটেই একসাথে বদলাবে, কোনোটা বাদ পড়বে না।
 // ⛔ অ্যাপের কাজ · ডিজাইন · ডেটা · Supabase কিছুই ছোঁয়া হয়নি; শুধু বিল্ডের নাম।
 // ═══════════════════════════════════════════════════════════════════════════
-val appVersionCode = 1296
-val appVersionName = "12.96"
+val appVersionCode = 1298
+val appVersionName = "12.98"
 
 base {
     archivesName.set("PilesClinic-V$appVersionCode")
@@ -314,6 +314,9 @@ dependencies {
 
     // -- Background auto-sync --
     implementation("androidx.work:work-runtime-ktx:2.9.0")
+    // 🔔 V1298 push (FCM) — তালিকা ৪১৪
+    implementation(platform("com.google.firebase:firebase-bom:33.4.0"))
+    implementation("com.google.firebase:firebase-messaging")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
 
@@ -333,4 +336,12 @@ dependencies {
     // Context/Room/Android framework is covered by the manual test steps in
     // FINAL_TEST_REPORT.md instead, since that needs an instrumented/emulator run).
     testImplementation("junit:junit:4.13.2")
+}
+
+// 🔔 V1298: google-services.json থাকলে তবেই Firebase plugin — ফাইল না থাকলেও বিল্ড ভাঙবে না
+// (push তখন চালু হয় না, বাকি সব আগের মতোই চলে)।
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+} else {
+    println("V1298: app/google-services.json নেই — push (FCM) বন্ধ, বিল্ড স্বাভাবিক")
 }

@@ -510,6 +510,20 @@
         </receiver>
 
         <!-- 🏍️🔒 V968 — ফিল্ড ভিজিট চলাকালীন GPS (foreground service)। -->
+        <!-- 🔔 V1298: Google push (FCM) — নোটিশ আসামাত্র শব্দ -->
+        <service
+            android:name=".native.PushService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="clinic_notices_v2" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_notif_bell" />
         <service
             android:name="com.tkbiswas.pilesclinic.native.FieldVisitService"
             android:exported="false"

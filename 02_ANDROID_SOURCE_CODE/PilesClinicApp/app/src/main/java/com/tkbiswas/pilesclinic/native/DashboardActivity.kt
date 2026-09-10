@@ -340,6 +340,7 @@ class DashboardActivity : AppCompatActivity() {
     }
 
     override fun onResume() {
+        try { PushTokenSync.syncOnLogin(this) } catch (_: Throwable) { }   // 🔔 V1298 push-ঠিকানা ক্লাউডে
         super.onResume()
         // Refresh the header photo after the user sets/changes it.
         val session = NativeSession.current(this) ?: return
