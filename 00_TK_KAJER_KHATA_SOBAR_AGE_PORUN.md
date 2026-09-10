@@ -24463,6 +24463,21 @@ alias `androiddebugkey` · SHA-256 5C:B2:24:AB:…:E6:AB — এটাই ফো
 ফাংশন/ট্রিগার লেখা-ধরনে চলে — বদলালে ভাঙত)। বদলে তিন ঘরে CHECK: সংখ্যা বা ফাঁকা ছাড়া ঢুকবে না;
 অ্যাপ সবসময় সংখ্যা লেখে, তাই কিছু আটকায় না। sql_run_log-এ এন্ট্রি। কোড বদল নেই।
 
+## ১০.০৯.২০২৬ ১১:১৫ — তালিকা ৪১১-⑦ মাপা + V1289 SQL তৈরি (TK-র অনুমতি বাকি)
+
+মাপা: ফোনের delta (`updatedAt=gt.since`, ৩ ঘণ্টার পূর্ণ-পড়া অবধি), Doctor Queue-র ভাগ-করা তালিকা,
+কম্পিউটারের delta-pull (`.gt('updatedAt',since)`) — সবই লেখা-তুলনা; `2026-09-06 13:52:13+00`
+ছাঁচ (space) `…T…` since-এর চেয়ে ছোট (C ও en_US দুই নিয়মেই অঙ্ক < অক্ষর) ⇒ SQL-এ বদলানো সারি
+delta-য় বাদ। ফোনের parseIsoMs ওই ছাঁচে ০ দেয় ⇒ restore-পথ BLOCKED (নিরাপদ, লেখে না)।
+ওয়েবের Date.parse দুটোই পড়ে; ৩ জায়গায় localeCompare-সাজানো ভুল ক্রমে। TK-র CSV: followups
+৭৩৬/১৬০০ (V1149, ০৬.০৯ `now()::text`), patients ৩, enquiries ২, payments ১, medical/doctor_visits ০।
+**V1289 SQL** (`00_SQL/V1289_UPDATEDAT_EK_CHANCH_2026-09-10.sql`): `tk_app_stamp(text)` — অ্যাপের
+ছাঁচ/ফাঁকা/অপাঠ্য যেমন আছে, নইলে `to_char(v::timestamptz at time zone 'utc','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
+সব public টেবিলে যেখানে `updatedAt text` (১৪টা) একবার update + `before insert or update of "updatedAt"`
+trigger। নকল DB-তে পরীক্ষা: a/e/p1 বদলাল, b (অ্যাপ-ছাঁচ)/c (ফাঁকা)/d (garbage) অছোঁয়া, insert
+`+00` → T-ছাঁচে, update `+00` → T-ছাঁচে, trigger ১৪ টেবিলে। sql_local_check: UTF8/C.utf8 cluster,
+not-null ছাঁটা, `"updatedAt" = now()` লিখলে সতর্কবার্তা। TK-কে SQL দেওয়া — অনুমতি বাকি।
+
 ## ১০.০৯.২০২৬ ১০:৫৫ — V1288 · তালিকা ৪১১-⑥ (ক): ফোনের জমা-তালিকা — না বদলালে লেখা নয় + আলাদা ফাইল
 
 TK: *"ক"*। মেপে পাওয়া: LiveRefresh প্রতি ৩০ সেকেন্ডে fetchTab → delta পথে

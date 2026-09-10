@@ -45,7 +45,7 @@ def ensure_server():
     if r.returncode == 0: return
     if not os.path.isdir(os.path.join(PGDATA, "data")):
         subprocess.run(as_pg(["mkdir", "-p", PGDATA]), capture_output=True)
-        r = subprocess.run(as_pg([f"{PGBIN}/initdb", "-D", f"{PGDATA}/data", "-U", "postgres", "-A", "trust"]),
+        r = subprocess.run(as_pg([f"{PGBIN}/initdb", "-D", f"{PGDATA}/data", "-U", "postgres", "-A", "trust", "-E", "UTF8", "--locale=C.utf8"]),
                            capture_output=True, text=True)
         if r.returncode: sys.exit("initdb ব্যর্থ:\n" + r.stderr[-800:])
     r = subprocess.run(as_pg([f"{PGBIN}/pg_ctl", "-D", f"{PGDATA}/data", "-l", f"{PGDATA}/log", "-w",
@@ -74,6 +74,7 @@ def build_schema():
         except Exception: continue
         for tbl, col, typ in ADD_COL.findall(txt):
             typ = re.sub(r'\s+(default|references|check|generated)\b.*$', '', typ.strip(), flags=re.I | re.S)
+            typ = re.sub(r'\s+not\s+null\b', '', typ, flags=re.I)   # নকলে not-null চাই না (পরীক্ষার সারি ঢোকাতে)
             r2 = psql(f'alter table public.{tbl} add column if not exists {col} {typ};', db=DB)
             if r2.returncode == 0: added += 1
     # লাইভে আছে, কিন্তু কোনো ফাইলে লেখা নেই — জানা ঘর
@@ -92,6 +93,8 @@ def main():
     ensure_server()
     errs, added, ncols = build_schema()
     print(f"নকল ডেটাবেস তৈরি — বাড়তি ঘর {added} · মোট ঘর {ncols} · গঠনে ভুল {len(errs)}")
+    if re.search(r'"?updatedAt"?\s*=\s*now\(\)', sql, re.I):
+        print("⚠️ সতর্কতা: \"updatedAt\" = now() — অ্যাপের ছাঁচ নয় (T…Z); to_char(now() at time zone 'utc','YYYY-MM-DD\"T\"HH24:MI:SS.MS\"Z\"') লিখুন (তালিকা ৪১১-⑦)")
     wrapped = "begin;\n" + sql.rstrip().rstrip(";") + ";\nrollback;\n"
     r = psql(wrapped, db=DB, stop=True)
     out = (r.stdout or "").strip()
