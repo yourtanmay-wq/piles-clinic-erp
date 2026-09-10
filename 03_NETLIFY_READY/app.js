@@ -2276,7 +2276,7 @@ async function wlv1RtPollOne(t){
   if(r.error){ if(wlv1IsColumnError(r.error)) wlv1RtPollFallback(t); return; }
   var rows=Array.isArray(r.data)?r.data:[];
   if(!rows.length) return;
-  var mx=cur; rows.forEach(function(x){ var v=String((x&&x.server_updated_at)||''); if(v>mx) mx=v; });
+  var mx=cur, mxMs=Date.parse(cur)||0; rows.forEach(function(x){ var v=String((x&&x.server_updated_at)||''); var n=Date.parse(v); if(isFinite(n)&&n>mxMs){ mxMs=n; mx=v; } });   /* সময় ধরে তুলনা — লেখার ছাঁচ যা-ই হোক */
   var clean=rows.map(function(x){ var y=Object.assign({},x); delete y.server_updated_at; return y; });
   var one=wlv1WebNotDeleted(t,normalizeCloudRows(clean));
   if(one&&one.length){

@@ -51,7 +51,11 @@ jobs:
           WITH_PHOTOS=$WP OUT_DIR=backups node /tmp/export.js
       - name: পুরনো সাপ্তাহিক কপি ছাঁটা (১৮০ দিনের বেশি; মাসিক ছবিসহ কপি থাকে)
         run: |
-          find backups -name 'PILES_CLINIC_backup_*.json.gz' ! -name '*_with_photos*' -mtime +180 -print -delete || true
+          cutoff=$(date -u -d '180 days ago' +%Y-%m-%d)
+          for f in $(find backups -name 'PILES_CLINIC_backup_*.json.gz' ! -name '*_with_photos*'); do
+            d=$(basename "$f" | sed -E 's/PILES_CLINIC_backup_([0-9-]{10}).*/\1/')
+            if [ "$d" \< "$cutoff" ]; then echo "পুরনো: $f"; rm -f "$f"; fi
+          done
       - name: জমা
         run: |
           git config user.name "piles-clinic-backup-bot"; git config user.email "backup@piles-clinic.local"

@@ -24463,6 +24463,23 @@ alias `androiddebugkey` · SHA-256 5C:B2:24:AB:…:E6:AB — এটাই ফো
 ফাংশন/ট্রিগার লেখা-ধরনে চলে — বদলালে ভাঙত)। বদলে তিন ঘরে CHECK: সংখ্যা বা ফাঁকা ছাড়া ঢুকবে না;
 অ্যাপ সবসময় সংখ্যা লেখে, তাই কিছু আটকায় না। sql_run_log-এ এন্ট্রি। কোড বদল নেই।
 
+## ১০.০৯.২০২৬ ১৬:০০ — V1296 · TK: *"সমস্ত কাজ একবার গভীরে যাচাই করে দেখুন — ভুল থাকলে ঠিক করুন, আন্দাজে নয়"*
+
+আজকের সব কাজ (V1286–V1295, SQL V1289/১২৯০/১২৯৫, তালিকা ৪১১ ①–⑭, ৪১২) কোড পড়ে আবার মেলানো:
+· V1286 heal-প্রস্তাব (wlv1FuHealFlush/Propose, PaymentRepository promote-scan) ✅ · V1287 IndexedDB-স্তর
+  (preload → boot, migration লিখে-পড়ে, fallback, BroadcastChannel; 'rk_'+t-এর ৮ জায়গাই এই পথে; অন্য js-এ
+  টেবিল-পড়া শুধু notebook.js — ঠিক করা) ✅ · V1288 ফোন-ক্যাশ (delta ফাঁকা ⇒ লেখা নয়; আলাদা ফাইল + সরানো;
+  since_/fullAt_ অছোঁয়া; sharedPatientsOrNull একই helper) ✅ · V1289 trigger `of "updatedAt"` — updatedAt না ছুঁলে
+  চলে না (ঠিকই) ✅ · V1290 default-ঘর ✅ · V1291 mergeIntoPendingUpsert (LOCK, failed-ঘর অছোঁয়া; flush-এ
+  merged body যায়) ✅ · V1292 (ফোন: count −1 হলে skip নয়; ওয়েব: ছাপ শুধু গোনা মিললে) ✅ · V1293 harness ✅ ·
+  V1295 poll (user null ⇒ চলে না; logout ⇒ বন্ধ; fallback পরে re-login-এ wireRealtime ওই টেবিল লাইভ) ✅।
+**দুটো ভুল পেয়ে ঠিক করা (V1296):** ① backup-workflow-এর ১৮০-দিন ছাঁটা `-mtime` ধরে ছিল — checkout-এ সব
+ফাইলের mtime নতুন ⇒ কখনো ছাঁটত না (ক্ষতিহীন, কিন্তু ভুল) ⇒ এখন ফাইলনামের তারিখ ধরে। ② poll-কার্সার mx
+লেখা-তুলনায় ছিল — ফাঁকা-টেবিলে fallback 'Z'-ছাঁচ বনাম সার্ভারের '+00:00' ছাঁচে ভুল ক্রম হতে পারত (⑦-এর
+শিক্ষা) ⇒ Date.parse-এ সময় ধরে তুলনা। বাকি সব দাবি (মাপ/সংখ্যা) TK-র CSV থেকেই। পাহারা: node ✅ · tk_guard ✅ ·
+resources ✅ · ব্রাউজার ১৩/১৩ ✅ · ৩ SQL local-check ✅ · Kotlin অছোঁয়া (শেষ PASS V1295)। ভার্সন **১২৯৬**
+(gradle · version.json · app.js v1296 · হিসাব-খাতা)।
+
 ## ১০.০৯.২০২৬ ১৫:৩০ — V1295 · তালিকা ৪১১-⑭ (ক): ভারী টেবিলে লাইভ-সংযোগের বদলে হালকা পড়া
 
 TK: *"ক করুন, সাবধানে"*। কোডে: ওয়েব ৯ টেবিলে postgres_changes (event *) — payload.new পুরো সারি (ছবি/
