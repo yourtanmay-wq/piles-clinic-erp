@@ -894,6 +894,13 @@ object SupabaseClient {
     private fun fetchListPagedOrNull(table: String, filter: String?, limit: Int, order: String, select: String, offset: Int, direct: Boolean = false): JSONArray? {
         return try {
             val filterPart = if (filter != null) "&$filter" else ""
+            /* 🔴🔒 V1304 (TK: *"পেমেন্ট নিয়ে কোনরকম ফাজলামো চলবে না… ভবিষ্যতে যেন ফিরে না আসে"*):
+               পড়া শুরুর আগে সার্ভারকে গুনতে বলা হয় (HEAD, count=exact — সারি নামে না)।
+               শেষে নামানো সারি সেই গোনার (বা চাওয়া limit-এর) চেয়ে **কম হলে পুরো পড়াটাই
+               ব্যর্থ (null)** — কাটা তালিকা আর কখনো চুপচাপ ব্যবহার হবে না; ডাকার জায়গা
+               আগের নিয়মেই জমানো তালিকায় ফেরে, পরের বার আবার পড়ে। গোনা ব্যর্থ (−১)
+               হলে শুধু পাতা-শেষ নিয়মেই চলে (আগের আচরণ)। */
+            val expectedTotal = fetchCount(table, filter)
             val all = JSONArray()
             val seenIds = HashSet<String>()
             var off = if (offset > 0) offset else 0
@@ -916,6 +923,10 @@ object SupabaseClient {
                 }
                 if (page.length() < pageLimit) break
                 off += page.length()
+            }
+            if (expectedTotal >= 0) {
+                val want = minOf(expectedTotal - (if (offset > 0) offset else 0), limit)
+                if (want > 0 && all.length() < want) return null   // 🔴 V1304 — কাটা তালিকা নিষেধ
             }
             all
         } catch (e: Exception) {
