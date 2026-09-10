@@ -10504,7 +10504,8 @@ async function savePatient(evt){
    }catch(_e){ wlv1FeeUnknown=true; }
    if(regFee>0 && !wlv1FeeTakenBefore){
     let wlv1FeeRow={
-     id:uid('pay'),payType:'visit_fee',payLabel:'Visit Fee',paymentLabel:'Visit Fee',patientId:p.id,patientCode:String(p.patientId||''),mobile:p.mobile,branch:p.branch,name:p.name,
+     /* 🧾🔒 V1284 (তালিকা সারি ৪১০) — ফোনের যমজ: রেজিস্ট্রেশনের ভিজিট-ফির আইডি রোগী+তারিখ ধরে স্থির ⇒ যতবারই লেখা হোক একটাই সারি (SANDIP BASAK-এ ৩ সারি একই মুহূর্তে হয়েছিল)। ⛔ ঘর/অঙ্ক/তারিখ অটুট। */
+     id:'pay_vf_'+p.id+'_'+today(),payType:'visit_fee',payLabel:'Visit Fee',paymentLabel:'Visit Fee',patientId:p.id,patientCode:String(p.patientId||''),mobile:p.mobile,branch:p.branch,name:p.name,
      date:today(),amount:regFee,mode:payMode($('#regMode')?.value||'CASH'),
      remarks:'Visit Fee',receivedBy:(user&&user.mobile)||'',createdBy:(user&&user.mobile)||'',updatedAt:new Date().toISOString()
     };
@@ -10514,7 +10515,7 @@ async function savePatient(evt){
        \u09ae\u09bf\u09b2\u09bf\u09df\u09c7 \u09a6\u09c7\u0996\u09c7 \u2014 \u0995\u09cd\u09b2\u09be\u0989\u09a1\u09c7 \u0986\u0997\u09c7\u0987 \u09a5\u09be\u0995\u09b2\u09c7 \u099a\u09c1\u09aa\u099a\u09be\u09aa \u09ac\u09be\u09a6, \u09a8\u09be \u09a5\u09be\u0995\u09b2\u09c7 \u0986\u09ac\u09be\u09b0 \u09ac\u09b8\u09c7\u0964
        ⛔ \u098f\u0995\u0987 \u0986\u0987\u09a1\u09bf, \u09a4\u09be\u0987 \u09a6\u09c1\u09ac\u09be\u09b0 \u0995\u09be\u099f\u09be\u09b0 \u09aa\u09a5 \u09a8\u09c7\u0987 \u00b7 \u099f\u09be\u0995\u09be\u09b0 \u0985\u0999\u09cd\u0995 \u0986\u09a8\u09cd\u09a6\u09be\u099c\u09c7 \u09ac\u09be\u09a8\u09be\u09a8\u09cb \u09b9\u09df \u09a8\u09be\u0964 */
     if(wlv1FeeUnknown) wlv1HoldVisitFee(wlv1FeeRow);
-    else { add('payments',wlv1FeeRow); try{ wlv1HoldVisitFee(wlv1FeeRow) }catch(_e){} }
+    else { /* V1284 — একই আইডির সারি স্থানীয় তালিকায় আগে থেকে থাকলে দ্বিতীয়বার ঢোকে না */ if(!load('payments').some(function(z){return z&&z.id===wlv1FeeRow.id})) add('payments',wlv1FeeRow); try{ wlv1HoldVisitFee(wlv1FeeRow) }catch(_e){} }
    }
   }catch(e){console.warn('Registration fee save skipped',e)}
 

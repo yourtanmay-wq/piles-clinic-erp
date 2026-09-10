@@ -358,8 +358,22 @@ object PatientModel {
      * fee is mandatory to reach Save at all). */
     fun buildVisitFeePaymentRow(patientRow: JSONObject, draft: RegistrationDraft, staffMobile: String): JSONObject {
         val now = isoNow()
+        /* 🧾🔒 V1284 (১০.০৯.২০২৬, TK-অনুমোদিত প্ল্যান ② — তালিকা সারি ৪১০):
+           TK: *"একই রকমের পেমেন্ট একই দিনে … ভবিষ্যতে যেন না হয়"*।
+           🔴 **SQL-এ মাপা:** SANDIP BASAK (KNE-30012026-001) — রেজিস্ট্রেশনের ₹400
+              ভিজিট-ফি **তিনবার, একই মিলিসেকেন্ডে** — কারণ এই সারিটা প্রতিবার
+              **নতুন এলোমেলো আইডি** নিয়ে তৈরি হত (তিনটে আলাদা পথ থেকে), তাই
+              যতবার লেখা, ততটা সারি।
+           ⇒ এখন আইডি **রোগী + তারিখ ধরে স্থির** (`pay_vf_<রোগী-আইডি>_<তারিখ>`):
+             একই রেজিস্ট্রেশনের ফি যতবারই লেখা হোক, ক্লাউডে (merge-duplicates)
+             ও ফোনে **একটাই** সারি — জোড়া হওয়ার পথই থাকল না। কম্পিউটারে হুবহু
+             একই ছাঁচ (`app.js` রেজিস্ট্রেশন)।
+           ⛔ ঘরগুলো · অঙ্ক · তারিখ · কে নিল — এক অক্ষরও বদলায়নি; পুরনো সারি অছোঁয়া।
+           ⛔ Payment পর্দা থেকে হাতে নেওয়া ভিজিট-ফি (পরের ভিজিটে) আগের মতোই
+              নিজের আইডিতে — এখানে শুধু রেজিস্ট্রেশনের স্বয়ংক্রিয় সারিটা। */
+        val vfDate = draft.date.trim().ifBlank { now.take(10) }
         return JSONObject()
-            .put("id", "pay_" + UUID.randomUUID().toString().replace("-", ""))
+            .put("id", "pay_vf_" + patientRow.getString("id") + "_" + vfDate)
             .put("payType", "visit_fee")
             .put("payLabel", "Visit Fee")
             .put("paymentLabel", "Visit Fee")
