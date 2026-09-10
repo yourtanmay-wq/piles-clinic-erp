@@ -24484,6 +24484,13 @@ verify_zip_contents ✅ (১০ আইকন)। **২৫.৫ MB · ১৮০০
 গোপন কিছু নেই (service-account শুধু Netlify env; google-services.json গোপন নয়)। এই ZIP-এ V1297–V1301: push (FCM) ·
 Payment delete-request · Queue-ফেরা · চিহ্ন-সারি। TK-কে মনে করানো: আসল বিল্ড Android Studio-তে; ওয়েব এখন GitHub থেকে নিজে ওঠে।
 
+## ১১.০৯.২০২৬ ০০:২০ — 📦 PILES_CLINIC_APP_V1316_FINAL.zip পাঠানো (TK: "ফাইল পাঠাও")
+
+২৫.৬৫ MB · ১৮০৭ ফাইল। বাদ: গোড়ার ২২টা ডেমো .png + অ্যানাটমি-ছবির আসল কপি (ইচ্ছে করে, জায়গা বাঁচাতে)। গোপন কিছু নেই।
+verify_zip_contents + verify_zip_root_name দুটোই PASS। হিসাব `00_GUARD/pathano_filer_talika.json`-এ লেখা।
+এই ZIP-এ V1312 থেকে V1316 পর্যন্ত সব কাজ — RMP REFERENCE-এর "null" ফিক্স, RMP Commission Sheet-এর REFERENCE
+ঘর বাদ, সব পর্দা portrait-লক, আর সবচেয়ে জরুরি: **Follow-up পর্দার permanent black screen ফিক্স** (তালিকা ৪২৪)।
+
 ## ১১.০৯.২০২৬ ০০:০৫ — তালিকা ৪২৪ আবার ফিরে এলো, এবার আসল কোড-কারণ ধরা পড়ল ও ঠিক হলো (V1316)
 
 Clear Data-র পরে TK-র ৫ম ভিডিওতেও Follow-up আবার কালো হয়ে আটকে গেল — আগের সমাধান স্থায়ী ছিল না, TK ঠিকই ধরেছেন।
