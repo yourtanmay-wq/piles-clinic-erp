@@ -297,5 +297,13 @@
   "result": "backuprecords 53 সারি · 7.7 MB · টেবিল 7864 kB · আসল payload আছে মাত্র ২টায় (4.83 MB ২৮.০৮/০৮.০৯-এর enquiries, 2.92 MB) — বাকি ৫১টা ফাঁকা (0.00 MB)",
   "proof": "CSV",
   "what": "কম্পিউটারের Backup Center যে কপি ডেটাবেসের ভিতরে রাখে তার মাপ"
+ },
+ {
+  "sql_file": "00_SQL/V1295_SERVER_UPDATED_AT_2026-09-10.sql (⑭ ক)",
+  "run_by": "TK",
+  "when": "১০.০৯.২০২৬ বেলা ১২.২২",
+  "result": "followups/medical/patients: column_default now(), trigger_ache 1",
+  "proof": "CSV",
+  "what": "৩ টেবিলে server_updated_at ঘর + trigger + index; কোনো সারি/মান বদলায়নি। এরপর কম্পিউটার (V1295 ওয়েব) এই তিন টেবিলে লাইভের বদলে প্রতি মিনিটে হালকা পড়বে।"
  }
 ]
