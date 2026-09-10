@@ -281,5 +281,13 @@
   "result": "patients.photo 167/839 · 11.50 MB · গড় 71 KB · বড় 129 KB; followups.photo 6 · 0.27 MB; medical.photos 6 · 0.32 MB; DB মোট 66 MB",
   "proof": "CSV",
   "what": "টেবিলের ভিতরে base64 ছবির মাপ"
+ },
+ {
+  "sql_file": "00_SQL/DEKHAR_SQL_2026-09-10_DELETED_RECORDS_MAPA.sql (⑪ মাপা — শুধু পড়া)",
+  "run_by": "TK",
+  "when": "১০.০৯.২০২৬ বেলা ১১.২৩",
+  "result": "MOT 1126 (followups 657 · payments 186 · trash 120 · enquiries 97 · patients 48 · chamber_close 17 · medical 1) · ৩০ দিনের পুরনো 275 · টেবিল 624 kB · প্রথম 29.07 · শেষ 10.09",
+  "proof": "CSV",
+  "what": "deleted_records-এর মাপ"
  }
 ]
