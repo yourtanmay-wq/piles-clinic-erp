@@ -104,6 +104,16 @@ class DoctorQueueRepository(private val context: Context? = null) {
     fun loadCachedQueue(branchFilter: String?): List<QueuePatient>? {
         val ctx = context ?: return null
         val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        /* 🔴 V1310 — পুরনো নিয়মে জমানো আজকের তালিকায় ভুল রোগী ঢুকে থাকতে পারে, আর দ্রুত-পড়া (delta)
+           সেই তালিকাকেই ভিত্তি ধরে বলে ওঁরা সরতেন না। তাই এই ভার্সনে প্রথমবার: জমানো তালিকা ও
+           delta-র "কবে থেকে" চিহ্ন মুছে পুরো নতুন পড়া। একবারই হয়। */
+        if (prefs.getInt("_queue_rule_version", 0) < 1310) {
+            try {
+                prefs.edit().clear().putInt("_queue_rule_version", 1310).apply()
+                ctx.getSharedPreferences(DELTA_PREFS, Context.MODE_PRIVATE).edit().clear().apply()
+            } catch (_: Throwable) { }
+            return mergeOwnPhonePatients(branchFilter, emptyList()).ifEmpty { null }
+        }
         val key = "cache_" + (branchFilter ?: "All")
         /* 📅 V1277 — অন্য দিনের জমানো তালিকা আর দেখানো হয় না (উপরে কারণ লেখা)।
            ⛔ তখনো ফোনের নিজের রেকর্ড থেকে যা পাওয়া যায় তা দেখায় — পর্দা
@@ -148,6 +158,13 @@ class DoctorQueueRepository(private val context: Context? = null) {
                 val branchOk = branchFilter == null || branchFilter == "All" ||
                     p.s("branch").equals(branchFilter, ignoreCase = true)
                 if (!branchOk) continue
+                /* 🔴🔴🔒 V1310 (১০.০৯.২০২৬, তালিকা ৪২২ — V1306-এর পরেও TK-র ফোনে সেই ৮ জন):
+                   এখানে ফোনের নিজের খাতার সারি **লাইনের নিয়ম না মিলিয়েই** জুড়ে দেওয়া হত —
+                   বিল/টাকা বদলের সময় লেখা আধখানা কপি (তারিখ নেই, PENDING চিরকাল) তাই দ্রুত-পড়া
+                   ও জমানো-তালিকা — দুই পথেই লাইনে ঢুকে পড়ত (V1306 শুধু পুরো-পড়ার পথ ঠিক করেছিল —
+                   রুল ৭ ভাঙা, আমার ভুল)। এখন তিন পথেই একই নিয়ম: `isInQueue` না মিললে জোড়া নয়।
+                   ⛔ আজ এই ফোনে রেজিস্টার হওয়া রোগী (queue=true, আজকের তারিখ) আগের মতোই সঙ্গে সঙ্গে থাকেন। */
+                if (!DoctorQueueModel.isInQueue(p)) continue
                 extra.add(DoctorQueueModel.parse(p))
             }
             if (extra.isEmpty()) cached else extra + cached

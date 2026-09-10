@@ -2399,6 +2399,11 @@ class PaymentRepository(private val context: Context? = null) {
         if (!billOk) context?.let {
             GenericUpdateQueue.queue(it, "patients", patient.id, JSONObject().put("bill", newBill).put("updatedAt", isoNow()))
         }
+        /* 🔴 V1310 (তালিকা ৪২২): ক্লাউডে বিল বসে গেলে ফোনের খাতার আধখানা কপিটাও "হয়ে গেছে" (SYNCED) —
+           নইলে PENDING হয়ে চিরকাল থেকে যেত আর তালিকাগুলোয় ঢুকে পড়ত। */
+        if (billOk) context?.let {
+            try { LocalWorkflowStore(it).upsertPatient(JSONObject().put("id", patient.id).put("bill", newBill).put("updatedAt", isoNow()), "SYNCED") } catch (_: Throwable) { }
+        }
         val auditOk = try { SupabaseClient.upsert("payments", auditRow) } catch (_: Throwable) { false }
         context?.let { if (auditOk) LocalWorkflowStore(it).upsertPayment(auditRow, "SYNCED") }
         return billOk

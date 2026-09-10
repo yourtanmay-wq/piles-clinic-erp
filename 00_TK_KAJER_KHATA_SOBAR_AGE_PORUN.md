@@ -24484,6 +24484,17 @@ verify_zip_contents ✅ (১০ আইকন)। **২৫.৫ MB · ১৮০০
 গোপন কিছু নেই (service-account শুধু Netlify env; google-services.json গোপন নয়)। এই ZIP-এ V1297–V1301: push (FCM) ·
 Payment delete-request · Queue-ফেরা · চিহ্ন-সারি। TK-কে মনে করানো: আসল বিল্ড Android Studio-তে; ওয়েব এখন GitHub থেকে নিজে ওঠে।
 
+## ১০.০৯.২০২৬ ১৮:৪০ — V1310 · তালিকা ৪২২ (২য় বার): CHECK-UP Queue — ফোনের খাতার সারি তিন পথেই লাইনের নিয়ম মিলিয়ে, জমানো তালিকা একবার মুছে
+
+**সৎ স্বীকার:** V1306-এ `fetchQueue` (পুরো-পড়া)-র merge ঠিক করেছিলাম, কিন্তু `mergeOwnPhonePatients` — যেটা `fetchQueueDelta` (দ্রুত-পড়া,
+পর্দা সাধারণত এটাই চালায়) ও `loadCachedQueue` (জমানো তালিকা) দুটোই ব্যবহার করে — ফোনের PENDING রোগী-সারি **লাইনের নিয়ম না মিলিয়ে**
+জুড়ে দিত; আর delta-পথ জমানো তালিকাকে ভিত্তি ধরে (ক্লাউডে বদল না হলে সারি সরায় না) ⇒ একবার ঢুকলে সারাদিন থাকত। TK-র ফোনে V1309-এও
+তাই ৮ জন (কার্ডে "BILL —" = আধখানা কপি)। রুল ৭ (এক দোষ সব জায়গায়) আমি নিজেই ভেঙেছি।
+**ঠিক:** ① `mergeOwnPhonePatients`: `DoctorQueueModel.isInQueue(p)` না মিললে জোড়া নয় (আজকের নতুন রেজিস্ট্রেশন আগের মতোই থাকে);
+② `loadCachedQueue`: `_queue_rule_version < 1310` হলে একবার doctor_queue_cache + doctor_queue_delta_state মুছে পুরো নতুন পড়া;
+③ PaymentRepository বিল-বদল: ক্লাউডে বসলে খাতার কপি SYNCED। পাহারা: tk_guard ✅ · Kotlin compile ✅ PASS। ভার্সন 1310
+(gradle · version.json; ওয়েব অছোঁয়া)। TK-কে: আনইন্সটল-রিইনস্টল করলেও সরবে (আগে ☁ Synced দেখে); APK V1310-এ কোডেই সরে।
+
 ## ১০.০৯.২০২৬ ১৮:০৫ — 📦 PILES_CLINIC_APP_V1309_FINAL.zip পাঠানো (TK: তালিকার "১")
 
 tk_guard --release ✅ · একই বাদ-তালিকা · verify_zip_root_name ✅ · verify_zip_contents ✅ · গোপন-খোঁজ ০। **২৫.৫৪ MB · ১৮০৮ ফাইল**
