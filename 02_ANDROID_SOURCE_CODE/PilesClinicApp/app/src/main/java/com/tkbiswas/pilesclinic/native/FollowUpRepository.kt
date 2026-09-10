@@ -833,6 +833,24 @@ class FollowUpRepository(private val context: Context? = null) {
                 if (pos != null) {
                     // আগে থেকেই আছে — ফোনের নিজের নতুন লেখাটা বসিয়ে দাও
                     val old = out[pos]
+                    /* 🔴🔴🔒 V1305 (১০.০৯.২০২৬, তালিকা ৪১৯ — জলপাইগুড়ি: BARNALI-র ফোনে Pending
+                       Calls 9, CHANDANA-র 3, ক্লাউডে 3): এখানে ফোনের নিজের পুরনো লেখা
+                       **নিঃশর্তে** জিতত — অন্য ফোন পরে কল করে নতুন তারিখ বসালেও এই ফোন
+                       নিজের আগের তারিখটাই দেখাত, তাই "আজকের কল" বেশি গুনত। এখন ফোনের লেখা
+                       জেতে **শুধু তার updatedAt ক্লাউড/জমানো সারির চেয়ে নতুন হলে** (V1285-এর
+                       "পুরনো কপি নতুন ক্লাউড চাপা দেবে না" — একই নিয়ম, এবার দেখানোর দিকেও)।
+                       পুরনো (আর দরকার নেই) সারিটা ফোনের খাতা থেকে সরিয়ে দেওয়া হয়, যাতে
+                       বারবার ফিরে না আসে — শুধু SYNCED হলে; PENDING (এখনো ক্লাউডে যায়নি)
+                       হলে ছোঁয়া হয় না, ওটা sync-এর কাজ। */
+                    val localStamp = r.s("updatedAt")
+                    val cloudStamp = old.updatedAt
+                    val localNewer = localStamp.isNotBlank() && (cloudStamp.isBlank() || localStamp > cloudStamp)
+                    if (!localNewer) {
+                        if (r.s("_syncStatus") != "PENDING") {
+                            try { LocalWorkflowStore(ctx).forgetRecord("followups", id) } catch (_: Throwable) { }
+                        }
+                        continue
+                    }
                     out[pos] = old.copy(
                         lastRemark = r.s("lastRemark").ifBlank { old.lastRemark },
                         nextFollow = r.s("nextFollow").ifBlank { old.nextFollow },
@@ -1689,7 +1707,15 @@ class FollowUpRepository(private val context: Context? = null) {
                     // (not-yet-synced) edit for the same record -- the pending
                     // version is always the newer one, so it replaces the stale
                     // cloud row instead of being ignored.
-                    merged.put(existingPos, p)
+                    /* 🔴🔒 V1305 (তালিকা ৪১৯): "pending মানেই নতুন" — এই ধরে-নেওয়াটা ভুল ছিল।
+                       pending লেখাটা আটকে থাকলে (নেট/কিউ) আর তার মধ্যে অন্য ফোন একই সারিতে
+                       নতুন কিছু লিখলে, ক্লাউডের সারিটাই নতুন। তাই updatedAt মিলিয়ে —
+                       ফোনেরটা নতুন হলে তবেই ফোনেরটা; নইলে ক্লাউডেরটাই থাকে। */
+                    val localStamp = p.optString("updatedAt", "")
+                    val cloudStamp = merged.getJSONObject(existingPos).optString("updatedAt", "")
+                    if (localStamp.isNotBlank() && (cloudStamp.isBlank() || localStamp >= cloudStamp)) {
+                        merged.put(existingPos, p)
+                    }
                 } else {
                     idPosition[pid] = merged.length()
                     merged.put(p)
