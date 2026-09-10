@@ -169,5 +169,13 @@
     "result": "patients 843 সারি 14 MB (photo 12 MB) · followups 1631 সারি 4.5 MB (history 359 kB, photo 274 kB) · payments 2754 সারি 2.6 MB · enquiries 455 সারি 840 kB · medical 378 সারি 1.3 MB",
     "proof": "TK-র পাঠানো CSV (০৯.০৯.২০২৬ ৯.১৪ pm)",
     "note": "শুধু-পড়া। Egress হিসাবের ভিত্তি (তালিকা সারি ৪০৫)।"
+  },
+  {
+    "sql_file": "V1283 — থামানো সারির জোড়া-সারিতেও noMoreCalls বসানো (চ্যাটে দেওয়া transactional UPDATE)",
+    "run_by": "TK",
+    "when": "১০.০৯.২০২৬ ভোর ৫.৪০",
+    "result": "Success — stopped_rows_now = 52 (রাত ১১.০০-এ ছিল 40)",
+    "proof": "screenshot",
+    "what": "update followups set noMoreCalls=true, nextFollow='' where not noMoreCalls and status not terminal and exists (sibling same last-10 mobile with noMoreCalls). 43 বলেছিলাম কারণ আগের গোনা-SQL শুধু তারিখওয়ালা জোড়া (৩টা) গুনেছিল; UPDATE-টা তারিখ-ফাঁকা জোড়াও ধরেছে (ইচ্ছাকৃত — ওগুলোও থামানো রোগীরই সারি), তাছাড়া মাঝরাতে/সকালে স্টাফের নতুন থামানোও থাকতে পারে। কোনোটাই থামানো রোগী ছাড়া অন্য কারও নয় (শর্ত: থামানো সারির জোড়া)।"
   }
 ]
