@@ -1,5 +1,14 @@
 [
   {
+    "file": "PILES_CLINIC_APP_V1320_FINAL.zip",
+    "versionCode": 1320,
+    "when": "10.09.2026 06.00 pm",
+    "size_mb": 25.66,
+    "total_files": 1807,
+    "excluded": "root-level demo .png (0 আজ, আগে ছিল) + 08_ASSETS_BACKUP/ANATOMY_PICTURES/ORIGINAL (22) — ইচ্ছে করে",
+    "note": "V1319 (batched forgetRecords, Follow-up) + V1320 (batched upsertPatients/Payments/Enquiries, Registration+Enquiry) — talika 424 তৃতীয় আসল কারণ + একই দোষ আরও দুই জায়গায়"
+  },
+  {
     "file": "PILES_CLINIC_APP_V1318_FINAL.zip",
     "versionCode": 1318,
     "when": "10.09.2026 05.15 pm"
