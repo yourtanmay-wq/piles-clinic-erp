@@ -185,5 +185,13 @@
     "result": "Success — payments_now 13 · patients_now 1",
     "proof": "screenshot",
     "what": "KNE-15072026-002 (Saddam, bill 49000) রাখা, নাম SADDAM HUSSAIN (patients/followups/payments); KNE-01072026-001-এর ₹400 ওতে সরানো; ওই patients+followups সারি মোছা, deleted_records-এ চিহ্ন।"
+  },
+  {
+    "sql_file": "তালিকা ৪০৮ — HABIB ডুপ্লিকেট (চ্যাটে দেওয়া transactional SQL)",
+    "run_by": "TK",
+    "when": "১০.০৯.২০২৬ সকাল ৬.১৩",
+    "result": "Success — payments_now 2 · patients_now 1",
+    "proof": "screenshot",
+    "what": "KNE-02062026-002 রাখা; KNE-02062026-003-এর ₹400 ওতে সরানো; ওই patients+followups মোছা, deleted_records-এ চিহ্ন।"
   }
 ]
