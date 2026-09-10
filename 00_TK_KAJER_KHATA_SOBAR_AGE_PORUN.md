@@ -24484,6 +24484,21 @@ verify_zip_contents ✅ (১০ আইকন)। **২৫.৫ MB · ১৮০০
 গোপন কিছু নেই (service-account শুধু Netlify env; google-services.json গোপন নয়)। এই ZIP-এ V1297–V1301: push (FCM) ·
 Payment delete-request · Queue-ফেরা · চিহ্ন-সারি। TK-কে মনে করানো: আসল বিল্ড Android Studio-তে; ওয়েব এখন GitHub থেকে নিজে ওঠে।
 
+## ১০.০৯.২০২৬ ১৮:০৫ — V1308 · তালিকা ৪২১ (TK: *"২ পাশ, সাবধানে"*): চেম্বার বন্ধের ঠিক পরে Money Handover জানলা · ₹0-র দিন লুকানো (ফোন + কম্পিউটার)
+
+**কারণ (৫ক, কোডে):** ফোনে টাকা জমা (`saveTotals`) ও "কাকে দেবেন" ঘর (`print/MoneyHandoverCard`) বসত **শুধু রেজিস্টার-ছাপার প্রিভিউতে**
+(V984-এ TK-র কথা ছিল "এই পর্দাতে রাখুন") — Print না চাপলে দিনের সারি ₹0, জানলা নেই ⇒ কিষানগঞ্জে ৩৫ দিন "NOT HANDED OVER ₹0"; ওয়েবে
+বন্ধ করলেই জানলা আসত (V984) — ফোনে ছিল না = রুল-৮ ফাঁক আমার। TK যা চাইছেন (দিলে নোটিশ → "I received it" → ফেরত-নোটিশ) V984/V1196-এ
+আগেই ছিল, শুধু পৌঁছানো যেত না।
+**ফোন:** ① `performConfirmClose` → ক্লাউডে বন্ধ হলে `showHandoverAfterClose`: PrintDataHolder-এ REVIEW-র অঙ্ক (cbHo*) বসিয়ে
+**একই** `MoneyHandoverCard.attach` একটা জানলায় (Send / Not handed over yet / Close) → বন্ধ হলে আগের "Print?"; card-এ নতুন optional
+`onHandled` — হয়ে গেলে ছাপার পর্দায় আবার একই ঘর নয় (`hoHandledAtClose`)। নেট না থাকলে (cloudSaved=false) আগের পথ। ② REVIEW-র
+"Money Handover" বোতাম → আজকের ক্যাশ/অনলাইন + "Confirm Close-এর পরেই জিজ্ঞাসা হবে" + "Earlier days" (পুরনো তালিকা)। ③ MoneyHandoverActivity:
+ক্যাশ ₹0 ও কিছু হয়নি এমন দিন তালিকা/গোনায় নয়। **কম্পিউটার:** ② REVIEW-র বোতাম → `wlv1MhReviewHint` (একই কথা, __wlv1MhTot থেকে) ·
+③ `wlv1MoneyHandover` একই ছাঁকনি; ① আগে থেকেই ছিল (`wlv1MhAskAtClose`)। ⛔ টাকার হিসাব · নোটিশ · পাসওয়ার্ড-যাচাই — কিছুই বদলায়নি;
+পুরনো ₹0 সারিগুলো DB-তে আছে, শুধু দেখানো হয় না। পাহারা: resources ✅ · ব্রাউজার ✅ · tk_guard ✅ · node ✅ · Kotlin compile ✅ PASS।
+ভার্সন 1308 (gradle · version.json · index ?v=v1308)।
+
 ## ১০.০৯.২০২৬ ১৭:৪৫ — V1307 · তালিকা ৪২০ (TK: *"১ পাশ, সাবধানে"*): Dr. Visit / RMP — তিন বোতাম হেডারের ⋮ মেনুতে (ফোন + কম্পিউটার)
 
 **ফোন:** activity_doctorvisit.xml হেডারে ➕-এর পাশে নতুন `btnRmpMenu` (⋮, ডিফল্ট gone)। DoctorVisitActivity: আগে যে তিন শর্তে তিনটে বোতাম

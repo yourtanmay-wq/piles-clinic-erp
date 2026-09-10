@@ -25314,7 +25314,7 @@ function wlv1CloseReview(rows){
          ⛔ Confirm Close-এ এক অক্ষরও হাত পড়েনি — এটা শুধু **নতুন একটা
             বোতাম**, পাশে বসে। ⛔ চাপলে REVIEW বন্ধ হয়ে Money Handover পর্দা
             খোলে; চেম্বার বন্ধ হয় না, কোনো টাকা সেভ হয় না। -->
-    <button class="ghost wlv1CbMh" onclick="closeModal();wlv1MoneyHandover()">&#128176; Money Handover</button></div>`);
+    <button class="ghost wlv1CbMh" onclick="wlv1MhReviewHint()">&#128176; Money Handover</button></div>`);
 
   /* 🔴🔒 V426/V427 (TK-নির্দেশ ১৭.০৮.২০২৬) — RMP কমিশন ও "আজ কত দিলাম"।
      ⛔ হিসাব পুরোটাই সার্ভারে (`fin.rmp_day_commission` · `fin.rmp_day_paid`) —
@@ -25660,6 +25660,8 @@ async function wlv1MoneyHandover(){
      ⇒ বুঝিয়ে দেওয়ার অঙ্ক এখন **শুধু ক্যাশ** (`cashTotal`), দিনের মোট নয়।
      ⛔ চেম্বার-ক্লোজে যা জমা হয় (ফি · ক্যাশ · অনলাইন · মোট) এক অক্ষরও বদলায়নি;
         শুধু এই পর্দা কোন অঙ্কটা দেখায় ও কোনটা হাতে বুঝিয়ে দেওয়া হয়। */
+  /* 💰 V1308 (তালিকা ৪২১, ফোনের যমজ): ক্যাশ ₹0 আর কিছু হয়নি এমন দিন — বুঝিয়ে দেওয়ার কিছু নেই ⇒ তালিকা/গোনায় নয়। */
+  rows=rows.filter(function(r){ var s=String(r.handoverStatus||''); return !((!s||s==='pending') && !(Number(r.cashTotal||0)>0)) });
   var pend=rows.filter(function(r){ var s=String(r.handoverStatus||''); return !s||s==='pending' })
                .reduce(function(n,r){ return n+Number(r.cashTotal||0) },0);
   /* 🎨 V1196 (TK-র পাশ-করা প্রুফ) — লাল পট্টির বদলে একটাই কার্ড (কত বাকি ·
@@ -25749,6 +25751,17 @@ async function wlv1MhDoHandOver(){
 window["wlv1MhDoHandOver"]=wlv1MhDoHandOver;
 
 /** 💰 V984 — চেম্বার বন্ধ হওয়ার ঠিক পরে: কে টাকা বুঝে নিলেন। */
+/* 💰 V1308 (তালিকা ৪২১): REVIEW-র Money Handover বোতাম — আগে পুরনো দিনের তালিকা খুলত (আজকের সারি
+   তখনো নেই ⇒ বিভ্রান্তি)। এখন সহজ কথা: আজকের ক্যাশ কত, জানলাটা Confirm Close-এর ঠিক পরেই আসবে। */
+function wlv1MhReviewHint(){
+  var t=window.__wlv1MhTot||{cash:0,online:0};
+  modal('<h2>💰 Money Handover</h2><div class="card" style="font-weight:800;color:#0F5132"><div style="display:flex;justify-content:space-between"><span>TODAY\'S CASH TO HAND OVER</span><span>'+wlv1MhMoney(t.cash)+'</span></div>'
+    +(Number(t.online||0)>0?'<div class="tiny mut" style="font-weight:600;margin-top:4px">Online '+wlv1MhMoney(t.online)+' came to the clinic directly.</div>':'')+'</div>'
+    +'<div class="card mut" style="font-size:13px">Press <b>✅ Confirm Close</b> — right after that you will be asked whom to give the cash to. He gets a notification and confirms on his phone; you get a notification back.</div>'
+    +'<div class="actions"><button class="ghost" onclick="closeModal();wlv1MoneyHandover()">Earlier days</button><button onclick="closeModal()">OK</button></div>');
+}
+window["wlv1MhReviewHint"]=wlv1MhReviewHint;
+
 function wlv1MhAskAtClose(branch,date,total,online){
   var list=wlv1MhReceivers(branch);
   window.__wlv1MhList=list;

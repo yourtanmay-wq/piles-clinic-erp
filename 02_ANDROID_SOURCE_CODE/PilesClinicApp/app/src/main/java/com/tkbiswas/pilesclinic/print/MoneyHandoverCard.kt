@@ -39,7 +39,7 @@ object MoneyHandoverCard {
         }
 
     /** ঘরটা ভরে দেয়। কিছু বসানোর মতো না থাকলে চুপচাপ ফিরে যায়। */
-    fun attach(activity: Activity, slot: LinearLayout) {
+    fun attach(activity: Activity, slot: LinearLayout, onHandled: (() -> Unit)? = null) {
         val branch = PrintDataHolder.handoverBranch
         val date = PrintDataHolder.handoverDate
         if (branch.isBlank() || date.isBlank()) { slot.visibility = View.GONE; return }
@@ -236,8 +236,8 @@ object MoneyHandoverCard {
                 val ok = MoneyHandover.saveHandover(activity, branch, date, cash, who, false, myName, myMobile)
                 activity.runOnUiThread {
                     lock(false)
-                    if (ok) finishCard("⌛  Sent to " + who.name + "  ·  " +
-                        MoneyHandover.money(cash) + "  ·  waiting for confirmation", "#8A5A00")
+                    if (ok) { finishCard("⌛  Sent to " + who.name + "  ·  " +
+                        MoneyHandover.money(cash) + "  ·  waiting for confirmation", "#8A5A00"); try { onHandled?.invoke() } catch (_: Throwable) { } }
                     else Toast.makeText(activity, "Could not save — please try again", Toast.LENGTH_LONG).show()
                 }
             }.start()
@@ -249,7 +249,7 @@ object MoneyHandoverCard {
                 val ok = MoneyHandover.markPending(activity, branch, date, cash, myName)   // 💵 V1038
                 activity.runOnUiThread {
                     lock(false)
-                    if (ok) finishCard("⚠️  Money is still with you — the master has been informed", "#8A1810")
+                    if (ok) { finishCard("⚠️  Money is still with you — the master has been informed", "#8A1810"); try { onHandled?.invoke() } catch (_: Throwable) { } }
                     else Toast.makeText(activity, "Could not save — please try again", Toast.LENGTH_LONG).show()
                 }
             }.start()

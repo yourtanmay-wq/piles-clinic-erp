@@ -3330,11 +3330,52 @@ Thread {
                         dateClosedFlag = true
                         try { ChamberUnclosedRepository.clearCache() } catch (_: Throwable) { }
                         applyDayState()
-                        offerOptionalRegisterPrint(board, cloudSaved)
+                        /* 💰🔒 V1308 (১০.০৯.২০২৬, তালিকা ৪২১ — স্টাফ: *"কিভাবে টাকাটা বুঝিয়ে দেব বুঝতেই
+                           পারছি না"*; TK: *"আরো সহজ সরল… টাকা বুঝে নিলে নোটিফিকেশন… approve করলে"*;
+                           ফটো-প্রুফ পাশ): আগে "কাকে দেবেন" ঘরটা বসত **শুধু রেজিস্টার-ছাপার প্রিভিউ পর্দায়**
+                           — Print না চাপলে দিনের টাকা জমাই হত না (₹0), জানলাও আসত না। এখন Confirm Close-এর
+                           ঠিক পরেই **সবসময়** ওই একই প্রমাণিত ঘর (MoneyHandoverCard — একই নোটিশ দুদিকে) একটা
+                           জানলায়; তারপর আগের মতো "Print?"। ⛔ ক্লাউডে বন্ধ না হলে (নেট নেই) জানলা আসে না —
+                           পরে Money Handover তালিকা থেকে করা যাবে। */
+                        if (cloudSaved) showHandoverAfterClose(board, cloudSaved)
+                        else offerOptionalRegisterPrint(board, cloudSaved)
                     }
                 }
     }
 
+    /** 💰 V1308 — Confirm Close-এর ঠিক পরে "কাকে দেবেন" জানলা (তালিকা ৪২১)। */
+    private var hoHandledAtClose = false
+    private fun showHandoverAfterClose(board: ChamberAttendanceBoard, cloudSaved: Boolean) {
+        try {
+            val hoBranch = printBranchOverride.ifBlank { selectedBranch }
+            if (hoBranch.isBlank() || hoBranch.equals("All", ignoreCase = true)) { offerOptionalRegisterPrint(board, cloudSaved); return }
+            com.tkbiswas.pilesclinic.print.PrintDataHolder.handoverBranch = hoBranch
+            com.tkbiswas.pilesclinic.print.PrintDataHolder.handoverDate = selectedDate
+            com.tkbiswas.pilesclinic.print.PrintDataHolder.handoverFees = cbHoFees
+            com.tkbiswas.pilesclinic.print.PrintDataHolder.handoverCash = cbHoCash
+            com.tkbiswas.pilesclinic.print.PrintDataHolder.handoverOnline = cbHoOnline
+            com.tkbiswas.pilesclinic.print.PrintDataHolder.handoverRefund = cbHoRefund
+            com.tkbiswas.pilesclinic.print.PrintDataHolder.handoverTotal = cbHoTotal
+            val d = resources.displayMetrics.density
+            val slot = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.VERTICAL
+                setPadding((12 * d).toInt(), (10 * d).toInt(), (12 * d).toInt(), 0)
+            }
+            val scroll = android.widget.ScrollView(this).apply { addView(slot) }
+            hoHandledAtClose = false
+            com.tkbiswas.pilesclinic.print.MoneyHandoverCard.attach(this, slot) { hoHandledAtClose = true }
+            if (slot.visibility != android.view.View.VISIBLE || slot.childCount == 0) { offerOptionalRegisterPrint(board, cloudSaved); return }
+            val dlg = AlertDialog.Builder(this)
+                .setCustomTitle(PremiumAlert.header(this, "✅ Chamber Closed — Money Handover"))
+                .setView(scroll)
+                .setPositiveButton("Close", null)
+                .setCancelable(false)
+                .create()
+            dlg.setOnDismissListener { if (!isFinishing && !isDestroyed) offerOptionalRegisterPrint(board, cloudSaved) }
+            dlg.show()
+            try { PremiumAlert.paint(dlg) } catch (_: Throwable) { }
+        } catch (_: Throwable) { offerOptionalRegisterPrint(board, cloudSaved) }
+    }
     private fun showCloseReview(board: ChamberAttendanceBoard) {
         cbReviewNameCells.clear()
         cbDayCommissionTotal = 0.0
@@ -3816,9 +3857,22 @@ Thread {
                 }
                 setPadding(dp(16), dp(8), dp(16), dp(8))
                 setOnClickListener {
+                    /* 💰 V1308 (তালিকা ৪২১): আগে এখান থেকে পুরনো দিনের তালিকা খুলত — আজকের সারি তখনো
+                       নেই বলে স্টাফ বুঝতেন না। এখন সহজ কথা: আজকের ক্যাশ কত, আর জানলাটা Confirm Close-এর
+                       ঠিক পরেই আসবে। পুরনো দিন দেখতে চাইলে সেই তালিকাও এখান থেকেই। */
                     try {
-                        startActivity(android.content.Intent(
-                            this@ChamberAttendanceActivity, MoneyHandoverActivity::class.java))
+                        val dlg = AlertDialog.Builder(this@ChamberAttendanceActivity)
+                            .setCustomTitle(PremiumAlert.header(this@ChamberAttendanceActivity, "\uD83D\uDCB0 Money Handover"))
+                            .setMessage("Today's cash to hand over: " + MoneyHandover.money(cbHoCash) +
+                                (if (cbHoOnline > 0.0) "\nOnline " + MoneyHandover.money(cbHoOnline) + " came to the clinic directly." else "") +
+                                "\n\nPress ✅ Confirm Close — right after that you will be asked whom to give the cash to. " +
+                                "He gets a notification and confirms on his phone; you get a notification back.")
+                            .setPositiveButton("OK", null)
+                            .setNeutralButton("Earlier days") { _, _ ->
+                                try { startActivity(android.content.Intent(this@ChamberAttendanceActivity, MoneyHandoverActivity::class.java)) } catch (_: Throwable) { }
+                            }
+                            .create()
+                        dlg.show(); try { PremiumAlert.paint(dlg) } catch (_: Throwable) { }
                     } catch (_: Throwable) { }
                 }
             }
@@ -4623,7 +4677,8 @@ Thread {
                একটুও বদলায়নি। */
             try {
                 val hoBranch = printBranchOverride.ifBlank { selectedBranch }
-                if (hoBranch.isNotBlank() && !hoBranch.equals("All", ignoreCase = true)) {
+                // 💰 V1308: বন্ধের জানলায় হ্যান্ডওভার হয়ে গেলে ছাপার পর্দায় আবার একই ঘর নয়।
+                if (!hoHandledAtClose && hoBranch.isNotBlank() && !hoBranch.equals("All", ignoreCase = true)) {
                     com.tkbiswas.pilesclinic.print.PrintDataHolder.handoverBranch = hoBranch
                     com.tkbiswas.pilesclinic.print.PrintDataHolder.handoverDate = selectedDate
                     com.tkbiswas.pilesclinic.print.PrintDataHolder.handoverFees = cbHoFees

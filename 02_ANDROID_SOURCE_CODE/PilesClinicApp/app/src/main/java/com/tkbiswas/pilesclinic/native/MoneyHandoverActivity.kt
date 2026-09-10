@@ -168,7 +168,9 @@ class MoneyHandoverActivity : AppCompatActivity() {
         /* 💵🔒 V1037 (০৪.০৯.২০২৬, TK-নির্দেশ) — TK: *"অনলাইনে টাকা ডাইরেক্ট আমাদের
            কাছে চলে আসে, শুধু ক্যাশ টাকা স্টাফরা আমাদেরকে বুঝিয়ে দেয়"*।
            ⇒ হাতে বুঝিয়ে দেওয়ার অঙ্ক **শুধু ক্যাশ** (`cashTotal`), দিনের মোট নয়। */
-        val pendingDays = days.filter { it.stillWithStaff }
+        /* 💰 V1308 (তালিকা ৪২১): যে দিনে ক্যাশ ₹0 আর কিছু হয়নি — বুঝিয়ে দেওয়ার কিছু নেই ⇒ তালিকায়
+           বা গোনায় নয় (কিষানগঞ্জে এমন ৩৫ দিন জমে স্টাফ বিভ্রান্ত হচ্ছিলেন)। WAITING/RECEIVED আগের মতোই। */
+        val pendingDays = days.filter { it.stillWithStaff && it.cash > 0.0 }
         val pending = pendingDays.sumOf { it.cash }
         sumMoney.text = MoneyHandover.money(pending)
         sumDays.text = pendingDays.size.toString()
@@ -177,7 +179,7 @@ class MoneyHandoverActivity : AppCompatActivity() {
         /* ⋮ V1196 — মূল তালিকায় যেগুলো এখনো মেটেনি (এখনো আপনার কাছে · স্বীকার
            বাকি); "Handover History"-তে বুঝে নেওয়া দিনগুলো। */
         val shown = if (historyMode) days.filter { it.status == "received" }
-                    else days.filter { it.status != "received" }
+                    else days.filter { it.status != "received" && !(it.stillWithStaff && it.cash <= 0.0) }   // 💰 V1308
         if (shown.isEmpty()) {
             listBox.addView(TextView(this).apply {
                 text = if (historyMode) "No handover yet." else "Nothing pending."
