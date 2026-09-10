@@ -24463,6 +24463,14 @@ alias `androiddebugkey` · SHA-256 5C:B2:24:AB:…:E6:AB — এটাই ফো
 ফাংশন/ট্রিগার লেখা-ধরনে চলে — বদলালে ভাঙত)। বদলে তিন ঘরে CHECK: সংখ্যা বা ফাঁকা ছাড়া ঢুকবে না;
 অ্যাপ সবসময় সংখ্যা লেখে, তাই কিছু আটকায় না। sql_run_log-এ এন্ট্রি। কোড বদল নেই।
 
+## ১০.০৯.২০২৬ ১৬:১০ — 📦 PILES_CLINIC_APP_V1301_FINAL.zip পাঠানো (TK: *"ফাইল পাঠান"*)
+
+tk_guard --release ✅ (নাম তালিকায়) · ZIP স্ক্র্যাচপ্যাডে (বাদ: .git · node_modules · build · .gradle · .idea · *.apk · *.zip ·
+00_GUARD/.kotlinc · ANATOMY ORIGINAL · root *.png · __pycache__ · .DS_Store · local.properties) · verify_zip_root_name ✅ ·
+verify_zip_contents ✅ (১০ আইকন)। **২৫.৫ MB · ১৮০০ ফাইল** (V1296: ২৫.৪৮ · ১৭৮৭) — হিসাব pathano_filer_talika.json-এ ফোল্ডার-ধরে।
+গোপন কিছু নেই (service-account শুধু Netlify env; google-services.json গোপন নয়)। এই ZIP-এ V1297–V1301: push (FCM) ·
+Payment delete-request · Queue-ফেরা · চিহ্ন-সারি। TK-কে মনে করানো: আসল বিল্ড Android Studio-তে; ওয়েব এখন GitHub থেকে নিজে ওঠে।
+
 ## ১০.০৯.২০২৬ ১৫:৪০ — V1301 · তালিকা ৪১৩ (কোড-শক্তকরণ, TK: *"৩"*): চিহ্ন-সারি এডিট বন্ধ + চিহ্ন-সারির টাকা কোথাও Paid-এ যোগ নয় (ফোন + কম্পিউটার)
 
 **কেন:** Tinku Bauli-র bill_edit চিহ্ন-সারিতে ৩-ট্যাপ এডিটে ₹3,000 বসানো হয়েছিল ⇒ Timeline Paid ₹13,000, Payment পর্দা
