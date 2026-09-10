@@ -736,9 +736,21 @@ class LocalWorkflowStore(context: Context) {
     } catch (_: Exception) { JSONArray() }
 
     private fun save(key: String, rows: JSONArray) {
+        // 🔴🔴🔒 V1317 (১১.০৯.২০২৬, TK-রিপোর্ট — Follow-up ও Payment পর্দা কালো হয়ে
+        // আটকে যাচ্ছিল, একাধিক ভিডিওতে প্রমাণিত, রেকর্ডিং/রোটেশন/নেট-স্পিড কোনোটাই
+        // কারণ নয় বলে TK নিজে ধরিয়ে দিয়েছেন): আসল কারণ — এই `.commit()` ডিস্কে
+        // লেখা শেষ না হওয়া পর্যন্ত থেমে থাকে (synchronous)। V1311-এ আমারই যোগ করা
+        // `markSyncedWhereCloudCaughtUp()` প্রতিবার পর্দা খোলার সময় এই সেভ-টা
+        // ডাকতে শুরু করে (১৭টা জায়গায়, Follow-up ও Payment-সহ) — ফোনে মাসের পর
+        // মাস জমা হওয়া বড় স্থানীয় খাতা (followups/payments, বিশেষত Master-এর
+        // All Branches-এ) প্রতিবার পুরোটাই আবার ডিস্কে লেখার চেষ্টা করত, আটকে
+        // দিত। ⛔ এই বাগটা আমারই ভুল (V1311), আগে থেকে ছিল না। **সমাধান:**
+        // `MyPhoneWrites.kt`-এর প্রমাণিত একই কৌশল — `.apply()` (সঙ্গে সঙ্গে
+        // মেমরিতে বসে, তাই এখনই পড়া/পরের কাজ ঠিক আগের মতোই পায়; ডিস্কের কাজ
+        // পিছনে চলে) — পর্দা আর আটকাবে না।
         val text = rows.toString()
         snapshot[key] = text
-        prefs.edit().putString(key, text).commit()
+        prefs.edit().putString(key, text).apply()
     }
     private fun digits(v: String): String = v.filter(Char::isDigit).takeLast(10)
     private fun isoNow(): String = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US).format(java.util.Date())
