@@ -24463,6 +24463,18 @@ alias `androiddebugkey` · SHA-256 5C:B2:24:AB:…:E6:AB — এটাই ফো
 ফাংশন/ট্রিগার লেখা-ধরনে চলে — বদলালে ভাঙত)। বদলে তিন ঘরে CHECK: সংখ্যা বা ফাঁকা ছাড়া ঢুকবে না;
 অ্যাপ সবসময় সংখ্যা লেখে, তাই কিছু আটকায় না। sql_run_log-এ এন্ট্রি। কোড বদল নেই।
 
+## ১০.০৯.২০২৬ ১২:৩০ — V1291 · তালিকা ৪১১-⑨ (খ): জমা UPSERT-এ এডিট জুড়ে দেওয়া
+
+৫ক-যাচাই: `updateById`-এর outcome 3 (row_not_matched ⇒ true, retry নয়) — কোডের মন্তব্যে B593
+(১০.০৮.২০২৬, TK-অনুমোদিত, TK-র কথা উদ্ধৃত) ⇒ TK-র নিজের নিয়ম, দোষ নয়। ফাঁক: নেট ছাড়া নতুন
+সারি → `CloudWriteQueue` KEY "pending"-এ UPSERT; নেট ফিরে flush (BottomNav/Worker) হওয়ার আগে
+এডিট → সরাসরি PATCH → ০ সারি → বাদ; পরে flush পুরনো কপি বসায় ⇒ এডিট হারাত (ফোনেই থাকে,
+DB-তে মাপা যায় না)। TK: *"খ করুন, সাবধানে"*। **বদল:** `CloudWriteQueue.mergeIntoPendingUpsert(table,id,fields)`
+— LOCK-এর ভিতরে pending তালিকায় একই টেবিল+id-র UPSERT পেলে তার body-তে fields বসিয়ে commit
+(failed-ঘর অছোঁয়া, ফাঁকা body বাদ); `SupabaseClient.updateById` outcome 3-এ clearConfirmed-এর
+আগে ডাক। জমা UPSERT না থাকলে আচরণ এক অক্ষরও বদলায়নি। ওয়েবে এই ফাঁক নেই (dirty-সারি পুরোটা
+ঠেলে)। ভার্সন **১২৯১** (gradle + version.json)। Kotlin compile (শেষবার) ✅ PASS (নতুন ভুল ০) · tk_guard ✅।
+
 ## ১০.০৯.২০২৬ ১২:১০ — V1290 · তালিকা ৪১১-⑧ (ক): server_at ঘর (TK: "ক করুন… গভীরে যাচাই করে")
 
 গভীরে যাচাই: ওয়েব `select('*')`-এ payments/enquiries/doctor_visits টানে ⇒ নতুন ঘর স্থানীয় সারিতে আসে,

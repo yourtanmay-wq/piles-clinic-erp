@@ -1131,6 +1131,9 @@ object SupabaseClient {
                     // 🔒🔒 B593: row_not_matched (terminal) — remember **নয়** (কোনোদিন
                     // যাবে না)। ঐ id-র আটকে-থাকা পুরোনো একই UPDATE কপি "পাঠানো বাকি"
                     // তালিকা থেকে সরিয়ে দেওয়া হয়, যাতে লাল সতর্কবার্তা পাকাপাকি যায়।
+                    // 📱 V1291 (⑨ খ): সারিটা হয়তো এখনো "পাঠানো বাকি" UPSERT হিসেবে এই ফোনেই জমা —
+                    // তাহলে এডিটটা তার ভিতরে জুড়ে দেওয়া হয় (হারায় না)। না থাকলে B593 আগের মতোই।
+                    try { CloudWriteQueue.mergeIntoPendingUpsert(table, id, fields) } catch (_: Throwable) { }
                     try { CloudWriteQueue.clearConfirmed("UPDATE", table, id, fields, writeStart) } catch (_: Throwable) { }
                 }
                 else -> {

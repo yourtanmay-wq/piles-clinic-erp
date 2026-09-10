@@ -310,6 +310,44 @@ object CloudWriteQueue {
      * JSON-এ `lastError` হিসেবে বসে। ⛔ শুধু **দেখানোর জন্য** — কোনো পাঠানো/
      * retry/tries-গোনার নিয়ম এক লাইনও বদলায়নি, dedup-এর পুরনো আচরণও অক্ষত।
      */
+    /* 📱🔒 V1291 (১০.০৯.২০২৬, তালিকা ৪১১-⑨ খ, TK: *"খ করুন, সাবধানে"*) —
+       **সারি এখনো সার্ভারে পৌঁছয়নি, অথচ তার এডিট এসে গেছে।**
+       ঘটনা: নেট ছাড়া নতুন সারি (UPSERT) এখানে "পাঠানো বাকি"-তে জমা; নেট ফিরলে
+       জমা কাজ পাঠানোর **আগেই** স্টাফ সেই সারি এডিট করলে সরাসরি PATCH যায় → সার্ভারে
+       সারি নেই → B593-নিয়মে (TK-অনুমোদিত) কাজটা চুপচাপ বাদ পড়ত → পরে জমা UPSERT
+       পুরনো কপি বসাত ⇒ এডিট হারাত, স্টাফ "Saved" দেখতেন।
+       এখন: PATCH-এ ০ সারি ফিরলে আগে এখানে ওই টেবিল+id-র জমা UPSERT খোঁজা হয়;
+       থাকলে এডিটের ঘরগুলো তার ভিতরে বসিয়ে দেওয়া হয় (`updatedAt` সহ) — জমা কাজটা
+       গেলে এডিট সমেত যাবে। ⛔ জমা UPSERT না থাকলে (সারি সত্যিই মুছে গেছে/কখনো ছিল না)
+       B593-নিয়ম হুবহু আগের মতোই — কিছু বদলায় না। ⛔ "যায়নি" (failed) ঘর ছোঁয়া হয় না।
+       @return true = জুড়ে দেওয়া গেছে। */
+    fun mergeIntoPendingUpsert(table: String, id: String, fields: JSONObject?): Boolean {
+        val ctx = appContext ?: return false
+        if (table.isBlank() || id.isBlank() || fields == null || fields.length() == 0) return false
+        return try {
+            synchronized(LOCK) {
+                val p = ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE)
+                val list = JSONArray(p.getString(KEY, "[]") ?: "[]")
+                var merged = false
+                for (i in 0 until list.length()) {
+                    val e = list.optJSONObject(i) ?: continue
+                    if (e.optString("kind") != "UPSERT" || e.optString("table") != table || e.optString("id") != id) continue
+                    val body = try { JSONObject(e.optString("body", "{}")) } catch (_: Throwable) { continue }
+                    if (body.length() == 0) continue
+                    val keys = fields.keys()
+                    while (keys.hasNext()) { val k = keys.next(); body.put(k, fields.get(k)) }
+                    e.put("body", body.toString())
+                    merged = true
+                }
+                if (merged) {
+                    p.edit().putString(KEY, list.toString()).commit()
+                    hasQueue = true
+                }
+                merged
+            }
+        } catch (_: Throwable) { false }
+    }
+
     fun remember(kind: String, table: String, id: String, payload: JSONObject?, reason: String = "") {
         val ctx = appContext ?: return
         if (table.isBlank()) return
