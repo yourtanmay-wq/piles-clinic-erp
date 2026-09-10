@@ -127,12 +127,14 @@
         <!-- Fully native app. The WebView host (MainActivity) has been removed;
              every screen below is a native Activity. -->
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.PublicSiteActivity"
             android:exported="false"
             android:label="@string/app_name"
             android:theme="@style/Theme.PilesClinic" />
 
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.LoginActivity"
             android:exported="true"
             android:label="@string/app_name"
@@ -144,6 +146,7 @@
         </activity>
 
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.DiseaseDetailActivity"
             android:exported="false"
             android:label="@string/app_name"
@@ -152,12 +155,14 @@
         <!-- 🔔 V1186 (07.09.2026, TK-order): Doctor Note & Reminder screen
              (create · accept · history). Same theme as every other screen. -->
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.DoctorReminderActivity"
             android:exported="false"
             android:label="Doctor Note &amp; Reminder"
             android:theme="@style/Theme.PilesClinic" />
 
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.DashboardActivity"
             android:exported="false"
             android:label="Dashboard"
@@ -165,6 +170,7 @@
 
         <!-- Native rebuild Step 2: Enquiry is now a real native screen. -->
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.EnquiryActivity"
             android:exported="false"
             android:label="New Enquiry"
@@ -172,6 +178,7 @@
 
         <!-- Native rebuild Step 3: Registration is now a real native screen. -->
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.RegistrationActivity"
             android:exported="false"
             android:label="Patient Registration"
@@ -179,15 +186,18 @@
 
         <!-- Native rebuild Step 4: Follow-up is now a real native screen. -->
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.PatientTimelineActivity"
             android:exported="false"
             android:theme="@style/Theme.PilesClinic" />
         <!-- TK-APPROVED (2026-07-20): Report Card (Patient Progress Report). -->
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.ReportCardActivity"
             android:exported="false"
             android:theme="@style/Theme.PilesClinic" />
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.FollowUpActivity"
             android:exported="false"
             android:hardwareAccelerated="false"
@@ -196,6 +206,7 @@
 
         <!-- Native rebuild Step 5: Payment is now a real native screen. -->
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.PaymentActivity"
             android:exported="false"
             android:label="Payment Collection"
@@ -204,18 +215,21 @@
         <!-- TK-APPROVED (2026-07-25): Master Admin only . Monthly Collection
              and Collection History lists, with a branch selector. -->
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.CollectionListActivity"
             android:exported="false"
             android:label="Collection"
             android:theme="@style/Theme.PilesClinic" />
 
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.MedicinePaymentActivity"
             android:exported="false"
             android:label="Medicine or Saline"
             android:theme="@style/Theme.PilesClinic" />
 
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.GlobalSearchActivity"
             android:exported="false"
             android:label="Search"
@@ -223,12 +237,14 @@
 
         <!-- 🆕 B464 (05.08.2026, TK-নির্দেশ) — নতুন Dialer স্ক্রিন -->
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.DialerActivity"
             android:exported="false"
             android:label="Dialer"
             android:theme="@style/Theme.PilesClinic" />
 
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.AppointmentActivity"
             android:exported="false"
             android:label="Appointments"
@@ -236,6 +252,7 @@
 
         <!-- Native rebuild (continued): Doctor Visit / RMP is now a real native screen. -->
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.DoctorVisitActivity"
             android:exported="false"
             android:label="Doctor Visit / RMP"
@@ -243,6 +260,7 @@
 
         <!-- Native rebuild (continued): Visit / Doctor Queue is now a real native screen. -->
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.DoctorQueueActivity"
             android:exported="false"
             android:label="Visit / Doctor Queue"
@@ -250,6 +268,7 @@
 
         <!-- Native rebuild (continued): Briefing / Notice Board is now a real native screen. -->
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.BriefingActivity"
             android:exported="false"
             android:label="Briefing / Notice Board"
@@ -259,6 +278,7 @@
              BellCounter-এর গোনা সবকটা জিনিস (নোটিশ, রিমার্ক বাকি, ডাক্তার কল,
              মিসড কল-ব্যাক) এক তালিকায় দেখায়। -->
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.NotificationsActivity"
             android:exported="false"
             android:label="Notifications"
@@ -269,6 +289,7 @@
              for the full agreed plan/discussion history before changing
              anything here without asking TK first). -->
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.ChamberAttendanceActivity"
             android:exported="false"
             android:label="Chamber Attendance"
@@ -278,6 +299,7 @@
              "চেম্বার বন্ধ করুন" — ☰ মেনু থেকে খোলে, পুরনো দিনের চেম্বার এখান
              থেকে বন্ধ করা যায়। -->
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.ChamberCloseActivity"
             android:exported="false"
             android:label="Chamber Close"
@@ -285,6 +307,7 @@
 
         <!-- Native rebuild (continued): Follow-up Calendar is now a real native screen. -->
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.FollowCalendarActivity"
             android:exported="false"
             android:label="Follow-up Calendar"
@@ -293,6 +316,7 @@
         <!-- NEW (2026-08-07, TK-approved): in-app "কাল আসার কথা" list, opened
              from the day-before reminder notification. -->
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.ExpectedTomorrowActivity"
             android:exported="false"
             android:label="কাল আসার কথা"
@@ -300,6 +324,7 @@
 
         <!-- Native rebuild (continued): Password Center (user management) is now native. -->
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.PasswordCenterActivity"
             android:exported="false"
             android:label="Password Center"
@@ -307,6 +332,7 @@
 
         <!-- TK-REQUESTED ADDITION (2026-07-16): Export Data (CSV) feature. -->
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.ExportDataActivity"
             android:exported="false"
             android:label="Export Data"
@@ -314,6 +340,7 @@
 
         <!-- Native rebuild (continued): Patient Photo management is now native. -->
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.PatientPhotoActivity"
             android:exported="false"
             android:label="Patient Photo"
@@ -321,6 +348,7 @@
 
         <!-- Native rebuild (continued): staff/doctor avatar photo is now native. -->
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.UserPhotoActivity"
             android:exported="false"
             android:label="My Photo"
@@ -328,38 +356,45 @@
 
         <!-- Native rebuild (final): Menu items now native — no WebView needed. -->
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.MoreMenuActivity"
             android:exported="false"
             android:label="More"
             android:theme="@style/Theme.PilesClinic" />
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.DraftActivity"
             android:exported="false"
             android:label="Draft"
             android:theme="@style/Theme.PilesClinic" />
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.DraftListActivity"
             android:exported="false"
             android:label="Draft"
             android:theme="@style/Theme.PilesClinic" />
         <!-- 📊 V824 — Yearly Registration (শুধু মাস্টার) -->
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.YearlyRegistrationActivity"
             android:exported="false"
             android:label="Yearly Registration"
             android:theme="@style/Theme.PilesClinic" />
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.ReportsActivity"
             android:exported="false"
             android:label="Reports"
             android:theme="@style/Theme.PilesClinic" />
         <!-- 🔍 V1284 — মাস্টারের Duplicate Check পর্দা (তালিকা সারি ৪১০) -->
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.DuplicateCheckActivity"
             android:exported="false"
             android:label="Duplicate Check"
             android:theme="@style/Theme.PilesClinic" />
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.TrashBinActivity"
             android:exported="false"
             android:label="Trash Bin"
@@ -370,42 +405,50 @@
              for how a future native Dashboard should launch ClinicalModulesActivity with the
              real logged-in role/patient). These are native screens. -->
         <activity
+            android:screenOrientation="portrait"
             android:name=".clinical.ClinicalModulesActivity"
             android:exported="false"
             android:label="Clinical Modules"
             android:theme="@style/Theme.PilesClinic" />
         <activity
+            android:screenOrientation="portrait"
             android:name=".clinical.DoctorCheckupActivity"
             android:exported="false"
             android:label="Doctor Check-up"
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.PilesClinic" />
         <activity
+            android:screenOrientation="portrait"
             android:name=".clinical.PrescriptionActivity"
             android:exported="false"
             android:label="Prescription"
             android:theme="@style/Theme.PilesClinic" />
         <activity
+            android:screenOrientation="portrait"
             android:name=".clinical.MedicineSlipActivity"
             android:exported="false"
             android:label="Medicine Slip"
             android:theme="@style/Theme.PilesClinic" />
         <activity
+            android:screenOrientation="portrait"
             android:name=".clinical.InvestigationAdviceActivity"
             android:exported="false"
             android:label="Investigation Advice"
             android:theme="@style/Theme.PilesClinic" />
         <activity
+            android:screenOrientation="portrait"
             android:name=".clinical.InvestigationCategoryActivity"
             android:exported="false"
             android:label="Blood Test Category"
             android:theme="@style/Theme.PilesClinic" />
         <activity
+            android:screenOrientation="portrait"
             android:name=".clinical.DietChartActivity"
             android:exported="false"
             android:label="Diet Chart"
             android:theme="@style/Theme.PilesClinic" />
         <activity
+            android:screenOrientation="portrait"
             android:name=".clinical.PatientClinicalHistoryActivity"
             android:exported="false"
             android:label="Patient History"
@@ -418,11 +461,13 @@
         <!-- Phase 6: Professional Print System (native, standalone for now —
              same reasoning as Phase 4/5: no native Dashboard exists yet). -->
         <activity
+            android:screenOrientation="portrait"
             android:name=".print.PrintCenterActivity"
             android:exported="false"
             android:label="Print Center"
             android:theme="@style/Theme.PilesClinic" />
         <activity
+            android:screenOrientation="portrait"
             android:name=".print.PrintPreviewActivity"
             android:exported="false"
             android:label="Print Preview"
@@ -432,15 +477,18 @@
              reasoning as Phase 4/5/6). -->
         <!-- 🟢 V1144 (০৬.০৯.২০২৬, TK-অনুমোদিত) — Reminders (তালিকা + যোগ করা)। -->
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.ReminderActivity"
             android:exported="false"
             android:label="Reminders" />
         <activity
+            android:screenOrientation="portrait"
             android:name=".native.ReminderAddActivity"
             android:exported="false"
             android:label="Add Reminder" />
 
         <activity
+            android:screenOrientation="portrait"
             android:name=".security.SettingsActivity"
             android:exported="false"
             android:label="App Settings"
@@ -459,28 +507,28 @@
         </provider>
 
         <!-- V245 additive — three new module activities (isolated; nothing existing changed) -->
-        <activity android:name="com.tkbiswas.pilesclinic.modules.StaffProfileActivity" android:exported="false" />
-        <activity android:name="com.tkbiswas.pilesclinic.modules.WorkNotebookActivity" android:exported="false" />
+        <activity android:name="com.tkbiswas.pilesclinic.modules.StaffProfileActivity" android:screenOrientation="portrait" android:exported="false" />
+        <activity android:name="com.tkbiswas.pilesclinic.modules.WorkNotebookActivity" android:screenOrientation="portrait" android:exported="false" />
         <!-- 🏍️🔒 V968 — ফিল্ড ভিজিট (শুধু বাইরে ঘোরা স্টাফ)। -->
-        <activity android:name="com.tkbiswas.pilesclinic.modules.FieldVisitActivity" android:exported="false" />
+        <activity android:name="com.tkbiswas.pilesclinic.modules.FieldVisitActivity" android:screenOrientation="portrait" android:exported="false" />
         <!-- 💰🔒 V971 — এস্টিমেটের দরের তালিকা (যে কেউ বদলাতে পারবে)। -->
-        <activity android:name="com.tkbiswas.pilesclinic.clinical.PriceListActivity" android:exported="false" />
+        <activity android:name="com.tkbiswas.pilesclinic.clinical.PriceListActivity" android:screenOrientation="portrait" android:exported="false" />
         <!-- V982 additive — Estimate A4 full-screen paper (TK: "ফুল স্ক্রিন পর্দা খুলবে"); nothing existing changed -->
-        <activity android:name="com.tkbiswas.pilesclinic.clinical.EstimatePaperActivity" android:exported="false" />
+        <activity android:name="com.tkbiswas.pilesclinic.clinical.EstimatePaperActivity" android:screenOrientation="portrait" android:exported="false" />
         <!-- V984 additive — Money Handover history (TK: "চেম্বার বন্ধ করার history"); nothing existing changed -->
-        <activity android:name="com.tkbiswas.pilesclinic.native.MoneyHandoverActivity" android:exported="false" />
+        <activity android:name="com.tkbiswas.pilesclinic.native.MoneyHandoverActivity" android:screenOrientation="portrait" android:exported="false" />
         <!-- V990 additive — My Unexpected Enquiries (TK: "তারা হিসাবটা পাবে কি করে"); nothing existing changed -->
-        <activity android:name="com.tkbiswas.pilesclinic.native.UnexpectedEnquiryActivity" android:exported="false" />
+        <activity android:name="com.tkbiswas.pilesclinic.native.UnexpectedEnquiryActivity" android:screenOrientation="portrait" android:exported="false" />
         <!-- 📒 V1252 (TK-নির্দেশ, ফটো-প্রুফ পাশ) — RMP Commission Sheet, শুধু দেখার পর্দা। -->
-        <activity android:name="com.tkbiswas.pilesclinic.native.RmpCommissionSheetActivity" android:exported="false" />
-        <activity android:name="com.tkbiswas.pilesclinic.modules.IncomeExpenseActivity" android:exported="false" />
+        <activity android:name="com.tkbiswas.pilesclinic.native.RmpCommissionSheetActivity" android:screenOrientation="portrait" android:exported="false" />
+        <activity android:name="com.tkbiswas.pilesclinic.modules.IncomeExpenseActivity" android:screenOrientation="portrait" android:exported="false" />
         <!-- V306 additive — Partner Shares (অংশীদারি ভাগ), isolated; nothing existing changed -->
-        <activity android:name="com.tkbiswas.pilesclinic.modules.PartnerSharesActivity" android:exported="false" />
+        <activity android:name="com.tkbiswas.pilesclinic.modules.PartnerSharesActivity" android:screenOrientation="portrait" android:exported="false" />
 
         <!-- 🟢🔒 V605 (২৪.০৮.২০২৬, TK-নির্দেশ) — Incoming/Outgoing কলে রোগীর
              পরিচয় + Remarks/New Enquiry (Truecaller-এর মতো, নোটিফিকেশন
              দিয়ে)। additive — পুরনো কোনো activity/receiver ছোঁয়া হয়নি। -->
-        <activity android:name="com.tkbiswas.pilesclinic.native.CallRemarkActivity" android:exported="false" />
+        <activity android:name="com.tkbiswas.pilesclinic.native.CallRemarkActivity" android:screenOrientation="portrait" android:exported="false" />
         <receiver android:name="com.tkbiswas.pilesclinic.native.CallStateReceiver" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.PHONE_STATE" />
