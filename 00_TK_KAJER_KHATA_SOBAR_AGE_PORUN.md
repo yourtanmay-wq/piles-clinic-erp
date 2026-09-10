@@ -24422,3 +24422,9 @@ TK: *"হ্যাঁ পাশ, দুটোতেই বসিয়ে দি
 · ⚠️ ভুল করে পুরনো `bg_dup_icon.xml` (dialog_duplicate-এর) উপর লিখে ফেলেছিলাম — সঙ্গে সঙ্গে git
   থেকে ফিরিয়ে আলাদা নামে নতুন ফাইল; পুরনো কিছু বদলায়নি।
 ভার্সন ১২৮৪-ই (app.js v1284, হ্যাশ নতুন)। পাহারা: resources · node · tk_guard পাশ; Kotlin নিচে।
+· ০৭:৩৫ — ⚠️ **আমার ভুল:** Kotlin-পাহারার ফল না পড়েই জমা (commit) করে ফেলেছিলাম; পরে দেখি
+  FAIL — নতুন `DuplicateCheckActivity`-তে ১০টা "ভুল", সবই AppCompatActivity চিনতে না পারার
+  শব্দ (finish/onCreate/setContentView/Context-mismatch) — বাকি ৫৮টা পর্দায় যেমন বেসলাইনে
+  আছে (V1144·V1186·V1252-এও নতুন পর্দায় এভাবেই বেসলাইন বাড়ানো হয়েছিল)। আসল ভুল একটাও নয়
+  (NativeSession · SupabaseClient · DateUtil · R.drawable সব চেনা গেছে)। ⇒ `--update-baseline`
+  চালিয়ে বেসলাইন-ফাইল জমা; বেসলাইনে শুধু ওই ১০ লাইনই বাড়ল কিনা diff-এ মিলিয়ে।
