@@ -3389,7 +3389,10 @@ class FollowUpRepository(private val context: Context? = null) {
                         if (s.optBoolean("noMoreCalls", false) == stop && (!stop || s.s("nextFollow").isBlank())) continue
                         val sf = JSONObject().put("noMoreCalls", stop).put("updatedAt", isoNow())
                         if (stop) sf.put("nextFollow", "")
-                        rememberEditOnThisPhone(sid, sf, s)
+                        /* ⛔ জোড়ার জন্য ফোনের স্থানীয় কপিতে শুধু **থাকলে** ঘরগুলো বদলানো হয়;
+                           নতুন আধখানা সারি (নাম ছাড়া) তৈরি করা হয় না — নইলে অন্য ট্যাবে
+                           নামহীন কার্ড উঠতে পারত। ক্লাউডে বসল কি না সেটাই আসল। */
+                        try { context?.let { LocalWorkflowStore(it).updateLocalFollowUp(sid, sf) } } catch (_: Throwable) { }
                         if (!SupabaseClient.updateById("followups", sid, sf)) queueFieldUpdate(sid, sf)
                     }
                 }

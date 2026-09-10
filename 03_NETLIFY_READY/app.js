@@ -17081,7 +17081,7 @@ function wlv1DupCheck(){
     +'<div><b style="font-size:22px;color:#0B5C56">'+mobG.length+'</b><br><small class="mut">Same mobile</small></div>'
     +'<div><b style="font-size:22px;color:#0B5C56">'+nameG.length+'</b><br><small class="mut">Same name · branch</small></div>'
     +'<div><b style="font-size:22px;color:#0B5C56">'+dupP.length+'</b><br><small class="mut">Same amount · day</small></div></div>'
-    +'<button class="primary" style="width:100%;margin:10px 0" onclick="wlv1DupCheck()">⟳ Check again</button>';
+    +'<button style="width:100%;margin:10px 0" onclick="wlv1DupCheck()">⟳ Check again</button>';
   if(!mobG.length&&!nameG.length&&!dupP.length){html+='<div class="card mut" style="text-align:center;color:#0EA25F">No duplicates found ✓</div>'}
   if(mobG.length){html+='<div class="sectionTitle">SAME MOBILE — '+mobG.length+'</div>'+mobG.map(function(g){return card('#D9612F','#FDEEE9','#D9612F',g[0].name,g.length+' rows','📞 +91'+g[0].mobile+' · '+g[0].branch.toUpperCase(),byCreated(g).map(function(p){return [p.code+' · '+p.age+' '+p.sex+' · Bill '+money(p.bill)+' · Paid '+money(p.paid),dm(p.created)]}))}).join('')}
   if(nameG.length){html+='<div class="sectionTitle">SAME NAME IN BRANCH — '+nameG.length+'</div>'+nameG.map(function(g){return card('#C99A19','#FFF8E1','#C99A19',g[0].name,g.length+' rows',g[0].branch.toUpperCase()+' · '+g[0].age+' '+g[0].sex,byCreated(g).map(function(p){return [p.code+' · '+p.mobile+' · Bill '+money(p.bill)+' · Paid '+money(p.paid),dm(p.created)]}))}).join('')}
