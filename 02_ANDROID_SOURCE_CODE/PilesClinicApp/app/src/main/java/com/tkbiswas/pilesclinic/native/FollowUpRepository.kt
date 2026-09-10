@@ -1072,17 +1072,37 @@ class FollowUpRepository(private val context: Context? = null) {
         return if (isDeclaredSeparatePatientId(refId, m)) refId else m
     }
 
+    /* 📱🔒 V1288 (১০.০৯.২০২৬, তালিকা ৪১১-⑥ ক, TK: *"ক"*) — **বড় তালিকা আলাদা ফাইলে।**
+       আগে precloud_/prepatients_/prepayments_ (মিলিয়ে মাস্টার-ফোনে ~৫ MB) আর ছোট
+       since_/fullAt_ ঘড়ি — সব একটাই SharedPreferences ফাইলে; ফলে যেকোনো একটা লেখা
+       (এমনকি ছোট ঘড়িটাও) পুরো ৫ MB ফাইল নতুন করে ডিস্কে লেখাত। এখন প্রতিটা বড়
+       তালিকা নিজের ফাইলে (`followup_delta_big_<key>`) — একটা বদলালে শুধু সেটাই লেখা হয়।
+       · প্রথমবার: পুরনো ফাইলে থাকলে সেখান থেকে নতুন ফাইলে সরিয়ে (লিখে) তবেই
+         পুরনোটা থেকে মোছা — কিছু হারায় না। · নিয়ম/তথ্য একটুও বদলায়নি, শুধু কোথায় রাখা। */
+    private fun bigPrefs(key: String) = context?.getSharedPreferences("followup_delta_big_$key", Context.MODE_PRIVATE)
+
     private fun loadCachedArray(key: String): JSONArray {
-        val sp = deltaPrefs() ?: return JSONArray()
+        val big = bigPrefs(key) ?: return JSONArray()
         return try {
-            val raw = sp.getString(key, null) ?: return JSONArray()
+            var raw = big.getString(key, null)
+            if (raw == null) {
+                // পুরনো জায়গা থেকে একবারই সরানো
+                val old = deltaPrefs()
+                raw = old?.getString(key, null) ?: return JSONArray()
+                big.edit().putString(key, raw).apply()
+                old.edit().remove(key).apply()
+            }
             JSONArray(raw)
         } catch (_: Throwable) { JSONArray() }
     }
 
     private fun saveCachedArray(key: String, arr: JSONArray) {
-        val sp = deltaPrefs() ?: return
-        try { sp.edit().putString(key, arr.toString()).apply() } catch (_: Throwable) { }
+        val big = bigPrefs(key) ?: return
+        try {
+            big.edit().putString(key, arr.toString()).apply()
+            val old = deltaPrefs()
+            if (old != null && old.contains(key)) old.edit().remove(key).apply()
+        } catch (_: Throwable) { }
     }
 
     /** followups (preCloud)-এর জন্য — Inquiry-তে যে নিয়ম, এখানেও হুবহু একই
@@ -1094,6 +1114,7 @@ class FollowUpRepository(private val context: Context? = null) {
         } catch (_: Throwable) { null } ?: return null
         val cacheKey = "precloud_${stage.lowercase()}"
         val cached = loadCachedArray(cacheKey)
+        if (delta.length() == 0) return cached   // 📱 V1288 (⑥ ক): কিছু বদলায়নি ⇒ লেখা নয়
         val byId = LinkedHashMap<String, JSONObject>()
         for (i in 0 until cached.length()) {
             val o = cached.optJSONObject(i) ?: continue
@@ -1148,6 +1169,9 @@ class FollowUpRepository(private val context: Context? = null) {
             SupabaseClient.fetchListSlimOrNull(table, filter, 2000, cols)
         } catch (_: Throwable) { null } ?: return null
         val cached = loadCachedArray(cacheKey)
+        /* 📱 V1288 (⑥ ক): ক্লাউডে নতুন/বদলানো সারি একটাও নেই ⇒ জমানো তালিকাটাই উত্তর —
+           আবার লেখা হয় না (আগে প্রতি ৩০ সেকেন্ডে পুরো তালিকা নতুন করে ডিস্কে যেত)। */
+        if (delta.length() == 0) return cached
         val byId = LinkedHashMap<String, JSONObject>()
         for (i in 0 until cached.length()) {
             val o = cached.optJSONObject(i) ?: continue
@@ -1209,18 +1233,10 @@ class FollowUpRepository(private val context: Context? = null) {
         return f   // ইতিমধ্যেই "or=(...)" আকারে, সরাসরি &-এ জোড়া যায়
     }
 
-    private fun loadCachedPreCloudInquiry(): JSONArray {
-        val sp = deltaPrefs() ?: return JSONArray()
-        return try {
-            val raw = sp.getString("precloud_inquiry", null) ?: return JSONArray()
-            JSONArray(raw)
-        } catch (_: Throwable) { JSONArray() }
-    }
+    /* 📱 V1288 (⑥ ক): Inquiry-র তালিকাও একই আলাদা-ফাইল পথে (উপরের loadCachedArray/saveCachedArray)। */
+    private fun loadCachedPreCloudInquiry(): JSONArray = loadCachedArray("precloud_inquiry")
 
-    private fun saveCachedPreCloudInquiry(arr: JSONArray) {
-        val sp = deltaPrefs() ?: return
-        try { sp.edit().putString("precloud_inquiry", arr.toString()).apply() } catch (_: Throwable) { }
-    }
+    private fun saveCachedPreCloudInquiry(arr: JSONArray) = saveCachedArray("precloud_inquiry", arr)
 
     /** Inquiry ট্যাবের preCloud — delta বা পূর্ণ, নিরাপত্তা-জাল সহ। ব্যর্থ/
      *  প্রথমবার/দীর্ঘ-বিরতিতে `null` ফেরে — কলার তখন আগের পূর্ণ পথে (slimFollowups) যাবে। */
@@ -1237,6 +1253,7 @@ class FollowUpRepository(private val context: Context? = null) {
         } catch (_: Throwable) { null } ?: return null   // ব্যর্থ → পূর্ণ-fetch পথে
 
         val cached = loadCachedPreCloudInquiry()
+        if (delta.length() == 0) return cached   // 📱 V1288 (⑥ ক): কিছু বদলায়নি ⇒ লেখা নয়
         val byId = LinkedHashMap<String, JSONObject>()
         for (i in 0 until cached.length()) {
             val o = cached.optJSONObject(i) ?: continue

@@ -24463,6 +24463,21 @@ alias `androiddebugkey` · SHA-256 5C:B2:24:AB:…:E6:AB — এটাই ফো
 ফাংশন/ট্রিগার লেখা-ধরনে চলে — বদলালে ভাঙত)। বদলে তিন ঘরে CHECK: সংখ্যা বা ফাঁকা ছাড়া ঢুকবে না;
 অ্যাপ সবসময় সংখ্যা লেখে, তাই কিছু আটকায় না। sql_run_log-এ এন্ট্রি। কোড বদল নেই।
 
+## ১০.০৯.২০২৬ ১০:৫৫ — V1288 · তালিকা ৪১১-⑥ (ক): ফোনের জমা-তালিকা — না বদলালে লেখা নয় + আলাদা ফাইল
+
+TK: *"ক"*। মেপে পাওয়া: LiveRefresh প্রতি ৩০ সেকেন্ডে fetchTab → delta পথে
+`deltaUpsertOnlyOrNull`/`deltaPreCloudOrNull`/`deltaPreCloudInquiryOrNull` delta ফাঁকা হলেও
+`saveCachedArray` চালাত ⇒ precloud_/prepatients_/prepayments_ (মাস্টারে ~৫ MB JSON, স্টাফে ~২ MB)
+সব একটাই SharedPreferences ফাইলে (`followup_inquiry_delta_state`) ⇒ প্রতি টিকে ৩ বার পুরো ফাইল
+ডিস্কে; ছোট `since_` ঘড়ি লিখলেও পুরো ফাইল। **বদল (শুধু FollowUpRepository.kt):** ① delta.length()==0
+⇒ জমানো তালিকাই ফেরত, লেখা নয় (৩ জায়গায়); ② প্রতিটা বড় তালিকা নিজের ফাইলে
+`followup_delta_big_<key>` — loadCachedArray-এ প্রথমবার পুরনো ফাইল থেকে সরিয়ে (লিখে) তবেই
+পুরনো ঘর মোছা; saveCachedArray পুরনো ঘর থাকলে মুছে দেয়; Inquiry-র load/saveCachedPreCloudInquiry
+একই helper-এ। since_/fullAt_ ঘড়ি আগের ফাইলেই (এখন ছোট)। sharedPatientsOrNull (V1282)
+loadCachedArray দিয়েই পড়ে ⇒ অছোঁয়া। ⛔ নিয়ম/তথ্য বদলায়নি; পুরো fetch (৩০ মিনিটে) আগের মতোই
+তিনটে তালিকা লেখে। কম্পিউটারে এই কাঠামো নেই (V1287-এ IndexedDB) ⇒ ওদিকে কিছু করার নেই।
+ভার্সন **১২৮৮** (gradle + version.json; ওয়েব ফাইল অছোঁয়া)। পাহারা: Kotlin compile (শেষবার) ✅ PASS (নতুন ভুল ০) · tk_guard ✅।
+
 ## ১০.০৯.২০২৬ ১০:৩৫ — V1287 · তালিকা ৪১১-⑤ (ক): কম্পিউটারের টেবিল localStorage → IndexedDB
 
 TK: *"ক করুন, সাবধানে… কোন ভাল কাজ যেন খারাপ না হয়"*। **আগে প্রমাণ** (Playwright, V1286 কোড):
