@@ -150,6 +150,7 @@ TK-কে উত্তর বাংলায়, কিন্তু **অ্য�
 python3 00_GUARD/verify_kotlin_compile.py     # Kotlin
 python3 00_GUARD/verify_android_resources.py  # XML
 node --check 03_NETLIFY_READY/app.js          # ওয়েব
+python3 00_GUARD/web_browser_test/run.py     # ⛔ ওয়েব ফাইল বদলালে — নকল সার্ভারে ব্রাউজারে চালিয়ে দেখা (১ মিনিট), PASS ছাড়া দেওয়া নিষেধ
 python3 00_GUARD/tk_guard.py                  # সব পাহারা
 python3 00_GUARD/sql_local_check.py <file.sql>  # ⛔ TK-কে SQL পাঠানোর আগে — নকল ডেটাবেসে চালিয়ে PASS না হলে পাঠানো নিষেধ
 ```
