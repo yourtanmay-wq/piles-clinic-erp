@@ -24473,7 +24473,7 @@ DB-তে মাপা যায় না)। TK: *"খ করুন, সাব
 — LOCK-এর ভিতরে pending তালিকায় একই টেবিল+id-র UPSERT পেলে তার body-তে fields বসিয়ে commit
 (failed-ঘর অছোঁয়া, ফাঁকা body বাদ); `SupabaseClient.updateById` outcome 3-এ clearConfirmed-এর
 আগে ডাক। জমা UPSERT না থাকলে আচরণ এক অক্ষরও বদলায়নি। ওয়েবে এই ফাঁক নেই (dirty-সারি পুরোটা
-ঠেলে)। ভার্সন **১২৯১** (gradle + version.json)। Kotlin compile (শেষবার) ✅ PASS (নতুন ভুল ০) · tk_guard ✅।
+ঠেলে)। ভার্সন **১২৯১** (gradle + version.json)। প্রথম commit-এ tk_guard ❌ [৯.৩৪] ধরল: SafeWideColumns-এ `server_at` নেই (V1290-এর নতুন ঘর) — ৫ টেবিলের তালিকায় যোগ (পড়া-মাত্র, অ্যাপ লেখে না); Kotlin compile আবার (শেষবার) ✅ PASS (নতুন ভুল ০) · tk_guard ✅।
 
 ## ১০.০৯.২০২৬ ১২:১০ — V1290 · তালিকা ৪১১-⑧ (ক): server_at ঘর (TK: "ক করুন… গভীরে যাচাই করে")
 

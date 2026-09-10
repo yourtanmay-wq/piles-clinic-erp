@@ -55,6 +55,8 @@ package com.tkbiswas.pilesclinic.native
  *    ব্যর্থতার শেষ ধাপ।
  * ⛔ কোনো তথ্য · হিসাব · ডিজাইন কিছুই ছোঁয়া হয়নি।
  */
+/* 📱 V1291 (১০.০৯.২০২৬, তালিকা ৪১১-⑧): `server_at` — সার্ভার নিজে বসায় (default now()); এখানে শুধু
+   যাতে শেষ-ভরসার পড়ায় ঘরটা বাদ না পড়ে (পাহারা ৯.৩৪)। অ্যাপ এটা কখনো লেখে না, পড়লেও ব্যবহার করে না। */
 object SafeWideColumns {
 
     /** টেবিল → (সব ঘর, ভারী ঘর)। ঘরের নাম `PILES_CLINIC_DB_SETUP.sql` ও
@@ -82,11 +84,11 @@ object SafeWideColumns {
        ⛔ পাহারাদারে নতুন যাচাই ৯.৩৪ বসানো হলো, যাতে ভবিষ্যতে নতুন ঘর যোগ
           হলে এই তালিকা পুরনো হয়ে গেলে সঙ্গে সঙ্গে ধরা পড়ে। */
     private val ALL: Map<String, String> = mapOf(
-        "patients" to "id,address,age,altMobile,bill,branch,complaint,completeApprovedBy,completeRequestedBy,createdAt,createdBy,date,decision,diagnosis,discount,billBeforeDiscount,discountReason,discountBy,discountAt,disease,doctorAdvice,doctorComplete,doctorFullNote,doctorReminderDate,doctorReminderNote,doctorReminderTime,editHistory,medicalHistory,mobile,name,occupation,patientId,photo,previousCost,previousResult,previousTreatment,queue,queuedAt,refBy,refDoctor,refDoctorMobile,refundRestoredBy,registeredBy,registrationDate,sex,sinceWhen,stage,timeType,timeSource,treatmentDuration,updatedAt,visitDate,nextVisitPlan",
-        "followups" to "id,address,age,branch,callCount,convertedPatientId,createdAt,createdBy,date,disease,history,lastCallDate,lastRemark,lastRemarkAt,mobile,name,nextFollow,noMoreCalls,patientId,photo,previousStage,refId,registrationDate,sex,stage,status,timeType,timeSource,updatedAt,visitDate",
-        "payments" to "id,amount,backdateApprovedBy,backdateRequestedBy,branch,cashAmount,createdAt,createdBy,dailyEvents,date,editApprovedBy,editedAt,editedBy,editHistory,editRequestedBy,mobile,mode,name,onlineAmount,patientCode,patientId,payLabel,paymentLabel,payType,progress,receivedBy,refundApprovalStatus,refundApprovedBy,refundOfPaymentId,refundReason,refundRequestedBy,remarks,updatedAt",
-        "medical" to "id,branch,createdAt,createdBy,date,days,decision,details,diagnosis,doctorFullNote,mobile,name,nextFollow,patientId,photos,selected,type,updatedAt",
-        "doctor_visits" to "id,altMobiles,area,branch,callHistory,callStatus,createdAt,createdBy,date,expectedPatientDate,lastCallDate,mobile,name,nextCallDate,policeStation,referralDue,referralPaid,referralPayments,remarks,remarksEditedBy,status,updatedAt"
+        "patients" to "id,address,age,altMobile,bill,branch,complaint,completeApprovedBy,completeRequestedBy,createdAt,createdBy,date,decision,diagnosis,discount,billBeforeDiscount,discountReason,discountBy,discountAt,disease,doctorAdvice,doctorComplete,doctorFullNote,doctorReminderDate,doctorReminderNote,doctorReminderTime,editHistory,medicalHistory,mobile,name,occupation,patientId,photo,previousCost,previousResult,previousTreatment,queue,queuedAt,refBy,refDoctor,refDoctorMobile,refundRestoredBy,registeredBy,registrationDate,sex,sinceWhen,stage,timeType,timeSource,treatmentDuration,updatedAt,visitDate,nextVisitPlan,server_at",
+        "followups" to "id,address,age,branch,callCount,convertedPatientId,createdAt,createdBy,date,disease,history,lastCallDate,lastRemark,lastRemarkAt,mobile,name,nextFollow,noMoreCalls,patientId,photo,previousStage,refId,registrationDate,sex,stage,status,timeType,timeSource,updatedAt,visitDate,server_at",
+        "payments" to "id,amount,backdateApprovedBy,backdateRequestedBy,branch,cashAmount,createdAt,createdBy,dailyEvents,date,editApprovedBy,editedAt,editedBy,editHistory,editRequestedBy,mobile,mode,name,onlineAmount,patientCode,patientId,payLabel,paymentLabel,payType,progress,receivedBy,refundApprovalStatus,refundApprovedBy,refundOfPaymentId,refundReason,refundRequestedBy,remarks,updatedAt,server_at",
+        "medical" to "id,branch,createdAt,createdBy,date,days,decision,details,diagnosis,doctorFullNote,mobile,name,nextFollow,patientId,photos,selected,type,updatedAt,server_at",
+        "doctor_visits" to "id,altMobiles,area,branch,callHistory,callStatus,createdAt,createdBy,date,expectedPatientDate,lastCallDate,mobile,name,nextCallDate,policeStation,referralDue,referralPaid,referralPayments,remarks,remarksEditedBy,status,updatedAt,server_at"
     )
 
     private val HEAVY: Map<String, List<String>> = mapOf(
