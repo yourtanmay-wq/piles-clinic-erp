@@ -201,5 +201,13 @@
     "result": "Success — payments_now 5 · patients_now 1",
     "proof": "screenshot",
     "what": "pat_9547593030 (KNE-01052026-001) রাখা; pat_9547593030_2022571e (KNE-01052026-002)-এর ₹400 ওতে সরানো; ওই patients+followups মোছা, deleted_records-এ চিহ্ন।"
+  },
+  {
+    "sql_file": "তালিকা ৪০৮ — GOURI SUTRADHAR ডুপ্লিকেট (চ্যাটে দেওয়া transactional SQL)",
+    "run_by": "TK",
+    "when": "১০.০৯.২০২৬ সকাল ৬.২৯",
+    "result": "Success — payments_row1 2 · patients_now 1",
+    "proof": "screenshot",
+    "what": "TK-র সিদ্ধান্তে COB-06062026-001 (bill 22,800 · জমা 21,300) রাখা; COB-19072026-005 সারি + ৪ পেমেন্ট (7000+5000+8000+500 = 20,500 — একই টাকার দ্বিতীয় লেখা) + followups মোছা; deleted_records-এ সব চিহ্ন।"
   }
 ]
