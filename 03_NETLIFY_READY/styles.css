@@ -5856,7 +5856,7 @@ button.card.reportKpi span, .card.reportKpi span, button.card.reportKpi small, .
 /* V443 Salary Statement professional UI — Android/Web parity, presentation only */
 .pfStatement{--stmt-green:#075B32;--stmt-green2:#0A7C3F;--stmt-ink:#17212B;--stmt-muted:#5B6B81;--stmt-line:#DDE8E1;color:var(--stmt-ink)}
 .pfStmtSummary{overflow:hidden;background:#fff;border:1px solid #D9E8DF;border-radius:15px;margin:2px 0 14px;box-shadow:0 4px 12px rgba(23,64,40,.06)}
-.pfStmtSummaryHead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 15px;background:var(--stmt-green);color:#fff}
+.pfStmtSummaryHead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 15px;background:linear-gradient(135deg,var(--stmt-green),var(--stmt-green2));color:#fff}
 .pfStmtSummaryHead b{font-size:16px}.pfStmtSummaryHead span{font-size:11px;padding:5px 9px;border:1px solid #33A36A;border-radius:8px;background:#0B7040;white-space:nowrap}
 .pfStmtMetrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));padding:6px 6px 0}
 .pfStmtMetric{min-width:0;padding:11px 10px;border-right:1px solid var(--stmt-line)}.pfStmtMetric:last-child{border-right:0}
@@ -8329,6 +8329,9 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
   font-size:19px;line-height:1;cursor:pointer;padding:2px 6px}
 .pfSal{font-weight:700;font-size:12.5px}
 .anModPf .pfStaffBtns .pfBtn{padding:10px 10px;font-size:11.5px}
+/* 🔒👁️ V1321 — Salary মাস্ক-টগল বোতাম */
+.pfEyeBtn{border:1px solid #DCE6E0;background:#EEF3F0;color:#5B6B81;font-size:10.5px;
+  border-radius:6px;padding:2px 6px;margin:0 6px;cursor:pointer;vertical-align:middle}
 
 /* ⋮🔒 V1058 — কার্ডের ⋮ মেনু */
 .pfDotsMenu{display:flex;flex-direction:column;gap:8px}

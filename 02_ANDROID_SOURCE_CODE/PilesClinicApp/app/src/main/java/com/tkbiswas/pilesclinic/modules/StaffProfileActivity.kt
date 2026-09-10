@@ -186,55 +186,43 @@ class StaffProfileActivity : AppCompatActivity() {
             head.addView(ModuleUi.heading(this, "🧑\u200d💼 Staff Profiles").apply {
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             })
-            // ➕ শুধু মাস্টার দেখবেন — সার্ভারেও একই পাহারা আছে।
+            // ⋮ শুধু মাস্টার দেখবেন — সার্ভারেও একই পাহারা আছে।
+            /* 📋🔒 V1321 (TK-নির্দেশ ১০.০৯.২০২৬, ডেমো-প্রুফ পাশ) — আলাদা 📱
+               ও ➕ গোল বোতাম দুটো, আর নিচের "🏆 Staff Performance" বোতাম —
+               তিনটেই এখন এই একটা ⋮ মেনুর ভিতরে। TK: *"এগুলি উপরে ডান সাইড
+               3 Dot এর মধ্যে থাকবে"*।
+               ⛔ কাজ/পাহারা/অ্যাকশন তিনটেই আগের মতোই (phoneVersionsScreen,
+                  addPersonDialog, performanceList) — শুধু বসার জায়গা বদলাল। */
             if (ModuleAuth.isMaster) {
-                /* 📱🔒 V822 (২৯.০৮.২০২৬, TK-নির্দেশ ও অনুমোদিত ডেমো-প্রুফ) —
-                   **ফোনের ভার্সনের পর্দা ফিরে এলো, কিন্তু লেখা ছাড়া।**
-
-                   কেন ফেরানো হলো (আমারই ভুল স্বীকার): V813-এ পর্দাটা তুলে দিয়ে
-                   ভার্সন শুধু Staff Performance-এর ভিতরে রাখা হয়েছিল। পরে যাচাই
-                   করে ধরা পড়ল ওখানে **ডাক্তারদের কোনোদিন দেখা যাবে না** —
-                   `hr.staff_performance()` সার্ভারেই `role_kind <> 'doctor'`
-                   বাদ দেয়, আর অ্যাপও `DR-` কোড ছেঁকে ফেলে। অথচ পুরনো পর্দায়
-                   DR-KH-MANDAL · DR-JAY-BANIK দেখা যেত। V813-এ TK-কে এটা
-                   জানানো হয়নি — ভুলটা আমার।
-
-                   TK-নির্দেশ: *"phone version লেখা থাকবে না · উপরে প্লাস চিহ্নের
-                   পাশে আসবে · মোবাইলের চিহ্ন থাকবে।"*
-                   ⛔ শুধু মাস্টার — সার্ভারেও একই পাহারা (`hr.app_devices_list`)। */
                 head.addView(android.widget.TextView(this).apply {
-                    text = "\uD83D\uDCF1"
-                    textSize = 18f
-                    gravity = android.view.Gravity.CENTER
-                    background = android.graphics.drawable.GradientDrawable().apply {
-                        shape = android.graphics.drawable.GradientDrawable.OVAL
-                        setColor(android.graphics.Color.WHITE)
-                        setStroke((2 * d).toInt(), android.graphics.Color.parseColor("#0B7A3E"))
-                    }
-                    elevation = 3f * d
-                    contentDescription = "Phone versions"
-                    setOnClickListener { phoneVersionsScreen() }
-                    layoutParams = LinearLayout.LayoutParams((40 * d).toInt(), (40 * d).toInt())
-                })
-                // 📱 V822 — দুটো গোল চিহ্নের মাঝে ফাঁক। ⛔ ইচ্ছে করে margin-এর
-                //    ঘর ব্যবহার করা হয়নি (এই ফাইলে কম্পাইল-পাহারা সেটা চেনে না,
-                //    হাতেনাতে ধরা পড়েছে) — একটা ফাঁকা ঘরই নিরাপদ ও যথেষ্ট।
-                head.addView(android.widget.TextView(this).apply {
-                    layoutParams = LinearLayout.LayoutParams((10 * d).toInt(), (1 * d).toInt())
-                })
-                head.addView(android.widget.TextView(this).apply {
-                    text = "\uFF0B"
+                    text = "\u22EE"
                     textSize = 20f
                     setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
-                    setTextColor(android.graphics.Color.WHITE)
+                    setTextColor(android.graphics.Color.parseColor("#0B7A3E"))
                     gravity = android.view.Gravity.CENTER
                     background = android.graphics.drawable.GradientDrawable().apply {
-                        shape = android.graphics.drawable.GradientDrawable.OVAL
-                        setColor(android.graphics.Color.parseColor("#0B7A3E"))
+                        cornerRadius = 10f * d
+                        setColor(android.graphics.Color.WHITE)
+                        setStroke((1 * d).toInt(), android.graphics.Color.parseColor("#CFE3D8"))
                     }
                     elevation = 3f * d
-                    contentDescription = "Add Staff or Doctor"
-                    setOnClickListener { addPersonDialog() }
+                    isClickable = true; isFocusable = true
+                    contentDescription = "More"
+                    setOnClickListener { v ->
+                        val items: List<Pair<String, () -> Unit>> = listOf(
+                            "\uD83C\uDFC6 Staff Performance" to ({ performanceList("") }),
+                            "\uD83D\uDCF1 Mobile Version" to ({ phoneVersionsScreen() }),
+                            "\u2795 Add Staff / Doctor" to ({ addPersonDialog() })
+                        )
+                        try {
+                            val pm = android.widget.PopupMenu(this@StaffProfileActivity, v)
+                            items.forEachIndexed { i, (label, _) -> pm.menu.add(0, i, i, label) }
+                            pm.setOnMenuItemClickListener { mi ->
+                                items.getOrNull(mi.itemId)?.second?.invoke(); true
+                            }
+                            pm.show()
+                        } catch (_: Throwable) { }
+                    }
                     layoutParams = LinearLayout.LayoutParams((40 * d).toInt(), (40 * d).toInt())
                 })
             }
@@ -262,7 +250,7 @@ class StaffProfileActivity : AppCompatActivity() {
         /* 🏆🔒 V419 (TK-নির্দেশ, ১৭.০৮.২০২৬): সবার পারফরম্যান্স এক পর্দায় —
            তালিকার উপরে একটাই বোতাম। ⛔ শুধু Master দেখতে পাবেন। */
         if (ModuleAuth.isMaster) {
-            root.addView(salOutlineButton("🏆 Staff Performance", "#0A5C33", "#0A5C33") { performanceList("") })
+            // ⛔ V1321 — বোতামটা এখন উপরের ⋮ মেনুতে ("🏆 Staff Performance"), তাই এখানে আর নেই।
             /* 📱🔒 V813 (২৮.০৮.২০২৬, TK-নির্দেশ ও অনুমোদিত ডেমো-প্রুফ:
                *"phone Version আলাদা থাকবে না … স্টাফের পারফরম্যান্স যেখানে,
                তার পাশে একটুখানি অপশন থাকলেই তো চলে"*) —
@@ -708,14 +696,62 @@ class StaffProfileActivity : AppCompatActivity() {
             textSize = 11.5f; setTextColor(android.graphics.Color.parseColor("#6B7A72"))
             setPadding(0, dp(2), 0, 0)
         })
-        info.addView(TextView(this).apply {
-            // 🎨 V1057 — TK-এর ছবির মতো: "Salary: ₹8,000  •  Salary day: 3"
-            text = salaryText.replace(Regex("\\s*\\(day\\s*([^)]*)\\)"), "  \u2022  Salary day: $1")
-            textSize = 12f
-            setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setTextColor(android.graphics.Color.parseColor(if (salaryText.startsWith("Salary: disabled")) "#A7B0AB" else "#0B8A3E"))
-            setPadding(0, dp(5), 0, if (extraText.isBlank()) dp(10) else dp(2))
-        })
+        /* \uD83D\uDD12\uD83D\uDC41\uFE0F V1321 (TK-\u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6 \u09e7\u09e6.\u09e6\u09ef.\u09e8\u09e6\u09e8\u09ec, \u09a1\u09c7\u09ae\u09cb-\u09aa\u09cd\u09b0\u09c1\u09ab \u09aa\u09be\u09b6) \u2014 "Salary: \u09f3\u09ee,\u09e6\u09e6\u09e6"
+           \u09a1\u09bf\u09ab\u09b2\u09cd\u099f\u09c7 \u09a1\u099f \u09a6\u09bf\u09af\u09bc\u09c7 \u09a2\u09be\u0995\u09be, \u09aa\u09be\u09b6\u09c7\u09b0 \uD83D\uDC41 \u099a\u09be\u09aa\u09b2\u09c7 \u09a6\u09c7\u0996\u09be \u09af\u09be\u09af\u09bc\u0964 "Salary day: N" \u0993
+           "Extra: \u2026 due" \u0986\u0997\u09c7\u09b0 \u09ae\u09a4\u09cb\u0987 \u0996\u09cb\u09b2\u09be\u0964 \u09aa\u09cd\u09b0\u09a4\u09bf\u099f\u09be \u0995\u09be\u09b0\u09cd\u09a1 \u0986\u09b2\u09be\u09a6\u09be \u099f\u0997\u09b2 \u2014 \u098f\u0995\u099f\u09be
+           \u0996\u09c1\u09b2\u09b2\u09c7 \u0985\u09a8\u09cd\u09af\u0997\u09c1\u09b2\u09cb \u099b\u09cb\u0981\u09af\u09bc \u09a8\u09be\u0964 \u2b1b Salary disabled \u09b9\u09b2\u09c7 \u09ae\u09be\u09b8\u09cd\u0995 \u09a6\u09b0\u0995\u09be\u09b0 \u09a8\u09c7\u0987\u0964 */
+        if (salaryText.startsWith("Salary: disabled")) {
+            info.addView(TextView(this).apply {
+                text = salaryText
+                textSize = 12f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#A7B0AB"))
+                setPadding(0, dp(5), 0, if (extraText.isBlank()) dp(10) else dp(2))
+            })
+        } else {
+            val m = Regex("^Salary:\\s*(.+?)\\s*\\(day\\s*([^)]*)\\)").find(salaryText)
+            val amountStr = m?.groupValues?.get(1) ?: salaryText.removePrefix("Salary: ")
+            val dayStr = m?.groupValues?.getOrNull(2) ?: ""
+            var salaryRowMasked = true
+            val salRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(0, dp(5), 0, if (extraText.isBlank()) dp(10) else dp(2))
+            }
+            val amtTv = TextView(this).apply {
+                text = "Salary: \u2022\u2022\u2022\u2022\u2022\u2022"
+                textSize = 12f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#0B8A3E"))
+            }
+            salRow.addView(amtTv)
+            salRow.addView(TextView(this).apply {
+                text = "\uD83D\uDC41"
+                textSize = 9.5f
+                gravity = android.view.Gravity.CENTER
+                setPadding(dp(4), dp(2), dp(4), dp(2))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    cornerRadius = dp(5).toFloat()
+                    setColor(android.graphics.Color.parseColor("#EEF3F0"))
+                    setStroke(dp(1), android.graphics.Color.parseColor("#DCE6E0"))
+                }
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = dp(6) }
+                isClickable = true; isFocusable = true
+                setOnClickListener {
+                    salaryRowMasked = !salaryRowMasked
+                    amtTv.text = "Salary: " + (if (salaryRowMasked) "\u2022\u2022\u2022\u2022\u2022\u2022" else amountStr)
+                }
+            })
+            if (dayStr.isNotBlank()) {
+                salRow.addView(TextView(this).apply {
+                    text = "  \u2022  Salary day: $dayStr"
+                    textSize = 12f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.parseColor("#0B8A3E"))
+                })
+            }
+            info.addView(salRow)
+        }
         if (extraText.isNotBlank()) {   // 🟣 V961
             info.addView(TextView(this).apply {
                 text = extraText; textSize = 10.5f
@@ -5164,9 +5200,34 @@ class StaffProfileActivity : AppCompatActivity() {
         col.addView(header)
 
         // ── Summary card ────────────────────────────────────────────────────
+        /* 🔒👁️ V1321 (TK-নির্দেশ ১০.০৯.২০২৬, ডেমো-প্রুফ "B" পাশ) — Salary
+           paid (total) ও Grand total paid ডিফল্টে ডট দিয়ে ঢাকা থাকে, পাশের
+           👁 চাপলে দেখা যায় (দুটোই একসাথে খোলে/বন্ধ হয়)। Extra income
+           paid/due অপরিবর্তিত — সবসময় খোলা। স্ক্রিন নতুন করে খুললে আবার
+           ঢাকা অবস্থা থেকেই শুরু হয় (কোথাও জমা থাকে না)। */
+        var moneyMasked = true
+        val maskedValueViews = mutableListOf<TextView>()
+        val maskedAmounts = mutableListOf<() -> Double>()
+        fun maskText(amt: Double) = if (moneyMasked) "••••••" else money(amt)
+        fun refreshMasked() {
+            for (i in maskedValueViews.indices) maskedValueViews[i].text = maskText(maskedAmounts[i]())
+        }
+        fun eyeToggle(): TextView = tv("👁", 10.5f, muted, gravityValue = android.view.Gravity.CENTER).apply {
+            setPadding(dp(5), dp(3), dp(5), dp(3))
+            background = bg("#EEF3F0", "#DCE6E0", 6)
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = dp(6) }
+            isClickable = true; isFocusable = true
+            setOnClickListener { moneyMasked = !moneyMasked; refreshMasked() }
+        }
+        fun hiddenPill(): TextView = tv("🔒 hidden", 8.3f, android.graphics.Color.parseColor("#9A6B00")).apply {
+            setPadding(dp(6), dp(2), dp(6), dp(2))
+            background = bg("#FFF4E5", "#F0D6A6", 20)
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(3) }
+        }
         val summary = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = bg("#FFFFFF", "#D9E8DF", 15)
+            background = bg("#FFFFFF", "#CFE3D8", 15)
+            elevation = 3f * resources.displayMetrics.density
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply { bottomMargin = dp(14) }
@@ -5175,7 +5236,10 @@ class StaffProfileActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = android.view.Gravity.CENTER_VERTICAL
             setPadding(dp(16), dp(11), dp(14), dp(11))
-            background = bg("#075B32", null, 12)
+            background = android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
+                intArrayOf(android.graphics.Color.parseColor("#075B32"), android.graphics.Color.parseColor("#0A7C3F"))
+            ).apply { cornerRadius = dp(12).toFloat() }
         }
         summaryHead.addView(tv("Summary", 17f, android.graphics.Color.WHITE, bold = true).apply {
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
@@ -5195,11 +5259,30 @@ class StaffProfileActivity : AppCompatActivity() {
             addView(tv(label, 10.3f, ink))
             addView(tv(value, 16.5f, valueColor, bold = true).apply { setPadding(0, dp(5), 0, 0) })
         }
+        // 🔒👁️ V1321 — "Salary paid (total)"-এর নিজস্ব বাক্স, ডট + 👁 + hidden ট্যাগসহ
+        val salaryMetricBox = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dp(10), dp(12), dp(8), dp(12))
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        salaryMetricBox.addView(tv("Salary paid (total)", 10.3f, ink))
+        salaryMetricBox.addView(hiddenPill())
+        val salaryValueRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(0, dp(5), 0, 0)
+        }
+        val salaryValueTv = tv(maskText(totSalary), 16.5f, green2, bold = true)
+        maskedValueViews.add(salaryValueTv); maskedAmounts.add({ totSalary })
+        salaryValueRow.addView(salaryValueTv)
+        salaryValueRow.addView(eyeToggle())
+        salaryMetricBox.addView(salaryValueRow)
         val metrics = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(dp(6), dp(4), dp(6), 0)
         }
-        metrics.addView(metric("Salary paid (total)", money(totSalary), green2))
+        metrics.addView(salaryMetricBox)
         metrics.addView(divider(vertical = true))
         metrics.addView(metric("Extra income paid", money(totExtra), green2))
         metrics.addView(divider(vertical = true))
@@ -5213,10 +5296,22 @@ class StaffProfileActivity : AppCompatActivity() {
             gravity = android.view.Gravity.CENTER_VERTICAL
             setPadding(dp(16), dp(10), dp(16), dp(14))
         }
-        grand.addView(tv("Grand total paid", 14f, ink, bold = true).apply {
+        val grandLabelCol = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-        })
-        grand.addView(tv(money(totSalary + totExtra), 21f, green, bold = true, gravityValue = android.view.Gravity.END))
+        }
+        grandLabelCol.addView(tv("Grand total paid", 14f, ink, bold = true))
+        grandLabelCol.addView(hiddenPill())
+        grand.addView(grandLabelCol)
+        val grandValueTv = tv(maskText(totSalary + totExtra), 21f, green, bold = true, gravityValue = android.view.Gravity.END)
+        maskedValueViews.add(grandValueTv); maskedAmounts.add({ totSalary + totExtra })
+        val grandValueRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+        }
+        grandValueRow.addView(grandValueTv)
+        grandValueRow.addView(eyeToggle())
+        grand.addView(grandValueRow)
         summary.addView(grand)
         col.addView(summary)
 

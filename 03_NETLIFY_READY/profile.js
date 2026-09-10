@@ -26,6 +26,7 @@
     if (!m.isMasterModule()) { return renderSelf(); }
     var host = document.getElementById('app');
     host.innerHTML = '<div class="wrap anMod anModPf"><div class="topbar"><b>🧑‍💼 Staff Profiles</b>' +
+      '<button class="ghost" title="More" onclick="pfMoreMenu()">⋮</button>' +
       '<button class="ghost" onclick="dashboard()">Home</button></div>' +
       '<div class="page"><div id="spList" class="mut">Loading...</div></div></div>';
     var client = await sb();
@@ -165,7 +166,19 @@
       var isDoc = String(p.role_kind || '').toLowerCase() === 'doctor';
       var desig = p.designation || p.role_kind || (isDoc ? 'Doctor' : 'Staff');
       var salOn = !!sc.salary_enabled;
-      var salTxt = salOn ? ('Salary: ' + m.money(sc.salary_amount) + ' (day ' + m.esc(sc.salary_date || '-') + ')') : 'Salary: disabled';
+      /* 🔒👁️ V1321 (TK-নির্দেশ ১০.০৯.২০২৬, ডেমো-প্রুফ পাশ) — টাকার অঙ্কটা
+         ডিফল্টে ডট দিয়ে ঢাকা, পাশের 👁 (বোতাম, তাই কার্ডের onclick-এ চাপে না)
+         চাপলে দেখা যায়। "Salary day: N" আগের মতোই খোলা। */
+      var salInner;
+      if (!salOn) {
+        salInner = m.esc('Salary: disabled');
+      } else {
+        var __salId = 'pfSalAmt_' + m.esc(p.person_code);
+        var __realAmt = m.esc(m.money(sc.salary_amount));
+        salInner = '<span>Salary: </span><span id="' + __salId + '" data-real="' + __realAmt + '" data-shown="0">••••••</span>' +
+          '<button class="pfEyeBtn" onclick="pfToggleSalary(\'' + __salId + '\')">👁</button>' +
+          '<span>  •  Salary day: ' + m.esc(sc.salary_date || '-') + '</span>';
+      }
       /* 🔵🔒 V521 (২২.০৮.২০২৬, TK-নির্দেশ) — *"এই কার্ডের মধ্যে ভিউ থাকবে না,
          কিন্তু কার্ডে চাপ দিলে ভিউ হবে।"* ⇒ "View" বোতাম সরানো; কাজটা এখন
          পুরো কার্ডে চাপ দিলেই হয় (ফোনের অ্যাপে হুবহু একই বদল)।
@@ -179,9 +192,7 @@
         '<div class="pfNameRow"><b class="pfName">' + m.esc(p.full_name || '(name not set)') + '</b>' +
         '<span class="pfPill' + (isDoc ? ' pfPillDoc' : '') + '">' + m.esc(desig) + '</span></div>' +
         '<div class="pfMeta">' + m.esc(p.person_code) + ' · ' + m.esc(p.branch || '') + ' · ' + m.esc(m.fullMobile(p.link_mobile)) + '</div>' +
-        '<div class="pfSal' + (salOn ? '' : ' pfSalOff') + '">'
-          + m.esc(String(salTxt).replace(/\s*\(day\s*([^)]*)\)/, '  \u2022  Salary day: $1'))
-          + '</div></div>' +
+        '<div class="pfSal' + (salOn ? '' : ' pfSalOff') + '">' + salInner + '</div></div>' +
         /* 🎨 V1057 — TK-এর ছবির ⋮; চাপলে কার্ডে চাপ দিলে যা হয় ঠিক তাই। */
         /* ⋮🔒 V1058 (TK-নির্দেশ) — ⋮-এ Suspend · Remove (ও View); কার্ডে থাকে শুধু
            Salary · Performance · Extra Income। ⛔ ফোনে এই মেনুতে **Fix Attendance**-ও
@@ -207,28 +218,16 @@
     //    সচল তালিকার উপরে — নইলে সবাই বাদ হয়ে গেলে "No profiles." আর
     //    Removed-বাক্স একসাথে গুলিয়ে যেত।
     if (!listHtml) listHtml = '<div class="card mut">' + (listFailed ? 'Could not load. Please try again.' : 'No profiles.') + '</div>';
-    /* 🏆 V419 (TK-নির্দেশ): সবার পারফরম্যান্স এক পর্দায় — উপরে একটাই বোতাম। */
-    var perfBtn = '<div class="card"><button style="width:100%;background:#fff;color:#0A5C33;border:2px solid #0A5C33;font-weight:800;font-size:15px;padding:13px;border-radius:12px" onclick="staffPerformance()">🏆 Staff Performance</button></div>';
-    /* 👥🔒 V750 (২৭.০৮.২০২৬, TK-নির্দেশ: *"Web+Android ২ যায়গাতেই করতে হবে"*)
-       ফোনে "👥 Add / Remove People" বোতামটা V746-এ বসেছিল, কম্পিউটারে বসেনি।
-       ⛔ Remove ও Restore ওয়েবে **আগে থেকেই ছিল** (profRemove/profRestore) —
-          তাই শুধু **Add**-টাই বাকি ছিল, সেটাই এখানে যোগ হলো।
-       ⛔ সব পাহারা সার্ভারে (00_SQL/V745 + V747) — মাস্টার ছাড়া কেউ পারে না। */
-    var addBtn = '<div class="card"><button style="width:100%;background:#1457B8;color:#fff;border:0;font-weight:800;font-size:15px;padding:13px;border-radius:12px" onclick="pfAddPerson()">➕ Add Staff or Doctor</button></div>';
-    /* 📱🔒 V813 (২৮.০৮.২০২৬, TK-নির্দেশ ও অনুমোদিত ডেমো-প্রুফ:
-       *"phone Version আলাদা থাকবে না"*) — V771-এর আলাদা "📱 Phone Versions"
-       **বোতাম ও পর্দা দুটোই উঠে গেল**। ভার্সন এখন Staff Performance-এর
-       ভিতরেই প্রত্যেকের নামের নিচে ছোট ট্যাগ হয়ে দেখায়।
-       ⛔ ফোনের অ্যাপেও হুবহু একই বদল (StaffProfileActivity.performanceList)।
-       ⛔ কোনো তথ্য · পাহারা · SQL বদলায়নি — একই `hr.app_devices_list`। */
-    /* 🟢🔒 V923 (৩১.০৮.২০২৬, TK ডেমো প্রুফ দেখে "হ্যাঁ পাশ, বসিয়ে দিন") —
-       কম্পিউটারে জায়গার সদ্ব্যবহার: উপরের দুটো বোতাম একটা `pfTopBtns` মোড়কে,
-       কর্মীর কার্ডগুলো একটা `pfGrid` মোড়কে। ≥900px-এ দুটোই পাশাপাশি দুই
-       কলামে (styles.css); ছোট পর্দায় মোড়ক দুটোর কোনো নিয়ম নেই, তাই ফোনে
-       আগের মতোই একটার নিচে একটা। ⛔ বোতাম · লেখা · কাজ কিছুই বদলায়নি। */
-    var topBtns = '<div class="pfTopBtns">' + perfBtn + addBtn + '</div>';
+    /* 📋🔒 V1321 (TK-নির্দেশ ১০.০৯.২০২৬, ডেমো-প্রুফ পাশ) — আগে এখানে দুটো
+       বড় বোতাম ("🏆 Staff Performance" ও "➕ Add Staff or Doctor") আলাদা
+       কার্ড হয়ে থাকত; এখন দুটোই উপরের টপবারের ⋮ (pfMoreMenu) চাপলে খোলে।
+       ⛔ ফোনে যেমন "📱 Mobile Version" আলাদা একটা বোতাম ছিল, ওয়েবে সেটা
+          কোনোদিনই আলাদা বোতাম ছিল না (V813 অনুযায়ী ভার্সন এখানে Staff
+          Performance-এর ভিতরেই নামের নিচে ছোট ট্যাগ হয়ে দেখায়) — তাই ওয়েবে
+          মেনুতে নতুন করে "Mobile Version" যোগ করার কিছু নেই, সৎভাবে জানানো
+          হলো। ⛔ কোনো তথ্য/পাহারা/SQL বদলায়নি — শুধু বোতাম দুটোর জায়গা। */
     var listWrap = rows.length ? ('<div class="pfGrid">' + listHtml + '</div>') : listHtml;
-    document.getElementById('spList').innerHTML = topBtns + dueHtml + listWrap + removedHtml();
+    document.getElementById('spList').innerHTML = dueHtml + listWrap + removedHtml();
 
     // 🔴 V404: বাদ-দেওয়া কর্মীদের ছোট তালিকা — গোনা থাকে, ভুল হলে Restore।
     function removedHtml() {
@@ -247,6 +246,48 @@
         }).join('') + '</details>';
     }
   }
+
+  /* 📋🔒 V1321 (TK-নির্দেশ ১০.০৯.২০২৬) — Staff Profiles-এর উপরের ⋮। */
+  function pfMoreMenu() {
+    var m = window.MOD;
+    modal('<h2>Staff Profiles</h2><div class="card pfDotsMenu">'
+      + '<button class="ghost" onclick="closeModal();staffPerformance()">🏆 Staff Performance</button>'
+      + '<button class="ghost" onclick="closeModal();pfAddPerson()">➕ Add Staff / Doctor</button>'
+      + '</div><div class="actions"><button class="ghost" onclick="closeModal()">Close</button></div>');
+  }
+  window.pfMoreMenu = pfMoreMenu;
+
+  /* 🔒👁️ V1321 — কার্ডের Salary-ডট চাপলে দেখা/ঢাকা টগল। */
+  function pfToggleSalary(id) {
+    try {
+      var el = document.getElementById(id);
+      if (!el) return;
+      if (el.getAttribute('data-shown') === '1') {
+        el.textContent = '••••••';
+        el.setAttribute('data-shown', '0');
+      } else {
+        el.textContent = el.getAttribute('data-real') || '';
+        el.setAttribute('data-shown', '1');
+      }
+    } catch (e) {}
+  }
+  window.pfToggleSalary = pfToggleSalary;
+
+  /* 🔒👁️ V1321 — Salary Statement-এর Salary paid (total) ও Grand total
+     paid একসাথে টগল হয় (Android-এর মতোই)। */
+  function pfStmtToggleMoney() {
+    try {
+      var ids = ['pfStmtSalVal', 'pfStmtGrandVal'];
+      var first = document.getElementById(ids[0]);
+      var shown = !!(first && first.getAttribute('data-shown') === '1');
+      ids.forEach(function (id) {
+        var el = document.getElementById(id); if (!el) return;
+        if (shown) { el.textContent = '••••••'; el.setAttribute('data-shown', '0'); }
+        else { el.textContent = el.getAttribute('data-real') || ''; el.setAttribute('data-shown', '1'); }
+      });
+    } catch (e) {}
+  }
+  window.pfStmtToggleMoney = pfStmtToggleMoney;
 
   /* 👥🔒 V750 — নতুন স্টাফ বা ডাক্তার (ফোনের addPersonDialog-এর হুবহু সঙ্গী)।
      ⛔ এই ফাংশন নিজে **কোনো নিয়ম যাচাই করে না** — সব পাহারা সার্ভারে
@@ -1367,14 +1408,24 @@
       return '<div class="pfStmtMetric"><span>'+label+'</span><b class="'+(cls||'')+'">'+value+'</b></div>';
     }
 
+    /* 🔒👁️ V1321 (TK-নির্দেশ ১০.০৯.২০২৬, ডেমো-প্রুফ "B" পাশ) — Salary paid
+       (total) ও Grand total paid ডিফল্টে ডট দিয়ে ঢাকা, 👁 চাপলে দুটোই
+       একসাথে দেখা যায় (pfStmtToggleMoney)। Extra income paid/due খোলাই
+       থাকে। পর্দা নতুন করে খুললে আবার ঢাকা অবস্থা থেকেই শুরু হয়। */
+    var lockPill = '<span style="display:inline-block;font-size:8.5px;font-weight:700;color:#9A6B00;background:#FFF4E5;border:1px solid #F0D6A6;padding:2px 6px;border-radius:20px;margin-top:3px">🔒 hidden</span>';
+    var eyeBtn = '<button class="pfEyeBtn" onclick="pfStmtToggleMoney()">👁</button>';
     var summary = '<div class="pfStmtSummary">' +
       '<div class="pfStmtSummaryHead"><b>Summary</b><span>' + (latest ? ('Up to '+m.esc(friendlyDate(latest))) : 'Current statement') + '</span></div>' +
       '<div class="pfStmtMetrics">' +
-        metric('Salary paid (total)', m.money(tS), 'pfStmtGreen') +
+        '<div class="pfStmtMetric"><span>Salary paid (total)</span>' + lockPill +
+          '<b class="pfStmtGreen" id="pfStmtSalVal" data-real="'+m.esc(m.money(tS))+'" data-shown="0" style="display:inline-block">••••••</b>' + eyeBtn +
+        '</div>' +
         metric('Extra income paid', m.money(tE), 'pfStmtGreen') +
         metric('Extra income due', m.money(tD), tD > 0 ? 'pfStmtRed' : 'pfStmtMuted') +
       '</div>' +
-      '<div class="pfStmtGrand"><span>Grand total paid</span><b>'+m.money(tS+tE)+'</b></div>' +
+      '<div class="pfStmtGrand"><span>Grand total paid ' + lockPill + '</span>' +
+        '<b id="pfStmtGrandVal" data-real="'+m.esc(m.money(tS+tE))+'" data-shown="0">••••••</b>' + eyeBtn +
+      '</div>' +
     '</div>';
 
     SAL_LAST_PAYS = pays;
