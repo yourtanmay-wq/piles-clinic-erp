@@ -24463,6 +24463,19 @@ alias `androiddebugkey` · SHA-256 5C:B2:24:AB:…:E6:AB — এটাই ফো
 ফাংশন/ট্রিগার লেখা-ধরনে চলে — বদলালে ভাঙত)। বদলে তিন ঘরে CHECK: সংখ্যা বা ফাঁকা ছাড়া ঢুকবে না;
 অ্যাপ সবসময় সংখ্যা লেখে, তাই কিছু আটকায় না। sql_run_log-এ এন্ট্রি। কোড বদল নেই।
 
+## ১০.০৯.২০২৬ ১৪:৪০ — V1294 · তালিকা ৪১১-⑬ (ক) + ৪১২: সাপ্তাহিক কপি ডেটাবেসের বাইরে — ঘর Public ধরা পড়ল
+
+মাপা: backuprecords ৫৩/৭.৭ MB, আসল payload ২টায় ⇒ কাজের স্বয়ংক্রিয় কপি নেই। TK "ক করুন, সাবধানে"।
+শুরুর আগে API-তে যাচাই: repo **public** — খাতা/তালিকায় রোগীর নাম-মোবাইল প্রকাশ্যে ⇒ থামিয়ে TK-কে জানানো
+(৪১২)। TK "হ্যাঁ, বানান" (আলাদা Private ঘর) → create_repository 403 ⇒ পথ: TK প্রজেক্টের ঘর Private করবেন;
+কপি একই ঘরের `backups` শাখায়। তৈরি: `00_GUARD/cloud_backup/export.js` (node 20 fetch, Range-পাতা ১০০০,
+count না মিললে বাতিল, Restore JSON-এর {meta,data} ছাঁচ + extra টেবিল; usercredentials/message_log ইচ্ছে করে
+বাদ; ছবি ছাড়া/সহ; gzip; LAST_BACKUP.json) + `.github/workflows/weekly_backup.yml` (রবি ২০:৩০ UTC = সোম ০২:০০
+IST; workflow_dispatch; প্রথম ধাপে private≠true হলে থামে; ওয়েবের config.js-এর ঠিকানা/anon key — ওয়েবে
+এমনিতেই প্রকাশ্য; মাসের প্রথম রান ছবিসহ; ১৮০ দিনের পুরনো সাপ্তাহিক ছাঁটা)। নকল PostgREST-এ: ২৩৪৫ রোগী
+৩ পাতায়, count মিল, ছবি-ছাঁটা, Restore-ছাঁচ — সব ✅। ⛔ সময়সূচি শুধু default শাখা থেকে চলে — ওখানে ফাইল
+দিতে TK-র অনুমতি লাগবে।
+
 ## ১০.০৯.২০২৬ ১৩:৫৫ — V1293 · তালিকা ৪১১-⑫ (ক): ব্রাউজার-পরীক্ষা স্থায়ী পাহারা
 
 TK: *"ক করুন, সাবধানে"*। `00_GUARD/web_browser_test/run.py` — Playwright (Chromium /opt/pw-browsers) +
