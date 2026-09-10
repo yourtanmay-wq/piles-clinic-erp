@@ -464,6 +464,7 @@ object PatientTimelineRepository {
         var patients = preTimeline[2]
         context?.let { ctx ->
             val store = LocalWorkflowStore(ctx)
+            try { store.markSyncedWhereCloudCaughtUp("enquiries", enquiries); store.markSyncedWhereCloudCaughtUp("followups", followups); store.markSyncedWhereCloudCaughtUp("patients", patients) } catch (_: Throwable) { }   // 🔴 V1311 (তালিকা ৪২৩)
             enquiries = mergeWithPending(enquiries, store.pendingEnquiries(), mobileDigits)
             followups = mergeWithPending(followups, store.pendingFollowUps(), mobileDigits)
             patients = mergeWithPending(patients, store.pendingPatients(), mobileDigits)
@@ -596,7 +597,7 @@ object PatientTimelineRepository {
                 if (seenIds.add(row.s("id"))) payments.put(row)
             }
         }
-        context?.let { ctx -> payments = mergeWithPending(payments, LocalWorkflowStore(ctx).pendingPayments(), mobileDigits) }
+        context?.let { ctx -> try { LocalWorkflowStore(ctx).markSyncedWhereCloudCaughtUp("payments", payments) } catch (_: Throwable) { }; payments = mergeWithPending(payments, LocalWorkflowStore(ctx).pendingPayments(), mobileDigits) }   // 🔴 V1311 (তালিকা ৪২৩)
         val medical = secondRound.second
 
         // TK-REPORTED BUG FIX (2026-07-24): same root cause as section 111

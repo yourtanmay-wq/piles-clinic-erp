@@ -1127,8 +1127,12 @@ class FollowUpRepository(private val context: Context? = null) {
      *  (terminal status হলে সরানো)। stage অনুযায়ী আলাদা cache key। */
     private fun deltaPreCloudOrNull(stage: String, since: String): JSONArray? {
         val sinceEnc = try { java.net.URLEncoder.encode(since, "UTF-8") } catch (_: Throwable) { since }
+        /* 🔴🔒 V1311 (তালিকা ৪২৩): আগে `stage=eq.` ছাঁকনি ছিল — যে সারি এই ধাপ **ছেড়ে** গেছে
+           (Inquiry→Registered, Patient→Treatment) delta-য় আসতই না, তাই ৩ ঘণ্টা পর্যন্ত জমানো
+           তালিকায় থেকে যেত। এখন সব ধাপের বদল আসে (সারি ক'টা — শেষ পড়ার পরে যা বদলেছে শুধু),
+           আর অন্য ধাপের সারি এই তালিকা থেকে সরে। */
         val delta = try {
-            slimFollowups("stage=eq.$stage&updatedAt=gt.$sinceEnc")
+            slimFollowups("updatedAt=gt.$sinceEnc")
         } catch (_: Throwable) { null } ?: return null
         val cacheKey = "precloud_${stage.lowercase()}"
         val cached = loadCachedArray(cacheKey)
@@ -1142,7 +1146,7 @@ class FollowUpRepository(private val context: Context? = null) {
         for (i in 0 until delta.length()) {
             val row = delta.getJSONObject(i)
             val id = row.optString("id"); if (id.isBlank()) continue
-            if (row.optString("status").trim() in terminal) byId.remove(id) else byId[id] = row
+            if (row.optString("status").trim() in terminal || row.optString("stage").trim() != stage) byId.remove(id) else byId[id] = row
         }
         val merged = JSONArray(); for (v in byId.values) merged.put(v)
         saveCachedArray(cacheKey, merged)
@@ -1267,7 +1271,7 @@ class FollowUpRepository(private val context: Context? = null) {
 
         val sinceEnc = try { java.net.URLEncoder.encode(since, "UTF-8") } catch (_: Throwable) { since }
         val delta = try {
-            slimFollowups("stage=eq.Inquiry&updatedAt=gt.$sinceEnc")
+            slimFollowups("updatedAt=gt.$sinceEnc")   // 🔴 V1311 (তালিকা ৪২৩): ধাপ-ছাঁকনি নেই — ধাপ ছেড়ে যাওয়া সারিও আসে (নিচে সরে)
         } catch (_: Throwable) { null } ?: return null   // ব্যর্থ → পূর্ণ-fetch পথে
 
         val cached = loadCachedPreCloudInquiry()
@@ -1284,7 +1288,7 @@ class FollowUpRepository(private val context: Context? = null) {
             val id = row.optString("id")
             if (id.isBlank()) continue
             val status = row.optString("status").trim()
-            if (status in terminal) byId.remove(id) else byId[id] = row
+            if (status in terminal || row.optString("stage").trim() != "Inquiry") byId.remove(id) else byId[id] = row
         }
         val merged = JSONArray()
         for (v in byId.values) merged.put(v)
@@ -1638,6 +1642,7 @@ class FollowUpRepository(private val context: Context? = null) {
         // মুছে যাওয়া সারি বাদ দেওয়া নিরাপদ।
         val cloudAnswered = cloud.length() > 0
         context?.let { ctx ->
+            try { LocalWorkflowStore(ctx).markSyncedWhereCloudCaughtUp("followups", rows) } catch (_: Throwable) { }   // 🔴 V1311 (তালিকা ৪২৩)
             val pending = LocalWorkflowStore(ctx).rowsForStage(stage)
             val idPosition = HashMap<String, Int>()
             for (i in 0 until merged.length()) {
@@ -1714,7 +1719,11 @@ class FollowUpRepository(private val context: Context? = null) {
                     val localStamp = p.optString("updatedAt", "")
                     val cloudStamp = merged.getJSONObject(existingPos).optString("updatedAt", "")
                     if (localStamp.isNotBlank() && (cloudStamp.isBlank() || localStamp >= cloudStamp)) {
-                        merged.put(existingPos, p)
+                        /* 🔴🔒 V1311 (তালিকা ৪২৩, রুল ৭ — V1306-এর একই নিয়ম): পুরো সারি বদলানো নয়;
+                           ক্লাউডের সারির উপরে ফোনের ঘরগুলো — ফোনের কপি আধখানা হলেও নাম/রোগ/তারিখ হারায় না। */
+                        val ov = JSONObject(merged.getJSONObject(existingPos).toString()); val ks = p.keys()
+                        while (ks.hasNext()) { val k = ks.next(); ov.put(k, p.opt(k)) }
+                        merged.put(existingPos, ov)
                     }
                 } else {
                     idPosition[pid] = merged.length()

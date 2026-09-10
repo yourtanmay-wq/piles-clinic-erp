@@ -390,6 +390,42 @@ class LocalWorkflowStore(context: Context) {
      *
      * এই দুটো ফাংশন মুছে ফেলার সময় ফোনের কপিটাও পরিষ্কার করে।
      */
+    /** 🔴🔒 V1311 (তালিকা ৪২৩, রুল ৭): ক্লাউড থেকে আসা সারি ফোনের **PENDING** কপির সমান বা নতুন
+     *  (updatedAt) হলে কপিটা SYNCED হয়ে যায় — "চিরকাল PENDING" আর হয় না, তাই তালিকাগুলোয়
+     *  আধখানা/পুরনো কপি ঢুকে পড়ার পথ বন্ধ। শুধু একই id · দুটোতেই updatedAt আছে · ক্লাউড >= ফোন —
+     *  তবেই। ক্লাউড পুরনো হলে (ফোনের লেখা এখনো ওঠেনি) কিছুই ছোঁয় না — sync-এর কাজ sync করে। */
+    fun markSyncedWhereCloudCaughtUp(table: String, cloudRows: JSONArray?) {
+        if (cloudRows == null || cloudRows.length() == 0) return
+        val list = ArrayList<JSONObject>(cloudRows.length())
+        for (i in 0 until cloudRows.length()) cloudRows.optJSONObject(i)?.let { list.add(it) }
+        markSyncedWhereCloudCaughtUp(table, list)
+    }
+
+    fun markSyncedWhereCloudCaughtUp(table: String, cloudRows: List<JSONObject>) {
+        if (table !in listOf("patients", "payments", "followups", "enquiries", "medical")) return
+        if (cloudRows.isEmpty()) return
+        try {
+            val cloudStamp = HashMap<String, String>()
+            for (r in cloudRows) {
+                val id = r.optString("id"); val u = r.optString("updatedAt")
+                if (id.isNotBlank() && u.isNotBlank()) cloudStamp[id] = u
+            }
+            if (cloudStamp.isEmpty()) return
+            synchronized(LOCK) {
+                val rows = load(table)
+                var changed = false
+                for (i in 0 until rows.length()) {
+                    val row = rows.optJSONObject(i) ?: continue
+                    if (row.optString("_syncStatus") != "PENDING") continue
+                    val c = cloudStamp[row.optString("id")] ?: continue
+                    val l = row.optString("updatedAt")
+                    if (l.isNotBlank() && c >= l) { row.put("_syncStatus", "SYNCED"); rows.put(i, row); changed = true }
+                }
+                if (changed) save(table, rows)
+            }
+        } catch (_: Throwable) { }
+    }
+
     fun forgetRecord(table: String, id: String) {
         if (table.isBlank() || id.isBlank()) return
         synchronized(LOCK) {

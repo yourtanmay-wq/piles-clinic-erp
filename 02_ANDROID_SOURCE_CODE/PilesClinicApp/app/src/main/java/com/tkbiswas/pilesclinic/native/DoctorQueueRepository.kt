@@ -316,6 +316,7 @@ class DoctorQueueRepository(private val context: Context? = null) {
         val merged = JSONArray()
         for (i in 0 until rows.length()) merged.put(rows.getJSONObject(i))
         context?.let { ctx ->
+            try { LocalWorkflowStore(ctx).markSyncedWhereCloudCaughtUp("patients", rows) } catch (_: Throwable) { }   // 🔴 V1311 (তালিকা ৪২৩)
             val pending = LocalWorkflowStore(ctx).pendingPatients()
             val idPosition = HashMap<String, Int>()
             for (i in 0 until merged.length()) {
@@ -836,6 +837,7 @@ class DoctorQueueRepository(private val context: Context? = null) {
             else byId.remove(id)   // লাইন থেকে বেরিয়ে গেছে (checkup সম্পন্ন ইত্যাদি)
         }
 
+        context?.let { ctx -> try { LocalWorkflowStore(ctx).markSyncedWhereCloudCaughtUp("patients", delta) } catch (_: Throwable) { } }   // 🔴 V1311 (তালিকা ৪২৩)
         var merged = mergeOwnPhonePatients(branchFilter, byId.values.toList())
         val oncePerMobile = mutableListOf<QueuePatient>()
         val seenMobiles = HashSet<String>()

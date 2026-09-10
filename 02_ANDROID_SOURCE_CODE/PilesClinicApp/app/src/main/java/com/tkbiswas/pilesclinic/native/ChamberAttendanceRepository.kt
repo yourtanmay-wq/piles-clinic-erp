@@ -612,6 +612,7 @@ object ChamberAttendanceRepository {
         // hasn't reached the cloud yet) for TODAY, so this device's own
         // board never looks like the tap "did nothing" while offline.
         context?.let { ctx ->
+            try { LocalWorkflowStore(ctx).markSyncedWhereCloudCaughtUp("payments", payments) } catch (_: Throwable) { }   // 🔴 V1311 (তালিকা ৪২৩)
             val pending = LocalWorkflowStore(ctx).pendingPayments()
             val idPosition = HashMap<String, Int>()
             for (i in 0 until payments.length()) {
@@ -695,6 +696,7 @@ object ChamberAttendanceRepository {
         // TK-REQUESTED FIX (2026-07-19): same fix as above, for a just-saved
         // Registration that hasn't synced yet.
         context?.let { ctx ->
+            try { LocalWorkflowStore(ctx).markSyncedWhereCloudCaughtUp("patients", patients) } catch (_: Throwable) { }   // 🔴 V1311 (তালিকা ৪২৩)
             val pending = LocalWorkflowStore(ctx).pendingPatients()
             val idPosition = HashMap<String, Int>()
             for (i in 0 until patients.length()) {
@@ -826,6 +828,7 @@ object ChamberAttendanceRepository {
         // Enquiry/Registration/Advance's OWN followups row (needed for
         // followUpId/Last Remark above) doesn't have to wait on the network.
         context?.let { ctx ->
+            try { LocalWorkflowStore(ctx).markSyncedWhereCloudCaughtUp("followups", allFollowUpsList) } catch (_: Throwable) { }   // 🔴 V1311 (তালিকা ৪২৩)
             val pending = LocalWorkflowStore(ctx).pendingFollowUps()
             val idPosition = HashMap<String, Int>()
             for (i in allFollowUpsList.indices) {

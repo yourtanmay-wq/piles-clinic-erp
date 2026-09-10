@@ -182,6 +182,7 @@ class GlobalSearchActivity : AppCompatActivity() {
                 val pat = org.json.JSONArray()
                 for (i in 0 until patCloud.length()) pat.put(patCloud.getJSONObject(i))
                 run {
+                    try { LocalWorkflowStore(this@GlobalSearchActivity).markSyncedWhereCloudCaughtUp("enquiries", enq); LocalWorkflowStore(this@GlobalSearchActivity).markSyncedWhereCloudCaughtUp("patients", pat) } catch (_: Throwable) { }   // 🔴 V1311 (তালিকা ৪২৩)
                     val pendingEnq = LocalWorkflowStore(this@GlobalSearchActivity).pendingEnquiries()
                     val seenEnqIds = HashSet<String>()
                     for (i in 0 until enq.length()) seenEnqIds.add(enq.getJSONObject(i).optString("id"))

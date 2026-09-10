@@ -756,6 +756,9 @@ class DraftRepository(private val context: Context? = null) {
         var payments = paymentsRaw ?: org.json.JSONArray()
         context?.let { ctx ->
             val store = LocalWorkflowStore(ctx)
+            // 🔴 V1311 (তালিকা ৪২৩): ক্লাউড ধরে ফেললে ফোনের PENDING কপি SYNCED — আগে চিরকাল থেকে যেত
+            try { store.markSyncedWhereCloudCaughtUp("enquiries", enq); store.markSyncedWhereCloudCaughtUp("followups", follow)
+                  store.markSyncedWhereCloudCaughtUp("patients", patients); store.markSyncedWhereCloudCaughtUp("payments", payments) } catch (_: Throwable) { }
             enq = mergeWithPending(enq, store.pendingEnquiries(), branchFilter)
             follow = mergeWithPending(follow, store.pendingFollowUps(), branchFilter)
             patients = mergeWithPending(patients, store.pendingPatients(), branchFilter)

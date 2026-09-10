@@ -1436,8 +1436,10 @@ async function wlv1FollowUpCloudPull(){
          দেখাত। ছাঁকনি ছাড়া সই স্থির: সত্যিই কেউ কিছু বদলালে তবেই এগোয়। */
       try{ if(await wlv1CloudUnchanged('fu|'+table, table, null)) return null;
            const __c=(typeof RT_NO_PHOTO_COLS!=='undefined'&&RT_NO_PHOTO_COLS[table])||'*';
-           const r=await sb.from(table).select(__c).gte('updatedAt',since).limit(500);
-           if(r&&!r.error&&Array.isArray(r.data)){ wlv1SigCommit('fu|'+table); return r.data; }
+           /* 🔴 V1311 (তালিকা ৪২৩): `.limit(500)` ছিল — ৩ ঘণ্টায় ৫০০-র বেশি সারি বদলালে (SQL/বড় কাজ)
+              বাকিগুলো চুপচাপ বাদ যেত। এখন পাতা করে সবটা। */
+           const r=await wlv1FetchPaged(table,__c,null,true,q=>q.gte('updatedAt',since));
+           if(r&&!r.error&&Array.isArray(r.rows)){ wlv1SigCommit('fu|'+table); return r.rows; }
            return null; }
       catch(e){ return null; }
     };
@@ -1609,10 +1611,13 @@ function wlv1MaxUpdatedAt(rows){
   return best;
 }
 /* পাতা-ধরে-পাতা পড়া। sinceIso দিলে শুধু তার পরে বদলানো সারি। */
-async function wlv1FetchPaged(ct,sel,sinceIso,noStamp){
+async function wlv1FetchPaged(ct,sel,sinceIso,noStamp,build){
   var out=[],from=0;
   for(var i=0;i<WLV1_PAGE_GUARD;i++){
     var q=sb.from(ct).select(sel);
+    /* 🔴 V1311 (তালিকা ৪২৩): ঐচ্ছিক ছাঁকনি (eq/gte/in…) — যাতে `.limit(500/2000/5000)`-এর
+       একবারের পড়াগুলোও এই পাতা-করা পথে আসে (Supabase একবারে ১০০০-এর বেশি দেয় না)। */
+    if(typeof build==='function') q=build(q);
     if(sinceIso&&!noStamp) q=q.gt('updatedAt',sinceIso);
     /* 🔒 V1067 (খুঁটিয়ে দেখতে গিয়ে পাওয়া) — `updatedAt` এক হলে পাতার সীমানায়
        সারি **এড়িয়ে যেতে পারত** (একই সেকেন্ডে সেভ হওয়া দুটো সারি)। তাই দ্বিতীয়
@@ -4661,9 +4666,9 @@ async function refreshBriefingsFromCloud(force){
   let __brNeedFull=(force===true)||!__brSince||(Date.now()-__brFullAt)>21600000;
   let __brOk=false,__brMax=__brSince;
   try{
-   let q=sb.from('briefings').select('*').limit(1000);
-   if(!__brNeedFull)q=q.gt('updatedAt',__brSince);
-   let {data,error}=await q;
+   /* 🔴 V1311 (তালিকা ৪২৩): `.limit(1000)` — নোটিশ ১০০০ ছাড়ালে পুরনোগুলো চুপচাপ বাদ যেত; এখন পাতা করে */
+   let __brPg=await wlv1FetchPaged('briefings','*',__brNeedFull?null:__brSince,__brNeedFull);
+   let data=__brPg.rows,error=__brPg.error;
    if(!error&&Array.isArray(data)){
     __brOk=true;
     out=out.concat(normalizeCloudRows(data));
@@ -10345,13 +10350,12 @@ async function wlv1RmpDirFetch(brArg){
   if(now-(wlv1RmpDirTry[tk]||0)<60000) return false; wlv1RmpDirTry[tk]=now;
   try{
     if(!sb) return false;
-    let q=sb.from('doctor_visits').select(WLV1_RMP_DIR_COLS).limit(2000);
-    if(br&&br!=='All') q=q.eq('branch',br);
-    let r=await q;
-    if(r.error||!Array.isArray(r.data)) return false;
-    try{ localStorage.setItem(wlv1RmpDirKey(br),JSON.stringify(r.data)) }catch(_e){}
-    try{ localStorage.setItem('wlv1RmpDir',JSON.stringify(r.data)) }catch(_e){}
-    return r.data.length>0;
+    /* 🔴 V1311 (তালিকা ৪২৩): `.limit(2000)` ছিল — Supabase ১০০০-এ কেটে দিত; এখন পাতা করে সবটা */
+    let r=await wlv1FetchPaged('doctor_visits',WLV1_RMP_DIR_COLS,null,true,q=>(br&&br!=='All')?q.eq('branch',br):q);
+    if(r.error||!Array.isArray(r.rows)) return false;
+    try{ localStorage.setItem(wlv1RmpDirKey(br),JSON.stringify(r.rows)) }catch(_e){}
+    try{ localStorage.setItem('wlv1RmpDir',JSON.stringify(r.rows)) }catch(_e){}
+    return r.rows.length>0;
   }catch(_e){ return false }
 }
 async function wlv1OpenCachedRmpPicker(){
@@ -11110,18 +11114,18 @@ async function wlv1QueueCloudPull(){
        ⇒ প্রথমবার খরচ আগের মতোই; তারপর থেকে প্রায় শূন্য। */
     const grab = async (build)=>{
       try{ const __c=(typeof RT_NO_PHOTO_COLS!=='undefined'&&RT_NO_PHOTO_COLS['patients'])||'*';
-           const r = await build(sb.from('patients').select(__c));
-           return (r && !r.error && Array.isArray(r.data)) ? r.data : null; }
+           const r = await wlv1FetchPaged('patients',__c,null,true,build);   /* 🔴 V1311 (তালিকা ৪২৩): queue=true সারি ৫০০ ছাড়ালেও কেউ বাদ নয় */
+           return (r && !r.error && Array.isArray(r.rows)) ? r.rows : null; }
       catch(e){ return null; }
     };
     /* 🔴 V579 — দুটো তালিকার কোনোটাই না বদলালে একটাও সারি নামে না।
        ⛔ যেকোনো একটা বদলালে সেটা আগের মতোই পুরোটা নামে (সন্দেহ ⇒ নামাও)। */
     const [a,b2] = await Promise.all([
       (async()=> (await wlv1CloudUnchanged('dq|queue','patients',q=>q.eq('queue',true))) ? null
-                 : await (async()=>{ const d=await grab(q=>q.eq('queue',true).limit(500));
+                 : await (async()=>{ const d=await grab(q=>q.eq('queue',true));
                                      if(d) wlv1SigCommit('dq|queue'); return d; })())(),
       (async()=> (await wlv1CloudUnchanged('dq|stage','patients',q=>q.in('stage',['Doctor Queue','Visit']))) ? null
-                 : await (async()=>{ const d=await grab(q=>q.in('stage',['Doctor Queue','Visit']).limit(500));
+                 : await (async()=>{ const d=await grab(q=>q.in('stage',['Doctor Queue','Visit']));
                                      if(d) wlv1SigCommit('dq|stage'); return d; })())()
     ]);
     const rows = [].concat(Array.isArray(a)?a:[], Array.isArray(b2)?b2:[]);
@@ -18080,11 +18084,11 @@ async function wlv1DvCloudPull(){
     if(!ok||!sb) return false;
     if(await wlv1CloudUnchanged('dv|doctor_visits','doctor_visits',null)) return false;
     const since=new Date(Date.now()-3*3600*1000).toISOString();
-    const r=await sb.from('doctor_visits').select('*').gte('updatedAt',since).limit(500);
-    if(!r||r.error||!Array.isArray(r.data)) return false;
+    const r=await wlv1FetchPaged('doctor_visits','*',null,true,q=>q.gte('updatedAt',since));   /* 🔴 V1311 (তালিকা ৪২৩): ৫০০-সীমা নয়, পাতা করে */
+    if(!r||r.error||!Array.isArray(r.rows)) return false;
     wlv1SigCommit('dv|doctor_visits');
-    if(!r.data.length) return false;
-    const one=wlv1WebNotDeleted('doctor_visits',normalizeCloudRows(r.data));
+    if(!r.rows.length) return false;
+    const one=wlv1WebNotDeleted('doctor_visits',normalizeCloudRows(r.rows));
     if(!one||!one.length) return false;
     save('doctor_visits', mergeById([].concat(protectedRows('doctor_visits'),one), load('doctor_visits')), {skipCloud:true});
     return true;
@@ -18236,9 +18240,9 @@ async function wlv1RmpMasterBranchChange(branch){
  try{
   if(sb){
    let sel=(CLOUD_SAFE_COLS.doctor_visits||[]).join(',')||'*';
-   let r=await sb.from('doctor_visits').select(sel).eq('branch',branch).limit(2000);
+   let r=await wlv1FetchPaged('doctor_visits',sel,null,true,q=>q.eq('branch',branch));   /* 🔴 V1311 (তালিকা ৪২৩): ১০০০-সীমার ওপারেও */
    if(r.error)throw r.error;
-   let fresh=normalizeCloudRows(r.data||[]),old=load('doctor_visits')||[];
+   let fresh=normalizeCloudRows(r.rows||[]),old=load('doctor_visits')||[];
    let other=old.filter(x=>String(x.branch||'')!==String(branch));
    let protectedSame=(typeof protectedRows==='function'?protectedRows('doctor_visits'):[]).filter(x=>sameBranch(x.branch,branch))   /* 🔴 V436: ব্রাঞ্চ মেলানো ফোনের মতো সহনশীল */;
    save('doctor_visits',other.concat(mergeById(fresh,protectedSame)),{skipCloud:true});
@@ -22785,16 +22789,16 @@ async function wlv1ChamberCloudPull(date, branch, force){
           মতোই `*` — অর্থাৎ ওদের আচরণ এক অক্ষরও বদলায়নি। */
     const grab = async (table, build)=>{
       try{ const __c=(typeof RT_NO_PHOTO_COLS!=='undefined'&&RT_NO_PHOTO_COLS[table])||'*';
-           const r = await build(sb.from(table).select(__c));
-           return (r && !r.error && Array.isArray(r.data)) ? r.data : null; }
+           const r = await wlv1FetchPaged(table,__c,null,true,build);   /* 🔴 V1311 (তালিকা ৪২৩): ১০০০-সীমার ওপারেও */
+           return (r && !r.error && Array.isArray(r.rows)) ? r.rows : null; }
       catch(e){ return null; }
     };
     const [pay, enq, pat] = await Promise.all([
-      grab('payments',   q=>q.eq('date',date).limit(5000)),
-      grab('enquiries',  q=>q.eq('date',date).limit(5000)),
+      grab('payments',   q=>q.eq('date',date)),
+      grab('enquiries',  q=>q.eq('date',date)),
       /* ফোনে রোগী `registrationDate` ধরে আসে; ওয়েবের বোর্ড `registrationDate`
          **বা** `date` — দুটোই দেখে, তাই দুটোই চাওয়া হলো (একটাই অনুরোধ)। */
-      grab('patients',   q=>q.or('registrationDate.eq.'+date+',date.eq.'+date).limit(5000))
+      grab('patients',   q=>q.or('registrationDate.eq.'+date+',date.eq.'+date))
     ]);
     let changed=false;
     const put = (t, rows)=>{
@@ -22928,8 +22932,8 @@ async function wlv1PaymentCloudPull(date){
       try{ /* 🔴 V579 — কিছু না বদলালে তালিকাটা আর নামেই না (উপরের টীকা দেখুন) */
            if(await wlv1CloudUnchanged('pay|'+table+'|'+key, table, q=>q.eq('date',key))) return null;
            const __c=(typeof RT_NO_PHOTO_COLS!=='undefined'&&RT_NO_PHOTO_COLS[table])||'*';
-           const r=await sb.from(table).select(__c).eq('date',key).limit(5000);
-           if(r&&!r.error&&Array.isArray(r.data)){ wlv1SigCommit('pay|'+table+'|'+key); return r.data; }
+           const r=await wlv1FetchPaged(table,__c,null,true,q=>q.eq('date',key));   /* 🔴 V1311 (তালিকা ৪২৩) */
+           if(r&&!r.error&&Array.isArray(r.rows)){ wlv1SigCommit('pay|'+table+'|'+key); return r.rows; }
            return null; }
       catch(e){ return null; }
     };

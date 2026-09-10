@@ -144,8 +144,17 @@ class PaymentRepository(private val context: Context? = null) {
                 if (row.optString("date") != today) continue
                 if (branchFilter != null && branchFilter != "All" &&
                     !row.s("branch").equals(branchFilter, ignoreCase = true)) continue
-                if (row.optDouble("amount", 0.0) <= 0) continue
-                val r = PaymentModel.parsePaymentRow(row)
+                /* 🔴🔒 V1311 (তালিকা ৪২৩): পুরো-পড়ার পথের (fetchTodayCollection) হুবহু একই নিয়ম —
+                   চিহ্ন-সারি নয়; refund শুধু approved হলে, আর তখন **বিয়োগ** (আগে এখানে
+                   pending/approved refund দুটোই **যোগ** হয়ে যেত — জমানো তালিকার পথে)। */
+                if (PaymentModel.isMarkerOnlyRow(row.s("payType"))) continue
+                val r = if (PaymentModel.isRefundRow(row)) {
+                    if (!PaymentModel.isApprovedRefund(row)) continue
+                    PaymentModel.parseApprovedRefundRow(row)
+                } else {
+                    if (row.optDouble("amount", 0.0) <= 0) continue
+                    PaymentModel.parsePaymentRow(row)
+                }
                 // ⚠️ উপরের `seen` তৈরির নিয়মের সঙ্গে এটা **হুবহু এক** থাকতে হবে,
                 // নইলে মেলানো ভেঙে যাবে (খাতার সারি B73)।
                 val k = r.date + "|" + r.mobile.filter { it.isDigit() }.takeLast(10) + "|" + r.amount + "|" + r.source
@@ -289,6 +298,7 @@ class PaymentRepository(private val context: Context? = null) {
         // locally-pending payment for today (and this branch) not yet in the
         // cloud result is now merged in too.
         context?.let { ctx ->
+            LocalWorkflowStore(ctx).markSyncedWhereCloudCaughtUp("payments", payments)   // 🔴 V1311 (তালিকা ৪২৩)
             val pending = LocalWorkflowStore(ctx).pendingPayments()
             for (i in 0 until pending.length()) {
                 val row = pending.getJSONObject(i)
@@ -714,6 +724,7 @@ class PaymentRepository(private val context: Context? = null) {
         // ⛔ দুবার-গোনা অসম্ভব: ক্লাউডে যে id আগেই এসেছে (seenPayIds) তা বাদ; শুধু এই রোগীর
         //    (patientId allIds-এ আছে) সারি; ধরন/refund হিসাব ক্লাউড-লুপের হুবহু একই। টাকার নিয়ম বদলায়নি।
         context?.let { ctx ->
+            try { LocalWorkflowStore(ctx).markSyncedWhereCloudCaughtUp("payments", paymentRows) } catch (_: Throwable) { }   // 🔴 V1311 (তালিকা ৪২৩)
             val pend = try { LocalWorkflowStore(ctx).pendingPayments() } catch (_: Throwable) { org.json.JSONArray() }
             for (i in 0 until pend.length()) {
                 val row = pend.getJSONObject(i)
@@ -1881,6 +1892,8 @@ class PaymentRepository(private val context: Context? = null) {
         context?.let { try { LocalWorkflowStore(it).upsertPayment(row) } catch (_: Throwable) { } }
         // ব্যর্থ হলে SupabaseClient নিজেই CloudWriteQueue-তে জমা রাখে (retry হয়, কিছু হারায় না)।
         val ok = SupabaseClient.upsert("payments", row)
+        // 🔴🔒 V1311 (তালিকা ৪২৩): ক্লাউডে বসলে ফোনের কপিও SYNCED — চিরকাল PENDING নয়।
+        if (ok) context?.let { try { LocalWorkflowStore(it).upsertPayment(row, "SYNCED") } catch (_: Throwable) { } }
         // 🔒 V221 (§3): cloud-এ **সত্যিই বসলে তবেই** nonce মুছি — নেট-fail হলে রেখে
         // দিই, যাতে পরে একই Refund retry (crash-এর পরেও) একই id পায় (Duplicate নয়)।
         if (ok) context?.let { clearRefundNonce(it, nonceKey) }
@@ -2328,6 +2341,11 @@ class PaymentRepository(private val context: Context? = null) {
             val billFields = JSONObject()
                 .put("bill", effectiveBill).put("stage", "Treatment Running").put("updatedAt", isoNow())
             val done = SupabaseClient.updateById("patients", patient.id, billFields)
+            /* 🔴🔒 V1311 (তালিকা ৪২৩): বিল ক্লাউডে বসে গেলে ফোনের খাতার রোগী-কপিটাও SYNCED —
+               আগে এই কপি (তারিখ-ঘর ছাড়া, stage-সহ) চিরকাল PENDING থেকে যেত (৪২২-এর একই জাত)। */
+            if (done) context?.let { ctx ->
+                try { LocalWorkflowStore(ctx).upsertPatient(JSONObject().put("id", patient.id).put("bill", effectiveBill).put("stage", "Treatment Running").put("updatedAt", billFields.optString("updatedAt")), "SYNCED") } catch (_: Throwable) { }
+            }
             /* 🔴🔒 V1205 (০৮.০৯.২০২৬, TK-রিপোর্ট) — বিল আপডেট ব্যর্থ হলেও আগে
                পুরো পেমেন্ট "ব্যর্থ" ধরা হত ⇒ টাকা ক্লাউডে গিয়েও সারিটা চিরকাল
                অপেক্ষমাণ তালিকায় থাকত। এখন কাজটা `GenericUpdateQueue`-এ জমা থাকে
@@ -2777,6 +2795,7 @@ class PaymentRepository(private val context: Context? = null) {
             JSONObject().put("bill", newBill).put("updatedAt", isoNow())
         )
         // Update the local patients cache right away so Bill/Due reflect it.
+        // 🔴🔒 V1311 (তালিকা ৪২৩): ক্লাউডে বসে গেলে SYNCED — নইলে PENDING (retry-র জন্য)।
         context?.let {
             LocalWorkflowStore(it).upsertPatient(
                 JSONObject()
@@ -2786,7 +2805,8 @@ class PaymentRepository(private val context: Context? = null) {
                     .put("branch", patient.branch)
                     .put("patientId", patient.patientId)
                     .put("bill", newBill)
-                    .put("updatedAt", isoNow())
+                    .put("updatedAt", isoNow()),
+                if (ok) "SYNCED" else "PENDING"
             )
         }
         // Audit: log who corrected the bill into the Follow-up history.

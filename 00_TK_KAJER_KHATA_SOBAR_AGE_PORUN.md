@@ -24484,6 +24484,29 @@ verify_zip_contents ✅ (১০ আইকন)। **২৫.৫ MB · ১৮০০
 গোপন কিছু নেই (service-account শুধু Netlify env; google-services.json গোপন নয়)। এই ZIP-এ V1297–V1301: push (FCM) ·
 Payment delete-request · Queue-ফেরা · চিহ্ন-সারি। TK-কে মনে করানো: আসল বিল্ড Android Studio-তে; ওয়েব এখন GitHub থেকে নিজে ওঠে।
 
+## ১০.০৯.২০২৬ ১৯:১৮ — V1311 · তালিকা ৪২৩: A-to-Z অডিট — "ফোনের কপি ক্লাউডের উপরে" জাতের সব ফাঁক এক ভার্সনে (ফোন + ওয়েব)
+
+TK: *"এই একই ধরনের সমস্যা আর কোন কোন পর্দায় আছে… এ টু জেড প্রজেক্ট ভালোভাবে যাচাই করুন"*। কোড পড়ে (আন্দাজ নয়) পাঁচ জাতের ফাঁক খোঁজা হলো —
+① ফোনের PENDING/আধখানা কপি ক্লাউডের সারির উপরে; ② জমানো তালিকা delta-র ভিত্তি, পুরনো সারি ঝরে না; ③ PENDING কপি ক্লাউডে বসার পরেও SYNCED হয় না;
+④ ১০০০-সীমায় ছাঁটাই; ⑤ ওয়েবে একই। **পাওয়া গেল ও ঠিক হলো:**
+· ③ **রোগী-কপি চিরকাল PENDING** — Advance/Payment (বিল বদলালে) ও "Bill only" বদলে ফোনের খাতায় রোগীর আধখানা কপি (stage-সহ, তারিখ ছাড়া) থাকত,
+  ক্লাউডে বসার পরেও PENDING — ৪২২-এর মূল কারণ, অন্য পর্দাতেও একই কপি ঢুকত। এখন ক্লাউডে বসলেই SYNCED। Refund-এর সারিও একই (ঠিক)।
+· ③ **সাধারণ নিয়ম (রুল ৭):** `LocalWorkflowStore.markSyncedWhereCloudCaughtUp` — যে পর্দাই ক্লাউড পড়ে, ফোনের PENDING কপির সমান/নতুন সারি
+  পেলে কপিটা SYNCED (updatedAt মিলিয়ে; ক্লাউড পুরনো হলে ছোঁয় না)। বসানো: Queue (পুরো + delta) · Chamber (৩) · Draft (৪) · Timeline (৪) ·
+  Global Search (২) · Follow-up ট্যাব · Today's Collection · রোগীর Due — মোট ১৭ জায়গা।
+· ① **Today's Collection-এর জমানো পথ** (`mergeOwnPhonePayments`): ফোনে জমা refund (pending/approved দুটোই) **যোগ** হত (+টাকা) — পুরো-পড়ার
+  পথের নিয়ম (approved হলে বিয়োগ, নইলে বাদ; চিহ্ন-সারি বাদ) এখানেও।
+· ① **Follow-up ট্যাব** (`fetchTab`): ফোনের PENDING কপি ক্লাউডের **পুরো সারি** বদলে দিত — এখন V1306-এর মতো ঘর-ধরে উপরে (নাম/রোগ/তারিখ হারায় না)।
+· ② **Follow-up delta-র ধাপ-ছাঁকনি** (`stage=eq.`): যে সারি ধাপ ছেড়ে গেছে (Inquiry→Registered, Patient→Treatment) delta-য় আসত না ⇒ ৩ ঘণ্টা
+  পর্যন্ত জমানো তালিকায় থাকতে পারত (উঁচু-ধাপ-বাদের নিয়মে সাধারণত ঢাকা পড়ত — তাই "দোষ" নয়, শক্ত করা)। এখন সব ধাপের বদল আসে, অন্য ধাপের
+  সারি সরে। Egress: প্রতি পড়ায় শুধু শেষ পড়ার পরের বদল — ক'টা সারি।
+· ④/⑤ **ওয়েব:** Follow-up ৩-ঘণ্টা delta (followups/enquiries/patients) ও doctor_visits delta-য় `.limit(500)` — ৫০০-র বেশি বদলালে চুপচাপ বাদ;
+  Chamber board / দিনের payments `.limit(5000)`, RMP তালিকা `.limit(2000)` (×২), briefings `.limit(1000)`, Queue `.limit(500)` — সবই Supabase-এর
+  ১০০০-সীমায় কাটত। এখন সব `wlv1FetchPaged` (নতুন ঐচ্ছিক ছাঁকনি) দিয়ে পাতা করে। ফোনের delta-পড়াগুলো আগেই (V1303) পাতা-করা — যাচাই করা।
+· **যা ঠিক ছিল (যাচাই করে):** ওয়েবের নতুন-সারি সুরক্ষা ১০ মিনিটে ফুরোয়; MyPhoneWrites ৭ দিন + ক্লাউড ধরলে সরে; Draft/Timeline/Global Search
+  id ধরে শুধু যোগ (উপরে বসায় না); Registration/Enquiry/Chamber/Medical — ক্লাউডে বসলে SYNCED আগেই ছিল।
+পাহারা: resources PASS · node --check OK · ব্রাউজার-পরীক্ষা PASS · Kotlin compile (শেষে) · tk_guard। ভার্সন 1311 (gradle · version.json · index `?v=v1311`)।
+
 ## ১০.০৯.২০২৬ ১৮:৪০ — V1310 · তালিকা ৪২২ (২য় বার): CHECK-UP Queue — ফোনের খাতার সারি তিন পথেই লাইনের নিয়ম মিলিয়ে, জমানো তালিকা একবার মুছে
 
 **সৎ স্বীকার:** V1306-এ `fetchQueue` (পুরো-পড়া)-র merge ঠিক করেছিলাম, কিন্তু `mergeOwnPhonePatients` — যেটা `fetchQueueDelta` (দ্রুত-পড়া,
