@@ -209,5 +209,13 @@
     "result": "Success — payments_row1 2 · patients_now 1",
     "proof": "screenshot",
     "what": "TK-র সিদ্ধান্তে COB-06062026-001 (bill 22,800 · জমা 21,300) রাখা; COB-19072026-005 সারি + ৪ পেমেন্ট (7000+5000+8000+500 = 20,500 — একই টাকার দ্বিতীয় লেখা) + followups মোছা; deleted_records-এ সব চিহ্ন।"
+  },
+  {
+    "sql_file": "তালিকা ৪০৯ — SANDIP BASAK ₹400 ভিজিট-ফি দ্বিগুণ-লেখা (চ্যাটে দেওয়া transactional SQL)",
+    "run_by": "TK",
+    "when": "১০.০৯.২০২৬ সকাল ৬.৩৭",
+    "result": "Success — visit_fee_rows_now 1",
+    "proof": "screenshot",
+    "what": "pay_f089b11d… ও pay_62548a6d… (একই মিলিসেকেন্ডে লেখা) মোছা, deleted_records-এ চিহ্ন; pay_bc3da956… রাখা। বাড়তি ₹800 বাদ।"
   }
 ]
