@@ -24484,6 +24484,20 @@ verify_zip_contents ✅ (১০ আইকন)। **২৫.৫ MB · ১৮০০
 গোপন কিছু নেই (service-account শুধু Netlify env; google-services.json গোপন নয়)। এই ZIP-এ V1297–V1301: push (FCM) ·
 Payment delete-request · Queue-ফেরা · চিহ্ন-সারি। TK-কে মনে করানো: আসল বিল্ড Android Studio-তে; ওয়েব এখন GitHub থেকে নিজে ওঠে।
 
+## ১০.০৯.২০২৬ ১৭:২৫ — V1306 · তালিকা ৪২২: CHECK-UP Queue-তে না-আসা পুরনো রোগী — ফোনের আধখানা কপি আর ক্লাউডের সারি চাপা দেবে না (Queue + Chamber)
+
+**TK (রেগে):** *"চেকআপ পর্দায় এতগুলো পেশেন্ট, কেউ আসেনি… একই সমস্যা অনেকবার… আন্দাজে কাজ কেন"*। **মাপা:** TK-র ২টা SQL — ক্লাউডে
+আজ কিষানগঞ্জের কেউ লাইনে নেই; ৩ জনের সারি: Treatment Running · queue true · doctorComplete false · queuedAt ফাঁকা · তারিখ পুরনো
+⇒ ক্লাউডের নিয়মে বাদ; স্টাফ-ফোনে Queue ফাঁকা ছিল ⇒ TK-র ফোনের নিজের অবস্থা। **কোডে (আন্দাজ নয়):** PaymentRepository বিল-বদল/
+পেমেন্টে `LocalWorkflowStore.upsertPatient` দিয়ে রোগীর আধখানা কপি (id·name·bill·stage·updatedAt — তারিখের ঘর নেই) PENDING করে রাখে,
+কখনো SYNCED হয় না; DoctorQueueRepository সেই কপি দিয়ে ক্লাউডের পুরো সারি **বদলে** দিত (`merged.put(existingPos, p)`) ⇒ queuedAt/
+registrationDate/createdAt হারিয়ে `isInQueue`-র "তারিখ জানা না গেলে রেখে দেওয়া" নিয়মে পুরনো রোগী লাইনে — যে ফোনে বিল/পেমেন্ট করা হয়েছিল
+শুধু সেখানেই (তাই "বারবার" এবং "শুধু আমার ফোনে")। V1300-এর সঙ্গে সম্পর্ক নেই। **ঠিক:** ① Queue merge: ক্লাউডের সারি ভিত্তি, ফোনের
+কপি updatedAt-এ নতুন হলে তবেই তার ঘরগুলো উপরে (তারিখ থাকে), পুরনো হলে ক্লাউডই; ② `isInQueue`: তারিখ-হীন ⇒ লাইনে নয় (আসল সারিতে
+createdAt সবসময় থাকে); ③ ChamberAttendanceRepository-র ৩টা একই `merged.put(existingPos, p)` জায়গা — একই নিয়ম (রুল ৭; V1305-এর
+Follow-up-এর মতো)। ⛔ নতুন-রেজিস্ট্রেশনের PENDING সারি (ক্লাউডে এখনো নেই) আগের মতোই সবসময় থাকে। পাহারা: tk_guard ✅ · Kotlin compile ✅ PASS।
+ভার্সন 1306 (gradle · version.json; ওয়েব অছোঁয়া — ওয়েবে এই "ফোনের কপি" স্তর নেই)।
+
 ## ১০.০৯.২০২৬ ১৬:৫৫ — V1305 · তালিকা ৪১৯: একই ব্রাঞ্চে দুই ফোনে Pending Calls দুরকম — ফোনের পুরনো লেখা আর ক্লাউডের নতুন লেখাকে চাপা দেবে না
 
 **TK:** *"Egress কমানোর জন্য… কোনো ভালো কাজ যেন খারাপ না হয়… একই ব্রাঞ্চের দুজন স্টাফকে Today Pending Call আলাদা কেন"* (BARNALI 9 · CHANDANA 3)।

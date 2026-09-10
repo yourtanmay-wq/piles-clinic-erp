@@ -2,6 +2,7 @@ package com.tkbiswas.pilesclinic.native
 
 import android.content.Context
 import org.json.JSONArray
+import org.json.JSONObject
 
 /**
  * Native rebuild -- Doctor Queue (data access).
@@ -317,7 +318,21 @@ class DoctorQueueRepository(private val context: Context? = null) {
                 // dropped instead of overriding the stale cloud row.
                 val existingPos = idPosition[pid]
                 if (existingPos != null) {
-                    merged.put(existingPos, p)
+                    /* 🔴🔴🔒 V1306 (তালিকা ৪২২): ফোনের খাতার কপি দিয়ে ক্লাউডের **পুরো সারি বদলে
+                       দেওয়া** হত — কপিটা আধখানা (বিল-বদল/পেমেন্টে শুধু id·name·bill·stage লেখা
+                       হয়, তারিখের ঘর নেই) ⇒ queuedAt/registrationDate হারিয়ে "তারিখ জানি না" ⇒
+                       পুরনো রোগী লাইনে থেকে যেত। এখন: ক্লাউডের সারিই ভিত্তি; ফোনের লেখা **নতুন
+                       হলে তবেই** তার ঘরগুলো উপরে বসে (বাকি ঘর ক্লাউডেরই থাকে); পুরনো হলে ক্লাউডই।
+                       V1305-এর (Follow-up) একই নিয়ম — রুল ৭। */
+                    val base = merged.getJSONObject(existingPos)
+                    val localStamp = p.optString("updatedAt", "")
+                    val cloudStamp = base.optString("updatedAt", "")
+                    if (localStamp.isNotBlank() && (cloudStamp.isBlank() || localStamp >= cloudStamp)) {
+                        val overlaid = JSONObject(base.toString())
+                        val keys = p.keys()
+                        while (keys.hasNext()) { val k = keys.next(); overlaid.put(k, p.opt(k)) }
+                        merged.put(existingPos, overlaid)
+                    }
                 } else {
                     idPosition[pid] = merged.length()
                     merged.put(p)

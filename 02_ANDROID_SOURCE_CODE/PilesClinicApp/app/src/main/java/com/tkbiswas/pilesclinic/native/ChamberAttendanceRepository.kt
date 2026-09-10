@@ -631,7 +631,16 @@ object ChamberAttendanceRepository {
                 // already present in the cloud result (e.g. Edit Payment)
                 // used to be dropped instead of replacing the stale row.
                 val existingPos = idPosition[id]
-                if (existingPos != null) merged.put(existingPos, p)
+                if (existingPos != null) {
+                    // 🔴🔒 V1306 (তালিকা ৪২২, রুল ৭): ফোনের কপি নতুন হলে তবেই তার ঘরগুলো ক্লাউডের সারির উপরে; পুরো সারি বদলানো নয়।
+                    val base = merged.getJSONObject(existingPos)
+                    val ls = p.optString("updatedAt", ""); val cs = base.optString("updatedAt", "")
+                    if (ls.isNotBlank() && (cs.isBlank() || ls >= cs)) {
+                        val ov = JSONObject(base.toString()); val ks = p.keys()
+                        while (ks.hasNext()) { val k = ks.next(); ov.put(k, p.opt(k)) }
+                        merged.put(existingPos, ov)
+                    }
+                }
                 else { idPosition[id] = merged.length(); merged.put(p) }
             }
             payments = merged
@@ -665,7 +674,16 @@ object ChamberAttendanceRepository {
                 val branchOk = allBranch || p.s("branch").equals(branchFilter, ignoreCase = true)
                 if (!sameDay || !branchOk || id.isBlank()) continue
                 val existingPos = idPosition[id]
-                if (existingPos != null) merged.put(existingPos, p)
+                if (existingPos != null) {
+                    // 🔴🔒 V1306 (তালিকা ৪২২, রুল ৭): ফোনের কপি নতুন হলে তবেই তার ঘরগুলো ক্লাউডের সারির উপরে; পুরো সারি বদলানো নয়।
+                    val base = merged.getJSONObject(existingPos)
+                    val ls = p.optString("updatedAt", ""); val cs = base.optString("updatedAt", "")
+                    if (ls.isNotBlank() && (cs.isBlank() || ls >= cs)) {
+                        val ov = JSONObject(base.toString()); val ks = p.keys()
+                        while (ks.hasNext()) { val k = ks.next(); ov.put(k, p.opt(k)) }
+                        merged.put(existingPos, ov)
+                    }
+                }
                 else { idPosition[id] = merged.length(); merged.put(p) }
             }
             enquiries = merged
@@ -692,7 +710,16 @@ object ChamberAttendanceRepository {
                 val branchOk = allBranch || p.s("branch").equals(branchFilter, ignoreCase = true)
                 if (!sameDay || !branchOk || id.isBlank()) continue
                 val existingPos = idPosition[id]
-                if (existingPos != null) merged.put(existingPos, p)
+                if (existingPos != null) {
+                    // 🔴🔒 V1306 (তালিকা ৪২২, রুল ৭): ফোনের কপি নতুন হলে তবেই তার ঘরগুলো ক্লাউডের সারির উপরে; পুরো সারি বদলানো নয়।
+                    val base = merged.getJSONObject(existingPos)
+                    val ls = p.optString("updatedAt", ""); val cs = base.optString("updatedAt", "")
+                    if (ls.isNotBlank() && (cs.isBlank() || ls >= cs)) {
+                        val ov = JSONObject(base.toString()); val ks = p.keys()
+                        while (ks.hasNext()) { val k = ks.next(); ov.put(k, p.opt(k)) }
+                        merged.put(existingPos, ov)
+                    }
+                }
                 else { idPosition[id] = merged.length(); merged.put(p) }
             }
             patients = merged
