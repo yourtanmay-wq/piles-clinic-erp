@@ -441,6 +441,30 @@ class LocalWorkflowStore(context: Context) {
         }
     }
 
+    /** 🔴🔴🔒 V1319 (১১.০৯.২০২৬, তালিকা ৪২৪ — আসল কারণ): V1305-এ `mergeOwnPhoneRows()`-এর
+     *  একটা লুপে **প্রতিটা পুরনো সারির জন্য আলাদা করে** `forgetRecord()` ডাকা হত — মানে
+     *  পুরো জমানো টেবিল (হাজার হাজার সারি হতে পারে, মাসের পর মাস আসল ব্যবহারে) **প্রতিটা
+     *  পুরনো সারির জন্য আলাদা করে** আবার পড়া-ছাঁকা-লেখা হত। ২০-৩০টা পুরনো সারি থাকলেই
+     *  এটা তত বারই পুরো টেবিল ছুঁয়ে ফেলত — ঠিক এই এলোমেলো ধীরগতি/আটকে যাওয়ার কারণ,
+     *  আর V1305-এর আগে এই লুপই ছিল না বলে সমস্যাটা আজই প্রথম তৈরি হয়েছে (TK ঠিক ধরেছেন)।
+     *  **সমাধান:** একসাথে অনেক id ভুলে যাওয়ার জন্য — টেবিল **একবারই** পড়া-ছাঁকা-লেখা হয়। */
+    fun forgetRecords(table: String, ids: Collection<String>) {
+        if (table.isBlank() || ids.isEmpty()) return
+        val idSet = ids.filter { it.isNotBlank() }.toHashSet()
+        if (idSet.isEmpty()) return
+        synchronized(LOCK) {
+            val rows = load(table)
+            val kept = JSONArray()
+            var dropped = false
+            for (i in 0 until rows.length()) {
+                val row = rows.optJSONObject(i) ?: continue
+                if (idSet.contains(row.optString("id"))) { dropped = true; continue }
+                kept.put(row)
+            }
+            if (dropped) save(table, kept)
+        }
+    }
+
     /** মুছে ফেলার সঙ্গে যে Follow-up সারিগুলো লুকিয়ে দেওয়া হয়, ফোনের কপিতেও
      *  সেগুলো একই ভাবে লুকিয়ে দেয় — নইলে কার্ডটা তালিকায় থেকে যেত। */
     fun cancelFollowUpsLocally(ids: Collection<String>) {

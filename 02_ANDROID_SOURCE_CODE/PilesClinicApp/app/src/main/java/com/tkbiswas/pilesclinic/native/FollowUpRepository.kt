@@ -823,6 +823,10 @@ class FollowUpRepository(private val context: Context? = null) {
             val allBranch = branchFilter == null || branchFilter.isBlank() ||
                 branchFilter.equals("All", ignoreCase = true)
             val extra = mutableListOf<FollowUpItem>()
+            /* 🔴🔴🔒 V1319 (তালিকা ৪২৪, আসল কারণ): নিচের পুরনো-সারি-ভুলে-যাওয়ার কাজ এখন
+               একসাথে জমিয়ে, লুপ শেষে **একবারই** — প্রতিটা সারির জন্য আলাদা করে ফোনের
+               পুরো জমানো টেবিল ছোঁয়া বন্ধ (নিচের মন্তব্য দেখুন)। */
+            val toForget = HashSet<String>()
             for (i in 0 until local.length()) {
                 val r = local.optJSONObject(i) ?: continue
                 val id = r.s("id")
@@ -846,9 +850,7 @@ class FollowUpRepository(private val context: Context? = null) {
                     val cloudStamp = old.updatedAt
                     val localNewer = localStamp.isNotBlank() && (cloudStamp.isBlank() || localStamp > cloudStamp)
                     if (!localNewer) {
-                        if (r.s("_syncStatus") != "PENDING") {
-                            try { LocalWorkflowStore(ctx).forgetRecord("followups", id) } catch (_: Throwable) { }
-                        }
+                        if (r.s("_syncStatus") != "PENDING") toForget.add(id)
                         continue
                     }
                     out[pos] = old.copy(
@@ -922,6 +924,9 @@ class FollowUpRepository(private val context: Context? = null) {
                         refDoctor = r.s("refDoctor")
                     )
                 )
+            }
+            if (toForget.isNotEmpty()) {
+                try { LocalWorkflowStore(ctx).forgetRecords("followups", toForget) } catch (_: Throwable) { }
             }
             if (extra.isEmpty()) out else extra + out
         } catch (_: Throwable) { cached }
