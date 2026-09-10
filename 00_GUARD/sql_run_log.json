@@ -337,5 +337,13 @@
     "result": "trigger 1 · marker_rows_with_money 0",
     "proof": "screenshot",
     "what": "payments-এ ট্রিগার tk_marker_rows_no_money — চিহ্ন-সারিতে টাকা আর কখনো ঢুকবে না (যে পথেই হোক)। কোনো পুরনো সারি বদলায়নি।"
+  },
+  {
+    "sql_file": "00_SQL/V1309_RMP_SHEET_COVER_2026-09-10.sql (তালিকা ৪১৮)",
+    "run_by": "TK",
+    "when": "১০.০৯.২০২৬ রাত ৭.৫২",
+    "result": "rmp_sheet_cover(p_from date, p_to date, p_branch text) বসেছে",
+    "proof": "CSV 61a2f469",
+    "what": "RMP Commission Sheet-এর 'কোন রোগীর জন্য' হিসাব — শুধু পড়ার ফাংশন; কোনো সারি বদলায়নি।"
   }
 ]
