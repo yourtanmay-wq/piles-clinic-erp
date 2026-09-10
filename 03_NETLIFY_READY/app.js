@@ -799,6 +799,58 @@ function wlv1DirtyClear(t,ids){
   localStorage.setItem(wlv1DirtyKey(t),JSON.stringify([...s]));
  }catch(e){}
 }
+/* 🛡️🔒 V1285 (১০.০৯.২০২৬, TK-অনুমোদিত — তালিকা সারি ৪১১-③): "পুরনো কপি নতুন ক্লাউড
+   চাপা দেবে না"। কম্পিউটার সেভ করলে পুরো সারি ঠেলে; `mergeForCloudPush`-এর "নতুন
+   জেতে" নিয়ম এখানে বাঁচায় না — নিজের সেভের `updatedAt` সবসময়ই নতুন। তাই এখন
+   প্রতিটা স্থানীয় বদলের সময় **সেভের আগের অবস্থার ছাপ** (base = আগের `updatedAt`,
+   অর্থাৎ শেষ জানা ক্লাউড-ছাপ) মনে রাখা হয়; ঠেলার আগে ক্লাউডের ছাপ তার চেয়ে
+   নতুন হলে ⇒ ওই সারি ঠেলা হয় না, ক্লাউডের কপি স্থানীয়ে বসে, স্টাফকে বার্তা —
+   "Changed on another device — please redo"। ফোনে একই পাহারা আগে থেকেই (SUPERSEDED)।
+   ⛔ নতুন সারি (আগের অবস্থা নেই) বা `updatedAt`-ছাড়া পুরনো সারিতে পাহারা চলে না।
+   ⛔ Egress: batch-পথে বাড়তি পড়া নেই (remote আগেই আসে); একক-পথে শুধু `id,updatedAt`। */
+const wlv1BaseKey=t=>'rk_base_'+t;
+function wlv1BaseGet(t){try{let v=JSON.parse(localStorage.getItem(wlv1BaseKey(t))||'{}');return (v&&typeof v==='object'&&!Array.isArray(v))?v:{}}catch(e){return {}}}
+function wlv1BaseRemember(t,prevRows,ids){
+ try{
+  if(!Array.isArray(ids)||!ids.length)return;
+  let m=wlv1BaseGet(t),prev=new Map(),ch=false;
+  (Array.isArray(prevRows)?prevRows:[]).forEach(r=>{if(r&&r.id)prev.set(String(r.id),r)});
+  ids.forEach(id=>{let k=String(id);if(m[k]!==undefined)return;let p=prev.get(k);if(!p)return;m[k]=String(p.updatedAt||'');ch=true});
+  if(ch)localStorage.setItem(wlv1BaseKey(t),JSON.stringify(m));
+ }catch(e){}
+}
+function wlv1BaseClear(t,ids){
+ try{
+  if(!Array.isArray(ids)){localStorage.removeItem(wlv1BaseKey(t));return}
+  let m=wlv1BaseGet(t),ch=false;ids.forEach(id=>{if(m[String(id)]!==undefined){delete m[String(id)];ch=true}});
+  if(ch)localStorage.setItem(wlv1BaseKey(t),JSON.stringify(m));
+ }catch(e){}
+}
+function wlv1Ts(s){try{let v=String(s||'').trim();if(!v)return 0;v=v.replace(' ','T');if(/[+-]\d\d$/.test(v))v+=':00';let n=Date.parse(v);return Number.isFinite(n)?n:0}catch(e){return 0}}
+function wlv1ConflictIds(t,remoteRows){
+ let m=wlv1BaseGet(t),out=[];
+ try{(Array.isArray(remoteRows)?remoteRows:[]).forEach(r=>{if(!r||!r.id)return;let b=m[String(r.id)];if(b===undefined)return;let tb=wlv1Ts(b),tc=wlv1Ts(r.updatedAt);if(tb>0&&tc>tb+1500)out.push(String(r.id))})}catch(e){}
+ return out;
+}
+function wlv1ConflictApply(t,remoteRows,ids){
+ try{
+  if(!Array.isArray(ids)||!ids.length)return;
+  let byId=new Map();(Array.isArray(remoteRows)?remoteRows:[]).forEach(r=>{if(r&&r.id)byId.set(String(r.id),r)});
+  let names=[];
+  let rows=(load(t)||[]).map(r=>{
+   if(!r||!r.id||ids.indexOf(String(r.id))<0)return r;
+   let c=byId.get(String(r.id));if(!c)return r;
+   names.push(String(c.name||r.name||r.id));
+   let keep={...c};
+   if(r.photo&&!c.photo)keep.photo=r.photo;
+   if(r.patientPhoto&&!c.patientPhoto)keep.patientPhoto=r.patientPhoto;
+   return keep;
+  });
+  save(t,rows,{skipCloud:true});
+  wlv1DirtyClear(t,ids);wlv1BaseClear(t,ids);
+  try{toast('Changed on another device — please redo: '+names.slice(0,3).join(', ')+(names.length>3?' +'+(names.length-3):''))}catch(_e){}
+ }catch(e){}
+}
 window["wlv1DirtyGet"]=wlv1DirtyGet;window["wlv1DirtyAdd"]=wlv1DirtyAdd;window["wlv1DirtyClear"]=wlv1DirtyClear;
 /* কোন সারিগুলো আগের চেয়ে আলাদা — id + সময়-ছাপ মিলিয়ে।
    ⛔ শুধু তুলনা, কোনো তথ্য বদলায় না। */
@@ -841,8 +893,9 @@ const save=(t,d,opts={})=>{
        নইলে প্রতিবার pull-এর পরেই সব সারি "বদলেছে" হয়ে যেত। */
  if(!opts.skipCloud){
   try{
-   let ch=wlv1ChangedIds(RAM_STORE[t]||load(t),rows);
-   if(ch&&ch.length)wlv1DirtyAdd(t,ch);
+   let __prevRows=RAM_STORE[t]||load(t);
+   let ch=wlv1ChangedIds(__prevRows,rows);
+   if(ch&&ch.length){wlv1DirtyAdd(t,ch);wlv1BaseRemember(t,__prevRows,ch);/* 🛡️ V1285 */}
   }catch(e){}
  }
  RAM_STORE[t]=rows;
@@ -1679,6 +1732,16 @@ async function cloudPush(t,d,pushOpts){
      //    হয়, আর পুরো-টেবিল পথে pushRows===localRows, তাই আচরণ হুবহু এক।
      pushRows=pushRows.filter(r=>remoteIds.has(r.id)||rowStamp(r)>=bootTime);
     }
+    /* 🛡️ V1285 — ক্লাউড যে সারিগুলোতে আমাদের সেভের আগের ছাপের চেয়ে নতুন, সেগুলো ঠেলা হয় না */
+    try{
+     let __cf=wlv1ConflictIds(t,remote);
+     if(__cf.length){
+      wlv1ConflictApply(t,remote,__cf);
+      pushRows=pushRows.filter(r=>r&&__cf.indexOf(String(r.id))<0);
+      if(deltaIds)deltaIds=deltaIds.filter(id=>__cf.indexOf(String(id))<0);
+      if(!pushRows.length){clearPendingCloud(t);window.RK_LAST_CLOUD_STATUS='ok';return true}
+     }
+    }catch(_e){}
     let merged=normalizeTableRows(t,mergeForCloudPush(remote,pushRows));
     let full=stripLargePhotos(merged);
     let safe=cloudSafeRows(t,merged);
@@ -1699,8 +1762,8 @@ async function cloudPush(t,d,pushOpts){
      try{ save(t, deltaIds?normalizeTableRows(t,mergeById(merged,load(t))):merged, {skipCloud:true}); }
      catch(_e){ try{ save(t,merged,{skipCloud:true}) }catch(__e){} }
      // পাঠানো সফল — তবেই ওই id-গুলো "বদলেছে" খাতা থেকে মুছি।
-     if(deltaIds)try{ wlv1DirtyClear(t,deltaIds) }catch(_e){}
-     else try{ wlv1DirtyClear(t,null) }catch(_e){}
+     if(deltaIds)try{ wlv1DirtyClear(t,deltaIds);wlv1BaseClear(t,deltaIds) }catch(_e){}
+     else try{ wlv1DirtyClear(t,null);wlv1BaseClear(t,null) }catch(_e){}
     };
     let r=await cloudUpsertAdaptive(ct,t,full);if(r.ok){wlv1SaveAfterPush();window.RK_LAST_CLOUD_STATUS='ok';return true}lastError=r.error;
     r=await cloudUpsertAdaptive(ct,t,safe);if(r.ok){wlv1SaveAfterPush();window.RK_LAST_CLOUD_STATUS='ok';return true}lastError=r.error;
@@ -6439,12 +6502,29 @@ async function directCloudUpsertRow(t,row){
    try{if(RT_NO_PHOTO_COLS[t]&&carriesPhotoField)wlv1PhotoPendingAdd(t,row&&row.id)}catch(_e){}
    markPendingCloud(t);return false
   }
+  /* 🛡️ V1285 — একক ঠেলার আগে: সেভের আগের ছাপ থাকলে ক্লাউডের `id,updatedAt` দেখা (ছোট পড়া) */
+  try{
+   let __rid=String((row&&row.id)||'');
+   if(__rid&&wlv1BaseGet(t)[__rid]!==undefined){
+    let __ct=CLOUD_TABLE_ALIASES(t)[0];
+    let __s=await sb.from(__ct).select('id,updatedAt').eq('id',__rid).limit(1);
+    if(!__s.error&&Array.isArray(__s.data)&&__s.data.length){
+     let __cf=wlv1ConflictIds(t,__s.data);
+     if(__cf.length){
+      let __ph=RT_NO_PHOTO_COLS[t];
+      let __f=await sb.from(__ct).select(__ph||'*').eq('id',__rid).limit(1);
+      if(__ph&&__f.error&&wlv1IsColumnError(__f.error)){__f=await sb.from(__ct).select('*').eq('id',__rid).limit(1);}
+      if(!__f.error&&Array.isArray(__f.data)&&__f.data.length){wlv1ConflictApply(t,normalizeCloudRows(__f.data),__cf);clearPendingCloud(t);return true}
+     }
+    }
+   }
+  }catch(_e){}
   for(const ct of CLOUD_TABLE_ALIASES(t)){
    let payload=cloudSafeRows(t,[withMeta(t,row,false)]);
    let r=await cloudUpsertAdaptive(ct,t,payload);
    // 🔵 শুধু এই payload সত্যিই photo ঘর বহন করলে সফলতার পরে photo-pending মুছি।
    // সাধারণ non-photo update কোনো আগের offline photo retry ভুল করে মুছতে পারবে না।
-   if(r.ok){clearPendingCloud(t);try{if(RT_NO_PHOTO_COLS[t]&&carriesPhotoField)wlv1PhotoPendingDel(t,row&&row.id)}catch(_e){}return true}
+   if(r.ok){clearPendingCloud(t);try{wlv1BaseClear(t,[row&&row.id])}catch(_e){}try{if(RT_NO_PHOTO_COLS[t]&&carriesPhotoField)wlv1PhotoPendingDel(t,row&&row.id)}catch(_e){}return true}
   }
  }catch(e){console.warn('direct cloud upsert failed',t,e)}
  // 🔵 সরাসরি photo upload ব্যর্থ হলে তবেই id মনে রাখি; non-photo update এখানে ঢুকবে না।
