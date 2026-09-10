@@ -1,5 +1,10 @@
 [
   {
+    "file": "PILES_CLINIC_APP_V1304_FINAL.zip",
+    "versionCode": 1304,
+    "when": "10.09.2026 10.12 am"
+  },
+  {
     "file": "PILES_CLINIC_APP_V1301_FINAL.zip",
     "versionCode": 1301,
     "when": "10.09.2026 09.29 am"
@@ -5122,5 +5127,48 @@
       "local.properties"
     ],
     "note": "V1296-র চেয়ে +১৩ ফাইল (+০.০২ MB): 00_SQL +৭ (V1297A/B · V1298 · V1300 · DEKHAR ×৩), Android +৩ (google-services.json — গোপন নয়; PushService, PushTokenSync), NETLIFY +২ (netlify/functions/notify-push.mjs, netlify.toml), root +১ (netlify.toml)। গোপন কিছু নেই: service-account চাবি শুধু Netlify env-এ, SQL-এ <<PUSH_SECRET>>; permanent-debug-key আগের মতোই (V477 থেকে সব ZIP-এ)। এই ZIP-এ V1297–V1301: push নোটিফিকেশন (FCM) · Payment-এ delete-request · Queue-ফেরা (queuedAt) · চিহ্ন-সারি শক্তকরণ।"
+  },
+  {
+    "tarikh": "১০.০৯.২০২৬ বিকেল ৩.৪৫",
+    "version": "13.04 (V1304)",
+    "file": "PILES_CLINIC_APP_V1304_FINAL.zip",
+    "mb": 25.51,
+    "files": 1803,
+    "folders": {
+      "02_ANDROID_SOURCE_CODE": 767,
+      "root-এর ফাইল": 604,
+      "04_SUPABASE_DATABASE_SETUP": 128,
+      "00_SQL": 97,
+      "00_GUARD": 57,
+      "03_NETLIFY_READY": 53,
+      "08_ASSETS_BACKUP": 36,
+      "07_RELEASE_NOTES_VERSION_HISTORY": 31,
+      "00_READ_ME_FIRST": 11,
+      "10_FUTURE_PLANS": 7,
+      "ROLLBACK_V448": 2,
+      "06_TEST_CHECKLISTS": 2,
+      "11_V223_TESTS": 2,
+      ".claude": 2,
+      "05_APK_AAB_BUILD_NOTES": 1,
+      "03_SUPABASE_SQL": 1,
+      ".github": 1,
+      "01_MASTER_LOCK_BOOK_SOURCE_OF_TRUTH": 1
+    },
+    "excluded": [
+      ".git",
+      "node_modules",
+      "build",
+      ".gradle",
+      ".idea",
+      "*.apk",
+      "*.zip",
+      "00_GUARD/.kotlinc (কম্পাইলার, ~৪০০MB)",
+      "08_ASSETS_BACKUP/ANATOMY_PICTURES/ORIGINAL (২২টা কাঁচা ছবি)",
+      "গোড়ার ডেমো .png",
+      "__pycache__",
+      ".DS_Store",
+      "local.properties"
+    ],
+    "note": "V1301-র চেয়ে +৩ ফাইল (+০.০১ MB): 00_SQL +৩ (V1302 ট্রিগার · DEKHAR SADDAM · DEKHAR 1000-সীমা)। এই ZIP-এ V1302–V1304: চিহ্ন-সারি DB-ট্রিগার · ১০০০-সারির সীমা পাতা-ধরে + দ্বিতীয় তালা + পরীক্ষা। গোপন কিছু নেই।"
   }
 ]
