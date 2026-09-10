@@ -24484,6 +24484,11 @@ verify_zip_contents ✅ (১০ আইকন)। **২৫.৫ MB · ১৮০০
 গোপন কিছু নেই (service-account শুধু Netlify env; google-services.json গোপন নয়)। এই ZIP-এ V1297–V1301: push (FCM) ·
 Payment delete-request · Queue-ফেরা · চিহ্ন-সারি। TK-কে মনে করানো: আসল বিল্ড Android Studio-তে; ওয়েব এখন GitHub থেকে নিজে ওঠে।
 
+## ১০.০৯.২০২৬ ১৮:০৫ — 📦 PILES_CLINIC_APP_V1309_FINAL.zip পাঠানো (TK: তালিকার "১")
+
+tk_guard --release ✅ · একই বাদ-তালিকা · verify_zip_root_name ✅ · verify_zip_contents ✅ · গোপন-খোঁজ ০। **২৫.৫৪ MB · ১৮০৮ ফাইল**
+(V1304: ২৫.৫১ · ১৮০৩) — হিসাব pathano_filer_talika.json-এ। এই ZIP-এ V1305–V1309। TK-কে: APK **V1309** সব ফোনে; ওয়েব নিজে উঠে গেছে।
+
 ## ১০.০৯.২০২৬ ১৮:৪৫ — V1309 · তালিকা ৪১৮ (TK: *"৩ পাশ, সাবধানে"*): RMP Commission Sheet — বক্স · তারিখ/সময় · কোন রোগীর জন্য (নাম, চাপলে পাতা) — ফোন + কম্পিউটার + ছাপা + SQL
 
 **ভুল স্বীকার:** "Advance" লেবেল — আসলে "RMP Payment" বোতাম (V398) টাকা `fin.rmp_advance_payments`-এ লেখে; স্টাফ কমিশনই দিয়েছিলেন, আগাম নয়।
