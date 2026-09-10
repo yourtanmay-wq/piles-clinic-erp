@@ -8,6 +8,7 @@ const seen=[]; let failures=0;
 function ok(name,cond,detail){ console.log((cond?'  ✅ ':'  ❌ ')+name+(cond?'':'  → '+JSON.stringify(detail))); if(!cond)failures++; }
 function handler(r){
   const req=r.request(), u=req.url(), m=req.method(), h=req.headers();
+  const fulfill0=r.fulfill.bind(r); r.fulfill=(o)=>fulfill0(Object.assign({},o,{headers:Object.assign({'cache-control':'no-store'},o.headers||{})}));
   if(u.includes('cdn.jsdelivr.net')) return r.fulfill({status:200,headers:{'content-type':'text/javascript'},body:SDK});
   if(u.startsWith(BASE)) return r.continue();
   if(u.includes('/rest/v1/deleted_records')){
@@ -19,8 +20,16 @@ function handler(r){
     const slice=IDS.slice(off,off+lim);
     return r.fulfill({status:200,headers:{'content-type':'application/json','content-range':off+'-'+(off+slice.length-1)+'/'+IDS.length,'access-control-expose-headers':'content-range'},body:JSON.stringify(slice.map(id=>({id})))});
   }
+  if(u.includes('/rest/v1/patients') && u.includes('server_updated_at')){
+    seen.push('POLL');
+    if(POLL.noColumn) return r.fulfill({status:400,headers:{'content-type':'application/json'},body:JSON.stringify({code:'42703',message:'column patients.server_updated_at does not exist'})});
+    if(u.includes('order=server_updated_at.desc')) return r.fulfill({status:200,headers:{'content-type':'application/json'},body:JSON.stringify([{server_updated_at:POLL.head}])});
+    const sel=(new URL(u).searchParams.get('select')||''); if(sel.split(',').includes('photo')) seen.push('POLL_ASKED_PHOTO');
+    return r.fulfill({status:200,headers:{'content-type':'application/json'},body:JSON.stringify(POLL.rows)});
+  }
   return r.fulfill({status:200,headers:{'content-type':'application/json'},body:'[]'});   // অন্য সব REST: ফাঁকা
 }
+const POLL={noColumn:false,head:'2026-09-10T10:00:00.000000+00:00',rows:[]};
 const mk=n=>{let rows=[];for(let i=0;i<n;i++){rows.push({id:'p'+i,name:'PATIENT NAME '+i,mobile:'98000'+String(i).padStart(5,'0'),branch:'KNE',address:'Some long address text here for size '.repeat(8),createdAt:new Date(Date.now()-i*1000).toISOString(),updatedAt:new Date(Date.now()-i*1000).toISOString()})}return rows};
 async function ctxOf(dir,noIdb){ fs.rmSync(dir,{recursive:true,force:true}); const ctx=await chromium.launchPersistentContext(dir,{headless:true,executablePath:EXE,args:['--no-sandbox']}); if(noIdb) await ctx.addInitScript(()=>{Object.defineProperty(window,'indexedDB',{value:undefined})}); return ctx; }
 async function open(ctx){ const page=await ctx.newPage(); await page.route('**/*',handler); const errs=[]; page.on('pageerror',e=>errs.push(String(e.message).slice(0,140))); await page.goto(BASE+'/index.html'); await page.waitForTimeout(1200); return {page,errs}; }
@@ -53,6 +62,17 @@ setTimeout(()=>{console.log('❌ TIMEOUT');process.exit(2)},240000);
  IDS.push('patients|p_new'); r=await run(); ok('F3 নতুন চিহ্ন ⇒ আবার পুরো (PAGE 2, নতুনটা আছে)', r.PAGE===2&&r.hasNew, r);
  await page.reload(); await page.waitForTimeout(1500); r=await run(); ok('F4 reload-এর পরে জমা কপি (PAGE 0, নতুনটা আছে)', r.PAGE===0&&r.hasNew, r);
  IDS.pop(); r=await run(); ok('F5 চিহ্ন তোলা ⇒ আবার পুরো (PAGE 2, বাদ)', r.PAGE===2&&!r.hasNew, r);
+ console.log('— ভারী টেবিল: লাইভের বদলে হালকা পড়া (V1295) —');
+ await page.evaluate(()=>{localStorage.setItem('rk_session',JSON.stringify({mobile:'9999999999',name:'TEST MASTER',branch:'All',role:'master'}))});
+ await page.reload(); await page.waitForTimeout(1500);
+ await page.evaluate(async()=>{ try{await initCloudClientOnly()}catch(e){} window.__chanCount=0; const orig=sb.channel.bind(sb); sb.channel=function(n){ window.__chanCount++; return orig(n); }; });
+ seen.length=0; let g=await page.evaluate(async()=>{ await wlv1RtPollTick(); return {cursor:localStorage.getItem('rk_rtpoll_cursor_patients')} });
+ ok('G1 প্রথম টিক: কার্সার = সার্ভারের সবচেয়ে নতুন (কোনো সারি টানা নয়)', g.cursor==='2026-09-10T10:00:00.000000+00:00'&&seen.filter(k=>k==='POLL').length>=1, {g,seen});
+ POLL.rows=[{id:'pz1',name:'POLL PATIENT 1',mobile:'9800000001',branch:'KNE',updatedAt:'2026-09-10T10:01:00.000Z',server_updated_at:'2026-09-10T10:01:00.000000+00:00'},{id:'pz2',name:'POLL PATIENT 2',mobile:'9800000002',branch:'KNE',updatedAt:'2026-09-10T10:02:00.000Z',server_updated_at:'2026-09-10T10:02:00.000000+00:00'}];
+ seen.length=0; g=await page.evaluate(async()=>{ await wlv1RtPollTick(); const rows=load('patients'); return {cursor:localStorage.getItem('rk_rtpoll_cursor_patients'),has1:rows.some(r=>r.id==='pz1'),has2:rows.some(r=>r.id==='pz2'&&r.name==='POLL PATIENT 2'),leak:rows.some(r=>r.server_updated_at!==undefined)} });
+ ok('G2 বদলানো ২ সারি স্থানীয়ে বসল, ছবি চাওয়া হয়নি, কার্সার এগোল', g.has1&&g.has2&&!g.leak&&g.cursor==='2026-09-10T10:02:00.000000+00:00'&&!seen.includes('POLL_ASKED_PHOTO'), {g,seen});
+ POLL.noColumn=true; seen.length=0; g=await page.evaluate(async()=>{ localStorage.setItem('rk_rtpoll_cursor_patients','2026-09-10T10:02:00.000000+00:00'); await wlv1RtPollTick(); const pe=performance.getEntriesByType('resource').filter(e=>e.name.includes('server_updated_at')).map(e=>({u:e.name.slice(-60),size:e.transferSize})); return {fallback:!!__rtPollFallback.patients, chan:window.__chanCount, pe:pe.slice(-3)} }); g.seen=seen.slice();
+ ok('G3 ঘর না থাকলে (SQL চলেনি) ⇒ ওই টেবিল আগের লাইভ চ্যানেলে', g.fallback&&g.chan>=1, g);
  await ctx.close(); srv.close();
  console.log(failures?('❌ '+failures+'টা পরীক্ষা ব্যর্থ'):'সব পরীক্ষা পাশ'); process.exit(failures?1:0);
 })().catch(e=>{console.error('❌',e);process.exit(1)});

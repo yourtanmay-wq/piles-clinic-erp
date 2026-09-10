@@ -2204,6 +2204,7 @@ function wireRealtime(){
   rtWired=true;
   TABLES.forEach(t=>{
    if(wlv1IsOnDemandCloudTable(t)) return; // Trash snapshot is intentionally not streamed; refresh on Trash Bin open
+   if(wlv1RtPollWanted(t)) return;         // 🔵 V1295: ভারী টেবিল — লাইভ নয়, প্রতি মিনিটে হালকা পড়া (নিচে)
    CLOUD_TABLE_ALIASES(t).forEach(ct=>{
     sb.channel('rt_'+ct).on('postgres_changes',{event:'*',schema:'public',table:ct},(payload)=>{
      // 🟢🔒 B623 (Egress ফিক্স, 11.08.2026, TK-নির্দেশ) — Supabase Free-plan egress-এর
@@ -2235,9 +2236,85 @@ function wireRealtime(){
     }).subscribe();
    });
   });
+  try{ wlv1RtPollStart(); }catch(_e){}
  }catch(e){}
 }
 window["wireRealtime"]=wireRealtime;
+/* 🔵🔒 V1295 (১০.০৯.২০২৬, তালিকা ৪১১-⑭ ক, TK: *"ক করুন, সাবধানে"*) — **ভারী তিনটে টেবিল
+   লাইভ-সংযোগ থেকে বাদ, প্রতি মিনিটে হালকা পড়া।**
+   কারণ: লাইভ-বার্তায় পুরো সারি আসে — রোগীর ছবি (~৭০ KB), ফলো-আপের পুরো history — এক
+   দিনে ১৬৮ MB মাপা হয়েছিল (৩০.০৮)। এখন patients/followups/medical-এ লাইভ চ্যানেল নেই;
+   প্রতি ৬০ সেকেন্ডে (পাতা খোলা থাকলে) শুধু "সার্ভারে শেষবার পড়ার পরে বদলানো" সারি,
+   ছবি ছাড়া (RT_NO_PHOTO_COLS) — কার্সার `server_updated_at` (V1295 SQL: সার্ভারের নিজের
+   ঘড়ি, trigger-এ বসে) ⇒ ফোন/কম্পিউটারের ঘড়ির অমিলে কিছু বাদ পড়ে না, ২৪ ঘণ্টা-পিছনো
+   overlap-ও লাগে না (৩ সেকেন্ড যথেষ্ট)। সারি বসানোর নিয়ম লাইভ-হ্যান্ডলারের হুবহু এক
+   (tombstone বাদ · protectedRows আগে · mergeById · save skipCloud · refreshDashboardSoft)।
+   ⛔ SQL এখনো না চললে (ঘরটা নেই ⇒ 42703) ওই টেবিল আগের মতোই লাইভ চ্যানেলে ফিরে যায় —
+      কিছু ভাঙে না। ⛔ DELETE লাইভে আসত; এখন tombstone/পূর্ণ-সিঙ্ক (আগের মতোই সেই জালটা)।
+   ⛔ টাকা/এনকোয়ারি/ডাক্তার-ভিজিট ইত্যাদি হালকা টেবিল আগের মতোই লাইভ। */
+const WLV1_RT_POLL_TABLES=['patients','followups','medical'];
+const WLV1_RT_POLL_MS=60*1000, WLV1_RT_POLL_OVERLAP_MS=3000, WLV1_RT_POLL_LIMIT=500;
+let __rtPollTimer=null, __rtPollBusy=false; const __rtPollFallback={};
+function wlv1RtPollWanted(t){ return WLV1_RT_POLL_TABLES.indexOf(t)>=0 && !__rtPollFallback[t]; }
+function wlv1RtPollCursorKey(t){ return 'rk_rtpoll_cursor_'+t; }
+function wlv1RtPollIsoMinus(iso,ms){ try{ var n=Date.parse(iso); if(!isFinite(n)) return iso; return new Date(n-ms).toISOString(); }catch(_e){ return iso; } }
+async function wlv1RtPollOne(t){
+  var ct=(CLOUD_TABLE_ALIASES(t)||[t])[0];
+  var cols=RT_NO_PHOTO_COLS[ct]||RT_NO_PHOTO_COLS[t]||'*';
+  var sel=cols==='*'?'*':(cols+',server_updated_at');
+  var cur=''; try{ cur=localStorage.getItem(wlv1RtPollCursorKey(t))||''; }catch(_e){}
+  if(!cur){
+    /* প্রথমবার: এখন সার্ভারে সবচেয়ে নতুন কোনটা — সেটাই কার্সার (পুরনো সব আগেই পূর্ণ-সিঙ্কে আছে)। */
+    var h=await sb.from(ct).select('server_updated_at').order('server_updated_at',{ascending:false}).limit(1);
+    if(h.error){ if(wlv1IsColumnError(h.error)) wlv1RtPollFallback(t); return; }
+    var v=(h.data&&h.data[0]&&h.data[0].server_updated_at)||new Date().toISOString();
+    try{ localStorage.setItem(wlv1RtPollCursorKey(t),String(v)); }catch(_e){}
+    return;
+  }
+  var since=wlv1RtPollIsoMinus(cur,WLV1_RT_POLL_OVERLAP_MS);
+  var r=await sb.from(ct).select(sel).gt('server_updated_at',since).order('server_updated_at',{ascending:true}).limit(WLV1_RT_POLL_LIMIT);
+  if(r.error){ if(wlv1IsColumnError(r.error)) wlv1RtPollFallback(t); return; }
+  var rows=Array.isArray(r.data)?r.data:[];
+  if(!rows.length) return;
+  var mx=cur; rows.forEach(function(x){ var v=String((x&&x.server_updated_at)||''); if(v>mx) mx=v; });
+  var clean=rows.map(function(x){ var y=Object.assign({},x); delete y.server_updated_at; return y; });
+  var one=wlv1WebNotDeleted(t,normalizeCloudRows(clean));
+  if(one&&one.length){
+    var merged=mergeById([].concat(protectedRows(t),one),load(t));
+    save(t,merged,{skipCloud:true});
+    refreshDashboardSoft();
+  }
+  try{ localStorage.setItem(wlv1RtPollCursorKey(t),String(mx)); }catch(_e){}
+}
+function wlv1RtPollFallback(t){
+  /* ঘরটা নেই (V1295 SQL এখনো চলেনি) ⇒ এই টেবিল আগের মতো লাইভ চ্যানেলে। */
+  if(__rtPollFallback[t]) return;
+  __rtPollFallback[t]=true;
+  try{
+    CLOUD_TABLE_ALIASES(t).forEach(function(ct){
+      sb.channel('rt_'+ct).on('postgres_changes',{event:'*',schema:'public',table:ct},function(payload){
+        try{
+          var ev=payload&&payload.eventType;
+          if(ev==='DELETE'){ var oldId=payload.old&&payload.old.id; if(oldId){ var cur=load(t)||[]; var next=cur.filter(function(r){return !(r&&String(r.id)===String(oldId));}); if(next.length!==cur.length){ save(t,next,{skipCloud:true}); refreshDashboardSoft(); } } return; }
+          var raw=payload&&payload.new; if(!raw||!raw.id) return;
+          var one=wlv1WebNotDeleted(t,normalizeCloudRows([raw])); if(!one||!one.length) return;
+          save(t,mergeById([].concat(protectedRows(t),one),load(t)),{skipCloud:true}); refreshDashboardSoft();
+        }catch(_e){}
+      }).subscribe();
+    });
+  }catch(_e){}
+}
+async function wlv1RtPollTick(){
+  if(__rtPollBusy) return; __rtPollBusy=true;
+  try{
+    if(!sb||!user) return;
+    if(document.visibilityState!=='visible') return;
+    for(var i=0;i<WLV1_RT_POLL_TABLES.length;i++){ var t=WLV1_RT_POLL_TABLES[i]; if(__rtPollFallback[t]) continue; try{ await wlv1RtPollOne(t); }catch(_e){} }
+  }finally{ __rtPollBusy=false; }
+}
+function wlv1RtPollStart(){ if(__rtPollTimer) return; __rtPollTimer=setInterval(function(){ wlv1RtPollTick(); },WLV1_RT_POLL_MS); setTimeout(function(){ wlv1RtPollTick(); },4000); }
+function wlv1RtPollStop(){ try{ if(__rtPollTimer) clearInterval(__rtPollTimer); }catch(_e){} __rtPollTimer=null; }
+window["wlv1RtPollTick"]=wlv1RtPollTick; window["wlv1RtPollStop"]=wlv1RtPollStop;
 
 /* 🟢 B627 (11.08.2026, TK-নির্দেশ): লগ-আউটের সময় লাইভ সংযোগ (realtime) পরিষ্কার
    বন্ধ করা। আগে লগ-আউট হলেও realtime চ্যানেল চালু থেকে যেত — তাই ট্যাব খোলা
@@ -2253,6 +2330,7 @@ function stopRealtime(){
   }
  }catch(_e){}
  rtWired=false;
+ try{ wlv1RtPollStop(); }catch(_e){}   /* V1295: হালকা পড়াও বন্ধ */
 }
 window["stopRealtime"]=stopRealtime;
 

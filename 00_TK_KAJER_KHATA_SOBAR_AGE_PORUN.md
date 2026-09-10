@@ -24463,6 +24463,26 @@ alias `androiddebugkey` · SHA-256 5C:B2:24:AB:…:E6:AB — এটাই ফো
 ফাংশন/ট্রিগার লেখা-ধরনে চলে — বদলালে ভাঙত)। বদলে তিন ঘরে CHECK: সংখ্যা বা ফাঁকা ছাড়া ঢুকবে না;
 অ্যাপ সবসময় সংখ্যা লেখে, তাই কিছু আটকায় না। sql_run_log-এ এন্ট্রি। কোড বদল নেই।
 
+## ১০.০৯.২০২৬ ১৫:৩০ — V1295 · তালিকা ৪১১-⑭ (ক): ভারী টেবিলে লাইভ-সংযোগের বদলে হালকা পড়া
+
+TK: *"ক করুন, সাবধানে"*। কোডে: ওয়েব ৯ টেবিলে postgres_changes (event *) — payload.new পুরো সারি (ছবি/
+history সমেত); ফোনে realtime নেই। মাপা: Realtime egress ১৬৮ MB (৩০.০৮, Usage চার্ট)। **কেন updatedAt-কার্সার
+নয়:** wlv1CloudRead delta ২৪ ঘণ্টা পিছিয়ে পড়ে (V399 overlap) + ফোনের stamp ৫.৫ ঘণ্টা এগিয়ে থাকায় V399 clamp
+⇒ প্রতি মিনিটে ওই পথে টানলে খরচ লাইভের চেয়েও বেশি হত। **সমাধান:** সার্ভারের নিজের ঘড়ি —
+`00_SQL/V1295_SERVER_UPDATED_AT_2026-09-10.sql`: patients/followups/medical-এ `server_updated_at timestamptz not
+null default now()` + BEFORE INSERT/UPDATE trigger `tk_touch_server_updated_at` (client-এর মান দিলেও সার্ভারই
+বসায় — নকল DB-তে insert/update/stale-upsert তিনটেই ✅) + index। **ওয়েব:** `WLV1_RT_POLL_TABLES` লাইভ থেকে বাদ
+(wireRealtime-এ skip); `wlv1RtPollStart` ৬০ সে interval (visible + logged-in + sb); প্রথম টিকে কার্সার = সার্ভারের
+সবচেয়ে নতুন (কিছু টানে না); পরে `select RT_NO_PHOTO_COLS+server_updated_at ... gt(cursor−3s) order asc limit 500`,
+সারি বসানো লাইভ-হ্যান্ডলারের হুবহু নিয়মে (tombstone · protectedRows · mergeById · save skipCloud · refreshDashboardSoft),
+কার্সার localStorage `rk_rtpoll_cursor_<t>`; ঘর না থাকলে (42703) `wlv1RtPollFallback` — ওই টেবিল আগের লাইভ চ্যানেলে;
+logout-এ poll বন্ধ (stopRealtime)। DELETE লাইভে আসত — এখন tombstone/পূর্ণ-সিঙ্ক (আগের জালই)। **পরীক্ষা
+(ব্রাউজার-পাহারা, মোট ১৩):** G1 কার্সার-init ✅ · G2 ২ সারি বসল, ছবি চাওয়া হয়নি, server_updated_at স্থানীয়ে
+ঢোকেনি, কার্সার এগোল ✅ · G3 ঘর না থাকলে fallback + channel ✅। ⚠️ পর্যবেক্ষণ: পরীক্ষায় একই URL-এর দ্বিতীয় GET
+ব্রাউজার cache থেকে এসেছিল (route-এ পৌঁছয়নি) — অ্যাপে ক্ষতি নেই (poll-URL কার্সারে বদলায়; init-head cache
+হলেও overlap-এ কয়েকটা সারি বেশি পড়ে, কম নয়)। SafeWideColumns-এ ৩ টেবিলে server_updated_at (পাহারা ৯.৩৪)।
+ভার্সন **১২৯৫** (gradle · version.json · app.js v1295 · হিসাব-খাতা)। Kotlin compile (শেষবার) ✅ PASS (নতুন ভুল ০) · tk_guard ✅ · ব্রাউজার-পাহারা ✅ ১৩/১৩।
+
 ## ১০.০৯.২০২৬ ১৪:৪০ — V1294 · তালিকা ৪১১-⑬ (ক) + ৪১২: সাপ্তাহিক কপি ডেটাবেসের বাইরে — ঘর Public ধরা পড়ল
 
 মাপা: backuprecords ৫৩/৭.৭ MB, আসল payload ২টায় ⇒ কাজের স্বয়ংক্রিয় কপি নেই। TK "ক করুন, সাবধানে"।
