@@ -17014,6 +17014,8 @@ window["paymentHistory"]=paymentHistory;
 function viewPaymentEntry(id){let x=load('payments').find(p=>p.id===id);if(!x)return toast('Payment not found');modal(`<h2>Payment Details</h2><div class="card"><b>${esc(x.name||'')}</b><br>${esc(x.mobile||'')} · ${esc(x.branch||'')}<br>Date: ${esc(fmtDate(x.date||''))}<br>Amount: <b>${money(x.amount)}</b><br>Mode: ${esc(x.mode||'')}<br><small>${esc(x.remarks||'')}</small>${Array.isArray(x.editHistory)&&x.editHistory.length?`<div class="sectionTitle">Edit Log</div>${x.editHistory.map(h=>`<div class="tiny">${esc(h)}</div>`).join('')}`:''}</div>`)}
 window["viewPaymentEntry"]=viewPaymentEntry;
 async function editPaymentEntry(id){let x=load('payments').find(p=>p.id===id);if(!x)return toast('Payment not found');
+  /* 🔴🔒 V1301 (তালিকা ৪১৩): চিহ্ন-সারি (Bill edit · Expected · Arrived) এডিট নয় — ফোনের একই নিয়ম */
+  { let mt=String(x.payType||'').trim().toLowerCase(); if(mt==='bill_edit'||mt==='chamber_expected'||mt==='attendance_mark') return toast('This is a system marker row (Bill edit / Expected / Arrived) — it holds no money and can\'t be edited'); }
   /* 🟢🔒 V622 (২৪.০৮.২০২৬, TK-নির্দেশ, সততার সাথে যাচাই করে) — ফোনের
      V618-এর হুবহু একই কারণ ও একই সমাধান: আগে এখানে মিশ্র (একাধিক
      dailyEvents) পেমেন্ট পড়লেই **সবার জন্য** (Master-সহ) দরজা বন্ধ হয়ে
@@ -26863,6 +26865,8 @@ function wlv1IsApprovedRefund(x){ return wlv1IsRefundRow(x) && String(x&&x.refun
 function wlv1PayEffect(x){
   var t=String(x&&x.payType||'treatment').toLowerCase();
   if(t==='visit_fee'||t==='attendance_mark') return 0;
+  /* 🔴🔒 V1301 (তালিকা ৪১৩): bill_edit/chamber_expected চিহ্ন-সারি — টাকা কখনো Paid-এ যোগ নয় (ফোনের PatientTimelineRepository-র একই নিয়ম) */
+  if(t==='bill_edit'||t==='chamber_expected') return 0;
   if(wlv1IsRefundRow(x)) return wlv1IsApprovedRefund(x) ? -Number(x.amount||0) : 0;
   return Number(x&&x.amount||0);
 }

@@ -4268,6 +4268,12 @@ class PatientTimelineActivity : AppCompatActivity() {
     private fun tryEditTimelinePayment(entry: TimelineEntry) {
         val id = entry.paymentId
         if (id.isNullOrBlank()) return
+        /* 🔴🔒 V1301 (তালিকা ৪১৩): চিহ্ন-সারি (Bill Edited · Expected · Arrived) এডিট করা যাবে না —
+           ওতে টাকা বসালে Paid-এর হিসাব গুলিয়ে যায় (Tinku Bauli)। ওয়েবেও একই নিয়ম। */
+        if (PaymentModel.isMarkerOnlyRow(entry.payType)) {
+            android.widget.Toast.makeText(this, "This is a system marker row (Bill edit / Expected / Arrived) — it holds no money and can't be edited", android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
         // 🔒 V217 (§B216, 31.07.2026): Refund row-এর টাকা এই সাধারণ 3-tap দিয়ে
         // বদলানো বন্ধ — refund-এর নিজস্ব Approve/Reject ব্যবস্থা আছে (Payment
         // স্ক্রিন → Refund ফর্ম, Briefing পর্দা); এখানে amount বদলালে

@@ -2365,7 +2365,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                         for (i in 0 until pays.length()) {
                             val p = pays.optJSONObject(i) ?: continue
                             val payType = p.optString("payType", "")
-                            if (payType == "visit_fee" || payType == "attendance_mark") continue
+                            if (payType == "visit_fee" || payType == "attendance_mark" || PaymentModel.isMarkerOnlyRow(payType)) continue   /* 🔴🔒 V1301 (তালিকা ৪১৩): চিহ্ন-সারি (bill_edit · chamber_expected · attendance_mark) কখনো টাকা নয় */
                             val paidEffect = when {
                                 PaymentModel.isApprovedRefund(p) -> -p.optDouble("amount", 0.0)
                                 PaymentModel.isRefundRow(p) -> 0.0
@@ -4247,7 +4247,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                     for (i in 0 until pays.length()) {
                         val p = pays.optJSONObject(i) ?: continue
                         val payType = p.optString("payType", "")
-                        if (payType == "visit_fee" || payType == "attendance_mark") continue
+                        if (payType == "visit_fee" || payType == "attendance_mark" || PaymentModel.isMarkerOnlyRow(payType)) continue   /* 🔴🔒 V1301 (তালিকা ৪১৩): চিহ্ন-সারি (bill_edit · chamber_expected · attendance_mark) কখনো টাকা নয় */
                         val paidEffect = when {
                             PaymentModel.isApprovedRefund(p) -> -p.optDouble("amount", 0.0)
                             PaymentModel.isRefundRow(p) -> 0.0

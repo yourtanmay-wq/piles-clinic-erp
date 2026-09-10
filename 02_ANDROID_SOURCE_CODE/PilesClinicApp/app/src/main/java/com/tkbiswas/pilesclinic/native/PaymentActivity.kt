@@ -970,6 +970,11 @@ class PaymentActivity : AppCompatActivity() {
     }
 
     private fun tryEditPayment(p: org.json.JSONObject) {
+        // 🔴🔒 V1301 (তালিকা ৪১৩): চিহ্ন-সারি এডিট নয় — Timeline/Follow-up-এর একই নিয়ম।
+        if (PaymentModel.isMarkerOnlyRow(p.s("payType"))) {
+            Toast.makeText(this, "This is a system marker row (Bill edit / Expected / Arrived) — it holds no money and can't be edited", Toast.LENGTH_LONG).show()
+            return
+        }
         val eventCount = p.optInt("_displayEventCount", p.optJSONArray("dailyEvents")?.length() ?: 1).coerceAtLeast(1)
         if (p.s("payType").equals("treatment", true) && eventCount > 1) {
             Toast.makeText(this, "This day's payment combines $eventCount entries. Cash/Online split will not be guessed.", Toast.LENGTH_LONG).show()

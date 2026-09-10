@@ -3732,6 +3732,11 @@ class FollowUpActivity : AppCompatActivity() {
      *  same-day, same-branch entry of their own. `onSuccess` lets the caller
      *  refresh whatever list/dialog is showing this payment. */
     private fun tryEditFollowUpPayment(row: org.json.JSONObject, patient: PatientBillInfo, onSuccess: () -> Unit) {
+        // 🔴🔒 V1301 (তালিকা ৪১৩): চিহ্ন-সারি এডিট নয় — Timeline/Payment পর্দার একই নিয়ম।
+        if (PaymentModel.isMarkerOnlyRow(row.s("payType"))) {
+            Toast.makeText(this, "This is a system marker row (Bill edit / Expected / Arrived) — it holds no money and can't be edited", Toast.LENGTH_LONG).show()
+            return
+        }
         val eventCount = row.optJSONArray("dailyEvents")?.length()?.coerceAtLeast(1) ?: 1
         if (row.s("payType").equals("treatment", true) && eventCount > 1) {
             Toast.makeText(this, "This day's payment combines $eventCount entries. Cash/Online split will not be guessed.", Toast.LENGTH_LONG).show()

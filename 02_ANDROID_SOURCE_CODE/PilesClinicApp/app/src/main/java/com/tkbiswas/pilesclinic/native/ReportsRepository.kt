@@ -187,7 +187,7 @@ class ReportsRepository {
             val pm = row.optString("mobile", "").filter { it.isDigit() }.takeLast(10)
             if (pm.isNotBlank()) paidByMobile[pm] = (paidByMobile[pm] ?: 0.0) + paidEffect
             val payType = row.optString("payType", "")
-            if (pm.isNotBlank() && payType != "visit_fee" && payType != "attendance_mark") {
+            if (pm.isNotBlank() && payType != "visit_fee" && payType != "attendance_mark" && !PaymentModel.isMarkerOnlyRow(payType)) {   /* 🔴🔒 V1301 (তালিকা ৪১৩): চিহ্ন-সারি (bill_edit · chamber_expected · attendance_mark) কখনো টাকা নয় */
                 treatmentPaidByMobile[pm] = (treatmentPaidByMobile[pm] ?: 0.0) + paidEffect
             }
             // V452: a daily Treatment row may be MIXED. Never assign the

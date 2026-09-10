@@ -24463,6 +24463,21 @@ alias `androiddebugkey` · SHA-256 5C:B2:24:AB:…:E6:AB — এটাই ফো
 ফাংশন/ট্রিগার লেখা-ধরনে চলে — বদলালে ভাঙত)। বদলে তিন ঘরে CHECK: সংখ্যা বা ফাঁকা ছাড়া ঢুকবে না;
 অ্যাপ সবসময় সংখ্যা লেখে, তাই কিছু আটকায় না। sql_run_log-এ এন্ট্রি। কোড বদল নেই।
 
+## ১০.০৯.২০২৬ ১৫:৪০ — V1301 · তালিকা ৪১৩ (কোড-শক্তকরণ, TK: *"৩"*): চিহ্ন-সারি এডিট বন্ধ + চিহ্ন-সারির টাকা কোথাও Paid-এ যোগ নয় (ফোন + কম্পিউটার)
+
+**কেন:** Tinku Bauli-র bill_edit চিহ্ন-সারিতে ৩-ট্যাপ এডিটে ₹3,000 বসানো হয়েছিল ⇒ Timeline Paid ₹13,000, Payment পর্দা
+₹10,000 (চিহ্ন-সারি দেখায় না)। ডেটা-সংশোধন (V1297A/B) ব্রাঞ্চের উত্তরের পরে; এটা কোডের ফাঁক বন্ধ, রুল ৭ মেনে সব জায়গায়।
+**ফোন (৮ জায়গা):** ① Timeline-এর paidEffect: চিহ্ন-সারি (bill_edit · chamber_expected · attendance_mark) ⇒ ০ (PatientTimelineRepository);
+② Follow-up Paid-এর দুই যোগ-লুপ, ③ Draft, ④ Doctor Visit-এর দুই লুপ, ⑤ Reports — সবখানে `PaymentModel.isMarkerOnlyRow` ছাঁকনি
+(আগে শুধু visit_fee/attendance_mark বাদ যেত); ⑥ এডিট আটকানো: PaymentActivity.tryEditPayment · PatientTimelineActivity.
+tryEditTimelinePayment · FollowUpActivity.tryEditFollowUpPayment — বার্তা "This is a system marker row … can't be edited"।
+**কম্পিউটার (২ জায়গা):** `wlv1PayEffect` (সব Paid/Due/Total-এর কেন্দ্রীয় হিসাব) — bill_edit/chamber_expected ⇒ ০; `editPaymentEntry`
+— চিহ্ন-সারি এডিট নয়। ⛔ সারি দেখানো · মোছা · Trash · Arrived/Expected চিহ্ন — কিছুই বদলায়নি; স্বাভাবিক সারির (₹০ চিহ্ন) হিসাব
+হুবহু আগের মতো (০ যোগ = ০)। **শুধু** কেউ চিহ্ন-সারিতে টাকা বসিয়ে থাকলে সেটা আর Paid-এ গোনা হবে না — এখন Tinku-র Timeline-ও
+Payment পর্দার মতো ₹10,000 দেখাবে (V1297 চালানোর আগেও)।
+পাহারা: node --check ✅ · ব্রাউজার-পরীক্ষা ✅ · resources ✅ · tk_guard ✅ · Kotlin compile (শেষবার) ✅ PASS।
+ভার্সন 1301 (gradle ২ লাইন · version.json · index.html app.js?v=v1301)। বাকি: APK V1301 · জলপাইগুড়ির উত্তর (₹3,000 সত্যি কিনা)।
+
 ## ১০.০৯.২০২৬ ১৫:০৫ — V1300 · তালিকা ৪১৬: দিন-পেরোনো রোগী আজ Arrived/পেমেন্ট করলে CHECK-UP Queue-তে ফিরবেন (ফোন + কম্পিউটার) · ৪১৭ ফল
 
 **৪১৬ (MD RIYAZ, TK: *"হ্যাঁ, ঠিক করুন সাবধানে"*):** TK-র SQL-ফল: stage Doctor Queue · queue true · doctorComplete false ·

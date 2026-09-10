@@ -2192,7 +2192,7 @@ class FollowUpRepository(private val context: Context? = null) {
                     for (i in 0 until paymentsForHigher.length()) {
                         val pay = paymentsForHigher.optJSONObject(i) ?: continue
                         val payType = pay.optString("payType", "")
-                        if (payType == "visit_fee" || payType == "attendance_mark") continue
+                        if (payType == "visit_fee" || payType == "attendance_mark" || PaymentModel.isMarkerOnlyRow(payType)) continue   /* 🔴🔒 V1301 (তালিকা ৪১৩): চিহ্ন-সারি (bill_edit · chamber_expected · attendance_mark) কখনো টাকা নয় */
                         if (pay.optDouble("amount", 0.0) <= 0.0) continue
                         val pm = digits(pay.s("mobile"))
                         if (pm.isNotEmpty()) higher.put(JSONObject().put("mobile", pm))
@@ -2422,7 +2422,7 @@ class FollowUpRepository(private val context: Context? = null) {
                 val pay = payments.getJSONObject(i)
                 val pid = pay.s("patientId")
                 val payType = pay.optString("payType", "")
-                if (payType == "visit_fee" || payType == "attendance_mark") continue
+                if (payType == "visit_fee" || payType == "attendance_mark" || PaymentModel.isMarkerOnlyRow(payType)) continue   /* 🔴🔒 V1301 (তালিকা ৪১৩): চিহ্ন-সারি (bill_edit · chamber_expected · attendance_mark) কখনো টাকা নয় */
                 // V238: Follow-up Paid/Due must use the same net-payment rule as
                 // Payment Details: approved refunds subtract; pending/rejected
                 // refunds have no effect. The refund row remains untouched.

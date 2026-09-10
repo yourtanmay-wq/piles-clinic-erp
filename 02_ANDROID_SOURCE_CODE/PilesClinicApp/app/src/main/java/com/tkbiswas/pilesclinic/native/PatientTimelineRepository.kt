@@ -1026,6 +1026,12 @@ object PatientTimelineRepository {
             // প্রভাব নেই (শুধু সারিটা history-তে "Pending/Rejected" লেখা
             // অবস্থায় দেখা যায়, টাকা কমে না)।
             val isRefund = p.optString("payType", "") == "refund"
+            /* 🔴🔒 V1301 (১০.০৯.২০২৬, তালিকা ৪১৩ — Tinku Bauli, TK: *"৩"*): bill_edit /
+               chamber_expected / attendance_mark **চিহ্ন-সারি** — টাকা থাকার কথা নয়। কেউ
+               ৩-ট্যাপ এডিটে ওতে টাকা বসিয়ে দিলে (Tinku: ₹3,000) Timeline-এর Paid বাড়ত,
+               অথচ Payment পর্দা ওই সারি দেখায়ই না ⇒ দুই পর্দায় দুরকম। এখন চিহ্ন-সারির
+               টাকা Paid-এ কখনো যোগ হয় না — সব পর্দা এক নিয়মে। সারিটা দেখানো/মোছা অছোঁয়া। */
+            val isMarkerRowMoney = PaymentModel.isMarkerOnlyRow(p.optString("payType", ""))
             val isApprovedRefund = PaymentModel.isApprovedRefund(p)
             val refundStatus = p.optString("refundApprovalStatus", "")
             // TK-REQUESTED CHANGE (2026-07-19): Progress should show the
@@ -1127,7 +1133,7 @@ object PatientTimelineRepository {
             // 🔒 V217 (§B216): এই এক জায়গাতেই refund-এর সাইন ঠিক হয় — বাকি
             // সব হিসাব (totalPaid, day-merge, runningPaid) এখান থেকেই নেয়।
             val paidEffect = when {
-                isAttendanceMark || isVisitFee -> 0.0
+                isAttendanceMark || isVisitFee || isMarkerRowMoney -> 0.0   // 🔴 V1301
                 isRefund && isApprovedRefund -> -amt
                 isRefund -> 0.0
                 else -> amt
