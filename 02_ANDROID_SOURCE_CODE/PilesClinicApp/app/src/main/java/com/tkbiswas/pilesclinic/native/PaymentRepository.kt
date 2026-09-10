@@ -2568,8 +2568,17 @@ class PaymentRepository(private val context: Context? = null) {
             val digits = patient.mobile.filter { it.isDigit() }.takeLast(10)
             // 🔴🔒 V715 — আগে `fetchList(...)` = `select=*` (রোগীর ছবিসহ ১০০ সারি)।
             // এই লুপ শুধু stage · status · id · lastRemark পড়ে — উপরের মন্তব্য দ্রষ্টব্য।
-            val followups = SupabaseClient.fetchListSlim(
-                "followups", "mobile=like.*$digits", 100, PROMOTE_COLS_SCAN)
+            /* 🧷🔒 V1286 (১০.০৯.২০২৬, TK-অনুমোদিত — তালিকা সারি ৪১১-④ দ্বিতীয় অংশ):
+               SQL-এ মাপা ২৪ জোড়া followups সারির ৮টার আইডি `fu_pat_pat_<নম্বর>` —
+               ঠিক নিচের ফলব্যাকের ছাঁচ। কারণ: এই খোঁজাটা নেট খারাপ হলে **ফাঁকা
+               তালিকা** ফেরাত (`fetchListSlim`), অ্যাপ ভাবত "সারি নেই" আর নতুন
+               সারি বানাত — অথচ আসল সারি ক্লাউডে ছিল ⇒ জোড়া।
+               ⇒ এখন `…OrNull`: পড়া ব্যর্থ = `null` ⇒ **কিছুই বানানো হয় না**, `false`
+                 ফেরে ⇒ টাকার সারি আগের মতোই "patient card pending" হয়ে জমা থাকে,
+                 লাইন ফিরলে আবার চেষ্টা (`PatientTimelineRepository`-র প্রমাণিত নিয়ম)।
+               ⛔ সফল পড়ায় (০টা সারিসহ) আচরণ এক অক্ষরও বদলায়নি। */
+            val followups = SupabaseClient.fetchListSlimOrNull(
+                "followups", "mobile=like.*$digits", 100, PROMOTE_COLS_SCAN) ?: return false
             var moved = 0
             for (i in 0 until followups.length()) {
                 val row = followups.getJSONObject(i)

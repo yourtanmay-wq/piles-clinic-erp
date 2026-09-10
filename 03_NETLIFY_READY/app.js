@@ -6969,6 +6969,59 @@ function forceCloudVisibleRows(rows){
  }catch(e){}
 }
 window["forceCloudVisibleRows"]=forceCloudVisibleRows;
+/* 🧷🔒 V1286 (১০.০৯.২০২৬, TK-অনুমোদিত — তালিকা সারি ৪১১-④ দ্বিতীয় অংশ):
+   মেরামত-লুপ (`repairBranchWorkflowRows` · `repairAtoZWorkflowFormula`) এতদিন
+   **শুধু স্থানীয় কপি** দেখে রোগীর Patient-ফলো-আপ সারি "নেই" ভেবে নতুন বানাত।
+   স্থানীয় কপি অসম্পূর্ণ হলে (জমা-জায়গা উপচানো / পুরো টানা হয়নি) ক্লাউডে থাকা
+   আসল সারির পাশে **জোড়া** তৈরি হত (SQL-এ মাপা ২৪ জন)।
+   ⇒ এখন নতুন সারি সরাসরি বসে না — **প্রস্তাব** হিসেবে জমে, তারপর ক্লাউডে দেখা হয়:
+      · পড়া ব্যর্থ / নেট নেই ⇒ কিছু বানানো হয় না (পরের মেরামতে আবার)
+      · ক্লাউডে ওই নম্বরের চালু Patient/Treatment সারি আছে ⇒ সেটাই স্থানীয়ে বসে
+      · সত্যিই নেই ⇒ তবেই নতুন সারি (আগের হুবহু একই সারি, `add` দিয়ে — ক্লাউডেও যায়)
+   ⛔ Inquiry-ধাপের মেরামত অছোঁয়া (জোড়া শুধু Patient/Treatment-এ পাওয়া গেছে)।
+   ⛔ Egress: প্রস্তাব বিরল; প্রতিটায় ওই নম্বরের কয়েকটা সারি (ছবি নয়)। */
+var __wlv1FuHealQ=[],__wlv1FuHealTimer=null,__wlv1FuHealBusy=false;
+function wlv1FuHealPropose(row){
+ try{
+  if(!row||!row.id)return;
+  var m=mob(row.mobile); if(m.length!==10)return;
+  if(__wlv1FuHealQ.some(function(x){return x&&x.id===row.id}))return;
+  __wlv1FuHealQ.push(row);
+  clearTimeout(__wlv1FuHealTimer);
+  __wlv1FuHealTimer=setTimeout(function(){wlv1FuHealFlush()},1500);
+ }catch(_e){}
+}
+async function wlv1FuHealFlush(){
+ if(__wlv1FuHealBusy)return; __wlv1FuHealBusy=true;
+ try{
+  var q=__wlv1FuHealQ.splice(0);
+  if(!q.length)return;
+  var ok=await initCloudClientOnly(); if(!ok||!sb)return;          // নেট নেই ⇒ কিছু বানানো হয় না
+  var term=['Cancelled','Incomplete','Rejected','Closed'];
+  var __ph=RT_NO_PHOTO_COLS['followups'];
+  var pulled=[],toAdd=[];
+  for(var i=0;i<q.length;i++){
+   var row=q[i],m=mob(row.mobile);
+   var r=await sb.from('followups').select(__ph||'*').like('mobile','%'+m).limit(50);
+   if(__ph&&r.error&&wlv1IsColumnError(r.error)){r=await sb.from('followups').select('*').like('mobile','%'+m).limit(50);}
+   if(r.error||!Array.isArray(r.data))continue;                       // পড়া ব্যর্থ ⇒ এই প্রস্তাব বাদ (পরে আবার)
+   var live=normalizeCloudRows(r.data).filter(function(f){return f&&mob(f.mobile)===m&&['Patient','Treatment'].indexOf(String(f.stage||''))>=0&&term.indexOf(String(f.status||''))<0});
+   if(live.length){pulled=pulled.concat(live)}
+   else{toAdd.push(row)}
+  }
+  if(pulled.length){
+   try{ save('followups',normalizeTableRows('followups',mergeById(pulled,load('followups'))),{skipCloud:true}); }catch(_e){}
+  }
+  for(var k=0;k<toAdd.length;k++){
+   var nr=toAdd[k];
+   if(load('followups').some(function(f){return f&&f.id===nr.id}))continue;
+   try{ add('followups',nr) }catch(_e){}
+  }
+  if(pulled.length||toAdd.length){try{if(String(currentView||'').includes('Follow-up'))followup('Patient')}catch(_e){}}
+ }catch(_e){}
+ finally{__wlv1FuHealBusy=false; if(__wlv1FuHealQ.length){clearTimeout(__wlv1FuHealTimer);__wlv1FuHealTimer=setTimeout(function(){wlv1FuHealFlush()},1500)}}
+}
+window["wlv1FuHealFlush"]=wlv1FuHealFlush;
 function repairBranchWorkflowRows(){
  try{
   let changed=false,now=new Date().toISOString();
@@ -7062,7 +7115,7 @@ function repairBranchWorkflowRows(){
    let pi=__firstIdx('Patient',p.id,mm);
    let prow={refId:p.id,mobile:normMob(mm),name:p.name||'',branch:p.branch||'',disease:p.disease||'',address:p.address||'',stage:'Patient',date:p.registrationDate||p.visitDate||p.date||today(),registrationDate:p.registrationDate||p.date||today(),visitDate:p.visitDate||p.registrationDate||p.date||today(),lastRemark:'Registered patient / Visit created',nextFollow:'',callCount:0,status:'Active',history:[{date:p.registrationDate||p.date||today(),time:p.createdAt||isoNow(),remark:'Registered patient / Visit created',staff:p.registeredBy||p.createdBy||''}],createdBy:p.createdBy||'',createdAt:p.createdAt||now,updatedAt:p.updatedAt||now};   /* ⏰ V1005 — রেজিস্ট্রেশনের নিজের দিন-সময় */
    // 🟢 B626: Patient-stage self-heal-ও একইভাবে নির্দিষ্ট id — ডুপ্লিকেট বন্ধ।
-   if(pi<0){followups.unshift({id:'fu_pat_'+p.id,...prow});changed=true;__idxNoteUnshift('Patient',p.id,mm)}
+   if(pi<0){wlv1FuHealPropose({id:'fu_pat_'+p.id,...prow});/* 🧷 V1286 — ক্লাউডে দেখে তবেই */}
    else{
     // 🟢 B626: status/stage/converted পুরনো সারি থেকে — উল্টায় না।
     let old=followups[pi];/* 🔴🔒🔒 V875 (৩০.০৮.২০২৬) — TK-এর যাচাইয়ে ধরা পড়া **আমার নিজের ফাঁক**:
@@ -7251,8 +7304,7 @@ function repairAtoZWorkflowFormula(){
      if(idx===undefined){
        /* 🔴 V406 (16.08.2026): র‍্যান্ডম `uid('fu')`-এর বদলে **স্থির id** `fu_pat_<রোগীর id>` — খাতার সারি B626-এ `repairBranchWorkflowRows`-এ এই নিয়মই বসানো হয়েছিল, কিন্তু এই দুটো heal বাদ পড়ে গিয়েছিল। এগুলো ড্যাশবোর্ড খুললেই চলে, তাই র‍্যান্ডম id-তে প্রতিবার নতুন সারি জমত। স্থির id-তে বারবার চললেও একই সারিতেই বসে। ফোনের `PatientTimelineRepository`-ও এখন হুবহু এই id ব্যবহার করে, তাই ওয়েব ও ফোন এক সারিতেই মেলে। */
        let row={id:'fu_pat_'+p.id,...base};
-       azNewRows.push(row);   // 🔴 V1224 — শেষে একবারে সামনে বসবে
-       followupsChanged=true;
+       wlv1FuHealPropose(row);   // 🧷 V1286 — ক্লাউডে দেখে তবেই (আগে সরাসরি azNewRows-এ বসত)
      }else{
        let old=followupsArr[idx];
        /* 🔴🔴 V406: উপরের `ensureVisitFollowForPatient`-এর হুবহু একই দোষ এখানেও
