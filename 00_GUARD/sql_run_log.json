@@ -217,5 +217,13 @@
     "result": "Success — visit_fee_rows_now 1",
     "proof": "screenshot",
     "what": "pay_f089b11d… ও pay_62548a6d… (একই মিলিসেকেন্ডে লেখা) মোছা, deleted_records-এ চিহ্ন; pay_bc3da956… রাখা। বাড়তি ₹800 বাদ।"
+  },
+  {
+    "sql_file": "তালিকা ৪১১-② — টাকার ঘরে CHECK-পাহারা (চ্যাটে দেওয়া SQL)",
+    "run_by": "TK",
+    "when": "১০.০৯.২০২৬ সকাল ৯.২০",
+    "result": "Success. No rows returned",
+    "proof": "screenshot",
+    "what": "payments.amount · patients.bill · patients.discount — সংখ্যা বা ফাঁকা ছাড়া লেখা ঢুকবে না (add constraint … not valid + validate)। আগে মাপা: ভুল লেখা ০টা। ঘরের ধরন বদলানো হয়নি (১৫টা SQL ফাংশন লেখা-ধরনে চলে)।"
   }
 ]
