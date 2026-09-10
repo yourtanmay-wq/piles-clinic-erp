@@ -24463,7 +24463,7 @@ alias `androiddebugkey` · SHA-256 5C:B2:24:AB:…:E6:AB — এটাই ফো
 ফাংশন/ট্রিগার লেখা-ধরনে চলে — বদলালে ভাঙত)। বদলে তিন ঘরে CHECK: সংখ্যা বা ফাঁকা ছাড়া ঢুকবে না;
 অ্যাপ সবসময় সংখ্যা লেখে, তাই কিছু আটকায় না। sql_run_log-এ এন্ট্রি। কোড বদল নেই।
 
-## ১০.০৯.২০২৬ ১৬:১০ — 📦 PILES_CLINIC_APP_V1301_FINAL.zip পাঠানো (TK: *"ফাইল পাঠান"*)
+## ১০.০৯.২০২৬ ১৫:০০ — 📦 PILES_CLINIC_APP_V1301_FINAL.zip পাঠানো (TK: *"ফাইল পাঠান"*)
 
 tk_guard --release ✅ (নাম তালিকায়) · ZIP স্ক্র্যাচপ্যাডে (বাদ: .git · node_modules · build · .gradle · .idea · *.apk · *.zip ·
 00_GUARD/.kotlinc · ANATOMY ORIGINAL · root *.png · __pycache__ · .DS_Store · local.properties) · verify_zip_root_name ✅ ·
