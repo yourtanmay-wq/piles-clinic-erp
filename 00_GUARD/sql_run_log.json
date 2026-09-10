@@ -257,5 +257,13 @@
   "result": "baki: followups 0 · patients 0 · enquiries 1 · payments 0",
   "proof": "CSV",
   "what": "সব টেবিলের অন্য-ছাঁচের updatedAt একবার অ্যাপের ছাঁচে + ১৪ টেবিলে tk_fix_updated_at_format trigger। enquiries-এ ১টা সারি বাকি (সময়-ছাঁচে নয়, তাই ইচ্ছে করে ছোঁয়া হয়নি) — দেখার SQL দেওয়া।"
+ },
+ {
+  "sql_file": "00_SQL/V1289B_MOCHA_TOBU_ACHE_17_MUCHE_2026-09-10.sql (⑦ — মোছা-চিহ্ন আছে তবু টেবিলে ফিরে-আসা সারি)",
+  "run_by": "TK",
+  "when": "১০.০৯.২০২৬ সকাল ১০.৪৮",
+  "result": "baki: enquiries 0 · followups 0 (১৭ সারি মোছা: enquiries 4 · followups 13, সব Cancelled)",
+  "proof": "screenshot",
+  "what": "deleted_records-এ 'টেবিল|id' চিহ্ন আছে অথচ সারি টেবিলে আছে এবং status='Cancelled' — শুধু সেগুলো মোছা। patients/payments/doctor_visits/medical-এ এমন সারি ০ ছিল, টাকা জড়িত নয়। TK: 'হ্যাঁ, মুছে দিন'।"
  }
 ]
