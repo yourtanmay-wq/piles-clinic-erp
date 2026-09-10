@@ -353,6 +353,12 @@
             android:exported="false"
             android:label="Reports"
             android:theme="@style/Theme.PilesClinic" />
+        <!-- 🔍 V1284 — মাস্টারের Duplicate Check পর্দা (তালিকা সারি ৪১০) -->
+        <activity
+            android:name=".native.DuplicateCheckActivity"
+            android:exported="false"
+            android:label="Duplicate Check"
+            android:theme="@style/Theme.PilesClinic" />
         <activity
             android:name=".native.TrashBinActivity"
             android:exported="false"

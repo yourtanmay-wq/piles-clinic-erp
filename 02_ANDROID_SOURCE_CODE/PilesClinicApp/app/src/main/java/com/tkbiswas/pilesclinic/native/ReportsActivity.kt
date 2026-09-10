@@ -37,6 +37,10 @@ class ReportsActivity : AppCompatActivity() {
         }
 
         binding.btnBack.setOnClickListener { finish() }
+        // 🔍 V1284 (তালিকা সারি ৪১০) — মাস্টারের Duplicate Check পর্দা (শুধু দেখা)
+        binding.cardDupCheck.setOnClickListener {
+            startActivity(android.content.Intent(this, DuplicateCheckActivity::class.java))
+        }
 
         /* 🔴🔵🔒 V523 (২২.০৮.২০২৬, TK-নির্দেশ) — **উপরের তিনটে বাক্সে চাপ দিলে
            এতদিন কিছুই হত না।**

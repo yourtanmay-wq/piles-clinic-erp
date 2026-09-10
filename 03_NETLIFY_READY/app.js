@@ -17048,9 +17048,48 @@ function reports(){
    <button class="card reportKpi" onclick="followup('Patient')">Patient Follow-up<br><b>${c.pat}</b></button>
    <button class="card reportKpi" onclick="followup('Treatment')">Treatment Follow-up<br><b>${c.tr}</b></button>
    <button class="card reportKpi" onclick="todayPendingCall()">Due Today<br><b>${c.over}</b></button>
- </div>`)
+ </div>
+ ${isMaster()?`<div class="sectionTitle">Data Check</div>
+ <button class="card reportStaffCard" style="text-align:left;display:flex;align-items:center;gap:12px" onclick="wlv1DupCheck()"><span style="font-size:22px">🔍</span><span><b>Duplicate Check</b><br><small class="mut">Same mobile · same name · same amount same day</small></span></button>`:''}`)
 }
-window["reports"]=reports;function reportList(kind){let rows=[];if(kind==='enquiries')rows=scoped(load('enquiries'));else if(kind==='patients')rows=scoped(load('patients'));else if(kind==='queue')rows=scoped(load('patients')).filter(x=>wlv1Flag(x.queue)&&!wlv1Flag(x.doctorComplete));let html=rows.map(x=>`<div class="card"><b>${esc(x.name||normMob(x.mobile)||x.patientId||'-')}</b><br><span class="mut">${esc(normMob(x.mobile||''))} · ${esc(x.branch||'')} · ${esc(fmtDate(x.date||x.visitDate||x.registrationDate||''))}</span><br><small>${esc(x.disease||x.status||'')}</small><div class="actions"><button class="small ghost" onclick="${x.id?`summary('${x.id}')`:`summaryByMobile('${mob(x.mobile)}')`}">View Details</button>${x.id?`<button class="small ghost" onclick="openPrintMenu('${esc(x.id)}')">Print</button>`:''}</div></div>`).join('')||'<div class="card mut">No records yet</div>';page('Report Details',html)}
+window["reports"]=reports;
+/* 🔍🔒 V1284 (১০.০৯.২০২৬, TK-অনুমোদিত প্ল্যান ④ — তালিকা সারি ৪১০, ফটো-প্রুফ পাশ):
+   মাস্টারের **Duplicate Check** পর্দা — ফোনের হুবহু যমজ। কম্পিউটারে তথ্য
+   স্থানীয় কপি থেকেই (বাড়তি কোনো ক্লাউড-পড়া নেই)। ⛔ শুধু দেখা — কিছু মোছে না।
+   ① একই মোবাইলে একাধিক রোগী ② একই নাম+ব্রাঞ্চ (①-এ থাকলে বাদ) ③ একই রোগীর
+   একই দিনে একই অঙ্ক·ধরনের একাধিক পেমেন্ট। ধরা পড়া ≠ ভুল — সিদ্ধান্ত TK-র। */
+function wlv1DupCheck(){
+  if(!isMaster()){toast('Only Master Admin');return}
+  var pats=load('patients')||[],pays=load('payments')||[];
+  var skip={chamber_expected:1,bill_edit:1,attendance_mark:1};
+  var byId={};pats.forEach(function(p){if(p&&p.id)byId[p.id]={id:p.id,code:String(p.patientId||''),name:String(p.name||'').trim(),mobile:mob(p.mobile),age:String(p.age||''),sex:String(p.sex||'').slice(0,1),branch:String(p.branch||''),bill:Number(p.bill||0),created:String(p.createdAt||''),paid:0}});
+  var payG={};pays.forEach(function(y){if(!y)return;var pt=String(y.payType||'');if(skip[pt])return;var amt=Number(y.amount||0);var pid=String(y.patientId||'');if(pt!=='refund'&&byId[pid])byId[pid].paid+=amt;var k=pid+'|'+String(y.date||'').slice(0,10)+'|'+amt+'|'+pt;(payG[k]=payG[k]||[]).push(y)});
+  var all=Object.values(byId);
+  var byMob={};all.forEach(function(p){if(p.mobile.length===10)(byMob[p.mobile]=byMob[p.mobile]||[]).push(p)});
+  var mobG=Object.values(byMob).filter(function(g){return g.length>1}).sort(function(a,b){return a[0].name.localeCompare(b[0].name)});
+  var inMob={};mobG.forEach(function(g){g.forEach(function(p){inMob[p.id]=1})});
+  var byName={};all.forEach(function(p){if(p.name)(byName[p.branch.trim().toUpperCase()+'|'+p.name.toUpperCase()]=byName[p.branch.trim().toUpperCase()+'|'+p.name.toUpperCase()]||[]).push(p)});
+  var nameG=Object.values(byName).map(function(g){return g.filter(function(p){return !inMob[p.id]})}).filter(function(g){return g.length>1}).sort(function(a,b){return a[0].name.localeCompare(b[0].name)});
+  var dupP=Object.values(payG).filter(function(g){return g.length>1}).sort(function(a,b){return ((byId[a[0].patientId]||{}).name||'').localeCompare((byId[b[0].patientId]||{}).name||'')});
+  var dm=function(iso){var d=String(iso||'').slice(0,10);return d.length===10?d.slice(8,10)+'/'+d.slice(5,7):d};
+  var byCreated=function(g){return g.slice().sort(function(a,b){return String(a.created).localeCompare(String(b.created))})};
+  var card=function(edge,pillBg,pillFg,name,pill,sub,rows){return '<div class="card" style="border-left:5px solid '+edge+';padding:12px 14px">'
+    +'<div style="font-size:16px;font-weight:700">'+esc(name||'-')+' <span style="font-size:10.5px;padding:2px 8px;border-radius:999px;background:'+pillBg+';color:'+pillFg+';font-weight:700;margin-left:6px">'+esc(pill)+'</span></div>'
+    +'<div style="font-size:13px;color:#4A78D6;margin-top:2px">'+esc(sub)+'</div>'
+    +rows.map(function(r){return '<div style="display:flex;justify-content:space-between;gap:8px;font-size:12.5px;color:#334;margin-top:6px;padding-top:6px;border-top:1px dashed #E3E9F0"><span>'+esc(r[0])+'</span><b style="white-space:nowrap">'+esc(r[1])+'</b></div>'}).join('')+'</div>'};
+  var html='<div class="card" style="display:flex;justify-content:space-around;text-align:center">'
+    +'<div><b style="font-size:22px;color:#0B5C56">'+mobG.length+'</b><br><small class="mut">Same mobile</small></div>'
+    +'<div><b style="font-size:22px;color:#0B5C56">'+nameG.length+'</b><br><small class="mut">Same name · branch</small></div>'
+    +'<div><b style="font-size:22px;color:#0B5C56">'+dupP.length+'</b><br><small class="mut">Same amount · day</small></div></div>'
+    +'<button class="primary" style="width:100%;margin:10px 0" onclick="wlv1DupCheck()">⟳ Check again</button>';
+  if(!mobG.length&&!nameG.length&&!dupP.length){html+='<div class="card mut" style="text-align:center;color:#0EA25F">No duplicates found ✓</div>'}
+  if(mobG.length){html+='<div class="sectionTitle">SAME MOBILE — '+mobG.length+'</div>'+mobG.map(function(g){return card('#D9612F','#FDEEE9','#D9612F',g[0].name,g.length+' rows','📞 +91'+g[0].mobile+' · '+g[0].branch.toUpperCase(),byCreated(g).map(function(p){return [p.code+' · '+p.age+' '+p.sex+' · Bill '+money(p.bill)+' · Paid '+money(p.paid),dm(p.created)]}))}).join('')}
+  if(nameG.length){html+='<div class="sectionTitle">SAME NAME IN BRANCH — '+nameG.length+'</div>'+nameG.map(function(g){return card('#C99A19','#FFF8E1','#C99A19',g[0].name,g.length+' rows',g[0].branch.toUpperCase()+' · '+g[0].age+' '+g[0].sex,byCreated(g).map(function(p){return [p.code+' · '+p.mobile+' · Bill '+money(p.bill)+' · Paid '+money(p.paid),dm(p.created)]}))}).join('')}
+  if(dupP.length){html+='<div class="sectionTitle">SAME AMOUNT · SAME DAY — '+dupP.length+'</div>'+dupP.map(function(g){var y=g[0],p=byId[y.patientId]||{};var amt=Number(y.amount||0);return card('#D9612F','#FDEEE9','#D9612F',p.name||String(y.patientId||''),g.length+' × '+money(amt),(p.code||'')+' · '+String(p.branch||'').toUpperCase(),[[wlv1Dot(String(y.date||'').slice(0,10))+' · '+String(y.payType||'').replace(/_/g,' ')+' · '+String(y.mode||'')+' · '+codeName(y.receivedBy||''),g.length+' rows']])}).join('')}
+  html+='<div class="mut" style="text-align:center;font-size:11.5px;margin:14px 0">View only — nothing is deleted from this screen</div>';
+  page('Duplicate Check',html);
+}
+window["wlv1DupCheck"]=wlv1DupCheck;function reportList(kind){let rows=[];if(kind==='enquiries')rows=scoped(load('enquiries'));else if(kind==='patients')rows=scoped(load('patients'));else if(kind==='queue')rows=scoped(load('patients')).filter(x=>wlv1Flag(x.queue)&&!wlv1Flag(x.doctorComplete));let html=rows.map(x=>`<div class="card"><b>${esc(x.name||normMob(x.mobile)||x.patientId||'-')}</b><br><span class="mut">${esc(normMob(x.mobile||''))} · ${esc(x.branch||'')} · ${esc(fmtDate(x.date||x.visitDate||x.registrationDate||''))}</span><br><small>${esc(x.disease||x.status||'')}</small><div class="actions"><button class="small ghost" onclick="${x.id?`summary('${x.id}')`:`summaryByMobile('${mob(x.mobile)}')`}">View Details</button>${x.id?`<button class="small ghost" onclick="openPrintMenu('${esc(x.id)}')">Print</button>`:''}</div></div>`).join('')||'<div class="card mut">No records yet</div>';page('Report Details',html)}
 window.reportList=reportList;
 function staffReportDetails(name){let q=String(name||'').toLowerCase();let rows=[...scoped(load('enquiries')),...scoped(load('patients')),...scoped(load('payments'))].filter(x=>String([x.createdBy,x.receivedBy,x.name,x.mobile,codeName(x.createdBy||''),codeName(x.receivedBy||'')].join(' ')).toLowerCase().includes(q));let en=rows.filter(x=>x.id&&String(x.id).startsWith('enq')).length, pt=rows.filter(x=>x.patientId||String(x.id||'').startsWith('pat')).length, payRows=rows.filter(x=>String(x.id||'').startsWith('pay'));let pay=payRows.reduce((s,x)=>s+Number(x.amount||0),0);
  // 🔴 TK-অডিট-অনুরোধ (01.08.2026): Refund এখানেও প্লেইন যোগ হচ্ছিল।
