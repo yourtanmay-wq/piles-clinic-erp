@@ -24484,6 +24484,10 @@ verify_zip_contents ✅ (১০ আইকন)। **২৫.৫ MB · ১৮০০
 গোপন কিছু নেই (service-account শুধু Netlify env; google-services.json গোপন নয়)। এই ZIP-এ V1297–V1301: push (FCM) ·
 Payment delete-request · Queue-ফেরা · চিহ্ন-সারি। TK-কে মনে করানো: আসল বিল্ড Android Studio-তে; ওয়েব এখন GitHub থেকে নিজে ওঠে।
 
+## ১০.০৯.২০২৬ — 📦 PILES_CLINIC_APP_V1311_FINAL.zip পাঠানো (TK: "ফাইল পাঠাও")
+
+২৫.৬৫ MB · ১৮০৭ ফাইল (02_ANDROID_SOURCE_CODE ৭৬৭ · root ৬০৪ · SQL/DB ফোল্ডার ২২৯ · 00_GUARD ৫৮ · 03_NETLIFY_READY ৫৩ · বাকি)। বাদ: গোড়ার ২২টা ডেমো .png + অ্যানাটমি-ছবির আসল কপি (ইচ্ছে করে, জায়গা বাঁচাতে)। গোপন কিছু নেই (release সই-চাবি ও service-account ট্র্যাক করা নয়)। verify_zip_contents + verify_zip_root_name দুটোই PASS। হিসাব `00_GUARD/pathano_filer_talika.json`-এ লেখা। এই ZIP-এ V1311 (তালিকা ৪২৩ — A-to-Z অডিট)।
+
 ## ১০.০৯.২০২৬ ১৯:১৮ — V1311 · তালিকা ৪২৩: A-to-Z অডিট — "ফোনের কপি ক্লাউডের উপরে" জাতের সব ফাঁক এক ভার্সনে (ফোন + ওয়েব)
 
 TK: *"এই একই ধরনের সমস্যা আর কোন কোন পর্দায় আছে… এ টু জেড প্রজেক্ট ভালোভাবে যাচাই করুন"*। কোড পড়ে (আন্দাজ নয়) পাঁচ জাতের ফাঁক খোঁজা হলো —
