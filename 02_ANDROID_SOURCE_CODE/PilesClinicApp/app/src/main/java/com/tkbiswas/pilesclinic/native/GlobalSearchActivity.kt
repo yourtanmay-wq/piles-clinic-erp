@@ -160,12 +160,15 @@ class GlobalSearchActivity : AppCompatActivity() {
                 // 🔒 And if a narrowed read ever fails, fetchListSlim asks for
                 // every column again by itself -- so a search can never come
                 // back wrongly empty because of this.
+                // 🔴🔒 V1347 — ২০০০→৫০০০ (বাকি cross-branch fetch-এর (DuplicateCheck,
+                // DoctorVisit, PaymentRepository) সাথে মিলিয়ে) — নাম/রোগ/ঠিকানা
+                // দিয়ে খোঁজার সময়ও পুরনো রোগী যেন বাদ না পড়ে যায়।
                 val enqCloud = SupabaseClient.fetchListSlim(
-                    "enquiries", null, 2000,
+                    "enquiries", null, 5000,
                     "id,name,mobile,branch,disease,address,date,updatedAt"
                 )
                 val patCloud = SupabaseClient.fetchListSlim(
-                    "patients", null, 2000,
+                    "patients", null, 5000,
                     // 🔒 V235: altMobile যোগ — Alternate নম্বর দিয়েও Search মেলে।
                     "id,name,mobile,altMobile,branch,bill,patientId,disease,diagnosis,address,registrationDate,date,updatedAt"
                 )
@@ -198,6 +201,42 @@ class GlobalSearchActivity : AppCompatActivity() {
                         val row = pendingPat.getJSONObject(i)
                         val id = row.optString("id")
                         if (id.isNotBlank() && seenPatIds.add(id)) pat.put(row)
+                    }
+                    /* 🔴🔒 V1347 (১১.০৯.২০২৬, TK-রিপোর্ট — মোবাইল নম্বর দিয়ে খুঁজলে
+                       Follow-up-এ মিলছে, Global Search-এ "No match found") — **আসল
+                       কারণ কোডে মিলিয়ে পাওয়া:** উপরের ২০০০-সীমার fetchListSlim()
+                       সব ব্রাঞ্চের রোগী/এনকোয়ারি একসাথে আনে, সবচেয়ে সম্প্রতি-বদলানো
+                       (`updatedAt.desc`) ২০০০টাই — অনেকদিন কোনো কাজ না হওয়া পুরনো
+                       রোগী (এই কেসে ১৩ দিন আগে রেজিস্টার, তারপর কোনো নতুন পেমেন্ট/
+                       কল/আপডেট নেই) মোট সংখ্যা ২০০০ ছাড়ালে এই তালিকার বাইরে পড়ে
+                       যেতে পারে। Follow-up ব্রাঞ্চ-ধরে খোঁজে (একেক ব্রাঞ্চে সীমা
+                       ৫০০০, তাই ব্যবহারিকভাবে বাদ পড়ে না) — তাই সেখানে পাওয়া যায়,
+                       এখানে যায় না। ⛔ পুরনো ২০০০-সীমার fetch অক্ষত রাখা হলো (নাম/
+                       রোগ/ঠিকানা দিয়ে খোঁজায় কিছু বদলায়নি) — শুধু নম্বর দিয়ে খোঁজার
+                       সময় সরাসরি ডাটাবেসেই ওই নম্বর ধরে একটা বাড়তি টার্গেটেড কল
+                       (রেজাল্ট অল্প, তাই দ্রুত) দিয়ে টেবিল যত বড়ই হোক না কেন
+                       নম্বর-মিল কখনো বাদ না পড়া নিশ্চিত করা হলো। */
+                    if (qDigits.length >= 3) {
+                        try {
+                            val extraEnq = SupabaseClient.fetchListSlim(
+                                "enquiries", "mobile.like.*$qDigits*", 200,
+                                "id,name,mobile,branch,disease,address,date,updatedAt"
+                            )
+                            for (i in 0 until extraEnq.length()) {
+                                val row = extraEnq.getJSONObject(i)
+                                val id = row.optString("id")
+                                if (id.isNotBlank() && seenEnqIds.add(id)) enq.put(row)
+                            }
+                            val extraPat = SupabaseClient.fetchListSlim(
+                                "patients", "or=(mobile.like.*$qDigits*,altMobile.like.*$qDigits*)", 200,
+                                "id,name,mobile,altMobile,branch,bill,patientId,disease,diagnosis,address,registrationDate,date,updatedAt"
+                            )
+                            for (i in 0 until extraPat.length()) {
+                                val row = extraPat.getJSONObject(i)
+                                val id = row.optString("id")
+                                if (id.isNotBlank() && seenPatIds.add(id)) pat.put(row)
+                            }
+                        } catch (_: Throwable) { }
                     }
                 }
                 // TK APPROVED (2026-07-15): Dashboard/Global Search by mobile number
