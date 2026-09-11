@@ -205,7 +205,12 @@ class FieldVisitActivity : AppCompatActivity() {
     // ─── পর্দা ────────────────────────────────────────────────────────────
     private fun render(loading: Boolean, monthVisits: Int = 0, days: JSONArray = JSONArray()) {
         val col = ModuleUi.screen(this, "")
-        col.addView(ModuleUi.heading(this, if (ownerMode) "Field Visit Tracking" else "RMP Doctors"))
+        // 🛰️🔒 V1346 (১১.০৯.২০২৬, TK-নির্দেশ) — এই পর্দা এখন সব স্টাফের জন্যই
+        // খোলে (আগে শুধু ফিল্ড-স্টাফের); ফিল্ড-স্টাফ না হলে শিরোনাম "Field
+        // Visit Tracking" না বলে "Attendance Location" — বাকি সব অপরিবর্তিত।
+        val ownerHeading = if (com.tkbiswas.pilesclinic.native.FieldVisit.isFieldStaffCode(staffCode))
+            "Field Visit Tracking" else "Attendance Location"
+        col.addView(ModuleUi.heading(this, if (ownerMode) ownerHeading else "RMP Doctors"))
         col.addView(ModuleUi.body(this,
             (if (ownerMode) staffCode.ifBlank { "-" } else branch) + "  ·  " + dmy(today())))
         if (loading) { col.addView(ModuleUi.body(this, "Loading...")); return }

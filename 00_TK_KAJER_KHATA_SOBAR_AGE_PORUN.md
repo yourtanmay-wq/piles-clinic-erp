@@ -25458,3 +25458,33 @@ Worker-ফাইলেই এই একই জানা-গোলমাল (clas
 সহ বাকি ১৫+ Worker ফাইলেও ঠিক এই একই এন্ট্রি আগে থেকেই ছিল, যাচাই করা।
 পাহারা: verify_android_resources.py ✅ · tk_guard.py ✅ · verify_kotlin_
 compile.py ✅ PASS (নতুন ভুল ০, বেসলাইন ১০০০→১০০১)।
+
+## ১১.০৯.২০২৬ — V1346 · সবার জন্য IN-OUT লোকেশন (স্টাফ/ব্রাঞ্চ অংশ)
+
+TK চাইলেন staff/branch/doctor — সবার ফোনে IN-OUT সময়ে লোকেশন চালু থাকুক।
+চার-দফা প্রশ্নে স্পষ্ট হলো: স্টাফ/ব্রাঞ্চ — IN TIME চাপার সাথে অন-করার
+প্রস্তাব (না করলেও IN TIME আটকাবে না) + এড়ানো-অসম্ভব নোটিফিকেশন (ডেমো
+দেখে TK "হ্যাঁ চলবে"); ডাক্তার — কোনো নতুন বোতাম/টগল নয় (TK নিজেই সরাসরি
+বাতিল করলেন প্রথম নকশা), শুধু ফোনের নিজের অনুমতি-বাক্স, লোকেশন এমনিতে অন
+থাকলেই মাস্টার দেখবেন।
+
+নতুন `FieldVisit.tracksAttendanceLocation()` — `RoleRules.usesAttendance()`
+(আগে থেকে ছিল, শুধু আসল staff/branch role) ব্যবহার করে বানানো, RUPAM-এর
+পুরনো `isFieldStaff()`/`FIELD_STAFF_MOBILES` (MARK VISIT-এর জন্য, অপরিবর্তিত)
+থেকে সম্পূর্ণ আলাদা রাখা হলো যাতে দুটো ধারণা গুলিয়ে না যায়।
+`WorkNotebookActivity.kt`-এর ৪টা জায়গায় (permission-চাওয়া, IN TIME-এর পরে
+শুরু, চলমান-কার্ড, resume) গেট পাল্টে `tracksAttendanceLocation()` বসানো
+হলো — RUPAM-এর MARK VISIT/Chamber-Field UI অংশ অছোঁয়া রাখা হয়েছে (isField
+চেক করেই কন্ডিশনালি দেখানো)। `FieldVisitActivity.kt`-তে owner-heading
+এখন RUPAM-এর বেলায় "Field Visit Tracking", বাকি সবার বেলায় "Attendance
+Location"। `StaffProfileActivity.kt`-এর Field Visit বোতাম এখন সব স্টাফের
+কার্ডে আসে, লেবেল শুধু RUPAM-এর বেলায় "Field Visit" বাকি সবার "Location"।
+
+পাহারা: verify_android_resources.py ✅ · tk_guard.py ✅ · verify_kotlin_
+compile.py ✅ PASS (নতুন ভুল ০, বেসলাইন অপরিবর্তিত ১০০১)।
+
+**বাকি:** ডাক্তারের অংশ — মাস্টারের পর্দায় (PartnerSharesActivity.kt)
+ডাক্তারের কার্ডে "Location" বোতাম বসানো (visible ছোট বদল বলে ডেমো-ছবি
+পাঠানো হয়েছে, TK-র পাশের অপেক্ষায়), তারপর ডাক্তারের ফোনে হালকা (foreground
+service ছাড়া) লোকেশন-ধরার ব্যবস্থা ও তার জন্য নতুন টেবিল। ওয়েবে এই
+সম্পূর্ণ ফিচারের (GPS) কোনো জোড়া নেই — এখনো TK-কে সততার সাথে বলা বাকি।

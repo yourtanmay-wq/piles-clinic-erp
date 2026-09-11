@@ -34,10 +34,28 @@ import java.util.TimeZone
  */
 object FieldVisit {
 
-    /* 🔒 TK-নির্দেশ: *"এটা যেন শুধুমাত্র RUPAM-এর ক্ষেত্রেই হয়ে থাকে"*।
-       নম্বরটা `StaffDirectory`-র JPE-RUPAM-এর সাথে মেলানো (যাচাই করা)।
-       ⛔ নতুন কারো জন্য চালু করতে হলে TK বলবেন, তখন এখানেই এক লাইন যোগ। */
+    /* 🔒 TK-নির্দেশ (মূল, ০২.০৯.২০২৬): *"এটা যেন শুধুমাত্র RUPAM-এর ক্ষেত্রেই
+       হয়ে থাকে"*। এই তালিকাটা এখনো শুধু **RMP Doctors — MARK VISIT** ফিচারের
+       জন্যই (বাইক নিয়ে ঘোরা, কিলোমিটার-হিসাবের টাকা) — এটা বদলায়নি।
+       ⛔ সাধারণ হাজিরা-লোকেশন (নিচের `tracksAttendanceLocation()`, V1346-এ
+          TK-নির্দেশে সবার জন্য চালু হলো) সম্পূর্ণ **আলাদা** শর্ত — এই
+          তালিকার সাথে গুলিয়ে ফেলা যাবে না। */
     private val FIELD_STAFF_MOBILES = setOf("8167096595")
+
+    /* 🛰️🔒 V1346 (১১.০৯.২০২৬, TK-নির্দেশ, ধাপে-ধাপে আলোচনা — "staff/branch/
+       doctor সব"-এর ফোনে IN TIME থেকে OUT TIME পর্যন্ত লোকেশন) — উপরের
+       `isFieldStaff` (শুধু RUPAM, RMP-ভিজিট-মার্কের জন্য) থেকে **সম্পূর্ণ
+       আলাদা**, বিস্তৃত শর্ত। TK-র নিজের সিদ্ধান্ত: IN TIME চাপলেই লোকেশন-অন
+       করার প্রম্পট আসবে (অ-বাধ্যতামূলক — না দিলে IN TIME আটকাবে না)।
+       ⛔ `RoleRules.usesAttendance()`-ই ব্যবহার করা হলো, নতুন কোনো তালিকা
+          বানানো হয়নি — WorkNotebookActivity (যেখান থেকে এই ফাংশন ডাকা হয়)
+          এমনিতেই শুধু আসল `staff` রোলের (branch-অ্যাকাউন্টসহ) জন্য খোলে,
+          তাই এটা কার্যকরভাবে "staff + branch" দুটোই কভার করে। ডাক্তারের
+          জন্য এই একই পথ চলে না — ডাক্তারের কোনো IN/OUT TIME-ই নেই বলে
+          (TK-র নিজের সিদ্ধান্ত), তাঁর জন্য আলাদা, হালকা ব্যবস্থা
+          (`DoctorLocationWorker.kt` দেখুন) — persistent notification ছাড়া। */
+    fun tracksAttendanceLocation(context: Context): Boolean =
+        try { RoleRules.usesAttendance(context) } catch (_: Throwable) { false }
 
     const val MODE_CHAMBER = "CHAMBER"
     const val MODE_FIELD = "FIELD"

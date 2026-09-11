@@ -886,10 +886,15 @@ class StaffProfileActivity : AppCompatActivity() {
         /* 🏍️🔒 V978 (০২.০৯.২০২৬, TK-নির্দেশ: *"হ্যাঁ, ওই সারিতেই বসিয়ে দিন"*) —
            বাইরে ঘোরা স্টাফের (এখন শুধু RUPAM) কার্ডেই **Field Visit** বোতাম,
            এই একই সারিতে। আগে এটা Salary পর্দার ভিতরে ছিল, TK খুঁজে পাচ্ছিলেন না।
-           ⛔ অন্য কারো কার্ডে বোতামটা ওঠেই না; বাকি বোতাম-সারি অপরিবর্তিত। */
-        if (ModuleAuth.isMaster &&
-            com.tkbiswas.pilesclinic.native.FieldVisit.isFieldStaffCode(pc)) {
-            row1Btns.add(smallBtn("Field Visit", false, R.drawable.ic_sp_pin) {
+           🛰️🔒 V1346 (১১.০৯.২০২৬, TK-নির্দেশ) — এখন **সব স্টাফের** কার্ডেই এই
+           বোতাম আসে (আগে শুধু isFieldStaffCode হলে) — কারণ IN-OUT TIME
+           হাজিরা-লোকেশন এখন সবার জন্য চালু। ফিল্ড-স্টাফের বেলায় লেবেল আগের
+           মতোই "Field Visit" (বাইক/কিমি-হিসাব), বাকি সবার বেলায় "Location"
+           (শুধু হাজিরার সময়টুকু কোথায় ছিলেন) — একই পর্দা (`FieldVisitActivity`)
+           খোলে, ভিতরের `readDays()`-এর তথ্য একই টেবিল থেকেই আসে। */
+        if (ModuleAuth.isMaster) {
+            val isFieldCode = com.tkbiswas.pilesclinic.native.FieldVisit.isFieldStaffCode(pc)
+            row1Btns.add(smallBtn(if (isFieldCode) "Field Visit" else "Location", false, R.drawable.ic_sp_pin) {
                 startActivity(android.content.Intent(this, FieldVisitActivity::class.java)
                     .putExtra(FieldVisitActivity.EXTRA_OWNER, true)
                     .putExtra(FieldVisitActivity.EXTRA_STAFF_CODE, pc)

@@ -366,12 +366,15 @@ class WorkNotebookActivity : AppCompatActivity() {
      * 🛰️ V1156 — ফিল্ড ভিজিটের গোনা সত্যিই চলতে পারবে কি না, সেটা নিশ্চিত করা।
      * অনুমতি না থাকলে বাক্স খোলে; বাক্স না উঠলে (আগে "Don't ask again" চাপা
      * থাকলে) অ্যাপের Settings পাতা।
-     * ⛔ শুধু বাইরে ঘোরা স্টাফের ফোনে — অন্য কারো জন্য এক লাইনও চলে না।
+     * 🛰️🔒 V1346 (১১.০৯.২০২৬, TK-নির্দেশ) — আগে শুধু বাইরে ঘোরা স্টাফের
+     * (RUPAM) ফোনে চলত। এখন `tracksAttendanceLocation()`-এর মাধ্যমে সব
+     * আসল স্টাফের (branch-সহ) ফোনেই একই প্রম্পট আসে — ⛔ কখনো বাধ্যতামূলক
+     * নয়, না দিলেও IN TIME/OUT TIME আগের মতোই কাজ করে (TK স্পষ্ট করেছেন)।
      */
     private fun ensureFieldLocationReady(fromButton: Boolean) {
         try {
             val fv = com.tkbiswas.pilesclinic.native.FieldVisit
-            if (!fv.isFieldStaff(this)) return
+            if (!fv.tracksAttendanceLocation(this)) return
             if (!fv.hasLocationPermission(this)) {
                 try {
                     requestFieldLocationPermission.launch(
@@ -1574,9 +1577,13 @@ class WorkNotebookActivity : AppCompatActivity() {
             /* 🏍️🔒 V977 (০২.০৯.২০২৬, TK-নির্দেশ) — *"IN TIME চাপলেই GPS চালু হয়ে
                যাবে"* · *"ফিল্ডে যাবে কি না, সমস্ত কথা জিজ্ঞাসা করার দরকার নেই,
                একটা বিভ্রান্ত হয়ে যেতে পারে"* ⇒ At Chamber / Field Visit বাছাইটা
-               তুলে দেওয়া হলো; বাইরে ঘোরা স্টাফের (এখন শুধু RUPAM) IN TIME-এই
-               গোনা শুরু। ⛔ অন্য কোনো স্টাফের ফোনে এক লাইনও চলে না। */
-            if (fv.isFieldStaff(this) && !fv.isRunning(this)) {
+               তুলে দেওয়া হলো; IN TIME-এই গোনা শুরু।
+               🛰️🔒 V1346 (১১.০৯.২০২৬, TK-নির্দেশ) — আগে এখানে `isFieldStaff`
+               (শুধু RUPAM) ছিল। TK এখন সব আসল স্টাফের (branch-সহ) ফোনেই
+               IN TIME থেকে OUT TIME পর্যন্ত লোকেশন-অন প্রম্পট চেয়েছেন —
+               `tracksAttendanceLocation()`-এ বদলানো হলো। ডাক্তারের কোনো
+               IN TIME নেই বলে এই পথ তাঁর জন্য চলেই না (আলাদা ব্যবস্থা)। */
+            if (fv.tracksAttendanceLocation(this) && !fv.isRunning(this)) {
                 fv.startDay(this, staffCode.ifBlank { mobile }, branch)
                 com.tkbiswas.pilesclinic.native.FieldVisitControl.start(this)
                 /* 🔴🔒 V1076 (০৪.০৯.২০২৬, TK-নির্দেশ: *"In time চাপলেই যেন কাজ হয়"*)
@@ -3195,13 +3202,18 @@ class WorkNotebookActivity : AppCompatActivity() {
             "Select Field Visit only when you are going out on the bike. Location stays on until you mark OUT TIME."))
     }
 
-    /** IN TIME হয়ে যাওয়ার পরে — চলতে থাকা ফিল্ড ভিজিটের কার্ড। */
+    /** IN TIME হয়ে যাওয়ার পরে — চলতে থাকা লোকেশন-গোনার কার্ড।
+     * 🛰️🔒 V1346 (১১.০৯.২০২৬, TK-নির্দেশ) — আগে শুধু ফিল্ড-স্টাফের (RUPAM)
+     * জন্য ছিল, এখন সব আসল স্টাফের জন্য। শিরোনাম ফিল্ড-স্টাফের বেলায় আগের
+     * মতোই "FIELD VISIT", বাকি সবার বেলায় "ATTENDANCE LOCATION" — কারণ
+     * বাকিদের বাইক নিয়ে ঘোরা নেই, শুধু হাজিরার সময়টুকু লোকেশন-অন থাকে। */
     private fun addFieldVisitRunningCard(form: LinearLayout) {
         val fv = com.tkbiswas.pilesclinic.native.FieldVisit
         resumeFieldVisitIfNeeded()
-        if (!fv.isFieldStaff(this) || !fv.isRunning(this)) return
+        if (!fv.tracksAttendanceLocation(this) || !fv.isRunning(this)) return
+        val isField = fv.isFieldStaff(this)
         form.addView(TextView(this).apply {
-            text = "FIELD VISIT  ·  RUNNING"
+            text = if (isField) "FIELD VISIT  ·  RUNNING" else "ATTENDANCE LOCATION  ·  RUNNING"
             textSize = 12.5f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(android.graphics.Color.parseColor("#0E6E8C"))
@@ -3251,7 +3263,9 @@ class WorkNotebookActivity : AppCompatActivity() {
                 ).apply { topMargin = ModuleUi.dp(this@WorkNotebookActivity, 6) }
             })
         }
-        form.addView(ModuleUi.buttonSoft(this, "RMP Doctors - mark visits") {
+        // 🛰️🔒 V1346 — RMP Doctors/MARK VISIT এখনো শুধু আসল ফিল্ড-স্টাফের
+        // (RUPAM) জন্য — সাধারণ হাজিরা-লোকেশন সবার জন্য হলেও এই বোতাম নয়।
+        if (isField) form.addView(ModuleUi.buttonSoft(this, "RMP Doctors - mark visits") {
             startActivity(android.content.Intent(this, FieldVisitActivity::class.java))
         }.apply {
             layoutParams = LinearLayout.LayoutParams(
@@ -3270,7 +3284,7 @@ class WorkNotebookActivity : AppCompatActivity() {
     private fun resumeFieldVisitIfNeeded() {
         try {
             val fv = com.tkbiswas.pilesclinic.native.FieldVisit
-            if (!fv.isFieldStaff(this) || !fv.isRunning(this)) return
+            if (!fv.tracksAttendanceLocation(this) || !fv.isRunning(this)) return
             if (fv.pastMidnight(this)) {
                 fv.endDay(this, auto = true)
                 com.tkbiswas.pilesclinic.native.FieldVisitControl.stop(this)
