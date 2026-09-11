@@ -697,6 +697,58 @@ object ModuleAuth {
         return try { localCallTapPrefs(context).getInt("calltaps_${staffCode}_$dateIso", 0) } catch (_: Throwable) { 0 }
     }
 
+    // 🔴🔴🔒 V1338 (১১.০৯.২০২৬, TK-নির্দেশ, উদাহরণ JPE-CRP ১৭-বনাম-৪) — call_taps
+    // এতদিন **পুরোপুরি fire-and-forget** ছিল: প্রতিবার Call বোতাম চাপলে একটা
+    // ব্যাকগ্রাউন্ড Thread ইনসার্ট চেষ্টা করত, ঠিক তার পরেই ফোনের ডায়ালার
+    // খুলতে গিয়ে অ্যাপ ব্যাকগ্রাউন্ডে চলে যেত — কম-RAM ফোনে Android মাঝেমধ্যে
+    // ওই Thread শেষ হওয়ার আগেই প্রসেস থামিয়ে দিতে পারে, আর তাতে কোনো
+    // retry/queue না থাকায় সেই কলটা চিরকালের জন্য গোনা থেকে বাদ পড়ে যেত —
+    // স্টাফ চাপলেন, তবু সংখ্যা বাড়ল না, অথচ পর্দায় কোনো ভুল বার্তাও দেখায়নি।
+    // ⛔ পুরনো ৫৫+ জায়গায় ব্যবহৃত CloudWriteQueue `public` স্কিমার জন্য বানানো
+    //    (Content-Profile হেডার নেই) — এই মুহূর্তে সেটা `wn` স্কিমা পর্যন্ত
+    //    বাড়ানো ঝুঁকিপূর্ণ (এত বড় শেয়ার্ড কোড, আসল ZIP পাঠানোর ঠিক আগে)।
+    //    তাই call_taps-এর জন্য এই ছোট, আলাদা, শুধু এই একটা কাজের queue —
+    //    পুরনো CloudWriteQueue-র একটি লাইনও ছোঁয়া হয়নি।
+    // কাজ করে যেভাবে: প্রতিটা tap-এর নিজস্ব client-তৈরি UUID (`id`) থাকে, তাই
+    // পরে আবার পাঠালেও ডুপ্লিকেট হয় না (on_conflict=id)। পাঠানোর **আগেই**
+    // (নেট শুরু হওয়ার আগে, মূল থ্রেডে) SharedPreferences-এ ছোট্ট JSON-এ
+    // সেভ হয়ে যায় — অ্যাপ পরমুহূর্তে মারা গেলেও এই এক-লাইনের সেভটুকু থাকে।
+    // সফল হলে সেখান থেকে মুছে যায়; ব্যর্থ হলে পরে অ্যাপ খোলার সময়
+    // (`flushPendingCallTaps`, BottomNav.kt-এর অন্য সবগুলোর মতোই) আবার
+    // চেষ্টা হয়।
+    private fun pendingCallTapPrefs(context: Context) = context.getSharedPreferences("wn_pending_call_taps", Context.MODE_PRIVATE)
+
+    private fun savePendingCallTap(context: Context, id: String, row: JSONObject) {
+        try {
+            val p = pendingCallTapPrefs(context)
+            p.edit().putString(id, row.toString()).commit()   // ⛔ commit() ইচ্ছে করেই — এর পরেই অ্যাপ ব্যাকগ্রাউন্ডে চলে যায়
+        } catch (_: Throwable) { }
+    }
+    private fun clearPendingCallTap(context: Context, id: String) {
+        try { pendingCallTapPrefs(context).edit().remove(id).apply() } catch (_: Throwable) { }
+    }
+
+    /** ⛔ শুধু call_taps-এর নিজস্ব ছোট queue — বাকি সব app-এর retry (CloudWriteQueue)
+     * এতটুকুও বদলায়নি। BottomNav.kt-এ বাকি সব flushPending()-এর পাশে বসানো, প্রতি
+     * পর্দা খোলার সময় একবার — একজন স্টাফের একদিনে সর্বোচ্চ কয়েক ডজন tap, তাই খরচ নগণ্য। */
+    fun flushPendingCallTaps(context: Context) {
+        try {
+            val p = pendingCallTapPrefs(context)
+            val all = p.all
+            if (all.isEmpty()) return
+            if (!isSignedIn) { try { signInCurrentSession(context) } catch (_: Throwable) { } }
+            if (!isSignedIn) return
+            for ((id, raw) in all) {
+                try {
+                    val row = JSONObject(raw as? String ?: continue)
+                    if (upsertOnConflict("wn", "call_taps", row, "id")) {
+                        clearPendingCallTap(context, id)
+                    }
+                } catch (_: Throwable) { }
+            }
+        } catch (_: Throwable) { }
+    }
+
     fun logCallTap(mobileDigits: String, context: Context) {
         try {
             // 🔴 V452 (19.08.2026, TK-অনুমোদিত): Staff Performance-এ Master যেন
@@ -729,6 +781,19 @@ object ModuleAuth {
                     bumpLocalCallTapCount(context, staffCodeNow, today)
                 }
             } catch (_: Throwable) { }
+            // 🔴🔒 V1338 — id **এখানে, মূল থ্রেডেই** তৈরি ও SharedPreferences-এ
+            // সেভ হয় (নেট পাঠানোর চেষ্টার আগেই) — অ্যাপ ব্যাকগ্রাউন্ডে যাওয়ার
+            // পরপরই প্রসেস মারা গেলেও এই তথ্যটুকু হারায় না।
+            // ⛔ `personCode` (লগইন-থ্রেডে বসে) এখানে নির্ভরযোগ্য নাও হতে পারে —
+            // `expectedCode()`-ই ব্যবহার করা হচ্ছে, ঠিক যেভাবে উপরের local-count
+            // বাড়ানোর সময় হয় (নেট ছাড়াই, session থেকে সরাসরি জানা যায়)।
+            val tapId = java.util.UUID.randomUUID().toString()
+            val staffForTap = try { expectedCode(context) } catch (_: Throwable) { null }
+            val pendingRow: JSONObject? = if (staffForTap != null) {
+                JSONObject().put("id", tapId).put("staff_code", staffForTap).put("target_mobile_mask", masked)
+                    .also { if (fullMobile.isNotBlank()) it.put("target_mobile", fullMobile) }
+            } else null
+            if (pendingRow != null) { try { savePendingCallTap(context, tapId, pendingRow) } catch (_: Throwable) { } }
             Thread {
                 try {
                     val expected = expectedCode(context)
@@ -751,11 +816,22 @@ object ModuleAuth {
                              অর্থাৎ যা ঠিক আছে তাকে খারাপ করা হত।
                            ⚠️ ওয়েব (`module_core.js`) নিজে থেকে তারিখ পাঠায়, কিন্তু
                               সেটা একই ডিফল্টের সঙ্গেই মেলে, তাই কোনো অমিল হয় না। */
-                        val row = JSONObject()
-                            .put("staff_code", personCode)
-                            .put("target_mobile_mask", masked)
-                        if (fullMobile.isNotBlank()) row.put("target_mobile", fullMobile)
-                        insert("wn", "call_taps", row)
+                        if (pendingRow != null) {
+                            // 🔴🔒 V1338 — plain insert()-এর বদলে id-ধরা upsertOnConflict:
+                            // ব্যর্থ হলে pending-এ থেকেই যায় (পরে flushPendingCallTaps
+                            // আবার চেষ্টা করবে); সফল হলে সঙ্গে সঙ্গে pending থেকে মুছে যায়।
+                            if (upsertOnConflict("wn", "call_taps", pendingRow, "id")) {
+                                clearPendingCallTap(context, tapId)
+                            }
+                        } else {
+                            // ⛔ খুব বিরল edge-case (তখনো session/staffCode জানাই ছিল না)
+                            // — আগের মতোই একবার সরাসরি insert, pending-queue ছাড়া।
+                            val row = JSONObject()
+                                .put("staff_code", personCode)
+                                .put("target_mobile_mask", masked)
+                            if (fullMobile.isNotBlank()) row.put("target_mobile", fullMobile)
+                            insert("wn", "call_taps", row)
+                        }
                     }
                 } catch (_: Throwable) { /* logging must never affect the call */ }
             }.start()

@@ -336,19 +336,24 @@
         }
       }
       if (!MOD._session) return;
-      var sb = await MOD.client();
-      if (!sb) return;
       // 🔴 V452 (19.08.2026, TK-অনুমোদিত): ভবিষ্যতের App Call-এ Master
       // Staff Performance থেকে exact dialed number দেখতে পারবেন। পুরনো
       // masked-only call আন্দাজ করে পূরণ করা হবে না। Existing mask field-ও
       // backward compatibility-এর জন্য আগের মতোই রাখা হচ্ছে।
       var full = String(mobile || '').replace(/\D/g, '');
-      await sb.schema('wn').from('call_taps').insert({
+      var row = {
         id: MOD.uuid(), staff_code: MOD._session.code,
         target_mobile_mask: MOD.maskMobile(full || mobile),
         target_mobile: full || null,
         call_date: MOD.todayIST()
-      });
+      };
+      /* 🔴🔒 V1338 (১১.০৯.২০২৬, TK-নির্দেশ, JPE-CRP ১৭-বনাম-৪ Android-এর একই
+         সমস্যা এখানেও যাচাই করে পাওয়া) — আগে সরাসরি `sb...insert()`, ব্যর্থ
+         হলে (নেট/tel: লিংকে ট্যাবটা সরে যাওয়ার আগেই) সেই কল-লগ চিরকালের
+         জন্য হারিয়ে যেত, কোনো retry ছিল না। এখন প্রকল্পের নিজের প্রতিষ্ঠিত
+         `MOD.save()` (local-first + id-upsert + ব্যর্থ হলে MOD.queueWrite,
+         পরে MOD.gate()-এর flushQueue() আবার পাঠায়) — অন্য সব লেখার মতোই। */
+      await MOD.save('wn', 'call_taps', row);
     } catch (e) {}
   };
 
