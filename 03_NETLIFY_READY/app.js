@@ -10124,9 +10124,20 @@ function wlv1SaveRemarkNow(id,r){wlv1PendingRemark={id:'',text:''};let x=load('f
     ⛔ nextFollowDate()/saveNextFollow() ফাংশন দুটোর ভিতরে এক অক্ষরও বদলানো
     হয়নি, শুধু এখান থেকে ডাকা হচ্ছে। ⛔ updateFollowAction()-এর কাজ/হিসাব/
     ইতিহাস কিছুই বদলায়নি। */
- try{ if(x&&x.mobile) wlv1RemarkPendingRemove(x.mobile) }catch(_e){}if(x?.nextFollow===today())patch.nextFollow='';updateFollowAction(id,patch,{date:today(),time:isoNow(),remark:r,staff:user.name,nextFollow:patch.nextFollow??(x?.nextFollow||''),status:'Called',src:'call'},x?.stage)/* 🏷 V1192 — এটা ফোন-কলের রিমার্ক, চিকিৎসা নয় */;nextFollowDate(id)}
-window["wlv1SaveRemarkNow"]=wlv1SaveRemarkNow;function nextFollowDate(id){
+ try{ if(x&&x.mobile) wlv1RemarkPendingRemove(x.mobile) }catch(_e){}if(x?.nextFollow===today())patch.nextFollow='';updateFollowAction(id,patch,{date:today(),time:isoNow(),remark:r,staff:user.name,nextFollow:patch.nextFollow??(x?.nextFollow||''),status:'Called',src:'call'},x?.stage)/* 🏷 V1192 — এটা ফোন-কলের রিমার্ক, চিকিৎসা নয় */;nextFollowDate(id,true)/* 📵🔒 V1332 — বাধ্যতামূলক পথ, আজ বন্ধ (ফোনের যমজ) */}
+window["wlv1SaveRemarkNow"]=wlv1SaveRemarkNow;
+/* 📵🔒 V1332 (১১.০৯.২০২৬, TK-নির্দেশ ও গভীর যাচাই — তালিকা সারি ৪৩৩) —
+   TK-রিপোর্ট: রিমার্ক লিখেই স্টাফ এই ক্যালেন্ডারে **আজকের** তারিখই বেছে
+   নিতে পারতেন, ফলে "পরের কল" আসলে আজই বকেয়া থেকে যেত। `blockToday=true`
+   শুধু রিমার্ক-সেভের ঠিক পরের বাধ্যতামূলক ডাক থেকেই আসে (উপরে
+   `wlv1SaveRemarkNow`); বাকি সব ডাক (কার্ডের ➜/Next Follow-up/Next Date
+   বোতাম — ম্যানুয়াল এডিট) আগের মতোই আজ বাছা যায়। ⛔ ফোনের
+   `ChamberCalendarDialog`-এর `blockToday`-র হুবহু যমজ নিয়ম। */
+let __wlv1NfBlockToday=false;
+function nextFollowDate(id,blockToday){
+      __wlv1NfBlockToday=!!blockToday;
       let x=load('followups').find(a=>a.id===id);
+      let minD=__wlv1NfBlockToday?new Date(Date.now()+86400000).toISOString().slice(0,10):today();
       /* 🔴🔒 V718 — বোতামের HTML আগে বানিয়ে নেওয়া হলো (টেমপ্লেটের ভিতরে
          টেমপ্লেট বসালে ব্যাকটিক সংঘর্ষ হয় — নিজে পরীক্ষা করে ধরা)। */
       /* 📵🔒 V1206 (০৮.০৯.২০২৬) — Visit (Patient) ধাপেও বসল।
@@ -10137,7 +10148,7 @@ window["wlv1SaveRemarkNow"]=wlv1SaveRemarkNow;function nextFollowDate(id){
          ⛔ পাঁচ-কলে অটো-রিজেক্টের পুরোনো নিয়ম এক অক্ষরও বদলায়নি — এটা শুধু হাতে
             থামানোর একটা বাড়তি পথ। */
       var __noCallBtn = '<button class="ghost" style="width:100%;margin-top:10px;border:2px solid #C9B8F0;background:#F6F2FE;color:#5B3A9E;font-weight:800" onclick="wlv1NoMoreCalls(\'' + id + '\')">\uD83D\uDCF5 No more calls needed</button>';
-      modal(`<h2>Next Follow-up Date</h2><label>Select Date</label><input id="fd" type="date" class="input" value="${x?.nextFollow&&x.nextFollow>=today()?x.nextFollow:''}" min="${today()}" onclick="try{this.showPicker&&this.showPicker()}catch(e){}" onfocus="try{this.showPicker&&this.showPicker()}catch(e){}"><div class="actions"><button onclick="saveNextFollow('${id}')">Save Date</button><button class="ghost" onclick="saveNextFollow('${id}')">Skip</button></div>
+      modal(`<h2>Next Follow-up Date</h2><label>Select Date</label><input id="fd" type="date" class="input" value="${x?.nextFollow&&x.nextFollow>=minD?x.nextFollow:''}" min="${minD}" onclick="try{this.showPicker&&this.showPicker()}catch(e){}" onfocus="try{this.showPicker&&this.showPicker()}catch(e){}"><div class="actions"><button onclick="saveNextFollow('${id}')">Save Date</button><button class="ghost" onclick="saveNextFollow('${id}')">Skip</button></div>
       <!-- 📵🔒 V711 (২৬.০৮.২০২৬, TK-নির্দেশ, ডেমো-প্রুফে অনুমোদিত): TK — *"কোন পেশেন্ট
            যখন কন্টিনিউ পেশেন্ট অথবা কন্টিনিউ ট্রিটমেন্ট করাচ্ছে, তাদেরকে আর ফোন না
            করলেও চলে"*। ফোনের ক্যালেন্ডারের নিচের বোতামটার হুবহু যমজ।
@@ -10155,6 +10166,9 @@ window["wlv1SaveRemarkNow"]=wlv1SaveRemarkNow;function nextFollowDate(id){
 window.nextFollowDate=nextFollowDate;function saveNextFollow(id){
       let d=$('#fd')?.value||'';
       if(d && d<today())return toast('Previous date not allowed');
+      /* 📵🔒 V1332 — বাধ্যতামূলক পথে "আজ"-ও আটকানো (input-এর min আটকালেও,
+         সততার সাথে সার্ভার-সাইড দ্বিতীয় পাহারা — ফোনের নিয়মের যমজ)। */
+      if(d && __wlv1NfBlockToday && d<=today())return toast('Please pick a date after today');
       let x=load('followups').find(a=>a.id===id);
       /* 📵 V1206 — স্টাফ নতুন তারিখ বাছলেন ⇒ থামানো বাতিল, আবার চালু। */
       updateFollowAction(id,{nextFollow:d,noMoreCalls:!d,lastRemark:x?.lastRemark||(d?'Next follow-up date updated':'Next follow-up skipped')},{date:today(),time:isoNow(),remark:d?'Next follow-up date updated':'Next follow-up skipped',staff:user?.name||user?.mobile||'',nextFollow:d},x?.stage)

@@ -2673,15 +2673,19 @@ class FollowUpActivity : AppCompatActivity() {
             showComeOrCallChooser(
                 mandatory = mandatory,
                 onCome = {
+                    /* 📵🔒 V1332 — বাধ্যতামূলক (রিমার্কের পরের) পথেই আজ বন্ধ; TK-র
+                       নিজের হাতে পরে তারিখ বদলাতে গেলে (mandatory=false) আগের মতোই। */
                     ChamberCalendarDialog.show(
                         this, item.branch, "Expected Date?",
-                        chamberOnly = true, initialIso = defaultIso, mandatory = mandatory
+                        chamberOnly = true, initialIso = defaultIso, mandatory = mandatory,
+                        blockToday = mandatory
                     ) { iso -> saveNextFollowDate(item, iso, markExpected = true) }
                 },
                 onCallOnly = {
                     ChamberCalendarDialog.show(
                         this, item.branch, NoBengali.s("পরের ফোন কবে?"),
-                        chamberOnly = false, initialIso = defaultIso, mandatory = mandatory
+                        chamberOnly = false, initialIso = defaultIso, mandatory = mandatory,
+                        blockToday = mandatory
                     ) { iso -> saveNextFollowDate(item, iso, markExpected = false) }
                 },
                 /* 📵🔒 V718 (২৬.০৮.২০২৬) — তখন TK বলেছিলেন *"enquiry visit এই সমস্ত
@@ -2716,6 +2720,7 @@ class FollowUpActivity : AppCompatActivity() {
             ChamberCalendarDialog.show(
                 this, item.branch, NoBengali.s("পরের আসার দিন"),
                 chamberOnly = false, initialIso = defaultIso, mandatory = mandatory,
+                blockToday = mandatory,
                 /* 📵🔒 V1206 (০৮.০৯.২০২৬, TK-রিপোর্ট: *"এই পেসেন্ট এর নো মোর কল
                    অপশন কেনো নেই"* — কার্ডটা ছিল **VISITED**)। V711-এ বোতামটা
                    শুধু Treatment ধাপে বসত; TK-র নিজের কথায় নিয়মটা ছিল *"কোন
