@@ -25879,3 +25879,13 @@ web_browser_test ✅ · sql_local_check.py ✅ · verify_kotlin_compile.py ✅ P
 
 পাহারা: verify_android_resources.py ✅ · tk_guard.py ✅ · verify_kotlin_compile.py ✅ PASS।
 ভার্সন নম্বর বাড়ানো হয়নি (নিয়ম ৩খ)।
+
+## ১১.০৯.২০২৬ (রাত) — V1358 · JH MANDAL দিন-ধরে কমিশন মেলানোর শুধু-পড়ার SQL (তালিকা ৪৫৯)
+`00_SQL/V1358_JH_MANDAL_DAYWISE_CHECK_2026-09-11.sql` — CTE: rmp (7479173399 · Cooch
+Behar) → pc (`rmp_patient_commissions`) → earn (payments, `rmp_is_treatment`, approved
+refund ঋণাত্মক, হার = `rate_changed_on`-এর আগে `prev_value` নইলে `commission_value`) →
+given (`rmp_advance_payments` + `rmp_commission_payments` বাদে allocation-এর নকল সারি) →
+union → window `sum(commission − paid_to_rmp)` = running_due। Supabase Editor শেষ
+statement-এর ফলই দেখায় বলে একটাই select। sql_local_check-এ `rate_changed_on` নেই বলে
+FAIL হয়েছিল ⇒ V941-এর `add column if not exists` তিন লাইন যোগ (লাইভে no-op) ⇒ PASS।
+TK-কে ফাইল পাঠানো হলো (SQL, ZIP নয় — ভার্সন বাড়েনি)। ফল এলে কোন দিন বাদ গেছে ধরা যাবে।
