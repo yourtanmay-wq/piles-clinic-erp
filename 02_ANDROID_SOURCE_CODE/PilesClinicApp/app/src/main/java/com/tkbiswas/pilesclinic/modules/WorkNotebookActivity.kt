@@ -2989,22 +2989,39 @@ class WorkNotebookActivity : AppCompatActivity() {
          থাকে; প্রতিটা রিপোর্ট শুধু এই সংখ্যাটাই পড়ে। কোথাও অপেক্ষা নেই।
        ⛔ উত্তর না এলে `-1` থাকে ⇒ লাইনটা ওঠেই না, রিপোর্ট হুবহু আগের মতোই। */
     @Volatile private var docVisitToday = -1
+    /* 👨‍⚕️🔒 V1334 (TK-নির্দেশ "খ") — ফিল্ড-স্টাফের (RUPAM) MARK VISIT-এ
+       গোনা আজকের আসল সংখ্যা। শুধু ফিল্ড-স্টাফের বেলায়ই ভরা হয় (নিচে
+       `loadDocVisitToday()`); অন্য কারো জন্য -1-ই থেকে যায়, কিছুই বদলায় না। */
+    @Volatile private var fieldVisitDocToday = -1
 
     private fun loadDocVisitToday() {
         try {
             val meMob = mobile
+            val code = staffCode.ifBlank { mobile }
+            val isField = com.tkbiswas.pilesclinic.native.FieldVisit.isFieldStaff(meMob)
             Thread {
                 val n = try {
                     com.tkbiswas.pilesclinic.native.DoctorVisitDayCount.todayCount(meMob)
                 } catch (_: Throwable) { -1 }
                 docVisitToday = n
+                if (isField) {
+                    fieldVisitDocToday = try {
+                        com.tkbiswas.pilesclinic.native.FieldVisit.todayMarkVisitCount(code)
+                    } catch (_: Throwable) { -1 }
+                }
             }.start()
         } catch (_: Throwable) { }
     }
 
-    /** রিপোর্টে বসানোর লাইন — গোনা না হলে (বা শূন্য হলে) ফাঁকা। */
+    /** রিপোর্টে বসানোর লাইন — গোনা না হলে (বা শূন্য হলে) ফাঁকা।
+     *  🔒 V1334 (TK-নির্দেশ "খ", তালিকা সারি ৪৩৪) — ফিল্ড-স্টাফের (RUPAM)
+     *  বেলায় এখন MARK VISIT-এ গোনা আসল সংখ্যাই বসে (পুরনো call-history-
+     *  ভিত্তিক গোনা তাঁর জন্য কখনো সঠিক ছিল না — তিনি ফোন করেন না, সরাসরি
+     *  গিয়ে দেখা করেন)। বাকি সব স্টাফের রিপোর্ট এক অক্ষরও বদলায়নি। */
     private fun docVisitLine(): String =
-        if (docVisitToday > 0) "\nDoctor Visit: " + docVisitToday else ""
+        if (com.tkbiswas.pilesclinic.native.FieldVisit.isFieldStaff(mobile))
+            (if (fieldVisitDocToday > 0) "\nDoctor Visit: " + fieldVisitDocToday else "")
+        else if (docVisitToday > 0) "\nDoctor Visit: " + docVisitToday else ""
 
 
     /* 🏍️🔒 V968 (০২.০৯.২০২৬, TK-নির্দেশ) — **ফিল্ড ভিজিট (শুধু RUPAM)।**

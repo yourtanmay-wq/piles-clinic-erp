@@ -96,6 +96,23 @@ object FieldVisit {
         return StaffDirectory.allAccounts().firstOrNull { it.name.equals(c, ignoreCase = true) }?.mobile.orEmpty()
     }
 
+    /* 👨‍⚕️🔒 V1334 (১১.০৯.২০২৬, TK-নির্দেশ "খ" — তালিকা সারি ৪৩৪): TK-নিজে
+       বেছে দিয়েছেন — "শুধু MARK VISIT বোতাম চেপে গোনা ডাক্তারই আসল সংখ্যা"।
+       WhatsApp-এর Daily Report-এ ফিল্ড-স্টাফের জন্য এই সংখ্যাটাই বসবে
+       (`WorkNotebookActivity.docVisitLine()`), পুরনো call-history-ভিত্তিক
+       গোনা (`DoctorVisitDayCount`, RMP-কে ফোন করা অন্য স্টাফদের জন্য) নয়।
+       ⛔ এটা নেটওয়ার্ক-কল — মূল থ্রেডে ডাকা যাবে না (V1032-এর নিয়ম মেনে
+          আলাদা থ্রেডে)। ⛔ RMP ডিরেক্টরি/MARK VISIT-এর নিজের কোনো লজিক
+          বদলায়নি — শুধু পড়া হচ্ছে। */
+    fun todayMarkVisitCount(staffCode: String): Int = try {
+        val code = staffCode.trim()
+        if (code.isBlank()) 0 else {
+            val q = "select=doctor_mobile&staff_code=eq." +
+                java.net.URLEncoder.encode(code, "UTF-8") + "&work_date=eq." + todayIso()
+            com.tkbiswas.pilesclinic.modules.ModuleAuth.getRows("wn", "doctor_visits", q).length()
+        }
+    } catch (_: Throwable) { 0 }
+
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(PREF, Context.MODE_PRIVATE)
 

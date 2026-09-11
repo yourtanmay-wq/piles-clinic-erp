@@ -24502,6 +24502,28 @@ verify_zip_contents + verify_zip_root_name দুটোই PASS। হিসা�
 ২৫.৬৬ MB · ১৮০৭ ফাইল। বাদ: গোড়ার ২২টা ডেমো .png + অ্যানাটমি-ছবির আসল কপি। গোপন কিছু নেই। verify_zip_contents
 + verify_zip_root_name দুটোই PASS। এই ZIP-এ V1318 — Follow-up-এর GPU-আঁকা ফিরিয়ে আনার দ্বিতীয় আসল ফিক্স।
 
+## ১১.০৯.২০২৬ (গভীরতম রাত) — V1334: Daily Report-এ ফিল্ড-স্টাফের ডাক্তার-ভিজিট এখন MARK VISIT দিয়েই গোনা
+
+TK-সিদ্ধান্ত (২৪ বনাম ০-এর প্রশ্নে, দুটো পথ বলার পরে): **"খ"** — শুধু MARK
+VISIT বোতাম চেপে গোনা ডাক্তারই আসল সংখ্যা ধরা হবে, হাতে-লেখা Notes নয়।
+
+**যাচাই করে বসানো (আন্দাজ নয়):** WhatsApp Daily Report-এর "Doctor Visit: N"
+লাইনটা আগে সব স্টাফের জন্যই একটা পুরনো, ফোনে-RMP-কল-করার টেবিল
+(`public.doctor_visits.callHistory`) থেকে গোনা হতো — যেসব স্টাফ RMP-কে
+ফোন করেন (Rupam ছাড়া) তাঁদের জন্য এটাই ঠিক। কিন্তু Rupam ফোন করেন না,
+সরাসরি গিয়ে দেখা করেন (MARK VISIT), তাই তাঁর জন্য এই লাইনটা সবসময় ফাঁকা/০
+থাকত — সেই ফাঁকই "24 dr visit" Notes-এ হাতে লিখতে বাধ্য করত।
+
+⇒ এখন `FieldVisit.todayMarkVisitCount()` নতুন ফাংশন — শুধু ফিল্ড-স্টাফের
+বেলায় (`FieldVisit.isFieldStaff()`) `wn.doctor_visits`-এ আজকের আসল
+MARK VISIT গোনা এনে রিপোর্টে বসায়। ⛔ বাকি সব স্টাফের রিপোর্ট, পুরনো
+`DoctorVisitDayCount` পথ — এক অক্ষরও বদলায়নি, শুধু ফিল্ড-স্টাফের একটা
+`if` শাখা যোগ হলো। Field Visit Tracking পর্দার নিজের "Doctors N" (ফোন
+ও ওয়েব দুটোতেই) আগে থেকেই MARK VISIT দিয়ে গুনত — সেখানে কিছু বদলায়নি।
+⛔ এই Daily Report ফিচারটা Android-only — ওয়েবে এর কোনো জোড়াই নেই বলে
+সেখানে ছোঁয়া হয়নি (যাচাই করে সততার সাথে জানানো হলো)। Guards পাশ
+(কম্পাইল-পাহারাসহ)।
+
 ## ১১.০৯.২০২৬ (রাত, আরও পরে) — V1333: Field Visit Tracking — IN/OUT সময়, COMPLETE-এর ভুল, দূরত্বের কারণ
 
 TK-প্রশ্ন (Field Visit Tracking-এর ছবি + WhatsApp Daily Report-এর ছবি, RUPAM):
