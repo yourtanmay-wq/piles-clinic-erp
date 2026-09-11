@@ -609,6 +609,20 @@ class FollowUpRepository(private val context: Context? = null) {
        ফেরত: 1 = বসেছে (জমা থেকে বাদ) · 2 = সারিই নেই, তাই গোটা সারিটা heal
        তালিকায় পাঠানো হলো (জমা থেকে বাদ) · 0 = বসেনি, জমাই থাকুক।
        ⛔ কোনো তথ্য কখনো চুপচাপ ফেলে দেওয়া হয় না — এটাই এই সংশোধনের মূল কথা। */
+    /** 🔴 V1360 — জমা ঘরটা ক্লাউডে বসেছে কি না: null/"" এক · সময়-ঘরে "Z" বনাম "+00:00"
+     *  ধাঁচের তফাত উপেক্ষা (তারিখ+সময় সেকেন্ড পর্যন্ত মিললেই বসেছে) · বাকি হুবহু। */
+    private fun queuedValueLanded(cloudV: Any?, sentV: Any?): Boolean {
+        fun norm(v: Any?): String = when {
+            v == null || v == JSONObject.NULL -> ""
+            else -> v.toString().let { if (it == "null") "" else it }
+        }
+        val c = norm(cloudV); val s = norm(sentV)
+        if (c == s) return true
+        val iso = Regex("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}")
+        if (iso.containsMatchIn(c) && iso.containsMatchIn(s)) return c.take(19) == s.take(19)
+        return false
+    }
+
     private fun verifyQueuedUpdate(id: String, fields: JSONObject): Int {
         val back = try { SupabaseClient.fetchListOrNull("followups", "id=eq.$id", 1) } catch (_: Throwable) { null }
             ?: return 0                       // নেট খারাপ — জমাই থাকুক, পরে আবার
@@ -658,7 +672,15 @@ class FollowUpRepository(private val context: Context? = null) {
                 if (!sameLast) { allLanded = false; break }
                 continue
             }
-            if (cloud.opt(key)?.toString().orEmpty() != fields.opt(key)?.toString().orEmpty()) {
+            /* 🔴🔒 V1360 (১১.০৯.২০২৬, পুরো প্রজেক্ট যাচাইয়ে ধরা — V1352-এর `history`-র
+               হুবহু একই জাতের দোষ, আরেকটা ঘরে): `lastRemarkAt` সার্ভারে timestamptz —
+               আমরা পাঠাই "…T14:00:00.123Z", সার্ভার ফেরত দেয় "…T14:00:00.123+00:00"।
+               লেখা হুবহু বসলেও `.toString()` তুলনা কখনো মেলে না ⇒ রিমার্কটা "পাঠানো
+               বাকি" তালিকায় চিরকাল আটকে থাকত, প্রতিবার পর্দা খুললে আবার পাঠাত।
+               একই ভাবে ফাঁকা ঘর: আমরা "" পাঠালে সার্ভার null ফেরাতে পারে।
+               ⇒ এখন সময়-ঘর হলে প্রথম ১৯ অক্ষর (তারিখ+সময়, সেকেন্ড পর্যন্ত) মেলানো
+                 হয়, আর null ও "" এক ধরা হয়। বাকি সব ঘরে আগের মতোই হুবহু মিল লাগে। */
+            if (!queuedValueLanded(cloud.opt(key), fields.opt(key))) {
                 allLanded = false; break
             }
         }

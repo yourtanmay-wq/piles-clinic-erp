@@ -25897,3 +25897,22 @@ V1358-এর CSV পড়ে নিশ্চিত: বাকি = ০৪.০�
 · D) fin.expenses কোচবিহার · E) JH MANDAL-এর সব পেমেন্ট recorded_at/recorded_by সহ
 (allocation-এর নকল সারি বাদ) — এক union, Supabase Editor-এর শেষ-statement নিয়মে।
 sql_local_check ✅ PASS · TK-কে ফাইল পাঠানো (SQL, ZIP নয়, ভার্সন অপরিবর্তিত)।
+
+## ১১.০৯.২০২৬ (রাত) — V1360 · পুরো-প্রজেক্ট দেরি-অডিট, ধাপ ১: Remarks & Payment (তালিকা ৪৬১ · ৪৬২)
+TK: "তাড়াহুড়ো নয়, আন্দাজে নয়" ⇒ ৫টা সমান্তরাল read-only অডিট-এজেন্ট (payment/refund ·
+follow-up/remark/enquiry · checkup/registration/doctor · attendance/field · shared infra), তারপর
+প্রতিটা বড় সন্দেহ নিজে কোডে পড়ে মিলিয়েছি; ১৯টা সত্যি, তালিকা ৪৬২-তে। TK বাছলেন: Remarks & Payment।
+
+**বদল (ফোন):**
+- `FollowUpRepository.kt`: `queuedValueLanded(cloudV, sentV)` — null/JSONObject.NULL/"null" ⇒ "";
+  দুটোই ISO-সময় হলে `take(19)` মেলে; নইলে হুবহু। `verifyQueuedUpdate`-এর `.toString()` তুলনা এটা দিয়ে।
+- `FollowUpActivity.kt` `showRemarkDialog`: Save-এ `loadedItems = map{copy(lastRemark=remark)}` +
+  `applySearch()`; `updateRemark` পিছনে আগের মতোই, কিন্তু তার পরের `loadTab(currentStage)` বাদ
+  (তারিখ-সেভের পরেরটা আছে)।
+- `LiveRefresh.kt`: `sinceLocal` (ফোনের ঘড়ি, SAFETY_BACK) + `utcStampPlus(60s)`; প্রশ্ন:
+  `or=(and(updatedAt.gt.since,updatedAt.lte.upperUtc),updatedAt.gt.sinceLocal)` — ফোন-লেখা (IST+Z, UTC-র
+  ৫.৫ ঘণ্টা এগিয়ে) আর ওয়েব-লেখা (UTC) দুই বিচ্ছিন্ন সীমা, একই HEAD; change-এ দুটো since-ই বসে।
+- `PaymentActivity.kt` `showRefundDialog`: `chamberOpenToday` `lifecycleScope.launch { withContext(IO) }`-এ;
+  ডায়ালগ তার পরে; `directFormOnly` class-field তাই scope ঠিক।
+- ওয়েবে counterpart নেই (যাচাই করে): app.js-এর delta/`server_updated_at` poll আলাদা পথ।
+পাহারা: resources ✅ · tk_guard ✅ · verify_kotlin_compile ✅ PASS। ভার্সন অপরিবর্তিত (নিয়ম ৩খ)।

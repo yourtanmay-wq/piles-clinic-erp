@@ -4332,12 +4332,22 @@ class FollowUpActivity : AppCompatActivity() {
                 // ঘন্টার সংখ্যা থেকে নামটা সঙ্গে সঙ্গে উঠে যায়।
                 try { PendingRemarkStore.remove(this@FollowUpActivity, item.mobile) } catch (_: Throwable) { }
                 Toast.makeText(this@FollowUpActivity, "Remark updated", Toast.LENGTH_SHORT).show()
+                /* 🔴🔒 V1360 (১১.০৯.২০২৬, পুরো প্রজেক্ট যাচাই — TK: "রিমার্ক লেখা সংক্রান্ত
+                   দেরি"): আগে একটা রিমার্কে **পুরো তালিকা দু'বার** ক্লাউড থেকে নামত —
+                   রিমার্ক বসার পরে একবার (এখানে `loadTab`), তারপর বাধ্যতামূলক তারিখ
+                   দেওয়ার পরে আবার (`saveNextFollowDate`)। এখন কার্ডটা **সঙ্গে সঙ্গে
+                   পর্দাতেই** নতুন লেখা পায় (নিয়ম ৭খ), প্রথম নামানোটা বাদ; তারিখ দেওয়ার
+                   পরের নামানোটা আগের মতোই থাকে (গোনা · তারিখ ওখানেই আসে)।
+                   ⛔ সেভের নিয়ম/জমা/পাঠানো — কিচ্ছু বদলায়নি; শুধু একটা বাড়তি নামানো কম। */
+                try {
+                    loadedItems = loadedItems.map {
+                        if (it.id == item.id || (it.mobile == item.mobile && it.stage == item.stage)) it.copy(lastRemark = remark) else it
+                    }
+                    applySearch()
+                } catch (_: Throwable) { }
                 showMandatoryNextFollowPrompt(item)
                 BackgroundWork.run {
-                    val ok = repository.updateRemark(resolveFollowUpId(item), remark, user.name, countAsCall)
-                    if (ok && !isFinishing && !isDestroyed) {
-                        runOnUiThread { if (!isFinishing && !isDestroyed) loadTab(currentStage) }
-                    }
+                    repository.updateRemark(resolveFollowUpId(item), remark, user.name, countAsCall)
                 }
             }
             .setNegativeButton("Cancel", null)

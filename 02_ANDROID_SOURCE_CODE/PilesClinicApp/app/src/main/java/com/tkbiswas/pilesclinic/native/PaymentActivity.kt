@@ -1703,7 +1703,17 @@ class PaymentActivity : AppCompatActivity() {
         UppercaseInputUtil.applyToAll(box)
 
         val isMaster = user.role.equals("master", ignoreCase = true)
-        val autoApprove = isMaster || repository.chamberOpenToday(patient.branch)
+        /* 🔴🔒 V1360 (১১.০৯.২০২৬, পুরো প্রজেক্ট যাচাইয়ে ধরা): `chamberOpenToday` ক্লাউডে
+           প্রশ্ন করে, অথচ এখানে পর্দার নিজের সুতোয় ডাকা হত — Android-এ পর্দার সুতোয়
+           নেটের কাজ **সবসময় ব্যর্থ** হয় (চুপচাপ), তাই স্টাফ চেম্বার খোলা থাকলেও
+           সবসময় "Send refund request" দেখতেন, আর সেভের পরে ভুল বার্তা পেতেন
+           (আসলে সঙ্গে সঙ্গেই অনুমোদিত হত)। Patient Timeline-এর প্রমাণিত পথে (পিছনের
+           সুতোয়, `withContext(IO)`) নেওয়া হলো। ⛔ ফর্ম · সীমা · আঙুলের তালা · সেভ — কিচ্ছু বদলায়নি। */
+        lifecycleScope.launch {
+        val autoApprove = isMaster || withContext(Dispatchers.IO) {
+            try { repository.chamberOpenToday(patient.branch) } catch (_: Throwable) { false }
+        }
+        if (isFinishing || isDestroyed) return@launch
         val posLabel = if (autoApprove) "Refund now" else "Send refund request"
         val dialog = AlertDialog.Builder(this)
             .setCustomTitle(PremiumAlert.header(this, "💸 Refund"))
@@ -1784,6 +1794,7 @@ class PaymentActivity : AppCompatActivity() {
                     }
             }
         }
+        }   // 🔴 V1360 — lifecycleScope.launch (chamberOpenToday পিছনের সুতোয়)
     }
 
     /** 🟡🔒 V786 — উপরের সতর্কবার্তার পরে (বা সতর্কবার্তা না লাগলে) আসল
