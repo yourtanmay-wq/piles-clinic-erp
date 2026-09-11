@@ -2398,8 +2398,11 @@ class DoctorVisitActivity : AppCompatActivity() {
                                 if (pb.isNotBlank() && !pb.equals(myBranch, ignoreCase = true)) continue
                             }
                             val refBy = pat.s("refBy").trim().lowercase()
+                            // 🔴 V1356 — আজকের অ্যাপ ডাক্তারের নাম রাখে refDoctor-এ (refBy-তে শুধু "Dr. Visit")
+                            val refDoc = pat.s("refDoctor").trim().lowercase()
                             val refMob = pat.s("refDoctorMobile").filter { it.isDigit() }.takeLast(10)
-                            val hit = (refBy.isNotBlank() && refBy == docName) || (refMob.isNotBlank() && refMob == docMobile)
+                            val hit = (refBy.isNotBlank() && refBy == docName) || (refDoc.isNotBlank() && refDoc == docName) ||
+                                (refMob.isNotBlank() && refMob == docMobile)
                             if (!hit) continue
                             // 🔴🔒 V940 — একই নম্বরে একাধিক ব্রাঞ্চের সারি থাকলে রোগী তাঁর নিজের ব্রাঞ্চেরটিতেই।
                             if (!v940Belongs(pat.s("branch"), item.branch, docMobile)) continue
@@ -3890,6 +3893,7 @@ class DoctorVisitActivity : AppCompatActivity() {
 
         val noBranchChosen = user.role == "master" &&
             (branchFilter.isBlank() || branchFilter == BRANCH_NONE)
+        var cloudChecked = false   // 🔴 V1356 — ক্লাউড মেলানো শেষ হলে তবেই "NOBODY IS PENDING"
 
         fun render(list: List<Triple<DoctorVisitItem, Pair<Double, Double>, Boolean>>) {
             scrollBody.removeAllViews()
@@ -3908,7 +3912,13 @@ class DoctorVisitActivity : AppCompatActivity() {
                 })
                 return
             }
-            if (list.isEmpty()) {
+            // 🔴🔒 V1356 (TK-রিপোর্ট, ছবিসহ): ক্লাউডের উত্তর আসার আগেই ফোনের পুরনো
+            //    হিসাবে "NOBODY IS PENDING ₹0" দেখাত, এক সেকেন্ড পরে ৪ জনের ₹13,902 —
+            //    ভুল তথ্য সামনে আসত। এখন যতক্ষণ ক্লাউড মেলানো বাকি, "CHECKING CLOUD"।
+            if (list.isEmpty() && !cloudChecked) {
+                totalBox.text = "CHECKING CLOUD\nVerifying pending referral money…"
+                totalAmount.text = ""
+            } else if (list.isEmpty()) {
                 totalBox.text = "NOBODY IS PENDING\nEvery RMP is fully settled"
                 totalAmount.text = money(0.0)
             } else {
@@ -3918,7 +3928,8 @@ class DoctorVisitActivity : AppCompatActivity() {
             }
             if (list.isEmpty()) {
                 scrollBody.addView(TextView(this).apply {
-                    text = "No RMP of this branch has any pending referral money"
+                    text = if (cloudChecked) "No RMP of this branch has any pending referral money"
+                           else "Please wait — checking the cloud for pending referral money"
                     textSize = 12.5f
                     setTextColor(android.graphics.Color.parseColor("#8A97AB"))
                     setPadding(dp(8), dp(20), dp(8), dp(20))
@@ -3993,8 +4004,13 @@ class DoctorVisitActivity : AppCompatActivity() {
                 rows = merged.values.toList()
                     .filter { it.second.second > 0.0 }
                     .sortedByDescending { it.second.second }
+                cloudChecked = true
                 render(rows)
-            } catch (_: Throwable) { }
+            } catch (_: Throwable) {
+                // 🔴 V1356 — ক্লাউড ব্যর্থ হলেও "CHECKING" লেখায় আটকে থাকবে না; ফোনের হিসাবই দেখায়
+                cloudChecked = true
+                try { if (!isFinishing && !isDestroyed && fsDialog.isShowing) render(rows) } catch (_: Throwable) { }
+            }
         }
     }
 

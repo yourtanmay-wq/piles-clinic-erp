@@ -25822,3 +25822,42 @@ Chamber Review-র হলুদ লাইনে NO_RATE/AMBIGUOUS দেখা�
 পাহারা: verify_android_resources.py ✅ · tk_guard.py ✅ · node --check ✅ ·
 web_browser_test/run.py ✅ PASS · verify_kotlin_compile.py ✅ PASS (নতুন ভুল ০)।
 ভার্সন নম্বর বাড়ানো হয়নি (নিয়ম ৩খ) — ফাইল চাইলে তখন।
+
+## ১১.০৯.২০২৬ (রাত) — V1356 · RMP কমিশন: বিল-নির্ভরতা তোলা (SQL) · Referred তালিকায় refDoctor · Due List-এর ঝলক (তালিকা ৪৫৫ · ৪৫৬ · ৪৫৭)
+
+### ১) SQL — `00_SQL/V1356_RMP_COMMISSION_NO_BILL_REFDOCTOR_LIST_2026-09-11.sql` (TK চালাবেন)
+- `fin.rmp_earned_for` · `fin.rmp_earned_upto`: PERCENT হারে (এখনকার ও আগের —
+  দুটোই PERCENT হলে) কমিশন = `rmp_net_paid_between` × % — `p_bill` আর
+  লাগে না, `least(paid,bill)` cap নেই। হার-বদল (`rate_changed_on`) আগের
+  মতোই দুই ভাগে। AMOUNT হার বা AMOUNT→PERCENT বদল: V941/V1083-এর কোড হুবহু
+  (বিল লাগে)। ⚠️ ঝুঁকি TK-কে জানানো: বিল-ছাড়া/বিলের-বেশি জমার রোগীদের
+  কমিশন বাড়বে ⇒ কিছু RMP-র Due বাড়তে পারে।
+- `fin.rmp_legacy_view_all_v2` · `fin.rmp_legacy_card_counts`: V1132-এর
+  বডি হুবহু + দুটো শর্ত: `refDoctor` নাম মেলা, আর
+  `exists(rmp_patient_commissions where patient_row_id=p.id and rmp_id=…)`।
+  ব্রাঞ্চ-নিয়ম (V1132) অক্ষত। 5000-cap আগের মতোই (আজ ছোঁয়া হয়নি)।
+- sql_local_check.py ✅ PASS।
+
+### ২) ফোন — `DoctorVisitActivity.kt`
+- Due List (`showRmpDueList`): `var cloudChecked=false`; `render()`-এ
+  তালিকা ফাঁকা + ক্লাউড মেলানো বাকি ⇒ "CHECKING CLOUD / Verifying pending
+  referral money…"; ধাপ ২ শেষে (সফল বা catch) `cloudChecked=true` + আবার
+  render ⇒ কখনো আটকে থাকে না।
+- View All-এর fallback রোগী-মেলানো (লাইন ~২৪০৪): `refDoctor` যোগ।
+
+### ৩) ওয়েব — `app.js`
+- `wlv1RmpDueHtml(rows,noBranch,pending)`: `pending` ও তালিকা ফাঁকা ⇒ "CHECKING
+  CLOUD" কার্ড; `wlv1RmpDueList` প্রথম আঁকায় `pending=true`; `wlv1RmpDueVerify`
+  শেষে (সফল/ব্যর্থ, `if(!changed)return` তুলে দিয়ে) সবসময় `pending=false` দিয়ে
+  শেষ-রেন্ডার; আগের `return`-গুলো `throw` — যাতে catch হয়ে শেষ-রেন্ডারে পৌঁছয়।
+- `wlv1DocRefs`: `refDoctor` যোগ (`doctorReferralPatients`-এ আগে থেকেই ছিল)।
+- `index.html` cache `?v=v1356`।
+
+### ৪) JH MANDAL-এর ₹2,798 (তালিকা ৪৫৭) — সিদ্ধান্ত বাকি
+কোড থেকে দুটো সম্ভাব্য কারণ (রোগী-ধরে বাকি গোনা / পুরনো পদ্ধতির দেওয়া টাকা
+নতুন হিসাবে না থাকা)। TK-কে Ref. Due বাক্সে চেপে ছবি পাঠাতে বলা হলো;
+আন্দাজে কিছু বদলানো হয়নি।
+
+পাহারা: verify_android_resources.py ✅ · tk_guard.py ✅ · node --check ✅ ·
+web_browser_test ✅ · sql_local_check.py ✅ · verify_kotlin_compile.py ✅ PASS।
+ভার্সন নম্বর বাড়ানো হয়নি (নিয়ম ৩খ)।

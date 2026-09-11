@@ -18439,7 +18439,13 @@ window["wlv1DueMoney"]=wlv1DueMoney;
    আলাদা role, তাই এখানে আলাদা করে লেখা লাগে। */
 function wlv1CanSeeDue(){var r=String(user&&user.role||'');return isMaster()||r==='staff'||r==='doctor';}
 window["wlv1CanSeeDue"]=wlv1CanSeeDue;
-function wlv1RmpDueHtml(rows,noBranch){
+function wlv1RmpDueHtml(rows,noBranch,pending){
+  /* 🔴🔒 V1356 (TK-রিপোর্ট, ছবিসহ — ফোনের showRmpDueList()-এর হুবহু একই ফিক্স):
+     ক্লাউডের উত্তর আসার আগেই ব্রাউজারের পুরনো হিসাবে "NOBODY IS PENDING ₹0"
+     দেখাত, এক সেকেন্ড পরে আসল তালিকা। এখন ক্লাউড মেলানো বাকি থাকলে "CHECKING CLOUD"। */
+  if(pending&&!noBranch&&!(rows&&rows.length))
+    return `<div class="card wlv1DueTotal"><div class="wlv1DueTotL"><small>CHECKING CLOUD</small><i>Verifying pending referral money…</i></div><b></b></div>`
+      + '<div class="card mut">Please wait — checking the cloud for pending referral money</div>';
   /* 🔴 TK-এর নিয়ম "ভুল তথ্য যেন সামনে না আসে": Master ব্রাঞ্চ না বাছলে
      তালিকা এমনিতেই ফাঁকা থাকে — তখন "কারো বাকি নেই" লেখা সম্পূর্ণ ভুল
      হত। তাই সেই অবস্থায় আলাদা বার্তা। */
@@ -18507,7 +18513,7 @@ function wlv1RmpDueList(){
   //   (খরচ শূন্য) — ফোনের অ্যাপে যেমন হয়, হুবহু তেমন।
   let rows=wlv1RmpDueRows();
   let noBranch=isMaster()&&!wlv1RmpBranch();   /* 🟢🔒 V398 */
-  page('RMP Due List',`<div id="wlv1DueHost">${wlv1RmpDueHtml(rows,noBranch)}</div>`);
+  page('RMP Due List',`<div id="wlv1DueHost">${wlv1RmpDueHtml(rows,noBranch,true)}</div>`);
   setTimeout(wlv1DueFitNames,0);
   if(noBranch)return;
   setTimeout(function(){wlv1RmpDueVerify(rows)},0);
@@ -18785,8 +18791,9 @@ async function wlv1RmpDueVerify(rows){
        পাওনা (যেমন PK-র ₹৪১,৭৫০) কোনোদিন তালিকায় উঠত না, আর পর্দায় লেখা থাকত
        "NOBODY IS PENDING"। ⛔ ফোনের `showRmpDueList()`-এও হুবহু একই সংশোধন। */
     rows = Array.isArray(rows) ? rows : [];
-    if(typeof fin!=='function')return;
-    let c=await fin();if(!c)return;
+    /* 🔴 V1356 — লগইন/সংযোগ না থাকলেও নিচের শেষ-রেন্ডার চলবে (return নয়, catch-এ যায়) */
+    if(typeof fin!=='function')throw new Error('no fin');
+    let c=await fin();if(!c)throw new Error('no client');
     let check=rows.slice(0,25),changed=false;
     for(let i=0;i<check.length;i++){
       try{
@@ -18821,10 +18828,14 @@ async function wlv1RmpDueVerify(rows){
         }
       }
     }catch(_e){}
-    if(!changed)return;
+  }catch(_e){}
+  /* 🔴 V1356 — ক্লাউড মেলানো শেষ (সফল হোক বা না হোক) ⇒ "CHECKING CLOUD" সরিয়ে
+     আসল তালিকা; কিছু না বদলালেও ব্রাউজারের হিসাবটাই চূড়ান্ত হিসেবে দেখায়। */
+  try{
+    rows = Array.isArray(rows) ? rows : [];
     let host=document.getElementById('wlv1DueHost');if(!host)return;
     let fresh=rows.filter(function(r){return r.due>0}).sort(function(a,b){return b.due-a.due});
-    host.innerHTML=wlv1RmpDueHtml(fresh,false);wlv1DueFitNames();
+    host.innerHTML=wlv1RmpDueHtml(fresh,false,false);wlv1DueFitNames();
   }catch(_e){}
 }
 window["wlv1RmpDueVerify"]=wlv1RmpDueVerify;
@@ -29332,7 +29343,8 @@ function wlv1DocRefs(x){
   var nm=String(x.name||'').trim().toLowerCase(),mb=String(x.mobile||'').replace(/\D/g,'').slice(-10);
   return (load('patients')||[]).filter(function(p){
     var rb=String(p.refBy||'').trim().toLowerCase(),rm=String(p.refDoctorMobile||'').replace(/\D/g,'').slice(-10);
-    return (rb&&rb===nm)||(rm&&rm===mb);
+    var rd=String(p.refDoctor||'').trim().toLowerCase();   /* 🔴 V1356 — নাম এখন refDoctor-এ থাকে */
+    return (rb&&rb===nm)||(rd&&rd===nm)||(rm&&rm===mb);
   });
 }
 function wlv1DocMsgPick(id,kind){
