@@ -745,7 +745,17 @@ class FollowUpActivity : AppCompatActivity() {
                 BranchFilterStore.set(this@FollowUpActivity, countBranch)   // 🟢 V398: সব পর্দার জন্য মনে রাখা
                 binding.branchPicker.text = BranchFilterStore.pillText(this@FollowUpActivity)
                 refreshTabCounts()
-                loadTab(currentStage, silent = true)
+                /* 🐞🔒 V1324 (TK-রিপোর্ট, ১১.০৯.২০২৬: "ব্রাঞ্চ বদলালে হেডার
+                   বদলে যায় কিন্তু নিচের তালিকা আগের ব্রাঞ্চেরই থেকে যায়,
+                   অনেক পরে বদলায়") — এখানে আগে `silent = true` দেওয়া থাকায়
+                   `loadTab()`-এর ব্রাঞ্চ-ভিত্তিক cache-first ধাপটাই (নিচে)
+                   বাদ পড়ে যেত — `loadedItems` তখনও পুরনো ব্রাঞ্চের, আর নতুন
+                   ব্রাঞ্চের আসল তালিকা আসা পর্যন্ত সেটাই দেখাত। এখন
+                   `silent = false` — switchTab()-এর মতোই — তাই ব্রাঞ্চ
+                   বদলালেই সঙ্গে সঙ্গে **নতুন ব্রাঞ্চের নিজের** জমানো তালিকা
+                   (থাকলে) দেখায়, নইলে "Loading...", পুরনো ব্রাঞ্চের সারি
+                   একমুহূর্তের জন্যও দেখায় না। */
+                loadTab(currentStage, silent = false)
                 dialog.dismiss()
             }
             .setNegativeButton("Cancel", null)
