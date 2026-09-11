@@ -25424,3 +25424,17 @@ TK: "Salary/Extra Income/Field Visit বোতামের উচ্চতা �
 Cooch Behar তালিকার প্রসঙ্গ-সহ full-display মকআপ পাঠানো হলো, TK-র ফলের অপেক্ষায়।
 ওয়েবে এই স্ক্রিন/বোতামের কোনো জোড়া নেই — যাচাই করে সততার সাথে জানানো হলো।
 পাহারা: verify_android_resources.py ✅ · tk_guard.py ✅।
+
+## ১১.০৯.২০২৬ — V1344 · RUPAM-এর কিমি/লোকেশন ০.০ থাকার আসল কারণ ধরা গেল
+
+TK নতুন APK-তেও দূরত্ব/লোকেশন ০, "গভীরে যাচাই করুন নাকি তৈরিই করেননি" বললেন।
+`FieldVisit.hasLocationPermission()` আর `WorkNotebookActivity.requestFieldLocation
+Permission`-এর callback — দুটোই fine-অথবা-coarse যেকোনো একটাতেই সন্তুষ্ট হয়ে
+যেত, অথচ `FieldVisitService.hasPermission()` (আসল GPS-সেবা চালুর দরজা) শুধু
+fine (Precise) চায় — এই অমিলটাই বাগ। "Approximate" বেছে নিলে app "হয়ে গেছে"
+বলত, সেবা ভিতরে চুপচাপ কখনো শুরুই হতো না। এখন `hasLocationPermission()` শুধু
+fine দেখে; callback-এ coarse-only ধরা পড়লে আলাদা "Precise Location needed"
+বার্তা + Settings-এ যাওয়ার বোতাম। মাত্র একটা কল-সাইট (যাচাই করা), তাই ঝুঁকি
+কম। ওয়েবে এই ফিচারের কোনো জোড়া নেই (GPS foreground service Android-only
+ধারণা) — সততার সাথে জানানো হলো। পাহারা: verify_android_resources.py ✅ ·
+tk_guard.py ✅।

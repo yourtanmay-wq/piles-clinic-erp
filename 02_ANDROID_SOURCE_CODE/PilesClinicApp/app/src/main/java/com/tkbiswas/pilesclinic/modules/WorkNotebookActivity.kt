@@ -333,13 +333,29 @@ class WorkNotebookActivity : AppCompatActivity() {
          গোনা সঙ্গে সঙ্গে চালু, না পেলে Settings-এ যাওয়ার পথ।
        ⛔ হাজিরা (IN/OUT TIME) এতে **কখনো আটকায় না** — অনুমতি না দিলেও IN TIME
           আগের মতোই সেভ হয়ে থাকে, শুধু কিলোমিটার গোনা হয় না। */
+    /* 🛰️🔒 V1344 (১১.০৯.২০২৬, TK-নির্দেশ) — আগে fine-অথবা-coarse যেকোনো
+       একটাতেই "granted" বলে "km will now be counted" দেখাত, কিন্তু আসল
+       GPS-সেবা শুধু fine (Precise) ছাড়া চলেই না — "Approximate" বেছে নিলে
+       এই মিথ্যা বার্তার পরেও কিমি চিরকাল ০.০ থেকে যেত (RUPAM-এর ফোনে এটাই
+       ধরা পড়েছে)। এখন শুধু fine granted হলেই "হয়ে গেছে"; শুধু coarse হলে
+       আলাদা, স্পষ্ট বার্তা — Settings থেকে "Precise" চালু করতে বলা হয়। */
     private val requestFieldLocationPermission =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
-            val granted = result[android.Manifest.permission.ACCESS_FINE_LOCATION] == true ||
-                result[android.Manifest.permission.ACCESS_COARSE_LOCATION] == true
-            if (granted) {
+            val fine = result[android.Manifest.permission.ACCESS_FINE_LOCATION] == true
+            val coarse = result[android.Manifest.permission.ACCESS_COARSE_LOCATION] == true
+            if (fine) {
                 try { com.tkbiswas.pilesclinic.native.FieldVisitControl.start(this) } catch (_: Throwable) { }
                 ModuleUi.toast(this, "Location allowed - km will now be counted.")
+            } else if (coarse) {
+                inTimeMessage(
+                    "Precise Location needed",
+                    "Only \"Approximate\" location was allowed - km cannot be counted with this.\n\n" +
+                        "Please open Settings, go to Location permission, and choose \"Precise\" " +
+                        "(sometimes called \"Use precise location\"), then try again.",
+                    "#A8281C",
+                    extraLabel = "Open Settings",
+                    extra = { openAppSettings() }
+                )
             } else {
                 ModuleUi.toast(this, "Without Location permission km cannot be counted.")
             }

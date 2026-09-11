@@ -59,10 +59,25 @@ object FieldVisit {
        ⇒ তাঁর ফোনে অনুমতির বাক্স **কোনোদিন ওঠেই না** ⇒ GPS-সেবা চুপচাপ ফিরে
          যায় ⇒ একটাও অবস্থান আসে না ⇒ কিলোমিটার চিরকাল ০.০।
        ⛔ এই দুটো ফাংশনই সেই ফাঁক ধরার জন্য — কিছু বদলায় না, শুধু সত্যি বলে। */
+    /* 🛰️🔒 V1344 (১১.০৯.২০২৬, TK-নির্দেশ, RUPAM-এর নতুন APK-তেও কিমি ০.০) —
+       **আসল কারণ কোডে ধরা:** এই ফাংশন আগে fine-অথবা-coarse যেকোনো একটা
+       অনুমতি পেলেই "আছে" বলত, তাই "Approximate" (আনুমানিক) বেছে নিলেও
+       এখানে সন্তুষ্ট হয়ে যেত ও আর দ্বিতীয়বার জিজ্ঞাসা করত না। কিন্তু
+       `FieldVisitService.hasPermission()` (আসল GPS চালু করার দরজা) শুধু
+       **Precise/fine** অনুমতি ছাড়া চলেই না — তাই "Location allowed - km
+       will now be counted" বলার পরেও সেবা ভিতরে চুপচাপ কিছুই গুনত না।
+       ⇒ এখন এখানেও শুধু fine — দুটো জায়গার নিয়ম এক হলো, মিথ্যা "হয়ে গেছে"
+       বার্তা বন্ধ। ⛔ কল-সাইট মাত্র একটা (WorkNotebookActivity.ensureField
+       LocationReady) — যাচাই করা, বাকি কোথাও এই ফাংশন ব্যবহার হয় না। */
     fun hasLocationPermission(context: Context): Boolean = try {
         androidx.core.content.ContextCompat.checkSelfPermission(
             context, android.Manifest.permission.ACCESS_FINE_LOCATION
-        ) == android.content.pm.PackageManager.PERMISSION_GRANTED ||
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+    } catch (_: Throwable) { false }
+
+    /** ⛔ শুধু বার্তা ঠিকভাবে বাছার জন্য — "Approximate"-ই দেওয়া হয়েছে কিনা। */
+    fun hasApproxOnlyLocationPermission(context: Context): Boolean = try {
+        !hasLocationPermission(context) &&
             androidx.core.content.ContextCompat.checkSelfPermission(
                 context, android.Manifest.permission.ACCESS_COARSE_LOCATION
             ) == android.content.pm.PackageManager.PERMISSION_GRANTED
