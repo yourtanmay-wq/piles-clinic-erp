@@ -632,6 +632,32 @@ class FollowUpRepository(private val context: Context? = null) {
             val key = keys.next()
             // `updatedAt` ডেটাবেসের ট্রিগার নিজেই বদলাতে পারে — ওটা মেলানো হয় না
             if (key == "updatedAt") continue
+            /* 🔴🔒 V1352 (১১.০৯.২০২৬, TK-রিপোর্ট — "হাই স্পিড নেট থাকলেও ৩টা
+               Follow-up কিছুতেই Send হচ্ছে না, বারবার চেষ্টা করেও একই")।
+               **আসল কারণ (কোডে মিলিয়ে পাওয়া):** `history`-ই একমাত্র জমা-ঘর
+               যেটা একটা পুরো JSON তালিকা (`JSONArray`) — নিচের `.toString()`
+               তুলনাটা এই ঘরে কখনো নির্ভরযোগ্য নয়, কারণ Postgres/PostgREST
+               jsonb-এ পাঠানোর পর ভিতরের প্রতিটা এন্ট্রির ঘরগুলোর ক্রম বদলে
+               দিতে পারে — লেখা হুবহু ঠিক বসলেও `.toString()` দুটো ভিন্ন হয়ে
+               যায়, তাই চিরকাল "বসেনি" ধরা হত আর সারিটা পাঠানো-বাকি তালিকায়
+               চিরতরে আটকে থাকত (আসল টাকা/রিমার্ক তবু ঠিকই ক্লাউডে বসত)।
+               ⇒ `history`-র বেলায় এখন **বিষয়বস্তু মিলিয়ে** দেখা হয় (দৈর্ঘ্য +
+                 শেষ এন্ট্রির remark/date/staff) — ক্রম বদলালেও ধরা পড়ে। */
+            if (key == "history") {
+                val sentHist = fields.optJSONArray("history")
+                val cloudHist = cloud.optJSONArray("history")
+                if (sentHist == null || cloudHist == null || sentHist.length() != cloudHist.length()) {
+                    allLanded = false; break
+                }
+                val sentLast = sentHist.optJSONObject(sentHist.length() - 1)
+                val cloudLast = cloudHist.optJSONObject(cloudHist.length() - 1)
+                val sameLast = sentLast != null && cloudLast != null &&
+                    sentLast.optString("remark") == cloudLast.optString("remark") &&
+                    sentLast.optString("date") == cloudLast.optString("date") &&
+                    sentLast.optString("staff") == cloudLast.optString("staff")
+                if (!sameLast) { allLanded = false; break }
+                continue
+            }
             if (cloud.opt(key)?.toString().orEmpty() != fields.opt(key)?.toString().orEmpty()) {
                 allLanded = false; break
             }
