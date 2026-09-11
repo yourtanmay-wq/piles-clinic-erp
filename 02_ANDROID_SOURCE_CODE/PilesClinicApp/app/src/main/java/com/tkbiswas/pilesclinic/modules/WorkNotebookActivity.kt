@@ -1031,10 +1031,16 @@ class WorkNotebookActivity : AppCompatActivity() {
     //   ব্রাঞ্চে নোটিশ (Briefing target=branch → সবাই দেখবে), WhatsApp জোর।
     // ⛔ পুরনো একটাও টেবিল/হিসাব বদলায়নি — নতুন wn.leave_requests-এ লেখা।
     private var pendingLeaveDate: String = ""
+    private var pendingLeaveToDate: String = ""
+    // 🏖️🔒 V1336 (11.09.2026, TK-নির্দেশ) — একসাথে একাধিক দিনের ছুটি চাওয়া
+    // যায়, প্রতিটা দিন পুরনো নিয়মেই (মাসে-৪, একই-দিনে-দুজন, চেম্বার-দিন)
+    // আলাদাভাবে যাচাই হয়ে confirmed/pending ঠিক হয় — একদিনের আবেদন আগের
+    // মতোই একদম অপরিবর্তিত থাকে (From=To হলে পুরনো পথই চলে)।
     private fun applyLeaveFlow() {
         val d = resources.displayMetrics.density
         fun dp(v: Int) = (v * d).toInt()
         pendingLeaveDate = todayIso()
+        pendingLeaveToDate = todayIso()
         /* 🏖️🔒 V740 — চেম্বার-দিনের তালিকা **আলাদা থ্রেডে** আগেভাগে এনে রাখি।
            ⚠️ মূল থ্রেডে মেঘে গেলে Android অ্যাপ থামিয়ে দেয়, তাই এভাবে।
            ⛔ না এলেও কিছু ভাঙে না — বাঁধা তালিকাই কাজ করে। */
@@ -1044,7 +1050,7 @@ class WorkNotebookActivity : AppCompatActivity() {
         }.start()
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(10), dp(20), dp(4)) }
         box.addView(TextView(this).apply {
-            text = NoBengali.s("কোন তারিখে ছুটি"); textSize = 11f
+            text = NoBengali.s("From (কোন তারিখ থেকে ছুটি)"); textSize = 11f
             setTextColor(android.graphics.Color.parseColor("#6B7280")); setPadding(0, 0, 0, dp(4))
         })
         /* 🏖️🔒 V740 (TK-অনুমোদিত ডেমো-প্রুফ) — চেম্বারের দিন বাছলে **আগেই**
@@ -1080,6 +1086,8 @@ class WorkNotebookActivity : AppCompatActivity() {
             val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
             lp.bottomMargin = dp(10); layoutParams = lp
         }
+        // 🏖️ V1336 — "To" দেখানোর জন্য আগেভাগে ঘোষণা (নিচে dateTv-এর listener এটা ব্যবহার করে)
+        lateinit var toDateTv: TextView
         dateTv.setOnClickListener {
             val cal = java.util.Calendar.getInstance()
             val parts = pendingLeaveDate.split("-")
@@ -1088,6 +1096,14 @@ class WorkNotebookActivity : AppCompatActivity() {
                 pendingLeaveDate = String.format(java.util.Locale.US, "%04d-%02d-%02d", y, mo + 1, dd)
                 dateTv.text = dotDate(pendingLeaveDate)
                 refreshChamberWarn()   // 🏖️ V740
+                // 🏖️ V1336 — From, To-এর পরে চলে গেলে To-ও এগিয়ে দিই, নইলে "শেষ তারিখ শুরুর আগে" হয়ে যেত
+                // ⛔ toDateTv ততক্ষণে সবসময়ই বসানো থাকে — dateTv-এর ক্লিক
+                // শুধু dialog দেখানোর পরে (নিচে toDateTv তৈরি হয়ে যাওয়ার পরে)
+                // ব্যবহারকারী চাপলেই চলে, তাই lateinit-এর নিরাপদ ধরে-নেওয়া।
+                if (pendingLeaveToDate < pendingLeaveDate) {
+                    pendingLeaveToDate = pendingLeaveDate
+                    toDateTv.text = dotDate(pendingLeaveToDate)
+                }
             }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH), cal.get(java.util.Calendar.DAY_OF_MONTH))
             try { dpd.datePicker.minDate = System.currentTimeMillis() - 60000 } catch (_: Throwable) { }
             /* 🏖️🔒 V740 (২৭.০৮.২০২৬, TK-নির্দেশ) — **১০ দিনের সীমা**।
@@ -1104,6 +1120,43 @@ class WorkNotebookActivity : AppCompatActivity() {
         box.addView(dateTv)
         box.addView(chamberWarn)
         refreshChamberWarn()
+        box.addView(TextView(this).apply {
+            text = NoBengali.s("To (একদিনের ছুটি হলে From-এর মতোই রাখুন)"); textSize = 11f
+            setTextColor(android.graphics.Color.parseColor("#6B7280")); setPadding(0, dp(8), 0, dp(4))
+        })
+        toDateTv = TextView(this).apply {
+            text = dotDate(pendingLeaveToDate); textSize = 15f
+            setTextColor(android.graphics.Color.parseColor("#0A5C33")); setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setPadding(dp(12), dp(11), dp(12), dp(11)); isClickable = true
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(android.graphics.Color.parseColor("#EAF6EE")); setStroke(1, android.graphics.Color.parseColor("#BFE0CB")); cornerRadius = dp(9).toFloat()
+            }
+            val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            lp.bottomMargin = dp(10); layoutParams = lp
+        }
+        toDateTv.setOnClickListener {
+            val cal = java.util.Calendar.getInstance()
+            val parts = pendingLeaveToDate.split("-")
+            try { cal.set(parts[0].toInt(), parts[1].toInt() - 1, parts[2].toInt()) } catch (_: Throwable) { }
+            val dpd = android.app.DatePickerDialog(this, { _, y, mo, dd ->
+                val picked = String.format(java.util.Locale.US, "%04d-%02d-%02d", y, mo + 1, dd)
+                // ⛔ V1336 — To কখনো From-এর আগে হতে পারবে না
+                pendingLeaveToDate = if (picked < pendingLeaveDate) pendingLeaveDate else picked
+                toDateTv.text = dotDate(pendingLeaveToDate)
+            }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH), cal.get(java.util.Calendar.DAY_OF_MONTH))
+            try {
+                val fromParts = pendingLeaveDate.split("-")
+                val fromCal = java.util.Calendar.getInstance()
+                fromCal.set(fromParts[0].toInt(), fromParts[1].toInt() - 1, fromParts[2].toInt())
+                dpd.datePicker.minDate = fromCal.timeInMillis
+            } catch (_: Throwable) { }
+            try {
+                dpd.datePicker.maxDate =
+                    System.currentTimeMillis() + 10L * 24L * 60L * 60L * 1000L
+            } catch (_: Throwable) { }
+            dpd.show()
+        }
+        box.addView(toDateTv)
         val input = ModuleUi.input(this, "Reason (e.g. Sick, Personal, Festival)")
         fun chip(icon: String, label: String): LinearLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL
@@ -1132,16 +1185,85 @@ class WorkNotebookActivity : AppCompatActivity() {
             .setPositiveButton(NoBengali.s("ছুটির আবেদন করুন")) { _, _ ->
                 val reason = input.text.toString().trim()
                 if (reason.isBlank()) { ModuleUi.toast(this, "Reason required"); return@setPositiveButton }
-                submitLeaveApplication(pendingLeaveDate, reason)
+                submitLeaveRange(pendingLeaveDate, pendingLeaveToDate, reason)
             }
             .setNegativeButton("Cancel", null)
             .show().also { try { com.tkbiswas.pilesclinic.native.PremiumAlert.paint(it) } catch (_: Throwable) { } }
     }
 
+    // 🏖️🔒 V1336 — একদিনের ফলাফল বহনকারী ছোট ক্লাস (range আর একদিন — দুটোতেই একই কোর ব্যবহার হয়)
+    private data class LeaveDayOutcome(val date: String, val status: String, val needPretty: String, val ok: Boolean)
+
     private fun submitLeaveApplication(leaveDate: String, reason: String) {
+        submitLeaveRange(leaveDate, leaveDate, reason)
+    }
+
+    // 🏖️🔒 V1336 (11.09.2026, TK-নির্দেশ) — একসাথে একাধিক দিনের ছুটি।
+    // From..To-এর প্রতিটা দিন পুরনো নিয়মেই (নিচের processLeaveDay) আলাদাভাবে
+    // যাচাই হয়, তারপর একটাই মিলিত ফলাফল দেখানো হয়। From==To (একদিন) হলে
+    // ফলাফল-বার্তা ও WhatsApp শেয়ার আগের একদিনের ফরম্যাটের মতোই থাকে।
+    private fun submitLeaveRange(fromDate: String, toDate: String, reason: String) {
         ModuleUi.toast(this, "Checking...")
         val br = NativeSession.current(this)?.branch ?: ""
         Thread {
+            val dates = mutableListOf<String>()
+            try {
+                val cal = java.util.Calendar.getInstance()
+                val p = fromDate.split("-"); cal.set(p[0].toInt(), p[1].toInt() - 1, p[2].toInt())
+                val toCal = java.util.Calendar.getInstance()
+                val q = toDate.split("-"); toCal.set(q[0].toInt(), q[1].toInt() - 1, q[2].toInt())
+                var guard = 0
+                // ⛔ guard<40 — সর্বোচ্চ দিন-বাছার সীমা (১০ দিন আগাম) নিজেই ছোট রাখে, এটা শুধু অসীম-লুপ ঠেকানোর সুরক্ষা
+                while (!cal.after(toCal) && guard < 40) {
+                    dates.add(String.format(java.util.Locale.US, "%04d-%02d-%02d",
+                        cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH) + 1, cal.get(java.util.Calendar.DAY_OF_MONTH)))
+                    cal.add(java.util.Calendar.DAY_OF_MONTH, 1); guard++
+                }
+            } catch (_: Throwable) { }
+            if (dates.isEmpty()) dates.add(fromDate)
+            val outcomes = dates.map { processLeaveDay(it, reason, br) }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                val confirmed = outcomes.filter { it.ok && it.status == "confirmed" }
+                val pending = outcomes.filter { it.ok && it.status == "pending" }
+                val failed = outcomes.count { !it.ok }
+                if (confirmed.any { it.date == todayIso() }) {
+                    day.put("is_leave", true); day.put("leave_reason", reason)
+                    markReminderFlag("in", true); markReminderFlag("out", true)
+                }
+                if (outcomes.isNotEmpty() && failed == outcomes.size) {
+                    ModuleUi.toast(this, "Net সমস্যা — আবার চেষ্টা করুন"); return@runOnUiThread
+                }
+                if (dates.size == 1) {
+                    // ⛔ একদিনের আবেদন — আগের মতোই একদম অপরিবর্তিত বার্তা/ব্যবহার
+                    val o = outcomes.first()
+                    if (o.status == "confirmed") {
+                        val shareText = "🏖️ Leave\nStaff: $staffCode\nBranch: $br\nDate: " + dotDate(o.date) + "\nReason: " + reason
+                        com.tkbiswas.pilesclinic.native.WhatsAppMessageChooser.sendGeneric(this, shareText) { render() }
+                    } else {
+                        ModuleUi.toast(this, NoBengali.s("ছুটির অনুরোধ পাঠানো হয়েছে — Pending"))
+                        render()
+                    }
+                    return@runOnUiThread
+                }
+                val msg = StringBuilder()
+                if (confirmed.isNotEmpty()) msg.append("✅ ${confirmed.joinToString(", ") { dotDate(it.date) }} — auto-approved\n")
+                pending.forEach { msg.append("⏳ ${dotDate(it.date)} — needs Master's approval (${it.needPretty})\n") }
+                if (failed > 0) msg.append("⚠️ $failed day(s) failed — please retry\n")
+                ModuleUi.toast(this, NoBengali.s(msg.toString().trim()))
+                if (confirmed.isNotEmpty()) {
+                    val shareText = "🏖️ Leave\nStaff: $staffCode\nBranch: $br\nDates: " +
+                        confirmed.joinToString(", ") { dotDate(it.date) } + "\nReason: " + reason +
+                        if (pending.isNotEmpty()) "\n(+ ${pending.size} day(s) pending Master approval)" else ""
+                    com.tkbiswas.pilesclinic.native.WhatsAppMessageChooser.sendGeneric(this, shareText) { render() }
+                } else {
+                    render()
+                }
+            }
+        }.start()
+    }
+
+    private fun processLeaveDay(leaveDate: String, reason: String, br: String): LeaveDayOutcome {
             val enc = { s: String -> try { java.net.URLEncoder.encode(s, "UTF-8").replace("+", "%20") } catch (_: Throwable) { s } }
             val ym = leaveDate.substring(0, 7)
             // ⛔ B618 ঠিক (11.08.2026): আগে উপরের সীমা "$ym-32" ছিল — Postgres date কলামে
@@ -1231,22 +1353,7 @@ class WorkNotebookActivity : AppCompatActivity() {
                 // ফোনে WhatsApp জোর করে খোলা হবে (checkPendingLeaves)।
                 try { addPendingLeaveDate(leaveDate) } catch (_: Throwable) { }
             }
-            runOnUiThread {
-                if (isFinishing || isDestroyed) return@runOnUiThread
-                if (!ok) { ModuleUi.toast(this, "Net সমস্যা — আবার চেষ্টা করুন"); return@runOnUiThread }
-                if (status == "confirmed") {
-                    if (leaveDate == todayIso()) {
-                        day.put("is_leave", true); day.put("leave_reason", reason)
-                        markReminderFlag("in", true); markReminderFlag("out", true)
-                    }
-                    val shareText = "🏖️ Leave\nStaff: $staffCode\nBranch: $br\nDate: " + dotDate(leaveDate) + "\nReason: " + reason
-                    com.tkbiswas.pilesclinic.native.WhatsAppMessageChooser.sendGeneric(this, shareText) { render() }
-                } else {
-                    ModuleUi.toast(this, NoBengali.s("ছুটির অনুরোধ পাঠানো হয়েছে — Pending"))
-                    render()
-                }
-            }
-        }.start()
+            return LeaveDayOutcome(leaveDate, status, needPretty, ok)
     }
 
     /* ═══════════════════════════════════════════════════════════════════

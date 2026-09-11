@@ -403,6 +403,9 @@ object NoBengali {
         // 🆕 B618 (11.08.2026, TK-নির্দেশ) — ছুটির আবেদন (আজ/অগ্রিম + মঞ্জুরি)।
         "🏖️ ছুটির আবেদন" to "🏖️ Leave Request",
         "কোন তারিখে ছুটি" to "Which date for leave",
+        // 🏖️ V1336 (১১.০৯.২০২৬) — একাধিক দিনের ছুটি আবেদনে "From"/"To" লেবেল।
+        "From (কোন তারিখ থেকে ছুটি)" to "From (leave starts)",
+        "To (একদিনের ছুটি হলে From-এর মতোই রাখুন)" to "To (keep same as From for a single day)",
         "ছুটির আবেদন করুন" to "Apply for Leave",
         "ছুটির অনুরোধ পাঠানো হয়েছে — Pending" to "Leave request sent — Pending",
         // 🆕 B419 (04.08.2026) — ChamberAttendanceActivity-র নতুন "Reopen"
