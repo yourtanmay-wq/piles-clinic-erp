@@ -363,6 +363,30 @@ class DashboardActivity : AppCompatActivity() {
         requestNotificationPermissionIfNeeded()
         requestIgnoreBatteryOptimizationsIfNeeded()
         requestOverlayPermissionIfNeeded()   // 🪟 V845
+        requestDoctorLocationPermissionIfNeeded()   // 🛰️ V1348
+        DoctorLocation.captureIfPossible(this)             // 🛰️ V1348 (isDoctor না হলে নিজেই কিছু করে না)
+    }
+
+    /* 🛰️🔒 V1348 (১১.০৯.২০২৬, TK-নির্দেশ) — উপরের overlay/battery-অনুমতির
+       ধাঁচেই "জীবনে একবারই জিজ্ঞেস, না দিলে আর জ্বালায় না"। ⛔ পার্থক্য:
+       TK-র স্পষ্ট নিষেধ অনুযায়ী **কোনো AlertDialog/ব্যাখ্যা নেই** — সরাসরি
+       ফোনের নিজের অনুমতি-বাক্স, তারপর সম্পূর্ণ চুপচাপ। শুধু role="doctor"।
+       ⛔ ব্যর্থ/বাতিল হলেও কিছুই ভাঙে না — আগের মতোই কোনো লোকেশন জমা হবে না। */
+    private fun requestDoctorLocationPermissionIfNeeded() {
+        try {
+            if (!RoleRules.isDoctor(this)) return
+            if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED ||
+                androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) return
+            val prefs = getSharedPreferences("piles_clinic_doctor_location_perm", android.content.Context.MODE_PRIVATE)
+            if (prefs.getBoolean("asked_once", false)) return
+            prefs.edit().putBoolean("asked_once", true).apply()
+            androidx.core.app.ActivityCompat.requestPermissions(
+                this,
+                arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION),
+                7341
+            )
+        } catch (_: Throwable) { }
     }
 
     /* ═══════════════════════════════════════════════════════════════════

@@ -9,8 +9,10 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import com.tkbiswas.pilesclinic.native.NativeSession
 import com.tkbiswas.pilesclinic.native.NoBengali
+import com.tkbiswas.pilesclinic.native.PremiumAlert
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -402,7 +404,8 @@ class PartnerSharesActivity : Activity() {
         host.addView(net)
         if (d.list.isEmpty()) host.addView(TextView(this).apply { text = "No partners yet. Tap Setup."; setTextColor(android.graphics.Color.parseColor("#7c8a83")); setPadding(0, dp(6), 0, dp(6)) })
         for (x in d.list) {
-            val c = card().apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
+            val outer = card().apply { orientation = LinearLayout.VERTICAL }
+            val c = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
             val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f) }
             left.addView(TextView(this).apply { text = ps(x.p, "name").ifBlank { n10(ps(x.p, "mobile")) }; textSize = 14f; setTextColor(android.graphics.Color.parseColor("#111111")); setTypeface(typeface, android.graphics.Typeface.BOLD) })
             left.addView(TextView(this).apply { text = "Due " + money(x.due) + " · Withdrawn " + money(x.drawn); textSize = 11f; setTextColor(android.graphics.Color.parseColor("#0A5C33")); setTypeface(typeface, android.graphics.Typeface.BOLD) })
@@ -420,8 +423,64 @@ class PartnerSharesActivity : Activity() {
                     setStroke(dp(1), android.graphics.Color.parseColor(if (red) "#F0C4BE" else "#B7E3C5"))
                 }
             })
-            host.addView(c)
+            outer.addView(c)
+            /* 🛰️🔒 V1348 (১১.০৯.২০২৬, TK-নির্দেশ, "স্টাফ প্রোফাইলে যেভাবে Field
+               Visit বোতাম আছে") — শুধু মাস্টারের পর্দায় এই বোতাম, ডাক্তারের
+               নিজের ফোনে কোনো নতুন কিছু দেখা যায় না (DoctorLocation.kt দেখুন)। */
+            if (ModuleAuth.isMaster) {
+                val locBtn = TextView(this).apply {
+                    text = "📍 Location"; textSize = 12.5f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    gravity = android.view.Gravity.CENTER
+                    setTextColor(android.graphics.Color.parseColor("#0B4F2A"))
+                    setPadding(dp(12), dp(9), dp(12), dp(9))
+                    background = android.graphics.drawable.GradientDrawable().apply {
+                        cornerRadius = dp(9).toFloat()
+                        setColor(android.graphics.Color.parseColor("#EAF6EE"))
+                        setStroke(dp(1), android.graphics.Color.parseColor("#CFE9D8"))
+                    }
+                    isClickable = true; isFocusable = true
+                    setOnClickListener { showDoctorLocation(ps(x.p, "name").ifBlank { n10(ps(x.p, "mobile")) }, ps(x.p, "mobile")) }
+                }
+                val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.END; setPadding(0, dp(8), 0, 0) }
+                row.addView(locBtn)
+                outer.addView(row)
+            }
+            host.addView(outer)
         }
+    }
+
+    /* 🛰️🔒 V1348 — শেষবার দেখা লোকেশন দেখানোর ছোট্ট ডায়ালগ। কোনো নতুন
+       Activity/layout বানানো হয়নি — ঝুঁকি কম, প্রকল্পের অন্য জায়গার
+       AlertDialog-ধাঁচেই। ⛔ লোকেশন কখনো না-জমা হলে honestly "not available
+       yet" বলবে, খালি/ভুল সংখ্যা দেখাবে না। ⛔ নিয়ম ৯: মাস্টারের পর্দার
+       লেখাও ইংরেজিতে (staff-only নয় বলে NoBengali.s() লাগে না, তবু বাকি
+       পুরো পর্দার সাথে মিলিয়ে ইংরেজিই রাখা হলো)। */
+    private fun showDoctorLocation(name: String, mobile: String) {
+        val dlg = AlertDialog.Builder(this)
+            .setTitle(name)
+            .setMessage("Fetching location…")
+            .setPositiveButton("Close", null)
+            .show().also { PremiumAlert.paint(it) }
+        Thread {
+            val last = try { com.tkbiswas.pilesclinic.native.DoctorLocation.fetchLastSeen(mobile) } catch (e: Throwable) { null }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (last == null) {
+                    dlg.setMessage("No location available yet — the doctor's phone location may be off, or the app hasn't been opened yet.")
+                } else {
+                    val ago = try {
+                        val f = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US)
+                        f.timeZone = java.util.TimeZone.getTimeZone("UTC")
+                        val t = f.parse(last.updatedAt)?.time ?: 0L
+                        val mins = (System.currentTimeMillis() - t) / 60000
+                        when { mins < 1 -> "just now"; mins < 60 -> "$mins min ago"; else -> "${mins / 60} hr ago" }
+                    } catch (_: Throwable) { "" }
+                    val mapsUrl = "https://maps.google.com/?q=${last.lat},${last.lng}"
+                    dlg.setMessage("Last seen: $ago\n\n$mapsUrl")
+                }
+            }
+        }.start()
     }
 
     // 🔒 B604: Partner overview-এর হালকা display-ক্যাশ (income/expense/net + প্রতি

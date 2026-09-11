@@ -25523,3 +25523,49 @@ fetch-এর (DuplicateCheckActivity, DoctorVisitActivity, PaymentRepository)
 পাহারা: verify_android_resources.py ✅ · tk_guard.py ✅ · verify_kotlin_
 compile.py ✅ PASS (নতুন ভুল ০)। ওয়েবে এই নির্দিষ্ট বাগ ছিল না (আগেই ঠিক
 ছিল, V1303) — নতুন কিছু করার দরকার হয়নি, TK-কে সততার সাথে জানানো হলো।
+
+## ১১.০৯.২০২৬ — V1348 · সবার জন্য IN-OUT লোকেশন (ডাক্তারের অংশ, সম্পূর্ণ)
+
+স্টাফ/ব্রাঞ্চ অংশ (V1346) আগেই শেষ। ডাক্তারের অংশের জন্য মকআপ পাঠানোর পর
+TK: *"এখানে যখন কোন ডিজাইনের ব্যাপার নেই তাহলে আবার কেন আপনার অনুমতির
+প্রয়োজন, আগে তো আমি সমস্যার কথা খুলে বললামই আপনাকে"* — সরাসরি বসিয়ে
+দেওয়া হলো।
+
+নতুন `DoctorLocation.kt`: `captureIfPossible()` — শুধু role="doctor",
+শুধু অনুমতি সত্যিই থাকলে, `LocationManager.getLastKnownLocation()` (GPS ও
+NETWORK প্রোভাইডার, যেটা বেশি সাম্প্রতিক) দিয়ে **প্যাসিভভাবে** পড়ে —
+কোনো active listener/foreground service/notification নেই, তাই ব্যাটারি-
+খরচ শূন্য। ৩ ঘণ্টার বেশি পুরনো ক্যাশ-করা ফিক্স উপেক্ষা করা হয় (ভুল করে
+পুরনো তথ্যকে "এখন" বলে চালানো এড়াতে)। `DashboardActivity.kt`-এর onResume-এ
+শুধু doctor role হলে ডাকা হয়, সাথে `requestDoctorLocationPermissionIfNeeded()`
+— overlay/battery-অনুমতির প্রমাণিত "জীবনে একবারই জিজ্ঞেস" ধাঁচ, কিন্তু
+TK-র স্পষ্ট নিষেধ মেনে **কোনো AlertDialog/ব্যাখ্যা ছাড়াই** সরাসরি ফোনের
+নিজের অনুমতি-বাক্স।
+
+নতুন SQL: `V1348_DOCTOR_LOCATIONS_TABLE_2026-09-11.sql` — `wn.doctor_locations`
+(mobile PRIMARY KEY, lat/lng/accuracy_m/updated_at)। `sql_local_check.py`
+প্রথমবার FAIL করেছিল কারণ নকল ডেটাবেসে `wn` schema-ই বসানো ছিল না (এই
+প্রকল্পের কোনো ট্র্যাক-করা SQL কখনো `wn` schema বানায়নি, লাইভে আগে থেকেই
+আছে) — নিজের ফাইলেই `CREATE SCHEMA IF NOT EXISTS wn;` যোগ করে স্বনির্ভর
+করা হলো (লাইভে IF NOT EXISTS-এর জন্য কিছুই বদলাবে না), তারপর PASS।
+
+`PartnerSharesActivity.kt`-এর `renderPartnerCards()`-এ ডাক্তারের কার্ডে
+নতুন "📍 Location" বোতাম (শুধু `ModuleAuth.isMaster`), চাপলে ছোট্ট
+ডায়ালগে "শেষ দেখা কতক্ষণ আগে" + Google Maps লিংক, লোকেশন না-থাকলে সৎভাবে
+"এখনো পাওয়া যায়নি" (খালি/ভুল সংখ্যা নয়)।
+
+**tk_guard.py প্রথমবার ২টা আসল ভুল ধরেছিল** — (১) নতুন ডায়ালগের লেখা
+বাংলায় লেখা হয়ে গিয়েছিল (নিয়ম ৯: স্টাফ/মাস্টারের পর্দা ইংরেজিতে) — সবটা
+ইংরেজিতে বদলানো হলো; (২) `PremiumAlert.paint()` ডাকা হয়নি — যোগ করা হলো।
+এরপর Kotlin কম্পাইল-পাহারা একটা **আসল** overload-ambiguity ধরল —
+`android.app.AlertDialog` (প্রকল্পে এই একটাই জায়গায় ভুল করে ব্যবহার
+হয়েছিল, বাকি সব জায়গায় `androidx.appcompat.app.AlertDialog`) ও
+`PremiumAlert.paint()`-এর দুটো ওভারলোডের মধ্যে সংঘাত — import ঠিক করে
+বাকি প্রকল্পের সাথে মিলিয়ে দেওয়া হলো।
+
+পাহারা: sql_local_check.py ✅ · verify_android_resources.py ✅ · tk_guard.py
+✅ · verify_kotlin_compile.py ✅ PASS (নতুন ভুল ০)। ওয়েবে এই সম্পূর্ণ
+ফিচারের (GPS foreground service/passive location) কোনো জোড়া নেই — Android-
+only ধারণা, TK-কে সততার সাথে জানানো হলো। এই টেবিলের SQL এখনো লাইভ
+Supabase-এ TK নিজে চালাননি — সেটা করার পরেই ডাক্তারের লোকেশন জমা হওয়া
+শুরু হবে।
