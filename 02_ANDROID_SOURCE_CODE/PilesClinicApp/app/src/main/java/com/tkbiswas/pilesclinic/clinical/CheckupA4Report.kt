@@ -364,7 +364,7 @@ object CheckupA4Report {
 
         return """<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=794">
 <style>
-*{margin:0;padding:0;box-sizing:border-box;font-family:Georgia,'Noto Serif',serif;}
+*{margin:0;padding:0;box-sizing:border-box;font-family:Georgia,'Noto Serif',serif;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 body{background:#fff;color:#111;position:relative;min-height:1123px;display:flex;flex-direction:column;}
 /* 🔵🔒 V948 (TK-নির্দেশ) — ক্লিনিকের জল-ছবি, ডায়েট/প্রেসক্রিপশন প্রিন্টের
    হুবহু একই নিয়ম (`DietChartHtmlPrint.wm`), শুধু TK-এর পাশ-করা মাপ:

@@ -109,7 +109,7 @@ object DietChartHtml {
     /** ওয়েবের `wlv1DietA4Css()`-এর হুবহু নকল। */
     private fun css(): String = """
 @page{size:A4;margin:0}
-*{margin:0;padding:0;box-sizing:border-box}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 body{font-family:Arial,"Noto Sans Bengali","Noto Sans Devanagari",sans-serif;color:#15231C;background:#fff}
 .sheet{width:210mm;height:297mm;padding:7mm 8mm 6mm;position:relative;overflow:hidden;display:flex;flex-direction:column}
 .wm{position:absolute;left:50%;top:58%;transform:translate(-50%,-50%);width:105mm;opacity:.05;z-index:0;pointer-events:none}

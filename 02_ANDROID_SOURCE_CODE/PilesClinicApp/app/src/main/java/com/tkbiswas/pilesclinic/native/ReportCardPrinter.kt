@@ -244,7 +244,7 @@ object ReportCardPrinter {
         return """
 <!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=1240"><style>
 @page{size:A4;margin:0}
-*{box-sizing:border-box;margin:0;padding:0}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 html,body{width:1240px}
 body{font-family:Arial,sans-serif;color:#10223A;min-height:1754px;background:#fff;
      padding:30px 34px 26px;display:flex;flex-direction:column;position:relative}

@@ -3914,6 +3914,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
                   গোনা হয়নি — উপরের একই dates/dayCash/dayOnline/dayExp। */
             val sbh = StringBuilder()
             sbh.append("<html><head><meta charset='utf-8'><style>")
+                .append("*{-webkit-print-color-adjust:exact;print-color-adjust:exact}")
                 .append("body{font-family:sans-serif;padding:14px;color:#222}")
                 .append("h2{color:#0A5C33;margin-bottom:2px}")
                 .append(".sub{color:#667085;font-size:13px;margin-bottom:14px}")
@@ -4389,6 +4390,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
         run {
             val sb = StringBuilder()
             sb.append("<html><head><meta charset='utf-8'><style>")
+                .append("*{-webkit-print-color-adjust:exact;print-color-adjust:exact}")
                 .append("body{font-family:sans-serif;padding:14px;color:#222}")
                 .append("h2{color:#0A5C33;margin-bottom:2px}")
                 .append(".sub{color:#667085;font-size:13px;margin-bottom:14px}")

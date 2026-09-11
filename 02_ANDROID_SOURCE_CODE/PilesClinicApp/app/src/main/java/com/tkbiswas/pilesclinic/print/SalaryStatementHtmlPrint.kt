@@ -57,6 +57,7 @@ object SalaryStatementHtmlPrint {
         return """
 <!doctype html><html><head><meta charset="utf-8">
 <style>
+ *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
  @page{size:A4;margin:14mm}
  body{font-family:sans-serif;color:#1C2A33;margin:0}
  .t{text-align:center;font-weight:800;font-size:16px;color:#0F5132;letter-spacing:.4px}

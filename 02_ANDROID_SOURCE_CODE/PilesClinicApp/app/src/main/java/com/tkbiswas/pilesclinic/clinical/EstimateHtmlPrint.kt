@@ -141,7 +141,7 @@ object EstimateHtmlPrint {
    ⛔ উচ্চতা px-এর বদলে mm-এ (২৯৬mm) — ১১২৩px ঠিক ২৯৭mm-এর সমান হওয়ায়
       গোল করতে গিয়ে ১ পাতার বদলে ২ পাতা হয়ে যেতে পারত। */
 @page{size:A4;margin:0;}
-*{margin:0;padding:0;box-sizing:border-box;font-family:Georgia,'Noto Serif',serif;}
+*{margin:0;padding:0;box-sizing:border-box;font-family:Georgia,'Noto Serif',serif;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 body{background:#fff;color:#111;min-height:296mm;display:flex;flex-direction:column;}
 .gold{height:5px;background:linear-gradient(90deg,#b8912f,#e6c65c,#b8912f);}
 .gbar{height:3px;background:#0f5132;}

@@ -91,6 +91,7 @@ object AttendanceSheetHtmlPrint {
         return """
 <!doctype html><html><head><meta charset="utf-8">
 <style>
+ *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
  @page{size:A4;margin:8mm}
  body{font-family:sans-serif;color:#1C2A33;margin:0}
  .gold{height:5px;background:linear-gradient(90deg,#b8912f,#e6c65c,#b8912f)}

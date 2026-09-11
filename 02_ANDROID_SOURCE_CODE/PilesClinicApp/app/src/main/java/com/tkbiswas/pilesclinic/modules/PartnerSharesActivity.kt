@@ -456,7 +456,7 @@ class PartnerSharesActivity : Activity() {
             .append(" &middot; Net Profit: <b>").append(esc(money(d.net))).append("</b> (Income ").append(esc(money(d.income)))
             .append(" &minus; Expense ").append(esc(money(d.expense))).append(")</div>")
         sb.append("<table style=\"border-collapse:collapse;width:100%;font-size:13px\">")
-        sb.append("<tr style=\"background:#EAF6EE;color:#0A5C33\"><th style=\"border:1px solid #cfe0d6;padding:6px;text-align:left\">Partner</th>")
+        sb.append("<tr style=\"background:#EAF6EE;color:#0A5C33;-webkit-print-color-adjust:exact;print-color-adjust:exact\"><th style=\"border:1px solid #cfe0d6;padding:6px;text-align:left\">Partner</th>")
         sb.append("<th style=\"border:1px solid #cfe0d6;padding:6px\">Due</th><th style=\"border:1px solid #cfe0d6;padding:6px\">Withdrawn</th><th style=\"border:1px solid #cfe0d6;padding:6px\">Balance</th></tr>")
         for (x in d.list) {
             val red = x.bal < 0

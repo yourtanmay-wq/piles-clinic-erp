@@ -504,7 +504,7 @@ class RmpCommissionSheetActivity : AppCompatActivity() {
         }
         return "<!DOCTYPE html><html><head><meta charset=\"utf-8\">" +
             "<meta name=\"viewport\" content=\"width=794\"><style>" +
-            "@page{size:A4;margin:0}*{box-sizing:border-box;margin:0;padding:0}" +
+            "@page{size:A4;margin:0}*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}" +
             "body{font-family:Arial,sans-serif;color:#111;background:#fff}" +
             ".sheet{width:210mm;min-height:297mm;padding:10mm 9mm}" +
             "h1{font-size:15px;color:#0B5E34;letter-spacing:.5px}" +

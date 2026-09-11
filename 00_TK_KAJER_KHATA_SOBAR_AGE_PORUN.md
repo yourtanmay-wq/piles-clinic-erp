@@ -25380,3 +25380,20 @@ parameters are unsupported")। **সোজা স্বীকার — এট�
 tk_guard.py ✅ · verify_kotlin_compile.py ✅ PASS (নতুন ভুল ০, বেসলাইনের ১টা কমে গেছে) ·
 sql_local_check.py (V1339) ✅ PASS। এই সেশনের বাকি সব কাজ (Leave feature, no-show সতর্কতা,
 call_taps queue Android+Web, প্রজেক্ট-জোড়া যাচাই) এই একই রানে যাচাই হয়ে গেছে।
+
+## ১১.০৯.২০২৬ — তালিকা ৪৪১: প্রিন্ট আউটে রং না-ছাপার প্রজেক্ট-জোড়া বাগ ঠিক করা হলো
+
+TK: এস্টিমেট A4 আসল প্রিন্টার থেকে বের হওয়ার পরে "উজ্জ্বলতা নেই"। কোডে যাচাই করে
+পাওয়া গেল: `InvestigationHtmlPrint.kt`-এ আগে থেকেই `-webkit-print-color-adjust:exact;
+print-color-adjust:exact` ছিল (গাঢ় রং যেন প্রিন্টার বাদ না দেয়), কিন্তু বাকি ৯টা
+Android প্রিন্ট-টেমপ্লেটে (EstimateHtmlPrint, CheckupA4Report, ReportCardPrinter,
+RegistrationHtmlPrint, AttendanceSheetHtmlPrint, SalaryStatementHtmlPrint,
+DietChartHtmlPrint, RmpCommissionSheetActivity, PatientTimelineActivity-এর Doctor
+Checkup প্রিন্ট, IncomeExpenseActivity-র দুটো Statement, PartnerSharesActivity)
+এই ঘোষণাটাই ছিল না — মানে হেডার/টোটাল-বক্সের গাঢ় সবুজ ইত্যাদি রং কিছু প্রিন্টারে
+চুপচাপ বাদ পড়ে সাদা/ফ্যাকাশে দেখাতে পারত। সবগুলোতেই যোগ করা হলো, একটাও রং/লেআউট
+বদলায়নি — শুধু আগে-অনুমোদিত রং এখন সবসময় কাগজে দেখা যাবে তা নিশ্চিত হলো। ওয়েবে
+V994-এই আগে থেকে একটা `@media print{*{...}}` নিয়মে সব পাতার জন্য একসাথে করা ছিল,
+তাই ওয়েব অছোঁয়া। একই সেশনে Time-Asked বাক্সের সাইজ-অমিল (V1327-এর নিজের ভুল) ধরা
+পড়েছে — মকআপ পাঠানো, TK-র পাশের অপেক্ষায়। পাহারা: verify_android_resources.py ✅ ·
+tk_guard.py ✅ · verify_kotlin_compile.py ✅ PASS (নতুন ভুল ০)।

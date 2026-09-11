@@ -5353,7 +5353,7 @@ class PatientTimelineActivity : AppCompatActivity() {
         }
         val html = "<!doctype html><html><head><meta charset=\"utf-8\">" +
             "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><style>" +
-            "*{box-sizing:border-box;margin:0;padding:0;font-family:'Noto Sans Bengali',system-ui,Arial,sans-serif}" +
+            "*{box-sizing:border-box;margin:0;padding:0;font-family:'Noto Sans Bengali',system-ui,Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}" +
             "body{background:#eef3fa;padding:10px}" +
             ".nkCard{background:#fff;border:1px solid #e2ebf6;border-radius:14px;padding:11px 13px;margin-bottom:10px;box-shadow:0 4px 12px rgba(16,34,58,.05)}" +
             ".nkCard:last-child{margin-bottom:0}" +
@@ -5409,7 +5409,7 @@ class PatientTimelineActivity : AppCompatActivity() {
         }
         val html = "<!doctype html><html><head><meta charset=\"utf-8\">" +
             "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><style>" +
-            "*{box-sizing:border-box;margin:0;padding:0;font-family:'Noto Sans Bengali',system-ui,Arial,sans-serif}" +
+            "*{box-sizing:border-box;margin:0;padding:0;font-family:'Noto Sans Bengali',system-ui,Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}" +
             "body{background:#fff;padding:10px}" +
             ".rxCard{background:#fff;border:1px solid #cfe2d8;border-radius:15px;padding:13px;margin-bottom:11px;box-shadow:0 3px 10px rgba(18,64,47,.07)}" +
             ".rxCard:last-child{margin-bottom:0}.rxHead{display:flex;align-items:center;gap:10px}" +
