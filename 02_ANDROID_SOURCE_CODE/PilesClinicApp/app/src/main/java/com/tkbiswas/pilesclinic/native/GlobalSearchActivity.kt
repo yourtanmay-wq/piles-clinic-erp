@@ -763,13 +763,21 @@ class GlobalSearchActivity : AppCompatActivity() {
                 setTextColor(android.graphics.Color.WHITE)
                 maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
             }
+            /* 🎨🔒 V1349 (১১.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — আগে এই লাইনে
+               `maxLines=1` + ellipsize থাকায় ব্রাঞ্চের নাম মাঝেমধ্যে কেটে
+               যেত ("Kish...")। এখন একাধিক লাইনে ভাঙতে পারে (কখনো ২ লাইনও
+               হতে পারে) কিন্তু কিছুই কেটে যায় না — নিচের `tvTag` আর এই
+               কলামে না থাকায় (বাইরে সরানো হয়েছে) বাড়তি একটা লাইনে জায়গার
+               কোনো সমস্যা নেই। */
             val tvMeta = TextView(ctx).apply {
                 textSize = 11.5f
                 setTextColor(android.graphics.Color.parseColor("#DCF3E6"))
-                maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
                 val p = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
                 p.topMargin = dp(2); layoutParams = p
             }
+            /* 🎨🔒 V1349 — TK-নির্দেশ: "PATIENT ব্যাজ ⋮-এর বাম পাশে রাখুন"।
+               আগে এটা `nameCol`-এর ভিতরে নামের নিচে তৃতীয় লাইনে থাকত;
+               এখন `header`-এ সরাসরি, নামের কলাম আর ⋮-এর মাঝে, একই লাইনে। */
             val tvTag = TextView(ctx).apply {
                 textSize = 9.5f; setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setTextColor(android.graphics.Color.WHITE)
@@ -779,10 +787,11 @@ class GlobalSearchActivity : AppCompatActivity() {
                 }
                 setPadding(dp(8), dp(2), dp(8), dp(2))
                 val p = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-                p.topMargin = dp(5); layoutParams = p
+                p.marginEnd = dp(8); layoutParams = p
             }
-            nameCol.addView(tvName); nameCol.addView(tvMeta); nameCol.addView(tvTag)
+            nameCol.addView(tvName); nameCol.addView(tvMeta)
             header.addView(nameCol, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            header.addView(tvTag)
             /* 📋🔒 V1322 (TK-নির্দেশ ১১.০৯.২০২৬, ডেমো-প্রুফ পাশ) — Call ·
                WhatsApp · Print তিনটেই এখন এই ⋮-এর ভিতরে। ছবি-আইকন (avatar)
                তুলে দেওয়া হলো, "Write Remark" বোতামও বাদ। ⛔ কাজ তিনটেই

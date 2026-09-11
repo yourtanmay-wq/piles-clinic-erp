@@ -318,19 +318,26 @@ class FieldVisitActivity : AppCompatActivity() {
                 "NOT CLOSED" -> "#B42318"
                 else -> "#0B7A4B"
             }
+            /* 🎨🔒 V1349 (১১.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — TK: *"complete
+               লেখা থাকবে না তারিখের পাশে In time Out Time থাকবে কোন লেখা
+               যেন ব্রেক না হয়"*। আগে এই লাইনে "COMPLETE"/"AUTO CLOSED"/
+               "INCOMPLETE DATA" ইত্যাদি শব্দ থাকত — এখন শব্দটা বাদ, বদলে
+               আসল IN/OUT সময় সরাসরি তারিখের পাশে, একই লাইনে (single-line,
+               কখনো একাধিক শব্দ জোড়া লেগে অক্ষর-ভাঙা দেখাবে না)। ⛔ রং
+               (`colour`) আগের মতোই — লাল/অ্যাম্বার/সবুজ দিয়েই সমস্যার দিন
+               বোঝা যায়, নিচের ব্যাখ্যা-লাইনগুলো (auto/noGps/zeroDistance)
+               এক অক্ষরও বদলায়নি, তাই তথ্য হারায়নি। NOT CLOSED-এর দিনও লাল
+               রঙেই আলাদা বোঝা যাবে। */
             card.addView(TextView(this).apply {
-                text = dmy(date) + "   ·   " + status
+                text = if (noGps) dmy(date) else
+                    dmy(date) + "   ·   IN " + (if (startedValid) timeOf(started) else "-") +
+                        "   ·   OUT " + (if (endedValid) timeOf(ended) else "-")
                 textSize = 13.5f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setTextColor(android.graphics.Color.parseColor(colour))
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
             })
-            /* 🕐🔒 V1333 (TK-নির্দেশ: "IN Time ও Out Time কোন টাইমে চাপা হয়েছে
-               সেটা মেনশন করতে হবে") — আসল ঘড়ির সময় আগে থেকেই জমা ছিল, শুধু
-               এই পর্দায় দেখানো হতো না (Hours-এই গুলিয়ে যেত)। ⛔ noGps হলে
-               দেখানো হয় না — নিচের বার্তাতেই বলা আছে GPS-ই চলেনি। */
-            if (!noGps) card.addView(ModuleUi.body(this,
-                "IN " + (if (startedValid) timeOf(started) else "-") +
-                    "   ·   OUT " + (if (endedValid) timeOf(ended) else "-")))
             val hrs = hoursBetween(started, ended)
             card.addView(ModuleUi.body(this,
                 "Hours " + hrs + "   ·   Distance " + FieldVisit.kmText(meters) +

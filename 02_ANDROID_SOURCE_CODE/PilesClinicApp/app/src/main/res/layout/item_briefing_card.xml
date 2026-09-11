@@ -148,15 +148,26 @@
                 android:layout_marginTop="4dp"
                 android:orientation="horizontal">
 
+                <!-- 🎨🔒 V1349 (১১.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — খুব লম্বা
+                     শিরোনামে ("Delete Payment — NAGENDRA SINGH") পাশের চিপ দুটো
+                     (Disease/Staff) প্রায়-শূন্য জায়গা পেয়ে অক্ষর-ভেঙে উপর-নিচ
+                     হয়ে যেত (LinearLayout-এর নিয়ম: পরের wrap_content সিবলিং যা
+                     জায়গা বাকি থাকে তা-ই পায়)। এখন `tvTitle`-ই weight=1 নিয়ে
+                     সংকুচিত/এক-লাইনে-কাটা হবে, চিপ দুটো সবসময় নিজেদের পূর্ণ
+                     মাপ পাবে। ⛔ ছোট শিরোনামে (বেশিরভাগ কার্ড) কিচ্ছু বদলায়নি,
+                     পিল আগের মতোই লেখা-জড়ানো। -->
                 <TextView
                     android:id="@+id/tvTitle"
-                    android:layout_width="wrap_content"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
+                    android:layout_weight="1"
                     android:background="@drawable/bg_brief_chip_normal"
                     android:paddingHorizontal="12dp"
                     android:paddingVertical="3dp"
                     android:text="Title"
                     android:textSize="13sp"
+                    android:maxLines="1"
+                    android:ellipsize="end"
                     android:textColor="#12271E" />
 
                 <TextView
@@ -169,6 +180,8 @@
                     android:paddingVertical="3dp"
                     android:text="Disease"
                     android:textSize="13sp"
+                    android:maxLines="1"
+                    android:ellipsize="end"
                     android:textColor="#12271E"
                     android:visibility="gone" />
 
@@ -186,6 +199,8 @@
                     android:paddingVertical="3dp"
                     android:text="Staff"
                     android:textSize="13sp"
+                    android:maxLines="1"
+                    android:ellipsize="end"
                     android:textColor="#12271E"
                     android:visibility="gone" />
             </LinearLayout>

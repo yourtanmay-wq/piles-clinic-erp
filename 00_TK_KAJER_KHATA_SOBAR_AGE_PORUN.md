@@ -25569,3 +25569,38 @@ TK-র স্পষ্ট নিষেধ মেনে **কোনো AlertDialo
 only ধারণা, TK-কে সততার সাথে জানানো হলো। এই টেবিলের SQL এখনো লাইভ
 Supabase-এ TK নিজে চালাননি — সেটা করার পরেই ডাক্তারের লোকেশন জমা হওয়া
 শুরু হবে।
+
+## ১১.০৯.২০২৬ — V1349 · Briefing চিপ-লিক + Search PATIENT ব্যাজ + Field Visit "COMPLETE" সরানো
+
+আগে পাঠানো দুটো ডেমো-ছবিতে TK "২ টা ই পাশ" বললেন — তিনটে ফিক্স বসানো হলো।
+
+**BriefingAdapter.kt / item_briefing_card.xml:** `tvChipStaff` (স্টাফ-কোডের
+সবুজ পিল) শুধু এক জায়গায় (New Enquiry/Registration সফল-শাখা) বসত, আর
+কোথাও রিসেট হতো না — Delete Payment/Refund-request-এর মতো অন্য কার্ডেও
+RecyclerView রিসাইকেল-করা আগের কার্ডের চিপ (যেমন ভুল "COB-UTTAMA")
+টিকে থাকত। এখন `if (!rich)` শাখায় (requestedBy-নির্বিশেষে, কারণ কোনো
+শাখাই এটা নিজে বসায় না) `View.GONE` রিসেট যোগ হলো। আলাদাভাবে, লম্বা
+শিরোনামে ("Delete Payment — NAGENDRA SINGH") পাশের চিপ প্রায়-শূন্য
+LinearLayout-জায়গা পেয়ে অক্ষর-ভেঙে উপর-নিচ দেখাত (`tvTitle`-ই সব জায়গা
+নিয়ে নিত) — `tvTitle`-এ `layout_weight=1` + `maxLines=1`/ellipsize
+দিয়ে ঠিক করা হলো, চিপ দুটো এখন সবসময় নিজেদের পূর্ণ মাপ পায়।
+
+**GlobalSearchActivity.kt:** "PATIENT" ব্যাজ আগে নামের কলামে (nameCol)
+তৃতীয় লাইনে স্ট্যাক করা ছিল; এখন `header`-এ সরাসরি, নামের কলাম আর
+⋮-এর মাঝে, একই লাইনে (TK-নির্দেশ)। ব্র্যাঞ্চের লাইন (`tvMeta`) থেকে
+`maxLines=1`/ellipsize তুলে দেওয়া হলো — আগে এটাই ব্র্যাঞ্চ কেটে যাওয়ার
+("Kish...") কারণ ছিল, এখন দরকারে ২ লাইনে যাবে কিন্তু কখনো কাটবে না।
+
+**FieldVisitActivity.kt:** তারিখের পাশের লাইনে আগে "COMPLETE"/"AUTO
+CLOSED"/"INCOMPLETE DATA" শব্দ থাকত; TK-নির্দেশ অনুযায়ী শব্দটা বাদ, বদলে
+সরাসরি আসল IN/OUT সময় সেই লাইনেই (`maxLines=1`, তাই কখনো লাইন-ভাঙবে না)।
+রঙ (সবুজ/লাল/অ্যাম্বার) আগের মতোই অক্ষত, তাই "NOT CLOSED"-এর মতো
+সমস্যার দিন এখনো আলাদা দেখা যায়; নিচের Hours/Distance/Doctors ও
+auto-closed/noGps/zero-distance ব্যাখ্যা-লাইনগুলো এক অক্ষরও বদলায়নি।
+
+তিনটেই শুধু Android — Notice Board/Search/Field Visit Tracking কোনোটারই
+ওয়েবে জোড়া নেই (Field Visit তো আগে থেকেই Android-only GPS ফিচার) —
+TK-কে সততার সাথে জানানো হলো।
+
+পাহারা: verify_android_resources.py ✅ · tk_guard.py ✅ · verify_kotlin_
+compile.py ✅ PASS (নতুন ভুল ০)।
