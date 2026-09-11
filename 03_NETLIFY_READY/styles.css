@@ -8379,8 +8379,9 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
   .wlv1Rc .wlv1RcCard{position:relative;box-shadow:none;border:0;border-radius:0;
     width:210mm;min-height:294mm;margin:0!important;padding:9mm 9mm 7mm;
     display:flex;flex-direction:column;background:#fff}
+  /* 🎨🔒 V1330 (TK-নির্দেশ, ফোনের যমজ) — opacity .035→.02। */
   .wlv1RcWm{display:block;position:absolute;top:52%;left:50%;width:86%;
-    transform:translate(-50%,-50%);opacity:.035;z-index:0;pointer-events:none}
+    transform:translate(-50%,-50%);opacity:.02;z-index:0;pointer-events:none}
   /* ⚠️ জলছবিটা বাদ — নইলে সে প্রবাহে ঢুকে পড়ে আর কাগজের মাঝে বিরাট ফাঁক
      তৈরি করে (পরীক্ষা করে ধরা, তাতে পাতাও দুটো হয়ে যাচ্ছিল)। */
   .wlv1RcCard>*:not(.wlv1RcWm){position:relative;z-index:1}
@@ -8404,7 +8405,8 @@ body.printModeActive .printArea.prescriptionLock.rxPrescriptionPrint,
   .wlv1RcDocLine .dr{text-align:right}
   .wlv1RcDocLine .vc{border-top:0;text-align:center;padding-top:0}
   .wlv1RcDocLine .vc b{display:block;font-size:9px;color:#0B5D2A;margin-top:1mm}
-  .wlv1RcDocLine .vbar{height:9mm;width:32mm;margin:0 auto;
+  /* 📏🔒 V1330 (TK-নির্দেশ, ফোনের যমজ) — margin-top ২mm। */
+  .wlv1RcDocLine .vbar{height:9mm;width:32mm;margin:2mm auto 0;
     background:repeating-linear-gradient(90deg,#000 0,#000 .55mm,#fff .55mm,#fff 1.1mm)}
   .wlv1RcThanks{display:block;margin-top:4mm;background:#0B5D2A;color:#fff;text-align:center;
     font-weight:800;font-size:9px;padding:2mm 0;border-radius:4px}

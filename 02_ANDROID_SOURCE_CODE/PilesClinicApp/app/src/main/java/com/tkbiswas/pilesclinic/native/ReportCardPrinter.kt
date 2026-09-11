@@ -236,6 +236,11 @@ object ReportCardPrinter {
               **"VISIT · TREATMENT PROGRESS & PAYMENT RECORD"**।
            ⛔ টাকার একটাও হিসাব · একটাও সারি বদলায়নি — শুধু কাগজের চেহারা।
            ═══════════════════════════════════════════════════════════════════ */
+        /* 🎨🔒 V1330 (১১.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — নিচের HTML-এ
+           দুটো ছোট বদল: (১) `.wm` জলছবি আরও হালকা (opacity .035→.02),
+           (২) `.vbar` বারকোড একটু নিচে নামানো (margin-top ৮px)। ⛔ এই মন্তব্যটা
+           ইচ্ছে করেই এখানে, নিচের CSS-এর ভিতরে নয় — HTML-এর ভিতরে বাংলা মন্তব্য
+           বসালে সেটাই ছাপার/PDF-এর সোর্সে থেকে যেত। */
         return """
 <!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=1240"><style>
 @page{size:A4;margin:0}
@@ -243,7 +248,7 @@ object ReportCardPrinter {
 html,body{width:1240px}
 body{font-family:Arial,sans-serif;color:#10223A;min-height:1754px;background:#fff;
      padding:30px 34px 26px;display:flex;flex-direction:column;position:relative}
-.wm{position:absolute;top:52%;left:50%;width:86%;transform:translate(-50%,-50%);opacity:.035;z-index:0;pointer-events:none}
+.wm{position:absolute;top:52%;left:50%;width:86%;transform:translate(-50%,-50%);opacity:.02;z-index:0;pointer-events:none}
 .clinic,.pd2,.totals,.rtitle,.tw,.docline,.thanks{position:relative;z-index:1}
 .clinic{text-align:center;color:#fff;background:linear-gradient(90deg,#0B2B59,#0e7c7b);
         padding:16px 10px;border-radius:10px 10px 0 0}
@@ -281,7 +286,7 @@ td.pd{color:#0c8a4e;font-weight:700}
 .dl{text-align:left}.dr{text-align:right}
 .vc{border-top:0;text-align:center;padding-top:0}
 .vc b{display:block;font-size:14px;color:#0B5D2A;margin-top:4px}
-.vbar{height:34px;width:190px;margin:0 auto;background:repeating-linear-gradient(90deg,#000 0,#000 2px,#fff 2px,#fff 4px)}
+.vbar{height:34px;width:190px;margin:8px auto 0;background:repeating-linear-gradient(90deg,#000 0,#000 2px,#fff 2px,#fff 4px)}
 .thanks{margin-top:14px;background:#0B5D2A;color:#fff;text-align:center;font-weight:800;font-size:15px;padding:8px 0;border-radius:6px}
 </style></head><body>
 $watermark

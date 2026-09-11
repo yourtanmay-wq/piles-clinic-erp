@@ -88,23 +88,29 @@
         <!-- 🔵🔒 V954 (TK-নির্দেশ: *"প্রিন্ট শেয়ার ক্লোজ — এগুলো এক লাইনে পাশাপাশি
              থাকবে"*) — আগে ২x২ গ্রিড ছিল। ⛔ একটাও বোতাম বাদ যায়নি, কাজও
              অপরিবর্তিত; Save আগের মতোই শুধু যেসব কাগজে ছিল সেখানেই দেখায়। -->
+        <!-- 🎨🔒 V1330 (১১.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ: "নেভি ব্লু আর
+             সবুজ কালার রাখতে হবে না... কোন কালার দরকার নেই") — চারটে বোতামই
+             এখন একই রকম (সাদা বাক্স, হালকা ধূসর বর্ডার, গাঢ় ধূসর লেখা), উচ্চতা
+             ৫২dp→৪৪dp। ⛔ বোতামের কাজ/ক্রম এক অক্ষরও বদলায়নি। -->
         <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
             <com.google.android.material.button.MaterialButton android:id="@+id/btnPrint"
-                android:layout_width="0dp" android:layout_weight="1" android:layout_marginEnd="4dp" android:layout_height="52dp"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="0dp" android:layout_weight="1"
+                android:layout_marginEnd="4dp" android:layout_height="44dp"
                 android:textSize="12sp" android:textStyle="bold" android:text="🖨 Print"
-                android:background="@drawable/bg_btn_navy" app:backgroundTint="@null" android:textColor="@color/white" app:cornerRadius="12dp" />
+                app:cornerRadius="12dp" app:strokeColor="@color/clinic_divider" android:textColor="@color/clinic_text_primary" />
             <com.google.android.material.button.MaterialButton android:id="@+id/btnSharePdf"
-                android:layout_width="0dp" android:layout_weight="1" android:layout_marginHorizontal="4dp" android:layout_height="52dp"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="0dp" android:layout_weight="1"
+                android:layout_marginHorizontal="4dp" android:layout_height="44dp"
                 android:textSize="12sp" android:textStyle="bold" android:text="💬 Share"
-                android:background="@drawable/bg_btn_green" app:backgroundTint="@null" android:textColor="@color/white" app:cornerRadius="12dp" />
+                app:cornerRadius="12dp" app:strokeColor="@color/clinic_divider" android:textColor="@color/clinic_text_primary" />
             <com.google.android.material.button.MaterialButton android:id="@+id/btnSavePdf"
                 style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="0dp" android:layout_weight="1"
-                android:layout_marginHorizontal="4dp" android:layout_height="52dp" android:textSize="12sp" android:text="💾 Save"
-                app:cornerRadius="12dp" app:strokeColor="@color/brand_navy" android:textColor="@color/brand_navy" />
+                android:layout_marginHorizontal="4dp" android:layout_height="44dp" android:textSize="12sp" android:text="💾 Save"
+                app:cornerRadius="12dp" app:strokeColor="@color/clinic_divider" android:textColor="@color/clinic_text_primary" />
             <com.google.android.material.button.MaterialButton android:id="@+id/btnClosePreview"
                 style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:layout_width="0dp" android:layout_weight="1"
-                android:layout_marginStart="4dp" android:layout_height="52dp" android:textSize="12sp" android:text="✕ Close"
-                app:cornerRadius="12dp" app:strokeColor="@color/clinic_text_secondary" android:textColor="@color/clinic_text_secondary" />
+                android:layout_marginStart="4dp" android:layout_height="44dp" android:textSize="12sp" android:text="✕ Close"
+                app:cornerRadius="12dp" app:strokeColor="@color/clinic_divider" android:textColor="@color/clinic_text_secondary" />
         </LinearLayout>
     </LinearLayout>
 </LinearLayout>
