@@ -65,6 +65,13 @@ object RefundedRecords {
      * ⛔ ব্যর্থ হলে **ফাঁকা** ফেরে — তখন কারও টাকা বাদ যায় না।
      */
     fun fetch(branchFilter: String?): HashSet<String> {
+        /* 🔴🔒 V1361 (১১.০৯.২০২৬, পুরো-প্রজেক্ট দেরি-অডিট, TK-বাছাই "ক") — এই একই
+           নিয়ম (নিচের পুরনো কোড) এখন সার্ভারে (`tk_refunded_mobiles`) একবারে হয়ে
+           ছোট একটা মোবাইল-তালিকা ফেরে — Today's Collection/Chamber Board/Income-
+           Expense আর প্রতিবার ব্রাঞ্চের পুরো followups+patients নামায় না।
+           ⛔ RPC ব্যর্থ হলে (পুরনো ডেটাবেসে ফাংশনটা এখনো না বসানো থাকলেও) নিচের
+              প্রমাণিত ভারী-পথই চলে — টাকার হিসাব কখনো পাল্টায় না, শুধু গতি। */
+        SupabaseClient.refundedMobilesRpc(branchFilter)?.let { return it }
         return try {
             val filter = if (branchFilter != null && branchFilter != "All")
                 "branch=eq." + java.net.URLEncoder.encode(branchFilter, "UTF-8") else null

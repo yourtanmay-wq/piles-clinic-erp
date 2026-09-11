@@ -25916,3 +25916,21 @@ follow-up/remark/enquiry · checkup/registration/doctor · attendance/field · s
   ডায়ালগ তার পরে; `directFormOnly` class-field তাই scope ঠিক।
 - ওয়েবে counterpart নেই (যাচাই করে): app.js-এর delta/`server_updated_at` poll আলাদা পথ।
 পাহারা: resources ✅ · tk_guard ✅ · verify_kotlin_compile ✅ PASS। ভার্সন অপরিবর্তিত (নিয়ম ৩খ)।
+
+## ১১.০৯.২০২৬ (রাত) — V1361 · Today's Collection-এর ভারী পড়া সার্ভারে সরানো (তালিকা ৪৬৩)
+`00_SQL/V1361_REFUNDED_MOBILES_RPC_2026-09-11.sql`: `public.tk_refunded_mobiles(p_branch text)`
+— CTE f (followups filtered by branch) → agg (per-mobile all_cancelled + cancelled_registration)
+→ base (all_cancelled মোবাইল) → registered (patients-এ থাকা মোবাইল) → base LEFT JOIN registered/agg,
+`where r.m is null or a.cancelled_registration` — RefundedRecords.kt-এর fromRows()+B621 override-এর
+হুবহু অনুবাদ। ইনডেক্স `followups(branch,mobile)` · `patients(branch,mobile)`। grant anon+authenticated
+(অন্যান্য public.tk_* ফাংশনের একই ধাঁচ, RLS এই দুই টেবিলে বন্ধ)।
+নকল ডেটাবেসে হাতে সাজানো তিনটে টেস্ট-কেস চালিয়ে যাচাই: (১) শুধু Cancelled, patients-এ নেই → বাদ ✅
+(২) একটা Cancelled + একটা Active → গোনা হয় ✅ (৩) Cancelled+Patient-stage+registered → বাদ ✅
+(৪) Cancelled+Inquiry-stage+registered (Reject-পরে-Register) → গোনা হয় ✅।
+
+`SupabaseClient.kt`: `refundedMobilesRpc(branch)` — POST rpc, ব্যর্থ হলে null (tk_register_patient-এর
+একই ধাঁচ)। `RefundedRecords.kt` `fetch()`: RPC আগে চেষ্টা, null হলে আগের পুরো followups+patients
+ডাউনলোডের কোড অক্ষত (fallback)। তিন কলার (PaymentRepository/ChamberAttendanceRepository/
+IncomeExpenseActivity) একই ফাংশন শেয়ার করে বলে একসাথে ঠিক হলো।
+
+পাহারা: resources ✅ · tk_guard ✅ · verify_kotlin_compile ✅ PASS। ভার্সন অপরিবর্তিত (নিয়ম ৩খ)।

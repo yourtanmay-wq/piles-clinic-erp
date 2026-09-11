@@ -390,6 +390,34 @@ object SupabaseClient {
         } catch (_: Throwable) { false }
     }
 
+    /** 🔴🔒 V1361 (১১.০৯.২০২৬, পুরো-প্রজেক্ট দেরি-অডিট, TK-বাছাই "ক") — `RefundedRecords`-এর
+     *  নিয়ম (কে "বাতিল হিসেবে টাকা লুকানো হবে") এখন সার্ভারে (`tk_refunded_mobiles`),
+     *  তাই এই ফোনে ব্রাঞ্চের **পুরো** followups+patients (৫০০০+৫০০০ পর্যন্ত) আর নামাতে
+     *  হয় না — শুধু মোবাইল নম্বরের ছোট তালিকা আসে। ব্যর্থ হলে `null` — ডাকা জায়গায়
+     *  আগের ভারী-কিন্তু-প্রমাণিত পথে ফিরে যাওয়া হয়, তাই টাকার হিসাব কখনো ভুল হয় না। */
+    fun refundedMobilesRpc(branch: String?): HashSet<String>? {
+        return try {
+            val body = JSONObject().put("p_branch", branch?.takeIf { it.isNotBlank() } ?: JSONObject.NULL)
+            val request = Request.Builder()
+                .url("$URL/rest/v1/rpc/tk_refunded_mobiles")
+                .addHeader("apikey", KEY)
+                .addHeader("Authorization", "Bearer $KEY")
+                .addHeader("Content-Type", "application/json")
+                .post(body.toString().toRequestBody(jsonMedia))
+                .build()
+            http.newCall(request).execute().use { resp ->
+                if (!resp.isSuccessful) return null
+                val arr = JSONArray(resp.body?.string().orEmpty())
+                val out = HashSet<String>()
+                for (i in 0 until arr.length()) {
+                    val m = arr.optJSONObject(i)?.optString("mobile", "").orEmpty()
+                    if (m.length == 10) out.add(m)
+                }
+                out
+            }
+        } catch (_: Throwable) { null }
+    }
+
     fun recordTreatmentPayment(row: JSONObject): JSONObject? {
         return try {
             val body = JSONObject().put("p_row", row)
