@@ -246,4 +246,34 @@ object FieldVisitControl {
     fun stop(context: Context) {
         try { context.stopService(Intent(context, FieldVisitService::class.java)) } catch (_: Throwable) { }
     }
+
+    /* 🏍️🔒 V1364 (১১.০৯.২০২৬, পুরো-প্রজেক্ট দেরি-অডিট, তালিকা ৪৬২-ঝ) — TK:
+       "ফিল্ড ভিজিট সংক্রান্ত দেরি"। আগে সেবাটা OEM-এর ব্যাটারি-ব্যবস্থাপনায়
+       মরে গেলে, স্টাফ `Work Notebook` পর্দাটাই আবার না খুলতেন ততক্ষণ কেউ
+       আবার চালু করত না (RUPAM-এর ৩ দিন ধরে ০.০ কিমি — V1353 শুধু "প্রথমবার
+       চালু করার" ব্যর্থতা সারিয়েছিল, "পরে মরে যাওয়া"-র জন্য কিছু ছিল না)।
+       ⇒ এই একই যাচাই (আগে শুধু `WorkNotebookActivity.resumeFieldVisitIfNeeded()`
+       -এ ছিল, এখন এখানে সরানো) এখন **যেকোনো পর্দা খোলার সময়ই** চলে
+       (`PilesClinicApplication.onActivityStarted` — মানুষ নিজে অ্যাপ খুলেছেন
+       এমন মুহূর্তেই, তাই `startForegroundService()`-এর পূর্ণ অনুমতি থাকে)।
+       ⛔ হাজিরার (IN/OUT TIME) কোনো লজিক ছোঁয়া হয়নি — শুধু GPS-সেবা বেঁচে
+          আছে কিনা তার যাচাই। ⛔ ব্যর্থ হলে (পুরনো আচরণের মতোই) নিঃশব্দে বাদ।
+       ⚠️ সৎ সীমা: অনেক OEM Android 12+-এ **পুরো ব্যাকগ্রাউন্ড** থেকে
+          `startForegroundService()` আটকে দেয়; এই যাচাই তাই কোনো Worker/
+          Alarm থেকে নয়, শুধু মানুষ নিজে পর্দা খুললে চলে — সেটাই সবচেয়ে
+          বেশি সুযোগ দেয়, ১০০% নিশ্চয়তা কোনো ফোনেই দেওয়া সম্ভব নয়। */
+    fun resumeIfNeeded(context: Context) {
+        try {
+            val fv = FieldVisit
+            if (!fv.tracksAttendanceLocation(context) || !fv.isRunning(context)) return
+            if (fv.pastMidnight(context)) {
+                fv.endDay(context, auto = true)
+                stop(context)
+                val ctx = context.applicationContext
+                Thread { fv.push(ctx, ended = true, auto = true) }.start()
+                return
+            }
+            start(context)
+        } catch (_: Throwable) { }
+    }
 }

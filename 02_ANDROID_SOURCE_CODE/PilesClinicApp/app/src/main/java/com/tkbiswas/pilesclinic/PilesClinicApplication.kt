@@ -240,6 +240,14 @@ class PilesClinicApplication : Application() {
             override fun onActivityStarted(activity: Activity) {
                 visibleScreens += 1
                 try { SessionGuardBridge.onForeground(applicationContext, activity) } catch (_: Throwable) { }
+                /* 🏍️🔒 V1364 (১১.০৯.২০২৬, পুরো-প্রজেক্ট দেরি-অডিট, তালিকা ৪৬২-ঝ) —
+                   ফিল্ড ভিজিটের GPS-সেবা OEM-এর ব্যাটারি-ব্যবস্থাপনায় মরে গেলে
+                   আগে শুধু `Work Notebook` পর্দা খুললে তবেই আবার চালু হত।
+                   এখন **মানুষ নিজে অ্যাপের যেকোনো পর্দা খুললেই** (এই একমাত্র
+                   জায়গা, উপরের নোট দ্রষ্টব্য) একই যাচাই চলে — সেটাই
+                   `startForegroundService()`-এর জন্য সবচেয়ে নিরাপদ ও পূর্ণ-
+                   অনুমতির মুহূর্ত। ⛔ হাজিরার কোনো লজিক ছোঁয়া হয়নি। */
+                try { com.tkbiswas.pilesclinic.native.FieldVisitControl.resumeIfNeeded(applicationContext) } catch (_: Throwable) { }
             }
             // 🩺 V496 (TK §৩): অ্যাপ **পুরোপুরি** পিছনে গেলে ডাক্তারের তালা আবার লাগে।
             // এক পর্দা থেকে অন্য পর্দায় গেলে লাগে না (নইলে কাজ করা যেত না) —

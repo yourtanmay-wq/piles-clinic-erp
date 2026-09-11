@@ -25956,3 +25956,13 @@ Y-M-D বার করা (line 3502-এর হুবহু একই প্য�
 একটাই সংজ্ঞা বদলে ২৫৯টা ব্যবহার-জায়গা নিরাপদে ঠিক হলো। `index.html` cache
 `?v=v1363`। পাহারা: node --check ✅ · web_browser_test ১৩/১৩ ✅ (প্রথম রানে
 পরিবেশগত reload-timeout flake, দ্বিতীয় রানে পাশ) · tk_guard ✅।
+
+## ১১.০৯.২০২৬ (রাত) — V1364 · ফিল্ড ভিজিট GPS-সেবা যেকোনো পর্দা খুললেই সেলফ-হিল (তালিকা ৪৬৫)
+`FieldVisitService.kt` — `FieldVisitControl.resumeIfNeeded(context)`: WorkNotebookActivity-র
+পুরনো `resumeFieldVisitIfNeeded()`-এর দেহ হুবহু এখানে (tracksAttendanceLocation + isRunning
+গার্ড, pastMidnight হলে endDay+stop+push, নইলে start)। `WorkNotebookActivity.kt`-এর
+`resumeFieldVisitIfNeeded()` এখন শুধু এটাই ডাকে (দুবার-নিরাপদ)। `PilesClinicApplication.kt`-এর
+`onActivityStarted` (একমাত্র "মানুষ নিজে অ্যাপ খুলেছেন" মুহূর্ত, V496-এর মন্তব্যে আগে থেকেই
+নথিভুক্ত) থেকে একই ফাংশন — তাই যেকোনো পর্দা খুললেই GPS-সেবা যাচাই হয়, শুধু Work Notebook নয়।
+সৎ সীমা নোটবুকেই লেখা: ব্যাকগ্রাউন্ড-Worker থেকে নয় (Android-এর নিজের বাধা), তাই ১০০% নয়।
+পাহারা: resources ✅ · tk_guard ✅ · verify_kotlin_compile ✅ PASS। ভার্সন অপরিবর্তিত (নিয়ম ৩খ)।

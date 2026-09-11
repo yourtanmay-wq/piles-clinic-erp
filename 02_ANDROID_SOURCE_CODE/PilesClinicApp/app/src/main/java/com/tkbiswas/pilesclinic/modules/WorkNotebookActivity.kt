@@ -3295,18 +3295,11 @@ class WorkNotebookActivity : AppCompatActivity() {
           পর্দা খুললেও দেখা হয়, দিন পেরিয়ে গেলে সঙ্গে সঙ্গে বন্ধ ও AUTO CLOSED।
        ⛔ হাজিরার (IN/OUT TIME) কোনো লজিক এখানেও ছোঁয়া হয়নি। */
     private fun resumeFieldVisitIfNeeded() {
-        try {
-            val fv = com.tkbiswas.pilesclinic.native.FieldVisit
-            if (!fv.tracksAttendanceLocation(this) || !fv.isRunning(this)) return
-            if (fv.pastMidnight(this)) {
-                fv.endDay(this, auto = true)
-                com.tkbiswas.pilesclinic.native.FieldVisitControl.stop(this)
-                val ctx = applicationContext
-                Thread { fv.push(ctx, ended = true, auto = true) }.start()
-                return
-            }
-            com.tkbiswas.pilesclinic.native.FieldVisitControl.start(this)
-        } catch (_: Throwable) { }
+        // 🏍️🔒 V1364 — এই একই যাচাই এখন `FieldVisitControl.resumeIfNeeded()`-এ
+        // (শেয়ার্ড, একই নিয়ম) — অ্যাপের যেকোনো পর্দা খোলার সময়ও চলে।
+        // এখানে ডাকাটা রয়ে গেছে (দুবার চালানো নিরাপদ, idempotent), যাতে এই
+        // পর্দা খোলার মুহূর্তেই কার্ডটা সঙ্গে সঙ্গে সঠিক অবস্থা দেখায়।
+        com.tkbiswas.pilesclinic.native.FieldVisitControl.resumeIfNeeded(this)
     }
 
     /** OUT TIME বসার সঙ্গে সঙ্গে গোনা বন্ধ ও শেষ হিসাব ক্লাউডে। */
