@@ -25861,3 +25861,21 @@ web_browser_test/run.py ✅ PASS · verify_kotlin_compile.py ✅ PASS (নতু
 পাহারা: verify_android_resources.py ✅ · tk_guard.py ✅ · node --check ✅ ·
 web_browser_test ✅ · sql_local_check.py ✅ · verify_kotlin_compile.py ✅ PASS।
 ভার্সন নম্বর বাড়ানো হয়নি (নিয়ম ৩খ)।
+
+## ১১.০৯.২০২৬ (রাত) — V1357 · RMP View All: প্রথম খোলায় ভুল "০/কিছু নেই" নয়, "Loading…"; কমিশন-জোড়া পিছনে (তালিকা ৪৫৮)
+
+`DoctorVisitActivity.kt` (`showDoctorViewAll`):
+- `viewAllLoaded` (cache থাকলে true) · `viewAllFailed` · `autoLinkedThisOpen` — তিনটে
+  local flag। `renderBody()`: loaded না হলে Referred/Ref. Paid/Ref. Due/Total
+  Entries-এ "…", খালি-বার্তায় "Loading referred patients, calls and income…";
+  failed হলে "Could not load details — check connection and try again"।
+  dataJob সফল ⇒ `viewAllLoaded=true` + renderBody; ব্যর্থ ও cache নেই ⇒
+  `viewAllFailed=true` + renderBody (আটকে থাকে না)।
+- V1355-এর `autolinkRefDoctor` ডাকটা dataJob (critical path) থেকে সরিয়ে
+  renderBody-র post-render `lifecycleScope.launch { withContext(IO) {...} }`-এ —
+  `autoLinkedThisOpen` দিয়ে এক খোলায় একবার, তারপর `rmpSummary` ⇒ Ref. Due বক্স
+  আপডেট (আগে থেকেই ওখানে ছিল)। আমার নিজের ভুল (V1355) স্বীকার করে সারানো।
+- 5000-cap-এর ভারী fallback পথ (V1067) আজ ছোঁয়া হয়নি — সৎ সীমা তালিকায় লেখা।
+
+পাহারা: verify_android_resources.py ✅ · tk_guard.py ✅ · verify_kotlin_compile.py ✅ PASS।
+ভার্সন নম্বর বাড়ানো হয়নি (নিয়ম ৩খ)।

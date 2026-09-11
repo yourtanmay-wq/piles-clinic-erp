@@ -2442,26 +2442,12 @@ class DoctorVisitActivity : AppCompatActivity() {
                     // Allocated advance is already inside the new payment total;
                     // only the still-unallocated balance is added, preventing double count.
                     if (authReady) {
-                        /* 🔴🔒 V1355 (১১.০৯.২০২৬, TK-রিপোর্ট, ছবিসহ — BISHAKHA MANDAL
-                           ₹1,000 জমা দিয়েছেন, ৪০% ডিফল্ট কমিশন থাকা সত্ত্বেও Ref.
-                           Due ₹0 দেখাচ্ছিল)। **কোডে মেপে পাওয়া আসল কারণ:** V1161-এর
-                           ফিক্সটাও **একবারই** চলত — `rmpAutoLinkedBranches` সেটে
-                           ব্রাঞ্চ একবার ঢুকে গেলে এই Activity বেঁচে থাকা পর্যন্ত আর
-                           কখনো দ্বিতীয়বার জোড়া লাগানো হত না। ফল: স্টাফ RMP পর্দা
-                           একবার খোলার **পরে** কোনো নতুন রোগী এই RMP-র রেফারেন্সে
-                           রেজিস্টার/টাকা জমা করলে, সেই রোগীর কমিশন কখনো বাঁধা হত
-                           না — যতক্ষণ না পুরো অ্যাপ বন্ধ করে আবার খোলা হয়।
-                           ⇒ এখন **প্রতিবার View All খোলার সময়ই** আবার জোড়া লাগানো
-                           চলে — যাতে সদ্য-রেজিস্টার-হওয়া রোগীও বাদ না পড়ে।
-                           ⛔ আগে থেকে বাঁধা কোনো কমিশন কখনো বদলায় না — শুধু যেটা
-                              বাঁধাই হয়নি সেটাই বাঁধা হয় (সার্ভারের একই ফাংশন,
-                              বারবার ডাকাও নিরাপদ)। ⛔ ব্যর্থ হলে নিঃশব্দে বাদ —
-                              পর্দা আগের মতোই চলে। */
-                        try {
-                            val br = item.branch.trim()
-                            if (br.isNotBlank() && br != "All")
-                                RmpCommissionRepository.autolinkRefDoctor(br, dryRun = false)
-                        } catch (_: Throwable) { }
+                        /* 🔴🔒 V1355 (১১.০৯.২০২৬, TK-রিপোর্ট — BISHAKHA MANDAL): V1161-এর
+                           "এক ব্রাঞ্চে একবারই" কমিশন-জোড়া (`rmpAutoLinkedBranches`) —
+                           পর্দা খোলার পরে রেজিস্টার-হওয়া রোগীর কমিশন আর বাঁধা হত না।
+                           এখন প্রতিবার View All-এ জোড়া লাগে — কিন্তু V1357 থেকে সেটা
+                           এই পথে নয়, পর্দা আঁকার পরে পিছনে (renderBody-র ভিতরে),
+                           যাতে তালিকা আসতে দেরি না হয়। */
                         val modern = RmpCommissionRepository.rmpSummary(item.id)
                         val advances = RmpCommissionRepository.advancePayments(item.id)
                         val covered = if (advances.ok) (advances.value ?: emptyList()).sumOf { it.legacyCovered } else 0.0
@@ -2476,6 +2462,12 @@ class DoctorVisitActivity : AppCompatActivity() {
                 // V450: repeat-open starts from the last successful snapshot instead
                 // of fake zeroes. First-ever open remains unchanged (empty + Loading).
                 var data = cachedViewAllData ?: ViewAllData(emptyList(), emptyList(), emptyList(), 0.0, 0.0)
+                // 🔴🔒 V1357 (TK-রিপোর্ট, ছবিসহ): প্রথম খোলায় আসল তথ্য আসার আগে
+                //    "Referred 0 · ₹0 · কোনো কল/রেফারেল/আয় এখনো লগ হয়নি" লেখা থাকত —
+                //    ভুল তথ্য। এখন তথ্য না আসা পর্যন্ত "…" ও "Loading…" দেখায়।
+                var viewAllLoaded = cachedViewAllData != null
+                var viewAllFailed = false
+                var autoLinkedThisOpen = false
 
                 // TK-REQUESTED REDESIGN (2026-07-23): full-screen (not a
                 // half-screen popup) with clean card sections instead of a
@@ -3342,10 +3334,10 @@ class DoctorVisitActivity : AppCompatActivity() {
                         box.addView(TextView(this@DoctorVisitActivity).apply { text = value; textSize = 15f; gravity = android.view.Gravity.CENTER; setTypeface(typeface, android.graphics.Typeface.BOLD); setTextColor(android.graphics.Color.parseColor(colorHex)) })
                         return box
                     }
-                    summaryRow2.addView(sumBox("Referred", data.referred.size.toString(), "#10223A"))
+                    summaryRow2.addView(sumBox("Referred", if (viewAllLoaded) data.referred.size.toString() else "…", "#10223A"))
                     lateinit var refPaidBox: android.widget.LinearLayout
                     lateinit var refDueBox: android.widget.LinearLayout
-                    refPaidBox = sumBox("Ref. Paid", "\u20B9${"%,.0f".format(data.refPaid)}", "#0C8F3A", "#EAF8EF").apply {
+                    refPaidBox = sumBox("Ref. Paid", if (viewAllLoaded) "\u20B9${"%,.0f".format(data.refPaid)}" else "\u2026", "#0C8F3A", "#EAF8EF").apply {
                         isClickable = true; isFocusable = true
                         setOnClickListener {
                             showRmpDirectPayment(item) {
@@ -3367,7 +3359,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                             }
                         }
                     }
-                    refDueBox = sumBox("Ref. Due", "\u20B9${"%,.0f".format(data.refDue)}", "#B42318", "#FDEEEE").apply {
+                    refDueBox = sumBox("Ref. Due", if (viewAllLoaded) "\u20B9${"%,.0f".format(data.refDue)}" else "\u2026", "#B42318", "#FDEEEE").apply {
                         (layoutParams as android.widget.LinearLayout.LayoutParams).marginEnd = 0
                         isClickable = true; isFocusable = true
                         setOnClickListener { showRmpCommissionSummary(item) }
@@ -3375,7 +3367,21 @@ class DoctorVisitActivity : AppCompatActivity() {
                     summaryRow2.addView(refPaidBox); summaryRow2.addView(refDueBox)
                     scrollBody.addView(summaryRow2)
                     lifecycleScope.launch {
-                        val verified = withContext(Dispatchers.IO) { RmpCommissionRepository.rmpSummary(item.id) }
+                        val verified = withContext(Dispatchers.IO) {
+                            /* 🔴🔒 V1357 — V1355-এর "প্রতিবার View All খুললে কমিশন জোড়া
+                               লাগানো" কাজটা এখন পর্দা আঁকার **পরে**, পিছনে চলে (আগে
+                               তালিকা আসার পথ আটকে রাখত ⇒ TK: "সাথে সাথে কেন আসে না")।
+                               এক খোলায় একবারই; ব্যর্থ হলে নিঃশব্দে বাদ। */
+                            if (!autoLinkedThisOpen) {
+                                autoLinkedThisOpen = true
+                                try {
+                                    val br = item.branch.trim()
+                                    if (br.isNotBlank() && br != "All" && ModuleAuth.isSignedIn)
+                                        RmpCommissionRepository.autolinkRefDoctor(br, dryRun = false)
+                                } catch (_: Throwable) { }
+                            }
+                            RmpCommissionRepository.rmpSummary(item.id)
+                        }
                         verified.value?.let { s ->
                             (refDueBox.getChildAt(1) as? TextView)?.text = "₹${"%,.0f".format(s.due)}"
                             // The final verified due is what the next repeat-open should
@@ -3412,7 +3418,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                     unified.sortByDescending { it.rawDate }
 
                     scrollBody.addView(TextView(this@DoctorVisitActivity).apply {
-                        text = "\uD83D\uDCCB Total Entries: ${unified.size}"; textSize = 12.5f
+                        text = if (viewAllLoaded) "\uD83D\uDCCB Total Entries: ${unified.size}" else "\uD83D\uDCCB Total Entries: \u2026"; textSize = 12.5f
                         setTypeface(typeface, android.graphics.Typeface.BOLD)
                         setTextColor(android.graphics.Color.parseColor("#0F5C42"))
                         setBackgroundColor(android.graphics.Color.parseColor("#E6F4EE"))
@@ -3421,7 +3427,11 @@ class DoctorVisitActivity : AppCompatActivity() {
 
                     if (unified.isEmpty()) {
                         scrollBody.addView(TextView(this@DoctorVisitActivity).apply {
-                            text = NoBengali.s("কোনো কল/রেফারেল/আয় এখনো লগ হয়নি"); textSize = 12.5f
+                            text = when {
+                                viewAllLoaded -> NoBengali.s("কোনো কল/রেফারেল/আয় এখনো লগ হয়নি")
+                                viewAllFailed -> "Could not load details — check connection and try again"
+                                else -> "Loading referred patients, calls and income…"
+                            }; textSize = 12.5f
                             setTextColor(android.graphics.Color.parseColor("#8A97A8"))
                             setPadding(dgpx(16), dgpx(20), dgpx(16), dgpx(20))
                         })
@@ -3604,10 +3614,13 @@ class DoctorVisitActivity : AppCompatActivity() {
                         // With cache, keep the last successful snapshot quietly on screen.
                         if (cachedViewAllData == null) {
                             Toast.makeText(this@DoctorVisitActivity, "Could not load details — check connection and try again", Toast.LENGTH_SHORT).show()
+                            viewAllFailed = true   // 🔴 V1357 — "Loading…" লেখায় আটকে থাকবে না
+                            renderBody()
                         }
                         return@launch
                     }
                     data = real
+                    viewAllLoaded = true
                     saveViewAllCache(real)
                     renderBody()
                 }
