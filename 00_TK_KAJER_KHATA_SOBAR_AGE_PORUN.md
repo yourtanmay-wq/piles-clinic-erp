@@ -25740,3 +25740,36 @@ Location on" দেখালেও দূরত্ব চিরকাল ০.০
 
 পাহারা: verify_android_resources.py ✅ · tk_guard.py ✅ · verify_kotlin_
 compile.py ✅ PASS (নতুন ভুল ০)।
+
+## ১১.০৯.২০২৬ — V1354 · Chamber Register-এ রিফান্ডের কথা বাদ পড়া
+
+TK-র ছবি: Chamber Register-এ MAKBUL ALAM-এর রিটার্নের কথা "PURA PAYMENT
+RETURN KIYE" লেখায় দেখা গেলেও, একই দিনে MD NAHID RAZA-র ₹400 ভিজিট ফি
+রিফান্ডের কোনো চিহ্নই নেই ("Called via KNE" লেখা, ONLINE ঘরে শুধু "—")।
+প্রথমে ভুল বুঝে পুরনো V621 (Fees-Return রোগী রেজিস্টার থেকে বাদ) নিয়ম
+বলেছিলাম — TK ধরিয়ে দিলেন সেটা ঠিক প্রশ্ন নয়, তারপর নাম চাইলে "এমডি
+নাহিদ রাজা" বললেন।
+
+**কোডে মিলিয়ে আসল কারণ:** `ChamberAttendanceRepository.kt`-এ approved
+payment-refund হলে সিস্টেম নিজে থেকেই `whatHappened`-এ "Refunded ₹X"
+যোগ করে (আগে থেকেই ছিল)। কিন্তু `ChamberAttendanceActivity.kt`-এর
+"Treatment Progress" ঘর (লাইভ বোর্ড ও ছাপা রেজিস্টার — দুই জায়গাতেই)
+শুধু স্টাফের হাতে-লেখা `remark` দেখাত, `whatHappened`-এর এই সিস্টেম-ধরা
+তথ্যটা কখনো যোগ হতো না। ফল: MAKBUL ALAM-এর বেলায় স্টাফ কাকতালীয়ভাবে
+নিজেই রিটার্নের কথা লিখেছিলেন বলে দেখা গেল, MD NAHID RAZA-র বেলায়
+স্টাফ অন্য কিছু লিখেছিলেন বলে রিফান্ডের কথা সম্পূর্ণ চাপা পড়ে গেল —
+দুই রোগীর মধ্যে অসামঞ্জস্য, যেটা TK ধরেছেন।
+
+**সমাধান:** `whatHappened`-এ "Refunded"-শুরু-হওয়া লাইন থাকলে সেটা
+স্টাফের রিমার্কের **আগে** জুড়ে দেওয়া হয় — ছাপা রেজিস্টার
+(`ChamberAttendanceActivity.kt`-এর `treatment =` অংশ) ও লাইভ বোর্ড
+কার্ড (`treatText`) দুই জায়গাতেই, একই যুক্তি। স্টাফ যাই লিখুন না কেন
+এখন থেকে রিফান্ডের কথা আর কখনো বাদ পড়বে না।
+
+ওয়েবের Chamber Register-এ payment-refund ট্র্যাক করার এই ধারণাটাই
+এখনো তৈরি হয়নি (grep করে যাচাই — `payType==='refund'` কোথাও নেই) — তাই
+এখানে "একই বাগ ওয়েবেও" বলা যাচ্ছে না, বরং পুরো ফিচারটাই এখনো ফোন-only।
+সততার সাথে TK-কে জানানো হলো — চাইলে আলাদা কাজ হিসেবে নেওয়া যাবে।
+
+পাহারা: verify_android_resources.py ✅ · tk_guard.py ✅ · verify_kotlin_
+compile.py ✅ PASS (নতুন ভুল ০)।

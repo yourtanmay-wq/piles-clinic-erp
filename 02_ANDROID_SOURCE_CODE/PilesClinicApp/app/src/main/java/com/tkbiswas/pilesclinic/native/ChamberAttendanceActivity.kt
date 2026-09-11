@@ -3778,7 +3778,13 @@ Thread {
                ওটা আর না দেখায় — তাই এখানেও ফাঁকা ধরা হয়। */
             val rawRemark = r.remark.trim().let { if (it.equals("null", ignoreCase = true)) "" else it }
             val isAutoStubRemark = rawRemark.equals("Registered patient / Visit created", ignoreCase = true)
-            val treatText = if (isAutoStubRemark) NoBengali.s("কিছু লেখা হয়নি — চাপুন") else rawRemark.ifBlank { "—" }
+            /* 🔴🔒 V1354 (১১.০৯.২০২৬, TK-রিপোর্ট) — এই বোর্ডেও একই ফাঁক ছিল:
+               সিস্টেমের নিজের ধরে-রাখা "Refunded ₹X" ঘটনাটা (`whatHappened`)
+               স্টাফের হাতে-লেখা রিমার্কের সাথে কখনো যোগ হতো না — স্টাফ অন্য
+               কিছু লিখলে রিফান্ডের কথা এই কার্ডেও কোথাও দেখা যেত না। */
+            val refundNote = r.whatHappened.firstOrNull { it.startsWith("Refunded") }
+            val treatText0 = if (isAutoStubRemark) NoBengali.s("কিছু লেখা হয়নি — চাপুন") else rawRemark.ifBlank { "—" }
+            val treatText = if (refundNote != null) "$refundNote — $treatText0" else treatText0
             // 🟢🔒🔒 V654 (২৫.০৮.২০২৬, TK-নির্দেশ, ছবিসহ — "গত দিনের ট্রিটমেন্ট
             // প্রগ্রেস যেন হাইড থাকে... আজকে যেটা লিখব সেটা যেন উজ্জ্বল থাকে")
             // — আসল কারণ (আগের V535-এর একই সমস্যা, আজকের বোর্ডে): `remark`
@@ -4619,8 +4625,27 @@ Thread {
                     // বদলায় না — শুধু কাগজে ছাপার আগে লেখাটা বদলে নেওয়া হয়।
                     // নিচের ফাঁকা-ঘরের লেখাটা শুধু কাগজেই যায়, পর্দায় নয়।
                     // 🔴 V810 — পুরনো দিনের লেখা আর আজকের নোট সেজে ছাপা হবে না
-                    treatment = if (todaysProgressMissing(r.remark, r.remarkUpdatedAt)) "⚠️ PROGRESS PENDING"
-                        else com.tkbiswas.pilesclinic.print.PrintTextEnglish.forPrint(r.remark).ifBlank { "⚠️ PROGRESS PENDING" },
+                    /* 🔴🔒 V1354 (১১.০৯.২০২৬, TK-রিপোর্ট — MD NAHID RAZA-র ভিজিট
+                       ফি রিটার্ন হয়েছিল, কিন্তু ছাপা রেজিস্টারে তার কোনো চিহ্নই
+                       নেই, অথচ MAKBUL ALAM-এর রিটার্ন ঠিকই লেখা দেখা যাচ্ছিল) —
+                       **আসল কারণ (কোডে মিলিয়ে পাওয়া):** এই ঘরে সবসময় শুধু
+                       স্টাফের **হাতে-লেখা** `remark`-ই ছাপা হত। MAKBUL ALAM-এর
+                       বেলায় স্টাফ নিজেই হাতে "PURA PAYMENT RETURN KIYE" লিখেছিলেন
+                       বলে দেখা যাচ্ছিল — কিন্তু সিস্টেম নিজে থেকে যে "Refunded
+                       ₹X" ঘটনাটা ধরে রাখে (`whatHappened`, PaymentRepository-র
+                       অনুমোদিত refund থেকে) সেটা এই ছাপায় **কখনোই যোগ হতো না**।
+                       MD NAHID RAZA-র বেলায় স্টাফ অন্য কিছু ("Called via KNE")
+                       লিখেছিলেন বলে তার রিটার্নের কথা কোথাও দেখা যায়নি — অথচ
+                       ONLINE কলামে ঠিকই "—" (রিফান্ডের পরে ০) দেখাচ্ছিল, কারণ
+                       ছাড়াই। ⇒ এখন সিস্টেমের নিজের ধরে-রাখা "Refunded ₹X" কথাটা
+                       (থাকলে) স্টাফের রিমার্কের **আগে** জুড়ে দেওয়া হয় — স্টাফ যাই
+                       লিখুন না কেন, রিফান্ড হয়ে থাকলে সেটা আর কখনো বাদ পড়বে না। */
+                    treatment = run {
+                        val refundNote = r.whatHappened.firstOrNull { it.startsWith("Refunded") }
+                        val base = if (todaysProgressMissing(r.remark, r.remarkUpdatedAt)) "⚠️ PROGRESS PENDING"
+                            else com.tkbiswas.pilesclinic.print.PrintTextEnglish.forPrint(r.remark).ifBlank { "⚠️ PROGRESS PENDING" }
+                        if (refundNote != null) "$refundNote — $base" else base
+                    },
                     visitLabel = visitLabels[r.mobile] ?: "",
                     // TK-REQUESTED (2026-07-22): mode the registration/doctor-visit
                     // fee itself was paid in, so the print can show CASH/UPI
