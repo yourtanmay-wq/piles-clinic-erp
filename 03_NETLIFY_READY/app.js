@@ -158,7 +158,16 @@ const C=window.RK_CONFIG||{};const $=s=>document.querySelector(s),$$=s=>[...docu
 
 const TABLES=['enquiries','patients','payments','followups','medical','products','doctor_visits','briefings','trash','address_tags'];
 let user=null,editing=null,currentView='public';window.__RK_APP_BOOT_TIME=Date.now();
-const today=()=>new Date().toISOString().slice(0,10);const uid=p=>p+'_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7);
+/* 🔴🔒 V1363 (১১.০৯.২০২৬, পুরো-প্রজেক্ট দেরি-অডিট, তালিকা ৪৬২-ছ) — TK: "এনকোয়ারি ·
+   রিমার্ক সংক্রান্ত দেরি/ভুল"। আগে `today()` ব্রাউজারের UTC তারিখ দিত — রাত ১২টা
+   থেকে ভোর ৫.৩০ (ভারতের সময়) পর্যন্ত এটা **আগের দিনের** তারিখ ফেরাত, তখন কম্পিউটার
+   থেকে লেখা পেমেন্ট/রিফান্ড/লাস্ট-কল-তারিখ ফোনের (ভারতের স্থানীয় সময়) সঙ্গে
+   এক দিন পিছিয়ে থাকত। এখন B618-এর প্রমাণিত একই কৌশল (`Asia/Kolkata`-তে বদলে
+   তারিখ বার করা) — কম্পিউটারের নিজের টাইমজোন যা-ই থাকুক, সবসময় ভারতের আজকের
+   তারিখ, ফোনের সঙ্গে মেলে। ⛔ সময়ের (ঘণ্টা-মিনিট) কোনো হিসাব এখানে ছোঁয়া হয়নি,
+   শুধু তারিখটাই। */
+const today=()=>{const ti=new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Kolkata'}));return ti.getFullYear()+'-'+String(ti.getMonth()+1).padStart(2,'0')+'-'+String(ti.getDate()).padStart(2,'0');};
+const uid=p=>p+'_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7);
 /* 🔒 TK-এর নির্দেশ (28.07.2026, খাতার সারি B30): "একই পেশেন্টের নামে দুটো আইডি যেন
    চালু না হয় — সেটার ব্যবস্থা করুন।"
    রোগীর সারির আইডি আর এলোমেলো নয় — মোবাইল নম্বর থেকেই তৈরি হয়। ক্লাউডে লেখা হয়

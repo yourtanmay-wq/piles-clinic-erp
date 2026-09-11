@@ -25948,3 +25948,11 @@ IncomeExpenseActivity) একই ফাংশন শেয়ার করে �
   আবার ডাকে; দ্বিতীয়বারও ব্যর্থ হলে আগের মতোই নিঃশব্দে থেমে যায়।
 
 পাহারা: resources ✅ · tk_guard ✅ · verify_kotlin_compile ✅ PASS। ভার্সন অপরিবর্তিত (নিয়ম ৩খ)।
+
+## ১১.০৯.২০২৬ (রাত) — V1363 · ওয়েবের "আজ" এখন ভারতের সময়ে (তালিকা ৪৬৪)
+`app.js` লাইন ১৬১: `today()` = UTC থেকে বদলে B618-এর প্রমাণিত কৌশল —
+`new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Kolkata'}))` থেকে
+Y-M-D বার করা (line 3502-এর হুবহু একই প্যাটার্ন, নতুন কিছু বানানো হয়নি)।
+একটাই সংজ্ঞা বদলে ২৫৯টা ব্যবহার-জায়গা নিরাপদে ঠিক হলো। `index.html` cache
+`?v=v1363`। পাহারা: node --check ✅ · web_browser_test ১৩/১৩ ✅ (প্রথম রানে
+পরিবেশগত reload-timeout flake, দ্বিতীয় রানে পাশ) · tk_guard ✅।
