@@ -785,8 +785,12 @@ class StaffProfileActivity : AppCompatActivity() {
                 Android-এর ফল অনিশ্চিত হয়ে যায় (গুগলের নিজের সতর্কতা), আর
                 সব বোতাম সমান উঁচু দেখায়
            ⛔ কোনো বোতামের কাজ · রং · কে দেখতে পায় — কিছুই বদলায়নি। */
+        // 🎨🔒 V1342 (১১.০৯.২০২৬, TK-নির্দেশ ও ডেমো-প্রুফ পাশ: "উচ্চতা এত কম কেন,
+        // প্রফেশনাল বলে মনে হচ্ছে না") — 46dp → 56dp, লেখাও 11.5sp → 13sp।
+        // ⛔ শুধু এই বোতাম আর নিচের dangerBtn (Suspend/Remove/Restore, একই
+        // উচ্চতা রাখতেই হয়) — বাকি প্রজেক্টের অন্য কোনো বোতাম/পর্দা ছোঁয়া হয়নি।
         fun smallBtn(text: String, filled: Boolean, icon: Int = 0, onClick: () -> Unit) = TextView(this).apply {
-            this.text = text; textSize = 11.5f
+            this.text = text; textSize = 13f
             maxLines = 1
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             gravity = android.view.Gravity.CENTER
@@ -801,7 +805,8 @@ class StaffProfileActivity : AppCompatActivity() {
             }
             setPadding(dp(4), 0, dp(4), 0)
             // 🎨 V1146 (TK: *"তিনটা লাইন উচ্চতা এত কম"*) — 40 → 46dp, সব বোতামেই।
-            height = dp(46)
+            // 🎨 V1342 (১১.০৯.২০২৬, TK-নির্দেশ) — 46 → 56dp, আরো প্রফেশনাল দেখাতে।
+            height = dp(56)
             /* 🎨🔒 V1092 (০৫.০৯.২০২৬ — TK-এর বিল্ড-করা ছবিতে ধরা পড়ল: RUPAM-এর
                "Extra Income" তখনো দুই লাইনে)। **আসল কারণ মেপে পাওয়া:** বাঁয়ের
                আইকনটা (২৪dp + ফাঁক) বোতামের চওড়ার একটা বড় অংশ নিয়ে নেয়, আর
@@ -823,7 +828,7 @@ class StaffProfileActivity : AppCompatActivity() {
         }
         // 🔴 V404: লাল বোতাম বানানোর একটাই জায়গা (Suspend ও Remove একই চেহারার)।
         fun dangerBtn(label: String, icon: Int = 0, onClick: () -> Unit) = TextView(this).apply {
-            text = label; textSize = 11.5f
+            text = label; textSize = 13f   // 🎨 V1342 — smallBtn-এর হুবহু একই মাপ
             maxLines = 1   // 🎨 V1091 — উপরের smallBtn-এর হুবহু একই নিয়ম
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             gravity = android.view.Gravity.CENTER
@@ -832,7 +837,7 @@ class StaffProfileActivity : AppCompatActivity() {
                 compoundDrawablePadding = dp(4)   // 🎨 V1091 — লেখার জায়গা বাড়াতে
             }
             setPadding(dp(4), 0, dp(4), 0)
-            height = dp(46)       // 🎨 V1146 — smallBtn-এর হুবহু একই উচ্চতা
+            height = dp(56)       // 🎨 V1146/V1342 — smallBtn-এর হুবহু একই উচ্চতা
             setSingleLine(true)   // 🎨 V1092 — উপরের smallBtn-এর হুবহু একই নিয়ম
             ellipsize = android.text.TextUtils.TruncateAt.END
             setTextColor(android.graphics.Color.parseColor("#B0392B"))

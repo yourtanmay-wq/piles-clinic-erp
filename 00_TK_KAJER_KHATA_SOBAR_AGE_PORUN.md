@@ -25411,3 +25411,16 @@ TK প্রথমে ছবি পাঠালেন ("Da.." কাটা য�
 !important জিতে যেত) — বাকি সব ফর্মের `.input` এক অক্ষরও বদলায়নি। `index.html`-এর
 app.js cache-নম্বর v1340 বসানো হলো। পাহারা: verify_android_resources.py ✅ ·
 tk_guard.py ✅ · node --check ✅ · verify_kotlin_compile.py ✅ PASS (নতুন ভুল ০)।
+
+## ১১.০৯.২০২৬ — V1342 · Staff Profiles কার্ডের বোতাম আরো বড়/প্রফেশনাল (ডেমো-প্রুফ পাঠানো)
+
+TK: "Salary/Extra Income/Field Visit বোতামের উচ্চতা এত কম কেন, প্রফেশনাল লাগছে না" →
+মকআপ পাঠানো, "অন্যান্য ডিজাইন যেন খারাপ না হয়" জিজ্ঞাসা করলেন → যাচাই করে জানালাম
+`smallBtn`/`dangerBtn` স্থানীয় ফাংশন, শুধু এই কার্ডেই বাঁধা → "যেটুকু বলা হয়েছে
+সেটুকু করে পুরো ডিসপ্লের প্রুফ দেখান"। `StaffProfileActivity.kt`-এ `smallBtn`
+(Salary/Extra Income/Field Visit) ও `dangerBtn` (Suspend/Remove/Restore, একই
+ফাংশনের জোড়া বোতাম, আলাদা করে উচ্চতা না বাড়ালে দুই ধরনের বোতাম একসাথে থাকলে
+অসমান দেখাত) — দুটোতেই height 46dp→56dp, textSize 11.5sp→13sp। পুরো Jalpaiguri/
+Cooch Behar তালিকার প্রসঙ্গ-সহ full-display মকআপ পাঠানো হলো, TK-র ফলের অপেক্ষায়।
+ওয়েবে এই স্ক্রিন/বোতামের কোনো জোড়া নেই — যাচাই করে সততার সাথে জানানো হলো।
+পাহারা: verify_android_resources.py ✅ · tk_guard.py ✅।
