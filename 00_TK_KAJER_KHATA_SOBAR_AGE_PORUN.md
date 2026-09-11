@@ -25889,3 +25889,11 @@ union → window `sum(commission − paid_to_rmp)` = running_due। Supabase Edi
 statement-এর ফলই দেখায় বলে একটাই select। sql_local_check-এ `rate_changed_on` নেই বলে
 FAIL হয়েছিল ⇒ V941-এর `add column if not exists` তিন লাইন যোগ (লাইভে no-op) ⇒ PASS।
 TK-কে ফাইল পাঠানো হলো (SQL, ZIP নয় — ভার্সন বাড়েনি)। ফল এলে কোন দিন বাদ গেছে ধরা যাবে।
+
+## ১১.০৯.২০২৬ (রাত) — V1359 · ০৪.০৯-এর ₹2,800 কোথায় — দ্বিতীয় শুধু-পড়ার SQL (তালিকা ৪৬০)
+V1358-এর CSV পড়ে নিশ্চিত: বাকি = ০৪.০৯-এর ₹2,800 − আগের ₹2.50 বেশি। স্টাফ বলছেন
+দিয়েছেন ⇒ `00_SQL/V1359_…sql`: A) rmp_advance_payments + rmp_commission_payments ০৩–০৬.০৯
+সব RMP · B) doctor_visits same-number সব সারি · C) referralPayments jsonb (jsonb_typeof guard)
+· D) fin.expenses কোচবিহার · E) JH MANDAL-এর সব পেমেন্ট recorded_at/recorded_by সহ
+(allocation-এর নকল সারি বাদ) — এক union, Supabase Editor-এর শেষ-statement নিয়মে।
+sql_local_check ✅ PASS · TK-কে ফাইল পাঠানো (SQL, ZIP নয়, ভার্সন অপরিবর্তিত)।
