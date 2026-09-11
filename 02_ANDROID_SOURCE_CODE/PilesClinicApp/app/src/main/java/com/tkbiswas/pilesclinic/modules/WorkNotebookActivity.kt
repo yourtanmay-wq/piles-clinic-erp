@@ -1628,9 +1628,22 @@ class WorkNotebookActivity : AppCompatActivity() {
             // হয়নি) — `BriefingActivity.kt`-এর `AUTO_DELETE_ON_SEEN_TITLES`
             // এই হুবহু শব্দ মিলিয়ে "দেখা হলে নিজে থেকে মুছে যাওয়া"
             // ব্যবস্থা চালায় (B467); শিরোনাম বদলালে সেটা ভেঙে যেত।
-            com.tkbiswas.pilesclinic.native.BriefingRepository().post(
-                this, "Staff IN TIME", msg, "role", branch, "master", mobile
-            )
+            /* 🔴🔒 V1362 (১১.০৯.২০২৬, পুরো-প্রজেক্ট দেরি-অডিট) — এই কলটা
+               `afterInTimeMarked` UI-থ্রেডেই চলে (উপরের `fv.push()`-এর মতোই),
+               আর `post()` ভিতরে সরাসরি নেটওয়ার্ক-কল করে (`SupabaseClient.upsert`)
+               — Android মেইন থ্রেডে নেট-কাজ **সবসময়ই** ব্যর্থ করে দেয়
+               (NetworkOnMainThreadException), যা এখানেই চুপচাপ ধরা পড়ত। ফল:
+               Master-এর "Staff IN TIME" খবর **কখনোই সরাসরি পৌঁছাত না** — সবসময়
+               জমা হয়ে পরের সিঙ্কের অপেক্ষায় থাকত, তাই দেরি হতোই।
+               ⇒ এখন উপরের `fv.push()`-এর একই প্রমাণিত ধরনে পিছনের সুতোয়। */
+            val briefCtx = applicationContext
+            Thread {
+                try {
+                    com.tkbiswas.pilesclinic.native.BriefingRepository().post(
+                        briefCtx, "Staff IN TIME", msg, "role", branch, "master", mobile
+                    )
+                } catch (_: Throwable) { }
+            }.start()
         } catch (_: Throwable) { }
         waAskKind = "in"   // 🔴 V433 — ফিরে এলে একবার জিজ্ঞাসা: পাঠানো হয়েছে?
         com.tkbiswas.pilesclinic.native.WhatsAppMessageChooser.sendGeneric(this, inTimeShareText()) { then() }

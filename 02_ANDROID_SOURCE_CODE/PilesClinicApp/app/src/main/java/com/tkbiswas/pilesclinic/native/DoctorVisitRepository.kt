@@ -987,9 +987,11 @@ class DoctorVisitRepository {
 
         val patientFilter = if (!branchFilter.isNullOrBlank() && branchFilter != "All")
             "branch=eq.${java.net.URLEncoder.encode(branchFilter, "UTF-8")}" else null
+        // 🔴🔒 V1362 (১১.০৯.২০২৬, পুরো-প্রজেক্ট দেরি-অডিট) — `refDoctor` যোগ (V1356-এর
+        // একই কারণ: আজকের অ্যাপ ডাক্তারের নাম রাখে refDoctor-এ, refBy-তে শুধু "Dr. Visit")।
         val patients = SupabaseClient.fetchListSlim(
             "patients", patientFilter, 5000,
-            "id,name,mobile,refBy,refDoctorMobile,branch,registrationDate,date,bill"
+            "id,name,mobile,refBy,refDoctor,refDoctorMobile,branch,registrationDate,date,bill"
         )
         val thisYm = DoctorVisitModel.today().take(7)
         val rows = mutableListOf<RmpPerformanceRow>()
@@ -1004,8 +1006,10 @@ class DoctorVisitRepository {
                     if (pb.isNotBlank() && !pb.equals(branchFilter, ignoreCase = true)) continue
                 }
                 val refBy = p.s("refBy").trim().lowercase()
+                val refDoc = p.s("refDoctor").trim().lowercase()
                 val refMob = p.s("refDoctorMobile").filter { it.isDigit() }.takeLast(10)
-                val matches = (refBy.isNotBlank() && refBy == docName) || (refMob.isNotBlank() && refMob == docMobile)
+                val matches = (refBy.isNotBlank() && refBy == docName) || (refDoc.isNotBlank() && refDoc == docName) ||
+                    (refMob.isNotBlank() && refMob == docMobile)
                 if (!matches) continue
                 val regDate = p.s("registrationDate").ifBlank { p.s("date") }
                 referred.add(RmpReferredPatient(p.s("id"), p.s("name"), p.s("mobile"), regDate, p.optDouble("bill", 0.0)))

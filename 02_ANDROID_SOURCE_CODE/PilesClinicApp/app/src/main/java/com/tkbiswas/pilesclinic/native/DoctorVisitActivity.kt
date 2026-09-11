@@ -1341,8 +1341,13 @@ class DoctorVisitActivity : AppCompatActivity() {
                         // ⛔ ছাঁকনিটা হুবহু `myDoctorRows`-এর নিয়মেই — ব্রাঞ্চ ফাঁকা
                         //    থাকলে সারিটা আগের মতোই রাখা হয়, কোনো সারি হারায় না।
                         val myBranch = user.branch
-                        val patients = SupabaseClient.fetchListSlim("patients", null, 5000, "id,refBy,refDoctorMobile,branch,updatedAt")
-                        val patientRefs = ArrayList<Triple<String, String, String>>(patients.length())
+                        // 🔴🔒 V1362 (১১.০৯.২০২৬, পুরো-প্রজেক্ট দেরি-অডিট) — `refDoctor` যোগ
+                        // (V1356-এর একই কারণ: আজকের অ্যাপ ডাক্তারের নাম রাখে refDoctor-এ,
+                        // refBy-তে শুধু "Dr. Visit")। এই ফলব্যাক-গোনা আগে refBy/refDoctorMobile
+                        // ছাড়া কিছু চিনত না, তাই কার্ডে সংখ্যা কম দেখাতে পারত।
+                        val patients = SupabaseClient.fetchListSlim("patients", null, 5000, "id,refBy,refDoctor,refDoctorMobile,branch,updatedAt")
+                        data class PatientRef(val refBy: String, val refDoc: String, val refMob: String, val branch: String)
+                        val patientRefs = ArrayList<PatientRef>(patients.length())
                         for (i in 0 until patients.length()) {
                             val pat = patients.optJSONObject(i) ?: continue
                             if (myBranch.isNotBlank() && myBranch != "All") {
@@ -1350,17 +1355,19 @@ class DoctorVisitActivity : AppCompatActivity() {
                                 if (pb.isNotBlank() && !pb.equals(myBranch, ignoreCase = true)) continue
                             }
                             val refBy = pat.s("refBy").trim().lowercase()
+                            val refDoc = pat.s("refDoctor").trim().lowercase()
                             val refMob = pat.s("refDoctorMobile").filter { it.isDigit() }.takeLast(10)
                             // 🔴🔒 V940 — রোগীর ব্রাঞ্চটাও সঙ্গে রাখা হয়, নিচের গোনায় লাগে।
-                            if (refBy.isNotBlank() || refMob.isNotBlank())
-                                patientRefs.add(Triple(refBy, refMob, pat.s("branch")))
+                            if (refBy.isNotBlank() || refDoc.isNotBlank() || refMob.isNotBlank())
+                                patientRefs.add(PatientRef(refBy, refDoc, refMob, pat.s("branch")))
                         }
                         items.map { doc ->
                             val docName = doc.name.trim().lowercase()
                             val docMobile = doc.mobile.filter { it.isDigit() }.takeLast(10)
                             val oldCount = patientRefs.count { r ->
-                                ((r.first.isNotBlank() && r.first == docName) || (r.second.isNotBlank() && r.second == docMobile)) &&
-                                    v940Belongs(r.third, doc.branch, docMobile)   // 🔴🔒 V940
+                                ((r.refBy.isNotBlank() && r.refBy == docName) || (r.refDoc.isNotBlank() && r.refDoc == docName) ||
+                                    (r.refMob.isNotBlank() && r.refMob == docMobile)) &&
+                                    v940Belongs(r.branch, doc.branch, docMobile)   // 🔴🔒 V940
                             }
                             // If the server result is valid, retain it for every cloud RMP
                             // and use the old count only for a not-yet-cloud local overlay.
@@ -4280,7 +4287,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                     // can change: every line of the matching and adding below is
                     // left word for word, and if a narrowed read ever fails,
                     // fetchListSlim asks for every column again by itself.
-                    val pats = SupabaseClient.fetchListSlim("patients", null, 5000, "id,name,mobile,bill,refBy,refDoctorMobile,registrationDate,date,updatedAt")
+                    val pats = SupabaseClient.fetchListSlim("patients", null, 5000, "id,name,mobile,bill,refBy,refDoctor,refDoctorMobile,registrationDate,date,updatedAt")
                     val pays = SupabaseClient.fetchListSlim("payments", null, 5000, "id,mobile,amount,payType,refundApprovalStatus,updatedAt")
                     val paidByMobile = HashMap<String, Double>()
                     // 🔴🔴 TK-অডিট-অনুরোধ (01.08.2026, প্রজেক্ট-জোড়া যাচাই): Refund
@@ -4307,8 +4314,11 @@ class DoctorVisitActivity : AppCompatActivity() {
                     for (i in 0 until pats.length()) {
                         val pat = pats.optJSONObject(i) ?: continue
                         val refBy = pat.s("refBy").trim().lowercase()
+                        // 🔴🔒 V1362 — refDoctor যোগ (V1356-এর একই কারণ)।
+                        val refDoc = pat.s("refDoctor").trim().lowercase()
                         val refMob = pat.s("refDoctorMobile").filter { it.isDigit() }.takeLast(10)
-                        val hit = (refBy.isNotBlank() && refBy == docName) || (refMob.isNotBlank() && refMob == docMobile)
+                        val hit = (refBy.isNotBlank() && refBy == docName) || (refDoc.isNotBlank() && refDoc == docName) ||
+                            (refMob.isNotBlank() && refMob == docMobile)
                         if (!hit) continue
                         // 🔴🔒 V940 — একই নম্বরে একাধিক ব্রাঞ্চ থাকলে রোগী তাঁর নিজের ব্রাঞ্চেরটিতেই।
                         if (!v940Belongs(pat.s("branch"), item.branch, docMobile)) continue

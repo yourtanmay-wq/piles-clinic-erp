@@ -1875,7 +1875,18 @@ class DoctorCheckupActivity : AppCompatActivity() {
      *  back to the row id) and sets doctorComplete=true so they drop out of the
      *  Doctor Queue. Runs on an IO thread; swallows all errors so it can never
      *  break the check-up save. */
-    private fun markDoctorComplete(patientKey: String) {
+    /* 🔴🔒 V1362 (১১.০৯.২০২৬, পুরো-প্রজেক্ট দেরি-অডিট) — এই পড়াটা (`fetchListSlim`,
+       কখনো retry/queue করে না) নেটের দুর্বল মুহূর্তে ব্যর্থ হলে ফাংশনটা চুপচাপ
+       `return` করত — না "checkup complete" চিহ্ন বসত, না ডাক্তারের পুরো নোট/পরের
+       প্ল্যান জমা হত, আর কোনো retry-ও ছিল না। রোগী CHECK-UP তালিকায় আটকে থাকত।
+       ⇒ FieldVisitControl.tryStart()-এর একই প্রমাণিত ধরনে (V1353): ব্যর্থ হলে
+       ২ সেকেন্ড পরে **একবার** আবার চেষ্টা — সাময়িক দুর্বল লাইনে এতেই কাজ হয়ে
+       যায়। এই ফাংশন এমনিতেই `BackgroundWork.run{}`-এর পিছনের সুতোয় চলে, তাই
+       এই ছোট অপেক্ষায় পর্দা আটকায় না। এখনো ব্যর্থ হলে (সত্যিকারের নেট-বিচ্ছিন্নতা)
+       আগের মতোই চুপচাপ বাদ — নতুন কোনো স্থায়ী জমা-তালিকা তৈরি করা হয়নি, কারণ
+       `patientKey` (patientId না internal id, কোনটা তা নিশ্চিত নয়) দিয়ে নির্ভরযোগ্য
+       ভাবে পরে আবার খোঁজার উপায় নেই — ভুল সারিতে জোর করে লেখার চেয়ে এটাই নিরাপদ। */
+    private fun markDoctorComplete(patientKey: String, isRetry: Boolean = false) {
         if (patientKey.isBlank()) return
         try {
             val enc = java.net.URLEncoder.encode(patientKey, "UTF-8")
@@ -1885,7 +1896,10 @@ class DoctorCheckupActivity : AppCompatActivity() {
             val colsSave = SupabaseClient.PATIENT_NO_PHOTO_COLS + ",${NextVisitPlan.FIELD}"
             var rows = SupabaseClient.fetchListSlim("patients", "patientId=eq.$enc", 1, colsSave)
             if (rows.length() == 0) rows = SupabaseClient.fetchListSlim("patients", "id=eq.$enc", 1, colsSave)
-            if (rows.length() == 0) return
+            if (rows.length() == 0) {
+                if (!isRetry) { try { Thread.sleep(2000) } catch (_: Throwable) { }; markDoctorComplete(patientKey, isRetry = true) }
+                return
+            }
             val id = rows.getJSONObject(0).optString("id")
             if (id.isBlank()) return
             /* 🔵 V559: doctorComplete-এর সাথে একই কলে চেকআপের পুরো লেখাটাও

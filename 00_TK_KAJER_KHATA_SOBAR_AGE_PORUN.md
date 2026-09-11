@@ -25934,3 +25934,17 @@ follow-up/remark/enquiry · checkup/registration/doctor · attendance/field · s
 IncomeExpenseActivity) একই ফাংশন শেয়ার করে বলে একসাথে ঠিক হলো।
 
 পাহারা: resources ✅ · tk_guard ✅ · verify_kotlin_compile ✅ PASS। ভার্সন অপরিবর্তিত (নিয়ম ৩খ)।
+
+## ১১.০৯.২০২৬ (রাত) — V1362 · IN TIME নোটিশ থ্রেড · refDoctor আরও ৩ জায়গা · markDoctorComplete retry (তালিকা ৪৬৪)
+- `WorkNotebookActivity.kt` `afterInTimeMarked`: `BriefingRepository().post(...)` কল
+  `applicationContext` ধরে `Thread{ try{...}catch(_){} }.start()`-এ (আগের `fv.push()`-এর
+  ঠিক পাশের ধাঁচ)। leave/leave-request/work-report-এর post() কলগুলো ইতিমধ্যেই ব্যাকগ্রাউন্ড
+  থ্রেডে ছিল (blocking getRows/Thread.sleep প্রমাণ) — ছোঁয়া হয়নি।
+- `DoctorVisitActivity.kt`: RMP কার্ড-গোনার ফলব্যাক (Triple → নতুন লোকাল `data class PatientRef`
+  চার-ঘরের জন্য) ও Referral Income ফলব্যাক — দুটোতেই select-এ `refDoctor` যোগ + matching-এ
+  `refDoc == docName` শর্ত। `DoctorVisitRepository.kt`-এর Performance ফলব্যাকেও একই।
+- `DoctorCheckupActivity.kt` `markDoctorComplete(patientKey, isRetry=false)`: প্রথম দুই পড়াই
+  ব্যর্থ হলে (rows.length()==0) ও isRetry না হলে ২ সেকেন্ড ঘুমিয়ে নিজেকেই isRetry=true দিয়ে
+  আবার ডাকে; দ্বিতীয়বারও ব্যর্থ হলে আগের মতোই নিঃশব্দে থেমে যায়।
+
+পাহারা: resources ✅ · tk_guard ✅ · verify_kotlin_compile ✅ PASS। ভার্সন অপরিবর্তিত (নিয়ম ৩খ)।
