@@ -251,18 +251,23 @@ class EstimatePaperActivity : AppCompatActivity() {
             keyListener = android.text.method.DigitsKeyListener.getInstance("0123456789")
             textSize = 14f; setTextColor(Color.parseColor("#101C2E"))
             background = box("#F7FAFC", "#CFE0EE", 10)
-            setPadding(dp(12), dp(8), dp(12), dp(8))
-            layoutParams = LinearLayout.LayoutParams(dp(78), LinearLayout.LayoutParams.WRAP_CONTENT)
-                .apply { rightMargin = dp(8) }
+            // 📏🔒 V1340 (১১.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ — "উচ্চতা আরো কম
+            // হবে") — উলম্ব padding ৮dp থেকে ৪dp করে বাক্সটা চিকন করা হলো।
+            setPadding(dp(10), dp(4), dp(10), dp(4))
+            layoutParams = LinearLayout.LayoutParams(dp(56), LinearLayout.LayoutParams.WRAP_CONTENT)
+                .apply { rightMargin = dp(6) }
         }
         val taUnit = android.widget.Spinner(this).apply {
             adapter = android.widget.ArrayAdapter(this@EstimatePaperActivity,
                 android.R.layout.simple_spinner_dropdown_item, CounselModel.UNITS)
             setSelection(CounselModel.UNITS.indexOf(taUnit0).let { if (it < 0) 0 else it })
             background = box("#F7FAFC", "#CFE0EE", 10)
-            // 📏🔒 V1327 (TK: "Days এর বক্স এত বড় কেন হবে") — আগে flex:1 পুরো
-            // বাকি জায়গা জুড়ে নিত, তাই বেশি চওড়া দেখাত; এখন ফিক্সড ৯২dp।
-            layoutParams = LinearLayout.LayoutParams(dp(92), LinearLayout.LayoutParams.WRAP_CONTENT)
+            // 📏🔒 V1340 (১১.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — V1327-এর
+            // ৯২dp ফিক্সড চওড়ায় "Days" কেটে "Da.." দেখাচ্ছিল (TK-র রিপোর্ট)।
+            // এখন নিজস্ব চিকন padding + সামান্য বেশি চওড়া (১০০dp), যাতে "Days"
+            // পুরো লেখা ও ছোট্ট ▾ তির — দুটোই এক লাইনে ধরে, কাটা না যায়।
+            setPadding(dp(10), dp(4), dp(6), dp(4))
+            layoutParams = LinearLayout.LayoutParams(dp(100), LinearLayout.LayoutParams.WRAP_CONTENT)
         }
         fun pushTimeAsked() {
             sheet.timeAsked = CounselModel.timeAsked(

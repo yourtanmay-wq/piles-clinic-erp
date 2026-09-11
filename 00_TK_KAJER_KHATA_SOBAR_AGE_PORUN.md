@@ -25397,3 +25397,17 @@ V994-এই আগে থেকে একটা `@media print{*{...}}` নিয
 তাই ওয়েব অছোঁয়া। একই সেশনে Time-Asked বাক্সের সাইজ-অমিল (V1327-এর নিজের ভুল) ধরা
 পড়েছে — মকআপ পাঠানো, TK-র পাশের অপেক্ষায়। পাহারা: verify_android_resources.py ✅ ·
 tk_guard.py ✅ · verify_kotlin_compile.py ✅ PASS (নতুন ভুল ০)।
+
+## ১১.০৯.২০২৬ — V1340 · Time-Asked বাক্স-সাইজ ফিক্স, ডেমো-প্রুফ পাশ, বসানো হলো
+
+TK প্রথমে ছবি পাঠালেন ("Da.." কাটা যাচ্ছে), মকআপ দেখালাম, TK বললেন "এক লাইনে থাকতে
+হবে, বক্স আরো চিকন হবে" — দ্বিতীয় মকআপ পাঠালাম, "পাশ" পেলাম। Android
+(`EstimatePaperActivity.kt`): `taAmt` (সংখ্যার বাক্স) উলম্ব padding ৮dp→৪dp, চওড়া
+৭৮dp→৫৬dp; `taUnit` (Days স্পিনার) নিজস্ব padding (আগে ছিলই না, Spinner-এর ডিফল্ট
+চেহারায় চলছিল) ৪dp উলম্ব বসানো হলো, চওড়া ৯২dp→১০০dp (V1327-এ "Days" কাটা যাওয়ার
+মূল কারণ ছিল এই সরু চওড়া, আগে ধরা পড়েনি)। ওয়েব (`app.js`): `wlv1EstTaAmt`/
+`wlv1EstTaUnit` — প্রকল্প-জোড়া `.input{height:50px!important}` নিয়মটা এই দুই বাক্সেই
+`height:28px!important` দিয়ে override (inline style, `!important` না দিলে external
+!important জিতে যেত) — বাকি সব ফর্মের `.input` এক অক্ষরও বদলায়নি। `index.html`-এর
+app.js cache-নম্বর v1340 বসানো হলো। পাহারা: verify_android_resources.py ✅ ·
+tk_guard.py ✅ · node --check ✅ · verify_kotlin_compile.py ✅ PASS (নতুন ভুল ০)।

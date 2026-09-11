@@ -30083,9 +30083,13 @@ function wlv1EstScreen(){
     /* 🇧🇩🔒 V1327 (TK-নির্দেশ ও ফটো-প্রুফ পাশ) — প্রকল্পের আগে থেকে প্রমাণিত
        বাংলা অনুবাদ (WLV1_A4_TITLES.bn.recovery-এর হুবহু যমজ)। */
     +'<span style="font-size:13px;color:#123A26;white-space:nowrap">কতদিন সময় চাওয়া হল</span>'
-    +'<input id="wlv1EstTaAmt" class="input" inputmode="numeric" style="width:90px;margin:0" value="'+esc(wlv1SplitTimeAsked(wlv1EstSheet.timeAsked||'')[0])+'" oninput="wlv1EstTaChange()">'
-    /* 📏🔒 V1327 (TK: "Days এর বক্স এত বড় কেন হবে") — flex:1 বাদ, ফিক্সড ৯২px (ফোনের যমজ)। */
-    +'<select id="wlv1EstTaUnit" class="input" style="width:92px;flex:none;margin:0" onchange="wlv1EstTaChange()">'+WLV1_TA_UNITS.map(function(u){var cur=wlv1SplitTimeAsked(wlv1EstSheet.timeAsked||'')[1]||'Days';return '<option'+(u===cur?' selected':'')+'>'+u+'</option>'}).join('')+'</select></div>'
+    /* 📏🔒 V1340 (১১.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ — "উচ্চতা আরো কম হবে") —
+       `.input` ক্লাসের প্রকল্প-জোড়া ডিফল্ট height:50px!important-কে এখানেই
+       (শুধু এই দুটো বাক্সে) ছোট করে ওভাররাইড — বাকি সব ফর্মের `.input` অছোঁয়া। */
+    +'<input id="wlv1EstTaAmt" class="input" inputmode="numeric" style="width:56px;height:28px!important;min-height:0!important;padding:0 8px!important;margin:0" value="'+esc(wlv1SplitTimeAsked(wlv1EstSheet.timeAsked||'')[0])+'" oninput="wlv1EstTaChange()">'
+    /* 📏🔒 V1327/V1340 (TK: "Days এর বক্স এত বড় কেন হবে" → পরে "উচ্চতা আরো কম") —
+       flex:1 বাদ, ফিক্সড চওড়া (Android-এর যমজ) + চিকন উচ্চতা। */
+    +'<select id="wlv1EstTaUnit" class="input" style="width:100px;flex:none;height:28px!important;min-height:0!important;padding:0 6px!important;margin:0" onchange="wlv1EstTaChange()">'+WLV1_TA_UNITS.map(function(u){var cur=wlv1SplitTimeAsked(wlv1EstSheet.timeAsked||'')[1]||'Days';return '<option'+(u===cur?' selected':'')+'>'+u+'</option>'}).join('')+'</select></div>'
     +'<div id="wlv1EstStage" style="flex:1;overflow:auto;padding:12px"></div>'
     +'<div style="background:#fff;display:flex;gap:8px;padding:8px 10px 12px;border-top:1px solid #DCE4DE">'
     +'<button type="button" class="ghost" style="flex:1" onclick="wlv1EstSave()">&#128190; SAVE</button>'
