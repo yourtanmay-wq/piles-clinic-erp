@@ -3038,7 +3038,8 @@ body.hasDeskNav .wrap:not(.publicWrap) .enquiryCard{max-width:900px;display:grid
 .ptcPaid{background:#E9F7EE;color:#0B7A34}
 .ptcDue{background:#FDEEEE;color:#B0392B}
 .payTreatBtns{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:14px}
-.ptBtn{color:#fff;font-weight:900;font-size:11px;padding:12px 3px;border-radius:11px;box-shadow:none}
+/* 📏🔒 V1328 (TK-নির্দেশ: চারটে বোতামের উচ্চতা সামান্য কম) — ফোনের যমজ (46dp→40dp)। */
+.ptBtn{color:#fff;font-weight:900;font-size:11px;padding:9px 3px;border-radius:11px;box-shadow:none}
 .ptCancel{background:#fff;color:#17304F;border:1.4px solid #0B7A34}
 .ptShare{background:#12A04A}
 .ptPrint{background:#1F6FE0}

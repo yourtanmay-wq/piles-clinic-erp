@@ -2093,8 +2093,11 @@ $dueRow
                 if (onTap != null) { isClickable = true; setOnClickListener { onTap() } }
             }
             col.addView(TextView(this).apply { text = k; textSize = 8f; setTextColor(cFaint) })
+            /* 🔠🔒 V1328 (১১.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ: "BILL PAID DUE এর
+               Amount এর সংখ্যা একটু বোল্ট হবে") — আগেও Typeface.BOLD ছিল, তাই
+               সাইজ একটু বাড়ানো হলো (13→14.5) যাতে চোখে স্পষ্ট মোটা দেখায়। */
             val vtv = TextView(this).apply {
-                text = valueText; textSize = 13f; setTextColor(color)
+                text = valueText; textSize = 14.5f; setTextColor(color)
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
             }
             col.addView(vtv)
@@ -2324,6 +2327,11 @@ $dueRow
         val dateValue = TextView(this).apply {
             text = NoBengali.s("Actual deposit date")
             setTextColor(payDateGrey)
+            // 📏🔒 V1328 (TK-নির্দেশ: "এই বক্সটাকে সামান্য নিচে নামান... লেখাগুলো
+            // একটু ছোট ছোট থাকবে, যতই বক্সের মধ্যে এক লাইনে বসে যায়") — আগে
+            // সাইজ ফিক্সড ছিল না (ডিফল্ট ধরত); এখন ছোট করে বসানো হলো যাতে বাংলা
+            // "প্রকৃত জমা: DD/MM/YYYY"-ও সবসময় এক লাইনেই থাকে।
+            textSize = 12f
             setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
             val d = resources.displayMetrics.density
             setPadding((14 * d).toInt(), (12 * d).toInt(), (14 * d).toInt(), (12 * d).toInt())
@@ -2343,7 +2351,11 @@ $dueRow
                 }.show()
             }
         }
-        container.addView(dateValue)
+        // 📏🔒 V1328 (TK-নির্দেশ) — Cash/Online-এর সঙ্গে গায়ে-গায়ে লাগত, তাই
+        // উপরে একটু ফাঁক (১৪dp) দেওয়া হলো।
+        container.addView(dateValue, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        ).also { it.topMargin = (14 * resources.displayMetrics.density).toInt() })
 
         // Premium styling (look only — no field/logic change): rounded inputs +
         // navy bold labels, matching the Registration screen.
@@ -2448,10 +2460,11 @@ $dueRow
         val shareBtn = payActionBtn("🟢 SHARE", "#12A04A")
         val printBtn = payActionBtn("🖨 PRINT", "#1F6FE0")
         val saveBtn = payActionBtn("💾 SAVE", "#0B7A34")
-        actionRow.addView(cancelBtn, LinearLayout.LayoutParams(0, (46 * d).toInt(), 1f).also { it.marginEnd = (5 * d).toInt() })
-        actionRow.addView(shareBtn, LinearLayout.LayoutParams(0, (46 * d).toInt(), 1f).also { it.marginEnd = (5 * d).toInt() })
-        actionRow.addView(printBtn, LinearLayout.LayoutParams(0, (46 * d).toInt(), 1f).also { it.marginEnd = (5 * d).toInt() })
-        actionRow.addView(saveBtn, LinearLayout.LayoutParams(0, (46 * d).toInt(), 1f))
+        // 📏🔒 V1328 (TK-নির্দেশ: "এই চারটা বক্সের উচ্চতা সামান্য একটু কম করবেন") — ৪৬dp → ৪০dp।
+        actionRow.addView(cancelBtn, LinearLayout.LayoutParams(0, (40 * d).toInt(), 1f).also { it.marginEnd = (5 * d).toInt() })
+        actionRow.addView(shareBtn, LinearLayout.LayoutParams(0, (40 * d).toInt(), 1f).also { it.marginEnd = (5 * d).toInt() })
+        actionRow.addView(printBtn, LinearLayout.LayoutParams(0, (40 * d).toInt(), 1f).also { it.marginEnd = (5 * d).toInt() })
+        actionRow.addView(saveBtn, LinearLayout.LayoutParams(0, (40 * d).toInt(), 1f))
         root.addView(actionRow)
 
         UppercaseInputUtil.applyToAll(root)  // TK-REQUESTED GLOBAL RULE (2026-07-24): English text auto-CAPITAL, Password fields excluded automatically

@@ -29898,11 +29898,14 @@ var WLV1_EST_DEFAULTS=[
   {group:'Fistula',name:'Fistula Treatment',rate:3800,unit:'per cm',measure:'cm'},   /* 📏 V1278 — TK: inch নয়, CM */
   {group:'Fissure',name:'Fissure Treatment',rate:6500,unit:'per position',measure:''},
   {group:'Hydrocele',name:'Hydrocele Treatment',rate:11000,unit:'per side',measure:''},
-  {group:'Medicine',name:'Q-Alkali',rate:5.20,unit:'per piece',measure:''},
+  /* 🔢🔒 V1327 (TK-নির্দেশ ও ফটো-প্রুফ পাশ) — ফোনের EstimatePrices.DEFAULTS-এর
+     হুবহু যমজ (একই qty)। কোনো ফোনে/ব্রাউজারে Price List আগে থেকে বদলে সেভ করা
+     থাকলে সেই বদলানো মানটাই থাকবে (localStorage-এর আগের নিয়ম, বদলায়নি)। */
+  {group:'Medicine',name:'Q-Alkali',rate:5.20,unit:'per piece',measure:'',qty:120},
   {group:'Medicine',name:'Pow. Laxall',rate:125,unit:'per piece',measure:''},
-  {group:'Medicine',name:'Tab. Kankayan (Arsha) Vati',rate:2.25,unit:'per piece',measure:''},
-  {group:'Medicine',name:'Tab. Arshakuthar Ras',rate:3.24,unit:'per piece',measure:''},
-  {group:'Medicine',name:'Jatyadi Ghritam',rate:225,unit:'per piece',measure:''},
+  {group:'Medicine',name:'Tab. Kankayan (Arsha) Vati',rate:2.25,unit:'per piece',measure:'',qty:120},
+  {group:'Medicine',name:'Tab. Arshakuthar Ras',rate:3.24,unit:'per piece',measure:'',qty:120},
+  {group:'Medicine',name:'Jatyadi Ghritam',rate:225,unit:'per piece',measure:'',qty:2},
   {group:'Other',name:'Dressing Cost',rate:300,unit:'per day',measure:''},
   {group:'Other',name:'Nursing Charges',rate:2521,unit:'per day',measure:''}
 ];
@@ -30058,9 +30061,12 @@ function wlv1EstScreen(){
     +'<button type="button" class="small ghost" style="flex:1" onclick="wlv1EstPriceList()">Price List</button></div>'
     /* ⏳🔒 V1280 — TK: *"কত সময় চাওয়া হলো সেটাও এস্টিমেটের মধ্যে"* ⇒ বোতাম-সারির নিচে Time Asked; কাগজেও ছাপে। */
     +'<div style="background:#fff;display:flex;gap:8px;align-items:center;padding:4px 12px 9px;border-bottom:1px solid #DCE4DE">'
-    +'<span style="font-size:13px;color:#123A26;white-space:nowrap">Time Asked</span>'
+    /* 🇧🇩🔒 V1327 (TK-নির্দেশ ও ফটো-প্রুফ পাশ) — প্রকল্পের আগে থেকে প্রমাণিত
+       বাংলা অনুবাদ (WLV1_A4_TITLES.bn.recovery-এর হুবহু যমজ)। */
+    +'<span style="font-size:13px;color:#123A26;white-space:nowrap">কতদিন সময় চাওয়া হল</span>'
     +'<input id="wlv1EstTaAmt" class="input" inputmode="numeric" style="width:90px;margin:0" value="'+esc(wlv1SplitTimeAsked(wlv1EstSheet.timeAsked||'')[0])+'" oninput="wlv1EstTaChange()">'
-    +'<select id="wlv1EstTaUnit" class="input" style="flex:1;margin:0" onchange="wlv1EstTaChange()">'+WLV1_TA_UNITS.map(function(u){var cur=wlv1SplitTimeAsked(wlv1EstSheet.timeAsked||'')[1]||'Days';return '<option'+(u===cur?' selected':'')+'>'+u+'</option>'}).join('')+'</select></div>'
+    /* 📏🔒 V1327 (TK: "Days এর বক্স এত বড় কেন হবে") — flex:1 বাদ, ফিক্সড ৯২px (ফোনের যমজ)। */
+    +'<select id="wlv1EstTaUnit" class="input" style="width:92px;flex:none;margin:0" onchange="wlv1EstTaChange()">'+WLV1_TA_UNITS.map(function(u){var cur=wlv1SplitTimeAsked(wlv1EstSheet.timeAsked||'')[1]||'Days';return '<option'+(u===cur?' selected':'')+'>'+u+'</option>'}).join('')+'</select></div>'
     +'<div id="wlv1EstStage" style="flex:1;overflow:auto;padding:12px"></div>'
     +'<div style="background:#fff;display:flex;gap:8px;padding:8px 10px 12px;border-top:1px solid #DCE4DE">'
     +'<button type="button" class="ghost" style="flex:1" onclick="wlv1EstSave()">&#128190; SAVE</button>'

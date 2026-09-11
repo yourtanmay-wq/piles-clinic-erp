@@ -111,11 +111,18 @@ object EstimatePrices {
         Item(G_FISSURE, "Fissure Treatment", 6500.0, "per position", ""),
         Item(G_HYDROCELE, "Hydrocele Treatment", 11000.0, "per side", ""),
 
-        Item(G_MEDICINE, "Q-Alkali", 5.20, "per piece"),
+        /* 🔢🔒 V1327 (১১.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — এই চারটে
+           ওষুধের ডিফল্ট সংখ্যা TK নিজে বলে দিয়েছেন। এটা ঠিক সেই একই "Default
+           quantity" ঘর (V1251) যেটা Price List-এই বদলানো যায় — এখানে শুধু
+           রেডিমেড মান বসানো হলো, যাতে TK-কে বা কোনো ব্রাঞ্চকে হাতে করে বসাতে
+           না হয়। ⛔ যদি কোনো ফোনে Price List আগে থেকেই নিজে বদলে সেভ করা
+           থাকে, তাহলে সেই ফোনের বদলানো মানটাই থাকবে (এটাই প্রকল্পের আগের
+           নিয়ম — "যে ফোনে বদলাবেন শুধু সেই ফোনেই থাকবে")। */
+        Item(G_MEDICINE, "Q-Alkali", 5.20, "per piece", qty = 120.0),
         Item(G_MEDICINE, "Pow. Laxall", 125.0, "per piece"),
-        Item(G_MEDICINE, "Tab. Kankayan (Arsha) Vati", 2.25, "per piece"),
-        Item(G_MEDICINE, "Tab. Arshakuthar Ras", 3.24, "per piece"),
-        Item(G_MEDICINE, "Jatyadi Ghritam", 225.0, "per piece"),
+        Item(G_MEDICINE, "Tab. Kankayan (Arsha) Vati", 2.25, "per piece", qty = 120.0),
+        Item(G_MEDICINE, "Tab. Arshakuthar Ras", 3.24, "per piece", qty = 120.0),
+        Item(G_MEDICINE, "Jatyadi Ghritam", 225.0, "per piece", qty = 2.0),
 
         Item(G_OTHER, "Dressing Cost", 300.0, "per day"),
         Item(G_OTHER, "Nursing Charges", 2521.0, "per day")

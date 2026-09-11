@@ -234,8 +234,12 @@ class EstimatePaperActivity : AppCompatActivity() {
             setBackgroundColor(Color.WHITE)
             setPadding(dp(12), dp(2), dp(12), dp(8))
         }
+        /* 🇧🇩🔒 V1327 (১১.০৯.২০২৬, TK-নির্দেশ ও ফটো-প্রুফ পাশ) — TK নিজে বাংলা
+           লেখা চেয়েছেন এই একটা লেবেলে। প্রকল্পের আগে থেকেই এই একই কথার প্রমাণিত
+           বাংলা অনুবাদ আছে (`CheckupA4Lang`-এর "recovery" চাবি, A4 কাগজে ব্যবহৃত)
+           — সেটাই এখানে বসানো হলো, নতুন কোনো অনুবাদ বানানো হয়নি। */
         taRow.addView(TextView(this).apply {
-            text = "Time Asked"; textSize = 12.5f
+            text = "কতদিন সময় চাওয়া হল"; textSize = 12.5f
             setTextColor(Color.parseColor("#123A26"))
             setPadding(0, 0, dp(10), 0)
         })
@@ -256,7 +260,9 @@ class EstimatePaperActivity : AppCompatActivity() {
                 android.R.layout.simple_spinner_dropdown_item, CounselModel.UNITS)
             setSelection(CounselModel.UNITS.indexOf(taUnit0).let { if (it < 0) 0 else it })
             background = box("#F7FAFC", "#CFE0EE", 10)
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            // 📏🔒 V1327 (TK: "Days এর বক্স এত বড় কেন হবে") — আগে flex:1 পুরো
+            // বাকি জায়গা জুড়ে নিত, তাই বেশি চওড়া দেখাত; এখন ফিক্সড ৯২dp।
+            layoutParams = LinearLayout.LayoutParams(dp(92), LinearLayout.LayoutParams.WRAP_CONTENT)
         }
         fun pushTimeAsked() {
             sheet.timeAsked = CounselModel.timeAsked(
