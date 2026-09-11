@@ -1025,15 +1025,28 @@
     if (!days.length) body = '<div class="card mut">No field visit recorded yet.</div>';
     days.forEach(function (r) {
       var date = String(r.work_date || '').slice(0, 10);
+      var started = String(r.started_at || '');
       var ended = String(r.ended_at || '');
       var auto = !!r.auto_closed;
-      var today = new Date().toISOString().slice(0, 10);
+      /* 🕐🔒 V1333 (১১.০৯.২০২৬, TK-নির্দেশ ও গভীর যাচাই — তালিকা সারি ৪৩৪) —
+         `toISOString()` সবসময় UTC তারিখ দেয়, ভারতের নয় (ফোনের কোড আগে থেকেই
+         Asia/Kolkata ব্যবহার করে — এখানে বাদ পড়েছিল)। রাত ১২টা থেকে ভোর
+         ৫.৩০-এর মধ্যে UTC তারিখ এখনো "গতকাল" থাকে, তাই আজকের চলতি ভিজিটও
+         ভুল করে "NOT CLOSED" (লাল) দেখাতে পারত, "RUNNING"-এর বদলে। */
+      var today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
       /* ⛔ V1076 — GPS-সারি নেই এমন দিন ভুল করে লাল "NOT CLOSED" দেখানো যাবে না। */
-      var noGps = !String(r.started_at || '') && !ended;
+      var noGps = !started && !ended;
+      /* 🩺🔒 V1333 — TK-রিপোর্ট: "COMPLETE" লেখা ছিল, অথচ "Hours -" — আগে এই
+         লেবেল শুধু OUT চাপা হয়েছে কিনা দেখত, IN-এর তথ্য সত্যিই এল কিনা মেলাত
+         না। এখন না মিললে সৎভাবে "INCOMPLETE DATA" (ফোনের হুবহু যমজ)। */
+      var startedValid = !!started && isFinite(new Date(started).getTime());
+      var endedValid = !!ended && isFinite(new Date(ended).getTime());
       var status = noGps ? 'NO GPS'
-        : ((!ended && date === today) ? 'RUNNING' : (!ended ? 'NOT CLOSED' : (auto ? 'AUTO CLOSED' : 'COMPLETE')));
+        : ((!ended && date === today) ? 'RUNNING'
+          : (!ended ? 'NOT CLOSED'
+            : (!startedValid ? 'INCOMPLETE DATA' : (auto ? 'AUTO CLOSED' : 'COMPLETE'))));
       var colour = status === 'NOT CLOSED' ? '#B42318'
-        : ((status === 'AUTO CLOSED' || status === 'NO GPS') ? '#8A5A00' : '#0B7A4B');
+        : ((status === 'AUTO CLOSED' || status === 'NO GPS' || status === 'INCOMPLETE DATA') ? '#8A5A00' : '#0B7A4B');
       var km = (Number(r.distance_m || 0) / 1000).toFixed(1) + ' km';
       var hrs = wlv1FvHours(r.started_at, r.ended_at);
       var docs = (byDate[date] || []).length;
@@ -1042,13 +1055,20 @@
         map = '<a class="pill blueP" style="text-decoration:none" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=' +
           encodeURIComponent(r.last_lat + ',' + r.last_lng) + '">OPEN IN GOOGLE MAPS</a>';
       }
+      /* 📍🔒 V1333 — আসল কারণ (V1156-এ কোডে সারানো): লোকেশন-অনুমতি না থাকলে
+         GPS একটাও অবস্থান দেয় না, তাই দূরত্ব চিরকাল ০.০। এই ফিক্সের আগের
+         পুরনো দিনগুলোতে এখনো এটাই দেখা যাবে, তাই এখানে সৎভাবে কারণ বলা হলো। */
+      var zeroDistanceUnexplained = !noGps && endedValid && startedValid && Number(r.distance_m || 0) <= 0;
       body += '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center">' +
         '<b>' + m.esc(wlv1FvDmy(date)) + '</b>' +
         '<span class="pill" style="color:' + colour + ';background:#F4F7FB">' + status + '</span></div>' +
-        '<div class="tiny mut" style="margin-top:6px">Hours ' + m.esc(hrs) + '  ·  Distance ' + m.esc(km) +
+        (noGps ? '' : '<div class="tiny mut" style="margin-top:6px">IN ' + m.esc(startedValid ? wlv1FvTime(started) : '-') +
+          '  ·  OUT ' + m.esc(endedValid ? wlv1FvTime(ended) : '-') + '</div>') +
+        '<div class="tiny mut" style="margin-top:2px">Hours ' + m.esc(hrs) + '  ·  Distance ' + m.esc(km) +
         '  ·  Doctors ' + docs + '</div>' +
         (auto ? '<div class="tiny mut">OUT TIME not marked - closed by app at 12:00 AM</div>' : '') +
         (noGps ? '<div class="tiny mut">Location was off on the phone - only the doctor visits were recorded</div>' : '') +
+        (zeroDistanceUnexplained ? '<div class="tiny mut">⚠ Location permission may have been off - distance not recorded</div>' : '') +
         (r.last_seen_at ? '<div class="tiny mut">Last seen ' + m.esc(wlv1FvTime(r.last_seen_at)) +
           '  ·  accuracy ±' + (r.last_acc_m || 0) + ' m</div>' : '') +
         (map ? '<div style="margin-top:8px">' + map + '</div>' : '') +

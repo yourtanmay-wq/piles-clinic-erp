@@ -290,10 +290,18 @@ class FieldVisitActivity : AppCompatActivity() {
             /* ⛔ V1076 — GPS-সারি নেই এমন দিন (শুধু ডাক্তার মার্ক করা) ভুল করে
                "NOT CLOSED" (লাল) দেখানো যাবে না; সেখানে GPS-ই চলেনি। */
             val noGps = started.isBlank() && ended.isBlank()
+            /* 🩺🔒 V1333 (১১.০৯.২০২৬, TK-নির্দেশ ও গভীর যাচাই — তালিকা সারি ৪৩৪) —
+               TK-রিপোর্ট: "COMPLETE" লেখা ছিল, অথচ "Hours -" — কারণ আগে এই
+               লেবেলটা শুধু OUT চাপা হয়েছে কিনা দেখত, IN-এর তথ্য ঠিকঠাক এল
+               কিনা মেলাত না। এখন IN-এর তথ্য সত্যিই পড়া যাচ্ছে কিনা সেটাও
+               শর্তে যোগ হলো — না মিললে সৎভাবে "INCOMPLETE DATA" দেখাবে। */
+            val startedValid = started.isNotBlank() && parseIso(started) > 0L
+            val endedValid = ended.isNotBlank() && parseIso(ended) > 0L
             val status = when {
                 noGps -> "NO GPS"
                 ended.isBlank() && date == today() -> "RUNNING"
                 ended.isBlank() -> "NOT CLOSED"
+                !startedValid -> "INCOMPLETE DATA"
                 auto -> "AUTO CLOSED"
                 else -> "COMPLETE"
             }
@@ -301,6 +309,7 @@ class FieldVisitActivity : AppCompatActivity() {
                 "RUNNING" -> "#0B7A4B"
                 "AUTO CLOSED" -> "#8A5A00"
                 "NO GPS" -> "#8A5A00"
+                "INCOMPLETE DATA" -> "#8A5A00"
                 "NOT CLOSED" -> "#B42318"
                 else -> "#0B7A4B"
             }
@@ -310,6 +319,13 @@ class FieldVisitActivity : AppCompatActivity() {
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
                 setTextColor(android.graphics.Color.parseColor(colour))
             })
+            /* 🕐🔒 V1333 (TK-নির্দেশ: "IN Time ও Out Time কোন টাইমে চাপা হয়েছে
+               সেটা মেনশন করতে হবে") — আসল ঘড়ির সময় আগে থেকেই জমা ছিল, শুধু
+               এই পর্দায় দেখানো হতো না (Hours-এই গুলিয়ে যেত)। ⛔ noGps হলে
+               দেখানো হয় না — নিচের বার্তাতেই বলা আছে GPS-ই চলেনি। */
+            if (!noGps) card.addView(ModuleUi.body(this,
+                "IN " + (if (startedValid) timeOf(started) else "-") +
+                    "   ·   OUT " + (if (endedValid) timeOf(ended) else "-")))
             val hrs = hoursBetween(started, ended)
             card.addView(ModuleUi.body(this,
                 "Hours " + hrs + "   ·   Distance " + FieldVisit.kmText(meters) +
@@ -317,6 +333,14 @@ class FieldVisitActivity : AppCompatActivity() {
             if (auto) card.addView(ModuleUi.body(this, "OUT TIME not marked - closed by app at 12:00 AM"))
             if (noGps) card.addView(ModuleUi.body(this,
                 "Location was off on the phone - only the doctor visits were recorded"))
+            /* 📍🔒 V1333 (TK-নির্দেশ: "distance কত ঘুরেছে দেখতে চাই") — আসল
+               কারণ (V1156-এ কোডে সারানো): লোকেশন-অনুমতি না থাকলে GPS একটাও
+               অবস্থান দেয় না, তাই দূরত্ব চিরকাল ০.০ থাকে। পুরনো (এই ফিক্সের
+               আগের) দিনগুলোর সারিতে এখনো এটাই দেখা যাবে, তাই এখানেই সৎভাবে
+               কারণটা বলা হলো — কোনো টাকা/হিসাব বদলায়নি, শুধু ব্যাখ্যা। */
+            val zeroDistanceUnexplained = !noGps && endedValid && startedValid && meters <= 0.0
+            if (zeroDistanceUnexplained) card.addView(ModuleUi.body(this,
+                "⚠ Location permission may have been off - distance not recorded"))
             val lat = r.optDouble("last_lat", Double.NaN)
             val lng = r.optDouble("last_lng", Double.NaN)
             if (!lat.isNaN() && !lng.isNaN() && (lat != 0.0 || lng != 0.0)) {
