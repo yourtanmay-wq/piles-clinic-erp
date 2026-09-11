@@ -214,12 +214,33 @@ class FieldVisitService : Service() {
  */
 object FieldVisitControl {
 
+    /* 🛰️🔒 V1353 (১১.০৯.২০২৬, TK-রিপোর্ট — RUPAM-এর ফোনে "RUNNING · Location
+       on" দেখাচ্ছে, কিন্তু নোটিফিকেশনই নেই, একাধিক দিন ধরে দূরত্ব চিরকাল ০.০)।
+       **আসল কারণ (কোডে মিলিয়ে পাওয়া):** আগে এখানে `catch (_: Throwable) { }`
+       ছিল — Android 12+-এ `startForegroundService()` মাঝেমধ্যে সময়ের কারণে
+       ব্যর্থ হতে পারে (`ForegroundServiceStartNotAllowedException`, বিশেষত
+       কিছু ফোনের নিজস্ব ব্যাটারি-ব্যবস্থাপনায়), আর এই ব্যর্থতা সম্পূর্ণ
+       নিঃশব্দে হারিয়ে যেত — সেবা কখনো শুরুই হত না, কোনো নোটিফিকেশনও আসত না,
+       অথচ ফোনের নিজের `isRunning()` চিহ্ন (attendance-এর জন্য, আলাদা) ঠিকই
+       "RUNNING" বলে যেত। ⇒ প্রথম চেষ্টা ব্যর্থ হলে ২ সেকেন্ড পর **একবার
+       আবার** চেষ্টা করা হয় (এই ধরনের বাধা প্রায়ই সাময়িক/সময়ের-দোষ) — এখনো
+       ব্যর্থ হলেও অ্যাপ ক্র্যাশ করে না, আগের মতোই নিঃশব্দ, কিন্তু অন্তত
+       একবার সত্যিকারের দ্বিতীয় সুযোগ পায়। */
     fun start(context: Context) {
-        try {
+        if (tryStart(context)) return
+        val appCtx = context.applicationContext
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            tryStart(appCtx)
+        }, 2000L)
+    }
+
+    private fun tryStart(context: Context): Boolean {
+        return try {
             val i = Intent(context, FieldVisitService::class.java)
             if (android.os.Build.VERSION.SDK_INT >= 26)
                 context.startForegroundService(i) else context.startService(i)
-        } catch (_: Throwable) { }
+            true
+        } catch (_: Throwable) { false }
     }
 
     fun stop(context: Context) {
