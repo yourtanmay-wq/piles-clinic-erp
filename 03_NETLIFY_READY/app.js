@@ -17062,13 +17062,41 @@ window["editPaymentEntry"]=editPaymentEntry;
    dailyEvent দেখায় (আন্দাজ নেই) — প্রতিটার নিজস্ব Edit/Delete।
    ⛔ সাধারণ (মিশ্র নয়) পেমেন্টের editPaymentEntry/wlv1DeletePayment
    এক অক্ষরও বদলায়নি। */
-function wlv1ShowDailyBreakdown(paymentId){
+async function wlv1ShowDailyBreakdown(paymentId){
   const x = load('payments').find(p=>p.id===paymentId);
   if(!x) return toast('Payment not found');
   // 🔒 কেন্দ্রীয়ভাবে এখানেই — যে পথ দিয়েই ডাকা হোক (editPaymentEntry বা
   // Today's Collection-এর "Fix Payment"), একই দিন-ভিত্তিক নিয়ম বাধ্যতামূলক।
   if(!(isMaster() || wlv1TodayOrYesterday(x.date))){
-    return toast('এই দিনের মিশ্র পেমেন্ট বদলাতে এখন Master-এর অনুমতি লাগবে (আজ/গতকাল পার হয়ে গেছে)।');
+    /* 🔴🔒 V1350 (১১.০৯.২০২৬, TK-রিপোর্ট — ফোনে অ্যাডভান্স ডিলিট করতে
+       চাইলাম, মাস্টার রিকুয়েস্ট গেল না কেন, তারপর "হ্যাঁ ঠিক করে দিন") —
+       একক পুরনো পেমেন্টের মতোই (wlv1DeletePaymentImpl) এখন এখানেও মাস্টারের
+       ঘণ্টায় নোটিশ যায়; আগে শুধু এই toast দেখিয়েই থেমে যেত, মাস্টার কিছুই
+       জানতেন না। ⛔ ইচ্ছে করেই এই নোটিশের শিরোনামে "Delete request" শব্দ
+       দুটো নেই (আলাদা "CombinedPayment" টাইপ) — তাই `briefingNeedsApproval()`
+       এক-চাপ Approve/Reject বোতাম দেখাবে না: এই সারিতে একাধিক আলাদা এন্ট্রি
+       (dailyEvents) থাকে, ঠিক কোনটা মুছতে হবে এক-চাপে নিশ্চিত বোঝা যায় না —
+       ভুল করে পুরো দিনের সব টাকা মুছে যাওয়ার ঝুঁকি এড়াতে শুধু জানানো;
+       মাস্টার নিজে Master হিসেবে খুলে (উপরের শর্ত তখন `isMaster()`-এ পাশ
+       করে) দেখেশুনে ঠিক এন্ট্রিটা বেছে নেবেন। ফোনের
+       `DeletePermission.sendCombinedPaymentReviewRequest()`-এর হুবহু একই যুক্তি। */
+    var __sentAt = wlv1DelReqSentToday('CombinedPayment', x.id, x.mobile);
+    if(__sentAt) return toast('Already sent at ' + __sentAt + ' — no need to send again');
+    if(!confirm('এই দিনের মিশ্র পেমেন্ট বদলাতে এখন Master-এর অনুমতি লাগবে (আজ/গতকাল পার হয়ে গেছে)।\n\nMaster-কে রিভিউ করার অনুরোধ পাঠাব?')) return;
+    wlv1DelReqMark('CombinedPayment', x.id, x.mobile);
+    var evCount = Array.isArray(x.dailyEvents) ? x.dailyEvents.length : 0;
+    var req={id:wlv1DelReqBriefId('CombinedPayment',x.id,x.mobile),date:today(),
+      title:'🗑️ Combined payment review requested — '+(x.name||normMob(x.mobile||'')),
+      message:'Combined payment review request\nName : '+(x.name||'')+'\nMobile : '+normMob(x.mobile||'')+
+              '\nPatient ID : '+(x.patientCode||'')+'\nBranch : '+(x.branch||'')+
+              '\nPayment date : '+wlv1Dot(String(x.date||'').slice(0,10))+' · '+evCount+' entries combined'+
+              '\nRequested by : '+(codeName(user&&user.mobile)||'')+
+              '\n⚠ Open Payment screen as Master to review and edit/delete the specific entry.',
+      targets:{roles:['master']},branch:x.branch||'',seen:[],replies:[],
+      createdBy:(user&&user.mobile)||'',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
+    wlv1AddBriefOnce(req);
+    try{ await cloudUpsertBriefing(req) }catch(_e){}
+    return toast('Request sent to Master');
   }
   const events = Array.isArray(x.dailyEvents) ? x.dailyEvents : [];
   const label = x.payLabel || x.paymentLabel || 'Payment';

@@ -377,6 +377,72 @@ object DeletePermission {
      *    ফেরানো যায়, টাকার ইতিহাস অক্ষত থাকে। নতুন কোনো নিয়ম বানানো হয়নি।
      * ⛔ সারি খুঁজে না পেলে বা লেখা পড়া না গেলে **কিছুই মোছে না**, সাফ বার্তা যায়।
      */
+    /**
+     * 🔴🔒 V1350 (১১.০৯.২০২৬, TK-রিপোর্ট — "অ্যাডভান্স ডিলিট করতে চাইলাম,
+     * মাস্টার রিকুয়েস্ট গেল না কেন", তারপর "হ্যাঁ ঠিক করে দিন") — একক
+     * পুরনো পেমেন্টে `sendRequest()` দিয়ে মাস্টারের ঘণ্টায় অনুরোধ যায়;
+     * "মিশ্র" (dailyEvents, একই দিনে একাধিক এন্ট্রি জোড়া) পুরনো পেমেন্টে
+     * আগে এটাই বাদ ছিল — শুধু "Master-এর অনুমতি লাগবে" Toast দেখিয়ে
+     * থেমে যেত, কোনো নোটিশই যেত না।
+     *
+     * ⛔ এখানে ইচ্ছে করেই "Approve & Delete" এক-চাপ বোতাম নেই — `sendRequest()`
+     *    থেকে আলাদা টাইপ ("CombinedPayment") ও শিরোনামে "Delete request"
+     *    শব্দ দুটো নেই, তাই `BriefingAdapter`-এর অটো-অনুমোদন বোতাম দেখা
+     *    যায় না। কারণ: এই সারিতে একাধিক আলাদা এন্ট্রি (dailyEvents) থাকে,
+     *    ঠিক কোনটা মুছতে হবে এক-চাপে নিশ্চিতভাবে বোঝা যায় না — ভুল করে
+     *    এক-চাপে পুরো দিনের সব টাকা মুছে যাওয়ার ঝুঁকি এড়াতে শুধু জানানো;
+     *    মাস্টার নিজে Payment স্ক্রিনে খুলে (Master হিসেবে বিভাজন সবসময়
+     *    খোলে, `canOpenBreakdown`) দেখেশুনে ঠিক এন্ট্রিটা বেছে নেবেন।
+     * ⛔ দিনে একবারই — `sendRequest()`-এর হুবহু একই dedup-প্যাটার্ন (V1176/V1271)।
+     */
+    fun sendCombinedPaymentReviewRequest(
+        context: Context,
+        user: NativeUser,
+        row: org.json.JSONObject,
+        reason: String = ""
+    ): Boolean {
+        val rowId = row.optString("id")
+        val mobile = row.optString("mobile")
+        val already = alreadySentToday(context, "CombinedPayment", rowId, mobile)
+        if (already != null) {
+            lastMsg = "Already sent at " + already + " — no need to send again"
+            return false
+        }
+        return try {
+            val who = StaffDirectory.findAccount(user.mobile)?.name ?: user.mobile
+            val eventCount = row.optJSONArray("dailyEvents")?.length() ?: 0
+            val name = row.optString("name").ifBlank { mobile }
+            val sb = StringBuilder()
+            sb.append("Combined payment review request\n")
+            sb.append("Name : ").append(name).append("\n")
+            sb.append("Mobile : ").append(mobile).append("\n")
+            if (row.optString("patientCode").isNotBlank()) sb.append("Patient ID : ").append(row.optString("patientCode")).append("\n")
+            if (row.optString("branch").isNotBlank()) sb.append("Branch : ").append(row.optString("branch")).append("\n")
+            sb.append("Payment date : ").append(DateUtil.display(row.optString("date"))).append(" · ").append(eventCount).append(" entries combined\n")
+            sb.append("Requested by : ").append(who).append("\n")
+            if (reason.isNotBlank()) sb.append("Reason : ").append(reason).append("\n")
+            sb.append("⚠ Open Payment screen as Master to review and edit/delete the specific entry.")
+            markSentToday(context, "CombinedPayment", rowId, mobile)
+            BriefingRepository().post(
+                context,
+                "🗑️ Combined payment review requested — " + name,
+                sb.toString(),
+                "role",
+                row.optString("branch"),
+                "master",
+                user.mobile,
+                forcedId = requestBriefId("CombinedPayment", rowId, mobile)
+            ).also { ok ->
+                lastMsg = if (ok) "Request sent to Master" else "Failed — check the network"
+                if (!ok) clearSentToday(context, "CombinedPayment", rowId, mobile)
+            }
+        } catch (_: Throwable) {
+            clearSentToday(context, "CombinedPayment", rowId, mobile)
+            lastMsg = "Failed — check the network"
+            false
+        }
+    }
+
     fun approveAndDelete(message: String, masterMobile: String): String {
         return try {
             fun field(key: String): String {

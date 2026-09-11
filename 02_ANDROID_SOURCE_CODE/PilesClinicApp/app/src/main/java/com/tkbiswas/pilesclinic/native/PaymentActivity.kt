@@ -728,7 +728,22 @@ class PaymentActivity : AppCompatActivity() {
                                     try { dlg.dismiss() } catch (_: Throwable) { }
                                     showCollectionDetails(row)
                                 }
-                                else Toast.makeText(this@PaymentActivity, NoBengali.s("এই দিনের মিশ্র পেমেন্ট বদলাতে এখন Master-এর অনুমতি লাগবে (আজ/গতকাল পার হয়ে গেছে)।"), Toast.LENGTH_LONG).show()
+                                /* 🔴🔒 V1350 (১১.০৯.২০২৬, TK-রিপোর্ট — "অ্যাডভান্স ডিলিট করতে
+                                   চাইলাম, মাস্টার রিকুয়েস্ট গেল না কেন") — সাধারণ (একক) পুরনো
+                                   পেমেন্টের মতোই এখন এখানেও মাস্টারের ঘণ্টায় একটা নোটিশ যায়;
+                                   আগে শুধু এই Toast দেখিয়েই থেমে যেত, মাস্টার কিছুই জানতেন না।
+                                   ⛔ ইচ্ছে করেই "Approve & Delete" এক-চাপ বোতাম নেই — এই সারিতে
+                                      একাধিক আলাদা এন্ট্রি থাকে, কোনটা মুছতে হবে এক-চাপে নিশ্চিত
+                                      বোঝা যায় না; ভুল করে পুরো দিনের সব টাকা মুছে যাওয়ার ঝুঁকি
+                                      এড়াতে শুধু জানানো — মাস্টার নিজে Payment স্ক্রিনে খুলে
+                                      (Master হিসেবে বিভাজন সবসময় খোলে) ঠিক এন্ট্রিটা বেছে নেবেন। */
+                                else lifecycleScope.launch {
+                                    withContext(Dispatchers.IO) {
+                                        try { DeletePermission.sendCombinedPaymentReviewRequest(this@PaymentActivity, user, p, "Wants to edit/delete an entry") }
+                                        catch (_: Throwable) { false }
+                                    }
+                                    Toast.makeText(this@PaymentActivity, DeletePermission.lastMessage(), Toast.LENGTH_LONG).show()
+                                }
                             }
                         } else TripleTapEdit.attach(row2) { tryEditPayment(p) }
                     }

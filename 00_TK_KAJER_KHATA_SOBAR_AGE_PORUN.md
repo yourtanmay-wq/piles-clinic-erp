@@ -25604,3 +25604,36 @@ TK-কে সততার সাথে জানানো হলো।
 
 পাহারা: verify_android_resources.py ✅ · tk_guard.py ✅ · verify_kotlin_
 compile.py ✅ PASS (নতুন ভুল ০)।
+
+## ১১.০৯.২০২৬ — V1350 · মিশ্র পেমেন্টেও মাস্টার-রিকুয়েস্ট
+
+TK-এর ছবি: KHAGEN BHAGAT-এর ₹৩৩,০০০ Advance ডিলিট করতে চাইলেন, কিন্তু
+মাস্টারের ঘণ্টায় কোনো অনুরোধ আসেনি — "সত্যতা যাচাই করে বলুন"।
+
+**কোডে মিলিয়ে আসল কারণ:** `PaymentActivity.kt`-এ একক (সাধারণ) পুরনো
+পেমেন্ট ডিলিট করতে চাইলে `DeletePermission.sendRequest()` দিয়ে মাস্টারের
+ঘণ্টায় ঠিকই নোটিশ যায়। কিন্তু "মিশ্র" পেমেন্টে (`payType=="treatment"`
+আর `dailyEvents.length>1` — একই দিনে একাধিক এন্ট্রি জোড়া একটা `payments`
+সারিতে, এই অ্যাডভান্সটাও তেমন একটা) triple-tap করলে `showDailyEventsBreakdown()`
+তখনই খোলে যখন `canOpenBreakdown` (Master, বা আজ/গতকাল) — নইলে শুধু Toast
+("Master-এর অনুমতি লাগবে") দেখিয়ে থেমে যেত, কোনো নোটিশ পাঠানোর ব্যবস্থাই
+ছিল না। এটাই আসল ফাঁক — একক ও মিশ্র পেমেন্টের মধ্যে অসামঞ্জস্য।
+
+**সমাধান (V1350):** নতুন `DeletePermission.sendCombinedPaymentReviewRequest()`
+— `sendRequest()`-এর হুবহু একই dedup-প্যাটার্ন (V1176/V1271, দিনে একবার,
+নির্দিষ্ট আইডি) ব্যবহার করে মাস্টারের ঘণ্টায় নোটিশ পাঠায়। ইচ্ছে করেই
+টাইটেলে "Delete request" শব্দ দুটো নেই (টাইপ "CombinedPayment") — তাই
+`BriefingAdapter`-এর এক-চাপ "✔ Approve" (যেটা `TrashHelper.moveToTrash`
+দিয়ে সরাসরি মুছে দেয়) দেখা যায় না। **কারণ:** এই সারিতে একাধিক আলাদা
+এন্ট্রি একসাথে থাকে বলে এক-চাপে ঠিক কোনটা মুছতে হবে নিশ্চিতভাবে বোঝা
+যায় না — ভুল করে পুরো দিনের সব টাকা মুছে যাওয়ার ঝুঁকি এড়াতে শুধু
+জানানো হলো; মাস্টার নিজে Payment স্ক্রিন খুলে (Master হিসেবে বিভাজন
+সবসময় খোলে) দেখেশুনে ঠিক এন্ট্রিটা বেছে ডিলিট/এডিট করবেন।
+
+ওয়েবেও (`app.js`-এর `wlv1ShowDailyBreakdown()`) হুবহু একই বাগ ছিল (একই
+Toast, একই ফাঁক) — একই যুক্তিতে সারানো হলো, বিদ্যমান `wlv1DelReq*` হেল্পার
+পুনর্ব্যবহার করে। `index.html`-এর `app.js?v=` → v1350।
+
+পাহারা: verify_android_resources.py ✅ · tk_guard.py ✅ · verify_kotlin_
+compile.py ✅ PASS (নতুন ভুল ০) · node --check app.js ✅ · web_browser_test
+✅ PASS।
