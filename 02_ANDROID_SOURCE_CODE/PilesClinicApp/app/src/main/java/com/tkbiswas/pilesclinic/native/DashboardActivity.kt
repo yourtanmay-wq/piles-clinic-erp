@@ -825,10 +825,19 @@ class DashboardActivity : AppCompatActivity() {
             /* 🟢🔒 V590 (TK-রিপোর্ট) — আগে শুধু **ঠিক আজকের** কল গোনা হত, তাই
                একদিন বাদ পড়া কল ব্যানার থেকে চিরতরে হারিয়ে যেত। এখন **আজকের ও
                বকেয়া** — দুটোই। ⛔ তারিখ ফাঁকা হলে (কল ঠিক করা নেই) গোনা হয় না। */
-            fun isDue(f: FollowUpItem): Boolean = f.nextFollow.isNotBlank() && f.nextFollow <= today
+            /* 📵🔒 V1331 (১১.০৯.২০২৬, TK-নির্দেশ ও গভীর যাচাই — তালিকা সারি ৪৩৩):
+               TK-রিপোর্ট: স্টাফ কল করে Remark লিখে "আর কল লাগবে না" বলার পরেও
+               লোকটা ব্যানারের সংখ্যায় থেকে যাচ্ছিল। **আসল কারণ (কোডে ধরা):**
+               এই `isDue()`/`overdueFrom()` কখনো `noMoreCalls` দেখত না — অথচ
+               ব্যানারে চাপ দিয়ে যে তালিকা খোলে (`FollowUpActivity.kt:1059`)
+               সেটা ঠিকই বাদ দেয়, আর "আর কল লাগবে না" বোতামের নিজের কথাই
+               ("কল-তালিকা ও ব্যানার থেকে সরে যাবে") এটাই প্রতিশ্রুতি দেয়।
+               ⇒ এখন গোনাতেও একই শর্ত — ব্যানার আর তালিকা সবসময় মিলবে।
+               ⛔ বাকি নিয়ম (আজ + বকেয়া দুটোই গোনা, V590) এক অক্ষরও বদলায়নি। */
+            fun isDue(f: FollowUpItem): Boolean = !f.noMoreCalls && f.nextFollow.isNotBlank() && f.nextFollow <= today
             fun countFrom(items: List<FollowUpItem>?): Int = items?.count { isDue(it) } ?: 0
             fun overdueFrom(items: List<FollowUpItem>?): Int =
-                items?.count { it.nextFollow.isNotBlank() && it.nextFollow < today } ?: 0
+                items?.count { !it.noMoreCalls && it.nextFollow.isNotBlank() && it.nextFollow < today } ?: 0
             // 🟢🔒 V607 (২৪.০৮.২০২৬, TK-নির্দেশ) — একই তিনটে cache-পড়া থেকেই
             // (নতুন কোনো fetch নেই — V509-এর egress-সুরক্ষা অক্ষত) সব আইটেম
             // জমিয়ে রাখা হচ্ছে, যাতে নিচে ব্রাঞ্চ ধরে ভাঙা যায়।
