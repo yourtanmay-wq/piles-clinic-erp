@@ -536,7 +536,7 @@ class PartnerSharesActivity : Activity() {
                         val pm = this@PartnerSharesActivity.getSystemService(android.content.Context.PRINT_SERVICE) as android.print.PrintManager
                         val job = "Partner Shares - $branch"
                         pm.print(job, view.createPrintDocumentAdapter(job),
-                            android.print.PrintAttributes.Builder().setMediaSize(android.print.PrintAttributes.MediaSize.ISO_A4).build())
+                            com.tkbiswas.pilesclinic.native.PrintQuality.builder().setMediaSize(android.print.PrintAttributes.MediaSize.ISO_A4).build())
                     } catch (e: Throwable) { Toast.makeText(this@PartnerSharesActivity, "Could not open print.", Toast.LENGTH_SHORT).show() }
                 }
             }

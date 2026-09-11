@@ -516,7 +516,7 @@ class EstimatePaperActivity : AppCompatActivity() {
                             as android.print.PrintManager
                         pm.print(
                             "Estimate", view.createPrintDocumentAdapter("Estimate"),
-                            android.print.PrintAttributes.Builder().build()
+                            com.tkbiswas.pilesclinic.native.PrintQuality.builder().build()
                         )
                     } catch (_: Throwable) {
                         Toast.makeText(this@EstimatePaperActivity, "Print not available", Toast.LENGTH_SHORT).show()

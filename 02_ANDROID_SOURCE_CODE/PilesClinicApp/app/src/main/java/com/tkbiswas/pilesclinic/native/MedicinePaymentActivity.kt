@@ -1226,7 +1226,7 @@ val mode = selectedMpMode
                     try {
                         val pm = getSystemService(android.content.Context.PRINT_SERVICE) as android.print.PrintManager
                         val adapter = view.createPrintDocumentAdapter("MedicinePayment")
-                        pm.print("Medicine Payment", adapter, android.print.PrintAttributes.Builder().build())
+                        pm.print("Medicine Payment", adapter, PrintQuality.builder().build())
                     } catch (_: Throwable) {
                         Toast.makeText(this@MedicinePaymentActivity, "Print not available", Toast.LENGTH_SHORT).show()
                     }

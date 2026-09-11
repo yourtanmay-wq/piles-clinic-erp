@@ -542,7 +542,7 @@ class RmpCommissionSheetActivity : AppCompatActivity() {
                             as android.print.PrintManager
                         pm.print("RMP Commission Sheet",
                             view.createPrintDocumentAdapter("RMP Commission Sheet"),
-                            android.print.PrintAttributes.Builder().build())
+                            PrintQuality.builder().build())
                     } catch (_: Throwable) {
                         ModuleUi.toast(this@RmpCommissionSheetActivity, "Print not available")
                     }

@@ -4087,7 +4087,7 @@ class IncomeExpenseActivity : AppCompatActivity() {
                     try {
                         val pm = getSystemService(android.content.Context.PRINT_SERVICE) as android.print.PrintManager
                         val adapter = view.createPrintDocumentAdapter("Statement")
-                        pm.print("Statement", adapter, android.print.PrintAttributes.Builder().build())
+                        pm.print("Statement", adapter, com.tkbiswas.pilesclinic.native.PrintQuality.builder().build())
                     } catch (_: Throwable) {
                         android.widget.Toast.makeText(this@IncomeExpenseActivity, "Print not available", android.widget.Toast.LENGTH_SHORT).show()
                     }

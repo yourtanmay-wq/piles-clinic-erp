@@ -170,7 +170,7 @@ $perfHtml
                     val jobName = "Performance Sheet - $staffCode - $monthLabel"
                     pm.print(
                         jobName, view.createPrintDocumentAdapter(jobName),
-                        PrintAttributes.Builder()
+                        com.tkbiswas.pilesclinic.native.PrintQuality.builder()
                             .setMediaSize(PrintAttributes.MediaSize.ISO_A4)
                             .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
                             .build()

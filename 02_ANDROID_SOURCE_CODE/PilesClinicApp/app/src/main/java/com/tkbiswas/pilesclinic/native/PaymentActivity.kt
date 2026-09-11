@@ -1949,7 +1949,7 @@ $dueRow
                     try {
                         val pm = getSystemService(android.content.Context.PRINT_SERVICE) as android.print.PrintManager
                         val adapter = view.createPrintDocumentAdapter("TreatmentPayment")
-                        pm.print("Treatment Payment", adapter, android.print.PrintAttributes.Builder().build())
+                        pm.print("Treatment Payment", adapter, PrintQuality.builder().build())
                     } catch (_: Throwable) {
                         Toast.makeText(this@PaymentActivity, "Print not available", Toast.LENGTH_SHORT).show()
                     }

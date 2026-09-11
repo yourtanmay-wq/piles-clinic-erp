@@ -300,7 +300,7 @@ class PrintPreviewActivity : AppCompatActivity() {
             val model = documentModel
             val jobName = if (model != null) "${model.documentTitle} - ${model.patientName}" else (supportActionBar?.title?.toString() ?: "Document")
             val adapter = PdfPrintDocumentAdapter(jobName, file)
-            printManager.print(jobName, adapter, PrintAttributes.Builder().build())
+            printManager.print(jobName, adapter, com.tkbiswas.pilesclinic.native.PrintQuality.builder().build())
         } catch (e: Exception) {
             Toast.makeText(this, "Print failed: ${e.message}", Toast.LENGTH_LONG).show()
         }

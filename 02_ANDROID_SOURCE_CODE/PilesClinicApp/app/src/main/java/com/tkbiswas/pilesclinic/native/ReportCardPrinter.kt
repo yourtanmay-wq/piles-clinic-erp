@@ -557,7 +557,7 @@ $watermark
             printManager.print(
                 "Report Card",
                 adapter,
-                PrintAttributes.Builder()
+                PrintQuality.builder()
                     .setMediaSize(PrintAttributes.MediaSize.ISO_A4)
                     .build()
             )

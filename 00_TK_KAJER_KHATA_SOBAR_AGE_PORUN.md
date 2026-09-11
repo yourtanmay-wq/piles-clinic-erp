@@ -25637,3 +25637,47 @@ Toast, একই ফাঁক) — একই যুক্তিতে সার�
 পাহারা: verify_android_resources.py ✅ · tk_guard.py ✅ · verify_kotlin_
 compile.py ✅ PASS (নতুন ভুল ০) · node --check app.js ✅ · web_browser_test
 ✅ PASS।
+
+## ১১.০৯.২০২৬ — V1351 · সব প্রিন্টে স্পষ্ট রেজোলিউশন + রঙিন মোড
+
+TK-র ছবি: Cost Estimate প্রিন্ট আউটে উজ্জ্বলতা নেই, আর "শুধু এই কাগজ নয়,
+প্রেসক্রিপশন/মেডিসিন স্লিপ/ডায়েট চার্ট সহ অ্যাপ থেকে যা প্রিন্ট হয় সবই
+এরকম" — গভীরে যাচাই করে সততার সাথে ঠিক করতে বললেন। যাচাই জানানোর পর
+"আপনার মতন করুন, ব্যবস্থা করে দিন"।
+
+**গভীরে যাচাই:** প্রথমে রঙের CSS চেক করা হলো — `print-color-adjust`
+আগেই ঠিক করা ছিল (V1341), Prescription-এর `rx_print.html`-এও আগে থেকেই
+ছিল। তাই এটা রঙ-চাপা পড়ার সমস্যা নয়। এরপর প্রকল্পের **সবগুলো** প্রিন্ট-
+জব কীভাবে PrintManager ডাকে সেটা মিলিয়ে দেখা হলো — ১৬টা ফাইলের **একটাও**
+`PrintAttributes.Builder()`-এ রেজোলিউশন বা রঙিন-মোড স্পষ্ট করে চাইত না,
+শুধু `.build()` করে খালি পাঠাত। এতে প্রিন্টার/ড্রাইভার নিজের ডিফল্ট বেছে
+নেয় — যেটা কিছু ফোন-প্রিন্টার জোড়ায় কম-রেজোলিউশন/ফিকে হতে পারে, নতুন
+প্রিন্টার হলেও। এই একটামাত্র জায়গা (PrintManager ডাকার মুহূর্ত) দিয়েই
+অ্যাপের সবগুলো প্রিন্ট-টেমপ্লেট যায় বলে এটাই সবচেয়ে সম্ভাব্য, সবজায়গায়-
+একই-রকম-প্রভাব-ফেলা কারণ।
+
+**সমাধান:** নতুন `PrintQuality.kt` (native প্যাকেজ) — `PrintQuality.builder()`
+একটা `PrintAttributes.Builder` ফেরত দেয় যেটায় আগে থেকেই `.setResolution
+(300, 300 dpi)` ও `.setColorMode(COLOR_MODE_COLOR)` বসানো। ১৬টা ফাইলে
+(EstimatePaperActivity, PrescriptionHtmlPrint, DietChartHtmlPrint,
+RegistrationHtmlPrint, AttendanceSheetHtmlPrint, SalaryStatementHtmlPrint,
+InvestigationHtmlPrint, ReportCardPrinter, RmpCommissionSheetActivity,
+DoctorCheckupActivity ×2, IncomeExpenseActivity, PaymentActivity,
+MedicinePaymentActivity, PatientTimelineActivity, PartnerSharesActivity,
+PrescriptionWhatsAppShare, PrintPreviewActivity) পুরনো খালি
+`PrintAttributes.Builder()` বদলে `PrintQuality.builder()` বসানো হলো —
+পাতার মাপ/মার্জিন কোথাও ছোঁয়া হয়নি, শুধু এই দুটো (resolution+colorMode)
+বাড়তি যোগ হলো।
+
+ওয়েবে `window.print()` ব্যবহার হয় (ব্রাউজারের নিজস্ব প্রিন্ট-ডায়ালগ,
+রেজোলিউশন/রঙ সম্পূর্ণ ব্যবহারকারী/ব্রাউজারের হাতে) — এই সীমাবদ্ধতা
+ওয়েবে প্রযোজ্যই না, নতুন কিছু করার দরকার নেই, সততার সাথে জানানো হলো।
+
+⚠️ **সৎ সীমা (TK-কে আগেই জানানো):** এটা প্রিন্টারকে যতটা সম্ভব ভালো মান
+চায়, কিন্তু WebView দিয়ে পাতা রেন্ডার করাটাই (সব টেমপ্লেটের ভিত্তি)
+নিজে থেকে কিছুটা কম-রেজোলিউশন হতে পারে বলে জানা একটা Android-এর
+সীমাবদ্ধতা — এটা তার একটা অংশ ঠিক করে, পুরোটা নিশ্চিত নয়। পরের APK
+বসিয়ে সত্যিই উন্নতি হলো কিনা TK-কে বলতে হবে।
+
+পাহারা: verify_android_resources.py ✅ · tk_guard.py ✅ · verify_kotlin_
+compile.py ✅ PASS (নতুন ভুল ০)।

@@ -543,7 +543,7 @@ object PrescriptionWhatsAppShare {
                 if (docPatient.isNotBlank()) append(" - ").append(docPatient.trim())
             }
             pm.print(jobName, PdfPrintDocumentAdapter(jobName, file),
-                android.print.PrintAttributes.Builder().build())
+                com.tkbiswas.pilesclinic.native.PrintQuality.builder().build())
         } catch (e: Throwable) {
             Toast.makeText(activity, "Print failed: ${e.message}", Toast.LENGTH_LONG).show()
         }

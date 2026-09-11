@@ -36,7 +36,7 @@ object RegistrationHtmlPrint {
                     val adapter = view.createPrintDocumentAdapter(jobName)
                     pm.print(
                         jobName, adapter,
-                        PrintAttributes.Builder()
+                        com.tkbiswas.pilesclinic.native.PrintQuality.builder()
                             .setMediaSize(PrintAttributes.MediaSize.ISO_A4)
                             .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
                             .build()

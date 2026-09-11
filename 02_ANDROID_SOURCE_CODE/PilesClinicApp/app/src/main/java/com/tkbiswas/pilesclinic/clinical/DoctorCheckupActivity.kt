@@ -4924,7 +4924,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
                     try {
                         val pm = getSystemService(android.content.Context.PRINT_SERVICE) as android.print.PrintManager
                         val adapter = view.createPrintDocumentAdapter("DoctorCheckup")
-                        pm.print("Doctor Checkup", adapter, android.print.PrintAttributes.Builder().build())
+                        pm.print("Doctor Checkup", adapter, com.tkbiswas.pilesclinic.native.PrintQuality.builder().build())
                     } catch (_: Throwable) {
                         Toast.makeText(this@DoctorCheckupActivity, "Print not available", Toast.LENGTH_SHORT).show()
                     }
@@ -4950,7 +4950,7 @@ class DoctorCheckupActivity : AppCompatActivity() {
                     try {
                         val pm = getSystemService(android.content.Context.PRINT_SERVICE) as android.print.PrintManager
                         val adapter = view.createPrintDocumentAdapter("DoctorCheckup")
-                        pm.print("Doctor Checkup", adapter, android.print.PrintAttributes.Builder().build())
+                        pm.print("Doctor Checkup", adapter, com.tkbiswas.pilesclinic.native.PrintQuality.builder().build())
                     } catch (_: Throwable) {
                         Toast.makeText(this@DoctorCheckupActivity, "Print not available", Toast.LENGTH_SHORT).show()
                     }
