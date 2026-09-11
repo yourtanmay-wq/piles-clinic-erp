@@ -1142,6 +1142,14 @@ class DraftRepository(private val context: Context? = null) {
         // 🟢🔒 V621 — "cancelled" bucket-এর ঠিক পাশে, সম্পূর্ণ আলাদা tab id
         // ("returnvisit") ও লেবেল ("Return Visit")।
         val returnVisit = dedupByMobile(returnVisitRows).map { entry(it, "returnvisit", "Return Visit") }.toMutableList()
+        // 🔴🔒 এই স্ন্যাপশট নিচের নতুন (হাল-নাগাদ) সংকেত-ভিত্তিক Return Visit
+        // এন্ট্রি যোগ হওয়ার **আগেই** নেওয়া — My Enquiry-র deadMobiles নিয়ম
+        // (নিচে, TK-এর আগের ইচ্ছাকৃত সিদ্ধান্ত: "Refunded" থাকলেও My Enquiry-
+        // তে দেখাবে) যেন নতুন যোগ হওয়া Refunded-ভিত্তিক Return Visit সারির
+        // কারণে ভেঙে না যায়।
+        val returnVisitTagOnlyMobiles = returnVisit.mapNotNull {
+            it.mobile.filter { c -> c.isDigit() }.takeLast(10).ifBlank { null }
+        }.toHashSet()
         // 🟢🔒 V644 — নতুন, স্বাধীন tab id ("runningtreatment")।
         val runningTreatment = dedupByMobile(runningTreatmentRows).map {
             val m = it.s("mobile").filter { c -> c.isDigit() }.takeLast(10)
@@ -1221,6 +1229,34 @@ class DraftRepository(private val context: Context? = null) {
             val paid = paidByMobile[mobKey] ?: 0.0
             if (paid > 0.5) continue // পুরোপুরি ০ না হলে (এখনো কিছু জমা আছে) — বাদ, রোগী Patient কার্ডেই থাকবে
             refunded.add(entry(row, "refunded", "Refunded"))
+        }
+
+        // 🔴🔒 TK-নির্দেশ (১১.০৯.২০২৬, স্পষ্ট — "রিটার্ন করেছে সুতরাং সব জায়গা
+        // থেকে রিটার্ন হতে হবে"): আসল দোষ — Return Visit তালিকা এতদিন শুধু
+        // followups.status=="Returned" ট্যাগ দেখেই বানানো হত (উপরে লাইন
+        // ~1073), আর সেই ট্যাগ বসে শুধু Patient Timeline-এর "Return Fees"
+        // বোতাম থেকে, তাও `currentFollowupId` ফাঁকা থাকলে চুপচাপ ব্যর্থ হয়ে
+        // যেত। ফল: টাকা সত্যিই ফেরত (Refund Approved, নেট জমা ₹0) হয়ে গেলেও
+        // ট্যাগ না বসলে Return Visit-এ শূন্যই থেকে যেত।
+        // ⛔ সমাধান: "Refunded" ঘরের এই একই বিশ্বস্ত সংকেত (hasApprovedRefund
+        // ByMobile + নেট জমা ₹0, সরাসরি payments টেবিল থেকে) দিয়ে Return
+        // Visit-ও বানানো হচ্ছে — কোন স্ক্রিন থেকে রিটার্ন হয়েছে তার ওপর আর
+        // নির্ভর করে না। পুরনো ট্যাগ-ভিত্তিক সারি (উপরে) বাদ যায়নি, শুধু একই
+        // মোবাইল দ্বিতীয়বার না ঢোকার জন্য চেক করা হচ্ছে।
+        run {
+            val returnVisitMobiles = returnVisit.mapNotNull {
+                it.mobile.filter { c -> c.isDigit() }.takeLast(10).ifBlank { null }
+            }.toHashSet()
+            for ((mobKey, chosenRow) in patientByMobile) {
+                if (!hasApprovedRefundByMobile.contains(mobKey)) continue
+                if (mobKey in returnVisitMobiles) continue
+                val row = chosenRow
+                if (row.s("refundRestoredBy").isNotBlank()) continue
+                val paid = paidByMobile[mobKey] ?: 0.0
+                if (paid > 0.5) continue
+                returnVisit.add(entry(row, "returnvisit", "Return Visit"))
+                returnVisitMobiles.add(mobKey)
+            }
         }
 
         /* 📊🔒🔒 V824 (২৯.০৮.২০২৬, TK-নির্দেশ) — "Yearly Registration"
@@ -1359,7 +1395,7 @@ class DraftRepository(private val context: Context? = null) {
         val deadMobiles = HashSet<String>()
         for (e in enqReject) if (e.mobile.isNotBlank()) deadMobiles.add(e.mobile.filter { it.isDigit() }.takeLast(10))
         for (e in visitReject) if (e.mobile.isNotBlank()) deadMobiles.add(e.mobile.filter { it.isDigit() }.takeLast(10))
-        for (e in returnVisit) if (e.mobile.isNotBlank()) deadMobiles.add(e.mobile.filter { it.isDigit() }.takeLast(10))
+        deadMobiles.addAll(returnVisitTagOnlyMobiles)
         for (e in notComplete) if (e.mobile.isNotBlank()) deadMobiles.add(e.mobile.filter { it.isDigit() }.takeLast(10))
         for (e in complete) if (e.mobile.isNotBlank()) deadMobiles.add(e.mobile.filter { it.isDigit() }.takeLast(10))
         for (i in 0 until receivedRows.length()) {

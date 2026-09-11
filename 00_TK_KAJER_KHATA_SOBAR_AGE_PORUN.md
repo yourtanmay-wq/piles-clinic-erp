@@ -25773,3 +25773,52 @@ payment-refund হলে সিস্টেম নিজে থেকেই `wha
 
 পাহারা: verify_android_resources.py ✅ · tk_guard.py ✅ · verify_kotlin_
 compile.py ✅ PASS (নতুন ভুল ০)।
+
+## ১১.০৯.২০২৬ (সন্ধ্যা) — V1355 · Draft "Return Visit" ০ + RMP "Ref. Due" ০ — দুটো টাকার-হিসাব দোষ (তালিকা ৪৫৩ · ৪৫৪)
+
+### ১) Draft → Return Visit ০ (TK: *"রিটার্ন করেছে সুতরাং সব জায়গা থেকে রিটার্ন হতে হবে"*)
+
+**আসল কারণ (কোডে যাচাই):** `DraftRepository.kt`-এ টাকা-ফেরতের দুটো
+সম্পূর্ণ আলাদা হিসাব ছিল —
+- "Refunded" ঘর: payments থেকে `hasApprovedRefundByMobile` + নেট জমা ≤ ₹0.5
+  (বিশ্বস্ত, তাই ৫ দেখাত)।
+- "Return Visit" ঘর: শুধু followups-এ `stage=="Patient" && status=="returned"`
+  ট্যাগ। ট্যাগ বসে একমাত্র `PatientTimelineActivity.showReturnFeesDialog()`-এ
+  `currentFollowupId` ফাঁকা না থাকলে — নইলে চুপচাপ ব্যর্থ। `ReturnVisitRepository.kt`
+  (V621) প্রজেক্টে কোথাও ডাকা হয় না (grep-এ ০ কল) — মৃত কোড।
+
+**সমাধান:** "Refunded" লুপের ঠিক পরে একই সংকেতে (`patientByMobile` +
+`hasApprovedRefundByMobile` + `refundRestoredBy` ফাঁকা + paid ≤ 0.5) Return
+Visit-এ এন্ট্রি যোগ; পুরনো ট্যাগ-সারি থাকে, একই মোবাইল দ্বিতীয়বার নয়।
+**সাবধানতা (নিয়ম ৭ক-৪, আগের ভালো কাজ যেন না ভাঙে):** My Enquiry-র
+`deadMobiles` আগে পুরো `returnVisit` থেকে বানানো হত — মার্জের পরে তাতে
+Refunded-রোগীও ঢুকে My Enquiry থেকে বাদ পড়ত, যেটা TK-র আগের ইচ্ছাকৃত
+সিদ্ধান্তের (V646: Refunded থাকলেও My Enquiry-তে দেখাবে) বিরুদ্ধে। তাই
+মার্জের **আগে** `returnVisitTagOnlyMobiles` স্ন্যাপশট নিয়ে deadMobiles
+শুধু সেটা দিয়েই — আগের আচরণ হুবহু অক্ষত। Yearly Registration-এর `when`-এ
+`refundMobiles` আগে পরীক্ষা হয়, তাই ওখানে ট্যাগ বদলায় না।
+**ওয়েব (`app.js`):** লাইন ~৯০০৯-এ হুবহু একই দোষ — `__refSetOnce`
+(`wlv1RefundedMobilesSet()`) দিয়ে একই ফিক্স, `__returnVisitTagOnlyMobiles`
+স্ন্যাপশট দিয়ে deadMobiles একই ভাবে রক্ষা। `index.html` cache `?v=v1355`।
+
+### ২) RMP View All → Ref. Due ₹0 (BISHAKHA MANDAL, ₹1,000 জমা, ৪০% ডিফল্ট)
+
+**আসল কারণ (কোডে যাচাই):** `DoctorVisitActivity.kt`-এ Ref. Due সার্ভারের
+`RmpCommissionRepository.rmpSummary()` থেকে আসে; রোগীর সঙ্গে কমিশন বাঁধা
+না থাকলে earned=0 ⇒ due=0। বাঁধার কাজ `autolinkRefDoctor` V1161-এ RMP
+পর্দায় বসানো হয়েছিল, কিন্তু `rmpAutoLinkedBranches.add(br)` গেটে **এক
+ব্রাঞ্চে একবারই** (Activity-র আয়ু পর্যন্ত)। ফল: পর্দা একবার খোলার পরে
+রেজিস্টার-হওয়া নতুন রোগীর কমিশন কখনো বাঁধা হত না — অ্যাপ পুরো বন্ধ করে
+না খোলা পর্যন্ত। TK-র ছবির সঙ্গে মেলে (১১/০৯-এর নতুন রোগী, Bill ₹0)।
+**সমাধান:** গেট তুলে দেওয়া — প্রতিবার View All খোলার সময়ই autolink
+(সার্ভার-ফাংশন idempotent: আগে-বাঁধা কিছু বদলায় না)। অব্যবহৃত
+`rmpAutoLinkedBranches` ফিল্ড মুছে দেওয়া। `ChamberAttendanceActivity.kt`-এর
+ডাকটা আগে থেকেই প্রতিবার চলে — ঠিক আছে।
+**সৎ সীমা:** এই RMP-র ৪০% ডিফল্ট আদৌ বসানো আছে কিনা / রোগীর `refBy`-
+`refDoctorMobile` মিলছে কিনা — লাইভ ডেটাবেস ছাড়া বলা যায় না; না মিললে
+Chamber Review-র হলুদ লাইনে NO_RATE/AMBIGUOUS দেখাবে। ওয়েবে autolink
+ডাক কখনোই ছিল না — Android/সার্ভারের ওপর নির্ভরশীল, TK-কে জানানো হলো।
+
+পাহারা: verify_android_resources.py ✅ · tk_guard.py ✅ · node --check ✅ ·
+web_browser_test/run.py ✅ PASS · verify_kotlin_compile.py ✅ PASS (নতুন ভুল ০)।
+ভার্সন নম্বর বাড়ানো হয়নি (নিয়ম ৩খ) — ফাইল চাইলে তখন।

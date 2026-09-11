@@ -9007,6 +9007,25 @@ function draffHome(tab='home'){
     DraftRepository.kt:669-এর হুবহু একই শর্ত (`stage=="Patient" && status==
     "returned"`) — Visit Reject থেকে সম্পূর্ণ আলাদা, একটা অক্ষরও ভাগাভাগি নয়। */
  let returnVisit=f.filter(x=>x.stage==='Patient'&&String(x.status||'').toLowerCase()==='returned');
+ /* 🔴🔒 TK-নির্দেশ (১১.০৯.২০২৬, স্পষ্ট — "রিটার্ন করেছে সুতরাং সব জায়গা থেকে
+    রিটার্ন হতে হবে"): আসল দোষ — উপরের লাইন শুধু followups.status==='returned'
+    ট্যাগ দেখে বানানো হয়, আর সেই ট্যাগ বসে শুধু Patient Timeline-এর "Return
+    Fees" বোতাম থেকে, তাও followupId ফাঁকা থাকলে চুপচাপ ব্যর্থ হয়ে যায়। ফল:
+    টাকা সত্যিই ফেরত (Refund Approved, নেট জমা ₹0) হয়ে গেলেও ট্যাগ না বসলে
+    Return Visit-এ শূন্যই থেকে যেত (Android-এর হুবহু একই দোষ, একই ফিক্স)।
+    ⛔ সমাধান: "Refunded" ঘরের এই একই বিশ্বস্ত সংকেত (`__refSetOnce` —
+    hasApprovedRefund + নেট জমা ₹0, সরাসরি payments থেকে) দিয়ে Return
+    Visit-ও বানানো হচ্ছে — কোন স্ক্রিন থেকে রিটার্ন হয়েছে তার ওপর আর নির্ভর
+    করে না। পুরনো ট্যাগ-ভিত্তিক সারি বাদ যায়নি, শুধু একই মোবাইল দ্বিতীয়বার
+    না ঢোকার জন্য চেক করা হচ্ছে। */
+ // 🔴🔒 এই স্ন্যাপশট নিচের নতুন সংকেত-ভিত্তিক Return Visit এন্ট্রি যোগ হওয়ার
+ // **আগেই** নেওয়া — My Enquiry-র deadMobiles নিয়ম (নিচে, TK-এর আগের
+ // ইচ্ছাকৃত সিদ্ধান্ত: "Refunded" থাকলেও My Enquiry-তে দেখাবে) যেন নতুন
+ // যোগ হওয়া Refunded-ভিত্তিক Return Visit সারির কারণে ভেঙে না যায়।
+ var __returnVisitTagOnlyMobiles=new Set();
+ returnVisit.forEach(function(x){var m=mob(x.mobile); if(m) __returnVisitTagOnlyMobiles.add(m);});
+ wlv1OnePerPerson.filter(function(x){var m=mob(x.mobile); return m && __refSetOnce.has(m) && !__returnVisitTagOnlyMobiles.has(m);})
+   .forEach(function(x){ returnVisit.push(x); });
  // 🚨 TK'S LOCKED RULE (restated 27.07.2026): an enquiry a Jalpaiguri staff takes
  // FOR Kishanganj belongs to Kishanganj (all its staff + Master see it in the normal
  // list) -- and the person who ENTERED it sees it here, in "My Enquiry (All Branch)".
