@@ -25438,3 +25438,23 @@ fine দেখে; callback-এ coarse-only ধরা পড়লে আলা�
 কম। ওয়েবে এই ফিচারের কোনো জোড়া নেই (GPS foreground service Android-only
 ধারণা) — সততার সাথে জানানো হলো। পাহারা: verify_android_resources.py ✅ ·
 tk_guard.py ✅।
+
+## ১১.০৯.২০২৬ — V1345 · দুপুর ৩টায় মাস্টার-অ্যালার্ট (ফিল্ড-ভিজিট লোকেশন)
+
+TK প্রশ্ন করলেন "আরো কী সমাধান আছে" — জানালাম ব্যাটারি-সেভার GPS বন্ধ করে
+দিতে পারে আর অনুমতি জীবনে একবারই চাওয়া হয়, TK "যোগ করুন" বললেন। নতুন
+`FieldVisitAlertScheduler.kt`/`FieldVisitAlertWorker.kt` — `MasterOutTime
+Scheduler`-এর হুবহু একই প্রমাণিত চেইন-প্যাটার্ন (fixed daily HOUR, self-
+reschedule), কিন্তু সম্পূর্ণ আলাদা/স্বাধীন — পুরনো ফাইলে হাত পড়েনি। দুপুর
+৩টায় আজকের ফিল্ড-স্টাফদের `wn.field_visit_days` দেখে (IN হয়েছে, OUT হয়নি,
+৪৫ মিনিটে লোকেশন আসেনি) — থাকলে মাস্টারকে নোটিফিকেশন। ISO-তারিখ পড়তে
+নতুন `java.time` নির্ভরতা তৈরি না করে `FieldVisitActivity.kt`-এর প্রমাণিত
+`parseIso()`-এর হুবহু কপি ব্যবহার করা হলো (প্রকল্পে java.time-এর কোনো
+পূর্বনজির নেই)। `PilesClinicApplication.kt`-এ চালু করা হলো (MasterOutTime-
+Scheduler-এর ঠিক পাশেই, ওটা ছোঁয়া হয়নি)। Kotlin-পাহারায় নতুন Worker-ফাইলে
+androidx.work-এর "unresolved reference"/"Result<out T>" — প্রকল্পের **সব**
+Worker-ফাইলেই এই একই জানা-গোলমাল (classpath-এ androidx.work নেই বলে,
+বাস্তবের বাগ নয়) — `--update-baseline` দিয়ে যোগ করা হলো, MasterOutTimeWorker-
+সহ বাকি ১৫+ Worker ফাইলেও ঠিক এই একই এন্ট্রি আগে থেকেই ছিল, যাচাই করা।
+পাহারা: verify_android_resources.py ✅ · tk_guard.py ✅ · verify_kotlin_
+compile.py ✅ PASS (নতুন ভুল ০, বেসলাইন ১০০০→১০০১)।

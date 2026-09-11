@@ -127,6 +127,11 @@ class PilesClinicApplication : Application() {
             //   মাস্টারের ফোন কিনা; স্টাফ/ডাক্তারের ফোনে কিছুই হয় না।
             //   ⛔ কেউ বাকি না থাকলে কোনো নোটিফিকেশনই আসে না।
             com.tkbiswas.pilesclinic.native.MasterOutTimeScheduler.scheduleNext(this)
+            // 🛰️🔒 V1345 (১১.০৯.২০২৬, TK-নির্দেশ) — দুপুর ৩টায় মাস্টারকে জানানো
+            //   কোন ফিল্ড-স্টাফের লোকেশন আজ ৪৫ মিনিটেরও বেশি সময় ধরে
+            //   হালনাগাদ হচ্ছে না। ⛔ MasterOutTimeScheduler-এর থেকে সম্পূর্ণ
+            //   আলাদা, স্বাধীন চেইন — উপরেরটা ছোঁয়া হয়নি।
+            com.tkbiswas.pilesclinic.native.FieldVisitAlertScheduler.scheduleNext(this)
             // 🆕 B467 (05.08.2026, TK-নির্দেশ) — অপঠিত Briefing/Notice থাকলে
             // ১০ মিনিট পরপর জোরপূর্বক নোটিফিকেশন (একই প্রমাণিত chain-প্যাটার্ন)।
             com.tkbiswas.pilesclinic.native.BriefingReminderScheduler.start(this)
