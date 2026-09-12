@@ -109,7 +109,15 @@ data class TimelineEntry(
     /* 🟢🔒 V1090 (০৫.০৯.২০২৬, TK-রিপোর্ট: *"check up done দুইবার কেন"*) —
        এই সারিটা আসলে চিকিৎসার নোট (কেউ ফোন করেননি)। ডিফল্ট false —
        তাই TimelineEntry-এর বাকি সব পাঠক সম্পূর্ণ অপ্রভাবিত। */
-    val isTreatmentNote: Boolean = false
+    val isTreatmentNote: Boolean = false,
+    /* 🔴🔒 V1376 (১২.০৯.২০২৬, TK-রিপোর্ট — SAIF RAZA-র কার্ডে MANZAR ALAM-এর
+       Visit Fee ভুল করে দেখাচ্ছিল): এই টাকার সারিটা আসলে **কোন রোগীর**
+       (payments.patientId) — যখন এক মোবাইলে একাধিক আলাদা রোগী থাকেন
+       ("Different Patient — Same Mobile", V517), Registration/Visit-এর
+       সাথে Visit Fee মেশানোর (নিচের merge) সময় এটা দিয়েই যাচাই হয় যে
+       টাকাটা সত্যিই **এই** রোগীর কিনা, শুধু একই দিনে হয়েছে বলেই নয়।
+       ⛔ ডিফল্ট ফাঁকা — বাকি সব TimelineEntry পাঠক সম্পূর্ণ অপ্রভাবিত। */
+    val paymentPatientRowId: String = ""
 )
 
 /** Header + all updates for one patient/mobile, built by joining every table. */
@@ -983,6 +991,23 @@ object PatientTimelineRepository {
         var anyPayAt = ""
         for (i in 0 until payments.length()) {
             val p = payments.optJSONObject(i) ?: continue
+            /* 🔴🔒 V1376 (১২.০৯.২০২৬, TK-রিপোর্ট, ছবিসহ — SAIF RAZA-র কার্ডে
+               MANZAR ALAM-এর ₹400 Visit Fee ভুল করে দেখাচ্ছিল): `payments`
+               মোবাইল-ধরে আনা হয় (উপরে `byMobile`), তাই এক মোবাইলে একাধিক
+               আলাদা রোগী থাকলে (V517 "Different Patient — Same Mobile")
+               সবার টাকাই এখানে চলে আসে। ডাকার জায়গা যখন **নির্দিষ্ট করে
+               জানিয়েছে কোন রোগী** (`preferRowId`/`preferPatientCode`
+               → `forced`), তখন অন্য রোগীর টাকার সারি এই কার্ডে/Report
+               Card-এ দেখানো ঠিক নয় — টাকা ঠিক জায়গাতেই জমা ছিল, শুধু
+               ভুল রোগীর তালিকায় উঠে আসছিল (Paid/Due-র যোগফলও প্রভাবিত
+               হতে পারত)।
+               ⛔ `forced` জানা না থাকলে (সাধারণ মোবাইল-ধরে খোঁজা, কোনো
+                  নির্দিষ্ট রোগী বাছা হয়নি) — আচরণ হুবহু আগের মতোই, এই
+                  ছাঁকনি ছোঁয়ই না। */
+            if (forced != null) {
+                val payPatientId = p.s("patientId")
+                if (payPatientId.isNotBlank() && payPatientId != forced.s("id")) continue
+            }
             val storedLabel = p.s("payLabel").ifBlank { p.s("paymentLabel").ifBlank { "Payment" } }
             val label = ordinalLabelById[p.s("id")] ?: storedLabel
             val amt = p.optDouble("amount", 0.0)
@@ -1144,6 +1169,7 @@ object PatientTimelineRepository {
                 // ✏️🔒 V736 — শুধু মানুষের টাইপ করা অংশ (টাকার লাইন ছাড়া)
                 payTypedNote = humanPart,
                 paymentId = p.s("id"), paymentBranch = p.s("branch"),
+                paymentPatientRowId = p.s("patientId"),   // 🔴🔒 V1376
                 paymentAmount = amt,
                 paymentMode = if (isTreatmentMoney) PaymentModel.splitMode(split.first, split.second) else p.s("mode").ifBlank { "CASH" },
                 paymentCashAmount = split.first, paymentOnlineAmount = split.second,
@@ -1358,8 +1384,24 @@ object PatientTimelineRepository {
             if (regIndex >= 0) {
                 val reg = entries[regIndex]
                 val regDay = reg.date.take(10)
+                /* 🔴🔒 V1376 (১২.০৯.২০২৬, TK-রিপোর্ট, ছবিসহ — SAIF RAZA-র
+                   Timeline-এ MANZAR ALAM-এর Visit Fee ভুল করে জুড়ে গিয়েছিল):
+                   এতদিন শুধু "একই দিনে visit_fee" দেখেই মেলানো হত। এক
+                   মোবাইলে একাধিক আলাদা রোগী থাকলে (V517) ও দুজনেরই
+                   registration একই দিনে হলে, একজনের Registration-নোটে
+                   অন্যজনের Visit Fee জুড়ে যেতে পারত — টাকা ঠিক জায়গাতেই
+                   জমা ছিল, শুধু এই স্ক্রিনে ভুল রোগীর সারিতে দেখাত।
+                   ⛔ এখন patientId-ও মেলাতে হয় — **শুধু তখনই** পুরনো
+                      (শুধু-দিন-ধরে) নিয়মে ফেরা হয় যদি কোনো একটা সারিতে এই
+                      তথ্যটাই না থাকে (পুরনো/অসম্পূর্ণ ডেটা), তাই স্বাভাবিক
+                      এক-রোগীর ক্ষেত্রে আচরণ এক অক্ষরও বদলায়নি। */
                 val feeIndex = entries.indices
-                    .filter { i -> entries[i].payType == "visit_fee" && entries[i].date.take(10) == regDay }
+                    .filter { i ->
+                        val e = entries[i]
+                        e.payType == "visit_fee" && e.date.take(10) == regDay &&
+                            (reg.regPatientRowId.isNullOrBlank() || e.paymentPatientRowId.isBlank() ||
+                                e.paymentPatientRowId == reg.regPatientRowId)
+                    }
                     .minByOrNull { i -> entries[i].sortKey.ifBlank { entries[i].date } }
                 if (feeIndex != null) {
                     val fee = entries[feeIndex]
