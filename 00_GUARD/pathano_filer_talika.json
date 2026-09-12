@@ -1,5 +1,32 @@
 [
   {
+    "file": "PILES_CLINIC_APP_V1400_FINAL.zip",
+    "versionCode": 1400,
+    "when": "12.09.2026 01.30 pm",
+    "size_mb": 25.62,
+    "total_files": 1838,
+    "top_folders": {
+      "02_ANDROID_SOURCE_CODE": 771,
+      "(root)": 604,
+      "04_SUPABASE_DATABASE_SETUP": 130,
+      "00_SQL": 128,
+      "00_GUARD": 58,
+      "03_NETLIFY_READY": 53,
+      "08_ASSETS_BACKUP": 36,
+      "07_RELEASE_NOTES_VERSION_HISTORY": 31,
+      "00_READ_ME_FIRST": 11,
+      "10_FUTURE_PLANS": 7,
+      "06_TEST_CHECKLISTS": 2,
+      "11_V223_TESTS": 2,
+      "ROLLBACK_V448": 2,
+      "01_MASTER_LOCK_BOOK_SOURCE_OF_TRUTH": 1,
+      "03_SUPABASE_SQL": 1,
+      "05_APK_AAB_BUILD_NOTES": 1
+    },
+    "excluded": "08_ASSETS_BACKUP/ANATOMY_PICTURES/ORIGINAL (22, জায়গা বাঁচাতে) + .claude/.github (আমার নিজের টুল-সেটিংস, প্রজেক্টের অংশ নয়) + .kotlinc/node_modules-এর মতো git-এ কখনো জমা-না-হওয়া ডেভেলপার-টুল",
+    "note": "V1379-র চেয়ে +14 ফাইল (+0.04 MB) — 00_SQL +15 (V1382–V1396: রেফারেল-ডুপ্লিকেট, PKB কমিশন-বাগ ফিক্স, TAPOSHI/GOPAL সংশোধন)। এই ZIP-এ: রেফারেল ডুপ্লিকেট-গার্ড, Referral Income তালিকা পুনর্গঠন, প্রেসক্রিপশনে লম্বা Dose-ভাগ, ARMAN/KISHAN12 Work Notebook লগইন ফিক্স, একই-মোবাইল একাধিক-ব্রাঞ্চ RMP-তে ভুল বেছে নেওয়ার বাগ ফিক্স, রেজিস্ট্রেশনে RMP-সাজেশন উন্নতি, Add Referral Income ফর্ম থেকে Due/Paid তুলে দেওয়া। গোপন কিছু নেই।"
+  },
+  {
     "file": "PILES_CLINIC_APP_V1379_FINAL.zip",
     "versionCode": 1379,
     "when": "12.09.2026 06.44 am",
