@@ -26010,3 +26010,15 @@ other/approved_refund) + grand_total — TK-র "₹2,90,000" কথাটা �
 (treatment ছাড়াও ভিজিট ফি/রেজিস্ট্রেশন/মেডিসিন-সহ), যেখানে RMP কমিশন শুধু
 treatment-অংশে (TK-র নিজের পুরনো নিয়ম) হিসাব হয় — সেটাই যাচাই করতে।
 sql_local_check ✅ PASS।
+
+## ১২.০৯.২০২৬ — AMIT GOLDAR স্প্রেডশিট তৈরি ও পাঠানো (তালিকা ৪৭০)
+TK "ফল পাঠাচ্ছি" বলে V1369-এর ৫১ জন রোগীর CSV পাঠালেন (patient_name, mobile,
+bill, total_paid)। যোগফল প্রথমে গুনে যাচাই করা হলো: total_paid-এর সমষ্টি
+₹2,74,300 — V1368-এর grand_total_all_money (₹2,74,300)-এর সাথে হুবহু মিলল,
+তাই ডেটা ঠিক ধরে নিয়ে এগোনো হলো।
+
+`AMIT_GOLDAR_PATIENTS_TOTAL_2026-09-12.xlsx` বানানো হলো (openpyxl দিয়ে) —
+Patient Name/Mobile/Bill/Total Paid কলাম, বেশি-জমা আগে সাজানো (TK-র পাঠানো
+ক্রম অনুযায়ীই), শেষে বোল্ড TOTAL সারি (₹2,74,300)। সরাসরি Google Sheet
+বানানোর অ্যাক্সেস নেই — তাই .xlsx দেওয়া হলো (Google Sheets-এ আপলোড করা যায়)।
+SendUserFile দিয়ে TK-কে পাঠানো হলো। তালিকা ৪৭০ ✅ বন্ধ করা হলো।
