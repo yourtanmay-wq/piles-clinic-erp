@@ -24,6 +24,9 @@ window.RK_CONFIG = {
          ARCHANA MANDAL BISWAS (KNE-KISHAN11), জয়েন ০৬.০৯.২০২৬।
          ফোনের StaffDirectory.kt-র হুবহু যমজ। */
       {mobile:'7478288608', name:'KNE-KISHAN11', branch:'Kishanganj'},
+      /* 🟢🔒 V1378 (১২.০৯.২০২৬, TK-নির্দেশ) — কিশানগঞ্জের নতুন স্টাফ
+         ISHRAT PARWEEN (KNE-KISHAN12)। ফোনের StaffDirectory.kt-র হুবহু যমজ। */
+      {mobile:'9679319516', name:'KNE-KISHAN12', branch:'Kishanganj'},
       /* V453 (20.08.2026, TK-approved): KNE-KISHAN5 (6207841890) কাজ ছেড়ে দিয়েছে,
          আর এখানে নেই — পুরনো নম্বর দিয়ে আর লগইন হবে না। পুরনো রেকর্ড অক্ষত। */
       /* 🔴 V734 (27.08.2026, TK-এর সরাসরি নির্দেশ): কিশানগঞ্জের KNE-KISHAN6
