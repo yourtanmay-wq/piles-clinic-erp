@@ -127,7 +127,10 @@ class DoctorVisitActivity : AppCompatActivity() {
     // has zero Supabase/storage quota cost. A fresh cloud refresh still runs on open.
     private data class CallLine(val rawDate: String, val date: String, val note: String, val by: String)
     private data class ReferredPatient(val rawDate: String, val name: String, val mobile: String, val bill: Double, val paid: Double, val patientId: String = "", val disease: String = "")
-    private data class RefIncomeLine(val rawDate: String, val patient: String, val mobile: String, val amount: Double, val status: String, val date: String, val id: String = "", val mode: String = "", val referenceNo: String = "")
+    // 🎨🔒 V1385 (১২.০৯.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ) — সময় (createdAt) এখন
+    // আলাদা করে রাখা হয়, যাতে একই রোগীর একাধিক এন্ট্রি সময় ধরে ঠিক সাজানো যায়
+    // আর সবচেয়ে নতুনটার সময় Date/Time কলামে দেখানো যায়।
+    private data class RefIncomeLine(val rawDate: String, val patient: String, val mobile: String, val amount: Double, val status: String, val date: String, val id: String = "", val mode: String = "", val referenceNo: String = "", val createdAt: String = "")
     private data class ViewAllData(
         val calls: List<CallLine>,
         val referred: List<ReferredPatient>,
@@ -2447,7 +2450,8 @@ class DoctorVisitActivity : AppCompatActivity() {
                             e.s("date"),
                             e.s("id"),
                             e.s("mode"),
-                            e.s("referenceNo")
+                            e.s("referenceNo"),
+                            e.s("createdAt")
                         )
                     }
                     // V381: Ref. Paid means all money already handed to this RMP.
@@ -3405,7 +3409,10 @@ class DoctorVisitActivity : AppCompatActivity() {
 
                     // Unified, chronologically-sorted entry list.
                     // 🟢 B628: onEdit — শুধু Referral Income সারিতে থাকে; তিনবার চাপলে এডিট খোলে।
-                    data class UnifiedRow(val rawDate: String, val dateText: String, val typeText: String, val typeColorHex: String, val byText: String, val noteText: String, val onTap: (() -> Unit)?, val highlightName: String? = null, val onEdit: (() -> Unit)? = null)
+                    // 🎨🔒 V1385 — onNameTap/onAmountTap: শুধু consolidated Referral
+                    // Income সারির জন্য (কলাম ২ ও Note আলাদাভাবে ট্যাপযোগ্য)। বাকি
+                    // সব সারির (Call/Referred Patient) জন্য ডিফল্ট null — কিছুই বদলায় না।
+                    data class UnifiedRow(val rawDate: String, val dateText: String, val typeText: String, val typeColorHex: String, val byText: String, val noteText: String, val onTap: (() -> Unit)?, val highlightName: String? = null, val onEdit: (() -> Unit)? = null, val onNameTap: (() -> Unit)? = null, val onAmountTap: (() -> Unit)? = null)
                     val unified = mutableListOf<UnifiedRow>()
                     data.calls.forEach { c ->
                         unified.add(UnifiedRow(c.rawDate, c.date, "Call", "#7A3FF2", c.by, c.note, null))
@@ -3418,14 +3425,39 @@ class DoctorVisitActivity : AppCompatActivity() {
                         val onTap: (() -> Unit)? = if (p.mobile.length == 10) { { startActivity(android.content.Intent(this@DoctorVisitActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
                         unified.add(UnifiedRow(p.rawDate, FollowUpModel.displayDate(p.rawDate), "Referred Patient", "#16A36D", "", "${p.name.ifBlank { p.mobile }} \u2014 Bill \u20B9${"%,.0f".format(p.bill)} \u00b7 Paid \u20B9${"%,.0f".format(p.paid)}", onTap))
                     }
+                    /* 🎨🔒 V1385 (১২.০৯.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ) — TK: *"একই পেশেন্টের জন্য একের অধিক বক্স তৈরি হবে না, শুধু টাকার পরিমাণ
+                       যুক্ত হয়ে যাবে... টাকার পরিমাণের উপর ক্লিক করলে প্রভাব খুলবে
+                       কত তারিখের কত জমা, কত পেমেন্ট বা কত ডিউ।"*
+                       একই রোগীর (মোবাইল দিয়ে, মোবাইল না থাকলে নাম দিয়ে) সব Referral Income
+                       এন্ট্রি একটাই সারিতে জমা হয় — সারিতে সবচেয়ে নতুন এন্ট্রির
+                       তারিখ+সময় ও মোট টাকা, নামে ক্লিকে Patient
+                       Timeline, টাকায় ক্লিকে ব্রেকডাউন (প্রতিটা তারিখের জমা +
+                       Paid/Due, সেখান থেকেই আগের মতো এডিট/ডিলিট)।
+                       ⛔ Call/Referred Patient সারি এক অক্ষরও বদলায়নি। */
+                    data class RefIncomeGroup(val key: String, var patient: String, val mobile: String, val entries: MutableList<RefIncomeLine> = mutableListOf())
+                    val refGroups = LinkedHashMap<String, RefIncomeGroup>()
                     data.refIncome.forEach { r ->
-                        // 🔒 14.08.2026, TK live-test correction: Referral Income
-                        // is an RMP money record, not a route to the patient's
-                        // Report Card. A single tap must therefore do nothing;
-                        // three quick taps open only the approved Edit/Delete
-                        // dialog below. Referred Patient rows above keep their
-                        // existing Patient Timeline action unchanged.
-                        unified.add(UnifiedRow(r.rawDate, FollowUpModel.displayDate(r.date), "Referral Income", "#C98A1E", "", "${r.patient} \u2014 \u20B9${"%,.0f".format(r.amount)} \u00b7 ${if (r.status.equals("Paid", true)) "Paid" else "Due"}", null, highlightName = null, onEdit = { openReferralEdit(item, r.id, r.amount, r.status, r.date, r.patient, r.mobile) }))
+                        val mob10 = r.mobile.filter { it.isDigit() }.takeLast(10)
+                        val key = if (mob10.length == 10) "m:$mob10" else "n:${r.patient.trim().lowercase(java.util.Locale.US)}"
+                        val g = refGroups.getOrPut(key) { RefIncomeGroup(key, r.patient, mob10) }
+                        g.entries.add(r)
+                    }
+                    refGroups.values.forEach { g ->
+                        val latest = g.entries.maxByOrNull { it.createdAt.ifBlank { it.date } } ?: return@forEach
+                        g.patient = latest.patient.ifBlank { g.patient }
+                        val total = g.entries.sumOf { it.amount }
+                        val paidSum = g.entries.filter { it.status.equals("Paid", true) }.sumOf { it.amount }
+                        val dueSum = (total - paidSum).coerceAtLeast(0.0)
+                        val noteText = when {
+                            dueSum <= 0.5 -> "\u20B9${"%,.0f".format(total)} \u00b7 Paid"
+                            paidSum <= 0.5 -> "\u20B9${"%,.0f".format(total)} \u00b7 Due"
+                            else -> "\u20B9${"%,.0f".format(total)} (Paid \u20B9${"%,.0f".format(paidSum)} \u00b7 Due \u20B9${"%,.0f".format(dueSum)})"
+                        }
+                        val timeText = PaymentModel.displayTime12(latest.createdAt)
+                        val dateText = FollowUpModel.displayDate(latest.date) + (if (timeText.isNotBlank()) "\n$timeText" else "")
+                        val onNameTap: (() -> Unit)? = if (g.mobile.length == 10) { { startActivity(android.content.Intent(this@DoctorVisitActivity, PatientTimelineActivity::class.java).putExtra("mobile", g.mobile)) } } else null
+                        val onAmountTap: () -> Unit = { showReferralBreakdown(item, g.patient, g.entries.sortedByDescending { it.createdAt.ifBlank { it.date } }) }
+                        unified.add(UnifiedRow(latest.date, dateText, g.patient, "#1457B8", "", noteText, null, highlightName = null, onEdit = null, onNameTap = onNameTap, onAmountTap = onAmountTap))
                     }
                     unified.sortByDescending { it.rawDate }
 
@@ -3538,10 +3570,17 @@ class DoctorVisitActivity : AppCompatActivity() {
                                 layoutParams = android.widget.LinearLayout.LayoutParams(typeByColWidth, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
                                 setPadding(dgpx(8), dgpx(8), dgpx(8), dgpx(8))
                                 background = tableCellBorder()
+                                // 🎨🔒 V1385 — consolidated Referral Income সারিতে এই ঘরে
+                                // পেশেন্টের নাম, ট্যাপে Patient Timeline (onNameTap != null হলেই)।
+                                if (u.onNameTap != null) {
+                                    isClickable = true; isFocusable = true
+                                    setOnClickListener { u.onNameTap.invoke() }
+                                }
                                 addView(TextView(this@DoctorVisitActivity).apply {
-                                    text = u.typeText; textSize = 9.3f; setTextColor(android.graphics.Color.parseColor(u.typeColorHex))
+                                    text = if (u.onNameTap != null) "${u.typeText} ›" else u.typeText
+                                    textSize = 9.3f; setTextColor(android.graphics.Color.parseColor(u.typeColorHex))
                                     setTypeface(typeface, android.graphics.Typeface.BOLD)
-                                    maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+                                    maxLines = 2; ellipsize = if (u.onNameTap != null) null else android.text.TextUtils.TruncateAt.END
                                 })
                                 if (u.byText.isNotBlank()) {
                                     addView(TextView(this@DoctorVisitActivity).apply {
@@ -3566,6 +3605,10 @@ class DoctorVisitActivity : AppCompatActivity() {
                                     sp.setSpan(android.text.style.ForegroundColorSpan(android.graphics.Color.parseColor("#1457B8")), 0, u.highlightName.length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
                                     sp.setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 0, u.highlightName.length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
                                     text = sp
+                                } else if (u.onAmountTap != null) {
+                                    // 🎨🔒 V1385 — consolidated Referral Income-এর মোট টাকা,
+                                    // ট্যাপে ব্রেকডাউন খোলে — একটা ছোট ইঙ্গিত-চিহ্ন সহ।
+                                    text = "${u.noteText}  ›"
                                 } else {
                                     text = u.noteText
                                 }
@@ -3574,6 +3617,10 @@ class DoctorVisitActivity : AppCompatActivity() {
                                 maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
                                 setPadding(dgpx(8), dgpx(8), dgpx(8), dgpx(8))
                                 background = tableCellBorder()
+                                if (u.onAmountTap != null) {
+                                    isClickable = true; isFocusable = true
+                                    setOnClickListener { u.onAmountTap.invoke() }
+                                }
                             })
                             // V376 live-device root cause: the three visible
                             // cells fill the row and receive the finger touch;
@@ -4347,6 +4394,73 @@ class DoctorVisitActivity : AppCompatActivity() {
                 Toast.makeText(this@DoctorVisitActivity, "Could not load referral income — check connection and try again", Toast.LENGTH_SHORT).show()
             }
         }
+    }
+
+    /** 🎨🔒 V1385 (১২.০৯.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ) — একই রোগীর জন্য জমা
+     *  হওয়া সব Referral Income এন্ট্রির ব্রেকডাউন: কোন তারিখে কত, Paid না Due,
+     *  আর সব মিলিয়ে মোট কত Paid/Due। প্রতিটা সারিতে চাপলে আগের মতোই
+     *  (openReferralEdit) এডিট/ডিলিট করা যায়। */
+    private fun showReferralBreakdown(item: DoctorVisitItem, patient: String, entries: List<RefIncomeLine>) {
+        val d = resources.displayMetrics.density
+        fun dp(v: Int) = (v * d).toInt()
+        val parts = premiumDialogShell("📒", "Referral Income — $patient")
+        val container = parts.body
+
+        val totalPaid = entries.filter { it.status.equals("Paid", true) }.sumOf { it.amount }
+        val totalDue = (entries.sumOf { it.amount } - totalPaid).coerceAtLeast(0.0)
+
+        for (e in entries) {
+            val isPaid = e.status.equals("Paid", true)
+            val row = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(dp(4), dp(10), dp(4), dp(10))
+                isClickable = true; isFocusable = true
+                setOnClickListener {
+                    parts.dialog.dismiss()
+                    openReferralEdit(item, e.id, e.amount, e.status, e.date, e.patient, e.mobile)
+                }
+            }
+            row.addView(TextView(this).apply {
+                val t = PaymentModel.displayTime12(e.createdAt)
+                text = FollowUpModel.displayDate(e.date) + (if (t.isNotBlank()) "\n$t" else "")
+                textSize = 12f; setTextColor(android.graphics.Color.parseColor("#7A8699"))
+                layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            })
+            row.addView(TextView(this).apply {
+                text = "₹${"%,.0f".format(e.amount)}   ${if (isPaid) "Paid" else "Due"}"
+                textSize = 13.5f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor(if (isPaid) "#0C9E33" else "#C0392B"))
+            })
+            container.addView(row)
+            container.addView(android.widget.LinearLayout(this).apply {
+                layoutParams = android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.MATCH_PARENT, dp(1))
+                setBackgroundColor(android.graphics.Color.parseColor("#E3E8EC"))
+            })
+        }
+
+        container.addView(TextView(this).apply {
+            text = when {
+                totalDue <= 0.5 -> "Total — ₹${"%,.0f".format(totalPaid)}  · all Paid"
+                totalPaid <= 0.5 -> "Total — ₹${"%,.0f".format(totalDue)}  · all Due"
+                else -> "Total — Paid ₹${"%,.0f".format(totalPaid)}  ·  Due ₹${"%,.0f".format(totalDue)}"
+            }
+            textSize = 13f; setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.parseColor("#10223A"))
+            setPadding(dp(4), dp(14), dp(4), dp(2))
+        })
+        container.addView(TextView(this).apply {
+            text = "Tap any row to edit or delete that entry."
+            textSize = 11f; setTextColor(android.graphics.Color.parseColor("#98A2B3"))
+            setPadding(dp(4), dp(4), dp(4), dp(2))
+        })
+
+        parts.actionRow.addView(pillButton("Close", "#0F8F6F").apply {
+            setOnClickListener { parts.dialog.dismiss() }
+        })
+        parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }
     }
 
     /** 🟢 B628 (11.08.2026, TK-নির্দেশ): Referral Income এন্ট্রি এডিট (তিনবার-চাপ)।

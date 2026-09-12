@@ -19178,7 +19178,57 @@ async function wlv1RefreshRmpViewAll(id){
  host.innerHTML=rows.map(p=>wlv1RmpPatientCard(p,true)).join('')||'<div class="card mut">No referred patient found</div>';
 }
 window["wlv1RefreshRmpViewAll"]=wlv1RefreshRmpViewAll;
-function referralIncomeHtml(x){let arr=doctorReferralPayments(x);return arr.map((r,i)=>`<div class="card" style="cursor:pointer" onclick="wlv1ReferralTripleTap('${esc(x.id)}',${i})"><b>${esc(r.patient||'-')}</b><br>Amount: ${money(r.amount)} · <span class="pill ${String(r.status).toLowerCase()==='paid'?'green':'yellow'}">${String(r.status).toLowerCase()==='paid'?'Paid':'Due'}</span><br><span class="tiny">Payment Date: ${esc(r.date||'-')}</span></div>`).join('')||'<div class="card mut">No referral income entry</div>'}
+/* 🎨🔒 V1385 (১২.০৯.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ) — ফোনের DoctorVisitActivity-র
+   হুবহু ওয়েব-যমজ: একই রোগীর সব Referral Income এন্ট্রি একটাই কার্ডে জমা
+   (টাকা যোগ হয়ে যায়), নামে ক্লিকে Report Card, টাকায় ক্লিকে ব্রেকডাউন
+   (কোন তারিখে কত, Paid/Due, সেখান থেকেই আগের মতো এডিট)। ⛔ আসল ডেটা
+   (referralPayments array) এক অক্ষরও বদলায়নি — শুধু দেখানোর ধরন। */
+function referralGroupKey(r){let m=mob(r.mobile||r.patientMobile||'');return m.length===10?('m:'+m):('n:'+String(r.patient||'').trim().toLowerCase())}
+function referralIncomeGroups(x){
+  let arr=doctorReferralPayments(x),map=new Map();
+  arr.forEach((r,i)=>{let k=referralGroupKey(r);if(!map.has(k))map.set(k,{key:k,patient:r.patient||'-',mobile:mob(r.mobile||r.patientMobile||''),entries:[]});map.get(k).entries.push({...r,_idx:i})});
+  let groups=[...map.values()];
+  groups.forEach(g=>g.entries.sort((a,b)=>String(b.createdAt||b.date||'').localeCompare(String(a.createdAt||a.date||''))));
+  groups.sort((a,b)=>String((b.entries[0]||{}).createdAt||(b.entries[0]||{}).date||'').localeCompare(String((a.entries[0]||{}).createdAt||(a.entries[0]||{}).date||'')));
+  return groups;
+}
+function referralIncomeHtml(x){
+  let groups=referralIncomeGroups(x);
+  if(!groups.length)return '<div class="card mut">No referral income entry</div>';
+  return groups.map((g,gi)=>{
+    let latest=g.entries[0],total=g.entries.reduce((s,e)=>s+Number(e.amount||0),0),
+      paid=g.entries.filter(e=>String(e.status||'').toLowerCase()==='paid').reduce((s,e)=>s+Number(e.amount||0),0),
+      due=Math.max(0,total-paid),
+      statusTxt=due<=0.5?'Paid':(paid<=0.5?'Due':`Paid ${money(paid)} · Due ${money(due)}`),
+      createdIso=String(latest.createdAt||''),
+      timeTxt=createdIso.includes('T')?wlv1Ampm(createdIso.slice(11,16)):'',
+      nameOnclick=g.mobile?`wlv1ReportCard('${g.mobile}')`:'';
+    return `<div class="card">`
+      +`<b style="${g.mobile?'cursor:pointer;color:#1457B8':''}"${nameOnclick?` onclick="${nameOnclick}"`:''}>${esc(g.patient)}${g.mobile?' ›':''}</b><br>`
+      +`<span style="cursor:pointer;font-weight:700;color:${due<=0.5?'#0C9E33':'#C0392B'}" onclick="showReferralBreakdownWeb('${esc(x.id)}',${gi})">${money(total)} · ${statusTxt} ›</span><br>`
+      +`<span class="tiny">${esc(fmtDate(latest.date||''))}${timeTxt?(' · '+esc(timeTxt)):''}</span>`
+      +`</div>`;
+  }).join('');
+}
+function showReferralBreakdownWeb(docId,gi){
+  let x=load('doctor_visits').find(a=>a.id===docId);if(!x)return toast('Doctor not found');
+  let groups=referralIncomeGroups(x),g=groups[gi];if(!g)return toast('Entry not found');
+  let total=g.entries.reduce((s,e)=>s+Number(e.amount||0),0),
+    paid=g.entries.filter(e=>String(e.status||'').toLowerCase()==='paid').reduce((s,e)=>s+Number(e.amount||0),0),
+    due=Math.max(0,total-paid);
+  let rowsHtml=g.entries.map(e=>{
+    let iso=String(e.createdAt||''),t=iso.includes('T')?wlv1Ampm(iso.slice(11,16)):'',
+      isPaid=String(e.status||'').toLowerCase()==='paid';
+    return `<div class="card" style="cursor:pointer" onclick="closeModal();openReferralEdit('${esc(docId)}','${esc(e.id||'')}')">`
+      +`<b>${esc(fmtDate(e.date||''))}${t?' · '+esc(t):''}</b><br>`
+      +`<span style="font-weight:700;color:${isPaid?'#0C9E33':'#C0392B'}">${money(e.amount)} · ${isPaid?'Paid':'Due'}</span>`
+      +`</div>`;
+  }).join('');
+  let totalTxt=due<=0.5?`Total — ${money(paid)} · all Paid`:(paid<=0.5?`Total — ${money(due)} · all Due`:`Total — Paid ${money(paid)} · Due ${money(due)}`);
+  modal(`<h2>Referral Income — ${esc(g.patient)}</h2>${rowsHtml}<div class="card mut"><b>${totalTxt}</b><br><span class="tiny">Tap any entry above to edit or delete it.</span></div>`);
+}
+window["referralIncomeGroups"]=referralIncomeGroups;
+window["showReferralBreakdownWeb"]=showReferralBreakdownWeb;
 window["referralIncomeHtml"]=referralIncomeHtml;
 let wlv1RefTap={};
 function wlv1ReferralTripleTap(docId,index){
