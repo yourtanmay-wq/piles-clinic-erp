@@ -353,5 +353,21 @@
   "result": "Success. No rows returned — fin.rmp_patient_breakdown (নতুন), rmp_rmp_summary / rmp_summary / rmp_branch_due (এক-খাতার নিয়মে), rmp_cap_patient (নতুন), capped_* ৩টা ঘর বসেছে",
   "proof": "ফটো bb34c5a0",
   "what": "RMP টাকার এক খাতা — কোনো সারি মোছা/বদলানো হয়নি; শুধু নতুন ঘর ও হিসাবের ফাংশন।"
+ },
+ {
+  "sql_file": "00_SQL/V1405_RMP_ONE_LEDGER_DEBUG_CHECK_2026-09-12.sql (তালিকা ৫১২)",
+  "run_by": "TK",
+  "when": "১২.০৯.২০২৬ রাত ১১.২১",
+  "result": "CSV: PKB/PK/JAKIR রোগী-ধরে হিসাব সঠিক (PK ₹4 = SADIKA KHATUN, PKB ₹8,504 = FRANCIS SOREN)",
+  "proof": "CSV cc958a61",
+  "what": "শুধু পড়া — pg_temp ফাংশন, কিছু বদলায়নি"
+ },
+ {
+  "sql_file": "00_SQL/V1406_RMP_ONE_LEDGER_NO_TEMP_TABLE_2026-09-12.sql (তালিকা ৫১২)",
+  "run_by": "TK",
+  "when": "১২.০৯.২০২৬ রাত ১১.২৯",
+  "result": "Success — এরপর ফোনে PKB Ref. Due ₹8,504 ঠিক এলো (V1404-এ ₹0 ছিল) ⇒ কারণ নিশ্চিত: অ্যাপ-পথে create temp table আটকাচ্ছিল",
+  "proof": "ফটো dec97dc8 · 4718ac44",
+  "what": "তিনটে হিসাব-ফাংশন অস্থায়ী টেবিল ছাড়া; কোনো সারি বদলায়নি"
  }
 ]
