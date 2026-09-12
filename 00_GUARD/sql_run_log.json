@@ -377,5 +377,13 @@
   "result": "FRANCIS SOREN · capped_amount 5496 · audit_rows 1",
   "proof": "CSV 1cdc4ea7",
   "what": "PKB-র এক রোগীর কমিশন এখানেই বন্ধ (cap) + audit-সারি; অন্য কিছু বদলায়নি"
+ },
+ {
+  "sql_file": "00_SQL/V1408_ALL_BRANCH_RMP_DUE_AUDIT_2026-09-12.sql (তালিকা ৫১৪)",
+  "run_by": "TK",
+  "when": "১২.০৯.২০২৬ রাত ১১.৪২",
+  "result": "232 সারি — A_DUE 50 (Falakata TK BISWAS ₹1,74,900 · Kishanganj AMIT GOLDAR ₹1,33,300 · Jalpaiguri JAYANTA BANE ₹13,395 …), B_OVERPAID 2 (JAKIR HOSSAIN 2,800 · PRANAB GHOSH 1,500), C_DUP 180 (বেশিরভাগ একই নাম আলাদা মোবাইল; একই মোবাইল: PKB/PRANAB BISWAS Jalpaiguri, NIPEN ROY, PROSANTO SARKAR, Dr. Md Answar)",
+  "proof": "CSV ce9ef431 → 00_SQL/V1408_RESULT_2026-09-12.csv",
+  "what": "শুধু পড়া"
  }
 ]
