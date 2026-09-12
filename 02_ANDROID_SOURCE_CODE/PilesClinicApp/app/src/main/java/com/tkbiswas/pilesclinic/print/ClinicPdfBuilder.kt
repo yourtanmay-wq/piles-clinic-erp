@@ -328,15 +328,43 @@ class ClinicPdfBuilder(private val context: Context) {
         data class TableRow(val sl: Int, val badge: String, val badgeColor: Int, val nameLayout: StaticLayout, val doseLayout: StaticLayout, val whenLayout: StaticLayout, val durLayout: StaticLayout, val height: Float,
                             val instrLayout: StaticLayout? = null, val nameBlockH: Float = 0f)   // 💊 V723
 
+        // 🩹🔒 V1386 (১২.০৯.২০২৬, TK-রিপোর্ট — ছবি-প্রুফ পাশ) — TK: *"একটা মেডিসিনের
+        // নাম দেখুন ডোজের ওখানে কেমন ভাবে রয়েছে"*। যখন Dose-এ লম্বা বাক্য
+        // (যেমন "1 tsp at bedtime with warm water") টাইপ করা হয়, সরু Dose
+        // কলামে একটা করে শব্দ আলাদা লাইনে ভেঙে বিশ্রী দেখাত। এখন Dose-এর
+        // লেখা এক লাইনে না ধরলে শুরুর যতটা এক লাইনে ধরে (যেমন "1 tsp") সেটাই
+        // Dose-এ থাকে, বাকিটা (যেমন "at bedtime with warm water") নামের
+        // নিচে ছোট Instruction-লাইনে চলে যায় — V723-এর সেই একই জায়গা।
+        // ⛔ ছোট Dose (যেমন "2-0-2", "15 Ml") এক লাইনেই ধরে, তাই তাদের
+        // কিছুই বদলায় না। ⛔ সেভ করা আসল ডেটা এক অক্ষরও বদলায় না — শুধু
+        // ছাপার সময় দেখানোর ধরন।
+        val doseUsableW = (colDose - 2 * cellPad)
+        fun splitDoseOverflow(dose: String): Pair<String, String> {
+            if (dose.isBlank() || cellPaint.measureText(dose) <= doseUsableW) return Pair(dose, "")
+            val words = dose.trim().split(Regex("\\s+"))
+            val kept = StringBuilder()
+            var i = 0
+            while (i < words.size) {
+                val candidate = if (kept.isEmpty()) words[i] else "$kept ${words[i]}"
+                if (kept.isNotEmpty() && cellPaint.measureText(candidate) > doseUsableW) break
+                kept.clear(); kept.append(candidate)
+                i++
+            }
+            val overflow = words.drop(i).joinToString(" ")
+            return Pair(kept.toString(), overflow)
+        }
+
         val rows = (0 until rowCount).map { i ->
             val nameLayout = makeLayout(names.getOrElse(i) { "-" }, namePaint, (colName - 2 * cellPad - 32f).toInt())
-            val doseLayout = makeLayout(doses.getOrElse(i) { "-" }, cellPaint, (colDose - 2 * cellPad).toInt())
+            val (doseShown, doseOverflow) = splitDoseOverflow(doses.getOrElse(i) { "-" })
+            val doseLayout = makeLayout(doseShown, cellPaint, doseUsableW.toInt())
             val whenLayout = makeLayout(freqs.getOrElse(i) { "-" }, cellPaint, (colWhen - 2 * cellPad).toInt())
             val durLayout = makeLayout(durations.getOrElse(i) { "-" }, cellPaint, (colDuration - 2 * cellPad).toInt())
             val badge = types.getOrNull(i).orEmpty()
             /* 💊 V723 — Instruction থাকলে নামের নিচে একটা ছোট লাইন। ⛔ ফাঁকা হলে
                `null`, আর তখন নিচের হিসাব হুবহু আগের মতোই চলে। */
-            val instrText = instructions.getOrNull(i).orEmpty().trim()
+            val instrText = listOf(instructions.getOrNull(i).orEmpty().trim(), doseOverflow)
+                .filter { it.isNotBlank() }.joinToString(" · ")
             val instrLayout = if (instrText.isBlank()) null
                 else makeLayout(instrText, instrPaint, (colName - 2 * cellPad).toInt())
             val nameBlockH = nameLayout.height.toFloat() + (instrLayout?.let { it.height.toFloat() + 3f } ?: 0f)
