@@ -700,4 +700,47 @@ object RmpCommissionRepository {
             .put("p_payload", payload).put("p_reason", reason.ifBlank { JSONObject.NULL }))
         return if (rpc.ok) RepoResult(true, rpc.body.trim().trim('"')) else RepoResult(false, message = rpc.message)
     }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       📒🔒 V1404 (১২.০৯.২০২৬, TK-নির্দেশ, ডেমো পাশ, খাতার সারি ৫১১) — "একটাই
+       খাতা": RMP-র পর্দার Earned · Paid · Due আর রোগী-ধরে ভাঙা হিসাব সবই
+       ডেটাবেসের **একই** নিয়ম (`fin.rmp_patient_breakdown`) থেকে আসে — অ্যাপে
+       আলাদা করে কোনো টাকা যোগ-বিয়োগ করা হয় না, তাই দুই পর্দায় দুরকম সংখ্যা
+       আসার পথ বন্ধ। Master-এর "এখানেই বন্ধ" (cap) `fin.rmp_cap_patient`।
+       ═══════════════════════════════════════════════════════════════════ */
+    data class PatientBreakdownRow(
+        val patientRowId: String, val patientCode: String, val name: String, val mobile: String,
+        val branch: String, val mode: String, val value: Double, val setOn: String,
+        val netPaid: Double, val computed: Double, val legacyPaid: Double, val legacyDue: Double,
+        val cappedAmount: Double?, val earned: Double, val paid: Double, val due: Double, val source: String
+    )
+
+    fun patientBreakdown(rmpId: String): RepoResult<List<PatientBreakdownRow>> {
+        val rpc = ModuleAuth.rpc("fin", "rmp_patient_breakdown", JSONObject().put("p_rmp_id", rmpId))
+        if (!rpc.ok) return RepoResult(false, message = rpc.message)
+        return try {
+            val arr = JSONArray(rpc.body)
+            val out = ArrayList<PatientBreakdownRow>(arr.length())
+            for (i in 0 until arr.length()) {
+                val x = arr.getJSONObject(i)
+                val cap = if (x.isNull("capped_amount")) null else x.optDouble("capped_amount")
+                out.add(PatientBreakdownRow(
+                    x.optString("patient_row_id"), x.optString("patient_code"), x.optString("patient_name"),
+                    x.optString("patient_mobile"), x.optString("treatment_branch"), x.optString("commission_mode"),
+                    x.optDouble("commission_value", 0.0), x.optString("set_on"),
+                    x.optDouble("net_paid", 0.0), x.optDouble("computed", 0.0), x.optDouble("legacy_paid", 0.0),
+                    x.optDouble("legacy_due", 0.0), cap, x.optDouble("earned", 0.0), x.optDouble("paid", 0.0),
+                    x.optDouble("due", 0.0), x.optString("source")))
+            }
+            RepoResult(true, out)
+        } catch (_: Exception) { RepoResult(false, message = "Invalid RMP breakdown") }
+    }
+
+    /** V1404 — Master-only: cap == null → আবার চালু; cap ≥ 0 → এই টাকার উপরে আর কমিশন তৈরি হবে না। */
+    fun capPatient(patientRowId: String, rmpId: String, cap: Double?): RepoResult<Unit> {
+        val rpc = ModuleAuth.rpc("fin", "rmp_cap_patient", JSONObject()
+            .put("p_patient_row_id", patientRowId).put("p_rmp_id", rmpId)
+            .put("p_cap", cap ?: JSONObject.NULL))
+        return if (rpc.ok) RepoResult(true, Unit) else RepoResult(false, message = rpc.message)
+    }
 }

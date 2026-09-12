@@ -18898,8 +18898,8 @@ async function wlv1RmpDueVerify(rows){
        "NOBODY IS PENDING"। ⛔ ফোনের `showRmpDueList()`-এও হুবহু একই সংশোধন। */
     rows = Array.isArray(rows) ? rows : [];
     /* 🔴 V1356 — লগইন/সংযোগ না থাকলেও নিচের শেষ-রেন্ডার চলবে (return নয়, catch-এ যায়) */
-    if(typeof fin!=='function')throw new Error('no fin');
-    let c=await fin();if(!c)throw new Error('no client');
+    /* 🔴 V1404 — `fin` app.js-এ কখনো ছিল না (নিচের মন্তব্য দেখুন, wlv1RefreshRmpPaidTotal) — তাই এই যাচাই ওয়েবে কখনো চলেনি। এখন wlv1RmcClient()। */
+    let c=await wlv1RmcClient();if(!c)throw new Error('no client');
     let check=rows.slice(0,25),changed=false;
     for(let i=0;i<check.length;i++){
       try{
@@ -19217,19 +19217,100 @@ window["wlv1FuHoldEat"]=wlv1FuHoldEat;
 function viewDoctorVisit(id){
  let x=load('doctor_visits').find(a=>a.id===id);if(!x)return;
  let refs=doctorReferralPatients(x),calls=Array.isArray(x.callHistory)?x.callHistory:[],inc=doctorReferralTotals([x]);
- modal(`<h2>Doctor/RMP Details</h2>${contactBranchNotice(x)}<div class="card"><b>${esc(x.name)}</b><br>${esc(normMob(x.mobile))}<br>Branch: ${esc(x.branch||'-')}<br>Area: ${esc(x.area||'-')}<br>Last Call: ${esc(doctorLastCall(x)||'-')}<br>Next Call: ${esc(x.nextCallDate||'-')}<br>Total Referred Patients: ${refs.length}<br>Referral Paid: <b id="wlv1RmpPaidTotal">${money(inc.paid)}</b> · Due: <b>${money(inc.due)}</b><p>${esc(x.remarks||'')}</p><div class="actions"><button class="small ghost" onclick="contact('${x.mobile}','call')">Call</button><button class="small ghost" onclick="contact('${x.mobile}','wa')">WhatsApp</button><button class="small" onclick="openDoctorCallForm('${x.id}')">Remarks</button><button class="small ghost" onclick="openWebRmpCommission('${x.id}')">💰 Referral Income</button>${calls.length?`<button class="small ghost" onclick="editLastCallNote('${x.id}')">🩹 Fix Last Note</button>`:''}</div>${wlv1DocMsgBar(x.id)}</div><div class="sectionTitle">Call / Remarks Timeline</div>${calls.map(c=>`<div class="card"><b>${esc(c.date||'-')}</b><p>${esc(c.note||'-')}</p><span class="tiny">Next: ${esc(c.nextCallDate||'-')}</span></div>`).join('')||'<div class="card mut">No call history yet</div>'}<div class="sectionTitle">Referral Income History</div>${referralIncomeHtml(x)}<div class="sectionTitle">Referral Patient History</div><div id="wlv1RmpViewAllRows">${refs.map(p=>wlv1RmpPatientCard(p,false)).join('')||'<div class="card mut">No referred patient found</div>'}</div>`);setTimeout(()=>{wlv1RefreshRmpViewAll(id);wlv1RefreshRmpPaidTotal(id,inc.paid)},0)
+ modal(`<h2>Doctor/RMP Details</h2>${contactBranchNotice(x)}<div class="card"><b>${esc(x.name)}</b><br>${esc(normMob(x.mobile))}<br>Branch: ${esc(x.branch||'-')}<br>Area: ${esc(x.area||'-')}<br>Last Call: ${esc(doctorLastCall(x)||'-')}<br>Next Call: ${esc(x.nextCallDate||'-')}<br><p>${esc(x.remarks||'')}</p></div><div class="wlv1RmpBoxes"><div class="wlv1RmpBox"><span>Referred</span><b>${refs.length}</b></div><div class="wlv1RmpBox" onclick="wlv1RmpBreakdownWeb('${x.id}','Earned')"><span>Earned</span><b id="wlv1RmpBoxEarned">…</b></div><div class="wlv1RmpBox green" onclick="wlv1RmpBreakdownWeb('${x.id}','Paid')"><span>Paid</span><b id="wlv1RmpPaidTotal">${money(inc.paid)}</b></div><div class="wlv1RmpBox red" onclick="wlv1RmpBreakdownWeb('${x.id}','Due')"><span>Due</span><b id="wlv1RmpBoxDue">${money(inc.due)}</b></div></div><div class="card"><div class="actions"><button class="small ghost" onclick="contact('${x.mobile}','call')">Call</button><button class="small ghost" onclick="contact('${x.mobile}','wa')">WhatsApp</button><button class="small" onclick="openDoctorCallForm('${x.id}')">Remarks</button><button class="small ghost" onclick="openWebRmpCommission('${x.id}')">💰 Referral Income</button>${calls.length?`<button class="small ghost" onclick="editLastCallNote('${x.id}')">🩹 Fix Last Note</button>`:''}</div>${wlv1DocMsgBar(x.id)}</div><div class="sectionTitle">Call / Remarks Timeline</div>${calls.map(c=>`<div class="card"><b>${esc(c.date||'-')}</b><p>${esc(c.note||'-')}</p><span class="tiny">Next: ${esc(c.nextCallDate||'-')}</span></div>`).join('')||'<div class="card mut">No call history yet</div>'}<div class="sectionTitle">Referral Income History</div><div id="wlv1RmpIncomeRows">${referralIncomeHtml(x)}</div><div class="sectionTitle">Referral Patient History</div><div id="wlv1RmpViewAllRows">${refs.map(p=>wlv1RmpPatientCard(p,false)).join('')||'<div class="card mut">No referred patient found</div>'}</div>`);setTimeout(()=>{wlv1RefreshRmpViewAll(id);wlv1RefreshRmpPaidTotal(id,inc.paid)},0)
 }
 window["viewDoctorVisit"]=viewDoctorVisit;
+/* 📒🔒 V1404 (১২.০৯.২০২৬, TK-নির্দেশ, ডেমো পাশ, খাতার সারি ৫১১) — "একটাই খাতা":
+   Earned · Paid · Due ও আয়ের তালিকা সার্ভারের একই নিয়ম (fin.rmp_patient_breakdown)
+   থেকে — ফোনের DoctorVisitActivity-র হুবহু যমজ। সার্ভারে V1404 SQL না বসা
+   পর্যন্ত আগের (V381) হিসাব ও কার্ডই থাকে।
+   🔴 সততার স্বীকারোক্তি: এখানে আগে `typeof fin!=='function'` দিয়ে ক্লাউড ডাকা হত —
+   কিন্তু `fin` কখনোই app.js-এ ছিল না (rmp_commission.js-এর ভিতরে বন্ধ), তাই
+   ওয়েবে Paid কখনো ক্লাউড থেকে মেলানো হত না। এখন wlv1RmcClient() (V1252) দিয়ে। */
+window.__wlv1RmpBd=window.__wlv1RmpBd||{};
+async function wlv1RmpBdFetch(id){
+ let c=await wlv1RmcClient();if(!c)return null;
+ let s=await c.rpc('rmp_rmp_summary',{p_rmp_id:id});if(s.error||!s.data||!s.data.length)return null;
+ let bd=await c.rpc('rmp_patient_breakdown',{p_rmp_id:id});
+ let rows=(!bd.error&&Array.isArray(bd.data))?bd.data:null;
+ let out={summary:s.data[0],rows:rows,at:Date.now()};window.__wlv1RmpBd[id]=out;return out;
+}
 async function wlv1RefreshRmpPaidTotal(id,legacyPaid){
- try{let host=$('#wlv1RmpPaidTotal');if(host){host.style.cursor='pointer';host.style.background='#EAF8EF';host.style.color='#0C8F3A';host.style.padding='3px 7px';host.style.borderRadius='7px';host.onclick=()=>webRmpDirectPaymentForm(id);let dueHost=host.nextElementSibling;if(dueHost){dueHost.style.background='#FDEEEE';dueHost.style.color='#B42318';dueHost.style.padding='3px 7px';dueHost.style.borderRadius='7px'}}if(typeof fin!=='function')return;let c=await fin();if(!c)return;
-  let s=await c.rpc('rmp_rmp_summary',{p_rmp_id:id});
+ try{let got=await wlv1RmpBdFetch(id);if(!got)return;let sum=got.summary,rows=got.rows;
+  let e=$('#wlv1RmpBoxEarned');if(e)e.textContent=money(sum.earned||0);
+  let d=$('#wlv1RmpBoxDue');if(d)d.textContent=money(sum.due||0);
+  let host=$('#wlv1RmpPaidTotal');
+  if(rows){if(host)host.textContent=money(sum.paid_to_this_rmp||0);let inc=$('#wlv1RmpIncomeRows');if(inc)inc.innerHTML=wlv1RmpIncomeHtmlFromBreakdown(id,rows);return;}
+  let c=await wlv1RmcClient();if(!c)return;
   let a=await c.from('rmp_advance_payments').select('amount,allocated_amount,legacy_covered_amount').eq('rmp_id',id);
-  if(s.error||a.error||!s.data||!s.data.length)return;
-  let available=(a.data||[]).reduce((n,x)=>n+Number(x.amount||0)-Number(x.allocated_amount||0),0);
+  if(a.error)return;
   let covered=(a.data||[]).reduce((n,x)=>n+Number(x.legacy_covered_amount||0),0);
-  if(host)host.textContent=money(Math.max(0,Number(legacyPaid||0)+Number(s.data[0].paid_to_this_rmp||0)-covered));
+  if(host)host.textContent=money(Math.max(0,Number(legacyPaid||0)+Number(sum.paid_to_this_rmp||0)-covered));
  }catch(_){/* keep verified legacy total */}
 }
+function wlv1RmpBdSub(b){
+ let cap=b.capped_amount!=null&&b.capped_amount!=='',mode=String(b.commission_mode||'').toUpperCase(),computed=Number(b.computed||0);
+ if(cap)return 'Fixed by Master '+money(b.capped_amount);
+ if(mode==='PERCENT'&&computed>0.5)return Math.round(Number(b.commission_value||0))+'% of '+money(b.net_paid)+' treatment';
+ if(mode==='AMOUNT'&&computed>0.5)return 'Fixed '+money(b.commission_value);
+ if(String(b.source||'').toUpperCase()==='LEGACY'||(computed<=0.5&&(Number(b.legacy_paid||0)>0.5||Number(b.legacy_due||0)>0.5)))return 'Entered by hand';
+ return 'No treatment payment yet';
+}
+function wlv1RmpBdHandGroup(x,b){
+ let groups=referralIncomeGroups(x),m=mob(b.patient_mobile||''),nm=String(b.patient_name||'').trim().toLowerCase();
+ for(let gi=0;gi<groups.length;gi++){let g=groups[gi];if((m.length===10&&g.mobile===m)||(g.mobile.length!==10&&String(g.patient||'').trim().toLowerCase()===nm))return {gi:gi,g:g}}
+ return null;
+}
+function wlv1RmpIncomeHtmlFromBreakdown(id,rows){
+ let x=load('doctor_visits').find(a=>a.id===id)||{};
+ let list=(rows||[]).filter(b=>Number(b.earned||0)>0.5||Number(b.paid||0)>0.5||Number(b.due||0)>0.5);
+ if(!list.length)return '<div class="card mut">No referral income entry</div>';
+ list=list.map(b=>{let h=wlv1RmpBdHandGroup(x,b),latest=h?h.g.entries[0]:null,setOn=String(b.set_on||'').slice(0,10);
+   let useLegacy=latest&&String(latest.date||'').slice(0,10)>=setOn,raw=useLegacy?String(latest.date||''):setOn,iso=useLegacy?String(latest.createdAt||''):'';
+   return {b:b,h:h,raw:raw,time:iso.includes('T')?wlv1Ampm(iso.slice(11,16)):''}});
+ list.sort((a,b)=>b.raw.localeCompare(a.raw));
+ return list.map(r=>{let b=r.b,earned=Number(b.earned||0),paid=Number(b.paid||0),due=Number(b.due||0),m=mob(b.patient_mobile||'');
+   let line=due<=0.5?(money(earned)+' · Paid'):(paid<=0.5?(money(earned)+' · Due'):(money(earned)+' · Due '+money(due)));
+   return `<div class="card">`
+     +`<b style="${m.length===10?'cursor:pointer;color:#1457B8':''}"${m.length===10?` onclick="wlv1ReportCard('${m}')"`:''}>${esc(b.patient_name||m||'-')}${m.length===10?' ›':''}</b><br>`
+     +`<span style="cursor:pointer;font-weight:700;color:${due<=0.5?'#0C9E33':'#C0392B'}" onclick="wlv1RmpBreakdownWeb('${esc(id)}','Due')">${line} ›</span><br>`
+     +`<span class="tiny">${esc(wlv1RmpBdSub(b))}${r.raw?' · '+esc(fmtDate(r.raw)):''}${r.time?' · '+esc(r.time):''}</span>`
+     +(r.h?`<br><span class="tiny" style="cursor:pointer;color:#7A3FF2;font-weight:700" onclick="showReferralBreakdownWeb('${esc(id)}',${r.h.gi})">✎ hand entries (${r.h.g.entries.length})</span>`:'')
+     +`</div>`}).join('');
+}
+/* রোগী-ধরে ভাঙা হিসাব (Earned/Paid/Due বক্স চাপলে — একই পপ-আপ)। Master: টাকায় ক্লিকে
+   "এখানেই বন্ধ" (rmp_cap_patient) / আবার চালু। */
+async function wlv1RmpBreakdownWeb(id,title){
+ let x=load('doctor_visits').find(a=>a.id===id);if(!x)return;
+ let got=window.__wlv1RmpBd[id];if(!got||Date.now()-got.at>60000){toast('Loading…');got=await wlv1RmpBdFetch(id)}
+ if(!got){return toast('Could not verify commission summary')}
+ if(!got.rows){if(title==='Paid')return webRmpDirectPaymentForm(id);return webRmpSummary(id)}
+ let sum=got.summary,rows=[...got.rows].sort((a,b)=>(Number(b.due||0)-Number(a.due||0))||(Number(b.earned||0)-Number(a.earned||0)));
+ let master=isMaster();
+ let body=rows.map((b,i)=>{let m=mob(b.patient_mobile||''),due=Number(b.due||0),h=wlv1RmpBdHandGroup(x,b);
+   let amtAttr=master?` style="cursor:pointer" onclick="wlv1RmpCapWeb('${esc(id)}',${i},'${esc(title)}')"`:'';
+   return `<tr><td><b style="${m.length===10?'cursor:pointer;color:#1457B8':''}"${m.length===10?` onclick="wlv1ReportCard('${m}')"`:''}>${esc(b.patient_name||m||'-')}${m.length===10?' ›':''}</b><br><span class="tiny">${esc(wlv1RmpBdSub(b))}${b.set_on?' · '+esc(fmtDate(String(b.set_on).slice(0,10))):''}</span>${h?`<br><span class="tiny" style="cursor:pointer;color:#7A3FF2;font-weight:700" onclick="showReferralBreakdownWeb('${esc(id)}',${h.gi})">✎ hand entries (${h.g.entries.length})</span>`:''}</td>`
+     +`<td class="r"${amtAttr}>${money(b.earned)}</td><td class="r"${amtAttr}>${money(b.paid)}</td><td class="r"${amtAttr} style="color:${due>0.5?'#B42318':'#0C8F3A'};font-weight:700${master?';cursor:pointer':''}">${money(due)}</td></tr>`}).join('');
+ window.__wlv1RmpBdRows=rows;
+ modal(`<h2>${esc(title)} — ${esc(x.name||'')} (patient wise)</h2><div class="card" style="padding:0;overflow:auto"><table class="wlv1RmpBdTable"><thead><tr><th>Patient</th><th class="r">Earned</th><th class="r">Paid</th><th class="r">Due</th></tr></thead><tbody>${body||'<tr><td colspan="4" class="mut">No commission patient yet</td></tr>'}</tbody></table></div>`
+  +`<div class="card mut"><b>Total — Earned ${money(sum.earned)} · Paid ${money(sum.paid_to_this_rmp)} · <span style="color:${Number(sum.due||0)>0.5?'#B42318':'#0C8F3A'}">Due ${money(sum.due)}</span></b>${master?'<br><span class="tiny">Master: click a patient\'s amount to stop or resume their commission</span>':''}</div>`
+  +`<div class="actions"><button class="ghost" onclick="viewDoctorVisit('${esc(id)}')">Close</button><button onclick="webRmpDirectPaymentForm('${esc(id)}')">Pay RMP</button></div>`);
+}
+async function wlv1RmpCapWeb(id,i,title){
+ if(!isMaster())return;
+ let b=(window.__wlv1RmpBdRows||[])[i];if(!b)return;
+ if(!b.patient_row_id)return toast('Hand-entered only — nothing to stop here');
+ let capped=b.capped_amount!=null&&b.capped_amount!=='',nm=b.patient_name||mob(b.patient_mobile||'');
+ let ok=confirm(capped?(`Commission for ${nm} is fixed at ${money(b.capped_amount)} by Master.\n\nResume automatic commission?`)
+   :(`No further commission for ${nm}?\n\nCommission will be fixed at ${money(b.paid)} (paid so far). It will not grow even if more treatment money comes, and nothing more will show as Due.`));
+ if(!ok)return;
+ let c=await wlv1RmcClient();if(!c)return toast('Could not verify login');
+ let r=await c.rpc('rmp_cap_patient',{p_patient_row_id:b.patient_row_id,p_rmp_id:id,p_cap:capped?null:Number(b.paid||0)});
+ if(r.error)return toast(String((r.error&&r.error.message)||'Could not save'));
+ toast(capped?('Commission resumed for '+nm):('Commission stopped for '+nm));
+ delete window.__wlv1RmpBd[id];wlv1RmpBreakdownWeb(id,title);
+}
+window["wlv1RmpBreakdownWeb"]=wlv1RmpBreakdownWeb;window["wlv1RmpCapWeb"]=wlv1RmpCapWeb;window["wlv1RmpIncomeHtmlFromBreakdown"]=wlv1RmpIncomeHtmlFromBreakdown;window["wlv1RmpBdFetch"]=wlv1RmpBdFetch;
 window["wlv1RefreshRmpPaidTotal"]=wlv1RefreshRmpPaidTotal;
 async function wlv1RefreshRmpViewAll(id){
  if(typeof window.webRmpViewAll!=='function')return;let rows=await window.webRmpViewAll(id),host=$('#wlv1RmpViewAllRows');if(!rows||!host)return;

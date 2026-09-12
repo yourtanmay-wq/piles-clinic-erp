@@ -136,7 +136,14 @@ class DoctorVisitActivity : AppCompatActivity() {
         val referred: List<ReferredPatient>,
         val refIncome: List<RefIncomeLine>,
         val refPaid: Double,
-        val refDue: Double
+        val refDue: Double,
+        /* 📒🔒 V1404 (১২.০৯.২০২৬, TK-নির্দেশ, ডেমো পাশ, খাতার সারি ৫১১) — "একটাই খাতা":
+           Earned · Paid · Due ও রোগী-ধরে ভাঙা হিসাব সবই ডেটাবেসের একই নিয়ম
+           (`fin.rmp_patient_breakdown`) থেকে। `oneLedger=false` মানে সার্ভারে
+           V1404 SQL এখনো বসেনি — তখন আগের (V1385) হিসাব ও তালিকাই থাকে। */
+        val earned: Double = 0.0,
+        val breakdown: List<RmpCommissionRepository.PatientBreakdownRow> = emptyList(),
+        val oneLedger: Boolean = false
     )
     private val doctorViewAllMemoryCache = android.util.LruCache<String, ViewAllData>(24)
 
@@ -2457,6 +2464,9 @@ class DoctorVisitActivity : AppCompatActivity() {
                     // V381: Ref. Paid means all money already handed to this RMP.
                     // Allocated advance is already inside the new payment total;
                     // only the still-unallocated balance is added, preventing double count.
+                    var earnedNow = 0.0
+                    var breakdownRows: List<RmpCommissionRepository.PatientBreakdownRow> = emptyList()
+                    var oneLedger = false
                     if (authReady) {
                         /* 🔴🔒 V1355 (১১.০৯.২০২৬, TK-রিপোর্ট — BISHAKHA MANDAL): V1161-এর
                            "এক ব্রাঞ্চে একবারই" কমিশন-জোড়া (`rmpAutoLinkedBranches`) —
@@ -2465,15 +2475,26 @@ class DoctorVisitActivity : AppCompatActivity() {
                            এই পথে নয়, পর্দা আঁকার পরে পিছনে (renderBody-র ভিতরে),
                            যাতে তালিকা আসতে দেরি না হয়। */
                         val modern = RmpCommissionRepository.rmpSummary(item.id)
-                        val advances = RmpCommissionRepository.advancePayments(item.id)
-                        val covered = if (advances.ok) (advances.value ?: emptyList()).sumOf { it.legacyCovered } else 0.0
-                        // rmpSummary.paid already includes allocated payments + still-unallocated
-                        // direct RMP payments. Subtract only the part already represented by
-                        // visible legacy Paid rows, so the same money is never counted twice.
-                        if (modern.ok && modern.value != null)
+                        /* 📒🔒 V1404 — একটাই খাতা: সার্ভারের রোগী-ধরে ভাঙা হিসাব এলে
+                           Paid · Due · Earned **সরাসরি** ওখান থেকেই; অ্যাপে আর হাতে-লেখা
+                           Paid + নতুন Paid − covered ধরনের যোগ-বিয়োগ নয় (ওটাই JAKIR-এর
+                           "₹8,000 দেওয়া তবু ₹2,200 বাকি" গোলমালের উৎস ছিল)। */
+                        val bd = RmpCommissionRepository.patientBreakdown(item.id)
+                        if (modern.ok && modern.value != null && bd.ok && bd.value != null) {
+                            verifiedLegacyPaid = modern.value.paid
+                            verifiedLegacyDue = modern.value.due
+                            earnedNow = modern.value.earned
+                            breakdownRows = bd.value
+                            oneLedger = true
+                        } else if (modern.ok && modern.value != null) {
+                            // ⛔ V1404 SQL সার্ভারে না বসা পর্যন্ত আগের (V381) হিসাবই হুবহু থাকে।
+                            val advances = RmpCommissionRepository.advancePayments(item.id)
+                            val covered = if (advances.ok) (advances.value ?: emptyList()).sumOf { it.legacyCovered } else 0.0
                             verifiedLegacyPaid += kotlin.math.max(0.0, modern.value.paid - covered)
+                            earnedNow = modern.value.earned
+                        }
                     }
-                    ViewAllData(calls, referred, refIncome, verifiedLegacyPaid, verifiedLegacyDue)
+                    ViewAllData(calls, referred, refIncome, verifiedLegacyPaid, verifiedLegacyDue, earnedNow, breakdownRows, oneLedger)
                 }
                 // V450: repeat-open starts from the last successful snapshot instead
                 // of fake zeroes. First-ever open remains unchanged (empty + Loading).
@@ -3351,36 +3372,50 @@ class DoctorVisitActivity : AppCompatActivity() {
                         return box
                     }
                     summaryRow2.addView(sumBox("Referred", if (viewAllLoaded) data.referred.size.toString() else "…", "#10223A"))
+                    lateinit var refEarnedBox: android.widget.LinearLayout
                     lateinit var refPaidBox: android.widget.LinearLayout
                     lateinit var refDueBox: android.widget.LinearLayout
-                    refPaidBox = sumBox("Ref. Paid", if (viewAllLoaded) "\u20B9${"%,.0f".format(data.refPaid)}" else "\u2026", "#0C8F3A", "#EAF8EF").apply {
-                        isClickable = true; isFocusable = true
-                        setOnClickListener {
-                            showRmpDirectPayment(item) {
-                                lifecycleScope.launch {
-                                    val (fresh, advances) = withContext(Dispatchers.IO) {
-                                        RmpCommissionRepository.rmpSummary(item.id) to RmpCommissionRepository.advancePayments(item.id)
-                                    }
-                                    val s = fresh.value ?: return@launch
-                                    val covered = if (advances.ok) (advances.value ?: emptyList()).sumOf { it.legacyCovered } else 0.0
-                                    val legacyPaid = data.refIncome.filter { it.status.equals("Paid", true) }.sumOf { it.amount }
-                                    val shownPaid = kotlin.math.max(0.0, legacyPaid + s.paid - covered)
-                                    (refPaidBox.getChildAt(1) as? TextView)?.text = "₹${"%,.0f".format(shownPaid)}"
-                                    (refDueBox.getChildAt(1) as? TextView)?.text = "₹${"%,.0f".format(s.due)}"
-                                    // Keep the repeat-open memory snapshot aligned with the
-                                    // just-verified figures; no cloud write/request is added.
-                                    data = data.copy(refPaid = shownPaid, refDue = s.due)
-                                    saveViewAllCache(data)
-                                }
+                    /* 📒🔒 V1404 (TK-নির্দেশ, ডেমো পাশ): ৪টা বক্স Referred · Earned · Paid · Due —
+                       তিনটে টাকার বক্সের যেকোনোটা চাপলে **একই** রোগী-ধরে ভাঙা হিসাব খোলে
+                       (TK: *"যে ঘরেই চাপ দেই না কেন একই পপ আপ… ₹4 কোন পেশেন্টের জন্য"*)।
+                       টাকা দেওয়া/বন্ধ করার পরে এই পর্দাই সঙ্গে সঙ্গে আবার আঁকা হয় (নিয়ম ৭খ)। */
+                    fun refreshFromCloud() {
+                        lifecycleScope.launch {
+                            val pairFb = withContext(Dispatchers.IO) {
+                                RmpCommissionRepository.rmpSummary(item.id) to RmpCommissionRepository.patientBreakdown(item.id)
                             }
+                            val fresh: RmpCommissionRepository.RepoResult<RmpCommissionRepository.RmpSummary> = pairFb.first
+                            val bd: RmpCommissionRepository.RepoResult<List<RmpCommissionRepository.PatientBreakdownRow>> = pairFb.second
+                            if (isFinishing || isDestroyed || !fsDialog.isShowing) return@launch
+                            val s: RmpCommissionRepository.RmpSummary = fresh.value ?: return@launch
+                            val rows = if (bd.ok && bd.value != null) bd.value else data.breakdown
+                            val one = data.oneLedger || (bd.ok && bd.value != null)
+                            data = data.copy(refPaid = if (one) s.paid else data.refPaid, refDue = s.due, earned = s.earned,
+                                breakdown = rows, oneLedger = one)
+                            saveViewAllCache(data)
+                            renderBody()
                         }
                     }
-                    refDueBox = sumBox("Ref. Due", if (viewAllLoaded) "\u20B9${"%,.0f".format(data.refDue)}" else "\u2026", "#B42318", "#FDEEEE").apply {
+                    fun openBreakdown(title: String) {
+                        if (data.oneLedger) showRmpPatientBreakdown(item, title, data.breakdown, data.refIncome,
+                            data.earned, data.refPaid, data.refDue) { refreshFromCloud() }
+                        else if (title == "Paid") showRmpDirectPayment(item) { refreshFromCloud() }
+                        else showRmpCommissionSummary(item)
+                    }
+                    refEarnedBox = sumBox("Earned", if (viewAllLoaded) "\u20B9${"%,.0f".format(data.earned)}" else "\u2026", "#10223A").apply {
+                        isClickable = true; isFocusable = true
+                        setOnClickListener { openBreakdown("Earned") }
+                    }
+                    refPaidBox = sumBox("Paid", if (viewAllLoaded) "\u20B9${"%,.0f".format(data.refPaid)}" else "\u2026", "#0C8F3A", "#EAF8EF").apply {
+                        isClickable = true; isFocusable = true
+                        setOnClickListener { openBreakdown("Paid") }
+                    }
+                    refDueBox = sumBox("Due", if (viewAllLoaded) "\u20B9${"%,.0f".format(data.refDue)}" else "\u2026", "#B42318", "#FDEEEE").apply {
                         (layoutParams as android.widget.LinearLayout.LayoutParams).marginEnd = 0
                         isClickable = true; isFocusable = true
-                        setOnClickListener { showRmpCommissionSummary(item) }
+                        setOnClickListener { openBreakdown("Due") }
                     }
-                    summaryRow2.addView(refPaidBox); summaryRow2.addView(refDueBox)
+                    summaryRow2.addView(refEarnedBox); summaryRow2.addView(refPaidBox); summaryRow2.addView(refDueBox)
                     scrollBody.addView(summaryRow2)
                     lifecycleScope.launch {
                         val verified = withContext(Dispatchers.IO) {
@@ -3398,11 +3433,13 @@ class DoctorVisitActivity : AppCompatActivity() {
                             }
                             RmpCommissionRepository.rmpSummary(item.id)
                         }
-                        verified.value?.let { s ->
+                        verified.value?.let { s: RmpCommissionRepository.RmpSummary ->
                             (refDueBox.getChildAt(1) as? TextView)?.text = "₹${"%,.0f".format(s.due)}"
+                            (refEarnedBox.getChildAt(1) as? TextView)?.text = "₹${"%,.0f".format(s.earned)}"
+                            if (data.oneLedger) (refPaidBox.getChildAt(1) as? TextView)?.text = "₹${"%,.0f".format(s.paid)}"
                             // The final verified due is what the next repeat-open should
                             // show immediately. Memory only; Supabase is untouched.
-                            data = data.copy(refDue = s.due)
+                            data = data.copy(refDue = s.due, earned = s.earned, refPaid = if (data.oneLedger) s.paid else data.refPaid)
                             saveViewAllCache(data)
                         }
                     }
@@ -3412,7 +3449,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                     // 🎨🔒 V1385 — onNameTap/onAmountTap: শুধু consolidated Referral
                     // Income সারির জন্য (কলাম ২ ও Note আলাদাভাবে ট্যাপযোগ্য)। বাকি
                     // সব সারির (Call/Referred Patient) জন্য ডিফল্ট null — কিছুই বদলায় না।
-                    data class UnifiedRow(val rawDate: String, val dateText: String, val typeText: String, val typeColorHex: String, val byText: String, val noteText: String, val onTap: (() -> Unit)?, val highlightName: String? = null, val onEdit: (() -> Unit)? = null, val onNameTap: (() -> Unit)? = null, val onAmountTap: (() -> Unit)? = null)
+                    data class UnifiedRow(val rawDate: String, val dateText: String, val typeText: String, val typeColorHex: String, val byText: String, val noteText: CharSequence, val onTap: (() -> Unit)?, val highlightName: String? = null, val onEdit: (() -> Unit)? = null, val onNameTap: (() -> Unit)? = null, val onAmountTap: (() -> Unit)? = null)
                     val unified = mutableListOf<UnifiedRow>()
                     data.calls.forEach { c ->
                         unified.add(UnifiedRow(c.rawDate, c.date, "Call", "#7A3FF2", c.by, c.note, null))
@@ -3423,7 +3460,9 @@ class DoctorVisitActivity : AppCompatActivity() {
                         // Back করলে সরাসরি RMP মূল পাতায় চলে যেত। এখন পপ-আপ
                         // খোলা রাখা হয় — Back করলে এই View All তালিকাতেই ফেরে।
                         val onTap: (() -> Unit)? = if (p.mobile.length == 10) { { startActivity(android.content.Intent(this@DoctorVisitActivity, PatientTimelineActivity::class.java).putExtra("mobile", p.mobile)) } } else null
-                        unified.add(UnifiedRow(p.rawDate, FollowUpModel.displayDate(p.rawDate), "Referred Patient", "#16A36D", "", "${p.name.ifBlank { p.mobile }} \u2014 Bill \u20B9${"%,.0f".format(p.bill)} \u00b7 Paid \u20B9${"%,.0f".format(p.paid)}", onTap))
+                        /* 🎨🔒 V1404 (TK, ডেমো পাশ): Type/Patient ঘরে "Referred Patient" লেখা নয় —
+                           শুধু রোগীর নাম (সবুজ, ট্যাপে Timeline); Note-এ Bill · Paid। */
+                        unified.add(UnifiedRow(p.rawDate, FollowUpModel.displayDate(p.rawDate), p.name.ifBlank { p.mobile }, "#16A36D", "", "Bill \u20B9${"%,.0f".format(p.bill)} \u00b7 Paid \u20B9${"%,.0f".format(p.paid)}", onTap, onNameTap = onTap))
                     }
                     /* 🎨🔒 V1385 (১২.০৯.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ) — TK: *"একই পেশেন্টের জন্য একের অধিক বক্স তৈরি হবে না, শুধু টাকার পরিমাণ
                        যুক্ত হয়ে যাবে... টাকার পরিমাণের উপর ক্লিক করলে প্রভাব খুলবে
@@ -3442,7 +3481,50 @@ class DoctorVisitActivity : AppCompatActivity() {
                         val g = refGroups.getOrPut(key) { RefIncomeGroup(key, r.patient, mob10) }
                         g.entries.add(r)
                     }
-                    refGroups.values.forEach { g ->
+                    if (data.oneLedger) {
+                        /* 📒🔒 V1404 — একটাই খাতা: আয়ের সারি সার্ভারের রোগী-ধরে ভাঙা হিসাব
+                           থেকে (auto কমিশন + হাতে-লেখা এন্ট্রি একসাথে, একই রোগী = একটাই সারি)।
+                           Note: "₹earned · Paid/Due ›" + নিচে "40% of ₹net treatment"।
+                           টাকা ছাড়া রোগী (Earned 0 · Paid 0) এখানে আসে না — সে শুধু Referred সারিতে। */
+                        for (b in data.breakdown) {
+                            if (b.earned <= 0.5 && b.paid <= 0.5 && b.due <= 0.5) continue
+                            val mob10 = b.mobile.filter { it.isDigit() }.takeLast(10)
+                            val key = if (mob10.length == 10) "m:$mob10" else "n:${b.name.trim().lowercase(java.util.Locale.US)}"
+                            val g = refGroups[key] ?: refGroups.values.firstOrNull { it.patient.trim().equals(b.name.trim(), ignoreCase = true) }
+                            val latest = g?.entries?.maxByOrNull { it.createdAt.ifBlank { it.date } }
+                            val setOn = b.setOn.take(10)
+                            val useLegacyDate = latest != null && latest.date.take(10) >= setOn
+                            val rawDate = if (useLegacyDate) latest!!.date else setOn
+                            val timeText = if (useLegacyDate) PaymentModel.displayTime12(latest!!.createdAt) else ""
+                            val dateText = FollowUpModel.displayDate(rawDate) + (if (timeText.isNotBlank()) "\n$timeText" else "")
+                            val line1 = when {
+                                b.due <= 0.5 -> "\u20B9${"%,.0f".format(b.earned)} \u00b7 Paid"
+                                b.paid <= 0.5 -> "\u20B9${"%,.0f".format(b.earned)} \u00b7 Due"
+                                else -> "\u20B9${"%,.0f".format(b.earned)} \u00b7 Due \u20B9${"%,.0f".format(b.due)}"
+                            }
+                            val line2 = when {
+                                b.cappedAmount != null -> "Fixed by Master \u20B9${"%,.0f".format(b.cappedAmount)}"
+                                b.mode.equals("PERCENT", true) && b.computed > 0.5 -> "${"%,.0f".format(b.value)}% of \u20B9${"%,.0f".format(b.netPaid)} treatment"
+                                b.mode.equals("AMOUNT", true) && b.computed > 0.5 -> "Fixed \u20B9${"%,.0f".format(b.value)}"
+                                b.source.equals("LEGACY", true) || (b.computed <= 0.5 && (b.legacyPaid > 0.5 || b.legacyDue > 0.5)) -> "Entered by hand"
+                                else -> "No treatment payment yet"
+                            }
+                            val sp = android.text.SpannableStringBuilder()
+                            sp.append(line1)
+                            val amtEnd = line1.indexOf(' ').let { if (it < 0) line1.length else it }
+                            sp.setSpan(android.text.style.ForegroundColorSpan(android.graphics.Color.parseColor("#1457B8")), 0, amtEnd, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            val stColor = if (b.due <= 0.5) "#0C8F3A" else "#B42318"
+                            sp.setSpan(android.text.style.ForegroundColorSpan(android.graphics.Color.parseColor(stColor)), amtEnd, line1.length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            val subStart = sp.length + 1
+                            sp.append("\n").append(line2)
+                            sp.setSpan(android.text.style.RelativeSizeSpan(0.82f), subStart, sp.length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            sp.setSpan(android.text.style.ForegroundColorSpan(android.graphics.Color.parseColor("#64748B")), subStart, sp.length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            sp.setSpan(android.text.style.StyleSpan(android.graphics.Typeface.NORMAL), subStart, sp.length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+                            val onNameTap: (() -> Unit)? = if (mob10.length == 10) { { startActivity(android.content.Intent(this@DoctorVisitActivity, PatientTimelineActivity::class.java).putExtra("mobile", mob10)) } } else null
+                            val onAmountTap: () -> Unit = { openBreakdown("Due") }
+                            unified.add(UnifiedRow(rawDate, dateText, b.name.ifBlank { mob10 }, "#1457B8", "", sp, null, highlightName = null, onEdit = null, onNameTap = onNameTap, onAmountTap = onAmountTap))
+                        }
+                    } else refGroups.values.forEach { g ->
                         val latest = g.entries.maxByOrNull { it.createdAt.ifBlank { it.date } } ?: return@forEach
                         g.patient = latest.patient.ifBlank { g.patient }
                         val total = g.entries.sumOf { it.amount }
@@ -3492,13 +3574,16 @@ class DoctorVisitActivity : AppCompatActivity() {
                         val measureSub = android.graphics.Paint().apply { typeface = boldTf; textSize = 8.5f * resources.displayMetrics.scaledDensity }
                         val measureHead = android.graphics.Paint().apply { typeface = boldTf; textSize = 9.5f * resources.displayMetrics.scaledDensity }
                         var dateTimeColPx = measureHead.measureText("Date/Time")
-                        var typeByColPx = measureHead.measureText("Type / By")
+                        var typeByColPx = measureHead.measureText("Type / Patient")
                         for (u in unified) {
-                            dateTimeColPx = maxOf(dateTimeColPx, measureMain.measureText(u.dateText))
+                            // 🎨🔒 V1404 — তারিখের নিচে সময় (দ্বিতীয় লাইন): লাইন ধরে ধরে মাপা
+                            for (ln in u.dateText.split("\n")) dateTimeColPx = maxOf(dateTimeColPx, measureMain.measureText(ln))
                             typeByColPx = maxOf(typeByColPx, measureMain.measureText(u.typeText), measureSub.measureText(u.byText.ifBlank { "\u2014" }))
                         }
                         val dateTimeColWidth = dateTimeColPx.toInt() + cellPadPx
-                        val typeByColWidth = typeByColPx.toInt() + cellPadPx
+                        // 🎨🔒 V1404 — রোগীর লম্বা নাম Note-এর জায়গা খেয়ে ফেলবে না: এই কলাম
+                        // পর্দার ৩৮%-এর বেশি নয়, লম্বা নাম দ্বিতীয় লাইনে নামে (maxLines=2)।
+                        val typeByColWidth = minOf(typeByColPx.toInt() + cellPadPx, (resources.displayMetrics.widthPixels * 0.38f).toInt())
 
                         fun tableCellBorder() = android.graphics.drawable.GradientDrawable().apply {
                             setColor(android.graphics.Color.WHITE)
@@ -3525,7 +3610,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                             setPadding(dgpx(8), dgpx(7), dgpx(8), dgpx(7))
                         }
                         headRow.addView(headCell("Date/Time", dateTimeColWidth))
-                        headRow.addView(headCell("Type / By", typeByColWidth))
+                        headRow.addView(headCell("Type / Patient", typeByColWidth))
                         headRow.addView(TextView(this@DoctorVisitActivity).apply {
                             layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                             text = "Note"; textSize = 9.5f; setTextColor(android.graphics.Color.WHITE)
@@ -3562,7 +3647,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                                 background = tableCellBorder()
                                 addView(TextView(this@DoctorVisitActivity).apply {
                                     text = u.dateText; textSize = 9.3f; setTextColor(android.graphics.Color.parseColor("#334155"))
-                                    maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+                                    maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END   // 🎨🔒 V1404 — তারিখের নিচে সময়
                                 })
                             })
                             row.addView(android.widget.LinearLayout(this@DoctorVisitActivity).apply {
@@ -3608,7 +3693,7 @@ class DoctorVisitActivity : AppCompatActivity() {
                                 } else if (u.onAmountTap != null) {
                                     // 🎨🔒 V1385 — consolidated Referral Income-এর মোট টাকা,
                                     // ট্যাপে ব্রেকডাউন খোলে — একটা ছোট ইঙ্গিত-চিহ্ন সহ।
-                                    text = "${u.noteText}  ›"
+                                    text = android.text.SpannableStringBuilder(u.noteText).append("  ›")
                                 } else {
                                     text = u.noteText
                                 }
@@ -4768,6 +4853,169 @@ class DoctorVisitActivity : AppCompatActivity() {
         }
     }
 
+    /* ═══════════════════════════════════════════════════════════════════════
+       📒🔒 V1404 (১২.০৯.২০২৬, TK-নির্দেশ, ডেমো-প্রুফ পাশ, খাতার সারি ৫১১) —
+       RMP-র Earned / Paid / Due বক্স চাপলে **রোগী-ধরে** ভাঙা হিসাব:
+       Patient · Earned · Paid · Due — সংখ্যাগুলো ডেটাবেসের একই নিয়ম থেকে, তাই
+       বক্সের মোটের সাথে সবসময় মেলে (TK: *"₹4 কোন পেশেন্টের জন্য বাকি?"*)।
+       · নামে ট্যাপ → Patient Timeline
+       · হাতে-লেখা এন্ট্রি থাকলে "✎ hand entries" → আগের এডিট/ডিলিট পর্দা (V1385)
+       · Master: টাকার ঘরে ট্যাপ → "এখানেই বন্ধ" (কমিশন এখন যত দেওয়া হয়েছে
+         সেখানেই স্থির — আর বাড়বে না, কোথাও বাকি দেখাবে না) / আবার চালু
+       · "Pay RMP" → আগের RMP Payment পর্দা (V398)
+       ⛔ কোনো টাকা এখানে হিসাব করা হয় না — শুধু সার্ভারের সারি দেখানো হয়।
+       ═══════════════════════════════════════════════════════════════════ */
+    private fun showRmpPatientBreakdown(item: DoctorVisitItem, title: String,
+                                        rows: List<RmpCommissionRepository.PatientBreakdownRow>,
+                                        handEntries: List<RefIncomeLine>,
+                                        earned: Double, paid: Double, due: Double,
+                                        onChanged: () -> Unit) {
+        val d = resources.displayMetrics.density
+        fun dp(v: Int) = (v * d).toInt()
+        fun rs(v: Double) = "₹${"%,.0f".format(v)}"
+        val parts = premiumDialogShell("💰", "$title — ${item.name} (patient wise)")
+        val body = parts.body
+        body.setPadding(dp(8), dp(8), dp(8), dp(4))
+        val isMaster = ModuleAuth.isMaster
+
+        fun cell(t: CharSequence, weight: Float, colorHex: String, size: Float, bold: Boolean, right: Boolean) = TextView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, weight)
+            text = t; textSize = size; setTextColor(android.graphics.Color.parseColor(colorHex))
+            if (bold) setTypeface(typeface, android.graphics.Typeface.BOLD)
+            gravity = if (right) android.view.Gravity.END else android.view.Gravity.START
+            setPadding(dp(4), dp(8), dp(4), dp(8))
+        }
+        body.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setBackgroundColor(android.graphics.Color.parseColor("#0F5C42"))
+            addView(cell("Patient", 1.7f, "#FFFFFF", 10.5f, true, false))
+            addView(cell("Earned", 1f, "#FFFFFF", 10.5f, true, true))
+            addView(cell("Paid", 1f, "#FFFFFF", 10.5f, true, true))
+            addView(cell("Due", 0.9f, "#FFFFFF", 10.5f, true, true))
+        })
+        if (rows.isEmpty()) {
+            body.addView(TextView(this).apply {
+                text = "No commission patient yet"; textSize = 12.5f
+                setTextColor(android.graphics.Color.parseColor("#8A97A8")); setPadding(dp(8), dp(16), dp(8), dp(16))
+            })
+        }
+        val sorted = rows.sortedWith(compareByDescending<RmpCommissionRepository.PatientBreakdownRow> { it.due }.thenByDescending { it.earned })
+        for (b in sorted) {
+            val mob10 = b.mobile.filter { it.isDigit() }.takeLast(10)
+            val sub = when {
+                b.cappedAmount != null -> "Fixed by Master ${rs(b.cappedAmount)}"
+                b.mode.equals("PERCENT", true) && b.computed > 0.5 -> "${"%,.0f".format(b.value)}% of ${rs(b.netPaid)}"
+                b.mode.equals("AMOUNT", true) && b.computed > 0.5 -> "Fixed ${rs(b.value)}"
+                b.source.equals("LEGACY", true) || (b.computed <= 0.5 && (b.legacyPaid > 0.5 || b.legacyDue > 0.5)) -> "Entered by hand"
+                else -> "No treatment payment yet"
+            } + (if (b.setOn.isNotBlank()) " · ${FollowUpModel.displayDate(b.setOn.take(10))}" else "")
+            val myHand = handEntries.filter { e ->
+                val em = e.mobile.filter { it.isDigit() }.takeLast(10)
+                (mob10.length == 10 && em == mob10) || (em.length != 10 && e.patient.trim().equals(b.name.trim(), ignoreCase = true))
+            }
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(android.graphics.Color.WHITE); setStroke(dp(1), android.graphics.Color.parseColor("#E2E8F0"))
+                }
+            }
+            val nameCol = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.7f)
+                setPadding(dp(4), dp(6), dp(4), dp(6))
+            }
+            nameCol.addView(TextView(this).apply {
+                text = (b.name.ifBlank { mob10 }) + (if (mob10.length == 10) " ›" else "")
+                textSize = 11.5f; setTextColor(android.graphics.Color.parseColor("#1457B8"))
+                setTypeface(typeface, android.graphics.Typeface.BOLD); maxLines = 2
+                if (mob10.length == 10) {
+                    isClickable = true; isFocusable = true
+                    setOnClickListener { startActivity(android.content.Intent(this@DoctorVisitActivity, PatientTimelineActivity::class.java).putExtra("mobile", mob10)) }
+                }
+            })
+            nameCol.addView(TextView(this).apply {
+                text = sub; textSize = 9f; setTextColor(android.graphics.Color.parseColor("#64748B")); maxLines = 2
+            })
+            if (myHand.isNotEmpty()) nameCol.addView(TextView(this).apply {
+                text = "✎ hand entries (${myHand.size})"; textSize = 9.5f
+                setTextColor(android.graphics.Color.parseColor("#7A3FF2")); setTypeface(typeface, android.graphics.Typeface.BOLD)
+                isClickable = true; isFocusable = true
+                setOnClickListener {
+                    parts.dialog.dismiss()
+                    showReferralBreakdown(item, b.name.ifBlank { mob10 }, myHand.sortedByDescending { it.createdAt.ifBlank { it.date } })
+                }
+            })
+            row.addView(nameCol)
+            val dueColor = if (b.due > 0.5) "#B42318" else "#0C8F3A"
+            val cEarned = cell(rs(b.earned), 1f, "#10223A", 11f, false, true)
+            val cPaid = cell(rs(b.paid), 1f, "#10223A", 11f, false, true)
+            val cDue = cell(rs(b.due), 0.9f, dueColor, 11f, true, true)
+            row.addView(cEarned); row.addView(cPaid); row.addView(cDue)
+            if (isMaster) {
+                val capAction: () -> Unit = {
+                    if (b.patientRowId.isBlank()) {
+                        Toast.makeText(this, "Hand-entered only — nothing to stop here", Toast.LENGTH_SHORT).show()
+                    } else {
+                        val capped = b.cappedAmount != null
+                        val nm = b.name.ifBlank { mob10 }
+                        val msg = if (!capped)
+                            "No further commission for $nm?\n\nCommission will be fixed at ${rs(b.paid)} (paid so far). It will not grow even if more treatment money comes, and nothing more will show as Due."
+                        else
+                            "Commission for $nm is fixed at ${rs(b.cappedAmount!!)} by Master.\n\nResume automatic commission (${"%,.0f".format(b.value)}${if (b.mode.equals("PERCENT", true)) "%" else ""})?"
+                        AlertDialog.Builder(this)
+                            .setCustomTitle(PremiumAlert.header(this, if (!capped) "Stop commission — $nm" else "Resume commission — $nm"))
+                            .setMessage(msg)
+                            .setPositiveButton(if (!capped) "Stop here" else "Resume") { _, _ ->
+                                lifecycleScope.launch {
+                                    val res = withContext(Dispatchers.IO) {
+                                        RmpCommissionRepository.capPatient(b.patientRowId, item.id, if (!capped) b.paid else null)
+                                    }
+                                    if (!res.ok) { Toast.makeText(this@DoctorVisitActivity, res.message.ifBlank { "Could not save" }, Toast.LENGTH_LONG).show(); return@launch }
+                                    Toast.makeText(this@DoctorVisitActivity, if (!capped) "Commission stopped for $nm" else "Commission resumed for $nm", Toast.LENGTH_SHORT).show()
+                                    val pairFb = withContext(Dispatchers.IO) {
+                                        RmpCommissionRepository.rmpSummary(item.id) to RmpCommissionRepository.patientBreakdown(item.id)
+                                    }
+                                    val fresh: RmpCommissionRepository.RepoResult<RmpCommissionRepository.RmpSummary> = pairFb.first
+                                    val bd: RmpCommissionRepository.RepoResult<List<RmpCommissionRepository.PatientBreakdownRow>> = pairFb.second
+                                    if (isFinishing || isDestroyed) return@launch
+                                    parts.dialog.dismiss()
+                                    onChanged()
+                                    val sN: RmpCommissionRepository.RmpSummary? = fresh.value
+                                    if (sN != null && bd.ok && bd.value != null)
+                                        showRmpPatientBreakdown(item, title, bd.value, handEntries, sN.earned, sN.paid, sN.due, onChanged)
+                                }
+                            }
+                            .setNegativeButton("Cancel", null).show().also { PremiumAlert.paint(it) }
+                    }
+                }
+                for (c in listOf(cEarned, cPaid, cDue)) { c.isClickable = true; c.isFocusable = true; c.setOnClickListener { capAction() } }
+            }
+            body.addView(row)
+        }
+        val total = android.text.SpannableStringBuilder("Total — Earned ${rs(earned)} · Paid ${rs(paid)} · ")
+        val dueStart = total.length
+        total.append("Due ${rs(due)}")
+        total.setSpan(android.text.style.ForegroundColorSpan(android.graphics.Color.parseColor(if (due > 0.5) "#B42318" else "#0C8F3A")), dueStart, total.length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        total.setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), dueStart, total.length, android.text.Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        body.addView(TextView(this).apply {
+            text = total; textSize = 11.5f; setTextColor(android.graphics.Color.parseColor("#10223A"))
+            setBackgroundColor(android.graphics.Color.parseColor("#F1F5F9")); setPadding(dp(8), dp(10), dp(8), dp(10))
+        })
+        if (isMaster) body.addView(TextView(this).apply {
+            text = "Master: tap a patient's amount to stop or resume their commission"; textSize = 9.5f
+            setTextColor(android.graphics.Color.parseColor("#94A3B8")); setPadding(dp(8), dp(6), dp(8), dp(2))
+        })
+        parts.actionRow.addView(pillButton("Pay RMP", "#145A32").apply {
+            setOnClickListener { parts.dialog.dismiss(); showRmpDirectPayment(item) { onChanged() } }
+        })
+        parts.actionRow.addView(pillButton("Close", "#E5E8EC", android.graphics.Color.parseColor("#145A32")).apply {
+            setOnClickListener { parts.dialog.dismiss() }
+        })
+        parts.dialog.show()
+        try { com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(parts.dialog) } catch (_: Throwable) { }   // 🤫 V774
+    }
+
     private fun showRmpCommissionSummary(item: DoctorVisitItem) {
         lifecycleScope.launch {
             val (got, advanceGot) = withContext(Dispatchers.IO) {
@@ -4778,12 +5026,28 @@ class DoctorVisitActivity : AppCompatActivity() {
             }
             val s = got.value
             val advanceRows = if (advanceGot.ok) (advanceGot.value ?: emptyList()) else emptyList()
-            val advanceAvailable = advanceRows.sumOf { it.available }
-            val paidIncludingAdvance = s.paid
-            val msg = "Patients: ${s.patientCount}\nCommission Earned: ₹${"%,.2f".format(s.earned)}\n" +
-                "Paid to this RMP: ₹${"%,.2f".format(paidIncludingAdvance)}\n" +
-                (if (advanceAvailable > 0) "Unallocated Advance: ₹${"%,.2f".format(advanceAvailable)}\n" else "") +
+            /* 📒🔒 V1404 (TK: *"এ গুলি কি হচ্ছে?"* — ডেমো পাশ): "Unallocated Advance" লাইনটা
+               বিভ্রান্ত করত (মনে হত টাকা কোথাও পড়ে আছে)। এখন এক লাইনে সহজ কথা —
+               Paid-এর ভিতরে কত টাকা RMP-কে সরাসরি দেওয়া, আর কত হাতে-লেখা এন্ট্রি। */
+            val directTotal = advanceRows.sumOf { it.amount }
+            val bdGot: RmpCommissionRepository.RepoResult<List<RmpCommissionRepository.PatientBreakdownRow>> =
+                withContext(Dispatchers.IO) { RmpCommissionRepository.patientBreakdown(item.id) }
+            val handRows = (bdGot.value ?: emptyList()).filter { it.legacyPaid > 0.5 }
+            val handTotal = handRows.sumOf { it.legacyPaid }
+            val handNames = handRows.map { it.name.ifBlank { it.mobile } }.filter { it.isNotBlank() }.distinct()
+            val composition = buildString {
+                if (directTotal > 0.5) append("Paid includes ₹${"%,.0f".format(directTotal)} given directly to the RMP (not tied to one patient)")
+                if (handTotal > 0.5) {
+                    append(if (isEmpty()) "Paid includes " else " and ")
+                    append("₹${"%,.0f".format(handTotal)} entered by hand")
+                    if (handNames.isNotEmpty()) append(" for ${handNames.take(3).joinToString(", ")}${if (handNames.size > 3) " …" else ""}")
+                }
+                if (isNotEmpty()) append(".")
+            }
+            val msg = "Patients: ${s.patientCount}\nEarned: ₹${"%,.2f".format(s.earned)}\n" +
+                "Paid: ₹${"%,.2f".format(s.paid)}\n" +
                 "Due: ₹${"%,.2f".format(s.due)}" +
+                (if (composition.isNotBlank()) "\n\n$composition" else "") +
                 (if (s.previousRmpPaid > 0) "\nPrevious RMP Paid: ₹${"%,.2f".format(s.previousRmpPaid)}" else "") +
                 (if (s.overpaid > 0) "\nMore Paid: ₹${"%,.2f".format(s.overpaid)}" else "")
             AlertDialog.Builder(this@DoctorVisitActivity)

@@ -142,8 +142,19 @@
     if (r.error || !r.data || !r.data.length) return toast('Could not verify commission summary');
     var a = await c.from('rmp_advance_payments').select('amount,allocated_amount,legacy_covered_amount').eq('rmp_id', docId);
     if (a.error) return toast('Could not verify RMP advance');
-    var s = r.data[0], advanceAvailable = (a.data || []).reduce(function(n,x){return n+Number(x.amount||0)-Number(x.allocated_amount||0);},0);
+    var s = r.data[0];
     var paidIncludingAdvance = Number(s.paid_to_this_rmp || 0);
+    /* 📒🔒 V1404 (TK: "এ গুলি কি হচ্ছে?" — ডেমো পাশ): "Unallocated Advance" লাইন বাদ —
+       বিভ্রান্ত করত। এক লাইনে: Paid-এর ভিতরে কত সরাসরি RMP-কে, কত হাতে-লেখা। ফোনের যমজ। */
+    var directTotal = (a.data || []).reduce(function(n,x){return n+Number(x.amount||0);},0);
+    var bd = await c.rpc('rmp_patient_breakdown', { p_rmp_id: docId });
+    var handRows = (!bd.error && Array.isArray(bd.data)) ? bd.data.filter(function(x){return Number(x.legacy_paid||0)>0.5;}) : [];
+    var handTotal = handRows.reduce(function(n,x){return n+Number(x.legacy_paid||0);},0);
+    var handNames = []; handRows.forEach(function(x){var nm=String(x.patient_name||x.patient_mobile||'').trim(); if(nm && handNames.indexOf(nm)<0) handNames.push(nm);});
+    var composition = '';
+    if (directTotal > 0.5) composition += 'Paid includes ' + money(directTotal) + ' given directly to the RMP (not tied to one patient)';
+    if (handTotal > 0.5) { composition += (composition ? ' and ' : 'Paid includes ') + money(handTotal) + ' entered by hand' + (handNames.length ? ' for ' + esc(handNames.slice(0,3).join(', ')) + (handNames.length>3?' …':'') : ''); }
+    if (composition) composition += '.';
     /* 🔴 V430 (TK-নির্দেশ ১৮.০৮.২০২৬: "সব কিছু Android এর মত হোক") — দুটো বদল:
        ১) সারির **ক্রম** ফোনের মতোই (DoctorVisitActivity.kt:4022-4027):
           Patients → Commission Earned → Paid to this RMP → [Unallocated Advance]
@@ -153,11 +164,11 @@
           হিসাব হয় বলে পয়সা সত্যিই আসে; ওয়েবে গোল করে দেখাত, তাই ফোনের
           সঙ্গে অঙ্ক মিলছে না মনে হত। ⛔ হিসাব বদলায়নি, শুধু দেখানো। */
     modal('<h2 class="anRmp">Referral Income — ' + esc(d.name || '') + '</h2><div class="card"><b>Patients: ' + Number(s.patient_count || 0) + '</b><br>' +
-      'Commission Earned: <b>' + rmpMoney(s.earned || 0) + '</b><br>Paid to this RMP: <b>' + rmpMoney(paidIncludingAdvance) + '</b>' +
-      (advanceAvailable > 0 ? '<br>Unallocated Advance: <b>' + rmpMoney(advanceAvailable) + '</b>' : '') +
+      'Earned: <b>' + rmpMoney(s.earned || 0) + '</b><br>Paid: <b>' + rmpMoney(paidIncludingAdvance) + '</b>' +
       '<br>Due: <b>' + rmpMoney(s.due || 0) + '</b>' +
       (Number(s.previous_rmp_paid) > 0 ? '<br>Previous RMP Paid: <b>' + rmpMoney(s.previous_rmp_paid) + '</b>' : '') +
-      (Number(s.overpaid) > 0 ? '<br><b style="color:#b42318">More Paid: ' + rmpMoney(s.overpaid) + '</b>' : '') + '</div>');
+      (Number(s.overpaid) > 0 ? '<br><b style="color:#b42318">More Paid: ' + rmpMoney(s.overpaid) + '</b>' : '') +
+      (composition ? '<br><span class="tiny">' + composition + '</span>' : '') + '</div>');
   }
 
   /* 🔴🔒 V1085 (০৫.০৯.২০২৬, TK: *"অ্যান্ড্রয়েডে কাজ হচ্ছে কিন্তু কম্পিউটারে

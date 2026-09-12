@@ -26214,3 +26214,22 @@ PASS, নতুন কোনো ভুল নেই।
 তাই দুইটা সম্ভাবনা: (ক) "PKB"/"birpara" নামে RMP রেকর্ডই নেই, বা
 (খ) আছে কিন্তু নাম হুবহু মেলে না। কোড থেকে এর বেশি নিশ্চিত বলা যায় না —
 V1385 (শুধু পড়ার SQL, sql_local_check.py ✅ PASS) TK-কে দেওয়া হলো।
+
+## ১২.০৯.২০২৬ রাত ১১.৪৫ — RMP টাকার "এক খাতা" (তালিকা ৫০৯-৫১১) — কোড শেষ, SQL TK-র হাতে
+
+- `00_SQL/V1404_RMP_ONE_LEDGER_2026-09-12.sql` — `fin.rmp_patient_breakdown` (নতুন), `rmp_rmp_summary` /
+  `rmp_summary` / `rmp_branch_due` একই ভাঙা হিসাব থেকে, `rmp_cap_patient` (Master, audit), কলাম
+  `capped_amount/capped_by/capped_at`। নকল ডেটাবেসে (V411-এর পরে V426…V1356 হাতে বসিয়ে) ৬ দৃশ্যে যাচাই।
+  ⚠️ `sql_local_check.py` একা চালালে FAIL দেখাবে — কারণ ওটা FIN_FILES শুধু V411 পর্যন্ত বসায়
+  (rmp_earned_for-এর ৭-আর্গুমেন্ট রূপ V1356-এ) — এটা ওই পাহারার ফাঁক, SQL-এর দোষ নয়।
+- ফোন: `RmpCommissionRepository.patientBreakdown/capPatient` (নতুন), `DoctorVisitActivity` View All —
+  ৪ বক্স, `showRmpPatientBreakdown` (নতুন), তালিকা/Note/তারিখ-সময়, `showRmpCommissionSummary` লেখা।
+- ওয়েব: `wlv1RmpBdFetch / wlv1RmpIncomeHtmlFromBreakdown / wlv1RmpBreakdownWeb / wlv1RmpCapWeb` (নতুন),
+  `viewDoctorVisit` ৪ বক্স, `webRmpSummary` লেখা, CSS `.wlv1RmpBoxes/.wlv1RmpBdTable` (base block-এ)।
+  🔴 পাওয়া গেল: app.js-এ `fin` বলে কিছু নেই — `wlv1RefreshRmpPaidTotal` ও `wlv1RmpDueVerify` কখনো
+  ক্লাউডে যেত না; দুটোই `wlv1RmcClient()`-এ ঘোরানো হলো।
+- পাহারা: node --check ✅ · নিজস্ব Playwright পরীক্ষা (৯/৯ ✅, page-error ০) · web_browser_test — A/B/D ✅,
+  E-র reload-timeout আগের মতোই (V1401-এও ছিল, TK জানেন) · verify_kotlin_compile — নিচে দেখুন।
+- verify_kotlin_compile.py ✅ PASS (নতুন ভুল ০) · verify_android_resources ✅ · tk_guard ✅ (মেশিন-ভুল ০)।
+  প্রথম চালানোয় "unresolved: earned" এসেছিল — kotlinc-এ coroutine লাইব্রেরি নেই বলে withContext-এর
+  ফল থেকে টাইপ অনুমান ভাঙছিল (আগের কোডে paid/due-ও বেসলাইনে একই গোলমাল); explicit টাইপ বসিয়ে ঠিক।
