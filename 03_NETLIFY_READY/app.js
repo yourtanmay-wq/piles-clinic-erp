@@ -842,6 +842,31 @@ const rawLoad=t=>{
 };
 const load=t=>cleanRows(rawLoad(t));
 const rowStamp=r=>{let v=(r&& (r.updatedAt||r.createdAt||r.registrationDate||r.visitDate||r.date))||'';let n=Date.parse(v);return Number.isFinite(n)?n:0};
+/* 🔴🔒 V1372 (১২.০৯.২০২৬, তালিকা ৪৬২-চ — TK-নির্দেশে গভীরে যাচাই করে):
+   নিচের `mergeById`/`mergeForCloudPush` দুটোই একটা সারির **সব ঘর** একসাথে
+   winner-take-all (কার updatedAt নতুন) নিয়মে মেলায় — history ঘরও তার মধ্যে
+   পড়ে যেত। ফল: দুই কম্পিউটার/ফোন কাছাকাছি সময়ে একই রোগীর রিমার্ক লিখলে,
+   যার updatedAt এক চুল নতুন তার history **সম্পূর্ণ প্রতিস্থাপন** করত অন্যটাকে
+   — অন্যজনের লেখা এন্ট্রিটা নিঃশব্দে হারিয়ে যেত।
+   এখন history ঘরটা আলাদাভাবে **জোড়া** হয় (union, তারিখ-সময়-লেখা-স্টাফ
+   মিলিয়ে ডুপ্লিকেট বাদ) — বাকি সব ঘর (bill/paid/remark ইত্যাদি) আগের
+   winner-take-all নিয়মেই থাকে, কিছুই বদলায়নি। */
+function wlv1UnionHistory(h1,h2){
+ try{
+  let a=Array.isArray(h1)?h1:[],b=Array.isArray(h2)?h2:[];
+  if(!a.length)return b;
+  if(!b.length)return a;
+  let key=e=>String((e&&e.date)||'')+'|'+String((e&&e.time)||'')+'|'+String((e&&e.remark)||'')+'|'+String((e&&e.staff)||'');
+  let out=a.slice(),seen=new Set(out.map(key));
+  b.forEach(e=>{let k=key(e);if(!seen.has(k)){seen.add(k);out.push(e)}});
+  out.sort((x,y)=>{let tx=Date.parse((x&&x.time)||'')||0,ty=Date.parse((y&&y.time)||'')||0;return tx-ty});
+  return out;
+ }catch(e){return Array.isArray(h1)?h1:(Array.isArray(h2)?h2:[])}
+}
+function wlv1MergeHistoryField(mergedRow,a,r){
+ try{if(Array.isArray(a&&a.history)||Array.isArray(r&&r.history))mergedRow.history=wlv1UnionHistory(a&&a.history,r&&r.history)}catch(e){}
+ return mergedRow;
+}
 const mergeById=(remote,local)=>{
  let out=[];
  [...(Array.isArray(remote)?remote:[]),...(Array.isArray(local)?local:[])].forEach(r=>{
@@ -852,7 +877,7 @@ const mergeById=(remote,local)=>{
    let a=out[i],ta=rowStamp(a),tb=rowStamp(r);
    // V177 selective sync fix: when staff saves from one device, Master/Admin must see the newest cloud row.
    // Older local cache must not overwrite a newer staff entry during merge.
-   out[i]=tb>ta?{...a,...r}:{...r,...a};
+   out[i]=wlv1MergeHistoryField(tb>ta?{...a,...r}:{...r,...a},a,r);
   }
  });
  return cleanRows(out)
@@ -866,7 +891,7 @@ const mergeForCloudPush=(remote,local)=>{
   let a=out[i],ta=rowStamp(a),tb=rowStamp(r);
   // For cloud push, remote wins on exact timestamp tie to prevent an old device cache
   // from overwriting newer cloud rows during login/refresh flush.
-  out[i]=tb>ta?{...a,...r}:{...r,...a};
+  out[i]=wlv1MergeHistoryField(tb>ta?{...a,...r}:{...r,...a},a,r);
  });
  return cleanRows(out)
 };

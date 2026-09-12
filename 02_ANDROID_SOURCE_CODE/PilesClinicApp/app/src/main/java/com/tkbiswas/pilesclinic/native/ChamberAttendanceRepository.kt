@@ -397,8 +397,39 @@ object ChamberAttendanceRepository {
         }
     }
 
+    /** 🔴🔒 V1371 (১২.০৯.২০২৬, তালিকা ৪৬২-ঞ — TK-নির্দেশে গভীরে যাচাই করে):
+     *  প্রতিদিন প্রতি ব্রাঞ্চের জন্য এই cache-এ একটা নতুন চাবি (`cache_<date>_
+     *  <branch>`) জমা হয়, কিন্তু কোনো চাবি কখনো মোছা হত না — মাস-বছরের পর
+     *  পাঁচ ব্রাঞ্চ মিলিয়ে এই ফাইল অনির্দিষ্টকাল বড় হতেই থাকত (নিয়ম ৫খ)।
+     *  এখন প্রতি অ্যাপ-চালুতে **একবার** (থ্রটল করা, প্রতি সেভেই নয়) ৬০
+     *  দিনের বেশি পুরনো চাবি মুছে দেওয়া হয় — Calendar দিয়ে সাম্প্রতিক
+     *  পুরনো দিন দেখার সুবিধা (৬০ দিন পর্যন্ত) অক্ষত থাকে, কিন্তু ফাইল
+     *  অনির্দিষ্টকাল বড় হয় না। ⛔ এটা শুধু on-device display cache — আসল
+     *  তথ্য সার্ভারেই থাকে, তাই ৬০ দিনের বেশি পুরনো দিন খুললে সামান্য একটু
+     *  ধীরে (নেট থেকে) লোড হবে, কিছু হারাবে না। */
+    @Volatile private var boardsPrunedThisSession = false
+    private fun pruneOldBoardsOnce(context: android.content.Context) {
+        if (boardsPrunedThisSession) return
+        boardsPrunedThisSession = true
+        try {
+            val cutoffCal = java.util.Calendar.getInstance()
+            cutoffCal.add(java.util.Calendar.DAY_OF_YEAR, -60)
+            val cutoff = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(cutoffCal.time)
+            val prefs = context.getSharedPreferences(CACHE_PREFS, android.content.Context.MODE_PRIVATE)
+            val editor = prefs.edit()
+            var changed = false
+            for (k in prefs.all.keys) {
+                if (!k.startsWith("cache_")) continue
+                val datePart = k.removePrefix("cache_").take(10)
+                if (datePart.length == 10 && datePart < cutoff) { editor.remove(k); changed = true }
+            }
+            if (changed) editor.apply()
+        } catch (_: Throwable) { }
+    }
+
     private fun saveCachedBoard(context: android.content.Context?, date: String, branchFilter: String?, board: ChamberAttendanceBoard) {
         val ctx = context ?: return
+        try { pruneOldBoardsOnce(ctx) } catch (_: Throwable) { }
         try {
             val rowsArr = org.json.JSONArray()
             for (row in board.rows) {

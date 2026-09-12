@@ -365,6 +365,21 @@ class FollowUpRepository(private val context: Context? = null) {
         private val healExecutor: java.util.concurrent.ExecutorService =
             java.util.concurrent.Executors.newSingleThreadExecutor()
 
+        /** 🔴🔒 V1371 (১২.০৯.২০২৬, তালিকা ৪৬২-ঙ — TK-নির্দেশে গভীরে যাচাই করে):
+         *  `loadCachedTab()` মেইন থ্রেডে চলে (পর্দা খোলা · ট্যাব বদল · প্রতি
+         *  ২৫ সেকেন্ডের নিজে-নিজে রিফ্রেশ — সব একই পথে), আর আগে প্রতিবারই
+         *  ডিস্কের পুরো JSON string নতুন করে parse করে `FollowUpItem` তালিকা
+         *  বানাত — ব্রাঞ্চের বাস্তব তথ্য (মাস-বছরের রোগী) বড় হলে এটাই প্রতি
+         *  ট্যাব-বদলে একটু দেরি করাত (নিয়ম ৭খ)। এখন raw JSON string অক্ষত
+         *  থাকলে (ডিস্কের ক্যাশ পাল্টায়নি) আগেরবার বানানো তালিকাটাই আবার
+         *  ব্যবহার হয়; না মিললে (নতুন সিঙ্ক এসেছে) স্বয়ংক্রিয়ভাবে আবার parse
+         *  হয় — LocalWorkflowStore.snapshot-এর একই প্রমাণিত ধাঁচ।
+         *  🔒 নিরাপদ কেন: `FollowUpItem` অপরিবর্তনীয় (`data class ... val`),
+         *  আর `mergeOwnPhoneRows()` এই তালিকার একটা কপি (`ArrayList(cached)`)
+         *  বানিয়ে তাতে বদল করে — মূল cached তালিকা কখনো ছোঁয়া হয় না, তাই
+         *  একই object একাধিক পর্দা/instance শেয়ার করলেও ঝুঁকি নেই। */
+        private val parsedTabCache = java.util.concurrent.ConcurrentHashMap<String, Pair<String, List<FollowUpItem>>>()
+
         // 🔴🔒 V456 (20.08.2026, TK-অনুমোদিত · ধাপ ১, শুধু Inquiry ট্যাব):
         // "শুধু বদলানো অংশটুকু নামুক" — Follow-up-এর সবচেয়ে ভারী একক-read
         // অংশ (`preCloud`, stage-এর সব followups সারি) delta করার ব্যবস্থা।
@@ -596,6 +611,11 @@ class FollowUpRepository(private val context: Context? = null) {
                 val row = back.optJSONObject(0) ?: run { left.put(e); null } ?: continue
                 val history = row.optJSONArray("history") ?: JSONArray()
                 if (historyHasEntry(history, entry)) continue                     // আগেই বসে গেছে
+                // 🔴🔒 V1372 (তালিকা ৪৬২-চ) — এখানেও একই atomic RPC আগে চেষ্টা,
+                // যাতে জমা-থাকা এই এন্ট্রি ফ্লাশ হওয়ার সময়ও অন্য ফোনের ঠিক ওই
+                // মুহূর্তে লেখা এন্ট্রি চাপা না পড়ে। ব্যর্থ হলে আগের পথেই ফেরা।
+                val rpcResult = SupabaseClient.appendFollowupHistory(id, entry)
+                if (rpcResult != null) continue                                  // জমা থেকে বাদ, সফল
                 history.put(entry)
                 val fields = JSONObject().put("history", history).put("updatedAt", isoNow())
                 val sent = SupabaseClient.updateById("followups", id, fields)
@@ -781,6 +801,10 @@ class FollowUpRepository(private val context: Context? = null) {
             // ⚡ জমানো তালিকা না থাকলেও (প্রথমবার খোলা) ফোনের নিজের সেভ করা
             // রেকর্ড সঙ্গে সঙ্গে দেখাতে হবে — নইলে ধীর লাইনে পর্দা ফাঁকা থাকত।
             ?: return mergeOwnPhoneRows(stage, branchFilter, emptyList()).ifEmpty { null }
+        val already = parsedTabCache[key]
+        if (already != null && already.first == json) {
+            return mergeOwnPhoneRows(stage, branchFilter, already.second)
+        }
         return try {
             val arr = JSONArray(json)
             val list = mutableListOf<FollowUpItem>()
@@ -813,6 +837,7 @@ class FollowUpRepository(private val context: Context? = null) {
                     )
                 )
             }
+            parsedTabCache[key] = json to list
             // ⚡ TK (28.07.2026): নিজের ফোনে করা কাজ সঙ্গে সঙ্গে দেখাতে হবে।
             mergeOwnPhoneRows(stage, branchFilter, list)
         } catch (t: Throwable) { null }
@@ -3293,6 +3318,11 @@ class FollowUpRepository(private val context: Context? = null) {
         // ⛔ জানা না থাকলে হাত না দেওয়াই নিরাপদ — ভুল অঙ্ক লিখে দেওয়ার চেয়ে
         //    আগেরটা অক্ষত রাখা ভালো।
         val haveRow = row.length() > 0
+        // 🔴🔒 V1372 (১২.০৯.২০২৬, তালিকা ৪৬২-চ): দুই ফোনে একই রোগীর history
+        // একসাথে লিখলে একজনের এন্ট্রি হারানোর ঝুঁকি — নিচে RPC সফল হলে এই
+        // এন্ট্রি সরাসরি সার্ভারে জুড়ে যায়, তাই এই ফোন আর পুরো array নিজে
+        // ফিরিয়ে লিখবে না (নিচে fields-এ "history" বসে না)।
+        var historyAppendedViaRpc = false
         if (remark.isNotBlank() && haveRow) {
             /* 🏷 V1192 — উৎসের চিহ্ন। কল-ফ্ল্যাগ থাকলে নিজে থেকেই "call",
                নইলে caller যা বলেছে (চেম্বারের পথে "treat")। কিছুই জানা না গেলে
@@ -3305,7 +3335,14 @@ class FollowUpRepository(private val context: Context? = null) {
             val entry = JSONObject().put("date", FollowUpModel.today()).put("time", isoNow())
                 .put("remark", remark).put("staff", staffName)
             if (src.isNotBlank()) entry.put("src", src)
-            history.put(entry)
+            val rpcResult = SupabaseClient.appendFollowupHistory(id, entry)
+            if (rpcResult != null) {
+                historyAppendedViaRpc = true
+            } else {
+                // ⛔ RPC ব্যর্থ (পুরনো ডেটাবেসে ফাংশন না থাকলেও) — আগের
+                // read-modify-write পথেই ফিরে যাওয়া, আচরণ আগের মতোই থাকে।
+                history.put(entry)
+            }
         }
         /* 🔴🔴🔒 V1222 ④ (০৮.০৯.২০২৬ — TK, স্টাফের সামনে অপমানিত হয়ে, ছবিসহ:
            *"Staff কল করেছে, প্রতিবার Remarks লিখেছে, কিন্তু App-এর মধ্যে দেখাচ্ছে না"*
@@ -3338,7 +3375,9 @@ class FollowUpRepository(private val context: Context? = null) {
         }
 
         val fields = JSONObject().put("updatedAt", isoNow())
-        if (haveRow) fields.put("history", history)
+        // 🔴🔒 V1372 — history RPC দিয়ে সরাসরি সার্ভারে জুড়ে গেলে এখানে আর
+        // পাঠানো হয় না (নইলে এই ফোনের পুরনো কপি RPC-এর করা এন্ট্রি চাপা দিয়ে দিত)।
+        if (haveRow && !historyAppendedViaRpc) fields.put("history", history)
         if (remark.isNotBlank()) fields.put("lastRemark", remark)
         /* 🔴🔒 V814 (২৮.০৮.২০২৬, TK-রিপোর্ট "ASBEN এখনো কেন?") — লেখাটা **কবে
            লেখা হলো** সেটা এখন আলাদা ঘরে বসে। `updatedAt` অন্য কাজেও (যেমন

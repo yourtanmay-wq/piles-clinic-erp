@@ -418,6 +418,33 @@ object SupabaseClient {
         } catch (_: Throwable) { null }
     }
 
+    /** 🔴🔒 V1372 (১২.০৯.২০২৬, তালিকা ৪৬২-চ — TK-নির্দেশে গভীরে যাচাই করে):
+     *  `followups.history`-তে একটা নতুন এন্ট্রি **সরাসরি সার্ভারেই** জুড়ে দেয়
+     *  (single atomic UPDATE, jsonb ||) — ফোন আর নিজে পুরো array পড়ে-জুড়ে-
+     *  ফিরিয়ে লেখে না। দুই ফোন কাছাকাছি সময়ে একই রোগীর রিমার্ক লিখলেও
+     *  PostgreSQL-এর সারি-লক নিজেই দুজনের এন্ট্রি ধরে রাখে — কেউ কারো লেখা
+     *  হারায় না (নকল ডেটাবেসে overlapping লেখা দিয়ে যাচাই করা)।
+     *  ব্যর্থ হলে (পুরনো ডেটাবেসে ফাংশন না থাকলেও) `null` — ডাকা জায়গা আগের
+     *  read-modify-write পথেই ফিরে যায়, তাই আচরণ কখনো আগের চেয়ে খারাপ হয় না। */
+    fun appendFollowupHistory(id: String, entry: JSONObject): JSONArray? {
+        if (blockedFromWriting()) return null
+        return try {
+            val body = JSONObject().put("p_id", id).put("p_entry", entry)
+            val request = Request.Builder()
+                .url("$URL/rest/v1/rpc/tk_append_followup_history")
+                .addHeader("apikey", KEY)
+                .addHeader("Authorization", "Bearer $KEY")
+                .addHeader("Content-Type", "application/json")
+                .post(body.toString().toRequestBody(jsonMedia))
+                .build()
+            writeHttp.newCall(request).execute().use { resp ->
+                if (!resp.isSuccessful) return null
+                val raw = resp.body?.string().orEmpty()
+                if (raw.isBlank() || raw == "null") null else JSONArray(raw)
+            }
+        } catch (_: Throwable) { null }
+    }
+
     fun recordTreatmentPayment(row: JSONObject): JSONObject? {
         return try {
             val body = JSONObject().put("p_row", row)
