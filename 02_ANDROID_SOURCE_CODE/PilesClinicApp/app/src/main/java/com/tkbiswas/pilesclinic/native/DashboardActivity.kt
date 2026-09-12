@@ -1495,8 +1495,12 @@ class DashboardActivity : AppCompatActivity() {
         // "Dr. Visit" বাক্সটাই, বাকি সব (role/roles যা-ই বলুক) লুকানো।
         // ⛔ অন্য কারো ড্যাশবোর্ড এক চুলও বদলায় না — উপরের ডাক্তারের নিয়মের
         //    (DOCTOR_DASHBOARD_TILES) হুবহু একই কম-ঝুঁকির প্যাটার্নে বসানো হলো।
+        // 🔴 V1401 (১২.০৯.২০২৬ সন্ধ্যা, TK: *"শুধুমাত্র ডক্টর ভিজিটিং আর স্টাফ
+        //    নোটবুক এই দুটি আসার কথা ছিল"*) — **আমার ভুল:** V1380-তে Work Notebook
+        //    (IN TIME/OUT TIME) বাক্সটাও লুকিয়ে ফেলেছিলাম, অথচ TK-র নির্দেশ ছিল
+        //    Dr. Visit + IN/OUT TIME (RoleRules-এর নোটেই লেখা)। এখন দুটোই আসে।
         val allowed = when {
-            RoleRules.isDoctorVisitOnly(this) -> label == "Dr. Visit"
+            RoleRules.isDoctorVisitOnly(this) -> label == "Dr. Visit" || label == "Work Notebook"
             realRole == "doctor" -> label in DOCTOR_DASHBOARD_TILES
             else -> role in roles
         }

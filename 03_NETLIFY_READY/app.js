@@ -5057,7 +5057,7 @@ let all=[
 let __armanOnly = !!(user && String(user.mobile||'').replace(/\D/g,'').slice(-10)==='9883884394');
 let cards;
 if(__armanOnly){
-  cards=all.filter(x=>x[1]==='Dr. Visit').map(x=>card(x[0],x[1],x[2],x[3])).join('');
+  cards=all.filter(x=>x[1]==='Dr. Visit'||x[1]==='Work Notebook').map(x=>card(x[0],x[1],x[2],x[3])).join('');   /* 🔴 V1401 — Work Notebook (IN/OUT TIME)-ও, TK-নির্দেশ; V1380-তে ভুলে বাদ ছিল */
 }else if(role==='doctor'){
   let docTiles=[
     /* 🔔 V1186 — TK: *"এটা প্রত্যেকের হোম স্ক্রিনে ই থাকবে"*, তাই ডাক্তারের
