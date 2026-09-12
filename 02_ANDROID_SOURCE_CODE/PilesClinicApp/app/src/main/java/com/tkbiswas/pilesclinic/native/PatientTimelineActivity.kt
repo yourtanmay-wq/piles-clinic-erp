@@ -2005,40 +2005,27 @@ class PatientTimelineActivity : AppCompatActivity() {
                 }
             }
         }
-        // V379: owner must explicitly choose Paid or Unpaid. Neither option
-        // is selected automatically when an Add form opens.
-        var status = ""
-        val statusRow = android.widget.LinearLayout(this).apply { orientation = android.widget.LinearLayout.HORIZONTAL }
-        fun statusChip(label: String, value: String): android.widget.TextView =
-            android.widget.TextView(this).apply {
-                text = label; textSize = 13f; gravity = android.view.Gravity.CENTER
-                setTypeface(typeface, android.graphics.Typeface.BOLD)
-                setPadding(dp(14), dp(10), dp(14), dp(10))
-                fun paint(selected: Boolean) {
-                    background = android.graphics.drawable.GradientDrawable().apply {
-                        cornerRadius = dp(10).toFloat()
-                        setColor(android.graphics.Color.parseColor(if (selected) "#0C9E33" else "#F0F2F5"))
-                    }
-                    setTextColor(android.graphics.Color.parseColor(if (selected) "#FFFFFF" else "#33404F"))
-                }
-                paint(value == status)
-                setOnClickListener {
-                    status = value
-                    for (i in 0 until statusRow.childCount) {
-                        val c = statusRow.getChildAt(i) as android.widget.TextView
-                        (c.tag as? () -> Unit)?.invoke()
-                    }
-                }
-                tag = { paint(value == status) }
-            }
-        val unpaidChip = statusChip("Due", "Unpaid").apply {
-            layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(6) }
-        }
-        val paidChip = statusChip("Paid", "Paid").apply {
-            layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = dp(6) }
-        }
-        statusRow.addView(unpaidChip); statusRow.addView(paidChip)
-        box.addView(statusRow)
+        /* 🔴🔒 V1399 (১২.০৯.২০২৬, TK-নির্দেশ, ডেমো ফটো পাশ) — *"এই পেশেন্টের
+           জন্য সেই আরএমপিকে কত পার্সেন্টেজ অথবা কত টাকা দেব সেটা এখান থেকে
+           নির্বাচন করব, কিন্তু টাকা যেটা দিতে হবে সেটা আরএমপি সেকশনে গিয়েই
+           দিতে হবে।"*
+           এই ফর্মের কাজ শুধু **লিংক করা** (কোন RMP, কত টাকা/%) — টাকা সত্যিই
+           দেওয়া হয়েছে কিনা সেটা তখনই বোঝা যায় না, তাই "Due/Paid" জিজ্ঞাসা করা
+           বিভ্রান্তিকর ছিল (TK-র রিপোর্ট)। এখন সবসময় **Due** হয়েই সেভ হয় —
+           RMP-কে সত্যিই টাকা দেওয়ার সময় RMP-র নিজের Referral Income পাতা
+           থেকে (Edit → Paid) বসাতে হবে, যেটা আগে থেকেই আছে (openReferralEdit)।
+           ⛔ RMP-লিংক · Amount/Percent বাছাই — এসবের কোনো আচরণ বদলায়নি। */
+        val status = "Unpaid"
+        box.addView(android.widget.TextView(this).apply {
+            text = "This links the patient to the RMP for the amount above — always saved as Due.\nTo actually pay the RMP, open the RMP's own Referral Income screen and mark it Paid there."
+            textSize = 11.5f
+            setTextColor(android.graphics.Color.parseColor("#0A5C33"))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
+            setPadding(dp(10), dp(8), dp(10), dp(8))
+        }, android.widget.LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams.MATCH_PARENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(6) })
 
         UppercaseInputUtil.applyToAll(box)  // TK-REQUESTED GLOBAL RULE (2026-07-24): English text auto-CAPITAL, Password fields excluded automatically
         val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
@@ -2068,10 +2055,6 @@ class PatientTimelineActivity : AppCompatActivity() {
                     money2(commissionBase * typedValue / 100.0) else typedValue
                 val refName = refNameInput.text.toString().trim()
                 val refMobile = refMobileInput.text.toString().filter { it.isDigit() }.takeLast(10)
-                if (status.isBlank()) {
-                    android.widget.Toast.makeText(this@PatientTimelineActivity, "Select Paid or Due", android.widget.Toast.LENGTH_SHORT).show()
-                    return@setOnClickListener
-                }
                 val vmsg = FieldError.validate(listOf<Triple<View, Boolean, String>>(
                     Triple(amountInput, amt > 0, "সঠিক Amount দিন"),
                     Triple(refNameInput, refName.isNotBlank(), "Doctor নাম দিন"),

@@ -5540,12 +5540,20 @@ class DoctorVisitActivity : AppCompatActivity() {
         styleInput(amountInput)
         container.addView(amountInput)
 
-        container.addView(fieldLabel("📊", "Status"))
-        val statusSpinner = android.widget.Spinner(this).apply {
-            adapter = android.widget.ArrayAdapter(this@DoctorVisitActivity, android.R.layout.simple_spinner_dropdown_item, listOf("Select Status", "Due", "Paid"))
+        /* 🔴🔒 V1399 (১২.০৯.২০২৬, TK-নির্দেশ, ডেমো ফটো পাশ) — এই ফর্মের কাজ
+           শুধু লিংক করা (কত টাকা) — টাকা সত্যিই দেওয়া হয়েছে কিনা এখানে
+           জিজ্ঞাসা করা বিভ্রান্তিকর ছিল। এখন সবসময় Due হয়েই সেভ হয়; এই
+           RMP-কে সত্যিই টাকা দেওয়ার সময় তাঁর নিজের Referral Income পাতা
+           থেকে (Edit → Paid, showLegacyReferralIncomeEdit) বসাতে হবে। */
+        val st = "Unpaid"
+        container.addView(TextView(this).apply {
+            text = "This links the patient to ${item.name} for the amount above — always saved as Due.\nTo actually pay ${item.name}, edit this entry from the Referral Income list and mark it Paid."
+            textSize = 11.5f
+            setTextColor(android.graphics.Color.parseColor("#0A5C33"))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
             setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
-        }
-        container.addView(statusSpinner)
+            setPadding((10 * resources.displayMetrics.density).toInt(), (8 * resources.displayMetrics.density).toInt(), (10 * resources.displayMetrics.density).toInt(), (8 * resources.displayMetrics.density).toInt())
+        })
 
         // TK-APPROVED ADDITION (31.07.2026): two new OPTIONAL fields so RMP
         // Message 4 (Referral Payment Confirmation) can show the real
@@ -5578,11 +5586,6 @@ class DoctorVisitActivity : AppCompatActivity() {
                     Toast.makeText(this@DoctorVisitActivity, "Valid 10-digit mobile and referral amount required", Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
-                if (statusSpinner.selectedItemPosition == 0) {
-                    Toast.makeText(this@DoctorVisitActivity, "Select Paid or Due", Toast.LENGTH_SHORT).show()
-                    return@setOnClickListener
-                }
-                val st = if (statusSpinner.selectedItemPosition == 2) "Paid" else "Unpaid"
                 val payMode = modeSpinner.selectedItem.toString()
                 val refNo = refInput.text.toString().trim()
                 /* 🔴🔒 V1398 (১২.০৯.২০২৬, নিজের-অডিটে ধরা পড়া ভুল, TK-কে জানিয়ে) —
