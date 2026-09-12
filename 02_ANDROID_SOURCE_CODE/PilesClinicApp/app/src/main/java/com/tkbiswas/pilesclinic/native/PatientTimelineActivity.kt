@@ -2081,6 +2081,14 @@ class PatientTimelineActivity : AppCompatActivity() {
                     android.widget.Toast.makeText(this@PatientTimelineActivity, vmsg, android.widget.Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
+                /* 🔴🔒 V1398 (১২.০৯.২০২৬, নিজের-অডিটে ধরা পড়া ভুল, TK-কে জানিয়ে) —
+                   V1381-এর লক আগে `lifecycleScope.launch`-এর **ভিতরে**, নেট-ডাক
+                   শেষ হওয়ার পরে বসত — refundSaving (PaymentActivity.kt)-এর
+                   প্রমাণিত নিয়মে ছিল না, তাই দুই ট্যাপের মাঝের নেট-বিলম্বে লকটা
+                   আসলে কাজই করত না। এখন ক্লিক হ্যান্ডলারেই সঙ্গে সঙ্গে লক, আর
+                   প্রতিটা বেরিয়ে-যাওয়ার পথে (Cancel/ব্যর্থতা/সেভ-শেষ) খুলে দেওয়া হয়। */
+                if (referralSaving) return@setOnClickListener
+                referralSaving = true
                 lifecycleScope.launch {
                     val repo = DoctorVisitRepository()
                     // 🔴🔒 V1395 — নিজের ব্রাঞ্চ পাঠানো হলো, একই মোবাইল/নাম একাধিক
@@ -2089,6 +2097,7 @@ class PatientTimelineActivity : AppCompatActivity() {
                     if (existingDoc != null) {
                         val docId = existingDoc.optString("id")
                         if (docId.isBlank()) {
+                            referralSaving = false
                             android.widget.Toast.makeText(this@PatientTimelineActivity, "Could not save — doctor not found on Dr. Visit list, or check connection", android.widget.Toast.LENGTH_LONG).show()
                             return@launch
                         }
@@ -2110,8 +2119,6 @@ class PatientTimelineActivity : AppCompatActivity() {
                                 )
                                 .setPositiveButton("OK, add again") { _, _ ->
                                     lifecycleScope.launch {
-                                        // 🔒🔒 V1381 — referralSaving লক (Payment/Refund-এর মতোই)।
-                                        referralSaving = true
                                         try {
                                             val ok = withContext(Dispatchers.IO) { saveReferralAfterDoctorKnown(repo, docId, refName, refMobile, amt, status) }
                                             android.widget.Toast.makeText(this@PatientTimelineActivity, if (ok) "Referral income saved for Dr. $refName" else "Could not save — check connection", android.widget.Toast.LENGTH_LONG).show()
@@ -2119,15 +2126,14 @@ class PatientTimelineActivity : AppCompatActivity() {
                                         } finally { referralSaving = false }
                                     }
                                 }
-                                .setNegativeButton("Cancel", null)
+                                .setNegativeButton("Cancel") { _, _ -> referralSaving = false }
+                                .setOnCancelListener { referralSaving = false }
                                 .show().also {
                                     PremiumAlert.paint(it)
                                     com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it)
                                 }
                             return@launch
                         }
-                        // 🔒🔒 V1381 — referralSaving লক (Payment/Refund-এর মতোই)।
-                        referralSaving = true
                         try {
                             val ok = withContext(Dispatchers.IO) { saveReferralAfterDoctorKnown(repo, docId, refName, refMobile, amt, status) }
                             android.widget.Toast.makeText(this@PatientTimelineActivity, if (ok) "Referral income saved for Dr. $refName" else "Could not save — check connection", android.widget.Toast.LENGTH_LONG).show()
@@ -2176,6 +2182,7 @@ class PatientTimelineActivity : AppCompatActivity() {
                                     repo.addNewDoctor(refName, refMobile, chosenBranch, "", "", "", staffMobile, applicationContext)
                                 }
                                 if (!created) {
+                                    referralSaving = false
                                     android.widget.Toast.makeText(this@PatientTimelineActivity, "Could not create new RMP — check connection", android.widget.Toast.LENGTH_LONG).show()
                                     return@launch
                                 }
@@ -2183,12 +2190,12 @@ class PatientTimelineActivity : AppCompatActivity() {
                                 val newDoc = withContext(Dispatchers.IO) { repo.findReferringDoctor(refName, refMobile, chosenBranch) }
                                 val newDocId = newDoc?.optString("id").orEmpty()
                                 if (newDocId.isBlank()) {
+                                    referralSaving = false
                                     android.widget.Toast.makeText(this@PatientTimelineActivity, "RMP created, but could not link — please retry Save", android.widget.Toast.LENGTH_LONG).show()
                                     return@launch
                                 }
-                                // 🔒🔒 V1381 — এই নতুন-RMP পথেও একই ডাবল-ট্যাপ লক (নতুন RMP-র
-                                // referralPayments তালিকা এইমাত্র তৈরি, তাই ডুপ্লিকেট-যাচাই লাগে না)।
-                                referralSaving = true
+                                // 🔒🔒 V1381 — এই নতুন-RMP পথেও একই ডাবল-ট্যাপ লক (আগে থেকেই
+                                // ক্লিক হ্যান্ডলারে বসানো, এখানে শুধু শেষে খোলা হয়)।
                                 val ok = try {
                                     withContext(Dispatchers.IO) { saveReferralAfterDoctorKnown(repo, newDocId, refName, refMobile, amt, status) }
                                 } finally { referralSaving = false }
@@ -2196,7 +2203,8 @@ class PatientTimelineActivity : AppCompatActivity() {
                                 if (ok) { currentRefDoctor = refName; currentRefDoctorMobile = refMobile; dialog.dismiss() }
                             }
                         }
-                        .setNegativeButton("Cancel", null)
+                        .setNegativeButton("Cancel") { _, _ -> referralSaving = false }
+                        .setOnCancelListener { referralSaving = false }
                         .show().also { PremiumAlert.paint(it) }
                 }
             }

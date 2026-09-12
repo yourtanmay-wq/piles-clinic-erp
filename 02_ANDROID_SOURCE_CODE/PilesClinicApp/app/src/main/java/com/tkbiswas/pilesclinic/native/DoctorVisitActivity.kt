@@ -5585,9 +5585,18 @@ class DoctorVisitActivity : AppCompatActivity() {
                 val st = if (statusSpinner.selectedItemPosition == 2) "Paid" else "Unpaid"
                 val payMode = modeSpinner.selectedItem.toString()
                 val refNo = refInput.text.toString().trim()
+                /* 🔴🔒 V1398 (১২.০৯.২০২৬, নিজের-অডিটে ধরা পড়া ভুল, TK-কে জানিয়ে) —
+                   V1381-এর লক আগে `lifecycleScope.launch`-এর **ভিতরে**, নেট-ডাক
+                   দুটো (findVisitPatient · todaysReferralLike) শেষ হওয়ার পরে
+                   বসত — অর্থাৎ দুই ট্যাপের মাঝের নেট-বিলম্বেই লকটা কার্যকর
+                   ছিলই না, refundSaving (PaymentActivity.kt)-এর প্রমাণিত নিয়মে
+                   ছিল না। এখন সেই নিয়মেই — ক্লিক হ্যান্ডলারেই সঙ্গে সঙ্গে লক। */
+                if (referralSaving) return@setOnClickListener
+                referralSaving = true
                 lifecycleScope.launch {
                     val patientRef = findVisitPatient(mobileDigits)   // 🔵 V530
                     if (patientRef == null) {
+                        referralSaving = false
                         Toast.makeText(this@DoctorVisitActivity, "No patient found with this mobile — check the number", Toast.LENGTH_LONG).show()
                         return@launch
                     }
@@ -5607,8 +5616,6 @@ class DoctorVisitActivity : AppCompatActivity() {
                             )
                             .setPositiveButton("OK, add again") { _, _ ->
                                 lifecycleScope.launch {
-                                    // 🔒🔒 V1381 — referralSaving লক।
-                                    referralSaving = true
                                     try {
                                         val ok = withContext(Dispatchers.IO) { DoctorVisitRepository().addReferralEntry(item.id, patientRef.name.ifBlank { mobileDigits }, mobileDigits, amt, st, applicationContext, payMode, refNo) }
                                         if (ok) {
@@ -5621,15 +5628,14 @@ class DoctorVisitActivity : AppCompatActivity() {
                                     } finally { referralSaving = false }
                                 }
                             }
-                            .setNegativeButton("Cancel", null)
+                            .setNegativeButton("Cancel") { _, _ -> referralSaving = false }
+                            .setOnCancelListener { referralSaving = false }
                             .show().also {
                                 PremiumAlert.paint(it)
                                 com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it)
                             }
                         return@launch
                     }
-                    // 🔒🔒 V1381 — referralSaving লক (Payment/Refund-এর মতোই)।
-                    referralSaving = true
                     try {
                         val ok = withContext(Dispatchers.IO) { DoctorVisitRepository().addReferralEntry(item.id, patientRef.name.ifBlank { mobileDigits }, mobileDigits, amt, st, applicationContext, payMode, refNo) }
                         // TK-REPORTED FIX (2026-07-23): also link this patient's
