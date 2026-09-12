@@ -25975,3 +25975,10 @@ V1360–V1364 জমা ও push হয়ে গেছে; V1356/V1361 SQL TK �
 প্যাচ-করা/স্পর্শকাতর ফাংশন (FollowUpActivity.loadTab, updateRemark,
 Chamber board, Registration save) — তাড়াহুড়ো করলে TK-র "ভালো কাজ যেন
 খারাপ না হয়" নিয়ম ভাঙার ঝুঁকি।
+
+## ১২.০৯.২০২৬ — PILES_CLINIC_APP_V1364_FINAL.zip পাঠানো
+TK: "তার জন্য তো ফাইল লাগবে" — ভার্সন বাম্প (build.gradle.kts 1351→1364,
+version.json মিলিয়ে), `tk_guard.py --release` PASS ও নাম নথিভুক্ত।
+ZIP: 25.77 MB / 1816 ফাইল (বাদ: .kotlinc, ANATOMY_PICTURES/ORIGINAL)।
+pathano_filer_talika.json-এ ভরা হলো (নিয়ম ৩ক)। V1352-V1364-এর কাজ প্রথমবার
+ফাইলে যাচ্ছে (আগের ZIP ছিল V1351)।

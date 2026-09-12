@@ -1,5 +1,24 @@
 [
   {
+    "file": "PILES_CLINIC_APP_V1364_FINAL.zip",
+    "versionCode": 1364,
+    "when": "12.09.2026 01.11 am",
+    "size_mb": 25.77,
+    "total_files": 1816,
+    "top_folders": {
+      "02_ANDROID_SOURCE_CODE": 771,
+      "(root)": 605,
+      "04_SUPABASE_DATABASE_SETUP": 130,
+      "00_SQL": 105,
+      "00_GUARD": 58,
+      "03_NETLIFY_READY": 53,
+      "08_ASSETS_BACKUP": 36,
+      "07_RELEASE_NOTES_VERSION_HISTORY": 31
+    },
+    "excluded": "00_GUARD/.kotlinc (গার্ডের কম্পাইলার, ~227MB) + .git + .claude + 08_ASSETS_BACKUP/ANATOMY_PICTURES/ORIGINAL (৯.৩MB, ব্যবহৃত হয় না, আগের ZIP-গুলোতেও বাদ) — সব ইচ্ছে করে, ৩০MB আপলোড-সীমার জন্য",
+    "note": "V1351 থেকে V1364 পর্যন্ত সব কাজ: Return Visit-এর নির্ভরযোগ্য সংকেত (V1355-V1357 area রিফান্ড হিসাব), RMP কমিশন বিল-ছাড়া (V1356), refDoctor মেলানো সব জায়গায় (V1356/V1362), রিমার্ক-জমা যাচাই ও দ্বিতীয়বার-তালিকা-নামানো বাদ (V1360), Today Collection/Chamber/Income-Expense-এর ভারী পড়া সার্ভার-RPC-তে (V1361), IN TIME নোটিশ ও চেকআপ-রিট্রাই (V1362), ওয়েবের আজ-তারিখ ভারতের সময়ে (V1363), ফিল্ড ভিজিট GPS-সেবা যেকোনো পর্দা খুললেই সেলফ-হিল (V1364)। TK-কে দুটো SQL (V1356, V1361) আলাদা করে দেওয়া হয়েছে, তিনি নিজে Supabase-এ চালিয়েছেন।"
+  },
+  {
     "file": "PILES_CLINIC_APP_V1351_FINAL.zip",
     "versionCode": 1351,
     "when": "11.09.2026 11.16 am",
