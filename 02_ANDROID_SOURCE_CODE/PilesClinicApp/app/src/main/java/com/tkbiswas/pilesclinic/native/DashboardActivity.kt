@@ -273,6 +273,14 @@ class DashboardActivity : AppCompatActivity() {
             startActivity(Intent(this, UserPhotoActivity::class.java))
         }
 
+        // 🔒🔒 V1380 (১২.০৯.২০২৬, TK-নির্দেশ) — ARMAN HOQUE: "Dr. Visit" ছাড়া
+        // আর কিছু না — তাই সার্চ বার ও ঘণ্টাও (রোগী/অনুস্মারক দেখা যেত) লুকানো।
+        if (RoleRules.isDoctorVisitOnly(this)) {
+            binding.searchCapsule.visibility = android.view.View.GONE
+            binding.tvBell.visibility = android.view.View.GONE
+            binding.tvBellBadge.visibility = android.view.View.GONE
+        }
+
         showLastCrashIfAny()
     }
 
@@ -355,11 +363,17 @@ class DashboardActivity : AppCompatActivity() {
         refreshSyncStatus()
         refreshOldAppBanner()
         refreshUnclosedChambers(session)   // 🔒 খাতার সারি B36 → B46 (এখন শুধু লুকায়)
-        refreshBell(session)
-        refreshCallBanner(session)
-        refreshReminderCard(session)    // 🟢 V1144
-        paintDoctorReminders(session)   // 🔔 V1186 — Doctor Note & Reminder
-        remindPendingRemarks(session)   // 🔒 খাতার সারি B51
+        // 🔒🔒 V1380 (১২.০৯.২০২৬, TK-নির্দেশ) — ARMAN HOQUE-এর হোম-পেজে ঘণ্টা,
+        // Pending Calls, Doctor Reminder কার্ড, বা কল-এর পরে Remark-মনে-করানো
+        // পপ-আপ — কোনোটাই আসবে না (এসবে রোগীর নাম/তথ্য থাকে)। বাকি সবার জন্য
+        // এই পাঁচটাই আগের মতো অক্ষত।
+        if (!RoleRules.isDoctorVisitOnly(this)) {
+            refreshBell(session)
+            refreshCallBanner(session)
+            refreshReminderCard(session)    // 🟢 V1144
+            paintDoctorReminders(session)   // 🔔 V1186 — Doctor Note & Reminder
+            remindPendingRemarks(session)   // 🔒 খাতার সারি B51
+        }
         requestNotificationPermissionIfNeeded()
         requestIgnoreBatteryOptimizationsIfNeeded()
         requestOverlayPermissionIfNeeded()   // 🪟 V845
@@ -1477,7 +1491,15 @@ class DashboardActivity : AppCompatActivity() {
         // ⛔ `roles`-তালিকা মেলানো আগের মতোই `role` (permission-role) দিয়েই —
         //    তাই Master/Staff/Field-এর ড্যাশবোর্ড এক চুলও বদলায়নি।
         val realRole = NativeSession.current(this)?.displayRole ?: role
-        val allowed = if (realRole == "doctor") label in DOCTOR_DASHBOARD_TILES else role in roles
+        // 🔒🔒 V1380 (১২.০৯.২০২৬, TK-নির্দেশ) — ARMAN HOQUE-এর ফোনে শুধু
+        // "Dr. Visit" বাক্সটাই, বাকি সব (role/roles যা-ই বলুক) লুকানো।
+        // ⛔ অন্য কারো ড্যাশবোর্ড এক চুলও বদলায় না — উপরের ডাক্তারের নিয়মের
+        //    (DOCTOR_DASHBOARD_TILES) হুবহু একই কম-ঝুঁকির প্যাটার্নে বসানো হলো।
+        val allowed = when {
+            RoleRules.isDoctorVisitOnly(this) -> label == "Dr. Visit"
+            realRole == "doctor" -> label in DOCTOR_DASHBOARD_TILES
+            else -> role in roles
+        }
         if (allowed) {
             tile.tvIcon.text = icon
             tile.tvLabel.text = label

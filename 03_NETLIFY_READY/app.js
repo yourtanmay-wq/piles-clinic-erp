@@ -2854,9 +2854,9 @@ function wlv1RemarkPendingNotice(){
   }catch(_e){}
 }
 window["wlv1RemarkPendingNotice"]=wlv1RemarkPendingNotice;
-function bottomNav(){let r=user?.role||'';let items={master:[["🏠","Home","dashboard()"],["📝","Enquiry","enquiryForm()"],["🔁","Follow Up","followup('Inquiry')"],["🧾","Registration","registration()"],["☰","Menu","menu()"]],staff:[["🏠","Home","dashboard()"],["📝","Enquiry","enquiryForm()"],["🔁","Follow Up","followup('Inquiry')"],["🧾","Registration","registration()"],["☰","Menu","menu()"]],doctor:[["🏠","Home","dashboard()"],["🩺","Queue","doctorQueue()"],["🔁","Follow-up","followup('Inquiry')"],["🔍","Search","searchPage()"],["☰","Menu","menu()"]],field:[["🏠","Home","dashboard()"],["🔁","Follow Up","followup('Inquiry')"],["👨‍⚕️","Doctor Visit","doctorVisit()"],["🔍","Search","searchPage()"],["☰","Menu","menu()"]],
+function bottomNav(){let r=user?.role||'';let __armanOnly=!!(user && String(user.mobile||'').replace(/\D/g,'').slice(-10)==='9883884394');let items={master:[["🏠","Home","dashboard()"],["📝","Enquiry","enquiryForm()"],["🔁","Follow Up","followup('Inquiry')"],["🧾","Registration","registration()"],["☰","Menu","menu()"]],staff:[["🏠","Home","dashboard()"],["📝","Enquiry","enquiryForm()"],["🔁","Follow Up","followup('Inquiry')"],["🧾","Registration","registration()"],["☰","Menu","menu()"]],doctor:[["🏠","Home","dashboard()"],["🩺","Queue","doctorQueue()"],["🔁","Follow-up","followup('Inquiry')"],["🔍","Search","searchPage()"],["☰","Menu","menu()"]],field:[["🏠","Home","dashboard()"],["🔁","Follow Up","followup('Inquiry')"],["👨‍⚕️","Doctor Visit","doctorVisit()"],["🔍","Search","searchPage()"],["☰","Menu","menu()"]],
   /* 🔵 V307: অংশীদার শুধু নিজের খাতা দেখে — একটাই বোতাম (My Share)। ⛔ বাকি role-এর nav অটুট। */
-  partner:[["🏠","My Share","dashboard()"]]};return `<div class="bottom proBottomNav">${(items[r]||items.staff).map(i=>`<button onclick="${i[2]}"><span class="navIco3d">${i[0]}</span><br>${i[1]}</button>`).join('')}</div>`}
+  partner:[["🏠","My Share","dashboard()"]]};let __tabs=__armanOnly?[["🏠","Home","dashboard()"],["👨‍⚕️","Doctor Visit","doctorVisit()"],["☰","Menu","menu()"]]:(items[r]||items.staff);return `<div class="bottom proBottomNav">${__tabs.map(i=>`<button onclick="${i[2]}"><span class="navIco3d">${i[0]}</span><br>${i[1]}</button>`).join('')}</div>`}
 window["bottomNav"]=bottomNav;
 /* 🔴🆕🔒 V436 (TK-নির্দেশ ১৮.০৮.২০২৬ — *"সুন্দরভাবে সাজানো হয় নাই"*): এই
    খোঁজার ঘরটার **কোনো placeholder ছিল না** (`placeholder=""`), তাই পর্দার
@@ -5049,8 +5049,16 @@ let all=[
 // (Dr. Visit সহ) ফোনের মতোই Menu-তে — Menu-তে আগে থেকেই আছে (Doctor Visit /
 // RMP লাইনটা), তাই কিছুই হারায়নি। ⛔ শুধু doctor role-এই এই তালিকা; master/
 // staff/field-এর Dashboard আগের `all` তালিকা থেকেই আসে, এক চুলও বদলায়নি।
+/* 🔒🔒 V1380 (১২.০৯.২০২৬, TK-নির্দেশ) — ARMAN HOQUE (কোচবিহার): কম্পিউটার/
+   ব্রাউজারেও তার লগইনে শুধু "Dr. Visit" বাক্সটাই, বাকি সব (ঘণ্টা · সার্চ ·
+   KPI সারি · রিমাইন্ডার কার্ড · কালেকশন কার্ড · Admin Briefing) লুকানো —
+   ফোনের DashboardActivity/RoleRules.isDoctorVisitOnly-র হুবহু ওয়েব-যমজ।
+   ⛔ অন্য কারো ড্যাশবোর্ড এক চুলও বদলায় না। */
+let __armanOnly = !!(user && String(user.mobile||'').replace(/\D/g,'').slice(-10)==='9883884394');
 let cards;
-if(role==='doctor'){
+if(__armanOnly){
+  cards=all.filter(x=>x[1]==='Dr. Visit').map(x=>card(x[0],x[1],x[2],x[3])).join('');
+}else if(role==='doctor'){
   let docTiles=[
     /* 🔔 V1186 — TK: *"এটা প্রত্যেকের হোম স্ক্রিনে ই থাকবে"*, তাই ডাক্তারের
        ছোট তালিকাতেও (ফোনের DOCTOR_DASHBOARD_TILES-এর মতোই)। */
@@ -5064,9 +5072,9 @@ if(role==='doctor'){
 }else{
   cards=all.filter(x=>x[4].includes(role)).map(x=>card(x[0],x[1],x[2],x[3])).join('');
 }
-app().innerHTML=`<div class="wrap wlv1Wide ${role}"><div class="topbar dashboardTop"><div class="brand userBrand">${userAvatar()}<div><b>${esc(dashboardClinicName())}</b><br><small class="userMeta"><b>${esc(dashboardPersonName())}</b> · ${esc(roleTitle)} · ${esc(user.branch)}</small></div></div><div class="topActions">${headerBell()}<button class="ghost iconOnly" onclick="menu()" aria-label="Menu">☰</button></div></div><div class="page">${(!isMaster()&&activeBriefings().length)?`<div class="card briefFlash"><b>Admin Briefing</b><p>${esc(activeBriefings()[0].message||'')}</p><div class="actions"><button onclick="openBriefThread('${activeBriefings()[0].id}')">Reply</button><button class="ghost" onclick="markBriefSeen('${activeBriefings()[0].id}')">Seen</button></div></div>`:''}${/* 📏🔒 V1229 (০৮.০৯.২০২৬, TK: *"pending call and search এই দুইটা পাশাপাশি
+app().innerHTML=`<div class="wrap wlv1Wide ${role}"><div class="topbar dashboardTop"><div class="brand userBrand">${userAvatar()}<div><b>${esc(dashboardClinicName())}</b><br><small class="userMeta"><b>${esc(dashboardPersonName())}</b> · ${esc(roleTitle)} · ${esc(user.branch)}</small></div></div><div class="topActions">${__armanOnly?'':headerBell()}<button class="ghost iconOnly" onclick="menu()" aria-label="Menu">☰</button></div></div><div class="page">${(!__armanOnly&&!isMaster()&&activeBriefings().length)?`<div class="card briefFlash"><b>Admin Briefing</b><p>${esc(activeBriefings()[0].message||'')}</p><div class="actions"><button onclick="openBriefThread('${activeBriefings()[0].id}')">Reply</button><button class="ghost" onclick="markBriefSeen('${activeBriefings()[0].id}')">Seen</button></div></div>`:''}${/* 📏🔒 V1229 (০৮.০৯.২০২৬, TK: *"pending call and search এই দুইটা পাশাপাশি
    রাখুন"*) — দুটো এখন একটা সারিতে (শুধু কম্পিউটারে; ফোনে আগের মতোই একটার নিচে
-   একটা)। ⛔ দুটোরই কাজ · লেখা · রং কিছুই বদলায়নি, শুধু জায়গা। */''}${wlv1DashKpiRow(o)}${globalCapsuleSearchBar()}${wlv1ReminderCardHtml()}${drRemHomeCard()}${(()=>{/* 🏠 V1232 — কালেকশন এখন উপরের বড় ঘরেই; ঘরটা না বসলে (০ টাকা) পুরনো কার্ডটাই আগের মতো বসে, তাই কোনো তথ্য হারায় না। */let __k=wlv1DashKpiRow(o);if(__k&&__k.indexOf('Today Collection')>=0)return '';let __c=collectionDashboardCard(o);return __c?`<div class="grid stat">${__c}</div>`:'';})()}<div class="grid compactDashGrid">${cards}</div></div>${bottomNav()}</div>`;notifyBriefingIfNeeded();try{wlv1NoticeWatch()}catch(e){}
+   একটা)। ⛔ দুটোরই কাজ · লেখা · রং কিছুই বদলায়নি, শুধু জায়গা। */''}${__armanOnly?'':wlv1DashKpiRow(o)}${__armanOnly?'':globalCapsuleSearchBar()}${__armanOnly?'':wlv1ReminderCardHtml()}${__armanOnly?'':drRemHomeCard()}${__armanOnly?'':(()=>{/* 🏠 V1232 — কালেকশন এখন উপরের বড় ঘরেই; ঘরটা না বসলে (০ টাকা) পুরনো কার্ডটাই আগের মতো বসে, তাই কোনো তথ্য হারায় না। */let __k=wlv1DashKpiRow(o);if(__k&&__k.indexOf('Today Collection')>=0)return '';let __c=collectionDashboardCard(o);return __c?`<div class="grid stat">${__c}</div>`:'';})()}<div class="grid compactDashGrid">${cards}</div></div>${bottomNav()}</div>`;notifyBriefingIfNeeded();try{wlv1NoticeWatch()}catch(e){}
   // 🔒 B582 (TK-নির্দেশ, ০৮.০৮.২০২৬): ডেস্কটপে হোম/ড্যাশবোর্ডেও একই প্রফেশনাল
   // সাইডবার (page()-এর মতো) — আগে এটা ডাকা হত না বলে বাঁ মেনু ভাঙা দেখাত ও
   // টাইল কেটে যেত। ⛔ শুধু বড় স্ক্রিনে চেহারা; ফোন/অ্যান্ড্রয়েড অপরিবর্তিত।
@@ -5141,11 +5149,17 @@ function menu(){let all=[
     ⛔ Export · Public Site · Log Out · App Version — সবই আগের মতোই, একই ক্রমে।     */
  let mmRow=(ico,label,act,cls)=>`<div class="mmRow${cls?' '+cls:''}" onclick="${act}">`
    +`<div class="mmIco">${ico}</div><div class="mmT">${label}</div><div class="mmA">›</div></div>`;
- let btns=all.filter(x=>x[3].includes(user.role) && !(x[2].indexOf('incomeExpense')>=0 && user.role==='doctor' && !(window.finIsPartnerDoctor&&window.finIsPartnerDoctor())))
+ /* 🔒🔒 V1380 (১২.০৯.২০২৬, TK-নির্দেশ) — ARMAN HOQUE: ☰ Menu-তেও শুধু
+    Dashboard + Doctor Visit/RMP, বাকি সব (Reminders/Sync/Enquiry/Follow-up/
+    Registration/Payment/Draft/Search/Briefing/Dialer/Public Site ইত্যাদি)
+    লুকানো — Log Out ও App Version সবসময়ই থাকে (নইলে বেরোতে পারবেন না)।
+    ⛔ dashboard()-এর হুবহু একই মোবাইল-শর্ত, অন্য কারো Menu অপরিবর্তিত। */
+ let __armanOnly = !!(user && String(user.mobile||'').replace(/\D/g,'').slice(-10)==='9883884394');
+ let btns=all.filter(x=>(__armanOnly ? (x[1]==='Dashboard'||x[1]==='Doctor Visit / RMP') : x[3].includes(user.role)) && !(x[2].indexOf('incomeExpense')>=0 && user.role==='doctor' && !(window.finIsPartnerDoctor&&window.finIsPartnerDoctor())))
    .map(x=>mmRow(x[0],esc(x[1]),x[2])).join('');
- let extra=mmRow('📞','Dialer','dialerPage()')   /* 🆕 V386 — অ্যান্ড্রয়েডের More মেনুতেও আছে */
+ let extra=__armanOnly?'':(mmRow('📞','Dialer','dialerPage()')   /* 🆕 V386 — অ্যান্ড্রয়েডের More মেনুতেও আছে */
    + (isMaster()?mmRow('📤','Export','wlv1ExportScreen()'):'')
-   + mmRow('🌐','Public Site','publicSite()');
+   + mmRow('🌐','Public Site','publicSite()'));
  page('Menu', `<div class="card mmCard">`
    + `<div class="mmGrid">${btns}${extra}</div>`
    + mmRow('⏻','Log Out','confirmLogout()','mmLogout')

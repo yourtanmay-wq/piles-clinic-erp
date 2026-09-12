@@ -74,7 +74,11 @@ class MoreMenuActivity : AppCompatActivity() {
            ⛔ Doctor Reminder পর্দাটা এক অক্ষরও বদলায়নি — শুধু পৌঁছানোর পথ বদলাল। */
         run {
             val who = user.displayRole
-            val allowed = isMaster || who == "staff" || who == "doctor"
+            // 🔒🔒 V1380 (১২.০৯.২০২৬, TK-নির্দেশ) — ARMAN HOQUE: Doctor Reminder-ও
+            // এখান থেকে বাদ (এতে রোগী/ডাক্তারের নোট থাকে) — Menu-তে শুধু
+            // Logout + App Version থাকবে, আর কিছু না।
+            val allowed = (isMaster || who == "staff" || who == "doctor") &&
+                !RoleRules.isDoctorVisitOnly(this)
             if (allowed) {
                 binding.rowDocModules5.visibility = View.VISIBLE
                 binding.btnDocDoctorReminder.setOnClickListener {
