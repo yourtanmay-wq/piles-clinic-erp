@@ -210,6 +210,26 @@ class RegistrationActivity : AppCompatActivity() {
     /** ফাঁকা তালিকা হলে একবারই হালকা করে নামানো (V802-এর হুবহু নিয়ম)। */
     private var rmpSuggestFetchTried = false
 
+    /* 🔴🔒 V1397 (১২.০৯.২০২৬, TK-অনুমোদিত ডেমো: "হ্যাঁ, ঠিক আছে, কোড শুরু
+       করুন") — PKB-র ঘটনার (নাম "Dr. PKB (birpara)" লিখলে সেভ করা "PKB"
+       RMP-টা কখনো সাজেশনে আসত না, তাই কমিশন লিংক হতনি) পর TK-র তিনটে নতুন
+       নিয়ম: ① মোবাইল নম্বর মিললে সেটাই সবচেয়ে বিশ্বাসযোগ্য — নাম যাই লেখা
+       থাকুক, সেভ করা আসল নাম আগে দেখানো ② নামের সাজেশন এখন দুই-দিকেই মেলে
+       (আগে শুধু "সেভ করা নাম টাইপ করা লেখার ভেতরে আছে কিনা" দেখত না, শুধু
+       উল্টোটা — তাই "PKB" সেভ থাকলেও "Dr. PKB (birpara)" লিখলে ধরা পড়ত না)
+       ③ কোনো মিলই না পেলে নাম-ঘর থেকে সরে গেলে নতুন RMP হিসেবে সেভ করার
+       সাজেশন — "না" দিলে বা "হ্যাঁ" দিলে দুটোতেই রেজিস্ট্রেশন থামে না।
+       ⛔ পুরনো আচরণ (মিল না থাকলে) অক্ষত — শুধু নতুন সুযোগ যোগ হলো। */
+    private var rmpNewSuggestAskedFor = ""
+
+    private fun rmpChoiceMatches(choice: RmpChoice, q: String, mobileDigits: String): Boolean {
+        if (mobileDigits.length == 10 && choice.mobile == mobileDigits) return true
+        if (q.length < 2) return false
+        if (choice.searchText().contains(q)) return true
+        val nm = choice.name.trim().lowercase(Locale.US)
+        return nm.length >= 2 && q.contains(nm)
+    }
+
     private fun wireRmpSuggest(user: NativeUser) {
         val watcher = object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
@@ -220,12 +240,15 @@ class RegistrationActivity : AppCompatActivity() {
         }
         binding.etRefDoctorName.addTextChangedListener(watcher)
         binding.etRefDoctorMobile.addTextChangedListener(watcher)
+        // 🔴🔒 V1397 — নাম-ঘর থেকে সরে গেলে (ফোকাস হারালে) মিল না পেলে
+        // নতুন RMP সেভের সাজেশন। ঘর ফাঁকা/মিল-থাকা অবস্থায় কিছুই দেখায় না।
+        binding.etRefDoctorName.setOnFocusChangeListener { _, hasFocus ->
+            if (!hasFocus) maybeOfferNewRmp(user)
+        }
     }
 
     private fun showRmpSuggest(user: NativeUser, typed: String) {
         val boxView = binding.llRmpSuggest
-        val q = typed.trim().lowercase(Locale.US)
-        if (q.length < 2) { boxView.removeAllViews(); boxView.visibility = View.GONE; return }
         var all = rmpSuggestCache
         if (all == null) { all = cachedRmpChoices(user); rmpSuggestCache = all }
         /* ফোনে তালিকা না থাকলে (এই ফোনে Doctor Visit পর্দা কখনো খোলা হয়নি)
@@ -250,7 +273,26 @@ class RegistrationActivity : AppCompatActivity() {
                 }
             }.start()
         }
-        val hits = all.filter { it.searchText().contains(q) }.take(6)
+        val q = typed.trim().lowercase(Locale.US)
+        val mobileDigits = MobileInput.digits(binding.etRefDoctorMobile)
+        // 🔴 V1397 (ক) — মোবাইল ১০ ডিজিট পূর্ণ হলে সেটাই সবার আগে, নামের
+        // সাথে না মিললেও। এতে ভুল বানানে লেখা নাম আর কমিশন হারায় না।
+        val mobileHit = if (mobileDigits.length == 10) all.firstOrNull { it.mobile == mobileDigits } else null
+        if (mobileHit != null) {
+            boxView.removeAllViews()
+            boxView.visibility = View.VISIBLE
+            boxView.addView(TextView(this).apply {
+                text = "✓ Saved RMP found for this number"
+                textSize = 10.5f
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(android.graphics.Color.parseColor("#118452"))
+                setPadding(dpRmp(10), dpRmp(7), dpRmp(10), dpRmp(5))
+            })
+            boxView.addView(rmpSuggestRow(mobileHit, forBranchLabel = true))
+            return
+        }
+        if (q.length < 2) { boxView.removeAllViews(); boxView.visibility = View.GONE; return }
+        val hits = all.filter { rmpChoiceMatches(it, q, mobileDigits) }.take(6)
         boxView.removeAllViews()
         if (hits.isEmpty()) { boxView.visibility = View.GONE; return }
         boxView.visibility = View.VISIBLE
@@ -270,7 +312,47 @@ class RegistrationActivity : AppCompatActivity() {
         }
     }
 
-    private fun rmpSuggestRow(item: RmpChoice): View {
+    /** V1397 (গ) — মিল না পেলে নতুন RMP হিসেবে সেভ করার সাজেশন। রেজিস্ট্রেশন
+     *  কখনো আটকায় না, ব্লক করে না — শুধু নাম-ঘর ছাড়ার সময় একটা প্রশ্ন। */
+    private fun maybeOfferNewRmp(user: NativeUser) {
+        if (binding.llRefDoctor.visibility != View.VISIBLE) return
+        val name = binding.etRefDoctorName.text.toString().trim()
+        if (name.isBlank()) return
+        val mobileDigits = MobileInput.digits(binding.etRefDoctorMobile)
+        val askKey = "$name|$mobileDigits"
+        if (askKey == rmpNewSuggestAskedFor) return
+        val all = rmpSuggestCache ?: cachedRmpChoices(user)
+        val q = name.lowercase(Locale.US)
+        val matched = all.any { rmpChoiceMatches(it, q, mobileDigits) }
+        if (matched) return
+        if (mobileDigits.length != 10) return   // নম্বর ছাড়া নতুন RMP তৈরি করা যায় না (Add RMP ফর্মের একই নিয়ম)
+        rmpNewSuggestAskedFor = askKey
+        AlertDialog.Builder(this)
+            .setCustomTitle(PremiumAlert.header(this, "New RMP?"))
+            .setMessage("No saved RMP found for \"$name\".\nSave as a new RMP so future commission links automatically?")
+            .setNegativeButton("Not now", null)
+            .setPositiveButton("Save") { _, _ ->
+                val branch = binding.spBranch.selectedItem?.toString().orEmpty()
+                val staffMobile = NativeSession.current(this)?.mobile.orEmpty()
+                if (branch.isBlank()) return@setPositiveButton
+                lifecycleScope.launch {
+                    val ok = withContext(Dispatchers.IO) {
+                        DoctorVisitRepository().addNewDoctor(name, mobileDigits, branch, "", "", "", staffMobile, this@RegistrationActivity)
+                    }
+                    rmpSuggestCache = null
+                    android.widget.Toast.makeText(
+                        this@RegistrationActivity,
+                        if (ok) "RMP saved" else "Saved on this phone — will sync when online",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+            .show().also { PremiumAlert.paint(it) }
+    }
+
+    /** forBranchLabel = true (V1397) — মোবাইল-মিলের বিশেষ সারি: এলাকা/ব্রাঞ্চ-চিপ
+     *  না দেখিয়ে "মোবাইল · For <branch> Branch" একই লাইনে, ডেমো-প্রুফের হুবহু। */
+    private fun rmpSuggestRow(item: RmpChoice, forBranchLabel: Boolean = false): View {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = android.view.Gravity.CENTER_VERTICAL
@@ -293,14 +375,19 @@ class RegistrationActivity : AppCompatActivity() {
             setTextColor(android.graphics.Color.parseColor("#17312A"))
             maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
         })
-        val line2 = listOf(item.mobile, item.area.trim().uppercase()).filter { it.isNotBlank() }.joinToString(" · ")
+        val line2 = if (forBranchLabel) {
+            listOf(item.mobile, if (item.branch.isNotBlank()) "For ${item.branch} Branch" else "")
+                .filter { it.isNotBlank() }.joinToString(" · ")
+        } else {
+            listOf(item.mobile, item.area.trim().uppercase()).filter { it.isNotBlank() }.joinToString(" · ")
+        }
         if (line2.isNotBlank()) texts.addView(TextView(this).apply {
             text = line2; textSize = 11f
             setTextColor(android.graphics.Color.parseColor("#60766D"))
             maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
         })
         row.addView(texts)
-        if (item.branch.isNotBlank()) row.addView(TextView(this).apply {
+        if (!forBranchLabel && item.branch.isNotBlank()) row.addView(TextView(this).apply {
             text = item.branch
             textSize = 10f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
@@ -309,6 +396,17 @@ class RegistrationActivity : AppCompatActivity() {
             background = android.graphics.drawable.GradientDrawable().apply {
                 cornerRadius = dpRmp(12).toFloat()
                 setColor(android.graphics.Color.parseColor("#E8F2FF"))
+            }
+        })
+        if (forBranchLabel) row.addView(TextView(this).apply {
+            text = "TAP TO USE"
+            textSize = 9.5f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(android.graphics.Color.WHITE)
+            setPadding(dpRmp(9), dpRmp(4), dpRmp(9), dpRmp(4))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = dpRmp(12).toFloat()
+                setColor(android.graphics.Color.parseColor("#118452"))
             }
         })
         row.setOnClickListener {
