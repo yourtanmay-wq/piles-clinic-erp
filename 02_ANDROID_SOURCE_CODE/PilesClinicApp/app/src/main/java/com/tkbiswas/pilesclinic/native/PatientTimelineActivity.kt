@@ -2083,7 +2083,9 @@ class PatientTimelineActivity : AppCompatActivity() {
                 }
                 lifecycleScope.launch {
                     val repo = DoctorVisitRepository()
-                    val existingDoc = withContext(Dispatchers.IO) { repo.findReferringDoctor(refName, refMobile) }
+                    // 🔴🔒 V1395 — নিজের ব্রাঞ্চ পাঠানো হলো, একই মোবাইল/নাম একাধিক
+                    // ব্রাঞ্চে থাকলে যেন ভুল ব্রাঞ্চের RMP বেছে না নেয়।
+                    val existingDoc = withContext(Dispatchers.IO) { repo.findReferringDoctor(refName, refMobile, currentBranch) }
                     if (existingDoc != null) {
                         val docId = existingDoc.optString("id")
                         if (docId.isBlank()) {
@@ -2177,7 +2179,8 @@ class PatientTimelineActivity : AppCompatActivity() {
                                     android.widget.Toast.makeText(this@PatientTimelineActivity, "Could not create new RMP — check connection", android.widget.Toast.LENGTH_LONG).show()
                                     return@launch
                                 }
-                                val newDoc = withContext(Dispatchers.IO) { repo.findReferringDoctor(refName, refMobile) }
+                                // 🔴🔒 V1395 — এইমাত্র chosenBranch-এ যে RMP বানানো হলো, সেটাই যেন ফেরত আসে।
+                                val newDoc = withContext(Dispatchers.IO) { repo.findReferringDoctor(refName, refMobile, chosenBranch) }
                                 val newDocId = newDoc?.optString("id").orEmpty()
                                 if (newDocId.isBlank()) {
                                     android.widget.Toast.makeText(this@PatientTimelineActivity, "RMP created, but could not link — please retry Save", android.widget.Toast.LENGTH_LONG).show()

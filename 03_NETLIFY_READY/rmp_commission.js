@@ -93,10 +93,18 @@
       var p = patients().find(function (x) { return String(x.id) === String(patientId); }); if (!p) return;
       var refMob = String(p.refDoctorMobile || '').replace(/\D/g, '').slice(-10), refName = String(p.refDoctor || '').trim().toLowerCase();
       if (!refMob && !refName) return;
-      var d = doctors().find(function (x) {
+      // 🔴🔒 V1395 (১২.০৯.২০২৬, TK-রিপোর্ট) — একই মোবাইল/নাম একাধিক ব্রাঞ্চে
+      // থাকলে (যেমন একজন RMP-র দুই ব্রাঞ্চে রেকর্ড) আগে .find()-এর প্রথম
+      // মিলটাই বেছে নিত, ব্রাঞ্চ না মিললেও — ভুল ব্রাঞ্চের RMP-তে কমিশন
+      // বসে যেত। এখন রোগীর নিজের ব্রাঞ্চের সাথে মেলা রেকর্ডটাই আগে খোঁজা
+      // হয়, না পেলে তবেই আগের মতো প্রথম মিল।
+      var patBranch = String(p.branch || '').trim().toLowerCase();
+      var candidates = doctors().filter(function (x) {
         return (refMob && String(x.mobile || '').replace(/\D/g, '').slice(-10) === refMob) ||
           (refName && String(x.name || '').trim().toLowerCase() === refName);
-      }); if (!d) return;
+      });
+      if (!candidates.length) return;
+      var d = (patBranch && candidates.find(function (x) { return String(x.branch || '').trim().toLowerCase() === patBranch; })) || candidates[0];
       var c = await fin(); if (!c) return;
       var current = await c.from('rmp_patient_commissions').select('id').eq('patient_row_id', p.id).limit(1).maybeSingle();
       if (current && current.data) return;

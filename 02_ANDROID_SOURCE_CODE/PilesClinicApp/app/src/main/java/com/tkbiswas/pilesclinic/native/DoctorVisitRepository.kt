@@ -426,18 +426,38 @@ class DoctorVisitRepository {
      *  Used so the Follow-up card's "Add Referral Income" doesn't need the
      *  staff to search for the doctor by hand; the patient already knows
      *  who referred them. */
-    fun findReferringDoctor(refName: String, refMobile: String): org.json.JSONObject? {
+    /* 🔴🔒 V1395 (১২.০৯.২০২৬, TK-রিপোর্ট "আমি করি নাই, ১০০% গ্যারান্টি") —
+       একই মোবাইল/নাম নিয়ে **একাধিক ব্রাঞ্চে** RMP-রেকর্ড থাকলে (যেমন PKB —
+       কোচবিহার ও জলপাইগুড়ি দুটোতেই) আগে এখানে "যেকোনো একটা" (limit=1, কোনো
+       branch-অগ্রাধিকার ছাড়াই) ফিরত আসত — TAPOSHI BARMAN (কোচবিহার)-এর
+       ট্রিটমেন্ট-পেমেন্টে ভুলবশত জলপাইগুড়ির PKB বেছে নেওয়া হয়েছিল, তার
+       কমিশন ভুল হারে (auto ১০%) বসে গিয়েছিল। ⇒ এখন রোগীর নিজের ব্রাঞ্চ
+       (`patientBranch`) দেওয়া থাকলে প্রথমে **একই ব্রাঞ্চের** মিলটাই বেছে
+       নেওয়া হয়, না মিললে তবেই আগের মতো প্রথম ফলাফল। ⛔ patientBranch ফাঁকা
+       রাখলে (ডিফল্ট) আচরণ হুবহু আগের মতোই — কোনো পুরনো কল ভাঙে না। */
+    fun findReferringDoctor(refName: String, refMobile: String, patientBranch: String = ""): org.json.JSONObject? {
+        fun pickBestBranchMatch(rows: org.json.JSONArray): org.json.JSONObject? {
+            if (rows.length() == 0) return null
+            if (patientBranch.isNotBlank()) {
+                for (i in 0 until rows.length()) {
+                    val row = rows.getJSONObject(i)
+                    if (row.optString("branch").equals(patientBranch, ignoreCase = true)) return row
+                }
+            }
+            return rows.getJSONObject(0)
+        }
         val mobile = refMobile.filter { it.isDigit() }.takeLast(10)
         if (mobile.length == 10) {
-            val byMobile = SupabaseClient.findByMobile("doctor_visits", "+91$mobile", "id,name,mobile")
-            if (byMobile.length() > 0) return byMobile.getJSONObject(0)
+            val byMobile = SupabaseClient.findByMobile("doctor_visits", "+91$mobile", "id,name,mobile,branch", limit = 5)
+            val picked = pickBestBranchMatch(byMobile)
+            if (picked != null) return picked
         }
         val name = refName.trim()
         if (name.isBlank()) return null
         val rows = SupabaseClient.fetchList(
             "doctor_visits", "name=ilike.${java.net.URLEncoder.encode(name, "UTF-8")}", 5
         )
-        return if (rows.length() > 0) rows.getJSONObject(0) else null
+        return pickBestBranchMatch(rows)
     }
 
     /** Records a referral commission entry for a doctor -- patient, amount,
