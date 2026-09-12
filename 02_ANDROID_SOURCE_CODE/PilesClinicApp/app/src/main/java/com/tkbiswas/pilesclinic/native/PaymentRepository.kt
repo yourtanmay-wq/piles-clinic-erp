@@ -1,6 +1,9 @@
 package com.tkbiswas.pilesclinic.native
 
 import android.content.Context
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.runBlocking
 
 import org.json.JSONObject
 
@@ -1843,7 +1846,22 @@ class PaymentRepository(private val context: Context? = null) {
         val nonceKey = refundNonceKey(patient, amount, reason)
         val effNonce = context?.let { getOrCreateRefundNonce(it, nonceKey) } ?: nonce
         val refundId = PaymentModel.refundIdFor(patient, amount, reason, user.mobile, effNonce)
-        val alreadyPending = pendingRefundSumForPatient(patient.id, refundId)
+        /* 🔴🔒 V1373 (১২.০৯.২০২৬, তালিকা ৪৬২-ঘ — TK-নির্দেশে গভীরে যাচাই করে):
+           Refund সেভের আগে এই ফাংশন ৪-৫টা আলাদা ক্লাউড-পড়া একটার-পর-একটা
+           (sequential) করত — অথচ কেউ কারো ফলাফলের উপর নির্ভর করে না (প্রতিটাই
+           শুধু patient/refundId নিয়ে কাজ করে)। এখন প্রথম দুটো (pendingRefundSumFor
+           Patient + findPatientByMobile) **একসাথে** আনা হয় — ঠিক
+           ChamberAttendanceRepository.loadBoard()-এর একই TK-অনুমোদিত ধরন
+           (async(Dispatchers.IO) + একসাথে অপেক্ষা)। ⛔ কোন সংখ্যা কীভাবে গোনা
+           হয়, কোনটা কার উপর জেতে (V509/V217/B445) — এক অক্ষরও বদলায়নি, শুধু
+           পড়াগুলো একসাথে চলে বলে মোট অপেক্ষার সময় কমে। */
+        val (alreadyPending, liveByMobile) = runBlocking {
+            val pendingDef = async(Dispatchers.IO) { pendingRefundSumForPatient(patient.id, refundId) }
+            val liveDef = async(Dispatchers.IO) {
+                try { findPatientByMobile(patient.mobile, patient.branch) } catch (_: Throwable) { null }
+            }
+            pendingDef.await() to liveDef.await()
+        }
         // 🔴🔴 V509 (২১.০৮.২০২৬, TK-এর স্পষ্ট সিদ্ধান্ত — হুবহু: *"হ্যাঁ, সবাই
         // পারবে — Visit Fee-ও ফেরতের সীমায় ধরা হবে"*)। আগে এখানে শুধু
         // `patient.paid` ছিল, আর Visit Fee সেই হিসাবের বাইরে থাকত — তাই যে রোগী
@@ -1868,7 +1886,7 @@ class PaymentRepository(private val context: Context? = null) {
         // ⛔ নেট খারাপ / হিসাব আনা গেল না (`paymentsUnverified`) হলে আগের মতোই
         //   পাঠানো সংখ্যাই ব্যবহার হয় — নইলে সৎ রিফান্ডও আটকে যেত।
         val liveRefundable = try {
-            val live = findPatientByMobile(patient.mobile, patient.branch)
+            val live = liveByMobile
             if (live != null && live.id == patient.id && !live.paymentsUnverified)
                 minOf(live.refundableTotal, patient.refundableTotal)
             else patient.refundableTotal
@@ -1881,9 +1899,16 @@ class PaymentRepository(private val context: Context? = null) {
         // 🔴🔴🔒 B445 — আজকের জমা থেকে আজকের approved-refund বাদ দিয়ে
         // "স্টাফের হাতে এখনো কতটা আছে" বের করা হয়, রিফান্ড তার বেশি হলে
         // অটো-অ্যাপ্রুভ হবে না (চেম্বার খোলা থাকলেও)।
-        val availableFromToday = if (isMaster) Double.MAX_VALUE else
-            (paidTodayForPatient(patient.id) - refundedTodayForPatient(patient.id, refundId)).coerceAtLeast(0.0)
-        val autoApprove = isMaster || (chamberOpenToday(patient.branch) && amount <= availableFromToday + 0.5)
+        // 🔴🔒 V1373 — isMaster হলে আগের মতোই এই তিনটে পড়াই স্কিপ (চেম্বার
+        // যাচাই লাগে না)। নইলে তিনটে একসাথে (আগে একে একে হত)।
+        val (availableFromToday, chamberOpen) = if (isMaster) Double.MAX_VALUE to true else runBlocking {
+            val paidDef = async(Dispatchers.IO) { paidTodayForPatient(patient.id) }
+            val refundedDef = async(Dispatchers.IO) { refundedTodayForPatient(patient.id, refundId) }
+            val chamberDef = async(Dispatchers.IO) { chamberOpenToday(patient.branch) }
+            val avail = (paidDef.await() - refundedDef.await()).coerceAtLeast(0.0)
+            avail to chamberDef.await()
+        }
+        val autoApprove = isMaster || (chamberOpen && amount <= availableFromToday + 0.5)
         val status = if (autoApprove) PaymentModel.REFUND_APPROVED else PaymentModel.REFUND_PENDING
         val row = PaymentModel.buildRefundRow(
             patient, amount, mode, reason, status,

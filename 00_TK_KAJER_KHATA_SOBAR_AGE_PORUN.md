@@ -26099,3 +26099,27 @@ ZIP বানানোর সময় প্রথমবার ভুলে 00_
 হিসাব 00_GUARD/pathano_filer_talika.json-এ পূর্ণ লেখা হলো (নিয়ম ৩ক) —
 পরে TK "আগেরটা বড় ছিল কেন" জিজ্ঞেস করলে এখান থেকেই উত্তর দেওয়া যাবে।
 SendUserFile দিয়ে TK-কে পাঠানো হলো। তালিকা ৪৭৩ ✅ বন্ধ।
+
+## ১২.০৯.২০২৬ — Refund সেভের ৮-১০ ধাপ একসাথে (V1373, তালিকা ৪৭৪)
+TK: "১ করুন খুব সাবধানে এবং সততার সাথে... গভীরে যাচাই করে তবেই কাজ করবেন"।
+
+`PaymentRepository.saveRefund()` পড়ে দেখা গেল সত্যিই ৪-৫টা আলাদা ক্লাউড-পড়া
+(pendingRefundSumForPatient, findPatientByMobile, paidTodayForPatient,
+refundedTodayForPatient, chamberOpenToday) একটার পর একটা হত। প্রতিটার
+কোড আলাদা করে পড়ে যাচাই করা হলো — কেউ কারো ফলাফলের উপর নির্ভর করে না,
+সবগুলোই শুধু patient/refundId নিয়ে কাজ করে (কোনো shared mutable state
+নেই)। তাই ChamberAttendanceRepository.loadBoard()-এ আগে থেকেই প্রমাণিত ও
+TK-অনুমোদিত ধরনে (async(Dispatchers.IO) দিয়ে একসাথে আনা, তারপর একসাথে
+অপেক্ষা) দুই ধাপে ভাগ করা হলো — প্রথমে pendingRefundSum+findPatientByMobile
+একসাথে, তারপর (Master না হলে তবেই, আগের শর্ট-সার্কিট নিয়ম অক্ষত রেখে)
+paidToday+refundedToday+chamberOpenToday একসাথে। কোন সংখ্যা কীভাবে গোনা
+হয়, কার হিসাব কার উপর জেতে (V509 Visit Fee-সহ ফেরত, V217 জমার বেশি বন্ধ,
+B445 আজকের-জমা-সীমা) — এসবের একটা নিয়মও ছোঁয়া হয়নি, শুধু পড়াগুলোর ক্রম।
+
+ওয়েব-সংস্করণ যাচাই করে দেখা গেল `wlv1RefundableNow`/`wlv1PendingRefundSum`
+ইত্যাদি সব `load('payments')`-এর ওপর (আগে থেকেই ব্রাউজারে জমা তথ্য) কাজ
+করে — কোনো নেট-কল নেই, তাই এই সমস্যাটা ওয়েবে নেইই। সৎভাবে জানানো হলো,
+কিছু বদলানো হয়নি।
+
+পাহারা: resources ✅ · tk_guard ✅ · verify_kotlin_compile (শেষবার) ✅
+PASS, নতুন কোনো ভুল নেই।
