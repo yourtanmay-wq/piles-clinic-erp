@@ -508,6 +508,29 @@ class DoctorVisitRepository {
         }
     }
 
+    /* 🔒🔒 V1381 (১২.০৯.২০২৬, TK-রিপোর্ট — ANAND KUMAR-এর ₹3,250 Due দুইবার
+       সেভ হয়ে গিয়েছিল, কোনো ওয়ার্নিং ছাড়াই) — PaymentRepository.
+       todaysRefundLike()-এর হুবহু একই ধাঁচ, শুধু ডেটা payments টেবিল নয়,
+       এই ডাক্তারের doctor_visits.referralPayments তালিকা থেকে আসে।
+       ⛔ নেট খারাপ হলে চুপচাপ null — সৎ Referral Income কখনো আটকায় না। */
+    fun todaysReferralLike(docId: String, patientMobile: String, amount: Double): org.json.JSONObject? {
+        if (docId.isBlank() || amount <= 0.0) return null
+        return try {
+            val rows = SupabaseClient.fetchList("doctor_visits", "id=eq.$docId", 1, select = "referralPayments")
+            if (rows.length() == 0) return null
+            val list = rows.getJSONObject(0).optJSONArray("referralPayments") ?: return null
+            val today = DoctorVisitModel.today()
+            var hit: org.json.JSONObject? = null
+            for (i in 0 until list.length()) {
+                val e = list.optJSONObject(i) ?: continue
+                if (e.optString("patientMobile") != patientMobile) continue
+                if (e.optString("date") != today) continue
+                if (kotlin.math.abs(e.optDouble("amount", 0.0) - amount) <= 0.5) { hit = e; break }
+            }
+            hit
+        } catch (_: Throwable) { null }
+    }
+
     // ===================================================================
     // 🟢 B628 (11.08.2026, TK-নির্দেশ): Referral Income এন্ট্রি এডিট/ডিলিট —
     //   তিনবার-চাপ। মাস্টার ও একই-দিনের স্টাফ/ডাক্তার সরাসরি বদলায়; দিন

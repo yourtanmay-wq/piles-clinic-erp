@@ -22,6 +22,10 @@ class PatientTimelineActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityPatientTimelineBinding
     private lateinit var adapter: TimelineAdapter
+    // 🔒🔒 V1381 (১২.০৯.২০২৬, TK-রিপোর্ট — ANAND KUMAR-এর ₹3,250 Due দুইবার
+    // সেভ হয়ে গিয়েছিল, কোনো ওয়ার্নিং ছাড়াই) — "Add Referral Income"-এর
+    // Save বোতামে PaymentActivity-র refundSaving-এর হুবহু একই ডাবল-ট্যাপ লক।
+    private var referralSaving = false
     private var currentMobile: String = ""
     // TK-CLARIFIED (2026-07-20): Report Card only makes sense once this
     // patient has a real bill (created via Advance Payment / Registration).
@@ -2045,6 +2049,8 @@ class PatientTimelineActivity : AppCompatActivity() {
             .create()
         dialog.setOnShowListener {
             dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                // 🔒🔒 V1381 — ডাবল-ট্যাপে দ্বিতীয়বার সেভ আটকানো (Refund-এর মতোই)।
+                if (referralSaving) return@setOnClickListener
                 // 🟢 B673: % বাছা থাকলে এখানেই টাকায় বদলে নেওয়া হয় — নিচের সেভ-পথ,
                 //   যাচাই, বার্তা কিচ্ছু বদলায়নি; শেষ পর্যন্ত টাকার অঙ্কই (`amt`) জমা হয়।
                 val typedValue = amountInput.text.toString().trim().toDoubleOrNull() ?: 0.0
@@ -2084,9 +2090,47 @@ class PatientTimelineActivity : AppCompatActivity() {
                             android.widget.Toast.makeText(this@PatientTimelineActivity, "Could not save — doctor not found on Dr. Visit list, or check connection", android.widget.Toast.LENGTH_LONG).show()
                             return@launch
                         }
-                        val ok = withContext(Dispatchers.IO) { saveReferralAfterDoctorKnown(repo, docId, refName, refMobile, amt, status) }
-                        android.widget.Toast.makeText(this@PatientTimelineActivity, if (ok) "Referral income saved for Dr. $refName" else "Could not save — check connection", android.widget.Toast.LENGTH_LONG).show()
-                        if (ok) { currentRefDoctor = refName; currentRefDoctorMobile = refMobile; dialog.dismiss() }
+                        /* 🔒🔒 V1381 (TK-রিপোর্ট, ANAND KUMAR ₹3,250 দুইবার) — Refund-এর
+                           V786-এর হুবহু একই নিয়ম: আজকের দিনে এই রোগীর জন্য এই ডাক্তারের
+                           কাছে **একই পরিমাণ** Referral Income আগে থেকে থাকলে সতর্কবার্তা —
+                           Cancel = কিছুই হবে না · OK = জেনেশুনে তবুও। */
+                        val dup = withContext(Dispatchers.IO) { repo.todaysReferralLike(docId, currentMobile, amt) }
+                        if (dup != null) {
+                            val prevStatus = dup.optString("status")
+                            androidx.appcompat.app.AlertDialog.Builder(this@PatientTimelineActivity)
+                                .setCustomTitle(PremiumAlert.header(this@PatientTimelineActivity, "⚠️ Same referral already today"))
+                                .setMessage(
+                                    "A referral income of ₹${"%,.0f".format(amt)} for ${currentPatientName.ifBlank { currentMobile }} " +
+                                    "is already recorded today for Dr. $refName" +
+                                    (if (prevStatus.isNotBlank()) " ($prevStatus)" else "") + ".\n\n" +
+                                    "Adding again will add another ₹${"%,.0f".format(amt)} to this doctor's referral total.\n\n" +
+                                    "Cancel = do nothing.  OK = add again anyway."
+                                )
+                                .setPositiveButton("OK, add again") { _, _ ->
+                                    lifecycleScope.launch {
+                                        // 🔒🔒 V1381 — referralSaving লক (Payment/Refund-এর মতোই)।
+                                        referralSaving = true
+                                        try {
+                                            val ok = withContext(Dispatchers.IO) { saveReferralAfterDoctorKnown(repo, docId, refName, refMobile, amt, status) }
+                                            android.widget.Toast.makeText(this@PatientTimelineActivity, if (ok) "Referral income saved for Dr. $refName" else "Could not save — check connection", android.widget.Toast.LENGTH_LONG).show()
+                                            if (ok) { currentRefDoctor = refName; currentRefDoctorMobile = refMobile; dialog.dismiss() }
+                                        } finally { referralSaving = false }
+                                    }
+                                }
+                                .setNegativeButton("Cancel", null)
+                                .show().also {
+                                    PremiumAlert.paint(it)
+                                    com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it)
+                                }
+                            return@launch
+                        }
+                        // 🔒🔒 V1381 — referralSaving লক (Payment/Refund-এর মতোই)।
+                        referralSaving = true
+                        try {
+                            val ok = withContext(Dispatchers.IO) { saveReferralAfterDoctorKnown(repo, docId, refName, refMobile, amt, status) }
+                            android.widget.Toast.makeText(this@PatientTimelineActivity, if (ok) "Referral income saved for Dr. $refName" else "Could not save — check connection", android.widget.Toast.LENGTH_LONG).show()
+                            if (ok) { currentRefDoctor = refName; currentRefDoctorMobile = refMobile; dialog.dismiss() }
+                        } finally { referralSaving = false }
                         return@launch
                     }
                     // 🔴🔒 V467 (20.08.2026, TK-অনুমোদিত ফটো-প্রুফ, ফাইনাল) —
@@ -2139,7 +2183,12 @@ class PatientTimelineActivity : AppCompatActivity() {
                                     android.widget.Toast.makeText(this@PatientTimelineActivity, "RMP created, but could not link — please retry Save", android.widget.Toast.LENGTH_LONG).show()
                                     return@launch
                                 }
-                                val ok = withContext(Dispatchers.IO) { saveReferralAfterDoctorKnown(repo, newDocId, refName, refMobile, amt, status) }
+                                // 🔒🔒 V1381 — এই নতুন-RMP পথেও একই ডাবল-ট্যাপ লক (নতুন RMP-র
+                                // referralPayments তালিকা এইমাত্র তৈরি, তাই ডুপ্লিকেট-যাচাই লাগে না)।
+                                referralSaving = true
+                                val ok = try {
+                                    withContext(Dispatchers.IO) { saveReferralAfterDoctorKnown(repo, newDocId, refName, refMobile, amt, status) }
+                                } finally { referralSaving = false }
                                 android.widget.Toast.makeText(this@PatientTimelineActivity, if (ok) "New RMP added · Referral income saved for Dr. $refName" else "RMP created, but referral income could not be saved — check connection", android.widget.Toast.LENGTH_LONG).show()
                                 if (ok) { currentRefDoctor = refName; currentRefDoctorMobile = refMobile; dialog.dismiss() }
                             }

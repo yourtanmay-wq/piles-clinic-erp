@@ -57,6 +57,11 @@ import java.util.Locale
 class DoctorVisitActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityDoctorvisitBinding
+    // 🔒🔒 V1381 (১২.০৯.২০২৬, TK-রিপোর্ট — ANAND KUMAR-এর ₹3,250 Due দুইবার
+    // সেভ হয়ে গিয়েছিল, কোনো ওয়ার্নিং ছাড়াই) — এই স্ক্রিনের নিজের
+    // "Add Referral Income" ফর্মেও PatientTimelineActivity-র হুবহু একই
+    // ডাবল-ট্যাপ লক।
+    private var referralSaving = false
 
     /**
      * 🔵🔒 V530 (২২.০৮.২০২৬, TK-নির্দেশ) — **ডাক্তারের পর্দাতেও ঠিক রোগীটিই।**
@@ -5451,6 +5456,8 @@ class DoctorVisitActivity : AppCompatActivity() {
         })
         parts.actionRow.addView(pillButton("💾 Save", "#0C9E33").apply {
             setOnClickListener {
+                // 🔒🔒 V1381 — ডাবল-ট্যাপে দ্বিতীয়বার সেভ আটকানো।
+                if (referralSaving) return@setOnClickListener
                 val mobileDigits = mobileInput.text.toString().filter { it.isDigit() }.takeLast(10)
                 val amt = amountInput.text.toString().trim().toDoubleOrNull() ?: 0.0
                 if (mobileDigits.length != 10 || amt <= 0) {
@@ -5470,19 +5477,60 @@ class DoctorVisitActivity : AppCompatActivity() {
                         Toast.makeText(this@DoctorVisitActivity, "No patient found with this mobile — check the number", Toast.LENGTH_LONG).show()
                         return@launch
                     }
-                    val ok = withContext(Dispatchers.IO) { DoctorVisitRepository().addReferralEntry(item.id, patientRef.name.ifBlank { mobileDigits }, mobileDigits, amt, st, applicationContext, payMode, refNo) }
-                    // TK-REPORTED FIX (2026-07-23): also link this patient's
-                    // own record back to this doctor (if not already linked
-                    // to someone) so "Referred Patients" count matches the
-                    // referral income just saved. Best-effort -- if this
-                    // part fails the income entry itself is still saved.
-                    if (ok) {
-                        withContext(Dispatchers.IO) {
-                            DoctorVisitRepository().linkReferringDoctorIfBlank(patientRef.id, item.name, item.mobile, applicationContext)
-                        }
+                    /* 🔒🔒 V1381 (TK-রিপোর্ট, ANAND KUMAR ₹3,250 দুইবার) — Refund/
+                       PatientTimeline-এর হুবহু একই "আজই একবার হয়ে গেছে" সতর্কতা। */
+                    val dup = withContext(Dispatchers.IO) { DoctorVisitRepository().todaysReferralLike(item.id, mobileDigits, amt) }
+                    if (dup != null) {
+                        val prevStatus = dup.optString("status")
+                        AlertDialog.Builder(this@DoctorVisitActivity)
+                            .setCustomTitle(PremiumAlert.header(this@DoctorVisitActivity, "⚠️ Same referral already today"))
+                            .setMessage(
+                                "A referral income of ₹${"%,.0f".format(amt)} for ${patientRef.name.ifBlank { mobileDigits }} " +
+                                "is already recorded today" +
+                                (if (prevStatus.isNotBlank()) " ($prevStatus)" else "") + ".\n\n" +
+                                "Adding again will add another ₹${"%,.0f".format(amt)} to this doctor's referral total.\n\n" +
+                                "Cancel = do nothing.  OK = add again anyway."
+                            )
+                            .setPositiveButton("OK, add again") { _, _ ->
+                                lifecycleScope.launch {
+                                    // 🔒🔒 V1381 — referralSaving লক।
+                                    referralSaving = true
+                                    try {
+                                        val ok = withContext(Dispatchers.IO) { DoctorVisitRepository().addReferralEntry(item.id, patientRef.name.ifBlank { mobileDigits }, mobileDigits, amt, st, applicationContext, payMode, refNo) }
+                                        if (ok) {
+                                            withContext(Dispatchers.IO) {
+                                                DoctorVisitRepository().linkReferringDoctorIfBlank(patientRef.id, item.name, item.mobile, applicationContext)
+                                            }
+                                        }
+                                        Toast.makeText(this@DoctorVisitActivity, if (ok) "Referral income saved — ${patientRef.name}" else "Failed — check connection", Toast.LENGTH_SHORT).show()
+                                        if (ok) parts.dialog.dismiss()
+                                    } finally { referralSaving = false }
+                                }
+                            }
+                            .setNegativeButton("Cancel", null)
+                            .show().also {
+                                PremiumAlert.paint(it)
+                                com.tkbiswas.pilesclinic.native.NoAutofill.scrubAnyDialog(it)
+                            }
+                        return@launch
                     }
-                    Toast.makeText(this@DoctorVisitActivity, if (ok) "Referral income saved — ${patientRef.name}" else "Failed — check connection", Toast.LENGTH_SHORT).show()
-                    if (ok) parts.dialog.dismiss()
+                    // 🔒🔒 V1381 — referralSaving লক (Payment/Refund-এর মতোই)।
+                    referralSaving = true
+                    try {
+                        val ok = withContext(Dispatchers.IO) { DoctorVisitRepository().addReferralEntry(item.id, patientRef.name.ifBlank { mobileDigits }, mobileDigits, amt, st, applicationContext, payMode, refNo) }
+                        // TK-REPORTED FIX (2026-07-23): also link this patient's
+                        // own record back to this doctor (if not already linked
+                        // to someone) so "Referred Patients" count matches the
+                        // referral income just saved. Best-effort -- if this
+                        // part fails the income entry itself is still saved.
+                        if (ok) {
+                            withContext(Dispatchers.IO) {
+                                DoctorVisitRepository().linkReferringDoctorIfBlank(patientRef.id, item.name, item.mobile, applicationContext)
+                            }
+                        }
+                        Toast.makeText(this@DoctorVisitActivity, if (ok) "Referral income saved — ${patientRef.name}" else "Failed — check connection", Toast.LENGTH_SHORT).show()
+                        if (ok) parts.dialog.dismiss()
+                    } finally { referralSaving = false }
                 }
             }
         })

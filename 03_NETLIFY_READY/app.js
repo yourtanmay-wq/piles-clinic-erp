@@ -19247,7 +19247,14 @@ function saveReferralIncome(id){
  let patient=$('#rpName')?.value||'',amount=Number($('#rpAmt')?.value||0),status=$('#rpStatus')?.value||'',date=$('#rpDate')?.value||today();
  if(!patient||amount<=0)return toast('Patient and referral amount required');
  if(!status)return toast('Select Paid or Due');
- let arr=doctorReferralPayments(x);arr.unshift({id:uid('ref'),patient,amount,status,date,createdAt:new Date().toISOString()});
+ /* 🔒🔒 V1381 (১২.০৯.২০২৬, TK-রিপোর্ট — ANAND KUMAR-এর ৩,২৫০ টাকা দুইবার সেভ
+    হয়ে গিয়েছিল, কোনো ওয়ার্নিং ছাড়াই) — ফোনের PatientTimelineActivity/
+    DoctorVisitActivity-র হুবহু একই "আজই একবার হয়ে গেছে" সতর্কতা, confirm()
+    দিয়েই (এই ফাইলের নিজের established ধাঁচ, যেমন Delete-এর confirm)। */
+ let arr=doctorReferralPayments(x);
+ let dup=arr.find(e=>String(e.patient||'').trim().toLowerCase()===patient.trim().toLowerCase() && String(e.date||'')===date && Math.abs(Number(e.amount||0)-amount)<=0.5);
+ if(dup && !confirm(`A referral income of ₹${amount} for ${patient} is already recorded on ${date} (${dup.status||''}). Add again anyway?`))return;
+ arr.unshift({id:uid('ref'),patient,amount,status,date,createdAt:new Date().toISOString()});
  let temp={...x,referralPayments:arr};let inc=doctorReferralTotals([temp]);
  upd('doctor_visits',id,{referralPayments:arr,referralPaid:inc.paid,referralDue:inc.due});
  toast('Referral income saved');closeModal();viewDoctorVisit(id)
