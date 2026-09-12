@@ -1715,9 +1715,9 @@ class PaymentActivity : AppCompatActivity() {
         }
         if (isFinishing || isDestroyed) return@launch
         val posLabel = if (autoApprove) "Refund now" else "Send refund request"
-        val dialog = AlertDialog.Builder(this)
-            .setCustomTitle(PremiumAlert.header(this, "💸 Refund"))
-            .setView(android.widget.ScrollView(this).apply { addView(box) })
+        val dialog = AlertDialog.Builder(this@PaymentActivity)
+            .setCustomTitle(PremiumAlert.header(this@PaymentActivity, "💸 Refund"))
+            .setView(android.widget.ScrollView(this@PaymentActivity).apply { addView(box) })
             .setPositiveButton(posLabel, null)
             .setNegativeButton("Cancel", null)
             .create()
@@ -1726,13 +1726,13 @@ class PaymentActivity : AppCompatActivity() {
         dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setOnClickListener {
             if (refundSaving) return@setOnClickListener
             val amt = amtInput.text.toString().toDoubleOrNull() ?: 0.0
-            if (amt <= 0.0) { Toast.makeText(this, "Enter a valid refund amount", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
+            if (amt <= 0.0) { Toast.makeText(this@PaymentActivity, "Enter a valid refund amount", Toast.LENGTH_SHORT).show(); return@setOnClickListener }
             // 🔒 V217 (§B216): Screen-স্তরেই প্রথম পাহারা — জমার চেয়ে বেশি লিখলে
             // সঙ্গে সঙ্গে আটকানো, ক্লাউড পর্যন্ত পাঠাতেই হয় না। আসল/চূড়ান্ত
             // পাহারা `saveRefund`-এর ভিতরেই (pending-ও ধরে), এটা শুধু দ্রুত UX।
             // 🔴 V509 (২১.০৮.২০২৬, TK-সিদ্ধান্ত): সীমা এখন চিকিৎসার জমা + Visit Fee।
             if (amt > patient.refundableTotal + 0.5) {
-                Toast.makeText(this, "Refund can't be more than the refundable amount (₹${"%,.0f".format(patient.refundableTotal)})", Toast.LENGTH_LONG).show()
+                Toast.makeText(this@PaymentActivity, "Refund can't be more than the refundable amount (₹${"%,.0f".format(patient.refundableTotal)})", Toast.LENGTH_LONG).show()
                 return@setOnClickListener
             }
             val reason = reasonInput.text.toString().trim()
@@ -1740,7 +1740,7 @@ class PaymentActivity : AppCompatActivity() {
                রিমার্ক লেখাটা জরুরী"* ⇒ কারণ ফাঁকা রাখলে ফেরত হবে না।
                ⛔ টাকার কোনো নিয়ম/সীমা বদলায়নি — শুধু একটা ঘর বাধ্যতামূলক হলো। */
             if (reason.isBlank()) {
-                Toast.makeText(this, "Refund reason mandatory — write why the money is being returned", Toast.LENGTH_LONG)
+                Toast.makeText(this@PaymentActivity, "Refund reason mandatory — write why the money is being returned", Toast.LENGTH_LONG)
                     .show().also { try { NoAutofill.scrubAnyDialog(it) } catch (_: Throwable) { } }
                 reasonInput.requestFocus()
                 return@setOnClickListener
