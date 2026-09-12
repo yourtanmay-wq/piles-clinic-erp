@@ -5620,7 +5620,8 @@ button.small{min-height:36px!important;font-size:13px!important;border-radius:12
 .pfSalOff{color:#A7B0AB}
 .pfStaffBtns{flex:0 0 auto;display:flex;flex-direction:column;gap:6px}
 .pfStaffBtns{flex-wrap:wrap}
-.pfStaffBtns .pfBtn{margin:0;font-size:11.5px;font-weight:700;padding:7px 12px;border-radius:9px;
+/* 🔴 V1401 (TK-নির্দেশ, ডেমো-প্রুফ পাশ) — ফোনের Staff Profiles বোতামের সাথে মিলিয়ে সামান্য উঁচু: padding 7 → 9px */
+.pfStaffBtns .pfBtn{margin:0;font-size:11.5px;font-weight:700;padding:9px 12px;border-radius:9px;
   background:#EAF6EE;color:#0B4F2A;border:1px solid #CFE9D8;white-space:nowrap}
 .pfStaffBtns .pfBtnFill{background:#0B8A3E;color:#fff;border-color:#0B8A3E}
 .pfStaffBtns .pfDanger{background:#FDECEA;color:#B0392B;border-color:#F2C6C0}
@@ -5629,7 +5630,7 @@ button.small{min-height:36px!important;font-size:13px!important;border-radius:12
   /* ছোট পর্দায় বোতামগুলো নিচে, পাশাপাশি — নইলে নামের ঘর চেপে যায় */
   .pfStaffCard{flex-direction:column}
   .pfStaffBtns{flex-direction:row;flex-wrap:wrap;width:100%;margin-top:8px}
-  .pfStaffBtns .pfBtn{flex:1 1 auto;font-size:11px;padding:7px 8px}
+  .pfStaffBtns .pfBtn{flex:1 1 auto;font-size:11px;padding:9px 8px}
 }
 /* 🔴 V430 — Payment History-র মোট সারি ও এক-লাইনের এন্ট্রি (ফোনের মতোই) */
 .pfTotRow{display:flex;align-items:center;justify-content:space-between;padding:5px 0;font-size:13px;color:#3B5A49}

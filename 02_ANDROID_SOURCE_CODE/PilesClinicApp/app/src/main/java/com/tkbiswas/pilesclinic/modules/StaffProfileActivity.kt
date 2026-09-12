@@ -806,7 +806,17 @@ class StaffProfileActivity : AppCompatActivity() {
             setPadding(dp(4), 0, dp(4), 0)
             // 🎨 V1146 (TK: *"তিনটা লাইন উচ্চতা এত কম"*) — 40 → 46dp, সব বোতামেই।
             // 🎨 V1342 (১১.০৯.২০২৬, TK-নির্দেশ) — 46 → 56dp, আরো প্রফেশনাল দেখাতে।
-            height = dp(56)
+            /* 🔴🔒 V1401 (১২.০৯.২০২৬ সন্ধ্যা, TK: *"এই বক্সগুলোর উচ্চতা সামান্য একটু
+               বড় করুন"*, ডেমো-প্রুফ পাশ) — **আমার ভুল ধরা পড়ল:** উপরের ৪৬/৫৬dp
+               কোনোদিন কার্যকর হয়নি। `height = dp(..)` লেখার **পরে** নিচের
+               `setSingleLine(true)` চলত, আর Android-এ setSingleLine ভিতরে
+               setLines(1) ডাকে — যা আগের নির্দিষ্ট উচ্চতা বাতিল করে দেয়। তাই বোতাম
+               আসলে লেখা/আইকনের মাপেই (~১৬-২৪dp) ছিল — TK-র ছবিতেও তাই দেখা যায়।
+               ⇒ উচ্চতা এখন setSingleLine-এর **পরে** বসে (XML-এ singleLine+height
+                  যেভাবে কাজ করে, হুবহু সেই ক্রম), মাপ TK-র পাশ করা ২৬dp —
+                  এখনকার আসল উচ্চতার থেকে সামান্য বেশি (৫৬ দিলে অনেক বেশি হত,
+                  TK ডেমো দেখে বাতিল করেছেন)।
+               ⛔ নিচের dangerBtn-এও একই ক্রম, একই উচ্চতা (একই দোষ, নিয়ম ৭)। */
             /* 🎨🔒 V1092 (০৫.০৯.২০২৬ — TK-এর বিল্ড-করা ছবিতে ধরা পড়ল: RUPAM-এর
                "Extra Income" তখনো দুই লাইনে)। **আসল কারণ মেপে পাওয়া:** বাঁয়ের
                আইকনটা (২৪dp + ফাঁক) বোতামের চওড়ার একটা বড় অংশ নিয়ে নেয়, আর
@@ -816,6 +826,7 @@ class StaffProfileActivity : AppCompatActivity() {
                এখন নিশ্চিত নিয়ম: এক লাইনে বাঁধা, আর সারিতে ৩টে বা বেশি বোতাম
                থাকলে নিচে (`row1Btns` বানানোর পরে) আইকন বাদ ও লেখা ছোট। */
             setSingleLine(true)
+            height = dp(26)   // 🔴 V1401 — setSingleLine-এর পরে, নইলে বাতিল হয়ে যায়
             ellipsize = android.text.TextUtils.TruncateAt.END
             setTextColor(android.graphics.Color.parseColor(if (filled) "#FFFFFF" else "#0B4F2A"))
             background = android.graphics.drawable.GradientDrawable().apply {
@@ -837,8 +848,8 @@ class StaffProfileActivity : AppCompatActivity() {
                 compoundDrawablePadding = dp(4)   // 🎨 V1091 — লেখার জায়গা বাড়াতে
             }
             setPadding(dp(4), 0, dp(4), 0)
-            height = dp(56)       // 🎨 V1146/V1342 — smallBtn-এর হুবহু একই উচ্চতা
             setSingleLine(true)   // 🎨 V1092 — উপরের smallBtn-এর হুবহু একই নিয়ম
+            height = dp(26)       // 🔴 V1401 — smallBtn-এর হুবহু একই উচ্চতা, setSingleLine-এর পরে
             ellipsize = android.text.TextUtils.TruncateAt.END
             setTextColor(android.graphics.Color.parseColor("#B0392B"))
             background = android.graphics.drawable.GradientDrawable().apply {
