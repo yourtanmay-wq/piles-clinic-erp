@@ -25982,3 +25982,17 @@ version.json মিলিয়ে), `tk_guard.py --release` PASS ও নাম 
 ZIP: 25.77 MB / 1816 ফাইল (বাদ: .kotlinc, ANATOMY_PICTURES/ORIGINAL)।
 pathano_filer_talika.json-এ ভরা হলো (নিয়ম ৩ক)। V1352-V1364-এর কাজ প্রথমবার
 ফাইলে যাচ্ছে (আগের ZIP ছিল V1351)।
+
+## ১২.০৯.২০২৬ — V1366/V1367 · RMP কমিশন যাচাই (AMIT GOLDAR + কোচবিহার) (তালিকা ৪৬৭)
+`00_SQL/V1366_COOCHBEHAR_ALL_RMP_CHECK_2026-09-12.sql` — কোচবিহারের সব RMP
+(due=0 সহ) Earned/Paid/Due এক টেবিলে, V941/V1356-এর ফাংশন defensively
+পুনর্বসানো (লাইভে no-op)।
+`00_SQL/V1367_AMIT_GOLDAR_CHECK_2026-09-12.sql` — CTE amit → a_row (RMP
+সারি, জোড়া-সারি সন্দেহ) → b_bound (কমিশন-বাঁধা রোগীদের বিল/জমা/অর্জিত) →
+c_matched (refBy/refDoctor/refDoctorMobile দিয়ে নাম/নম্বর মেলা সব রোগী,
+বাঁধা থাকুক/না থাকুক, "commission NOT BOUND ⚠" ট্যাগ) → d_totals (দুই
+পদ্ধতির যোগফল পাশাপাশি) — section কলাম দিয়ে UNION ALL, এক টেবিলে।
+নকল ডেটাবেসে হাতে সাজানো কেস (RMP-র ২ রোগী, একজন কমিশন-বাঁধা + একজন নয়,
+জমা ₹20,000+₹9,000=₹29,000): bound-total ₹20,000, matched-total ₹29,000 —
+ঠিক TK-র বলা সংখ্যার সাথে মিলে গেছে, ফাঁকটা স্পষ্ট প্রমাণিত।
+sql_local_check ✅ উভয়ে · tk_guard ✅। TK-কে দুটোই টেক্সট আকারে দেওয়া হলো।
