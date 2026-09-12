@@ -1856,7 +1856,7 @@ class PatientTimelineActivity : AppCompatActivity() {
         val refMutedColor = android.graphics.Color.parseColor("#94A3B8")
         var refNameLocked = currentRefDoctor.isNotBlank()
         var refMobileLocked = currentRefDoctorMobile.isNotBlank()
-        fun lockIcon(): TextView = TextView(this).apply {
+        fun lockIcon(): android.widget.TextView = android.widget.TextView(this).apply {
             text = "🔒"; textSize = 13f
             setPadding(dp(12), 0, 0, 0)
             layoutParams = android.widget.FrameLayout.LayoutParams(
