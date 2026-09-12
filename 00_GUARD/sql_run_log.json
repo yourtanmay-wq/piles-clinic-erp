@@ -385,5 +385,21 @@
   "result": "232 সারি — A_DUE 50 (Falakata TK BISWAS ₹1,74,900 · Kishanganj AMIT GOLDAR ₹1,33,300 · Jalpaiguri JAYANTA BANE ₹13,395 …), B_OVERPAID 2 (JAKIR HOSSAIN 2,800 · PRANAB GHOSH 1,500), C_DUP 180 (বেশিরভাগ একই নাম আলাদা মোবাইল; একই মোবাইল: PKB/PRANAB BISWAS Jalpaiguri, NIPEN ROY, PROSANTO SARKAR, Dr. Md Answar)",
   "proof": "CSV ce9ef431 → 00_SQL/V1408_RESULT_2026-09-12.csv",
   "what": "শুধু পড়া"
+ },
+ {
+  "sql_file": "00_SQL/V1410_JAKIR_HOSSAIN_DUPLICATE_MERGE_2026-09-12.sql (তালিকা ৫১৫)",
+  "run_by": "TK",
+  "when": "১৩.০৯.২০২৬ রাত ১২.০১",
+  "result": "JAKIR HOSSAIN +917407407675 KHOCHABARI · call_notes 1 · referral_entries 1 · jakir_records_now 1 (নকলটা মিশে গেছে)",
+  "proof": "CSV 8ec11c3b",
+  "what": "নকল রেকর্ডের কল-নোট/রিমার্ক আসলটায় তোলা হয়েছে, নকলটা মুছে deleted_records-এ চিহ্ন"
+ },
+ {
+  "sql_file": "00_SQL/V1411_JH_MANDAL_GULGAR_HOSSAIN_STOP_COMMISSION_2026-09-12.sql (তালিকা ৫১৫)",
+  "run_by": "TK",
+  "when": "১৩.০৯.২০২৬ রাত ১২.০৬",
+  "result": "GULGAR HOSSAIN · capped_amount 2205.50 · audit_rows 1",
+  "proof": "CSV 9be5008d",
+  "what": "JH MANDAL-এর এক রোগীর কমিশন এখানেই বন্ধ"
  }
 ]
