@@ -401,5 +401,13 @@
   "result": "GULGAR HOSSAIN · capped_amount 2205.50 · audit_rows 1",
   "proof": "CSV 9be5008d",
   "what": "JH MANDAL-এর এক রোগীর কমিশন এখানেই বন্ধ"
+ },
+ {
+  "sql_file": "00_SQL/V1413_JAYANTA_BANE_RECORD_14000_PAYMENT_2026-09-13.sql (তালিকা ৫১৫)",
+  "run_by": "TK",
+  "when": "১৩.০৯.২০২৬ রাত ১২.১১",
+  "result": "JAYANTA BANE · amount 14000 · expense_id 1987524a · audit_rows 1",
+  "proof": "CSV e14344cc",
+  "what": "সরাসরি RMP-পেমেন্ট ₹14,000 (তারিখ ১২.০৯.২০২৬, অনলাইন) ঢোকানো — ব্রাঞ্চের খরচেও যোগ হয়েছে"
  }
 ]
