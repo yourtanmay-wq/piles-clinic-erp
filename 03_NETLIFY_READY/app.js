@@ -23596,6 +23596,10 @@ function wlv1SearchMore(mobile){
     + `<button class="ghost" onclick="closeModal();contact('${m}','call')">\u{1F4DE} Call</button>`
     + `<button class="ghost" onclick="closeModal();contact('${m}','wa')">\u{1F4AC} WhatsApp</button>`
     + `<button class="ghost" onclick="closeModal();wlv1SearchPrint('${m}')">\u{1F5A8}\uFE0F Print</button>`
+    /* 📋 V1401 (TK: "ডেমোর মতো করুন") — কম্পিউটারের বাড়তি দুটো বোতাম কার্ড থেকে এখানে;
+       কাজ একই ফাংশন (wlv1ReportCard / wlv1ClinicalHistory), কিছু হারায়নি। */
+    + `<button class="ghost" onclick="closeModal();wlv1ReportCard('${m}')">\u{1F4CB} Report Card</button>`
+    + `<button class="ghost" onclick="closeModal();wlv1ClinicalHistory('${m}')">\u{1F4DA} Clinical History</button>`
     /* ⚡ V1401 (TK-নির্দেশ) — Take Action: কম্পিউটারে রোগীর সব কাজ Full Journey
        (Patient Summary) পাতাতেই থাকে, তাই সেটাই খোলে — ফোনের মতোই একই গন্তব্য। */
     + `<button class="ghost" onclick="closeModal();wlv1FullJourney('${m}')">\u26A1 Take Action</button>`
@@ -23651,20 +23655,20 @@ function wlv1SearchCard(r){
       <button class="wlv1SDots" title="More" onclick="wlv1SearchMore('${m}')">⋮</button>
     </div>
     <div class="wlv1SChips">${r.branch?`<b class="wlv1SBr">${esc(r.branch)}</b>`:''}<span class="wlv1SChip stage">${esc(stg.label)}</span>${dis?`<span class="wlv1SChip dis">${esc(dis)}</span>`:''}${dt?`<span class="wlv1SDate">${esc(dt)}</span>`:''}${stg.flag?`<span class="wlv1SChip red">${esc(stg.flag)}</span>`:''}</div>
-    <div class="wlv1SMob"><span class="wlv1SPh" onclick="wlv1SearchCall('${m}')" ${hold('Mobile number',mob(r.mobile))}>\u{1F4DE} ${esc(shownMob(r.mobile))}</span>${alt?`<span class="wlv1SSep">·</span><span class="wlv1SPh alt" onclick="wlv1SearchCall('${alt}')" ${hold('Mobile number',r.altMobile)}>\u{1F4DE} Alt ${alt}</span>`:(pid?`<span class="wlv1SSep">·</span><span class="wlv1SPidIn">${pid}</span>`:'')}</div>
+    <div class="wlv1SMob"><span class="wlv1SPh" onclick="wlv1SearchCall('${m}')" ${hold('Mobile number',mob(r.mobile))}>\u{1F4DE} ${m}</span>${alt?`<span class="wlv1SSep">·</span><span class="wlv1SPh alt" onclick="wlv1SearchCall('${alt}')" ${hold('Mobile number',r.altMobile)}>\u{1F4DE} Alt ${alt}</span>`:(pid?`<span class="wlv1SSep">·</span><span class="wlv1SPidIn">${pid}</span>`:'')}</div>
     ${(alt&&pid)?`<div class="wlv1SPid">${pid}</div>`:''}
     ${addr?`<div class="wlv1SAddr" onclick="wlv1OpenPatientCard('${m}')">\u{1F4CD} <span ${hold('Address')}>${esc(addr)}</span></div>`:''}
-    <div class="wlv1SGrid">
+    ${/* 🎨 V1401 (TK: "ডেমোর মতো করুন") — ফোনের হুবহু: তিনটে বোতাম এক সারিতে,
+         মেডিসিন-বাকি নিচে এক লাইনে। Report Card · Clinical History এখন ⋮-এ। */''}
+    <div class="wlv1SGrid wlv1SGrid3">
       ${act('\u{1F4B3}','Payment','blue',`patientPaymentHome()`)}
       ${act('\u{1F9ED}','Full Journey','purple',`wlv1FullJourney('${m}')`)}
-      ${act('\u{1F4CB}','Report Card','g',`wlv1ReportCard('${m}')`)}
-      ${act('\u{1F4DA}','Clinical History','',`wlv1ClinicalHistory('${m}')`)}
-      ${(function(){var __d=wlv1MedDueOf(r.mobile);
-        return __d>0
-          ? `<button class="wlv1SAct wlv1SMedDue" onclick="wlv1MedDueOpen('${m}')"><span>\u{1F48A}</span><b>Med. Due ${esc(money(__d))}</b></button>`
-          : `<button class="wlv1SAct wlv1SNoDue" type="button" onclick="return false"><span>\u{1F48A}</span><b>No med. due</b></button>`;})()}
       ${act('\u{1F3E5}','Mark Arrived','amber',`wlv1MarkArrived('${m}')`)}
     </div>
+    ${(function(){var __d=wlv1MedDueOf(r.mobile);
+        return __d>0
+          ? `<div class="wlv1SDue red" onclick="wlv1MedDueOpen('${m}')">\u{1F48A} Med. Due ${esc(money(__d))} \u2014 tap to collect</div>`
+          : `<div class="wlv1SDue">\u{1F48A} No medicine due</div>`;})()}
   </div></div>`;
 }
 window["wlv1SearchCard"]=wlv1SearchCard;

@@ -1051,23 +1051,25 @@ class GlobalSearchActivity : AppCompatActivity() {
                 return LinearLayout(ctx).apply {
                     orientation = LinearLayout.HORIZONTAL
                     gravity = android.view.Gravity.CENTER
-                    setPadding(dp(4), dp(9), dp(4), dp(9))
+                    // ৩৬০dp-র সরু ফোনেও "Mark Arrived" যেন না কাটে — মেপে: প্রতিটা বোতাম ≈১০১dp,
+                    // আইকন ১৫ + ফাঁক ৪ + লেখা (৯.৫sp bold ≈ ৬৬dp) + প্যাডিং ৬ = ৯১dp < ১০১dp।
+                    setPadding(dp(3), dp(9), dp(3), dp(9))
                     background = android.graphics.drawable.GradientDrawable().apply {
                         cornerRadius = dp(11).toFloat()
                         orientation = android.graphics.drawable.GradientDrawable.Orientation.TL_BR
                         colors = fillColors
                     }
                     val lp = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-                    lp.marginEnd = dp(3); lp.marginStart = dp(3)
+                    lp.marginEnd = dp(2); lp.marginStart = dp(2)
                     layoutParams = lp
                     isClickable = true; isFocusable = true
                     setOnClickListener { action() }
                     addView(TextView(ctx).apply {
-                        this.text = icon; textSize = 13f
+                        this.text = icon; textSize = 12f
                         layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).also { it.marginEnd = dp(4) }
                     })
                     addView(TextView(ctx).apply {
-                        this.text = text; textSize = 10.5f
+                        this.text = text; textSize = 9.5f
                         setTypeface(typeface, android.graphics.Typeface.BOLD)
                         setTextColor(android.graphics.Color.WHITE)
                         maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END

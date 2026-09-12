@@ -2193,22 +2193,43 @@ button.doctorKpi{cursor:pointer}
    per row, Mark Arrived on its own full width row).
    ============================================================ */
 .wlv1Search .input{margin-bottom:10px}
-.wlv1SCard{background:#fff;border-radius:16px;overflow:hidden;margin-bottom:12px;
-  box-shadow:0 6px 18px rgba(11,43,89,.10)}
-.wlv1SHead{display:flex;align-items:center;gap:12px;padding:14px;
-  background:linear-gradient(135deg,#0A5428,#0EA25F)}
-.wlv1SAva{width:44px;height:44px;border-radius:22px;display:flex;align-items:center;
-  justify-content:center;font-weight:900;color:#1B2432;
-  background:linear-gradient(135deg,#F4F6F9,#A7ADB8)}
-.wlv1SName{color:#fff;font-size:15px;font-weight:900}
-.wlv1SMeta{color:#E4FFF1;font-size:12px;margin-top:2px}
-.wlv1STag{margin-left:auto;background:rgba(255,255,255,.18);color:#fff;font-size:11px;
-  font-weight:800;padding:4px 10px;border-radius:999px}
-.wlv1SGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;padding:12px 12px 0 12px}
-.wlv1SAct{display:flex;align-items:center;gap:8px;height:42px;border-radius:12px;
+/* 🎨🔒 V1401 — Search কার্ডের ভিত্তি-সাজ (ডেস্কটপেও এটাই চলে; নিচের ২৩ নম্বর
+   সেকশনের !important কপি শুধু ফোন-চওড়ায় (max-width:899px) — দুটো এক রাখা হলো,
+   নইলে কম্পিউটারে পুরনো সবুজ হেডার থেকে যেত, যেটা TK ধরেছেন)। */
+.wlv1SCard{background:#fff;border-radius:14px;overflow:hidden;margin-bottom:12px;
+  box-shadow:0 6px 18px rgba(11,43,89,.10);display:flex;flex-direction:row;align-items:stretch}
+.wlv1SBar{flex:0 0 5px;width:5px;background:#0EA25F}
+.wlv1SBody{flex:1 1 auto;min-width:0;padding:11px 11px 10px 11px}
+.wlv1SHead{display:flex;align-items:flex-start;gap:8px;padding:0;background:none;color:#0B2B59}
+.wlv1SName{flex:1 1 auto;min-width:0;color:#0B2B59;font-size:15px;font-weight:800;line-height:1.2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;cursor:pointer;user-select:none}
+.wlv1SDots{width:32px;height:32px;min-width:32px;border-radius:9px;background:#EEF2F7;color:#0B2B59;border:0;font-size:17px;font-weight:700;cursor:pointer;flex:0 0 auto;margin:0}
+.wlv1SChips{display:flex;flex-wrap:wrap;align-items:center;gap:5px 7px;margin-top:6px}
+.wlv1SBr{font-size:11.5px;font-weight:700;color:#0A5428;white-space:nowrap}
+.wlv1SChip{display:inline-block;font-size:10px;font-weight:700;border-radius:20px;padding:2px 8px;white-space:nowrap;line-height:1.5}
+.wlv1SChip.stage{background:#FBE9B7;color:#7A5200}
+.wlv1SChip.dis{background:#E8F5EE;color:#0A5428}
+.wlv1SChip.red{background:#B42318;color:#fff}
+.wlv1SDate{font-size:10.5px;color:#5B6B7C;white-space:nowrap}
+.wlv1SMob{display:flex;flex-wrap:wrap;align-items:center;gap:0 6px;margin-top:6px;font-size:12.5px}
+.wlv1SPh{font-weight:700;color:#0B2B59;cursor:pointer;white-space:nowrap;user-select:none}
+.wlv1SPh.alt{color:#1D6FE0}
+.wlv1SSep{color:#8B98A9}
+.wlv1SPidIn,.wlv1SPid{font-size:11.5px;color:#5B6B7C;white-space:nowrap}
+.wlv1SPid{margin-top:2px}
+.wlv1SAddr{font-size:11.5px;color:#6B7A8C;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;user-select:none}
+.wlv1SGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;padding:9px 0 0 0}
+.wlv1SGrid.wlv1SGrid3{grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
+.wlv1SAct{display:flex;align-items:center;justify-content:center;gap:6px;height:42px;border-radius:12px;
   background:#F4F6F9;color:#1B2432;font-weight:800;font-size:12px;box-shadow:none;
-  padding:0 10px;white-space:nowrap;overflow:hidden}
+  padding:0 10px;white-space:nowrap;overflow:hidden;min-width:0}
+.wlv1SGrid3 .wlv1SAct{padding:0 2px;gap:3px}
+.wlv1SGrid3 .wlv1SAct>b{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .wlv1SAct.g{background:#0EA25F;color:#fff}
+.wlv1SAct.blue{background:linear-gradient(135deg,#1D6FE0,#1457B8);color:#fff}
+.wlv1SAct.purple{background:linear-gradient(135deg,#8A63E8,#6A3FCB);color:#fff}
+.wlv1SAct.amber{background:linear-gradient(135deg,#D98A2B,#B45309);color:#fff}
+.wlv1SDue{font-size:11.5px;color:#8B98A9;margin-top:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wlv1SDue.red{color:#B42318;font-weight:700;cursor:pointer}
 .wlv1SWide{width:calc(100% - 24px);margin:8px 12px 12px 12px;justify-content:center}
 
 /* ============================================================
@@ -3267,9 +3288,9 @@ body.hasDeskNav .wrap:not(.publicWrap) .enquiryCard{max-width:900px;display:grid
    ছোট/কমপ্যাক্ট — মোবাইল/Android অক্ষত। */
 @media(min-width:900px){
   body.hasDeskNav .wrap:not(.publicWrap) .wlv1SAct{height:32px;font-size:11px;padding:0 8px;border-radius:9px;gap:5px}
-  body.hasDeskNav .wrap:not(.publicWrap) .wlv1SGrid{gap:6px;padding:10px 10px 0 10px}
+  body.hasDeskNav .wrap:not(.publicWrap) .wlv1SGrid{gap:6px;padding:9px 0 0 0}   /* 🎨 V1401 — নতুন কার্ডে গ্রিডের পাশে প্যাডিং নেই */
   body.hasDeskNav .wrap:not(.publicWrap) .wlv1SWide{height:32px;font-size:11px;margin:6px 10px 10px 10px}
-  body.hasDeskNav .wrap:not(.publicWrap) .wlv1SHead{padding:10px 12px}
+  body.hasDeskNav .wrap:not(.publicWrap) .wlv1SHead{padding:0}   /* 🎨 V1401 */
   body.hasDeskNav .wrap:not(.publicWrap) .wlv1SAva{width:36px;height:36px;border-radius:18px;font-size:12px}
   body.hasDeskNav .wrap:not(.publicWrap) .wlv1SName{font-size:13.5px}
   body.hasDeskNav .wrap:not(.publicWrap) .wlv1SMeta{font-size:11px}
@@ -3277,6 +3298,8 @@ body.hasDeskNav .wrap:not(.publicWrap) .enquiryCard{max-width:900px;display:grid
      Payment/Full Journey/Report Card/Mark Arrived-এর সবুজ রঙ ডেস্কটপে
      ধূসর করা হলো — মোবাইলে/Android-এ আগের সবুজ অক্ষত। */
   body.hasDeskNav .wrap:not(.publicWrap) .wlv1SAct.g{background:#F4F6F9;color:#1B2432}
+  /* 🎨 V1401 — ডেস্কটপে TK-র ওই একই নিয়ম নতুন তিন বোতামেও (নীল/বেগুনি/কমলা → ধূসর); ফোন-চওড়ায় রঙিন। */
+  body.hasDeskNav .wrap:not(.publicWrap) .wlv1SAct.blue,body.hasDeskNav .wrap:not(.publicWrap) .wlv1SAct.purple,body.hasDeskNav .wrap:not(.publicWrap) .wlv1SAct.amber{background:#F4F6F9;color:#1B2432}
 }
 
 /* 🖥️🔧 Report Card — Print/PDF/Text বোতাম হেডারে (Android-এ শুধু "🖨 Print"
@@ -4161,6 +4184,13 @@ button.small{min-height:36px!important;font-size:13px!important;border-radius:12
 .wlv1SAct.blue{background:linear-gradient(135deg,#1D6FE0,#1457B8)!important;color:#fff!important}
 .wlv1SAct.purple{background:linear-gradient(135deg,#8A63E8,#6A3FCB)!important;color:#fff!important}
 .wlv1SAct.amber{background:linear-gradient(135deg,#D98A2B,#B45309)!important;color:#fff!important}
+/* 🎨 V1401 (TK: "ডেমোর মতো করুন") — তিনটে বোতাম এক সারিতে + মেডিসিন-বাকি এক লাইনে (ফোনের হুবহু) */
+.wlv1SGrid.wlv1SGrid3{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:4px!important}
+.wlv1SGrid3 .wlv1SAct{padding:9px 1px!important;gap:3px!important;min-width:0!important}
+.wlv1SGrid3 .wlv1SAct>span{font-size:11px!important}
+.wlv1SGrid3 .wlv1SAct>b{font-size:9px!important;letter-spacing:0!important}
+.wlv1SDue{font-size:11.5px!important;color:#8B98A9!important;margin-top:7px!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+.wlv1SDue.red{color:#B42318!important;font-weight:700!important;cursor:pointer!important}
 
 /* ── ২৪. LOGIN — activity_login.xml ─────────────────────────────────────── */
 .modal:has(.wlv1Hero){padding:0!important;border-radius:20px!important;overflow:hidden!important;background:transparent!important;box-shadow:none!important}
