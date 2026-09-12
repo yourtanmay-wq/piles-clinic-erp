@@ -1838,16 +1838,64 @@ class PatientTimelineActivity : AppCompatActivity() {
             threshold = 1                       // এক অক্ষর টাইপ করলেই দেখাতে শুরু করবে
             setSingleLine(true)
         }
-        box.addView(refNameInput, android.widget.LinearLayout.LayoutParams(
-            android.widget.LinearLayout.LayoutParams.MATCH_PARENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { bottomMargin = dp(8) })
         val refMobileInput = android.widget.EditText(this).apply {
             setText(currentRefDoctorMobile); hint = "Doctor Mobile"
             inputType = android.text.InputType.TYPE_CLASS_PHONE
             setBackgroundResource(com.tkbiswas.pilesclinic.R.drawable.bg_input_field)
             setPadding(dp(14), dp(12), dp(14), dp(12))
         }
-        box.addView(refMobileInput, android.widget.LinearLayout.LayoutParams(
+        /* 🔒🔒 V1414 (১৩.০৯.২০২৬, TK-নির্দেশ, ডেমো পাশ — খাতার সারি ৫১৬):
+           TK: *"বসে যখন গেছে অটোমেটিক... মনে হলো যে এখনই আমি করলাম"* — রোগীর
+           রেজিস্ট্রেশনে যে ডাক্তারের নাম আগে থেকেই ছিল, সেটা এই ঘরে এসে বসত ঠিকই
+           (B672, ২০.০৭.২০২৬-এর নিয়ম অপরিবর্তিত), কিন্তু দেখতে ঠিক নিজে-টাইপ-করা
+           লেখার মতোই ছিল। এখন আগে থেকে বসানো নাম/নম্বর হালকা রঙে + 🔒 আইকন সহ
+           দেখায়; ঘরে চাপ দিলেই (ফোকাস পেলেই) সঙ্গে সঙ্গে সাধারণ রঙে বদলে যায় ও
+           সম্পাদনযোগ্য থাকে — এক অক্ষরও লক নয়, শুধু "এটা আগে থেকে বসানো" বোঝানো। */
+        val refNormalColor = refNameInput.currentTextColor
+        val refMobileNormalColor = refMobileInput.currentTextColor
+        val refMutedColor = android.graphics.Color.parseColor("#94A3B8")
+        var refNameLocked = currentRefDoctor.isNotBlank()
+        var refMobileLocked = currentRefDoctorMobile.isNotBlank()
+        fun lockIcon(): TextView = TextView(this).apply {
+            text = "🔒"; textSize = 13f
+            setPadding(dp(12), 0, 0, 0)
+            layoutParams = android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT, android.widget.FrameLayout.LayoutParams.MATCH_PARENT
+            ).apply { gravity = android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL }
+        }
+        val refNameLockIcon = lockIcon()
+        val refMobileLockIcon = lockIcon()
+        fun applyNameLockStyle() {
+            if (refNameLocked) {
+                refNameInput.setTextColor(refMutedColor)
+                refNameInput.setPadding(dp(34), dp(12), dp(14), dp(12))
+                refNameLockIcon.visibility = View.VISIBLE
+            } else {
+                refNameInput.setTextColor(refNormalColor)
+                refNameInput.setPadding(dp(14), dp(12), dp(14), dp(12))
+                refNameLockIcon.visibility = View.GONE
+            }
+        }
+        fun applyMobileLockStyle() {
+            if (refMobileLocked) {
+                refMobileInput.setTextColor(refMutedColor)
+                refMobileInput.setPadding(dp(34), dp(12), dp(14), dp(12))
+                refMobileLockIcon.visibility = View.VISIBLE
+            } else {
+                refMobileInput.setTextColor(refMobileNormalColor)
+                refMobileInput.setPadding(dp(14), dp(12), dp(14), dp(12))
+                refMobileLockIcon.visibility = View.GONE
+            }
+        }
+        applyNameLockStyle(); applyMobileLockStyle()
+        refNameInput.setOnFocusChangeListener { _, hasFocus -> if (hasFocus && refNameLocked) { refNameLocked = false; applyNameLockStyle() } }
+        refMobileInput.setOnFocusChangeListener { _, hasFocus -> if (hasFocus && refMobileLocked) { refMobileLocked = false; applyMobileLockStyle() } }
+        val refNameFrame = android.widget.FrameLayout(this).apply { addView(refNameInput); addView(refNameLockIcon) }
+        val refMobileFrame = android.widget.FrameLayout(this).apply { addView(refMobileInput); addView(refMobileLockIcon) }
+        box.addView(refNameFrame, android.widget.LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams.MATCH_PARENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { bottomMargin = dp(8) })
+        box.addView(refMobileFrame, android.widget.LinearLayout.LayoutParams(
             android.widget.LinearLayout.LayoutParams.MATCH_PARENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
         ).apply { bottomMargin = dp(10) })
         /* ═══════════════════════════════════════════════════════════════════
@@ -1964,7 +2012,8 @@ class PatientTimelineActivity : AppCompatActivity() {
                 if (picked != null) {
                     // ⛔ দুই-প্যারামিটারের setText — নইলে বসানোর সঙ্গে সঙ্গে তালিকা আবার খুলত
                     refNameInput.setText(picked.name, false)
-                    if (picked.mobile.isNotBlank()) refMobileInput.setText(picked.mobile)
+                    refNameLocked = false; applyNameLockStyle()
+                    if (picked.mobile.isNotBlank()) { refMobileInput.setText(picked.mobile); refMobileLocked = false; applyMobileLockStyle() }
                     /* 🟢🔒 B673 (TK: "হ্যাঁ, তবে ফিনান্স খোলা থাকলেই") — এই ডাক্তারের
                        সেভ করা কমিশন (% বা টাকা) থাকলে নিজে থেকে বসে যায়।
                        ⛔ Finance মডিউল খোলা না থাকলে `getDefault` নিজেই ব্যর্থ হয়ে
