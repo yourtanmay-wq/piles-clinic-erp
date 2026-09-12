@@ -26233,3 +26233,16 @@ V1385 (শুধু পড়ার SQL, sql_local_check.py ✅ PASS) TK-কে 
 - verify_kotlin_compile.py ✅ PASS (নতুন ভুল ০) · verify_android_resources ✅ · tk_guard ✅ (মেশিন-ভুল ০)।
   প্রথম চালানোয় "unresolved: earned" এসেছিল — kotlinc-এ coroutine লাইব্রেরি নেই বলে withContext-এর
   ফল থেকে টাইপ অনুমান ভাঙছিল (আগের কোডে paid/due-ও বেসলাইনে একই গোলমাল); explicit টাইপ বসিয়ে ঠিক।
+
+## ১২.০৯.২০২৬ রাত ১১.৩০ — V1404-এর পরে ফোনে RMP Paid/Due কম (তালিকা ৫১২) → V1405 · V1406
+
+- TK-র ৩ ছবি (পুরনো V1400 অ্যাপ): JAKIR ₹0/₹0 · PK ₹0/₹0 · PKB ₹8,801/₹0 — পুরনো অ্যাপের সূত্রে এই
+  সংখ্যা শুধু তখনই আসে যখন rmp_rmp_summary-র ডাক ব্যর্থ হয়।
+- V1405 (pg_temp-এ V1404-এর হিসাব-অংশ, auth-পাহারা ছাড়া, শুধু পড়া) TK চালালেন → CSV: JAKIR earned/paid
+  5200/5200 · PK due ₹4 (SADIKA KHATUN) · PKB due 8,504 (FRANCIS SOREN) — অঙ্ক ঠিক। ⇒ সমস্যা অ্যাপ-পথে
+  (authenticated + security definer) — দুই পথের একমাত্র তফাত `create temp table`।
+- V1406: rmp_patient_breakdown / rmp_rmp_summary / rmp_branch_due অস্থায়ী টেবিল ছাড়া (CTE + window
+  function দিয়ে "পুরনো বাকি আগে" বণ্টন), সাথে পয়সার ভগ্নাংশ (TAPOSHI ₹0.20 বাকি) পুরো টাকায় গোল,
+  RMP-র Due = রোগী-ধরে বাকির যোগ (দুই পর্দা হুবহু এক), `notify pgrst`। নকল ডেটাবেসে ৩-রোগী দৃশ্যে
+  (auto + হাতে-লেখা + legacy-only Rahim + থোক ₹5,496 → Rahim 1500 আগে, FRANCIS 3996) যাচাই ✅।
+  ⚠️ sql_local_check.py এখানেও FIN_FILES ফাঁকে FAIL দেবে — বাড়ানো নকলে যাচাই করা।
