@@ -3286,7 +3286,12 @@ class FollowUpRepository(private val context: Context? = null) {
      *    পুরনো কিছুই হারায় না।
      * ⛔ ডেটাবেসে নতুন কোনো টেবিল/কলাম লাগে না — `history` আগে থেকেই JSON।
      */
-    fun updateRemark(id: String, remark: String, staffName: String, incrementCall: Boolean = false, stampCallDate: Boolean = false, source: String = ""): Boolean {
+    /* 💰🔒 V1403 — `systemNote = true` = অ্যাপের নিজের লেখা নোট (যেমন "Bill corrected…"),
+       স্টাফের কল নয় ⇒ হিস্ট্রি/lastRemark-এ লেখা হয়, কিন্তু কল-গোনা · lastCallDate ·
+       (তার সূত্রে V1065-এর `nextFollow`=আজ) — কিছুই বসে না। TK-র CSV-তে পেন্ডিং ১২-র
+       ৭টা ঠিক এই নোট থেকেই "আজকের কল"-এ ঢুকেছিল। ওয়েবের বিল-ঠিক পথ আগে থেকেই
+       কল ধরে না — এখন ফোনও এক। ⛔ ডিফল্ট false ⇒ বাকি সব ডাক অপরিবর্তিত। */
+    fun updateRemark(id: String, remark: String, staffName: String, incrementCall: Boolean = false, stampCallDate: Boolean = false, source: String = "", systemNote: Boolean = false): Boolean {
         // Match the WebView's updateFollowAction: append to the history log and,
         // when this is an enquiry call, bump callCount (capped at 5) + stamp today.
         val existing = SupabaseClient.fetchList("followups", "id=eq.$id", 1)
@@ -3398,7 +3403,7 @@ class FollowUpRepository(private val context: Context? = null) {
              থেকে লেখা হলো তাতে কিছু আসে যায় না।
            ⛔ "দিনে একবার" নিয়ম অটুট (খাতার সারি B53) · ৫ বারের সীমা অটুট ·
               ফাঁকা রিমার্কে কিছুই বদলায় না · সারিটা পড়া না গেলে হাত পড়ে না। */
-        if (remark.isNotBlank() && haveRow) {
+        if (remark.isNotBlank() && haveRow && !systemNote) {   // 💰 V1403 — অ্যাপের নোট কল নয়
             // 🔒 খাতার সারি B53 (TK, 28.07.2026 রাত): **দিনে একবারই।**
             // আগে একই দিনে দুটো রিমার্ক লিখলে দাগ (call signal) দু'ঘর বেড়ে
             // যেত, অথচ কম্পিউটারের নিয়ম চিরকাল ছিল "দিনে একবার"

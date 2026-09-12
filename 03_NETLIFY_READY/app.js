@@ -4010,7 +4010,7 @@ function overview(){
   return {cash,on:upi,upi,total:cash+upi,cashCount,onCount:upiCount,upiCount,totalCount:all.length};
 }
 window["overview"]=overview;
-function counts(){let f=scoped(load('followups')),p=scoped(load('patients')),e=scoped(load('enquiries'));return {inq:f.filter(x=>x.stage==='Inquiry'&&!isConvertedOrClosed(x)).length,pat:f.filter(x=>x.stage==='Patient'&&!isConvertedOrClosed(x)).length,tr:f.filter(x=>x.stage==='Treatment'&&!isConvertedOrClosed(x)).length,over:f.filter(x=>x.nextFollow&&x.nextFollow<=today()&&!isConvertedOrClosed(x)).length,q:p.filter(x=>wlv1Flag(x.queue)&&!wlv1Flag(x.doctorComplete)).length,reg:p.length,enq:e.length}}
+function counts(){let f=scoped(load('followups')),p=scoped(load('patients')),e=scoped(load('enquiries'));return {inq:f.filter(x=>x.stage==='Inquiry'&&!isConvertedOrClosed(x)).length,pat:f.filter(x=>x.stage==='Patient'&&!isConvertedOrClosed(x)).length,tr:f.filter(x=>x.stage==='Treatment'&&!isConvertedOrClosed(x)).length,over:f.filter(x=>x.nextFollow&&x.nextFollow<=today()&&!x.noMoreCalls&&!wlv1AlreadyCalled(x)&&!isConvertedOrClosed(x)).length,   /* 📞 V1403 */q:p.filter(x=>wlv1Flag(x.queue)&&!wlv1Flag(x.doctorComplete)).length,reg:p.length,enq:e.length}}
 window["counts"]=counts;
 function wlv1TileTheme(t){
  // Dashboard tile colours, copied from the native Android app so both look the same.
@@ -4162,9 +4162,18 @@ function wlv1StoppedMobiles(){
   return s;
 }
 window["wlv1StoppedMobiles"]=wlv1StoppedMobiles;
+/* 📞🔒 V1403 (১২.০৯.২০২৬ রাত, TK-নির্দেশ — তালিকা সারি ৫০৮) — ফোনের
+   FollowUpModel.alreadyCalled-এর হুবহু যমজ: "যে তারিখে কল বাকি, সেই তারিখে বা
+   পরে কল হয়ে গেলে সেটা আর বাকি নয়"। কল-তালিকা · ব্যানার · গোনা — সব এটাই দেখে। */
+function wlv1AlreadyCalled(x){
+  var nf=String((x&&x.nextFollow)||'').slice(0,10), lc=String((x&&x.lastCallDate)||'').slice(0,10);
+  return !!nf && !!lc && lc>=nf;
+}
+window["wlv1AlreadyCalled"]=wlv1AlreadyCalled;
 function wlv1CallDue(x){
   var d=String((x&&x.nextFollow)||'');
   if(!d) return false;
+  if(wlv1AlreadyCalled(x)) return false;   /* 📞 V1403 */
   /* 📵 V1206 — "আর কল লাগবে না" বলা সারি কল-তালিকায় আর আসে না (ফোনের যমজ)। */
   if(x&&x.noMoreCalls) return false;
   try{ var __m=mob(x&&x.mobile); if(__m.length===10&&wlv1StoppedMobiles().has(__m)) return false }catch(_e){}
@@ -4175,7 +4184,7 @@ function wlv1CallDue(x){
 window["wlv1CallDue"]=wlv1CallDue;
 function wlv1CallLate(x){
   var d=String((x&&x.nextFollow)||'');
-  return !!d && d<today();
+  return !!d && d<today() && !wlv1AlreadyCalled(x);   /* 📞 V1403 */
 }
 window["wlv1CallLate"]=wlv1CallLate;
 function headerBell(){
@@ -7788,8 +7797,8 @@ function applySharedFollowDateFilter(rows,stage){
       ⛔ Android-এ ঠিক একই নিয়ম (FollowUpActivity.bannerCallsOnly)। */
    /* 🟢 V590 — ব্যানারের সংখ্যা আর এই তালিকা যেন কখনো আলাদা না হয়, তাই
       এখানেও আজকের + বকেয়া (উপরের `wlv1TodayCallRows`-এর হুবহু একই নিয়ম)। */
-   if(f.callsOnly) return rows.filter(x=>{const d=String(x.nextFollow||'').slice(0,10); return d!=='' && d<=t;});
-   return rows.filter(x=>String(x.nextFollow||'').slice(0,10)===t || followRecordDate(x,stage)===t);
+   if(f.callsOnly) return rows.filter(x=>{const d=String(x.nextFollow||'').slice(0,10); return d!=='' && d<=t && !wlv1AlreadyCalled(x);});   /* 📞 V1403 */
+   return rows.filter(x=>(String(x.nextFollow||'').slice(0,10)===t && !wlv1AlreadyCalled(x)) || followRecordDate(x,stage)===t);
  }
  return rows.filter(x=>{
    const d=String(x.nextFollow||'').slice(0,10);
@@ -8228,7 +8237,7 @@ window["todayPendingCall"]=todayPendingCall;function followStats(tab){
       }
       rows=applySharedFollowDateFilter(rows,tab);
       rows=sortFollowRowsByRecent(rows,tab);
-      let total=rows.length,pending=rows.filter(x=>!x.nextFollow||x.nextFollow>=today()).length,due=rows.filter(x=>x.nextFollow===today()).length,priority=rows.filter(x=>x.nextFollow&&x.nextFollow<=today()).length;
+      let total=rows.length,pending=rows.filter(x=>!x.nextFollow||x.nextFollow>=today()).length,due=rows.filter(x=>x.nextFollow===today()&&!wlv1AlreadyCalled(x)).length,priority=rows.filter(x=>x.nextFollow&&x.nextFollow<=today()&&!wlv1AlreadyCalled(x)).length;   /* 📞 V1403 */
       return {rows,total,pending,due,priority};
     }
 window.followStats=followStats;
@@ -8314,7 +8323,7 @@ function wlv1TodayCallRows(){
         var rows=followStats(stage).rows.filter(function(x){
           if(x.noMoreCalls) return false;
           var d=String(x.nextFollow||'').slice(0,10);
-          return d!=='' && d<=t;
+          return d!=='' && d<=t && !wlv1AlreadyCalled(x);   /* 📞 V1403 */
         });
         var g=wlv1BranchGate(rows);
         /* গেট `null` = মাস্টার এখনো ব্রাঞ্চ বাছেননি ⇒ আগের মতোই সব ব্রাঞ্চ। */
@@ -8477,7 +8486,7 @@ function openFollowFilter(stage){modal(`<h2>Filter</h2><label>Date</label><selec
 window["openFollowFilter"]=openFollowFilter;
 function dateRange(v){let d=new Date(today()+'T00:00:00'),fmt=x=>x.toISOString().slice(0,10);if(v==='Today')return [today(),today()];if(v==='Last Week'){let a=new Date(d);a.setDate(d.getDate()-7);return [fmt(a),today()]};if(v==='Last Month'){let a=new Date(d);a.setMonth(d.getMonth()-1);return [fmt(a),today()]};return ['', '']}
 window["dateRange"]=dateRange;
-function applyFollowFilter(stage){if(typeof window._invalidateFollowLookupCache==='function')window._invalidateFollowLookupCache();let rows=mergeFollow(scoped(load('followups'))).filter(x=>x.stage===stage);let statusFilterDefault=true;let dr=$('#ffDate').value,[from,to]=dateRange(dr);if(dr==='Custom Date'){from=$('#ffFrom').value;to=$('#ffTo').value}let br=$('#ffBranch').value,dis=$('#ffDisease').value,st=$('#ffStatus').value,fu=$('#ffFollow').value,staff=mob($('#ffStaff').value);if(!st)rows=rows.filter(x=>!isConvertedOrClosed(x));rows=rows.filter(x=>{let baseDate=(fu==='Today Pending')?x.nextFollow:(x.recordDate||x.date||x.nextFollow||'');return (!from||baseDate>=from)&&(!to||baseDate<=to)&&(!br||sameBranch(x.branch,br))   /* 🔴 V436 */&&(!dis||wlv1HasDisease(x.disease,dis))&&(!st||x.status===st)&&(!staff||mob((x.history||[]).slice(-1)[0]?.staff||x.receivedBy||'')===staff)&&(!fu||(fu==='Today Pending'?x.nextFollow&&x.nextFollow<=today():!x.nextFollow))});if(stage==='Inquiry')rows=sortEnquiryFollowRows(rows);closeModal();page(stageLabel(stage)+' Follow-up',`<div class="actions"><button class="small ghost iconOnly" onclick="openFollowFilter('${stage}')">⛃</button></div><div id="followRows">${rows.map(fuCard).join('')||'<div class="card mut">No records found</div>'}</div>`)}
+function applyFollowFilter(stage){if(typeof window._invalidateFollowLookupCache==='function')window._invalidateFollowLookupCache();let rows=mergeFollow(scoped(load('followups'))).filter(x=>x.stage===stage);let statusFilterDefault=true;let dr=$('#ffDate').value,[from,to]=dateRange(dr);if(dr==='Custom Date'){from=$('#ffFrom').value;to=$('#ffTo').value}let br=$('#ffBranch').value,dis=$('#ffDisease').value,st=$('#ffStatus').value,fu=$('#ffFollow').value,staff=mob($('#ffStaff').value);if(!st)rows=rows.filter(x=>!isConvertedOrClosed(x));rows=rows.filter(x=>{let baseDate=(fu==='Today Pending')?x.nextFollow:(x.recordDate||x.date||x.nextFollow||'');return (!from||baseDate>=from)&&(!to||baseDate<=to)&&(!br||sameBranch(x.branch,br))   /* 🔴 V436 */&&(!dis||wlv1HasDisease(x.disease,dis))&&(!st||x.status===st)&&(!staff||mob((x.history||[]).slice(-1)[0]?.staff||x.receivedBy||'')===staff)&&(!fu||(fu==='Today Pending'?(x.nextFollow&&x.nextFollow<=today()&&!wlv1AlreadyCalled(x)):!x.nextFollow))});   /* 📞 V1403 */if(stage==='Inquiry')rows=sortEnquiryFollowRows(rows);closeModal();page(stageLabel(stage)+' Follow-up',`<div class="actions"><button class="small ghost iconOnly" onclick="openFollowFilter('${stage}')">⛃</button></div><div id="followRows">${rows.map(fuCard).join('')||'<div class="card mut">No records found</div>'}</div>`)}
 window["applyFollowFilter"]=applyFollowFilter;function filterFollowRows(q){q=String(q||'').trim();let cards=$$('#followRows .card');cards.forEach(c=>{let text=c.textContent.toLowerCase(),digits=mob(c.textContent);let ok=!q||text.includes(q.toLowerCase())||(mob(q)&&digits.includes(mob(q)));c.style.display=ok?'':'none'});}
 window.filterFollowRows=filterFollowRows;function mergeFollow(rows){
       let c=window._getFollowLookupCache();

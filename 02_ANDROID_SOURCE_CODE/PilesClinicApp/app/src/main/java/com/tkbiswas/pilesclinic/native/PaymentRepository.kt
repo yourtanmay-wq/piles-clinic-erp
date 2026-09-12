@@ -2846,7 +2846,8 @@ class PaymentRepository(private val context: Context? = null) {
                 val fid = fu.getJSONObject(0).optString("id", "")
                 if (fid.isNotBlank()) {
                     val note = "💰 Bill corrected ₹${"%,.0f".format(oldBill)} → ₹${"%,.0f".format(newBill)} by $staffName"
-                    FollowUpRepository(context).updateRemark(fid, note, staffName)
+                    // 💰 V1403 — এটা অ্যাপের নোট, স্টাফের কল নয় (আগে কল ধরে "আজ কল করুন" বসত)
+                    FollowUpRepository(context).updateRemark(fid, note, staffName, systemNote = true)
                 }
             }
         } catch (_: Exception) { }

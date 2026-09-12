@@ -1056,8 +1056,9 @@ class FollowUpActivity : AppCompatActivity() {
             /* 📵 V1206 — "আর কল লাগবে না" বলা সারি কল-তালিকায় আর আসে না।
                ⛔ শুধু এই দুটো কল-তালিকায় (আজকের ও বকেয়া); অন্য কোনো ট্যাব,
                   খোঁজা বা গোনা ছোঁয়া হয়নি — সারিটা কোথাও হারায় না। */
-            "Today" -> if (bannerCallsOnly) items.filter { !it.noMoreCalls && it.nextFollow.isNotBlank() && it.nextFollow <= today }
-                       else items.filter { !it.noMoreCalls && (it.nextFollow == today || it.recordDate == today) }
+            /* 📞 V1403 — "ওই তারিখে/পরে কল হয়ে গেলে আর বাকি নয়" (FollowUpModel.callPending) */
+            "Today" -> if (bannerCallsOnly) items.filter { FollowUpModel.callPending(it, today) }
+                       else items.filter { !it.noMoreCalls && ((it.nextFollow == today && !FollowUpModel.alreadyCalled(it.nextFollow, it.lastCallDate)) || it.recordDate == today) }
             /* 🟢🔒 V692 — সাধারণ Overdue আগের মতোই। শুধু Briefing-এর ⚠️ Overdue
                Follow-up Alert-এর View থেকে এলে **৩+ দিন** পেরোনোগুলোই —
                DashboardActivity যে হিসাবে নোটিশের সংখ্যাটা বানায়
@@ -1066,8 +1067,8 @@ class FollowUpActivity : AppCompatActivity() {
             "Overdue" -> if (overdue3PlusOnly) {
                 val threeDaysAgo = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
                     .format(java.util.Date(System.currentTimeMillis() - 3L * 24 * 60 * 60 * 1000))
-                items.filter { !it.noMoreCalls && it.nextFollow.isNotBlank() && it.nextFollow <= threeDaysAgo }
-            } else items.filter { !it.noMoreCalls && it.nextFollow.isNotBlank() && it.nextFollow < today }
+                items.filter { FollowUpModel.callPending(it, today) && it.nextFollow <= threeDaysAgo }   // 📞 V1403
+            } else items.filter { FollowUpModel.callPending(it, today) && it.nextFollow < today }   // 📞 V1403
             "This Week" -> {
                 val cal = java.util.Calendar.getInstance()
                 cal.set(java.util.Calendar.DAY_OF_WEEK, cal.firstDayOfWeek)

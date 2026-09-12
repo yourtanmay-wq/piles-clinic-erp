@@ -313,6 +313,26 @@ object FollowUpModel {
 
     fun today(): String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
 
+    /* 📞🔒 V1403 (১২.০৯.২০২৬ রাত, TK-নির্দেশ ও অনুমোদন — তালিকা সারি ৫০৮, একই কথা
+       ৮ বার) — **"যে তারিখে কল বাকি, সেই তারিখে বা তার পরে কল হয়ে গেলে সেটা আর
+       বাকি নয়।"** TK-র CSV-তে মাপা: পেন্ডিং ১২টার ১২টাতেই `lastCallDate` ≥
+       `nextFollow` — অর্থাৎ কল হয়ে গেছে, তবু "আজ বাকি"/"বকেয়া" দেখাত (V1065 কলের
+       দিনেই `nextFollow`=আজ বসায়, আর গোনা শুধু তারিখ দেখত, কল হয়েছে কিনা দেখত না)।
+       এখন কল-তালিকা · Home-এর ব্যানার · মনে-করানো নোটিফিকেশন — সবাই এই একটাই
+       নিয়ম ডাকে (ওয়েবে `wlv1AlreadyCalled`, হুবহু যমজ)।
+       ⛔ স্টাফ ভবিষ্যতের তারিখ বাছলে সেটা আগের মতোই আসবে (ওই তারিখে কল হয়নি বলে)।
+       ⛔ `nextFollow` ফাঁকা হলে আগের মতোই গোনা হয় না; `noMoreCalls` আগের মতোই বাদ। */
+    fun alreadyCalled(nextFollow: String, lastCallDate: String): Boolean {
+        val nf = nextFollow.trim().take(10)
+        val lc = lastCallDate.trim().take(10)
+        return nf.isNotBlank() && lc.isNotBlank() && lc >= nf
+    }
+
+    /** আজ/বকেয়া কল সত্যিই বাকি কিনা — সব গোনা ও তালিকার একটাই নিয়ম (V1403)। */
+    fun callPending(item: FollowUpItem, today: String = today()): Boolean =
+        !item.noMoreCalls && item.nextFollow.isNotBlank() && item.nextFollow <= today &&
+            !alreadyCalled(item.nextFollow, item.lastCallDate)
+
     /** Days between nextFollow and today: negative = overdue, 0 = today,
      * positive = days ahead. Null if no next-follow date is set. */
     fun daysUntil(nextFollow: String): Int? {

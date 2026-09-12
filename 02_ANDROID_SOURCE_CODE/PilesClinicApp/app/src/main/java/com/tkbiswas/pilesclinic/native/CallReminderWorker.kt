@@ -99,7 +99,8 @@ class CallReminderWorker(
              কারণ ওগুলোই সবচেয়ে বেশি দেরি হয়ে গেছে।
            ⛔ তারিখ ফাঁকা হলে (কল ঠিক করাই নেই) আগের মতোই গোনা হয় না।
            ⛔ ব্রাঞ্চ/রোলের নিয়ম আগের মতোই — মাস্টারের ফোনে এই মনে-করানো যায় না। */
-        return all.filter { it.nextFollow.isNotBlank() && it.nextFollow <= today }
+        // 📞 V1403 — Home-ব্যানার/তালিকার একই নিয়ম: থামানো বা কল-হয়ে-যাওয়া সারি মনে করানো হয় না
+        return all.filter { FollowUpModel.callPending(it, today) }
             .sortedBy { it.nextFollow }
     }
 

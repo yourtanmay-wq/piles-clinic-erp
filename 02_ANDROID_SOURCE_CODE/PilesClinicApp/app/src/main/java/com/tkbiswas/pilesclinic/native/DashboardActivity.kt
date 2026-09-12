@@ -872,10 +872,11 @@ class DashboardActivity : AppCompatActivity() {
                ("কল-তালিকা ও ব্যানার থেকে সরে যাবে") এটাই প্রতিশ্রুতি দেয়।
                ⇒ এখন গোনাতেও একই শর্ত — ব্যানার আর তালিকা সবসময় মিলবে।
                ⛔ বাকি নিয়ম (আজ + বকেয়া দুটোই গোনা, V590) এক অক্ষরও বদলায়নি। */
-            fun isDue(f: FollowUpItem): Boolean = !f.noMoreCalls && f.nextFollow.isNotBlank() && f.nextFollow <= today
+            // 📞 V1403 — কল হয়ে গেলে আর বাকি নয় (FollowUpModel.callPending — তালিকা/নোটিফিকেশনের একই নিয়ম)
+            fun isDue(f: FollowUpItem): Boolean = FollowUpModel.callPending(f, today)
             fun countFrom(items: List<FollowUpItem>?): Int = items?.count { isDue(it) } ?: 0
             fun overdueFrom(items: List<FollowUpItem>?): Int =
-                items?.count { !it.noMoreCalls && it.nextFollow.isNotBlank() && it.nextFollow < today } ?: 0
+                items?.count { FollowUpModel.callPending(it, today) && it.nextFollow < today } ?: 0   // 📞 V1403
             // 🟢🔒 V607 (২৪.০৮.২০২৬, TK-নির্দেশ) — একই তিনটে cache-পড়া থেকেই
             // (নতুন কোনো fetch নেই — V509-এর egress-সুরক্ষা অক্ষত) সব আইটেম
             // জমিয়ে রাখা হচ্ছে, যাতে নিচে ব্রাঞ্চ ধরে ভাঙা যায়।
