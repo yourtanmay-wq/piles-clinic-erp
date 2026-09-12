@@ -25996,3 +25996,17 @@ c_matched (refBy/refDoctor/refDoctorMobile দিয়ে নাম/নম্�
 জমা ₹20,000+₹9,000=₹29,000): bound-total ₹20,000, matched-total ₹29,000 —
 ঠিক TK-র বলা সংখ্যার সাথে মিলে গেছে, ফাঁকটা স্পষ্ট প্রমাণিত।
 sql_local_check ✅ উভয়ে · tk_guard ✅। TK-কে দুটোই টেক্সট আকারে দেওয়া হলো।
+
+## ১২.০৯.২০২৬ — V1366/V1367-এর ফল বিশ্লেষণ + V1368 (তালিকা ৪৬৮)
+CSV পড়ে যাচাই: কোচবিহারের ৫ RMP-র বাকি (PK/PKB/JH MANDAL/JAKIR HOSSAIN/TK BISWAS)
+বাকি সব ₹0 — কোডের নিয়ম অনুযায়ী সঠিক, TK-কে জানানো হলো ভুল না ধরেই। AMIT
+GOLDAR-এর "commission NOT BOUND ⚠" সব রোগীর bill/paid উভয়ই ₹0 — তাই তাঁর
+ক্ষেত্রে "বাঁধা-নেই মানে টাকা হারানো" তত্ত্ব খাটেনি (D-টোটাল দুটোই ₹254,100,
+সমান) — নিজের আগের সন্দেহ ভুল প্রমাণিত হলে সততার সাথে সেটাই বলা হলো।
+
+`00_SQL/V1368_AMIT_GOLDAR_ALL_MONEY_2026-09-12.sql` — matched_patients-এর সব
+payments payType অনুযায়ী ভাগ করে (treatment/visit_fee+registration/medicine/
+other/approved_refund) + grand_total — TK-র "₹2,90,000" কথাটা কি মোট জমা
+(treatment ছাড়াও ভিজিট ফি/রেজিস্ট্রেশন/মেডিসিন-সহ), যেখানে RMP কমিশন শুধু
+treatment-অংশে (TK-র নিজের পুরনো নিয়ম) হিসাব হয় — সেটাই যাচাই করতে।
+sql_local_check ✅ PASS।
