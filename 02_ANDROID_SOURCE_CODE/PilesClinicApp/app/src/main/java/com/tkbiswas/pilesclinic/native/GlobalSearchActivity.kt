@@ -48,6 +48,11 @@ class GlobalSearchActivity : AppCompatActivity() {
 
     /* 💊 V985 — মোবাইল → মেডিসিনের বাকি (এই পর্দার নিজের ছোট তালিকা)। */
     private val medDue = HashMap<String, Double>()
+    /* 🏷️🔒 V1401 — মোবাইল → (সেকশন-লেবেল, লাল-চিহ্ন)। Follow-up খাতা থেকে ছোট
+       একটা batched পড়া (শুধু খোঁজে-ওঠা নম্বরগুলো) — TK মেপে অনুমোদন দিয়েছেন
+       ("ফ্রি প্ল্যানে ঝুঁকি বাড়ায় না")। পড়া ব্যর্থ/দেরি হলে কার্ডে নিরাপদ
+       লেবেল (ENQUIRY / REGISTERED) থাকে — কখনো ভুল সেকশন দেখায় না। */
+    private val stageByMobile = HashMap<String, Pair<String, String>>()
     private var searchJob: Job? = null
 
     // 🆔 TK-এর নিয়ম (28.07.2026): নাম ও মোবাইলের সঙ্গে Patient ID-ও দেখাতে হবে।
@@ -64,7 +69,12 @@ class GlobalSearchActivity : AppCompatActivity() {
        ধরে রাখা হত না — তাই ক্লিনিক্যাল পর্দায় রোগের নাম ফাঁকা যেত।
        ⛔ **নতুন কোনো ক্লাউড-অনুরোধ নয়** — যে তথ্য আগেই আসছে, সেটাই রাখা হলো।
        ⛔ ডিফল্ট ফাঁকা, তাই পুরোনো কোনো ডাক ভাঙে না। */
-    data class SearchHit(val name: String, val mobile: String, val branch: String, val type: String, val patientId: String = "", val rowId: String = "", val disease: String = "")
+    /* 🎨🔒 V1401 (১২.০৯.২০২৬ রাত, TK-নির্দেশ, ডেমো-প্রুফ পাশ) — `address` ·
+       `altMobile` · `date` কার্ডে দেখানোর জন্য। ⛔ নতুন কোনো ক্লাউড-পড়া নয় —
+       তিনটেই উপরের enqCloud/patCloud তালিকায় আগে থেকেই আসত, শুধু ধরে রাখা
+       হত না। সব ডিফল্ট ফাঁকা, তাই পুরোনো কোনো ডাক ভাঙে না। */
+    data class SearchHit(val name: String, val mobile: String, val branch: String, val type: String, val patientId: String = "", val rowId: String = "", val disease: String = "",
+                         val address: String = "", val altMobile: String = "", val date: String = "")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -95,7 +105,11 @@ class GlobalSearchActivity : AppCompatActivity() {
             onPrint = { hit -> showPrintPicker(hit) },      // 🖨️ V827
             /* 💊 V985 — বাকির অঙ্ক (একবারই আনা, তাই বারবার নেট-কল হয় না)। */
             dueOf = { mobile -> medDue[mobile.filter { c -> c.isDigit() }.takeLast(10)] ?: 0.0 },
-            onCollectDue = { hit -> openMedicineForDue(hit) }
+            onCollectDue = { hit -> openMedicineForDue(hit) },
+            // 🎨 V1401
+            onTakeAction = { hit -> openTimeline(hit.mobile, hit.rowId, autoAction = true) },
+            onCallNumber = { number -> callHit(number) },
+            stageOf = { hit -> stageByMobile[hit.mobile.filter { c -> c.isDigit() }.takeLast(10)] ?: ("" to "") }
         )
         recycler.adapter = adapter
 
@@ -284,7 +298,8 @@ class GlobalSearchActivity : AppCompatActivity() {
                     if (!match(r.s("name"), r.s("mobile"), r.s("disease"), r.s("address"), r.s("patientId"), r.s("date"))) continue
                     val k = key(r.s("mobile"))
                     if (k.isNotBlank() && !byMobile.containsKey(k))
-                        byMobile[k] = SearchHit(r.s("name"), r.s("mobile"), br, "Enquiry", disease = r.s("disease"))
+                        byMobile[k] = SearchHit(r.s("name"), r.s("mobile"), br, "Enquiry", disease = r.s("disease"),
+                            address = r.s("address"), date = r.s("date"))   // 🎨 V1401
                 }
                 // … then Patients override the same number (higher stage wins).
                 // TK-REQUESTED (2026-07-27), "ছ'টা পর্দা এক নিয়মে" step 1 of 6:
@@ -342,7 +357,8 @@ class GlobalSearchActivity : AppCompatActivity() {
                         val r = rows.getJSONObject(i)
                         if (isDeclaredSeparatePatient(r.s("id"), k)) {
                             extraHits.add(
-                                SearchHit(r.s("name"), r.s("mobile"), r.s("branch"), "Patient", r.s("patientId"), r.s("id"), r.s("disease"))
+                                SearchHit(r.s("name"), r.s("mobile"), r.s("branch"), "Patient", r.s("patientId"), r.s("id"), r.s("disease"),
+                                    address = r.s("address"), altMobile = r.s("altMobile"), date = r.s("registrationDate").ifBlank { r.s("date") })   // 🎨 V1401
                             )
                         } else {
                             ordinary.put(r)
@@ -350,7 +366,8 @@ class GlobalSearchActivity : AppCompatActivity() {
                     }
                     // পুরোনো পথ — হুবহু আগের মতোই (একটাই সারি থাকলে কিছুই বদলায় না)
                     val chosen = PatientIdentity.pickPatientRow(ordinary, user?.branch ?: "") ?: continue
-                    byMobile[k] = SearchHit(chosen.s("name"), chosen.s("mobile"), chosen.s("branch"), "Patient", chosen.s("patientId"), chosen.s("id"), chosen.s("disease"))
+                    byMobile[k] = SearchHit(chosen.s("name"), chosen.s("mobile"), chosen.s("branch"), "Patient", chosen.s("patientId"), chosen.s("id"), chosen.s("disease"),
+                        address = chosen.s("address"), altMobile = chosen.s("altMobile"), date = chosen.s("registrationDate").ifBlank { chosen.s("date") })   // 🎨 V1401
                 }
                 /* ঘোষিত আলাদা রোগীরা মূল ফলের ঠিক পরে বসেন, তাই এক নম্বরের
                    সবাই পাশাপাশি দেখা যায়। ⛔ কেউ কখনো বাদ পড়ে না। */
@@ -374,9 +391,59 @@ class GlobalSearchActivity : AppCompatActivity() {
                     adapter.notifyDataSetChanged()
                 }
             }
+            /* 🏷️🔒 V1401 — সেকশন (VISIT/PATIENT) ও লাল চিহ্ন (REJECTED/INCOMPLETE):
+               Follow-up খাতার একটাই ছোট batched পড়া, উপরের মেডিসিন-বাকির হুবহু
+               একই ধরনে। ⛔ ব্যর্থ হলে চুপচাপ — কার্ডে নিরাপদ লেবেলই থাকে। */
+            if (hits.isNotEmpty()) lifecycleScope.launch {
+                val map = withContext(Dispatchers.IO) {
+                    try { fetchStages(hits.map { it.mobile }) } catch (_: Throwable) { emptyMap() }
+                }
+                if (map.isNotEmpty()) {
+                    stageByMobile.clear(); stageByMobile.putAll(map)
+                    adapter.notifyDataSetChanged()
+                }
+            }
             tvEmpty.visibility = if (hits.isEmpty()) View.VISIBLE else View.GONE
             if (hits.isEmpty()) tvEmpty.text = "No match found."
         }
+    }
+
+    /**
+     * 🏷️🔒 V1401 — খোঁজে-ওঠা নম্বরগুলোর **চলতি** Follow-up সারি থেকে সেকশন ও অবস্থা।
+     * · বাছার নিয়ম নিচের `findLiveFollowUpRow`-এর হুবহু একই (স্টেজ-অগ্রাধিকার
+     *   Treatment > Patient > Inquiry, সমান হলে সাম্প্রতিক `updatedAt`)।
+     * · লেবেল: Follow-up-এর Treatment ⇒ PATIENT · Patient ⇒ VISIT (রেজিস্টার্ড, চিকিৎসা
+     *   শুরু হয়নি) · অন্য কিছু ⇒ ফাঁকা (কার্ড নিজের নিরাপদ লেবেল রাখে)।
+     * · লাল চিহ্ন: status Cancelled ⇒ REJECTED · Incomplete ⇒ INCOMPLETE
+     *   (PatientTimelineActivity-র Reject-পথ ঠিক এই দুটো লেখে)।
+     * ⛔ ২৫টা করে ভাগে, প্রতি ভাগে একটাই অনুরোধ (MedicineDue.fetchFor-এর নিয়ম)।
+     *    নম্বর "+91…" বা "…" যেভাবেই থাকুক, শেষ ১০ অঙ্ক দিয়ে মেলে (findByMobileOrNull-এর মতো)।
+     */
+    private fun fetchStages(mobiles: List<String>): Map<String, Pair<String, String>> {
+        val wanted = mobiles.map { it.filter { c -> c.isDigit() }.takeLast(10) }.filter { it.length == 10 }.distinct()
+        if (wanted.isEmpty()) return emptyMap()
+        fun pr(st: String) = when (st) { "Treatment" -> 3; "Patient" -> 2; "Inquiry" -> 1; else -> 0 }
+        val best = HashMap<String, JSONObject>()
+        for (part in wanted.chunked(25)) {
+            val filter = "or=(" + part.joinToString(",") { "mobile.like.*$it" } + ")"
+            val rows = try { SupabaseClient.fetchListSlimOrNull("followups", filter, 500, "mobile,stage,status,updatedAt") }
+                       catch (_: Throwable) { null } ?: continue
+            for (i in 0 until rows.length()) {
+                val r = rows.optJSONObject(i) ?: continue
+                val k = r.s("mobile").filter { c -> c.isDigit() }.takeLast(10)
+                if (k.length != 10) continue
+                val cur = best[k]
+                if (cur == null || pr(r.s("stage")) > pr(cur.s("stage")) ||
+                    (pr(r.s("stage")) == pr(cur.s("stage")) && r.s("updatedAt") > cur.s("updatedAt"))) best[k] = r
+            }
+        }
+        val out = HashMap<String, Pair<String, String>>()
+        for ((k, r) in best) {
+            val label = when (r.s("stage")) { "Treatment" -> "PATIENT"; "Patient" -> "VISIT"; else -> "" }
+            val flag = when (r.s("status").trim().lowercase()) { "cancelled", "rejected" -> "REJECTED"; "incomplete" -> "INCOMPLETE"; else -> "" }
+            out[k] = label to flag
+        }
+        return out
     }
 
     /**
@@ -384,10 +451,15 @@ class GlobalSearchActivity : AppCompatActivity() {
      * ⛔ `mobile` extra আগের মতোই যায়, তাই Timeline-এর পুরোনো সব পথ অটুট।
      * ⛔ `patientRowId` ফাঁকা হলে Timeline হুবহু আগের মতোই আচরণ করে।
      */
-    private fun openTimeline(mobile: String, patientRowId: String = "") {
+    private fun openTimeline(mobile: String, patientRowId: String = "", autoAction: Boolean = false) {
         val digits = mobile.filter { it.isDigit() }.takeLast(10)
         val i = Intent(this, PatientTimelineActivity::class.java).putExtra("mobile", digits)
         if (patientRowId.isNotBlank()) i.putExtra("patientRowId", patientRowId)
+        /* ⚡🔒 V1401 (TK-নির্দেশ: "⋮-এর মধ্যে Action বটমে যা যা থাকে তাই") — CHECK-UP
+           Queue-র "Action" বোতামের হুবহু একই পথ: Full Journey খুলে তথ্য এলেই
+           Take Action তালিকা নিজে থেকে ওঠে। তালিকাটা ওই পর্দাই বানায় (রোগীর
+           আসল অবস্থা দেখে), তাই Search-এ ভুল আইটেম দেখানোর কোনো সুযোগ নেই। */
+        if (autoAction) i.putExtra("autoAction", true)
         startActivity(i)
     }
 
@@ -692,6 +764,16 @@ class GlobalSearchActivity : AppCompatActivity() {
         }
     }
 
+    /* 🎨🔒 V1401 (১২.০৯.২০২৬ রাত, TK-নির্দেশ *"ডিজাইন চেঞ্জ করুন… কোন প্রকার
+       ঝুঁকি নেবেন না"*, ডেমো-প্রুফ ধাপে ধাপে পাশ — সাধারণ ও সরু ফোন দুটোতেই)।
+       নতুন কার্ড: সাদা, বাঁয়ে সবুজ দাগ · নাম (২ লাইন পর্যন্ত) + ⋮ · ব্রাঞ্চ · সেকশন-চিপ
+       (ENQUIRY / VISIT / PATIENT / REGISTERED) · রোগ-চিপ · তারিখ · লাল REJECTED/
+       INCOMPLETE · 📞 নম্বর (এক চাপে কল, লং-প্রেসে কপি; দ্বিতীয় নম্বর থাকলে
+       পাশাপাশি, নইলে পাশে Patient ID) · 📍 ঠিকানা (এক লাইন, লং-প্রেসে কপি) ·
+       Payment / Full Journey / Mark Arrived এক সারিতে · মেডিসিন-বাকি এক লাইনে।
+       ⋮ = Call · WhatsApp · Print · ⚡ Take Action।
+       ⛔ প্রতিটা বোতাম/মেনুর কাজ আগের সেই একই ফাংশনই ডাকে — কেবল চেহারা ও
+          বসার জায়গা বদলেছে; নতুন ক্লাউড-পড়া শুধু `fetchStages` (TK-অনুমোদিত)। */
     private class SearchAdapter(
         val items: List<SearchHit>,
         val onFullJourney: (SearchHit) -> Unit,
@@ -714,22 +796,45 @@ class GlobalSearchActivity : AppCompatActivity() {
            দেখার কোনো উপায় নেই"*) — মোবাইল ধরে বাকির অঙ্ক; ফাঁকা থাকলে
            কার্ড হুবহু আগের মতোই দেখায়। */
         val dueOf: (String) -> Double,
-        val onCollectDue: (SearchHit) -> Unit
+        val onCollectDue: (SearchHit) -> Unit,
+        /* ⚡ V1401 — ⋮ → Take Action (Full Journey + নিজে-থেকে-ওঠা Action তালিকা)। */
+        val onTakeAction: (SearchHit) -> Unit,
+        /* 📞 V1401 — নম্বরে এক চাপে কল (মূল বা Alt, যেটায় চাপা হলো)। */
+        val onCallNumber: (String) -> Unit,
+        /* 🏷️ V1401 — (সেকশন-লেবেল, লাল-চিহ্ন); ফাঁকা হলে কার্ড নিরাপদ লেবেল বসায়। */
+        val stageOf: (SearchHit) -> Pair<String, String>
     ) : RecyclerView.Adapter<SearchAdapter.VH>() {
-        // TK APPROVED (2026-07-15): premium dual-green search result card --
-        // navy replaced with green (per TK's request), avatar + name/mobile in
-        // a green gradient header, action buttons in a 2-per-row grid (icon +
-        // label side by side, single line, ellipsis instead of ever breaking
-        // mid-word) so everything fits on one screen without scrolling and
-        // never visually breaks regardless of name/label length.
         class VH(
             val root: LinearLayout,
             val dots: TextView,
             val tvName: TextView,
-            val tvMeta: TextView,
-            val tvTag: TextView,
-            val grid: LinearLayout
+            val tvChips: TextView,
+            val tvMob1: TextView,
+            val tvSep: TextView,
+            val tvSecond: TextView,
+            val tvPid: TextView,
+            val tvAddr: TextView,
+            val btnRow: LinearLayout,
+            val tvDue: TextView
         ) : RecyclerView.ViewHolder(root)
+
+        /** গোল-কোণা চিপ — একটা TextView-এর ভিতরেই বসে, তাই সরু ফোনে না ধরলে
+         *  পরের লাইনে নেমে যায়, কিছু ভাঙে না বা গায়ে লাগে না (ডেমোতে মাপা)। */
+        private class ChipSpan(private val bg: Int, private val fg: Int, private val padH: Float, private val padV: Float, private val radius: Float) : android.text.style.ReplacementSpan() {
+            private fun paintFor(base: android.graphics.Paint) = android.graphics.Paint(base).apply { isFakeBoldText = true; isAntiAlias = true }
+            override fun getSize(paint: android.graphics.Paint, text: CharSequence, start: Int, end: Int, fm: android.graphics.Paint.FontMetricsInt?): Int =
+                (paintFor(paint).measureText(text, start, end) + padH * 2).toInt()
+            override fun draw(canvas: android.graphics.Canvas, text: CharSequence, start: Int, end: Int, x: Float, top: Int, y: Int, bottom: Int, paint: android.graphics.Paint) {
+                val p = paintFor(paint)
+                val w = p.measureText(text, start, end)
+                val fm = p.fontMetrics
+                val rect = android.graphics.RectF(x, y + fm.ascent - padV, x + w + padH * 2, y + fm.descent + padV)
+                p.color = bg; canvas.drawRoundRect(rect, radius, radius, p)
+                p.color = fg; canvas.drawText(text, start, end, x + padH, y.toFloat(), p)
+            }
+        }
+
+        private fun c(hex: String) = android.graphics.Color.parseColor(hex)
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
             val ctx = parent.context
@@ -737,209 +842,257 @@ class GlobalSearchActivity : AppCompatActivity() {
             fun dp(v: Int) = (v * dens).toInt()
 
             val root = LinearLayout(ctx).apply {
-                orientation = LinearLayout.VERTICAL
+                orientation = LinearLayout.HORIZONTAL
                 layoutParams = RecyclerView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
                     setMargins(dp(8), dp(6), dp(8), dp(6))
                 }
                 background = android.graphics.drawable.GradientDrawable().apply {
-                    cornerRadius = dp(16).toFloat()
+                    cornerRadius = dp(14).toFloat()
                     setColor(android.graphics.Color.WHITE)
                 }
+                elevation = 3f * dens
                 clipToOutline = true
+                isClickable = true; isFocusable = true
             }
+            // বাঁয়ের সবুজ দাগ
+            root.addView(View(ctx).apply {
+                setBackgroundColor(c("#0EA25F"))
+                layoutParams = LinearLayout.LayoutParams(dp(5), ViewGroup.LayoutParams.MATCH_PARENT)
+            })
+            val col = LinearLayout(ctx).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(11), dp(11), dp(11), dp(11))
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            }
+            root.addView(col)
 
-            val header = LinearLayout(ctx).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = android.view.Gravity.CENTER_VERTICAL
-                setPadding(dp(14), dp(14), dp(14), dp(14))
-                background = android.graphics.drawable.GradientDrawable().apply {
-                    orientation = android.graphics.drawable.GradientDrawable.Orientation.TL_BR
-                    colors = intArrayOf(android.graphics.Color.parseColor("#0A5428"), android.graphics.Color.parseColor("#0EA25F"))
-                }
-            }
-            val nameCol = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+            val topRow = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.TOP }
             val tvName = TextView(ctx).apply {
                 textSize = 15.5f; setTypeface(typeface, android.graphics.Typeface.BOLD)
-                setTextColor(android.graphics.Color.WHITE)
-                maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+                setTextColor(c("#0B2B59"))
+                maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).also { it.marginEnd = dp(8) }
             }
-            /* 🎨🔒 V1349 (১১.০৯.২০২৬, TK-অনুমোদিত ফটো-প্রুফ) — আগে এই লাইনে
-               `maxLines=1` + ellipsize থাকায় ব্রাঞ্চের নাম মাঝেমধ্যে কেটে
-               যেত ("Kish...")। এখন একাধিক লাইনে ভাঙতে পারে (কখনো ২ লাইনও
-               হতে পারে) কিন্তু কিছুই কেটে যায় না — নিচের `tvTag` আর এই
-               কলামে না থাকায় (বাইরে সরানো হয়েছে) বাড়তি একটা লাইনে জায়গার
-               কোনো সমস্যা নেই। */
-            val tvMeta = TextView(ctx).apply {
-                textSize = 11.5f
-                setTextColor(android.graphics.Color.parseColor("#DCF3E6"))
-                val p = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-                p.topMargin = dp(2); layoutParams = p
-            }
-            /* 🎨🔒 V1349 — TK-নির্দেশ: "PATIENT ব্যাজ ⋮-এর বাম পাশে রাখুন"।
-               আগে এটা `nameCol`-এর ভিতরে নামের নিচে তৃতীয় লাইনে থাকত;
-               এখন `header`-এ সরাসরি, নামের কলাম আর ⋮-এর মাঝে, একই লাইনে। */
-            val tvTag = TextView(ctx).apply {
-                textSize = 9.5f; setTypeface(typeface, android.graphics.Typeface.BOLD)
-                setTextColor(android.graphics.Color.WHITE)
-                background = android.graphics.drawable.GradientDrawable().apply {
-                    cornerRadius = dp(20).toFloat()
-                    setColor(android.graphics.Color.parseColor("#C99A19"))
-                }
-                setPadding(dp(8), dp(2), dp(8), dp(2))
-                val p = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-                p.marginEnd = dp(8); layoutParams = p
-            }
-            nameCol.addView(tvName); nameCol.addView(tvMeta)
-            header.addView(nameCol, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            header.addView(tvTag)
-            /* 📋🔒 V1322 (TK-নির্দেশ ১১.০৯.২০২৬, ডেমো-প্রুফ পাশ) — Call ·
-               WhatsApp · Print তিনটেই এখন এই ⋮-এর ভিতরে। ছবি-আইকন (avatar)
-               তুলে দেওয়া হলো, "Write Remark" বোতামও বাদ। ⛔ কাজ তিনটেই
-               (onCall/onWhatsApp/onPrint) আগের মতোই — শুধু বসার জায়গা বদলাল। */
             val dots = TextView(ctx).apply {
                 text = "⋮"; textSize = 18f
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
-                setTextColor(android.graphics.Color.WHITE)
+                setTextColor(c("#0B2B59"))
                 gravity = android.view.Gravity.CENTER
                 background = android.graphics.drawable.GradientDrawable().apply {
                     cornerRadius = dp(9).toFloat()
-                    setColor(android.graphics.Color.argb(46, 255, 255, 255))
+                    setColor(c("#EEF2F7"))
                 }
                 isClickable = true; isFocusable = true
-                layoutParams = LinearLayout.LayoutParams(dp(34), dp(34))
+                layoutParams = LinearLayout.LayoutParams(dp(32), dp(32))
             }
-            header.addView(dots)
-            /* 🧭🔒 V985 (TK-নির্দেশ: *"হেডারে চাপ দিলে যেন ভিউ অল পর্দা ওপেন হয়"*)
-               — পুরো সবুজ হেডারে চাপ দিলেই রোগীর সব কিছু (Full Journey)।
-               ⛔ নিচের "Full Journey" বোতামটা আগের মতোই থাকছে — একই পর্দা,
-                  দুটো পথ; কোনো বোতাম সরানো হয়নি। */
-            header.isClickable = true; header.isFocusable = true
-            root.addView(header)
+            topRow.addView(tvName); topRow.addView(dots)
+            col.addView(topRow)
 
-            val grid = LinearLayout(ctx).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(dp(10), dp(10), dp(10), dp(10))
+            val tvChips = TextView(ctx).apply {
+                textSize = 11f
+                setTextColor(c("#5B6B7C"))
+                setLineSpacing(dp(7).toFloat(), 1f)
+                setPadding(0, dp(5), 0, dp(1))
             }
-            root.addView(grid)
+            col.addView(tvChips)
 
-            return VH(root, dots, tvName, tvMeta, tvTag, grid)
+            val mobRow = LinearLayout(ctx).apply {
+                orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(0, dp(5), 0, 0)
+            }
+            val tvMob1 = TextView(ctx).apply {
+                textSize = 12.5f; setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(c("#0B2B59")); maxLines = 1
+                isClickable = true; isFocusable = true
+            }
+            val tvSep = TextView(ctx).apply { text = "  ·  "; textSize = 12f; setTextColor(c("#8B98A9")); maxLines = 1 }
+            val tvSecond = TextView(ctx).apply {
+                textSize = 12.5f; maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+                layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            }
+            mobRow.addView(tvMob1); mobRow.addView(tvSep); mobRow.addView(tvSecond)
+            col.addView(mobRow)
+
+            val tvPid = TextView(ctx).apply {
+                textSize = 11.5f; setTextColor(c("#5B6B7C")); maxLines = 1
+                setPadding(0, dp(2), 0, 0)
+            }
+            col.addView(tvPid)
+
+            val tvAddr = TextView(ctx).apply {
+                textSize = 11.5f; setTextColor(c("#6B7A8C"))
+                maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+                setPadding(0, dp(3), 0, 0)
+                isClickable = true; isFocusable = true
+            }
+            col.addView(tvAddr)
+
+            val btnRow = LinearLayout(ctx).apply {
+                orientation = LinearLayout.HORIZONTAL
+                val p = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+                p.topMargin = dp(9); layoutParams = p
+            }
+            col.addView(btnRow)
+
+            val tvDue = TextView(ctx).apply {
+                textSize = 11.5f; maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+                setPadding(0, dp(7), 0, 0)
+            }
+            col.addView(tvDue)
+
+            return VH(root, dots, tvName, tvChips, tvMob1, tvSep, tvSecond, tvPid, tvAddr, btnRow, tvDue)
         }
 
         override fun getItemCount() = items.size
+
+        /** তারিখ সবসময় dd/MM/yyyy (TK-র স্থায়ী নিয়ম, খাতার সারি B76); ফাঁকা হলে ফাঁকা। */
+        private fun dmy(raw: String): String {
+            val t = raw.trim().take(10)
+            if (t.isBlank()) return ""
+            if (t.length == 10 && t[4] == '-' && t[7] == '-') return t.substring(8, 10) + "/" + t.substring(5, 7) + "/" + t.substring(0, 4)
+            return t
+        }
 
         override fun onBindViewHolder(holder: VH, position: Int) {
             val h = items[position]
             val ctx = holder.root.context
             val dens = ctx.resources.displayMetrics.density
             fun dp(v: Int) = (v * dens).toInt()
+            val digits = h.mobile.filter { it.isDigit() }.takeLast(10)
+            val alt = h.altMobile.filter { it.isDigit() }.takeLast(10).takeIf { it.length == 10 && it != digits } ?: ""
 
-            /* 🩺🔒 V985 (TK-নির্দেশ: *"নামের পাশে কোন রোগের জন্য সে এসেছিল সেটাও
-               লেখা থাকবে"*) — রোগ জানা না থাকলে শুধু নামই বসে, কিছু বদলায় না। */
-            holder.tvName.text = h.name.ifBlank { "(no name)" } +
-                (if (h.disease.isBlank()) "" else "   •   " + h.disease)
-            holder.root.getChildAt(0)?.setOnClickListener { onFullJourney(h) }
-            holder.tvMeta.text = PatientIdText.mobileWithId(h.mobile, h.patientId) + " · " + h.branch
-            holder.tvTag.text = h.type.uppercase()
+            // নাম — চাপলে Full Journey (আগের হেডার-চাপের নিয়ম), লং-প্রেসে কপি
+            holder.tvName.text = h.name.ifBlank { "(no name)" }
+            holder.tvName.setOnClickListener { onFullJourney(h) }
+            holder.tvName.copyOnLongPress("Name", h.name)
+            holder.root.setOnClickListener { onFullJourney(h) }
 
-            // 📋🔒 V1322 — Call · WhatsApp · Print এখন ⋮-এর ভিতরে (ডেমো-প্রুফ পাশ)।
+            // ব্রাঞ্চ · সেকশন · রোগ · তারিখ · লাল চিহ্ন — একটাই লেখায়, সরু ফোনে নিজে থেকে পরের লাইনে
+            val (stageLabel, flag) = stageOf(h)
+            val label = when {
+                h.type == "Enquiry" -> "ENQUIRY"
+                stageLabel.isNotBlank() -> stageLabel
+                else -> "REGISTERED"
+            }
+            val sb = android.text.SpannableStringBuilder()
+            fun chip(text: String, bg: String, fg: String) {
+                if (text.isBlank()) return
+                if (sb.isNotEmpty()) sb.append("  ")
+                val st = sb.length; sb.append(text)
+                sb.setSpan(ChipSpan(c(bg), c(fg), dp(7).toFloat(), dp(3).toFloat(), dp(10).toFloat()), st, sb.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+            if (h.branch.isNotBlank()) {
+                sb.append(h.branch)
+                sb.setSpan(android.text.style.ForegroundColorSpan(c("#0A5428")), 0, sb.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                sb.setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 0, sb.length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+            chip(label, "#FBE9B7", "#7A5200")
+            chip(h.disease.trim().uppercase(), "#E8F5EE", "#0A5428")
+            val d = dmy(h.date)
+            if (d.isNotBlank()) { if (sb.isNotEmpty()) sb.append("  "); sb.append(d) }
+            chip(flag, "#B42318", "#FFFFFF")
+            holder.tvChips.text = sb
+            holder.tvChips.visibility = if (sb.isEmpty()) View.GONE else View.VISIBLE
+
+            // 📞 নম্বর — এক চাপে কল, লং-প্রেসে কপি
+            holder.tvMob1.text = "📞 " + digits.ifBlank { h.mobile }
+            holder.tvMob1.setOnClickListener { if (digits.length == 10) onCallNumber(digits) else onCall(h) }
+            holder.tvMob1.copyOnLongPress("Mobile number", digits.ifBlank { h.mobile })
+            if (alt.isNotBlank()) {
+                // দুটো নম্বর পাশাপাশি; Patient ID নিচের লাইনে
+                holder.tvSecond.text = "📞 Alt $alt"
+                holder.tvSecond.setTypeface(holder.tvSecond.typeface, android.graphics.Typeface.BOLD)
+                holder.tvSecond.setTextColor(c("#1D6FE0"))
+                holder.tvSecond.isClickable = true
+                holder.tvSecond.setOnClickListener { onCallNumber(alt) }
+                holder.tvSecond.copyOnLongPress("Mobile number", alt)
+                holder.tvSep.visibility = View.VISIBLE; holder.tvSecond.visibility = View.VISIBLE
+                holder.tvPid.text = h.patientId
+                holder.tvPid.visibility = if (h.patientId.isBlank()) View.GONE else View.VISIBLE
+            } else {
+                // একটা নম্বর — পাশেই Patient ID
+                holder.tvSecond.text = h.patientId
+                holder.tvSecond.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.NORMAL)
+                holder.tvSecond.setTextColor(c("#5B6B7C"))
+                holder.tvSecond.isClickable = false
+                holder.tvSecond.setOnClickListener(null)
+                holder.tvSecond.setOnLongClickListener(null)
+                val show = h.patientId.isNotBlank()
+                holder.tvSep.visibility = if (show) View.VISIBLE else View.GONE
+                holder.tvSecond.visibility = if (show) View.VISIBLE else View.GONE
+                holder.tvPid.visibility = View.GONE
+            }
+
+            // 📍 ঠিকানা — এক লাইন, লং-প্রেসে কপি, চাপলে Full Journey
+            val addr = h.address.trim()
+            holder.tvAddr.text = "📍 $addr"
+            holder.tvAddr.visibility = if (addr.isBlank()) View.GONE else View.VISIBLE
+            holder.tvAddr.setOnClickListener { onFullJourney(h) }
+            holder.tvAddr.copyOnLongPress("Address", addr)
+
+            // ⋮ — Call · WhatsApp · Print · ⚡ Take Action
             holder.dots.setOnClickListener { v ->
-                val items = listOf(
+                val menu = listOf(
                     Triple("📞", "Call") { onCall(h) },
                     Triple("💬", "WhatsApp") { onWhatsApp(h) },
-                    Triple("🖨️", "Print") { onPrint(h) }
+                    Triple("🖨️", "Print") { onPrint(h) },
+                    Triple("⚡", "Take Action") { onTakeAction(h) }
                 )
                 try {
                     val pm = android.widget.PopupMenu(ctx, v)
-                    items.forEachIndexed { i, (icon, label, _) -> pm.menu.add(0, i, i, "$icon  $label") }
-                    pm.setOnMenuItemClickListener { mi -> items.getOrNull(mi.itemId)?.third?.invoke(); true }
+                    menu.forEachIndexed { i, (icon, text, _) -> pm.menu.add(0, i, i, "$icon  $text") }
+                    pm.setOnMenuItemClickListener { mi -> menu.getOrNull(mi.itemId)?.third?.invoke(); true }
                     pm.show()
                 } catch (_: Throwable) { }
             }
 
-            holder.grid.removeAllViews()
-
-            // One 2-wide row of action buttons; icon+label always on a single
-            // line (never breaks mid-word -- truncates with "…" in the rare
-            // case a very long label wouldn't fit, but every label used here
-            // is short enough to never actually need it).
-            fun newRow(): LinearLayout = LinearLayout(ctx).apply {
-                orientation = LinearLayout.HORIZONTAL
-                val p = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-                p.topMargin = dp(7); layoutParams = p
-            }
-            // 🎨🔒 V1322 (TK-নির্দেশ: *"Payment, Full Journey, Mark Arrived-এর
-            // কালার হেডারের কালারের সাথে মিশে কেন যাবে"*) — এখন `green`
-            // এর বদলে নিজের রং দেওয়া যায় (`fillColors`), যাতে হেডারের সবুজ
-            // gradient-এর সঙ্গে গুলিয়ে না যায়। না দিলে আগের ধূসর/সবুজ নিয়মই।
-            fun actionButton(icon: String, label: String, green: Boolean, fillColors: IntArray? = null, action: () -> Unit): LinearLayout {
+            // বোতাম — একই কাজ, একই রং (V1322), এখন তিনটে এক সারিতে
+            fun actionButton(icon: String, text: String, fillColors: IntArray, action: () -> Unit): LinearLayout {
                 return LinearLayout(ctx).apply {
                     orientation = LinearLayout.HORIZONTAL
-                    gravity = android.view.Gravity.CENTER_VERTICAL
-                    setPadding(dp(10), dp(9), dp(8), dp(9))
+                    gravity = android.view.Gravity.CENTER
+                    setPadding(dp(4), dp(9), dp(4), dp(9))
                     background = android.graphics.drawable.GradientDrawable().apply {
-                        cornerRadius = dp(12).toFloat()
+                        cornerRadius = dp(11).toFloat()
                         orientation = android.graphics.drawable.GradientDrawable.Orientation.TL_BR
-                        colors = fillColors ?: if (green) {
-                            intArrayOf(android.graphics.Color.parseColor("#0EA25F"), android.graphics.Color.parseColor("#0A5428"))
-                        } else {
-                            intArrayOf(android.graphics.Color.parseColor("#F4F6F9"), android.graphics.Color.parseColor("#D6DBE2"))
-                        }
+                        colors = fillColors
                     }
                     val lp = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-                    lp.marginEnd = dp(4); lp.marginStart = dp(4)
+                    lp.marginEnd = dp(3); lp.marginStart = dp(3)
                     layoutParams = lp
                     isClickable = true; isFocusable = true
                     setOnClickListener { action() }
                     addView(TextView(ctx).apply {
-                        text = icon; textSize = 14f
-                        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).also { it.marginEnd = dp(6) }
+                        this.text = icon; textSize = 13f
+                        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).also { it.marginEnd = dp(4) }
                     })
                     addView(TextView(ctx).apply {
-                        text = label; textSize = 10.5f
+                        this.text = text; textSize = 10.5f
                         setTypeface(typeface, android.graphics.Typeface.BOLD)
-                        setTextColor(if (green || fillColors != null) android.graphics.Color.WHITE else android.graphics.Color.parseColor("#1B2432"))
+                        setTextColor(android.graphics.Color.WHITE)
                         maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
                     })
                 }
             }
-            /* 📋🔒 V1322 (TK-নির্দেশ ১১.০৯.২০২৬, ডেমো-প্রুফ পাশ) — Call ·
-               WhatsApp সারিটা তোলা হলো (⋮-এ চলে গেছে), "Write Remark"
-               বোতামও বাদ। Payment/Full Journey/Mark Arrived-এর রং এখন
-               আলাদা (নীল/বেগুনি/কমলা) — হেডারের সবুজের সঙ্গে যেন না মেশে। */
-            run {
-                val row = newRow()
-                row.addView(actionButton("💳", "Payment", false,
-                    intArrayOf(android.graphics.Color.parseColor("#1D6FE0"), android.graphics.Color.parseColor("#1457B8"))
-                ) { onPayment(h) })
-                row.addView(actionButton("🧭", "Full Journey", false,
-                    intArrayOf(android.graphics.Color.parseColor("#8A63E8"), android.graphics.Color.parseColor("#6A3FCB"))
-                ) { onFullJourney(h) })
-                holder.grid.addView(row)
-            }
-            /* 🖨️🔒 V827/V985 — Print এখন ⋮-এ (উপরে); মেডিসিনের বাকি-টাকা বাক্সটা
-               আগের মতোই একা এক সারিতে। ⛔ কাজ/হিসাব এক অক্ষরও বদলায়নি। */
-            run {
-                val due = dueOf(h.mobile)
-                val row = newRow()
-                if (due > 0.0) {
-                    val b = actionButton("💊", "Med. Due ₹" + "%,.0f".format(due), false) { onCollectDue(h) }
-                    b.background = android.graphics.drawable.GradientDrawable().apply {
-                        cornerRadius = dp(12).toFloat()
-                        setColor(android.graphics.Color.parseColor("#B42318"))
-                    }
-                    (b.getChildAt(1) as? TextView)?.setTextColor(android.graphics.Color.WHITE)
-                    row.addView(b)
-                } else {
-                    val b = actionButton("💊", "No med. due", false) { }
-                    (b.getChildAt(1) as? TextView)?.setTextColor(android.graphics.Color.parseColor("#8B98A9"))
-                    row.addView(b)
-                }
-                /* 📝🔒 V827 — Mark Arrived আগে "Write Remark"-এর পাশে ছিল;
-                   Write Remark বাদ যাওয়ায় এখন Med. Due-এর পাশে, কমলা রঙে। */
-                row.addView(actionButton("🏥", "Mark Arrived", false,
-                    intArrayOf(android.graphics.Color.parseColor("#D98A2B"), android.graphics.Color.parseColor("#B45309"))
-                ) { onMarkArrived(h) })
-                holder.grid.addView(row)
+            holder.btnRow.removeAllViews()
+            holder.btnRow.addView(actionButton("💳", "Payment", intArrayOf(c("#1D6FE0"), c("#1457B8"))) { onPayment(h) })
+            holder.btnRow.addView(actionButton("🧭", "Full Journey", intArrayOf(c("#8A63E8"), c("#6A3FCB"))) { onFullJourney(h) })
+            holder.btnRow.addView(actionButton("🏥", "Mark Arrived", intArrayOf(c("#D98A2B"), c("#B45309"))) { onMarkArrived(h) })
+
+            // 💊 মেডিসিনের বাকি — এক লাইন (V985-এর হিসাব অপরিবর্তিত)
+            val due = dueOf(h.mobile)
+            if (due > 0.0) {
+                holder.tvDue.text = "💊 Med. Due ₹" + "%,.0f".format(due) + " — tap to collect"
+                holder.tvDue.setTextColor(c("#B42318"))
+                holder.tvDue.setTypeface(holder.tvDue.typeface, android.graphics.Typeface.BOLD)
+                holder.tvDue.isClickable = true
+                holder.tvDue.setOnClickListener { onCollectDue(h) }
+            } else {
+                holder.tvDue.text = "💊 No medicine due"
+                holder.tvDue.setTextColor(c("#8B98A9"))
+                holder.tvDue.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.NORMAL)
+                holder.tvDue.isClickable = false
+                holder.tvDue.setOnClickListener(null)
             }
         }
     }

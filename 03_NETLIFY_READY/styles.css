@@ -4125,24 +4125,39 @@ button.small{min-height:36px!important;font-size:13px!important;border-radius:12
 
 /* ── ২৩. SEARCH — GlobalSearchActivity.kt (Kotlin-এ আঁকা কার্ড) ──────────── */
 .wlv1Search{padding:12px!important}
-.wlv1SCard{background:#fff!important;border-radius:16px!important;overflow:hidden!important;margin:6px 8px!important;box-shadow:0 3px 8px rgba(16,34,58,.12)!important}
-.wlv1SHead{display:flex!important;align-items:center!important;gap:12px!important;padding:14px!important;background:linear-gradient(135deg,#0A5428,#0EA25F)!important;color:#fff!important}
-.wlv1SAva{width:44px!important;height:44px!important;min-width:44px!important;border-radius:50%!important;display:grid!important;place-items:center!important;font-size:18px!important;background:linear-gradient(135deg,#F4F6F9,#A7ADB8)!important;color:#1B2432!important;flex:0 0 auto!important}
-.wlv1SName{font-size:15.5px!important;font-weight:700!important;color:#FFFFFF!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
-.wlv1SMeta{font-size:11.5px!important;color:#DCF3E6!important;margin-top:2px!important}
-.wlv1STag{flex:0 0 auto!important;background:#C99A19!important;color:#fff!important;border-radius:20px!important;padding:2px 8px!important;font-size:9.5px!important;font-weight:700!important;margin-left:auto!important}
-.wlv1SGrid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px!important;padding:10px!important}
+/* 🎨🔒 V1401 (১২.০৯.২০২৬ রাত, TK-নির্দেশ, ডেমো-প্রুফ পাশ) — ফোনের নতুন Search
+   কার্ডের জোড়া: সাদা কার্ড + বাঁয়ে সবুজ দাগ, নাম নেভি (২ লাইন), ব্রাঞ্চ · সেকশন-চিপ ·
+   রোগ-চিপ · তারিখ · লাল চিহ্ন (সরু পর্দায় নিজে থেকে পরের লাইনে), 📞 নম্বর, 📍 ঠিকানা।
+   ⛔ .wlv1SAct / .wlv1SGrid (বোতাম-গ্রিড) হুবহু আগের মতোই। */
+.wlv1SCard{background:#fff!important;border-radius:14px!important;overflow:hidden!important;margin:6px 8px!important;box-shadow:0 3px 8px rgba(16,34,58,.12)!important;display:flex!important;flex-direction:row!important;align-items:stretch!important}
+.wlv1SBar{flex:0 0 5px!important;width:5px!important;background:#0EA25F!important}
+.wlv1SBody{flex:1 1 auto!important;min-width:0!important;padding:11px 11px 10px 11px!important}
+.wlv1SHead{display:flex!important;align-items:flex-start!important;gap:8px!important;padding:0!important;background:none!important;color:#0B2B59!important}
+.wlv1SName{flex:1 1 auto!important;min-width:0!important;font-size:15.5px!important;font-weight:700!important;color:#0B2B59!important;line-height:1.2!important;white-space:normal!important;overflow:hidden!important;display:-webkit-box!important;-webkit-line-clamp:2!important;-webkit-box-orient:vertical!important;cursor:pointer!important;user-select:none!important}
+.wlv1SDots{width:32px!important;height:32px!important;min-width:32px!important;border-radius:9px!important;
+  background:#EEF2F7!important;color:#0B2B59!important;border:0!important;font-size:17px!important;
+  font-weight:700!important;cursor:pointer!important;flex:0 0 auto!important;margin:0!important}
+.wlv1SChips{display:flex!important;flex-wrap:wrap!important;align-items:center!important;gap:5px 7px!important;margin-top:6px!important}
+.wlv1SBr{font-size:11.5px!important;font-weight:700!important;color:#0A5428!important;white-space:nowrap!important}
+.wlv1SChip{display:inline-block!important;font-size:10px!important;font-weight:700!important;border-radius:20px!important;padding:2px 8px!important;white-space:nowrap!important;line-height:1.5!important}
+.wlv1SChip.stage{background:#FBE9B7!important;color:#7A5200!important}
+.wlv1SChip.dis{background:#E8F5EE!important;color:#0A5428!important}
+.wlv1SChip.red{background:#B42318!important;color:#fff!important}
+.wlv1SDate{font-size:10.5px!important;color:#5B6B7C!important;white-space:nowrap!important}
+.wlv1SMob{display:flex!important;flex-wrap:wrap!important;align-items:center!important;gap:0 6px!important;margin-top:6px!important;font-size:12.5px!important}
+.wlv1SPh{font-weight:700!important;color:#0B2B59!important;cursor:pointer!important;white-space:nowrap!important;user-select:none!important}
+.wlv1SPh.alt{color:#1D6FE0!important}
+.wlv1SSep{color:#8B98A9!important}
+.wlv1SPidIn,.wlv1SPid{font-size:11.5px!important;color:#5B6B7C!important;white-space:nowrap!important}
+.wlv1SPid{margin-top:2px!important}
+.wlv1SAddr{font-size:11.5px!important;color:#6B7A8C!important;margin-top:3px!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;cursor:pointer!important;user-select:none!important}
+.wlv1SGrid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px!important;padding:9px 0 0 0!important}
 .wlv1SAct{display:flex!important;align-items:center!important;justify-content:center!important;gap:6px!important;padding:9px 8px!important;border-radius:12px!important;
   background:linear-gradient(135deg,#F4F6F9,#D6DBE2)!important;color:#1B2432!important;border:0!important;box-shadow:none!important;min-height:0!important}
 .wlv1SAct>span{font-size:14px!important}
 .wlv1SAct>b{font-size:10.5px!important;font-weight:700!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
 .wlv1SAct.g{background:linear-gradient(135deg,#0EA25F,#0A5428)!important;color:#fff!important}
 .wlv1SWide{grid-column:1/-1!important;margin:0 10px 10px!important}
-/* 🎨🔒 V1322 (TK-নির্দেশ ১১.০৯.২০২৬, ডেমো-প্রুফ পাশ) — ⋮ (Call/WhatsApp/Print)
-   ও Payment/Full Journey/Mark Arrived-এর আলাদা রং, হেডারের সবুজের সঙ্গে না মিশতে। */
-.wlv1SDots{width:32px!important;height:32px!important;min-width:32px!important;border-radius:9px!important;
-  background:rgba(255,255,255,0.22)!important;color:#fff!important;border:0!important;font-size:17px!important;
-  font-weight:700!important;cursor:pointer!important;flex:0 0 auto!important;margin-right:10px!important}
 .wlv1SAct.blue{background:linear-gradient(135deg,#1D6FE0,#1457B8)!important;color:#fff!important}
 .wlv1SAct.purple{background:linear-gradient(135deg,#8A63E8,#6A3FCB)!important;color:#fff!important}
 .wlv1SAct.amber{background:linear-gradient(135deg,#D98A2B,#B45309)!important;color:#fff!important}

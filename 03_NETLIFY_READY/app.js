@@ -23596,37 +23596,76 @@ function wlv1SearchMore(mobile){
     + `<button class="ghost" onclick="closeModal();contact('${m}','call')">\u{1F4DE} Call</button>`
     + `<button class="ghost" onclick="closeModal();contact('${m}','wa')">\u{1F4AC} WhatsApp</button>`
     + `<button class="ghost" onclick="closeModal();wlv1SearchPrint('${m}')">\u{1F5A8}\uFE0F Print</button>`
+    /* ⚡ V1401 (TK-নির্দেশ) — Take Action: কম্পিউটারে রোগীর সব কাজ Full Journey
+       (Patient Summary) পাতাতেই থাকে, তাই সেটাই খোলে — ফোনের মতোই একই গন্তব্য। */
+    + `<button class="ghost" onclick="closeModal();wlv1FullJourney('${m}')">\u26A1 Take Action</button>`
     + `</div><div class="actions"><button class="ghost" onclick="closeModal()">Close</button></div>`);
 }
 window["wlv1SearchMore"]=wlv1SearchMore;
+/* 🏷️🔒 V1401 — সেকশন-লেবেল ও লাল চিহ্ন, ফোনের `fetchStages`-এর হুবহু একই নিয়ম:
+   Follow-up খাতার চলতি সারি (স্টেজ-অগ্রাধিকার Treatment > Patient > Inquiry, সমান হলে
+   সাম্প্রতিক updatedAt) — Treatment ⇒ PATIENT · Patient ⇒ VISIT · নইলে REGISTERED;
+   status Cancelled ⇒ REJECTED · Incomplete ⇒ INCOMPLETE। কম্পিউটারে followups
+   টেবিল এমনিতেই ফোনের ভিতরে (IndexedDB) থাকে — নতুন কোনো নেট-পড়া নেই। */
+function wlv1SearchStage(d,type){
+  try{
+    const pr=st=>({Treatment:3,Patient:2,Inquiry:1})[st]||0;
+    let best=null;
+    load('followups').forEach(f=>{
+      if(mob(f.mobile)!==d) return;
+      if(!best||pr(f.stage)>pr(best.stage)||(pr(f.stage)===pr(best.stage)&&String(f.updatedAt||'')>String(best.updatedAt||''))) best=f;
+    });
+    const st=String((best&&best.status)||'').trim().toLowerCase();
+    const flag=(st==='cancelled'||st==='rejected')?'REJECTED':(st==='incomplete'?'INCOMPLETE':'');
+    if(type==='Enquiry') return {label:'ENQUIRY',flag};
+    const sg=String((best&&best.stage)||'');
+    return {label:sg==='Treatment'?'PATIENT':(sg==='Patient'?'VISIT':'REGISTERED'),flag};
+  }catch(e){ return {label:type==='Enquiry'?'ENQUIRY':'REGISTERED',flag:''} }
+}
+window["wlv1SearchStage"]=wlv1SearchStage;
+/* 📞 V1401 — নম্বরে এক চাপে কল; লং-প্রেস (কপি) হয়ে থাকলে কল হবে না। */
+function wlv1SearchCall(m){ if(wlv1PatientHoldCopied){wlv1PatientHoldCopied=false;return} contact(m,'call') }
+window["wlv1SearchCall"]=wlv1SearchCall;
+/* 🎨🔒 V1401 (১২.০৯.২০২৬ রাত, TK-নির্দেশ, ডেমো-প্রুফ ধাপে ধাপে পাশ) — ফোনের নতুন
+   Search কার্ডের হুবহু জোড়া: সাদা কার্ড, বাঁয়ে সবুজ দাগ, নাম (২ লাইন) + ⋮, ব্রাঞ্চ ·
+   সেকশন-চিপ · রোগ-চিপ · তারিখ · লাল REJECTED/INCOMPLETE, 📞 নম্বর (এক চাপে কল,
+   চেপে ধরলে কপি; Alt থাকলে পাশাপাশি, নইলে পাশে Patient ID), 📍 ঠিকানা (চেপে ধরলে
+   কপি)। ⛔ নিচের বোতাম-গ্রিড (Payment · Full Journey · Report Card · Clinical
+   History · Med. Due · Mark Arrived) হুবহু আগের মতোই — কম্পিউটারের বাড়তি
+   বোতামগুলো কোনোটাই সরানো হয়নি। */
 function wlv1SearchCard(r){
   const nm = String(r.name||'').trim() || normMob(r.mobile);
   const m = esc(mob(r.mobile));
+  const hold=(label,fixed)=>`onpointerdown="wlv1PatientHoldStart(this,'${label}'${fixed?`,'${esc(fixed)}'`:''})" onpointerup="wlv1PatientHoldEnd()" onpointerleave="wlv1PatientHoldEnd()" onpointercancel="wlv1PatientHoldEnd()"`;
   const act = (icon,label,cls,call)=>
     `<button class="wlv1SAct ${cls||''}" onclick="${call}"><span>${icon}</span><b>${label}</b></button>`;
-  return `<div class="wlv1SCard">
-    <div class="wlv1SHead" style="position:relative">
-      <button class="wlv1SDots" title="More" onclick="wlv1SearchMore('${m}')">\u22EE</button>
-      <div><div class="wlv1SName wlv1NameLink" onclick="wlv1FullJourney('${m}')" title="Tap for History">${esc(nm.toUpperCase())}</div>
-        <div class="wlv1SMeta">${esc(wlv1MobIdLine(shownMob(r.mobile),wlv1PidCode(r.mobile)))}${r.branch?' \u00b7 '+esc(r.branch):''}</div></div>
-      ${r.stage?`<div class="wlv1STag">${esc(r.stage)}</div>`:''}</div>
+  const stg = wlv1SearchStage(mob(r.mobile), r.stage);
+  const dis = String(r.disease||'').trim().toUpperCase();
+  const dt  = fmtDate(r.date||'');
+  const alt = (r.altMobile&&r.altMobile!==mob(r.mobile))?esc(r.altMobile):'';
+  const pid = esc(String(r.pid||'').trim());
+  const addr= String(r.address||'').trim();
+  return `<div class="wlv1SCard"><div class="wlv1SBar"></div><div class="wlv1SBody">
+    <div class="wlv1SHead">
+      <div class="wlv1SName" onclick="wlv1OpenPatientCard('${m}')" ${hold('Name')} title="Tap for Full Journey">${esc(nm.toUpperCase())}</div>
+      <button class="wlv1SDots" title="More" onclick="wlv1SearchMore('${m}')">⋮</button>
+    </div>
+    <div class="wlv1SChips">${r.branch?`<b class="wlv1SBr">${esc(r.branch)}</b>`:''}<span class="wlv1SChip stage">${esc(stg.label)}</span>${dis?`<span class="wlv1SChip dis">${esc(dis)}</span>`:''}${dt?`<span class="wlv1SDate">${esc(dt)}</span>`:''}${stg.flag?`<span class="wlv1SChip red">${esc(stg.flag)}</span>`:''}</div>
+    <div class="wlv1SMob"><span class="wlv1SPh" onclick="wlv1SearchCall('${m}')" ${hold('Mobile number',mob(r.mobile))}>\u{1F4DE} ${esc(shownMob(r.mobile))}</span>${alt?`<span class="wlv1SSep">·</span><span class="wlv1SPh alt" onclick="wlv1SearchCall('${alt}')" ${hold('Mobile number',r.altMobile)}>\u{1F4DE} Alt ${alt}</span>`:(pid?`<span class="wlv1SSep">·</span><span class="wlv1SPidIn">${pid}</span>`:'')}</div>
+    ${(alt&&pid)?`<div class="wlv1SPid">${pid}</div>`:''}
+    ${addr?`<div class="wlv1SAddr" onclick="wlv1OpenPatientCard('${m}')">\u{1F4CD} <span ${hold('Address')}>${esc(addr)}</span></div>`:''}
     <div class="wlv1SGrid">
-      ${/* \uD83C\uDFA8\uD83D\uDD12 V1322 (TK-\u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6: *"\u0995\u09be\u09b2\u09be\u09b0 \u09b9\u09c7\u09a1\u09be\u09b0\u09c7\u09b0 \u0995\u09be\u09b2\u09be\u09b0
-            \u09b8\u09be\u09a5\u09c7 \u09ae\u09bf\u09b6\u09c7 \u0995\u09c7\u09a8 \u09af\u09be\u09ac\u09c7"*) \u2014 Payment/Full Journey/Mark Arrived-\u098f\u09b0
-            \u09a8\u09bf\u099c\u09b8\u09cd\u09ac \u09b0\u0982, \u09b9\u09c7\u09a1\u09be\u09b0\u09c7\u09b0 \u09b8\u09ac\u09c1\u099c gradient-\u098f\u09b0 \u09b8\u0999\u09cd\u0997\u09c7 \u09af\u09c7\u09a8 \u0997\u09c1\u09b2\u09bf\u09df\u09c7 \u09a8\u09be \u09af\u09be\u09df\u0964 */''}
       ${act('\u{1F4B3}','Payment','blue',`patientPaymentHome()`)}
       ${act('\u{1F9ED}','Full Journey','purple',`wlv1FullJourney('${m}')`)}
       ${act('\u{1F4CB}','Report Card','g',`wlv1ReportCard('${m}')`)}
       ${act('\u{1F4DA}','Clinical History','',`wlv1ClinicalHistory('${m}')`)}
-      ${/* \uD83D\uDC8A V1027 \u2014 \u09ab\u09cb\u09a8\u09c7\u09b0 \u09ae\u09a4\u09cb Print \u0985\u09b0\u09cd\u09a7\u09c7\u0995, \u09aa\u09be\u09b6\u09c7 \u09ae\u09c7\u09a1\u09bf\u09b8\u09bf\u09a8\u09c7\u09b0 \u09ac\u09be\u0995\u09bf\u0964 Print \u098f\u0996\u09a8 \u22ee-\u098f\u0964 */''}
       ${(function(){var __d=wlv1MedDueOf(r.mobile);
         return __d>0
           ? `<button class="wlv1SAct wlv1SMedDue" onclick="wlv1MedDueOpen('${m}')"><span>\u{1F48A}</span><b>Med. Due ${esc(money(__d))}</b></button>`
           : `<button class="wlv1SAct wlv1SNoDue" type="button" onclick="return false"><span>\u{1F48A}</span><b>No med. due</b></button>`;})()}
-      ${/* \u26d4 V1322 \u2014 "Write Remark" \u09ac\u09be\u09a6 (TK-\u09a8\u09bf\u09b0\u09cd\u09a6\u09c7\u09b6)\u0964 Mark Arrived \u098f\u0996\u09a8 Med. Due-\u098f\u09b0 \u09aa\u09be\u09b6\u09c7\u0964 */''}
       ${act('\u{1F3E5}','Mark Arrived','amber',`wlv1MarkArrived('${m}')`)}
     </div>
-  </div>`;
+  </div></div>`;
 }
 window["wlv1SearchCard"]=wlv1SearchCard;
 
@@ -23656,7 +23695,8 @@ function wlv1SearchRun(q){
   load('enquiries').forEach(r=>{
     if(!isHit(r)) return;
     const d = mob(r.mobile); if(!d || byMobile.has(d)) return;
-    byMobile.set(d,{name:String(r.name||''), mobile:d, branch:r.branch||'', stage:'Enquiry'});
+    byMobile.set(d,{name:String(r.name||''), mobile:d, branch:r.branch||'', stage:'Enquiry',
+      disease:r.disease||'', address:r.address||'', altMobile:'', date:r.date||'', pid:''});   /* 🎨 V1401 */
   });
   const patRows = new Map();
   load('patients').forEach(r=>{
@@ -23667,7 +23707,8 @@ function wlv1SearchRun(q){
   });
   patRows.forEach((rows,d)=>{
     const p = wlv1PickPatientRow(rows,(typeof user!=='undefined'&&user&&user.branch)||'') || rows[0];
-    byMobile.set(d,{name:String(p.name||''), mobile:d, branch:p.branch||'', stage:'Patient'});
+    byMobile.set(d,{name:String(p.name||''), mobile:d, branch:p.branch||'', stage:'Patient',
+      disease:p.disease||p.diagnosis||'', address:p.address||'', altMobile:mob(p.altMobile||''), date:p.registrationDate||p.date||'', pid:p.patientId||''});   /* 🎨 V1401 */
   });
   const out = Array.from(byMobile.values());
   box.innerHTML = out.length ? out.map(wlv1SearchCard).join('')
