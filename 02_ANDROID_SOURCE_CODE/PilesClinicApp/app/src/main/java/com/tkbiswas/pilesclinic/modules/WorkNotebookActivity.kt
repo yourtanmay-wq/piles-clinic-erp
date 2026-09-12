@@ -2233,7 +2233,9 @@ class WorkNotebookActivity : AppCompatActivity() {
         // ⛔ বাকি সব স্টাফের জন্য GPS-পাহারা আগের মতোই অক্ষত (নিচের `else`
         //    শাখা, ধাপ ৩)। ⛔ আঙুলের ছাপ/পাসওয়ার্ড এই স্টাফের জন্যও অক্ষত —
         //    শুধু GPS-ধাপটাই বাদ, নিরাপত্তার বাকি সবকটা স্তর একই থাকে।
-        val gpsExemptMobiles = setOf("8167096595")   // জলপাইগুড়ি স্টাফ, RMP field-visit — TK-নির্দেশ ২৫.০৮.২০২৬
+        // 🟢🔒 V1377 (১২.০৯.২০২৬, TK-নির্দেশ "RUPAM যা ছিল তাই থাক") — কোচবিহারের
+        // ARMAN HOQUE-ও যোগ হলো, RUPAM-এর হুবহু একই ভূমিকায়।
+        val gpsExemptMobiles = setOf("8167096595", "9883884394")   // জলপাইগুড়ি RUPAM ও কোচবিহার ARMAN, RMP field-visit — TK-নির্দেশ ২৫.০৮.২০২৬ ও ১২.০৯.২০২৬
         val myDigits = (user?.mobile ?: "").filter { it.isDigit() }.takeLast(10)
         if (gpsExemptMobiles.contains(myDigits)) {
             startBiometricThenSaveInTime(onSaved)

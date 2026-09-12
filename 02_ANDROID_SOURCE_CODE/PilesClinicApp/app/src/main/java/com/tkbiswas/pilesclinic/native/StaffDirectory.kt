@@ -75,6 +75,11 @@ object StaffDirectory {
         StaffAccount("7679751521", "COB-UTTAMA", "Cooch Behar", "staff"),
         StaffAccount("7501256248", "COB-4", "Cooch Behar", "staff"),
         StaffAccount("8514002200", "COB-BRANCH", "Cooch Behar", "staff"),
+        // 🟢🔒 V1377 (১২.০৯.২০২৬, TK-নির্দেশ) — কোচবিহারের নতুন স্টাফ
+        //    **ARMAN HOQUE** — TK: "RUPAM যা ছিল তাই থাক" (JPE-RUPAM-এর হুবহু
+        //    একই ভূমিকা — শুধু Doctor Visit ও IN/OUT TIME; নতুন কোনো
+        //    কোড-স্তরের আটকানো নয়, RUPAM-এর মতোই ভরসার উপর)।
+        StaffAccount("9883884394", "COB-ARMAN", "Cooch Behar", "staff"),
         StaffAccount("9883623823", "FLK-1", "Falakata", "staff"),
         StaffAccount("8514001100", "FLK-BRANCH", "Falakata", "staff"),
         // 🔒 TK-এর নির্দেশ (29.07.2026 দুপুর ১.৩০, খাতার সারি B86): বিরপাড়ার

@@ -46,6 +46,9 @@ window.RK_CONFIG = {
       {mobile:'7679751521', name:'COB-UTTAMA', branch:'Cooch Behar'},
       {mobile:'7501256248', name:'COB-4', branch:'Cooch Behar'},
       {mobile:'8514002200', name:'COB-BRANCH', branch:'Cooch Behar'},
+      // 🟢🔒 V1377 (১২.০৯.২০২৬, TK-নির্দেশ "RUPAM যা ছিল তাই থাক") — কোচবিহারের
+      // নতুন স্টাফ ARMAN HOQUE। ফোনের StaffDirectory.kt-র হুবহু যমজ।
+      {mobile:'9883884394', name:'COB-ARMAN', branch:'Cooch Behar'},
       {mobile:'9883623823', name:'FLK-1', branch:'Falakata'},
       {mobile:'8514001100', name:'FLK-BRANCH', branch:'Falakata'},
       {mobile:'8538002200', name:'BIR-BRANCH', branch:'Birpara'}
