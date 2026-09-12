@@ -1,5 +1,24 @@
 [
   {
+    "file": "PILES_CLINIC_APP_V1376_FINAL.zip",
+    "versionCode": 1376,
+    "when": "12.09.2026 05.20 am",
+    "size_mb": 25.58,
+    "total_files": 1824,
+    "top_folders": {
+      "02_ANDROID_SOURCE_CODE": 771,
+      "(root)": 604,
+      "04_SUPABASE_DATABASE_SETUP": 130,
+      "00_SQL": 113,
+      "00_GUARD": 58,
+      "03_NETLIFY_READY": 53,
+      "08_ASSETS_BACKUP": 36,
+      "07_RELEASE_NOTES_VERSION_HISTORY": 31
+    },
+    "excluded": "00_GUARD/.kotlinc (গার্ডের কম্পাইলার, ~227MB) + 00_GUARD/__pycache__ + .git + .claude + 08_ASSETS_BACKUP/ANATOMY_PICTURES/ORIGINAL (৯.৩MB) — আগের মতোই, ৩০MB আপলোড-সীমার জন্য",
+    "note": "V1372-এর পর থেকে: 00_SQL-এ ২টা নতুন ফাইল (V1374, V1375) — তাই V1372 (1822 ফাইল) থেকে +২ = 1824। কাজ: Refund সেভের ৪-৫টা পড়া একসাথে (parallel, V1373), Return Visit/Refunded ডেটা যাচাই (কোড ঠিক ছিল, পুরনো APK-ই কারণ), SAIF RAZA/MANZAR ALAM একই মোবাইলে টাকা মেশা বন্ধ (V1376, Patient Timeline + Report Card দুটোতেই)। ওয়েবে (app.js) এই সেশনে নতুন কোনো বদল হয়নি।"
+  },
+  {
     "file": "PILES_CLINIC_APP_V1372_FINAL.zip",
     "versionCode": 1372,
     "when": "12.09.2026 02.54 am",
