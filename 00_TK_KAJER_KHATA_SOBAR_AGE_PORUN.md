@@ -26022,3 +26022,15 @@ Patient Name/Mobile/Bill/Total Paid কলাম, বেশি-জমা আগ�
 ক্রম অনুযায়ীই), শেষে বোল্ড TOTAL সারি (₹2,74,300)। সরাসরি Google Sheet
 বানানোর অ্যাক্সেস নেই — তাই .xlsx দেওয়া হলো (Google Sheets-এ আপলোড করা যায়)।
 SendUserFile দিয়ে TK-কে পাঠানো হলো। তালিকা ৪৭০ ✅ বন্ধ করা হলো।
+
+## ১২.০৯.২০২৬ — Visit Fee বাদ দিয়ে AMIT GOLDAR হিসাব (তালিকা ৪৭১)
+TK "Visit Fee বাদ দিয়ে হিসাব পাঠান" বললেন। V1370 SQL বানানো হলো — V1369-এর
+৫১ জন রোগী, কিন্তু Visit Fee (payType visit_fee/visitfee, remarks-এ "visit
+fee") ও তার approved রিফান্ড দুটোই বাদ, রেজিস্ট্রেশন/ট্রিটমেন্ট/মেডিসিন
+থাকছে। হাতে-বসানো টেস্ট-ডেটায় মিলিয়ে দেখা হলো (visit_fee+registration+
+treatment+medicine+২টা রিফান্ড → প্রত্যাশিত ১১৫০০ ঠিক এসেছে)।
+
+TK ফল পাঠালেন — যোগফল গুনে যাচাই: ₹2,54,100 — এটাই V1368-এর treatment_only
+(₹2,54,100)-এর সাথে হুবহু মিলল, তাই ভুল হয়নি নিশ্চিত হওয়া গেল।
+`AMIT_GOLDAR_PATIENTS_NO_VISITFEE_2026-09-12.xlsx` বানিয়ে SendUserFile দিয়ে
+পাঠানো হলো। তালিকা ৪৭১ ✅ বন্ধ।
