@@ -26246,3 +26246,15 @@ V1385 (শুধু পড়ার SQL, sql_local_check.py ✅ PASS) TK-কে 
   RMP-র Due = রোগী-ধরে বাকির যোগ (দুই পর্দা হুবহু এক), `notify pgrst`। নকল ডেটাবেসে ৩-রোগী দৃশ্যে
   (auto + হাতে-লেখা + legacy-only Rahim + থোক ₹5,496 → Rahim 1500 আগে, FRANCIS 3996) যাচাই ✅।
   ⚠️ sql_local_check.py এখানেও FIN_FILES ফাঁকে FAIL দেবে — বাড়ানো নকলে যাচাই করা।
+
+## ১৩.০৯.২০২৬ রাত ১২.৪৫ — PILES_CLINIC_APP_V1401_FINAL.zip পাঠানো হলো
+
+ভার্সন ১৪০০→১৪০১ (build.gradle.kts + version.json)। এই সেশনের সব কাজ (RMP এক-খাতা
+V1404-V1413, Referring doctor lock/dim V1414) এই ZIP-এ আছে। পাহারা: kotlin compile ✅ ·
+resources ✅ · node --check ✅ · tk_guard ✅ · web_browser_test — A/B/D/C ✅, শুধু টেস্ট E-র
+reload-timeout (পরিবেশগত, V1401-এও একই ছিল, TK জানেন) — নতুন কোনো ভুল নয়।
+হিসাব: 1854 ফাইল, 25.79 MB — `00_GUARD/pathano_filer_talika.json`-এ লেখা।
+
+**পরের সেশনের জন্য বাকি (TK বলেছেন পরে করবেন):**
+- Kishanganj-এর AMIT GOLDAR-এর নিজের হাতে-লেখা রোগীর তালিকা (নাম+টাকা) এলে সার্ভারের
+  ₹2,54,100/₹2,74,300-এর সঙ্গে মিলিয়ে ₹2,90,000-এর ফারাক (₹15,700-৩৫,৯০০) কোথায় ধরা।
