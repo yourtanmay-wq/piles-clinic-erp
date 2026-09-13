@@ -331,8 +331,8 @@ object CallNotifyManager {
                🏥 Visited X Branch for Piles · 💊 Piles Patient of X Branch; তারপর ঠিকানা।
                সেভ না থাকলে "🆕 New number · not saved in the app"। নিচে একটাই
                "LAST CALL" তথ্য (buildLastBox) — V1427-এর তিন লাইন ও আলাদা রিমার্ক-লাইন বাদ। */
-            val nm = cln(match?.name)
-            val title = "📞 " + (if (nm.isNotBlank()) "$nm · $number" else number)
+            val callerName = cln(match?.name)
+            val title = "📞 " + (if (callerName.isNotBlank()) "$callerName · $number" else number)
             val infoLines = ArrayList<String>()
             if (match != null) {
                 infoLines.add(stageLine(match))
