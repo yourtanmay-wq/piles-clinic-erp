@@ -203,7 +203,8 @@ object VoiceReportModel {
         q.contains("কত") || q.contains("কালেকশন") || q.contains("বিক্রি") || q.contains("হাজির")
 
     fun parse(q: String): Parsed? {
-        val (branch, branchLabel) = findBranch(q) ?: return null
+        // 🌐 V1423 (TK: "সব ব্রাঞ্চ মিলিয়ে মোট দেখান") — ব্রাঞ্চের নাম না বললে সব ব্রাঞ্চ মিলিয়ে
+        val (branch, branchLabel) = findBranch(q) ?: (VoiceReportRepository.ALL to "All branches")
         val metric = findMetric(q) ?: return null
         val extra = if (metric == Metric.DISEASE_COUNT) (findDisease(q) ?: "") else ""   // V1422 — রোগের নাম
         // 🔒 V1418 (১৩.০৯.২০২৬) — RMP-বাকি কোনো সময়-সীমার প্রশ্ন নয় (fin.rmp_branch_due

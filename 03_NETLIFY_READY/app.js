@@ -23795,10 +23795,29 @@ function wlv1VoiceIsQuestionLike(q){ return q.includes('কত')||q.includes('�
 const wlv1VoiceDiseaseMap=[['পাইলস','Piles'],['অর্শ','Piles'],['piles','Piles'],['ফিশার','Fissure'],['ফিসার','Fissure'],['fissure','Fissure'],
   ['ফিস্টুলা','Fistula'],['ভগন্দর','Fistula'],['fistula','Fistula'],['হাইড্রোসিল','Hydrocele'],['একশিরা','Hydrocele'],['hydrocele','Hydrocele'],['গুপ্ত','Gupt Rog'],['gupt','Gupt Rog']];
 function wlv1VoiceDisease(q){ const l=q.toLowerCase(); for(const [k,v] of wlv1VoiceDiseaseMap) if(l.includes(k)) return v; return null; }
+/* 🌐 V1423 (১৩.০৯.২০২৬, TK: "হ্যাঁ, সব ব্রাঞ্চ মিলিয়ে মোট দেখান") — ব্রাঞ্চের নাম না বললে
+   p_branch='ALL': একই ছোট্ট সার্ভার-ফাংশন পাঁচ ব্রাঞ্চের জন্য পাঁচবার, ফল জোড়া (ফোনের
+   VoiceReportRepository.reportsRpc-এর হুবহু নিয়ম): _list → সারি একসাথে; সংখ্যা → যোগ; summary → ঘর-ধরে যোগ। */
+const WLV1_VOICE_BRANCHES=['Kishanganj','Jalpaiguri','Cooch Behar','Falakata','Birpara'];
+function wlv1VoiceRpcClient(real){
+  if(!real) return null;
+  const num=v=>(typeof v==='number')?v:((typeof v==='string'&&v.trim()!==''&&!isNaN(Number(v)))?Number(v):null);
+  return { rpc: async (fn,a)=>{
+    if(!a||a.p_branch!=='ALL') return real.rpc(fn,a);
+    const parts=[];
+    for(const b of WLV1_VOICE_BRANCHES){ const r=await real.rpc(fn,{...a,p_branch:b}); if(r.error) return r; parts.push(r.data); }
+    if(fn.endsWith('_list')) return {data:parts.flatMap(x=>Array.isArray(x)?x:[])};
+    if(parts.every(x=>x===null||typeof x==='number')){ if(parts.some(x=>x===null)) return {data:null}; return {data:parts.reduce((s,x)=>s+x,0)}; }
+    const m={};
+    for(const x of parts){ const row=Array.isArray(x)?x[0]:null; if(!row) continue;
+      for(const k of Object.keys(row)){ const n=num(row[k]); if(n!==null) m[k]=(m[k]||0)+n; else if(!(k in m)) m[k]=row[k]; } }
+    return {data:[m]};
+  } };
+}
 function wlv1VoiceParse(q){
   let branch=null; const lower=q.toLowerCase();
   for(const [k,v] of wlv1VoiceBranchMap) if(lower.includes(k.toLowerCase())){branch=v;break}
-  if(!branch) return null;
+  if(!branch) branch='ALL';   // V1423 — সব ব্রাঞ্চ মিলিয়ে
   const hasSale = q.includes('বিক্রি');
   const hasMedicine = q.includes('মেডিসিন')||q.includes('ওষুধ');
   const hasSaline = q.includes('স্যালাইন');
@@ -23860,9 +23879,10 @@ function wlv1VoiceParse(q){
   const extra = metric==='DISEASE_COUNT' ? (wlv1VoiceDisease(q)||'') : '';
   // 🔒 V1418/V1419/V1420 — "এখন পর্যন্ত মোট" প্রশ্নগুলো সময়-সীমা নেয় না, তারিখ-ছাঁচ মেলা লাগে না
   const WLV1_VOICE_SNAPSHOT=['RMP_DUE','MEDICINE_DUE','HANDOVER_PENDING','PAYMENT_REQUESTS','REFERRAL_REQUESTS','STAFF_REMINDER_OPEN','DUPLICATE_PATIENTS','FEE_UNPAID','CALLS_PENDING'];
-  if(WLV1_VOICE_SNAPSHOT.includes(metric)) return {metric,branch,from:'',to:'',periodLabel:'Right now',extra};
+  const branchLabel = branch==='ALL' ? 'All branches' : branch;
+  if(WLV1_VOICE_SNAPSHOT.includes(metric)) return {metric,branch,branchLabel,from:'',to:'',periodLabel:'Right now',extra};
   const range=wlv1VoiceDateRange(q); if(!range) return null;
-  return {metric,branch,from:range.from,to:range.to,periodLabel:range.label,extra};
+  return {metric,branch,branchLabel,from:range.from,to:range.to,periodLabel:range.label,extra};
 }
 function wlv1VoicePeriodText(from,to,label){ return !from ? label : (from===to ? `${fmtDate(from)} (${label})` : `${fmtDate(from)} – ${fmtDate(to)} (${label})`); }
 async function wlv1ShowVoiceAnswer(q){
@@ -23873,12 +23893,12 @@ async function wlv1ShowVoiceAnswer(q){
       + `<div class="tiny" style="color:#7A8699;margin-top:4px">Try like: "Yesterday how many patients came in Jalpaiguri" or "last 7 days collection in Cooch Behar"</div></div>`;
     return;
   }
-  const title = `${parsed.branch} — ${wlv1VoicePeriodText(parsed.from,parsed.to,parsed.periodLabel)}`;
+  const title = `${parsed.branchLabel||parsed.branch} — ${wlv1VoicePeriodText(parsed.from,parsed.to,parsed.periodLabel)}`;
   host.innerHTML = `<div class="card" id="wlv1VoiceAnswerCard" style="background:#EAF6EE;border-color:#CBEBD6;cursor:pointer">`
     + `<div class="tiny" style="color:#5A6474">${esc(title)}</div>`
     + `<div id="wlv1VoiceAnswerNum" style="font-size:26px;font-weight:800;color:#0B8A3E">…</div>`
     + `<div id="wlv1VoiceAnswerSub" class="tiny" style="color:#5A6474"></div></div>`;
-  const c = await wlv1ReportsClient();
+  const c = wlv1VoiceRpcClient(await wlv1ReportsClient());
   if(!c){ $('#wlv1VoiceAnswerNum').textContent='?'; $('#wlv1VoiceAnswerSub').textContent='Could not verify login'; return; }
   // V1420 — নতুন প্রশ্নগুলোর জন্য ছোট্ট সাহায্যকারী (আগেরগুলো যেমন ছিল তেমনই)
   const vOk=(num,sub,m)=>{ $('#wlv1VoiceAnswerNum').textContent=num; $('#wlv1VoiceAnswerSub').textContent=sub+' • tap to see list ›'; $('#wlv1VoiceAnswerCard').onclick=()=>wlv1VoiceReportDetail(m,parsed.branch,parsed.from,parsed.to,title); };
@@ -24018,7 +24038,7 @@ window["wlv1ShowVoiceAnswer"]=wlv1ShowVoiceAnswer;
    নামে চাপলে সেই রোগীর Full Journey-তেই যায় (TK: "সেই পেজে রিডাইরেক্ট হয়")। */
 async function wlv1VoiceReportDetail(metric,branch,from,to,title){
   page(title, `<div id="wlv1VoiceDetailSummary" class="card mut">Loading…</div><div id="wlv1VoiceDetailRows"></div>`, true);
-  const c = await wlv1ReportsClient();
+  const c = wlv1VoiceRpcClient(await wlv1ReportsClient());
   if(!c){ $('#wlv1VoiceDetailSummary').textContent='Could not verify login'; return; }
   if(metric==='REGISTRATION_COUNT'){
     const r = await c.rpc('patients_registered_list',{p_branch:branch,p_from:from,p_to:to});

@@ -14,6 +14,57 @@ import org.json.JSONObject
 object VoiceReportRepository {
     data class RepoResult<T>(val ok: Boolean, val value: T? = null, val message: String = "")
 
+    /* 🌐 V1423 (১৩.০৯.২০২৬, TK: "হ্যাঁ, সব ব্রাঞ্চ মিলিয়ে মোট দেখান") — প্রশ্নে ব্রাঞ্চের নাম
+     * না থাকলে p_branch = "ALL": সার্ভারের একই ছোট্ট ফাংশন পাঁচ ব্রাঞ্চের জন্য পাঁচবার ডাকা হয়
+     * (প্রতিবার শুধু সংখ্যা/অল্প সারি আসে — ফ্রি প্ল্যান-নিরাপদ) আর ফল জোড়া হয়:
+     *   `_list` ফাংশন → সারিগুলো একসাথে; সংখ্যা-ফেরত ফাংশন → যোগ; এক-সারির summary → প্রতিটা
+     *   সংখ্যার ঘর যোগ (সব ঘরই গোনা/যোগফল, গড় কোথাও নেই — তাই যোগ করা সঠিক)।
+     * ⛔ SQL-এ কিছু বদলায়নি — ব্রাঞ্চ-পাহারা যেমন ছিল তেমনই। */
+    const val ALL = "ALL"
+    private val ALL_BRANCHES = listOf("Kishanganj", "Jalpaiguri", "Cooch Behar", "Falakata", "Birpara")
+
+    private fun reportsRpc(fn: String, args: JSONObject): ModuleAuth.RpcResult {
+        if (args.optString("p_branch") != ALL) return ModuleAuth.rpc("reports", fn, args)
+        val bodies = ArrayList<String>()
+        for (b in ALL_BRANCHES) {
+            val r = ModuleAuth.rpc("reports", fn, JSONObject(args.toString()).put("p_branch", b))
+            if (!r.ok) return r
+            bodies.add(r.body.trim())
+        }
+        return try { ModuleAuth.RpcResult(true, mergeBodies(fn, bodies), "") } catch (_: Exception) { ModuleAuth.RpcResult(false, "", "Invalid response") }
+    }
+
+    private fun numOf(v: Any?): Double? = when (v) {
+        is Number -> v.toDouble()
+        is String -> v.trim().toDoubleOrNull()
+        else -> null
+    }
+
+    private fun mergeBodies(fn: String, bodies: List<String>): String {
+        if (fn.endsWith("_list")) {
+            val out = JSONArray()
+            for (b in bodies) { val arr = JSONArray(b); for (i in 0 until arr.length()) out.put(arr.get(i)) }
+            return out.toString()
+        }
+        if (bodies.all { it == "null" || it.toDoubleOrNull() != null }) {
+            if (bodies.any { it == "null" }) return "null"
+            return if (bodies.all { it.toIntOrNull() != null }) bodies.sumOf { it.toInt() }.toString() else bodies.sumOf { it.toDouble() }.toString()
+        }
+        val merged = JSONObject()
+        for (b in bodies) {
+            val arr = JSONArray(b)
+            if (arr.length() == 0) continue
+            val row = arr.getJSONObject(0)
+            val keys = row.keys()
+            while (keys.hasNext()) {
+                val k = keys.next()
+                val n = numOf(row.opt(k))
+                if (n != null) merged.put(k, merged.optDouble(k, 0.0) + n) else if (!merged.has(k)) merged.put(k, row.opt(k))
+            }
+        }
+        return JSONArray().put(merged).toString()
+    }
+
     data class RegisteredPatient(val patientRowId: String, val patientCode: String, val name: String, val mobile: String, val registrationDate: String)
     data class CollectionSummary(val total: Double, val patientCount: Int, val paymentCount: Int)
     data class CollectionRow(val paymentId: String, val patientRowId: String, val name: String, val mobile: String, val amount: Double, val mode: String, val payType: String, val paidOn: String)
@@ -81,7 +132,7 @@ object VoiceReportRepository {
 
     /** সার্ভারের ফাংশন যখন একটাই সারি দেয় (summary) — ফাঁকা এলে "Not allowed"। */
     private fun firstRow(fn: String, a: JSONObject): RepoResult<JSONObject> {
-        val rpc = ModuleAuth.rpc("reports", fn, a)
+        val rpc = reportsRpc(fn, a)
         if (!rpc.ok) return RepoResult(false, message = rpc.message)
         return try {
             val arr = JSONArray(rpc.body)
@@ -90,7 +141,7 @@ object VoiceReportRepository {
     }
 
     private fun rowList(fn: String, a: JSONObject): RepoResult<List<JSONObject>> {
-        val rpc = ModuleAuth.rpc("reports", fn, a)
+        val rpc = reportsRpc(fn, a)
         if (!rpc.ok) return RepoResult(false, message = rpc.message)
         return try {
             val arr = JSONArray(rpc.body)
@@ -101,7 +152,7 @@ object VoiceReportRepository {
     }
 
     private fun scalarInt(fn: String, a: JSONObject): RepoResult<Int> {
-        val rpc = ModuleAuth.rpc("reports", fn, a)
+        val rpc = reportsRpc(fn, a)
         if (!rpc.ok) return RepoResult(false, message = rpc.message)
         val body = rpc.body.trim()
         if (body == "null") return RepoResult(false, message = "Not allowed for this branch")
@@ -233,7 +284,7 @@ object VoiceReportRepository {
         StaffPresentRow(it.optString("staff_code"), it.optString("work_date"), it.optString("check_in"), it.optString("check_out")) }
 
     fun patientsRegisteredCount(branch: String, from: String, to: String): RepoResult<Int> {
-        val rpc = ModuleAuth.rpc("reports", "patients_registered_count", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
+        val rpc = reportsRpc("patients_registered_count", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
         if (!rpc.ok) return RepoResult(false, message = rpc.message)
         val body = rpc.body.trim()
         if (body == "null") return RepoResult(false, message = "Not allowed for this branch")
@@ -242,7 +293,7 @@ object VoiceReportRepository {
     }
 
     fun patientsRegisteredList(branch: String, from: String, to: String): RepoResult<List<RegisteredPatient>> {
-        val rpc = ModuleAuth.rpc("reports", "patients_registered_list", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
+        val rpc = reportsRpc("patients_registered_list", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
         if (!rpc.ok) return RepoResult(false, message = rpc.message)
         return try {
             val arr = JSONArray(rpc.body)
@@ -256,7 +307,7 @@ object VoiceReportRepository {
     }
 
     fun collectionSummary(branch: String, from: String, to: String): RepoResult<CollectionSummary> {
-        val rpc = ModuleAuth.rpc("reports", "collection_summary", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
+        val rpc = reportsRpc("collection_summary", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
         if (!rpc.ok) return RepoResult(false, message = rpc.message)
         return try {
             val arr = JSONArray(rpc.body)
@@ -267,7 +318,7 @@ object VoiceReportRepository {
     }
 
     fun collectionList(branch: String, from: String, to: String): RepoResult<List<CollectionRow>> {
-        val rpc = ModuleAuth.rpc("reports", "collection_list", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
+        val rpc = reportsRpc("collection_list", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
         if (!rpc.ok) return RepoResult(false, message = rpc.message)
         return try {
             val arr = JSONArray(rpc.body)
@@ -284,7 +335,7 @@ object VoiceReportRepository {
      * স্যালাইন বিক্রি (VOICE_QUERY_PLAN আইটেম ৪ ও ২১) — একই `products` টেবিল,
      * শুধু kind আলাদা, তাই একটাই ফাংশন-জোড়া দুই kind দিয়েই ডাকা হয়। */
     fun productSaleSummary(branch: String, from: String, to: String, kind: String): RepoResult<ProductSaleSummary> {
-        val rpc = ModuleAuth.rpc("reports", "product_sale_summary", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to).put("p_kind", kind))
+        val rpc = reportsRpc("product_sale_summary", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to).put("p_kind", kind))
         if (!rpc.ok) return RepoResult(false, message = rpc.message)
         return try {
             val arr = JSONArray(rpc.body)
@@ -295,7 +346,7 @@ object VoiceReportRepository {
     }
 
     fun productSaleList(branch: String, from: String, to: String, kind: String): RepoResult<List<ProductSaleRow>> {
-        val rpc = ModuleAuth.rpc("reports", "product_sale_list", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to).put("p_kind", kind))
+        val rpc = reportsRpc("product_sale_list", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to).put("p_kind", kind))
         if (!rpc.ok) return RepoResult(false, message = rpc.message)
         return try {
             val arr = JSONArray(rpc.body)
@@ -312,7 +363,7 @@ object VoiceReportRepository {
      * সংখ্যা ও Approved রিফান্ডের টাকা (VOICE_QUERY_PLAN আইটেম ১১ ও ১৪-র রিফান্ড
      * অংশ — ডিসকাউন্ট আলাদা জায়গা থেকে আসে বলে এখানে বসানো হয়নি)। */
     fun enquiryCount(branch: String, from: String, to: String): RepoResult<Int> {
-        val rpc = ModuleAuth.rpc("reports", "enquiry_count", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
+        val rpc = reportsRpc("enquiry_count", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
         if (!rpc.ok) return RepoResult(false, message = rpc.message)
         val body = rpc.body.trim()
         if (body == "null") return RepoResult(false, message = "Not allowed for this branch")
@@ -321,7 +372,7 @@ object VoiceReportRepository {
     }
 
     fun enquiryList(branch: String, from: String, to: String): RepoResult<List<EnquiryRow>> {
-        val rpc = ModuleAuth.rpc("reports", "enquiry_list", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
+        val rpc = reportsRpc("enquiry_list", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
         if (!rpc.ok) return RepoResult(false, message = rpc.message)
         return try {
             val arr = JSONArray(rpc.body)
@@ -335,7 +386,7 @@ object VoiceReportRepository {
     }
 
     fun refundSummary(branch: String, from: String, to: String): RepoResult<RefundSummary> {
-        val rpc = ModuleAuth.rpc("reports", "refund_summary", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
+        val rpc = reportsRpc("refund_summary", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
         if (!rpc.ok) return RepoResult(false, message = rpc.message)
         return try {
             val arr = JSONArray(rpc.body)
@@ -346,7 +397,7 @@ object VoiceReportRepository {
     }
 
     fun refundList(branch: String, from: String, to: String): RepoResult<List<RefundRow>> {
-        val rpc = ModuleAuth.rpc("reports", "refund_list", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
+        val rpc = reportsRpc("refund_list", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
         if (!rpc.ok) return RepoResult(false, message = rpc.message)
         return try {
             val arr = JSONArray(rpc.body)
@@ -364,7 +415,7 @@ object VoiceReportRepository {
      * ⛔ RMP-বাকি এখানেও কোনো নতুন হিসাব করে না — শুধু আজই বানানো
      * `fin.rmp_branch_due` ডাকা হয় (CLAUDE.md ৭গ-র "একটাই সার্ভার-নিয়ম")। */
     fun cashHandoverSummary(branch: String, from: String, to: String): RepoResult<HandoverSummary> {
-        val rpc = ModuleAuth.rpc("reports", "cash_handover_summary", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
+        val rpc = reportsRpc("cash_handover_summary", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
         if (!rpc.ok) return RepoResult(false, message = rpc.message)
         return try {
             val arr = JSONArray(rpc.body)
@@ -375,7 +426,7 @@ object VoiceReportRepository {
     }
 
     fun cashHandoverList(branch: String, from: String, to: String): RepoResult<List<HandoverRow>> {
-        val rpc = ModuleAuth.rpc("reports", "cash_handover_list", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
+        val rpc = reportsRpc("cash_handover_list", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
         if (!rpc.ok) return RepoResult(false, message = rpc.message)
         return try {
             val arr = JSONArray(rpc.body)
@@ -389,7 +440,7 @@ object VoiceReportRepository {
     }
 
     fun rmpDueSummary(branch: String): RepoResult<RmpDueSummary> {
-        val rpc = ModuleAuth.rpc("reports", "rmp_due_summary", JSONObject().put("p_branch", branch))
+        val rpc = reportsRpc("rmp_due_summary", JSONObject().put("p_branch", branch))
         if (!rpc.ok) return RepoResult(false, message = rpc.message)
         return try {
             val arr = JSONArray(rpc.body)
@@ -400,7 +451,7 @@ object VoiceReportRepository {
     }
 
     fun rmpDueList(branch: String): RepoResult<List<RmpDueRow>> {
-        val rpc = ModuleAuth.rpc("reports", "rmp_due_list", JSONObject().put("p_branch", branch))
+        val rpc = reportsRpc("rmp_due_list", JSONObject().put("p_branch", branch))
         if (!rpc.ok) return RepoResult(false, message = rpc.message)
         return try {
             val arr = JSONArray(rpc.body)
@@ -417,7 +468,7 @@ object VoiceReportRepository {
      * বর্তমান বাকি (settlement-সারি বাদ দিয়ে সার্ভারেই আসল হিসাব), অ্যাপ-কল সংখ্যা,
      * ট্র্যাশে-যাওয়া রেকর্ড, RMP-অগ্রিম — সবই reports.* ছোট্ট ফাংশন, বাল্ক নয়। */
     fun productDueSummary(branch: String): RepoResult<ProductDueSummary> {
-        val rpc = ModuleAuth.rpc("reports", "product_due_summary", JSONObject().put("p_branch", branch))
+        val rpc = reportsRpc("product_due_summary", JSONObject().put("p_branch", branch))
         if (!rpc.ok) return RepoResult(false, message = rpc.message)
         return try {
             val arr = JSONArray(rpc.body)
@@ -428,7 +479,7 @@ object VoiceReportRepository {
     }
 
     fun productDueList(branch: String): RepoResult<List<ProductDueRow>> {
-        val rpc = ModuleAuth.rpc("reports", "product_due_list", JSONObject().put("p_branch", branch))
+        val rpc = reportsRpc("product_due_list", JSONObject().put("p_branch", branch))
         if (!rpc.ok) return RepoResult(false, message = rpc.message)
         return try {
             val arr = JSONArray(rpc.body)
@@ -442,7 +493,7 @@ object VoiceReportRepository {
     }
 
     fun callCount(branch: String, from: String, to: String): RepoResult<Int> {
-        val rpc = ModuleAuth.rpc("reports", "call_count", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
+        val rpc = reportsRpc("call_count", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
         if (!rpc.ok) return RepoResult(false, message = rpc.message)
         val body = rpc.body.trim()
         if (body == "null") return RepoResult(false, message = "Not allowed for this branch")
@@ -451,7 +502,7 @@ object VoiceReportRepository {
     }
 
     fun callList(branch: String, from: String, to: String): RepoResult<List<CallRow>> {
-        val rpc = ModuleAuth.rpc("reports", "call_list", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
+        val rpc = reportsRpc("call_list", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
         if (!rpc.ok) return RepoResult(false, message = rpc.message)
         return try {
             val arr = JSONArray(rpc.body)
@@ -465,7 +516,7 @@ object VoiceReportRepository {
     }
 
     fun trashSummary(branch: String, from: String, to: String): RepoResult<Int> {
-        val rpc = ModuleAuth.rpc("reports", "trash_summary", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
+        val rpc = reportsRpc("trash_summary", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
         if (!rpc.ok) return RepoResult(false, message = rpc.message)
         return try {
             val arr = JSONArray(rpc.body)
@@ -475,7 +526,7 @@ object VoiceReportRepository {
     }
 
     fun trashList(branch: String, from: String, to: String): RepoResult<List<TrashRow>> {
-        val rpc = ModuleAuth.rpc("reports", "trash_list", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
+        val rpc = reportsRpc("trash_list", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
         if (!rpc.ok) return RepoResult(false, message = rpc.message)
         return try {
             val arr = JSONArray(rpc.body)
@@ -489,7 +540,7 @@ object VoiceReportRepository {
     }
 
     fun rmpAdvanceSummary(branch: String, from: String, to: String): RepoResult<RmpAdvanceSummary> {
-        val rpc = ModuleAuth.rpc("reports", "rmp_advance_summary", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
+        val rpc = reportsRpc("rmp_advance_summary", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
         if (!rpc.ok) return RepoResult(false, message = rpc.message)
         return try {
             val arr = JSONArray(rpc.body)
@@ -500,7 +551,7 @@ object VoiceReportRepository {
     }
 
     fun rmpAdvanceList(branch: String, from: String, to: String): RepoResult<List<RmpAdvanceRow>> {
-        val rpc = ModuleAuth.rpc("reports", "rmp_advance_list", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
+        val rpc = reportsRpc("rmp_advance_list", JSONObject().put("p_branch", branch).put("p_from", from).put("p_to", to))
         if (!rpc.ok) return RepoResult(false, message = rpc.message)
         return try {
             val arr = JSONArray(rpc.body)
